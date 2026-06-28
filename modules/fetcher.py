@@ -5,6 +5,7 @@
 """
 
 import os
+import io
 import sqlite3
 import time
 from datetime import datetime, timedelta
@@ -76,7 +77,7 @@ class StockFetcher:
             return None
         updated_at = datetime.fromisoformat(row[1])
         if datetime.now() - updated_at < timedelta(days=self.cache_days):
-            return pd.read_json(row[0])
+            return pd.read_json(io.StringIO(row[0]))
         return None
 
     def _write_cache(self, conn, table_name, cache_key, df):

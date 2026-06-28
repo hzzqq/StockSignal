@@ -83,17 +83,18 @@ class NewsFetcher:
         :param limit: 最多返回条数
         :return: DataFrame[date, title, content, source]
         """
-        if not _AK_OK:
-            raise RuntimeError("akshare 未安装，请 pip install akshare")
-
         func = self.sources.get(source)
         if func is None:
             raise ValueError(f"不支持的来源: {source}，可选: {list(self.sources.keys())}")
 
+        if not _AK_OK:
+            raise RuntimeError("akshare 未安装，请 pip install akshare")
+
         df = func(keyword)
         if df is not None and not df.empty:
             df = df.head(limit).reset_index(drop=True)
-        return df or pd.DataFrame(columns=["date", "title", "content", "source"])
+            return df
+        return pd.DataFrame(columns=["date", "title", "content", "source"])
 
     def _fetch_eastmoney(self, keyword):
         """东方财富个股新闻或财经要闻。"""
@@ -404,6 +405,7 @@ class EventMiner:
 
         if not new_events.empty:
             combined = pd.concat([existing, new_events], ignore_index=True)
+            combined["date"] = pd.to_datetime(combined["date"], errors="coerce")
             combined = combined.sort_values("date", ascending=False).reset_index(drop=True)
             combined.to_csv(self.event_db_path, index=False, encoding="utf-8-sig")
 
