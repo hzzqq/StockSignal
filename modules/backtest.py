@@ -5,7 +5,6 @@
 
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
 
 from .fetcher import StockFetcher
 from .cleaner import DataCleaner
@@ -35,6 +34,11 @@ class Backtester:
         :param commission: 单边手续费率
         :return: BacktestResult 对象
         """
+        # 先校验策略类型，避免无效策略也发起网络请求
+        valid_strategies = {"event_driven", "ma_cross"}
+        if strategy not in valid_strategies:
+            raise ValueError(f"不支持的策略: {strategy}，可选: {valid_strategies}")
+
         df = self.fetcher.get_daily(ticker, start=start, end=end)
         df = DataCleaner.full_pipeline(df)
         if keywords is None:
@@ -44,8 +48,6 @@ class Backtester:
             signals = self._event_driven_signals(df, ticker, keywords)
         elif strategy == "ma_cross":
             signals = self._ma_cross_signals(df)
-        else:
-            raise ValueError(f"不支持的策略: {strategy}")
 
         result_df = self._simulate(df, signals, initial_capital, commission)
         return BacktestResult(ticker, strategy, result_df, initial_capital)
@@ -114,9 +116,9 @@ class Backtester:
         cash = initial_capital
         peak_value = initial_capital
 
-        for i, row in df.iterrows():
+        for idx, (_, row) in enumerate(df.iterrows()):
             price = row["close"]
-            sig = signals[i] if i < len(signals) else 0
+            sig = signals[idx] if idx < len(signals) else 0
 
             # 买入：用全部现金买入
             if sig == 1 and position == 0:
@@ -196,13 +198,25 @@ class BacktestResult:
 
     @property
     def win_rate(self):
-        """交易胜率。"""
-        trades = self.df[self.df["signal"] != 0]
-        if trades.empty:
+        """交易胜率：以卖出时是否盈利为准。"""
+        if self.df.empty:
             return 0
-        # 统计正收益天数占比
-        positive_days = self.df[self.df["daily_return"] > 0]
-        return round(len(positive_days) / len(self.df) * 100, 2) if len(self.df) > 0 else 0
+        # 找出所有卖出信号
+        sell_signals = self.df[self.df["signal"] == -1]
+        if sell_signals.empty:
+            return 0
+        # 统计卖出时持仓盈利的交易
+        wins = 0
+        for idx in sell_signals.index:
+            # 找到最近一次买入后的持仓成本
+            buy_rows = self.df.loc[:idx][self.df.loc[:idx, "signal"] == 1]
+            if buy_rows.empty:
+                continue
+            buy_price = buy_rows.iloc[-1]["close"]
+            sell_price = self.df.loc[idx, "close"]
+            if sell_price > buy_price:
+                wins += 1
+        return round(wins / len(sell_signals) * 100, 2) if len(sell_signals) > 0 else 0
 
     @property
     def trade_count(self):

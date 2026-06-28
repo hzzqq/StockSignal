@@ -175,7 +175,6 @@ class KeywordExtractor:
         if _JIEBA_OK:
             for w in self.DOMAIN_WORDS:
                 jieba.add_word(w)
-            jieba.analyse.set_stop_words = None  # 用内置
 
     def extract(self, text, topk=8, method="hybrid"):
         """
@@ -273,8 +272,9 @@ class SentimentAnalyzer:
             # 词典法：pos/(pos+neg) 映射到 -1~1
             raw = (pos_count - neg_count) / (pos_count + neg_count)
         else:
-            # SnowNLP: 0~1 映射到 -1~1
-            raw = (snownlp_score - 0.5) * 2
+            # SnowNLP 兜底：训练于电商评论，对正式金融文本偏乐观
+            # 压缩映射范围至 ±0.15，使其无法独立判定为正面/负面
+            raw = (snownlp_score - 0.5) * 0.3
 
         score = round(max(-1.0, min(1.0, raw)), 3)
 
@@ -386,8 +386,8 @@ class EventMiner:
         return events_df
 
     def _extract_ticker(self, text):
-        """从文本中提取 A 股代码（6位数字）。"""
-        match = re.search(r"\b(6\d{5}|0\d{5}|3\d{5})\b", str(text))
+        """从文本中提取 A 股代码（6位数字，以6/0/3开头）。"""
+        match = re.search(r"(?<!\d)(6\d{5}|0\d{5}|3\d{5})(?!\d)", str(text))
         return match.group(1) if match else ""
 
     def _save_events(self, events_df):

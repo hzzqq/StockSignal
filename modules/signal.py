@@ -4,12 +4,9 @@
 """
 
 import os
-import re
 from datetime import datetime, timedelta
 
-import numpy as np
 import pandas as pd
-import yaml
 
 from .fetcher import StockFetcher, load_config
 from .cleaner import DataCleaner
@@ -167,6 +164,8 @@ class SignalEngine:
         if not os.path.exists(self.event_db_path):
             return pd.DataFrame(columns=["date", "ticker", "title", "type"])
         df = pd.read_csv(self.event_db_path, parse_dates=["date"])
+        # 强制 ticker 为字符串，避免纯数字列被推断为 int64 导致 .str 访问器失效
+        df["ticker"] = df["ticker"].astype(str).str.strip()
         return df
 
     def add_event(self, date, ticker, title, event_type="中性"):

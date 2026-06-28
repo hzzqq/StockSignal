@@ -55,7 +55,7 @@ class TestSentimentAnalyzer:
 
     def test_neutral_text(self):
         analyzer = SentimentAnalyzer()
-        result = analyzer.analyze("今天天气不错")
+        result = analyzer.analyze("今日召开股东大会")
         assert result["sentiment"] == "中性"
 
     def test_empty_text(self):

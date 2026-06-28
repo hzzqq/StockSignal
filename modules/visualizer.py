@@ -8,10 +8,15 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import mplfinance as mpf
 import numpy as np
 import pandas as pd
+
+# mplfinance 可选导入（仅 matplotlib 静态 K 线用到，Plotly 交互图不需要）
+try:
+    import mplfinance as mpf
+    _MPF_OK = True
+except ImportError:
+    _MPF_OK = False
 
 # 中文字体配置
 plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei", "Arial Unicode MS"]
