@@ -1,0 +1,27 @@
+# StockSignal 全局配置文件
+
+tushare:
+  token: ""  # 在 https://tushare.pro 注册后填入，留空则只用 AKShare
+
+default:
+  market: "A股"
+  cache_days: 7          # 本地缓存有效天数
+  start_date: "2024-01-01"
+  end_date: "2025-12-31"
+
+database:
+  path: "data/cache.db"
+
+portfolio:
+  file: "data/portfolio.csv"
+
+events:
+  file: "data/events.csv"
+
+signal:
+  weights:
+    price: 0.4
+    event: 0.4
+    macro: 0.2
+  entry_threshold: 70    # 信号得分高于此值视为买入信号
+  exit_threshold: 40     # 信号得分低于此值视为卖出信号
