@@ -83,24 +83,29 @@ class Visualizer:
 
         fig.update_layout(
             xaxis_rangeslider_visible=False,
-            xaxis_type="category",          # 类别轴，只显示实际交易日，不补周末/节假日
             template="plotly_white",
             height=550,
             margin=dict(l=40, r=20, t=50, b=40),
             showlegend=True,
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            xaxis_tickformat="%m月%d日",
-            xaxis_tickangle=-45,
-            xaxis_showgrid=True,
-            xaxis_gridcolor="rgba(0,0,0,0.08)",
-            # 控制刻度数，避免标签拥挤（约每 15 个交易日显示一个）
-            xaxis_nticks=max(5, len(df) // 15),
+            xaxis=dict(
+                tickformat="%m月%d日",
+                tickangle=-45,
+                showgrid=True,
+                gridcolor="rgba(0,0,0,0.08)",
+                nticks=max(5, len(df) // 15),
+                # 隐藏周末空白（周六周日不显示）
+                rangebreaks=[dict(bounds=["sat", "mon"])],
+            ),
         )
-        # 成交量子图也同步 category 轴
+        # 成交量子图也同步
         if show_volume:
-            fig.update_xaxes(type="category", row=2, col=1,
-                             tickformat="%m月%d日", tickangle=-45,
-                             nticks=max(5, len(df) // 15))
+            fig.update_xaxes(
+                tickformat="%m月%d日", tickangle=-45,
+                nticks=max(5, len(df) // 15),
+                rangebreaks=[dict(bounds=["sat", "mon"])],
+                row=2, col=1,
+            )
         return fig
 
     # ------------------------------------------------------------------
