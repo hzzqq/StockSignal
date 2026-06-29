@@ -238,9 +238,11 @@ class TestNewsFetcherWhite:
         import modules.news as news_mod
         monkeypatch.setattr(news_mod, "_AK_OK", True)
         fetcher = NewsFetcher()
-        # Mock _fetch_eastmoney 返回空
+        # Mock _fetch_eastmoney 和 _fetch_stock_news_main 返回空
         monkeypatch.setattr(fetcher, "_fetch_eastmoney",
                             lambda kw: pd.DataFrame(columns=["date", "title", "content", "source"]))
+        monkeypatch.setattr(fetcher, "_fetch_stock_news_main",
+                            lambda kw: pd.DataFrame(columns=["date", "title", "content"]))
         df = fetcher.fetch(source="eastmoney", limit=5)
         assert isinstance(df, pd.DataFrame)
         assert df.empty

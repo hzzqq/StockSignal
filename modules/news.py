@@ -66,7 +66,7 @@ STOP_WORDS = {
 
 
 class NewsFetcher:
-    """多源新闻抓取器。"""
+    """多源新闻抓取器（适配 akshare 1.18.64 API 变更）。"""
 
     def __init__(self):
         self.sources = {
@@ -74,6 +74,7 @@ class NewsFetcher:
             "caixin": self._fetch_caixin,
             "cctv": self._fetch_cctv,
         }
+        self._today_news_cache = None  # 缓存当天的通用新闻，避免重复请求
 
     def fetch(self, keyword=None, source="eastmoney", limit=50):
         """
@@ -96,42 +97,79 @@ class NewsFetcher:
             return df
         return pd.DataFrame(columns=["date", "title", "content", "source"])
 
+    # ------------------------------------------------------------------
+    # 内部：通用快讯抓取 + 关键词过滤
+    # ------------------------------------------------------------------
+    def _fetch_stock_news_main(self, keyword):
+        """
+        抓取财新数据通-股票新闻（支持关键词过滤）。
+        stock_news_main_cx 返回 [tag, summary, url]（akshare 1.18.64 实测列名）。
+        """
+        try:
+            df = ak.stock_news_main_cx()
+
+            # 适配 API 返回的列名（实测为 tag/summary/url）
+            # summary 字段同时包含标题和摘要，取第一行作为 title
+            df = df.rename(columns={
+                "summary": "content",
+                "tag": "category",
+            })
+
+            # 从 summary 中提取首句作为 title（summary 可能很长）
+            df["title"] = df["content"].str.split(r"[\n。，；]", n=1).str[0].str.strip()
+            # 截断过长的标题
+            df["title"] = df["title"].str.slice(0, 80)
+
+            # 日期：API 不直接返回日期，使用今天
+            df["date"] = datetime.now().strftime("%Y-%m-%d")
+
+            # 关键词过滤
+            if keyword:
+                mask = (df["category"].str.contains(keyword, na=False) |
+                        df["title"].str.contains(keyword, na=False) |
+                        df["content"].str.contains(keyword, na=False))
+                df = df[mask]
+
+            df["date"] = pd.to_datetime(df["date"])
+            return df[["date", "title", "content"]].dropna(subset=["title"])
+        except Exception as e:
+            print(f"[NewsFetcher] 股票新闻抓取失败: {e}")
+            return pd.DataFrame(columns=["date", "title", "content", "source"])
+
     def _fetch_eastmoney(self, keyword):
-        """东方财富个股新闻或财经要闻。"""
+        """
+        东方财富来源。
+        stock_news_em 在 akshare 1.18.64 有 ArrowInvalid bug，
+        退化为 stock_news_main_cx + 关键词过滤；无关键词时用 news_cctv。
+        """
         try:
             if keyword:
-                # 个股新闻（keyword 视为股票名称或代码）
-                df = ak.stock_news_em(symbol=keyword)
-                df = df.rename(columns={
-                    "发布时间": "date", "新闻标题": "title",
-                    "新闻内容": "content"
-                })
+                # 有关键词 → 用财新数据通 + 关键词过滤
+                df = self._fetch_stock_news_main(keyword)
+                df["source"] = "eastmoney"
+                return df
             else:
-                # 财经要闻
+                # 无关键词 → 央视新闻联播
                 df = ak.news_cctv(date=datetime.now().strftime("%Y%m%d"))
                 df = df.rename(columns={"date": "date", "title": "title", "content": "content"})
-            df["source"] = "eastmoney"
-            df["date"] = pd.to_datetime(df["date"], errors="coerce")
-            return df[["date", "title", "content", "source"]].dropna(subset=["date"])
+                df["source"] = "eastmoney"
+                df["date"] = pd.to_datetime(df["date"], errors="coerce")
+                return df[["date", "title", "content", "source"]].dropna(subset=["date"])
         except Exception as e:
             print(f"[NewsFetcher] 东方财富抓取失败: {e}")
             return pd.DataFrame(columns=["date", "title", "content", "source"])
 
     def _fetch_caixin(self, keyword):
-        """财新新闻。"""
+        """财新数据通来源：直接调用 stock_news_main_cx。"""
         try:
-            df = ak.stock_news_main_cx()
-            df = df.rename(columns={"发布时间": "date", "标题": "title", "内容": "content"})
+            df = self._fetch_stock_news_main(keyword)
             df["source"] = "caixin"
-            df["date"] = pd.to_datetime(df["date"], errors="coerce")
-            if keyword:
-                df = df[df["title"].str.contains(keyword, na=False)]
-            return df[["date", "title", "content", "source"]].dropna(subset=["date"])
+            return df
         except Exception:
             return pd.DataFrame(columns=["date", "title", "content", "source"])
 
     def _fetch_cctv(self, keyword):
-        """央视新闻联播。"""
+        """央视新闻联播来源。"""
         try:
             date_str = datetime.now().strftime("%Y%m%d")
             df = ak.news_cctv(date=date_str)

@@ -165,7 +165,8 @@ if st.button("一键挖掘新闻事件", type="primary"):
                 limit=mine_limit
             )
             if mined.empty:
-                st.warning("未抓取到新闻，请稍后重试。")
+                st.warning(f"未抓取到与「{mine_keyword or '全部'}」相关的新闻。")
+                st.info("💡 提示：尝试换一个更通用的关键词，或留空关键词抓取全部财经要闻。")
             else:
                 st.success(f"成功挖掘 {len(mined)} 条事件并入库！")
 
