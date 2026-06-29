@@ -47,13 +47,21 @@ class Visualizer:
             subplot_titles=(title, "成交量") if show_volume else (title,)
         )
 
-        # K线
+        # K线（自定义悬停提示：中文 + 阿拉伯数字日期）
         fig.add_trace(go.Candlestick(
             x=df["date"], open=df["open"], high=df["high"],
             low=df["low"], close=df["close"],
             increasing_line_color="#e74c3c",   # A股：涨红
             decreasing_line_color="#2ecc71",   # A股：跌绿
-            name="K线"
+            name="K线",
+            hovertemplate=(
+                "<b>%{x|%m月%d日}</b><br>"
+                "开盘: ¥%{open:.2f}<br>"
+                "最高: ¥%{high:.2f}<br>"
+                "最低: ¥%{low:.2f}<br>"
+                "收盘: ¥%{close:.2f}<br>"
+                "<extra></extra>"
+            )
         ), row=1, col=1)
 
         # 均线
@@ -81,7 +89,7 @@ class Visualizer:
             margin=dict(l=40, r=20, t=50, b=40),
             showlegend=True,
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            xaxis_tickformat="%m-%d",
+            xaxis_tickformat="%m月%d日",
             xaxis_tickangle=-45,
             xaxis_showgrid=True,
             xaxis_gridcolor="rgba(0,0,0,0.08)",
@@ -91,7 +99,7 @@ class Visualizer:
         # 成交量子图也同步 category 轴
         if show_volume:
             fig.update_xaxes(type="category", row=2, col=1,
-                             tickformat="%m-%d", tickangle=-45,
+                             tickformat="%m月%d日", tickangle=-45,
                              nticks=max(5, len(df) // 15))
         return fig
 
