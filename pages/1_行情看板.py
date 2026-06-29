@@ -35,6 +35,23 @@ with st.sidebar:
     show_heatmap = st.checkbox("显示行业热力图", value=True)
     show_corr = st.checkbox("显示相关性矩阵", value=False)
 
+    st.markdown("---")
+    if st.button("🔄 强制刷新数据", help="清除本地缓存，重新从 AKShare 拉取最新行情", use_container_width=True):
+        fetcher.clear_cache(table_name="daily_cache",
+                            cache_key=f"daily_{ticker}_{start_str}_{end_str}_qfq")
+        # 同时清除可能存在的所有该 ticker 的缓存（不同日期范围）
+        import sqlite3 as _sqlite3
+        conn = fetcher._get_conn()
+        try:
+            conn.execute("DELETE FROM daily_cache WHERE cache_key LIKE ?", (f"daily_{ticker}_%",))
+            conn.commit()
+        except Exception:
+            pass
+        finally:
+            conn.close()
+        st.success("缓存已清除，正在刷新...")
+        st.rerun()
+
 start_str = start_date.strftime("%Y-%m-%d")
 end_str = end_date.strftime("%Y-%m-%d")
 

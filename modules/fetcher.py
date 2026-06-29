@@ -67,7 +67,11 @@ class StockFetcher:
         """)
         conn.commit()
 
-    def _read_cache(self, conn, table_name, cache_key):
+    def _read_cache(self, conn, table_name, cache_key, max_age_hours=None):
+        """
+        读取缓存。
+        :param max_age_hours: 强制指定最大缓存小时数，None 则用 cache_days
+        """
         self._init_cache_table(conn, table_name)
         row = conn.execute(
             f"SELECT data_json, updated_at FROM {table_name} WHERE cache_key = ?",
@@ -76,9 +80,36 @@ class StockFetcher:
         if row is None:
             return None
         updated_at = datetime.fromisoformat(row[1])
-        if datetime.now() - updated_at < timedelta(days=self.cache_days):
+        if max_age_hours is not None:
+            max_age = timedelta(hours=max_age_hours)
+        else:
+            max_age = timedelta(days=self.cache_days)
+        if datetime.now() - updated_at < max_age:
             return pd.read_json(io.StringIO(row[0]))
         return None
+
+    def clear_cache(self, table_name=None, cache_key=None):
+        """
+        清除指定缓存。
+        :param table_name: 表名，None 则清除所有表
+        :param cache_key:  特定 key，None 则清除整张表
+        """
+        conn = self._get_conn()
+        try:
+            tables = [table_name] if table_name else [
+                "daily_cache", "index_cache", "macro_cache", "commodity_cache"
+            ]
+            for t in tables:
+                try:
+                    if cache_key:
+                        conn.execute(f"DELETE FROM {t} WHERE cache_key = ?", (cache_key,))
+                    else:
+                        conn.execute(f"DELETE FROM {t}")
+                except sqlite3.OperationalError:
+                    pass  # 表不存在则跳过
+            conn.commit()
+        finally:
+            conn.close()
 
     def _write_cache(self, conn, table_name, cache_key, df):
         self._init_cache_table(conn, table_name)
@@ -106,7 +137,10 @@ class StockFetcher:
         cache_key = f"daily_{symbol}_{start}_{end}_{adjust}"
         conn = self._get_conn()
         try:
-            cached = self._read_cache(conn, "daily_cache", cache_key)
+            # 截止日期是"今天"时，缓存仅保留 6 小时（盘后数据当天更新）
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            max_age_hours = 6 if end == today_str else None
+            cached = self._read_cache(conn, "daily_cache", cache_key, max_age_hours=max_age_hours)
             if cached is not None:
                 return cached
 

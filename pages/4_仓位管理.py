@@ -30,7 +30,7 @@ st.subheader("添加持仓")
 st.markdown("**⚡ 快捷选择股数：**")
 quick_cols = st.columns(5)
 for col, qv in zip(quick_cols, [100, 500, 1000, 2000, 5000]):
-    if col.button(f"{q:,} 股", use_container_width=True):
+    if col.button(f"{qv:,} 股", use_container_width=True):
         st.session_state.default_shares = qv
         st.rerun()
 
@@ -108,7 +108,7 @@ st.markdown("---")
 st.subheader("盈亏统计")
 
 if not positions.empty:
-    with spinner_placeholder := st.spinner("正在获取行情并计算盈亏..."):
+    with st.spinner("正在获取行情并计算盈亏..."):
         try:
             pnl_df = pm.calc_pnl()
             summary = pm.summary()
