@@ -11,3 +11,4 @@ tushare>=1.4.0
 pytest>=8.0.0
 jieba>=0.42.1
 snownlp>=0.12.3
+baostock>=0.8.8

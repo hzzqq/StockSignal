@@ -36,7 +36,12 @@ with st.sidebar:
     show_corr = st.checkbox("显示相关性矩阵", value=False)
 
     st.markdown("---")
-    if st.button("🔄 强制刷新数据", help="清除本地缓存，重新从 AKShare 拉取最新行情", use_container_width=True):
+    
+    # 预计算日期字符串（供刷新按钮使用）
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    
+    if st.button("🔄 强制刷新数据", help="清除本地缓存，重新拉取最新行情", use_container_width=True):
         fetcher.clear_cache(table_name="daily_cache",
                             cache_key=f"daily_{ticker}_{start_str}_{end_str}_qfq")
         # 同时清除可能存在的所有该 ticker 的缓存（不同日期范围）
@@ -52,15 +57,16 @@ with st.sidebar:
         st.success("缓存已清除，正在刷新...")
         st.rerun()
 
-start_str = start_date.strftime("%Y-%m-%d")
-end_str = end_date.strftime("%Y-%m-%d")
+# 日期字符串已在上方定义（供刷新按钮和数据获取共用）
 
 # ------------------------------------------------------------------
 # K线图
 # ------------------------------------------------------------------
 st.subheader(f"{ticker} K线图")
 try:
+    import traceback as _tb
     df = fetcher.get_daily(ticker, start=start_str, end=end_str)
+    st.caption(f"✅ 数据获取成功: {len(df)} 行 {df['date'].iloc[0].strftime('%m-%d') if not df.empty else 'N/A'}~{df['date'].iloc[-1].strftime('%m-%d') if not df.empty else 'N/A'}")
     df = DataCleaner.full_pipeline(df)
 
     if df.empty:
@@ -84,7 +90,10 @@ try:
         st.plotly_chart(fig, use_container_width=True)
 
 except Exception as e:
+    import traceback as _tb
     st.error(f"获取数据失败: {e}")
+    with st.expander("🔍 调试信息"):
+        st.code(_tb.format_exc())
 
 # ------------------------------------------------------------------
 # 行业热力图

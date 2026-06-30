@@ -9,6 +9,7 @@
 
 import os
 import re
+import time
 from datetime import datetime, timedelta
 from collections import Counter
 
@@ -33,6 +34,29 @@ try:
     _SNOW_OK = True
 except ImportError:
     _SNOW_OK = False
+
+
+def _retry_request(func, max_retries=3, base_delay=2):
+    """网络请求自动重试（与 fetcher.py 同构）。"""
+    last_err = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            return func()
+        except (ConnectionError, TimeoutError, OSError) as e:
+            last_err = e
+            err_msg = str(e).lower()
+            is_transient = any(kw in err_msg for kw in [
+                "remote disconnected", "connection aborted", "reset by peer",
+                "timed out", "connection refused", "broken pipe",
+                "remote end closed", "temporary failure"
+            ])
+            if not is_transient or attempt == max_retries:
+                raise
+            delay = base_delay * (2 ** (attempt - 1))
+            time.sleep(delay)
+        except Exception:
+            raise
+    raise last_err
 
 
 # ------------------------------------------------------------------
@@ -89,7 +113,7 @@ class NewsFetcher:
             raise ValueError(f"不支持的来源: {source}，可选: {list(self.sources.keys())}")
 
         if not _AK_OK:
-            raise RuntimeError("akshare 未安装，请 pip install akshare")
+            return pd.DataFrame(columns=["date", "title", "content", "source"])
 
         df = func(keyword)
         if df is not None and not df.empty:
@@ -106,7 +130,7 @@ class NewsFetcher:
         stock_news_main_cx 返回 [tag, summary, url]（akshare 1.18.64 实测列名）。
         """
         try:
-            df = ak.stock_news_main_cx()
+            df = _retry_request(lambda: ak.stock_news_main_cx(), max_retries=3, base_delay=2)
 
             # 适配 API 返回的列名（实测为 tag/summary/url）
             # summary 字段同时包含标题和摘要，取第一行作为 title
@@ -150,7 +174,10 @@ class NewsFetcher:
                 return df
             else:
                 # 无关键词 → 央视新闻联播
-                df = ak.news_cctv(date=datetime.now().strftime("%Y%m%d"))
+                df = _retry_request(
+                    lambda: ak.news_cctv(date=datetime.now().strftime("%Y%m%d")),
+                    max_retries=3, base_delay=2
+                )
                 df = df.rename(columns={"date": "date", "title": "title", "content": "content"})
                 df["source"] = "eastmoney"
                 df["date"] = pd.to_datetime(df["date"], errors="coerce")
@@ -172,7 +199,10 @@ class NewsFetcher:
         """央视新闻联播来源。"""
         try:
             date_str = datetime.now().strftime("%Y%m%d")
-            df = ak.news_cctv(date=date_str)
+            df = _retry_request(
+                lambda: ak.news_cctv(date=date_str),
+                max_retries=3, base_delay=2
+            )
             df = df.rename(columns={"date": "date", "title": "title", "content": "content"})
             df["source"] = "cctv"
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
