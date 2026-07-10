@@ -44,6 +44,9 @@ class SignalEngine:
         if df.empty:
             return 50
 
+        df = df.copy()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
         if date is not None:
             df = df[df["date"] <= pd.Timestamp(date)]
         if len(df) < 20:
@@ -108,6 +111,7 @@ class SignalEngine:
 
         # ---- Part 1: 本地事件库匹配 ----
         if not events.empty:
+            events["date"] = pd.to_datetime(events["date"], errors="coerce")
             if date is not None:
                 date_ts = pd.Timestamp(date)
                 events = events[events["date"] >= date_ts - timedelta(days=30)]
@@ -220,15 +224,20 @@ class SignalEngine:
         :param date: 评估日期
         :return: dict {price_score, event_score, macro_score, total}
         """
-        # 拉取行情并清洗
+        # 拉取行情并清洗（失败时降级为中性评分）
         end = date or datetime.now().strftime("%Y-%m-%d")
         start = (datetime.strptime(end, "%Y-%m-%d") if date else datetime.now()) - timedelta(days=120)
         start_str = start.strftime("%Y-%m-%d")
 
-        df = self.fetcher.get_daily(ticker, start=start_str, end=end)
-        df = DataCleaner.full_pipeline(df)
+        try:
+            df = self.fetcher.get_daily(ticker, start=start_str, end=end)
+            df = DataCleaner.full_pipeline(df)
+            p_score = self.price_score(df, date)
+        except (RuntimeError, ValueError, Exception) as e:
+            # 行情数据不可用 → 价格信号给中性分，不影响事件和宏观评分
+            p_score = 50
+            print(f"[SignalEngine] 行情获取失败({ticker})，价格信号使用中性分50: {e}")
 
-        p_score = self.price_score(df, date)
         e_score = self.event_score(ticker, event_keywords, date)
         m_score = self.macro_score(date)
 

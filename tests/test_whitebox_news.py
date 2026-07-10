@@ -9,7 +9,7 @@ import pytest
 import pandas as pd
 from datetime import datetime, timedelta
 from modules.news import (
-    NewsFetcher, KeywordExtractor, SentimentAnalyzer, EventMiner,
+    NewsFetcher, KeywordExtractor, SentimentAnalyzer, EventMiner, NewsDatabase,
     POSITIVE_WORDS, NEGATIVE_WORDS, STOP_WORDS
 )
 
@@ -221,28 +221,43 @@ class TestNewsFetcherWhite:
             fetcher.fetch(source="invalid_source")
 
     def test_no_akshare(self, monkeypatch):
+        """akshare 未安装且网络不可用时，应优雅降级为空 DataFrame，而非抛 RuntimeError。"""
         import modules.news as news_mod
+        import urllib.error, urllib.request
         monkeypatch.setattr(news_mod, "_AK_OK", False)
-        fetcher = NewsFetcher()
-        with pytest.raises(RuntimeError, match="akshare 未安装"):
-            fetcher.fetch(source="eastmoney")
 
-    def test_sources_dict(self):
+        # 阻断底层网络请求，确保可复现的降级路径
+        def _blocked(*a, **k):
+            raise urllib.error.URLError("network blocked in test")
+        monkeypatch.setattr(urllib.request, "urlopen", _blocked)
+
         fetcher = NewsFetcher()
-        assert "eastmoney" in fetcher.sources
-        assert "caixin" in fetcher.sources
-        assert "cctv" in fetcher.sources
+        df = fetcher.fetch(source="eastmoney", limit=5)
+        assert isinstance(df, pd.DataFrame)
+        assert df.empty
+
+    def test_supported_sources_return_dataframe(self, monkeypatch):
+        """各受支持来源（eastmoney/caixin/cctv/auto）应返回 DataFrame。"""
+        fetcher = NewsFetcher()
+        # 将各抓取实现替换为返回空 DataFrame，验证 source 分发正确
+        empty = pd.DataFrame(columns=["date", "title", "content", "source", "url"])
+        monkeypatch.setattr(fetcher, "_fetch_eastmoney_web", lambda kw, limit=50: empty)
+        monkeypatch.setattr(fetcher, "_fetch_caixin", lambda kw, limit=50: empty)
+        monkeypatch.setattr(fetcher, "_fetch_cctv", lambda kw, limit=30: empty)
+        for source in ("eastmoney", "caixin", "cctv", "auto"):
+            df = fetcher.fetch(keyword="煤炭", source=source, limit=5)
+            assert isinstance(df, pd.DataFrame)
 
     def test_fetch_returns_empty_on_error(self, monkeypatch):
         """抓取失败时返回空 DataFrame。"""
         import modules.news as news_mod
         monkeypatch.setattr(news_mod, "_AK_OK", True)
         fetcher = NewsFetcher()
-        # Mock _fetch_eastmoney 和 _fetch_stock_news_main 返回空
-        monkeypatch.setattr(fetcher, "_fetch_eastmoney",
-                            lambda kw: pd.DataFrame(columns=["date", "title", "content", "source"]))
-        monkeypatch.setattr(fetcher, "_fetch_stock_news_main",
-                            lambda kw: pd.DataFrame(columns=["date", "title", "content"]))
+        # Mock 底层东方财富抓取实现返回空（方法名已更名 _fetch_eastmoney → _fetch_eastmoney_web）
+        monkeypatch.setattr(
+            fetcher, "_fetch_eastmoney_web",
+            lambda keyword, limit=50: pd.DataFrame(columns=["date", "title", "content", "source", "url"]),
+        )
         df = fetcher.fetch(source="eastmoney", limit=5)
         assert isinstance(df, pd.DataFrame)
         assert df.empty
@@ -256,51 +271,51 @@ class TestEventMinerWhite:
     def test_extract_ticker_6_prefix(self):
         """6 开头的沪市代码。"""
         miner = EventMiner()
-        assert miner._extract_ticker("贵州茅台600519创新高") == "600519"
+        assert miner._extract_ticker_enhanced("贵州茅台600519创新高") == "600519"
 
     def test_extract_ticker_0_prefix(self):
         """0 开头的深市代码。"""
         miner = EventMiner()
-        assert miner._extract_ticker("000858五粮液涨停") == "000858"
+        assert miner._extract_ticker_enhanced("000858五粮液涨停") == "000858"
 
     def test_extract_ticker_3_prefix(self):
         """3 开头的创业板代码。"""
         miner = EventMiner()
-        assert miner._extract_ticker("300750宁德时代") == "300750"
+        assert miner._extract_ticker_enhanced("300750宁德时代") == "300750"
 
     def test_extract_ticker_no_code(self):
         miner = EventMiner()
-        assert miner._extract_ticker("没有代码的新闻") == ""
+        assert miner._extract_ticker_enhanced("没有代码的新闻") == ""
 
     def test_extract_ticker_longer_number(self):
         """7位以上的数字不应匹配。"""
         miner = EventMiner()
-        assert miner._extract_ticker("订单号12345678") == ""
+        assert miner._extract_ticker_enhanced("订单号12345678") == ""
 
     def test_extract_ticker_multiple(self):
         """多组代码时取第一组。"""
         miner = EventMiner()
-        result = miner._extract_ticker("600519和000858同时涨停")
+        result = miner._extract_ticker_enhanced("600519和000858同时涨停")
         assert result in ("600519", "000858")
 
     def test_save_events_dedup(self, tmp_path):
         """重复保存同一批事件不应增加条数。"""
         miner = EventMiner()
-        miner.event_db_path = str(tmp_path / "test_events.csv")
+        miner.event_csv_path = str(tmp_path / "test_events.csv")
         events_df = pd.DataFrame([
             {"date": pd.Timestamp("2025-06-01"), "ticker": "601088",
              "title": "煤炭涨价", "type": "正面", "keywords": "煤炭,涨价",
              "sentiment_score": 0.8, "source": "eastmoney"},
         ])
-        miner._save_events(events_df)
-        miner._save_events(events_df)  # 重复保存
-        loaded = pd.read_csv(miner.event_db_path, encoding="utf-8-sig")
+        miner._save_events_csv(events_df)
+        miner._save_events_csv(events_df)  # 重复保存
+        loaded = pd.read_csv(miner.event_csv_path, encoding="utf-8-sig")
         assert len(loaded) == 1
 
     def test_save_events_append_new(self, tmp_path):
         """追加新事件。"""
         miner = EventMiner()
-        miner.event_db_path = str(tmp_path / "test_events.csv")
+        miner.event_csv_path = str(tmp_path / "test_events.csv")
         df1 = pd.DataFrame([
             {"date": pd.Timestamp("2025-06-01"), "ticker": "601088",
              "title": "事件A", "type": "正面", "keywords": "煤炭",
@@ -311,27 +326,33 @@ class TestEventMinerWhite:
              "title": "事件B", "type": "负面", "keywords": "白酒",
              "sentiment_score": -0.3, "source": "cctv"},
         ])
-        miner._save_events(df1)
-        miner._save_events(df2)
-        loaded = pd.read_csv(miner.event_db_path, encoding="utf-8-sig")
+        miner._save_events_csv(df1)
+        miner._save_events_csv(df2)
+        loaded = pd.read_csv(miner.event_csv_path, encoding="utf-8-sig")
         assert len(loaded) == 2
 
-    def test_get_hot_keywords_no_file(self, tmp_path):
+    def test_get_hot_keywords_empty_db(self, tmp_path):
+        """空库应返回空列表。"""
         miner = EventMiner()
-        miner.event_db_path = str(tmp_path / "nonexistent.csv")
+        miner.db = NewsDatabase(str(tmp_path / "news.db"))
         assert miner.get_hot_keywords(days=7, topk=10) == []
 
     def test_get_hot_keywords_empty_file(self, tmp_path):
+        """有标题但无关键词时返回空列表。"""
         miner = EventMiner()
-        path = str(tmp_path / "test_events.csv")
-        miner.event_db_path = path
-        pd.DataFrame(columns=["date", "keywords"]).to_csv(path, index=False, encoding="utf-8-sig")
+        miner.db = NewsDatabase(str(tmp_path / "news.db"))
+        events_df = pd.DataFrame([
+            {"date": pd.Timestamp.now(), "ticker": "601088",
+             "title": "无关键词新闻", "type": "中性", "keywords": "",
+             "sentiment_score": 0.0, "source": "eastmoney"},
+        ])
+        miner.db.save_news(events_df, search_keyword="测试")
         assert miner.get_hot_keywords(days=7, topk=10) == []
 
     def test_get_hot_keywords_sorted(self, tmp_path):
         """关键词按出现次数降序排列。"""
         miner = EventMiner()
-        miner.event_db_path = str(tmp_path / "test_events.csv")
+        miner.db = NewsDatabase(str(tmp_path / "news.db"))
         events_df = pd.DataFrame([
             {"date": pd.Timestamp.now(), "ticker": "601088",
              "title": "煤炭涨价", "type": "正面",
@@ -340,7 +361,7 @@ class TestEventMinerWhite:
              "title": "煤炭供需缺口", "type": "正面",
              "keywords": "煤炭,供需缺口", "sentiment_score": 0.6, "source": "cctv"},
         ])
-        miner._save_events(events_df)
+        miner.db.save_news(events_df, search_keyword="煤炭")
         hot = miner.get_hot_keywords(days=7, topk=10)
         assert len(hot) > 0
         assert hot[0][0] == "煤炭"  # 出现2次
@@ -349,7 +370,7 @@ class TestEventMinerWhite:
     def test_mine_events_empty_news(self, monkeypatch, tmp_path):
         """新闻为空时返回空 DataFrame。"""
         miner = EventMiner()
-        miner.event_db_path = str(tmp_path / "test_events.csv")
+        miner.db = NewsDatabase(str(tmp_path / "news.db"))
         monkeypatch.setattr(miner.news_fetcher, "fetch",
                             lambda *a, **k: pd.DataFrame())
         result = miner.mine_events(keyword="煤炭", auto_save=False)

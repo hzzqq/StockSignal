@@ -1,0 +1,221 @@
+"""
+pages/7_用户管理.py
+------------------
+管理员用户管理页面：用户列表 / 创建 / 编辑 / 删除 / 操作日志。
+"""
+import streamlit as st
+from modules.session import init_session_state, require_admin, render_user_badge, get_user
+from modules.admin_api import get_users, create_user, update_user, delete_user, get_logs
+
+init_session_state()
+require_admin()
+
+st.set_page_config(page_title="用户管理", page_icon="👥", layout="wide")
+st.title("👥 用户管理")
+render_user_badge()
+
+# 初始化分页 state
+if "user_mgmt_page" not in st.session_state:
+    st.session_state["user_mgmt_page"] = 1
+if "user_mgmt_keyword" not in st.session_state:
+    st.session_state["user_mgmt_keyword"] = ""
+if "log_page" not in st.session_state:
+    st.session_state["log_page"] = 1
+
+# ================================================================ Tab 布局
+tab_users, tab_create, tab_logs = st.tabs(["📋 用户列表", "➕ 创建用户", "📝 操作日志"])
+
+# ----------------------------------------------------------------- 用户列表
+with tab_users:
+    col_search, col_refresh = st.columns([3, 1])
+    with col_search:
+        keyword = st.text_input("搜索用户名", value=st.session_state["user_mgmt_keyword"],
+                                key="user_search_input", placeholder="输入用户名关键词")
+    with col_refresh:
+        if st.button("🔄 刷新", width="stretch"):
+            st.session_state["user_mgmt_keyword"] = keyword
+            st.rerun()
+
+    st.session_state["user_mgmt_keyword"] = keyword
+    page = st.session_state["user_mgmt_page"]
+
+    code, resp = get_users(page=page, per_page=20, keyword=keyword)
+    if code != 200 or resp.get("status") != "ok":
+        st.error(f"获取用户列表失败: {resp.get('message', '未知错误')}")
+    else:
+        data = resp["data"]
+        items = data["items"]
+        total = data["total"]
+        pages = data["pages"]
+
+        if not items:
+            st.info("暂无用户数据")
+        else:
+            st.caption(f"共 {total} 个用户 · 第 {page}/{pages} 页")
+            for u in items:
+                with st.container(border=True):
+                    col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 2])
+                    with col1:
+                        role_icon = "🛡️" if u["role"] == "admin" else "👤"
+                        status = "🟢" if u["is_active"] else "🔴"
+                        st.markdown(f"{role_icon} **{u['username']}** {status}")
+                    with col2:
+                        st.caption(f"ID: {u['id']}")
+                        st.caption(f"创建: {u['created_at'][:10]}")
+                    with col3:
+                        st.caption(f"角色: `{u['role']}`")
+                    with col4:
+                        st.caption(f"状态: {'正常' if u['is_active'] else '停用'}")
+                    with col5:
+                        col_edit, col_del = st.columns(2)
+                        with col_edit:
+                            if st.button("✏️ 编辑", key=f"edit_{u['id']}"):
+                                st.session_state["editing_user"] = u
+                                st.rerun()
+                        with col_del:
+                            current = get_user() or {}
+                            if u["id"] == current.get("id"):
+                                st.button("🗑️ 删除", key=f"del_{u['id']}", disabled=True, help="不能删除自己")
+                            elif u["username"] == "admin":
+                                st.button("🗑️ 删除", key=f"del_{u['id']}", disabled=True, help="不能删除初始管理员")
+                            else:
+                                if st.button("🗑️ 删除", key=f"del_{u['id']}", type="secondary"):
+                                    st.session_state["deleting_user"] = u
+                                    st.rerun()
+
+            # 分页
+            col_prev, col_info, col_next = st.columns([1, 2, 1])
+            with col_prev:
+                if st.button("⬅️ 上一页", disabled=(page <= 1)):
+                    st.session_state["user_mgmt_page"] = page - 1
+                    st.rerun()
+            with col_info:
+                st.caption(f"第 {page} / {pages} 页")
+            with col_next:
+                if st.button("➡️ 下一页", disabled=(page >= pages)):
+                    st.session_state["user_mgmt_page"] = page + 1
+                    st.rerun()
+
+# ----------------------------------------------------------------- 创建用户
+with tab_create:
+    st.subheader("创建新用户")
+    with st.form("create_user_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            new_username = st.text_input("用户名", placeholder="2-32位，字母数字下划线中文")
+        with col2:
+            new_password = st.text_input("密码", type="password", placeholder="至少6位")
+
+        new_role = st.selectbox("角色", ["user", "admin"],
+                                format_func=lambda x: "👤 普通用户 (user)" if x == "user" else "🛡️ 管理员 (admin)")
+
+        submitted = st.form_submit_button("✅ 创建用户", type="primary")
+        if submitted:
+            if not new_username or not new_password:
+                st.error("用户名和密码不能为空")
+            else:
+                code, resp = create_user(new_username, new_password, new_role)
+                if code == 200 and resp.get("status") == "ok":
+                    st.success(f"✅ 用户 `{new_username}` 创建成功！")
+                    st.balloons()
+                else:
+                    st.error(f"创建失败: {resp.get('message', '未知错误')}")
+
+# ----------------------------------------------------------------- 编辑弹窗
+if "editing_user" in st.session_state:
+    u = st.session_state["editing_user"]
+    with st.dialog(f"编辑用户 - {u['username']}", width="medium"):
+        st.caption(f"ID: {u['id']} · 创建于: {u['created_at'][:10]}")
+
+        edit_role = st.selectbox("角色", ["user", "admin"],
+                                 index=0 if u["role"] == "user" else 1,
+                                 format_func=lambda x: "👤 普通用户" if x == "user" else "🛡️ 管理员",
+                                 key="edit_role_select")
+
+        edit_active = st.checkbox("账号激活", value=u["is_active"], key="edit_active_check")
+
+        st.markdown("---")
+        st.caption("重置密码（留空则不修改）")
+        edit_password = st.text_input("新密码", type="password", placeholder="至少6位", key="edit_pwd_input")
+
+        col_save, col_cancel = st.columns(2)
+        with col_save:
+            if st.button("💾 保存", type="primary", width="stretch"):
+                payload = {"role": edit_role, "is_active": edit_active}
+                if edit_password:
+                    payload["password"] = edit_password
+                code, resp = update_user(u["id"], **payload)
+                if code == 200 and resp.get("status") == "ok":
+                    st.success("更新成功！")
+                    del st.session_state["editing_user"]
+                    st.rerun()
+                else:
+                    st.error(f"更新失败: {resp.get('message', '未知错误')}")
+        with col_cancel:
+            if st.button("取消", width="stretch"):
+                del st.session_state["editing_user"]
+                st.rerun()
+
+# ----------------------------------------------------------------- 删除确认
+if "deleting_user" in st.session_state:
+    u = st.session_state["deleting_user"]
+    with st.dialog("⚠️ 确认删除", width="small"):
+        st.warning(f"确定要删除用户 **{u['username']}** (ID: {u['id']}) 吗？")
+        st.caption("此操作不可撤销。")
+        col_confirm, col_cancel = st.columns(2)
+        with col_confirm:
+            if st.button("🗑️ 确认删除", type="primary"):
+                code, resp = delete_user(u["id"])
+                if code == 200 and resp.get("status") == "ok":
+                    st.success("删除成功！")
+                    del st.session_state["deleting_user"]
+                    st.rerun()
+                else:
+                    st.error(f"删除失败: {resp.get('message', '未知错误')}")
+        with col_cancel:
+            if st.button("取消"):
+                del st.session_state["deleting_user"]
+                st.rerun()
+
+# ----------------------------------------------------------------- 操作日志
+with tab_logs:
+    page = st.session_state["log_page"]
+    code, resp = get_logs(page=page, per_page=20)
+    if code != 200 or resp.get("status") != "ok":
+        st.error(f"获取日志失败: {resp.get('message', '未知错误')}")
+    else:
+        data = resp["data"]
+        items = data["items"]
+        total = data["total"]
+        pages = data["pages"]
+
+        st.caption(f"共 {total} 条日志 · 第 {page}/{pages} 页")
+
+        if not items:
+            st.info("暂无操作日志")
+        else:
+            for log in items:
+                action_color = {
+                    "create_user": "🟢",
+                    "update_user": "🟡",
+                    "delete_user": "🔴",
+                }.get(log["action"], "⚪")
+                st.markdown(
+                    f"{action_color} `{log['created_at'][:19]}` "
+                    f"**{log['username']}** → {log['action']} "
+                    f"→ `{log['target']}`"
+                )
+                if log.get("detail"):
+                    st.caption(f"   └ {log['detail']}")
+
+            col_prev, col_info, col_next = st.columns([1, 2, 1])
+            with col_prev:
+                if st.button("⬅️ 上一页", disabled=(page <= 1), key="log_prev"):
+                    st.session_state["log_page"] = page - 1
+                    st.rerun()
+            with col_info:
+                st.caption(f"第 {page} / {pages} 页")
+            with col_next:
+                if st.button("➡️ 下一页", disabled=(page >= pages), key="log_next"):
+                    st.session_state["log_page"] = page + 1
+                    st.rerun()

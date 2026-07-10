@@ -1,0 +1,44 @@
+# ============================================================
+# StockSignal — 后端 Dockerfile
+# 目标镜像：Flask 后端 (端口 5050)
+# 构建上下文需为 StockSignal 项目根目录。
+# ============================================================
+
+FROM python:3.11-slim
+
+# 禁止 Python 写 __pycache__、缓冲 stdout，便于日志落盘与容器日志采集
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONIOENCODING=utf-8
+
+WORKDIR /app
+
+# 编译期依赖：akshare/pandas 等部分 wheel 需要 gcc
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# 先装依赖（利用层缓存）
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
+
+# 拷贝后端代码与全局配置
+COPY backend/ ./backend/
+COPY config.yaml ./config.yaml
+
+# SQLite 落盘目录（容器外通过卷挂载持久化 app.db）
+RUN mkdir -p backend/data logs
+
+EXPOSE 5050
+
+# ── 入口逻辑 ──
+# 1) 库不存在则建表 + 写入 admin/demo 种子账号 (init_db)
+# 2) 尝试导入 A 股股票列表 (import_stocks，需外网；失败不阻断启动)
+# 3) 监听 0.0.0.0:5050（容器内必须 0.0.0.0，不能沿用脚本里的 127.0.0.1）
+# 生产建议改用 gunicorn（backend/app.py:158 已提示），此处用 flask run 便于草案验证。
+ENTRYPOINT ["sh", "-c", "\
+if [ ! -f backend/data/app.db ]; then \
+  python -m backend.scripts.init_db; \
+fi; \
+python -m backend.scripts.import_stocks || echo '[warn] import_stocks 跳过/失败（可能无外网），不影响服务启动'; \
+exec python -m flask --app backend.app:app run --host 0.0.0.0 --port 5050"]

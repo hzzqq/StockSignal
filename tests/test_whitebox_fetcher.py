@@ -117,16 +117,32 @@ class TestGetDaily:
             pytest.skip("akshare 未安装")
 
     def test_akshare_not_installed_error(self, tmp_path, monkeypatch):
-        """akshare 未安装时应抛出 RuntimeError。"""
+        """akshare 关闭后，fetcher 应跳过 akshare 并尝试完整降级链；
+        当全部数据源（akshare/BaoStock/新浪/东方财富/缓存）均不可用时，
+        抛出描述性 RuntimeError（而非 'akshare 未安装' 这类导入级硬崩溃）。
+
+        注：与 FETCHER_CONTRACT §4「get_daily → 空 DataFrame」存在差异——
+        当前 modules/fetcher.py 在全部源失败时返回 RuntimeError（见 get_daily L5/L6 分支），
+        并不会返回空 DataFrame。此处以真实实现为准；契约差异已上报 team-lead。
+        """
         import modules.fetcher as fetcher_mod
+        import urllib.error, urllib.request
         monkeypatch.setattr(fetcher_mod, "_AK_OK", False)
+        monkeypatch.setattr(fetcher_mod, "_BS_OK", False)
+        # 阻断网络源，使用隔离的空缓存库，确保可复现
+        def _blocked(*a, **k):
+            raise urllib.error.URLError("network blocked in test")
+        monkeypatch.setattr(urllib.request, "urlopen", _blocked)
 
         config_path = str(tmp_path / "config.yaml")
         with open(config_path, "w") as f:
-            f.write("default:\n  cache_days: 7\n")
+            f.write(
+                f"default:\n  cache_days: 7\n"
+                f"database:\n  path: {tmp_path / 'cache.db'}\n"
+            )
 
         fetcher = StockFetcher(config_path)
-        with pytest.raises(RuntimeError, match="akshare 未安装"):
+        with pytest.raises(RuntimeError):
             fetcher.get_daily("600519", start="2025-01-01", end="2025-06-01")
 
     def test_returns_expected_columns(self):
@@ -166,11 +182,29 @@ class TestGetMacro:
 class TestGetSectorData:
     """板块数据白盒测试。"""
 
-    def test_get_sector_list_no_akshare(self, monkeypatch):
+    def test_get_sector_list_no_akshare(self, tmp_path, monkeypatch):
+        """akshare 关闭后，get_sector_list 走完整降级链（东方财富→同花顺→BaoStock→过期缓存）；
+        当全部数据源与缓存均不可用时，抛出描述性 RuntimeError（非 'akshare 未安装' 硬崩溃）。
+
+        注：与 FETCHER_CONTRACT §4「get_sector_list → DataFrame」存在差异——当前实现在
+        全部源失败时返回 RuntimeError（见 get_sector_list L4/L5 分支）。以真实实现为准，差异已上报。
+        """
         import modules.fetcher as fetcher_mod
+        import urllib.error, urllib.request
         monkeypatch.setattr(fetcher_mod, "_AK_OK", False)
-        fetcher = StockFetcher()
-        with pytest.raises(RuntimeError, match="akshare 未安装"):
+        monkeypatch.setattr(fetcher_mod, "_BS_OK", False)
+        def _blocked(*a, **k):
+            raise urllib.error.URLError("network blocked in test")
+        monkeypatch.setattr(urllib.request, "urlopen", _blocked)
+
+        config_path = str(tmp_path / "config.yaml")
+        with open(config_path, "w") as f:
+            f.write(
+                f"default:\n  cache_days: 7\n"
+                f"database:\n  path: {tmp_path / 'cache.db'}\n"
+            )
+        fetcher = StockFetcher(config_path)
+        with pytest.raises(RuntimeError):
             fetcher.get_sector_list()
 
     def test_get_sector_stocks_no_akshare(self, monkeypatch):

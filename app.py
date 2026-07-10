@@ -12,6 +12,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ── 鉴权门禁：未登录直接跳到 /登录 ──
+from modules.session import require_auth, render_user_badge, is_admin, get_user
+require_auth()
+
 st.title("📊 StockSignal · A股事件驱动投资分析平台")
 st.markdown("---")
 
@@ -20,13 +24,31 @@ with st.sidebar:
     st.header("导航")
     st.markdown("""
     **功能页面：**
-    - 📈 行情看板 — K线、均线、成交量
+    - 📈 行情看板（含板块涨跌）— K线、均线、成交量、行业板块
+    - 🔍 个股分析 — 个股深度决策仪表盘
     - 🔔 事件追踪 — 信号评分、事件时间轴
     - ⚙️ 策略回测 — 事件驱动 / 均线交叉
     - 💰 仓位管理 — 持仓盈亏、Excel导出
+    - 👤 我的（含偏好设置）— 个人信息、自选股、外观与数据源设置
     """)
 
+    if is_admin():
+        st.markdown("""
+        **管理后台：**
+        - 👥 用户管理 — 用户CRUD、操作日志
+        - ⚙️ 系统配置 — 股票数据、系统配置
+        """)
+
     st.markdown("---")
+    render_user_badge(sidebar=True)
+
+    # 角色标识
+    user = get_user() or {}
+    if user.get("role") == "admin":
+        st.success("🛡️ 管理员模式")
+    else:
+        st.info("👤 普通用户模式")
+
     st.caption("软件工程实训课程设计")
     st.caption("作者：hzz")
 

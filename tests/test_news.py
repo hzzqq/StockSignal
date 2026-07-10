@@ -3,7 +3,7 @@
 import pytest
 import pandas as pd
 from modules.news import (
-    NewsFetcher, KeywordExtractor, SentimentAnalyzer, EventMiner,
+    NewsFetcher, KeywordExtractor, SentimentAnalyzer, EventMiner, NewsDatabase,
     POSITIVE_WORDS, NEGATIVE_WORDS
 )
 
@@ -88,15 +88,17 @@ class TestSentimentAnalyzer:
 class TestEventMiner:
 
     def test_extract_ticker(self, tmp_path):
+        # 对齐新 API：_extract_ticker → _extract_ticker_enhanced(text, context_keyword=None)
         miner = EventMiner()
-        assert miner._extract_ticker("贵州茅台600519创新高") == "600519"
-        assert miner._extract_ticker("000858五粮液涨停") == "000858"
-        assert miner._extract_ticker("300750宁德时代") == "300750"
-        assert miner._extract_ticker("没有代码的新闻") == ""
+        assert miner._extract_ticker_enhanced("贵州茅台600519创新高") == "600519"
+        assert miner._extract_ticker_enhanced("000858五粮液涨停") == "000858"
+        assert miner._extract_ticker_enhanced("300750宁德时代") == "300750"
+        assert miner._extract_ticker_enhanced("没有代码的新闻") == ""
 
     def test_save_and_load_events(self, tmp_path):
+        # 对齐新 API：_save_events → _save_events_csv（写入 event_csv_path，按标题去重）
         miner = EventMiner()
-        miner.event_db_path = str(tmp_path / "test_events.csv")
+        miner.event_csv_path = str(tmp_path / "test_events.csv")
 
         events_df = pd.DataFrame([
             {"date": pd.Timestamp("2025-06-01"), "ticker": "601088",
@@ -106,21 +108,22 @@ class TestEventMiner:
              "title": "PMI超预期", "type": "正面", "keywords": "PMI,宏观",
              "sentiment_score": 0.6, "source": "cctv"},
         ])
-        miner._save_events(events_df)
+        miner._save_events_csv(events_df)
 
         # 验证保存
         import os
-        assert os.path.exists(miner.event_db_path)
+        assert os.path.exists(miner.event_csv_path)
 
-        # 验证去重追加
+        # 验证去重追加：相同标题的第二条不会重复计入
         dup_df = events_df.copy()
-        miner._save_events(dup_df)
-        loaded = pd.read_csv(miner.event_db_path, encoding="utf-8-sig")
+        miner._save_events_csv(dup_df)
+        loaded = pd.read_csv(miner.event_csv_path, encoding="utf-8-sig")
         assert len(loaded) == 2  # 去重后仍为2条
 
     def test_get_hot_keywords(self, tmp_path):
+        # get_hot_keywords 现从 self.db（NewsDatabase）读取，使用隔离临时 DB 验证排序
         miner = EventMiner()
-        miner.event_db_path = str(tmp_path / "test_events.csv")
+        miner.db = NewsDatabase(str(tmp_path / "news.db"))
 
         events_df = pd.DataFrame([
             {"date": pd.Timestamp.now(), "ticker": "601088",
@@ -130,7 +133,7 @@ class TestEventMiner:
              "title": "煤炭供需缺口", "type": "正面", "keywords": "煤炭,供需缺口",
              "sentiment_score": 0.6, "source": "cctv"},
         ])
-        miner._save_events(events_df)
+        miner.db.save_news(events_df, search_keyword="煤炭")
 
         hot = miner.get_hot_keywords(days=7, topk=10)
         assert len(hot) > 0

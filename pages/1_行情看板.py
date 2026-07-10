@@ -365,7 +365,129 @@ def _render_sector_cards(df, top_n=24):
         unsafe_allow_html=True,
     )
     if top_n and len(df) > top_n:
-        st.caption(f"仅显示涨幅前 {top_n} 名（共 {len(df)} 个行业），完整榜单见「板块详情」页。")
+        st.caption(f"仅显示涨幅前 {top_n} 名（共 {len(df)} 个行业），完整榜单见「板块涨跌」页。")
+
+
+def _get_market_status():
+    """
+    返回当前交易时段状态元组 (is_open, status_text, refresh_interval_ms)。
+
+    状态细分：
+    - 🟢 交易中（实时数据）— 上午 9:30-11:30 / 下午 13:00-15:00
+    - 🟡 午间休市（展示上午收盘数据）— 11:30-13:00 工作日
+    - 🔵 盘后（展示全天收盘数据）— 15:00-16:00 工作日（延后15分钟缓冲）
+    - ⚪ 已休市（展示最后一交易日数据）— 非上述时段 / 周末 / 节假日
+    """
+    now = datetime.now()
+    t = now.time()
+    weekday = now.weekday()
+
+    if weekday >= 5:
+        return False, "⚪ 已休市（周末），展示最后一交易日数据", 0
+
+    am_start, am_end = time(9, 30), time(11, 30)
+    pm_start, pm_end = time(13, 0), time(15, 0)
+    after_close = time(16, 0)
+
+    if am_start <= t <= am_end:
+        return True, "🟢 上午交易中（实时数据）", 60 * 1000
+    elif am_end < t < pm_start:
+        return False, "🟡 午间休市，展示上午收盘数据", 60 * 1000
+    elif pm_start <= t <= pm_end:
+        return True, "🟢 下午交易中（实时数据）", 60 * 1000
+    elif pm_end < t <= after_close:
+        return False, "🔵 已收盘，展示今日全天数据", 0
+    else:
+        if t < am_start:
+            return False, "⚪ 尚未开盘，展示上一交易日数据", 0
+        else:
+            return False, "⚪ 已休市，展示最后一交易日数据", 0
+
+
+def render_sector_detail():
+    """板块涨跌详情（由独立的板块详情页合并而来）。
+
+    展示全部行业板块涨跌幅排行（红涨绿跌），支持自动刷新与强制刷新。
+    依赖模块级 ``fetcher``（已在页面顶部初始化）。
+    """
+    global fetcher
+    try:
+        from streamlit_autorefresh import st_autorefresh
+        is_open, status_text, refresh_ms = _get_market_status()
+        if refresh_ms > 0:
+            st_autorefresh(interval=refresh_ms, key="sector_detail_autorefresh")
+    except Exception:
+        is_open, status_text, _ = _get_market_status()
+
+    st.caption(status_text)
+
+    if st.button("🔄 强制刷新板块数据", key="force_refresh_sector_tab", use_container_width=True):
+        with st.spinner("正在刷新板块数据..."):
+            try:
+                fetcher.get_sector_list(force_refresh=True)
+                st.success("刷新成功")
+            except Exception as e:
+                st.error(f"刷新失败: {e}")
+        st.rerun()
+
+    try:
+        cache_info = fetcher.get_sector_cache_info()
+    except Exception:
+        cache_info = None
+    if cache_info:
+        updated_at_iso, age_minutes, data_source = cache_info
+        try:
+            updated_at = datetime.fromisoformat(updated_at_iso)
+            time_str = updated_at.strftime("%H:%M:%S")
+            if age_minutes > 60:
+                st.warning(
+                    f"⚠️ 板块数据已缓存 {age_minutes:.0f} 分钟（{time_str}，来源：{data_source}），"
+                    f"可能未跟随最新市场。点击「强制刷新板块数据」更新。"
+                )
+            else:
+                st.caption(f"🕒 数据更新时间：{time_str}（约 {age_minutes:.0f} 分钟前）| 来源：{data_source}")
+        except Exception:
+            pass
+
+    try:
+        sector_df = fetcher.get_sector_list()
+        if not sector_df.empty:
+            sector_df["change_pct"] = pd.to_numeric(sector_df["change_pct"], errors="coerce").fillna(0)
+            sector_df = sector_df.sort_values("change_pct", ascending=False).reset_index(drop=True)
+            sector_df["排名"] = range(1, len(sector_df) + 1)
+            sector_df["涨跌"] = sector_df["change_pct"].apply(lambda x: f"{x:+.2f}%")
+
+            def _color_pct(x):
+                if x > 0:
+                    return f"<span style='color:{UP_COLOR};font-weight:600;'>{x:+.2f}%</span>"
+                elif x < 0:
+                    return f"<span style='color:{DOWN_COLOR};font-weight:600;'>{x:+.2f}%</span>"
+                else:
+                    return f"<span style='color:#95a5a6;'>{x:+.2f}%</span>"
+
+            if sector_df["change_pct"].abs().max() < 0.01:
+                st.warning("⚠️ 当前数据源未返回板块涨跌幅，仅展示行业列表。交易时间或网络恢复后会自动获取真实数据。")
+
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.markdown("#### 涨跌排行表格")
+                display_cols = ["排名", "sector", "change_pct"]
+                st.dataframe(
+                    sector_df[display_cols].rename(columns={"sector": "板块", "change_pct": "涨跌幅"}),
+                    width="stretch",
+                    column_config={
+                        "涨跌幅": st.column_config.NumberColumn(format="%.2f%%")
+                    },
+                    height=700,
+                )
+            with col2:
+                st.markdown("#### 涨跌分布")
+                fig = Visualizer.sector_heatmap(sector_df, title="全部行业板块涨跌幅")
+                st.plotly_chart(fig, width="stretch")
+        else:
+            st.warning("未获取到板块数据。")
+    except Exception as e:
+        st.error(f"获取板块数据失败: {e}")
 
 
 if show_heatmap:
@@ -414,11 +536,7 @@ if show_heatmap:
                     _mstatus = "⚪ 已休市（展示最后交易日数据）"
                 st.caption(f"{_mstatus} · 同花顺风格板块涨跌榜")
             with col_btn:
-                try:
-                    st.page_link("pages/2_板块详情.py", label="查看全部", icon="📊")
-                except Exception:
-                    if st.button("查看全部", key="btn_view_all_sectors"):
-                        safe_switch_page("pages/2_板块详情.py")
+                st.caption("完整榜单见下方「📊 板块涨跌」页签")
 
             # 如果数据源未提供涨跌幅（全为 0），给出提示
             if sector_df["change_pct"].abs().max() < 0.01:
@@ -477,3 +595,11 @@ def fragment_correlation(start_str: str, end_str: str):
 
 if show_corr:
     fragment_correlation(start_str, end_str)
+
+# ------------------------------------------------------------------
+# 板块涨跌（原「板块详情」页合并而来，作为独立页签）
+# ------------------------------------------------------------------
+st.markdown("---")
+_sector_tab, = st.tabs(["📊 板块涨跌"])
+with _sector_tab:
+    render_sector_detail()

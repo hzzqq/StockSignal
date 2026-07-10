@@ -1,0 +1,46 @@
+# ============================================================
+# StockSignal — 前端 Dockerfile
+# 目标镜像：Streamlit 多页前端 (端口 8501)
+# 构建上下文需为 StockSignal 项目根目录。
+# ============================================================
+
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONIOENCODING=utf-8
+
+WORKDIR /app
+
+# 编译期依赖：akshare/numpy 等部分 wheel 需要 gcc
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# 前端依赖（根 requirements.txt：streamlit/akshare/pandas/plotly/...）
+COPY requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 拷贝前端运行所需代码
+COPY app.py config.yaml ./ 
+COPY modules/ ./modules/
+COPY pages/ ./pages/
+COPY .streamlit/ ./.streamlit/
+
+RUN mkdir -p data logs
+
+EXPOSE 8501
+
+# ── 入口逻辑 ──
+# Streamlit 监听 0.0.0.0:8501，headless 模式（无浏览器自动打开）。
+# 前端通过 modules/session.API_BASE 访问后端。当前该常量硬编码为
+# http://127.0.0.1:5050（见 modules/session.py:31），在 docker-compose
+# 两服务布局下需由环境变量 STOCKSIGNAL_API_BASE 覆盖——此能力需
+# 前端/后端模块在 modules/session.py 增加一行 env 读取（见 README 草案
+# “容器化注意事项”）。草案阶段可用单容器或同网络别名变通。
+ENTRYPOINT ["sh", "-c", "\
+exec streamlit run app.py \
+  --server.port 8501 \
+  --server.address 0.0.0.0 \
+  --server.headless true \
+  --browser.gatherUsageStats false"]

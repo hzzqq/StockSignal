@@ -124,8 +124,13 @@ class TestBlackBox_Module2_Visualization:
         df = self._make_ohlc(30)
         fig = Visualizer.candlestick(df)
         candlestick = fig.data[0]
-        assert candlestick.increasing.line.color == "#e74c3c"
-        assert candlestick.decreasing.line.color == "#2ecc71"
+        # candlestick 使用 go.Bar 手动绘制，颜色位于 marker.color
+        colors = candlestick.marker.color
+        assert colors[0] == "#ff4d4f"  # 涨红（A股红涨）
+        df_down = df.copy()
+        df_down.loc[0, "close"] = df_down.loc[0, "open"] - 1.0
+        fig_down = Visualizer.candlestick(df_down)
+        assert fig_down.data[0].marker.color[0] == "#00d486"  # 跌绿（A股绿跌）
 
 
 # ==================================================================
@@ -315,7 +320,7 @@ class TestBlackBox_Module4_Backtest:
             "cumulative_return": [0, 0, 20, 20, 50, 50],
             "drawdown": [0, 0, 0, 0, 0, 0]
         })
-        result = BacktestResult("600519", "test", df, 1000)
+        result = BacktestResult("600519", "test", df, 1000, trades=[{"profit_pct": 50.0}])
         assert result.win_rate == 100.0
 
     def test_req15_summary_output(self):

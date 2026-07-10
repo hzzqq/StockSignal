@@ -161,7 +161,7 @@ class TestBacktestResultWhite:
             "cumulative_return": [0, 0, 20, 20, 50, 50],
             "drawdown": [0, 0, 0, 0, 0, 0]
         })
-        result = BacktestResult("600519", "test", df, 1000)
+        result = BacktestResult("600519", "test", df, 1000, trades=[{"profit_pct": 50.0}])
         # 唯一一次卖出: buy@10, sell@15 → 盈利
         assert result.win_rate == 100.0
 
@@ -178,7 +178,7 @@ class TestBacktestResultWhite:
             "cumulative_return": [0, 10, 20, 20, 20],
             "drawdown": [0, 0, 0, 0, 0]
         })
-        result = BacktestResult("600519", "test", df, 1000)
+        result = BacktestResult("600519", "test", df, 1000, trades=[{"profit_pct": 20.0}, {"profit_pct": -5.0}])
         assert result.trade_count == 2
 
     def test_summary_text(self):
@@ -278,7 +278,7 @@ class TestBacktesterWhite:
             "close": [10, 11, 12, 13, 14],
         })
         signals = [1, 0, 0, 0, -1]
-        result = bt._simulate(df, signals, initial_capital=10000, commission=0.001)
+        result, trades = bt._simulate(df, signals, initial_capital=10000, commission=0.001)
 
         assert len(result) == 5
         assert result.iloc[0]["signal"] == 1   # 买入
@@ -295,7 +295,7 @@ class TestBacktesterWhite:
             "close": [10, 11, 12, 13, 14],
         })
         signals = [0, 0, 0, 0, 0]
-        result = bt._simulate(df, signals, initial_capital=10000, commission=0.001)
+        result, trades = bt._simulate(df, signals, initial_capital=10000, commission=0.001)
 
         assert all(result["position"] == 0)
         assert all(result["cash"] == 10000)
@@ -308,7 +308,7 @@ class TestBacktesterWhite:
             "close": [10, 11],
         })
         signals = [1, 0]
-        result = bt._simulate(df, signals, initial_capital=10000, commission=0.001)
+        result, trades = bt._simulate(df, signals, initial_capital=10000, commission=0.001)
 
         # 买入后 cash 应 < 10000
         assert result.iloc[0]["cash"] < 10000
@@ -321,7 +321,7 @@ class TestBacktesterWhite:
             "close": [10, 12, 8, 9, 10],
         })
         signals = [1, 0, 0, 0, 0]
-        result = bt._simulate(df, signals, initial_capital=10000, commission=0)
+        result, trades = bt._simulate(df, signals, initial_capital=10000, commission=0)
 
         assert result["drawdown"].min() <= 0
 
@@ -333,7 +333,8 @@ class TestBacktesterWhite:
             "close": [10, 11, 12],
         })
         signals = [1, 0, 0]
-        result = bt._simulate(df, signals, initial_capital=10000, commission=0)
+        result, trades = bt._simulate(df, signals, initial_capital=10000, commission=0,
+                                      slippage_pct=0, stamp_tax_pct=0)
 
         # 买入1000股@10 = 10000, 资产 = 1000*close
         # day0: 1000*10 = 10000, cum_return = 0%

@@ -60,8 +60,15 @@ class TestCandlestick:
         df = make_ohlc_df(30)
         fig = Visualizer.candlestick(df)
         candlestick = fig.data[0]
-        assert candlestick.increasing.line.color == "#e74c3c"  # 涨红
-        assert candlestick.decreasing.line.color == "#2ecc71"  # 跌绿
+        # 当前 candlestick 使用 go.Bar 手动绘制
+        colors = candlestick.marker.color
+        assert colors[0] == "#ff4d4f"  # 涨红（A股红涨）
+        # 构造一个下跌日，验证下跌颜色
+        df_down = df.copy()
+        df_down.loc[0, "close"] = df_down.loc[0, "open"] - 1.0
+        fig_down = Visualizer.candlestick(df_down)
+        down_color = fig_down.data[0].marker.color[0]
+        assert down_color == "#00d486"  # 跌绿（A股绿跌）
 
 
 class TestSectorHeatmap:

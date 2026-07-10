@@ -1,0 +1,23 @@
+# StockSignal 全局主题配置（默认亮色金融仪表盘风）
+# 适用于所有页面，无需改动任何页面代码。
+# 修改后重启 Streamlit 生效。
+#
+# ⚠️ 重要：此文件定义 Streamlit 原生主题的基底色。
+#   默认模式="light"，所以这里写的是亮色基底。
+#   暗色模式由 modules/ui_theme.py 的 _DARK_CSS 覆盖（它足够强）。
+
+[theme]
+# 金色主色调（品牌色）—— 用于主按钮、强调、链接
+primaryColor = "#B8860B"
+# 应用主背景（微冷灰 —— 非纯白，护眼专业级）
+backgroundColor = "#F5F7FA"
+# 次级背景（卡片 / 输入框 / 侧边栏内面板）
+secondaryBackgroundColor = "#FFFFFF"
+# 正文文字（深墨色，WCAG AA 合规）
+textColor = "#1A2332"
+# 字体
+font = "sans serif"
+
+[server]
+# 关闭默认的运行中提示，界面更干净
+runOnSave = false

@@ -1,0 +1,66 @@
+# ============================================================
+# StockSignal — docker-compose
+# 编排：backend (Flask 5050) + frontend (Streamlit 8501) 两服务
+# 数据卷持久化：backend/data(app.db) 与 data/(cache/组合/事件)
+#
+# 使用：
+#   docker compose -f docker-compose.yml up --build
+#   # 前端 http://localhost:8501   后端 http://localhost:5050
+# ============================================================
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: stocksignal-backend
+    ports:
+      - "5050:5050"
+    environment:
+      # 生产必须覆盖 STOCKSIGNAL_SECRET（默认是 dev 占位符，backend/config.py）
+      STOCKSIGNAL_SECRET: "${STOCKSIGNAL_SECRET:-change-me-in-production}"
+      # CORS：开发态 *；生产收紧为前端来源，如 "http://localhost:8501"
+      CORS_ORIGINS: "${CORS_ORIGINS:-*}"
+      # JWT 有效期（秒）
+      JWT_EXPIRES_SECONDS: "${JWT_EXPIRES_SECONDS:-3600}"
+      # 限流（真实变量名见 README；STOCKSIGNAL_RATE_LIMIT_ENABLED 默认开启）
+      STOCKSIGNAL_RATE_LIMIT_ENABLED: "${STOCKSIGNAL_RATE_LIMIT_ENABLED:-1}"
+      RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-5}"
+      RATE_LIMIT_WINDOW: "${RATE_LIMIT_WINDOW:-60}"
+      # 生产关闭内部错误暴露（backend/config.py: EXPOSE_INTERNAL_ERROR）
+      EXPOSE_INTERNAL_ERROR: "${EXPOSE_INTERNAL_ERROR:-0}"
+      # Tushare token（可选；留空则后端只用 AKShare）
+      TUSHARE_TOKEN: "${TUSHARE_TOKEN:-}"
+    volumes:
+      # 持久化用户库（含 admin/demo 账号与股票列表）
+      - ./backend/data:/app/backend/data
+      # 后端日志
+      - ./logs/backend:/app/logs
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: stocksignal-frontend
+    ports:
+      - "8501:8501"
+    # 见 Dockerfile.streamlit 说明。前端经 STOCKSIGNAL_API_BASE 跨容器访问后端，
+    # 该变量已由 modules/session.py 读取（默认 127.0.0.1:5050，此处注入 http://backend:5050）。
+    environment:
+      STOCKSIGNAL_API_BASE: "http://backend:5050"
+    depends_on:
+      - backend
+    volumes:
+      # 持久化前端运行数据（cache.db / portfolio.csv / events.csv / news.db）
+      - ./data:/app/data
+      - ./logs/frontend:/app/logs
+    restart: unless-stopped
+
+# ── 说明 ──
+# 1) 两服务同处 compose 默认网络，frontend 用服务名 backend 访问后端。
+# 2) 若前端暂不支持 STOCKSIGNAL_API_BASE，可改为单容器（合并两 Dockerfile
+#    的入口，同容器内 127.0.0.1:5050 直接可用），或临时在 frontend 加
+#    extra_hosts: - "host.docker.internal:host-gateway" 并指向它（不推荐）。
+# 3) import_stocks 在 backend 入口首次启动时执行，需外网 egress 可达
+#    akshare/baostock；离线环境可预先把 backend/data/app.db 放入挂载卷。
