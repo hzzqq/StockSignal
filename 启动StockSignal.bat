@@ -5,8 +5,7 @@ title StockSignal 启动器
 :: ════════════════════════════════════════════
 ::  StockSignal 一键启动脚本 (Windows CMD)
 ::  自动启动 Flask 后端 (5050) + Streamlit 前端 (8501)
-::  进程通过 PowerShell Start-Process -WindowStyle Hidden 隐藏、脱离终端运行
-::  （PowerShell 不可用时回退 start /min 最小化窗口，保证拉起）
+::  进程通过 start /min 最小化窗口后台启动，脱离终端、关闭主窗口不影响
 ::  关闭此窗口不会中断项目
 :: ════════════════════════════════════════════
 
@@ -172,49 +171,47 @@ for /f "tokens=*" %%p in ('where python 2^>nul') do (
 )
 goto :eof
 
-:: 启动隐藏后台进程：%1=python路径 %2=参数 %3=日志前缀
-:: 主方案：start /min 最小化窗口启动（Windows 原生，最稳，不依赖 PowerShell）
-:: 兜底方案：start 也失败时再用 PowerShell 完全隐藏（避免双启动）
-:: 校验：启动后探测日志文件是否生成，证明进程已拉起；失败打印诊断
+:: 启动后台进程：%1=python路径 %2=参数 %3=日志前缀
+:: 方案：start /min 最小化窗口启动（Windows 原生最稳，关闭主窗口不影响子进程）
+:: 全程诊断追加写入 logs/launch_diag.log，便于无头环境排错
 :launch
 set "L_PYTHON=%~1"
 set "L_ARGS=%~2"
 set "L_PREFIX=%~3"
 set "L_LOG=%LOGS_DIR%\%L_PREFIX%.log"
 set "L_ERR=%LOGS_DIR%\%L_PREFIX%.err"
-set "L_CMD=%LOGS_DIR%\ss_launch_%L_PREFIX%.cmd"
-:: 确保日志目录存在
-if not exist "%LOGS_DIR%" mkdir "%LOGS_DIR%" >nul 2>&1
-:: 先写包装脚本（供 start /min 与人工排查；先生成再启动，避免“找不到路径”）
-(
-  echo @echo off
-  echo "%L_PYTHON%" %L_ARGS% ^> "%L_LOG%" 2^>^> "%L_ERR%"
-) > "%L_CMD%" 2>nul
-if not exist "%L_CMD%" (
-  echo   [错误] 无法写入启动脚本: %L_CMD%
+set "L_DIAG=%LOGS_DIR%\launch_diag.log"
+>> "%L_DIAG%" echo [%DATE% %TIME%] launch PYTHON=%L_PYTHON% ARGS=%L_ARGS% PREFIX=%L_PREFIX%
+if not exist "%L_PYTHON%" (
+  >> "%L_DIAG%" echo   [FAIL] python 不存在: %L_PYTHON%
+  echo   [错误] Python 路径不存在: %L_PYTHON%
   exit /b 1
 )
-:: 主方案：最小化窗口启动（原生，最稳）
-start "" /min cmd /c "%L_CMD%"
+if not exist "%LOGS_DIR%" mkdir "%LOGS_DIR%" >nul 2>&1
+:: 主方案：最小化窗口后台启动（原生、最稳，直接拉起 python，不依赖包装脚本）
+start "" /min "%L_PYTHON%" %L_ARGS% > "%L_LOG%" 2>&1
 set "L_RC=%errorlevel%"
-:: 兜底：PowerShell 完全隐藏（仅当 start 也失败时使用，避免双启动）
+>> "%L_DIAG%" echo   rc=%L_RC%  start "" /min "%L_PYTHON%" %L_ARGS% ^> "%L_LOG%" 2^>^&1
 if %L_RC% neq 0 (
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%L_PYTHON%' -ArgumentList ('%L_ARGS%' -split ' ') -WorkingDirectory '%PROJECT_DIR%' -WindowStyle Hidden -RedirectStandardOutput '%L_LOG%' -RedirectStandardError '%L_ERR%'" >nul 2>&1
+  >> "%L_DIAG%" echo   [WARN] start 返回非0，改用普通窗口兜底
+  start "" "%L_PYTHON%" %L_ARGS% > "%L_LOG%" 2>&1
   set "L_RC=%errorlevel%"
+  >> "%L_DIAG%" echo   fallback rc=%L_RC%
 )
 :: 校验：等待日志文件出现（最多 ~10s）
 set /a L_WAIT=0
 :launch_wait
 if exist "%L_LOG%" goto launch_ok
-if exist "%L_ERR%" goto launch_ok
 ping -n 2 127.0.0.1 >nul 2>&1
 set /a L_WAIT+=1
 if %L_WAIT% LSS 5 goto launch_wait
 :launch_ok
 if %L_RC% neq 0 (
-  echo   [错误] 启动进程失败 (rc=%L_RC%)，请查看 %L_ERR%
+  >> "%L_DIAG%" echo   [FAIL] 启动进程失败
+  echo   [错误] 后端/前端启动进程失败 (rc=%L_RC%)，详见 %L_DIAG%
   exit /b 1
 )
+>> "%L_DIAG%" echo   [OK] 进程已拉起，日志: %L_LOG%
 exit /b 0
 
 :: 按端口号杀进程
