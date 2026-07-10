@@ -173,29 +173,36 @@ for /f "tokens=*" %%p in ('where python 2^>nul') do (
 goto :eof
 
 :: 启动隐藏后台进程：%1=python路径 %2=参数 %3=日志前缀
-:: 主方案：PowerShell Start-Process -WindowStyle Hidden（原生重定向 stdout/stderr，无需 cscript/vbs）
-:: 兜底方案：PowerShell 不可用时用 start /min 启动（最小化窗口，仍可脱离终端运行）
-:: 校验：启动后探测日志文件是否生成，证明进程已拉起
+:: 主方案：start /min 最小化窗口启动（Windows 原生，最稳，不依赖 PowerShell）
+:: 兜底方案：start 也失败时再用 PowerShell 完全隐藏（避免双启动）
+:: 校验：启动后探测日志文件是否生成，证明进程已拉起；失败打印诊断
 :launch
 set "L_PYTHON=%~1"
 set "L_ARGS=%~2"
 set "L_PREFIX=%~3"
 set "L_LOG=%LOGS_DIR%\%L_PREFIX%.log"
 set "L_ERR=%LOGS_DIR%\%L_PREFIX%.err"
-:: ── 主方案：PowerShell 隐藏启动 + 原生重定向 ──
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%L_PYTHON%' -ArgumentList @(%L_ARGS%) -WorkingDirectory '%PROJECT_DIR%' -WindowStyle Hidden -RedirectStandardOutput '%L_LOG%' -RedirectStandardError '%L_ERR%'" >nul 2>&1
+set "L_CMD=%LOGS_DIR%\ss_launch_%L_PREFIX%.cmd"
+:: 确保日志目录存在
+if not exist "%LOGS_DIR%" mkdir "%LOGS_DIR%" >nul 2>&1
+:: 先写包装脚本（供 start /min 与人工排查；先生成再启动，避免“找不到路径”）
+(
+  echo @echo off
+  echo "%L_PYTHON%" %L_ARGS% ^> "%L_LOG%" 2^>^> "%L_ERR%"
+) > "%L_CMD%" 2>nul
+if not exist "%L_CMD%" (
+  echo   [错误] 无法写入启动脚本: %L_CMD%
+  exit /b 1
+)
+:: 主方案：最小化窗口启动（原生，最稳）
+start "" /min cmd /c "%L_CMD%"
 set "L_RC=%errorlevel%"
-:: ── 兜底方案：start /min（最小化，非完全隐藏，但保证进程拉起）──
+:: 兜底：PowerShell 完全隐藏（仅当 start 也失败时使用，避免双启动）
 if %L_RC% neq 0 (
-  set "L_CMD=%LOGS_DIR%\ss_launch_%L_PREFIX%.cmd"
-  (
-    echo @echo off
-    echo "%L_PYTHON%" %L_ARGS% ^> "%L_LOG%" 2^>^> "%L_ERR%"
-  ) > "%L_CMD%"
-  start "" /min cmd /c "%L_CMD%"
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%L_PYTHON%' -ArgumentList ('%L_ARGS%' -split ' ') -WorkingDirectory '%PROJECT_DIR%' -WindowStyle Hidden -RedirectStandardOutput '%L_LOG%' -RedirectStandardError '%L_ERR%'" >nul 2>&1
   set "L_RC=%errorlevel%"
 )
-:: ── 校验：等待日志文件出现（最多 ~10s）──
+:: 校验：等待日志文件出现（最多 ~10s）
 set /a L_WAIT=0
 :launch_wait
 if exist "%L_LOG%" goto launch_ok
@@ -204,7 +211,10 @@ ping -n 2 127.0.0.1 >nul 2>&1
 set /a L_WAIT+=1
 if %L_WAIT% LSS 5 goto launch_wait
 :launch_ok
-if %L_RC% neq 0 ( exit /b 1 )
+if %L_RC% neq 0 (
+  echo   [错误] 启动进程失败 (rc=%L_RC%)，请查看 %L_ERR%
+  exit /b 1
+)
 exit /b 0
 
 :: 按端口号杀进程
