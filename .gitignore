@@ -17,3 +17,11 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+
+# 运行时本地产物（不入库）
+logs/
+data/
+test_*.html
+.streamlit/secrets.toml
+*.bak.*
+.cache/
