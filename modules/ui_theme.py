@@ -128,7 +128,7 @@ html, body, .stApp {
         以便侧边栏展开/折叠按钮始终可见；header 本身设为透明不占视觉空间 ===== */
 #MainMenu { display: none !important; }
 footer { display: none !important; }
-[data-testid="stToolbar"] { display: none !important; }
+[data-testid="stToolbar"] { padding: 0 !important; margin: 0 !important; min-height: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important; }
 [data-testid="stDecoration"] { display: none !important; }
 header[data-testid="stHeader"] {
     background: transparent !important;
@@ -138,6 +138,31 @@ header[data-testid="stHeader"] {
     margin: 0 !important;
     height: auto !important;
     min-height: 0 !important;
+}
+
+/* 折叠态的展开按钮：固定到左上角，避免被透明 header 压成 0×0 看不见/点不到 */
+button[data-testid="stExpandSidebarButton"] {
+    position: fixed !important;
+    top: 10px !important;
+    left: 10px !important;
+    z-index: 99999 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+    background: rgba(30, 30, 60, 0.92) !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45) !important;
+    cursor: pointer !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+button[data-testid="stExpandSidebarButton"]:hover {
+    background: rgba(102, 126, 234, 0.95) !important;
+    border-color: rgba(255, 255, 255, 0.55) !important;
 }
 
 /* ===== 侧边栏：深空黑玻璃拟态 ===== */
@@ -378,7 +403,7 @@ html, body, .stApp {
         以便侧边栏展开/折叠按钮始终可见；header 本身设为透明不占视觉空间 ===== */
 #MainMenu { display: none !important; }
 footer { display: none !important; }
-[data-testid="stToolbar"] { display: none !important; }
+[data-testid="stToolbar"] { padding: 0 !important; margin: 0 !important; min-height: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important; }
 [data-testid="stDecoration"] { display: none !important; }
 header[data-testid="stHeader"] {
     background: transparent !important;
@@ -388,6 +413,31 @@ header[data-testid="stHeader"] {
     margin: 0 !important;
     height: auto !important;
     min-height: 0 !important;
+}
+
+/* 折叠态的展开按钮：固定到左上角，避免被透明 header 压成 0×0 看不见/点不到 */
+button[data-testid="stExpandSidebarButton"] {
+    position: fixed !important;
+    top: 10px !important;
+    left: 10px !important;
+    z-index: 99999 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+    background: #FFFFFF !important;
+    border: 1px solid #C9CCD1 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18) !important;
+    cursor: pointer !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+button[data-testid="stExpandSidebarButton"]:hover {
+    background: #EAECEF !important;
+    border-color: #3B82F6 !important;
 }
 
 section[data-testid="stSidebar"] {
