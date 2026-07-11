@@ -124,10 +124,21 @@ html, body, .stApp {
         url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
 }
 
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
-header[data-testid="stHeader"] { display: none; }
-[data-testid="stToolbar"] { display: none; }
+/* ===== 隐藏 Streamlit 默认菜单/工具栏，但保留顶部 header 容器
+        以便侧边栏展开/折叠按钮始终可见；header 本身设为透明不占视觉空间 ===== */
+#MainMenu { display: none !important; }
+footer { display: none !important; }
+[data-testid="stToolbar"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+header[data-testid="stHeader"] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+}
 
 /* ===== 侧边栏：深空黑玻璃拟态 ===== */
 section[data-testid="stSidebar"] {
@@ -363,10 +374,21 @@ html, body, .stApp {
         radial-gradient(ellipse 70% 40% at 10% -5%, rgba(184,134,11,0.035) 0%, transparent 55%),
         radial-gradient(ellipse 80% 50% at 90% 105%, rgba(59,130,246,0.02) 0%, transparent 50%);
 }
-#MainMenu { visibility: hidden !important; }
-footer { visibility: hidden !important; }
-header[data-testid="stHeader"] { display: none !important; }
+/* ===== 隐藏 Streamlit 默认菜单/工具栏，但保留顶部 header 容器
+        以便侧边栏展开/折叠按钮始终可见；header 本身设为透明不占视觉空间 ===== */
+#MainMenu { display: none !important; }
+footer { display: none !important; }
 [data-testid="stToolbar"] { display: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+header[data-testid="stHeader"] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+}
 
 section[data-testid="stSidebar"] {
     background: #EEF0F2 !important;

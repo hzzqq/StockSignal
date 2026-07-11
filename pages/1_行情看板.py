@@ -350,8 +350,8 @@ def _render_sector_cards(df, top_n=24):
         arrow = "▲" if up else "▼"
         cards.append(
             f'<div style="background:{bg};border-left:3px solid {color};'
-            f'border-radius:8px;padding:8px 10px;height:58px;'
-            f'display:flex;flex-direction:column;justify-content:center;'
+            f'border-radius:8px;padding:10px 12px;min-height:64px;'
+            f'box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;'
             f'box-shadow:0 1px 3px rgba(0,0,0,0.05);">'
             f'<div style="color:#1f2937;font-size:12px;font-weight:700;'
             f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{name}</div>'
