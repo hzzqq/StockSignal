@@ -3,7 +3,7 @@ chcp 936 >nul 2>&1
 title StockSignal 启动器
 setlocal EnableExtensions
 set "PROJECT_DIR=%~dp0"
-set "LOGS_DIR=%PROJECT_DIR%\logs"
+set "LOGS_DIR=%PROJECT_DIR%logs"
 if not exist "%LOGS_DIR%" mkdir "%LOGS_DIR%" >nul 2>&1
 set "DIAG=%LOGS_DIR%\launch_diag.log"
 :: ── 关键变量：端口 / 监听地址（缺失会导致 Flask/Streamlit 无法绑定端口，启动彻底失败）──
@@ -161,14 +161,13 @@ for /f "tokens=*" %%p in ('where python 2^>nul') do (
 goto :eof
 
 :: 启动后台进程：%1=python路径 %2=参数 %3=日志前缀
-:: 方案：先写包装脚本（重定向写在脚本内，确保日志真正落盘），再 start /min 直接运行 .cmd 文件（Windows 最稳 start 用法）
+:: 方案：直接 start /min 拉起 Python，stdout/stderr 重定向到日志文件，避免临时 .cmd 包装脚本被锁导致 rc=1
 :launch
 set "L_PYTHON=%~1"
 set "L_ARGS=%~2"
 set "L_PREFIX=%~3"
 set "L_LOG=%LOGS_DIR%\%L_PREFIX%.log"
 set "L_ERR=%LOGS_DIR%\%L_PREFIX%.err"
-set "L_CMD=%LOGS_DIR%\run_%L_PREFIX%.cmd"
 call :log [launch] PYTHON=%L_PYTHON%
 call :log   ARGS=%L_ARGS%
 if not exist "%L_PYTHON%" (
@@ -177,23 +176,17 @@ if not exist "%L_PYTHON%" (
     exit /b 1
 )
 if not exist "%LOGS_DIR%" mkdir "%LOGS_DIR%" >nul 2>&1
-:: 写包装脚本（重定向在脚本内部，日志可靠落盘）
-(
-    echo @echo off
-    echo "%L_PYTHON%" %L_ARGS% ^> "%L_LOG%" 2^> "%L_ERR%"
-) > "%L_CMD%" 2>nul
-if not exist "%L_CMD%" (
-    call :log   [FAIL] 无法写入启动脚本: %L_CMD%
-    echo   [错误] 无法写入启动脚本
-    exit /b 1
-)
-call :log   start "" /min "%L_CMD%"
-start "" /min "%L_CMD%"
+if exist "%L_LOG%" del "%L_LOG%" >nul 2>&1
+if exist "%L_ERR%" del "%L_ERR%" >nul 2>&1
+call :log   start "" /min "%L_PYTHON%" %L_ARGS%
+start "" /min "%L_PYTHON%" %L_ARGS% > "%L_LOG%" 2> "%L_ERR%"
 set "L_RC=%errorlevel%"
 call :log   start rc=%L_RC%
 if %L_RC% neq 0 (
     call :log   [WARN] start 失败，降级为普通窗口
-    start "" "%L_CMD%"
+    if exist "%L_LOG%" del "%L_LOG%" >nul 2>&1
+    if exist "%L_ERR%" del "%L_ERR%" >nul 2>&1
+    start "" "%L_PYTHON%" %L_ARGS% > "%L_LOG%" 2> "%L_ERR%"
     set "L_RC=%errorlevel%"
     call :log   fallback rc=%L_RC%
 )
