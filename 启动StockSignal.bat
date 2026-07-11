@@ -7,6 +7,17 @@ setlocal EnableExtensions
 set "PROJECT_DIR=%~dp0"
 cd /d "%PROJECT_DIR%"
 
+:: 如果不是从隐藏窗口启动，则通过 VBS 在后台拉起，原 CMD 立即关闭
+:: 这样关闭启动命令行窗口不会影响项目运行
+if /I not "%~1"=="hidden" (
+    echo 正在后台启动 StockSignal，关闭此窗口不影响项目运行...
+    echo 停止服务请双击 _stop_services.bat
+    start "" wscript.exe "%PROJECT_DIR%_launch_hidden.vbs"
+    timeout /t 1 >nul
+    exit /b 0
+)
+
+:: 隐藏窗口中继续执行原启动流程
 :: 优先使用 venv 解释器；其次用 workbuddy 预置环境；最后回退到 PATH
 set "PYTHON=%PROJECT_DIR%venv\Scripts\python.exe"
 if not exist "%PYTHON%" (
