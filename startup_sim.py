@@ -1,24 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-StockSignal 启动模拟器 / 预检脚本
+StockSignal 启动器（原启动模拟器）
 ================================
-作用：在"真实双击 启动StockSignal.bat"之前，用 Python 把启动流程完整跑一遍，
-      每一步的成功/失败都写进 logs/startup_sim.log，方便无头环境排查启动问题。
+作用：用 Python 完整完成启动流程，比 Windows 批处理更可靠。
 
-覆盖步骤（与 启动StockSignal.bat 一一对应）：
-  1) 解析 Python 解释器（优先 envs/default，其次 PATH 中 --version 实测可用的）
+覆盖步骤：
+  1) 解析 Python 解释器（优先 envs/default，其次 PATH 中实测可用的）
   2) 检查/初始化数据库（backend.scripts.init_db，幂等）
   3) 探测并清理 5050 / 8501 端口占用
   4) 后台拉起 Flask 后端 (5050)
   5) 后台拉起 Streamlit 前端 (8501)
   6) 用 urllib 探测两端健康（不依赖 curl.exe）
-  7) 汇总报告 + 写日志；默认探测后清理进程（--keep 可保留）
+  7) 汇总报告 + 打开浏览器 + 写日志
 
 用法：
-  python startup_sim.py                 # 默认端口 5050/8501，探测后清理
-  python startup_sim.py --be 5088 --fe 8588   # 指定端口，避免与正在运行的服务冲突
-  python startup_sim.py --keep          # 探测成功后不清理，留着给你手动看
+  python startup_sim.py                 # 模拟启动：探测后清理，用于测试
+  python startup_sim.py --keep          # 正式启动：保留进程，打开浏览器
+  python startup_sim.py --keep --pause  # 正式启动：保留进程，探测成功后暂停
 """
 import argparse
 import os
@@ -27,6 +26,7 @@ import sys
 import time
 import urllib.request
 import urllib.error
+import webbrowser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOGS_DIR = os.path.join(HERE, "logs")
@@ -210,7 +210,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--be", type=int, default=5050, help="后端端口")
     ap.add_argument("--fe", type=int, default=8501, help="前端端口")
-    ap.add_argument("--keep", action="store_true", help="探测成功后保留进程不清理")
+    ap.add_argument("--keep", action="store_true", help="探测成功后保留进程不清理（正式启动用）")
+    ap.add_argument("--pause", action="store_true", help="启动成功后等待用户按键再退出")
+    ap.add_argument("--no-browser", action="store_true", help="成功后不自动打开浏览器")
     args = ap.parse_args()
 
     # 绕过可能的 HTTP 代理（沙箱环境常劫持 127.0.0.1，导致 localhost 探测误报 404）
@@ -293,18 +295,40 @@ def main():
     # 7) 汇总
     log("=" * 60)
     if be_ok and fe_ok:
-        log("[结论] 启动模拟成功 ✅  后端+前端均可正常拉起")
+        log("[结论] 启动成功 ✅  后端+前端均已就绪")
+        if not args.no_browser:
+            url = f"http://localhost:{args.fe}"
+            log(f"正在打开浏览器: {url}")
+            try:
+                webbrowser.open(url, new=2)
+                log("[OK] 浏览器已启动")
+            except Exception as e:  # noqa
+                log(f"[warn] 打开浏览器失败: {e}")
         if not args.keep:
             cleanup(be_proc, args.be)
             cleanup(fe_proc, args.fe)
             log("（已清理模拟进程；请用真实 启动StockSignal.bat 正式启动）")
     else:
-        log("[结论] 启动模拟发现问题 ❌ —— 请查看上方对应 .err 日志")
-        if not args.keep:
-            cleanup(be_proc, args.be)
-            cleanup(fe_proc, args.fe)
+        log("[结论] 启动失败 ❌ —— 请查看上方对应 .err 日志")
+        cleanup(be_proc, args.be)
+        cleanup(fe_proc, args.fe)
 
     flush_log()
+
+    # 8) 保持窗口，方便用户查看结果
+    if args.pause:
+        if be_ok and fe_ok:
+            print(f"\n启动完成。关闭此窗口不影响项目运行。")
+            print(f"前端地址: http://localhost:{args.fe}")
+            print(f"后端地址: http://127.0.0.1:{args.be}")
+            print(f"停止方法: 双击运行 _stop_services.bat")
+        else:
+            print("\n启动未完成。请查看上方日志，按任意键关闭...")
+        try:
+            os.system("pause >nul 2>&1")
+        except Exception:  # noqa
+            input("按 Enter 键继续...")
+
     return 0 if (be_ok and fe_ok) else 1
 
 
