@@ -20,7 +20,9 @@ StockSignal 启动器（原启动模拟器）
   python startup_sim.py --keep --pause  # 正式启动：保留进程，探测成功后暂停
 """
 import argparse
+import concurrent.futures
 import os
+import sqlite3
 import subprocess
 import sys
 import time
@@ -84,8 +86,29 @@ def resolve_python():
 
 
 # ---------------------------------------------------------------- 2) 数据库
+def _db_fast_ok():
+    """快速检查：数据库文件存在且包含 users/stocks 表则视为 OK。"""
+    db_path = os.path.join(HERE, "backend", "data", "app.db")
+    if not os.path.exists(db_path):
+        return False
+    try:
+        with sqlite3.connect(db_path) as conn:
+            tables = {
+                row[0] for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type=?", ("table",)
+                )
+            }
+        return {"users", "stocks"} <= tables
+    except Exception:  # noqa
+        return False
+
+
 def check_db(python):
     log("--- [2/6] 检查数据库 ---")
+    if _db_fast_ok():
+        log("[OK] 数据库已存在且结构完整（跳过 init_db）")
+        return True
+
     try:
         r = subprocess.run(
             [python, "-m", "backend.scripts.init_db"],
@@ -251,16 +274,14 @@ def main():
         else:
             log(f"  端口 {port} 空闲")
 
-    # 4) 后端
+    # 4/5) 同时拉起后端和前端（两者无依赖，可并行节省启动时间）
+    log("--- [4-5/6] 同时拉起 Flask 后端和 Streamlit 前端 ---")
     be_log = os.path.join(LOGS_DIR, f"sim_backend_{args.be}.log")
     be_err = os.path.join(LOGS_DIR, f"sim_backend_{args.be}.err")
     be_args = [
         "-m", "flask", "--app", "backend.app:app", "run",
         "--host", "127.0.0.1", "--port", str(args.be),
     ]
-    be_proc = launch_service(python, "Flask 后端", be_args, be_log, be_err)
-
-    # 5) 前端
     fe_log = os.path.join(LOGS_DIR, f"sim_frontend_{args.fe}.log")
     fe_err = os.path.join(LOGS_DIR, f"sim_frontend_{args.fe}.err")
     fe_args = [
@@ -270,7 +291,16 @@ def main():
         "--browser.gatherUsageStats", "false",
         "--server.fileWatcherType", "poll",
     ]
-    fe_proc = launch_service(python, "Streamlit 前端", fe_args, fe_log, fe_err)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        be_future = pool.submit(
+            launch_service, python, "Flask 后端", be_args, be_log, be_err
+        )
+        fe_future = pool.submit(
+            launch_service, python, "Streamlit 前端", fe_args, fe_log, fe_err
+        )
+        be_proc = be_future.result()
+        fe_proc = fe_future.result()
 
     if be_proc is None or fe_proc is None:
         log("[结论] 启动模拟失败：进程未能拉起，详见上方错误")
