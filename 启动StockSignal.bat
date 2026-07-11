@@ -6,6 +6,10 @@ set "PROJECT_DIR=%~dp0"
 set "LOGS_DIR=%PROJECT_DIR%\logs"
 if not exist "%LOGS_DIR%" mkdir "%LOGS_DIR%" >nul 2>&1
 set "DIAG=%LOGS_DIR%\launch_diag.log"
+:: ── 关键变量：端口 / 监听地址（缺失会导致 Flask/Streamlit 无法绑定端口，启动彻底失败）──
+set "BACKEND_HOST=127.0.0.1"
+set "BACKEND_PORT=5050"
+set "FRONTEND_PORT=8501"
 
 :: ── 统一日志：打印到屏幕 且 追加写入 launch_diag.log ──
 goto :main
@@ -209,6 +213,7 @@ exit /b
 :: 按端口号杀进程
 :kill_port
 set "TARGET_PORT=%~1"
+if "%TARGET_PORT%"=="" goto :eof
 for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":%TARGET_PORT% "') do (
     taskkill /f /pid %%a >nul 2>&1 && call :log   已终止 PID %%a ^(端口 %TARGET_PORT%^) || rem ignore
 )
