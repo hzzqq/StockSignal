@@ -10,7 +10,7 @@ import pandas as pd
 
 from .fetcher import StockFetcher, load_config
 from .cleaner import DataCleaner
-from .news import EventMiner, NewsFetcher, SentimentAnalyzer, KeywordExtractor
+from .news import EventMiner, SentimentAnalyzer, KeywordExtractor
 
 
 class SignalEngine:

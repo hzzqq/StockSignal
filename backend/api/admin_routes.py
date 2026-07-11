@@ -9,7 +9,7 @@ from sqlalchemy import select, func
 from ..auth.decorators import admin_required
 from ..extensions import db
 from ..models import User, OperationLog
-from ..utils.response import ok, fail
+from ..utils.response import ok
 from ..utils.errors import ValidationError, NotFoundError, ConflictError
 import re
 

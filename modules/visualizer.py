@@ -55,13 +55,6 @@ def _plotly_layout_kwargs(title: str = "", height: int = 400) -> dict:
         "margin": dict(l=40, r=20, t=50, b=40),
     }
 
-# mplfinance 可选导入（仅 matplotlib 静态 K 线用到，Plotly 交互图不需要）
-try:
-    import mplfinance as mpf
-    _MPF_OK = True
-except ImportError:
-    _MPF_OK = False
-
 # 中文字体配置
 plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei", "Arial Unicode MS"]
 plt.rcParams["axes.unicode_minus"] = False
@@ -762,12 +755,10 @@ class Visualizer:
                     color = UP_COLOR
                     anchor_y = day_high       # 从 K 线最高价出发
                     direction = 1             # 整体向上
-                    text_side = "top"         # 文本框在 K 线上方
                 elif evt_type == "利空":
                     color = DOWN_COLOR
                     anchor_y = day_low        # 从 K 线最低价出发
                     direction = -1            # 整体向下
-                    text_side = "bottom"      # 文本框在 K 线下方
                 else:
                     # 跳过中性事件
                     continue

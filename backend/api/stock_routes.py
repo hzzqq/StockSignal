@@ -4,13 +4,13 @@ backend/api/stock_routes.py
 股票搜索 + 股票管理 API。
 """
 from __future__ import annotations
-from flask import Blueprint, g, request
+from flask import Blueprint, request
 from sqlalchemy import select, func
 from ..extensions import db
 from ..models import Stock
 from ..auth.decorators import jwt_required, admin_required
-from ..utils.response import ok, fail
-from ..utils.errors import ValidationError, NotFoundError
+from ..utils.response import ok
+from ..utils.errors import NotFoundError
 from ..services.stock_service import search_stocks, get_stock_list
 
 bp = Blueprint("stocks", __name__, url_prefix="/api/stocks")

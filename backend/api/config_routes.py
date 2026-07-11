@@ -5,7 +5,7 @@ backend/api/config_routes.py
 """
 from __future__ import annotations
 from flask import Blueprint, g, request
-from sqlalchemy import select, func
+from sqlalchemy import select
 from ..auth.decorators import jwt_required, admin_required
 from ..extensions import db
 from ..models import SystemConfig, Watchlist, Stock

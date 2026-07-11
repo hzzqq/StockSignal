@@ -7,7 +7,6 @@ import os
 from datetime import datetime
 
 import pandas as pd
-import yaml
 
 from .fetcher import StockFetcher, load_config
 

@@ -88,7 +88,6 @@ CONFIG = {
             "厦": ["xia"],
             "藏": ["zang"],
             "盛": ["sheng"],
-            "朝": ["chao"],
         },
     },
 }
@@ -753,7 +752,7 @@ class StockFetcher:
             try:
                 df = pd.read_json(io.StringIO(row[0]))
                 if "date" in df.columns:
-                    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+                    df["date"] = pd.to_datetime(df["date"], errors="coerce", format="mixed")
                 return df
             except Exception:
                 # 非 DataFrame JSON（如实时行情字典），返回原始 dict/list
@@ -1506,7 +1505,6 @@ class StockFetcher:
 
         raw_query = query.strip()
         query_upper = raw_query.upper()
-        q_lower = raw_query.lower()
         all_stocks = self._ensure_stock_db()
 
         if all_stocks.empty:
@@ -1521,7 +1519,6 @@ class StockFetcher:
         for _, row in all_stocks.iterrows():
             code = str(row["code"])
             name = str(row["name"])
-            name_lower = name.lower()
 
             score = 0
             match_type = ""

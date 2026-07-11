@@ -7,7 +7,6 @@
 import numpy as np
 import pandas as pd
 import concurrent.futures
-import warnings
 
 from .fetcher import StockFetcher
 from .cleaner import DataCleaner
@@ -589,6 +588,7 @@ class Backtester:
         # ══════════════════════════════════════
         # 计算近 5 天每天的原始评分（用相同逻辑但只做单日快照）
         daily_scores = []
+        ds = 0
         for offset in range(min(5, len(df))):
             day = df.iloc[-(offset + 1)]
             if pd.isna(day.get("rsi14")) or pd.isna(day.get("rsi2")):
@@ -669,9 +669,7 @@ class Backtester:
         if df is None or len(df) < 20:
             return {"signal": "hold", "reason": "数据不足", "days": 5}
 
-        latest_idx = len(df) - 1
         latest = df.iloc[-1]
-        buy_price = latest["close"]
 
         # 向前模拟未来几天（使用已有数据的最后一段来估算）
         sim_df = df.iloc[-min(look_ahead + 5, len(df)):].copy()

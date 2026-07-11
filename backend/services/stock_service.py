@@ -53,7 +53,6 @@ def search_stocks(query: str, limit: int = 15) -> List[Dict]:
     else:
         # --- 名称 / 拼音匹配 ---
         # 一次性查出候选集：名称 LIKE 或 拼音 LIKE
-        pattern = f"%{q}%"
         candidates = db.session.execute(
             select(Stock).where(
                 Stock.is_active.is_(True),
@@ -112,7 +111,6 @@ def get_stock_list(page: int = 1, per_page: int = 50, keyword: str = "") -> dict
     """分页获取股票列表（管理后台用）。"""
     stmt = select(Stock).where(Stock.is_active.is_(True))
     if keyword:
-        kw = f"%{keyword}%"
         stmt = stmt.where(
             or_(
                 Stock.code.contains(keyword),

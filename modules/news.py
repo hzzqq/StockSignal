@@ -18,10 +18,9 @@ import json
 import hashlib
 import sqlite3
 from datetime import datetime, timedelta
-from collections import Counter, defaultdict
+from collections import Counter
 
 import pandas as pd
-import numpy as np
 
 try:
     import akshare as ak
@@ -167,7 +166,7 @@ class SemiconductorKeywordEngine:
     # ─── 龙头公司完整列表（含代码）→ 用于个股精确匹配 ───
     SEMI_LEADERS = {
         # 晶圆代工
-        "688981": ("中芯国际", ["先进制程", "成熟制程", "晶圆代工", "CoWoS"]),
+        "688981": ("中芯国际", ["先进制程", "成熟制程", "晶圆代工", "CoWoS", "14nm", "28nm"]),
         "688126": ("沪硅产业", ["硅片", "大硅片", "半导体材料"]),
         "688037": ("芯源微", ["涂胶显影", "清洗设备", "半导体设备"]),
 
@@ -176,7 +175,7 @@ class SemiconductorKeywordEngine:
         "688012": ("中微公司", ["刻蚀机", "MOCVD", "LPCVD", "半导体设备"]),
         "688082": ("盛美上海", ["镀铜", "清洗", "炉管", "半导体设备"]),
         "688370": ("拓荆科技", ["ALD", "CVD", "薄膜沉积", "半导体设备"]),
-        "688396": ("华海清科", ["CMP", "抛光", "减薄", "半导体设备"]),
+        "688396": ("华海清科", ["CMP", "抛光", "减薄", "半导体设备", "化学机械抛光"]),
         "688262": ("微导纳米", ["ALD", "薄膜", "半导体设备"]),
         "300567": ("精测电子", ["检测设备", "量测", "面板检测"]),
 
@@ -204,7 +203,7 @@ class SemiconductorKeywordEngine:
         "603501": ("韦尔股份", ["CIS", "图像传感器", "模拟芯片", "显示驱动"]),
         "688052": ("纳芯微", ["隔离芯片", "模拟芯片", "信号链"]),
         "301281": ("帝奥微", ["模拟芯片", "电源管理", "信号链"]),
-        "603160": ("汇顶科技", ["指纹芯片", "触控芯片", "IoT"]),
+        "603160": ("汇顶科技", ["指纹芯片", "触控芯片", "IoT", "指纹识别"]),
         "688099": ("晶丰明源", ["LED驱动", "电源管理", "照明芯片"]),
 
         # 功率器件
@@ -229,14 +228,10 @@ class SemiconductorKeywordEngine:
         # 连接器/被动元件
         "000063": ("中兴通讯", ["通信设备", "5G基站", "芯片"]),
         "002384": ("东山精密", ["PCB", "FPC", "连接器", "屏蔽件"]),
-        "002241": ("歌尔股份", ["VR/AR", "声学", "TWS", "光学"]),
+        "002241": ("歌尔股份", ["VR/AR", "声学", "TWS", "光学", "声学器件"]),
         "002475": ("立讯精密", ["连接器", "线缆", "苹果供应链"]),
-        "002241": ("歌尔股份", ["VR/AR", "TWS", "声学器件"]),
         "600183": ("生益科技", ["覆铜板", "高频高速基板"]),
-        "603160": ("汇顶科技", ["指纹识别", "触控芯片"]),
-        "688981": ("中芯国际", ["晶圆代工", "先进制程", "14nm", "28nm"]),
         "688008": ("澜起科技", ["内存接口芯片", "DDR5", "津逮CPU"]),
-        "688396": ("华海清科", ["CMP", "化学机械抛光", "减薄"]),
     }
 
     def __init__(self):
@@ -1469,7 +1464,6 @@ class EventMiner:
         self.semi_engine = SemiconductorKeywordEngine()
         self.db = NewsDatabase()
 
-        import yaml
         from .fetcher import load_config
         self.config = load_config(config_path)
         self.event_csv_path = os.path.join(

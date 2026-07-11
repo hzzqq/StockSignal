@@ -20,7 +20,8 @@ from modules.cleaner import DataCleaner
 from modules.visualizer import Visualizer
 from modules.search_ui import stock_search_input, multi_stock_search_input
 from modules.technical import full_analysis as technical_full_analysis
-from modules.session import require_auth, render_user_badge, safe_switch_page, api_kline
+from modules.session import require_auth, render_user_badge, api_kline
+from modules.visualizer import UP_COLOR, DOWN_COLOR
 
 # 鉴权门禁
 require_auth()
@@ -139,7 +140,6 @@ with st.sidebar:
         fetcher.clear_cache(table_name="daily_cache",
                             cache_key=f"daily_{ticker}_{start_str}_{end_str}_qfq")
         # 同时清除可能存在的所有该 ticker 的缓存（不同日期范围）
-        import sqlite3 as _sqlite3
         conn = fetcher._get_conn()
         try:
             conn.execute("DELETE FROM daily_cache WHERE cache_key LIKE ?", (f"daily_{ticker}_%",))
@@ -410,7 +410,6 @@ def render_sector_detail():
     展示全部行业板块涨跌幅排行（红涨绿跌），支持自动刷新与强制刷新。
     依赖模块级 ``fetcher``（已在页面顶部初始化）。
     """
-    global fetcher
     try:
         from streamlit_autorefresh import st_autorefresh
         is_open, status_text, refresh_ms = _get_market_status()

@@ -5,7 +5,7 @@ JWT 校验 + 角色校验装饰器。失败抛 ApiError，由全局 handler 转 
 """
 from __future__ import annotations
 from functools import wraps
-from flask import request, current_app, g
+from flask import request, g
 from jwt import PyJWTError
 
 from ..models import User
