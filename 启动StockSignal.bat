@@ -7,37 +7,24 @@ setlocal EnableExtensions
 set "PROJECT_DIR=%~dp0"
 cd /d "%PROJECT_DIR%"
 
-:: 如果不是从隐藏窗口启动，则通过 VBS 在后台拉起，原 CMD 立即关闭
-:: 这样关闭启动命令行窗口不会影响项目运行
-if /I not "%~1"=="hidden" (
-    echo 正在后台启动 StockSignal，关闭此窗口不影响项目运行...
-    echo 停止服务请双击 _stop_services.bat
-    start "" wscript.exe "%PROJECT_DIR%_launch_hidden.vbs"
-    timeout /t 1 >nul
-    exit /b 0
+:: 优先使用 venv 中的 pythonw.exe；其次用 workbuddy 预置环境
+set "PYTHONW=%PROJECT_DIR%venv\Scripts\pythonw.exe"
+if not exist "%PYTHONW%" (
+    set "PYTHONW=C:\Users\24995\.workbuddy\binaries\python\envs\default\Scripts\pythonw.exe"
 )
-
-:: 隐藏窗口中继续执行原启动流程
-:: 优先使用 venv 解释器；其次用 workbuddy 预置环境；最后回退到 PATH
-set "PYTHON=%PROJECT_DIR%venv\Scripts\python.exe"
-if not exist "%PYTHON%" (
-    set "PYTHON=C:\Users\24995\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
-)
-if not exist "%PYTHON%" (
-    for /f "tokens=*" %%p in ('where python 2^>nul') do (
-        set "PYTHON=%%p"
-        goto :python_found
-    )
-)
-
-:python_found
-if not exist "%PYTHON%" (
-    echo [错误] 找不到可用的 Python 解释器。
+if not exist "%PYTHONW%" (
+    echo [错误] 找不到可用的 pythonw.exe。
+    echo 请确认 Python 环境已安装。
     pause
     exit /b 1
 )
 
-:: 启动器：用 Python 完成全部流程（端口清理、DB、Flask、Streamlit、健康探测、浏览器打开）
-:: 比 Windows 批处理更可靠：不存在标签解析、重定向被吞、start 失败等问题。
-"%PYTHON%" startup_sim.py --keep --pause
-exit /b %errorlevel%
+:: 使用 pythonw 在后台无窗口启动，关闭此 CMD 窗口不影响项目运行
+:: 实际启动逻辑由 start_background.py 完成，负责进程拉起、健康检查、状态记录。
+echo 正在后台启动 StockSignal，关闭此窗口不影响项目运行...
+echo 停止服务请双击 _stop_services.bat
+echo 启动状态请查看 logs\background_startup_status.log
+
+start "" "%PYTHONW%" "%PROJECT_DIR%start_background.py"
+timeout /t 2 >nul
+exit /b 0
