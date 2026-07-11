@@ -11,6 +11,15 @@ from modules.admin_api import (
     search_stocks,
 )
 
+# 系统配置项：key → 中文可读名称
+CONFIG_LABELS = {
+    "cache_days": "行情缓存天数",
+    "cache_hours_today": "当日数据缓存小时数",
+    "default_page_size": "默认分页大小",
+    "jwt_expires_seconds": "JWT 过期时间（秒）",
+    "search_limit": "股票搜索最大返回数",
+}
+
 init_session_state()
 require_admin()
 
@@ -118,7 +127,8 @@ with tab_config:
                 with st.container(border=True):
                     col_key, col_val, col_desc, col_action = st.columns([2, 2, 2, 1])
                     with col_key:
-                        st.markdown(f"**`{cfg['key']}`**")
+                        label = CONFIG_LABELS.get(cfg['key'], cfg['key'])
+                        st.markdown(f"**{label}**")
                         st.caption(f"更新: {cfg.get('updated_at', 'N/A')[:10] if cfg.get('updated_at') else 'N/A'}")
                     with col_val:
                         new_val = st.text_input("值", value=cfg["value"],

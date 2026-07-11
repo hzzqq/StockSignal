@@ -7,10 +7,19 @@
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
+import plotly.io as pio
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+# 确保自定义暗色模板存在：若页面未经过 ui_theme.apply_theme，visualizer 自己兜底注册
+# 使用 plotly_dark 作为基底色，避免 "Invalid value of type 'builtins.str'" 的 template 异常
+if "starfield_dark" not in pio.templates:
+    try:
+        pio.templates["starfield_dark"] = go.layout.Template(layout=pio.templates["plotly_dark"].layout)
+    except Exception:
+        pass
 
 # 涨跌配色（A股：红涨绿跌）
 UP_COLOR = "#ff4d4f"

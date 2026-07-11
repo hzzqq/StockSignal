@@ -126,7 +126,9 @@ def inject_plotly_dark():
     让 Plotly 默认走暗色，根除白底白框。"""
     try:
         import plotly.io as pio
-        pio.templates["starfield_dark"] = pio.templates.make_template(PLOTLY_DARK)
+        import plotly.graph_objects as go
+        if "starfield_dark" not in pio.templates:
+            pio.templates["starfield_dark"] = go.layout.Template(layout=PLOTLY_DARK)
         pio.templates.default = "starfield_dark"
     except Exception:
         pass  # 没装 plotly 也不影响其余组件

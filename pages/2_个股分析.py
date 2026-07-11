@@ -326,20 +326,23 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True):
             k1, k2, k3, k4 = st.columns(4)
             with k1:
                 st.markdown("<div style='color:#94a3b8;font-size:12px;'>趋势状态</div>"
-                            f"<div style='font-size:16px;font-weight:700;color:#e2e8f0;'>{trend_label}</div>")
+                            f"<div style='font-size:16px;font-weight:700;color:#e2e8f0;'>{trend_label}</div>",
+                            unsafe_allow_html=True)
             with k2:
                 above = trend.get("above_count", 0) if "error" not in trend else 0
                 rel = "站上均线" if last["close"] >= ma20 else "跌破均线"
                 st.markdown("<div style='color:#94a3b8;font-size:12px;'>价格相对均线</div>"
-                            f"<div style='font-size:16px;font-weight:700;color:#e2e8f0;'>{rel}（{above}/4）</div>")
+                            f"<div style='font-size:16px;font-weight:700;color:#e2e8f0;'>{rel}（{above}/4）</div>",
+                            unsafe_allow_html=True)
             with k3:
                 st.markdown("<div style='color:#94a3b8;font-size:12px;'>乖离率(MA20)</div>"
                             f"<div style='font-size:16px;font-weight:700;color:{_price_color(deviation)};'>"
-                            f"{deviation:+.2f}%</div>")
+                            f"{deviation:+.2f}%</div>", unsafe_allow_html=True)
             with k4:
                 st.markdown("<div style='color:#94a3b8;font-size:12px;'>52周区间位置</div>"
                             f"<div style='font-size:16px;font-weight:700;color:#e2e8f0;'>{pos52:.0f}%</div>"
-                            f"<div style='font-size:11px;color:#94a3b8;'>¥{lo52:.2f}~¥{hi52:.2f}</div>")
+                            f"<div style='font-size:11px;color:#94a3b8;'>¥{lo52:.2f}~¥{hi52:.2f}</div>",
+                            unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
             # ════════════ 模块4：技术指标图表 ════════════
@@ -355,7 +358,8 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True):
             # ════════════ 模块5：情报面 ════════════
             st.markdown('<div class="sf-card"><h2>情报面</h2>', unsafe_allow_html=True)
             st.markdown("<div style='color:#94a3b8;font-size:13px;margin-bottom:6px;'>"
-                        f"新闻情绪分布：正面 {pos_pct:.0f}% ｜ 中性 {100-pos_pct-neg_pct:.0f}% ｜ 负面 {neg_pct:.0f}%</div>")
+                        f"新闻情绪分布：正面 {pos_pct:.0f}% ｜ 中性 {100-pos_pct-neg_pct:.0f}% ｜ 负面 {neg_pct:.0f}%</div>",
+                        unsafe_allow_html=True)
             if news_rows:
                 rows_html = "".join(
                     f"<tr><td class='l'>{r['title']}</td>"
@@ -480,7 +484,8 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True):
             st.markdown("<div style='color:#94a3b8;font-size:13px;'>支撑 → 压力 价格刻度</div>", unsafe_allow_html=True)
             st.markdown(_support_resistance_bar(support, resistance, current_price), unsafe_allow_html=True)
 
-            st.markdown("<div style='color:#e2e8f0;font-weight:600;margin:14px 0 4px;'>分批建仓 / 减仓计划</div>")
+            st.markdown("<div style='color:#e2e8f0;font-weight:600;margin:14px 0 4px;'>分批建仓 / 减仓计划</div>",
+                        unsafe_allow_html=True)
             plan_rows = [
                 ("建仓①", f"回调至支撑区", f"¥{support:.2f}~¥{(support+current_price)/2:.2f}", "30%",
                  "首仓试探，确认支撑有效"),
@@ -506,7 +511,8 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True):
                 unsafe_allow_html=True,
             )
 
-            st.markdown("<div style='color:#e2e8f0;font-weight:600;margin:14px 0 4px;'>风险控制清单</div>")
+            st.markdown("<div style='color:#e2e8f0;font-weight:600;margin:14px 0 4px;'>风险控制清单</div>",
+                        unsafe_allow_html=True)
             risk_items = [
                 f"止损价：¥{stop_price:.2f}（破位无条件离场）",
                 f"止盈价：¥{target_price:.2f}（到达分批兑现）",
