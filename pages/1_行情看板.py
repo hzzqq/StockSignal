@@ -8,6 +8,7 @@ import pandas as pd
 from datetime import datetime, timedelta, time
 
 st.set_page_config(page_title="行情看板", page_icon="📈", layout="wide")
+st.session_state["_active_page"] = __file__
 st.title("📈 行情看板")
 
 # 关闭 streamlit 健康检查对话框：把当前页面 + 模块级 cache 对象都打上标记

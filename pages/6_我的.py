@@ -11,6 +11,7 @@ from modules.session import require_auth, render_user_badge, safe_switch_page, A
 from modules.ui_theme import get_current_mode
 
 st.set_page_config(page_title="我的", page_icon="👤", layout="wide")
+st.session_state["_active_page"] = __file__
 
 # 确保 theme_mode 在 require_auth()/apply_theme() 之前就有默认值，避免默认 light 与后面被改回 dark 造成闪烁/状态错位
 st.session_state.setdefault("theme_mode", "light")

@@ -14,6 +14,7 @@ from modules.session import init_session_state, is_authenticated, set_auth, clea
 from modules.widgets import password_strength
 
 st.set_page_config(page_title="登录", page_icon="🔐", layout="centered")
+st.session_state["_active_page"] = __file__
 init_session_state()
 
 # 已登录用户访问 /登录 时直接跳走（避免重复登录）

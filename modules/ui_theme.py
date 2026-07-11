@@ -230,7 +230,7 @@ h3 { border-left: 3px solid rgba(102, 126, 234, 0.55); padding-left: 8px; }
 .stMetric [data-testid="stMetricDelta"] { color: #94a3b8 !important; }
 
 /* ===== 按钮 ===== */
-.stButton > button {
+.stButton button {
     border-radius: 10px;
     border: 1px solid rgba(102, 126, 234, 0.35) !important;
     background: linear-gradient(180deg, rgba(26, 26, 46, 0.9), rgba(15, 15, 35, 0.95)) !important;
@@ -242,17 +242,17 @@ h3 { border-left: 3px solid rgba(102, 126, 234, 0.55); padding-left: 8px; }
     position: relative;
     overflow: hidden;
 }
-.stButton > button::before { content:''; position:absolute; top:0; left:-100%; width:100%; height:100%; background:linear-gradient(90deg,transparent,rgba(102,126,234,0.08),transparent); transition:left 0.5s ease; }
-.stButton > button:hover::before { left:100%; }
-.stButton > button:hover { transform: translateY(-1.5px); box-shadow: 0 6px 20px rgba(102,126,234,0.18), 0 0 20px rgba(102,126,234,0.08); border-color: rgba(102,126,234,0.6) !important; color: #FFFFFF !important; }
-.stApp .stButton > button[kind="primary"] {
+.stButton button::before { content:''; position:absolute; top:0; left:-100%; width:100%; height:100%; background:linear-gradient(90deg,transparent,rgba(102,126,234,0.08),transparent); transition:left 0.5s ease; }
+.stButton button:hover::before { left:100%; }
+.stButton button:hover { transform: translateY(-1.5px); box-shadow: 0 6px 20px rgba(102,126,234,0.18), 0 0 20px rgba(102,126,234,0.08); border-color: rgba(102,126,234,0.6) !important; color: #FFFFFF !important; }
+.stApp .stButton button[kind="primary"] {
     background: linear-gradient(180deg, #667eea, #764ba2) !important;
     border: none !important;
     color: #0f0f23 !important;
     font-weight: 700;
     box-shadow: 0 3px 12px rgba(102, 126, 234, 0.4);
 }
-.stApp .stButton > button[kind="primary"]:hover { box-shadow: 0 6px 24px rgba(102, 126, 234, 0.55) !important; }
+.stApp .stButton button[kind="primary"]:hover { box-shadow: 0 6px 24px rgba(102, 126, 234, 0.55) !important; }
 
 /* ===== Tabs ===== */
 .stTabs [data-baseweb="tab-list"] { gap: 6px; border-bottom: 1px solid rgba(255,255,255,0.08); }
@@ -684,7 +684,7 @@ h3 {
     font-family: 'Fira Code', monospace !important;
 }
 
-.stButton > button {
+.stButton button {
     border-radius: 8px !important;
     border: 1px solid #D1D5DB !important;
     font-weight: 600 !important;
@@ -694,21 +694,21 @@ h3 {
     box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
     transition: all 0.15s ease !important;
 }
-.stButton > button:hover {
+.stButton button:hover {
     border-color: #B8860B !important;
     background: linear-gradient(180deg, #FFFBF0, #FEF3C7) !important;
     box-shadow: 0 3px 10px rgba(184,134,11,0.12) !important;
     transform: translateY(-1px) !important;
     color: #111827 !important;
 }
-.stButton > button[kind="primary"] {
+.stButton button[kind="primary"] {
     background: linear-gradient(180deg, #D4A02A, #B8860B) !important;
     border: none !important;
     color: #FFFFFF !important;
     font-weight: 700 !important;
     box-shadow: 0 3px 10px rgba(184,134,11,0.25) !important;
 }
-.stButton > button[kind="primary"]:hover {
+.stButton button[kind="primary"]:hover {
     background: linear-gradient(180deg, #E0AA2E, #C9941F) !important;
     box-shadow: 0 5px 16px rgba(184,134,11,0.35) !important;
 }
@@ -1039,14 +1039,25 @@ def inject_plotly_dark() -> None:
         pass
 
 
+def _theme_is_dark() -> bool:
+    """当前是否应呈现暗色：用户显式选择暗夜，或当前页面为强制暗色的「个股分析」。
+
+    个股分析是「决策仪表盘」暗色页面，过去直接改写全局 theme_mode 导致
+    访问该页后所有页面都被强制变暗（用户投诉的「切功能模块黑白切换」）。
+    改为按页面作用域判断，离开该页即恢复正常主题，不再污染全局。
+    """
+    if st.session_state.get("theme_mode", "light") == "dark":
+        return True
+    return "个股分析" in str(st.session_state.get("_active_page", ""))
+
+
 def apply_theme() -> None:
     """注入全局润色 CSS（暗色/亮色）并设置 Plotly 模板。"""
-    mode = st.session_state.get("theme_mode", "light")
-    if mode == "light":
-        st.markdown(_LIGHT_CSS, unsafe_allow_html=True)
-    else:
+    if _theme_is_dark():
         st.markdown(_DARK_CSS, unsafe_allow_html=True)
         inject_plotly_dark()
+    else:
+        st.markdown(_LIGHT_CSS, unsafe_allow_html=True)
 
 
 def get_current_mode() -> str:
@@ -1054,8 +1065,7 @@ def get_current_mode() -> str:
 
 
 def section_header(title: str, subtitle: str = "", icon: str = "📊") -> None:
-    _m = st.session_state.get("theme_mode", "light")
-    if _m == "light":
+    if not _theme_is_dark():
         _bg = "#111827"; _accent = "#B8860B"; _sub = "#6B7280"
     else:
         _bg = "#e2e8f0"; _accent = "#667eea"; _sub = "#94a3b8"
@@ -1071,8 +1081,7 @@ def section_header(title: str, subtitle: str = "", icon: str = "📊") -> None:
 
 
 def card(body_html: str) -> None:
-    _m = st.session_state.get("theme_mode", "light")
-    if _m == "light":
+    if not _theme_is_dark():
         _bg = "#FFFFFF"; _bd = "rgba(17,24,39,0.08)"; _sh = "0 4px 16px rgba(17,24,39,0.06), inset 0 1px 0 rgba(255,255,255,0.8)"
     else:
         _bg = "rgba(26, 26, 46, 0.65)"; _bd = "rgba(102, 126, 234, 0.10)"; _sh = "0 8px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 24px rgba(102,126,234,0.06)"
@@ -1084,8 +1093,7 @@ def card(body_html: str) -> None:
 
 
 def loading_spinner(text: str = "加载中...", variant: str = "default") -> None:
-    _m = st.session_state.get("theme_mode", "light")
-    if _m == "light":
+    if not _theme_is_dark():
         _g = "#B8860B"; _gl = "#F6D486"; _gs = "rgba(184,134,11,0.12)"; _fc = "#555B65"
     else:
         _g = "#667eea"; _gl = "#a5b4fc"; _gs = "rgba(102,126,234,0.12)"; _fc = "#94a3b8"

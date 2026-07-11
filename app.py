@@ -16,6 +16,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+st.session_state["_active_page"] = __file__
 
 # ── 鉴权门禁：未登录直接跳到 /登录 ──
 from modules.session import require_auth, render_user_badge, is_admin, get_user, safe_switch_page, get_token

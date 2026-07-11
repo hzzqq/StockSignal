@@ -36,11 +36,15 @@ SF_BG = "#0f0f23"
 
 
 def _is_dark() -> bool:
-    """返回当前是否为暗色模式。"""
+    """返回当前是否为暗色模式（含「个股分析」页面强制暗色作用域）。"""
     try:
-        return st.session_state.get("theme_mode", "light") == "dark"
+        from modules.ui_theme import _theme_is_dark
+        return _theme_is_dark()
     except Exception:
-        return False
+        try:
+            return st.session_state.get("theme_mode", "light") == "dark"
+        except Exception:
+            return False
 
 
 def _plotly_layout_kwargs(title: str = "", height: int = 400) -> dict:

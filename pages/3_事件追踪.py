@@ -16,6 +16,7 @@ import html
 from datetime import datetime, timedelta
 
 st.set_page_config(page_title="事件追踪", page_icon="🔔", layout="wide")
+st.session_state["_active_page"] = __file__
 st.title("🔔 事件追踪")
 
 from modules.signal import SignalEngine

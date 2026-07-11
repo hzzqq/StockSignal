@@ -10,6 +10,7 @@ import pandas as pd
 from datetime import datetime
 
 st.set_page_config(page_title="仓位管理", page_icon="💰", layout="wide")
+st.session_state["_active_page"] = __file__
 st.title("💰 仓位管理")
 
 from modules.portfolio import PortfolioManager

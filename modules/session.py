@@ -65,6 +65,11 @@ def init_session_state() -> None:
     # 3) 关键：把登录态回写到 URL，确保「刷新后状态和刷新前一模一样」
     _sync_query_params()
 
+    # 记录当前页面作用域（供「个股分析」强制暗色等按页面生效的逻辑使用，
+    # 不改写全局 theme_mode，避免访问该页后其它页面被意外变暗）。
+    # _active_page 由各页面在顶部用 __file__ 设置，这里仅做兜底默认值。
+    st.session_state.setdefault("_active_page", "")
+
     # 注入金融级 UI 主题（仅视觉，不影响任何功能逻辑）
     from .ui_theme import apply_theme
     apply_theme()

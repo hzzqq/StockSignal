@@ -11,9 +11,10 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 
-# ── 前置：在 init_session_state 之前强制暗夜模式，确保 .sf-* 组件与 Plotly 暗色生效 ──
+# ── 前置：本页为「决策仪表盘」暗色页面，由 ui_theme 按页面作用域(_active_page)强制暗色，
+#    不再改写全局 theme_mode，避免访问该页后其它页面被意外变暗（用户投诉的「切模块黑白切换」）──
 st.set_page_config(page_title="个股分析", page_icon="🔍", layout="wide")
-st.session_state["theme_mode"] = "dark"
+st.session_state["_active_page"] = __file__
 
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner

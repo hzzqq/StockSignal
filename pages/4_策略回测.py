@@ -14,6 +14,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 st.set_page_config(page_title="策略回测", page_icon="⚙️", layout="wide")
+st.session_state["_active_page"] = __file__
 st.title("⚙️ 策略回测")
 
 from modules.backtest import Backtester
