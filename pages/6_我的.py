@@ -223,6 +223,56 @@ except Exception as e:
 
 st.markdown("---")
 
+# ── 登录历史 ──
+st.subheader("🕘 登录历史")
+
+try:
+    resp = requests.get(
+        f"{API_BASE}/api/auth/logins",
+        headers={"Authorization": f"Bearer {get_token()}"},
+        timeout=5,
+    )
+    if resp.status_code == 200:
+        body = resp.json()
+        logs = (body.get("data") or []) if body.get("status") == "ok" else []
+        if logs:
+            import pandas as pd
+            _hist = [
+                {
+                    "时间": (r.get("created_at", "")[:19].replace("T", " ")),
+                    "账号": r.get("username", "-"),
+                    "操作": r.get("action", "-"),
+                    "详情": r.get("detail", "") or "—",
+                }
+                for r in logs
+            ]
+            st.dataframe(pd.DataFrame(_hist), width="stretch", use_container_width=True)
+        else:
+            st.info("暂无登录记录。")
+    else:
+        st.warning(f"获取登录历史失败：HTTP {resp.status_code}")
+except Exception as e:
+    st.error(f"获取登录历史失败：{e}")
+
+st.markdown("---")
+
+# ── 账号绑定（邮箱 / 手机） ──
+st.subheader("🔗 账号绑定")
+
+_col_mail, _col_phone = st.columns(2)
+with _col_mail:
+    st.markdown("**📧 邮箱绑定**")
+    if st.button("绑定邮箱", key="bind_mail", use_container_width=True):
+        st.info("邮箱绑定功能需在后端接入邮件服务后开放（当前为本地部署，暂未启用）。")
+with _col_phone:
+    st.markdown("**📱 手机号绑定**")
+    if st.button("绑定手机", key="bind_phone", use_container_width=True):
+        st.info("手机号绑定需接入短信网关，当前为本地部署，暂未启用。")
+
+st.caption("说明：邮箱 / 手机号绑定用于找回密码与异地登录提醒，本地演示环境暂未接入第三方服务。")
+
+st.markdown("---")
+
 # ── 系统消息 / 通知占位 ──
 st.subheader("📢 系统通知")
 st.info("暂无新通知。")

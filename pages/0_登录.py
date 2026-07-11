@@ -9,7 +9,9 @@
 
 import streamlit as st
 import requests
+import jwt as _jwt
 from modules.session import init_session_state, is_authenticated, set_auth, clear_auth, safe_switch_page, API_BASE
+from modules.widgets import password_strength
 
 st.set_page_config(page_title="登录", page_icon="🔐", layout="centered")
 init_session_state()
@@ -70,6 +72,8 @@ with login_tab:
                                  value=st.session_state.get("_login_username", ""))
         password = st.text_input("密码", type="password", placeholder="Admin@123 / Demo@123", autocomplete="current-password",
                                  value=st.session_state.get("_login_password", ""))
+        remember = st.checkbox("记住我（关闭浏览器后仍可保持登录）", value=True,
+                               help="token 已保存在地址栏，刷新/重开浏览器无需重新登录")
         submit = st.form_submit_button("🔑 登录", width="stretch", type="primary")
 
         if submit:
@@ -87,18 +91,36 @@ with login_tab:
                         token = body["data"]["token"]
                         user = body["data"]["user"]
                         set_auth(token, user)
+                        st.session_state["_remember_me"] = remember
                         st.success(f"✅ 登录成功！欢迎 {user['username']}")
                         st.balloons()
                         # 跳到第一个业务页
                         safe_switch_page("pages/1_行情看板.py")
+                    elif resp.status_code == 429:
+                        # 后端已做 60s/5 次限流
+                        st.error("⏳ 登录尝试过于频繁，请 60 秒后再试（防爆破保护已启用）")
                     else:
-                        # 统一错误信息（后端已经统一中文，但做一次兜底）
+                        # 前端尝试计数提示
+                        tries = st.session_state.get("_login_tries", 0) + 1
+                        st.session_state["_login_tries"] = tries
+                        remain = max(0, 5 - tries)
                         msg = body.get("message") or f"HTTP {resp.status_code}"
-                        st.error(f"❌ 登录失败：{msg}")
+                        suffix = f"（剩余尝试次数约 {remain} 次，过多将临时锁定）" if remain > 0 else ""
+                        st.error(f"❌ 登录失败：{msg}{suffix}")
                 except requests.exceptions.Timeout:
                     st.error("❌ 登录请求超时，请检查后端服务")
                 except requests.exceptions.RequestException as e:
                     st.error(f"❌ 网络错误：{e}")
+
+    # 忘记密码（离线环境无邮件服务，提供引导）
+    with st.expander("❓ 忘记密码？", expanded=False):
+        st.info(
+            "当前为离线演示环境，未接入邮件/短信服务，暂不支持在线重置密码。\n\n"
+            "**处理方式：**\n"
+            "1. 可使用上方「演示账号」一键登录体验；\n"
+            "2. 管理员可在「用户管理」中为该账号重置密码；\n"
+            "3. 生产环境可接入邮件服务后开放自助重置。"
+        )
 
     # 演示账号提示
     with st.expander("💡 默认演示账号", expanded=False):
@@ -114,52 +136,61 @@ with login_tab:
 # ============================ 注册标签 ============================
 with register_tab:
     st.markdown("创建一个新账户（角色自动为 **普通用户**）。")
-    with st.form("register_form", clear_on_submit=True):
-        new_username = st.text_input(
-            "用户名", placeholder="2-32位，字母/数字/下划线/中文",
-            autocomplete="username",
-        )
-        new_password = st.text_input(
-            "密码", type="password", placeholder="至少 6 位",
-            autocomplete="new-password",
-        )
-        confirm_password = st.text_input(
-            "确认密码", type="password", placeholder="再次输入密码",
-            autocomplete="new-password",
-        )
-        submit_reg = st.form_submit_button("📝 注册", width="stretch", type="primary")
+    new_username = st.text_input(
+        "用户名", key="reg_username", placeholder="2-32位，字母/数字/下划线/中文",
+        autocomplete="username",
+    )
+    new_password = st.text_input(
+        "密码", type="password", key="reg_password", placeholder="至少 6 位",
+        autocomplete="new-password",
+    )
+    # 实时密码强度
+    if new_password:
+        score, level = password_strength(new_password)
+        st.progress(score / 4.0, text=f"密码强度：{level}")
+    confirm_password = st.text_input(
+        "确认密码", type="password", key="reg_confirm", placeholder="再次输入密码",
+        autocomplete="new-password",
+    )
+    agree = st.checkbox(
+        "我已阅读并同意《用户协议》与《隐私政策》",
+        key="reg_agree",
+        help="注册即表示你同意平台的服务条款与隐私声明",
+    )
 
-        if submit_reg:
-            if not new_username or not new_password or not confirm_password:
-                st.error("请填写用户名、密码和确认密码")
-            elif new_password != confirm_password:
-                st.error("两次输入的密码不一致")
-            else:
-                try:
-                    resp = requests.post(
-                        f"{API_BASE}/api/auth/register",
-                        json={
-                            "username": new_username,
-                            "password": new_password,
-                            "confirm": confirm_password,
-                        },
-                        timeout=5,
-                    )
-                    body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
-                    if resp.status_code in (200, 201) and body.get("status") == "ok":
-                        reg_name = (body.get("data") or {}).get("username", new_username)
-                        st.success(f"✅ 注册成功！欢迎 {reg_name}，请切换到「登录」标签登录。")
-                        # 回填登录表单，方便直接登录
-                        st.session_state["_login_username"] = reg_name
-                        st.session_state["_login_password"] = new_password
-                        st.info("已为你填入账号信息，可切回「登录」标签直接登录。")
-                    else:
-                        msg = body.get("message") or f"HTTP {resp.status_code}"
-                        st.error(f"❌ 注册失败：{msg}")
-                except requests.exceptions.Timeout:
-                    st.error("❌ 注册请求超时，请检查后端服务")
-                except requests.exceptions.RequestException as e:
-                    st.error(f"❌ 网络错误：{e}")
+    if st.button("📝 注册", width="stretch", type="primary", key="reg_submit"):
+        if not agree:
+            st.error("请先勾选同意《用户协议》与《隐私政策》")
+        elif not new_username or not new_password or not confirm_password:
+            st.error("请填写用户名、密码和确认密码")
+        elif new_password != confirm_password:
+            st.error("两次输入的密码不一致")
+        else:
+            try:
+                resp = requests.post(
+                    f"{API_BASE}/api/auth/register",
+                    json={
+                        "username": new_username,
+                        "password": new_password,
+                        "confirm": confirm_password,
+                    },
+                    timeout=5,
+                )
+                body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                if resp.status_code in (200, 201) and body.get("status") == "ok":
+                    reg_name = (body.get("data") or {}).get("username", new_username)
+                    st.success(f"✅ 注册成功！欢迎 {reg_name}，请切换到「登录」标签登录。")
+                    # 回填登录表单，方便直接登录
+                    st.session_state["_login_username"] = reg_name
+                    st.session_state["_login_password"] = new_password
+                    st.info("已为你填入账号信息，可切回「登录」标签直接登录。")
+                else:
+                    msg = body.get("message") or f"HTTP {resp.status_code}"
+                    st.error(f"❌ 注册失败：{msg}")
+            except requests.exceptions.Timeout:
+                st.error("❌ 注册请求超时，请检查后端服务")
+            except requests.exceptions.RequestException as e:
+                st.error(f"❌ 网络错误：{e}")
 
     st.caption("注册遇到问题？可使用上方「登录」标签的演示账号直接体验。")
 

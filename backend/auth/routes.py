@@ -5,9 +5,11 @@ auth/routes.py
 """
 from __future__ import annotations
 from flask import Blueprint, request, g
+from sqlalchemy import select, func
 from ..utils.response import ok, fail
 from ..utils.errors import ValidationError
 from ..utils.ratelimit import is_allowed, make_key
+from ..models import OperationLog
 from .service import authenticate, issue_token, decode_token, register_user
 from .decorators import jwt_required
 
@@ -111,3 +113,26 @@ def token_info():
     payload = decode_token(token)
     safe = {k: v for k, v in payload.items() if k in ("sub", "uid", "role", "iat", "exp")}
     return ok(data=safe)
+
+
+@bp.get("/logins")
+@jwt_required
+def login_history():
+    """
+    GET /api/auth/logins?limit=20
+    返回当前用户最近的登录记录（来源：OperationLog action='login'），
+    供「我的」页展示登录历史。
+    """
+    from ..extensions import db
+    limit = min(int(request.args.get("limit", "20")), 50)
+    stmt = (
+        select(OperationLog)
+        .where(OperationLog.user_id == g.current_user.id, OperationLog.action == "login")
+        .order_by(OperationLog.id.desc())
+        .limit(limit)
+    )
+    rows = db.session.execute(stmt).scalars().all()
+    return ok(
+        data=[r.to_dict() for r in rows],
+        message="success",
+    )

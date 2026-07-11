@@ -7,6 +7,7 @@ import time
 import urllib.request
 import urllib.error
 
+import requests
 import streamlit as st
 
 st.set_page_config(
@@ -17,7 +18,8 @@ st.set_page_config(
 )
 
 # ── 鉴权门禁：未登录直接跳到 /登录 ──
-from modules.session import require_auth, render_user_badge, is_admin, get_user, safe_switch_page
+from modules.session import require_auth, render_user_badge, is_admin, get_user, safe_switch_page, get_token
+from modules.widgets import render_global_search, render_theme_toggle, render_notifications, get_recent_stocks, render_session_countdown
 require_auth()
 
 user = get_user() or {}
@@ -122,7 +124,7 @@ for i, m in enumerate(visible_modules):
         with st.container(border=True):
             st.subheader(f"{m['icon']} {m['title']}")
             st.markdown(m["desc"])
-            if st.button("进入 →", key=f"nav_{m['title']}", use_container_width=True):
+            if st.button("进入 →", key=f"nav_{m['title']}", use_container_width=True, help=m["desc"]):
                 safe_switch_page(m["page"])
 
 # 管理员功能模块
@@ -140,6 +142,39 @@ if is_admin():
 
 st.markdown("---")
 
+# ── 快捷入口 ──
+st.markdown("---")
+st.header("⚡ 快捷入口")
+
+# 最近浏览（session_state 维护）
+recent = get_recent_stocks()
+if recent:
+    st.subheader("🕘 最近浏览")
+    rc = st.columns(min(len(recent), 4))
+    for i, r in enumerate(recent[:4]):
+        with rc[i]:
+            if st.button(f"{r['code']}\n{r['name']}", key=f"recent_{r['code']}", use_container_width=True):
+                safe_switch_page("pages/1_行情看板.py")
+
+# 自选股数量 + 未读提醒（调后端）
+try:
+    wl_resp = requests.get(
+        f"http://127.0.0.1:5050/api/watchlist",
+        headers={"Authorization": f"Bearer {get_token()}"},
+        timeout=5,
+    )
+    wl_count = len(wl_resp.json().get("data") or []) if wl_resp.status_code == 200 else 0
+except Exception:
+    wl_count = 0
+
+ce1, ce2, ce3 = st.columns(3)
+with ce1:
+    st.metric("自选股", f"{wl_count} 只", help="在行情看板添加到自选股")
+with ce2:
+    st.metric("未读事件", "—", help="事件追踪模块的信号评分与提醒")
+with ce3:
+    st.metric("数据更新", time.strftime("%H:%M"), help="界面数据刷新时间")
+
 # ── 项目简介（可折叠） ──
 with st.expander("📖 项目简介", expanded=False):
     st.markdown("""
@@ -156,6 +191,16 @@ with st.expander("📖 项目简介", expanded=False):
 
 # ── 侧边栏 ──
 with st.sidebar:
+    # 全局股票搜索
+    render_global_search()
+    st.markdown("---")
+    # 主题快速切换
+    render_theme_toggle()
+    st.markdown("---")
+    # 通知中心
+    render_notifications()
+    st.markdown("---")
+
     st.header("导航")
     st.markdown("""
     **功能页面：**
@@ -174,6 +219,8 @@ with st.sidebar:
         - ⚙️ 系统配置 — 股票数据、系统配置
         """)
 
+    st.markdown("---")
+    render_session_countdown()
     st.markdown("---")
     render_user_badge(sidebar=True)
 
