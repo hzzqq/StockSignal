@@ -318,10 +318,12 @@ docker compose -f docker-compose.yml up --build
 
 ## 启动脚本说明与改进点
 
-启动脚本位于项目根目录（**非** StockSignal 子目录）：
-`启动StockSignal.bat` / `启动StockSignal.sh` / `_stop_services.bat` / `_launch_hidden.vbs`。
+启动逻辑统一收敛到 `StockSignal/` 仓库内（**受 git 管理，单一事实来源**）：
+`启动StockSignal.bat` / `_stop_services.bat` / `启动StockSignal.sh`（`.sh` 位于工作区根目录 `D:\project\ks`，按设计用 `SCRIPT_DIR/StockSignal` 指向仓库）。
 
-当前能力：端口清理 → 脱离终端（_launch_hidden.vbs / nohup+setsid）→ 日志按时间戳落盘 `logs/` →
+工作区根目录 `D:\project\ks` 仅保留**薄转发入口**（`启动StockSignal.bat` / `_stop_services.bat`），双击/调用其行为与仓库内脚本完全一致，避免在仓库外再维护一份重复脚本（曾因两份副本改坏导致启动失败）。
+
+当前能力：端口清理 → 脱离终端（`.cmd` 包装脚本 + `start /min` / PowerShell `Start-Process` / `nohup`+`setsid`）→ 日志按时间戳落盘 `logs/` →
 .bat 与 .sh 步骤一一对应、行为一致。
 
 已落地的改进项（详见工程化模块报告）：
@@ -329,13 +331,13 @@ docker compose -f docker-compose.yml up --build
 1. **健康检查升级**：现仅 `curl` 端口可达性轮询，应改用后端 `GET /api/health` 做真就绪探测，避免“端口通但 DB 未就绪”的假成功。
 2. **失败自恢复**：进程启动/中途退出时启动器无感知，应加存活回检与明确失败提示。
 3. **Python 路径去硬编码**：脚本写死 `C:/Users/24995/.../python.exe`，换机/容器必失败，应优先用同目录 venv 并回退 `PATH`。
-4. **补齐 `_stop_services.sh`**：现仅 `.bat`，违反 `.bat/.sh` 行为一致约定。
+4. **补齐 `_stop_services.sh`**：已完成（`.bat` / `.sh` 均提供，行为一致）。
 5. **纯 Linux 支持**：`.sh` 当前依赖 `powershell.exe`（实为 Git Bash 方案），纯 Linux 应改 `nohup`+`setsid`。
 6. **容器内监听地址**：后端/前端在容器内需 `--host/--server.address 0.0.0.0`（脚本现为 `127.0.0.1`）。
 7. **日志增强**：现单文件覆盖，建议按日期+启动序号命名并保留 `.err`。
 8. **环境变量注入**：启动前导出 `STOCKSIGNAL_SECRET` / `CORS_ORIGINS` / `DATABASE_URL`，便于 Docker 复用。
 9. **DB 健壮性**：库存在时仍做轻量表结构校验；`import_stocks` 失败给出可重试提示。
-10. **遗留文件**：`_launch_hidden.vbs` 当前未被调用，建议接入或剔除。
+10. **遗留文件已清理**：`_launch_hidden.vbs` 已删除（早已不被调用，隐藏启动改用 `.cmd` 包装脚本 / PowerShell `Start-Process`）。
 
 ---
 
