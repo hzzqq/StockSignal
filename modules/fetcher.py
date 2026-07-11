@@ -1793,6 +1793,114 @@ class StockFetcher:
             conn.close()
 
     # ══════════════════════════════════════════════════════
+    # 通用 K 线（日/周/月）
+    # ══════════════════════════════════════════════════════
+    def _resample_kline(self, daily_df, period):
+        """
+        将日线数据聚合为周线或月线。
+        period: weekly 或 monthly
+        """
+        daily = daily_df.copy()
+        daily["date"] = pd.to_datetime(daily["date"])
+        daily = daily.set_index("date").sort_index()
+        rule = "W-FRI" if period == "weekly" else "ME"
+        agg = {
+            "open": "first",
+            "high": "max",
+            "low": "min",
+            "close": "last",
+            "volume": "sum",
+        }
+        if "amount" in daily.columns:
+            agg["amount"] = "sum"
+        resampled = daily.resample(rule).agg(agg).dropna()
+        resampled = resampled.reset_index()
+        # 计算周期涨跌幅（相对于上一周期）
+        if "close" in resampled.columns:
+            resampled["change_pct"] = resampled["close"].pct_change() * 100
+        return resampled
+
+    def get_kline(self, symbol, start="2024-01-01", end=None, period="daily", adjust="qfq"):
+        """
+        获取个股日/周/月 K 线。
+        period: daily | weekly | monthly
+        降级链：优先 akshare 真实周期；失败时由日线聚合。
+        """
+        period = (period or "daily").lower()
+        if period not in ("daily", "weekly", "monthly"):
+            raise ValueError("period 必须是 daily/weekly/monthly 之一")
+        if end is None:
+            end = datetime.now().strftime("%Y-%m-%d")
+        if period == "daily":
+            return self.get_daily(symbol, start, end, adjust)
+
+        cache_key = f"kline_{period}_{symbol}_{start}_{end}_{adjust}"
+        conn = self._get_conn()
+        try:
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            max_age_hours = 6 if end == today_str else None
+            cached = self._read_cache(conn, "daily_cache", cache_key, max_age_hours=max_age_hours)
+            if cached is not None:
+                return cached
+
+            df = None
+            errors = []
+            # L1: akshare 真实周期
+            if _AK_OK:
+                try:
+                    df = _retry_request(
+                        lambda: ak.stock_zh_a_hist(
+                            symbol=symbol, period=period,
+                            start_date=start.replace("-", ""),
+                            end_date=end.replace("-", ""),
+                            adjust=adjust,
+                        ),
+                        max_retries=0,
+                    )
+                    if df is not None and not df.empty:
+                        df = df.rename(columns={
+                            "日期": "date", "开盘": "open", "收盘": "close",
+                            "最高": "high", "最低": "low", "成交量": "volume",
+                            "成交额": "amount", "涨跌幅": "change_pct",
+                        })
+                        df["date"] = pd.to_datetime(df["date"])
+                        print(f"[StockFetcher] L1-akshare {period} OK {symbol}")
+                except Exception as e:
+                    if 'Connection' not in type(e).__name__ and 'Remote' not in type(e).__name__:
+                        errors.append(f"akshare: {type(e).__name__}")
+                    print(f"[StockFetcher] L1-akshare {period} FAIL {symbol}: {type(e).__name__}")
+                    df = None
+
+            # L2: 日线聚合
+            if df is None or df.empty:
+                try:
+                    daily = self.get_daily(symbol, start, end, adjust)
+                    if daily is not None and not daily.empty:
+                        df = self._resample_kline(daily, period)
+                        print(f"[StockFetcher] L2-resample {period} OK {symbol}")
+                    else:
+                        errors.append("日线聚合: 无数据")
+                except Exception as e:
+                    errors.append(f"日线聚合: {type(e).__name__}")
+
+            if df is None or df.empty:
+                detail = "、".join(errors) if errors else "未知原因"
+                stock_name = self._code_to_name.get(symbol, "未知")
+                raise RuntimeError(
+                    f"无法获取 {stock_name}({symbol}) 的{period}K线数据，请确认代码正确。\n"
+                    f"原因：{detail}。建议用 600519(贵州茅台) 等大盘股验证网络，或稍后重试。"
+                )
+
+            required = ["date", "open", "close", "high", "low", "volume"]
+            available = [c for c in required if c in df.columns]
+            df = df[available + [c for c in ["amount", "change_pct"] if c in df.columns]]
+            df = df.sort_values("date").reset_index(drop=True)
+            self._write_cache(conn, "daily_cache", cache_key, df)
+            return df
+        finally:
+            conn.close()
+
+    # ══════════════════════════════════════════════════════
     # 指数行情（四级降级链）
     # ══════════════════════════════════════════════════════
     def get_index(self, symbol="000001", start="2024-01-01", end=None):

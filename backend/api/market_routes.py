@@ -74,8 +74,8 @@ def quote():
 @jwt_required
 def kline():
     """
-    GET /api/kline?symbol=600519&start=2024-01-01&end=2026-07-09&adjust=qfq
-    历史日线（DataFrame）。symbol 须为 6 位数字；start/end/adjust 透传。
+    GET /api/kline?symbol=600519&start=2024-01-01&end=2026-07-09&period=daily&adjust=qfq
+    历史 K 线（日/周/月）。symbol 须为 6 位数字；period 默认 daily；其余参数透传。
     """
     symbol = (request.args.get("symbol") or "").strip()
     if not _TICKER_RE.match(symbol):
@@ -84,9 +84,12 @@ def kline():
     start = request.args.get("start") or "2024-01-01"
     end = request.args.get("end") or None
     adjust = request.args.get("adjust") or "qfq"
+    period = (request.args.get("period") or "daily").lower()
+    if period not in ("daily", "weekly", "monthly"):
+        return fail(message="参数无效", code="invalid_param", http_status=400)
 
     try:
-        df = get_fetcher().get_daily(symbol, start, end, adjust)
+        df = get_fetcher().get_kline(symbol, start, end, period, adjust)
     except RuntimeError:
         # 全源 + 缓存均失败：fetcher 抛 RuntimeError（不返回空 DataFrame）
         return fail(message="无行情数据", code="no_kline_data", http_status=404)

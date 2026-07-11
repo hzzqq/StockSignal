@@ -121,7 +121,7 @@ class Visualizer:
         fig = make_subplots(
             rows=rows, cols=1, shared_xaxes=True,
             vertical_spacing=0.05, row_heights=row_heights,
-            subplot_titles=(title, "成交量") if show_volume else (title,)
+            subplot_titles=(None, "成交量") if show_volume else (title,)
         )
 
         # ── 手绘 K 线实体（Bar：open→close）──
@@ -235,12 +235,21 @@ class Visualizer:
         title_kwargs = {"text": title, "font": {"color": SF_TXT, "size": 14}} if _is_dark() else title
 
         fig.update_layout(
+            title=title_kwargs,
             xaxis_rangeslider_visible=False,
             template="starfield_dark" if _is_dark() else "plotly_white",
             height=550,
-            margin=dict(l=40, r=20, t=50, b=40),
+            margin=dict(l=40, r=20, t=50, b=80),
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.18,
+                xanchor="center",
+                x=0.5,
+                bgcolor="rgba(0,0,0,0)" if _is_dark() else "rgba(255,255,255,0)",
+                font=dict(color=SF_TXT2 if _is_dark() else "#374151"),
+            ),
             paper_bgcolor=paper_bg,
             plot_bgcolor=plot_bg,
             xaxis=dict(
@@ -264,10 +273,6 @@ class Visualizer:
             ),
             dragmode="pan",
         )
-        if _is_dark():
-            fig.update_layout(title=title_kwargs)
-        else:
-            fig.update_layout(title=title)
         if show_volume:
             max_vol = visible["volume"].max() if len(visible) > 0 else 1
             max_vol = max(1, max_vol)
@@ -619,7 +624,7 @@ class Visualizer:
         fig = make_subplots(
             rows=rows, cols=1, shared_xaxes=True,
             vertical_spacing=0.05, row_heights=row_heights,
-            subplot_titles=(title, "成交量") if rows == 2 else (title,)
+            subplot_titles=(None, "成交量") if rows == 2 else (title,)
         )
 
         # ── 手绘 K 线实体（Bar：open→close）──
@@ -836,11 +841,16 @@ class Visualizer:
                 xaxis_rangeslider_visible=False,
                 template="starfield_dark",
                 height=550,
-                margin=dict(l=40, r=20, t=50, b=40),
+                margin=dict(l=40, r=20, t=50, b=80),
                 showlegend=True,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02,
-                            xanchor="left", x=0,
-                            font=dict(color=SF_TXT2)),
+                legend=dict(
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.18,
+                    xanchor="center",
+                    x=0.5,
+                    font=dict(color=SF_TXT2),
+                ),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 font={"color": SF_TXT2},
@@ -871,10 +881,15 @@ class Visualizer:
                 xaxis_rangeslider_visible=False,
                 template="plotly_white",
                 height=550,
-                margin=dict(l=40, r=20, t=50, b=40),
+                margin=dict(l=40, r=20, t=50, b=80),
                 showlegend=True,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-                plot_bgcolor="#FFFFFF",
+                legend=dict(
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.18,
+                    xanchor="center",
+                    x=0.5,
+                ),                plot_bgcolor="#FFFFFF",
                 paper_bgcolor="#FFFFFF",
                 xaxis=dict(
                     tickmode="array",

@@ -103,6 +103,16 @@ with st.sidebar:
     else:
         st.caption(f"📅 已选区间：{start_date} → {end_date}（共 {days_span} 天）")
 
+    kline_period = st.radio(
+        "K线周期",
+        options=["daily", "weekly", "monthly"],
+        format_func=lambda x: {"daily": "日K", "weekly": "周K", "monthly": "月K"}[x],
+        index=["daily", "weekly", "monthly"].index(st.session_state.get("kline_period", "daily")),
+        key="kline_period",
+        horizontal=True,
+        help="切换日K、周K、月K视图",
+    )
+
     ma_select = st.multiselect(
         "均线",
         options=[5, 10, 20, 30, 60, 90, 120, 200, 250],
@@ -137,12 +147,17 @@ with st.sidebar:
     end_str = end_date.strftime("%Y-%m-%d")
     
     if st.button("🔄 强制刷新数据", help="清除本地缓存，重新拉取最新行情", width="stretch"):
-        fetcher.clear_cache(table_name="daily_cache",
-                            cache_key=f"daily_{ticker}_{start_str}_{end_str}_qfq")
+        if kline_period == "daily":
+            cache_key = f"daily_{ticker}_{start_str}_{end_str}_qfq"
+            pattern = f"daily_{ticker}_%"
+        else:
+            cache_key = f"kline_{kline_period}_{ticker}_{start_str}_{end_str}_qfq"
+            pattern = f"kline_{kline_period}_{ticker}_%"
+        fetcher.clear_cache(table_name="daily_cache", cache_key=cache_key)
         # 同时清除可能存在的所有该 ticker 的缓存（不同日期范围）
         conn = fetcher._get_conn()
         try:
-            conn.execute("DELETE FROM daily_cache WHERE cache_key LIKE ?", (f"daily_{ticker}_%",))
+            conn.execute("DELETE FROM daily_cache WHERE cache_key LIKE ?", (pattern,))
             conn.commit()
         except Exception:
             pass
@@ -156,14 +171,15 @@ with st.sidebar:
 # ------------------------------------------------------------------
 # K线图
 # ------------------------------------------------------------------
-st.subheader(f"{stock_label} K线图")
+period_label = {"daily": "日K线", "weekly": "周K线", "monthly": "月K线"}[kline_period]
+st.subheader(f"{stock_label} {period_label}")
 df = None
 data_ok = False
 try:
     import traceback as _tb
-    _records = api_kline(ticker, start=start_str, end=end_str)
+    _records = api_kline(ticker, start=start_str, end=end_str, period=kline_period)
     if _records is None:
-        df = fetcher.get_daily(ticker, start=start_str, end=end_str)
+        df = fetcher.get_kline(ticker, start=start_str, end=end_str, period=kline_period)
     else:
         df = pd.DataFrame(_records)
     if df is None or df.empty:
@@ -226,7 +242,7 @@ try:
                 view_start = 0
                 view_count = n
 
-        fig = Visualizer.candlestick(df, title=f"{stock_label} 日K线",
+        fig = Visualizer.candlestick(df, title=f"{stock_label} {period_label}",
                                      ma_windows=ma_windows, show_volume=True,
                                      start_idx=view_start, n_show=view_count)
         st.plotly_chart(fig, width="stretch", key="kline_chart")

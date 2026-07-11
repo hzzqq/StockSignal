@@ -315,18 +315,18 @@ def api_quote(ticker: str, timeout: int = 5) -> dict | None:
 
 
 def api_kline(symbol: str, start: str | None = None, end: str | None = None,
-              adjust: str = "qfq", timeout: int = 5) -> list | None:
+              period: str = "daily", adjust: str = "qfq", timeout: int = 5) -> list | None:
     """
-    历史日线（后端 GET /api/kline?symbol=...）。
+    历史 K 线（后端 GET /api/kline?symbol=...）。支持 daily/weekly/monthly。
 
-    返回 records 列表（与 StockFetcher.get_daily 的 df.to_dict("records") 一致），
+    返回 records 列表（与 StockFetcher.get_kline 的 df.to_dict("records") 一致），
     调用方需用 pd.DataFrame(records) 还原 DataFrame 用法。
     失败（网络错误 / 非 200 / 响应非 ok / data 非 list）时返回 None，
-    由调用方回退到本地 fetcher.get_daily。
+    由调用方回退到本地 fetcher.get_kline。
     """
     if not symbol:
         return None
-    params = f"symbol={symbol}&start={start or '2024-01-01'}&adjust={adjust}"
+    params = f"symbol={symbol}&start={start or '2024-01-01'}&period={period}&adjust={adjust}"
     if end:
         params += f"&end={end}"
     code, body = api_get(f"/api/kline?{params}", timeout=timeout)

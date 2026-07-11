@@ -103,6 +103,15 @@ class FakeFetcher:
             raise RuntimeError("injected quote failure")
         return self.quote_data
 
+    def get_kline(self, symbol, start="2024-01-01", end=None, period="daily", adjust="qfq"):
+        self.kline_calls.append((symbol, start, end, period, adjust))
+        if self.raise_on_kline:
+            # 与 modules/fetcher.get_kline 真实降级行为一致：全源+缓存失败时抛 RuntimeError
+            raise RuntimeError("injected kline failure (no source)")
+        if self.raise_value_on_kline:
+            raise ValueError("injected unexpected kline failure")
+        return self.kline_df
+
     def get_daily(self, symbol, start="2024-01-01", end=None, adjust="qfq"):
         self.kline_calls.append((symbol, start, end, adjust))
         if self.raise_on_kline:
@@ -234,8 +243,8 @@ class TestKline:
         data = obj["data"]
         assert isinstance(data, list) and len(data) == 1
         assert _KLINE_FIELDS <= set(data[0].keys())
-        # 透传：symbol/start/end/adjust 原样传入 fetcher
-        assert fake.kline_calls == [("600519", "2024-01-01", "2024-03-01", "qfq")]
+        # 透传：symbol/start/end/period/adjust 原样传入 fetcher
+        assert fake.kline_calls == [("600519", "2024-01-01", "2024-03-01", "daily", "qfq")]
 
     def test_kline_invalid_param(self, client, monkeypatch):
         """symbol 非 6 位数字 → 400 + invalid_param + "参数无效"。"""
@@ -268,8 +277,8 @@ class TestKline:
         token = _token(client, "demo")
         r = client.get("/api/kline?symbol=600519", headers=_auth_headers(token))
         assert r.status_code == 200
-        # 默认 start=2024-01-01, end=None, adjust=qfq
-        assert fake.kline_calls == [("600519", "2024-01-01", None, "qfq")]
+        # 默认 start=2024-01-01, end=None, period=daily, adjust=qfq
+        assert fake.kline_calls == [("600519", "2024-01-01", None, "daily", "qfq")]
 
     def test_kline_runtime_error_returns_404(self, client, monkeypatch):
         """fetcher 总源失败抛 RuntimeError（与真实降级一致）→ 404 + no_kline_data +
