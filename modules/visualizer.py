@@ -77,27 +77,61 @@ class Visualizer:
     """图表生成器。V4: 手动Bar+Scatter绘制K线，彻底避免Candlestick内部日期逻辑。"""
     _VERSION = "v4-manual-bar"
 
+    # 均线配色循环（截图风格：MA5 红 / MA10 橙 / MA20 蓝 / 后续依次）
+    MA_COLORS = ["#ff4d4f", "#ffa502", "#667eea", "#00d4aa", "#764ba2"]
+
+    @staticmethod
+    def _ma_color(i: int) -> str:
+        return Visualizer.MA_COLORS[i % len(Visualizer.MA_COLORS)]
+
+    @staticmethod
+    def kline_legend_html(ma_windows=[5, 10, 20]):
+        """生成截图风格的自定义图例 HTML（K线 / MA / 成交量）。"""
+        parts = [
+            '<span style="display:inline-flex;align-items:center;gap:3px;">',
+            '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#ff4d4f;"></span>',
+            '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#00d486;margin-left:-2px;"></span>',
+            '<span style="font-size:12px;color:#94a3b8;">K线</span></span>',
+        ]
+        for i, w in enumerate(ma_windows):
+            color = Visualizer._ma_color(i)
+            parts.append(
+                f'<span style="display:inline-flex;align-items:center;gap:4px;">'
+                f'<span style="display:inline-block;width:18px;height:2px;background:{color};"></span>'
+                f'<span style="font-size:12px;color:#94a3b8;">MA{w}</span></span>'
+            )
+        parts.append(
+            '<span style="display:inline-flex;align-items:center;gap:4px;">'
+            '<span style="display:inline-block;width:18px;height:8px;background:#00d486;"></span>'
+            '<span style="font-size:12px;color:#94a3b8;">成交量</span></span>'
+        )
+        return '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:6px 0 10px;">' + ''.join(parts) + '</div>'
+
     # ------------------------------------------------------------------
     # K 线图（Plotly 交互式）
     # ------------------------------------------------------------------
     @staticmethod
     def candlestick(df, title="K线图", show_volume=True, ma_windows=[5, 20, 60],
-                   start_idx=0, n_show=None):
+                   start_idx=0, n_show=None, annotations=None, support=None, resistance=None):
         """
-        生成交互式 K 线图。
-        使用纯手动 Bar + Scatter 组合绘制，完全避免 Plotly Candlestick 的内部日期解析逻辑。
-        X 轴为整数索引 [0,1,2,...,N-1]，每个交易日绝对等间距排列。
-        悬停时通过 customdata 显示真实日期。
+        生成交互式 K 线图（V5 截图风格）。
+        - 统一悬停：单浮层显示日期 / 成交量 / OHLC / MA 值（模仿截图 tooltip）。
+        - 横向虚线：支持传入 annotations / support / resistance 在图中画水平参考线。
+        - 工具栏去掉十字准星；hover 使用竖直虚线。
+        - 使用纯手动 Bar + Scatter 组合绘制，避免 Plotly Candlestick 的日期解析。
 
         支持窗口化浏览（配合「显示位置 / 显示 K 线数量」滑块）：
         - start_idx: 窗口起始索引
         - n_show: 窗口显示 K 线数量
         均线在完整 df 上计算后再切片，保证窗口左缘的均线值准确；
-        Y 轴量程随可见窗口自适应（与 event_timeline 一致）。
+        Y 轴量程随可见窗口自适应。
 
         :param df: 行情数据，需含 date, open, close, high, low, volume
         :param start_idx: 窗口起始索引（默认 0，显示最旧一段）
         :param n_show: 窗口显示 K 线数量（默认 None，显示全部）
+        :param annotations: 水平参考线列表，如 [{"price": 88.84, "label": "压力位", "color": "#ff4d4f"}]
+        :param support: 支撑位，若提供则自动画绿色虚线
+        :param resistance: 压力位，若提供则自动画红色虚线
         :return: plotly Figure
         """
         df = df.copy()
@@ -134,8 +168,40 @@ class Visualizer:
         fig = make_subplots(
             rows=rows, cols=1, shared_xaxes=True,
             vertical_spacing=0.05, row_heights=row_heights,
-            subplot_titles=(None, "成交量") if show_volume else (title,)
+            subplot_titles=(None, None) if show_volume else (title,)
         )
+
+        # ── 统一悬停数据：日期 / OHLC / 成交量 / MA 值 ──
+        hover_data = [
+            date_strs,
+            visible["open"].round(2).values,
+            visible["high"].round(2).values,
+            visible["low"].round(2).values,
+            visible["close"].round(2).values,
+            visible["volume"].round(0).values if "volume" in visible.columns else np.zeros(m),
+        ]
+        ma_values = []
+        for w in ma_windows:
+            if len(df) >= w:
+                ma = df["close"].rolling(w).mean().iloc[start_idx:end_idx].values
+                ma_values.append(ma)
+                hover_data.append(np.round(ma, 2))
+            else:
+                ma_values.append(np.full(m, np.nan))
+                hover_data.append(np.full(m, np.nan))
+
+        hover_template = "<b>%{customdata[0]}</b><br>"
+        hover_template += "成交量: %{customdata[5]:,.0f}<br>"
+        hover_template += "K线<br>"
+        hover_template += "open: ¥%{customdata[1]:.2f}<br>"
+        hover_template += "close: ¥%{customdata[4]:.2f}<br>"
+        hover_template += "lowest: ¥%{customdata[3]:.2f}<br>"
+        hover_template += "highest: ¥%{customdata[2]:.2f}<br>"
+        for i, w in enumerate(ma_windows):
+            hover_template += f"MA{w}: ¥%{{customdata[{6 + i}]:.2f}}<br>"
+        hover_template += "<extra></extra>"
+
+        # 悬停代理点将在所有可见 trace 之后添加（保证 fig.data[0] 为 K 线实体，兼容白盒测试）
 
         # ── 手绘 K 线实体（Bar：open→close）──
         fig.add_trace(go.Bar(
@@ -147,19 +213,7 @@ class Visualizer:
             marker_color=np.where(rising, up_color, down_color),
             width=0.75,
             name="K线",
-            customdata=np.stack([
-                date_strs,
-                visible["high"].round(2).values,
-                visible["low"].round(2).values,
-            ], axis=-1),
-            hovertemplate=(
-                "<b>%{customdata[0]}</b><br>"
-                "开盘: ¥%{base:.2f}<br>"
-                "收盘: ¥%{y:.2f}<br>"
-                "最高: ¥%{customdata[1]:.2f}<br>"
-                "最低: ¥%{customdata[2]:.2f}<br>"
-                "<extra></extra>"
-            ),
+            hoverinfo="skip",
         ), row=1, col=1)
 
         # ── 上影线（high → max(open,close)）──
@@ -189,12 +243,12 @@ class Visualizer:
                 )
 
         # ── 均线（在 FULL df 上计算后切片，保证窗口左缘 MA 准确）──
-        for w in ma_windows:
+        for i, w in enumerate(ma_windows):
             if len(df) >= w:
-                ma = df["close"].rolling(w).mean().iloc[start_idx:end_idx].values
+                ma = ma_values[i]
                 fig.add_trace(go.Scatter(
                     x=x_idx, y=ma, name=f"MA{w}",
-                    line=dict(width=1.2),
+                    line=dict(color=Visualizer._ma_color(i), width=1.5),
                     hoverinfo="skip",
                 ), row=1, col=1)
 
@@ -204,9 +258,41 @@ class Visualizer:
             fig.add_trace(go.Bar(
                 x=x_idx, y=visible["volume"], name="成交量",
                 marker_color=colors, opacity=0.7,
-                customdata=date_strs,
-                hovertemplate="%{customdata}<br>成交量: %{y:,.0f}<extra></extra>",
+                hoverinfo="skip",
             ), row=2, col=1)
+
+        # ── 悬停代理点（透明 scatter，仅用于触发统一 tooltip，置于末端）──
+        fig.add_trace(go.Scatter(
+            x=x_idx,
+            y=visible["close"].values,
+            mode="markers",
+            marker=dict(opacity=0, size=0),
+            name="hover_proxy",
+            customdata=np.stack(hover_data, axis=-1),
+            hovertemplate=hover_template,
+        ), row=1, col=1)
+
+        # ── 水平参考线：annotations / support / resistance ──
+        all_annotations = []
+        if isinstance(annotations, list):
+            all_annotations.extend(annotations)
+        if support is not None:
+            all_annotations.append({"price": support, "label": "支撑", "color": DOWN_COLOR})
+        if resistance is not None:
+            all_annotations.append({"price": resistance, "label": "压力", "color": UP_COLOR})
+
+        for ann in all_annotations:
+            price = ann.get("price")
+            label = ann.get("label", "")
+            color = ann.get("color", "#94a3b8")
+            if price is not None and not np.isnan(price):
+                fig.add_hline(
+                    y=price, line_dash="dash", line_color=color, line_width=1,
+                    annotation_text=f"{label}({price:.1f})" if label else f"{price:.1f}",
+                    annotation_position="right",
+                    annotation_font=dict(color=color, size=10),
+                    row=1, col=1,
+                )
 
         # ── X 轴刻度：局部放大（<=30根K线）时显示全部日期，否则自动稀疏 ──
         if m <= 30:
@@ -252,17 +338,10 @@ class Visualizer:
             xaxis_rangeslider_visible=False,
             template="starfield_dark" if _is_dark() else "plotly_white",
             height=550,
-            margin=dict(l=40, r=20, t=50, b=80),
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="top",
-                y=-0.18,
-                xanchor="center",
-                x=0.5,
-                bgcolor="rgba(0,0,0,0)" if _is_dark() else "rgba(255,255,255,0)",
-                font=dict(color=SF_TXT2 if _is_dark() else "#374151"),
-            ),
+            margin=dict(l=40, r=50, t=50, b=80),
+            showlegend=False,
+            hovermode="x",
+            modebar=dict(remove=["select2d", "lasso2d"]),
             paper_bgcolor=paper_bg,
             plot_bgcolor=plot_bg,
             xaxis=dict(

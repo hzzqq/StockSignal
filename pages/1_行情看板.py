@@ -246,6 +246,7 @@ try:
         fig = Visualizer.candlestick(df, title=f"{stock_label} {period_label}",
                                      ma_windows=ma_windows, show_volume=True,
                                      start_idx=view_start, n_show=view_count)
+        st.markdown(Visualizer.kline_legend_html(ma_windows=ma_windows), unsafe_allow_html=True)
         st.plotly_chart(fig, width="stretch", key="kline_chart")
         st.caption("💡 拖动「显示位置」滑块可左右平移，拖动「显示 K 线数量」滑块可放大/缩小。")
 except Exception as e:

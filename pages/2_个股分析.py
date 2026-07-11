@@ -348,10 +348,29 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True):
 
             # ════════════ 模块4：技术指标图表 ════════════
             st.markdown('<div class="sf-card"><h2>技术指标图表</h2>', unsafe_allow_html=True)
+            st.markdown(
+                Visualizer.kline_legend_html(ma_windows=[5, 10, 20]),
+                unsafe_allow_html=True,
+            )
             try:
-                fig = Visualizer.candlestick(df, title=f"{display_name} 日K线（MA5/10/20）",
-                                             show_volume=True, ma_windows=[5, 10, 20])
+                fig = Visualizer.candlestick(
+                    df,
+                    title="技术指标图表（K线 + 均线 + 成交量）",
+                    show_volume=True,
+                    ma_windows=[5, 10, 20],
+                    support=support,
+                    resistance=resistance,
+                )
                 st.plotly_chart(fig, use_container_width=True)
+                # 图表下方说明：保留原标注样式，同时加入日期区间与参考线说明
+                st.markdown(
+                    "<div style='font-size:12px;color:#94a3b8;margin-top:4px;'>"
+                    "绿柱为上涨、红柱为下跌（A股习惯）。"
+                    f"虚线为 MA5/MA10/MA20；支撑线：¥{support:.2f}；压力线：¥{resistance:.2f}。"
+                    f"数据区间 {df['date'].min().strftime('%Y-%m-%d')} ~ {df['date'].max().strftime('%Y-%m-%d')}。"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
             except Exception as e:
                 st.warning(f"⚠️ K线图渲染失败：{str(e)[:80]}")
             st.markdown("</div>", unsafe_allow_html=True)
