@@ -83,16 +83,12 @@ call :log
 call :log [4/6] 启动 Flask 后端 ^(端口 %BACKEND_PORT%^)...
 call :launch "%PYTHON%" "-m flask --app backend.app:app run --host %BACKEND_HOST% --port %BACKEND_PORT%" "backend_run"
 if errorlevel 1 ( call :log   [错误] 后端启动进程拉起失败 & goto :finish_fail )
-call :log   等待后端就绪 ^(健康检查 /api/health，最多 60 秒^)...
-set WAIT_N=0
-:wait_be
+call :log   等待后端就绪 ^(健康检查 /api/health，最多 180 秒^)...
 call :wait_port %BACKEND_PORT%
 if not errorlevel 1 goto be_ready
-ping -n 2 127.0.0.1 >nul 2>&1
-set /a WAIT_N+=1
-if %WAIT_N% LSS 60 goto wait_be
-call :log   [错误] 后端未在预期内就绪，最近错误日志：
+call :log   [错误] 后端未在预期内就绪，最近输出如下：
 type "%LOGS_DIR%\backend_run.err" 2>nul
+call :log   详细探测日志：%LOGS_DIR%\wait_port_%BACKEND_PORT%.log
 goto :finish_fail
 :be_ready
 call :log   [OK] 后端已就绪
@@ -102,15 +98,11 @@ call :log
 call :log [5/6] 启动 Streamlit 前端 ^(端口 %FRONTEND_PORT%^)...
 call :launch "%PYTHON%" "-m streamlit run app.py --server.port %FRONTEND_PORT% --server.headless true --browser.gatherUsageStats false --server.fileWatcherType poll" "frontend_run"
 if errorlevel 1 ( call :log   [错误] 前端启动进程拉起失败 & goto :finish_fail )
-call :log   等待前端就绪 ^(最多 80 秒，Streamlit 首次较慢^)...
-set WAIT_N=0
-:wait_fe
+call :log   等待前端就绪 ^(最多 120 秒，Streamlit 首次较慢^)...
 call :wait_port %FRONTEND_PORT%
 if not errorlevel 1 goto fe_ready
-ping -n 2 127.0.0.1 >nul 2>&1
-set /a WAIT_N+=1
-if %WAIT_N% LSS 80 goto wait_fe
 call :log   [警告] 前端启动较慢，请稍后手动访问 http://localhost:%FRONTEND_PORT%
+call :log   前端探测日志：%LOGS_DIR%\wait_port_%FRONTEND_PORT%.log
 goto after_fe
 :fe_ready
 call :log   [OK] 前端已就绪
@@ -202,13 +194,19 @@ exit /b %L_RC%
 
 :: 用 Python urllib 探测端口是否就绪（不依赖 curl.exe）
 :: 入参 %1=端口；8501 探测根路径 /，其它探测 /api/health
+:: 超时时间：180 秒，每 1 秒探测一次，单次请求超时 2 秒。
+:: 注意：一次性启动 Python 循环探测，避免每秒都重新启动 Python 解释器带来的开销。
 :wait_port
 set "WP=%~1"
 if "%WP%"=="8501" (
-    "%PYTHON%" -c "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8501/',timeout=2); sys.exit(0)" >nul 2>&1
+    set "WP_PATH=/"
 ) else (
-    "%PYTHON%" -c "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:%WP%/api/health',timeout=2); sys.exit(0)" >nul 2>&1
+    set "WP_PATH=/api/health"
 )
+set "WP_URL=http://127.0.0.1:%WP%%WP_PATH%"
+set "WP_LOG=%LOGS_DIR%\wait_port_%WP%.log"
+if exist "%WP_LOG%" del "%WP_LOG%" >nul 2>&1
+"%PYTHON%" "%PROJECT_DIR%scripts\wait_for_service.py" "%WP_URL%" "%WP_LOG%" "180"
 exit /b
 
 :: 按端口号杀进程
