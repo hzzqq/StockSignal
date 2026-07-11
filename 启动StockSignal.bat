@@ -3,6 +3,7 @@ chcp 936 >nul 2>&1
 title StockSignal 启动器
 setlocal EnableExtensions
 set "PROJECT_DIR=%~dp0"
+cd /d "%PROJECT_DIR%"
 set "LOGS_DIR=%PROJECT_DIR%logs"
 if not exist "%LOGS_DIR%" mkdir "%LOGS_DIR%" >nul 2>&1
 set "DIAG=%LOGS_DIR%\launch_diag.log"
@@ -15,6 +16,11 @@ set "FRONTEND_PORT=8501"
 goto :main
 
 :log
+if "%~1"=="" (
+    >> "%DIAG%" echo.
+    echo.
+    goto :eof
+)
 >> "%DIAG%" echo %*
 echo %*
 goto :eof
@@ -41,7 +47,7 @@ if not defined PYTHON (
 for /f "tokens=*" %%v in ('"%PYTHON%" --version 2^>^&1') do call :log   [OK] %%v  ^(%PYTHON%^)
 
 :: ── 1. 清理占用端口的旧进程 ──
-call :log.
+call :log
 call :log [1/6] 清理占用 %BACKEND_PORT% / %FRONTEND_PORT% 端口的旧进程...
 call :kill_port %BACKEND_PORT%
 call :kill_port %FRONTEND_PORT%
@@ -49,14 +55,14 @@ ping -n 2 127.0.0.1 >nul 2>&1
 call :log   [OK] 端口清理完成
 
 :: ── 2. 检查项目目录 ──
-call :log.
+call :log
 call :log [2/6] 检查项目目录...
 if not exist "%PROJECT_DIR%\app.py" ( call :log   [错误] 找不到 %PROJECT_DIR%\app.py & goto :finish_fail )
 if not exist "%PROJECT_DIR%\backend\app.py" ( call :log   [错误] 找不到 %PROJECT_DIR%\backend\app.py & goto :finish_fail )
 call :log   [OK] 项目目录: %PROJECT_DIR%
 
 :: ── 3. 检查 / 初始化数据库 ──
-call :log.
+call :log
 call :log [3/6] 检查数据库...
 call :db_ok
 if errorlevel 1 (
@@ -73,7 +79,7 @@ if errorlevel 1 (
 )
 
 :: ── 4. 启动 Flask 后端 ──
-call :log.
+call :log
 call :log [4/6] 启动 Flask 后端 ^(端口 %BACKEND_PORT%^)...
 call :launch "%PYTHON%" "-m flask --app backend.app:app run --host %BACKEND_HOST% --port %BACKEND_PORT%" "backend_run"
 if errorlevel 1 ( call :log   [错误] 后端启动进程拉起失败 & goto :finish_fail )
@@ -84,14 +90,15 @@ call :wait_port %BACKEND_PORT%
 if not errorlevel 1 goto be_ready
 ping -n 2 127.0.0.1 >nul 2>&1
 set /a WAIT_N+=1
-if %WAIT_N% LSS 30 goto wait_be
-call :log   [警告] 后端未在预期内就绪，最近错误日志：
+if %WAIT_N% LSS 60 goto wait_be
+call :log   [错误] 后端未在预期内就绪，最近错误日志：
 type "%LOGS_DIR%\backend_run.err" 2>nul
+goto :finish_fail
 :be_ready
 call :log   [OK] 后端已就绪
 
 :: ── 5. 启动 Streamlit 前端 ──
-call :log.
+call :log
 call :log [5/6] 启动 Streamlit 前端 ^(端口 %FRONTEND_PORT%^)...
 call :launch "%PYTHON%" "-m streamlit run app.py --server.port %FRONTEND_PORT% --server.headless true --browser.gatherUsageStats false --server.fileWatcherType poll" "frontend_run"
 if errorlevel 1 ( call :log   [错误] 前端启动进程拉起失败 & goto :finish_fail )
@@ -102,7 +109,7 @@ call :wait_port %FRONTEND_PORT%
 if not errorlevel 1 goto fe_ready
 ping -n 2 127.0.0.1 >nul 2>&1
 set /a WAIT_N+=1
-if %WAIT_N% LSS 40 goto wait_fe
+if %WAIT_N% LSS 80 goto wait_fe
 call :log   [警告] 前端启动较慢，请稍后手动访问 http://localhost:%FRONTEND_PORT%
 goto after_fe
 :fe_ready
@@ -110,11 +117,11 @@ call :log   [OK] 前端已就绪
 :after_fe
 
 :: ── 6. 打开浏览器 ──
-call :log.
+call :log
 call :log   正在打开浏览器...
 start "" "http://localhost:%FRONTEND_PORT%"
 
-call :log.
+call :log
 call :log ===================================================
 call :log     启动完成！关闭此窗口不影响项目运行
 call :log ===================================================
@@ -122,7 +129,7 @@ call :log   前端地址:  http://localhost:%FRONTEND_PORT%
 call :log   后端地址:  http://%BACKEND_HOST%:%BACKEND_PORT%
 call :log   默认账号:  admin / Admin@123   demo / Demo@123
 call :log   停止方法: 双击运行 _stop_services.bat
-call :log.
+call :log
 call :log   ^(8 秒后自动关闭本窗口^)
 >> "%DIAG%" echo [%DATE% %TIME%] === 启动完成 ===
 ping -n 9 127.0.0.1 >nul
@@ -133,7 +140,7 @@ goto :eof
 :: ════════════════════════════════════════════
 :finish_fail
 >> "%DIAG%" echo [%DATE% %TIME%] === 启动失败（见上方 [错误]）===
-call :log.
+call :log
 call :log   [!] 启动未完成。请查看 %DIAG% 获取完整诊断。
 call :log   ^(8 秒后自动关闭本窗口^)
 ping -n 9 127.0.0.1 >nul
@@ -161,7 +168,8 @@ for /f "tokens=*" %%p in ('where python 2^>nul') do (
 goto :eof
 
 :: 启动后台进程：%1=python路径 %2=参数 %3=日志前缀
-:: 方案：直接 start /min 拉起 Python，stdout/stderr 重定向到日志文件，避免临时 .cmd 包装脚本被锁导致 rc=1
+:: 方案：start /min 打开独立 cmd 窗口，cmd /c 负责把 Python 输出重定向到日志文件
+:: 注意：本写法适用于无空格路径。项目路径若含空格，需改用 ^" 对路径加引号。
 :launch
 set "L_PYTHON=%~1"
 set "L_ARGS=%~2"
@@ -178,15 +186,15 @@ if not exist "%L_PYTHON%" (
 if not exist "%LOGS_DIR%" mkdir "%LOGS_DIR%" >nul 2>&1
 if exist "%L_LOG%" del "%L_LOG%" >nul 2>&1
 if exist "%L_ERR%" del "%L_ERR%" >nul 2>&1
-call :log   start "" /min "%L_PYTHON%" %L_ARGS%
-start "" /min "%L_PYTHON%" %L_ARGS% > "%L_LOG%" 2> "%L_ERR%"
+call :log   start "StockSignal %L_PREFIX%" /min cmd /c "%L_PYTHON% %L_ARGS% > %L_LOG% 2> %L_ERR%"
+start "StockSignal %L_PREFIX%" /min cmd /c "%L_PYTHON% %L_ARGS% > %L_LOG% 2> %L_ERR%"
 set "L_RC=%errorlevel%"
 call :log   start rc=%L_RC%
 if %L_RC% neq 0 (
     call :log   [WARN] start 失败，降级为普通窗口
     if exist "%L_LOG%" del "%L_LOG%" >nul 2>&1
     if exist "%L_ERR%" del "%L_ERR%" >nul 2>&1
-    start "" "%L_PYTHON%" %L_ARGS% > "%L_LOG%" 2> "%L_ERR%"
+    start "StockSignal %L_PREFIX%" cmd /c "%L_PYTHON% %L_ARGS% > %L_LOG% 2> %L_ERR%"
     set "L_RC=%errorlevel%"
     call :log   fallback rc=%L_RC%
 )
