@@ -232,8 +232,8 @@ h3 { border-left: 3px solid rgba(102, 126, 234, 0.55); padding-left: 8px; }
 /* ===== 按钮 ===== */
 .stButton > button {
     border-radius: 10px;
-    border: 1px solid rgba(102, 126, 234, 0.35);
-    background: linear-gradient(180deg, rgba(26, 26, 46, 0.9), rgba(15, 15, 35, 0.95));
+    border: 1px solid rgba(102, 126, 234, 0.35) !important;
+    background: linear-gradient(180deg, rgba(26, 26, 46, 0.9), rgba(15, 15, 35, 0.95)) !important;
     color: #e2e8f0 !important;
     font-weight: 600;
     font-family: 'Inter', sans-serif;
@@ -244,15 +244,15 @@ h3 { border-left: 3px solid rgba(102, 126, 234, 0.55); padding-left: 8px; }
 }
 .stButton > button::before { content:''; position:absolute; top:0; left:-100%; width:100%; height:100%; background:linear-gradient(90deg,transparent,rgba(102,126,234,0.08),transparent); transition:left 0.5s ease; }
 .stButton > button:hover::before { left:100%; }
-.stButton > button:hover { transform: translateY(-1.5px); box-shadow: 0 6px 20px rgba(102,126,234,0.18), 0 0 20px rgba(102,126,234,0.08); border-color: rgba(102,126,234,0.6); color: #FFFFFF !important; }
-.stButton > button[kind="primary"] {
+.stButton > button:hover { transform: translateY(-1.5px); box-shadow: 0 6px 20px rgba(102,126,234,0.18), 0 0 20px rgba(102,126,234,0.08); border-color: rgba(102,126,234,0.6) !important; color: #FFFFFF !important; }
+.stApp .stButton > button[kind="primary"] {
     background: linear-gradient(180deg, #667eea, #764ba2) !important;
     border: none !important;
     color: #0f0f23 !important;
     font-weight: 700;
     box-shadow: 0 3px 12px rgba(102, 126, 234, 0.4);
 }
-.stButton > button[kind="primary"]:hover { box-shadow: 0 6px 24px rgba(102, 126, 234, 0.55) !important; }
+.stApp .stButton > button[kind="primary"]:hover { box-shadow: 0 6px 24px rgba(102, 126, 234, 0.55) !important; }
 
 /* ===== Tabs ===== */
 .stTabs [data-baseweb="tab-list"] { gap: 6px; border-bottom: 1px solid rgba(255,255,255,0.08); }
@@ -289,26 +289,179 @@ h3 { border-left: 3px solid rgba(102, 126, 234, 0.55); padding-left: 8px; }
 }
 .stDataFrame tr:hover td, [data-testid="stTable"] tr:hover td { background: rgba(102, 126, 234, 0.06) !important; }
 
-/* ===== 输入框 ===== */
-.stTextInput > div[data-baseweb="input"],
-.stTextArea > div[data-baseweb="textarea"],
-.stSelectbox > div[data-baseweb="select"],
-.stDateInput > div[data-baseweb="date-input"],
-.stNumberInput > div[data-baseweb="input"] {
-    background: rgba(21, 21, 42, 0.8) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+/* ===== 输入框 / 下拉框 / 日期 / 数字 / 文本域：深空黑 + 高对比文字 ===== */
+/* 兼容 Streamlit 1.58 多种 DOM 层级：外层组件、data-baseweb 容器、内层 input/select */
+.stTextInput,
+.stTextArea,
+.stSelectbox,
+.stDateInput,
+.stNumberInput,
+.stMultiSelect,
+[data-testid="stTextInput"],
+[data-testid="stTextArea"],
+[data-testid="stSelectbox"],
+[data-testid="stDateInput"],
+[data-testid="stNumberInput"],
+[data-testid="stMultiSelect"] {
+    color: #e2e8f0 !important;
+}
+
+.stTextInput div[data-baseweb="input"],
+.stTextInput div[data-baseweb="base-input"],
+.stTextArea div[data-baseweb="textarea"],
+.stTextArea div[data-baseweb="base-input"],
+.stSelectbox div[data-baseweb="select"],
+.stSelectbox div[data-baseweb="base-input"],
+.stDateInput div[data-baseweb="date-input"],
+.stDateInput div[data-baseweb="base-input"],
+.stNumberInput div[data-baseweb="input"],
+.stNumberInput div[data-baseweb="base-input"],
+.stMultiSelect div[data-baseweb="select"],
+.stMultiSelect div[data-baseweb="base-input"],
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stTextInput"] div[data-baseweb="base-input"],
+[data-testid="stTextInputRootElement"] div[data-baseweb="base-input"],
+[data-testid="stTextArea"] div[data-baseweb="textarea"],
+[data-testid="stTextArea"] div[data-baseweb="base-input"],
+[data-testid="stSelectbox"] div[data-baseweb="select"],
+[data-testid="stSelectbox"] div[data-baseweb="base-input"],
+[data-testid="stDateInput"] div[data-baseweb="date-input"],
+[data-testid="stDateInput"] div[data-baseweb="base-input"],
+[data-testid="stNumberInput"] div[data-baseweb="input"],
+[data-testid="stNumberInput"] div[data-baseweb="base-input"],
+[data-testid="stMultiSelect"] div[data-baseweb="select"],
+[data-testid="stMultiSelect"] div[data-baseweb="base-input"] {
+    background: rgba(21, 21, 42, 0.85) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
     border-radius: 8px !important;
 }
-.stTextInput input, .stTextArea textarea, .stSelectbox [role="combobox"],
-.stDateInput input, .stNumberInput input {
+
+/* Streamlit 1.58 selectbox 真实可视框在 data-baseweb="select" 的直接 div 子元素中，
+   外层 select 容器已被染黑，但内层 div 仍被 baseweb 类设为白色背景 */
+.stSelectbox div[data-baseweb="select"] > div,
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+.stMultiSelect div[data-baseweb="select"] > div,
+[data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
+    background: rgba(21, 21, 42, 0.85) !important;
+}
+
+
+.stTextInput input,
+.stTextArea textarea,
+.stSelectbox [role="combobox"],
+.stDateInput input,
+.stNumberInput input,
+.stMultiSelect input,
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stSelectbox"] [role="combobox"],
+[data-testid="stDateInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stMultiSelect"] input,
+[data-baseweb="input"] input,
+[data-baseweb="textarea"] textarea,
+[data-baseweb="select"] [role="combobox"],
+[data-baseweb="date-input"] input {
     color: #e2e8f0 !important;
     -webkit-text-fill-color: #e2e8f0 !important;
     background: transparent !important;
+    caret-color: #667eea !important;
 }
-.stTextInput input:focus, .stTextArea textarea:focus, .stSelectbox > div[data-baseweb="select"] > div:focus-within,
-.stDateInput > div[data-baseweb="date-input"]:focus-within, .stNumberInput > div[data-baseweb="input"]:focus-within {
+
+/* placeholder 暗色提示 */
+.stTextInput input::placeholder,
+.stTextArea textarea::placeholder,
+.stDateInput input::placeholder,
+.stNumberInput input::placeholder,
+.stSelectbox [role="combobox"] [aria-placeholder] {
+    color: #64748b !important;
+    opacity: 1 !important;
+}
+
+/* focus 状态：紫蓝光环 */
+.stTextInput div[data-baseweb="input"]:focus-within,
+.stTextInput div[data-baseweb="base-input"]:focus-within,
+.stTextArea div[data-baseweb="textarea"]:focus-within,
+.stTextArea div[data-baseweb="base-input"]:focus-within,
+.stSelectbox div[data-baseweb="select"]:focus-within,
+.stSelectbox div[data-baseweb="base-input"]:focus-within,
+.stDateInput div[data-baseweb="date-input"]:focus-within,
+.stDateInput div[data-baseweb="base-input"]:focus-within,
+.stNumberInput div[data-baseweb="input"]:focus-within,
+.stNumberInput div[data-baseweb="base-input"]:focus-within,
+.stMultiSelect div[data-baseweb="select"]:focus-within,
+.stMultiSelect div[data-baseweb="base-input"]:focus-within,
+[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within,
+[data-testid="stTextInputRootElement"] div[data-baseweb="base-input"]:focus-within,
+[data-testid="stTextArea"] div[data-baseweb="textarea"]:focus-within,
+[data-testid="stTextArea"] div[data-baseweb="base-input"]:focus-within,
+[data-testid="stSelectbox"] div[data-baseweb="select"]:focus-within,
+[data-testid="stSelectbox"] div[data-baseweb="base-input"]:focus-within,
+[data-testid="stDateInput"] div[data-baseweb="date-input"]:focus-within,
+[data-testid="stDateInput"] div[data-baseweb="base-input"]:focus-within,
+[data-testid="stNumberInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stNumberInput"] div[data-baseweb="base-input"]:focus-within,
+[data-testid="stMultiSelect"] div[data-baseweb="select"]:focus-within,
+[data-testid="stMultiSelect"] div[data-baseweb="base-input"]:focus-within {
     border-color: #667eea !important;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18), 0 0 20px rgba(102, 126, 234, 0.06) !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.20), 0 0 20px rgba(102, 126, 234, 0.08) !important;
+}
+
+/* 下拉菜单面板 */
+div[data-baseweb="select"] ul,
+ul[data-baseweb="menu"] {
+    background: #1a1a2e !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 8px !important;
+}
+ul[data-baseweb="menu"] li,
+li[data-baseweb="menu-item"] {
+    color: #e2e8f0 !important;
+    background: #1a1a2e !important;
+}
+ul[data-baseweb="menu"] li:hover,
+li[data-baseweb="menu-item"]:hover,
+li[data-baseweb="menu-item"][aria-selected="true"] {
+    background: rgba(102, 126, 234, 0.18) !important;
+    color: #FFFFFF !important;
+}
+
+/* Radio / Checkbox */
+.stRadio [role="radiogroup"],
+.stCheckbox [role="group"],
+.stRadio [data-baseweb="radio-group"],
+.stCheckbox [data-baseweb="checkbox-group"] {
+    color: #e2e8f0 !important;
+}
+.stRadio [role="radio"],
+.stCheckbox [role="checkbox"],
+[data-baseweb="radio"] [role="radio"],
+[data-baseweb="checkbox"] [role="checkbox"] {
+    background: rgba(21, 21, 42, 0.85) !important;
+    border: 2px solid rgba(255, 255, 255, 0.15) !important;
+}
+.stRadio [role="radio"]:checked,
+.stRadio [role="radio"][aria-checked="true"],
+.stCheckbox [role="checkbox"]:checked,
+.stCheckbox [role="checkbox"][aria-checked="true"] {
+    background: #667eea !important;
+    border-color: #667eea !important;
+}
+.stRadio [role="radio"]:checked + span,
+.stCheckbox [role="checkbox"]:checked + span,
+.stRadio label span,
+.stCheckbox label span {
+    color: #e2e8f0 !important;
+}
+
+/* disabled 状态 */
+.stTextInput div[data-baseweb="input"][disabled],
+.stSelectbox div[data-baseweb="select"][disabled],
+.stDateInput div[data-baseweb="date-input"][disabled] {
+    background: rgba(21, 21, 42, 0.45) !important;
+    border-color: rgba(255, 255, 255, 0.06) !important;
+    opacity: 0.6 !important;
 }
 
 /* ===== 标签文字 ===== */
@@ -319,15 +472,32 @@ label, [data-baseweb="label"], .stTextInput label, .stTextArea label, .stSelectb
 }
 .stCaption, .caption, small, [data-testid="stCaption"] { color: #64748b !important; }
 
-/* ===== Checkbox / Radio ===== */
-.stCheckbox [role="checkbox"], .stRadio [role="radio"] {
-    background: rgba(21, 21, 42, 0.8) !important;
-    border: 2px solid rgba(255, 255, 255, 0.15) !important;
+/* ===== Checkbox / Radio（Streamlit 1.58 DOM 实测）=====
+   radio 圆框  : label[data-baseweb="radio"]    > div:first-child  （baseweb class st-g4 浅色底 / st-c1 选中金）
+   checkbox 方格: label[data-baseweb="checkbox"] > span:first-child （baseweb class st-dp 浅色底 / 选中金）
+   选中态由内部隐藏 <input>:checked 决定，用 :has() 覆盖 baseweb 默认浅色背景。
+   注意：不要使用 :not(#fake_id) 提权技巧——部分浏览器下该写法整条选择器不生效。 */
+label[data-baseweb="radio"],
+label[data-baseweb="checkbox"] { color: #e2e8f0 !important; }
+label[data-baseweb="radio"] > div:first-child,
+label[data-baseweb="checkbox"] > span:first-child {
+    background: rgba(21, 21, 42, 0.85) !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    border-radius: 50% !important;
 }
-.stCheckbox [role="checkbox"]:checked, .stRadio [role="radio"]:checked {
+label[data-baseweb="checkbox"] > span:first-child { border-radius: 4px !important; }
+label[data-baseweb="radio"]:has(input:checked) > div:first-child,
+label[data-baseweb="checkbox"]:has(input:checked) > span:first-child {
     background: #667eea !important;
     border-color: #667eea !important;
 }
+label[data-baseweb="checkbox"]:has(input:checked) > span:first-child svg,
+label[data-baseweb="checkbox"]:has(input:checked) > span:first-child path {
+    fill: #e2e8f0 !important;
+    stroke: #e2e8f0 !important;
+}
+label[data-baseweb="radio"] > div:last-child,
+label[data-baseweb="checkbox"] > div:last-child { color: #e2e8f0 !important; }
 
 /* ===== 表单容器 ===== */
 [data-testid="stForm"], .stForm, form {
@@ -600,11 +770,31 @@ h3 {
     background: #FFFBF0 !important;
 }
 
-.stTextInput > div[data-baseweb="input"],
-.stTextArea > div[data-baseweb="textarea"],
-.stSelectbox > div[data-baseweb="select"],
-.stDateInput > div[data-baseweb="date-input"],
-.stNumberInput > div[data-baseweb="input"] {
+.stTextInput div[data-baseweb="input"],
+.stTextInput div[data-baseweb="base-input"],
+.stTextArea div[data-baseweb="textarea"],
+.stTextArea div[data-baseweb="base-input"],
+.stSelectbox div[data-baseweb="select"],
+.stSelectbox div[data-baseweb="base-input"],
+.stDateInput div[data-baseweb="date-input"],
+.stDateInput div[data-baseweb="base-input"],
+.stNumberInput div[data-baseweb="input"],
+.stNumberInput div[data-baseweb="base-input"],
+.stMultiSelect div[data-baseweb="select"],
+.stMultiSelect div[data-baseweb="base-input"],
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stTextInput"] div[data-baseweb="base-input"],
+[data-testid="stTextInputRootElement"] div[data-baseweb="base-input"],
+[data-testid="stTextArea"] div[data-baseweb="textarea"],
+[data-testid="stTextArea"] div[data-baseweb="base-input"],
+[data-testid="stSelectbox"] div[data-baseweb="select"],
+[data-testid="stSelectbox"] div[data-baseweb="base-input"],
+[data-testid="stDateInput"] div[data-baseweb="date-input"],
+[data-testid="stDateInput"] div[data-baseweb="base-input"],
+[data-testid="stNumberInput"] div[data-baseweb="input"],
+[data-testid="stNumberInput"] div[data-baseweb="base-input"],
+[data-testid="stMultiSelect"] div[data-baseweb="select"],
+[data-testid="stMultiSelect"] div[data-baseweb="base-input"] {
     background: #FFFFFF !important;
     border: 1px solid #D1D5DB !important;
     border-radius: 8px !important;
@@ -651,22 +841,23 @@ small,
     font-size: 0.82rem !important;
 }
 
-.stCheckbox [role="checkbox"] {
+/* Radio / Checkbox（Streamlit 1.58 DOM 实测）*/
+label[data-baseweb="radio"] > div:first-child,
+label[data-baseweb="checkbox"] > span:first-child {
     background: #FFFFFF !important;
-    border: 2px solid #D1D5DB !important;
-    border-radius: 4px !important;
+    border: 1px solid #D1D5DB !important;
+    border-radius: 50% !important;
 }
-.stCheckbox [role="checkbox"]:checked {
+label[data-baseweb="checkbox"] > span:first-child { border-radius: 4px !important; }
+label[data-baseweb="radio"]:has(input:checked) > div:first-child,
+label[data-baseweb="checkbox"]:has(input:checked) > span:first-child {
     background: #B8860B !important;
     border-color: #996515 !important;
 }
-.stRadio [role="radio"] {
-    background: #FFFFFF !important;
-    border: 2px solid #D1D5DB !important;
-}
-.stRadio [role="radio"]:checked {
-    background: #B8860B !important;
-    border-color: #996515 !important;
+label[data-baseweb="checkbox"]:has(input:checked) > span:first-child svg,
+label[data-baseweb="checkbox"]:has(input:checked) > span:first-child path {
+    fill: #FFFFFF !important;
+    stroke: #FFFFFF !important;
 }
 
 [data-testid="stForm"],
