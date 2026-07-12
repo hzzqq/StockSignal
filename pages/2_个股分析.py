@@ -48,6 +48,11 @@ fetcher = _get_fetcher()
 # ══════════════════════════════════════════════════════════════
 # UI 辅助函数
 # ══════════════════════════════════════════════════════════════
+def _sentiment_tag(label: str) -> str:
+    """情绪标签 → CSS 类名。"""
+    return {"正面": "up", "负面": "down", "中性": "mid"}.get(label, "neu")
+
+
 def _score_ring_html(score: int, color: str) -> str:
     """生成 SVG 评分环：0-100 评分，环按比例填充，数字居中。"""
     score = max(0, min(100, int(score)))
