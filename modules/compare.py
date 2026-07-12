@@ -70,18 +70,34 @@ def fetch_compare(codes: List[str], period_days: int = 120) -> List[Dict[str, An
 
 
 def _build_row(fetcher: StockFetcher, code: str, period_days: int) -> Dict[str, Any]:
+    """构建单只股票对比行；优先本地数据库名称，失败再远程兜底。"""
     name = ""
     try:
-        name = fetcher.get_stock_name(code) or fetcher.get_stock_basic(code)[1] or code
+        # 1) 本地缓存最可靠，且会自动 warm-up
+        _, basic_name = fetcher.get_stock_basic(code)
+        if basic_name and str(basic_name).strip() and str(basic_name).strip() != code:
+            name = basic_name.strip()
     except Exception:
-        name = code
-    # 若 get_stock_name 返回空字符串，仍尝试 get_stock_basic
-    if not name or not str(name).strip():
+        pass
+
+    # 2) 本地无名称时，尝试 BaoStock 并解析 "600519(贵州茅台)"
+    if not name:
         try:
-            name = fetcher.get_stock_basic(code)[1] or code
+            raw = fetcher.get_stock_name(code) or ""
+            if raw and str(raw).strip() and str(raw).strip() != code:
+                raw = raw.strip()
+                if "(" in raw and ")" in raw:
+                    name = raw.split("(", 1)[1].split(")", 1)[0].strip()
+                else:
+                    name = raw
         except Exception:
-            name = code
-    row: Dict[str, Any] = {"code": code, "name": name if name and str(name).strip() else code}
+            pass
+
+    # 3) 兜底：代码本身
+    if not name:
+        name = code
+
+    row: Dict[str, Any] = {"code": code, "name": name}
 
     end = _dt.datetime.now().strftime("%Y-%m-%d")
     start = (_dt.datetime.now() - _dt.timedelta(days=period_days)).strftime("%Y-%m-%d")

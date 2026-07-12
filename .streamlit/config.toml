@@ -21,3 +21,8 @@ font = "sans serif"
 [server]
 # 关闭默认的运行中提示，界面更干净
 runOnSave = false
+headless = true
+
+[browser]
+# 关闭使用情况统计，避免首次运行弹出邮箱提示
+gatherUsageStats = false

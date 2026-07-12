@@ -209,10 +209,10 @@ class Visualizer:
         hover_template = "<b>%{customdata[0]}</b><br>"
         hover_template += "<span style='color:%{customdata[6]}'>●</span> 成交量: %{customdata[5]:,.0f}<br>"
         hover_template += "<span style='color:%{customdata[6]}'>●</span> K线<br>"
-        hover_template += "open: ¥%{customdata[1]:.2f}<br>"
-        hover_template += "close: ¥%{customdata[4]:.2f}<br>"
-        hover_template += "lowest: ¥%{customdata[3]:.2f}<br>"
-        hover_template += "highest: ¥%{customdata[2]:.2f}<br>"
+        hover_template += "开盘: ¥%{customdata[1]:.2f}<br>"
+        hover_template += "收盘: ¥%{customdata[4]:.2f}<br>"
+        hover_template += "最低: ¥%{customdata[3]:.2f}<br>"
+        hover_template += "最高: ¥%{customdata[2]:.2f}<br>"
         for i, w in enumerate(ma_windows):
             color = ma_colors[i % len(ma_colors)]
             hover_template += f"<span style='color:{color}'>●</span> MA{w}: ¥%{{customdata[{7 + i}]:.2f}}<br>"
@@ -359,12 +359,12 @@ class Visualizer:
             margin=dict(l=40, r=50, t=50, b=80),
             showlegend=False,
             hovermode="x",
-            # 去掉 Pan/Select/Spikeline 等图标，让十字线/缩放功能默认存在
-            modebar=dict(remove=["select2d", "lasso2d", "pan", "pan2d", "spikeline", "autoscale", "resetscale"]),
+            # 保留 zoom / reset / pan 按钮；仅移除 lasso / box-select / autoscale
+            modebar=dict(remove=["select2d", "lasso2d", "autoScale2d"]),
             paper_bgcolor=paper_bg,
             plot_bgcolor=plot_bg,
-            # 默认 zoom 模式，鼠标在 K线 区域显示为十字线
-            dragmode="zoom",
+            # 默认 drag 平移，避免一拉 K线就变成框选放大；框选放大保留在工具栏 🔍 中
+            dragmode="pan",
             hoverlabel=dict(
                 bgcolor="#1a1a2e" if _is_dark() else "#ffffff",
                 font=dict(color="#e2e8f0" if _is_dark() else "#1f2937"),

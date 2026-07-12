@@ -176,51 +176,124 @@ def stock_search_input(
     return chosen_code
 
 
+def _add_item(key: str, max_rows: int):
+    """多股输入：增加一行空输入框。"""
+    items_key = f"{key}_items"
+    items = st.session_state[items_key]
+    if len(items) < max_rows:
+        new_id = max((it["id"] for it in items), default=-1) + 1
+        items.append({"id": new_id, "value": "", "code": None, "name": None})
+
+
+def _remove_item(key: str, item_id: int):
+    """多股输入：删除指定行。"""
+    items_key = f"{key}_items"
+    st.session_state[items_key] = [it for it in st.session_state[items_key] if it["id"] != item_id]
+
+
 def multi_stock_search_input(
-    label="输入多只股票（逗号分隔）",
+    label="输入多只股票",
     key="multi_stock_search",
     default="600519,000858,601088,600036",
-    placeholder="输入代码/名称/拼音，逗号分隔，如：600519,茅台,gzmt",
+    placeholder="代码 / 名称 / 拼音",
+    max_rows=8,
 ):
     """
-    多股票搜索组件，每只股票支持代码或中文名称或拼音。
+    多股票搜索组件（动态行版）。
+    每行一只，支持代码、中文名称、拼音；可添加/删除，已解析的股票以 chip 展示。
     返回 list[str] 股票代码列表。
     """
-    raw_key = f"{key}_raw"
+    items_key = f"{key}_items"
+    fetcher = StockFetcher()
 
-    if raw_key not in st.session_state:
-        st.session_state[raw_key] = default
+    # 初始化：把逗号分隔的 default 拆成多行
+    if items_key not in st.session_state:
+        defaults = [p.strip() for p in str(default).split(",") if p.strip()]
+        st.session_state[items_key] = [
+            {"id": i, "value": val, "code": None, "name": None}
+            for i, val in enumerate(defaults)
+        ]
 
-    raw = st.text_input(
-        label,
-        key=raw_key,
-        placeholder=placeholder,
-        help="支持股票代码、中文名称、拼音首字母，逗号分隔",
+    st.markdown(
+        f"<div style='font-size:14px;font-weight:600;margin-bottom:6px;'>{label}</div>",
+        unsafe_allow_html=True,
     )
+    st.caption("每行一只，支持代码 / 中文名 / 拼音；点击 🗑️ 删除，➕ 添加。")
 
-    if not raw or not raw.strip():
-        return []
+    items = st.session_state[items_key]
 
-    parts = [p.strip() for p in raw.split(",") if p.strip()]
-    resolved = []
+    # 添加按钮
+    if len(items) < max_rows:
+        st.button(
+            "➕ 添加股票",
+            key=f"{key}_add",
+            on_click=_add_item,
+            args=(key, max_rows),
+            use_container_width=True,
+        )
+
+    resolved_codes = []
+    resolved_labels = []
     unresolved = []
 
-    for part in parts:
-        if part.isdigit() and len(part) == 6:
-            resolved.append(part)
-        else:
-            results = _cached_search(part, limit=1)
-            if results:
-                resolved.append(results[0][0])
-            else:
-                unresolved.append(part)
+    for idx, item in enumerate(items):
+        cols = st.columns([5, 1])
+        with cols[0]:
+            val = st.text_input(
+                f"股票 {idx + 1}",
+                value=item["value"],
+                key=f"{key}_input_{item['id']}",
+                placeholder=placeholder,
+                label_visibility="collapsed",
+            )
+        with cols[1]:
+            st.button(
+                "🗑️",
+                key=f"{key}_del_{item['id']}",
+                on_click=_remove_item,
+                args=(key, item["id"]),
+                help="删除",
+            )
 
-    if resolved:
-        fetcher = StockFetcher()
-        labels = [fetcher._lookup_name_for_code(c) for c in resolved]
-        st.caption(f"📌 已解析: {', '.join(labels)}")
+        # 解析当前行
+        item["value"] = val
+        if val and val.strip():
+            raw = val.strip()
+            if raw.isdigit() and len(raw) == 6:
+                code = raw
+                try:
+                    name = fetcher.get_stock_basic(code)[1] or code
+                except Exception:
+                    name = code
+            else:
+                results = _cached_search(raw, limit=1)
+                if results:
+                    code, name, _ = results[0]
+                else:
+                    code = None
+                    name = None
+            item["code"] = code
+            item["name"] = name
+            if code:
+                resolved_codes.append(code)
+                resolved_labels.append(f"{name or code}({code})")
+            else:
+                unresolved.append(raw)
+        else:
+            item["code"] = None
+            item["name"] = None
+
+    # 已解析股票 chip 展示
+    if resolved_labels:
+        chips_html = "".join(
+            f'<span style="display:inline-block;background:#1a1a2e;border:1px solid #2d2d44;'
+            f'border-radius:12px;padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:#e2e8f0;">'
+            f'{lab}</span>'
+            for lab in resolved_labels
+        )
+        st.markdown(f"<div style='margin-top:8px;'>{chips_html}</div>", unsafe_allow_html=True)
 
     if unresolved:
-        st.caption(f"⚠️ 未识别: {', '.join(unresolved)}")
+        st.warning(f"⚠️ 未识别: {', '.join(unresolved)}")
 
-    return resolved
+    return resolved_codes

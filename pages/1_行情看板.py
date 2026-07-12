@@ -248,7 +248,9 @@ try:
                                      start_idx=view_start, n_show=view_count)
         st.markdown(Visualizer.kline_legend_html(ma_windows=ma_windows), unsafe_allow_html=True)
         st.plotly_chart(fig, width="stretch", key="kline_chart")
-        st.caption("💡 拖动「显示位置」滑块可左右平移，拖动「显示 K 线数量」滑块可放大/缩小。")
+        st.caption("💡 拖动「显示位置」滑块可左右平移，拖动「显示 K 线数量」滑块可放大/缩小；"
+                   "按住鼠标拖拽平移，点击工具栏 🔍 后框选放大，点击 🏠 还原（部分需双击）。"
+                   "十字光标默认开启。")
 except Exception as e:
     import traceback as _tb
     # 抓取异常时只记日志，不弹红框（避免触发 streamlit 异常 → "Clear caches" 弹窗）

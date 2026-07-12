@@ -26,17 +26,20 @@ EXAMPLE = "600667,601133,002947,002167,600206"
 
 with st.sidebar:
     st.markdown("### 对比设置")
-    st.caption("输入 2~8 只股票（代码/中文名/拼音，逗号/空格分隔），一键同屏横向对比。")
+    st.caption("输入 2~8 只股票（代码/中文名/拼音），一键同屏横向对比。")
     if st.button("载入示例（5只）", use_container_width=True):
-        st.session_state["cmp_raw"] = EXAMPLE
+        st.session_state["cmp_items"] = [
+            {"id": i, "value": code, "code": code, "name": None}
+            for i, code in enumerate(EXAMPLE.split(","))
+        ]
         st.rerun()
 
-    # 支持中文名/拼音/代码的多股票输入框
+    # 支持中文名/拼音/代码的多股票输入框（动态行版）
     codes = multi_stock_search_input(
-        label="输入多只股票（逗号分隔）",
+        label="输入多只股票",
         key="cmp",
         default=EXAMPLE,
-        placeholder="如 600519,茅台,gzmt,601088",
+        placeholder="600519 / 茅台 / gzmt",
     )
 
     with st.form("cmp_form"):

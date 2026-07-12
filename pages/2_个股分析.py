@@ -141,10 +141,57 @@ def _support_resistance_bar(support: float, resistance: float, current: float,
     return "".join(parts)
 
 
-def _sentiment_tag(sentiment: str) -> str:
-    """情感 → .sf-tag 类别（利好→win, 利空→weak, 中性→neu）。"""
-    m = {"正面": "win", "利好": "win", "负面": "weak", "利空": "weak", "中性": "neu"}
-    return m.get(sentiment, "neu")
+def _section_header(title: str, subtitle: str = "", icon: str = "📊") -> str:
+    """生成带图标、副标题、渐变装饰线的模块标题。"""
+    sub_html = f"<div class='sub'>{subtitle}</div>" if subtitle else ""
+    return (
+        f"<div class='sf-section-header'>"
+        f"<div class='icon'>{icon}</div>"
+        f"<div class='titles'><h2>{title}</h2>{sub_html}</div>"
+        f"<div class='deco'></div></div>"
+    )
+
+
+def _calc_trade_levels(current_price: float, df: pd.DataFrame, support: float, resistance: float):
+    """
+    基于 ATR 与支撑/压力，计算合理的入场/目标/止损价。
+    止损价不超过现价 8%，避免低价股出现 ¥101 股票止损 ¥43 的荒谬结果。
+    """
+    if current_price is None or current_price <= 0:
+        return current_price, resistance, support, 0.0
+
+    # ATR14
+    high = df["high"]
+    low = df["low"]
+    close = df["close"]
+    tr1 = high - low
+    tr2 = (high - close.shift(1)).abs()
+    tr3 = (low - close.shift(1)).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr14 = float(tr.rolling(14).mean().iloc[-1]) if len(tr) >= 14 else current_price * 0.025
+    if np.isnan(atr14) or atr14 <= 0:
+        atr14 = current_price * 0.025
+
+    # 止损：2.5*ATR 下方，但保底最多跌 8%（与支撑位取更严者）
+    stop_atr = current_price - 2.5 * atr14
+    stop_max_pct = current_price * 0.92
+    # 若支撑位在 stop_max_pct 与 current_price 之间，采用支撑位；否则用 ATR 止损与 8% 的较大值（ closer to price）
+    if support > 0 and support < current_price and support > stop_max_pct:
+        stop_price = support
+    else:
+        stop_price = max(stop_atr, stop_max_pct)
+    stop_price = max(stop_price, current_price * 0.80)  # 绝对下限 20%（极端保护）
+
+    # 入场：比现价低 0.5 ATR 的回踩价，但不跌破止损
+    entry_price = max(current_price - 0.5 * atr14, stop_price * 1.01)
+
+    # 目标：3*ATR 上方，但不超过压力位与 15% 涨幅上限
+    target_atr = current_price + 3 * atr14
+    target_pct_cap = current_price * 1.15
+    target_price = min(target_atr, resistance, target_pct_cap)
+    target_price = max(target_price, current_price * 1.03)  # 至少 3% 空间
+
+    return round(entry_price, 2), round(target_price, 2), round(stop_price, 2), round(atr14, 2)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -203,6 +250,15 @@ st.markdown(
 .sf-intel-bar .bar-pos{height:100%;background:#00d4aa}
 .sf-intel-bar .bar-neu{height:100%;background:#ffa502}
 .sf-intel-bar .bar-neg{height:100%;background:#ff4757}
+/* 副标题卡片装饰：带图标、小字、渐变装饰线 */
+.sf-section-header{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid #2d2d44;position:relative}
+.sf-section-header .icon{font-size:20px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a1a2e,#241b3a);border:1px solid #2d2d44;border-radius:10px}
+.sf-section-header .titles{flex:1}
+.sf-section-header h2{margin:0;font-size:17px;font-weight:700;color:#e2e8f0;border:none}
+.sf-section-header .sub{font-size:12px;color:#94a3b8;margin-top:2px}
+.sf-section-header .deco{width:40px;height:3px;border-radius:2px;background:linear-gradient(90deg,#667eea,#764ba2);position:absolute;bottom:-1.5px;left:0}
+.sf-card{background:#1a1a2e;border:1px solid #2d2d44;border-radius:14px;padding:18px;margin-top:16px}
+.sf-card h2:first-child{margin-top:0}
 </style>
     """,
     unsafe_allow_html=True,
@@ -324,9 +380,7 @@ def _run_analysis(ticker: str) -> dict:
     resistance = float(recent["high"].max())
     if current_price is None:
         current_price = float(df.iloc[-1]["close"])
-    entry_price = current_price
-    target_price = round(resistance, 2)
-    stop_price = round(support, 2)
+    entry_price, target_price, stop_price, atr14 = _calc_trade_levels(current_price, df, support, resistance)
 
     # ── 乖离率（收盘价相对 MA20）──
     last = df.iloc[-1]
@@ -372,15 +426,18 @@ def _run_analysis(ticker: str) -> dict:
     # ── 仓位建议（依研判）──
     if verdict == "看多":
         position_advice = (
-            f"分批低吸，建议建仓 40%–50% 底仓（MA20 未收复，不满仓）；"
-            f"当前乖离 MA5 仅 {deviation:+.1f}%，位置健康可建首仓"
+            f"分批低吸，建议首仓在现价附近，回踩 ¥{entry_price:.2f} 补第二笔；"
+            f"目标 ¥{target_price:.2f} 分批兑现，止损 ¥{stop_price:.2f}"
         )
     elif verdict == "看空":
-        position_advice = "轻仓观望，等待企稳信号；若已持仓建议逢高减仓、严控回撤"
+        position_advice = (
+            f"轻仓观望，等待企稳；若已持仓建议逢高减仓，"
+            f"反弹目标 ¥{target_price:.2f} 附近减仓，止损 ¥{stop_price:.2f}"
+        )
     else:
         position_advice = (
-            f"区间波段，半仓操作；回踩支撑 ¥{support:.2f} 可低吸，"
-            f"靠近压力 ¥{resistance:.2f} 减仓"
+            f"区间波段，半仓操作；回踩 ¥{entry_price:.2f} 可低吸，"
+            f"目标 ¥{target_price:.2f} 分批兑现，跌破止损 ¥{stop_price:.2f} 纪律离场"
         )
 
     return {
@@ -413,6 +470,7 @@ def _run_analysis(ticker: str) -> dict:
         "entry_price": entry_price,
         "target_price": target_price,
         "stop_price": stop_price,
+        "atr14": atr14,
         "deviation": deviation,
         "lo52": lo52,
         "hi52": hi52,
@@ -471,6 +529,7 @@ def _render_analysis(R: dict):
     entry_price = R["entry_price"]
     target_price = R["target_price"]
     stop_price = R["stop_price"]
+    atr14 = R["atr14"]
     deviation = R["deviation"]
     lo52 = R["lo52"]
     hi52 = R["hi52"]
@@ -496,7 +555,7 @@ def _render_analysis(R: dict):
     last = df.iloc[-1]
 
     # ════════════ 模块1：顶部决策摘要 ════════════
-    st.markdown("### 顶部决策摘要")
+    st.markdown(_section_header("顶部决策摘要", "综合评分 · 仓位策略 · 风险价位", "🎯"), unsafe_allow_html=True)
     chg_txt = f"{change_pct:+.2f}%"
     price_disp = f"¥{current_price:.2f}" if current_price is not None else f"¥{last['close']:.2f}"
     change_amt = (current_price - prev_close) if (current_price is not None and prev_close is not None) else 0.0
@@ -547,20 +606,21 @@ def _render_analysis(R: dict):
     with c1:
         st.markdown(
             "<div class='sf-metric-card'>"
-            "<div class='label'>入场价（分批）</div>"
-            f"<div class='value sf-doc-up'>¥{entry_price:.1f} / {support:.1f}</div>"
+            "<div class='label'>入场价（首仓 / 回踩）</div>"
+            f"<div class='value sf-doc-up'>¥{current_price:.1f} / ¥{entry_price:.1f}</div>"
             "</div>", unsafe_allow_html=True)
     with c2:
         st.markdown(
             "<div class='sf-metric-card'>"
-            "<div class='label'>目标价</div>"
-            f"<div class='value sf-doc-up'>¥{target_price:.1f} / {trapped:.0f}</div>"
+            "<div class='label'>目标价（一目标 / 压力）</div>"
+            f"<div class='value sf-doc-up'>¥{target_price:.1f} / ¥{resistance:.1f}</div>"
             "</div>", unsafe_allow_html=True)
     with c3:
         st.markdown(
             "<div class='sf-metric-card'>"
-            "<div class='label'>止损价</div>"
+            "<div class='label'>止损价（ATR14 风险位）</div>"
             f"<div class='value sf-doc-down'>¥{stop_price:.1f}</div>"
+            f"<div style='font-size:11px;color:#94a3b8;margin-top:4px;'>ATR14=¥{atr14:.2f}</div>"
             "</div>", unsafe_allow_html=True)
 
     st.markdown(
@@ -570,7 +630,7 @@ def _render_analysis(R: dict):
     )
 
     # ════════════ 模块2：核心结论 ════════════
-    st.markdown('<div class="sf-card"><h2>核心结论</h2>', unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("核心结论", "AI 综合研判 · 多空信号", "💡"), unsafe_allow_html=True)
     trend_label = trend.get("trend_label", "—") if "error" not in trend else "数据不足"
     mom_label = momentum.get("momentum_label", "—") if "error" not in momentum else "—"
     vol_label = volume_info.get("volume_price_label", "—") if "error" not in volume_info else "—"
@@ -590,7 +650,7 @@ def _render_analysis(R: dict):
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ════════════ 模块3：数据透视 ════════════
-    st.markdown('<div class="sf-card"><h2>数据透视</h2>', unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("数据透视", "量价 / 筹码 / 位置 / 乖离", "📊"), unsafe_allow_html=True)
     arrangement = trend.get("arrangement", "") if "error" not in trend else ""
     if "多头" in arrangement:
         short_pill, short_cls = "短期转强", "up"
@@ -665,7 +725,7 @@ def _render_analysis(R: dict):
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ════════════ 模块4：技术指标图表 ════════════
-    st.markdown('<div class="sf-card"><h2>技术指标图表</h2>', unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("技术指标图表", "K线 + 均线 + 成交量 · 日期坐标", "📈"), unsafe_allow_html=True)
     st.markdown(
         Visualizer.kline_legend_html(
             ma_windows=[5, 10, 20],
@@ -696,6 +756,15 @@ def _render_analysis(R: dict):
             ma_colors=["#ffa502", "#667eea", "#00d4aa"],
         )
         st.plotly_chart(fig, use_container_width=True)
+        # K线交互提示（解决用户对工具栏双机还原、框选放大、拖拽平移的困惑）
+        st.markdown(
+            "<div style='font-size:12px;color:#94a3b8;margin:8px 0 6px;display:flex;align-items:center;gap:8px;'>"
+            "<span>💡</span>"
+            "<span>按住鼠标拖拽可平移；点击工具栏 🔍 后框选区域可放大；"
+            "点击 🏠 可还原视图（部分浏览器需双击）。十字光标默认开启。</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
         # 图表下方说明：标注线 + 日期区间（参考文档）
         st.markdown(
             "<div style='font-size:12px;color:#94a3b8;margin-top:4px;'>"
@@ -714,10 +783,9 @@ def _render_analysis(R: dict):
 
     # ════════════ 模块5：情报面 ════════════
     neu_pct = max(0, 100 - pos_pct - neg_pct)
-    st.markdown('<div class="sf-card">', unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("情报面", "新闻情绪 · 事件催化 · 风险提示", "📰"), unsafe_allow_html=True)
     st.markdown(
         f"<div class='sf-intel-header'>"
-        f"<h2>情报面</h2>"
         f"<div>"
         f"<span class='sf-pill up'>正面 {pos_pct:.0f}%</span>"
         f"<span class='sf-pill mid'>中性 {neu_pct:.0f}%</span>"
@@ -765,7 +833,7 @@ def _render_analysis(R: dict):
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ════════════ 模块6：信号归因（四维雷达）══════════
-    st.markdown('<div class="sf-card"><h2>信号归因 · 四维雷达</h2>', unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("信号归因 · 四维雷达", "技术 / 情绪 / 量能 / 宏观", "🎯"), unsafe_allow_html=True)
     try:
         import plotly.graph_objects as go
         radar_fig = go.Figure()
@@ -854,7 +922,7 @@ def _render_analysis(R: dict):
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ════════════ 模块7：作战计划 ════════════
-    st.markdown('<div class="sf-card"><h2>作战计划</h2>', unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("作战计划", "支撑压力 · 分批建仓 · 纪律止损", "⚔️"), unsafe_allow_html=True)
     st.markdown("<div style='color:#94a3b8;font-size:13px;'>支撑（前低）→ 压力（套牢区）价格刻度</div>", unsafe_allow_html=True)
     st.markdown(
         _support_resistance_bar(
@@ -873,11 +941,11 @@ def _render_analysis(R: dict):
     st.markdown("<div style='color:#e2e8f0;font-weight:600;margin:14px 0 4px;'>分批建仓 / 减仓计划</div>",
                 unsafe_allow_html=True)
     plan_rows = [
-        ("建仓①", f"回调至支撑区", f"¥{support:.2f}~¥{(support+current_price)/2:.2f}", "30%",
-         "首仓试探，确认支撑有效"),
+        ("建仓①", f"回调至回踩位", f"¥{entry_price:.2f}~¥{current_price:.2f}", "30%",
+         "首仓试探，回踩确认有效"),
         ("建仓②", "放量突破 MA20", f"¥{ma20v:.2f}~¥{current_price:.2f}", "30%",
          "趋势确认后加仓"),
-        ("加仓", f"突破压力 ¥{target_price:.2f}", f"¥{target_price:.2f} 上方", "20%",
+        ("加仓", f"突破目标价 ¥{target_price:.2f}", f"¥{target_price:.2f} 上方", "20%",
          "顺势跟随，不追高"),
         ("减仓①", f"到达目标价 ¥{target_price:.2f}", f"≈¥{target_price:.2f}", "-40%",
          "兑现部分利润"),
