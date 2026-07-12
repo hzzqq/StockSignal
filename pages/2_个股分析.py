@@ -9,6 +9,7 @@
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 
 # ── 前置：本页白天模式（参考 002947 白天版），沿用全局 light 主题，不再强制暗色，
