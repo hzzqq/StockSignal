@@ -7,7 +7,7 @@ import streamlit as st
 
 st.set_page_config(page_title="多股对比", page_icon="📊", layout="wide")
 
-# 强制本页进入「星辰决策仪表盘」暗色主题（离开本页后自动恢复全局主题）
+# 本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）
 st.session_state["_active_page"] = __file__
 
 from modules.session import init_session_state, require_auth, render_user_badge
@@ -26,28 +26,7 @@ st.title("📊 多股对比 · 决策仪表盘")
 EXAMPLE = "600667,601133,002947,002167,600206"
 
 
-def _ai_summary(rows, question: str) -> str:
-    """基于当前对比数据生成简单的 AI 咨询简报。"""
-    if not rows:
-        return "请先完成一次多股对比，我再基于当前标的为你分析。"
-    ranked = sorted(rows, key=lambda r: r["scores"]["composite"], reverse=True)
-    best, worst = ranked[0], ranked[-1]
-    avg = sum(r["scores"]["composite"] for r in rows) / len(rows)
-    buy_count = sum(1 for r in rows if r["signal"] == "买入")
-    sell_count = sum(1 for r in rows if r["signal"] == "卖出")
-    names = "、".join(r["name"] for r in rows)
-    return (
-        f"**★ 星辰 · 多市场智能股票分析师**\n\n"
-        f"当前组合：{names}（共 {len(rows)} 只）。\n\n"
-        f"- 平均综合评分：**{avg:.0f}** 分\n"
-        f"- 最强标的：**{best['name']}（{best['scores']['composite']} 分，{best['signal']}）**\n"
-        f"- 最弱标的：**{worst['name']}（{worst['scores']['composite']} 分，{worst['signal']}）**\n"
-        f"- 信号分布：买入 {buy_count} / 持有 {len(rows) - buy_count - sell_count} / 卖出 {sell_count}\n\n"
-        f"**建议：** 优先关注 {best['name']}，其在趋势/动量维度领先；"
-        f"{worst['name']} 评分偏弱，建议谨慎。\n\n"
-        f"*关于你的问题「{question or '组合分析'}」：* 以上为基于量价与基本面的模型推演，"
-        f"不构成投资建议，请独立决策并控制仓位。"
-    )
+# AI 咨询逻辑已移至 modules.widgets.render_ai_consultant（全局通用，任意页面可用）
 
 
 with st.sidebar:
@@ -72,28 +51,7 @@ with st.sidebar:
         period = st.slider("回看天数", 60, 250, 120, 10)
         submitted = st.form_submit_button("开始对比", use_container_width=True, type="primary")
 
-    st.markdown("---")
-    st.markdown("### ★ 星辰 · 多市场智能股票分析师")
-    with st.form("ai_consult_form"):
-        question = st.text_area(
-            "AI 咨询",
-            value=st.session_state.get("ai_consult_q", ""),
-            placeholder="例如：这组合里谁最值得买？风险在哪？",
-            height=80,
-            label_visibility="collapsed",
-        )
-        consult_submitted = st.form_submit_button("🚀 咨询", use_container_width=True)
-    if consult_submitted:
-        st.session_state["ai_consult_q"] = question
-        st.rerun()
-    if "ai_consult_q" in st.session_state and st.session_state["ai_consult_q"]:
-        rows_for_ai = st.session_state.get("_cmp_rows")
-        st.markdown(
-            _ai_summary(rows_for_ai, st.session_state["ai_consult_q"]),
-            unsafe_allow_html=True,
-        )
-    else:
-        st.caption("完成对比后，可在此输入问题获取基于当前标的的智能简报。")
+    # AI 咨询已全局化（左侧栏「★ 星辰 · 多市场智能股票分析师」），任意页面可用
 
 if submitted:
     if len(codes) < 2:

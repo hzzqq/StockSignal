@@ -359,7 +359,7 @@ def compare_css() -> str:
 .compare-wrap .tag.weak{{background:{_sf()['tag_weak_bg']};color:{_sf()['down']};border:1px solid {_sf()['tag_weak_border']}}}
 .compare-wrap .tag.neu{{background:{_sf()['tag_neu_bg']};color:{_sf()['txt2']};border:1px solid {_sf()['tag_neu_border']}}}
 .compare-wrap .vs{{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px}}
-.compare-wrap .vsbox{{flex:1 1 45%;min-width:320px;background:{_sf()['vsbox_bg']};border:1px solid {_sf()['border']};border-radius:10px;padding:14px}}
+.compare-wrap .vsbox{{flex:1 1 0;min-width:300px;background:{_sf()['vsbox_bg']};border:1px solid {_sf()['border']};border-radius:10px;padding:14px}}
 .compare-wrap .vsbox h3{{font-size:14px;margin-bottom:8px}}
 .compare-wrap .vsbox .verdict{{font-size:13px;font-weight:700;margin:8px 0;padding:6px 10px;border-radius:8px}}
 .compare-wrap .verdict.b{{background:{_sf()['verdict_b_bg']};color:{_sf()['up']}}}
@@ -482,11 +482,14 @@ def _stock_bullets(r: Dict[str, Any]) -> List[str]:
     if cap is not None and pe is not None:
         bullets.append(f"市值 <b>{cap:.0f}亿</b> · TTM <b>{pe:.1f}</b> 倍")
     elif cap is not None:
-        bullets.append(f"市值 <b>{cap:.0f}亿</b> · 市盈率未获取")
+        bullets.append(f"市值 <b>{cap:.0f}亿</b> · 市盈率暂未获取")
     elif pe is not None:
-        bullets.append(f"TTM <b>{pe:.1f}</b> 倍 · 总市值未获取")
+        bullets.append(f"TTM <b>{pe:.1f}</b> 倍 · 总市值暂未获取")
     else:
-        bullets.append("基本面数据暂未获取，以技术面为主")
+        if ind and ind != "未知行业":
+            bullets.append(f"估值数据波动：市值/市盈率暂未拉取（行业：<b>{ind}</b>，以技术面为主）")
+        else:
+            bullets.append("基本面数据暂未获取，以技术面为主")
     # 3) 技术面四维
     bullets.append(
         f"趋势 {s.get('trend', 0):.0f} / 动量 {s.get('momentum', 0):.0f} / "

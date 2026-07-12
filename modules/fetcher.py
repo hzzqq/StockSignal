@@ -713,39 +713,130 @@ class StockFetcher:
 
     def get_fundamentals(self, code, use_cache=True):
         """获取个股基本面（名称/最新价/总市值(亿)/市盈率TTM/行业）。
-        优先东方财富 push2，失败后尝试 akshare；进程内缓存避免重复请求；失败返回 None。"""
+
+        多源降级链：东方财富 push2 → akshare 个股信息 → akshare 估值(市盈率TTM/总市值)
+        → Baostock 名称 → 本地 stock_fundamentals 表；各源只补全缺失字段（合并而非覆盖），
+        进程内缓存避免重复请求；全部失败时返回空字典 {}（调用方再用行业关键词兜底，不会崩）。
+        """
         code = str(code).strip().zfill(6)
         if use_cache and code in StockFetcher._fund_cache:
             return StockFetcher._fund_cache[code]
+
+        def _to_float(x):
+            try:
+                return float(x) if x not in (None, "", "-") else None
+            except Exception:
+                return None
+
+        def _has(d):
+            return bool(d) and (d.get("market_cap") or d.get("pe_ttm")
+                                or d.get("industry") or d.get("name"))
+
+        def _merge(target, src):
+            """把 src 中非空的字段补全进 target（只填 target 缺失的键）。"""
+            if not isinstance(src, dict):
+                return target
+            for k, v in src.items():
+                if v in (None, ""):
+                    continue
+                # 数值型指标：0 视为缺失（避免 akshare 偶发返回 0 污染有效数据）
+                if k in ("market_cap", "pe_ttm", "price") and v == 0:
+                    continue
+                if target.get(k) in (None, ""):
+                    target[k] = v
+            return target
+
+        def _bs_code(c):
+            """转 Baostock 9 位代码：sh/sz/bj 前缀。"""
+            c = str(c).zfill(6)
+            if c[0] in "6789" or c.startswith("5"):
+                return "sh." + c
+            if c[0] in "023":
+                return "sz." + c
+            return "bj." + c
+
+        res = {}  # 始终为 dict，绝不返回 None（避免调用方 .get 崩溃）
         # L1: 东方财富 push2
-        res = _UrllibFetcher.fetch_fundamentals(code)
-        if res is not None and (res.get("market_cap") or res.get("pe_ttm") or res.get("industry")):
-            StockFetcher._fund_cache[code] = res
-            return res
-        # L2: akshare 东方财富个股信息（更稳定的备用源）
         try:
-            import akshare as ak
-            df = ak.stock_individual_info_em(symbol=code)
-            info = dict(zip(df["item"], df["value"]))
-            def _to_float(x):
-                try:
-                    return float(x) if x not in (None, "", "-") else None
-                except Exception:
-                    return None
-            cap = _to_float(info.get("总市值"))
-            pe = _to_float(info.get("市盈率"))
-            res = {
-                "name": (info.get("股票名称") or "").strip(),
-                "price": _to_float(info.get("最新价")),
-                "market_cap": round(cap / 1e8, 1) if cap else None,
-                "pe_ttm": pe,
-                "industry": (info.get("行业") or "").strip(),
-            }
-            if res["name"] or res["market_cap"] or res["pe_ttm"] or res["industry"]:
-                StockFetcher._fund_cache[code] = res
-                return res
+            r = _UrllibFetcher.fetch_fundamentals(code)
+            if isinstance(r, dict):
+                _merge(res, r)
         except Exception as e:
-            print(f"[StockFetcher] akshare 基本面失败 ({code}): {e}")
+            print(f"[StockFetcher] 东方财富基本面失败 ({code}): {e}")
+        # L2: akshare 东方财富个股信息
+        if not _has(res):
+            try:
+                import akshare as ak
+                df = ak.stock_individual_info_em(symbol=code)
+                info = dict(zip(df["item"], df["value"]))
+                cap = _to_float(info.get("总市值"))
+                r = {
+                    "name": (info.get("股票名称") or "").strip(),
+                    "price": _to_float(info.get("最新价")),
+                    "market_cap": round(cap / 1e8, 1) if cap else None,
+                    "pe_ttm": _to_float(info.get("市盈率")),
+                    "industry": (info.get("行业") or "").strip(),
+                }
+                _merge(res, r)
+            except Exception as e:
+                print(f"[StockFetcher] akshare 个股信息失败 ({code}): {e}")
+        # L3: akshare 估值百度（市盈率TTM / 总市值）补全
+        if res.get("pe_ttm") is None or res.get("market_cap") is None:
+            try:
+                import akshare as ak
+                if res.get("pe_ttm") is None:
+                    try:
+                        df = ak.stock_zh_valuation_baidu(symbol=code, indicator="市盈率(TTM)", period="近一年")
+                        if df is not None and not df.empty:
+                            res["pe_ttm"] = _to_float(df.iloc[-1]["value"])
+                    except Exception as e:
+                        print(f"[StockFetcher] akshare 估值(PE)失败 ({code}): {e}")
+                if res.get("market_cap") is None:
+                    try:
+                        df = ak.stock_zh_valuation_baidu(symbol=code, indicator="总市值", period="近一年")
+                        if df is not None and not df.empty:
+                            cap = _to_float(df.iloc[-1]["value"])
+                            # 百度估值接口「总市值」单位已为「亿元」，无需再除 1e8
+                            res["market_cap"] = round(cap, 1) if cap else None
+                    except Exception as e:
+                        print(f"[StockFetcher] akshare 估值(市值)失败 ({code}): {e}")
+            except Exception as e:
+                print(f"[StockFetcher] akshare 估值失败 ({code}): {e}")
+        # L4: Baostock 名称兜底（需要 9 位 sh/sz/bj 代码）
+        if not res.get("name"):
+            try:
+                import baostock as bs
+                bs.login()
+                rs = bs.query_stock_basic(code=_bs_code(code))
+                if rs.error_code == "0" and rs.next():
+                    row = rs.get_row_data()
+                    name = (row[1] if len(row) > 1 else "") or ""
+                    if name:
+                        res["name"] = name.strip()
+                bs.logout()
+            except Exception as e:
+                print(f"[StockFetcher] Baostock 名称失败 ({code}): {e}")
+        # L5: 本地库 stock_fundamentals 表兜底
+        if not _has(res):
+            try:
+                conn = self._get_conn()
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT name,market_cap,pe_ttm,industry FROM stock_fundamentals WHERE code=?",
+                    (code,),
+                )
+                row = cur.fetchone()
+                if row:
+                    _merge(res, {
+                        "name": row[0], "market_cap": row[1],
+                        "pe_ttm": row[2], "industry": row[3],
+                    })
+                conn.close()
+            except Exception:
+                pass
+
+        if _has(res):
+            StockFetcher._fund_cache[code] = res
         return res
     def _get_conn(self):
         return sqlite3.connect(self.db_path)

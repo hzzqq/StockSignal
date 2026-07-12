@@ -546,6 +546,58 @@ a:hover { color: #667eea !important; }
 .stCode, code, pre { background: rgba(21, 21, 42, 0.9) !important; color: #e2e8f0 !important; border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 8px !important; font-family: 'Fira Code', monospace !important; }
 .stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span { color: #e2e8f0 !important; }
 .stText, [data-testid="stText"] { color: #e2e8f0 !important; }
+
+/* ===== 暗夜模式下原生控件配色（修复输入框白底 / 选择框白底 / 文字看不清） ===== */
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stNumberInput"] input {
+  background-color: #15152a !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #2d2d44 !important;
+}
+[data-testid="stTextInput"] input::placeholder,
+[data-testid="stTextArea"] textarea::placeholder {
+  color: #94a3b8 !important;
+}
+/* selectbox 控件本体（非下拉） */
+[data-testid="stSelectbox"] [data-baseweb="select"] { background: transparent !important; }
+[data-testid="stSelectbox"] [data-baseweb="select"] > div {
+  background-color: #1a1a2e !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #2d2d44 !important;
+}
+[data-testid="stSelectbox"] input { color: #e2e8f0 !important; caret-color: #e2e8f0 !important; }
+[data-testid="stSelectbox"] svg { fill: #94a3b8 !important; stroke: #94a3b8 !important; }
+/* selectbox 下拉列表 */
+ul[data-baseweb="listbox"],
+ul[role="listbox"] {
+  background-color: #15152a !important;
+  border: 1px solid #2d2d44 !important;
+}
+li[data-baseweb="option"],
+li[role="option"] {
+  color: #e2e8f0 !important;
+  background-color: transparent !important;
+}
+li[data-baseweb="option"]:hover,
+li[role="option"]:hover,
+li[data-baseweb="option"][aria-selected="true"],
+li[role="option"][aria-selected="true"] {
+  background-color: #241b3a !important;
+  color: #ffffff !important;
+}
+/* radio / checkbox 文字与选中态 */
+[data-testid="stRadio"] label,
+[data-testid="stCheckbox"] label { color: #e2e8f0 !important; }
+[data-testid="stRadio"] > div,
+[data-testid="stRadio"] { background: transparent !important; }
+[data-baseweb="radio"] { background: #1a1a2e !important; border-color: #2d2d44 !important; }
+[data-baseweb="radio"][aria-checked="true"] { background: #667eea !important; border-color: #667eea !important; }
+/* slider 轨道与滑块 */
+[data-testid="stSlider"] { color: #e2e8f0 !important; }
+[data-baseweb="slider"] { background: transparent !important; }
+[data-baseweb="slider"] [data-testid="track"] { background: #2d2d44 !important; }
+[data-baseweb="slider"] [data-testid="thumb"] { background: #667eea !important; border-color: #667eea !important; }
 </style>
 """
 
@@ -1040,16 +1092,13 @@ def inject_plotly_dark() -> None:
 
 
 def _theme_is_dark() -> bool:
-    """当前是否应呈现暗色：用户显式选择暗夜，或当前页面为强制暗色的「个股分析」。
+    """当前是否应呈现暗色：仅由用户全局主题 theme_mode 控制（默认亮色）。
 
-    个股分析 / 多股对比 是「决策仪表盘」暗色页面，过去直接改写全局 theme_mode 导致
-    访问该页后所有页面都被强制变暗（用户投诉的「切功能模块黑白切换」）。
-    改为按页面作用域判断，离开该页即恢复正常主题，不再污染全局。
+    不再按页面强制暗色——之前「个股分析 / 多股对比」访问后所有页面被污染成暗色，
+    用户投诉「切功能模块黑白切换」。现在所有页面统一跟随右上角主题开关，
+    白天 / 暗夜两种模式都可手动切换，离开页面不残留。
     """
-    if st.session_state.get("theme_mode", "light") == "dark":
-        return True
-    ap = str(st.session_state.get("_active_page", ""))
-    return ("个股分析" in ap) or ("多股对比" in ap)
+    return st.session_state.get("theme_mode", "light") == "dark"
 
 
 def apply_theme() -> None:
@@ -1063,6 +1112,96 @@ def apply_theme() -> None:
 
 def get_current_mode() -> str:
     return st.session_state.get("theme_mode", "light")
+
+
+def dashboard_sf_css() -> str:
+    """个股分析「决策仪表盘」的 .sf-* 组件样式（白天 / 暗夜双主题自适应）。
+
+    通过 CSS 变量切换：暗夜用深空黑底 + 紫蓝渐变，白天用白卡 + 浅边框高对比。
+    页面只需注入一次，:root 变量会覆盖全局主题里的同名变量，保证配色一致。
+    """
+    dark = _theme_is_dark()
+    if dark:
+        root = """
+  --bg:#0f0f23; --card:#1a1a2e; --card2:#15152a; --buy:#009e60; --sell:#dc2626; --hold:#d97706;
+  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44;
+  --hover:#15152a; --alert-risk:#ffb3bb; --alert-cat:#9af0dd; --disclaimer:#6b7280;
+  --header-g1:#1a1a2e; --header-g2:#241b3a; --icon-g1:#1a1a2e; --icon-g2:#241b3a;
+"""
+    else:
+        root = """
+  --bg:#ffffff; --card:#ffffff; --card2:#f4f6fb; --buy:#009e60; --sell:#dc2626; --hold:#d97706;
+  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#1e293b; --txt2:#64748b; --border:#e2e8f0;
+  --hover:#f1f5f9; --alert-risk:#991b1b; --alert-cat:#166534; --disclaimer:#94a3b8;
+  --header-g1:#eef2ff; --header-g2:#ede9fe; --icon-g1:#eef2ff; --icon-g2:#ede9fe;
+"""
+    return f"""
+<style>
+:root{{{root}}}
+/* 文档风格：绿涨红跌（参考 002947，本页统一采用） */
+.sf-doc-up{{color:var(--buy)!important}}
+.sf-doc-down{{color:var(--sell)!important}}
+.sf-doc-neu{{color:var(--hold)!important}}
+.sf-buy-badge{{display:inline-block;font-size:22px;font-weight:800;letter-spacing:2px;
+  padding:10px 28px;border-radius:14px;color:#fff;background:linear-gradient(135deg,#009e60,#047857);
+  box-shadow:0 0 20px rgba(0,158,96,.22)}}
+.sf-sell-badge{{background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;box-shadow:0 0 20px rgba(220,38,38,.22)}}
+.sf-hold-badge{{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;box-shadow:0 0 20px rgba(217,119,6,.22)}}
+.sf-price-big{{font-size:42px;font-weight:800;letter-spacing:-1px;font-family:'Fira Code',monospace;color:var(--buy)}}
+.sf-triangle{{font-size:22px;margin-right:4px}}
+.sf-metric-card{{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}}
+.sf-metric-card .label{{font-size:12px;color:var(--txt2);margin-bottom:6px}}
+.sf-metric-card .value{{font-size:22px;font-weight:700;font-family:'Fira Code',monospace;color:var(--txt)}}
+.sf-insight-box{{background:rgba(0,158,96,.10);border:1px solid rgba(0,158,96,.35);
+  border-radius:12px;padding:14px 16px;line-height:1.8;font-size:14px;color:var(--txt)}}
+.sf-insight-box.hold{{background:rgba(217,119,6,.10);border-color:rgba(217,119,6,.35);color:var(--txt)}}
+.sf-grid-4{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}}
+@media(max-width:900px){{.sf-grid-4{{grid-template-columns:repeat(2,1fr)}}}}
+@media(max-width:540px){{.sf-grid-4{{grid-template-columns:1fr}}}}
+.sf-perspective-card{{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}}
+.sf-perspective-card .title{{font-size:12px;color:var(--txt2);margin-bottom:10px}}
+.sf-perspective-card .body{{font-size:14px;color:var(--txt);line-height:1.6}}
+.sf-pill{{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin:2px 2px 2px 0}}
+.sf-pill.up{{background:rgba(0,158,96,.12);color:var(--buy);border:1px solid rgba(0,158,96,.35)}}
+.sf-pill.down{{background:rgba(220,38,38,.12);color:var(--sell);border:1px solid rgba(220,38,38,.35)}}
+.sf-pill.mid{{background:rgba(217,119,6,.12);color:var(--hold);border:1px solid rgba(217,119,6,.35)}}
+.sf-intel-header{{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px}}
+.sf-intel-header h2{{margin:0;padding:0;border:0}}
+.sf-intel-bar{{height:6px;border-radius:3px;overflow:hidden;display:flex;margin:10px 0 18px;background:var(--border)}}
+.sf-intel-bar .bar-pos{{height:100%;background:var(--buy)}}
+.sf-intel-bar .bar-neu{{height:100%;background:var(--hold)}}
+.sf-intel-bar .bar-neg{{height:100%;background:var(--sell)}}
+.sf-section-header{{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid var(--border);position:relative}}
+.sf-section-header .icon{{font-size:20px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--icon-g1),var(--icon-g2));border:1px solid var(--border);border-radius:10px}}
+.sf-section-header .titles{{flex:1}}
+.sf-section-header h2{{margin:0;font-size:17px;font-weight:700;color:var(--txt);border:none!important;padding:0!important}}
+.sf-section-header .sub{{font-size:12px;color:var(--txt2);margin-top:2px}}
+.sf-section-header .deco{{width:40px;height:3px;border-radius:2px;background:linear-gradient(90deg,#4f46e5,#7c3aed);position:absolute;bottom:-1.5px;left:0}}
+.sf-header{{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px;padding:14px 18px;background:linear-gradient(90deg,var(--header-g1),var(--header-g2));border:1px solid var(--border);border-radius:14px}}
+.sf-brand{{font-size:15px;color:var(--txt2);letter-spacing:1px}}
+.sf-brand b{{color:var(--acc1)}}
+.sf-tag{{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin:2px 2px 2px 0}}
+.sf-tag.up{{background:rgba(0,158,96,.14);color:var(--buy);border:1px solid rgba(0,158,96,.38)}}
+.sf-tag.down{{background:rgba(220,38,38,.14);color:var(--sell);border:1px solid rgba(220,38,38,.38)}}
+.sf-tag.mid{{background:rgba(217,119,6,.14);color:var(--hold);border:1px solid rgba(217,119,6,.38)}}
+.sf-tag.neu{{background:rgba(148,163,184,.12);color:var(--txt2);border:1px solid var(--border)}}
+.sf-alert{{border-radius:12px;padding:13px 15px;margin-top:14px;font-size:13.5px;color:var(--txt);line-height:1.7}}
+.sf-alert.risk{{background:rgba(220,38,38,.10);border:1px solid rgba(220,38,38,.30);color:var(--alert-risk)}}
+.sf-alert.cat{{background:rgba(0,158,96,.10);border:1px solid rgba(0,158,96,.30);color:var(--alert-cat)}}
+.sf-alert b{{display:block;margin-bottom:5px;font-size:14px}}
+.sf-table{{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}}
+.sf-table th,.sf-table td{{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)}}
+.sf-table th{{color:var(--txt2);font-weight:600;font-size:12px}}
+.sf-table tr:hover td{{background:var(--hover)}}
+.sf-disclaimer{{margin-top:14px;font-size:11.5px;color:var(--disclaimer);border-top:1px dashed var(--border);padding-top:10px}}
+.sf-vs{{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}}
+@media(max-width:780px){{.sf-vs{{grid-template-columns:1fr}}}}
+.sf-vsbox{{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.08)}}
+.sf-vsbox h3{{font-size:14px;margin-bottom:8px;color:var(--txt);border:none!important;padding-left:0!important}}
+.sf-card{{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}}
+.sf-card h2:first-child{{margin-top:0!important}}
+</style>
+"""
 
 
 def section_header(title: str, subtitle: str = "", icon: str = "📊") -> None:

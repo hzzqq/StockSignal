@@ -202,9 +202,6 @@ with st.sidebar:
     # 全局股票搜索
     render_global_search()
     st.markdown("---")
-    # 主题快速切换
-    render_theme_toggle()
-    st.markdown("---")
     # 通知中心
     render_notifications()
     st.markdown("---")

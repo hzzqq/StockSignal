@@ -239,6 +239,9 @@ def require_auth() -> None:
     init_session_state()
 
     if is_authenticated():
+        # 注入所有页面通用组件：右上角主题开关 + 侧边栏全局 AI 咨询
+        from modules.widgets import inject_global_widgets
+        inject_global_widgets()
         return
 
     st.warning("🔐 该功能需要登录后才能使用")

@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-# ── 前置：本页强制进入「星辰决策仪表盘」暗色主题（离开本页后自动恢复全局主题）
+# ── 前置：本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）──
 st.set_page_config(page_title="个股分析", page_icon="🔍", layout="wide")
 st.session_state["_active_page"] = __file__
 
@@ -24,6 +24,7 @@ from modules.news import NewsFetcher, SentimentAnalyzer
 from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
 from modules.session import init_session_state, require_auth, render_user_badge, api_kline, api_quote
 from modules.search_ui import stock_search_input
+from modules.ui_theme import dashboard_sf_css
 
 # 配色常量（对齐参考文档 002947 白天版 .sf-*：绿涨 / 红跌 / 琥珀中性）
 # 说明：参考文档采用绿涨红跌（与 StockSignal 全局 A 股红涨惯例不同），
@@ -210,7 +211,7 @@ with st.sidebar:
         default="600519",
         placeholder="输入代码或名称搜索，如：600519 / 贵州茅台 / GZMT / 茅台",
     )
-    st.caption("本页为星辰决策仪表盘暗色主题。")
+    st.caption("本页为星辰决策仪表盘，右上角可切换暗夜 / 白天模式。")
 
 # 主区标题
 st.markdown(
@@ -219,83 +220,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 002947 参考文档风格：绿涨红跌，局部增强样式（暗色版）
-st.markdown(
-    """
-<style>
-:root{
-  --bg:#0f0f23; --card:#1a1a2e; --buy:#009e60; --sell:#dc2626; --hold:#d97706;
-  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44;
-}
-/* 文档风格：绿涨红跌 */
-.sf-doc-up{color:var(--buy)!important}
-.sf-doc-down{color:var(--sell)!important}
-.sf-doc-neu{color:var(--hold)!important}
-.sf-buy-badge{display:inline-block;font-size:22px;font-weight:800;letter-spacing:2px;
-  padding:10px 28px;border-radius:14px;color:#fff;background:linear-gradient(135deg,#009e60,#047857);
-  box-shadow:0 0 20px rgba(0,158,96,.22)}
-.sf-sell-badge{background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;box-shadow:0 0 20px rgba(220,38,38,.22)}
-.sf-hold-badge{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;box-shadow:0 0 20px rgba(217,119,6,.22)}
-.sf-price-big{font-size:42px;font-weight:800;letter-spacing:-1px;font-family:'Fira Code',monospace;color:var(--buy)}
-.sf-triangle{font-size:22px;margin-right:4px}
-.sf-metric-card{background:#15152a;border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}
-.sf-metric-card .label{font-size:12px;color:var(--txt2);margin-bottom:6px}
-.sf-metric-card .value{font-size:22px;font-weight:700;font-family:'Fira Code',monospace;color:var(--txt)}
-.sf-insight-box{background:rgba(0,158,96,.10);border:1px solid rgba(0,158,96,.35);
-  border-radius:12px;padding:14px 16px;line-height:1.8;font-size:14px;color:var(--txt)}
-.sf-insight-box.hold{background:rgba(217,119,6,.10);border-color:rgba(217,119,6,.35);color:var(--txt)}
-.sf-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
-@media(max-width:900px){.sf-grid-4{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:540px){.sf-grid-4{grid-template-columns:1fr}}
-.sf-perspective-card{background:#15152a;border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.15)}
-.sf-perspective-card .title{font-size:12px;color:var(--txt2);margin-bottom:10px}
-.sf-perspective-card .body{font-size:14px;color:var(--txt);line-height:1.6}
-.sf-pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin:2px 2px 2px 0}
-.sf-pill.up{background:rgba(0,158,96,.12);color:var(--buy);border:1px solid rgba(0,158,96,.35)}
-.sf-pill.down{background:rgba(220,38,38,.12);color:var(--sell);border:1px solid rgba(220,38,38,.35)}
-.sf-pill.mid{background:rgba(217,119,6,.12);color:var(--hold);border:1px solid rgba(217,119,6,.35)}
-.sf-intel-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px}
-.sf-intel-header h2{margin:0;padding:0;border:0}
-.sf-intel-bar{height:6px;border-radius:3px;overflow:hidden;display:flex;margin:10px 0 18px;background:var(--border)}
-.sf-intel-bar .bar-pos{height:100%;background:var(--buy)}
-.sf-intel-bar .bar-neu{height:100%;background:var(--hold)}
-.sf-intel-bar .bar-neg{height:100%;background:var(--sell)}
-/* 副标题卡片装饰：带图标、小字、渐变装饰线 */
-.sf-section-header{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid var(--border);position:relative}
-.sf-section-header .icon{font-size:20px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a1a2e,#241b3a);border:1px solid var(--border);border-radius:10px}
-.sf-section-header .titles{flex:1}
-.sf-section-header h2{margin:0;font-size:17px;font-weight:700;color:var(--txt);border:none!important;padding:0!important}
-.sf-section-header .sub{font-size:12px;color:var(--txt2);margin-top:2px}
-.sf-section-header .deco{width:40px;height:3px;border-radius:2px;background:linear-gradient(90deg,#4f46e5,#7c3aed);position:absolute;bottom:-1.5px;left:0}
-/* 头部品牌条（对齐参考文档暗色版渐变 header） */
-.sf-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px;padding:14px 18px;background:linear-gradient(90deg,#1a1a2e,#241b3a);border:1px solid var(--border);border-radius:14px}
-.sf-brand{font-size:15px;color:var(--txt2);letter-spacing:1px}
-.sf-brand b{color:var(--acc1)}
-/* 标签 / 警报 / 表格 / 免责 / VS */
-.sf-tag{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin:2px 2px 2px 0}
-.sf-tag.up{background:rgba(0,158,96,.14);color:var(--buy);border:1px solid rgba(0,158,96,.38)}
-.sf-tag.down{background:rgba(220,38,38,.14);color:var(--sell);border:1px solid rgba(220,38,38,.38)}
-.sf-tag.mid{background:rgba(217,119,6,.14);color:var(--hold);border:1px solid rgba(217,119,6,.38)}
-.sf-tag.neu{background:rgba(148,163,184,.12);color:var(--txt2);border:1px solid var(--border)}
-.sf-alert{border-radius:12px;padding:13px 15px;margin-top:14px;font-size:13.5px;color:var(--txt);line-height:1.7}
-.sf-alert.risk{background:rgba(220,38,38,.10);border:1px solid rgba(220,38,38,.30);color:#ffb3bb}
-.sf-alert.cat{background:rgba(0,158,96,.10);border:1px solid rgba(0,158,96,.30);color:#9af0dd}
-.sf-alert b{display:block;margin-bottom:5px;font-size:14px}
-.sf-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
-.sf-table th,.sf-table td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)}
-.sf-table th{color:var(--txt2);font-weight:600;font-size:12px}
-.sf-table tr:hover td{background:#15152a}
-.sf-disclaimer{margin-top:14px;font-size:11.5px;color:#6b7280;border-top:1px dashed var(--border);padding-top:10px}
-.sf-vs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
-@media(max-width:780px){.sf-vs{grid-template-columns:1fr}}
-.sf-vsbox{background:#15152a;border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.15)}
-.sf-vsbox h3{font-size:14px;margin-bottom:8px;color:var(--txt);border:none!important;padding-left:0!important}
-.sf-card{background:#15152a;border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.15)}
-.sf-card h2:first-child{margin-top:0!important}
-</style>
-    """,
-    unsafe_allow_html=True,
-)
+# 002947 参考文档风格：绿涨红跌，局部增强样式（白天 / 暗夜双主题自适应）
+st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -956,7 +882,7 @@ def _render_analysis(R: dict):
 
     # ════════════ 模块7：作战计划 ════════════
     st.markdown('<div class="sf-card">' + _section_header("作战计划", "支撑压力 · 分批建仓 · 纪律止损", "⚔️"), unsafe_allow_html=True)
-    st.markdown("<div style='color:#64748b;font-size:13px;'>支撑（前低）→ 压力（套牢区）价格刻度</div>", unsafe_allow_html=True)
+    st.markdown("<div style='color:var(--txt2);font-size:13px;'>支撑（前低）→ 压力（套牢区）价格刻度</div>", unsafe_allow_html=True)
     st.markdown(
         _support_resistance_bar(
             support, trapped, current_price,
@@ -971,7 +897,7 @@ def _render_analysis(R: dict):
         unsafe_allow_html=True,
     )
 
-    st.markdown("<div style='color:#1e293b;font-weight:600;margin:14px 0 4px;'>分批建仓 / 减仓计划</div>",
+    st.markdown("<div style='color:var(--txt);font-weight:600;margin:14px 0 4px;'>分批建仓 / 减仓计划</div>",
                 unsafe_allow_html=True)
     plan_rows = [
         ("建仓①", f"回调至回踩位", f"¥{entry_price:.2f}~¥{current_price:.2f}", "30%",
@@ -998,7 +924,7 @@ def _render_analysis(R: dict):
         unsafe_allow_html=True,
     )
 
-    st.markdown("<div style='color:#1e293b;font-weight:600;margin:14px 0 4px;'>风险控制清单</div>",
+    st.markdown("<div style='color:var(--txt);font-weight:600;margin:14px 0 4px;'>风险控制清单</div>",
                 unsafe_allow_html=True)
     risk_items = [
         f"止损价：¥{stop_price:.2f}（破位无条件离场）",
