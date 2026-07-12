@@ -1042,14 +1042,14 @@ def inject_plotly_dark() -> None:
 def _theme_is_dark() -> bool:
     """当前是否应呈现暗色：用户显式选择暗夜，或当前页面为强制暗色的「个股分析」。
 
-    个股分析 / 多股票对比 是「决策仪表盘」暗色页面，过去直接改写全局 theme_mode 导致
+    个股分析 / 多股对比 是「决策仪表盘」暗色页面，过去直接改写全局 theme_mode 导致
     访问该页后所有页面都被强制变暗（用户投诉的「切功能模块黑白切换」）。
     改为按页面作用域判断，离开该页即恢复正常主题，不再污染全局。
     """
     if st.session_state.get("theme_mode", "light") == "dark":
         return True
     ap = str(st.session_state.get("_active_page", ""))
-    return ("个股分析" in ap) or ("多股票对比" in ap)
+    return ("个股分析" in ap) or ("多股对比" in ap)
 
 
 def apply_theme() -> None:

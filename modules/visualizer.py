@@ -163,8 +163,10 @@ class Visualizer:
         visible = df.iloc[start_idx:end_idx].copy().reset_index(drop=True)
         m = len(visible)
 
+        # x_idx 用于 shapes（category 轴的整数坐标），x_vals 用于 traces（日期类别）
         x_idx = list(range(m))
-        date_strs = visible["date"].dt.strftime("%Y-%m-%d").tolist()
+        x_vals = visible["date"].dt.strftime("%Y-%m-%d").tolist()
+        date_strs = x_vals
         date_labels = visible["date"].dt.strftime("%m月%d日").tolist()
 
         # 涨跌判断
@@ -184,7 +186,7 @@ class Visualizer:
             subplot_titles=(None, None) if show_volume else (title,)
         )
 
-        # ── 统一悬停数据：日期 / OHLC / 成交量 / MA 值 ──
+        # ── 统一悬停数据：日期 / OHLC / 成交量 / 成交量颜色 / MA 值 ──
         hover_data = [
             date_strs,
             visible["open"].round(2).values,
@@ -192,6 +194,7 @@ class Visualizer:
             visible["low"].round(2).values,
             visible["close"].round(2).values,
             visible["volume"].round(0).values if "volume" in visible.columns else np.zeros(m),
+            np.where(rising, up_color, down_color),  # 成交量/K线圆点颜色
         ]
         ma_values = []
         for w in ma_windows:
@@ -204,21 +207,22 @@ class Visualizer:
                 hover_data.append(np.full(m, np.nan))
 
         hover_template = "<b>%{customdata[0]}</b><br>"
-        hover_template += "成交量: %{customdata[5]:,.0f}<br>"
-        hover_template += "K线<br>"
+        hover_template += "<span style='color:%{customdata[6]}'>●</span> 成交量: %{customdata[5]:,.0f}<br>"
+        hover_template += "<span style='color:%{customdata[6]}'>●</span> K线<br>"
         hover_template += "open: ¥%{customdata[1]:.2f}<br>"
         hover_template += "close: ¥%{customdata[4]:.2f}<br>"
         hover_template += "lowest: ¥%{customdata[3]:.2f}<br>"
         hover_template += "highest: ¥%{customdata[2]:.2f}<br>"
         for i, w in enumerate(ma_windows):
-            hover_template += f"MA{w}: ¥%{{customdata[{6 + i}]:.2f}}<br>"
+            color = ma_colors[i % len(ma_colors)]
+            hover_template += f"<span style='color:{color}'>●</span> MA{w}: ¥%{{customdata[{7 + i}]:.2f}}<br>"
         hover_template += "<extra></extra>"
 
         # 悬停代理点将在所有可见 trace 之后添加（保证 fig.data[0] 为 K 线实体，兼容白盒测试）
 
         # ── 手绘 K 线实体（Bar：open→close）──
         fig.add_trace(go.Bar(
-            x=x_idx,
+            x=x_vals,
             y=np.where(rising,
                       visible["close"].values - visible["open"].values,   # 涨：从 open 到 close
                       visible["open"].values - visible["close"].values),   # 跌：从 close 到 open
@@ -260,7 +264,7 @@ class Visualizer:
             if len(df) >= w:
                 ma = ma_values[i]
                 fig.add_trace(go.Scatter(
-                    x=x_idx, y=ma, name=f"MA{w}",
+                    x=x_vals, y=ma, name=f"MA{w}",
                     line=dict(color=ma_colors[i % len(ma_colors)], width=1.5),
                     hoverinfo="skip",
                 ), row=1, col=1)
@@ -269,14 +273,14 @@ class Visualizer:
         if show_volume and "volume" in visible.columns:
             colors = np.where(rising, up_color, down_color)
             fig.add_trace(go.Bar(
-                x=x_idx, y=visible["volume"], name="成交量",
+                x=x_vals, y=visible["volume"], name="成交量",
                 marker_color=colors, opacity=0.7,
                 hoverinfo="skip",
             ), row=2, col=1)
 
         # ── 悬停代理点（透明 scatter，仅用于触发统一 tooltip，置于末端）──
         fig.add_trace(go.Scatter(
-            x=x_idx,
+            x=x_vals,
             y=visible["close"].values,
             mode="markers",
             marker=dict(opacity=0, size=0),
@@ -355,10 +359,22 @@ class Visualizer:
             margin=dict(l=40, r=50, t=50, b=80),
             showlegend=False,
             hovermode="x",
-            modebar=dict(remove=["select2d", "lasso2d"]),
+            # 去掉 Pan/Select/Spikeline 等图标，让十字线/缩放功能默认存在
+            modebar=dict(remove=["select2d", "lasso2d", "pan", "pan2d", "spikeline", "autoscale", "resetscale"]),
             paper_bgcolor=paper_bg,
             plot_bgcolor=plot_bg,
+            # 默认 zoom 模式，鼠标在 K线 区域显示为十字线
+            dragmode="zoom",
+            hoverlabel=dict(
+                bgcolor="#1a1a2e" if _is_dark() else "#ffffff",
+                font=dict(color="#e2e8f0" if _is_dark() else "#1f2937"),
+                bordercolor="#2d2d44" if _is_dark() else "#e5e7eb",
+                namelength=-1,
+            ),
             xaxis=dict(
+                type="category",
+                categoryorder="array",
+                categoryarray=x_vals,
                 tickmode="array",
                 tickvals=tick_indices,
                 ticktext=[date_labels_full[i] for i in tick_indices],
@@ -368,6 +384,13 @@ class Visualizer:
                 gridcolor=grid_color,
                 linecolor=SF_BORDER if _is_dark() else "#E5E7EB",
                 tickfont={"color": SF_TXT2 if _is_dark() else "#6B7280"},
+                # 默认开启 spikeline（垂直十字线），hover 标签显示日期类别
+                showspikes=True,
+                spikemode="across",
+                spikedash="dot",
+                spikecolor=grid_color,
+                spikethickness=1,
+                spikesnap="data",
             ),
             yaxis=dict(
                 range=[y_min, y_max],
@@ -376,13 +399,21 @@ class Visualizer:
                 gridcolor=grid_color,
                 linecolor=SF_BORDER if _is_dark() else "#E5E7EB",
                 tickfont={"color": SF_TXT2 if _is_dark() else "#6B7280"},
+                showspikes=True,
+                spikemode="across",
+                spikedash="dot",
+                spikecolor=grid_color,
+                spikethickness=1,
+                spikesnap="data",
             ),
-            dragmode="pan",
         )
         if show_volume:
             max_vol = visible["volume"].max() if len(visible) > 0 else 1
             max_vol = max(1, max_vol)
             fig.update_xaxes(
+                type="category",
+                categoryorder="array",
+                categoryarray=x_vals,
                 tickmode="array",
                 tickvals=tick_indices,
                 ticktext=[date_labels_full[i] for i in tick_indices],

@@ -1,16 +1,16 @@
 """
-页面 9：多股票横向对比
+页面 2_多股对比：多股票横向对比
 模仿 compare-analysis-20260710.html 的暗色 .sf-* 决策仪表盘风格，支持同屏对比 ≥5 只股票。
 数据全部程序化（fetcher + technical + 价格相关性 + 启发式催化/弹性），前端由 modules.compare 生成。
 """
-import re
 import streamlit as st
 
-st.set_page_config(page_title="多股票横向对比", page_icon="📊", layout="wide")
+st.set_page_config(page_title="多股对比", page_icon="📊", layout="wide")
 # 前置：本页为「决策仪表盘」暗色页面，由 ui_theme 按页面作用域(_active_page)强制暗色
 st.session_state["_active_page"] = __file__
 
 from modules.session import init_session_state, require_auth, render_user_badge
+from modules.search_ui import multi_stock_search_input
 from modules.compare import (
     fetch_compare, compare_css, build_header, build_one_line,
     build_table, build_vs_cards, build_radar, build_radar_right,
@@ -19,45 +19,33 @@ from modules.compare import (
 
 require_auth()
 render_user_badge(sidebar=True)
-st.title("📊 多股票横向对比 · 决策仪表盘")
+st.title("📊 多股对比 · 决策仪表盘")
 
 EXAMPLE = "600667,601133,002947,002167,600206"
 
 
-def parse_codes(raw: str):
-    toks = re.split(r"[,\s，、]+", raw.strip())
-    out = []
-    for t in toks:
-        t = t.strip().zfill(6)
-        if re.fullmatch(r"\d{6}", t):
-            out.append(t)
-    # 去重保序
-    seen, uniq = set(), []
-    for c in out:
-        if c not in seen:
-            seen.add(c)
-            uniq.append(c)
-    return uniq
-
-
 with st.sidebar:
     st.markdown("### 对比设置")
-    st.caption("输入 2~8 只股票代码（逗号/空格分隔），一键同屏横向对比，最多同时对比 8 只。")
+    st.caption("输入 2~8 只股票（代码/中文名/拼音，逗号/空格分隔），一键同屏横向对比。")
     if st.button("载入示例（5只）", use_container_width=True):
-        st.session_state["cmp_codes"] = EXAMPLE
+        st.session_state["cmp_raw"] = EXAMPLE
         st.rerun()
+
+    # 支持中文名/拼音/代码的多股票输入框
+    codes = multi_stock_search_input(
+        label="输入多只股票（逗号分隔）",
+        key="cmp",
+        default=EXAMPLE,
+        placeholder="如 600519,茅台,gzmt,601088",
+    )
+
     with st.form("cmp_form"):
-        raw = st.text_input(
-            "股票代码", value=st.session_state.get("cmp_codes", EXAMPLE),
-            key="cmp_codes", help="如 600519,000858,300750",
-        )
         period = st.slider("回看天数", 60, 250, 120, 10)
         submitted = st.form_submit_button("开始对比", use_container_width=True, type="primary")
 
 if submitted:
-    codes = parse_codes(raw)
     if len(codes) < 2:
-        st.warning("请至少输入 2 只有效 6 位股票代码。")
+        st.warning("请至少输入 2 只有效股票。")
     else:
         with st.spinner(f"正在拉取 {len(codes)} 只股票数据并计算对比指标（回看 {period} 天）…"):
             try:
@@ -69,7 +57,7 @@ if submitted:
 
 rows = st.session_state.get("_cmp_rows")
 if not rows:
-    st.info("👈 在左侧输入股票代码后点击「开始对比」。已预填示例（5只），直接点击即可查看效果。")
+    st.info("👈 在左侧输入股票代码/名称后点击「开始对比」。已预填示例（5只），直接点击即可查看效果。")
     st.stop()
 
 # 部分标的行情缺失提示

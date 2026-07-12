@@ -75,7 +75,13 @@ def _build_row(fetcher: StockFetcher, code: str, period_days: int) -> Dict[str, 
         name = fetcher.get_stock_name(code) or fetcher.get_stock_basic(code)[1] or code
     except Exception:
         name = code
-    row: Dict[str, Any] = {"code": code, "name": name}
+    # 若 get_stock_name 返回空字符串，仍尝试 get_stock_basic
+    if not name or not str(name).strip():
+        try:
+            name = fetcher.get_stock_basic(code)[1] or code
+        except Exception:
+            name = code
+    row: Dict[str, Any] = {"code": code, "name": name if name and str(name).strip() else code}
 
     end = _dt.datetime.now().strftime("%Y-%m-%d")
     start = (_dt.datetime.now() - _dt.timedelta(days=period_days)).strftime("%Y-%m-%d")
@@ -298,7 +304,7 @@ def build_header(rows: List[Dict[str, Any]], period_days: int) -> str:
     return f"""
 <div class="header">
   <div><div class="brand">★ <b>星辰</b> · 多市场智能股票分析师</div>
-  <div style="font-size:12px;color:{SF['txt2']};margin-top:4px">多股票横向对比 · {len(rows)} 股同屏</div></div>
+  <div style="font-size:12px;color:{SF['txt2']};margin-top:4px">多股对比 · {len(rows)} 股同屏</div></div>
   <div style="font-size:12px;color:{SF['txt2']}">分析时间：{now} (GMT+8) · 行情基准 {asof} 收盘 · 回看 {period_days} 天</div>
 </div>
 <div style="font-size:12px;color:{SF['txt2']};margin-bottom:6px">标的：{codes}</div>
