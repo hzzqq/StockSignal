@@ -57,12 +57,22 @@ def _guess_market(code: str) -> str:
     return ""
 
 
+def _code_exists(code: str) -> bool:
+    """本地股票库精确校验 6 位代码是否存在。"""
+    try:
+        fetcher = StockFetcher()
+        _, name = fetcher.get_stock_basic(str(code).strip().zfill(6))
+        return bool(name) and name != str(code).strip().zfill(6)
+    except Exception:
+        return False
+
+
 # 搜索结果缓存（query → (timestamp, results)）
 _search_cache = {}
 _CACHE_TTL = 30  # 30 秒缓存
 
 
-def _cached_search(query: str, limit: int = 15):
+def _cached_search(query: str, limit: int = 10):
     """带缓存的搜索，后端 + 本地合并，确保拼音首字母等匹配更全面。"""
     cache_key = f"{query}:{limit}"
     now = time.time()
@@ -130,11 +140,23 @@ def stock_search_input(
 
     raw_input = query.strip()
 
+    # ── 严格 6 位代码校验 ──
+    if raw_input.isdigit():
+        if len(raw_input) != 6:
+            st.error(
+                f"⚠️ 股票代码须为 6 位数字，当前输入 {len(raw_input)} 位，"
+                f"请输入完整代码（如 600519）"
+            )
+            return st.session_state[confirmed_key]
+        if not _code_exists(raw_input):
+            st.error(f"⚠️ 未找到代码 {raw_input} 对应的股票，请检查代码是否正确")
+            return st.session_state[confirmed_key]
+
     # ── 防抖：单字符也搜索（首字模糊匹配）──
-    results = _cached_search(raw_input, limit=15)
+    results = _cached_search(raw_input, limit=10)
 
     if not results:
-        st.caption("🔍 未找到匹配结果，请检查输入")
+        st.error("⚠️ 未找到匹配的股票，请检查代码或名称是否正确")
         # 拼音提示
         if any('\u4e00' <= ch <= '\u9fff' for ch in raw_input):
             try:
@@ -143,7 +165,7 @@ def stock_search_input(
                     st.info(f"💡 尝试用拼音搜索: **{pinyin_hint}**")
             except Exception:
                 pass
-        return raw_input
+        return st.session_state[confirmed_key]
 
     # ── 构建下拉选项（代码 + 名称 + 市场）──
     options = []
@@ -259,12 +281,22 @@ def multi_stock_search_input(
         item["value"] = val
         if val and val.strip():
             raw = val.strip()
-            if raw.isdigit() and len(raw) == 6:
+            if raw.isdigit():
+                if len(raw) != 6:
+                    item["code"] = None
+                    item["name"] = None
+                    unresolved.append(f"{raw}（代码须为6位）")
+                    continue
                 code = raw
                 try:
                     name = fetcher.get_stock_basic(code)[1] or code
                 except Exception:
                     name = code
+                if name == code:  # 本地库无此代码
+                    item["code"] = None
+                    item["name"] = None
+                    unresolved.append(f"{raw}（代码不存在）")
+                    continue
             else:
                 results = _cached_search(raw, limit=1)
                 if results:
@@ -294,6 +326,6 @@ def multi_stock_search_input(
         st.markdown(f"<div style='margin-top:8px;'>{chips_html}</div>", unsafe_allow_html=True)
 
     if unresolved:
-        st.warning(f"⚠️ 未识别: {', '.join(unresolved)}")
+        st.error(f"⚠️ 未识别或无效: {', '.join(unresolved)}")
 
     return resolved_codes

@@ -176,6 +176,19 @@ period_label = {"daily": "日K线", "weekly": "周K线", "monthly": "月K线"}[k
 st.subheader(f"{stock_label} {period_label}")
 df = None
 data_ok = False
+
+
+def _fmt_md(d) -> str:
+    """把 date 列单值安全格式化为 MM-DD（兼容字符串 / datetime / Timestamp）。"""
+    try:
+        return pd.Timestamp(d).strftime("%m-%d")
+    except Exception:
+        s = str(d)
+        if len(s) >= 10:
+            return s[:10][5:]  # 2026-07-10 -> 07-10
+        return s
+
+
 try:
     import traceback as _tb
     _records = api_kline(ticker, start=start_str, end=end_str, period=kline_period)
@@ -189,7 +202,7 @@ try:
     else:
         df = DataCleaner.full_pipeline(df)
         data_ok = True
-        st.caption(f"✅ 数据获取成功: {len(df)} 行 {df['date'].iloc[0].strftime('%m-%d')}~{df['date'].iloc[-1].strftime('%m-%d')}")
+        st.caption(f"✅ 数据获取成功: {len(df)} 行 {_fmt_md(df['date'].iloc[0])}~{_fmt_md(df['date'].iloc[-1])}")
 
         # 顶部 4 个关键 metric（精简版）
         col_info1, col_info2, col_info3, col_info4 = st.columns(4)

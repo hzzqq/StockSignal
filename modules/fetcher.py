@@ -612,6 +612,39 @@ class _UrllibFetcher:
         df["change_pct"] = pd.to_numeric(df["change_pct"], errors="coerce") / 100
         return df
 
+    @classmethod
+    def fetch_fundamentals(cls, symbol):
+        """东方财富个股基本面：名称 / 最新价 / 总市值(亿) / 市盈率(TTM) / 行业。
+        返回 dict 或 None。"""
+        secid = _symbol_to_secid(symbol)
+        fields = "f57,f58,f43,f116,f162,f127"
+        url = (f"https://push2.eastmoney.com/api/qt/stock/get?secid={secid}"
+               f"&fields={fields}&invt=2&fltt=2")
+        req = urllib.request.Request(url, headers=cls.HEADERS)
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                d = json.loads(resp.read().decode("utf-8")).get("data") or {}
+        except Exception as e:  # noqa: BLE001
+            print(f"[UrllibFetcher] 基本面失败 ({symbol}): {type(e).__name__}: {e}")
+            return None
+        if not d:
+            return None
+
+        def _num(x):
+            try:
+                return float(x)
+            except (TypeError, ValueError):
+                return None
+
+        cap = _num(d.get("f116"))  # 元
+        return {
+            "name": (d.get("f58") or "").strip(),
+            "price": _num(d.get("f43")),
+            "market_cap": round(cap / 1e8, 1) if cap else None,  # 亿元
+            "pe_ttm": _num(d.get("f162")),
+            "industry": (d.get("f127") or "").strip(),
+        }
+
 
 # ──────────────────────────────────────────────────────────
 # 配置加载
@@ -639,6 +672,7 @@ class StockFetcher:
     _pinyin_initials_cache = {}  # {name: initials} 拼音首字母缓存（性能关键）
     _pinyin_initials_variants_cache = {}  # {name: {initials variants}} 多音字首字母组合缓存
     _stocks_loaded = False    # 是否已加载
+    _fund_cache = {}          # {code: fundamentals dict} 进程内缓存（基本面日频）
 
     def __init__(self, config_path="config.yaml"):
         self.config = load_config(config_path)
@@ -676,6 +710,17 @@ class StockFetcher:
         self._warmup_stock_db()
         name = self._code_to_name.get(str(code), "")
         return str(code), name
+
+    def get_fundamentals(self, code, use_cache=True):
+        """获取个股基本面（名称/最新价/总市值(亿)/市盈率TTM/行业）。
+        优先东方财富 push2，进程内缓存避免重复请求；失败返回 None。"""
+        code = str(code).strip().zfill(6)
+        if use_cache and code in StockFetcher._fund_cache:
+            return StockFetcher._fund_cache[code]
+        res = _UrllibFetcher.fetch_fundamentals(code)
+        if res is not None:
+            StockFetcher._fund_cache[code] = res
+        return res
     def _get_conn(self):
         return sqlite3.connect(self.db_path)
 

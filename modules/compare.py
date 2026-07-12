@@ -17,7 +17,8 @@
 from __future__ import annotations
 
 import datetime as _dt
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -26,20 +27,20 @@ from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 
-# ── 暗色 .sf-* 配色（A 股语义：红涨绿跌）──
-UP = "#ff4d4f"      # 涨 / 强 / 买入
-DOWN = "#00d486"    # 跌 / 弱 / 卖出
-AMBER = "#ffa502"    # 中性 / 持有
-ACC1 = "#667eea"
-ACC2 = "#764ba2"
+# ── 白天模式配色（参照 compare-analysis-20260710-light.html，绿涨红跌）──
+UP = "#009e60"      # 涨 / 强 / 买入（绿）
+DOWN = "#dc2626"    # 跌 / 弱 / 卖出（红）
+AMBER = "#d97706"   # 中性 / 持有（琥珀）
+ACC1 = "#4f46e5"    # 靛蓝
+ACC2 = "#7c3aed"    # 紫
 SF = {
-    "bg": "#0f0f23", "card": "#1a1a2e", "border": "#2d2d44",
-    "txt": "#e2e8f0", "txt2": "#94a3b8",
+    "bg": "#f5f7fa", "card": "#ffffff", "border": "#e2e8f0",
+    "txt": "#1e293b", "txt2": "#64748b",
     "up": UP, "down": DOWN, "hold": AMBER, "acc1": ACC1, "acc2": ACC2,
 }
-# 每只股票一条折线/填充色（用于雷达图图例）
-SERIES_COLORS = ["#ff4d4f", "#00d486", "#667eea", "#ffa502", "#764ba2",
-                  "#36cfc9", "#ffc53d", "#9254de"]
+# 每只股票一条折线/填充色（用于雷达图图例，白底需足够鲜明）
+SERIES_COLORS = ["#009e60", "#dc2626", "#4f46e5", "#d97706", "#7c3aed",
+                 "#0891b2", "#ca8a04", "#9333ea"]
 
 
 def _hex_to_rgba(hex_color: str, alpha: float) -> str:
@@ -65,7 +66,7 @@ def fetch_compare(codes: List[str], period_days: int = 120) -> List[Dict[str, An
     rows: List[Dict[str, Any]] = []
     for code in codes:
         rows.append(_build_row(fetcher, str(code).strip().zfill(6), period_days))
-    _fill_correlation(rows)
+    _fill_business_correlation(rows)
     return rows
 
 
@@ -141,7 +142,7 @@ def _build_row(fetcher: StockFetcher, code: str, period_days: int) -> Dict[str, 
         row["support"] = None
         row["resistance"] = None
 
-    _fill_fundamentals(row)
+    _fill_fundamentals(row, fetcher)
     return row
 
 
@@ -176,99 +177,124 @@ def _signal_from(composite: int, ta) -> str:
     return "卖出"
 
 
-def _fill_correlation(rows: List[Dict[str, Any]]) -> None:
-    """以横截收益率 Pearson 相关系数绝对值均值作为「关联度」。"""
-    rets: Dict[str, pd.Series] = {}
-    for r in rows:
-        df = r.get("df")
-        if df is not None and not df.empty and "close" in df:
-            rets[r["code"]] = df["close"].pct_change().dropna().rename(r["code"])
-    if len(rets) >= 2:
-        m = pd.DataFrame(rets).dropna(how="any")
-        if m.shape[0] >= 3:
-            corr = m.corr().abs()
-            for r in rows:
-                c = r["code"]
-                others = [o for o in corr.columns if o != c]
-                r["correlation"] = float(corr.loc[c, others].mean() * 100) if others else 0.0
-                return
-    for r in rows:
-        r["correlation"] = 0.0
+# 行业大类映射：用于「业务关联度」的板块亲和度判断
+_INDUSTRY_GROUPS = {
+    "电子半导体": ["半导体", "消费电子", "元件", "光学光电子", "电子制造", "其他电子", "电子"],
+    "工程建筑": ["工程", "建设", "建筑", "装修", "设计"],
+    "金属材料": ["金属", "材料"],
+    "医药生物": ["医药", "生物", "医疗", "制药", "疫苗"],
+    "汽车": ["汽车", "零部件"],
+    "金融": ["银行", "证券", "保险", "金融"],
+    "消费": ["白酒", "饮料", "食品", "家电", "零售", "消费"],
+    "电力能源": ["电力", "能源", "煤炭", "燃气", "光伏", "电池"],
+    "化工": ["化工", "化学"],
+    "计算机": ["计算机", "软件", "通信", "互联网"],
+    "机械军工": ["机械", "军工", "设备"],
+}
 
 
-def _fill_fundamentals(row: Dict[str, Any]) -> None:
-    """best-effort 基本面（akshare）。失败则留空，由页面显示「—」。"""
+def _biz_groups(industry: str) -> List[str]:
+    return [g for g, kws in _INDUSTRY_GROUPS.items()
+            if any(k in industry for k in kws)]
+
+
+def _biz_similarity(a: Dict[str, Any], b: Dict[str, Any]) -> float:
+    """两只股票的业务相似度（0-100）：同行业最高，同大类次之，否则弱相关。"""
+    ia, ib = (a.get("industry") or ""), (b.get("industry") or "")
+    if not ia or not ib:
+        return 0.0
+    if ia == ib:
+        return 90.0
+    if ia in ib or ib in ia:
+        return 60.0
+    ga, gb = _biz_groups(ia), _biz_groups(ib)
+    if ga and gb and set(ga) & set(gb):
+        return 55.0
+    return 12.0
+
+
+def _fill_business_correlation(rows: List[Dict[str, Any]]) -> None:
+    """以组内业务相似度均值作为「业务关联度」（替代原价格相关性关联度）。"""
+    for r in rows:
+        others = [o for o in rows if o is not r]
+        if others:
+            sims = [_biz_similarity(r, o) for o in others]
+            r["business_corr"] = float(sum(sims) / len(sims))
+        else:
+            r["business_corr"] = 0.0
+
+
+def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> None:
+    """基本面（东方财富 push2，稳定可用）：总市值(亿) / 市盈率TTM / 行业。
+    失败则留空，由页面显示「—」。"""
     row["market_cap"] = None
     row["pe_ttm"] = None
     row["industry"] = None
     try:
-        import akshare as ak  # 延迟导入，失败不影响其它维度
-        info = ak.stock_individual_info_em(symbol=row['code'])
-        d = dict(zip(info["item"], info["value"]))
-        row["market_cap"] = d.get("总市值")
-        row["industry"] = d.get("行业")
-    except Exception:
-        pass
-    try:
-        import akshare as ak
-        ind = ak.stock_a_indicator_lg(symbol=row['code'])
-        if ind is not None and not ind.empty:
-            v = ind.iloc[-1].get("市盈率(TTM)")
-            if v is not None and str(v) not in ("", "nan", "None"):
-                row["pe_ttm"] = float(v)
-    except Exception:
-        pass
+        if fetcher is None:
+            fetcher = StockFetcher()
+        f = fetcher.get_fundamentals(row["code"])
+        if f:
+            row["market_cap"] = f.get("market_cap")
+            row["pe_ttm"] = f.get("pe_ttm")
+            ind = f.get("industry") or ""
+            row["industry"] = ind
+            # 本地名称缺失时用东方财富名称兜底
+            if (not row.get("name") or row["name"] == row["code"]) and f.get("name"):
+                row["name"] = f["name"]
+    except Exception as e:  # noqa: BLE001
+        print(f"[compare] 基本面获取失败 {row['code']}: {e}")
 
 
 # =====================================================================
-# 前端（暗色 .sf-* 风格）
+# 前端（白天模式 .compare-wrap 风格，1:1 还原参考 HTML）
 # =====================================================================
 def compare_css() -> str:
-    """一次性注入对比页样式（与 compare-analysis-20260710.html 同构，A 股配色）。"""
+    """一次性注入对比页样式（与 compare-analysis-20260710-light.html 同构，白天模式）。"""
     return f"""
 <style>
 .compare-wrap{{max-width:1200px;margin:0 auto;color:{SF['txt']};
   font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.55}}
 .compare-wrap .header{{display:flex;align-items:center;justify-content:space-between;
   flex-wrap:wrap;gap:10px;margin-bottom:18px;padding:14px 18px;
-  background:linear-gradient(90deg,#1a1a2e,#241b3a);border:1px solid {SF['border']};border-radius:14px}}
+  background:linear-gradient(90deg,#f0f1ff,#ede9fe);border:1px solid {SF['border']};border-radius:14px}}
 .compare-wrap .header .brand{{font-size:15px;color:{SF['txt2']};letter-spacing:1px}}
 .compare-wrap .header .brand b{{color:{SF['acc1']}}}
 .compare-wrap .card{{background:{SF['card']};border:1px solid {SF['border']};
-  border-radius:14px;padding:18px;margin-top:16px}}
+  border-radius:14px;padding:18px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}}
 .compare-wrap .card h2{{font-size:16px;margin-bottom:14px;display:flex;align-items:center;gap:8px}}
 .compare-wrap .card h2::before{{content:"";width:4px;height:16px;
   background:linear-gradient(180deg,{SF['acc1']},{SF['acc2']});border-radius:3px}}
 .compare-wrap .one-line{{font-size:14.5px;font-weight:700;color:{SF['up']};
-  background:rgba(255,77,79,.08);border-left:3px solid {SF['up']};padding:10px 14px;border-radius:8px;margin-bottom:14px}}
-.compare-wrap .one-line.hold{{color:{SF['hold']};background:rgba(255,165,2,.08);border-left-color:{SF['hold']}}}
+  background:rgba(0,158,96,.07);border-left:3px solid {SF['up']};padding:10px 14px;border-radius:8px;margin-bottom:14px}}
+.compare-wrap .one-line.hold{{color:{SF['hold']};background:rgba(217,119,6,.07);border-left-color:{SF['hold']}}}
 .compare-wrap table{{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}}
 .compare-wrap th,.compare-wrap td{{padding:9px 8px;text-align:center;border-bottom:1px solid {SF['border']}}}
-.compare-wrap th{{color:{SF['txt2']};font-weight:600;font-size:12px;background:#15152a}}
+.compare-wrap th{{color:{SF['txt2']};font-weight:600;font-size:12px;background:#f8fafc}}
 .compare-wrap td.l{{text-align:left}}
 .compare-wrap .up{{color:{SF['up']};font-weight:700}}
 .compare-wrap .down{{color:{SF['down']};font-weight:700}}
 .compare-wrap .tag{{display:inline-block;font-size:11px;padding:2px 8px;border-radius:14px;font-weight:600}}
-.compare-wrap .tag.win{{background:rgba(255,77,79,.16);color:{SF['up']};border:1px solid rgba(255,77,79,.4)}}
-.compare-wrap .tag.mid{{background:rgba(255,165,2,.16);color:{SF['hold']};border:1px solid rgba(255,165,2,.4)}}
-.compare-wrap .tag.weak{{background:rgba(0,212,134,.14);color:{SF['down']};border:1px solid rgba(0,212,134,.4)}}
-.compare-wrap .tag.neu{{background:rgba(148,163,184,.12);color:{SF['txt2']};border:1px solid {SF['border']}}}
+.compare-wrap .tag.win{{background:rgba(0,158,96,.10);color:{SF['up']};border:1px solid rgba(0,158,96,.35)}}
+.compare-wrap .tag.mid{{background:rgba(217,119,6,.10);color:{SF['hold']};border:1px solid rgba(217,119,6,.35)}}
+.compare-wrap .tag.weak{{background:rgba(220,38,38,.08);color:{SF['down']};border:1px solid rgba(220,38,38,.35)}}
+.compare-wrap .tag.neu{{background:rgba(100,116,139,.08);color:{SF['txt2']};border:1px solid {SF['border']}}}
 .compare-wrap .vs{{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}}
-.compare-wrap .vsbox{{background:#15152a;border:1px solid {SF['border']};border-radius:10px;padding:14px}}
+.compare-wrap .vsbox{{background:#f8fafc;border:1px solid {SF['border']};border-radius:10px;padding:14px}}
 .compare-wrap .vsbox h3{{font-size:14px;margin-bottom:8px}}
 .compare-wrap .vsbox .verdict{{font-size:13px;font-weight:700;margin:8px 0;padding:6px 10px;border-radius:8px}}
-.compare-wrap .verdict.b{{background:rgba(255,77,79,.12);color:{SF['up']}}}
-.compare-wrap .verdict.o{{background:rgba(255,165,2,.12);color:{SF['hold']}}}
+.compare-wrap .verdict.b{{background:rgba(0,158,96,.08);color:{SF['up']}}}
+.compare-wrap .verdict.o{{background:rgba(217,119,6,.08);color:{SF['hold']}}}
 .compare-wrap .vsbox ul{{margin:6px 0 0 16px;font-size:12.5px;color:{SF['txt2']}}}
 .compare-wrap .vsbox ul li{{margin:3px 0}}
 .compare-wrap .two-col{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
 .compare-wrap .note{{font-size:12.5px;color:{SF['txt2']};margin-top:10px;line-height:1.7}}
 .compare-wrap .alert{{border-radius:10px;padding:12px 14px;margin-top:12px;font-size:13px}}
-.compare-wrap .alert.risk{{background:rgba(0,212,134,.10);border:1px solid rgba(0,212,134,.45);color:#7ef0c0}}
-.compare-wrap .alert.cat{{background:rgba(255,77,79,.10);border:1px solid rgba(255,77,79,.45);color:#ffb3b9}}
+.compare-wrap .alert.risk{{background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.25);color:#991b1b}}
+.compare-wrap .alert.cat{{background:rgba(0,158,96,.06);border:1px solid rgba(0,158,96,.25);color:#166534}}
 .compare-wrap .alert b{{display:block;margin-bottom:4px;font-size:13.5px}}
 .compare-wrap .foot{{font-size:12px;color:{SF['txt2']};margin-top:6px}}
-.compare-wrap .disclaimer{{margin-top:14px;font-size:11.5px;color:#6b7280;
+.compare-wrap .disclaimer{{margin-top:14px;font-size:11.5px;color:#94a3b8;
   border-top:1px dashed {SF['border']};padding-top:10px}}
 .compare-wrap .hl{{color:{SF['up']};font-weight:700}}
 .compare-wrap .hr{{color:{SF['down']};font-weight:700}}
@@ -359,8 +385,8 @@ def build_table(rows: List[Dict[str, Any]]) -> str:
     cap_cells = "".join(f"<td>{_fmt(r.get('market_cap'))}</td>" for r in rows)
     pe_cells = "".join(f"<td>{_fmt(r.get('pe_ttm'), is_num=True)}</td>" for r in rows)
     biz_cells = "".join(f"<td>{_fmt(r.get('industry'))}</td>" for r in rows)
-    # 关联度 / 订单催化 / 弹性 / 综合 / 信号
-    corr_cells = "".join(f"<td>{_corr_tag(r.get('correlation', 0.0))}</td>" for r in rows)
+    # 业务关联度 / 订单催化 / 弹性 / 综合 / 信号
+    corr_cells = "".join(f"<td>{_corr_tag(r.get('business_corr', 0.0))}</td>" for r in rows)
     cat_cells = "".join(f"<td>{_catalyst_tag(r.get('catalyst', 50))}</td>" for r in rows)
     elas_cells = "".join(f"<td>{_elasticity_label(r.get('elasticity', 0.0))}</td>" for r in rows)
     comp_cells = "".join(f'<td><b>{r["scores"]["composite"]}</b></td>' for r in rows)
@@ -374,15 +400,15 @@ def build_table(rows: List[Dict[str, Any]]) -> str:
     <tr><td class="l">总市值</td>{cap_cells}</tr>
     <tr><td class="l">TTM 市盈率</td>{pe_cells}</tr>
     <tr><td class="l">核心业务</td>{biz_cells}</tr>
-    <tr><td class="l">关联度（价格相关性）</td>{corr_cells}</tr>
+    <tr><td class="l">业务关联度</td>{corr_cells}</tr>
     <tr><td class="l">订单 / 催化</td>{cat_cells}</tr>
     <tr><td class="l">弹性特征</td>{elas_cells}</tr>
     <tr><td class="l">综合评分</td>{comp_cells}</tr>
     <tr><td class="l">信号</td>{sig_cells}</tr>
   </tbody>
 </table>
-<div class="note">注：关联度 = 与同组其它股票日收益率 Pearson 相关系数绝对值均值（越高代表走势越同步）；
-订单/催化、弹性为基于量价与技术形态的启发式代理指标；基本面（市值/市盈率/行业）来自公开行情接口，
+<div class="note">注：业务关联度 = 与同组其它股票基于行业归属的业务相似度均值（同行业最高、同一大类次之）；
+订单/催化、弹性为基于量价与技术形态的启发式代理指标；基本面（总市值/市盈率/行业）来自东方财富行情接口，
 获取失败显示「—」。综合评分为趋势/动量/量能/形态四维加权，仅供研究参考。</div>
 """
 
@@ -434,7 +460,7 @@ def _vs_box(r: Dict[str, Any], win: bool, other: Dict[str, Any]) -> str:
         f'收盘 ¥{r["close"]:.2f}（{r["chg_pct"]:+.1f}%）' if r.get("close") is not None
         else '行情数据缺失',
         f'趋势 {s["trend"]:.0f} / 动量 {s["momentum"]:.0f} / 量能 {s["volume"]:.0f}',
-        f'弹性 {r.get("elasticity", 0):.0f}% · 关联度 {r.get("correlation", 0):.0f}',
+        f'弹性 {r.get("elasticity", 0):.0f}% · 业务关联度 {r.get("business_corr", 0):.0f}',
         f'信号 {r["signal"]} · 催化 {r.get("catalyst", 50):.0f}',
     ]
     lis = "".join(f"<li>{b}</li>" for b in bullets)
@@ -543,8 +569,220 @@ def build_footer() -> str:
 <div class="card">
   <div class="foot">
     <div><b style="color:{SF['txt']}">数据来源：</b>akshare / BaoStock / 新浪财经 / 东方财富（经 StockFetcher 四级降级链），技术指标由 modules.technical 计算。</div>
-    <div style="margin-top:6px"><b style="color:{SF['txt']}">分析框架：</b>星辰多市场智能分析 · 量价技术面 + 价格相关性关联度 + 订单催化/弹性代理 + 分层操作建议。</div>
+    <div style="margin-top:6px"><b style="color:{SF['txt']}">分析框架：</b>星辰多市场智能分析 · 量价技术面 + 业务关联度 + 订单催化/弹性代理 + 分层操作建议。</div>
     <div class="disclaimer">⚠ 免责声明：本对比仅供学习和研究参考，不构成任何投资建议。股市有风险，投资需谨慎；评分为模型推演，请独立决策并严格控制仓位。</div>
   </div>
 </div>
 """
+
+
+# =====================================================================
+# 对比方法框架（短期/长期/价值/板块/业绩/政策/宏观/微观/事件）
+# =====================================================================
+METHODS = {
+    "短期": "聚焦动量、量能与近期涨跌幅，捕捉短线交易机会。",
+    "长期": "聚焦趋势强度、形态与稳定性，适合中线持有。",
+    "价值": "聚焦市盈率(TTM)、市值与基本面，挖掘低估标的。",
+    "板块": "聚焦组内业务关联度，识别同板块/同产业链核心标的。",
+    "业绩": "聚焦订单催化与盈利质量（催化代理分）。",
+    "政策": "聚焦政策敏感行业（半导体/新能源/医药/消费等）与事件导向。",
+    "宏观": "聚焦价格弹性（波动率），衡量对宏观与大盘的敏感度。",
+    "微观": "聚焦技术面微观结构（均线排列/趋势强度）。",
+    "事件": "输入一个事件，对比各股在该事件上的业务关联度与利好/利空。",
+}
+
+# 政策友好型行业大类（用于「政策」方法打分）
+_POLICY_FRIENDLY = ["半导体", "电子", "新能源", "汽车", "医药", "生物", "军工",
+                   "计算机", "软件", "通信", "消费", "白酒", "光伏", "电池", "芯片"]
+_BULL_CUES = ["扩产", "利好", "增长", "扶持", "政策", "回暖", "复苏", "突破",
+              "中标", "订单", "签约", "涨价", "上调", "补贴"]
+_BEAR_CUES = ["处罚", "减持", "暴跌", "利空", "下滑", "亏损", "暴雷", "下调",
+              "退市", "调查", "风险", "制裁", "限购", "退坡"]
+
+# 事件关键词 → 行业大类（用于「事件」方法计算业务关联度）
+_EVENT_INDUSTRY_MAP = {
+    "芯片": "电子半导体", "半导体": "电子半导体", "AI": "电子半导体",
+    "人工智能": "电子半导体", "电子": "电子半导体", "手机": "电子半导体",
+    "消费电子": "电子半导体", "面板": "电子半导体", "光学": "电子半导体",
+    "新能源": "电力能源", "光伏": "电力能源", "电池": "电力能源", "储能": "电力能源",
+    "汽车": "汽车", "整车": "汽车", "零部件": "汽车",
+    "医药": "医药生物", "生物": "医药生物", "医疗": "医药生物", "疫苗": "医药生物",
+    "创新药": "医药生物", "医疗器械": "医药生物",
+    "军工": "机械军工", "国防": "机械军工",
+    "金融": "金融", "银行": "金融", "证券": "金融", "保险": "金融",
+    "消费": "消费", "白酒": "消费", "食品": "消费", "零售": "消费",
+    "地产": "工程建筑", "基建": "工程建筑", "工程": "工程建筑", "建筑": "工程建筑",
+    "化工": "化工", "化学": "化工", "材料": "金属材料", "金属": "金属材料", "钢铁": "金属材料",
+    "计算机": "计算机", "软件": "计算机", "通信": "计算机", "互联网": "计算机",
+}
+
+
+def _safe(v, d: float = 0.0) -> float:
+    try:
+        f = float(v)
+        return f if (not np.isnan(f)) else d
+    except Exception:
+        return d
+
+
+def _norm(vals: List[float]) -> List[float]:
+    """把一组值线性映射到 [50,100]，保持组内相对强弱。"""
+    lo, hi = min(vals), max(vals)
+    if hi - lo < 1e-9:
+        return [50.0 for _ in vals]
+    return [50 + (v - lo) / (hi - lo) * 50 for v in vals]
+
+
+def _event_stance(stock: Dict[str, Any], event_text: str) -> Tuple[float, str]:
+    """计算单只股票对某事件的业务关联度(0-100)与多空立场。"""
+    ind = stock.get("industry") or ""
+    name = stock.get("name") or ""
+    text = event_text or ""
+    # 抽取事件关键词：中文 2+ 连串 + 其 2-gram + 英文大写词
+    cn_runs = re.findall(r"[\u4e00-\u9fa5]{2,}", text)
+    tokens = list(cn_runs)
+    for run in cn_runs:
+        for i in range(len(run) - 1):
+            tokens.append(run[i:i + 2])
+    tokens += [w.upper() for w in re.findall(r"[A-Za-z]{2,}", text)]
+    matched = {_EVENT_INDUSTRY_MAP[t] for t in set(tokens) if t in _EVENT_INDUSTRY_MAP}
+    stock_groups = set(_biz_groups(ind))
+    overlap = matched & stock_groups
+    if not matched:
+        rel = 0.0
+    elif overlap:
+        rel = 85.0
+    else:
+        rel = 30.0
+    bull = any(c in text for c in _BULL_CUES)
+    bear = any(c in text for c in _BEAR_CUES)
+    if bull and not bear:
+        stance = "利好"
+    elif bear and not bull:
+        stance = "利空"
+    elif bull and bear:
+        stance = "多空交织"
+    else:
+        stance = "中性"
+    return rel, stance
+
+
+def compute_method_scores(rows: List[Dict[str, Any]], method: str,
+                          event: Optional[str] = None) -> Dict[str, float]:
+    """返回该方法下每只股票的综合得分(0-100)。"""
+    if method == "事件":
+        return {r["code"]: _event_stance(r, event)[0] for r in rows}
+    if method == "短期":
+        mom = [_safe(r["scores"]["momentum"]) for r in rows]
+        vol = [_safe(r["scores"]["volume"]) for r in rows]
+        chg = _norm([_safe(r.get("chg_pct")) for r in rows])
+        return {r["code"]: 0.45 * mom[i] + 0.30 * vol[i] + 0.25 * chg[i]
+                for i, r in enumerate(rows)}
+    if method == "长期":
+        trend = [_safe(r["scores"]["trend"]) for r in rows]
+        pat = [_safe(r["scores"]["pattern"]) for r in rows]
+        elas = _norm([_safe(r.get("elasticity")) for r in rows])
+        stab = [100 - e for e in elas]
+        return {r["code"]: 0.50 * trend[i] + 0.30 * pat[i] + 0.20 * stab[i]
+                for i, r in enumerate(rows)}
+    if method == "价值":
+        pes = [(_safe(r.get("pe_ttm")) if r.get("pe_ttm") else 200.0) for r in rows]
+        pe_inv = _norm([200 - p for p in pes])           # 低 PE → 高分
+        caps = _norm([_safe(r.get("market_cap")) for r in rows])
+        return {r["code"]: 0.60 * pe_inv[i] + 0.40 * caps[i]
+                for i, r in enumerate(rows)}
+    if method == "板块":
+        biz = [min(100.0, _safe(r.get("business_corr")) * 1.4 + 30) for r in rows]
+        return {r["code"]: biz[i] for i, r in enumerate(rows)}
+    if method == "业绩":
+        cat = [_safe(r.get("catalyst", 50)) for r in rows]
+        return {r["code"]: cat[i] for i, r in enumerate(rows)}
+    if method == "政策":
+        out = []
+        for r in rows:
+            ind = r.get("industry") or ""
+            base = 60.0 if any(k in ind for k in _POLICY_FRIENDLY) else 35.0
+            out.append(base + 0.1 * _safe(r["scores"]["composite"]) - 5)
+        return {r["code"]: max(10.0, min(100.0, v)) for r, v in zip(rows, out)}
+    if method == "宏观":
+        elas = _norm([_safe(r.get("elasticity")) for r in rows])
+        return {r["code"]: elas[i] for i, r in enumerate(rows)}
+    if method == "微观":
+        trend = [_safe(r["scores"]["trend"]) for r in rows]
+        return {r["code"]: trend[i] for i, r in enumerate(rows)}
+    # 默认：综合评分
+    return {r["code"]: _safe(r["scores"]["composite"]) for r in rows}
+
+
+def _ranked(rows, scores):
+    return sorted(rows, key=lambda r: _safe(scores.get(r["code"])), reverse=True)
+
+
+def _method_summary(rows: List[Dict[str, Any]], method: str,
+                    scores: Dict[str, float], event: Optional[str] = None) -> str:
+    ranked = _ranked(rows, scores)
+    best, worst = ranked[0], ranked[-1]
+    bs = _safe(scores.get(best["code"]))
+    ws = _safe(scores.get(worst["code"]))
+    if method == "事件":
+        rels = [(r, *_event_stance(r, event)) for r in rows]
+        rels.sort(key=lambda x: x[1], reverse=True)
+        top = rels[0]
+        return (f'在事件「{event or ""}」下，<b>{top[0]["name"]}</b>业务关联度最高'
+                f'（{top[1]:.0f}，{top[2]}），为最直接受影响标的；'
+                f'其余标的关联度依次递减，应区别对待。')
+    return (f'在【{method}】视角下，<b>{best["name"]}</b>（{bs:.0f}分）相对占优，'
+            f'<b>{worst["name"]}</b>（{ws:.0f}分）偏弱；'
+            f'建议优先关注排名靠前且信号为「买入/持有」的标的。')
+
+
+def build_method_card(rows: List[Dict[str, Any]], method: str,
+                      event: Optional[str] = None) -> str:
+    """单个对比方法的卡片：排名 + 每标的要点 + 该方法的总结。"""
+    scores = compute_method_scores(rows, method, event)
+    ranked = _ranked(rows, scores)
+    lis = []
+    for r in ranked:
+        s = _safe(scores.get(r["code"]))
+        if method == "事件":
+            rel, stance = _event_stance(r, event)
+            extra = f'业务关联度 {rel:.0f} · {stance}'
+            cls = "win" if stance == "利好" else ("weak" if stance == "利空" else "neu")
+            lis.append(f'<li><b>{r["name"]}</b>（{r["code"]}）'
+                       f' {_tag(extra, cls)}</li>')
+        else:
+            kind = "win" if s >= 60 else ("mid" if s >= 45 else "weak")
+            lis.append(f'<li><b>{r["name"]}</b>（{r["code"]}）'
+                       f' 方法得分 {s:.0f} · 信号 {_tag(r["signal"], "win" if r["signal"]=="买入" else ("mid" if r["signal"]=="持有" else "weak"))}</li>')
+    lis_html = "".join(lis)
+    summary = _method_summary(rows, method, scores, event)
+    return f"""
+<div class="card">
+  <h2>对比方法 · {method}</h2>
+  <div class="one-line">{summary}</div>
+  <ul style="margin:10px 0 0 18px;font-size:13px;color:{SF['txt2']};line-height:1.9">{lis_html}</ul>
+</div>
+"""
+
+
+def build_aggregate_card(rows: List[Dict[str, Any]],
+                         event: Optional[str] = None) -> str:
+    """底部大汇总：汇总全部 9 种对比方法的各自结论。"""
+    items = []
+    for m in METHODS:
+        ev = event if m == "事件" else None
+        scores = compute_method_scores(rows, m, ev)
+        s = _method_summary(rows, m, scores, ev)
+        # 去掉 <b> 标签只留纯文本用于汇总列表
+        plain = re.sub(r"<[^>]+>", "", s)
+        items.append(f'<li><b>{m}</b>：{plain}</li>')
+    lis_html = "".join(items)
+    return f"""
+<div class="card">
+  <h2>大汇总 · 九维对比结论</h2>
+  <ul style="margin:10px 0 0 18px;font-size:13px;color:{SF['txt2']};line-height:1.9">{lis_html}</ul>
+  <div class="note">以上为各对比维度（短期/长期/价值/板块/业绩/政策/宏观/微观/事件）的分别结论汇总，
+  综合研判时建议结合多维度信号、控制好仓位，并关注组内集体异动风险。</div>
+</div>
+"""
+

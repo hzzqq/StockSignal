@@ -85,7 +85,7 @@ def main() -> int:
         env["no_proxy"] = "*"
         env["NO_PROXY"] = "*"
         proc = subprocess.Popen(
-            [pythonw, "startup_sim.py", "--keep", "--no-browser"],
+            [pythonw, "startup_sim.py", "--keep"],
             cwd=HERE,
             env=env,
             creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP,

@@ -6,15 +6,14 @@
 import streamlit as st
 
 st.set_page_config(page_title="多股对比", page_icon="📊", layout="wide")
-# 前置：本页为「决策仪表盘」暗色页面，由 ui_theme 按页面作用域(_active_page)强制暗色
-st.session_state["_active_page"] = __file__
 
 from modules.session import init_session_state, require_auth, render_user_badge
 from modules.search_ui import multi_stock_search_input
 from modules.compare import (
     fetch_compare, compare_css, build_header, build_one_line,
     build_table, build_vs_cards, build_radar, build_radar_right,
-    build_action_plan, build_footer,
+    build_action_plan, build_footer, METHODS,
+    build_method_card, build_aggregate_card,
 )
 
 require_auth()
@@ -70,6 +69,25 @@ if failed:
 
 period = st.session_state.get("_cmp_period", 120)
 
+# ── 对比方法选择器（短期/长期/价值/板块/业绩/政策/宏观/微观/事件）──
+st.markdown("### 对比方法")
+method = st.radio(
+    "选择对比维度（不同方法按各自权重重排标的并给出结论）",
+    options=list(METHODS.keys()),
+    index=0,
+    horizontal=True,
+    help="短期=动量量能；长期=趋势稳定；价值=低估；板块=业务关联度；业绩=催化；"
+         "政策=政策敏感；宏观=弹性；微观=技术结构；事件=输入事件看利好利空。",
+)
+event_text = ""
+if method == "事件":
+    event_text = st.text_input(
+        "输入事件（如：AI芯片扩产 / 新能源补贴退坡 / 半导体国产化）",
+        key="cmp_event",
+        placeholder="描述一个事件，对比各股在该事件上的业务关联度与利好/利空",
+    )
+st.caption(METHODS[method])
+
 # ── 头部 + 核心结论 + 横向对比表（同一 scope 内）──
 st.markdown(
     '<div class="compare-wrap">' + compare_css()
@@ -93,5 +111,14 @@ with c2:
 # ── 两两 VS 卡 + 分层操作建议 + 页脚（同一 scope 内）──
 st.markdown(
     build_vs_cards(rows) + build_action_plan(rows) + build_footer() + "</div>",
+    unsafe_allow_html=True,
+)
+
+# ── 对比方法卡片（选定方法）+ 大汇总（九维结论）──
+st.markdown(
+    '<div class="compare-wrap">'
+    + build_method_card(rows, method, event_text)
+    + build_aggregate_card(rows, event_text)
+    + "</div>",
     unsafe_allow_html=True,
 )
