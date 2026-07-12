@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import datetime as _dt
+import time as _time
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -27,18 +28,77 @@ from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 
-# ── 白天模式配色（参照 compare-analysis-20260710-light.html，绿涨红跌）──
-UP = "#009e60"      # 涨 / 强 / 买入（绿）
-DOWN = "#dc2626"    # 跌 / 弱 / 卖出（红）
-AMBER = "#d97706"   # 中性 / 持有（琥珀）
-ACC1 = "#4f46e5"    # 靛蓝
-ACC2 = "#7c3aed"    # 紫
-SF = {
-    "bg": "#f5f7fa", "card": "#ffffff", "border": "#e2e8f0",
-    "txt": "#1e293b", "txt2": "#64748b",
-    "up": UP, "down": DOWN, "hold": AMBER, "acc1": ACC1, "acc2": ACC2,
-}
-# 每只股票一条折线/填充色（用于雷达图图例，白底需足够鲜明）
+
+def _is_dark() -> bool:
+    """检测当前页面是否处于暗色主题。"""
+    try:
+        from modules.ui_theme import _theme_is_dark
+
+        return _theme_is_dark()
+    except Exception:
+        return False
+
+
+def _sf() -> Dict[str, str]:
+    """返回当前主题下的配色与样式令牌。"""
+    if _is_dark():
+        return {
+            "up": "#00d4aa", "down": "#ff4757", "hold": "#ffa502",
+            "acc1": "#667eea", "acc2": "#764ba2",
+            "bg": "#0f0f23", "card": "#1a1a2e", "border": "#2d2d44",
+            "txt": "#e2e8f0", "txt2": "#94a3b8",
+            "th_bg": "#15152a", "vsbox_bg": "#15152a",
+            "header_bg": "#1a1a2e", "header_bg2": "#241b3a",
+            "one_line_bg": "rgba(0,212,170,.08)",
+            "one_line_bg_hold": "rgba(255,165,2,.08)",
+            "tag_win_bg": "rgba(0,212,170,.16)",
+            "tag_win_border": "rgba(0,212,170,.4)",
+            "tag_mid_bg": "rgba(255,165,2,.16)",
+            "tag_mid_border": "rgba(255,165,2,.4)",
+            "tag_weak_bg": "rgba(255,71,87,.14)",
+            "tag_weak_border": "rgba(255,71,87,.4)",
+            "tag_neu_bg": "rgba(148,163,184,.12)",
+            "tag_neu_border": "var(--border)",
+            "verdict_b_bg": "rgba(0,212,170,.12)",
+            "verdict_o_bg": "rgba(255,165,2,.12)",
+            "alert_risk_bg": "rgba(255,71,87,.10)",
+            "alert_risk_border": "rgba(255,71,87,.45)",
+            "alert_risk_color": "#ffb3bb",
+            "alert_cat_bg": "rgba(0,212,170,.10)",
+            "alert_cat_border": "rgba(0,212,170,.45)",
+            "alert_cat_color": "#9af0dd",
+            "disclaimer_color": "#6b7280",
+        }
+    return {
+        "up": "#009e60", "down": "#dc2626", "hold": "#d97706",
+        "acc1": "#4f46e5", "acc2": "#7c3aed",
+        "bg": "#f5f7fa", "card": "#ffffff", "border": "#e2e8f0",
+        "txt": "#1e293b", "txt2": "#64748b",
+        "th_bg": "#f8fafc", "vsbox_bg": "#f8fafc",
+        "header_bg": "#f0f1ff", "header_bg2": "#ede9fe",
+        "one_line_bg": "rgba(0,158,96,.07)",
+        "one_line_bg_hold": "rgba(217,119,6,.07)",
+        "tag_win_bg": "rgba(0,158,96,.10)",
+        "tag_win_border": "rgba(0,158,96,.35)",
+        "tag_mid_bg": "rgba(217,119,6,.10)",
+        "tag_mid_border": "rgba(217,119,6,.35)",
+        "tag_weak_bg": "rgba(220,38,38,.08)",
+        "tag_weak_border": "rgba(220,38,38,.35)",
+        "tag_neu_bg": "rgba(100,116,139,.08)",
+        "tag_neu_border": "var(--border)",
+        "verdict_b_bg": "rgba(0,158,96,.08)",
+        "verdict_o_bg": "rgba(217,119,6,.08)",
+        "alert_risk_bg": "rgba(220,38,38,.06)",
+        "alert_risk_border": "rgba(220,38,38,.25)",
+        "alert_risk_color": "#991b1b",
+        "alert_cat_bg": "rgba(0,158,96,.06)",
+        "alert_cat_border": "rgba(0,158,96,.25)",
+        "alert_cat_color": "#166534",
+        "disclaimer_color": "#94a3b8",
+    }
+
+
+# 每只股票一条折线/填充色（用于雷达图图例，白底/黑底都需足够鲜明）
 SERIES_COLORS = ["#009e60", "#dc2626", "#4f46e5", "#d97706", "#7c3aed",
                  "#0891b2", "#ca8a04", "#9333ea"]
 
@@ -226,14 +286,23 @@ def _fill_business_correlation(rows: List[Dict[str, Any]]) -> None:
 
 def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> None:
     """基本面（东方财富 push2，稳定可用）：总市值(亿) / 市盈率TTM / 行业。
-    失败则留空，由页面显示「—」。"""
+    失败时重试 2 次，仍失败则留空由页面显示「—」。"""
     row["market_cap"] = None
     row["pe_ttm"] = None
     row["industry"] = None
     try:
         if fetcher is None:
             fetcher = StockFetcher()
-        f = fetcher.get_fundamentals(row["code"])
+        f = None
+        last_err = None
+        for _ in range(3):
+            try:
+                f = fetcher.get_fundamentals(row["code"])
+                if f:
+                    break
+            except Exception as e:  # noqa: BLE001
+                last_err = e
+                _time.sleep(0.5)
         if f:
             row["market_cap"] = f.get("market_cap")
             row["pe_ttm"] = f.get("pe_ttm")
@@ -242,6 +311,8 @@ def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> N
             # 本地名称缺失时用东方财富名称兜底
             if (not row.get("name") or row["name"] == row["code"]) and f.get("name"):
                 row["name"] = f["name"]
+        elif last_err:
+            print(f"[compare] 基本面获取失败 {row['code']}: {last_err}")
     except Exception as e:  # noqa: BLE001
         print(f"[compare] 基本面获取失败 {row['code']}: {e}")
 
@@ -250,54 +321,68 @@ def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> N
 # 前端（白天模式 .compare-wrap 风格，1:1 还原参考 HTML）
 # =====================================================================
 def compare_css() -> str:
-    """一次性注入对比页样式（与 compare-analysis-20260710-light.html 同构，白天模式）。"""
+    """一次性注入对比页样式（与参考 HTML 同构，亮/暗双主题自适应）。"""
     return f"""
 <style>
-.compare-wrap{{max-width:1200px;margin:0 auto;color:{SF['txt']};
+.compare-wrap{{max-width:1200px;margin:0 auto;color:{_sf()['txt']};
   font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.55}}
 .compare-wrap .header{{display:flex;align-items:center;justify-content:space-between;
   flex-wrap:wrap;gap:10px;margin-bottom:18px;padding:14px 18px;
-  background:linear-gradient(90deg,#f0f1ff,#ede9fe);border:1px solid {SF['border']};border-radius:14px}}
-.compare-wrap .header .brand{{font-size:15px;color:{SF['txt2']};letter-spacing:1px}}
-.compare-wrap .header .brand b{{color:{SF['acc1']}}}
-.compare-wrap .card{{background:{SF['card']};border:1px solid {SF['border']};
+  background:linear-gradient(90deg,{_sf()['header_bg']},{_sf()['header_bg2']});border:1px solid {_sf()['border']};border-radius:14px}}
+.compare-wrap .header .brand{{font-size:15px;color:{_sf()['txt2']};letter-spacing:1px}}
+.compare-wrap .header .brand b{{color:{_sf()['acc1']}}}
+.compare-wrap .card{{background:{_sf()['card']};border:1px solid {_sf()['border']};
   border-radius:14px;padding:18px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}}
 .compare-wrap .card h2{{font-size:16px;margin-bottom:14px;display:flex;align-items:center;gap:8px}}
 .compare-wrap .card h2::before{{content:"";width:4px;height:16px;
-  background:linear-gradient(180deg,{SF['acc1']},{SF['acc2']});border-radius:3px}}
-.compare-wrap .one-line{{font-size:14.5px;font-weight:700;color:{SF['up']};
-  background:rgba(0,158,96,.07);border-left:3px solid {SF['up']};padding:10px 14px;border-radius:8px;margin-bottom:14px}}
-.compare-wrap .one-line.hold{{color:{SF['hold']};background:rgba(217,119,6,.07);border-left-color:{SF['hold']}}}
+  background:linear-gradient(180deg,{_sf()['acc1']},{_sf()['acc2']});border-radius:3px}}
+.compare-wrap .one-line{{font-size:14.5px;font-weight:700;color:{_sf()['up']};
+  background:{_sf()['one_line_bg']};border-left:3px solid {_sf()['up']};padding:10px 14px;border-radius:8px;margin-bottom:14px}}
+.compare-wrap .one-line.hold{{color:{_sf()['hold']};background:{_sf()['one_line_bg_hold']};border-left-color:{_sf()['hold']}}}
 .compare-wrap table{{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}}
-.compare-wrap th,.compare-wrap td{{padding:9px 8px;text-align:center;border-bottom:1px solid {SF['border']}}}
-.compare-wrap th{{color:{SF['txt2']};font-weight:600;font-size:12px;background:#f8fafc}}
+.compare-wrap th,.compare-wrap td{{padding:9px 8px;text-align:center;border-bottom:1px solid {_sf()['border']}}}
+.compare-wrap th{{color:{_sf()['txt2']};font-weight:600;font-size:12px;background:{_sf()['th_bg']}}}
 .compare-wrap td.l{{text-align:left}}
-.compare-wrap .up{{color:{SF['up']};font-weight:700}}
-.compare-wrap .down{{color:{SF['down']};font-weight:700}}
+.compare-wrap .up{{color:{_sf()['up']};font-weight:700}}
+.compare-wrap .down{{color:{_sf()['down']};font-weight:700}}
 .compare-wrap .tag{{display:inline-block;font-size:11px;padding:2px 8px;border-radius:14px;font-weight:600}}
-.compare-wrap .tag.win{{background:rgba(0,158,96,.10);color:{SF['up']};border:1px solid rgba(0,158,96,.35)}}
-.compare-wrap .tag.mid{{background:rgba(217,119,6,.10);color:{SF['hold']};border:1px solid rgba(217,119,6,.35)}}
-.compare-wrap .tag.weak{{background:rgba(220,38,38,.08);color:{SF['down']};border:1px solid rgba(220,38,38,.35)}}
-.compare-wrap .tag.neu{{background:rgba(100,116,139,.08);color:{SF['txt2']};border:1px solid {SF['border']}}}
+.compare-wrap .tag.win{{background:{_sf()['tag_win_bg']};color:{_sf()['up']};border:1px solid {_sf()['tag_win_border']}}}
+.compare-wrap .tag.mid{{background:{_sf()['tag_mid_bg']};color:{_sf()['hold']};border:1px solid {_sf()['tag_mid_border']}}}
+.compare-wrap .tag.weak{{background:{_sf()['tag_weak_bg']};color:{_sf()['down']};border:1px solid {_sf()['tag_weak_border']}}}
+.compare-wrap .tag.neu{{background:{_sf()['tag_neu_bg']};color:{_sf()['txt2']};border:1px solid {_sf()['tag_neu_border']}}}
 .compare-wrap .vs{{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}}
-.compare-wrap .vsbox{{background:#f8fafc;border:1px solid {SF['border']};border-radius:10px;padding:14px}}
+.compare-wrap .vsbox{{background:{_sf()['vsbox_bg']};border:1px solid {_sf()['border']};border-radius:10px;padding:14px}}
 .compare-wrap .vsbox h3{{font-size:14px;margin-bottom:8px}}
 .compare-wrap .vsbox .verdict{{font-size:13px;font-weight:700;margin:8px 0;padding:6px 10px;border-radius:8px}}
-.compare-wrap .verdict.b{{background:rgba(0,158,96,.08);color:{SF['up']}}}
-.compare-wrap .verdict.o{{background:rgba(217,119,6,.08);color:{SF['hold']}}}
-.compare-wrap .vsbox ul{{margin:6px 0 0 16px;font-size:12.5px;color:{SF['txt2']}}}
-.compare-wrap .vsbox ul li{{margin:3px 0}}
+.compare-wrap .verdict.b{{background:{_sf()['verdict_b_bg']};color:{_sf()['up']}}}
+.compare-wrap .verdict.o{{background:{_sf()['verdict_o_bg']};color:{_sf()['hold']}}}
+.compare-wrap .vsbox .type{{font-size:12px;color:{_sf()['txt2']};margin-left:6px}}
+.compare-wrap .vsbox .score-row{{display:flex;align-items:center;gap:10px;margin:8px 0}}
+.compare-wrap .vsbox .score-badge{{font-size:13px;font-weight:700;padding:3px 10px;border-radius:14px}}
+.compare-wrap .vsbox .score-badge.win{{background:{_sf()['tag_win_bg']};color:{_sf()['up']};border:1px solid {_sf()['tag_win_border']}}}
+.compare-wrap .vsbox .score-badge.mid{{background:{_sf()['tag_mid_bg']};color:{_sf()['hold']};border:1px solid {_sf()['tag_mid_border']}}}
+.compare-wrap .vsbox .score-badge.weak{{background:{_sf()['tag_weak_bg']};color:{_sf()['down']};border:1px solid {_sf()['tag_weak_border']}}}
+.compare-wrap .vsbox ul{{margin:10px 0 0 0;padding:0;list-style:none;font-size:12.5px;color:{_sf()['txt2']};line-height:1.7}}
+.compare-wrap .vsbox ul li{{padding:5px 0;border-bottom:1px dashed {_sf()['border']}}}
+.compare-wrap .vsbox ul li:last-child{{border-bottom:none}}
 .compare-wrap .two-col{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
-.compare-wrap .note{{font-size:12.5px;color:{SF['txt2']};margin-top:10px;line-height:1.7}}
+.compare-wrap .note{{font-size:12.5px;color:{_sf()['txt2']};margin-top:10px;line-height:1.7}}
 .compare-wrap .alert{{border-radius:10px;padding:12px 14px;margin-top:12px;font-size:13px}}
-.compare-wrap .alert.risk{{background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.25);color:#991b1b}}
-.compare-wrap .alert.cat{{background:rgba(0,158,96,.06);border:1px solid rgba(0,158,96,.25);color:#166534}}
+.compare-wrap .alert.risk{{background:{_sf()['alert_risk_bg']};border:1px solid {_sf()['alert_risk_border']};color:{_sf()['alert_risk_color']}}}
+.compare-wrap .alert.cat{{background:{_sf()['alert_cat_bg']};border:1px solid {_sf()['alert_cat_border']};color:{_sf()['alert_cat_color']}}}
 .compare-wrap .alert b{{display:block;margin-bottom:4px;font-size:13.5px}}
-.compare-wrap .foot{{font-size:12px;color:{SF['txt2']};margin-top:6px}}
-.compare-wrap .disclaimer{{margin-top:14px;font-size:11.5px;color:#94a3b8;
-  border-top:1px dashed {SF['border']};padding-top:10px}}
-.compare-wrap .hl{{color:{SF['up']};font-weight:700}}
-.compare-wrap .hr{{color:{SF['down']};font-weight:700}}
+.compare-wrap .foot{{font-size:12px;color:{_sf()['txt2']};margin-top:6px}}
+.compare-wrap .disclaimer{{margin-top:14px;font-size:11.5px;color:{_sf()['disclaimer_color']};
+  border-top:1px dashed {_sf()['border']};padding-top:10px}}
+.compare-wrap .hl{{color:{_sf()['up']};font-weight:700}}
+.compare-wrap .hr{{color:{_sf()['down']};font-weight:700}}
+.compare-wrap .pair-select{{margin-bottom:8px}}
+.compare-wrap .aggregate-table td.l{{text-align:left}}
+.compare-wrap .aggregate-table td{{vertical-align:top}}
+.compare-wrap .score-cloud{{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}}
+.compare-wrap .score-cloud .chip{{display:inline-flex;align-items:center;gap:6px;font-size:13px;
+  padding:5px 12px;border-radius:16px;border:1px solid {_sf()['border']};
+  background:{_sf()['vsbox_bg']};color:{_sf()['txt']}}}
 @media(max-width:780px){{.compare-wrap .vs,.compare-wrap .two-col{{grid-template-columns:1fr}}}}
 </style>
 """
@@ -339,6 +424,144 @@ def _elasticity_label(v: float) -> str:
     return f"稳健·{v:.0f}%"
 
 
+def _stock_type_label(r: Dict[str, Any]) -> str:
+    """根据得分、弹性、估值给一个定性标签。"""
+    comp = _safe(r.get("scores", {}).get("composite"), 50)
+    elas = _safe(r.get("elasticity"), 0)
+    cap = _safe(r.get("market_cap"), 0)
+    sig = r.get("signal", "持有")
+    if comp >= 75 and elas >= 30:
+        return "赛道龙头"
+    if comp >= 65 and cap >= 1000:
+        return "大盘蓝筹"
+    if comp >= 60 and elas >= 35:
+        return "高弹性进攻"
+    if sig == "买入" and comp >= 60:
+        return "趋势强势"
+    if elas >= 35:
+        return "题材博弈"
+    if comp < 45:
+        return "防御观望"
+    if cap >= 500:
+        return "稳健成长"
+    return "均衡配置"
+
+
+def _score_badge(r: Dict[str, Any]) -> str:
+    comp = int(round(_safe(r.get("scores", {}).get("composite"), 50)))
+    sig = r.get("signal", "持有")
+    if sig == "买入":
+        label, cls = f"{comp}分 · 看多(BUY)", "win"
+    elif sig == "卖出":
+        label, cls = f"{comp}分 · 谨慎(WATCH)", "weak"
+    else:
+        label, cls = f"{comp}分 · 持有(HOLD)", "mid"
+    return f'<span class="score-badge {cls}">{label}</span>'
+
+
+def _stock_bullets(r: Dict[str, Any]) -> List[str]:
+    """生成 image #9 风格的单股要点 bullets。"""
+    bullets = []
+    s = r.get("scores", {})
+    ind = r.get("industry") or "未知行业"
+    cap = r.get("market_cap")
+    pe = r.get("pe_ttm")
+    elas = _safe(r.get("elasticity"), 0)
+    corr = _safe(r.get("business_corr"), 0)
+    # 1) 行业/题材定位
+    bullets.append(f"行业：<b>{ind}</b> · 业务关联度 {_corr_tag(corr)}")
+    # 2) 估值/市值
+    if cap is not None and pe is not None:
+        bullets.append(f"市值 <b>{cap:.0f}亿</b> · TTM <b>{pe:.1f}</b> 倍")
+    elif cap is not None:
+        bullets.append(f"市值 <b>{cap:.0f}亿</b> · 市盈率未获取")
+    elif pe is not None:
+        bullets.append(f"TTM <b>{pe:.1f}</b> 倍 · 总市值未获取")
+    else:
+        bullets.append("基本面数据暂未获取，以技术面为主")
+    # 3) 技术面四维
+    bullets.append(
+        f"趋势 {s.get('trend', 0):.0f} / 动量 {s.get('momentum', 0):.0f} / "
+        f"量能 {s.get('volume', 0):.0f} / 形态 {s.get('pattern', 0):.0f}"
+    )
+    # 4) 弹性/催化
+    bullets.append(f"弹性 {_elasticity_label(elas)} · 催化 {_catalyst_tag(s.get('catalyst', 50))}")
+    # 5) 价格/支撑压力
+    if r.get("close") is not None:
+        price = r["close"]
+        sup = r.get("support")
+        res = r.get("resistance")
+        if sup is not None and res is not None:
+            bullets.append(f"现价 ¥{price:.2f} · 支撑 ¥{sup:.2f} · 压力 ¥{res:.2f}")
+        else:
+            bullets.append(f"现价 ¥{price:.2f} · 支撑/压力未计算")
+    return bullets
+
+
+def _pair_conclusion(a: Dict[str, Any], b: Dict[str, Any]) -> str:
+    """生成两两对比的详细结论。"""
+    ca = int(round(_safe(a.get("scores", {}).get("composite"), 50)))
+    cb = int(round(_safe(b.get("scores", {}).get("composite"), 50)))
+    winner, loser = (a, b) if ca >= cb else (b, a)
+    cw = int(round(_safe(winner.get("scores", {}).get("composite"), 50)))
+    cl = int(round(_safe(loser.get("scores", {}).get("composite"), 50)))
+    wa = _safe(winner.get("scores", {}).get("trend"), 50)
+    wb = _safe(loser.get("scores", {}).get("trend"), 50)
+    ma = _safe(winner.get("scores", {}).get("momentum"), 50)
+    mb = _safe(loser.get("scores", {}).get("momentum"), 50)
+    ea = _safe(winner.get("elasticity"), 0)
+    eb = _safe(loser.get("elasticity"), 0)
+    reasons = []
+    if wa - wb >= 8:
+        reasons.append(f"{winner['name']} 在趋势强度上更占优（{wa:.0f} vs {wb:.0f}）")
+    if ma - mb >= 8:
+        reasons.append(f"{winner['name']} 动量更强（{ma:.0f} vs {mb:.0f}）")
+    if ea - eb >= 10:
+        reasons.append(f"{winner['name']} 弹性空间更大（{ea:.0f}% vs {eb:.0f}%）")
+    if not reasons:
+        reasons.append(f"{winner['name']} 综合评分领先（{cw} vs {cl}）")
+    reason_txt = "；".join(reasons[:2])
+    return (
+        f'<b>结论：</b>{winner["name"]} 明显优于 {loser["name"]}（{cw} vs {cl} 分）。'
+        f'{reason_txt}。{loser["name"]} 相对偏弱，'
+        f'若从“{winner["industry"] or "同组"}”逻辑选股，优先关注 {winner["name"]}；'
+        f'{loser["name"]} 仅适合题材博弈或等回调后再评估。'
+    )
+
+
+def build_pairwise_card(a: Dict[str, Any], b: Dict[str, Any], idx: int = 1) -> str:
+    """image #9 1:1 还原：两两 VS 卡 + 结论框。"""
+    va = _vs_box_v2(a, b)
+    vb = _vs_box_v2(b, a)
+    conclusion = _pair_conclusion(a, b)
+    return f"""
+<div class="card">
+  <h2>对比{idx}：{a['name']} vs {b['name']}</h2>
+  <div class="vs">{va}{vb}</div>
+  <div class="alert cat">{conclusion}</div>
+</div>
+"""
+
+
+def _vs_box_v2(r: Dict[str, Any], other: Dict[str, Any]) -> str:
+    """image #9 单卡：标题+类型+分数徽章+bullets。"""
+    win = _safe(r.get("scores", {}).get("composite"), 50) >= _safe(other.get("scores", {}).get("composite"), 50)
+    verdict = (
+        f'{"领先" if win else "落后"} {other["name"]} '
+        f'（{r["scores"]["composite"]} vs {other["scores"]["composite"]}）'
+    )
+    cls = "b" if win else "o"
+    lis = "".join(f"<li>{b}</li>" for b in _stock_bullets(r))
+    return f"""
+<div class="vsbox">
+  <h3>{r['name']} <span style="font-weight:500;font-size:12px;color:{_sf()['txt2']}">{r['code']}</span>
+    <span class="type">· {_stock_type_label(r)}</span>
+  </h3>
+  <div class="score-row">{_score_badge(r)} <span class="verdict {cls}">{verdict}</span></div>
+  <ul>{lis}</ul>
+</div>"""
+
+
 def build_header(rows: List[Dict[str, Any]], period_days: int) -> str:
     now = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     asof = max((r.get("asof", now[:10]) for r in rows), default=now[:10])
@@ -346,10 +569,10 @@ def build_header(rows: List[Dict[str, Any]], period_days: int) -> str:
     return f"""
 <div class="header">
   <div><div class="brand">★ <b>星辰</b> · 多市场智能股票分析师</div>
-  <div style="font-size:12px;color:{SF['txt2']};margin-top:4px">多股对比 · {len(rows)} 股同屏</div></div>
-  <div style="font-size:12px;color:{SF['txt2']}">分析时间：{now} (GMT+8) · 行情基准 {asof} 收盘 · 回看 {period_days} 天</div>
+  <div style="font-size:12px;color:{_sf()['txt2']};margin-top:4px">多股对比 · {len(rows)} 股同屏</div></div>
+  <div style="font-size:12px;color:{_sf()['txt2']}">分析时间：{now} (GMT+8) · 行情基准 {asof} 收盘 · 回看 {period_days} 天</div>
 </div>
-<div style="font-size:12px;color:{SF['txt2']};margin-bottom:6px">标的：{codes}</div>
+<div style="font-size:12px;color:{_sf()['txt2']};margin-bottom:6px">标的：{codes}</div>
 """
 
 
@@ -491,60 +714,94 @@ def build_radar(rows: List[Dict[str, Any]]):
         ))
     fig.update_layout(
         polar=dict(
-            radialaxis=dict(visible=True, range=[0, 100], gridcolor=SF["border"],
-                            tickfont=dict(color=SF["txt2"], size=9)),
-            angularaxis=dict(gridcolor=SF["border"],
-                            tickfont=dict(color=SF["txt"], size=11)),
+            radialaxis=dict(visible=True, range=[0, 100], gridcolor=_sf()["border"],
+                            tickfont=dict(color=_sf()["txt2"], size=9)),
+            angularaxis=dict(gridcolor=_sf()["border"],
+                            tickfont=dict(color=_sf()["txt"], size=11)),
             bgcolor="rgba(0,0,0,0)",
         ),
         paper_bgcolor="rgba(0,0,0,0)",
         showlegend=True,
-        legend=dict(font=dict(color=SF["txt2"], size=11), orientation="h", yanchor="bottom", y=-0.18, x=0.5, xanchor="center"),
-        font=dict(color=SF["txt"]),
+        legend=dict(font=dict(color=_sf()["txt2"], size=11), orientation="h", yanchor="bottom", y=-0.18, x=0.5, xanchor="center"),
+        font=dict(color=_sf()["txt"]),
         height=430, margin=dict(l=40, r=40, t=30, b=80),
     )
     return fig
 
 
+def _one_liner(r: Dict[str, Any]) -> str:
+    """image #13 风格的一句话定性。"""
+    comp = _safe(r.get("scores", {}).get("composite"), 50)
+    elas = _safe(r.get("elasticity"), 0)
+    cat = _safe(r.get("catalyst", 50))
+    sig = r.get("signal", "持有")
+    if comp >= 70:
+        if elas >= 30:
+            return "综合评分领先，弹性较大，可重点关注"
+        return "综合评分领先，质地稳健，适合底仓"
+    if comp >= 55:
+        if cat >= 60:
+            return "订单/催化积极，趋势向好，可逢回调参与"
+        return "评分中等偏上，关注催化落地"
+    if sig == "卖出":
+        return "评分偏弱，信号偏空，谨慎观望"
+    return "评分中性，跟踪催化剂与趋势变化"
+
+
 def build_radar_right(rows: List[Dict[str, Any]]) -> str:
-    """雷达图右侧：评分排行 + 统一风险提示。"""
+    """雷达图右侧：image #13 评分标签云 + 统一风险提示。"""
     ranked = sorted(rows, key=lambda r: r["scores"]["composite"], reverse=True)
-    items = []
+    chips = []
     for r in ranked:
+        comp = int(round(r["scores"]["composite"]))
         kind = "win" if r["signal"] == "买入" else ("mid" if r["signal"] == "持有" else "weak")
-        label = f'{r["name"]} {r["scores"]["composite"]}'
-        items.append(
-            f'<div style="margin-top:6px">{_tag(label, kind)} '
-            f'{_elasticity_label(r.get("elasticity", 0.0))}</div>'
+        chips.append(
+            f'<div class="chip">'
+            f'<span class="tag {kind}">{r["name"]} {comp}</span>'
+            f'<span>{_one_liner(r)}</span></div>'
         )
-    ranked_list = "".join(items)
+    cloud = '<div class="score-cloud">' + "".join(chips) + '</div>'
+    # 统一风险提示
+    avg_comp = sum(r["scores"]["composite"] for r in rows) / len(rows) if rows else 50
+    overheat = len([r for r in rows if r.get("chg_pct", 0) >= 9]) >= 2
+    heat_hint = "组内多只出现大涨，短期情绪过热，追高性价比低；" if overheat else ""
     risk = (
         f'<div class="alert risk"><b>统一风险提示</b>'
-        f'评分与结论为模型基于量价与技术面的推演，非投资建议；'
-        f'若组内出现集体大涨需警惕短期情绪过热，宜逢回调分批，忌一日追齐。</div>'
+        f'{heat_hint}评分为模型基于量价与技术面的推演，非投资建议；'
+        f'组内平均评分 {avg_comp:.0f}，若平均偏高需警惕集体回调，宜分批建仓、严格控制仓位。'
+        f'</div>'
     )
-    return f'<div style="font-size:13px;line-height:1.9;margin-top:4px">{ranked_list}</div>{risk}'
+    return f'<div style="font-size:13px;line-height:1.8;margin-top:4px">{cloud}</div>{risk}'
 
 
 def build_action_plan(rows: List[Dict[str, Any]]) -> str:
+    """image #10 模板：分层操作建议表。"""
     ranked = sorted(rows, key=lambda r: r["scores"]["composite"], reverse=True)
     tr = []
     for idx, r in enumerate(ranked):
         sig = r["signal"]
+        stype = _stock_type_label(r)
+        elas = _safe(r.get("elasticity"), 0)
+        # 角色定位
         if sig == "买入" and idx == 0:
-            role = "首选弹性（进攻）"
+            role = f"{stype}（进攻首选）"
         elif sig == "买入":
-            role = "弹性 / 进攻"
+            role = f"{stype}（进攻）"
         elif sig == "持有":
-            role = "稳健持有"
+            role = f"{stype}（稳健）"
         else:
-            role = "防御 / 观望"
+            role = f"{stype}（观望）"
+        # 策略
         if sig == "买入":
-            strategy = "回踩 MA5/MA10 分批低吸，不追高"
+            if elas >= 35:
+                strategy = "回踩5日/10日线分批低吸，不追涨停"
+            else:
+                strategy = "沿趋势持有，回踩均线分批加仓"
         elif sig == "持有":
-            strategy = "沿趋势持有，破 MA20 减仓"
+            strategy = "回调至支撑区低吸，跌破均线减仓"
         else:
-            strategy = "观望，等回调至支撑区再考虑"
+            strategy = "观望，等回调至支撑区且缩量再考虑"
+        # 关注位
         if r.get("support") is not None and r.get("resistance") is not None:
             focus = f'支撑 ¥{r["support"]:.2f}，压力 ¥{r["resistance"]:.2f}'
         else:
@@ -568,8 +825,8 @@ def build_footer() -> str:
     return f"""
 <div class="card">
   <div class="foot">
-    <div><b style="color:{SF['txt']}">数据来源：</b>akshare / BaoStock / 新浪财经 / 东方财富（经 StockFetcher 四级降级链），技术指标由 modules.technical 计算。</div>
-    <div style="margin-top:6px"><b style="color:{SF['txt']}">分析框架：</b>星辰多市场智能分析 · 量价技术面 + 业务关联度 + 订单催化/弹性代理 + 分层操作建议。</div>
+    <div><b style="color:{_sf()['txt']}">数据来源：</b>akshare / BaoStock / 新浪财经 / 东方财富（经 StockFetcher 四级降级链），技术指标由 modules.technical 计算。</div>
+    <div style="margin-top:6px"><b style="color:{_sf()['txt']}">分析框架：</b>星辰多市场智能分析 · 量价技术面 + 业务关联度 + 订单催化/弹性代理 + 分层操作建议。</div>
     <div class="disclaimer">⚠ 免责声明：本对比仅供学习和研究参考，不构成任何投资建议。股市有风险，投资需谨慎；评分为模型推演，请独立决策并严格控制仓位。</div>
   </div>
 </div>
@@ -736,9 +993,66 @@ def _method_summary(rows: List[Dict[str, Any]], method: str,
             f'建议优先关注排名靠前且信号为「买入/持有」的标的。')
 
 
+def _method_analysis(method: str, scores: Dict[str, float],
+                     ranked: List[Dict[str, Any]], event: Optional[str]) -> str:
+    """生成 image #12 所需的详细分析过程。"""
+    best, worst = ranked[0], ranked[-1]
+    bs = _safe(scores.get(best["code"]))
+    ws = _safe(scores.get(worst["code"]))
+    spread = bs - ws
+    focus = {
+        "短期": "动量、量能与近期涨跌幅",
+        "长期": "趋势强度、形态稳定性与波动率",
+        "价值": "市盈率(TTM)、总市值与估值安全边际",
+        "板块": "组内业务关联度与板块共振",
+        "业绩": "订单催化与盈利质量代理分",
+        "政策": "政策敏感行业属性与题材导向",
+        "宏观": "价格弹性（波动率）与大盘敏感度",
+        "微观": "技术结构（均线排列、趋势强度）",
+        "事件": f"事件「{event or ''}」的业务关联度与利好/利空立场",
+    }.get(method, "综合评分")
+
+    def _dim(r):
+        s = r.get("scores", {})
+        if method == "短期":
+            return f"动量{s.get('momentum', 0):.0f} / 量能{s.get('volume', 0):.0f} / 涨跌幅{r.get('chg_pct', 0):+.1f}%"
+        if method == "长期":
+            return f"趋势{s.get('trend', 0):.0f} / 形态{s.get('pattern', 0):.0f} / 弹性{_safe(r.get('elasticity'), 0):.0f}%"
+        if method == "价值":
+            cap = r.get("market_cap")
+            pe = r.get("pe_ttm")
+            return f"市值{cap:.0f}亿 / TTM{pe:.1f}" if cap and pe else "估值数据未获取"
+        if method == "板块":
+            return f"业务关联度 {_safe(r.get('business_corr'), 0):.0f}"
+        if method == "业绩":
+            return f"催化分 {_safe(r.get('catalyst', 50), 0):.0f}"
+        if method == "宏观":
+            return f"年化弹性 {_safe(r.get('elasticity'), 0):.0f}%"
+        if method == "微观":
+            return f"趋势{s.get('trend', 0):.0f} / 动量{s.get('momentum', 0):.0f}"
+        if method == "事件":
+            rel, stance = _event_stance(r, event)
+            return f"关联度{rel:.0f} · {stance}"
+        return f"综合{s.get('composite', 0):.0f}"
+
+    why_best = _dim(best)
+    why_worst = _dim(worst)
+    action = (
+        f"建议优先关注 <b>{best['name']}</b>，其在【{method}】维度得分 {bs:.0f} 领先；"
+        f"<b>{worst['name']}</b> 得分 {ws:.0f} 偏弱，可作为反向观察或等待修复信号。"
+    )
+    return (
+        f'本维度以【{method}】为核心，重点关注{focus}。'
+        f'得分分布上，<b>{best["name"]}</b> 以 {bs:.0f} 分居首，'
+        f'核心支撑为 {why_best}；'
+        f'<b>{worst["name"]}</b> 以 {ws:.0f} 分垫底，关键短板为 {why_worst}。'
+        f'组内分差 {spread:.0f} 分，{"区分度明显" if spread >= 15 else "区分度一般"}。{action}'
+    )
+
+
 def build_method_card(rows: List[Dict[str, Any]], method: str,
                       event: Optional[str] = None) -> str:
-    """单个对比方法的卡片：排名 + 每标的要点 + 该方法的总结。"""
+    """单个对比方法的卡片：详细分析过程 + 排名 + 要点 + 总结。"""
     scores = compute_method_scores(rows, method, event)
     ranked = _ranked(rows, scores)
     lis = []
@@ -756,31 +1070,46 @@ def build_method_card(rows: List[Dict[str, Any]], method: str,
                        f' 方法得分 {s:.0f} · 信号 {_tag(r["signal"], "win" if r["signal"]=="买入" else ("mid" if r["signal"]=="持有" else "weak"))}</li>')
     lis_html = "".join(lis)
     summary = _method_summary(rows, method, scores, event)
+    analysis = _method_analysis(method, scores, ranked, event)
     return f"""
 <div class="card">
   <h2>对比方法 · {method}</h2>
   <div class="one-line">{summary}</div>
-  <ul style="margin:10px 0 0 18px;font-size:13px;color:{SF['txt2']};line-height:1.9">{lis_html}</ul>
+  <div class="note" style="margin-bottom:10px">{analysis}</div>
+  <ul style="margin:10px 0 0 18px;font-size:13px;color:{_sf()['txt2']};line-height:1.9">{lis_html}</ul>
 </div>
 """
 
 
 def build_aggregate_card(rows: List[Dict[str, Any]],
                          event: Optional[str] = None) -> str:
-    """底部大汇总：汇总全部 9 种对比方法的各自结论。"""
-    items = []
+    """底部大汇总：九维对比结论表格。"""
+    tr = []
     for m in METHODS:
         ev = event if m == "事件" else None
         scores = compute_method_scores(rows, m, ev)
-        s = _method_summary(rows, m, scores, ev)
-        # 去掉 <b> 标签只留纯文本用于汇总列表
-        plain = re.sub(r"<[^>]+>", "", s)
-        items.append(f'<li><b>{m}</b>：{plain}</li>')
-    lis_html = "".join(items)
+        ranked = _ranked(rows, scores)
+        best, worst = ranked[0], ranked[-1]
+        bs = _safe(scores.get(best["code"]))
+        ws = _safe(scores.get(worst["code"]))
+        summary = _method_summary(rows, m, scores, ev)
+        plain = re.sub(r"<[^>]+>", "", summary)
+        # 截断过长的结论，保持表格整洁
+        if len(plain) > 60:
+            plain = plain[:58] + "…"
+        tr.append(
+            f'<tr><td class="l"><b>{m}</b></td>'
+            f'<td class="up">{best["name"]} ({bs:.0f})</td>'
+            f'<td class="down">{worst["name"]} ({ws:.0f})</td>'
+            f'<td class="l">{plain}</td></tr>'
+        )
     return f"""
 <div class="card">
   <h2>大汇总 · 九维对比结论</h2>
-  <ul style="margin:10px 0 0 18px;font-size:13px;color:{SF['txt2']};line-height:1.9">{lis_html}</ul>
+  <table class="aggregate-table">
+    <thead><tr><th>维度</th><th>占优标的</th><th>偏弱标的</th><th>关键结论</th></tr></thead>
+    <tbody>{''.join(tr)}</tbody>
+  </table>
   <div class="note">以上为各对比维度（短期/长期/价值/板块/业绩/政策/宏观/微观/事件）的分别结论汇总，
   综合研判时建议结合多维度信号、控制好仓位，并关注组内集体异动风险。</div>
 </div>

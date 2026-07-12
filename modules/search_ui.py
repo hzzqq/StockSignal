@@ -19,6 +19,7 @@ v6 改进：
 import streamlit as st
 import time
 from modules.fetcher import StockFetcher
+from modules.ui_theme import _theme_is_dark
 
 try:
     from modules.session import is_authenticated, api_get
@@ -315,12 +316,16 @@ def multi_stock_search_input(
             item["code"] = None
             item["name"] = None
 
-    # 已解析股票 chip 展示
+    # 已解析股票 chip 展示（跟随全局亮/暗主题）
     if resolved_labels:
+        if _theme_is_dark():
+            chip_bg, chip_border, chip_color = "#1a1a2e", "#2d2d44", "#e2e8f0"
+        else:
+            chip_bg, chip_border, chip_color = "#ffffff", "#e2e8f0", "#1e293b"
         chips_html = "".join(
-            f'<span style="display:inline-block;background:#1a1a2e;border:1px solid #2d2d44;'
-            f'border-radius:12px;padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:#e2e8f0;">'
-            f'{lab}</span>'
+            f'<span style="display:inline-block;background:{chip_bg};border:1px solid {chip_border};'
+            f'border-radius:12px;padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:{chip_color};"'
+            f'>{lab}</span>'
             for lab in resolved_labels
         )
         st.markdown(f"<div style='margin-top:8px;'>{chips_html}</div>", unsafe_allow_html=True)
