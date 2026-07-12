@@ -85,16 +85,21 @@ class Visualizer:
         return Visualizer.MA_COLORS[i % len(Visualizer.MA_COLORS)]
 
     @staticmethod
-    def kline_legend_html(ma_windows=[5, 10, 20]):
-        """生成截图风格的自定义图例 HTML（K线 / MA / 成交量）。"""
+    def kline_legend_html(ma_windows=[5, 10, 20], up_color="#ff4d4f",
+                        down_color="#00d486", ma_colors=None):
+        """生成截图风格的自定义图例 HTML（K线 / MA / 成交量）。
+        up_color/down_color：涨跌柱配色（默认 A 股红涨绿跌）。
+        ma_colors：均线配色列表，默认 MA_COLORS。"""
+        if ma_colors is None:
+            ma_colors = Visualizer.MA_COLORS
         parts = [
             '<span style="display:inline-flex;align-items:center;gap:3px;">',
-            '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#ff4d4f;"></span>',
-            '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#00d486;margin-left:-2px;"></span>',
-            '<span style="font-size:12px;color:#94a3b8;">K线</span></span>',
+            f'<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:{up_color};"></span>',
+            f'<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:{down_color};margin-left:-2px;"></span>',
+            '<span style="font-size:12px;color:#94a3b8;">K线(涨/跌)</span></span>',
         ]
         for i, w in enumerate(ma_windows):
-            color = Visualizer._ma_color(i)
+            color = ma_colors[i % len(ma_colors)]
             parts.append(
                 f'<span style="display:inline-flex;align-items:center;gap:4px;">'
                 f'<span style="display:inline-block;width:18px;height:2px;background:{color};"></span>'
@@ -102,7 +107,7 @@ class Visualizer:
             )
         parts.append(
             '<span style="display:inline-flex;align-items:center;gap:4px;">'
-            '<span style="display:inline-block;width:18px;height:8px;background:#00d486;"></span>'
+            f'<span style="display:inline-block;width:18px;height:8px;background:{up_color};"></span>'
             '<span style="font-size:12px;color:#94a3b8;">成交量</span></span>'
         )
         return '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:6px 0 10px;">' + ''.join(parts) + '</div>'
@@ -112,7 +117,8 @@ class Visualizer:
     # ------------------------------------------------------------------
     @staticmethod
     def candlestick(df, title="K线图", show_volume=True, ma_windows=[5, 20, 60],
-                   start_idx=0, n_show=None, annotations=None, support=None, resistance=None):
+                   start_idx=0, n_show=None, annotations=None, support=None, resistance=None,
+                   up_color=None, down_color=None, ma_colors=None):
         """
         生成交互式 K 线图（V5 截图风格）。
         - 统一悬停：单浮层显示日期 / 成交量 / OHLC / MA 值（模仿截图 tooltip）。
@@ -129,9 +135,12 @@ class Visualizer:
         :param df: 行情数据，需含 date, open, close, high, low, volume
         :param start_idx: 窗口起始索引（默认 0，显示最旧一段）
         :param n_show: 窗口显示 K 线数量（默认 None，显示全部）
-        :param annotations: 水平参考线列表，如 [{"price": 88.84, "label": "压力位", "color": "#ff4d4f"}]
+        :param annotations: 水平参考线列表，如 [{"price": 88.84, "label": "压力位", "color": "#ff4d4f", "dash": "dash"}]
         :param support: 支撑位，若提供则自动画绿色虚线
         :param resistance: 压力位，若提供则自动画红色虚线
+        :param up_color: 上涨 K 线颜色（默认 UP_COLOR，A 股红涨）
+        :param down_color: 下跌 K 线颜色（默认 DOWN_COLOR，A 股绿跌）
+        :param ma_colors: 均线配色列表（默认 MA_COLORS），按 ma_windows 顺序取色
         :return: plotly Figure
         """
         df = df.copy()
@@ -160,8 +169,12 @@ class Visualizer:
 
         # 涨跌判断
         rising = visible["close"].values >= visible["open"].values
-        up_color = UP_COLOR
-        down_color = DOWN_COLOR
+        if up_color is None:
+            up_color = UP_COLOR
+        if down_color is None:
+            down_color = DOWN_COLOR
+        if ma_colors is None:
+            ma_colors = Visualizer.MA_COLORS
 
         rows = 2 if show_volume else 1
         row_heights = [0.7, 0.3] if show_volume else [1.0]
@@ -248,7 +261,7 @@ class Visualizer:
                 ma = ma_values[i]
                 fig.add_trace(go.Scatter(
                     x=x_idx, y=ma, name=f"MA{w}",
-                    line=dict(color=Visualizer._ma_color(i), width=1.5),
+                    line=dict(color=ma_colors[i % len(ma_colors)], width=1.5),
                     hoverinfo="skip",
                 ), row=1, col=1)
 
@@ -285,9 +298,10 @@ class Visualizer:
             price = ann.get("price")
             label = ann.get("label", "")
             color = ann.get("color", "#94a3b8")
+            dash = ann.get("dash", "dash")
             if price is not None and not np.isnan(price):
                 fig.add_hline(
-                    y=price, line_dash="dash", line_color=color, line_width=1,
+                    y=price, line_dash=dash, line_color=color, line_width=1,
                     annotation_text=f"{label}({price:.1f})" if label else f"{price:.1f}",
                     annotation_position="right",
                     annotation_font=dict(color=color, size=10),

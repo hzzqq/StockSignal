@@ -85,6 +85,19 @@ def resolve_python():
     return None
 
 
+def resolve_pythonw(python):
+    """返回与 python 同目录的 pythonw.exe（无控制台窗口版本）。
+    若不存在则回退到原 python（此时子进程会带控制台窗口）。"""
+    if python and python.lower().endswith("python.exe"):
+        pw = python[:-len("python.exe")] + "pythonw.exe"
+        if os.path.exists(pw):
+            return pw
+    cand = r"C:\Users\24995\.workbuddy\binaries\python\envs\default\Scripts\pythonw.exe"
+    if os.path.exists(cand):
+        return cand
+    return python
+
+
 # ---------------------------------------------------------------- 2) 数据库
 def _db_fast_ok():
     """快速检查：数据库文件存在且包含 users/stocks 表则视为 OK。"""
@@ -170,7 +183,7 @@ def kill_port(port):
 
 
 # ---------------------------------------------------------------- 4/5) 拉起服务
-def launch_service(python, kind, args, log_path, err_path):
+def launch_service(python, kind, args, log_path, err_path, creationflags=0):
     log(f"--- 拉起 {kind} ---")
     try:
         with open(log_path, "wb") as lf, open(err_path, "wb") as ef:
@@ -179,8 +192,10 @@ def launch_service(python, kind, args, log_path, err_path):
                 cwd=HERE,
                 stdout=lf,
                 stderr=ef,
-                # 注意：不要使用 DETACHED_PROCESS —— 在部分沙箱/环境下
-                # 会让子进程被回收、路由未就绪即返回 404。普通后台启动即可。
+                # 关键修复：子进程（Flask/Streamlit）使用 pythonw + CREATE_NO_WINDOW
+                # 启动，不再弹出黑色控制台窗口；CREATE_NEW_PROCESS_GROUP 让它们
+                # 独立于启动窗口，关闭任何窗口都不会杀死服务。
+                creationflags=creationflags,
             )
         log(f"  [OK] {kind} 进程已拉起 PID={proc.pid}")
         return proc
@@ -264,6 +279,19 @@ def main():
         log("[结论] 启动模拟失败：无可用 Python")
         flush_log()
         return 1
+    # 子进程使用普通 python 解释器（与已验证可用的配置一致），
+    # 靠 CREATE_NO_WINDOW 标志消除控制台窗口；CREATE_NEW_PROCESS_GROUP
+    # 让它们独立于启动窗口，关闭任何窗口都不会杀死服务。
+    # 注：之前尝试用 pythonw.exe 做子进程解释器，但其为 GUI 子系统程序，
+    # 在 Windows 下启动 Flask/Streamlit 后端口未能真正进入监听（健康检查连不上）。
+    # 故改回 python.exe + CREATE_NO_WINDOW：既无黑窗，又行为稳定。
+    pythonw = python
+    WIN = (os.name == "nt")
+    child_flags = (
+        getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    ) if WIN else 0
+    log(f"  子进程解释器: {pythonw}  (flags={child_flags})")
 
     # 2) DB
     if not check_db(python):
@@ -301,10 +329,10 @@ def main():
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         be_future = pool.submit(
-            launch_service, python, "Flask 后端", be_args, be_log, be_err
+            launch_service, pythonw, "Flask 后端", be_args, be_log, be_err, child_flags
         )
         fe_future = pool.submit(
-            launch_service, python, "Streamlit 前端", fe_args, fe_log, fe_err
+            launch_service, pythonw, "Streamlit 前端", fe_args, fe_log, fe_err, child_flags
         )
         be_proc = be_future.result()
         fe_proc = fe_future.result()

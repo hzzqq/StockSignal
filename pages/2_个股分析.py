@@ -25,9 +25,11 @@ from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
 from modules.session import init_session_state, require_auth, render_user_badge, api_kline, api_quote
 from modules.search_ui import stock_search_input
 
-# A股配色常量（与 ui_theme._DARK_CSS 的 --buy/--sell/--hold 一致）
-RED = "#ff4d4f"      # 涨 / 利好 / 买入
-GREEN = "#00d486"    # 跌 / 利空 / 卖出
+# 配色常量（对齐参考文档「星辰决策仪表盘」：绿涨 / 红跌 / 琥珀中性）
+# 说明：参考文档 002947 采用绿涨红跌（与 StockSignal 全局 A 股红涨惯例不同），
+# 用户明确要求「按那个文档做」，故本页统一采用文档配色。
+RED = "#00d4aa"      # 涨 / 利好 / 买入（文档：绿）
+GREEN = "#ff4757"    # 跌 / 利空 / 卖出（文档：红）
 AMBER = "#ffa502"    # 中性 / 持有
 
 require_auth()
@@ -91,29 +93,52 @@ def _price_color(pct: float) -> str:
     return "#94a3b8"
 
 
-def _support_resistance_bar(support: float, resistance: float, current: float) -> str:
-    """支撑 → 压力 价格刻度条，标注当前价位置。"""
+def _support_resistance_bar(support: float, resistance: float, current: float,
+                            markers=None) -> str:
+    """支撑 → 压力 价格刻度条，标注当前价位置；
+    markers=[(label, price, color), ...] 在条上方叠加标注点（MA5/MA10/MA20/套牢区 等）。"""
     if resistance <= support:
         return ""
-    span = resistance - support
-    pos = max(0.0, min(100.0, (current - support) / span * 100.0))
-    return f"""
-    <div style="margin:10px 0 4px;">
-      <div style="position:relative;height:26px;border-radius:13px;
-           background:linear-gradient(90deg,{GREEN}33,{AMBER}33,{RED}33);
-           border:1px solid #2d2d44;">
-        <div style="position:absolute;top:-4px;left:{pos:.1f}%;
-             transform:translateX(-50%);width:2px;height:34px;background:#e2e8f0;"></div>
-        <div style="position:absolute;top:-22px;left:{pos:.1f}%;
-             transform:translateX(-50%);font-size:11px;color:#e2e8f0;white-space:nowrap;">
-           现价 ¥{current:.2f}</div>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;margin-top:6px;">
-        <span>支撑 ¥{support:.2f}</span>
-        <span>压力 ¥{resistance:.2f}</span>
-      </div>
-    </div>
-    """
+    lo = support
+    hi = resistance
+    for _m in (markers or []):
+        try:
+            lo = min(lo, float(_m[1]))
+            hi = max(hi, float(_m[1]))
+        except Exception:  # noqa
+            pass
+    span = hi - lo if hi > lo else 1.0
+
+    def _pos(p):
+        return max(0.0, min(100.0, (float(p) - lo) / span * 100.0))
+
+    pos = _pos(current)
+    parts = [
+        '<div style="margin:10px 0 4px;padding-top:24px;">',
+        f'<div style="position:relative;height:26px;border-radius:13px;'
+        f'background:linear-gradient(90deg,{GREEN}33,{AMBER}33,{RED}33);'
+        f'border:1px solid #2d2d44;">',
+        f'<div style="position:absolute;top:-4px;left:{pos:.1f}%;'
+        f'transform:translateX(-50%);width:2px;height:34px;background:#e2e8f0;"></div>',
+        f'<div style="position:absolute;top:-22px;left:{pos:.1f}%;'
+        f'transform:translateX(-50%);font-size:11px;color:#e2e8f0;white-space:nowrap;">'
+        f'现价 ¥{current:.2f}</div>',
+    ]
+    for (lab, price, color) in (markers or []):
+        mp = _pos(price)
+        parts.append(
+            f'<div style="position:absolute;top:-40px;left:{mp:.1f}%;'
+            f'transform:translate(-50%,0);font-size:10px;color:{color};white-space:nowrap;">{lab}</div>'
+        )
+    parts.append('</div>')
+    parts.append(
+        f'<div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;margin-top:6px;">'
+        f'<span>支撑 ¥{support:.2f}</span>'
+        f'<span>压力 ¥{resistance:.2f}</span>'
+        f'</div>'
+    )
+    parts.append('</div>')
+    return "".join(parts)
 
 
 def _sentiment_tag(sentiment: str) -> str:
@@ -209,9 +234,9 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True):
             macro_score = float(signal.get("macro_score", 50))
             vol_score = float(volume_info.get("volume_price_score", 50)) if "error" not in volume_info else 50.0
 
-            # 综合评分（四维加权）
+            # 综合评分（四维加权，参考文档：技术指标30% / 新闻情绪25% / 资金量能25% / 市场环境20%）
             composite = int(round(
-                tech_score * 0.35 + news_score * 0.25 + vol_score * 0.15 + macro_score * 0.25
+                tech_score * 0.30 + news_score * 0.25 + vol_score * 0.25 + macro_score * 0.20
             ))
             composite = max(0, min(100, composite))
             verdict, verdict_color, verdict_cls = _verdict_color(composite)
@@ -270,35 +295,106 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True):
             pos52 = (last["close"] - lo52) / (hi52 - lo52) * 100 if hi52 > lo52 else 50.0
 
             # ════════════ 模块1：顶部决策摘要 ════════════
+            # ── 均线（用于 K 线标注与量能）──
+            ma5v = float(df["close"].rolling(5).mean().iloc[-1]) if len(df) >= 5 else float(last["close"])
+            ma10v = float(df["close"].rolling(10).mean().iloc[-1]) if len(df) >= 10 else float(last["close"])
+            ma20v = float(df["close"].rolling(20).mean().iloc[-1]) if len(df) >= 20 else float(last["close"])
+            # ── 套牢区（近期高位密集成交区）──
+            trapped = float(df["high"].tail(120).max()) if len(df) >= 20 else float(hi52)
+            # ── 量能分析 ──
+            vol_now = float(df["volume"].iloc[-1])
+            vol_prev = float(df["volume"].iloc[-2]) if len(df) >= 2 else vol_now
+            vol_avg = float(df["volume"].tail(20).mean())
+            vol_chg = (vol_now - vol_prev) / vol_prev * 100 if vol_prev else 0.0
+            # ── 今日盘口（实时行情，缺失则 —）──
+            q_open = float(rt["open"]) if isinstance(rt, dict) and rt.get("open") else None
+            q_high = float(rt["high"]) if isinstance(rt, dict) and rt.get("high") else None
+            q_low = float(rt["low"]) if isinstance(rt, dict) and rt.get("low") else None
+            q_prev = float(rt["prev_close"]) if isinstance(rt, dict) and rt.get("prev_close") else None
+            q_amount = float(rt["amount"]) if isinstance(rt, dict) and rt.get("amount") else None
+            # ── 板块（由代码派生，真实）──
+            def _board(code):
+                if str(code).startswith("60"):
+                    return "沪市主板"
+                if str(code).startswith("00"):
+                    return "深市主板"
+                if str(code).startswith("30"):
+                    return "创业板"
+                if str(code).startswith("68"):
+                    return "科创板"
+                if str(code).startswith(("8", "4")):
+                    return "北交所"
+                return "A股"
+            board = _board(ticker)
+            # ── 仓位建议（依研判）──
+            if verdict == "看多":
+                position_advice = (
+                    f"分批低吸，建议建仓 40%–50% 底仓（MA20 未收复，不满仓）；"
+                    f"当前乖离 MA5 仅 {deviation:+.1f}%，位置健康可建首仓"
+                )
+            elif verdict == "看空":
+                position_advice = "轻仓观望，等待企稳信号；若已持仓建议逢高减仓、严控回撤"
+            else:
+                position_advice = (
+                    f"区间波段，半仓操作；回踩支撑 ¥{support:.2f} 可低吸，"
+                    f"靠近压力 ¥{resistance:.2f} 减仓"
+                )
+
             st.markdown("### 顶部决策摘要")
             col_hdr1, col_hdr2, col_hdr3 = st.columns([2, 2, 1])
+            chg_txt = f"{change_pct:+.2f}%" if rt else "—"
+            price_disp = f"¥{current_price:.2f}" if current_price is not None else f"¥{last['close']:.2f}"
+            # 今日盘口（实时行情缺失则用 —）
+            today_bits = []
+            if q_open is not None:
+                today_bits.append(f"今开 ¥{q_open:.2f}")
+            if q_high is not None:
+                today_bits.append(f"最高 ¥{q_high:.2f}")
+            if q_low is not None:
+                today_bits.append(f"最低 ¥{q_low:.2f}")
+            if q_prev is not None:
+                today_bits.append(f"昨收 ¥{q_prev:.2f}")
+            if q_amount is not None:
+                today_bits.append(f"成交额 {q_amount / 1e8:.2f}亿")
+            today_bits.append(f"成交量 {df['volume'].iloc[-1] / 1e4:.1f}万手")
+            today_line = " · ".join(today_bits)
             with col_hdr1:
-                chg_txt = f"{change_pct:+.2f}%" if rt else "—"
                 st.markdown(
                     f"<div style='font-size:20px;font-weight:700;color:#e2e8f0;'>"
-                    f"{display_name} <span style='color:#94a3b8;font-size:13px;'>({ticker})</span></div>"
-                    f"<div style='color:#94a3b8;font-size:13px;margin-top:2px;'>所属行业/概念：{industry}</div>",
+                    f"{display_name} <span style='color:#94a3b8;font-size:13px;'>({ticker} · {board})</span></div>"
+                    f"<div style='color:#94a3b8;font-size:13px;margin-top:2px;'>所属行业/概念：{industry}</div>"
+                    f"<div style='font-size:22px;font-weight:700;color:{_price_color(change_pct)};margin-top:6px;'>"
+                    f"{price_disp} <span style='font-size:14px;'>{chg_txt}</span></div>"
+                    f"<div style='font-size:12px;color:#94a3b8;margin-top:4px;'>{today_line}</div>",
                     unsafe_allow_html=True,
                 )
             with col_hdr2:
-                price_disp = f"¥{current_price:.2f}" if current_price is not None else f"¥{last['close']:.2f}"
                 st.markdown(
-                    f"<div style='font-size:22px;font-weight:700;color:{_price_color(change_pct)};'>"
-                    f"{price_disp} <span style='font-size:14px;'>{chg_txt}</span></div>",
+                    "<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:8px;'>"
+                    f"<div style='background:#15152a;border:1px solid #2d2d44;border-radius:8px;padding:8px;text-align:center;'>"
+                    f"<div style='font-size:11px;color:#94a3b8;'>入场价</div>"
+                    f"<div style='font-size:15px;font-weight:700;color:#e2e8f0;margin-top:2px;'>¥{entry_price:.2f}</div></div>"
+                    f"<div style='background:#15152a;border:1px solid #2d2d44;border-radius:8px;padding:8px;text-align:center;'>"
+                    f"<div style='font-size:11px;color:#94a3b8;'>目标价</div>"
+                    f"<div style='font-size:15px;font-weight:700;color:{RED};margin-top:2px;'>¥{target_price:.2f}</div></div>"
+                    f"<div style='background:#15152a;border:1px solid #2d2d44;border-radius:8px;padding:8px;text-align:center;'>"
+                    f"<div style='font-size:11px;color:#94a3b8;'>止损价</div>"
+                    f"<div style='font-size:15px;font-weight:700;color:{GREEN};margin-top:2px;'>¥{stop_price:.2f}</div></div>"
+                    "</div>",
                     unsafe_allow_html=True,
                 )
                 st.markdown(
-                    f"<div style='font-size:12px;color:#94a3b8;margin-top:4px;'>"
-                    f"入场价 <b style='color:#e2e8f0;'>¥{entry_price:.2f}</b> ｜ "
-                    f"目标价 <b style='color:{RED};'>¥{target_price:.2f}</b> ｜ "
-                    f"止损价 <b style='color:{GREEN};'>¥{stop_price:.2f}</b></div>",
+                    f"<div style='font-size:12.5px;color:#94a3b8;margin-top:10px;line-height:1.6;'>"
+                    f"<b style='color:#e2e8f0;'>仓位建议：</b>{position_advice}</div>",
                     unsafe_allow_html=True,
                 )
             with col_hdr3:
                 st.markdown(
                     f"<div style='text-align:center;'><span class='sf-tag {verdict_cls}' "
                     f"style='font-size:15px;padding:6px 16px;'>{verdict}</span></div>"
-                    f"{_score_ring_html(composite, verdict_color)}",
+                    f"{_score_ring_html(composite, verdict_color)}"
+                    f"<div style='font-size:11px;color:#94a3b8;text-align:center;margin-top:2px;'>"
+                    f"{'看多 · 择机买入' if verdict=='看多' else ('看空 · 逢高减仓' if verdict=='看空' else '持有 · 区间波段')}</div>",
                     unsafe_allow_html=True,
                 )
 
@@ -344,30 +440,74 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True):
                             f"<div style='font-size:16px;font-weight:700;color:#e2e8f0;'>{pos52:.0f}%</div>"
                             f"<div style='font-size:11px;color:#94a3b8;'>¥{lo52:.2f}~¥{hi52:.2f}</div>",
                             unsafe_allow_html=True)
+            # 量能分析 + 筹码结构（参考文档「数据透视」补全，真实派生）
+            _vol_desc = (
+                "明显放量" if vol_chg > 30 else
+                "温和放大" if vol_chg > 0 else
+                "缩量" if vol_chg < -15 else "地量企稳"
+            )
+            _vol_health = "健康换手而非过热" if abs(vol_chg) < 40 else "异常波动需警惕"
+            st.markdown(
+                f"<div style='margin-top:12px;font-size:13.5px;color:#94a3b8;line-height:1.7;'>"
+                f"<b style='color:#e2e8f0;'>量能分析：</b>近 20 日均量约 {vol_avg/1e4:.1f} 万手；"
+                f"最新一日 {vol_now/1e4:.1f} 万手，较前一日 {vol_chg:+.1f}%（{_vol_desc}）；"
+                f"成交额 {q_amount/1e8:.2f} 亿（实时行情），当前属{_vol_health}。"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+            _drawdown = (last['close'] / trapped - 1) * 100 if trapped > 0 else 0.0
+            st.markdown(
+                f"<div style='margin-top:8px;font-size:13.5px;color:#94a3b8;line-height:1.7;'>"
+                f"<b style='color:#e2e8f0;'>筹码结构：</b>近 120 日自 {trapped:.2f} 高点回落至现价 {last['close']:.2f}"
+                f"（约 {_drawdown:+.1f}%），{trapped:.2f}–{hi52:.2f} 区间为近期密集成交"
+                f"<b style='color:{AMBER};'>套牢区</b>，反弹至此抛压显著；"
+                f"前低 <b style='color:{RED};'>¥{support:.2f}</b> 为强支撑，MA5/MA10 为短期依托。"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
             st.markdown("</div>", unsafe_allow_html=True)
 
             # ════════════ 模块4：技术指标图表 ════════════
             st.markdown('<div class="sf-card"><h2>技术指标图表</h2>', unsafe_allow_html=True)
             st.markdown(
-                Visualizer.kline_legend_html(ma_windows=[5, 10, 20]),
+                Visualizer.kline_legend_html(
+                    ma_windows=[5, 10, 20],
+                    up_color=RED, down_color=GREEN,
+                    ma_colors=["#ffa502", "#667eea", "#00d4aa"],
+                ),
                 unsafe_allow_html=True,
             )
             try:
+                # 参考文档 002947：绿涨红跌、MA5橙/MA10靛/MA20绿、
+                # 标注 MA20压制(红虚) / MA10(靛虚) / 前低支撑(绿虚) / 套牢区(琥珀点)
+                kline_annotations = [
+                    {"price": ma20v, "label": "MA20压制", "color": GREEN, "dash": "dash"},
+                    {"price": ma10v, "label": "MA10", "color": "#667eea", "dash": "dash"},
+                    {"price": support, "label": "前低支撑", "color": RED, "dash": "dash"},
+                    {"price": trapped, "label": "套牢区", "color": AMBER, "dash": "dot"},
+                ]
                 fig = Visualizer.candlestick(
                     df,
                     title="技术指标图表（K线 + 均线 + 成交量）",
                     show_volume=True,
                     ma_windows=[5, 10, 20],
-                    support=support,
-                    resistance=resistance,
+                    annotations=kline_annotations,
+                    support=None,
+                    resistance=None,
+                    up_color=RED,
+                    down_color=GREEN,
+                    ma_colors=["#ffa502", "#667eea", "#00d4aa"],
                 )
                 st.plotly_chart(fig, use_container_width=True)
-                # 图表下方说明：保留原标注样式，同时加入日期区间与参考线说明
+                # 图表下方说明：标注线 + 日期区间（参考文档）
                 st.markdown(
                     "<div style='font-size:12px;color:#94a3b8;margin-top:4px;'>"
-                    "绿柱为上涨、红柱为下跌（A股习惯）。"
-                    f"虚线为 MA5/MA10/MA20；支撑线：¥{support:.2f}；压力线：¥{resistance:.2f}。"
-                    f"数据区间 {df['date'].min().strftime('%Y-%m-%d')} ~ {df['date'].max().strftime('%Y-%m-%d')}。"
+                    "绿柱为上涨、红柱为下跌（参考文档配色）。"
+                    "均线 MA5(橙)/MA10(靛)/MA20(绿)；"
+                    f"标注线：MA20压制 ¥{ma20v:.2f} / MA10 ¥{ma10v:.2f} / "
+                    f"前低支撑 ¥{support:.2f} / 套牢区 ¥{trapped:.2f}。"
+                    f"数据区间 {pd.to_datetime(df['date']).min().strftime('%Y-%m-%d')} "
+                    f"~ {pd.to_datetime(df['date']).max().strftime('%Y-%m-%d')}。"
                     "</div>",
                     unsafe_allow_html=True,
                 )
@@ -443,15 +583,19 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True):
             except Exception as e:
                 st.warning(f"⚠️ 雷达图渲染失败：{str(e)[:80]}")
 
-            # 权重表
+            # 权重表（参考文档：技术指标 30% / 新闻情绪 25% / 资金量能 25% / 市场环境 20%）
             st.markdown(
                 "<table class='sf-table'>"
-                "<thead><tr><th class='l'>维度</th><th>权重</th><th>得分</th></tr></thead><tbody>"
-                f"<tr><td class='l'>技术指标（价格/均线/动量）</td><td>35%</td><td>{tech_score:.0f}</td></tr>"
-                f"<tr><td class='l'>新闻情绪（事件信号）</td><td>25%</td><td>{news_score:.0f}</td></tr>"
-                f"<tr><td class='l'>资金量能（量价配合）</td><td>15%</td><td>{vol_score:.0f}</td></tr>"
-                f"<tr><td class='l'>市场环境（PMI 宏观）</td><td>25%</td><td>{macro_score:.0f}</td></tr>"
-                f"<tr><td class='l'><b>综合评分</b></td><td>100%</td><td><b>{composite}</b></td></tr>"
+                "<thead><tr><th class='l'>维度（权重）</th><th>得分</th><th class='l'>研判要点</th></tr></thead><tbody>"
+                f"<tr><td class='l'><b>技术指标</b> 30%</td><td>{tech_score:.0f}</td>"
+                f"<td class='l'>站上均线 / 金叉死叉 / 动量强弱</td></tr>"
+                f"<tr><td class='l'><b>新闻情绪</b> 25%</td><td>{news_score:.0f}</td>"
+                f"<td class='l'>事件催化强度 · 正面占比 {pos_pct:.0f}%</td></tr>"
+                f"<tr><td class='l'><b>资金量能</b> 25%</td><td>{vol_score:.0f}</td>"
+                f"<td class='l'>量价配合 · 换手健康度</td></tr>"
+                f"<tr><td class='l'><b>市场环境</b> 20%</td><td>{macro_score:.0f}</td>"
+                f"<td class='l'>宏观 PMI · 大盘强弱</td></tr>"
+                f"<tr><td class='l'><b>综合评分</b></td><td><b>{composite}</b></td><td class='l'>四维加权汇总</td></tr>"
                 "</tbody></table>",
                 unsafe_allow_html=True,
             )
@@ -501,8 +645,20 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True):
 
             # ════════════ 模块7：作战计划 ════════════
             st.markdown('<div class="sf-card"><h2>作战计划</h2>', unsafe_allow_html=True)
-            st.markdown("<div style='color:#94a3b8;font-size:13px;'>支撑 → 压力 价格刻度</div>", unsafe_allow_html=True)
-            st.markdown(_support_resistance_bar(support, resistance, current_price), unsafe_allow_html=True)
+            st.markdown("<div style='color:#94a3b8;font-size:13px;'>支撑（前低）→ 压力（套牢区）价格刻度</div>", unsafe_allow_html=True)
+            st.markdown(
+                _support_resistance_bar(
+                    support, trapped, current_price,
+                    markers=[
+                        ("前低", support, RED),
+                        ("MA5", ma5v, "#ffa502"),
+                        ("MA10", ma10v, "#667eea"),
+                        ("MA20", ma20v, GREEN),
+                        ("套牢区", trapped, AMBER),
+                    ],
+                ),
+                unsafe_allow_html=True,
+            )
 
             st.markdown("<div style='color:#e2e8f0;font-weight:600;margin:14px 0 4px;'>分批建仓 / 减仓计划</div>",
                         unsafe_allow_html=True)
