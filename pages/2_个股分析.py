@@ -1,6 +1,6 @@
 """
 页面2：个股分析
-白天模式「决策仪表盘 · 个股深度分析」（参考 002947 白天版 .sf-* 组件类）。
+暗色模式「决策仪表盘 · 个股深度分析」（参考 002947 暗色版 .sf-* 组件类）。
 
 严格遵循参考文档「绿涨红跌」配色：涨/利好/买入 = 绿(#009e60)，跌/利空/卖出 = 红(#dc2626)，
 中性/持有 = 琥珀(#d97706)。所有外部数据获取均包在 try/except 中，失败时 st.warning。
@@ -12,9 +12,9 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-# ── 前置：本页白天模式（参考 002947 白天版），沿用全局 light 主题，不再强制暗色，
-#    避免访问该页后其它页面被意外变暗（用户投诉的「切模块黑白切换」）──
+# ── 前置：本页强制进入「星辰决策仪表盘」暗色主题（离开本页后自动恢复全局主题）
 st.set_page_config(page_title="个股分析", page_icon="🔍", layout="wide")
+st.session_state["_active_page"] = __file__
 
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
@@ -210,7 +210,7 @@ with st.sidebar:
         default="600519",
         placeholder="输入代码或名称搜索，如：600519 / 贵州茅台 / GZMT / 茅台",
     )
-    st.caption("本页为白天模式，沿用全局浅色主题。")
+    st.caption("本页为星辰决策仪表盘暗色主题。")
 
 # 主区标题
 st.markdown(
@@ -219,13 +219,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 002947 参考文档风格：绿涨红跌，局部增强样式
+# 002947 参考文档风格：绿涨红跌，局部增强样式（暗色版）
 st.markdown(
     """
 <style>
 :root{
-  --bg:#f5f7fa; --card:#ffffff; --buy:#009e60; --sell:#dc2626; --hold:#d97706;
-  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#1e293b; --txt2:#64748b; --border:#e2e8f0;
+  --bg:#0f0f23; --card:#1a1a2e; --buy:#009e60; --sell:#dc2626; --hold:#d97706;
+  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44;
 }
 /* 文档风格：绿涨红跌 */
 .sf-doc-up{color:var(--buy)!important}
@@ -238,16 +238,16 @@ st.markdown(
 .sf-hold-badge{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;box-shadow:0 0 20px rgba(217,119,6,.22)}
 .sf-price-big{font-size:42px;font-weight:800;letter-spacing:-1px;font-family:'Fira Code',monospace;color:var(--buy)}
 .sf-triangle{font-size:22px;margin-right:4px}
-.sf-metric-card{background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}
+.sf-metric-card{background:#15152a;border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}
 .sf-metric-card .label{font-size:12px;color:var(--txt2);margin-bottom:6px}
 .sf-metric-card .value{font-size:22px;font-weight:700;font-family:'Fira Code',monospace;color:var(--txt)}
-.sf-insight-box{background:rgba(0,158,96,.07);border:1px solid rgba(0,158,96,.30);
+.sf-insight-box{background:rgba(0,158,96,.10);border:1px solid rgba(0,158,96,.35);
   border-radius:12px;padding:14px 16px;line-height:1.8;font-size:14px;color:var(--txt)}
-.sf-insight-box.hold{background:rgba(217,119,6,.07);border-color:rgba(217,119,6,.30);color:var(--txt)}
+.sf-insight-box.hold{background:rgba(217,119,6,.10);border-color:rgba(217,119,6,.35);color:var(--txt)}
 .sf-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
 @media(max-width:900px){.sf-grid-4{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:540px){.sf-grid-4{grid-template-columns:1fr}}
-.sf-perspective-card{background:#ffffff;border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.sf-perspective-card{background:#15152a;border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.15)}
 .sf-perspective-card .title{font-size:12px;color:var(--txt2);margin-bottom:10px}
 .sf-perspective-card .body{font-size:14px;color:var(--txt);line-height:1.6}
 .sf-pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin:2px 2px 2px 0}
@@ -262,35 +262,35 @@ st.markdown(
 .sf-intel-bar .bar-neg{height:100%;background:var(--sell)}
 /* 副标题卡片装饰：带图标、小字、渐变装饰线 */
 .sf-section-header{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid var(--border);position:relative}
-.sf-section-header .icon{font-size:20px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f0f1ff,#ede9fe);border:1px solid var(--border);border-radius:10px}
+.sf-section-header .icon{font-size:20px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a1a2e,#241b3a);border:1px solid var(--border);border-radius:10px}
 .sf-section-header .titles{flex:1}
 .sf-section-header h2{margin:0;font-size:17px;font-weight:700;color:var(--txt);border:none!important;padding:0!important}
 .sf-section-header .sub{font-size:12px;color:var(--txt2);margin-top:2px}
 .sf-section-header .deco{width:40px;height:3px;border-radius:2px;background:linear-gradient(90deg,#4f46e5,#7c3aed);position:absolute;bottom:-1.5px;left:0}
-/* 头部品牌条（对齐参考文档白天版渐变 header） */
-.sf-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px;padding:14px 18px;background:linear-gradient(90deg,#f0f1ff,#ede9fe);border:1px solid var(--border);border-radius:14px}
+/* 头部品牌条（对齐参考文档暗色版渐变 header） */
+.sf-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px;padding:14px 18px;background:linear-gradient(90deg,#1a1a2e,#241b3a);border:1px solid var(--border);border-radius:14px}
 .sf-brand{font-size:15px;color:var(--txt2);letter-spacing:1px}
 .sf-brand b{color:var(--acc1)}
 /* 标签 / 警报 / 表格 / 免责 / VS */
 .sf-tag{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin:2px 2px 2px 0}
-.sf-tag.up{background:rgba(0,158,96,.10);color:var(--buy);border:1px solid rgba(0,158,96,.32)}
-.sf-tag.down{background:rgba(220,38,38,.10);color:var(--sell);border:1px solid rgba(220,38,38,.32)}
-.sf-tag.mid{background:rgba(217,119,6,.10);color:var(--hold);border:1px solid rgba(217,119,6,.32)}
-.sf-tag.neu{background:rgba(100,116,139,.10);color:var(--txt2);border:1px solid var(--border)}
+.sf-tag.up{background:rgba(0,158,96,.14);color:var(--buy);border:1px solid rgba(0,158,96,.38)}
+.sf-tag.down{background:rgba(220,38,38,.14);color:var(--sell);border:1px solid rgba(220,38,38,.38)}
+.sf-tag.mid{background:rgba(217,119,6,.14);color:var(--hold);border:1px solid rgba(217,119,6,.38)}
+.sf-tag.neu{background:rgba(148,163,184,.12);color:var(--txt2);border:1px solid var(--border)}
 .sf-alert{border-radius:12px;padding:13px 15px;margin-top:14px;font-size:13.5px;color:var(--txt);line-height:1.7}
-.sf-alert.risk{background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.22);color:#991b1b}
-.sf-alert.cat{background:rgba(0,158,96,.06);border:1px solid rgba(0,158,96,.22);color:#166534}
+.sf-alert.risk{background:rgba(220,38,38,.10);border:1px solid rgba(220,38,38,.30);color:#ffb3bb}
+.sf-alert.cat{background:rgba(0,158,96,.10);border:1px solid rgba(0,158,96,.30);color:#9af0dd}
 .sf-alert b{display:block;margin-bottom:5px;font-size:14px}
 .sf-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
 .sf-table th,.sf-table td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)}
 .sf-table th{color:var(--txt2);font-weight:600;font-size:12px}
-.sf-table tr:hover td{background:#f8fafc}
-.sf-disclaimer{margin-top:14px;font-size:11.5px;color:#94a3b8;border-top:1px dashed var(--border);padding-top:10px}
+.sf-table tr:hover td{background:#15152a}
+.sf-disclaimer{margin-top:14px;font-size:11.5px;color:#6b7280;border-top:1px dashed var(--border);padding-top:10px}
 .sf-vs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
 @media(max-width:780px){.sf-vs{grid-template-columns:1fr}}
-.sf-vsbox{background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.sf-vsbox{background:#15152a;border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .sf-vsbox h3{font-size:14px;margin-bottom:8px;color:var(--txt);border:none!important;padding-left:0!important}
-.sf-card{background:#ffffff;border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.sf-card{background:#15152a;border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.15)}
 .sf-card h2:first-child{margin-top:0!important}
 </style>
     """,

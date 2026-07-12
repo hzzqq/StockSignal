@@ -285,8 +285,8 @@ def _fill_business_correlation(rows: List[Dict[str, Any]]) -> None:
 
 
 def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> None:
-    """基本面（东方财富 push2，稳定可用）：总市值(亿) / 市盈率TTM / 行业。
-    失败时重试 2 次，仍失败则留空由页面显示「—」。"""
+    """基本面（东方财富 push2 / akshare）：总市值(亿) / 市盈率TTM / 行业。
+    失败时重试 2 次；仍失败则基于股票名称做行业推断兜底。"""
     row["market_cap"] = None
     row["pe_ttm"] = None
     row["industry"] = None
@@ -307,12 +307,20 @@ def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> N
             row["market_cap"] = f.get("market_cap")
             row["pe_ttm"] = f.get("pe_ttm")
             ind = f.get("industry") or ""
-            row["industry"] = ind
+            row["industry"] = ind if ind else None
             # 本地名称缺失时用东方财富名称兜底
             if (not row.get("name") or row["name"] == row["code"]) and f.get("name"):
                 row["name"] = f["name"]
         elif last_err:
             print(f"[compare] 基本面获取失败 {row['code']}: {last_err}")
+        # 行业兜底：基于股票名称关键词推断
+        if not row.get("industry") and row.get("name") and row["name"] != row["code"]:
+            try:
+                kws = fetcher.get_stock_keywords(row["name"], top_k=2)
+                if kws:
+                    row["industry"] = kws.split(",")[0]
+            except Exception:
+                pass
     except Exception as e:  # noqa: BLE001
         print(f"[compare] 基本面获取失败 {row['code']}: {e}")
 
@@ -350,8 +358,8 @@ def compare_css() -> str:
 .compare-wrap .tag.mid{{background:{_sf()['tag_mid_bg']};color:{_sf()['hold']};border:1px solid {_sf()['tag_mid_border']}}}
 .compare-wrap .tag.weak{{background:{_sf()['tag_weak_bg']};color:{_sf()['down']};border:1px solid {_sf()['tag_weak_border']}}}
 .compare-wrap .tag.neu{{background:{_sf()['tag_neu_bg']};color:{_sf()['txt2']};border:1px solid {_sf()['tag_neu_border']}}}
-.compare-wrap .vs{{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}}
-.compare-wrap .vsbox{{background:{_sf()['vsbox_bg']};border:1px solid {_sf()['border']};border-radius:10px;padding:14px}}
+.compare-wrap .vs{{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px}}
+.compare-wrap .vsbox{{flex:1 1 45%;min-width:320px;background:{_sf()['vsbox_bg']};border:1px solid {_sf()['border']};border-radius:10px;padding:14px}}
 .compare-wrap .vsbox h3{{font-size:14px;margin-bottom:8px}}
 .compare-wrap .vsbox .verdict{{font-size:13px;font-weight:700;margin:8px 0;padding:6px 10px;border-radius:8px}}
 .compare-wrap .verdict.b{{background:{_sf()['verdict_b_bg']};color:{_sf()['up']}}}
@@ -383,7 +391,7 @@ def compare_css() -> str:
 .compare-wrap .score-cloud .chip{{display:inline-flex;align-items:center;gap:6px;font-size:13px;
   padding:5px 12px;border-radius:16px;border:1px solid {_sf()['border']};
   background:{_sf()['vsbox_bg']};color:{_sf()['txt']}}}
-@media(max-width:780px){{.compare-wrap .vs,.compare-wrap .two-col{{grid-template-columns:1fr}}}}
+@media(max-width:780px){{.compare-wrap .two-col{{grid-template-columns:1fr}}}}
 </style>
 """
 
@@ -1050,33 +1058,127 @@ def _method_analysis(method: str, scores: Dict[str, float],
     )
 
 
+def _method_score_badge(r: Dict[str, Any], method: str,
+                        scores: Dict[str, float], event: Optional[str] = None) -> str:
+    """方法维度下的分数徽章（BUY/HOLD/WATCH）。"""
+    s = _safe(scores.get(r["code"]))
+    if method == "事件":
+        rel, stance = _event_stance(r, event)
+        label = f"{rel:.0f} · {stance}"
+        cls = "win" if stance == "利好" else ("weak" if stance == "利空" else "neu")
+    else:
+        if s >= 70:
+            label = f"{s:.0f}分 · 看多(BUY)"
+            cls = "win"
+        elif s <= 40:
+            label = f"{s:.0f}分 · 谨慎(WATCH)"
+            cls = "weak"
+        else:
+            label = f"{s:.0f}分 · 持有(HOLD)"
+            cls = "mid"
+    return f'<span class="score-badge {cls}">{label}</span>'
+
+
+def _method_vs_box(r: Dict[str, Any], other: Dict[str, Any], method: str,
+                   scores: Dict[str, float], event: Optional[str] = None) -> str:
+    """方法对比单卡：用于 build_method_card 的左右两列。"""
+    sr = _safe(scores.get(r["code"]))
+    so = _safe(scores.get(other["code"]))
+    win = sr >= so
+    cls = "b" if win else "o"
+    verdict = f"{'领先' if win else '落后'} {other['name']}（{sr:.0f} vs {so:.0f}）"
+    s = r.get("scores", {})
+    lis = []
+    if method == "短期":
+        lis.append(f"动量 <b>{s.get('momentum', 0):.0f}</b> · 量能 <b>{s.get('volume', 0):.0f}</b>")
+        lis.append(f"近期涨跌幅 <b>{r.get('chg_pct', 0):+.1f}%</b>")
+    elif method == "长期":
+        lis.append(f"趋势 <b>{s.get('trend', 0):.0f}</b> · 形态 <b>{s.get('pattern', 0):.0f}</b>")
+        lis.append(f"年化弹性 <b>{_safe(r.get('elasticity'), 0):.0f}%</b>")
+    elif method == "价值":
+        cap = r.get("market_cap")
+        pe = r.get("pe_ttm")
+        lis.append(f"总市值 <b>{cap:.0f}亿</b>" if cap else "总市值未获取")
+        lis.append(f"TTM市盈率 <b>{pe:.1f}</b>" if pe else "TTM市盈率未获取")
+    elif method == "板块":
+        lis.append(f"业务关联度 <b>{_safe(r.get('business_corr'), 0):.0f}</b>")
+        lis.append(f"行业 <b>{r.get('industry') or '未知行业'}</b>")
+    elif method == "业绩":
+        lis.append(f"催化分 <b>{_safe(r.get('catalyst', 50), 0):.0f}</b>")
+        lis.append(f"综合评分 <b>{s.get('composite', 0):.0f}</b>")
+    elif method == "政策":
+        ind = r.get("industry") or ""
+        friendly = "政策敏感" if any(k in ind for k in _POLICY_FRIENDLY) else "政策中性"
+        lis.append(f"行业属性 <b>{friendly}</b>")
+        lis.append(f"综合评分 <b>{s.get('composite', 0):.0f}</b>")
+    elif method == "宏观":
+        lis.append(f"年化弹性 <b>{_safe(r.get('elasticity'), 0):.0f}%</b>")
+    elif method == "微观":
+        lis.append(f"趋势 <b>{s.get('trend', 0):.0f}</b> · 动量 <b>{s.get('momentum', 0):.0f}</b>")
+    elif method == "事件":
+        rel, stance = _event_stance(r, event)
+        lis.append(f"事件关联度 <b>{rel:.0f}</b>")
+        lis.append(f"事件立场 <b>{stance}</b>")
+    else:
+        lis.append(f"综合评分 <b>{s.get('composite', 0):.0f}</b>")
+    sig = r.get("signal", "持有")
+    lis.append(f"信号 <b>{sig}</b>")
+    lis_html = "".join(f"<li>{x}</li>" for x in lis)
+    return f"""
+<div class="vsbox">
+  <h3>{r['name']} <span style="font-weight:500;font-size:12px;color:{_sf()['txt2']}">{r['code']}</span>
+    <span class="type">· {_stock_type_label(r)}</span>
+  </h3>
+  <div class="score-row">{_method_score_badge(r, method, scores, event)} <span class="verdict {cls}">{verdict}</span></div>
+  <ul>{lis_html}</ul>
+</div>"""
+
+
+def _method_pair_conclusion(a: Dict[str, Any], b: Dict[str, Any], method: str,
+                            scores: Dict[str, float], event: Optional[str]) -> str:
+    """星辰分析师口吻：方法维度下 top2 标的对比结论。"""
+    sa = _safe(scores.get(a["code"]))
+    sb = _safe(scores.get(b["code"]))
+    spread = sa - sb
+    focus = {
+        "短期": "动量、量能与近期涨跌幅",
+        "长期": "趋势强度、形态稳定性与波动率",
+        "价值": "市盈率(TTM)、总市值与估值安全边际",
+        "板块": "组内业务关联度与板块共振",
+        "业绩": "订单催化与盈利质量代理分",
+        "政策": "政策敏感行业属性与题材导向",
+        "宏观": "价格弹性（波动率）与大盘敏感度",
+        "微观": "技术结构（均线排列、趋势强度）",
+        "事件": f"事件「{event or ''}」的业务关联度与利好/利空立场",
+    }.get(method, "综合评分")
+    return (
+        f"<b>结论：</b>从【{method}】维度看，<b>{a['name']}</b>（{sa:.0f}分）"
+        f"{'明显优于' if spread >= 15 else '优于'}<b>{b['name']}</b>（{sb:.0f}分），"
+        f"分差 {spread:.0f} 分，{'区分度明显' if spread >= 15 else '区分度一般'}。"
+        f"本维度重点关注{focus}，{a['name']} 在{focus.split('、')[0].split('(')[0]}上表现更优，"
+        f"可作为{method}视角下的首选；{b['name']} 相对偏弱，建议作为对照观察或等待信号修复。"
+        f"以上仅为模型推演，不构成投资建议。"
+    )
+
+
 def build_method_card(rows: List[Dict[str, Any]], method: str,
                       event: Optional[str] = None) -> str:
-    """单个对比方法的卡片：详细分析过程 + 排名 + 要点 + 总结。"""
+    """单个对比方法的卡片：图4 左右对比 + 星辰分析师结论。"""
     scores = compute_method_scores(rows, method, event)
     ranked = _ranked(rows, scores)
-    lis = []
-    for r in ranked:
-        s = _safe(scores.get(r["code"]))
-        if method == "事件":
-            rel, stance = _event_stance(r, event)
-            extra = f'业务关联度 {rel:.0f} · {stance}'
-            cls = "win" if stance == "利好" else ("weak" if stance == "利空" else "neu")
-            lis.append(f'<li><b>{r["name"]}</b>（{r["code"]}）'
-                       f' {_tag(extra, cls)}</li>')
-        else:
-            kind = "win" if s >= 60 else ("mid" if s >= 45 else "weak")
-            lis.append(f'<li><b>{r["name"]}</b>（{r["code"]}）'
-                       f' 方法得分 {s:.0f} · 信号 {_tag(r["signal"], "win" if r["signal"]=="买入" else ("mid" if r["signal"]=="持有" else "weak"))}</li>')
-    lis_html = "".join(lis)
+    if len(ranked) < 2:
+        return '<div class="card"><h2>对比方法 · {method}</h2><div class="note">标的不足 2 只，无法生成对比。</div></div>'
+    a, b = ranked[0], ranked[1]
+    va = _method_vs_box(a, b, method, scores, event)
+    vb = _method_vs_box(b, a, method, scores, event)
     summary = _method_summary(rows, method, scores, event)
-    analysis = _method_analysis(method, scores, ranked, event)
+    conclusion = _method_pair_conclusion(a, b, method, scores, event)
     return f"""
 <div class="card">
-  <h2>对比方法 · {method}</h2>
+  <h2>★ 星辰 · 多市场智能股票分析师：对比方法 · {method}</h2>
   <div class="one-line">{summary}</div>
-  <div class="note" style="margin-bottom:10px">{analysis}</div>
-  <ul style="margin:10px 0 0 18px;font-size:13px;color:{_sf()['txt2']};line-height:1.9">{lis_html}</ul>
+  <div class="vs">{va}{vb}</div>
+  <div class="alert cat">{conclusion}</div>
 </div>
 """
 

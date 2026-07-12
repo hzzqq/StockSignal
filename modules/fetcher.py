@@ -713,13 +713,39 @@ class StockFetcher:
 
     def get_fundamentals(self, code, use_cache=True):
         """获取个股基本面（名称/最新价/总市值(亿)/市盈率TTM/行业）。
-        优先东方财富 push2，进程内缓存避免重复请求；失败返回 None。"""
+        优先东方财富 push2，失败后尝试 akshare；进程内缓存避免重复请求；失败返回 None。"""
         code = str(code).strip().zfill(6)
         if use_cache and code in StockFetcher._fund_cache:
             return StockFetcher._fund_cache[code]
+        # L1: 东方财富 push2
         res = _UrllibFetcher.fetch_fundamentals(code)
-        if res is not None:
+        if res is not None and (res.get("market_cap") or res.get("pe_ttm") or res.get("industry")):
             StockFetcher._fund_cache[code] = res
+            return res
+        # L2: akshare 东方财富个股信息（更稳定的备用源）
+        try:
+            import akshare as ak
+            df = ak.stock_individual_info_em(symbol=code)
+            info = dict(zip(df["item"], df["value"]))
+            def _to_float(x):
+                try:
+                    return float(x) if x not in (None, "", "-") else None
+                except Exception:
+                    return None
+            cap = _to_float(info.get("总市值"))
+            pe = _to_float(info.get("市盈率"))
+            res = {
+                "name": (info.get("股票名称") or "").strip(),
+                "price": _to_float(info.get("最新价")),
+                "market_cap": round(cap / 1e8, 1) if cap else None,
+                "pe_ttm": pe,
+                "industry": (info.get("行业") or "").strip(),
+            }
+            if res["name"] or res["market_cap"] or res["pe_ttm"] or res["industry"]:
+                StockFetcher._fund_cache[code] = res
+                return res
+        except Exception as e:
+            print(f"[StockFetcher] akshare 基本面失败 ({code}): {e}")
         return res
     def _get_conn(self):
         return sqlite3.connect(self.db_path)
