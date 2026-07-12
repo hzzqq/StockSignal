@@ -131,12 +131,19 @@ def check_db(python):
 
 # ---------------------------------------------------------------- 3) 端口探测
 def port_in_use(port, host="127.0.0.1"):
-    url = f"http://{host}:{port}/"
+    """用原生 socket 探测端口是否已被监听（代理免疫，比 urllib 可靠）。"""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(2)
     try:
-        with urllib.request.urlopen(url, timeout=2) as resp:
-            return resp.status < 600
+        return s.connect_ex((host, port)) == 0
     except Exception:  # noqa
         return False
+    finally:
+        try:
+            s.close()
+        except Exception:  # noqa
+            pass
 
 
 def kill_port(port):

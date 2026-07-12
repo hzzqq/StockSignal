@@ -66,6 +66,11 @@ def _probe(url: str, timeout: int = 2) -> bool:
 
 def main() -> int:
     _log("start_background.py 启动")
+    # 关键：绕过可能的 HTTP 代理（沙箱环境常劫持 127.0.0.1，
+    # 导致本进程对 localhost 的健康探测误报 False「启动失败」）。
+    # startup_sim 内部已设过，这里再设一次，确保本进程自身的 _probe 也不被代理干扰。
+    os.environ.setdefault("no_proxy", "*")
+    os.environ.setdefault("NO_PROXY", "*")
     pythonw = _resolve_pythonw()
     _log(f"使用解释器: {pythonw}")
 
@@ -76,9 +81,13 @@ def main() -> int:
     # 启动 startup_sim.py；使用 CREATE_NO_WINDOW 避免弹窗，
     # CREATE_NEW_PROCESS_GROUP 让子进程独立于启动 CMD。
     try:
+        env = dict(os.environ)
+        env["no_proxy"] = "*"
+        env["NO_PROXY"] = "*"
         proc = subprocess.Popen(
             [pythonw, "startup_sim.py", "--keep", "--no-browser"],
             cwd=HERE,
+            env=env,
             creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP,
         )
         _log(f"startup_sim.py 已启动 PID={proc.pid}")
