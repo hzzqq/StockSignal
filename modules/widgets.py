@@ -12,6 +12,7 @@ modules/widgets.py
 from __future__ import annotations
 
 from typing import Any, Dict
+import time
 import requests
 import streamlit as st
 
@@ -258,6 +259,8 @@ def render_ai_consultant() -> None:
         后台任务完成后自动把 AI 回复追加进对话流。
       - 对话做成「可持续」的，像聊天一样保留历史、可连续追问 → 历史存
         session_state["ai_chat"]，提交时把上下文 + 历史一起交给 AI 引擎。
+      - 加载只在 AI 小框内感知，不污染页面主体 → 错误/状态全部放在 popover 内；
+        autorefresh 只在任务运行且未超时前触发，并降低频率。
     """
     st.markdown(_ai_popover_theme_css(), unsafe_allow_html=True)
     st.markdown('<div class="ai-consult-wrap">', unsafe_allow_html=True)
@@ -265,52 +268,71 @@ def render_ai_consultant() -> None:
 
     # 初始化持久化对话状态
     if "ai_chat" not in st.session_state:
-        st.session_state["ai_chat"] = []  # 形如 [{"role":"user"/"assistant", "content": str}]
+        st.session_state["ai_chat"] = []  # [{"role":"user"/"assistant", "content": str}]
     if "ai_task_id" not in st.session_state:
         st.session_state["ai_task_id"] = None
+    if "ai_task_started_at" not in st.session_state:
+        st.session_state["ai_task_started_at"] = None
 
     rows = st.session_state.get("_cmp_rows")
     name, verdict, score = _current_stock_context()
     if rows:
-        st.caption(f"📊 当前对比 {len(rows)} 只标的，AI 会结合组合数据并独立拉取每只股票的量价/基本面分析。")
+        st.caption(f"📊 当前对比 {len(rows)} 只标的，AI 会优先回答你提到的股票。")
     elif name:
-        st.caption(f"🎯 当前个股：{name}，AI 会独立拉取最新数据并给出研判。")
+        st.caption(f"🎯 当前个股：{name}，你直接问其他股票我也会独立分析。")
     else:
-        st.caption("输入股票代码或名称，AI 会独立拉取数据并给出见解；也可先进入「个股分析/多股对比」获得更具体结论。")
+        st.caption("输入股票代码或名称，AI 会独立拉取数据并给出研判。")
 
     # 清空对话
     if st.session_state["ai_chat"]:
         if st.button("🗑️ 清空对话", key="ai_clear_chat", use_container_width=True):
             st.session_state["ai_chat"] = []
             st.session_state["ai_task_id"] = None
+            st.session_state["ai_task_started_at"] = None
             st.rerun()
 
     # 渲染历史对话
     _render_ai_chat()
 
-    # 输入框 + 发送
+    # 输入框 + 发送（只在没有任务进行时允许输入，避免并发）
+    busy = bool(st.session_state.get("ai_task_id"))
     with st.form("ai_consult_global", clear_on_submit=True):
         q = st.text_area(
             "AI 咨询",
-            placeholder="例如：太极实业怎么样？/ 这组合里谁最值得买？风险在哪？",
+            placeholder="例如：深科技怎么样？ / 这组合里谁最值得买？风险在哪？",
             height=80,
             label_visibility="collapsed",
             key="ai_consult_q",
+            disabled=busy,
         )
-        submitted = st.form_submit_button("🚀 发送", use_container_width=True)
+        submitted = st.form_submit_button(
+            "🚀 发送" if not busy else "⏳ AI 思考中…",
+            use_container_width=True,
+            disabled=busy,
+        )
 
-    if submitted and q and not st.session_state.get("ai_task_id"):
+    if submitted and q and not busy:
         # 追加用户消息
         st.session_state["ai_chat"].append({"role": "user", "content": q})
         # 提交后台任务（带上历史，让 AI 可持续追问）
         ctx = _slim_context()
         ctx["history"] = _chat_history_for_context()
-        task_id = submit_task("ai_consult", {"question": q, "context": ctx})
+        try:
+            task_id = submit_task("ai_consult", {"question": q, "context": ctx})
+        except Exception as e:
+            task_id = None
+            st.error(f"❌ 提交失败：{e}")
         if task_id:
             st.session_state["ai_task_id"] = task_id
+            st.session_state["ai_task_started_at"] = time.time()
             st.rerun()
+        else:
+            # 提交失败，回滚用户消息，避免只显示问题没有回答
+            st.session_state["ai_chat"].pop()
+            st.error("❌ 后台任务提交失败，请刷新后重试。")
+            st.session_state["ai_task_id"] = None
 
-    # 轮询后台任务状态（每次脚本运行都查，配合下面的 autorefresh 形成持续轮询）
+    # 轮询后台任务状态
     task_id = st.session_state.get("ai_task_id")
     if task_id:
         task = poll_task(task_id, max_wait=0.4)
@@ -319,6 +341,7 @@ def render_ai_consultant() -> None:
             answer = result.get("answer") or "AI 暂未给出回答"
             st.session_state["ai_chat"].append({"role": "assistant", "content": answer})
             st.session_state["ai_task_id"] = None
+            st.session_state["ai_task_started_at"] = None
             st.rerun()
         elif task and task.get("status") == "error":
             err = task.get("error") or "未知错误"
@@ -326,13 +349,25 @@ def render_ai_consultant() -> None:
                 {"role": "assistant", "content": f"❌ AI 分析失败：{err}"}
             )
             st.session_state["ai_task_id"] = None
+            st.session_state["ai_task_started_at"] = None
             st.rerun()
 
-    # 只要后台任务还在跑，就自动刷新页面继续轮询，保证结果「真正返回」
+    # 只在任务运行且未超时时低频刷新，避免持续影响整个页面
     if st.session_state.get("ai_task_id"):
+        started = st.session_state.get("ai_task_started_at") or time.time()
+        elapsed = time.time() - started
+        if elapsed > 90:
+            # 超时：自动结束，避免永远刷新
+            st.session_state["ai_chat"].append(
+                {"role": "assistant", "content": "❌ AI 响应超时，请重新提问。"}
+            )
+            st.session_state["ai_task_id"] = None
+            st.session_state["ai_task_started_at"] = None
+            st.rerun()
         try:
             from streamlit_autorefresh import st_autorefresh
-            st_autorefresh(interval=2500, limit=120, key="ai_chat_autorefresh")
+
+            st_autorefresh(interval=4000, limit=120, key="ai_chat_autorefresh")
         except Exception:
             pass
 

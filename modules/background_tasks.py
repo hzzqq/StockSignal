@@ -27,7 +27,7 @@ def _headers() -> Dict[str, str]:
 
 
 def submit_task(task_type: str, payload: Dict[str, Any]) -> Optional[str]:
-    """提交任务，返回 task_id；失败返回 None。"""
+    """提交任务，返回 task_id；失败返回 None（不污染页面，由调用方处理）。"""
     try:
         resp = requests.post(
             f"{API_BASE}/api/tasks/",
@@ -39,8 +39,8 @@ def submit_task(task_type: str, payload: Dict[str, Any]) -> Optional[str]:
             body = resp.json()
             if body.get("status") == "ok":
                 return body.get("data", {}).get("task_id")
-    except Exception as e:
-        st.warning(f"提交后台任务失败：{e}")
+    except Exception:
+        pass
     return None
 
 
@@ -56,8 +56,8 @@ def get_task(task_id: str) -> Optional[Dict[str, Any]]:
             body = resp.json()
             if body.get("status") == "ok":
                 return body.get("data")
-    except Exception as e:
-        st.warning(f"查询任务失败：{e}")
+    except Exception:
+        pass
     return None
 
 
