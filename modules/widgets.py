@@ -141,7 +141,7 @@ def render_theme_toggle_topright() -> None:
 # ──────────────────────────────────────────────────────────────
 # 全局 AI 咨询（★ 星辰 · 多市场智能股票分析师）
 # ──────────────────────────────────────────────────────────────
-from modules.background_tasks import submit_task, poll_task
+from modules.background_tasks import submit_task_with_error, poll_task
 
 
 def _slim_context() -> Dict[str, Any]:
@@ -391,11 +391,7 @@ def render_ai_consultant() -> None:
         # 提交后台任务（带上历史，让 AI 可持续追问）
         ctx = _slim_context()
         ctx["history"] = _chat_history_for_context()
-        try:
-            task_id = submit_task("ai_consult", {"question": q, "context": ctx})
-        except Exception as e:
-            task_id = None
-            st.error(f"❌ 提交失败：{e}")
+        task_id, err = submit_task_with_error("ai_consult", {"question": q, "context": ctx})
         if task_id:
             st.session_state["ai_task_id"] = task_id
             st.session_state["ai_task_started_at"] = time.time()
@@ -403,7 +399,14 @@ def render_ai_consultant() -> None:
         else:
             # 提交失败，回滚用户消息，避免只显示问题没有回答
             st.session_state["ai_chat"].pop()
-            st.error("❌ 后台任务提交失败，请刷新后重试。")
+            err = err or "未知错误"
+            if "登录" in err or "过期" in err or "凭证" in err:
+                st.error(f"❌ {err}")
+                if st.button("重新登录", key="ai_relogin", use_container_width=True):
+                    st.session_state.clear()
+                    st.switch_page("pages/0_登录.py")
+            else:
+                st.error(f"❌ 后台任务提交失败：{err}，请刷新后重试。")
             st.session_state["ai_task_id"] = None
 
     # 轮询后台任务状态

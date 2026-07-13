@@ -13,7 +13,7 @@ st.session_state["_active_page"] = __file__
 
 from modules.session import init_session_state, require_auth, render_user_badge
 from modules.search_ui import multi_stock_search_input
-from modules.background_tasks import submit_task, poll_task
+from modules.background_tasks import submit_task_with_error, poll_task
 from modules.compare import (
     fetch_compare, compare_css, build_header, build_one_line,
     build_table, build_pairwise_card, build_radar, build_radar_right,
@@ -59,13 +59,20 @@ if submitted:
     if len(codes) < 2:
         st.warning("请至少输入 2 只有效股票。")
     else:
-        task_id = submit_task("compare", {"codes": codes, "period": period})
+        task_id, err = submit_task_with_error("compare", {"codes": codes, "period": period})
         if task_id:
             st.session_state["compare_task_id"] = task_id
             st.session_state["_cmp_rows"] = None
             st.info(f"📡 已提交 {len(codes)} 只股票的后台对比任务，切到其他页面也会继续跑。")
         else:
-            st.error("后台任务提交失败，请刷新重试。")
+            err = err or "未知错误"
+            if "登录" in err or "过期" in err or "凭证" in err:
+                st.error(f"❌ {err}")
+                if st.button("重新登录", key="cmp_relogin", use_container_width=True):
+                    st.session_state.clear()
+                    st.switch_page("pages/0_登录.py")
+            else:
+                st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
 
 # 轮询后台任务
 compare_task_id = st.session_state.get("compare_task_id")

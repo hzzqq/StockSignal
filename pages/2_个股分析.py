@@ -25,7 +25,7 @@ from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
 from modules.session import init_session_state, require_auth, render_user_badge, api_kline, api_quote
 from modules.search_ui import stock_search_input
 from modules.ui_theme import dashboard_sf_css
-from modules.background_tasks import submit_task, poll_task
+from modules.background_tasks import submit_task_with_error, poll_task
 
 # 配色常量（对齐参考文档 002947 白天版 .sf-*：绿涨 / 红跌 / 琥珀中性）
 # 说明：参考文档采用绿涨红跌（与 StockSignal 全局 A 股红涨惯例不同），
@@ -964,13 +964,20 @@ def _deserialize_analysis_result(result: dict) -> dict:
 
 
 if st.button("🔍 生成分析", type="primary", use_container_width=True):
-    task_id = submit_task("analysis", {"ticker": ticker})
+    task_id, err = submit_task_with_error("analysis", {"ticker": ticker})
     if task_id:
         st.session_state["analysis_task_id"] = task_id
         st.session_state["analysis_result"] = None
         st.info("📡 分析任务已提交到后台运行，你可以切到其他页面，完成后这里会自动显示结果。")
     else:
-        st.error("后台任务提交失败，请刷新重试。")
+        err = err or "未知错误"
+        if "登录" in err or "过期" in err or "凭证" in err:
+            st.error(f"❌ {err}")
+            if st.button("重新登录", key="anal_relogin", use_container_width=True):
+                st.session_state.clear()
+                st.switch_page("pages/0_登录.py")
+        else:
+            st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
 
 # 轮询后台任务
 analysis_task_id = st.session_state.get("analysis_task_id")

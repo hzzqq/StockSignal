@@ -26,8 +26,8 @@ def _headers() -> Dict[str, str]:
     return h
 
 
-def submit_task(task_type: str, payload: Dict[str, Any]) -> Optional[str]:
-    """提交任务，返回 task_id；失败返回 None（不污染页面，由调用方处理）。"""
+def submit_task_with_error(task_type: str, payload: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+    """提交任务，返回 (task_id, error_message)。成功时 error_message 为 None。"""
     try:
         resp = requests.post(
             f"{API_BASE}/api/tasks/",
@@ -38,10 +38,25 @@ def submit_task(task_type: str, payload: Dict[str, Any]) -> Optional[str]:
         if resp.status_code == 200:
             body = resp.json()
             if body.get("status") == "ok":
-                return body.get("data", {}).get("task_id")
-    except Exception:
-        pass
-    return None
+                return body.get("data", {}).get("task_id"), None
+            return None, body.get("message") or "提交失败"
+        if resp.status_code in (401, 403):
+            return None, "登录已过期，请重新登录"
+        if resp.status_code == 404:
+            return None, "后台服务不可用（404）"
+        if resp.status_code >= 500:
+            return None, f"后台服务异常（HTTP {resp.status_code}）"
+        return None, f"提交失败（HTTP {resp.status_code}）"
+    except requests.exceptions.ConnectionError as e:
+        return None, f"连接失败：{e}"
+    except Exception as e:
+        return None, f"提交异常：{e}"
+
+
+def submit_task(task_type: str, payload: Dict[str, Any]) -> Optional[str]:
+    """提交任务，返回 task_id；失败返回 None（不污染页面，由调用方处理）。"""
+    task_id, _ = submit_task_with_error(task_type, payload)
+    return task_id
 
 
 def get_task(task_id: str) -> Optional[Dict[str, Any]]:
