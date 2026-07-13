@@ -564,14 +564,16 @@ def build_pairwise_card(a: Dict[str, Any], b: Dict[str, Any], idx: int = 1) -> s
     vb = _vs_box_v2(b, a)
     conclusion = _pair_conclusion(a, b)
     return f"""
-<div class="card">
-  <h2>对比{idx}：{a['name']} vs {b['name']}</h2>
-  <div class="pw-grid">
-    <div class="pw-box">{va}</div>
-    <div class="pw-vs"><span>VS</span></div>
-    <div class="pw-box">{vb}</div>
+<div class="compare-wrap">
+  <div class="card">
+    <h2>对比{idx}：{a['name']} vs {b['name']}</h2>
+    <div class="pw-grid">
+      <div class="pw-box">{va}</div>
+      <div class="pw-vs"><span>VS</span></div>
+      <div class="pw-box">{vb}</div>
+    </div>
+    <div class="alert cat">{conclusion}</div>
   </div>
-  <div class="alert cat">{conclusion}</div>
 </div>
 """
 

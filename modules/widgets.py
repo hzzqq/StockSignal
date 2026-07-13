@@ -15,6 +15,7 @@ from typing import Any, Dict
 import time
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 
 from modules.session import API_BASE, get_token, safe_switch_page
 
@@ -188,17 +189,39 @@ def _ai_popover_theme_css() -> str:
         <style>
         .ai-consult-wrap { background:#1a1a2e; color:#e2e8f0; padding:2px; border-radius:10px; }
         .ai-consult-wrap .stMarkdown, .ai-consult-wrap .stMarkdown p { color:#e2e8f0 !important; }
-        .ai-consult-wrap .stButton button { background:#667eea !important; color:#0f0f23 !important; }
-        .ai-consult-wrap textarea { background:#15152a !important; color:#e2e8f0 !important; border-color:#2d2d44 !important; }
-        .ai-consult-wrap textarea::placeholder { color:#64748b !important; }
+        /* 输入框：常态/hover/focus/active 强制黑底，避免白底闪动 */
+        .ai-consult-wrap [data-testid="stTextArea"] textarea,
+        .ai-consult-wrap [data-testid="stTextArea"] textarea:hover,
+        .ai-consult-wrap [data-testid="stTextArea"] textarea:focus,
+        .ai-consult-wrap [data-testid="stTextArea"] textarea:active {
+            background:#15152a !important; color:#e2e8f0 !important;
+            border:1px solid #2d2d44 !important; box-shadow:none !important;
+        }
+        .ai-consult-wrap [data-testid="stTextArea"] textarea::placeholder { color:#64748b !important; }
+        .ai-consult-wrap [data-testid="stTextArea"] > div { background:transparent !important; border:none !important; }
+        /* 发送/清空按钮：常态/hover/focus/active 深紫底+深字 */
+        .ai-consult-wrap [data-testid="stFormSubmitButton"] button,
+        .ai-consult-wrap [data-testid="stFormSubmitButton"] button:hover,
+        .ai-consult-wrap [data-testid="stFormSubmitButton"] button:focus,
+        .ai-consult-wrap [data-testid="stFormSubmitButton"] button:active,
+        .ai-consult-wrap .stButton button,
+        .ai-consult-wrap .stButton button:hover,
+        .ai-consult-wrap .stButton button:focus,
+        .ai-consult-wrap .stButton button:active {
+            background:linear-gradient(180deg,#667eea,#764ba2) !important; color:#0f0f23 !important;
+            border:none !important; box-shadow:none !important; font-weight:600 !important;
+        }
+        .ai-consult-wrap [data-testid="stFormSubmitButton"] button:disabled,
+        .ai-consult-wrap .stButton button:disabled { opacity:.55 !important; }
         /* 对话气泡 */
         .ai-chat-box { max-height:380px; overflow-y:auto; padding:8px 2px; display:flex; flex-direction:column; gap:10px; }
         .ai-chat-box .ai-msg { max-width:92%; padding:8px 12px; border-radius:14px; font-size:13px; line-height:1.6; word-break:break-word; box-shadow:0 1px 4px rgba(0,0,0,.25); }
         .ai-chat-box .ai-msg p { color:inherit !important; }
-        .ai-chat-box .ai-msg.user { align-self:flex-end; background:linear-gradient(180deg,#667eea,#764ba2); color:#0f0f23; border-bottom-right-radius:4px; }
+        /* 用户消息：带边框方框，深灰底 */
+        .ai-chat-box .ai-msg.user { align-self:flex-end; background:#252542; color:#e2e8f0; border:1px solid #3b3b5c; border-bottom-right-radius:4px; }
         .ai-chat-box .ai-msg.assistant { align-self:flex-start; background:#15152a; color:#e2e8f0; border:1px solid #2d2d44; border-bottom-left-radius:4px; }
-        .ai-chat-box .ai-role { font-size:10px; opacity:.6; margin-bottom:2px; }
-        .ai-chat-box .ai-msg.user .ai-role { text-align:right; color:#0f0f23; }
+        .ai-chat-box .ai-role { font-size:10px; opacity:.65; margin-bottom:2px; }
+        .ai-chat-box .ai-msg.user .ai-role { text-align:right; color:#94a3b8; }
         .ai-typing { align-self:flex-start; font-size:12px; color:#94a3b8; padding:4px 2px; }
         </style>
         """
@@ -206,17 +229,36 @@ def _ai_popover_theme_css() -> str:
     <style>
     .ai-consult-wrap { background:#ffffff; color:#111827; padding:2px; border-radius:10px; }
     .ai-consult-wrap .stMarkdown, .ai-consult-wrap .stMarkdown p { color:#111827 !important; }
-    .ai-consult-wrap .stButton button { background:#d4a02a !important; color:#ffffff !important; }
-    .ai-consult-wrap textarea { background:#ffffff !important; color:#111827 !important; border-color:#d1d5db !important; }
-    .ai-consult-wrap textarea::placeholder { color:#9ca3af !important; }
+    .ai-consult-wrap [data-testid="stTextArea"] textarea,
+    .ai-consult-wrap [data-testid="stTextArea"] textarea:hover,
+    .ai-consult-wrap [data-testid="stTextArea"] textarea:focus,
+    .ai-consult-wrap [data-testid="stTextArea"] textarea:active {
+        background:#ffffff !important; color:#111827 !important;
+        border:1px solid #d1d5db !important; box-shadow:none !important;
+    }
+    .ai-consult-wrap [data-testid="stTextArea"] textarea::placeholder { color:#9ca3af !important; }
+    .ai-consult-wrap [data-testid="stTextArea"] > div { background:transparent !important; border:none !important; }
+    .ai-consult-wrap [data-testid="stFormSubmitButton"] button,
+    .ai-consult-wrap [data-testid="stFormSubmitButton"] button:hover,
+    .ai-consult-wrap [data-testid="stFormSubmitButton"] button:focus,
+    .ai-consult-wrap [data-testid="stFormSubmitButton"] button:active,
+    .ai-consult-wrap .stButton button,
+    .ai-consult-wrap .stButton button:hover,
+    .ai-consult-wrap .stButton button:focus,
+    .ai-consult-wrap .stButton button:active {
+        background:linear-gradient(180deg,#D4A02A,#B8860B) !important; color:#111827 !important;
+        border:none !important; box-shadow:none !important; font-weight:600 !important;
+    }
+    .ai-consult-wrap [data-testid="stFormSubmitButton"] button:disabled,
+    .ai-consult-wrap .stButton button:disabled { opacity:.55 !important; }
     /* 对话气泡 */
     .ai-chat-box { max-height:380px; overflow-y:auto; padding:8px 2px; display:flex; flex-direction:column; gap:10px; }
     .ai-chat-box .ai-msg { max-width:92%; padding:8px 12px; border-radius:14px; font-size:13px; line-height:1.6; word-break:break-word; box-shadow:0 1px 3px rgba(0,0,0,.06); }
     .ai-chat-box .ai-msg p { color:inherit !important; }
-    .ai-chat-box .ai-msg.user { align-self:flex-end; background:linear-gradient(180deg,#D4A02A,#B8860B); color:#111827; border-bottom-right-radius:4px; }
+    .ai-chat-box .ai-msg.user { align-self:flex-end; background:#fff7e6; color:#111827; border:1px solid #ffd591; border-bottom-right-radius:4px; }
     .ai-chat-box .ai-msg.assistant { align-self:flex-start; background:#f4f6fb; color:#111827; border:1px solid #e2e8f0; border-bottom-left-radius:4px; }
     .ai-chat-box .ai-role { font-size:10px; opacity:.55; margin-bottom:2px; }
-    .ai-chat-box .ai-msg.user .ai-role { text-align:right; }
+    .ai-chat-box .ai-msg.user .ai-role { text-align:right; color:#6b7280; }
     .ai-typing { align-self:flex-start; font-size:12px; color:#6b7280; padding:4px 2px; }
     </style>
     """
@@ -251,6 +293,29 @@ def _render_ai_chat() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def _ai_scroll_to_bottom_component(dark: bool) -> None:
+    """在 popover 内渲染一个「滚动到底部」按钮，并自动把对话区域滚到底。"""
+    bg = "#667eea" if dark else "#D4A02A"
+    color = "#ffffff" if dark else "#111827"
+    hover_bg = "#764ba2" if dark else "#B8860B"
+    js = f"""
+    <div id="ai-scroll-bottom-btn" style="width:100%;display:flex;justify-content:center;padding:6px 0;cursor:pointer;"
+         onclick="scrollAIChatToBottom()">
+      <div style="width:34px;height:34px;border-radius:50%;background:{bg};color:{color};display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.25);" onmouseover="this.style.background='{hover_bg}'" onmouseout="this.style.background='{bg}'">▼</div>
+    </div>
+    <script>
+      function scrollAIChatToBottom() {{
+        var doc = window.parent.document;
+        var box = doc.querySelector('.ai-chat-box');
+        if (box) box.scrollTop = box.scrollHeight;
+      }}
+      setTimeout(scrollAIChatToBottom, 60);
+      setTimeout(scrollAIChatToBottom, 300);
+    </script>
+    """
+    components.html(js, height=48)
+
+
 def render_ai_consultant() -> None:
     """全局 AI 咨询模块（右上角弹层内）：任意页面可用，后台异步运行，对话可持续。
 
@@ -261,10 +326,12 @@ def render_ai_consultant() -> None:
         session_state["ai_chat"]，提交时把上下文 + 历史一起交给 AI 引擎。
       - 加载只在 AI 小框内感知，不污染页面主体 → 错误/状态全部放在 popover 内；
         autorefresh 只在任务运行且未超时前触发，并降低频率。
+      - 聊天界面清晰区分用户/AI，清空按钮在标题右侧，可一键滚到底部输入框。
     """
+    from modules.ui_theme import _theme_is_dark
+
     st.markdown(_ai_popover_theme_css(), unsafe_allow_html=True)
     st.markdown('<div class="ai-consult-wrap">', unsafe_allow_html=True)
-    st.markdown("#### ★ 星辰 · 多市场智能股票分析师")
 
     # 初始化持久化对话状态
     if "ai_chat" not in st.session_state:
@@ -273,6 +340,18 @@ def render_ai_consultant() -> None:
         st.session_state["ai_task_id"] = None
     if "ai_task_started_at" not in st.session_state:
         st.session_state["ai_task_started_at"] = None
+
+    # 标题 + 清空对话按钮 同一行
+    head_col1, head_col2 = st.columns([5, 1])
+    with head_col1:
+        st.markdown("#### ★ 星辰 · 多市场智能股票分析师")
+    with head_col2:
+        if st.session_state["ai_chat"]:
+            if st.button("🗑️", key="ai_clear_chat", help="清空对话"):
+                st.session_state["ai_chat"] = []
+                st.session_state["ai_task_id"] = None
+                st.session_state["ai_task_started_at"] = None
+                st.rerun()
 
     rows = st.session_state.get("_cmp_rows")
     name, verdict, score = _current_stock_context()
@@ -283,16 +362,11 @@ def render_ai_consultant() -> None:
     else:
         st.caption("输入股票代码或名称，AI 会独立拉取数据并给出研判。")
 
-    # 清空对话
-    if st.session_state["ai_chat"]:
-        if st.button("🗑️ 清空对话", key="ai_clear_chat", use_container_width=True):
-            st.session_state["ai_chat"] = []
-            st.session_state["ai_task_id"] = None
-            st.session_state["ai_task_started_at"] = None
-            st.rerun()
-
     # 渲染历史对话
     _render_ai_chat()
+
+    # 滚动到底部按钮 + 自动滚底
+    _ai_scroll_to_bottom_component(dark=_theme_is_dark())
 
     # 输入框 + 发送（只在没有任务进行时允许输入，避免并发）
     busy = bool(st.session_state.get("ai_task_id"))
