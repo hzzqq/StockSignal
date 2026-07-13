@@ -185,29 +185,89 @@ def _ai_popover_theme_css() -> str:
     if _theme_is_dark():
         return """
         <style>
-        .ai-consult-wrap { background:#1a1a2e; color:#e2e8f0; padding:4px; border-radius:10px; }
+        .ai-consult-wrap { background:#1a1a2e; color:#e2e8f0; padding:2px; border-radius:10px; }
         .ai-consult-wrap .stMarkdown, .ai-consult-wrap .stMarkdown p { color:#e2e8f0 !important; }
         .ai-consult-wrap .stButton button { background:#667eea !important; color:#0f0f23 !important; }
         .ai-consult-wrap textarea { background:#15152a !important; color:#e2e8f0 !important; border-color:#2d2d44 !important; }
         .ai-consult-wrap textarea::placeholder { color:#64748b !important; }
+        /* 对话气泡 */
+        .ai-chat-box { max-height:380px; overflow-y:auto; padding:8px 2px; display:flex; flex-direction:column; gap:10px; }
+        .ai-chat-box .ai-msg { max-width:92%; padding:8px 12px; border-radius:14px; font-size:13px; line-height:1.6; word-break:break-word; box-shadow:0 1px 4px rgba(0,0,0,.25); }
+        .ai-chat-box .ai-msg p { color:inherit !important; }
+        .ai-chat-box .ai-msg.user { align-self:flex-end; background:linear-gradient(180deg,#667eea,#764ba2); color:#0f0f23; border-bottom-right-radius:4px; }
+        .ai-chat-box .ai-msg.assistant { align-self:flex-start; background:#15152a; color:#e2e8f0; border:1px solid #2d2d44; border-bottom-left-radius:4px; }
+        .ai-chat-box .ai-role { font-size:10px; opacity:.6; margin-bottom:2px; }
+        .ai-chat-box .ai-msg.user .ai-role { text-align:right; color:#0f0f23; }
+        .ai-typing { align-self:flex-start; font-size:12px; color:#94a3b8; padding:4px 2px; }
         </style>
         """
     return """
     <style>
-    .ai-consult-wrap { background:#ffffff; color:#111827; padding:4px; border-radius:10px; }
+    .ai-consult-wrap { background:#ffffff; color:#111827; padding:2px; border-radius:10px; }
     .ai-consult-wrap .stMarkdown, .ai-consult-wrap .stMarkdown p { color:#111827 !important; }
     .ai-consult-wrap .stButton button { background:#d4a02a !important; color:#ffffff !important; }
     .ai-consult-wrap textarea { background:#ffffff !important; color:#111827 !important; border-color:#d1d5db !important; }
     .ai-consult-wrap textarea::placeholder { color:#9ca3af !important; }
+    /* 对话气泡 */
+    .ai-chat-box { max-height:380px; overflow-y:auto; padding:8px 2px; display:flex; flex-direction:column; gap:10px; }
+    .ai-chat-box .ai-msg { max-width:92%; padding:8px 12px; border-radius:14px; font-size:13px; line-height:1.6; word-break:break-word; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+    .ai-chat-box .ai-msg p { color:inherit !important; }
+    .ai-chat-box .ai-msg.user { align-self:flex-end; background:linear-gradient(180deg,#D4A02A,#B8860B); color:#111827; border-bottom-right-radius:4px; }
+    .ai-chat-box .ai-msg.assistant { align-self:flex-start; background:#f4f6fb; color:#111827; border:1px solid #e2e8f0; border-bottom-left-radius:4px; }
+    .ai-chat-box .ai-role { font-size:10px; opacity:.55; margin-bottom:2px; }
+    .ai-chat-box .ai-msg.user .ai-role { text-align:right; }
+    .ai-typing { align-self:flex-start; font-size:12px; color:#6b7280; padding:4px 2px; }
     </style>
     """
 
 
+def _chat_history_for_context(max_turns: int = 6) -> list:
+    """取最近若干轮对话，给 AI 引擎做「可持续追问」的上下文。"""
+    chat = st.session_state.get("ai_chat") or []
+    return chat[-max_turns:]
+
+
+def _render_ai_chat() -> None:
+    """渲染对话气泡（用户右、助手左），可滚动。"""
+    chat = st.session_state.get("ai_chat") or []
+    st.markdown('<div class="ai-chat-box">', unsafe_allow_html=True)
+    for msg in chat:
+        role = msg.get("role")
+        content = msg.get("content", "")
+        if role == "user":
+            st.markdown(
+                f'<div class="ai-msg user"><div class="ai-role">你</div>{content}</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f'<div class="ai-msg assistant"><div class="ai-role">★ 星辰 AI</div>{content}</div>',
+                unsafe_allow_html=True,
+            )
+    # 正在思考的占位
+    if st.session_state.get("ai_task_id"):
+        st.markdown('<div class="ai-typing">🤔 AI 正在思考…</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_ai_consultant() -> None:
-    """全局 AI 咨询模块（右上角弹层内）：任意页面可用，后台异步运行。"""
+    """全局 AI 咨询模块（右上角弹层内）：任意页面可用，后台异步运行，对话可持续。
+
+    设计目标（用户反馈）：
+      - 结果必须「真正返回」，不再卡在后台不显示 → 用 streamlit_autorefresh 轮询，
+        后台任务完成后自动把 AI 回复追加进对话流。
+      - 对话做成「可持续」的，像聊天一样保留历史、可连续追问 → 历史存
+        session_state["ai_chat"]，提交时把上下文 + 历史一起交给 AI 引擎。
+    """
     st.markdown(_ai_popover_theme_css(), unsafe_allow_html=True)
     st.markdown('<div class="ai-consult-wrap">', unsafe_allow_html=True)
     st.markdown("#### ★ 星辰 · 多市场智能股票分析师")
+
+    # 初始化持久化对话状态
+    if "ai_chat" not in st.session_state:
+        st.session_state["ai_chat"] = []  # 形如 [{"role":"user"/"assistant", "content": str}]
+    if "ai_task_id" not in st.session_state:
+        st.session_state["ai_task_id"] = None
 
     rows = st.session_state.get("_cmp_rows")
     name, verdict, score = _current_stock_context()
@@ -218,42 +278,63 @@ def render_ai_consultant() -> None:
     else:
         st.caption("输入股票代码或名称，AI 会独立拉取数据并给出见解；也可先进入「个股分析/多股对比」获得更具体结论。")
 
-    with st.form("ai_consult_global"):
+    # 清空对话
+    if st.session_state["ai_chat"]:
+        if st.button("🗑️ 清空对话", key="ai_clear_chat", use_container_width=True):
+            st.session_state["ai_chat"] = []
+            st.session_state["ai_task_id"] = None
+            st.rerun()
+
+    # 渲染历史对话
+    _render_ai_chat()
+
+    # 输入框 + 发送
+    with st.form("ai_consult_global", clear_on_submit=True):
         q = st.text_area(
             "AI 咨询",
-            value=st.session_state.get("ai_consult_q", ""),
             placeholder="例如：太极实业怎么样？/ 这组合里谁最值得买？风险在哪？",
             height=80,
             label_visibility="collapsed",
+            key="ai_consult_q",
         )
-        submitted = st.form_submit_button("🚀 咨询", use_container_width=True)
+        submitted = st.form_submit_button("🚀 发送", use_container_width=True)
 
-    if submitted and q:
-        st.session_state["ai_consult_q"] = q
-        # 提交后台任务，不阻塞当前页
-        task_id = submit_task("ai_consult", {"question": q, "context": _slim_context()})
+    if submitted and q and not st.session_state.get("ai_task_id"):
+        # 追加用户消息
+        st.session_state["ai_chat"].append({"role": "user", "content": q})
+        # 提交后台任务（带上历史，让 AI 可持续追问）
+        ctx = _slim_context()
+        ctx["history"] = _chat_history_for_context()
+        task_id = submit_task("ai_consult", {"question": q, "context": ctx})
         if task_id:
             st.session_state["ai_task_id"] = task_id
-            st.info("🤔 AI 已开始在后台思考，你可以继续操作或切到其他页面，完成后结果会保留在这里。")
+            st.rerun()
 
-    # 轮询后台任务状态
+    # 轮询后台任务状态（每次脚本运行都查，配合下面的 autorefresh 形成持续轮询）
     task_id = st.session_state.get("ai_task_id")
     if task_id:
         task = poll_task(task_id, max_wait=0.4)
         if task and task.get("status") == "success":
             result = task.get("result") or {}
-            st.session_state["ai_answer"] = result.get("answer", "AI 暂未给出回答")
-            del st.session_state["ai_task_id"]
+            answer = result.get("answer") or "AI 暂未给出回答"
+            st.session_state["ai_chat"].append({"role": "assistant", "content": answer})
+            st.session_state["ai_task_id"] = None
+            st.rerun()
         elif task and task.get("status") == "error":
-            st.session_state["ai_answer"] = f"❌ AI 分析失败：{task.get('error') or '未知错误'}"
-            del st.session_state["ai_task_id"]
-        elif task and task.get("status") in ("pending", "running"):
-            st.info("🤔 AI 正在后台分析量价、基本面与事件… 你可以切到其他页面，完成后自动显示。")
+            err = task.get("error") or "未知错误"
+            st.session_state["ai_chat"].append(
+                {"role": "assistant", "content": f"❌ AI 分析失败：{err}"}
+            )
+            st.session_state["ai_task_id"] = None
+            st.rerun()
 
-    # 展示答案
-    if st.session_state.get("ai_answer"):
-        st.markdown("---")
-        st.markdown(st.session_state["ai_answer"], unsafe_allow_html=True)
+    # 只要后台任务还在跑，就自动刷新页面继续轮询，保证结果「真正返回」
+    if st.session_state.get("ai_task_id"):
+        try:
+            from streamlit_autorefresh import st_autorefresh
+            st_autorefresh(interval=2500, limit=120, key="ai_chat_autorefresh")
+        except Exception:
+            pass
 
     st.markdown("</div>", unsafe_allow_html=True)
 

@@ -19,6 +19,7 @@ v9 核心变更：
 """
 from __future__ import annotations
 import streamlit as st
+import streamlit.components.v1 as components
 
 # ── 金融配色常量（A股：红涨绿跌）──
 UP = "#ff4d4f"        # 涨（中国习惯：红）
@@ -246,13 +247,26 @@ h3 { border-left: 3px solid rgba(102, 126, 234, 0.55); padding-left: 8px; }
 .stButton button:hover::before { left:100%; }
 .stButton button:hover { transform: translateY(-1.5px); box-shadow: 0 6px 20px rgba(102,126,234,0.18), 0 0 20px rgba(102,126,234,0.08); border-color: rgba(102,126,234,0.6) !important; color: #FFFFFF !important; }
 .stApp .stButton button[kind="primary"] {
-    background: linear-gradient(180deg, #667eea, #764ba2) !important;
+    background: linear-gradient(180deg, #D4A02A, #B8860B) !important;
     border: none !important;
-    color: #0f0f23 !important;
+    color: #111827 !important;
     font-weight: 700;
-    box-shadow: 0 3px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 3px 12px rgba(184, 134, 11, 0.4);
 }
-.stApp .stButton button[kind="primary"]:hover { box-shadow: 0 6px 24px rgba(102, 126, 234, 0.55) !important; }
+.stApp .stButton button[kind="primary"]:hover { box-shadow: 0 6px 24px rgba(184, 134, 11, 0.55) !important; }
+/* form submit primary button */
+.stApp [data-testid="stFormSubmitButton"] button,
+.stApp button[data-testid="stFormSubmitButton"] {
+    background: linear-gradient(180deg, #D4A02A, #B8860B) !important;
+    border: none !important;
+    color: #111827 !important;
+    font-weight: 700 !important;
+    box-shadow: 0 3px 12px rgba(184, 134, 11, 0.4) !important;
+}
+.stApp [data-testid="stFormSubmitButton"] button:hover,
+.stApp button[data-testid="stFormSubmitButton"]:hover {
+    box-shadow: 0 6px 24px rgba(184, 134, 11, 0.55) !important;
+}
 
 /* ===== Tabs ===== */
 .stTabs [data-baseweb="tab-list"] { gap: 6px; border-bottom: 1px solid rgba(255,255,255,0.08); }
@@ -586,8 +600,12 @@ li[role="option"][aria-selected="true"] {
   background-color: #241b3a !important;
   color: #ffffff !important;
 }
-/* ===== Popover 弹层（星辰 AI）暗色适配 ===== */
-[data-testid="stPopover"],
+/* ===== Popover 弹层（星辰 AI）暗色适配 =====
+   目标：覆盖 baseweb 默认白色浮层，强制深空黑底 + 高对比文字 */
+[data-testid="stPopoverBody"],
+[data-testid="stPopoverBody"] > div,
+[data-testid="stPopover"] [role="dialog"],
+[data-testid="stPopover"] [role="dialog"] > div,
 [data-testid="stPopover"] > div,
 [data-testid="stPopover"] [data-testid="stVerticalBlock"],
 [data-testid="stPopover"] [data-testid="stVerticalBlockBorderWrapper"] {
@@ -595,15 +613,41 @@ li[role="option"][aria-selected="true"] {
   color: #e2e8f0 !important;
   border-color: #2d2d44 !important;
 }
+[data-testid="stPopoverBody"] p,
+[data-testid="stPopoverBody"] span,
+[data-testid="stPopoverBody"] div,
+[data-testid="stPopoverBody"] h4,
+[data-testid="stPopoverBody"] h5,
 [data-testid="stPopover"] p,
 [data-testid="stPopover"] span,
-[data-testid="stPopover"] div,
 [data-testid="stPopover"] h4,
-[data-testid="stPopover"] h5 {
+[data-testid="stPopover"] h5,
+[data-testid="stPopover"] .stMarkdown,
+[data-testid="stPopover"] .stMarkdown p,
+[data-testid="stPopover"] .stMarkdown span,
+[data-testid="stPopover"] .stMarkdown div {
   color: #e2e8f0 !important;
 }
-[data-testid="stPopover"] .stMarkdown {
+[data-testid="stPopover"] .stMarkdown,
+[data-testid="stPopoverBody"] .stMarkdown {
   background: transparent !important;
+}
+/* Popover 内文本域 */
+[data-testid="stPopoverBody"] textarea,
+[data-testid="stPopover"] textarea {
+  background: #15152a !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #2d2d44 !important;
+}
+[data-testid="stPopoverBody"] textarea::placeholder,
+[data-testid="stPopover"] textarea::placeholder {
+  color: #64748b !important;
+}
+/* Popover 内按钮 */
+[data-testid="stPopoverBody"] button,
+[data-testid="stPopover"] button {
+  color: #111827 !important;
+  font-weight: 600 !important;
 }
 /* radio / checkbox 文字与选中态 */
 [data-testid="stRadio"] label,
@@ -618,26 +662,6 @@ li[role="option"][aria-selected="true"] {
 [data-baseweb="slider"] [data-testid="track"] { background: #2d2d44 !important; }
 [data-baseweb="slider"] [data-testid="thumb"] { background: #667eea !important; border-color: #667eea !important; }
 </style>
-<!-- 一键回到顶部：所有页面通用 -->
-<script>
-(function(){
-  var id = 'stocksignal-back-to-top';
-  if (document.getElementById(id)) return;
-  var btn = document.createElement('button');
-  btn.id = id;
-  btn.innerHTML = '▲';
-  btn.title = '回到顶部';
-  btn.setAttribute('aria-label', '回到顶部');
-  btn.style.cssText = 'position:fixed;bottom:32px;right:32px;z-index:99999;width:48px;height:48px;border-radius:50%;border:1px solid rgba(0,0,0,0.08);cursor:pointer;font-size:20px;align-items:center;justify-content:center;background:rgba(255,255,255,0.95);color:#333;box-shadow:0 4px 14px rgba(0,0,0,0.22);transition:transform 0.2s, opacity 0.2s;';
-  btn.onmouseenter = function(){ btn.style.transform = 'translateY(-2px)'; };
-  btn.onmouseleave = function(){ btn.style.transform = 'translateY(0)'; };
-  btn.onclick = function(){ window.scrollTo({top:0, behavior:'smooth'}); };
-  document.body.appendChild(btn);
-  function update(){ btn.style.display = window.scrollY > 180 ? 'flex' : 'none'; }
-  window.addEventListener('scroll', update);
-  update();
-})();
-</script>
 """
 
 
@@ -1111,34 +1135,73 @@ pre {
 [data-testid="stPopover"] span,
 [data-testid="stPopover"] div,
 [data-testid="stPopover"] h4,
-[data-testid="stPopover"] h5 {
+[data-testid="stPopover"] h5,
+[data-testid="stPopover"] .stMarkdown,
+[data-testid="stPopover"] .stMarkdown p,
+[data-testid="stPopover"] .stMarkdown span,
+[data-testid="stPopover"] .stMarkdown div {
   color: #111827 !important;
 }
 [data-testid="stPopover"] .stMarkdown {
   background: transparent !important;
 }
+[data-testid="stPopover"] textarea {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #d1d5db !important;
+}
+[data-testid="stPopover"] textarea::placeholder {
+  color: #9ca3af !important;
+}
+[data-testid="stPopover"] button {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
 </style>
-<!-- 一键回到顶部：所有页面通用 -->
+"""
+
+
+def _back_to_top_js(dark: bool) -> str:
+    """生成悬浮「回到顶部」按钮的 JS（通过 components.html 注入到父页面）。"""
+    if dark:
+        bg = "#1a1a2e"
+        color = "#e2e8f0"
+        border = "rgba(255,255,255,0.15)"
+        shadow = "0 4px 14px rgba(0,0,0,0.35)"
+    else:
+        bg = "#ffffff"
+        color = "#111827"
+        border = "rgba(0,0,0,0.08)"
+        shadow = "0 4px 14px rgba(0,0,0,0.15)"
+    return f"""
 <script>
-(function(){
-  var id = 'stocksignal-back-to-top';
-  if (document.getElementById(id)) return;
-  var btn = document.createElement('button');
-  btn.id = id;
-  btn.innerHTML = '▲';
-  btn.title = '回到顶部';
-  btn.setAttribute('aria-label', '回到顶部');
-  btn.style.cssText = 'position:fixed;bottom:32px;right:32px;z-index:99999;width:48px;height:48px;border-radius:50%;border:1px solid rgba(0,0,0,0.08);cursor:pointer;font-size:20px;align-items:center;justify-content:center;background:rgba(255,255,255,0.95);color:#333;box-shadow:0 4px 14px rgba(0,0,0,0.22);transition:transform 0.2s, opacity 0.2s;';
-  btn.onmouseenter = function(){ btn.style.transform = 'translateY(-2px)'; };
-  btn.onmouseleave = function(){ btn.style.transform = 'translateY(0)'; };
-  btn.onclick = function(){ window.scrollTo({top:0, behavior:'smooth'}); };
-  document.body.appendChild(btn);
-  function update(){ btn.style.display = window.scrollY > 180 ? 'flex' : 'none'; }
-  window.addEventListener('scroll', update);
-  update();
-})();
+(function(){{
+  try {{
+    var parentDoc = window.parent.document;
+    var id = 'stocksignal-back-to-top';
+    if (parentDoc.getElementById(id)) return;
+    var btn = parentDoc.createElement('button');
+    btn.id = id;
+    btn.innerHTML = '▲';
+    btn.title = '回到顶部';
+    btn.setAttribute('aria-label', '回到顶部');
+    btn.style.cssText = 'position:fixed;bottom:32px;right:32px;z-index:99999;width:48px;height:48px;border-radius:50%;border:1px solid {border};cursor:pointer;font-size:20px;align-items:center;justify-content:center;background:{bg};color:{color};box-shadow:{shadow};display:none;transition:transform 0.2s, opacity 0.2s;';
+    btn.onmouseenter = function(){{ btn.style.transform = 'translateY(-2px)'; }};
+    btn.onmouseleave = function(){{ btn.style.transform = 'translateY(0)'; }};
+    btn.onclick = function(){{ window.parent.scrollTo({{top:0, behavior:'smooth'}}); }};
+    parentDoc.body.appendChild(btn);
+    function update(){{ btn.style.display = window.parent.scrollY > 180 ? 'flex' : 'none'; }}
+    window.parent.addEventListener('scroll', update);
+    update();
+  }} catch (e) {{}}
+}})();
 </script>
 """
+
+
+def inject_back_to_top() -> None:
+    """注入全局悬浮「回到顶部」按钮（所有页面通用）。"""
+    components.html(_back_to_top_js(_theme_is_dark()), height=0)
 
 
 # Plotly 暗色模板：修复白底/白网格/白K线（方框发白的根因）
@@ -1186,6 +1249,7 @@ def apply_theme() -> None:
         inject_plotly_dark()
     else:
         st.markdown(_LIGHT_CSS, unsafe_allow_html=True)
+    inject_back_to_top()
 
 
 def get_current_mode() -> str:

@@ -99,6 +99,7 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
     context = context or {}
     rows = context.get("_cmp_rows")
     analysis = context.get("analysis_result")
+    history = context.get("history") or []
 
     # 1) 尝试从问题解析股票
     queries = _extract_codes_or_names(question)
@@ -136,10 +137,21 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
         parts.append("\n\n" + _format_analysis(resolved["name"], independent))
 
     if not parts:
+        # 没有组合 / 个股上下文，也没有解析出具体股票时，
+        # 若之前有对话，主动呼应，让对话「可持续」。
+        continuity = ""
+        if history:
+            prev = [h.get("content", "") for h in history if h.get("role") == "user"]
+            if prev:
+                continuity = (
+                    "（接你前面对「" + "、".join(prev[-2:]) + "」的提问）"
+                    if len(prev) <= 2 else
+                    "（延续我们之前的多次讨论）"
+                )
         return {
             "answer": (
                 "**★ 星辰 · 多市场智能股票分析师**\n\n"
-                f"关于「{question or '投资分析'}」：我可以基于量价、基本面与事件催化为你做横向对比与归因。"
+                f"关于「{question or '投资分析'}」{continuity}：我可以基于量价、基本面与事件催化为你做横向对比与归因。"
                 "请进入「多股对比」组建组合，或在「个股分析」查看单只标的后再来问我；"
                 "也可以直接输入股票代码/名称，我会独立拉取数据给出研判。\n\n"
                 "*以上为模型推演，不构成投资建议。*"
@@ -147,5 +159,13 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
             "independent": True,
         }
 
-    answer = "\n\n".join(parts) + "\n\n*以上为模型推演，不构成投资建议，请独立决策并控制仓位。*"
+    continuity_prefix = ""
+    if history:
+        prev_user = [h.get("content", "") for h in history if h.get("role") == "user"]
+        if prev_user:
+            continuity_prefix = (
+                f"> 💬 结合你此前关于「{'、'.join(prev_user[-2:])}」的提问，进一步分析：\n\n"
+            )
+
+    answer = continuity_prefix + "\n\n".join(parts) + "\n\n*以上为模型推演，不构成投资建议，请独立决策并控制仓位。*"
     return {"answer": answer, "independent": bool(resolved)}

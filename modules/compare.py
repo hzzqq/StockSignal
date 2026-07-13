@@ -369,6 +369,15 @@ def compare_css() -> str:
 .compare-wrap .tag.neu{{background:{_sf()['tag_neu_bg']};color:{_sf()['txt2']};border:1px solid {_sf()['tag_neu_border']}}}
 .compare-wrap .vs{{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px}}
 .compare-wrap .vsbox{{flex:1 1 0;min-width:300px;background:{_sf()['vsbox_bg']};border:1px solid {_sf()['border']};border-radius:10px;padding:14px}}
+/* 1:1 横向两两对比：左卡 | VS | 右卡，严格等宽，绝不纵向堆叠 */
+.compare-wrap .pw-grid{{display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:0;margin-top:8px}}
+.compare-wrap .pw-box{{background:{_sf()['vsbox_bg']};border:1px solid {_sf()['border']};border-radius:10px;padding:14px}}
+.compare-wrap .pw-vs{{display:flex;align-items:center;justify-content:center;font-weight:800;
+  font-size:18px;color:{_sf()['acc1']};padding:0 16px;letter-spacing:2px}}
+.compare-wrap .pw-vs span{{background:{_sf()['card']};border:1px solid {_sf()['border']};
+  border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 14px rgba(102,126,234,.15)}}
+@media(max-width:780px){{.compare-wrap .pw-grid{{grid-template-columns:1fr}}.compare-wrap .pw-vs{{padding:8px 0}}.compare-wrap .pw-vs span{{width:30px;height:30px;font-size:15px}}}}
 .compare-wrap .vsbox h3{{font-size:14px;margin-bottom:8px}}
 .compare-wrap .vsbox .verdict{{font-size:13px;font-weight:700;margin:8px 0;padding:6px 10px;border-radius:8px}}
 .compare-wrap .verdict.b{{background:{_sf()['verdict_b_bg']};color:{_sf()['up']}}}
@@ -550,14 +559,18 @@ def _pair_conclusion(a: Dict[str, Any], b: Dict[str, Any]) -> str:
 
 
 def build_pairwise_card(a: Dict[str, Any], b: Dict[str, Any], idx: int = 1) -> str:
-    """image #9 1:1 还原：两两 VS 卡 + 结论框。"""
+    """1:1 横向还原：左卡 | VS | 右卡，结论框在下方。严格等宽，绝不纵向堆叠。"""
     va = _vs_box_v2(a, b)
     vb = _vs_box_v2(b, a)
     conclusion = _pair_conclusion(a, b)
     return f"""
 <div class="card">
   <h2>对比{idx}：{a['name']} vs {b['name']}</h2>
-  <div class="vs">{va}{vb}</div>
+  <div class="pw-grid">
+    <div class="pw-box">{va}</div>
+    <div class="pw-vs"><span>VS</span></div>
+    <div class="pw-box">{vb}</div>
+  </div>
   <div class="alert cat">{conclusion}</div>
 </div>
 """
