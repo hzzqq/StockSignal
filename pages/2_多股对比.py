@@ -4,6 +4,7 @@
 数据全部程序化（fetcher + technical + 价格相关性 + 启发式催化/弹性），前端由 modules.compare 生成。
 """
 import streamlit as st
+import pandas as pd
 
 st.set_page_config(page_title="多股对比", page_icon="📊", layout="wide")
 
@@ -12,6 +13,7 @@ st.session_state["_active_page"] = __file__
 
 from modules.session import init_session_state, require_auth, render_user_badge
 from modules.search_ui import multi_stock_search_input
+from modules.background_tasks import submit_task, poll_task
 from modules.compare import (
     fetch_compare, compare_css, build_header, build_one_line,
     build_table, build_pairwise_card, build_radar, build_radar_right,
@@ -57,13 +59,35 @@ if submitted:
     if len(codes) < 2:
         st.warning("请至少输入 2 只有效股票。")
     else:
-        with st.spinner(f"正在拉取 {len(codes)} 只股票数据并计算对比指标（回看 {period} 天）…"):
-            try:
-                rows = fetch_compare(codes, period)
-                st.session_state["_cmp_rows"] = rows
-                st.session_state["_cmp_period"] = period
-            except Exception as e:  # noqa: BLE001
-                st.error(f"对比生成失败：{e}")
+        task_id = submit_task("compare", {"codes": codes, "period": period})
+        if task_id:
+            st.session_state["compare_task_id"] = task_id
+            st.session_state["_cmp_rows"] = None
+            st.info(f"📡 已提交 {len(codes)} 只股票的后台对比任务，切到其他页面也会继续跑。")
+        else:
+            st.error("后台任务提交失败，请刷新重试。")
+
+# 轮询后台任务
+compare_task_id = st.session_state.get("compare_task_id")
+if compare_task_id:
+    task = poll_task(compare_task_id, max_wait=0.5)
+    if task and task.get("status") == "success":
+        rows = task.get("result") or []
+        # 还原序列化后的 DataFrame
+        for r in rows:
+            if "df" in r and isinstance(r["df"], list):
+                r["df"] = pd.DataFrame(r["df"])
+                if "date" in r["df"].columns:
+                    r["df"]["date"] = pd.to_datetime(r["df"]["date"], errors="coerce")
+        st.session_state["_cmp_rows"] = rows
+        st.session_state["_cmp_period"] = period
+        del st.session_state["compare_task_id"]
+        st.toast("✅ 多股对比完成")
+    elif task and task.get("status") == "error":
+        st.error(f"对比失败：{task.get('error')}")
+        del st.session_state["compare_task_id"]
+    elif task and task.get("status") in ("pending", "running"):
+        st.info("⏳ 后台正在并行拉取 {len(codes)} 只股票数据… 切页不中断。")
 
 rows = st.session_state.get("_cmp_rows")
 if not rows:

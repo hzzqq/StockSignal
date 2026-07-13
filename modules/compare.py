@@ -122,16 +122,25 @@ def _hex_to_rgba(hex_color: str, alpha: float) -> str:
 # =====================================================================
 def fetch_compare(codes: List[str], period_days: int = 120) -> List[Dict[str, Any]]:
     """对每只股票拉取数据并计算所有对比维度，返回 list[dict]（一只一个）。"""
-    fetcher = StockFetcher()
-    rows: List[Dict[str, Any]] = []
-    for code in codes:
-        rows.append(_build_row(fetcher, str(code).strip().zfill(6), period_days))
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    codes = [str(c).strip().zfill(6) for c in codes if c]
+    rows: List[Dict[str, Any]] = [None] * len(codes)
+    with ThreadPoolExecutor(max_workers=min(len(codes), 4)) as ex:
+        future_to_idx = {
+            ex.submit(_build_row, None, code, period_days): i
+            for i, code in enumerate(codes)
+        }
+        for future in as_completed(future_to_idx):
+            i = future_to_idx[future]
+            rows[i] = future.result()
     _fill_business_correlation(rows)
     return rows
 
 
-def _build_row(fetcher: StockFetcher, code: str, period_days: int) -> Dict[str, Any]:
-    """构建单只股票对比行；优先本地数据库名称，失败再远程兜底。"""
+def _build_row(fetcher: Optional[StockFetcher], code: str, period_days: int) -> Dict[str, Any]:
+    """构建单只股票对比行；每个线程自己创建 fetcher，避免 SQLite 连接竞争。"""
+    fetcher = fetcher or StockFetcher()
     name = ""
     try:
         # 1) 本地缓存最可靠，且会自动 warm-up

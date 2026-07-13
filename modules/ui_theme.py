@@ -586,6 +586,25 @@ li[role="option"][aria-selected="true"] {
   background-color: #241b3a !important;
   color: #ffffff !important;
 }
+/* ===== Popover 弹层（星辰 AI）暗色适配 ===== */
+[data-testid="stPopover"],
+[data-testid="stPopover"] > div,
+[data-testid="stPopover"] [data-testid="stVerticalBlock"],
+[data-testid="stPopover"] [data-testid="stVerticalBlockBorderWrapper"] {
+  background: #1a1a2e !important;
+  color: #e2e8f0 !important;
+  border-color: #2d2d44 !important;
+}
+[data-testid="stPopover"] p,
+[data-testid="stPopover"] span,
+[data-testid="stPopover"] div,
+[data-testid="stPopover"] h4,
+[data-testid="stPopover"] h5 {
+  color: #e2e8f0 !important;
+}
+[data-testid="stPopover"] .stMarkdown {
+  background: transparent !important;
+}
 /* radio / checkbox 文字与选中态 */
 [data-testid="stRadio"] label,
 [data-testid="stCheckbox"] label { color: #e2e8f0 !important; }
@@ -599,6 +618,26 @@ li[role="option"][aria-selected="true"] {
 [data-baseweb="slider"] [data-testid="track"] { background: #2d2d44 !important; }
 [data-baseweb="slider"] [data-testid="thumb"] { background: #667eea !important; border-color: #667eea !important; }
 </style>
+<!-- 一键回到顶部：所有页面通用 -->
+<script>
+(function(){
+  var id = 'stocksignal-back-to-top';
+  if (document.getElementById(id)) return;
+  var btn = document.createElement('button');
+  btn.id = id;
+  btn.innerHTML = '▲';
+  btn.title = '回到顶部';
+  btn.setAttribute('aria-label', '回到顶部');
+  btn.style.cssText = 'position:fixed;bottom:32px;right:32px;z-index:99999;width:48px;height:48px;border-radius:50%;border:1px solid rgba(0,0,0,0.08);cursor:pointer;font-size:20px;align-items:center;justify-content:center;background:rgba(255,255,255,0.95);color:#333;box-shadow:0 4px 14px rgba(0,0,0,0.22);transition:transform 0.2s, opacity 0.2s;';
+  btn.onmouseenter = function(){ btn.style.transform = 'translateY(-2px)'; };
+  btn.onmouseleave = function(){ btn.style.transform = 'translateY(0)'; };
+  btn.onclick = function(){ window.scrollTo({top:0, behavior:'smooth'}); };
+  document.body.appendChild(btn);
+  function update(){ btn.style.display = window.scrollY > 180 ? 'flex' : 'none'; }
+  window.addEventListener('scroll', update);
+  update();
+})();
+</script>
 """
 
 
@@ -1059,7 +1098,46 @@ pre {
 [data-testid="stText"] {
     color: #374151 !important;
 }
+/* ===== Popover 弹层（星辰 AI）亮色适配 ===== */
+[data-testid="stPopover"],
+[data-testid="stPopover"] > div,
+[data-testid="stPopover"] [data-testid="stVerticalBlock"],
+[data-testid="stPopover"] [data-testid="stVerticalBlockBorderWrapper"] {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border-color: #e5e7eb !important;
+}
+[data-testid="stPopover"] p,
+[data-testid="stPopover"] span,
+[data-testid="stPopover"] div,
+[data-testid="stPopover"] h4,
+[data-testid="stPopover"] h5 {
+  color: #111827 !important;
+}
+[data-testid="stPopover"] .stMarkdown {
+  background: transparent !important;
+}
 </style>
+<!-- 一键回到顶部：所有页面通用 -->
+<script>
+(function(){
+  var id = 'stocksignal-back-to-top';
+  if (document.getElementById(id)) return;
+  var btn = document.createElement('button');
+  btn.id = id;
+  btn.innerHTML = '▲';
+  btn.title = '回到顶部';
+  btn.setAttribute('aria-label', '回到顶部');
+  btn.style.cssText = 'position:fixed;bottom:32px;right:32px;z-index:99999;width:48px;height:48px;border-radius:50%;border:1px solid rgba(0,0,0,0.08);cursor:pointer;font-size:20px;align-items:center;justify-content:center;background:rgba(255,255,255,0.95);color:#333;box-shadow:0 4px 14px rgba(0,0,0,0.22);transition:transform 0.2s, opacity 0.2s;';
+  btn.onmouseenter = function(){ btn.style.transform = 'translateY(-2px)'; };
+  btn.onmouseleave = function(){ btn.style.transform = 'translateY(0)'; };
+  btn.onclick = function(){ window.scrollTo({top:0, behavior:'smooth'}); };
+  document.body.appendChild(btn);
+  function update(){ btn.style.display = window.scrollY > 180 ? 'flex' : 'none'; }
+  window.addEventListener('scroll', update);
+  update();
+})();
+</script>
 """
 
 

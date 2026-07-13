@@ -11,6 +11,7 @@ modules/widgets.py
 
 from __future__ import annotations
 
+from typing import Any, Dict
 import requests
 import streamlit as st
 
@@ -138,28 +139,32 @@ def render_theme_toggle_topright() -> None:
 # ──────────────────────────────────────────────────────────────
 # 全局 AI 咨询（★ 星辰 · 多市场智能股票分析师）
 # ──────────────────────────────────────────────────────────────
-def _ai_summary_compare(rows: list, question: str) -> str:
-    """基于当前对比数据生成 AI 咨询简报（原多股对比页内逻辑，已全局化）。"""
-    if not rows:
-        return "请先完成一次多股对比，我再基于当前标的为你分析。"
-    ranked = sorted(rows, key=lambda r: r["scores"]["composite"], reverse=True)
-    best, worst = ranked[0], ranked[-1]
-    avg = sum(r["scores"]["composite"] for r in rows) / len(rows)
-    buy_count = sum(1 for r in rows if r["signal"] == "买入")
-    sell_count = sum(1 for r in rows if r["signal"] == "卖出")
-    names = "、".join(r["name"] for r in rows)
-    return (
-        f"**★ 星辰 · 多市场智能股票分析师**\n\n"
-        f"当前组合：{names}（共 {len(rows)} 只）。\n\n"
-        f"- 平均综合评分：**{avg:.0f}** 分\n"
-        f"- 最强标的：**{best['name']}（{best['scores']['composite']} 分，{best['signal']}）**\n"
-        f"- 最弱标的：**{worst['name']}（{worst['scores']['composite']} 分，{worst['signal']}）**\n"
-        f"- 信号分布：买入 {buy_count} / 持有 {len(rows) - buy_count - sell_count} / 卖出 {sell_count}\n\n"
-        f"**建议：** 优先关注 {best['name']}，其在趋势/动量维度领先；"
-        f"{worst['name']} 评分偏弱，建议谨慎。\n\n"
-        f"*关于你的问题「{question or '组合分析'}」：* 以上为基于量价与基本面的模型推演，"
-        f"不构成投资建议，请独立决策并控制仓位。"
-    )
+from modules.background_tasks import submit_task, poll_task
+
+
+def _slim_context() -> Dict[str, Any]:
+    """把当前页面上下文精简，只传 AI 需要的汇总字段，避免序列化 DataFrame。"""
+    rows = st.session_state.get("_cmp_rows")
+    slim_rows = None
+    if rows:
+        slim_rows = []
+        for r in rows:
+            slim_rows.append({
+                "code": r.get("code"),
+                "name": r.get("name"),
+                "signal": r.get("signal"),
+                "scores": r.get("scores"),
+                "industry": r.get("industry"),
+                "market_cap": r.get("market_cap"),
+                "pe_ttm": r.get("pe_ttm"),
+                "elasticity": r.get("elasticity"),
+                "business_corr": r.get("business_corr"),
+            })
+    analysis = st.session_state.get("analysis_result")
+    slim_analysis = None
+    if analysis and isinstance(analysis, dict):
+        slim_analysis = {k: v for k, v in analysis.items() if k != "df"}
+    return {"_cmp_rows": slim_rows, "analysis_result": slim_analysis}
 
 
 def _current_stock_context():
@@ -174,56 +179,94 @@ def _current_stock_context():
     return None, None, None
 
 
-def _ai_answer(rows, question, name=None, verdict=None, score=None) -> str:
-    if rows:
-        return _ai_summary_compare(rows, question)
-    if name:
-        ctx = f"（综合研判：{verdict}，评分 {score}）" if verdict else ""
-        return (
-            f"**★ 星辰 · 多市场智能股票分析师**\n\n"
-            f"你正在查看 **{name}** 的深度分析{ctx}。\n\n"
-            f"关于「{question}」：建议结合技术面趋势/动量、情报面事件催化与仓位纪律综合判断；"
-            f"本页已给出支撑压力与分批作战计划，可作为决策参考。\n\n"
-            f"*以上为模型推演，不构成投资建议。*"
-        )
-    return (
-        f"**★ 星辰 · 多市场智能股票分析师**\n\n"
-        f"关于「{question or '投资分析'}」：我可基于量价、基本面与事件催化为你做横向对比与归因。"
-        f"请进入「多股对比」组建组合，或在「个股分析」查看单只标的后，再来问我，"
-        f"我会结合当前数据给出更具体的结论。\n\n"
-        f"*以上为模型推演，不构成投资建议。*"
-    )
+def _ai_popover_theme_css() -> str:
+    """Popover 内部额外主题适配，确保暗色下文字/背景/按钮可读。"""
+    from modules.ui_theme import _theme_is_dark
+    if _theme_is_dark():
+        return """
+        <style>
+        .ai-consult-wrap { background:#1a1a2e; color:#e2e8f0; padding:4px; border-radius:10px; }
+        .ai-consult-wrap .stMarkdown, .ai-consult-wrap .stMarkdown p { color:#e2e8f0 !important; }
+        .ai-consult-wrap .stButton button { background:#667eea !important; color:#0f0f23 !important; }
+        .ai-consult-wrap textarea { background:#15152a !important; color:#e2e8f0 !important; border-color:#2d2d44 !important; }
+        .ai-consult-wrap textarea::placeholder { color:#64748b !important; }
+        </style>
+        """
+    return """
+    <style>
+    .ai-consult-wrap { background:#ffffff; color:#111827; padding:4px; border-radius:10px; }
+    .ai-consult-wrap .stMarkdown, .ai-consult-wrap .stMarkdown p { color:#111827 !important; }
+    .ai-consult-wrap .stButton button { background:#d4a02a !important; color:#ffffff !important; }
+    .ai-consult-wrap textarea { background:#ffffff !important; color:#111827 !important; border-color:#d1d5db !important; }
+    .ai-consult-wrap textarea::placeholder { color:#9ca3af !important; }
+    </style>
+    """
 
 
 def render_ai_consultant() -> None:
-    """全局 AI 咨询模块（右上角弹层内）：任意页面可用，自动读取当前对比/个股上下文。"""
+    """全局 AI 咨询模块（右上角弹层内）：任意页面可用，后台异步运行。"""
+    st.markdown(_ai_popover_theme_css(), unsafe_allow_html=True)
+    st.markdown('<div class="ai-consult-wrap">', unsafe_allow_html=True)
     st.markdown("#### ★ 星辰 · 多市场智能股票分析师")
-    # 当前上下文提示，让用户知道 AI 正基于什么在答
+
     rows = st.session_state.get("_cmp_rows")
     name, verdict, score = _current_stock_context()
     if rows:
-        st.caption(f"📊 当前对比 {len(rows)} 只标的，我会基于组合数据分析。")
+        st.caption(f"📊 当前对比 {len(rows)} 只标的，AI 会结合组合数据并独立拉取每只股票的量价/基本面分析。")
     elif name:
-        st.caption(f"🎯 当前个股：{name}，我会结合本页研判分析。")
+        st.caption(f"🎯 当前个股：{name}，AI 会独立拉取最新数据并给出研判。")
     else:
-        st.caption("输入问题即可。进入「多股对比 / 个股分析」后我能给出更具体结论。")
+        st.caption("输入股票代码或名称，AI 会独立拉取数据并给出见解；也可先进入「个股分析/多股对比」获得更具体结论。")
+
     with st.form("ai_consult_global"):
         q = st.text_area(
             "AI 咨询",
             value=st.session_state.get("ai_consult_q", ""),
-            placeholder="例如：这组合里谁最值得买？风险在哪？",
+            placeholder="例如：太极实业怎么样？/ 这组合里谁最值得买？风险在哪？",
             height=80,
             label_visibility="collapsed",
         )
         submitted = st.form_submit_button("🚀 咨询", use_container_width=True)
-    if submitted:
+
+    if submitted and q:
         st.session_state["ai_consult_q"] = q
-    qa = st.session_state.get("ai_consult_q")
-    if qa:
-        st.markdown(
-            _ai_answer(rows, qa, name, verdict, score),
-            unsafe_allow_html=True,
-        )
+        # 提交后台任务，不阻塞当前页
+        task_id = submit_task("ai_consult", {"question": q, "context": _slim_context()})
+        if task_id:
+            st.session_state["ai_task_id"] = task_id
+            st.info("🤔 AI 已开始在后台思考，你可以继续操作或切到其他页面，完成后结果会保留在这里。")
+
+    # 轮询后台任务状态
+    task_id = st.session_state.get("ai_task_id")
+    if task_id:
+        task = poll_task(task_id, max_wait=0.4)
+        if task and task.get("status") == "success":
+            result = task.get("result") or {}
+            st.session_state["ai_answer"] = result.get("answer", "AI 暂未给出回答")
+            del st.session_state["ai_task_id"]
+        elif task and task.get("status") == "error":
+            st.session_state["ai_answer"] = f"❌ AI 分析失败：{task.get('error') or '未知错误'}"
+            del st.session_state["ai_task_id"]
+        elif task and task.get("status") in ("pending", "running"):
+            st.info("🤔 AI 正在后台分析量价、基本面与事件… 你可以切到其他页面，完成后自动显示。")
+
+    # 展示答案
+    if st.session_state.get("ai_answer"):
+        st.markdown("---")
+        st.markdown(st.session_state["ai_answer"], unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# 保留旧函数签名的占位（已被后台异步方案替代）
+def _ai_summary_compare(rows: list, question: str) -> str:
+    """旧版同步简报函数，保留仅做兼容。"""
+    return ""
+
+
+def _ai_answer(rows, question, name=None, verdict=None, score=None) -> str:
+    """旧版同步回答函数，保留仅做兼容。"""
+    return ""
 
 
 def inject_global_widgets() -> None:

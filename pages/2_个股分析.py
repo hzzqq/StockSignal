@@ -25,6 +25,7 @@ from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
 from modules.session import init_session_state, require_auth, render_user_badge, api_kline, api_quote
 from modules.search_ui import stock_search_input
 from modules.ui_theme import dashboard_sf_css
+from modules.background_tasks import submit_task, poll_task
 
 # 配色常量（对齐参考文档 002947 白天版 .sf-*：绿涨 / 红跌 / 琥珀中性）
 # 说明：参考文档采用绿涨红跌（与 StockSignal 全局 A 股红涨惯例不同），
@@ -949,17 +950,44 @@ def _render_analysis(R: dict):
 
 
 # ══════════════════════════════════════════════════════════════
-# 主交互：点击生成后持久化到 session_state，切页返回仍可渲染
+# 主交互：提交后台任务，不阻塞页面，切页后继续运行
 # ══════════════════════════════════════════════════════════════
+def _deserialize_analysis_result(result: dict) -> dict:
+    """把后台返回的 JSON（DataFrame 已序列化为 records）还原成页面可渲染的 dict。"""
+    if not result:
+        return result
+    if "df" in result and isinstance(result["df"], list):
+        result["df"] = pd.DataFrame(result["df"])
+        if "date" in result["df"].columns:
+            result["df"]["date"] = pd.to_datetime(result["df"]["date"], errors="coerce")
+    return result
+
+
 if st.button("🔍 生成分析", type="primary", use_container_width=True):
-    with st.spinner("正在拉取行情 / 新闻 / 信号，构建分析..."):
-        try:
-            st.session_state["analysis_result"] = _run_analysis(ticker)
-        except Exception as e:
-            import traceback as _tb
-            st.error(f"分析生成失败：{e}")
-            with st.expander("调试信息"):
-                st.code(_tb.format_exc())
+    task_id = submit_task("analysis", {"ticker": ticker})
+    if task_id:
+        st.session_state["analysis_task_id"] = task_id
+        st.session_state["analysis_result"] = None
+        st.info("📡 分析任务已提交到后台运行，你可以切到其他页面，完成后这里会自动显示结果。")
+    else:
+        st.error("后台任务提交失败，请刷新重试。")
+
+# 轮询后台任务
+analysis_task_id = st.session_state.get("analysis_task_id")
+if analysis_task_id:
+    task = poll_task(analysis_task_id, max_wait=0.5)
+    if task and task.get("status") == "success":
+        result = _deserialize_analysis_result(task.get("result"))
+        for w in result.pop("_warnings", []):
+            st.warning(w)
+        st.session_state["analysis_result"] = result
+        del st.session_state["analysis_task_id"]
+        st.toast("✅ 个股分析完成")
+    elif task and task.get("status") == "error":
+        st.error(f"分析失败：{task.get('error')}")
+        del st.session_state["analysis_task_id"]
+    elif task and task.get("status") in ("pending", "running"):
+        st.info("⏳ 后台正在拉取行情 / 新闻 / 信号… 切到其他页面也会继续跑。")
 
 if st.session_state.get("analysis_result") is not None:
     _render_analysis(st.session_state["analysis_result"])

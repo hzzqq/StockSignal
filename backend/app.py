@@ -40,12 +40,14 @@ def create_app(config_object: type = Config) -> Flask:
     from .api.stock_routes import bp as stock_bp
     from .api.config_routes import bp as config_bp
     from .api.market_routes import bp as market_bp
+    from .api.task_routes import bp as task_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(stock_bp)
     app.register_blueprint(config_bp)
     app.register_blueprint(market_bp)
+    app.register_blueprint(task_bp)
 
     # ---- 全局错误处理：把任何出口都锁回 JSON ----
     _register_error_handlers(app)
