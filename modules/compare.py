@@ -294,11 +294,12 @@ def _fill_business_correlation(rows: List[Dict[str, Any]]) -> None:
 
 
 def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> None:
-    """基本面（东方财富 push2 / akshare）：总市值(亿) / 市盈率TTM / 行业。
-    失败时重试 2 次；仍失败则基于股票名称做行业推断兜底。"""
+    """基本面（东方财富 push2 / akshare）：总市值(亿) / 市盈率TTM / 行业 / 核心业务。
+    失败时重试 2 次；仍失败则基于股票名称做行业推断兜底。核心业务来自同花顺主营构成。"""
     row["market_cap"] = None
     row["pe_ttm"] = None
     row["industry"] = None
+    row["core_business"] = None
     try:
         if fetcher is None:
             fetcher = StockFetcher()
@@ -330,6 +331,13 @@ def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> N
                     row["industry"] = kws.split(",")[0]
             except Exception:
                 pass
+        # 核心业务：同花顺主营构成（真实主营业务，而非行业标签）
+        try:
+            biz = fetcher.get_core_business(row["code"])
+            row["core_business"] = biz if biz else None
+        except Exception as e:  # noqa: BLE001
+            print(f"[compare] 核心业务获取失败 {row['code']}: {e}")
+            row["core_business"] = None
     except Exception as e:  # noqa: BLE001
         print(f"[compare] 基本面获取失败 {row['code']}: {e}")
 
@@ -642,7 +650,11 @@ def build_table(rows: List[Dict[str, Any]]) -> str:
     # 总市值 / 市盈率 / 核心业务
     cap_cells = "".join(f"<td>{_fmt(r.get('market_cap'))}</td>" for r in rows)
     pe_cells = "".join(f"<td>{_fmt(r.get('pe_ttm'), is_num=True)}</td>" for r in rows)
-    biz_cells = "".join(f"<td>{_fmt(r.get('industry'))}</td>" for r in rows)
+    biz_cells = "".join(
+        f"<td title='{_fmt(r.get('core_business') or r.get('industry'))}'>"
+        f"{_fmt(r.get('core_business') or r.get('industry'))}</td>"
+        for r in rows
+    )
     # 业务关联度 / 订单催化 / 弹性 / 综合 / 信号
     corr_cells = "".join(f"<td>{_corr_tag(r.get('business_corr', 0.0))}</td>" for r in rows)
     cat_cells = "".join(f"<td>{_catalyst_tag(r.get('catalyst', 50))}</td>" for r in rows)
@@ -665,8 +677,9 @@ def build_table(rows: List[Dict[str, Any]]) -> str:
     <tr><td class="l">信号</td>{sig_cells}</tr>
   </tbody>
 </table>
-<div class="note">注：业务关联度 = 与同组其它股票基于行业归属的业务相似度均值（同行业最高、同一大类次之）；
-订单/催化、弹性为基于量价与技术形态的启发式代理指标；基本面（总市值/市盈率/行业）来自东方财富行情接口，
+<div class="note">注：核心业务 = 同花顺主营构成（主营业务/主营产品），更贴近个股真实业务；
+获取失败时回退显示行业标签。业务关联度 = 与同组其它股票基于行业归属的业务相似度均值（同行业最高、同一大类次之）；
+订单/催化、弹性为基于量价与技术形态的启发式代理指标；基本面（总市值/市盈率）来自东方财富行情接口，
 获取失败显示「—」。综合评分为趋势/动量/量能/形态四维加权，仅供研究参考。</div>
 """
 

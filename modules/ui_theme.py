@@ -649,6 +649,20 @@ li[role="option"][aria-selected="true"] {
   color: #111827 !important;
   font-weight: 600 !important;
 }
+/* Popover 触发按钮（暗夜下默认白底，需强制深色渐变底+白字）
+   放在 popover 通用按钮规则之后，保证触发按钮自身文字为白色 */
+[data-testid="stPopover"] > button,
+button[data-testid="stPopoverButton"] {
+  background: linear-gradient(135deg, #667eea, #764ba2) !important;
+  color: #ffffff !important;
+  border: none !important;
+  font-weight: 600 !important;
+}
+[data-testid="stPopover"] > button:hover,
+button[data-testid="stPopoverButton"]:hover {
+  background: linear-gradient(135deg, #764ba2, #667eea) !important;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, .35) !important;
+}
 /* radio / checkbox 文字与选中态 */
 [data-testid="stRadio"] label,
 [data-testid="stCheckbox"] label { color: #e2e8f0 !important; }
@@ -1161,49 +1175,6 @@ pre {
 """
 
 
-def _back_to_top_js(dark: bool) -> str:
-    """生成悬浮「回到顶部」按钮的 JS（通过 components.html 注入到父页面）。"""
-    if dark:
-        bg = "#1a1a2e"
-        color = "#e2e8f0"
-        border = "rgba(255,255,255,0.15)"
-        shadow = "0 4px 14px rgba(0,0,0,0.35)"
-    else:
-        bg = "#ffffff"
-        color = "#111827"
-        border = "rgba(0,0,0,0.08)"
-        shadow = "0 4px 14px rgba(0,0,0,0.15)"
-    return f"""
-<script>
-(function(){{
-  try {{
-    var parentDoc = window.parent.document;
-    var id = 'stocksignal-back-to-top';
-    if (parentDoc.getElementById(id)) return;
-    var btn = parentDoc.createElement('button');
-    btn.id = id;
-    btn.innerHTML = '▲';
-    btn.title = '回到顶部';
-    btn.setAttribute('aria-label', '回到顶部');
-    btn.style.cssText = 'position:fixed;bottom:32px;right:32px;z-index:99999;width:48px;height:48px;border-radius:50%;border:1px solid {border};cursor:pointer;font-size:20px;align-items:center;justify-content:center;background:{bg};color:{color};box-shadow:{shadow};display:none;transition:transform 0.2s, opacity 0.2s;';
-    btn.onmouseenter = function(){{ btn.style.transform = 'translateY(-2px)'; }};
-    btn.onmouseleave = function(){{ btn.style.transform = 'translateY(0)'; }};
-    btn.onclick = function(){{ window.parent.scrollTo({{top:0, behavior:'smooth'}}); }};
-    parentDoc.body.appendChild(btn);
-    function update(){{ btn.style.display = window.parent.scrollY > 180 ? 'flex' : 'none'; }}
-    window.parent.addEventListener('scroll', update);
-    update();
-  }} catch (e) {{}}
-}})();
-</script>
-"""
-
-
-def inject_back_to_top() -> None:
-    """注入全局悬浮「回到顶部」按钮（所有页面通用）。"""
-    components.html(_back_to_top_js(_theme_is_dark()), height=0)
-
-
 # Plotly 暗色模板：修复白底/白网格/白K线（方框发白的根因）
 PLOTLY_DARK = {
     "paper_bgcolor": "rgba(0,0,0,0)",
@@ -1249,7 +1220,12 @@ def apply_theme() -> None:
         inject_plotly_dark()
     else:
         st.markdown(_LIGHT_CSS, unsafe_allow_html=True)
-    inject_back_to_top()
+    # 全局 ▲ 回到顶部 + C 键清缓存拦截 + 星辰 AI 页 ▼ 回到底部，
+    # 三者合并进 inject_scroll_nav 的【单一、且每页唯一可靠执行的】components.html 注入。
+    # ▼ 由星辰 AI 对话页的 st.chat_input（testid=stChatInput，全站唯一）驱动出现/消失，
+    # 避免页面内再发起第二次 components.html 调用（实测同页多次 components.html 仅首次脚本可靠执行）。
+    from modules.scroll_nav import inject_scroll_nav
+    inject_scroll_nav(show_bottom=False, bottom_marker="stChatInput", dark=_theme_is_dark())
 
 
 def get_current_mode() -> str:

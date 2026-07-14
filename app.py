@@ -105,6 +105,13 @@ modules = [
         "page": "pages/6_我的.py",
         "admin": False,
     },
+    {
+        "title": "星辰 AI",
+        "icon": "🌟",
+        "desc": "对话 + 分析一体：个股诊断、横向对比、事件解读、持仓建议",
+        "page": "pages/🌟_星辰AI.py",
+        "admin": False,
+    },
 ]
 
 admin_modules = [
@@ -216,6 +223,7 @@ with st.sidebar:
     - ⚙️ 策略回测 — 事件驱动 / 均线交叉
     - 💰 仓位管理 — 持仓盈亏、Excel导出
     - 👤 我的（含偏好设置）— 个人信息、自选股、外观与数据源设置
+    - 🌟 星辰 AI — 对话式个股诊断 / 对比 / 事件解读
     """)
 
     if is_admin():

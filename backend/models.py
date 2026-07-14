@@ -130,3 +130,23 @@ class OperationLog(db.Model):
             "detail": self.detail,
             "created_at": self.created_at.isoformat() + "Z",
         }
+
+
+# ------------------------------------------------------------------ ChatHistory
+class ChatHistory(db.Model):
+    """星辰 AI 对话历史（按用户维度，单条记录）。
+
+    说明：会话持久化必须走后端，不能依赖浏览器 localStorage。
+    components.html 运行在 srcdoc sandbox iframe 中（origin 为 null），
+    既无法直接回读父窗口 localStorage，也无法把数据回传给 Python（该构建
+    下 components.html 返回 DeltaGenerator 而非组件值，且不支持 key= 参数）。
+    故对话历史以 JSON 文本存数据库，按 user_id 唯一。
+    """
+    __tablename__ = "chat_history"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=False, unique=True, index=True
+    )
+    messages = db.Column(db.Text, nullable=False, default="[]")  # JSON 数组
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

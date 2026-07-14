@@ -25,3 +25,6 @@ test_*.html
 .streamlit/secrets.toml
 *.bak.*
 .cache/
+
+# WorkBuddy 工作记忆与本地测试产物（含私有记忆/截图，不入库）
+.workbuddy/

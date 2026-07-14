@@ -102,3 +102,39 @@ def wait_for_task(task_id: str, timeout: float = 30.0, poll_interval: float = 0.
                 continue
         time.sleep(poll_interval)
     raise TimeoutError("等待任务结果超时")
+
+
+# =====================================================================
+# 星辰 AI 对话历史持久化（后端按用户维度）
+# =====================================================================
+def get_chat_history() -> list:
+    """获取当前登录用户的星辰 AI 对话历史。失败/无记录返回空列表。"""
+    try:
+        resp = requests.get(
+            f"{API_BASE}/api/chat/history",
+            headers=_headers(),
+            timeout=_TIMEOUT,
+        )
+        if resp.status_code == 200:
+            body = resp.json()
+            if body.get("status") == "ok":
+                msgs = body.get("data", {}).get("messages")
+                if isinstance(msgs, list):
+                    return msgs
+    except Exception:
+        pass
+    return []
+
+
+def save_chat_history(messages: list) -> bool:
+    """保存当前登录用户的星辰 AI 对话历史。成功返回 True，失败返回 False。"""
+    try:
+        resp = requests.post(
+            f"{API_BASE}/api/chat/history",
+            json={"messages": messages},
+            headers=_headers(),
+            timeout=_TIMEOUT,
+        )
+        return resp.status_code == 200 and resp.json().get("status") == "ok"
+    except Exception:
+        return False

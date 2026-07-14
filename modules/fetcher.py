@@ -673,6 +673,7 @@ class StockFetcher:
     _pinyin_initials_variants_cache = {}  # {name: {initials variants}} 多音字首字母组合缓存
     _stocks_loaded = False    # 是否已加载
     _fund_cache = {}          # {code: fundamentals dict} 进程内缓存（基本面日频）
+    _biz_cache = {}           # {code: 核心业务描述 str} 进程内缓存（主营构成，按代码）
 
     def __init__(self, config_path="config.yaml"):
         self.config = load_config(config_path)
@@ -838,6 +839,45 @@ class StockFetcher:
         if _has(res):
             StockFetcher._fund_cache[code] = res
         return res
+
+    def get_core_business(self, code, use_cache=True):
+        """获取个股核心业务描述（主营业务 / 主营产品），用于多股对比「核心业务」列。
+
+        数据源：同花顺主营构成 ``ak.stock_zyjs_ths(symbol=code)``（网络可用时），
+        返回 DataFrame 含 [股票代码, 主营业务, 产品类型, 产品名称, 经营范围]。
+        取首行「主营业务」+「产品名称」拼成一句话描述；失败返回空字符串，
+        调用方回退到行业（industry）显示。进程内缓存避免重复请求。
+        """
+        code = str(code).strip().zfill(6)
+        if use_cache and code in StockFetcher._biz_cache:
+            return StockFetcher._biz_cache[code]
+        biz = ""
+        try:
+            import akshare as ak
+            df = ak.stock_zyjs_ths(symbol=code)
+            if df is not None and not df.empty:
+                cols = list(df.columns)
+                main = ""
+                products = ""
+                for c in cols:
+                    if "主营业务" in c:
+                        main = str(df.iloc[0][c] or "")
+                        break
+                for c in cols:
+                    if "产品名称" in c:
+                        products = str(df.iloc[0][c] or "")
+                        break
+                parts = []
+                for v in (main, products):
+                    v = (v or "").strip()
+                    if v and v not in ("-", "None", "nan") and v not in parts:
+                        parts.append(v)
+                biz = "；".join(parts)
+        except Exception as e:  # noqa: BLE001
+            print(f"[StockFetcher] 核心业务获取失败 ({code}): {e}")
+        if biz:
+            StockFetcher._biz_cache[code] = biz
+        return biz
     def _get_conn(self):
         return sqlite3.connect(self.db_path)
 
