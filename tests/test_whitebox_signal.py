@@ -285,8 +285,9 @@ class TestEvaluate:
     def test_total_is_weighted_sum(self, monkeypatch):
         """total 应为加权求和。"""
         engine = SignalEngine()
-        # Mock price_score, event_score, macro_score
-        monkeypatch.setattr(engine, "price_score", lambda *a, **k: 80)
+        # evaluate() 用 technical_profile().composite 作为价格/技术分（不再调用 price_score）
+        monkeypatch.setattr(engine, "technical_profile", lambda *a, **k: {
+            "short": 80, "mid": 80, "long": 80, "trend": 80, "composite": 80})
         monkeypatch.setattr(engine, "event_score", lambda *a, **k: 60)
         monkeypatch.setattr(engine, "macro_score", lambda *a, **k: 50)
         # Mock fetcher.get_daily 和 DataCleaner.full_pipeline

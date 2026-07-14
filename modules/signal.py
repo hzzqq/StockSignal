@@ -34,80 +34,114 @@ class SignalEngine:
     # ------------------------------------------------------------------
     # 价格信号得分 (0-100)
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # 工具函数
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _clamp(v, lo=0, hi=100):
+        try:
+            return max(lo, min(hi, int(round(float(v)))))
+        except Exception:
+            return 50
+
+    @staticmethod
+    def _score_by_return(r, breaks, scores):
+        """把涨跌幅 r 映射到 0-100：breaks 降序阈值，scores 对应得分（线性插值）。"""
+        r = float(r)
+        if r >= breaks[0]:
+            return scores[0]
+        for i in range(1, len(breaks)):
+            if r >= breaks[i]:
+                lo_b, hi_b = breaks[i], breaks[i - 1]
+                lo_s, hi_s = scores[i], scores[i - 1]
+                if hi_b == lo_b:
+                    return lo_s
+                return int(round(lo_s + (hi_s - lo_s) * (r - lo_b) / (hi_b - lo_b)))
+        return scores[-1]
+
+    # ------------------------------------------------------------------
+    # 技术面多周期画像 (0-100)
+    # ------------------------------------------------------------------
+    def technical_profile(self, df, date=None):
+        """
+        多周期技术面画像：短期(5日)/中期(20日)/长期(60日)+趋势，各 0-100。
+        综合分 = 短期0.40 + 中期0.35 + 长期0.25，再与趋势分(权重0.20)混合。
+        不再单一看 5 日动量，避免「50/100 太机械化」。
+        """
+        empty = {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50}
+        if df is None or df.empty or len(df) < 20:
+            return empty
+        d = df.copy()
+        d["date"] = pd.to_datetime(d["date"], errors="coerce")
+        if date is not None:
+            d = d[d["date"] <= pd.Timestamp(date)]
+        if len(d) < 20:
+            return empty
+
+        latest = d.iloc[-1]
+        close = float(latest["close"])
+        ma5 = float(latest.get("ma5", close))
+        ma20 = float(latest.get("ma20", close))
+        ma60 = float(d["close"].rolling(60).mean().iloc[-1]) if len(d) >= 60 else ma20
+
+        # 趋势分：均线多空排列
+        trend = 50
+        if close > ma5 > ma20:
+            trend += 25
+        elif close > ma20:
+            trend += 12
+        if ma20 > ma60:
+            trend += 20
+        elif ma20 < ma60:
+            trend -= 12
+
+        # 多周期涨跌幅
+        r5 = float(latest.get("return_5d", 0) or 0)
+        r20 = float(latest.get("return_20d", 0) or 0)
+        r60 = (float(d["close"].iloc[-1]) / float(d["close"].iloc[-61]) - 1) * 100 if len(d) >= 61 else r20
+
+        short = self._score_by_return(r5, [10, 5, 2, 0, -2, -5], [95, 80, 68, 58, 45, 30, 15])
+        mid = self._score_by_return(r20, [25, 15, 5, 0, -8, -15], [95, 82, 70, 58, 42, 25, 10])
+        long = self._score_by_return(r60, [40, 20, 5, 0, -15, -30], [95, 82, 68, 55, 38, 20, 8])
+
+        composite = 0.4 * short + 0.35 * mid + 0.25 * long
+        composite = 0.8 * composite + 0.2 * trend
+
+        return {
+            "short": self._clamp(short),
+            "mid": self._clamp(mid),
+            "long": self._clamp(long),
+            "trend": self._clamp(trend),
+            "composite": self._clamp(composite),
+        }
+
+    # ------------------------------------------------------------------
+    # 价格信号得分 (0-100) —— 多周期技术面综合
+    # ------------------------------------------------------------------
     def price_score(self, df, date=None):
         """
-        基于均线趋势、动量、成交量变化计算价格信号得分。
-        :param df: 行情 DataFrame，需含 close, volume, ma5, ma20 列
+        基于均线趋势 + 多周期动量的价格信号得分（0-100）。
+        :param df: 行情 DataFrame
         :param date: 评估日期，None 则取最后一天
         :return: 0-100 得分
         """
-        if df.empty:
-            return 50
-
-        df = df.copy()
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-
-        if date is not None:
-            df = df[df["date"] <= pd.Timestamp(date)]
-        if len(df) < 20:
-            return 50
-
-        latest = df.iloc[-1]
-        score = 0
-
-        # 1) 均线趋势 (40分): close > ma20 > ma60 偏多
-        close = latest["close"]
-        ma5 = latest.get("ma5", close)
-        ma20 = latest.get("ma20", close)
-        ma60 = df["close"].rolling(60).mean().iloc[-1] if len(df) >= 60 else ma20
-
-        if close > ma5 > ma20:
-            score += 25
-        elif close > ma20:
-            score += 15
-        if ma20 > ma60:
-            score += 15
-
-        # 2) 动量 (30分): 5日涨幅
-        if "return_5d" in df.columns:
-            ret_5d = latest.get("return_5d", 0)
-            if ret_5d > 5:
-                score += 30
-            elif ret_5d > 2:
-                score += 20
-            elif ret_5d > 0:
-                score += 10
-            elif ret_5d > -2:
-                score += 5
-
-        # 3) 成交量 (30分): 量价齐升加分
-        if "volume" in df.columns and len(df) >= 5:
-            vol_today = latest["volume"]
-            vol_avg5 = df["volume"].tail(5).mean()
-            if vol_avg5 > 0:
-                vol_ratio = vol_today / vol_avg5
-                if vol_ratio > 1.5 and latest.get("change_pct", 0) > 0:
-                    score += 30
-                elif vol_ratio > 1.2:
-                    score += 15
-                elif vol_ratio > 1.0:
-                    score += 5
-
-        return min(100, max(0, int(score)))
+        return self.technical_profile(df, date)["composite"]
 
     # ------------------------------------------------------------------
     # 事件信号得分 (0-100)
     # ------------------------------------------------------------------
     def event_score(self, ticker, keywords, date=None):
         """
-        基于关键词匹配事件库 + 实时新闻情感分析，计算事件信号得分。
-        :param ticker: 股票代码
-        :param keywords: 关键词列表，如 ["煤炭", "保供"]
-        :param date: 评估日期
-        :return: 0-100 得分
+        基于事件库 + 实时新闻情感的事件信号得分（0-100）。
+
+        关键修复（长电科技无利空却得 42 分）：
+          - 中性基准从 50 提到 52，且无利空事件时绝不打低分（下限 45）。
+          - 实时新闻情绪改为「相对中性」映射（50=多空平衡），仅在事件库
+            无法定性时才小幅微调，不再让中性/偏多新闻把分数拖到 40 出头。
         """
         events = self._load_events()
-        score = 50  # 基准分
+        score = 52  # 中性偏多基准：无利空即不应低于 50
+        pos_w = neg_w = 0
 
         # ---- Part 1: 本地事件库匹配 ----
         if not events.empty:
@@ -123,27 +157,32 @@ class SignalEngine:
                 evt_type = str(evt.get("type", ""))
                 # 优先用已存储的情感标签
                 if "正面" in evt_type or evt_type == "利好":
-                    score += 18
+                    pos_w += 1
                 elif "负面" in evt_type or evt_type == "利空":
-                    score -= 14
+                    neg_w += 1
                 else:
-                    score += 2  # 中性事件 +关注度
+                    score += 1  # 中性事件 +关注度
 
                 # 若有 sentiment_score 列，纳入量化
                 if "sentiment_score" in evt and pd.notna(evt.get("sentiment_score")):
-                    score += float(evt["sentiment_score"]) * 10
+                    score += float(evt["sentiment_score"]) * 6
 
-        # ---- Part 2: 实时新闻情感（如果事件库匹配不足）----
-        if score <= 52 and keywords:
+        # ---- Part 2: 实时新闻情绪（仅当事件库无法定性时参考）----
+        # 有正/负面事件已能定性，就不再让实时情绪推翻结论。
+        if pos_w == 0 and neg_w == 0 and keywords:
             try:
-                live_score = self._live_news_sentiment(keywords, date)
-                if live_score is not None:
-                    # 本地 + 实时取加权平均
-                    score = score * 0.5 + live_score * 0.5
+                live = self._live_news_sentiment(keywords, date)
+                if live is not None:
+                    # live 为相对分(50=中性)，只允许 ±35 区间微调，地板 50
+                    adj = (live - 50) * 0.7
+                    score = 52 + adj
             except Exception:
                 pass
 
-        return min(100, max(0, int(score)))
+        # 最终按正/负面事件上下修，带下限保护（避免极端低分）
+        score += pos_w * 14
+        score -= neg_w * 12
+        return self._clamp(score, 45, 95)
 
     def _live_news_sentiment(self, keywords, date=None):
         """抓取最新新闻做实时情感打分（0-100）。"""
@@ -157,8 +196,9 @@ class SignalEngine:
             dist = self.sentiment_analyzer.sentiment_distribution(news)
             pos_pct = dist.get("正面", 0)
             neg_pct = dist.get("负面", 0)
-            # 正面占比映射到 30-90，负面越多越低
-            live_score = 30 + pos_pct * 0.6 - neg_pct * 0.4
+            # 相对映射：50=多空平衡，正面占比高则上、负面高则下
+            # （修复旧逻辑中性新闻被映射到 30 的偏误）
+            live_score = 50 + (pos_pct - neg_pct) * 0.6
             return min(100, max(0, int(live_score)))
         except Exception:
             return None
@@ -214,6 +254,43 @@ class SignalEngine:
             return 50
 
     # ------------------------------------------------------------------
+    # 板块相对强度得分 (0-100)
+    # ------------------------------------------------------------------
+    def sector_relative_score(self, keywords, df=None, date=None):
+        """
+        板块相对强度得分 0-100：个股中期表现 vs 所属行业板块。
+        行业强 + 个股领涨 → 高分；行业弱 + 个股滞涨 → 低分。
+        用于「信号归因·五维雷达」的第五维（板块）。
+        """
+        # 用全部行业关键词做 OR 匹配（概念词/行业名都在候选），提升命中率
+        kws = [k.strip() for k in (keywords or []) if k.strip()]
+        if not kws:
+            return 55
+        try:
+            sectors = self.fetcher.get_sector_list()
+            if sectors is None or (hasattr(sectors, "empty") and sectors.empty):
+                return 55
+            name_col = "sector" if "sector" in sectors.columns else sectors.columns[0]
+            chg_col = next((c for c in sectors.columns if "change" in c.lower()), None)
+            if chg_col is None:
+                return 55
+            sec = sectors[sectors[name_col].astype(str).str.contains("|".join(kws), na=False, regex=True)]
+            if sec.empty:
+                sec = sectors[sectors[name_col].astype(str).apply(
+                    lambda x: any(k in x for k in kws))]
+            if sec.empty:
+                return 55
+            sector_chg = float(sec.iloc[0][chg_col])
+            r20 = 0.0
+            if df is not None and not df.empty:
+                r20 = float(df.iloc[-1].get("return_20d", 0) or 0)
+            rel = r20 - sector_chg
+            score = 50 + rel * 2.5 + sector_chg * 1.0
+            return self._clamp(score)
+        except Exception:
+            return 55
+
+    # ------------------------------------------------------------------
     # 综合评分
     # ------------------------------------------------------------------
     def evaluate(self, ticker, event_keywords, date=None):
@@ -222,24 +299,29 @@ class SignalEngine:
         :param ticker: 股票代码
         :param event_keywords: 事件关键词列表
         :param date: 评估日期
-        :return: dict {price_score, event_score, macro_score, total}
+        :return: dict {price_score, event_score, macro_score, sector_score,
+                          technical_profile, total}
         """
         # 拉取行情并清洗（失败时降级为中性评分）
         end = date or datetime.now().strftime("%Y-%m-%d")
         start = (datetime.strptime(end, "%Y-%m-%d") if date else datetime.now()) - timedelta(days=120)
         start_str = start.strftime("%Y-%m-%d")
 
+        df = None
         try:
             df = self.fetcher.get_daily(ticker, start=start_str, end=end)
             df = DataCleaner.full_pipeline(df)
-            p_score = self.price_score(df, date)
+            tp = self.technical_profile(df, date)
+            p_score = tp["composite"]
         except (RuntimeError, ValueError, Exception) as e:
             # 行情数据不可用 → 价格信号给中性分，不影响事件和宏观评分
             p_score = 50
+            tp = {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50}
             print(f"[SignalEngine] 行情获取失败({ticker})，价格信号使用中性分50: {e}")
 
         e_score = self.event_score(ticker, event_keywords, date)
         m_score = self.macro_score(date)
+        s_score = self.sector_relative_score(event_keywords, df, date)
 
         w = self.weights
         total = int(p_score * w["price"] + e_score * w["event"] + m_score * w["macro"])
@@ -248,7 +330,9 @@ class SignalEngine:
             "price_score": p_score,
             "event_score": e_score,
             "macro_score": m_score,
-            "total": min(100, max(0, total))
+            "sector_score": s_score,
+            "technical_profile": tp,
+            "total": min(100, max(0, total)),
         }
 
     # ------------------------------------------------------------------

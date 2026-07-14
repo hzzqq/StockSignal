@@ -55,6 +55,11 @@ def _sentiment_tag(label: str) -> str:
     return {"正面": "up", "负面": "down", "中性": "mid"}.get(label, "neu")
 
 
+def _tp_cls(score: float) -> str:
+    """多周期技术评分 → CSS 类名（绿强 / 红弱 / 中性）。"""
+    return "up" if score >= 60 else ("down" if score <= 40 else "mid")
+
+
 def _score_ring_html(score: int, color: str) -> str:
     """生成 SVG 评分环：0-100 评分，环按比例填充，数字居中。"""
     score = max(0, min(100, int(score)))
@@ -228,6 +233,23 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 # ══════════════════════════════════════════════════════════════
 # 分析计算：把全部结果打包成 dict，便于写入 session_state 实现跨页保留
 # ══════════════════════════════════════════════════════════════
+# ── 生成分析按钮：置于蓝色「决策仪表盘」顶部区域 ──
+if st.button("🔍 生成分析", type="primary", use_container_width=True, key="gen_analysis_top"):
+    task_id, err = submit_task_with_error("analysis", {"ticker": ticker})
+    if task_id:
+        st.session_state["analysis_task_id"] = task_id
+        st.session_state["analysis_result"] = None
+        st.info("📡 分析任务已提交到后台运行，你可以切到其他页面，完成后会在下方仪表盘自动显示结果。")
+    else:
+        err = err or "未知错误"
+        if "登录" in err or "过期" in err or "凭证" in err:
+            st.error(f"❌ {err}")
+            if st.button("重新登录", key="anal_relogin_top", use_container_width=True):
+                st.session_state.clear()
+                st.switch_page("pages/0_登录.py")
+        else:
+            st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
+
 def _run_analysis(ticker: str) -> dict:
     """拉取并构建个股分析所需全部数据；返回含所有渲染变量的 dict。"""
     # ── 基础信息 ──
@@ -481,6 +503,11 @@ def _render_analysis(R: dict):
     verdict = R["verdict"]
     verdict_color = R["verdict_color"]
     verdict_cls = R["verdict_cls"]
+    sector_score = R.get("sector_score", 55)
+    sector_analysis = R.get("sector_analysis",
+                               {"name": industry, "change_pct": None, "label": "—", "rank": None, "total": None})
+    technical_profile = R.get("technical_profile",
+                                {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50})
     news_rows = R["news_rows"]
     pos_pct = R["pos_pct"]
     neg_pct = R["neg_pct"]
@@ -537,7 +564,12 @@ def _render_analysis(R: dict):
     if q_amount is not None:
         today_bits.append(f"成交额 {q_amount / 1e8:.2f}亿")
     today_bits.append(f"成交量 {df['volume'].iloc[-1] / 1e4:.1f}万手")
-    today_line = " · ".join(today_bits)
+    today_pills = "".join(
+        f"<span style='display:inline-block;font-size:12px;color:#64748b;"
+        f"background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;"
+        f"padding:3px 9px;margin:0 6px 6px 0;'>{b}</span>"
+        for b in today_bits
+    ) if today_bits else "—"
 
     hdr_left, hdr_right = st.columns([3, 1])
     with hdr_left:
@@ -549,7 +581,7 @@ def _render_analysis(R: dict):
             f"<span class='sf-price-big' style='color:{price_color}!important;'>{price_disp}</span>"
             f"<span style='font-size:16px;font-weight:600;color:{price_color};'>"
             f"<span class='sf-triangle'>{triangle}</span>{chg_txt} ({change_amt:+.2f})</span></div>"
-            f"<div style='font-size:12.5px;color:#64748b;margin-top:8px;'>{today_line}</div>",
+            f"<div style='margin-top:8px;'>{today_pills}</div>",
             unsafe_allow_html=True,
         )
     with hdr_right:
@@ -634,10 +666,11 @@ def _render_analysis(R: dict):
     st.markdown(
         "<div class='sf-grid-4'>"
         "<div class='sf-perspective-card'>"
-        "<div class='title'>趋势状态</div>"
+        "<div class='title'>技术面 · 多周期（综合 {technical_profile['composite']}）</div>"
         "<div class='body'>"
-        f"<span class='sf-pill {short_cls}'>{short_pill}</span>"
-        f"<span class='sf-pill mid'>中期修复中</span>"
+        f"<span class='sf-pill {_tp_cls(technical_profile['short'])}'>短期 {technical_profile['short']}</span>"
+        f"<span class='sf-pill {_tp_cls(technical_profile['mid'])}'>中期 {technical_profile['mid']}</span>"
+        f"<span class='sf-pill {_tp_cls(technical_profile['long'])}'>长期 {technical_profile['long']}</span>"
         "</div></div>"
         "<div class='sf-perspective-card'>"
         "<div class='title'>价格位置（相对关键均线）</div>"
@@ -793,12 +826,43 @@ def _render_analysis(R: dict):
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ════════════ 模块6：信号归因（四维雷达）══════════
-    st.markdown('<div class="sf-card">' + _section_header("信号归因 · 四维雷达", "技术 / 情绪 / 量能 / 宏观", "🎯"), unsafe_allow_html=True)
+    # ══════════ 新增模块：板块分析 ══════════
+    st.markdown('<div class="sf-card">' + _section_header("板块分析", "主板块定位 · 实时走势 · 相对强度", "📊"), unsafe_allow_html=True)
+    _sa_name = sector_analysis.get("name", "—")
+    _sa_chg = sector_analysis.get("change_pct")
+    _sa_label = sector_analysis.get("label", "—")
+    _sa_rank = sector_analysis.get("rank")
+    _sa_total = sector_analysis.get("total")
+    _sa_chg_txt = f"{_sa_chg:+.2f}%" if _sa_chg is not None else "—"
+    _sa_chg_color = RED if (_sa_chg or 0) > 0 else (GREEN if (_sa_chg or 0) < 0 else AMBER)
+    _sa_rank_txt = f"全市场第 {_sa_rank}/{_sa_total} 强" if (_sa_rank and _sa_total) else "—"
+    if sector_score >= 60:
+        _rel_txt = f"{display_name} 领涨所属板块，相对强度突出"
+    elif sector_score <= 40:
+        _rel_txt = f"{display_name} 弱于所属板块，需警惕补跌"
+    else:
+        _rel_txt = f"{display_name} 与所属板块基本同步"
+    st.markdown(
+        f"<div style='display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:10px;'>"
+        f"<div style='font-size:18px;font-weight:700;color:#1e293b;'>{_sa_name}</div>"
+        f"<span class='sf-pill {_tp_cls(sector_score)}'>板块强度 {sector_score}</span>"
+        f"<span style='font-size:14px;font-weight:600;color:{_sa_chg_color};'>{_sa_chg_txt} {_sa_label}</span>"
+        f"<span class='sf-pill mid'>{_sa_rank_txt}</span>"
+        f"</div>"
+        f"<div style='font-size:13.5px;color:#64748b;line-height:1.7;'>"
+        f"<b style='color:#1e293b;'>板块研判：</b>{_rel_txt}。"
+        f"该主线属「{_sa_name}」，实时涨跌幅 {_sa_chg_txt}，{_sa_rank_txt}，"
+        f"结合下方五维雷达的「板块」维度综合判断。</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="sf-card">' + _section_header("信号归因 · 五维雷达", "技术 / 情绪 / 量能 / 宏观 / 板块", "🎯"), unsafe_allow_html=True)
     try:
         import plotly.graph_objects as go
         radar_fig = go.Figure()
-        cats = ["技术指标", "新闻情绪", "资金量能", "市场环境"]
-        vals = [tech_score, news_score, vol_score, macro_score]
+        cats = ["技术指标", "新闻情绪", "资金量能", "市场环境", "板块强度"]
+        vals = [tech_score, news_score, vol_score, macro_score, sector_score]
         radar_fig.add_trace(go.Scatterpolar(
             r=vals + [vals[0]],
             theta=cats + [cats[0]],
@@ -814,26 +878,35 @@ def _render_analysis(R: dict):
                 angularaxis=dict(gridcolor="#e5e7eb", tickfont=dict(color="#1e293b")),
             ),
             paper_bgcolor="rgba(0,0,0,0)",
-            height=380,
+            height=440,
             margin=dict(l=40, r=40, t=20, b=20),
         )
         st.plotly_chart(radar_fig, use_container_width=True)
+        st.markdown(
+            f"<div style='text-align:center;font-size:14px;font-weight:700;color:#1e293b;"
+            f"margin:6px 0 2px;'>综合信号强度 <b style='color:{verdict_color};'>{composite}</b>"
+            f" · {verdict}（五维加权）</div>",
+            unsafe_allow_html=True,
+        )
     except Exception as e:
         st.warning(f"⚠️ 雷达图渲染失败：{str(e)[:80]}")
 
-    # 权重表（参考文档：技术指标 30% / 新闻情绪 25% / 资金量能 25% / 市场环境 20%）
+    # 权重表（五维加权：技术 25% / 情绪 22% / 量能 18% / 宏观 15% / 板块 20%）
     st.markdown(
         "<table class='sf-table'>"
         "<thead><tr><th class='l'>维度（权重）</th><th>得分</th><th class='l'>研判要点</th></tr></thead><tbody>"
-        f"<tr><td class='l'><b>技术指标</b> 30%</td><td>{tech_score:.0f}</td>"
-        f"<td class='l'>站上均线 / 金叉死叉 / 动量强弱</td></tr>"
-        f"<tr><td class='l'><b>新闻情绪</b> 25%</td><td>{news_score:.0f}</td>"
+        f"<tr><td class='l'><b>技术指标</b> 25%</td><td>{tech_score:.0f}</td>"
+        f"<td class='l'>多周期（短/中/长）趋势 · 动量强弱</td></tr>"
+        f"<tr><td class='l'><b>新闻情绪</b> 22%</td><td>{news_score:.0f}</td>"
         f"<td class='l'>事件催化强度 · 正面占比 {pos_pct:.0f}%</td></tr>"
-        f"<tr><td class='l'><b>资金量能</b> 25%</td><td>{vol_score:.0f}</td>"
+        f"<tr><td class='l'><b>资金量能</b> 18%</td><td>{vol_score:.0f}</td>"
         f"<td class='l'>量价配合 · 换手健康度</td></tr>"
-        f"<tr><td class='l'><b>市场环境</b> 20%</td><td>{macro_score:.0f}</td>"
+        f"<tr><td class='l'><b>市场环境</b> 15%</td><td>{macro_score:.0f}</td>"
         f"<td class='l'>宏观 PMI · 大盘强弱</td></tr>"
-        f"<tr><td class='l'><b>综合评分</b></td><td><b>{composite}</b></td><td class='l'>四维加权汇总</td></tr>"
+        f"<tr><td class='l'><b>板块强度</b> 20%</td><td>{sector_score:.0f}</td>"
+        f"<td class='l'>个股相对所属板块的强弱 · 排名 {sector_analysis.get('rank','—')}"
+        f"{('/'+str(sector_analysis.get('total'))) if sector_analysis.get('total') else ''} 强</td></tr>"
+        f"<tr><td class='l'><b>综合评分</b></td><td><b>{composite}</b></td><td class='l'>五维加权汇总</td></tr>"
         "</tbody></table>",
         unsafe_allow_html=True,
     )
@@ -963,21 +1036,7 @@ def _deserialize_analysis_result(result: dict) -> dict:
     return result
 
 
-if st.button("🔍 生成分析", type="primary", use_container_width=True):
-    task_id, err = submit_task_with_error("analysis", {"ticker": ticker})
-    if task_id:
-        st.session_state["analysis_task_id"] = task_id
-        st.session_state["analysis_result"] = None
-        st.info("📡 分析任务已提交到后台运行，你可以切到其他页面，完成后这里会自动显示结果。")
-    else:
-        err = err or "未知错误"
-        if "登录" in err or "过期" in err or "凭证" in err:
-            st.error(f"❌ {err}")
-            if st.button("重新登录", key="anal_relogin", use_container_width=True):
-                st.session_state.clear()
-                st.switch_page("pages/0_登录.py")
-        else:
-            st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
+st.info("👆 在上方「决策仪表盘」顶部点击红色「生成分析」即可生成完整的个股深度分析。")
 
 # 轮询后台任务
 analysis_task_id = st.session_state.get("analysis_task_id")

@@ -8,7 +8,7 @@ import requests
 from datetime import datetime
 
 from modules.session import require_auth, render_user_badge, safe_switch_page, API_BASE, get_user, get_token
-from modules.ui_theme import get_current_mode
+from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT
 
 st.set_page_config(page_title="我的", page_icon="👤", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -32,7 +32,7 @@ def render_preferences():
     # ── 初始化设置项的 session_state 默认值 ──
     _SETTINGS_KEYS = {
         "theme_mode": "light",          # dark / light（项目约定默认白天模式）
-        "font_size": "medium",          # small / medium / large
+        "font_size": FONT_DEFAULT,      # small / medium(标准) / large / xlarge / xxlarge
         "kline_default_count": 120,     # K线默认显示根数
         "sector_refresh_interval": 60,  # 行业板块刷新间隔(秒)
     }
@@ -79,7 +79,10 @@ def render_preferences():
 
     st.caption("提示：切换后整个界面会立即刷新，无需手动操作。")
 
-    _font_opts = {"small": ("小", "0.85rem"), "medium": ("中", "0.95rem"), "large": ("大", "1.05rem")}
+    # 字号档位：小 / 标准(原“中”) / 大 / 特大 / 巨大，至少 5 档。
+    # 名称与 rem 数值均来自 ui_theme.FONT_SCALE 唯一数据源，保证与全局注入一致。
+    _font_cn = {"small": "小", "medium": "标准", "large": "大", "xlarge": "特大", "xxlarge": "巨大"}
+    _font_opts = {k: (v, FONT_SCALE[k]) for k, v in _font_cn.items()}
     _font_labels = {k: f"{v[0]} ({v[1]})" for k, v in _font_opts.items()}
     _font_current = st.selectbox(
         "字体大小",
@@ -87,17 +90,13 @@ def render_preferences():
         format_func=lambda x: _font_labels[x],
         index=list(_font_opts.keys()).index(st.session_state["font_size"]),
         key="setting_font_size",
-        help="调整全局文字大小（影响标题、正文、表格等）",
+        help="调整全局文字大小（影响标题、正文、表格等）。默认「标准」比旧版更大。",
     )
     if _font_current != st.session_state.get("font_size"):
         st.session_state["font_size"] = _font_current
-        _scale_map = {"small": "0.92", "medium": "1.00", "large": "1.08"}
-        st.markdown(
-            f"""<style>
-            .stApp {{ font-size: {_scale_map[_font_current]} !important; }}
-            </style>""",
-            unsafe_allow_html=True,
-        )
+        # 实际 CSS 注入由 ui_theme.apply_theme() 全局统一处理（覆盖 html/body/.stApp），
+        # 这里仅更新设置并重跑，使全局字号立即生效。
+        st.rerun()
 
     st.markdown("")
 

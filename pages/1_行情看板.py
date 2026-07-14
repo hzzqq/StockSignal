@@ -368,7 +368,7 @@ if data_ok and df is not None:
 # 行业热力图
 # ------------------------------------------------------------------
 def _render_sector_cards(df, top_n=24):
-    """同花顺风格板块卡片网格：按涨跌幅排序，红涨绿跌，响应式多列布局。"""
+    """板块卡片网格：按涨跌幅排序，红涨绿跌，响应式多列布局。"""
     show = df.head(top_n) if top_n else df
     cards = []
     for _, row in show.iterrows():
@@ -378,7 +378,7 @@ def _render_sector_cards(df, top_n=24):
         except Exception:
             pct = 0.0
         up = pct >= 0
-        color = "#c0392b" if up else "#27ae60"
+        color = UP_COLOR if up else DOWN_COLOR
         bg = "#fde8e6" if up else "#e8f9ef"
         arrow = "▲" if up else "▼"
         cards.append(
@@ -524,7 +524,7 @@ def render_sector_detail():
 
 if show_heatmap:
     st.markdown("---")
-    st.subheader("行业板块涨跌榜（同花顺风格）")
+    st.subheader("行业板块涨跌榜")
 
     # 自动刷新（每 60 秒），仅在交易时间生效
     try:
@@ -548,33 +548,30 @@ if show_heatmap:
             sector_df["change_pct"] = pd.to_numeric(sector_df["change_pct"], errors="coerce").fillna(0)
             sector_df = sector_df.sort_values("change_pct", ascending=False).reset_index(drop=True)
 
-            col_title, col_btn = st.columns([6, 1])
-            with col_title:
-                # 细分交易时段状态（与板块详情页一致）
-                _now = datetime.now()
-                _t = _now.time()
-                _wd = _now.weekday()
-                if _wd >= 5:
-                    _mstatus = "⚪ 已休市（周末）"
-                elif time(9, 30) <= _t <= time(11, 30):
-                    _mstatus = "🟢 上午交易中（实时数据）"
-                elif time(11, 30) < _t < time(13, 0):
-                    _mstatus = "🟡 午间休市（上午收盘数据）"
-                elif time(13, 0) <= _t <= time(15, 0):
-                    _mstatus = "🟢 下午交易中（实时数据）"
-                elif time(15, 0) < _t <= time(16, 0):
-                    _mstatus = "🔵 已收盘（今日全天数据）"
-                else:
-                    _mstatus = "⚪ 已休市（展示最后交易日数据）"
-                st.caption(f"{_mstatus} · 同花顺风格板块涨跌榜")
-            with col_btn:
-                st.caption("完整榜单见下方「📊 板块涨跌」页签")
+            # 交易时段状态（与板块详情页一致）
+            _now = datetime.now()
+            _t = _now.time()
+            _wd = _now.weekday()
+            if _wd >= 5:
+                _mstatus = "⚪ 已休市（周末）"
+            elif time(9, 30) <= _t <= time(11, 30):
+                _mstatus = "🟢 上午交易中（实时数据）"
+            elif time(11, 30) < _t < time(13, 0):
+                _mstatus = "🟡 午间休市（上午收盘数据）"
+            elif time(13, 0) <= _t <= time(15, 0):
+                _mstatus = "🟢 下午交易中（实时数据）"
+            elif time(15, 0) < _t <= time(16, 0):
+                _mstatus = "🔵 已收盘（今日全天数据）"
+            else:
+                _mstatus = "⚪ 已休市（展示最后交易日数据）"
+            st.caption(f"{_mstatus}")
+            st.caption("💡 完整榜单见下方「📊 板块涨跌」页签")
 
             # 如果数据源未提供涨跌幅（全为 0），给出提示
             if sector_df["change_pct"].abs().max() < 0.01:
                 st.warning("⚠️ 当前数据源未返回板块涨跌幅，仅展示行业列表。交易时间或网络恢复后会自动获取真实数据。")
 
-            # ── 同花顺风格板块卡片网格（替代原热力图）──
+            # ── 板块卡片网格（替代原热力图）──
             _render_sector_cards(sector_df, top_n=24)
         else:
             st.warning("未获取到板块数据。")

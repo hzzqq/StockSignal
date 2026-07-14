@@ -14,6 +14,7 @@ modules/llm_client.py
 from __future__ import annotations
 
 import os
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -102,6 +103,11 @@ def chat_completion(
     调用 OpenAI 兼容 Chat Completion。
     返回 assistant 内容，失败时（含主模型限流/超时）自动尝试回退模型链，
     全部失败则返回 None，由调用方回退到规则引擎。
+
+    总预算守卫：免费模型（尤其 OpenRouter）常因限流排队，若放任整条回退链
+    逐模型各等 100s，最坏可达 400s，超过调用方的前端超时。这里额外限制
+    「整条链总耗时」上限，超时即停止尝试并返回 None，让调用方快速回退到
+    规则引擎（瞬时），避免用户干等前端报「响应超时」。
     """
     if not is_configured():
         return None
@@ -111,8 +117,11 @@ def chat_completion(
 
     # 单模型尝试超时略短，避免整条链挂死；但 OpenRouter 免费模型经常排队，需留足时间
     per_timeout = min(timeout, 100)
+    # 整条链总预算：最多 3 个模型 × per_timeout，且不超过 180s，确保早于前端超时回退
+    total_cap = min(per_timeout * 3, 180)
     chain = _model_chain()
     last_err = ""
+    _start = time.time()
     try:
         import openai
 
@@ -122,6 +131,10 @@ def chat_completion(
         return None
 
     for model in chain:
+        # 总预算耗尽：停止尝试，交回调用方回退到规则引擎
+        if time.time() - _start > total_cap:
+            last_err = f"{model}: 总预算 {total_cap:.0f}s 耗尽，放弃剩余模型"
+            break
         try:
             resp = client.chat.completions.create(
                 model=model,
@@ -149,6 +162,7 @@ def answer_with_llm(
     history: Optional[List[Dict[str, str]]] = None,
     temperature: float = 0.5,
     max_tokens: int = 1200,
+    timeout: int = 120,
 ) -> Optional[str]:
     """带历史记录的对话调用。history 元素为 {"role":"user"/"assistant", "content":...}。"""
     messages = [{"role": "system", "content": system_prompt}]
@@ -156,4 +170,4 @@ def answer_with_llm(
         # 只保留最近 6 轮，避免超出上下文
         messages.extend(history[-6:])
     messages.append({"role": "user", "content": user_prompt})
-    return chat_completion(messages, temperature=temperature, max_tokens=max_tokens)
+    return chat_completion(messages, temperature=temperature, max_tokens=max_tokens, timeout=timeout)

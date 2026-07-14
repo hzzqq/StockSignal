@@ -29,6 +29,7 @@ from modules.ui_theme import _theme_is_dark
 from modules.starfield_theme import inject_plotly_dark, UP_COLOR, DOWN_COLOR
 from modules.background_tasks import submit_task_with_error, poll_task, get_chat_history, save_chat_history
 from modules.widgets import _slim_context
+from modules.widgets import STAR_AI_LOGO
 
 
 # ══════════════════════════════════════════════════════
@@ -412,8 +413,9 @@ _save_messages_to_storage(st.session_state.get("xc_messages", []))
 h_left, h_right = st.columns([6, 1])
 with h_left:
     st.markdown(
-        '<div style="display:flex;align-items:baseline;gap:10px">'
-        '<span style="font-size:22px;font-weight:800;color:var(--txt)">🌟 星辰 AI</span>'
+        '<div style="display:flex;align-items:center;gap:10px">'
+        f'{STAR_AI_LOGO(26)}'
+        '<span style="font-size:22px;font-weight:800;color:var(--txt)">星辰 AI</span>'
         '<span style="font-size:13px;color:var(--txt2)">对话 + 分析一体 · A股分析搭档</span>'
         '</div>',
         unsafe_allow_html=True,
@@ -435,11 +437,17 @@ st.markdown(
 for idx, m in enumerate(st.session_state["xc_messages"]):
     render_message(m, idx, username)
 
-# ── 思考中占位 ──
+# ── 思考中占位（含已等待时长 + 免费模型延迟提示，管理预期、提升感知效率）──
 if st.session_state.get("xc_task_id"):
+    _started = st.session_state.get("xc_task_started_at") or time.time()
+    _elapsed = int(time.time() - _started)
+    _mm = _elapsed // 60
+    _ss = _elapsed % 60
+    _elapsed_str = f"{_mm}分{_ss:02d}秒" if _mm else f"{_ss}秒"
     st.markdown(
-        '<div class="xc-typing"><span class="dot"></span><span class="dot"></span>'
-        '<span class="dot"></span><span>星辰 AI 正在思考…</span></div>',
+        f'<div class="xc-typing"><span class="dot"></span><span class="dot"></span>'
+        f'<span class="dot"></span>'
+        f'<span>星辰 AI 正在分析…（已等待 {_elapsed_str} · 当前使用免费模型，响应较慢属正常，请稍候）</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -507,6 +515,6 @@ if task_id:
         try:
             from streamlit_autorefresh import st_autorefresh
 
-            st_autorefresh(interval=5000, limit=150, key="xc_autorefresh")
+            st_autorefresh(interval=1500, limit=300, key="xc_autorefresh")
         except Exception:
             pass

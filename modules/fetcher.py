@@ -585,20 +585,16 @@ class _UrllibFetcher:
         return df.sort_values("date").reset_index(drop=True)
 
     @classmethod
-    def fetch_sector_list(cls):
-        """行业板块列表（东方财富）。
-        
-        fs=m:90+t:3 对应东方财富行业板块；
-        f3 字段为涨跌幅（单位：百分比的 100 倍，如 -243 表示 -2.43%）。
-        """
+    def _fetch_em_boards(cls, fs):
+        """拉取东方财富单页板块（pc 端 clist 每页上限 100 条）。返回 DataFrame 或 None。"""
         url = ("https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=100&po=1&np=1"
-               "&fields=f2,f3,f12,f14&fs=m:90+t:3")
+               "&fields=f2,f3,f12,f14&fs=" + fs)
         req = urllib.request.Request(url, headers=cls.HEADERS)
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except Exception as e:
-            print(f"[UrllibFetcher] 板块失败: {e}")
+            print(f"[UrllibFetcher] 板块失败 ({fs}): {e}")
             return None
 
         items = data.get("data", {}).get("diff", [])
@@ -611,6 +607,79 @@ class _UrllibFetcher:
         # f3 是原始数值（% * 100），需要除以 100 转换为标准百分比
         df["change_pct"] = pd.to_numeric(df["change_pct"], errors="coerce") / 100
         return df
+
+    @classmethod
+    def _fetch_em_boards_paged(cls, fs, max_pages=10, stop_when_found=None):
+        """分页拉取东方财富板块（每页上限 100 条）。
+
+        stop_when_found 为需要补齐的板块名集合：一旦集齐目标板块即可提前结束分页，
+        减少不必要的请求量。
+        """
+        targets = set(stop_when_found) if stop_when_found else None
+        found = set()
+        rows = []
+        for pn in range(1, max_pages + 1):
+            url = (f"https://push2.eastmoney.com/api/qt/clist/get?pn={pn}&pz=100&po=1&np=1"
+                   f"&fields=f2,f3,f12,f14&fs={fs}")
+            req = urllib.request.Request(url, headers=cls.HEADERS)
+            try:
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+            except Exception as e:
+                print(f"[UrllibFetcher] 板块失败 ({fs} p{pn}): {e}")
+                break
+            items = data.get("data", {}).get("diff", [])
+            if not items:
+                break
+            rows.extend(items)
+            if targets:
+                for it in items:
+                    n = (it.get("f14", "") or "").strip()
+                    if n in targets:
+                        found.add(n)
+                if targets <= found:
+                    break
+            if len(items) < 100:
+                break
+        if not rows:
+            return None
+        df = pd.DataFrame([
+            {"sector": item.get("f14", ""), "change_pct": item.get("f3", 0)}
+            for item in rows
+        ])
+        # f3 是原始数值（% * 100），需要除以 100 转换为标准百分比
+        df["change_pct"] = pd.to_numeric(df["change_pct"], errors="coerce") / 100
+        return df
+
+    @classmethod
+    def fetch_sector_list(cls):
+        """行业板块列表（东方财富）。
+
+        fs=m:90+t:3 对应东方财富行业板块；f3 字段为涨跌幅（% * 100）。
+        部分热门板块（如「半导体」）仅出现在概念板块(m:90+t:2)而不在行业板块中，
+        故以概念板块作为补充来源：仅补齐行业板块缺失的板块（按名称去重），
+        确保其在涨跌排行里以真实涨跌幅出现，且不破坏 get_sector_list 的原有降级链。
+        """
+        # 主来源：行业板块
+        industry = cls._fetch_em_boards("m:90+t:3")
+        if industry is None or industry.empty:
+            # 行业板块拉取失败 → 交回 get_sector_list 的 L2-L4 降级链处理
+            return None
+
+        industry_names = set(industry["sector"].astype(str).str.strip())
+        # 行业板块已包含「半导体」则直接返回，无需补充
+        if "半导体" in industry_names:
+            return industry
+
+        # 行业板块缺失「半导体」→ 从概念板块分页检索并补充（仅补缺失项，避免列表膨胀）
+        supplement = {"半导体"}
+        concept = cls._fetch_em_boards_paged("m:90+t:2", stop_when_found=supplement)
+        if concept is not None and not concept.empty:
+            extra = concept[concept["sector"].astype(str).str.strip().isin(supplement)]
+            extra = extra[~extra["sector"].astype(str).str.strip().isin(industry_names)]
+            if not extra.empty:
+                industry = pd.concat([industry, extra], ignore_index=True)
+        return industry
 
     @classmethod
     def fetch_fundamentals(cls, symbol):

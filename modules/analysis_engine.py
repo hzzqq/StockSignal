@@ -27,6 +27,11 @@ RED = "#009e60"      # 涨 / 利好 / 买入（文档绿）
 GREEN = "#dc2626"    # 跌 / 利空 / 卖出（文档红）
 AMBER = "#d97706"    # 中性 / 持有
 
+# 分析结果 TTL 缓存：避免重复抓取行情/新闻，显著提速（默认 90 秒）
+import time as _time
+_ANALYSIS_CACHE: Dict[str, Any] = {}
+_ANALYSIS_TTL = 90.0
+
 
 def _verdict_color(composite: float):
     """根据综合评分返回 (信号文案, 颜色, css_class)。"""
@@ -85,6 +90,52 @@ def _board(code: str) -> str:
     return "A股"
 
 
+def _sector_analysis(industry_kws: str, fetcher: StockFetcher) -> Dict[str, Any]:
+    """判断个股主板块及走势，供「板块分析」模块。
+
+    返回 {name, change_pct, label, rank, total}：
+      - name   主板块名（取行业关键词第一项）
+      - change_pct 该板块实时涨跌幅（%）
+      - label  领涨/走强/走弱/领跌
+      - rank/total 该板块在全市场板块中的涨幅排名
+    网络不可用时返回基础占位，不抛异常。
+    """
+    kws = [k.strip() for k in (industry_kws or "").split(",") if k.strip()]
+    industry = kws[0] if kws else ""
+    out: Dict[str, Any] = {
+        "name": industry or "—", "change_pct": None,
+        "label": "—", "rank": None, "total": None,
+    }
+    if not kws:
+        return out
+    try:
+        sectors = fetcher.get_sector_list()
+        if sectors is None or (hasattr(sectors, "empty") and sectors.empty):
+            return out
+        name_col = "sector" if "sector" in sectors.columns else sectors.columns[0]
+        chg_col = next((c for c in sectors.columns if "change" in c.lower()), None)
+        if chg_col is None:
+            return out
+        sec = sectors[sectors[name_col].astype(str).str.contains("|".join(kws), na=False, regex=True)]
+        if sec.empty:
+            sec = sectors[sectors[name_col].astype(str).apply(
+                lambda x: any(k in x for k in kws))]
+        if sec.empty:
+            return out
+        chg = float(sec.iloc[0][chg_col])
+        out["change_pct"] = chg
+        out["label"] = ("领涨" if chg >= 1.5 else "走强" if chg >= 0
+                        else "走弱" if chg > -1.5 else "领跌")
+        ranked = sectors.sort_values(chg_col, ascending=False).reset_index(drop=True)
+        idx = ranked[ranked[name_col].astype(str).str.contains(industry, na=False)].index
+        if len(idx):
+            out["rank"] = int(idx[0]) + 1
+            out["total"] = len(ranked)
+    except Exception:
+        pass
+    return out
+
+
 def _sentiment_counts(news_df: pd.DataFrame, sa: SentimentAnalyzer, limit: int = 12) -> Tuple[List[Dict[str, Any]], float, float]:
     """对新闻做情绪分析，返回 (news_rows, pos_pct, neg_pct)。"""
     news_rows: List[Dict[str, Any]] = []
@@ -111,8 +162,15 @@ def _sentiment_counts(news_df: pd.DataFrame, sa: SentimentAnalyzer, limit: int =
     return news_rows, 0.0, 0.0
 
 
-def run_analysis(ticker: str, fetcher: StockFetcher | None = None) -> Dict[str, Any]:
+def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: bool = True) -> Dict[str, Any]:
     """个股深度分析核心逻辑（纯 Python，无 Streamlit）。"""
+    ticker = str(ticker).strip().zfill(6)
+    # TTL 缓存：同一 ticker 90 秒内直接返回，避免重复抓取（提速关键）
+    if _use_cache:
+        _hit = _ANALYSIS_CACHE.get(ticker)
+        if _hit is not None and (_time.time() - _hit[0]) < _ANALYSIS_TTL:
+            return _hit[1]
+
     if fetcher is None:
         fetcher = StockFetcher()
 
@@ -177,7 +235,14 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None) -> Dict[str, 
     macro_score = float(signal.get("macro_score", 50))
     vol_score = float(volume_info.get("volume_price_score", 50)) if "error" not in volume_info else 50.0
 
-    composite = int(round(tech_score * 0.30 + news_score * 0.25 + vol_score * 0.25 + macro_score * 0.20))
+    sector_score = float(signal.get("sector_score", 55))
+    tech_profile = signal.get("technical_profile",
+                                {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50})
+    # 五维加权：技术0.25 / 情绪0.22 / 量能0.18 / 宏观0.15 / 板块0.20
+    composite = int(round(
+        tech_score * 0.25 + news_score * 0.22 + vol_score * 0.18
+        + macro_score * 0.15 + sector_score * 0.20
+    ))
     composite = max(0, min(100, composite))
     verdict, verdict_color, verdict_cls = _verdict_color(composite)
 
@@ -191,12 +256,37 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None) -> Dict[str, 
     sa = SentimentAnalyzer()
     news_rows, pos_pct, neg_pct = _sentiment_counts(news_df, sa)
 
-    # 支撑 / 压力
-    recent = df.tail(60)
-    support = float(recent["low"].min())
-    resistance = float(recent["high"].max())
+    # 支撑 / 压力（重写：不再用 60 日绝对最低/最高，而是真实可交易区间）
     if current_price is None:
         current_price = float(df.iloc[-1]["close"])
+    recent20 = df.tail(20)
+    recent60 = df.tail(60)
+    swing_low_20 = float(recent20["low"].min())
+    swing_high_20 = float(recent20["high"].max())
+    # ATR（真实波动率）
+    _hi = df["high"]; _lo = df["low"]; _cl = df["close"]
+    _tr = pd.concat([
+        (_hi - _lo),
+        (_hi - _cl.shift(1)).abs(),
+        (_lo - _cl.shift(1)).abs(),
+    ], axis=1).max(axis=1)
+    _atr = float(_tr.rolling(14).mean().iloc[-1]) if len(_tr) >= 14 else current_price * 0.025
+    if np.isnan(_atr) or _atr <= 0:
+        _atr = current_price * 0.025
+    # 关键均线（仅取低于现价的，作为支撑参考）
+    _ma20v = float(df["close"].rolling(20).mean().iloc[-1]) if len(df) >= 20 else current_price
+    _ma60v = float(df["close"].rolling(60).mean().iloc[-1]) if len(df) >= 60 else current_price
+    _sup_cands = [swing_low_20, current_price - 1.2 * _atr]
+    if _ma20v < current_price:
+        _sup_cands.append(_ma20v)
+    if _ma60v < current_price:
+        _sup_cands.append(_ma60v)
+    support = max(_sup_cands)
+    support = min(support, current_price * 0.98)  # 安全护栏：支撑必须低于现价
+    # 压力：近期摆动高点 / ATR 上沿 / 60 日高点（取最高者，且不低于现价 2%）
+    _res_cands = [swing_high_20, current_price + 1.2 * _atr, float(recent60["high"].max())]
+    resistance = max(_res_cands)
+    resistance = max(resistance, current_price * 1.02)
     entry_price, target_price, stop_price, atr14 = _calc_trade_levels(current_price, df, support, resistance)
 
     last = df.iloc[-1]
@@ -224,6 +314,8 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None) -> Dict[str, 
     q_amount = float(rt["amount"]) if isinstance(rt, dict) and rt.get("amount") else None
 
     board = _board(ticker)
+    # 板块分析：主板块 + 实时走势 + 全市场排名
+    sector_analysis = _sector_analysis(industry_kws, fetcher)
 
     if verdict == "看多":
         position_advice = (
@@ -241,7 +333,7 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None) -> Dict[str, 
             f"目标 ¥{target_price:.2f} 分批兑现，跌破止损 ¥{stop_price:.2f} 纪律离场"
         )
 
-    return {
+    result = {
         "ticker": ticker,
         "display_name": display_name,
         "industry": industry,
@@ -290,8 +382,14 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None) -> Dict[str, 
         "q_prev": q_prev,
         "q_amount": q_amount,
         "board": board,
+        "sector_score": sector_score,
+        "sector_analysis": sector_analysis,
+        "technical_profile": tech_profile,
         "position_advice": position_advice,
         "data_src": data_src,
         "quote_src": quote_src,
         "_warnings": messages,
     }
+    if _use_cache:
+        _ANALYSIS_CACHE[ticker] = (_time.time(), result)
+    return result

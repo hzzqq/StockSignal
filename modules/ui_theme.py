@@ -37,6 +37,36 @@ SF_TXT2 = "#94a3b8"
 SF_BORDER = "#2d2d44"
 SF_GRID = "#23233c"
 
+# ── 全局字号档位（rem 相对根字号 16px；无单位的数值无效，浏览器会忽略）──
+# 小/中(medium=标准)/大/特大/巨大，至少 5 档。默认 medium=1.03rem（比旧版 1.00 略大）。
+# 作为唯一数据源，页面设置项（6_我的.py）与此处共用，保证一致。
+FONT_SCALE = {
+    "small":   "0.95rem",   # 小
+    "medium":  "1.03rem",   # 标准（旧“中”，默认档，已放大）
+    "large":   "1.12rem",   # 大
+    "xlarge":  "1.22rem",   # 特大
+    "xxlarge": "1.32rem",   # 巨大
+}
+FONT_DEFAULT = "medium"
+
+
+def inject_font_size() -> None:
+    """按 session_state 的 font_size 注入全局字号（覆盖 html/body/.stApp）。
+
+    同时作用于 html，使所有 rem 子元素（表格/指标卡等）随档位整体缩放，
+    真正实现「整个项目字体可调」。仅注入 CSS，不改任何功能逻辑。
+    用户未单独设置时回落到 FONT_DEFAULT（1.03rem，已比旧默认更大）。
+    """
+    _key = st.session_state.get("font_size", FONT_DEFAULT)
+    _rem = FONT_SCALE.get(_key, FONT_SCALE[FONT_DEFAULT])
+    st.markdown(
+        f"""<style>
+        html, body, .stApp {{ font-size: {_rem} !important; }}
+        </style>""",
+        unsafe_allow_html=True,
+    )
+
+
 # ════════════════════════════════════════════════════════════
 #  暗色主题 CSS v9 — 星辰决策仪表盘风格
 #  配色：深空黑底 #0f0f23 / 卡片 #1a1a2e / 强调紫蓝渐变
@@ -1220,6 +1250,8 @@ def apply_theme() -> None:
         inject_plotly_dark()
     else:
         st.markdown(_LIGHT_CSS, unsafe_allow_html=True)
+    # 全局字号：覆盖 html/body/.stApp，使所有页面（含 Streamlit 默认文本）整体缩放
+    inject_font_size()
     # 全局 ▲ 回到顶部 + C 键清缓存拦截 + 星辰 AI 页 ▼ 回到底部，
     # 三者合并进 inject_scroll_nav 的【单一、且每页唯一可靠执行的】components.html 注入。
     # ▼ 由星辰 AI 对话页的 st.chat_input（testid=stChatInput，全站唯一）驱动出现/消失，
