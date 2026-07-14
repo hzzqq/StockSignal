@@ -142,15 +142,24 @@ def _theme_css(dark: bool) -> str:
 /* 聊天输入框（st.chat_input）主题适配：干掉白底/黑底错乱 */
 /* 外层容器及所有 div/span 强制背景色，避免 Streamlit 某层 wrapper 白底 */
 [data-testid="stChatInput"],
-[data-testid="stChatInputContainer"],
+[data-testid="stChatInputContainer"] {{
+  background: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+}}
 [data-testid="stChatInput"] form,
 [data-testid="stChatInput"] form > div,
 [data-testid="stChatInput"] > div,
 [data-testid="stChatInput"] > div > div,
 [data-testid="stChatInput"] > div > div > div,
 [data-testid="stChatInput"] div,
-[data-testid="stChatInput"] span:not([data-testid*="Icon"]) {{
+[data-testid="stChatInput"] span:not([data-testid*="Icon"]):not([data-baseweb="textarea"]) {{
   background: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+}}
+[data-testid="stChatInput"] [data-baseweb],
+[data-testid="stChatInput"] [data-baseweb] * {{
+  background: var(--input-bg) !important;
+  color: var(--input-txt) !important;
   border-color: var(--input-border) !important;
 }}
 [data-testid="stChatInput"] {{
@@ -160,8 +169,13 @@ def _theme_css(dark: bool) -> str:
   padding: 0 !important;
 }}
 [data-testid="stChatInput"] textarea,
+[data-testid="stChatInput"] textarea:focus,
+[data-testid="stChatInput"] .stTextArea textarea,
+[data-testid="stChatInput"] .stTextArea textarea:focus,
+[data-testid="stChatInputTextArea"] textarea,
+[data-testid="stChatInputTextArea"] textarea:focus,
 [data-testid="stChatInput"] input,
-[data-testid="stChatInputTextArea"] textarea {{
+[data-testid="stChatInput"] input:focus {{
   background: var(--input-bg) !important;
   color: var(--input-txt) !important;
   border: none !important;

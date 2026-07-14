@@ -21,6 +21,7 @@ from modules.cleaner import DataCleaner
 from modules.visualizer import Visualizer
 from modules.search_ui import stock_search_input, multi_stock_search_input
 from modules.technical import full_analysis as technical_full_analysis
+from modules.signal import SignalEngine
 from modules.session import require_auth, render_user_badge, api_kline
 from modules.visualizer import UP_COLOR, DOWN_COLOR
 
@@ -278,24 +279,66 @@ if data_ok and df is not None:
     st.markdown("---")
     st.subheader("🧭 技术面分析")
     try:
+        # 多周期技术画像（短期/中期/长期/综合）
+        profile = SignalEngine().technical_profile(df)
+        short = profile["short"]
+        mid = profile["mid"]
+        long = profile["long"]
+        composite = profile["composite"]
+
+        # 获取原始涨跌幅
+        latest = df.iloc[-1]
+        r5 = float(latest.get("return_5d", 0.0) or 0.0)
+        r20 = float(latest.get("return_20d", 0.0) or 0.0)
+        r60 = 0.0
+        if len(df) >= 61:
+            r60 = (float(df["close"].iloc[-1]) / float(df["close"].iloc[-61]) - 1) * 100
+
+        # 趋势/动量/量能/形态
         analysis = technical_full_analysis(df)
         trend = analysis.get("trend", {})
         momentum = analysis.get("momentum", {})
         volume_info = analysis.get("volume", {})
-        patterns = analysis.get("patterns", [])
+        patterns = analysis.get("patterns", []) or []
 
-        # 4 个并列子板块
+        # 4 列：短期 / 中期 / 长期 / 综合
+        c1, c2, c3, c4 = st.columns(4)
+
+        # (1) 短期（5日）
+        with c1:
+            st.markdown("**① 短期（5日）**")
+            st.metric(f"{'+' if r5 >= 0 else ''}{r5:.2f}%", f"{short}分")
+            st.caption("🟢 强势" if short >= 65 else ("🔴 偏弱" if short <= 40 else "⚪ 中性"))
+
+        # (2) 中期（20日）
+        with c2:
+            st.markdown("**② 中期（20日）**")
+            st.metric(f"{'+' if r20 >= 0 else ''}{r20:.2f}%", f"{mid}分")
+            st.caption("🟢 强势" if mid >= 65 else ("🔴 偏弱" if mid <= 40 else "⚪ 中性"))
+
+        # (3) 长期（60日）
+        with c3:
+            st.markdown("**③ 长期（60日）**")
+            st.metric(f"{'+' if r60 >= 0 else ''}{r60:.2f}%", f"{long}分")
+            st.caption("🟢 强势" if long >= 65 else ("🔴 偏弱" if long <= 40 else "⚪ 中性"))
+
+        # (4) 综合评分
+        with c4:
+            st.markdown("**④ 综合评分**")
+            st.metric(f"{composite}/100", f"{'看多' if composite >= 65 else ('看空' if composite <= 40 else '观望')}")
+            st.caption("短/中/长期加权")
+
+        # 第二行：均线/趋势、动量、量能、K线形态
         c1, c2, c3, c4 = st.columns(4)
 
         # (1) 均线 / 趋势状态
         with c1:
-            st.markdown("**① 均线 / 趋势**")
+            st.markdown("**均线 / 趋势**")
             if "error" not in trend:
                 arr = trend.get("arrangement", "—")
                 color = "🟢" if trend.get("trend_score", 50) >= 60 else ("🔴" if trend.get("trend_score", 50) <= 40 else "⚪")
                 st.markdown(f"{color} **{arr}**")
                 st.caption(trend.get("trend_label", ""))
-                # 均线数值
                 ma_vals = trend.get("ma_values", {})
                 ma_text = "  ".join(f"MA{w}={v:.2f}" for w, v in ma_vals.items())
                 st.caption(ma_text or "—")
@@ -304,7 +347,7 @@ if data_ok and df is not None:
 
         # (2) 动量 / 涨跌幅
         with c2:
-            st.markdown("**② 动量 / 涨跌幅**")
+            st.markdown("**动量 / 涨跌幅**")
             if "error" not in momentum:
                 rets = momentum.get("returns", {})
                 st.markdown(f"**{momentum.get('momentum_label', '—')}**")
@@ -315,7 +358,7 @@ if data_ok and df is not None:
 
         # (3) 量能分析
         with c3:
-            st.markdown("**③ 量能分析**")
+            st.markdown("**量能分析**")
             if "error" not in volume_info:
                 ratio = volume_info.get("vol_ratio", 1.0)
                 st.markdown(f"**{volume_info.get('volume_price_label', '—')}**")
@@ -334,7 +377,7 @@ if data_ok and df is not None:
 
         # (4) K线形态
         with c4:
-            st.markdown("**④ K线形态（近10日）**")
+            st.markdown("**K线形态（近10日）**")
             if patterns:
                 for p in patterns[:5]:
                     icon = "🟢" if p.get("bias") == "看涨" else ("🔴" if p.get("bias") == "看跌" else "⚪")
@@ -346,17 +389,13 @@ if data_ok and df is not None:
 
         # 综合解读
         st.markdown("")
-        score_trend = trend.get("trend_score", 50) if "error" not in trend else 50
-        score_mom = momentum.get("momentum_score", 50) if "error" not in momentum else 50
-        score_vol = volume_info.get("volume_price_score", 50) if "error" not in volume_info else 50
-        composite = int((score_trend + score_mom + score_vol) / 3)
         if composite >= 65:
             verdict = "🟢 整体偏多，可关注"
-        elif composite >= 45:
+        elif composite >= 40:
             verdict = "⚪ 多空平衡，观望为主"
         else:
             verdict = "🔴 整体偏空，谨慎参与"
-        st.info(f"**综合评分 {composite}/100** · {verdict}")
+        st.info(f"**综合评分 {composite}/100** · 短期 {short} / 中期 {mid} / 长期 {long} · {verdict}")
 
     except Exception as e:
         import traceback as _tb

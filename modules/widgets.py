@@ -415,7 +415,7 @@ def render_ai_consultant() -> None:
     # 标题 + 清空对话按钮 同一行
     head_col1, head_col2 = st.columns([5, 1])
     with head_col1:
-        st.markdown("#### ★ 星辰 · 多市场智能股票分析师")
+        st.markdown(f"#### {STAR_AI_LOGO(20)} 星辰 · 多市场智能股票分析师", unsafe_allow_html=True)
     with head_col2:
         if st.session_state["ai_chat"]:
             if st.button("🗑️", key="ai_clear_chat", help="清空对话"):

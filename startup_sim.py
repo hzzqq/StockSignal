@@ -59,6 +59,22 @@ def flush_log():
         print(f"[warn] 写日志失败: {e}")
 
 
+# ---------------------------------------------------------------- 启动前清理 pycache
+# 避免模块源码已更新但 Python 仍加载旧的 __pycache__，导致 ImportError/运行时行为异常
+def clean_pycache(root: str = HERE) -> int:
+    removed = 0
+    for dirpath, dirnames, _ in os.walk(root):
+        if "__pycache__" in dirnames:
+            p = os.path.join(dirpath, "__pycache__")
+            try:
+                import shutil
+                shutil.rmtree(p, ignore_errors=True)
+                removed += 1
+            except Exception:
+                pass
+    return removed
+
+
 # ---------------------------------------------------------------- 1) 解析 Python
 def _decode(b):
     if isinstance(b, bytes):
@@ -279,6 +295,12 @@ def main():
         log("[结论] 启动模拟失败：无可用 Python")
         flush_log()
         return 1
+
+    # 清理旧 pycache，避免模块源码已更新但运行时仍加载旧字节码
+    log("--- [1.5/6] 清理 __pycache__ 缓存 ---")
+    n = clean_pycache(HERE)
+    log(f"已清理 {n} 个 __pycache__ 目录")
+
     # 子进程使用普通 python 解释器（与已验证可用的配置一致），
     # 靠 CREATE_NO_WINDOW 标志消除控制台窗口；CREATE_NEW_PROCESS_GROUP
     # 让它们独立于启动窗口，关闭任何窗口都不会杀死服务。
