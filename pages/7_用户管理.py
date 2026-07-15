@@ -10,7 +10,8 @@ from modules.admin_api import get_users, create_user, update_user, delete_user, 
 init_session_state()
 require_admin()
 
-st.set_page_config(page_title="用户管理", page_icon="👥", layout="wide")
+from modules.ui_theme import apply_page_config
+apply_page_config(page_title="用户管理", page_icon="👥", layout="wide")
 st.session_state["_active_page"] = __file__
 st.title("👥 用户管理")
 render_user_badge()

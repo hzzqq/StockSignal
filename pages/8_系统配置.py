@@ -23,7 +23,8 @@ CONFIG_LABELS = {
 init_session_state()
 require_admin()
 
-st.set_page_config(page_title="系统配置", page_icon="⚙️", layout="wide")
+from modules.ui_theme import apply_page_config
+apply_page_config(page_title="系统配置", page_icon="⚙️", layout="wide")
 st.session_state["_active_page"] = __file__
 st.title("⚙️ 系统配置")
 render_user_badge()

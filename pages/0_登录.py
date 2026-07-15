@@ -13,7 +13,8 @@ import jwt as _jwt
 from modules.session import init_session_state, is_authenticated, set_auth, clear_auth, safe_switch_page, API_BASE
 from modules.widgets import password_strength
 
-st.set_page_config(page_title="登录", page_icon="🔐", layout="centered")
+from modules.ui_theme import apply_page_config
+apply_page_config(page_title="登录", page_icon="🔐", layout="centered")
 st.session_state["_active_page"] = __file__
 init_session_state()
 

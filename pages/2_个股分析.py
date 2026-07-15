@@ -13,7 +13,8 @@ import numpy as np
 from datetime import datetime, timedelta
 
 # ── 前置：本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）──
-st.set_page_config(page_title="个股分析", page_icon="🔍", layout="wide")
+from modules.ui_theme import apply_page_config
+apply_page_config(page_title="个股分析", page_icon="🔍", layout="wide")
 st.session_state["_active_page"] = __file__
 
 from modules.fetcher import StockFetcher
@@ -210,7 +211,7 @@ def _calc_trade_levels(current_price: float, df: pd.DataFrame, support: float, r
 # 股票选择（侧边栏，复用 行情看板 的交互）
 # ══════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.header("分析标的")
+    st.header("分析目标")
     ticker = stock_search_input(
         label="股票搜索",
         key="analysis_stock",
@@ -233,7 +234,13 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 # ══════════════════════════════════════════════════════════════
 # 分析计算：把全部结果打包成 dict，便于写入 session_state 实现跨页保留
 # ══════════════════════════════════════════════════════════════
-# ── 生成分析按钮：置于蓝色「决策仪表盘」顶部区域 ──
+# ── 生成分析按钮：置于蓝色「决策仪表盘」主区，蓝色卡片容器使其在视觉上属于该区域 ──
+st.markdown(
+    '<div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);'
+    'border-radius:14px;padding:14px 16px;margin:4px 0 14px;'
+    'box-shadow:0 8px 24px rgba(79,70,229,.22)">',
+    unsafe_allow_html=True,
+)
 if st.button("🔍 生成分析", type="primary", use_container_width=True, key="gen_analysis_top"):
     task_id, err = submit_task_with_error("analysis", {"ticker": ticker})
     if task_id:
@@ -249,6 +256,7 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True, key=
                 st.switch_page("pages/0_登录.py")
         else:
             st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
+st.markdown('</div>', unsafe_allow_html=True)
 
 def _run_analysis(ticker: str) -> dict:
     """拉取并构建个股分析所需全部数据；返回含所有渲染变量的 dict。"""
@@ -263,15 +271,45 @@ def _run_analysis(ticker: str) -> dict:
     except Exception:
         industry = "—"
 
-    # ── 实时行情（后端优先，本地兜底）──
-    quote_src = "本地 fetcher"
-    rt = api_quote(ticker)
-    if rt is None:
+    # ── 并行拉取：实时行情 / 日线 / 新闻（三者相互独立，并发以降低总耗时）──
+    today = datetime.now().date()
+    start_str = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+    end_str = today.strftime("%Y-%m-%d")
+
+    import concurrent.futures as _cf
+
+    def _fetch_quote():
+        r = api_quote(ticker)
+        if isinstance(r, dict) and r.get("current"):
+            return r, "后端 API"
         try:
-            rt = fetcher.get_realtime_quote(ticker)
-            quote_src = "新浪财经"
+            return fetcher.get_realtime_quote(ticker), "新浪财经"
         except Exception:
-            rt = None
+            return None, "本地 fetcher"
+
+    def _fetch_kline():
+        try:
+            _records = api_kline(ticker, start=start_str, end=end_str)
+            if _records is None:
+                return fetcher.get_daily(ticker, start=start_str, end=end_str), "本地四级降级链"
+            return pd.DataFrame(_records), "后端 API"
+        except Exception:
+            return fetcher.get_daily(ticker, start=start_str, end=end_str), "本地四级降级链"
+
+    def _fetch_news():
+        try:
+            return NewsFetcher().fetch(keyword=display_name, source="auto", limit=50)
+        except Exception:
+            return pd.DataFrame(columns=["date", "title", "content", "source", "url"])
+
+    with _cf.ThreadPoolExecutor(max_workers=3) as _ex:
+        _fq = _ex.submit(_fetch_quote)
+        _fk = _ex.submit(_fetch_kline)
+        _fn = _ex.submit(_fetch_news)
+        rt, quote_src = _fq.result()
+        df, data_src = _fk.result()
+        news_df = _fn.result()
+
     if isinstance(rt, dict) and rt.get("current"):
         current_price = float(rt["current"])
         prev_close = float(rt.get("prev_close") or current_price)
@@ -281,22 +319,6 @@ def _run_analysis(ticker: str) -> dict:
         current_price = None
         change_pct = 0.0
 
-    # ── 日线行情（后端优先，本地兜底）──
-    today = datetime.now().date()
-    start_str = (today - timedelta(days=365)).strftime("%Y-%m-%d")
-    end_str = today.strftime("%Y-%m-%d")
-    data_src = "后端 API"
-    try:
-        _records = api_kline(ticker, start=start_str, end=end_str)
-        if _records is None:
-            data_src = "本地四级降级链"
-            df = fetcher.get_daily(ticker, start=start_str, end=end_str)
-        else:
-            df = pd.DataFrame(_records)
-    except Exception as e:
-        st.warning(f"⚠️ 行情获取失败，尝试本地兜底：{str(e)[:80]}")
-        data_src = "本地四级降级链"
-        df = fetcher.get_daily(ticker, start=start_str, end=end_str)
     df = DataCleaner.full_pipeline(df)
 
     # ── 技术面 ──
@@ -316,20 +338,25 @@ def _run_analysis(ticker: str) -> dict:
     macro_score = float(signal.get("macro_score", 50))
     vol_score = float(volume_info.get("volume_price_score", 50)) if "error" not in volume_info else 50.0
 
-    # 综合评分（四维加权，参考文档：技术指标30% / 新闻情绪25% / 资金量能25% / 市场环境20%）
-    composite = int(round(
-        tech_score * 0.30 + news_score * 0.25 + vol_score * 0.25 + macro_score * 0.20
-    ))
+    # 综合评分（重新设计的总评规则，避免「各项都>70 总评却 65」的割裂感）：
+    # 1) 基础加权（权重透明：技术面30% / 新闻情绪25% / 资金量能25% / 市场环境20%）；
+    # 2) 一致性约束：若四维彼此接近（极差≤20），取「加权值」与「四维均值」的较大者，
+    #    保证信号一致时总评不会因加权被压低到明显低于可见分项；
+    # 3) 短板缓冲：总评不低于「最弱维度−8」，避免单一弱项把整体过度拉低、与可见信号严重背离。
+    _dims = [tech_score, news_score, vol_score, macro_score]
+    _w = [0.30, 0.25, 0.25, 0.20]
+    _weighted = sum(d * w for d, w in zip(_dims, _w))
+    _dim_avg = sum(_dims) / 4
+    _dim_min, _dim_max = min(_dims), max(_dims)
+    _base = _weighted
+    if _dim_max - _dim_min <= 20:
+        _base = max(_weighted, _dim_avg)  # 信号一致 → 总评不低于各维度均值
+    _floor = _dim_min - 8                  # 短板缓冲
+    composite = int(round(max(_base, _floor)))
     composite = max(0, min(100, composite))
     verdict, verdict_color, verdict_cls = _verdict_color(composite)
 
-    # ── 新闻 / 情绪 ──
-    try:
-        news_df = NewsFetcher().fetch(keyword=display_name, source="auto", limit=50)
-    except Exception as e:
-        st.warning(f"⚠️ 新闻抓取失败：{str(e)[:80]}")
-        news_df = pd.DataFrame(columns=["date", "title", "content", "source", "url"])
-
+    # ── 新闻 / 情绪（news_df 已在并行拉取阶段获取）──
     sa = SentimentAnalyzer()
     news_rows = []
     pos_n = neg_n = neu_n = 0

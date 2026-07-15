@@ -84,6 +84,37 @@ class Watchlist(db.Model):
     __table_args__ = (db.UniqueConstraint("user_id", "stock_code", name="uq_user_stock"),)
 
 
+# ------------------------------------------------------------------ PriceAlert
+class PriceAlert(db.Model):
+    """用户自选股价格预警（涨/跌到目标价提醒）。"""
+    __tablename__ = "price_alert"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    stock_code = db.Column(db.String(16), nullable=False, index=True)
+    stock_name = db.Column(db.String(64), default="")
+    condition = db.Column(db.String(8), nullable=False, default="above")  # above / below
+    target_price = db.Column(db.Float, nullable=False)
+    active = db.Column(db.Boolean, default=True)
+    triggered = db.Column(db.Boolean, default=False)
+    triggered_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "stock_code": self.stock_code,
+            "stock_name": self.stock_name,
+            "condition": self.condition,
+            "target_price": self.target_price,
+            "active": self.active,
+            "triggered": self.triggered,
+            "triggered_at": self.triggered_at.isoformat() if self.triggered_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 # ------------------------------------------------------------------ SystemConfig
 class SystemConfig(db.Model):
     """系统键值配置，管理员可在线编辑。"""

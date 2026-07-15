@@ -21,11 +21,11 @@ import re
 import time
 import streamlit as st
 
-st.set_page_config(page_title="🌟 星辰 AI", page_icon="🌟", layout="wide")
+apply_page_config(page_title="🌟 星辰 AI", page_icon="🌟", layout="wide")
 st.session_state["_active_page"] = __file__
 
 from modules.session import require_auth, get_user
-from modules.ui_theme import _theme_is_dark
+from modules.ui_theme import _theme_is_dark, apply_page_config
 from modules.starfield_theme import inject_plotly_dark, UP_COLOR, DOWN_COLOR
 from modules.background_tasks import submit_task_with_error, poll_task, get_chat_history, save_chat_history
 from modules.widgets import _slim_context
@@ -142,9 +142,13 @@ def _theme_css(dark: bool) -> str:
 /* 聊天输入框（st.chat_input）主题适配：干掉白底/黑底错乱 */
 /* 外层容器及所有 div/span 强制背景色，避免 Streamlit 某层 wrapper 白底 */
 [data-testid="stChatInput"],
-[data-testid="stChatInputContainer"] {{
+[data-testid="stBottom"],
+[data-testid="stBottomBlockContainer"] {{
   background: var(--input-bg) !important;
   border-color: var(--input-border) !important;
+}}
+[data-testid="stBottomBlockContainer"] {{
+  border-top: 1px solid var(--border) !important;
 }}
 [data-testid="stChatInput"] form,
 [data-testid="stChatInput"] form > div,

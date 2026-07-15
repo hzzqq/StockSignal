@@ -6,7 +6,8 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="多股对比", page_icon="📊", layout="wide")
+from modules.ui_theme import apply_page_config
+apply_page_config(page_title="多股对比", page_icon="📊", layout="wide")
 
 # 本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）
 st.session_state["_active_page"] = __file__

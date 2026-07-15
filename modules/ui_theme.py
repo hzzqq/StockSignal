@@ -1243,6 +1243,40 @@ def _theme_is_dark() -> bool:
     return st.session_state.get("theme_mode", "light") == "dark"
 
 
+# Streamlit 原生主题字典：让 DataFrame(Glide 画布)、baseweb 下拉框、聊天输入框等
+# 原生组件在暗夜模式下自动渲染深色。这些组件的颜色由 Streamlit 原生主题驱动，
+# 仅靠自定义 CSS 无法改变画布单元格底色 / baseweb 内联样式，因此同步原生 theme
+# 是从根本上修复「暗夜模式下表格 / 下拉 / 输入框仍为白底」的方案。
+STREAMLIT_THEME_LIGHT = {
+    "base": "light",
+    "primaryColor": "#4f46e5",
+    "backgroundColor": "#ffffff",
+    "secondaryBackgroundColor": "#f4f6fb",
+    "textColor": "#1e293b",
+    "font": "sans serif",
+}
+STREAMLIT_THEME_DARK = {
+    "base": "dark",
+    "primaryColor": "#667eea",
+    "backgroundColor": "#0f0f23",
+    "secondaryBackgroundColor": "#1a1a2e",
+    "textColor": "#e2e8f0",
+    "font": "sans serif",
+}
+
+
+def apply_page_config(page_title: str, page_icon: str = "📈", layout: str = "wide") -> None:
+    """统一页面配置：根据全局 theme_mode 同步 Streamlit 原生主题。
+
+    必须在每个页面最顶部（任何其它 st.xxx 之前）调用。等价于 st.set_page_config，
+    但额外注入 theme，使 DataFrame / 下拉框 / 聊天输入框等原生组件跟随暗夜 / 白天模式。
+    theme_mode 在首次加载（未切换过）时回落到 light，符合「默认白天」约定；
+    用户一旦在右上角切换暗夜，session_state 中 theme_mode=dark，切页后原生主题即跟随变暗。
+    """
+    theme = STREAMLIT_THEME_DARK if _theme_is_dark() else STREAMLIT_THEME_LIGHT
+    st.set_page_config(page_title=page_title, page_icon=page_icon, layout=layout, theme=theme)
+
+
 def apply_theme() -> None:
     """注入全局润色 CSS（暗色/亮色）并设置 Plotly 模板。"""
     if _theme_is_dark():
