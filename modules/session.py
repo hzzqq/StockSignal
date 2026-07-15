@@ -26,6 +26,8 @@ Streamlit 跨页面 / 跨刷新持久化登录态。
 from __future__ import annotations
 import os
 import json
+import time
+import jwt
 import streamlit as st
 import requests
 
@@ -143,7 +145,10 @@ def _sync_query_params() -> None:
             qp[QP_TOKEN] = token
         user = st.session_state.get(KEY_USER)
         if user is not None:
-            u_str = json.dumps(user, ensure_ascii=False)
+            # 头像体积大（base64），不写进 URL，避免地址栏爆掉；
+            # 刷新后由 /api/auth/me 重新拉取（见 get_avatar_data_url）。
+            u_safe = {k: v for k, v in user.items() if k != "avatar"}
+            u_str = json.dumps(u_safe, ensure_ascii=False)
             if qp.get(QP_USER) != u_str:
                 qp[QP_USER] = u_str
     except Exception as e:
@@ -202,6 +207,8 @@ def set_auth(token: str, user: dict) -> None:
     """登录 / 注册成功时调用：写入 session_state + URL query_params + 浏览器 localStorage。"""
     st.session_state[KEY_TOKEN] = token
     st.session_state[KEY_USER] = user
+    # 应用后端保存的偏好（按账号），覆盖默认值，实现「换设备也不丢设置」
+    _apply_user_settings(user)
     try:
         st.query_params[QP_TOKEN] = token
         st.query_params[QP_USER] = json.dumps(user, ensure_ascii=False)
@@ -271,14 +278,48 @@ def _sync_prefs_query_params() -> None:
         print(f"[session] _sync_prefs_query_params error: {e}")
 
 
+def _apply_user_settings(user: dict | None) -> None:
+    """把后端返回的用户偏好（theme_mode / font_size）应用到当前会话，覆盖默认值。"""
+    settings = (user or {}).get("settings")
+    if not isinstance(settings, dict):
+        return
+    if settings.get("theme_mode") in ("dark", "light"):
+        st.session_state["theme_mode"] = settings["theme_mode"]
+    if settings.get("font_size"):
+        st.session_state["font_size"] = settings["font_size"]
+
+
+def push_settings_to_backend() -> None:
+    """把当前偏好（主题/字号）按账号推到后端。失败静默忽略（用裸 requests，不触发自动登出）。"""
+    token = get_token()
+    if not token:
+        return
+    try:
+        prefs = _current_prefs()
+        requests.post(
+            f"{API_BASE}/api/auth/settings",
+            json={"settings": prefs},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=3,
+        )
+    except Exception:
+        pass
+
+
 def persist_prefs() -> None:
-    """偏好变更后调用：写入浏览器 localStorage（关闭浏览器兜底）+ 回写 URL query_params。"""
+    """偏好变更后调用：写入浏览器 localStorage（关闭浏览器兜底）+ 回写 URL query_params + 同步后端。"""
     try:
         from .prefs_persist import save_prefs
         save_prefs(_current_prefs())
     except Exception as e:
         print(f"[session] persist_prefs localStorage error: {e}")
     _sync_prefs_query_params()
+    # 按账号持久化到后端（换设备/清缓存也不丢）；失败静默忽略
+    if is_authenticated():
+        try:
+            push_settings_to_backend()
+        except Exception:
+            pass
 
 
 def get_token() -> str | None:
@@ -290,7 +331,23 @@ def get_user() -> dict | None:
 
 
 def is_authenticated() -> bool:
-    return bool(st.session_state.get(KEY_TOKEN))
+    """检查是否已登录，并在本地校验 JWT 是否过期。
+
+    仅检查 token 存在会导致「token 已过期但前端仍显示登录」的不一致。
+    这里用 PyJWT 无签名验证地解析 exp，过期则统一清理登录态。
+    """
+    token = st.session_state.get(KEY_TOKEN)
+    if not token:
+        return False
+    try:
+        payload = jwt.decode(token, options={"verify_signature": False})
+        exp = payload.get("exp")
+        if exp and isinstance(exp, (int, float)) and int(exp) < int(time.time()):
+            clear_auth()
+            return False
+        return True
+    except Exception:
+        return False
 
 
 def auth_headers() -> dict:
@@ -479,7 +536,11 @@ def get_avatar_path(username: str | None = None) -> str | None:
 
 
 def save_avatar(username: str, file_bytes: bytes, ext: str = "png") -> str:
-    """保存用户头像到本地，返回路径。会先清除旧头像。"""
+    """保存用户头像到本地，返回路径。会先清除旧头像。
+
+    注：自 Batch（头像持久化）起，头像的权威存储是后端 users.avatar 列；
+    本地文件仅作为「后端不可用时」的离线兜底。
+    """
     import glob
     safe = "".join(c for c in str(username) if c.isalnum() or c in "_-")
     for old in glob.glob(os.path.join(_avatar_dir(), f"{safe}.*")):
@@ -493,18 +554,72 @@ def save_avatar(username: str, file_bytes: bytes, ext: str = "png") -> str:
     return path
 
 
+def render_avatar(target, avatar_value, width: int = 64) -> None:
+    """
+    渲染头像：优先 base64 data URL（后端按账号存储），回退本地文件路径。
+    target 为 st.sidebar / st。失败静默跳过，避免一个坏图炸掉整页。
+    """
+    try:
+        if isinstance(avatar_value, str) and avatar_value.startswith("data:image/"):
+            import base64
+            import io
+            _, b64 = avatar_value.split(",", 1)
+            target.image(io.BytesIO(base64.b64decode(b64)), width=width)
+        elif avatar_value:
+            target.image(avatar_value, width=width)
+    except Exception:
+        pass
+
+
+def get_avatar_data_url() -> str | None:
+    """返回当前用户头像的 base64 data URL（来自后端，按账号持久化）。
+
+    会话内若暂无头像（如刷新后 URL 未带 avatar 字段），则向后端 /api/auth/me
+    补拉一次并缓存，保证「刷新 / 跨页」后头像不丢失。无头像返回 None。
+    """
+    user = get_user() or {}
+    avatar = user.get("avatar")
+    if avatar:
+        return avatar
+    # 本次会话已确认过无头像 / 已拉取过，避免每帧重复请求后端
+    if st.session_state.get("_avatar_checked"):
+        return None
+    if is_authenticated():
+        refreshed = _refresh_user_from_backend()
+        st.session_state["_avatar_checked"] = True
+        if refreshed and refreshed.get("avatar"):
+            return refreshed["avatar"]
+    return None
+
+
+def set_avatar_data_url(data_url: str) -> None:
+    """把后端返回的头像 data URL 写回当前会话（含 URL 回写，但不写 avatar 进 URL）。"""
+    user = st.session_state.get(KEY_USER)
+    if isinstance(user, dict):
+        user["avatar"] = data_url
+    st.session_state["_avatar_checked"] = True
+    _sync_query_params()
+
+
+def save_avatar_to_backend(data_url: str, timeout: int = 5) -> dict:
+    """把头像 base64 data URL 保存到后端（按账号持久化）。返回后端响应 dict。"""
+    return api_post("/api/auth/avatar", {"avatar": data_url}, timeout=timeout)
+
+
+def _refresh_user_from_backend() -> dict | None:
+    """调 /api/auth/me 重新拉取最新 user（含 avatar）。"""
+    return _verify_token(get_token())
+
+
 def render_user_badge(sidebar: bool = True) -> None:
     """在侧边栏/顶栏渲染当前用户头像 + 用户名 + 退出登录按钮。"""
     user = get_user() or {}
     username = user.get("username", "?")
     role_cn = "管理员" if user.get("role") == "admin" else "普通用户"
     target = st.sidebar if sidebar else st
-    avatar = get_avatar_path(username)
-    if avatar:
-        try:
-            target.image(avatar, width=64)
-        except Exception:
-            pass
+    _avatar = get_avatar_data_url() or get_avatar_path(username)
+    if _avatar:
+        render_avatar(target, _avatar, width=64)
     target.markdown(f"**👤 {username} · {role_cn}**")
     if target.button("🚪 退出登录", key="logout_btn"):
         clear_auth()

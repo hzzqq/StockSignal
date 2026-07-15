@@ -310,14 +310,19 @@ class SignalEngine:
     # ------------------------------------------------------------------
     # 板块相对强度得分 (0-100)
     # ------------------------------------------------------------------
-    def sector_relative_score(self, keywords, df=None, date=None):
+    def sector_relative_score(self, keywords, df=None, date=None, sector_name=None):
         """
         板块相对强度得分 0-100：个股中期表现 vs 所属行业板块。
         行业强 + 个股领涨 → 高分；行业弱 + 个股滞涨 → 低分。
         用于「信号归因·五维雷达」的第五维（板块）。
+
+        :param sector_name: 股票真实所属行业名（如"白酒"），优先用此名匹配板块；
+                            未提供时退化为 keywords 匹配。
         """
-        # 用全部行业关键词做 OR 匹配（概念词/行业名都在候选），提升命中率
+        # 优先用真实行业名匹配；没有再用事件关键词兜底
         kws = [k.strip() for k in (keywords or []) if k.strip()]
+        if sector_name and str(sector_name).strip():
+            kws = [str(sector_name).strip()]
         if not kws:
             return 55
         try:
@@ -339,7 +344,8 @@ class SignalEngine:
             if df is not None and not df.empty:
                 r20 = float(df.iloc[-1].get("return_20d", 0) or 0)
             rel = r20 - sector_chg
-            score = 50 + rel * 2.5 + sector_chg * 1.0
+            # 板块维度：一半看板块绝对强度（行业好则加分），一半看个股相对强度
+            score = 50 + rel * 2.0 + sector_chg * 2.0
             return self._clamp(score)
         except Exception:
             return 55
@@ -347,11 +353,12 @@ class SignalEngine:
     # ------------------------------------------------------------------
     # 综合评分
     # ------------------------------------------------------------------
-    def evaluate(self, ticker, event_keywords, date=None):
+    def evaluate(self, ticker, event_keywords, date=None, sector_name=None):
         """
         综合评估单只股票的事件驱动得分。
         :param ticker: 股票代码
-        :param event_keywords: 事件关键词列表
+        :param event_keywords: 事件关键词列表（用于事件库/新闻匹配）
+        :param sector_name: 真实所属行业名（如"白酒"），用于板块相对强度计算
         :param date: 评估日期
         :return: dict {price_score, event_score, macro_score, sector_score,
                           technical_profile, total}
@@ -375,7 +382,7 @@ class SignalEngine:
 
         e_score = self.event_score(ticker, event_keywords, date)
         m_score = self.macro_score(date)
-        s_score = self.sector_relative_score(event_keywords, df, date)
+        s_score = self.sector_relative_score(event_keywords, df, date, sector_name=sector_name)
 
         w = self.weights
         total = int(p_score * w["price"] + e_score * w["event"] + m_score * w["macro"])

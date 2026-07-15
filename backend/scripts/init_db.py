@@ -27,12 +27,14 @@ from backend.app import create_app       # noqa: E402
 from backend.extensions import db        # noqa: E402
 from backend.models import User, SystemConfig  # noqa: E402
 from backend.scripts.migrate_add_asset_type import migrate as migrate_asset_type  # noqa: E402
+from backend.scripts.migrate_add_avatar import migrate as migrate_avatar  # noqa: E402
+from backend.scripts.migrate_add_settings import migrate as migrate_settings  # noqa: E402
 
 
 _DEFAULT_CONFIGS = [
     {"key": "cache_days", "value": "7", "description": "行情缓存天数"},
     {"key": "cache_hours_today", "value": "6", "description": "当日数据缓存小时数"},
-    {"key": "jwt_expires_seconds", "value": "3600", "description": "JWT 过期时间（秒）"},
+    {"key": "jwt_expires_seconds", "value": "604800", "description": "JWT 过期时间（秒）"},
     {"key": "default_page_size", "value": "50", "description": "默认分页大小"},
     {"key": "search_limit", "value": "15", "description": "股票搜索最大返回数"},
 ]
@@ -44,6 +46,10 @@ def main() -> None:
         db.create_all()
         # 历史库无 asset_type 列时自动补列（向后兼容）
         migrate_asset_type(app)
+        # 历史库无 avatar 列时自动补列（向后兼容）
+        migrate_avatar(app)
+        # 历史库无 settings 列时自动补列（向后兼容）
+        migrate_settings(app)
 
         seeds = [
             {"username": "admin", "password": "Admin@123", "role": "admin"},

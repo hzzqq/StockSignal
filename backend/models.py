@@ -9,6 +9,7 @@ backend/models.py
 - OperationLog 操作审计日志
 """
 from __future__ import annotations
+import json
 from datetime import datetime
 from werkzeug.security import check_password_hash, generate_password_hash
 from .extensions import db
@@ -24,6 +25,8 @@ class User(db.Model):
     role = db.Column(db.String(16), nullable=False, default="user")  # user / admin
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+    avatar = db.Column(db.Text, nullable=True)  # 头像数据 URL（base64），按用户持久化
+    settings = db.Column(db.Text, nullable=True)  # 用户偏好 JSON（主题/字号等），按账号持久化
 
     def set_password(self, raw: str) -> None:
         self.password_hash = generate_password_hash(raw, method="pbkdf2:sha256")
@@ -33,6 +36,17 @@ class User(db.Model):
             return False
         return check_password_hash(self.password_hash, raw)
 
+    @staticmethod
+    def _settings_dict(raw) -> dict:
+        """把 settings 列（JSON 文本）安全解析为 dict。"""
+        if not raw:
+            return {}
+        try:
+            v = json.loads(raw)
+            return v if isinstance(v, dict) else {}
+        except Exception:
+            return {}
+
     def to_public(self) -> dict:
         """对外可见字段——绝不返回 password_hash。"""
         return {
@@ -41,6 +55,8 @@ class User(db.Model):
             "role": self.role,
             "created_at": self.created_at.isoformat() + "Z",
             "is_active": self.is_active,
+            "avatar": self.avatar,
+            "settings": User._settings_dict(self.settings),
         }
 
 

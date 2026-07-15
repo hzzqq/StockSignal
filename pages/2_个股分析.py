@@ -25,7 +25,7 @@ from modules.news import NewsFetcher, SentimentAnalyzer
 from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
 from modules.session import init_session_state, require_auth, render_user_badge, api_kline, api_quote
 from modules.search_ui import stock_search_input
-from modules.ui_theme import dashboard_sf_css
+from modules.ui_theme import dashboard_sf_css, _theme_is_dark
 from modules.background_tasks import submit_task_with_error, poll_task
 
 # 配色常量（对齐参考文档 002947 白天版 .sf-*：绿涨 / 红跌 / 琥珀中性）
@@ -1026,13 +1026,15 @@ def _render_analysis(R: dict):
             fillcolor="rgba(102,126,234,0.25)",
             name="信号强度",
         ))
+        # ★ 交付包 v4 · 功能 D：暗夜模式雷达坐标轴文字/网格可见性修复。
+        # 复用 canonical 配色（暗夜 polar 轴 tickfont=#94a3b8，不再用 #1e293b 深字），
+        # 套用后保留卡片透明底，与 .sf-card 深空背景一致。
+        from modules.dark_text_fix import apply_plotly_theme
+        dark = _theme_is_dark()
+        apply_plotly_theme(radar_fig, dark=dark)
         radar_fig.update_layout(
-            polar=dict(
-                radialaxis=dict(range=[0, 100], gridcolor="#e5e7eb", tickfont=dict(color="#64748b")),
-                bgcolor="rgba(0,0,0,0)",
-                angularaxis=dict(gridcolor="#e5e7eb", tickfont=dict(color="#1e293b")),
-            ),
             paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
             height=440,
             margin=dict(l=40, r=40, t=20, b=20),
         )

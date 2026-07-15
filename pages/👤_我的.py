@@ -7,7 +7,7 @@ import streamlit as st
 import requests
 from datetime import datetime
 
-from modules.session import require_auth, render_user_badge, safe_switch_page, API_BASE, get_user, get_token, persist_prefs, get_avatar_path, save_avatar
+from modules.session import require_auth, render_user_badge, safe_switch_page, API_BASE, get_user, get_token, persist_prefs, get_avatar_path, save_avatar, get_avatar_data_url, set_avatar_data_url, save_avatar_to_backend, render_avatar
 from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT
 
 from modules.ui_theme import apply_page_config
@@ -245,9 +245,11 @@ col1, col2 = st.columns([1, 3])
 with col1:
     st.markdown("### 🧑‍💼 当前用户")
     _username = user.get("username", "-")
-    _avatar = get_avatar_path(_username)
-    if _avatar:
-        st.image(_avatar, width=96, caption="当前头像")
+    _cur_avatar = get_avatar_data_url() or get_avatar_path(_username)
+    if _cur_avatar:
+        render_avatar(st, _cur_avatar, width=96)
+        if get_avatar_data_url():
+            st.caption("✅ 云端头像（按账号保存）")
     else:
         st.markdown(
             "<div style='width:96px;height:96px;border-radius:50%;background:#E5E7EB;"
@@ -255,20 +257,36 @@ with col1:
             unsafe_allow_html=True,
         )
     _up = st.file_uploader(
-        "上传头像（png/jpg/jpeg，建议方形）",
+        "上传头像（png/jpg/jpeg，建议方形，≤3MB）",
         type=["png", "jpg", "jpeg"],
         key="avatar_uploader",
-        help="上传后立即生效，并显示在左侧边栏个人区。",
+        help="上传后点击保存，头像会按账号保存到后端，刷新 / 换设备也不会丢失。",
     )
     if _up is not None:
         if st.button("💾 保存头像", key="save_avatar_btn", use_container_width=True):
             try:
+                import base64
                 ext = (_up.name.rsplit(".", 1)[-1] or "png").lower()
                 if ext == "jpeg":
                     ext = "jpg"
-                save_avatar(_username, _up.getvalue(), ext=ext)
-                st.success("✅ 头像已更新")
-                st.rerun()
+                content = _up.getvalue()
+                if len(content) > 3_000_000:
+                    st.error("图片过大，请压缩到 3MB 以内再上传。")
+                else:
+                    data_url = f"data:image/{ext};base64," + base64.b64encode(content).decode("ascii")
+                    res = save_avatar_to_backend(data_url)
+                    if isinstance(res, dict) and res.get("status") == "ok":
+                        set_avatar_data_url(data_url)
+                        save_avatar(_username, content, ext=ext)  # 本地缓存兜底
+                        st.success("✅ 头像已按账号保存到云端，刷新后依然在。")
+                        st.rerun()
+                    else:
+                        # 后端不可用：退化为本地保存（仅本机本会话可靠）
+                        save_avatar(_username, content, ext=ext)
+                        set_avatar_data_url(data_url)
+                        _msg = (res or {}).get("message", "未知错误") if isinstance(res, dict) else "后端无响应"
+                        st.warning(f"⚠️ 后端保存失败（{_msg}），已暂存本地；重启后端后可能丢失。")
+                        st.rerun()
             except Exception as e:
                 st.error(f"保存失败：{e}")
     st.markdown(f"**用户名：** {_username}")

@@ -22,7 +22,9 @@ class Config:
 
     # JWT
     JWT_ALGORITHM = "HS256"
-    JWT_EXPIRES_SECONDS = int(os.environ.get("JWT_EXPIRES_SECONDS", "3600"))  # 1 小时
+    # 默认 7 天：本地演示环境浏览器常驻，避免长时间停留后被迫重新登录。
+    # 可通过环境变量 JWT_EXPIRES_SECONDS 覆盖（生产建议缩短）。
+    JWT_EXPIRES_SECONDS = int(os.environ.get("JWT_EXPIRES_SECONDS", "604800"))  # 7 天
     JWT_HEADER = "Authorization"
     JWT_PREFIX = "Bearer "
 

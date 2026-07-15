@@ -14,6 +14,7 @@ import warnings
 import urllib.request
 import urllib.error
 import urllib.parse
+import contextlib
 from datetime import datetime, timedelta
 import concurrent.futures as _cf
 
@@ -735,6 +736,25 @@ class StockFetcher:
     四级降级链：akshare -> BaoStock -> 新浪 -> 东方财富(urllib) -> 缓存兜底
     """
 
+    @staticmethod
+    @contextlib.contextmanager
+    def _ak_ssl_context():
+        """临时关闭 requests.Session 的 SSL 验证，用于 akshare 在代理/证书环境异常时。
+
+        部分数据源（东方财富 push2）在本地系统代理后会触发 SSLCertVerificationError，
+        本上下文管理器只在该次请求内把 verify 设为 False，退出后恢复，避免污染全局。
+        """
+        import urllib3
+        import requests
+        urllib3.disable_warnings()
+        _orig = requests.Session.get
+        requests.Session.get = lambda self, url, **kwargs: _orig(self, url, verify=False, **kwargs)
+        try:
+            yield
+        finally:
+            requests.Session.get = _orig
+
+
     # ── 类级别股票库缓存（所有实例共享，只加载一次）──
     _stock_df = None          # DataFrame(code, name)
     _name_to_code = {}        # {name: code} 精确映射
@@ -1187,10 +1207,27 @@ class StockFetcher:
     # ══════════════════════════════════════════════════════
     # 实时五档行情（新浪，短时缓存）
     # ══════════════════════════════════════════════════════
+    # 常见指数代码 -> 新浪前缀（000001 是上证指数，不是股票）
+    _INDEX_SINA_PREFIX = {
+        "000001": "sh", "000016": "sh", "000010": "sh", "000009": "sh",
+        "000300": "sh", "000688": "sh", "000905": "sh",
+        "399001": "sz", "399006": "sz", "399005": "sz", "399300": "sz",
+        "399673": "sz", "399006": "sz", "399102": "sz", "399103": "sz",
+    }
+
+    def _get_sina_prefix(self, ticker: str) -> str:
+        """根据 6 位代码返回新浪市场前缀 sh/sz，正确处理指数代码。"""
+        if ticker in self._INDEX_SINA_PREFIX:
+            return self._INDEX_SINA_PREFIX[ticker]
+        code_int = int(ticker) if ticker.isdigit() else 0
+        if 600000 <= code_int <= 609999 or 688000 <= code_int <= 689999 or 510000 <= code_int <= 589999:
+            return "sh"
+        return "sz"
+
     def get_realtime_quote(self, ticker):
         """
-        获取 A 股实时五档行情。
-        数据源：新浪财经（需要 Referer）。
+        获取 A 股/指数实时五档行情。
+        数据源：新浪财经（需要 Referer）。指数代码同样支持。
         返回字典，包含：
           - name: 股票名称
           - open, prev_close, current, high, low
@@ -1217,9 +1254,7 @@ class StockFetcher:
                 return cached
 
             # 构造新浪代码
-            code_int = int(ticker) if ticker.isdigit() else 0
-            prefix = "sh" if (600000 <= code_int <= 609999 or 688000 <= code_int <= 689999) else "sz"
-            sina_code = f"{prefix}{ticker}"
+            sina_code = f"{self._get_sina_prefix(ticker)}{ticker}"
 
             url = f"https://hq.sinajs.cn/list={sina_code}"
             req = urllib.request.Request(
@@ -2269,6 +2304,45 @@ class StockFetcher:
             return df
         finally:
             conn.close()
+
+    # ══════════════════════════════════════════════════════
+    # 指数日内 1 分钟 K 线（用于行情看板指数卡片展示当天走势）
+    # ══════════════════════════════════════════════════════
+    def get_index_minute(self, symbol="000001", trade_date=None):
+        """
+        获取指数当日 1 分钟 K 线，返回 DataFrame[time, open, close, high, low, volume]。
+        失败返回 None；网络/证书异常时内部降级为 None，由调用方使用日线/OHLC 兜底。
+        """
+        if not _AK_OK:
+            return None
+        if trade_date is None:
+            trade_date = datetime.now().strftime("%Y%m%d")
+        try:
+            with StockFetcher._ak_ssl_context():
+                df = ak.index_zh_a_hist_min_em(symbol=symbol, period="1", start_date=trade_date, end_date=trade_date)
+            if df is None or df.empty:
+                return None
+            df = df.copy()
+            df.columns = [str(c).strip() for c in df.columns]
+            col_map = {
+                "时间": "time",
+                "开盘": "open",
+                "收盘": "close",
+                "最高": "high",
+                "最低": "low",
+                "成交量": "volume",
+                "成交额": "amount",
+                "振幅": "amplitude",
+            }
+            df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+            for c in ["open", "close", "high", "low", "volume"]:
+                if c in df.columns:
+                    df[c] = pd.to_numeric(df[c], errors="coerce")
+            df["time"] = df["time"].astype(str)
+            return df.reset_index(drop=True)
+        except Exception as e:
+            print(f"[StockFetcher] 指数分钟线失败 {symbol}: {type(e).__name__}")
+            return None
 
     # ══════════════════════════════════════════════════════
     # 板块数据（三级降级链 + 实时缓存）

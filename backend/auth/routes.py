@@ -6,6 +6,7 @@ auth/routes.py
 from __future__ import annotations
 from flask import Blueprint, request, g
 from sqlalchemy import select, func
+from ..extensions import db
 from ..utils.response import ok, fail
 from ..utils.errors import ValidationError
 from ..utils.ratelimit import is_allowed, make_key
@@ -90,6 +91,50 @@ def register():
 def me():
     """返回当前登录用户。"""
     return ok(data=g.current_user.to_public())
+
+
+@bp.post("/avatar")
+@jwt_required
+def save_avatar():
+    """
+    POST /api/auth/avatar
+    body: {"avatar": "data:image/png;base64,...."}
+    把当前用户头像（base64 data URL）按账号持久化到数据库，
+    刷新 / 换设备 / 重启后端都不会丢失。仅接受 data:image/ 前缀，限制体积。
+    """
+    body = _parse_json()
+    avatar = body.get("avatar")
+    if not isinstance(avatar, str):
+        raise ValidationError("头像数据格式不正确")
+    # base64 后约 3MB（对应原图 ~2.2MB）；过大直接拒绝，避免撑爆 users 表
+    if len(avatar) > 4_000_000:
+        raise ValidationError("头像数据过大，请压缩到 3MB 以内")
+    if not avatar.startswith("data:image/"):
+        raise ValidationError("头像必须是 data:image/ 开头的 base64 图片")
+    g.current_user.avatar = avatar
+    db.session.commit()
+    return ok(data=g.current_user.to_public(), message="头像已保存")
+
+
+@bp.post("/settings")
+@jwt_required
+def save_settings():
+    """
+    POST /api/auth/settings
+    body: {"settings": {"theme_mode": "dark", "font_size": "large", ...}}
+    把当前用户偏好（主题 / 字号等）按账号持久化到数据库，刷新 / 换设备不丢。
+    """
+    import json as _json
+    body = _parse_json()
+    settings = body.get("settings")
+    if not isinstance(settings, dict):
+        raise ValidationError("settings 必须是对象")
+    raw = _json.dumps(settings, ensure_ascii=False)
+    if len(raw) > 10_000:
+        raise ValidationError("设置数据过大")
+    g.current_user.settings = raw
+    db.session.commit()
+    return ok(data=g.current_user.to_public(), message="设置已保存")
 
 
 @bp.post("/logout")

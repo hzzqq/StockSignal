@@ -1374,6 +1374,13 @@ def apply_theme() -> None:
         st.markdown(_LIGHT_CSS, unsafe_allow_html=True)
     # 全局字号：覆盖 html/body/.stApp，使所有页面（含 Streamlit 默认文本）整体缩放
     inject_font_size()
+    # ★ 交付包 v4 · 功能 C：双模按钮配色系统（primary/success/warning/danger/ghost/info × Light/Dark，WCAG AA）
+    # 注意：inject_button_css 的 mode 仅认 "dark"/"auto"/"light" 字符串，布尔会被当作非暗夜、导致暗夜覆盖层不注入。
+    from modules.button_colors import inject_button_css
+    inject_button_css(mode="dark" if _theme_is_dark() else "light")
+    # ★ 交付包 v4 · 功能 D：暗夜模式全量文本可见性修复（6 层文本 + 芯片按钮 + Plotly 轴文字）
+    from modules.dark_text_fix import inject_dark_text_css
+    inject_dark_text_css(mode="dark" if _theme_is_dark() else "light")
     # 全局 ▲ 回到顶部 + C 键清缓存拦截 + 星辰 AI 页 ▼ 回到底部，
     # 三者合并进 inject_scroll_nav 的【单一、且每页唯一可靠执行的】components.html 注入。
     # ▼ 由星辰 AI 对话页的 st.chat_input（testid=stChatInput，全站唯一）驱动出现/消失，

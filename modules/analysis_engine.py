@@ -100,8 +100,18 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher) -> Dict[str, Any]
       - rank/total 该板块在全市场板块中的涨幅排名
     网络不可用时返回基础占位，不抛异常。
     """
+    def _clean_industry(name: str) -> str:
+        """清理东方财富行业名中的罗马数字后缀，使其与板块名对齐。"""
+        if not name:
+            return name
+        # 去掉 Ⅱ、Ⅲ、Ⅰ 等后缀，以及"及其他"
+        for suffix in ["Ⅲ", "Ⅱ", "Ⅰ", "及其他"]:
+            if name.endswith(suffix):
+                name = name[: -len(suffix)]
+        return name.strip()
+
     kws = [k.strip() for k in (industry_kws or "").split(",") if k.strip()]
-    industry = kws[0] if kws else ""
+    industry = _clean_industry(kws[0]) if kws else ""
     out: Dict[str, Any] = {
         "name": industry or "—", "change_pct": None,
         "label": "—", "rank": None, "total": None,
@@ -116,18 +126,32 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher) -> Dict[str, Any]
         chg_col = next((c for c in sectors.columns if "change" in c.lower()), None)
         if chg_col is None:
             return out
-        sec = sectors[sectors[name_col].astype(str).str.contains("|".join(kws), na=False, regex=True)]
+
+        # 1) 精确匹配（清理后）
+        cleaned = sectors[name_col].astype(str).apply(_clean_industry)
+        sec = sectors[cleaned == industry]
+        # 2) 包含匹配
+        if sec.empty:
+            sec = sectors[sectors[name_col].astype(str).str.contains(industry, na=False, regex=False)]
+        # 3) 关键词任一包含
+        if sec.empty:
+            sec = sectors[sectors[name_col].astype(str).str.contains("|".join(kws), na=False, regex=True)]
         if sec.empty:
             sec = sectors[sectors[name_col].astype(str).apply(
                 lambda x: any(k in x for k in kws))]
         if sec.empty:
             return out
+
         chg = float(sec.iloc[0][chg_col])
         out["change_pct"] = chg
         out["label"] = ("领涨" if chg >= 1.5 else "走强" if chg >= 0
                         else "走弱" if chg > -1.5 else "领跌")
         ranked = sectors.sort_values(chg_col, ascending=False).reset_index(drop=True)
-        idx = ranked[ranked[name_col].astype(str).str.contains(industry, na=False)].index
+        sector_full_name = str(sec.iloc[0][name_col])
+        # 排名按清理后的名或全名匹配
+        idx = ranked[cleaned == _clean_industry(sector_full_name)].index
+        if len(idx) == 0:
+            idx = ranked[ranked[name_col].astype(str).str.contains(industry, na=False)].index
         if len(idx):
             out["rank"] = int(idx[0]) + 1
             out["total"] = len(ranked)
@@ -182,11 +206,31 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
     _code, _name = fetcher.get_stock_basic(ticker)
     display_name = _name or stock_name or ticker
 
+    # 真实行业（优先基本面接口，比名称关键词更准）
+    industry = "—"
+    fundamentals = {}
+    try:
+        fundamentals = fetcher.get_fundamentals(ticker)
+        industry = (fundamentals.get("industry") or "").strip() or "—"
+    except Exception as e:
+        messages.append(f"基本面获取失败：{str(e)[:80]}")
+
+    # 与板块列表对齐的清理后行业名（去掉"Ⅱ"/"Ⅲ"/"Ⅰ"/"及其他"）
+    def _clean_industry_name(name: str) -> str:
+        if not name:
+            return name
+        for suffix in ["Ⅲ", "Ⅱ", "Ⅰ", "及其他"]:
+            if name.endswith(suffix):
+                name = name[: -len(suffix)]
+        return name.strip()
+
+    industry_for_sector = _clean_industry_name(industry) if industry != "—" else ""
+
+    # 行业事件关键词（用于事件库/新闻匹配）
     try:
         industry_kws = fetcher.get_stock_keywords(ticker, top_k=3)
-        industry = industry_kws.split(",")[0] if industry_kws else "—"
     except Exception as e:
-        industry = "—"
+        industry_kws = ""
         messages.append(f"行业关键词获取失败：{str(e)[:80]}")
 
     # 实时行情（本地 fetcher 直接拉取，避免后台调用 session.api_quote）
@@ -228,7 +272,10 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
 
     # 信号引擎
     keywords = [k.strip() for k in (industry_kws or "").split(",") if k.strip()] or [display_name]
-    signal = SignalEngine().evaluate(ticker, keywords, date=None)
+    signal = SignalEngine().evaluate(
+        ticker, keywords, date=None,
+        sector_name=(industry_for_sector if industry_for_sector else None)
+    )
 
     tech_score = float(signal.get("price_score", 50))
     news_score = float(signal.get("event_score", 50))
@@ -314,8 +361,8 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
     q_amount = float(rt["amount"]) if isinstance(rt, dict) and rt.get("amount") else None
 
     board = _board(ticker)
-    # 板块分析：主板块 + 实时走势 + 全市场排名
-    sector_analysis = _sector_analysis(industry_kws, fetcher)
+    # 板块分析：主板块 + 实时走势 + 全市场排名（用真实行业名匹配）
+    sector_analysis = _sector_analysis(industry_for_sector if industry_for_sector else industry_kws, fetcher)
 
     if verdict == "看多":
         position_advice = (
