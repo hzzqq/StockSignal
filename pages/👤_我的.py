@@ -7,7 +7,7 @@ import streamlit as st
 import requests
 from datetime import datetime
 
-from modules.session import require_auth, render_user_badge, safe_switch_page, API_BASE, get_user, get_token, persist_prefs
+from modules.session import require_auth, render_user_badge, safe_switch_page, API_BASE, get_user, get_token, persist_prefs, get_avatar_path, save_avatar
 from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT
 
 from modules.ui_theme import apply_page_config
@@ -174,16 +174,104 @@ def render_preferences():
         )
 
     st.markdown("---")
-    with st.expander("📋 当前全部设置一览", expanded=False):
-        import json as _json
-        _summary = {k: st.session_state[k] for k in _SETTINGS_KEYS}
-        st.json(_summary)
+    with st.expander("📋 当前全部设置一览（可直接调节）", expanded=True):
+        st.caption("下方汇总了你的全部个性化设置，均为中文说明，可直接点击按钮或拖动滑块调节，改动即时生效。")
+
+        _theme_cn = "🌙 暗夜模式" if st.session_state.get("theme_mode") == "dark" else "☀️ 白天模式"
+        _font_map = {"small": "小", "medium": "标准", "large": "大", "xlarge": "特大", "xxlarge": "巨大"}
+        _font_cn_val = _font_map.get(st.session_state.get("font_size", "medium"), "标准")
+        _ds_order = st.session_state.get("setting_ds_order") or ["akshare", "BaoStock", "新浪财经", "东方财富"]
+
+        # —— 1. 主题模式（按钮切换）——
+        r1c1, r1c2 = st.columns([0.42, 0.58])
+        with r1c1:
+            st.markdown(f"**🎨 主题模式**　当前：`{_theme_cn}`")
+        with r1c2:
+            b1, b2 = st.columns(2)
+            with b1:
+                if st.button("切到 🌙 暗夜", key="ov_dark", use_container_width=True,
+                             disabled=st.session_state.get("theme_mode") == "dark"):
+                    st.session_state["theme_mode"] = "dark"
+                    persist_prefs(); st.rerun()
+            with b2:
+                if st.button("切到 ☀️ 白天", key="ov_light", use_container_width=True,
+                             disabled=st.session_state.get("theme_mode") != "dark"):
+                    st.session_state["theme_mode"] = "light"
+                    persist_prefs(); st.rerun()
+
+        # —— 2. 字体大小（下拉调节）——
+        r2c1, r2c2 = st.columns([0.42, 0.58])
+        with r2c1:
+            st.markdown(f"**🔤 字体大小**　当前：`{_font_cn_val}`")
+        with r2c2:
+            _ov_font = st.select_slider(
+                "拖动调节字体大小", options=list(_font_map.keys()),
+                value=st.session_state.get("font_size", "medium"),
+                format_func=lambda x: _font_map[x], key="ov_font_size",
+                label_visibility="collapsed",
+            )
+            if _ov_font != st.session_state.get("font_size"):
+                st.session_state["font_size"] = _ov_font
+                persist_prefs(); st.rerun()
+
+        # —— 3. K线默认根数（滑块调节）——
+        r3c1, r3c2 = st.columns([0.42, 0.58])
+        with r3c1:
+            st.markdown(f"**📊 K线默认根数**　当前：`{st.session_state.get('kline_default_count', 120)} 根`")
+        with r3c2:
+            _ov_kc = st.slider("拖动调节 K线默认根数", 20, 500,
+                               int(st.session_state.get("kline_default_count", 120)), step=10,
+                               key="ov_kline_count", label_visibility="collapsed")
+            if _ov_kc != st.session_state.get("kline_default_count"):
+                st.session_state["kline_default_count"] = _ov_kc
+
+        # —— 4. 板块刷新间隔（滑块调节）——
+        r4c1, r4c2 = st.columns([0.42, 0.58])
+        with r4c1:
+            st.markdown(f"**🔄 板块刷新间隔**　当前：`{st.session_state.get('sector_refresh_interval', 60)} 秒`")
+        with r4c2:
+            _ov_ri = st.slider("拖动调节板块刷新间隔", 15, 300,
+                               int(st.session_state.get("sector_refresh_interval", 60)), step=15,
+                               key="ov_refresh_interval", label_visibility="collapsed")
+            if _ov_ri != st.session_state.get("sector_refresh_interval"):
+                st.session_state["sector_refresh_interval"] = _ov_ri
+
+        # —— 5. 数据源优先级（只读展示）——
+        st.markdown(f"**🔧 数据源优先级**　当前顺序：`{' → '.join(_ds_order)}`")
+        st.caption("如需调整数据源顺序，请在上方「🔧 数据源偏好」中拖动选择。")
 
 # ── 个人信息卡片 ──
 col1, col2 = st.columns([1, 3])
 with col1:
     st.markdown("### 🧑‍💼 当前用户")
-    st.markdown(f"**用户名：** {user.get('username', '-')}")
+    _username = user.get("username", "-")
+    _avatar = get_avatar_path(_username)
+    if _avatar:
+        st.image(_avatar, width=96, caption="当前头像")
+    else:
+        st.markdown(
+            "<div style='width:96px;height:96px;border-radius:50%;background:#E5E7EB;"
+            "display:flex;align-items:center;justify-content:center;font-size:44px;'>👤</div>",
+            unsafe_allow_html=True,
+        )
+    _up = st.file_uploader(
+        "上传头像（png/jpg/jpeg，建议方形）",
+        type=["png", "jpg", "jpeg"],
+        key="avatar_uploader",
+        help="上传后立即生效，并显示在左侧边栏个人区。",
+    )
+    if _up is not None:
+        if st.button("💾 保存头像", key="save_avatar_btn", use_container_width=True):
+            try:
+                ext = (_up.name.rsplit(".", 1)[-1] or "png").lower()
+                if ext == "jpeg":
+                    ext = "jpg"
+                save_avatar(_username, _up.getvalue(), ext=ext)
+                st.success("✅ 头像已更新")
+                st.rerun()
+            except Exception as e:
+                st.error(f"保存失败：{e}")
+    st.markdown(f"**用户名：** {_username}")
     st.markdown(f"**角色：** {'管理员' if user.get('role') == 'admin' else '普通用户'}")
     st.markdown(f"**登录时间：** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 

@@ -5,6 +5,7 @@
 """
 import os
 import streamlit as st
+import pandas as pd
 from datetime import datetime, date
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
@@ -67,52 +68,95 @@ else:
 
 st.divider()
 
-# ───────────────────────── 自选股快照 ─────────────────────────
-st.markdown("#### 📌 自选股快照")
+# ───────────────────────── 自选股快照（可折叠） ─────────────────────────
 sc, body = api_get("/api/watchlist")
 watchlist = []
 if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
     watchlist = body.get("data", []) or []
 
-if not watchlist:
-    st.info("自选股为空。先到「我的 / 自选股」添加，晨报才会包含持仓快照。")
-else:
-    snap = []
-    for w in watchlist[:30]:
-        code = w["stock_code"]
-        rt = api_quote(code)
-        if isinstance(rt, dict) and rt.get("current"):
-            cur = float(rt["current"])
-            prev = float(rt.get("prev_close") or cur)
-            chg = (cur - prev) / prev * 100 if prev else 0.0
-            snap.append({
-                "名称": w.get("stock_name") or code,
-                "代码": code,
-                "现价": f"{cur:.2f}",
-                "涨跌%": f"{chg:+.2f}%",
-            })
-        else:
-            snap.append({"名称": w.get("stock_name") or code, "代码": code, "现价": "—", "涨跌%": "—"})
-    if snap:
-        st.dataframe(snap, use_container_width=True, height=320)
+selected_code = None
+selected_name = None
+with st.expander("📌 自选股快照", expanded=True):
+    if not watchlist:
+        st.info("自选股为空。先到「我的 / 自选股」添加，晨报才会包含持仓快照。")
+    else:
+        st.caption("👉 点击表格中某一行，可在下方「相关新闻速览」查看该股票的专属新闻。")
+        snap = []
+        for w in watchlist[:30]:
+            code = w["stock_code"]
+            rt = api_quote(code)
+            name = w.get("stock_name") or code
+            if isinstance(rt, dict) and rt.get("current"):
+                cur = float(rt["current"])
+                prev = float(rt.get("prev_close") or cur)
+                high = float(rt.get("high") or 0)
+                low = float(rt.get("low") or 0)
+                volume = int(rt.get("volume") or 0)
+                amount = float(rt.get("amount") or 0)
+                chg = (cur - prev) / prev * 100 if prev else 0.0
+                change_amt = cur - prev if prev else 0.0
+                amplitude = (high - low) / prev * 100 if prev else 0.0
+                snap.append({
+                    "名称": name, "代码": code, "现价": cur,
+                    "涨跌额": change_amt, "涨跌%": chg,
+                    "振幅%": amplitude, "成交量": volume, "成交额": amount,
+                })
+            else:
+                snap.append({"名称": name, "代码": code, "现价": None, "涨跌额": None, "涨跌%": None, "振幅%": None, "成交量": None, "成交额": None})
+        if snap:
+            snap_df = pd.DataFrame(snap)
+            event = st.dataframe(
+                snap_df,
+                use_container_width=True,
+                height=320,
+                on_select="rerun",
+                selection_mode="single-row",
+                key="morning_snap",
+                column_config={
+                    "现价": st.column_config.NumberColumn(format="¥%.2f"),
+                    "涨跌额": st.column_config.NumberColumn(format="%.2f"),
+                    "涨跌%": st.column_config.NumberColumn(format="%.2f%%"),
+                    "振幅%": st.column_config.NumberColumn(format="%.2f%%"),
+                    "成交量": st.column_config.NumberColumn(format="%d"),
+                    "成交额": st.column_config.NumberColumn(format="%.0f"),
+                },
+            )
+            try:
+                sel_rows = event.selection.rows if event and event.selection else []
+            except Exception:
+                sel_rows = []
+            if sel_rows:
+                r = snap_df.iloc[sel_rows[0]]
+                selected_code = str(r["代码"])
+                selected_name = str(r["名称"])
 
 st.divider()
 
-# ───────────────────────── 相关新闻 ─────────────────────────
-st.markdown("#### 📰 相关新闻速览")
-if watchlist:
-    names = [w.get("stock_name") or w["stock_code"] for w in watchlist[:8]]
-    try:
-        news_df = NewsFetcher().fetch(keyword=" ".join(names), source="auto", limit=15)
-    except Exception:
-        news_df = None
-    if news_df is not None and not news_df.empty:
-        for _, r in news_df.head(10).iterrows():
-            st.markdown(f"- {r.get('date','')}  **{r.get('title','')}**  _{r.get('source','')}_")
+# ───────────────────────── 相关新闻速览（可折叠，按选中股票过滤） ─────────────────────────
+_news_title = f"📰 相关新闻速览 — {selected_name}（{selected_code}）" if selected_code else "📰 相关新闻速览"
+with st.expander(_news_title, expanded=bool(selected_code)):
+    if not watchlist:
+        st.info("添加自选股后，此处展示相关新闻。")
+    elif not selected_code:
+        st.info("👆 请在上方「自选股快照」中点击某一行，查看该股票的相关新闻。")
     else:
-        st.info("暂无相关新闻。")
-else:
-    st.info("添加自选股后，此处展示相关新闻。")
+        with st.spinner(f"加载 {selected_name} 相关新闻…"):
+            try:
+                news_df = NewsFetcher().fetch(keyword=selected_name, source="auto", limit=15)
+            except Exception:
+                news_df = None
+        if news_df is not None and not news_df.empty:
+            for _, r in news_df.head(12).iterrows():
+                title = r.get("title", "")
+                url = r.get("url") or r.get("link") or ""
+                date_s = r.get("date", "")
+                source_s = r.get("source", "")
+                if url:
+                    st.markdown(f"- {date_s}  **[{title}]({url})**  _{source_s}_")
+                else:
+                    st.markdown(f"- {date_s}  **{title}**  _{source_s}_")
+        else:
+            st.info(f"暂无与 {selected_name} 相关的新闻。")
 
 st.divider()
 

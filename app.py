@@ -109,7 +109,7 @@ modules = [
         "title": "我的",
         "icon": "👤",
         "desc": "个人信息、自选股、偏好设置、外观与数据源配置",
-        "page": "pages/6_我的.py",
+        "page": "pages/👤_我的.py",
         "admin": False,
     },
     {
@@ -117,6 +117,13 @@ modules = [
         "icon": "📡",
         "desc": "实时跟踪自选股现价与涨跌幅，并行拉取、红涨绿跌",
         "page": "pages/C_自选股监控.py",
+        "admin": False,
+    },
+    {
+        "title": "股吧",
+        "icon": "💬",
+        "desc": "社区讨论：发表观点与文章、评论点赞，可关联个股一键跳转",
+        "page": "pages/D_股吧.py",
         "admin": False,
     },
     {

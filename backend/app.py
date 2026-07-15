@@ -44,6 +44,7 @@ def create_app(config_object: type = Config) -> Flask:
     from .api.chat_routes import bp as chat_bp
     from .api.alert_routes import bp as alert_bp
     from .api.stock_tag_routes import bp as stock_tag_bp
+    from .api.forum_routes import bp as forum_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(admin_bp)
@@ -54,6 +55,7 @@ def create_app(config_object: type = Config) -> Flask:
     app.register_blueprint(chat_bp)
     app.register_blueprint(alert_bp)
     app.register_blueprint(stock_tag_bp)
+    app.register_blueprint(forum_bp)
 
     # ---- 全局错误处理：把任何出口都锁回 JSON ----
     _register_error_handlers(app)

@@ -459,12 +459,53 @@ def api_save_user_score(code: str, score: int, name: str = "") -> dict:
     return body if isinstance(body, dict) else {}
 
 
+def _avatar_dir() -> str:
+    """头像本地存储目录：<项目根>/data/avatars。"""
+    d = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "avatars")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def get_avatar_path(username: str | None = None) -> str | None:
+    """返回当前用户的头像文件路径（存在则返回，否则 None）。"""
+    if username is None:
+        username = (get_user() or {}).get("username")
+    if not username:
+        return None
+    import glob
+    safe = "".join(c for c in str(username) if c.isalnum() or c in "_-")
+    matches = glob.glob(os.path.join(_avatar_dir(), f"{safe}.*"))
+    return matches[0] if matches else None
+
+
+def save_avatar(username: str, file_bytes: bytes, ext: str = "png") -> str:
+    """保存用户头像到本地，返回路径。会先清除旧头像。"""
+    import glob
+    safe = "".join(c for c in str(username) if c.isalnum() or c in "_-")
+    for old in glob.glob(os.path.join(_avatar_dir(), f"{safe}.*")):
+        try:
+            os.remove(old)
+        except Exception:
+            pass
+    path = os.path.join(_avatar_dir(), f"{safe}.{ext.lstrip('.')}")
+    with open(path, "wb") as f:
+        f.write(file_bytes)
+    return path
+
+
 def render_user_badge(sidebar: bool = True) -> None:
-    """在侧边栏/顶栏渲染当前用户 + 退出登录按钮。"""
+    """在侧边栏/顶栏渲染当前用户头像 + 用户名 + 退出登录按钮。"""
     user = get_user() or {}
-    label = f"👤 {user.get('username', '?')} · {user.get('role', '?')}"
+    username = user.get("username", "?")
+    role_cn = "管理员" if user.get("role") == "admin" else "普通用户"
     target = st.sidebar if sidebar else st
-    target.markdown(f"**{label}**")
+    avatar = get_avatar_path(username)
+    if avatar:
+        try:
+            target.image(avatar, width=64)
+        except Exception:
+            pass
+    target.markdown(f"**👤 {username} · {role_cn}**")
     if target.button("🚪 退出登录", key="logout_btn"):
         clear_auth()
         safe_switch_page("pages/0_登录.py")

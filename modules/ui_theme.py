@@ -977,6 +977,31 @@ h3 {
     box-shadow: 0 0 0 3px rgba(184,134,11,0.15) !important;
 }
 
+/* 白天模式：数字输入框 +/- 步进按钮改为浅色（默认为深色，视觉突兀） */
+.stNumberInput button,
+[data-testid="stNumberInput"] button,
+[data-testid="stNumberInputStepUp"],
+[data-testid="stNumberInputStepDown"] {
+    background: #F3F4F6 !important;
+    color: #374151 !important;
+    border: none !important;
+    border-left: 1px solid #E5E7EB !important;
+}
+.stNumberInput button:hover,
+[data-testid="stNumberInput"] button:hover,
+[data-testid="stNumberInputStepUp"]:hover,
+[data-testid="stNumberInputStepDown"]:hover {
+    background: #E5E7EB !important;
+    color: #111827 !important;
+}
+.stNumberInput button svg,
+[data-testid="stNumberInput"] button svg,
+[data-testid="stNumberInputStepUp"] svg,
+[data-testid="stNumberInputStepDown"] svg {
+    fill: #374151 !important;
+    color: #374151 !important;
+}
+
 label,
 [data-baseweb="label"],
 [data-baseweb="form-label"],

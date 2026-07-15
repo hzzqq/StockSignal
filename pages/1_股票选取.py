@@ -356,6 +356,92 @@ if data_ok and df is not None:
             verdict = "🔴 整体偏空，谨慎参与"
         st.info(f"**综合评分 {composite}/100** · 短期 {short} / 中期 {mid} / 长期 {long} · {verdict}")
 
+        # ── 📊 量化指标（RSI / MACD / KDJ / BOLL） ──
+        st.markdown("---")
+        st.subheader("📊 量化指标")
+
+        def _calc_quant_indicators(d: pd.DataFrame) -> dict:
+            close = pd.to_numeric(d["close"], errors="coerce")
+            high = pd.to_numeric(d["high"], errors="coerce")
+            low = pd.to_numeric(d["low"], errors="coerce")
+            out = {}
+            # RSI(14)
+            try:
+                delta = close.diff()
+                gain = delta.clip(lower=0).rolling(14).mean()
+                loss = (-delta.clip(upper=0)).rolling(14).mean()
+                rs = gain / loss.replace(0, 1e-9)
+                out["rsi"] = float((100 - 100 / (1 + rs)).iloc[-1])
+            except Exception:
+                out["rsi"] = None
+            # MACD(12,26,9)
+            try:
+                ema12 = close.ewm(span=12, adjust=False).mean()
+                ema26 = close.ewm(span=26, adjust=False).mean()
+                dif = ema12 - ema26
+                dea = dif.ewm(span=9, adjust=False).mean()
+                out["dif"] = float(dif.iloc[-1])
+                out["dea"] = float(dea.iloc[-1])
+                out["macd"] = float((dif.iloc[-1] - dea.iloc[-1]) * 2)
+            except Exception:
+                out["dif"] = out["dea"] = out["macd"] = None
+            # KDJ(9,3,3)
+            try:
+                low9 = low.rolling(9).min()
+                high9 = high.rolling(9).max()
+                rsv = (close - low9) / (high9 - low9).replace(0, 1e-9) * 100
+                k = rsv.ewm(com=2, adjust=False).mean()
+                dd = k.ewm(com=2, adjust=False).mean()
+                out["k"] = float(k.iloc[-1])
+                out["d"] = float(dd.iloc[-1])
+                out["j"] = float(3 * k.iloc[-1] - 2 * dd.iloc[-1])
+            except Exception:
+                out["k"] = out["d"] = out["j"] = None
+            # BOLL(20,2) 位置
+            try:
+                mid_b = close.rolling(20).mean()
+                std_b = close.rolling(20).std()
+                upper_b = mid_b + 2 * std_b
+                lower_b = mid_b - 2 * std_b
+                rng = (upper_b.iloc[-1] - lower_b.iloc[-1]) or 1e-9
+                out["boll_pct"] = float((close.iloc[-1] - lower_b.iloc[-1]) / rng * 100)
+            except Exception:
+                out["boll_pct"] = None
+            return out
+
+        qi = _calc_quant_indicators(df)
+        qc1, qc2, qc3, qc4 = st.columns(4)
+        with qc1:
+            rsi = qi.get("rsi")
+            if rsi is not None:
+                rsi_tag = "超买" if rsi >= 70 else ("超卖" if rsi <= 30 else "中性")
+                st.metric("RSI(14)", f"{rsi:.1f}", delta=rsi_tag, delta_color="off")
+            else:
+                st.metric("RSI(14)", "—")
+        with qc2:
+            macd = qi.get("macd")
+            if macd is not None:
+                st.metric("MACD 柱", f"{macd:+.3f}",
+                          delta="金叉/多头" if macd >= 0 else "死叉/空头", delta_color="off")
+                st.caption(f"DIF {qi['dif']:+.3f} / DEA {qi['dea']:+.3f}")
+            else:
+                st.metric("MACD 柱", "—")
+        with qc3:
+            k, d, j = qi.get("k"), qi.get("d"), qi.get("j")
+            if k is not None:
+                kdj_tag = "超买" if j >= 100 else ("超卖" if j <= 0 else "中性")
+                st.metric("KDJ", f"K{k:.0f} D{d:.0f}", delta=f"J{j:.0f} · {kdj_tag}", delta_color="off")
+            else:
+                st.metric("KDJ", "—")
+        with qc4:
+            bp = qi.get("boll_pct")
+            if bp is not None:
+                pos = "近上轨" if bp >= 80 else ("近下轨" if bp <= 20 else "轨道中部")
+                st.metric("BOLL 位置", f"{bp:.0f}%", delta=pos, delta_color="off")
+            else:
+                st.metric("BOLL 位置", "—")
+        st.caption("RSI>70 超买 / <30 超卖；MACD 柱>0 多头动能；KDJ J>100 超买、<0 超卖；BOLL 位置=收盘价在布林带内的相对高度。")
+
         # 用户打分
         st.markdown("---")
         st.subheader("⭐ 用户打分")

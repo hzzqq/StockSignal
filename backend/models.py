@@ -229,3 +229,65 @@ class ChatHistory(db.Model):
     )
     messages = db.Column(db.Text, nullable=False, default="[]")  # JSON 数组
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ------------------------------------------------------------------ ForumPost（股吧帖子）
+class ForumPost(db.Model):
+    """股吧帖子 / 文章：用户可发表言论和文章，其他用户可查看、评论。
+
+    可选关联某只股票（stock_code），便于按股票聚合讨论与跳转个股页。
+    """
+    __tablename__ = "forum_posts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    username = db.Column(db.String(64), nullable=False, default="")
+    title = db.Column(db.String(200), nullable=False, default="")
+    content = db.Column(db.Text, nullable=False, default="")
+    stock_code = db.Column(db.String(16), default="", index=True)   # 可选：关联股票代码
+    stock_name = db.Column(db.String(64), default="")
+    likes = db.Column(db.Integer, nullable=False, default=0)
+    views = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self, with_content: bool = True) -> dict:
+        d = {
+            "id": self.id,
+            "user_id": self.user_id,
+            "username": self.username,
+            "title": self.title,
+            "stock_code": self.stock_code or "",
+            "stock_name": self.stock_name or "",
+            "likes": self.likes,
+            "views": self.views,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+        }
+        if with_content:
+            d["content"] = self.content
+        else:
+            d["excerpt"] = (self.content or "")[:80]
+        return d
+
+
+# ------------------------------------------------------------------ ForumComment（股吧评论）
+class ForumComment(db.Model):
+    """股吧帖子的评论。"""
+    __tablename__ = "forum_comments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    post_id = db.Column(db.Integer, db.ForeignKey("forum_posts.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    username = db.Column(db.String(64), nullable=False, default="")
+    content = db.Column(db.Text, nullable=False, default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "post_id": self.post_id,
+            "user_id": self.user_id,
+            "username": self.username,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+        }

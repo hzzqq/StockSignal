@@ -7,14 +7,15 @@
 """
 import streamlit as st
 import concurrent.futures as _cf
+import requests
 import pandas as pd
 from datetime import datetime, timedelta
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import (
-    require_auth, render_user_badge, api_get, api_quote, safe_switch_page,
+    require_auth, render_user_badge, api_get, safe_switch_page, clear_auth,
     api_delete, api_junk_stocks, api_remove_junk_stock, api_user_score,
-    api_save_user_score, api_kline,
+    api_save_user_score, api_kline, get_token, API_BASE,
 )
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
@@ -46,10 +47,25 @@ fetcher = _get_fetcher()
 
 
 def _quote_one(code: str):
-    """并行取单只实时行情：优先后端 /api/quote，失败回退本地 fetcher。"""
-    rt = api_quote(code)
-    if isinstance(rt, dict) and rt.get("current"):
-        return code, rt
+    """并行取单只实时行情：优先后端 /api/quote，失败回退本地 fetcher。
+
+    注意：本函数运行在线程池中，不能调用任何 st.xxx（包括 safe_switch_page），
+    否则会抛出 NoSessionContext。因此认证过期时直接返回 None，由页面级逻辑统一处理。
+    """
+    try:
+        token = get_token()
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        resp = requests.get(f"{API_BASE}/api/quote?ticker={code}", headers=headers, timeout=5)
+        if resp.status_code == 401:
+            return code, {"__auth_error": True}
+        if resp.status_code == 200:
+            body = resp.json()
+            if isinstance(body, dict) and body.get("status") == "ok":
+                data = body.get("data")
+                if isinstance(data, dict) and data.get("current"):
+                    return code, data
+    except Exception:
+        pass
     try:
         q = fetcher.get_realtime_quote(code)
         if isinstance(q, dict) and q.get("current"):
@@ -82,17 +98,35 @@ with st.spinner(f"并行获取 {len(codes)} 只自选股实时行情…"):
         for code, q in ex.map(_quote_one, codes):
             quotes[code] = q
 
+# 线程内遇到 401 时不能直接跳转，统一在此处理
+if any(isinstance(q, dict) and q.get("__auth_error") for q in quotes.values()):
+    clear_auth()
+    st.warning("🔐 登录已过期，请重新登录")
+    st.stop()
+
 rows = []
 for code in codes:
     q = quotes.get(code)
     if q and q.get("current"):
         cur = float(q["current"])
         prev = float(q.get("prev_close") or 0)
+        open_ = float(q.get("open") or 0)
+        high = float(q.get("high") or 0)
+        low = float(q.get("low") or 0)
+        volume = int(q.get("volume") or 0)
+        amount = float(q.get("amount") or 0)
         chg = (cur - prev) / prev * 100 if prev else 0.0
+        change_amt = cur - prev if prev else 0.0
+        amplitude = (high - low) / prev * 100 if prev else 0.0
         name = q.get("name") or names[code]
     else:
-        cur, chg, name = None, None, names[code]
-    rows.append({"code": code, "name": name, "cur": cur, "chg": chg})
+        cur = chg = change_amt = amplitude = volume = amount = None
+        name = names[code]
+    rows.append({
+        "code": code, "name": name, "cur": cur, "chg": chg,
+        "change_amt": change_amt, "amplitude": amplitude,
+        "volume": volume, "amount": amount,
+    })
 
 # ── 渲染监控表 ──
 up_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] >= 0)
@@ -104,26 +138,38 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-for r in rows:
-    c1, c2, c3, c4 = st.columns([3, 2, 2.4, 1.6])
-    with c1:
-        st.markdown(f"**{r['name']}** &nbsp;<code>{r['code']}</code>")
-    with c2:
-        st.markdown(f"**{r['cur']:.2f}**" if r["cur"] is not None else "—")
-    with c3:
-        if r["chg"] is not None:
-            color = _UP if r["chg"] >= 0 else _DOWN
-            arrow = "▲" if r["chg"] >= 0 else "▼"
-            st.markdown(
-                f'<span class="sf-pill" style="color:{color};border-color:{color}55;'
-                f'background:{color}1a;">{arrow} {r["chg"]:+.2f}%</span>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown('<span class="sf-pill mid">行情不可用</span>', unsafe_allow_html=True)
-    with c4:
-        if st.button("诊断", key=f"diag_{r['code']}", use_container_width=True):
-            safe_switch_page("pages/2_个股分析.py")
+if rows:
+    df_rt = pd.DataFrame(rows)
+    display_df = df_rt[["name", "code", "cur", "change_amt", "chg", "amplitude", "volume", "amount"]].copy()
+    display_df.rename(columns={
+        "name": "名称", "code": "代码", "cur": "现价",
+        "change_amt": "涨跌额", "chg": "涨跌%", "amplitude": "振幅%",
+        "volume": "成交量", "amount": "成交额",
+    }, inplace=True)
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        height=max(200, min(480, 40 + len(rows) * 38)),
+        column_config={
+            "现价": st.column_config.NumberColumn(format="¥%.2f"),
+            "涨跌额": st.column_config.NumberColumn(format="%.2f"),
+            "涨跌%": st.column_config.NumberColumn(format="%.2f%%"),
+            "振幅%": st.column_config.NumberColumn(format="%.2f%%"),
+            "成交量": st.column_config.NumberColumn(format="%d"),
+            "成交额": st.column_config.NumberColumn(format="%.0f"),
+        },
+    )
+    # 点击行跳转（用 selectbox 选择）
+    opts = [f"{r['code']} {r['name']}" for r in rows if r['cur'] is not None]
+    if opts:
+        sel = st.selectbox("选择股票查看 K 线", ["— 请选择 —"] + opts, key="watch_rt_jump")
+        if sel and sel != "— 请选择 —":
+            code = sel.split()[0]
+            st.session_state["pick_stock_confirmed"] = code
+            st.session_state["pick_stock_query"] = code
+            safe_switch_page("pages/1_股票选取.py")
+else:
+    st.info("暂无数据。")
 
 st.divider()
 col_a, col_b = st.columns(2)
@@ -154,10 +200,34 @@ def _norm_code(c: str) -> str:
     return c[-6:] if len(c) > 6 else c
 
 
+def _kline_thread_safe(code: str, start: str, end: str, period: str = "daily", adjust: str = "qfq"):
+    """线程安全的 K 线获取：直接走 requests，避免 api_kline 在线程内调 safe_switch_page。"""
+    try:
+        token = get_token()
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        params = f"symbol={code}&start={start}&period={period}&adjust={adjust}"
+        if end:
+            params += f"&end={end}"
+        resp = requests.get(f"{API_BASE}/api/kline?{params}", headers=headers, timeout=8)
+        if resp.status_code == 401:
+            return {"__auth_error": True}
+        if resp.status_code == 200:
+            body = resp.json()
+            if isinstance(body, dict) and body.get("status") == "ok":
+                data = body.get("data")
+                if isinstance(data, list) and data:
+                    return data
+    except Exception:
+        pass
+    return None
+
+
 def _analyze_one(code: str, start: str, end: str):
     """获取单股 K 线并计算技术指标；失败返回 None。"""
     try:
-        records = api_kline(code, start=start, end=end, period="daily", timeout=8)
+        records = _kline_thread_safe(code, start=start, end=end, period="daily")
+        if isinstance(records, dict) and records.get("__auth_error"):
+            return {"__auth_error": True}
         d = pd.DataFrame(records) if records else fetcher.get_kline(code, start=start, end=end, period="daily")
         if d is None or d.empty:
             return None
@@ -201,27 +271,36 @@ def _load_scores_map(codes: list) -> dict:
     return scores
 
 
-def _build_pool_df(codes: list, scores_map: dict) -> pd.DataFrame:
-    """并行计算股票池技术指标。"""
+def _build_pool_df(codes: list, scores_map: dict) -> pd.DataFrame | None:
+    """并行计算股票池技术指标。返回 None 表示线程内检测到 401 认证过期。"""
     end = datetime.now().date()
     start = end - timedelta(days=120)
     start_s, end_s = start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
     rows = []
+    auth_error = False
     with _cf.ThreadPoolExecutor(max_workers=4) as ex:
         futs = {ex.submit(_analyze_one, c, start_s, end_s): c for c in codes}
         for fut in _cf.as_completed(futs):
             res = fut.result()
+            if isinstance(res, dict) and res.get("__auth_error"):
+                auth_error = True
+                continue
             if res:
                 code = res["code"]
                 res["user_score"] = scores_map.get(code)
                 rows.append(res)
+    if auth_error:
+        return None
     if not rows:
         return pd.DataFrame()
     return pd.DataFrame(rows)
 
 
-def _render_pool_table(df: pd.DataFrame, pool_key: str, on_remove):
+def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
     """渲染可排序、可跳转、可改评分的股票池表格。"""
+    if df is None:
+        st.warning("🔐 登录状态已过期，请刷新页面或重新登录。")
+        return
     if df.empty:
         st.info("暂无数据。")
         return

@@ -62,9 +62,9 @@ _INDEX_INFOS = [
 
 
 def render_index_mini_cards(cols_per_row: int = 3) -> None:
-    """在页面顶部渲染上证/深证/创业板的迷你趋势卡片。
+    """在页面顶部渲染上证/深证/创业板的迷你趋势卡片（1:1 列表式）。
 
-    每张卡片包含：指数名称、代码、最新点位、涨跌幅、近 N 日收盘价折线。
+    每行包含：左侧指数名称+代码、中间近 N 日收盘价折线、右侧最新点位+涨跌额+涨跌幅。
     折线颜色按当日涨跌红/绿显示，与 A 股习惯一致（红涨绿跌）。
     """
     import pandas as pd
@@ -73,6 +73,7 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
     from modules.session import api_kline
     from modules.fetcher import StockFetcher
     from modules.visualizer import UP_COLOR, DOWN_COLOR
+    from modules.ui_theme import _theme_is_dark
 
     end = datetime.now().date()
     start = end - timedelta(days=30)
@@ -94,12 +95,13 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
     for info in _INDEX_INFOS:
         df = _load(info["code"])
         if df is None or df.empty or len(df) < 2:
-            cards.append({**info, "current": None, "change_pct": None, "spark": None})
+            cards.append({**info, "current": None, "change": None, "change_pct": None, "spark": None})
             continue
         df["close"] = pd.to_numeric(df["close"], errors="coerce")
         current = float(df["close"].iloc[-1])
         prev = float(df["close"].iloc[-2])
         change_pct = (current / prev - 1) * 100 if prev else 0.0
+        change = current - prev if prev else 0.0
         color = UP_COLOR if change_pct >= 0 else DOWN_COLOR
         fig = go.Figure()
         # Plotly 不接受 #RRGGBBAA，转 rgba
@@ -124,39 +126,43 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
             plot_bgcolor="rgba(0,0,0,0)",
             xaxis={"visible": False},
             yaxis={"visible": False},
-            height=50,
-            width=160,
+            height=55,
+            width=200,
         )
-        cards.append({**info, "current": current, "change_pct": change_pct, "spark": fig, "color": color})
+        cards.append({**info, "current": current, "change": change, "change_pct": change_pct, "spark": fig, "color": color})
 
-    cols = st.columns(cols_per_row)
-    for col, card in zip(cols, cards):
-        with col:
-            with st.container(border=True):
-                c_left, c_mid, c_right = st.columns([0.26, 0.48, 0.26])
-                with c_left:
-                    st.markdown(f"**{card['name']}**")
-                    st.caption(f"{card['label']} {card['code']}")
-                with c_mid:
-                    if card.get("spark"):
-                        st.plotly_chart(card["spark"], use_container_width=True, config={"displayModeBar": False})
-                    else:
-                        st.caption("暂无数据")
-                with c_right:
-                    if card["current"] is not None:
-                        st.markdown(
-                            f"<div style='text-align:right;font-size:20px;font-weight:700;color:{card['color']}';'>"
-                            f"{card['current']:.2f}</div>",
-                            unsafe_allow_html=True,
-                        )
-                        sign = "+" if card["change_pct"] >= 0 else ""
-                        st.markdown(
-                            f"<div style='text-align:right;font-size:12px;color:{card['color']}';font-weight:600;'>"
-                            f"{sign}{card['change_pct']:.2f}%</div>",
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        st.caption("—")
+    dark = _theme_is_dark()
+    card_bg = "rgba(26,26,46,0.55)" if dark else "#FFFFFF"
+    border_color = "rgba(102,126,234,0.12)" if dark else "#E5E7EB"
+    name_color = "#e2e8f0" if dark else "#111827"
+    code_color = "#94a3b8" if dark else "#6B7280"
+
+    for card in cards:
+        with st.container(border=True):
+            c_left, c_mid, c_right = st.columns([0.20, 0.46, 0.34])
+            with c_left:
+                st.markdown(
+                    f"<div style='font-size:15px;font-weight:700;color:{name_color};'>{card['name']}</div>"
+                    f"<div style='font-size:11px;color:{code_color};margin-top:2px;'>{card['label']} {card['code']}</div>",
+                    unsafe_allow_html=True,
+                )
+            with c_mid:
+                if card.get("spark"):
+                    st.plotly_chart(card["spark"], use_container_width=True, config={"displayModeBar": False})
+                else:
+                    st.caption("暂无数据")
+            with c_right:
+                if card["current"] is not None:
+                    sign = "+" if card["change_pct"] >= 0 else ""
+                    st.markdown(
+                        f"<div style='text-align:right;font-size:22px;font-weight:800;color:{card['color']};font-family:Fira Code,monospace;'>"
+                        f"{card['current']:.2f}</div>"
+                        f"<div style='text-align:right;font-size:12px;color:{card['color']};font-weight:600;margin-top:2px;'>"
+                        f"{sign}{card['change']:.2f} ({sign}{card['change_pct']:.2f}%)</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.caption("—")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -242,9 +248,9 @@ def render_topright_bar() -> None:
     from modules.ui_theme import get_current_mode, apply_theme
 
     mode = st.session_state.get("theme_mode", get_current_mode())
-    left, right = st.columns([0.62, 0.38])
+    left, right = st.columns([0.55, 0.45])
     with right:
-        c_ai, c_d, c_l = st.columns([0.56, 0.22, 0.22])
+        c_ai, c_set, c_d, c_l = st.columns([0.46, 0.18, 0.18, 0.18])
         with c_ai:
             # st.popover 原生弹层：任意页面右上角唤起 AI 咨询
             # 触发按钮前的 ★ 字符改为星辰 AI 内联 SVG logo（约 18px，与按钮同行）
@@ -259,6 +265,10 @@ def render_topright_bar() -> None:
                     # 极老版本 Streamlit 无 popover 时兜底：退回侧边栏
                     with st.sidebar:
                         render_ai_consultant()
+        with c_set:
+            # ⚙️ 设置：与 AI / 主题图标同一横轴，点击进入「我的」设置页
+            if st.button("⚙️", key="top_settings", use_container_width=True, help="设置（进入「我的」偏好设置）"):
+                safe_switch_page("pages/👤_我的.py")
         with c_d:
             if st.button(
                 "🌙", key="top_theme_dark", use_container_width=True,
