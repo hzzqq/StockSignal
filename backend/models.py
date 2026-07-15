@@ -163,6 +163,54 @@ class OperationLog(db.Model):
         }
 
 
+# ------------------------------------------------------------------ JunkStock
+class JunkStock(db.Model):
+    """用户标记的「垃圾股」列表（与自选股对称）。"""
+    __tablename__ = "junk_stocks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    stock_code = db.Column(db.String(16), nullable=False, index=True)
+    note = db.Column(db.String(256), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (db.UniqueConstraint("user_id", "stock_code", name="uq_user_junk_stock"),)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "stock_code": self.stock_code,
+            "note": self.note,
+            "created_at": self.created_at.isoformat() + "Z",
+        }
+
+
+# ------------------------------------------------------------------ UserStockScore
+class UserStockScore(db.Model):
+    """用户对单只股票的自定义打分（0–100），在股票选取/自选股/垃圾股表格中展示。"""
+    __tablename__ = "user_stock_scores"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    stock_code = db.Column(db.String(16), nullable=False, index=True)
+    stock_name = db.Column(db.String(64), default="")
+    score = db.Column(db.Integer, nullable=False, default=50)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (db.UniqueConstraint("user_id", "stock_code", name="uq_user_stock_score"),)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "stock_code": self.stock_code,
+            "stock_name": self.stock_name,
+            "score": self.score,
+            "updated_at": self.updated_at.isoformat() + "Z",
+        }
+
+
 # ------------------------------------------------------------------ ChatHistory
 class ChatHistory(db.Model):
     """星辰 AI 对话历史（按用户维度，单条记录）。

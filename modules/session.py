@@ -421,6 +421,44 @@ def _safe_json(resp) -> dict:
         return {"message": f"非 JSON 响应 (HTTP {resp.status_code})"}
 
 
+def api_junk_stocks() -> list:
+    """GET /api/junk-stocks，返回当前用户的垃圾股列表。"""
+    code, body = api_get("/api/junk-stocks", timeout=5)
+    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
+        data = body.get("data")
+        if isinstance(data, list):
+            return data
+    return []
+
+
+def api_add_junk_stock(code: str, note: str = "") -> dict:
+    """POST /api/junk-stocks"""
+    code, body = api_post("/api/junk-stocks", {"stock_code": code, "note": note}, timeout=5)
+    return body if isinstance(body, dict) else {}
+
+
+def api_remove_junk_stock(item_id: int) -> dict:
+    """DELETE /api/junk-stocks/{id}"""
+    code, body = api_delete(f"/api/junk-stocks/{item_id}", timeout=5)
+    return body if isinstance(body, dict) else {}
+
+
+def api_user_score(code: str) -> int | None:
+    """GET /api/user-scores/{code}，返回用户打分或 None。"""
+    code, body = api_get(f"/api/user-scores/{code}", timeout=5)
+    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
+        data = body.get("data")
+        if isinstance(data, dict):
+            return int(data.get("score", 0))
+    return None
+
+
+def api_save_user_score(code: str, score: int, name: str = "") -> dict:
+    """POST /api/user-scores"""
+    code, body = api_post("/api/user-scores", {"stock_code": code, "stock_name": name, "score": score}, timeout=5)
+    return body if isinstance(body, dict) else {}
+
+
 def render_user_badge(sidebar: bool = True) -> None:
     """在侧边栏/顶栏渲染当前用户 + 退出登录按钮。"""
     user = get_user() or {}

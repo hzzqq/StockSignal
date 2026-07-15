@@ -165,6 +165,125 @@ def _section_header(title: str, subtitle: str = "", icon: str = "📊") -> str:
     )
 
 
+def _build_rise_fall_factors(R: dict) -> tuple[list[dict], list[dict]]:
+    """基于分析结果 R 构建上涨/下跌因素列表（含强度 1–3 星）。"""
+    rise, fall = [], []
+    technical_profile = R.get("technical_profile", {}) or {}
+    sector_score = float(R.get("sector_score", 50))
+    volume_info = R.get("volume_info", {}) or {}
+    trend = R.get("trend", {}) or {}
+    momentum = R.get("momentum", {}) or {}
+    current_price = float(R.get("current_price", 0))
+    support = float(R.get("support", 0))
+    resistance = float(R.get("resistance", current_price * 1.1))
+    news_rows = R.get("news", []) or []
+    pos_news = [r for r in news_rows if r.get("sentiment") == "正面"]
+    neg_news = [r for r in news_rows if r.get("sentiment") == "负面"]
+
+    short = float(technical_profile.get("short", 50))
+    mid = float(technical_profile.get("mid", 50))
+    long = float(technical_profile.get("long", 50))
+    composite = float(technical_profile.get("composite", 50))
+    vol_ratio = float(volume_info.get("vol_ratio", 1.0))
+    trend_score = float(trend.get("trend_score", 50))
+    arrangement = trend.get("arrangement", "")
+    rets = momentum.get("returns", {})
+    r5 = float(rets.get("5日", 0))
+    r20 = float(rets.get("20日", 0))
+
+    # 上涨因素
+    if arrangement == "多头排列":
+        rise.append({"title": "均线多头排列", "desc": "短期/中期/长期均线呈多头排列，趋势方向向上。", "stars": 3})
+    elif arrangement == "震荡偏多":
+        rise.append({"title": "均线震荡偏多", "desc": "均线系统总体偏向多头，但尚未完全发散。", "stars": 2})
+    if trend_score >= 60:
+        rise.append({"title": "趋势动能偏强", "desc": f"趋势得分 {trend_score:.0f}，价格运行在强势区间。", "stars": 3 if trend_score >= 75 else 2})
+    if vol_ratio >= 1.3:
+        rise.append({"title": "量能明显放大", "desc": f"量比 {vol_ratio:.2f}，成交量高于近期平均水平，资金关注度提升。", "stars": 3 if vol_ratio >= 2 else 2})
+    if sector_score >= 60:
+        rise.append({"title": "所属板块强势", "desc": f"板块强度得分 {sector_score:.0f}，行业热度居前。", "stars": 3 if sector_score >= 75 else 2})
+    if pos_news:
+        rise.append({"title": "正面新闻催化", "desc": f"检测到 {len(pos_news)} 条正面新闻：{pos_news[0].get('title', '')[:30]}...", "stars": 2})
+    if current_price > 0 and resistance > current_price and (resistance - current_price) / current_price < 0.03:
+        rise.append({"title": "临近压力位", "desc": f"现价 ¥{current_price:.2f} 已接近压力 ¥{resistance:.2f}，突破后有望打开空间。", "stars": 2})
+    if short >= 65 and mid >= 55:
+        rise.append({"title": "短中期共振向上", "desc": f"短期 {short:.0f} 分 / 中期 {mid:.0f} 分，多周期信号共振。", "stars": 3})
+    if r5 > 0 and r20 > 0:
+        rise.append({"title": "近期收益为正", "desc": f"5日 {r5:+.2f}% / 20日 {r20:+.2f}%，短期与中期收益均录得上涨。", "stars": 2 if r5 + r20 < 10 else 3})
+
+    # 下跌因素
+    if arrangement == "空头排列":
+        fall.append({"title": "均线空头排列", "desc": "短期/中期/长期均线呈空头排列，趋势方向向下。", "stars": 3})
+    elif arrangement == "震荡偏空":
+        fall.append({"title": "均线震荡偏空", "desc": "均线系统总体偏向空头，支撑尚不明显。", "stars": 2})
+    if trend_score <= 40:
+        fall.append({"title": "趋势动能偏弱", "desc": f"趋势得分 {trend_score:.0f}，价格运行在弱势区间。", "stars": 3 if trend_score <= 30 else 2})
+    if vol_ratio <= 0.8:
+        fall.append({"title": "量能持续萎缩", "desc": f"量比 {vol_ratio:.2f}，成交量低于近期平均水平，交投清淡。", "stars": 3 if vol_ratio <= 0.5 else 2})
+    if sector_score <= 40:
+        fall.append({"title": "所属板块弱势", "desc": f"板块强度得分 {sector_score:.0f}，行业热度靠后。", "stars": 3 if sector_score <= 30 else 2})
+    if neg_news:
+        fall.append({"title": "负面新闻压制", "desc": f"检测到 {len(neg_news)} 条负面新闻：{neg_news[0].get('title', '')[:30]}...", "stars": 2})
+    if current_price > 0 and support > 0 and current_price < support:
+        fall.append({"title": "跌破支撑位", "desc": f"现价 ¥{current_price:.2f} 已跌破支撑 ¥{support:.2f}，技术形态走弱。", "stars": 3})
+    if short <= 40 and mid <= 50:
+        fall.append({"title": "短中期共振向下", "desc": f"短期 {short:.0f} 分 / 中期 {mid:.0f} 分，多周期信号偏空。", "stars": 3})
+    if r5 < 0 and r20 < 0:
+        fall.append({"title": "近期收益为负", "desc": f"5日 {r5:+.2f}% / 20日 {r20:+.2f}%，短期与中期收益均录得下跌。", "stars": 2 if abs(r5 + r20) < 10 else 3})
+
+    # 若因素过少，补充默认项保证展示不空
+    if not rise:
+        rise.append({"title": "暂无明显上涨驱动", "desc": "当前未检测到强势的做多信号，建议结合大盘与板块综合判断。", "stars": 1})
+    if not fall:
+        fall.append({"title": "暂无明显下跌风险", "desc": "当前未检测到强势的做空信号，但需关注支撑与量能变化。", "stars": 1})
+
+    # 按强度排序
+    rise.sort(key=lambda x: x["stars"], reverse=True)
+    fall.sort(key=lambda x: x["stars"], reverse=True)
+    return rise, fall
+
+
+def _factor_card_html(title: str, factors: list[dict], icon: str) -> str:
+    """按截图 1:1 渲染「上涨/下跌因素拆解（按强度）」卡片。"""
+    if not factors:
+        return ""
+    dark = False  # 该页跟随全局主题，css 变量自适应
+    bg = "var(--card2)"
+    border = "var(--border)"
+    txt = "var(--txt)"
+    txt2 = "var(--txt2)"
+    accent_up = "#009e60"
+    accent_down = "#dc2626"
+    is_up = "上涨" in title
+    accent = accent_up if is_up else accent_down
+    items = []
+    for i, f in enumerate(factors[:8], 1):
+        stars = "★" * f["stars"] + "☆" * (3 - f["stars"])
+        items.append(
+            f'<div style="display:flex;gap:10px;margin-bottom:14px;padding:12px 14px;'
+            f'background:rgba(0,0,0,0.03);border-radius:10px;border-left:3px solid {accent};">'
+            f'<div style="min-width:24px;height:24px;border-radius:50%;background:{accent};'
+            f'color:#fff;display:flex;align-items:center;justify-content:center;'
+            f'font-size:13px;font-weight:700;">{i}</div>'
+            f'<div style="flex:1;">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+            f'<div style="font-size:14px;font-weight:700;color:{txt};">{f["title"]}</div>'
+            f'<div style="font-size:12px;color:{accent};font-weight:700;">强度 {stars}</div>'
+            f'</div>'
+            f'<div style="font-size:12.5px;color:{txt2};line-height:1.6;">{f["desc"]}</div>'
+            f'</div></div>'
+        )
+    return (
+        f'<div style="background:{bg};border:1px solid {border};border-radius:16px;padding:18px;margin-top:18px;">'
+        f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+        f'<div style="font-size:18px;">{icon}</div>'
+        f'<div style="font-size:16px;font-weight:700;color:{txt};">{title}</div>'
+        f'</div>'
+        f'{"".join(items)}'
+        f'</div>'
+    )
+
+
 def _calc_trade_levels(current_price: float, df: pd.DataFrame, support: float, resistance: float):
     """
     基于 ATR 与支撑/压力，计算合理的入场/目标/止损价。
@@ -852,6 +971,14 @@ def _render_analysis(R: dict):
             unsafe_allow_html=True,
         )
     st.markdown("</div>", unsafe_allow_html=True)
+
+    # ════════════ 新增模块：上涨/下跌因素拆解 ════════════
+    rise_factors, fall_factors = _build_rise_fall_factors(R)
+    col_rise, col_fall = st.columns(2)
+    with col_rise:
+        st.markdown(_factor_card_html("上涨因素拆解（按强度）", rise_factors, "📈"), unsafe_allow_html=True)
+    with col_fall:
+        st.markdown(_factor_card_html("下跌因素拆解（按强度）", fall_factors, "📉"), unsafe_allow_html=True)
 
     # ════════════ 模块6：信号归因（四维雷达）══════════
     # ══════════ 新增模块：板块分析 ══════════

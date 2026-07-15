@@ -52,6 +52,113 @@ def STAR_AI_LOGO(size: int = 20) -> str:
 
 
 # ──────────────────────────────────────────────────────────────
+# 三大指数迷你行情卡片（行情看板 / 每日晨报顶部）
+# ──────────────────────────────────────────────────────────────
+_INDEX_INFOS = [
+    {"name": "上证指数", "code": "000001", "label": "指数"},
+    {"name": "深证成指", "code": "399001", "label": "指数"},
+    {"name": "创业板指", "code": "399006", "label": "指数"},
+]
+
+
+def render_index_mini_cards(cols_per_row: int = 3) -> None:
+    """在页面顶部渲染上证/深证/创业板的迷你趋势卡片。
+
+    每张卡片包含：指数名称、代码、最新点位、涨跌幅、近 N 日收盘价折线。
+    折线颜色按当日涨跌红/绿显示，与 A 股习惯一致（红涨绿跌）。
+    """
+    import pandas as pd
+    import plotly.graph_objects as go
+    from datetime import datetime, timedelta
+    from modules.session import api_kline
+    from modules.fetcher import StockFetcher
+    from modules.visualizer import UP_COLOR, DOWN_COLOR
+
+    end = datetime.now().date()
+    start = end - timedelta(days=30)
+    start_str, end_str = start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+
+    def _load(code: str):
+        try:
+            records = api_kline(code, start=start_str, end=end_str, period="daily", timeout=5)
+            if records:
+                return pd.DataFrame(records)
+        except Exception:
+            pass
+        try:
+            return StockFetcher().get_kline(code, start=start_str, end=end_str, period="daily")
+        except Exception:
+            return None
+
+    cards = []
+    for info in _INDEX_INFOS:
+        df = _load(info["code"])
+        if df is None or df.empty or len(df) < 2:
+            cards.append({**info, "current": None, "change_pct": None, "spark": None})
+            continue
+        df["close"] = pd.to_numeric(df["close"], errors="coerce")
+        current = float(df["close"].iloc[-1])
+        prev = float(df["close"].iloc[-2])
+        change_pct = (current / prev - 1) * 100 if prev else 0.0
+        color = UP_COLOR if change_pct >= 0 else DOWN_COLOR
+        fig = go.Figure()
+        # Plotly 不接受 #RRGGBBAA，转 rgba
+        def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+            h = hex_color.lstrip("#")
+            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+            return f"rgba({r},{g},{b},{alpha})"
+
+        fig.add_trace(go.Scatter(
+            x=list(range(len(df))),
+            y=df["close"].tolist(),
+            mode="lines",
+            line={"color": color, "width": 2},
+            fill="tozeroy",
+            fillcolor=_hex_to_rgba(color, 0.13),
+            hoverinfo="skip",
+            showlegend=False,
+        ))
+        fig.update_layout(
+            margin={"l": 0, "r": 0, "t": 0, "b": 0},
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis={"visible": False},
+            yaxis={"visible": False},
+            height=50,
+            width=160,
+        )
+        cards.append({**info, "current": current, "change_pct": change_pct, "spark": fig, "color": color})
+
+    cols = st.columns(cols_per_row)
+    for col, card in zip(cols, cards):
+        with col:
+            with st.container(border=True):
+                c_text, c_chart = st.columns([0.55, 0.45])
+                with c_text:
+                    st.markdown(f"**{card['name']}**")
+                    st.caption(f"{card['label']} {card['code']}")
+                    if card["current"] is not None:
+                        st.markdown(
+                            f"<span style='font-size:20px;font-weight:700;color:{card['color']};'>"
+                            f"{card['current']:.2f}</span>",
+                            unsafe_allow_html=True,
+                        )
+                        sign = "+" if card["change_pct"] >= 0 else ""
+                        st.markdown(
+                            f"<span style='font-size:12px;color:{card['color']};font-weight:600;'>"
+                            f"{sign}{card['change_pct']:.2f}%</span>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.caption("—")
+                with c_chart:
+                    if card.get("spark"):
+                        st.plotly_chart(card["spark"], use_container_width=True, config={"displayModeBar": False})
+                    else:
+                        st.caption("暂无数据")
+
+
+# ──────────────────────────────────────────────────────────────
 # 全局股票搜索
 # ──────────────────────────────────────────────────────────────
 def render_global_search() -> None:
@@ -80,7 +187,7 @@ def render_global_search() -> None:
                         if st.button(label, key=f"search_{item.get('code')}", use_container_width=True):
                             # 记录到「最近浏览」
                             _push_recent(item.get("code"), item.get("name"))
-                            safe_switch_page("pages/1_行情看板.py")
+                            safe_switch_page("pages/1_行情看板_股票选取.py")
                 else:
                     st.caption("无匹配结果")
             else:

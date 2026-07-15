@@ -59,8 +59,15 @@ modules = [
     {
         "title": "行情看板",
         "icon": "📈",
-        "desc": "交互式 K线、均线、成交量、行业热力图与板块涨跌",
+        "desc": "指数迷你卡、行业板块涨跌榜、龙虎榜、相关性矩阵",
         "page": "pages/1_行情看板.py",
+        "admin": False,
+    },
+    {
+        "title": "股票选取",
+        "icon": "🎯",
+        "desc": "参数设置、K线、技术面分析、加入自选/垃圾股、用户打分",
+        "page": "pages/1_行情看板_股票选取.py",
         "admin": False,
     },
     {
@@ -176,7 +183,7 @@ if recent:
     for i, r in enumerate(recent[:4]):
         with rc[i]:
             if st.button(f"{r['code']}\n{r['name']}", key=f"recent_{r['code']}", use_container_width=True):
-                safe_switch_page("pages/1_行情看板.py")
+                safe_switch_page("pages/1_行情看板_股票选取.py")
 
 # 自选股数量 + 未读提醒（调后端）
 try:
@@ -223,7 +230,8 @@ with st.sidebar:
     st.header("导航")
     st.markdown("""
     **功能页面：**
-    - 📈 行情看板（含板块涨跌）— K线、均线、成交量、行业板块
+    - 📈 行情看板 — 指数迷你卡、行业板块涨跌榜、龙虎榜
+    - 🎯 股票选取 — K线、技术面分析、自选/垃圾股、用户打分
     - 🔍 个股分析 — 个股深度决策仪表盘
     - 📊 多股对比 — 同屏横向对比 ≥5 只股票
     - 🔔 事件追踪 — 信号评分、事件时间轴

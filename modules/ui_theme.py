@@ -1202,6 +1202,47 @@ pre {
   color: #ffffff !important;
   font-weight: 600 !important;
 }
+
+/* ===== 亮色模式 Popover 触发按钮（右上角星辰 AI）适配 =====
+   避免白天模式下触发按钮仍使用暗色渐变，导致红圈内黑底看不清。 */
+button[data-testid="stPopoverButton"],
+[data-testid="stPopover"] > button {
+  background: linear-gradient(135deg, #667eea, #764ba2) !important;
+  color: #ffffff !important;
+  border: none !important;
+  font-weight: 600 !important;
+}
+button[data-testid="stPopoverButton"]:hover,
+[data-testid="stPopover"] > button:hover {
+  background: linear-gradient(135deg, #764ba2, #667eea) !important;
+  color: #ffffff !important;
+}
+
+/* ===== MultiSelect 已选标签（均线选择器等）亮色适配 =====
+   Streamlit 1.58+ baseweb 标签默认背景/文字在白天主题下对比不足，
+   统一改成白底浅灰边 + 深色文字，hover 高亮。 */
+.stMultiSelect [data-baseweb="tag"],
+[data-testid="stMultiSelect"] [data-baseweb="tag"] {
+  background: #F3F4F6 !important;
+  color: #111827 !important;
+  border: 1px solid #D1D5DB !important;
+  border-radius: 6px !important;
+}
+.stMultiSelect [data-baseweb="tag"] span,
+[data-testid="stMultiSelect"] [data-baseweb="tag"] span {
+  color: #111827 !important;
+}
+.stMultiSelect [data-baseweb="tag"] svg,
+[data-testid="stMultiSelect"] [data-baseweb="tag"] svg,
+.stMultiSelect [data-baseweb="tag"] path,
+[data-testid="stMultiSelect"] [data-baseweb="tag"] path {
+  fill: #6B7280 !important;
+}
+.stMultiSelect [data-baseweb="tag"]:hover,
+[data-testid="stMultiSelect"] [data-baseweb="tag"]:hover {
+  background: #E5E7EB !important;
+  border-color: #9CA3AF !important;
+}
 </style>
 """
 
