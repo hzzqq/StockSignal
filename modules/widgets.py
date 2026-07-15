@@ -133,29 +133,30 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
     for col, card in zip(cols, cards):
         with col:
             with st.container(border=True):
-                c_text, c_chart = st.columns([0.55, 0.45])
-                with c_text:
+                c_left, c_mid, c_right = st.columns([0.26, 0.48, 0.26])
+                with c_left:
                     st.markdown(f"**{card['name']}**")
                     st.caption(f"{card['label']} {card['code']}")
-                    if card["current"] is not None:
-                        st.markdown(
-                            f"<span style='font-size:20px;font-weight:700;color:{card['color']};'>"
-                            f"{card['current']:.2f}</span>",
-                            unsafe_allow_html=True,
-                        )
-                        sign = "+" if card["change_pct"] >= 0 else ""
-                        st.markdown(
-                            f"<span style='font-size:12px;color:{card['color']};font-weight:600;'>"
-                            f"{sign}{card['change_pct']:.2f}%</span>",
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        st.caption("—")
-                with c_chart:
+                with c_mid:
                     if card.get("spark"):
                         st.plotly_chart(card["spark"], use_container_width=True, config={"displayModeBar": False})
                     else:
                         st.caption("暂无数据")
+                with c_right:
+                    if card["current"] is not None:
+                        st.markdown(
+                            f"<div style='text-align:right;font-size:20px;font-weight:700;color:{card['color']}';'>"
+                            f"{card['current']:.2f}</div>",
+                            unsafe_allow_html=True,
+                        )
+                        sign = "+" if card["change_pct"] >= 0 else ""
+                        st.markdown(
+                            f"<div style='text-align:right;font-size:12px;color:{card['color']}';font-weight:600;'>"
+                            f"{sign}{card['change_pct']:.2f}%</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.caption("—")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -187,7 +188,7 @@ def render_global_search() -> None:
                         if st.button(label, key=f"search_{item.get('code')}", use_container_width=True):
                             # 记录到「最近浏览」
                             _push_recent(item.get("code"), item.get("name"))
-                            safe_switch_page("pages/1_行情看板_股票选取.py")
+                            safe_switch_page("pages/1_股票选取.py")
                 else:
                     st.caption("无匹配结果")
             else:

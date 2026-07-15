@@ -67,7 +67,7 @@ modules = [
         "title": "股票选取",
         "icon": "🎯",
         "desc": "参数设置、K线、技术面分析、加入自选/垃圾股、用户打分",
-        "page": "pages/1_行情看板_股票选取.py",
+        "page": "pages/1_股票选取.py",
         "admin": False,
     },
     {
@@ -183,7 +183,7 @@ if recent:
     for i, r in enumerate(recent[:4]):
         with rc[i]:
             if st.button(f"{r['code']}\n{r['name']}", key=f"recent_{r['code']}", use_container_width=True):
-                safe_switch_page("pages/1_行情看板_股票选取.py")
+                safe_switch_page("pages/1_股票选取.py")
 
 # 自选股数量 + 未读提醒（调后端）
 try:

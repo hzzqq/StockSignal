@@ -5,25 +5,22 @@
 - 从行情看板迁入：参数设置、K 线图、技术面分析。
 - 新增：加入自选股 / 加入垃圾股、用户打分、自选股/垃圾股折叠展示（可排序、可跳转）。
 """
-import concurrent.futures as _cf
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 
 from modules.ui_theme import apply_page_config
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
-from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
+from modules.visualizer import Visualizer
 from modules.search_ui import stock_search_input
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.session import (
     require_auth, render_user_badge, api_kline, api_quote,
-    api_get, api_post, api_delete, api_junk_stocks, api_add_junk_stock,
-    api_remove_junk_stock, api_user_score, api_save_user_score,
+    api_post, api_add_junk_stock, api_user_score, api_save_user_score,
     safe_switch_page, get_user,
 )
-from modules.widgets import render_index_mini_cards
 
 apply_page_config(page_title="股票选取", page_icon="🎯", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -187,20 +184,12 @@ period_label = {"daily": "日K线", "weekly": "周K线", "monthly": "月K线"}[k
 
 
 # ═══════════════════════════════════════════════════════════════
-# 顶部三大指数迷你卡片
-# ═══════════════════════════════════════════════════════════════
-render_index_mini_cards(cols_per_row=3)
-
-
-# ═══════════════════════════════════════════════════════════════
 # 标题栏 + 同轴操作按钮
 # ═══════════════════════════════════════════════════════════════
-hc1, hc2, hc3, hc4 = st.columns([0.28, 0.28, 0.22, 0.22])
+hc1, hc2, hc3 = st.columns([0.4, 0.3, 0.3])
 with hc1:
-    st.subheader(f"🎯 股票选取 · {stock_label}")
+    st.subheader("🎯 股票选取")
 with hc2:
-    st.caption(f"当前代码：{ticker} ｜ 周期：{period_label}")
-with hc3:
     if st.button("➕ 加入自选股", use_container_width=True, key="pick_add_watch"):
         sc, body = api_post("/api/watchlist", {"stock_code": ticker})
         msg = body.get("message") if isinstance(body, dict) else ""
@@ -208,7 +197,7 @@ with hc3:
             st.success("✅ 已加入自选股")
         else:
             st.error(f"加入失败：{body.get('message', '未知错误')}")
-with hc4:
+with hc3:
     if st.button("🗑️ 加入垃圾股", use_container_width=True, key="pick_add_junk"):
         body = api_add_junk_stock(ticker)
         msg = body.get("message", "")
@@ -371,188 +360,22 @@ if data_ok and df is not None:
         st.markdown("---")
         st.subheader("⭐ 用户打分")
         existing_score = api_user_score(ticker)
-        score_val = st.slider("您对该股票的评分（0–100，越高越看好）", 0, 100,
-                              value=existing_score if existing_score is not None else 50,
-                              key="pick_user_score")
-        if st.button("💾 保存评分", key="pick_save_score"):
-            res = api_save_user_score(ticker, score_val, stock_label)
-            if res.get("status") == "ok":
-                st.success(f"✅ 评分已保存：{score_val} 分")
-            else:
-                st.error(f"保存失败：{res.get('message', '未知错误')}")
+        sc1, sc2 = st.columns([0.35, 0.65])
+        with sc1:
+            score_val = st.number_input(
+                "您对该股票的评分（0–100，越高越看好）",
+                min_value=0, max_value=100,
+                value=existing_score if existing_score is not None else 50,
+                step=1,
+                key="pick_user_score",
+            )
+        with sc2:
+            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+            if st.button("💾 保存评分", key="pick_save_score", use_container_width=True):
+                res = api_save_user_score(ticker, int(score_val), stock_label)
+                if res.get("status") == "ok":
+                    st.success(f"✅ 评分已保存：{int(score_val)} 分")
+                else:
+                    st.error(f"保存失败：{res.get('message', '未知错误')}")
     except Exception as e:
         st.error(f"技术面分析失败: {e}")
-
-
-# ═══════════════════════════════════════════════════════════════
-# 自选股 / 垃圾股 折叠展示
-# ═══════════════════════════════════════════════════════════════
-st.markdown("---")
-st.subheader("📂 我的股票池")
-
-
-def _analyze_one(code: str, start: str, end: str):
-    """获取单股 K 线并计算技术指标；失败返回 None。"""
-    try:
-        records = api_kline(code, start=start, end=end, period="daily", timeout=8)
-        d = pd.DataFrame(records) if records else fetcher.get_kline(code, start=start, end=end, period="daily")
-        if d is None or d.empty:
-            return None
-        d = DataCleaner.full_pipeline(d)
-        if len(d) < 5:
-            return None
-        profile = SignalEngine().technical_profile(d)
-        analysis = technical_full_analysis(d)
-        latest = d.iloc[-1]
-        prev = d.iloc[-2]
-        cur = float(latest["close"])
-        chg = (cur / float(prev["close"]) - 1) * 100 if prev["close"] else 0.0
-        vol_ratio = analysis.get("volume", {}).get("vol_ratio", 1.0)
-        return {
-            "code": code,
-            "name": fetcher.get_stock_name(code) or code,
-            "price": cur,
-            "change_pct": chg,
-            "short": profile["short"],
-            "mid": profile["mid"],
-            "long": profile["long"],
-            "composite": profile["composite"],
-            "trend_score": analysis.get("trend", {}).get("trend_score", 50),
-            "vol_ratio": vol_ratio,
-        }
-    except Exception:
-        return None
-
-
-def _load_scores_map(codes: list) -> dict:
-    """批量拉取当前用户对所有 code 的打分。"""
-    scores = {}
-    try:
-        rows = api_get("/api/user-scores", timeout=5)
-        if rows[0] == 200 and isinstance(rows[1], dict) and rows[1].get("status") == "ok":
-            for r in rows[1].get("data", []):
-                if isinstance(r, dict):
-                    scores[_norm_code(r.get("stock_code", ""))] = int(r.get("score", 0))
-    except Exception:
-        pass
-    return scores
-
-
-def _build_pool_df(codes: list, scores_map: dict) -> pd.DataFrame:
-    """并行计算股票池技术指标。"""
-    end = datetime.now().date()
-    start = end - timedelta(days=120)
-    start_s, end_s = start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
-    rows = []
-    with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-        futs = {ex.submit(_analyze_one, c, start_s, end_s): c for c in codes}
-        for fut in _cf.as_completed(futs):
-            res = fut.result()
-            if res:
-                code = res["code"]
-                res["user_score"] = scores_map.get(code)
-                rows.append(res)
-    if not rows:
-        return pd.DataFrame()
-    return pd.DataFrame(rows)
-
-
-def _render_pool_table(df: pd.DataFrame, pool_key: str, on_remove):
-    """渲染可排序、可跳转、可改评分的股票池表格。"""
-    if df.empty:
-        st.info("暂无数据。")
-        return
-
-    display = df[["code", "name", "price", "change_pct", "short", "mid", "long",
-                  "composite", "trend_score", "vol_ratio", "user_score"]].copy()
-    display.rename(columns={
-        "code": "代码", "name": "名称", "price": "现价", "change_pct": "涨跌%",
-        "short": "短期", "mid": "中期", "long": "长期", "composite": "综合",
-        "trend_score": "趋势分", "vol_ratio": "量比", "user_score": "用户打分",
-    }, inplace=True)
-
-    st.dataframe(display, use_container_width=True, height=360,
-                 column_config={
-                     "涨跌%": st.column_config.NumberColumn(format="%.2f%%"),
-                     "现价": st.column_config.NumberColumn(format="¥%.2f"),
-                     "量比": st.column_config.NumberColumn(format="%.2fx"),
-                 })
-
-    # 跳转选择
-    opts = [f"{r['code']} {r['name']}" for _, r in df.iterrows()]
-    selected = st.selectbox("点击选择股票跳转 K 线", ["— 请选择 —"] + opts, key=f"{pool_key}_jump")
-    if selected and selected != "— 请选择 —":
-        code = selected.split()[0]
-        st.session_state["pick_stock_confirmed"] = code
-        st.session_state["pick_stock_query"] = code
-        st.rerun()
-
-    # 批量改评分
-    st.markdown("**✏️ 修改用户打分**")
-    c1, c2, c3 = st.columns([0.4, 0.4, 0.2])
-    with c1:
-        edit_code = st.selectbox("选择股票", ["—"] + opts, key=f"{pool_key}_edit_code")
-    with c2:
-        edit_score = st.slider("新评分", 0, 100, 50, key=f"{pool_key}_edit_score")
-    with c3:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("保存", key=f"{pool_key}_save_score"):
-            if edit_code and edit_code != "—":
-                code = edit_code.split()[0]
-                name = edit_code.split(maxsplit=1)[1] if " " in edit_code else ""
-                api_save_user_score(code, edit_score, name)
-                st.success("评分已更新")
-                st.rerun()
-
-    # 移除按钮
-    if on_remove:
-        st.markdown("**🗑️ 移除股票**")
-        remove_opts = [f"{r['code']} {r['name']}" for _, r in df.iterrows()]
-        rem = st.selectbox("选择要移除的股票", ["—"] + remove_opts, key=f"{pool_key}_remove")
-        if rem and rem != "—":
-            if st.button("确认移除", key=f"{pool_key}_remove_btn"):
-                on_remove(rem.split()[0])
-
-
-# 自选股
-with st.expander("📌 自选股列表", expanded=False):
-    sc, body = api_get("/api/watchlist")
-    wl_items = []
-    if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        wl_items = body.get("data", []) or []
-    if not wl_items:
-        st.info("自选股为空。点击上方「加入自选股」添加。")
-    else:
-        codes = [_norm_code(it["stock_code"]) for it in wl_items]
-        id_map = {_norm_code(it["stock_code"]): it["id"] for it in wl_items}
-        scores = _load_scores_map(codes)
-        df_wl = _build_pool_df(codes, scores)
-
-        def _remove_wl(code: str):
-            item_id = id_map.get(_norm_code(code))
-            if item_id:
-                api_delete(f"/api/watchlist/{item_id}", timeout=5)
-                st.success("已移除")
-                st.rerun()
-
-        _render_pool_table(df_wl, "watchlist", _remove_wl)
-
-# 垃圾股
-with st.expander("🗑️ 垃圾股列表", expanded=False):
-    junk_items = api_junk_stocks()
-    if not junk_items:
-        st.info("垃圾股为空。点击上方「加入垃圾股」添加。")
-    else:
-        codes = [_norm_code(it["stock_code"]) for it in junk_items]
-        id_map = {_norm_code(it["stock_code"]): it["id"] for it in junk_items}
-        scores = _load_scores_map(codes)
-        df_jk = _build_pool_df(codes, scores)
-
-        def _remove_jk(code: str):
-            item_id = id_map.get(_norm_code(code))
-            if item_id:
-                api_remove_junk_stock(item_id)
-                st.success("已移除")
-                st.rerun()
-
-        _render_pool_table(df_jk, "junk", _remove_jk)

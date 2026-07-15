@@ -22,7 +22,7 @@ import time
 import streamlit as st
 
 from modules.ui_theme import apply_page_config, _theme_is_dark
-from modules.session import require_auth, get_user
+from modules.session import require_auth, get_user, render_user_badge
 from modules.starfield_theme import inject_plotly_dark, UP_COLOR, DOWN_COLOR
 from modules.background_tasks import submit_task_with_error, poll_task, get_chat_history, save_chat_history
 from modules.widgets import _slim_context
@@ -400,6 +400,7 @@ def _save_messages_to_storage(messages: list):
 # 主流程
 # ══════════════════════════════════════════════════════
 require_auth()  # 注入右上角原有 ★ 星辰 AI 弹层 + 主题开关（保留现有功能）
+render_user_badge(sidebar=True)  # 在左侧边栏底部显示用户头像 / 退出登录
 
 # 本页跟随全局主题，而不是强制暗色；根据当前主题注入对应 CSS
 dark = _theme_is_dark()

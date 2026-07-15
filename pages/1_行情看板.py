@@ -17,13 +17,14 @@ from modules.widgets import render_index_mini_cards
 
 apply_page_config(page_title="行情看板", page_icon="📈", layout="wide")
 st.session_state["_active_page"] = __file__
+
+require_auth()
+render_user_badge(sidebar=True)
+
 st.title("📈 行情看板")
 
 # 顶部三大指数迷你卡片
 render_index_mini_cards(cols_per_row=3)
-
-require_auth()
-render_user_badge(sidebar=True)
 
 
 @st.cache_resource(show_spinner=False)
@@ -210,7 +211,7 @@ if lhb_df is not None and not lhb_df.empty:
     if sel and sel != "— 请选择 —":
         code = sel.split()[0]
         st.query_params["pick_stock"] = code
-        safe_switch_page("pages/1_行情看板_股票选取.py")
+        safe_switch_page("pages/1_股票选取.py")
 else:
     st.info("暂无龙虎榜数据（非交易日晚间或数据源暂不可用）。")
 
