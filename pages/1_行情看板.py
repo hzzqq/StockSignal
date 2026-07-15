@@ -11,7 +11,7 @@ from modules.ui_theme import apply_page_config
 from modules.fetcher import StockFetcher
 from modules.visualizer import Visualizer
 from modules.search_ui import multi_stock_search_input
-from modules.session import require_auth, render_user_badge, api_kline
+from modules.session import require_auth, render_user_badge, api_kline, safe_switch_page
 from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules.widgets import render_index_mini_cards
 
@@ -33,6 +33,39 @@ def _get_fetcher():
 
 
 fetcher = _get_fetcher()
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _get_stock_concept(code: str) -> str:
+    """获取个股所属概念/行业（用于龙虎榜表格）。
+
+    优先尝试 fetcher.get_stock_concept；不存在或失败时，用 akshare 个股信息
+    里的「行业」兜底；若仍失败则填充「—」但保留列。
+    """
+    # 1) 优先 StockFetcher 的 get_stock_concept（如存在）
+    try:
+        f = _get_fetcher()
+        if hasattr(f, "get_stock_concept"):
+            res = f.get_stock_concept(code)
+            if res:
+                if isinstance(res, (list, tuple, set)):
+                    return "、".join(str(x) for x in res) if res else "—"
+                return str(res)
+    except Exception:
+        pass
+    # 2) 兜底：akshare 个股信息中的「行业」
+    try:
+        import akshare as ak
+        info = ak.stock_individual_info_em(symbol=str(code))
+        if info is not None and not info.empty and "item" in info.columns:
+            rec = info[info["item"] == "行业"]
+            if not rec.empty:
+                val = rec["value"].iloc[0]
+                if val:
+                    return str(val)
+    except Exception:
+        pass
+    return "—"
 
 
 # ------------------------------------------------------------------
@@ -238,25 +271,90 @@ if lhb_df is not None and not lhb_df.empty:
     net_col = next((c for c in cols if "净买" in c or "净额" in c), None)
     chg_col = next((c for c in cols if "涨跌幅" in c or "涨幅" in c), None)
 
-    lhb_df["股票代码"] = lhb_df[code_col].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
+    lhb_df["_code"] = lhb_df[code_col].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
     lhb_df["股票名称"] = lhb_df[name_col].astype(str)
-    display_cols = ["股票代码", "股票名称"]
+
+    # 1) 去重：按股票代码保留 |龙虎榜净买额| 最大的一行，保持原有顺序
+    if net_col and net_col in lhb_df.columns:
+        lhb_df["_net"] = pd.to_numeric(lhb_df[net_col], errors="coerce").fillna(0)
+        lhb_df["_score"] = lhb_df["_net"].abs()
+    else:
+        lhb_df["_score"] = pd.Series(range(len(lhb_df)), index=lhb_df.index, dtype=float)
+    lhb_df = lhb_df.reset_index(drop=True)
+    lhb_df["_orig"] = range(len(lhb_df))
+    lhb_df = (
+        lhb_df.sort_values(["_code", "_score"], ascending=[True, False])
+        .drop_duplicates("_code", keep="first")
+        .sort_values("_orig")
+        .reset_index(drop=True)
+    )
+
+    # 2) 标准化展示列：买方金额 / 卖方金额 / 龙虎榜净买额 / 涨跌幅
+    lhb_df["股票代码"] = lhb_df["_code"]
+    if buy_col:
+        lhb_df["买方金额"] = lhb_df[buy_col]
+    if sell_col:
+        lhb_df["卖方金额"] = lhb_df[sell_col]
+    if net_col:
+        lhb_df["龙虎榜净买额"] = lhb_df[net_col]
+    if chg_col:
+        lhb_df["涨跌幅"] = lhb_df[chg_col]
+
+    # 3) 所属概念：逐股获取
+    lhb_df["所属概念"] = [_get_stock_concept(c) for c in lhb_df["股票代码"]]
+
+    # 4) 友好列顺序
+    display_cols = ["股票代码", "股票名称", "所属概念"]
+    for c in ("涨跌幅", "买方金额", "卖方金额", "龙虎榜净买额"):
+        if c in lhb_df.columns:
+            display_cols.append(c)
     if reason_col:
         display_cols.append(reason_col)
-    if chg_col:
-        display_cols.append(chg_col)
-    if buy_col:
-        display_cols.append(buy_col)
-    if sell_col:
-        display_cols.append(sell_col)
-    if net_col:
-        display_cols.append(net_col)
 
-    st.dataframe(lhb_df[display_cols], use_container_width=True, height=420)
+    # 清理临时列后展示
+    _tmp_cols = [c for c in lhb_df.columns if c.startswith("_")]
+    st.dataframe(lhb_df[[c for c in display_cols if c in lhb_df.columns]].drop(columns=_tmp_cols, errors="ignore"),
+                 use_container_width=True, height=420)
 
-    # 点击跳转股票选取
+    # 5) 热股榜：热度评分 = 归一化(买方+卖方) + 0.3*|涨跌幅| + 0.2*评论数(无则0)
+    with st.expander("🔥 热股榜", expanded=False):
+        _n = len(lhb_df)
+        _amounts = []
+        _chgs = []
+        for _, _r in lhb_df.iterrows():
+            try:
+                _buy = float(pd.to_numeric(_r.get("买方金额"), errors="coerce") or 0)
+            except Exception:
+                _buy = 0.0
+            try:
+                _sell = float(pd.to_numeric(_r.get("卖方金额"), errors="coerce") or 0)
+            except Exception:
+                _sell = 0.0
+            try:
+                _chg = abs(float(pd.to_numeric(_r.get("涨跌幅"), errors="coerce") or 0))
+            except Exception:
+                _chg = 0.0
+            _amounts.append(abs(_buy) + abs(_sell))
+            _chgs.append(_chg)
+        _amounts = pd.Series(_amounts, dtype=float)
+        _amax = _amounts.max() if _n else 0.0
+        _anorm = (_amounts / _amax) if _amax > 0 else pd.Series([0.0] * _n, dtype=float)
+        _heat = _anorm + 0.3 * pd.Series(_chgs, dtype=float)
+        heat_df = pd.DataFrame({
+            "股票代码": lhb_df["股票代码"].values,
+            "股票名称": lhb_df["股票名称"].values,
+            "热度": [round(float(x), 2) for x in _heat],
+            "买方金额": lhb_df["买方金额"].values if "买方金额" in lhb_df.columns else [0] * _n,
+            "卖方金额": lhb_df["卖方金额"].values if "卖方金额" in lhb_df.columns else [0] * _n,
+            "涨跌幅": lhb_df["涨跌幅"].values if "涨跌幅" in lhb_df.columns else [0] * _n,
+        })
+        heat_df = heat_df.sort_values("热度", ascending=False).reset_index(drop=True)
+        st.dataframe(heat_df, use_container_width=True,
+                     column_config={"热度": st.column_config.NumberColumn(format="%.2f")})
+
+    # 点击跳转股票选取（视觉增强由全局 selectbox CSS 保证，这里加 key + 醒目占位符）
     opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in lhb_df.iterrows() if len(str(row['股票代码'])) == 6]
-    sel = st.selectbox("选择龙虎榜股票查看 K 线", ["— 请选择 —"] + opts, key="lhb_jump")
+    sel = st.selectbox("选择龙虎榜股票查看 K 线", ["— 请选择 —"] + opts, key="lhb_jump_select")
     if sel and sel != "— 请选择 —":
         code = sel.split()[0]
         st.query_params["pick_stock"] = code

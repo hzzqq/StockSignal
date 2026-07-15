@@ -268,10 +268,12 @@ class ForumPost(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def to_dict(self, with_content: bool = True) -> dict:
+        author = db.session.get(User, self.user_id)
         d = {
             "id": self.id,
             "user_id": self.user_id,
             "username": self.username,
+            "avatar": author.avatar if (author and author.avatar) else "",
             "title": self.title,
             "stock_code": self.stock_code or "",
             "stock_name": self.stock_name or "",
@@ -299,11 +301,13 @@ class ForumComment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     def to_dict(self) -> dict:
+        author = db.session.get(User, self.user_id)
         return {
             "id": self.id,
             "post_id": self.post_id,
             "user_id": self.user_id,
             "username": self.username,
+            "avatar": author.avatar if (author and author.avatar) else "",
             "content": self.content,
             "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
         }

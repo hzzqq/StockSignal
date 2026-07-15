@@ -254,8 +254,8 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
                     "range": [y_min - padding, y_max + padding],
                     "fixedrange": True,
                 },
-                height=55,
-                width=200,
+                height=92,
+                width=220,
             )
 
             cards.append({
@@ -284,12 +284,14 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
     code_color = "#94a3b8" if dark else "#6B7280"
 
     for card in cards:
+        # 用 div 包裹，允许内容自然撑开，避免被裁剪/出现滚动条
+        st.markdown("<div style='overflow:visible;'>", unsafe_allow_html=True)
         with st.container(border=True):
             c_left, c_mid, c_right = st.columns([0.20, 0.46, 0.34])
             with c_left:
                 st.markdown(
-                    f"<div style='font-size:15px;font-weight:700;color:{name_color};'>{card['name']}</div>"
-                    f"<div style='font-size:11px;color:{code_color};margin-top:2px;'>{card['label']} {card['code']}</div>",
+                    f"<div style='font-size:17px;font-weight:700;color:{name_color};'>{card['name']}</div>"
+                    f"<div style='font-size:12px;color:{code_color};margin-top:3px;'>{card['label']} {card['code']}</div>",
                     unsafe_allow_html=True,
                 )
             with c_mid:
@@ -302,18 +304,19 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
                     sign = "+" if card["change_pct"] >= 0 else ""
                     trend_color = card["color"] if card["trend"] != "窄幅震荡" else code_color
                     st.markdown(
-                        f"<div style='text-align:right;font-size:22px;font-weight:800;color:{card['color']};font-family:Fira Code,monospace;'>"
+                        f"<div style='text-align:right;font-size:22px;font-weight:800;color:{card['color']};font-family:Fira Code,monospace;line-height:1.15;'>"
                         f"{card['current']:.2f}</div>"
-                        f"<div style='text-align:right;font-size:12px;color:{card['color']};font-weight:600;margin-top:2px;'>"
+                        f"<div style='text-align:right;font-size:13px;color:{card['color']};font-weight:600;margin-top:3px;'>"
                         f"{sign}{card['change']:.2f} ({sign}{card['change_pct']:.2f}%)</div>"
-                        f"<div style='text-align:right;font-size:11px;color:{trend_color};font-weight:600;margin-top:3px;'>"
+                        f"<div style='text-align:right;font-size:12px;color:{trend_color};font-weight:600;margin-top:3px;'>"
                         f"{card['trend']}</div>"
-                        f"<div style='text-align:right;font-size:9px;color:{code_color};margin-top:3px;'>"
-                        f"O {card['open']:.2f} H {card['high']:.2f} L {card['low']:.2f}</div>",
+                        f"<div style='text-align:right;font-size:11px;color:{code_color};margin-top:4px;'>"
+                        f"O {card['open']:.2f} &nbsp;H {card['high']:.2f} &nbsp;L {card['low']:.2f}</div>",
                         unsafe_allow_html=True,
                     )
                 else:
                     st.caption("—")
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────────

@@ -31,6 +31,55 @@ render_user_badge(sidebar=True)
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
+
+def _section_title(text: str, accent: str = "#5b6cff"):
+    """渲染带强调色的分区标题胶囊，使交互区与描述文字明显区分。"""
+    st.markdown(
+        f"<div style='display:inline-block;background:{accent};color:#fff;"
+        f"padding:4px 12px;border-radius:8px;font-weight:600;font-size:14px;"
+        f"margin-bottom:2px;'>{text}</div>", unsafe_allow_html=True)
+
+
+# ── 本地样式：区分可点击元素与描述文字 ──
+st.markdown("""
+<style>
+/* 按钮：阴影 + hover 上浮，明确「可点击」 */
+button[data-testid="stBaseButton-secondary"],
+button[data-testid="stBaseButton-primary"] {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+button[data-testid="stBaseButton-secondary"]:hover,
+button[data-testid="stBaseButton-primary"]:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.22);
+}
+/* radio 选项：指针 + hover 背景 */
+div[data-testid="stRadio"] label,
+.stRadio label {
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: 6px;
+    transition: background 0.12s ease;
+}
+div[data-testid="stRadio"] label:hover,
+.stRadio label:hover {
+    background: rgba(91,108,255,0.12);
+}
+/* 文本/多行输入框：加强边框，提示「可输入」 */
+.stTextInput input,
+.stTextArea textarea {
+    border: 1.5px solid #9aa4ff !important;
+    border-radius: 8px !important;
+}
+.stTextInput input:focus,
+.stTextArea textarea:focus {
+    border-color: #5b6cff !important;
+    box-shadow: 0 0 0 2px rgba(91,108,255,0.18) !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🧭 技术形态选股器")
 st.caption("在股票池中扫描技术形态并给出多维技术评分；结果仅供参考，非投资建议。")
 
@@ -54,8 +103,14 @@ def _norm_code(c: str) -> str:
     return c.upper()
 
 
-# ───────────────────────── 选择股票池 ─────────────────────────
-source = st.radio("股票池来源", ["我的自选股", "手动输入代码"], horizontal=True)
+# ───────────────────────── 股票池来源 ─────────────────────────
+with st.container(border=True):
+    _section_title("📂 股票池来源")
+    st.caption("选择待扫描股票的来源：自选股或手动输入。")
+    source = st.radio(
+        "股票池来源", ["我的自选股", "手动输入代码"],
+        horizontal=True, label_visibility="collapsed",
+    )
 
 universe = []
 if source == "我的自选股":
@@ -73,56 +128,74 @@ if source == "我的自选股":
         msg = body.get("message", "") if isinstance(body, dict) else ""
         st.error(f"❌ 加载自选股失败（HTTP {sc}）{msg}；可切换为「手动输入代码」继续。")
 else:
-    # 手动模式：🔍 搜索添加 + 批量文本输入，二者合并为扫描池
+    # 手动模式：扫描池管理（搜索添加 + 单条删除）+ 批量文本输入，二者合并为扫描池
     if "screener_pool" not in st.session_state:
         st.session_state["screener_pool"] = []
 
-    # ── 🔍 搜索添加 ──
-    st.subheader("🔍 搜索添加", divider="gray")
-    st.caption("支持 6 位代码 / 中文名称 / 拼音首字母（gzmt）/ 全拼（maotai）/ 首字（茅）。")
-    picked = stock_search_input(
-        label="输入代码 / 名称 / 拼音搜索",
-        key="screener_search",
-        default="600519",
-    )
-    c_add, c_clr = st.columns([1, 4])
-    with c_add:
-        if st.button("➕ 加入扫描池", key="screener_add", use_container_width=True):
-            if picked and picked not in st.session_state["screener_pool"]:
-                st.session_state["screener_pool"].append(picked)
-                st.rerun()
-    if st.session_state["screener_pool"]:
-        if _theme_is_dark():
-            chip_bg, chip_border, chip_color = "#1a1a2e", "#2d2d44", "#e2e8f0"
+    # ── 🧺 扫描池管理 ──
+    with st.container(border=True):
+        _section_title("🧺 扫描池管理", accent="#f59e0b")
+        st.caption("搜索加入股票；点击右侧「删除」可移除单只，点击「清空扫描池」全部清空。")
+
+        c_search, c_add = st.columns([4, 1])
+        with c_search:
+            picked = stock_search_input(
+                label="输入代码 / 名称 / 拼音搜索",
+                key="screener_search",
+                default="600519",
+            )
+        with c_add:
+            # 让「加入」按钮与搜索输入框纵向对齐
+            st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
+            if st.button("➕ 加入扫描池", key="screener_add", type="secondary", use_container_width=True):
+                if picked and picked not in st.session_state["screener_pool"]:
+                    st.session_state["screener_pool"].append(picked)
+                    st.rerun()
+
+        pool = st.session_state["screener_pool"]
+        if pool:
+            for code in pool:
+                col_code, col_name, col_del = st.columns([0.2, 0.6, 0.2])
+                with col_code:
+                    st.markdown(f"`{code}`")
+                with col_name:
+                    st.markdown(fetcher.get_stock_name(code) or code)
+                with col_del:
+                    if st.button("删除", key=f"del_{code}", type="secondary", use_container_width=True):
+                        st.session_state["screener_pool"].remove(code)
+                        st.rerun()
         else:
-            chip_bg, chip_border, chip_color = "#eef2ff", "#c7d2fe", "#1e3a8a"
-        chips = "".join(
-            f'<span style="display:inline-block;background:{chip_bg};border:1px solid {chip_border};'
-            f'border-radius:12px;padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:{chip_color};"'
-            f'>{code}</span>'
-            for code in st.session_state["screener_pool"]
-        )
-        st.markdown(f"<div style='margin:8px 0;'>{chips}</div>", unsafe_allow_html=True)
-        with c_clr:
-            if st.button("🗑️ 清空扫描池", key="screener_clear", use_container_width=True):
+            st.info("扫描池为空，请在上方搜索并「加入扫描池」。")
+
+        c_count, c_clear = st.columns([0.8, 0.2])
+        with c_count:
+            st.markdown(f"**扫描池共 {len(pool)} 只**")
+        with c_clear:
+            if st.button("🗑️ 清空扫描池", key="screener_clear", type="secondary", use_container_width=True):
                 st.session_state["screener_pool"] = []
                 st.rerun()
 
-    # ── 批量文本输入 ──
-    st.subheader("批量输入", divider="gray")
-    raw = multi_stock_search_input(
-        label="或直接粘贴多只股票（代码/名称，逗号分隔，可留空）",
-        key="screener_stocks",
-        default="",
-    )
-    manual_codes = [_norm_code(c) for c in (raw or [])]
+    st.divider()
+
+    # ── 📋 批量输入 ──
+    with st.container(border=True):
+        _section_title("📋 批量输入")
+        st.caption("可一次粘贴多只股票（与上方扫描池合并去重）。")
+        raw = multi_stock_search_input(
+            label="或直接粘贴多只股票（代码/名称，逗号分隔，可留空）",
+            key="screener_stocks",
+            default="",
+        )
+        manual_codes = [_norm_code(c) for c in (raw or [])]
+
     # 合并搜索池 + 批量输入，去重保序
     universe = list(dict.fromkeys(st.session_state["screener_pool"] + manual_codes))
-    if universe:
-        st.caption(f"📋 当前扫描池共 **{len(universe)}** 只：{', '.join(universe[:20])}"
-                   f"{' …' if len(universe) > 20 else ''}")
 
-keyword = st.text_input("形态关键词筛选（留空=显示所有命中形态，如：金叉 / 突破 / 背离）", "").strip()
+# ───────────────────────── 形态筛选 ─────────────────────────
+with st.container(border=True):
+    _section_title("🧬 形态筛选", accent="#8b5bff")
+    st.caption("留空表示显示所有命中形态；可输入关键词（如：金叉 / 突破 / 背离）筛选。")
+    keyword = st.text_input("形态关键词筛选（留空=显示所有命中形态，如：金叉 / 突破 / 背离）", "").strip()
 
 
 # ───────────────────────── 形态识别（扩充版） ─────────────────────────
@@ -231,46 +304,51 @@ def _scan_fetch_one(code: str, start: str, end: str):
         return code, None
 
 
-if st.button("🚀 开始扫描", type="primary", use_container_width=True) and universe:
-    universe = list(dict.fromkeys(universe))[:40]  # 安全上限，避免过慢
-    today = datetime.now().date()
-    start = (today - timedelta(days=365)).strftime("%Y-%m-%d")
-    end = today.strftime("%Y-%m-%d")
+# ───────────────────────── 扫描结果 ─────────────────────────
+with st.container(border=True):
+    _section_title("🚀 扫描结果", accent="#10b981")
+    st.caption("点击「开始扫描」对当前股票池执行形态识别与技术评分。")
 
-    # 并行抓取 K 线（网络 I/O 是瓶颈），再逐只做技术分析
-    with st.spinner(f"并行抓取 {len(universe)} 只股票日线…"):
-        with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-            fetched = list(ex.map(lambda c: _scan_fetch_one(c, start, end), universe))
+    if st.button("🚀 开始扫描", type="primary", use_container_width=True) and universe:
+        universe = list(dict.fromkeys(universe))[:40]  # 安全上限，避免过慢
+        today = datetime.now().date()
+        start = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+        end = today.strftime("%Y-%m-%d")
 
-    results = []
-    prog = st.progress(0, text="分析形态中…")
-    for i, (code, df) in enumerate(fetched):
-        try:
-            if df is None:
-                continue
-            composite = SignalEngine().price_score(df)
-            patterns = _merge_patterns(df)
-            pat_overview = "；".join(f"{p.get('name', '?')}·{p.get('bias', '')}" for p in patterns) if patterns else "—"
-            if keyword:
-                hay = " ".join(str(p.get("name", "")) + " " + str(p.get("bias", "")) for p in patterns)
-                if keyword.lower() not in hay.lower():
+        # 并行抓取 K 线（网络 I/O 是瓶颈），再逐只做技术分析
+        with st.spinner(f"并行抓取 {len(universe)} 只股票日线…"):
+            with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+                fetched = list(ex.map(lambda c: _scan_fetch_one(c, start, end), universe))
+
+        results = []
+        prog = st.progress(0, text="分析形态中…")
+        for i, (code, df) in enumerate(fetched):
+            try:
+                if df is None:
                     continue
-            results.append({
-                "代码": code,
-                "名称": fetcher.get_stock_name(code) or code,
-                "技术评分": int(round(composite)),
-                "形态概述": pat_overview,
-            })
-        except Exception:
-            continue
-        prog.progress((i + 1) / len(fetched), text=f"分析形态中… {i+1}/{len(fetched)}")
-    prog.empty()
+                composite = SignalEngine().price_score(df)
+                patterns = _merge_patterns(df)
+                pat_overview = "；".join(f"{p.get('name', '?')}·{p.get('bias', '')}" for p in patterns) if patterns else "—"
+                if keyword:
+                    hay = " ".join(str(p.get("name", "")) + " " + str(p.get("bias", "")) for p in patterns)
+                    if keyword.lower() not in hay.lower():
+                        continue
+                results.append({
+                    "代码": code,
+                    "名称": fetcher.get_stock_name(code) or code,
+                    "技术评分": int(round(composite)),
+                    "形态概述": pat_overview,
+                })
+            except Exception:
+                continue
+            prog.progress((i + 1) / len(fetched), text=f"分析形态中… {i+1}/{len(fetched)}")
+        prog.empty()
 
-    if not results:
-        st.info("未命中任何形态（或股票池无可用日线数据，可尝试「手动输入代码」或检查网络）。")
-    else:
-        st.success(f"✅ 扫描完成，命中 {len(results)} 只")
-        results.sort(key=lambda r: r["技术评分"], reverse=True)
-        st.dataframe(results, use_container_width=True, height=480)
-elif not universe:
-    st.info("请选择股票池（或先搜索加入扫描池）后点击「开始扫描」。")
+        if not results:
+            st.info("未命中任何形态（或股票池无可用日线数据，可尝试「手动输入代码」或检查网络）。")
+        else:
+            st.success(f"✅ 扫描完成，命中 {len(results)} 只")
+            results.sort(key=lambda r: r["技术评分"], reverse=True)
+            st.dataframe(results, use_container_width=True, height=480)
+    elif not universe:
+        st.info("请选择股票池（或先搜索加入扫描池）后点击「开始扫描」。")

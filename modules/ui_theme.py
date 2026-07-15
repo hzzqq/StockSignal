@@ -407,8 +407,8 @@ h3 { border-left: 3px solid rgba(102, 126, 234, 0.55); padding-left: 8px; }
 [data-baseweb="textarea"] textarea,
 [data-baseweb="select"] [role="combobox"],
 [data-baseweb="date-input"] input {
-    color: #e2e8f0 !important;
-    -webkit-text-fill-color: #e2e8f0 !important;
+    color: #f1f5f9 !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
     background: transparent !important;
     caret-color: #667eea !important;
 }
@@ -419,7 +419,7 @@ h3 { border-left: 3px solid rgba(102, 126, 234, 0.55); padding-left: 8px; }
 .stDateInput input::placeholder,
 .stNumberInput input::placeholder,
 .stSelectbox [role="combobox"] [aria-placeholder] {
-    color: #64748b !important;
+    color: #94a3b8 !important;
     opacity: 1 !important;
 }
 
@@ -608,10 +608,21 @@ a:hover { color: #667eea !important; }
 [data-testid="stSelectbox"] [data-baseweb="select"] { background: transparent !important; }
 [data-testid="stSelectbox"] [data-baseweb="select"] > div {
   background-color: #1a1a2e !important;
-  color: #e2e8f0 !important;
-  border: 1px solid #2d2d44 !important;
+  color: #f1f5f9 !important;
+  border: 1.5px solid #4b5563 !important;
+  border-radius: 8px !important;
 }
-[data-testid="stSelectbox"] input { color: #e2e8f0 !important; caret-color: #e2e8f0 !important; }
+[data-testid="stSelectbox"] [data-baseweb="select"] > div:hover {
+  border-color: #6366f1 !important;
+}
+[data-testid="stSelectbox"] [data-baseweb="select"] > div:focus-within {
+  border-color: #6366f1 !important;
+}
+[data-testid="stSelectbox"] input { color: #f1f5f9 !important; caret-color: #e2e8f0 !important; }
+[data-testid="stSelectbox"] input::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
 [data-testid="stSelectbox"] svg { fill: #94a3b8 !important; stroke: #94a3b8 !important; }
 /* selectbox 下拉列表 */
 ul[data-baseweb="listbox"],
@@ -956,16 +967,26 @@ h3 {
 [data-testid="stMultiSelect"] div[data-baseweb="select"],
 [data-testid="stMultiSelect"] div[data-baseweb="base-input"] {
     background: #FFFFFF !important;
-    border: 1px solid #D1D5DB !important;
+    border: 1.5px solid #9ca3af !important;
     border-radius: 8px !important;
+}
+.stSelectbox div[data-baseweb="select"]:hover,
+.stSelectbox div[data-baseweb="base-input"]:hover,
+.stMultiSelect div[data-baseweb="select"]:hover,
+.stMultiSelect div[data-baseweb="base-input"]:hover,
+[data-testid="stSelectbox"] div[data-baseweb="select"]:hover,
+[data-testid="stSelectbox"] div[data-baseweb="base-input"]:hover,
+[data-testid="stMultiSelect"] div[data-baseweb="select"]:hover,
+[data-testid="stMultiSelect"] div[data-baseweb="base-input"]:hover {
+    border-color: #6366F1 !important;
 }
 .stTextInput input,
 .stTextArea textarea,
 .stSelectbox [role="combobox"],
 .stDateInput input,
 .stNumberInput input {
-    color: #111827 !important;
-    -webkit-text-fill-color: #111827 !important;
+    color: #1f2937 !important;
+    -webkit-text-fill-color: #1f2937 !important;
     background: transparent !important;
 }
 .stTextInput > div[data-baseweb="input"]:focus-within,
@@ -973,8 +994,18 @@ h3 {
 .stSelectbox > div[data-baseweb="select"]:focus-within,
 .stDateInput > div[data-baseweb="date-input"]:focus-within,
 .stNumberInput > div[data-baseweb="input"]:focus-within {
-    border-color: #B8860B !important;
-    box-shadow: 0 0 0 3px rgba(184,134,11,0.15) !important;
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important;
+}
+/* 白天模式：selectbox 占位符 / 选中值更清晰 */
+.stSelectbox [role="combobox"] [aria-placeholder],
+[data-testid="stSelectbox"] [role="combobox"] [aria-placeholder] {
+    color: #4b5563 !important;
+    opacity: 1 !important;
+}
+[data-testid="stSelectbox"] input::placeholder {
+    color: #4b5563 !important;
+    opacity: 1 !important;
 }
 
 /* 白天模式：数字输入框 +/- 步进按钮改为浅色（默认为深色，视觉突兀） */

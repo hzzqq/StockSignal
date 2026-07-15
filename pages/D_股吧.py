@@ -29,6 +29,32 @@ def _fmt_time(s: str) -> str:
     return s[:19].replace("T", " ").replace("Z", "")
 
 
+# 头像配色（按用户名稳定取色）
+_AVATAR_COLORS = [
+    "#E57373", "#F06292", "#BA68C8", "#9575CD", "#7986CB",
+    "#64B5F6", "#4FC3F7", "#4DD0E1", "#4DB6AC", "#81C784",
+    "#FFB74D", "#FF8A65", "#A1887F", "#90A4AE",
+]
+
+
+def render_forum_avatar(avatar_data_url, username, size: int = 32) -> str:
+    """返回头像 HTML：有头像用 <img>，否则用首字母彩色圆。"""
+    if avatar_data_url:
+        return (
+            f'<img src="{avatar_data_url}" width="{size}" height="{size}" '
+            f'style="border-radius:50%;object-fit:cover;vertical-align:middle;'
+            f'flex:0 0 auto;">'
+        )
+    initial = (username or "?").strip()[:1] or "?"
+    color = _AVATAR_COLORS[(hash(username or "x")) % len(_AVATAR_COLORS)]
+    return (
+        f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
+        f'background:{color};color:#fff;display:flex;align-items:center;'
+        f'justify-content:center;font-weight:700;font-size:{int(size * 0.45)}px;'
+        f'flex:0 0 auto;line-height:1;">{initial}</div>'
+    )
+
+
 def _go_list():
     st.session_state.pop("forum_view_post", None)
     st.rerun()
@@ -60,7 +86,13 @@ if _view_pid:
 
     post = body.get("data") or {}
     st.markdown(f"## {post.get('title', '（无标题）')}")
-    meta = f"👤 {post.get('username', '?')} · 🕘 {_fmt_time(post.get('created_at', ''))} · 👀 {post.get('views', 0)} · 👍 {post.get('likes', 0)}"
+    st.markdown(
+        f"<div style='display:flex;align-items:center;gap:8px;'>"
+        f"{render_forum_avatar(post.get('avatar', ''), post.get('username', '?'), size=32)}"
+        f"<span style='font-weight:600;'>{post.get('username', '?')}</span></div>",
+        unsafe_allow_html=True,
+    )
+    meta = f"🕘 {_fmt_time(post.get('created_at', ''))} · 👀 {post.get('views', 0)} · 👍 {post.get('likes', 0)}"
     st.caption(meta)
 
     if post.get("stock_code"):
@@ -92,59 +124,104 @@ if _view_pid:
     st.subheader(f"💭 评论（{len(comments)}）")
     for c in comments:
         st.markdown(
-            f"<div style='padding:8px 12px;margin-bottom:6px;border-left:3px solid #B8860B;'>"
-            f"<b>{c.get('username', '?')}</b> "
+            f"<div style='display:flex;gap:8px;padding:8px 12px;margin-bottom:6px;"
+            f"border-left:3px solid #B8860B;'>"
+            f"<div style='flex:0 0 auto;'>{render_forum_avatar(c.get('avatar', ''), c.get('username', '?'), size=28)}</div>"
+            f"<div><b>{c.get('username', '?')}</b> "
             f"<span style='opacity:.6;font-size:12px;'>{_fmt_time(c.get('created_at', ''))}</span><br>"
-            f"{c.get('content', '')}</div>",
+            f"{c.get('content', '')}</div></div>",
             unsafe_allow_html=True,
         )
     if not comments:
         st.info("还没有评论，来抢沙发～")
 
-    with st.form("forum_comment_form", clear_on_submit=True):
-        new_comment = st.text_area("发表评论", key="forum_new_comment", height=90,
-                                   placeholder="友善交流，理性发言…")
-        if st.form_submit_button("💬 提交评论", use_container_width=True):
-            if new_comment.strip():
-                sc, cb = api_post(f"/api/forum/posts/{_view_pid}/comments", {"content": new_comment.strip()})
-                if sc in (200, 201):
-                    st.success("评论成功")
-                    st.rerun()
-                else:
-                    st.error(cb.get("message", "评论失败") if isinstance(cb, dict) else "评论失败")
+    # ── 发表评论（含表情包 / 颜文字快捷插入，置于表单之外）──
+    st.caption("😀 快捷表情 / 颜文字：点击可插入到评论末尾")
+    _EMOJIS = [
+        "😂", "🚀", "📈", "📉", "💰", "🎯", "✅", "❌", "👍", "💎",
+        "🤦", "(╯°□°）╯︵ ┻━┻", "¯\\_(ツ)_/¯", "(◕‿◕)", "(╥﹏╥)", "(╬⊙﹏⊙)",
+    ]
+    if "forum_new_comment" not in st.session_state:
+        st.session_state["forum_new_comment"] = ""
+
+    def _append_emoji(emo: str):
+        st.session_state["forum_new_comment"] = st.session_state["forum_new_comment"] + emo
+
+    _n_cols = 8
+    for _start in range(0, len(_EMOJIS), _n_cols):
+        _row = _EMOJIS[_start:_start + _n_cols]
+        _cols = st.columns(len(_row))
+        for _i, _emo in enumerate(_row):
+            with _cols[_i]:
+                st.button(_emo, key=f"forum_emo_{_start}_{_i}",
+                          on_click=_append_emoji, args=(_emo,))
+
+    new_comment = st.text_area(
+        "发表评论", key="forum_new_comment", height=90,
+        placeholder="友善交流，理性发言…",
+    )
+    if st.button("💬 提交评论", type="primary", use_container_width=True):
+        if new_comment.strip():
+            sc, cb = api_post(f"/api/forum/posts/{_view_pid}/comments", {"content": new_comment.strip()})
+            if sc in (200, 201):
+                st.success("评论成功")
+                st.session_state["forum_new_comment"] = ""
+                st.rerun()
             else:
-                st.warning("评论内容不能为空")
+                st.error(cb.get("message", "评论失败") if isinstance(cb, dict) else "评论失败")
+        else:
+            st.warning("评论内容不能为空")
     st.stop()
 
 # ══════════════════════════════════════════════════════════════
 # 列表态
 # ══════════════════════════════════════════════════════════════
 with st.expander("✍️ 发表新帖 / 文章", expanded=False):
-    with st.form("forum_new_post", clear_on_submit=True):
-        title = st.text_input("标题", key="forum_title", placeholder="一句话说清你的观点")
-        content = st.text_area("正文（支持 Markdown）", key="forum_content", height=180,
-                               placeholder="展开你的分析、逻辑或提问…")
-        cc1, cc2 = st.columns(2)
-        with cc1:
-            stock_code = st.text_input("关联股票代码（可选）", key="forum_code",
-                                       placeholder="如 600519，可留空")
-        with cc2:
-            stock_name = st.text_input("关联股票名称（可选）", key="forum_name",
-                                       placeholder="如 贵州茅台，可留空")
-        if st.form_submit_button("🚀 发布", type="primary", use_container_width=True):
-            if not title.strip() or not content.strip():
-                st.warning("标题和正文都不能为空")
-            else:
-                payload = {"title": title.strip(), "content": content.strip()}
-                if stock_code.strip():
-                    payload["stock_code"] = stock_code.strip()
-                    payload["stock_name"] = stock_name.strip()
-                sc, cb = api_post("/api/forum/posts", payload)
-                if sc in (200, 201):
-                    st.success("发布成功！")
-                    st.rerun()
+    with st.container(border=True):
+        st.markdown("### 📝 发布到股吧")
+        st.caption("分享你的观点或文章，与社区交流。")
+        with st.form("forum_new_post", clear_on_submit=True):
+            # 主：标题（最突出）
+            title = st.text_input(
+                "**标题** *",
+                key="forum_title",
+                placeholder="一句话说清你的观点（例如：白酒板块是否见底？）",
+            )
+            # 次：正文
+            content = st.text_area(
+                "**正文（支持 Markdown）** *",
+                key="forum_content",
+                height=180,
+                placeholder="展开你的分析、逻辑或提问… 支持 Markdown 语法",
+            )
+            # 可选：股票关联（一行）
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                stock_code = st.text_input(
+                    "关联股票代码（可选）", key="forum_code", placeholder="如 600519，可留空"
+                )
+            with cc2:
+                stock_name = st.text_input(
+                    "关联股票名称（可选）", key="forum_name", placeholder="如 贵州茅台，可留空"
+                )
+            st.caption(
+                "💡 正文支持 Markdown 语法（标题、列表、加粗等）。"
+                "关联股票为可选项，留空则作为普通帖子发布。"
+            )
+            if st.form_submit_button("🚀 发布帖子", type="primary", use_container_width=True):
+                if not title.strip() or not content.strip():
+                    st.warning("标题和正文都不能为空")
                 else:
-                    st.error(cb.get("message", "发布失败") if isinstance(cb, dict) else "发布失败")
+                    payload = {"title": title.strip(), "content": content.strip()}
+                    if stock_code.strip():
+                        payload["stock_code"] = stock_code.strip()
+                        payload["stock_name"] = stock_name.strip()
+                    sc, cb = api_post("/api/forum/posts", payload)
+                    if sc in (200, 201):
+                        st.success("发布成功！")
+                        st.rerun()
+                    else:
+                        st.error(cb.get("message", "发布失败") if isinstance(cb, dict) else "发布失败")
 
 # 过滤
 fc1, fc2 = st.columns([0.4, 0.6])
@@ -179,7 +256,11 @@ else:
                     tag = f"📈 {p.get('stock_name') or p['stock_code']}"
                 st.markdown(
                     f"<div style='text-align:right;font-size:12px;opacity:.75;'>"
-                    f"{tag}<br>👤 {p.get('username', '?')}<br>"
+                    f"{tag}<br>"
+                    f"<span style='display:inline-flex;align-items:center;gap:6px;"
+                    f"justify-content:flex-end;'>"
+                    f"{render_forum_avatar(p.get('avatar', ''), p.get('username', '?'), size=20)}"
+                    f"👤 {p.get('username', '?')}</span><br>"
                     f"💬 {p.get('comment_count', 0)} · 👍 {p.get('likes', 0)} · 👀 {p.get('views', 0)}"
                     f"</div>",
                     unsafe_allow_html=True,
