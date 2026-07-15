@@ -1278,6 +1278,16 @@ def apply_page_config(page_title: str, page_icon: str = "📈", layout: str = "w
     theme_mode 在首次加载（未切换过）时回落到 light，符合「默认白天」约定；
     用户一旦在右上角切换暗夜，session_state 中 theme_mode=dark，切页后原生主题即跟随变暗。
     """
+    # 在设置原生主题前，先从 URL query_params 恢复偏好（刷新 / 首屏即生效，
+    # 避免「先按默认亮色渲染、再被 init_session_state 改暗」造成的闪烁与状态错位）。
+    try:
+        from modules.session import _restore_prefs_from_query_params, FONT_DEFAULT
+        _p = _restore_prefs_from_query_params()
+        if _p:
+            st.session_state.setdefault("theme_mode", _p.get("theme_mode", "light"))
+            st.session_state.setdefault("font_size", _p.get("font_size", FONT_DEFAULT))
+    except Exception:
+        pass
     theme = STREAMLIT_THEME_DARK if _theme_is_dark() else STREAMLIT_THEME_LIGHT
     # 同步 Streamlit 原生主题。这些选项必须在页面其它 st 调用前写入，
     # 否则原生组件已按旧主题渲染。若已被命令行/config.toml 锁定，则静默回退。

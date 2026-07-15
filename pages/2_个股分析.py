@@ -332,21 +332,21 @@ def _run_analysis(ticker: str) -> dict:
     keywords = [k.strip() for k in (industry_kws or "").split(",") if k.strip()] or [display_name]
     signal = SignalEngine().evaluate(ticker, keywords, date=None)
 
-    # 四维雷达取值
+    # 五维雷达取值（与下方「权重表」完全一致，保证总评 = 各维度透明加权）
     tech_score = float(signal.get("price_score", 50))
     news_score = float(signal.get("event_score", 50))
     macro_score = float(signal.get("macro_score", 50))
     vol_score = float(volume_info.get("volume_price_score", 50)) if "error" not in volume_info else 50.0
+    sector_score = float(signal.get("sector_score", 55))
 
-    # 综合评分（重新设计的总评规则，避免「各项都>70 总评却 65」的割裂感）：
-    # 1) 基础加权（权重透明：技术面30% / 新闻情绪25% / 资金量能25% / 市场环境20%）；
-    # 2) 一致性约束：若四维彼此接近（极差≤20），取「加权值」与「四维均值」的较大者，
-    #    保证信号一致时总评不会因加权被压低到明显低于可见分项；
-    # 3) 短板缓冲：总评不低于「最弱维度−8」，避免单一弱项把整体过度拉低、与可见信号严重背离。
-    _dims = [tech_score, news_score, vol_score, macro_score]
-    _w = [0.30, 0.25, 0.25, 0.20]
+    # 综合评分（五维加权，杜绝「展示5维、计算却漏掉板块」的不一致）：
+    # 权重与展示表严格一致：技术面 25% / 新闻情绪 22% / 资金量能 18% / 市场环境 15% / 板块强度 20%（合计 100%）。
+    # 一致性约束：五维彼此接近（极差≤20）时，总评不低于「五维均值」，避免「各分项>70 总评却 65」的割裂感；
+    # 短板缓冲：总评不低于「最弱维度−8」，避免单一弱项把整体过度拉低、与可见信号严重背离。
+    _dims = [tech_score, news_score, vol_score, macro_score, sector_score]
+    _w = [0.25, 0.22, 0.18, 0.15, 0.20]
     _weighted = sum(d * w for d, w in zip(_dims, _w))
-    _dim_avg = sum(_dims) / 4
+    _dim_avg = sum(_dims) / 5
     _dim_min, _dim_max = min(_dims), max(_dims)
     _base = _weighted
     if _dim_max - _dim_min <= 20:
@@ -467,6 +467,7 @@ def _run_analysis(ticker: str) -> dict:
         "news_score": news_score,
         "macro_score": macro_score,
         "vol_score": vol_score,
+        "sector_score": sector_score,
         "composite": composite,
         "verdict": verdict,
         "verdict_color": verdict_color,

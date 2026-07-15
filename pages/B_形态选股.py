@@ -7,7 +7,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, api_get
+from modules.session import require_auth, render_user_badge, api_get, api_kline
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
@@ -33,35 +33,72 @@ def _get_fetcher():
 
 fetcher = _get_fetcher()
 
+import concurrent.futures as _cf
+
+
+def _norm_code(c: str) -> str:
+    """规整股票代码：去掉 sh/sz/bj 等交易所前缀，保留 6 位纯数字代码。"""
+    c = str(c).strip().lower()
+    for p in ("sh", "sz", "bj"):
+        if c.startswith(p):
+            c = c[len(p):]
+    return c.upper()
+
 # ───────────────────────── 选择股票池 ─────────────────────────
 source = st.radio("股票池来源", ["我的自选股", "手动输入代码"], horizontal=True)
 
 universe = []
 if source == "我的自选股":
-    sc, body = api_get("/api/watchlist")
+    sc, body = api_get("/api/watchlist", timeout=10)
     if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        universe = [w["stock_code"] for w in (body.get("data", []) or [])]
-    if not universe:
-        st.warning("自选股为空，请先到「我的 / 自选股」添加，或切换为「手动输入代码」。")
+        universe = [_norm_code(w["stock_code"]) for w in (body.get("data", []) or []) if w.get("stock_code")]
+        if universe:
+            st.caption(
+                f"✅ 已从自选股加载 **{len(universe)}** 只："
+                f"{', '.join(universe[:12])}{' …' if len(universe) > 12 else ''}"
+            )
+        else:
+            st.warning("自选股为空，请先到「我的 / 自选股」添加，或切换为「手动输入代码」。")
+    else:
+        msg = body.get("message", "") if isinstance(body, dict) else ""
+        st.error(f"❌ 加载自选股失败（HTTP {sc}）{msg}；可切换为「手动输入代码」继续。")
 else:
     raw = multi_stock_search_input(label="输入多只股票（代码/名称，逗号分隔）", key="screener_stocks")
     if raw:
-        universe = [c.strip() for c in str(raw).replace("，", ",").split(",") if c.strip()]
+        universe = [_norm_code(c) for c in str(raw).replace("，", ",").split(",") if c.strip()]
 
 keyword = st.text_input("形态关键词筛选（留空=显示所有命中形态，如：金叉 / 突破 / 背离）", "").strip()
 
+
+def _scan_fetch_one(code: str, start: str, end: str):
+    """并行抓取单只股票日线：优先后端 K 线接口（带缓存与多源回落），失败回退本地 fetcher。"""
+    try:
+        recs = api_kline(code, start=start, end=end) or fetcher.get_daily(code, start=start, end=end)
+        df = pd.DataFrame(recs) if recs else None
+        df = DataCleaner.full_pipeline(df)
+        if df is None or df.empty or len(df) < 20:
+            return code, None
+        return code, df
+    except Exception:
+        return code, None
+
+
 if st.button("🚀 开始扫描", type="primary", use_container_width=True) and universe:
     universe = universe[:40]  # 安全上限，避免过慢
+    today = datetime.now().date()
+    start = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+    end = today.strftime("%Y-%m-%d")
+
+    # 并行抓取 K 线（网络 I/O 是瓶颈），再逐只做技术分析
+    with st.spinner(f"并行抓取 {len(universe)} 只股票日线…"):
+        with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+            fetched = list(ex.map(lambda c: _scan_fetch_one(c, start, end), universe))
+
     results = []
-    prog = st.progress(0, text="扫描中…")
-    for i, code in enumerate(universe):
+    prog = st.progress(0, text="分析形态中…")
+    for i, (code, df) in enumerate(fetched):
         try:
-            today = datetime.now().date()
-            start = (today - timedelta(days=365)).strftime("%Y-%m-%d")
-            end = today.strftime("%Y-%m-%d")
-            df = fetcher.get_daily(code, start=start, end=end)
-            df = DataCleaner.full_pipeline(df)
-            if df is None or df.empty or len(df) < 20:
+            if df is None:
                 continue
             tech = technical_full_analysis(df)
             composite = SignalEngine().price_score(df)
@@ -80,11 +117,11 @@ if st.button("🚀 开始扫描", type="primary", use_container_width=True) and 
             })
         except Exception:
             continue
-        prog.progress((i + 1) / len(universe), text=f"扫描中… {i+1}/{len(universe)}")
+        prog.progress((i + 1) / len(fetched), text=f"分析形态中… {i+1}/{len(fetched)}")
     prog.empty()
 
     if not results:
-        st.info("未命中任何形态（或股票池无数据）。")
+        st.info("未命中任何形态（或股票池无可用日线数据，可尝试「手动输入代码」或检查网络）。")
     else:
         st.success(f"✅ 扫描完成，命中 {len(results)} 只")
         results.sort(key=lambda r: r["技术评分"], reverse=True)

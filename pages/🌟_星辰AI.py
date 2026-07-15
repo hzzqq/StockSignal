@@ -21,15 +21,15 @@ import re
 import time
 import streamlit as st
 
-apply_page_config(page_title="🌟 星辰 AI", page_icon="🌟", layout="wide")
-st.session_state["_active_page"] = __file__
-
+from modules.ui_theme import apply_page_config, _theme_is_dark
 from modules.session import require_auth, get_user
-from modules.ui_theme import _theme_is_dark, apply_page_config
 from modules.starfield_theme import inject_plotly_dark, UP_COLOR, DOWN_COLOR
 from modules.background_tasks import submit_task_with_error, poll_task, get_chat_history, save_chat_history
 from modules.widgets import _slim_context
 from modules.widgets import STAR_AI_LOGO
+
+apply_page_config(page_title="🌟 星辰 AI", page_icon="🌟", layout="wide")
+st.session_state["_active_page"] = __file__
 
 
 # ══════════════════════════════════════════════════════

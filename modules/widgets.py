@@ -17,7 +17,7 @@ import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
-from modules.session import API_BASE, get_token, safe_switch_page
+from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs
 
 
 # ──────────────────────────────────────────────────────────────
@@ -107,6 +107,7 @@ def render_theme_toggle() -> None:
         ):
             st.session_state["theme_mode"] = "dark"
             apply_theme()
+            persist_prefs()
             st.rerun()
     with col_light:
         if st.button(
@@ -117,6 +118,7 @@ def render_theme_toggle() -> None:
         ):
             st.session_state["theme_mode"] = "light"
             apply_theme()
+            persist_prefs()
             st.rerun()
 
 
@@ -157,6 +159,7 @@ def render_topright_bar() -> None:
             ):
                 st.session_state["theme_mode"] = "dark"
                 apply_theme()
+                persist_prefs()
                 st.rerun()
         with c_l:
             if st.button(
@@ -166,6 +169,7 @@ def render_topright_bar() -> None:
             ):
                 st.session_state["theme_mode"] = "light"
                 apply_theme()
+                persist_prefs()
                 st.rerun()
 
 

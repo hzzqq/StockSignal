@@ -7,7 +7,7 @@ import streamlit as st
 import requests
 from datetime import datetime
 
-from modules.session import require_auth, render_user_badge, safe_switch_page, API_BASE, get_user, get_token
+from modules.session import require_auth, render_user_badge, safe_switch_page, API_BASE, get_user, get_token, persist_prefs
 from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT
 
 from modules.ui_theme import apply_page_config
@@ -68,6 +68,7 @@ def render_preferences():
             help="专业交易终端风格 · OLED暗色背景 + 金色点缀",
         ):
             st.session_state["theme_mode"] = "dark"
+            persist_prefs()
             st.rerun()
     with col_light:
         if st.button(
@@ -76,6 +77,7 @@ def render_preferences():
             help="清爽金融仪表盘风格 · 浅灰白底 + 蓝金点缀",
         ):
             st.session_state["theme_mode"] = "light"
+            persist_prefs()
             st.rerun()
 
     st.caption("提示：切换后整个界面会立即刷新，无需手动操作。")
@@ -97,6 +99,7 @@ def render_preferences():
         st.session_state["font_size"] = _font_current
         # 实际 CSS 注入由 ui_theme.apply_theme() 全局统一处理（覆盖 html/body/.stApp），
         # 这里仅更新设置并重跑，使全局字号立即生效。
+        persist_prefs()
         st.rerun()
 
     st.markdown("")

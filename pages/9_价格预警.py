@@ -60,7 +60,7 @@ with st.expander("➕ 新建价格预警", expanded=False):
                 format_func=lambda x: "涨破 ▲" if x == "above" else "跌破 ▼",
             )
         with c2:
-            target = st.number_input("目标价格 (元)", min_value=0.01, step=0.01, value=0.0)
+            target = st.number_input("目标价格 (元)", min_value=0.0, step=0.01, value=0.0)
         submitted = st.form_submit_button("保存预警", type="primary", use_container_width=True)
         if submitted:
             if not code:

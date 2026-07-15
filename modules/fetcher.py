@@ -15,6 +15,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 from datetime import datetime, timedelta
+import concurrent.futures as _cf
 
 import pandas as pd
 import yaml
@@ -1946,10 +1947,61 @@ class StockFetcher:
             # 检查失败时不阻塞（允许后续降级链尝试）
             return True, f"无法验证({e})"
 
+    def _fetch_level(self, level, symbol, start, end, adjust):
+        """单数据源抓取 + 标准化：并行竞速用。
+
+        返回 (df_or_None, error_or_None)。L1=akshare / L2=BaoStock / L3=新浪 / L4=东方财富。
+        每个源独立在子线程中执行，先成功者胜出，避免「顺序降级逐个网络超时」的累加等待。
+        """
+        try:
+            if level == "L1" and _AK_OK:
+                df = _retry_request(
+                    lambda: ak.stock_zh_a_hist(
+                        symbol=symbol, period="daily",
+                        start_date=start.replace("-", ""),
+                        end_date=end.replace("-", ""),
+                        adjust=adjust,
+                    ),
+                    max_retries=0,
+                )
+                if df is not None and not df.empty:
+                    df = df.rename(columns={
+                        "日期": "date", "开盘": "open", "收盘": "close",
+                        "最高": "high", "最低": "low", "成交量": "volume",
+                        "成交额": "amount", "涨跌幅": "change_pct",
+                    })
+                    df["date"] = pd.to_datetime(df["date"])
+                    return df, None
+                return None, "akshare: 无数据"
+
+            if level == "L2":
+                df = _BaoStockFetcher.fetch_kline(symbol, start, end, adjust=adjust)
+                if df is not None and not df.empty:
+                    return df, None
+                return None, "BaoStock: 无数据"
+
+            if level == "L3":
+                df = _SinaFetcher.fetch_kline(symbol, start, end)
+                if df is not None and not df.empty:
+                    df = df[(df["date"] >= start) & (df["date"] <= end)]
+                    if not df.empty:
+                        return df, None
+                return None, "新浪: 日期范围外/无数据"
+
+            if level == "L4":
+                df = _UrllibFetcher.fetch_kline(symbol, start, end, adjust=adjust)
+                if df is not None and not df.empty:
+                    return df, None
+                return None, "东方财富: 无数据"
+        except Exception as e:
+            return None, f"{level}: {type(e).__name__}"
+        return None, f"{level}: 无数据"
+
     def get_daily(self, symbol, start="2024-01-01", end=None, adjust="qfq"):
         """
         获取个股日线行情。
-        降级链：akshare -> BaoStock -> 新浪财经 -> 东方财富(urllib) -> 缓存兜底
+        降级链（v3 并行竞速）：akshare / BaoStock / 新浪 / 东方财富 四源并发，
+        先成功者胜出（耗时由「各源之和」降为「最慢单源」）；全部失败再走缓存兜底。
 
         性能优化（v2）：
         - BaoStock 走连接池（每次查询不复登），13s -> 3s
@@ -1973,68 +2025,37 @@ class StockFetcher:
             df = None
             errors = []
 
-            # ── L1: akshare（最快路径，akshare 通就直接返回）──
-            if _AK_OK:
-                try:
-                    df = _retry_request(
-                        lambda: ak.stock_zh_a_hist(
-                            symbol=symbol, period="daily",
-                            start_date=start.replace("-", ""),
-                            end_date=end.replace("-", ""),
-                            adjust=adjust,
-                        ),
-                        max_retries=0,  # akshare 远程断连时立即降级，不等
-                    )
-                    if df is None or df.empty:
-                        df = None
+            # ── 并行竞速：四源（akshare / BaoStock / 新浪 / 东方财富）并发，先成功者胜出 ──
+            levels = ["L1", "L2", "L3", "L4"]
+            ex = _cf.ThreadPoolExecutor(max_workers=4)
+            try:
+                futs = {ex.submit(self._fetch_level, lv, symbol, start, end, adjust): lv for lv in levels}
+                # 第一轮：任一源完成即检查（成功立即采用，不再等慢源）
+                done, not_done = _cf.wait(futs, timeout=10, return_when=_cf.FIRST_COMPLETED)
+                for fut in done:
+                    res_df, res_err = fut.result()
+                    if res_df is not None and not res_df.empty:
+                        df = res_df
+                        print(f"[StockFetcher] {futs[fut]} OK {symbol} (并行竞速)")
+                        break
                     else:
-                        df = df.rename(columns={
-                            "日期": "date", "开盘": "open", "收盘": "close",
-                            "最高": "high", "最低": "low", "成交量": "volume",
-                            "成交额": "amount", "涨跌幅": "change_pct",
-                        })
-                        df["date"] = pd.to_datetime(df["date"])
-                        print(f"[StockFetcher] L1-akshare OK {symbol}")
-                except Exception as e:
-                    # akshare 失败是常态（远程断连/限流），安静降级到 L2
-                    if 'Connection' not in type(e).__name__ and 'Remote' not in type(e).__name__:
-                        errors.append(f"akshare: {type(e).__name__}")
-                    print(f"[StockFetcher] L1-akshare FAIL {symbol}: {type(e).__name__}")
-                    df = None
-
-            # ── L2: BaoStock ──
-            if df is None or df.empty:
-                df = _BaoStockFetcher.fetch_kline(symbol, start, end, adjust=adjust)
-                if df is not None and not df.empty:
-                    print(f"[StockFetcher] L2-BaoStock OK {symbol}")
-                else:
-                    errors.append("BaoStock: 无数据")
-                    print(f"[StockFetcher] L2-BaoStock FAIL {symbol}")
-
-            # ── L3: 新浪财经 ──
-            if df is None or df.empty:
-                df_sina = _SinaFetcher.fetch_kline(symbol, start, end)
-                if df_sina is not None and not df_sina.empty:
-                    # 按日期范围裁剪
-                    df_sina = df_sina[(df_sina["date"] >= start) & (df_sina["date"] <= end)]
-                    if not df_sina.empty:
-                        df = df_sina
-                        print(f"[StockFetcher] L3-新浪 OK {symbol}")
-                    else:
-                        errors.append("新浪: 日期范围外")
-                        df = None
-                else:
-                    errors.append("新浪: 无数据")
-                    print(f"[StockFetcher] L3-新浪 FAIL {symbol}")
-
-            # ── L4: 东方财富 urllib ──
-            if df is None or df.empty:
-                df = _UrllibFetcher.fetch_kline(symbol, start, end, adjust=adjust)
-                if df is not None and not df.empty:
-                    print(f"[StockFetcher] L4-东方财富 OK {symbol}")
-                else:
-                    errors.append("东方财富: 无数据")
-                    print(f"[StockFetcher] L4-东方财富 FAIL {symbol}")
+                        if res_err:
+                            errors.append(res_err)
+                # 若第一轮未命中（先完成的是失败源），再等剩余源（最多再 10s）
+                if df is None and not_done:
+                    done2, _ = _cf.wait(not_done, timeout=10)
+                    for fut in done2:
+                        res_df, res_err = fut.result()
+                        if res_df is not None and not res_df.empty:
+                            df = res_df
+                            print(f"[StockFetcher] {futs[fut]} OK {symbol} (并行竞速)")
+                            break
+                        else:
+                            if res_err:
+                                errors.append(res_err)
+            finally:
+                # 取消未完成（如被墙挂起的 akshare），不阻塞等待
+                ex.shutdown(wait=False, cancel_futures=True)
 
             # ── L5: 缓存兜底（任何过期缓存都优先用）──
             if df is None or df.empty:

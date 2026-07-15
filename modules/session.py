@@ -29,6 +29,8 @@ import json
 import streamlit as st
 import requests
 
+from .ui_theme import FONT_DEFAULT
+
 # 后端 API 基地址。
 # 本地开发默认 http://127.0.0.1:5050；容器化部署（docker-compose）下由
 # STOCKSIGNAL_API_BASE=http://backend:5050 注入，前端容器借此跨容器访问后端。
@@ -38,6 +40,7 @@ KEY_TOKEN = "auth_token"
 KEY_USER = "auth_user"
 QP_TOKEN = "token"
 QP_USER = "u"
+QP_PREFS = "prefs"  # 用户偏好（主题/字体）持久化参数
 
 
 def init_session_state() -> None:
@@ -64,6 +67,20 @@ def init_session_state() -> None:
 
     # 3) 关键：把登录态回写到 URL，确保「刷新后状态和刷新前一模一样」
     _sync_query_params()
+
+    # 4) 恢复用户偏好（主题 / 字体）：先试 URL query_params（刷新/导航可靠）；
+    #    若 URL 无偏好但 localStorage 有（浏览器关闭后再打开），则从 localStorage 兜底恢复。
+    _prefs = _restore_prefs_from_query_params()
+    if _prefs:
+        st.session_state.setdefault("theme_mode", _prefs.get("theme_mode", "light"))
+        st.session_state.setdefault("font_size", _prefs.get("font_size", FONT_DEFAULT))
+    else:
+        try:
+            from .prefs_persist import restore_prefs_from_local_storage
+            restore_prefs_from_local_storage()
+        except Exception as e:
+            print(f"[session] restore_prefs error: {e}")
+    _sync_prefs_query_params()
 
     # 记录当前页面作用域（供「个股分析」强制暗色等按页面生效的逻辑使用，
     # 不改写全局 theme_mode，避免访问该页后其它页面被意外变暗）。
@@ -141,10 +158,18 @@ def safe_switch_page(page: str, **kwargs) -> None:
     """
     token = st.session_state.get(KEY_TOKEN)
     user = st.session_state.get(KEY_USER)
+    qp = {}
+    # 保留当前所有 query 参数（主题/字体偏好等），避免导航后丢失
+    try:
+        for k, v in st.query_params.items():
+            qp[k] = v
+    except Exception:
+        pass
     if token:
-        qp = {QP_TOKEN: token}
+        qp[QP_TOKEN] = token
         if user is not None:
             qp[QP_USER] = json.dumps(user, ensure_ascii=False)
+    if qp:
         st.switch_page(page, query_params=qp, **kwargs)
     else:
         st.switch_page(page, **kwargs)
@@ -210,6 +235,50 @@ def _clear_query_params() -> None:
                 del qp[k]
     except Exception as e:
         print(f"[session] _clear_query_params error: {e}")
+
+
+# ══════════════════════════════════════════════════════════════
+# 用户偏好（主题 / 字体大小）持久化：与登录态同源机制，保证刷新 / 跨页 / 关闭浏览器后恢复
+# ══════════════════════════════════════════════════════════════
+def _current_prefs() -> dict:
+    """从 session_state 收集当前偏好。"""
+    return {
+        "theme_mode": st.session_state.get("theme_mode", "light"),
+        "font_size": st.session_state.get("font_size", FONT_DEFAULT),
+    }
+
+
+def _restore_prefs_from_query_params() -> dict:
+    """从 URL query_params 读取 prefs JSON，返回 dict（无则空）。"""
+    try:
+        raw = st.query_params.get(QP_PREFS)
+        if raw:
+            return json.loads(raw)
+    except Exception:
+        pass
+    return {}
+
+
+def _sync_prefs_query_params() -> None:
+    """把当前偏好回写到 URL query_params，保证刷新 / 导航后偏好不丢（仅在变化时写，避免重跑死循环）。"""
+    try:
+        prefs = _current_prefs()
+        cur = st.query_params.get(QP_PREFS)
+        new = json.dumps(prefs, ensure_ascii=False)
+        if cur != new:
+            st.query_params[QP_PREFS] = new
+    except Exception as e:
+        print(f"[session] _sync_prefs_query_params error: {e}")
+
+
+def persist_prefs() -> None:
+    """偏好变更后调用：写入浏览器 localStorage（关闭浏览器兜底）+ 回写 URL query_params。"""
+    try:
+        from .prefs_persist import save_prefs
+        save_prefs(_current_prefs())
+    except Exception as e:
+        print(f"[session] persist_prefs localStorage error: {e}")
+    _sync_prefs_query_params()
 
 
 def get_token() -> str | None:
