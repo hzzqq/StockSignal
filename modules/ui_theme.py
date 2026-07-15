@@ -19,6 +19,7 @@ v9 核心变更：
 """
 from __future__ import annotations
 import streamlit as st
+import streamlit.config as _config
 import streamlit.components.v1 as components
 
 # ── 金融配色常量（A股：红涨绿跌）──
@@ -1269,12 +1270,23 @@ def apply_page_config(page_title: str, page_icon: str = "📈", layout: str = "w
     """统一页面配置：根据全局 theme_mode 同步 Streamlit 原生主题。
 
     必须在每个页面最顶部（任何其它 st.xxx 之前）调用。等价于 st.set_page_config，
-    但额外注入 theme，使 DataFrame / 下拉框 / 聊天输入框等原生组件跟随暗夜 / 白天模式。
+    但通过 streamlit.config.set_option 设置 theme.* 选项，让 DataFrame / 下拉框 /
+    聊天输入框等原生组件跟随暗夜 / 白天模式。
+
+    当前环境（Streamlit 1.59.2）的 st.set_page_config 还不支持 theme 关键字参数，
+    因此采用 config.set_option 方式在页面渲染前把原生主题写入配置。
     theme_mode 在首次加载（未切换过）时回落到 light，符合「默认白天」约定；
     用户一旦在右上角切换暗夜，session_state 中 theme_mode=dark，切页后原生主题即跟随变暗。
     """
     theme = STREAMLIT_THEME_DARK if _theme_is_dark() else STREAMLIT_THEME_LIGHT
-    st.set_page_config(page_title=page_title, page_icon=page_icon, layout=layout, theme=theme)
+    # 同步 Streamlit 原生主题。这些选项必须在页面其它 st 调用前写入，
+    # 否则原生组件已按旧主题渲染。若已被命令行/config.toml 锁定，则静默回退。
+    try:
+        for key, value in theme.items():
+            _config.set_option(f"theme.{key}", value)
+    except Exception:
+        pass
+    st.set_page_config(page_title=page_title, page_icon=page_icon, layout=layout)
 
 
 def apply_theme() -> None:
