@@ -130,237 +130,182 @@ def _get_market_status():
 # ------------------------------------------------------------------
 # 行业板块涨跌榜（卡片 + 折叠详情）
 # ------------------------------------------------------------------
-st.markdown("---")
-st.subheader("🏭 行业板块涨跌榜")
+@st.fragment
+def fragment_sector_board():
+    st.markdown("---")
+    st.subheader("🏭 行业板块涨跌榜")
 
-try:
-    from streamlit_autorefresh import st_autorefresh
-    is_open, status_text, refresh_ms = _get_market_status()
-    if refresh_ms > 0:
-        st_autorefresh(interval=refresh_ms, key="sector_autorefresh")
-except Exception:
-    is_open, status_text, _ = _get_market_status()
+    try:
+        from streamlit_autorefresh import st_autorefresh
+        is_open, status_text, refresh_ms = _get_market_status()
+        if refresh_ms > 0:
+            st_autorefresh(interval=refresh_ms, key="sector_autorefresh")
+    except Exception:
+        is_open, status_text, _ = _get_market_status()
 
-st.caption(status_text)
+    st.caption(status_text)
 
-try:
-    sector_df = fetcher.get_sector_list()
-    if not sector_df.empty:
-        sector_df["change_pct"] = pd.to_numeric(sector_df["change_pct"], errors="coerce").fillna(0)
-        sector_df = sector_df.sort_values("change_pct", ascending=False).reset_index(drop=True)
-        if sector_df["change_pct"].abs().max() < 0.01:
-            st.warning("⚠️ 当前数据源未返回板块涨跌幅，仅展示行业列表。交易时间或网络恢复后会自动获取真实数据。")
-        _render_sector_cards(sector_df, top_n=24)
-    else:
-        st.warning("未获取到板块数据。")
-except Exception as e:
-    st.error(f"获取板块数据失败: {e}")
-
-# 折叠区：涨跌排行表格 + 涨跌分布
-with st.expander("📊 板块涨跌详情（点击展开）", expanded=False):
     try:
         sector_df = fetcher.get_sector_list()
         if not sector_df.empty:
             sector_df["change_pct"] = pd.to_numeric(sector_df["change_pct"], errors="coerce").fillna(0)
             sector_df = sector_df.sort_values("change_pct", ascending=False).reset_index(drop=True)
-            sector_df["排名"] = range(1, len(sector_df) + 1)
-
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                st.markdown("#### 涨跌排行表格")
-                display_cols = ["排名", "sector", "change_pct"]
-                st.dataframe(
-                    sector_df[display_cols].rename(columns={"sector": "板块", "change_pct": "涨跌幅"}),
-                    use_container_width=True,
-                    column_config={"涨跌幅": st.column_config.NumberColumn(format="%.2f%%")},
-                    height=700,
-                )
-            with col2:
-                st.markdown("#### 涨跌分布")
-                fig = Visualizer.sector_heatmap(sector_df, title="全部行业板块涨跌幅")
-                st.plotly_chart(fig, use_container_width=True)
+            if sector_df["change_pct"].abs().max() < 0.01:
+                st.warning("⚠️ 当前数据源未返回板块涨跌幅，仅展示行业列表。交易时间或网络恢复后会自动获取真实数据。")
+            _render_sector_cards(sector_df, top_n=24)
         else:
             st.warning("未获取到板块数据。")
     except Exception as e:
-        st.error(f"获取板块详情失败: {e}")
+        st.error(f"获取板块数据失败: {e}")
+
+    # 折叠区：涨跌排行表格 + 涨跌分布
+    with st.expander("📊 板块涨跌详情（点击展开）", expanded=False):
+        try:
+            sector_df = fetcher.get_sector_list()
+            if not sector_df.empty:
+                sector_df["change_pct"] = pd.to_numeric(sector_df["change_pct"], errors="coerce").fillna(0)
+                sector_df = sector_df.sort_values("change_pct", ascending=False).reset_index(drop=True)
+                sector_df["排名"] = range(1, len(sector_df) + 1)
+
+                col1, col2 = st.columns([1, 2])
+                with col1:
+                    st.markdown("#### 涨跌排行表格")
+                    display_cols = ["排名", "sector", "change_pct"]
+                    st.dataframe(
+                        sector_df[display_cols].rename(columns={"sector": "板块", "change_pct": "涨跌幅"}),
+                        use_container_width=True,
+                        column_config={"涨跌幅": st.column_config.NumberColumn(format="%.2f%%")},
+                        height=700,
+                    )
+                with col2:
+                    st.markdown("#### 涨跌分布")
+                    fig = Visualizer.sector_heatmap(sector_df, title="全部行业板块涨跌幅")
+                    st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("未获取到板块数据。")
+        except Exception as e:
+            st.error(f"获取板块详情失败: {e}")
+
+
+fragment_sector_board()
 
 
 # ------------------------------------------------------------------
 # 龙虎榜
 # ------------------------------------------------------------------
-st.markdown("---")
-st.subheader("🐉 龙虎榜")
-st.caption("当日机构/游资活跃个股（数据来源：东方财富龙虎榜）")
+@st.fragment
+def fragment_lhb():
+    st.markdown("---")
+    st.subheader("🐉 龙虎榜")
+    st.caption("当日机构/游资活跃个股（数据来源：东方财富龙虎榜）")
 
+    lhb_date = (datetime.now().date() - timedelta(days=0 if datetime.now().weekday() < 5 else 1)).strftime("%Y%m%d")
+    lhb_df = _load_lhb(lhb_date)
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _load_lhb(date_str: str):
-    """获取龙虎榜数据。优先东方财富，其次新浪；失败返回 None。"""
-    import requests
-    import urllib3
-    import akshare as ak
-    urllib3.disable_warnings()
+    if lhb_df is not None and not lhb_df.empty:
+        # 统一列名：尽量兼容不同数据源
+        cols = list(lhb_df.columns)
+        code_col = next((c for c in cols if "代码" in c), None) or cols[0]
+        name_col = next((c for c in cols if "名称" in c), None) or (cols[1] if len(cols) > 1 else cols[0])
+        reason_col = next((c for c in cols if "原因" in c or "上榜" in c), None)
+        buy_col = next((c for c in cols if "买入" in c and "额" in c), None)
+        sell_col = next((c for c in cols if "卖出" in c and "额" in c), None)
+        net_col = next((c for c in cols if "净买" in c or "净额" in c), None)
+        chg_col = next((c for c in cols if "涨跌幅" in c or "涨幅" in c), None)
 
-    # 统一把 requests.get 默认 verify=False（部分数据源在代理后 SSL 会失败）
-    _orig_get = requests.get
-    def _get(url, **kwargs):
-        kwargs.setdefault("verify", False)
-        return _orig_get(url, **kwargs)
-    requests.get = _get
+        lhb_df["_code"] = lhb_df[code_col].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
+        lhb_df["股票名称"] = lhb_df[name_col].astype(str)
 
-    # 1) 东方财富：返回最近若干天数据，按 date_str 所在日期过滤
-    try:
-        start = (datetime.now().date() - timedelta(days=7)).strftime("%Y%m%d")
-        end = datetime.now().date().strftime("%Y%m%d")
-        df = ak.stock_lhb_detail_em(start_date=start, end_date=end)
-        if df is not None and not df.empty:
-            df = df.rename(columns=lambda x: str(x).strip())
-            # 过滤到目标日期（含前后一交易日兜底）
-            if "上榜日" in df.columns:
-                df["上榜日"] = df["上榜日"].astype(str).str.replace("-", "")
-                filtered = df[df["上榜日"] <= date_str].sort_values("上榜日", ascending=False)
-                if not filtered.empty:
-                    latest_date = filtered["上榜日"].iloc[0]
-                    df = df[df["上榜日"] == latest_date].copy()
-            # 标准化列名
-            col_map = {
-                "代码": "股票代码",
-                "名称": "股票名称",
-                "上榜原因": "上榜原因",
-                "龙虎榜买入额": "龙虎榜买入额",
-                "龙虎榜卖出额": "龙虎榜卖出额",
-                "龙虎榜净买额": "龙虎榜净买额",
-                "涨跌幅": "涨跌幅",
-                "收盘价": "收盘价",
-            }
-            df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
-            if "股票代码" in df.columns:
-                df["股票代码"] = df["股票代码"].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
-                df = df[df["股票代码"].str.len() == 6]
-            return df
-    except Exception:
-        pass
+        # 1) 去重：按股票代码保留 |龙虎榜净买额| 最大的一行，保持原有顺序
+        if net_col and net_col in lhb_df.columns:
+            lhb_df["_net"] = pd.to_numeric(lhb_df[net_col], errors="coerce").fillna(0)
+            lhb_df["_score"] = lhb_df["_net"].abs()
+        else:
+            lhb_df["_score"] = pd.Series(range(len(lhb_df)), index=lhb_df.index, dtype=float)
+        lhb_df = lhb_df.reset_index(drop=True)
+        lhb_df["_orig"] = range(len(lhb_df))
+        lhb_df = (
+            lhb_df.sort_values(["_code", "_score"], ascending=[True, False])
+            .drop_duplicates("_code", keep="first")
+            .sort_values("_orig")
+            .reset_index(drop=True)
+        )
 
-    # 2) 新浪：按日期尝试最近 3 个交易日
-    try:
-        for offset in range(0, 4):
-            d = (datetime.now().date() - timedelta(days=offset)).strftime("%Y%m%d")
-            try:
-                df = ak.stock_lhb_detail_daily_sina(date=d)
-                if df is not None and not df.empty:
-                    df = df.rename(columns=lambda x: str(x).strip())
-                    return df
-            except Exception:
-                continue
-    except Exception:
-        pass
-    return None
+        # 2) 标准化展示列：买方金额 / 卖方金额 / 龙虎榜净买额 / 涨跌幅
+        lhb_df["股票代码"] = lhb_df["_code"]
+        if buy_col:
+            lhb_df["买方金额"] = lhb_df[buy_col]
+        if sell_col:
+            lhb_df["卖方金额"] = lhb_df[sell_col]
+        if net_col:
+            lhb_df["龙虎榜净买额"] = lhb_df[net_col]
+        if chg_col:
+            lhb_df["涨跌幅"] = lhb_df[chg_col]
 
+        # 3) 所属概念：逐股获取
+        lhb_df["所属概念"] = [_get_stock_concept(c) for c in lhb_df["股票代码"]]
 
-lhb_date = (datetime.now().date() - timedelta(days=0 if datetime.now().weekday() < 5 else 1)).strftime("%Y%m%d")
-lhb_df = _load_lhb(lhb_date)
+        # 4) 友好列顺序
+        display_cols = ["股票代码", "股票名称", "所属概念"]
+        for c in ("涨跌幅", "买方金额", "卖方金额", "龙虎榜净买额"):
+            if c in lhb_df.columns:
+                display_cols.append(c)
+        if reason_col:
+            display_cols.append(reason_col)
 
-if lhb_df is not None and not lhb_df.empty:
-    # 统一列名：尽量兼容不同数据源
-    cols = list(lhb_df.columns)
-    code_col = next((c for c in cols if "代码" in c), None) or cols[0]
-    name_col = next((c for c in cols if "名称" in c), None) or (cols[1] if len(cols) > 1 else cols[0])
-    reason_col = next((c for c in cols if "原因" in c or "上榜" in c), None)
-    buy_col = next((c for c in cols if "买入" in c and "额" in c), None)
-    sell_col = next((c for c in cols if "卖出" in c and "额" in c), None)
-    net_col = next((c for c in cols if "净买" in c or "净额" in c), None)
-    chg_col = next((c for c in cols if "涨跌幅" in c or "涨幅" in c), None)
+        # 清理临时列后展示
+        _tmp_cols = [c for c in lhb_df.columns if c.startswith("_")]
+        st.dataframe(lhb_df[[c for c in display_cols if c in lhb_df.columns]].drop(columns=_tmp_cols, errors="ignore"),
+                     use_container_width=True, height=420)
 
-    lhb_df["_code"] = lhb_df[code_col].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
-    lhb_df["股票名称"] = lhb_df[name_col].astype(str)
+        # 5) 热股榜：热度评分 = 归一化(买方+卖方) + 0.3*|涨跌幅| + 0.2*评论数(无则0)
+        with st.expander("🔥 热股榜", expanded=False):
+            _n = len(lhb_df)
+            _amounts = []
+            _chgs = []
+            for _, _r in lhb_df.iterrows():
+                try:
+                    _buy = float(pd.to_numeric(_r.get("买方金额"), errors="coerce") or 0)
+                except Exception:
+                    _buy = 0.0
+                try:
+                    _sell = float(pd.to_numeric(_r.get("卖方金额"), errors="coerce") or 0)
+                except Exception:
+                    _sell = 0.0
+                try:
+                    _chg = abs(float(pd.to_numeric(_r.get("涨跌幅"), errors="coerce") or 0))
+                except Exception:
+                    _chg = 0.0
+                _amounts.append(abs(_buy) + abs(_sell))
+                _chgs.append(_chg)
+            _amounts = pd.Series(_amounts, dtype=float)
+            _amax = _amounts.max() if _n else 0.0
+            _anorm = (_amounts / _amax) if _amax > 0 else pd.Series([0.0] * _n, dtype=float)
+            _heat = _anorm + 0.3 * pd.Series(_chgs, dtype=float)
+            heat_df = pd.DataFrame({
+                "股票代码": lhb_df["股票代码"].values,
+                "股票名称": lhb_df["股票名称"].values,
+                "热度": [round(float(x), 2) for x in _heat],
+                "买方金额": lhb_df["买方金额"].values if "买方金额" in lhb_df.columns else [0] * _n,
+                "卖方金额": lhb_df["卖方金额"].values if "卖方金额" in lhb_df.columns else [0] * _n,
+                "涨跌幅": lhb_df["涨跌幅"].values if "涨跌幅" in lhb_df.columns else [0] * _n,
+            })
+            heat_df = heat_df.sort_values("热度", ascending=False).reset_index(drop=True)
+            st.dataframe(heat_df, use_container_width=True,
+                         column_config={"热度": st.column_config.NumberColumn(format="%.2f")})
 
-    # 1) 去重：按股票代码保留 |龙虎榜净买额| 最大的一行，保持原有顺序
-    if net_col and net_col in lhb_df.columns:
-        lhb_df["_net"] = pd.to_numeric(lhb_df[net_col], errors="coerce").fillna(0)
-        lhb_df["_score"] = lhb_df["_net"].abs()
+        # 点击跳转股票选取（视觉增强由全局 selectbox CSS 保证，这里加 key + 醒目占位符）
+        opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in lhb_df.iterrows() if len(str(row['股票代码'])) == 6]
+        sel = st.selectbox("选择龙虎榜股票查看 K 线", ["— 请选择 —"] + opts, key="lhb_jump_select")
+        if sel and sel != "— 请选择 —":
+            code = sel.split()[0]
+            st.query_params["pick_stock"] = code
+            safe_switch_page("pages/1_股票选取.py")
     else:
-        lhb_df["_score"] = pd.Series(range(len(lhb_df)), index=lhb_df.index, dtype=float)
-    lhb_df = lhb_df.reset_index(drop=True)
-    lhb_df["_orig"] = range(len(lhb_df))
-    lhb_df = (
-        lhb_df.sort_values(["_code", "_score"], ascending=[True, False])
-        .drop_duplicates("_code", keep="first")
-        .sort_values("_orig")
-        .reset_index(drop=True)
-    )
+        st.info("暂无龙虎榜数据（非交易日晚间或数据源暂不可用）。░")
 
-    # 2) 标准化展示列：买方金额 / 卖方金额 / 龙虎榜净买额 / 涨跌幅
-    lhb_df["股票代码"] = lhb_df["_code"]
-    if buy_col:
-        lhb_df["买方金额"] = lhb_df[buy_col]
-    if sell_col:
-        lhb_df["卖方金额"] = lhb_df[sell_col]
-    if net_col:
-        lhb_df["龙虎榜净买额"] = lhb_df[net_col]
-    if chg_col:
-        lhb_df["涨跌幅"] = lhb_df[chg_col]
 
-    # 3) 所属概念：逐股获取
-    lhb_df["所属概念"] = [_get_stock_concept(c) for c in lhb_df["股票代码"]]
-
-    # 4) 友好列顺序
-    display_cols = ["股票代码", "股票名称", "所属概念"]
-    for c in ("涨跌幅", "买方金额", "卖方金额", "龙虎榜净买额"):
-        if c in lhb_df.columns:
-            display_cols.append(c)
-    if reason_col:
-        display_cols.append(reason_col)
-
-    # 清理临时列后展示
-    _tmp_cols = [c for c in lhb_df.columns if c.startswith("_")]
-    st.dataframe(lhb_df[[c for c in display_cols if c in lhb_df.columns]].drop(columns=_tmp_cols, errors="ignore"),
-                 use_container_width=True, height=420)
-
-    # 5) 热股榜：热度评分 = 归一化(买方+卖方) + 0.3*|涨跌幅| + 0.2*评论数(无则0)
-    with st.expander("🔥 热股榜", expanded=False):
-        _n = len(lhb_df)
-        _amounts = []
-        _chgs = []
-        for _, _r in lhb_df.iterrows():
-            try:
-                _buy = float(pd.to_numeric(_r.get("买方金额"), errors="coerce") or 0)
-            except Exception:
-                _buy = 0.0
-            try:
-                _sell = float(pd.to_numeric(_r.get("卖方金额"), errors="coerce") or 0)
-            except Exception:
-                _sell = 0.0
-            try:
-                _chg = abs(float(pd.to_numeric(_r.get("涨跌幅"), errors="coerce") or 0))
-            except Exception:
-                _chg = 0.0
-            _amounts.append(abs(_buy) + abs(_sell))
-            _chgs.append(_chg)
-        _amounts = pd.Series(_amounts, dtype=float)
-        _amax = _amounts.max() if _n else 0.0
-        _anorm = (_amounts / _amax) if _amax > 0 else pd.Series([0.0] * _n, dtype=float)
-        _heat = _anorm + 0.3 * pd.Series(_chgs, dtype=float)
-        heat_df = pd.DataFrame({
-            "股票代码": lhb_df["股票代码"].values,
-            "股票名称": lhb_df["股票名称"].values,
-            "热度": [round(float(x), 2) for x in _heat],
-            "买方金额": lhb_df["买方金额"].values if "买方金额" in lhb_df.columns else [0] * _n,
-            "卖方金额": lhb_df["卖方金额"].values if "卖方金额" in lhb_df.columns else [0] * _n,
-            "涨跌幅": lhb_df["涨跌幅"].values if "涨跌幅" in lhb_df.columns else [0] * _n,
-        })
-        heat_df = heat_df.sort_values("热度", ascending=False).reset_index(drop=True)
-        st.dataframe(heat_df, use_container_width=True,
-                     column_config={"热度": st.column_config.NumberColumn(format="%.2f")})
-
-    # 点击跳转股票选取（视觉增强由全局 selectbox CSS 保证，这里加 key + 醒目占位符）
-    opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in lhb_df.iterrows() if len(str(row['股票代码'])) == 6]
-    sel = st.selectbox("选择龙虎榜股票查看 K 线", ["— 请选择 —"] + opts, key="lhb_jump_select")
-    if sel and sel != "— 请选择 —":
-        code = sel.split()[0]
-        st.query_params["pick_stock"] = code
-        safe_switch_page("pages/1_股票选取.py")
-else:
-    st.info("暂无龙虎榜数据（非交易日晚间或数据源暂不可用）。")
+fragment_lhb()
 
 
 # ------------------------------------------------------------------

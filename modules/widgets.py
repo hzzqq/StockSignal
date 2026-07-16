@@ -92,12 +92,10 @@ def _index_cache_key() -> str:
 
 
 def _trend_label(open_: float, high: float, low: float, close: float, prev_close: float, spark_y=None) -> str:
-    """根据日内 sparkline 或 OHLC 给出行走定性。
+    """根据日内 sparkline 或 OHLC 给出可读的走势定性。
 
-    优先看实际分时序列中高点与低点出现的先后顺序：
-    - 高点早于低点 → 冲高回落
-    - 低点早于高点 → 探底回升
-    - 无明显波动 → 窄幅震荡
+    核心思路：判断「冲高回落」还是「探底回升」不应只看高低点出现顺序，
+    而要看日内是否形成了「从高点明显回落」或「从低点明显回升」的真实结构。
     """
     if not all([open_, high, low, close, prev_close]) or prev_close == 0:
         return "—"
@@ -105,8 +103,22 @@ def _trend_label(open_: float, high: float, low: float, close: float, prev_close
     if amplitude < 0.15:
         return "窄幅震荡"
 
-    # 如果有真实分时序列，按高点/低点出现的先后顺序判断走势
-    if spark_y and len(spark_y) >= 3:
+    def _pullback_from_high(h, o, c):
+        # 高点比开盘高，且收盘价从高点回落显著
+        up = (h - o) / prev_close * 100
+        if up <= 0.15:
+            return False
+        return (h - c) / (h - o + 1e-9) > 0.35
+
+    def _bounce_from_low(l, o, c):
+        # 低点比开盘低，且收盘价从低点回升显著
+        down = (o - l) / prev_close * 100
+        if down <= 0.15:
+            return False
+        return (c - l) / (o - l + 1e-9) > 0.35
+
+    # 优先使用真实分时序列：同时判断高点/低点的位置与回落/反弹幅度
+    if spark_y and len(spark_y) >= 4:
         y = []
         for v in spark_y:
             try:
@@ -115,34 +127,54 @@ def _trend_label(open_: float, high: float, low: float, close: float, prev_close
                     y.append(fv)
             except (TypeError, ValueError):
                 pass
-        if len(y) >= 3:
-            hi_i = y.index(max(y))
-            lo_i = y.index(min(y))
-            if hi_i < lo_i:
+        if len(y) >= 4:
+            hi_i = max(range(len(y)), key=lambda i: y[i])
+            lo_i = min(range(len(y)), key=lambda i: y[i])
+            hi = y[hi_i]
+            lo = y[lo_i]
+            is_pullback = _pullback_from_high(hi, open_, close)
+            is_bounce = _bounce_from_low(lo, open_, close)
+            if is_pullback and not is_bounce:
                 return "冲高回落"
-            if lo_i < hi_i:
+            if is_bounce and not is_pullback:
                 return "探底回升"
+            if is_pullback and is_bounce:
+                # 两者都有：看哪个结构更完整（高点/低点谁更靠两端）
+                if hi_i < lo_i:
+                    return "冲高回落"
+                if lo_i < hi_i:
+                    return "探底回升"
+            # 无明显冲高回落/探底回升，则按整体方向定性
+            if close > open_ * 1.001:
+                return "震荡上行"
+            if close < open_ * 0.999:
+                return "震荡下行"
             return "窄幅震荡"
 
-    # 无分钟序列时按 OHLC 关键点（O-H-L-C 顺序）做保守推断
-    if close >= open_:
-        if high > close and (high - open_) / prev_close * 100 > 0.15:
-            return "冲高回落"
+    # 无分钟序列时，用 OHLC 关键点保守推断
+    if _pullback_from_high(high, open_, close):
+        return "冲高回落"
+    if _bounce_from_low(low, open_, close):
+        return "探底回升"
+
+    # 日内整体方向
+    if close > open_:
         if open_ > prev_close:
             return "高开高走"
         if open_ < prev_close:
             return "低开高走"
         return "平开高走"
-    else:
-        if high > open_ and (high - open_) / prev_close * 100 > 0.15:
-            return "冲高回落"
+    elif close < open_:
         if open_ > prev_close:
             return "高开低走"
         if open_ < prev_close:
             return "低开低走"
         return "平开低走"
+    else:
+        return "平开平收"
 
 
+@st.fragment
 def render_index_mini_cards(cols_per_row: int = 3) -> None:
     """在页面顶部渲染上证/深证/创业板的实时指数迷你趋势卡片（1:1 列表式）。
 

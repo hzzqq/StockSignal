@@ -802,6 +802,11 @@ class StockFetcher:
         name = self._code_to_name.get(str(code), "")
         return str(code), name
 
+    def get_name(self, code):
+        """兼容旧调用：返回 (code, name) 元组，未找到名称时 name 回退为 code。"""
+        c, n = self.get_stock_basic(code)
+        return (c, n or code)
+
     def get_fundamentals(self, code, use_cache=True):
         """获取个股基本面（名称/最新价/总市值(亿)/市盈率TTM/行业）。
 
@@ -2339,6 +2344,9 @@ class StockFetcher:
                 if c in df.columns:
                     df[c] = pd.to_numeric(df[c], errors="coerce")
             df["time"] = df["time"].astype(str)
+            # 明确按交易时间升序，避免接口返回顺序不确定导致走势标签误判
+            if "time" in df.columns:
+                df = df.sort_values("time").reset_index(drop=True)
             return df.reset_index(drop=True)
         except Exception as e:
             print(f"[StockFetcher] 指数分钟线失败 {symbol}: {type(e).__name__}")
