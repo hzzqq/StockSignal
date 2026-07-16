@@ -97,7 +97,7 @@ def chat_completion(
     messages: List[Dict[str, str]],
     temperature: float = 0.5,
     max_tokens: int = 1200,
-    timeout: int = 120,
+    timeout: int = 30,
 ) -> Optional[str]:
     """
     调用 OpenAI 兼容 Chat Completion。
@@ -115,10 +115,11 @@ def chat_completion(
     base_url, _model, api_key = config()
     extra_headers = _extra_headers(base_url)
 
-    # 单模型尝试超时略短，避免整条链挂死；但 OpenRouter 免费模型经常排队，需留足时间
-    per_timeout = min(timeout, 100)
-    # 整条链总预算：最多 3 个模型 × per_timeout，且不超过 180s，确保早于前端超时回退
-    total_cap = min(per_timeout * 3, 180)
+    # 单模型尝试：默认 30s，避免整条链挂死；调用方可按场景传入更短超时
+    # 总预算也收紧，免费模型排队严重时快速失败，让调用方 fallback 规则引擎
+    per_timeout = min(timeout, 30)
+    # 整条链总预算：最多 2 个模型 × per_timeout，且不超过 60s，确保用户少等待
+    total_cap = min(per_timeout * 2, 60)
     chain = _model_chain()
     last_err = ""
     _start = time.time()
@@ -162,7 +163,7 @@ def answer_with_llm(
     history: Optional[List[Dict[str, str]]] = None,
     temperature: float = 0.5,
     max_tokens: int = 1200,
-    timeout: int = 120,
+    timeout: int = 30,
 ) -> Optional[str]:
     """带历史记录的对话调用。history 元素为 {"role":"user"/"assistant", "content":...}。"""
     messages = [{"role": "system", "content": system_prompt}]

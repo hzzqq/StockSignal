@@ -494,27 +494,33 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
 
     # 批量改评分（按键输入）
     st.markdown("**✏️ 修改用户打分**")
-    c1, c2, c3 = st.columns([0.4, 0.4, 0.2])
-    with c1:
-        edit_code = st.selectbox("选择股票", ["—"] + opts, key=f"{pool_key}_edit_code")
-    with c2:
-        existing = None
-        if edit_code and edit_code != "—":
-            existing = api_user_score(edit_code.split()[0])
-        edit_score = st.number_input(
-            "新评分", min_value=0, max_value=100,
-            value=existing if existing is not None else 50,
-            step=1, key=f"{pool_key}_edit_score",
-        )
-    with c3:
-        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-        if st.button("保存", key=f"{pool_key}_save_score", use_container_width=True):
+    st.caption("评分范围 0–100，越高越看好；超出范围的输入会自动限制在边界值。")
+    with st.form(key=f"{pool_key}_score_form"):
+        c1, c2, c3 = st.columns([0.4, 0.4, 0.2])
+        with c1:
+            edit_code = st.selectbox("选择股票", ["—"] + opts, key=f"{pool_key}_edit_code")
+        with c2:
+            existing = None
+            if edit_code and edit_code != "—":
+                existing = api_user_score(edit_code.split()[0])
+            edit_score = st.number_input(
+                "新评分", min_value=0, max_value=100,
+                value=existing if existing is not None else 50,
+                step=1, key=f"{pool_key}_edit_score",
+                help="请输入 0–100 之间的整数",
+            )
+        with c3:
+            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("保存", use_container_width=True)
+        if submitted:
             if edit_code and edit_code != "—":
                 code = edit_code.split()[0]
                 name = edit_code.split(maxsplit=1)[1] if " " in edit_code else ""
                 api_save_user_score(code, int(edit_score), name)
                 st.success("评分已更新")
                 st.rerun()
+            else:
+                st.warning("请先选择一只股票")
 
     # 移除按钮
     if on_remove:

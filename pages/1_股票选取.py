@@ -79,30 +79,32 @@ def _render_user_score(ticker: str, stock_label: str) -> None:
         st.session_state[_ss_key] = api_user_score(ticker)
     existing_score = st.session_state[_ss_key]
 
-    sc1, sc2 = st.columns([0.35, 0.65])
-    with sc1:
-        score_val = st.number_input(
-            "您对该股票的评分（0–100，越高越看好）",
-            min_value=0, max_value=100,
-            value=existing_score if existing_score is not None else 50,
-            step=1,
-            key="pick_user_score",
-            help="请输入 0–100 之间的整数；超出范围会给提示且无法保存。",
-        )
-        if score_val < 0 or score_val > 100:
-            st.error("⚠️ 评分必须在 0–100 之间，请重新输入。")
-    with sc2:
-        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-        if st.button("💾 保存评分", key="pick_save_score", use_container_width=True):
-            if score_val < 0 or score_val > 100:
-                st.error("⚠️ 评分超出 0–100 范围，无法保存。")
+    st.info("ℹ️ 评分范围 **0–100**，越高代表越看好。超出范围的输入会被限制在边界值，无法保存越界分数。")
+
+    # 用 form 包裹输入与按钮：确保点击保存前，当前输入值被提交并经过 min/max 校验
+    with st.form(key=f"score_form_{ticker}"):
+        sc1, sc2 = st.columns([0.35, 0.65])
+        with sc1:
+            score_val = st.number_input(
+                "您对该股票的评分（0–100）",
+                min_value=0, max_value=100,
+                value=existing_score if existing_score is not None else 50,
+                step=1,
+                key=f"pick_user_score_{ticker}",
+                help="请输入 0–100 之间的整数。",
+            )
+        with sc2:
+            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("💾 保存评分", use_container_width=True)
+
+        if submitted:
+            # 由于 st.number_input 已设 min/max，score_val 必定在 [0, 100] 内
+            res = api_save_user_score(ticker, int(score_val), stock_label)
+            if res.get("status") == "ok":
+                st.session_state[_ss_key] = int(score_val)
+                st.success(f"✅ 评分已保存：{int(score_val)} 分")
             else:
-                res = api_save_user_score(ticker, int(score_val), stock_label)
-                if res.get("status") == "ok":
-                    st.session_state[_ss_key] = int(score_val)
-                    st.success(f"✅ 评分已保存：{int(score_val)} 分")
-                else:
-                    st.error(f"保存失败：{res.get('message', '未知错误')}")
+                st.error(f"保存失败：{res.get('message', '未知错误')}")
 
 
 # ═══════════════════════════════════════════════════════════════

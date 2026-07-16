@@ -105,6 +105,45 @@ def _resolve_multiple(question: str) -> List[Dict[str, str]]:
     return resolved
 
 
+def _safe_eval(expr: str) -> Optional[float]:
+    """仅对简单四则运算做安全求值（只允许数字、+ - * / 和括号）。"""
+    if not re.match(r"^[0-9+\-*/().\s]+$", expr):
+        return None
+    try:
+        return float(eval(expr, {"__builtins__": {}}, {}))
+    except Exception:
+        return None
+
+
+def _quick_answer(question: str) -> Optional[str]:
+    """
+    对常见简单问题直接返回答案，避免走 LLM（网络/免费模型慢时体验差）。
+    覆盖：问候、自我介绍、简单算术、常见常识。
+    """
+    q = question.strip().lower()
+    q_no_space = q.replace(" ", "")
+
+    # 问候与简单闲聊
+    if q in {"你好", "您好", "hello", "hi", "在吗", "在嘛"}:
+        return "你好！我是星辰 AI，可以帮你分析 A 股行情、个股基本面、行业对比，也可以解答投资问题。请直接告诉我你想了解的股票或问题～"
+
+    if q in {"你是谁", "你是", "介绍一下", "你能做什么", "你会做什么"}:
+        return "我是 **星辰 AI**（StockSignal 内置分析助手），能帮你：\n\n- 分析个股技术面、基本面、消息面\n- 对比多只股票\n- 解读行业、板块、大盘主线\n- 回答投资相关问题\n\n你可以直接说股票代码或名称，比如「分析一下贵州茅台」或「600519 怎么样」。"
+
+    # 简单算术（1+1=? / 2*(3+4)=? 等）
+    math_match = re.match(r"^\s*([0-9+\-*/().\s]+)\s*=\s*\?\s*$", question.strip())
+    if math_match:
+        result = _safe_eval(math_match.group(1))
+        if result is not None:
+            return f"**{question.strip().rstrip('?').strip()} = {result:g}**\n\n这是一个简单的数学运算，答案是 **{result:g}**。"
+
+    # 直接问 1+1（没有等号）
+    if q_no_space in {"1+1", "1+1=", "1+1=?"} or re.match(r"^1\s*\+\s*1\s*=?\s*\??$", question.strip()):
+        return "**1 + 1 = 2**\n\n答案是 **2**。"
+
+    return None
+
+
 def _raw_independent_analysis(code: str) -> Dict[str, Any]:
     """独立拉取数据并运行分析（无缓存原始版）。"""
     fetcher = StockFetcher()
@@ -494,6 +533,11 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
     analysis = context.get("analysis_result")
     history = context.get("history") or []
 
+    # 0) 快速通道：简单问题直接回答，避免 LLM 等待
+    quick = _quick_answer(question)
+    if quick:
+        return {"answer": quick, "independent": True}
+
     # 1) 从用户问题里提取股票（最高优先级）
     resolved = _resolve_multiple(question)
 
@@ -520,10 +564,10 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
     # 3) LLM 路径（若配置）：把数据丢给 LLM，让它自然回答
     if llm_client.is_configured():
         llm_prompt = _build_llm_prompt(question, resolved, history_stock, rows, analysis, is_event_q)
-        # 咨询场景专用超时：单模型 90s、整条链 ≤180s 即回退规则引擎（瞬时），
-        # 绝不让用户等到前端 240s 超时；免费模型慢时仍能在 ~3 分钟内拿到高质量答案。
+        # 咨询场景专用超时：单模型 30s、整条链 ≤60s 即回退规则引擎（瞬时），
+        # 免费模型排队或异常慢时快速 fallback，避免用户干等。
         answer = llm_client.answer_with_llm(
-            SYSTEM_PROMPT, llm_prompt, history=history, max_tokens=900, timeout=90
+            SYSTEM_PROMPT, llm_prompt, history=history, max_tokens=900, timeout=30
         )
         if answer:
             return {"answer": answer, "independent": True}
