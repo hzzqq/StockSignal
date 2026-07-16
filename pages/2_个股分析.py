@@ -409,6 +409,15 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ══════════════════════════════════════════════════════════════
 # 分析渲染：从 dict 中恢复所有变量并绘制 8 大模块
 # ══════════════════════════════════════════════════════════════
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_period_kline(ticker: str, start: str, end: str, period: str):
+    """#78 周/月 K 线数据（复用 1_股票选取.py 已验证的取数模式）。"""
+    recs = api_kline(ticker, start=start, end=end, period=period)
+    if recs is None:
+        return StockFetcher().get_kline(ticker, start=start, end=end, period=period)
+    return pd.DataFrame(recs)
+
+
 def _render_analysis(R: dict):
     # 把结果字典展开到局部作用域，保持原渲染代码基本不变
     ticker = R["ticker"]
@@ -648,6 +657,32 @@ def _render_analysis(R: dict):
 
     # ════════════ 模块4：技术指标图表 ════════════
     st.markdown('<div class="sf-card">' + _section_header("技术指标图表", "K线 + 均线 + 成交量 · 日期坐标", "📈"), unsafe_allow_html=True)
+
+    # ── #78 K线周期切换：日K / 周K / 月K ──
+    _period_opts = ["daily", "weekly", "monthly"]
+    kline_period = st.radio(
+        "K线周期",
+        options=_period_opts,
+        index=_period_opts.index(st.session_state.get(f"kline_period_{ticker}", "daily")),
+        format_func=lambda p: {"daily": "日 K", "weekly": "周 K", "monthly": "月 K"}[p],
+        horizontal=True,
+        key=f"kline_period_radio_{ticker}",
+        help="切换 K 线周期：日线 / 周线 / 月线",
+    )
+    st.session_state[f"kline_period_{ticker}"] = kline_period
+
+    # 选定周期的 K 线数据：日线直接用分析结果 df；周/月线重新拉取并归一化列名
+    if kline_period == "daily":
+        period_df = df
+    else:
+        _kdf = _cached_period_kline(
+            ticker, "2020-01-01", datetime.now().strftime("%Y-%m-%d"), kline_period
+        )
+        if _kdf is None or _kdf.empty:
+            period_df = df
+        else:
+            period_df = DataCleaner.full_pipeline(_kdf.copy())
+
     st.markdown(
         Visualizer.kline_legend_html(
             ma_windows=[5, 10, 20],
@@ -659,14 +694,15 @@ def _render_analysis(R: dict):
     try:
         # 参考文档 002947：绿涨红跌、MA5橙/MA10靛/MA20绿、
         # 标注 MA20压制(红虚) / MA10(靛虚) / 前低支撑(绿虚) / 套牢区(琥珀点)
+        # 仅日线视图展示基于日线计算的价位标注；周/月线不再套用日线价位
         kline_annotations = [
             {"price": ma20v, "label": "MA20压制", "color": GREEN, "dash": "dash"},
             {"price": ma10v, "label": "MA10", "color": "#667eea", "dash": "dash"},
             {"price": support, "label": "前低支撑", "color": RED, "dash": "dash"},
             {"price": trapped, "label": "套牢区", "color": AMBER, "dash": "dot"},
-        ]
+        ] if kline_period == "daily" else None
         fig = Visualizer.candlestick(
-            df,
+            period_df,
             title="技术指标图表（K线 + 均线 + 成交量）",
             show_volume=True,
             ma_windows=[5, 10, 20],
@@ -688,17 +724,22 @@ def _render_analysis(R: dict):
             unsafe_allow_html=True,
         )
         # 图表下方说明：标注线 + 日期区间（参考文档）
-        st.markdown(
+        _date_min = pd.to_datetime(period_df['date']).min().strftime('%Y-%m-%d')
+        _date_max = pd.to_datetime(period_df['date']).max().strftime('%Y-%m-%d')
+        _cap = (
             "<div style='font-size:12px;color:#64748b;margin-top:4px;'>"
             "绿柱为上涨、红柱为下跌（参考文档配色）。"
             "均线 MA5(橙)/MA10(靛)/MA20(绿)；"
-            f"标注线：MA20压制 ¥{ma20v:.2f} / MA10 ¥{ma10v:.2f} / "
-            f"前低支撑 ¥{support:.2f} / 套牢区 ¥{trapped:.2f}。"
-            f"数据区间 {pd.to_datetime(df['date']).min().strftime('%Y-%m-%d')} "
-            f"~ {pd.to_datetime(df['date']).max().strftime('%Y-%m-%d')}。"
-            "</div>",
-            unsafe_allow_html=True,
         )
+        if kline_period == "daily":
+            _cap += (
+                f"标注线：MA20压制 ¥{ma20v:.2f} / MA10 ¥{ma10v:.2f} / "
+                f"前低支撑 ¥{support:.2f} / 套牢区 ¥{trapped:.2f}。"
+            )
+        else:
+            _cap += f"当前为{'周线' if kline_period == 'weekly' else '月线'}视图，均线为对应周期数值。"
+        _cap += f"数据区间 {_date_min} ~ {_date_max}。</div>"
+        st.markdown(_cap, unsafe_allow_html=True)
     except Exception as e:
         st.warning(f"⚠️ K线图渲染失败：{str(e)[:80]}")
     st.markdown("</div>", unsafe_allow_html=True)
