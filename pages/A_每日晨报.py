@@ -12,7 +12,7 @@ from datetime import datetime, date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, api_get, api_quote, get_user
+from modules.session import require_auth, render_user_badge, api_get, api_quote
 from modules.fetcher import StockFetcher
 from modules.news import NewsFetcher
 
@@ -318,81 +318,95 @@ fragment_watchlist_and_news()
 def fragment_review_notes():
     st.markdown("#### 📝 复盘笔记")
     import re as _re
+
     NOTES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
     REVIEW_IMG_DIR = os.path.join(NOTES_DIR, "review_images")
     os.makedirs(NOTES_DIR, exist_ok=True)
     os.makedirs(REVIEW_IMG_DIR, exist_ok=True)
 
-    note_date = st.date_input("复盘日期", value=date.today(), key="review_date")
-    note_date_s = note_date.strftime("%Y-%m-%d")
-    notes_path = os.path.join(NOTES_DIR, f"review_notes_{note_date_s}.md")
+    if "review_img_counter" not in st.session_state:
+        st.session_state["review_img_counter"] = 0
 
-    # 初次进入默认载入当日复盘（若已存在）
-    if "review_note" not in st.session_state:
-        if os.path.exists(notes_path):
-            try:
-                with open(notes_path, "r", encoding="utf-8") as f:
-                    st.session_state["review_note"] = f.read()
-            except Exception:
-                st.session_state["review_note"] = ""
-        else:
-            st.session_state["review_note"] = ""
+    def _notes_path(d):
+        return os.path.join(NOTES_DIR, f"review_notes_{d}.md")
 
-    c_q, c_img = st.columns([0.5, 0.5])
-    with c_q:
-        if st.button("🔍 查询", type="primary", use_container_width=True, key="review_query"):
+    # ── 子模块 1：工具栏（日期、查询、图片上传）──
+    def _render_toolbar():
+        note_date = st.date_input("复盘日期", value=date.today(), key="review_date")
+        note_date_s = note_date.strftime("%Y-%m-%d")
+        notes_path = _notes_path(note_date_s)
+
+        # 初次进入默认载入当日复盘（若已存在）
+        if "review_note" not in st.session_state:
             if os.path.exists(notes_path):
                 try:
                     with open(notes_path, "r", encoding="utf-8") as f:
                         st.session_state["review_note"] = f.read()
                 except Exception:
                     st.session_state["review_note"] = ""
-                st.session_state["review_queried"] = note_date_s
             else:
                 st.session_state["review_note"] = ""
+
+        c_q, c_img = st.columns([0.5, 0.5])
+        with c_q:
+            if st.button("🔍 查询", type="primary", use_container_width=True, key="review_query"):
+                if os.path.exists(notes_path):
+                    try:
+                        with open(notes_path, "r", encoding="utf-8") as f:
+                            st.session_state["review_note"] = f.read()
+                    except Exception:
+                        st.session_state["review_note"] = ""
+                else:
+                    st.session_state["review_note"] = ""
+                    st.info(f"📭 {note_date_s} 暂无复盘记录，可直接在下方新建。")
                 st.session_state["review_queried"] = note_date_s
-                st.info(f"📭 {note_date_s} 暂无复盘记录，可直接在下方新建。")
-            st.rerun()
-    with c_img:
-        uploaded = st.file_uploader(
-            "📷 添加图片到复盘",
-            type=["png", "jpg", "jpeg", "gif", "webp"],
-            key="review_img",
-            help="上传后自动把图片链接插入到复盘文本末尾",
+                # 不调用 st.rerun()：本 fragment 内的交互只会触发本 fragment 重跑，不影响整页
+        with c_img:
+            uploaded = st.file_uploader(
+                "📷 添加图片到复盘",
+                type=["png", "jpg", "jpeg", "gif", "webp"],
+                key=f"review_img_{st.session_state['review_img_counter']}",
+                help="上传后自动把图片链接插入到复盘文本末尾",
+            )
+            if uploaded is not None:
+                safe_name = f"review_{note_date_s}_{uploaded.name}"
+                img_path = os.path.join(REVIEW_IMG_DIR, safe_name)
+                with open(img_path, "wb") as f:
+                    f.write(uploaded.getbuffer())
+                rel = f"review_images/{safe_name}"
+                cur = st.session_state.get("review_note", "")
+                st.session_state["review_note"] = (cur + f"\n\n![{uploaded.name}]({rel})\n").strip() + "\n"
+                st.session_state["review_img_counter"] += 1
+                st.success(f"✅ 已插入图片：{uploaded.name}")
+                # 动态 key 已自动清空上传框，避免反复插入同一张图
+        return note_date_s
+
+    # ── 子模块 2：编辑器（文本框 + 保存/清空）──
+    def _render_editor(note_date_s):
+        note = st.text_area(
+            f"复盘内容（{note_date_s}，支持 Markdown）",
+            height=220,
+            key="review_note",
+            placeholder="记录今日盘面、操作与明日计划…",
         )
-        if uploaded is not None:
-            safe_name = f"review_{note_date_s}_{uploaded.name}"
-            img_path = os.path.join(REVIEW_IMG_DIR, safe_name)
-            with open(img_path, "wb") as f:
-                f.write(uploaded.getbuffer())
-            rel = f"review_images/{safe_name}"
-            cur = st.session_state.get("review_note", "")
-            st.session_state["review_note"] = (cur + f"\n\n![{uploaded.name}]({rel})\n").strip() + "\n"
-            st.success(f"✅ 已插入图片：{uploaded.name}")
-            st.rerun()
+        c_save, c_clear = st.columns([1, 1])
+        with c_save:
+            if st.button("💾 保存复盘", type="primary", use_container_width=True, key="review_save"):
+                try:
+                    with open(_notes_path(note_date_s), "w", encoding="utf-8") as f:
+                        f.write(note)
+                    st.success(f"✅ 已保存到 review_notes_{note_date_s}.md")
+                except Exception as e:
+                    st.error(f"❌ 保存失败：{e}")
+        with c_clear:
+            if st.button("🗑️ 清空", use_container_width=True, key="review_clear"):
+                st.session_state["review_note"] = ""
+                # 不调用 st.rerun()：清空操作触发本 fragment 自然重跑
 
-    note = st.text_area(
-        f"复盘内容（{note_date_s}，支持 Markdown）",
-        height=220,
-        key="review_note",
-        placeholder="记录今日盘面、操作与明日计划…",
-    )
-    c_save, c_clear = st.columns([1, 1])
-    with c_save:
-        if st.button("💾 保存复盘", type="primary", use_container_width=True, key="review_save"):
-            try:
-                with open(notes_path, "w", encoding="utf-8") as f:
-                    f.write(note)
-                st.success(f"✅ 已保存到 {os.path.basename(notes_path)}")
-            except Exception as e:
-                st.error(f"❌ 保存失败：{e}")
-    with c_clear:
-        if st.button("🗑️ 清空", use_container_width=True, key="review_clear"):
-            st.session_state["review_note"] = ""
-            st.rerun()
-
-    # 查询结果展示区
-    if st.session_state.get("review_queried"):
+    # ── 子模块 3：查询结果展示区（仅在点击查询后展开）──
+    def _render_preview():
+        if not st.session_state.get("review_queried"):
+            return
         st.markdown("---")
         st.markdown(f"#### 📄 复盘内容预览（{st.session_state['review_queried']}）")
         _content = st.session_state.get("review_note", "")
@@ -405,6 +419,10 @@ def fragment_review_notes():
             st.markdown(_content, unsafe_allow_html=True)
         else:
             st.info("（空白）")
+
+    note_date_s = _render_toolbar()
+    _render_editor(note_date_s)
+    _render_preview()
 
 
 fragment_review_notes()

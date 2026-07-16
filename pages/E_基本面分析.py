@@ -163,6 +163,206 @@ def _calc_perf(code: str) -> dict:
 
 
 @st.cache_data(show_spinner=False, ttl=1800)
+def _fetch_financial_reports(code: str) -> dict:
+    """直接调用 akshare 获取利润表/资产负债表/现金流量表（不限制 8 行）。"""
+    import akshare as ak
+    out = {}
+    with _ssl_bypass():
+        try:
+            out["income"] = ak.stock_financial_report_sina(stock=f"sh{code}", symbol="利润表")
+        except Exception:
+            out["income"] = None
+        try:
+            out["balance"] = ak.stock_financial_report_sina(stock=f"sh{code}", symbol="资产负债表")
+        except Exception:
+            out["balance"] = None
+        try:
+            out["cash"] = ak.stock_financial_report_sina(stock=f"sh{code}", symbol="现金流量表")
+        except Exception:
+            out["cash"] = None
+    return out
+
+
+def _find_period_col(df: pd.DataFrame):
+    if "报告期" in df.columns:
+        return "报告期"
+    for c in df.columns:
+        cs = str(c)
+        if any(k in cs for k in ("报告期", "报告日", "报告年度", "会计期间")):
+            return c
+    return None
+
+
+def _extract_metric_series(df: pd.DataFrame | None, candidates: list) -> pd.Series | None:
+    """从财务 DataFrame（行=报告期，列=科目）中提取指标时间序列。"""
+    if df is None or df.empty:
+        return None
+    pcol = _find_period_col(df)
+    if pcol is None:
+        return None
+    mcol = None
+    for cand in candidates:
+        for c in df.columns:
+            if str(c) == cand or str(c).replace(" ", "") == cand:
+                mcol = c
+                break
+        if mcol:
+            break
+    if mcol is None:
+        for cand in candidates:
+            for c in df.columns:
+                if cand in str(c):
+                    mcol = c
+                    break
+            if mcol:
+                break
+    if mcol is None:
+        return None
+    tmp = df[[pcol, mcol]].copy()
+    tmp[pcol] = tmp[pcol].astype(str).str.strip()
+    tmp[mcol] = pd.to_numeric(tmp[mcol], errors="coerce")
+    tmp = tmp.dropna()
+    if tmp.empty:
+        return None
+    tmp[pcol] = pd.to_datetime(tmp[pcol], errors="coerce")
+    tmp = tmp.dropna(subset=[pcol])
+    return tmp.set_index(pcol)[mcol].sort_index()
+
+
+def _period_label(dt: pd.Timestamp, mode: str) -> str:
+    if mode == "年度":
+        return f"{dt.year}年报"
+    q = (dt.month - 1) // 3 + 1
+    return f"{dt.year}Q{q}"
+
+
+def _compute_yoy(s: pd.Series) -> pd.Series:
+    """计算同比：与一年前最近报告期比较。"""
+    if s is None or s.empty:
+        return pd.Series(dtype=float)
+    s = s.sort_index()
+    yoy = {}
+    for idx, val in s.items():
+        prev_idx = idx - pd.DateOffset(years=1)
+        mask = (s.index >= prev_idx - pd.Timedelta(days=10)) & (s.index <= prev_idx + pd.Timedelta(days=10))
+        if mask.any():
+            pv = s.loc[mask].iloc[0]
+            if pv and pv != 0:
+                yoy[idx] = round((val - pv) / abs(pv) * 100, 2)
+    return pd.Series(yoy)
+
+
+def _build_financial_df(code: str) -> pd.DataFrame | None:
+    """构建财务分析统一 DataFrame，列：报告期/标签/年度-or-季度/各指标值/各指标同比。"""
+    reps = _fetch_financial_reports(code)
+    inc = reps.get("income")
+    bal = reps.get("balance")
+    cash = reps.get("cash")
+
+    # 原始指标序列
+    rev = _extract_metric_series(inc, ["营业总收入", "营业收入"])
+    np_ = _extract_metric_series(inc, ["净利润", "归属母公司股东的净利润", "归属于上市公司股东的净利润"])
+    np_ded = _extract_metric_series(inc, ["扣除非经常性损益后的净利润", "扣非净利润"])
+    eps = _extract_metric_series(inc, ["基本每股收益", "每股收益", "稀释每股收益"])
+    cost = _extract_metric_series(inc, ["营业成本", "营业总成本"])
+    equity = _extract_metric_series(bal, ["所有者权益合计", "股东权益合计", "归属于母公司所有者权益合计"])
+    asset = _extract_metric_series(bal, ["资产总计", "资产合计"])
+    liab = _extract_metric_series(bal, ["负债合计", "负债总计"])
+    ops_cf = _extract_metric_series(cash, ["经营活动产生的现金流量净额", "经营活动现金流入小计", "经营活动现金流量净额"])
+    share_cap = _extract_metric_series(bal, ["实收资本(或股本)", "股本", "实收资本"])
+
+    ops_cf_ps = _extract_metric_series(cash, ["每股经营活动产生的现金流量净额", "每股经营现金流量"])
+
+    # 合并所有报告期
+    all_idx = set()
+    for s in (rev, np_, np_ded, eps, cost, equity, asset, liab, ops_cf, share_cap):
+        if s is not None:
+            all_idx.update(s.index)
+    if not all_idx:
+        return None
+    all_idx = sorted(all_idx)
+
+    rows = []
+    for idx in all_idx:
+        row = {"报告期": idx, "标签": _period_label(idx, "年度" if idx.month == 12 else "季度")}
+        r = rev.get(idx) if rev is not None else None
+        n = np_.get(idx) if np_ is not None else None
+        nd = np_ded.get(idx) if np_ded is not None else None
+        e = eps.get(idx) if eps is not None else None
+        c = cost.get(idx) if cost is not None else None
+        eq = equity.get(idx) if equity is not None else None
+        ast = asset.get(idx) if asset is not None else None
+        lb = liab.get(idx) if liab is not None else None
+        oc = ops_cf.get(idx) if ops_cf is not None else None
+        sc = share_cap.get(idx) if share_cap is not None else None
+
+        # 单位统一：利润表/资产负债表 元 -> 亿元；每股/比率 保持原样
+        row["营业总收入"] = round(r / 1e8, 2) if r is not None else None
+        row["归母净利润"] = round(n / 1e8, 2) if n is not None else None
+        row["扣非净利润"] = round(nd / 1e8, 2) if nd is not None else None
+        row["每股收益"] = round(e, 3) if e is not None else None
+        row["净资产收益率"] = round(n / eq * 100, 2) if (n is not None and eq and eq != 0) else None
+        row["销售净利率"] = round(n / r * 100, 2) if (n is not None and r and r != 0) else None
+        row["销售毛利率"] = round((r - c) / r * 100, 2) if (r is not None and c is not None and r != 0) else None
+        row["资产负债率"] = round(lb / ast * 100, 2) if (lb is not None and ast and ast != 0) else None
+        if oc is not None and sc is not None and sc != 0:
+            row["每股经营现金流"] = round(oc / sc, 3)
+        elif ops_cf_ps is not None:
+            row["每股经营现金流"] = ops_cf_ps.get(idx)
+        else:
+            row["每股经营现金流"] = None
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return None
+    df = df.sort_values("报告期", ascending=False).reset_index(drop=True)
+
+    # 计算同比
+    numeric_cols = ["营业总收入", "归母净利润", "扣非净利润", "每股收益", "净资产收益率",
+                    "销售净利率", "销售毛利率", "每股经营现金流"]
+    for col in numeric_cols:
+        s = df.set_index("报告期")[col]
+        yoy = _compute_yoy(s)
+        df[f"{col}_同比"] = df["报告期"].map(yoy.to_dict())
+    return df
+
+
+_FINANCIAL_METRICS = {
+    "归母净利润": {"unit": "亿元", "fmt": "{:.2f}亿", "yoy_fmt": "{:+.2f}%"},
+    "营业总收入": {"unit": "亿元", "fmt": "{:.2f}亿", "yoy_fmt": "{:+.2f}%"},
+    "扣非净利润": {"unit": "亿元", "fmt": "{:.2f}亿", "yoy_fmt": "{:+.2f}%"},
+    "净资产收益率": {"unit": "%", "fmt": "{:.2f}%", "yoy_fmt": "{:+.2f}pct"},
+    "销售净利率": {"unit": "%", "fmt": "{:.2f}%", "yoy_fmt": "{:+.2f}%"},
+    "销售毛利率": {"unit": "%", "fmt": "{:.2f}%", "yoy_fmt": "{:+.2f}%"},
+    "每股经营现金流": {"unit": "元", "fmt": "{:.2f}元", "yoy_fmt": "{:+.2f}%"},
+    "每股收益": {"unit": "元", "fmt": "{:.2f}元", "yoy_fmt": "{:+.2f}%"},
+}
+
+
+def _fmt_fin_value(v, metric: str) -> str:
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return "—"
+    cfg = _FINANCIAL_METRICS.get(metric, {})
+    try:
+        return cfg.get("fmt", "{:.2f}").format(float(v))
+    except Exception:
+        return str(v)
+
+
+def _fmt_fin_yoy(v, metric: str) -> str:
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return "—"
+    cfg = _FINANCIAL_METRICS.get(metric, {})
+    try:
+        return cfg.get("yoy_fmt", "{:+.2f}%").format(float(v))
+    except Exception:
+        return str(v)
+
+
+
+
+@st.cache_data(show_spinner=False, ttl=1800)
 def _cached_daily(code: str, start: str, end: str):
     try:
         return fetcher.get_daily(code, start=start, end=end)
@@ -492,6 +692,131 @@ if code:
         st.info("📌 **一句话业绩解读**：" + " ".join(_perf_lines))
     else:
         st.info("ℹ️ 暂未获取到财报数据，业绩解读不可用（可检查网络或切换数据源）。")
+
+
+    # ═══════════════════════════════════════════════
+    # 财务分析（仿同花顺 F10 财务分析 1:1）
+    # ═══════════════════════════════════════════════
+    @st.fragment
+    def fragment_financial_analysis(fa_code: str, fa_name: str):
+        st.markdown("---")
+        st.subheader("📊 财务分析")
+        st.caption("多期财务指标趋势：柱状图看绝对值，折线看同比；数据来自利润表/资产负债表/现金流量表。")
+
+        with st.spinner("正在解析财务报表…"):
+            fa_df = _build_financial_df(fa_code)
+
+        if fa_df is None or fa_df.empty:
+            st.info("ℹ️ 暂无可用的多期财报数据，财务分析无法展示（可检查网络或切换数据源）。")
+            return
+
+        # 状态初始化
+        if "fa_metric" not in st.session_state:
+            st.session_state["fa_metric"] = "归母净利润"
+        if "fa_mode" not in st.session_state:
+            st.session_state["fa_mode"] = "年度"
+
+        metric = st.session_state["fa_metric"]
+        mode = st.session_state["fa_mode"]
+
+        # ── 指标选择按钮（2 行 × 4 列）──
+        metric_cols = list(_FINANCIAL_METRICS.keys())
+        st.markdown("**我的指标**")
+        r1, r2 = st.columns(4), st.columns(4)
+        for i, m in enumerate(metric_cols):
+            col = r1[i] if i < 4 else r2[i - 4]
+            with col:
+                is_sel = metric == m
+                btn_type = "primary" if is_sel else "secondary"
+                if st.button(m, key=f"fa_btn_{m}", use_container_width=True, type=btn_type):
+                    st.session_state["fa_metric"] = m
+                    # 不调用 st.rerun()：按钮点击触发本 fragment 自然重跑
+
+        # ── 年度/季度 + 最新 切换 ──
+        c_mode, c_sort = st.columns([0.5, 0.5])
+        with c_mode:
+            m1, m2 = st.columns(2)
+            with m1:
+                if st.button("年度", key="fa_mode_year", use_container_width=True,
+                             type="primary" if mode == "年度" else "secondary"):
+                    st.session_state["fa_mode"] = "年度"
+            with m2:
+                if st.button("季度", key="fa_mode_quarter", use_container_width=True,
+                             type="primary" if mode == "季度" else "secondary"):
+                    st.session_state["fa_mode"] = "季度"
+        with c_sort:
+            st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+            st.caption("最新数据优先显示")
+
+        # ── 过滤数据 ──
+        plot_df = fa_df.copy()
+        plot_df["period_dt"] = pd.to_datetime(plot_df["报告期"], errors="coerce")
+        if mode == "年度":
+            plot_df = plot_df[plot_df["period_dt"].dt.month == 12]
+        else:
+            plot_df = plot_df[plot_df["period_dt"].dt.month != 12]
+        plot_df = plot_df.dropna(subset=["period_dt"]).sort_values("报告期", ascending=True)
+        if len(plot_df) > 12:
+            plot_df = plot_df.tail(12)  # 最多展示最近 12 期
+
+        if plot_df.empty:
+            st.info(f"ℹ️ 暂无「{mode}」数据可供展示。")
+            return
+
+        val_col = metric
+        yoy_col = f"{metric}_同比"
+        cfg = _FINANCIAL_METRICS.get(metric, {})
+
+        # ── 组合图：柱状（指标值）+ 折线（同比）──
+        fig = go.Figure()
+        x_labels = plot_df["标签"].tolist()
+        # 柱
+        fig.add_trace(
+            go.Bar(
+                x=x_labels,
+                y=plot_df[val_col],
+                name=metric,
+                marker_color="#6366f1",
+                text=[_fmt_fin_value(v, metric) for v in plot_df[val_col]],
+                textposition="outside",
+            )
+        )
+        # 折线（同比）
+        if yoy_col in plot_df.columns and plot_df[yoy_col].notna().any():
+            fig.add_trace(
+                go.Scatter(
+                    x=x_labels,
+                    y=plot_df[yoy_col],
+                    name="同比",
+                    mode="lines+markers",
+                    line=dict(color="#f59e0b", width=2),
+                    marker=dict(size=6),
+                    yaxis="y2",
+                )
+            )
+        fig.update_layout(
+            title=f"{fa_name}({fa_code}) {metric}趋势（{mode}）",
+            xaxis=dict(title=""),
+            yaxis=dict(title=cfg.get("unit", ""), side="left"),
+            yaxis2=dict(title="同比(%)", side="right", overlaying="y", showgrid=False),
+            height=420,
+            margin=dict(l=40, r=60, t=50, b=40),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # ── 数据表格 ──
+        table_df = plot_df.copy().sort_values("报告期", ascending=False)
+        table_df["指标值"] = table_df[val_col].apply(lambda v: _fmt_fin_value(v, metric))
+        table_df["同比"] = table_df[yoy_col].apply(lambda v: _fmt_fin_yoy(v, metric))
+        table_df["报告期显示"] = table_df["标签"]
+        display_table = table_df[["报告期显示", "指标值", "同比"]].rename(columns={"报告期显示": "报告期"})
+        st.dataframe(display_table, use_container_width=True, hide_index=True)
+
+
+    fragment_financial_analysis(code, name)
 
     # ═══════════════════════════════════════════════
     # 历史位置（纵向对比）

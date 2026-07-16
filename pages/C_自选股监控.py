@@ -85,8 +85,6 @@ def _is_trading_now():
           <= t <= datetime.strptime("15:00", "%H:%M").time())
     return m1 or m2
 
-if _is_trading_now():
-    st_autorefresh(interval=60 * 1000, key="watchlist_autorefresh")
 
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
@@ -208,142 +206,154 @@ def _fund_one(code: str):
     return code, pe, alr
 
 
-# ── 加载自选股 ──
-sc, body = api_get("/api/watchlist", timeout=10)
-if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
-    st.error("加载自选股失败，请刷新重试。")
-    st.stop()
+# ═══════════════════════════════════════════════════════════════
+# 主监控表（独立 fragment，交易时段自动刷新不影响整页）
+# ═══════════════════════════════════════════════════════════════
+@st.fragment
+def fragment_watchlist_monitor():
+    # 交易时段自动刷新（仅本 fragment 重跑）
+    if _is_trading_now():
+        st_autorefresh(interval=60 * 1000, key="watchlist_autorefresh")
 
-items = body.get("data", []) or []
-if not items:
-    st.info("自选股为空，请先到「行情看板 / 我的」添加，或前往「形态选股」用自选股池扫描。")
-    if st.button("➡️ 去形态选股", use_container_width=True):
-        safe_switch_page("pages/B_形态选股.py")
-    st.stop()
+    sc, body = api_get("/api/watchlist", timeout=10)
+    if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
+        st.error("加载自选股失败，请刷新重试。")
+        return
 
-codes = [it["stock_code"] for it in items]
-names = {it["stock_code"]: it.get("stock_name") or it["stock_code"] for it in items}
+    items = body.get("data", []) or []
+    if not items:
+        st.info("自选股为空，请先到「行情看板 / 我的」添加，或前往「形态选股」用自选股池扫描。")
+        if st.button("➡️ 去形态选股", use_container_width=True, key="wl_empty_go"):
+            safe_switch_page("pages/B_形态选股.py")
+        return
 
-# ── 并行拉取实时行情 ──
-with st.spinner(f"并行获取 {len(codes)} 只自选股实时行情…"):
-    quotes = {}
-    with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-        for code, q in ex.map(_quote_one, codes):
-            quotes[code] = q
+    codes = [it["stock_code"] for it in items]
+    names = {it["stock_code"]: it.get("stock_name") or it["stock_code"] for it in items}
 
-# 线程内遇到 401 时不能直接跳转，统一在此处理
-if any(isinstance(q, dict) and q.get("__auth_error") for q in quotes.values()):
-    clear_auth()
-    st.warning("🔐 登录已过期，请重新登录")
-    st.stop()
+    # 并行拉取实时行情
+    with st.spinner(f"并行获取 {len(codes)} 只自选股实时行情…"):
+        quotes = {}
+        with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+            for code, q in ex.map(_quote_one, codes):
+                quotes[code] = q
 
-# ── 并行拉取市盈率与资产负债率 ──
-fund_map = {}
-if codes:
-    with st.spinner("并行获取市盈率与资产负债率…"):
-        # 新浪财务报表在代理环境需临时关闭 SSL 校验，仅本次批量抓取内生效
-        with _ssl_bypass():
-            with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-                futs = {ex.submit(_fund_one, c): c for c in codes}
-                for fut in _cf.as_completed(futs):
-                    c = futs[fut]
-                    try:
-                        _, pe, alr = fut.result(timeout=15)
-                    except Exception:
-                        pe = alr = None
-                    fund_map[c] = (pe, alr)
+    # 线程内遇到 401 时不能直接跳转，统一在此处理
+    if any(isinstance(q, dict) and q.get("__auth_error") for q in quotes.values()):
+        clear_auth()
+        st.warning("🔐 登录已过期，请重新登录")
+        return
 
-rows = []
-quote_times = []
-for code in codes:
-    q = quotes.get(code)
-    if q and q.get("current"):
-        cur = float(q["current"])
-        prev = float(q.get("prev_close") or 0)
-        open_ = float(q.get("open") or 0)
-        high = float(q.get("high") or 0)
-        low = float(q.get("low") or 0)
-        volume = int(q.get("volume") or 0)
-        amount = float(q.get("amount") or 0)
-        chg = (cur - prev) / prev * 100 if prev else 0.0
-        change_amt = cur - prev if prev else 0.0
-        amplitude = (high - low) / prev * 100 if prev else 0.0
-        name = (q.get("name") if q.get("name") else None) or names.get(code) or _resolve_name(code) or code
-        qt = q.get("datetime")
-        if qt:
-            quote_times.append(str(qt))
-    else:
-        cur = chg = change_amt = amplitude = volume = amount = None
-        name = names.get(code) or _resolve_name(code) or code
-    pe, alr = fund_map.get(code, (None, None))
-    rows.append({
-        "code": code, "name": name, "cur": cur, "chg": chg,
-        "change_amt": change_amt, "amplitude": amplitude,
-        "volume": volume, "amount": amount,
-        "pe_ttm": f"{pe:.2f}" if isinstance(pe, (int, float)) else "—",
-        "alr": f"{alr:.2f}%" if isinstance(alr, (int, float)) else "—",
-    })
+    # 并行拉取市盈率与资产负债率
+    fund_map = {}
+    if codes:
+        with st.spinner("并行获取市盈率与资产负债率…"):
+            # 新浪财务报表在代理环境需临时关闭 SSL 校验，仅本次批量抓取内生效
+            with _ssl_bypass():
+                with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+                    futs = {ex.submit(_fund_one, c): c for c in codes}
+                    for fut in _cf.as_completed(futs):
+                        c = futs[fut]
+                        try:
+                            _, pe, alr = fut.result(timeout=15)
+                        except Exception:
+                            pe = alr = None
+                        fund_map[c] = (pe, alr)
 
-# ── 渲染监控表 ──
-up_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] >= 0)
-down_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] < 0)
-st.markdown(
-    f"#### 共 {len(rows)} 只自选股 ｜ "
-    f"<span style='color:{_UP};font-weight:600;'>▲ {up_n}</span> ／ "
-    f"<span style='color:{_DOWN};font-weight:600;'>▼ {down_n}</span>",
-    unsafe_allow_html=True,
-)
+    rows = []
+    quote_times = []
+    for code in codes:
+        q = quotes.get(code)
+        if q and q.get("current"):
+            cur = float(q["current"])
+            prev = float(q.get("prev_close") or 0)
+            open_ = float(q.get("open") or 0)
+            high = float(q.get("high") or 0)
+            low = float(q.get("low") or 0)
+            volume = int(q.get("volume") or 0)
+            amount = float(q.get("amount") or 0)
+            chg = (cur - prev) / prev * 100 if prev else 0.0
+            change_amt = cur - prev if prev else 0.0
+            amplitude = (high - low) / prev * 100 if prev else 0.0
+            name = (q.get("name") if q.get("name") else None) or names.get(code) or _resolve_name(code) or code
+            qt = q.get("datetime")
+            if qt:
+                quote_times.append(str(qt))
+        else:
+            cur = chg = change_amt = amplitude = volume = amount = None
+            name = names.get(code) or _resolve_name(code) or code
+        pe, alr = fund_map.get(code, (None, None))
+        rows.append({
+            "code": code, "name": name, "cur": cur, "chg": chg,
+            "change_amt": change_amt, "amplitude": amplitude,
+            "volume": volume, "amount": amount,
+            "pe_ttm": f"{pe:.2f}" if isinstance(pe, (int, float)) else "—",
+            "alr": f"{alr:.2f}%" if isinstance(alr, (int, float)) else "—",
+        })
 
-if rows:
-    df_rt = pd.DataFrame(rows)
-    display_df = df_rt[["name", "code", "cur", "change_amt", "chg", "amplitude",
-                          "volume", "amount", "pe_ttm", "alr"]].copy()
-    display_df.rename(columns={
-        "name": "名称", "code": "代码", "cur": "现价",
-        "change_amt": "涨跌额", "chg": "涨跌%", "amplitude": "振幅%",
-        "volume": "成交量", "amount": "成交额",
-        "pe_ttm": "市盈率(TTM)", "alr": "资产负债率",
-    }, inplace=True)
-    st.dataframe(
-        display_df,
-        use_container_width=True,
-        height=max(200, min(480, 40 + len(rows) * 38)),
-        column_config={
-            "现价": st.column_config.NumberColumn(format="¥%.2f"),
-            "涨跌额": st.column_config.NumberColumn(format="%.2f"),
-            "涨跌%": st.column_config.NumberColumn(format="%.2f%%"),
-            "振幅%": st.column_config.NumberColumn(format="%.2f%%"),
-            "成交量": st.column_config.NumberColumn(format="%d"),
-            "成交额": st.column_config.NumberColumn(format="%.0f"),
-        },
+    # ── 渲染监控表 ──
+    up_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] >= 0)
+    down_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] < 0)
+    st.markdown(
+        f"#### 共 {len(rows)} 只自选股 ｜ "
+        f"<span style='color:{_UP};font-weight:600;'>▲ {up_n}</span> ／ "
+        f"<span style='color:{_DOWN};font-weight:600;'>▼ {down_n}</span>",
+        unsafe_allow_html=True,
     )
-    # 点击行跳转（用 selectbox 选择）
-    opts = [f"{r['code']} {r['name']}" for r in rows if r['cur'] is not None]
-    if opts:
-        sel = st.selectbox("选择股票查看 K 线", ["— 请选择 —"] + opts, key="watch_rt_jump")
-        if sel and sel != "— 请选择 —":
-            code = sel.split()[0]
-            st.session_state["pick_stock_confirmed"] = code
-            st.session_state["pick_stock_query"] = code
-            safe_switch_page("pages/1_股票选取.py")
-else:
-    st.info("暂无数据。")
 
-st.divider()
-col_a, col_b = st.columns(2)
-with col_a:
-    if st.button("🔄 刷新行情", type="primary", use_container_width=True):
-        st.rerun()
-with col_b:
-    if st.button("🧭 用自选股做技术体检", use_container_width=True):
-        safe_switch_page("pages/B_形态选股.py")
+    if rows:
+        df_rt = pd.DataFrame(rows)
+        display_df = df_rt[["name", "code", "cur", "change_amt", "chg", "amplitude",
+                              "volume", "amount", "pe_ttm", "alr"]].copy()
+        display_df.rename(columns={
+            "name": "名称", "code": "代码", "cur": "现价",
+            "change_amt": "涨跌额", "chg": "涨跌%", "amplitude": "振幅%",
+            "volume": "成交量", "amount": "成交额",
+            "pe_ttm": "市盈率(TTM)", "alr": "资产负债率",
+        }, inplace=True)
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            height=max(200, min(480, 40 + len(rows) * 38)),
+            column_config={
+                "现价": st.column_config.NumberColumn(format="¥%.2f"),
+                "涨跌额": st.column_config.NumberColumn(format="%.2f"),
+                "涨跌%": st.column_config.NumberColumn(format="%.2f%%"),
+                "振幅%": st.column_config.NumberColumn(format="%.2f%%"),
+                "成交量": st.column_config.NumberColumn(format="%d"),
+                "成交额": st.column_config.NumberColumn(format="%.0f"),
+            },
+        )
+        # 点击行跳转（用 selectbox 选择）
+        opts = [f"{r['code']} {r['name']}" for r in rows if r['cur'] is not None]
+        if opts:
+            sel = st.selectbox("选择股票查看 K 线", ["— 请选择 —"] + opts, key="watch_rt_jump")
+            if sel and sel != "— 请选择 —":
+                code = sel.split()[0]
+                st.session_state["pick_stock_confirmed"] = code
+                st.session_state["pick_stock_query"] = code
+                safe_switch_page("pages/1_股票选取.py")
+    else:
+        st.info("暂无数据。")
 
-data_time = max(quote_times) if quote_times else "—"
-refresh_tag = " ｜ 🔴 交易时段每 60 秒自动刷新" if _is_trading_now() else ""
-st.caption(
-    f"行情时间：{data_time} ｜ 本页刷新：{datetime.now().strftime('%H:%M:%S')}"
-    f" ｜ 红涨绿跌（A股惯例）{refresh_tag}"
-)
+    st.divider()
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("🔄 刷新行情", type="primary", use_container_width=True, key="wl_refresh"):
+            # 不调用 st.rerun()：按钮点击已触发本 fragment 自然重跑
+            pass
+    with col_b:
+        if st.button("🧭 用自选股做技术体检", use_container_width=True, key="wl_tech_check"):
+            safe_switch_page("pages/B_形态选股.py")
+
+    data_time = max(quote_times) if quote_times else "—"
+    refresh_tag = " ｜ 🔴 交易时段每 60 秒自动刷新" if _is_trading_now() else ""
+    st.caption(
+        f"行情时间：{data_time} ｜ 本页刷新：{datetime.now().strftime('%H:%M:%S')}"
+        f" ｜ 红涨绿跌（A股惯例）{refresh_tag}"
+    )
+
+
+fragment_watchlist_monitor()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -518,7 +528,7 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
                 name = edit_code.split(maxsplit=1)[1] if " " in edit_code else ""
                 api_save_user_score(code, int(edit_score), name)
                 st.success("评分已更新")
-                st.rerun()
+                # 不调用 st.rerun()：form 提交已触发本 fragment 自然重跑
             else:
                 st.warning("请先选择一只股票")
 
@@ -533,44 +543,55 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
 
 
 # 自选股
-with st.expander("📌 自选股列表", expanded=False):
-    sc, body = api_get("/api/watchlist")
-    wl_items = []
-    if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        wl_items = body.get("data", []) or []
-    if not wl_items:
-        st.info("自选股为空。先到「股票选取」页面点击「加入自选股」添加。")
-    else:
-        codes = [_norm_code(it["stock_code"]) for it in wl_items]
-        id_map = {_norm_code(it["stock_code"]): it["id"] for it in wl_items}
-        scores = _load_scores_map(codes)
-        df_wl = _build_pool_df(codes, scores)
+@st.fragment
+def fragment_pool_watchlist():
+    with st.expander("📌 自选股列表", expanded=False):
+        sc, body = api_get("/api/watchlist")
+        wl_items = []
+        if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
+            wl_items = body.get("data", []) or []
+        if not wl_items:
+            st.info("自选股为空。先到「股票选取」页面点击「加入自选股」添加。")
+        else:
+            codes = [_norm_code(it["stock_code"]) for it in wl_items]
+            id_map = {_norm_code(it["stock_code"]): it["id"] for it in wl_items}
+            scores = _load_scores_map(codes)
+            df_wl = _build_pool_df(codes, scores)
 
-        def _remove_wl(code: str):
-            item_id = id_map.get(_norm_code(code))
-            if item_id:
-                api_delete(f"/api/watchlist/{item_id}", timeout=5)
-                st.success("已移除")
-                st.rerun()
+            def _remove_wl(code: str):
+                item_id = id_map.get(_norm_code(code))
+                if item_id:
+                    api_delete(f"/api/watchlist/{item_id}", timeout=5)
+                    st.success("已移除")
+                    # 不调用 st.rerun()：移除按钮点击已触发本 fragment 自然重跑
 
-        _render_pool_table(df_wl, "watchlist", _remove_wl)
+            _render_pool_table(df_wl, "watchlist", _remove_wl)
+
+
+fragment_pool_watchlist()
+
 
 # 垃圾股
-with st.expander("🗑️ 垃圾股列表", expanded=False):
-    junk_items = api_junk_stocks()
-    if not junk_items:
-        st.info("垃圾股为空。先到「股票选取」页面点击「加入垃圾股」添加。")
-    else:
-        codes = [_norm_code(it["stock_code"]) for it in junk_items]
-        id_map = {_norm_code(it["stock_code"]): it["id"] for it in junk_items}
-        scores = _load_scores_map(codes)
-        df_jk = _build_pool_df(codes, scores)
+@st.fragment
+def fragment_pool_junk():
+    with st.expander("🗑️ 垃圾股列表", expanded=False):
+        junk_items = api_junk_stocks()
+        if not junk_items:
+            st.info("垃圾股为空。先到「股票选取」页面点击「加入垃圾股」添加。")
+        else:
+            codes = [_norm_code(it["stock_code"]) for it in junk_items]
+            id_map = {_norm_code(it["stock_code"]): it["id"] for it in junk_items}
+            scores = _load_scores_map(codes)
+            df_jk = _build_pool_df(codes, scores)
 
-        def _remove_jk(code: str):
-            item_id = id_map.get(_norm_code(code))
-            if item_id:
-                api_remove_junk_stock(item_id)
-                st.success("已移除")
-                st.rerun()
+            def _remove_jk(code: str):
+                item_id = id_map.get(_norm_code(code))
+                if item_id:
+                    api_remove_junk_stock(item_id)
+                    st.success("已移除")
+                    # 不调用 st.rerun()：移除按钮点击已触发本 fragment 自然重跑
 
-        _render_pool_table(df_jk, "junk", _remove_jk)
+            _render_pool_table(df_jk, "junk", _remove_jk)
+
+
+fragment_pool_junk()
