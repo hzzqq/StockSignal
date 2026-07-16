@@ -14,6 +14,7 @@ from modules.session import require_auth, render_user_badge
 from modules.fundflow import (
     get_industry_fund_flow, get_northbound_fund_flow,
     get_market_fund_flow, get_individual_fund_flow,
+    get_market_wide_snapshot,
 )
 from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
@@ -45,6 +46,13 @@ def _get_fetcher():
 
 
 fetcher = _get_fetcher()
+
+# 性能优化：首次进入并行预取行业/北向/大盘三类全市场资金流，
+# 填充各自缓存后三个 fragment 直接命中缓存（秒开）；后续脚本重跑命中缓存亦近乎瞬时。
+try:
+    get_market_wide_snapshot()
+except Exception:
+    pass
 
 
 def _in_trading_hours():

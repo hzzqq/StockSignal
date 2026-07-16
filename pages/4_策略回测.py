@@ -11,6 +11,7 @@
 
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 from modules.ui_theme import apply_page_config
@@ -237,6 +238,125 @@ def fragment_manual_backtest():
                         st.metric("最大亏损", f"{max_loss:.2f}%")
                 else:
                     st.info("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
+
+                # ── 回撤带（水下曲线） ──
+                st.markdown("---")
+                st.subheader("回撤带（水下曲线）")
+                _dd = result.df["drawdown"] if "drawdown" in result.df.columns else None
+                if _dd is not None and not _dd.dropna().empty:
+                    fig_dd_band = go.Figure(go.Scatter(
+                        x=result.df["date"], y=_dd,
+                        fill="tozeroy",
+                        fillcolor="rgba(26,162,96,0.25)",
+                        line=dict(color=DOWN_COLOR, width=1),
+                        name="回撤%",
+                        hovertemplate="%{x}<br>回撤：%{y:.2f}%<extra></extra>",
+                    ))
+                    fig_dd_band.update_layout(
+                        title="资金使用率回撤（水下）",
+                        xaxis_title="日期", yaxis_title="回撤%",
+                        height=320,
+                        template="plotly_white" if not _is_dark() else "plotly_dark",
+                        margin=dict(l=50, r=20, t=40, b=30),
+                    )
+                    st.plotly_chart(fig_dd_band, use_container_width=True)
+                else:
+                    st.info("暂无回撤数据。")
+
+                # ── 逐笔交易收益分布 ──
+                st.markdown("---")
+                st.subheader("逐笔交易收益分布")
+                if result.trades:
+                    _profits = [t.get("profit_pct", 0) for t in result.trades]
+                    fig_tr = go.Figure(go.Bar(
+                        x=[f"#{i+1}" for i in range(len(_profits))],
+                        y=_profits,
+                        marker_color=[UP_COLOR if p > 0 else DOWN_COLOR for p in _profits],
+                        hovertemplate="交易%{x}<br>收益率：%{y:.2f}%<extra></extra>",
+                    ))
+                    fig_tr.update_layout(
+                        title="每笔交易收益率（红盈绿亏）",
+                        xaxis_title="交易序号", yaxis_title="收益率%",
+                        height=320,
+                        template="plotly_white" if not _is_dark() else "plotly_dark",
+                        margin=dict(l=50, r=20, t=40, b=30),
+                    )
+                    st.plotly_chart(fig_tr, use_container_width=True)
+                else:
+                    st.info("本区间无完整交易。")
+
+                # ── 参数敏感性分析 ──
+                st.markdown("---")
+                st.subheader("🎯 参数敏感性分析")
+                st.caption("固定其余参数，扫描单一参数的不同取值，观察累计收益 / 胜率 / 最大回撤的变化，寻找参数拐点。")
+                sens_choice = st.selectbox(
+                    "选择扫描参数",
+                    options=["stop_loss_pct", "take_profit_pct", "max_holding"],
+                    format_func=lambda x: {
+                        "stop_loss_pct": "止损比例(%)",
+                        "take_profit_pct": "止盈比例(%)",
+                        "max_holding": "最大持仓周期(交易日)",
+                    }.get(x, x),
+                    key="sens_param",
+                )
+                if st.button("🚀 运行敏感性扫描", key="sens_run"):
+                    base = dict(
+                        ticker=bt_ticker,
+                        start=bt_start.strftime("%Y-%m-%d"),
+                        end=bt_end.strftime("%Y-%m-%d"),
+                        strategy=strategy,
+                        keywords=keywords,
+                        initial_capital=initial_capital,
+                        commission=commission,
+                        stop_loss_pct=stop_loss_pct,
+                        take_profit_pct=take_profit_pct,
+                        trailing_stop_pct=trailing_stop_pct,
+                        max_holding=max_holding,
+                        min_holding=min_holding,
+                    )
+                    if sens_choice == "stop_loss_pct":
+                        grid = [0.03, 0.05, 0.07, 0.10, 0.15]
+                        labels = [f"{g*100:.0f}%" for g in grid]
+                    elif sens_choice == "take_profit_pct":
+                        grid = [0.03, 0.05, 0.08, 0.12, 0.20]
+                        labels = [f"{g*100:.0f}%" for g in grid]
+                    else:
+                        grid = [5, 10, 15, 20, 30]
+                        labels = [str(g) for g in grid]
+                    xs, ys_ret, ys_win, ys_dd = [], [], [], []
+                    with st.spinner("正在扫描参数组合，请稍候…"):
+                        for g in grid:
+                            params = dict(base)
+                            params[sens_choice] = g
+                            try:
+                                r2 = bt.run(**params)
+                                s2 = r2.summary()
+                                xs.append(labels[len(xs)])
+                                ys_ret.append(s2["total_return_pct"])
+                                ys_win.append(s2["win_rate_pct"])
+                                ys_dd.append(s2["max_drawdown_pct"])
+                            except Exception:
+                                xs.append(labels[len(xs)])
+                                ys_ret.append(None)
+                                ys_win.append(None)
+                                ys_dd.append(None)
+                    fig_sens = go.Figure()
+                    fig_sens.add_trace(go.Scatter(x=xs, y=ys_ret, mode="lines+markers",
+                                                  name="累计收益%", line=dict(color=UP_COLOR, width=2)))
+                    fig_sens.add_trace(go.Scatter(x=xs, y=ys_win, mode="lines+markers",
+                                                  name="胜率%", line=dict(color="#2b8aef", width=2)))
+                    fig_sens.add_trace(go.Scatter(x=xs, y=ys_dd, mode="lines+markers",
+                                                  name="最大回撤%", line=dict(color=DOWN_COLOR, width=2)))
+                    fig_sens.update_layout(
+                        title=f"参数敏感性：{sens_choice}",
+                        xaxis_title="参数取值", yaxis_title="指标%",
+                        height=360,
+                        template="plotly_white" if not _is_dark() else "plotly_dark",
+                        margin=dict(l=50, r=20, t=40, b=30),
+                        legend=dict(orientation="h", y=1.12),
+                    )
+                    st.plotly_chart(fig_sens, use_container_width=True)
+                    st.caption("提示：曲线走平或反转处通常表示参数拐点，可据此微调风险管理参数。")
 
             except Exception as e:
                 st.error(f"回测失败: {e}")

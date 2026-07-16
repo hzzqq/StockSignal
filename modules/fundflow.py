@@ -349,3 +349,45 @@ def get_disclosure_calendar(market="沪市", period="2026一季报"):
 def clear_fundflow_cache():
     """清空缓存（调试用）。"""
     _CACHE.clear()
+
+
+# ───────────────────────── 启动预热 / 并行快照（性能加速） ─────────────────────────
+def get_market_wide_snapshot():
+    """并行预取行业 / 北向 / 大盘三类全市场资金流，并填充各自 getter 的缓存。
+
+    首次调用并行拉取（约 2s），缓存命中时近乎瞬时返回。
+    返回 dict: {industry, northbound, market}（各为 getter 的原始返回值）。
+    用于资金流向页首屏冷启动加速：一次并行替代三次串行。
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        f_ind = ex.submit(get_industry_fund_flow)
+        f_nb = ex.submit(get_northbound_fund_flow)
+        f_mkt = ex.submit(get_market_fund_flow, 30)
+        industry = f_ind.result()
+        northbound = f_nb.result()
+        market = f_mkt.result()
+    return {"industry": industry, "northbound": northbound, "market": market}
+
+
+_warm_started = False
+
+
+def warm_fundflow_caches():
+    """应用启动时于后台守护线程预取全市场资金流，避免首个页面访问冷启动。
+
+    幂等：仅执行一次。在 app.py 顶部 require_auth() 之后非阻塞调用即可。
+    """
+    global _warm_started
+    if _warm_started:
+        return
+    _warm_started = True
+    import threading
+
+    def _job():
+        try:
+            get_market_wide_snapshot()
+        except Exception:
+            pass
+
+    threading.Thread(target=_job, daemon=True).start()

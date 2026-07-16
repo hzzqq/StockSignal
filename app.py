@@ -21,7 +21,11 @@ st.session_state["_active_page"] = __file__
 # ── 鉴权门禁：未登录直接跳到 /登录 ──
 from modules.session import require_auth, render_user_badge, is_admin, get_user, safe_switch_page, get_token
 from modules.widgets import render_global_search, render_theme_toggle, render_notifications, get_recent_stocks, render_session_countdown
+from modules.fundflow import warm_fundflow_caches
 require_auth()
+
+# 性能加速：非阻塞后台预热全市场资金流缓存，首个资金流向类页面访问即命中缓存
+warm_fundflow_caches()
 
 user = get_user() or {}
 
@@ -155,6 +159,27 @@ modules = [
         "admin": False,
     },
     {
+        "title": "体检扫描",
+        "icon": "🩺",
+        "desc": "一键批量体检自选股+组合持仓：技术形态、主力资金、预警汇总待办清单",
+        "page": "pages/I_体检扫描.py",
+        "admin": False,
+    },
+    {
+        "title": "数据导出",
+        "icon": "📤",
+        "desc": "统一导出中心：资金流/财报/组合/自选股快照，支持一键打包 ZIP",
+        "page": "pages/J_数据导出.py",
+        "admin": False,
+    },
+    {
+        "title": "智能盯盘",
+        "icon": "👁️",
+        "desc": "聚合板块异动+自选股涨跌+个股资金流+预警触发，交易时段自动刷新",
+        "page": "pages/K_智能盯盘.py",
+        "admin": False,
+    },
+    {
         "title": "星辰 AI",
         "icon": "🌟",
         "desc": "对话 + 分析一体：个股诊断、横向对比、事件解读、持仓建议",
@@ -278,6 +303,9 @@ with st.sidebar:
     - 🏛️ 基本面分析 — 个股估值、历史位置、行业对比、主线判断
     - 🌊 资金流向 — 北向资金、行业板块资金流向、大盘主力净流入
     - 📅 财报日历 — 业绩报表、业绩预告、披露日历
+    - 🩺 体检扫描 — 自选股+组合一键体检、技术形态与资金流预警清单
+    - 📤 数据导出 — 资金流/财报/组合/自选股统一 CSV 导出与打包
+    - 👁️ 智能盯盘 — 板块异动+自选股涨跌+个股资金流+预警聚合
     - 🌟 星辰 AI — 对话式个股诊断 / 对比 / 事件解读
     """)
 
