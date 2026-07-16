@@ -29,6 +29,7 @@ from backend.models import User, SystemConfig  # noqa: E402
 from backend.scripts.migrate_add_asset_type import migrate as migrate_asset_type  # noqa: E402
 from backend.scripts.migrate_add_avatar import migrate as migrate_avatar  # noqa: E402
 from backend.scripts.migrate_add_settings import migrate as migrate_settings  # noqa: E402
+from backend.scripts.migrate_add_alert_type import migrate as migrate_alert_type  # noqa: E402
 
 
 _DEFAULT_CONFIGS = [
@@ -50,6 +51,8 @@ def main() -> None:
         migrate_avatar(app)
         # 历史库无 settings 列时自动补列（向后兼容）
         migrate_settings(app)
+        # 历史库无 alert_type/params 列时自动补列（多维预警向后兼容）
+        migrate_alert_type(app)
 
         seeds = [
             {"username": "admin", "password": "Admin@123", "role": "admin"},

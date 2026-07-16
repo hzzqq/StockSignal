@@ -102,15 +102,17 @@ class Watchlist(db.Model):
 
 # ------------------------------------------------------------------ PriceAlert
 class PriceAlert(db.Model):
-    """用户自选股价格预警（涨/跌到目标价提醒）。"""
+    """用户自选股预警（价格 / 技术形态 / 成交量异动 / 公告触发）。"""
     __tablename__ = "price_alert"
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     stock_code = db.Column(db.String(16), nullable=False, index=True)
     stock_name = db.Column(db.String(64), default="")
-    condition = db.Column(db.String(8), nullable=False, default="above")  # above / below
-    target_price = db.Column(db.Float, nullable=False)
+    alert_type = db.Column(db.String(16), nullable=False, default="price")  # price/pattern/volume/announcement
+    condition = db.Column(db.String(8), nullable=False, default="above")  # above / below（price 用）
+    target_price = db.Column(db.Float, nullable=False, default=0.0)
+    params = db.Column(db.Text, nullable=True)  # 类型参数 JSON：pattern_name / volume_ratio / keyword 等
     active = db.Column(db.Boolean, default=True)
     triggered = db.Column(db.Boolean, default=False)
     triggered_at = db.Column(db.DateTime, nullable=True)
@@ -122,8 +124,10 @@ class PriceAlert(db.Model):
             "user_id": self.user_id,
             "stock_code": self.stock_code,
             "stock_name": self.stock_name,
+            "alert_type": self.alert_type,
             "condition": self.condition,
             "target_price": self.target_price,
+            "params": self.params,
             "active": self.active,
             "triggered": self.triggered,
             "triggered_at": self.triggered_at.isoformat() if self.triggered_at else None,
