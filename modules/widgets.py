@@ -91,15 +91,42 @@ def _index_cache_key() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
-def _trend_label(open_: float, high: float, low: float, close: float, prev_close: float) -> str:
-    """根据当日 OHLC 给出一句可读的走势定性（如高开低走/低开高走）。"""
+def _trend_label(open_: float, high: float, low: float, close: float, prev_close: float, spark_y=None) -> str:
+    """根据日内 sparkline 或 OHLC 给出行走定性。
+
+    优先看实际分时序列中高点与低点出现的先后顺序：
+    - 高点早于低点 → 冲高回落
+    - 低点早于高点 → 探底回升
+    - 无明显波动 → 窄幅震荡
+    """
     if not all([open_, high, low, close, prev_close]) or prev_close == 0:
         return "—"
     amplitude = (high - low) / prev_close * 100
     if amplitude < 0.15:
         return "窄幅震荡"
+
+    # 如果有真实分时序列，按高点/低点出现的先后顺序判断走势
+    if spark_y and len(spark_y) >= 3:
+        y = []
+        for v in spark_y:
+            try:
+                fv = float(v)
+                if fv == fv:  # 过滤 NaN
+                    y.append(fv)
+            except (TypeError, ValueError):
+                pass
+        if len(y) >= 3:
+            hi_i = y.index(max(y))
+            lo_i = y.index(min(y))
+            if hi_i < lo_i:
+                return "冲高回落"
+            if lo_i < hi_i:
+                return "探底回升"
+            return "窄幅震荡"
+
+    # 无分钟序列时按 OHLC 关键点（O-H-L-C 顺序）做保守推断
     if close >= open_:
-        if high > close and (high - open_) / prev_close * 100 > 0.2:
+        if high > close and (high - open_) / prev_close * 100 > 0.15:
             return "冲高回落"
         if open_ > prev_close:
             return "高开高走"
@@ -107,8 +134,8 @@ def _trend_label(open_: float, high: float, low: float, close: float, prev_close
             return "低开高走"
         return "平开高走"
     else:
-        if low < close and (open_ - low) / prev_close * 100 > 0.2:
-            return "探底回升"
+        if high > open_ and (high - open_) / prev_close * 100 > 0.15:
+            return "冲高回落"
         if open_ > prev_close:
             return "高开低走"
         if open_ < prev_close:
@@ -290,7 +317,7 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
                 "open": open_,
                 "high": high,
                 "low": low,
-                "trend": _trend_label(open_, high, low, close, prev_close),
+                "trend": _trend_label(open_, high, low, close, prev_close, spark_y),
                 "high_pct": high_pct,
                 "low_pct": low_pct,
                 "amplitude": amplitude,
