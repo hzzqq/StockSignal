@@ -492,9 +492,9 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
         st.session_state["pick_stock_query"] = code
         safe_switch_page("pages/1_股票选取.py")
 
-    # 批量改评分（按键输入）
+    # 批量改评分
     st.markdown("**✏️ 修改用户打分**")
-    st.caption("评分范围 0–100，越高越看好；超出范围的输入会自动限制在边界值。")
+    st.caption("评分范围 0–100，越高越看好；拖动滑块选择，无法输入越界值。")
     with st.form(key=f"{pool_key}_score_form"):
         c1, c2, c3 = st.columns([0.4, 0.4, 0.2])
         with c1:
@@ -503,11 +503,11 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
             existing = None
             if edit_code and edit_code != "—":
                 existing = api_user_score(edit_code.split()[0])
-            edit_score = st.number_input(
+            edit_score = st.slider(
                 "新评分", min_value=0, max_value=100,
                 value=existing if existing is not None else 50,
                 step=1, key=f"{pool_key}_edit_score",
-                help="请输入 0–100 之间的整数",
+                help="拖动选择 0–100 之间的整数",
             )
         with c3:
             st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
