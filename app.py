@@ -56,183 +56,73 @@ with status_col4:
 
 st.markdown("---")
 
-# ── 功能模块卡片（与左侧边栏保持一致） ──
+# ── 功能模块卡片（分组，与左侧边栏自定义导航保持一致） ──
+# 分组顺序对应日常操作流：看盘 → 选股 → 管仓 → 回测 → 交流 → 账户。
+# 合并页：🎯个股研究＝股票选取+个股分析；💼持仓中心＝自选股监控+仓位管理+组合收益。
+# 图标去重：📡事件追踪、🚨价格预警、🛠️系统配置。
 st.header("📦 功能模块")
 
-modules = [
-    {
-        "title": "行情看板",
-        "icon": "📈",
-        "desc": "指数迷你卡、行业板块涨跌榜、龙虎榜、相关性矩阵",
-        "page": "pages/1_行情看板.py",
-        "admin": False,
-    },
-    {
-        "title": "股票选取",
-        "icon": "🎯",
-        "desc": "参数设置、K线、技术面分析、加入自选/垃圾股、用户打分",
-        "page": "pages/1_股票选取.py",
-        "admin": False,
-    },
-    {
-        "title": "个股分析",
-        "icon": "🔍",
-        "desc": "个股深度决策仪表盘：趋势、情绪、事件、作战计划",
-        "page": "pages/2_个股分析.py",
-        "admin": False,
-    },
-    {
-        "title": "多股对比",
-        "icon": "📊",
-        "desc": "同屏横向对比 ≥5 只股票：雷达图、VS 卡、分层操作建议",
-        "page": "pages/2_多股对比.py",
-        "admin": False,
-    },
-    {
-        "title": "事件追踪",
-        "icon": "🔔",
-        "desc": "产业事件、价格信号、宏观数据三类信号综合评分与时间轴",
-        "page": "pages/3_事件追踪.py",
-        "admin": False,
-    },
-    {
-        "title": "策略回测",
-        "icon": "⚙️",
-        "desc": "事件驱动 / 均线交叉策略回测，收益曲线与夏普比率",
-        "page": "pages/4_策略回测.py",
-        "admin": False,
-    },
-    {
-        "title": "仓位管理",
-        "icon": "💰",
-        "desc": "持仓盈亏统计、持仓导入与 Excel 导出",
-        "page": "pages/5_仓位管理.py",
-        "admin": False,
-    },
-    {
-        "title": "组合收益",
-        "icon": "📊",
-        "desc": "组合净值曲线、沪深300基准对比、个股收益贡献与最大回撤",
-        "page": "pages/H_组合收益.py",
-        "admin": False,
-    },
-    {
-        "title": "我的",
-        "icon": "👤",
-        "desc": "个人信息、自选股、偏好设置、外观与数据源配置",
-        "page": "pages/👤_我的.py",
-        "admin": False,
-    },
-    {
-        "title": "自选股监控",
-        "icon": "📡",
-        "desc": "实时跟踪自选股现价与涨跌幅，并行拉取、红涨绿跌",
-        "page": "pages/C_自选股监控.py",
-        "admin": False,
-    },
-    {
-        "title": "股吧",
-        "icon": "💬",
-        "desc": "社区讨论：发表观点与文章、评论点赞，可关联个股一键跳转",
-        "page": "pages/D_股吧.py",
-        "admin": False,
-    },
-    {
-        "title": "基本面分析",
-        "icon": "🏛️",
-        "desc": "个股估值、历史位置、行业横向对比与大盘主线判断",
-        "page": "pages/E_基本面分析.py",
-        "admin": False,
-    },
-    {
-        "title": "资金流向",
-        "icon": "🌊",
-        "desc": "北向资金、行业板块资金流向、大盘主力净流入、个股主力资金动向",
-        "page": "pages/F_资金流向.py",
-        "admin": False,
-    },
-    {
-        "title": "财报日历",
-        "icon": "📅",
-        "desc": "业绩报表、业绩预告、披露日历，按报告期查看己披露财报个股",
-        "page": "pages/G_财报日历.py",
-        "admin": False,
-    },
-    {
-        "title": "体检扫描",
-        "icon": "🩺",
-        "desc": "一键批量体检自选股+组合持仓：技术形态、主力资金、预警汇总待办清单",
-        "page": "pages/I_体检扫描.py",
-        "admin": False,
-    },
-    {
-        "title": "数据导出",
-        "icon": "📤",
-        "desc": "统一导出中心：资金流/财报/组合/自选股快照，支持一键打包 ZIP",
-        "page": "pages/J_数据导出.py",
-        "admin": False,
-    },
-    {
-        "title": "智能盯盘",
-        "icon": "👁️",
-        "desc": "聚合板块异动+自选股涨跌+个股资金流+预警触发，交易时段自动刷新",
-        "page": "pages/K_智能盯盘.py",
-        "admin": False,
-    },
-    {
-        "title": "星辰 AI",
-        "icon": "🌟",
-        "desc": "对话 + 分析一体：个股诊断、横向对比、事件解读、持仓建议",
-        "page": "pages/🌟_星辰AI.py",
-        "admin": False,
-    },
+HOME_GROUPS = [
+    ("📊 市场纵览", [
+        ("🌅", "每日晨报", "pages/A_每日晨报.py", "开盘前速览：隔夜要闻、自选股快照、复盘笔记"),
+        ("📈", "行情看板", "pages/1_行情看板.py", "指数迷你卡、行业板块涨跌榜、龙虎榜、相关性矩阵"),
+        ("👁️", "智能盯盘", "pages/K_智能盯盘.py", "板块异动+自选涨跌+资金流+预警聚合，盘中自动刷新"),
+        ("🌊", "资金流向", "pages/F_资金流向.py", "北向资金、板块资金流、大盘主力净流入、个股资金动向"),
+        ("📡", "事件追踪", "pages/3_事件追踪.py", "产业事件、价格信号、宏观数据三类信号综合评分与时间轴"),
+        ("📅", "财报日历", "pages/G_财报日历.py", "业绩报表、业绩预告、披露日历，按报告期查看"),
+    ]),
+    ("🔎 选股研究", [
+        ("🎯", "个股研究", "pages/个股研究.py", "快速选取 + 深度分析二合一：K线/技术面/打分/决策仪表盘"),
+        ("🧭", "形态选股", "pages/B_形态选股.py", "K线形态 + 金叉死叉 + 背离扫描，手动/自选池双模式"),
+        ("🏛️", "基本面分析", "pages/E_基本面分析.py", "个股估值、历史分位、行业横向对比与大盘主线判断"),
+        ("📊", "多股对比", "pages/2_多股对比.py", "同屏横向对比 ≥5 只股票：雷达图、VS 卡、分层操作建议"),
+    ]),
+    ("💼 我的持仓", [
+        ("💼", "持仓中心", "pages/持仓中心.py", "自选池 + 持仓盈亏 + 收益归因三合一"),
+        ("🩺", "体检扫描", "pages/I_体检扫描.py", "一键批量体检自选+持仓：技术形态、主力资金、预警清单"),
+        ("🚨", "价格预警", "pages/9_价格预警.py", "自选股多维预警：价格/涨跌幅/量能/技术信号触发提醒"),
+        ("📤", "数据导出", "pages/J_数据导出.py", "资金流/财报/组合/自选股统一 CSV 导出与一键打包"),
+    ]),
+    ("🧪 策略工具", [
+        ("⚙️", "策略回测", "pages/4_策略回测.py", "事件驱动 / 均线交叉策略回测，收益曲线与夏普比率"),
+    ]),
+    ("💬 社区与 AI", [
+        ("🌟", "星辰 AI", "pages/🌟_星辰AI.py", "对话 + 分析一体：个股诊断、横向对比、事件解读、持仓建议"),
+        ("💬", "股吧", "pages/D_股吧.py", "社区讨论：发表观点、评论点赞，可关联个股一键跳转"),
+    ]),
 ]
 
-admin_modules = [
-    {
-        "title": "用户管理",
-        "icon": "👥",
-        "desc": "用户 CRUD、角色分配与操作日志",
-        "page": "pages/7_用户管理.py",
-        "admin": True,
-    },
-    {
-        "title": "系统配置",
-        "icon": "⚙️",
-        "desc": "股票数据、缓存、系统参数与运行配置",
-        "page": "pages/8_系统配置.py",
-        "admin": True,
-    },
-]
 
-# 普通用户功能模块
-visible_modules = [m for m in modules if not m.get("admin", False)]
-cols = st.columns(3)
-for i, m in enumerate(visible_modules):
-    with cols[i % 3]:
-        with st.container(border=True):
-            st.subheader(f"{m['icon']} {m['title']}")
-            st.markdown(m["desc"])
-            if st.button("进入 →", key=f"nav_{m['title']}", use_container_width=True, help=m["desc"]):
-                safe_switch_page(m["page"])
-
-# 管理员功能模块
-if is_admin():
-    st.markdown("---")
-    st.header("🛡️ 管理后台")
-    cols_admin = st.columns(3)
-    for i, m in enumerate(admin_modules):
-        with cols_admin[i % 3]:
+def _render_group(title, items):
+    st.subheader(title)
+    cols = st.columns(3)
+    for i, (icon, name, page, desc) in enumerate(items):
+        with cols[i % 3]:
             with st.container(border=True):
-                st.subheader(f"{m['icon']} {m['title']}")
-                st.markdown(m["desc"])
-                if st.button("进入 →", key=f"nav_admin_{m['title']}", use_container_width=True):
-                    safe_switch_page(m["page"])
+                st.markdown(f"**{icon} {name}**")
+                st.caption(desc)
+                if st.button("进入 →", key=f"nav_{name}", use_container_width=True, help=desc):
+                    safe_switch_page(page)
+
+
+for _g, _items in HOME_GROUPS:
+    _render_group(_g, _items)
+
+# 账户组（所有用户可见「我的」，管理员额外可见后台）
+acct_items = [
+    ("👤", "我的", "pages/👤_我的.py", "个人信息、自选股、偏好设置、外观与数据源配置"),
+]
+if is_admin():
+    acct_items += [
+        ("👥", "用户管理", "pages/7_用户管理.py", "用户 CRUD、角色分配与操作日志"),
+        ("🛠️", "系统配置", "pages/8_系统配置.py", "股票数据、缓存、系统参数与运行配置"),
+    ]
+st.markdown("---")
+_render_group("👤 账户" + ("　·　管理后台" if is_admin() else ""), acct_items)
 
 st.markdown("---")
 
 # ── 快捷入口 ──
-st.markdown("---")
 st.header("⚡ 快捷入口")
 
 # 最近浏览（session_state 维护）
@@ -243,7 +133,7 @@ if recent:
     for i, r in enumerate(recent[:4]):
         with rc[i]:
             if st.button(f"{r['code']}\n{r['name']}", key=f"recent_{r['code']}", use_container_width=True):
-                safe_switch_page("pages/1_股票选取.py")
+                safe_switch_page("pages/个股研究.py")
 
 # 自选股数量 + 未读提醒（调后端）
 try:
@@ -279,43 +169,15 @@ with st.expander("📖 项目简介", expanded=False):
     """)
 
 # ── 侧边栏 ──
+# 注：分组导航由 require_auth()→render_sidebar_nav() 在顶部自动注入，此处仅补充
+#     全局搜索 / 通知中心 / 会话倒计时 / 用户徽标等辅助组件。
 with st.sidebar:
+    st.markdown("---")
     # 全局股票搜索
     render_global_search()
     st.markdown("---")
     # 通知中心
     render_notifications()
-    st.markdown("---")
-
-    st.header("导航")
-    st.markdown("""
-    **功能页面：**
-    - 📈 行情看板 — 指数迷你卡、行业板块涨跌榜、龙虎榜
-    - 🎯 股票选取 — K线、技术面分析、自选/垃圾股、用户打分
-    - 🔍 个股分析 — 个股深度决策仪表盘
-    - 📊 多股对比 — 同屏横向对比 ≥5 只股票
-    - 🔔 事件追踪 — 信号评分、事件时间轴
-    - ⚙️ 策略回测 — 事件驱动 / 均线交叉
-    - 💰 仓位管理 — 持仓盈亏、Excel导出
-    - 📊 组合收益 — 组合净值、基准对比、收益贡献、回撤
-    - 👤 我的（含偏好设置）— 个人信息、自选股、外观与数据源设置
-    - 📡 自选股监控 — 自选股实时现价与涨跌幅
-    - 🏛️ 基本面分析 — 个股估值、历史位置、行业对比、主线判断
-    - 🌊 资金流向 — 北向资金、行业板块资金流向、大盘主力净流入
-    - 📅 财报日历 — 业绩报表、业绩预告、披露日历
-    - 🩺 体检扫描 — 自选股+组合一键体检、技术形态与资金流预警清单
-    - 📤 数据导出 — 资金流/财报/组合/自选股统一 CSV 导出与打包
-    - 👁️ 智能盯盘 — 板块异动+自选股涨跌+个股资金流+预警聚合
-    - 🌟 星辰 AI — 对话式个股诊断 / 对比 / 事件解读
-    """)
-
-    if is_admin():
-        st.markdown("""
-        **管理后台：**
-        - 👥 用户管理 — 用户CRUD、操作日志
-        - ⚙️ 系统配置 — 股票数据、系统配置
-        """)
-
     st.markdown("---")
     render_session_countdown()
     st.markdown("---")

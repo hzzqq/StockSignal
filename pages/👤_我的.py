@@ -300,8 +300,9 @@ with col2:
         if st.button("📈 行情看板", width="stretch"):
             safe_switch_page("pages/1_行情看板.py")
     with c2:
-        if st.button("💰 仓位管理", width="stretch"):
-            safe_switch_page("pages/5_仓位管理.py")
+        if st.button("💼 持仓中心", width="stretch"):
+            st.session_state["hub_cang_view"] = "💼 持仓"
+            safe_switch_page("pages/持仓中心.py")
     with c3:
         if st.button("🔔 事件追踪", width="stretch"):
             safe_switch_page("pages/3_事件追踪.py")

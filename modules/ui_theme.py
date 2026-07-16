@@ -1445,7 +1445,12 @@ def apply_page_config(page_title: str, page_icon: str = "📈", layout: str = "w
             _config.set_option(f"theme.{key}", value)
     except Exception:
         pass
-    st.set_page_config(page_title=page_title, page_icon=page_icon, layout=layout)
+    # set_page_config 每次运行只能调用一次；合并页嵌入子页时可能已被调用过，
+    # 此处兜底吞掉重复调用异常，避免嵌入场景整页崩溃（正常独立页不受影响）。
+    try:
+        st.set_page_config(page_title=page_title, page_icon=page_icon, layout=layout)
+    except Exception:
+        pass
 
 
 def apply_theme() -> None:
@@ -1470,6 +1475,14 @@ def apply_theme() -> None:
     # 避免页面内再发起第二次 components.html 调用（实测同页多次 components.html 仅首次脚本可靠执行）。
     from modules.scroll_nav import inject_scroll_nav
     inject_scroll_nav(show_bottom=False, bottom_marker="stChatInput", dark=_theme_is_dark())
+
+    # 隐藏 Streamlit 原生自动生成的平铺页面导航列表（全站，含登录页）。
+    # 业务页由 require_auth()→render_sidebar_nav() 渲染自定义分组导航替代。
+    st.markdown(
+        '<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]'
+        '{display:none!important;}</style>',
+        unsafe_allow_html=True,
+    )
 
 
 def get_current_mode() -> str:

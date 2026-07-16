@@ -252,6 +252,33 @@ def _compute_yoy(s: pd.Series) -> pd.Series:
     return pd.Series(yoy)
 
 
+def _compute_qoq(s: pd.Series) -> pd.Series:
+    """计算环比：与上一个报告期比较。"""
+    if s is None or s.empty:
+        return pd.Series(dtype=float)
+    s = s.sort_index()
+    qoq = {}
+    prev = None
+    for idx, val in s.items():
+        if prev is not None and prev != 0:
+            qoq[idx] = round((val - prev) / abs(prev) * 100, 2)
+        prev = val
+    return pd.Series(qoq)
+
+    if s is None or s.empty:
+        return pd.Series(dtype=float)
+    s = s.sort_index()
+    yoy = {}
+    for idx, val in s.items():
+        prev_idx = idx - pd.DateOffset(years=1)
+        mask = (s.index >= prev_idx - pd.Timedelta(days=10)) & (s.index <= prev_idx + pd.Timedelta(days=10))
+        if mask.any():
+            pv = s.loc[mask].iloc[0]
+            if pv and pv != 0:
+                yoy[idx] = round((val - pv) / abs(pv) * 100, 2)
+    return pd.Series(yoy)
+
+
 def _build_financial_df(code: str) -> pd.DataFrame | None:
     """构建财务分析统一 DataFrame，列：报告期/标签/年度-or-季度/各指标值/各指标同比。"""
     reps = _fetch_financial_reports(code)
@@ -318,25 +345,27 @@ def _build_financial_df(code: str) -> pd.DataFrame | None:
         return None
     df = df.sort_values("报告期", ascending=False).reset_index(drop=True)
 
-    # 计算同比
+    # 计算同比、环比
     numeric_cols = ["营业总收入", "归母净利润", "扣非净利润", "每股收益", "净资产收益率",
                     "销售净利率", "销售毛利率", "每股经营现金流"]
     for col in numeric_cols:
         s = df.set_index("报告期")[col]
         yoy = _compute_yoy(s)
+        qoq = _compute_qoq(s)
         df[f"{col}_同比"] = df["报告期"].map(yoy.to_dict())
+        df[f"{col}_环比"] = df["报告期"].map(qoq.to_dict())
     return df
 
 
 _FINANCIAL_METRICS = {
-    "归母净利润": {"unit": "亿元", "fmt": "{:.2f}亿", "yoy_fmt": "{:+.2f}%"},
-    "营业总收入": {"unit": "亿元", "fmt": "{:.2f}亿", "yoy_fmt": "{:+.2f}%"},
-    "扣非净利润": {"unit": "亿元", "fmt": "{:.2f}亿", "yoy_fmt": "{:+.2f}%"},
-    "净资产收益率": {"unit": "%", "fmt": "{:.2f}%", "yoy_fmt": "{:+.2f}pct"},
-    "销售净利率": {"unit": "%", "fmt": "{:.2f}%", "yoy_fmt": "{:+.2f}%"},
-    "销售毛利率": {"unit": "%", "fmt": "{:.2f}%", "yoy_fmt": "{:+.2f}%"},
-    "每股经营现金流": {"unit": "元", "fmt": "{:.2f}元", "yoy_fmt": "{:+.2f}%"},
-    "每股收益": {"unit": "元", "fmt": "{:.2f}元", "yoy_fmt": "{:+.2f}%"},
+    "归母净利润": {"unit": "亿元", "fmt": "{:.2f}亿", "yoy_fmt": "{:+.2f}%", "qoq_fmt": "{:+.2f}%"},
+    "营业总收入": {"unit": "亿元", "fmt": "{:.2f}亿", "yoy_fmt": "{:+.2f}%", "qoq_fmt": "{:+.2f}%"},
+    "扣非净利润": {"unit": "亿元", "fmt": "{:.2f}亿", "yoy_fmt": "{:+.2f}%", "qoq_fmt": "{:+.2f}%"},
+    "净资产收益率": {"unit": "%", "fmt": "{:.2f}%", "yoy_fmt": "{:+.2f}pct", "qoq_fmt": "{:+.2f}pct"},
+    "销售净利率": {"unit": "%", "fmt": "{:.2f}%", "yoy_fmt": "{:+.2f}%", "qoq_fmt": "{:+.2f}%"},
+    "销售毛利率": {"unit": "%", "fmt": "{:.2f}%", "yoy_fmt": "{:+.2f}%", "qoq_fmt": "{:+.2f}%"},
+    "每股经营现金流": {"unit": "元", "fmt": "{:.2f}元", "yoy_fmt": "{:+.2f}%", "qoq_fmt": "{:+.2f}%"},
+    "每股收益": {"unit": "元", "fmt": "{:.2f}元", "yoy_fmt": "{:+.2f}%", "qoq_fmt": "{:+.2f}%"},
 }
 
 
@@ -356,6 +385,16 @@ def _fmt_fin_yoy(v, metric: str) -> str:
     cfg = _FINANCIAL_METRICS.get(metric, {})
     try:
         return cfg.get("yoy_fmt", "{:+.2f}%").format(float(v))
+    except Exception:
+        return str(v)
+
+
+def _fmt_fin_qoq(v, metric: str) -> str:
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return "—"
+    cfg = _FINANCIAL_METRICS.get(metric, {})
+    try:
+        return cfg.get("qoq_fmt", "{:+.2f}%").format(float(v))
     except Exception:
         return str(v)
 
@@ -408,6 +447,185 @@ def _tag(text: str, level: str) -> str:
             f'border:1px solid {c}55;">{text}</span>')
 
 
+_INDUSTRY_SECTOR_MAP = {
+    # 申万/东财行业名 -> 同花顺/东财板块名（sector_list 中实际出现的）
+    "白酒": "酿酒概念",
+    "白酒Ⅱ": "酿酒概念",
+    "白酒II": "酿酒概念",
+    "啤酒": "酿酒概念",
+    "葡萄酒": "酿酒概念",
+    "其他酒类": "酿酒概念",
+    "非白酒": "酿酒概念",
+    "饮料乳品": "乳业",
+    "乳品": "乳业",
+    "食品综合": "食品",
+    "食品加工": "食品",
+    "休闲食品": "食品",
+    "调味发酵品": "调味品概念",
+    "调味发酵品Ⅱ": "调味品概念",
+    "生物制品": "生物疫苗",
+    "生物制品Ⅱ": "生物疫苗",
+    "中药": "中药概念",
+    "中药Ⅱ": "中药概念",
+    "化学制药": "化学制药",
+    "医疗器械": "医疗器械",
+    "医疗服务": "医疗服务",
+    "医药商业": "医药商业",
+    "酒店餐饮": "旅游酒店",
+    "旅游及景区": "旅游酒店",
+    "旅游零售": "商业百货",
+    "一般零售": "商业百货",
+    "专业连锁": "商业百货",
+    "贸易": "商业百货",
+    "证券": "券商概念",
+    "证券Ⅱ": "券商概念",
+    "保险": "保险",
+    "保险Ⅱ": "保险",
+    "银行": "银行",
+    "多元金融": "多元金融",
+    "房地产开发": "房地产开发",
+    "住宅开发": "房地产开发",
+    "商业地产": "房地产开发",
+    "房地产": "房地产开发",
+    "电力": "电力行业",
+    "燃气": "燃气",
+    "水务": "水务",
+    "煤炭开采": "煤炭行业",
+    "焦炭": "煤炭行业",
+    "动力煤": "煤炭行业",
+    "石油开采": "石油行业",
+    "炼化及贸易": "石油行业",
+    "油服工程": "油气设服",
+    "钢铁": "钢铁行业",
+    "普钢": "钢铁行业",
+    "特钢": "钢铁行业",
+    "冶钢原料": "钢铁行业",
+    "水泥": "水泥建材",
+    "装修建材": "装修建材",
+    "化工": "化工原料",
+    "化学原料": "化工原料",
+    "化学制品": "化工原料",
+    "农化制品": "农药兽药",
+    "化肥": "农药兽药",
+    "造纸": "造纸印刷",
+    "包装印刷": "包装印刷",
+    "塑料": "塑料制品",
+    "橡胶": "橡胶制品",
+    "工业金属": "基本金属",
+    "贵金属": "贵金属",
+    "小金属": "小金属",
+    "能源金属": "能源金属",
+    "金属新材料": "新材料",
+    "非金属材料": "非金属材料",
+    "半导体": "半导体",
+    "元件": "电子元件",
+    "电子元件": "电子元件",
+    "光学光电子": "光学光电子",
+    "消费电子": "消费电子",
+    "其他电子": "电子元件",
+    "计算机设备": "计算机设备",
+    "软件开发": "国产软件",
+    "IT服务": "互联网服务",
+    "互联网服务": "互联网服务",
+    "互联网电商": "互联网服务",
+    "通信设备": "通信设备",
+    "通信服务": "通信服务",
+    "军工电子": "军工",
+    "航空装备": "航天航空",
+    "航天装备": "航天航空",
+    "航天航空": "航天航空",
+    "汽车零部件": "汽车零部件",
+    "汽车整车": "汽车整车",
+    "商用车": "汽车整车",
+    "乘用车": "汽车整车",
+    "摩托车及其他": "汽车整车",
+    "电机": "电机",
+    "电网设备": "电网设备",
+    "光伏设备": "光伏设备",
+    "风电设备": "风电设备",
+    "电池": "电池",
+    "电源设备": "电源设备",
+    "其他电源设备": "电源设备",
+    "家电零部件": "家电行业",
+    "黑色家电": "家电行业",
+    "白色家电": "家电行业",
+    "小家电": "家电行业",
+    "厨卫电器": "家电行业",
+    "照明设备": "家电行业",
+    "其他家电": "家电行业",
+    "纺织制造": "纺织服装",
+    "服装家纺": "纺织服装",
+    "化学纤维": "化纤行业",
+    "种植业": "农业种植",
+    "农产品加工": "农业种植",
+    "饲料": "农牧饲渔",
+    "养殖": "农牧饲渔",
+    "渔业": "农牧饲渔",
+    "林业": "农业种植",
+    "环保": "节能环保",
+    "工程建设": "工程建设",
+    "房屋建设": "工程建设",
+    "专业工程": "工程建设",
+    "工程咨询服务": "工程咨询服务",
+    "装修装饰": "装修装饰",
+    "建筑装修": "装修装饰",
+    "物流": "物流行业",
+    "公路铁路": "铁路公路",
+    "铁路": "铁路公路",
+    "公路": "铁路公路",
+    "公交": "公交",
+    "航运": "航运港口",
+    "港口": "航运港口",
+    "机场": "航空机场",
+    "航空运输": "航空机场",
+    "交运设备": "交运设备",
+    "传媒": "文化传媒",
+    "广告营销": "文化传媒",
+    "影视院线": "影视概念",
+    "游戏": "网络游戏",
+    "游戏Ⅱ": "网络游戏",
+    "体育": "体育概念",
+    "教育": "教育",
+    "美容护理": "美容护理",
+    "社会服务": "社会服务",
+}
+
+
+def _normalize_industry(industry: str) -> str:
+    """把申万/东财行业名（如 白酒Ⅱ）清洗为便于映射的键。"""
+    if not industry:
+        return ""
+    s = industry.strip()
+    # 去除罗马数字、阿拉伯数字后缀、空格
+    s = s.replace("Ⅱ", "").replace("Ⅲ", "").replace("II", "").replace("III", "").strip()
+    return s
+
+
+def _find_sector_name(sector_df: pd.DataFrame, industry: str) -> str | None:
+    """把个股行业名映射到 sector_list 中的板块名；支持映射表 + 模糊匹配。"""
+    if not industry or sector_df is None or sector_df.empty:
+        return None
+    sectors = sector_df["sector"].astype(str).tolist()
+    # 1) 精确映射
+    mapped = _INDUSTRY_SECTOR_MAP.get(industry) or _INDUSTRY_SECTOR_MAP.get(_normalize_industry(industry))
+    if mapped and mapped in sectors:
+        return mapped
+    # 2) 子串匹配（优先原串，再清洗后）
+    for cand in (industry, _normalize_industry(industry)):
+        if not cand:
+            continue
+        for sec in sectors:
+            if cand in sec or sec in cand:
+                return sec
+    # 3) 关键词匹配（取行业名中核心 2-4 字尝试命中板块）
+    keywords = [industry[i:j] for i in range(len(industry)) for j in range(i + 2, min(i + 5, len(industry) + 1))]
+    for kw in keywords:
+        for sec in sectors:
+            if kw in sec:
+                return sec
+    return None
+
+
 def _sector_rank(sector_df: pd.DataFrame, industry: str) -> int | None:
     if sector_df is None or sector_df.empty or not industry:
         return None
@@ -415,9 +633,11 @@ def _sector_rank(sector_df: pd.DataFrame, industry: str) -> int | None:
     df["change_pct"] = pd.to_numeric(df.get("change_pct", 0), errors="coerce").fillna(0)
     df = df.sort_values("change_pct", ascending=False).reset_index(drop=True)
     df["rank"] = df.index + 1
-    hits = df[df["sector"].astype(str).str.contains(industry, na=False)]
-    if not hits.empty:
-        return int(hits.iloc[0]["rank"])
+    sector_name = _find_sector_name(df, industry)
+    if sector_name:
+        hits = df[df["sector"].astype(str) == sector_name]
+        if not hits.empty:
+            return int(hits.iloc[0]["rank"])
     return None
 
 
@@ -794,6 +1014,23 @@ if code:
                     yaxis="y2",
                 )
             )
+        # 季度模式下按年份添加竖向分隔线 / 背景色块，使年份分界更明显
+        shapes = []
+        if mode == "季度":
+            years = plot_df["period_dt"].dt.year.tolist()
+            for i in range(1, len(years)):
+                if years[i] != years[i - 1]:
+                    shapes.append(
+                        dict(
+                            type="line",
+                            x0=i - 0.5,
+                            x1=i - 0.5,
+                            y0=0,
+                            y1=1,
+                            yref="paper",
+                            line=dict(color="rgba(148,163,184,0.4)", width=1.5, dash="dot"),
+                        )
+                    )
         fig.update_layout(
             title=f"{fa_name}({fa_code}) {metric}趋势（{mode}）",
             xaxis=dict(title=""),
@@ -803,17 +1040,28 @@ if code:
             margin=dict(l=40, r=60, t=50, b=40),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            # 把图例放到顶部并预留足够空间，避免与右上角 Plotly modebar 重叠
+            legend=dict(orientation="h", yanchor="bottom", y=1.12, xanchor="left", x=0),
+            # 精简右上角工具栏，避免与标题/图例重叠
+            modebar=dict(orientation="v"),
+            shapes=shapes,
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        # ── 数据表格 ──
+        # ── 数据表格（可折叠）──
+        qoq_col = f"{metric}_环比"
         table_df = plot_df.copy().sort_values("报告期", ascending=False)
         table_df["指标值"] = table_df[val_col].apply(lambda v: _fmt_fin_value(v, metric))
         table_df["同比"] = table_df[yoy_col].apply(lambda v: _fmt_fin_yoy(v, metric))
+        table_df["环比"] = table_df[qoq_col].apply(lambda v: _fmt_fin_qoq(v, metric))
         table_df["报告期显示"] = table_df["标签"]
-        display_table = table_df[["报告期显示", "指标值", "同比"]].rename(columns={"报告期显示": "报告期"})
-        st.dataframe(display_table, use_container_width=True, hide_index=True)
+        # 年度模式下环比与同比重复，隐藏环比列更合理
+        if mode == "年度":
+            display_table = table_df[["报告期显示", "指标值", "同比"]].rename(columns={"报告期显示": "报告期"})
+        else:
+            display_table = table_df[["报告期显示", "指标值", "同比", "环比"]].rename(columns={"报告期显示": "报告期"})
+        with st.expander("📋 查看明细数据", expanded=False):
+            st.dataframe(display_table, use_container_width=True, hide_index=True)
 
 
     fragment_financial_analysis(code, name)
@@ -888,8 +1136,9 @@ if code:
     if not sector_df.empty and industry != "—":
         top_n = 15
         top_sectors = sector_df.sort_values("change_pct", ascending=False).head(top_n).copy()
+        mapped_sector = _find_sector_name(sector_df, industry) if industry != "—" else None
         bar_colors = [
-            UP_COLOR if str(row["sector"]) == industry or industry in str(row["sector"]) else (DOWN_COLOR if row["change_pct"] < 0 else "#94a3b8")
+            UP_COLOR if mapped_sector and str(row["sector"]) == mapped_sector else (DOWN_COLOR if row["change_pct"] < 0 else "#94a3b8")
             for _, row in top_sectors.iterrows()
         ]
 
@@ -914,17 +1163,18 @@ if code:
         )
         st.plotly_chart(fig_sector, use_container_width=True)
 
-        sector_row = sector_df[sector_df["sector"].astype(str).str.contains(industry, na=False)]
-        if not sector_row.empty:
-            sector_chg = float(sector_row.iloc[0]["change_pct"])
-            avg_chg = float(sector_df["change_pct"].mean())
-            delta = sector_chg - avg_chg
-            sc1, sc2 = st.columns(2)
-            with sc1:
-                st.metric(f"{industry} 今日涨跌", f"{sector_chg:+.2f}%")
-            with sc2:
-                st.metric("相对全市场平均", f"{delta:+.2f}%", delta=f"{delta:+.2f}%",
-                          help="当前行业涨跌幅减去全市场行业均值；>0 表示强于大盘")
+        if mapped_sector:
+            sector_row = sector_df[sector_df["sector"].astype(str) == mapped_sector]
+            if not sector_row.empty:
+                sector_chg = float(sector_row.iloc[0]["change_pct"])
+                avg_chg = float(sector_df["change_pct"].mean())
+                delta = sector_chg - avg_chg
+                sc1, sc2 = st.columns(2)
+                with sc1:
+                    st.metric(f"{industry} 今日涨跌", f"{sector_chg:+.2f}%")
+                with sc2:
+                    st.metric("相对全市场平均", f"{delta:+.2f}%", delta=f"{delta:+.2f}%",
+                              help="当前行业涨跌幅减去全市场行业均值；>0 表示强于大盘")
         else:
             st.info("未在行业列表中精确匹配到当前股票行业。")
     else:
@@ -1028,6 +1278,6 @@ if code:
     st.markdown("---")
     if st.button("🔍 查看该股票详细 K 线与技术面 →", type="primary", use_container_width=True):
         st.query_params["pick_stock"] = code
-        safe_switch_page("pages/1_股票选取.py")
+        safe_switch_page("pages/个股研究.py")
 else:
     st.info("请在上方选择一只股票开始分析。")

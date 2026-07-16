@@ -101,7 +101,7 @@ if _view_pid:
             label = f"📈 {post.get('stock_name') or post['stock_code']}（{post['stock_code']}）"
             if st.button(label, key="forum_jump_stock", use_container_width=True):
                 st.query_params["pick_stock"] = post["stock_code"]
-                safe_switch_page("pages/1_股票选取.py")
+                safe_switch_page("pages/个股研究.py")
 
     st.markdown("---")
     st.markdown(post.get("content", ""))

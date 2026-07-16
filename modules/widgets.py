@@ -18,7 +18,7 @@ import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
-from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs
+from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin
 
 
 # ──────────────────────────────────────────────────────────────
@@ -436,7 +436,7 @@ def render_global_search() -> None:
                         if st.button(label, key=f"search_{item.get('code')}", use_container_width=True):
                             # 记录到「最近浏览」
                             _push_recent(item.get("code"), item.get("name"))
-                            safe_switch_page("pages/1_股票选取.py")
+                            safe_switch_page("pages/个股研究.py")
                 else:
                     st.caption("无匹配结果")
             else:
@@ -907,6 +907,90 @@ def inject_global_widgets() -> None:
 
     render_topright_bar()
     inject_scroll_nav()
+
+
+# ──────────────────────────────────────────────────────────────
+# 自定义分组侧边栏导航（替代 Streamlit 原生平铺页面列表）
+# ──────────────────────────────────────────────────────────────
+# 分组结构：按「看盘 → 选股 → 管仓 → 回测 → 交流 → 账户」的日常操作流组织。
+# 每项为 (page_path, label, icon)。图标已去重：
+#   事件追踪 📡（原 🔔，与价格预警冲突）、价格预警 🚨（原 🔔）、系统配置 🛠️（原 ⚙️，与策略回测冲突）
+# 合并页：个股研究＝股票选取+个股分析；持仓中心＝自选股监控+仓位管理+组合收益。
+_NAV_GROUPS = [
+    ("📊 市场纵览", [
+        ("pages/A_每日晨报.py", "每日晨报", "🌅"),
+        ("pages/1_行情看板.py", "行情看板", "📈"),
+        ("pages/K_智能盯盘.py", "智能盯盘", "👁️"),
+        ("pages/F_资金流向.py", "资金流向", "🌊"),
+        ("pages/3_事件追踪.py", "事件追踪", "📡"),
+        ("pages/G_财报日历.py", "财报日历", "📅"),
+    ]),
+    ("🔎 选股研究", [
+        ("pages/个股研究.py", "个股研究", "🎯"),
+        ("pages/B_形态选股.py", "形态选股", "🧭"),
+        ("pages/E_基本面分析.py", "基本面分析", "🏛️"),
+        ("pages/2_多股对比.py", "多股对比", "📊"),
+    ]),
+    ("💼 我的持仓", [
+        ("pages/持仓中心.py", "持仓中心", "💼"),
+        ("pages/I_体检扫描.py", "体检扫描", "🩺"),
+        ("pages/9_价格预警.py", "价格预警", "🚨"),
+        ("pages/J_数据导出.py", "数据导出", "📤"),
+    ]),
+    ("🧪 策略工具", [
+        ("pages/4_策略回测.py", "策略回测", "⚙️"),
+    ]),
+    ("💬 社区与 AI", [
+        ("pages/🌟_星辰AI.py", "星辰 AI", "🌟"),
+        ("pages/D_股吧.py", "股吧", "💬"),
+    ]),
+]
+
+# 管理员专属项
+_NAV_ADMIN = [
+    ("pages/7_用户管理.py", "用户管理", "👥"),
+    ("pages/8_系统配置.py", "系统配置", "🛠️"),
+]
+
+
+def render_sidebar_nav() -> None:
+    """在侧边栏顶部渲染自定义分组导航，并隐藏 Streamlit 原生平铺页面列表。
+
+    仅注入视觉/导航，不改任何业务逻辑；所有 page_link 指向真实页面文件，
+    导航后由 init_session_state()/_sync_query_params() 自动补回登录态。
+    """
+    # 隐藏原生自动生成的页面导航列表
+    st.markdown(
+        '<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]'
+        '{display:none!important;}</style>',
+        unsafe_allow_html=True,
+    )
+    def _nav_link(path: str, label: str, icon: str) -> None:
+        """渲染单个导航项；page_link 在无浏览器 URL 上下文（如 AppTest headless）
+        会抛 KeyError('url_pathname')，降级为按钮，避免整页崩溃。"""
+        try:
+            st.page_link(path, label=label, icon=icon)
+        except Exception:
+            if st.button(f"{icon} {label}", key=f"navbtn_{label}", use_container_width=True):
+                safe_switch_page(path)
+
+    with st.sidebar:
+        st.markdown("### 🧭 导航")
+        for gname, items in _NAV_GROUPS:
+            st.caption(gname)
+            for path, label, icon in items:
+                _nav_link(path, label, icon)
+        # 账户组
+        st.caption("👤 账户")
+        _nav_link("pages/👤_我的.py", "我的", "👤")
+        if is_admin():
+            for path, label, icon in _NAV_ADMIN:
+                _nav_link(path, label, icon)
+        st.markdown("---")
+        try:
+            st.page_link("app.py", label="返回首页", icon="🏠")
+        except Exception:
+            pass
 
 
 # ──────────────────────────────────────────────────────────────

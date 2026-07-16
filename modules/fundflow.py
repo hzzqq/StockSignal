@@ -236,7 +236,12 @@ def _normalize_individual_df(df):
 
 
 def _estimate_individual_fund_flow(code):
-    """量价模型估算主力净流入（仅作离线兜底，明确标注 估算）。"""
+    """量价模型估算主力净流入（仅作离线兜底，明确标注 估算）。
+
+    估算模式下无法拆出真实超大单/大单，但为了不留下空白卡片，
+    采用经验拆分：超大单≈35%、大单≈65%（机构与大单合计），与 main_net 同正负号，
+    并在返回中标注 source='estimate'，由 UI 明确提示这是估算值。
+    """
     try:
         from .fetcher import StockFetcher
         f = StockFetcher()
@@ -282,12 +287,15 @@ def _estimate_individual_fund_flow(code):
             latest = latest.strftime("%Y-%m-%d") if hasattr(latest, "strftime") else str(latest)
         except Exception:
             latest = str(latest)
+        # 经验拆分：保持与主力净流入同号，避免 blank 卡片
+        super_est = round(total_mf * 0.35, 2) if total_mf != 0 else None
+        big_est = round(total_mf * 0.65, 2) if total_mf != 0 else None
         return {
             "source": "estimate",
             "main_net": round(total_mf, 2),
             "main_net_pct": None,
-            "big_net": None,
-            "super_net": None,
+            "big_net": big_est,
+            "super_net": super_est,
             "latest_date": latest,
         }
     except Exception:

@@ -310,7 +310,7 @@ def result_board():
         b1, b2, b3 = st.columns([1, 1, 1])
         with b1:
             if st.button("跳转", key=f"jump_{r['code']}"):
-                safe_switch_page("pages/1_股票选取.py")
+                safe_switch_page("pages/个股研究.py")
         with b2:
             if st.button("看技术形态", key=f"shape_{r['code']}"):
                 safe_switch_page("pages/B_形态选股.py")

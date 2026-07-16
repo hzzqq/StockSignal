@@ -336,7 +336,7 @@ def fragment_watchlist():
             if c4.button("跳转", key=f"wl_go_{r['代码']}"):
                 st.session_state["pick_stock_confirmed"] = r["代码"]
                 st.session_state["pick_stock_query"] = r["代码"]
-                safe_switch_page("pages/1_股票选取.py")
+                safe_switch_page("pages/个股研究.py")
 
 
 # ───────────────────────── 3. 个股资金流异动 ─────────────────────────

@@ -101,14 +101,14 @@ def _get_fetcher():
 fetcher = _get_fetcher()
 
 
-def _quote_one(code: str):
+def _quote_one(code: str, token: str | None = None):
     """并行取单只实时行情：优先后端 /api/quote，失败回退本地 fetcher。
 
-    注意：本函数运行在线程池中，不能调用任何 st.xxx（包括 safe_switch_page），
-    否则会抛出 NoSessionContext。因此认证过期时直接返回 None，由页面级逻辑统一处理。
+    注意：本函数运行在线程池中，不能调用任何 st.xxx（包括 get_token/session_state），
+    否则子线程无 ScriptRunContext 会拿不到登录态（token=None → 误判 401 登出）。
+    因此 token 必须由主线程 get_token() 取出后作为参数传入。
     """
     try:
-        token = get_token()
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         resp = requests.get(f"{API_BASE}/api/quote?ticker={code}", headers=headers, timeout=5)
         if resp.status_code == 401:
@@ -233,8 +233,9 @@ def fragment_watchlist_monitor():
     # 并行拉取实时行情
     with st.spinner(f"并行获取 {len(codes)} 只自选股实时行情…"):
         quotes = {}
+        _tok = get_token()  # 主线程取 token，子线程无 ScriptRunContext 拿不到
         with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-            for code, q in ex.map(_quote_one, codes):
+            for code, q in ex.map(lambda c: _quote_one(c, _tok), codes):
                 quotes[code] = q
 
     # 线程内遇到 401 时不能直接跳转，统一在此处理
@@ -331,7 +332,7 @@ def fragment_watchlist_monitor():
                 code = sel.split()[0]
                 st.session_state["pick_stock_confirmed"] = code
                 st.session_state["pick_stock_query"] = code
-                safe_switch_page("pages/1_股票选取.py")
+                safe_switch_page("pages/个股研究.py")
     else:
         st.info("暂无数据。")
 
@@ -394,10 +395,12 @@ def _norm_code(c: str) -> str:
     return c[-6:] if len(c) > 6 else c
 
 
-def _kline_thread_safe(code: str, start: str, end: str, period: str = "daily", adjust: str = "qfq"):
-    """线程安全的 K 线获取：直接走 requests，避免 api_kline 在线程内调 safe_switch_page。"""
+def _kline_thread_safe(code: str, start: str, end: str, period: str = "daily", adjust: str = "qfq", token: str | None = None):
+    """线程安全的 K 线获取：直接走 requests，避免 api_kline 在线程内调 safe_switch_page。
+
+    token 须由主线程传入：子线程无 ScriptRunContext，get_token() 会返回 None → 误判 401。
+    """
     try:
-        token = get_token()
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         params = f"symbol={code}&start={start}&period={period}&adjust={adjust}"
         if end:
@@ -416,10 +419,10 @@ def _kline_thread_safe(code: str, start: str, end: str, period: str = "daily", a
     return None
 
 
-def _analyze_one(code: str, start: str, end: str):
-    """获取单股 K 线并计算技术指标；失败返回 None。"""
+def _analyze_one(code: str, start: str, end: str, token: str | None = None):
+    """获取单股 K 线并计算技术指标；失败返回 None。token 由主线程传入。"""
     try:
-        records = _kline_thread_safe(code, start=start, end=end, period="daily")
+        records = _kline_thread_safe(code, start=start, end=end, period="daily", token=token)
         if isinstance(records, dict) and records.get("__auth_error"):
             return {"__auth_error": True}
         d = pd.DataFrame(records) if records else fetcher.get_kline(code, start=start, end=end, period="daily")
@@ -472,8 +475,9 @@ def _build_pool_df(codes: list, scores_map: dict) -> pd.DataFrame | None:
     start_s, end_s = start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
     rows = []
     auth_error = False
+    _tok = get_token()  # 主线程取 token，子线程无 ScriptRunContext 拿不到
     with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-        futs = {ex.submit(_analyze_one, c, start_s, end_s): c for c in codes}
+        futs = {ex.submit(_analyze_one, c, start_s, end_s, _tok): c for c in codes}
         for fut in _cf.as_completed(futs):
             res = fut.result()
             if isinstance(res, dict) and res.get("__auth_error"):
@@ -521,7 +525,7 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
         code = selected.split()[0]
         st.session_state["pick_stock_confirmed"] = code
         st.session_state["pick_stock_query"] = code
-        safe_switch_page("pages/1_股票选取.py")
+        safe_switch_page("pages/个股研究.py")
 
     # 批量改评分
     st.markdown("**✏️ 修改用户打分**")

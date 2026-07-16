@@ -249,15 +249,18 @@ def fragment_individual():
     st.markdown(f"**{name}** `{code}` ｜ 数据日期：{r.get('latest_date')} ｜ "
                 f"来源：{'实时(东方财富)' if r.get('source')=='akshare' else '估算(量价模型)'}")
     cols = st.columns(3)
+    is_estimate = r.get("source") == "estimate"
     with cols[0]:
         st.metric("主力净流入", _fmt_yi(r.get("main_net")),
                   delta=f"{r.get('main_net_pct')}% 净占比" if r.get("main_net_pct") is not None else None)
     with cols[1]:
-        st.metric("超大单净流入", _fmt_yi(r.get("super_net")))
+        st.metric("超大单净流入" + ("(估算)" if is_estimate else ""), _fmt_yi(r.get("super_net")))
     with cols[2]:
-        st.metric("大单净流入", _fmt_yi(r.get("big_net")))
-    if r.get("source") == "estimate":
-        st.caption("⚠️ 当前为量价模型估算值（Chaikin 风格主力净流入），仅反映近期量价博弈方向，非交易所逐笔主力数据。")
+        st.metric("大单净流入" + ("(估算)" if is_estimate else ""), _fmt_yi(r.get("big_net")))
+    if is_estimate:
+        st.caption("⚠️ 当前为量价模型估算值（Chaikin 风格主力净流入），超大单/大单按经验比例拆分，仅反映近期量价博弈方向，非交易所逐笔主力数据。")
+    elif r.get("source") == "akshare":
+        st.caption("数据来源：东方财富实时资金流。")
 
 
 # ───────────────────────── 页面主体 ─────────────────────────

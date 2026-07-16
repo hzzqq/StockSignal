@@ -363,7 +363,7 @@ def fragment_lhb():
         if sel and sel != "— 请选择 —":
             code = sel.split()[0]
             st.query_params["pick_stock"] = code
-            safe_switch_page("pages/1_股票选取.py")
+            safe_switch_page("pages/个股研究.py")
     else:
         st.info("暂无龙虎榜数据（非交易日晚间或数据源暂不可用）。░")
 
