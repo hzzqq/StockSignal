@@ -213,6 +213,11 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
 
             color = UP_COLOR if change_pct >= 0 else DOWN_COLOR
 
+            # 当日相对昨收的极端涨跌幅度（用于迷你卡指标标注）
+            high_pct = (high - prev_close) / prev_close * 100 if prev_close else 0.0
+            low_pct = (low - prev_close) / prev_close * 100 if prev_close else 0.0
+            amplitude = (high - low) / prev_close * 100 if prev_close else 0.0
+
             fig = go.Figure()
             if spark_y:
                 fig.add_trace(go.Scatter(
@@ -239,6 +244,24 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
                     y=open_,
                     line=dict(color=_hex_to_rgba(color, 0.5), width=1, dash="dot"),
                 )
+                # 最高点 / 最低点标注（三角标记，颜色随涨跌）
+                if len(spark_y) > 1:
+                    hi_i = max(range(len(spark_y)), key=lambda i: spark_y[i])
+                    lo_i = min(range(len(spark_y)), key=lambda i: spark_y[i])
+                    fig.add_trace(go.Scatter(
+                        x=[spark_x[hi_i]], y=[spark_y[hi_i]],
+                        mode="markers",
+                        marker={"color": UP_COLOR, "size": 8, "symbol": "triangle-up",
+                                "line": {"color": "#ffffff", "width": 0.5}},
+                        hoverinfo="skip", showlegend=False,
+                    ))
+                    fig.add_trace(go.Scatter(
+                        x=[spark_x[lo_i]], y=[spark_y[lo_i]],
+                        mode="markers",
+                        marker={"color": DOWN_COLOR, "size": 8, "symbol": "triangle-down",
+                                "line": {"color": "#ffffff", "width": 0.5}},
+                        hoverinfo="skip", showlegend=False,
+                    ))
 
             # y 轴缩放到当天高低点，让哪怕 0.5% 的波动也肉眼可见
             y_min = min(low, open_, close) if low else min(spark_y)
@@ -268,6 +291,9 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
                 "high": high,
                 "low": low,
                 "trend": _trend_label(open_, high, low, close, prev_close),
+                "high_pct": high_pct,
+                "low_pct": low_pct,
+                "amplitude": amplitude,
                 "spark": fig,
                 "color": color,
             })
@@ -310,8 +336,11 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
                         f"{sign}{card['change']:.2f} ({sign}{card['change_pct']:.2f}%)</div>"
                         f"<div style='text-align:right;font-size:12px;color:{trend_color};font-weight:600;margin-top:3px;'>"
                         f"{card['trend']}</div>"
-                        f"<div style='text-align:right;font-size:11px;color:{code_color};margin-top:4px;'>"
-                        f"O {card['open']:.2f} &nbsp;H {card['high']:.2f} &nbsp;L {card['low']:.2f}</div>",
+                        f"<div style='text-align:right;font-size:11px;color:{code_color};margin-top:4px;line-height:1.5;'>"
+                        f"O {card['open']:.2f}<br>"
+                        f"<span style='color:#ff4d4f;'>▲ 最高 {card['high']:.2f} (+{card['high_pct']:.2f}%)</span><br>"
+                        f"<span style='color:#00d486;'>▼ 最低 {card['low']:.2f} ({card['low_pct']:.2f}%)</span><br>"
+                        f"振幅 {card['amplitude']:.2f}%</div>",
                         unsafe_allow_html=True,
                     )
                 else:

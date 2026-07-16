@@ -7,6 +7,7 @@
 """
 import streamlit as st
 import concurrent.futures as _cf
+import contextlib
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
@@ -21,15 +22,71 @@ from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
+from streamlit_autorefresh import st_autorefresh
 
 # A股配色：涨=红，跌=绿
 _UP = "#f6465d"
 _DOWN = "#2ebd85"
 
+
+@contextlib.contextmanager
+def _ssl_bypass():
+    """临时关闭 requests.Session.request 的 SSL 验证。
+
+    本机系统代理会做 TLS 拦截，akshare 部分（如新浪财务报表）走 requests
+    直连 quotes.sina.cn 时会因证书链不可达而 SSLCertVerificationError。
+    注意 fetcher._ak_ssl_context 只 patch 了 Session.get，而 akshare 的
+    requests.get 走的是 Session.request，故这里直接 patch Session.request。
+    仅在该次批量抓取内生效，退出后恢复，避免污染全局。
+    """
+    import urllib3
+    urllib3.disable_warnings()
+    _orig = requests.Session.request
+
+    def _patched(self, *a, **kw):
+        kw["verify"] = False
+        return _orig(self, *a, **kw)
+
+    requests.Session.request = _patched
+    try:
+        yield
+    finally:
+        requests.Session.request = _orig
+
+
+def _to_num(v):
+    """把单元格值安全转 float；空/非法返回 None。"""
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        s = v.replace(",", "").replace("%", "").strip()
+        if s in ("", "-", "--", "nan", "None"):
+            return None
+        try:
+            return float(s)
+        except Exception:
+            return None
+    return None
+
 apply_page_config(page_title="自选股监控", page_icon="📡", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
 render_user_badge(sidebar=True)
+
+# ── 交易时段自动刷新（实时跟踪）──
+def _is_trading_now():
+    now = datetime.now()
+    if now.weekday() >= 5:  # 周六日休市
+        return False
+    t = now.time()
+    m1 = (datetime.strptime("09:30", "%H:%M").time()
+          <= t <= datetime.strptime("11:30", "%H:%M").time())
+    m2 = (datetime.strptime("13:00", "%H:%M").time()
+          <= t <= datetime.strptime("15:00", "%H:%M").time())
+    return m1 or m2
+
+if _is_trading_now():
+    st_autorefresh(interval=60 * 1000, key="watchlist_autorefresh")
 
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
@@ -75,6 +132,82 @@ def _quote_one(code: str):
     return code, None
 
 
+@st.cache_data(show_spinner=False, ttl=3600)
+def _resolve_name(code: str) -> str:
+    """本地库兜底解析股票中文名；返回空串表示未知。"""
+    try:
+        return fetcher.get_name(code)[1] or ""
+    except Exception:
+        return ""
+
+
+def _calc_alr(code: str):
+    """从资产负债表解析资产负债率(%) = 负债合计 / 资产总计 × 100；失败返回 None。
+
+    akshare 新浪资产负债表实际结构：index=报告期(最新在 0 行)，columns=科目名
+    （含「资产总计」「负债合计」）。同时兼容「行=科目、首列=科目名」的旧结构。
+    """
+    try:
+        df = fetcher.get_financial(code, "balance")
+        if df is None or len(df) == 0:
+            return None
+
+        def _find_col(exact, suffix):
+            # 先精确匹配，避免「流动资产合计」误命中「资产合计」这类子串
+            for c in df.columns:
+                if str(c) in exact:
+                    return c
+            for c in df.columns:
+                if str(c).endswith(suffix):
+                    return c
+            return None
+
+        asset_c = _find_col({"资产总计", "资产合计"}, ("资产总计", "资产合计"))
+        liab_c = _find_col({"负债合计", "负债总计"}, ("负债合计", "负债总计"))
+
+        # 结构 A（akshare 实际）：列=科目，最新报告期=第 0 行
+        if asset_c is not None and liab_c is not None:
+            av = _to_num(df.iloc[0][asset_c])
+            lv = _to_num(df.iloc[0][liab_c])
+            if av and lv:
+                return round(lv / av * 100, 2)
+
+        # 结构 B（兜底）：行=科目，首列=科目名
+        item_col = df.columns[0]
+        av = lv = None
+        for _, row in df.iterrows():
+            it = str(row[item_col])
+            if av is None and any(k in it for k in ("资产总计", "资产合计")):
+                vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
+                if vals:
+                    av = vals[-1]
+            if lv is None and any(k in it for k in ("负债合计", "负债总计")):
+                vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
+                if vals:
+                    lv = vals[-1]
+        if av and lv:
+            return round(lv / av * 100, 2)
+    except Exception:
+        return None
+    return None
+
+
+def _fund_one(code: str):
+    """线程内并行取 (市盈率TTM, 资产负债率%)；任一项失败返回 None。"""
+    pe = alr = None
+    try:
+        f = fetcher.get_fundamentals(code)
+        if isinstance(f, dict):
+            pe = f.get("pe_ttm")
+    except Exception:
+        pe = None
+    try:
+        alr = _calc_alr(code)
+    except Exception:
+        alr = None
+    return code, pe, alr
+
+
 # ── 加载自选股 ──
 sc, body = api_get("/api/watchlist", timeout=10)
 if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
@@ -104,7 +237,24 @@ if any(isinstance(q, dict) and q.get("__auth_error") for q in quotes.values()):
     st.warning("🔐 登录已过期，请重新登录")
     st.stop()
 
+# ── 并行拉取市盈率与资产负债率 ──
+fund_map = {}
+if codes:
+    with st.spinner("并行获取市盈率与资产负债率…"):
+        # 新浪财务报表在代理环境需临时关闭 SSL 校验，仅本次批量抓取内生效
+        with _ssl_bypass():
+            with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+                futs = {ex.submit(_fund_one, c): c for c in codes}
+                for fut in _cf.as_completed(futs):
+                    c = futs[fut]
+                    try:
+                        _, pe, alr = fut.result(timeout=15)
+                    except Exception:
+                        pe = alr = None
+                    fund_map[c] = (pe, alr)
+
 rows = []
+quote_times = []
 for code in codes:
     q = quotes.get(code)
     if q and q.get("current"):
@@ -118,14 +268,20 @@ for code in codes:
         chg = (cur - prev) / prev * 100 if prev else 0.0
         change_amt = cur - prev if prev else 0.0
         amplitude = (high - low) / prev * 100 if prev else 0.0
-        name = q.get("name") or names[code]
+        name = (q.get("name") if q.get("name") else None) or names.get(code) or _resolve_name(code) or code
+        qt = q.get("datetime")
+        if qt:
+            quote_times.append(str(qt))
     else:
         cur = chg = change_amt = amplitude = volume = amount = None
-        name = names[code]
+        name = names.get(code) or _resolve_name(code) or code
+    pe, alr = fund_map.get(code, (None, None))
     rows.append({
         "code": code, "name": name, "cur": cur, "chg": chg,
         "change_amt": change_amt, "amplitude": amplitude,
         "volume": volume, "amount": amount,
+        "pe_ttm": f"{pe:.2f}" if isinstance(pe, (int, float)) else "—",
+        "alr": f"{alr:.2f}%" if isinstance(alr, (int, float)) else "—",
     })
 
 # ── 渲染监控表 ──
@@ -140,11 +296,13 @@ st.markdown(
 
 if rows:
     df_rt = pd.DataFrame(rows)
-    display_df = df_rt[["name", "code", "cur", "change_amt", "chg", "amplitude", "volume", "amount"]].copy()
+    display_df = df_rt[["name", "code", "cur", "change_amt", "chg", "amplitude",
+                          "volume", "amount", "pe_ttm", "alr"]].copy()
     display_df.rename(columns={
         "name": "名称", "code": "代码", "cur": "现价",
         "change_amt": "涨跌额", "chg": "涨跌%", "amplitude": "振幅%",
         "volume": "成交量", "amount": "成交额",
+        "pe_ttm": "市盈率(TTM)", "alr": "资产负债率",
     }, inplace=True)
     st.dataframe(
         display_df,
@@ -180,7 +338,12 @@ with col_b:
     if st.button("🧭 用自选股做技术体检", use_container_width=True):
         safe_switch_page("pages/B_形态选股.py")
 
-st.caption(f"数据时间：{datetime.now().strftime('%H:%M:%S')} ｜ 红涨绿跌（A股惯例）")
+data_time = max(quote_times) if quote_times else "—"
+refresh_tag = " ｜ 🔴 交易时段每 60 秒自动刷新" if _is_trading_now() else ""
+st.caption(
+    f"行情时间：{data_time} ｜ 本页刷新：{datetime.now().strftime('%H:%M:%S')}"
+    f" ｜ 红涨绿跌（A股惯例）{refresh_tag}"
+)
 
 
 # ═══════════════════════════════════════════════════════════════

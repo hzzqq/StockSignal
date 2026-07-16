@@ -68,6 +68,43 @@ def _norm_code(c: str) -> str:
     return c[-6:] if len(c) > 6 else c
 
 
+# ── 用户打分组件（Batch8 #271：独立 fragment，交互只重跑本块，提升响应速度）──
+@st.fragment
+def _render_user_score(ticker: str, stock_label: str) -> None:
+    st.markdown("---")
+    st.subheader("⭐ 用户打分")
+    # 已有分数缓存到 session_state，避免每次交互都回源后端
+    _ss_key = f"_score_{ticker}"
+    if _ss_key not in st.session_state:
+        st.session_state[_ss_key] = api_user_score(ticker)
+    existing_score = st.session_state[_ss_key]
+
+    sc1, sc2 = st.columns([0.35, 0.65])
+    with sc1:
+        score_val = st.number_input(
+            "您对该股票的评分（0–100，越高越看好）",
+            min_value=0, max_value=100,
+            value=existing_score if existing_score is not None else 50,
+            step=1,
+            key="pick_user_score",
+            help="请输入 0–100 之间的整数；超出范围会给提示且无法保存。",
+        )
+        if score_val < 0 or score_val > 100:
+            st.error("⚠️ 评分必须在 0–100 之间，请重新输入。")
+    with sc2:
+        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        if st.button("💾 保存评分", key="pick_save_score", use_container_width=True):
+            if score_val < 0 or score_val > 100:
+                st.error("⚠️ 评分超出 0–100 范围，无法保存。")
+            else:
+                res = api_save_user_score(ticker, int(score_val), stock_label)
+                if res.get("status") == "ok":
+                    st.session_state[_ss_key] = int(score_val)
+                    st.success(f"✅ 评分已保存：{int(score_val)} 分")
+                else:
+                    st.error(f"保存失败：{res.get('message', '未知错误')}")
+
+
 # ═══════════════════════════════════════════════════════════════
 # 侧边栏参数设置（原行情看板迁入）
 # ═══════════════════════════════════════════════════════════════
@@ -211,16 +248,20 @@ with hc3:
 # K 线图
 # ═══════════════════════════════════════════════════════════════
 st.markdown("---")
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_kline(ticker, start, end, period):
+    recs = api_kline(ticker, start=start, end=end, period=period)
+    if recs is None:
+        return fetcher.get_kline(ticker, start=start, end=end, period=period)
+    return pd.DataFrame(recs)
+
+
 st.subheader(f"{stock_label} {period_label}")
 df = None
 data_ok = False
 
 try:
-    _records = api_kline(ticker, start=start_str, end=end_str, period=kline_period)
-    if _records is None:
-        df = fetcher.get_kline(ticker, start=start_str, end=end_str, period=kline_period)
-    else:
-        df = pd.DataFrame(_records)
+    df = _cached_kline(ticker, start_str, end_str, kline_period)
     if df is None or df.empty:
         st.warning("⚠️ 暂未获取到该股票最新数据，正在使用历史快照。请稍后刷新页面。")
     else:
@@ -442,26 +483,7 @@ if data_ok and df is not None:
                 st.metric("BOLL 位置", "—")
         st.caption("RSI>70 超买 / <30 超卖；MACD 柱>0 多头动能；KDJ J>100 超买、<0 超卖；BOLL 位置=收盘价在布林带内的相对高度。")
 
-        # 用户打分
-        st.markdown("---")
-        st.subheader("⭐ 用户打分")
-        existing_score = api_user_score(ticker)
-        sc1, sc2 = st.columns([0.35, 0.65])
-        with sc1:
-            score_val = st.number_input(
-                "您对该股票的评分（0–100，越高越看好）",
-                min_value=0, max_value=100,
-                value=existing_score if existing_score is not None else 50,
-                step=1,
-                key="pick_user_score",
-            )
-        with sc2:
-            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-            if st.button("💾 保存评分", key="pick_save_score", use_container_width=True):
-                res = api_save_user_score(ticker, int(score_val), stock_label)
-                if res.get("status") == "ok":
-                    st.success(f"✅ 评分已保存：{int(score_val)} 分")
-                else:
-                    st.error(f"保存失败：{res.get('message', '未知错误')}")
+        # 用户打分（独立 fragment，交互只重跑本块，提升响应速度）
+        _render_user_score(ticker, stock_label)
     except Exception as e:
         st.error(f"技术面分析失败: {e}")

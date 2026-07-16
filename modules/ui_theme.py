@@ -717,6 +717,27 @@ button[data-testid="stPopoverButton"]:hover {
 [data-baseweb="slider"] { background: transparent !important; }
 [data-baseweb="slider"] [data-testid="track"] { background: #2d2d44 !important; }
 [data-baseweb="slider"] [data-testid="thumb"] { background: #667eea !important; border-color: #667eea !important; }
+
+/* ★ Batch8 #276：输入框默认边框 = 焦点高亮色（默认即显色，无需点击） */
+.stTextInput > div[data-baseweb="input"],
+.stTextArea > div[data-baseweb="textarea"],
+.stNumberInput > div[data-baseweb="input"],
+.stSelectbox > div[data-baseweb="select"],
+.stDateInput > div[data-baseweb="date-input"],
+.stMultiSelect > div[data-baseweb="select"],
+[data-testid="stTextInput"] > div[data-baseweb="input"],
+[data-testid="stTextArea"] > div[data-baseweb="textarea"],
+[data-testid="stNumberInput"] > div[data-baseweb="input"],
+[data-testid="stSelectbox"] > div[data-baseweb="select"],
+[data-testid="stDateInput"] > div[data-baseweb="date-input"],
+[data-testid="stMultiSelect"] > div[data-baseweb="select"],
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stNumberInput"] input,
+[class*="stTextInput"] input,
+[class*="stTextArea"] textarea {
+  border-color: #667eea !important;
+}
 </style>
 """
 
@@ -1298,6 +1319,27 @@ button[data-testid="stPopoverButton"]:hover,
 [data-testid="stMultiSelect"] [data-baseweb="tag"]:hover {
   background: #E5E7EB !important;
   border-color: #9CA3AF !important;
+}
+
+/* ★ Batch8 #276：输入框默认边框 = 焦点高亮色（默认即显色，无需点击） */
+.stTextInput > div[data-baseweb="input"],
+.stTextArea > div[data-baseweb="textarea"],
+.stNumberInput > div[data-baseweb="input"],
+.stSelectbox > div[data-baseweb="select"],
+.stDateInput > div[data-baseweb="date-input"],
+.stMultiSelect > div[data-baseweb="select"],
+[data-testid="stTextInput"] > div[data-baseweb="input"],
+[data-testid="stTextArea"] > div[data-baseweb="textarea"],
+[data-testid="stNumberInput"] > div[data-baseweb="input"],
+[data-testid="stSelectbox"] > div[data-baseweb="select"],
+[data-testid="stDateInput"] > div[data-baseweb="date-input"],
+[data-testid="stMultiSelect"] > div[data-baseweb="select"],
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stNumberInput"] input,
+[class*="stTextInput"] input,
+[class*="stTextArea"] textarea {
+  border-color: #6366f1 !important;
 }
 </style>
 """

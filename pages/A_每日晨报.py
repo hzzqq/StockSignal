@@ -4,9 +4,12 @@
 - 复盘笔记：当日复盘记录，本地按日期持久化（data/review_notes_<date>.md）。
 """
 import os
+import contextlib
+import requests
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge, api_get, api_quote, get_user
@@ -37,10 +40,118 @@ def _get_fetcher():
 
 fetcher = _get_fetcher()
 
+
+# ── 自选股快照：市盈率 / 资产负债率 解析（复用 C 页已验证逻辑）──
+@contextlib.contextmanager
+def _ssl_bypass():
+    """临时关闭 requests 的 SSL 校验（代理环境新浪财务报表直连证书链不可达）。"""
+    import urllib3
+    urllib3.disable_warnings()
+    _orig = requests.Session.request
+
+    def _patched(self, *a, **kw):
+        kw["verify"] = False
+        return _orig(self, *a, **kw)
+
+    requests.Session.request = _patched
+    try:
+        yield
+    finally:
+        requests.Session.request = _orig
+
+
+def _to_num(v):
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        s = v.replace(",", "").replace("%", "").strip()
+        if s in ("", "-", "--", "nan", "None"):
+            return None
+        try:
+            return float(s)
+        except Exception:
+            return None
+    return None
+
+
+def _calc_alr(code: str):
+    """资产负债率(%) = 负债合计 / 资产总计 × 100；失败返回 None。"""
+    try:
+        df = fetcher.get_financial(code, "balance")
+        if df is None or len(df) == 0:
+            return None
+
+        def _find_col(exact, suffix):
+            for c in df.columns:
+                if str(c) in exact:
+                    return c
+            for c in df.columns:
+                if str(c).endswith(suffix):
+                    return c
+            return None
+
+        asset_c = _find_col({"资产总计", "资产合计"}, ("资产总计", "资产合计"))
+        liab_c = _find_col({"负债合计", "负债总计"}, ("负债合计", "负债总计"))
+        if asset_c is not None and liab_c is not None:
+            av = _to_num(df.iloc[0][asset_c])
+            lv = _to_num(df.iloc[0][liab_c])
+            if av and lv:
+                return round(lv / av * 100, 2)
+        item_col = df.columns[0]
+        av = lv = None
+        for _, row in df.iterrows():
+            it = str(row[item_col])
+            if av is None and any(k in it for k in ("资产总计", "资产合计")):
+                vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
+                if vals:
+                    av = vals[-1]
+            if lv is None and any(k in it for k in ("负债合计", "负债总计")):
+                vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
+                if vals:
+                    lv = vals[-1]
+        if av and lv:
+            return round(lv / av * 100, 2)
+    except Exception:
+        return None
+    return None
+
+
+def _fund_one(code: str):
+    """线程内并行取 (市盈率TTM, 资产负债率%)；任一项失败返回 None。"""
+    pe = alr = None
+    try:
+        f = fetcher.get_fundamentals(code)
+        if isinstance(f, dict):
+            pe = f.get("pe_ttm")
+    except Exception:
+        pe = None
+    try:
+        alr = _calc_alr(code)
+    except Exception:
+        alr = None
+    return code, pe, alr
+
+
+def _quote_one(code: str):
+    """线程内取实时行情（本地 fetcher，规避线程内后端 token 调用）。"""
+    try:
+        return code, fetcher.get_realtime_quote(code)
+    except Exception:
+        return code, None
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_sector():
+    """板块列表跨重跑/跨页面会话级缓存，减少重复网络请求。"""
+    try:
+        return fetcher.get_sector_list()
+    except Exception:
+        return None
+
 # ───────────────────────── 板块概览 ─────────────────────────
 with st.spinner("加载板块行情…"):
     try:
-        sector_df = fetcher.get_sector_list()
+        sector_df = _cached_sector()
     except Exception:
         sector_df = None
 
@@ -74,6 +185,35 @@ watchlist = []
 if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
     watchlist = body.get("data", []) or []
 
+# 并行预拉市盈率 / 资产负债率（失败留 —，不阻塞快照渲染）
+wl_codes = [w["stock_code"] for w in watchlist[:30]]
+fund_map = {}
+if wl_codes:
+    try:
+        with st.spinner("并行获取自选股市盈率与资产负债率…"):
+            with _ssl_bypass():
+                with ThreadPoolExecutor(max_workers=4) as ex:
+                    futs = {ex.submit(_fund_one, c): c for c in wl_codes}
+                    for fut in as_completed(futs):
+                        c = futs[fut]
+                        try:
+                            _, pe, alr = fut.result(timeout=15)
+                        except Exception:
+                            pe = alr = None
+                        fund_map[c] = (pe, alr)
+    except Exception:
+        pass
+
+# 并行预拉实时行情（避免逐个串行请求拖慢页面加载）
+quotes_map = {}
+if wl_codes:
+    try:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            for c, q in ex.map(_quote_one, wl_codes):
+                quotes_map[c] = q
+    except Exception:
+        quotes_map = {}
+
 selected_code = None
 selected_name = None
 with st.expander("📌 自选股快照", expanded=True):
@@ -84,8 +224,12 @@ with st.expander("📌 自选股快照", expanded=True):
         snap = []
         for w in watchlist[:30]:
             code = w["stock_code"]
-            rt = api_quote(code)
-            name = w.get("stock_name") or code
+            rt = quotes_map.get(code)
+            # 名称优先用后端返回，缺失时本地库兜底（修复只显示代码的问题）
+            name = w.get("stock_name") or fetcher.get_name(code)[1] or code
+            pe, alr = fund_map.get(code, (None, None))
+            _pe_s = f"{pe:.2f}" if isinstance(pe, (int, float)) else "—"
+            _alr_s = f"{alr:.2f}%" if isinstance(alr, (int, float)) else "—"
             if isinstance(rt, dict) and rt.get("current"):
                 cur = float(rt["current"])
                 prev = float(rt.get("prev_close") or cur)
@@ -100,9 +244,12 @@ with st.expander("📌 自选股快照", expanded=True):
                     "名称": name, "代码": code, "现价": cur,
                     "涨跌额": change_amt, "涨跌%": chg,
                     "振幅%": amplitude, "成交量": volume, "成交额": amount,
+                    "市盈率": _pe_s, "资产负债率": _alr_s,
                 })
             else:
-                snap.append({"名称": name, "代码": code, "现价": None, "涨跌额": None, "涨跌%": None, "振幅%": None, "成交量": None, "成交额": None})
+                snap.append({"名称": name, "代码": code, "现价": None, "涨跌额": None, "涨跌%": None,
+                             "振幅%": None, "成交量": None, "成交额": None,
+                             "市盈率": _pe_s, "资产负债率": _alr_s})
         if snap:
             snap_df = pd.DataFrame(snap)
             event = st.dataframe(
@@ -119,6 +266,8 @@ with st.expander("📌 自选股快照", expanded=True):
                     "振幅%": st.column_config.NumberColumn(format="%.2f%%"),
                     "成交量": st.column_config.NumberColumn(format="%d"),
                     "成交额": st.column_config.NumberColumn(format="%.0f"),
+                    "市盈率": st.column_config.NumberColumn(format="%.2f"),
+                    "资产负债率": st.column_config.NumberColumn(format="%.2f%%"),
                 },
             )
             try:
@@ -162,29 +311,69 @@ st.divider()
 
 # ───────────────────────── 复盘笔记 ─────────────────────────
 st.markdown("#### 📝 复盘笔记")
+import re as _re
 NOTES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+REVIEW_IMG_DIR = os.path.join(NOTES_DIR, "review_images")
 os.makedirs(NOTES_DIR, exist_ok=True)
-notes_path = os.path.join(NOTES_DIR, f"review_notes_{today}.md")
+os.makedirs(REVIEW_IMG_DIR, exist_ok=True)
 
-if os.path.exists(notes_path):
-    try:
-        with open(notes_path, "r", encoding="utf-8") as f:
-            saved = f.read()
-    except Exception:
-        saved = ""
-else:
-    saved = ""
+note_date = st.date_input("复盘日期", value=date.today(), key="review_date")
+note_date_s = note_date.strftime("%Y-%m-%d")
+notes_path = os.path.join(NOTES_DIR, f"review_notes_{note_date_s}.md")
+
+# 初次进入默认载入当日复盘（若已存在）
+if "review_note" not in st.session_state:
+    if os.path.exists(notes_path):
+        try:
+            with open(notes_path, "r", encoding="utf-8") as f:
+                st.session_state["review_note"] = f.read()
+        except Exception:
+            st.session_state["review_note"] = ""
+    else:
+        st.session_state["review_note"] = ""
+
+c_q, c_img = st.columns([0.5, 0.5])
+with c_q:
+    if st.button("🔍 查询", type="primary", use_container_width=True, key="review_query"):
+        if os.path.exists(notes_path):
+            try:
+                with open(notes_path, "r", encoding="utf-8") as f:
+                    st.session_state["review_note"] = f.read()
+            except Exception:
+                st.session_state["review_note"] = ""
+            st.session_state["review_queried"] = note_date_s
+        else:
+            st.session_state["review_note"] = ""
+            st.session_state["review_queried"] = note_date_s
+            st.info(f"📭 {note_date_s} 暂无复盘记录，可直接在下方新建。")
+        st.rerun()
+with c_img:
+    uploaded = st.file_uploader(
+        "📷 添加图片到复盘",
+        type=["png", "jpg", "jpeg", "gif", "webp"],
+        key="review_img",
+        help="上传后自动把图片链接插入到复盘文本末尾",
+    )
+    if uploaded is not None:
+        safe_name = f"review_{note_date_s}_{uploaded.name}"
+        img_path = os.path.join(REVIEW_IMG_DIR, safe_name)
+        with open(img_path, "wb") as f:
+            f.write(uploaded.getbuffer())
+        rel = f"review_images/{safe_name}"
+        cur = st.session_state.get("review_note", "")
+        st.session_state["review_note"] = (cur + f"\n\n![{uploaded.name}]({rel})\n").strip() + "\n"
+        st.success(f"✅ 已插入图片：{uploaded.name}")
+        st.rerun()
 
 note = st.text_area(
-    "今日复盘（支持 Markdown）",
-    value=saved,
+    f"复盘内容（{note_date_s}，支持 Markdown）",
     height=220,
     key="review_note",
     placeholder="记录今日盘面、操作与明日计划…",
 )
 c_save, c_clear = st.columns([1, 1])
 with c_save:
-    if st.button("💾 保存今日复盘", type="primary", use_container_width=True):
+    if st.button("💾 保存复盘", type="primary", use_container_width=True, key="review_save"):
         try:
             with open(notes_path, "w", encoding="utf-8") as f:
                 f.write(note)
@@ -192,6 +381,21 @@ with c_save:
         except Exception as e:
             st.error(f"❌ 保存失败：{e}")
 with c_clear:
-    if st.button("🗑️ 清空", use_container_width=True):
+    if st.button("🗑️ 清空", use_container_width=True, key="review_clear"):
         st.session_state["review_note"] = ""
         st.rerun()
+
+# 查询结果展示区
+if st.session_state.get("review_queried"):
+    st.markdown("---")
+    st.markdown(f"#### 📄 复盘内容预览（{st.session_state['review_queried']}）")
+    _content = st.session_state.get("review_note", "")
+    _img_re = _re.compile(r"!\[[^\]]*\]\((review_images/[^)]+)\)")
+    for _m in _img_re.finditer(_content):
+        _ip = os.path.join(NOTES_DIR, _m.group(1))
+        if os.path.exists(_ip):
+            st.image(_ip, width=420)
+    if _content.strip():
+        st.markdown(_content, unsafe_allow_html=True)
+    else:
+        st.info("（空白）")
