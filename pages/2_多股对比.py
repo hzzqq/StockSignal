@@ -15,6 +15,7 @@ st.session_state["_active_page"] = __file__
 from modules.session import init_session_state, require_auth, render_user_badge
 from modules.search_ui import multi_stock_search_input
 from modules.background_tasks import submit_task_with_error, poll_task
+from streamlit_autorefresh import st_autorefresh
 from modules.compare import (
     fetch_compare, compare_css, build_header, build_one_line,
     build_table, build_pairwise_card, build_radar, build_radar_right,
@@ -75,103 +76,120 @@ if submitted:
             else:
                 st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
 
-# 轮询后台任务
-compare_task_id = st.session_state.get("compare_task_id")
-if compare_task_id:
-    task = poll_task(compare_task_id, max_wait=0.5)
-    if task and task.get("status") == "success":
-        rows = task.get("result") or []
-        # 还原序列化后的 DataFrame
-        for r in rows:
-            if "df" in r and isinstance(r["df"], list):
-                r["df"] = pd.DataFrame(r["df"])
-                if "date" in r["df"].columns:
-                    r["df"]["date"] = pd.to_datetime(r["df"]["date"], errors="coerce")
-        st.session_state["_cmp_rows"] = rows
-        st.session_state["_cmp_period"] = period
-        del st.session_state["compare_task_id"]
-        st.toast("✅ 多股对比完成")
-    elif task and task.get("status") == "error":
-        st.error(f"对比失败：{task.get('error')}")
-        del st.session_state["compare_task_id"]
-    elif task and task.get("status") in ("pending", "running"):
-        st.info("⏳ 后台正在并行拉取 {len(codes)} 只股票数据… 切页不中断。")
+@st.cache_data(ttl=1)
+def _poll_compare_once(task_id: str) -> dict | None:
+    """缓存 1 秒：避免同一次 fragment 重跑中多次调用 poll_task 造成请求堆积。"""
+    return poll_task(task_id, max_wait=0.5)
 
-rows = st.session_state.get("_cmp_rows")
-if not rows:
-    st.info("👈 在左侧输入股票代码/名称后点击「开始对比」。已预填示例（5只），直接点击即可查看效果。")
-    st.stop()
 
-# 部分标的行情缺失提示
-failed = [r["name"] for r in rows if r.get("error")]
-if failed:
-    st.warning(f"以下标的行情获取失败，已按中性默认展示：{'、'.join(failed)}")
+@st.fragment
+def fragment_compare_result():
+    """对比结果区：轮询 + 加载反馈 + 自动渲染，fragment 隔离不阻塞整页。"""
+    compare_task_id = st.session_state.get("compare_task_id")
+    if compare_task_id:
+        task = _poll_compare_once(compare_task_id)
+        if task and task.get("status") == "success":
+            rows = task.get("result") or []
+            # 还原序列化后的 DataFrame
+            for r in rows:
+                if "df" in r and isinstance(r["df"], list):
+                    r["df"] = pd.DataFrame(r["df"])
+                    if "date" in r["df"].columns:
+                        r["df"]["date"] = pd.to_datetime(r["df"]["date"], errors="coerce")
+            st.session_state["_cmp_rows"] = rows
+            st.session_state["_cmp_period"] = period
+            del st.session_state["compare_task_id"]
+            st.toast("✅ 多股对比完成")
+        elif task and task.get("status") == "error":
+            st.error(f"对比失败：{task.get('error')}")
+            del st.session_state["compare_task_id"]
+        elif task and task.get("status") in ("pending", "running"):
+            st.warning(
+                f"⏳ 正在后台并行拉取 {len(codes)} 只股票数据：行情、技术面、相关性... 完成后自动显示，无需切换页面。",
+                icon="⏳",
+            )
+            st.progress(0.0, text="等待对比结果...")
+            st_autorefresh(interval=1000, limit=30, key="compare_autorefresh")
+            return
 
-period = st.session_state.get("_cmp_period", 120)
+    rows = st.session_state.get("_cmp_rows")
+    if not rows:
+        st.info("👈 在左侧输入股票代码/名称后点击「开始对比」。已预填示例（5只），直接点击即可查看效果。")
+        return
 
-# ── 头部 + 核心结论 + 横向对比表（同一 compare-wrap 内）──
-st.markdown(
-    '<div class="compare-wrap">' + compare_css()
-    + build_header(rows, period)
-    + build_one_line(rows)
-    + build_table(rows),
-    unsafe_allow_html=True,
-)
+    # 部分标的行情缺失提示
+    failed = [r["name"] for r in rows if r.get("error")]
+    if failed:
+        st.warning(f"以下标的行情获取失败，已按中性默认展示：{'、'.join(failed)}")
 
-# ── 综合评分雷达（左图 + 右标签云/风险）──
-st.markdown(
-    '<div class="card"><h2>综合评分雷达（%d 股五维对比）</h2></div>' % len(rows),
-    unsafe_allow_html=True,
-)
-c1, c2 = st.columns([1.15, 1])
-with c1:
-    st.plotly_chart(build_radar(rows), use_container_width=True)
-with c2:
-    st.markdown(build_radar_right(rows), unsafe_allow_html=True)
+    _period = st.session_state.get("_cmp_period", period)
 
-# ── 两两对比选择器 + 选中 pair 卡片 ──
-if len(rows) >= 2:
-    pairs = [(rows[i], rows[j]) for i in range(len(rows)) for j in range(i + 1, len(rows))]
-    pair_labels = [f"{a['name']} vs {b['name']}" for a, b in pairs]
-    selected_label = st.selectbox(
-        "选择两两对比",
-        options=pair_labels,
-        index=0,
-        help="从下方选择两只股票进行 1:1 深度对比。",
-    )
-    selected_idx = pair_labels.index(selected_label)
-    a, b = pairs[selected_idx]
+    # ── 头部 + 核心结论 + 横向对比表（同一 compare-wrap 内）──
     st.markdown(
-        build_pairwise_card(a, b, selected_idx + 1) + build_action_plan(rows) + build_footer(),
+        '<div class="compare-wrap">' + compare_css()
+        + build_header(rows, _period)
+        + build_one_line(rows)
+        + build_table(rows),
         unsafe_allow_html=True,
     )
-else:
-    st.markdown(build_footer(), unsafe_allow_html=True)
 
-# ── 对比方法选择器（位于方法结果卡片上方）──
-st.markdown("### 对比方法")
-method = st.radio(
-    "选择对比维度（不同方法按各自权重重排标的并给出结论）",
-    options=list(METHODS.keys()),
-    index=0,
-    horizontal=True,
-    help="短期=动量量能；长期=趋势稳定；价值=低估；板块=业务关联度；业绩=催化；"
-         "政策=政策敏感；宏观=弹性；微观=技术结构；事件=输入事件看利好利空。",
-)
-event_text = ""
-if method == "事件":
-    event_text = st.text_input(
-        "输入事件（如：AI芯片扩产 / 新能源补贴退坡 / 半导体国产化）",
-        key="cmp_event",
-        placeholder="描述一个事件，对比各股在该事件上的业务关联度与利好/利空",
+    # ── 综合评分雷达（左图 + 右标签云/风险）──
+    st.markdown(
+        '<div class="card"><h2>综合评分雷达（%d 股五维对比）</h2></div>' % len(rows),
+        unsafe_allow_html=True,
     )
-st.caption(METHODS[method])
+    c1, c2 = st.columns([1.15, 1])
+    with c1:
+        st.plotly_chart(build_radar(rows), use_container_width=True)
+    with c2:
+        st.markdown(build_radar_right(rows), unsafe_allow_html=True)
 
-# ── 对比方法卡片（选定方法）+ 大汇总（九维结论）──
-st.markdown(
-    '<div class="compare-wrap">'
-    + build_method_card(rows, method, event_text)
-    + build_aggregate_card(rows, event_text)
-    + "</div>",
-    unsafe_allow_html=True,
-)
+    # ── 两两对比选择器 + 选中 pair 卡片 ──
+    if len(rows) >= 2:
+        pairs = [(rows[i], rows[j]) for i in range(len(rows)) for j in range(i + 1, len(rows))]
+        pair_labels = [f"{a['name']} vs {b['name']}" for a, b in pairs]
+        selected_label = st.selectbox(
+            "选择两两对比",
+            options=pair_labels,
+            index=0,
+            help="从下方选择两只股票进行 1:1 深度对比。",
+        )
+        selected_idx = pair_labels.index(selected_label)
+        a, b = pairs[selected_idx]
+        st.markdown(
+            build_pairwise_card(a, b, selected_idx + 1) + build_action_plan(rows) + build_footer(),
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(build_footer(), unsafe_allow_html=True)
+
+    # ── 对比方法选择器（位于方法结果卡片上方）──
+    st.markdown("### 对比方法")
+    method = st.radio(
+        "选择对比维度（不同方法按各自权重重排标的并给出结论）",
+        options=list(METHODS.keys()),
+        index=0,
+        horizontal=True,
+        help="短期=动量量能；长期=趋势稳定；价值=低估；板块=业务关联度；业绩=催化；"
+             "政策=政策敏感；宏观=弹性；微观=技术结构；事件=输入事件看利好利空。",
+    )
+    event_text = ""
+    if method == "事件":
+        event_text = st.text_input(
+            "输入事件（如：AI芯片扩产 / 新能源补贴退坡 / 半导体国产化）",
+            key="cmp_event",
+            placeholder="描述一个事件，对比各股在该事件上的业务关联度与利好/利空",
+        )
+    st.caption(METHODS[method])
+
+    # ── 对比方法卡片（选定方法）+ 大汇总（九维结论）──
+    st.markdown(
+        '<div class="compare-wrap">'
+        + build_method_card(rows, method, event_text)
+        + build_aggregate_card(rows, event_text)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+fragment_compare_result()

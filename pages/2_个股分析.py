@@ -27,6 +27,7 @@ from modules.session import init_session_state, require_auth, render_user_badge,
 from modules.search_ui import stock_search_input
 from modules.ui_theme import dashboard_sf_css, _theme_is_dark
 from modules.background_tasks import submit_task_with_error, poll_task
+from streamlit_autorefresh import st_autorefresh
 
 # 配色常量（对齐参考文档 002947 白天版 .sf-*：绿涨 / 红跌 / 琥珀中性）
 # 说明：参考文档采用绿涨红跌（与 StockSignal 全局 A 股红涨惯例不同），
@@ -166,7 +167,7 @@ def _section_header(title: str, subtitle: str = "", icon: str = "📊") -> str:
 
 
 def _build_rise_fall_factors(R: dict) -> tuple[list[dict], list[dict]]:
-    """基于分析结果 R 构建上涨/下跌因素列表（含强度 1–3 星）。"""
+    """基于分析结果 R 构建上涨/下跌因素列表（含强度 1–3 星、标签、更丰富的数据描述）。"""
     rise, fall = [], []
     technical_profile = R.get("technical_profile", {}) or {}
     sector_score = float(R.get("sector_score", 50))
@@ -176,6 +177,9 @@ def _build_rise_fall_factors(R: dict) -> tuple[list[dict], list[dict]]:
     current_price = float(R.get("current_price", 0))
     support = float(R.get("support", 0))
     resistance = float(R.get("resistance", current_price * 1.1))
+    deviation = float(R.get("deviation", 0))
+    pos52 = float(R.get("pos52", 50))
+    patterns = R.get("patterns", []) or []
     news_rows = R.get("news", []) or []
     pos_news = [r for r in news_rows if r.get("sentiment") == "正面"]
     neg_news = [r for r in news_rows if r.get("sentiment") == "负面"]
@@ -183,7 +187,6 @@ def _build_rise_fall_factors(R: dict) -> tuple[list[dict], list[dict]]:
     short = float(technical_profile.get("short", 50))
     mid = float(technical_profile.get("mid", 50))
     long = float(technical_profile.get("long", 50))
-    composite = float(technical_profile.get("composite", 50))
     vol_ratio = float(volume_info.get("vol_ratio", 1.0))
     trend_score = float(trend.get("trend_score", 50))
     arrangement = trend.get("arrangement", "")
@@ -193,43 +196,63 @@ def _build_rise_fall_factors(R: dict) -> tuple[list[dict], list[dict]]:
 
     # 上涨因素
     if arrangement == "多头排列":
-        rise.append({"title": "均线多头排列", "desc": "短期/中期/长期均线呈多头排列，趋势方向向上。", "stars": 3})
+        rise.append({"title": "均线多头排列", "desc": f"短期/中期/长期均线呈多头排列，5日/10日/20日MA向上发散，趋势方向向上，支撑逐级抬升。", "stars": 3})
     elif arrangement == "震荡偏多":
-        rise.append({"title": "均线震荡偏多", "desc": "均线系统总体偏向多头，但尚未完全发散。", "stars": 2})
+        rise.append({"title": "均线震荡偏多", "desc": "均线系统总体偏向多头，价格运行于主要均线上方，但尚未完全发散。", "stars": 2})
     if trend_score >= 60:
-        rise.append({"title": "趋势动能偏强", "desc": f"趋势得分 {trend_score:.0f}，价格运行在强势区间。", "stars": 3 if trend_score >= 75 else 2})
+        rise.append({"title": "趋势动能偏强", "desc": f"趋势得分 {trend_score:.0f}，价格运行在强势区间，短期均线斜率为正，回调受支撑。", "stars": 3 if trend_score >= 75 else 2})
     if vol_ratio >= 1.3:
-        rise.append({"title": "量能明显放大", "desc": f"量比 {vol_ratio:.2f}，成交量高于近期平均水平，资金关注度提升。", "stars": 3 if vol_ratio >= 2 else 2})
+        rise.append({"title": "量能明显放大", "desc": f"量比 {vol_ratio:.2f}，成交量高于近期平均水平 {vol_ratio*100-100:.0f}%，资金关注度提升，量价配合健康。", "stars": 3 if vol_ratio >= 2 else 2})
     if sector_score >= 60:
-        rise.append({"title": "所属板块强势", "desc": f"板块强度得分 {sector_score:.0f}，行业热度居前。", "stars": 3 if sector_score >= 75 else 2})
+        rise.append({"title": "所属板块强势", "desc": f"板块强度得分 {sector_score:.0f}，行业热度居前，板块内资金流入明显，龙头带动效应突出。", "stars": 3 if sector_score >= 75 else 2})
     if pos_news:
-        rise.append({"title": "正面新闻催化", "desc": f"检测到 {len(pos_news)} 条正面新闻：{pos_news[0].get('title', '')[:30]}...", "stars": 2})
+        title = pos_news[0].get("title", "")[:36]
+        rise.append({"title": "正面新闻催化", "desc": f"检测到 {len(pos_news)} 条正面新闻，最新一条：{title}...，形成事件催化，提升市场风险偏好。", "stars": 2})
     if current_price > 0 and resistance > current_price and (resistance - current_price) / current_price < 0.03:
-        rise.append({"title": "临近压力位", "desc": f"现价 ¥{current_price:.2f} 已接近压力 ¥{resistance:.2f}，突破后有望打开空间。", "stars": 2})
+        rise.append({"title": "临近压力位", "desc": f"现价 ¥{current_price:.2f} 已接近压力 ¥{resistance:.2f}（距突破仅 {(resistance-current_price)/current_price*100:.1f}%），突破后有望打开上行空间。", "stars": 2})
     if short >= 65 and mid >= 55:
-        rise.append({"title": "短中期共振向上", "desc": f"短期 {short:.0f} 分 / 中期 {mid:.0f} 分，多周期信号共振。", "stars": 3})
+        rise.append({"title": "短中期共振向上", "desc": f"短期 {short:.0f} 分 / 中期 {mid:.0f} 分 / 长期 {long:.0f} 分，多周期信号共振，方向一致。", "stars": 3})
     if r5 > 0 and r20 > 0:
-        rise.append({"title": "近期收益为正", "desc": f"5日 {r5:+.2f}% / 20日 {r20:+.2f}%，短期与中期收益均录得上涨。", "stars": 2 if r5 + r20 < 10 else 3})
+        rise.append({"title": "近期收益为正", "desc": f"5日 {r5:+.2f}% / 20日 {r20:+.2f}%，短期与中期收益均录得上涨，跑赢同期大盘基准概率较高。", "stars": 2 if r5 + r20 < 10 else 3})
+    if deviation < -5:
+        rise.append({"title": "乖离率偏低", "desc": f"收盘价相对 MA20 偏离 {deviation:+.1f}%，短期超跌，存在技术性修复机会。", "stars": 2})
+    if pos52 < 20:
+        rise.append({"title": "处于52周低位", "desc": f"当前价处于近 52 周价格区间底部（{pos52:.0f}%），估值/价格安全边际较高。", "stars": 2})
+    # K线形态
+    if patterns:
+        bull_patterns = [p for p in patterns if any(k in p for k in ["底", "金叉", "突破", "阳", "多", "红三", "启明"])]
+        if bull_patterns:
+            rise.append({"title": f"K线形态积极：{bull_patterns[0]}", "desc": f"近期形成 {', '.join(bull_patterns[:3])} 等偏多技术形态，短期结构改善。", "stars": 2})
 
     # 下跌因素
     if arrangement == "空头排列":
-        fall.append({"title": "均线空头排列", "desc": "短期/中期/长期均线呈空头排列，趋势方向向下。", "stars": 3})
+        fall.append({"title": "均线空头排列", "desc": "短期/中期/长期均线呈空头排列，5日/10日/20日MA向下发散，趋势方向向下。", "stars": 3})
     elif arrangement == "震荡偏空":
-        fall.append({"title": "均线震荡偏空", "desc": "均线系统总体偏向空头，支撑尚不明显。", "stars": 2})
+        fall.append({"title": "均线震荡偏空", "desc": "均线系统总体偏向空头，价格运行于主要均线下方，支撑尚不明显。", "stars": 2})
     if trend_score <= 40:
-        fall.append({"title": "趋势动能偏弱", "desc": f"趋势得分 {trend_score:.0f}，价格运行在弱势区间。", "stars": 3 if trend_score <= 30 else 2})
+        fall.append({"title": "趋势动能偏弱", "desc": f"趋势得分 {trend_score:.0f}，价格运行在弱势区间，反弹受阻，重心下移。", "stars": 3 if trend_score <= 30 else 2})
     if vol_ratio <= 0.8:
-        fall.append({"title": "量能持续萎缩", "desc": f"量比 {vol_ratio:.2f}，成交量低于近期平均水平，交投清淡。", "stars": 3 if vol_ratio <= 0.5 else 2})
+        fall.append({"title": "量能持续萎缩", "desc": f"量比 {vol_ratio:.2f}，成交量低于近期平均水平 {100-vol_ratio*100:.0f}%，交投清淡，缺乏资金关注。", "stars": 3 if vol_ratio <= 0.5 else 2})
     if sector_score <= 40:
-        fall.append({"title": "所属板块弱势", "desc": f"板块强度得分 {sector_score:.0f}，行业热度靠后。", "stars": 3 if sector_score <= 30 else 2})
+        fall.append({"title": "所属板块弱势", "desc": f"板块强度得分 {sector_score:.0f}，行业热度靠后，板块内资金流出，龙头走弱。", "stars": 3 if sector_score <= 30 else 2})
     if neg_news:
-        fall.append({"title": "负面新闻压制", "desc": f"检测到 {len(neg_news)} 条负面新闻：{neg_news[0].get('title', '')[:30]}...", "stars": 2})
+        title = neg_news[0].get("title", "")[:36]
+        fall.append({"title": "负面新闻压制", "desc": f"检测到 {len(neg_news)} 条负面新闻，最新一条：{title}...，构成情绪压制与事件风险。", "stars": 2})
     if current_price > 0 and support > 0 and current_price < support:
-        fall.append({"title": "跌破支撑位", "desc": f"现价 ¥{current_price:.2f} 已跌破支撑 ¥{support:.2f}，技术形态走弱。", "stars": 3})
+        fall.append({"title": "跌破支撑位", "desc": f"现价 ¥{current_price:.2f} 已跌破支撑 ¥{support:.2f}，技术形态走弱，下方空间可能打开。", "stars": 3})
     if short <= 40 and mid <= 50:
-        fall.append({"title": "短中期共振向下", "desc": f"短期 {short:.0f} 分 / 中期 {mid:.0f} 分，多周期信号偏空。", "stars": 3})
+        fall.append({"title": "短中期共振向下", "desc": f"短期 {short:.0f} 分 / 中期 {mid:.0f} 分 / 长期 {long:.0f} 分，多周期信号偏空，方向一致。", "stars": 3})
     if r5 < 0 and r20 < 0:
-        fall.append({"title": "近期收益为负", "desc": f"5日 {r5:+.2f}% / 20日 {r20:+.2f}%，短期与中期收益均录得下跌。", "stars": 2 if abs(r5 + r20) < 10 else 3})
+        fall.append({"title": "近期收益为负", "desc": f"5日 {r5:+.2f}% / 20日 {r20:+.2f}%，短期与中期收益均录得下跌，弱于同期大盘基准。", "stars": 2 if abs(r5 + r20) < 10 else 3})
+    if deviation > 5:
+        fall.append({"title": "乖离率偏高", "desc": f"收盘价相对 MA20 偏离 {deviation:+.1f}%，短期超买，存在技术性回调压力。", "stars": 2})
+    if pos52 > 80:
+        fall.append({"title": "处于52周高位", "desc": f"当前价处于近 52 周价格区间顶部（{pos52:.0f}%），高位回调与获利回吐风险加大。", "stars": 2})
+    # K线形态
+    if patterns:
+        bear_patterns = [p for p in patterns if any(k in p for k in ["顶", "死叉", "跌破", "阴", "空", "黑三", "乌云"])]
+        if bear_patterns:
+            fall.append({"title": f"K线形态偏空：{bear_patterns[0]}", "desc": f"近期形成 {', '.join(bear_patterns[:3])} 等偏空技术形态，短期结构转弱。", "stars": 2})
 
     # 若因素过少，补充默认项保证展示不空
     if not rise:
@@ -237,50 +260,56 @@ def _build_rise_fall_factors(R: dict) -> tuple[list[dict], list[dict]]:
     if not fall:
         fall.append({"title": "暂无明显下跌风险", "desc": "当前未检测到强势的做空信号，但需关注支撑与量能变化。", "stars": 1})
 
-    # 按强度排序
+    # 按强度排序，并为前两名打上「核心」标签
     rise.sort(key=lambda x: x["stars"], reverse=True)
     fall.sort(key=lambda x: x["stars"], reverse=True)
+    for idx, f in enumerate(rise):
+        f["tag"] = "核心" if idx < 2 else ""
+    for idx, f in enumerate(fall):
+        f["tag"] = "核心" if idx < 2 else ""
     return rise, fall
 
 
-def _factor_card_html(title: str, factors: list[dict], icon: str) -> str:
-    """按截图 1:1 渲染「上涨/下跌因素拆解（按强度）」卡片。"""
+def _factor_list_html(title: str, factors: list[dict]) -> str:
+    """1:1 仿参考图渲染「利好清单 / 利空清单」卡片：编号 + 标题 + 新增/核心标签 + 强度星级 + 详细描述。"""
     if not factors:
         return ""
-    dark = False  # 该页跟随全局主题，css 变量自适应
-    bg = "var(--card2)"
+    is_up = "利好" in title or "上涨" in title
+    accent = "#009e60" if is_up else "#dc2626"
+    tag_bg = "#059669" if is_up else "#dc2626"
+    # 跟随全局主题：暗夜/白天 CSS 变量
+    bg = "var(--card)"
     border = "var(--border)"
     txt = "var(--txt)"
     txt2 = "var(--txt2)"
-    accent_up = "#009e60"
-    accent_down = "#dc2626"
-    is_up = "上涨" in title
-    accent = accent_up if is_up else accent_down
     items = []
     for i, f in enumerate(factors[:8], 1):
         stars = "★" * f["stars"] + "☆" * (3 - f["stars"])
+        tag = f.get("tag", "")
+        tag_html = (
+            f'<span style="display:inline-block;background:{tag_bg};color:#fff;'
+            f'font-size:11px;font-weight:700;padding:1px 8px;border-radius:4px;margin-right:8px;">{tag}</span>'
+        ) if tag else ""
         items.append(
-            f'<div style="display:flex;gap:10px;margin-bottom:14px;padding:12px 14px;'
-            f'background:rgba(0,0,0,0.03);border-radius:10px;border-left:3px solid {accent};">'
-            f'<div style="min-width:24px;height:24px;border-radius:50%;background:{accent};'
+            f'<div style="display:flex;gap:12px;padding:14px 16px;margin-bottom:10px;'
+            f'background:var(--card2);border-radius:12px;border-left:4px solid {accent};">'
+            f'<div style="min-width:28px;height:28px;border-radius:50%;background:{accent};'
             f'color:#fff;display:flex;align-items:center;justify-content:center;'
-            f'font-size:13px;font-weight:700;">{i}</div>'
+            f'font-size:14px;font-weight:800;">{i}</div>'
             f'<div style="flex:1;">'
-            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-            f'<div style="font-size:14px;font-weight:700;color:{txt};">{f["title"]}</div>'
-            f'<div style="font-size:12px;color:{accent};font-weight:700;">强度 {stars}</div>'
+            f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
+            f'<div style="font-size:15px;font-weight:700;color:{txt};line-height:1.4;">{tag_html}{f["title"]}</div>'
+            f'<div style="font-size:12px;color:{accent};font-weight:700;white-space:nowrap;">强度 {stars}</div>'
             f'</div>'
-            f'<div style="font-size:12.5px;color:{txt2};line-height:1.6;">{f["desc"]}</div>'
+            f'<div style="font-size:12.5px;color:{txt2};line-height:1.7;">{f["desc"]}</div>'
             f'</div></div>'
         )
     return (
-        f'<div style="background:{bg};border:1px solid {border};border-radius:16px;padding:18px;margin-top:18px;">'
-        f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
-        f'<div style="font-size:18px;">{icon}</div>'
-        f'<div style="font-size:16px;font-weight:700;color:{txt};">{title}</div>'
-        f'</div>'
-        f'{"".join(items)}'
-        f'</div>'
+        f'<div style="background:{bg};border:1px solid {border};border-radius:18px;padding:18px;">'
+        f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">'
+        f'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{accent};"></span>'
+        f'<div style="font-size:17px;font-weight:700;color:{txt};">{title}</div></div>'
+        f'{"".join(items)}</div>'
     )
 
 
@@ -376,253 +405,6 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True, key=
         else:
             st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
 st.markdown('</div>', unsafe_allow_html=True)
-
-def _run_analysis(ticker: str) -> dict:
-    """拉取并构建个股分析所需全部数据；返回含所有渲染变量的 dict。"""
-    # ── 基础信息 ──
-    stock_name = fetcher.get_stock_name(ticker) or ticker
-    _code, _name = fetcher.get_stock_basic(ticker)
-    display_name = _name or stock_name or ticker
-    # 行业/概念：由股票名称匹配关键词（真实派生，非编造）
-    try:
-        industry_kws = fetcher.get_stock_keywords(ticker, top_k=3)
-        industry = industry_kws.split(",")[0] if industry_kws else "—"
-    except Exception:
-        industry = "—"
-
-    # ── 并行拉取：实时行情 / 日线 / 新闻（三者相互独立，并发以降低总耗时）──
-    today = datetime.now().date()
-    start_str = (today - timedelta(days=365)).strftime("%Y-%m-%d")
-    end_str = today.strftime("%Y-%m-%d")
-
-    import concurrent.futures as _cf
-
-    def _fetch_quote():
-        r = api_quote(ticker)
-        if isinstance(r, dict) and r.get("current"):
-            return r, "后端 API"
-        try:
-            return fetcher.get_realtime_quote(ticker), "新浪财经"
-        except Exception:
-            return None, "本地 fetcher"
-
-    def _fetch_kline():
-        try:
-            _records = api_kline(ticker, start=start_str, end=end_str)
-            if _records is None:
-                return fetcher.get_daily(ticker, start=start_str, end=end_str), "本地四级降级链"
-            return pd.DataFrame(_records), "后端 API"
-        except Exception:
-            return fetcher.get_daily(ticker, start=start_str, end=end_str), "本地四级降级链"
-
-    def _fetch_news():
-        try:
-            return NewsFetcher().fetch(keyword=display_name, source="auto", limit=50)
-        except Exception:
-            return pd.DataFrame(columns=["date", "title", "content", "source", "url"])
-
-    with _cf.ThreadPoolExecutor(max_workers=3) as _ex:
-        _fq = _ex.submit(_fetch_quote)
-        _fk = _ex.submit(_fetch_kline)
-        _fn = _ex.submit(_fetch_news)
-        rt, quote_src = _fq.result()
-        df, data_src = _fk.result()
-        news_df = _fn.result()
-
-    if isinstance(rt, dict) and rt.get("current"):
-        current_price = float(rt["current"])
-        prev_close = float(rt.get("prev_close") or current_price)
-        change_pct = (current_price - prev_close) / prev_close * 100 if prev_close else 0.0
-    else:
-        rt = None
-        current_price = None
-        change_pct = 0.0
-
-    df = DataCleaner.full_pipeline(df)
-
-    # ── 技术面 ──
-    technical = technical_full_analysis(df)
-    trend = technical.get("trend", {})
-    momentum = technical.get("momentum", {})
-    volume_info = technical.get("volume", {})
-    patterns = technical.get("patterns", []) or []
-
-    # ── 信号引擎（价格/事件/宏观）──
-    keywords = [k.strip() for k in (industry_kws or "").split(",") if k.strip()] or [display_name]
-    signal = SignalEngine().evaluate(ticker, keywords, date=None)
-
-    # 五维雷达取值（与下方「权重表」完全一致，保证总评 = 各维度透明加权）
-    tech_score = float(signal.get("price_score", 50))
-    news_score = float(signal.get("event_score", 50))
-    macro_score = float(signal.get("macro_score", 50))
-    vol_score = float(volume_info.get("volume_price_score", 50)) if "error" not in volume_info else 50.0
-    sector_score = float(signal.get("sector_score", 55))
-
-    # 综合评分（五维加权，杜绝「展示5维、计算却漏掉板块」的不一致）：
-    # 权重与展示表严格一致：技术面 25% / 新闻情绪 22% / 资金量能 18% / 市场环境 15% / 板块强度 20%（合计 100%）。
-    # 一致性约束：五维彼此接近（极差≤20）时，总评不低于「五维均值」，避免「各分项>70 总评却 65」的割裂感；
-    # 短板缓冲：总评不低于「最弱维度−8」，避免单一弱项把整体过度拉低、与可见信号严重背离。
-    _dims = [tech_score, news_score, vol_score, macro_score, sector_score]
-    _w = [0.25, 0.22, 0.18, 0.15, 0.20]
-    _weighted = sum(d * w for d, w in zip(_dims, _w))
-    _dim_avg = sum(_dims) / 5
-    _dim_min, _dim_max = min(_dims), max(_dims)
-    _base = _weighted
-    if _dim_max - _dim_min <= 20:
-        _base = max(_weighted, _dim_avg)  # 信号一致 → 总评不低于各维度均值
-    _floor = _dim_min - 8                  # 短板缓冲
-    composite = int(round(max(_base, _floor)))
-    composite = max(0, min(100, composite))
-    verdict, verdict_color, verdict_cls = _verdict_color(composite)
-
-    # ── 新闻 / 情绪（news_df 已在并行拉取阶段获取）──
-    sa = SentimentAnalyzer()
-    news_rows = []
-    pos_n = neg_n = neu_n = 0
-    if not news_df.empty:
-        for _, row in news_df.head(12).iterrows():
-            title = str(row.get("title", ""))
-            sent = sa.analyze_news(title, str(row.get("content", "")))
-            lab = sent.get("sentiment", "中性")
-            if lab == "正面":
-                pos_n += 1
-            elif lab == "负面":
-                neg_n += 1
-            else:
-                neu_n += 1
-            news_rows.append({
-                "date": row.get("date"),
-                "title": title,
-                "sentiment": lab,
-                "score": sent.get("score", 0),
-            })
-        total_n = max(1, pos_n + neg_n + neu_n)
-        pos_pct = pos_n / total_n * 100
-        neg_pct = neg_n / total_n * 100
-    else:
-        pos_pct = neg_pct = 0.0
-
-    # ── 支撑 / 压力（近 60 日，真实派生）──
-    recent = df.tail(60)
-    support = float(recent["low"].min())
-    resistance = float(recent["high"].max())
-    if current_price is None:
-        current_price = float(df.iloc[-1]["close"])
-    entry_price, target_price, stop_price, atr14 = _calc_trade_levels(current_price, df, support, resistance)
-
-    # ── 乖离率（收盘价相对 MA20）──
-    last = df.iloc[-1]
-    ma20 = float(last.get("ma20", last["close"])) if "ma20" in df.columns else float(last["close"])
-    deviation = (last["close"] - ma20) / ma20 * 100 if ma20 else 0.0
-
-    # ── 52 周区间定位 ──
-    lo52 = float(df["low"].min())
-    hi52 = float(df["high"].max())
-    pos52 = (last["close"] - lo52) / (hi52 - lo52) * 100 if hi52 > lo52 else 50.0
-
-    # ── 均线（用于 K 线标注与量能）──
-    ma5v = float(df["close"].rolling(5).mean().iloc[-1]) if len(df) >= 5 else float(last["close"])
-    ma10v = float(df["close"].rolling(10).mean().iloc[-1]) if len(df) >= 10 else float(last["close"])
-    ma20v = float(df["close"].rolling(20).mean().iloc[-1]) if len(df) >= 20 else float(last["close"])
-    # ── 套牢区（近期高位密集成交区）──
-    trapped = float(df["high"].tail(120).max()) if len(df) >= 20 else float(hi52)
-    # ── 量能分析 ──
-    vol_now = float(df["volume"].iloc[-1])
-    vol_prev = float(df["volume"].iloc[-2]) if len(df) >= 2 else vol_now
-    vol_avg = float(df["volume"].tail(20).mean())
-    vol_chg = (vol_now - vol_prev) / vol_prev * 100 if vol_prev else 0.0
-    # ── 今日盘口（实时行情，缺失则 —）──
-    q_open = float(rt["open"]) if isinstance(rt, dict) and rt.get("open") else None
-    q_high = float(rt["high"]) if isinstance(rt, dict) and rt.get("high") else None
-    q_low = float(rt["low"]) if isinstance(rt, dict) and rt.get("low") else None
-    q_prev = float(rt["prev_close"]) if isinstance(rt, dict) and rt.get("prev_close") else None
-    q_amount = float(rt["amount"]) if isinstance(rt, dict) and rt.get("amount") else None
-    # ── 板块（由代码派生，真实）──
-    def _board(code):
-        if str(code).startswith("60"):
-            return "沪市主板"
-        if str(code).startswith("00"):
-            return "深市主板"
-        if str(code).startswith("30"):
-            return "创业板"
-        if str(code).startswith("68"):
-            return "科创板"
-        if str(code).startswith(("8", "4")):
-            return "北交所"
-        return "A股"
-    board = _board(ticker)
-    # ── 仓位建议（依研判）──
-    if verdict == "看多":
-        position_advice = (
-            f"分批低吸，建议首仓在现价附近，回踩 ¥{entry_price:.2f} 补第二笔；"
-            f"目标 ¥{target_price:.2f} 分批兑现，止损 ¥{stop_price:.2f}"
-        )
-    elif verdict == "看空":
-        position_advice = (
-            f"轻仓观望，等待企稳；若已持仓建议逢高减仓，"
-            f"反弹目标 ¥{target_price:.2f} 附近减仓，止损 ¥{stop_price:.2f}"
-        )
-    else:
-        position_advice = (
-            f"区间波段，半仓操作；回踩 ¥{entry_price:.2f} 可低吸，"
-            f"目标 ¥{target_price:.2f} 分批兑现，跌破止损 ¥{stop_price:.2f} 纪律离场"
-        )
-
-    return {
-        "ticker": ticker,
-        "display_name": display_name,
-        "industry": industry,
-        "current_price": current_price,
-        "prev_close": prev_close,
-        "change_pct": change_pct,
-        "df": df,
-        "technical": technical,
-        "trend": trend,
-        "momentum": momentum,
-        "volume_info": volume_info,
-        "patterns": patterns,
-        "signal": signal,
-        "tech_score": tech_score,
-        "news_score": news_score,
-        "macro_score": macro_score,
-        "vol_score": vol_score,
-        "sector_score": sector_score,
-        "composite": composite,
-        "verdict": verdict,
-        "verdict_color": verdict_color,
-        "verdict_cls": verdict_cls,
-        "news_rows": news_rows,
-        "pos_pct": pos_pct,
-        "neg_pct": neg_pct,
-        "support": support,
-        "resistance": resistance,
-        "entry_price": entry_price,
-        "target_price": target_price,
-        "stop_price": stop_price,
-        "atr14": atr14,
-        "deviation": deviation,
-        "lo52": lo52,
-        "hi52": hi52,
-        "pos52": pos52,
-        "ma5v": ma5v,
-        "ma10v": ma10v,
-        "ma20v": ma20v,
-        "trapped": trapped,
-        "vol_now": vol_now,
-        "vol_prev": vol_prev,
-        "vol_avg": vol_avg,
-        "vol_chg": vol_chg,
-        "q_open": q_open,
-        "q_high": q_high,
-        "q_low": q_low,
-        "q_prev": q_prev,
-        "q_amount": q_amount,
-        "board": board,
-        "position_advice": position_advice,
-        "data_src": data_src,
-        "quote_src": quote_src,
-    }
-
 
 # ══════════════════════════════════════════════════════════════
 # 分析渲染：从 dict 中恢复所有变量并绘制 8 大模块
@@ -972,13 +754,13 @@ def _render_analysis(R: dict):
         )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # ════════════ 新增模块：上涨/下跌因素拆解 ════════════
+    # ════════════ 新增模块：利好/利空清单（按强度）════════════
     rise_factors, fall_factors = _build_rise_fall_factors(R)
     col_rise, col_fall = st.columns(2)
     with col_rise:
-        st.markdown(_factor_card_html("上涨因素拆解（按强度）", rise_factors, "📈"), unsafe_allow_html=True)
+        st.markdown(_factor_list_html("利好清单（全集）", rise_factors), unsafe_allow_html=True)
     with col_fall:
-        st.markdown(_factor_card_html("下跌因素拆解（按强度）", fall_factors, "📉"), unsafe_allow_html=True)
+        st.markdown(_factor_list_html("利空清单（全集）", fall_factors), unsafe_allow_html=True)
 
     # ════════════ 模块6：信号归因（四维雷达）══════════
     # ══════════ 新增模块：板块分析 ══════════
@@ -1195,24 +977,44 @@ def _deserialize_analysis_result(result: dict) -> dict:
 
 st.info("👆 在上方「决策仪表盘」顶部点击红色「生成分析」即可生成完整的个股深度分析。")
 
-# 轮询后台任务
-analysis_task_id = st.session_state.get("analysis_task_id")
-if analysis_task_id:
-    task = poll_task(analysis_task_id, max_wait=0.5)
-    if task and task.get("status") == "success":
-        result = _deserialize_analysis_result(task.get("result"))
-        for w in result.pop("_warnings", []):
-            st.warning(w)
-        st.session_state["analysis_result"] = result
-        del st.session_state["analysis_task_id"]
-        st.toast("✅ 个股分析完成")
-    elif task and task.get("status") == "error":
-        st.error(f"分析失败：{task.get('error')}")
-        del st.session_state["analysis_task_id"]
-    elif task and task.get("status") in ("pending", "running"):
-        st.info("⏳ 后台正在拉取行情 / 新闻 / 信号… 切到其他页面也会继续跑。")
 
-if st.session_state.get("analysis_result") is not None:
-    _render_analysis(st.session_state["analysis_result"])
-else:
-    st.info("👈 在左侧选择股票后，点击「生成分析」查看完整的个股深度决策仪表盘。")
+@st.cache_data(ttl=1)
+def _poll_analysis_once(task_id: str) -> dict | None:
+    """缓存 1 秒：避免同一次 fragment 重跑中多次调用 poll_task 造成请求堆积。"""
+    return poll_task(task_id, max_wait=0.5)
+
+
+@st.fragment
+def fragment_analysis_result():
+    """分析结果区：包含轮询、加载中反馈、完成后渲染，独立 fragment 不阻塞整页。"""
+    analysis_task_id = st.session_state.get("analysis_task_id")
+    if analysis_task_id:
+        # 使用 1 秒缓存避免轮询时连续请求堆积
+        task = _poll_analysis_once(analysis_task_id)
+        if task and task.get("status") == "success":
+            result = _deserialize_analysis_result(task.get("result"))
+            for w in result.pop("_warnings", []):
+                st.warning(w)
+            st.session_state["analysis_result"] = result
+            del st.session_state["analysis_task_id"]
+            st.toast("✅ 个股分析完成")
+        elif task and task.get("status") == "error":
+            st.error(f"分析失败：{task.get('error')}")
+            del st.session_state["analysis_task_id"]
+        elif task and task.get("status") in ("pending", "running"):
+            st.warning(
+                "⏳ 分析正在后台并行运行：行情数据 → 新闻舆情 → 技术信号 → 综合评分。"
+                "完成后会自动显示下方结果，无需切换页面。",
+                icon="⏳",
+            )
+            st.progress(0.0, text="等待分析结果...")
+            st_autorefresh(interval=1000, limit=30, key="analysis_autorefresh")
+            return
+
+    if st.session_state.get("analysis_result") is not None:
+        _render_analysis(st.session_state["analysis_result"])
+    else:
+        st.info("👈 在左侧选择股票后，点击「生成分析」查看完整的个股深度决策仪表盘。")
+
+
+fragment_analysis_result()
