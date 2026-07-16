@@ -413,6 +413,16 @@ h3 { border-left: 3px solid rgba(102, 126, 234, 0.55); padding-left: 8px; }
     caret-color: #667eea !important;
 }
 
+/* #264 下拉框（selectbox / multiselect）当前选中文字加粗，提升可读性 */
+.stSelectbox [role="combobox"],
+[data-testid="stSelectbox"] [role="combobox"],
+.stMultiSelect [role="combobox"],
+[data-testid="stMultiSelect"] [role="combobox"],
+.stSelectbox ul li,
+.stMultiSelect ul li {
+    font-weight: 600 !important;
+}
+
 /* placeholder 暗色提示 */
 .stTextInput input::placeholder,
 .stTextArea textarea::placeholder,

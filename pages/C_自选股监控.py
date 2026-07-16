@@ -335,6 +335,27 @@ def fragment_watchlist_monitor():
     else:
         st.info("暂无数据。")
 
+    # ── 导出当前自选股快照为 CSV（含实时行情 + 估值）──
+    if rows:
+        export_df = pd.DataFrame(rows)[
+            ["code", "name", "cur", "change_amt", "chg", "amplitude",
+             "volume", "amount", "pe_ttm", "alr"]
+        ].rename(columns={
+            "code": "代码", "name": "名称", "cur": "现价",
+            "change_amt": "涨跌额", "chg": "涨跌%", "amplitude": "振幅%",
+            "volume": "成交量", "amount": "成交额",
+            "pe_ttm": "市盈率TTM", "alr": "资产负债率",
+        })
+        csv_data = export_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        st.download_button(
+            "⬇️ 导出自选股 CSV",
+            data=csv_data,
+            file_name=f"自选股_{datetime.now():%Y%m%d_%H%M%S}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="wl_export_csv",
+        )
+
     st.divider()
     col_a, col_b = st.columns(2)
     with col_a:
