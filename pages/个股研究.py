@@ -51,6 +51,14 @@ def _run_subpage(path: str) -> None:
             src = f.read()
         g = {"__name__": "__main__", "__file__": path, "__builtins__": __builtins__}
         exec(compile(src, path, "exec"), g)
+    except Exception as exc:  # noqa: BLE001
+        # 子页异常隔离：单视图崩溃不影响合并页其它部分（错误边界）
+        from modules.page_guard import render_error_card
+        render_error_card(
+            f"子模块 {os.path.basename(path)}",
+            exc,
+            hint="该子视图加载失败，已隔离。可切换上方视图或刷新页面重试。",
+        )
     finally:
         _uit.apply_page_config, _sess.require_auth, _sess.render_user_badge = _saved
         st.session_state["_embed_active"] = False

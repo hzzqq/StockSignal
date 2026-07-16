@@ -10,6 +10,7 @@ from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 from modules.fundflow import get_individual_fund_flow
 from modules.portfolio import PortfolioManager
+from modules.page_guard import safe_fragment
 
 apply_page_config(page_title="体检扫描", page_icon="🩺", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -74,9 +75,97 @@ def build_stock_list(scope: str) -> dict:
     return codes
 
 
+# ─────────────────────── 多维打分（0-100，越高越健康） ───────────────────────
+def _tech_score(analysis) -> float:
+    """技术面：趋势(0.4)+动量(0.3)+量能(0.3) 加权。"""
+    if not isinstance(analysis, dict):
+        return None
+    t = (analysis.get("trend") or {}).get("trend_score")
+    m = (analysis.get("momentum") or {}).get("momentum_score")
+    v = (analysis.get("volume") or {}).get("volume_price_score")
+    num = den = 0.0
+    for val, w in ((t, 0.4), (m, 0.3), (v, 0.3)):
+        if isinstance(val, (int, float)):
+            num += float(val) * w
+            den += w
+    return round(num / den, 1) if den else None
+
+
+def _valuation_score(pe, pb, dv) -> float:
+    """估值：PE 越低越好(0.55)+PB(0.25)+股息率(0.20)。全缺失返 None。"""
+    parts = []
+    if isinstance(pe, (int, float)) and pe > 0:
+        s = 90 if pe <= 15 else 75 if pe <= 25 else 60 if pe <= 40 else 45 if pe <= 60 else 30 if pe <= 100 else 20
+        parts.append((s, 0.55))
+    if isinstance(pb, (int, float)) and pb > 0:
+        s = 90 if pb <= 1.5 else 72 if pb <= 3 else 55 if pb <= 5 else 40 if pb <= 8 else 25
+        parts.append((s, 0.25))
+    if isinstance(dv, (int, float)) and dv >= 0:
+        s = 95 if dv >= 5 else 80 if dv >= 3 else 65 if dv >= 1.5 else 55 if dv > 0 else 45
+        parts.append((s, 0.20))
+    if not parts:
+        return None
+    num = sum(s * w for s, w in parts)
+    den = sum(w for _, w in parts)
+    return round(num / den, 1)
+
+
+def _finance_score(roe, rev_yoy, profit_yoy) -> float:
+    """财务健康：ROE(0.4)+营收同比(0.3)+净利同比(0.3)。全缺失返 None。"""
+    parts = []
+    if isinstance(roe, (int, float)):
+        s = 95 if roe >= 20 else 85 if roe >= 15 else 70 if roe >= 10 else 55 if roe >= 5 else 40 if roe >= 0 else 20
+        parts.append((s, 0.4))
+    for v, w in ((rev_yoy, 0.3), (profit_yoy, 0.3)):
+        if isinstance(v, (int, float)):
+            s = 90 if v >= 30 else 78 if v >= 15 else 65 if v >= 5 else 52 if v >= 0 else 38 if v >= -10 else 22
+            parts.append((s, w))
+    if not parts:
+        return None
+    num = sum(s * w for s, w in parts)
+    den = sum(w for _, w in parts)
+    return round(num / den, 1)
+
+
+def _fund_score(main_net) -> float:
+    """资金面：主力净流入(元)。缺失返 None。"""
+    if not isinstance(main_net, (int, float)):
+        return None
+    yi = float(main_net) / 1e8
+    if yi >= 3:
+        return 90.0
+    if yi >= 1:
+        return 78.0
+    if yi >= 0.2:
+        return 65.0
+    if yi > -0.2:
+        return 50.0
+    if yi >= -1:
+        return 38.0
+    if yi >= -3:
+        return 25.0
+    return 12.0
+
+
+_DIM_WEIGHTS = {"技术面": 0.30, "资金面": 0.25, "财务健康": 0.25, "估值": 0.20}
+
+
+def _composite(dims: dict) -> float:
+    """综合体检分：对已获取的维度按权重归一化。全缺失返 None。"""
+    num = den = 0.0
+    for k, w in _DIM_WEIGHTS.items():
+        v = dims.get(k)
+        if isinstance(v, (int, float)):
+            num += float(v) * w
+            den += w
+    return round(num / den, 1) if den else None
+
+
 def scan_one(code: str, name):
-    """单只股票体检，返回 entry dict。"""
-    entry = {"code": str(code), "name": name, "patterns": [], "main_net": None, "error": None}
+    """单只股票体检，返回 entry dict（含多维打分）。"""
+    entry = {"code": str(code), "name": name, "patterns": [], "main_net": None,
+             "dims": {}, "composite": None, "pe": None, "roe": None,
+             "rev_yoy": None, "error": None}
     try:
         today = datetime.now()
         start = (today - timedelta(days=180)).strftime("%Y-%m-%d")
@@ -90,19 +179,82 @@ def scan_one(code: str, name):
         analysis = full_analysis(df)
         patterns = analysis.get("patterns") or []
         entry["patterns"] = patterns if isinstance(patterns, list) else []
+        entry["dims"]["技术面"] = _tech_score(analysis)
     except Exception as e:
         entry["error"] = f"分析失败: {e}"
 
+    # 资金面
     try:
         ff = get_individual_fund_flow(code)
         if isinstance(ff, dict):
             entry["main_net"] = ff.get("main_net")
+            entry["dims"]["资金面"] = _fund_score(ff.get("main_net"))
     except Exception:
         pass
+
+    # 估值（PE 来自 fetcher；PB/股息率 best-effort 补充）
+    pe = pb = dv = None
+    try:
+        fd = StockFetcher().get_fundamentals(code)
+        if isinstance(fd, dict):
+            pe = fd.get("pe_ttm")
+            entry["pe"] = pe
+    except Exception:
+        pass
+    try:
+        import akshare as ak
+        for ind, setter in (("市净率", "pb"), ("股息率TTM", "dv")):
+            try:
+                vdf = ak.stock_zh_valuation_baidu(symbol=str(code).zfill(6),
+                                                  indicator=ind, period="近一年")
+                if vdf is not None and not vdf.empty:
+                    val = float(str(vdf.iloc[-1].get("value")).replace(",", ""))
+                    if setter == "pb":
+                        pb = val
+                    else:
+                        dv = val
+            except Exception:
+                pass
+    except Exception:
+        pass
+    vs = _valuation_score(pe, pb, dv)
+    if vs is not None:
+        entry["dims"]["估值"] = vs
+
+    # 财务健康（同花顺财务指标 best-effort）
+    try:
+        import akshare as ak
+        fdf = ak.stock_financial_analysis_indicator(
+            symbol=str(code).zfill(6), start_year=str(datetime.now().year - 1))
+        if fdf is not None and not fdf.empty:
+            last = fdf.iloc[-1]
+
+            def _pick(*names):
+                for n in names:
+                    for col in fdf.columns:
+                        if n.replace(" ", "") in col.replace(" ", ""):
+                            try:
+                                return float(str(last[col]).replace(",", ""))
+                            except Exception:
+                                return None
+                return None
+
+            roe = _pick("净资产收益率", "ROE")
+            rev = _pick("营业收入同比增长率", "营收同比")
+            prof = _pick("净利润同比增长率", "净利润同比")
+            entry["roe"] = roe
+            entry["rev_yoy"] = rev
+            fs = _finance_score(roe, rev, prof)
+            if fs is not None:
+                entry["dims"]["财务健康"] = fs
+    except Exception:
+        pass
+
+    entry["composite"] = _composite(entry["dims"])
     return entry
 
 
-def classify(patterns, main_net):
+def classify(patterns, main_net, composite=None):
     has_bull = False
     has_bear = False
     names = []
@@ -129,6 +281,14 @@ def classify(patterns, main_net):
             mn = float(main_net)
     except Exception:
         mn = None
+
+    # 有综合分时以其为主，形态/资金作为增强信号
+    if isinstance(composite, (int, float)):
+        if composite >= 68 or has_bull:
+            return "HIGH", names, mn
+        if composite < 45 or has_bear:
+            return "ATTENTION", names, mn
+        return "WATCH", names, mn
 
     if has_bull or (mn is not None and mn > 0):
         return "HIGH", names, mn
@@ -178,16 +338,28 @@ def run_scan(scope: str):
     for e in entries:
         if e.get("error") == "无行情数据":
             continue
-        prio, names, mn = classify(e.get("patterns", []), e.get("main_net"))
+        prio, names, mn = classify(e.get("patterns", []), e.get("main_net"),
+                                   e.get("composite"))
         results.append({
             "code": e["code"],
             "name": e["name"],
             "priority": prio,
             "names": names,
             "main_net": mn,
+            "dims": e.get("dims", {}),
+            "composite": e.get("composite"),
+            "pe": e.get("pe"),
+            "roe": e.get("roe"),
+            "rev_yoy": e.get("rev_yoy"),
         })
 
-    results.sort(key=lambda r: (PRIORITY_RANK.get(r["priority"], 9), r["code"]))
+    # 综合分优先降序，其次按优先级
+    def _sort_key(r):
+        comp = r.get("composite")
+        comp_rank = -comp if isinstance(comp, (int, float)) else 999
+        return (PRIORITY_RANK.get(r["priority"], 9), comp_rank, r["code"])
+
+    results.sort(key=_sort_key)
     st.session_state["scan_results"] = results
     st.session_state["scan_time"] = elapsed
     st.session_state["scan_count"] = len(results)
@@ -224,7 +396,7 @@ with col2:
 
 
 # ─────────────────────────── 结果板（fragment，独立刷新） ───────────────────────────
-@st.fragment
+@safe_fragment("体检结果")
 def result_board():
     results = st.session_state.get("scan_results")
 
@@ -249,9 +421,25 @@ def result_board():
 
     scan_time = st.session_state.get("scan_time", 0.0)
     scan_count = st.session_state.get("scan_count", len(results))
-    st.caption(f"共扫描 {scan_count} 只标的，耗时 {scan_time:.1f}s")
+    st.caption(f"共扫描 {scan_count} 只标的，耗时 {scan_time:.1f}s ｜ 综合分 = "
+               "技术面 30% · 资金面 25% · 财务健康 25% · 估值 20%")
 
-    # 表格（可排序）
+    # 概览指标：健康 / 关注 / 警惕 数量 + 平均综合分
+    comps = [r["composite"] for r in results if isinstance(r.get("composite"), (int, float))]
+    avg_comp = round(sum(comps) / len(comps), 1) if comps else None
+    n_high = sum(1 for r in results if r["priority"] == "HIGH")
+    n_watch = sum(1 for r in results if r["priority"] == "WATCH")
+    n_att = sum(1 for r in results if r["priority"] == "ATTENTION")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("🟢 高优先级", n_high)
+    m2.metric("🟡 关注", n_watch)
+    m3.metric("🔴 警惕", n_att)
+    m4.metric("平均综合分", f"{avg_comp}" if avg_comp is not None else "—")
+
+    def _fmt_score(v):
+        return f"{v:.0f}" if isinstance(v, (int, float)) else "—"
+
+    # 表格（可排序，含多维打分）
     rows = []
     for r in results:
         mn = r["main_net"]
@@ -259,26 +447,46 @@ def result_board():
             flow_txt = "—"
         else:
             s = fmt_money(mn)
-            flow_txt = (f"主力净流入 {s}" if (mn and mn > 0) else
-                        f"主力净流出 {s}" if (mn and mn < 0) else "主力持平")
-        reason = []
-        if r["names"]:
-            reason.append("形态：" + "/".join(r["names"]))
-        if mn is not None and s is not None and s != "0":
-            reason.append(flow_txt)
-        reason_txt = "；".join(reason) if reason else "无明显信号"
+            flow_txt = (f"净流入 {s}" if (mn and mn > 0) else
+                        f"净流出 {s}" if (mn and mn < 0) else "持平")
+        dims = r.get("dims", {})
         rows.append({
             "代码": r["code"],
             "名称": r["name"],
+            "综合分": r.get("composite") if isinstance(r.get("composite"), (int, float)) else None,
             "优先级": PRIORITY_LABEL[r["priority"]],
-            "命中原因": reason_txt,
+            "技术面": dims.get("技术面"),
+            "资金面": dims.get("资金面"),
+            "财务健康": dims.get("财务健康"),
+            "估值": dims.get("估值"),
             "主力净流入": flow_txt,
         })
     df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(
+        df, use_container_width=True, hide_index=True,
+        column_config={
+            "综合分": st.column_config.ProgressColumn(
+                "综合分", min_value=0, max_value=100, format="%.0f"),
+        },
+    )
 
-    # 卡片式待办列表（按优先级着色）
+    # 卡片式待办列表（按优先级着色 + 多维打分条）
     st.markdown("### 📋 优先待办清单")
+
+    def _dim_bar(label, v):
+        """单个维度的迷你评分条。"""
+        if not isinstance(v, (int, float)):
+            return (f'<div style="flex:1 1 0;min-width:110px;">'
+                    f'<div style="font-size:11px;color:#999;">{label} —</div>'
+                    f'<div style="height:6px;border-radius:3px;background:rgba(128,128,128,0.18);"></div></div>')
+        c = UP if v >= 65 else WATCH_COLOR if v >= 45 else DOWN
+        pct = max(0, min(100, v))
+        return (f'<div style="flex:1 1 0;min-width:110px;">'
+                f'<div style="font-size:11px;color:#888;">{label} '
+                f'<b style="color:{c};">{v:.0f}</b></div>'
+                f'<div style="height:6px;border-radius:3px;background:rgba(128,128,128,0.18);">'
+                f'<div style="width:{pct}%;height:6px;border-radius:3px;background:{c};"></div></div></div>')
+
     for r in results:
         color = {"HIGH": UP, "ATTENTION": DOWN, "WATCH": WATCH_COLOR}[r["priority"]]
         mn = r["main_net"]
@@ -293,14 +501,24 @@ def result_board():
         pat_html = ""
         if r["names"]:
             pat_html = "形态：" + " / ".join(r["names"])
+        comp = r.get("composite")
+        comp_html = ""
+        if isinstance(comp, (int, float)):
+            cc = UP if comp >= 65 else WATCH_COLOR if comp >= 45 else DOWN
+            comp_html = (f'<span style="background:{cc};color:#fff;padding:2px 10px;'
+                         f'border-radius:12px;font-size:12px;font-weight:700;margin-right:6px;">'
+                         f'综合 {comp:.0f}</span>')
+        dims = r.get("dims", {})
+        bars = "".join(_dim_bar(k, dims.get(k)) for k in ("技术面", "资金面", "财务健康", "估值"))
         card = f"""
         <div style="border-left:5px solid {color};border-radius:8px;
                     padding:10px 14px;margin:8px 0;background:rgba(128,128,128,0.08);">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="font-weight:700;font-size:15px;">{r['code']} {r['name']}</span>
-            <span style="background:{color};color:#fff;padding:2px 10px;border-radius:12px;font-size:12px;">{PRIORITY_LABEL[r['priority']]}</span>
+            <span>{comp_html}<span style="background:{color};color:#fff;padding:2px 10px;border-radius:12px;font-size:12px;">{PRIORITY_LABEL[r['priority']]}</span></span>
           </div>
-          <div style="margin-top:6px;font-size:13px;color:#888;">
+          <div style="display:flex;gap:12px;margin-top:10px;flex-wrap:wrap;">{bars}</div>
+          <div style="margin-top:8px;font-size:13px;color:#888;">
             {pat_html}{(' ｜ ' if pat_html and flow_html else '') + flow_html if (pat_html or flow_html) else '无明显信号'}
           </div>
         </div>

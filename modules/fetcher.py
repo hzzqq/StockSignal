@@ -1992,48 +1992,62 @@ class StockFetcher:
 
         返回 (df_or_None, error_or_None)。L1=akshare / L2=BaoStock / L3=新浪 / L4=东方财富。
         每个源独立在子线程中执行，先成功者胜出，避免「顺序降级逐个网络超时」的累加等待。
+        每个源调用均经 ``observe_source`` 记录成功率/耗时，供数据源健康度横幅使用。
         """
+        rename_map = {
+            "日期": "date", "开盘": "open", "收盘": "close",
+            "最高": "high", "最低": "low", "成交量": "volume",
+            "成交额": "amount", "涨跌幅": "change_pct",
+        }
         try:
             if level == "L1" and _AK_OK:
-                df = _retry_request(
-                    lambda: ak.stock_zh_a_hist(
-                        symbol=symbol, period="daily",
-                        start_date=start.replace("-", ""),
-                        end_date=end.replace("-", ""),
-                        adjust=adjust,
+                df = observe_source(
+                    "akshare",
+                    lambda: _retry_request(
+                        lambda: ak.stock_zh_a_hist(
+                            symbol=symbol, period="daily",
+                            start_date=start.replace("-", ""),
+                            end_date=end.replace("-", ""),
+                            adjust=adjust,
+                        ),
+                        max_retries=0,
                     ),
-                    max_retries=0,
                 )
-                if df is not None and not df.empty:
-                    df = df.rename(columns={
-                        "日期": "date", "开盘": "open", "收盘": "close",
-                        "最高": "high", "最低": "low", "成交量": "volume",
-                        "成交额": "amount", "涨跌幅": "change_pct",
-                    })
+                if df is not None:
+                    df = df.rename(columns=rename_map)
                     df["date"] = pd.to_datetime(df["date"])
                     return df, None
                 return None, "akshare: 无数据"
 
             if level == "L2":
-                df = _BaoStockFetcher.fetch_kline(symbol, start, end, adjust=adjust)
-                if df is not None and not df.empty:
+                df = observe_source(
+                    "baostock",
+                    lambda: _BaoStockFetcher.fetch_kline(symbol, start, end, adjust=adjust),
+                )
+                if df is not None:
                     return df, None
                 return None, "BaoStock: 无数据"
 
             if level == "L3":
-                df = _SinaFetcher.fetch_kline(symbol, start, end)
-                if df is not None and not df.empty:
+                df = observe_source(
+                    "sina",
+                    lambda: _SinaFetcher.fetch_kline(symbol, start, end),
+                )
+                if df is not None:
                     df = df[(df["date"] >= start) & (df["date"] <= end)]
                     if not df.empty:
                         return df, None
                 return None, "新浪: 日期范围外/无数据"
 
             if level == "L4":
-                df = _UrllibFetcher.fetch_kline(symbol, start, end, adjust=adjust)
-                if df is not None and not df.empty:
+                df = observe_source(
+                    "eastmoney",
+                    lambda: _UrllibFetcher.fetch_kline(symbol, start, end, adjust=adjust),
+                )
+                if df is not None:
                     return df, None
                 return None, "东方财富: 无数据"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return None, f"{level}: {type(e).__name__}"
         return None, f"{level}: 无数据"
 

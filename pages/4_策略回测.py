@@ -24,6 +24,7 @@ from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR, _is_dark, SF_GR
 from modules.search_ui import stock_search_input
 from modules.fetcher import StockFetcher
 from modules.session import require_auth, render_user_badge
+from modules.page_guard import safe_fragment
 
 # 鉴权门禁
 require_auth()
@@ -74,7 +75,7 @@ with st.expander("📖 策略方法论说明", expanded=False):
 # ==================================================================
 # 模块一：手动回测（独立于每日选股回测）
 # ==================================================================
-@st.fragment
+@safe_fragment("手动回测")
 def fragment_manual_backtest():
     st.subheader("回测参数")
 
@@ -366,7 +367,7 @@ def fragment_manual_backtest():
 # ==================================================================
 # 模块二：每日选股回测（重计算，独立 fragment）
 # ==================================================================
-@st.fragment
+@safe_fragment("每日选股回测")
 def fragment_daily_picker():
     st.markdown("---")
     st.subheader("📊 每日选股回测")

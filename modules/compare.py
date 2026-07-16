@@ -212,6 +212,7 @@ def _build_row(fetcher: Optional[StockFetcher], code: str, period_days: int) -> 
         row["resistance"] = None
 
     _fill_fundamentals(row, fetcher)
+    _fill_extra_metrics(row, fetcher)
     return row
 
 
@@ -340,6 +341,71 @@ def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> N
             row["core_business"] = None
     except Exception as e:  # noqa: BLE001
         print(f"[compare] 基本面获取失败 {row['code']}: {e}")
+
+
+def _fill_extra_metrics(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> None:
+    """新增对比维度：估值补充(PB/PS/股息率TTM)、财务(ROE/营收同比/净利同比)、
+    资金面(主力净流入/大单)。全部 best-effort，失败时留 None（前端渲染「—」）。"""
+    code = row.get("code", "")
+    for k in ("pb", "ps", "dv_ttm", "roe", "revenue_yoy", "profit_yoy",
+               "fund_main_net", "fund_main_net_pct", "fund_big_net",
+               "fund_source", "fund_date"):
+        row.setdefault(k, None)
+
+    # 估值补充：市净率 / 市销率 / 股息率(TTM) —— 复用与 PE 同源的百度估值接口
+    try:
+        import akshare as ak
+        for ind, key in (("市净率", "pb"), ("市销率", "ps"), ("股息率TTM", "dv_ttm")):
+            try:
+                df = ak.stock_zh_valuation_baidu(symbol=code, indicator=ind, period="近一年")
+                if df is not None and not df.empty:
+                    v = df.iloc[-1].get("value")
+                    try:
+                        row[key] = float(str(v).replace(",", ""))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # 财务：ROE / 营收同比 / 净利润同比 —— 同花顺财务指标
+    try:
+        import akshare as ak
+        df = ak.stock_financial_analysis_indicator(
+            symbol=code, start_year=str(_dt.datetime.now().year - 1))
+        if df is not None and not df.empty:
+            last = df.iloc[-1]
+
+            def _pick(*names):
+                for n in names:
+                    for col in df.columns:
+                        cn = col.replace(" ", "")
+                        if n.replace(" ", "") in cn:
+                            try:
+                                return float(str(last[col]).replace(",", ""))
+                            except Exception:
+                                return None
+                return None
+
+            row["roe"] = _pick("净资产收益率", "ROE")
+            row["revenue_yoy"] = _pick("营业收入同比增长率", "营收同比")
+            row["profit_yoy"] = _pick("净利润同比增长率", "净利润同比")
+    except Exception:
+        pass
+
+    # 资金面：个股主力资金（akshare 或量价估算兜底）
+    try:
+        from modules.fundflow import get_individual_fund_flow
+        r = get_individual_fund_flow(code)
+        if r:
+            row["fund_main_net"] = r.get("main_net")
+            row["fund_main_net_pct"] = r.get("main_net_pct")
+            row["fund_big_net"] = r.get("big_net")
+            row["fund_source"] = r.get("source")
+            row["fund_date"] = r.get("latest_date")
+    except Exception:
+        pass
 
 
 # =====================================================================
@@ -523,6 +589,34 @@ def _stock_bullets(r: Dict[str, Any]) -> List[str]:
     )
     # 4) 弹性/催化
     bullets.append(f"弹性 {_elasticity_label(elas)} · 催化 {_catalyst_tag(s.get('catalyst', 50))}")
+    # 4.5) 估值补充（PB/PS/股息率）
+    pb = r.get("pb"); ps = r.get("ps"); dv = r.get("dv_ttm")
+    if pb is not None or ps is not None or dv is not None:
+        parts = []
+        if pb is not None:
+            parts.append(f"PB {pb:.2f}")
+        if ps is not None:
+            parts.append(f"PS {ps:.2f}")
+        if dv is not None:
+            parts.append(f"股息率 {dv:.2f}%")
+        bullets.append("估值补充：" + " · ".join(parts))
+    # 4.6) 财务（ROE/营收同比/净利润同比）
+    roe = r.get("roe"); ry = r.get("revenue_yoy"); py = r.get("profit_yoy")
+    if roe is not None or ry is not None or py is not None:
+        parts = []
+        if roe is not None:
+            parts.append(f"ROE {roe:.1f}%")
+        if ry is not None:
+            parts.append(f"营收同比 {ry:.1f}%")
+        if py is not None:
+            parts.append(f"净利同比 {py:.1f}%")
+        bullets.append("财务：" + " · ".join(parts))
+    # 4.7) 资金面（主力净流入）
+    mn = r.get("fund_main_net"); mp = r.get("fund_main_net_pct")
+    if mn is not None:
+        yi = mn / 1e8
+        tag = "流入" if yi >= 0 else "流出"
+        bullets.append(f"主力资金{tag} {abs(yi):.2f}亿（{_fmt_pct(mp)}）")
     # 5) 价格/支撑压力
     if r.get("close") is not None:
         price = r["close"]
@@ -655,6 +749,18 @@ def build_table(rows: List[Dict[str, Any]]) -> str:
         f"{_fmt(r.get('core_business') or r.get('industry'))}</td>"
         for r in rows
     )
+    # 估值补充：市净率 / 市销率 / 股息率(TTM)
+    pb_cells = "".join(f"<td>{_fmt(r.get('pb'), is_num=True)}</td>" for r in rows)
+    ps_cells = "".join(f"<td>{_fmt(r.get('ps'), is_num=True)}</td>" for r in rows)
+    dv_cells = "".join(f"<td>{_fmt(r.get('dv_ttm'), is_num=True)}</td>" for r in rows)
+    # 财务：ROE / 营收同比 / 净利润同比
+    roe_cells = "".join(f"<td>{_fmt(r.get('roe'), is_num=True)}</td>" for r in rows)
+    rev_cells = "".join(f"<td>{_fmt(r.get('revenue_yoy'), is_num=True)}</td>" for r in rows)
+    pro_cells = "".join(f"<td>{_fmt(r.get('profit_yoy'), is_num=True)}</td>" for r in rows)
+    # 资金面：主力净流入(亿) / 主力占比 / 大单净流入(亿)
+    fund_cells = "".join(_fund_yi_cell(r, "fund_main_net") for r in rows)
+    fund_pct_cells = "".join(f"<td>{_fmt_pct(r.get('fund_main_net_pct'))}</td>" for r in rows)
+    fund_big_cells = "".join(_fund_yi_cell(r, "fund_big_net") for r in rows)
     # 业务关联度 / 订单催化 / 弹性 / 综合 / 信号
     corr_cells = "".join(f"<td>{_corr_tag(r.get('business_corr', 0.0))}</td>" for r in rows)
     cat_cells = "".join(f"<td>{_catalyst_tag(r.get('catalyst', 50))}</td>" for r in rows)
@@ -670,6 +776,15 @@ def build_table(rows: List[Dict[str, Any]]) -> str:
     <tr><td class="l">总市值</td>{cap_cells}</tr>
     <tr><td class="l">TTM 市盈率</td>{pe_cells}</tr>
     <tr><td class="l">核心业务</td>{biz_cells}</tr>
+    <tr><td class="l">市净率 PB</td>{pb_cells}</tr>
+    <tr><td class="l">市销率 PS</td>{ps_cells}</tr>
+    <tr><td class="l">股息率(TTM)</td>{dv_cells}</tr>
+    <tr><td class="l">ROE(%)</td>{roe_cells}</tr>
+    <tr><td class="l">营收同比(%)</td>{rev_cells}</tr>
+    <tr><td class="l">净利润同比(%)</td>{pro_cells}</tr>
+    <tr><td class="l">主力净流入(亿)</td>{fund_cells}</tr>
+    <tr><td class="l">主力占比</td>{fund_pct_cells}</tr>
+    <tr><td class="l">大单净流入(亿)</td>{fund_big_cells}</tr>
     <tr><td class="l">业务关联度</td>{corr_cells}</tr>
     <tr><td class="l">订单 / 催化</td>{cat_cells}</tr>
     <tr><td class="l">弹性特征</td>{elas_cells}</tr>
@@ -679,8 +794,45 @@ def build_table(rows: List[Dict[str, Any]]) -> str:
 </table>
 <div class="note">注：核心业务 = 同花顺主营构成（主营业务/主营产品），更贴近个股真实业务；
 获取失败时回退显示行业标签。业务关联度 = 与同组其它股票基于行业归属的业务相似度均值（同行业最高、同一大类次之）；
-订单/催化、弹性为基于量价与技术形态的启发式代理指标；基本面（总市值/市盈率）来自东方财富行情接口，
-获取失败显示「—」。综合评分为趋势/动量/量能/形态四维加权，仅供研究参考。</div>
+订单/催化、弹性为基于量价与技术形态的启发式代理指标；估值补充（PB/PS/股息率TTM）来自百度估值接口，
+财务（ROE/营收同比/净利润同比）来自同花顺财务指标，资金面（主力净流入/大单）来自东方财富个股主力资金（失败则量价估算兜底），
+获取失败显示「—」，净流入/大单为正显示红色（流入）、为负显示绿色（流出）。综合评分为趋势/动量/量能/形态四维加权，仅供研究参考。</div>
+"""
+
+
+def build_extra_card(rows: List[Dict[str, Any]]) -> str:
+    """新增维度专卡：估值补充 / 财务 / 资金面，密集横向对比（与主表互补）。"""
+    head = "<th>维度</th>" + "".join(
+        f'<th>{r["name"]}<br>{r["code"]}</th>' for r in rows)
+    pb = "".join(f"<td>{_fmt(r.get('pb'), is_num=True)}</td>" for r in rows)
+    ps = "".join(f"<td>{_fmt(r.get('ps'), is_num=True)}</td>" for r in rows)
+    dv = "".join(f"<td>{_fmt(r.get('dv_ttm'), is_num=True)}</td>" for r in rows)
+    roe = "".join(f"<td>{_fmt(r.get('roe'), is_num=True)}</td>" for r in rows)
+    rev = "".join(f"<td>{_fmt(r.get('revenue_yoy'), is_num=True)}</td>" for r in rows)
+    pro = "".join(f"<td>{_fmt(r.get('profit_yoy'), is_num=True)}</td>" for r in rows)
+    fund = "".join(_fund_yi_cell(r, "fund_main_net") for r in rows)
+    fp = "".join(f"<td>{_fmt_pct(r.get('fund_main_net_pct'))}</td>" for r in rows)
+    big = "".join(_fund_yi_cell(r, "fund_big_net") for r in rows)
+    return f"""
+<div class="card">
+  <h2>估值 · 财务 · 资金面（新增维度）</h2>
+  <table>
+    <thead><tr>{head}</tr></thead>
+    <tbody>
+      <tr><td class="l">市净率 PB</td>{pb}</tr>
+      <tr><td class="l">市销率 PS</td>{ps}</tr>
+      <tr><td class="l">股息率(TTM)</td>{dv}</tr>
+      <tr><td class="l">ROE(%)</td>{roe}</tr>
+      <tr><td class="l">营收同比(%)</td>{rev}</tr>
+      <tr><td class="l">净利润同比(%)</td>{pro}</tr>
+      <tr><td class="l">主力净流入(亿)</td>{fund}</tr>
+      <tr><td class="l">主力占比</td>{fp}</tr>
+      <tr><td class="l">大单净流入(亿)</td>{big}</tr>
+    </tbody>
+  </table>
+  <div class="note">估值补充来自百度估值（市净率/市销率/股息率TTM）；财务指标来自同花顺财务指标（ROE/营收同比/净利润同比）；
+  资金面来自东方财富个股主力资金（失败则量价估算兜底），净流入/大单为正显示红色（流入）、为负显示绿色（流出）。数据缺失显示「—」。</div>
+</div>
 """
 
 
@@ -693,6 +845,31 @@ def _fmt(v, is_num: bool = False):
         except Exception:
             return str(v)
     return str(v)
+
+
+def _fmt_pct(v):
+    """主力占比等百分比：兼容「百分比数字(0-100)」与「小数(0-1)」两种输入。"""
+    if v is None:
+        return "—"
+    try:
+        f = float(str(v).replace(",", ""))
+    except Exception:
+        return str(v)
+    s = f * 100 if abs(f) < 1.6 else f
+    return f"{s:.2f}%"
+
+
+def _fund_yi_cell(r, key: str) -> str:
+    """主力/大单净流入：元 → 亿元，红涨(流入)/绿跌(流出)。"""
+    v = r.get(key)
+    if v is None:
+        return "<td>—</td>"
+    try:
+        yi = float(str(v).replace(",", "")) / 1e8
+    except Exception:
+        return "<td>—</td>"
+    cls = "up" if yi >= 0 else "down"
+    return f'<td class="{cls}">{yi:,.2f}</td>'
 
 
 def build_vs_cards(rows: List[Dict[str, Any]]) -> str:
@@ -890,6 +1067,7 @@ METHODS = {
     "价值": "聚焦市盈率(TTM)、市值与基本面，挖掘低估标的。",
     "板块": "聚焦组内业务关联度，识别同板块/同产业链核心标的。",
     "业绩": "聚焦订单催化与盈利质量（催化代理分）。",
+    "资金": "聚焦个股主力资金净流入与主力占比，识别资金 actively 流入的标的。",
     "政策": "聚焦政策敏感行业（半导体/新能源/医药/消费等）与事件导向。",
     "宏观": "聚焦价格弹性（波动率），衡量对宏观与大盘的敏感度。",
     "微观": "聚焦技术面微观结构（均线排列/趋势强度）。",
@@ -992,13 +1170,23 @@ def compute_method_scores(rows: List[Dict[str, Any]], method: str,
                 for i, r in enumerate(rows)}
     if method == "价值":
         pes = [(_safe(r.get("pe_ttm")) if r.get("pe_ttm") else 200.0) for r in rows]
+        pbs = [(_safe(r.get("pb")) if r.get("pb") else 20.0) for r in rows]
+        dvs = [(_safe(r.get("dv_ttm")) if r.get("dv_ttm") else 0.0) for r in rows]
         pe_inv = _norm([200 - p for p in pes])           # 低 PE → 高分
-        caps = _norm([_safe(r.get("market_cap")) for r in rows])
-        return {r["code"]: 0.60 * pe_inv[i] + 0.40 * caps[i]
+        pb_inv = _norm([20 - p for p in pbs])           # 低 PB → 高分
+        dv_norm = _norm(dvs)                            # 高股息 → 高分
+        return {r["code"]: 0.45 * pe_inv[i] + 0.30 * pb_inv[i] + 0.25 * dv_norm[i]
                 for i, r in enumerate(rows)}
     if method == "板块":
         biz = [min(100.0, _safe(r.get("business_corr")) * 1.4 + 30) for r in rows]
         return {r["code"]: biz[i] for i, r in enumerate(rows)}
+    if method == "资金":
+        nets = [(_safe(r.get("fund_main_net")) if r.get("fund_main_net") is not None else 50.0)
+                 for r in rows]
+        if all(n == 50.0 for n in nets):
+            return {r["code"]: 50.0 for r in rows}
+        norm = _norm(nets)
+        return {r["code"]: norm[i] for i, r in enumerate(rows)}
     if method == "业绩":
         cat = [_safe(r.get("catalyst", 50)) for r in rows]
         return {r["code"]: cat[i] for i, r in enumerate(rows)}
@@ -1036,6 +1224,12 @@ def _method_summary(rows: List[Dict[str, Any]], method: str,
         return (f'在事件「{event or ""}」下，<b>{top[0]["name"]}</b>业务关联度最高'
                 f'（{top[1]:.0f}，{top[2]}），为最直接受影响标的；'
                 f'其余标的关联度依次递减，应区别对待。')
+    if method == "资金":
+        inflows = [r for r in rows if (r.get("fund_main_net") or 0) >= 0]
+        top = ranked[0]
+        return (f'在【资金】视角下，<b>{top["name"]}</b>（{bs:.0f}分）主力净流入表现最突出，'
+                f'组内 {len(inflows)}/{len(rows)} 只呈主力净流入；'
+                f'建议优先关注主力持续流入且信号为「买入/持有」的标的，警惕主力大幅流出个股。')
     return (f'在【{method}】视角下，<b>{best["name"]}</b>（{bs:.0f}分）相对占优，'
             f'<b>{worst["name"]}</b>（{ws:.0f}分）偏弱；'
             f'建议优先关注排名靠前且信号为「买入/持有」的标的。')
@@ -1051,8 +1245,9 @@ def _method_analysis(method: str, scores: Dict[str, float],
     focus = {
         "短期": "动量、量能与近期涨跌幅",
         "长期": "趋势强度、形态稳定性与波动率",
-        "价值": "市盈率(TTM)、总市值与估值安全边际",
+        "价值": "市盈率(TTM)、总市值、市净率与股息率",
         "板块": "组内业务关联度与板块共振",
+        "资金": "主力资金净流入与主力占比",
         "业绩": "订单催化与盈利质量代理分",
         "政策": "政策敏感行业属性与题材导向",
         "宏观": "价格弹性（波动率）与大盘敏感度",
@@ -1069,13 +1264,31 @@ def _method_analysis(method: str, scores: Dict[str, float],
         if method == "价值":
             cap = r.get("market_cap")
             pe = r.get("pe_ttm")
-            return f"市值{cap:.0f}亿 / TTM{pe:.1f}" if cap and pe else "估值数据未获取"
+            pb = r.get("pb")
+            dv = r.get("dv_ttm")
+            parts = []
+            if cap:
+                parts.append(f"市值{cap:.0f}亿")
+            if pe:
+                parts.append(f"PE {pe:.1f}")
+            if pb:
+                parts.append(f"PB {pb:.2f}")
+            if dv:
+                parts.append(f"股息{dv:.2f}%")
+            return " / ".join(parts) if parts else "估值数据未获取"
         if method == "板块":
             return f"业务关联度 {_safe(r.get('business_corr'), 0):.0f}"
         if method == "业绩":
             return f"催化分 {_safe(r.get('catalyst', 50), 0):.0f}"
         if method == "宏观":
             return f"年化弹性 {_safe(r.get('elasticity'), 0):.0f}%"
+        if method == "资金":
+            mn = r.get("fund_main_net")
+            mp = r.get("fund_main_net_pct")
+            if mn is not None:
+                yi = mn / 1e8
+                return f"主力净流入 {yi:.2f}亿（{_fmt_pct(mp)}）"
+            return "资金数据未获取"
         if method == "微观":
             return f"趋势{s.get('trend', 0):.0f} / 动量{s.get('momentum', 0):.0f}"
         if method == "事件":
@@ -1138,8 +1351,30 @@ def _method_vs_box(r: Dict[str, Any], other: Dict[str, Any], method: str,
     elif method == "价值":
         cap = r.get("market_cap")
         pe = r.get("pe_ttm")
-        lis.append(f"总市值 <b>{cap:.0f}亿</b>" if cap else "总市值未获取")
-        lis.append(f"TTM市盈率 <b>{pe:.1f}</b>" if pe else "TTM市盈率未获取")
+        pb = r.get("pb")
+        dv = r.get("dv_ttm")
+        if cap:
+            lis.append(f"总市值 <b>{cap:.0f}亿</b>")
+        else:
+            lis.append("总市值未获取")
+        if pe:
+            lis.append(f"TTM市盈率 <b>{pe:.1f}</b>")
+        else:
+            lis.append("TTM市盈率未获取")
+        if pb:
+            lis.append(f"市净率 <b>{pb:.2f}</b>")
+        if dv is not None:
+            lis.append(f"股息率 <b>{dv:.2f}%</b>")
+    elif method == "资金":
+        mn = r.get("fund_main_net")
+        mp = r.get("fund_main_net_pct")
+        if mn is not None:
+            yi = mn / 1e8
+            lis.append(f"主力净流入 <b>{yi:.2f}亿</b>（{_fmt_pct(mp)}）")
+        else:
+            lis.append("主力资金数据未获取")
+        sig = r.get("signal", "持有")
+        lis.append(f"信号 <b>{sig}</b>")
     elif method == "板块":
         lis.append(f"业务关联度 <b>{_safe(r.get('business_corr'), 0):.0f}</b>")
         lis.append(f"行业 <b>{r.get('industry') or '未知行业'}</b>")
@@ -1183,8 +1418,9 @@ def _method_pair_conclusion(a: Dict[str, Any], b: Dict[str, Any], method: str,
     focus = {
         "短期": "动量、量能与近期涨跌幅",
         "长期": "趋势强度、形态稳定性与波动率",
-        "价值": "市盈率(TTM)、总市值与估值安全边际",
+        "价值": "市盈率(TTM)、总市值、市净率与股息率",
         "板块": "组内业务关联度与板块共振",
+        "资金": "主力资金净流入与主力占比",
         "业绩": "订单催化与盈利质量代理分",
         "政策": "政策敏感行业属性与题材导向",
         "宏观": "价格弹性（波动率）与大盘敏感度",

@@ -21,6 +21,7 @@ from modules.session import require_auth, render_user_badge, safe_switch_page, a
 from modules.fundflow import get_industry_fund_flow, get_individual_fund_flow
 from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
+from modules.page_guard import safe_fragment
 
 apply_page_config(page_title="智能盯盘", page_icon="👁️", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -196,8 +197,58 @@ def _fetch_watchlist():
     return out, None
 
 
+def _fetch_watchlist_full():
+    """抓取自选股完整列表（含 id / note），供关注列表管理面板使用。"""
+    try:
+        sc, body = api_get("/api/watchlist", timeout=10)
+    except Exception as e:
+        return None, f"网络错误: {e}"
+    if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
+        return [], f"加载自选股失败（code={sc}）。"
+    items = []
+    for it in (body.get("data", []) or []):
+        if not isinstance(it, dict):
+            continue
+        code = it.get("stock_code") or it.get("code")
+        if not code:
+            continue
+        items.append({
+            "id": it.get("id"),
+            "code": str(code),
+            "name": it.get("stock_name") or it.get("name") or str(code),
+            "note": it.get("note") or "",
+        })
+    return items, None
+
+
+def _grade_chg(chg):
+    """异动分级：|涨跌幅| ≥7% 强 / ≥3% 中 / 其余 弱。返回 (tier, color, label)。"""
+    try:
+        a = abs(float(chg))
+    except Exception:
+        return "weak", "#888888", "弱"
+    if a >= 7:
+        return ("strong", UP if chg > 0 else DOWN, "强")
+    if a >= 3:
+        return ("mid", UP if chg > 0 else DOWN, "中")
+    return ("weak", "#888888", "弱")
+
+
+def _grade_net(net):
+    """资金异动分级：|净额| ≥5亿 强 / ≥1亿 中 / 其余 弱。返回 (tier, color, label)。"""
+    try:
+        v = abs(float(net))
+    except Exception:
+        return "weak", "#888888", "弱"
+    if v >= 5e8:
+        return ("strong", UP if net > 0 else DOWN, "强")
+    if v >= 1e8:
+        return ("mid", UP if net > 0 else DOWN, "中")
+    return ("weak", "#888888", "弱")
+
+
 # ───────────────────────── 1. 板块资金异动 ─────────────────────────
-@st.fragment
+@safe_fragment("板块资金异动")
 def fragment_sector():
     st.markdown("### 🏭 板块资金异动")
     if st_autorefresh is not None and _in_trading_hours():
@@ -257,9 +308,15 @@ def fragment_sector():
 
 
 # ───────────────────────── 2. 自选股涨跌榜 ─────────────────────────
-@st.fragment
+@safe_fragment("自选股涨跌榜")
 def fragment_watchlist():
     st.markdown("### 📈 自选股涨跌榜")
+    # ── 自定义筛选 ──
+    fq, frng, falert = st.columns([2, 2, 1])
+    wl_q = fq.text_input("🔍 名称/代码筛选", value="", key="wl_filter_q", placeholder="留空=全部")
+    wl_rng = frng.slider("涨跌%范围", -10.0, 10.0, (-10.0, 10.0), 0.5, key="wl_filter_rng")
+    wl_only_alert = falert.checkbox("仅看预警", value=False, key="wl_only_alert",
+                                          help="只显示触发涨跌异动阈值（预警页设置）的标的。")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, key="wl_auto")
 
@@ -305,8 +362,19 @@ def fragment_watchlist():
     df = pd.DataFrame(rows)
     df = df.sort_values("涨跌%", ascending=False, na_position="last").reset_index(drop=True)
 
+    # ── 应用自定义筛选 ──
+    if wl_q:
+        q = wl_q.strip().lower()
+        df = df[df.apply(
+            lambda r: (q in str(r["代码"]).lower()) or (q in str(r["名称"]).lower()), axis=1)]
+    lo, hi = wl_rng
+    df = df[(df["涨跌%"].fillna(-999) >= lo) & (df["涨跌%"].fillna(999) <= hi)]
+    if wl_only_alert:
+        thr = float(st.session_state.get("smart_alert_threshold", 3.0))
+        df = df[df["涨跌%"].fillna(0).abs() >= thr]
+
     if df.empty:
-        st.info("暂无行情数据。")
+        st.info("筛选后无匹配标的（可放宽筛选条件）。")
         return
 
     try:
@@ -340,9 +408,13 @@ def fragment_watchlist():
 
 
 # ───────────────────────── 3. 个股资金流异动 ─────────────────────────
-@st.fragment
+@safe_fragment("个股资金流异动")
 def fragment_individual_ff():
     st.markdown("### 💰 个股资金流异动")
+    # ── 自定义筛选 ──
+    d1, d2 = st.columns([2, 1])
+    iff_dir = d1.selectbox("资金方向", ["全部", "仅净流入", "仅净流出"], index=0, key="iff_dir")
+    iff_strong = d2.checkbox("仅看强异动(≥1亿)", value=False, key="iff_strong")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, key="iff_auto")
 
@@ -389,6 +461,15 @@ def fragment_individual_ff():
         return
 
     valid = valid.sort_values("主力净流入(亿)", ascending=False).reset_index(drop=True)
+    if iff_dir == "仅净流入":
+        valid = valid[valid["主力净流入(亿)"] > 0]
+    elif iff_dir == "仅净流出":
+        valid = valid[valid["主力净流入(亿)"] < 0]
+    if iff_strong:
+        valid = valid[valid["主力净流入(亿)"].abs() >= 1.0]
+    if valid.empty:
+        st.info("按当前筛选条件无匹配标的。")
+        return
     top_in = valid.head(5)
     top_out = valid.sort_values("主力净流入(亿)").head(5)
 
@@ -418,7 +499,7 @@ def fragment_individual_ff():
 
 
 # ───────────────────────── 4. 预警触发 ─────────────────────────
-@st.fragment
+@safe_fragment("预警触发扫描")
 def fragment_alerts():
     st.markdown("### 🚨 预警触发（规则扫描）")
     if st_autorefresh is not None and _in_trading_hours():
@@ -462,33 +543,40 @@ def fragment_alerts():
         name = names.get(code) or fetcher.get_stock_name(code) or code
         # 涨跌异动
         if chg is not None and abs(chg) >= threshold:
+            tier, color, label = _grade_chg(chg)
             alerts.append({
                 "类型": "异动预警",
                 "代码": code,
                 "名称": name,
-                "说明": f"涨跌 {chg:+.2f}% ≥ 阈值 {threshold:.1f}%",
-                "severity": "up" if chg > 0 else "down",
+                "说明": f"涨跌 {chg:+.2f}% ≥ 阈值 {threshold:.1f}%（{label}）",
+                "tier": tier, "color": color,
             })
         # 资金异动
         r = ff_map.get(code, {})
         main_net = r.get("main_net")
         if isinstance(main_net, (int, float)) and abs(main_net) >= MAIN_NET_STRONG:
+            tier, color, label = _grade_net(main_net)
             alerts.append({
                 "类型": "资金异动",
                 "代码": code,
                 "名称": name,
-                "说明": f"主力{'净流入' if main_net > 0 else '净流出'} {_fmt_yi(main_net)}",
-                "severity": "up" if main_net > 0 else "down",
+                "说明": f"主力{'净流入' if main_net > 0 else '净流出'} {_fmt_yi(main_net)}（{label}）",
+                "tier": tier, "color": color,
             })
 
     if not alerts:
         st.success("当前无触发预警 ✅（阈值 ±%.1f%%，主力强异动阈值 %s）" % (threshold, _fmt_yi(MAIN_NET_STRONG)))
         return
 
-    st.warning(f"共触发 {len(alerts)} 条预警：")
+    from collections import Counter
+    cnt = Counter(a["tier"] for a in alerts)
+    st.warning(
+        f"共触发 {len(alerts)} 条预警："
+        f"🔴 强 {cnt.get('strong', 0)} ｜ 🟡 中 {cnt.get('mid', 0)} ｜ 🟢 弱 {cnt.get('weak', 0)}"
+    )
     for a in alerts:
-        color = UP if a["severity"] == "up" else DOWN
-        icon = "🔴" if a["severity"] == "up" else "🟢"
+        color = a["color"]
+        icon = {"strong": "🔴", "mid": "🟡", "weak": "🟢"}[a["tier"]]
         st.markdown(
             f'<div style="border-left:4px solid {color};background:rgba(128,128,128,0.08);'
             f'padding:8px 12px;margin:6px 0;border-radius:6px;">'
@@ -498,7 +586,76 @@ def fragment_alerts():
         )
 
 
+# ───────────────────────── 0. 我的关注列表（管理） ─────────────────────────
+@safe_fragment("关注列表")
+def fragment_watch_manage():
+    st.markdown("### ⭐ 我的关注列表")
+    items, err = _fetch_watchlist_full()
+    if err is not None:
+        st.error(err)
+        return
+    # 添加关注
+    a1, a2 = st.columns([3, 1])
+    add_q = a1.text_input("➕ 添加关注（6 位代码）", value="", key="wl_add_q",
+                              placeholder="如 600519")
+    if a2.button("添加", key="wl_add_btn", use_container_width=True):
+        raw = (add_q or "").strip()
+        if not raw:
+            st.warning("请输入代码")
+        elif raw.isdigit():
+            code = raw.zfill(6)
+            sc, body = api_post("/api/watchlist", payload={"stock_code": code})
+            if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
+                st.toast(f"已添加 {code}")
+            else:
+                st.error(f"添加失败（{sc}）")
+        else:
+            st.warning("请输入 6 位数字代码（如 600519）")
+    if not items:
+        st.info("自选股为空，可在「形态选股」或行情看板添加关注。")
+        if st.button("➡️ 去形态选股添加", key="wm_empty_go"):
+            safe_switch_page("pages/B_形态选股.py")
+        return
+    st.caption(f"共 {len(items)} 只关注 · 实时涨跌 + 跳转 / 移除")
+
+    # 实时涨跌 + 跳转 / 移除
+    codes = [it["code"] for it in items]
+    with st.spinner(f"获取 {len(codes)} 只实时行情…"):
+        quotes = {}
+        try:
+            with cf.ThreadPoolExecutor(max_workers=4) as ex:
+                for code, q in ex.map(_quote_one, codes):
+                    quotes[code] = q
+        except Exception:
+            quotes = {}
+    for it in items:
+        code = it["code"]
+        q = quotes.get(code)
+        cur, chg, _, _ = _quote_fields(q)
+        c1, c2, c3, c4, c5 = st.columns([1.3, 1.5, 1, 1, 1])
+        c1.write(f"`{code}`")
+        c2.write(it["name"])
+        cc = UP if (chg or 0) > 0 else (DOWN if (chg or 0) < 0 else "#888888")
+        c3.markdown(
+            f"<span style='color:{cc};font-weight:600;'>{chg:+.2f}%</span>" if chg is not None
+            else "—", unsafe_allow_html=True)
+        if c4.button("跳转", key=f"wm_go_{code}"):
+            st.session_state["pick_stock_confirmed"] = code
+            st.session_state["pick_stock_query"] = code
+            safe_switch_page("pages/个股研究.py")
+        if c5.button("移除", key=f"wm_rm_{code}"):
+            wid = it.get("id")
+            if wid is not None:
+                dc, _ = api_delete(f"/api/watchlist/{wid}")
+                if dc == 200:
+                    st.toast(f"已移除 {code}")
+                else:
+                    st.error(f"移除失败（{dc}）")
+
+
 # ───────────────────────── 页面主体 ─────────────────────────
+fragment_watch_manage()
+st.markdown("---")
 fragment_sector()
 st.markdown("---")
 fragment_watchlist()

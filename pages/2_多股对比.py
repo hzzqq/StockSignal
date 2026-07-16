@@ -20,7 +20,7 @@ from modules.compare import (
     fetch_compare, compare_css, build_header, build_one_line,
     build_table, build_pairwise_card, build_radar, build_radar_right,
     build_action_plan, build_footer, METHODS,
-    build_method_card, build_aggregate_card,
+    build_method_card, build_aggregate_card, build_extra_card,
 )
 
 require_auth()
@@ -144,6 +144,9 @@ def fragment_compare_result():
     with c2:
         st.markdown(build_radar_right(rows), unsafe_allow_html=True)
 
+    # ── 新增维度：估值 · 财务 · 资金面 ──
+    st.markdown(build_extra_card(rows), unsafe_allow_html=True)
+
     # ── 两两对比选择器 + 选中 pair 卡片 ──
     if len(rows) >= 2:
         pairs = [(rows[i], rows[j]) for i in range(len(rows)) for j in range(i + 1, len(rows))]
@@ -170,8 +173,8 @@ def fragment_compare_result():
         options=list(METHODS.keys()),
         index=0,
         horizontal=True,
-        help="短期=动量量能；长期=趋势稳定；价值=低估；板块=业务关联度；业绩=催化；"
-             "政策=政策敏感；宏观=弹性；微观=技术结构；事件=输入事件看利好利空。",
+        help="短期=动量量能；长期=趋势稳定；价值=低估(PB/股息)；板块=业务关联度；业绩=催化；"
+             "政策=政策敏感；宏观=弹性；微观=技术结构；资金=主力净流入；事件=输入事件看利好利空。",
     )
     event_text = ""
     if method == "事件":
