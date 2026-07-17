@@ -26,6 +26,46 @@ from .utils.response import fail
 from .utils.errors import ApiError
 
 
+def _enable_sqlite_concurrency(app: Flask) -> None:
+    """针对 SQLite 配置并发友好的连接参数，从根本消除多用户并发写入导致的
+    「database is locked / 接口堵塞」。
+
+    做法：
+      - WAL 日志模式：允许并发读 + 单写互不阻塞（读永不等待写）。
+      - busy_timeout=30s：写冲突时等待而非立即报错。
+      - synchronous=NORMAL：WAL 下兼顾性能与安全的推荐档。
+      - 每个请求结束 db.session.remove()：连接及时归还连接池，避免高并发占满。
+    仅对文件型 SQLite 生效；内存库/其他数据库自动跳过，不影响单元测试。
+    """
+    from sqlalchemy import event
+
+    uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+    if not uri.startswith("sqlite"):
+        return
+    if uri.startswith("sqlite:///:memory:"):
+        return  # 内存库每连接独立，WAL 无意义
+
+    # db.engine 必须在应用上下文内访问（FSA 3.x 要求），否则报
+    # "Working outside of application context"
+    with app.app_context():
+        engine = db.engine
+
+        @event.listens_for(engine, "connect")
+        def _set_sqlite_pragma(dbapi_con, con_record):  # noqa: ANN001
+            cur = dbapi_con.cursor()
+            try:
+                cur.execute("PRAGMA journal_mode=WAL")
+                cur.execute("PRAGMA busy_timeout=30000")
+                cur.execute("PRAGMA synchronous=NORMAL")
+                cur.execute("PRAGMA foreign_keys=ON")
+            finally:
+                cur.close()
+
+    @app.teardown_appcontext
+    def _close_db_session(exc=None):  # noqa: ANN001
+        db.session.remove()
+
+
 def create_app(config_object: type = Config) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config_object)
@@ -33,6 +73,9 @@ def create_app(config_object: type = Config) -> Flask:
     # ---- 扩展 ----
     db.init_app(app)
     CORS(app, resources={r"/api/*": {"origins": app.config.get("CORS_ORIGINS", "*")}})
+
+    # ---- 多用户并发：SQLite 启用 WAL + busy_timeout，并归还连接 ----
+    _enable_sqlite_concurrency(app)
 
     # ---- 蓝图 ----
     from .auth.routes import bp as auth_bp

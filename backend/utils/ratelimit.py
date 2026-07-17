@@ -15,6 +15,7 @@ backend/utils/ratelimit.py
 """
 from __future__ import annotations
 
+import threading
 import time
 from collections import deque
 from typing import Dict, Deque
@@ -23,6 +24,8 @@ from flask import current_app
 
 # 进程内存储：key -> 时间戳双端队列（单调递增时钟）
 _store: Dict[str, Deque[float]] = {}
+# 多用户并发登录时，多个线程会同时读写 _store；用锁保护避免竞态（丢计数 / RuntimeError）
+_lock = threading.Lock()
 
 
 def _enabled() -> bool:
@@ -58,32 +61,35 @@ def is_allowed(key: str) -> bool:
 
     now = time.monotonic()
     win = _window()
-    dq = _store.get(key)
-    if dq is None:
-        dq = deque()
-        _store[key] = dq
+    with _lock:
+        dq = _store.get(key)
+        if dq is None:
+            dq = deque()
+            _store[key] = dq
 
-    # 清掉窗口外的时间戳
-    while dq and now - dq[0] > win:
-        dq.popleft()
+        # 清掉窗口外的时间戳
+        while dq and now - dq[0] > win:
+            dq.popleft()
 
-    if len(dq) >= _max():
-        return False
+        if len(dq) >= _max():
+            return False
 
-    dq.append(now)
-    return True
+        dq.append(now)
+        return True
 
 
 def reset_rate_limit() -> None:
     """清空全部计数（测试接缝）。"""
-    _store.clear()
+    with _lock:
+        _store.clear()
 
 
 def get_hit_count(key: str) -> int:
     """返回当前窗口内某 key 的命中次数（测试接缝）。"""
     now = time.monotonic()
     win = _window()
-    dq = _store.get(key)
-    if not dq:
-        return 0
-    return sum(1 for t in dq if now - t <= win)
+    with _lock:
+        dq = _store.get(key)
+        if not dq:
+            return 0
+        return sum(1 for t in dq if now - t <= win)

@@ -337,6 +337,7 @@ def main():
     be_err = os.path.join(LOGS_DIR, f"sim_backend_{args.be}.err")
     be_args = [
         "-m", "flask", "--app", "backend.app:app", "run",
+        "--with-threads",
         "--host", "127.0.0.1", "--port", str(args.be),
     ]
     fe_log = os.path.join(LOGS_DIR, f"sim_frontend_{args.fe}.log")

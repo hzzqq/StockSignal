@@ -34,6 +34,20 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # 数据库引擎选项（多用户并发关键配置）
+    # - check_same_thread=False：允许连接池跨线程复用（Flask 多线程处理并发请求必须）
+    # - timeout=30：SQLite 锁等待 30s，配合下方 WAL 的 busy_timeout 彻底避免
+    #   "database is locked" 导致接口报错/堵塞
+    # - pool_pre_ping / pool_recycle：自动剔除失效连接，避免隔夜连接僵死占用池
+    # - pool_size / max_overflow：并发连接上限（局域网/实训多账号场景足够）
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": 280,
+        "pool_size": 10,
+        "max_overflow": 20,
+        "connect_args": {"check_same_thread": False, "timeout": 30},
+    }
+
     # CORS（开发态默认放行所有，方便 Streamlit 联调；生产请收紧）
     CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
 
