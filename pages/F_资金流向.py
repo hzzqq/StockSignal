@@ -141,8 +141,15 @@ def fragment_northbound():
         df["资金净流入"] = pd.to_numeric(df["资金净流入"], errors="coerce")
         df["指数涨跌幅"] = pd.to_numeric(df["指数涨跌幅"], errors="coerce")
         st.dataframe(df, use_container_width=True, hide_index=True)
+    # 北向净买额数据源说明（东方财富自 2024-08 起停止披露实时北向净买额）
+    if not nb.get("northbound_net_available"):
+        st.info("⚠️ 北向资金净买额（沪股通 / 深股通 / 北向合计）当前数据源（东方财富）未提供实时数值——"
+                "自 2024-08 起该接口净买额长期为 0。上方「—」表示数据缺失，并非应用错误；"
+                "下方板块的涨跌家数 / 指数涨跌幅 仍为实时真实数据（港股通南向净买额亦为真实值）。",
+                icon="ℹ️")
+    else:
         if df["资金净流入"].abs().sum() == 0:
-            st.caption("提示：当前交易日北向资金数据可能为 0（休市 / 尚未披露 / 数据待更新）。")
+            st.caption("提示：当前交易日北向资金净买额为 0（休市 / 尚未披露）。")
 
 
 # ───────────────────────── 行业板块资金流向 ─────────────────────────
@@ -221,7 +228,8 @@ def fragment_market():
         **_fig_layout(dark), height=360,
         title="主力净流入（柱）与上证涨跌幅（线）",
         yaxis2=dict(title="涨跌幅%", overlaying="y", side="right", gridcolor="rgba(0,0,0,0)"),
-        legend=dict(orientation="h", y=1.12),
+        margin=dict(l=60, r=60, t=50, b=90),
+        legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"),
     )
     fig.update_xaxes(tickangle=-45)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
@@ -245,7 +253,7 @@ def fragment_individual():
     if r.get("source") == "none" or r.get("main_net") is None:
         st.warning("该股主力资金数据暂不可用（接口受限或缺少历史）。")
         return
-    name = fetcher.get_stock_name(code) or code
+    name = fetcher.get_name_only(code)
     st.markdown(f"**{name}** `{code}` ｜ 数据日期：{r.get('latest_date')} ｜ "
                 f"来源：{'实时(东方财富)' if r.get('source')=='akshare' else '估算(量价模型)'}")
     cols = st.columns(3)

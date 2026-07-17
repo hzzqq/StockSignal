@@ -734,7 +734,7 @@ class Backtester:
             if score_info is None:
                 return None
             score_info["code"] = code
-            score_info["name"] = self.fetcher._lookup_name_for_code(code) or ""
+            score_info["name"] = self.fetcher.get_name_only(code)
             return score_info
         except Exception:
             return None

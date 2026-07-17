@@ -134,7 +134,7 @@ def _quote_one(code: str, token: str | None = None):
 def _resolve_name(code: str) -> str:
     """本地库兜底解析股票中文名；返回空串表示未知。"""
     try:
-        return fetcher.get_name(code)[1] or ""
+        return fetcher.get_stock_basic(code)[1] or ""
     except Exception:
         return ""
 
@@ -440,7 +440,7 @@ def _analyze_one(code: str, start: str, end: str, token: str | None = None):
         vol_ratio = analysis.get("volume", {}).get("vol_ratio", 1.0)
         return {
             "code": code,
-            "name": fetcher.get_stock_name(code) or code,
+            "name": fetcher.get_name_only(code),
             "price": cur,
             "change_pct": chg,
             "short": profile["short"],

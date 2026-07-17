@@ -30,6 +30,7 @@ warm_fundflow_caches()
 user = get_user() or {}
 
 
+@st.cache_data(ttl=15, show_spinner=False)
 def _check_backend():
     try:
         with urllib.request.urlopen("http://127.0.0.1:5050/api/health", timeout=2) as r:

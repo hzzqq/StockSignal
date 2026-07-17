@@ -1478,9 +1478,14 @@ def apply_theme() -> None:
 
     # 隐藏 Streamlit 原生自动生成的平铺页面导航列表（全站，含登录页）。
     # 业务页由 require_auth()→render_sidebar_nav() 渲染自定义分组导航替代。
+    # 侧边栏极短淡入，屏蔽切换页面时原生导航列表闪一下。
     st.markdown(
-        '<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]'
-        '{display:none!important;}</style>',
+        '<style>'
+        '[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]'
+        '{display:none!important;}'
+        '@keyframes sfSidebarFade{from{opacity:0}to{opacity:1}}'
+        '[data-testid="stSidebar"]{animation:sfSidebarFade .18s ease-out;}'
+        '</style>',
         unsafe_allow_html=True,
     )
 

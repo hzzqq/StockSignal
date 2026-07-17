@@ -230,8 +230,8 @@ def fragment_watchlist_and_news():
             for w in watchlist[:30]:
                 code = w["stock_code"]
                 rt = quotes_map.get(code)
-                # 名称必须本地股票库解析，确保名称列不会出现股票代码
-                name = fetcher.get_name(code)[1] or w.get("stock_name") or code
+                # 名称优先用自选股库已存名称，其次本地股票库解析，最后回退代码
+                name = w.get("stock_name") or fetcher.get_name_only(code)
                 pe, alr = fund_map.get(code, (None, None))
                 _pe_s = f"{pe:.2f}" if isinstance(pe, (int, float)) else "—"
                 _alr_s = f"{alr:.2f}%" if isinstance(alr, (int, float)) else "—"

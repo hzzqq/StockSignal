@@ -807,6 +807,13 @@ class StockFetcher:
         c, n = self.get_stock_basic(code)
         return (c, n or code)
 
+    def get_name_only(self, code):
+        """返回纯股票名称（不含代码前缀）；本地库/BaoStock 未命中时回退为代码本身。
+
+        用于「名称」列展示，避免 get_stock_name 的「代码(名称)」格式把代码带进名称列。
+        """
+        return self.get_stock_basic(code)[1] or str(code)
+
     def get_fundamentals(self, code, use_cache=True):
         """获取个股基本面（名称/最新价/总市值(亿)/市盈率TTM/行业）。
 

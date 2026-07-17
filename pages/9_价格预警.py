@@ -216,7 +216,7 @@ with st.expander("➕ 新建预警", expanded=False):
         elif atype == "announcement" and not kw:
             st.error("请填写关键词")
         else:
-            name = fetcher.get_stock_name(code) or code
+            name = fetcher.get_name_only(code)
             body_payload = {
                 "stock_code": code, "stock_name": name, "alert_type": atype,
                 "params": params,

@@ -269,7 +269,7 @@ def fragment_lhb():
         # 统一列名：尽量兼容不同数据源
         cols = list(lhb_df.columns)
         code_col = next((c for c in cols if "代码" in c), None) or cols[0]
-        name_col = next((c for c in cols if "名称" in c), None) or (cols[1] if len(cols) > 1 else cols[0])
+        name_col = next((c for c in cols if "名称" in c or "简称" in c), None)
         reason_col = next((c for c in cols if "原因" in c or "上榜" in c), None)
         buy_col = next((c for c in cols if "买入" in c and "额" in c), None)
         sell_col = next((c for c in cols if "卖出" in c and "额" in c), None)
@@ -277,7 +277,10 @@ def fragment_lhb():
         chg_col = next((c for c in cols if "涨跌幅" in c or "涨幅" in c), None)
 
         lhb_df["_code"] = lhb_df[code_col].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
-        lhb_df["股票名称"] = lhb_df[name_col].astype(str)
+        if name_col is None:
+            lhb_df["股票名称"] = lhb_df[code_col].map(lambda c: fetcher.get_name_only(c))
+        else:
+            lhb_df["股票名称"] = lhb_df[name_col].astype(str)
 
         # 1) 去重：按股票代码保留 |龙虎榜净买额| 最大的一行，保持原有顺序
         if net_col and net_col in lhb_df.columns:

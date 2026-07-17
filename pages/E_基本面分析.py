@@ -1037,11 +1037,11 @@ if code:
             yaxis=dict(title=cfg.get("unit", ""), side="left"),
             yaxis2=dict(title="同比(%)", side="right", overlaying="y", showgrid=False),
             height=420,
-            margin=dict(l=40, r=60, t=50, b=40),
+            margin=dict(l=40, r=60, t=50, b=90),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            # 把图例放到顶部并预留足够空间，避免与右上角 Plotly modebar 重叠
-            legend=dict(orientation="h", yanchor="bottom", y=1.12, xanchor="left", x=0),
+            # 图例移到图表底部，避免与顶部标题/工具栏重叠
+            legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"),
             # 精简右上角工具栏，避免与标题/图例重叠
             modebar=dict(orientation="v"),
             shapes=shapes,

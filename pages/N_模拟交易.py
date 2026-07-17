@@ -80,7 +80,7 @@ def _price(code):
     try:
         d = FETCHER.get_daily(code, start="2024-01-01")
         if d is not None and not d.empty:
-            return float(d.iloc[-1]["close"]), FETCHER.get_stock_name(code) or code
+            return float(d.iloc[-1]["close"]), FETCHER.get_name_only(code)
     except Exception:
         pass
     return None, code

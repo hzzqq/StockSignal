@@ -106,7 +106,7 @@ def _ranking(df):
     top = d.head(10)
     bot = d.tail(10).sort_values("涨跌幅")
     col1, col2 = st.columns(2)
-    y_common = dict(orientation="h", template="plotly_dark" if dark else "plotly_white",
+    y_common = dict(template="plotly_dark" if dark else "plotly_white",
                     height=360, margin=dict(t=30, l=80, r=20, b=20))
     with col1:
         st.markdown("#### 🚀 涨幅 TOP10")
@@ -142,7 +142,7 @@ def _rotation(df):
         top_in = dd.head(12)
         top_out = dd.tail(12).sort_values("净额")
         col1, col2 = st.columns(2)
-        y_common = dict(orientation="h", template="plotly_dark" if dark else "plotly_white",
+        y_common = dict(template="plotly_dark" if dark else "plotly_white",
                         height=420, margin=dict(t=30, l=90, r=20, b=20))
         with col1:
             st.markdown("#### 💰 资金净流入 TOP12")

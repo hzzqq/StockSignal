@@ -886,17 +886,6 @@ def render_ai_consultant() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-# 保留旧函数签名的占位（已被后台异步方案替代）
-def _ai_summary_compare(rows: list, question: str) -> str:
-    """旧版同步简报函数，保留仅做兼容。"""
-    return ""
-
-
-def _ai_answer(rows, question, name=None, verdict=None, score=None) -> str:
-    """旧版同步回答函数，保留仅做兼容。"""
-    return ""
-
-
 def inject_global_widgets() -> None:
     """require_auth() 之后注入所有页面通用组件：右上角「★ 星辰 AI 弹层 + 主题开关」
     以及全局右下角「▲ 回到顶部」悬浮按钮。
@@ -963,10 +952,15 @@ def render_sidebar_nav() -> None:
     仅注入视觉/导航，不改任何业务逻辑；所有 page_link 指向真实页面文件，
     导航后由 init_session_state()/_sync_query_params() 自动补回登录态。
     """
-    # 隐藏原生自动生成的页面导航列表
+    # 隐藏原生自动生成的页面导航列表；并对侧边栏做极短淡入，
+    # 屏蔽「切换页面时原生导航列表闪一下」的现象（淡入只在整页加载时触发，fragment 重跑不会重放）。
     st.markdown(
-        '<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]'
-        '{display:none!important;}</style>',
+        '<style>'
+        '[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]'
+        '{display:none!important;}'
+        '@keyframes sfSidebarFade{from{opacity:0}to{opacity:1}}'
+        '[data-testid="stSidebar"]{animation:sfSidebarFade .18s ease-out;}'
+        '</style>',
         unsafe_allow_html=True,
     )
     def _nav_link(path: str, label: str, icon: str) -> None:
@@ -1000,22 +994,27 @@ def render_sidebar_nav() -> None:
 # ──────────────────────────────────────────────────────────────
 # 通知中心
 # ──────────────────────────────────────────────────────────────
-def render_notifications() -> None:
-    """侧边栏通知中心：展示自选股数量、最近登录时间、使用提示。"""
-    st.markdown("### 🔔 通知中心")
+@st.cache_data(ttl=30, show_spinner=False)
+def _cached_watchlist_count(token: str) -> int:
+    """缓存自选股数量请求，避免每个页面加载都打一次后端（性能提速）。"""
     try:
         resp = requests.get(
             f"{API_BASE}/api/watchlist",
-            headers={"Authorization": f"Bearer {get_token()}"},
+            headers={"Authorization": f"Bearer {token}"},
             timeout=5,
         )
-        wl_count = 0
         if resp.status_code == 200:
-            body = resp.json()
-            wl_count = len(body.get("data") or [])
-        st.info(f"⭐ 自选股：**{wl_count}** 只")
+            return len(resp.json().get("data") or [])
     except Exception:
-        st.info("⭐ 自选股：—")
+        pass
+    return 0
+
+
+def render_notifications() -> None:
+    """侧边栏通知中心：展示自选股数量、最近登录时间、使用提示。"""
+    st.markdown("### 🔔 通知中心")
+    wl_count = _cached_watchlist_count(get_token() or "")
+    st.info(f"⭐ 自选股：**{wl_count}** 只")
 
     # 最近登录记录
     try:

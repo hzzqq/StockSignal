@@ -335,7 +335,7 @@ with st.container(border=True):
                         continue
                 results.append({
                     "代码": code,
-                    "名称": fetcher.get_stock_name(code) or code,
+                    "名称": fetcher.get_name_only(code),
                     "技术评分": int(round(composite)),
                     "形态概述": pat_overview,
                 })

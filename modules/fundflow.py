@@ -111,13 +111,24 @@ def get_industry_fund_flow():
 
 # ───────────────────────── 北向资金 ─────────────────────────
 def get_northbound_fund_flow():
-    """北向资金（沪股通/深股通/北向）。返回 dict: boards(list), trade_date, total_inflow, sh_inflow, sz_inflow。"""
+    """北向资金（沪股通/深股通/北向）。
+
+    返回 dict: boards(list), trade_date, total_inflow, sh_inflow, sz_inflow,
+               northbound_net_available(bool)。
+
+    说明：东方财富自 2024-08 起停止披露「北向资金净买额」实时数据，
+    stock_hsgt_fund_flow_summary_em() 的 沪股通/深股通 北向 行 成交净买额/资金净流入
+    长期为 0，stock_hsgt_hist_em() 最新有效值停留在 2024-08-16（过旧不可用）。
+    因此当净额确为 0/NaN（数据源未提供）时，返回 None 而非误导性的 0，
+    由 UI 明确提示「数据未提供」，但板块涨跌家数/指数涨跌幅仍是实时真实数据。
+    """
     def _fn():
         import akshare as ak
         df = ak.stock_hsgt_fund_flow_summary_em()
         if df is None or df.empty:
             return {"boards": [], "trade_date": None, "total_inflow": None,
-                    "sh_inflow": None, "sz_inflow": None}
+                    "sh_inflow": None, "sz_inflow": None,
+                    "northbound_net_available": False}
         boards = []
         sh = sz = total = None
         for _, r in df.iterrows():
@@ -141,7 +152,25 @@ def get_northbound_fund_flow():
                 sz = val
             elif str(r.get("资金方向")) == "北向":
                 total = val
-        if total is None and sh is not None and sz is not None:
+        # 实时分钟级净额作为补充来源（若汇总为 0/NaN 时尝试）
+        if (sh in (0.0, None)) or (sz in (0.0, None)) or (total in (0.0, None)):
+            try:
+                fm = ak.stock_hsgt_fund_min_em(symbol="北向")
+                fm["沪股通"] = pd.to_numeric(fm["沪股通"], errors="coerce")
+                fm["深股通"] = pd.to_numeric(fm["深股通"], errors="coerce")
+                fm["北向资金"] = pd.to_numeric(fm["北向资金"], errors="coerce")
+                valid = fm.dropna(subset=["沪股通", "深股通", "北向资金"], how="all")
+                if not valid.empty:
+                    last = valid.iloc[-1]
+                    if sh in (0.0, None):
+                        sh = float(last["沪股通"])
+                    if sz in (0.0, None):
+                        sz = float(last["深股通"])
+                    if total in (0.0, None):
+                        total = float(last["北向资金"])
+            except Exception:
+                pass
+        if total in (0.0, None) and sh not in (0.0, None) and sz not in (0.0, None):
             total = sh + sz
         td = None
         try:
@@ -149,8 +178,13 @@ def get_northbound_fund_flow():
             td = td.strftime("%Y-%m-%d") if hasattr(td, "strftime") else str(td)
         except Exception:
             td = None
+        # 净额是否真实可用：三个通道都为 0/None 视为数据源未提供
+        available = not ((sh in (0.0, None)) and (sz in (0.0, None)) and (total in (0.0, None)))
+        if not available:
+            sh = sz = total = None
         return {"boards": boards, "trade_date": td, "total_inflow": total,
-                "sh_inflow": sh, "sz_inflow": sz}
+                "sh_inflow": sh, "sz_inflow": sz,
+                "northbound_net_available": available}
     return _cached(300, "northbound_ff", _fn)
 
 

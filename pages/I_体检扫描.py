@@ -5,6 +5,7 @@ import concurrent.futures
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge, safe_switch_page, api_get
 from modules.fetcher import StockFetcher
+fetcher = StockFetcher()
 from modules.search_ui import stock_search_input
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
@@ -53,7 +54,7 @@ def build_stock_list(scope: str) -> dict:
                     if not isinstance(it, dict):
                         continue
                     code = it.get("stock_code") or it.get("code")
-                    name = it.get("stock_name") or it.get("name") or code
+                    name = it.get("stock_name") or it.get("name") or fetcher.get_name_only(code)
                     if code:
                         codes[str(code)] = name
     except Exception:
@@ -66,7 +67,7 @@ def build_stock_list(scope: str) -> dict:
             if df is not None and not df.empty:
                 for _, row in df.iterrows():
                     code = row.get("ticker")
-                    name = row.get("name") or code
+                    name = row.get("name") or fetcher.get_name_only(code)
                     if code:
                         codes[str(code)] = name
     except Exception:

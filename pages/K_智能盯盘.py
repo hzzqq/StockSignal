@@ -350,7 +350,7 @@ def fragment_watchlist():
         if q and q.get("name"):
             name = q.get("name")
         else:
-            name = names.get(code) or fetcher.get_stock_name(code) or code
+            name = names.get(code) or fetcher.get_name_only(code)
         rows.append({
             "代码": code,
             "名称": name,
@@ -446,7 +446,7 @@ def fragment_individual_ff():
         r = ff_map.get(code, {})
         main_net = r.get("main_net")
         source = r.get("source", "none")
-        name = names.get(code) or fetcher.get_stock_name(code) or code
+        name = names.get(code) or fetcher.get_name_only(code)
         rows.append({
             "代码": code,
             "名称": name,
@@ -540,7 +540,7 @@ def fragment_alerts():
     for code in codes:
         q = quotes.get(code)
         cur, chg, change_amt, _ = _quote_fields(q)
-        name = names.get(code) or fetcher.get_stock_name(code) or code
+        name = names.get(code) or fetcher.get_name_only(code)
         # 涨跌异动
         if chg is not None and abs(chg) >= threshold:
             tier, color, label = _grade_chg(chg)

@@ -353,8 +353,8 @@ def fragment_manual_backtest():
                         xaxis_title="参数取值", yaxis_title="指标%",
                         height=360,
                         template="plotly_white" if not _is_dark() else "plotly_dark",
-                        margin=dict(l=50, r=20, t=40, b=30),
-                        legend=dict(orientation="h", y=1.12),
+                        margin=dict(l=50, r=20, t=50, b=70),
+                        legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"),
                     )
                     st.plotly_chart(fig_sens, use_container_width=True)
                     st.caption("提示：曲线走平或反转处通常表示参数拐点，可据此微调风险管理参数。")
