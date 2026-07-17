@@ -115,16 +115,41 @@ def fragment_northbound():
     total = nb.get("total_inflow")
     sh = nb.get("sh_inflow")
     sz = nb.get("sz_inflow")
+    avail = nb.get("northbound_net_available")
     cols = st.columns(4)
-    with cols[0]:
-        st.metric("北向净流入", _fmt_yi(total) if total is not None else "—",
-                  help="沪股通 + 深股通 当日资金净流入合计")
-    with cols[1]:
-        st.metric("沪股通", _fmt_yi(sh) if sh is not None else "—")
-    with cols[2]:
-        st.metric("深股通", _fmt_yi(sz) if sz is not None else "—")
-    with cols[3]:
-        st.metric("交易日", nb.get("trade_date") or "—")
+    if avail:
+        with cols[0]:
+            st.metric("北向净流入(实时)", _fmt_yi(total) if total is not None else "—",
+                      help="沪股通 + 深股通 当日资金净流入合计")
+        with cols[1]:
+            st.metric("沪股通(实时)", _fmt_yi(sh) if sh is not None else "—")
+        with cols[2]:
+            st.metric("深股通(实时)", _fmt_yi(sz) if sz is not None else "—")
+        with cols[3]:
+            st.metric("交易日", nb.get("trade_date") or "—")
+    else:
+        # 实时未披露：展示「最近一次真实披露」历史值与累计净买入，避免整块空白
+        with cols[0]:
+            st.metric("北向净流入(最近真实披露)", _fmt_yi(nb.get("last_net_buy")),
+                      help=f"交易所自 2024-08-16 起停披露实时净买额，此为停披露前最后真实值"
+                           f"（{nb.get('last_net_buy_date') or '—'}）")
+        with cols[1]:
+            st.metric("历史累计净买入", _fmt_yi(nb.get("cumulative")),
+                      help=f"北向资金历史累计净买入（截至 {nb.get('cumulative_date') or '—'}）")
+        sh_board = next((b for b in nb["boards"] if str(b.get("板块")) == "沪股通"), None)
+        sz_board = next((b for b in nb["boards"] if str(b.get("板块")) == "深股通"), None)
+        with cols[2]:
+            if sh_board:
+                st.metric("沪股通 涨/跌家数", f"{sh_board.get('上涨数','—')}/{sh_board.get('下跌数','—')}",
+                          help="沪股通成分股实时涨跌家数（真实数据）")
+            else:
+                st.metric("沪股通", "—")
+        with cols[3]:
+            if sz_board:
+                st.metric("深股通 涨/跌家数", f"{sz_board.get('上涨数','—')}/{sz_board.get('下跌数','—')}",
+                          help="深股通成分股实时涨跌家数（真实数据）")
+            else:
+                st.metric("深股通", "—")
     detail = []
     for b in nb["boards"]:
         detail.append({
@@ -142,10 +167,10 @@ def fragment_northbound():
         df["指数涨跌幅"] = pd.to_numeric(df["指数涨跌幅"], errors="coerce")
         st.dataframe(df, use_container_width=True, hide_index=True)
     # 北向净买额数据源说明（东方财富自 2024-08 起停止披露实时北向净买额）
-    if not nb.get("northbound_net_available"):
-        st.info("⚠️ 北向资金净买额（沪股通 / 深股通 / 北向合计）当前数据源（东方财富）未提供实时数值——"
-                "自 2024-08 起该接口净买额长期为 0。上方「—」表示数据缺失，并非应用错误；"
-                "下方板块的涨跌家数 / 指数涨跌幅 仍为实时真实数据（港股通南向净买额亦为真实值）。",
+    if not avail:
+        st.info("⚠️ **北向资金实时净买额已停披露**：交易所自 2024-08-16 起不再实时公布沪股通/深股通/北向合计净买额，"
+                "东方财富接口长期返回 0。上方「最近真实披露」为停披露前最后真实值，「历史累计净买入」为累计值；"
+                "下方表格中的**涨跌家数 / 指数涨跌幅 / 港股通南向净买额** 仍为实时真实数据。",
                 icon="ℹ️")
     else:
         if df["资金净流入"].abs().sum() == 0:

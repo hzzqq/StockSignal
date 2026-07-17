@@ -16,7 +16,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, api_get, api_kline
+from modules.session import require_auth, render_user_badge, api_get, api_kline, get_user_setting, save_user_setting
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
@@ -130,7 +130,9 @@ if source == "我的自选股":
 else:
     # 手动模式：扫描池管理（搜索添加 + 单条删除）+ 批量文本输入，二者合并为扫描池
     if "screener_pool" not in st.session_state:
-        st.session_state["screener_pool"] = []
+        # 每个用户下次登录保留扫描池：从后端 settings 恢复（无则空）
+        _restored = get_user_setting("screener_pool", [])
+        st.session_state["screener_pool"] = list(_restored) if isinstance(_restored, list) else []
 
     # ── 🧺 扫描池管理 ──
     with st.container(border=True):
@@ -150,6 +152,7 @@ else:
             if st.button("➕ 加入扫描池", key="screener_add", type="secondary", use_container_width=True):
                 if picked and picked not in st.session_state["screener_pool"]:
                     st.session_state["screener_pool"].append(picked)
+                    save_user_setting("screener_pool", st.session_state["screener_pool"])
                     st.rerun()
 
         pool = st.session_state["screener_pool"]
@@ -163,6 +166,7 @@ else:
                 with col_del:
                     if st.button("删除", key=f"del_{code}", type="secondary", use_container_width=True):
                         st.session_state["screener_pool"].remove(code)
+                        save_user_setting("screener_pool", st.session_state["screener_pool"])
                         st.rerun()
         else:
             st.info("扫描池为空，请在上方搜索并「加入扫描池」。")
@@ -173,6 +177,7 @@ else:
         with c_clear:
             if st.button("🗑️ 清空扫描池", key="screener_clear", type="secondary", use_container_width=True):
                 st.session_state["screener_pool"] = []
+                save_user_setting("screener_pool", [])
                 st.rerun()
 
     st.divider()

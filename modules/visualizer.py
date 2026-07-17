@@ -298,16 +298,47 @@ class Visualizer:
         if resistance is not None:
             all_annotations.append({"price": resistance, "label": "压力", "color": UP_COLOR})
 
-        for ann in all_annotations:
+        # 价格接近的标注合并，避免右侧文字重叠
+        if all_annotations:
+            price_range = max(visible["high"].max() - visible["low"].min(), 1e-6)
+            threshold = price_range * 0.015  # 1.5% 价差视为重叠
+            # 保留有效价格并排序
+            valid = []
+            for ann in all_annotations:
+                p = ann.get("price")
+                if p is not None and not np.isnan(p):
+                    valid.append({
+                        "price": float(p),
+                        "label": str(ann.get("label", "")),
+                        "color": ann.get("color", "#94a3b8"),
+                        "dash": ann.get("dash", "dash"),
+                    })
+            valid.sort(key=lambda x: x["price"])
+            merged = []
+            for ann in valid:
+                if merged and abs(ann["price"] - merged[-1]["price"]) < threshold:
+                    prev = merged[-1]
+                    # 合并标签，保留颜色（若同组颜色不同，用第一个颜色并注明）
+                    if ann["label"] and ann["label"] not in prev["label"]:
+                        prev["label"] = f"{prev['label']} / {ann['label']}"
+                    prev["price"] = (prev["price"] + ann["price"]) / 2.0
+                    prev["count"] = prev.get("count", 1) + 1
+                else:
+                    merged.append(dict(ann, count=1))
+            all_annotations = merged
+
+        for i, ann in enumerate(all_annotations):
             price = ann.get("price")
             label = ann.get("label", "")
             color = ann.get("color", "#94a3b8")
             dash = ann.get("dash", "dash")
             if price is not None and not np.isnan(price):
+                # 偶数在右侧，奇数在左侧，避免同侧文字堆叠
+                pos = "right" if i % 2 == 0 else "left"
                 fig.add_hline(
                     y=price, line_dash=dash, line_color=color, line_width=1,
                     annotation_text=f"{label}({price:.1f})" if label else f"{price:.1f}",
-                    annotation_position="right",
+                    annotation_position=pos,
                     annotation_font=dict(color=color, size=10),
                     row=1, col=1,
                 )

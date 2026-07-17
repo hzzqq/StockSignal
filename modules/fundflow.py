@@ -109,18 +109,64 @@ def get_industry_fund_flow():
     return _cached(300, "industry_ff", _fn)
 
 
+# ───────────────────────── 北向资金（历史真实值兜底） ─────────────────────────
+def get_northbound_history():
+    """北向资金历史序列（东方财富 stock_hsgt_hist_em）。
+
+    交易所自 2024-08-16 起停止披露实时「北向资金净买额」，summary 接口长期为 0。
+    但历史序列（当日成交净买额 / 历史累计净买额）在该停披露日前仍有真实数值，
+    可作为「最近一次真实披露」与「历史累计净买入」展示，避免页面全空。
+
+    返回 dict: last_net_buy(元), last_net_buy_date(str), cumulative(元), cumulative_date(str)。
+    取各列最后一个非 NaN 值（动态，不硬编码日期）。
+    """
+    def _fn():
+        import akshare as ak
+        try:
+            df = ak.stock_hsgt_hist_em(symbol="北向资金")
+        except Exception:
+            return {}
+        if df is None or df.empty:
+            return {}
+        res = {}
+        try:
+            if "当日成交净买额" in df.columns:
+                s = pd.to_numeric(df["当日成交净买额"], errors="coerce")
+                idx = s.last_valid_index()
+                if idx is not None:
+                    res["last_net_buy"] = float(s[idx])
+                    d = df.loc[idx, "日期"]
+                    res["last_net_buy_date"] = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)
+        except Exception:
+            pass
+        try:
+            if "历史累计净买额" in df.columns:
+                s2 = pd.to_numeric(df["历史累计净买额"], errors="coerce")
+                idx2 = s2.last_valid_index()
+                if idx2 is not None:
+                    res["cumulative"] = float(s2[idx2])
+                    d2 = df.loc[idx2, "日期"]
+                    res["cumulative_date"] = d2.strftime("%Y-%m-%d") if hasattr(d2, "strftime") else str(d2)
+        except Exception:
+            pass
+        return res
+    return _cached(1800, "northbound_hist", _fn)
+
+
 # ───────────────────────── 北向资金 ─────────────────────────
 def get_northbound_fund_flow():
     """北向资金（沪股通/深股通/北向）。
 
     返回 dict: boards(list), trade_date, total_inflow, sh_inflow, sz_inflow,
-               northbound_net_available(bool)。
+               northbound_net_available(bool),
+               last_net_buy, last_net_buy_date, cumulative, cumulative_date。
 
     说明：东方财富自 2024-08 起停止披露「北向资金净买额」实时数据，
     stock_hsgt_fund_flow_summary_em() 的 沪股通/深股通 北向 行 成交净买额/资金净流入
-    长期为 0，stock_hsgt_hist_em() 最新有效值停留在 2024-08-16（过旧不可用）。
-    因此当净额确为 0/NaN（数据源未提供）时，返回 None 而非误导性的 0，
-    由 UI 明确提示「数据未提供」，但板块涨跌家数/指数涨跌幅仍是实时真实数据。
+    长期为 0。因此当实时净额确为 0/NaN（数据源未提供）时，
+    返回 None 并附带历史真实值（last_net_buy / cumulative），
+    由 UI 明确区分「实时未披露」与「最近一次真实披露」，避免空白或误导性的 0。
+    板块涨跌家数 / 指数涨跌幅 / 港股通南向 仍为实时真实数据。
     """
     def _fn():
         import akshare as ak
@@ -182,9 +228,19 @@ def get_northbound_fund_flow():
         available = not ((sh in (0.0, None)) and (sz in (0.0, None)) and (total in (0.0, None)))
         if not available:
             sh = sz = total = None
+        # 历史真实值兜底（交易所 2024-08-16 后停止披露实时净买额，但历史序列仍有真实值）
+        hist = {}
+        try:
+            hist = get_northbound_history() or {}
+        except Exception:
+            hist = {}
         return {"boards": boards, "trade_date": td, "total_inflow": total,
                 "sh_inflow": sh, "sz_inflow": sz,
-                "northbound_net_available": available}
+                "northbound_net_available": available,
+                "last_net_buy": hist.get("last_net_buy"),
+                "last_net_buy_date": hist.get("last_net_buy_date"),
+                "cumulative": hist.get("cumulative"),
+                "cumulative_date": hist.get("cumulative_date")}
     return _cached(300, "northbound_ff", _fn)
 
 
@@ -347,13 +403,13 @@ def get_earnings_report(period="20260331"):
             return pd.DataFrame()
         keep = [c for c in ["序号", "股票代码", "股票简称", "每股收益", "营业总收入-营业总收入",
                             "营业总收入-同比增长", "净利润-净利润", "净利润-同比增长",
-                            "净利润-季度环比增长", "每股净资产", "净资产收益率", "上市时间"] if c in df.columns]
+                            "净利润-季度环比增长", "每股净资产", "净资产收益率", "披露日期", "上市时间"] if c in df.columns]
         rename = {
             "股票代码": "代码", "股票简称": "名称", "每股收益": "每股收益",
             "营业总收入-营业总收入": "营业总收入", "营业总收入-同比增长": "营收同比%",
             "净利润-净利润": "净利润", "净利润-同比增长": "净利润同比%",
             "净利润-季度环比增长": "净利润环比%", "每股净资产": "每股净资产",
-            "净资产收益率": "ROE%", "上市时间": "上市时间",
+            "净资产收益率": "ROE%", "披露日期": "披露时间", "上市时间": "上市时间",
         }
         df = df[keep].rename(columns=rename)
         return df
@@ -375,13 +431,19 @@ def get_earnings_forecast(period="20260331"):
 
 
 def get_disclosure_calendar(market="沪市", period="2026一季报"):
-    """财报披露日历（best-effort）。返回 DataFrame(market, stock_code, stock_name, report_date, report_type)。"""
+    """财报披露日历（best-effort）。返回 DataFrame(股票代码, 股票简称, 报告期, 披露时间, 披露状态, ...)。"""
     def _fn():
         import akshare as ak
         try:
             df = ak.stock_report_disclosure(market=market, period=period)
             if df is None or df.empty:
                 return pd.DataFrame()
+            # 统一披露日期列名为「披露时间」
+            for src, dst in (("预约披露日期", "披露时间"), ("披露日期", "披露时间"),
+                             ("实际披露日期", "披露时间"), ("披露时间", "披露时间")):
+                if src in df.columns and dst not in df.columns:
+                    df = df.rename(columns={src: dst})
+                    break
             return df
         except Exception:
             return pd.DataFrame()

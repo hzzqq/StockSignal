@@ -926,13 +926,38 @@ def _render_analysis(R: dict):
     )
     st.session_state[f"kline_period_{ticker}"] = kline_period
 
-    # 选定周期的 K 线数据：日线直接用分析结果 df；周/月线重新拉取并归一化列名
+    # ── #393 日期范围选择器：自定义 K 线起止日期（开始 / 结束）──
+    _dr_key = f"kline_daterange_{ticker}"
+    if _dr_key not in st.session_state:
+        st.session_state[_dr_key] = (datetime(2020, 1, 1), datetime.now())
+    _dr = st.date_input(
+        "K线日期范围（开始 / 结束）",
+        value=st.session_state[_dr_key],
+        max_value=datetime.now(),
+        key=f"kline_daterange_input_{ticker}",
+        help="选定开始与结束日期，按自定义区间查看 K 线（日线直接筛选；周/月线按区间重新拉取）",
+    )
+    _kstart, _kend = "2020-01-01", datetime.now().strftime("%Y-%m-%d")
+    if isinstance(_dr, (tuple, list)) and len(_dr) == 2:
+        st.session_state[_dr_key] = _dr
+        try:
+            _kstart = _dr[0].strftime("%Y-%m-%d")
+            _kend = _dr[1].strftime("%Y-%m-%d")
+        except Exception:
+            pass
+
+    # 选定周期的 K 线数据：日线直接用分析结果 df（按日期范围筛选）；周/月线重新拉取并归一化列名
     if kline_period == "daily":
         period_df = df
+        try:
+            _dmask = (pd.to_datetime(period_df["date"]) >= _kstart) & (pd.to_datetime(period_df["date"]) <= _kend)
+            _filtered = period_df[_dmask]
+            if not _filtered.empty:
+                period_df = _filtered
+        except Exception:
+            pass
     else:
-        _kdf = _cached_period_kline(
-            ticker, "2020-01-01", datetime.now().strftime("%Y-%m-%d"), kline_period
-        )
+        _kdf = _cached_period_kline(ticker, _kstart, _kend, kline_period)
         if _kdf is None or _kdf.empty:
             period_df = df
         else:
@@ -1454,3 +1479,89 @@ def fragment_analysis_result():
 
 
 fragment_analysis_result()
+
+
+# ══════════════════════════════════════════════════════════════
+# #396 相关视频：把互联网上相关的股票视频「接到项目里」
+# 方案：① 按股票名生成各大视频平台搜索直达链接；② 支持粘贴视频地址内联嵌入播放。
+# ══════════════════════════════════════════════════════════════
+def _video_embed_url(url: str):
+    """把常见视频分享链接转换为可嵌入的 iframe src；不支持则返回 None。"""
+    import re
+    if not url:
+        return None
+    url = url.strip()
+    # YouTube
+    m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([\w-]{6,})", url)
+    if m:
+        return f"https://www.youtube.com/embed/{m.group(1)}"
+    # Bilibili
+    m = re.search(r"bilibili\.com/video/(BV[\w]+)", url)
+    if m:
+        return f"https://player.bilibili.com/player.html?bvid={m.group(1)}&autoplay=0&high_quality=1"
+    # 腾讯视频
+    m = re.search(r"v\.qq\.com/x/cover/\w+/([\w]+)\.html", url)
+    if m:
+        return f"https://v.qq.com/txp/iframe/player.html?vid={m.group(1)}"
+    return None
+
+
+@st.fragment
+def fragment_stock_videos(ticker):
+    with st.expander("📺 相关视频（把互联网上的股票视频接入项目 · 点击展开/收起）", expanded=False):
+        name = StockFetcher().get_stock_name(ticker) or ticker
+    q = f"{name} 股票分析"
+    from urllib.parse import quote
+    links = [
+        ("🅑️ B站", f"https://search.bilibili.com/all?keyword={quote(q)}"),
+        ("🔍 百度视频", f"https://www.baidu.com/s?tn=baiduvi&wd={quote(q)}"),
+        ("▶️ YouTube", f"https://www.youtube.com/results?search_query={quote(q)}"),
+        ("🎵 抖音", f"https://www.douyin.com/search/{quote(q)}"),
+    ]
+    st.caption(f"「{name}」相关视频聚合（点击在浏览器新标签打开对应平台搜索结果）：")
+    _lc = st.columns(len(links))
+    for i, (label, href) in enumerate(links):
+        with _lc[i]:
+            st.markdown(f'<a href="{href}" target="_blank" style="display:block;text-align:center;'
+                        f'padding:8px 4px;border:1px solid var(--border);border-radius:10px;'
+                        f'text-decoration:none;color:var(--txt);font-weight:600;">{label}</a>',
+                        unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("**🔗 粘贴视频地址，内联嵌入播放**（支持 YouTube / B站 / 腾讯视频 分享链接）：")
+    vk = f"video_embed_{ticker}"
+    if vk not in st.session_state:
+        st.session_state[vk] = []
+    with st.form(key=f"video_form_{ticker}", clear_on_submit=True):
+        video_url = st.text_input("视频链接（如 https://www.bilibili.com/video/BVxxxx 或 YouTube 链接）", "")
+        submitted = st.form_submit_button("➕ 添加到本股视频", use_container_width=True)
+        if submitted and video_url:
+            emb = _video_embed_url(video_url)
+            if emb:
+                st.session_state[vk].append({"src": emb, "raw": video_url})
+            else:
+                st.warning("⚠️ 暂仅支持 YouTube / B站 / 腾讯视频 的嵌入；其它平台已为你保留原链接，可点击观看。")
+                st.session_state[vk].append({"src": None, "raw": video_url})
+    # 展示已嵌入视频
+    if st.session_state[vk]:
+        for idx, v in enumerate(st.session_state[vk]):
+            col_player, col_del = st.columns([0.92, 0.08])
+            with col_player:
+                if v["src"]:
+                    st.components.v1.html(
+                        f'<iframe src="{v["src"]}" scrolling="no" border="0" frameborder="no" '
+                        f'framespacing="0" allowfullscreen="true" '
+                        f'style="width:100%;height:380px;border-radius:12px;"></iframe>',
+                        height=400,
+                    )
+                else:
+                    st.markdown(f'🔗 <a href="{v["raw"]}" target="_blank">{v["raw"]}</a>', unsafe_allow_html=True)
+            with col_del:
+                if st.button("✕", key=f"vdel_{ticker}_{idx}", use_container_width=True, help="移除"):
+                    st.session_state[vk].pop(idx)
+                    st.rerun()
+    else:
+        st.info("尚未添加视频。粘贴上方链接即可把网络视频「接到」本股票分析页内联播放。")
+
+
+fragment_stock_videos(ticker)

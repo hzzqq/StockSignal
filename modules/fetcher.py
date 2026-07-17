@@ -2734,6 +2734,50 @@ class StockFetcher:
         })
         return df[["code", "name", "close", "change_pct", "market_cap"]]
 
+    def get_concept_list(self, force_refresh=False):
+        """概念板块列表（东方财富）。返回 DataFrame(sector, change_pct)。失败返回空 DataFrame。"""
+        cache_key = "concept_list_v1"
+        try:
+            if not force_refresh:
+                conn = self._get_conn()
+                cached = self._read_cache(conn, "sector_cache", cache_key, max_age_hours=0.1)
+                if cached is not None and not cached.empty:
+                    return cached
+        except Exception:
+            pass
+        try:
+            df = _retry_request(
+                lambda: ak.stock_board_concept_name_em(),
+                max_retries=2, base_delay=2,
+            )
+        except Exception:
+            return pd.DataFrame(columns=["sector", "change_pct"])
+        if df is None or df.empty:
+            return pd.DataFrame(columns=["sector", "change_pct"])
+        df = df.rename(columns={"板块名称": "sector", "涨跌幅": "change_pct"})
+        keep = [c for c in ["sector", "change_pct"] if c in df.columns]
+        df = df[keep].copy() if keep else df
+        try:
+            conn = self._get_conn()
+            self._write_cache(conn, "sector_cache", cache_key, df)
+        except Exception:
+            pass
+        return df
+
+    def get_concept_stocks(self, concept_name):
+        """指定概念板块的成分股列表（东方财富）。失败抛异常由调用方兜底。"""
+        if not _AK_OK:
+            raise RuntimeError("akshare 未安装，无法获取成分股")
+        df = _retry_request(
+            lambda: ak.stock_board_concept_cons_em(symbol=concept_name),
+            max_retries=2, base_delay=2,
+        )
+        df = df.rename(columns={
+            "代码": "code", "名称": "name", "涨跌幅": "change_pct",
+            "最新价": "close", "总市值": "market_cap",
+        })
+        return df[["code", "name", "close", "change_pct", "market_cap"]]
+
     # ══════════════════════════════════════════════════════
     # 宏观数据
     # ══════════════════════════════════════════════════════

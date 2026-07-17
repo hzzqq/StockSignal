@@ -138,6 +138,7 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | Non
         "better_peers": [],
         "is_leader": False,
         "sector_leader": None,
+        "board_type": "行业",
     }
     if not kws:
         return out
@@ -162,6 +163,31 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | Non
         if sec.empty:
             sec = sectors[sectors[name_col].astype(str).apply(
                 lambda x: any(k in x for k in kws))]
+        # 行业板块未命中 → 退而求其次匹配概念板块（提升「板块数据获取不到」场景的命中率）
+        use_concept = False
+        if sec.empty:
+            try:
+                concepts = fetcher.get_concept_list()
+                if concepts is not None and not concepts.empty:
+                    c_name = "sector" if "sector" in concepts.columns else concepts.columns[0]
+                    c_cleaned = concepts[c_name].astype(str).apply(_clean_industry)
+                    csec = concepts[c_cleaned == industry]
+                    if csec.empty:
+                        csec = concepts[concepts[c_name].astype(str).str.contains(industry, na=False, regex=False)]
+                    if csec.empty:
+                        csec = concepts[concepts[c_name].astype(str).str.contains("|".join(kws), na=False, regex=True)]
+                    if csec.empty:
+                        csec = concepts[concepts[c_name].astype(str).apply(lambda x: any(k in x for k in kws))]
+                    if not csec.empty:
+                        sec = csec
+                        sectors = concepts
+                        name_col = c_name
+                        chg_col = next((c for c in concepts.columns if "change" in c.lower()), None)
+                        cleaned = c_cleaned
+                        use_concept = True
+                        out["board_type"] = "概念"
+            except Exception:
+                pass
         if sec.empty:
             return out
 
@@ -183,7 +209,8 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | Non
         # 2) 同板块成分股对比（需要目标代码）
         if ticker:
             try:
-                peers = fetcher.get_sector_stocks(sector_full_name)
+                peers = (fetcher.get_concept_stocks(sector_full_name)
+                         if use_concept else fetcher.get_sector_stocks(sector_full_name))
                 if peers is not None and not peers.empty:
                     peers = peers.copy()
                     peers["change_pct"] = pd.to_numeric(peers["change_pct"], errors="coerce")

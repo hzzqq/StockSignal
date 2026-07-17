@@ -306,6 +306,36 @@ def push_settings_to_backend() -> None:
         pass
 
 
+def get_user_setting(key, default=None):
+    """读取当前登录用户的自定义设置项（后端 settings JSON 中的任意 key）。"""
+    user = get_user()
+    settings = (user or {}).get("settings")
+    if isinstance(settings, dict) and key in settings:
+        return settings[key]
+    return default
+
+
+def save_user_setting(key, value) -> None:
+    """把用户自定义设置项（如扫描池）按账号持久化到后端 settings JSON。失败静默忽略。"""
+    token = get_token()
+    if not token:
+        return
+    try:
+        user = get_user() or {}
+        settings = dict(user.get("settings") or {})
+        settings[key] = value
+        user["settings"] = settings
+        st.session_state[KEY_USER] = user
+        requests.post(
+            f"{API_BASE}/api/auth/settings",
+            json={"settings": settings},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=3,
+        )
+    except Exception:
+        pass
+
+
 def persist_prefs() -> None:
     """偏好变更后调用：写入浏览器 localStorage（关闭浏览器兜底）+ 回写 URL query_params + 同步后端。"""
     try:

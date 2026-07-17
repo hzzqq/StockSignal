@@ -114,6 +114,7 @@ def fragment_report():
     st.dataframe(
         df, use_container_width=True, hide_index=True,
         column_config={
+            "披露时间": st.column_config.TextColumn("披露时间", help="财报实际披露日期"),
             "每股收益": st.column_config.NumberColumn("每股收益", format="%.2f"),
             "营业总收入": st.column_config.NumberColumn("营业总收入", format="%.2e"),
             "营收同比%": st.column_config.NumberColumn("营收同比%", format="%.1f"),

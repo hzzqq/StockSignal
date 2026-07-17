@@ -1519,6 +1519,20 @@ def apply_page_config(page_title: str, page_icon: str = None, layout: str = "wid
     except Exception:
         pass
 
+    # 尽早隐藏 Streamlit 原生自动生成的平铺页面导航列表，避免首屏闪现。
+    # 业务页由 require_auth()→render_sidebar_nav() 渲染自定义分组导航替代。
+    st.markdown(
+        '<style>'
+        '[data-testid="stSidebarNav"],'
+        '[data-testid="stSidebarNavItems"],'
+        '[data-testid="stSidebarNavSeparator"],'
+        '[data-testid="stSidebarNavLink"],'
+        '[data-testid="stSidebarUserContent"]'
+        '{display:none!important;}'
+        '</style>',
+        unsafe_allow_html=True,
+    )
+
 
 def apply_theme() -> None:
     """注入全局润色 CSS（暗色/亮色）并设置 Plotly 模板。"""
@@ -1543,15 +1557,16 @@ def apply_theme() -> None:
     from modules.scroll_nav import inject_scroll_nav
     inject_scroll_nav(show_bottom=False, bottom_marker="stChatInput", dark=_theme_is_dark())
 
-    # 隐藏 Streamlit 原生自动生成的平铺页面导航列表（全站，含登录页）。
-    # 业务页由 require_auth()→render_sidebar_nav() 渲染自定义分组导航替代。
-    # 侧边栏极短淡入，屏蔽切换页面时原生导航列表闪一下。
+    # 隐藏 Streamlit 原生自动生成的平铺页面导航列表（已在 apply_page_config 更早注入，
+    # 此处保留兜底 but 不再加 fade 动画，避免每次 rerun 都触发闪一下）。
     st.markdown(
         '<style>'
-        '[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]'
+        '[data-testid="stSidebarNav"],'
+        '[data-testid="stSidebarNavItems"],'
+        '[data-testid="stSidebarNavSeparator"],'
+        '[data-testid="stSidebarNavLink"],'
+        '[data-testid="stSidebarUserContent"]'
         '{display:none!important;}'
-        '@keyframes sfSidebarFade{from{opacity:0}to{opacity:1}}'
-        '[data-testid="stSidebar"]{animation:sfSidebarFade .18s ease-out;}'
         '</style>',
         unsafe_allow_html=True,
     )
@@ -1652,6 +1667,16 @@ def dashboard_sf_css() -> str:
 .sf-vsbox h3{{font-size:14px;margin-bottom:8px;color:var(--txt);border:none!important;padding-left:0!important}}
 .sf-card{{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}}
 .sf-card h2:first-child{{margin-top:0!important}}
+/* 全局表格美化：Streamlit 原生 dataframe/table 斑马纹 + 表头吸顶（金融专业观感） */
+.stDataFrame table{{border-collapse:separate;border-spacing:0;width:100%!important;font-size:13px}}
+.stDataFrame thead th{{position:sticky;top:0;z-index:2;background:var(--card2)!important;
+  color:var(--txt2)!important;font-weight:700;border-bottom:2px solid var(--border)!important}}
+.stDataFrame tbody tr:nth-child(even) td{{background:rgba(127,127,127,.06)}}
+.stDataFrame tbody tr:hover td{{background:rgba(102,126,234,.10)!important}}
+.stDataFrame td{{border-bottom:1px solid var(--border)!important;color:var(--txt)}}
+/* 折叠面板标题强化金融质感：左侧渐变竖条 + 悬停高亮 */
+.streamlit-expanderHeader{{border-left:3px solid transparent!important}}
+.streamlit-expanderHeader:hover{{border-left:3px solid var(--acc1, #4f46e5)!important}}
 </style>
 """
 

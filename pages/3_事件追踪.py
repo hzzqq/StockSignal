@@ -70,11 +70,19 @@ fetcher = get_fetcher()
 
 
 # ── 工具函数 ──
+def _news_fallback_url(title: str, source: str = "") -> str:
+    """原文链接缺失时的兜底：用搜索引擎按标题检索，保证标题始终可点击跳转。"""
+    from urllib.parse import quote
+    q = title
+    return f"https://www.baidu.com/s?wd={quote(q)}"
+
+
 def _render_news_with_links(df, title_col="title", url_col="url", date_col="date",
                              source_col="source", type_col="type", max_items=50):
     """
     渲染新闻列表，标题可点击跳转至原文。
     使用 st.markdown + unsafe_allow_html 实现 <a> 标签。
+    当原文 url 缺失（为空或非 http）时，回退为「按标题搜索」链接，确保标题始终可跳转。
     """
     if df is None or df.empty:
         st.info("暂无数据")
@@ -90,11 +98,13 @@ def _render_news_with_links(df, title_col="title", url_col="url", date_col="date
         if not title:
             continue
 
-        # 构建点击链接
-        if url and url.startswith("http"):
+        # 构建点击链接：优先原文 url，缺失则回退到「按标题搜索」
+        has_direct = bool(url) and url.startswith("http")
+        if has_direct:
             link = f'<a href="{html.escape(url)}" target="_blank" style="text-decoration:none;color:inherit;">{html.escape(title)}</a>'
         else:
-            link = html.escape(title)
+            fb = _news_fallback_url(title, source)
+            link = f'<a href="{html.escape(fb)}" target="_blank" style="text-decoration:none;color:inherit;">{html.escape(title)}</a>'
 
         # 标签
         badges = []
@@ -116,8 +126,11 @@ def _render_news_with_links(df, title_col="title", url_col="url", date_col="date
         with cols[1]:
             st.markdown(f"{badge_str} {link}" if badge_str else link, unsafe_allow_html=True)
         with cols[2]:
-            if url and url.startswith("http"):
+            if has_direct:
                 st.markdown(f'<a href="{html.escape(url)}" target="_blank" style="font-size:0.8em;color:#3498db;">🔗 原文</a>',
+                            unsafe_allow_html=True)
+            else:
+                st.markdown(f'<a href="{html.escape(fb)}" target="_blank" style="font-size:0.8em;color:#888;">🔍 搜索</a>',
                             unsafe_allow_html=True)
 
 

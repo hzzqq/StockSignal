@@ -95,6 +95,14 @@ def resolve_stock_codes(raw_text: str, max_rows: int = 8):
             except Exception:
                 name = None
             if not name or name == raw:
+                # fallback：后端/本地搜索按代码精确匹配（补全本地库缺失的深市/创业板代码）
+                results = _cached_search(raw, limit=1)
+                if results:
+                    code, name, _ = results[0]
+                    if code == raw.zfill(6):
+                        codes.append(code)
+                        labels.append(f"{name}({code})")
+                        continue
                 unresolved.append(f"{raw}（代码不存在）")
                 continue
             codes.append(raw)
@@ -336,7 +344,17 @@ def multi_stock_search_input(
                     name = fetcher.get_stock_basic(code)[1] or code
                 except Exception:
                     name = code
-                if name == code:  # 本地库无此代码
+                if name == code:  # 本地库无此代码 -> fallback 搜索
+                    results = _cached_search(code, limit=1)
+                    if results:
+                        code, name, _ = results[0]
+                        if code != raw.zfill(6):
+                            code = None
+                            name = None
+                    else:
+                        code = None
+                        name = None
+                if name == raw or not code:
                     item["code"] = None
                     item["name"] = None
                     unresolved.append(f"{raw}（代码不存在）")
