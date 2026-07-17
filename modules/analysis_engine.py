@@ -89,14 +89,26 @@ def _board(code: str) -> str:
     return "A股"
 
 
-def _sector_analysis(industry_kws: str, fetcher: StockFetcher) -> Dict[str, Any]:
-    """判断个股主板块及走势，供「板块分析」模块。
+def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | None = None) -> Dict[str, Any]:
+    """判断个股主板块及走势，并给出同板块个股对比，供「板块分析」模块。
 
-    返回 {name, change_pct, label, rank, total}：
-      - name   主板块名（取行业关键词第一项）
-      - change_pct 该板块实时涨跌幅（%）
-      - label  领涨/走强/走弱/领跌
-      - rank/total 该板块在全市场板块中的涨幅排名
+    返回 {
+      name, full_name, change_pct, label, rank, total,
+      peer_rank, peer_total, peer_avg_change, peer_median_change,
+      top_peers, better_peers, is_leader, sector_leader,
+    }：
+      - name/full_name  主板块名（清理后/原始）
+      - change_pct      该板块实时涨跌幅（%）
+      - label           领涨/走强/走弱/领跌
+      - rank/total      该板块在全市场板块中的涨幅排名
+      - peer_rank       目标股在板块内涨幅排名（1-based）
+      - peer_total      板块成分股总数
+      - peer_avg_change 板块成分股平均涨跌幅
+      - peer_median_change 板块成分股涨跌幅中位数
+      - top_peers       板块涨幅前 5（{code,name,change_pct,market_cap}）
+      - better_peers    涨幅比目标股高的前 5 只个股
+      - is_leader       目标股是否为板块涨幅第一
+      - sector_leader   板块涨幅第一的成分股
     网络不可用时返回基础占位，不抛异常。
     """
     def _clean_industry(name: str) -> str:
@@ -112,8 +124,20 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher) -> Dict[str, Any]
     kws = [k.strip() for k in (industry_kws or "").split(",") if k.strip()]
     industry = _clean_industry(kws[0]) if kws else ""
     out: Dict[str, Any] = {
-        "name": industry or "—", "change_pct": None,
-        "label": "—", "rank": None, "total": None,
+        "name": industry or "—",
+        "full_name": industry or "—",
+        "change_pct": None,
+        "label": "—",
+        "rank": None,
+        "total": None,
+        "peer_rank": None,
+        "peer_total": None,
+        "peer_avg_change": None,
+        "peer_median_change": None,
+        "top_peers": [],
+        "better_peers": [],
+        "is_leader": False,
+        "sector_leader": None,
     }
     if not kws:
         return out
@@ -147,6 +171,7 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher) -> Dict[str, Any]
                         else "走弱" if chg > -1.5 else "领跌")
         ranked = sectors.sort_values(chg_col, ascending=False).reset_index(drop=True)
         sector_full_name = str(sec.iloc[0][name_col])
+        out["full_name"] = sector_full_name
         # 排名按清理后的名或全名匹配
         idx = ranked[cleaned == _clean_industry(sector_full_name)].index
         if len(idx) == 0:
@@ -154,6 +179,56 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher) -> Dict[str, Any]
         if len(idx):
             out["rank"] = int(idx[0]) + 1
             out["total"] = len(ranked)
+
+        # 2) 同板块成分股对比（需要目标代码）
+        if ticker:
+            try:
+                peers = fetcher.get_sector_stocks(sector_full_name)
+                if peers is not None and not peers.empty:
+                    peers = peers.copy()
+                    peers["change_pct"] = pd.to_numeric(peers["change_pct"], errors="coerce")
+                    peers["market_cap"] = pd.to_numeric(peers["market_cap"], errors="coerce")
+                    peers = peers.dropna(subset=["change_pct"])
+                    peers = peers.sort_values("change_pct", ascending=False).reset_index(drop=True)
+                    out["peer_total"] = len(peers)
+                    if len(peers):
+                        out["peer_avg_change"] = float(peers["change_pct"].mean())
+                        out["peer_median_change"] = float(peers["change_pct"].median())
+                        out["top_peers"] = [
+                            {
+                                "code": str(p.get("code", "")).zfill(6),
+                                "name": str(p.get("name", "")),
+                                "change_pct": float(p.get("change_pct", 0)),
+                                "market_cap": (float(p.get("market_cap", 0)) if pd.notna(p.get("market_cap")) else None),
+                            }
+                            for p in peers.head(5).to_dict("records")
+                        ]
+                        leader = peers.iloc[0]
+                        out["sector_leader"] = {
+                            "code": str(leader.get("code", "")).zfill(6),
+                            "name": str(leader.get("name", "")),
+                            "change_pct": float(leader.get("change_pct", 0)),
+                        }
+                        # 目标股在板块内排名
+                        t = str(ticker).strip().zfill(6)
+                        match = peers[peers["code"].astype(str).str.strip().str.zfill(6) == t]
+                        if not match.empty:
+                            rank = int(match.index[0]) + 1
+                            out["peer_rank"] = rank
+                            out["is_leader"] = rank == 1
+                            if rank > 1:
+                                out["better_peers"] = [
+                                    {
+                                        "code": str(p.get("code", "")).zfill(6),
+                                        "name": str(p.get("name", "")),
+                                        "change_pct": float(p.get("change_pct", 0)),
+                                        "market_cap": (float(p.get("market_cap", 0)) if pd.notna(p.get("market_cap")) else None),
+                                    }
+                                    for p in peers.iloc[:rank - 1].head(5).to_dict("records")
+                                ]
+            except Exception:
+                # 成分股获取失败不阻塞主板块分析返回
+                pass
     except Exception:
         pass
     return out
@@ -360,8 +435,10 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
     q_amount = float(rt["amount"]) if isinstance(rt, dict) and rt.get("amount") else None
 
     board = _board(ticker)
-    # 板块分析：主板块 + 实时走势 + 全市场排名（用真实行业名匹配）
-    sector_analysis = _sector_analysis(industry_for_sector if industry_for_sector else industry_kws, fetcher)
+    # 板块分析：主板块 + 实时走势 + 全市场排名 + 同板块个股对比（用真实行业名匹配）
+    sector_analysis = _sector_analysis(
+        industry_for_sector if industry_for_sector else industry_kws, fetcher, ticker=ticker
+    )
 
     if verdict == "看多":
         position_advice = (

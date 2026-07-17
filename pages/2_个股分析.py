@@ -1070,8 +1070,9 @@ def _render_analysis(R: dict):
 
     # ════════════ 模块6：信号归因（四维雷达）══════════
     # ══════════ 新增模块：板块分析 ══════════
-    st.markdown('<div class="sf-card">' + _section_header("板块分析", "主板块定位 · 实时走势 · 相对强度", "📊"), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("板块分析", "主板块定位 · 实时走势 · 同板块对比", "📊"), unsafe_allow_html=True)
     _sa_name = sector_analysis.get("name", "—")
+    _sa_full = sector_analysis.get("full_name", _sa_name)
     _sa_chg = sector_analysis.get("change_pct")
     _sa_label = sector_analysis.get("label", "—")
     _sa_rank = sector_analysis.get("rank")
@@ -1079,25 +1080,158 @@ def _render_analysis(R: dict):
     _sa_chg_txt = f"{_sa_chg:+.2f}%" if _sa_chg is not None else "—"
     _sa_chg_color = RED if (_sa_chg or 0) > 0 else (GREEN if (_sa_chg or 0) < 0 else AMBER)
     _sa_rank_txt = f"全市场第 {_sa_rank}/{_sa_total} 强" if (_sa_rank and _sa_total) else "—"
-    if sector_score >= 60:
-        _rel_txt = f"{display_name} 领涨所属板块，相对强度突出"
-    elif sector_score <= 40:
-        _rel_txt = f"{display_name} 弱于所属板块，需警惕补跌"
+
+    # 板块行情判断
+    if _sa_chg is None:
+        _market_verdict = "暂无板块行情数据"
+        _market_detail = (
+            f"主板块「{_sa_name}」暂无实时涨跌数据，无法判断板块是否有行情。"
+            "建议结合大盘与五维雷达综合判断。"
+        )
     else:
-        _rel_txt = f"{display_name} 与所属板块基本同步"
-    st.markdown(
-        f"<div style='display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:10px;'>"
-        f"<div style='font-size:18px;font-weight:700;color:#1e293b;'>{_sa_name}</div>"
-        f"<span class='sf-pill {_tp_cls(sector_score)}'>板块强度 {sector_score}</span>"
-        f"<span style='font-size:14px;font-weight:600;color:{_sa_chg_color};'>{_sa_chg_txt} {_sa_label}</span>"
-        f"<span class='sf-pill mid'>{_sa_rank_txt}</span>"
+        if _sa_chg >= 2.0:
+            _market_strength, _has_boom = "强势上涨", "板块行情明确"
+        elif _sa_chg >= 1.0:
+            _market_strength, _has_boom = "偏强运行", "板块有温和行情"
+        elif _sa_chg >= -1.0:
+            _market_strength, _has_boom = "横盘震荡", "板块暂无单边行情"
+        elif _sa_chg >= -2.0:
+            _market_strength, _has_boom = "偏弱调整", "板块处于调整"
+        else:
+            _market_strength, _has_boom = "弱势下跌", "板块行情较差"
+        if _sa_rank and _sa_total:
+            _pct = _sa_rank / _sa_total * 100
+            if _pct <= 10:
+                _rank_desc = "板块热度处于全市场前 10%（头部）"
+            elif _pct <= 30:
+                _rank_desc = "板块热度处于全市场前 30%（中上）"
+            elif _pct <= 70:
+                _rank_desc = "板块热度处于全市场中游"
+            else:
+                _rank_desc = "板块热度处于全市场后 30%（落后）"
+        else:
+            _rank_desc = "暂无全市场排名"
+        _market_verdict = f"{_has_boom}：{_sa_name} {_market_strength}（{_sa_chg_txt}），{_rank_desc}。"
+        _market_detail = f"该主线属于「{_sa_full}」，实时涨跌幅 {_sa_chg_txt}，{_sa_rank_txt}。"
+
+    # 个股在板块中的位置 + 相对强弱
+    _peer_rank = sector_analysis.get("peer_rank")
+    _peer_total = sector_analysis.get("peer_total")
+    _peer_avg = sector_analysis.get("peer_avg_change")
+    _peer_median = sector_analysis.get("peer_median_change")
+    _is_leader = sector_analysis.get("is_leader", False)
+    _sector_leader = sector_analysis.get("sector_leader")
+    _top_peers = sector_analysis.get("top_peers", [])
+    _better_peers = sector_analysis.get("better_peers", [])
+
+    if _peer_rank and _peer_total:
+        _peer_pct = _peer_rank / _peer_total * 100
+        if _peer_pct <= 10:
+            _position_desc = "板块龙头/前排"
+        elif _peer_pct <= 30:
+            _position_desc = "板块中上游"
+        elif _peer_pct <= 70:
+            _position_desc = "板块中游"
+        else:
+            _position_desc = "板块后排"
+        _position_txt = f"{display_name} 在 {_sa_name} 板块 {_peer_total} 只个股中排名第 {_peer_rank}，处于{_position_desc}。"
+        if _is_leader:
+            _position_txt = f"{display_name} 是 {_sa_name} 板块涨幅龙头，板块内共 {_peer_total} 只个股。"
+    else:
+        _position_txt = f"暂无 {display_name} 在 {_sa_name} 板块内的排名数据。"
+
+    if _peer_avg is not None:
+        _rel = (change_pct or 0) - _peer_avg
+        _rel_txt = f"{_rel:+.2f}%"
+        if _rel >= 2.0:
+            _rel_desc, _rel_color = "明显强于板块", RED
+        elif _rel > 0:
+            _rel_desc, _rel_color = "强于板块", RED
+        elif _rel > -2.0:
+            _rel_desc, _rel_color = "弱于板块", GREEN
+        else:
+            _rel_desc, _rel_color = "明显弱于板块", GREEN
+        _position_txt += f" 相对板块平均涨跌幅（{_peer_avg:+.2f}%）{_rel_desc} {_rel_txt}。"
+    if _peer_median is not None:
+        _position_txt += f" 板块中位数涨跌幅 {_peer_median:+.2f}%。"
+
+    def _fmt_cap(v):
+        try:
+            v = float(v)
+            if v >= 1e8:
+                return f"{v / 1e8:.1f}亿"
+            return f"{v:.1f}亿"
+        except Exception:
+            return "—"
+
+    def _peer_row(p, idx=None, show_rank=False):
+        code = str(p.get("code", "")).zfill(6)
+        name = p.get("name", "")
+        chg = p.get("change_pct")
+        cap = p.get("market_cap")
+        chg_txt = f"{chg:+.2f}%" if chg is not None else "—"
+        color = RED if (chg or 0) > 0 else (GREEN if (chg or 0) < 0 else AMBER)
+        cap_txt = _fmt_cap(cap) if cap is not None else "—"
+        rank_cell = f"<td style='padding:6px 8px;font-size:13px;color:var(--txt2);text-align:center;width:36px;'>{idx}</td>" if show_rank else ""
+        return (
+            f"<tr>{rank_cell}"
+            f"<td style='padding:6px 8px;font-size:13px;color:var(--txt);'>{code}</td>"
+            f"<td style='padding:6px 8px;font-size:13px;color:var(--txt);'>{name}</td>"
+            f"<td style='padding:6px 8px;font-size:13px;font-weight:600;color:{color};'>{chg_txt}</td>"
+            f"<td style='padding:6px 8px;font-size:12px;color:var(--txt2);text-align:right;'>{cap_txt}</td>"
+            f"</tr>"
+        )
+
+    _html = (
+        f'<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px;">'
+        f'<div style="font-size:18px;font-weight:700;color:var(--txt);">{_sa_name}</div>'
+        f'<span class="sf-pill {_tp_cls(sector_score)}">板块强度 {sector_score}</span>'
+        f'<span style="font-size:14px;font-weight:600;color:{_sa_chg_color};">{_sa_chg_txt} {_sa_label}</span>'
+        f'<span class="sf-pill mid">{_sa_rank_txt}</span>'
         f"</div>"
-        f"<div style='font-size:13.5px;color:#64748b;line-height:1.7;'>"
-        f"<b style='color:#1e293b;'>板块研判：</b>{_rel_txt}。"
-        f"该主线属「{_sa_name}」，实时涨跌幅 {_sa_chg_txt}，{_sa_rank_txt}，"
-        f"结合下方五维雷达的「板块」维度综合判断。</div>",
-        unsafe_allow_html=True,
+        f'<div style="font-size:13.5px;color:var(--txt2);line-height:1.7;margin-bottom:12px;">'
+        f'<b style="color:var(--txt);">板块行情：</b>{_market_verdict}<br>{_market_detail}'
+        f"</div>"
+        f'<div style="font-size:13.5px;color:var(--txt2);line-height:1.7;margin-bottom:16px;">'
+        f'<b style="color:var(--txt);">个股定位：</b>{_position_txt}'
+        f"</div>"
     )
+
+    if _top_peers:
+        rows = "".join(_peer_row(p, i + 1) for i, p in enumerate(_top_peers[:5]))
+        _html += (
+            f'<div style="font-size:13px;font-weight:600;color:var(--txt);margin-bottom:8px;">🏆 板块领涨 TOP5</div>'
+            f'<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">'
+            f'<thead><tr style="border-bottom:1px solid var(--border);">'
+            f'<th style="padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;">代码</th>'
+            f'<th style="padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;">名称</th>'
+            f'<th style="padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;">涨跌幅</th>'
+            f'<th style="padding:6px 8px;text-align:right;font-size:12px;color:var(--txt2);font-weight:600;">总市值</th>'
+            f"</tr></thead><tbody>{rows}</tbody></table>"
+        )
+
+    if _better_peers:
+        rows = "".join(_peer_row(p, i + 1, show_rank=True) for i, p in enumerate(_better_peers[:5]))
+        _html += (
+            f'<div style="font-size:13px;font-weight:600;color:var(--txt);margin-bottom:8px;">'
+            f'⚡ 比 {display_name} 更强的同板块个股</div>'
+            f'<table style="width:100%;border-collapse:collapse;">'
+            f'<thead><tr style="border-bottom:1px solid var(--border);">'
+            f'<th style="padding:6px 8px;text-align:center;font-size:12px;color:var(--txt2);font-weight:600;width:36px;">排名</th>'
+            f'<th style="padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;">代码</th>'
+            f'<th style="padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;">名称</th>'
+            f'<th style="padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;">涨跌幅</th>'
+            f'<th style="padding:6px 8px;text-align:right;font-size:12px;color:var(--txt2);font-weight:600;">总市值</th>'
+            f"</tr></thead><tbody>{rows}</tbody></table>"
+        )
+    elif _peer_rank and _peer_rank == 1:
+        _html += (
+            f'<div style="font-size:13px;color:var(--txt2);margin-top:8px;">'
+            f'✅ {display_name} 当前为该板块涨幅第一，暂无同板块个股比它更强。'
+            f"</div>"
+        )
+
+    st.markdown(_html, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="sf-card">' + _section_header("信号归因 · 五维雷达", "技术 / 情绪 / 量能 / 宏观 / 板块", "🎯"), unsafe_allow_html=True)
