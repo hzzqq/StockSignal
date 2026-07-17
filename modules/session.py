@@ -388,9 +388,114 @@ def auth_headers() -> dict:
     return {}
 
 
+def _load_logo_svg() -> str:
+    """加载项目 logo SVG，失败返回空字符串。"""
+    try:
+        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "icon.svg")
+        with open(logo_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return ""
+
+
+def _render_login_gate() -> None:
+    """未登录门禁页：项目品牌 + 金融风登录引导。"""
+    logo_svg = _load_logo_svg()
+    logo_html = f'<div class="ss-login-logo">{logo_svg}</div>' if logo_svg else ""
+
+    st.markdown(f"""
+    <style>
+    .ss-login-gate {{
+        max-width: 520px;
+        margin: 3rem auto 1.5rem auto;
+        padding: 2.5rem 2rem 2rem 2rem;
+        text-align: center;
+        background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 24px;
+        box-shadow: 0 12px 40px rgba(26, 35, 126, 0.12), 0 2px 8px rgba(0,0,0,0.04);
+        border: 1px solid rgba(26, 35, 126, 0.08);
+        position: relative;
+        overflow: hidden;
+    }}
+    .ss-login-gate::before {{
+        content: "";
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 5px;
+        background: linear-gradient(90deg, #f5c542 0%, #667eea 50%, #1a237e 100%);
+    }}
+    .ss-login-logo {{
+        display: flex;
+        justify-content: center;
+        margin-bottom: 1.25rem;
+    }}
+    .ss-login-logo svg {{
+        width: 110px;
+        height: 110px;
+        filter: drop-shadow(0 6px 16px rgba(102, 126, 234, 0.25));
+    }}
+    .ss-login-title {{
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #1a237e;
+        letter-spacing: -0.5px;
+        margin-bottom: 0.25rem;
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }}
+    .ss-login-subtitle {{
+        font-size: 1.05rem;
+        color: #475569;
+        margin-bottom: 0.6rem;
+        font-weight: 500;
+    }}
+    .ss-login-desc {{
+        font-size: 0.92rem;
+        color: #64748b;
+        margin-bottom: 0.6rem;
+    }}
+    .ss-login-badge {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: linear-gradient(90deg, #fff8e1 0%, #ffecb3 100%);
+        color: #5d4037;
+        border: 1px solid rgba(245, 197, 66, 0.4);
+        border-radius: 999px;
+        padding: 0.35rem 0.9rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        box-shadow: 0 2px 6px rgba(245, 197, 66, 0.15);
+    }}
+    .ss-login-footer {{
+        text-align: center;
+        color: #94a3b8;
+        font-size: 0.8rem;
+        margin-top: 1.25rem;
+    }}
+    </style>
+    <div class="ss-login-gate">
+        {logo_html}
+        <div class="ss-login-title">StockSignal</div>
+        <div class="ss-login-subtitle">A股事件驱动投资分析平台</div>
+        <div class="ss-login-desc">登录后解锁行情看板、个股分析、形态选股等全部功能</div>
+        <div class="ss-login-badge">🔑 默认演示账号：demo / Demo@123</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _, col, _ = st.columns([1, 2, 1])
+    with col:
+        if st.button("🔑 去登录", type="primary", use_container_width=True):
+            safe_switch_page("pages/0_登录.py")
+
+    st.markdown(
+        '<div class="ss-login-footer">StockSignal · 仅供学习与研究所用，不构成投资建议</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def require_auth() -> None:
     """
-    业务页面门禁：未登录 → 显示提示 + 跳转按钮 + st.stop()
+    业务页面门禁：未登录 → 显示品牌登录引导 + 跳转按钮 + st.stop()
     """
     init_session_state()
 
@@ -403,13 +508,7 @@ def require_auth() -> None:
         render_sidebar_nav()
         return
 
-    st.warning("🔐 该功能需要登录后才能使用")
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        if st.button("🔑 去登录", type="primary"):
-            safe_switch_page("pages/0_登录.py")
-    with col2:
-        st.caption("提示：默认演示账号 `demo` / `Demo@123`")
+    _render_login_gate()
     st.stop()
 
 

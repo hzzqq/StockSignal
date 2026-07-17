@@ -353,32 +353,43 @@ class SignalEngine:
     # ------------------------------------------------------------------
     # 综合评分
     # ------------------------------------------------------------------
-    def evaluate(self, ticker, event_keywords, date=None, sector_name=None):
+    def evaluate(self, ticker, event_keywords, date=None, sector_name=None, df=None):
         """
         综合评估单只股票的事件驱动得分。
         :param ticker: 股票代码
         :param event_keywords: 事件关键词列表（用于事件库/新闻匹配）
         :param sector_name: 真实所属行业名（如"白酒"），用于板块相对强度计算
         :param date: 评估日期
+        :param df: 已获取并清洗过的日线 DataFrame（可选，避免重复拉取）
         :return: dict {price_score, event_score, macro_score, sector_score,
                           technical_profile, total}
         """
         # 拉取行情并清洗（失败时降级为中性评分）
-        end = date or datetime.now().strftime("%Y-%m-%d")
-        start = (datetime.strptime(end, "%Y-%m-%d") if date else datetime.now()) - timedelta(days=120)
-        start_str = start.strftime("%Y-%m-%d")
+        if df is not None and not df.empty:
+            try:
+                df = DataCleaner.full_pipeline(df)
+                tp = self.technical_profile(df, date)
+                p_score = tp["composite"]
+            except (RuntimeError, ValueError, Exception) as e:
+                p_score = 50
+                tp = {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50}
+                print(f"[SignalEngine] 传入行情清洗失败({ticker})，价格信号使用中性分50: {e}")
+        else:
+            end = date or datetime.now().strftime("%Y-%m-%d")
+            start = (datetime.strptime(end, "%Y-%m-%d") if date else datetime.now()) - timedelta(days=120)
+            start_str = start.strftime("%Y-%m-%d")
 
-        df = None
-        try:
-            df = self.fetcher.get_daily(ticker, start=start_str, end=end)
-            df = DataCleaner.full_pipeline(df)
-            tp = self.technical_profile(df, date)
-            p_score = tp["composite"]
-        except (RuntimeError, ValueError, Exception) as e:
-            # 行情数据不可用 → 价格信号给中性分，不影响事件和宏观评分
-            p_score = 50
-            tp = {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50}
-            print(f"[SignalEngine] 行情获取失败({ticker})，价格信号使用中性分50: {e}")
+            df = None
+            try:
+                df = self.fetcher.get_daily(ticker, start=start_str, end=end)
+                df = DataCleaner.full_pipeline(df)
+                tp = self.technical_profile(df, date)
+                p_score = tp["composite"]
+            except (RuntimeError, ValueError, Exception) as e:
+                # 行情数据不可用 → 价格信号给中性分，不影响事件和宏观评分
+                p_score = 50
+                tp = {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50}
+                print(f"[SignalEngine] 行情获取失败({ticker})，价格信号使用中性分50: {e}")
 
         e_score = self.event_score(ticker, event_keywords, date)
         m_score = self.macro_score(date)

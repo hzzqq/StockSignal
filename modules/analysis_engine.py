@@ -19,6 +19,7 @@ from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.news import NewsFetcher, SentimentAnalyzer
+from concurrent.futures import ThreadPoolExecutor
 
 
 # 配色常量（与个股分析页对齐：参考文档绿涨红跌）
@@ -307,15 +308,6 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
     _code, _name = fetcher.get_stock_basic(ticker)
     display_name = _name or stock_name or ticker
 
-    # 真实行业（优先基本面接口，比名称关键词更准）
-    industry = "—"
-    fundamentals = {}
-    try:
-        fundamentals = fetcher.get_fundamentals(ticker)
-        industry = (fundamentals.get("industry") or "").strip() or "—"
-    except Exception as e:
-        messages.append(f"基本面获取失败：{str(e)[:80]}")
-
     # 与板块列表对齐的清理后行业名（去掉"Ⅱ"/"Ⅲ"/"Ⅰ"/"及其他"）
     def _clean_industry_name(name: str) -> str:
         if not name:
@@ -325,23 +317,55 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
                 name = name[: -len(suffix)]
         return name.strip()
 
-    industry_for_sector = _clean_industry_name(industry) if industry != "—" else ""
+    # 并行抓取：基本面 / 行业关键词 / 实时行情 / 日线（互不依赖，并发提速）
+    today = datetime.now().date()
+    start_str = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+    end_str = today.strftime("%Y-%m-%d")
 
-    # 行业事件关键词（用于事件库/新闻匹配）
-    try:
-        industry_kws = fetcher.get_stock_keywords(ticker, top_k=3)
-    except Exception as e:
-        industry_kws = ""
-        messages.append(f"行业关键词获取失败：{str(e)[:80]}")
+    def _fetch_fund():
+        try:
+            return fetcher.get_fundamentals(ticker)
+        except Exception as e:
+            messages.append(f"基本面获取失败：{str(e)[:80]}")
+            return {}
+    def _fetch_kws():
+        try:
+            return fetcher.get_stock_keywords(ticker, top_k=3)
+        except Exception as e:
+            messages.append(f"行业关键词获取失败：{str(e)[:80]}")
+            return ""
+    def _fetch_rt():
+        try:
+            return fetcher.get_realtime_quote(ticker)
+        except Exception as e:
+            messages.append(f"实时行情获取失败：{str(e)[:80]}")
+            return None
+    def _fetch_daily():
+        try:
+            return fetcher.get_daily(ticker, start=start_str, end=end_str)
+        except Exception as e:
+            messages.append(f"行情获取失败：{str(e)[:80]}")
+            return pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
+
+    _fundamentals, _kws, _rt, _raw_df = {}, "", None, pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
+    with ThreadPoolExecutor(max_workers=4) as _ex:
+        _f1 = _ex.submit(_fetch_fund)
+        _f2 = _ex.submit(_fetch_kws)
+        _f3 = _ex.submit(_fetch_rt)
+        _f4 = _ex.submit(_fetch_daily)
+        _fundamentals = _f1.result()
+        _kws = _f2.result()
+        _rt = _f3.result()
+        _raw_df = _f4.result()
+
+    fundamentals = _fundamentals
+    industry = (fundamentals.get("industry") or "").strip() or "—"
+    industry_for_sector = _clean_industry_name(industry) if industry != "—" else ""
+    industry_kws = _kws
 
     # 实时行情（本地 fetcher 直接拉取，避免后台调用 session.api_quote）
-    quote_src = "本地 fetcher"
-    rt = None
-    try:
-        rt = fetcher.get_realtime_quote(ticker)
-        quote_src = "新浪财经"
-    except Exception as e:
-        messages.append(f"实时行情获取失败：{str(e)[:80]}")
+    quote_src = "新浪财经" if _rt else "本地 fetcher"
+    rt = _rt
     if isinstance(rt, dict) and rt.get("current"):
         current_price = float(rt["current"])
         prev_close = float(rt.get("prev_close") or current_price)
@@ -353,16 +377,8 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
         change_pct = 0.0
 
     # 日线行情（本地 fetcher 直接拉取）
-    today = datetime.now().date()
-    start_str = (today - timedelta(days=365)).strftime("%Y-%m-%d")
-    end_str = today.strftime("%Y-%m-%d")
     data_src = "本地四级降级链"
-    try:
-        df = fetcher.get_daily(ticker, start=start_str, end=end_str)
-    except Exception as e:
-        messages.append(f"行情获取失败：{str(e)[:80]}")
-        df = pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
-    df = DataCleaner.full_pipeline(df)
+    df = DataCleaner.full_pipeline(_raw_df)
 
     # 技术面
     technical = technical_full_analysis(df)
@@ -375,7 +391,8 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
     keywords = [k.strip() for k in (industry_kws or "").split(",") if k.strip()] or [display_name]
     signal = SignalEngine().evaluate(
         ticker, keywords, date=None,
-        sector_name=(industry_for_sector if industry_for_sector else None)
+        sector_name=(industry_for_sector if industry_for_sector else None),
+        df=df,
     )
 
     tech_score = float(signal.get("price_score", 50))
@@ -541,5 +558,7 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
         "_warnings": messages,
     }
     if _use_cache:
+        if len(_ANALYSIS_CACHE) > 300:
+            _ANALYSIS_CACHE.clear()
         _ANALYSIS_CACHE[ticker] = (_time.time(), result)
     return result
