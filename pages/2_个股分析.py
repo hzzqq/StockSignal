@@ -926,6 +926,10 @@ def _render_analysis(R: dict):
     )
     st.session_state[f"kline_period_{ticker}"] = kline_period
 
+    # ── K线标题：代码 + 名称 + 周期（如「000504 南华生物 日K线」）──
+    period_label = {"daily": "日K线", "weekly": "周K线", "monthly": "月K线"}[kline_period]
+    kline_title = f"{ticker} {display_name} {period_label}"
+
     # ── #393 日期范围选择器：自定义 K 线起止日期（开始 / 结束）──
     _dr_key = f"kline_daterange_{ticker}"
     if _dr_key not in st.session_state:
@@ -983,7 +987,7 @@ def _render_analysis(R: dict):
         ] if kline_period == "daily" else None
         fig = Visualizer.candlestick(
             period_df,
-            title="技术指标图表（K线 + 均线 + 成交量）",
+            title=kline_title,
             show_volume=True,
             ma_windows=[5, 10, 20],
             annotations=kline_annotations,

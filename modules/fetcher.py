@@ -2220,12 +2220,35 @@ class StockFetcher:
             # 检查失败时不阻塞（允许后续降级链尝试）
             return True, f"无法验证({e})"
 
+    @staticmethod
+    def _safe_kline_df(df):
+        """将任一数据源返回的 K 线 df 统一标准化（防御式，杜绝单源 TypeError 拖垮整条链路）：
+
+        - 非 DataFrame / 空 / 缺失必备列（date/open/close/high/low/volume）→ 视为无效返回 None
+        - ``date`` 强制转为 datetime（解析失败 coerce 为 NaT 并丢弃该行），
+          避免「Timestamp 与字符串直接比较」在 L3 过滤时抛 ``TypeError``（即 #352 的 L1-L4 TypeError 根因之一）
+        - 其余列（amount / change_pct 等）原样保留
+        """
+        if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+            return None
+        need = ["date", "open", "close", "high", "low", "volume"]
+        if not all(c in df.columns for c in need):
+            return None
+        try:
+            df = df.copy()
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+            df = df.dropna(subset=["date"])
+            return df if not df.empty else None
+        except Exception:
+            return None
+
     def _fetch_level(self, level, symbol, start, end, adjust):
         """单数据源抓取 + 标准化：并行竞速用。
 
         返回 (df_or_None, error_or_None)。L1=akshare / L2=BaoStock / L3=新浪 / L4=东方财富。
         每个源独立在子线程中执行，先成功者胜出，避免「顺序降级逐个网络超时」的累加等待。
         每个源调用均经 ``observe_source`` 记录成功率/耗时，供数据源健康度横幅使用。
+        任何单源的异常（含 TypeError）都会在此被吞掉并降级为「无数据」，由上层继续尝试其余源。
         """
         rename_map = {
             "日期": "date", "开盘": "open", "收盘": "close",
@@ -2257,8 +2280,9 @@ class StockFetcher:
                 )
                 if df is not None:
                     df = df.rename(columns=rename_map)
-                    df["date"] = pd.to_datetime(df["date"])
-                    return df, None
+                    df = self._safe_kline_df(df)
+                    if df is not None:
+                        return df, None
                 return None, "akshare: 无数据"
 
             if level == "L2":
@@ -2267,7 +2291,9 @@ class StockFetcher:
                     lambda: _BaoStockFetcher.fetch_kline(symbol, start, end, adjust=adjust),
                 )
                 if df is not None:
-                    return df, None
+                    df = self._safe_kline_df(df)
+                    if df is not None:
+                        return df, None
                 return None, "BaoStock: 无数据"
 
             if level == "L3":
@@ -2276,9 +2302,12 @@ class StockFetcher:
                     lambda: _SinaFetcher.fetch_kline(symbol, start, end),
                 )
                 if df is not None:
-                    df = df[(df["date"] >= _sd) & (df["date"] <= _ed)]
-                    if not df.empty:
-                        return df, None
+                    df = self._safe_kline_df(df)
+                    if df is not None:
+                        # date 已统一为 datetime，下面的比较绝不会再抛 TypeError
+                        df = df[(df["date"] >= _sd) & (df["date"] <= _ed)]
+                        if not df.empty:
+                            return df, None
                 return None, "新浪: 日期范围外/无数据"
 
             if level == "L4":
@@ -2287,7 +2316,9 @@ class StockFetcher:
                     lambda: _UrllibFetcher.fetch_kline(symbol, start, end, adjust=adjust),
                 )
                 if df is not None:
-                    return df, None
+                    df = self._safe_kline_df(df)
+                    if df is not None:
+                        return df, None
                 return None, "东方财富: 无数据"
         except Exception as e:  # noqa: BLE001
             return None, f"{level}: {type(e).__name__}"
@@ -2451,8 +2482,12 @@ class StockFetcher:
                             "最高": "high", "最低": "low", "成交量": "volume",
                             "成交额": "amount", "涨跌幅": "change_pct",
                         })
-                        df["date"] = pd.to_datetime(df["date"])
-                        print(f"[StockFetcher] L1-akshare {period} OK {symbol}")
+                        # 防御式标准化：日期解析异常 / 缺列 直接降级，不让 TypeError 中断 L1
+                        df = self._safe_kline_df(df)
+                        if df is not None:
+                            print(f"[StockFetcher] L1-akshare {period} OK {symbol}")
+                        else:
+                            df = None
                 except Exception as e:
                     if 'Connection' not in type(e).__name__ and 'Remote' not in type(e).__name__:
                         errors.append(f"akshare: {type(e).__name__}")
