@@ -426,6 +426,127 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
 
 
 # ──────────────────────────────────────────────────────────────
+# 轻量版指数组件（参考 market-review 文档：5 列数字卡 + 涨跌幅柱状图）
+# ──────────────────────────────────────────────────────────────
+@st.fragment
+def render_index_compact(cols_per_row: int = 5) -> None:
+    """在页面顶部渲染主要指数收盘行情：轻量数字卡 + 涨跌幅柱状图。
+
+    与 render_index_mini_cards 区别：
+      - 去掉了 sparkline、O/H/L/振幅 等细节，只保留名称、点位、涨跌幅；
+      - 卡片横向平铺，更紧凑；
+      - 下方统一展示涨跌幅柱状图，便于一眼比较强弱。
+    """
+    from datetime import datetime, timedelta
+    from concurrent.futures import ThreadPoolExecutor
+    from modules.fetcher import StockFetcher
+    from modules.ui_theme import _theme_is_dark
+    from modules.visualizer import UP_COLOR, DOWN_COLOR
+
+    # 自动刷新：交易时间 60s 后台更新
+    try:
+        from streamlit_autorefresh import st_autorefresh
+        is_open, _, refresh_ms = _index_market_status()
+        if refresh_ms > 0:
+            st_autorefresh(interval=refresh_ms, key="index_compact_autorefresh")
+    except Exception:
+        pass
+
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=30)
+    start_str = start_date.strftime("%Y-%m-%d")
+
+    cache_key = f"index_compact_{_index_cache_key()}"
+    if cache_key in st.session_state:
+        cards = st.session_state[cache_key]
+    else:
+        def _worker(info):
+            try:
+                return _build_index_card(info, StockFetcher(), start_str)
+            except Exception:
+                return {**info, "current": None, "change": None,
+                        "change_pct": None, "spark": None}
+
+        with ThreadPoolExecutor(max_workers=min(len(_INDEX_INFOS), 8)) as _ex:
+            cards = list(_ex.map(_worker, _INDEX_INFOS))
+        st.session_state[cache_key] = cards
+        for k in list(st.session_state.keys()):
+            if k.startswith("index_compact_") and k != cache_key:
+                del st.session_state[k]
+
+    dark = _theme_is_dark()
+    txt = "#e2e8f0" if dark else "#1e293b"
+    txt2 = "#94a3b8" if dark else "#64748b"
+    card_bg = "rgba(26,26,46,0.55)" if dark else "#ffffff"
+    border = "rgba(102,126,234,0.12)" if dark else "#E5E7EB"
+    grid = "rgba(148,163,184,0.15)" if dark else "rgba(148,163,184,0.25)"
+
+    # 轻量化标题：跟随全局 h2 样式
+    st.markdown("<h2>📉 主要指数（收盘）</h2>", unsafe_allow_html=True)
+
+    for i in range(0, len(cards), cols_per_row):
+        row = cards[i:i + cols_per_row]
+        cols = st.columns(cols_per_row)
+        for j, card in enumerate(row):
+            with cols[j]:
+                if card.get("current") is not None:
+                    sign = "+" if card["change_pct"] >= 0 else ""
+                    num_color = UP_COLOR if card["change_pct"] >= 0 else DOWN_COLOR
+                    st.markdown(
+                        f"<div style='background:{card_bg};border:1px solid {border};"
+                        f"border-radius:12px;padding:12px;text-align:center;'>"
+                        f"<div style='font-size:12px;color:{txt2};'>{card['name']}</div>"
+                        f"<div style='font-size:20px;font-weight:800;color:{num_color};"
+                        f"margin:4px 0;font-family:Fira Code,monospace;'>"
+                        f"{card['current']:.2f}</div>"
+                        f"<div style='font-size:12px;font-weight:700;color:{num_color};'>"
+                        f"{sign}{card['change_pct']:.2f}%</div></div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        f"<div style='background:{card_bg};border:1px solid {border};"
+                        f"border-radius:12px;padding:12px;text-align:center;color:{txt2};'>"
+                        f"{card['name']}<br>—</div>",
+                        unsafe_allow_html=True,
+                    )
+
+    # 涨跌幅柱状图
+    try:
+        import plotly.graph_objects as go
+        labels = [c["name"] for c in cards]
+        values = [c["change_pct"] if c.get("change_pct") is not None else 0.0 for c in cards]
+        bar_colors = [UP_COLOR if v >= 0 else DOWN_COLOR for v in values]
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=labels, y=values,
+            marker_color=bar_colors,
+            text=[f"{v:+.2f}%" for v in values],
+            textposition="outside",
+            textfont={"color": txt, "size": 11},
+            hovertemplate="%{x}: %{y:.2f}%<extra></extra>",
+        ))
+        fig.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            margin={"l": 40, "r": 20, "t": 10, "b": 30},
+            height=220,
+            yaxis_title="涨跌幅 %",
+            xaxis={"tickfont": {"color": txt2, "size": 11}, "showgrid": False},
+            yaxis={
+                "tickfont": {"color": txt2, "size": 11},
+                "gridcolor": grid,
+                "zerolinecolor": txt2,
+                "zerolinewidth": 1,
+            },
+            font={"color": txt},
+            showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    except Exception as e:
+        st.caption(f"指数图表渲染失败：{e}")
+
+
+# ──────────────────────────────────────────────────────────────
 # 全局股票搜索
 # ──────────────────────────────────────────────────────────────
 def render_global_search() -> None:

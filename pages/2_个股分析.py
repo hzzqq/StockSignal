@@ -155,15 +155,141 @@ def _support_resistance_bar(support: float, resistance: float, current: float,
     return "".join(parts)
 
 
+def _battle_plan_scale(support: float, resistance: float, current: float,
+                       target: float, stop: float, entry: float, verdict: str) -> str:
+    """作战计划价格刻度条（参考 HTML .scale）：仅关键价位，无 MA 重叠标记。"""
+    if resistance <= support:
+        resistance = current * 1.10
+        support = current * 0.90
+    lo = support * 0.95
+    hi = resistance * 1.05
+    span = hi - lo if hi > lo else 1.0
+
+    def _pos(p):
+        return max(3.0, min(97.0, (float(p) - lo) / span * 100.0))
+
+    c_left = GREEN   # 下方/利空
+    c_mid = AMBER
+    c_right = RED    # 上方/利多
+    cur_color = c_right if verdict == "看多" else (c_left if verdict == "看空" else "#475569")
+
+    markers = [
+        ("支撑", support, c_left),
+        ("入场", entry, c_mid),
+        ("现价", current, cur_color),
+        ("目标", target, c_right),
+        ("止损", stop, c_right),
+    ]
+    # 去重：避免 price 太接近导致文字重叠
+    used = set()
+    filtered = []
+    for lab, price, color in markers:
+        if price is None or price <= 0:
+            continue
+        key = round(price / span * 100.0)
+        if key in used:
+            continue
+        used.add(key)
+        filtered.append((lab, price, color))
+
+    parts = [
+        '<div class="sf-scale">',
+        f'<div class="sf-scale-bar" style="background:linear-gradient(90deg,{c_left},{c_mid},{c_right});"></div>',
+    ]
+    for lab, price, color in filtered:
+        p = _pos(price)
+        parts.append(
+            f'<div class="sf-scale-mk" style="left:{p:.1f}%;">'
+            f'<b style="color:{color};">¥{price:.2f}</b>{lab}</div>'
+        )
+    parts.append('<div class="sf-scale-lab" style="left:14px;">下方支撑</div>')
+    parts.append('<div class="sf-scale-lab" style="right:14px;">压力/止损</div>')
+    parts.append('</div>')
+    return "".join(parts)
+
+
+def _build_risk_iron_rules(R: dict) -> list[dict]:
+    """基于分析结果生成风险铁律（风控铁律）。"""
+    items = []
+    current_price = float(R.get("current_price", 0) or 0)
+    stop_price = float(R.get("stop_price", 0) or 0)
+    target_price = float(R.get("target_price", 0) or 0)
+    support = float(R.get("support", 0) or 0)
+    resistance = float(R.get("resistance", current_price * 1.10) or 0)
+    entry_price = float(R.get("entry_price", current_price) or 0)
+    verdict = R.get("verdict", "持有")
+    atr14 = float(R.get("atr14", current_price * 0.02) or 0)
+    arrangement = (R.get("trend", {}) or {}).get("arrangement", "")
+
+    if verdict == "看空":
+        items.append({
+            "title": "绝不裸追下方",
+            "desc": f"当前价 ¥{current_price:.2f} 处偏空区域，无明确反弹信号前不追空；等反弹至 ¥{resistance:.2f} 附近再布局。",
+            "level": "core",
+        })
+    elif verdict == "看多":
+        items.append({
+            "title": "绝不追高",
+            "desc": f"当前价 ¥{current_price:.2f} 处偏多区域，等回踩 ¥{entry_price:.2f} 附近或缩量回调再建仓。",
+            "level": "core",
+        })
+    else:
+        items.append({
+            "title": "不押注方向",
+            "desc": f"当前处于震荡/持有状态，等待价格明确突破 ¥{resistance:.2f} 或跌破 ¥{support:.2f} 后再加仓。",
+            "level": "core",
+        })
+
+    items.append({
+        "title": "止损必设",
+        "desc": f"硬止损 ¥{stop_price:.2f}（ATR14≈¥{atr14:.2f}），破则无条件离场，禁止补仓摊平。",
+        "level": "warn",
+    })
+    items.append({
+        "title": "仓位纪律",
+        "desc": "单标的 ≤ 总仓位 30%；首仓试探，确认趋势后再加；亏损单不加仓。",
+        "level": "warn",
+    })
+    if arrangement:
+        items.append({
+            "title": "盯结构变化",
+            "desc": f"当前均线形态「{arrangement}」，若形态破坏（如多头排列走平/空头排列被突破），立即重新评估。",
+            "level": "info",
+        })
+    return items
+
+
+def _risk_iron_html(title: str, items: list[dict]) -> str:
+    """渲染风险铁律框（参考 HTML .warnbox）。"""
+    if not items:
+        items = [{"title": "暂无", "desc": "未识别到明确风险铁律，建议遵守通用止损与仓位纪律。", "level": "info"}]
+    rows = "".join(f"<li><b>{it['title']}</b>：{it['desc']}</li>" for it in items)
+    return f'<div class="sf-risk-iron"><h3>⚠ {title}</h3><ul>{rows}</ul></div>'
+
+
+def _build_plan_rows(verdict: str, current: float, support: float, resistance: float,
+                     target: float, stop: float, entry: float, ma20: float) -> list[tuple]:
+    """根据研判生成 A/B 两方案（参考 HTML 作战计划表）。"""
+    if verdict == "看空":
+        return [
+            ("A 反弹空", f"反弹至 {entry:.2f}–{resistance:.2f} 受阻", f"{entry:.2f}–{resistance:.2f} 分批", f"{stop:.2f}（破则认错）", f"{support:.2f} → {target:.2f}"),
+            ("B 破位追空", f"{support:.2f} 有效跌破（收盘+放量）", "跟空", f"{current:.2f}", f"{target:.2f} → {support*0.97:.2f}"),
+        ]
+    elif verdict == "看多":
+        return [
+            ("A 回踩建仓", f"回调至 {support:.2f}–{entry:.2f} 企稳", f"{support:.2f}–{entry:.2f} 分批", f"{stop:.2f}（破则认错）", f"{target:.2f} → {resistance:.2f}"),
+            ("B 突破加仓", f"放量突破 {resistance:.2f}", "跟多", f"{entry:.2f}", f"{resistance:.2f} → {resistance*1.05:.2f}"),
+        ]
+    else:
+        return [
+            ("A 区间低吸", f"回调至 {support:.2f} 附近企稳", f"{support:.2f}–{entry:.2f} 分批", f"{stop:.2f}", f"{target:.2f} 附近减仓"),
+            ("B 观望", f"等方向明确：突破 {resistance:.2f} 或跌破 {support:.2f}", "不进场", "—", "等更清晰拐点"),
+        ]
+
+
 def _section_header(title: str, subtitle: str = "", icon: str = "📊") -> str:
-    """生成带图标、副标题、渐变装饰线的模块标题。"""
-    sub_html = f"<div class='sub'>{subtitle}</div>" if subtitle else ""
-    return (
-        f"<div class='sf-section-header'>"
-        f"<div class='icon'>{icon}</div>"
-        f"<div class='titles'><h2>{title}</h2>{sub_html}</div>"
-        f"<div class='deco'></div></div>"
-    )
+    """生成轻量化模块标题（图标 + 标题），与参考文档 .card h2 一致。subtitle 已废弃，仅保留兼容。"""
+    return f"<h2>{icon} {title}</h2>"
 
 
 def _build_rise_fall_factors(R: dict) -> tuple[list[dict], list[dict]]:
@@ -608,7 +734,7 @@ def _render_analysis(R: dict):
     last = df.iloc[-1]
 
     # ════════════ 模块1：顶部决策摘要 ════════════
-    st.markdown(_section_header("顶部决策摘要", "综合评分 · 仓位策略 · 风险价位", "🎯"), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("顶部决策摘要", "🎯"), unsafe_allow_html=True)
     chg_txt = f"{change_pct:+.2f}%"
     price_disp = f"¥{current_price:.2f}" if current_price is not None else f"¥{last['close']:.2f}"
     change_amt = (current_price - prev_close) if (current_price is not None and prev_close is not None) else 0.0
@@ -640,8 +766,8 @@ def _render_analysis(R: dict):
     hdr_left, hdr_right = st.columns([3, 1])
     with hdr_left:
         st.markdown(
-            f"<div style='font-size:23px;font-weight:700;color:#1e293b;'>{display_name}</div>"
-            f"<div style='font-size:12.5px;color:#64748b;margin-top:3px;'>"
+            f"<div style='font-size:23px;font-weight:700;color:var(--txt);'>{display_name}</div>"
+            f"<div style='font-size:12.5px;color:var(--txt2);margin-top:3px;'>"
             f"{ticker} · {board} · {industry}</div>"
             f"<div style='margin-top:10px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;'>"
             f"<span class='sf-price-big' style='color:{price_color}!important;'>{price_disp}</span>"
@@ -682,10 +808,11 @@ def _render_analysis(R: dict):
             "</div>", unsafe_allow_html=True)
 
     st.markdown(
-        f"<div style='font-size:13px;color:#64748b;margin-top:12px;line-height:1.7;'>"
-        f"<b style='color:#1e293b;'>仓位建议：</b>{position_advice}</div>",
+        f"<div style='font-size:13px;color:var(--txt2);margin-top:12px;line-height:1.7;'>"
+        f"<b style='color:var(--txt);'>仓位建议：</b>{position_advice}</div>",
         unsafe_allow_html=True,
     )
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # ════════════ 模块2：核心结论 ════════════
     st.markdown('<div class="sf-card">' + _section_header("核心结论", "AI 综合研判 · 多空信号", "💡"), unsafe_allow_html=True)
@@ -1073,59 +1200,55 @@ def _render_analysis(R: dict):
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ════════════ 模块7：作战计划 ════════════
-    st.markdown('<div class="sf-card">' + _section_header("作战计划", "支撑压力 · 分批建仓 · 纪律止损", "⚔️"), unsafe_allow_html=True)
-    st.markdown("<div style='color:var(--txt2);font-size:13px;'>支撑（前低）→ 压力（套牢区）价格刻度</div>", unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("作战计划", "⚔️"), unsafe_allow_html=True)
     st.markdown(
-        _support_resistance_bar(
-            support, trapped, current_price,
-            markers=[
-                ("前低", support, RED),
-                ("MA5", ma5v, "#ffa502"),
-                ("MA10", ma10v, "#667eea"),
-                ("MA20", ma20v, GREEN),
-                ("套牢区", trapped, AMBER),
-            ],
+        _battle_plan_scale(
+            support, resistance, current_price, target_price, stop_price, entry_price, verdict,
         ),
         unsafe_allow_html=True,
     )
 
-    st.markdown("<div style='color:var(--txt);font-weight:600;margin:14px 0 4px;'>分批建仓 / 减仓计划</div>",
-                unsafe_allow_html=True)
-    plan_rows = [
-        ("建仓①", f"回调至回踩位", f"¥{entry_price:.2f}~¥{current_price:.2f}", "30%",
-         "首仓试探，回踩确认有效"),
-        ("建仓②", "放量突破 MA20", f"¥{ma20v:.2f}~¥{current_price:.2f}", "30%",
-         "趋势确认后加仓"),
-        ("加仓", f"突破目标价 ¥{target_price:.2f}", f"¥{target_price:.2f} 上方", "20%",
-         "顺势跟随，不追高"),
-        ("减仓①", f"到达目标价 ¥{target_price:.2f}", f"≈¥{target_price:.2f}", "-40%",
-         "兑现部分利润"),
-        ("减仓②", f"跌破止损 ¥{stop_price:.2f}", f"≤¥{stop_price:.2f}", "清仓",
-         "纪律止损，控制回撤"),
-    ]
+    plan_rows = _build_plan_rows(
+        verdict, current_price, support, resistance, target_price, stop_price, entry_price, ma20v,
+    )
+    a_tag = "up" if verdict == "看多" else ("down" if verdict == "看空" else "mid")
+    b_tag = "neu"
     rows_html = "".join(
-        f"<tr><td>{r[0]}</td><td class='l'>{r[1]}</td><td>{r[2]}</td>"
+        f"<tr><td><span class='sf-tag {a_tag if i==0 else b_tag}'>{r[0]}</span></td>"
+        f"<td class='l'>{r[1]}</td><td>{r[2]}</td>"
         f"<td>{r[3]}</td><td class='l'>{r[4]}</td></tr>"
-        for r in plan_rows
+        for i, r in enumerate(plan_rows)
     )
     st.markdown(
         "<table class='sf-table'>"
-        "<thead><tr><th>批次</th><th class='l'>触发条件</th><th>价格区间</th>"
-        "<th>仓位</th><th class='l'>说明</th></tr></thead>"
+        "<thead><tr><th>方案</th><th class='l'>触发条件</th><th>入场</th>"
+        "<th>止损</th><th class='l'>目标</th></tr></thead>"
         f"<tbody>{rows_html}</tbody></table>",
         unsafe_allow_html=True,
     )
 
-    st.markdown("<div style='color:var(--txt);font-weight:600;margin:14px 0 4px;'>风险控制清单</div>",
-                unsafe_allow_html=True)
-    risk_items = [
-        f"止损价：¥{stop_price:.2f}（破位无条件离场）",
-        f"止盈价：¥{target_price:.2f}（到达分批兑现）",
-        "失效条件：突发利空 / 放量跌穿支撑 / 宏观转弱（PMI<50）",
-        "仓位纪律：单标的 ≤ 总仓位 30%，亏损单不补仓摊平",
-    ]
-    st.markdown("<ul style='color:#64748b;font-size:13px;line-height:1.9;'>"
-                + "".join(f"<li>{x}</li>" for x in risk_items) + "</ul>", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='color:var(--txt);font-weight:600;margin:14px 0 4px;'>风控清单</div>",
+        unsafe_allow_html=True,
+    )
+    col_risk, col_iron = st.columns(2)
+    with col_risk:
+        risk_items = [
+            f"止损价：¥{stop_price:.2f}（破位无条件离场）",
+            f"止盈价：¥{target_price:.2f}（到达分批兑现）",
+            "失效条件：突发利空 / 放量跌穿支撑 / 宏观转弱（PMI<50）",
+            "仓位纪律：单标的 ≤ 总仓位 30%，亏损单不补仓摊平",
+        ]
+        st.markdown(
+            "<ul style='color:var(--txt2);font-size:13px;line-height:1.9;'>"
+            + "".join(f"<li>{x}</li>" for x in risk_items) + "</ul>",
+            unsafe_allow_html=True,
+        )
+    with col_iron:
+        st.markdown(
+            _risk_iron_html("风险铁律", _build_risk_iron_rules(R)),
+            unsafe_allow_html=True,
+        )
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ════════════ 模块8：底部元信息 ════════════

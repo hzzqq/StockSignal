@@ -13,7 +13,7 @@ from modules.visualizer import Visualizer
 from modules.search_ui import multi_stock_search_input
 from modules.session import require_auth, render_user_badge, api_kline, safe_switch_page
 from modules.visualizer import UP_COLOR, DOWN_COLOR
-from modules.widgets import render_index_mini_cards
+from modules.widgets import render_index_compact
 
 apply_page_config(page_title="行情看板", page_icon="📈", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -23,8 +23,8 @@ render_user_badge(sidebar=True)
 
 st.title("📈 行情看板")
 
-# 顶部三大指数迷你卡片
-render_index_mini_cards(cols_per_row=3)
+# 顶部主要指数收盘行情（轻量组件）
+render_index_compact(cols_per_row=5)
 
 
 @st.cache_resource(show_spinner=False)

@@ -28,9 +28,9 @@ st.title("🌅 每日晨报 / 复盘笔记")
 today = date.today().strftime("%Y-%m-%d")
 st.caption(f"生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）")
 
-# 顶部三大指数迷你卡片
-from modules.widgets import render_index_mini_cards
-render_index_mini_cards(cols_per_row=3)
+# 顶部主要指数收盘行情（轻量组件）
+from modules.widgets import render_index_compact
+render_index_compact(cols_per_row=5)
 
 
 @st.cache_resource(show_spinner=False)

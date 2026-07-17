@@ -1556,12 +1556,17 @@ def dashboard_sf_css() -> str:
 .sf-intel-bar .bar-pos{{height:100%;background:var(--buy)}}
 .sf-intel-bar .bar-neu{{height:100%;background:var(--hold)}}
 .sf-intel-bar .bar-neg{{height:100%;background:var(--sell)}}
-.sf-section-header{{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid var(--border);position:relative}}
-.sf-section-header .icon{{font-size:20px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--icon-g1),var(--icon-g2));border:1px solid var(--border);border-radius:10px}}
-.sf-section-header .titles{{flex:1}}
-.sf-section-header h2{{margin:0;font-size:17px;font-weight:700;color:var(--txt);border:none!important;padding:0!important}}
-.sf-section-header .sub{{font-size:12px;color:var(--txt2);margin-top:2px}}
-.sf-section-header .deco{{width:40px;height:3px;border-radius:2px;background:linear-gradient(90deg,#4f46e5,#7c3aed);position:absolute;bottom:-1.5px;left:0}}
+.sf-card h2{{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px;color:var(--txt);border-left:none;padding-left:0;border-bottom:none;padding-bottom:0;position:static}}
+.sf-card h2::before{{content:"";width:4px;height:16px;background:linear-gradient(180deg,var(--acc1),var(--acc2));border-radius:3px;flex-shrink:0}}
+.sf-card h2::after{{content:none}}
+.sf-scale{{margin-top:10px;background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative;height:64px}}
+.sf-scale-bar{{position:absolute;top:28px;left:14px;right:14px;height:8px;border-radius:4px}}
+.sf-scale-mk{{position:absolute;top:13px;transform:translateX(-50%);font-size:11px;color:var(--txt);text-align:center;white-space:nowrap}}
+.sf-scale-mk b{{display:block;font-size:13px;font-weight:700}}
+.sf-scale-lab{{position:absolute;bottom:5px;font-size:10px;color:var(--txt2)}}
+.sf-risk-iron{{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.30);border-radius:10px;padding:14px;margin-top:10px}}
+.sf-risk-iron h3{{color:var(--sell);font-size:14px;margin-bottom:8px}}
+.sf-risk-iron li{{font-size:12.5px;color:var(--txt);margin-left:18px;margin-bottom:4px}}
 .sf-header{{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px;padding:14px 18px;background:linear-gradient(90deg,var(--header-g1),var(--header-g2));border:1px solid var(--border);border-radius:14px}}
 .sf-brand{{font-size:15px;color:var(--txt2);letter-spacing:1px}}
 .sf-brand b{{color:var(--acc1)}}
