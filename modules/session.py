@@ -388,109 +388,138 @@ def auth_headers() -> dict:
     return {}
 
 
-def _load_logo_svg() -> str:
-    """加载项目 logo SVG，失败返回空字符串。"""
+def _logo_base64() -> str:
+    """加载项目 logo 并转为 base64 data URL，失败返回空字符串。"""
     try:
-        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "icon.svg")
-        with open(logo_path, "r", encoding="utf-8") as f:
-            return f.read()
+        import base64
+        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "icon-256.png")
+        with open(logo_path, "rb") as f:
+            return f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
     except Exception:
         return ""
 
 
 def _render_login_gate() -> None:
-    """未登录门禁页：项目品牌 + 金融风登录引导。"""
-    logo_svg = _load_logo_svg()
-    logo_html = f'<div class="ss-login-logo">{logo_svg}</div>' if logo_svg else ""
+    """未登录门禁页：项目品牌 + 金融风登录引导。整卡片纯 HTML，避免 SVG 内联泄露。"""
+    logo_b64 = _logo_base64()
+    logo_html = f'<img src="{logo_b64}" class="ss-login-logo" alt="StockSignal">' if logo_b64 else ""
 
     st.markdown(f"""
     <style>
-    .ss-login-gate {{
-        max-width: 520px;
-        margin: 3rem auto 1.5rem auto;
-        padding: 2.5rem 2rem 2rem 2rem;
+    .stApp {{
+        background: linear-gradient(135deg, #0b0f1f 0%, #131a35 50%, #0b1120 100%) !important;
+    }}
+    .block-container {{
+        padding: 0 !important;
+        max-width: 100% !important;
+    }}
+    .ss-login-card {{
+        max-width: 420px;
+        margin: 5rem auto 0 auto;
+        background: linear-gradient(145deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 28px;
+        padding: 2.5rem 2rem 2.25rem 2rem;
         text-align: center;
-        background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-        border-radius: 24px;
-        box-shadow: 0 12px 40px rgba(26, 35, 126, 0.12), 0 2px 8px rgba(0,0,0,0.04);
-        border: 1px solid rgba(26, 35, 126, 0.08);
+        box-shadow: 0 32px 80px rgba(0, 0, 0, 0.45),
+                    0 0 0 1px rgba(255, 255, 255, 0.05),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.08);
         position: relative;
         overflow: hidden;
+        backdrop-filter: blur(12px);
     }}
-    .ss-login-gate::before {{
+    .ss-login-card::before {{
         content: "";
         position: absolute;
         top: 0; left: 0; right: 0;
-        height: 5px;
-        background: linear-gradient(90deg, #f5c542 0%, #667eea 50%, #1a237e 100%);
+        height: 4px;
+        background: linear-gradient(90deg, #f59e0b 0%, #3b82f6 50%, #6366f1 100%);
+    }}
+    .ss-login-card::after {{
+        content: "";
+        position: absolute;
+        top: -60px; right: -60px;
+        width: 140px; height: 140px;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.18) 0%, transparent 70%);
+        pointer-events: none;
     }}
     .ss-login-logo {{
-        display: flex;
-        justify-content: center;
-        margin-bottom: 1.25rem;
-    }}
-    .ss-login-logo svg {{
-        width: 110px;
-        height: 110px;
-        filter: drop-shadow(0 6px 16px rgba(102, 126, 234, 0.25));
+        width: 96px;
+        height: 96px;
+        border-radius: 22px;
+        box-shadow: 0 10px 32px rgba(59, 130, 246, 0.28);
+        margin-bottom: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }}
     .ss-login-title {{
-        font-size: 2.2rem;
+        font-size: 2.1rem;
         font-weight: 800;
-        color: #1a237e;
+        background: linear-gradient(90deg, #fbbf24 0%, #60a5fa 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.35rem;
         letter-spacing: -0.5px;
-        margin-bottom: 0.25rem;
-        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     }}
     .ss-login-subtitle {{
+        color: #e2e8f0;
         font-size: 1.05rem;
-        color: #475569;
-        margin-bottom: 0.6rem;
         font-weight: 500;
+        margin-bottom: 0.5rem;
     }}
     .ss-login-desc {{
-        font-size: 0.92rem;
-        color: #64748b;
-        margin-bottom: 0.6rem;
+        color: #94a3b8;
+        font-size: 0.9rem;
+        margin-bottom: 1.25rem;
+        line-height: 1.5;
     }}
     .ss-login-badge {{
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        background: linear-gradient(90deg, #fff8e1 0%, #ffecb3 100%);
-        color: #5d4037;
-        border: 1px solid rgba(245, 197, 66, 0.4);
+        display: inline-block;
+        background: rgba(245, 158, 11, 0.13);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.35);
         border-radius: 999px;
-        padding: 0.35rem 0.9rem;
-        font-size: 0.85rem;
+        padding: 0.45rem 1rem;
+        font-size: 0.82rem;
         font-weight: 600;
-        box-shadow: 0 2px 6px rgba(245, 197, 66, 0.15);
+        margin-bottom: 1.5rem;
+    }}
+    .ss-login-btn {{
+        display: block;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+        color: #fff !important;
+        font-size: 1rem;
+        font-weight: 700;
+        text-align: center;
+        text-decoration: none;
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 8px 24px rgba(245, 158, 11, 0.35);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        cursor: pointer;
+    }}
+    .ss-login-btn:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 12px 32px rgba(245, 158, 11, 0.45);
     }}
     .ss-login-footer {{
         text-align: center;
-        color: #94a3b8;
-        font-size: 0.8rem;
-        margin-top: 1.25rem;
+        color: #64748b;
+        font-size: 0.75rem;
+        margin-top: 2rem;
     }}
     </style>
-    <div class="ss-login-gate">
+    <div class="ss-login-card">
         {logo_html}
         <div class="ss-login-title">StockSignal</div>
         <div class="ss-login-subtitle">A股事件驱动投资分析平台</div>
         <div class="ss-login-desc">登录后解锁行情看板、个股分析、形态选股等全部功能</div>
         <div class="ss-login-badge">🔑 默认演示账号：demo / Demo@123</div>
+        <a class="ss-login-btn" href="/0_登录">🔑 去登录</a>
     </div>
+    <div class="ss-login-footer">StockSignal · 仅供学习与研究所用，不构成投资建议</div>
     """, unsafe_allow_html=True)
-
-    _, col, _ = st.columns([1, 2, 1])
-    with col:
-        if st.button("🔑 去登录", type="primary", use_container_width=True):
-            safe_switch_page("pages/0_登录.py")
-
-    st.markdown(
-        '<div class="ss-login-footer">StockSignal · 仅供学习与研究所用，不构成投资建议</div>',
-        unsafe_allow_html=True,
-    )
 
 
 def require_auth() -> None:
