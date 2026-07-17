@@ -849,15 +849,6 @@ class StockFetcher:
                     target[k] = v
             return target
 
-        def _bs_code(c):
-            """转 Baostock 9 位代码：sh/sz/bj 前缀。"""
-            c = str(c).zfill(6)
-            if c[0] in "6789" or c.startswith("5"):
-                return "sh." + c
-            if c[0] in "023":
-                return "sz." + c
-            return "bj." + c
-
         res = {}  # 始终为 dict，绝不返回 None（避免调用方 .get 崩溃）
         # L1: 东方财富 push2
         try:
@@ -905,20 +896,17 @@ class StockFetcher:
                         print(f"[StockFetcher] akshare 估值(市值)失败 ({code}): {e}")
             except Exception as e:
                 print(f"[StockFetcher] akshare 估值失败 ({code}): {e}")
-        # L4: Baostock 名称兜底（需要 9 位 sh/sz/bj 代码）
+        # L4: 本地股票库名称兜底（免登录）
+        # 直接查内存/本地 SQLite all_stocks 缓存，避免 BaoStock 被墙(黑名单)时
+        # 走 bs.login 失败导致基本面名称缺失。get_name_only 命中返回纯名称，
+        # 未命中返回代码本身，需排除「名称==代码」的假命中。
         if not res.get("name"):
             try:
-                import baostock as bs
-                bs.login()
-                rs = bs.query_stock_basic(code=_bs_code(code))
-                if rs.error_code == "0" and rs.next():
-                    row = rs.get_row_data()
-                    name = (row[1] if len(row) > 1 else "") or ""
-                    if name:
-                        res["name"] = name.strip()
-                bs.logout()
+                local_name = self.get_name_only(code)
+                if local_name and local_name != str(code):
+                    res["name"] = local_name
             except Exception as e:
-                print(f"[StockFetcher] Baostock 名称失败 ({code}): {e}")
+                print(f"[StockFetcher] 本地名称兜底失败 ({code}): {e}")
         # L5: 本地库 stock_fundamentals 表兜底
         if not _has(res):
             try:

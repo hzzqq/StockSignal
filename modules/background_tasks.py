@@ -10,7 +10,6 @@ import time
 from typing import Any, Dict, Optional
 
 import requests
-import streamlit as st
 
 from modules.session import API_BASE, get_token
 

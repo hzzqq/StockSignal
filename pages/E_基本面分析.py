@@ -1140,40 +1140,48 @@ if code:
     # 行业横向对比 + 大盘主线判断
     # ═══════════════════════════════════════════════
     st.markdown("---")
-    if sector_df.empty or industry == "—":
-        st.warning("⚠️ 行业数据暂不可用，「行业横向对比」与「大盘主线判断」无法展示。可稍后重试或检查网络/数据源。")
+    mapped_sector = _find_sector_name(sector_df, industry) if (industry and industry != "—" and not sector_df.empty) else None
+    rank = _sector_rank(sector_df, industry) if (industry and industry != "—" and not sector_df.empty) else None
+    sector_total = len(sector_df) if not sector_df.empty else 0
+    has_horizontal = mapped_sector is not None
+    has_theme = rank is not None and sector_total > 0
+
+    if sector_df.empty or industry == "—" or (not has_horizontal and not has_theme):
+        st.info(
+            "🏭 行业数据暂未就绪或未能匹配当前股票行业，「行业横向对比」与「大盘主线判断」暂时无法展示。"
+            "可稍后刷新，或尝试切换一只行业分类更完整的个股。"
+        )
     else:
-        st.subheader("🏭 行业横向对比")
-        top_n = 15
-        top_sectors = sector_df.sort_values("change_pct", ascending=False).head(top_n).copy()
-        mapped_sector = _find_sector_name(sector_df, industry) if industry != "—" else None
-        bar_colors = [
-            UP_COLOR if mapped_sector and str(row["sector"]) == mapped_sector else (DOWN_COLOR if row["change_pct"] < 0 else "#94a3b8")
-            for _, row in top_sectors.iterrows()
-        ]
+        if has_horizontal:
+            st.subheader("🏭 行业横向对比")
+            top_n = 15
+            top_sectors = sector_df.sort_values("change_pct", ascending=False).head(top_n).copy()
+            bar_colors = [
+                UP_COLOR if mapped_sector and str(row["sector"]) == mapped_sector else (DOWN_COLOR if row["change_pct"] < 0 else "#94a3b8")
+                for _, row in top_sectors.iterrows()
+            ]
 
-        fig_sector = go.Figure()
-        fig_sector.add_trace(
-            go.Bar(
-                x=top_sectors["sector"],
-                y=top_sectors["change_pct"],
-                marker_color=bar_colors,
-                text=[f"{v:+.2f}%" for v in top_sectors["change_pct"]],
-                textposition="outside",
+            fig_sector = go.Figure()
+            fig_sector.add_trace(
+                go.Bar(
+                    x=top_sectors["sector"],
+                    y=top_sectors["change_pct"],
+                    marker_color=bar_colors,
+                    text=[f"{v:+.2f}%" for v in top_sectors["change_pct"]],
+                    textposition="outside",
+                )
             )
-        )
-        fig_sector.update_layout(
-            title=f"行业涨跌幅 Top {top_n}（{industry} 高亮显示）",
-            xaxis_tickangle=-45,
-            yaxis_title="涨跌幅 %",
-            height=420,
-            margin=dict(l=40, r=20, t=50, b=100),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-        )
-        st.plotly_chart(fig_sector, use_container_width=True)
+            fig_sector.update_layout(
+                title=f"行业涨跌幅 Top {top_n}（{industry} 高亮显示）",
+                xaxis_tickangle=-45,
+                yaxis_title="涨跌幅 %",
+                height=420,
+                margin=dict(l=40, r=20, t=50, b=100),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(fig_sector, use_container_width=True)
 
-        if mapped_sector:
             sector_row = sector_df[sector_df["sector"].astype(str) == mapped_sector]
             if not sector_row.empty:
                 sector_chg = float(sector_row.iloc[0]["change_pct"])
@@ -1185,15 +1193,11 @@ if code:
                 with sc2:
                     st.metric("相对全市场平均", f"{delta:+.2f}%", delta=f"{delta:+.2f}%",
                               help="当前行业涨跌幅减去全市场行业均值；>0 表示强于大盘")
-        else:
-            st.info("未在行业列表中精确匹配到当前股票行业。")
 
-        st.markdown("---")
-        st.subheader("🚩 大盘主线判断")
-        rank = _sector_rank(sector_df, industry) if industry != "—" else None
-        sector_total = len(sector_df) if not sector_df.empty else 0
-
-        if rank is not None and sector_total > 0:
+        if has_theme:
+            if has_horizontal:
+                st.markdown("---")
+            st.subheader("🚩 大盘主线判断")
             is_main = rank <= 5
             main_html = (
                 f'<div style="padding:14px 18px;border-radius:10px;'
@@ -1222,8 +1226,6 @@ if code:
                     column_config={"涨跌幅": st.column_config.NumberColumn(format="%.2f%%")},
                     hide_index=True,
                 )
-        else:
-            st.info("暂无行业排名，无法判断主线地位。")
 
     # ═══════════════════════════════════════════════
     # 综合评估

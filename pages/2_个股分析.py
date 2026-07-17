@@ -313,6 +313,133 @@ def _factor_list_html(title: str, factors: list[dict]) -> str:
     )
 
 
+def _build_logic_lists(R: dict) -> tuple[list[dict], list[dict], list[dict]]:
+    """基于分析结果 R 构建 利好逻辑 / 利空逻辑 / 致命风险 条目（叙事级 + 高置信风险）。"""
+    technical_profile = R.get("technical_profile", {}) or {}
+    volume_info = R.get("volume_info", {}) or {}
+    trend = R.get("trend", {}) or {}
+    momentum = R.get("momentum", {}) or {}
+    current_price = float(R.get("current_price", 0))
+    support = float(R.get("support", 0))
+    resistance = float(R.get("resistance", current_price * 1.1))
+    deviation = float(R.get("deviation", 0))
+    pos52 = float(R.get("pos52", 50))
+    patterns = R.get("patterns", []) or []
+    news_rows = R.get("news_rows", []) or []
+    pos_news = [r for r in news_rows if r.get("sentiment") == "正面"]
+    neg_news = [r for r in news_rows if r.get("sentiment") == "负面"]
+    composite = float(R.get("composite", 50))
+    verdict = R.get("verdict", "持有")
+    sector_score = float(R.get("sector_score", 55))
+    news_score = float(R.get("news_score", 50))
+    arrangement = trend.get("arrangement", "")
+    vol_ratio = float(volume_info.get("vol_ratio", 1.0))
+    rets = momentum.get("returns", {})
+    r5 = float(rets.get("5日", 0))
+    r20 = float(rets.get("20日", 0))
+    short = float(technical_profile.get("short", 50))
+    mid = float(technical_profile.get("mid", 50))
+    long = float(technical_profile.get("long", 50))
+
+    # 利好逻辑（叙事）
+    rise_logic = []
+    if verdict == "看多":
+        rise_logic.append({"title": "综合研判看多", "desc": f"综合评分 {composite:.0f} 分，系统判断当前处于偏多格局，建议以多头思路对待。", "core": True})
+    if arrangement in ("多头排列", "震荡偏多"):
+        rise_logic.append({"title": "趋势结构完整", "desc": f"均线{arrangement}，价格运行在中长期均线上方，趋势方向向上，支撑逐级抬升。", "core": True})
+    if short >= 65 and mid >= 55:
+        rise_logic.append({"title": "短中期共振向上", "desc": f"短期 {short:.0f} 分 / 中期 {mid:.0f} 分 / 长期 {long:.0f} 分，多周期信号同向，方向一致性高。", "core": True})
+    if vol_ratio >= 1.3:
+        rise_logic.append({"title": "资金放量推动", "desc": f"量比 {vol_ratio:.2f}，成交量高于近期均值，资金关注度提升，量价配合健康。", "core": False})
+    if sector_score >= 60:
+        rise_logic.append({"title": "板块景气向上", "desc": f"所属板块强度 {sector_score:.0f} 分，行业热度居前，龙头带动效应突出。", "core": True})
+    if pos_news:
+        rise_logic.append({"title": "正面事件催化", "desc": f"检测到 {len(pos_news)} 条正面新闻，事件驱动提升市场风险偏好。", "core": False})
+    if patterns:
+        bull_patterns = [p for p in patterns if any(k in p for k in ["底", "金叉", "突破", "阳", "多", "红三", "启明"])]
+        if bull_patterns:
+            rise_logic.append({"title": f"技术形态偏多：{bull_patterns[0]}", "desc": f"近期出现 {', '.join(bull_patterns[:3])} 等偏多信号，短期结构改善。", "core": False})
+    if r5 > 0 and r20 > 0:
+        rise_logic.append({"title": "短期/中期收益为正", "desc": f"5日 {r5:+.2f}% / 20日 {r20:+.2f}%，价格重心上移，跑赢同期大盘概率较高。", "core": False})
+    if current_price > 0 and resistance > current_price and (resistance - current_price) / current_price < 0.03:
+        rise_logic.append({"title": "临近压力位待突破", "desc": f"现价 ¥{current_price:.2f} 距压力 ¥{resistance:.2f} 仅 {(resistance-current_price)/current_price*100:.1f}%，突破后有望打开上行空间。", "core": False})
+    if pos52 < 20:
+        rise_logic.append({"title": "价格处于低位区间", "desc": f"当前价处于近 52 周底部（{pos52:.0f}%），估值/价格安全边际较高。", "core": False})
+    if not rise_logic:
+        rise_logic.append({"title": "暂无明确多头逻辑", "desc": "当前未形成强一致性的做多叙事，建议等待更清晰的催化或支撑确认。", "core": False})
+
+    # 利空逻辑（叙事）
+    fall_logic = []
+    if verdict == "看空":
+        fall_logic.append({"title": "综合研判看空", "desc": f"综合评分 {composite:.0f} 分，系统判断当前处于偏空格局，建议以防御思路对待。", "core": True})
+    if arrangement in ("空头排列", "震荡偏空"):
+        fall_logic.append({"title": "趋势结构走弱", "desc": f"均线{arrangement}，价格运行在中长期均线下方，反弹受阻，重心下移。", "core": True})
+    if short <= 40 and mid <= 50:
+        fall_logic.append({"title": "短中期共振向下", "desc": f"短期 {short:.0f} 分 / 中期 {mid:.0f} 分 / 长期 {long:.0f} 分，多周期信号偏空，方向一致性高。", "core": True})
+    if vol_ratio <= 0.8:
+        fall_logic.append({"title": "量能持续萎缩", "desc": f"量比 {vol_ratio:.2f}，成交低于近期均值，交投清淡，缺乏资金承接。", "core": False})
+    if sector_score <= 40:
+        fall_logic.append({"title": "板块景气向下", "desc": f"所属板块强度 {sector_score:.0f} 分，行业热度靠后，龙头走弱拖累个股。", "core": True})
+    if neg_news:
+        fall_logic.append({"title": "负面事件压制", "desc": f"检测到 {len(neg_news)} 条负面新闻，情绪面承压，构成事件风险。", "core": False})
+    if patterns:
+        bear_patterns = [p for p in patterns if any(k in p for k in ["顶", "死叉", "跌破", "阴", "空", "黑三", "乌云"])]
+        if bear_patterns:
+            fall_logic.append({"title": f"技术形态偏空：{bear_patterns[0]}", "desc": f"近期出现 {', '.join(bear_patterns[:3])} 等偏空信号，短期结构转弱。", "core": False})
+    if r5 < 0 and r20 < 0:
+        fall_logic.append({"title": "短期/中期收益为负", "desc": f"5日 {r5:+.2f}% / 20日 {r20:+.2f}%，价格重心下移，弱于同期大盘。", "core": False})
+    if current_price > 0 and support > 0 and current_price < support:
+        fall_logic.append({"title": "跌破关键支撑", "desc": f"现价 ¥{current_price:.2f} 已跌破支撑 ¥{support:.2f}，技术形态走弱，下方空间可能打开。", "core": True})
+    if pos52 > 80:
+        fall_logic.append({"title": "价格处于高位区间", "desc": f"当前价处于近 52 周顶部（{pos52:.0f}%），获利回吐与高位回调风险加大。", "core": False})
+    if not fall_logic:
+        fall_logic.append({"title": "暂无明确空头逻辑", "desc": "当前未形成强一致性的做空叙事，但仍需关注支撑与量能变化。", "core": False})
+
+    # 致命风险（必须盯死）
+    fatal = []
+    if current_price > 0 and support > 0 and current_price < support and vol_ratio >= 1.3:
+        fatal.append({"title": "破位放量杀跌", "desc": f"跌破支撑 ¥{support:.2f} 且量比 {vol_ratio:.2f} 放大，空头主导，可能引发连锁止损。", "core": True})
+    if short <= 35 and mid <= 45 and vol_ratio <= 0.8:
+        fatal.append({"title": "空头共振+流动性枯竭", "desc": "短中期趋势同步向下，且成交量萎缩，反弹无力，阴跌风险极高。", "core": True})
+    if pos52 > 85 and (vol_ratio <= 0.8 or deviation > 5):
+        fatal.append({"title": "高位滞涨/超买背离", "desc": f"处于 52 周高位（{pos52:.0f}%），量能不济或乖离过高，随时可能触发快速回调。", "core": True})
+    if neg_news and news_score < 40:
+        fatal.append({"title": "负面新闻+情绪恶化", "desc": f"负面新闻叠加情绪得分低至 {news_score:.0f}，短期风险偏好骤降，易现恐慌抛售。", "core": True})
+    if sector_score < 30:
+        fatal.append({"title": "板块系统性走弱", "desc": f"板块强度仅 {sector_score:.0f} 分，行业资金持续流出，个股难以独善其身。", "core": True})
+    if not fatal:
+        fatal.append({"title": "暂未识别到致命风险", "desc": "当前未触发高置信度的极端风险信号，但仍需遵守止损纪律与仓位管理。", "core": False})
+
+    return rise_logic[:5], fall_logic[:5], fatal[:4]
+
+
+def _logic_list_html(title: str, items: list[dict], accent: str, icon: str = "") -> str:
+    """渲染叙事级逻辑卡片：标题 + 编号条目 + 核心标签 + 描述，适配暗夜/白天主题。"""
+    if not items:
+        return ""
+    txt = "var(--txt)"
+    txt2 = "var(--txt2)"
+    parts = []
+    for i, it in enumerate(items, 1):
+        core = it.get("core", False)
+        tag = f'<span style="display:inline-block;background:{accent};color:#fff;font-size:11px;font-weight:700;padding:1px 8px;border-radius:4px;margin-right:8px;">核心</span>' if core else ""
+        parts.append(
+            f'<div style="display:flex;gap:12px;padding:13px 14px;margin-bottom:8px;background:var(--card);border-radius:10px;border-left:3px solid {accent};">'
+            f'<div style="min-width:26px;height:26px;border-radius:50%;background:{accent};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;">{i}</div>'
+            f'<div style="flex:1;">'
+            f'<div style="font-size:14.5px;font-weight:700;color:{txt};line-height:1.4;margin-bottom:4px;">{tag}{it["title"]}</div>'
+            f'<div style="font-size:12px;color:{txt2};line-height:1.7;">{it["desc"]}</div>'
+            f'</div></div>'
+        )
+    return (
+        f'<div style="background:var(--card2);border:1px solid var(--border);border-radius:16px;padding:16px;border-left:5px solid {accent};margin-bottom:14px;">'
+        f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'
+        f'<span style="font-size:20px;">{icon}</span>'
+        f'<div style="font-size:17px;font-weight:700;color:{txt};">{title}</div></div>'
+        f'{"".join(parts)}</div>'
+    )
+
+
 def _calc_trade_levels(current_price: float, df: pd.DataFrame, support: float, resistance: float):
     """
     基于 ATR 与支撑/压力，计算合理的入场/目标/止损价。
@@ -803,6 +930,16 @@ def _render_analysis(R: dict):
         st.markdown(_factor_list_html("利好清单（全集）", rise_factors), unsafe_allow_html=True)
     with col_fall:
         st.markdown(_factor_list_html("利空清单（全集）", fall_factors), unsafe_allow_html=True)
+
+    # ════════════ 新增模块：多空逻辑与致命风险 ════════════
+    rise_logic, fall_logic, fatal_logic = _build_logic_lists(R)
+    col_logic_r, col_logic_f = st.columns(2)
+    with col_logic_r:
+        st.markdown(_logic_list_html("利好逻辑", rise_logic, RED, "🐂"), unsafe_allow_html=True)
+    with col_logic_f:
+        st.markdown(_logic_list_html("利空逻辑", fall_logic, GREEN, "🐻"), unsafe_allow_html=True)
+    if fatal_logic:
+        st.markdown(_logic_list_html("致命风险（必须盯死）", fatal_logic, "#ef4444", "⚠️"), unsafe_allow_html=True)
 
     # ════════════ 模块6：信号归因（四维雷达）══════════
     # ══════════ 新增模块：板块分析 ══════════

@@ -22,7 +22,6 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import pandas as pd
 
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner

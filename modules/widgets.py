@@ -180,6 +180,154 @@ def _trend_label(open_: float, high: float, low: float, close: float, prev_close
         return "平开平收"
 
 
+def _build_index_card(info, fetcher, start_str):
+    """取数 + 构建单张指数迷你卡（含 Plotly sparkline），可在独立线程中调用。
+
+    返回卡片 dict；网络/解析失败返回最小 None 卡（current=None），由渲染层降级为「暂无数据/—」。
+    不触碰 st.session_state 与任何 Streamlit 渲染，保证线程安全。
+    """
+    import plotly.graph_objects as go
+    from modules.visualizer import UP_COLOR, DOWN_COLOR
+
+    if info.get("global"):
+        gq = None
+        try:
+            gq = fetcher.get_global_index_quote(info)
+        except Exception:
+            gq = None
+        if not gq or gq.get("current") is None:
+            return {**info, "current": None, "change": None,
+                    "change_pct": None, "spark": None}
+        current = gq["current"]
+        change = gq["change"]
+        change_pct = gq["change_pct"]
+        name = gq.get("name") or info["name"]
+        high = gq.get("high") if gq.get("high") is not None else current
+        low = gq.get("low") if gq.get("low") is not None else current
+        open_ = gq.get("open") if gq.get("open") is not None else current
+        prev_close = gq.get("prev_close") or current
+        close = current
+        spark_x = gq.get("spark_x")
+        spark_y = gq.get("spark_y")
+        if not spark_y:
+            sx, sy = fetcher.synth_us_index_intraday(open_, high, low, close, prev_close)
+            if sx and sy:
+                spark_x, spark_y = sx, sy
+                info = {**info, "approx": True}
+            else:
+                spark_x = None
+    else:
+        rt = None
+        try:
+            rt = fetcher.get_realtime_quote(info["code"])
+        except Exception:
+            rt = None
+
+        if rt and rt.get("current"):
+            current = float(rt["current"])
+            prev_close = float(rt.get("prev_close") or current)
+            change = current - prev_close
+            change_pct = (change / prev_close) * 100 if prev_close else 0.0
+            name = rt.get("name") or info["name"]
+            high = float(rt.get("high") or current)
+            low = float(rt.get("low") or current)
+        else:
+            try:
+                df = fetcher.get_index(info["code"], start=start_str)
+                if df is None or df.empty or len(df) < 2:
+                    return {**info, "current": None, "change": None,
+                            "change_pct": None, "spark": None}
+                current = float(df["close"].iloc[-1])
+                prev = float(df["close"].iloc[-2])
+                change = current - prev
+                change_pct = (change / prev) * 100 if prev else 0.0
+                name = info["name"]
+                high = current
+                low = current
+                # 日线兜底：前收=上一根收盘（原串行逻辑此处漏设 prev_close，已补全避免 NameError）
+                prev_close = prev
+            except Exception:
+                return {**info, "current": None, "change": None,
+                        "change_pct": None, "spark": None}
+
+        today_df = None
+        try:
+            today_df = fetcher.get_index_kline_sina(info["code"], scale=5, datalen=48)
+        except Exception:
+            pass
+
+        if today_df is not None and not today_df.empty:
+            open_ = float(today_df["open"].iloc[0])
+            high = float(today_df["high"].max())
+            low = float(today_df["low"].min())
+            close = float(today_df["close"].iloc[-1])
+            spark_x = list(range(len(today_df)))
+            spark_y = today_df["close"].tolist()
+        else:
+            open_ = float(rt.get("open") or current) if rt else current
+            high = float(rt.get("high") or current) if rt else current
+            low = float(rt.get("low") or current) if rt else current
+            close = current
+            spark_x = [0, 1, 2, 3]
+            spark_y = [open_, high, low, close]
+
+    _cp = change_pct if change_pct is not None else 0.0
+    color = UP_COLOR if _cp >= 0 else DOWN_COLOR
+
+    high_pct = (high - prev_close) / prev_close * 100 if prev_close else 0.0
+    low_pct = (low - prev_close) / prev_close * 100 if prev_close else 0.0
+    amplitude = (high - low) / prev_close * 100 if prev_close else 0.0
+
+    fig = go.Figure()
+    if spark_y:
+        fig.add_trace(go.Scatter(
+            x=spark_x, y=spark_y, mode="lines",
+            line={"color": color, "width": 2},
+            fill="tozeroy", fillcolor=_hex_to_rgba(color, 0.13),
+            hoverinfo="skip", showlegend=False,
+        ))
+        fig.add_trace(go.Scatter(
+            x=[spark_x[-1]], y=[spark_y[-1]], mode="markers",
+            marker={"color": color, "size": 6, "symbol": "circle"},
+            hoverinfo="skip", showlegend=False,
+        ))
+        fig.add_hline(y=open_, line=dict(color=_hex_to_rgba(color, 0.5), width=1, dash="dot"))
+        if len(spark_y) > 1:
+            hi_i = max(range(len(spark_y)), key=lambda i: spark_y[i])
+            lo_i = min(range(len(spark_y)), key=lambda i: spark_y[i])
+            fig.add_trace(go.Scatter(
+                x=[spark_x[hi_i]], y=[spark_y[hi_i]], mode="markers",
+                marker={"color": UP_COLOR, "size": 8, "symbol": "triangle-up",
+                        "line": {"color": "#ffffff", "width": 0.5}},
+                hoverinfo="skip", showlegend=False,
+            ))
+            fig.add_trace(go.Scatter(
+                x=[spark_x[lo_i]], y=[spark_y[lo_i]], mode="markers",
+                marker={"color": DOWN_COLOR, "size": 8, "symbol": "triangle-down",
+                        "line": {"color": "#ffffff", "width": 0.5}},
+                hoverinfo="skip", showlegend=False,
+            ))
+
+    y_min = min(low, open_, close) if low else min(spark_y)
+    y_max = max(high, open_, close) if high else max(spark_y)
+    padding = (y_max - y_min) * 0.08 if y_max > y_min else (y_max * 0.005 if y_max else 0.001)
+    fig.update_layout(
+        margin={"l": 0, "r": 0, "t": 0, "b": 0},
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        xaxis={"visible": False},
+        yaxis={"visible": False, "range": [y_min - padding, y_max + padding], "fixedrange": True},
+        height=92, width=220,
+    )
+
+    return {
+        **info, "name": name, "current": current, "change": change,
+        "change_pct": change_pct, "open": open_, "high": high, "low": low,
+        "trend": _trend_label(open_, high, low, close, prev_close, spark_y),
+        "high_pct": high_pct, "low_pct": low_pct, "amplitude": amplitude,
+        "spark": fig, "color": color,
+    }
+
+
 @st.fragment
 def render_index_mini_cards(cols_per_row: int = 3) -> None:
     """在页面顶部渲染上证/深证/创业板的实时指数迷你趋势卡片（1:1 列表式）。
@@ -188,11 +336,8 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
     数据源优先新浪财经实时接口（1 分钟级），历史走势由本地指数日线补齐；交易日自动刷新。
     折线颜色按当日涨跌红/绿显示，与 A 股习惯一致（红涨绿跌）。
     """
-    import pandas as pd
-    import plotly.graph_objects as go
     from datetime import datetime, timedelta
     from modules.fetcher import StockFetcher
-    from modules.visualizer import UP_COLOR, DOWN_COLOR
     from modules.ui_theme import _theme_is_dark
 
     # 自动刷新：交易时间 60s 后台更新，不影响页面状态（st_autorefresh 保持 session_state）
@@ -204,197 +349,28 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
     except Exception:
         pass
 
-    fetcher = StockFetcher()
     end_date = datetime.now().date()
     start_date = end_date - timedelta(days=30)
     start_str = start_date.strftime("%Y-%m-%d")
-    today_str = end_date.strftime("%Y-%m-%d")
 
     # 分钟级缓存：同一分钟内不重复请求新浪/数据库，避免每个页面切换都拉数据
     cache_key = f"index_cards_{_index_cache_key()}"
     if cache_key in st.session_state:
         cards = st.session_state[cache_key]
     else:
-        cards = []
-        for info in _INDEX_INFOS:
-            code = info["code"]
+        # 并行取数：每个指数独立线程取数（各自持独立 StockFetcher 实例，避免共享状态竞争），
+        # 显著缩短首页/看板首屏等待（N 次串行网络 -> 并发）。分钟级缓存仍保证同一分钟内只取一次。
+        from concurrent.futures import ThreadPoolExecutor
 
-            if info.get("global"):
-                # 海外指数：统一走 fetcher.get_global_index_quote
-                gq = None
-                try:
-                    gq = fetcher.get_global_index_quote(info)
-                except Exception:
-                    gq = None
-                if not gq or gq.get("current") is None:
-                    cards.append({**info, "current": None, "change": None, "change_pct": None, "spark": None})
-                    continue
-                current = gq["current"]
-                change = gq["change"]
-                change_pct = gq["change_pct"]
-                name = gq.get("name") or info["name"]
-                high = gq.get("high") if gq.get("high") is not None else current
-                low = gq.get("low") if gq.get("low") is not None else current
-                open_ = gq.get("open") if gq.get("open") is not None else current
-                prev_close = gq.get("prev_close") or current
-                close = current
-                spark_x = gq.get("spark_x")
-                spark_y = gq.get("spark_y")
-                # 美股只有 OHLC 快照 -> 用真实高低开收合成一条完整当日分时曲线，
-                # 避免「4 点折线/接近直线」的误导观感（仍标注 data-source=近似）
-                if not spark_y:
-                    sx, sy = fetcher.synth_us_index_intraday(open_, high, low, close, prev_close)
-                    if sx and sy:
-                        spark_x, spark_y = sx, sy
-                        info = {**info, "approx": True}
-                    else:
-                        spark_x = None
-            else:
-                # 1) 实时点位（新浪，A 股 / 沪深指数）
-                rt = None
-                try:
-                    rt = fetcher.get_realtime_quote(code)
-                except Exception:
-                    rt = None
+        def _worker(info):
+            try:
+                return _build_index_card(info, StockFetcher(), start_str)
+            except Exception:
+                return {**info, "current": None, "change": None,
+                        "change_pct": None, "spark": None}
 
-                if rt and rt.get("current"):
-                    current = float(rt["current"])
-                    prev_close = float(rt.get("prev_close") or current)
-                    change = current - prev_close
-                    change_pct = (change / prev_close) * 100 if prev_close else 0.0
-                    name = rt.get("name") or info["name"]
-                    high = float(rt.get("high") or current)
-                    low = float(rt.get("low") or current)
-                else:
-                    # 新浪失败：用指数日线兜底
-                    try:
-                        df = fetcher.get_index(code, start=start_str)
-                        if df is None or df.empty or len(df) < 2:
-                            cards.append({**info, "current": None, "change": None, "change_pct": None, "spark": None})
-                            continue
-                        current = float(df["close"].iloc[-1])
-                        prev = float(df["close"].iloc[-2])
-                        change = current - prev
-                        change_pct = (change / prev) * 100 if prev else 0.0
-                        name = info["name"]
-                        high = current
-                        low = current
-                    except Exception:
-                        cards.append({**info, "current": None, "change": None, "change_pct": None, "spark": None})
-                        continue
-
-                # 2) 日内走势：优先新浪 5 分钟 K 线（真实完整当日分时），
-                #    缺失时退用实时 OHLC 合成关键点序列兜底
-                today_df = None
-                try:
-                    today_df = fetcher.get_index_kline_sina(code, scale=5, datalen=48)
-                except Exception:
-                    pass
-
-                if today_df is not None and not today_df.empty:
-                    # 分钟线：以当天第一根 open 为当日开盘，high/low 取极值
-                    open_ = float(today_df["open"].iloc[0])
-                    high = float(today_df["high"].max())
-                    low = float(today_df["low"].min())
-                    close = float(today_df["close"].iloc[-1])
-                    spark_x = list(range(len(today_df)))
-                    spark_y = today_df["close"].tolist()
-                else:
-                    # 分钟线拿不到：用实时报价的 open/high/low/current 合成关键点序列
-                    open_ = float(rt.get("open") or current) if rt else current
-                    high = float(rt.get("high") or current) if rt else current
-                    low = float(rt.get("low") or current) if rt else current
-                    close = current
-                    spark_x = [0, 1, 2, 3]
-                    spark_y = [open_, high, low, close]
-
-            _cp = change_pct if change_pct is not None else 0.0
-            color = UP_COLOR if _cp >= 0 else DOWN_COLOR
-
-            # 当日相对昨收的极端涨跌幅度（用于迷你卡指标标注）
-            high_pct = (high - prev_close) / prev_close * 100 if prev_close else 0.0
-            low_pct = (low - prev_close) / prev_close * 100 if prev_close else 0.0
-            amplitude = (high - low) / prev_close * 100 if prev_close else 0.0
-
-            fig = go.Figure()
-            if spark_y:
-                fig.add_trace(go.Scatter(
-                    x=spark_x,
-                    y=spark_y,
-                    mode="lines",
-                    line={"color": color, "width": 2},
-                    fill="tozeroy",
-                    fillcolor=_hex_to_rgba(color, 0.13),
-                    hoverinfo="skip",
-                    showlegend=False,
-                ))
-                # 实时位置标记
-                fig.add_trace(go.Scatter(
-                    x=[spark_x[-1]],
-                    y=[spark_y[-1]],
-                    mode="markers",
-                    marker={"color": color, "size": 6, "symbol": "circle"},
-                    hoverinfo="skip",
-                    showlegend=False,
-                ))
-                # 开盘价水平参考线
-                fig.add_hline(
-                    y=open_,
-                    line=dict(color=_hex_to_rgba(color, 0.5), width=1, dash="dot"),
-                )
-                # 最高点 / 最低点标注（三角标记，颜色随涨跌）
-                if len(spark_y) > 1:
-                    hi_i = max(range(len(spark_y)), key=lambda i: spark_y[i])
-                    lo_i = min(range(len(spark_y)), key=lambda i: spark_y[i])
-                    fig.add_trace(go.Scatter(
-                        x=[spark_x[hi_i]], y=[spark_y[hi_i]],
-                        mode="markers",
-                        marker={"color": UP_COLOR, "size": 8, "symbol": "triangle-up",
-                                "line": {"color": "#ffffff", "width": 0.5}},
-                        hoverinfo="skip", showlegend=False,
-                    ))
-                    fig.add_trace(go.Scatter(
-                        x=[spark_x[lo_i]], y=[spark_y[lo_i]],
-                        mode="markers",
-                        marker={"color": DOWN_COLOR, "size": 8, "symbol": "triangle-down",
-                                "line": {"color": "#ffffff", "width": 0.5}},
-                        hoverinfo="skip", showlegend=False,
-                    ))
-
-            # y 轴缩放到当天高低点，让哪怕 0.5% 的波动也肉眼可见
-            y_min = min(low, open_, close) if low else min(spark_y)
-            y_max = max(high, open_, close) if high else max(spark_y)
-            padding = (y_max - y_min) * 0.08 if y_max > y_min else (y_max * 0.005 if y_max else 0.001)
-            fig.update_layout(
-                margin={"l": 0, "r": 0, "t": 0, "b": 0},
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                xaxis={"visible": False},
-                yaxis={
-                    "visible": False,
-                    "range": [y_min - padding, y_max + padding],
-                    "fixedrange": True,
-                },
-                height=92,
-                width=220,
-            )
-
-            cards.append({
-                **info,
-                "name": name,
-                "current": current,
-                "change": change,
-                "change_pct": change_pct,
-                "open": open_,
-                "high": high,
-                "low": low,
-                "trend": _trend_label(open_, high, low, close, prev_close, spark_y),
-                "high_pct": high_pct,
-                "low_pct": low_pct,
-                "amplitude": amplitude,
-                "spark": fig,
-                "color": color,
-            })
+        with ThreadPoolExecutor(max_workers=min(len(_INDEX_INFOS), 8)) as _ex:
+            cards = list(_ex.map(_worker, _INDEX_INFOS))
         st.session_state[cache_key] = cards
         # 清理旧缓存键
         for k in list(st.session_state.keys()):

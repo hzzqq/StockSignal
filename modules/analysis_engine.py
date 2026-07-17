@@ -8,7 +8,6 @@ result["_warnings"] 而不是直接 st.warning，保证在 CLI/后台/Streamlit 
 """
 from __future__ import annotations
 
-import warnings
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 

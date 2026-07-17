@@ -193,7 +193,6 @@ def fragment_portfolio():
         ))
     fig.add_hline(y=100, line=dict(color="#999", width=1, dash="dash"))
     fig.update_layout(**_fig_layout(dark), height=380, title="组合净值 vs 沪深300（起点=100）",
-                      margin=dict(l=60, r=30, t=50, b=90),
                       legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"))
     fig.update_xaxes(tickangle=-45)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})

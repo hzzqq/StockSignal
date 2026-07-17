@@ -21,7 +21,6 @@ from __future__ import annotations
 import os
 import streamlit as st
 import streamlit.config as _config
-import streamlit.components.v1 as components
 
 # ── 项目图标（与前端星辰 AI logo 同源设计）──
 _ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
