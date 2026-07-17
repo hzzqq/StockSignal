@@ -176,6 +176,37 @@ header[data-testid="stHeader"] {
     min-height: 0 !important;
 }
 
+/* 轻量化区块标题：1:1 复刻参考文档 .card h2（16px + 渐变竖条，去掉沉重标题框）。
+   作用于 st.header(h2) 与 st.subheader(h3)；页面主标题 st.title(h1) 保持醒目。 */
+h2[data-testid="stHeader"],
+h3[data-testid="stHeader"] {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    line-height: 1.4 !important;
+    margin: 16px 0 10px !important;
+    padding: 0 0 0 12px !important;
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+h2[data-testid="stHeader"]::before,
+h3[data-testid="stHeader"]::before {
+    content: "" !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 4px !important;
+    height: 16px !important;
+    border-radius: 3px !important;
+    background: linear-gradient(180deg, #667eea, #764ba2) !important;
+    flex-shrink: 0 !important;
+}
+
 /* 折叠态的展开按钮：固定到左上角，避免被透明 header 压成 0×0 看不见/点不到 */
 button[data-testid="stExpandSidebarButton"] {
     position: fixed !important;
@@ -789,6 +820,37 @@ header[data-testid="stHeader"] {
     margin: 0 !important;
     height: auto !important;
     min-height: 0 !important;
+}
+
+/* 轻量化区块标题：1:1 复刻参考文档 .card h2（16px + 渐变竖条，去掉沉重标题框）。
+   作用于 st.header(h2) 与 st.subheader(h3)；页面主标题 st.title(h1) 保持醒目。 */
+h2[data-testid="stHeader"],
+h3[data-testid="stHeader"] {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    line-height: 1.4 !important;
+    margin: 16px 0 10px !important;
+    padding: 0 0 0 12px !important;
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+h2[data-testid="stHeader"]::before,
+h3[data-testid="stHeader"]::before {
+    content: "" !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 4px !important;
+    height: 16px !important;
+    border-radius: 3px !important;
+    background: linear-gradient(180deg, #667eea, #764ba2) !important;
+    flex-shrink: 0 !important;
 }
 
 /* 折叠态的展开按钮：固定到左上角，避免被透明 header 压成 0×0 看不见/点不到 */
@@ -1595,17 +1657,17 @@ def dashboard_sf_css() -> str:
 
 
 def section_header(title: str, subtitle: str = "", icon: str = "📊") -> None:
-    if not _theme_is_dark():
-        _bg = "#111827"; _accent = "#B8860B"; _sub = "#6B7280"
-    else:
-        _bg = "#e2e8f0"; _accent = "#667eea"; _sub = "#94a3b8"
+    """轻量化模块标题（图标 + 标题 + 渐变竖条），与参考文档 .card h2 一致。
+
+    注：当前各页面统一改用 st.header / st.subheader（已由全局 CSS 轻量化）。
+    本函数保留为兼容 / 兜底，仅渲染轻量标题，不再使用沉重标题框。
+    """
     st.markdown(
-        ("<div style='margin:14px 0 10px;padding-left:10px;border-left:4px solid " + _accent +
-         ";background:linear-gradient(90deg,rgba(102,126,234,0.08),transparent);border-radius:0 8px 8px 0;'>"
-         "<div style='font-size:1.15rem;font-weight:700;color:" + _bg + ";font-family:'Inter',sans-serif;'>"
-         + str(icon) + " " + str(title) + "</div>"
-         + ('<div style="font-size:0.85rem;color:' + _sub + ';margin-top:2px;">' + str(subtitle) + '</div>' if subtitle else '')
-         + "</div>"),
+        ("<div style='display:flex;align-items:center;gap:8px;margin:16px 0 10px;"
+         "font-size:1rem;font-weight:600;'>"
+         "<span style='display:inline-block;width:4px;height:16px;border-radius:3px;"
+         "background:linear-gradient(180deg,#667eea,#764ba2);flex-shrink:0;'></span>"
+         f"<span>{icon} {title}</span></div>"),
         unsafe_allow_html=True,
     )
 
