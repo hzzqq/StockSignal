@@ -11,6 +11,7 @@ import json
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import (
@@ -179,6 +180,22 @@ def _eval_alert(a):
     return None, "未知类型"
 
 
+def _eval_alert_parallel(alerts):
+    """并行评估多条预警，避免串行网络请求阻塞页面。"""
+    if not alerts:
+        return []
+    n_workers = min(8, max(1, len(alerts)))
+    results = [None] * len(alerts)
+    with ThreadPoolExecutor(max_workers=n_workers) as ex:
+        futures = {i: ex.submit(_eval_alert, a) for i, a in enumerate(alerts)}
+        for i, fut in futures.items():
+            try:
+                results[i] = fut.result()
+            except Exception as e:
+                results[i] = (False, f"评估失败：{e}")
+    return results
+
+
 # ───────────────────────── 新建预警 ─────────────────────────
 with st.expander("➕ 新建预警", expanded=False):
     atype = st.radio(
@@ -245,9 +262,10 @@ if not alerts:
     st.info("暂无预警。点击上方「新建预警」添加（支持价格 / 技术形态 / 成交量异动 / 公告）。")
 else:
     st.markdown(f"#### 共 {len(alerts)} 条预警（页面访问时实时检测）")
-    for a in alerts:
+    eval_results = _eval_alert_parallel(alerts)
+    for idx, a in enumerate(alerts):
         atype = a.get("alert_type", "price")
-        triggered, detail = _eval_alert(a)
+        triggered, detail = eval_results[idx] if idx < len(eval_results) else (False, "评估异常")
         if atype == "price":
             cond_txt = "涨破 ▲" if a.get("condition") == "above" else "跌破 ▼"
             desc = f"当{cond_txt} **{float(a.get('target_price') or 0):.2f}**"
@@ -299,11 +317,9 @@ else:
             label = "停用" if a["active"] else "启用"
             if st.button(label, key=f"tog_{a['id']}", use_container_width=True):
                 api_put(f"/api/price-alerts/{a['id']}/toggle")
-                st.rerun()
         with col_del:
             if st.button("删除", key=f"del_{a['id']}", use_container_width=True):
                 api_delete(f"/api/price-alerts/{a['id']}")
-                st.rerun()
 
     st.caption("提示：触发检测在页面访问时于前端执行（价格实时比价、形态/量比扫描日线、公告检索新闻）。"
                "如需持续监控，可在本页保持打开或定时刷新。")

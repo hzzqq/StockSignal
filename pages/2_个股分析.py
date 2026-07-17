@@ -1559,7 +1559,7 @@ def fragment_stock_videos(ticker):
             with col_del:
                 if st.button("✕", key=f"vdel_{ticker}_{idx}", use_container_width=True, help="移除"):
                     st.session_state[vk].pop(idx)
-                    st.rerun()
+                    # fragment 内由 Streamlit 自动局部重跑，禁止显式 st.rerun()
     else:
         st.info("尚未添加视频。粘贴上方链接即可把网络视频「接到」本股票分析页内联播放。")
 
