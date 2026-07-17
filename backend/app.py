@@ -15,6 +15,7 @@ StockSignal 管理后端入口。
 """
 from __future__ import annotations
 import logging
+import time
 from flask import Flask
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
@@ -60,6 +61,7 @@ def create_app(config_object: type = Config) -> Flask:
     # ---- 全局错误处理：把任何出口都锁回 JSON ----
     _register_error_handlers(app)
     _register_security_headers(app)
+    _register_monitoring(app)
 
     # 关闭异常传播，避免默认 handler 漏出 HTML
     app.config["PROPAGATE_EXCEPTIONS"] = False
@@ -155,6 +157,42 @@ def _register_security_headers(app: Flask) -> None:
         resp.headers.setdefault("X-Frame-Options", "DENY")
         resp.headers.setdefault("Referrer-Policy", "no-referrer")
         resp.headers.setdefault("Cache-Control", "no-store")
+        return resp
+
+
+def _register_monitoring(app: Flask) -> None:
+    """注册请求监控：统计 QPS、延迟、错误率、活跃用户。"""
+    from .monitor import record_request
+    from .auth.service import decode_token  # 复用 token 解析（不强制鉴权）
+
+    @app.before_request
+    def _mark_start():
+        from flask import g
+        g._req_start = time.time()
+
+    @app.after_request
+    def _track(resp):
+        from flask import g, request
+        start = getattr(g, "_req_start", None)
+        if start is None:
+            return resp
+        latency_ms = (time.time() - start) * 1000.0
+        # 端点标签：method + rule（去掉动态参数细节）
+        rule = request.endpoint or request.path
+        endpoint = f"{request.method} {rule}"
+        is_error = resp.status_code >= 400
+        uid = None
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            try:
+                payload = decode_token(auth[7:])
+                uid = payload.get("sub") or payload.get("user_id")
+            except Exception:
+                pass
+        try:
+            record_request(endpoint, latency_ms, is_error, uid)
+        except Exception:
+            pass
         return resp
 
 

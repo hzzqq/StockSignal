@@ -18,9 +18,14 @@ v9 核心变更：
   ✅ 坐标轴/网格线/图例文字统一为暗色系
 """
 from __future__ import annotations
+import os
 import streamlit as st
 import streamlit.config as _config
 import streamlit.components.v1 as components
+
+# ── 项目图标（与前端星辰 AI logo 同源设计）──
+_ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+ICON_SVG = os.path.join(_ICON_DIR, "icon.svg")
 
 # ── 金融配色常量（A股：红涨绿跌）──
 UP = "#ff4d4f"        # 涨（中国习惯：红）
@@ -1415,7 +1420,7 @@ STREAMLIT_THEME_DARK = {
 }
 
 
-def apply_page_config(page_title: str, page_icon: str = "📈", layout: str = "wide") -> None:
+def apply_page_config(page_title: str, page_icon: str = None, layout: str = "wide") -> None:
     """统一页面配置：根据全局 theme_mode 同步 Streamlit 原生主题。
 
     必须在每个页面最顶部（任何其它 st.xxx 之前）调用。等价于 st.set_page_config，
@@ -1448,7 +1453,8 @@ def apply_page_config(page_title: str, page_icon: str = "📈", layout: str = "w
     # set_page_config 每次运行只能调用一次；合并页嵌入子页时可能已被调用过，
     # 此处兜底吞掉重复调用异常，避免嵌入场景整页崩溃（正常独立页不受影响）。
     try:
-        st.set_page_config(page_title=page_title, page_icon=page_icon, layout=layout)
+        _icon = page_icon or (ICON_SVG if os.path.exists(ICON_SVG) else "📈")
+        st.set_page_config(page_title=page_title, page_icon=_icon, layout=layout)
     except Exception:
         pass
 

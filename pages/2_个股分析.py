@@ -356,9 +356,10 @@ def _calc_trade_levels(current_price: float, df: pd.DataFrame, support: float, r
 
 
 # ══════════════════════════════════════════════════════════════
-# 股票选择（侧边栏，复用 行情看板 的交互）
+# 股票选择（侧边栏；嵌入合并页时自动改写入主区域，避免覆盖导航）
 # ══════════════════════════════════════════════════════════════
-with st.sidebar:
+from modules.widgets import sidebar_target
+with sidebar_target():
     st.header("分析目标")
     ticker = stock_search_input(
         label="股票搜索",

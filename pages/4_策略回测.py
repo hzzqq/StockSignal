@@ -89,7 +89,7 @@ def fragment_manual_backtest():
                 placeholder="输入代码或名称搜索，如：601088 / 中国神华 / 煤炭",
             )
             bt_fetcher = StockFetcher()
-            bt_label = bt_fetcher.get_stock_name(bt_ticker)
+            bt_label = bt_fetcher.get_name_only(bt_ticker) or bt_fetcher.get_stock_name(bt_ticker)
         with col2:
             strategy = st.selectbox(
                 "策略",

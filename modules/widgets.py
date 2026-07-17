@@ -59,6 +59,12 @@ _INDEX_INFOS = [
     {"name": "上证指数", "code": "000001", "label": "指数"},
     {"name": "深证成指", "code": "399001", "label": "指数"},
     {"name": "创业板指", "code": "399006", "label": "指数"},
+    # 海外指数：美股实时 via 新浪；富时100 / 韩国KOSPI via 新浪日线
+    {"name": "道琼斯", "code": "DJI", "label": "美股", "global": True, "sina_rt": "gb_$dji"},
+    {"name": "纳斯达克", "code": "IXIC", "label": "美股", "global": True, "sina_rt": "gb_$ixic"},
+    {"name": "标普500", "code": "INX", "label": "美股", "global": True, "sina_rt": "gb_$inx"},
+    {"name": "富时100", "code": "FTSE", "label": "英国", "global": True, "sina_hist": "英国富时100指数"},
+    {"name": "韩国KOSPI", "code": "KS11", "label": "韩国", "global": True, "sina_hist": "首尔综合指数"},
 ]
 
 
@@ -213,64 +219,97 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
         for info in _INDEX_INFOS:
             code = info["code"]
 
-            # 1) 实时点位（新浪）
-            rt = None
-            try:
-                rt = fetcher.get_realtime_quote(code)
-            except Exception:
-                rt = None
-
-            if rt and rt.get("current"):
-                current = float(rt["current"])
-                prev_close = float(rt.get("prev_close") or current)
-                change = current - prev_close
-                change_pct = (change / prev_close) * 100 if prev_close else 0.0
-                name = rt.get("name") or info["name"]
-                high = float(rt.get("high") or current)
-                low = float(rt.get("low") or current)
-            else:
-                # 新浪失败：用指数日线兜底
+            if info.get("global"):
+                # 海外指数：统一走 fetcher.get_global_index_quote
+                gq = None
                 try:
-                    df = fetcher.get_index(code, start=start_str)
-                    if df is None or df.empty or len(df) < 2:
-                        cards.append({**info, "current": None, "change": None, "change_pct": None, "spark": None})
-                        continue
-                    current = float(df["close"].iloc[-1])
-                    prev = float(df["close"].iloc[-2])
-                    change = current - prev
-                    change_pct = (change / prev) * 100 if prev else 0.0
-                    name = info["name"]
-                    high = current
-                    low = current
+                    gq = fetcher.get_global_index_quote(info)
                 except Exception:
+                    gq = None
+                if not gq or gq.get("current") is None:
                     cards.append({**info, "current": None, "change": None, "change_pct": None, "spark": None})
                     continue
-
-            # 2) 日内走势：优先当日 1 分钟 K 线，缺失时用 OHLC 关键点兜底
-            today_df = None
-            try:
-                today_df = fetcher.get_index_minute(code, today_str.replace("-", ""))
-            except Exception:
-                pass
-
-            if today_df is not None and not today_df.empty:
-                # 分钟线：以今天 0 点开盘后第一根 open 为当日开盘，high/low 取极值
-                open_ = float(today_df["open"].iloc[0])
-                high = float(today_df["high"].max())
-                low = float(today_df["low"].min())
+                current = gq["current"]
+                change = gq["change"]
+                change_pct = gq["change_pct"]
+                name = gq.get("name") or info["name"]
+                high = gq.get("high") if gq.get("high") is not None else current
+                low = gq.get("low") if gq.get("low") is not None else current
+                open_ = gq.get("open") if gq.get("open") is not None else current
+                prev_close = gq.get("prev_close") or current
                 close = current
-                spark_x = list(range(len(today_df)))
-                spark_y = today_df["close"].tolist()
+                spark_x = gq.get("spark_x")
+                spark_y = gq.get("spark_y")
+                # 美股只有 OHLC 快照 -> 用真实高低开收合成一条完整当日分时曲线，
+                # 避免「4 点折线/接近直线」的误导观感（仍标注 data-source=近似）
+                if not spark_y:
+                    sx, sy = fetcher.synth_us_index_intraday(open_, high, low, close, prev_close)
+                    if sx and sy:
+                        spark_x, spark_y = sx, sy
+                        info = {**info, "approx": True}
+                    else:
+                        spark_x = None
             else:
-                # 分钟线拿不到：用实时报价的 open/high/low/current 合成关键点序列
-                open_ = float(rt.get("open") or current) if rt else current
-                high = float(rt.get("high") or current) if rt else current
-                low = float(rt.get("low") or current) if rt else current
-                close = current
-                spark_x = [0, 1, 2, 3]
-                spark_y = [open_, high, low, close]
+                # 1) 实时点位（新浪，A 股 / 沪深指数）
+                rt = None
+                try:
+                    rt = fetcher.get_realtime_quote(code)
+                except Exception:
+                    rt = None
 
-            color = UP_COLOR if change_pct >= 0 else DOWN_COLOR
+                if rt and rt.get("current"):
+                    current = float(rt["current"])
+                    prev_close = float(rt.get("prev_close") or current)
+                    change = current - prev_close
+                    change_pct = (change / prev_close) * 100 if prev_close else 0.0
+                    name = rt.get("name") or info["name"]
+                    high = float(rt.get("high") or current)
+                    low = float(rt.get("low") or current)
+                else:
+                    # 新浪失败：用指数日线兜底
+                    try:
+                        df = fetcher.get_index(code, start=start_str)
+                        if df is None or df.empty or len(df) < 2:
+                            cards.append({**info, "current": None, "change": None, "change_pct": None, "spark": None})
+                            continue
+                        current = float(df["close"].iloc[-1])
+                        prev = float(df["close"].iloc[-2])
+                        change = current - prev
+                        change_pct = (change / prev) * 100 if prev else 0.0
+                        name = info["name"]
+                        high = current
+                        low = current
+                    except Exception:
+                        cards.append({**info, "current": None, "change": None, "change_pct": None, "spark": None})
+                        continue
+
+                # 2) 日内走势：优先新浪 5 分钟 K 线（真实完整当日分时），
+                #    缺失时退用实时 OHLC 合成关键点序列兜底
+                today_df = None
+                try:
+                    today_df = fetcher.get_index_kline_sina(code, scale=5, datalen=48)
+                except Exception:
+                    pass
+
+                if today_df is not None and not today_df.empty:
+                    # 分钟线：以当天第一根 open 为当日开盘，high/low 取极值
+                    open_ = float(today_df["open"].iloc[0])
+                    high = float(today_df["high"].max())
+                    low = float(today_df["low"].min())
+                    close = float(today_df["close"].iloc[-1])
+                    spark_x = list(range(len(today_df)))
+                    spark_y = today_df["close"].tolist()
+                else:
+                    # 分钟线拿不到：用实时报价的 open/high/low/current 合成关键点序列
+                    open_ = float(rt.get("open") or current) if rt else current
+                    high = float(rt.get("high") or current) if rt else current
+                    low = float(rt.get("low") or current) if rt else current
+                    close = current
+                    spark_x = [0, 1, 2, 3]
+                    spark_y = [open_, high, low, close]
+
+            _cp = change_pct if change_pct is not None else 0.0
+            color = UP_COLOR if _cp >= 0 else DOWN_COLOR
 
             # 当日相对昨收的极端涨跌幅度（用于迷你卡指标标注）
             high_pct = (high - prev_close) / prev_close * 100 if prev_close else 0.0
@@ -368,43 +407,46 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
     name_color = "#e2e8f0" if dark else "#111827"
     code_color = "#94a3b8" if dark else "#6B7280"
 
-    for card in cards:
-        # 用 div 包裹，允许内容自然撑开，避免被裁剪/出现滚动条
-        st.markdown("<div style='overflow:visible;'>", unsafe_allow_html=True)
-        with st.container(border=True):
-            c_left, c_mid, c_right = st.columns([0.20, 0.46, 0.34])
-            with c_left:
-                st.markdown(
-                    f"<div style='font-size:17px;font-weight:700;color:{name_color};'>{card['name']}</div>"
-                    f"<div style='font-size:12px;color:{code_color};margin-top:3px;'>{card['label']} {card['code']}</div>",
-                    unsafe_allow_html=True,
-                )
-            with c_mid:
-                if card.get("spark"):
-                    st.plotly_chart(card["spark"], use_container_width=True, config={"displayModeBar": False})
-                else:
-                    st.caption("暂无数据")
-            with c_right:
-                if card["current"] is not None:
-                    sign = "+" if card["change_pct"] >= 0 else ""
-                    trend_color = card["color"] if card["trend"] != "窄幅震荡" else code_color
+    _, _, status_text = _index_market_status()
+    with st.expander("📈 全球指数行情", expanded=True):
+        st.caption(f"红涨绿跌 · 实时点位与当日走势 · {status_text}")
+        for card in cards:
+            # 用 div 包裹，允许内容自然撑开，避免被裁剪/出现滚动条
+            st.markdown("<div style='overflow:visible;'>", unsafe_allow_html=True)
+            with st.container(border=True):
+                c_left, c_mid, c_right = st.columns([0.20, 0.46, 0.34])
+                with c_left:
                     st.markdown(
-                        f"<div style='text-align:right;font-size:22px;font-weight:800;color:{card['color']};font-family:Fira Code,monospace;line-height:1.15;'>"
-                        f"{card['current']:.2f}</div>"
-                        f"<div style='text-align:right;font-size:13px;color:{card['color']};font-weight:600;margin-top:3px;'>"
-                        f"{sign}{card['change']:.2f} ({sign}{card['change_pct']:.2f}%)</div>"
-                        f"<div style='text-align:right;font-size:12px;color:{trend_color};font-weight:600;margin-top:3px;'>"
-                        f"{card['trend']}</div>"
-                        f"<div style='text-align:right;font-size:11px;color:{code_color};margin-top:4px;line-height:1.5;'>"
-                        f"O {card['open']:.2f}<br>"
-                        f"<span style='color:#ff4d4f;'>▲ 最高 {card['high']:.2f} (+{card['high_pct']:.2f}%)</span><br>"
-                        f"<span style='color:#00d486;'>▼ 最低 {card['low']:.2f} ({card['low_pct']:.2f}%)</span><br>"
-                        f"振幅 {card['amplitude']:.2f}%</div>",
+                        f"<div style='font-size:17px;font-weight:700;color:{name_color};'>{card['name']}</div>"
+                        f"<div style='font-size:12px;color:{code_color};margin-top:3px;'>{card['label']} {card['code']}</div>",
                         unsafe_allow_html=True,
                     )
-                else:
-                    st.caption("—")
-        st.markdown("</div>", unsafe_allow_html=True)
+                with c_mid:
+                    if card.get("spark"):
+                        st.plotly_chart(card["spark"], use_container_width=True, config={"displayModeBar": False})
+                    else:
+                        st.caption("暂无数据")
+                with c_right:
+                    if card["current"] is not None:
+                        sign = "+" if card["change_pct"] >= 0 else ""
+                        trend_color = card["color"] if card["trend"] != "窄幅震荡" else code_color
+                        st.markdown(
+                            f"<div style='text-align:right;font-size:22px;font-weight:800;color:{card['color']};font-family:Fira Code,monospace;line-height:1.15;'>"
+                            f"{card['current']:.2f}</div>"
+                            f"<div style='text-align:right;font-size:13px;color:{card['color']};font-weight:600;margin-top:3px;'>"
+                            f"{sign}{card['change']:.2f} ({sign}{card['change_pct']:.2f}%)</div>"
+                            f"<div style='text-align:right;font-size:12px;color:{trend_color};font-weight:600;margin-top:3px;'>"
+                            f"{card['trend']}</div>"
+                            f"<div style='text-align:right;font-size:11px;color:{code_color};margin-top:4px;line-height:1.5;'>"
+                            f"O {card['open']:.2f}<br>"
+                            f"<span style='color:#ff4d4f;'>▲ 最高 {card['high']:.2f} (+{card['high_pct']:.2f}%)</span><br>"
+                            f"<span style='color:#00d486;'>▼ 最低 {card['low']:.2f} ({card['low_pct']:.2f}%)</span><br>"
+                            f"振幅 {card['amplitude']:.2f}%</div>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.caption("—")
+            st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -946,20 +988,33 @@ _NAV_ADMIN = [
 ]
 
 
+def sidebar_target():
+    """返回子页「侧边栏内容」应写入的目标容器。
+
+    - 独立运行（非嵌入）：返回 st.sidebar，保持原有侧边栏布局。
+    - 被合并页嵌入时（_embed_active=True）：返回主区域容器，
+      避免子页的 st.sidebar 写入覆盖父页的导航，导致侧边栏功能模块消失。
+    """
+    if st.session_state.get("_embed_active"):
+        return st.container()
+    return st.sidebar
+
+
 def render_sidebar_nav() -> None:
     """在侧边栏顶部渲染自定义分组导航，并隐藏 Streamlit 原生平铺页面列表。
 
     仅注入视觉/导航，不改任何业务逻辑；所有 page_link 指向真实页面文件，
     导航后由 init_session_state()/_sync_query_params() 自动补回登录态。
+
+    ⚠️ 无论是否嵌入都渲染（不再因 _embed_active 跳过），确保侧边栏导航常驻。
     """
-    # 隐藏原生自动生成的页面导航列表；并对侧边栏做极短淡入，
-    # 屏蔽「切换页面时原生导航列表闪一下」的现象（淡入只在整页加载时触发，fragment 重跑不会重放）。
+    # 隐藏原生自动生成的页面导航列表。
+    # 注意：不再对侧边栏加淡入动画——该动画会在每次脚本重跑时重放，
+    # 表现为「切界面/交互时侧边栏闪一下」，现已移除（#359）。
     st.markdown(
         '<style>'
         '[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]'
         '{display:none!important;}'
-        '@keyframes sfSidebarFade{from{opacity:0}to{opacity:1}}'
-        '[data-testid="stSidebar"]{animation:sfSidebarFade .18s ease-out;}'
         '/* 紧凑侧边栏导航：减少分组标题与链接间距，降低长导航的视觉负担 */'
         '[data-testid="stSidebar"] .stMarkdown [data-testid="stCaptionContainer"] '
         '{margin-top:4px!important;margin-bottom:2px!important;font-size:12px!important;}'

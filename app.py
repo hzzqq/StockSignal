@@ -13,7 +13,6 @@ import streamlit as st
 from modules.ui_theme import apply_page_config
 apply_page_config(
     page_title="StockSignal · A股事件驱动投资分析平台",
-    page_icon="📊",
     layout="wide"
 )
 st.session_state["_active_page"] = __file__

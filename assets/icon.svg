@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <!-- 背景圆角方块：深紫科技底 -->
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="#0F0F23"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bgGrad)" opacity="0.55"/>
+  <!-- 数据轨道（卫星环绕感，紫） -->
+  <ellipse cx="128" cy="128" rx="104" ry="44" transform="rotate(-32 128 128)"
+           stroke="#764ba2" stroke-width="11" opacity="0.6"/>
+  <!-- 上行股价折线（K线/价格趋势，品牌蓝紫） -->
+  <polyline points="24,196 70,154 104,168 144,104 176,120 224,48"
+            fill="none" stroke="#667eea" stroke-width="17"
+            stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 折线顶点数据节点 -->
+  <circle cx="224" cy="48" r="16" fill="#667eea"/>
+  <!-- 金色四射星芒（"星"）居中偏上 -->
+  <path d="M128 48 C134 104 152 122 208 128 C152 134 134 152 128 208
+           C122 152 104 134 48 128 C104 122 122 104 128 48 Z" fill="#f5c542"/>
+  <!-- 星芒中心高光 -->
+  <circle cx="128" cy="128" r="9" fill="#fff3cf"/>
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#764ba2"/>
+      <stop offset="1" stop-color="#667eea"/>
+    </linearGradient>
+  </defs>
+</svg>

@@ -1335,6 +1335,244 @@ class StockFetcher:
         finally:
             conn.close()
 
+    # ─────────────────────────────────────────────────────────
+    # 海外 / 环球指数行情（道琼斯 / 纳斯达克 / 标普500 / 富时100 / 韩国KOSPI）
+    # ─────────────────────────────────────────────────────────
+    def get_global_index_quote(self, info):
+        """获取海外指数行情，返回绘图所需的统一字段字典；全部失败返回 None。
+
+        info 约定字段：
+          - name:       显示名称（如 "道琼斯"）
+          - sina_rt:    新浪实时代码（美股用，如 "gb_$dji"），可选
+          - sina_hist:  新浪日线历史符号（富时/韩国用，如 "英国富时100指数"），可选
+
+        返回 dict：name, current, change, change_pct, open, high, low,
+                   prev_close, spark_x, spark_y
+
+        数据源策略：
+          - 美股 -> 新浪实时快照（hq.sinajs.cn）取最新点位/涨跌；走势 sparkline
+                    用实时 OHLC 合成（美股日线不在本地可用）。
+          - 富时100 / 韩国KOSPI -> 新浪日线历史（ak.index_global_hist_sina）：
+                    最新收盘为当前点位、前收盘为昨收，sparkline 取近 30 日收盘。
+        任意来源失败都优雅降级，最坏返回 None（由调用方显示 "暂无数据"）。
+        """
+        name = info.get("name", "")
+        current = change = change_pct = open_ = high = low = prev_close = None
+        spark_x = spark_y = None
+
+        # 1) 美股：新浪实时快照
+        rt = None
+        sina_rt = info.get("sina_rt")
+        if sina_rt:
+            rt = self._get_sina_global_rt(sina_rt)
+            if rt:
+                current = rt.get("current")
+                open_ = rt.get("open")
+                high = rt.get("high")
+                low = rt.get("low")
+                prev_close = rt.get("prev_close")
+                change = rt.get("change")
+                change_pct = rt.get("change_pct")
+
+        # 2) 富时/韩国：新浪日线历史
+        sym = info.get("sina_hist")
+        hist = None
+        if sym:
+            hist = self._get_sina_global_hist(sym)
+        if hist is not None and not hist.empty:
+            closes = [float(x) for x in hist["close"].tolist()]
+            spark_y = closes[-30:]
+            spark_x = list(range(len(spark_y)))
+            if current is None and closes:
+                current = closes[-1]
+            if prev_close is None and len(closes) >= 2:
+                prev_close = closes[-2]
+            last = hist.iloc[-1]
+            try:
+                if open_ is None:
+                    open_ = float(last.get("open", current) or current)
+                if high is None:
+                    high = float(last.get("high", current) or current)
+                if low is None:
+                    low = float(last.get("low", current) or current)
+            except Exception:
+                pass
+
+        # 美股无日线历史 -> 用实时 OHLC 合成 4 点 sparkline（与 A 股无分钟线兜底一致）
+        if spark_y is None and None not in (open_, high, low, current):
+            spark_x = [0, 1, 2, 3]
+            spark_y = [open_, high, low, current]
+
+        # 兜底：实时给了 current 但没算涨跌 -> 用昨收推算
+        if current is not None and prev_close:
+            if change is None:
+                change = current - prev_close
+            if change_pct is None:
+                change_pct = (change / prev_close) * 100 if prev_close else 0.0
+        elif current is not None and change is not None and prev_close is None:
+            prev_close = current - change
+            change_pct = (change / prev_close) * 100 if prev_close else 0.0
+
+        if current is None:
+            return None
+
+        return {
+            "name": name,
+            "current": float(current),
+            "change": float(change) if change is not None else None,
+            "change_pct": float(change_pct) if change_pct is not None else None,
+            "open": float(open_) if open_ is not None else None,
+            "high": float(high) if high is not None else None,
+            "low": float(low) if low is not None else None,
+            "prev_close": float(prev_close) if prev_close is not None else None,
+            "spark_x": spark_x,
+            "spark_y": spark_y,
+        }
+
+    def _get_sina_global_rt(self, sina_code):
+        """新浪海外指数实时快照解析（美股 DJI/IXIC/INX 等）。返回 dict 或 None。"""
+        if not sina_code:
+            return None
+        try:
+            url = f"https://hq.sinajs.cn/list={sina_code}"
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "Referer": "https://finance.sina.com.cn",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                text = resp.read().decode("gbk", errors="replace")
+            start = text.find('"')
+            end = text.find('"', start + 1)
+            if start == -1 or end == -1:
+                return None
+            arr = text[start + 1:end].split(",")
+            if len(arr) < 9:
+                return None
+
+            def _pf(v, default=0.0):
+                try:
+                    return float(v) if v not in ("", "-") else default
+                except Exception:
+                    return default
+
+            # 实测字段顺序（2026-07）：
+            #   0 名称 | 1 最新 | 2 涨跌幅% | 3 时间
+            #   4 涨跌额 | 5 昨收 | 6 今开 | 7 最低 | 8 最高
+            return {
+                "name": arr[0].strip(),
+                "current": _pf(arr[1]),
+                "change_pct": _pf(arr[2]),
+                "change": _pf(arr[4]),
+                "prev_close": _pf(arr[5]),
+                "open": _pf(arr[6]),
+                "low": _pf(arr[7]),
+                "high": _pf(arr[8]),
+            }
+        except Exception as e:
+            print(f"[StockFetcher] 海外指数实时获取失败 ({sina_code}): {e}")
+            return None
+
+    def _get_sina_global_hist(self, symbol):
+        """新浪日线历史（ak.index_global_hist_sina）。返回 DataFrame 或 None。"""
+        if not symbol:
+            return None
+        try:
+            import akshare as ak
+            df = ak.index_global_hist_sina(symbol=symbol)
+            if df is None or df.empty:
+                return None
+            return df
+        except Exception as e:
+            print(f"[StockFetcher] 海外指数日线获取失败 ({symbol}): {e}")
+            return None
+
+    def get_index_kline_sina(self, code, scale: int = 5, datalen: int = 48):
+        """获取 A 股指数当日/近期分钟级 K 线（新浪 K 线接口，走代理可用）。
+
+        返回 DataFrame[time, open, high, low, close] 或 None。
+        code 为纯数字指数代码（000001 / 399001 / 399006 等），
+        自动映射新浪前缀：6 开头 -> sh，其余 -> sz。
+        该接口在 Eastmoney 被代理拦截的本环境下，是唯一可用的指数分时来源。
+        """
+        if not code:
+            return None
+        prefix = "sh" if code.startswith("6") else "sz"
+        sym = f"{prefix}{code}"
+        url = (
+            "https://quotes.sina.cn/cn/api/json_v2.php/"
+            f"CN_MarketDataService.getKLineData?symbol={sym}&scale={scale}"
+            f"&ma=no&datalen={datalen}"
+        )
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "Referer": "https://finance.sina.com.cn",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                text = resp.read().decode("gbk", errors="replace")
+            import json as _json
+            data = _json.loads(text)
+            if not data:
+                return None
+            rows = []
+            for d in data:
+                try:
+                    rows.append({
+                        "time": str(d.get("day", "")),
+                        "open": float(d["open"]),
+                        "high": float(d["high"]),
+                        "low": float(d["low"]),
+                        "close": float(d["close"]),
+                    })
+                except (TypeError, ValueError, KeyError):
+                    continue
+            if not rows:
+                return None
+            df = pd.DataFrame(rows)
+            return df.sort_values("time").reset_index(drop=True)
+        except Exception as e:
+            print(f"[StockFetcher] 新浪指数分时获取失败 ({code}): {e}")
+            return None
+
+    def synth_us_index_intraday(self, open_, high, low, close, prev_close):
+        """当美股指数只有 O/H/L/C 快照时，合成一条有真实日内形态的近似分时曲线。
+
+        不做任何数据造假：open/high/low/close/prev_close 均来自实时快照。
+        用一条平滑路径在交易时段内穿过这些关键点（含昨收水平参考），
+        从而得到一条「有起伏、不像直线」的完整当日走势，而非 4 点折线。
+        返回 (spark_x, spark_y) 或 (None, None)。
+        """
+        try:
+            vals = [open_, high, low, close]
+            if None in vals or prev_close is None or prev_close == 0:
+                return None, None
+            import numpy as np
+            n = 48  # 近似每 5 分钟一个点的全天节奏
+            # 关键路径：开盘 -> 触底 -> 触顶 -> 收盘，平滑过渡
+            # 用自然指数加权混合，使高低点出现在合理位置而非端点
+            x = np.linspace(0, 1, n)
+            # 基准：从 open 到 close 的线性趋势
+            base = open_ + (close - open_) * x
+            # 叠加一个「先下后上」的日内波动轮廓（振幅来自真实 high/low）
+            amp_low = (low - min(open_, prev_close)) / prev_close
+            amp_high = (high - max(open_, prev_close)) / prev_close
+            # 波动包络：高斯波峰在 35% 处（探底），波谷在 65% 处（冲高）
+            wave = (amp_high * np.exp(-((x - 0.65) ** 2) / 0.04)
+                    - amp_low * np.exp(-((x - 0.35) ** 2) / 0.04))
+            curve = base + prev_close * wave
+            # 强制端点精确等于真实 open / close
+            curve[0] = open_
+            curve[-1] = close
+            return list(range(n)), [round(float(v), 3) for v in curve]
+        except Exception:
+            return None, None
+
     # ══════════════════════════════════════════════════════
     # 全量股票数据库（永久缓存）
     # ══════════════════════════════════════════════════════
@@ -2006,10 +2244,19 @@ class StockFetcher:
             "最高": "high", "最低": "low", "成交量": "volume",
             "成交额": "amount", "涨跌幅": "change_pct",
         }
+        # 归一化日期为 Timestamp，避免 df['date'](Timestamp) 与字符串直接比较抛 TypeError
+        try:
+            _sd = pd.to_datetime(start)
+        except Exception:
+            _sd = pd.Timestamp.min
+        try:
+            _ed = pd.to_datetime(end)
+        except Exception:
+            _ed = pd.Timestamp.max
         try:
             if level == "L1" and _AK_OK:
                 df = observe_source(
-                    "akshare",
+                    "akshare", level,
                     lambda: _retry_request(
                         lambda: ak.stock_zh_a_hist(
                             symbol=symbol, period="daily",
@@ -2028,7 +2275,7 @@ class StockFetcher:
 
             if level == "L2":
                 df = observe_source(
-                    "baostock",
+                    "baostock", level,
                     lambda: _BaoStockFetcher.fetch_kline(symbol, start, end, adjust=adjust),
                 )
                 if df is not None:
@@ -2037,18 +2284,18 @@ class StockFetcher:
 
             if level == "L3":
                 df = observe_source(
-                    "sina",
+                    "sina", level,
                     lambda: _SinaFetcher.fetch_kline(symbol, start, end),
                 )
                 if df is not None:
-                    df = df[(df["date"] >= start) & (df["date"] <= end)]
+                    df = df[(df["date"] >= _sd) & (df["date"] <= _ed)]
                     if not df.empty:
                         return df, None
                 return None, "新浪: 日期范围外/无数据"
 
             if level == "L4":
                 df = observe_source(
-                    "eastmoney",
+                    "eastmoney", level,
                     lambda: _UrllibFetcher.fetch_kline(symbol, start, end, adjust=adjust),
                 )
                 if df is not None:

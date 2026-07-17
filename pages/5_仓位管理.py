@@ -62,7 +62,7 @@ else:
     display_pos = positions.copy()
     if "name" in display_pos.columns:
         display_pos = display_pos.drop(columns=["name"])
-    display_pos["股票"] = display_pos["ticker"].apply(lambda x: fetcher.get_stock_name(x))
+    display_pos["股票"] = display_pos["ticker"].apply(lambda x: fetcher.get_name_only(x) or fetcher.get_stock_name(x))
     # 格式化显示
     if "shares" in display_pos.columns:
         display_pos["买入股数"] = display_pos["shares"].apply(lambda x: f"{int(x):,}")
@@ -293,7 +293,7 @@ else:
     display_trades = trades.copy()
     if "name" in display_trades.columns:
         display_trades = display_trades.drop(columns=["name"])
-    display_trades["股票"] = display_trades["ticker"].apply(lambda x: fetcher.get_stock_name(x))
+    display_trades["股票"] = display_trades["ticker"].apply(lambda x: fetcher.get_name_only(x) or fetcher.get_stock_name(x))
     display_trades["卖出日期"] = display_trades["sell_date"]
     display_trades["卖出价"] = display_trades["sell_price"].apply(lambda x: f"¥{x:.2f}")
     display_trades["卖出股数"] = display_trades["sell_shares"].apply(lambda x: f"{int(x):,}")
@@ -339,7 +339,7 @@ if not positions.empty:
                 display_pnl = pnl_df.copy()
                 if "name" in display_pnl.columns:
                     display_pnl = display_pnl.drop(columns=["name"])
-                display_pnl["股票"] = display_pnl["ticker"].apply(lambda x: fetcher.get_stock_name(x))
+                display_pnl["股票"] = display_pnl["ticker"].apply(lambda x: fetcher.get_name_only(x) or fetcher.get_stock_name(x))
                 display_pnl["买入股数"] = display_pnl["shares"].apply(lambda x: f"{int(x):,}")
                 display_pnl["剩余股数"] = display_pnl["remaining_shares"].apply(lambda x: f"{int(x):,}")
                 display_pnl["买入价"] = display_pnl["buy_price"].apply(lambda x: f"¥{x:.2f}")
@@ -362,7 +362,7 @@ if not positions.empty:
             if not attribution.empty:
                 attr_fetcher = StockFetcher()
                 attribution["股票"] = attribution["ticker"].apply(
-                    lambda x: attr_fetcher.get_stock_name(x)
+                    lambda x: fetcher.get_name_only(x) or attr_fetcher.get_stock_name(x)
                 )
                 display_attr = attribution[["股票", "ticker", "pnl", "pnl_pct", "contribution"]].copy()
                 st.dataframe(display_attr, width="stretch", hide_index=True)

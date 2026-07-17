@@ -181,3 +181,33 @@ def list_logs():
         "per_page": per_page,
         "pages": (total + per_page - 1) // per_page,
     })
+
+
+# ================================================================ 运行监控
+@bp.get("/monitor")
+@admin_required
+def monitor_stats():
+    """GET /api/admin/monitor
+    返回后端实时运行指标：请求量、错误率、延迟、活跃用户、热点端点。
+    """
+    from ..monitor import get_stats
+    from ..models import User, ForumPost, ForumComment, PriceAlert
+    from sqlalchemy import select, func
+
+    base = get_stats()
+    # 业务计数（轻量查询）
+    try:
+        user_total = db.session.execute(select(func.count()).select_from(User)).scalar() or 0
+        post_total = db.session.execute(select(func.count()).select_from(ForumPost)).scalar() or 0
+        comment_total = db.session.execute(select(func.count()).select_from(ForumComment)).scalar() or 0
+        alert_total = db.session.execute(select(func.count()).select_from(PriceAlert)).scalar() or 0
+    except Exception:
+        user_total = post_total = comment_total = alert_total = 0
+
+    base["business"] = {
+        "users": user_total,
+        "forum_posts": post_total,
+        "forum_comments": comment_total,
+        "price_alerts": alert_total,
+    }
+    return ok(data=base, message="success")

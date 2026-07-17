@@ -259,116 +259,124 @@ def _load_lhb(date_str: str):
 @st.fragment
 def fragment_lhb():
     st.markdown("---")
-    st.subheader("🐉 龙虎榜")
-    st.caption("当日机构/游资活跃个股（数据来源：东方财富龙虎榜）")
+    with st.expander("🐉 龙虎榜（点击展开/收起）", expanded=True):
+        st.caption("当日机构/游资活跃个股（数据来源：东方财富龙虎榜）")
 
-    lhb_date = (datetime.now().date() - timedelta(days=0 if datetime.now().weekday() < 5 else 1)).strftime("%Y%m%d")
-    lhb_df = _load_lhb(lhb_date)
+        lhb_date = (datetime.now().date() - timedelta(days=0 if datetime.now().weekday() < 5 else 1)).strftime("%Y%m%d")
+        lhb_df = _load_lhb(lhb_date)
 
-    if lhb_df is not None and not lhb_df.empty:
-        # 统一列名：尽量兼容不同数据源
-        cols = list(lhb_df.columns)
-        code_col = next((c for c in cols if "代码" in c), None) or cols[0]
-        name_col = next((c for c in cols if "名称" in c or "简称" in c), None)
-        reason_col = next((c for c in cols if "原因" in c or "上榜" in c), None)
-        buy_col = next((c for c in cols if "买入" in c and "额" in c), None)
-        sell_col = next((c for c in cols if "卖出" in c and "额" in c), None)
-        net_col = next((c for c in cols if "净买" in c or "净额" in c), None)
-        chg_col = next((c for c in cols if "涨跌幅" in c or "涨幅" in c), None)
+        if lhb_df is not None and not lhb_df.empty:
+            # 统一列名：尽量兼容不同数据源
+            cols = list(lhb_df.columns)
+            code_col = next((c for c in cols if "代码" in c), None) or cols[0]
+            name_col = next((c for c in cols if "名称" in c or "简称" in c), None)
+            reason_col = next((c for c in cols if "原因" in c or "上榜" in c), None)
+            buy_col = next((c for c in cols if "买入" in c and "额" in c), None)
+            sell_col = next((c for c in cols if "卖出" in c and "额" in c), None)
+            net_col = next((c for c in cols if "净买" in c or "净额" in c), None)
+            chg_col = next((c for c in cols if "涨跌幅" in c or "涨幅" in c), None)
 
-        lhb_df["_code"] = lhb_df[code_col].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
-        if name_col is None:
-            lhb_df["股票名称"] = lhb_df[code_col].map(lambda c: fetcher.get_name_only(c))
+            lhb_df["_code"] = lhb_df[code_col].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
+            if name_col is None:
+                lhb_df["股票名称"] = lhb_df[code_col].map(lambda c: fetcher.get_name_only(c))
+            else:
+                lhb_df["股票名称"] = lhb_df[name_col].astype(str)
+
+            # 1) 去重：按股票代码保留 |龙虎榜净买额| 最大的一行，保持原有顺序
+            if net_col and net_col in lhb_df.columns:
+                lhb_df["_net"] = pd.to_numeric(lhb_df[net_col], errors="coerce").fillna(0)
+                lhb_df["_score"] = lhb_df["_net"].abs()
+            else:
+                lhb_df["_score"] = pd.Series(range(len(lhb_df)), index=lhb_df.index, dtype=float)
+            lhb_df = lhb_df.reset_index(drop=True)
+            lhb_df["_orig"] = range(len(lhb_df))
+            lhb_df = (
+                lhb_df.sort_values(["_code", "_score"], ascending=[True, False])
+                .drop_duplicates("_code", keep="first")
+                .sort_values("_orig")
+                .reset_index(drop=True)
+            )
+
+            # 2) 标准化展示列：买方金额 / 卖方金额 / 龙虎榜净买额 / 涨跌幅
+            lhb_df["股票代码"] = lhb_df["_code"]
+            if buy_col:
+                lhb_df["买方金额"] = lhb_df[buy_col]
+            if sell_col:
+                lhb_df["卖方金额"] = lhb_df[sell_col]
+            if net_col:
+                lhb_df["龙虎榜净买额"] = lhb_df[net_col]
+            if chg_col:
+                lhb_df["涨跌幅"] = lhb_df[chg_col]
+
+            # 3) 所属概念：逐股获取
+            lhb_df["所属概念"] = [_get_stock_concept(c) for c in lhb_df["股票代码"]]
+
+            # 4) 友好列顺序
+            display_cols = ["股票代码", "股票名称", "所属概念"]
+            for c in ("涨跌幅", "买方金额", "卖方金额", "龙虎榜净买额"):
+                if c in lhb_df.columns:
+                    display_cols.append(c)
+            if reason_col:
+                display_cols.append(reason_col)
+
+            # 清理临时列后展示
+            _tmp_cols = [c for c in lhb_df.columns if c.startswith("_")]
+            st.dataframe(lhb_df[[c for c in display_cols if c in lhb_df.columns]].drop(columns=_tmp_cols, errors="ignore"),
+                         use_container_width=True, height=420)
+
+            # 点击跳转股票选取（K 线查看）
+            opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in lhb_df.iterrows() if len(str(row['股票代码'])) == 6]
+            sel = st.selectbox("选择龙虎榜股票查看 K 线", ["— 请选择 —"] + opts, key="lhb_jump_select")
+            if sel and sel != "— 请选择 —":
+                code = sel.split()[0]
+                st.query_params["pick_stock"] = code
+                safe_switch_page("pages/1_股票选取.py")
+
+            # 5) 热股榜：热度评分 = 归一化(买方+卖方) + 0.3*|涨跌幅| + 0.2*评论数(无则0)
+            with st.expander("🔥 热股榜", expanded=False):
+                _n = len(lhb_df)
+                _amounts = []
+                _chgs = []
+                for _, _r in lhb_df.iterrows():
+                    try:
+                        _buy = float(pd.to_numeric(_r.get("买方金额"), errors="coerce") or 0)
+                    except Exception:
+                        _buy = 0.0
+                    try:
+                        _sell = float(pd.to_numeric(_r.get("卖方金额"), errors="coerce") or 0)
+                    except Exception:
+                        _sell = 0.0
+                    try:
+                        _chg = abs(float(pd.to_numeric(_r.get("涨跌幅"), errors="coerce") or 0))
+                    except Exception:
+                        _chg = 0.0
+                    _amounts.append(abs(_buy) + abs(_sell))
+                    _chgs.append(_chg)
+                _amounts = pd.Series(_amounts, dtype=float)
+                _amax = _amounts.max() if _n else 0.0
+                _anorm = (_amounts / _amax) if _amax > 0 else pd.Series([0.0] * _n, dtype=float)
+                _heat = _anorm + 0.3 * pd.Series(_chgs, dtype=float)
+                heat_df = pd.DataFrame({
+                    "股票代码": lhb_df["股票代码"].values,
+                    "股票名称": lhb_df["股票名称"].values,
+                    "热度": [round(float(x), 2) for x in _heat],
+                    "买方金额": lhb_df["买方金额"].values if "买方金额" in lhb_df.columns else [0] * _n,
+                    "卖方金额": lhb_df["卖方金额"].values if "卖方金额" in lhb_df.columns else [0] * _n,
+                    "涨跌幅": lhb_df["涨跌幅"].values if "涨跌幅" in lhb_df.columns else [0] * _n,
+                })
+                heat_df = heat_df.sort_values("热度", ascending=False).reset_index(drop=True)
+                st.dataframe(heat_df, use_container_width=True,
+                             column_config={"热度": st.column_config.NumberColumn(format="%.2f")})
+
+                # 热股榜内的 K 线跳转选择器
+                heat_opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in heat_df.iterrows() if len(str(row['股票代码'])) == 6]
+                hsel = st.selectbox("选择热股榜股票查看 K 线", ["— 请选择 —"] + heat_opts, key="heat_jump_select")
+                if hsel and hsel != "— 请选择 —":
+                    code = hsel.split()[0]
+                    st.query_params["pick_stock"] = code
+                    safe_switch_page("pages/1_股票选取.py")
         else:
-            lhb_df["股票名称"] = lhb_df[name_col].astype(str)
-
-        # 1) 去重：按股票代码保留 |龙虎榜净买额| 最大的一行，保持原有顺序
-        if net_col and net_col in lhb_df.columns:
-            lhb_df["_net"] = pd.to_numeric(lhb_df[net_col], errors="coerce").fillna(0)
-            lhb_df["_score"] = lhb_df["_net"].abs()
-        else:
-            lhb_df["_score"] = pd.Series(range(len(lhb_df)), index=lhb_df.index, dtype=float)
-        lhb_df = lhb_df.reset_index(drop=True)
-        lhb_df["_orig"] = range(len(lhb_df))
-        lhb_df = (
-            lhb_df.sort_values(["_code", "_score"], ascending=[True, False])
-            .drop_duplicates("_code", keep="first")
-            .sort_values("_orig")
-            .reset_index(drop=True)
-        )
-
-        # 2) 标准化展示列：买方金额 / 卖方金额 / 龙虎榜净买额 / 涨跌幅
-        lhb_df["股票代码"] = lhb_df["_code"]
-        if buy_col:
-            lhb_df["买方金额"] = lhb_df[buy_col]
-        if sell_col:
-            lhb_df["卖方金额"] = lhb_df[sell_col]
-        if net_col:
-            lhb_df["龙虎榜净买额"] = lhb_df[net_col]
-        if chg_col:
-            lhb_df["涨跌幅"] = lhb_df[chg_col]
-
-        # 3) 所属概念：逐股获取
-        lhb_df["所属概念"] = [_get_stock_concept(c) for c in lhb_df["股票代码"]]
-
-        # 4) 友好列顺序
-        display_cols = ["股票代码", "股票名称", "所属概念"]
-        for c in ("涨跌幅", "买方金额", "卖方金额", "龙虎榜净买额"):
-            if c in lhb_df.columns:
-                display_cols.append(c)
-        if reason_col:
-            display_cols.append(reason_col)
-
-        # 清理临时列后展示
-        _tmp_cols = [c for c in lhb_df.columns if c.startswith("_")]
-        st.dataframe(lhb_df[[c for c in display_cols if c in lhb_df.columns]].drop(columns=_tmp_cols, errors="ignore"),
-                     use_container_width=True, height=420)
-
-        # 5) 热股榜：热度评分 = 归一化(买方+卖方) + 0.3*|涨跌幅| + 0.2*评论数(无则0)
-        with st.expander("🔥 热股榜", expanded=False):
-            _n = len(lhb_df)
-            _amounts = []
-            _chgs = []
-            for _, _r in lhb_df.iterrows():
-                try:
-                    _buy = float(pd.to_numeric(_r.get("买方金额"), errors="coerce") or 0)
-                except Exception:
-                    _buy = 0.0
-                try:
-                    _sell = float(pd.to_numeric(_r.get("卖方金额"), errors="coerce") or 0)
-                except Exception:
-                    _sell = 0.0
-                try:
-                    _chg = abs(float(pd.to_numeric(_r.get("涨跌幅"), errors="coerce") or 0))
-                except Exception:
-                    _chg = 0.0
-                _amounts.append(abs(_buy) + abs(_sell))
-                _chgs.append(_chg)
-            _amounts = pd.Series(_amounts, dtype=float)
-            _amax = _amounts.max() if _n else 0.0
-            _anorm = (_amounts / _amax) if _amax > 0 else pd.Series([0.0] * _n, dtype=float)
-            _heat = _anorm + 0.3 * pd.Series(_chgs, dtype=float)
-            heat_df = pd.DataFrame({
-                "股票代码": lhb_df["股票代码"].values,
-                "股票名称": lhb_df["股票名称"].values,
-                "热度": [round(float(x), 2) for x in _heat],
-                "买方金额": lhb_df["买方金额"].values if "买方金额" in lhb_df.columns else [0] * _n,
-                "卖方金额": lhb_df["卖方金额"].values if "卖方金额" in lhb_df.columns else [0] * _n,
-                "涨跌幅": lhb_df["涨跌幅"].values if "涨跌幅" in lhb_df.columns else [0] * _n,
-            })
-            heat_df = heat_df.sort_values("热度", ascending=False).reset_index(drop=True)
-            st.dataframe(heat_df, use_container_width=True,
-                         column_config={"热度": st.column_config.NumberColumn(format="%.2f")})
-
-        # 点击跳转股票选取（视觉增强由全局 selectbox CSS 保证，这里加 key + 醒目占位符）
-        opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in lhb_df.iterrows() if len(str(row['股票代码'])) == 6]
-        sel = st.selectbox("选择龙虎榜股票查看 K 线", ["— 请选择 —"] + opts, key="lhb_jump_select")
-        if sel and sel != "— 请选择 —":
-            code = sel.split()[0]
-            st.query_params["pick_stock"] = code
-            safe_switch_page("pages/个股研究.py")
-    else:
-        st.info("暂无龙虎榜数据（非交易日晚间或数据源暂不可用）。░")
+            st.info("暂无龙虎榜数据（非交易日晚间或数据源暂不可用）。")
 
 
 fragment_lhb()
@@ -379,6 +387,17 @@ fragment_lhb()
 # ------------------------------------------------------------------
 st.markdown("---")
 st.subheader("个股收益率相关性矩阵")
+st.caption("💡 解释：数值越接近 1（深红）表示两只股票走势高度同向；越接近 -1（深绿）表示反向；"
+           "接近 0 表示关系不大。可用于判断持仓是否过于集中、分散风险。")
+
+with st.expander("📖 怎么看这张图？", expanded=False):
+    st.markdown(
+        "- **颜色**：红=正相关（同涨同跌），绿=负相关（你涨我跌），白=无关。\n"
+        "- **对角线**恒为 1（自己和自己完全相关）。\n"
+        "- **用法**：如果组合里多只股票相关性都接近 1，说明风险没有分散；"
+        "可适当加入低相关或负相关的标的平衡。\n"
+        "- **注意**：仅基于近期（默认 180 天）日收益率计算，长期关系可能变化。"
+    )
 
 
 def _today_str():
@@ -395,25 +414,47 @@ _ticker_list = [t.strip() for t in (_corr_tickers if isinstance(_corr_tickers, l
 if not _ticker_list and _corr_tickers:
     _ticker_list = [t.strip() for t in str(_corr_tickers).split(",") if t.strip()]
 
-if st.button("计算相关性", key="calc_corr"):
-    with st.spinner("正在获取数据..."):
+
+def _fetch_one_corr(t, start, end):
+    """单只股票取数（带超时兜底），返回 (label, df)。"""
+    try:
+        _records = api_kline(t, start=start, end=end)
+        if _records is None:
+            d = fetcher.get_daily(t, start=start, end=end)
+        else:
+            d = pd.DataFrame(_records)
+        if d is None or d.empty:
+            return None
+        _nm = fetcher.get_name_only(t) or fetcher.get_stock_name(t)
+        label = f"{t} {_nm}" if _nm else t
+        return label, d
+    except Exception:
+        return None
+
+
+if st.button("计算相关性", key="calc_corr", use_container_width=True):
+    with st.spinner("正在并行获取行情并计算相关性（最多约 12 秒）..."):
         _end = _today_str()
         _start = (datetime.now().date() - timedelta(days=180)).strftime("%Y-%m-%d")
         daily_dict = {}
-        for t in _ticker_list:
-            try:
-                _records = api_kline(t, start=_start, end=_end)
-                if _records is None:
-                    d = fetcher.get_daily(t, start=_start, end=_end)
-                else:
-                    d = pd.DataFrame(_records)
-                if d is not None and not d.empty:
-                    label = fetcher.get_stock_name(t)
-                    daily_dict[label] = d
-            except Exception:
-                pass
+        # 并行取数，避免串行逐个网络超时造成「卡死」观感；单只超时 12s 兜底
+        _ex = __import__("concurrent.futures", fromlist=["ThreadPoolExecutor"]).ThreadPoolExecutor(
+            max_workers=max(1, min(8, len(_ticker_list)))
+        )
+        try:
+            _futs = {_ex.submit(_fetch_one_corr, t, _start, _end): t for t in _ticker_list}
+            for _fut in __import__("concurrent.futures", fromlist=["as_completed"]).as_completed(_futs, timeout=15):
+                _res = _fut.result(timeout=1)
+                if _res:
+                    _label, _d = _res
+                    daily_dict[_label] = _d
+        except Exception:
+            pass
+        finally:
+            _ex.shutdown(wait=False, cancel_futures=True)
+
         if len(daily_dict) >= 2:
             fig = Visualizer.correlation_matrix(daily_dict)
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning("需要至少2只有效股票代码。")
+            st.warning("需要至少 2 只有效股票代码。请检查输入或网络后重试。")

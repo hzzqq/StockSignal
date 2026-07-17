@@ -368,10 +368,9 @@ def require_auth() -> None:
         # 注入所有页面通用组件：右上角主题开关 + 侧边栏全局 AI 咨询
         from modules.widgets import inject_global_widgets, render_sidebar_nav
         inject_global_widgets()
-        # 自定义分组侧边栏导航（替代原生平铺页面列表）——嵌入合并页时跳过，
-        # 避免合并页与被嵌入子页重复渲染导航。
-        if not st.session_state.get("_embed_active"):
-            render_sidebar_nav()
+        # 自定义分组侧边栏导航（替代原生平铺页面列表）。
+        # 始终渲染，确保合并页嵌入子页时侧边栏导航也不丢失（#360）。
+        render_sidebar_nav()
         return
 
     st.warning("🔐 该功能需要登录后才能使用")

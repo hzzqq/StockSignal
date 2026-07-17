@@ -109,9 +109,10 @@ def _render_user_score(ticker: str, stock_label: str) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════
-# 侧边栏参数设置（原行情看板迁入）
+# 参数设置（原行情看板迁入；嵌入合并页时自动改写入主区域，避免覆盖导航）
 # ═══════════════════════════════════════════════════════════════
-with st.sidebar:
+from modules.widgets import sidebar_target
+with sidebar_target():
     st.header("参数设置")
     ticker = stock_search_input(
         label="股票搜索",
@@ -119,7 +120,13 @@ with st.sidebar:
         default="600519",
         placeholder="输入代码或名称搜索，如：600519 / 贵州茅台 / GZMT / 茅台",
     )
-    stock_label = fetcher.get_stock_name(ticker)
+    _nm = fetcher.get_name_only(ticker)
+    if not _nm:
+        try:
+            _nm = fetcher.get_stock_name(ticker)
+        except Exception:
+            _nm = None
+    stock_label = f"{ticker} {_nm}" if _nm else ticker
 
     today = datetime.now().date()
     _qc1, _qc2, _qc3, _qc4 = st.columns(4)

@@ -182,6 +182,29 @@ function renderDashboard(user){
   const app = $('#app'); app.innerHTML='';
   app.appendChild(topbar(user));
 
+  // 欢迎提示（降低新用户门槛）
+  const welcome = el('section','card');
+  welcome.style.borderLeft = '3px solid var(--ok)';
+  welcome.innerHTML = `<div class="sub" style="margin-bottom:0">
+    👋 <b>欢迎使用 StockSignal 管理控制台</b>。左侧为导航分区，下方为实时监控与常用管理功能。
+    所有操作均走 JWT 鉴权，与前端共用同一后端。鼠标悬停「?」可查看说明。
+  </div>`;
+  app.appendChild(welcome);
+
+  // ══ 实时监控（默认展开，自动刷新）══
+  const mon = el('section','card');
+  mon.innerHTML = `<h2><span class="bar"></span>📡 实时监控
+      <span class="pill ok" id="monLive" style="margin-left:8px">● 实时</span>
+      <button class="btn ghost" id="monRefresh" style="margin-left:auto;font-size:12px">🔄 刷新</button></h2>
+    <div class="sub">后端运行指标实时刷新（每 10 秒自动更新）。
+      <span title="请求量：累计 API 调用次数；错误率：4xx/5xx 占比；延迟：平均响应毫秒">❓ 指标含义</span></div>
+    <div class="grid kpi" id="monKpis">
+      <div class="kpi"><div class="v">…</div><div class="l">加载中</div></div>
+    </div>
+    <h3 style="font-size:14px;margin:18px 0 8px">🔥 热点接口（按请求量排序）</h3>
+    <div id="monEndpoints"><div class="empty">加载中…</div></div>`;
+  app.appendChild(mon);
+
   // 概览卡片
   const ov = el('section','card');
   ov.innerHTML = `<h2><span class="bar"></span>系统概览</h2>
@@ -239,7 +262,7 @@ function renderDashboard(user){
     <div id="stkBody"><div class="empty">加载中…</div></div>`;
   app.appendChild(stk);
 
-  $('#logoutBtn').onclick = ()=>{ localStorage.removeItem('ss_admin_token'); renderLogin('已退出登录'); };
+  $('#logoutBtn').onclick = ()=>{ if(window.__monTimer) clearInterval(window.__monTimer); localStorage.removeItem('ss_admin_token'); renderLogin('已退出登录'); };
   $('#themeBtn').onclick = ()=>{
     const cur = document.documentElement.getAttribute('data-theme');
     document.documentElement.setAttribute('data-theme', cur==='dark'?'light':'dark');
@@ -252,8 +275,47 @@ function renderDashboard(user){
   $('#refreshCfgBtn').onclick = ()=>loadConfig();
   $('#cf_submit').onclick = submitCfg;
   $('#cf_cancel').onclick = ()=>toggleCfgForm(false);
+  $('#monRefresh').onclick = ()=>loadMonitor();
 
   loadAll();
+  // 实时监控自动刷新（每 10 秒）
+  window.__monTimer = setInterval(loadMonitor, 10000);
+}
+
+async function loadMonitor(){
+  const kpiBox = $('#monKpis'); if(!kpiBox) return;
+  const res = await api('/api/admin/monitor');
+  if(!res.ok){ kpiBox.innerHTML = `<div class="err">监控数据加载失败：${esc(msgOf(res))}</div>`; return; }
+  const d = res.body.data || {};
+  const biz = d.business || {};
+  const errCls = (d.error_rate_pct||0) > 5 ? 'bad' : ((d.error_rate_pct||0) > 1 ? 'warn' : 'ok');
+  const latCls = (d.avg_latency_ms||0) > 500 ? 'bad' : ((d.avg_latency_ms||0) > 200 ? 'warn' : 'ok');
+  const cards = [
+    {v: fmt(d.total_requests), l:'总请求数', c:''},
+    {v: fmt(d.active_users_5m), l:'活跃用户(5分)', c:'ok'},
+    {v: `<span class="pill ${errCls}">${d.error_rate_pct}%</span>`, l:'错误率', c:''},
+    {v: `<span class="pill ${latCls}">${d.avg_latency_ms}ms</span>`, l:'平均延迟', c:''},
+    {v: fmt(d.uptime_text), l:'运行时长', c:''},
+    {v: fmt(biz.users), l:'注册用户', c:''},
+    {v: fmt(biz.forum_posts), l:'股吧帖子', c:''},
+    {v: fmt(biz.price_alerts), l:'价格预警', c:''},
+  ];
+  kpiBox.innerHTML = cards.map(c=>`<div class="kpi" style="${c.c==='ok'?'border-left-color:var(--ok)':''}"><div class="v">${c.v}</div><div class="l">${c.l}</div></div>`).join('');
+  // 热点接口表
+  const epBox = $('#monEndpoints');
+  const eps = d.endpoints || [];
+  if(!eps.length){ epBox.innerHTML = '<div class="empty">暂无请求记录</div>'; return; }
+  const rows = eps.map(e=>{
+    const er = e.error_rate > 1 ? 'bad' : (e.error_rate>0?'warn':'ok');
+    return `<tr>
+      <td><code>${esc(e.endpoint)}</code></td>
+      <td>${fmt(e.count)}</td>
+      <td>${e.avg_ms}ms</td>
+      <td>${e.max_ms}ms</td>
+      <td><span class="pill ${er}">${e.error_rate}%</span></td>
+    </tr>`;
+  }).join('');
+  epBox.innerHTML = `<table><thead><tr><th>接口</th><th>请求数</th><th>平均</th><th>峰值</th><th>错误率</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function loadAll(){
