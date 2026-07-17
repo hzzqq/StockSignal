@@ -18,6 +18,7 @@ v6 改进：
 
 import streamlit as st
 import time
+import re
 from modules.fetcher import StockFetcher
 from modules.ui_theme import _theme_is_dark
 
@@ -66,6 +67,48 @@ def _code_exists(code: str) -> bool:
         return bool(name) and name != str(code).strip().zfill(6)
     except Exception:
         return False
+
+
+def resolve_stock_codes(raw_text: str, max_rows: int = 8):
+    """
+    把多行/逗号/空格分隔的原始输入解析为股票代码列表。
+    支持 6 位代码、中文名称、拼音首字母。返回 (codes, labels, unresolved)。
+    codes: 解析成功的 6 位代码列表
+    labels: 解析成功的 "名称(代码)" 列表，用于 chip 展示
+    unresolved: 未识别或无效的原始输入列表
+    """
+    if not raw_text:
+        return [], [], []
+    parts = [p.strip() for p in re.split(r"[\n,，;\s]+", raw_text) if p.strip()]
+    parts = parts[:max_rows]
+    fetcher = StockFetcher()
+    codes = []
+    labels = []
+    unresolved = []
+    for raw in parts:
+        if raw.isdigit():
+            if len(raw) != 6:
+                unresolved.append(f"{raw}（须6位）")
+                continue
+            try:
+                _, name = fetcher.get_stock_basic(raw)
+            except Exception:
+                name = None
+            if not name or name == raw:
+                unresolved.append(f"{raw}（代码不存在）")
+                continue
+            codes.append(raw)
+            labels.append(f"{name}({raw})")
+        else:
+            results = _cached_search(raw, limit=1)
+            if results:
+                code, name, _ = results[0]
+                codes.append(code)
+                labels.append(f"{name}({code})")
+            else:
+                unresolved.append(f"{raw}（未识别）")
+    return codes, labels, unresolved
+
 
 
 # 搜索结果缓存（query → (timestamp, results)）

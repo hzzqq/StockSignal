@@ -6,14 +6,14 @@
 import streamlit as st
 import pandas as pd
 
-from modules.ui_theme import apply_page_config
+from modules.ui_theme import apply_page_config, _theme_is_dark
 apply_page_config(page_title="多股对比", page_icon="📊", layout="wide")
 
 # 本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）
 st.session_state["_active_page"] = __file__
 
 from modules.session import init_session_state, require_auth, render_user_badge
-from modules.search_ui import multi_stock_search_input
+from modules.search_ui import resolve_stock_codes
 from modules.background_tasks import submit_task_with_error, poll_task
 from streamlit_autorefresh import st_autorefresh
 from modules.compare import (
@@ -35,21 +35,35 @@ EXAMPLE = "600667,601133,002947,002167,600206"
 
 with st.sidebar:
     st.markdown("### 对比设置")
-    st.caption("输入 2~8 只股票（代码/中文名/拼音），一键同屏横向对比。")
+    st.caption("输入 2~8 只股票（代码/中文名/拼音），每行或逗号分隔。")
     if st.button("载入示例（5只）", use_container_width=True):
-        st.session_state["cmp_items"] = [
-            {"id": i, "value": code, "code": code, "name": None}
-            for i, code in enumerate(EXAMPLE.split(","))
-        ]
+        st.session_state["cmp_text"] = EXAMPLE.replace(",", "\n")
         st.rerun()
 
-    # 支持中文名/拼音/代码的多股票输入框（动态行版）
-    codes = multi_stock_search_input(
-        label="输入多只股票",
-        key="cmp",
-        default=EXAMPLE,
-        placeholder="600519 / 茅台 / gzmt",
+    # 紧凑输入：用多行文本框替代 5 行动态行，显著降低侧边栏高度
+    cmp_text = st.text_area(
+        "股票列表",
+        value=st.session_state.get("cmp_text", EXAMPLE.replace(",", "\n")),
+        height=90,
+        placeholder="600519\n茅台\ngzmt",
+        key="cmp_text",
+        label_visibility="collapsed",
     )
+    codes, labels, unresolved = resolve_stock_codes(cmp_text, max_rows=8)
+    if labels:
+        if _theme_is_dark():
+            chip_bg, chip_border, chip_color = "#1a1a2e", "#2d2d44", "#e2e8f0"
+        else:
+            chip_bg, chip_border, chip_color = "#ffffff", "#e2e8f0", "#1e293b"
+        chips_html = "".join(
+            f'<span style="display:inline-block;background:{chip_bg};border:1px solid {chip_border};'
+            f'border-radius:12px;padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:{chip_color};"'
+            f'>{lab}</span>'
+            for lab in labels
+        )
+        st.markdown(f"<div style='margin-top:6px;'>{chips_html}</div>", unsafe_allow_html=True)
+    if unresolved:
+        st.caption("⚠️ 未识别: " + ", ".join(unresolved[:3]))
 
     with st.form("cmp_form"):
         period = st.slider("回看天数", 60, 250, 120, 10)

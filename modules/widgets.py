@@ -960,6 +960,13 @@ def render_sidebar_nav() -> None:
         '{display:none!important;}'
         '@keyframes sfSidebarFade{from{opacity:0}to{opacity:1}}'
         '[data-testid="stSidebar"]{animation:sfSidebarFade .18s ease-out;}'
+        '/* 紧凑侧边栏导航：减少分组标题与链接间距，降低长导航的视觉负担 */'
+        '[data-testid="stSidebar"] .stMarkdown [data-testid="stCaptionContainer"] '
+        '{margin-top:4px!important;margin-bottom:2px!important;font-size:12px!important;}'
+        '[data-testid="stSidebar"] [data-testid="stPageLink"] a '
+        '{padding:4px 8px!important;margin:1px 0!important;border-radius:8px!important;}'
+        '[data-testid="stSidebar"] [data-testid="stButton"] button '
+        '{padding:4px 8px!important;min-height:28px!important;}'
         '</style>',
         unsafe_allow_html=True,
     )

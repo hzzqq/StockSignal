@@ -24,6 +24,7 @@ from modules.session import require_auth, render_user_badge, safe_switch_page
 from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
 from modules.visualizer import UP_COLOR, DOWN_COLOR
+from modules import fundflow as ff
 
 apply_page_config(page_title="基本面分析", page_icon="🏛️", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -816,7 +817,14 @@ if code:
         try:
             sector_df = fetcher.get_sector_list()
             if sector_df is None or sector_df.empty:
-                sector_df = pd.DataFrame()
+                # fallback：行业资金流向接口也有行业涨跌幅，可复用
+                try:
+                    ff_df = ff.get_industry_fund_flow()
+                    if ff_df is not None and not ff_df.empty and "行业" in ff_df.columns and "涨跌幅" in ff_df.columns:
+                        sector_df = ff_df.rename(columns={"行业": "sector", "涨跌幅": "change_pct"})[["sector", "change_pct"]].copy()
+                        sector_df["change_pct"] = pd.to_numeric(sector_df["change_pct"], errors="coerce").fillna(0)
+                except Exception:
+                    sector_df = pd.DataFrame()
             else:
                 sector_df = sector_df.copy()
                 sector_df["change_pct"] = pd.to_numeric(sector_df.get("change_pct", 0), errors="coerce").fillna(0)
@@ -1129,11 +1137,13 @@ if code:
         st.info("暂无历史行情数据，无法计算历史分位。")
 
     # ═══════════════════════════════════════════════
-    # 行业横向对比
+    # 行业横向对比 + 大盘主线判断
     # ═══════════════════════════════════════════════
     st.markdown("---")
-    st.subheader("🏭 行业横向对比")
-    if not sector_df.empty and industry != "—":
+    if sector_df.empty or industry == "—":
+        st.warning("⚠️ 行业数据暂不可用，「行业横向对比」与「大盘主线判断」无法展示。可稍后重试或检查网络/数据源。")
+    else:
+        st.subheader("🏭 行业横向对比")
         top_n = 15
         top_sectors = sector_df.sort_values("change_pct", ascending=False).head(top_n).copy()
         mapped_sector = _find_sector_name(sector_df, industry) if industry != "—" else None
@@ -1177,48 +1187,43 @@ if code:
                               help="当前行业涨跌幅减去全市场行业均值；>0 表示强于大盘")
         else:
             st.info("未在行业列表中精确匹配到当前股票行业。")
-    else:
-        st.info("暂无行业数据，无法横向对比。")
 
-    # ═══════════════════════════════════════════════
-    # 大盘主线判断
-    # ═══════════════════════════════════════════════
-    st.markdown("---")
-    st.subheader("🚩 大盘主线判断")
-    rank = _sector_rank(sector_df, industry) if industry != "—" else None
-    sector_total = len(sector_df) if not sector_df.empty else 0
+        st.markdown("---")
+        st.subheader("🚩 大盘主线判断")
+        rank = _sector_rank(sector_df, industry) if industry != "—" else None
+        sector_total = len(sector_df) if not sector_df.empty else 0
 
-    if rank is not None and sector_total > 0:
-        is_main = rank <= 5
-        main_html = (
-            f'<div style="padding:14px 18px;border-radius:10px;'
-            f'background:rgba(16,185,129,0.12);border-left:4px solid {UP_COLOR};'
-            f'color:{"#e2e8f0" if dark else "#064e3b"};font-size:15px;">'
-            f'✅ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，'
-            f'处于市场主线前列，资金关注度较高。</div>'
-        ) if is_main else (
-            f'<div style="padding:14px 18px;border-radius:10px;'
-            f'background:rgba(245,158,11,0.12);border-left:4px solid #f59e0b;'
-            f'color:{"#e2e8f0" if dark else "#78350f"};font-size:15px;">'
-            f'⚠️ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，'
-            f'暂未进入主线 Top5，建议结合题材与资金面综合判断。</div>'
-        )
-        st.markdown(main_html, unsafe_allow_html=True)
-
-        with st.expander("查看行业排名 Top10", expanded=False):
-            top10 = sector_df.sort_values("change_pct", ascending=False).head(10).reset_index(drop=True)
-            top10["排名"] = top10.index + 1
-            display = top10[["排名", "sector", "change_pct"]].rename(
-                columns={"sector": "行业", "change_pct": "涨跌幅"}
+        if rank is not None and sector_total > 0:
+            is_main = rank <= 5
+            main_html = (
+                f'<div style="padding:14px 18px;border-radius:10px;'
+                f'background:rgba(16,185,129,0.12);border-left:4px solid {UP_COLOR};'
+                f'color={"#e2e8f0" if dark else "#064e3b"};font-size:15px;">'
+                f'✅ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，'
+                f'处于市场主线前列，资金关注度较高。</div>'
+            ) if is_main else (
+                f'<div style="padding:14px 18px;border-radius:10px;'
+                f'background:rgba(245,158,11,0.12);border-left:4px solid #f59e0b;'
+                f'color={"#e2e8f0" if dark else "#78350f"};font-size:15px;">'
+                f'⚠️ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，'
+                f'暂未进入主线 Top5，建议结合题材与资金面综合判断。</div>'
             )
-            st.dataframe(
-                display,
-                use_container_width=True,
-                column_config={"涨跌幅": st.column_config.NumberColumn(format="%.2f%%")},
-                hide_index=True,
-            )
-    else:
-        st.info("暂无行业排名，无法判断主线地位。")
+            st.markdown(main_html, unsafe_allow_html=True)
+
+            with st.expander("查看行业排名 Top10", expanded=False):
+                top10 = sector_df.sort_values("change_pct", ascending=False).head(10).reset_index(drop=True)
+                top10["排名"] = top10.index + 1
+                display = top10[["排名", "sector", "change_pct"]].rename(
+                    columns={"sector": "行业", "change_pct": "涨跌幅"}
+                )
+                st.dataframe(
+                    display,
+                    use_container_width=True,
+                    column_config={"涨跌幅": st.column_config.NumberColumn(format="%.2f%%")},
+                    hide_index=True,
+                )
+        else:
+            st.info("暂无行业排名，无法判断主线地位。")
 
     # ═══════════════════════════════════════════════
     # 综合评估
