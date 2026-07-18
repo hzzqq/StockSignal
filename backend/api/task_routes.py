@@ -18,7 +18,7 @@ bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
 @jwt_required
 def create_task():
     """POST /api/tasks
-    body: {"type": "analysis|compare|ai_consult", "payload": {...}}
+    body: {"type": "analysis|compare|ai_consult|quant_research", "payload": {...}}
     """
     body = request.get_json(silent=True) or {}
     task_type = (body.get("type") or "").strip()
@@ -26,7 +26,7 @@ def create_task():
 
     if not task_type:
         return fail(message="缺少任务类型", code="missing_type", http_status=400)
-    if task_type not in ("analysis", "compare", "ai_consult"):
+    if task_type not in ("analysis", "compare", "ai_consult", "quant_research"):
         return fail(message=f"不支持的任务类型: {task_type}", code="unsupported_type", http_status=400)
 
     task_id = task_worker.submit(task_type, payload)

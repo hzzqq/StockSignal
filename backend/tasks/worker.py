@@ -92,6 +92,7 @@ class TaskWorker:
         self.register_handler("analysis", _handle_analysis)
         self.register_handler("compare", _handle_compare)
         self.register_handler("ai_consult", _handle_ai_consult)
+        self.register_handler("quant_research", _handle_quant_research)
 
     def register_handler(self, task_type: str, handler: Callable[[Dict[str, Any]], Any]) -> None:
         self._handlers[task_type] = handler
@@ -246,6 +247,34 @@ def _handle_ai_consult(payload: Dict[str, Any]) -> Dict[str, Any]:
     question = payload.get("question", "")
     context = payload.get("context", {})
     return ai_answer(question, context)
+
+
+def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    执行 QuantAgent 多智能体投研（异步后台任务）。
+
+    payload:
+      - ticker: 6 位 A股代码
+      - use_browser / use_rag: 是否启用 FinBrowser / FinRAG（默认 True）
+      - engine: "auto" | "langgraph" | "simple"
+      - human_approval_enabled / force_human_review: 人工复核开关（后台无人值守时自动批准）
+    返回 ResearchState 的 JSON 安全字典（已剔除 DataFrame）。
+    """
+    from modules.quantagent import run_research
+
+    ticker = str(payload.get("ticker", "")).strip().zfill(6)
+    if not ticker:
+        raise ValueError("ticker 不能为空")
+    state = run_research(
+        ticker,
+        use_browser=bool(payload.get("use_browser", True)),
+        use_rag=bool(payload.get("use_rag", True)),
+        engine=str(payload.get("engine", "auto")),
+        human_approval_enabled=bool(payload.get("human_approval_enabled", False)),
+        force_human_review=bool(payload.get("force_human_review", False)),
+        auto_resume_approval={"approved": True, "note": "（后台任务自动批准）"},
+    )
+    return state.to_dict()
 
 
 # 全局单例
