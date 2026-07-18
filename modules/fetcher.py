@@ -80,6 +80,9 @@ CONFIG = {
         "sector_open_hours": 0.1,       # 交易时段：6 分钟
         "sector_midday_hours": 0.5,     # 午间休市：30 分钟
         "sector_closed_days": 7,        # 收盘/周末/盘前：7 天
+        # 进程内缓存 TTL（秒）。#406：统一进程缓存的过期策略，避免长驻进程数据陈旧
+        "fundamentals_seconds": 21600,  # 基本面（PE/市值/行业）：6 小时（日频）
+        "biz_seconds": 604800,          # 核心业务/主营构成：7 天（季频，变动慢）
     },
     "observe": {
         "enabled": True,                # 数据源成功率/耗时埋点总开关
@@ -786,8 +789,8 @@ class StockFetcher:
     _pinyin_initials_cache = {}  # {name: initials} 拼音首字母缓存（性能关键）
     _pinyin_initials_variants_cache = {}  # {name: {initials variants}} 多音字首字母组合缓存
     _stocks_loaded = False    # 是否已加载
-    _fund_cache = {}          # {code: fundamentals dict} 进程内缓存（基本面日频）
-    _biz_cache = {}           # {code: 核心业务描述 str} 进程内缓存（主营构成，按代码）
+    _fund_cache = {}          # {code: (ts, fundamentals dict)} 进程内TTL缓存（基本面日频，#406）
+    _biz_cache = {}           # {code: (ts, 核心业务描述 str)} 进程内TTL缓存（主营构成，#406）
 
     def __init__(self, config_path="config.yaml"):
         self.config = load_config(config_path)
@@ -799,6 +802,23 @@ class StockFetcher:
         self.cache_days = self.config.get("default", {}).get("cache_days", 7)
         # 实例化时预热股票库（首次较慢，后续毫秒级）
         self._warmup_stock_db()
+
+    # ── 进程内 TTL 缓存工具（#406：统一进程缓存过期策略）────────────
+    # 存储结构：{key: (存入时刻 monotonic, value)}；读时超 ttl 判为 MISS。
+    @staticmethod
+    def _proc_cache_get(cache: dict, key, ttl_seconds):
+        item = cache.get(key)
+        if item is None:
+            return None
+        ts, value = item
+        if (time.monotonic() - ts) > ttl_seconds:
+            cache.pop(key, None)  # 过期清除
+            return None
+        return value
+
+    @staticmethod
+    def _proc_cache_set(cache: dict, key, value):
+        cache[key] = (time.monotonic(), value)
 
     def get_all_codes(self, limit=None, random_seed=None):
         """
@@ -894,8 +914,11 @@ class StockFetcher:
         进程内缓存避免重复请求；全部失败时返回空字典 {}（调用方再用行业关键词兜底，不会崩）。
         """
         code = str(code).strip().zfill(6)
-        if use_cache and code in StockFetcher._fund_cache:
-            return StockFetcher._fund_cache[code]
+        if use_cache:
+            _ttl = CONFIG["cache_ttl"]["fundamentals_seconds"]
+            _hit = self._proc_cache_get(StockFetcher._fund_cache, code, _ttl)
+            if _hit is not None:
+                return _hit
 
         def _to_float(x):
             try:
@@ -999,7 +1022,7 @@ class StockFetcher:
                 pass
 
         if _has(res):
-            StockFetcher._fund_cache[code] = res
+            self._proc_cache_set(StockFetcher._fund_cache, code, res)
         return res
 
     def get_core_business(self, code, use_cache=True):
@@ -1011,8 +1034,11 @@ class StockFetcher:
         调用方回退到行业（industry）显示。进程内缓存避免重复请求。
         """
         code = str(code).strip().zfill(6)
-        if use_cache and code in StockFetcher._biz_cache:
-            return StockFetcher._biz_cache[code]
+        if use_cache:
+            _ttl = CONFIG["cache_ttl"]["biz_seconds"]
+            _hit = self._proc_cache_get(StockFetcher._biz_cache, code, _ttl)
+            if _hit is not None:
+                return _hit
         biz = ""
         try:
             import akshare as ak
@@ -1038,7 +1064,7 @@ class StockFetcher:
         except Exception as e:  # noqa: BLE001
             logger.info(f"[StockFetcher] 核心业务获取失败 ({code}): {e}")
         if biz:
-            StockFetcher._biz_cache[code] = biz
+            self._proc_cache_set(StockFetcher._biz_cache, code, biz)
         return biz
     def _get_conn(self):
         return sqlite3.connect(self.db_path)
