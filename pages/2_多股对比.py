@@ -13,7 +13,7 @@ apply_page_config(page_title="多股对比", page_icon="📊", layout="wide")
 st.session_state["_active_page"] = __file__
 
 from modules.session import init_session_state, require_auth, render_user_badge
-from modules.search_ui import resolve_stock_codes
+from modules.search_ui import resolve_stock_codes, multi_stock_search_input
 from modules.background_tasks import submit_task_with_error, poll_task
 from streamlit_autorefresh import st_autorefresh
 from modules.compare import (
@@ -33,43 +33,34 @@ EXAMPLE = "600667,601133,002947,002167,600206"
 # AI 咨询逻辑已移至 modules.widgets.render_ai_consultant（全局通用，任意页面可用）
 
 
-with st.sidebar:
+# ── 对比设置（位于标题下方主区域，逐个输入、可增删、带匹配结果）──
+with st.container(border=True):
     st.markdown("### 对比设置")
-    st.caption("输入 2~8 只股票（代码/中文名/拼音），每行或逗号分隔。")
-    if st.button("载入示例（5只）", use_container_width=True):
-        st.session_state["cmp_text"] = EXAMPLE.replace(",", "\n")
-        st.rerun()
+    st.caption("输入 2~8 只股票（代码/中文名/拼音），逐个添加，支持增删。")
 
-    # 紧凑输入：用多行文本框替代 5 行动态行，显著降低侧边栏高度
-    cmp_text = st.text_area(
-        "股票列表",
-        value=st.session_state.get("cmp_text", EXAMPLE.replace(",", "\n")),
-        height=90,
-        placeholder="600519\n茅台\ngzmt",
-        key="cmp_text",
-        label_visibility="collapsed",
-    )
-    codes, labels, unresolved = resolve_stock_codes(cmp_text, max_rows=8)
-    if labels:
-        if _theme_is_dark():
-            chip_bg, chip_border, chip_color = "#1a1a2e", "#2d2d44", "#e2e8f0"
-        else:
-            chip_bg, chip_border, chip_color = "#ffffff", "#e2e8f0", "#1e293b"
-        chips_html = "".join(
-            f'<span style="display:inline-block;background:{chip_bg};border:1px solid {chip_border};'
-            f'border-radius:12px;padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:{chip_color};"'
-            f'>{lab}</span>'
-            for lab in labels
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        codes = multi_stock_search_input(
+            label="股票列表",
+            key="cmp_multi",
+            default=EXAMPLE,
+            placeholder="代码 / 名称 / 拼音",
+            max_rows=8,
         )
-        st.markdown(f"<div style='margin-top:6px;'>{chips_html}</div>", unsafe_allow_html=True)
-    if unresolved:
-        st.caption("⚠️ 未识别: " + ", ".join(unresolved[:3]))
+    with c2:
+        st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
+        if st.button("载入示例（5只）", use_container_width=True, key="cmp_load_example"):
+            st.session_state["cmp_multi_items"] = [
+                {"id": i, "value": c, "code": c, "name": None}
+                for i, c in enumerate(EXAMPLE.split(","))
+            ]
+            st.rerun()
 
     with st.form("cmp_form"):
         period = st.slider("回看天数", 60, 250, 120, 10)
         submitted = st.form_submit_button("开始对比", use_container_width=True, type="primary")
 
-    # AI 咨询已全局化（左侧栏「★ 星辰 · 多市场智能股票分析师」），任意页面可用
+    st.session_state["_cmp_period_input"] = period
 
 if submitted:
     if len(codes) < 2:
@@ -111,7 +102,7 @@ def fragment_compare_result():
                     if "date" in r["df"].columns:
                         r["df"]["date"] = pd.to_datetime(r["df"]["date"], errors="coerce")
             st.session_state["_cmp_rows"] = rows
-            st.session_state["_cmp_period"] = period
+            st.session_state["_cmp_period"] = st.session_state.get("_cmp_period_input", 120)
             del st.session_state["compare_task_id"]
             st.toast("✅ 多股对比完成")
         elif task and task.get("status") == "error":
@@ -128,7 +119,7 @@ def fragment_compare_result():
 
     rows = st.session_state.get("_cmp_rows")
     if not rows:
-        st.info("👈 在左侧输入股票代码/名称后点击「开始对比」。已预填示例（5只），直接点击即可查看效果。")
+        st.info("👇 在下方输入股票代码/名称后点击「开始对比」。已预填示例（5只），直接点击即可查看效果。")
         return
 
     # 部分标的行情缺失提示
@@ -136,7 +127,7 @@ def fragment_compare_result():
     if failed:
         st.warning(f"以下标的行情获取失败，已按中性默认展示：{'、'.join(failed)}")
 
-    _period = st.session_state.get("_cmp_period", period)
+    _period = st.session_state.get("_cmp_period", st.session_state.get("_cmp_period_input", 120))
 
     # ── 头部 + 核心结论 + 横向对比表（同一 compare-wrap 内）──
     st.markdown(
