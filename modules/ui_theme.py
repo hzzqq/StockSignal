@@ -1526,8 +1526,7 @@ def apply_page_config(page_title: str, page_icon: str = None, layout: str = "wid
         '[data-testid="stSidebarNav"],'
         '[data-testid="stSidebarNavItems"],'
         '[data-testid="stSidebarNavSeparator"],'
-        '[data-testid="stSidebarNavLink"],'
-        '[data-testid="stSidebarUserContent"]'
+        '[data-testid="stSidebarNavLink"]'
         '{display:none!important;}'
         '</style>',
         unsafe_allow_html=True,
@@ -1564,8 +1563,7 @@ def apply_theme() -> None:
         '[data-testid="stSidebarNav"],'
         '[data-testid="stSidebarNavItems"],'
         '[data-testid="stSidebarNavSeparator"],'
-        '[data-testid="stSidebarNavLink"],'
-        '[data-testid="stSidebarUserContent"]'
+        '[data-testid="stSidebarNavLink"]'
         '{display:none!important;}'
         '</style>',
         unsafe_allow_html=True,
