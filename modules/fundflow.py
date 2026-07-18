@@ -19,7 +19,9 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-_PROXY = "http://127.0.0.1:26561"
+# 本机代理地址：默认 http://127.0.0.1:26561，可用环境变量 STOCKSIGNAL_PROXY 覆盖
+# （#407 集中魔法值：换机器/换端口时不必改代码）。
+_PROXY = os.environ.get("STOCKSIGNAL_PROXY", "http://127.0.0.1:26561")
 _patch_done = False
 
 

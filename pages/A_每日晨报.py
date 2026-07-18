@@ -42,22 +42,8 @@ fetcher = _get_fetcher()
 
 
 # ── 自选股快照：市盈率 / 资产负债率 解析（复用 C 页已验证逻辑）──
-@contextlib.contextmanager
-def _ssl_bypass():
-    """临时关闭 requests 的 SSL 校验（代理环境新浪财务报表直连证书链不可达）。"""
-    import urllib3
-    urllib3.disable_warnings()
-    _orig = requests.Session.request
-
-    def _patched(self, *a, **kw):
-        kw["verify"] = False
-        return _orig(self, *a, **kw)
-
-    requests.Session.request = _patched
-    try:
-        yield
-    finally:
-        requests.Session.request = _orig
+# SSL 关闭补丁已收敛到 modules.ssl_helper（#404），此处复用公共上下文管理器
+from modules.ssl_helper import ssl_bypass as _ssl_bypass
 
 
 def _to_num(v):

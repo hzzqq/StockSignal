@@ -888,6 +888,54 @@ def _ai_scroll_to_bottom_component(dark: bool) -> None:
     components.html(js, height=48)
 
 
+@st.fragment
+def _poll_ai_consult_task() -> None:
+    """轮询全局 AI 咨询后台任务（#405）。
+
+    只让本片段随 st_autorefresh 每 5s 局部重跑；任务终态（成功/失败/超时）才用
+    st.rerun(scope="app") 升级为一次整页重跑，以在页面级重渲染聊天历史。
+    这是 fragment 铁律允许的唯一整页重跑时机——等待期间绝不整页刷新。
+    """
+    task_id = st.session_state.get("ai_task_id")
+    if not task_id:
+        return
+    task = poll_task(task_id, max_wait=0.4)
+    if task and task.get("status") == "success":
+        result = task.get("result") or {}
+        answer = result.get("answer") or "AI 暂未给出回答"
+        st.session_state["ai_chat"].append({"role": "assistant", "content": answer})
+        st.session_state["ai_task_id"] = None
+        st.session_state["ai_task_started_at"] = None
+        st.rerun(scope="app")
+        return
+    if task and task.get("status") == "error":
+        err = task.get("error") or "未知错误"
+        st.session_state["ai_chat"].append(
+            {"role": "assistant", "content": f"❌ AI 分析失败：{err}"}
+        )
+        st.session_state["ai_task_id"] = None
+        st.session_state["ai_task_started_at"] = None
+        st.rerun(scope="app")
+        return
+
+    # 未完成：超时保护 + 低频刷新
+    started = st.session_state.get("ai_task_started_at") or time.time()
+    if time.time() - started > 240:
+        st.session_state["ai_chat"].append(
+            {"role": "assistant", "content": "❌ AI 响应超时，请重新提问。"}
+        )
+        st.session_state["ai_task_id"] = None
+        st.session_state["ai_task_started_at"] = None
+        st.rerun(scope="app")
+        return
+    try:
+        from streamlit_autorefresh import st_autorefresh
+
+        st_autorefresh(interval=5000, limit=150, key="ai_chat_autorefresh")
+    except Exception:
+        pass
+
+
 def render_ai_consultant() -> None:
     """全局 AI 咨询模块（右上角弹层内）：任意页面可用，后台异步运行，对话可持续。
 
@@ -983,44 +1031,10 @@ def render_ai_consultant() -> None:
                 st.error(f"❌ 后台任务提交失败：{err}，请刷新后重试。")
             st.session_state["ai_task_id"] = None
 
-    # 轮询后台任务状态
-    task_id = st.session_state.get("ai_task_id")
-    if task_id:
-        task = poll_task(task_id, max_wait=0.4)
-        if task and task.get("status") == "success":
-            result = task.get("result") or {}
-            answer = result.get("answer") or "AI 暂未给出回答"
-            st.session_state["ai_chat"].append({"role": "assistant", "content": answer})
-            st.session_state["ai_task_id"] = None
-            st.session_state["ai_task_started_at"] = None
-            st.rerun()
-        elif task and task.get("status") == "error":
-            err = task.get("error") or "未知错误"
-            st.session_state["ai_chat"].append(
-                {"role": "assistant", "content": f"❌ AI 分析失败：{err}"}
-            )
-            st.session_state["ai_task_id"] = None
-            st.session_state["ai_task_started_at"] = None
-            st.rerun()
-
-    # 只在任务运行且未超时时低频刷新，避免持续影响整个页面
+    # 轮询后台任务状态（收进 fragment，#405）：等待期间 st_autorefresh 只让本片段
+    # 每 5s 局部重跑，不再整页全量重跑（此弹层在每个页面都渲染，页面级刷新会拖慢全站）。
     if st.session_state.get("ai_task_id"):
-        started = st.session_state.get("ai_task_started_at") or time.time()
-        elapsed = time.time() - started
-        if elapsed > 240:
-            # 超时：自动结束，避免永远刷新
-            st.session_state["ai_chat"].append(
-                {"role": "assistant", "content": "❌ AI 响应超时，请重新提问。"}
-            )
-            st.session_state["ai_task_id"] = None
-            st.session_state["ai_task_started_at"] = None
-            st.rerun()
-        try:
-            from streamlit_autorefresh import st_autorefresh
-
-            st_autorefresh(interval=5000, limit=150, key="ai_chat_autorefresh")
-        except Exception:
-            pass
+        _poll_ai_consult_task()
 
     st.markdown("</div>", unsafe_allow_html=True)
 

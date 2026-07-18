@@ -191,65 +191,61 @@ fragment_sector_board()
 
 
 def _load_lhb(date_str: str):
-    """获取龙虎榜数据。优先东方财富，其次新浪；失败返回 None。"""
-    import requests
-    import urllib3
+    """获取龙虎榜数据。优先东方财富，其次新浪；失败返回 None。
+
+    SSL 校验通过 ssl_bypass() 上下文管理器局部关闭，退出即恢复，
+    不再污染进程全局 requests（历史隐患已修，#401/#404）。
+    """
     import akshare as ak
-    urllib3.disable_warnings()
+    from modules.ssl_helper import ssl_bypass
 
-    # 统一把 requests.get 默认 verify=False（部分数据源在代理后 SSL 会失败）
-    _orig_get = requests.get
-    def _get(url, **kwargs):
-        kwargs.setdefault("verify", False)
-        return _orig_get(url, **kwargs)
-    requests.get = _get
+    with ssl_bypass():
+        # 1) 东方财富：返回最近若干天数据，按 date_str 所在日期过滤
+        try:
+            start = (datetime.now().date() - timedelta(days=7)).strftime("%Y%m%d")
+            end = datetime.now().date().strftime("%Y%m%d")
+            df = ak.stock_lhb_detail_em(start_date=start, end_date=end)
+            if df is not None and not df.empty:
+                df = df.rename(columns=lambda x: str(x).strip())
+                # 过滤到目标日期（含前后一交易日兜底）
+                if "上榜日" in df.columns:
+                    df["上榜日"] = df["上榜日"].astype(str).str.replace("-", "")
+                    filtered = df[df["上榜日"] <= date_str].sort_values("上榜日", ascending=False)
+                    if not filtered.empty:
+                        latest_date = filtered["上榜日"].iloc[0]
+                        df = df[df["上榜日"] == latest_date].copy()
+                # 标准化列名
+                col_map = {
+                    "代码": "股票代码",
+                    "名称": "股票名称",
+                    "上榜原因": "上榜原因",
+                    "龙虎榜买入额": "龙虎榜买入额",
+                    "龙虎榜卖出额": "龙虎榜卖出额",
+                    "龙虎榜净买额": "龙虎榜净买额",
+                    "涨跌幅": "涨跌幅",
+                    "收盘价": "收盘价",
+                }
+                df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+                if "股票代码" in df.columns:
+                    df["股票代码"] = df["股票代码"].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
+                    df = df[df["股票代码"].str.len() == 6]
+                return df
+        except Exception:
+            pass
 
-    # 1) 东方财富：返回最近若干天数据，按 date_str 所在日期过滤
-    try:
-        start = (datetime.now().date() - timedelta(days=7)).strftime("%Y%m%d")
-        end = datetime.now().date().strftime("%Y%m%d")
-        df = ak.stock_lhb_detail_em(start_date=start, end_date=end)
-        if df is not None and not df.empty:
-            df = df.rename(columns=lambda x: str(x).strip())
-            # 过滤到目标日期（含前后一交易日兜底）
-            if "上榜日" in df.columns:
-                df["上榜日"] = df["上榜日"].astype(str).str.replace("-", "")
-                filtered = df[df["上榜日"] <= date_str].sort_values("上榜日", ascending=False)
-                if not filtered.empty:
-                    latest_date = filtered["上榜日"].iloc[0]
-                    df = df[df["上榜日"] == latest_date].copy()
-            # 标准化列名
-            col_map = {
-                "代码": "股票代码",
-                "名称": "股票名称",
-                "上榜原因": "上榜原因",
-                "龙虎榜买入额": "龙虎榜买入额",
-                "龙虎榜卖出额": "龙虎榜卖出额",
-                "龙虎榜净买额": "龙虎榜净买额",
-                "涨跌幅": "涨跌幅",
-                "收盘价": "收盘价",
-            }
-            df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
-            if "股票代码" in df.columns:
-                df["股票代码"] = df["股票代码"].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
-                df = df[df["股票代码"].str.len() == 6]
-            return df
-    except Exception:
-        pass
-
-    # 2) 新浪：按日期尝试最近 3 个交易日
-    try:
-        for offset in range(0, 4):
-            d = (datetime.now().date() - timedelta(days=offset)).strftime("%Y%m%d")
-            try:
-                df = ak.stock_lhb_detail_daily_sina(date=d)
-                if df is not None and not df.empty:
-                    df = df.rename(columns=lambda x: str(x).strip())
-                    return df
-            except Exception:
-                continue
-    except Exception:
-        pass
+        # 2) 新浪：按日期尝试最近 3 个交易日
+        try:
+            for offset in range(0, 4):
+                d = (datetime.now().date() - timedelta(days=offset)).strftime("%Y%m%d")
+                try:
+                    df = ak.stock_lhb_detail_daily_sina(date=d)
+                    if df is not None and not df.empty:
+                        df = df.rename(columns=lambda x: str(x).strip())
+                        return df
+                except Exception:
+                    continue
+        except Exception:
+            pass
     return None
 
 

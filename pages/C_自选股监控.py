@@ -29,29 +29,8 @@ _UP = "#f6465d"
 _DOWN = "#2ebd85"
 
 
-@contextlib.contextmanager
-def _ssl_bypass():
-    """临时关闭 requests.Session.request 的 SSL 验证。
-
-    本机系统代理会做 TLS 拦截，akshare 部分（如新浪财务报表）走 requests
-    直连 quotes.sina.cn 时会因证书链不可达而 SSLCertVerificationError。
-    注意 fetcher._ak_ssl_context 只 patch 了 Session.get，而 akshare 的
-    requests.get 走的是 Session.request，故这里直接 patch Session.request。
-    仅在该次批量抓取内生效，退出后恢复，避免污染全局。
-    """
-    import urllib3
-    urllib3.disable_warnings()
-    _orig = requests.Session.request
-
-    def _patched(self, *a, **kw):
-        kw["verify"] = False
-        return _orig(self, *a, **kw)
-
-    requests.Session.request = _patched
-    try:
-        yield
-    finally:
-        requests.Session.request = _orig
+# SSL 关闭补丁已收敛到 modules.ssl_helper（#404），此处复用公共上下文管理器
+from modules.ssl_helper import ssl_bypass as _ssl_bypass
 
 
 def _to_num(v):

@@ -504,9 +504,16 @@ if prompt:
         st.session_state["xc_task_id"] = None
         st.rerun()
 
-# ── 轮询后台任务 ──
-task_id = st.session_state.get("xc_task_id")
-if task_id:
+# ── 轮询后台任务（收进 fragment，#402）──
+# 等待期间 st_autorefresh 只让本片段每 1.5s 局部重跑，不再整页全量重跑
+# （否则页面顶部鉴权/历史渲染/上下文构建会被反复执行，造成卡顿）。
+# 任务终态（成功/失败/超时）才用 st.rerun(scope="app") 升级为一次整页重跑，
+# 以在页面级重新渲染聊天消息——这是 fragment 铁律允许的唯一整页重跑时机。
+@st.fragment
+def _poll_ai_task():
+    task_id = st.session_state.get("xc_task_id")
+    if not task_id:
+        return
     task = poll_task(task_id, max_wait=0.4)
     if task and task.get("status") == "success":
         result = task.get("result") or {}
@@ -514,14 +521,14 @@ if task_id:
         st.session_state["xc_messages"].append({"role": "assistant", "content": answer})
         st.session_state["xc_task_id"] = None
         st.session_state["xc_task_started_at"] = None
-        st.rerun()
+        st.rerun(scope="app")
     elif task and task.get("status") == "error":
         st.session_state["xc_messages"].append(
             {"role": "assistant", "content": f"❌ AI 分析失败：{task.get('error') or '未知错误'}"}
         )
         st.session_state["xc_task_id"] = None
         st.session_state["xc_task_started_at"] = None
-        st.rerun()
+        st.rerun(scope="app")
     else:
         started = st.session_state.get("xc_task_started_at") or time.time()
         if time.time() - started > 240:
@@ -530,10 +537,15 @@ if task_id:
             )
             st.session_state["xc_task_id"] = None
             st.session_state["xc_task_started_at"] = None
-            st.rerun()
+            st.rerun(scope="app")
+            return
         try:
             from streamlit_autorefresh import st_autorefresh
 
             st_autorefresh(interval=1500, limit=300, key="xc_autorefresh")
         except Exception:
             pass
+
+
+if st.session_state.get("xc_task_id"):
+    _poll_ai_task()
