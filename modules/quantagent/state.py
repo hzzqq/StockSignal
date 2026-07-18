@@ -13,7 +13,7 @@ modules/quantagent/state.py
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 
 # ---- DataFrame 注册表（仅内存态）----
@@ -68,6 +68,10 @@ class ResearchState:
     # ---- 首席决策 ----
     chief_report: Dict[str, Any] = field(default_factory=dict)   # verdict/target/stop/rationale
 
+    # ---- CrewAI 多首席辩论（engine="crewai"）----
+    debate: List[Dict[str, Any]] = field(default_factory=list)   # 各首席立场 [{role,name,icon,lean,text}]
+    used_crewai: bool = False      # 是否真正用 CrewAI 多智能体编排
+
     # ---- 运行轨迹（用于可视化 / 调试 / 复试讲解）----
     trace: List[Dict[str, str]] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
@@ -76,8 +80,17 @@ class ResearchState:
     human_approval_enabled: bool = False   # 是否启用人工复核节点
     approval: Any = None                   # 人工复核的返回结果（Command(resume=...) 注入）
 
+    # ---- 实时进度回调（仅内存；不进入任何序列化通道）----
+    reporter: Optional[Callable[[str, str], None]] = None  # progress_callback(stage_key, message)
+
     def add_trace(self, node: str, log: str) -> None:
         self.trace.append({"node": node, "log": log})
+        # 进度回调：后端任务通道借此把「哪个 Agent 跑完了」实时透传给前端
+        if self.reporter is not None:
+            try:
+                self.reporter(node, log)
+            except Exception:  # noqa: BLE001 - 回调失败绝不能影响主流程
+                pass
 
     def add_error(self, msg: str) -> None:
         self.errors.append(msg)
@@ -86,6 +99,7 @@ class ResearchState:
         """
         导出 JSON 安全的字典（用于后端任务结果回传 / 外部交付）。
         - 默认剔除 df（DataFrame，不可 JSON 序列化）；
+        - reporter 是可调用对象，必须剔除，否则 JSON 序列化失败；
         - include_df=True 时保留 df 对象引用（仅进程内 / 内存 checkpointer 场景）。
         """
         from dataclasses import asdict
@@ -93,6 +107,7 @@ class ResearchState:
         d = asdict(self)
         if not include_df:
             d.pop("df", None)
+        d.pop("reporter", None)
         # 确保嵌套结构均为普通 dict/list（asdict 已是，这里仅兜底类型）
         d.setdefault("market_brief", {})
         for k in ("data_report", "fundamental_report", "technical_report",

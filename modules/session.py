@@ -89,6 +89,10 @@ def init_session_state() -> None:
     # _active_page 由各页面在顶部用 __file__ 设置，这里仅做兜底默认值。
     st.session_state.setdefault("_active_page", "")
 
+    # 清理旧版侧边栏/嵌入相关缓存键，避免旧状态影响新导航（闪一下旧侧边栏）
+    for _old_key in ("_embed_active", "_sidebar_collapsed", "_old_nav", "_nav_cache"):
+        st.session_state.pop(_old_key, None)
+
     # 注入金融级 UI 主题（仅视觉，不影响任何功能逻辑）
     from .ui_theme import apply_theme
     apply_theme()

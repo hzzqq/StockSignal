@@ -59,6 +59,10 @@ class Task:
         self.progress = 0
         self.result: Any = None
         self.error: Optional[str] = None
+        # 实时进度（多智能体协作）
+        self.stage: str = ""                 # 当前正在跑的 agent stage key
+        self.logs: List[Dict[str, Any]] = []  # [{stage, message, ts}]
+        self._last_persist = 0.0
         self._lock = threading.Lock()
 
     def to_dict(self) -> Dict[str, Any]:
@@ -71,6 +75,8 @@ class Task:
                 "updated_at": self.updated_at,
                 "status": self.status.value,
                 "progress": self.progress,
+                "stage": self.stage,
+                "logs": self.logs,
                 "result": self.result,
                 "error": self.error,
             }
@@ -129,10 +135,32 @@ class TaskWorker:
         with task._lock:
             task.status = TaskStatus.RUNNING
             task.updated_at = time.time()
+
+        # 注册实时进度上报：编排器内部回调 → 写入 task.stage / logs / progress（节流持久化）
+        from backend.tasks.progress_bus import register, unregister
+        from modules.quantagent.progress import percent_for
+
+        def _reporter(stage_key: str, message: str) -> None:
+            with task._lock:
+                task.stage = stage_key
+                task.progress = max(task.progress, percent_for(stage_key))
+                task.logs.append({"stage": stage_key, "message": message, "ts": time.time()})
+                task.updated_at = time.time()
+                now = time.time()
+                thrift = now - task._last_persist > 1.0  # 进度更新最多 1s 落盘一次
+                if thrift:
+                    task._last_persist = now
+            if thrift:
+                self._persist()
+
+        register(task.task_id, _reporter)
+        # 把 task_id 注入 payload 副本，供 handler 取用
+        payload = dict(task.payload)
+        payload["__task_id__"] = task.task_id
         self._persist()
 
         try:
-            result = handler(task.payload)
+            result = handler(payload)
             with task._lock:
                 task.status = TaskStatus.SUCCESS
                 task.progress = 100
@@ -145,6 +173,7 @@ class TaskWorker:
                 task.error = str(e)
                 task.updated_at = time.time()
         finally:
+            unregister(task.task_id)
             self._persist()
 
     def _persist(self) -> None:
@@ -256,15 +285,24 @@ def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:
     payload:
       - ticker: 6 位 A股代码
       - use_browser / use_rag: 是否启用 FinBrowser / FinRAG（默认 True）
-      - engine: "auto" | "langgraph" | "simple"
+      - engine: "auto" | "langgraph" | "simple" | "crewai"
       - human_approval_enabled / force_human_review: 人工复核开关（后台无人值守时自动批准）
-    返回 ResearchState 的 JSON 安全字典（已剔除 DataFrame）。
+      - __task_id__: 由工作器注入，用于实时进度回传（前端轮询 task.stage/logs/progress）
+    返回 ResearchState 的 JSON 安全字典（已剔除 DataFrame / reporter）。
     """
     from modules.quantagent import run_research
+    from backend.tasks.progress_bus import report
 
     ticker = str(payload.get("ticker", "")).strip().zfill(6)
     if not ticker:
         raise ValueError("ticker 不能为空")
+
+    task_id = payload.get("__task_id__")
+
+    def _cb(stage_key: str, message: str) -> None:
+        if task_id:
+            report(task_id, stage_key, message)
+
     state = run_research(
         ticker,
         use_browser=bool(payload.get("use_browser", True)),
@@ -273,6 +311,7 @@ def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:
         human_approval_enabled=bool(payload.get("human_approval_enabled", False)),
         force_human_review=bool(payload.get("force_human_review", False)),
         auto_resume_approval={"approved": True, "note": "（后台任务自动批准）"},
+        progress_callback=_cb,
     )
     return state.to_dict()
 

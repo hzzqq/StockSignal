@@ -14,6 +14,7 @@ modules/quantagent/rag_module.py
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -96,26 +97,72 @@ class Retriever:
         return scored[:k]
 
 
+class LocalEmbeddingFunction:
+    """
+    零下载的本地 embedding：哈希向量（hashing trick）+ TF 加权 + L2 归一化。
+
+    - 完全离线，无需任何模型权重下载（规避 chromadb 默认 onnx 模型 79MB 下载）；
+    - 符合 chromadb 的 EmbeddingFunction 接口：__call__(input: List[str]) -> List[List[float]]；
+    - 同一函数同时用于文档入库与查询，余弦相似度语义一致，足以支撑演示/中小语料检索。
+    """
+
+    def __init__(self, dim: int = 384):
+        self.dim = dim
+
+    def __call__(self, input: List[str]) -> List[List[float]]:
+        out: List[List[float]] = []
+        for text in input:
+            vec = [0.0] * self.dim
+            toks = _tokenize(text)
+            if toks:
+                tf: Dict[str, float] = {}
+                for t in toks:
+                    tf[t] = tf.get(t, 0.0) + 1.0
+                for t, c in tf.items():
+                    h = int(hashlib.md5(t.encode("utf-8")).hexdigest(), 16)
+                    idx = h % self.dim
+                    sign = 1.0 if (h >> 7) & 1 else -1.0
+                    # (1 + log tf) 平滑词频权重
+                    vec[idx] += sign * (1.0 + math.log(c))
+            norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+            out.append([v / norm for v in vec])
+        return out
+
+
 class ChromaRetriever:
     """
     基于 chromadb 的向量检索器（生产级）：支持大规模研报/历史决策语料库的持久化向量检索。
 
     与 Retriever(TF-IDF) 保持相同接口：add(doc_id, text) / search(query, k)。
     当 chromadb 可用且 FinRAG(use_chroma=True) 时自动启用；否则 FinRAG 回退到 Retriever。
+
+    使用 LocalEmbeddingFunction（零下载）作为嵌入方案，并强制本地实现 + 关闭联网遥测，
+    保证在无网络/沙箱环境下也能真实跑通，而非静默回退。
     """
 
     def __init__(self, collection_name: str = "quantagent_reports", persist_dir: str | None = None):
         if not _HAS_CHROMA:
             raise RuntimeError("未安装 chromadb，无法启用向量检索。请 `pip install chromadb`。")
-        # 关闭联网遥测，避免无网络/沙箱环境下 chromadb 因心跳/上报而阻塞或报 SSL 错
+        # 强制本地实现（纯 Python 的 SegmentAPI，依赖 sqlite + hnswlib，无需 rust/onnx 下载）
+        # + 关闭联网遥测：避免在沙箱/无网环境下因心跳/上报而阻塞或报 SSL 错
+        os.environ["CHROMA_API_IMPL"] = os.environ.get("CHROMA_API_IMPL", "chromadb.api.segment.SegmentAPI")
         os.environ["ANONYMIZED_TELEMETRY"] = os.environ.get("ANONYMIZED_TELEMETRY", "False")
         if persist_dir is None:
             root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             persist_dir = os.path.join(root, "data", "chroma_quantagent")
         os.makedirs(persist_dir, exist_ok=True)
-        self.client = chromadb.PersistentClient(path=persist_dir)
+        self.client = chromadb.Client(
+            chromadb.Settings(
+                chroma_api_impl="chromadb.api.segment.SegmentAPI",
+                is_persistent=True,
+                persist_directory=persist_dir,
+                anonymized_telemetry=False,
+            )
+        )
         self.coll = self.client.get_or_create_collection(
-            name=collection_name, metadata={"hnsw:space": "cosine"}
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"},
+            embedding_function=LocalEmbeddingFunction(),
         )
 
     def add(self, doc_id: str, text: str):

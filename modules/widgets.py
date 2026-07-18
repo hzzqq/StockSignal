@@ -1105,7 +1105,8 @@ def render_sidebar_nav() -> None:
 
     ⚠️ 无论是否嵌入都渲染（不再因 _embed_active 跳过），确保侧边栏导航常驻。
     """
-    # 隐藏原生自动生成的页面导航列表。
+    # 隐藏原生自动生成的页面导航列表（配置 showSidebarNavigation=false 已兜底，
+    # 此处 CSS 作为双保险，防止配置未生效或旧版本 Streamlit）。
     # 注意：不再对侧边栏加淡入动画——该动画会在每次脚本重跑时重放，
     # 表现为「切界面/交互时侧边栏闪一下」，现已移除（#359）。
     st.markdown(
@@ -1122,6 +1123,7 @@ def render_sidebar_nav() -> None:
         '</style>',
         unsafe_allow_html=True,
     )
+
     def _nav_link(path: str, label: str, icon: str) -> None:
         """渲染单个导航项；page_link 在无浏览器 URL 上下文（如 AppTest headless）
         会抛 KeyError('url_pathname')，降级为按钮，避免整页崩溃。"""
@@ -1131,23 +1133,28 @@ def render_sidebar_nav() -> None:
             if st.button(f"{icon} {label}", key=f"navbtn_{label}", use_container_width=True):
                 safe_switch_page(path)
 
-    with st.sidebar:
-        st.markdown("### 🧭 导航")
-        for gname, items in _NAV_GROUPS:
-            st.caption(gname)
-            for path, label, icon in items:
-                _nav_link(path, label, icon)
-        # 账户组
-        st.caption("👤 账户")
-        _nav_link("pages/👤_我的.py", "我的", "👤")
-        if is_admin():
-            for path, label, icon in _NAV_ADMIN:
-                _nav_link(path, label, icon)
-        st.markdown("---")
-        try:
-            st.page_link("app.py", label="返回首页", icon="🏠")
-        except Exception:
-            pass
+    try:
+        with st.sidebar:
+            st.markdown("### 🧭 导航")
+            for gname, items in _NAV_GROUPS:
+                st.caption(gname)
+                for path, label, icon in items:
+                    _nav_link(path, label, icon)
+            # 账户组
+            st.caption("👤 账户")
+            _nav_link("pages/👤_我的.py", "我的", "👤")
+            if is_admin():
+                for path, label, icon in _NAV_ADMIN:
+                    _nav_link(path, label, icon)
+            st.markdown("---")
+            try:
+                st.page_link("app.py", label="返回首页", icon="🏠")
+            except Exception:
+                pass
+    except Exception as e:
+        # 侧边栏渲染失败时至少给出错误提示，避免完全空白
+        with st.sidebar:
+            st.error(f"导航渲染失败：{e}")
 
 
 # ──────────────────────────────────────────────────────────────

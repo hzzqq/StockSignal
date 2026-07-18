@@ -21,6 +21,7 @@ from modules.quantagent.orchestrator import (
 )
 from modules.quantagent.rag_module import FinRAG, ChromaRetriever
 from modules.quantagent.browser_plugin import BrowserAgent, BrowserCollector
+from modules.quantagent import progress as progress
 
 # LangGraph 真实编排（延迟导入，避免无依赖时报错）
 try:
@@ -34,6 +35,16 @@ except Exception:  # pragma: no cover
     run_research_langgraph = None
     build_langgraph = None
 
+# CrewAI 多首席辩论编排（延迟导入，避免无依赖时报错）
+try:
+    from modules.quantagent.crewai_orchestrator import (
+        _HAS_CREWAI as HAS_CREWAI,
+        run_research_crewai,
+    )
+except Exception:  # pragma: no cover
+    HAS_CREWAI = False
+    run_research_crewai = None
+
 __all__ = [
     "ResearchState",
     "build_graph",
@@ -46,4 +57,7 @@ __all__ = [
     "HAS_LANGGRAPH",
     "run_research_langgraph",
     "build_langgraph",
+    "HAS_CREWAI",
+    "run_research_crewai",
+    "progress",
 ]

@@ -26,3 +26,7 @@ headless = true
 [browser]
 # 关闭使用情况统计，避免首次运行弹出邮箱提示
 gatherUsageStats = false
+
+[client]
+# 禁用原生平铺页面导航，避免自定义分组侧边栏导航加载前「闪一下旧侧边栏」
+showSidebarNavigation = false

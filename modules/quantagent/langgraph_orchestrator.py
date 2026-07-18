@@ -238,6 +238,7 @@ def run_research_langgraph(
     risk_gate_threshold: int = DEFAULT_RISK_GATE,
     thread_id: Optional[str] = None,
     auto_resume_approval: Optional[Dict[str, Any]] = None,
+    progress_callback: Optional[Callable[[str, str], None]] = None,
 ):
     """
     用真实 LangGraph 跑一次投研。
@@ -263,6 +264,7 @@ def run_research_langgraph(
         ticker=ticker,
         display_name=display_name,
         human_approval_enabled=human_approval_enabled or force_human_review,
+        reporter=progress_callback,
     )
     app, _ = build_langgraph(
         use_browser=use_browser,

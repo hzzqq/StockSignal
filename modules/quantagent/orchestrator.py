@@ -140,6 +140,7 @@ def run_research(
     force_human_review: bool = False,
     risk_gate_threshold: int = 60,
     auto_resume_approval: Optional[Dict[str, Any]] = None,
+    progress_callback: Optional[Callable[[str, str], None]] = None,
 ) -> ResearchState:
     """
     端到端跑一次多智能体投研，返回完整 ResearchState。
@@ -187,6 +188,18 @@ def run_research(
             risk_gate_threshold=risk_gate_threshold,
             auto_resume_approval=auto_resume_approval
             or {"approved": True, "note": "（无人值守自动批准）"},
+            progress_callback=progress_callback,
+        )
+
+    if engine == "crewai":
+        from modules.quantagent.crewai_orchestrator import run_research_crewai
+
+        return run_research_crewai(
+            ticker,
+            display_name=display_name,
+            use_browser=use_browser,
+            use_rag=use_rag,
+            progress_callback=progress_callback,
         )
 
     # 零依赖 fallback
@@ -194,6 +207,7 @@ def run_research(
         ticker=ticker,
         display_name=display_name,
         human_approval_enabled=human_approval_enabled,
+        reporter=progress_callback,
     )
     graph, _ = build_graph(use_browser=use_browser, use_rag=use_rag)
     return graph.invoke(state)
