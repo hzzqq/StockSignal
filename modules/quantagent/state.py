@@ -58,8 +58,10 @@ class ResearchState:
     data_report: Dict[str, Any] = field(default_factory=dict)
     fundamental_report: Dict[str, Any] = field(default_factory=dict)
     technical_report: Dict[str, Any] = field(default_factory=dict)
+    fundflow_report: Dict[str, Any] = field(default_factory=dict)   # 资金流 Agent 产出
     sentiment_report: Dict[str, Any] = field(default_factory=dict)
     risk_report: Dict[str, Any] = field(default_factory=dict)
+    backtest_report: Dict[str, Any] = field(default_factory=dict)   # 回测验证 Agent 产出（首席结论的历史背书）
 
     # ---- FinRAG 记忆/RAG 注入 ----
     rag_context: str = ""            # 召回的过往决策/研报片段
@@ -111,7 +113,8 @@ class ResearchState:
         # 确保嵌套结构均为普通 dict/list（asdict 已是，这里仅兜底类型）
         d.setdefault("market_brief", {})
         for k in ("data_report", "fundamental_report", "technical_report",
-                  "sentiment_report", "risk_report", "chief_report", "memory"):
+                  "fundflow_report", "sentiment_report", "risk_report",
+                  "backtest_report", "chief_report", "memory"):
             d.setdefault(k, {})
         d.setdefault("trace", [])
         d.setdefault("errors", [])

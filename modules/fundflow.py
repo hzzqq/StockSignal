@@ -430,8 +430,28 @@ def get_earnings_forecast(period="20260331"):
     return _cached(1800, f"yjyg_{period}", _fn)
 
 
-def get_disclosure_calendar(market="沪市", period="2026一季报"):
-    """财报披露日历（best-effort）。返回 DataFrame(股票代码, 股票简称, 报告期, 披露时间, 披露状态, ...)。"""
+def get_disclosure_calendar(market="沪市", period="2025年报"):
+    """财报披露日历（best-effort）。返回 DataFrame(股票代码, 股票简称, 报告期, 披露时间, 披露状态, ...)。
+
+    说明：akshare 的 stock_report_disclosure 目前仅支持年报，季报/中报会 KeyError；
+    本函数对季报参数做 best-effort 映射到同一年年报，并把不支持的“京市”回退为“沪深京”。
+    """
+    import re as _re
+
+    # 京市不是 stock_report_disclosure 支持的 market 参数，回退到沪深京
+    if market == "京市":
+        market = "沪深京"
+
+    # 季报/中报映射到同一年年报（接口仅支持年报披露日历）
+    if "季报" in period or "中报" in period:
+        m = _re.search(r"(\d{4})年?([一二三四1234])季[报告]", period)
+        if m:
+            period = f"{m.group(1)}年报"
+        elif "中报" in period:
+            m = _re.search(r"(\d{4})年?中报", period)
+            if m:
+                period = f"{m.group(1)}年报"
+
     def _fn():
         import akshare as ak
         try:

@@ -808,11 +808,59 @@ class StockFetcher:
         return (c, n or code)
 
     def get_name_only(self, code):
-        """返回纯股票名称（不含代码前缀）；本地库/BaoStock 未命中时回退为代码本身。
+        """返回纯股票名称（不含代码前缀）；本地库/BaoStock/akshare 强制获取名称，最后回退为代码本身。
 
         用于「名称」列展示，避免 get_stock_name 的「代码(名称)」格式把代码带进名称列。
+        本函数会在本地库缺失时主动走网络源补全名称，而不是直接显示代码。
         """
-        return self.get_stock_basic(code)[1] or str(code)
+        code = str(code).strip().zfill(6)
+        if not code.isdigit() or len(code) != 6:
+            return code
+
+        # 1) 本地库命中
+        name = self.get_stock_basic(code)[1]
+        if name and name != code:
+            return name
+
+        # 2) 实例级缓存（避免同一进程内反复查网络）
+        cache_key = f"_name_only_cache_{code}"
+        cached = getattr(self, cache_key, None)
+        if cached and cached != code:
+            return cached
+
+        # 3) BaoStock 查询
+        try:
+            if _BS_OK:
+                bs_code = _symbol_to_bs(code)
+                if _BaoStockFetcher._ensure_login():
+                    rs = _BaoStockFetcher.bs.query_stock_basic(code=bs_code)
+                    if rs.error_code == "0":
+                        while rs.next():
+                            row_data = rs.get_row_data()
+                            if len(row_data) >= 2:
+                                name = str(row_data[1]).strip()
+                                if name and name != code:
+                                    setattr(self, cache_key, name)
+                                    return name
+        except Exception:
+            pass
+
+        # 4) akshare 东方财富个股信息兜底
+        try:
+            import akshare as ak
+            df = ak.stock_individual_info_em(symbol=code)
+            if df is not None and not df.empty:
+                info = dict(zip(df["item"], df["value"]))
+                name = str(info.get("股票名称", "")).strip()
+                if name and name != code:
+                    setattr(self, cache_key, name)
+                    return name
+        except Exception:
+            pass
+
+        # 5) 记录缓存为“无名称”后回退代码
+        setattr(self, cache_key, code)
+        return code
 
     def get_fundamentals(self, code, use_cache=True):
         """获取个股基本面（名称/最新价/总市值(亿)/市盈率TTM/行业）。
@@ -1173,7 +1221,8 @@ class StockFetcher:
             if _BS_OK:
                 try:
                     if not _BaoStockFetcher._ensure_login():
-                        return ticker
+                        name = self.get_name_only(ticker)
+                        return f"{ticker}({name})" if name != ticker else ticker
                     bs_code = _symbol_to_bs(ticker)
                     rs = bs.query_stock_basic(code=bs_code)
                     if rs.error_code == "0":
@@ -1190,7 +1239,9 @@ class StockFetcher:
                 except Exception as e:
                     print(f"[StockFetcher] 查询股票名称失败 ({ticker}): {e}")
 
-            return ticker  # 查询失败，仅返回代码
+            # BaoStock 失败或不可用：强制走本地库/akshare 兜底
+            name = self.get_name_only(ticker)
+            return f"{ticker}({name})" if name != ticker else ticker
         finally:
             conn.close()
 

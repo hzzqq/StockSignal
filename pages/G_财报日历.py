@@ -151,11 +151,11 @@ def fragment_disclosure():
     st.caption("披露日期接口稳定性较低，加载失败时将自动跳过。")
     mcol1, mcol2 = st.columns(2)
     with mcol1:
-        market = st.selectbox("市场", ["沪市", "深市", "京市", "沪深京"], index=0, key="dc_market")
+        market = st.selectbox("市场", ["沪市", "深市", "沪深京"], index=0, key="dc_market")
     with mcol2:
         period_str = st.selectbox(
             "报告期（披露）",
-            ["2026年一季报", "2025年年报", "2026年中报", "2026年三季报"],
+            ["2025年报", "2024年报", "2023年报"],
             index=0, key="dc_period",
         )
     try:

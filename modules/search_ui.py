@@ -296,6 +296,34 @@ def multi_stock_search_input(
 
     items = st.session_state[items_key]
 
+    # 检测单行输入里是否粘贴了逗号/中文逗号/分号/空格/换行分隔的多只股票，
+    # 如果是则自动拆成多行，避免用户把“深科技，太极实业...”整段贴进一个框导致全部未识别。
+    _need_split = False
+    new_items = []
+    max_id = max((it["id"] for it in items), default=-1)
+    for item in items:
+        val = item.get("value", "")
+        if val and any(sep in val for sep in [",", "，", ";", " ", "\n", "\t"]):
+            parts = [p.strip() for p in re.split(r"[\n,，;\s]+", val) if p.strip()]
+            if len(parts) > 1:
+                _need_split = True
+                for p in parts:
+                    max_id += 1
+                    new_items.append({"id": max_id, "value": p, "code": None, "name": None})
+                continue
+        new_items.append(item)
+    if _need_split:
+        # 去重并限制 max_rows
+        seen = set()
+        deduped = []
+        for it in new_items:
+            v = it["value"].strip()
+            if v not in seen:
+                seen.add(v)
+                deduped.append({"id": len(deduped), "value": v, "code": None, "name": None})
+        st.session_state[items_key] = deduped[:max_rows]
+        st.rerun()
+
     # 添加按钮
     if len(items) < max_rows:
         st.button(

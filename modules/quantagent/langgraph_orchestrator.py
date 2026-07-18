@@ -25,9 +25,11 @@ from typing import Any, Dict, Optional
 
 from modules.quantagent.state import ResearchState
 from modules.quantagent.agents import (
+    BacktestAgent,
     ChiefAgent,
     DataAgent,
     FundamentalAgent,
+    FundFlowAgent,
     RiskAgent,
     SentimentAgent,
     TechnicalAgent,
@@ -201,16 +203,19 @@ def build_langgraph(
     g.add_node("data", _wrap("data", DataAgent().run))
     g.add_node("fundamental", _wrap("fundamental", FundamentalAgent().run))
     g.add_node("technical", _wrap("technical", TechnicalAgent().run))
+    g.add_node("fundflow", _wrap("fundflow", FundFlowAgent().run))
     g.add_node("sentiment", _wrap("sentiment", SentimentAgent(use_browser=use_browser).run))
     g.add_node("risk", _wrap("risk", RiskAgent().run))
     g.add_node("human_approval", _human_approval_node)
     g.add_node("rag_inject", _rag_inject_node(finrag))
     g.add_node("chief", _wrap("chief", ChiefAgent(use_rag=use_rag, finrag=finrag).run))
+    g.add_node("backtest", _wrap("backtest", BacktestAgent().run))
 
     g.set_entry_point("data")
     g.add_edge("data", "fundamental")
     g.add_edge("fundamental", "technical")
-    g.add_edge("technical", "sentiment")
+    g.add_edge("technical", "fundflow")
+    g.add_edge("fundflow", "sentiment")
     g.add_edge("sentiment", "risk")
 
     # 条件路由：risk 之后根据风控评分（或强制复核）分流
@@ -221,7 +226,8 @@ def build_langgraph(
     )
     g.add_edge("human_approval", "rag_inject")
     g.add_edge("rag_inject", "chief")
-    g.add_edge("chief", END)
+    g.add_edge("chief", "backtest")
+    g.add_edge("backtest", END)
 
     checkpointer = MemorySaver(serde=_SafeSerde())
     app = g.compile(checkpointer=checkpointer)

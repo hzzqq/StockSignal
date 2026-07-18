@@ -16,9 +16,10 @@ from __future__ import annotations
 
 from typing import Dict, List, Tuple
 
-# 标准单链编排的 7 个阶段（顺序即执行顺序）
+# 标准单链编排的 9 个阶段（顺序即执行顺序）
 STAGE_ORDER: List[str] = [
-    "data", "fundamental", "technical", "sentiment", "risk", "rag_inject", "chief",
+    "data", "fundamental", "technical", "fundflow", "sentiment", "risk",
+    "rag_inject", "chief", "backtest",
 ]
 
 # 每个阶段的展示信息： (key, 图标, 中文名, Agent 类名)
@@ -26,10 +27,12 @@ AGENT_FLOW: List[Tuple[str, str, str, str]] = [
     ("data", "📡", "数据采集", "DataAgent"),
     ("fundamental", "🏢", "基本面分析", "FundamentalAgent"),
     ("technical", "📈", "技术面分析", "TechnicalAgent"),
+    ("fundflow", "💰", "资金流分析", "FundFlowAgent"),
     ("sentiment", "💬", "舆情分析", "SentimentAgent"),
     ("risk", "🛡️", "风控评估", "RiskAgent"),
     ("rag_inject", "🧠", "FinRAG 复盘记忆", "FinRAG"),
     ("chief", "🏁", "首席决策", "ChiefAgent"),
+    ("backtest", "🔬", "回测验证", "BacktestAgent"),
 ]
 
 # CrewAI 多首席辩论模式：chief 阶段被展开为四个辩论/合成子阶段
@@ -42,18 +45,20 @@ DEBATE_STAGES: List[Tuple[str, str, str]] = [
 
 # 每个 stage_key → 完成该阶段后建议的整体进度百分比
 _PERCENT_MAP: Dict[str, int] = {
-    "data": 10,
-    "fundamental": 25,
-    "technical": 40,
-    "sentiment": 55,
-    "risk": 70,
-    "rag_inject": 82,
+    "data": 8,
+    "fundamental": 20,
+    "technical": 32,
+    "fundflow": 44,
+    "sentiment": 56,
+    "risk": 68,
+    "rag_inject": 78,
     # crewai 辩论子阶段（chief 展开）
-    "debate_bull": 85,
-    "debate_bear": 89,
-    "debate_risk": 93,
-    "debate_mod": 97,
-    "chief": 95,
+    "debate_bull": 82,
+    "debate_bear": 86,
+    "debate_risk": 90,
+    "debate_mod": 94,
+    "chief": 90,
+    "backtest": 100,
 }
 
 

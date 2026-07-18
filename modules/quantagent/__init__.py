@@ -17,6 +17,7 @@ from modules.quantagent.state import ResearchState
 from modules.quantagent.orchestrator import (
     build_graph,
     run_research,
+    run_batch_research,
     format_report,
 )
 from modules.quantagent.rag_module import FinRAG, ChromaRetriever
@@ -49,6 +50,7 @@ __all__ = [
     "ResearchState",
     "build_graph",
     "run_research",
+    "run_batch_research",
     "format_report",
     "FinRAG",
     "ChromaRetriever",

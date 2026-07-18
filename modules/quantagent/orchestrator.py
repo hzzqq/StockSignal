@@ -16,12 +16,14 @@ modules/quantagent/orchestrator.py
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from modules.quantagent.agents import (
+    BacktestAgent,
     ChiefAgent,
     DataAgent,
     FundamentalAgent,
+    FundFlowAgent,
     RiskAgent,
     SentimentAgent,
     TechnicalAgent,
@@ -102,6 +104,7 @@ def build_graph(use_browser: bool = True, use_rag: bool = True) -> (_Graph, FinR
     g.add_node("data", DataAgent().run)
     g.add_node("fundamental", FundamentalAgent().run)
     g.add_node("technical", TechnicalAgent().run)
+    g.add_node("fundflow", FundFlowAgent().run)
     g.add_node("sentiment", SentimentAgent(use_browser=use_browser).run)
     g.add_node("risk", RiskAgent().run)
 
@@ -118,15 +121,18 @@ def build_graph(use_browser: bool = True, use_rag: bool = True) -> (_Graph, FinR
 
     g.add_node("rag_inject", rag_inject)
     g.add_node("chief", ChiefAgent(use_rag=use_rag, finrag=finrag).run)
+    g.add_node("backtest", BacktestAgent().run)
 
     g.set_entrypoint("data")
     g.add_edge("data", "fundamental")
     g.add_edge("fundamental", "technical")
-    g.add_edge("technical", "sentiment")
+    g.add_edge("technical", "fundflow")
+    g.add_edge("fundflow", "sentiment")
     g.add_edge("sentiment", "risk")
     g.add_edge("risk", "rag_inject")
     g.add_edge("rag_inject", "chief")
-    g.set_finish("chief")
+    g.add_edge("chief", "backtest")
+    g.set_finish("backtest")
     return g.compile(), finrag
 
 
@@ -229,7 +235,8 @@ def format_report(state: ResearchState) -> str:
         env.append("FinRAG")
     lines.append("环境：" + " / ".join(env))
     lines.append("-" * 64)
-    for key in ("data_report", "fundamental_report", "technical_report", "sentiment_report", "risk_report"):
+    for key in ("data_report", "fundamental_report", "technical_report",
+                "fundflow_report", "sentiment_report", "risk_report"):
         r = getattr(state, key, {})
         if r.get("text"):
             lines.append(r["text"])
@@ -240,8 +247,79 @@ def format_report(state: ResearchState) -> str:
     if c.get("target_price"):
         lines.append(f"   目标价 ¥{c['target_price']}   止损 ¥{c['stop_price']}")
     lines.append(f"   论证：{c.get('rationale','')}")
+    bt = getattr(state, "backtest_report", {}) or {}
+    if bt.get("text"):
+        lines.append("-" * 64)
+        lines.append("🔬 " + bt["text"])
     if state.errors:
         lines.append("-" * 64)
         lines.append("⚠️ 运行提示：" + "；".join(state.errors[:3]))
     lines.append("=" * 64)
     return "\n".join(lines)
+
+
+def run_batch_research(
+    tickers: List[str],
+    engine: str = "simple",
+    use_browser: bool = False,
+    use_rag: bool = True,
+    run_backtest: bool = True,
+    progress_callback: Optional[Callable[[str, str], None]] = None,
+) -> Dict[str, Any]:
+    """
+    批量投研：一次跑多只股票，按首席综合评分横向排名，产出「多股选股清单」。
+
+    这是把 QuantAgent 从「单股深度投研」扩展到「多股批量选股」的业务入口——
+    输入一篮子代码，输出按综合分排序的榜单（含 verdict / 目标价 / 各维度分 / 回测胜率），
+    可直接对接 StockSignal 的选股池 / 自选股监控。
+
+    返回：{"ranking": [ {rank, ticker, name, verdict, composite, scores, target, stop,
+                         backtest:{...}} ... ], "count": n, "engine": engine }
+    """
+    ranking: List[Dict[str, Any]] = []
+    total = len(tickers)
+    for i, tk in enumerate(tickers, 1):
+        if progress_callback:
+            try:
+                progress_callback("batch", f"[批量投研] ({i}/{total}) 正在分析 {tk} …")
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            st = run_research(
+                tk, use_browser=use_browser, use_rag=use_rag, engine=engine,
+            )
+            c = st.chief_report or {}
+            bt = st.backtest_report or {}
+            ranking.append({
+                "ticker": st.ticker,
+                "name": st.display_name or st.ticker,
+                "verdict": c.get("verdict", "-"),
+                "composite": c.get("composite", 0.0),
+                "scores": c.get("scores", {}),
+                "target_price": c.get("target_price"),
+                "stop_price": c.get("stop_price"),
+                "used_real_data": st.used_real_data,
+                "backtest": {
+                    "available": bt.get("available", False),
+                    "total_return": bt.get("total_return"),
+                    "win_rate": bt.get("win_rate"),
+                    "max_drawdown": bt.get("max_drawdown"),
+                    "trade_count": bt.get("trade_count"),
+                } if run_backtest else {},
+                "errors": st.errors[:2],
+            })
+        except Exception as e:  # noqa: BLE001
+            ranking.append({
+                "ticker": str(tk).zfill(6), "name": str(tk), "verdict": "错误",
+                "composite": 0.0, "scores": {}, "error": str(e),
+            })
+
+    ranking.sort(key=lambda r: (r.get("composite") or 0.0), reverse=True)
+    for idx, r in enumerate(ranking, 1):
+        r["rank"] = idx
+    if progress_callback:
+        try:
+            progress_callback("batch", f"[批量投研] 完成，共 {total} 只，已按综合分排名。")
+        except Exception:  # noqa: BLE001
+            pass
+    return {"ranking": ranking, "count": total, "engine": engine}

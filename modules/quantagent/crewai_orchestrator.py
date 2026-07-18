@@ -22,8 +22,10 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional
 
 from modules.quantagent.agents import (
+    BacktestAgent,
     DataAgent,
     FundamentalAgent,
+    FundFlowAgent,
     RiskAgent,
     SentimentAgent,
     TechnicalAgent,
@@ -46,6 +48,7 @@ def _run_analysis_phase(state: ResearchState) -> None:
         DataAgent(),
         FundamentalAgent(),
         TechnicalAgent(),
+        FundFlowAgent(),
         SentimentAgent(use_browser=getattr(state, "_use_browser", True)),
         RiskAgent(),
     ):
@@ -236,7 +239,8 @@ def run_research_crewai(
         "composite": rule["composite"],
         "target_price": rule["target_price"],
         "stop_price": rule["stop_price"],
-        "scores": {"tech": rule["tech"], "fund": rule["fund"], "sent": rule["sent"], "risk": rule["risk"]},
+        "scores": {"tech": rule["tech"], "fund": rule["fund"], "flow": rule.get("flow"),
+                   "sent": rule["sent"], "risk": rule["risk"]},
         "rationale": rationale,
         "debate_mode": "crewai" if state.used_crewai else "rule",
     }
@@ -252,5 +256,14 @@ def run_research_crewai(
             state.used_rag = True
         except Exception as e:  # noqa: BLE001
             state.add_error(f"FinRAG 记忆写入失败: {e}")
+
+    # 回测验证（历史背书，不改结论）
+    try:
+        log = BacktestAgent().run(state)
+        state.add_trace("backtest", log)
+        if progress_callback:
+            progress_callback("backtest", log)
+    except Exception as e:  # noqa: BLE001
+        state.add_error(f"回测验证异常: {e}")
 
     return state

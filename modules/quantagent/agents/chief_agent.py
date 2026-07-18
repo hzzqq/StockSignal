@@ -32,8 +32,15 @@ class ChiefAgent(BaseAgent):
         fund = state.fundamental_report.get("score", 50)
         sent = state.sentiment_report.get("score", 50)
         risk = state.risk_report.get("risk_score", 50)
-        # 风险越高扣分越多
-        composite = tech * 0.30 + fund * 0.25 + sent * 0.25 + (100 - risk) * 0.20
+        # 资金流评分（新增维度）：有则纳入综合，无则退回原四维权重（向后兼容）
+        flow = state.fundflow_report.get("flow_score") if state.fundflow_report else None
+        if flow is not None:
+            # 五维权重：技术 0.25 / 基本面 0.20 / 资金流 0.15 / 舆情 0.20 / 风险 0.20
+            composite = (tech * 0.25 + fund * 0.20 + float(flow) * 0.15
+                         + sent * 0.20 + (100 - risk) * 0.20)
+        else:
+            # 原四维权重
+            composite = tech * 0.30 + fund * 0.25 + sent * 0.25 + (100 - risk) * 0.20
         composite = max(0.0, min(100.0, composite))
         verdict = "看多" if composite >= 65 else "看空" if composite <= 40 else "持有"
 
@@ -50,6 +57,7 @@ class ChiefAgent(BaseAgent):
             "stop_price": stop,
             "tech": round(tech, 1),
             "fund": round(fund, 1),
+            "flow": round(float(flow), 1) if flow is not None else None,
             "sent": round(sent, 1),
             "risk": round(risk, 1),
         }
@@ -60,6 +68,7 @@ class ChiefAgent(BaseAgent):
             f"[数据] {state.data_report.get('text','')}",
             f"[基本面] {state.fundamental_report.get('text','')}",
             f"[技术面] {state.technical_report.get('text','')}",
+            f"[资金流] {state.fundflow_report.get('text','')}",
             f"[舆情] {state.sentiment_report.get('text','')}",
             f"[风控] {state.risk_report.get('text','')}",
         ]
@@ -103,7 +112,8 @@ class ChiefAgent(BaseAgent):
             "composite": rule["composite"],
             "target_price": rule["target_price"],
             "stop_price": rule["stop_price"],
-            "scores": {"tech": rule["tech"], "fund": rule["fund"], "sent": rule["sent"], "risk": rule["risk"]},
+            "scores": {"tech": rule["tech"], "fund": rule["fund"], "flow": rule["flow"],
+                       "sent": rule["sent"], "risk": rule["risk"]},
             "rationale": rationale,
         }
         state.chief_report = decision
