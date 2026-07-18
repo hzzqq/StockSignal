@@ -516,7 +516,7 @@ def _render_login_gate() -> None:
         <div class="ss-login-subtitle">A股事件驱动投资分析平台</div>
         <div class="ss-login-desc">登录后解锁行情看板、个股分析、形态选股等全部功能</div>
         <div class="ss-login-badge">🔑 默认演示账号：demo / Demo@123</div>
-        <a class="ss-login-btn" href="/0_登录">🔑 去登录</a>
+        <a class="ss-login-btn" href="/登录">🔑 去登录</a>
     </div>
     <div class="ss-login-footer">StockSignal · 仅供学习与研究所用，不构成投资建议</div>
     """, unsafe_allow_html=True)
