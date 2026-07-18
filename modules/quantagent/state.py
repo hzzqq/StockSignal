@@ -104,7 +104,7 @@ class ResearchState:
         """
         from dataclasses import asdict
 
-        d = asdict(self)
+        d = _json_safe(asdict(self))
         if not include_df:
             d.pop("df", None)
         d.pop("reporter", None)
@@ -116,3 +116,47 @@ class ResearchState:
         d.setdefault("trace", [])
         d.setdefault("errors", [])
         return d
+
+
+def _json_safe(o: Any) -> Any:
+    """
+    递归把不可 JSON 序列化的对象（pandas Timestamp / numpy 类型 / datetime / DataFrame 等）
+    转成字符串或原生类型，保证 to_dict() 产出严格 JSON 安全字典。
+
+    背景：行情/报告字段里常混入 pandas.Timestamp（如最近交易日）、numpy 标量，
+    asdict 只转换 dataclass 实例、不会递归处理 dict 内部的这些对象，必须手动净化。
+    """
+    import datetime as _dt
+
+    if isinstance(o, dict):
+        return {k: _json_safe(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_json_safe(v) for v in o]
+    if isinstance(o, (_dt.datetime, _dt.date)):
+        return o.isoformat()
+    try:
+        import pandas as pd
+
+        if isinstance(o, (pd.Timestamp,)):
+            return o.isoformat()
+    except Exception:  # pragma: no cover
+        pass
+    if hasattr(o, "isoformat"):
+        try:
+            return o.isoformat()
+        except Exception:
+            pass
+    try:
+        import numpy as np
+
+        if isinstance(o, np.integer):
+            return int(o)
+        if isinstance(o, np.floating):
+            return float(o)
+        if isinstance(o, np.ndarray):
+            return [_json_safe(x) for x in o.tolist()]
+    except Exception:  # pragma: no cover
+        pass
+    if isinstance(o, (str, int, float, bool)) or o is None:
+        return o
+    return str(o)
