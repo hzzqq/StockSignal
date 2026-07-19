@@ -121,12 +121,9 @@ def _render_analysis(R: dict):
     prev_close = R["prev_close"]
     change_pct = R["change_pct"]
     df = R["df"]
-    technical = R["technical"]
     trend = R["trend"]
     momentum = R["momentum"]
     volume_info = R["volume_info"]
-    patterns = R["patterns"]
-    signal = R["signal"]
     tech_score = R["tech_score"]
     news_score = R["news_score"]
     macro_score = R["macro_score"]
@@ -149,7 +146,6 @@ def _render_analysis(R: dict):
     target_price = R["target_price"]
     stop_price = R["stop_price"]
     atr14 = R["atr14"]
-    deviation = R["deviation"]
     lo52 = R["lo52"]
     hi52 = R["hi52"]
     pos52 = R["pos52"]
@@ -158,7 +154,6 @@ def _render_analysis(R: dict):
     ma20v = R["ma20v"]
     trapped = R["trapped"]
     vol_now = R["vol_now"]
-    vol_prev = R["vol_prev"]
     vol_avg = R["vol_avg"]
     vol_chg = R["vol_chg"]
     q_open = R["q_open"]
@@ -276,13 +271,6 @@ def _render_analysis(R: dict):
 
     # ════════════ 模块3：数据透视 ════════════
     st.markdown('<div class="sf-card">' + _section_header("数据透视", "量价 / 筹码 / 位置 / 乖离", "📊"), unsafe_allow_html=True)
-    arrangement = trend.get("arrangement", "") if "error" not in trend else ""
-    if "多头" in arrangement:
-        short_pill, short_cls = "短期转强", "up"
-    elif "空头" in arrangement:
-        short_pill, short_cls = "短期转弱", "down"
-    else:
-        short_pill, short_cls = "短期震荡", "mid"
     dev5 = (last['close'] - ma5v) / ma5v * 100 if ma5v else 0.0
     dev10 = (last['close'] - ma10v) / ma10v * 100 if ma10v else 0.0
     dev20 = (last['close'] - ma20v) / ma20v * 100 if ma20v else 0.0
@@ -589,7 +577,6 @@ def _render_analysis(R: dict):
     _peer_avg = sector_analysis.get("peer_avg_change")
     _peer_median = sector_analysis.get("peer_median_change")
     _is_leader = sector_analysis.get("is_leader", False)
-    _sector_leader = sector_analysis.get("sector_leader")
     _top_peers = sector_analysis.get("top_peers", [])
     _better_peers = sector_analysis.get("better_peers", [])
 
@@ -613,13 +600,13 @@ def _render_analysis(R: dict):
         _rel = (change_pct or 0) - _peer_avg
         _rel_txt = f"{_rel:+.2f}%"
         if _rel >= 2.0:
-            _rel_desc, _rel_color = "明显强于板块", RED
+            _rel_desc = "明显强于板块"
         elif _rel > 0:
-            _rel_desc, _rel_color = "强于板块", RED
+            _rel_desc = "强于板块"
         elif _rel > -2.0:
-            _rel_desc, _rel_color = "弱于板块", GREEN
+            _rel_desc = "弱于板块"
         else:
-            _rel_desc, _rel_color = "明显弱于板块", GREEN
+            _rel_desc = "明显弱于板块"
         _position_txt += f" 相对板块平均涨跌幅（{_peer_avg:+.2f}%）{_rel_desc} {_rel_txt}。"
     if _peer_median is not None:
         _position_txt += f" 板块中位数涨跌幅 {_peer_median:+.2f}%。"
