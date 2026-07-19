@@ -6,18 +6,18 @@
 import streamlit as st
 import pandas as pd
 
-from modules.ui_theme import apply_page_config, _theme_is_dark
+from modules.ui_theme import apply_page_config
 apply_page_config(page_title="多股对比", page_icon="📊", layout="wide")
 
 # 本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）
 st.session_state["_active_page"] = __file__
 
-from modules.session import init_session_state, require_auth, render_user_badge
-from modules.search_ui import resolve_stock_codes, multi_stock_search_input
+from modules.session import require_auth, render_user_badge
+from modules.search_ui import multi_stock_search_input
 from modules.background_tasks import submit_task_with_error, poll_task
 from streamlit_autorefresh import st_autorefresh
 from modules.compare import (
-    fetch_compare, compare_css, build_header, build_one_line,
+    compare_css, build_header, build_one_line,
     build_table, build_pairwise_card, build_radar, build_radar_right,
     build_action_plan, build_footer, METHODS,
     build_method_card, build_aggregate_card, build_extra_card,

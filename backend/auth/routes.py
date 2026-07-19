@@ -5,7 +5,7 @@ auth/routes.py
 """
 from __future__ import annotations
 from flask import Blueprint, request, g
-from sqlalchemy import select, func
+from sqlalchemy import select
 from ..extensions import db
 from ..utils.response import ok, fail
 from ..utils.errors import ValidationError

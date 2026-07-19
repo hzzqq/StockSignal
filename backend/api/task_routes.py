@@ -9,7 +9,7 @@ from flask import Blueprint, request
 
 from ..auth.decorators import jwt_required
 from ..utils.response import ok, fail
-from ..tasks.worker import task_worker, TaskStatus
+from ..tasks.worker import task_worker
 
 bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
 

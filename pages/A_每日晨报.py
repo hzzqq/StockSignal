@@ -4,15 +4,13 @@
 - 复盘笔记：当日复盘记录，本地按日期持久化（data/review_notes_<date>.md）。
 """
 import os
-import contextlib
-import requests
 import streamlit as st
 import pandas as pd
-from datetime import datetime, date
+from datetime import date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, api_get, api_quote
+from modules.session import require_auth, render_user_badge, api_get
 from modules.fetcher import StockFetcher
 from modules.news import NewsFetcher
 

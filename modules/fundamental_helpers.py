@@ -111,19 +111,6 @@ def _compute_qoq(s: pd.Series) -> pd.Series:
         prev = val
     return pd.Series(qoq)
 
-    if s is None or s.empty:
-        return pd.Series(dtype=float)
-    s = s.sort_index()
-    yoy = {}
-    for idx, val in s.items():
-        prev_idx = idx - pd.DateOffset(years=1)
-        mask = (s.index >= prev_idx - pd.Timedelta(days=10)) & (s.index <= prev_idx + pd.Timedelta(days=10))
-        if mask.any():
-            pv = s.loc[mask].iloc[0]
-            if pv and pv != 0:
-                yoy[idx] = round((val - pv) / abs(pv) * 100, 2)
-    return pd.Series(yoy)
-
 _FINANCIAL_METRICS = {
     "归母净利润": {"unit": "亿元", "fmt": "{:.2f}亿", "yoy_fmt": "{:+.2f}%", "qoq_fmt": "{:+.2f}%"},
     "营业总收入": {"unit": "亿元", "fmt": "{:.2f}亿", "yoy_fmt": "{:+.2f}%", "qoq_fmt": "{:+.2f}%"},
@@ -345,7 +332,7 @@ def _normalize_industry(industry: str) -> str:
         return ""
     s = industry.strip()
     # 去除罗马数字、阿拉伯数字后缀、空格
-    s = s.replace("Ⅱ", "").replace("Ⅲ", "").replace("II", "").replace("III", "").strip()
+    s = s.replace("Ⅲ", "").replace("Ⅱ", "").replace("III", "").replace("II", "").strip()
     return s
 
 def _find_sector_name(sector_df: pd.DataFrame, industry: str) -> str | None:

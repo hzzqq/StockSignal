@@ -22,7 +22,6 @@ st.title("🔔 事件追踪")
 
 from modules.signal import SignalEngine
 from modules.fetcher import StockFetcher
-from modules.cleaner import DataCleaner
 from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
 from modules.search_ui import stock_search_input
 from modules.session import require_auth, render_user_badge, api_kline
@@ -768,7 +767,7 @@ def fragment_sentiment_report():
 
                     import plotly.express as px
                     from modules.visualizer import (
-                        _is_dark, SF_GRID, SF_BORDER, SF_TXT, SF_TXT2
+                        _is_dark, SF_GRID, SF_BORDER, SF_TXT2
                     )
                     _dark = _is_dark()
                     pie_df = pd.DataFrame([

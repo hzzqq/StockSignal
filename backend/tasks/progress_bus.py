@@ -13,8 +13,7 @@ backend/tasks/progress_bus.py
 from __future__ import annotations
 
 import threading
-import time
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict
 
 # task_id -> reporter_fn(stage_key, message)
 _REPORTERS: Dict[str, Callable[[str, str], None]] = {}

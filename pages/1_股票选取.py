@@ -17,9 +17,9 @@ from modules.search_ui import stock_search_input
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.session import (
-    require_auth, render_user_badge, api_kline, api_quote,
+    require_auth, render_user_badge, api_kline,
     api_post, api_add_junk_stock, api_user_score, api_save_user_score,
-    safe_switch_page, get_user,
+    get_user,
 )
 
 apply_page_config(page_title="股票选取", page_icon="🎯", layout="wide")

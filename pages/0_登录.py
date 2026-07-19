@@ -9,7 +9,6 @@
 
 import streamlit as st
 import requests
-import jwt as _jwt
 from modules.session import init_session_state, is_authenticated, set_auth, clear_auth, safe_switch_page, API_BASE
 from modules.widgets import password_strength
 

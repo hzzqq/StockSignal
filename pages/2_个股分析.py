@@ -9,8 +9,7 @@
 
 import streamlit as st
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # ── 前置：本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）──
 from modules.ui_theme import apply_page_config
@@ -19,11 +18,8 @@ st.session_state["_active_page"] = __file__
 
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
-from modules.technical import full_analysis as technical_full_analysis
-from modules.signal import SignalEngine
-from modules.news import NewsFetcher, SentimentAnalyzer
-from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
-from modules.session import init_session_state, require_auth, render_user_badge, api_kline, api_quote
+from modules.visualizer import Visualizer
+from modules.session import require_auth, render_user_badge, api_kline
 from modules.search_ui import stock_search_input
 from modules.ui_theme import dashboard_sf_css, _theme_is_dark
 from modules.background_tasks import submit_task_with_error, poll_task
@@ -33,10 +29,10 @@ from streamlit_autorefresh import st_autorefresh
 # 参考文档 002947「绿涨红跌」配色随常量一并迁移，页面行为完全不变。
 from modules.stock_analysis_helpers import (
     RED, GREEN, AMBER,
-    _sentiment_tag, _tp_cls, _score_ring_html, _verdict_color, _price_color,
-    _support_resistance_bar, _battle_plan_scale, _build_risk_iron_rules,
+    _sentiment_tag, _tp_cls, _score_ring_html,
+    _battle_plan_scale, _build_risk_iron_rules,
     _risk_iron_html, _build_plan_rows, _section_header, _build_rise_fall_factors,
-    _factor_list_html, _build_logic_lists, _logic_list_html, _calc_trade_levels,
+    _factor_list_html, _build_logic_lists, _logic_list_html,
 )
 
 require_auth()

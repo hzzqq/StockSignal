@@ -470,7 +470,7 @@ class _BaoStockFetcher:
 
             rs = bs.query_stock_industry()
             if rs.error_code != "0":
-                logger.info(f"[BaoStockFetcher] 板块查询失败")
+                logger.info("[BaoStockFetcher] 板块查询失败")
                 return None
 
             rows = []
@@ -2787,7 +2787,7 @@ class StockFetcher:
                 df = None
             if df is not None and not df.empty:
                 source = "东方财富"
-                logger.info(f"[StockFetcher] L1-东方财富 板块 OK")
+                logger.info("[StockFetcher] L1-东方财富 板块 OK")
         except Exception as e:
             errors.append(f"东方财富: {type(e).__name__}")
             df = None
@@ -2807,7 +2807,7 @@ class StockFetcher:
                         df = None
                     else:
                         source = "同花顺"
-                        logger.info(f"[StockFetcher] L2-同花顺 板块 OK")
+                        logger.info("[StockFetcher] L2-同花顺 板块 OK")
                 except Exception as e:
                     errors.append(f"同花顺: {type(e).__name__}")
                     df = None
@@ -2818,7 +2818,7 @@ class StockFetcher:
                 df = _BaoStockFetcher.fetch_sector_list()
                 if df is not None and not df.empty:
                     source = "BaoStock（无涨跌幅）"
-                    logger.info(f"[StockFetcher] L3-BaoStock 板块 OK（无涨跌幅）")
+                    logger.info("[StockFetcher] L3-BaoStock 板块 OK（无涨跌幅）")
             except Exception as e:
                 errors.append(f"BaoStock: {type(e).__name__}")
                 df = None
@@ -2830,7 +2830,7 @@ class StockFetcher:
                 stale = self._read_stale_cache(conn, "sector_cache", "sector_list")
                 if stale is not None and not stale.empty:
                     source = "过期缓存"
-                    logger.info(f"[StockFetcher] L4-过期缓存 板块 OK")
+                    logger.info("[StockFetcher] L4-过期缓存 板块 OK")
                     return stale
             finally:
                 conn.close()

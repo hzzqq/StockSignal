@@ -3,7 +3,6 @@
 import pytest
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
 from modules.backtest import Backtester, BacktestResult
 
 
@@ -66,6 +65,25 @@ class TestBacktester:
                 start="2024-06-01",
                 end="2025-06-01",
                 strategy="ma_cross",
+                initial_capital=100000
+            )
+            assert result.df is not None
+            s = result.summary()
+            assert "total_return_pct" in s
+            assert "sharpe_ratio" in s
+        except Exception:
+            pytest.skip("网络不可用，跳过")
+
+    def test_run_event_driven(self):
+        """测试事件驱动策略回测（需要网络）。"""
+        bt = Backtester()
+        try:
+            result = bt.run(
+                ticker="000858",
+                start="2024-06-01",
+                end="2025-06-01",
+                strategy="event_driven",
+                keywords=["白酒", "提价", "旺季"],
                 initial_capital=100000
             )
             assert result.df is not None

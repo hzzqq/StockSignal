@@ -7,7 +7,6 @@
 """
 import streamlit as st
 import concurrent.futures as _cf
-import contextlib
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
@@ -16,7 +15,7 @@ from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import (
     require_auth, render_user_badge, api_get, safe_switch_page, clear_auth,
     api_delete, api_junk_stocks, api_remove_junk_stock, api_user_score,
-    api_save_user_score, api_kline, get_token, API_BASE,
+    api_save_user_score, get_token, API_BASE,
 )
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner

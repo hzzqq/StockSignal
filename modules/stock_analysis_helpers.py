@@ -285,7 +285,7 @@ def _build_rise_fall_factors(R: dict) -> tuple[list[dict], list[dict]]:
 
     # 上涨因素
     if arrangement == "多头排列":
-        rise.append({"title": "均线多头排列", "desc": f"短期/中期/长期均线呈多头排列，5日/10日/20日MA向上发散，趋势方向向上，支撑逐级抬升。", "stars": 3})
+        rise.append({"title": "均线多头排列", "desc": "短期/中期/长期均线呈多头排列，5日/10日/20日MA向上发散，趋势方向向上，支撑逐级抬升。", "stars": 3})
     elif arrangement == "震荡偏多":
         rise.append({"title": "均线震荡偏多", "desc": "均线系统总体偏向多头，价格运行于主要均线上方，但尚未完全发散。", "stars": 2})
     if trend_score >= 60:
