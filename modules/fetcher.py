@@ -158,7 +158,7 @@ def _observe_log(source, level, ok, latency_ms, detail=""):
         "latency_ms": round(latency_ms, 1),
         "detail": detail,
     }
-    logger.info("[OBS] " + json.dumps(rec, ensure_ascii=False))
+    logger.debug("[OBS] " + json.dumps(rec, ensure_ascii=False))
 
 
 def observe_source(source, level, func, validate=None):
@@ -402,7 +402,7 @@ class _BaoStockFetcher:
                 if c in df.columns:
                     df[c] = pd.to_numeric(df[c], errors="coerce")
             df["change_pct"] = df["close"].pct_change() * 100
-            logger.info(f"[BaoStockFetcher] 成功! {bs_code} -> {len(df)} 行")
+            logger.debug(f"[BaoStockFetcher] 成功! {bs_code} -> {len(df)} 行")
             return df
         except Exception as e:
             logger.warning(f"[BaoStockFetcher] 异常 ({bs_code}): {type(e).__name__}: {e}")
@@ -449,7 +449,7 @@ class _BaoStockFetcher:
             for c in ["open", "high", "low", "close", "volume", "amount"]:
                 if c in df.columns:
                     df[c] = pd.to_numeric(df[c], errors="coerce")
-            logger.info(f"[BaoStockFetcher] 指数成功! {bs_code} -> {len(df)} 行")
+            logger.debug(f"[BaoStockFetcher] 指数成功! {bs_code} -> {len(df)} 行")
             return df
         except Exception as e:
             logger.info(f"[BaoStockFetcher] 指数异常 ({bs_code}): {type(e).__name__}: {e}")
@@ -485,7 +485,7 @@ class _BaoStockFetcher:
             sectors = df.groupby("industry").size().reset_index(name="count")
             sectors = sectors.rename(columns={"industry": "sector"})
             sectors["change_pct"] = 0.0  # BaoStock 不提供涨跌幅
-            logger.info(f"[BaoStockFetcher] 板块成功! {len(sectors)} 个行业")
+            logger.debug(f"[BaoStockFetcher] 板块成功! {len(sectors)} 个行业")
             return sectors[["sector", "change_pct"]]
         except Exception as e:
             logger.info(f"[BaoStockFetcher] 板块异常: {type(e).__name__}: {e}")
@@ -556,7 +556,7 @@ class _SinaFetcher:
         df["date"] = pd.to_datetime(df["date"])
         df["change_pct"] = df["close"].pct_change() * 100
         df = df.sort_values("date").reset_index(drop=True)
-        logger.info(f"[SinaFetcher] 成功! {sina_code} -> {len(df)} 行")
+        logger.debug(f"[SinaFetcher] 成功! {sina_code} -> {len(df)} 行")
         return df
 
 
@@ -1098,8 +1098,8 @@ class StockFetcher:
                 for name in df["name"].astype(str):
                     cls._pinyin_initials_cache[name] = cls._pinyin_static(name)
                     cls._pinyin_initials_variants_cache[name] = cls._pinyin_initials_variants(name)
-                logger.info(f"[StockFetcher] 拼音缓存预计算: {len(cls._pinyin_initials_cache)} 只 ({_time.time()-t_py:.2f}s)")
-                logger.info(f"[StockFetcher] 股票库预热完成: {len(df)} 只 ({_time.time()-t0:.2f}s)")
+                logger.debug(f"[StockFetcher] 拼音缓存预计算: {len(cls._pinyin_initials_cache)} 只 ({_time.time()-t_py:.2f}s)")
+                logger.debug(f"[StockFetcher] 股票库预热完成: {len(df)} 只 ({_time.time()-t0:.2f}s)")
             cls._stocks_loaded = True
         except Exception as e:
             logger.info(f"[StockFetcher] 股票库预热失败: {e}")
@@ -1122,7 +1122,7 @@ class StockFetcher:
             (cache_key,),
         ).fetchone()
         if row is None:
-            logger.info(f"[CACHE] MISS key={cache_key} table={table_name} (无缓存条目)")
+            logger.debug(f"[CACHE] MISS key={cache_key} table={table_name} (无缓存条目)")
             return None
         updated_at = datetime.fromisoformat(row[1])
         if max_age_seconds is not None:
@@ -1135,7 +1135,7 @@ class StockFetcher:
         if age < max_age:
             age_s = age.total_seconds()
             age_str = f"{age_s/3600:.1f}h" if age_s >= 3600 else f"{age_s/60:.1f}m"
-            logger.info(f"[CACHE] HIT  key={cache_key} table={table_name} age={age_str}")
+            logger.debug(f"[CACHE] HIT  key={cache_key} table={table_name} age={age_str}")
             if not as_dataframe:
                 return json.loads(row[0])
             # 如果缓存的是 DataFrame（原格式），返回 DataFrame
@@ -1163,7 +1163,7 @@ class StockFetcher:
         age_hours = (
             datetime.now() - datetime.fromisoformat(updated_at_str)
         ).total_seconds() / 3600
-        logger.info(f"[StockFetcher] 使用过期缓存 (已过期 {age_hours:.1f} 小时)")
+        logger.debug(f"[StockFetcher] 使用过期缓存 (已过期 {age_hours:.1f} 小时)")
         warnings.warn(
             f"数据源不可用，正在使用 {age_hours:.1f} 小时前的缓存数据",
             UserWarning, stacklevel=4,
@@ -1731,7 +1731,7 @@ class StockFetcher:
             # 复用连接：此处不 logout，下次还能用
 
             all_stocks = pd.DataFrame(rows)
-            logger.info(f"[StockFetcher] 全量股票加载完成: {len(all_stocks)} 只")
+            logger.debug(f"[StockFetcher] 全量股票加载完成: {len(all_stocks)} 只")
 
             # 写入永久缓存
             self._write_cache_raw(
@@ -1864,7 +1864,7 @@ class StockFetcher:
         # ── L0: 纯6位数字 -> O(1) ──
         if query.isdigit() and len(query) == 6:
             name = self._code_to_name.get(query, "")
-            logger.info(f"[lookup_code] '{query}' -> ({query},{name}) ({(_time.time()-t0)*1000:.1f}ms)")
+            logger.debug(f"[lookup_code] '{query}' -> ({query},{name}) ({(_time.time()-t0)*1000:.1f}ms)")
             return [(query, name)] if name else [(query, query)]
 
         # ── 使用内存缓存 ──
@@ -1965,7 +1965,7 @@ class StockFetcher:
 
         results.sort(key=lambda x: x[2], reverse=True)
         final = [(r[0], r[1]) for r in results[:limit]]
-        logger.info(f"[lookup_code] '{query}' -> {len(final)} 条 ({(_time.time()-t0)*1000:.1f}ms)")
+        logger.debug(f"[lookup_code] '{query}' -> {len(final)} 条 ({(_time.time()-t0)*1000:.1f}ms)")
         return final
 
     def _lookup_name_for_code(self, code):
@@ -2464,7 +2464,7 @@ class StockFetcher:
                     res_df, res_err = fut.result()
                     if res_df is not None and not res_df.empty:
                         df = res_df
-                        logger.info(f"[StockFetcher] {futs[fut]} OK {symbol} (并行竞速)")
+                        logger.debug(f"[StockFetcher] {futs[fut]} OK {symbol} (并行竞速)")
                         break
                     else:
                         if res_err:
@@ -2476,7 +2476,7 @@ class StockFetcher:
                         res_df, res_err = fut.result()
                         if res_df is not None and not res_df.empty:
                             df = res_df
-                            logger.info(f"[StockFetcher] {futs[fut]} OK {symbol} (并行竞速)")
+                            logger.debug(f"[StockFetcher] {futs[fut]} OK {symbol} (并行竞速)")
                             break
                         else:
                             if res_err:
@@ -2489,7 +2489,7 @@ class StockFetcher:
             if df is None or df.empty:
                 stale = self._read_stale_cache(conn, "daily_cache", f"daily_{symbol}")
                 if stale is not None:
-                    logger.info(f"[StockFetcher] L5-缓存兜底 OK {symbol}")
+                    logger.debug(f"[StockFetcher] L5-缓存兜底 OK {symbol}")
                     return stale
                 errors.append("缓存: 无可用数据")
 
@@ -2586,7 +2586,7 @@ class StockFetcher:
                         # 防御式标准化：日期解析异常 / 缺列 直接降级，不让 TypeError 中断 L1
                         df = self._safe_kline_df(df)
                         if df is not None:
-                            logger.info(f"[StockFetcher] L1-akshare {period} OK {symbol}")
+                            logger.debug(f"[StockFetcher] L1-akshare {period} OK {symbol}")
                         else:
                             df = None
                 except Exception as e:
@@ -2601,7 +2601,7 @@ class StockFetcher:
                     daily = self.get_daily(symbol, start, end, adjust)
                     if daily is not None and not daily.empty:
                         df = self._resample_kline(daily, period)
-                        logger.info(f"[StockFetcher] L2-resample {period} OK {symbol}")
+                        logger.debug(f"[StockFetcher] L2-resample {period} OK {symbol}")
                     else:
                         errors.append("日线聚合: 无数据")
                 except Exception as e:
@@ -2659,7 +2659,7 @@ class StockFetcher:
                         "high": "high", "low": "low", "volume": "volume",
                     })
                     df["date"] = pd.to_datetime(df["date"])
-                    logger.info(f"[StockFetcher] L1-akshare 指数 OK {symbol}")
+                    logger.debug(f"[StockFetcher] L1-akshare 指数 OK {symbol}")
                 except Exception as e:
                     errors.append(f"akshare: {type(e).__name__}")
                     df = None
@@ -2668,7 +2668,7 @@ class StockFetcher:
             if df is None or df.empty:
                 df = _BaoStockFetcher.fetch_index_kline(symbol, start, end)
                 if df is not None and not df.empty:
-                    logger.info(f"[StockFetcher] L2-BaoStock 指数 OK {symbol}")
+                    logger.debug(f"[StockFetcher] L2-BaoStock 指数 OK {symbol}")
                 else:
                     errors.append("BaoStock: 无数据")
 
@@ -2676,7 +2676,7 @@ class StockFetcher:
             if df is None or df.empty:
                 df = _UrllibFetcher.fetch_kline(symbol, start, end, is_index=True)
                 if df is not None and not df.empty:
-                    logger.info(f"[StockFetcher] L3-东方财富 指数 OK {symbol}")
+                    logger.debug(f"[StockFetcher] L3-东方财富 指数 OK {symbol}")
                 else:
                     errors.append("东方财富: 无数据")
 
@@ -2684,7 +2684,7 @@ class StockFetcher:
             if df is None or df.empty:
                 stale = self._read_stale_cache(conn, "index_cache", f"index_{symbol}")
                 if stale is not None:
-                    logger.info(f"[StockFetcher] L4-缓存兜底 指数 OK {symbol}")
+                    logger.debug(f"[StockFetcher] L4-缓存兜底 指数 OK {symbol}")
                     return stale
                 errors.append("缓存: 无可用数据")
 
@@ -2787,7 +2787,7 @@ class StockFetcher:
                 df = None
             if df is not None and not df.empty:
                 source = "东方财富"
-                logger.info("[StockFetcher] L1-东方财富 板块 OK")
+                logger.debug("[StockFetcher] L1-东方财富 板块 OK")
         except Exception as e:
             errors.append(f"东方财富: {type(e).__name__}")
             df = None
@@ -2807,7 +2807,7 @@ class StockFetcher:
                         df = None
                     else:
                         source = "同花顺"
-                        logger.info("[StockFetcher] L2-同花顺 板块 OK")
+                        logger.debug("[StockFetcher] L2-同花顺 板块 OK")
                 except Exception as e:
                     errors.append(f"同花顺: {type(e).__name__}")
                     df = None
@@ -2818,7 +2818,7 @@ class StockFetcher:
                 df = _BaoStockFetcher.fetch_sector_list()
                 if df is not None and not df.empty:
                     source = "BaoStock（无涨跌幅）"
-                    logger.info("[StockFetcher] L3-BaoStock 板块 OK（无涨跌幅）")
+                    logger.debug("[StockFetcher] L3-BaoStock 板块 OK（无涨跌幅）")
             except Exception as e:
                 errors.append(f"BaoStock: {type(e).__name__}")
                 df = None
@@ -2830,7 +2830,7 @@ class StockFetcher:
                 stale = self._read_stale_cache(conn, "sector_cache", "sector_list")
                 if stale is not None and not stale.empty:
                     source = "过期缓存"
-                    logger.info("[StockFetcher] L4-过期缓存 板块 OK")
+                    logger.debug("[StockFetcher] L4-过期缓存 板块 OK")
                     return stale
             finally:
                 conn.close()

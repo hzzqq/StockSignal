@@ -10,9 +10,7 @@
 import pandas as pd
 import numpy as np
 
-RED = "#009e60"      # 涨 / 利好 / 买入（文档：绿）
-GREEN = "#dc2626"    # 跌 / 利空 / 卖出（文档：红）
-AMBER = "#d97706"    # 中性 / 持有
+from modules.colors import RED, GREEN, AMBER
 
 
 def _sentiment_tag(label: str) -> str:
@@ -176,7 +174,6 @@ def _build_risk_iron_rules(R: dict) -> list[dict]:
     items = []
     current_price = float(R.get("current_price", 0) or 0)
     stop_price = float(R.get("stop_price", 0) or 0)
-    target_price = float(R.get("target_price", 0) or 0)
     support = float(R.get("support", 0) or 0)
     resistance = float(R.get("resistance", current_price * 1.10) or 0)
     entry_price = float(R.get("entry_price", current_price) or 0)

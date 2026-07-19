@@ -111,11 +111,30 @@ def create_app(config_object: type = Config) -> Flask:
     app.config["TRAP_HTTP_EXCEPTIONS"] = False
     app.json.sort_keys = False  # JSON 字段顺序稳定
 
-    # ---- 健康检查（同样走 ok() 包装）----
+    # ---- 健康检查（同样走 ok() 包装；含 DB 连通性探针）----
     @app.get("/api/health")
     def health():
+        from sqlalchemy import text
+
         from .utils.response import ok
-        return ok(data={"service": "stocksignal-backend", "status": "alive"})
+
+        components: dict[str, str] = {"backend": "alive"}
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            components["database"] = "ok"
+        except Exception as exc:  # 探针失败不应让健康检查本身 500
+            components["database"] = "error"
+            components["database_detail"] = str(exc)[:200]
+
+        status = "alive" if components.get("database") == "ok" else "degraded"
+        return ok(
+            data={
+                "service": "stocksignal-backend",
+                "status": status,
+                "components": components,
+            }
+        )
 
     # ---- 后端管理界面（适配前端金融风格；独立的有意 HTML 页，非 API）----
     # 说明：全局 errorhandler 仍对异常返回 JSON；本路由仅成功路径返回 text/html，

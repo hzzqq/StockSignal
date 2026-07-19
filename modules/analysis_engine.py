@@ -19,13 +19,9 @@ from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.news import NewsFetcher, SentimentAnalyzer
+from modules.colors import RED, GREEN, AMBER
 from concurrent.futures import ThreadPoolExecutor
 
-
-# 配色常量（与个股分析页对齐：参考文档绿涨红跌）
-RED = "#009e60"      # 涨 / 利好 / 买入（文档绿）
-GREEN = "#dc2626"    # 跌 / 利空 / 卖出（文档红）
-AMBER = "#d97706"    # 中性 / 持有
 
 # 分析结果 TTL 缓存：避免重复抓取行情/新闻，显著提速（默认 90 秒）
 import time as _time

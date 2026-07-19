@@ -21,10 +21,8 @@ if "starfield_dark" not in pio.templates:
     except Exception:
         pass
 
-# 涨跌配色（A股：红涨绿跌）
-UP_COLOR = "#ff4d4f"
-DOWN_COLOR = "#00d486"
-HOLD_COLOR = "#ffa502"
+# 涨跌配色（A股：红涨绿跌）统一从 modules.colors 引入，避免重复定义
+from modules.colors import UP_COLOR, DOWN_COLOR
 
 # 星辰暗色图表令牌
 SF_TXT = "#e2e8f0"
@@ -163,8 +161,7 @@ class Visualizer:
         visible = df.iloc[start_idx:end_idx].copy().reset_index(drop=True)
         m = len(visible)
 
-        # x_idx 用于 shapes（category 轴的整数坐标），x_vals 用于 traces（日期类别）
-        x_idx = list(range(m))
+        # x_vals 用于 traces（日期类别）
         x_vals = visible["date"].dt.strftime("%Y-%m-%d").tolist()
         date_strs = x_vals
         date_labels = visible["date"].dt.strftime("%m月%d日").tolist()

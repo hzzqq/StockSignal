@@ -73,55 +73,60 @@ def _load_etfs():
     return d, "内置样本（网络不可用）"
 
 
-with safe_section("ETF 行情", hint="实时行情接口可能受网络限制，已自动降级到样本数据。"):
-    df, src = _load_etfs()
-    st.success(f"数据来源：{src}　·　共 {len(df)} 只", icon="📡")
+@st.fragment
+def _etf_filter_fragment():
+    with safe_section("ETF 行情", hint="实时行情接口可能受网络限制，已自动降级到样本数据。"):
+        df, src = _load_etfs()
+        st.success(f"数据来源：{src}　·　共 {len(df)} 只", icon="📡")
 
-    # ── 筛选器 ──
-    st.markdown("### 🎚️ 筛选条件")
-    f1, f2, f3, f4 = st.columns(4)
-    with f1:
-        kw = st.text_input("关键字 / 代码", placeholder="如 沪深300 / 510300", key="etf_kw")
-    with f2:
-        types = ["全部"] + sorted(df["类型"].dropna().unique().tolist())
-        ftype = st.selectbox("类型", types, key="etf_type")
-    with f3:
-        chg_range = st.slider("涨跌幅区间(%)", -10.0, 10.0, (-10.0, 10.0), key="etf_chg")
-    with f4:
-        min_amt = st.number_input("最小成交额(亿)", min_value=0.0, value=0.0, step=10.0, key="etf_amt")
+        # ── 筛选器 ──
+        st.markdown("### 🎚️ 筛选条件")
+        f1, f2, f3, f4 = st.columns(4)
+        with f1:
+            kw = st.text_input("关键字 / 代码", placeholder="如 沪深300 / 510300", key="etf_kw")
+        with f2:
+            types = ["全部"] + sorted(df["类型"].dropna().unique().tolist())
+            ftype = st.selectbox("类型", types, key="etf_type")
+        with f3:
+            chg_range = st.slider("涨跌幅区间(%)", -10.0, 10.0, (-10.0, 10.0), key="etf_chg")
+        with f4:
+            min_amt = st.number_input("最小成交额(亿)", min_value=0.0, value=0.0, step=10.0, key="etf_amt")
 
-    res = df.copy()
-    if kw:
-        res = res[res["名称"].astype(str).str.contains(kw, case=False, na=False) |
-                 res["代码"].astype(str).str.contains(kw, case=False, na=False)]
-    if ftype != "全部":
-        res = res[res["类型"] == ftype]
-    res["涨跌幅"] = pd.to_numeric(res["涨跌幅"], errors="coerce")
-    res = res[(res["涨跌幅"] >= chg_range[0]) & (res["涨跌幅"] <= chg_range[1])]
-    if "成交额" in res.columns:
-        res["成交额"] = pd.to_numeric(res["成交额"], errors="coerce")
-        if min_amt > 0:
-            res = res[res["成交额"] / 1e8 >= min_amt]
+        res = df.copy()
+        if kw:
+            res = res[res["名称"].astype(str).str.contains(kw, case=False, na=False) |
+                     res["代码"].astype(str).str.contains(kw, case=False, na=False)]
+        if ftype != "全部":
+            res = res[res["类型"] == ftype]
+        res["涨跌幅"] = pd.to_numeric(res["涨跌幅"], errors="coerce")
+        res = res[(res["涨跌幅"] >= chg_range[0]) & (res["涨跌幅"] <= chg_range[1])]
+        if "成交额" in res.columns:
+            res["成交额"] = pd.to_numeric(res["成交额"], errors="coerce")
+            if min_amt > 0:
+                res = res[res["成交额"] / 1e8 >= min_amt]
 
-    # 排序
-    sort_col = st.selectbox("排序字段", [c for c in ["涨跌幅", "成交额", "最新价", "管理费"] if c in res.columns], key="etf_sort")
-    asc = st.checkbox("升序", key="etf_asc")
-    if sort_col in res.columns:
-        res = res.sort_values(sort_col, ascending=asc, na_position="last")
+        # 排序
+        sort_col = st.selectbox("排序字段", [c for c in ["涨跌幅", "成交额", "最新价", "管理费"] if c in res.columns], key="etf_sort")
+        asc = st.checkbox("升序", key="etf_asc")
+        if sort_col in res.columns:
+            res = res.sort_values(sort_col, ascending=asc, na_position="last")
 
-    st.markdown(f"### 📋 筛选结果（{len(res)} 只）")
-    if res.empty:
-        st.info("没有符合条件的标的，放宽筛选条件试试。")
-    else:
-        disp = res.copy()
-        if "涨跌幅" in disp.columns:
-            def _color_chg(v):
-                if pd.isna(v):
-                    return ""
-                return f"color:{UP if v >= 0 else DOWN}"
-            sty = disp.style.map(_color_chg, subset=["涨跌幅"]) if "涨跌幅" in disp.columns else disp.style
+        st.markdown(f"### 📋 筛选结果（{len(res)} 只）")
+        if res.empty:
+            st.info("没有符合条件的标的，放宽筛选条件试试。")
         else:
-            sty = disp.style
-        st.dataframe(sty, use_container_width=True, hide_index=True, height=560)
+            disp = res.copy()
+            if "涨跌幅" in disp.columns:
+                def _color_chg(v):
+                    if pd.isna(v):
+                        return ""
+                    return f"color:{UP if v >= 0 else DOWN}"
+                sty = disp.style.map(_color_chg, subset=["涨跌幅"]) if "涨跌幅" in disp.columns else disp.style
+            else:
+                sty = disp.style
+            st.dataframe(sty, use_container_width=True, hide_index=True, height=560)
 
-    st.caption("提示：本筛选器仅为信息聚合，不构成任何投资建议。")
+        st.caption("提示：本筛选器仅为信息聚合，不构成任何投资建议。")
+
+
+_etf_filter_fragment()

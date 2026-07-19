@@ -21,9 +21,9 @@
 """
 
 # ===== 涨跌配色（A股默认：红涨绿跌）=====
-# 改一行即切回「绿涨红跌」：UP_COLOR="#00d4aa"; DOWN_COLOR="#ff4757"
-UP_COLOR = "#ff4d4f"    # 涨 · 红
-DOWN_COLOR = "#00d486"  # 跌 · 绿
+# 统一从 modules.colors 引入，单一来源避免配色漂移。
+# 想切回「绿涨红跌」：改 modules/colors.py 里 UP_COLOR / DOWN_COLOR 对调即可。
+from modules.colors import UP_COLOR, DOWN_COLOR
 
 import json
 import streamlit as st

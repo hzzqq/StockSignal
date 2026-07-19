@@ -353,3 +353,17 @@ class TestAssetType:
         # 我们种子的类型应出现
         assert d["asset_type_counts"].get("stock", 0) >= 1
         assert d["asset_type_counts"].get("index", 0) >= 1
+
+
+# ================================================================ 健康检查
+class TestHealth:
+    def test_health_envelope_and_components(self, client):
+        r = client.get("/api/health")
+        obj = _assert_json_envelope(r, "health")
+        data = obj["data"]
+        assert data["service"] == "stocksignal-backend"
+        assert data["status"] in ("alive", "degraded")
+        # 真实 DB 探针：测试用临时库已 create_all，database 应 ok
+        comp = data.get("components", {})
+        assert comp.get("backend") == "alive"
+        assert comp.get("database") == "ok"
