@@ -2,6 +2,7 @@
 
 import pytest
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 from modules.backtest import Backtester, BacktestResult
 
@@ -78,3 +79,75 @@ class TestBacktester:
         bt = Backtester()
         with pytest.raises(ValueError):
             bt.run("600519", "2025-01-01", "2025-06-01", strategy="invalid")
+
+    def _make_df(self, n, rsi_start, rsi_end, daily, vol_ratio, atr=0.10):
+        """构造合成行情 DataFrame（无网依赖，仅验证信号逻辑）。"""
+        dates = pd.date_range("2024-01-01", periods=n)
+        close = [10.0]
+        for i in range(1, n):
+            close.append(close[-1] * (1 + daily))
+        close = np.array(close, dtype=float)
+        ma20 = pd.Series(close).rolling(20, min_periods=5).mean().to_numpy()
+        ma60 = pd.Series(close).rolling(60, min_periods=20).mean().to_numpy()
+        rsi14 = np.linspace(rsi_start, rsi_end, n)
+        rsi2 = np.full(n, 25.0)
+        atr_ratio = np.full(n, atr)
+        base_vol = 1_000_000.0
+        vol = np.full(n, base_vol * vol_ratio)
+        vol_ma20 = np.full(n, base_vol)
+        bb_lower = close * 0.96
+        return pd.DataFrame({
+            "date": dates, "close": close, "ma20": ma20, "ma60": ma60,
+            "rsi14": rsi14, "rsi2": rsi2, "atr_ratio": atr_ratio,
+            "volume": vol, "vol_ma20": vol_ma20, "bb_lower": bb_lower,
+        })
+
+    def test_multi_factor_strong_uptrend_buys(self):
+        """回归 #V5：长电科技类「长期 RSI>85 的强势上涨股」此前 buy=0（被 RSI<=85 硬门槛排除）。
+        修复后应能生成买入信号。"""
+        bt = Backtester()
+        df = self._make_df(90, rsi_start=85, rsi_end=95, daily=0.018, vol_ratio=0.9)
+        signals = bt._multi_factor_signals(df)
+        n_buy = sum(1 for s in signals if s == 1)
+        assert n_buy > 0, "强势上涨股(RSI>85)应产生买入信号，不应被系统性排除"
+
+    def test_multi_factor_downtrend_no_chase(self):
+        """下跌趋势不应追涨买入，但应允许卖出（仓位管理）。"""
+        bt = Backtester()
+        df = self._make_df(90, rsi_start=65, rsi_end=30, daily=-0.01, vol_ratio=1.0)
+        signals = bt._multi_factor_signals(df)
+        n_buy = sum(1 for s in signals if s == 1)
+        n_sell = sum(1 for s in signals if s == -1)
+        assert n_buy == 0, "下跌趋势不应产生买入信号"
+        assert n_sell > 0, "下跌趋势应产生卖出信号"
+
+    def test_multi_factor_pullback_closes_trade(self):
+        """冲高回落（RSI 冲到 >=92 后跌破 90）应能触发止盈卖出，让交易闭环。"""
+        bt = Backtester()
+        n_up, n_down = 75, 15
+        n = n_up + n_down
+        close = [10.0]
+        for i in range(1, n_up):
+            close.append(close[-1] * 1.018)
+        for i in range(n_down):
+            close.append(close[-1] * 0.985)
+        close = np.array(close, dtype=float)
+        ma20 = pd.Series(close).rolling(20, min_periods=5).mean().to_numpy()
+        ma60 = pd.Series(close).rolling(60, min_periods=20).mean().to_numpy()
+        rsi14 = np.concatenate([np.linspace(78, 93, n_up), np.linspace(93, 60, n_down)])
+        rsi2 = np.concatenate([np.full(n_up, 22.0), np.full(n_down, 40.0)])
+        atr_ratio = np.full(n, 0.08)
+        vol = np.full(n, 1_000_000.0)
+        vol_ma20 = np.full(n, 1_000_000.0)
+        bb_lower = close * 0.96
+        df = pd.DataFrame({
+            "date": pd.date_range("2024-01-01", periods=n), "close": close,
+            "ma20": ma20, "ma60": ma60, "rsi14": rsi14, "rsi2": rsi2,
+            "atr_ratio": atr_ratio, "volume": vol, "vol_ma20": vol_ma20,
+            "bb_lower": bb_lower,
+        })
+        signals = bt._multi_factor_signals(df)
+        n_buy = sum(1 for s in signals if s == 1)
+        n_sell = sum(1 for s in signals if s == -1)
+        assert n_buy > 0, "冲高阶段应买入"
+        assert n_sell > 0, "回落阶段应触发卖出，让交易闭环"

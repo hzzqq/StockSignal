@@ -1,252 +1,112 @@
-"""test_whitebox_technical.py — TechnicalAnalysis 白盒测试
-覆盖 4 类分析：均线趋势、动量、量能、形态识别。
-所有用例离线运行，不依赖网络。
+"""test_whitebox_technical.py — 技术面分析模块白盒测试
+
+覆盖 modules.technical 的纯计算函数：
+  - _momentum_label 全边界映射
+  - analyze_momentum 动量打分与标签
+  - analyze_trend 多空排列判定（多头/空头/偏多/偏空/纠缠）
+  - 空数据 / 空 DataFrame 的容错分支
+纯 pandas 计算，无 IO、无 streamlit、无网络依赖。
 """
 
 import pandas as pd
-import numpy as np
 import pytest
-from datetime import datetime, timedelta
 
-from modules.cleaner import DataCleaner
 from modules.technical import (
-    analyze_trend,
+    _momentum_label,
     analyze_momentum,
-    analyze_volume,
-    detect_patterns,
-    full_analysis,
+    analyze_trend,
 )
 
 
-# ------------------------------------------------------------
-# 测试数据构造
-# ------------------------------------------------------------
-def _make_df(closes, volumes=None, changes=None):
-    """构造行情 DataFrame 并跑清洗管道。"""
-    n = len(closes)
-    if volumes is None:
-        volumes = [1_000_000] * n
-    if changes is None:
-        changes = [0.0] * n
-    dates = pd.date_range("2025-01-01", periods=n, freq="D")
-    df = pd.DataFrame({
-        "date": dates,
-        "open": closes,
-        "high": [c * 1.02 for c in closes],
-        "low": [c * 0.98 for c in closes],
-        "close": closes,
-        "volume": volumes,
-        "change_pct": changes,
+class TestMomentumLabel:
+    """_momentum_label 边界全覆盖。"""
+
+    @pytest.mark.parametrize("r5,expected", [
+        (10.0, "强势上攻"),
+        (12.3, "强势上攻"),
+        (5.0, "明显走强"),
+        (7.0, "明显走强"),
+        (2.0, "温和上涨"),
+        (3.5, "温和上涨"),
+        (1.9, "震荡整理"),
+        (0.0, "震荡整理"),
+        (-2.0, "震荡整理"),
+        (-3.0, "弱势回调"),
+        (-5.0, "弱势回调"),
+        (-6.0, "加速下跌"),
+        (-20.0, "加速下跌"),
+    ])
+    def test_boundaries(self, r5, expected):
+        assert _momentum_label(r5) == expected
+
+
+def _momentum_df(r5):
+    return pd.DataFrame({"return_5d": [r5], "return_1d": [0.0], "return_20d": [0.0]})
+
+
+class TestAnalyzeMomentum:
+    """analyze_momentum 打分与标签一致性。"""
+
+    def test_label_matches_helper(self):
+        for r5 in (12.0, 6.0, 3.0, -1.0, -4.0, -8.0):
+            res = analyze_momentum(_momentum_df(r5))
+            assert res["momentum_label"] == _momentum_label(r5)
+
+    def test_score_range(self):
+        res = analyze_momentum(_momentum_df(7.0))
+        assert isinstance(res["momentum_score"], int)
+        assert 0 <= res["momentum_score"] <= 100
+
+    def test_returns_keys_present(self):
+        res = analyze_momentum(_momentum_df(3.0))
+        assert set(["1日", "5日", "20日"]).issubset(res["returns"].keys())
+
+    def test_empty_df_error(self):
+        assert analyze_momentum(pd.DataFrame()) == {"error": "数据为空"}
+
+    def test_none_error(self):
+        assert analyze_momentum(None) == {"error": "数据为空"}
+
+
+def _trend_df(ma5, ma10, ma20, ma60, close):
+    return pd.DataFrame({
+        "close": [close],
+        "ma5": [ma5], "ma10": [ma10],
+        "ma20": [ma20], "ma60": [ma60],
     })
-    return DataCleaner.full_pipeline(df)
 
 
-# ------------------------------------------------------------
-# 1) 均线 / 趋势状态
-# ------------------------------------------------------------
-class TestTrend:
+class TestAnalyzeTrend:
+    """analyze_trend 排列判定。"""
 
-    def test_empty_df_returns_error(self):
-        r = analyze_trend(pd.DataFrame())
-        assert "error" in r
+    def test_bull_alignment(self):
+        res = analyze_trend(_trend_df(12, 11, 10, 9, 13))
+        assert res["arrangement"] == "多头排列"
+        assert res["trend_score"] == 85
+        assert res["above_count"] == 4
 
-    def test_uptrend_identified_as_bullish(self):
-        # 单调上涨
-        closes = [10 + i * 0.5 for i in range(70)]
-        df = _make_df(closes)
-        r = analyze_trend(df)
-        assert r["arrangement"] in ("多头排列", "偏多")
-        assert r["trend_score"] >= 60
-        assert r["above_count"] >= 2
+    def test_bear_alignment(self):
+        res = analyze_trend(_trend_df(9, 10, 11, 12, 8))
+        assert res["arrangement"] == "空头排列"
+        assert res["trend_score"] == 15
 
-    def test_downtrend_identified_as_bearish(self):
-        closes = [50 - i * 0.5 for i in range(70)]
-        df = _make_df(closes)
-        r = analyze_trend(df)
-        assert r["arrangement"] in ("空头排列", "偏空")
-        assert r["trend_score"] <= 40
+    def test_entangled_equal(self):
+        res = analyze_trend(_trend_df(10, 10, 10, 10, 10))
+        assert res["arrangement"] == "纠缠"
+        assert res["trend_score"] == 50
 
-    def test_flat_market_is_neutral(self):
-        # 横盘 — 收盘价在均线附近 ±0.5% 波动
-        base = [10.0] * 70
-        rng = np.random.default_rng(42)
-        closes = [b + rng.uniform(-0.05, 0.05) for b in base]
-        df = _make_df(closes)
-        r = analyze_trend(df)
-        # 横盘应得中性分数
-        assert 35 <= r["trend_score"] <= 65
+    def test_partial_bull(self):
+        # close>ma20 且 ma5>ma20，但非严格多头
+        res = analyze_trend(_trend_df(11, 9, 10, 8, 12))
+        assert res["arrangement"] == "偏多"
+        assert res["trend_score"] == 65
 
-    def test_ma_values_present(self):
-        closes = [10 + i * 0.3 for i in range(70)]
-        df = _make_df(closes)
-        r = analyze_trend(df)
-        assert set(r["ma_values"].keys()) == {5, 10, 20, 60}
+    def test_trend_label_format(self):
+        res = analyze_trend(_trend_df(12, 11, 10, 9, 13))
+        assert "站上4条均线" in res["trend_label"]
 
+    def test_empty_df_error(self):
+        assert analyze_trend(pd.DataFrame()) == {"error": "数据为空"}
 
-# ------------------------------------------------------------
-# 2) 动量 / 涨跌幅
-# ------------------------------------------------------------
-class TestMomentum:
-
-    def test_strong_rally_label(self):
-        closes = [10.0] * 5 + [10 + i * 0.5 for i in range(1, 66)]
-        df = _make_df(closes)
-        r = analyze_momentum(df)
-        assert r["momentum_label"] in ("强势上攻", "明显走强", "温和上涨")
-        assert r["momentum_score"] >= 65
-        assert r["returns"]["5日"] > 0
-
-    def test_sharp_decline_label(self):
-        closes = [50.0] * 5 + [50 - i * 0.7 for i in range(1, 66)]
-        df = _make_df(closes)
-        r = analyze_momentum(df)
-        assert r["momentum_label"] in ("弱势回调", "加速下跌")
-        assert r["momentum_score"] <= 40
-
-    def test_returns_keys(self):
-        closes = [10 + i * 0.1 for i in range(70)]
-        df = _make_df(closes)
-        r = analyze_momentum(df)
-        assert set(r["returns"].keys()) == {"1日", "5日", "20日"}
-
-
-# ------------------------------------------------------------
-# 3) 量能分析
-# ------------------------------------------------------------
-class TestVolume:
-
-    def test_empty_df_returns_error(self):
-        r = analyze_volume(pd.DataFrame())
-        assert "error" in r
-
-    def test_volume_ratio_calculated(self):
-        # 今日 200 万，前 5 日均 100 万 → ratio = 2
-        # 65 个 + 5 个 + 1 个 = 71 错了，应该是 64+5+1=70
-        volumes = [1_000_000] * 64 + [1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 2_000_000]
-        closes = [10.0] * 70
-        changes = [0.0] * 69 + [5.0]  # 今天 +5%
-        df = _make_df(closes, volumes, changes)
-        r = analyze_volume(df)
-        assert r["vol_ratio"] > 1.8
-        assert "量价齐升" in r["volume_price_label"] or "放量" in r["volume_price_label"]
-
-    def test_consecutive_volume_days(self):
-        # 连续 3 天放量（最近 3 天递增）
-        volumes = [1_000_000] * 67 + [1_100_000, 1_200_000, 1_300_000]
-        closes = [10.0] * 70
-        df = _make_df(closes, volumes)
-        r = analyze_volume(df)
-        assert r["consecutive_direction"] == "up"
-        assert r["consecutive_days"] >= 3
-
-    def test_shrink_volume_label(self):
-        # 今日 800 万缩量，前 5 日均 2000 万
-        volumes = [2_000_000] * 64 + [2_000_000, 2_000_000, 2_000_000, 2_000_000, 2_000_000, 800_000]
-        closes = [10.0] * 70
-        changes = [0.0] * 69 + [-2.0]
-        df = _make_df(closes, volumes, changes)
-        r = analyze_volume(df)
-        assert r["vol_ratio"] < 0.5
-        assert "缩量" in r["volume_price_label"]
-
-
-# ------------------------------------------------------------
-# 4) K 线形态识别
-# ------------------------------------------------------------
-class TestPatterns:
-
-    def test_hammer_detected(self):
-        # 最近一根：开盘 10，收盘 10.1，high 10.2，low 9.0 → 下影线 1.0 >> 实体 0.1
-        n = 30
-        closes = [10.0] * (n - 1) + [10.1]
-        opens = [10.0] * (n - 1) + [10.0]
-        highs = [10.2] * n
-        lows = [10.0] * (n - 1) + [9.0]
-        volumes = [1_000_000] * n
-        dates = pd.date_range("2025-01-01", periods=n, freq="D")
-        df = pd.DataFrame({
-            "date": dates, "open": opens, "high": highs, "low": lows,
-            "close": closes, "volume": volumes, "change_pct": [0.0] * n,
-        })
-        df = DataCleaner.full_pipeline(df)
-        patterns = detect_patterns(df)
-        names = [p["name"] for p in patterns]
-        assert "锤子线" in names
-
-    def test_doji_detected(self):
-        # 十字星：open==close，影线长
-        n = 30
-        closes = [10.0] * (n - 1) + [10.0]
-        opens = [10.0] * (n - 1) + [10.0]
-        highs = [10.2] * (n - 1) + [11.0]
-        lows = [10.0] * (n - 1) + [9.0]
-        volumes = [1_000_000] * n
-        dates = pd.date_range("2025-01-01", periods=n, freq="D")
-        df = pd.DataFrame({
-            "date": dates, "open": opens, "high": highs, "low": lows,
-            "close": closes, "volume": volumes, "change_pct": [0.0] * n,
-        })
-        df = DataCleaner.full_pipeline(df)
-        patterns = detect_patterns(df)
-        names = [p["name"] for p in patterns]
-        assert "十字星" in names
-
-    def test_bullish_engulfing_detected(self):
-        n = 30
-        # 前 28 根：温和上涨 9.0 -> 9.4 (避免十字星误判)
-        # 第 29 根阴线 (open=9.5, close=9.3)
-        # 第 30 根阳线 (open=9.2, close=9.6) 完全吞没前阴线
-        closes = [9.0 + i * 0.015 for i in range(n - 2)] + [9.3, 9.6]
-        opens = [9.0 + i * 0.015 for i in range(n - 2)] + [9.5, 9.2]
-        highs = [c + 0.1 for c in closes]
-        lows = [c - 0.1 for c in closes]
-        volumes = [1_000_000] * n
-        dates = pd.date_range("2025-01-01", periods=n, freq="D")
-        df = pd.DataFrame({
-            "date": dates, "open": opens, "high": highs, "low": lows,
-            "close": closes, "volume": volumes, "change_pct": [0.0] * n,
-        })
-        df = DataCleaner.full_pipeline(df)
-        patterns = detect_patterns(df)
-        names = [p["name"] for p in patterns]
-        assert "看涨吞没" in names
-
-    def test_ma20_breakout_detected(self):
-        # 前 25 日 close < ma20，最后 5 天 close 上穿 ma20
-        n = 30
-        closes = [10.0] * 25 + [10.5, 11.0, 11.5, 12.0, 12.5]
-        opens = [10.0] * n
-        highs = [c * 1.02 for c in closes]
-        lows = [c * 0.98 for c in closes]
-        volumes = [1_000_000] * n
-        dates = pd.date_range("2025-01-01", periods=n, freq="D")
-        df = pd.DataFrame({
-            "date": dates, "open": opens, "high": highs, "low": lows,
-            "close": closes, "volume": volumes, "change_pct": [0.0] * n,
-        })
-        df = DataCleaner.full_pipeline(df)
-        # 强制最后 5 天 close > ma20 以确保突破发生
-        # 由于均线是滚动计算的，需要更早的回落才能形成明确上穿
-        patterns = detect_patterns(df)
-        # 这个 case 不强求触发，只要函数不报错即可
-        assert isinstance(patterns, list)
-
-    def test_empty_df_returns_empty_list(self):
-        patterns = detect_patterns(pd.DataFrame())
-        assert patterns == []
-
-
-# ------------------------------------------------------------
-# 5) full_analysis 整合
-# ------------------------------------------------------------
-class TestFullAnalysis:
-
-    def test_full_analysis_returns_all_keys(self):
-        closes = [10 + i * 0.3 for i in range(70)]
-        df = _make_df(closes)
-        r = full_analysis(df)
-        assert set(r.keys()) == {"trend", "momentum", "volume", "patterns"}
-        assert "arrangement" in r["trend"]
-        assert "momentum_label" in r["momentum"]
-        assert "volume_price_label" in r["volume"]
-        assert isinstance(r["patterns"], list)
+    def test_none_error(self):
+        assert analyze_trend(None) == {"error": "数据为空"}

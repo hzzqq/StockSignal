@@ -191,19 +191,21 @@ class Backtester:
         - 原策略要求 i >= 60 才进入信号计算，短区间直接全军覆没；V4 改为 i >= 20。
         - 原策略强依赖 MA60，数据不足时 MA60 为 NaN，导致趋势分直接归零；V4 以 MA20
           为主要趋势基准，MA60 仅作为加分项，缺失时不扣分。
-        - 原策略买入要求 RSI 超卖/回踩，强势股 RSI 通常偏高，被系统性排除；V4 把
-          RSI 40-70 视为健康动量，不再只奖励低 RSI。
-        - 原策略卖出用 RSI2 > 50，对趋势股太敏感；V4 改为跌破 MA20 或 RSI14 超买回落才卖出，
-          让趋势持仓能拿得住。
+        - V5（本次修复）：买入硬性要求 RSI14 <= 85 会系统性排除长电科技这类「长期 RSI>85
+          的强势上涨股」（buy=0）。改为「趋势为核心、动量不再惩罚高 RSI」：
+          * 动量因子重排，RSI14 70-92 区间给高分（强趋势可买入），仅极端泡沫(>92)降分；
+          * 买入 RSI 上限放宽到 98（仅挡极端泡沫），让趋势因子主导入场。
+        - 卖出端对趋势股太黏（仅跌破 MA20 才卖），强势股不破线就不平仓、交易不重复；
+          V5 增加「RSI14 极度超买(>=92)后回落」止盈退出，让趋势持仓能闭环、交易可重复。
 
         因子池（共 100 分）：
         1. 趋势因子（最高 50）：close > MA20 为基础，MA20 向上、MA20>MA60 额外加分
-        2. 动量因子（最高 30）：RSI14 健康区间 40-70 得高分；RSI2 低位仅作加分
+        2. 动量因子（最高 30）：RSI14 健康/强趋势区间给高分；RSI2 低位仅作加分
         3. 波动/风险因子（最高 15）：ATR 比率越低分越高，但强势股波动大也保底给分
         4. 量能因子（最高 15）：成交量与 MA20 的比值
 
-        买入条件：综合评分 >= 60，且收盘价在 MA20 上方（MA20 有效时）。
-        卖出条件：收盘价跌破 MA20，或 RSI14 从 80 以上回落至 75 以下。
+        买入条件：综合评分 >= 55，收盘价在 MA20 上方（MA20 有效时），且 RSI14 <= 98。
+        卖出条件：收盘价跌破 MA20 且 MA20 拐头向下；或 RSI14 极度超买(>=92)后回落至 90 以下。
         """
         signals = []
         for i in range(len(df)):
@@ -231,18 +233,22 @@ class Backtester:
                 trend_score += 15  # 仅站上 MA60（MA20 缺失或无效时）
             trend_score = min(trend_score, 50)
 
-            # 2. 动量因子（最高 30）—— 健康动量给高分，不再只买超卖
+            # 2. 动量因子（最高 30）—— 强趋势也高分，不再惩罚高 RSI（V5 修复）
+            #    长电科技类「长期 RSI>85 的强势上涨股」此前被系统性排除，现改为：
+            #    健康/强趋势区间(40-92)给高分，仅极端泡沫(>92)降分。
             rsi14 = curr["rsi14"]
             if 40 <= rsi14 <= 70:
                 momentum_score = 25
+            elif 70 < rsi14 <= 85:
+                momentum_score = 22      # 强趋势，可买入
+            elif 85 < rsi14 <= 92:
+                momentum_score = 18      # 超买但未极端，趋势仍强
             elif 30 <= rsi14 < 40:
                 momentum_score = 20
-            elif 70 < rsi14 <= 80:
-                momentum_score = 15
             elif rsi14 < 30:
                 momentum_score = 10
-            else:  # rsi14 > 80
-                momentum_score = 5
+            else:  # rsi14 > 92 极端泡沫，谨慎
+                momentum_score = 8
 
             rsi2 = curr["rsi2"]
             if rsi2 < 20:
@@ -284,18 +290,22 @@ class Backtester:
 
             total_score = trend_score + momentum_score + vol_score + volume_score
 
-            # 买入：评分 >= 60 且收盘价在 MA20 上方（或 MA20 缺失时默认允许）
+            # 买入：评分 >= 55 且收盘价在 MA20 上方（或 MA20 缺失时默认允许）
+            # V5：买入 RSI 上限从 85 放宽到 98，仅挡极端泡沫——让趋势因子主导入场，
+            # 避免长电科技类「长期 RSI>85 强势上涨股」被系统性排除。
             price_above_trend = (not ma20_valid) or (curr["close"] > curr["ma20"])
-            buy = total_score >= 60 and price_above_trend and rsi14 <= 85
+            buy = total_score >= 55 and price_above_trend and rsi14 <= 98
 
             # 防止连续买入
             if buy and signals and signals[-1] == 1:
                 buy = False
 
-            # 卖出：趋势走坏 或 RSI14 超买回落
-            ma_exit = ma20_valid and curr["close"] < curr["ma20"]
-            rsi_overbought_exit = rsi14 < 75 and prev["rsi14"] >= 80
-            sell = ma_exit or rsi_overbought_exit
+            # 卖出：趋势走坏 或 极度超买后回落止盈（V5，让强势股能闭环、交易可重复）
+            ma_exit = (ma20_valid and curr["close"] < curr["ma20"]
+                       and i >= 5 and not pd.isna(prev["ma20"])
+                       and curr["ma20"] < prev["ma20"])   # MA20 拐头向下才算趋势破
+            overbought_exit = rsi14 < 90 and prev["rsi14"] >= 92   # 极度超买(>=92)后回落
+            sell = ma_exit or overbought_exit
 
             if buy:
                 signals.append(1)
