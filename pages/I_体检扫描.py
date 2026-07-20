@@ -6,7 +6,6 @@ from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge, safe_switch_page, api_get
 from modules.fetcher import StockFetcher
 fetcher = StockFetcher()
-from modules.search_ui import stock_search_input
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 from modules.fundflow import get_individual_fund_flow

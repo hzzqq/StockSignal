@@ -378,8 +378,6 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
                 del st.session_state[k]
 
     dark = _theme_is_dark()
-    card_bg = "rgba(26,26,46,0.55)" if dark else "#FFFFFF"
-    border_color = "rgba(102,126,234,0.12)" if dark else "#E5E7EB"
     name_color = "#e2e8f0" if dark else "#111827"
     code_color = "#94a3b8" if dark else "#6B7280"
 

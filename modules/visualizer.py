@@ -282,6 +282,7 @@ class Visualizer:
             mode="markers",
             marker=dict(opacity=0, size=0),
             name="hover_proxy",
+            showlegend=False,
             customdata=np.stack(hover_data, axis=-1),
             hovertemplate=hover_template,
         ), row=1, col=1)
@@ -384,8 +385,17 @@ class Visualizer:
             xaxis_rangeslider_visible=False,
             template="starfield_dark" if _is_dark() else "plotly_white",
             height=550,
-            margin=dict(l=40, r=50, t=50, b=80),
-            showlegend=False,
+            margin=dict(l=40, r=50, t=80, b=80),
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="left",
+                x=0,
+                bgcolor="rgba(0,0,0,0)",
+                font=dict(color=SF_TXT if _is_dark() else "#374151", size=12),
+            ),
             hovermode="x",
             # 保留 zoom / reset / pan 按钮；仅移除 lasso / box-select / autoscale
             modebar=dict(remove=["select2d", "lasso2d", "autoScale2d"]),

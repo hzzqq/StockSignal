@@ -99,7 +99,6 @@ def get_industry_fund_flow():
         df = ak.stock_fund_flow_industry()
         if df is None or df.empty:
             return pd.DataFrame()
-        cols = ["行业", "行业-涨跌幅", "流入资金", "流出资金", "净额", "领涨股", "领涨股-涨跌幅"]
         rename = {
             "行业": "行业", "行业-涨跌幅": "涨跌幅", "流入资金": "流入资金",
             "流出资金": "流出资金", "净额": "净额", "领涨股": "领涨股",
@@ -367,7 +366,7 @@ def _estimate_individual_fund_flow(code):
         df = df.tail(20)
         total_mf = 0.0
         for _, r in df.iterrows():
-            high, low, close, open_, vol = r["high"], r["low"], r["close"], r["open"], r["volume"]
+            high, low, close, vol = r["high"], r["low"], r["close"], r["volume"]
             if high == low:
                 continue
             vwap = (high + low + close) / 3.0

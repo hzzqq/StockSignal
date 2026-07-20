@@ -206,7 +206,8 @@ def fragment_watchlist_monitor():
         return
 
     codes = [it["stock_code"] for it in items]
-    names = {it["stock_code"]: it.get("stock_name") or it["stock_code"] for it in items}
+    # 强制用本地库解析名称，避免后端 stock_name 为空或错误地显示代码
+    names = {code: (fetcher.get_name_only(code) or code) for code in codes}
 
     # 并行拉取实时行情
     with st.spinner(f"并行获取 {len(codes)} 只自选股实时行情…"):
@@ -245,7 +246,6 @@ def fragment_watchlist_monitor():
         if q and q.get("current"):
             cur = float(q["current"])
             prev = float(q.get("prev_close") or 0)
-            open_ = float(q.get("open") or 0)
             high = float(q.get("high") or 0)
             low = float(q.get("low") or 0)
             volume = int(q.get("volume") or 0)

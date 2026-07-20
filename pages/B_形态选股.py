@@ -13,10 +13,11 @@
 """
 import pandas as pd
 import streamlit as st
+import re
 from datetime import datetime, timedelta
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, api_get, api_kline, get_user_setting, save_user_setting
+from modules.session import require_auth, render_user_badge, api_get, api_kline, get_user_setting, save_user_setting, trading_autorefresh
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
@@ -26,6 +27,7 @@ from modules.search_ui import multi_stock_search_input, stock_search_input
 apply_page_config(page_title="形态选股", page_icon="🧭", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
+trading_autorefresh(key="pattern_autorefresh")
 render_user_badge(sidebar=True)
 
 dark = _theme_is_dark()
@@ -118,9 +120,15 @@ if source == "我的自选股":
     if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
         universe = [_norm_code(w["stock_code"]) for w in (body.get("data", []) or []) if w.get("stock_code")]
         if universe:
+            # 名称优先，显示 "名称(代码)"，超过 12 只省略
+            def _name_code(c):
+                n = fetcher.get_name_only(c)
+                return f"{n}({c})" if n else c
+            labels = [_name_code(c) for c in universe]
+            display = ", ".join(labels[:12])
             st.caption(
                 f"✅ 已从自选股加载 **{len(universe)}** 只："
-                f"{', '.join(universe[:12])}{' …' if len(universe) > 12 else ''}"
+                f"{display}{' …' if len(universe) > 12 else ''}"
             )
         else:
             st.warning("自选股为空，请先到「我的 / 自选股」添加，或切换为「手动输入代码」。")
@@ -182,20 +190,57 @@ else:
 
     st.divider()
 
-    # ── 📋 批量输入 ──
+    # ── 📋 批量输入（真正支持粘贴一长串代码/名称）──
     with st.container(border=True):
         _section_title("📋 批量输入")
-        st.caption("可一次粘贴多只股票（与上方扫描池合并去重）。")
+        st.caption("在下方文本框粘贴一串股票代码或名称，系统会自动识别并加入扫描池。")
+        pasted = st.text_area(
+            "粘贴股票代码或名称（逗号/空格/换行分隔）",
+            placeholder="例如：000938, 603259, 600584, 600519 或 紫光股份, 贵州茅台",
+            key="screener_paste_text",
+            height=80,
+        )
+        # 解析：按逗号/空格/换行/分号/中文逗号分隔，去空去重
+        raw_tokens = []
+        if pasted:
+            for token in re.split(r"[,\s;，；]+", str(pasted)):
+                token = token.strip()
+                if token:
+                    raw_tokens.append(token)
+        # 代码/名称 → 统一 6 位代码
+        resolved_codes = []
+        for tok in raw_tokens:
+            code = _norm_code(tok)
+            # 若本身是 6 位数字，直接保留
+            if code.isdigit() and len(code) == 6:
+                resolved_codes.append(code)
+            else:
+                # 尝试按名称反查代码
+                found = fetcher.get_code_by_name(tok)
+                if found and str(found).isdigit() and len(str(found)) == 6:
+                    resolved_codes.append(_norm_code(found))
+                else:
+                    # 保留原 token，扫描阶段会自然失败/跳过
+                    resolved_codes.append(code)
+        resolved_codes = [c for c in resolved_codes if c]
+
+        # 旧的搜索式批量输入保留，作为辅助
+        st.caption("或继续使用搜索框逐条/批量添加（与上方扫描池合并去重）。")
         raw = multi_stock_search_input(
-            label="或直接粘贴多只股票（代码/名称，逗号分隔，可留空）",
+            label="或直接选择多只股票（代码/名称，与上方粘贴结果合并去重）",
             key="screener_stocks",
             default="",
         )
-        manual_codes = [_norm_code(c) for c in (raw or [])]
+        search_codes = [_norm_code(c) for c in (raw or [])]
 
-    # 合并搜索池 + 批量输入，去重保序
-    universe = list(dict.fromkeys(st.session_state["screener_pool"] + manual_codes))
+        # 合并：粘贴 + 搜索 + 扫描池，去重保序
+        universe = list(dict.fromkeys(st.session_state["screener_pool"] + resolved_codes + search_codes))
 
+        if resolved_codes or search_codes:
+            st.caption(f"已识别 {len(resolved_codes)} 只（来自粘贴） + {len(search_codes)} 只（来自搜索），"
+                       f"合并后扫描池共 **{len(universe)}** 只。")
+
+    # 形态筛选 ─────────────────────────
 # ───────────────────────── 形态筛选 ─────────────────────────
 with st.container(border=True):
     _section_title("🧬 形态筛选", accent="#8b5bff")

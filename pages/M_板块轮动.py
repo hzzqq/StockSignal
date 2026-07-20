@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 import numpy as np
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, safe_switch_page
+from modules.session import require_auth, render_user_badge, trading_autorefresh
 from modules.fundflow import get_industry_fund_flow
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, render_data_degradation_banner
@@ -24,6 +24,7 @@ from modules.page_guard import safe_section, render_data_degradation_banner
 apply_page_config(page_title="板块轮动", page_icon="🔥", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
+trading_autorefresh(key="sector_autorefresh")
 render_user_badge(sidebar=True)
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)

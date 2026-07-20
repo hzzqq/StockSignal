@@ -14,7 +14,6 @@ v3 修正：
 - 修复 WELCOME 未定义错误。
 """
 
-import os
 import json
 import html
 import re
@@ -23,7 +22,7 @@ import streamlit as st
 
 from modules.ui_theme import apply_page_config, _theme_is_dark
 from modules.session import require_auth, get_user, render_user_badge
-from modules.starfield_theme import inject_plotly_dark, UP_COLOR, DOWN_COLOR
+from modules.starfield_theme import inject_plotly_dark
 from modules.background_tasks import submit_task_with_error, poll_task, get_chat_history, save_chat_history
 from modules.widgets import _slim_context
 from modules.widgets import STAR_AI_LOGO

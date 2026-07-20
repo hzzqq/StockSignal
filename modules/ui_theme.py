@@ -1515,7 +1515,10 @@ def apply_page_config(page_title: str, page_icon: str = None, layout: str = "wid
     # 此处兜底吞掉重复调用异常，避免嵌入场景整页崩溃（正常独立页不受影响）。
     try:
         _icon = page_icon or (ICON_SVG if os.path.exists(ICON_SVG) else "📈")
-        st.set_page_config(page_title=page_title, page_icon=_icon, layout=layout)
+        st.set_page_config(
+            page_title=page_title, page_icon=_icon, layout=layout,
+            initial_sidebar_state="expanded",
+        )
     except Exception:
         pass
 

@@ -30,6 +30,7 @@ import time
 import jwt
 import streamlit as st
 import requests
+from datetime import datetime
 
 from .ui_theme import FONT_DEFAULT
 
@@ -37,6 +38,26 @@ from .ui_theme import FONT_DEFAULT
 # 本地开发默认 http://127.0.0.1:5050；容器化部署（docker-compose）下由
 # STOCKSIGNAL_API_BASE=http://backend:5050 注入，前端容器借此跨容器访问后端。
 API_BASE = os.environ.get("STOCKSIGNAL_API_BASE", "http://127.0.0.1:5050")
+
+
+def trading_autorefresh(interval_ms: int = 60000, key: str = "auto_refresh"):
+    """交易时段（工作日 09:30-11:30 / 13:00-15:00）自动刷新当前页面数据，避免数据陈旧。
+
+    非交易时段（午休 / 收盘 / 周末）不刷新，避免无意义请求与界面闪烁。
+    统一替换各页散落的 `from streamlit_autorefresh import st_autorefresh` + 交易时段判断。
+    """
+    try:
+        from streamlit_autorefresh import st_autorefresh
+    except Exception:
+        return
+    now = datetime.now()
+    if now.weekday() >= 5:  # 周六 / 周日
+        return
+    t = now.time()
+    morning = datetime.strptime("09:30", "%H:%M").time() <= t <= datetime.strptime("11:30", "%H:%M").time()
+    afternoon = datetime.strptime("13:00", "%H:%M").time() <= t <= datetime.strptime("15:00", "%H:%M").time()
+    if morning or afternoon:
+        st_autorefresh(interval=interval_ms, limit=400, key=key)
 
 KEY_TOKEN = "auth_token"
 KEY_USER = "auth_user"

@@ -103,7 +103,7 @@ def _fmt_yi(x):
 def fragment_northbound():
     _section_title("🧭 北向资金（沪股通 / 深股通）", accent="#7c5cff")
     if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=120000, limit=200, key="nb_auto")
+        st_autorefresh(interval=60000, limit=200, key="nb_auto")
     try:
         nb = get_northbound_fund_flow()
     except Exception as e:
@@ -182,7 +182,7 @@ def fragment_northbound():
 def fragment_industry():
     _section_title("🏭 行业板块资金流向", accent="#2b8aef")
     if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=120000, limit=200, key="ind_auto")
+        st_autorefresh(interval=60000, limit=200, key="ind_auto")
     try:
         df = get_industry_fund_flow()
     except Exception as e:
@@ -221,7 +221,7 @@ def fragment_industry():
 def fragment_market():
     _section_title("📈 大盘主力资金净流入（近 30 日）", accent="#10b981")
     if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=120000, limit=200, key="mkt_auto")
+        st_autorefresh(interval=60000, limit=200, key="mkt_auto")
     try:
         df = get_market_fund_flow(days=30)
     except Exception as e:
@@ -249,8 +249,9 @@ def fragment_market():
         mode="lines+markers", line=dict(color="#f5a623", width=2),
         hovertemplate="%{x}<br>上证涨跌幅：%{y:.2f}%<extra></extra>",
     ))
+    _layout = {k: v for k, v in _fig_layout(dark).items() if k != "margin"}
     fig.update_layout(
-        **_fig_layout(dark), height=360,
+        **_layout, height=360,
         title="主力净流入（柱）与上证涨跌幅（线）",
         yaxis2=dict(title="涨跌幅%", overlaying="y", side="right", gridcolor="rgba(0,0,0,0)"),
         margin=dict(l=60, r=60, t=50, b=90),
@@ -269,7 +270,7 @@ def fragment_individual():
         st.info("请选择一只股票查看主力资金。")
         return
     if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=120000, limit=200, key="indv_auto")
+        st_autorefresh(interval=60000, limit=200, key="indv_auto")
     try:
         r = get_individual_fund_flow(code)
     except Exception as e:

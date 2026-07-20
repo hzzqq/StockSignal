@@ -1118,7 +1118,6 @@ def _norm(vals: List[float]) -> List[float]:
 def _event_stance(stock: Dict[str, Any], event_text: str) -> Tuple[float, str]:
     """计算单只股票对某事件的业务关联度(0-100)与多空立场。"""
     ind = stock.get("industry") or ""
-    name = stock.get("name") or ""
     text = event_text or ""
     # 抽取事件关键词：中文 2+ 连串 + 其 2-gram + 英文大写词
     cn_runs = re.findall(r"[\u4e00-\u9fa5]{2,}", text)

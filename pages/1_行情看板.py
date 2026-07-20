@@ -255,6 +255,14 @@ def _load_lhb(date_str: str):
 @st.fragment
 def fragment_lhb():
     st.markdown("---")
+    # 交易时段每 60 秒自动刷新龙虎榜数据
+    try:
+        from streamlit_autorefresh import st_autorefresh
+        is_open, _, _ = _get_market_status()
+        if is_open:
+            st_autorefresh(interval=60000, key="lhb_autorefresh")
+    except Exception:
+        pass
     with st.expander("🐉 龙虎榜（点击展开/收起）", expanded=True):
         st.caption("当日机构/游资活跃个股（数据来源：东方财富龙虎榜）")
 

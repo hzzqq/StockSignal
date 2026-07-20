@@ -11,13 +11,12 @@
 支持按类型筛选、标记已读、点击跳转到对应模块。
 """
 import streamlit as st
-import pandas as pd
 from datetime import datetime
 import concurrent.futures as _cf
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import (
-    require_auth, render_user_badge, safe_switch_page, api_get, get_user, get_token,
+    require_auth, render_user_badge, safe_switch_page, api_get, trading_autorefresh,
 )
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, render_data_degradation_banner
@@ -25,6 +24,7 @@ from modules.page_guard import safe_section, render_data_degradation_banner
 apply_page_config(page_title="消息中心", page_icon="🔔", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
+trading_autorefresh(key="message_autorefresh")
 render_user_badge(sidebar=True)
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)

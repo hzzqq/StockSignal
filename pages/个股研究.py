@@ -17,8 +17,9 @@ from modules.ui_theme import apply_page_config
 apply_page_config(page_title="个股研究", page_icon="🎯", layout="wide")
 st.session_state["_active_page"] = __file__
 
-from modules.session import require_auth, render_user_badge
+from modules.session import require_auth, render_user_badge, trading_autorefresh
 require_auth()
+trading_autorefresh(key="hub_autorefresh")
 render_user_badge(sidebar=True)
 
 _HERE = os.path.dirname(__file__)

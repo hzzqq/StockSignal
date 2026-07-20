@@ -24,10 +24,11 @@ from modules.signal import SignalEngine
 from modules.fetcher import StockFetcher
 from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
 from modules.search_ui import stock_search_input
-from modules.session import require_auth, render_user_badge, api_kline
+from modules.session import require_auth, render_user_badge, api_kline, trading_autorefresh
 
 # ── 鉴权门禁（未登录直接 stop）──
 require_auth()
+trading_autorefresh(key="event_autorefresh")
 render_user_badge(sidebar=True)
 
 # ── 初始化所有功能模块的 session_state key（避免 KeyError 或意外丢失）──

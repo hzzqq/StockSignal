@@ -19,7 +19,7 @@ from modules.signal import SignalEngine
 from modules.session import (
     require_auth, render_user_badge, api_kline,
     api_post, api_add_junk_stock, api_user_score, api_save_user_score,
-    get_user,
+    get_user, trading_autorefresh,
 )
 
 apply_page_config(page_title="股票选取", page_icon="🎯", layout="wide")
@@ -36,6 +36,7 @@ if _qp_code:
         pass
 
 require_auth()
+trading_autorefresh(key="pick_autorefresh")
 render_user_badge(sidebar=True)
 
 
@@ -103,6 +104,8 @@ def _render_user_score(ticker: str, stock_label: str) -> None:
             res = api_save_user_score(ticker, score_val, stock_label)
             if res.get("status") == "ok":
                 st.session_state[_ss_key] = score_val
+                # 清除旧 slider key，确保下次渲染从已保存值重新初始化（避免残留 50）
+                st.session_state.pop(f"pick_user_score_{ticker}", None)
                 st.success(f"✅ 评分已保存：{score_val} 分")
             else:
                 st.error(f"保存失败：{res.get('message', '未知错误')}")
@@ -319,7 +322,6 @@ try:
         fig = Visualizer.candlestick(df, title=f"{stock_label} {period_label}",
                                      ma_windows=ma_windows, show_volume=True,
                                      start_idx=view_start, n_show=view_count)
-        st.markdown(Visualizer.kline_legend_html(ma_windows=ma_windows), unsafe_allow_html=True)
         st.plotly_chart(fig, width="stretch", key="pick_kline_chart")
 except Exception as e:
     st.warning(f"⚠️ 数据获取遇到网络波动：{str(e)[:80]}。已为你使用最近一次缓存数据。")

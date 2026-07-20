@@ -17,10 +17,9 @@ import pandas as pd
 import concurrent.futures as cf
 from datetime import datetime
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, safe_switch_page, api_get
+from modules.session import require_auth, render_user_badge, safe_switch_page, api_get, api_post, api_delete
 from modules.fundflow import get_industry_fund_flow, get_individual_fund_flow
 from modules.fetcher import StockFetcher
-from modules.search_ui import stock_search_input
 from modules.page_guard import safe_fragment
 
 apply_page_config(page_title="智能盯盘", page_icon="👁️", layout="wide")

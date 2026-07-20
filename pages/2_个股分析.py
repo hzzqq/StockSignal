@@ -243,13 +243,14 @@ def _render_analysis(R: dict):
             "</div>", unsafe_allow_html=True)
 
     st.markdown(
-        f"<div style='font-size:13px;color:var(--txt2);margin-top:12px;line-height:1.7;'>"
-        f"<b style='color:var(--txt);'>仓位建议：</b>{position_advice}</div>",
+        f"<div style='margin-top:14px;border-left:4px solid var(--acc1);background:var(--card2);"
+        f"border-radius:0 12px 12px 0;padding:12px 16px;font-size:13.5px;color:var(--txt2);line-height:1.7;'>"
+        f"<b style='color:var(--txt);'>📌 仓位建议：</b>{position_advice}</div>",
         unsafe_allow_html=True,
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # ════════════ 模块2：核心结论 ════════════
+    # ════════════ 模块2：核心结论（视觉强化）══════════
     st.markdown('<div class="sf-card">' + _section_header("核心结论", "AI 综合研判 · 多空信号", "💡"), unsafe_allow_html=True)
     trend_label = trend.get("trend_label", "—") if "error" not in trend else "数据不足"
     mom_label = momentum.get("momentum_label", "—") if "error" not in momentum else "—"
@@ -259,12 +260,74 @@ def _render_analysis(R: dict):
         f"动量「{mom_label}」、量能「{vol_label}」；新闻情绪正面占比 {pos_pct:.0f}%，"
         f"综合研判 <b>{verdict}</b>。"
     )
-    hold_cls = " hold" if verdict == "持有" else ""
-    st.markdown(f'<div class="sf-insight-box{hold_cls}">{one_line}</div>', unsafe_allow_html=True)
     st.markdown(
+        f"<div style='border-radius:14px;padding:18px 20px;"
+        f"background:linear-gradient(135deg, {verdict_color}22, {verdict_color}08);"
+        f"border:1px solid {verdict_color}55;'>"
+        f"<div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;'>"
+        f"<div style='font-size:22px;font-weight:800;color:{verdict_color};'>{verdict} · {display_name}</div>"
+        f"<span class='sf-tag {verdict_cls}' style='font-size:13px;padding:5px 14px;'>{badge_text}</span>"
+        f"</div>"
+        f"<div style='margin-top:10px;font-size:14px;color:var(--txt);line-height:1.8;'>{one_line}</div>"
+        f"<div style='margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;'>"
+        f"<span class='sf-tag neu'>综合评分 {composite}</span>"
         f"<span class='sf-tag {verdict_cls}'>信号 · {verdict}</span>"
         f"<span class='sf-tag neu'>策略 · {'分批建仓' if verdict=='看多' else ('逢高减仓' if verdict=='看空' else '区间波段')}</span>"
-        f"<span class='sf-tag neu'>适用 · 事件驱动 / 中短线</span>",
+        f"<span class='sf-tag neu'>适用 · 事件驱动 / 中短线</span>"
+        f"</div></div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ════════════ 模块2.5：综合信息（舆情 / 评分 / 五维 / 关联板块 / 股评）══════════
+    st.markdown('<div class="sf-card">' + _section_header("综合信息", "舆情 · 评分 · 五维 · 关联板块", "🧩"), unsafe_allow_html=True)
+    _sec = sector_analysis or {}
+    _sec_name = _sec.get("name") or industry or "—"
+    _sec_chg = _sec.get("change_pct")
+    _sec_chg_txt = f"{_sec_chg:+.2f}%" if isinstance(_sec_chg, (int, float)) else "—"
+    _sec_rank = _sec.get("rank")
+    _sec_total = _sec.get("total")
+    _sec_rank_txt = f"{_sec_rank}/{_sec_total}" if isinstance(_sec_rank, (int, float)) and isinstance(_sec_total, (int, float)) else "—"
+    st.markdown(
+        "<div class='sf-grid-4'>"
+        "<div class='sf-perspective-card'>"
+        f"<div class='title'>舆情热度（近 {len(news_rows)} 条）</div>"
+        "<div class='body'>"
+        f"<span style='color:var(--buy);font-weight:700;'>正面 {pos_pct:.0f}%</span> / "
+        f"<span style='color:var(--sell);font-weight:700;'>负面 {neg_pct:.0f}%</span>"
+        "<div style='margin-top:8px;height:8px;border-radius:4px;background:var(--sell);overflow:hidden;'>"
+        f"<div style='height:100%;width:{pos_pct:.0f}%;background:var(--buy);'></div></div>"
+        "</div></div>"
+        "<div class='sf-perspective-card'>"
+        "<div class='title'>综合评分</div>"
+        "<div class='body' style='display:flex;align-items:baseline;gap:8px;'>"
+        f"<span style='font-size:30px;font-weight:800;color:{verdict_color};'>{composite}</span>"
+        f"<span class='sf-tag {verdict_cls}'>{verdict}</span>"
+        "</div></div>"
+        "<div class='sf-perspective-card'>"
+        "<div class='title'>五维评分拆解</div>"
+        "<div class='body'>"
+        f"<span class='sf-pill {_tp_cls(tech_score)}'>技术 {tech_score}</span>"
+        f"<span class='sf-pill {_tp_cls(news_score)}'>舆情 {news_score}</span>"
+        f"<span class='sf-pill {_tp_cls(vol_score)}'>量能 {vol_score}</span>"
+        f"<span class='sf-pill {_tp_cls(macro_score)}'>宏观 {macro_score}</span>"
+        f"<span class='sf-pill {_tp_cls(sector_score)}'>板块 {sector_score}</span>"
+        "</div></div>"
+        "<div class='sf-perspective-card'>"
+        f"<div class='title'>关联板块 · {board or '—'}</div>"
+        "<div class='body'>"
+        f"{industry or '—'} · {_sec_name}<br>"
+        f"板块涨跌 {_sec_chg_txt} · 排名 {_sec_rank_txt}"
+        "</div></div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<div style='margin-top:12px;font-size:13px;color:var(--txt2);line-height:1.7;'>"
+        f"<b style='color:var(--txt);'>📝 股评：</b>技术面 {tech_score} 分、舆情 {news_score} 分、"
+        f"量能 {vol_score} 分、宏观 {macro_score} 分、板块 {sector_score} 分，"
+        f"综合研判 <b>{verdict}</b>，建议{'分批建仓' if verdict=='看多' else ('逢高减仓' if verdict=='看空' else '区间波段')}。"
+        f"</div>",
         unsafe_allow_html=True,
     )
     st.markdown("</div>", unsafe_allow_html=True)
@@ -395,14 +458,6 @@ def _render_analysis(R: dict):
         else:
             period_df = DataCleaner.full_pipeline(_kdf.copy())
 
-    st.markdown(
-        Visualizer.kline_legend_html(
-            ma_windows=[5, 10, 20],
-            up_color=RED, down_color=GREEN,
-            ma_colors=["#ffa502", "#667eea", "#009e60"],
-        ),
-        unsafe_allow_html=True,
-    )
     try:
         # 参考文档 002947：绿涨红跌、MA5橙/MA10靛/MA20绿、
         # 标注 MA20压制(红虚) / MA10(靛虚) / 前低支撑(绿虚) / 套牢区(琥珀点)

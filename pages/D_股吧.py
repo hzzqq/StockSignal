@@ -10,12 +10,13 @@ import streamlit as st
 from modules.ui_theme import apply_page_config, dashboard_sf_css
 from modules.session import (
     require_auth, render_user_badge, get_user, safe_switch_page,
-    api_get, api_post, api_delete,
+    api_get, api_post, api_delete, trading_autorefresh,
 )
 
 apply_page_config(page_title="股吧", page_icon="💬", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
+trading_autorefresh(key="forum_autorefresh")
 render_user_badge(sidebar=True)
 
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)

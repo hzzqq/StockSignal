@@ -17,7 +17,7 @@ import os
 from datetime import datetime
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, get_user, safe_switch_page
+from modules.session import require_auth, render_user_badge, get_user, trading_autorefresh
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section
 from modules.search_ui import stock_search_input
@@ -25,6 +25,7 @@ from modules.search_ui import stock_search_input
 apply_page_config(page_title="模拟交易", page_icon="🎮", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
+trading_autorefresh(key="paper_autorefresh")
 render_user_badge(sidebar=True)
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)

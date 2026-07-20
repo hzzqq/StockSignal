@@ -325,7 +325,6 @@ def main():
                 )
             st.session_state["quant_result"] = state.to_dict()
         except Exception as e:
-            import traceback
             st.exception(e)
 
     _result_panel()

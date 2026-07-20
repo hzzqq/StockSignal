@@ -17,16 +17,20 @@ from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import (
     require_auth, render_user_badge,
     api_get, api_post, api_put, api_delete, api_quote, api_kline,
+    trading_autorefresh,
 )
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 from modules.search_ui import stock_search_input
-import modules.fundflow as _ff  # 副作用：确保 akshare 经本地代理访问（资金/新闻源）
+# 副作用：导入即确保 akshare 经本地代理访问（资金/新闻源）——设置 HTTP(S)_PROXY 并关闭证书校验
+from modules.fundflow import _ensure_proxy_and_ssl
+_ensure_proxy_and_ssl()
 
 apply_page_config(page_title="多维预警", page_icon="🔔", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
+trading_autorefresh(key="alert_autorefresh")
 render_user_badge(sidebar=True)
 
 dark = _theme_is_dark()
@@ -266,6 +270,9 @@ else:
     for idx, a in enumerate(alerts):
         atype = a.get("alert_type", "price")
         triggered, detail = eval_results[idx] if idx < len(eval_results) else (False, "评估异常")
+        # 强制解析股票名称，避免后端 stock_name 为空导致显示代码
+        code = a["stock_code"]
+        display_name = fetcher.get_name_only(code) or a.get("stock_name") or code
         if atype == "price":
             cond_txt = "涨破 ▲" if a.get("condition") == "above" else "跌破 ▼"
             desc = f"当{cond_txt} **{float(a.get('target_price') or 0):.2f}**"
@@ -306,8 +313,8 @@ else:
         col_info, col_status, col_toggle, col_del = st.columns([4, 2, 1.2, 1.2])
         with col_info:
             st.markdown(
-                f"{ALERT_TYPE_LABEL.get(atype, atype)} **{a['stock_name'] or a['stock_code']}** "
-                f"`{a['stock_code']}` ｜ {desc}",
+                f"{ALERT_TYPE_LABEL.get(atype, atype)} **{display_name}** "
+                f"`{code}` ｜ {desc}",
                 help=f"创建于 {a.get('created_at', '')[:19]}\n检测：{detail}",
             )
         with col_status:

@@ -11,16 +11,13 @@
 
 数据以现有 StockFetcher 为主，缺失时降级展示，避免页面崩溃。
 """
-import contextlib
-import requests
 import streamlit as st
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, safe_switch_page
+from modules.session import require_auth, render_user_badge, safe_switch_page, trading_autorefresh
 from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
 from modules.visualizer import UP_COLOR, DOWN_COLOR
@@ -29,6 +26,7 @@ from modules import fundflow as ff
 apply_page_config(page_title="基本面分析", page_icon="🏛️", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
+trading_autorefresh(key="fundamental_autorefresh")
 render_user_badge(sidebar=True)
 
 dark = _theme_is_dark()
@@ -55,10 +53,10 @@ from modules.ssl_helper import ssl_bypass as _ssl_bypass
 
 # 纯函数簇与常量已抽到 modules.fundamental_helpers（#408），此处导入复用
 from modules.fundamental_helpers import (
-    _to_num, _find_col, _find_period_col, _extract_metric_series,
+    _to_num, _find_col, _extract_metric_series,
     _period_label, _compute_yoy, _compute_qoq, _FINANCIAL_METRICS,
     _fmt_fin_value, _fmt_fin_yoy, _fmt_fin_qoq, _to_float, _percentile,
-    _pe_status, _tag, _INDUSTRY_SECTOR_MAP, _normalize_industry,
+    _pe_status, _tag,
     _find_sector_name, _sector_rank, _composite_score,
 )
 
