@@ -19,6 +19,12 @@ from modules.fundflow import (
 from modules.margin_trading import (
     get_margin_trading_data, plot_margin_trend, get_latest_margin_summary,
 )
+from modules.linear_trends import (
+    get_northbound_history_series, plot_northbound_history,
+    get_individual_fund_flow_series, plot_individual_series,
+    get_index_series, plot_index_series,
+    get_market_cumulative_series, plot_market_cumulative,
+)
 from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
 
@@ -179,6 +185,18 @@ def fragment_northbound():
         if df["资金净流入"].abs().sum() == 0:
             st.caption("提示：当前交易日北向资金净买额为 0（休市 / 尚未披露）。")
 
+    # 北向资金历史趋势（线性表达）：当日净买额 + 历史累计净买额
+    try:
+        hist = get_northbound_history_series()
+    except Exception as e:
+        hist = None
+        st.warning(f"北向历史序列加载失败：{e}")
+    if hist is not None and not hist.empty:
+        st.plotly_chart(plot_northbound_history(hist, dark_mode=dark),
+                        use_container_width=True, config={"displayModeBar": False})
+        st.caption("📈 北向资金历史趋势（线性表达）：紫色面积=当日成交净买额，蓝色线=历史累计净买额。"
+                   "交易所自 2024-08-16 起停止披露实时净买额，故近期序列末端可能空白或持平。")
+
 
 # ───────────────────────── 行业板块资金流向 ─────────────────────────
 @st.fragment
@@ -263,6 +281,18 @@ def fragment_market():
     fig.update_xaxes(tickangle=-45)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
+    # 大盘主力资金累计净流入（线性表达：累计面积线 + 当日细线）
+    try:
+        cum = get_market_cumulative_series(days=60)
+    except Exception as e:
+        cum = None
+        st.warning(f"大盘累计资金加载失败：{e}")
+    if cum is not None and not cum.empty:
+        st.plotly_chart(plot_market_cumulative(cum, dark_mode=dark),
+                        use_container_width=True, config={"displayModeBar": False})
+        st.caption("📈 大盘主力资金累计净流入（线性表达）：面积线为累计值，橙色细线为逐日主力净流入。"
+                   "连续红（正）表示主力持续净流入，绿（负）表示持续净流出。")
+
 
 # ───────────────────────── 融资融券趋势（融资买入额 & 融资余额） ─────────────────────────
 @st.fragment
@@ -340,6 +370,42 @@ def fragment_individual():
     elif r.get("source") == "akshare":
         st.caption("数据来源：东方财富实时资金流。")
 
+    # 个股主力资金逐日趋势（线性表达）
+    try:
+        sdf = get_individual_fund_flow_series(code, days=60)
+    except Exception as e:
+        sdf = None
+        st.warning(f"个股资金趋势加载失败：{e}")
+    if sdf is not None and not sdf.empty and sdf.attrs.get("source") != "none":
+        st.plotly_chart(plot_individual_series(sdf, name=name, code=code, dark_mode=dark),
+                        use_container_width=True, config={"displayModeBar": False})
+        if sdf.attrs.get("source") == "estimate":
+            st.caption("📈 个股主力资金逐日趋势（线性表达，量价模型估算）：面积线=主力净流入，"
+                       "超大单/大单为经验拆分（图例可切换）。仅反映近期量价博弈方向。")
+        else:
+            st.caption("📈 个股主力资金逐日趋势（线性表达，东方财富真实数据）：面积线=主力净流入，"
+                       "超大单/大单可在图例展开。")
+
+
+# ───────────────────────── 三大指数走势对比（线性表达） ─────────────────────────
+@st.fragment
+def fragment_index_trend():
+    _section_title("📊 三大指数走势对比（归一化）", accent="#2b8aef")
+    if st_autorefresh is not None and _in_trading_hours():
+        st_autorefresh(interval=60000, limit=200, key="idx_auto")
+    try:
+        idx = get_index_series(days=180)
+    except Exception as e:
+        st.error(f"指数走势加载失败：{e}")
+        return
+    if idx is None or idx.empty:
+        st.info("暂无指数走势数据。")
+        return
+    fig = plot_index_series(idx, dark_mode=dark)
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.caption("📈 三大指数走势对比（线性表达，归一化起点=100）：用于横向比较上证 / 深证成指 / 创业板指"
+               "的相对强弱，而非绝对点位。")
+
 
 # ───────────────────────── 页面主体 ─────────────────────────
 fragment_northbound()
@@ -351,3 +417,5 @@ st.markdown("---")
 fragment_margin_trading()
 st.markdown("---")
 fragment_individual()
+st.markdown("---")
+fragment_index_trend()
