@@ -16,6 +16,9 @@ from modules.fundflow import (
     get_market_fund_flow, get_individual_fund_flow,
     get_market_wide_snapshot,
 )
+from modules.margin_trading import (
+    get_margin_trading_data, plot_margin_trend, get_latest_margin_summary,
+)
 from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
 
@@ -261,6 +264,47 @@ def fragment_market():
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
+# ───────────────────────── 融资融券趋势（融资买入额 & 融资余额） ─────────────────────────
+@st.fragment
+def fragment_margin_trading():
+    _section_title("📊 融资融券趋势（融资买入额 & 三大指数）", accent="#f59e0b")
+    if st_autorefresh is not None and _in_trading_hours():
+        st_autorefresh(interval=60000, limit=200, key="margin_auto")
+
+    metric = st.radio(
+        "指标", ["rzmr", "rzye"],
+        format_func=lambda x: "融资买入额" if x == "rzmr" else "融资余额",
+        horizontal=True, key="margin_metric",
+    )
+
+    try:
+        df = get_margin_trading_data(days=180)
+    except Exception as e:
+        st.error(f"融资融券数据加载失败：{e}")
+        return
+    if df is None or df.empty:
+        st.info("暂无融资融券数据。")
+        return
+
+    summary = get_latest_margin_summary()
+    cols = st.columns(4)
+    with cols[0]:
+        st.metric("融资买入额(最新)", f"{summary.get('total_rzmr_yi'):.2f}亿" if summary.get('total_rzmr_yi') is not None else "—",
+                  delta=f"{summary.get('rzmr_change_yi'):+.2f}亿" if summary.get('rzmr_change_yi') is not None else None)
+    with cols[1]:
+        st.metric("融资余额(最新)", f"{summary.get('total_rzye_yi'):.2f}亿" if summary.get('total_rzye_yi') is not None else "—",
+                  delta=f"{summary.get('rzye_change_yi'):+.2f}亿" if summary.get('rzye_change_yi') is not None else None)
+    with cols[2]:
+        st.metric("沪市买入额", f"{summary.get('sh_rzmr_yi'):.2f}亿" if summary.get('sh_rzmr_yi') is not None else "—")
+    with cols[3]:
+        st.metric("深市买入额", f"{summary.get('sz_rzmr_yi'):.2f}亿" if summary.get('sz_rzmr_yi') is not None else "—")
+
+    fig = plot_margin_trend(df, dark_mode=dark, metric=metric)
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.caption("数据来源：东方财富融资融券（沪+深），指数叠加辅助判断杠杆资金与大盘节奏关系。"
+               "北交所暂无公开宏观融资融券序列，故合计未包含 BJ。")
+
+
 # ───────────────────────── 个股主力资金 ─────────────────────────
 @st.fragment
 def fragment_individual():
@@ -303,5 +347,7 @@ st.markdown("---")
 fragment_industry()
 st.markdown("---")
 fragment_market()
+st.markdown("---")
+fragment_margin_trading()
 st.markdown("---")
 fragment_individual()

@@ -78,6 +78,29 @@ def _cached(ttl, key, fn):
     return val
 
 
+def _retry_with_backoff(max_retries=3, base_delay=1.0):
+    """对 akshare 网络调用做指数退避重试，缓解偶发 RemoteDisconnected / Connection aborted。"""
+    def deco(fn):
+        def wrapper(*args, **kwargs):
+            last_exc = None
+            for attempt in range(max_retries):
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as e:
+                    last_exc = e
+                    err_str = str(e).lower()
+                    # 仅对网络层错误重试；业务错误立即抛出
+                    if any(k in err_str for k in ("connection aborted", "remotedisconnected",
+                                                   "connection reset", "timeout", "timed out")):
+                        if attempt < max_retries - 1:
+                            time.sleep(base_delay * (2 ** attempt))
+                            continue
+                    raise
+            raise last_exc
+        return wrapper
+    return deco
+
+
 def _to_wan_yi(x):
     """把金额(元)格式化为 亿/万 文本。"""
     try:
@@ -93,8 +116,12 @@ def _to_wan_yi(x):
 
 # ───────────────────────── 板块资金流向 ─────────────────────────
 def get_industry_fund_flow():
-    """行业/板块资金流向。返回 DataFrame(行业, 涨跌幅, 流入资金, 流出资金, 净额, 领涨股, 领涨股涨跌幅)。"""
-    def _fn():
+    """行业/板块资金流向。返回 DataFrame(行业, 涨跌幅, 流入资金, 流出资金, 净额, 领涨股, 领涨股涨跌幅)。
+
+    对网络层错误做指数退避重试；最终失败返回空 DataFrame，避免页面红错。
+    """
+    @_retry_with_backoff(max_retries=3, base_delay=1.0)
+    def _fetch():
         import akshare as ak
         df = ak.stock_fund_flow_industry()
         if df is None or df.empty:
@@ -107,6 +134,14 @@ def get_industry_fund_flow():
         df = df.rename(columns=rename)
         keep = [c for c in ["行业", "涨跌幅", "流入资金", "流出资金", "净额", "领涨股", "领涨股涨跌幅"] if c in df.columns]
         return df[keep].copy()
+
+    def _fn():
+        try:
+            return _fetch()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"get_industry_fund_flow 最终失败：{e}")
+            return pd.DataFrame()
     return _cached(300, "industry_ff", _fn)
 
 
@@ -169,9 +204,21 @@ def get_northbound_fund_flow():
     由 UI 明确区分「实时未披露」与「最近一次真实披露」，避免空白或误导性的 0。
     板块涨跌家数 / 指数涨跌幅 / 港股通南向 仍为实时真实数据。
     """
+    @_retry_with_backoff(max_retries=3, base_delay=1.0)
+    def _fetch_summary():
+        import akshare as ak
+        return ak.stock_hsgt_fund_flow_summary_em()
+
     def _fn():
         import akshare as ak
-        df = ak.stock_hsgt_fund_flow_summary_em()
+        try:
+            df = _fetch_summary()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"get_northbound_fund_flow 初始接口最终失败：{e}")
+            return {"boards": [], "trade_date": None, "total_inflow": None,
+                    "sh_inflow": None, "sz_inflow": None,
+                    "northbound_net_available": False}
         if df is None or df.empty:
             return {"boards": [], "trade_date": None, "total_inflow": None,
                     "sh_inflow": None, "sz_inflow": None,
@@ -247,8 +294,13 @@ def get_northbound_fund_flow():
 
 # ───────────────────────── 大盘资金流向 ─────────────────────────
 def get_market_fund_flow(days=30):
-    """大盘主力/超大单/大单净流入历史序列。返回 DataFrame(日期, 上证-涨跌幅, 主力净流入-净额, 超大单净流入-净额, 大单净流入-净额)。"""
-    def _fn():
+    """大盘主力/超大单/大单净流入历史序列。返回 DataFrame(日期, 上证-涨跌幅, 主力净流入-净额, 超大单净流入-净额, 大单净流入-净额)。
+
+    对 akshare 做指数退避重试，缓解偶发 RemoteDisconnected / Connection aborted。
+    若最终仍失败则返回空 DataFrame，由页面展示兜底提示而非报错。
+    """
+    @_retry_with_backoff(max_retries=3, base_delay=1.0)
+    def _fetch():
         import akshare as ak
         df = ak.stock_market_fund_flow()
         if df is None or df.empty:
@@ -260,6 +312,15 @@ def get_market_fund_flow(days=30):
         if "日期" in df.columns and len(df) > days:
             df = df.tail(days).reset_index(drop=True)
         return df
+
+    def _fn():
+        try:
+            return _fetch()
+        except Exception as e:
+            # 网络最终失败：记录日志并返回空 DataFrame，避免页面红错
+            import logging
+            logging.getLogger(__name__).warning(f"get_market_fund_flow 最终失败：{e}")
+            return pd.DataFrame()
     return _cached(600, f"market_ff_{days}", _fn)
 
 

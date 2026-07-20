@@ -228,7 +228,7 @@ with st.expander("➕ 新建预警", expanded=False):
         params = {"keyword": kw}
         st.caption("近期新闻/公告标题或内容包含该关键词即触发。")
 
-    submitted = st.form_submit_button("保存预警", type="primary", use_container_width=True)
+    submitted = st.button("保存预警", type="primary", use_container_width=True)
     if submitted:
         if not code:
             st.error("请选择股票")

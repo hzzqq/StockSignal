@@ -16,8 +16,6 @@ QuantAgent 多智能体投研 · StockSignal 新页面（精致版）
 
 from __future__ import annotations
 
-import time
-
 import streamlit as st
 
 try:
@@ -250,8 +248,8 @@ def _result_panel():
             if st_autorefresh is not None:
                 st_autorefresh(interval=1000, limit=240, key="quant_autorefresh")
             else:
-                time.sleep(1.0)
-                st.rerun()
+                # fallback：不阻塞、不重跑整页；让用户手动刷新
+                st.caption("⏳ 任务运行中，请稍后刷新页面查看结果。")
             return
 
     if st.session_state.get("quant_result") is not None:
