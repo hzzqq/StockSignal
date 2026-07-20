@@ -7,7 +7,7 @@ A股配色：资金净流入=红，净流出=绿（与红涨绿跌一致）。
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge
@@ -24,6 +24,8 @@ from modules.linear_trends import (
     get_individual_fund_flow_series, plot_individual_series,
     get_index_series, plot_index_series,
     get_market_cumulative_series, plot_market_cumulative,
+    get_industry_index_series, get_etf_series,
+    plot_normalized_multi, ETF_NAMES_MAP,
 )
 from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
@@ -60,6 +62,9 @@ fetcher = _get_fetcher()
 # 填充各自缓存后三个 fragment 直接命中缓存（秒开）；后续脚本重跑命中缓存亦近乎瞬时。
 try:
     get_market_wide_snapshot()
+    # 预热行业指数 / ETF 趋势序列缓存，避免两个新 fragment 首屏卡顿
+    get_industry_index_series(top_n=8, days=120)
+    get_etf_series(days=180)
 except Exception:
     pass
 
@@ -105,6 +110,33 @@ def _fmt_yi(x):
     if abs(x) >= 1e4:
         return f"{x/1e4:.1f}万"
     return f"{x:.0f}"
+
+
+def _trend_controls(key_prefix, days_default=120):
+    """线性图交互控件：区间选择（date_input）+ 均线叠加（multiselect）。
+
+    返回 (date_range, ma_periods)。数据走缓存不触网，仅重跑所在 fragment。
+    """
+    col1, col2 = st.columns([2, 2])
+    with col1:
+        end_d = datetime.now().date()
+        start_d = (datetime.now() - timedelta(days=days_default)).date()
+        dr = st.date_input(
+            "区间", value=(start_d, end_d),
+            max_value=end_d, key=f"{key_prefix}_dr",
+        )
+    with col2:
+        ma = st.multiselect(
+            "均线叠加", options=[5, 10, 20, 60], default=[],
+            format_func=lambda x: f"MA{x}", key=f"{key_prefix}_ma",
+            help="叠加移动平均线（虚线，图例中可单独开关）",
+        )
+    date_range = None
+    if isinstance(dr, (tuple, list)) and len(dr) == 2:
+        date_range = (dr[0], dr[1])
+    elif dr is not None:
+        date_range = (dr, dr)
+    return date_range, tuple(ma)
 
 
 # ───────────────────────── 北向资金 ─────────────────────────
@@ -192,10 +224,12 @@ def fragment_northbound():
         hist = None
         st.warning(f"北向历史序列加载失败：{e}")
     if hist is not None and not hist.empty:
-        st.plotly_chart(plot_northbound_history(hist, dark_mode=dark),
+        dr, ma = _trend_controls("nb", days_default=365)
+        st.plotly_chart(plot_northbound_history(hist, dark_mode=dark, date_range=dr, ma_periods=ma),
                         use_container_width=True, config={"displayModeBar": False})
         st.caption("📈 北向资金历史趋势（线性表达）：紫色面积=当日成交净买额，蓝色线=历史累计净买额。"
-                   "交易所自 2024-08-16 起停止披露实时净买额，故近期序列末端可能空白或持平。")
+                   "交易所自 2024-08-16 起停止披露实时净买额，故近期序列末端可能空白或持平。"
+                   "可用上方「区间 / 均线叠加」交互筛选。")
 
 
 # ───────────────────────── 行业板块资金流向 ─────────────────────────
@@ -288,10 +322,11 @@ def fragment_market():
         cum = None
         st.warning(f"大盘累计资金加载失败：{e}")
     if cum is not None and not cum.empty:
-        st.plotly_chart(plot_market_cumulative(cum, dark_mode=dark),
+        dr, ma = _trend_controls("mkt_cum", days_default=60)
+        st.plotly_chart(plot_market_cumulative(cum, dark_mode=dark, date_range=dr, ma_periods=ma),
                         use_container_width=True, config={"displayModeBar": False})
         st.caption("📈 大盘主力资金累计净流入（线性表达）：面积线为累计值，橙色细线为逐日主力净流入。"
-                   "连续红（正）表示主力持续净流入，绿（负）表示持续净流出。")
+                   "连续红（正）表示主力持续净流入，绿（负）表示持续净流出。可用上方「区间 / 均线叠加」交互筛选。")
 
 
 # ───────────────────────── 融资融券趋势（融资买入额 & 融资余额） ─────────────────────────
@@ -377,7 +412,9 @@ def fragment_individual():
         sdf = None
         st.warning(f"个股资金趋势加载失败：{e}")
     if sdf is not None and not sdf.empty and sdf.attrs.get("source") != "none":
-        st.plotly_chart(plot_individual_series(sdf, name=name, code=code, dark_mode=dark),
+        dr, ma = _trend_controls("indv", days_default=60)
+        st.plotly_chart(plot_individual_series(sdf, name=name, code=code, dark_mode=dark,
+                                               date_range=dr, ma_periods=ma),
                         use_container_width=True, config={"displayModeBar": False})
         if sdf.attrs.get("source") == "estimate":
             st.caption("📈 个股主力资金逐日趋势（线性表达，量价模型估算）：面积线=主力净流入，"
@@ -401,10 +438,62 @@ def fragment_index_trend():
     if idx is None or idx.empty:
         st.info("暂无指数走势数据。")
         return
-    fig = plot_index_series(idx, dark_mode=dark)
+    dr, ma = _trend_controls("idx", days_default=180)
+    fig = plot_index_series(idx, dark_mode=dark, date_range=dr, ma_periods=ma)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     st.caption("📈 三大指数走势对比（线性表达，归一化起点=100）：用于横向比较上证 / 深证成指 / 创业板指"
-               "的相对强弱，而非绝对点位。")
+               "的相对强弱，而非绝对点位。可用上方「区间 / 均线叠加」交互筛选。")
+
+
+# ───────────────────────── 行业板块指数价格趋势（线性表达） ─────────────────────────
+@st.fragment
+def fragment_industry_trend():
+    _section_title("🏭 行业板块指数走势对比（归一化）", accent="#2b8aef")
+    if st_autorefresh is not None and _in_trading_hours():
+        st_autorefresh(interval=60000, limit=200, key="indt_auto")
+    dr, ma = _trend_controls("indt", days_default=120)
+    try:
+        ind = get_industry_index_series(top_n=8, days=120)
+    except Exception as e:
+        st.error(f"行业指数走势加载失败：{e}")
+        return
+    if ind is None or ind.empty:
+        st.info("暂无行业指数走势数据（接口受限或网络不可用）。")
+        return
+    fig = plot_normalized_multi(
+        ind, title="行业板块指数走势对比（归一化，起点=100）",
+        dark_mode=dark, date_range=dr, ma_periods=ma,
+    )
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.caption("📈 行业板块指数走势（线性表达，归一化起点=100）：行业板块无逐日资金流时间序列 API，"
+               "故以**行业指数日线收盘价**做相对强弱对比。可用上方「区间 / 均线叠加」交互筛选。"
+               "序列较多时均线默认入图例（点击图例单独开关）避免拥挤。")
+
+
+# ───────────────────────── ETF 价格趋势（线性表达） ─────────────────────────
+@st.fragment
+def fragment_etf_trend():
+    _section_title("🧩 ETF 价格走势对比（归一化）", accent="#16c2c2")
+    if st_autorefresh is not None and _in_trading_hours():
+        st_autorefresh(interval=60000, limit=200, key="etf_auto")
+    dr, ma = _trend_controls("etf", days_default=180)
+    try:
+        etf = get_etf_series(days=180)
+    except Exception as e:
+        st.error(f"ETF 走势加载失败：{e}")
+        return
+    if etf is None or etf.empty:
+        st.info("暂无 ETF 走势数据（接口受限或网络不可用）。")
+        return
+    fig = plot_normalized_multi(
+        etf, names_map=ETF_NAMES_MAP,
+        title="ETF 价格走势对比（归一化，起点=100）",
+        dark_mode=dark, date_range=dr, ma_periods=ma,
+    )
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.caption("📈 ETF 价格走势（线性表达，归一化起点=100）：宽基（沪深300/中证500/创业板）+ 行业"
+               "（军工/医药/新能源）+ 跨境（纳指/恒生科技）。可用上方「区间 / 均线叠加」交互筛选。"
+               "序列较多时均线默认入图例（点击图例单独开关）。")
 
 
 # ───────────────────────── 页面主体 ─────────────────────────
@@ -419,3 +508,7 @@ st.markdown("---")
 fragment_individual()
 st.markdown("---")
 fragment_index_trend()
+st.markdown("---")
+fragment_industry_trend()
+st.markdown("---")
+fragment_etf_trend()

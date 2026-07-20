@@ -4,7 +4,7 @@
 """
 import sys
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -225,3 +225,169 @@ def test_plot_market_cumulative_traces():
     assert len(fig.data) == 2  # 累计面积线 + 当日细线
     # 累计末尾为正 → 红色
     assert fig.data[0].line.color == lt.UP
+
+
+# ───────────────────────── 5. 行业板块指数价格趋势 ─────────────────────────
+def _hist_df(vals):
+    dates = [datetime(2024, 1, d) for d in range(1, 1 + len(vals))]
+    return pd.DataFrame({
+        "日期": pd.to_datetime(dates),
+        "开盘": vals, "收盘": vals, "最高": vals, "最低": vals,
+        "成交量": [1e6] * len(vals),
+    })
+
+
+def test_get_industry_index_series_ok():
+    names = ["半导体", "银行", "白酒", "医药", "新能源", "汽车"]
+    with mock.patch("akshare.stock_board_industry_name_em", return_value=names):
+        with mock.patch("akshare.stock_board_industry_hist_em",
+                        side_effect=lambda symbol, **kw: _hist_df([10, 11, 12])):
+            df = lt.get_industry_index_series(top_n=8, days=120)
+    assert not df.empty
+    assert "date" in df.columns
+    for nm in names:
+        assert nm in df.columns
+    assert len(df) == 3  # 3 个交易日
+
+
+def test_get_industry_index_series_empty_on_fail():
+    with mock.patch("akshare.stock_board_industry_name_em", side_effect=RuntimeError("x")):
+        with mock.patch("akshare.stock_board_industry_hist_em", side_effect=RuntimeError("y")):
+            df = lt.get_industry_index_series(top_n=8, days=120)
+    assert df.empty
+
+
+# ───────────────────────── 6. ETF 价格趋势 ─────────────────────────
+def test_get_etf_series_ok():
+    with mock.patch("akshare.fund_etf_hist_em",
+                    side_effect=lambda symbol, **kw: _hist_df([5, 6, 7])):
+        df = lt.get_etf_series(days=180)
+    assert not df.empty
+    assert "date" in df.columns
+    for code, _nm in lt._ETF_LIST:
+        assert code in df.columns
+
+
+def test_get_etf_series_empty_on_fail():
+    with mock.patch("akshare.fund_etf_hist_em", side_effect=RuntimeError("x")):
+        df = lt.get_etf_series(days=180)
+    assert df.empty
+
+
+# ───────────────────────── 共享：plot_normalized_multi（区间 + 均线） ─────────────────────────
+def _wide_df(dates, series):
+    out = {"date": dates}
+    out.update(series)
+    return pd.DataFrame(out)
+
+
+def test_plot_normalized_multi_basic():
+    df = _wide_df(
+        ["2024-01-01", "2024-01-02", "2024-01-03"],
+        {"A": [100, 110, 121], "B": [200, 190, 180]},
+    )
+    fig = lt.plot_normalized_multi(df, title="t", dark_mode=False)
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) == 2  # 两条基线
+    # 归一化起点=100
+    assert fig.data[0].y[0] == pytest.approx(100.0)
+    assert fig.data[1].y[0] == pytest.approx(100.0)
+    # 第二条线下降 → 末值 < 100
+    assert fig.data[1].y[-1] < 100.0
+
+
+def test_plot_normalized_multi_date_range():
+    dates = [f"2024-01-0{i}" for i in range(1, 7)]  # 01..06
+    df = _wide_df(dates, {"A": [100, 102, 104, 106, 108, 110]})
+    fig = lt.plot_normalized_multi(
+        df, title="t", dark_mode=False, date_range=("2024-01-03", "2024-01-06"))
+    assert fig.data[0].x[0] == "2024-01-03"
+    assert fig.data[0].y[0] == pytest.approx(100.0)  # 区间内首值归一
+    assert len(fig.data[0].x) == 4
+
+
+def test_plot_normalized_multi_ma_visible_when_few():
+    df = _wide_df(
+        ["2024-01-01", "2024-01-02", "2024-01-03"],
+        {"A": [100, 110, 121], "B": [200, 190, 180]},
+    )
+    fig = lt.plot_normalized_multi(df, title="t", dark_mode=False, ma_periods=(2,))
+    # 2 基线 + 2 MA（≤3 序列，MA 默认可见，与基线交错排列）
+    assert len(fig.data) == 4
+    ma_traces = [t for t in fig.data if t.name.endswith("·MA2")]
+    assert len(ma_traces) == 2
+    # 默认可见（非 legendonly）
+    assert all(t.visible != "legendonly" for t in ma_traces)
+
+
+def test_plot_normalized_multi_ma_legendonly_when_many():
+    series = {f"S{i}": [100 + i * 10 + j for j in range(3)] for i in range(8)}
+    dates = ["2024-01-01", "2024-01-02", "2024-01-03"]
+    df = _wide_df(dates, series)
+    fig = lt.plot_normalized_multi(df, title="t", dark_mode=False, ma_periods=(2,))
+    # 8 基线 + 8 MA（>3 序列，MA 默认 legendonly）
+    assert len(fig.data) == 16
+    ma_traces = [t for t in fig.data if t.name.endswith("·MA2")]
+    assert len(ma_traces) == 8
+    # >3 序列时 MA 默认进图例（legendonly）
+    assert all(t.visible == "legendonly" for t in ma_traces)
+
+
+def test_plot_normalized_multi_empty():
+    fig = lt.plot_normalized_multi(pd.DataFrame(), dark_mode=True)
+    assert isinstance(fig, go.Figure)
+
+
+# ───────────────────────── 现有图：date_range / ma_periods 交互参数 ─────────────────────────
+def test_plot_northbound_history_with_ma():
+    df = pd.DataFrame({
+        "date": ["2024-01-01", "2024-01-02", "2024-01-03"],
+        "net_buy_yi": [1.0, -0.5, 2.0],
+        "cumulative_yi": [10.0, 9.5, 11.5],
+    })
+    fig = lt.plot_northbound_history(df, dark_mode=False, ma_periods=(2,))
+    assert isinstance(fig, go.Figure)
+    # 净买额基线 + 净买额 MA + 累计线 = 3
+    assert len(fig.data) == 3
+    ma_traces = [t for t in fig.data if t.name.endswith("·MA2")]
+    assert len(ma_traces) == 1
+    assert ma_traces[0].name == "当日净买额(亿)·MA2"
+
+
+def test_plot_index_series_with_date_range():
+    df = pd.DataFrame({
+        "date": ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"],
+        "sh000001": [3000, 3060, 3090, 3120],
+        "sz399001": [10000, 10100, 9900, 10200],
+        "sz399006": [2000, 2040, 2080, 2100],
+    })
+    fig = lt.plot_index_series(df, dark_mode=False, date_range=("2024-01-02", "2024-01-04"))
+    assert fig.data[0].x[0] == "2024-01-02"
+    assert fig.data[0].y[0] == pytest.approx(100.0)
+    assert len(fig.data[0].x) == 3
+
+
+def test_plot_individual_series_with_ma():
+    df = pd.DataFrame({
+        "date": ["2024-03-01", "2024-03-02", "2024-03-03"],
+        "main_net": [1e8, -2e8, 3e8],
+        "super_net": [6e7, -1e8, 2e8],
+        "big_net": [4e7, -1e8, 1e8],
+    })
+    df.attrs["source"] = "akshare"
+    fig = lt.plot_individual_series(df, dark_mode=False, ma_periods=(2,))
+    assert isinstance(fig, go.Figure)
+    # 主力 + 超大单 + 大单 + 1 MA = 4
+    assert len(fig.data) == 4
+
+
+def test_plot_market_cumulative_with_date_range():
+    df = pd.DataFrame({
+        "date": ["2024-05-01", "2024-05-02", "2024-05-03", "2024-05-04"],
+        "main_net": [100.0, -50.0, 80.0, 20.0],
+        "cumulative": [100.0, 50.0, 130.0, 150.0],
+    })
+    fig = lt.plot_market_cumulative(df, dark_mode=False, date_range=("2024-05-03", "2024-05-04"))
+    assert fig.data[0].x[0] == "2024-05-03"
+    assert fig.data[0].y[0] == pytest.approx(130.0)  # 区间内首值
+

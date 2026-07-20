@@ -6,6 +6,10 @@
 2. 个股主力资金逐日趋势（逐日主力净流入）——逐日趋势线
 3. 三大指数走势对比（上证 / 深证成指 / 创业板指，归一化）——多线对比
 4. 大盘主力资金累计净流入（累计求和）——累计面积 / 趋势线
+5. 行业板块指数价格趋势（行业指数日线收盘价，归一化多线对比）
+6. ETF 价格趋势（宽基 / 行业 / 跨境 ETF 日线收盘价，归一化多线对比）
+
+所有线性图均支持「区间选择 date_range」与「均线叠加 ma_periods」交互（见 _slice_date_range / _add_ma_traces）。
 
 全部：经本地代理 + 关闭证书校验（复用 modules.fundflow 的代理补丁）、
 TTL 缓存、网络失败兜底空 DataFrame，避免页面红错。
@@ -91,6 +95,50 @@ def _fig_base(dark_mode):
     return base
 
 
+def _slice_date_range(df, date_range):
+    """按 (start, end) 字符串/日期切片；date_range 为 None 或非法则原样返回。"""
+    if not date_range:
+        return df
+    try:
+        start, end = date_range
+    except Exception:
+        return df
+    s = _parse_date(start)
+    e = _parse_date(end)
+    if s is None and e is None:
+        return df
+    d = df.copy()
+    if "date" not in d.columns:
+        return d
+    if s is not None:
+        d = d[d["date"] >= s]
+    if e is not None:
+        d = d[d["date"] <= e]
+    return d.reset_index(drop=True)
+
+
+def _add_ma_traces(fig, x, y, name, color, ma_periods, visible_default=True):
+    """在原序列上叠加均线（虚线、降透明度）。"""
+    if not ma_periods:
+        return
+    s = pd.to_numeric(y, errors="coerce")
+    for p in ma_periods:
+        try:
+            p = int(p)
+        except Exception:
+            continue
+        if p <= 1:
+            continue
+        ma = s.rolling(p, min_periods=max(2, p // 2)).mean()
+        fig.add_trace(go.Scatter(
+            x=x, y=ma, name=f"{name}·MA{p}",
+            mode="lines", line=dict(color=color, width=1.2, dash="dot"),
+            opacity=0.7,
+            hovertemplate="%{x}<br>" + str(name) + f"·MA{p}：%{{y:.2f}}<extra></extra>",
+            visible=("legendonly" if not visible_default else True),
+        ))
+
+
 # ───────────────────────── 1. 北向资金历史序列 ─────────────────────────
 @_retry_with_backoff(max_retries=3, base_delay=1.0)
 def _fetch_northbound_hist_raw():
@@ -140,23 +188,31 @@ def get_northbound_history_series():
     return _cached(1800, "northbound_hist_series", _fn)
 
 
-def plot_northbound_history(df, dark_mode=False):
-    """北向资金历史趋势：净买额（面积线，左轴） + 历史累计净买额（线，右轴）。"""
+def plot_northbound_history(df, dark_mode=False, date_range=None, ma_periods=()):
+    """北向资金历史趋势：净买额（面积线，左轴） + 历史累计净买额（线，右轴）。
+
+    支持 date_range=(start,end) 区间切片与 ma_periods=(5,20,...) 均线叠加。
+    """
     fig = go.Figure()
     if df is None or df.empty:
         fig.update_layout(title="暂无北向资金历史数据", **_fig_base(dark_mode), height=360)
         return fig
+    d = _slice_date_range(df, date_range)
+    if d is None or d.empty:
+        fig.update_layout(title="暂无北向资金历史数据（区间内）", **_fig_base(dark_mode), height=360)
+        return fig
     fig.add_trace(go.Scatter(
-        x=df["date"], y=df["net_buy_yi"], name="当日净买额(亿)",
+        x=d["date"], y=d["net_buy_yi"], name="当日净买额(亿)",
         mode="lines", fill="tozeroy",
         line=dict(color="#7c5cff", width=1.8),
         fillcolor="rgba(124,92,255,0.12)",
         hovertemplate="%{x}<br>当日净买额：%{y:.2f}亿<extra></extra>",
         yaxis="y",
     ))
-    if "cumulative_yi" in df.columns and df["cumulative_yi"].notna().any():
+    _add_ma_traces(fig, d["date"], d["net_buy_yi"], "当日净买额(亿)", "#7c5cff", ma_periods, visible_default=True)
+    if "cumulative_yi" in d.columns and d["cumulative_yi"].notna().any():
         fig.add_trace(go.Scatter(
-            x=df["date"], y=df["cumulative_yi"], name="历史累计净买额(亿)",
+            x=d["date"], y=d["cumulative_yi"], name="历史累计净买额(亿)",
             mode="lines", line=dict(color="#2b8aef", width=2.2),
             hovertemplate="%{x}<br>历史累计：%{y:.0f}亿<extra></extra>",
             yaxis="y2",
@@ -289,30 +345,38 @@ def get_individual_fund_flow_series(code, days=60):
     return df
 
 
-def plot_individual_series(df, name="", code="", dark_mode=False):
-    """个股主力资金逐日趋势：主力净流入（面积线，主） + 超大单/大单（虚线，默认隐藏）。"""
+def plot_individual_series(df, name="", code="", dark_mode=False, date_range=None, ma_periods=()):
+    """个股主力资金逐日趋势：主力净流入（面积线，主） + 超大单/大单（虚线，默认隐藏）。
+
+    支持 date_range 区间切片与 ma_periods 均线叠加（对主力净流入序列）。
+    """
     fig = go.Figure()
     if df is None or df.empty or "main_net" not in df.columns:
         fig.update_layout(title="暂无个股资金趋势数据", **_fig_base(dark_mode), height=360)
         return fig
-    has_main = df["main_net"].notna().any()
+    d = _slice_date_range(df, date_range)
+    if d is None or d.empty or "main_net" not in d.columns:
+        fig.update_layout(title="暂无个股资金趋势数据（区间内）", **_fig_base(dark_mode), height=360)
+        return fig
+    has_main = d["main_net"].notna().any()
     fig.add_trace(go.Scatter(
-        x=df["date"], y=df["main_net"], name="主力净流入(元)",
+        x=d["date"], y=d["main_net"], name="主力净流入(元)",
         mode="lines", fill="tozeroy" if has_main else None,
         line=dict(color=UP, width=2.2),
         fillcolor="rgba(238,42,42,0.10)",
         hovertemplate="%{x}<br>主力净流入：%{y:,.0f}元<extra></extra>",
     ))
-    if "super_net" in df.columns and df["super_net"].notna().any():
+    _add_ma_traces(fig, d["date"], d["main_net"], "主力净流入(元)", UP, ma_periods, visible_default=True)
+    if "super_net" in d.columns and d["super_net"].notna().any():
         fig.add_trace(go.Scatter(
-            x=df["date"], y=df["super_net"], name="超大单净流入(元)",
+            x=d["date"], y=d["super_net"], name="超大单净流入(元)",
             mode="lines", line=dict(width=1.4, dash="dot"),
             hovertemplate="%{x}<br>超大单：%{y:,.0f}元<extra></extra>",
             visible="legendonly",
         ))
-    if "big_net" in df.columns and df["big_net"].notna().any():
+    if "big_net" in d.columns and d["big_net"].notna().any():
         fig.add_trace(go.Scatter(
-            x=df["date"], y=df["big_net"], name="大单净流入(元)",
+            x=d["date"], y=d["big_net"], name="大单净流入(元)",
             mode="lines", line=dict(width=1.4, dash="dot"),
             hovertemplate="%{x}<br>大单：%{y:,.0f}元<extra></extra>",
             visible="legendonly",
@@ -370,29 +434,39 @@ def get_index_series(days=180):
     return _cached(900, f"index_series_{days}", _fn)
 
 
-def plot_index_series(df, dark_mode=False):
-    """三大指数走势对比（归一化，起点=100），多线对比。"""
+def plot_index_series(df, dark_mode=False, date_range=None, ma_periods=()):
+    """三大指数走势对比（归一化，起点=100），多线对比。
+
+    支持 date_range 区间切片（起点=区间内首值）与 ma_periods 均线叠加。
+    """
     fig = go.Figure()
     if df is None or df.empty:
         fig.update_layout(title="暂无指数走势数据", **_fig_base(dark_mode), height=360)
         return fig
+    d = _slice_date_range(df, date_range)
+    if d is None or d.empty:
+        fig.update_layout(title="暂无指数走势数据（区间内）", **_fig_base(dark_mode), height=360)
+        return fig
     base = _fig_base(dark_mode)
     for sym in ("sh000001", "sz399001", "sz399006"):
-        if sym not in df.columns:
+        if sym not in d.columns:
             continue
-        s = pd.to_numeric(df[sym], errors="coerce").dropna()
+        s = pd.to_numeric(d[sym], errors="coerce").dropna()
         if s.empty:
             continue
         first = s.iloc[0]
         if not first or pd.isna(first):
             continue
         norm = (s / first * 100.0).round(2)
-        dates = df.loc[s.index, "date"]
+        dates = d.loc[s.index, "date"]
+        disp = _IDX_NAMES.get(sym, sym)
+        color = _IDX_COLORS.get(sym, "#888")
         fig.add_trace(go.Scatter(
-            x=dates, y=norm, name=_IDX_NAMES.get(sym, sym),
-            mode="lines", line=dict(color=_IDX_COLORS.get(sym, "#888"), width=2),
-            hovertemplate="%{x}<br>" + _IDX_NAMES.get(sym, sym) + "：%{y:.2f}<extra></extra>",
+            x=dates, y=norm, name=disp,
+            mode="lines", line=dict(color=color, width=2),
+            hovertemplate="%{x}<br>" + disp + "：%{y:.2f}<extra></extra>",
         ))
+        _add_ma_traces(fig, dates, norm, disp, color, ma_periods, visible_default=True)
     if not fig.data:
         fig.update_layout(title="暂无指数走势数据", **base, height=360)
         return fig
@@ -436,25 +510,33 @@ def get_market_cumulative_series(days=60):
     return _cached(600, f"market_cumulative_{days}", _fn)
 
 
-def plot_market_cumulative(df, dark_mode=False):
-    """大盘主力资金累计净流入（面积线，主） + 逐日主力净流入（细线，右轴）。"""
+def plot_market_cumulative(df, dark_mode=False, date_range=None, ma_periods=()):
+    """大盘主力资金累计净流入（面积线，主） + 逐日主力净流入（细线，右轴）。
+
+    支持 date_range 区间切片与 ma_periods 均线叠加（对累计序列）。
+    """
     fig = go.Figure()
     if df is None or df.empty or "cumulative" not in df.columns:
         fig.update_layout(title="暂无大盘累计资金数据", **_fig_base(dark_mode), height=360)
         return fig
-    last = df["cumulative"].iloc[-1]
+    d = _slice_date_range(df, date_range)
+    if d is None or d.empty or "cumulative" not in d.columns:
+        fig.update_layout(title="暂无大盘累计资金数据（区间内）", **_fig_base(dark_mode), height=360)
+        return fig
+    last = d["cumulative"].iloc[-1]
     cum_color = UP if (last is not None and last >= 0) else DOWN
     fig.add_trace(go.Scatter(
-        x=df["date"], y=df["cumulative"], name="累计主力净流入(亿)",
+        x=d["date"], y=d["cumulative"], name="累计主力净流入(亿)",
         mode="lines", fill="tozeroy",
         line=dict(color=cum_color, width=2.4),
         fillcolor="rgba(238,42,42,0.10)" if cum_color == UP else "rgba(26,162,96,0.10)",
         hovertemplate="%{x}<br>累计净流入：%{y:.2f}亿<extra></extra>",
         yaxis="y",
     ))
-    if "main_net" in df.columns and df["main_net"].notna().any():
+    _add_ma_traces(fig, d["date"], d["cumulative"], "累计主力净流入(亿)", cum_color, ma_periods, visible_default=True)
+    if "main_net" in d.columns and d["main_net"].notna().any():
         fig.add_trace(go.Scatter(
-            x=df["date"], y=df["main_net"], name="当日主力净流入(亿)",
+            x=d["date"], y=d["main_net"], name="当日主力净流入(亿)",
             mode="lines", line=dict(width=1.2, color="#f5a623"),
             hovertemplate="%{x}<br>当日净流入：%{y:.2f}亿<extra></extra>",
             yaxis="y2",
@@ -466,6 +548,217 @@ def plot_market_cumulative(df, dark_mode=False):
         yaxis=dict(title="累计净流入(亿)", side="left", showgrid=True),
         yaxis2=dict(title="当日净流入(亿)", overlaying="y", side="right", showgrid=False),
         legend=dict(orientation="h", yanchor="top", y=-0.22, x=0.5, xanchor="center"),
+    )
+    fig.update_layout(**layout)
+    fig.update_xaxes(tickangle=-30)
+    return fig
+
+
+# ───────────────────────── 5. 行业板块指数价格趋势（线性表达） ─────────────────────────
+# 行业板块无「逐日资金流」时间序列 API，改用行业指数日线收盘价做归一化多线对比，
+# 更能反映板块相对强弱走势。数据：ak.stock_board_industry_hist_em(period="日k")。
+_FALLBACK_INDUSTRIES = [
+    "半导体", "软件开发", "银行", "证券", "白酒", "医药", "新能源",
+    "汽车", "煤炭", "房地产", "有色金属", "电力",
+]
+
+
+@_retry_with_backoff(max_retries=2, base_delay=1.0)
+def _fetch_industry_names():
+    import akshare as ak
+    df = ak.stock_board_industry_name_em()
+    if df is None or df.empty:
+        return []
+    for col in ("板块名称", "行业", "name"):
+        if col in df.columns:
+            return [str(x) for x in df[col].dropna().tolist()]
+    if len(df.columns) >= 1:
+        return [str(x) for x in df.iloc[:, 0].dropna().tolist()]
+    return []
+
+
+@_retry_with_backoff(max_retries=2, base_delay=1.0)
+def _fetch_industry_hist(symbol, start_date, end_date):
+    import akshare as ak
+    df = ak.stock_board_industry_hist_em(
+        symbol=symbol, period="日k", start_date=start_date, end_date=end_date, adjust="")
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df = df.copy()
+    close = pd.to_numeric(df["收盘"], errors="coerce") if "收盘" in df.columns else pd.Series([None] * len(df))
+    out = pd.DataFrame({
+        "date": df["日期"].apply(_parse_date) if "日期" in df.columns else pd.Series([None] * len(df)),
+        symbol: close,
+    })
+    return out.dropna(subset=["date"]).reset_index(drop=True)
+
+
+def get_industry_index_series(top_n=8, days=120):
+    """行业板块指数日线收盘价（多行业），合并为宽表。
+
+    返回 DataFrame(date, 行业A, 行业B, ...)。优先取硬编常见行业，再从全量行业名补足到 top_n。
+    网络/接口失败返回空 DataFrame。
+    """
+    def _fn():
+        try:
+            names = _fetch_industry_names()
+        except Exception as e:
+            _logger.warning(f"行业名获取失败：{e}")
+            names = []
+        if not names:
+            names = list(_FALLBACK_INDUSTRIES)
+        selected = []
+        for x in _FALLBACK_INDUSTRIES:
+            if x in names and x not in selected:
+                selected.append(x)
+        for x in names:
+            if x not in selected:
+                selected.append(x)
+        selected = selected[:top_n]
+        end = datetime.now().strftime("%Y%m%d")
+        start = (datetime.now() - timedelta(days=int(days * 1.6))).strftime("%Y%m%d")
+        frames = {}
+        for nm in selected:
+            try:
+                h = _fetch_industry_hist(nm, start, end)
+            except Exception as e:
+                _logger.warning(f"行业指数 {nm} 获取失败：{e}")
+                h = None
+            if h is None or h.empty:
+                continue
+            frames[nm] = h
+        if not frames:
+            return pd.DataFrame()
+        base = None
+        for nm, s in frames.items():
+            base = s if base is None else base.merge(s, on="date", how="outer")
+        base = base.sort_values("date").reset_index(drop=True)
+        if len(base) > days:
+            base = base.tail(days).reset_index(drop=True)
+        return base
+    return _cached(1800, f"industry_index_series_{top_n}_{days}", _fn)
+
+
+# ───────────────────────── 6. ETF 价格趋势（线性表达） ─────────────────────────
+# ETF 价格走势天然适合线性表达：宽基 / 行业 / 跨境 ETF 归一化多线对比。
+# 数据：ak.fund_etf_hist_em(period="daily")。
+_ETF_LIST = [
+    ("510300", "沪深300ETF"),
+    ("510500", "中证500ETF"),
+    ("159915", "创业板ETF"),
+    ("512660", "军工ETF"),
+    ("512010", "医药ETF"),
+    ("515030", "新能源ETF"),
+    ("513100", "纳指ETF"),
+    ("513180", "恒生科技ETF"),
+]
+ETF_NAMES_MAP = {code: nm for code, nm in _ETF_LIST}
+
+
+@_retry_with_backoff(max_retries=2, base_delay=1.0)
+def _fetch_etf_hist(symbol, start_date, end_date):
+    import akshare as ak
+    df = ak.fund_etf_hist_em(
+        symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="")
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df = df.copy()
+    close = pd.to_numeric(df["收盘"], errors="coerce") if "收盘" in df.columns else pd.Series([None] * len(df))
+    out = pd.DataFrame({
+        "date": df["日期"].apply(_parse_date) if "日期" in df.columns else pd.Series([None] * len(df)),
+        symbol: close,
+    })
+    return out.dropna(subset=["date"]).reset_index(drop=True)
+
+
+def get_etf_series(days=180):
+    """ETF 日线收盘价（多只），合并为宽表。
+
+    返回 DataFrame(date, etf_code1, etf_code2, ...)，列为 ETF 代码。
+    网络/接口失败返回空 DataFrame。
+    """
+    def _fn():
+        end = datetime.now().strftime("%Y%m%d")
+        start = (datetime.now() - timedelta(days=int(days * 1.6))).strftime("%Y%m%d")
+        frames = {}
+        for code, _nm in _ETF_LIST:
+            try:
+                h = _fetch_etf_hist(code, start, end)
+            except Exception as e:
+                _logger.warning(f"ETF {code} 获取失败：{e}")
+                h = None
+            if h is None or h.empty:
+                continue
+            frames[code] = h
+        if not frames:
+            return pd.DataFrame()
+        base = None
+        for code, s in frames.items():
+            base = s if base is None else base.merge(s, on="date", how="outer")
+        base = base.sort_values("date").reset_index(drop=True)
+        if len(base) > days:
+            base = base.tail(days).reset_index(drop=True)
+        return base
+    return _cached(1800, f"etf_series_{days}", _fn)
+
+
+# ───────────────────────── 共享：归一化多线对比（含区间切片 + 均线叠加） ─────────────────────────
+_PALETTE = ["#7c5cff", "#ef5da8", "#2b8aef", "#1aa260", "#f5a623", "#ee2a2a",
+            "#16c2c2", "#8b5cf6", "#0ea5e9", "#f97316", "#84cc16", "#e11d48"]
+
+
+def plot_normalized_multi(df, names_map=None, colors_map=None, title="",
+                          y_title="归一化点位（起点=100）", dark_mode=False,
+                          date_range=None, ma_periods=()):
+    """归一化多线对比（起点=100），支持区间切片与均线叠加。
+
+    参数：
+      df        : 宽表，含 'date' 列 + 每个序列一列（列名为序列 key，如行业名 / ETF 代码）。
+      names_map : {key: 显示名}
+      colors_map: {key: 颜色}
+      date_range: (start, end) 区间切片（字符串/日期皆可）
+      ma_periods: 均线周期元组，如 (5, 20)
+    序列数 ≤ 3 时均线默认可见；> 3 时均线默认进图例（legendonly）避免拥挤。
+    """
+    fig = go.Figure()
+    if df is None or df.empty or "date" not in df.columns:
+        fig.update_layout(title=title or "暂无数据", **_fig_base(dark_mode), height=360)
+        return fig
+    d = _slice_date_range(df, date_range)
+    if d is None or d.empty:
+        fig.update_layout(title=title or "暂无数据（区间内）", **_fig_base(dark_mode), height=360)
+        return fig
+    keys = [c for c in d.columns if c != "date"]
+    ma_visible_default = len(keys) <= 3
+    any_line = False
+    for i, key in enumerate(keys):
+        s = pd.to_numeric(d[key], errors="coerce").dropna()
+        if s.empty:
+            continue
+        first = s.iloc[0]
+        if not first or pd.isna(first):
+            continue
+        norm = (s / first * 100.0).round(2)
+        xs = d.loc[s.index, "date"]
+        disp = (names_map or {}).get(key, key)
+        color = (colors_map or {}).get(key, _PALETTE[i % len(_PALETTE)])
+        fig.add_trace(go.Scatter(
+            x=xs, y=norm, name=str(disp), mode="lines",
+            line=dict(color=color, width=2),
+            hovertemplate="%{x}<br>" + str(disp) + "：%{y:.2f}<extra></extra>",
+        ))
+        _add_ma_traces(fig, xs, norm, str(disp), color, ma_periods,
+                       visible_default=ma_visible_default)
+        any_line = True
+    if not any_line:
+        fig.update_layout(title=title or "暂无数据", **_fig_base(dark_mode), height=360)
+        return fig
+    layout = _fig_base(dark_mode)
+    layout.update(
+        title=title,
+        height=400,
+        yaxis=dict(title=y_title, side="left", showgrid=True),
+        legend=dict(orientation="h", yanchor="top", y=-0.24, x=0.5, xanchor="center"),
     )
     fig.update_layout(**layout)
     fig.update_xaxes(tickangle=-30)
