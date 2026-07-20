@@ -26,6 +26,7 @@ from modules.linear_trends import (
     get_market_cumulative_series, plot_market_cumulative,
     get_industry_index_series, get_etf_series,
     plot_normalized_multi, ETF_NAMES_MAP,
+    to_trend_csv, plot_correlation_heatmap, _slice_date_range,
 )
 from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
@@ -112,31 +113,100 @@ def _fmt_yi(x):
     return f"{x:.0f}"
 
 
-def _trend_controls(key_prefix, days_default=120):
-    """线性图交互控件：区间选择（date_input）+ 均线叠加（multiselect）。
+_PRESET_OPTS = ["近7天", "近30天", "近60天", "近90天", "近180天", "年初至今", "全部", "自定义"]
 
-    返回 (date_range, ma_periods)。数据走缓存不触网，仅重跑所在 fragment。
+
+def _trend_controls(key_prefix, days_default=120, series_options=None,
+                    preset_default="近90天", mode_toggle=False):
+    """线性图交互控件：区间预设 + 区间选择 + 均线叠加/类型 + 序列多选 + 数值模式。
+
+    返回 (date_range, ma_periods, selected_keys, mode, ma_type)：
+      - date_range   : (start, end) 或 None（全部）
+      - ma_periods   : 均线周期元组
+      - selected_keys: 显示序列 key 列表（仅 series_options 时有效，否则 None）
+      - mode         : 'normalized' | 'raw'
+      - ma_type      : 'sma' | 'ema'
+    数据走缓存不触网，仅重跑所在 fragment。
     """
-    col1, col2 = st.columns([2, 2])
-    with col1:
-        end_d = datetime.now().date()
-        start_d = (datetime.now() - timedelta(days=days_default)).date()
-        dr = st.date_input(
-            "区间", value=(start_d, end_d),
-            max_value=end_d, key=f"{key_prefix}_dr",
+    preset = st.radio(
+        "区间预设", _PRESET_OPTS,
+        index=_PRESET_OPTS.index(preset_default) if preset_default in _PRESET_OPTS else 2,
+        horizontal=True, key=f"{key_prefix}_preset",
+    )
+    end_d = datetime.now().date()
+    date_range = None
+    if preset != "自定义":
+        if preset == "近7天":
+            start = end_d - timedelta(days=6)
+        elif preset == "近30天":
+            start = end_d - timedelta(days=29)
+        elif preset == "近60天":
+            start = end_d - timedelta(days=59)
+        elif preset == "近90天":
+            start = end_d - timedelta(days=89)
+        elif preset == "近180天":
+            start = end_d - timedelta(days=179)
+        elif preset == "年初至今":
+            start = datetime(end_d.year, 1, 1).date()
+        else:
+            start = None  # 全部
+        date_range = (start, end_d) if start is not None else None
+
+    mode = "normalized"
+    if mode_toggle:
+        msel = st.radio(
+            "数值模式", ["归一化", "原始价格"], horizontal=True,
+            index=0, key=f"{key_prefix}_mode",
         )
-    with col2:
+        mode = "normalized" if msel == "归一化" else "raw"
+
+    # 动态列布局：自定义区间 / 均线 / 均线类型 / 序列多选
+    cells_spec = []
+    if preset == "自定义":
+        cells_spec.append(("dr", 2))
+    cells_spec.append(("ma", 1))
+    cells_spec.append(("matype", 1))
+    if series_options:
+        cells_spec.append(("sel", 2))
+    cells = st.columns([w for _, w in cells_spec]) if cells_spec else []
+    ci = 0
+    if preset == "自定义":
+        with cells[ci]:
+            dr = st.date_input(
+                "区间", value=(end_d - timedelta(days=days_default), end_d),
+                max_value=end_d, key=f"{key_prefix}_dr",
+            )
+            if isinstance(dr, (tuple, list)) and len(dr) == 2:
+                date_range = (dr[0], dr[1])
+            elif dr is not None:
+                date_range = (dr, dr)
+        ci += 1
+    with cells[ci]:
         ma = st.multiselect(
             "均线叠加", options=[5, 10, 20, 60], default=[],
             format_func=lambda x: f"MA{x}", key=f"{key_prefix}_ma",
             help="叠加移动平均线（虚线，图例中可单独开关）",
         )
-    date_range = None
-    if isinstance(dr, (tuple, list)) and len(dr) == 2:
-        date_range = (dr[0], dr[1])
-    elif dr is not None:
-        date_range = (dr, dr)
-    return date_range, tuple(ma)
+        ci += 1
+    with cells[ci]:
+        ma_type = st.radio(
+            "均线类型", ["SMA", "EMA"], horizontal=True,
+            index=0, key=f"{key_prefix}_matype",
+        )
+        ma_type = "ema" if ma_type == "EMA" else "sma"
+        ci += 1
+    selected = None
+    if series_options:
+        with cells[ci]:
+            opts = list(series_options)
+            sel = st.multiselect(
+                "显示序列", options=[k for k, _ in opts],
+                default=[k for k, _ in opts],
+                format_func=lambda k: dict(opts).get(k, k),
+                key=f"{key_prefix}_sel", help="勾选要显示的序列",
+            )
+            selected = sel
+    return date_range, tuple(ma), selected, mode, ma_type
 
 
 # ───────────────────────── 北向资金 ─────────────────────────
@@ -224,8 +294,9 @@ def fragment_northbound():
         hist = None
         st.warning(f"北向历史序列加载失败：{e}")
     if hist is not None and not hist.empty:
-        dr, ma = _trend_controls("nb", days_default=365)
-        st.plotly_chart(plot_northbound_history(hist, dark_mode=dark, date_range=dr, ma_periods=ma),
+        dr, ma, _s, _m, ma_type = _trend_controls("nb", days_default=365, preset_default="全部")
+        st.plotly_chart(plot_northbound_history(hist, dark_mode=dark, date_range=dr, ma_periods=ma,
+                                                ma_type=ma_type, show_baseline=True),
                         use_container_width=True, config={"displayModeBar": False})
         st.caption("📈 北向资金历史趋势（线性表达）：紫色面积=当日成交净买额，蓝色线=历史累计净买额。"
                    "交易所自 2024-08-16 起停止披露实时净买额，故近期序列末端可能空白或持平。"
@@ -322,8 +393,9 @@ def fragment_market():
         cum = None
         st.warning(f"大盘累计资金加载失败：{e}")
     if cum is not None and not cum.empty:
-        dr, ma = _trend_controls("mkt_cum", days_default=60)
-        st.plotly_chart(plot_market_cumulative(cum, dark_mode=dark, date_range=dr, ma_periods=ma),
+        dr, ma, _s, _m, ma_type = _trend_controls("mkt_cum", days_default=60, preset_default="近60天")
+        st.plotly_chart(plot_market_cumulative(cum, dark_mode=dark, date_range=dr, ma_periods=ma,
+                                               ma_type=ma_type, show_baseline=True),
                         use_container_width=True, config={"displayModeBar": False})
         st.caption("📈 大盘主力资金累计净流入（线性表达）：面积线为累计值，橙色细线为逐日主力净流入。"
                    "连续红（正）表示主力持续净流入，绿（负）表示持续净流出。可用上方「区间 / 均线叠加」交互筛选。")
@@ -412,9 +484,10 @@ def fragment_individual():
         sdf = None
         st.warning(f"个股资金趋势加载失败：{e}")
     if sdf is not None and not sdf.empty and sdf.attrs.get("source") != "none":
-        dr, ma = _trend_controls("indv", days_default=60)
+        dr, ma, _s, _m, ma_type = _trend_controls("indv", days_default=60, preset_default="近60天")
         st.plotly_chart(plot_individual_series(sdf, name=name, code=code, dark_mode=dark,
-                                               date_range=dr, ma_periods=ma),
+                                               date_range=dr, ma_periods=ma,
+                                               ma_type=ma_type, show_baseline=True),
                         use_container_width=True, config={"displayModeBar": False})
         if sdf.attrs.get("source") == "estimate":
             st.caption("📈 个股主力资金逐日趋势（线性表达，量价模型估算）：面积线=主力净流入，"
@@ -438,8 +511,8 @@ def fragment_index_trend():
     if idx is None or idx.empty:
         st.info("暂无指数走势数据。")
         return
-    dr, ma = _trend_controls("idx", days_default=180)
-    fig = plot_index_series(idx, dark_mode=dark, date_range=dr, ma_periods=ma)
+    dr, ma, _s, _m, ma_type = _trend_controls("idx", days_default=180, preset_default="近180天")
+    fig = plot_index_series(idx, dark_mode=dark, date_range=dr, ma_periods=ma, ma_type=ma_type)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     st.caption("📈 三大指数走势对比（线性表达，归一化起点=100）：用于横向比较上证 / 深证成指 / 创业板指"
                "的相对强弱，而非绝对点位。可用上方「区间 / 均线叠加」交互筛选。")
@@ -451,7 +524,6 @@ def fragment_industry_trend():
     _section_title("🏭 行业板块指数走势对比（归一化）", accent="#2b8aef")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="indt_auto")
-    dr, ma = _trend_controls("indt", days_default=120)
     try:
         ind = get_industry_index_series(top_n=8, days=120)
     except Exception as e:
@@ -460,14 +532,41 @@ def fragment_industry_trend():
     if ind is None or ind.empty:
         st.info("暂无行业指数走势数据（接口受限或网络不可用）。")
         return
+    series_options = [(c, c) for c in ind.columns if c != "date"]
+    dr, ma, sel, mode, ma_type = _trend_controls(
+        "indt", days_default=120, preset_default="近90天",
+        series_options=series_options, mode_toggle=True,
+    )
+    c1, c2 = st.columns(2)
+    with c1:
+        show_cross = st.checkbox("标注金叉/死叉", value=False, key="indt_cross",
+                                 help="需同时叠加至少两条均线")
+    with c2:
+        show_dd = st.checkbox("标注最大回撤", value=False, key="indt_dd")
     fig = plot_normalized_multi(
         ind, title="行业板块指数走势对比（归一化，起点=100）",
-        dark_mode=dark, date_range=dr, ma_periods=ma,
+        dark_mode=dark, date_range=dr, ma_periods=ma, selected=sel,
+        mode=mode, ma_type=ma_type, show_baseline=True,
+        show_cross=show_cross, show_drawdown=show_dd,
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="indt_norm")
+    # 数据表联动（随区间 / 序列筛选）
+    with st.expander("📋 数据表（随区间 / 序列联动）"):
+        tbl = _slice_date_range(ind, dr)
+        if sel:
+            keep = [c for c in sel if c in tbl.columns]
+            tbl = tbl[["date"] + keep] if keep else tbl[["date"]]
+        st.dataframe(tbl, use_container_width=True, hide_index=True)
+    # 导出 CSV
+    csv = to_trend_csv(ind, names_map=None, selected=sel, date_range=dr)
+    st.download_button("⬇️ 导出 CSV", data=csv, file_name="行业指数走势.csv", mime="text/csv")
+    # 相关性热力图
+    st.plotly_chart(plot_correlation_heatmap(ind, names_map=None, selected=sel,
+                                             date_range=dr, dark_mode=dark),
+                    use_container_width=True, config={"displayModeBar": False}, key="indt_corr")
     st.caption("📈 行业板块指数走势（线性表达，归一化起点=100）：行业板块无逐日资金流时间序列 API，"
-               "故以**行业指数日线收盘价**做相对强弱对比。可用上方「区间 / 均线叠加」交互筛选。"
-               "序列较多时均线默认入图例（点击图例单独开关）避免拥挤。")
+               "故以**行业指数日线收盘价**做相对强弱对比。区间预设 / 均线（SMA·EMA）/ 序列多选 / 原始价格切换"
+               " / 金叉死叉 / 最大回撤 均可交互；下方数据表与相关性热力图随筛选联动。")
 
 
 # ───────────────────────── ETF 价格趋势（线性表达） ─────────────────────────
@@ -476,7 +575,6 @@ def fragment_etf_trend():
     _section_title("🧩 ETF 价格走势对比（归一化）", accent="#16c2c2")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="etf_auto")
-    dr, ma = _trend_controls("etf", days_default=180)
     try:
         etf = get_etf_series(days=180)
     except Exception as e:
@@ -485,15 +583,42 @@ def fragment_etf_trend():
     if etf is None or etf.empty:
         st.info("暂无 ETF 走势数据（接口受限或网络不可用）。")
         return
+    series_options = [(c, ETF_NAMES_MAP.get(c, c)) for c in etf.columns if c != "date"]
+    dr, ma, sel, mode, ma_type = _trend_controls(
+        "etf", days_default=180, preset_default="近180天",
+        series_options=series_options, mode_toggle=True,
+    )
+    c1, c2 = st.columns(2)
+    with c1:
+        show_cross = st.checkbox("标注金叉/死叉", value=False, key="etf_cross",
+                                 help="需同时叠加至少两条均线")
+    with c2:
+        show_dd = st.checkbox("标注最大回撤", value=False, key="etf_dd")
     fig = plot_normalized_multi(
         etf, names_map=ETF_NAMES_MAP,
         title="ETF 价格走势对比（归一化，起点=100）",
-        dark_mode=dark, date_range=dr, ma_periods=ma,
+        dark_mode=dark, date_range=dr, ma_periods=ma, selected=sel,
+        mode=mode, ma_type=ma_type, show_baseline=True,
+        show_cross=show_cross, show_drawdown=show_dd,
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="etf_norm")
+    # 数据表联动
+    with st.expander("📋 数据表（随区间 / 序列联动）"):
+        tbl = _slice_date_range(etf, dr)
+        if sel:
+            keep = [c for c in sel if c in tbl.columns]
+            tbl = tbl[["date"] + keep] if keep else tbl[["date"]]
+        st.dataframe(tbl, use_container_width=True, hide_index=True)
+    # 导出 CSV
+    csv = to_trend_csv(etf, names_map=ETF_NAMES_MAP, selected=sel, date_range=dr)
+    st.download_button("⬇️ 导出 CSV", data=csv, file_name="ETF价格走势.csv", mime="text/csv")
+    # 相关性热力图
+    st.plotly_chart(plot_correlation_heatmap(etf, names_map=ETF_NAMES_MAP, selected=sel,
+                                             date_range=dr, dark_mode=dark),
+                    use_container_width=True, config={"displayModeBar": False}, key="etf_corr")
     st.caption("📈 ETF 价格走势（线性表达，归一化起点=100）：宽基（沪深300/中证500/创业板）+ 行业"
-               "（军工/医药/新能源）+ 跨境（纳指/恒生科技）。可用上方「区间 / 均线叠加」交互筛选。"
-               "序列较多时均线默认入图例（点击图例单独开关）。")
+               "（军工/医药/新能源）+ 跨境（纳指/恒生科技）。区间预设 / 均线（SMA·EMA）/ 序列多选 / 原始价格切换"
+               " / 金叉死叉 / 最大回撤 均可交互；下方数据表与相关性热力图随筛选联动。")
 
 
 # ───────────────────────── 页面主体 ─────────────────────────

@@ -391,3 +391,182 @@ def test_plot_market_cumulative_with_date_range():
     assert fig.data[0].x[0] == "2024-05-03"
     assert fig.data[0].y[0] == pytest.approx(130.0)  # 区间内首值
 
+
+# ───────────────────────── Iter1 序列多选（selected） ─────────────────────────
+def test_plot_normalized_multi_selected_filters_columns():
+    df = _wide_df(
+        ["2024-01-01", "2024-01-02", "2024-01-03"],
+        {"A": [100, 110, 121], "B": [200, 190, 180], "C": [50, 55, 60]},
+    )
+    fig = lt.plot_normalized_multi(df, title="t", dark_mode=False, selected=["A", "C"])
+    names = [t.name for t in fig.data if not t.name.endswith("MA")]
+    assert set(names) == {"A", "C"}
+
+
+def test_plot_normalized_multi_selected_allows_empty():
+    df = _wide_df(
+        ["2024-01-01", "2024-01-02", "2024-01-03"],
+        {"A": [100, 110, 121]},
+    )
+    # selected 为空列表 → 无基线（仅兜底图）
+    fig = lt.plot_normalized_multi(df, title="t", dark_mode=False, selected=[])
+    assert isinstance(fig, go.Figure)
+
+
+# ───────────────────────── Iter3 归一化 / 原始切换（mode） ─────────────────────────
+def test_plot_normalized_multi_raw_mode_uses_actual_values():
+    df = _wide_df(
+        ["2024-01-01", "2024-01-02", "2024-01-03"],
+        {"A": [100, 110, 121]},
+    )
+    fig = lt.plot_normalized_multi(df, title="t", dark_mode=False, mode="raw")
+    assert fig.data[0].y[0] == pytest.approx(100.0)   # 原始值，非 100
+    assert fig.data[0].y[-1] == pytest.approx(121.0)
+    assert fig.layout.yaxis.title.text == "价格（元）"
+
+
+# ───────────────────────── Iter4 EMA 切换（ma_type） ─────────────────────────
+def test_plot_normalized_multi_ema_naming():
+    df = _wide_df(
+        ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"],
+        {"A": [100, 110, 121, 130], "B": [200, 190, 180, 170]},
+    )
+    fig = lt.plot_normalized_multi(df, title="t", dark_mode=False, ma_periods=(2,), ma_type="ema")
+    ema_traces = [t for t in fig.data if t.name.endswith("·EMA2")]
+    assert len(ema_traces) == 2
+    # EMA 非 NaN（至少末端有值）
+    assert ema_traces[0].y[-1] is not None
+
+
+# ───────────────────────── Iter5 基准线（show_baseline） ─────────────────────────
+def test_plot_normalized_multi_baseline_shape():
+    df = _wide_df(
+        ["2024-01-01", "2024-01-02", "2024-01-03"],
+        {"A": [100, 110, 121]},
+    )
+    fig = lt.plot_normalized_multi(df, title="t", dark_mode=False, show_baseline=True)
+    # add_hline 注入一条 type='line' 的 shape
+    lines = [s for s in (fig.layout.shapes or []) if getattr(s, "type", None) == "line"]
+    assert len(lines) == 1
+    assert lines[0].y0 == 100
+
+
+def test_plot_northbound_history_zero_baseline():
+    df = pd.DataFrame({
+        "date": ["2024-01-01", "2024-01-02"],
+        "net_buy_yi": [1.0, -0.5],
+        "cumulative_yi": [10.0, 9.5],
+    })
+    fig = lt.plot_northbound_history(df, dark_mode=False, show_baseline=True)
+    lines = [s for s in (fig.layout.shapes or []) if getattr(s, "type", None) == "line"]
+    assert len(lines) == 1
+    assert lines[0].y0 == 0
+
+
+# ───────────────────────── Iter6 金叉/死叉标注（show_cross） ─────────────────────────
+def test_plot_normalized_multi_cross_markers():
+    df = _wide_df(
+        ["2024-01-0%d" % i for i in range(1, 7)],
+        {"UP": [10, 11, 12, 13, 14, 15], "DN": [15, 14, 13, 12, 11, 10]},
+    )
+    fig = lt.plot_normalized_multi(
+        df, title="t", dark_mode=False, ma_periods=(2, 3), show_cross=True)
+    cross_traces = [t for t in fig.data
+                    if getattr(t, "marker", None) and str(getattr(t.marker, "symbol", "")).startswith("triangle")]
+    # 上行序列产生金叉、下行序列产生死叉 → 至少各一
+    ups = [t for t in cross_traces if t.marker.symbol == "triangle-up"]
+    dns = [t for t in cross_traces if t.marker.symbol == "triangle-down"]
+    assert len(ups) >= 1
+    assert len(dns) >= 1
+
+
+def test_golden_death_cross_helper():
+    xs = pd.Series(["2024-01-0%d" % i for i in range(1, 7)])
+    y = pd.Series([10, 11, 12, 13, 14, 15])  # 单调上行 → 金叉
+    golden, death = lt._golden_death_cross(xs, y, 2, 3)
+    assert isinstance(golden, list)
+    assert isinstance(death, list)
+    # 至少检测到一次金叉
+    assert len(golden) >= 1
+    assert len(death) == 0
+
+
+def test_max_drawdown_idx_helper():
+    s = pd.Series([10.0, 12.0, 9.0, 11.0])  # 峰12(idx1) 谷9(idx2)
+    res = lt._max_drawdown_idx(s)
+    assert res is not None
+    peak_i, trough_i, mdd = res
+    assert peak_i == 1
+    assert trough_i == 2
+    assert mdd < 0
+    assert mdd == pytest.approx((9.0 - 12.0) / 12.0, rel=1e-6)
+
+
+def test_max_drawdown_idx_none_when_monotonic_up():
+    s = pd.Series([1.0, 2.0, 3.0, 4.0])
+    assert lt._max_drawdown_idx(s) is None
+
+
+# ───────────────────────── Iter7 最大回撤标注（show_drawdown） ─────────────────────────
+def test_plot_normalized_multi_drawdown_annotation():
+    df = _wide_df(
+        ["2024-01-0%d" % i for i in range(1, 5)],
+        {"A": [10, 12, 9, 11]},
+    )
+    fig = lt.plot_normalized_multi(df, title="t", dark_mode=False, show_drawdown=True)
+    # add_vrect 注入 type='rect' 的 shape
+    rects = [s for s in (fig.layout.shapes or []) if getattr(s, "type", None) == "rect"]
+    assert len(rects) == 1
+    # 回撤标注以 annotation 形式呈现
+    assert len(fig.layout.annotations or []) >= 1
+    assert "最大回撤" in (fig.layout.annotations[0].text or "")
+
+
+# ───────────────────────── Iter9 导出 CSV（to_trend_csv） ─────────────────────────
+def test_to_trend_csv_basic_and_filter():
+    df = _wide_df(
+        ["2024-01-01", "2024-01-02", "2024-01-03"],
+        {"A": [100, 110, 121], "B": [200, 190, 180], "C": [50, 55, 60]},
+    )
+    csv_all = lt.to_trend_csv(df)
+    assert "date" in csv_all
+    assert "A" in csv_all and "B" in csv_all and "C" in csv_all
+    # 区间 + 序列过滤
+    csv_f = lt.to_trend_csv(df, selected=["A", "C"], date_range=("2024-01-02", "2024-01-03"))
+    assert "B" not in csv_f
+    # 仅含区间内两行 + 表头
+    assert csv_f.count("\n") == 3
+
+
+def test_to_trend_csv_empty():
+    assert lt.to_trend_csv(pd.DataFrame()) == ""
+
+
+# ───────────────────────── Iter10 相关性热力图（plot_correlation_heatmap） ─────────────────────────
+def test_plot_correlation_heatmap_basic():
+    df = _wide_df(
+        ["2024-01-0%d" % i for i in range(1, 6)],
+        {"A": [100, 102, 104, 106, 108],
+         "B": [200, 202, 204, 206, 208],
+         "C": [50, 60, 55, 65, 70]},
+    )
+    names_map = {"A": "序列A", "B": "序列B", "C": "序列C"}
+    fig = lt.plot_correlation_heatmap(df, names_map=names_map, dark_mode=False)
+    assert isinstance(fig, go.Figure)
+    heat = fig.data[0]
+    assert isinstance(heat, go.Heatmap)
+    # 3 序列 → 3x3 相关矩阵
+    assert heat.z.shape == (3, 3)
+    # A 与 B 高度正相关 → 接近 1
+    assert heat.z[0][1] == pytest.approx(1.0, abs=1e-2)
+
+
+def test_plot_correlation_heatmap_too_few_series():
+    df = _wide_df(["2024-01-01", "2024-01-02"], {"A": [100, 110]})
+    fig = lt.plot_correlation_heatmap(df, dark_mode=False)
+    assert isinstance(fig, go.Figure)
+    # 不足 2 序列 → 无热力图 trace
+    assert len(fig.data) == 0
+
+
+

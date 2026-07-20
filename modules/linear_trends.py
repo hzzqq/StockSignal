@@ -117,11 +117,12 @@ def _slice_date_range(df, date_range):
     return d.reset_index(drop=True)
 
 
-def _add_ma_traces(fig, x, y, name, color, ma_periods, visible_default=True):
-    """在原序列上叠加均线（虚线、降透明度）。"""
+def _add_ma_traces(fig, x, y, name, color, ma_periods, visible_default=True, ma_type="sma"):
+    """在原序列上叠加均线（虚线、降透明度）。ma_type: 'sma' | 'ema'。"""
     if not ma_periods:
         return
     s = pd.to_numeric(y, errors="coerce")
+    ma_label = "EMA" if ma_type == "ema" else "MA"
     for p in ma_periods:
         try:
             p = int(p)
@@ -129,12 +130,16 @@ def _add_ma_traces(fig, x, y, name, color, ma_periods, visible_default=True):
             continue
         if p <= 1:
             continue
-        ma = s.rolling(p, min_periods=max(2, p // 2)).mean()
+        minp = max(2, p // 2)
+        if ma_type == "ema":
+            ma = s.ewm(span=p, adjust=False, min_periods=minp).mean()
+        else:
+            ma = s.rolling(p, min_periods=minp).mean()
         fig.add_trace(go.Scatter(
-            x=x, y=ma, name=f"{name}·MA{p}",
+            x=x, y=ma, name=f"{name}·{ma_label}{p}",
             mode="lines", line=dict(color=color, width=1.2, dash="dot"),
             opacity=0.7,
-            hovertemplate="%{x}<br>" + str(name) + f"·MA{p}：%{{y:.2f}}<extra></extra>",
+            hovertemplate="%{x}<br>" + str(name) + f"·{ma_label}{p}：%{{y:.2f}}<extra></extra>",
             visible=("legendonly" if not visible_default else True),
         ))
 
@@ -188,10 +193,12 @@ def get_northbound_history_series():
     return _cached(1800, "northbound_hist_series", _fn)
 
 
-def plot_northbound_history(df, dark_mode=False, date_range=None, ma_periods=()):
+def plot_northbound_history(df, dark_mode=False, date_range=None, ma_periods=(),
+                             ma_type="sma", show_baseline=True):
     """北向资金历史趋势：净买额（面积线，左轴） + 历史累计净买额（线，右轴）。
 
     支持 date_range=(start,end) 区间切片与 ma_periods=(5,20,...) 均线叠加。
+    ma_type: 'sma' | 'ema'；show_baseline: 是否绘制零线（净买额可为负）。
     """
     fig = go.Figure()
     if df is None or df.empty:
@@ -209,7 +216,8 @@ def plot_northbound_history(df, dark_mode=False, date_range=None, ma_periods=())
         hovertemplate="%{x}<br>当日净买额：%{y:.2f}亿<extra></extra>",
         yaxis="y",
     ))
-    _add_ma_traces(fig, d["date"], d["net_buy_yi"], "当日净买额(亿)", "#7c5cff", ma_periods, visible_default=True)
+    _add_ma_traces(fig, d["date"], d["net_buy_yi"], "当日净买额(亿)", "#7c5cff", ma_periods,
+                   visible_default=True, ma_type=ma_type)
     if "cumulative_yi" in d.columns and d["cumulative_yi"].notna().any():
         fig.add_trace(go.Scatter(
             x=d["date"], y=d["cumulative_yi"], name="历史累计净买额(亿)",
@@ -226,6 +234,9 @@ def plot_northbound_history(df, dark_mode=False, date_range=None, ma_periods=())
         legend=dict(orientation="h", yanchor="top", y=-0.22, x=0.5, xanchor="center"),
     )
     fig.update_layout(**layout)
+    if show_baseline:
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.35,
+                      annotation_text="零线", annotation_position="bottom right")
     fig.update_xaxes(tickangle=-30)
     return fig
 
@@ -345,10 +356,12 @@ def get_individual_fund_flow_series(code, days=60):
     return df
 
 
-def plot_individual_series(df, name="", code="", dark_mode=False, date_range=None, ma_periods=()):
+def plot_individual_series(df, name="", code="", dark_mode=False, date_range=None, ma_periods=(),
+                           ma_type="sma", show_baseline=True):
     """个股主力资金逐日趋势：主力净流入（面积线，主） + 超大单/大单（虚线，默认隐藏）。
 
     支持 date_range 区间切片与 ma_periods 均线叠加（对主力净流入序列）。
+    ma_type: 'sma' | 'ema'；show_baseline: 是否绘制零线。
     """
     fig = go.Figure()
     if df is None or df.empty or "main_net" not in df.columns:
@@ -366,7 +379,8 @@ def plot_individual_series(df, name="", code="", dark_mode=False, date_range=Non
         fillcolor="rgba(238,42,42,0.10)",
         hovertemplate="%{x}<br>主力净流入：%{y:,.0f}元<extra></extra>",
     ))
-    _add_ma_traces(fig, d["date"], d["main_net"], "主力净流入(元)", UP, ma_periods, visible_default=True)
+    _add_ma_traces(fig, d["date"], d["main_net"], "主力净流入(元)", UP, ma_periods,
+                   visible_default=True, ma_type=ma_type)
     if "super_net" in d.columns and d["super_net"].notna().any():
         fig.add_trace(go.Scatter(
             x=d["date"], y=d["super_net"], name="超大单净流入(元)",
@@ -390,6 +404,9 @@ def plot_individual_series(df, name="", code="", dark_mode=False, date_range=Non
         legend=dict(orientation="h", yanchor="top", y=-0.22, x=0.5, xanchor="center"),
     )
     fig.update_layout(**layout)
+    if show_baseline:
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.35,
+                      annotation_text="零线", annotation_position="bottom right")
     fig.update_xaxes(tickangle=-30)
     return fig
 
@@ -434,10 +451,12 @@ def get_index_series(days=180):
     return _cached(900, f"index_series_{days}", _fn)
 
 
-def plot_index_series(df, dark_mode=False, date_range=None, ma_periods=()):
+def plot_index_series(df, dark_mode=False, date_range=None, ma_periods=(),
+                       ma_type="sma", show_baseline=True):
     """三大指数走势对比（归一化，起点=100），多线对比。
 
     支持 date_range 区间切片（起点=区间内首值）与 ma_periods 均线叠加。
+    ma_type: 'sma' | 'ema'；show_baseline: 是否绘制 100 基准线。
     """
     fig = go.Figure()
     if df is None or df.empty:
@@ -466,7 +485,7 @@ def plot_index_series(df, dark_mode=False, date_range=None, ma_periods=()):
             mode="lines", line=dict(color=color, width=2),
             hovertemplate="%{x}<br>" + disp + "：%{y:.2f}<extra></extra>",
         ))
-        _add_ma_traces(fig, dates, norm, disp, color, ma_periods, visible_default=True)
+        _add_ma_traces(fig, dates, norm, disp, color, ma_periods, visible_default=True, ma_type=ma_type)
     if not fig.data:
         fig.update_layout(title="暂无指数走势数据", **base, height=360)
         return fig
@@ -478,6 +497,9 @@ def plot_index_series(df, dark_mode=False, date_range=None, ma_periods=()):
         legend=dict(orientation="h", yanchor="top", y=-0.22, x=0.5, xanchor="center"),
     )
     fig.update_layout(**layout)
+    if show_baseline:
+        fig.add_hline(y=100, line_dash="dash", line_color="gray", opacity=0.35,
+                      annotation_text="基准 100", annotation_position="bottom right")
     fig.update_xaxes(tickangle=-30)
     return fig
 
@@ -510,10 +532,12 @@ def get_market_cumulative_series(days=60):
     return _cached(600, f"market_cumulative_{days}", _fn)
 
 
-def plot_market_cumulative(df, dark_mode=False, date_range=None, ma_periods=()):
+def plot_market_cumulative(df, dark_mode=False, date_range=None, ma_periods=(),
+                           ma_type="sma", show_baseline=True):
     """大盘主力资金累计净流入（面积线，主） + 逐日主力净流入（细线，右轴）。
 
     支持 date_range 区间切片与 ma_periods 均线叠加（对累计序列）。
+    ma_type: 'sma' | 'ema'；show_baseline: 是否绘制零线。
     """
     fig = go.Figure()
     if df is None or df.empty or "cumulative" not in df.columns:
@@ -533,7 +557,8 @@ def plot_market_cumulative(df, dark_mode=False, date_range=None, ma_periods=()):
         hovertemplate="%{x}<br>累计净流入：%{y:.2f}亿<extra></extra>",
         yaxis="y",
     ))
-    _add_ma_traces(fig, d["date"], d["cumulative"], "累计主力净流入(亿)", cum_color, ma_periods, visible_default=True)
+    _add_ma_traces(fig, d["date"], d["cumulative"], "累计主力净流入(亿)", cum_color, ma_periods,
+                   visible_default=True, ma_type=ma_type)
     if "main_net" in d.columns and d["main_net"].notna().any():
         fig.add_trace(go.Scatter(
             x=d["date"], y=d["main_net"], name="当日主力净流入(亿)",
@@ -550,6 +575,9 @@ def plot_market_cumulative(df, dark_mode=False, date_range=None, ma_periods=()):
         legend=dict(orientation="h", yanchor="top", y=-0.22, x=0.5, xanchor="center"),
     )
     fig.update_layout(**layout)
+    if show_baseline:
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.35,
+                      annotation_text="零线", annotation_position="bottom right")
     fig.update_xaxes(tickangle=-30)
     return fig
 
@@ -702,22 +730,78 @@ def get_etf_series(days=180):
     return _cached(1800, f"etf_series_{days}", _fn)
 
 
-# ───────────────────────── 共享：归一化多线对比（含区间切片 + 均线叠加） ─────────────────────────
+# ───────────────────────── 共享：归一化多线对比（含区间切片 + 均线叠加 + 增强标注） ─────────────────────────
 _PALETTE = ["#7c5cff", "#ef5da8", "#2b8aef", "#1aa260", "#f5a623", "#ee2a2a",
             "#16c2c2", "#8b5cf6", "#0ea5e9", "#f97316", "#84cc16", "#e11d48"]
 
 
+def _golden_death_cross(xs, y, short_p, long_p):
+    """检测两条均线的金叉/死叉点，返回 [(x, y), ...] 元组 (golden, death)。
+
+    xs / y 为对齐的同索引序列；short_p < long_p。
+    """
+    s = pd.to_numeric(y, errors="coerce").reset_index(drop=True)
+    xs2 = xs.reset_index(drop=True)
+    minp = max(2, short_p // 2)
+    short = s.rolling(short_p, min_periods=minp).mean()
+    long = s.rolling(long_p, min_periods=max(2, long_p // 2)).mean()
+    diff = short - long
+    golden, death = [], []
+    for i in range(1, len(diff)):
+        if pd.isna(diff.iloc[i]) or pd.isna(diff.iloc[i - 1]):
+            continue
+        if diff.iloc[i - 1] <= 0 < diff.iloc[i]:
+            golden.append((xs2.iloc[i], float(s.iloc[i])))
+        elif diff.iloc[i - 1] >= 0 > diff.iloc[i]:
+            death.append((xs2.iloc[i], float(s.iloc[i])))
+    return golden, death
+
+
+def _max_drawdown_idx(s):
+    """返回 (peak_idx, trough_idx, mdd_ratio) 或 None。s 为带原始索引的数值序列。"""
+    s = pd.to_numeric(s, errors="coerce")
+    valid = s.dropna()
+    if len(valid) < 2:
+        return None
+    peak_val = valid.iloc[0]
+    peak_i = valid.index[0]
+    mdd = 0.0
+    mdd_peak_i = peak_i
+    mdd_trough_i = peak_i
+    for i in valid.index[1:]:
+        v = s.loc[i]
+        if v > peak_val:
+            peak_val = v
+            peak_i = i
+        dd = (v - peak_val) / peak_val if peak_val != 0 else 0.0
+        if dd < mdd:
+            mdd = dd
+            mdd_peak_i = peak_i
+            mdd_trough_i = i
+    if mdd >= 0:
+        return None
+    return mdd_peak_i, mdd_trough_i, mdd
+
+
 def plot_normalized_multi(df, names_map=None, colors_map=None, title="",
                           y_title="归一化点位（起点=100）", dark_mode=False,
-                          date_range=None, ma_periods=()):
-    """归一化多线对比（起点=100），支持区间切片与均线叠加。
+                          date_range=None, ma_periods=(), selected=None,
+                          mode="normalized", show_baseline=True,
+                          show_cross=False, show_drawdown=False, ma_type="sma"):
+    """归一化多线对比（起点=100），支持区间切片、均线叠加与多种增强标注。
 
     参数：
-      df        : 宽表，含 'date' 列 + 每个序列一列（列名为序列 key，如行业名 / ETF 代码）。
+      df        : 宽表，含 'date' 列 + 每个序列一列（列名为序列 key）。
       names_map : {key: 显示名}
       colors_map: {key: 颜色}
-      date_range: (start, end) 区间切片（字符串/日期皆可）
+      date_range: (start, end) 区间切片
       ma_periods: 均线周期元组，如 (5, 20)
+      selected  : 仅显示这些 key（序列多选）；None 显示全部
+      mode      : 'normalized'（起点=100）| 'raw'（原始价格）
+      show_baseline: 是否绘制基准线（归一化=100 / 原始=0）
+      show_cross: 是否标注金叉/死叉（需 ma_periods 至少 2 个周期）
+      show_drawdown: 是否标注最大回撤区间
+      ma_type   : 'sma' | 'ema'
     序列数 ≤ 3 时均线默认可见；> 3 时均线默认进图例（legendonly）避免拥挤。
     """
     fig = go.Figure()
@@ -729,6 +813,8 @@ def plot_normalized_multi(df, names_map=None, colors_map=None, title="",
         fig.update_layout(title=title or "暂无数据（区间内）", **_fig_base(dark_mode), height=360)
         return fig
     keys = [c for c in d.columns if c != "date"]
+    if selected:
+        keys = [k for k in keys if k in selected]
     ma_visible_default = len(keys) <= 3
     any_line = False
     for i, key in enumerate(keys):
@@ -736,30 +822,129 @@ def plot_normalized_multi(df, names_map=None, colors_map=None, title="",
         if s.empty:
             continue
         first = s.iloc[0]
-        if not first or pd.isna(first):
-            continue
-        norm = (s / first * 100.0).round(2)
+        if mode == "normalized":
+            if not first or pd.isna(first):
+                continue
+            y = (s / first * 100.0).round(2)
+        else:
+            y = s.round(4)
         xs = d.loc[s.index, "date"]
         disp = (names_map or {}).get(key, key)
         color = (colors_map or {}).get(key, _PALETTE[i % len(_PALETTE)])
         fig.add_trace(go.Scatter(
-            x=xs, y=norm, name=str(disp), mode="lines",
+            x=xs, y=y, name=str(disp), mode="lines",
             line=dict(color=color, width=2),
             hovertemplate="%{x}<br>" + str(disp) + "：%{y:.2f}<extra></extra>",
         ))
-        _add_ma_traces(fig, xs, norm, str(disp), color, ma_periods,
-                       visible_default=ma_visible_default)
+        _add_ma_traces(fig, xs, y, str(disp), color, ma_periods,
+                       visible_default=ma_visible_default, ma_type=ma_type)
         any_line = True
+        # 最大回撤标注：基于原始价格序列，标记在区间图上
+        if show_drawdown:
+            dd = _max_drawdown_idx(s)
+            if dd is not None:
+                peak_i, trough_i, mdd = dd
+                try:
+                    px = d.loc[peak_i, "date"]
+                    tx = d.loc[trough_i, "date"]
+                except Exception:
+                    px = xs.loc[peak_i] if peak_i in xs.index else None
+                    tx = xs.loc[trough_i] if trough_i in xs.index else None
+                if px is not None and tx is not None:
+                    fig.add_vrect(x0=px, x1=tx, fillcolor="rgba(238,42,42,0.10)",
+                                  line_width=0, layer="below", opacity=0.6)
+                    fig.add_annotation(x=tx, y=float(y.loc[trough_i]),
+                                       text=f"最大回撤 {mdd * 100:.1f}%",
+                                       showarrow=True, arrowhead=2, ax=0, ay=30,
+                                       font=dict(color="#ee2a2a", size=11))
+        # 金叉/死叉标注（需至少两条均线）
+        if show_cross and len(ma_periods) >= 2:
+            sps = sorted(int(p) for p in ma_periods if int(p) > 1)
+            if len(sps) >= 2:
+                golden, death = _golden_death_cross(xs, y, sps[0], sps[1])
+                for gx, gy in golden:
+                    fig.add_trace(go.Scatter(x=[gx], y=[gy], mode="markers",
+                        marker=dict(symbol="triangle-up", size=11, color="#1aa260"),
+                        name="金叉", showlegend=False,
+                        hovertemplate="金叉 %{x}<extra></extra>"))
+                for dx, dy in death:
+                    fig.add_trace(go.Scatter(x=[dx], y=[dy], mode="markers",
+                        marker=dict(symbol="triangle-down", size=11, color="#ee2a2a"),
+                        name="死叉", showlegend=False,
+                        hovertemplate="死叉 %{x}<extra></extra>"))
     if not any_line:
         fig.update_layout(title=title or "暂无数据", **_fig_base(dark_mode), height=360)
         return fig
+    if show_baseline:
+        base_y = 100 if mode == "normalized" else 0
+        fig.add_hline(y=base_y, line_dash="dash", line_color="gray", opacity=0.4,
+                      annotation_text="基准线" if mode == "normalized" else "零线",
+                      annotation_position="bottom right")
     layout = _fig_base(dark_mode)
+    yt = "价格（元）" if mode == "raw" else y_title
     layout.update(
         title=title,
-        height=400,
-        yaxis=dict(title=y_title, side="left", showgrid=True),
+        height=420,
+        yaxis=dict(title=yt, side="left", showgrid=True),
         legend=dict(orientation="h", yanchor="top", y=-0.24, x=0.5, xanchor="center"),
     )
     fig.update_layout(**layout)
     fig.update_xaxes(tickangle=-30)
     return fig
+
+
+def to_trend_csv(df, names_map=None, selected=None, date_range=None):
+    """把宽表按区间切片 + 过滤序列列后导出为 CSV 字符串（带 UTF-8 BOM，Excel 友好）。"""
+    if df is None or df.empty:
+        return ""
+    d = _slice_date_range(df, date_range)
+    if d is None or d.empty:
+        return ""
+    keys = [c for c in d.columns if c != "date"]
+    if selected:
+        keys = [k for k in keys if k in selected]
+    if not keys:
+        return ""
+    out = d[["date"] + keys].copy()
+    if names_map:
+        out = out.rename(columns={k: names_map.get(k, k) for k in keys})
+    return out.to_csv(index=False, encoding="utf-8-sig")
+
+
+def plot_correlation_heatmap(df, names_map=None, selected=None, date_range=None,
+                             dark_mode=False, title="收益率相关性热力图"):
+    """所选序列的日收益率相关性热力图（颜色 RdBu，红=正相关，蓝=负相关）。"""
+    fig = go.Figure()
+    if df is None or df.empty or "date" not in df.columns:
+        fig.update_layout(title=title or "暂无数据", **_fig_base(dark_mode), height=300)
+        return fig
+    d = _slice_date_range(df, date_range)
+    if d is None or d.empty:
+        fig.update_layout(title=title or "暂无数据", **_fig_base(dark_mode), height=300)
+        return fig
+    keys = [c for c in d.columns if c != "date"]
+    if selected:
+        keys = [k for k in keys if k in selected]
+    keys = [k for k in keys if pd.to_numeric(d[k], errors="coerce").notna().any()]
+    if len(keys) < 2:
+        fig.update_layout(title="相关性需至少 2 个有效序列", **_fig_base(dark_mode), height=300)
+        return fig
+    rets = pd.DataFrame({k: pd.to_numeric(d[k], errors="coerce").pct_change() for k in keys}).dropna()
+    if rets.empty or len(rets) < 2:
+        fig.update_layout(title="样本不足，无法计算相关性", **_fig_base(dark_mode), height=300)
+        return fig
+    corr = rets.corr()
+    labels = [(names_map or {}).get(k, k) for k in keys]
+    heat = go.Heatmap(
+        z=corr.values, x=labels, y=labels,
+        colorscale="RdBu", zmid=0, zmin=-1, zmax=1,
+        text=[[f"{v:.2f}" for v in row] for row in corr.values],
+        texttemplate="%{text}", colorbar=dict(title="相关系数"),
+    )
+    fig.add_trace(heat)
+    layout = _fig_base(dark_mode)
+    layout.update(title=title or "收益率相关性热力图", height=420,
+                  margin=dict(l=60, r=20, t=50, b=60))
+    fig.update_layout(**layout)
+    return fig
+
