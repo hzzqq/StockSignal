@@ -525,7 +525,7 @@ if code:
             fa_df = _build_financial_df(fa_code)
 
         if fa_df is None or fa_df.empty:
-            st.info("ℹ️ 暂无可用的多期财报数据，财务分析无法展示（可检查网络或切换数据源）。")
+            _empty_info("暂无可用的多期财报数据，财务分析无法展示（可检查网络或切换数据源）。")
             return
 
         # 状态初始化

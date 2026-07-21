@@ -126,7 +126,7 @@ def fragment_watchlist_monitor():
 
     items = body.get("data", []) or []
     if not items:
-        st.info("自选股为空，请先到「行情看板 / 我的」添加，或前往「形态选股」用自选股池扫描。")
+        _empty_info("自选股为空，请先到「行情看板 / 我的」添加，或前往「形态选股」用自选股池扫描。")
         c1, c2 = st.columns(2)
         with c1:
             if st.button("➡️ 去形态选股", use_container_width=True, key="wl_empty_go"):
@@ -229,9 +229,9 @@ def fragment_watchlist_monitor():
             except Exception:
                 return ""
             if x > 0:
-                return "color:#ee2a2a;font-weight:600"
+                return "color:{_UP};font-weight:600"
             if x < 0:
-                return "color:#1aa260;font-weight:600"
+                return "color:{_DOWN};font-weight:600"
             return "color:#9aa0a6"
         _styled = display_df.style.map(_chg_color, subset=["涨跌额", "涨跌%"])
         st.dataframe(
@@ -440,9 +440,9 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
         except Exception:
             return ""
         if x > 0:
-            return "color:#ee2a2a;font-weight:600"
+            return "color:{_UP};font-weight:600"
         if x < 0:
-            return "color:#1aa260;font-weight:600"
+            return "color:{_DOWN};font-weight:600"
         return "color:#9aa0a6"
     _styled = display.style.map(_chg_color, subset=["涨跌%"])
     st.dataframe(_styled, use_container_width=True, height=360,
@@ -510,7 +510,7 @@ def fragment_pool_watchlist():
         if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
             wl_items = body.get("data", []) or []
         if not wl_items:
-            st.info("自选股为空。先到「股票选取」页面点击「加入自选股」添加。")
+            _empty_info("自选股为空。先到「股票选取」页面点击「加入自选股」添加。")
         else:
             codes = [_norm_code(it["stock_code"]) for it in wl_items]
             id_map = {_norm_code(it["stock_code"]): it["id"] for it in wl_items}
@@ -536,7 +536,7 @@ def fragment_pool_junk():
     with st.expander("🗑️ 垃圾股列表", expanded=False):
         junk_items = api_junk_stocks()
         if not junk_items:
-            st.info("垃圾股为空。先到「股票选取」页面点击「加入垃圾股」添加。")
+            _empty_info("垃圾股为空。先到「股票选取」页面点击「加入垃圾股」添加。")
         else:
             codes = [_norm_code(it["stock_code"]) for it in junk_items]
             id_map = {_norm_code(it["stock_code"]): it["id"] for it in junk_items}

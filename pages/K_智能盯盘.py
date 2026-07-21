@@ -324,7 +324,7 @@ def fragment_watchlist():
         st.error(err)
         return
     if not items:
-        st.info("自选股为空，请先添加关注的股票。")
+        _empty_info("自选股为空，请先添加关注的股票。")
         if st.button("➡️ 去形态选股添加", key="wl_empty_go"):
             safe_switch_page("pages/B_形态选股.py")
         return
@@ -370,7 +370,7 @@ def fragment_watchlist():
         df = df[df["涨跌%"].fillna(0).abs() >= thr]
 
     if df.empty:
-        st.info("筛选后无匹配标的（可放宽筛选条件）。")
+        _empty_info("筛选后无匹配标的（可放宽筛选条件）。")
         return
 
     try:
@@ -419,7 +419,7 @@ def fragment_individual_ff():
         st.error(err)
         return
     if not items:
-        st.info("自选股为空，暂无法展示个股资金流。")
+        _empty_info("自选股为空，暂无法展示个股资金流。")
         if st.button("➡️ 去形态选股添加", key="iff_empty_go"):
             safe_switch_page("pages/B_形态选股.py")
         return
@@ -453,7 +453,7 @@ def fragment_individual_ff():
     df = pd.DataFrame(rows)
     valid = df.dropna(subset=["主力净流入(亿)"]).copy() if not df.empty else df
     if valid.empty:
-        st.info("当前自选股暂无可用主力资金流数据（接口受限）。")
+        _empty_info("当前自选股暂无可用主力资金流数据（接口受限）。")
         return
 
     valid = valid.sort_values("主力净流入(亿)", ascending=False).reset_index(drop=True)
@@ -464,7 +464,7 @@ def fragment_individual_ff():
     if iff_strong:
         valid = valid[valid["主力净流入(亿)"].abs() >= 1.0]
     if valid.empty:
-        st.info("按当前筛选条件无匹配标的。")
+        _empty_info("按当前筛选条件无匹配标的。")
         return
     top_in = valid.head(5)
     top_out = valid.sort_values("主力净流入(亿)").head(5)
@@ -512,7 +512,7 @@ def fragment_alerts():
         st.error(err)
         return
     if not items:
-        st.info("自选股为空，暂无可扫描标的。")
+        _empty_info("自选股为空，暂无可扫描标的。")
         return
 
     codes = [c for c, _ in items]
@@ -608,7 +608,7 @@ def fragment_watch_manage():
         else:
             st.warning("请输入 6 位数字代码（如 600519）")
     if not items:
-        st.info("自选股为空，可在「形态选股」或行情看板添加关注。")
+        _empty_info("自选股为空，可在「形态选股」或行情看板添加关注。")
         if st.button("➡️ 去形态选股添加", key="wm_empty_go"):
             safe_switch_page("pages/B_形态选股.py")
         return

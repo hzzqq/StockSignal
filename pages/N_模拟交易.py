@@ -230,7 +230,7 @@ def fragment_paper():
                               margin=dict(t=20, l=60, r=20, b=40))
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("完成至少一笔交易后生成净值曲线。")
+            _empty_info("完成至少一笔交易后生成净值曲线。")
         st.caption("💡 在上方「💱 交易」买入或卖出后，这里会基于每笔成交后的总资产快照绘制净值曲线。")
 
     st.markdown("---")

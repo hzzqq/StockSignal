@@ -286,7 +286,7 @@ def fragment_strength():
         if st.checkbox("把我的自选股区间归一化均值叠到图里", key="str_wl_on", value=False):
             codes = _watchlist_codes(get_token() or "")
             if not codes:
-                st.info("暂无自选股，先去《持仓中心》加几只再叠加。")
+                _empty_info("暂无自选股，先去《持仓中心》加几只再叠加。")
             else:
                 with st.spinner(f"计算 {len(codes[:15])} 只自选股均值…"):
                     avg_series = _watchlist_avg_normalized(codes, dr[0] if dr else None, dr[1] if dr else None, 180)

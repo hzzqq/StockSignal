@@ -189,7 +189,7 @@ def fragment_video():
         except Exception:
             _empty_info("教学视频文件存在但无法预览，请在 assets/ 目录直接打开。")
     else:
-        st.info("🎞️ 教学视频尚未生成（assets/tutorial_overview.mp4 缺失）。"
+        _empty_info("🎞️ 教学视频尚未生成（assets/tutorial_overview.mp4 缺失）。"
                 "你可先阅读下面的「文字版分步漫游」，或在终端运行视频生成后刷新本页。")
 
     with st.expander("🗺️ 文字版分步漫游（配合 HTML 漫游 artifact 食用更佳）", expanded=False):

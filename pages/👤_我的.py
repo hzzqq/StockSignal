@@ -338,7 +338,7 @@ try:
                 if st.button("➕ 去行情看板添加自选股", key="wl_go_add", use_container_width=True):
                     safe_switch_page("pages/1_行情看板.py")
         else:
-            st.info("暂无自选股，请先添加你关注的股票。")
+            _empty_info("暂无自选股，请先添加你关注的股票。")
             st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
             if st.button("➕ 去行情看板添加自选股", key="wl_go_add2", use_container_width=True):
                 safe_switch_page("pages/1_行情看板.py")

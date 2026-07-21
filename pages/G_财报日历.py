@@ -15,7 +15,7 @@ from modules.fundflow import (
 )
 
 from modules.page_guard import safe_fragment
-from modules.page_widgets import UP, DOWN, _fig_layout, _section_title
+from modules.page_widgets import UP, DOWN, _fig_layout, _section_title, _empty_info
 
 apply_page_config(page_title="财报日历", page_icon="📅", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -58,7 +58,7 @@ def fragment_report():
         st.error(f"业绩报表加载失败：{e}")
         return
     if df is None or df.empty:
-        st.info(f"「{period_label}」暂无已披露财报数据（可能尚未到披露期或接口受限）。")
+        _empty_info(f"「{period_label}」暂无已披露财报数据（可能尚未到披露期或接口受限）。")
         st.caption("💡 试试切换其他报告期，已完整披露的「2025 年报」通常数据最全。")
         if st.button("📅 试看 2025 年报", key="rp_try_2025"):
             st.session_state["rp_period"] = "2025 年报"
@@ -124,7 +124,7 @@ def fragment_forecast():
     except Exception:
         df = pd.DataFrame()
     if df is None or df.empty:
-        st.info(f"「{period_label}」业绩预告暂不可用（接口返回空）。")
+        _empty_info(f"「{period_label}」业绩预告暂不可用（接口返回空）。")
         st.caption("💡 业绩预告接口稳定性较低，可切换报告期或稍后重试。")
         if st.button("📅 试看 2025 年报", key="fc_try_2025"):
             st.session_state["fc_period"] = "2025 年报"
@@ -151,7 +151,7 @@ def fragment_disclosure():
     except Exception:
         df = pd.DataFrame()
     if df is None or df.empty:
-        st.info("披露日历暂不可用（接口返回空或参数不支持）。")
+        _empty_info("披露日历暂不可用（接口返回空或参数不支持）。")
         st.caption("💡 可切换市场或报告期后重试；沪市 2025 年报通常最完整。")
         if st.button("📅 试看 沪市·2025年报", key="dc_try_2025"):
             st.session_state["dc_market"] = "沪市"
