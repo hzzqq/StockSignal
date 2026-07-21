@@ -9,8 +9,8 @@
    - 装饰器，等价于 ``@st.fragment`` + 异常捕获。
    - 被装饰的区块（行情卡片 / 龙虎榜 / 复盘笔记 / 监控主表…）即使抛异常，
      也只在该区块内渲染「出错卡片」，不会整页变白 / 整页崩溃。
-   - 注意：fragment 内严禁 st.rerun()，故错误卡片不提供「重试」按钮，
-     仅展示错误摘要 + 可折叠详情，并提示「该模块已隔离，刷新可重试」。
+   - 出错卡片提供「🔄 重试本区块」按钮：调用 ``st.rerun(scope="fragment")``，
+     只重跑当前 fragment（不整页重跑），符合 fragment 内禁整页 rerun 铁律。
 
 2. safe_section(name, default=None)
    - 上下文管理器，包裹「一次数据取数 + 渲染」代码块。
@@ -35,13 +35,17 @@ from contextlib import contextmanager
 # ──────────────────────────────────────────────────────────
 # 内联错误卡片（可复用）
 # ──────────────────────────────────────────────────────────
-def render_error_card(name: str, exc: Exception, *, retry: bool = False, hint: str = ""):
+def render_error_card(name: str, exc: Exception, *, retry: bool | str = False, hint: str = ""):
     """
     渲染一个内联错误卡片。
 
     :param name: 出错的模块 / 区块名（用于标题与按钮 key）。
     :param exc: 被捕获的异常。
-    :param retry: 是否显示「重试」按钮（仅页面级边界可用，fragment 内必须为 False）。
+    :param retry: 重试按钮行为：
+        - False（默认）：无按钮。
+        - True / "page"：页面级「重试本页」（整页 st.rerun()，仅页面级边界可用）。
+        - "fragment"：片段级「重试」（st.rerun(scope="fragment")，只重跑当前 fragment，
+          不整页重跑，可在 @safe_fragment 内安全使用）。
     :param hint: 额外提示文案。
     """
     err_type = type(exc).__name__
@@ -58,9 +62,14 @@ def render_error_card(name: str, exc: Exception, *, retry: bool = False, hint: s
         st.code(traceback.format_exc(limit=8), language="text")
 
     if retry:
-        # 仅限页面级边界（非 fragment 内）
-        if st.button("🔄 重试本页", key=f"pg_retry_{name}", help="重新运行整个页面"):
-            st.rerun()
+        if retry == "fragment":
+            # 片段级重试：只重跑当前 fragment，不整页重跑（符合 fragment 内禁整页 rerun 铁律）。
+            if st.button("🔄 重试本区块", key=f"frag_retry_{name}", help="仅重新加载此模块"):
+                st.rerun(scope="fragment")
+        else:
+            # 页面级重试（整页 st.rerun()）
+            if st.button("🔄 重试本页", key=f"pg_retry_{name}", help="重新运行整个页面"):
+                st.rerun()
 
 
 # ──────────────────────────────────────────────────────────
@@ -90,7 +99,8 @@ def safe_fragment(name=None, **frag_kwargs):
             try:
                 return func(*args, **kwargs)
             except Exception as exc:  # noqa: BLE001
-                render_error_card(_title, exc)
+                # fragment 内：提供片段级「重试本区块」(st.rerun(scope="fragment") 不整页重跑)
+                render_error_card(_title, exc, retry="fragment")
         wrapper.__name__ = getattr(func, "__name__", name)
         wrapper.__doc__ = getattr(func, "__doc__", None)
         return wrapper

@@ -30,6 +30,7 @@ _DOWN = "#2ebd85"
 
 # SSL 关闭补丁已收敛到 modules.ssl_helper（#404），此处复用公共上下文管理器
 from modules.ssl_helper import ssl_bypass as _ssl_bypass
+from modules.page_widgets import _empty_info
 
 
 def _to_num(v):
@@ -314,7 +315,7 @@ def fragment_watchlist_monitor():
                 st.session_state["pick_stock_query"] = code
                 safe_switch_page("pages/个股研究.py")
     else:
-        st.info("暂无数据。")
+        _empty_info("暂无数据")
 
     # ── 导出当前自选股快照为 CSV（含实时行情 + 估值）──
     if rows:
@@ -480,7 +481,7 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
         st.warning("🔐 登录状态已过期，请刷新页面或重新登录。")
         return
     if df.empty:
-        st.info("暂无数据。")
+        _empty_info("暂无数据")
         return
 
     display = df[["code", "name", "price", "change_pct", "short", "mid", "long",

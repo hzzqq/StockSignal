@@ -25,6 +25,7 @@ from modules.session import require_auth, render_user_badge, api_kline
 from modules.search_ui import stock_search_input
 from modules.ui_theme import dashboard_sf_css, _theme_is_dark
 from modules.background_tasks import submit_task_with_error, poll_task
+from modules.page_widgets import _empty_info
 from streamlit_autorefresh import st_autorefresh
 
 # 配色常量 + UI/计算纯函数簇已抽到 modules/stock_analysis_helpers（#408 拆分超大文件）。
@@ -542,7 +543,7 @@ def _render_analysis(R: dict):
             unsafe_allow_html=True,
         )
     else:
-        st.info("暂无新闻数据（网络不可用或该标的无公开新闻）。")
+        _empty_info("暂无新闻数据（网络不可用或该标的无公开新闻）")
 
     # 风险警报（负面新闻或偏空信号）
     if neg_pct >= 30 or verdict == "看空":
@@ -1049,7 +1050,7 @@ def fragment_stock_videos(ticker):
                     st.session_state[vk].pop(idx)
                     # fragment 内由 Streamlit 自动局部重跑，禁止显式 st.rerun()
     else:
-        st.info("尚未添加视频。粘贴上方链接即可把网络视频「接到」本股票分析页内联播放。")
+        _empty_info("尚未添加视频。粘贴上方链接即可把网络视频「接到」本股票分析页内联播放")
 
 
 fragment_stock_videos(ticker)

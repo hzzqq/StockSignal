@@ -256,10 +256,12 @@ with col1:
             "display:flex;align-items:center;justify-content:center;font-size:44px;'>👤</div>",
             unsafe_allow_html=True,
         )
+    if "avatar_up_counter" not in st.session_state:
+        st.session_state["avatar_up_counter"] = 0
     _up = st.file_uploader(
         "上传头像（png/jpg/jpeg，建议方形，≤3MB）",
         type=["png", "jpg", "jpeg"],
-        key="avatar_uploader",
+        key=f"avatar_uploader_{st.session_state['avatar_up_counter']}",
         help="上传后点击保存，头像会按账号保存到后端，刷新 / 换设备也不会丢失。",
     )
     if _up is not None:
@@ -279,6 +281,7 @@ with col1:
                         set_avatar_data_url(data_url)
                         save_avatar(_username, content, ext=ext)  # 本地缓存兜底
                         st.success("✅ 头像已按账号保存到云端，刷新后依然在。")
+                        st.session_state["avatar_up_counter"] += 1
                         st.rerun()
                     else:
                         # 后端不可用：退化为本地保存（仅本机本会话可靠）
@@ -286,6 +289,7 @@ with col1:
                         set_avatar_data_url(data_url)
                         _msg = (res or {}).get("message", "未知错误") if isinstance(res, dict) else "后端无响应"
                         st.warning(f"⚠️ 后端保存失败（{_msg}），已暂存本地；重启后端后可能丢失。")
+                        st.session_state["avatar_up_counter"] += 1
                         st.rerun()
             except Exception as e:
                 st.error(f"保存失败：{e}")

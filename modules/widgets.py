@@ -18,7 +18,7 @@ import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
-from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin
+from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin, _rel_time
 
 
 # ──────────────────────────────────────────────────────────────
@@ -1205,8 +1205,9 @@ def render_notifications() -> None:
         if resp.status_code == 200:
             logs = resp.json().get("data") or []
             if logs:
-                last = logs[0].get("created_at", "")[:19].replace("T", " ")
-                st.caption(f"🕒 上次登录：{last}")
+                last = logs[0].get("created_at", "")
+                rel = _rel_time(last)
+                st.caption(f"🕒 上次登录：{rel or last[:19].replace('T', ' ')}")
     except Exception:
         pass
 
@@ -1228,6 +1229,12 @@ def render_notifications() -> None:
         - 行情看板支持板块、龙虎榜、自选股监控
         - 事件追踪综合三类信号评分；股吧可发帖 / 评论 / 点赞
         - 右侧 **★ 星辰AI** 可随时咨询多市场分析
+
+        **市场异动 & 容错**
+        - 侧边栏 **🔔 市场异动** 铃铛常驻，点开看未读摘要、相对时间、一键全部已读
+        - 任意页面底部可挂「近期异动提醒」面板，支持「仅看未读」过滤
+        - 单模块取数失败会被**隔离**为该区块错误卡，并带「🔄 重试本区块」按钮，不影响其它模块
+        - 退出登录前会弹**确认框**，避免误触
         """)
 
 

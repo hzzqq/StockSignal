@@ -11,6 +11,7 @@ from modules.admin_api import (
     create_config, delete_config, get_watchlist, add_watchlist, remove_watchlist,
     search_stocks,
 )
+from modules.page_widgets import _empty_info, _toast
 
 # 系统配置项：key → 中文可读名称
 CONFIG_LABELS = {
@@ -124,7 +125,7 @@ with tab_config:
     else:
         configs = resp["data"]
         if not configs:
-            st.info("暂无配置项")
+            _empty_info("暂无配置项")
         else:
             for cfg in configs:
                 with st.container(border=True):
@@ -226,7 +227,7 @@ with tab_watch:
     else:
         items = resp["data"]
         if not items:
-            st.info("暂无自选股")
+            _empty_info("暂无自选股")
         else:
             for item in items:
                 col1, col2, col3 = st.columns([3, 2, 1])
@@ -295,6 +296,7 @@ with tab_alert:
                 c, r = api_post("/api/market-alerts/config", json=body)
                 if c == 200 and r.get("status") == "ok":
                     st.success("已保存（运行时生效，重启后失效）")
+                    _toast("市场异动扫描策略已更新")
                     st.rerun()
                 else:
                     st.error(r.get("message", "保存失败"))

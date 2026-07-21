@@ -23,6 +23,7 @@ from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.search_ui import multi_stock_search_input, stock_search_input
+from modules.page_widgets import _empty_info
 
 apply_page_config(page_title="形态选股", page_icon="🧭", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -177,7 +178,7 @@ else:
                         save_user_setting("screener_pool", st.session_state["screener_pool"])
                         st.rerun()
         else:
-            st.info("扫描池为空，请在上方搜索并「加入扫描池」。")
+            _empty_info("扫描池为空，请在上方搜索并「加入扫描池」")
 
         c_count, c_clear = st.columns([0.8, 0.2])
         with c_count:
@@ -395,10 +396,10 @@ with st.container(border=True):
         prog.empty()
 
         if not results:
-            st.info("未命中任何形态（或股票池无可用日线数据，可尝试「手动输入代码」或检查网络）。")
+            _empty_info("未命中任何形态（或股票池无可用日线数据，可尝试「手动输入代码」或检查网络）")
         else:
             st.success(f"✅ 扫描完成，命中 {len(results)} 只")
             results.sort(key=lambda r: r["技术评分"], reverse=True)
             st.dataframe(results, use_container_width=True, height=480)
     elif not universe:
-        st.info("请选择股票池（或先搜索加入扫描池）后点击「开始扫描」。")
+        _empty_info("请选择股票池（或先搜索加入扫描池）后点击「开始扫描」")

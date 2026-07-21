@@ -15,6 +15,7 @@ from modules.session import require_auth, render_user_badge, api_kline, safe_swi
 from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules.widgets import render_index_compact
 from modules.page_guard import safe_fragment
+from modules.page_widgets import _empty_info
 
 apply_page_config(page_title="行情看板", page_icon="📈", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -381,7 +382,7 @@ def fragment_lhb():
                     st.query_params["pick_stock"] = code
                     safe_switch_page("pages/1_股票选取.py")
         else:
-            st.info("暂无龙虎榜数据（非交易日晚间或数据源暂不可用）。")
+            _empty_info("暂无龙虎榜数据（非交易日晚间或数据源暂不可用）")
 
 
 fragment_lhb()

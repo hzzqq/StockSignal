@@ -819,6 +819,41 @@ def _refresh_user_from_backend() -> dict | None:
     return _verify_token(get_token())
 
 
+def _rel_time(ts) -> str:
+    """把 ISO 时间戳转成友好相对时间（UI-only）：刚刚 / N分钟前 / N小时前 / 昨天 / N天前 / MM-DD。"""
+    if not ts:
+        return ""
+    try:
+        s = str(ts).replace("Z", "").replace("+08:00", "")
+        dt = datetime.fromisoformat(s)
+        diff = (datetime.now() - dt).total_seconds()
+        if diff < 0:
+            return "刚刚"
+        if diff < 60:
+            return "刚刚"
+        if diff < 3600:
+            return f"{int(diff // 60)}分钟前"
+        if diff < 86400:
+            return f"{int(diff // 3600)}小时前"
+        if diff < 86400 * 2:
+            return "昨天"
+        if diff < 86400 * 7:
+            return f"{int(diff // 86400)}天前"
+        return dt.strftime("%m-%d")
+    except Exception:
+        return str(ts)[:16].replace("T", " ")
+
+
+def _parse_ts(ts):
+    """把 ISO 时间戳解析为 datetime（失败返回 None），供「仅看未读」客户端过滤。"""
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(str(ts).replace("Z", "").replace("+08:00", ""))
+    except Exception:
+        return None
+
+
 def render_user_badge(sidebar: bool = True) -> None:
     """在侧边栏/顶栏渲染当前用户头像 + 用户名 + 退出登录按钮 + 市场异动铃铛。"""
     user = get_user() or {}
@@ -829,14 +864,34 @@ def render_user_badge(sidebar: bool = True) -> None:
     if _avatar:
         render_avatar(target, _avatar, width=64)
     target.markdown(f"**👤 {username} · {role_cn}**")
-    if target.button("🚪 退出登录", key="logout_btn"):
-        clear_auth()
-        safe_switch_page("pages/0_登录.py")
+
+    # 退出登录：先弹确认对话框，避免误触（对话框内 st.rerun 为页面级，安全）
+    if st.session_state.get("_show_logout_dialog"):
+        _confirm_logout_dialog()
+    if target.button("🚪 退出登录", key="logout_btn", use_container_width=True):
+        st.session_state["_show_logout_dialog"] = True
+        st.rerun()
+
     # 市场异动铃铛（全局，挂用户区下方）
     try:
         render_market_alert_bell(target)
     except Exception as e:  # noqa: BLE001
         target.caption(f"提醒加载失败：{str(e)[:40]}")
+
+
+@st.dialog("确认退出登录？")
+def _confirm_logout_dialog() -> None:
+    """退出登录确认对话框：防误触。确认 → 清登录态并跳登录页；取消 → 关闭。"""
+    st.warning("退出后需要重新登录才能继续使用全部功能。")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("确认退出", key="dlg_logout_yes", use_container_width=True, type="primary"):
+            clear_auth()
+            safe_switch_page("pages/0_登录.py")
+    with c2:
+        if st.button("取消", key="dlg_logout_no", use_container_width=True):
+            st.session_state["_show_logout_dialog"] = False
+            st.rerun()
 
 
 @st.cache_data(ttl=30, show_spinner=False)
@@ -867,7 +922,7 @@ def render_market_alert_bell(target=st.sidebar) -> None:
             for it in items[:5]:
                 sev = it.get("severity", "info")
                 icon = _sev_icon.get(sev, "ℹ️")
-                ts = (it.get("created_at") or "")[:16].replace("T", " ")
+                ts = _rel_time(it.get("created_at"))
                 st.caption(f"{icon} {it.get('metric_name')}：{it.get('message')}")
                 st.caption(f"　└ {ts}")
         else:
@@ -897,6 +952,13 @@ def fragment_market_alerts_panel() -> None:
 
     if unread:
         st.markdown(f"未读 **{unread}** 条")
+    # 「仅看未读」客户端过滤（依据后端 last_seen，无需改后端 / 重启服务）
+    last_seen = _parse_ts(data.get("last_seen")) if data.get("last_seen") else None
+    if st.checkbox("仅看未读", key="panel_unread_only", value=False):
+        if last_seen is not None:
+            items = [it for it in items if (_parse_ts(it.get("created_at")) or datetime.min) > last_seen]
+        else:
+            items = []  # 从未查看过 → 全部视为已读
     if st.button("✅ 全部标为已读", key="panel_mark_all"):
         code, _ = api_mark_all_alerts_read()
         if code == 200:
@@ -910,7 +972,7 @@ def fragment_market_alerts_panel() -> None:
     for it in items:
         sev = it.get("severity", "info")
         icon = _sev_icon.get(sev, "ℹ️")
-        ts = (it.get("created_at") or "")[:16].replace("T", " ")
+        ts = _rel_time(it.get("created_at"))
         c1, c2 = st.columns([0.88, 0.12])
         with c1:
             st.markdown(f"{icon} **{it.get('metric_name')}**：{it.get('message')}")

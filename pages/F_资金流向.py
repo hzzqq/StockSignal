@@ -30,6 +30,7 @@ from modules.linear_trends import (
 )
 from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
+from modules.page_widgets import _empty_info
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -216,7 +217,7 @@ def fragment_northbound():
         st.error(f"北向资金加载失败：{e}")
         return
     if not nb or not nb.get("boards"):
-        st.info("暂无北向资金数据。")
+        _empty_info("暂无北向资金数据。")
         return
     total = nb.get("total_inflow")
     sh = nb.get("sh_inflow")
@@ -310,7 +311,7 @@ def fragment_industry():
         st.error(f"行业资金流向加载失败：{e}")
         return
     if df is None or df.empty:
-        st.info("暂无行业资金流向数据。")
+        _empty_info("暂无行业资金流向数据。")
         return
     # 字段完整性兜底：数据源字段名变更 / 网络异常时避免 KeyError 拖垮整块
     _need = ["行业", "净额", "涨跌幅"]
@@ -354,7 +355,7 @@ def fragment_market():
         st.error(f"大盘资金流向加载失败：{e}")
         return
     if df is None or df.empty:
-        st.info("暂无大盘资金流向数据。")
+        _empty_info("暂无大盘资金流向数据。")
         return
     df["主力净流入-净额"] = pd.to_numeric(df["主力净流入-净额"], errors="coerce")
     df["上证-涨跌幅"] = pd.to_numeric(df["上证-涨跌幅"], errors="coerce")
@@ -362,7 +363,7 @@ def fragment_market():
     df["大单净流入-净额"] = pd.to_numeric(df["大单净流入-净额"], errors="coerce")
     df = df.dropna(subset=["主力净流入-净额"])
     if df.empty:
-        st.info("暂无有效数据。")
+        _empty_info("暂无有效数据。")
         return
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -420,7 +421,7 @@ def fragment_margin_trading():
         st.error(f"融资融券数据加载失败：{e}")
         return
     if df is None or df.empty:
-        st.info("暂无融资融券数据。")
+        _empty_info("暂无融资融券数据。")
         return
 
     summary = get_latest_margin_summary()
@@ -513,7 +514,7 @@ def fragment_index_trend():
         st.error(f"指数走势加载失败：{e}")
         return
     if idx is None or idx.empty:
-        st.info("暂无指数走势数据。")
+        _empty_info("暂无指数走势数据。")
         return
     dr, ma, _s, _m, ma_type = _trend_controls("idx", days_default=180, preset_default="近180天")
     fig = plot_index_series(idx, dark_mode=dark, date_range=dr, ma_periods=ma, ma_type=ma_type)
@@ -534,7 +535,7 @@ def fragment_industry_trend():
         st.error(f"行业指数走势加载失败：{e}")
         return
     if ind is None or ind.empty:
-        st.info("暂无行业指数走势数据（接口受限或网络不可用）。")
+        _empty_info("暂无行业指数走势数据（接口受限或网络不可用）。")
         return
     series_options = [(c, c) for c in ind.columns if c != "date"]
     dr, ma, sel, mode, ma_type = _trend_controls(
@@ -585,7 +586,7 @@ def fragment_etf_trend():
         st.error(f"ETF 走势加载失败：{e}")
         return
     if etf is None or etf.empty:
-        st.info("暂无 ETF 走势数据（接口受限或网络不可用）。")
+        _empty_info("暂无 ETF 走势数据（接口受限或网络不可用）。")
         return
     series_options = [(c, ETF_NAMES_MAP.get(c, c)) for c in etf.columns if c != "date"]
     dr, ma, sel, mode, ma_type = _trend_controls(

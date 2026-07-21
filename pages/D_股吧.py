@@ -10,8 +10,9 @@ import streamlit as st
 from modules.ui_theme import apply_page_config, dashboard_sf_css
 from modules.session import (
     require_auth, render_user_badge, get_user, safe_switch_page,
-    api_get, api_post, api_delete, trading_autorefresh,
+    api_get, api_post, api_delete, trading_autorefresh, _rel_time,
 )
+from modules.page_widgets import _empty_info
 
 apply_page_config(page_title="股吧", page_icon="💬", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -27,7 +28,8 @@ user = get_user() or {}
 def _fmt_time(s: str) -> str:
     if not s:
         return ""
-    return s[:19].replace("T", " ").replace("Z", "")
+    rel = _rel_time(s)
+    return rel if rel else s[:19].replace("T", " ").replace("Z", "")
 
 
 # 头像配色（按用户名稳定取色）
@@ -134,7 +136,7 @@ if _view_pid:
             unsafe_allow_html=True,
         )
     if not comments:
-        st.info("还没有评论，来抢沙发～")
+        _empty_info("还没有评论，来抢沙发～")
 
     # ── 发表评论（含表情包 / 颜文字快捷插入，置于表单之外）──
     st.caption("😀 快捷表情 / 颜文字：点击可插入到评论末尾")
@@ -238,7 +240,7 @@ sc, body = api_get(path)
 posts = body.get("data", []) if (sc == 200 and isinstance(body, dict)) else []
 
 if not posts:
-    st.info("还没有帖子，来发第一帖吧！")
+    _empty_info("还没有帖子，来发第一帖吧！")
 else:
     st.markdown(f"#### 📋 共 {len(posts)} 帖")
     for p in posts:

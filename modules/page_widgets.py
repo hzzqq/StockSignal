@@ -6,6 +6,7 @@ A股配色：净流入/上涨=红(UP)，净流出/下跌=绿(DOWN)。
 注意：本模块只定义函数与常量，不调用 st.set_page_config，可被任意页面 import。
 """
 import streamlit as st
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 
 # A股配色：净流入红、净流出绿
@@ -154,3 +155,133 @@ def _trend_controls(key_prefix, days_default=120, series_options=None,
             )
             selected = sel
     return date_range, (tuple(ma) if show_ma else ()), selected, mode, (ma_type if show_ma else "sma")
+
+
+@contextmanager
+def _loading(text: str = "加载中…"):
+    """数据加载占位（UI-only）：在 with 块期间显示居中旋转提示，结束自动清空。
+
+    用于「取数前」先占位的场景，避免裸空白或突兀的 st.info。
+    不改变任何逻辑/布局，仅视觉提示。
+    """
+    ph = st.empty()
+    with ph.container():
+        st.markdown(
+            '<style>@keyframes ssspin{to{transform:rotate(360deg)}}</style>'
+            f'<div style="text-align:center;color:#8a8a8a;padding:14px 0;font-size:13px;">'
+            f'<span style="display:inline-block;width:13px;height:13px;margin-right:6px;vertical-align:-2px;'
+            f'border:2px solid #cfcfcf;border-top-color:#666;border-radius:50%;'
+            f'animation:ssspin 0.8s linear infinite;"></span>{text}</div>',
+            unsafe_allow_html=True,
+        )
+        try:
+            yield
+        finally:
+            pass
+    ph.empty()
+
+
+def _empty_info(text: str = "暂无数据"):
+    """空数据态（UI-only）：居中、弱化提示，统一替代散落的 st.info("暂无…")。"""
+    st.markdown(
+        f'<div style="text-align:center;color:#8a8a8a;padding:18px 0;font-size:13px;">'
+        f'🗂️ {text}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _fmt_num(x, nd: int = 2, sign: bool = False) -> str:
+    """数值格式化（显示 only）：None/NaN/异常 → "—"；可选正负号；不自带量级缩写。"""
+    try:
+        x = float(x)
+    except Exception:
+        return "—"
+    if x != x:  # NaN
+        return "—"
+    s = f"{x:+.{nd}f}" if sign else f"{x:.{nd}f}"
+    return s
+
+
+def _fmt_pct(x, nd: int = 2, sign: bool = True) -> str:
+    """百分比格式化（显示 only）：None/异常 → "—"；自动 ×100 加 %；默认带正负号。"""
+    try:
+        x = float(x)
+    except Exception:
+        return "—"
+    if x != x:
+        return "—"
+    s = f"{x*100:+.{nd}f}%" if sign else f"{x*100:.{nd}f}%"
+    return s
+
+
+def _delta_color(delta, inverse: bool = False) -> str:
+    """涨跌配色：A股红涨绿跌。inverse=True（如跌幅越小越好）时翻转语义。
+
+    :returns: UP(红) / DOWN(绿) / ""（0 或 None）
+    """
+    try:
+        d = float(delta)
+    except Exception:
+        return ""
+    if d == 0 or d != d:
+        return ""
+    is_up = d > 0
+    if inverse:
+        is_up = not is_up
+    return UP if is_up else DOWN
+
+
+def _delta_html(delta, is_pct: bool = True, nd: int = 2, inverse: bool = False) -> str:
+    """涨跌 chips（UI-only，返回 HTML 字符串，调用方自行 markdown 渲染）。
+
+    A股红涨绿跌；delta 为 None/0 时返回灰色的「—」。
+    """
+    try:
+        d = float(delta)
+    except Exception:
+        d = None
+    if d is None or d != d:
+        return '<span style="color:#9aa0a6;">—</span>'
+    if d == 0:
+        return '<span style="color:#9aa0a6;">0.00%</span>' if is_pct else '<span style="color:#9aa0a6;">0</span>'
+    color = _delta_color(d, inverse=inverse)
+    txt = f"{d*100:+.{nd}f}%" if is_pct else f"{d:+.{nd}f}"
+    return f'<span style="color:{color};font-weight:600;">{txt}</span>'
+
+
+def _data_card(label: str, value: str, delta_html: str = "", accent: str = "#2b8aef",
+               unit: str = "") -> None:
+    """紧凑指标卡（UI-only，HTML）：标签 + 大值 + 可选涨跌 chips。
+
+    用于替换散落的 st.metric / markdown 拼装，统一视觉。
+    """
+    delta_block = f'<div style="margin-top:2px;font-size:13px;">{delta_html}</div>' if delta_html else ""
+    st.markdown(
+        f'<div style="border:1px solid rgba(128,128,128,0.22);border-left:3px solid {accent};'
+        f'border-radius:10px;padding:10px 12px;background:rgba(128,128,128,0.04);">'
+        f'<div style="font-size:12px;color:#8a8a8a;margin-bottom:2px;">{label}</div>'
+        f'<div style="font-size:20px;font-weight:700;line-height:1.2;">{value}'
+        f'<span style="font-size:12px;color:#8a8a8a;font-weight:400;margin-left:3px;">{unit}</span></div>'
+        f'{delta_block}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _auto_refresh(sec: int = 60, key: str = "auto_refresh") -> None:
+    """交易时段自动刷新（fragment 内可用）：委托 session.trading_autorefresh。
+
+    非交易时段静默跳过；放在 @safe_fragment 内可只重跑该片段，不整页重跑。
+    """
+    try:
+        from modules.session import trading_autorefresh
+        trading_autorefresh(interval_ms=sec * 1000, key=key)
+    except Exception:
+        pass
+
+
+def _toast(msg: str, icon: str = "✅"):
+    """轻量提示（UI-only）：优先 st.toast，异常则降级为 st.success 短提示。"""
+    try:
+        st.toast(f"{icon} {msg}")
+    except Exception:
+        st.success(msg)

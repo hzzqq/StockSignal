@@ -15,6 +15,7 @@ from modules.fetcher import StockFetcher
 from modules.news import NewsFetcher
 
 from modules.page_guard import safe_fragment
+from modules.page_widgets import _empty_info
 
 apply_page_config(page_title="每日晨报", page_icon="🌅", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -344,7 +345,7 @@ def fragment_review_notes():
                         st.session_state["review_note"] = ""
                 else:
                     st.session_state["review_note"] = ""
-                    st.info(f"📭 {note_date_s} 暂无复盘记录，可直接在下方新建。")
+                    _empty_info(f"{note_date_s} 暂无复盘记录，可直接在下方新建")
                 st.session_state["review_queried"] = note_date_s
                 # 不调用 st.rerun()：本 fragment 内的交互只会触发本 fragment 重跑，不影响整页
         with c_img:

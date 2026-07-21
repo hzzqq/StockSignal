@@ -20,6 +20,7 @@ from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge, safe_switch_page, api_get, api_post, api_delete
 from modules.fundflow import get_industry_fund_flow, get_individual_fund_flow
 from modules.fetcher import StockFetcher
+from modules.page_widgets import _empty_info
 from modules.page_guard import safe_fragment
 
 apply_page_config(page_title="智能盯盘", page_icon="👁️", layout="wide")
@@ -282,7 +283,7 @@ def fragment_sector():
     import plotly.graph_objects as go
 
     if df is None or df.empty:
-        st.info("暂无行业资金流向数据。")
+        _empty_info("暂无行业资金流向数据")
         return
 
     try:
@@ -293,7 +294,7 @@ def fragment_sector():
 
     top = df.dropna(subset=["净额"]).sort_values("净额", ascending=False).head(10).copy()
     if top.empty:
-        st.info("暂无有效的行业净额数据。")
+        _empty_info("暂无有效的行业净额数据")
         return
 
     colors = [UP if v >= 0 else DOWN for v in top["净额"]]
