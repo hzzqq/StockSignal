@@ -969,7 +969,7 @@ def fragment_analysis_result():
         st.caption("💡 也可以直接点击下方按钮生成分析；任务在后台并行运行，完成后自动显示，无需等待。")
         if st.button("🔍 生成深度分析", type="primary", key="gen_analysis_inline", use_container_width=True):
             if not ticker:
-                st.warning("请先在左侧选择一只股票。")
+                st.warning("请先在上方「⚡ 快速选取」选择一只股票，再回到「🔬 深度分析」点击「生成分析」查看完整决策仪表盘。")
             else:
                 tid, e = submit_task_with_error("analysis", {"ticker": ticker})
                 if tid:

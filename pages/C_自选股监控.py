@@ -200,6 +200,7 @@ def fragment_watchlist_monitor():
             "alr": f"{alr:.2f}%" if isinstance(alr, (int, float)) else "—",
         })
 
+    st.caption("交易时段每 60 秒自动刷新；涨跌颜色遵循 A股 惯例：红涨绿跌。点击下方选择框可跳转个股研究页。")
     # ── 渲染监控表 ──
     up_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] >= 0)
     down_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] < 0)
@@ -256,7 +257,7 @@ def fragment_watchlist_monitor():
                 st.session_state["pick_stock_query"] = code
                 safe_switch_page("pages/个股研究.py")
     else:
-        _empty_info("暂无数据")
+        _empty_info("暂无可展示的实时行情（可能行情接口暂时未返回数据）。自选股列表非空但取数失败，稍候自动刷新，或检查网络后重试。")
 
     # ── 导出当前自选股快照为 CSV（含实时行情 + 估值）──
     if rows:

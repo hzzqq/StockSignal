@@ -156,7 +156,7 @@ def fragment_sector_board():
                 st.warning("⚠️ 当前数据源未返回板块涨跌幅，仅展示行业列表。交易时间或网络恢复后会自动获取真实数据。")
             _render_sector_cards(sector_df, top_n=24)
         else:
-            st.warning("未获取到板块数据。")
+            st.warning("未获取到板块数据。可能处于非交易时段、数据源暂不可用或网络波动；交易时段会自动刷新，也可手动刷新页面重试。")
     except Exception as e:
         st.error(f"获取板块数据失败: {e}")
 
@@ -184,7 +184,7 @@ def fragment_sector_board():
                     fig = Visualizer.sector_heatmap(sector_df, title="全部行业板块涨跌幅")
                     st.plotly_chart(fig, use_container_width=True)
             else:
-                st.warning("未获取到板块数据。")
+                st.warning("未获取到板块数据。可能处于非交易时段、数据源暂不可用或网络波动；交易时段会自动刷新，也可手动刷新页面重试。")
         except Exception as e:
             st.error(f"获取板块详情失败: {e}")
 
@@ -389,7 +389,7 @@ def fragment_lhb():
                     st.query_params["pick_stock"] = code
                     safe_switch_page("pages/1_股票选取.py")
         else:
-            _empty_info("暂无龙虎榜数据（非交易日晚间或数据源暂不可用）")
+            _empty_info("暂无龙虎榜数据（非交易日晚间或数据源暂不可用）。可先到「📡 股票选取」查看个股 K 线，交易时段会自动刷新。")
 
 
 fragment_lhb()

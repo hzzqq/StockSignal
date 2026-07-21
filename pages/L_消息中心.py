@@ -20,6 +20,7 @@ from modules.session import (
 )
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, render_data_degradation_banner
+from modules.page_widgets import UP, DOWN
 
 apply_page_config(page_title="消息中心", page_icon="🔔", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -31,8 +32,6 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("🔔 消息 / 通知中心")
 st.caption("聚合自选股异动、社区动态与系统状态；各模块独立取数，互不干扰。")
 
-UP = "#ee2a2a"      # 涨
-DOWN = "#1aa260"    # 跌
 FETCHER = StockFetcher()
 
 
@@ -194,7 +193,7 @@ _filt = st.radio("类型筛选", TYPES, horizontal=True, label_visibility="colla
 shown = msgs if _filt == "全部" else [m for m in msgs if m["type"] == _filt]
 
 if not shown:
-    st.info("当前分类暂无消息。")
+    st.info("当前分类暂无消息。💡 异动消息需先添加自选股；社区消息来自股吧发帖；系统消息来自数据源健康度。多使用各功能模块后会逐步产生消息。")
 else:
     for m in shown:
         read = m["id"] in st.session_state["msg_read_ids"]

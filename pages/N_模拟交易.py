@@ -21,7 +21,7 @@ from modules.session import require_auth, render_user_badge, get_user, trading_a
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, safe_fragment
 from modules.search_ui import stock_search_input
-from modules.page_widgets import _empty_info, _toast
+from modules.page_widgets import _empty_info, _toast, UP, DOWN
 
 apply_page_config(page_title="模拟交易", page_icon="🎮", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -32,8 +32,6 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("🎮 模拟交易组合")
 st.caption("虚拟资金练习；持仓持久化到本地，模块独立运行，不影响真实账户。")
 
-UP = "#ee2a2a"
-DOWN = "#1aa260"
 FETCHER = StockFetcher()
 INIT_CASH = 1_000_000.0
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
@@ -207,14 +205,14 @@ def fragment_paper():
                 return [f"color:{c}"] * len(r)
             st.dataframe(dfp.style.apply(_color_row, axis=1), use_container_width=True, hide_index=True)
         else:
-            _empty_info("暂无持仓，去上方买入第一笔吧。")
+            _empty_info("暂无持仓。先在上方搜索框输入代码（如 600519 贵州茅台），设置数量后点「买入」开始你的第一笔模拟交易。")
 
     with tab_t:
         if book["trades"]:
             dft = pd.DataFrame(book["trades"])
             st.dataframe(dft, use_container_width=True, hide_index=True)
         else:
-            _empty_info("暂无成交记录。")
+            _empty_info("暂无成交记录。买入成功后，这里会逐笔显示你的成交明细。")
 
     with tab_e:
         # 净值曲线：基于每笔成交后的总资产快照绘制

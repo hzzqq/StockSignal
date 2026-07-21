@@ -255,7 +255,7 @@ def fragment_watchlist_and_news():
                     else:
                         st.markdown(f"- {date_s}  **{title}**  _{source_s}_")
             else:
-                st.info(f"暂无与 {selected_name} 相关的新闻。")
+                st.info(f"暂无与 {selected_name} 相关的新闻。可尝试切换其它自选股，或稍后重试（资讯源每日更新）。")
 
 
 fragment_watchlist_and_news()
@@ -305,7 +305,7 @@ def fragment_review_notes():
                         st.session_state["review_note"] = ""
                 else:
                     st.session_state["review_note"] = ""
-                    _empty_info(f"{note_date_s} 暂无复盘记录，可直接在下方新建")
+                    _empty_info(f"{note_date_s} 暂无复盘记录，可直接在下方新建（写一句今天的市场观察或操作笔记）。")
                 st.session_state["review_queried"] = note_date_s
                 # 不调用 st.rerun()：本 fragment 内的交互只会触发本 fragment 重跑，不影响整页
         with c_img:

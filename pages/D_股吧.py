@@ -151,7 +151,7 @@ def fragment_detail():
             unsafe_allow_html=True,
         )
     if not comments:
-        _empty_info("还没有评论，来抢沙发～")
+        _empty_info("还没有评论，来抢沙发～ 在下方输入框写下你的看法，发布后即显示在这里。")
 
     # ── 发表评论（含表情包 / 颜文字快捷插入）──
     st.caption("😀 快捷表情 / 颜文字：点击可插入到评论末尾")
@@ -246,7 +246,7 @@ def fragment_list():
         posts = sorted(posts, key=lambda p: str(p.get("created_at", "")), reverse=True)
 
     if not posts:
-        _empty_info("还没有帖子，来发第一帖吧！")
+        _empty_info("还没有帖子，来发第一帖吧！用上方标题 + 内容输入框发布你的第一条帖子，社区即刻可见。")
     else:
         st.markdown(f"#### 📋 共 {len(posts)} 帖")
         for p in posts:

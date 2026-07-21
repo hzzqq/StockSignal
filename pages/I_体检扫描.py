@@ -11,7 +11,7 @@ from modules.technical import full_analysis
 from modules.fundflow import get_individual_fund_flow
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
-from modules.page_widgets import _empty_info
+from modules.page_widgets import _empty_info, UP, DOWN
 
 apply_page_config(page_title="体检扫描", page_icon="🩺", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -21,9 +21,6 @@ dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("🩺 一键体检扫描台")
 
-# ── A股色彩约定 ──
-UP = "#ee2a2a"      # 涨 / 净流入
-DOWN = "#1aa260"    # 跌 / 净流出
 WATCH_COLOR = "#f5a623"  # 中性关注
 
 # 关键词（兼容未来引擎返回字符串形态名）
@@ -438,7 +435,7 @@ def result_board():
     results = st.session_state.get("scan_results")
 
     if results is None:
-        _empty_info("尚未体检，点击上方「🚀 开始体检」开始扫描。")
+        _empty_info("尚未体检。点击上方「🚀 开始体检」开始扫描（基于你跟踪的股票池，逐只体检打分并给出信号灯）。")
         return
 
     if results == []:

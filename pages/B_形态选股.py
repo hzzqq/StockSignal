@@ -178,7 +178,12 @@ else:
                         save_user_setting("screener_pool", st.session_state["screener_pool"])
                         st.rerun()
         else:
-            _empty_info("扫描池为空，请在上方搜索并「加入扫描池」")
+            st.caption("不知道选什么？一键载入示例大盘蓝筹池，立刻体验形态扫描。")
+            _empty_info("扫描池为空，请在上方搜索并「加入扫描池」，或点击下方按钮体验示例。")
+            if st.button("📥 载入示例股票池", key="screener_load_example", type="secondary", use_container_width=True):
+                _ex = ["600519", "000858", "601318", "600036", "000333"]
+                st.session_state["screener_pool"] = _ex
+                save_user_setting("screener_pool", _ex)
 
         c_count, c_clear = st.columns([0.8, 0.2])
         with c_count:
@@ -396,10 +401,10 @@ with st.container(border=True):
         prog.empty()
 
         if not results:
-            _empty_info("未命中任何形态（或股票池无可用日线数据，可尝试「手动输入代码」或检查网络）")
+            _empty_info("未命中任何形态（或股票池无可用日线数据，可尝试「手动输入代码」、检查网络，或先在上方「扫描池」载入示例股票池）。")
         else:
             st.success(f"✅ 扫描完成，命中 {len(results)} 只")
             results.sort(key=lambda r: r["技术评分"], reverse=True)
             st.dataframe(results, use_container_width=True, height=480)
     elif not universe:
-        _empty_info("请选择股票池（或先搜索加入扫描池）后点击「开始扫描」")
+        _empty_info("请选择股票池（或先搜索加入扫描池）后点击「开始扫描」；也可在上方「📥 载入示例股票池」一键体验。")

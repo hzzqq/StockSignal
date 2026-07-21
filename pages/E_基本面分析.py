@@ -444,6 +444,7 @@ if code:
     st.subheader("💹 业绩分析（结合市值 / 市盈率 / 资产负债表）")
     st.caption("读懂指标：营收/净利润看公司「赚多少、增长快不快」；ROE 看「股东每投 1 元赚回多少」；"
                "毛利率看「产品赚钱能力」；资产负债率/流动比率看「会不会还不起钱」。")
+    st.caption("📌 颜色遵循 A股 惯例：红涨绿跌；所有指标仅供参考，不构成投资建议。")
 
     rev_yoy = perf.get("revenue_yoy")
     pr_yoy = perf.get("profit_yoy")
@@ -886,4 +887,4 @@ if code:
         st.query_params["pick_stock"] = code
         safe_switch_page("pages/个股研究.py")
 else:
-    st.info("请在上方选择一只股票开始分析。")
+    st.info("请在上方输入代码或名称选择一只股票开始分析（也可从「🎯 个股研究 / 📡 股票选取」跳转过来）。数据仅供参考，非投资建议。")
