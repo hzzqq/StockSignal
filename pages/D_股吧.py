@@ -129,10 +129,19 @@ def fragment_detail():
             api_post(f"/api/forum/posts/{_view_pid}/like", {})
     with ca2:
         can_del = post.get("user_id") == user.get("id") or user.get("role") == "admin"
-        if can_del and st.button("🗑️ 删除帖子", key="forum_del", use_container_width=True):
-            api_delete(f"/api/forum/posts/{_view_pid}")
-            _toast("已删除")
-            st.session_state.pop("forum_view_post", None)
+        _ck = f"forum_del_{_view_pid}"
+        if can_del:
+            if st.session_state.get(_ck):
+                if st.button("确认删除帖子", key="forum_del_cfm", type="primary", use_container_width=True):
+                    api_delete(f"/api/forum/posts/{_view_pid}")
+                    _toast("已删除")
+                    st.session_state.pop("forum_view_post", None)
+                    st.session_state.pop(_ck, None)
+                if st.button("取消", key="forum_del_cancel", use_container_width=True):
+                    st.session_state.pop(_ck, None)
+            else:
+                if st.button("🗑️ 删除帖子", key="forum_del", use_container_width=True):
+                    st.session_state[_ck] = True
 
     # ── 评论区 ──
     comments = post.get("comments") or []

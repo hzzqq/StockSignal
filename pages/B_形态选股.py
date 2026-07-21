@@ -173,10 +173,18 @@ else:
                 with col_name:
                     st.markdown(fetcher.get_stock_name(code) or code)
                 with col_del:
-                    if st.button("删除", key=f"del_{code}", type="secondary", use_container_width=True):
-                        st.session_state["screener_pool"].remove(code)
-                        save_user_setting("screener_pool", st.session_state["screener_pool"])
-                        st.rerun()
+                    _ck = f"screener_del_{code}"
+                    if st.session_state.get(_ck):
+                        if st.button("确认", key=f"del_cfm_{code}", type="primary", use_container_width=True):
+                            st.session_state["screener_pool"].remove(code)
+                            save_user_setting("screener_pool", st.session_state["screener_pool"])
+                            st.session_state.pop(_ck, None)
+                            st.rerun()
+                        if st.button("取消", key=f"del_cancel_{code}", use_container_width=True):
+                            st.session_state.pop(_ck, None)
+                    else:
+                        if st.button("删除", key=f"del_{code}", type="secondary", use_container_width=True):
+                            st.session_state[_ck] = True
         else:
             st.caption("不知道选什么？一键载入示例大盘蓝筹池，立刻体验形态扫描。")
             _empty_info("扫描池为空，请在上方搜索并「加入扫描池」，或点击下方按钮体验示例。")
@@ -189,10 +197,18 @@ else:
         with c_count:
             st.markdown(f"**扫描池共 {len(pool)} 只**")
         with c_clear:
-            if st.button("🗑️ 清空扫描池", key="screener_clear", type="secondary", use_container_width=True):
-                st.session_state["screener_pool"] = []
-                save_user_setting("screener_pool", [])
-                st.rerun()
+            _ck = "screener_clear_pool"
+            if st.session_state.get(_ck):
+                if st.button("确认清空", key="screener_clear_cfm", type="primary", use_container_width=True):
+                    st.session_state["screener_pool"] = []
+                    save_user_setting("screener_pool", [])
+                    st.session_state.pop(_ck, None)
+                    st.rerun()
+                if st.button("取消", key="screener_clear_cancel", use_container_width=True):
+                    st.session_state.pop(_ck, None)
+            else:
+                if st.button("🗑️ 清空扫描池", key="screener_clear", type="secondary", use_container_width=True):
+                    st.session_state[_ck] = True
 
     st.divider()
 

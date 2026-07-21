@@ -283,11 +283,19 @@ with st.expander("🗑️ 删除持仓"):
         )
         st.caption(f"行号对照（从 0 起）：{_idx_map}")
         c_del, _ = st.columns([1, 4])
-        if c_del.button("⚠️ 确认删除", type="primary"):
-            removed = pm.remove_position(int(del_index))
-            if removed is not None:
-                _toast(f"已删除: {removed.get('ticker', '')}")
-                st.rerun()
+        _ck = "pm_del_cfm"
+        if st.session_state.get(_ck):
+            if c_del.button("⚠️ 确认删除", type="primary"):
+                removed = pm.remove_position(int(del_index))
+                st.session_state.pop(_ck, None)
+                if removed is not None:
+                    _toast(f"已删除: {removed.get('ticker', '')}")
+                    st.rerun()
+            if st.button("取消", key="pm_del_cancel"):
+                st.session_state.pop(_ck, None)
+        else:
+            if c_del.button("🗑️ 删除持仓", type="secondary"):
+                st.session_state[_ck] = True
 
 st.markdown("---")
 

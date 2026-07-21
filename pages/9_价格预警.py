@@ -336,8 +336,16 @@ def fragment_alerts():
                 if st.button(label, key=f"tog_{a['id']}", use_container_width=True):
                     api_put(f"/api/price-alerts/{a['id']}/toggle")
             with col_del:
-                if st.button("删除", key=f"del_{a['id']}", use_container_width=True):
-                    api_delete(f"/api/price-alerts/{a['id']}")
+                _ck = f"alert_del_{a['id']}"
+                if st.session_state.get(_ck):
+                    if st.button("确认删除", key=f"del_cfm_{a['id']}", type="primary", use_container_width=True):
+                        api_delete(f"/api/price-alerts/{a['id']}")
+                        st.session_state.pop(_ck, None)
+                    if st.button("取消", key=f"del_cancel_{a['id']}", use_container_width=True):
+                        st.session_state.pop(_ck, None)
+                else:
+                    if st.button("删除", key=f"del_{a['id']}", use_container_width=True):
+                        st.session_state[_ck] = True
 
         st.caption("提示：触发检测在页面访问时于前端执行（价格实时比价、形态/量比扫描日线、公告检索新闻）。"
                    "如需持续监控，可在本页保持打开或定时刷新。")

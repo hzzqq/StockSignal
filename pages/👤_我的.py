@@ -165,9 +165,10 @@ def render_preferences():
     col_reset, col_save = st.columns([1, 3])
     with col_reset:
         if st.button("🗑️ 恢复默认设置", type="secondary"):
-            for _key, _default in _SETTINGS_KEYS.items():
-                st.session_state[_key] = _default
-            st.rerun()
+            if st.confirm("确定恢复默认设置？当前个性化设置将被覆盖，且关闭浏览器后无法找回。"):
+                for _key, _default in _SETTINGS_KEYS.items():
+                    st.session_state[_key] = _default
+                st.rerun()
     with col_save:
         st.caption(
             "💡 所有设置已实时生效并保存在浏览器内存中。\n"

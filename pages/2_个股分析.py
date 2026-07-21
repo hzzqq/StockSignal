@@ -1058,9 +1058,16 @@ def fragment_stock_videos(ticker):
                 else:
                     st.markdown(f'🔗 <a href="{v["raw"]}" target="_blank">{v["raw"]}</a>', unsafe_allow_html=True)
             with col_del:
-                if st.button("✕", key=f"vdel_{ticker}_{idx}", use_container_width=True, help="移除"):
-                    st.session_state[vk].pop(idx)
-                    # fragment 内由 Streamlit 自动局部重跑，禁止显式 st.rerun()
+                _ck = f"vdel_cfm_{ticker}_{idx}"
+                if st.session_state.get(_ck):
+                    if st.button("确认", key=f"vdel_cfm_btn_{ticker}_{idx}", type="primary", use_container_width=True):
+                        st.session_state[vk].pop(idx)
+                        st.session_state.pop(_ck, None)
+                    if st.button("取消", key=f"vdel_cancel_{ticker}_{idx}", use_container_width=True):
+                        st.session_state.pop(_ck, None)
+                else:
+                    if st.button("✕", key=f"vdel_{ticker}_{idx}", use_container_width=True, help="移除"):
+                        st.session_state[_ck] = True
     else:
         _empty_info("尚未添加视频。粘贴上方链接即可把网络视频「接到」本股票分析页内联播放")
         st.caption("💡 也可以直接点击下方按钮展开「粘贴视频地址」输入框，把 YouTube / B站 / 腾讯视频 接入本页内联播放。")

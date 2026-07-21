@@ -153,13 +153,22 @@ with tab_config:
                                 st.caption("无变化")
                         if cfg["key"] not in ("cache_days", "cache_hours_today", "jwt_expires_seconds",
                                                "default_page_size", "search_limit"):
-                            if st.button("🗑️", key=f"cfg_del_{cfg['key']}", help="删除"):
-                                c, r = delete_config(cfg["key"])
-                                if c == 200 and r.get("status") == "ok":
-                                    st.success("已删除")
-                                    st.rerun()
-                                else:
-                                    st.error(r.get("message", "删除失败"))
+                            _ck = f"cfg_del_{cfg['key']}"
+                            if st.session_state.get(_ck):
+                                if st.button("确认删除", key=f"cfg_del_cfm_{cfg['key']}", type="primary"):
+                                    c, r = delete_config(cfg["key"])
+                                    if c == 200 and r.get("status") == "ok":
+                                        st.success("已删除")
+                                        st.session_state.pop(_ck, None)
+                                        st.rerun()
+                                    else:
+                                        st.error(r.get("message", "删除失败"))
+                                        st.session_state.pop(_ck, None)
+                                if st.button("取消", key=f"cfg_del_cancel_{cfg['key']}"):
+                                    st.session_state.pop(_ck, None)
+                            else:
+                                if st.button("🗑️", key=f"cfg_del_{cfg['key']}", help="删除"):
+                                    st.session_state[_ck] = True
 
     # 新增配置
     st.markdown("---")

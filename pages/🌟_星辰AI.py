@@ -440,11 +440,19 @@ with h_left:
         unsafe_allow_html=True,
     )
 with h_right:
-    if st.button("🗑️ 清空", key="xc_clear", use_container_width=True, help="清空对话"):
-        st.session_state["xc_messages"] = [dict(WELCOME)]
-        st.session_state["xc_task_id"] = None
-        st.session_state["xc_task_started_at"] = None
-        st.rerun()
+    _ck = "xc_clear_confirm"
+    if st.session_state.get(_ck):
+        if st.button("确认清空", key="xc_clear_cfm", type="primary", use_container_width=True, help="确认清空对话"):
+            st.session_state["xc_messages"] = [dict(WELCOME)]
+            st.session_state["xc_task_id"] = None
+            st.session_state["xc_task_started_at"] = None
+            st.session_state.pop(_ck, None)
+            st.rerun()
+        if st.button("取消", key="xc_clear_cancel", use_container_width=True):
+            st.session_state.pop(_ck, None)
+    else:
+        if st.button("🗑️ 清空", key="xc_clear", use_container_width=True, help="清空对话"):
+            st.session_state[_ck] = True
 
 st.markdown(
     '<div class="xc-banner">💡 我可独立拉取行情 / 基本面 / 事件数据并给出研判；'

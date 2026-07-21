@@ -358,10 +358,17 @@ def fragment_review_notes():
                     st.session_state["review_autosaved"] = False
                     st.error(f"❌ 保存失败：{e}")
         with c_clear:
-            if st.button("🗑️ 清空", use_container_width=True, key="review_clear"):
-                st.session_state["review_note"] = ""
-                st.session_state["review_autosaved"] = False
-                # 不调用 st.rerun()：清空操作触发本 fragment 自然重跑
+            _ck = "review_clear_confirm"
+            if st.session_state.get(_ck):
+                if st.button("确认清空", use_container_width=True, key="review_clear_cfm", type="primary"):
+                    st.session_state["review_note"] = ""
+                    st.session_state["review_autosaved"] = False
+                    st.session_state.pop(_ck, None)
+                if st.button("取消", use_container_width=True, key="review_clear_cancel"):
+                    st.session_state.pop(_ck, None)
+            else:
+                if st.button("🗑️ 清空", use_container_width=True, key="review_clear"):
+                    st.session_state[_ck] = True
         if st.session_state.get("review_autosaved"):
             st.caption(f"✅ 内容已自动保存到本地（review_notes_{note_date_s}.md），切换日期或刷新不丢失")
         else:

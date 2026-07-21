@@ -639,14 +639,22 @@ def fragment_watch_manage():
             st.session_state["pick_stock_confirmed"] = code
             st.session_state["pick_stock_query"] = code
             safe_switch_page("pages/个股研究.py")
-        if c5.button("移除", key=f"wm_rm_{code}"):
-            wid = it.get("id")
-            if wid is not None:
-                dc, _ = api_delete(f"/api/watchlist/{wid}")
-                if dc == 200:
-                    st.toast(f"已移除 {code}")
-                else:
-                    st.error(f"移除失败（{dc}）")
+        _ck = f"wm_rm_cfm_{code}"
+        if st.session_state.get(_ck):
+            if c5.button("确认移除", key=f"wm_rm_cfm_btn_{code}", type="primary"):
+                wid = it.get("id")
+                if wid is not None:
+                    dc, _ = api_delete(f"/api/watchlist/{wid}")
+                    if dc == 200:
+                        st.toast(f"已移除 {code}")
+                    else:
+                        st.error(f"移除失败（{dc}）")
+                st.session_state.pop(_ck, None)
+            if c5.button("取消", key=f"wm_rm_cancel_{code}"):
+                st.session_state.pop(_ck, None)
+        else:
+            if c5.button("移除", key=f"wm_rm_{code}"):
+                st.session_state[_ck] = True
 
 
 # ───────────────────────── 页面主体 ─────────────────────────

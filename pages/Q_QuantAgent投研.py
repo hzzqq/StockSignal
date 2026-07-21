@@ -60,10 +60,12 @@ except Exception:  # pragma: no cover - fallback
 
 
 from modules.page_guard import safe_fragment
+from modules.colors import UP_COLOR, DOWN_COLOR, AMBER
 
 st.set_page_config(page_title="QuantAgent 多智能体投研", page_icon="🤖", layout="wide")
 
-_VERDICT_COLOR = {"看多": "#dc2626", "看空": "#009e60", "持有": "#d97706"}
+# 多空研判配色统一引用全站 A股语义调色板（红涨绿跌），避免硬编码漂移
+_VERDICT_COLOR = {"看多": UP_COLOR, "看空": DOWN_COLOR, "持有": AMBER}
 _TERM_CSS = """
 <style>
 .qa-card{border:1px solid #2a3340;border-radius:10px;padding:10px 12px;margin:6px 0;background:#11161d;}
@@ -75,11 +77,16 @@ _TERM_CSS = """
 .qa-bar > div{height:100%;transition:width .4s ease;}
 .qa-log{max-height:240px;overflow-y:auto;background:#0b0f14;border:1px solid #1c2430;border-radius:8px;padding:8px 10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:#9fb0c0;}
 .qa-log div{padding:2px 0;border-bottom:1px solid #141b24;}
-.qa-lean-bull{color:#dc2626;font-weight:700;}
-.qa-lean-bear{color:#009e60;font-weight:700;}
-.qa-lean-hold{color:#d97706;font-weight:700;}
 </style>
 """
+# 多空标签配色（红涨绿跌）引用全站调色板常量，确保与站点语义一致
+_VERDICT_CSS = (
+    "<style>"
+    f".qa-lean-bull{{color:{UP_COLOR};font-weight:700;}}"
+    f".qa-lean-bear{{color:{DOWN_COLOR};font-weight:700;}}"
+    f".qa-lean-hold{{color:{AMBER};font-weight:700;}}"
+    "</style>"
+)
 
 
 def _verdict_color(v: str) -> str:
@@ -111,6 +118,7 @@ def _agent_status(agent_key: str, current_stage: str, status: str) -> str:
 def _render_live_progress(task: dict):
     """渲染实时协作进度（进度条 + 每 Agent 状态 + 日志流 + 辩论面板）。"""
     st.markdown(_TERM_CSS, unsafe_allow_html=True)
+    st.markdown(_VERDICT_CSS, unsafe_allow_html=True)
     progress = int(task.get("progress", 0) or 0)
     stage = task.get("stage", "")
     status = task.get("status", "")
