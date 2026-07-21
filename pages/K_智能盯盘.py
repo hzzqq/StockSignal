@@ -246,6 +246,26 @@ def _grade_net(net):
     return ("weak", "#888888", "弱")
 
 
+def _resolve_name(code, *candidates):
+    """统一解析真实股票名称：优先用非代码本身的候选（行情名 / 后端名），
+    否则回退 fetcher 在线解析，最后兜底为代码本身。
+
+    解决「关注列表只显示 6 位代码、不显示名称」的问题：后端 watchlist 未存名称时
+    名称会等于代码，这里自动改为用 fetcher 解析真实名称。
+    """
+    code_s = str(code).strip()
+    for c in candidates:
+        if c and str(c).strip() and str(c).strip() != code_s:
+            return str(c).strip()
+    try:
+        n = fetcher.get_name_only(code)
+        if n and str(n).strip() and str(n).strip() != code_s:
+            return str(n).strip()
+    except Exception:
+        pass
+    return code_s
+
+
 # ───────────────────────── 1. 板块资金异动 ─────────────────────────
 @safe_fragment("板块资金异动")
 def fragment_sector():
@@ -346,10 +366,7 @@ def fragment_watchlist():
     for code in codes:
         q = quotes.get(code)
         cur, chg, change_amt, amplitude = _quote_fields(q)
-        if q and q.get("name"):
-            name = q.get("name")
-        else:
-            name = names.get(code) or fetcher.get_name_only(code)
+        name = _resolve_name(code, (q.get("name") if q else None), names.get(code))
         rows.append({
             "代码": code,
             "名称": name,
@@ -445,7 +462,7 @@ def fragment_individual_ff():
         r = ff_map.get(code, {})
         main_net = r.get("main_net")
         source = r.get("source", "none")
-        name = names.get(code) or fetcher.get_name_only(code)
+        name = _resolve_name(code, names.get(code))
         rows.append({
             "代码": code,
             "名称": name,
@@ -539,7 +556,7 @@ def fragment_alerts():
     for code in codes:
         q = quotes.get(code)
         cur, chg, change_amt, _ = _quote_fields(q)
-        name = names.get(code) or fetcher.get_name_only(code)
+        name = _resolve_name(code, names.get(code))
         # 涨跌异动
         if chg is not None and abs(chg) >= threshold:
             tier, color, label = _grade_chg(chg)
@@ -633,7 +650,7 @@ def fragment_watch_manage():
         cur, chg, _, _ = _quote_fields(q)
         c1, c2, c3, c4, c5 = st.columns([1.3, 1.5, 1, 1, 1])
         c1.write(f"`{code}`")
-        c2.write(it["name"])
+        c2.write(_resolve_name(code, it.get("name")))
         cc = UP if (chg or 0) > 0 else (DOWN if (chg or 0) < 0 else "#888888")
         c3.markdown(
             f"<span style='color:{cc};font-weight:600;'>{chg:+.2f}%</span>" if chg is not None

@@ -14,7 +14,6 @@ from modules.session import require_auth, render_user_badge
 from modules.fundflow import (
     get_industry_fund_flow, get_northbound_fund_flow,
     get_market_fund_flow, get_individual_fund_flow,
-    get_market_wide_snapshot,
 )
 from modules.margin_trading import (
     get_margin_trading_data, plot_margin_trend, get_latest_margin_summary,
@@ -27,9 +26,6 @@ from modules.linear_trends import (
     get_industry_index_series, get_etf_series,
     plot_normalized_multi, ETF_NAMES_MAP,
     to_trend_csv, plot_correlation_heatmap, _slice_date_range,
-)
-from modules.market_drivers import (
-    get_market_drivers, plot_drivers_panel, DIMS,
 )
 from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
@@ -61,18 +57,6 @@ def _get_fetcher():
 
 
 fetcher = _get_fetcher()
-
-# 性能优化：首次进入并行预取行业/北向/大盘三类全市场资金流，
-# 填充各自缓存后三个 fragment 直接命中缓存（秒开）；后续脚本重跑命中缓存亦近乎瞬时。
-try:
-    get_market_wide_snapshot()
-    # 预热行业指数 / ETF 趋势序列缓存，避免两个新 fragment 首屏卡顿
-    get_industry_index_series(top_n=8, days=120)
-    get_etf_series(days=180)
-    # 预热市场驱动力五维面板缓存
-    get_market_drivers(days=180)
-except Exception:
-    pass
 
 
 def _in_trading_hours():
@@ -453,81 +437,7 @@ def fragment_margin_trading():
 
 
 
-def _render_drivers_meta(meta):
-    """渲染五维指标接入状态（哪些已接入 / 哪些暂未接入及原因）。"""
-    if not meta:
-        return
-    lines = []
-    for d in DIMS:
-        info = meta.get(d)
-        if not info:
-            continue
-        av = info.get("available") or []
-        un = info.get("unavailable") or []
-        if av and not un:
-            lines.append(f"**{d}**：{len(av)} 项已接入 ✅")
-        elif av and un:
-            reasons = "；".join(f"{k}({r})" for k, r in un)
-            lines.append(f"**{d}**：{len(av)} 项已接入 ✅ ｜ 暂未接入：{reasons}")
-        else:
-            reasons = "；".join(f"{k}({r})" for k, r in un)
-            lines.append(f"**{d}**：暂未接入（{reasons}）")
-    if lines:
-        st.caption("📌 维度接入状态：" + "　".join(lines))
-
-
-@st.fragment
-def fragment_drivers_panel():
-    _section_title("🧭 核心指标与大盘趋势关联性全景图（五维归一化子图）", accent="#2b8aef")
-    if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=60000, limit=200, key="drv_auto")
-    try:
-        df, meta = get_market_drivers(days=180)
-    except Exception as e:
-        st.error(f"市场驱动力数据加载失败：{e}")
-        return
-    if df is None or df.empty:
-        st.info("暂无市场驱动力数据（网络/代理受限或数据源暂未接入）。")
-        _render_drivers_meta(meta)
-        return
-
-    # 维度选择（五维分组子图）
-    sel_dims = st.multiselect(
-        "显示维度", options=DIMS, default=DIMS,
-        format_func=lambda d: d, key="drv_dims",
-        help="资金 / 情绪 / 估值 / 宏观 / 技术 五维分组子图",
-    )
-    # 交互控件：区间预设 + 序列多选（面板恒为归一化叠加，关闭均线/原始切换）
-    series_options = [(c, c) for c in df.columns if c not in ("date", "ref")]
-    dr, _ma, sel, _m, _mt = _trend_controls(
-        "drv", days_default=180, preset_default="近180天",
-        series_options=series_options, show_ma=False,
-    )
-    fig = plot_drivers_panel(
-        df, meta=meta, dark_mode=dark,
-        dims=sel_dims or DIMS, date_range=dr, selected=sel,
-    )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="drv_panel")
-    # 数据表联动（随区间 / 序列筛选）
-    with st.expander("📋 数据表（随区间 / 序列联动）"):
-        tbl = _slice_date_range(df, dr)
-        if sel:
-            keep = [c for c in sel if c in tbl.columns]
-            tbl = tbl[["date"] + keep] if keep else tbl[["date"]]
-        st.dataframe(tbl, use_container_width=True, hide_index=True)
-    # 导出 CSV
-    csv = to_trend_csv(df, names_map=None, selected=sel, date_range=dr)
-    st.download_button("⬇️ 导出 CSV", data=csv, file_name="市场驱动力全景.csv", mime="text/csv")
-    # 相关性热力图
-    st.plotly_chart(plot_correlation_heatmap(df, names_map=None, selected=sel,
-                                             date_range=dr, dark_mode=dark),
-                    use_container_width=True, config={"displayModeBar": False}, key="drv_corr")
-    _render_drivers_meta(meta)
-    st.caption("📈 《核心指标与大盘趋势关联性全景图》（五维归一化子图）：资金/情绪/估值/宏观/技术分 5 个子图，"
-                   "每个子图内所有指标与上证指数**统一归一化到起点=100** 叠加，规避量纲差异导致的失真"
-                   "（融资余额万亿级 vs RSI 0-100 不会压扁）；上证作虚线参考线，看指标与大盘的领先/背离。"
-                   "对应命名：日常监测《大盘指数-多因子归一化叠加走势图》/《大盘指数多维度驱动力关联监测图》，"
-                   "研报《指数驱动力分组子图监测面板（Python可视化）》，PPT《核心指标与大盘趋势关联性全景图》。")
+# （五维归一化子图面板已迁至独立模块 pages/H_市场驱动力.py）
 
 
 # ───────────────────────── 个股主力资金 ─────────────────────────
@@ -717,8 +627,6 @@ st.markdown("---")
 fragment_market()
 st.markdown("---")
 fragment_margin_trading()
-st.markdown("---")
-fragment_drivers_panel()
 st.markdown("---")
 fragment_individual()
 st.markdown("---")
