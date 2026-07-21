@@ -21,6 +21,7 @@ import plotly.graph_objects as go
 
 # 复用 fundflow 的代理/SSL 补丁，确保 akshare 经本地代理访问
 from modules.fundflow import _ensure_proxy_and_ssl
+from modules.linear_trends import get_northbound_history_series
 
 _ensure_proxy_and_ssl()
 
@@ -199,13 +200,17 @@ def _fig_base(dark_mode):
     return base
 
 
-def plot_margin_trend(df, dark_mode=False, metric="rzmr"):
+def plot_margin_trend(df, dark_mode=False, metric="rzmr", show_extra=True):
     """绘制融资趋势图。
 
     metric:
-      - "rzmr": 融资买入额（默认，与 zip 标题「融资买入额趋势图」一致）
+      - "rzmr": 融资买入额（默认）
       - "rzye": 融资余额
-    返回 Plotly Figure（双 Y 轴：左轴金额，右轴指数）。
+    show_extra: 是否叠加 CSV 表里杠杆/资金类新指标（严守量纲，不裸叠同轴）：
+      - 北向资金净流入：与融资买入额同"亿元"量纲 → 叠左轴 y1（直接可比，无失真）
+      - 融资余额（仅 metric=rzmr 时）：万亿级 → 独立右轴 y3（不与指数 y2 抢位、
+        也不与买入额 y1 压扁）
+    返回 Plotly Figure（最多三 Y 轴：左=金额，右1=指数，右2=融资余额）。
     """
     fig = go.Figure()
     if df is None or df.empty:
@@ -231,6 +236,7 @@ def plot_margin_trend(df, dark_mode=False, metric="rzmr"):
     df["amount_yi"] = df[amount_col].apply(_to_yi)
     df["sh_yi"] = df[sh_col].apply(_to_yi)
     df["sz_yi"] = df[sz_col].apply(_to_yi)
+    df["日期_dt"] = pd.to_datetime(df["日期"], errors="coerce")
 
     colors = {
         "amount": "#ee2a2a" if metric == "rzmr" else "#2b8aef",
@@ -239,6 +245,8 @@ def plot_margin_trend(df, dark_mode=False, metric="rzmr"):
         "000001": "#7c5cff",
         "399001": "#ef5da8",
         "399006": "#2b8aef",
+        "north": "#16c2c2",
+        "balance": "#e67e22",
     }
 
     # 主指标：合计（粗线）
@@ -262,7 +270,38 @@ def plot_margin_trend(df, dark_mode=False, metric="rzmr"):
         yaxis="y", visible="legendonly",
     ))
 
-    # 指数（右轴）
+    # ── CSV 新增杠杆/资金指标（右侧 / 左轴，严守量纲）──
+    if show_extra:
+        # 北向资金净流入：与融资买入额同"亿元"量纲 → 左轴 y1
+        try:
+            nb = get_northbound_history_series()
+            if nb is not None and not nb.empty and "当日成交净买额" in nb.columns:
+                nb = nb.copy()
+                nb["date"] = pd.to_datetime(nb["date"], errors="coerce")
+                nb["north"] = pd.to_numeric(nb["当日成交净买额"], errors="coerce") / 1e8
+                merged = df.merge(
+                    nb[["date", "north"]], left_on="日期_dt", right_on="date", how="left"
+                )
+                if merged["north"].notna().any():
+                    fig.add_trace(go.Scatter(
+                        x=merged["日期"], y=merged["north"], name="北向资金净流入(亿)",
+                        mode="lines", line=dict(color=colors["north"], width=1.6, dash="dot"),
+                        hovertemplate="%{x}<br>北向净流入：%{y:.2f}亿<extra></extra>",
+                        yaxis="y",
+                    ))
+        except Exception:
+            pass
+        # 融资余额：万亿级，仅 metric=rzmr 时独立右轴 y3（避免与指数 y2 抢位 / 与买入额 y1 压扁）
+        if metric == "rzmr" and "total_rzye" in df.columns:
+            bal = df["total_rzye"].apply(_to_yi)
+            fig.add_trace(go.Scatter(
+                x=df["日期"], y=bal, name="融资余额(亿)",
+                mode="lines", line=dict(color=colors["balance"], width=1.8),
+                hovertemplate="%{x}<br>融资余额：%{y:.2f}亿<extra></extra>",
+                yaxis="y3",
+            ))
+
+    # 指数（右轴 y2）
     for idx_symbol, idx_col in [("上证", "sh000001"), ("深证成指", "sz399001"), ("创业板指", "sz399006")]:
         if idx_col in df.columns:
             fig.add_trace(go.Scatter(
@@ -273,14 +312,29 @@ def plot_margin_trend(df, dark_mode=False, metric="rzmr"):
             ))
 
     title = "融资买入额趋势（沪+深）" if metric == "rzmr" else "融资余额趋势（沪+深）"
+    gx = "#2a2a3a" if dark_mode else "#ececec"
     layout = _fig_base(dark_mode)
-    layout.update(
-        title=title,
-        height=420,
-        yaxis=dict(title="金额（亿元）", side="left", showgrid=True),
-        yaxis2=dict(title="指数点位", overlaying="y", side="right", showgrid=False),
-        legend=dict(orientation="h", yanchor="top", y=-0.22, x=0.5, xanchor="center"),
-    )
+    if metric == "rzmr":
+        # 三轴：左=金额，右1=指数，右2=融资余额
+        layout.update(
+            title=title,
+            height=440,
+            xaxis=dict(domain=[0, 0.90], gridcolor=gx),
+            yaxis=dict(title="金额（亿元）", side="left", gridcolor=gx),
+            yaxis2=dict(title="指数点位", overlaying="y", side="right", anchor="x", position=1.0,
+                       gridcolor="rgba(0,0,0,0)"),
+            yaxis3=dict(title="融资余额(亿)", overlaying="y", side="right", anchor="free",
+                       position=0.965, gridcolor="rgba(0,0,0,0)"),
+            legend=dict(orientation="h", yanchor="top", y=-0.22, x=0.5, xanchor="center"),
+        )
+    else:
+        layout.update(
+            title=title,
+            height=420,
+            yaxis=dict(title="金额（亿元）", side="left", gridcolor=gx),
+            yaxis2=dict(title="指数点位", overlaying="y", side="right", gridcolor="rgba(0,0,0,0)"),
+            legend=dict(orientation="h", yanchor="top", y=-0.22, x=0.5, xanchor="center"),
+        )
     fig.update_layout(**layout)
     fig.update_xaxes(tickangle=-30)
     return fig
