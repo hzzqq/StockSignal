@@ -19,18 +19,8 @@ from modules.fundflow import (
 from modules.portfolio import PortfolioManager
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_fragment
-import openpyxl
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import mm
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
-                                TableStyle)
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-
-pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
-_PDF_FONT = 'STSong-Light'
+# 注：openpyxl / reportlab 为「重型导出」依赖，改为惰性加载（见 _to_excel_bytes / _to_pdf_bytes），
+#     避免进入本页（仅查看 CSV 导出入口）时也强制 import 拖慢首屏。
 
 apply_page_config(page_title="数据导出", page_icon="📤", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -71,6 +61,7 @@ def _sheet_name(fname: str) -> str:
 
 def _to_excel_bytes(sheets: dict) -> bytes:
     """将多个 DataFrame 写入一个 .xlsx（多 Sheet），自动列宽 + 冻结表头。"""
+    import openpyxl  # 惰性加载：仅在导出 Excel 时
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         for fname, df in sheets.items():
@@ -93,48 +84,58 @@ def _to_excel_bytes(sheets: dict) -> bytes:
     return buf.getvalue()
 
 
-# ───────────────────────── PDF 摘要（中文） ─────────────────────────
-_H_STYLE = ParagraphStyle('h', fontName=_PDF_FONT, fontSize=8, textColor=colors.white, leading=10)
-_C_STYLE = ParagraphStyle('c', fontName=_PDF_FONT, fontSize=7, leading=9)
-_TITLE_STYLE = ParagraphStyle('t', fontName=_PDF_FONT, fontSize=16, leading=20)
-_SUB_STYLE = ParagraphStyle('s', fontName=_PDF_FONT, fontSize=9, leading=12,
-                            textColor=colors.HexColor('#555555'))
-_SEC_STYLE = ParagraphStyle('sec', fontName=_PDF_FONT, fontSize=11, leading=14,
-                            textColor=colors.HexColor('#ee2a2a'), spaceBefore=4, spaceAfter=2)
-
-
-def _cell(v) -> str:
-    if v is None:
-        return '—'
-    s = str(v)
-    if s in ('nan', 'None', ''):
-        return '—'
-    if len(s) > 40:
-        s = s[:37] + '…'
-    return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-
-
-def _df_to_pdf_table(df: pd.DataFrame, avail: float, max_rows: int = 25):
-    cols = list(df.columns)
-    head = [str(c) for c in cols]
-    d = df.head(max_rows)
-    data = [[Paragraph(h, _H_STYLE) for h in head]]
-    for _, row in d.iterrows():
-        data.append([Paragraph(_cell(row[c]), _C_STYLE) for c in cols])
-    n = max(len(cols), 1)
-    w = [avail / n] * n
-    t = Table(data, colWidths=w, repeatRows=1)
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#ee2a2a')),
-        ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#bbbbbb')),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f6f6f6')]),
-    ]))
-    return t
+# PDF 相关依赖（reportlab）与样式常量、辅助函数均惰性加载于 _to_pdf_bytes 内，避免拖慢首屏。
 
 
 def _to_pdf_bytes(datasets: dict, skipped: list, period: str, code: str) -> bytes:
     """生成中文数据摘要 PDF：标题 + 各数据集表格（前 25 行）。"""
+    # 惰性加载 reportlab 全家桶 + 注册中文字体：仅真正导出 PDF 时才 import，避免拖慢首屏
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle)
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+
+    pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+    _PDF_FONT = 'STSong-Light'
+    _H_STYLE = ParagraphStyle('h', fontName=_PDF_FONT, fontSize=8, textColor=colors.white, leading=10)
+    _C_STYLE = ParagraphStyle('c', fontName=_PDF_FONT, fontSize=7, leading=9)
+    _TITLE_STYLE = ParagraphStyle('t', fontName=_PDF_FONT, fontSize=16, leading=20)
+    _SUB_STYLE = ParagraphStyle('s', fontName=_PDF_FONT, fontSize=9, leading=12,
+                                textColor=colors.HexColor('#555555'))
+    _SEC_STYLE = ParagraphStyle('sec', fontName=_PDF_FONT, fontSize=11, leading=14,
+                                textColor=colors.HexColor('#ee2a2a'), spaceBefore=4, spaceAfter=2)
+
+    def _cell(v) -> str:
+        if v is None:
+            return '—'
+        s = str(v)
+        if s in ('nan', 'None', ''):
+            return '—'
+        if len(s) > 40:
+            s = s[:37] + '…'
+        return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    def _df_to_pdf_table(df: pd.DataFrame, avail: float, max_rows: int = 25):
+        cols = list(df.columns)
+        head = [str(c) for c in cols]
+        d = df.head(max_rows)
+        data = [[Paragraph(h, _H_STYLE) for h in head]]
+        for _, row in d.iterrows():
+            data.append([Paragraph(_cell(row[c]), _C_STYLE) for c in cols])
+        n = max(len(cols), 1)
+        w = [avail / n] * n
+        t = Table(data, colWidths=w, repeatRows=1)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#ee2a2a')),
+            ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#bbbbbb')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f6f6f6')]),
+        ]))
+        return t
+
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4, topMargin=15 * mm, bottomMargin=15 * mm,
@@ -325,6 +326,9 @@ def frag_northbound():
     if st.button("生成并下载 CSV", key="exp_north_btn"):
         with st.spinner("获取北向资金…"):
             d = get_northbound_fund_flow()
+        if d is None:
+            st.info("暂无北向资金数据（接口暂不可用）")
+            return
         boards = pd.DataFrame(d.get("boards") or [])
         summary = pd.DataFrame([{
             "trade_date": d.get("trade_date"),

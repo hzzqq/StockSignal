@@ -138,6 +138,8 @@ if recent:
     for i, r in enumerate(recent[:4]):
         with rc[i]:
             if st.button(f"{r['code']}\n{r['name']}", key=f"recent_{r['code']}", use_container_width=True):
+                st.session_state["pick_stock_confirmed"] = str(r["code"])
+                st.session_state["pick_stock_query"] = str(r["code"])
                 safe_switch_page("pages/个股研究.py")
 
 # 自选股数量 + 未读提醒（调后端）
@@ -155,7 +157,7 @@ ce1, ce2, ce3 = st.columns(3)
 with ce1:
     st.metric("自选股", f"{wl_count} 只", help="在行情看板添加到自选股")
 with ce2:
-    st.metric("未读事件", "—", help="事件追踪模块的信号评分与提醒")
+    st.metric("最近浏览", f"{len(recent)} 只", help="本次会话查看过的股票（点击上方「最近浏览」可直达个股研究）")
 with ce3:
     st.metric("数据更新", time.strftime("%H:%M"), help="界面数据刷新时间")
 

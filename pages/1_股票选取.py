@@ -226,6 +226,8 @@ with sidebar_target():
         finally:
             conn.close()
         st.success("缓存已清除，正在刷新...")
+        # 击穿 @st.cache_data 内的 _cached_kline（参数变化强制重算并重新取数）
+        st.session_state["_pick_kline_nonce"] = int(st.session_state.get("_pick_kline_nonce", 0)) + 1
         st.rerun()
 
 start_str = start_date.strftime("%Y-%m-%d")
@@ -262,11 +264,22 @@ with hc3:
 # ═══════════════════════════════════════════════════════════════
 st.markdown("---")
 @st.cache_data(show_spinner=False, ttl=300)
-def _cached_kline(ticker, start, end, period):
-    recs = api_kline(ticker, start=start, end=end, period=period)
-    if recs is None:
-        return fetcher.get_kline(ticker, start=start, end=end, period=period)
-    return pd.DataFrame(recs)
+def _cached_kline(ticker, start, end, period, nonce: int = 0):
+    # nonce 仅用于「强制刷新」时击穿 @st.cache_data 缓存（参数变化即重算重取数）
+    # 1) 优先后端聚合接口（含复权）
+    try:
+        recs = api_kline(ticker, start=start, end=end, period=period)
+    except Exception:
+        recs = None
+    if recs is not None:
+        return pd.DataFrame(recs)
+    # 2) 回退本地 fetcher 直连数据源
+    try:
+        df = fetcher.get_kline(ticker, start=start, end=end, period=period)
+    except Exception:
+        df = None
+    # 统一返回 DataFrame（空则用空表，交由上层「空数据」兜底），绝不在区块内抛未捕获异常
+    return df if df is not None else pd.DataFrame()
 
 
 st.subheader(f"{stock_label} {period_label}")
@@ -274,7 +287,8 @@ df = None
 data_ok = False
 
 try:
-    df = _cached_kline(ticker, start_str, end_str, kline_period)
+    df = _cached_kline(ticker, start_str, end_str, kline_period,
+                       nonce=int(st.session_state.get("_pick_kline_nonce", 0)))
     if df is None or df.empty:
         st.warning("⚠️ 暂未获取到该股票最新数据，正在使用历史快照。请稍后刷新页面。")
     else:
@@ -285,7 +299,8 @@ try:
         col_info1, col_info2, col_info3, col_info4 = st.columns(4)
         latest = df.iloc[-1]
         with col_info1:
-            st.metric("最新收盘价", f"¥{latest['close']:.2f}", delta=f"{latest.get('change_pct', 0):.2f}%")
+            latest_close = float(latest.get('close') or 0.0)
+            st.metric("最新收盘价", f"¥{latest_close:.2f}", delta=f"{latest.get('change_pct', 0):.2f}%")
         with col_info2:
             st.metric("区间最高", f"¥{df['high'].max():.2f}")
         with col_info3:
@@ -341,13 +356,24 @@ try:
             f"区间涨幅 {v_chg:+.2f}% / 振幅 {v_amp:.2f}% / 均价 ¥{v_avg:.2f}"
         )
 
+        # 当前可见区间 K 线导出 CSV（新增功能：便于离线分析 / 二次加工）
+        v_csv = vis.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        st.download_button(
+            "⬇️ 导出当前区间 K 线 CSV",
+            data=v_csv,
+            file_name=f"{ticker}_{kline_period}_{view_start + 1}-{view_start + view_count}.csv",
+            mime="text/csv",
+            key="pick_kline_csv",
+            help="导出当前「显示位置 / 显示数量」框定区间的 K 线数据（含 OHLCV）",
+        )
+
         fig = Visualizer.candlestick(df, title=f"{stock_label} {period_label}",
                                      ma_windows=ma_windows, show_volume=True,
                                      start_idx=view_start, n_show=view_count,
                                      dragmode=drag_mode)
         st.plotly_chart(fig, width="stretch", key="pick_kline_chart")
 except Exception as e:
-    st.warning(f"⚠️ 数据获取遇到网络波动：{str(e)[:80]}。已为你使用最近一次缓存数据。")
+    st.error(f"⚠️ K 线加载异常：{str(e)[:80]}。请稍后刷新页面重试，或切换其它周期 / 区间。")
 
 
 # ═══════════════════════════════════════════════════════════════

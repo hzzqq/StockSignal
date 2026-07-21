@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge
+from modules.page_guard import safe_fragment
 from modules.fundflow import (
     get_industry_fund_flow, get_northbound_fund_flow,
     get_market_fund_flow, get_individual_fund_flow,
@@ -204,7 +205,7 @@ def _trend_controls(key_prefix, days_default=120, series_options=None,
 
 
 # ───────────────────────── 北向资金 ─────────────────────────
-@st.fragment
+@safe_fragment("北向资金")
 def fragment_northbound():
     _section_title("🧭 北向资金（沪股通 / 深股通）", accent="#7c5cff")
     if st_autorefresh is not None and _in_trading_hours():
@@ -298,7 +299,7 @@ def fragment_northbound():
 
 
 # ───────────────────────── 行业板块资金流向 ─────────────────────────
-@st.fragment
+@safe_fragment("行业板块资金流向")
 def fragment_industry():
     _section_title("🏭 行业板块资金流向", accent="#2b8aef")
     if st_autorefresh is not None and _in_trading_hours():
@@ -310,6 +311,11 @@ def fragment_industry():
         return
     if df is None or df.empty:
         st.info("暂无行业资金流向数据。")
+        return
+    # 字段完整性兜底：数据源字段名变更 / 网络异常时避免 KeyError 拖垮整块
+    _need = ["行业", "净额", "涨跌幅"]
+    if not all(c in df.columns for c in _need):
+        st.info("行业资金流向数据字段不完整，暂无法展示（接口字段变更或网络异常）。")
         return
     df["净额"] = pd.to_numeric(df["净额"], errors="coerce")
     df["涨跌幅"] = pd.to_numeric(df["涨跌幅"], errors="coerce")
@@ -337,7 +343,7 @@ def fragment_industry():
 
 
 # ───────────────────────── 大盘主力资金净流入 ─────────────────────────
-@st.fragment
+@safe_fragment("大盘主力资金")
 def fragment_market():
     _section_title("📈 大盘主力资金净流入（近 30 日）", accent="#10b981")
     if st_autorefresh is not None and _in_trading_hours():
@@ -396,7 +402,7 @@ def fragment_market():
 
 
 # ───────────────────────── 融资融券趋势（融资买入额 & 融资余额） ─────────────────────────
-@st.fragment
+@safe_fragment("融资融券趋势")
 def fragment_margin_trading():
     _section_title("📊 融资融券趋势（融资买入额 & 三大指数）", accent="#f59e0b")
     if st_autorefresh is not None and _in_trading_hours():
@@ -441,7 +447,7 @@ def fragment_margin_trading():
 
 
 # ───────────────────────── 个股主力资金 ─────────────────────────
-@st.fragment
+@safe_fragment("个股主力资金")
 def fragment_individual():
     _section_title("🔍 个股主力资金动向", accent="#ef5da8")
     code = stock_search_input(label="选择股票", key="ff_stock", default="600519")
@@ -496,7 +502,7 @@ def fragment_individual():
 
 
 # ───────────────────────── 三大指数走势对比（线性表达） ─────────────────────────
-@st.fragment
+@safe_fragment("指数走势对比")
 def fragment_index_trend():
     _section_title("📊 三大指数走势对比（归一化）", accent="#2b8aef")
     if st_autorefresh is not None and _in_trading_hours():
@@ -517,7 +523,7 @@ def fragment_index_trend():
 
 
 # ───────────────────────── 行业板块指数价格趋势（线性表达） ─────────────────────────
-@st.fragment
+@safe_fragment("行业指数走势")
 def fragment_industry_trend():
     _section_title("🏭 行业板块指数走势对比（归一化）", accent="#2b8aef")
     if st_autorefresh is not None and _in_trading_hours():
@@ -568,7 +574,7 @@ def fragment_industry_trend():
 
 
 # ───────────────────────── ETF 价格趋势（线性表达） ─────────────────────────
-@st.fragment
+@safe_fragment("ETF 价格走势")
 def fragment_etf_trend():
     _section_title("🧩 ETF 价格走势对比（归一化）", accent="#16c2c2")
     if st_autorefresh is not None and _in_trading_hours():
