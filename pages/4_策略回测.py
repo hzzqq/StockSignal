@@ -128,13 +128,16 @@ def fragment_manual_backtest():
                 help="趋势动量多因子策略综合 RSI 均值回归 + 趋势跟踪 + 布林带，胜率更优"
             )
         with col3:
-            initial_capital = st.number_input("初始资金", value=100000, step=10000)
+            initial_capital = st.number_input("初始资金", value=100000, step=10000,
+                                              help="回测起始投入资金，用于计算收益率、仓位与回撤。")
 
         col_d1, col_d2 = st.columns(2)
         with col_d1:
-            bt_start = st.date_input("起始日期", value=datetime.now() - timedelta(days=365))
+            bt_start = st.date_input("起始日期", value=datetime.now() - timedelta(days=365),
+                                    help="回测区间起点，默认近 1 年。")
         with col_d2:
-            bt_end = st.date_input("截止日期", value=datetime.now())
+            bt_end = st.date_input("截止日期", value=datetime.now(),
+                                  help="回测区间终点，默认今天。")
 
         keywords_input = ""
         if strategy == "event_driven":
@@ -288,7 +291,7 @@ def fragment_manual_backtest():
                     )
                     st.plotly_chart(fig_dd_band, use_container_width=True)
                 else:
-                    _empty_info("暂无回撤数据。")
+                    _empty_info("暂无回撤数据。通常因回测区间过短，或策略未产生持仓净值波动导致；可拉长区间后重试。")
 
                 # ── 逐笔交易收益分布 ──
                 st.markdown("---")
@@ -310,7 +313,7 @@ def fragment_manual_backtest():
                     )
                     st.plotly_chart(fig_tr, use_container_width=True)
                 else:
-                    st.info("本区间无完整交易。")
+                    st.info("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
                 # ── 参数敏感性分析 ──
                 st.markdown("---")
@@ -444,9 +447,11 @@ def fragment_daily_picker():
         pool_size = st.number_input("股票池大小", min_value=50, max_value=1000, value=100, step=50,
                                     help="从 A 股随机抽取的股票池规模，越大越准确但越慢")
     with col_p2:
-        top_k = st.number_input("每日选股数", min_value=1, max_value=20, value=5, step=1)
+        top_k = st.number_input("每日选股数", min_value=1, max_value=20, value=5, step=1,
+                                help="每个交易日入选并持有的股票数量。")
     with col_p3:
-        hold_days = st.number_input("持有天数", min_value=1, max_value=10, value=1, step=1)
+        hold_days = st.number_input("持有天数", min_value=1, max_value=10, value=1, step=1,
+                                   help="入选股票持有的交易日天数，到期次日换仓。")
     with col_p4:
         picker_workers = st.number_input("并行线程数", min_value=2, max_value=16, value=4, step=1,
                                          help="同时获取股票数据的线程数")
@@ -526,7 +531,7 @@ def fragment_daily_picker():
             st.subheader("📌 明日推荐买入")
             tomorrow_picks = picker_result.latest_picks(n=top_k)
             if tomorrow_picks.empty:
-                _empty_info("暂无明日推荐数据。")
+                _empty_info("暂无明日推荐数据。可尝试调大「每日选股数」或延长选股区间后重新运行选股。")
             else:
                 display_tmr = tomorrow_picks[["code", "name", "score", "buy_price", "rsi2", "rsi14", "reasons"]].copy()
                 display_tmr.columns = ["代码", "名称", "评分", "参考价", "RSI(2)", "RSI(14)", "选股理由"]

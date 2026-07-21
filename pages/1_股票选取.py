@@ -24,6 +24,7 @@ from modules.session import (
 )
 
 from modules.page_guard import safe_fragment
+from modules.page_widgets import UP
 
 apply_page_config(page_title="股票选取", page_icon="🎯", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -160,6 +161,7 @@ with sidebar_target():
             value=st.session_state.get("pick_start", today - timedelta(days=180)),
             max_value=today,
             key="pick_start_input",
+            help="K 线回测的起始日期，最长可回溯约 1 年；区间越短，长周期指标可能为空。",
         )
     with col_d2:
         end_date = st.date_input(
@@ -168,6 +170,7 @@ with sidebar_target():
             max_value=today,
             min_value=start_date,
             key="pick_end_input",
+            help="K 线回测的结束日期，默认今天；与起始日期共同决定分析区间。",
         )
     if "pick_start" in st.session_state and st.session_state["pick_start"] != start_date:
         st.session_state["pick_start"] = start_date
@@ -189,6 +192,7 @@ with sidebar_target():
         index=["daily", "weekly", "monthly"].index(st.session_state.get("pick_period", "daily")),
         key="pick_period",
         horizontal=True,
+        help="日K 适合短线研判，周K/月K 更适合观察中长期趋势。",
     )
 
     ma_select = st.multiselect(
@@ -196,8 +200,10 @@ with sidebar_target():
         options=[5, 10, 20, 30, 60, 90, 120, 200, 250],
         default=[5, 20, 60],
         key="pick_ma_select",
+        help="勾选需要在 K 线图上叠加显示的移动平均线周期（如 5/20/60 日）。",
     )
-    custom_ma = st.text_input("自定义均线（用英文逗号分隔，如 30,90）", placeholder="例如：30,90", key="pick_custom_ma")
+    custom_ma = st.text_input("自定义均线（用英文逗号分隔，如 30,90）", placeholder="例如：30,90", key="pick_custom_ma",
+                             help="输入自定义均线周期，逗号分隔，例如 13,34,55；与上方勾选合并生效。")
     custom_windows = []
     if custom_ma:
         for x in custom_ma.split(","):
@@ -341,7 +347,8 @@ try:
             if st.session_state["pick_view_count"] > max_count:
                 st.session_state["pick_view_count"] = max_count
             view_count = st.slider("显示 K 线数量", min_value=20, max_value=max_count, step=5,
-                                   key="pick_view_count")
+                                   key="pick_view_count",
+                                   help="控制图中展示的 K 线根数；数据量大时可聚焦近期行情。")
             max_start = max(0, n - view_count)
             if st.session_state["pick_view_pos"] > max_start:
                 st.session_state["pick_view_pos"] = max_start
@@ -360,10 +367,12 @@ try:
             options=["pan", "zoom"],
             format_func=lambda x: {"pan": "平移", "zoom": "区域缩放"}[x],
             index=0, key="pick_dragmode", horizontal=True,
+            help="平移：拖动查看不同区间；区域缩放：框选放大某一段。",
         )
 
         # 事件标注开关（利好↑红 / 利空↓绿），默认开启
-        show_events = st.checkbox("📌 标注事件（利好↑红 / 利空↓绿）", value=True, key="pick_show_events")
+        show_events = st.checkbox("📌 标注事件（利好↑红 / 利空↓绿）", value=True, key="pick_show_events",
+                                  help="在 K 线上叠加重大事件标注：利好标红、利空标绿。")
         events_df = None
         if show_events:
             with st.spinner("加载事件…"):
@@ -416,7 +425,8 @@ try:
                         st.dataframe(disp, use_container_width=True, hide_index=True)
 
         # 叠加上证基准对比（归一化多线，可选）
-        if st.checkbox("📈 叠加上证基准对比（归一化）", value=False, key="pick_show_bench"):
+        if st.checkbox("📈 叠加上证基准对比（归一化）", value=False, key="pick_show_bench",
+                       help="将个股与上证指数归一化到同一起点（100），直观对比个股相对大盘的强弱。"):
             with st.spinner("加载上证基准…"):
                 idx_df = fetcher.get_index("000001", start=start_str, end=end_str)
             if idx_df is not None and not idx_df.empty:
@@ -430,7 +440,7 @@ try:
                     merged = merged.rename(columns={"close_s": stock_label, "close_i": "上证指数"})
                     bfig = plot_normalized_multi(
                         merged, names_map={stock_label: stock_label, "上证指数": "上证指数"},
-                        colors_map={stock_label: "#ee2a2a", "上证指数": "#7c5cff"},
+                        colors_map={stock_label: UP, "上证指数": "#7c5cff"},
                         title="个股 vs 上证基准（归一化起点=100）",
                         dark_mode=_theme_is_dark(), date_range=None, ma_periods=(),
                         selected=None, mode="normalized", show_baseline=True,

@@ -52,7 +52,7 @@ with tab_users:
         pages = data["pages"]
 
         if not items:
-            _empty_info("暂无用户数据")
+            _empty_info("暂无用户数据。点击「创建用户」标签，填写用户名与密码即可新增账户。")
         else:
             st.caption(f"共 {total} 个用户 · 第 {page}/{pages} 页")
             for u in items:
@@ -102,15 +102,19 @@ with tab_users:
 # ----------------------------------------------------------------- 创建用户
 with tab_create:
     st.subheader("创建新用户")
+    st.caption("填写用户名与密码创建新账户；管理员可分配 user / admin 角色。")
     with st.form("create_user_form"):
         col1, col2 = st.columns(2)
         with col1:
-            new_username = st.text_input("用户名", placeholder="2-32位，字母数字下划线中文")
+            new_username = st.text_input("用户名", placeholder="2-32位，字母数字下划线中文",
+                                        help="登录用户名，2-32 位，支持字母、数字、下划线、中文。")
         with col2:
-            new_password = st.text_input("密码", type="password", placeholder="至少6位")
+            new_password = st.text_input("密码", type="password", placeholder="至少6位",
+                                        help="登录密码，至少 6 位。")
 
         new_role = st.selectbox("角色", ["user", "admin"],
-                                format_func=lambda x: "👤 普通用户 (user)" if x == "user" else "🛡️ 管理员 (admin)")
+                                format_func=lambda x: "👤 普通用户 (user)" if x == "user" else "🛡️ 管理员 (admin)",
+                                help="user 仅能管理自己的数据；admin 拥有用户与系统配置管理权限。")
 
         submitted = st.form_submit_button("✅ 创建用户", type="primary")
         if submitted:
@@ -133,9 +137,11 @@ if "editing_user" in st.session_state:
         edit_role = st.selectbox("角色", ["user", "admin"],
                                  index=0 if u["role"] == "user" else 1,
                                  format_func=lambda x: "👤 普通用户" if x == "user" else "🛡️ 管理员",
-                                 key="edit_role_select")
+                                 key="edit_role_select",
+                                 help="修改该用户的角色权限。")
 
-        edit_active = st.checkbox("账号激活", value=u["is_active"], key="edit_active_check")
+        edit_active = st.checkbox("账号激活", value=u["is_active"], key="edit_active_check",
+                                 help="取消勾选将停用该账号，停用后无法登录。")
 
         st.markdown("---")
         st.caption("重置密码（留空则不修改）")
@@ -195,7 +201,7 @@ with tab_logs:
         st.caption(f"共 {total} 条日志 · 第 {page}/{pages} 页")
 
         if not items:
-            _empty_info("暂无操作日志")
+            _empty_info("暂无操作日志。创建、编辑或删除用户后，相关操作会记录在这里。")
         else:
             for log in items:
                 action_color = {

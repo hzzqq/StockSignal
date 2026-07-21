@@ -46,7 +46,7 @@ with tab_overview:
         col2.metric("沪市 (SH)", stats["sh"])
         col3.metric("深市 (SZ)", stats["sz"])
     else:
-        st.error("获取统计数据失败")
+        st.error(f"获取统计数据失败：{resp.get('message', '服务异常')}。请确认后端 Flask 已启动（:5050），稍后点右上角刷新重试。")
 
     st.markdown("---")
     st.subheader("系统信息")
@@ -76,7 +76,8 @@ with tab_stocks:
     col_search, col_refresh = st.columns([3, 1])
     with col_search:
         keyword = st.text_input("搜索股票", value=st.session_state["stock_keyword"],
-                                key="stock_search_mgmt", placeholder="代码/名称/拼音")
+                                key="stock_search_mgmt", placeholder="代码/名称/拼音",
+                                help="按代码、名称或拼音首字母搜索全部股票。")
     with col_refresh:
         if st.button("🔄 刷新", width="stretch"):
             st.session_state["stock_keyword"] = keyword
@@ -125,7 +126,7 @@ with tab_config:
     else:
         configs = resp["data"]
         if not configs:
-            _empty_info("暂无配置项")
+            _empty_info("暂无配置项。可在下方「➕ 新增配置」中添加自定义配置键与默认值。")
         else:
             for cfg in configs:
                 with st.container(border=True):
@@ -166,11 +167,14 @@ with tab_config:
     with st.form("add_config_form"):
         col1, col2, col3 = st.columns(3)
         with col1:
-            new_key = st.text_input("配置键", placeholder="如: max_search_results")
+            new_key = st.text_input("配置键", placeholder="如: max_search_results",
+                                    help="配置的唯一标识键，建议使用小写英文与下划线，如 max_search_results。")
         with col2:
-            new_value = st.text_input("配置值")
+            new_value = st.text_input("配置值",
+                                      help="该配置项的值，保存后即时生效（视具体配置而定）。")
         with col3:
-            new_desc = st.text_input("描述")
+            new_desc = st.text_input("描述",
+                                     help="对该配置用途的简短说明，便于后续维护。")
 
         if st.form_submit_button("✅ 添加", type="primary"):
             if not new_key:
@@ -189,17 +193,18 @@ with tab_watch:
 
     col_add, col_search = st.columns([3, 1])
     with col_add:
-        add_code = st.text_input("添加股票代码", placeholder="如: 600519", key="watch_add_code")
-    with col_search:
-        st.caption("")  # 占位对齐
-        if st.button("➕ 添加自选", width="stretch"):
-            if add_code:
-                c, r = add_watchlist(add_code)
-                if c == 200 and r.get("status") == "ok":
-                    st.success("添加成功！")
-                    st.rerun()
-                else:
-                    st.error(r.get("message", "添加失败"))
+        add_code = st.text_input("添加股票代码", placeholder="如: 600519", key="watch_add_code",
+                                 help="输入股票代码（如 600519）或名称，加入自选便于统一监控。")
+        with col_search:
+            st.caption("代码如 600519 / 000001")
+            if st.button("➕ 添加自选", width="stretch"):
+                if add_code:
+                    c, r = add_watchlist(add_code)
+                    if c == 200 and r.get("status") == "ok":
+                        st.success("添加成功！")
+                        st.rerun()
+                    else:
+                        st.error(r.get("message", "添加失败"))
 
     # 搜索辅助
     st.caption("💡 搜索辅助：")
@@ -227,7 +232,7 @@ with tab_watch:
     else:
         items = resp["data"]
         if not items:
-            _empty_info("暂无自选股")
+            _empty_info("暂无自选股。在上方输入框填入代码（如 600519）后点「➕ 添加自选」即可跟踪。")
         else:
             for item in items:
                 col1, col2, col3 = st.columns([3, 2, 1])
@@ -261,15 +266,18 @@ with tab_alert:
         with col1:
             interval = st.number_input("扫描间隔（分钟）", min_value=1, max_value=120,
                                       value=int(cfg.get("scan_interval_minutes", 15)),
-                                      key="alert_interval")
+                                      key="alert_interval",
+                                      help="市场扫描的触发间隔（分钟），过小会增加请求压力。")
         with col2:
             cooldown = st.number_input("冷却时长（小时）", min_value=1, max_value=48,
                                        value=int(cfg.get("cooldown_hours", 6)),
-                                       key="alert_cooldown")
+                                       key="alert_cooldown",
+                                       help="同一标的两次预警之间的最小间隔（小时），避免重复打扰。")
         with col3:
             delay = st.number_input("首次延迟（秒）", min_value=0, max_value=600,
                                     value=int(cfg.get("initial_delay_seconds", 10)),
-                                    key="alert_delay")
+                                    key="alert_delay",
+                                    help="系统启动后首次扫描的延迟（秒），用于错峰。")
 
         thr_txt = st.text_area(
             "阈值覆盖（JSON，可选）",

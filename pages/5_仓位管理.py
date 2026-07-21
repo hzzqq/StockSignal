@@ -58,7 +58,7 @@ def format_quote_table(quote):
 st.subheader("当前持仓概览")
 positions = pm.get_positions()
 if positions.empty:
-    _empty_info("暂无持仓记录。")
+    _empty_info("暂无持仓记录。在上方「添加持仓」表单录入代码、价格与股数后，即可开始跟踪。")
 else:
     display_pos = positions.copy()
     if "name" in display_pos.columns:
@@ -116,7 +116,8 @@ with st.form("buy_position_form"):
             else:
                 st.caption("⚠️ 未能获取实时行情")
     with col2:
-        buy_date = st.date_input("买入日期", value=datetime.now(), key="buy_date")
+        buy_date = st.date_input("买入日期", value=datetime.now(), key="buy_date",
+                                 help="该笔持仓的买入日期，用于计算持有天数与收益率。")
         # 默认成交价：卖一价（买入按卖方最低价成交）
         default_buy_price = 20.00
         if buy_quote and buy_quote.get("ask"):
@@ -144,7 +145,8 @@ with st.form("buy_position_form"):
             min_value=1, step=100, format="%d",
             help="点击 ± 按钮步进调节，或直接输入数字"
         )
-        buy_note = st.text_input("备注", value="", key="buy_note")
+        buy_note = st.text_input("备注", value="", key="buy_note",
+                                 help="为该笔持仓添加备注（如建仓理由、止盈目标），便于后续回顾。")
 
     buy_submitted = st.form_submit_button("✅ 添加持仓")
 
@@ -267,13 +269,19 @@ st.markdown("---")
 with st.expander("🗑️ 删除持仓"):
     positions = pm.get_positions()  # 刷新
     if positions.empty:
-        _empty_info("暂无持仓可删除。")
+        _empty_info("暂无持仓可删除。当前没有已记录的持仓，无需清理。")
     else:
         del_index = st.number_input(
             "选择要删除的行号（从 0 开始）",
             min_value=0, max_value=len(positions) - 1,
-            value=0, step=1
+            value=0, step=1,
+            help="行号对应上方持仓列表的序号（从 0 开始）。删除不可恢复，请确认后再点「确认删除」。",
         )
+        # 行号 → 股票 映射提示，降低误删风险
+        _idx_map = "；".join(
+            f"{i}: {positions.iloc[i]['ticker']}" for i in range(len(positions))
+        )
+        st.caption(f"行号对照（从 0 起）：{_idx_map}")
         c_del, _ = st.columns([1, 4])
         if c_del.button("⚠️ 确认删除", type="primary"):
             removed = pm.remove_position(int(del_index))
@@ -368,7 +376,7 @@ if not positions.empty:
                 display_attr = attribution[["股票", "ticker", "pnl", "pnl_pct", "contribution"]].copy()
                 st.dataframe(display_attr, width="stretch", hide_index=True)
             else:
-                _empty_info("暂无盈亏归因数据。")
+                _empty_info("暂无盈亏归因数据。需要先有至少一笔卖出记录，系统才能按股票拆分盈亏贡献。")
 
             # 导出Excel
             st.markdown("---")
