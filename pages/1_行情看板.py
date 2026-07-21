@@ -11,9 +11,10 @@ from modules.ui_theme import apply_page_config
 from modules.fetcher import StockFetcher
 from modules.visualizer import Visualizer
 from modules.search_ui import multi_stock_search_input
-from modules.session import require_auth, render_user_badge, api_kline, safe_switch_page
+from modules.session import require_auth, render_user_badge, api_kline, safe_switch_page, fragment_market_alerts_panel
 from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules.widgets import render_index_compact
+from modules.page_guard import safe_fragment
 
 apply_page_config(page_title="行情看板", page_icon="📈", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -130,7 +131,7 @@ def _get_market_status():
 # ------------------------------------------------------------------
 # 行业板块涨跌榜（卡片 + 折叠详情）
 # ------------------------------------------------------------------
-@st.fragment
+@safe_fragment("行业板块涨跌榜")
 def fragment_sector_board():
     st.markdown("---")
     st.subheader("🏭 行业板块涨跌榜")
@@ -252,7 +253,7 @@ def _load_lhb(date_str: str):
 # ------------------------------------------------------------------
 # 龙虎榜
 # ------------------------------------------------------------------
-@st.fragment
+@safe_fragment("龙虎榜")
 def fragment_lhb():
     st.markdown("---")
     # 交易时段每 60 秒自动刷新龙虎榜数据
@@ -462,3 +463,6 @@ if st.button("计算相关性", key="calc_corr", use_container_width=True):
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.warning("需要至少 2 只有效股票代码。请检查输入或网络后重试。")
+
+# 全局市场异动面板（与 P_市场情绪 页共享同一组件）
+fragment_market_alerts_panel()

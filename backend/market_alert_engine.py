@@ -23,6 +23,7 @@ from sqlalchemy import select
 
 from .extensions import db
 from .models import MarketAlert
+from .market_alert_config import get_alert_config, resolve_rules
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,7 @@ def detect_anomalies(df, meta=None) -> list:
     out = []
     if df is None or getattr(df, "empty", True):
         return out
-    for rule in RULES:
+    for rule in resolve_rules(RULES):
         key = rule["key"]
         if key not in df.columns:
             continue
@@ -151,7 +152,8 @@ def scan_and_store(commit: bool = True) -> int:
     if not anomalies:
         return 0
 
-    cutoff = datetime.utcnow() - timedelta(hours=COOLDOWN_HOURS)
+    cooldown_hours = get_alert_config().get("cooldown_hours", COOLDOWN_HOURS)
+    cutoff = datetime.utcnow() - timedelta(hours=cooldown_hours)
     inserted = 0
     for a in anomalies:
         recent = db.session.execute(
@@ -193,10 +195,13 @@ def start_alert_scheduler(app, interval_minutes: int = SCAN_INTERVAL_MINUTES) ->
     if os.environ.get("STOCKSIGNAL_ENABLE_ALERT_SCHEDULER", "1") == "0":
         logger.info("STOCKSIGNAL_ENABLE_ALERT_SCHEDULER=0，跳过市场异动调度器")
         return
+    cfg = get_alert_config()
+    interval_minutes = int(cfg.get("scan_interval_minutes", SCAN_INTERVAL_MINUTES))
+    initial_delay = int(cfg.get("initial_delay_seconds", INITIAL_DELAY_SECONDS))
     _SCHEDULER_STARTED = True
 
     def _loop() -> None:
-        time.sleep(INITIAL_DELAY_SECONDS)
+        time.sleep(initial_delay)
         while True:
             try:
                 if _in_trading_window():

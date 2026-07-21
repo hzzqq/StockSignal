@@ -22,6 +22,8 @@ from modules.session import (
     get_user, trading_autorefresh,
 )
 
+from modules.page_guard import safe_fragment
+
 apply_page_config(page_title="股票选取", page_icon="🎯", layout="wide")
 st.session_state["_active_page"] = __file__
 
@@ -70,7 +72,7 @@ def _norm_code(c: str) -> str:
 
 
 # ── 用户打分组件（Batch8 #271：独立 fragment，交互只重跑本块，提升响应速度）──
-@st.fragment
+@safe_fragment
 def _render_user_score(ticker: str, stock_label: str) -> None:
     st.markdown("---")
     st.subheader("⭐ 用户打分")

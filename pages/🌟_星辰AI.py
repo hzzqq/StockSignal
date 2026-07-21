@@ -21,11 +21,12 @@ import time
 import streamlit as st
 
 from modules.ui_theme import apply_page_config, _theme_is_dark
-from modules.session import require_auth, get_user, render_user_badge
+from modules.session import require_auth, get_user, render_user_badge, fragment_market_alerts_panel
 from modules.starfield_theme import inject_plotly_dark
 from modules.background_tasks import submit_task_with_error, poll_task, get_chat_history, save_chat_history
 from modules.widgets import _slim_context
 from modules.widgets import STAR_AI_LOGO
+from modules.page_guard import safe_fragment
 
 apply_page_config(page_title="🌟 星辰 AI", page_icon="🌟", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -508,7 +509,7 @@ if prompt:
 # （否则页面顶部鉴权/历史渲染/上下文构建会被反复执行，造成卡顿）。
 # 任务终态（成功/失败/超时）才用 st.rerun(scope="app") 升级为一次整页重跑，
 # 以在页面级重新渲染聊天消息——这是 fragment 铁律允许的唯一整页重跑时机。
-@st.fragment
+@safe_fragment("AI 任务轮询")
 def _poll_ai_task():
     task_id = st.session_state.get("xc_task_id")
     if not task_id:
@@ -548,3 +549,6 @@ def _poll_ai_task():
 
 if st.session_state.get("xc_task_id"):
     _poll_ai_task()
+
+# 全局市场异动面板（与 P_市场情绪 页共享同一组件）
+fragment_market_alerts_panel()

@@ -123,3 +123,26 @@ def trigger_scan():
 
     n = scan_and_store()
     return ok(data={"inserted": n}, message=f"扫描完成，新增 {n} 条")
+
+
+@bp.get("/config")
+@admin_required
+def get_config():
+    """GET /api/market-alerts/config —— 返回当前生效的扫描策略配置。"""
+    from ..market_alert_config import get_alert_config, get_runtime_overrides
+
+    return ok(data={
+        "config": get_alert_config(),
+        "runtime_overrides": get_runtime_overrides(),
+    })
+
+
+@bp.post("/config")
+@admin_required
+def update_config():
+    """POST /api/market-alerts/config —— 管理员更新扫描策略（运行时生效，重启后失效）。"""
+    from ..market_alert_config import set_runtime_overrides
+
+    body = request.get_json(silent=True) or {}
+    cfg = set_runtime_overrides(body)
+    return ok(data={"config": cfg}, message="扫描策略已更新（运行时生效）")

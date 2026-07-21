@@ -33,6 +33,7 @@ import requests
 from datetime import datetime
 
 from .ui_theme import FONT_DEFAULT
+from .page_guard import safe_fragment
 
 # 后端 API 基地址。
 # 本地开发默认 http://127.0.0.1:5050；容器化部署（docker-compose）下由
@@ -853,30 +854,72 @@ def _cached_alert_summary(token: str, nonce: int) -> dict:
 
 
 def render_market_alert_bell(target=st.sidebar) -> None:
-    """侧边栏市场异动铃铛：未读红点 + 最近异动列表 + 全部已读。"""
+    """侧边栏市场异动铃铛：常驻侧边栏，点击展开 popover 显示未读摘要 + 最近异动 + 全部已读。"""
     nonce = int(st.session_state.get("_alert_nonce", 0))
     data = _cached_alert_summary(get_token() or "", nonce)
     unread = int(data.get("unread_count", 0) or 0)
     items = data.get("items", []) or []
 
     badge = f" 🔴{unread}" if unread else ""
-    target.markdown(f"### 🔔 市场异动{badge}")
+    with target.popover(f"🔔 市场异动{badge}", use_container_width=True):
+        _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}
+        if items:
+            for it in items[:5]:
+                sev = it.get("severity", "info")
+                icon = _sev_icon.get(sev, "ℹ️")
+                ts = (it.get("created_at") or "")[:16].replace("T", " ")
+                st.caption(f"{icon} {it.get('metric_name')}：{it.get('message')}")
+                st.caption(f"　└ {ts}")
+        else:
+            st.caption("暂无异动提醒")
 
-    _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}
-    if items:
-        for it in items[:5]:
-            sev = it.get("severity", "info")
-            icon = _sev_icon.get(sev, "ℹ️")
-            ts = (it.get("created_at") or "")[:16].replace("T", " ")
-            target.caption(f"{icon} {it.get('metric_name')}：{it.get('message')}")
-            target.caption(f"　└ {ts}")
-    else:
-        target.caption("暂无异动提醒")
+        if st.button("✅ 全部标为已读", key="alert_mark_all_btn"):
+            code, _ = api_mark_all_alerts_read()
+            if code == 200:
+                st.session_state["_alert_nonce"] = nonce + 1
 
-    if target.button("✅ 全部标为已读", key="alert_mark_all_btn"):
+
+@st.cache_data(ttl=20, show_spinner=False)
+def _cached_alerts_panel(token: str, nonce: int) -> dict:
+    """缓存市场异动列表（共享面板用，nonce 变化即击穿重取）。"""
+    return api_market_alerts(limit=20, offset=0)
+
+
+@safe_fragment("市场异动提醒面板")
+def fragment_market_alerts_panel() -> None:
+    """共享市场异动面板：可在任意页面末尾挂载，风格与 P 页统一。"""
+    from modules.page_widgets import _section_title
+    _section_title("🔔 近期异动提醒（自动扫描 · 后台调度）", accent="#ee2a2a")
+    nonce = int(st.session_state.get("_alert_panel_nonce", 0))
+    data = _cached_alerts_panel(get_token() or "", nonce)
+    items = data.get("items", []) or []
+    unread = int(data.get("unread_count", 0) or 0)
+
+    if unread:
+        st.markdown(f"未读 **{unread}** 条")
+    if st.button("✅ 全部标为已读", key="panel_mark_all"):
         code, _ = api_mark_all_alerts_read()
         if code == 200:
-            st.session_state["_alert_nonce"] = nonce + 1
+            st.session_state["_alert_panel_nonce"] = nonce + 1
+
+    if not items:
+        st.info("暂无异动提醒。后台调度器会在交易时段扫描广度/情绪/估值指标越界并推送。")
+        return
+
+    _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}
+    for it in items:
+        sev = it.get("severity", "info")
+        icon = _sev_icon.get(sev, "ℹ️")
+        ts = (it.get("created_at") or "")[:16].replace("T", " ")
+        c1, c2 = st.columns([0.88, 0.12])
+        with c1:
+            st.markdown(f"{icon} **{it.get('metric_name')}**：{it.get('message')}")
+            st.caption(f"　└ {ts}　值 {it.get('value')}　阈值 {it.get('threshold')}")
+        with c2:
+            if st.button("✓", key=f"panel_read_{it.get('id')}", help="标为已读"):
+                code, _ = api_mark_alert_read(it.get("id"))
+                if code == 200:
+                    st.session_state["_alert_panel_nonce"] = nonce + 1
 
 
 def is_admin() -> bool:

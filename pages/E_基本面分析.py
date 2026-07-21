@@ -23,6 +23,8 @@ from modules.search_ui import stock_search_input
 from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules import fundflow as ff
 
+from modules.page_guard import safe_fragment
+
 apply_page_config(page_title="基本面分析", page_icon="🏛️", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
@@ -433,7 +435,7 @@ if code:
     # ═══════════════════════════════════════════════
     # 财务分析（仿同花顺 F10 财务分析 1:1）
     # ═══════════════════════════════════════════════
-    @st.fragment
+    @safe_fragment
     def fragment_financial_analysis(fa_code: str, fa_name: str):
         st.markdown("---")
         st.subheader("📊 财务分析")

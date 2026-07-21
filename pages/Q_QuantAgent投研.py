@@ -59,6 +59,8 @@ except Exception:  # pragma: no cover - fallback
         return -1
 
 
+from modules.page_guard import safe_fragment
+
 st.set_page_config(page_title="QuantAgent 多智能体投研", page_icon="🤖", layout="wide")
 
 _VERDICT_COLOR = {"看多": "#dc2626", "看空": "#009e60", "持有": "#d97706"}
@@ -229,7 +231,7 @@ def _render_report(result: dict):
                 st.warning(e)
 
 
-@st.fragment
+@safe_fragment
 def _result_panel():
     """结果区：轮询后台任务 / 渲染本地直跑结果，独立 fragment 不阻塞整页。"""
     task_id = st.session_state.get("quant_task_id")

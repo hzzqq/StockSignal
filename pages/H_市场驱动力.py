@@ -18,6 +18,8 @@ try:
 except Exception:
     st_autorefresh = None
 
+from modules.page_guard import safe_fragment
+
 apply_page_config(page_title="市场驱动力", page_icon="🧮", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
@@ -55,7 +57,7 @@ def _render_drivers_meta(meta):
         st.caption("📌 维度接入状态：" + "　".join(lines))
 
 
-@st.fragment
+@safe_fragment
 def fragment_drivers_panel():
     _section_title("🧭 核心指标与大盘趋势关联性全景图（五维归一化子图）", accent="#2b8aef")
     if st_autorefresh is not None and _in_trading_hours():

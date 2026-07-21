@@ -66,28 +66,38 @@ def render_error_card(name: str, exc: Exception, *, retry: bool = False, hint: s
 # ──────────────────────────────────────────────────────────
 # 1. Fragment 级隔离装饰器
 # ──────────────────────────────────────────────────────────
-def safe_fragment(name: str, **frag_kwargs):
+def safe_fragment(name=None, **frag_kwargs):
     """
     装饰器：在 ``@st.fragment`` 之上再包一层异常捕获。
 
-    用法（替换原 ``@st.fragment``）::
+    两种用法均可（作为 ``@st.fragment`` 的「带错误边界」平替）::
 
-        @safe_fragment("板块行情")
+        @safe_fragment("板块行情")          # 显式命名（错误卡片标题更可读）
+        def fragment_sectors():
+            ...
+
+        @safe_fragment                       # 无括号，直接平替 @st.fragment
         def fragment_sectors():
             ...
 
     区块内任意未捕获异常都会被隔离为内联错误卡片，不会整页崩溃。
     """
     def decorator(func):
+        # 标题：显式 name 优先；无括号用法时 name 即函数本身，取 __name__。
+        _title = name if isinstance(name, str) else getattr(func, "__name__", "区块")
         @st.fragment(**frag_kwargs)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
             except Exception as exc:  # noqa: BLE001
-                render_error_card(name, exc)
+                render_error_card(_title, exc)
         wrapper.__name__ = getattr(func, "__name__", name)
         wrapper.__doc__ = getattr(func, "__doc__", None)
         return wrapper
+
+    # 支持「无括号」用法：@safe_fragment 直接装饰函数时，name 即为函数本身。
+    if callable(name):
+        return decorator(name)
     return decorator
 
 

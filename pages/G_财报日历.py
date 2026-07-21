@@ -14,6 +14,8 @@ from modules.fundflow import (
     get_earnings_report, get_earnings_forecast, get_disclosure_calendar,
 )
 
+from modules.page_guard import safe_fragment
+
 apply_page_config(page_title="财报日历", page_icon="📅", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
@@ -62,7 +64,7 @@ def _section_title(text, accent="#2b8aef"):
 
 
 # ───────────────────────── 业绩报表 ─────────────────────────
-@st.fragment
+@safe_fragment
 def fragment_report():
     _section_title("📊 业绩报表（按报告期）", accent="#2b8aef")
     period_label = st.selectbox(
@@ -125,7 +127,7 @@ def fragment_report():
 
 
 # ───────────────────────── 业绩预告（best-effort） ─────────────────────────
-@st.fragment
+@safe_fragment
 def fragment_forecast():
     _section_title("🔮 业绩预告（best-effort）", accent="#7c5cff")
     st.caption("业绩预告接口稳定性较低，加载失败时将自动跳过。")
@@ -144,7 +146,7 @@ def fragment_forecast():
 
 
 # ───────────────────────── 披露日历（best-effort） ─────────────────────────
-@st.fragment
+@safe_fragment
 def fragment_disclosure():
     _section_title("🗓️ 披露日历（best-effort）", accent="#10b981")
     st.caption("披露日期接口稳定性较低，加载失败时将自动跳过。")

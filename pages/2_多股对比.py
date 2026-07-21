@@ -7,6 +7,8 @@ import streamlit as st
 import pandas as pd
 
 from modules.ui_theme import apply_page_config
+from modules.page_guard import safe_fragment
+
 apply_page_config(page_title="多股对比", page_icon="📊", layout="wide")
 
 # 本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）
@@ -87,7 +89,7 @@ def _poll_compare_once(task_id: str) -> dict | None:
     return poll_task(task_id, max_wait=0.5)
 
 
-@st.fragment
+@safe_fragment
 def fragment_compare_result():
     """对比结果区：轮询 + 加载反馈 + 自动渲染，fragment 隔离不阻塞整页。"""
     compare_task_id = st.session_state.get("compare_task_id")

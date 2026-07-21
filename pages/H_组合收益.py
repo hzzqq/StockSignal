@@ -19,6 +19,8 @@ try:
 except Exception:
     st_autorefresh = None
 
+from modules.page_guard import safe_fragment
+
 apply_page_config(page_title="组合收益", page_icon="📊", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
@@ -143,7 +145,7 @@ def _max_drawdown(idxs: pd.Series):
 
 
 # ───────────────────────── 主体 ─────────────────────────
-@st.fragment
+@safe_fragment
 def fragment_portfolio():
     _section_title("💼 组合净值与基准对比", accent="#2b8aef")
     if st_autorefresh is not None:

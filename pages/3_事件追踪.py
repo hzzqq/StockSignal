@@ -3,7 +3,7 @@
 信号评分、事件时间轴、事件管理、新闻挖掘、情感报告
 
 独立性优化（关键）：
-- 每个耗时模块用 @st.fragment 包裹，点击某模块按钮只重跑「该 fragment」，
+- 每个耗时模块用 @safe_fragment 包裹，点击某模块按钮只重跑「该 fragment」，
   不会冻结整页，其它模块保持原样（真正的同页模块独立运行）。
 - 各模块结果存入各自独立的 session_state key，fragment 内从 session_state 恢复展示。
 - 事件时间轴表单的日期/滑块控件 key 与 session_state 变量同名双向绑定，
@@ -16,6 +16,8 @@ import html
 from datetime import datetime, timedelta
 
 from modules.ui_theme import apply_page_config
+from modules.page_guard import safe_fragment
+
 apply_page_config(page_title="事件追踪", page_icon="🔔", layout="wide")
 st.session_state["_active_page"] = __file__
 st.title("🔔 事件追踪")
@@ -137,7 +139,7 @@ def _render_news_with_links(df, title_col="title", url_col="url", date_col="date
 # ------------------------------------------------------------------
 # 信号评分（fragment：独立运行，不冻结整页）
 # ------------------------------------------------------------------
-@st.fragment
+@safe_fragment
 def fragment_signal_score():
     st.subheader("📊 信号评分")
 
@@ -229,7 +231,7 @@ def fragment_signal_score():
 # ------------------------------------------------------------------
 # 📰 实时关键词提取（fragment：独立运行）
 # ------------------------------------------------------------------
-@st.fragment
+@safe_fragment
 def fragment_live_keywords():
     st.markdown("---")
     st.subheader("📰 实时关键词提取")
@@ -355,7 +357,7 @@ def fragment_live_keywords():
 # ------------------------------------------------------------------
 # 📅 事件时间轴（fragment：独立运行；控件 key 与 session_state 同名双向绑定）
 # ------------------------------------------------------------------
-@st.fragment
+@safe_fragment
 def fragment_timeline():
     st.markdown("---")
     st.subheader("📅 事件时间轴")
@@ -603,7 +605,7 @@ def fragment_timeline():
 # ------------------------------------------------------------------
 # 事件管理（fragment：独立运行）
 # ------------------------------------------------------------------
-@st.fragment
+@safe_fragment
 def fragment_event_manage():
     st.markdown("---")
     st.subheader("📌 事件管理")
@@ -651,7 +653,7 @@ def fragment_event_manage():
 # ------------------------------------------------------------------
 # ⛏️ 新闻事件自动挖掘（fragment：独立运行）
 # ------------------------------------------------------------------
-@st.fragment
+@safe_fragment
 def fragment_news_mine():
     try:
         st.markdown("---")
@@ -726,7 +728,7 @@ def fragment_news_mine():
 # ------------------------------------------------------------------
 # 📊 情感分析报告（fragment：独立运行）
 # ------------------------------------------------------------------
-@st.fragment
+@safe_fragment
 def fragment_sentiment_report():
     st.markdown("---")
     st.subheader("📊 新闻情感分析报告")

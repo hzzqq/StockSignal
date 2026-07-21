@@ -14,6 +14,8 @@ from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge
 from modules.page_guard import safe_section
 
+from modules.page_guard import safe_fragment
+
 apply_page_config(page_title="ETF筛选", page_icon="🧰", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
@@ -73,7 +75,7 @@ def _load_etfs():
     return d, "内置样本（网络不可用）"
 
 
-@st.fragment
+@safe_fragment
 def _etf_filter_fragment():
     with safe_section("ETF 行情", hint="实时行情接口可能受网络限制，已自动降级到样本数据。"):
         df, src = _load_etfs()

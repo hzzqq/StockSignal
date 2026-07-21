@@ -14,6 +14,8 @@ from modules.session import require_auth, render_user_badge, api_get
 from modules.fetcher import StockFetcher
 from modules.news import NewsFetcher
 
+from modules.page_guard import safe_fragment
+
 apply_page_config(page_title="每日晨报", page_icon="🌅", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
@@ -133,7 +135,7 @@ def _cached_sector():
         return None
 
 # ───────────────────────── 板块概览 ─────────────────────────
-@st.fragment
+@safe_fragment
 def fragment_sector_summary():
     with st.spinner("加载板块行情…"):
         try:
@@ -167,7 +169,7 @@ def fragment_sector_summary():
 fragment_sector_summary()
 
 # ───────────────────────── 自选股快照 + 相关新闻（独立 fragment，交互不阻塞整页） ─────────────────────────
-@st.fragment
+@safe_fragment
 def fragment_watchlist_and_news():
     sc, body = api_get("/api/watchlist")
     watchlist = []
@@ -298,7 +300,7 @@ def fragment_watchlist_and_news():
 fragment_watchlist_and_news()
 
 # ───────────────────────── 复盘笔记 ─────────────────────────
-@st.fragment
+@safe_fragment
 def fragment_review_notes():
     st.markdown("#### 📝 复盘笔记")
     import re as _re

@@ -46,6 +46,8 @@ def _to_num(v):
             return None
     return None
 
+from modules.page_guard import safe_fragment
+
 apply_page_config(page_title="自选股监控", page_icon="📡", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
@@ -187,7 +189,7 @@ def _fund_one(code: str):
 # ═══════════════════════════════════════════════════════════════
 # 主监控表（独立 fragment，交易时段自动刷新不影响整页）
 # ═══════════════════════════════════════════════════════════════
-@st.fragment
+@safe_fragment
 def fragment_watchlist_monitor():
     # 交易时段自动刷新（仅本 fragment 重跑）
     if _is_trading_now():
@@ -546,7 +548,7 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
 
 
 # 自选股
-@st.fragment
+@safe_fragment
 def fragment_pool_watchlist():
     with st.expander("📌 自选股列表", expanded=False):
         sc, body = api_get("/api/watchlist")
@@ -575,7 +577,7 @@ fragment_pool_watchlist()
 
 
 # 垃圾股
-@st.fragment
+@safe_fragment
 def fragment_pool_junk():
     with st.expander("🗑️ 垃圾股列表", expanded=False):
         junk_items = api_junk_stocks()

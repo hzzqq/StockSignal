@@ -4,7 +4,8 @@ pages/8_系统配置.py
 管理员系统配置页面：股票数据统计 / 股票列表管理 / 系统配置键值表 / 自选股管理。
 """
 import streamlit as st
-from modules.session import init_session_state, require_admin, render_user_badge
+import json
+from modules.session import init_session_state, require_admin, render_user_badge, api_get, api_post
 from modules.admin_api import (
     get_stock_stats, get_stock_list, get_config, update_config,
     create_config, delete_config, get_watchlist, add_watchlist, remove_watchlist,
@@ -30,8 +31,8 @@ st.title("⚙️ 系统配置")
 render_user_badge()
 
 # ================================================================ Tab 布局
-tab_overview, tab_stocks, tab_config, tab_watch = st.tabs([
-    "📊 数据概览", "📈 股票管理", "🔧 系统配置", "⭐ 自选股"
+tab_overview, tab_stocks, tab_config, tab_watch, tab_alert = st.tabs([
+    "📊 数据概览", "📈 股票管理", "🔧 系统配置", "⭐ 自选股", "🔔 异动扫描"
 ])
 
 # ----------------------------------------------------------------- 数据概览
@@ -243,3 +244,57 @@ with tab_watch:
                             st.rerun()
                         else:
                             st.error(r.get("message", "移除失败"))
+
+# ----------------------------------------------------------------- 异动扫描策略
+with tab_alert:
+    st.subheader("🔔 市场异动扫描策略")
+    st.caption("后台调度器在交易时段自动扫描广度/情绪/估值指标越界并写库。"
+               "以下参数为运行时生效；重启服务后恢复环境变量默认值。")
+
+    code, resp = api_get("/api/market-alerts/config")
+    if code != 200 or resp.get("status") != "ok":
+        st.error(f"获取扫描策略失败: {resp.get('message', '未知错误')}")
+    else:
+        cfg = resp["data"]["config"]
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            interval = st.number_input("扫描间隔（分钟）", min_value=1, max_value=120,
+                                      value=int(cfg.get("scan_interval_minutes", 15)),
+                                      key="alert_interval")
+        with col2:
+            cooldown = st.number_input("冷却时长（小时）", min_value=1, max_value=48,
+                                       value=int(cfg.get("cooldown_hours", 6)),
+                                       key="alert_cooldown")
+        with col3:
+            delay = st.number_input("首次延迟（秒）", min_value=0, max_value=600,
+                                    value=int(cfg.get("initial_delay_seconds", 10)),
+                                    key="alert_delay")
+
+        thr_txt = st.text_area(
+            "阈值覆盖（JSON，可选）",
+            value=json.dumps(cfg.get("thresholds", {}), ensure_ascii=False, indent=2),
+            height=160, key="alert_thr",
+            help='覆盖某指标阈值，如 {"vix": {"warn_hi": 18, "danger_hi": 28}}',
+        )
+
+        if st.button("💾 保存扫描策略", type="primary", key="alert_save"):
+            try:
+                thr = json.loads(thr_txt) if thr_txt.strip() else {}
+                if not isinstance(thr, dict):
+                    raise ValueError("必须是 JSON 对象")
+            except Exception as e:
+                st.error(f"阈值 JSON 解析失败：{e}")
+                thr = None
+            if thr is not None:
+                body = {
+                    "scan_interval_minutes": int(interval),
+                    "cooldown_hours": int(cooldown),
+                    "initial_delay_seconds": int(delay),
+                    "thresholds": thr,
+                }
+                c, r = api_post("/api/market-alerts/config", json=body)
+                if c == 200 and r.get("status") == "ok":
+                    st.success("已保存（运行时生效，重启后失效）")
+                    st.rerun()
+                else:
+                    st.error(r.get("message", "保存失败"))

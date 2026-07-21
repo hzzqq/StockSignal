@@ -13,6 +13,8 @@ from datetime import datetime
 
 # ── 前置：本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）──
 from modules.ui_theme import apply_page_config
+from modules.page_guard import safe_fragment
+
 apply_page_config(page_title="个股分析", page_icon="🔍", layout="wide")
 st.session_state["_active_page"] = __file__
 
@@ -931,7 +933,7 @@ def _poll_analysis_once(task_id: str) -> dict | None:
     return poll_task(task_id, max_wait=0.5)
 
 
-@st.fragment
+@safe_fragment
 def fragment_analysis_result():
     """分析结果区：包含轮询、加载中反馈、完成后渲染，独立 fragment 不阻塞整页。"""
     analysis_task_id = st.session_state.get("analysis_task_id")
@@ -992,7 +994,7 @@ def _video_embed_url(url: str):
     return None
 
 
-@st.fragment
+@safe_fragment
 def fragment_stock_videos(ticker):
     with st.expander("📺 相关视频（把互联网上的股票视频接入项目 · 点击展开/收起）", expanded=False):
         name = StockFetcher().get_stock_name(ticker) or ticker

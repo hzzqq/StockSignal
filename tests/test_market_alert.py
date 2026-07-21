@@ -191,3 +191,32 @@ def test_scan_inserts_and_dedup(app, client, monkeypatch):
     # 管理员可见刚才写入的告警
     rl = client.get("/api/market-alerts", headers=_auth(admin_tok))
     assert rl.get_json(force=True)["data"]["total"] >= 10
+
+
+def test_config_read_write_requires_admin(app, client):
+    demo_tok = _token(client, "demo")
+    r = client.get("/api/market-alerts/config", headers=_auth(demo_tok))
+    assert r.status_code == 403  # 非 admin 禁止读取
+
+    admin_tok = _token(client, "admin")
+    g = client.get("/api/market-alerts/config", headers=_auth(admin_tok))
+    assert g.status_code == 200
+    base = g.get_json(force=True)["data"]["config"]
+    assert "scan_interval_minutes" in base
+    assert "cooldown_hours" in base
+
+    # 写入运行时扫描间隔，应即时生效
+    p = client.post(
+        "/api/market-alerts/config",
+        headers=_auth(admin_tok),
+        json={"scan_interval_minutes": 30, "cooldown_hours": 4},
+    )
+    assert p.status_code == 200
+    cfg = p.get_json(force=True)["data"]["config"]
+    assert cfg["scan_interval_minutes"] == 30
+    assert cfg["cooldown_hours"] == 4
+
+    # 清理运行时覆盖，避免影响其它用例
+    from backend.market_alert_config import set_runtime_overrides
+    set_runtime_overrides({})
+
