@@ -33,6 +33,10 @@ BEARISH_KW = ["死叉", "跌破", "顶背离", "空头", "看跌", "上吊"]
 PRIORITY_RANK = {"HIGH": 0, "WATCH": 1, "ATTENTION": 2}
 PRIORITY_LABEL = {"HIGH": "高优先级", "WATCH": "关注", "ATTENTION": "警惕"}
 
+# 信号灯风险配色（独立于 A股 红涨绿跌）：机会=绿、中性=琥珀、风险=红
+_PRIORITY_COLOR = {"HIGH": "#1aa260", "WATCH": "#f5a623", "ATTENTION": "#ee2a2a"}
+_PRIORITY_EMOJI = {"HIGH": "🟢", "WATCH": "🟡", "ATTENTION": "🔴"}
+
 
 # ─────────────────────────── 数据准备 ───────────────────────────
 def build_stock_list(scope: str) -> dict:
@@ -406,6 +410,18 @@ with col1:
 with col2:
     st.caption("提示：体检会拉取近 180 日行情 + 技术形态 + 主力资金流向，并对标的范围去重。")
 
+# 新手引导：体检结果怎么看（#545-17 风险等级颜色统一 + 新手文案）
+with st.expander("ℹ️ 怎么看体检结果？", expanded=False):
+    st.markdown(
+        "体检按 **技术面 30% · 资金面 25% · 财务健康 25% · 估值 20%** 加权得出综合分，"
+        "再结合技术形态与主力资金给出三档优先级：\n"
+        f"- {_PRIORITY_EMOJI['HIGH']} **高优先级（绿）**：综合分 ≥ 68 或出现看涨形态 / 主力净流入，是值得重点跟踪的机会标的。\n"
+        f"- {_PRIORITY_EMOJI['WATCH']} **关注（琥珀）**：信号中性，综合分在 45–68 之间，列入观察即可。\n"
+        f"- {_PRIORITY_EMOJI['ATTENTION']} **警惕（红）**：综合分 < 45 或出现看跌 / 顶背离等风险信号，注意规避或严格控制仓位。\n\n"
+        "维度评分条与综合分遵循「绿=好、琥珀=中性、红=偏弱」的**健康语义**，与行情的"
+        "「红涨绿跌」配色相互独立，切勿混淆。"
+    )
+
 
 # ─────────────────────────── 结果板（fragment，独立刷新） ───────────────────────────
 @safe_fragment("体检结果")
@@ -443,9 +459,9 @@ def result_board():
     n_watch = sum(1 for r in results if r["priority"] == "WATCH")
     n_att = sum(1 for r in results if r["priority"] == "ATTENTION")
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("🟢 高优先级", n_high)
-    m2.metric("🟡 关注", n_watch)
-    m3.metric("🔴 警惕", n_att)
+    m1.metric(f"{_PRIORITY_EMOJI['HIGH']} 高优先级", n_high)
+    m2.metric(f"{_PRIORITY_EMOJI['WATCH']} 关注", n_watch)
+    m3.metric(f"{_PRIORITY_EMOJI['ATTENTION']} 警惕", n_att)
     m4.metric("平均综合分", f"{avg_comp}" if avg_comp is not None else "—")
 
     def _fmt_score(v):
@@ -491,7 +507,7 @@ def result_board():
             return (f'<div style="flex:1 1 0;min-width:110px;">'
                     f'<div style="font-size:11px;color:#999;">{label} —</div>'
                     f'<div style="height:6px;border-radius:3px;background:rgba(128,128,128,0.18);"></div></div>')
-        c = UP if v >= 65 else WATCH_COLOR if v >= 45 else DOWN
+        c = _PRIORITY_COLOR["HIGH"] if v >= 65 else WATCH_COLOR if v >= 45 else _PRIORITY_COLOR["ATTENTION"]
         pct = max(0, min(100, v))
         return (f'<div style="flex:1 1 0;min-width:110px;">'
                 f'<div style="font-size:11px;color:#888;">{label} '
@@ -500,7 +516,7 @@ def result_board():
                 f'<div style="width:{pct}%;height:6px;border-radius:3px;background:{c};"></div></div></div>')
 
     for r in results:
-        color = {"HIGH": UP, "ATTENTION": DOWN, "WATCH": WATCH_COLOR}[r["priority"]]
+        color = _PRIORITY_COLOR[r["priority"]]
         mn = r["main_net"]
         flow_html = ""
         if mn is not None:
@@ -516,7 +532,7 @@ def result_board():
         comp = r.get("composite")
         comp_html = ""
         if isinstance(comp, (int, float)):
-            cc = UP if comp >= 65 else WATCH_COLOR if comp >= 45 else DOWN
+            cc = _PRIORITY_COLOR["HIGH"] if comp >= 65 else WATCH_COLOR if comp >= 45 else _PRIORITY_COLOR["ATTENTION"]
             comp_html = (f'<span style="background:{cc};color:#fff;padding:2px 10px;'
                          f'border-radius:12px;font-size:12px;font-weight:700;margin-right:6px;">'
                          f'综合 {comp:.0f}</span>')

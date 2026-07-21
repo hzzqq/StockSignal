@@ -51,14 +51,10 @@ def trading_autorefresh(interval_ms: int = 60000, key: str = "auto_refresh"):
         from streamlit_autorefresh import st_autorefresh
     except Exception:
         return
-    now = datetime.now()
-    if now.weekday() >= 5:  # 周六 / 周日
+    from modules.page_widgets import is_trading_now
+    if not is_trading_now():
         return
-    t = now.time()
-    morning = datetime.strptime("09:30", "%H:%M").time() <= t <= datetime.strptime("11:30", "%H:%M").time()
-    afternoon = datetime.strptime("13:00", "%H:%M").time() <= t <= datetime.strptime("15:00", "%H:%M").time()
-    if morning or afternoon:
-        st_autorefresh(interval=interval_ms, limit=400, key=key)
+    st_autorefresh(interval=interval_ms, limit=400, key=key)
 
 KEY_TOKEN = "auth_token"
 KEY_USER = "auth_user"
@@ -716,6 +712,17 @@ def api_user_score(code: str) -> int | None:
         if isinstance(data, dict):
             return int(data.get("score", 0))
     return None
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def get_watchlist() -> list:
+    """获取当前用户自选股列表（缓存 30s，避免每页重复请求）。返回 data 列表，失败返回 []。"""
+    code, body = api_get("/api/watchlist", timeout=5)
+    if code == 200 and isinstance(body, dict):
+        data = body.get("data")
+        if isinstance(data, list):
+            return data
+    return []
 
 
 def api_save_user_score(code: str, score: int, name: str = "") -> dict:

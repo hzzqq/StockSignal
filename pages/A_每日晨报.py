@@ -10,7 +10,7 @@ from datetime import date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, api_get
+from modules.session import require_auth, render_user_badge, api_get, safe_switch_page
 from modules.fetcher import StockFetcher
 from modules.news import NewsFetcher
 
@@ -42,81 +42,33 @@ def _get_fetcher():
 fetcher = _get_fetcher()
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def _cached_news(keyword: str, limit: int = 15):
+    """缓存新闻 10 分钟 + 失败重试（最多 3 次），避免重复请求与瞬时失败。#542-10"""
+    for _i in range(3):
+        try:
+            df = NewsFetcher().fetch(keyword=keyword, source="auto", limit=limit)
+            if df is not None:
+                return df
+        except Exception:
+            continue
+    return None
+
+
 # ── 自选股快照：市盈率 / 资产负债率 解析（复用 C 页已验证逻辑）──
 # SSL 关闭补丁已收敛到 modules.ssl_helper（#404），此处复用公共上下文管理器
 from modules.ssl_helper import ssl_bypass as _ssl_bypass
-
-
-def _to_num(v):
-    if isinstance(v, (int, float)):
-        return float(v)
-    if isinstance(v, str):
-        s = v.replace(",", "").replace("%", "").strip()
-        if s in ("", "-", "--", "nan", "None"):
-            return None
-        try:
-            return float(s)
-        except Exception:
-            return None
-    return None
+from modules.fundamental_helpers import calc_alr, fund_one
 
 
 def _calc_alr(code: str):
-    """资产负债率(%) = 负债合计 / 资产总计 × 100；失败返回 None。"""
-    try:
-        df = fetcher.get_financial(code, "balance")
-        if df is None or len(df) == 0:
-            return None
-
-        def _find_col(exact, suffix):
-            for c in df.columns:
-                if str(c) in exact:
-                    return c
-            for c in df.columns:
-                if str(c).endswith(suffix):
-                    return c
-            return None
-
-        asset_c = _find_col({"资产总计", "资产合计"}, ("资产总计", "资产合计"))
-        liab_c = _find_col({"负债合计", "负债总计"}, ("负债合计", "负债总计"))
-        if asset_c is not None and liab_c is not None:
-            av = _to_num(df.iloc[0][asset_c])
-            lv = _to_num(df.iloc[0][liab_c])
-            if av and lv:
-                return round(lv / av * 100, 2)
-        item_col = df.columns[0]
-        av = lv = None
-        for _, row in df.iterrows():
-            it = str(row[item_col])
-            if av is None and any(k in it for k in ("资产总计", "资产合计")):
-                vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
-                if vals:
-                    av = vals[-1]
-            if lv is None and any(k in it for k in ("负债合计", "负债总计")):
-                vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
-                if vals:
-                    lv = vals[-1]
-        if av and lv:
-            return round(lv / av * 100, 2)
-    except Exception:
-        return None
-    return None
+    """委托 fundamental_helpers.calc_alr（#545-16 消除与 C_自选股监控 的逐字重复）。"""
+    return calc_alr(code, fetcher)
 
 
 def _fund_one(code: str):
-    """线程内并行取 (市盈率TTM, 资产负债率%)；任一项失败返回 None。"""
-    pe = alr = None
-    try:
-        f = fetcher.get_fundamentals(code)
-        if isinstance(f, dict):
-            pe = f.get("pe_ttm")
-    except Exception:
-        pe = None
-    try:
-        alr = _calc_alr(code)
-    except Exception:
-        alr = None
-    return code, pe, alr
+    """委托 fundamental_helpers.fund_one（#545-16 消除重复）。"""
+    return fund_one(code, fetcher)
 
 
 def _quote_one(code: str):
@@ -210,7 +162,18 @@ def fragment_watchlist_and_news():
     selected_name = None
     with st.expander("📌 自选股快照", expanded=True):
         if not watchlist:
-            st.info("自选股为空。先到「我的 / 自选股」添加，晨报才会包含持仓快照。")
+            st.info("📭 自选股为空，晨报暂无可展示的持仓快照。")
+            st.markdown(
+                "<div style='padding:12px 14px;border-radius:10px;"
+                "background:rgba(43,138,239,0.08);border:1px solid rgba(43,138,239,0.3);'>"
+                "💡 <b>三步开启你的晨报快照</b><br>"
+                "1. 进入「📡 自选股监控」添加关注的股票<br>"
+                "2. 或到「👤 我的」维护自选股清单<br>"
+                "3. 回到本页，快照与专属新闻会自动出现</div>",
+                unsafe_allow_html=True,
+            )
+            if st.button("➕ 去添加自选股", type="primary", use_container_width=True, key="morning_goto_wl"):
+                safe_switch_page("pages/C_自选股监控.py")
         else:
             st.caption("👉 点击表格中某一行，可在下方「相关新闻速览」查看该股票的专属新闻。")
             snap = []
@@ -280,10 +243,7 @@ def fragment_watchlist_and_news():
             st.info("👆 请在上方「自选股快照」中点击某一行，查看该股票的相关新闻。")
         else:
             with st.spinner(f"加载 {selected_name} 相关新闻…"):
-                try:
-                    news_df = NewsFetcher().fetch(keyword=selected_name, source="auto", limit=15)
-                except Exception:
-                    news_df = None
+                news_df = _cached_news(selected_name, limit=15)
             if news_df is not None and not news_df.empty:
                 for _, r in news_df.head(12).iterrows():
                     title = r.get("title", "")
@@ -370,11 +330,21 @@ def fragment_review_notes():
 
     # ── 子模块 2：编辑器（文本框 + 保存/清空）──
     def _render_editor(note_date_s):
+        def _autosave():
+            # 自动保存：每次编辑即时落盘到当日文件，避免丢失（#542-11）
+            try:
+                with open(_notes_path(note_date_s), "w", encoding="utf-8") as f:
+                    f.write(st.session_state.get("review_note", ""))
+                st.session_state["review_autosaved"] = True
+            except Exception:
+                st.session_state["review_autosaved"] = False
+
         note = st.text_area(
             f"复盘内容（{note_date_s}，支持 Markdown）",
             height=220,
             key="review_note",
             placeholder="记录今日盘面、操作与明日计划…",
+            on_change=_autosave,
         )
         c_save, c_clear = st.columns([1, 1])
         with c_save:
@@ -382,13 +352,20 @@ def fragment_review_notes():
                 try:
                     with open(_notes_path(note_date_s), "w", encoding="utf-8") as f:
                         f.write(note)
+                    st.session_state["review_autosaved"] = True
                     st.success(f"✅ 已保存到 review_notes_{note_date_s}.md")
                 except Exception as e:
+                    st.session_state["review_autosaved"] = False
                     st.error(f"❌ 保存失败：{e}")
         with c_clear:
             if st.button("🗑️ 清空", use_container_width=True, key="review_clear"):
                 st.session_state["review_note"] = ""
+                st.session_state["review_autosaved"] = False
                 # 不调用 st.rerun()：清空操作触发本 fragment 自然重跑
+        if st.session_state.get("review_autosaved"):
+            st.caption(f"✅ 内容已自动保存到本地（review_notes_{note_date_s}.md），切换日期或刷新不丢失")
+        else:
+            st.caption("💡 内容会随编辑自动保存到本地；也可点「💾 保存复盘」手动确认")
 
     # ── 子模块 3：查询结果展示区（仅在点击查询后展开）──
     def _render_preview():

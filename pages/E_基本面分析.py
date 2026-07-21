@@ -35,6 +35,11 @@ render_user_badge(sidebar=True)
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
+# 主题感知图表强调色（#544-14）：暗色模式用更亮的同色系，保证可读性
+ACCENT = "#818cf8" if dark else "#6366f1"        # 靛蓝（柱状 / 价格线）
+ACCENT2 = "#fbbf24" if dark else "#f59e0b"       # 琥珀（同比折线）
+ACCENT_FILL = "rgba(129,140,248,0.14)" if dark else "rgba(99,102,241,0.10)"
+
 st.title("🏛️ 基本面分析")
 st.caption("个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）")
 
@@ -62,6 +67,79 @@ from modules.fundamental_helpers import (
     _pe_status, _tag,
     _find_sector_name, _sector_rank, _composite_score,
 )
+
+import concurrent.futures as _cf
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _industry_pe_median(industry: str):
+    """同行业 PE(TTM) 中位数（best-effort，缓存 1h）。返回 (median, 样本数) 或 None。#544-13"""
+    try:
+        cons = fetcher.get_sector_stocks(industry)
+    except Exception:
+        return None
+    if cons is None or cons.empty:
+        return None
+    codes = [str(c) for c in cons["code"].tolist()][:30]
+    pes = []
+
+    def _safe_pe(c: str):
+        try:
+            info = fetcher.get_basic_info(c)
+            return _to_float(info.get("pe_ttm")) if isinstance(info, dict) else None
+        except Exception:
+            return None
+
+    try:
+        with _cf.ThreadPoolExecutor(max_workers=10) as ex:
+            futs = {ex.submit(_safe_pe, c): c for c in codes}
+            for fut in _cf.as_completed(futs, timeout=60):
+                try:
+                    v = fut.result()
+                    if isinstance(v, (int, float)) and v > 0:
+                        pes.append(v)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    if len(pes) < 3:
+        return None
+    pes_sorted = sorted(pes)
+    n = len(pes_sorted)
+    mid = n // 2
+    median = pes_sorted[mid] if n % 2 else (pes_sorted[mid - 1] + pes_sorted[mid]) / 2
+    return median, n
+
+
+@safe_fragment
+def fragment_industry_pe(industry: str, pe_ttm, dark: bool):
+    """同行业 PE 中位数对比小卡（#544-13）。独立 fragment，取数失败只影响本块。"""
+    if not industry or industry == "—" or not pe_ttm:
+        return
+    with st.spinner("计算同行业 PE 中位数…"):
+        _pe_med = _industry_pe_median(industry)
+    if _pe_med:
+        _med, _n = _pe_med
+        _ratio = pe_ttm / _med if _med else 0
+        if _ratio <= 0.8:
+            _verdict, _vcolor = "低估", UP_COLOR
+        elif _ratio >= 1.2:
+            _verdict, _vcolor = "偏高", DOWN_COLOR
+        else:
+            _verdict, _vcolor = "合理", "#f59e0b"
+        st.markdown(
+            f'<div style="padding:12px 16px;border-radius:10px;margin-top:10px;'
+            f'background:{"rgba(26,26,46,0.4)" if dark else "#f9fafb"};'
+            f'border:1px solid {"rgba(255,255,255,0.08)" if dark else "#e5e7eb"};'
+            f'font-size:14px;line-height:1.7;">'
+            f'🏭 <b>同行业 PE 中位数</b>：<b>{_med:.1f}</b>（基于 {_n} 只样本）<br>'
+            f'当前 PE(TTM) <b>{pe_ttm:.1f}</b> → '
+            f'<span style="color:{_vcolor};font-weight:700;">{_verdict}</span>'
+            f'（约为行业中位数的 {_ratio:.2f} 倍）</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.caption("🏭 同行业 PE 中位数暂不可用（行业成分或估值数据未就绪）。")
 
 
 
@@ -515,7 +593,7 @@ if code:
                 x=x_labels,
                 y=plot_df[val_col],
                 name=metric,
-                marker_color="#6366f1",
+                marker_color=ACCENT,
                 text=[_fmt_fin_value(v, metric) for v in plot_df[val_col]],
                 textposition="outside",
             )
@@ -528,7 +606,7 @@ if code:
                     y=plot_df[yoy_col],
                     name="同比",
                     mode="lines+markers",
-                    line=dict(color="#f59e0b", width=2),
+                    line=dict(color=ACCENT2, width=2),
                     marker=dict(size=6),
                     yaxis="y2",
                 )
@@ -623,9 +701,9 @@ if code:
                 y=hist_df["close"],
                 mode="lines",
                 name="收盘价",
-                line=dict(color="#6366f1", width=1.4),
+                line=dict(color=ACCENT, width=1.4),
                 fill="tozeroy",
-                fillcolor="rgba(99,102,241,0.10)",
+                fillcolor=ACCENT_FILL,
             )
         )
         fig_hist.add_hline(
@@ -760,15 +838,22 @@ if code:
 
     sc1, sc2 = st.columns([0.25, 0.75])
     with sc1:
-        st.markdown(
-            f'<div style="text-align:center;padding:20px 10px;border-radius:12px;'
-            f'background:{"rgba(26,26,46,0.6)" if dark else "#f3f4f6"};'
-            f'border:1px solid {"rgba(255,255,255,0.08)" if dark else "#e5e7eb"};">'
-            f'<div style="font-size:13px;opacity:.8;">综合评分</div>'
-            f'<div style="font-size:48px;font-weight:800;color:{score_color};">{score}</div>'
-            f'<div style="font-size:14px;color:{score_color};font-weight:600;">{score_label}</div></div>',
-            unsafe_allow_html=True,
+        # 综合评分环形进度条（#544-15）
+        _ring = go.Figure(go.Pie(
+            values=[max(score, 0.01), max(100 - score, 0.01)],
+            hole=0.78,
+            marker=dict(colors=[score_color, "rgba(148,163,184,0.20)"]),
+            showlegend=False, hoverinfo="skip", textinfo="none",
+        ))
+        _ring.update_layout(
+            annotations=[dict(
+                text=(f"<b style='font-size:34px;color:{score_color}'>{score}</b><br>"
+                      f"<span style='font-size:13px;color:{score_color}'>{score_label}</span>"),
+                x=0.5, y=0.5, showarrow=False)],
+            margin=dict(l=4, r=4, t=4, b=4), height=170,
+            paper_bgcolor="rgba(0,0,0,0)", showlegend=False,
         )
+        st.plotly_chart(_ring, use_container_width=True)
     with sc2:
         st.markdown(
             f'<div style="padding:14px 18px;border-radius:10px;'
@@ -791,6 +876,9 @@ if code:
     with v3:
         st.metric("总市值", f"¥{market_cap:.1f}亿" if market_cap else "—",
                   help="单位：亿元人民币")
+
+    # 同行业 PE 中位数对比小卡（#544-13）
+    fragment_industry_pe(industry, pe_ttm, dark)
 
     # 个股跳转
     st.markdown("---")

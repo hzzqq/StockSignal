@@ -23,29 +23,15 @@ from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from streamlit_autorefresh import st_autorefresh
 
-# A股配色：涨=红，跌=绿
-_UP = "#f6465d"
-_DOWN = "#2ebd85"
+# A股配色：涨=红，跌=绿（统一走 page_widgets.UP/DOWN，避免三套常量漂移 #541-4）
+from modules.page_widgets import UP as _UP, DOWN as _DOWN
 
 
 # SSL 关闭补丁已收敛到 modules.ssl_helper（#404），此处复用公共上下文管理器
 from modules.ssl_helper import ssl_bypass as _ssl_bypass
 from modules.page_widgets import _empty_info, _toast
+from modules.fundamental_helpers import calc_alr, fund_one
 
-
-def _to_num(v):
-    """把单元格值安全转 float；空/非法返回 None。"""
-    if isinstance(v, (int, float)):
-        return float(v)
-    if isinstance(v, str):
-        s = v.replace(",", "").replace("%", "").strip()
-        if s in ("", "-", "--", "nan", "None"):
-            return None
-        try:
-            return float(s)
-        except Exception:
-            return None
-    return None
 
 from modules.page_guard import safe_fragment
 
@@ -56,15 +42,9 @@ render_user_badge(sidebar=True)
 
 # ── 交易时段自动刷新（实时跟踪）──
 def _is_trading_now():
-    now = datetime.now()
-    if now.weekday() >= 5:  # 周六日休市
-        return False
-    t = now.time()
-    m1 = (datetime.strptime("09:30", "%H:%M").time()
-          <= t <= datetime.strptime("11:30", "%H:%M").time())
-    m2 = (datetime.strptime("13:00", "%H:%M").time()
-          <= t <= datetime.strptime("15:00", "%H:%M").time())
-    return m1 or m2
+    # 统一走 modules.page_widgets.is_trading_now（#541-2 消除 4 份重复）
+    from modules.page_widgets import is_trading_now as _itn
+    return _itn()
 
 
 dark = _theme_is_dark()
@@ -121,70 +101,13 @@ def _resolve_name(code: str) -> str:
 
 
 def _calc_alr(code: str):
-    """从资产负债表解析资产负债率(%) = 负债合计 / 资产总计 × 100；失败返回 None。
-
-    akshare 新浪资产负债表实际结构：index=报告期(最新在 0 行)，columns=科目名
-    （含「资产总计」「负债合计」）。同时兼容「行=科目、首列=科目名」的旧结构。
-    """
-    try:
-        df = fetcher.get_financial(code, "balance")
-        if df is None or len(df) == 0:
-            return None
-
-        def _find_col(exact, suffix):
-            # 先精确匹配，避免「流动资产合计」误命中「资产合计」这类子串
-            for c in df.columns:
-                if str(c) in exact:
-                    return c
-            for c in df.columns:
-                if str(c).endswith(suffix):
-                    return c
-            return None
-
-        asset_c = _find_col({"资产总计", "资产合计"}, ("资产总计", "资产合计"))
-        liab_c = _find_col({"负债合计", "负债总计"}, ("负债合计", "负债总计"))
-
-        # 结构 A（akshare 实际）：列=科目，最新报告期=第 0 行
-        if asset_c is not None and liab_c is not None:
-            av = _to_num(df.iloc[0][asset_c])
-            lv = _to_num(df.iloc[0][liab_c])
-            if av and lv:
-                return round(lv / av * 100, 2)
-
-        # 结构 B（兜底）：行=科目，首列=科目名
-        item_col = df.columns[0]
-        av = lv = None
-        for _, row in df.iterrows():
-            it = str(row[item_col])
-            if av is None and any(k in it for k in ("资产总计", "资产合计")):
-                vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
-                if vals:
-                    av = vals[-1]
-            if lv is None and any(k in it for k in ("负债合计", "负债总计")):
-                vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
-                if vals:
-                    lv = vals[-1]
-        if av and lv:
-            return round(lv / av * 100, 2)
-    except Exception:
-        return None
-    return None
+    """委托 fundamental_helpers.calc_alr（#545-16 消除与 A_每日晨报 的逐字重复）。"""
+    return calc_alr(code, fetcher)
 
 
 def _fund_one(code: str):
-    """线程内并行取 (市盈率TTM, 资产负债率%)；任一项失败返回 None。"""
-    pe = alr = None
-    try:
-        f = fetcher.get_fundamentals(code)
-        if isinstance(f, dict):
-            pe = f.get("pe_ttm")
-    except Exception:
-        pe = None
-    try:
-        alr = _calc_alr(code)
-    except Exception:
-        alr = None
-    return code, pe, alr
+    """委托 fundamental_helpers.fund_one（#545-16 消除重复）。"""
+    return fund_one(code, fetcher)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -204,8 +127,13 @@ def fragment_watchlist_monitor():
     items = body.get("data", []) or []
     if not items:
         st.info("自选股为空，请先到「行情看板 / 我的」添加，或前往「形态选股」用自选股池扫描。")
-        if st.button("➡️ 去形态选股", use_container_width=True, key="wl_empty_go"):
-            safe_switch_page("pages/B_形态选股.py")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("➡️ 去形态选股", use_container_width=True, key="wl_empty_go"):
+                safe_switch_page("pages/B_形态选股.py")
+        with c2:
+            if st.button("📘 看新手教程", use_container_width=True, key="wl_empty_tut"):
+                safe_switch_page("pages/Z_新手教程.py")
         return
 
     codes = [it["stock_code"] for it in items]

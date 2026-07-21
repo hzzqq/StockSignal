@@ -177,6 +177,37 @@ def _strength_signal(d, keys):
     return level, details, avg
 
 
+def _strength_percentile(d, keys):
+    """当前市场强弱综合偏离在所选区间内的历史百分位(0-100)。
+
+    与 _strength_signal 同口径（以区间内首值为基线），对每条序列算归一化偏离，
+    逐日取均值得到综合偏离时间序列，再求最新值在历史中的相对位置。
+    数值越高代表比区间内多数时候更强。
+    """
+    try:
+        comp = []
+        for k in keys:
+            if k not in d.columns:
+                continue
+            s = pd.to_numeric(d[k], errors="coerce").dropna()
+            if len(s) < 2:
+                continue
+            first = s.iloc[0]
+            if not first or pd.isna(first):
+                continue
+            comp.append(s / first * 100.0 - 100.0)
+        if len(comp) < 2:
+            return None
+        comp = pd.concat(comp, axis=1).mean(axis=1).dropna()
+        if comp.empty:
+            return None
+        cur = comp.iloc[-1]
+        below = (comp < cur).sum()
+        return round(below / len(comp) * 100.0, 1)
+    except Exception:
+        return None
+
+
 @safe_fragment
 def fragment_strength():
     _section_title("📈 市场强弱信号 + 归一化多线", accent="#2b8aef")
@@ -215,6 +246,15 @@ def fragment_strength():
     # 顶部信号卡 + 各序列 chips
     if level:
         label, color = level
+        pct = _strength_percentile(d_view, keys)
+        pct_line = ""
+        if pct is not None:
+            pct_line = (
+                f'<div style="font-size:12px;color:#9aa0a6;margin-top:4px;">'
+                f'历史分位 <b style="color:{color}">{pct:.0f}%</b>'
+                f' <span title="在当前所选区间内，当前市场强弱综合偏离处于第 {pct:.0f} 百分位——'
+                f'数值越高代表比区间内多数时候更强，越低代表越弱。">ⓘ</span></div>'
+            )
         c1, c2 = st.columns([0.32, 0.68])
         with c1:
             st.markdown(
@@ -223,6 +263,7 @@ def fragment_strength():
                 f'<div style="font-size:30px;line-height:1.1;">{label.split()[0]}</div>'
                 f'<div style="font-size:18px;font-weight:700;color:{color};">{label.split(" ",1)[1]}</div>'
                 f'<div style="font-size:12px;color:#9aa0a6;margin-top:4px;">综合偏离 {avg:+.1f}</div>'
+                f'{pct_line}'
                 f'</div>',
                 unsafe_allow_html=True,
             )

@@ -70,17 +70,12 @@ _INDEX_INFOS = [
 
 def _index_market_status():
     """返回指数是否需要自动刷新：(is_open, status_text, refresh_ms)。"""
-    from datetime import datetime, time
+    from datetime import datetime
+    from modules.page_widgets import is_trading_now
     now = datetime.now()
-    t = now.time()
-    weekday = now.weekday()
-    if weekday >= 5:
+    if now.weekday() >= 5:
         return False, "⚪ 已休市（周末）", 0
-    am_start, am_end = time(9, 25), time(11, 30)
-    pm_start, pm_end = time(13, 0), time(15, 5)
-    if am_start <= t <= am_end:
-        return True, "🟢 交易中", 60 * 1000
-    if pm_start <= t <= pm_end:
+    if is_trading_now():
         return True, "🟢 交易中", 60 * 1000
     return False, "⚪ 已休市", 0
 
@@ -568,16 +563,24 @@ def render_global_search() -> None:
                 body = resp.json()
                 results = body.get("data") or []
                 if results:
+                    st.caption(f"🔎 找到 {len(results)} 个匹配")
                     for item in results:
                         label = f"{item.get('code', '')} {item.get('name', '')}"
                         if st.button(label, key=f"search_{item.get('code')}", use_container_width=True):
-                            # 记录到「最近浏览」
+                            # 记录到「最近浏览」并带 pick_stock 参数跳转
                             _push_recent(item.get("code"), item.get("name"))
+                            try:
+                                st.query_params["pick_stock"] = item.get("code")
+                            except Exception:
+                                pass
                             safe_switch_page("pages/个股研究.py")
                 else:
-                    st.caption("无匹配结果")
+                    st.caption(f"😕 未找到与「{q}」匹配的股票")
+                    st.caption("可尝试：代码（600519）、简称（茅台）或拼音首字母（mt）")
+            elif resp.status_code in (401, 403):
+                st.caption("🔒 请先登录后搜索")
             else:
-                st.caption("搜索失败")
+                st.caption("搜索服务暂时不可用，请稍后再试")
         except Exception:
             st.caption("搜索服务不可用")
 
@@ -1163,6 +1166,21 @@ def render_sidebar_nav() -> None:
             if is_admin():
                 for path, label, icon in _NAV_ADMIN:
                     _nav_link(path, label, icon)
+            # 最近浏览（仅 UI，复用 get_recent_stocks；点击跳股票选取并带 pick_stock 参数 #541-1）
+            _recents = get_recent_stocks()
+            if _recents:
+                st.caption("🕘 最近浏览")
+                for _r in _recents[:5]:
+                    _rc = _r.get("code", "")
+                    _rn = _r.get("name", "")
+                    if not _rc:
+                        continue
+                    if st.button(f"{_rn} {_rc}", key=f"sb_recent_{_rc}", use_container_width=True):
+                        try:
+                            st.query_params["pick_stock"] = _rc
+                        except Exception:
+                            pass
+                        safe_switch_page("pages/1_股票选取.py")
             st.markdown("---")
             try:
                 st.page_link("app.py", label="返回首页", icon="🏠")

@@ -503,3 +503,67 @@ def _composite_score(
     score = int(round(np.clip(score, 0, 100)))
     return score, "<br>".join(reasons)
 
+
+def calc_alr(code: str, fetcher) -> float | None:
+    """从资产负债表解析资产负债率(%) = 负债合计 / 资产总计 × 100；失败返回 None。
+
+    纯函数（fetcher 以参数注入，模块不依赖 fetcher）。兼容 akshare 新浪资产负债表
+    两种结构：列=科目(最新报告期在第 0 行) 或 行=科目(首列=科目名)。
+    """
+    try:
+        df = fetcher.get_financial(code, "balance")
+        if df is None or len(df) == 0:
+            return None
+
+        def _find_col(exact, suffix):
+            for c in df.columns:
+                if str(c) in exact:
+                    return c
+            for c in df.columns:
+                if str(c).endswith(suffix):
+                    return c
+            return None
+
+        asset_c = _find_col({"资产总计", "资产合计"}, ("资产总计", "资产合计"))
+        liab_c = _find_col({"负债合计", "负债总计"}, ("负债合计", "负债总计"))
+
+        if asset_c is not None and liab_c is not None:
+            av = _to_num(df.iloc[0][asset_c])
+            lv = _to_num(df.iloc[0][liab_c])
+            if av and lv:
+                return round(lv / av * 100, 2)
+
+        item_col = df.columns[0]
+        av = lv = None
+        for _, row in df.iterrows():
+            it = str(row[item_col])
+            if av is None and any(k in it for k in ("资产总计", "资产合计")):
+                vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
+                if vals:
+                    av = vals[-1]
+            if lv is None and any(k in it for k in ("负债合计", "负债总计")):
+                vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
+                if vals:
+                    lv = vals[-1]
+        if av and lv:
+            return round(lv / av * 100, 2)
+    except Exception:
+        return None
+    return None
+
+
+def fund_one(code: str, fetcher) -> tuple:
+    """线程内并行取 (市盈率TTM, 资产负债率%)；任一项失败返回 None。"""
+    pe = alr = None
+    try:
+        f = fetcher.get_fundamentals(code)
+        if isinstance(f, dict):
+            pe = f.get("pe_ttm")
+    except Exception:
+        pe = None
+    try:
+        alr = calc_alr(code, fetcher)
+    except Exception:
+        alr = None
+    return code, pe, alr
+

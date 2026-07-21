@@ -16,12 +16,23 @@ DOWN = "#1aa260"    # 绿（流出 / 跌）
 _PRESET_OPTS = ["近7天", "近30天", "近60天", "近90天", "近180天", "年初至今", "全部", "自定义"]
 
 
-def _in_trading_hours():
+def is_trading_now() -> bool:
+    """A股交易时段判定（统一来源）。
+
+    工作日 09:30-11:30 / 13:00-15:00 返回 True，周末与午休/收盘返回 False。
+    替代各页散落的 4 份重复实现（session.trading_autorefresh / widgets._index_market_status
+    / C_自选股监控._is_trading_now / 本模块 _in_trading_hours）。
+    """
     now = datetime.now()
     if now.weekday() >= 5:
         return False
     hm = now.hour * 60 + now.minute
     return (570 <= hm <= 690) or (780 <= hm <= 900)
+
+
+def _in_trading_hours():
+    """兼容别名，统一走 is_trading_now()。"""
+    return is_trading_now()
 
 
 def _fig_layout(dark_mode):
