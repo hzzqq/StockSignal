@@ -33,9 +33,10 @@ _ensure_proxy_and_ssl()
 
 _logger = logging.getLogger(__name__)
 
-# A股配色：净流入/涨=红、净流出/跌=绿
-UP = "#ee2a2a"      # 红（流入 / 涨）
-DOWN = "#1aa260"    # 绿（流出 / 跌）
+# A股配色：净流入/涨=红、净流出/跌=绿（复用 modules.colors 权威调色板，消除色值漂移）
+from modules.colors import UP_COLOR, DOWN_COLOR
+UP = UP_COLOR      # 红（流入 / 涨）
+DOWN = DOWN_COLOR  # 绿（流出 / 跌）
 
 # 指数配色
 _IDX_COLORS = {

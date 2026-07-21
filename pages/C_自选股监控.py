@@ -137,8 +137,18 @@ def fragment_watchlist_monitor():
         return
 
     codes = [it["stock_code"] for it in items]
-    # 强制用本地库解析名称，避免后端 stock_name 为空或错误地显示代码
-    names = {code: (fetcher.get_name_only(code) or code) for code in codes}
+    # 强制用本地库解析名称，避免后端 stock_name 为空或错误地显示代码。
+    # 并行解析（P1）：本地库命中为主、快且线程安全；网络兜底（BaoStock/akshare）
+    # 罕见触发，4 线程并发只读查询风险可控，显著快于逐只串行。
+    names = {}
+    with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+        _fut_map = {ex.submit(fetcher.get_name_only, code): code for code in codes}
+        for _fut in _cf.as_completed(_fut_map):
+            _c = _fut_map[_fut]
+            try:
+                names[_c] = _fut.result() or _c
+            except Exception:
+                names[_c] = _c
 
     # 并行拉取实时行情
     with st.spinner(f"并行获取 {len(codes)} 只自选股实时行情…"):

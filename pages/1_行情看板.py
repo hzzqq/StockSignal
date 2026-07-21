@@ -37,12 +37,15 @@ def _get_fetcher():
 fetcher = _get_fetcher()
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def _get_stock_concept(code: str) -> str:
     """获取个股所属概念/行业（用于龙虎榜表格）。
 
     优先尝试 fetcher.get_stock_concept；不存在或失败时，用 akshare 个股信息
     里的「行业」兜底；若仍失败则填充「—」但保留列。
+
+    行业/概念属低频变化数据，@st.cache_data(ttl=3600) 缓存 1 小时，
+    避免龙虎榜表格每只股票每次刷新都发起网络请求（交易时段每 60s 刷新的 N+1 问题）。
     """
     # 1) 优先 StockFetcher 的 get_stock_concept（如存在）
     try:
@@ -147,46 +150,48 @@ def fragment_sector_board():
 
     st.caption(status_text)
 
+    # ⚠️ 修复：原卡片区(L151)与折叠详情区(L166)各调一次 get_sector_list()，
+    # 单轮运行重复发起两次网络请求。改为顶部统一取数一次，两处复用同一份 sector_df。
     try:
         sector_df = fetcher.get_sector_list()
-        if not sector_df.empty:
-            sector_df["change_pct"] = pd.to_numeric(sector_df["change_pct"], errors="coerce").fillna(0)
-            sector_df = sector_df.sort_values("change_pct", ascending=False).reset_index(drop=True)
-            if sector_df["change_pct"].abs().max() < 0.01:
-                st.warning("⚠️ 当前数据源未返回板块涨跌幅，仅展示行业列表。交易时间或网络恢复后会自动获取真实数据。")
-            _render_sector_cards(sector_df, top_n=24)
-        else:
-            st.warning("未获取到板块数据。可能处于非交易时段、数据源暂不可用或网络波动；交易时段会自动刷新，也可手动刷新页面重试。")
     except Exception as e:
+        sector_df = None
         st.error(f"获取板块数据失败: {e}")
 
-    # 折叠区：涨跌排行表格 + 涨跌分布
+    if sector_df is not None and not sector_df.empty:
+        sector_df["change_pct"] = pd.to_numeric(sector_df["change_pct"], errors="coerce").fillna(0)
+        sector_df = sector_df.sort_values("change_pct", ascending=False).reset_index(drop=True)
+        if sector_df["change_pct"].abs().max() < 0.01:
+            st.warning("⚠️ 当前数据源未返回板块涨跌幅，仅展示行业列表。交易时间或网络恢复后会自动获取真实数据。")
+        _render_sector_cards(sector_df, top_n=24)
+    else:
+        st.warning("未获取到板块数据。可能处于非交易时段、数据源暂不可用或网络波动；交易时段会自动刷新，也可手动刷新页面重试。")
+
+    # 折叠区：涨跌排行表格 + 涨跌分布（复用上方 sector_df，不再二次取数）
     with st.expander("📊 板块涨跌详情（点击展开）", expanded=False):
-        try:
-            sector_df = fetcher.get_sector_list()
-            if not sector_df.empty:
-                sector_df["change_pct"] = pd.to_numeric(sector_df["change_pct"], errors="coerce").fillna(0)
-                sector_df = sector_df.sort_values("change_pct", ascending=False).reset_index(drop=True)
-                sector_df["排名"] = range(1, len(sector_df) + 1)
+        if sector_df is not None and not sector_df.empty:
+            try:
+                detail_df = sector_df.copy()
+                detail_df["排名"] = range(1, len(detail_df) + 1)
 
                 col1, col2 = st.columns([1, 2])
                 with col1:
                     st.markdown("#### 涨跌排行表格")
                     display_cols = ["排名", "sector", "change_pct"]
                     st.dataframe(
-                        sector_df[display_cols].rename(columns={"sector": "板块", "change_pct": "涨跌幅"}),
+                        detail_df[display_cols].rename(columns={"sector": "板块", "change_pct": "涨跌幅"}),
                         use_container_width=True,
                         column_config={"涨跌幅": st.column_config.NumberColumn(format="%.2f%%")},
                         height=700,
                     )
                 with col2:
                     st.markdown("#### 涨跌分布")
-                    fig = Visualizer.sector_heatmap(sector_df, title="全部行业板块涨跌幅")
+                    fig = Visualizer.sector_heatmap(detail_df, title="全部行业板块涨跌幅")
                     st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.warning("未获取到板块数据。可能处于非交易时段、数据源暂不可用或网络波动；交易时段会自动刷新，也可手动刷新页面重试。")
-        except Exception as e:
-            st.error(f"获取板块详情失败: {e}")
+            except Exception as e:
+                st.error(f"获取板块详情失败: {e}")
+        else:
+            st.warning("未获取到板块数据。可能处于非交易时段、数据源暂不可用或网络波动；交易时段会自动刷新，也可手动刷新页面重试。")
 
 
 fragment_sector_board()
@@ -199,55 +204,65 @@ def _load_lhb(date_str: str):
     不再污染进程全局 requests（历史隐患已修，#401/#404）。
     """
     import akshare as ak
+    import concurrent.futures as _cf
     from modules.ssl_helper import ssl_bypass
 
-    with ssl_bypass():
-        # 1) 东方财富：返回最近若干天数据，按 date_str 所在日期过滤
-        try:
+    def _fetch_em():
+        # ssl_bypass 在 worker 线程内局部关闭并退出即恢复，避免挂起主线程 fragment
+        with ssl_bypass():
             start = (datetime.now().date() - timedelta(days=7)).strftime("%Y%m%d")
             end = datetime.now().date().strftime("%Y%m%d")
-            df = ak.stock_lhb_detail_em(start_date=start, end_date=end)
-            if df is not None and not df.empty:
-                df = df.rename(columns=lambda x: str(x).strip())
-                # 过滤到目标日期（含前后一交易日兜底）
-                if "上榜日" in df.columns:
-                    df["上榜日"] = df["上榜日"].astype(str).str.replace("-", "")
-                    filtered = df[df["上榜日"] <= date_str].sort_values("上榜日", ascending=False)
-                    if not filtered.empty:
-                        latest_date = filtered["上榜日"].iloc[0]
-                        df = df[df["上榜日"] == latest_date].copy()
-                # 标准化列名
-                col_map = {
-                    "代码": "股票代码",
-                    "名称": "股票名称",
-                    "上榜原因": "上榜原因",
-                    "龙虎榜买入额": "龙虎榜买入额",
-                    "龙虎榜卖出额": "龙虎榜卖出额",
-                    "龙虎榜净买额": "龙虎榜净买额",
-                    "涨跌幅": "涨跌幅",
-                    "收盘价": "收盘价",
-                }
-                df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
-                if "股票代码" in df.columns:
-                    df["股票代码"] = df["股票代码"].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
-                    df = df[df["股票代码"].str.len() == 6]
-                return df
-        except Exception:
-            pass
+            return ak.stock_lhb_detail_em(start_date=start, end_date=end)
 
-        # 2) 新浪：按日期尝试最近 3 个交易日
-        try:
-            for offset in range(0, 4):
-                d = (datetime.now().date() - timedelta(days=offset)).strftime("%Y%m%d")
-                try:
-                    df = ak.stock_lhb_detail_daily_sina(date=d)
-                    if df is not None and not df.empty:
-                        df = df.rename(columns=lambda x: str(x).strip())
-                        return df
-                except Exception:
-                    continue
-        except Exception:
-            pass
+    # 1) 东方财富：akshare 调用无内置超时，用线程 + result(timeout=12) 兜底，
+    # 超时/异常即降级到新浪，避免交易时段 60s 自动刷新下被网络挂起卡死 fragment。
+    em_raw = None
+    try:
+        with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
+            _fut = _ex.submit(_fetch_em)
+            em_raw = _fut.result(timeout=12)
+    except Exception:
+        em_raw = None
+
+    if em_raw is not None and hasattr(em_raw, "empty") and not em_raw.empty:
+        df = em_raw.rename(columns=lambda x: str(x).strip())
+        # 过滤到目标日期（含前后一交易日兜底）
+        if "上榜日" in df.columns:
+            df["上榜日"] = df["上榜日"].astype(str).str.replace("-", "")
+            filtered = df[df["上榜日"] <= date_str].sort_values("上榜日", ascending=False)
+            if not filtered.empty:
+                latest_date = filtered["上榜日"].iloc[0]
+                df = df[df["上榜日"] == latest_date].copy()
+        # 标准化列名
+        col_map = {
+            "代码": "股票代码",
+            "名称": "股票名称",
+            "上榜原因": "上榜原因",
+            "龙虎榜买入额": "龙虎榜买入额",
+            "龙虎榜卖出额": "龙虎榜卖出额",
+            "龙虎榜净买额": "龙虎榜净买额",
+            "涨跌幅": "涨跌幅",
+            "收盘价": "收盘价",
+        }
+        df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+        if "股票代码" in df.columns:
+            df["股票代码"] = df["股票代码"].astype(str).str.replace(r"[^0-9]", "", regex=True).str[-6:]
+            df = df[df["股票代码"].str.len() == 6]
+        return df
+
+    # 2) 新浪：按日期尝试最近 4 个交易日
+    try:
+        for offset in range(0, 4):
+            d = (datetime.now().date() - timedelta(days=offset)).strftime("%Y%m%d")
+            try:
+                df = ak.stock_lhb_detail_daily_sina(date=d)
+                if df is not None and not df.empty:
+                    df = df.rename(columns=lambda x: str(x).strip())
+                    return df
+            except Exception:
+                continue
+    except Exception:
+        pass
     return None
 
 

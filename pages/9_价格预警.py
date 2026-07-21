@@ -25,6 +25,7 @@ from modules.technical import full_analysis
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
+import streamlit.components.v1 as components
 # 副作用：导入即确保 akshare 经本地代理访问（资金/新闻源）——设置 HTTP(S)_PROXY 并关闭证书校验
 from modules.fundflow import _ensure_proxy_and_ssl
 _ensure_proxy_and_ssl()
@@ -278,6 +279,9 @@ def fragment_alerts():
     else:
         st.markdown(f"#### 共 {len(alerts)} 条预警（页面访问时实时检测）")
         eval_results = _eval_alert_parallel(alerts)
+        # 浏览器桌面通知去重集合（避免每次自动刷新重复弹窗）
+        _notified_ids = st.session_state.setdefault("_alert_notified_ids", set())
+        _notify_msgs = []
         for idx, a in enumerate(alerts):
             atype = a.get("alert_type", "price")
             triggered, detail = eval_results[idx] if idx < len(eval_results) else (False, "评估异常")
@@ -321,6 +325,15 @@ def fragment_alerts():
                 status_txt = "监测中"
                 status_cls = "sf-pill mid"
 
+            # 浏览器桌面通知（新功能）：触发且用户开启开关时，去重后收集，循环结束后统一弹系统通知
+            if st.session_state.get("alert_browser_notify") and triggered:
+                _aid = a.get("id")
+                if _aid is not None and _aid not in _notified_ids:
+                    _notified_ids.add(_aid)
+                    _notify_msgs.append(f"{display_name} ({code})：{detail}")
+            elif triggered is False and a.get("id") in _notified_ids:
+                _notified_ids.discard(a.get("id"))
+
             col_info, col_status, col_toggle, col_del = st.columns([4, 2, 1.2, 1.2])
             with col_info:
                 st.markdown(
@@ -347,10 +360,36 @@ def fragment_alerts():
                     if st.button("删除", key=f"del_{a['id']}", use_container_width=True):
                         st.session_state[_ck] = True
 
+        # 浏览器桌面通知：统一弹出（去重，避免每次自动刷新重复弹窗）
+        if _notify_msgs:
+            try:
+                _noti_body = "\n".join(_notify_msgs)
+                _js = (
+                    "<script>"
+                    "(function(){"
+                    "if(!('Notification' in window))return;"
+                    "function fire(){if(Notification.permission==='granted'){new Notification('🔔 StockSignal 预警触发',{body:MSG});}}"
+                    "if(Notification.permission==='default'){Notification.requestPermission().then(function(p){if(p==='granted')fire();});}"
+                    "else{fire();}"
+                    "})();"
+                    "</script>"
+                ).replace("MSG", json.dumps(_noti_body))
+                components.html(_js, height=0, scrolling=False)
+            except Exception as _e:
+                print(f"[alerts] 浏览器通知注入失败: {_e}")
+
         st.caption("提示：触发检测在页面访问时于前端执行（价格实时比价、形态/量比扫描日线、公告检索新闻）。"
                    "如需持续监控，可在本页保持打开或定时刷新。")
         st.info("🔔 通知机制：触发检测在**页面访问时**于前端执行；"
                  "若要持续接收异动提醒，可关注右上角「🔔 市场异动」铃铛，并保持本页在浏览器中打开。")
 
+
+# ── 新功能：浏览器桌面通知开关 ──
+st.checkbox(
+    "🔔 启用浏览器桌面通知",
+    value=st.session_state.get("alert_browser_notify", False),
+    key="alert_browser_notify",
+    help="开启后，本页预警触发时会向操作系统弹出桌面通知（需浏览器授予通知权限）。",
+)
 
 fragment_alerts()

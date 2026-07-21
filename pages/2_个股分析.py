@@ -174,7 +174,12 @@ def _render_analysis(R: dict):
     # ════════════ 模块1：顶部决策摘要 ════════════
     st.markdown('<div class="sf-card">' + _section_header("顶部决策摘要", "🎯"), unsafe_allow_html=True)
     chg_txt = f"{change_pct:+.2f}%"
-    price_disp = f"¥{current_price:.2f}" if current_price is not None else f"¥{last['close']:.2f}"
+    # ⚠️ 修复：current_price 与 last['close'] 同时为空/NaN 时 f"{None:.2f}" 抛 TypeError 崩溃。
+    # 统一兜底为 0.0（NaN 也按缺失处理），保证顶部摘要始终可渲染。
+    _close = last["close"]
+    if _close is None or (isinstance(_close, float) and pd.isna(_close)):
+        _close = 0.0
+    price_disp = f"¥{current_price:.2f}" if current_price is not None else f"¥{_close:.2f}"
     change_amt = (current_price - prev_close) if (current_price is not None and prev_close is not None) else 0.0
     triangle = "▲" if change_pct > 0 else ("▼" if change_pct < 0 else "—")
     price_color = RED if change_pct > 0 else (GREEN if change_pct < 0 else AMBER)

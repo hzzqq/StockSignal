@@ -503,7 +503,8 @@ def fragment_daily_picker():
                 day_color = "🟢" if s["win_day_pct"] >= 55 else ("🟡" if s["win_day_pct"] >= 45 else "🔴")
                 st.metric(f"{day_color} 上涨日占比", f"{s['win_day_pct']:.1f}%")
             with m3:
-                ret_color = "🔴" if s["total_return_pct"] < 0 else "🟢"
+                # A股惯例：正收益=红、负收益=绿，与下方个股卡片(L731)保持一致
+                ret_color = "🔴" if s["total_return_pct"] >= 0 else "🟢"
                 st.metric(f"{ret_color} 累计收益", f"{s['total_return_pct']:+.2f}%")
             with m4:
                 st.metric("日均收益", f"{s['avg_daily_return_pct']:+.2f}%")

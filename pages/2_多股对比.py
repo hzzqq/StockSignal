@@ -74,6 +74,10 @@ def fragment_compare_setup():
             if task_id:
                 st.session_state["compare_task_id"] = task_id
                 st.session_state["_cmp_rows"] = None
+                # ⚠️ 修复：codes 是 fragment_compare_setup 的局部变量，
+                # fragment_compare_result 在 pending/running 分支会引用 len(codes) 而崩溃（NameError）。
+                # 提交时把 codes 存入 session_state，结果 fragment 读取同一份。
+                st.session_state["cmp_codes"] = list(codes)
                 st.info(f"📡 已提交 {len(codes)} 只股票的后台对比任务，切到其他页面也会继续跑。")
             else:
                 err = err or "未知错误"
@@ -117,8 +121,9 @@ def fragment_compare_result():
             st.error(f"对比失败：{task.get('error')}")
             del st.session_state["compare_task_id"]
         elif task and task.get("status") in ("pending", "running"):
+            _cmp_codes = st.session_state.get("cmp_codes", [])
             st.warning(
-                f"⏳ 正在后台并行拉取 {len(codes)} 只股票数据：行情、技术面、相关性... 完成后自动显示，无需切换页面。",
+                f"⏳ 正在后台并行拉取 {len(_cmp_codes)} 只股票数据：行情、技术面、相关性... 完成后自动显示，无需切换页面。",
                 icon="⏳",
             )
             st.progress(0.0, text="等待对比结果...")

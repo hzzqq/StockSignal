@@ -9,9 +9,10 @@ import streamlit as st
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
-# A股配色：净流入红、净流出绿
-UP = "#ee2a2a"      # 红（流入 / 涨）
-DOWN = "#1aa260"    # 绿（流出 / 跌）
+# A股配色：净流入红、净流出绿（复用 modules.colors 权威调色板，消除色值漂移）
+from modules.colors import UP_COLOR, DOWN_COLOR
+UP = UP_COLOR      # 红（流入 / 涨）
+DOWN = DOWN_COLOR  # 绿（流出 / 跌）
 
 _PRESET_OPTS = ["近7天", "近30天", "近60天", "近90天", "近180天", "年初至今", "全部", "自定义"]
 

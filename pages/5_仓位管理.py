@@ -224,11 +224,13 @@ else:
                 default_sell_price = float(price_df.iloc[-1]["close"]) if price_df is not None and not price_df.empty else 20.00
             except Exception:
                 default_sell_price = 20.00
-            sell_price = st.number_input(
-                "卖出成交价", value=round(default_sell_price, 2), step=0.01,
-                format="%.2f", min_value=0.01,
-                help="默认按买一价填充，可手动修改为买二价或其他实际成交价"
-            )
+        # ⚠️ 修复：sell_price 原缩进在 else 分支内，当实时行情存在买一价时走 if 分支，
+        # sell_price 永不定义，点「记录卖出」抛 NameError 崩溃。移到 if/else 之外始终渲染。
+        sell_price = st.number_input(
+            "卖出成交价", value=round(default_sell_price, 2), step=0.01,
+            format="%.2f", min_value=0.01,
+            help="默认按买一价填充，可手动修改为买二价或其他实际成交价"
+        )
         with col3:
             sell_shares = st.number_input(
                 "📊 卖出股数",

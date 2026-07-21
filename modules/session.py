@@ -141,12 +141,15 @@ def _restore_from_query_params() -> None:
         if not isinstance(user, dict):
             user = _verify_token(token)
 
-        if user:
+        if isinstance(user, dict):
             st.session_state[KEY_TOKEN] = token
             st.session_state[KEY_USER] = user
-        else:
-            # token 无效（过期/伪造）→ 清掉，避免反复校验
+        elif user is _TOKEN_INVALID:
+            # token 明确失效（过期/伪造）→ 清掉，避免反复校验
             _clear_query_params()
+        else:
+            # None = 网络/服务端瞬态错误：保留现有 token 与登录态，后端恢复后自动恢复
+            print("[session] token 校验网络异常，保留现有登录态，待后端恢复")
     except Exception as e:
         print(f"[session] _restore_from_query_params error: {e}")
 
@@ -202,8 +205,17 @@ def safe_switch_page(page: str, **kwargs) -> None:
         st.switch_page(page, **kwargs)
 
 
-def _verify_token(token: str) -> dict | None:
-    """调 /api/auth/me 验证 token 是否有效，返回 user dict（有效）或 None（无效）。"""
+# token 校验哨兵：后端明确判定为无效（401/403/伪造），与 None（网络瞬态）区分
+_TOKEN_INVALID = "___token_invalid_sentinel___"
+
+def _verify_token(token: str):
+    """调 /api/auth/me 验证 token。
+
+    返回：
+      - user dict           ：有效
+      - _TOKEN_INVALID 哨兵  ：后端明确返回 401/403 或 status!=ok，token 已失效/伪造，应清登录态
+      - None                ：网络错误/超时/5xx 等瞬态异常，无法判定，调用方应保留现有登录态
+    """
     try:
         resp = requests.get(
             f"{API_BASE}/api/auth/me",
@@ -220,9 +232,15 @@ def _verify_token(token: str) -> dict | None:
                 # 兼容：若 data 内仍嵌套 user 键
                 if isinstance(data, dict) and isinstance(data.get("user"), dict):
                     return data["user"]
+            # 200 但 status!=ok（如 token 过期但非标准 401）→ 视为无效
+            return _TOKEN_INVALID
+        if resp.status_code in (401, 403):
+            return _TOKEN_INVALID
+        # 5xx / 其他状态码：服务端瞬态，保留登录态
+        return None
     except Exception:
-        pass
-    return None
+        # 网络错误/超时：无法判定，保留现有登录态，不踢出（修复刷新时后端抖动被误踢）
+        return None
 
 
 def set_auth(token: str, user: dict) -> None:
@@ -570,7 +588,10 @@ def api_get(path: str, timeout: int = 5, **kwargs):
         return -1, {"message": f"网络错误: {e}"}
     if resp.status_code == 401:
         clear_auth()
-        safe_switch_page("pages/0_登录.py")
+        # token 失效：清登录态并强制整页重跑。
+        # 旧实现直接 safe_switch_page（=st.switch_page）在 fragment 内会抛异常（R1 高风险点）；
+        # st.rerun(scope="app") 在 fragment 与顶层均安全，重跑后 require_auth 显示登录门禁。
+        st.rerun(scope="app")
     return resp.status_code, _safe_json(resp)
 
 
@@ -583,7 +604,10 @@ def api_post(path: str, payload: dict | None = None, timeout: int = 5, **kwargs)
         return -1, {"message": f"网络错误: {e}"}
     if resp.status_code == 401:
         clear_auth()
-        safe_switch_page("pages/0_登录.py")
+        # token 失效：清登录态并强制整页重跑。
+        # 旧实现直接 safe_switch_page（=st.switch_page）在 fragment 内会抛异常（R1 高风险点）；
+        # st.rerun(scope="app") 在 fragment 与顶层均安全，重跑后 require_auth 显示登录门禁。
+        st.rerun(scope="app")
     return resp.status_code, _safe_json(resp)
 
 
@@ -596,7 +620,10 @@ def api_put(path: str, payload: dict | None = None, timeout: int = 5, **kwargs):
         return -1, {"message": f"网络错误: {e}"}
     if resp.status_code == 401:
         clear_auth()
-        safe_switch_page("pages/0_登录.py")
+        # token 失效：清登录态并强制整页重跑。
+        # 旧实现直接 safe_switch_page（=st.switch_page）在 fragment 内会抛异常（R1 高风险点）；
+        # st.rerun(scope="app") 在 fragment 与顶层均安全，重跑后 require_auth 显示登录门禁。
+        st.rerun(scope="app")
     return resp.status_code, _safe_json(resp)
 
 
@@ -609,7 +636,10 @@ def api_delete(path: str, timeout: int = 5, **kwargs):
         return -1, {"message": f"网络错误: {e}"}
     if resp.status_code == 401:
         clear_auth()
-        safe_switch_page("pages/0_登录.py")
+        # token 失效：清登录态并强制整页重跑。
+        # 旧实现直接 safe_switch_page（=st.switch_page）在 fragment 内会抛异常（R1 高风险点）；
+        # st.rerun(scope="app") 在 fragment 与顶层均安全，重跑后 require_auth 显示登录门禁。
+        st.rerun(scope="app")
     return resp.status_code, _safe_json(resp)
 
 
@@ -823,7 +853,9 @@ def save_avatar_to_backend(data_url: str, timeout: int = 5) -> dict:
 
 def _refresh_user_from_backend() -> dict | None:
     """调 /api/auth/me 重新拉取最新 user（含 avatar）。"""
-    return _verify_token(get_token())
+    res = _verify_token(get_token())
+    # 只返回有效 user dict；无效哨兵/网络异常统一转 None，避免调用方 .get 崩
+    return res if isinstance(res, dict) else None
 
 
 def _rel_time(ts) -> str:
