@@ -24,6 +24,7 @@ from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules import fundflow as ff
 
 from modules.page_guard import safe_fragment
+from modules.page_widgets import _empty_info
 
 apply_page_config(page_title="基本面分析", page_icon="🏛️", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -644,7 +645,7 @@ if code:
         )
         st.plotly_chart(fig_hist, use_container_width=True)
     else:
-        st.info("暂无历史行情数据，无法计算历史分位。")
+        _empty_info("暂无历史行情数据，无法计算历史分位。")
 
     # ═══════════════════════════════════════════════
     # 行业横向对比 + 大盘主线判断

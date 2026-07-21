@@ -23,6 +23,7 @@ from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 from modules.search_ui import stock_search_input
+from modules.page_widgets import _empty_info, _toast
 # 副作用：导入即确保 akshare 经本地代理访问（资金/新闻源）——设置 HTTP(S)_PROXY 并关闭证书校验
 from modules.fundflow import _ensure_proxy_and_ssl
 _ensure_proxy_and_ssl()
@@ -247,7 +248,7 @@ with st.expander("➕ 新建预警", expanded=False):
                 body_payload["target_price"] = float(target)
             sc, body = api_post("/api/price-alerts", body_payload)
             if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
-                st.success("✅ 预警已创建")
+                _toast("预警已创建")
                 st.rerun()
             else:
                 msg = body.get("message", "创建失败") if isinstance(body, dict) else "创建失败"
@@ -263,7 +264,7 @@ if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
 alerts = body.get("data", []) or []
 
 if not alerts:
-    st.info("暂无预警。点击上方「新建预警」添加（支持价格 / 技术形态 / 成交量异动 / 公告）。")
+    _empty_info("暂无预警。点击上方「新建预警」添加（支持价格 / 技术形态 / 成交量异动 / 公告）。")
 else:
     st.markdown(f"#### 共 {len(alerts)} 条预警（页面访问时实时检测）")
     eval_results = _eval_alert_parallel(alerts)

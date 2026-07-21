@@ -11,7 +11,7 @@ from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge
 from modules.market_drivers import get_market_drivers, plot_drivers_panel, DIMS
 from modules.linear_trends import to_trend_csv, plot_correlation_heatmap, _slice_date_range
-from modules.page_widgets import _section_title, _trend_controls, _in_trading_hours
+from modules.page_widgets import _section_title, _trend_controls, _in_trading_hours, _empty_info
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -68,7 +68,7 @@ def fragment_drivers_panel():
         st.error(f"市场驱动力数据加载失败：{e}")
         return
     if df is None or df.empty:
-        st.info("暂无市场驱动力数据（网络/代理受限或数据源暂未接入）。")
+        _empty_info("暂无市场驱动力数据（网络/代理受限或数据源暂未接入）。")
         _render_drivers_meta(meta)
         return
 

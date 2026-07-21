@@ -20,6 +20,7 @@ except Exception:
     st_autorefresh = None
 
 from modules.page_guard import safe_fragment
+from modules.page_widgets import _empty_info
 
 apply_page_config(page_title="组合收益", page_icon="📊", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -153,7 +154,7 @@ def fragment_portfolio():
 
     positions = pm.get_positions()
     if positions is None or positions.empty:
-        st.info("暂无持仓。请先在「仓位管理」页添加持仓，再回来查看组合收益跟踪。")
+        _empty_info("暂无持仓。请先在「仓位管理」页添加持仓，再回来查看组合收益跟踪。")
         return
 
     with st.spinner("计算组合历史净值（拉取各持仓日线）…"):
@@ -220,7 +221,7 @@ def _show_attribution():
     _section_title("🥧 个股收益贡献", accent="#ef5da8")
     attr = pm.pnl_attribution()
     if attr is None or attr.empty:
-        st.info("暂无收益贡献数据。")
+        _empty_info("暂无收益贡献数据。")
         return
     attr = attr.copy()
     attr["contribution"] = pd.to_numeric(attr["contribution"], errors="coerce")

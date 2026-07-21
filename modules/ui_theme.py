@@ -783,6 +783,16 @@ button[data-testid="stPopoverButton"]:hover {
 [class*="stTextArea"] textarea {
   border-color: #667eea !important;
 }
+
+/* st.toast 暗夜可读性：深底 + 浅字，避免默认黑底白字在暗色页里刺眼/不可辨 */
+[data-testid="stToast"] {
+  background: #1a1a2e !important;
+  border: 1px solid #2d2d44 !important;
+  color: #e2e8f0 !important;
+}
+[data-testid="stToast"] [data-testid="stToastBody"],
+[data-testid="stToast"] [data-baseweb="toast"] { color: #e2e8f0 !important; }
+[data-testid="stToast"] svg { fill: #e2e8f0 !important; }
 </style>
 """
 

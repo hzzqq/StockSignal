@@ -11,6 +11,7 @@ from modules.technical import full_analysis
 from modules.fundflow import get_individual_fund_flow
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
+from modules.page_widgets import _empty_info
 
 apply_page_config(page_title="体检扫描", page_icon="🩺", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -421,11 +422,11 @@ def result_board():
     results = st.session_state.get("scan_results")
 
     if results is None:
-        st.info("尚未体检，点击上方「🚀 开始体检」开始扫描。")
+        _empty_info("尚未体检，点击上方「🚀 开始体检」开始扫描。")
         return
 
     if results == []:
-        st.info("当前范围没有可扫描的股票。先去「形态选股」挑选一些标的加入跟踪吧。")
+        _empty_info("当前范围没有可扫描的股票。先去「形态选股」挑选一些标的加入跟踪吧。")
         if st.button("➡️ 去形态选股", key="goto_shape_empty"):
             safe_switch_page("pages/B_形态选股.py")
         return

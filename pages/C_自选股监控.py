@@ -15,7 +15,7 @@ from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import (
     require_auth, render_user_badge, api_get, safe_switch_page, clear_auth,
     api_delete, api_junk_stocks, api_remove_junk_stock, api_user_score,
-    api_save_user_score, get_token, API_BASE,
+    api_save_user_score, get_token, API_BASE, _rel_time,
 )
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
@@ -30,7 +30,7 @@ _DOWN = "#2ebd85"
 
 # SSL 关闭补丁已收敛到 modules.ssl_helper（#404），此处复用公共上下文管理器
 from modules.ssl_helper import ssl_bypass as _ssl_bypass
-from modules.page_widgets import _empty_info
+from modules.page_widgets import _empty_info, _toast
 
 
 def _to_num(v):
@@ -281,6 +281,8 @@ def fragment_watchlist_monitor():
         f"<span style='color:{_DOWN};font-weight:600;'>▼ {down_n}</span>",
         unsafe_allow_html=True,
     )
+    if quote_times:
+        st.caption(f"🕒 行情更新于 {_rel_time(min(quote_times))}")
 
     if rows:
         df_rt = pd.DataFrame(rows)
@@ -292,8 +294,19 @@ def fragment_watchlist_monitor():
             "volume": "成交量", "amount": "成交额",
             "pe_ttm": "市盈率(TTM)", "alr": "资产负债率",
         }, inplace=True)
+        def _chg_color(v):
+            try:
+                x = float(v)
+            except Exception:
+                return ""
+            if x > 0:
+                return "color:#ee2a2a;font-weight:600"
+            if x < 0:
+                return "color:#1aa260;font-weight:600"
+            return "color:#9aa0a6"
+        _styled = display_df.style.map(_chg_color, subset=["涨跌额", "涨跌%"])
         st.dataframe(
-            display_df,
+            _styled,
             use_container_width=True,
             height=max(200, min(480, 40 + len(rows) * 38)),
             column_config={
@@ -492,7 +505,18 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
         "trend_score": "趋势分", "vol_ratio": "量比", "user_score": "用户打分",
     }, inplace=True)
 
-    st.dataframe(display, use_container_width=True, height=360,
+    def _chg_color(v):
+        try:
+            x = float(v)
+        except Exception:
+            return ""
+        if x > 0:
+            return "color:#ee2a2a;font-weight:600"
+        if x < 0:
+            return "color:#1aa260;font-weight:600"
+        return "color:#9aa0a6"
+    _styled = display.style.map(_chg_color, subset=["涨跌%"])
+    st.dataframe(_styled, use_container_width=True, height=360,
                  column_config={
                      "涨跌%": st.column_config.NumberColumn(format="%.2f%%"),
                      "现价": st.column_config.NumberColumn(format="¥%.2f"),
@@ -533,7 +557,7 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
                 code = edit_code.split()[0]
                 name = edit_code.split(maxsplit=1)[1] if " " in edit_code else ""
                 api_save_user_score(code, int(edit_score), name)
-                st.success("评分已更新")
+                _toast("评分已更新")
                 # 不调用 st.rerun()：form 提交已触发本 fragment 自然重跑
             else:
                 st.warning("请先选择一只股票")
@@ -568,7 +592,7 @@ def fragment_pool_watchlist():
                 item_id = id_map.get(_norm_code(code))
                 if item_id:
                     api_delete(f"/api/watchlist/{item_id}", timeout=5)
-                    st.success("已移除")
+                    _toast("已移除")
                     # 不调用 st.rerun()：移除按钮点击已触发本 fragment 自然重跑
 
             _render_pool_table(df_wl, "watchlist", _remove_wl)
@@ -594,7 +618,7 @@ def fragment_pool_junk():
                 item_id = id_map.get(_norm_code(code))
                 if item_id:
                     api_remove_junk_stock(item_id)
-                    st.success("已移除")
+                    _toast("已移除")
                     # 不调用 st.rerun()：移除按钮点击已触发本 fragment 自然重跑
 
             _render_pool_table(df_jk, "junk", _remove_jk)

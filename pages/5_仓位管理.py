@@ -19,6 +19,7 @@ from modules.visualizer import Visualizer
 from modules.search_ui import stock_search_input
 from modules.fetcher import StockFetcher
 from modules.session import require_auth, render_user_badge, api_quote, api_kline
+from modules.page_widgets import _empty_info, _toast
 
 # 鉴权门禁
 require_auth()
@@ -57,7 +58,7 @@ def format_quote_table(quote):
 st.subheader("当前持仓概览")
 positions = pm.get_positions()
 if positions.empty:
-    st.info("暂无持仓记录。")
+    _empty_info("暂无持仓记录。")
 else:
     display_pos = positions.copy()
     if "name" in display_pos.columns:
@@ -154,7 +155,7 @@ if buy_submitted:
             buy_date=buy_date.strftime("%Y-%m-%d"),
             buy_price=buy_price, shares=int(buy_shares), note=buy_note
         )
-        st.success(
+        _toast(
             f"买入成功: {buy_label} ({buy_ticker}) "
             f"{int(buy_shares):,}股 @¥{buy_price:.2f}"
         )
@@ -266,7 +267,7 @@ st.markdown("---")
 with st.expander("🗑️ 删除持仓"):
     positions = pm.get_positions()  # 刷新
     if positions.empty:
-        st.info("暂无持仓可删除。")
+        _empty_info("暂无持仓可删除。")
     else:
         del_index = st.number_input(
             "选择要删除的行号（从 0 开始）",
@@ -277,7 +278,7 @@ with st.expander("🗑️ 删除持仓"):
         if c_del.button("⚠️ 确认删除", type="primary"):
             removed = pm.remove_position(int(del_index))
             if removed is not None:
-                st.success(f"已删除: {removed.get('ticker', '')}")
+                _toast(f"已删除: {removed.get('ticker', '')}")
                 st.rerun()
 
 st.markdown("---")
@@ -288,7 +289,7 @@ st.markdown("---")
 st.subheader("卖出记录")
 trades = pm.get_trades()
 if trades.empty:
-    st.info("暂无卖出记录。")
+    _empty_info("暂无卖出记录。")
 else:
     display_trades = trades.copy()
     if "name" in display_trades.columns:
@@ -367,7 +368,7 @@ if not positions.empty:
                 display_attr = attribution[["股票", "ticker", "pnl", "pnl_pct", "contribution"]].copy()
                 st.dataframe(display_attr, width="stretch", hide_index=True)
             else:
-                st.info("暂无盈亏归因数据。")
+                _empty_info("暂无盈亏归因数据。")
 
             # 导出Excel
             st.markdown("---")

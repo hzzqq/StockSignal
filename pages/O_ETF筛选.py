@@ -15,6 +15,7 @@ from modules.session import require_auth, render_user_badge
 from modules.page_guard import safe_section
 
 from modules.page_guard import safe_fragment
+from modules.page_widgets import _empty_info
 
 apply_page_config(page_title="ETF筛选", page_icon="🧰", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -115,7 +116,7 @@ def _etf_filter_fragment():
 
         st.markdown(f"### 📋 筛选结果（{len(res)} 只）")
         if res.empty:
-            st.info("没有符合条件的标的，放宽筛选条件试试。")
+            _empty_info("没有符合条件的标的，放宽筛选条件试试。")
         else:
             disp = res.copy()
             if "涨跌幅" in disp.columns:

@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 
 from modules.ui_theme import apply_page_config
 from modules.page_guard import safe_fragment
+from modules.page_widgets import _empty_info
 
 apply_page_config(page_title="事件追踪", page_icon="🔔", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -87,7 +88,7 @@ def _render_news_with_links(df, title_col="title", url_col="url", date_col="date
     当原文 url 缺失（为空或非 http）时，回退为「按标题搜索」链接，确保标题始终可跳转。
     """
     if df is None or df.empty:
-        st.info("暂无数据")
+        _empty_info("暂无数据")
         return
 
     for i, (_, row) in enumerate(df.head(max_items).iterrows()):

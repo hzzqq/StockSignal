@@ -21,6 +21,7 @@ from modules.session import require_auth, render_user_badge, get_user, trading_a
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section
 from modules.search_ui import stock_search_input
+from modules.page_widgets import _empty_info, _toast
 
 apply_page_config(page_title="模拟交易", page_icon="🎮", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -159,7 +160,7 @@ with col_b:
                     rows, assets, mv = _recompute(book)
                     _snapshot(book, assets)
                     _save_book(user, book)
-                    st.success(f"已买入 {name}({code}) {bqty} 股 @ ¥{price:.2f}")
+                    _toast(f"已买入 {name}({code}) {bqty} 股 @ ¥{price:.2f}")
                     st.rerun()
 with col_s:
     st.markdown("**卖出**")
@@ -190,7 +191,7 @@ with col_s:
                 rows, assets, mv = _recompute(book)
                 _snapshot(book, assets)
                 _save_book(user, book)
-                st.success(f"已卖出 {name}({code}) {sqty} 股 @ ¥{price:.2f}")
+                _toast(f"已卖出 {name}({code}) {sqty} 股 @ ¥{price:.2f}")
                 st.rerun()
 
 # ───────────────────────── 持仓 / 成交 / 净值 ─────────────────────────
@@ -206,14 +207,14 @@ with tab_p:
             return [f"color:{c}"] * len(r)
         st.dataframe(dfp.style.apply(_color_row, axis=1), use_container_width=True, hide_index=True)
     else:
-        st.info("暂无持仓，去上方买入第一笔吧。")
+        _empty_info("暂无持仓，去上方买入第一笔吧。")
 
 with tab_t:
     if book["trades"]:
         dft = pd.DataFrame(book["trades"])
         st.dataframe(dft, use_container_width=True, hide_index=True)
     else:
-        st.info("暂无成交记录。")
+        _empty_info("暂无成交记录。")
 
 with tab_e:
     # 净值曲线：基于每笔成交后的总资产快照绘制
@@ -238,5 +239,5 @@ if st.button("🗑️ 重置模拟账户", key="pt_reset", help="清空持仓与
     if st.confirm("确定重置？此操作不可撤销。"):
         book = {"init_cash": INIT_CASH, "cash": INIT_CASH, "positions": {}, "trades": [], "equity": []}
         _save_book(user, book)
-        st.success("账户已重置。")
+        _toast("账户已重置。")
         st.rerun()

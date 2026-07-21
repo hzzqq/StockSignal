@@ -15,7 +15,7 @@ from modules.session import require_auth, render_user_badge, api_kline, safe_swi
 from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules.widgets import render_index_compact
 from modules.page_guard import safe_fragment
-from modules.page_widgets import _empty_info
+from modules.page_widgets import _empty_info, _fmt_yi
 
 apply_page_config(page_title="行情看板", page_icon="📈", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -314,6 +314,13 @@ def fragment_lhb():
             if chg_col:
                 lhb_df["涨跌幅"] = lhb_df[chg_col]
 
+            # 金额转 亿/万 显示（UI-only，不改原始数值）
+            for _amt_c in ("买方金额", "卖方金额", "龙虎榜净买额"):
+                if _amt_c in lhb_df.columns:
+                    lhb_df[_amt_c + "(亿)"] = lhb_df[_amt_c].apply(
+                        lambda v: _fmt_yi(v) if pd.notna(v) else "—"
+                    )
+
             # 3) 所属概念：逐股获取
             lhb_df["所属概念"] = [_get_stock_concept(c) for c in lhb_df["股票代码"]]
 
@@ -321,7 +328,7 @@ def fragment_lhb():
             display_cols = ["股票代码", "股票名称", "所属概念"]
             for c in ("涨跌幅", "买方金额", "卖方金额", "龙虎榜净买额"):
                 if c in lhb_df.columns:
-                    display_cols.append(c)
+                    display_cols.append(c + "(亿)")
             if reason_col:
                 display_cols.append(reason_col)
 

@@ -11,6 +11,7 @@ from modules.session import require_auth, render_user_badge, safe_switch_page, A
 from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT
 
 from modules.ui_theme import apply_page_config
+from modules.page_widgets import _empty_info
 apply_page_config(page_title="我的", page_icon="👤", layout="wide")
 st.session_state["_active_page"] = __file__
 
@@ -331,7 +332,7 @@ try:
                 df = pd.DataFrame(watchlist)
                 st.dataframe(df, width="stretch")
             else:
-                st.info("暂无自选股，请在行情看板中添加。")
+                _empty_info("暂无自选股，请在行情看板中添加。")
         else:
             st.info("暂无自选股，请在行情看板中添加。")
     else:
@@ -366,7 +367,7 @@ try:
             ]
             st.dataframe(pd.DataFrame(_hist), width="stretch", use_container_width=True)
         else:
-            st.info("暂无登录记录。")
+            _empty_info("暂无登录记录。")
     else:
         st.warning(f"获取登录历史失败：HTTP {resp.status_code}")
 except Exception as e:
@@ -393,7 +394,7 @@ st.markdown("---")
 
 # ── 系统消息 / 通知占位 ──
 st.subheader("📢 系统通知")
-st.info("暂无新通知。")
+_empty_info("暂无新通知。")
 
 # ------------------------------------------------------------------
 # 偏好设置（原「设置」页合并而来，作为独立页签）

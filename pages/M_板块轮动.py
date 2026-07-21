@@ -20,6 +20,7 @@ from modules.session import require_auth, render_user_badge, trading_autorefresh
 from modules.fundflow import get_industry_fund_flow
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, render_data_degradation_banner
+from modules.page_widgets import _empty_info
 
 apply_page_config(page_title="板块轮动", page_icon="🔥", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -66,7 +67,7 @@ def _heatmap(df):
     d["净额"] = _norm_num(d.get("净额"))
     d = d.dropna(subset=["涨跌幅"]).drop_duplicates("行业")
     if d.empty:
-        st.info("暂无板块数据。")
+        _empty_info("暂无板块数据。")
         return
     maxabs = max(abs(d["涨跌幅"]).max(), 0.1)
     # 大小：净额（缺失则用 1）
@@ -101,7 +102,7 @@ def _ranking(df):
     d["涨跌幅"] = _norm_num(d["涨跌幅"])
     d = d.dropna(subset=["涨跌幅"]).drop_duplicates("行业")
     if d.empty:
-        st.info("暂无板块数据。")
+        _empty_info("暂无板块数据。")
         return
     d = d.sort_values("涨跌幅", ascending=False)
     top = d.head(10)
@@ -135,7 +136,7 @@ def _rotation(df):
     d["净额"] = _norm_num(d.get("净额"))
     d = d.dropna(subset=["涨跌幅"]).drop_duplicates("行业")
     if d.empty:
-        st.info("暂无板块数据。")
+        _empty_info("暂无板块数据。")
         return
     # 资金净流入排行（有净额时）
     if d["净额"].notna().any():

@@ -6,6 +6,7 @@ pages/7_用户管理.py
 import streamlit as st
 from modules.session import init_session_state, require_admin, render_user_badge, get_user
 from modules.admin_api import get_users, create_user, update_user, delete_user, get_logs
+from modules.page_widgets import _empty_info
 
 init_session_state()
 require_admin()
@@ -51,7 +52,7 @@ with tab_users:
         pages = data["pages"]
 
         if not items:
-            st.info("暂无用户数据")
+            _empty_info("暂无用户数据")
         else:
             st.caption(f"共 {total} 个用户 · 第 {page}/{pages} 页")
             for u in items:
@@ -194,7 +195,7 @@ with tab_logs:
         st.caption(f"共 {total} 条日志 · 第 {page}/{pages} 页")
 
         if not items:
-            st.info("暂无操作日志")
+            _empty_info("暂无操作日志")
         else:
             for log in items:
                 action_color = {

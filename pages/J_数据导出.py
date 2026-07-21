@@ -19,6 +19,7 @@ from modules.fundflow import (
 from modules.portfolio import PortfolioManager
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_fragment
+from modules.page_widgets import _empty_info
 # 注：openpyxl / reportlab 为「重型导出」依赖，改为惰性加载（见 _to_excel_bytes / _to_pdf_bytes），
 #     避免进入本页（仅查看 CSV 导出入口）时也强制 import 拖慢首屏。
 
@@ -308,7 +309,7 @@ def frag_industry():
         with st.spinner("获取行业板块资金流向…"):
             df = get_industry_fund_flow()
         if df is None or df.empty:
-            st.info("暂无数据")
+            _empty_info("暂无数据")
         else:
             csv = _to_csv_bytes(df)
             st.download_button(
@@ -327,7 +328,7 @@ def frag_northbound():
         with st.spinner("获取北向资金…"):
             d = get_northbound_fund_flow()
         if d is None:
-            st.info("暂无北向资金数据（接口暂不可用）")
+            _empty_info("暂无北向资金数据（接口暂不可用）")
             return
         boards = pd.DataFrame(d.get("boards") or [])
         summary = pd.DataFrame([{
@@ -337,7 +338,7 @@ def frag_northbound():
             "sz_inflow": d.get("sz_inflow"),
         }])
         if boards is None or boards.empty:
-            st.info("暂无数据")
+            _empty_info("暂无数据")
             return
         st.download_button(
             "⬇️ 下载 CSV（板块明细）", data=_to_csv_bytes(boards),
@@ -359,7 +360,7 @@ def frag_market():
         with st.spinner("获取大盘主力净流入…"):
             df = get_market_fund_flow(days=30)
         if df is None or df.empty:
-            st.info("暂无数据")
+            _empty_info("暂无数据")
         else:
             csv = _to_csv_bytes(df)
             st.download_button(
@@ -414,7 +415,7 @@ def frag_earnings():
         with st.spinner(f"获取业绩报表 {period}…"):
             df = get_earnings_report(period=period)
         if df is None or df.empty:
-            st.info("暂无数据")
+            _empty_info("暂无数据")
         else:
             csv = _to_csv_bytes(df)
             st.download_button(
@@ -434,7 +435,7 @@ def frag_portfolio():
             pm = PortfolioManager()
             pnl_df = pm.calc_pnl()
         if pnl_df is None or pnl_df.empty:
-            st.info("暂无数据（当前组合为空）")
+            _empty_info("暂无数据（当前组合为空）")
             return
         summary = pm.summary()
         summary_df = pd.DataFrame([summary])
@@ -459,11 +460,11 @@ def frag_watchlist():
             _, body = api_get("/api/watchlist", timeout=10)
             codes = _parse_watchlist(body)
         if not codes:
-            st.info("暂无数据（自选股为空或接口不可用）")
+            _empty_info("暂无数据（自选股为空或接口不可用）")
             return
         rows = _watch_rows(codes)
         if not rows:
-            st.info("暂无数据（自选股为空或接口不可用）")
+            _empty_info("暂无数据（自选股为空或接口不可用）")
             return
         df = pd.DataFrame(rows)
         st.download_button(
@@ -485,7 +486,7 @@ def frag_excel():
         with st.spinner("汇总所有数据集…"):
             datasets, skipped = _collect_all(period, code)
         if not datasets:
-            st.info("暂无数据（所有数据集均不可用）")
+            _empty_info("暂无数据（所有数据集均不可用）")
             return
         xlsx = _to_excel_bytes(datasets)
         st.download_button(
@@ -508,7 +509,7 @@ def frag_pdf():
         with st.spinner("汇总并生成中文 PDF…"):
             datasets, skipped = _collect_all(period, code)
         if not datasets:
-            st.info("暂无数据（所有数据集均不可用）")
+            _empty_info("暂无数据（所有数据集均不可用）")
             return
         try:
             pdf = _to_pdf_bytes(datasets, skipped, period, code)
@@ -536,7 +537,7 @@ def frag_zip():
         with st.spinner("汇总所有数据集…"):
             datasets, skipped = _collect_all(period, code)
         if not datasets:
-            st.info("暂无数据（所有数据集均不可用）")
+            _empty_info("暂无数据（所有数据集均不可用）")
             return
 
         buf = io.BytesIO()

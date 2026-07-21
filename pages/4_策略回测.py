@@ -25,6 +25,7 @@ from modules.search_ui import stock_search_input
 from modules.fetcher import StockFetcher
 from modules.session import require_auth, render_user_badge
 from modules.page_guard import safe_fragment
+from modules.page_widgets import _empty_info
 
 # 鉴权门禁
 require_auth()
@@ -262,7 +263,7 @@ def fragment_manual_backtest():
                     )
                     st.plotly_chart(fig_dd_band, use_container_width=True)
                 else:
-                    st.info("暂无回撤数据。")
+                    _empty_info("暂无回撤数据。")
 
                 # ── 逐笔交易收益分布 ──
                 st.markdown("---")
@@ -488,7 +489,7 @@ def fragment_daily_picker():
             st.subheader("📌 今日推荐买入")
             today_picks = picker_result.prev_picks(n=top_k)
             if today_picks.empty:
-                st.info("暂无今日推荐数据（可能昨日为非交易日或无股票满足选股条件）。")
+                _empty_info("暂无今日推荐数据（可能昨日为非交易日或无股票满足选股条件）。")
             else:
                 display_today = today_picks[["code", "name", "score", "buy_price", "rsi2", "rsi14", "reasons"]].copy()
                 display_today.columns = ["代码", "名称", "评分", "买入价", "RSI(2)", "RSI(14)", "选股理由"]
@@ -500,7 +501,7 @@ def fragment_daily_picker():
             st.subheader("📌 明日推荐买入")
             tomorrow_picks = picker_result.latest_picks(n=top_k)
             if tomorrow_picks.empty:
-                st.info("暂无明日推荐数据。")
+                _empty_info("暂无明日推荐数据。")
             else:
                 display_tmr = tomorrow_picks[["code", "name", "score", "buy_price", "rsi2", "rsi14", "reasons"]].copy()
                 display_tmr.columns = ["代码", "名称", "评分", "参考价", "RSI(2)", "RSI(14)", "选股理由"]

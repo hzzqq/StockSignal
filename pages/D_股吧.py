@@ -12,7 +12,7 @@ from modules.session import (
     require_auth, render_user_badge, get_user, safe_switch_page,
     api_get, api_post, api_delete, trading_autorefresh, _rel_time,
 )
-from modules.page_widgets import _empty_info
+from modules.page_widgets import _empty_info, _toast
 
 apply_page_config(page_title="股吧", page_icon="💬", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -119,7 +119,7 @@ if _view_pid:
         can_del = post.get("user_id") == user.get("id") or user.get("role") == "admin"
         if can_del and st.button("🗑️ 删除帖子", key="forum_del", use_container_width=True):
             api_delete(f"/api/forum/posts/{_view_pid}")
-            st.success("已删除")
+            _toast("已删除")
             _go_list()
 
     # ── 评论区 ──
@@ -167,7 +167,7 @@ if _view_pid:
         if new_comment.strip():
             sc, cb = api_post(f"/api/forum/posts/{_view_pid}/comments", {"content": new_comment.strip()})
             if sc in (200, 201):
-                st.success("评论成功")
+                _toast("评论成功")
                 st.session_state["forum_new_comment"] = ""
                 st.rerun()
             else:
@@ -221,7 +221,7 @@ with st.expander("✍️ 发表新帖 / 文章", expanded=False):
                         payload["stock_name"] = stock_name.strip()
                     sc, cb = api_post("/api/forum/posts", payload)
                     if sc in (200, 201):
-                        st.success("发布成功！")
+                        _toast("发布成功！")
                         st.rerun()
                     else:
                         st.error(cb.get("message", "发布失败") if isinstance(cb, dict) else "发布失败")

@@ -23,7 +23,7 @@ from modules.session import (
 )
 from modules.market_drivers import get_market_drivers, DIMS
 from modules.page_guard import safe_fragment
-from modules.page_widgets import _section_title, _in_trading_hours
+from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -292,7 +292,7 @@ def fragment_thermometer():
         st_autorefresh(interval=60000, limit=200, key="mt_auto")
     df, meta = get_market_drivers(days=180)
     if df is None or df.empty:
-        st.info("暂无市场数据（网络/代理受限或数据源暂未接入）。")
+        _empty_info("暂无市场数据（网络/代理受限或数据源暂未接入）。")
         _render_status(meta)
         return
     t = _market_temp(df)
@@ -318,7 +318,7 @@ def fragment_breadth():
         st_autorefresh(interval=60000, limit=200, key="br_auto")
     df, meta = get_market_drivers(days=180)
     if df is None or df.empty:
-        st.info("暂无市场广度数据（网络/代理受限或数据源暂未接入）。")
+        _empty_info("暂无市场广度数据（网络/代理受限或数据源暂未接入）。")
         return
     cols = st.columns(len(_BREADTH))
     for c, cfg in zip(cols, _BREADTH):
@@ -332,7 +332,7 @@ def fragment_sentiment():
         st_autorefresh(interval=60000, limit=200, key="se_auto")
     df, meta = get_market_drivers(days=180)
     if df is None or df.empty:
-        st.info("暂无市场情绪数据（网络/代理受限或数据源暂未接入）。")
+        _empty_info("暂无市场情绪数据（网络/代理受限或数据源暂未接入）。")
         return
     cols = st.columns(len(_SENTIMENT))
     for c, cfg in zip(cols, _SENTIMENT):
@@ -346,7 +346,7 @@ def fragment_valuation():
         st_autorefresh(interval=60000, limit=200, key="va_auto")
     df, meta = get_market_drivers(days=180)
     if df is None or df.empty:
-        st.info("暂无估值数据（网络/代理受限或数据源暂未接入）。")
+        _empty_info("暂无估值数据（网络/代理受限或数据源暂未接入）。")
         return
     cols = st.columns(len(_VALUATION))
     for c, cfg in zip(cols, _VALUATION):
