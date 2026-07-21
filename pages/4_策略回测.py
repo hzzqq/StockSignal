@@ -34,6 +34,23 @@ render_user_badge(sidebar=True)
 bt = Backtester()
 
 # ------------------------------------------------------------------
+# 强势上涨股样本（用于快捷预设 & 批量回测对比）
+# 选取 A 股中长期具备强趋势特征的知名标的作为示例样本；
+# 真实强弱随行情变化，回测结果仅作策略覆盖度验证，不构成投资建议。
+# ------------------------------------------------------------------
+STRONG_BULL_PRESETS = [
+    ("600519", "贵州茅台"),
+    ("300750", "宁德时代"),
+    ("002594", "比亚迪"),
+    ("601012", "隆基绿能"),
+    ("600036", "招商银行"),
+    ("000858", "五粮液"),
+    ("601318", "中国平安"),
+    ("600900", "长江电力"),
+]
+
+
+# ------------------------------------------------------------------
 # 策略说明
 # ------------------------------------------------------------------
 with st.expander("📖 策略方法论说明", expanded=False):
@@ -79,6 +96,14 @@ with st.expander("📖 策略方法论说明", expanded=False):
 @safe_fragment("手动回测")
 def fragment_manual_backtest():
     st.subheader("回测参数")
+
+    # ── 强势上涨股快捷预设（点击填入股票搜索）──
+    st.caption("⚡ 强势上涨股快捷预设（点击一键填入上方股票搜索，验证多因子策略对强趋势股的覆盖）：")
+    preset_cols = st.columns(len(STRONG_BULL_PRESETS))
+    for i, (code, name) in enumerate(STRONG_BULL_PRESETS):
+        if preset_cols[i].button(name, key=f"preset_{code}", help=f"代码 {code} · 一键填入"):
+            st.session_state["bt_ticker_confirmed"] = code
+            st.session_state["bt_ticker_query"] = code
 
     with st.form("backtest_form"):
         col1, col2, col3 = st.columns(3)
@@ -558,7 +583,161 @@ def fragment_daily_picker():
 
 
 # ==================================================================
-# 调用两个独立模块
+# 模块三：强势上涨股批量回测 vs 全市场（独立 fragment）
+# ==================================================================
+@safe_fragment("强势上涨股批量回测")
+def fragment_strong_bull():
+    st.markdown("---")
+    st.subheader("🚀 强势上涨股批量回测 vs 全市场")
+    st.caption("一键对「强势上涨股样本」跑多因子策略，聚合胜率/收益，并对比全市场基准，"
+               "验证策略对强趋势股的覆盖度。**历史模拟，不构成投资建议。**")
+
+    s_col1, s_col2 = st.columns(2)
+    with s_col1:
+        sb_start = st.date_input("样本起始日期", value=datetime.now() - timedelta(days=180), key="sb_start")
+    with s_col2:
+        sb_end = st.date_input("样本截止日期", value=datetime.now(), key="sb_end")
+    sb_capital = st.number_input("初始资金（每只）", value=100000, step=10000, key="sb_capital")
+
+    sb_with_market = st.checkbox(
+        "同时计算全市场基准（每日选股回测，约 1–3 分钟）",
+        value=False, key="sb_market",
+        help="勾选后将额外运行一次全市场随机抽样回测作为对照；不勾选则复用本页『每日选股回测』结果（若有）。",
+    )
+
+    if st.button("🚀 运行强势上涨股批量回测", type="primary", key="sb_run"):
+        results = []
+        with st.spinner(f"正在对 {len(STRONG_BULL_PRESETS)} 只强势上涨股样本逐一回测…"):
+            for code, name in STRONG_BULL_PRESETS:
+                try:
+                    r = bt.run(
+                        ticker=code,
+                        start=sb_start.strftime("%Y-%m-%d"),
+                        end=sb_end.strftime("%Y-%m-%d"),
+                        strategy="multi_factor",
+                        initial_capital=sb_capital,
+                        commission=0.001,
+                        stop_loss_pct=0.05,
+                        take_profit_pct=0.03,
+                        max_holding=15,
+                        min_holding=2,
+                    )
+                    s = r.summary()
+                    results.append({
+                        "code": code, "name": name,
+                        "win_rate": s["win_rate_pct"],
+                        "total_return": s["total_return_pct"],
+                        "max_dd": s["max_drawdown_pct"],
+                        "trades": s["trade_count"],
+                        "sharpe": s["sharpe_ratio"],
+                    })
+                except Exception as e:
+                    results.append({"code": code, "name": name, "error": str(e)})
+        st.session_state["sb_results"] = results
+        st.session_state["sb_with_market"] = sb_with_market
+        if sb_with_market:
+            with st.spinner("正在计算全市场基准（每日选股回测）…"):
+                try:
+                    mkt = bt.daily_picker_backtest(
+                        start=sb_start.strftime("%Y-%m-%d"),
+                        end=sb_end.strftime("%Y-%m-%d"),
+                        stock_pool_size=120, top_k=5, hold_days=1, max_workers=4,
+                    )
+                    st.session_state["sb_market"] = mkt
+                    st.session_state.pop("sb_market_error", None)
+                except Exception as e:
+                    st.session_state["sb_market_error"] = str(e)
+
+    results = st.session_state.get("sb_results")
+    if not results:
+        _empty_info("尚未运行批量回测。点击上方「🚀 运行强势上涨股批量回测」开始。")
+        return
+
+    ok = [r for r in results if "error" not in r]
+    failed = [r for r in results if "error" in r]
+
+    avg_win = sum(r["win_rate"] for r in ok) / len(ok) if ok else 0
+    avg_ret = sum(r["total_return"] for r in ok) / len(ok) if ok else 0
+    avg_dd = sum(r["max_dd"] for r in ok) / len(ok) if ok else 0
+    total_trades = sum(r["trades"] for r in ok) if ok else 0
+
+    # 全市场基准：优先用本次勾选计算的结果，否则复用本页每日选股结果
+    market = st.session_state.get("sb_market")
+    if market is None and not st.session_state.get("sb_with_market", False):
+        market = st.session_state.get("picker_result")
+    market_summary = market.summary() if market is not None else None
+
+    # ---- 对比表 ----
+    st.markdown("---")
+    st.subheader("📊 强势上涨股 vs 全市场 对比")
+    cmp_rows = [{
+        "样本": "强势上涨股样本(均值)",
+        "胜率%": f"{avg_win:.1f}",
+        "累计收益%": f"{avg_ret:+.2f}",
+        "最大回撤%": f"{avg_dd:.2f}",
+        "交易数": f"{total_trades}",
+    }]
+    if market_summary:
+        cmp_rows.append({
+            "样本": "全市场基准",
+            "胜率%": f"{market_summary['win_pick_pct']:.1f}",
+            "累计收益%": f"{market_summary['total_return_pct']:+.2f}",
+            "最大回撤%": "—",
+            "交易数": f"{market_summary['total_picks']}",
+        })
+    st.dataframe(pd.DataFrame(cmp_rows), use_container_width=True, hide_index=True)
+    if market is None and st.session_state.get("sb_with_market", False) and "sb_market_error" in st.session_state:
+        st.error(f"全市场基准计算失败: {st.session_state['sb_market_error']}")
+    elif market is None:
+        st.caption("💡 暂无全市场基准。可勾选上方复选框运行，或先在下方『每日选股回测』运行一次后回来查看。")
+
+    # ---- 个股累计收益对比柱状图 ----
+    if ok:
+        st.markdown("---")
+        st.subheader("📈 个股累计收益对比")
+        fig = go.Figure()
+        names = [r["name"] for r in ok]
+        rets = [r["total_return"] for r in ok]
+        fig.add_trace(go.Bar(
+            x=names, y=rets,
+            marker_color=[UP_COLOR if v > 0 else DOWN_COLOR for v in rets],
+            hovertemplate="%{x}<br>累计收益：%{y:+.2f}%<extra></extra>",
+        ))
+        if market_summary:
+            fig.add_hline(y=market_summary["total_return_pct"],
+                          line_dash="dash", line_color="#2b8aef",
+                          annotation_text=f"全市场基准 {market_summary['total_return_pct']:+.2f}%",
+                          annotation_position="top right")
+        fig.update_layout(
+            title="强势上涨股样本累计收益（红涨绿跌）",
+            xaxis_title="股票", yaxis_title="累计收益%",
+            height=380,
+            template="plotly_white" if not _is_dark() else "plotly_dark",
+            margin=dict(l=50, r=20, t=50, b=80),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # ---- 个股卡片 ----
+        st.markdown("---")
+        st.subheader("🧾 个股回测明细")
+        cards = st.columns(min(4, len(ok)))
+        for i, r in enumerate(ok):
+            with cards[i % len(cards)]:
+                ret_color = "🔴" if r["total_return"] >= 0 else "🟢"
+                st.markdown(f"**{r['name']}** `{r['code']}`")
+                st.metric(f"{ret_color} 累计收益", f"{r['total_return']:+.2f}%")
+                st.caption(f"胜率 {r['win_rate']:.1f}% · 回撤 {r['max_dd']:.2f}% · 交易 {r['trades']}")
+
+    if failed:
+        st.markdown("---")
+        st.warning("以下样本回测失败（已跳过）：" + "、".join(f"{r['name']}({r['code']})" for r in failed))
+        for r in failed:
+            st.caption(f"{r['name']} {r['code']}：{r['error']}")
+
+
+# ==================================================================
+# 调用三个独立模块
 # ==================================================================
 fragment_manual_backtest()
 fragment_daily_picker()
+fragment_strong_bull()

@@ -130,7 +130,8 @@ class Visualizer:
     def candlestick(df, title="K线图", show_volume=True, ma_windows=[5, 20, 60],
                    start_idx=0, n_show=None, annotations=None, support=None, resistance=None,
                    up_color=None, down_color=None, ma_colors=None,
-                   dragmode="pan", show_range_levels=True):
+                   dragmode="pan", show_range_levels=True, events=None,
+                   event_type_col=None, event_title_col=None):
         """
         生成交互式 K 线图（V5 截图风格）。
         - 统一悬停：单浮层显示日期 / 成交量 / OHLC / MA 值（模仿截图 tooltip）。
@@ -407,6 +408,84 @@ class Visualizer:
             padding = price_mid * 0.02
         y_min = max(0, min_low - padding)
         y_max = max_high + padding
+
+        # ── 事件标注：利好上方(红) / 利空下方(绿)，事件日量能高亮 ──
+        if events is not None and not getattr(events, "empty", True):
+            try:
+                ev = events.copy()
+                if "date" in ev.columns:
+                    ev["_dt"] = pd.to_datetime(ev["date"])
+                    lo, hi = visible["date"].min(), visible["date"].max()
+                    ev = ev[(ev["_dt"] >= lo) & (ev["_dt"] <= hi)]
+                    if event_type_col is None:
+                        for cand in ["type", "sentiment", "event_type", "情感"]:
+                            if cand in ev.columns:
+                                event_type_col = cand
+                                break
+                    if event_title_col is None:
+                        for cand in ["title", "标题", "name"]:
+                            if cand in ev.columns:
+                                event_title_col = cand
+                                break
+                    type_col = event_type_col if (event_type_col and event_type_col in ev.columns) else None
+                    title_col = event_title_col if (event_title_col and event_title_col in ev.columns) else None
+                    evt_highlight = []
+                    for _, e in ev.iterrows():
+                        evt_dt = e["_dt"]
+                        mask = visible["date"] <= evt_dt
+                        if not mask.any():
+                            continue
+                        idx = int(visible.loc[mask].index[-1])
+                        day_high = float(visible.loc[idx, "high"])
+                        day_low = float(visible.loc[idx, "low"])
+                        evt_text = str(e[title_col])[:12] if title_col and pd.notna(e.get(title_col)) else ""
+                        if not evt_text:
+                            continue
+                        raw = str(e[type_col]).strip().lower() if type_col and pd.notna(e.get(type_col)) else ""
+                        if raw in ("利好", "正面", "positive", "看涨", "bullish", "买入"):
+                            et = "利好"
+                        elif raw in ("利空", "负面", "negative", "看跌", "bearish", "卖出"):
+                            et = "利空"
+                        else:
+                            t = evt_text.lower()
+                            if any(w in t for w in ["利好", "大涨", "上涨", "增长", "突破", "收购", "回购", "分红"]):
+                                et = "利好"
+                            elif any(w in t for w in ["利空", "大跌", "下跌", "亏损", "减持", "处罚", "退市", "暴雷"]):
+                                et = "利空"
+                            else:
+                                et = None
+                        if et is None:
+                            continue
+                        color = UP_COLOR if et == "利好" else DOWN_COLOR
+                        anchor_y = day_high if et == "利好" else day_low
+                        direction = 1 if et == "利好" else -1
+                        date_label = str(e["date"])[:10]
+                        xcat = x_vals[idx]
+                        text_y = anchor_y + direction * padding * (1.8 + 0.6)
+                        fig.add_annotation(
+                            x=xcat, y=text_y, text=f"{date_label}<br>{evt_text}",
+                            showarrow=True, arrowhead=3, arrowsize=1.0, arrowcolor=color,
+                            font=dict(size=10, color="white"), ax=22 if et == "利好" else -22,
+                            ay=direction * 45, xref="x", yref="y", align="center",
+                            bgcolor="rgba(11,14,20,0.78)", bordercolor=color, borderwidth=1, borderpad=3,
+                        )
+                        if et == "利好":
+                            y_max = max(y_max, text_y + padding * 0.6)
+                        else:
+                            y_min = min(y_min, text_y - padding * 0.6)
+                        evt_highlight.append(idx)
+                    # 事件日量能高亮（row=2 加菱形描边标记）
+                    if evt_highlight and show_volume and "volume" in visible.columns:
+                        xs = [x_vals[i] for i in evt_highlight]
+                        ys = [float(visible["volume"].iloc[i]) * 1.04 for i in evt_highlight]
+                        fig.add_trace(go.Scatter(
+                            x=xs, y=ys, mode="markers",
+                            marker=dict(symbol="diamond", size=9, color="rgba(255,255,255,0.0)",
+                                        line=dict(color="#fbbf24", width=2)),
+                            name="事件日", showlegend=False, hoverinfo="skip",
+                        ), row=2, col=1)
+            except Exception:
+                pass
 
         # 主题适配：暗色用透明底+暗灰网格，亮色用白底+浅灰网格
         grid_color = SF_GRID if _is_dark() else "#E5E7EB"

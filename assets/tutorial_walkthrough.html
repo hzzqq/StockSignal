@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StockSignal · 新手漫游</title>
+<style>
+  :root{
+    --up:#ee2a2a; --down:#1aa260; --accent:#2b8aef; --bg:#0f1117; --card:#171a23;
+    --txt:#e6e6e6; --muted:#9aa0a6; --border:#2a2f3a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+       background:var(--bg);color:var(--txt);line-height:1.6;padding:24px;}
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:24px;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 20px;font-size:14px}
+  .progress{height:6px;background:var(--border);border-radius:6px;overflow:hidden;margin:16px 0}
+  .bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#7c5cff);transition:width .3s}
+  .step{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:14px;display:none}
+  .step.active{display:block;animation:fade .35s ease}
+  .step h2{margin:0 0 6px;font-size:18px;display:flex;align-items:center;gap:8px}
+  .step p{margin:6px 0;color:#cfd3da;font-size:14px}
+  .tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;background:rgba(43,138,239,.15);color:#8cc0ff;margin-right:6px}
+  .nav{display:flex;justify-content:space-between;gap:10px;margin-top:8px}
+  button{cursor:pointer;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:600}
+  .prev{background:var(--border);color:var(--txt)}
+  .next{background:var(--accent);color:#fff}
+  .next:disabled{opacity:.4;cursor:not-allowed}
+  .dots{text-align:center;margin:14px 0}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--border);margin:0 4px}
+  .dot.on{background:var(--accent)}
+  .up{color:var(--up);font-weight:600}.down{color:var(--down);font-weight:600}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📘 StockSignal 新手漫游</h1>
+  <p class="sub">跟随下面 6 步，5 分钟独立上手。红涨绿跌为本平台统一约定。</p>
+  <div class="progress"><div class="bar" id="bar"></div></div>
+  <div class="dots" id="dots"></div>
+
+  <div class="step active" data-i="0">
+    <h2>🏠 第 1 步 · 认识首页</h2>
+    <p>登录后进入<b>首页</b>，看到按「看盘 → 选股 → 管仓 → 回测 → 交流 → 账户」分组的<b>功能模块卡片</b>，
+       以及「最近浏览」快捷入口。点任意卡片即可进入对应模块。</p>
+    <p><span class="tag">提示</span>左侧边栏是常驻导航，可随时跳转。</p>
+  </div>
+
+  <div class="step" data-i="1">
+    <h2>📈 第 2 步 · 看盘</h2>
+    <p>打开《行情看板》：顶部是<b>指数迷你卡</b>（上证 / 深证 / 创业 / 富时 / 美股 / 韩股），
+       下方是<b>行业板块涨跌榜</b>与<b>龙虎榜</b>，点板块可展开明细。</p>
+    <p><span class="tag">看懂</span>板块<span class="up">红色</span>为涨、<span class="down">绿色</span>为跌。</p>
+  </div>
+
+  <div class="step" data-i="2">
+    <h2>🎯 第 3 步 · 选股与研究</h2>
+    <p>在《个股研究》搜索股票代码或名称 → 看<b>K 线</b>（可框选放大 / 拖动缩放）、
+       <b>技术面分析</b>、<b>用户打分</b>，并一键加入自选股或垃圾股。</p>
+    <p><span class="tag">技巧</span>K 线支持事件标注，利好标在上方、利空标在下方。</p>
+  </div>
+
+  <div class="step" data-i="3">
+    <h2>💼 第 4 步 · 管仓与预警</h2>
+    <p>《持仓中心》跟踪自选股涨跌与组合收益；《价格预警》设置<b>价格 / 涨跌幅 / 量能 / 技术信号</b>触发提醒，
+       异动会推送到《消息中心》。</p>
+  </div>
+
+  <div class="step" data-i="4">
+    <h2>⚙️ 第 5 步 · 回测策略</h2>
+    <p>《策略回测》选<b>策略</b>与<b>区间</b>跑回测，看<b>收益曲线、夏普比率、最大回撤、交易明细</b>，
+       验证你的想法。支持叠加上证基准对比。</p>
+    <p><span class="tag">提醒</span>回测基于历史，仅作参考，不等于未来收益。</p>
+  </div>
+
+  <div class="step" data-i="5">
+    <h2>🌟 第 6 步 · 问 AI</h2>
+    <p>右上角 ★ 或侧边栏《星辰 AI》可<b>对话式问诊</b>个股、横向对比、解读事件与持仓建议，
+       对话历史会跨刷新保留。</p>
+    <p style="color:var(--muted)">🎉 完成！现在回到平台，挑一个模块开始吧。</p>
+  </div>
+
+  <div class="nav">
+    <button class="prev" id="prev">← 上一步</button>
+    <button class="next" id="next">下一步 →</button>
+  </div>
+</div>
+
+<script>
+  const steps=[...document.querySelectorAll('.step')];
+  const dotsBox=document.getElementById('dots');
+  const bar=document.getElementById('bar');
+  const prev=document.getElementById('prev'), next=document.getElementById('next');
+  let i=0;
+  steps.forEach((_,k)=>{const d=document.createElement('span');d.className='dot';dotsBox.appendChild(d);});
+  const dots=[...dotsBox.children];
+  function render(){
+    steps.forEach((s,k)=>s.classList.toggle('active',k===i));
+    dots.forEach((d,k)=>d.classList.toggle('on',k===i));
+    bar.style.width=((i+1)/steps.length*100)+'%';
+    prev.style.visibility=i===0?'hidden':'visible';
+    next.textContent=i===steps.length-1?'完成 ✓':'下一步 →';
+  }
+  prev.onclick=()=>{if(i>0)i--;render();};
+  next.onclick=()=>{if(i<steps.length-1){i++;render();}else{next.disabled=true;next.textContent='已完成 🎉';}};
+  render();
+</script>
+</body>
+</html>

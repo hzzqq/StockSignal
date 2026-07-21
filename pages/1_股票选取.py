@@ -9,13 +9,14 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 
-from modules.ui_theme import apply_page_config
+from modules.ui_theme import apply_page_config, _theme_is_dark
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.visualizer import Visualizer
 from modules.search_ui import stock_search_input
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
+from modules.linear_trends import plot_normalized_multi
 from modules.session import (
     require_auth, render_user_badge, api_kline,
     api_post, api_add_junk_stock, api_user_score, api_save_user_score,
@@ -284,6 +285,23 @@ def _cached_kline(ticker, start, end, period, nonce: int = 0):
     return df if df is not None else pd.DataFrame()
 
 
+@st.cache_data(show_spinner=False, ttl=600)
+def _load_stock_events(ticker):
+    """加载该股票的事件库（本地 SignalEngine 事件表，按代码过滤）。失败返回空表。"""
+    try:
+        engine = SignalEngine()
+        ev = engine._load_events()
+        if ev is None or ev.empty:
+            return pd.DataFrame()
+        code = str(ticker).zfill(6)
+        if "ticker" in ev.columns:
+            ev = ev[ev["ticker"].astype(str).str.zfill(6) == code]
+        keep = [c for c in ("date", "title", "type") if c in ev.columns]
+        return ev[keep] if keep else ev
+    except Exception:
+        return pd.DataFrame()
+
+
 st.subheader(f"{stock_label} {period_label}")
 df = None
 data_ok = False
@@ -344,6 +362,13 @@ try:
             index=0, key="pick_dragmode", horizontal=True,
         )
 
+        # 事件标注开关（利好↑红 / 利空↓绿），默认开启
+        show_events = st.checkbox("📌 标注事件（利好↑红 / 利空↓绿）", value=True, key="pick_show_events")
+        events_df = None
+        if show_events:
+            with st.spinner("加载事件…"):
+                events_df = _load_stock_events(ticker)
+
         # 当前可见区间统计
         vis = df.iloc[view_start:view_start + view_count]
         v_high = float(vis["high"].max())
@@ -372,8 +397,50 @@ try:
         fig = Visualizer.candlestick(df, title=f"{stock_label} {period_label}",
                                      ma_windows=ma_windows, show_volume=True,
                                      start_idx=view_start, n_show=view_count,
-                                     dragmode=drag_mode)
+                                     dragmode=drag_mode,
+                                     events=events_df if show_events else None)
         st.plotly_chart(fig, width="stretch", key="pick_kline_chart")
+
+        # 事件面板（可折叠）：列出可见区间内事件，便于对照 K 线标注
+        if show_events and events_df is not None and not events_df.empty:
+            vis_dates = pd.to_datetime(df.iloc[view_start:view_start + view_count]["date"])
+            if not vis_dates.empty:
+                lo, hi = vis_dates.min(), vis_dates.max()
+                ev_view = events_df.copy()
+                ev_view["_dt"] = pd.to_datetime(ev_view["date"])
+                ev_view = ev_view[(ev_view["_dt"] >= lo) & (ev_view["_dt"] <= hi)]
+                if not ev_view.empty:
+                    with st.expander(f"📌 本区间事件（{len(ev_view)} 条）", expanded=False):
+                        disp = ev_view[["date", "title", "type"]].copy() if "type" in ev_view.columns else ev_view[["date", "title"]].copy()
+                        disp = disp.sort_values("date")
+                        st.dataframe(disp, use_container_width=True, hide_index=True)
+
+        # 叠加上证基准对比（归一化多线，可选）
+        if st.checkbox("📈 叠加上证基准对比（归一化）", value=False, key="pick_show_bench"):
+            with st.spinner("加载上证基准…"):
+                idx_df = fetcher.get_index("000001", start=start_str, end=end_str)
+            if idx_df is not None and not idx_df.empty:
+                idx_df = idx_df.copy()
+                idx_df["date"] = pd.to_datetime(idx_df["date"]).dt.strftime("%Y-%m-%d")
+                stock_part = df[["date", "close"]].copy()
+                stock_part["date"] = pd.to_datetime(stock_part["date"]).dt.strftime("%Y-%m-%d")
+                merged = stock_part.merge(
+                    idx_df[["date", "close"]], on="date", how="inner", suffixes=("_s", "_i"))
+                if len(merged) >= 2:
+                    merged = merged.rename(columns={"close_s": stock_label, "close_i": "上证指数"})
+                    bfig = plot_normalized_multi(
+                        merged, names_map={stock_label: stock_label, "上证指数": "上证指数"},
+                        colors_map={stock_label: "#ee2a2a", "上证指数": "#7c5cff"},
+                        title="个股 vs 上证基准（归一化起点=100）",
+                        dark_mode=_theme_is_dark(), date_range=None, ma_periods=(),
+                        selected=None, mode="normalized", show_baseline=True,
+                        show_cross=False, show_drawdown=False, ma_type="sma")
+                    st.plotly_chart(bfig, use_container_width=True, config={"displayModeBar": False},
+                                    key="pick_bench")
+                else:
+                    st.info("区间内与上证基准无重合交易日，跳过对比。")
+            else:
+                st.info("上证基准数据获取失败，跳过对比。")
 except Exception as e:
     st.error(f"⚠️ K 线加载异常：{str(e)[:80]}。请稍后刷新页面重试，或切换其它周期 / 区间。")
 
