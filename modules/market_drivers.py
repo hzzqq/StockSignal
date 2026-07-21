@@ -96,7 +96,6 @@ INDICATORS = [
 KNOWN_UNAVAILABLE = {
     "margin_buy_ratio": "需两市成交额数据，暂未接入",
     "margin_balance_ratio": "需流通市值数据，暂未接入",
-    "pcr": "认沽/认购比需个股期权明细，暂未接入",
 }
 
 # 简易 TTL 缓存
@@ -414,6 +413,65 @@ def _src_pmi(days):
     return [("pmi", "PMI(采购经理指数)", s)] if not s.empty else []
 
 
+# PCR：认沽/认购成交量比（上交所+深交所股票期权每日统计聚合）
+# 受限于 akshare 按日接口，仅取近 ~_PCR_DAYS 交易日，用于信号灯+近期分位；结果随 get_market_drivers 缓存。
+_PCR_DAYS = 10
+
+
+def _opt_vol_sum(df, kind):
+    """在期权每日统计 df 中按关键字定位认沽/认购成交量列并求和（跨多标的）。找不到返回 0。"""
+    if df is None or getattr(df, "empty", True):
+        return 0.0
+    keys = ("认购", "成交量") if kind == "call" else ("认沽", "成交量")
+    col = None
+    for c in df.columns:
+        s = str(c)
+        if keys[0] in s and ("成交" in s or "量" in s):
+            col = c
+            break
+    if col is None:
+        for c in df.columns:
+            if keys[0] in str(c):
+                col = c
+                break
+    if col is None:
+        return 0.0
+    return float(pd.to_numeric(df[col], errors="coerce").fillna(0).sum())
+
+
+@_retry()
+def _src_pcr(days=180):
+    import akshare as ak
+    n = min(int(days), _PCR_DAYS)
+    end = pd.Timestamp.now().normalize()
+    # 取最近约 2.5*n 个自然日内的工作日，截尾 n 个，控制请求量
+    cal = pd.bdate_range(end - pd.Timedelta(days=int(n * 2.5)), end)
+    dates = cal[-n:]
+    call_v, put_v, idx = [], [], []
+    for dt in dates:
+        ds = dt.strftime("%Y%m%d")
+        try:
+            sse = ak.option_daily_stats_sse(date=ds)
+        except Exception:  # noqa
+            sse = None
+        try:
+            szse = ak.option_daily_stats_szse(date=ds)
+        except Exception:  # noqa
+            szse = None
+        cv = _opt_vol_sum(sse, "call") + _opt_vol_sum(szse, "call")
+        pv = _opt_vol_sum(sse, "put") + _opt_vol_sum(szse, "put")
+        if cv > 0 and pv > 0:
+            call_v.append(cv)
+            put_v.append(pv)
+            idx.append(dt)
+    if not idx:
+        return []
+    s_call = pd.Series(call_v, index=pd.to_datetime(idx))
+    s_put = pd.Series(put_v, index=pd.to_datetime(idx))
+    pcr = (s_put / s_call.replace(0, np.nan)).dropna()
+    return [("pcr", "PCR(认沽/认购比)", pcr)] if not pcr.empty else []
+
+
 # 技术类：基于上证日线本地计算，返回 (close_series, )
 def _get_index_close(days):
     idx = get_index_series(days=days)
@@ -482,6 +540,7 @@ _SRC_DISPATCH = {
     "financing": _src_financing,
     "yield": _src_yield,
     "pmi": _src_pmi,
+    "pcr": _src_pcr,
 }
 
 
@@ -495,8 +554,6 @@ def _fetch_src(ind, days):
         return [], KNOWN_UNAVAILABLE["margin_buy_ratio"]
     if src == "margin_balance_ratio":
         return [], KNOWN_UNAVAILABLE["margin_balance_ratio"]
-    if src == "pcr":
-        return [], KNOWN_UNAVAILABLE["pcr"]
     if src.startswith("idx_"):
         try:
             if src == "idx_ma":

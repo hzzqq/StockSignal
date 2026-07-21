@@ -29,6 +29,7 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("🧮 市场驱动力（五维归一化子图）")
 st.caption("21 指标按 资金 / 情绪 / 估值 / 宏观 / 技术 分 5 维分组子图，每个子图含上证参考线，"
            "全部统一归一化到起点=100 叠加，规避量纲差异（融资余额万亿级 vs RSI 0-100 不会压扁）。")
+st.page_link("pages/P_市场情绪.py", label="🌡️ 看《市场情绪》广度与情绪温度计（互补视角）", icon="🔗")
 
 
 def _render_drivers_meta(meta):
