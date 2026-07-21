@@ -319,9 +319,32 @@ try:
             view_start = 0
             view_count = n
 
+        # 鼠标拖拽：平移 / 区域缩放（控制 K 线图 dragmode）
+        drag_mode = st.radio(
+            "鼠标拖拽",
+            options=["pan", "zoom"],
+            format_func=lambda x: {"pan": "平移", "zoom": "区域缩放"}[x],
+            index=0, key="pick_dragmode", horizontal=True,
+        )
+
+        # 当前可见区间统计
+        vis = df.iloc[view_start:view_start + view_count]
+        v_high = float(vis["high"].max())
+        v_low = float(vis["low"].min())
+        v_first = float(vis["close"].iloc[0])
+        v_last = float(vis["close"].iloc[-1])
+        v_chg = (v_last - v_first) / v_first * 100 if v_first else 0.0
+        v_amp = (v_high - v_low) / v_first * 100 if v_first else 0.0
+        v_avg = float(vis["close"].mean())
+        st.caption(
+            f"📊 当前显示区间：最高 ¥{v_high:.2f} / 最低 ¥{v_low:.2f} / "
+            f"区间涨幅 {v_chg:+.2f}% / 振幅 {v_amp:.2f}% / 均价 ¥{v_avg:.2f}"
+        )
+
         fig = Visualizer.candlestick(df, title=f"{stock_label} {period_label}",
                                      ma_windows=ma_windows, show_volume=True,
-                                     start_idx=view_start, n_show=view_count)
+                                     start_idx=view_start, n_show=view_count,
+                                     dragmode=drag_mode)
         st.plotly_chart(fig, width="stretch", key="pick_kline_chart")
 except Exception as e:
     st.warning(f"⚠️ 数据获取遇到网络波动：{str(e)[:80]}。已为你使用最近一次缓存数据。")

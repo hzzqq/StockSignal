@@ -66,6 +66,19 @@ def _plotly_layout_kwargs(title: str = "", height: int = 400) -> dict:
         "margin": dict(l=40, r=20, t=50, b=40),
     }
 
+
+def _empty_kline_figure(title: str, msg: str) -> "go.Figure":
+    """空 / 异常数据的优雅兜底图：居中显示友好提示，不报错。"""
+    fig = go.Figure()
+    fig.update_layout(**_plotly_layout_kwargs(title=title, height=550))
+    fig.add_annotation(
+        text=msg,
+        x=0.5, y=0.5, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=16, color=SF_TXT2 if _is_dark() else "#6B7280"),
+    )
+    return fig
+
 # 中文字体配置
 plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei", "Arial Unicode MS"]
 plt.rcParams["axes.unicode_minus"] = False
@@ -116,7 +129,8 @@ class Visualizer:
     @staticmethod
     def candlestick(df, title="K线图", show_volume=True, ma_windows=[5, 20, 60],
                    start_idx=0, n_show=None, annotations=None, support=None, resistance=None,
-                   up_color=None, down_color=None, ma_colors=None):
+                   up_color=None, down_color=None, ma_colors=None,
+                   dragmode="pan", show_range_levels=True):
         """
         生成交互式 K 线图（V5 截图风格）。
         - 统一悬停：单浮层显示日期 / 成交量 / OHLC / MA 值（模仿截图 tooltip）。
@@ -139,17 +153,32 @@ class Visualizer:
         :param up_color: 上涨 K 线颜色（默认 UP_COLOR，A 股红涨）
         :param down_color: 下跌 K 线颜色（默认 DOWN_COLOR，A 股绿跌）
         :param ma_colors: 均线配色列表（默认 MA_COLORS），按 ma_windows 顺序取色
+        :param dragmode: 鼠标拖拽行为，"pan"（平移，默认）或 "zoom"（区域缩放框选）
+        :param show_range_levels: 是否在可见窗口画「区间最高 / 区间最低」参考线（默认开）
         :return: plotly Figure
         """
+        # ── 空 / 异常数据优雅兜底 ──
+        if df is None or not isinstance(df, pd.DataFrame):
+            return _empty_kline_figure(title, "暂无 K 线数据")
+        required_cols = ["date", "open", "high", "low", "close"]
+        if not all(c in df.columns for c in required_cols):
+            return _empty_kline_figure(title, "K 线字段缺失：" + "、".join(
+                c for c in required_cols if c not in df.columns))
+
         df = df.copy()
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date").reset_index(drop=True)
 
+        # 数值守卫：非数值 / 异常值 coerce 为 NaN 并丢弃，避免绘图崩溃
+        for _c in ["open", "high", "low", "close"]:
+            df[_c] = pd.to_numeric(df[_c], errors="coerce")
+        if "volume" in df.columns:
+            df["volume"] = pd.to_numeric(df["volume"], errors="coerce")
+        df = df.dropna(subset=["open", "high", "low", "close"]).reset_index(drop=True)
+
         n = len(df)
-        if n == 0:
-            fig = go.Figure()
-            fig.update_layout(**_plotly_layout_kwargs(title=title, height=550))
-            return fig
+        if n < 2:
+            return _empty_kline_figure(title, "数据不足，至少需要 2 根 K 线")
 
         # ── 窗口裁剪（支持「显示位置 / 显示 K 线数量」滑块）──
         # 在 FULL df 上计算后切片，保证窗口左缘的均线值准确
@@ -296,6 +325,11 @@ class Visualizer:
         if resistance is not None:
             all_annotations.append({"price": resistance, "label": "压力", "color": UP_COLOR})
 
+        # 区间最高 / 区间最低参考线（基于当前可见窗口）
+        if show_range_levels:
+            all_annotations.append({"price": visible["high"].max(), "label": "区间最高", "color": UP_COLOR, "dash": "dot"})
+            all_annotations.append({"price": visible["low"].min(), "label": "区间最低", "color": DOWN_COLOR, "dash": "dot"})
+
         # 价格接近的标注合并，避免右侧文字重叠
         if all_annotations:
             price_range = max(visible["high"].max() - visible["low"].min(), 1e-6)
@@ -397,12 +431,13 @@ class Visualizer:
                 font=dict(color=SF_TXT if _is_dark() else "#374151", size=12),
             ),
             hovermode="x",
-            # 保留 zoom / reset / pan 按钮；仅移除 lasso / box-select / autoscale
-            modebar=dict(remove=["select2d", "lasso2d", "autoScale2d"]),
+            # modebar 收拢：仅保留导出图片(toImage) 与 重置缩放(resetScale2d)；
+            # 平移/区域缩放由页面「鼠标拖拽」开关切换 dragmode 控制，不再占用工具栏
+            modebar=dict(remove=["pan2d", "zoom2d", "select2d", "lasso2d", "autoScale2d"]),
             paper_bgcolor=paper_bg,
             plot_bgcolor=plot_bg,
-            # 默认 drag 平移，避免一拉 K线就变成框选放大；框选放大保留在工具栏 🔍 中
-            dragmode="pan",
+            # 拖拽行为由参数控制：默认平移(pan)，页面可切区域缩放(zoom)
+            dragmode=dragmode,
             hoverlabel=dict(
                 bgcolor="#1a1a2e" if _is_dark() else "#ffffff",
                 font=dict(color="#e2e8f0" if _is_dark() else "#1f2937"),

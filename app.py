@@ -19,7 +19,7 @@ st.session_state["_active_page"] = __file__
 
 # ── 鉴权门禁：未登录直接跳到 /登录 ──
 from modules.session import require_auth, render_user_badge, is_admin, get_user, safe_switch_page, get_token
-from modules.widgets import render_global_search, render_theme_toggle, render_notifications, get_recent_stocks, render_session_countdown
+from modules.widgets import render_global_search, render_notifications, get_recent_stocks, render_session_countdown
 from modules.fundflow import warm_fundflow_caches
 require_auth()
 
@@ -143,7 +143,7 @@ if recent:
 # 自选股数量 + 未读提醒（调后端）
 try:
     wl_resp = requests.get(
-        f"http://127.0.0.1:5050/api/watchlist",
+        "http://127.0.0.1:5050/api/watchlist",
         headers={"Authorization": f"Bearer {get_token()}"},
         timeout=5,
     )
