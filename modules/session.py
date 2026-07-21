@@ -616,6 +616,27 @@ def api_delete(path: str, timeout: int = 5, **kwargs):
     return resp.status_code, _safe_json(resp)
 
 
+# ──────────────────────────────────────────────────────────────
+# 市场指标异动提醒（后端 /api/market-alerts）
+# ──────────────────────────────────────────────────────────────
+def api_market_alerts(limit: int = 50, offset: int = 0) -> dict:
+    """返回 {items, unread_count, total, last_seen}；失败返回空 dict。"""
+    code, body = api_get(f"/api/market-alerts?limit={limit}&offset={offset}", timeout=8)
+    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
+        data = body.get("data")
+        if isinstance(data, dict):
+            return data
+    return {}
+
+
+def api_mark_alert_read(alert_id: int) -> tuple:
+    return api_post(f"/api/market-alerts/{int(alert_id)}/read", timeout=8)
+
+
+def api_mark_all_alerts_read() -> tuple:
+    return api_post("/api/market-alerts/read-all", timeout=8)
+
+
 def api_quote(ticker: str, timeout: int = 5) -> dict | None:
     """
     实时五档行情（后端 GET /api/quote?ticker=）。
@@ -798,7 +819,7 @@ def _refresh_user_from_backend() -> dict | None:
 
 
 def render_user_badge(sidebar: bool = True) -> None:
-    """在侧边栏/顶栏渲染当前用户头像 + 用户名 + 退出登录按钮。"""
+    """在侧边栏/顶栏渲染当前用户头像 + 用户名 + 退出登录按钮 + 市场异动铃铛。"""
     user = get_user() or {}
     username = user.get("username", "?")
     role_cn = "管理员" if user.get("role") == "admin" else "普通用户"
@@ -810,6 +831,52 @@ def render_user_badge(sidebar: bool = True) -> None:
     if target.button("🚪 退出登录", key="logout_btn"):
         clear_auth()
         safe_switch_page("pages/0_登录.py")
+    # 市场异动铃铛（全局，挂用户区下方）
+    try:
+        render_market_alert_bell(target)
+    except Exception as e:  # noqa: BLE001
+        target.caption(f"提醒加载失败：{str(e)[:40]}")
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def _cached_alert_summary(token: str, nonce: int) -> dict:
+    """缓存市场异动摘要（未读数 + 最近 5 条），nonce 变化即击穿重取。"""
+    try:
+        code, body = api_get("/api/market-alerts?limit=5", timeout=8)
+        if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
+            data = body.get("data")
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
+
+
+def render_market_alert_bell(target=st.sidebar) -> None:
+    """侧边栏市场异动铃铛：未读红点 + 最近异动列表 + 全部已读。"""
+    nonce = int(st.session_state.get("_alert_nonce", 0))
+    data = _cached_alert_summary(get_token() or "", nonce)
+    unread = int(data.get("unread_count", 0) or 0)
+    items = data.get("items", []) or []
+
+    badge = f" 🔴{unread}" if unread else ""
+    target.markdown(f"### 🔔 市场异动{badge}")
+
+    _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}
+    if items:
+        for it in items[:5]:
+            sev = it.get("severity", "info")
+            icon = _sev_icon.get(sev, "ℹ️")
+            ts = (it.get("created_at") or "")[:16].replace("T", " ")
+            target.caption(f"{icon} {it.get('metric_name')}：{it.get('message')}")
+            target.caption(f"　└ {ts}")
+    else:
+        target.caption("暂无异动提醒")
+
+    if target.button("✅ 全部标为已读", key="alert_mark_all_btn"):
+        code, _ = api_mark_all_alerts_read()
+        if code == 200:
+            st.session_state["_alert_nonce"] = nonce + 1
 
 
 def is_admin() -> bool:

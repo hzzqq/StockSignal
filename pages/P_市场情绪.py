@@ -17,7 +17,10 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge
+from modules.session import (
+    require_auth, render_user_badge, get_token,
+    api_market_alerts, api_mark_alert_read, api_mark_all_alerts_read,
+)
 from modules.market_drivers import get_market_drivers, DIMS
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours
@@ -350,10 +353,52 @@ def fragment_valuation():
         _card(c, cfg, df, dark)
 
 
+@st.cache_data(ttl=20, show_spinner=False)
+def _cached_alerts_page(token: str, nonce: int) -> dict:
+    """缓存市场异动列表（nonce 变化即击穿重取）。"""
+    return api_market_alerts(limit=20, offset=0)
+
+
+@safe_fragment("市场异动提醒")
+def fragment_market_alerts():
+    _section_title("🔔 近期异动提醒（自动扫描 · 后台调度）", accent="#ee2a2a")
+    nonce = int(st.session_state.get("_alert_page_nonce", 0))
+    data = _cached_alerts_page(get_token() or "", nonce)
+    items = data.get("items", []) or []
+    unread = int(data.get("unread_count", 0) or 0)
+
+    if unread:
+        st.markdown(f"未读 **{unread}** 条")
+    if st.button("✅ 全部标为已读", key="pa_mark_all"):
+        code, _ = api_mark_all_alerts_read()
+        if code == 200:
+            st.session_state["_alert_page_nonce"] = nonce + 1
+
+    if not items:
+        st.info("暂无异动提醒。后台调度器会在交易时段扫描广度/情绪/估值指标越界并推送。")
+        return
+
+    _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}
+    for it in items:
+        sev = it.get("severity", "info")
+        icon = _sev_icon.get(sev, "ℹ️")
+        ts = (it.get("created_at") or "")[:16].replace("T", " ")
+        c1, c2 = st.columns([0.88, 0.12])
+        with c1:
+            st.markdown(f"{icon} **{it.get('metric_name')}**：{it.get('message')}")
+            st.caption(f"　└ {ts}　值 {it.get('value')}　阈值 {it.get('threshold')}")
+        with c2:
+            if st.button("✓", key=f"pa_read_{it.get('id')}", help="标为已读"):
+                code, _ = api_mark_alert_read(it.get("id"))
+                if code == 200:
+                    st.session_state["_alert_page_nonce"] = nonce + 1
+
+
 fragment_thermometer()
 fragment_breadth()
 fragment_sentiment()
 fragment_valuation()
+fragment_market_alerts()
 
 st.caption("🌡️ 《市场广度 & 情绪温度计》：与《市场驱动力》（五维归一化子图）互补——"
            "本页用温度计卡 + 信号灯直观呈现「市场冷/热到什么程度」，"

@@ -292,6 +292,38 @@ class ForumPost(db.Model):
         return d
 
 
+# ------------------------------------------------------------------ MarketAlert
+class MarketAlert(db.Model):
+    """市场指标异动提醒（全局告警，按用户维度记录已读状态）。
+
+    由后端定时调度器扫描 modules.market_drivers 产出，severity ∈ info/warning/danger。
+    「已读」状态不落本表，而是记在用户 settings.last_seen_market_alert，
+    避免每用户一行 join 表；未读数 = created_at > 该时间戳的条数。
+    """
+    __tablename__ = "market_alerts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    metric_key = db.Column(db.String(32), nullable=False, index=True)   # adl/adr/vix/pcr/...
+    metric_name = db.Column(db.String(64), nullable=False)
+    severity = db.Column(db.String(16), nullable=False, default="info")  # info/warning/danger
+    message = db.Column(db.Text, nullable=False)
+    value = db.Column(db.Float, nullable=True)
+    threshold = db.Column(db.Float, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "metric_key": self.metric_key,
+            "metric_name": self.metric_name,
+            "severity": self.severity,
+            "message": self.message,
+            "value": self.value,
+            "threshold": self.threshold,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+        }
+
+
 # ------------------------------------------------------------------ ForumComment（股吧评论）
 class ForumComment(db.Model):
     """股吧帖子的评论。"""
