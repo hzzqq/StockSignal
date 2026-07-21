@@ -453,56 +453,62 @@ st.markdown(
 )
 
 # ── 渲染历史 ──
-for idx, m in enumerate(st.session_state["xc_messages"]):
-    render_message(m, idx, username)
+@safe_fragment("AI 对话")
+def fragment_chat():
+    for idx, m in enumerate(st.session_state["xc_messages"]):
+        render_message(m, idx, username)
 
-# ── 思考中占位（含已等待时长 + 免费模型延迟提示，管理预期、提升感知效率）──
-if st.session_state.get("xc_task_id"):
-    _started = st.session_state.get("xc_task_started_at") or time.time()
-    _elapsed = int(time.time() - _started)
-    _mm = _elapsed // 60
-    _ss = _elapsed % 60
-    _elapsed_str = f"{_mm}分{_ss:02d}秒" if _mm else f"{_ss}秒"
-    st.markdown(
-        f'<div class="xc-typing"><span class="dot"></span><span class="dot"></span>'
-        f'<span class="dot"></span>'
-        f'<span>星辰 AI 正在分析…（已等待 {_elapsed_str} · 当前使用免费模型，响应较慢属正常，请稍候）</span></div>',
-        unsafe_allow_html=True,
-    )
-
-# ── 回到底部按钮：由 apply_theme() 注入的 inject_scroll_nav 在首次
-#    components.html 中创建视口级浮动 ▼（right:24px;bottom:110px），
-#    以本页 st.chat_input 的 testid=stChatInput 存在性驱动出现/消失 ──
-
-# ── 收集输入 ──
-prompt = None
-if "_xc_pending" in st.session_state:
-    prompt = st.session_state.pop("_xc_pending")
-user_text = st.chat_input("问星辰 AI…（Enter 发送 / Shift+Enter 换行）")
-if user_text:
-    prompt = user_text
-
-# ── 提交后台任务 ──
-if prompt:
-    st.session_state["xc_messages"].append({"role": "user", "content": prompt})
-    history = [
-        {"role": mm.get("role"), "content": mm.get("content", "")}
-        for mm in st.session_state["xc_messages"][:-1]
-        if mm.get("role") in ("user", "assistant")
-    ]
-    ctx = _slim_context()
-    ctx["history"] = history[-6:]
-    task_id, err = submit_task_with_error("ai_consult", {"question": prompt, "context": ctx})
-    if task_id:
-        st.session_state["xc_task_id"] = task_id
-        st.session_state["xc_task_started_at"] = time.time()
-        st.rerun()
-    else:
-        st.session_state["xc_messages"].append(
-            {"role": "assistant", "content": f"❌ 后台任务提交失败：{err or '未知错误'}，请刷新后重试。"}
+    # ── 思考中占位（含已等待时长 + 免费模型延迟提示，管理预期、提升感知效率）──
+    if st.session_state.get("xc_task_id"):
+        _started = st.session_state.get("xc_task_started_at") or time.time()
+        _elapsed = int(time.time() - _started)
+        _mm = _elapsed // 60
+        _ss = _elapsed % 60
+        _elapsed_str = f"{_mm}分{_ss:02d}秒" if _mm else f"{_ss}秒"
+        st.markdown(
+            f'<div class="xc-typing"><span class="dot"></span><span class="dot"></span>'
+            f'<span class="dot"></span>'
+            f'<span>星辰 AI 正在分析…（已等待 {_elapsed_str} · 当前使用免费模型，响应较慢属正常，请稍候）</span></div>',
+            unsafe_allow_html=True,
         )
-        st.session_state["xc_task_id"] = None
-        st.rerun()
+
+    # ── 回到底部按钮：由 apply_theme() 注入的 inject_scroll_nav 在首次
+    #    components.html 中创建视口级浮动 ▼（right:24px;bottom:110px），
+    #    以本页 st.chat_input 的 testid=stChatInput 存在性驱动出现/消失 ──
+
+    # ── 收集输入 ──
+    prompt = None
+    if "_xc_pending" in st.session_state:
+        prompt = st.session_state.pop("_xc_pending")
+    user_text = st.chat_input("问星辰 AI…（Enter 发送 / Shift+Enter 换行）")
+    if user_text:
+        prompt = user_text
+
+    # ── 提交后台任务 ──
+    if prompt:
+        st.session_state["xc_messages"].append({"role": "user", "content": prompt})
+        history = [
+            {"role": mm.get("role"), "content": mm.get("content", "")}
+            for mm in st.session_state["xc_messages"][:-1]
+            if mm.get("role") in ("user", "assistant")
+        ]
+        ctx = _slim_context()
+        ctx["history"] = history[-6:]
+        task_id, err = submit_task_with_error("ai_consult", {"question": prompt, "context": ctx})
+        if task_id:
+            st.session_state["xc_task_id"] = task_id
+            st.session_state["xc_task_started_at"] = time.time()
+            st.rerun(scope="fragment")
+        else:
+            st.session_state["xc_messages"].append(
+                {"role": "assistant", "content": f"❌ 后台任务提交失败：{err or '未知错误'}，请刷新后重试。"}
+            )
+            st.session_state["xc_task_id"] = None
+            st.rerun(scope="fragment")
+
+
+
+fragment_chat()
 
 # ── 轮询后台任务（收进 fragment，#402）──
 # 等待期间 st_autorefresh 只让本片段每 1.5s 局部重跑，不再整页全量重跑

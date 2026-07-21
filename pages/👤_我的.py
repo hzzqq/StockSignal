@@ -257,6 +257,7 @@ with col1:
             "display:flex;align-items:center;justify-content:center;font-size:44px;'>👤</div>",
             unsafe_allow_html=True,
         )
+        st.caption("💡 还没有头像？点击上方「上传头像」选择图片，再点「保存头像」即可设置专属头像（按账号云端保存，换设备不丢失）。")
     if "avatar_up_counter" not in st.session_state:
         st.session_state["avatar_up_counter"] = 0
     _up = st.file_uploader(
@@ -332,9 +333,15 @@ try:
                 df = pd.DataFrame(watchlist)
                 st.dataframe(df, width="stretch")
             else:
-                _empty_info("暂无自选股，请在行情看板中添加。")
+                _empty_info("暂无自选股，请先添加你关注的股票。")
+                st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
+                if st.button("➕ 去行情看板添加自选股", key="wl_go_add", use_container_width=True):
+                    safe_switch_page("pages/1_行情看板.py")
         else:
-            st.info("暂无自选股，请在行情看板中添加。")
+            st.info("暂无自选股，请先添加你关注的股票。")
+            st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
+            if st.button("➕ 去行情看板添加自选股", key="wl_go_add2", use_container_width=True):
+                safe_switch_page("pages/1_行情看板.py")
     else:
         st.warning(f"获取自选股失败：HTTP {resp.status_code}")
 except Exception as e:
@@ -402,4 +409,8 @@ _empty_info("暂无新通知。")
 st.markdown("---")
 _pref_tab, = st.tabs(["⚙️ 偏好设置"])
 with _pref_tab:
+    st.caption(
+        "⚙️ 偏好设置分为「外观 / 行情看板默认参数 / 数据源优先级」三类，"
+        "所有改动即时生效；下方「当前全部设置一览」可随时微调，关闭浏览器后会恢复默认值。"
+    )
     render_preferences()

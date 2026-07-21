@@ -15,7 +15,7 @@ from modules.session import require_auth, render_user_badge
 from modules.page_guard import safe_section
 
 from modules.page_guard import safe_fragment
-from modules.page_widgets import _empty_info
+from modules.page_widgets import _empty_info, UP, DOWN
 
 apply_page_config(page_title="ETF筛选", page_icon="🧰", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -26,8 +26,6 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("🧰 ETF / 基金筛选器")
 st.caption("按类型、关键字、涨跌幅与成交额筛选；红涨绿跌。数据受限时自动降级到样本。")
 
-UP = "#ee2a2a"
-DOWN = "#1aa260"
 
 # 内置样本（网络不可用时使用），覆盖主流宽基 / 行业 / 债券 / 货币 ETF
 SAMPLE = [

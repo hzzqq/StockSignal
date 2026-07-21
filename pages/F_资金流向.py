@@ -30,7 +30,7 @@ from modules.linear_trends import (
 )
 from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
-from modules.page_widgets import _empty_info
+from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fig_layout, _section_title, _fmt_yi
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -45,9 +45,6 @@ render_user_badge(sidebar=True)
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
-# A股配色：净流入红、净流出绿
-UP = "#ee2a2a"      # 红（流入 / 涨）
-DOWN = "#1aa260"    # 绿（流出 / 跌）
 
 st.title("🌊 资金流向监控")
 st.caption("北向资金 · 行业板块资金流向 · 大盘主力净流入 · 个股主力资金动向。数据来源：东方财富/同花顺（经本地代理）。")
@@ -61,47 +58,12 @@ def _get_fetcher():
 fetcher = _get_fetcher()
 
 
-def _in_trading_hours():
-    now = datetime.now()
-    if now.weekday() >= 5:
-        return False
-    hm = now.hour * 60 + now.minute
-    return (570 <= hm <= 690) or (780 <= hm <= 900)
 
 
-def _fig_layout(dark_mode):
-    base = dict(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=50, r=20, t=30, b=30), hovermode="x unified",
-    )
-    if dark_mode:
-        base.update(font=dict(color="#e6e6e6"),
-                    xaxis=dict(gridcolor="#2a2a3a"), yaxis=dict(gridcolor="#2a2a3a"))
-    else:
-        base.update(font=dict(color="#1a1a1a"),
-                    xaxis=dict(gridcolor="#ececec"), yaxis=dict(gridcolor="#ececec"))
-    return base
 
 
-def _section_title(text, accent="#2b8aef"):
-    st.markdown(
-        f'<div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;">'
-        f'<span style="width:4px;height:18px;background:{accent};border-radius:2px;display:inline-block;"></span>'
-        f'<span style="font-size:16px;font-weight:600;">{text}</span></div>',
-        unsafe_allow_html=True,
-    )
 
 
-def _fmt_yi(x):
-    try:
-        x = float(x)
-    except Exception:
-        return "—"
-    if abs(x) >= 1e8:
-        return f"{x/1e8:.2f}亿"
-    if abs(x) >= 1e4:
-        return f"{x/1e4:.1f}万"
-    return f"{x:.0f}"
 
 
 _PRESET_OPTS = ["近7天", "近30天", "近60天", "近90天", "近180天", "年初至今", "全部", "自定义"]
@@ -209,7 +171,7 @@ def _trend_controls(key_prefix, days_default=120, series_options=None,
 @safe_fragment("北向资金")
 def fragment_northbound():
     _section_title("🧭 北向资金（沪股通 / 深股通）", accent="#7c5cff")
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="nb_auto")
     try:
         nb = get_northbound_fund_flow()
@@ -303,7 +265,7 @@ def fragment_northbound():
 @safe_fragment("行业板块资金流向")
 def fragment_industry():
     _section_title("🏭 行业板块资金流向", accent="#2b8aef")
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="ind_auto")
     try:
         df = get_industry_fund_flow()
@@ -321,6 +283,21 @@ def fragment_industry():
     df["净额"] = pd.to_numeric(df["净额"], errors="coerce")
     df["涨跌幅"] = pd.to_numeric(df["涨跌幅"], errors="coerce")
     df = df.sort_values("净额", ascending=False).reset_index(drop=True)
+
+    # 净流入 TOP 概览卡
+    d2 = df.dropna(subset=["净额"])
+    if not d2.empty:
+        top_in, top_out = d2.iloc[0], d2.iloc[-1]
+        oc1, oc2, oc3, oc4 = st.columns(4)
+        with oc1:
+            st.metric("最强净流入", f"{top_in['行业']}", help=f"净额 {top_in['净额']:.2f} 亿（红=流入）")
+        with oc2:
+            st.metric("最强净流出", f"{top_out['行业']}", help=f"净额 {top_out['净额']:.2f} 亿（绿=流出）")
+        with oc3:
+            st.metric("净流入行业", f"{int((d2['净额'] > 0).sum())}", help="净额为正（红）的行业数")
+        with oc4:
+            st.metric("净流出行业", f"{int((d2['净额'] < 0).sum())}", help="净额为负（绿）的行业数")
+        st.caption("📌 概览：红=主力净流入行业，绿=净流出行业；逐日资金流以 industry_fund_flow 为准。")
 
     top = df.head(15).copy()
     colors = [UP if v >= 0 else DOWN for v in top["净额"]]
@@ -347,7 +324,7 @@ def fragment_industry():
 @safe_fragment("大盘主力资金")
 def fragment_market():
     _section_title("📈 大盘主力资金净流入（近 30 日）", accent="#10b981")
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="mkt_auto")
     try:
         df = get_market_fund_flow(days=30)
@@ -406,7 +383,7 @@ def fragment_market():
 @safe_fragment("融资融券趋势")
 def fragment_margin_trading():
     _section_title("📊 融资融券趋势（融资买入额 & 三大指数）", accent="#f59e0b")
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="margin_auto")
 
     metric = st.radio(
@@ -454,8 +431,12 @@ def fragment_individual():
     code = stock_search_input(label="选择股票", key="ff_stock", default="600519")
     if not code:
         st.info("请选择一只股票查看主力资金。")
+        st.caption("💡 在上方输入框输入代码或名称（如 `600519` / `贵州茅台`），支持模糊搜索与拼音首字母。")
+        if st.button("🔍 使用示例股（贵州茅台 600519）", key="ff_use_example"):
+            st.session_state["ff_stock_confirmed"] = "600519"
+            st.session_state["ff_stock_query"] = "600519"
         return
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="indv_auto")
     try:
         r = get_individual_fund_flow(code)
@@ -506,7 +487,7 @@ def fragment_individual():
 @safe_fragment("指数走势对比")
 def fragment_index_trend():
     _section_title("📊 三大指数走势对比（归一化）", accent="#2b8aef")
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="idx_auto")
     try:
         idx = get_index_series(days=180)
@@ -527,7 +508,7 @@ def fragment_index_trend():
 @safe_fragment("行业指数走势")
 def fragment_industry_trend():
     _section_title("🏭 行业板块指数走势对比（归一化）", accent="#2b8aef")
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="indt_auto")
     try:
         ind = get_industry_index_series(top_n=8, days=120)
@@ -578,7 +559,7 @@ def fragment_industry_trend():
 @safe_fragment("ETF 价格走势")
 def fragment_etf_trend():
     _section_title("🧩 ETF 价格走势对比（归一化）", accent="#16c2c2")
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="etf_auto")
     try:
         etf = get_etf_series(days=180)

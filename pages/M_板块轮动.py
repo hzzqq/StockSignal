@@ -19,21 +19,18 @@ from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge, trading_autorefresh
 from modules.fundflow import get_industry_fund_flow
 from modules.fetcher import StockFetcher
-from modules.page_guard import safe_section, render_data_degradation_banner
-from modules.page_widgets import _empty_info
+from modules.page_guard import safe_section, safe_fragment, render_data_degradation_banner
+from modules.page_widgets import _empty_info, UP, DOWN
 
 apply_page_config(page_title="板块轮动", page_icon="🔥", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
-trading_autorefresh(key="sector_autorefresh")
 render_user_badge(sidebar=True)
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("🔥 板块轮动热力图")
 st.caption("红涨绿跌；热力图块大小代表资金净流入，颜色代表涨跌幅。各视图独立取数。")
 
-UP = "#ee2a2a"
-DOWN = "#1aa260"
 FETCHER = StockFetcher()
 
 
@@ -190,17 +187,30 @@ def _rotation(df):
 
 
 # ───────────────────────── 主渲染 ─────────────────────────
-with safe_section("板块数据", hint="行业资金流接口可能受网络限制；可稍后重试。"):
-    df, src = _load_flow()
-    if df.empty:
-        st.error("⚠️ 板块数据暂时不可用，请稍后重试。")
-    else:
-        st.success(f"数据来源：{src}　·　共 {len(df)} 个行业", icon="📡")
-        render_data_degradation_banner()
-        tab1, tab2, tab3 = st.tabs(["🔥 热力图", "📊 排行榜", "🔄 资金轮动"])
-        with tab1:
-            _heatmap(df)
-        with tab2:
-            _ranking(df)
-        with tab3:
-            _rotation(df)
+@safe_fragment("板块轮动")
+def fragment_sectors():
+    trading_autorefresh(key="sector_autorefresh")
+    # ───────────────────────── 主渲染 ─────────────────────────
+    with safe_section("板块数据", hint="行业资金流接口可能受网络限制；可稍后重试。"):
+        df, src = _load_flow()
+        if df.empty:
+            st.error("⚠️ 板块数据暂时不可用，请稍后重试。")
+        else:
+            st.success(f"数据来源：{src}　·　共 {len(df)} 个行业", icon="📡")
+            render_data_degradation_banner()
+            tab1, tab2, tab3 = st.tabs(["🔥 热力图", "📊 排行榜", "🔄 资金轮动"])
+            with tab1:
+                _heatmap(df)
+            with tab2:
+                _ranking(df)
+            with tab3:
+                _rotation(df)
+            st.divider()
+            st.markdown("#### 🧭 板块轮动解读")
+            st.caption("🔥 热力图：块越大=资金净流入越多，颜色越红=涨幅越大；"
+                       "📊 排行榜：看哪些行业领涨/领跌；"
+                       "🔄 资金轮动：右上象限（价量齐升）是当前主线，资金从绿（净流出）板块流向红（净流入）板块即为轮动。"
+                       "交易时段内本区块每 60 秒自动刷新。")
+
+
+fragment_sectors()

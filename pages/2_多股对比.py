@@ -36,52 +36,58 @@ EXAMPLE = "600667,601133,002947,002167,600206"
 
 
 # ── 对比设置（位于标题下方主区域，逐个输入、可增删、带匹配结果）──
-with st.container(border=True):
-    st.markdown("### 对比设置")
-    st.caption("输入 2~8 只股票（代码/中文名/拼音），逐个添加，支持增删。")
+@safe_fragment("对比设置")
+def fragment_compare_setup():
+    with st.container(border=True):
+        st.markdown("### 对比设置")
+        st.caption("输入 2~8 只股票（代码/中文名/拼音），逐个添加，支持增删。")
 
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        codes = multi_stock_search_input(
-            label="股票列表",
-            key="cmp_multi",
-            default=EXAMPLE,
-            placeholder="代码 / 名称 / 拼音",
-            max_rows=8,
-        )
-    with c2:
-        st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
-        if st.button("载入示例（5只）", use_container_width=True, key="cmp_load_example"):
-            st.session_state["cmp_multi_items"] = [
-                {"id": i, "value": c, "code": c, "name": None}
-                for i, c in enumerate(EXAMPLE.split(","))
-            ]
-            st.rerun()
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            codes = multi_stock_search_input(
+                label="股票列表",
+                key="cmp_multi",
+                default=EXAMPLE,
+                placeholder="代码 / 名称 / 拼音",
+                max_rows=8,
+            )
+        with c2:
+            st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
+            if st.button("载入示例（5只）", use_container_width=True, key="cmp_load_example"):
+                st.session_state["cmp_multi_items"] = [
+                    {"id": i, "value": c, "code": c, "name": None}
+                    for i, c in enumerate(EXAMPLE.split(","))
+                ]
+                st.rerun(scope="fragment")
 
-    with st.form("cmp_form"):
-        period = st.slider("回看天数", 60, 250, 120, 10)
-        submitted = st.form_submit_button("开始对比", use_container_width=True, type="primary")
+        with st.form("cmp_form"):
+            period = st.slider("回看天数", 60, 250, 120, 10)
+            submitted = st.form_submit_button("开始对比", use_container_width=True, type="primary")
 
-    st.session_state["_cmp_period_input"] = period
+        st.session_state["_cmp_period_input"] = period
 
-if submitted:
-    if len(codes) < 2:
-        st.warning("请至少输入 2 只有效股票。")
-    else:
-        task_id, err = submit_task_with_error("compare", {"codes": codes, "period": period})
-        if task_id:
-            st.session_state["compare_task_id"] = task_id
-            st.session_state["_cmp_rows"] = None
-            st.info(f"📡 已提交 {len(codes)} 只股票的后台对比任务，切到其他页面也会继续跑。")
+    if submitted:
+        if len(codes) < 2:
+            st.warning("请至少输入 2 只有效股票。")
         else:
-            err = err or "未知错误"
-            if "登录" in err or "过期" in err or "凭证" in err:
-                st.error(f"❌ {err}")
-                if st.button("重新登录", key="cmp_relogin", use_container_width=True):
-                    st.session_state.clear()
-                    st.switch_page("pages/0_登录.py")
+            task_id, err = submit_task_with_error("compare", {"codes": codes, "period": period})
+            if task_id:
+                st.session_state["compare_task_id"] = task_id
+                st.session_state["_cmp_rows"] = None
+                st.info(f"📡 已提交 {len(codes)} 只股票的后台对比任务，切到其他页面也会继续跑。")
             else:
-                st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
+                err = err or "未知错误"
+                if "登录" in err or "过期" in err or "凭证" in err:
+                    st.error(f"❌ {err}")
+                    if st.button("重新登录", key="cmp_relogin", use_container_width=True):
+                        st.session_state.clear()
+                        st.switch_page("pages/0_登录.py")
+                else:
+                    st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
+
+
+
+fragment_compare_setup()
 
 @st.cache_data(ttl=1)
 def _poll_compare_once(task_id: str) -> dict | None:

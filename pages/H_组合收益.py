@@ -20,7 +20,7 @@ except Exception:
     st_autorefresh = None
 
 from modules.page_guard import safe_fragment
-from modules.page_widgets import _empty_info
+from modules.page_widgets import _empty_info, UP, DOWN, _fig_layout, _section_title
 
 apply_page_config(page_title="组合收益", page_icon="📊", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -30,8 +30,6 @@ render_user_badge(sidebar=True)
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
-UP = "#ee2a2a"
-DOWN = "#1aa260"
 
 st.title("📊 自选股组合收益跟踪")
 st.caption("基于「仓位管理」中的持仓，按剩余股数加权构建组合净值曲线，对比沪深300基准。")
@@ -46,27 +44,8 @@ fetcher = _get_fetcher()
 pm = PortfolioManager()
 
 
-def _fig_layout(dark_mode):
-    base = dict(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=50, r=20, t=30, b=30), hovermode="x unified",
-    )
-    if dark_mode:
-        base.update(font=dict(color="#e6e6e6"),
-                    xaxis=dict(gridcolor="#2a2a3a"), yaxis=dict(gridcolor="#2a2a3a"))
-    else:
-        base.update(font=dict(color="#1a1a1a"),
-                    xaxis=dict(gridcolor="#ececec"), yaxis=dict(gridcolor="#ececec"))
-    return base
 
 
-def _section_title(text, accent="#2b8aef"):
-    st.markdown(
-        f'<div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;">'
-        f'<span style="width:4px;height:18px;background:{accent};border-radius:2px;display:inline-block;"></span>'
-        f'<span style="font-size:16px;font-weight:600;">{text}</span></div>',
-        unsafe_allow_html=True,
-    )
 
 
 def _build_portfolio_series(positions):

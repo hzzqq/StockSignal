@@ -24,6 +24,7 @@ from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
+from modules.page_guard import safe_fragment
 # 副作用：导入即确保 akshare 经本地代理访问（资金/新闻源）——设置 HTTP(S)_PROXY 并关闭证书校验
 from modules.fundflow import _ensure_proxy_and_ssl
 _ensure_proxy_and_ssl()
@@ -31,7 +32,6 @@ _ensure_proxy_and_ssl()
 apply_page_config(page_title="多维预警", page_icon="🔔", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
-trading_autorefresh(key="alert_autorefresh")
 render_user_badge(sidebar=True)
 
 dark = _theme_is_dark()
@@ -202,7 +202,7 @@ def _eval_alert_parallel(alerts):
 
 
 # ───────────────────────── 新建预警 ─────────────────────────
-with st.expander("➕ 新建预警", expanded=False):
+with st.expander("➕ 新建预警", expanded=False, key="new_alert_exp"):
     atype = st.radio(
         "预警类型", options=list(ALERT_TYPE_LABEL.keys()),
         format_func=lambda x: ALERT_TYPE_LABEL[x], horizontal=True, key="new_atype",
@@ -256,78 +256,93 @@ with st.expander("➕ 新建预警", expanded=False):
 
 
 # ───────────────────────── 列表 + 触发检测 ─────────────────────────
-sc, body = api_get("/api/price-alerts")
-if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
-    st.error("加载预警失败，请刷新重试。")
-    st.stop()
+@safe_fragment("预警列表")
+def fragment_alerts():
+    trading_autorefresh(key="alert_autorefresh")
+    # ───────────────────────── 列表 + 触发检测 ─────────────────────────
+    sc, body = api_get("/api/price-alerts")
+    if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
+        st.error("加载预警失败，请刷新重试。")
+        return
 
-alerts = body.get("data", []) or []
+    alerts = body.get("data", []) or []
 
-if not alerts:
-    _empty_info("暂无预警。点击上方「新建预警」添加（支持价格 / 技术形态 / 成交量异动 / 公告）。")
-else:
-    st.markdown(f"#### 共 {len(alerts)} 条预警（页面访问时实时检测）")
-    eval_results = _eval_alert_parallel(alerts)
-    for idx, a in enumerate(alerts):
-        atype = a.get("alert_type", "price")
-        triggered, detail = eval_results[idx] if idx < len(eval_results) else (False, "评估异常")
-        # 强制解析股票名称，避免后端 stock_name 为空导致显示代码
-        code = a["stock_code"]
-        display_name = fetcher.get_name_only(code) or a.get("stock_name") or code
-        if atype == "price":
-            cond_txt = "涨破 ▲" if a.get("condition") == "above" else "跌破 ▼"
-            desc = f"当{cond_txt} **{float(a.get('target_price') or 0):.2f}**"
-        elif atype == "pattern":
-            pname = ""
-            try:
-                pname = json.loads(a.get("params") or "{}").get("pattern_name", "")
-            except Exception:
-                pass
-            desc = f"出现形态 **{pname}**"
-        elif atype == "volume":
-            vr = 2.0
-            try:
-                vr = float(json.loads(a.get("params") or "{}").get("volume_ratio", 2.0))
-            except Exception:
-                pass
-            desc = f"量比 ≥ **{vr:.2f}×**"
-        elif atype == "announcement":
-            kw = ""
-            try:
-                kw = json.loads(a.get("params") or "{}").get("keyword", "")
-            except Exception:
-                pass
-            desc = f"新闻含「**{kw}**」"
-        else:
-            desc = ""
+    if not alerts:
+        _empty_info("暂无预警。点击上方「新建预警」添加（支持价格 / 技术形态 / 成交量异动 / 公告）。")
+        st.caption("💡 小提示：先把想盯的标的加进「自选股监控」，再回来建预警更顺手。")
+        if st.button("➕ 立即新建预警", key="alert_empty_new"):
+            st.session_state["new_alert_exp"] = True
+        st.info("🔔 通知机制：触发检测在**页面访问时**于前端实时比价/扫描；"
+                 "若要持续接收异动，可关注右上角「🔔 市场异动」铃铛（系统级异动提醒），"
+                 "并保持本页或持仓页在浏览器中打开。")
+    else:
+        st.markdown(f"#### 共 {len(alerts)} 条预警（页面访问时实时检测）")
+        eval_results = _eval_alert_parallel(alerts)
+        for idx, a in enumerate(alerts):
+            atype = a.get("alert_type", "price")
+            triggered, detail = eval_results[idx] if idx < len(eval_results) else (False, "评估异常")
+            # 强制解析股票名称，避免后端 stock_name 为空导致显示代码
+            code = a["stock_code"]
+            display_name = fetcher.get_name_only(code) or a.get("stock_name") or code
+            if atype == "price":
+                cond_txt = "涨破 ▲" if a.get("condition") == "above" else "跌破 ▼"
+                desc = f"当{cond_txt} **{float(a.get('target_price') or 0):.2f}**"
+            elif atype == "pattern":
+                pname = ""
+                try:
+                    pname = json.loads(a.get("params") or "{}").get("pattern_name", "")
+                except Exception:
+                    pass
+                desc = f"出现形态 **{pname}**"
+            elif atype == "volume":
+                vr = 2.0
+                try:
+                    vr = float(json.loads(a.get("params") or "{}").get("volume_ratio", 2.0))
+                except Exception:
+                    pass
+                desc = f"量比 ≥ **{vr:.2f}×**"
+            elif atype == "announcement":
+                kw = ""
+                try:
+                    kw = json.loads(a.get("params") or "{}").get("keyword", "")
+                except Exception:
+                    pass
+                desc = f"新闻含「**{kw}**」"
+            else:
+                desc = ""
 
-        if triggered is None:
-            status_txt = "待验证"
-            status_cls = "sf-pill mid"
-        elif triggered:
-            status_txt = "🔥 已触发"
-            status_cls = "sf-pill down"
-        else:
-            status_txt = "监测中"
-            status_cls = "sf-pill mid"
+            if triggered is None:
+                status_txt = "待验证"
+                status_cls = "sf-pill mid"
+            elif triggered:
+                status_txt = "🔥 已触发"
+                status_cls = "sf-pill down"
+            else:
+                status_txt = "监测中"
+                status_cls = "sf-pill mid"
 
-        col_info, col_status, col_toggle, col_del = st.columns([4, 2, 1.2, 1.2])
-        with col_info:
-            st.markdown(
-                f"{ALERT_TYPE_LABEL.get(atype, atype)} **{display_name}** "
-                f"`{code}` ｜ {desc}",
-                help=f"创建于 {a.get('created_at', '')[:19]}\n检测：{detail}",
-            )
-        with col_status:
-            st.markdown(f'<span class="{status_cls}">{status_txt}</span>', unsafe_allow_html=True)
-            st.caption(detail)
-        with col_toggle:
-            label = "停用" if a["active"] else "启用"
-            if st.button(label, key=f"tog_{a['id']}", use_container_width=True):
-                api_put(f"/api/price-alerts/{a['id']}/toggle")
-        with col_del:
-            if st.button("删除", key=f"del_{a['id']}", use_container_width=True):
-                api_delete(f"/api/price-alerts/{a['id']}")
+            col_info, col_status, col_toggle, col_del = st.columns([4, 2, 1.2, 1.2])
+            with col_info:
+                st.markdown(
+                    f"{ALERT_TYPE_LABEL.get(atype, atype)} **{display_name}** "
+                    f"`{code}` ｜ {desc}",
+                    help=f"创建于 {a.get('created_at', '')[:19]}\n检测：{detail}",
+                )
+            with col_status:
+                st.markdown(f'<span class="{status_cls}">{status_txt}</span>', unsafe_allow_html=True)
+                st.caption(detail)
+            with col_toggle:
+                label = "停用" if a["active"] else "启用"
+                if st.button(label, key=f"tog_{a['id']}", use_container_width=True):
+                    api_put(f"/api/price-alerts/{a['id']}/toggle")
+            with col_del:
+                if st.button("删除", key=f"del_{a['id']}", use_container_width=True):
+                    api_delete(f"/api/price-alerts/{a['id']}")
 
-    st.caption("提示：触发检测在页面访问时于前端执行（价格实时比价、形态/量比扫描日线、公告检索新闻）。"
-               "如需持续监控，可在本页保持打开或定时刷新。")
+        st.caption("提示：触发检测在页面访问时于前端执行（价格实时比价、形态/量比扫描日线、公告检索新闻）。"
+                   "如需持续监控，可在本页保持打开或定时刷新。")
+        st.info("🔔 通知机制：触发检测在**页面访问时**于前端执行；"
+                 "若要持续接收异动提醒，可关注右上角「🔔 市场异动」铃铛，并保持本页在浏览器中打开。")
+
+
+fragment_alerts()

@@ -15,6 +15,7 @@ from modules.fundflow import (
 )
 
 from modules.page_guard import safe_fragment
+from modules.page_widgets import UP, DOWN, _fig_layout, _section_title
 
 apply_page_config(page_title="财报日历", page_icon="📅", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -24,8 +25,6 @@ render_user_badge(sidebar=True)
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
-UP = "#ee2a2a"
-DOWN = "#1aa260"
 
 st.title("📅 财报与业绩日历")
 st.caption("按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。")
@@ -40,27 +39,8 @@ PERIODS = {
 }
 
 
-def _fig_layout(dark_mode):
-    base = dict(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=50, r=20, t=30, b=30), hovermode="x unified",
-    )
-    if dark_mode:
-        base.update(font=dict(color="#e6e6e6"),
-                    xaxis=dict(gridcolor="#2a2a3a"), yaxis=dict(gridcolor="#2a2a3a"))
-    else:
-        base.update(font=dict(color="#1a1a1a"),
-                    xaxis=dict(gridcolor="#ececec"), yaxis=dict(gridcolor="#ececec"))
-    return base
 
 
-def _section_title(text, accent="#2b8aef"):
-    st.markdown(
-        f'<div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;">'
-        f'<span style="width:4px;height:18px;background:{accent};border-radius:2px;display:inline-block;"></span>'
-        f'<span style="font-size:16px;font-weight:600;">{text}</span></div>',
-        unsafe_allow_html=True,
-    )
 
 
 # ───────────────────────── 业绩报表 ─────────────────────────
@@ -69,7 +49,7 @@ def fragment_report():
     _section_title("📊 业绩报表（按报告期）", accent="#2b8aef")
     period_label = st.selectbox(
         "报告期", options=list(PERIODS.keys()), index=0,
-        help="选择财报报告期，查看该期已披露财报的个股",
+        help="选择财报报告期，查看该期已披露财报的个股", key="rp_period",
     )
     period = PERIODS[period_label]
     try:
@@ -79,6 +59,9 @@ def fragment_report():
         return
     if df is None or df.empty:
         st.info(f"「{period_label}」暂无已披露财报数据（可能尚未到披露期或接口受限）。")
+        st.caption("💡 试试切换其他报告期，已完整披露的「2025 年报」通常数据最全。")
+        if st.button("📅 试看 2025 年报", key="rp_try_2025"):
+            st.session_state["rp_period"] = "2025 年报"
         return
 
     for c in ["每股收益", "营业总收入", "营收同比%", "净利润", "净利润同比%", "净利润环比%", "ROE%"]:
@@ -98,7 +81,8 @@ def fragment_report():
     with cols[2]:
         st.metric("净利润同比↓", f"{down_cnt}", help="净利润同比下滑的公司数")
     with cols[3]:
-        st.metric("盈利改善占比", f"{beat_ratio}%")
+        st.metric("盈利改善占比", f"{beat_ratio}%",
+                  help="净利润同比增长为正的公司占已披露财报公司的比例")
 
     # TOP 净利润柱状（红涨绿跌）
     top = df.dropna(subset=["净利润"]).sort_values("净利润", ascending=False).head(15).copy()
@@ -141,6 +125,9 @@ def fragment_forecast():
         df = pd.DataFrame()
     if df is None or df.empty:
         st.info(f"「{period_label}」业绩预告暂不可用（接口返回空）。")
+        st.caption("💡 业绩预告接口稳定性较低，可切换报告期或稍后重试。")
+        if st.button("📅 试看 2025 年报", key="fc_try_2025"):
+            st.session_state["fc_period"] = "2025 年报"
         return
     st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -165,6 +152,10 @@ def fragment_disclosure():
         df = pd.DataFrame()
     if df is None or df.empty:
         st.info("披露日历暂不可用（接口返回空或参数不支持）。")
+        st.caption("💡 可切换市场或报告期后重试；沪市 2025 年报通常最完整。")
+        if st.button("📅 试看 沪市·2025年报", key="dc_try_2025"):
+            st.session_state["dc_market"] = "沪市"
+            st.session_state["dc_period"] = "2025年报"
         return
     st.dataframe(df, use_container_width=True, hide_index=True)
 

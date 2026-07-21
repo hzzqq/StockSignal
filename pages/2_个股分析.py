@@ -926,6 +926,7 @@ def _deserialize_analysis_result(result: dict) -> dict:
 
 
 st.info("👆 在上方「决策仪表盘」顶部点击红色「生成分析」即可生成完整的个股深度分析。")
+st.caption("💡 分析包含行情 / 新闻 / 技术 / 评分等模块，首次生成约需 10–30 秒，后台运行期间可浏览其它页面。")
 
 
 @st.cache_data(ttl=1)
@@ -965,6 +966,17 @@ def fragment_analysis_result():
         _render_analysis(st.session_state["analysis_result"])
     else:
         st.info("👈 在左侧选择股票后，点击「生成分析」查看完整的个股深度决策仪表盘。")
+        st.caption("💡 也可以直接点击下方按钮生成分析；任务在后台并行运行，完成后自动显示，无需等待。")
+        if st.button("🔍 生成深度分析", type="primary", key="gen_analysis_inline", use_container_width=True):
+            if not ticker:
+                st.warning("请先在左侧选择一只股票。")
+            else:
+                tid, e = submit_task_with_error("analysis", {"ticker": ticker})
+                if tid:
+                    st.session_state["analysis_task_id"] = tid
+                    st.session_state["analysis_result"] = None
+                else:
+                    st.error(f"❌ 后台任务提交失败：{e or '未知错误'}，请刷新重试。")
 
 
 fragment_analysis_result()
@@ -997,7 +1009,7 @@ def _video_embed_url(url: str):
 
 @safe_fragment
 def fragment_stock_videos(ticker):
-    with st.expander("📺 相关视频（把互联网上的股票视频接入项目 · 点击展开/收起）", expanded=False):
+    with st.expander("📺 相关视频（把互联网上的股票视频接入项目 · 点击展开/收起）", expanded=False, key="stock_video_exp"):
         name = StockFetcher().get_stock_name(ticker) or ticker
     q = f"{name} 股票分析"
     from urllib.parse import quote
@@ -1051,6 +1063,9 @@ def fragment_stock_videos(ticker):
                     # fragment 内由 Streamlit 自动局部重跑，禁止显式 st.rerun()
     else:
         _empty_info("尚未添加视频。粘贴上方链接即可把网络视频「接到」本股票分析页内联播放")
+        st.caption("💡 也可以直接点击下方按钮展开「粘贴视频地址」输入框，把 YouTube / B站 / 腾讯视频 接入本页内联播放。")
+        if st.button("➕ 展开添加视频", key="video_empty_add"):
+            st.session_state["stock_video_exp"] = True
 
 
 fragment_stock_videos(ticker)

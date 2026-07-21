@@ -20,7 +20,7 @@ from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge, safe_switch_page, api_get, api_post, api_delete
 from modules.fundflow import get_industry_fund_flow, get_individual_fund_flow
 from modules.fetcher import StockFetcher
-from modules.page_widgets import _empty_info
+from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
 from modules.page_guard import safe_fragment
 
 apply_page_config(page_title="智能盯盘", page_icon="👁️", layout="wide")
@@ -37,8 +37,6 @@ except Exception:
     st_autorefresh = None
 
 # ───────────────────────── 常量 / 配色 ─────────────────────────
-UP = "#ee2a2a"      # 红：涨 / 净流入
-DOWN = "#1aa260"    # 绿：跌 / 净流出
 MAIN_NET_STRONG = 1e8  # 主力净流入"强异动"阈值：1亿(元)
 
 st.caption(
@@ -48,12 +46,6 @@ st.caption(
 
 
 # ───────────────────────── 工具函数 ─────────────────────────
-def _in_trading_hours():
-    now = datetime.now()
-    if now.weekday() >= 5:
-        return False
-    hm = now.hour * 60 + now.minute
-    return (570 <= hm <= 690) or (780 <= hm <= 900)
 
 
 @st.cache_resource(show_spinner=False)
@@ -64,19 +56,6 @@ def _get_fetcher():
 fetcher = _get_fetcher()
 
 
-def _fmt_yi(x):
-    """金额(元) → 亿/万 文本，降级为 —。"""
-    try:
-        x = float(x)
-    except Exception:
-        return "—"
-    if x == 0:
-        return "0"
-    if abs(x) >= 1e8:
-        return f"{x / 1e8:.2f}亿"
-    if abs(x) >= 1e4:
-        return f"{x / 1e4:.1f}万"
-    return f"{x:.0f}"
 
 
 def _quote_one(code):
@@ -271,7 +250,7 @@ def _resolve_name(code, *candidates):
 @safe_fragment("板块资金异动")
 def fragment_sector():
     st.markdown("### 🏭 板块资金异动")
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, key="sector_auto")
 
     try:
@@ -337,7 +316,7 @@ def fragment_watchlist():
     wl_rng = frng.slider("涨跌%范围", -10.0, 10.0, (-10.0, 10.0), 0.5, key="wl_filter_rng")
     wl_only_alert = falert.checkbox("仅看预警", value=False, key="wl_only_alert",
                                           help="只显示触发涨跌异动阈值（预警页设置）的标的。")
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, key="wl_auto")
 
     items, err = _fetch_watchlist()
@@ -432,7 +411,7 @@ def fragment_individual_ff():
     d1, d2 = st.columns([2, 1])
     iff_dir = d1.selectbox("资金方向", ["全部", "仅净流入", "仅净流出"], index=0, key="iff_dir")
     iff_strong = d2.checkbox("仅看强异动(≥1亿)", value=False, key="iff_strong")
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, key="iff_auto")
 
     items, err = _fetch_watchlist()
@@ -519,7 +498,7 @@ def fragment_individual_ff():
 @safe_fragment("预警触发扫描")
 def fragment_alerts():
     st.markdown("### 🚨 预警触发（规则扫描）")
-    if st_autorefresh is not None and _in_trading_hours():
+    if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, key="alert_auto")
 
     threshold = st.slider(
