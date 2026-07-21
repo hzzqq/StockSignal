@@ -290,7 +290,11 @@ def fragment_thermometer():
     _section_title("🌡️ 综合市场温度（广度+情绪+估值多空加权）", accent="#f59e0b")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="mt_auto")
-    df, meta = get_market_drivers(days=180)
+    try:
+        df, meta = get_market_drivers(days=180)
+    except Exception as e:
+        st.error(f"市场驱动力数据加载失败：{e}")
+        return
     if df is None or df.empty:
         _empty_info("暂无市场数据（网络/代理受限或数据源暂未接入）。")
         _render_status(meta)
@@ -316,7 +320,11 @@ def fragment_breadth():
     _section_title("📏 市场广度（涨跌家数透视）", accent="#ee2a2a")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="br_auto")
-    df, meta = get_market_drivers(days=180)
+    try:
+        df, meta = get_market_drivers(days=180)
+    except Exception as e:
+        st.error(f"市场驱动力数据加载失败：{e}")
+        return
     if df is None or df.empty:
         _empty_info("暂无市场广度数据（网络/代理受限或数据源暂未接入）。")
         return
@@ -330,7 +338,11 @@ def fragment_sentiment():
     _section_title("🔥 市场情绪（恐慌/贪婪信号）", accent="#7c5cff")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="se_auto")
-    df, meta = get_market_drivers(days=180)
+    try:
+        df, meta = get_market_drivers(days=180)
+    except Exception as e:
+        st.error(f"市场驱动力数据加载失败：{e}")
+        return
     if df is None or df.empty:
         _empty_info("暂无市场情绪数据（网络/代理受限或数据源暂未接入）。")
         return
@@ -344,7 +356,11 @@ def fragment_valuation():
     _section_title("💎 估值温度计（PE 百分位 / 股息率）", accent="#2b8aef")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="va_auto")
-    df, meta = get_market_drivers(days=180)
+    try:
+        df, meta = get_market_drivers(days=180)
+    except Exception as e:
+        st.error(f"市场驱动力数据加载失败：{e}")
+        return
     if df is None or df.empty:
         _empty_info("暂无估值数据（网络/代理受限或数据源暂未接入）。")
         return

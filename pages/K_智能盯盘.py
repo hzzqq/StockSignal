@@ -259,15 +259,24 @@ def fragment_sector():
         st.error(f"行业资金流向加载失败：{e}")
         return
 
-    import plotly.graph_objects as go
+    try:
+        import plotly.graph_objects as go
+    except Exception as e:
+        st.error(f"绘图组件加载失败：{e}")
+        return
 
     if df is None or df.empty:
         _empty_info("暂无行业资金流向数据")
         return
 
+    if "净额" not in df.columns or "行业" not in df.columns:
+        _empty_info("行业资金流向数据字段缺失，暂无法展示。")
+        return
+
     try:
         df["净额"] = pd.to_numeric(df["净额"], errors="coerce")
-        df["涨跌幅"] = pd.to_numeric(df.get("涨跌幅"), errors="coerce")
+        if "涨跌幅" in df.columns:
+            df["涨跌幅"] = pd.to_numeric(df["涨跌幅"], errors="coerce")
     except Exception:
         pass
 

@@ -389,11 +389,13 @@ def _render_analysis(R: dict):
         "缩量" if vol_chg < -15 else "地量企稳"
     )
     _vol_health = "健康换手而非过热" if abs(vol_chg) < 40 else "异常波动需警惕"
+    # ⚠️ 兜底：实时行情缺失时 q_amount 为 None，直接除法会抛 TypeError 致整个仪表盘渲染失败
+    _q_amount_disp = f"{q_amount/1e8:.2f}亿" if q_amount is not None else "—"
     st.markdown(
         f"<div style='margin-top:12px;font-size:13.5px;color:#64748b;line-height:1.7;'>"
         f"<b style='color:#1e293b;'>量能分析：</b>近 20 日均量约 {vol_avg/1e4:.1f} 万手；"
         f"最新一日 {vol_now/1e4:.1f} 万手，较前一日 {vol_chg:+.1f}%（{_vol_desc}）；"
-        f"成交额 {q_amount/1e8:.2f} 亿（实时行情），当前属{_vol_health}。"
+        f"成交额 {_q_amount_disp}（实时行情），当前属{_vol_health}。"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -1015,7 +1017,11 @@ def _video_embed_url(url: str):
 @safe_fragment
 def fragment_stock_videos(ticker):
     with st.expander("📺 相关视频（把互联网上的股票视频接入项目 · 点击展开/收起）", expanded=False, key="stock_video_exp"):
-        name = StockFetcher().get_stock_name(ticker) or ticker
+        # ⚠️ 兜底：取不到股票名（网络/接口异常）时回退到代码，避免整个视频 fragment 崩溃
+        try:
+            name = StockFetcher().get_stock_name(ticker) or ticker
+        except Exception:
+            name = ticker
     q = f"{name} 股票分析"
     from urllib.parse import quote
     links = [

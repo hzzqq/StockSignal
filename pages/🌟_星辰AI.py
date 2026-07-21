@@ -528,7 +528,16 @@ def _poll_ai_task():
     task_id = st.session_state.get("xc_task_id")
     if not task_id:
         return
-    task = poll_task(task_id, max_wait=0.4)
+    # 外层兜底：轮询后端任务时若通信异常，避免整个对话 fragment 崩溃、
+    # 并清理残留的「正在分析」占位状态，给出友好提示。
+    try:
+        task = poll_task(task_id, max_wait=0.4)
+    except Exception as _e:
+        st.session_state["xc_task_id"] = None
+        st.session_state["xc_task_started_at"] = None
+        st.warning(f"⚠️ 与后端通信异常，已取消本次分析：{_e}")
+        st.rerun(scope="app")
+        return
     if task and task.get("status") == "success":
         result = task.get("result") or {}
         answer = result.get("answer") or "AI 暂未给出回答"

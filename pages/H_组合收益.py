@@ -8,6 +8,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge
@@ -61,16 +62,13 @@ def _build_portfolio_series(positions):
     start_str = (start - timedelta(days=5)).strftime("%Y-%m-%d")
     end_str = datetime.now().strftime("%Y-%m-%d")
 
-    series = {}  # date -> {ticker: value}
-    for _, row in positions.iterrows():
-        ticker = str(row["ticker"]).zfill(6)
-        remaining = int(row.get("remaining_shares", row.get("shares", 0)) or 0)
-        if remaining <= 0:
-            continue
+    def _fetch_position_series(ticker, remaining, s_start, s_end):
+        """单只持仓的日线价值序列（线程安全：不修改外部可变状态，仅返回结果字典）。"""
+        out = {}
         try:
-            df = fetcher.get_daily(ticker, start=start_str, end=end_str)
+            df = fetcher.get_daily(ticker, start=s_start, end=s_end)
             if df is None or df.empty or "close" not in df.columns:
-                continue
+                return out
             df = df.copy()
             if "date" in df.columns:
                 df["date"] = pd.to_datetime(df["date"], errors="coerce")
@@ -79,9 +77,26 @@ def _build_portfolio_series(positions):
             df["close"] = pd.to_numeric(df["close"], errors="coerce")
             for d, c in df["close"].dropna().items():
                 ds = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)[:10]
-                series.setdefault(ds, {})[ticker] = float(c) * remaining
+                out[ds] = float(c) * remaining
         except Exception:
+            pass
+        return out
+
+    # 加法式性能优化：原实现按持仓逐只串行拉取日线（持仓多时明显变慢）。
+    # 改用线程池并行取数；线程内不共享可变状态，结果在主线程统一 merge，线程安全。
+    series = {}
+    _tasks = []
+    for _, row in positions.iterrows():
+        ticker = str(row["ticker"]).zfill(6)
+        remaining = int(row.get("remaining_shares", row.get("shares", 0)) or 0)
+        if remaining <= 0:
             continue
+        _tasks.append((ticker, remaining))
+    if _tasks:
+        with ThreadPoolExecutor(max_workers=min(8, len(_tasks))) as _ex:
+            _futs = {_ex.submit(_fetch_position_series, t, r, start_str, end_str): t for t, r in _tasks}
+            for _fut in as_completed(_futs):
+                series.update(_fut.result())
 
     if not series:
         return None, None, start_str
@@ -178,8 +193,17 @@ def fragment_portfolio():
     fig.update_xaxes(tickangle=-45)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-    _show_pnl_snapshot()
-    _show_attribution()
+    # 加法式健壮性：summary() / pnl_attribution() 在持仓数据异常时可能抛 KeyError，
+    # 原代码无兜底会导致整个 fragment 崩溃、净值曲线也一同消失。这里隔离两个子视图，
+    # 任一失败仅提示，净值曲线与另一子视图仍可正常展示。
+    try:
+        _show_pnl_snapshot()
+    except Exception as _e:
+        st.warning(f"盈亏快照加载失败：{_e}")
+    try:
+        _show_attribution()
+    except Exception as _e:
+        st.warning(f"收益贡献加载失败：{_e}")
 
 
 def _show_pnl_snapshot():
@@ -204,7 +228,12 @@ def _show_attribution():
         return
     attr = attr.copy()
     attr["contribution"] = pd.to_numeric(attr["contribution"], errors="coerce")
+    # 加法式健壮性：个别版本 pnl_attribution 返回可能缺 pnl/name 列
+    if "pnl" not in attr.columns:
+        attr["pnl"] = 0.0
     attr = attr.sort_values("pnl", ascending=False)
+    if "name" not in attr.columns:
+        attr["name"] = attr["ticker"] if "ticker" in attr.columns else ""
     top = attr.head(15).copy()
     fig = go.Figure(go.Bar(
         x=top["name"], y=top["contribution"],

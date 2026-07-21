@@ -52,9 +52,9 @@ def _color(pct):
 @st.cache_data(ttl=30, show_spinner=False)
 def _load_watchlist():
     try:
-        resp = api_get("/api/watchlist", timeout=5)
-        if resp and resp.status_code == 200:
-            return resp.json().get("data") or []
+        sc, body = api_get("/api/watchlist", timeout=5)
+        if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
+            return body.get("data") or []
     except Exception:
         pass
     return []
@@ -63,9 +63,9 @@ def _load_watchlist():
 @st.cache_data(ttl=30, show_spinner=False)
 def _load_forum(limit=15):
     try:
-        resp = api_get(f"/api/forum/posts?limit={limit}", timeout=5)
-        if resp and resp.status_code == 200:
-            return resp.json().get("data") or []
+        sc, body = api_get(f"/api/forum/posts?limit={limit}", timeout=5)
+        if sc == 200 and isinstance(body, dict):
+            return body.get("data") or []
     except Exception:
         pass
     return []
@@ -86,21 +86,40 @@ def _build_movers():
                 q = f.result()
             except Exception:
                 q = None
-            if not q:
+            if not q or not isinstance(q, dict):
                 continue
             pct = _pct(q)
             if abs(pct) >= 3.0:
-                name = q.get("name") or code
-                msgs.append({
-                    "id": f"mv_{code}",
-                    "type": "异动",
-                    "title": f"{name}({code}) {'大涨' if pct >= 0 else '大跌'} {pct:+.2f}%",
-                    "detail": f"现价 ¥{q.get('current', 0):.2f}　高 ¥{q.get('high', 0):.2f}　低 ¥{q.get('low', 0):.2f}",
-                    "time": q.get("datetime", ""),
-                    "target": "pages/个股研究.py",
-                    "params": {"pick_stock": code},
-                })
-    msgs.sort(key=lambda m: abs(float(m["title"].split("%")[0].split(" ")[-1])), reverse=True)
+                try:
+                    name = q.get("name") or code
+                    try:
+                        cur_s = f"¥{float(q.get('current') or 0):.2f}"
+                    except Exception:
+                        cur_s = "—"
+                    try:
+                        high_s = f"¥{float(q.get('high') or 0):.2f}"
+                    except Exception:
+                        high_s = "—"
+                    try:
+                        low_s = f"¥{float(q.get('low') or 0):.2f}"
+                    except Exception:
+                        low_s = "—"
+                    msgs.append({
+                        "id": f"mv_{code}",
+                        "type": "异动",
+                        "title": f"{name}({code}) {'大涨' if pct >= 0 else '大跌'} {pct:+.2f}%",
+                        "detail": f"现价 {cur_s}　高 {high_s}　低 {low_s}",
+                        "time": q.get("datetime", ""),
+                        "target": "pages/个股研究.py",
+                        "params": {"pick_stock": code},
+                    })
+                except Exception:
+                    # 单只行情异常不应拖垮整个异动区块（safe_section 会整体降级）
+                    continue
+    try:
+        msgs.sort(key=lambda m: abs(float(m["title"].split("%")[0].split(" ")[-1])), reverse=True)
+    except Exception:
+        pass
     return msgs
 
 

@@ -34,22 +34,34 @@ if "default_shares" not in st.session_state:
 
 
 def format_quote_table(quote):
-    """把实时行情格式化成买卖盘 DataFrame。"""
+    """把实时行情格式化成买卖盘 DataFrame。
+
+    加法式健壮性：行情接口（api_quote / get_realtime_quote）返回结构不稳定，
+    可能缺 bid/ask 或档位不足 5 档、字段非数值。原实现直接下标访问会抛 KeyError/TypeError，
+    导致整个买入/卖出表单崩溃。这里对缺失键、档位不足、字段类型异常做降级。
+    """
     if not quote:
         return None
+    bid = quote.get("bid") or []
+    ask = quote.get("ask") or []
+    if not bid or not ask:
+        return None
     rows = []
-    for i in range(5):
-        bid = quote["bid"][i]
-        ask = quote["ask"][i]
-        rows.append({
-            "买盘": f"买{i+1}",
-            "买价": f"¥{bid['price']:.2f}",
-            "买量": f"{int(bid['volume']):,}",
-            "卖盘": f"卖{i+1}",
-            "卖价": f"¥{ask['price']:.2f}",
-            "卖量": f"{int(ask['volume']):,}",
-        })
-    return pd.DataFrame(rows)
+    for i in range(min(5, len(bid), len(ask))):
+        try:
+            b = bid[i]
+            a = ask[i]
+            rows.append({
+                "买盘": f"买{i+1}",
+                "买价": f"¥{float(b['price']):.2f}",
+                "买量": f"{int(b['volume']):,}",
+                "卖盘": f"卖{i+1}",
+                "卖价": f"¥{float(a['price']):.2f}",
+                "卖量": f"{int(a['volume']):,}",
+            })
+        except (KeyError, TypeError, ValueError):
+            continue
+    return pd.DataFrame(rows) if rows else None
 
 
 # ------------------------------------------------------------------
@@ -111,8 +123,18 @@ with st.form("buy_position_form"):
             if buy_quote is None:
                 buy_quote = fetcher.get_realtime_quote(buy_ticker)
             if buy_quote:
-                st.caption(f"📈 最新价 ¥{buy_quote['current']:.2f}  {buy_quote['datetime']}")
-                st.dataframe(format_quote_table(buy_quote), width="stretch", hide_index=True)
+                try:
+                    _cur = buy_quote.get("current")
+                    _dt = buy_quote.get("datetime", "")
+                    if _cur is not None:
+                        st.caption(f"📈 最新价 ¥{float(_cur):.2f}  {_dt}")
+                    _qdf = format_quote_table(buy_quote)
+                    if _qdf is not None:
+                        st.dataframe(_qdf, width="stretch", hide_index=True)
+                    else:
+                        st.caption("⚠️ 五档行情暂不可用")
+                except Exception:
+                    st.caption("⚠️ 行情数据解析失败，已跳过五档展示")
             else:
                 st.caption("⚠️ 未能获取实时行情")
     with col2:
@@ -203,8 +225,18 @@ else:
             if sell_quote is None:
                 sell_quote = fetcher.get_realtime_quote(sell_ticker)
             if sell_quote:
-                st.caption(f"📈 最新价 ¥{sell_quote['current']:.2f}  {sell_quote['datetime']}")
-                st.dataframe(format_quote_table(sell_quote), width="stretch", hide_index=True)
+                try:
+                    _cur = sell_quote.get("current")
+                    _dt = sell_quote.get("datetime", "")
+                    if _cur is not None:
+                        st.caption(f"📈 最新价 ¥{float(_cur):.2f}  {_dt}")
+                    _qdf = format_quote_table(sell_quote)
+                    if _qdf is not None:
+                        st.dataframe(_qdf, width="stretch", hide_index=True)
+                    else:
+                        st.caption("⚠️ 五档行情暂不可用")
+                except Exception:
+                    st.caption("⚠️ 行情数据解析失败，已跳过五档展示")
             else:
                 st.caption("⚠️ 未能获取实时行情")
         with col2:

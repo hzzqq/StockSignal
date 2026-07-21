@@ -522,7 +522,11 @@ if code:
         st.caption("多期财务指标趋势：柱状图看绝对值，折线看同比；数据来自利润表/资产负债表/现金流量表。")
 
         with st.spinner("正在解析财务报表…"):
-            fa_df = _build_financial_df(fa_code)
+            try:
+                fa_df = _build_financial_df(fa_code)
+            except Exception as e:
+                st.warning(f"财务报表解析失败，已跳过财务分析：{e}")
+                return
 
         if fa_df is None or fa_df.empty:
             _empty_info("暂无可用的多期财报数据，财务分析无法展示（可检查网络或切换数据源）。")
@@ -822,10 +826,14 @@ if code:
     # ═══════════════════════════════════════════════
     st.markdown("---")
     st.subheader("🎯 综合评估")
-    score, reasons_html = _composite_score(
-        price, pe_ttm, p_5y if hist_df is not None else None,
-        rank, sector_total, market_cap, perf,
-    )
+    try:
+        score, reasons_html = _composite_score(
+            price, pe_ttm, p_5y if hist_df is not None else None,
+            rank, sector_total, market_cap, perf,
+        )
+    except Exception as e:
+        st.warning(f"综合评估计算失败，已跳过：{e}")
+        score, reasons_html = 0, "综合评估暂不可用（计算异常）。"
 
     if score >= 75:
         score_color = UP_COLOR

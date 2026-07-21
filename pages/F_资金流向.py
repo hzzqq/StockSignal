@@ -300,7 +300,11 @@ def fragment_margin_trading():
         _empty_info("暂无融资融券数据。")
         return
 
-    summary = get_latest_margin_summary()
+    try:
+        summary = get_latest_margin_summary() or {}
+    except Exception as e:
+        summary = {}
+        st.warning(f"融资融券摘要加载失败：{e}")
     cols = st.columns(4)
     with cols[0]:
         st.metric("融资买入额(最新)", f"{summary.get('total_rzmr_yi'):.2f}亿" if summary.get('total_rzmr_yi') is not None else "—",
@@ -345,7 +349,10 @@ def fragment_individual():
     if r.get("source") == "none" or r.get("main_net") is None:
         st.warning("该股主力资金数据暂不可用（接口受限或缺少历史）。")
         return
-    name = fetcher.get_name_only(code)
+    try:
+        name = fetcher.get_name_only(code) or code
+    except Exception:
+        name = code
     st.markdown(f"**{name}** `{code}` ｜ 数据日期：{r.get('latest_date')} ｜ "
                 f"来源：{'实时(东方财富)' if r.get('source')=='akshare' else '估算(量价模型)'}")
     cols = st.columns(3)

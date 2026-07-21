@@ -130,7 +130,7 @@ def fragment_watchlist_and_news():
         watchlist = body.get("data", []) or []
 
     # 并行预拉市盈率 / 资产负债率（失败留 —，不阻塞快照渲染）
-    wl_codes = [w["stock_code"] for w in watchlist[:30]]
+    wl_codes = [w.get("stock_code") for w in watchlist[:30] if w.get("stock_code")]
     fund_map = {}
     if wl_codes:
         try:
@@ -181,7 +181,7 @@ def fragment_watchlist_and_news():
                 code = w["stock_code"]
                 rt = quotes_map.get(code)
                 # 名称优先用自选股库已存名称，其次本地股票库解析，最后回退代码
-                name = w.get("stock_name") or fetcher.get_name_only(code)
+                name = w.get("stock_name") or fetcher.get_name_only(code) or code
                 pe, alr = fund_map.get(code, (None, None))
                 _pe_s = f"{pe:.2f}" if isinstance(pe, (int, float)) else "—"
                 _alr_s = f"{alr:.2f}%" if isinstance(alr, (int, float)) else "—"

@@ -84,14 +84,18 @@ def _etf_filter_fragment():
         st.markdown("### 🎚️ 筛选条件")
         f1, f2, f3, f4 = st.columns(4)
         with f1:
-            kw = st.text_input("关键字 / 代码", placeholder="如 沪深300 / 510300", key="etf_kw")
+            kw = st.text_input("关键字 / 代码", placeholder="如 沪深300 / 510300", key="etf_kw",
+                              help="支持 ETF 名称或代码模糊匹配，留空表示不按关键字过滤")
         with f2:
             types = ["全部"] + sorted(df["类型"].dropna().unique().tolist())
-            ftype = st.selectbox("类型", types, key="etf_type")
+            ftype = st.selectbox("类型", types, key="etf_type",
+                                  help="按 ETF 类型筛选；「全部」展示所有类型")
         with f3:
-            chg_range = st.slider("涨跌幅区间(%)", -10.0, 10.0, (-10.0, 10.0), key="etf_chg")
+            chg_range = st.slider("涨跌幅区间(%)", -10.0, 10.0, (-10.0, 10.0), key="etf_chg",
+                                   help="只保留涨跌幅落在该区间内的标的")
         with f4:
-            min_amt = st.number_input("最小成交额(亿)", min_value=0.0, value=0.0, step=10.0, key="etf_amt")
+            min_amt = st.number_input("最小成交额(亿)", min_value=0.0, value=0.0, step=10.0, key="etf_amt",
+                                      help="只保留成交额不低于该数值（亿元）的标的；0 表示不限制")
 
         res = df.copy()
         if kw:
@@ -107,7 +111,8 @@ def _etf_filter_fragment():
                 res = res[res["成交额"] / 1e8 >= min_amt]
 
         # 排序
-        sort_col = st.selectbox("排序字段", [c for c in ["涨跌幅", "成交额", "最新价", "管理费"] if c in res.columns], key="etf_sort")
+        sort_col = st.selectbox("排序字段", [c for c in ["涨跌幅", "成交额", "最新价", "管理费"] if c in res.columns], key="etf_sort",
+                                  help="选择排序依据；与下方「升序」复选框组合使用")
         asc = st.checkbox("升序", key="etf_asc")
         if sort_col in res.columns:
             res = res.sort_values(sort_col, ascending=asc, na_position="last")

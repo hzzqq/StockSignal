@@ -294,7 +294,10 @@ def fragment_strength():
                     st.warning("自选股行情获取失败，已跳过叠加。")
                 else:
                     d2 = d_view.copy()
-                    d2["自选股均值"] = avg_series[: len(d2)]
+                    seq = list(avg_series[: len(d2)])
+                    if len(seq) < len(d2):
+                        seq = seq + [None] * (len(d2) - len(seq))
+                    d2["自选股均值"] = seq
                     df = d2
                     names_map = {**names_map, "自选股均值": "自选股均值"}
                     colors_map = {**colors_map, "自选股均值": "#ffffff"}

@@ -171,6 +171,9 @@ def fragment_manual_backtest():
         submitted = st.form_submit_button("开始回测")
 
     if submitted:
+        if not bt_ticker or not str(bt_ticker).strip():
+            st.warning("请先在「股票搜索」中选择一只股票，再点击「开始回测」。")
+            return
         keywords = [k.strip() for k in keywords_input.split(",") if k.strip()] if keywords_input else []
 
         with st.spinner("正在回测，请稍候..."):
@@ -612,33 +615,45 @@ def fragment_strong_bull():
     )
 
     if st.button("🚀 运行强势上涨股批量回测", type="primary", key="sb_run"):
-        results = []
-        with st.spinner(f"正在对 {len(STRONG_BULL_PRESETS)} 只强势上涨股样本逐一回测…"):
-            for code, name in STRONG_BULL_PRESETS:
-                try:
-                    r = bt.run(
-                        ticker=code,
-                        start=sb_start.strftime("%Y-%m-%d"),
-                        end=sb_end.strftime("%Y-%m-%d"),
-                        strategy="multi_factor",
-                        initial_capital=sb_capital,
-                        commission=0.001,
-                        stop_loss_pct=0.05,
-                        take_profit_pct=0.03,
-                        max_holding=15,
-                        min_holding=2,
-                    )
-                    s = r.summary()
-                    results.append({
-                        "code": code, "name": name,
-                        "win_rate": s["win_rate_pct"],
-                        "total_return": s["total_return_pct"],
-                        "max_dd": s["max_drawdown_pct"],
-                        "trades": s["trade_count"],
-                        "sharpe": s["sharpe_ratio"],
-                    })
-                except Exception as e:
-                    results.append({"code": code, "name": name, "error": str(e)})
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def _run_one(code, name):
+            try:
+                r = bt.run(
+                    ticker=code,
+                    start=sb_start.strftime("%Y-%m-%d"),
+                    end=sb_end.strftime("%Y-%m-%d"),
+                    strategy="multi_factor",
+                    initial_capital=sb_capital,
+                    commission=0.001,
+                    stop_loss_pct=0.05,
+                    take_profit_pct=0.03,
+                    max_holding=15,
+                    min_holding=2,
+                )
+                s = r.summary()
+                return {
+                    "code": code, "name": name,
+                    "win_rate": s["win_rate_pct"],
+                    "total_return": s["total_return_pct"],
+                    "max_dd": s["max_drawdown_pct"],
+                    "trades": s["trade_count"],
+                    "sharpe": s["sharpe_ratio"],
+                }
+            except Exception as e:
+                return {"code": code, "name": name, "error": str(e)}
+
+        # 加法式性能优化：原实现为 8 只样本串行回测（每次都拉取 ~180 天日线 + 计算），
+        # 串行耗时可达数十秒。改用线程池并行，每个任务自包含 try/except 互不影响，
+        # 子线程内无任何 st 调用、无共享可变状态（Backtester 仅读 config），线程安全。
+        res_map = {}
+        with st.spinner(f"正在对 {len(STRONG_BULL_PRESETS)} 只强势上涨股样本并行回测…"):
+            with ThreadPoolExecutor(max_workers=min(8, len(STRONG_BULL_PRESETS))) as _ex:
+                _futs = {_ex.submit(_run_one, code, name): code for code, name in STRONG_BULL_PRESETS}
+                for _fut in as_completed(_futs):
+                    _r = _fut.result()
+                    res_map[_r["code"]] = _r
+        results = [res_map[code] for code, _ in STRONG_BULL_PRESETS]
         st.session_state["sb_results"] = results
         st.session_state["sb_with_market"] = sb_with_market
         if sb_with_market:

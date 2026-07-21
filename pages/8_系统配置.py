@@ -41,10 +41,10 @@ with tab_overview:
     col1, col2, col3 = st.columns(3)
     code, resp = get_stock_stats()
     if code == 200 and resp.get("status") == "ok":
-        stats = resp["data"]
-        col1.metric("股票总数", stats["total"])
-        col2.metric("沪市 (SH)", stats["sh"])
-        col3.metric("深市 (SZ)", stats["sz"])
+        stats = resp.get("data") or {}
+        col1.metric("股票总数", stats.get("total", 0))
+        col2.metric("沪市 (SH)", stats.get("sh", 0))
+        col3.metric("深市 (SZ)", stats.get("sz", 0))
     else:
         st.error(f"获取统计数据失败：{resp.get('message', '服务异常')}。请确认后端 Flask 已启动（:5050），稍后点右上角刷新重试。")
 
@@ -100,8 +100,9 @@ with tab_stocks:
         if items:
             import pandas as pd
             df = pd.DataFrame(items)
-            df = df[["code", "name", "market", "pinyin_initials", "pinyin_full"]]
-            df.columns = ["代码", "名称", "市场", "拼音首字母", "全拼"]
+            _cols = [c for c in ["code", "name", "market", "pinyin_initials", "pinyin_full"] if c in df.columns]
+            df = df[_cols] if _cols else df
+            df.columns = ["代码", "名称", "市场", "拼音首字母", "全拼"][: len(_cols)]
             st.dataframe(df, width="stretch", hide_index=True)
 
             col_prev, col_info, col_next = st.columns([1, 2, 1])
@@ -124,7 +125,7 @@ with tab_config:
     if code != 200 or resp.get("status") != "ok":
         st.error(f"获取配置失败: {resp.get('message', '未知错误')}")
     else:
-        configs = resp["data"]
+        configs = resp.get("data") or []
         if not configs:
             _empty_info("暂无配置项。可在下方「➕ 新增配置」中添加自定义配置键与默认值。")
         else:
@@ -136,14 +137,14 @@ with tab_config:
                         st.markdown(f"**{label}**")
                         st.caption(f"更新: {cfg.get('updated_at', 'N/A')[:10] if cfg.get('updated_at') else 'N/A'}")
                     with col_val:
-                        new_val = st.text_input("值", value=cfg["value"],
-                                                key=f"cfg_val_{cfg['key']}", label_visibility="collapsed")
+                        new_val = st.text_input("值", value=cfg.get("value", ""),
+                                                key=f"cfg_val_{cfg.get('key')}", label_visibility="collapsed")
                     with col_desc:
                         st.caption(cfg.get("description", ""))
                     with col_action:
-                        if st.button("💾", key=f"cfg_save_{cfg['key']}", help="保存"):
-                            if new_val != cfg["value"]:
-                                c, r = update_config(cfg["key"], new_val)
+                        if st.button("💾", key=f"cfg_save_{cfg.get('key')}", help="保存"):
+                            if new_val != cfg.get("value", ""):
+                                c, r = update_config(cfg.get("key"), new_val)
                                 if c == 200 and r.get("status") == "ok":
                                     st.success("已保存")
                                     st.rerun()
@@ -151,7 +152,7 @@ with tab_config:
                                     st.error(r.get("message", "保存失败"))
                             else:
                                 st.caption("无变化")
-                        if cfg["key"] not in ("cache_days", "cache_hours_today", "jwt_expires_seconds",
+                        if cfg.get("key") not in ("cache_days", "cache_hours_today", "jwt_expires_seconds",
                                                "default_page_size", "search_limit"):
                             _ck = f"cfg_del_{cfg['key']}"
                             if st.session_state.get(_ck):
@@ -226,10 +227,10 @@ with tab_watch:
                 for s in results:
                     col_s, col_btn = st.columns([4, 1])
                     with col_s:
-                        st.text(f"{s['code']}  {s['name']}  ({s['market']})")
+                        st.text(f"{s.get('code','')}  {s.get('name','')}  ({s.get('market','')})")
                     with col_btn:
-                        if st.button("➕", key=f"watch_add_{s['code']}"):
-                            c2, r2 = add_watchlist(s["code"])
+                        if st.button("➕", key=f"watch_add_{s.get('code')}"):
+                            c2, r2 = add_watchlist(s.get("code"))
                             if c2 == 200:
                                 st.success(f"已添加 {s['name']}")
                                 st.rerun()
@@ -246,14 +247,16 @@ with tab_watch:
             for item in items:
                 col1, col2, col3 = st.columns([3, 2, 1])
                 with col1:
-                    st.markdown(f"**{item['stock_code']}** {item['stock_name']}")
+                    st.markdown(f"**{item.get('stock_code','')}** {item.get('stock_name','')}")
                 with col2:
-                    st.caption(f"添加: {item['created_at'][:10]}")
+                    _ca = item.get("created_at") or ""
+                    st.caption(f"添加: {_ca[:10]}")
                     if item.get("note"):
                         st.caption(f"备注: {item['note']}")
                 with col3:
-                    if st.button("🗑️", key=f"watch_del_{item['id']}"):
-                        c, r = remove_watchlist(item["id"])
+                    _wid = item.get("id")
+                    if st.button("🗑️", key=f"watch_del_{_wid}"):
+                        c, r = remove_watchlist(_wid)
                         if c == 200 and r.get("status") == "ok":
                             st.success("已移除")
                             st.rerun()
@@ -270,7 +273,7 @@ with tab_alert:
     if code != 200 or resp.get("status") != "ok":
         st.error(f"获取扫描策略失败: {resp.get('message', '未知错误')}")
     else:
-        cfg = resp["data"]["config"]
+        cfg = (resp.get("data") or {}).get("config", {})
         col1, col2, col3 = st.columns(3)
         with col1:
             interval = st.number_input("扫描间隔（分钟）", min_value=1, max_value=120,

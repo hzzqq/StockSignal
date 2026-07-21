@@ -326,7 +326,10 @@ try:
         latest = df.iloc[-1]
         with col_info1:
             latest_close = float(latest.get('close') or 0.0)
-            st.metric("最新收盘价", f"¥{latest_close:.2f}", delta=f"{latest.get('change_pct', 0):.2f}%")
+            # ⚠️ 兜底：change_pct 可能为 None（数据不足），f"{None:.2f}" 会抛 TypeError 致整块 K 线渲染失败
+            _chg_pct = latest.get('change_pct')
+            _chg_pct = 0.0 if _chg_pct is None else float(_chg_pct)
+            st.metric("最新收盘价", f"¥{latest_close:.2f}", delta=f"{_chg_pct:.2f}%")
         with col_info2:
             st.metric("区间最高", f"¥{df['high'].max():.2f}")
         with col_info3:

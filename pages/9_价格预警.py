@@ -196,7 +196,9 @@ def _eval_alert_parallel(alerts):
         futures = {i: ex.submit(_eval_alert, a) for i, a in enumerate(alerts)}
         for i, fut in futures.items():
             try:
-                results[i] = fut.result()
+                # 单条预警扫描（如公告走 akshare）可能长时间无响应，
+                # 加超时避免整页 fragment 因某条卡住而挂起。
+                results[i] = fut.result(timeout=15)
             except Exception as e:
                 results[i] = (False, f"评估失败：{e}")
     return results
@@ -286,7 +288,7 @@ def fragment_alerts():
             atype = a.get("alert_type", "price")
             triggered, detail = eval_results[idx] if idx < len(eval_results) else (False, "评估异常")
             # 强制解析股票名称，避免后端 stock_name 为空导致显示代码
-            code = a["stock_code"]
+            code = a.get("stock_code", "") or ""
             display_name = fetcher.get_name_only(code) or a.get("stock_name") or code
             if atype == "price":
                 cond_txt = "涨破 ▲" if a.get("condition") == "above" else "跌破 ▼"
@@ -345,19 +347,19 @@ def fragment_alerts():
                 st.markdown(f'<span class="{status_cls}">{status_txt}</span>', unsafe_allow_html=True)
                 st.caption(detail)
             with col_toggle:
-                label = "停用" if a["active"] else "启用"
-                if st.button(label, key=f"tog_{a['id']}", use_container_width=True):
-                    api_put(f"/api/price-alerts/{a['id']}/toggle")
+                label = "停用" if a.get("active", False) else "启用"
+                if st.button(label, key=f"tog_{a.get('id')}", use_container_width=True):
+                    api_put(f"/api/price-alerts/{a.get('id')}/toggle")
             with col_del:
-                _ck = f"alert_del_{a['id']}"
+                _ck = f"alert_del_{a.get('id')}"
                 if st.session_state.get(_ck):
-                    if st.button("确认删除", key=f"del_cfm_{a['id']}", type="primary", use_container_width=True):
-                        api_delete(f"/api/price-alerts/{a['id']}")
+                    if st.button("确认删除", key=f"del_cfm_{a.get('id')}", type="primary", use_container_width=True):
+                        api_delete(f"/api/price-alerts/{a.get('id')}")
                         st.session_state.pop(_ck, None)
-                    if st.button("取消", key=f"del_cancel_{a['id']}", use_container_width=True):
+                    if st.button("取消", key=f"del_cancel_{a.get('id')}", use_container_width=True):
                         st.session_state.pop(_ck, None)
                 else:
-                    if st.button("删除", key=f"del_{a['id']}", use_container_width=True):
+                    if st.button("删除", key=f"del_{a.get('id')}", use_container_width=True):
                         st.session_state[_ck] = True
 
         # 浏览器桌面通知：统一弹出（去重，避免每次自动刷新重复弹窗）

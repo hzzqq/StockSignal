@@ -380,6 +380,9 @@ def frag_individual():
             return
         with st.spinner(f"获取 {code} 主力资金…"):
             r = get_individual_fund_flow(code)
+        if not r:
+            st.warning(f"暂未获取到 {code} 的主力资金数据，请稍后重试。")
+            return
         row = pd.DataFrame([{
             "代码": code,
             "source": r.get("source"),

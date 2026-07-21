@@ -59,30 +59,31 @@ with tab_users:
                 with st.container(border=True):
                     col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 2])
                     with col1:
-                        role_icon = "🛡️" if u["role"] == "admin" else "👤"
-                        status = "🟢" if u["is_active"] else "🔴"
-                        st.markdown(f"{role_icon} **{u['username']}** {status}")
+                        role_icon = "🛡️" if u.get("role") == "admin" else "👤"
+                        status = "🟢" if u.get("is_active") else "🔴"
+                        st.markdown(f"{role_icon} **{u.get('username','')}** {status}")
                     with col2:
-                        st.caption(f"ID: {u['id']}")
-                        st.caption(f"创建: {u['created_at'][:10]}")
+                        st.caption(f"ID: {u.get('id','')}")
+                        _created = u.get("created_at") or ""
+                        st.caption(f"创建: {_created[:10]}")
                     with col3:
-                        st.caption(f"角色: `{u['role']}`")
+                        st.caption(f"角色: `{u.get('role','')}`")
                     with col4:
-                        st.caption(f"状态: {'正常' if u['is_active'] else '停用'}")
+                        st.caption(f"状态: {'正常' if u.get('is_active') else '停用'}")
                     with col5:
                         col_edit, col_del = st.columns(2)
                         with col_edit:
-                            if st.button("✏️ 编辑", key=f"edit_{u['id']}"):
+                            if st.button("✏️ 编辑", key=f"edit_{u.get('id')}"):
                                 st.session_state["editing_user"] = u
                                 st.rerun()
                         with col_del:
                             current = get_user() or {}
-                            if u["id"] == current.get("id"):
-                                st.button("🗑️ 删除", key=f"del_{u['id']}", disabled=True, help="不能删除自己")
-                            elif u["username"] == "admin":
-                                st.button("🗑️ 删除", key=f"del_{u['id']}", disabled=True, help="不能删除初始管理员")
+                            if u.get("id") == current.get("id"):
+                                st.button("🗑️ 删除", key=f"del_{u.get('id')}", disabled=True, help="不能删除自己")
+                            elif u.get("username") == "admin":
+                                st.button("🗑️ 删除", key=f"del_{u.get('id')}", disabled=True, help="不能删除初始管理员")
                             else:
-                                if st.button("🗑️ 删除", key=f"del_{u['id']}", type="secondary"):
+                                if st.button("🗑️ 删除", key=f"del_{u.get('id')}", type="secondary"):
                                     st.session_state["deleting_user"] = u
                                     st.rerun()
 
@@ -131,8 +132,8 @@ with tab_create:
 # ----------------------------------------------------------------- 编辑弹窗
 if "editing_user" in st.session_state:
     u = st.session_state["editing_user"]
-    with st.dialog(f"编辑用户 - {u['username']}", width="medium"):
-        st.caption(f"ID: {u['id']} · 创建于: {u['created_at'][:10]}")
+    with st.dialog(f"编辑用户 - {u.get('username','')}", width="medium"):
+        st.caption(f"ID: {u.get('id','')} · 创建于: {(u.get('created_at') or '')[:10]}")
 
         edit_role = st.selectbox("角色", ["user", "admin"],
                                  index=0 if u["role"] == "user" else 1,
@@ -208,11 +209,12 @@ with tab_logs:
                     "create_user": "🟢",
                     "update_user": "🟡",
                     "delete_user": "🔴",
-                }.get(log["action"], "⚪")
+                }.get(log.get("action"), "⚪")
+                _ltime = (log.get("created_at") or "")[:19]
                 st.markdown(
-                    f"{action_color} `{log['created_at'][:19]}` "
-                    f"**{log['username']}** → {log['action']} "
-                    f"→ `{log['target']}`"
+                    f"{action_color} `{_ltime}` "
+                    f"**{log.get('username','')}** → {log.get('action','')} "
+                    f"→ `{log.get('target','')}`"
                 )
                 if log.get("detail"):
                     st.caption(f"   └ {log['detail']}")

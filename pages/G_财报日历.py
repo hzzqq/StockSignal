@@ -69,10 +69,14 @@ def fragment_report():
             df[c] = pd.to_numeric(df[c], errors="coerce")
 
     # 概览指标
-    yoy = df["净利润同比%"].dropna()
-    up_cnt = int((yoy > 0).sum())
-    down_cnt = int((yoy < 0).sum())
-    beat_ratio = round(up_cnt / len(yoy) * 100, 1) if len(yoy) else 0.0
+    up_cnt, down_cnt, beat_ratio = 0, 0, 0.0
+    if "净利润同比%" in df.columns:
+        yoy = df["净利润同比%"].dropna()
+        up_cnt = int((yoy > 0).sum())
+        down_cnt = int((yoy < 0).sum())
+        beat_ratio = round(up_cnt / len(yoy) * 100, 1) if len(yoy) else 0.0
+    else:
+        st.info("「净利润同比%」字段缺失，盈利改善占比暂不可计算（接口字段变更或网络异常）。")
     cols = st.columns(4)
     with cols[0]:
         st.metric("披露家数", f"{len(df)}")
@@ -85,16 +89,19 @@ def fragment_report():
                   help="净利润同比增长为正的公司占已披露财报公司的比例")
 
     # TOP 净利润柱状（红涨绿跌）
-    top = df.dropna(subset=["净利润"]).sort_values("净利润", ascending=False).head(15).copy()
-    if not top.empty:
-        fig = go.Figure(go.Bar(
-            x=top["名称"], y=top["净利润"],
-            marker_color=[UP if v >= 0 else DOWN for v in top["净利润"]],
-            hovertemplate="%{x}<br>净利润：%{y:,.0f}元<extra></extra>",
-        ))
-        fig.update_layout(**_fig_layout(dark), title="净利润 TOP15（元）", height=340)
-        fig.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    if "净利润" in df.columns and "名称" in df.columns:
+        top = df.dropna(subset=["净利润"]).sort_values("净利润", ascending=False).head(15).copy()
+        if not top.empty:
+            fig = go.Figure(go.Bar(
+                x=top["名称"], y=top["净利润"],
+                marker_color=[UP if v >= 0 else DOWN for v in top["净利润"]],
+                hovertemplate="%{x}<br>净利润：%{y:,.0f}元<extra></extra>",
+            ))
+            fig.update_layout(**_fig_layout(dark), title="净利润 TOP15（元）", height=340)
+            fig.update_xaxes(tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    else:
+        st.info("「净利润 / 名称」字段缺失，TOP 净利润柱状图暂不可绘制（接口字段变更或网络异常）。")
 
     st.dataframe(
         df, use_container_width=True, hide_index=True,

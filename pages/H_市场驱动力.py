@@ -84,11 +84,14 @@ def fragment_drivers_panel():
         "drv", days_default=180, preset_default="近180天",
         series_options=series_options, show_ma=False,
     )
-    fig = plot_drivers_panel(
-        df, meta=meta, dark_mode=dark,
-        dims=sel_dims or DIMS, date_range=dr, selected=sel,
-    )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="drv_panel")
+    try:
+        fig = plot_drivers_panel(
+            df, meta=meta, dark_mode=dark,
+            dims=sel_dims or DIMS, date_range=dr, selected=sel,
+        )
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="drv_panel")
+    except Exception as e:
+        st.warning(f"驱动力面板图渲染失败：{e}")
     # 数据表联动（随区间 / 序列筛选）
     with st.expander("📋 数据表（随区间 / 序列联动）"):
         tbl = _slice_date_range(df, dr)
@@ -97,12 +100,18 @@ def fragment_drivers_panel():
             tbl = tbl[["date"] + keep] if keep else tbl[["date"]]
         st.dataframe(tbl, use_container_width=True, hide_index=True)
     # 导出 CSV
-    csv = to_trend_csv(df, names_map=None, selected=sel, date_range=dr)
-    st.download_button("⬇️ 导出 CSV", data=csv, file_name="市场驱动力全景.csv", mime="text/csv")
+    try:
+        csv = to_trend_csv(df, names_map=None, selected=sel, date_range=dr)
+        st.download_button("⬇️ 导出 CSV", data=csv, file_name="市场驱动力全景.csv", mime="text/csv")
+    except Exception as e:
+        st.warning(f"CSV 导出失败：{e}")
     # 相关性热力图
-    st.plotly_chart(plot_correlation_heatmap(df, names_map=None, selected=sel,
-                                             date_range=dr, dark_mode=dark),
-                    use_container_width=True, config={"displayModeBar": False}, key="drv_corr")
+    try:
+        st.plotly_chart(plot_correlation_heatmap(df, names_map=None, selected=sel,
+                                                 date_range=dr, dark_mode=dark),
+                        use_container_width=True, config={"displayModeBar": False}, key="drv_corr")
+    except Exception as e:
+        st.warning(f"相关性热力图渲染失败：{e}")
     _render_drivers_meta(meta)
     st.caption("📈 《核心指标与大盘趋势关联性全景图》（五维归一化子图）：资金/情绪/估值/宏观/技术分 5 个子图，"
                "每个子图内所有指标与上证指数**统一归一化到起点=100** 叠加，规避量纲差异导致的失真"

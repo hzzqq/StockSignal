@@ -336,8 +336,9 @@ def fragment_lhb():
                         lambda v: _fmt_yi(v) if pd.notna(v) else "—"
                     )
 
-            # 3) 所属概念：逐股获取
-            lhb_df["所属概念"] = [_get_stock_concept(c) for c in lhb_df["股票代码"]]
+            # 3) 所属概念：逐股获取（首次需回源网络/akshare，加 spinner 避免交易时段观感卡死）
+            with st.spinner("正在获取个股所属概念 / 行业..."):
+                lhb_df["所属概念"] = [_get_stock_concept(c) for c in lhb_df["股票代码"]]
 
             # 4) 友好列顺序
             display_cols = ["股票代码", "股票名称", "所属概念"]

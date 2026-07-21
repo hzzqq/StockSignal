@@ -125,7 +125,10 @@ if source == "我的自选股":
             def _name_code(c):
                 n = fetcher.get_name_only(c)
                 return f"{n}({c})" if n else c
-            labels = [_name_code(c) for c in universe]
+            # 并行解析名称（本地 fetcher，线程安全），避免逐只串行拖慢页面加载
+            with st.spinner("解析自选股名称…"):
+                with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+                    labels = list(ex.map(_name_code, universe))
             display = ", ".join(labels[:12])
             st.caption(
                 f"✅ 已从自选股加载 **{len(universe)}** 只："

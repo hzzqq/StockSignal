@@ -136,7 +136,7 @@ def fragment_compare_result():
         return
 
     # 部分标的行情缺失提示
-    failed = [r["name"] for r in rows if r.get("error")]
+    failed = [r.get("name", str(r.get("code", "?"))) for r in rows if r.get("error")]
     if failed:
         st.warning(f"以下标的行情获取失败，已按中性默认展示：{'、'.join(failed)}")
 
