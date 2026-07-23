@@ -487,7 +487,12 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
         with c2:
             existing = None
             if edit_code and edit_code != "—":
-                existing = api_user_score(edit_code.split()[0])
+                _raw_score = api_user_score(edit_code.split()[0])
+                try:
+                    # 防御：后端 score 字段偶发返回非整型（如 null/str），强转失败则回退默认 50
+                    existing = int(_raw_score)
+                except (TypeError, ValueError):
+                    existing = None
             edit_score = st.slider(
                 "新评分", min_value=0, max_value=100,
                 value=existing if existing is not None else 50,

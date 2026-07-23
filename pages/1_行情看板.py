@@ -500,8 +500,14 @@ if st.button("计算相关性", key="calc_corr", use_container_width=True):
             _ex.shutdown(wait=False, cancel_futures=True)
 
         if len(daily_dict) >= 2:
-            fig = Visualizer.correlation_matrix(daily_dict)
-            st.plotly_chart(fig, use_container_width=True)
+            try:
+                fig = Visualizer.correlation_matrix(daily_dict)
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                # ⚠️ 深层守卫：某只股票返回异常结构（缺 close 字段 / 仅单行无法计算协方差）
+                # 会让 correlation_matrix 抛错，原代码无 try 包裹会直接炸掉「计算相关性」按钮分支。
+                # 降级为空态提示，保留页面其余部分可用。
+                st.warning(f"⚠️ 相关性矩阵渲染失败：{str(e)[:80]}。请检查输入代码或网络后重试。")
         else:
             st.warning("需要至少 2 只有效股票代码。请检查输入或网络后重试。")
 

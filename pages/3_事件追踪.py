@@ -841,13 +841,20 @@ def fragment_sentiment_report():
 
                     if report.get("sample_news"):
                         st.markdown("#### 正负面新闻样本（点击标题可跳转原文）")
+                        # 加法式健壮性：sample_news 单条可能缺 "sentiment"/"title" 字段（上游 schema 漂移），
+                        # 直接用 s["sentiment"]/s['title'] 会抛 KeyError 让整个情感报告 fragment 崩溃。
+                        # 统一用 .get 兜底，缺失标题的样本直接跳过，其余正常展示（不触发整页 rerun）。
                         for s in report["sample_news"]:
-                            color = UP_COLOR if s["sentiment"] == "正面" else DOWN_COLOR
+                            title = s.get("title")
+                            if not title:
+                                continue
+                            sentiment = s.get("sentiment", "")
+                            color = UP_COLOR if sentiment == "正面" else DOWN_COLOR
                             url = (s.get("url", "") or
                                    s.get("link", "") or
                                    s.get("source_url", "") or
                                    s.get("href", "") or "")
-                            title_html = html.escape(s['title'])
+                            title_html = html.escape(str(title))
                             score_str = f"<small>(情感分: {s.get('score', '?')})</small>"
 
                             if url and url.startswith("http"):
@@ -862,12 +869,12 @@ def fragment_sentiment_report():
                                     f'🔗 原文</a>'
                                 )
                                 st.markdown(
-                                    f"[{s['sentiment']}] {linked_title} {score_str} {origin_link}",
+                                    f"[{sentiment}] {linked_title} {score_str} {origin_link}",
                                     unsafe_allow_html=True
                                 )
                             else:
                                 st.markdown(
-                                    f"[{s['sentiment']}] <span style='color:{color};'>{title_html}</span> {score_str}",
+                                    f"[{sentiment}] <span style='color:{color};'>{title_html}</span> {score_str}",
                                     unsafe_allow_html=True
                                 )
         elif st.session_state.get("sentiment_report_error"):

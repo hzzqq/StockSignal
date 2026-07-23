@@ -93,14 +93,21 @@ with login_tab:
                     except ValueError:
                         body = {}
                     if resp.status_code == 200 and body.get("status") == "ok":
-                        token = body["data"]["token"]
-                        user = body["data"]["user"]
-                        set_auth(token, user)
-                        st.session_state["_remember_me"] = remember
-                        st.success(f"✅ 登录成功！欢迎 {user['username']}")
-                        st.balloons()
-                        # 跳到第一个业务页
-                        safe_switch_page("pages/1_行情看板.py")
+                        # ⚠️ 深层守卫：后端可能返回 status=ok 但 data 缺 token/user 字段
+                        # （如契约变更），原 body["data"]["token"] 会抛 KeyError 使登录分支崩溃。
+                        # 改为链式 .get 兜底，结构不完整时给友好提示而非堆栈。
+                        _data = body.get("data") or {}
+                        token = _data.get("token")
+                        user = _data.get("user")
+                        if not token or not isinstance(user, dict):
+                            st.error("❌ 登录成功但服务端返回数据不完整，请重试或联系管理员。")
+                        else:
+                            set_auth(token, user)
+                            st.session_state["_remember_me"] = remember
+                            st.success(f"✅ 登录成功！欢迎 {user.get('username', '用户')}")
+                            st.balloons()
+                            # 跳到第一个业务页
+                            safe_switch_page("pages/1_行情看板.py")
                     elif resp.status_code == 429:
                         # 后端已做 60s/5 次限流
                         st.error("⏳ 登录尝试过于频繁，请 60 秒后再试（防爆破保护已启用）")

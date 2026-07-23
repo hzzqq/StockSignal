@@ -98,8 +98,15 @@ def fragment_modules():
         _empty_info("模块导览暂不可用（导航配置缺失）。")
         return
     for gname, items in _NAV_GROUPS:
+        # 守卫：分组名/子项形状异常时跳过该组，避免迭代崩溃整页
+        if not isinstance(gname, str) or not isinstance(items, (list, tuple)):
+            continue
         with st.expander(gname, expanded=False):
-            for path, label, icon in items:
+            for item in items:
+                if not isinstance(item, (list, tuple)) or len(item) < 2:
+                    continue
+                path, label = item[0], item[1]
+                icon = item[2] if len(item) >= 3 else "🔗"
                 _link(path, label, icon)
     with st.expander("👤 账户", expanded=False):
         _link("pages/👤_我的.py", "我的", "👤")

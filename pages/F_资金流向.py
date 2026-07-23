@@ -398,10 +398,14 @@ def fragment_individual():
         st.warning(f"个股资金趋势加载失败：{e}")
     if sdf is not None and not sdf.empty and sdf.attrs.get("source") != "none":
         dr, ma, _s, _m, ma_type = _trend_controls("indv", days_default=60, preset_default="近60天")
-        st.plotly_chart(plot_individual_series(sdf, name=name, code=code, dark_mode=dark,
-                                               date_range=dr, ma_periods=ma,
-                                               ma_type=ma_type, show_baseline=True),
-                        use_container_width=True, config={"displayModeBar": False})
+        # 加法式渲染兜底：个股资金序列可能含异常值/缺列，plotly 渲染失败不应拖垮整个 fragment
+        try:
+            st.plotly_chart(plot_individual_series(sdf, name=name, code=code, dark_mode=dark,
+                                                   date_range=dr, ma_periods=ma,
+                                                   ma_type=ma_type, show_baseline=True),
+                            use_container_width=True, config={"displayModeBar": False})
+        except Exception as _e:
+            st.warning(f"个股资金趋势图渲染失败：{_e}")
         if sdf.attrs.get("source") == "estimate":
             st.caption("📈 个股主力资金逐日趋势（线性表达，量价模型估算）：面积线=主力净流入，"
                        "超大单/大单为经验拆分（图例可切换）。仅反映近期量价博弈方向。")

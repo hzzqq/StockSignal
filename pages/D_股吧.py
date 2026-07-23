@@ -145,8 +145,14 @@ def fragment_detail():
 
     # ── 评论区 ──
     comments = post.get("comments") or []
+    if not isinstance(comments, list):
+        # 二级嵌套兜底：comments 字段偶发非 list（如 {} / null），避免迭代崩溃中断详情页
+        comments = []
     st.subheader(f"💭 评论（{len(comments)}）")
     for c in comments:
+        if not isinstance(c, dict):
+            # 列表元素兜底：单条评论 schema 漂移时跳过，不影响其余评论渲染
+            continue
         _is_cop = (c.get("username") == _op_name)
         _cop_badge = (" <span style='font-size:11px;padding:1px 6px;border-radius:8px;"
                       "background:#2b8aef;color:#fff;'>楼主</span>") if _is_cop else ""

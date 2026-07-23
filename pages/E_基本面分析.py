@@ -726,7 +726,10 @@ if code:
         current = float(hist_df["close"].iloc[-1])
         p_1y = _percentile(hist_df.tail(252)["close"], current) if len(hist_df) >= 60 else None
         p_3y = _percentile(hist_df.tail(756)["close"], current) if len(hist_df) >= 400 else None
-        p_5y = _percentile(hist_df["close"], current)
+        # 加法式边界守卫（更深一层）：p_1y/p_3y 已有长度门槛，但 p_5y 此前无条件计算；
+        # 当历史数据不足（<60 个交易日）时计算出的「5 年分位」会严重失真（如单点得 100%），
+        # 故补上数据量门槛，不足则降级为 "—"，避免误导。
+        p_5y = _percentile(hist_df["close"], current) if len(hist_df) >= 60 else None
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("当前价", f"¥{current:.2f}")

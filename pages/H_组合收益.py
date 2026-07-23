@@ -211,16 +211,18 @@ def fragment_portfolio():
 
 def _show_pnl_snapshot():
     _section_title("💰 当前盈亏快照", accent="#10b981")
-    s = pm.summary()
+    # 加法式字段级兜底：summary() 因版本差异可能缺失个别键，用 .get 降级为 0，
+    # 避免单键缺失导致整块盈亏快照崩溃（外层虽有 try，但部分数据仍应可见）。
+    s = pm.summary() or {}
     cols = st.columns(4)
     with cols[0]:
-        st.metric("持仓成本", f"{s['total_cost']:,.0f}")
+        st.metric("持仓成本", f"{s.get('total_cost', 0):,.0f}")
     with cols[1]:
-        st.metric("市值", f"{s['total_market_value']:,.0f}")
+        st.metric("市值", f"{s.get('total_market_value', 0):,.0f}")
     with cols[2]:
-        st.metric("浮动盈亏", f"{s['total_pnl']:,.0f}", delta=f"{s['total_pnl_pct']:+.2f}%")
+        st.metric("浮动盈亏", f"{s.get('total_pnl', 0):,.0f}", delta=f"{s.get('total_pnl_pct', 0):+.2f}%")
     with cols[3]:
-        st.metric("持仓数", f"{s['position_count']}")
+        st.metric("持仓数", f"{s.get('position_count', 0)}")
 
 
 def _show_attribution():

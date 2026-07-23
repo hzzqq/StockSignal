@@ -133,11 +133,15 @@ def _etf_filter_fragment():
         else:
             disp = res.copy()
             if "涨跌幅" in disp.columns:
+                # 深层守卫：上游接口偶发把涨跌幅作为带单位字符串返回，
+                # 着色时 v >= 0 对字符串会抛 TypeError；先强转数值再判定
+                disp["涨跌幅"] = pd.to_numeric(disp["涨跌幅"], errors="coerce")
+
                 def _color_chg(v):
                     if pd.isna(v):
                         return ""
                     return f"color:{UP if v >= 0 else DOWN}"
-                sty = disp.style.map(_color_chg, subset=["涨跌幅"]) if "涨跌幅" in disp.columns else disp.style
+                sty = disp.style.map(_color_chg, subset=["涨跌幅"])
             else:
                 sty = disp.style
             st.dataframe(sty, use_container_width=True, hide_index=True, height=560)

@@ -126,7 +126,7 @@ def _render_analysis(R: dict):
         "ma5v", "ma10v", "ma20v", "trapped", "vol_now", "vol_avg", "vol_chg",
         "q_open", "q_high", "q_low", "q_prev",
         "tech_score", "news_score", "macro_score", "vol_score", "sector_score",
-        "composite", "pos_pct", "neg_pct",
+        "composite", "pos_pct", "neg_pct", "pos52",
     )
     for _nf in _NUM_FIELDS:
         _v = R.get(_nf)
@@ -558,8 +558,10 @@ def _render_analysis(R: dict):
     )
     if news_rows:
         rows_html = "".join(
-            f"<tr><td class='l'>{r['title']}</td>"
-            f"<td><span class='sf-tag {_sentiment_tag(r['sentiment'])}'>{r['sentiment']}</span></td></tr>"
+            # ⚠️ 深层守卫：新闻项可能缺 title/sentiment 字段（契约漂移），
+            # 原 r['title'] 直接下标会抛 KeyError 使整个情报面渲染崩溃；统一 .get 兜底。
+            f"<tr><td class='l'>{r.get('title') or '—'}</td>"
+            f"<td><span class='sf-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{r.get('sentiment') or '中性'}</span></td></tr>"
             for r in news_rows[:10]
         )
         st.markdown(
@@ -572,7 +574,7 @@ def _render_analysis(R: dict):
 
     # 风险警报（负面新闻或偏空信号）
     if neg_pct >= 30 or verdict == "看空":
-        risk_titles = [r["title"] for r in news_rows if r["sentiment"] == "负面"][:2]
+        risk_titles = [r.get("title", "—") for r in news_rows if r.get("sentiment") == "负面"][:2]
         risk_body = "；".join(risk_titles) if risk_titles else f"综合研判偏空（{verdict}）"
         st.markdown(
             f"<div class='sf-alert risk'><b>⚠️ 风险警报</b>检测到偏空信号：{risk_body}。"
@@ -581,7 +583,7 @@ def _render_analysis(R: dict):
         )
     # 积极催化（正面新闻或偏多信号）
     if pos_pct >= 40 or verdict == "看多":
-        cat_titles = [r["title"] for r in news_rows if r["sentiment"] == "正面"][:2]
+        cat_titles = [r.get("title", "—") for r in news_rows if r.get("sentiment") == "正面"][:2]
         cat_body = "；".join(cat_titles) if cat_titles else f"综合研判偏多（{verdict}）"
         st.markdown(
             f"<div class='sf-alert cat'><b>🚀 积极催化</b>检测到正面信号：{cat_body}。"

@@ -285,91 +285,94 @@ def fragment_alerts():
         # 浏览器桌面通知去重集合（避免每次自动刷新重复弹窗）
         _notified_ids = st.session_state.setdefault("_alert_notified_ids", set())
         _notify_msgs = []
-        for idx, a in enumerate(alerts):
-            atype = a.get("alert_type", "price")
-            triggered, detail = eval_results[idx] if idx < len(eval_results) else (False, "评估异常")
-            # 强制解析股票名称，避免后端 stock_name 为空导致显示代码
-            code = a.get("stock_code", "") or ""
+    for idx, a in enumerate(alerts):
+        # 防御：后端 schema 漂移导致 id 缺失时，用「idx{序号}」兜底按钮 key，
+        # 避免多行共用 "tog_None"/"del_None" 触发 Streamlit key 冲突或误删。
+        aid = a.get("id") or f"idx{idx}"
+        atype = a.get("alert_type", "price")
+        triggered, detail = eval_results[idx] if idx < len(eval_results) else (False, "评估异常")
+        # 强制解析股票名称，避免后端 stock_name 为空导致显示代码
+        code = a.get("stock_code", "") or ""
+        try:
+            _fname = fetcher.get_name_only(code)
+        except Exception:
+            _fname = ""
+        display_name = _fname or a.get("stock_name") or code
+        if atype == "price":
+            cond_txt = "涨破 ▲" if a.get("condition") == "above" else "跌破 ▼"
             try:
-                _fname = fetcher.get_name_only(code)
+                _tp = float(a.get("target_price") or 0)
+                desc = f"当{cond_txt} **{_tp:.2f}**"
+            except (TypeError, ValueError):
+                desc = f"当{cond_txt} **{a.get('target_price', '—')}**"
+        elif atype == "pattern":
+            pname = ""
+            try:
+                pname = json.loads(a.get("params") or "{}").get("pattern_name", "")
             except Exception:
-                _fname = ""
-            display_name = _fname or a.get("stock_name") or code
-            if atype == "price":
-                cond_txt = "涨破 ▲" if a.get("condition") == "above" else "跌破 ▼"
-                try:
-                    _tp = float(a.get("target_price") or 0)
-                    desc = f"当{cond_txt} **{_tp:.2f}**"
-                except (TypeError, ValueError):
-                    desc = f"当{cond_txt} **{a.get('target_price', '—')}**"
-            elif atype == "pattern":
-                pname = ""
-                try:
-                    pname = json.loads(a.get("params") or "{}").get("pattern_name", "")
-                except Exception:
-                    pass
-                desc = f"出现形态 **{pname}**"
-            elif atype == "volume":
-                vr = 2.0
-                try:
-                    vr = float(json.loads(a.get("params") or "{}").get("volume_ratio", 2.0))
-                except Exception:
-                    pass
-                desc = f"量比 ≥ **{vr:.2f}×**"
-            elif atype == "announcement":
-                kw = ""
-                try:
-                    kw = json.loads(a.get("params") or "{}").get("keyword", "")
-                except Exception:
-                    pass
-                desc = f"新闻含「**{kw}**」"
+                pass
+            desc = f"出现形态 **{pname}**"
+        elif atype == "volume":
+            vr = 2.0
+            try:
+                vr = float(json.loads(a.get("params") or "{}").get("volume_ratio", 2.0))
+            except Exception:
+                pass
+            desc = f"量比 ≥ **{vr:.2f}×**"
+        elif atype == "announcement":
+            kw = ""
+            try:
+                kw = json.loads(a.get("params") or "{}").get("keyword", "")
+            except Exception:
+                pass
+            desc = f"新闻含「**{kw}**」"
+        else:
+            desc = ""
+
+        if triggered is None:
+            status_txt = "待验证"
+            status_cls = "sf-pill mid"
+        elif triggered:
+            status_txt = "🔥 已触发"
+            status_cls = "sf-pill down"
+        else:
+            status_txt = "监测中"
+            status_cls = "sf-pill mid"
+
+        # 浏览器桌面通知（新功能）：触发且用户开启开关时，去重后收集，循环结束后统一弹系统通知
+        if st.session_state.get("alert_browser_notify") and triggered:
+            _aid = aid
+            if _aid is not None and _aid not in _notified_ids:
+                _notified_ids.add(_aid)
+                _notify_msgs.append(f"{display_name} ({code})：{detail}")
+        elif triggered is False and a.get("id") in _notified_ids:
+            _notified_ids.discard(a.get("id"))
+
+        col_info, col_status, col_toggle, col_del = st.columns([4, 2, 1.2, 1.2])
+        with col_info:
+            st.markdown(
+                f"{ALERT_TYPE_LABEL.get(atype, atype)} **{display_name}** "
+                f"`{code}` ｜ {desc}",
+                help=f"创建于 {str(a.get('created_at', ''))[:19]}\n检测：{detail}",
+            )
+        with col_status:
+            st.markdown(f'<span class="{status_cls}">{status_txt}</span>', unsafe_allow_html=True)
+            st.caption(detail)
+        with col_toggle:
+            label = "停用" if a.get("active", False) else "启用"
+            if st.button(label, key=f"tog_{aid}", use_container_width=True):
+                api_put(f"/api/price-alerts/{aid}/toggle")
+        with col_del:
+            _ck = f"alert_del_{aid}"
+            if st.session_state.get(_ck):
+                if st.button("确认删除", key=f"del_cfm_{aid}", type="primary", use_container_width=True):
+                    api_delete(f"/api/price-alerts/{aid}")
+                    st.session_state.pop(_ck, None)
+                if st.button("取消", key=f"del_cancel_{aid}", use_container_width=True):
+                    st.session_state.pop(_ck, None)
             else:
-                desc = ""
-
-            if triggered is None:
-                status_txt = "待验证"
-                status_cls = "sf-pill mid"
-            elif triggered:
-                status_txt = "🔥 已触发"
-                status_cls = "sf-pill down"
-            else:
-                status_txt = "监测中"
-                status_cls = "sf-pill mid"
-
-            # 浏览器桌面通知（新功能）：触发且用户开启开关时，去重后收集，循环结束后统一弹系统通知
-            if st.session_state.get("alert_browser_notify") and triggered:
-                _aid = a.get("id")
-                if _aid is not None and _aid not in _notified_ids:
-                    _notified_ids.add(_aid)
-                    _notify_msgs.append(f"{display_name} ({code})：{detail}")
-            elif triggered is False and a.get("id") in _notified_ids:
-                _notified_ids.discard(a.get("id"))
-
-            col_info, col_status, col_toggle, col_del = st.columns([4, 2, 1.2, 1.2])
-            with col_info:
-                st.markdown(
-                    f"{ALERT_TYPE_LABEL.get(atype, atype)} **{display_name}** "
-                    f"`{code}` ｜ {desc}",
-                    help=f"创建于 {str(a.get('created_at', ''))[:19]}\n检测：{detail}",
-                )
-            with col_status:
-                st.markdown(f'<span class="{status_cls}">{status_txt}</span>', unsafe_allow_html=True)
-                st.caption(detail)
-            with col_toggle:
-                label = "停用" if a.get("active", False) else "启用"
-                if st.button(label, key=f"tog_{a.get('id')}", use_container_width=True):
-                    api_put(f"/api/price-alerts/{a.get('id')}/toggle")
-            with col_del:
-                _ck = f"alert_del_{a.get('id')}"
-                if st.session_state.get(_ck):
-                    if st.button("确认删除", key=f"del_cfm_{a.get('id')}", type="primary", use_container_width=True):
-                        api_delete(f"/api/price-alerts/{a.get('id')}")
-                        st.session_state.pop(_ck, None)
-                    if st.button("取消", key=f"del_cancel_{a.get('id')}", use_container_width=True):
-                        st.session_state.pop(_ck, None)
-                else:
-                    if st.button("删除", key=f"del_{a.get('id')}", use_container_width=True):
-                        st.session_state[_ck] = True
+                if st.button("删除", key=f"del_{aid}", use_container_width=True):
+                    st.session_state[_ck] = True
 
         # 浏览器桌面通知：统一弹出（去重，避免每次自动刷新重复弹窗）
         if _notify_msgs:

@@ -359,6 +359,9 @@ def _merge_patterns(df: pd.DataFrame) -> list:
     seen = set()
     out = []
     for p in sorted(merged, key=lambda x: str(x.get("date", "")), reverse=True):
+        if not isinstance(p, dict):
+            # 二级嵌套兜底：technical 模块偶发返回非 dict 元素，跳过避免 .get 崩溃中断整个扫描结果
+            continue
         key = (p.get("name"), p.get("bias"))
         if key in seen:
             continue

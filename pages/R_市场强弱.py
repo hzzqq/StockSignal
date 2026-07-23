@@ -259,13 +259,18 @@ def fragment_strength():
                 f' <span title="在当前所选区间内，当前市场强弱综合偏离处于第 {pct:.0f} 百分位——'
                 f'数值越高代表比区间内多数时候更强，越低代表越弱。">ⓘ</span></div>'
             )
+        # 深层守卫：level 标签偶发缺空格分隔（如仅 "震荡"），
+        # label.split(" ",1)[1] 会 IndexError 拖垮整段；统一做安全切分
+        _lvl_parts = (label.split(" ", 1) + [""]) if isinstance(label, str) else ["", ""]
+        _lvl_icon = _lvl_parts[0]
+        _lvl_txt = _lvl_parts[1] if len(_lvl_parts) > 1 else ""
         c1, c2 = st.columns([0.32, 0.68])
         with c1:
             st.markdown(
                 f'<div style="text-align:center;padding:14px 8px;border-radius:14px;'
                 f'background:rgba(255,255,255,0.03);border:1px solid {color}55;">'
-                f'<div style="font-size:30px;line-height:1.1;">{label.split()[0]}</div>'
-                f'<div style="font-size:18px;font-weight:700;color:{color};">{label.split(" ",1)[1]}</div>'
+                f'<div style="font-size:30px;line-height:1.1;">{_lvl_icon}</div>'
+                f'<div style="font-size:18px;font-weight:700;color:{color};">{_lvl_txt}</div>'
                 f'<div style="font-size:12px;color:#9aa0a6;margin-top:4px;">综合偏离 {avg:+.1f}</div>'
                 f'{pct_line}'
                 f'</div>',

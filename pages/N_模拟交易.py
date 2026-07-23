@@ -219,7 +219,14 @@ def fragment_paper():
 
     with tab_e:
         # 净值曲线：基于每笔成交后的总资产快照绘制
-        eq = [("起始", book["init_cash"])] + book.get("equity", [])
+        eq = [("起始", book["init_cash"])] + list(book.get("equity", []) or [])
+        # 深层守卫：过滤快照中结构损坏的条目（非二元组 / 数值缺失 / NaN），
+        # 避免绘图时 e[1] 取数 KeyError 或 plotly 收到 NaN 序列而崩溃
+        _clean_eq = []
+        for e in eq:
+            if isinstance(e, (list, tuple)) and len(e) >= 2 and isinstance(e[1], (int, float)) and e[1] == e[1]:
+                _clean_eq.append((e[0], float(e[1])))
+        eq = _clean_eq
         if len(eq) >= 2:
             xs = [e[0] for e in eq]
             ys = [e[1] for e in eq]

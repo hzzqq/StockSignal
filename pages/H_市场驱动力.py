@@ -81,6 +81,12 @@ def fragment_drivers_panel():
     )
     # 交互控件：区间预设 + 序列多选（面板恒为归一化叠加，关闭均线/原始切换）
     series_options = [(c, c) for c in df.columns if c not in ("date", "ref")]
+    # 加法式空态守卫（更深一层）：df 虽非空（仅含 date/ref 列）却没有可用指标序列时，
+    # 跳过面板/热力图渲染，给出友好空态而非空白图或异常；meta 仍展示维度接入状态。
+    if not series_options:
+        _empty_info("暂无可用于驱动力的指标序列（数据仅含日期/参考列），面板暂不可绘制。")
+        _render_drivers_meta(meta)
+        return
     dr, _ma, sel, _m, _mt = _trend_controls(
         "drv", days_default=180, preset_default="近180天",
         series_options=series_options, show_ma=False,

@@ -313,6 +313,9 @@ def fragment_sector():
     st.caption("净流入行业领涨：横条越长代表当日主力净流入越多（红=净流入 / 绿=净流出）。")
 
     show_cols = [c for c in ["行业", "涨跌幅", "流入资金", "流出资金", "净额", "领涨股", "领涨股涨跌幅"] if c in top.columns]
+    if not show_cols:
+        _empty_info("板块明细列名与预期不符，暂无法以表格展示（图表仍可用）。")
+        return
     st.dataframe(
         top[show_cols], use_container_width=True, hide_index=True,
         column_config={

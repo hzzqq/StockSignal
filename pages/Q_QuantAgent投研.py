@@ -148,7 +148,9 @@ def _render_live_progress(task: dict):
         (cols[0] if i % 2 == 0 else cols[1]).markdown(card, unsafe_allow_html=True)
 
     # CrewAI 辩论面板
-    logs = task.get("logs", []) or []
+    # 深层守卫：后端任务负载偶发混入非 dict 条目（异常字符串/None），
+    # 直接 l.get 会抛 AttributeError 拖垮整个进度卡片，先筛出 dict 条目
+    logs = [l for l in (task.get("logs", []) or []) if isinstance(l, dict)]
     debate_logs = [l for l in logs if str(l.get("stage", "")).startswith("debate_")]
     if debate_logs:
         st.markdown("#### ⚖️ 多首席辩论实况")

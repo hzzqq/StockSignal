@@ -140,7 +140,12 @@ def fragment_forecast():
         if st.button("📅 试看 2025 年报", key="fc_try_2025"):
             st.session_state["fc_period"] = "2025 年报"
         return
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    # 加法式渲染兜底：best-effort 接口返回的 DataFrame 可能含怪异列类型（如嵌套列表/对象），
+    # 直接 st.dataframe 会异常；包裹后失败仅提示，不影响上方概览与下方其它视图。
+    try:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    except Exception as _e:
+        st.warning(f"业绩预告表格渲染失败：{_e}")
 
 
 # ───────────────────────── 披露日历（best-effort） ─────────────────────────

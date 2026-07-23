@@ -63,6 +63,9 @@ def _to_excel_bytes(sheets: dict) -> bytes:
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         for fname, df in sheets.items():
+            # 守卫：仅写入结构合法的 DataFrame，跳过非表数据，避免 AttributeError 致导出崩溃
+            if not isinstance(df, pd.DataFrame) or df is None or df.empty:
+                continue
             sheet = _sheet_name(fname)
             df.to_excel(writer, sheet_name=sheet, index=False)
         for fname, df in sheets.items():

@@ -39,7 +39,11 @@ def _pct(q):
     try:
         if not q or not q.get("prev_close"):
             return 0.0
-        return (q["current"] - q["prev_close"]) / q["prev_close"] * 100
+        cur = q.get("current")
+        prev = q.get("prev_close")
+        if cur is None or prev in (None, 0):
+            return 0.0
+        return (float(cur) - float(prev)) / float(prev) * 100
     except Exception:
         return 0.0
 

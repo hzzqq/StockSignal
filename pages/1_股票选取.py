@@ -253,7 +253,9 @@ hc1, hc2, hc3 = st.columns([0.4, 0.3, 0.3])
 with hc1:
     st.subheader("🎯 股票选取")
 with hc2:
-    if st.button("➕ 加入自选股", use_container_width=True, key="pick_add_watch"):
+    _ticker_ok = bool(ticker and str(ticker).strip())
+    if st.button("➕ 加入自选股", use_container_width=True, key="pick_add_watch",
+                 disabled=not _ticker_ok, help="请先在左侧选择一只股票" if not _ticker_ok else "将当前股票加入自选池"):
         sc, body = api_post("/api/watchlist", {"stock_code": ticker})
         # ⚠️ 兜底：api_post 网络失败时 body 可能为 None，原 else 分支 body.get 会抛 AttributeError
         _msg = body.get("message") if isinstance(body, dict) else ""
@@ -262,7 +264,8 @@ with hc2:
         else:
             st.error(f"加入失败：{_msg or '未知错误'}")
 with hc3:
-    if st.button("🗑️ 加入垃圾股", use_container_width=True, key="pick_add_junk"):
+    if st.button("🗑️ 加入垃圾股", use_container_width=True, key="pick_add_junk",
+                 disabled=not _ticker_ok, help="请先在左侧选择一只股票" if not _ticker_ok else "将当前股票标记为垃圾股"):
         body = api_add_junk_stock(ticker)
         # ⚠️ 兜底：api_add_junk_stock 失败时 body 可能为 None，直接 body.get 会抛 AttributeError
         msg = body.get("message", "") if isinstance(body, dict) else ""

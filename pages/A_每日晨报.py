@@ -260,10 +260,11 @@ def fragment_watchlist_and_news():
                 news_df = _cached_news(selected_name, limit=15)
             if news_df is not None and not news_df.empty:
                 for _, r in news_df.head(12).iterrows():
-                    title = r.get("title", "")
+                    # 字段级兜底：上游新闻源个别字段可能为 None/NaN，强制转字符串避免显示 "None"
+                    title = str(r.get("title") or "")
                     url = r.get("url") or r.get("link") or ""
-                    date_s = r.get("date", "")
-                    source_s = r.get("source", "")
+                    date_s = str(r.get("date") or "")
+                    source_s = str(r.get("source") or "")
                     if url:
                         st.markdown(f"- {date_s}  **[{title}]({url})**  _{source_s}_")
                     else:

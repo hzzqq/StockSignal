@@ -126,6 +126,7 @@ with tab_create:
                 st.error("用户名和密码不能为空")
             else:
                 code, resp = create_user(new_username, new_password, new_role)
+                resp = resp or {}  # 加法式健壮性：网络/服务异常时 resp 可能为 None，先兜底避免下方 .get 抛 AttributeError
                 if code == 200 and resp.get("status") == "ok":
                     st.success(f"✅ 用户 `{new_username}` 创建成功！")
                     st.balloons()
@@ -158,6 +159,7 @@ if "editing_user" in st.session_state:
                 if edit_password:
                     payload["password"] = edit_password
                 code, resp = update_user(u.get("id"), **payload)
+                resp = resp or {}
                 if code == 200 and resp.get("status") == "ok":
                     st.success("更新成功！")
                     del st.session_state["editing_user"]
@@ -179,6 +181,7 @@ if "deleting_user" in st.session_state:
         with col_confirm:
             if st.button("🗑️ 确认删除", type="primary"):
                 code, resp = delete_user(u["id"])
+                resp = resp or {}
                 if code == 200 and resp.get("status") == "ok":
                     st.success("删除成功！")
                     del st.session_state["deleting_user"]

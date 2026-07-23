@@ -198,26 +198,37 @@ def fragment_manual_backtest():
                 st.subheader("回测结果")
 
                 s = result.summary()
+                # 加法式健壮性：summary() 字典字段若因上游 schema 漂移缺失（如 'win_rate_pct'），
+                # 直接 s['win_rate_pct'] 会抛 KeyError 让整个回测结果 fragment 崩溃。
+                # 统一用 .get 兜底为 0/None，保证指标卡始终可渲染。
+                _wr = s.get('win_rate_pct') or 0
+                _tr = s.get('total_return_pct') or 0
+                _md = s.get('max_drawdown_pct') or 0
+                _sh = s.get('sharpe_ratio')
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    win_color = "🟢" if s['win_rate_pct'] >= 60 else ("🟡" if s['win_rate_pct'] >= 40 else "🔴")
-                    st.metric(f"{win_color} 胜率", f"{s['win_rate_pct']:.1f}%")
+                    win_color = "🟢" if _wr >= 60 else ("🟡" if _wr >= 40 else "🔴")
+                    st.metric(f"{win_color} 胜率", f"{_wr:.1f}%")
                 with col2:
-                    st.metric("累计收益", f"{s['total_return_pct']:+.2f}%")
+                    st.metric("累计收益", f"{_tr:+.2f}%")
                 with col3:
-                    st.metric("最大回撤", f"{s['max_drawdown_pct']:.2f}%")
+                    st.metric("最大回撤", f"{_md:.2f}%")
                 with col4:
-                    st.metric("夏普比率", f"{s['sharpe_ratio']}")
+                    st.metric("夏普比率", f"{_sh if _sh is not None else '—'}")
 
+                _tc = s.get('trade_count') or 0
+                _pf = s.get('profit_factor')
+                _atr = s.get('avg_trade_return_pct') or 0
+                _fv = s.get('final_value')
                 col5, col6, col7, col8 = st.columns(4)
                 with col5:
-                    st.metric("交易次数", f"{s['trade_count']}")
+                    st.metric("交易次数", f"{_tc}")
                 with col6:
-                    st.metric("盈亏比", f"{s['profit_factor']}")
+                    st.metric("盈亏比", f"{_pf if _pf is not None else '—'}")
                 with col7:
-                    st.metric("平均单笔", f"{s['avg_trade_return_pct']:+.2f}%")
+                    st.metric("平均单笔", f"{_atr:+.2f}%")
                 with col8:
-                    st.metric("最终资产", f"¥{s['final_value']:,.2f}")
+                    st.metric("最终资产", f"¥{_fv:,.2f}" if _fv is not None else "¥—")
 
                 st.code(result.summary_text().replace(f"[{bt_ticker}]", f"[{bt_label}]"), language="text")
 

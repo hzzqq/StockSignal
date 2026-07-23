@@ -93,10 +93,12 @@ with tab_stocks:
     if code != 200 or resp.get("status") != "ok":
         st.error(f"获取股票列表失败: {resp.get('message', '未知错误')}")
     else:
-        data = resp["data"]
-        items = data["items"]
-        total = data["total"]
-        pages = data["pages"]
+        # 加法式健壮性：status==ok 但 data / 内层字段可能因后端异常缺失，
+        # 直接下标访问会抛 KeyError 让整个「股票管理」Tab 崩溃。统一 .get 兜底降级。
+        data = resp.get("data") or {}
+        items = data.get("items") or []
+        total = data.get("total") or 0
+        pages = data.get("pages") or 1
 
         st.caption(f"共 {total} 只股票 · 第 {page}/{pages} 页")
 
@@ -243,7 +245,9 @@ with tab_watch:
     if code != 200 or resp.get("status") != "ok":
         st.error(f"获取自选股失败: {resp.get('message', '未知错误')}")
     else:
-        items = resp["data"]
+        # 加法式健壮性：status==ok 但 data 缺失/非列表时，直接 resp["data"] 会抛 KeyError，
+        # 或 DataFrame 因非 list 异常。统一 .get 兜底为空列表降级为空态提示。
+        items = resp.get("data") or []
         if not items:
             _empty_info("暂无自选股。在上方输入框填入代码（如 600519）后点「➕ 添加自选」即可跟踪。")
         else:

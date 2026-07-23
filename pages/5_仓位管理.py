@@ -117,8 +117,14 @@ else:
         display_pos["买入价"] = display_pos["buy_price"].apply(_fmt_money)
     if "cost" in display_pos.columns:
         display_pos["成本"] = display_pos["cost"].apply(_fmt_money)
-    display_pos["买入日期"] = display_pos["buy_date"]
-    display_pos["备注"] = display_pos["note"].fillna("")
+    # 加法式健壮性：上游持仓 schema 漂移可能缺 buy_date/note 列，
+    # 直接赋值会抛 KeyError 让「持仓概览」整段崩溃。列存在才填充，缺失则留空列。
+    if "buy_date" in display_pos.columns:
+        display_pos["买入日期"] = display_pos["buy_date"]
+    if "note" in display_pos.columns:
+        display_pos["备注"] = display_pos["note"].fillna("")
+    else:
+        display_pos["备注"] = ""
     show_cols = ["股票", "ticker", "买入日期", "买入价", "买入股数", "剩余股数", "成本", "备注"]
     show_cols = [c for c in show_cols if c in display_pos.columns]
     st.dataframe(display_pos[show_cols], width="stretch", hide_index=True)

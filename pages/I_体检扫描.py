@@ -463,9 +463,9 @@ def result_board():
     # 概览指标：健康 / 关注 / 警惕 数量 + 平均综合分
     comps = [r["composite"] for r in results if isinstance(r.get("composite"), (int, float))]
     avg_comp = round(sum(comps) / len(comps), 1) if comps else None
-    n_high = sum(1 for r in results if r["priority"] == "HIGH")
-    n_watch = sum(1 for r in results if r["priority"] == "WATCH")
-    n_att = sum(1 for r in results if r["priority"] == "ATTENTION")
+    n_high = sum(1 for r in results if r.get("priority") == "HIGH")
+    n_watch = sum(1 for r in results if r.get("priority") == "WATCH")
+    n_att = sum(1 for r in results if r.get("priority") == "ATTENTION")
     m1, m2, m3, m4 = st.columns(4)
     m1.metric(f"{_PRIORITY_EMOJI['HIGH']} 高优先级", n_high)
     m2.metric(f"{_PRIORITY_EMOJI['WATCH']} 关注", n_watch)
@@ -524,8 +524,9 @@ def result_board():
                 f'<div style="width:{pct}%;height:6px;border-radius:3px;background:{c};"></div></div></div>')
 
     for r in results:
-        color = _PRIORITY_COLOR[r["priority"]]
-        mn = r["main_net"]
+        prio = r.get("priority", "WATCH")
+        color = _PRIORITY_COLOR.get(prio, "#f5a623")
+        mn = r.get("main_net")
         flow_html = ""
         if mn is not None:
             s = fmt_money(mn)
@@ -535,8 +536,9 @@ def result_board():
                 flow_html = (f'<span style="color:{fc};font-weight:600;">'
                              f'主力{label} {s}</span>')
         pat_html = ""
-        if r["names"]:
-            pat_html = "形态：" + " / ".join(r["names"])
+        names = r.get("names") or []
+        if names:
+            pat_html = "形态：" + " / ".join(names)
         comp = r.get("composite")
         comp_html = ""
         if isinstance(comp, (int, float)):
@@ -544,14 +546,16 @@ def result_board():
             comp_html = (f'<span style="background:{cc};color:#fff;padding:2px 10px;'
                          f'border-radius:12px;font-size:12px;font-weight:700;margin-right:6px;">'
                          f'综合 {comp:.0f}</span>')
-        dims = r.get("dims", {})
+        dims = r.get("dims", {}) or {}
         bars = "".join(_dim_bar(k, dims.get(k)) for k in ("技术面", "资金面", "财务健康", "估值"))
+        code_s = r.get("code", "—")
+        name_s = r.get("name", "—")
         card = f"""
         <div style="border-left:5px solid {color};border-radius:8px;
                     padding:10px 14px;margin:8px 0;background:rgba(128,128,128,0.08);">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-weight:700;font-size:15px;">{r['code']} {r['name']}</span>
-            <span>{comp_html}<span style="background:{color};color:#fff;padding:2px 10px;border-radius:12px;font-size:12px;">{PRIORITY_LABEL[r['priority']]}</span></span>
+            <span style="font-weight:700;font-size:15px;">{code_s} {name_s}</span>
+            <span>{comp_html}<span style="background:{color};color:#fff;padding:2px 10px;border-radius:12px;font-size:12px;">{PRIORITY_LABEL.get(prio, '关注')}</span></span>
           </div>
           <div style="display:flex;gap:12px;margin-top:10px;flex-wrap:wrap;">{bars}</div>
           <div style="margin-top:8px;font-size:13px;color:#888;">
@@ -562,14 +566,15 @@ def result_board():
         st.markdown(card, unsafe_allow_html=True)
 
         b1, b2, b3 = st.columns([1, 1, 1])
+        _code = r.get("code", "—")
         with b1:
-            if st.button("跳转", key=f"jump_{r['code']}"):
+            if st.button("跳转", key=f"jump_{_code}"):
                 safe_switch_page("pages/个股研究.py")
         with b2:
-            if st.button("看技术形态", key=f"shape_{r['code']}"):
+            if st.button("看技术形态", key=f"shape_{_code}"):
                 safe_switch_page("pages/B_形态选股.py")
         with b3:
-            if st.button("看资金", key=f"flow_{r['code']}"):
+            if st.button("看资金", key=f"flow_{_code}"):
                 safe_switch_page("pages/F_资金流向.py")
 
 

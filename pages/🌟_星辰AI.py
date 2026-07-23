@@ -378,7 +378,10 @@ def _restore_messages_from_storage():
     except Exception:
         msgs = []
     if msgs:
-        st.session_state["xc_messages"] = msgs
+        # 深层守卫：后端历史偶发含结构损坏条目（非 dict / 缺 role），
+        # render_message 中 m.get 会抛 AttributeError；只保留合法会话条目
+        valid = [m for m in msgs if isinstance(m, dict) and m.get("role") in ("user", "assistant")]
+        st.session_state["xc_messages"] = valid if valid else [dict(WELCOME)]
 
 
 def _save_messages_to_storage(messages: list):
@@ -499,7 +502,7 @@ def fragment_chat():
         history = [
             {"role": mm.get("role"), "content": mm.get("content", "")}
             for mm in st.session_state["xc_messages"][:-1]
-            if mm.get("role") in ("user", "assistant")
+            if isinstance(mm, dict) and mm.get("role") in ("user", "assistant")
         ]
         ctx = _slim_context()
         ctx["history"] = history[-6:]
