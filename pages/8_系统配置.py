@@ -232,7 +232,7 @@ with tab_watch:
                         if st.button("➕", key=f"watch_add_{s.get('code')}"):
                             c2, r2 = add_watchlist(s.get("code"))
                             if c2 == 200:
-                                st.success(f"已添加 {s['name']}")
+                                st.success(f"已添加 {s.get('name', s.get('code', '该股票'))}")
                                 st.rerun()
 
     st.markdown("---")
@@ -249,7 +249,7 @@ with tab_watch:
                 with col1:
                     st.markdown(f"**{item.get('stock_code','')}** {item.get('stock_name','')}")
                 with col2:
-                    _ca = item.get("created_at") or ""
+                    _ca = str(item.get("created_at") or "")
                     st.caption(f"添加: {_ca[:10]}")
                     if item.get("note"):
                         st.caption(f"备注: {item['note']}")
@@ -276,24 +276,40 @@ with tab_alert:
         cfg = (resp.get("data") or {}).get("config", {})
         col1, col2, col3 = st.columns(3)
         with col1:
+            try:
+                _iv = int(cfg.get("scan_interval_minutes", 15))
+            except (TypeError, ValueError):
+                _iv = 15
             interval = st.number_input("扫描间隔（分钟）", min_value=1, max_value=120,
-                                      value=int(cfg.get("scan_interval_minutes", 15)),
+                                      value=_iv,
                                       key="alert_interval",
                                       help="市场扫描的触发间隔（分钟），过小会增加请求压力。")
         with col2:
+            try:
+                _cd = int(cfg.get("cooldown_hours", 6))
+            except (TypeError, ValueError):
+                _cd = 6
             cooldown = st.number_input("冷却时长（小时）", min_value=1, max_value=48,
-                                       value=int(cfg.get("cooldown_hours", 6)),
+                                       value=_cd,
                                        key="alert_cooldown",
                                        help="同一标的两次预警之间的最小间隔（小时），避免重复打扰。")
         with col3:
+            try:
+                _dl = int(cfg.get("initial_delay_seconds", 10))
+            except (TypeError, ValueError):
+                _dl = 10
             delay = st.number_input("首次延迟（秒）", min_value=0, max_value=600,
-                                    value=int(cfg.get("initial_delay_seconds", 10)),
+                                    value=_dl,
                                     key="alert_delay",
                                     help="系统启动后首次扫描的延迟（秒），用于错峰。")
 
+        try:
+            _thr_json = json.dumps(cfg.get("thresholds", {}), ensure_ascii=False, indent=2)
+        except (TypeError, ValueError):
+            _thr_json = "{}"
         thr_txt = st.text_area(
             "阈值覆盖（JSON，可选）",
-            value=json.dumps(cfg.get("thresholds", {}), ensure_ascii=False, indent=2),
+            value=_thr_json,
             height=160, key="alert_thr",
             help='覆盖某指标阈值，如 {"vix": {"warn_hi": 18, "danger_hi": 28}}',
         )

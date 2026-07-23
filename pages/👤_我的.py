@@ -366,7 +366,7 @@ try:
             import pandas as pd
             _hist = [
                 {
-                    "时间": (r.get("created_at", "")[:19].replace("T", " ")),
+                    "时间": (str(r.get("created_at", ""))[:19].replace("T", " ")),
                     "账号": r.get("username", "-"),
                     "操作": r.get("action", "-"),
                     "详情": r.get("detail", "") or "—",

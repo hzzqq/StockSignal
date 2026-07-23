@@ -21,6 +21,38 @@ from modules.fetcher import StockFetcher
 from modules.session import require_auth, render_user_badge, api_quote, api_kline
 from modules.page_widgets import _empty_info, _toast
 
+
+# 加法式健壮性：统一安全数值格式化——None/NaN/非数值显示"—"而非"nan"，
+# 行情或盈亏缺失时避免表格出现 nan 污染。保持原 `¥` + 千分位显示风格不变。
+def _fmt_money(x, prefix="¥", nd=2):
+    try:
+        v = float(x)
+    except Exception:
+        return f"{prefix}—"
+    if v != v:  # NaN
+        return f"{prefix}—"
+    return f"{prefix}{v:,.{nd}f}"
+
+
+def _fmt_signed_pct(x, nd=2):
+    try:
+        v = float(x)
+    except Exception:
+        return "—"
+    if v != v:
+        return "—"
+    return f"{v:+.{nd}f}%"
+
+
+def _fmt_int(x):
+    try:
+        v = float(x)
+    except Exception:
+        return "—"
+    if v != v:
+        return "—"
+    return f"{int(v):,}"
+
 # 鉴权门禁
 require_auth()
 render_user_badge(sidebar=True)
@@ -78,13 +110,13 @@ else:
     display_pos["股票"] = display_pos["ticker"].apply(lambda x: fetcher.get_name_only(x) or fetcher.get_stock_name(x))
     # 格式化显示
     if "shares" in display_pos.columns:
-        display_pos["买入股数"] = display_pos["shares"].apply(lambda x: f"{int(x):,}")
+        display_pos["买入股数"] = display_pos["shares"].apply(_fmt_int)
     if "remaining_shares" in display_pos.columns:
-        display_pos["剩余股数"] = display_pos["remaining_shares"].apply(lambda x: f"{int(x):,}")
+        display_pos["剩余股数"] = display_pos["remaining_shares"].apply(_fmt_int)
     if "buy_price" in display_pos.columns:
-        display_pos["买入价"] = display_pos["buy_price"].apply(lambda x: f"¥{x:.2f}")
+        display_pos["买入价"] = display_pos["buy_price"].apply(_fmt_money)
     if "cost" in display_pos.columns:
-        display_pos["成本"] = display_pos["cost"].apply(lambda x: f"¥{x:,.2f}")
+        display_pos["成本"] = display_pos["cost"].apply(_fmt_money)
     display_pos["买入日期"] = display_pos["buy_date"]
     display_pos["备注"] = display_pos["note"].fillna("")
     show_cols = ["股票", "ticker", "买入日期", "买入价", "买入股数", "剩余股数", "成本", "备注"]
@@ -142,9 +174,19 @@ with st.form("buy_position_form"):
                                  help="该笔持仓的买入日期，用于计算持有天数与收益率。")
         # 默认成交价：卖一价（买入按卖方最低价成交）
         default_buy_price = 20.00
+        _buy_price_from_quote = False
         if buy_quote and buy_quote.get("ask"):
-            default_buy_price = buy_quote["ask"][0]["price"]
-        else:
+            # 加法式健壮性：行情 schema 漂移时 ask[0] 可能缺 "price" 或元素非 dict，
+            # 直接下标访问会抛 KeyError/TypeError，导致买入表单整段崩溃。先安全提取，
+            # 失败则回退到下方日线收盘价兜底，保证表单始终可渲染。
+            try:
+                _a0 = buy_quote["ask"][0]
+                if _a0 and "price" in _a0:
+                    default_buy_price = float(_a0["price"])
+                    _buy_price_from_quote = True
+            except (KeyError, TypeError, ValueError, IndexError):
+                _buy_price_from_quote = False
+        if not _buy_price_from_quote:
             try:
                 _kline_start = (datetime.now() - pd.Timedelta(days=10)).strftime("%Y-%m-%d")
                 _kline_end = datetime.now().strftime("%Y-%m-%d")
@@ -152,7 +194,11 @@ with st.form("buy_position_form"):
                 price_df = pd.DataFrame(_records) if _records is not None else fetcher.get_daily(
                     buy_ticker, start=_kline_start, end=_kline_end
                 )
-                default_buy_price = float(price_df.iloc[-1]["close"]) if price_df is not None and not price_df.empty else 20.00
+                if price_df is not None and not price_df.empty:
+                    # 加法式健壮性：日线记录可能缺 "close" 列（schema 漂移）→ 用 .get 降级。
+                    _close = price_df.iloc[-1].get("close") if hasattr(price_df, "iloc") else None
+                    if _close is not None:
+                        default_buy_price = float(_close)
             except Exception:
                 default_buy_price = 20.00
         buy_price = st.number_input(
@@ -243,19 +289,30 @@ else:
             sell_date = st.date_input("卖出日期", value=datetime.now(), key="sell_date")
             # 默认成交价：买一价（卖出按买方最高价成交）
             default_sell_price = 20.00
-        if sell_quote and sell_quote.get("bid"):
-            default_sell_price = sell_quote["bid"][0]["price"]
-        else:
-            try:
-                _kline_start = (datetime.now() - pd.Timedelta(days=10)).strftime("%Y-%m-%d")
-                _kline_end = datetime.now().strftime("%Y-%m-%d")
-                _records = api_kline(sell_ticker, start=_kline_start, end=_kline_end)
-                price_df = pd.DataFrame(_records) if _records is not None else fetcher.get_daily(
-                    sell_ticker, start=_kline_start, end=_kline_end
-                )
-                default_sell_price = float(price_df.iloc[-1]["close"]) if price_df is not None and not price_df.empty else 20.00
-            except Exception:
-                default_sell_price = 20.00
+            _sell_price_from_quote = False
+            if sell_quote and sell_quote.get("bid"):
+                # 加法式健壮性：与买入同款防御，bid[0] 缺 "price" 时安全降级到日线兜底。
+                try:
+                    _b0 = sell_quote["bid"][0]
+                    if _b0 and "price" in _b0:
+                        default_sell_price = float(_b0["price"])
+                        _sell_price_from_quote = True
+                except (KeyError, TypeError, ValueError, IndexError):
+                    _sell_price_from_quote = False
+            if not _sell_price_from_quote:
+                try:
+                    _kline_start = (datetime.now() - pd.Timedelta(days=10)).strftime("%Y-%m-%d")
+                    _kline_end = datetime.now().strftime("%Y-%m-%d")
+                    _records = api_kline(sell_ticker, start=_kline_start, end=_kline_end)
+                    price_df = pd.DataFrame(_records) if _records is not None else fetcher.get_daily(
+                        sell_ticker, start=_kline_start, end=_kline_end
+                    )
+                    if price_df is not None and not price_df.empty:
+                        _close = price_df.iloc[-1].get("close") if hasattr(price_df, "iloc") else None
+                        if _close is not None:
+                            default_sell_price = float(_close)
+                except Exception:
+                    default_sell_price = 20.00
         # ⚠️ 修复：sell_price 原缩进在 else 分支内，当实时行情存在买一价时走 if 分支，
         # sell_price 永不定义，点「记录卖出」抛 NameError 崩溃。移到 if/else 之外始终渲染。
         sell_price = st.number_input(
@@ -346,9 +403,9 @@ else:
         display_trades = display_trades.drop(columns=["name"])
     display_trades["股票"] = display_trades["ticker"].apply(lambda x: fetcher.get_name_only(x) or fetcher.get_stock_name(x))
     display_trades["卖出日期"] = display_trades["sell_date"]
-    display_trades["卖出价"] = display_trades["sell_price"].apply(lambda x: f"¥{x:.2f}")
-    display_trades["卖出股数"] = display_trades["sell_shares"].apply(lambda x: f"{int(x):,}")
-    display_trades["成交金额"] = display_trades["proceeds"].apply(lambda x: f"¥{x:,.2f}")
+    display_trades["卖出价"] = display_trades["sell_price"].apply(_fmt_money)
+    display_trades["卖出股数"] = display_trades["sell_shares"].apply(_fmt_int)
+    display_trades["成交金额"] = display_trades["proceeds"].apply(_fmt_money)
     display_trades["备注"] = display_trades["note"].fillna("")
     show_cols = ["股票", "ticker", "卖出日期", "卖出价", "卖出股数", "成交金额", "备注"]
     st.dataframe(display_trades[show_cols], width="stretch", hide_index=True)
@@ -391,14 +448,14 @@ if not positions.empty:
                 if "name" in display_pnl.columns:
                     display_pnl = display_pnl.drop(columns=["name"])
                 display_pnl["股票"] = display_pnl["ticker"].apply(lambda x: fetcher.get_name_only(x) or fetcher.get_stock_name(x))
-                display_pnl["买入股数"] = display_pnl["shares"].apply(lambda x: f"{int(x):,}")
-                display_pnl["剩余股数"] = display_pnl["remaining_shares"].apply(lambda x: f"{int(x):,}")
-                display_pnl["买入价"] = display_pnl["buy_price"].apply(lambda x: f"¥{x:.2f}")
-                display_pnl["现价"] = display_pnl["current_price"].apply(lambda x: f"¥{x:.2f}")
-                display_pnl["市值"] = display_pnl["market_value"].apply(lambda x: f"¥{x:,.2f}")
-                display_pnl["已实现盈亏"] = display_pnl["realized_pnl"].apply(lambda x: f"¥{x:,.2f}")
-                display_pnl["浮动盈亏"] = display_pnl["pnl"].apply(lambda x: f"¥{x:,.2f}")
-                display_pnl["收益率"] = display_pnl["pnl_pct"].apply(lambda x: f"{x:+.2f}%")
+                display_pnl["买入股数"] = display_pnl["shares"].apply(_fmt_int)
+                display_pnl["剩余股数"] = display_pnl["remaining_shares"].apply(_fmt_int)
+                display_pnl["买入价"] = display_pnl["buy_price"].apply(_fmt_money)
+                display_pnl["现价"] = display_pnl["current_price"].apply(_fmt_money)
+                display_pnl["市值"] = display_pnl["market_value"].apply(_fmt_money)
+                display_pnl["已实现盈亏"] = display_pnl["realized_pnl"].apply(_fmt_money)
+                display_pnl["浮动盈亏"] = display_pnl["pnl"].apply(_fmt_money)
+                display_pnl["收益率"] = display_pnl["pnl_pct"].apply(_fmt_signed_pct)
                 pnl_cols = [
                     "股票", "ticker", "buy_date", "买入价", "买入股数", "剩余股数",
                     "现价", "市值", "已实现盈亏", "浮动盈亏", "收益率"

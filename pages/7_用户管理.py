@@ -133,15 +133,15 @@ with tab_create:
 if "editing_user" in st.session_state:
     u = st.session_state["editing_user"]
     with st.dialog(f"编辑用户 - {u.get('username','')}", width="medium"):
-        st.caption(f"ID: {u.get('id','')} · 创建于: {(u.get('created_at') or '')[:10]}")
+        st.caption(f"ID: {u.get('id','')} · 创建于: {str(u.get('created_at') or '')[:10]}")
 
         edit_role = st.selectbox("角色", ["user", "admin"],
-                                 index=0 if u["role"] == "user" else 1,
+                                 index=0 if u.get("role", "user") == "user" else 1,
                                  format_func=lambda x: "👤 普通用户" if x == "user" else "🛡️ 管理员",
                                  key="edit_role_select",
                                  help="修改该用户的角色权限。")
 
-        edit_active = st.checkbox("账号激活", value=u["is_active"], key="edit_active_check",
+        edit_active = st.checkbox("账号激活", value=bool(u.get("is_active", False)), key="edit_active_check",
                                  help="取消勾选将停用该账号，停用后无法登录。")
 
         st.markdown("---")
@@ -154,7 +154,7 @@ if "editing_user" in st.session_state:
                 payload = {"role": edit_role, "is_active": edit_active}
                 if edit_password:
                     payload["password"] = edit_password
-                code, resp = update_user(u["id"], **payload)
+                code, resp = update_user(u.get("id"), **payload)
                 if code == 200 and resp.get("status") == "ok":
                     st.success("更新成功！")
                     del st.session_state["editing_user"]
@@ -170,7 +170,7 @@ if "editing_user" in st.session_state:
 if "deleting_user" in st.session_state:
     u = st.session_state["deleting_user"]
     with st.dialog("⚠️ 确认删除", width="small"):
-        st.warning(f"确定要删除用户 **{u['username']}** (ID: {u['id']}) 吗？")
+        st.warning(f"确定要删除用户 **{u.get('username', '该用户')}** (ID: {u.get('id', '?')}) 吗？")
         st.caption("此操作不可撤销。")
         col_confirm, col_cancel = st.columns(2)
         with col_confirm:

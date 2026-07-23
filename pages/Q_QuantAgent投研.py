@@ -97,7 +97,10 @@ def _poll_once(task_id: str):
     """缓存 1 秒：避免 fragment 重跑时请求堆积。"""
     from modules.background_tasks import poll_task
 
-    return poll_task(task_id, max_wait=0.5)
+    try:
+        return poll_task(task_id, max_wait=0.5)
+    except Exception as _e:
+        return {"status": "error", "message": f"轮询任务失败：{_e}"}
 
 
 def _agent_status(agent_key: str, current_stage: str, status: str) -> str:
@@ -119,7 +122,10 @@ def _render_live_progress(task: dict):
     """渲染实时协作进度（进度条 + 每 Agent 状态 + 日志流 + 辩论面板）。"""
     st.markdown(_TERM_CSS, unsafe_allow_html=True)
     st.markdown(_VERDICT_CSS, unsafe_allow_html=True)
-    progress = int(task.get("progress", 0) or 0)
+    try:
+        progress = int(task.get("progress", 0) or 0)
+    except (TypeError, ValueError):
+        progress = 0
     stage = task.get("stage", "")
     status = task.get("status", "")
     st.progress(progress / 100.0, text=f"多智能体协作中… {progress}% ｜ 当前：{label_for(stage)[1] if stage else '排队中'}")
@@ -178,7 +184,7 @@ def _render_report(result: dict):
         f"<b style='font-size:20px;color:{vc}'>🏁 最终结论：{c.get('verdict','-')}</b> "
         f"&nbsp; 综合评分 <b>{c.get('composite','-')}</b>/100"
         + (f"<br>目标价 <b style='color:#e6edf3'>¥{c.get('target_price')}</b> ｜ 止损 <b style='color:#e6edf3'>¥{c.get('stop_price')}</b>" if c.get("target_price") else "")
-        + f"<br><span style='color:#9fb0c0'>{c.get('rationale','')[:300]}</span></div>",
+        + f"<br><span style='color:#9fb0c0'>{str(c.get('rationale',''))[:300]}</span></div>",
         unsafe_allow_html=True,
     )
 

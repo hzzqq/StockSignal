@@ -289,10 +289,18 @@ def fragment_alerts():
             triggered, detail = eval_results[idx] if idx < len(eval_results) else (False, "评估异常")
             # 强制解析股票名称，避免后端 stock_name 为空导致显示代码
             code = a.get("stock_code", "") or ""
-            display_name = fetcher.get_name_only(code) or a.get("stock_name") or code
+            try:
+                _fname = fetcher.get_name_only(code)
+            except Exception:
+                _fname = ""
+            display_name = _fname or a.get("stock_name") or code
             if atype == "price":
                 cond_txt = "涨破 ▲" if a.get("condition") == "above" else "跌破 ▼"
-                desc = f"当{cond_txt} **{float(a.get('target_price') or 0):.2f}**"
+                try:
+                    _tp = float(a.get("target_price") or 0)
+                    desc = f"当{cond_txt} **{_tp:.2f}**"
+                except (TypeError, ValueError):
+                    desc = f"当{cond_txt} **{a.get('target_price', '—')}**"
             elif atype == "pattern":
                 pname = ""
                 try:
@@ -341,7 +349,7 @@ def fragment_alerts():
                 st.markdown(
                     f"{ALERT_TYPE_LABEL.get(atype, atype)} **{display_name}** "
                     f"`{code}` ｜ {desc}",
-                    help=f"创建于 {a.get('created_at', '')[:19]}\n检测：{detail}",
+                    help=f"创建于 {str(a.get('created_at', ''))[:19]}\n检测：{detail}",
                 )
             with col_status:
                 st.markdown(f'<span class="{status_cls}">{status_txt}</span>', unsafe_allow_html=True)

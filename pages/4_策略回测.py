@@ -227,8 +227,14 @@ def fragment_manual_backtest():
 
                 benchmark = None
                 if show_benchmark and not result.df.empty:
-                    first_close = result.df.iloc[0]["close"]
-                    benchmark = (result.df["close"] / first_close - 1) * 100
+                    # 加法式健壮性：首根收盘价可能为 0（退市/异常数据）或 NaN，
+                    # 直接相除会得到 inf/nan 污染整条基准曲线。先 coerce 再判非零。
+                    try:
+                        first_close = pd.to_numeric(result.df.iloc[0]["close"], errors="coerce")
+                        if pd.notna(first_close) and first_close != 0:
+                            benchmark = (result.df["close"] / first_close - 1) * 100
+                    except Exception:
+                        benchmark = None
 
                 fig = Visualizer.backtest_curve(result.df, benchmark=benchmark,
                                                 title=f"{bt_label} 策略收益曲线")
@@ -358,21 +364,32 @@ def fragment_manual_backtest():
                         labels = [str(g) for g in grid]
                     xs, ys_ret, ys_win, ys_dd = [], [], [], []
                     with st.spinner("正在扫描参数组合，请稍候…"):
-                        for g in grid:
-                            params = dict(base)
-                            params[sens_choice] = g
+                        # 加法式性能优化：原实现 5 次完整回测串行（每次约拉 180 天日线 + 计算），
+                        # 单参数扫描要数十秒。改用线程池并行；子线程内仅调用 bt.run（只读 config，
+                        # 无共享可变状态、无任何 st 调用），按 grid 下标回填结果以严格保持标签顺序。
+                        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+                        def _run_grid(g):
                             try:
+                                params = dict(base)
+                                params[sens_choice] = g
                                 r2 = bt.run(**params)
                                 s2 = r2.summary()
-                                xs.append(labels[len(xs)])
-                                ys_ret.append(s2["total_return_pct"])
-                                ys_win.append(s2["win_rate_pct"])
-                                ys_dd.append(s2["max_drawdown_pct"])
+                                return (s2["total_return_pct"], s2["win_rate_pct"], s2["max_drawdown_pct"])
                             except Exception:
-                                xs.append(labels[len(xs)])
-                                ys_ret.append(None)
-                                ys_win.append(None)
-                                ys_dd.append(None)
+                                return (None, None, None)
+
+                        _res = {}
+                        with ThreadPoolExecutor(max_workers=min(4, len(grid))) as _ex:
+                            _futs = {_ex.submit(_run_grid, g): g for g in grid}
+                            for _fut in as_completed(_futs):
+                                _res[_futs[_fut]] = _fut.result()
+                        for _i, g in enumerate(grid):
+                            xs.append(labels[_i])
+                            _r, _w, _d = _res.get(g, (None, None, None))
+                            ys_ret.append(_r)
+                            ys_win.append(_w)
+                            ys_dd.append(_d)
                     fig_sens = go.Figure()
                     fig_sens.add_trace(go.Scatter(x=xs, y=ys_ret, mode="lines+markers",
                                                   name="累计收益%", line=dict(color=UP_COLOR, width=2)))
@@ -525,9 +542,14 @@ def fragment_daily_picker():
             if today_picks.empty:
                 _empty_info("暂无今日推荐数据（可能昨日为非交易日或无股票满足选股条件）。")
             else:
-                display_today = today_picks[["code", "name", "score", "buy_price", "rsi2", "rsi14", "reasons"]].copy()
-                display_today.columns = ["代码", "名称", "评分", "买入价", "RSI(2)", "RSI(14)", "选股理由"]
-                st.dataframe(display_today, use_container_width=True, hide_index=True)
+                # 加法式健壮性：prev_picks 上游 schema 漂移可能缺列，直接下标选列会抛 KeyError
+                # 导致整个 fragment 崩溃。缺列时降级提示，其余视图仍可展示。
+                try:
+                    display_today = today_picks[["code", "name", "score", "buy_price", "rsi2", "rsi14", "reasons"]].copy()
+                    display_today.columns = ["代码", "名称", "评分", "买入价", "RSI(2)", "RSI(14)", "选股理由"]
+                    st.dataframe(display_today, use_container_width=True, hide_index=True)
+                except KeyError as _ke:
+                    st.warning(f"今日推荐数据列结构异常，已跳过表格展示：{_ke}")
                 st.caption("💡 以上为基于上一交易日收盘数据选出的股票，可在今日开盘/盘中择机买入。")
 
             # ---- 明日推荐（latest_picks：今日选股 → 明日买入）----
@@ -537,9 +559,12 @@ def fragment_daily_picker():
             if tomorrow_picks.empty:
                 _empty_info("暂无明日推荐数据。可尝试调大「每日选股数」或延长选股区间后重新运行选股。")
             else:
-                display_tmr = tomorrow_picks[["code", "name", "score", "buy_price", "rsi2", "rsi14", "reasons"]].copy()
-                display_tmr.columns = ["代码", "名称", "评分", "参考价", "RSI(2)", "RSI(14)", "选股理由"]
-                st.dataframe(display_tmr, use_container_width=True, hide_index=True)
+                try:
+                    display_tmr = tomorrow_picks[["code", "name", "score", "buy_price", "rsi2", "rsi14", "reasons"]].copy()
+                    display_tmr.columns = ["代码", "名称", "评分", "参考价", "RSI(2)", "RSI(14)", "选股理由"]
+                    st.dataframe(display_tmr, use_container_width=True, hide_index=True)
+                except KeyError as _ke:
+                    st.warning(f"明日推荐数据列结构异常，已跳过表格展示：{_ke}")
                 st.caption("💡 以上为基于今日收盘数据选出的股票，可在明日开盘/盘中择机买入。")
 
             # ---- 累计收益曲线 ----
@@ -584,11 +609,15 @@ def fragment_daily_picker():
                 st.markdown("---")
                 st.subheader("全部选股记录")
                 all_picks = picker_result.picks_df.copy()
-                all_picks_display = all_picks[["date", "code", "name", "score", "buy_price", "sell_price",
-                                               "hold_return_pct", "rsi2", "rsi14", "reasons"]].copy()
-                all_picks_display.columns = ["选股日期", "代码", "名称", "评分", "买入价", "卖出价",
-                                             "持有收益(%)", "RSI(2)", "RSI(14)", "选股理由"]
-                st.dataframe(all_picks_display, use_container_width=True, hide_index=True)
+                # 加法式健壮性：picks_df 上游 schema 漂移可能缺列，缺列时降级提示。
+                try:
+                    all_picks_display = all_picks[["date", "code", "name", "score", "buy_price", "sell_price",
+                                                   "hold_return_pct", "rsi2", "rsi14", "reasons"]].copy()
+                    all_picks_display.columns = ["选股日期", "代码", "名称", "评分", "买入价", "卖出价",
+                                                 "持有收益(%)", "RSI(2)", "RSI(14)", "选股理由"]
+                    st.dataframe(all_picks_display, use_container_width=True, hide_index=True)
+                except KeyError as _ke:
+                    st.warning(f"全部选股记录列结构异常，已跳过表格展示：{_ke}")
 
 
 # ==================================================================
