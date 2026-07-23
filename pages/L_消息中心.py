@@ -216,7 +216,13 @@ if not shown:
 else:
     for m in shown:
         read = m["id"] in st.session_state["msg_read_ids"]
-        border_col = _color(float(m["title"].split("%")[0].split(" ")[-1])) if "%" in m["title"] else "#888"
+        border_col = "#888"
+        if "%" in m["title"]:
+            try:
+                border_col = _color(float(m["title"].split("%")[0].split(" ")[-1]))
+            except Exception:
+                # 标题含 "%" 但解析不出涨跌数（如社区消息 "35% 折扣"），降级灰色边框而非崩溃
+                border_col = "#888"
         with st.container(border=True):
             hc1, hc2 = st.columns([11, 1])
             with hc1:

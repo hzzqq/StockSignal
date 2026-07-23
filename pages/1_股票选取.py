@@ -106,13 +106,15 @@ def _render_user_score(ticker: str, stock_label: str) -> None:
             # slider 返回值已强制在 [0, 100] 内
             score_val = int(score_val)
             res = api_save_user_score(ticker, score_val, stock_label)
-            if res.get("status") == "ok":
+            # ⚠️ 兜底：后端异常时 api_save_user_score 可能返回 None，res.get 会抛 AttributeError
+            if isinstance(res, dict) and res.get("status") == "ok":
                 st.session_state[_ss_key] = score_val
                 # 清除旧 slider key，确保下次渲染从已保存值重新初始化（避免残留 50）
                 st.session_state.pop(f"pick_user_score_{ticker}", None)
                 st.success(f"✅ 评分已保存：{score_val} 分")
             else:
-                st.error(f"保存失败：{res.get('message', '未知错误')}")
+                _msg = res.get("message", "未知错误") if isinstance(res, dict) else "未知错误"
+                st.error(f"保存失败：{_msg}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -509,17 +511,22 @@ if data_ok and df is not None:
         with c2:
             st.markdown("**动量 / 涨跌幅**")
             if "error" not in momentum:
-                rets = momentum.get("returns", {})
+                rets = momentum.get("returns", {}) or {}
+                # ⚠️ 兜底：returns 内 '5日'/'20日' 可能为 None，直接 f"{None:+.2f}" 抛 TypeError
+                _r5 = rets.get("5日") or 0
+                _r20 = rets.get("20日") or 0
                 st.markdown(f"**{momentum.get('momentum_label', '—')}**")
-                st.metric("5日涨幅", f"{rets.get('5日', 0):+.2f}%", delta=f"20日 {rets.get('20日', 0):+.2f}%")
+                st.metric("5日涨幅", f"{_r5:+.2f}%", delta=f"20日 {_r20:+.2f}%")
             else:
                 st.caption(momentum.get("error", "数据不足"))
         with c3:
             st.markdown("**量能分析**")
             if "error" not in volume_info:
-                ratio = volume_info.get("vol_ratio", 1.0)
+                # ⚠️ 兜底：vol_ratio/vol_change_pct 可能为 None，避免 f-string 格式化崩溃
+                ratio = volume_info.get("vol_ratio") or 1.0
+                _vol_chg_pct = volume_info.get("vol_change_pct") or 0
                 st.markdown(f"**{volume_info.get('volume_price_label', '—')}**")
-                st.metric("量比(今/5日均)", f"{ratio:.2f}x", delta=f"{volume_info.get('vol_change_pct', 0):+.1f}%")
+                st.metric("量比(今/5日均)", f"{ratio:.2f}x", delta=f"{_vol_chg_pct:+.1f}%")
             else:
                 st.caption(volume_info.get("error", "数据不足"))
         with c4:
@@ -527,7 +534,12 @@ if data_ok and df is not None:
             if patterns:
                 for p in patterns[:5]:
                     icon = "🟢" if p.get("bias") == "看涨" else ("🔴" if p.get("bias") == "看跌" else "⚪")
-                    date_str = pd.Timestamp(p["date"]).strftime("%m-%d")
+                    # ⚠️ 兜底：pattern 的 date 可能为 None / 坏串，pd.Timestamp(None) 会抛 TypeError
+                    _pdate = p.get("date")
+                    try:
+                        date_str = pd.Timestamp(_pdate).strftime("%m-%d") if _pdate is not None else "—"
+                    except Exception:
+                        date_str = "—"
                     st.markdown(f"{icon} `{date_str}` {p.get('name', '')}")
             else:
                 st.caption("未识别到明显形态")

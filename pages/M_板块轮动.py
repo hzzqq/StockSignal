@@ -60,6 +60,9 @@ def _norm_num(series):
 
 def _heatmap(df):
     d = df.copy()
+    if "行业" not in d.columns or "涨跌幅" not in d.columns:
+        _empty_info("板块数据字段不完整（缺少「行业」或「涨跌幅」），暂无法渲染（接口字段变更或网络异常）。")
+        return
     d["涨跌幅"] = _norm_num(d["涨跌幅"])
     d["净额"] = _norm_num(d.get("净额"))
     d = d.dropna(subset=["涨跌幅"]).drop_duplicates("行业")
@@ -96,6 +99,9 @@ def _heatmap(df):
 
 def _ranking(df):
     d = df.copy()
+    if "行业" not in d.columns or "涨跌幅" not in d.columns:
+        _empty_info("板块数据字段不完整（缺少「行业」或「涨跌幅」），暂无法渲染（接口字段变更或网络异常）。")
+        return
     d["涨跌幅"] = _norm_num(d["涨跌幅"])
     d = d.dropna(subset=["涨跌幅"]).drop_duplicates("行业")
     if d.empty:
@@ -129,6 +135,9 @@ def _ranking(df):
 
 def _rotation(df):
     d = df.copy()
+    if "行业" not in d.columns or "涨跌幅" not in d.columns:
+        _empty_info("板块数据字段不完整（缺少「行业」或「涨跌幅」），暂无法渲染（接口字段变更或网络异常）。")
+        return
     d["涨跌幅"] = _norm_num(d["涨跌幅"])
     d["净额"] = _norm_num(d.get("净额"))
     d = d.dropna(subset=["涨跌幅"]).drop_duplicates("行业")

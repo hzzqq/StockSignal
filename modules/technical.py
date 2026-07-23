@@ -37,6 +37,8 @@ def analyze_trend(df: pd.DataFrame) -> Dict[str, Any]:
     """
     if df is None or df.empty:
         return {"error": "数据为空"}
+    if "close" not in df.columns:
+        return {"error": "缺少 close 列"}
 
     latest = df.iloc[-1]
     close = float(latest["close"])

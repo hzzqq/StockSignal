@@ -159,6 +159,19 @@ def fragment_sector_board():
         st.error(f"获取板块数据失败: {e}")
 
     if sector_df is not None and not sector_df.empty:
+        # ── 上游 schema 漂移守卫：列名可能为「板块/涨跌幅」等非预期名，做兼容映射，
+        # 避免直接 sector_df["change_pct"] 抛 KeyError 使整个板块模块崩溃 ──
+        _sec_col = next((c for c in sector_df.columns if c in ("sector", "板块", "行业", "名称")), None)
+        if _sec_col and _sec_col != "sector":
+            sector_df = sector_df.rename(columns={_sec_col: "sector"})
+        _chg_col = next((c for c in sector_df.columns if c in ("change_pct", "涨跌幅", "涨跌幅(%)")), None)
+        if _chg_col and _chg_col != "change_pct":
+            sector_df = sector_df.rename(columns={_chg_col: "change_pct"})
+        if "sector" not in sector_df.columns:
+            sector_df["sector"] = ""
+        if "change_pct" not in sector_df.columns:
+            sector_df["change_pct"] = 0.0
+            st.warning("⚠️ 板块涨跌幅字段缺失，已按 0 处理；数据源可能已变更字段名。")
         sector_df["change_pct"] = pd.to_numeric(sector_df["change_pct"], errors="coerce").fillna(0)
         sector_df = sector_df.sort_values("change_pct", ascending=False).reset_index(drop=True)
         if sector_df["change_pct"].abs().max() < 0.01:

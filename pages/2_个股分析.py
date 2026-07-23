@@ -117,6 +117,22 @@ def _cached_period_kline(ticker: str, start: str, end: str, period: str):
 
 def _render_analysis(R: dict):
     # 把结果字典展开到局部作用域，保持原渲染代码基本不变
+    # ── 兜底：数值字段缺失（None / NaN）统一按 0.0 处理，
+    # 避免后续大量 f-string 格式化（如 f"{x:.2f}"）在 x=None/NaN 时抛 TypeError
+    # 使整个决策仪表盘渲染失败（首轮已修 current_price/_close/q_amount 等个别字段）──
+    _NUM_FIELDS = (
+        "current_price", "prev_close", "change_pct", "entry_price", "target_price",
+        "stop_price", "atr14", "support", "resistance", "lo52", "hi52",
+        "ma5v", "ma10v", "ma20v", "trapped", "vol_now", "vol_avg", "vol_chg",
+        "q_open", "q_high", "q_low", "q_prev",
+        "tech_score", "news_score", "macro_score", "vol_score", "sector_score",
+        "composite", "pos_pct", "neg_pct",
+    )
+    for _nf in _NUM_FIELDS:
+        _v = R.get(_nf)
+        if _v is None or (isinstance(_v, float) and pd.isna(_v)):
+            R[_nf] = 0.0
+
     ticker = R["ticker"]
     display_name = R["display_name"]
     industry = R["industry"]
@@ -358,7 +374,7 @@ def _render_analysis(R: dict):
     st.markdown(
         "<div class='sf-grid-4'>"
         "<div class='sf-perspective-card'>"
-        "<div class='title'>技术面 · 多周期（综合 {technical_profile['composite']}）</div>"
+        f"<div class='title'>技术面 · 多周期（综合 {technical_profile['composite']}）</div>"
         "<div class='body'>"
         f"<span class='sf-pill {_tp_cls(technical_profile['short'])}'>短期 {technical_profile['short']}</span>"
         f"<span class='sf-pill {_tp_cls(technical_profile['mid'])}'>中期 {technical_profile['mid']}</span>"
@@ -389,8 +405,8 @@ def _render_analysis(R: dict):
         "缩量" if vol_chg < -15 else "地量企稳"
     )
     _vol_health = "健康换手而非过热" if abs(vol_chg) < 40 else "异常波动需警惕"
-    # ⚠️ 兜底：实时行情缺失时 q_amount 为 None，直接除法会抛 TypeError 致整个仪表盘渲染失败
-    _q_amount_disp = f"{q_amount/1e8:.2f}亿" if q_amount is not None else "—"
+    # ⚠️ 兜底：实时行情缺失时 q_amount 为 None/NaN，直接除法会抛 TypeError 致整个仪表盘渲染失败
+    _q_amount_disp = f"{q_amount/1e8:.2f}亿" if (q_amount is not None and not pd.isna(q_amount)) else "—"
     st.markdown(
         f"<div style='margin-top:12px;font-size:13.5px;color:#64748b;line-height:1.7;'>"
         f"<b style='color:#1e293b;'>量能分析：</b>近 20 日均量约 {vol_avg/1e4:.1f} 万手；"

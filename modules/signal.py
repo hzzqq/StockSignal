@@ -45,6 +45,24 @@ class SignalEngine:
             return 50
 
     @staticmethod
+    def _stable_offset(ticker: str, scale: float = 5.0) -> float:
+        """确定性微偏移（±scale）。
+
+        原实现用内置 ``hash(ticker)``，而 Python3 的 ``hash(str)`` 按进程加盐
+        （PYTHONHASHSEED），导致同一股票在不同进程/次启动下偏移值不同，排序不稳定，
+        与「确定性偏移」的注释意图相悖。这里改用 hashlib（sha256）得到跨进程/跨机器
+        稳定的偏移，区间仍为 ±scale（中间区加权在调用方完成）。
+        """
+        import hashlib
+        try:
+            digest = hashlib.sha256(str(ticker).encode("utf-8")).digest()
+            # 取前 4 字节作为无符号整数，映射到 [0,1)
+            val = int.from_bytes(digest[:4], "big") / 0xFFFFFFFF
+            return (val - 0.5) * 2 * scale
+        except Exception:
+            return 0.0
+
+    @staticmethod
     def _score_by_return(r, breaks, scores):
         """把涨跌幅 r 映射到 0-100：breaks 降序阈值，scores 对应得分（线性插值）。"""
         r = float(r)
@@ -153,11 +171,11 @@ class SignalEngine:
 
         # 6) 个股确定性微偏移：防止极少数特征高度雷同的股票 composite 完全相同
         # 中间区域（40~70）最容易扎堆，偏移力度加大；极端区域（超买/超跌）保持小偏移。
-        # 偏移量来自 ticker 的确定性哈希，范围 ±4.5（中间区）/ ±2.5（极端区），
+        # 偏移量来自 ticker 的确定性哈希（见 _stable_offset），范围 ±4.5（中间区）/ ±2.5（极端区），
         # 不影响整体排序（远小于基本面因子带来的差异）。
         ticker = str(latest.get("ticker", d.index[-1] if len(d.index) else "0"))
         mid_boost = 1.8 if 40 <= composite <= 70 else 1.0
-        hash_offset = ((hash(ticker[-6:]) % 51) / 51 - 0.5) * 5.0 * mid_boost
+        hash_offset = self._stable_offset(ticker, scale=5.0) * mid_boost
 
         composite = composite + pos_adj + vol_adj + vol_trend_adj + amp_adj + r1_adj + hash_offset
 

@@ -68,6 +68,18 @@ def _price_color(pct: float) -> str:
     return AMBER
 
 
+def _pattern_name(p):
+    """从 patterns 元素（dict 或 str）提取形态名称，统一供关键词匹配使用。
+
+    上游 technical.detect_patterns 返回的是 dict 列表（含 name/bias/desc/date），
+    若直接用 ``k in p`` 会被解读为「判断 key 是否在 dict 中」而非「name 是否含关键词」，
+    导致形态类涨跌因素永远无法命中。本 helper 做兼容（dict→name，str→原值）。
+    """
+    if isinstance(p, dict):
+        return str(p.get("name", "") or "")
+    return str(p or "")
+
+
 def _support_resistance_bar(support: float, resistance: float, current: float,
                             markers=None) -> str:
     """支撑 → 压力 价格刻度条，标注当前价位置；
@@ -306,7 +318,7 @@ def _build_rise_fall_factors(R: dict) -> tuple[list[dict], list[dict]]:
         rise.append({"title": "处于52周低位", "desc": f"当前价处于近 52 周价格区间底部（{pos52:.0f}%），估值/价格安全边际较高。", "stars": 2})
     # K线形态
     if patterns:
-        bull_patterns = [p for p in patterns if any(k in p for k in ["底", "金叉", "突破", "阳", "多", "红三", "启明"])]
+        bull_patterns = [p for p in patterns if any(k in _pattern_name(p) for k in ["底", "金叉", "突破", "阳", "多", "红三", "启明"])]
         if bull_patterns:
             rise.append({"title": f"K线形态积极：{bull_patterns[0]}", "desc": f"近期形成 {', '.join(bull_patterns[:3])} 等偏多技术形态，短期结构改善。", "stars": 2})
 
@@ -336,7 +348,7 @@ def _build_rise_fall_factors(R: dict) -> tuple[list[dict], list[dict]]:
         fall.append({"title": "处于52周高位", "desc": f"当前价处于近 52 周价格区间顶部（{pos52:.0f}%），高位回调与获利回吐风险加大。", "stars": 2})
     # K线形态
     if patterns:
-        bear_patterns = [p for p in patterns if any(k in p for k in ["顶", "死叉", "跌破", "阴", "空", "黑三", "乌云"])]
+        bear_patterns = [p for p in patterns if any(k in _pattern_name(p) for k in ["顶", "死叉", "跌破", "阴", "空", "黑三", "乌云"])]
         if bear_patterns:
             fall.append({"title": f"K线形态偏空：{bear_patterns[0]}", "desc": f"近期形成 {', '.join(bear_patterns[:3])} 等偏空技术形态，短期结构转弱。", "stars": 2})
 
@@ -361,8 +373,9 @@ def _factor_list_html(title: str, factors: list[dict]) -> str:
     if not factors:
         return ""
     is_up = "利好" in title or "上涨" in title
-    accent = "#009e60" if is_up else "#dc2626"
-    tag_bg = "#059669" if is_up else "#dc2626"
+    # 涨跌色权威来自 modules.colors（RED=涨/GREEN=跌，文档约定），避免硬编码色值漂移
+    accent = GREEN if is_up else RED
+    tag_bg = GREEN if is_up else RED
     # 跟随全局主题：暗夜/白天 CSS 变量
     bg = "var(--card)"
     border = "var(--border)"
@@ -442,7 +455,7 @@ def _build_logic_lists(R: dict) -> tuple[list[dict], list[dict], list[dict]]:
     if pos_news:
         rise_logic.append({"title": "正面事件催化", "desc": f"检测到 {len(pos_news)} 条正面新闻，事件驱动提升市场风险偏好。", "core": False})
     if patterns:
-        bull_patterns = [p for p in patterns if any(k in p for k in ["底", "金叉", "突破", "阳", "多", "红三", "启明"])]
+        bull_patterns = [p for p in patterns if any(k in _pattern_name(p) for k in ["底", "金叉", "突破", "阳", "多", "红三", "启明"])]
         if bull_patterns:
             rise_logic.append({"title": f"技术形态偏多：{bull_patterns[0]}", "desc": f"近期出现 {', '.join(bull_patterns[:3])} 等偏多信号，短期结构改善。", "core": False})
     if r5 > 0 and r20 > 0:
@@ -469,7 +482,7 @@ def _build_logic_lists(R: dict) -> tuple[list[dict], list[dict], list[dict]]:
     if neg_news:
         fall_logic.append({"title": "负面事件压制", "desc": f"检测到 {len(neg_news)} 条负面新闻，情绪面承压，构成事件风险。", "core": False})
     if patterns:
-        bear_patterns = [p for p in patterns if any(k in p for k in ["顶", "死叉", "跌破", "阴", "空", "黑三", "乌云"])]
+        bear_patterns = [p for p in patterns if any(k in _pattern_name(p) for k in ["顶", "死叉", "跌破", "阴", "空", "黑三", "乌云"])]
         if bear_patterns:
             fall_logic.append({"title": f"技术形态偏空：{bear_patterns[0]}", "desc": f"近期出现 {', '.join(bear_patterns[:3])} 等偏空信号，短期结构转弱。", "core": False})
     if r5 < 0 and r20 < 0:

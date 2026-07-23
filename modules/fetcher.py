@@ -16,8 +16,39 @@ import urllib.request
 import urllib.error
 import urllib.parse
 import contextlib
+import socket  # 捕获瞬时网络错误（超时/连接重置/DNS）做重试兜底
 from datetime import datetime, timedelta
 import concurrent.futures as _cf
+
+
+def _safe_urlopen(req, timeout, retries=2, backoff=0.5):
+    """带重试的 urllib 取数（瞬时故障兜底，加法式增强）。
+
+    对超时 / 连接重置 / DNS 失败等瞬时网络错误自动重试，避免单点抖动直接命中
+    上层 fallback 链导致数据缺失；HTTP 业务响应（4xx/5xx）不重试，立即交给调用方
+    的 except 兜底（返回 None 并由降级链处理）。返回可读的响应对象，调用约定与
+    ``urllib.request.urlopen`` 完全一致，因此所有调用点只改函数名、行为不变。
+    """
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            return _safe_urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError:
+            # 业务层响应（401/403/404/5xx 等），不重试，交给调用方按失败处理
+            raise
+        except (urllib.error.URLError, socket.timeout, TimeoutError,
+                ConnectionError, OSError) as e:
+            last_exc = e
+            if attempt < retries:
+                logger.warning(
+                    f"[fetcher] urlopen 瞬时失败(第{attempt + 1}次)，{backoff * (attempt + 1):.1f}s 后重试: {e}"
+                )
+                time.sleep(backoff * (attempt + 1))
+                continue
+            raise
+    if last_exc is not None:
+        raise last_exc
+    raise urllib.error.URLError("urlopen 未知失败")
 
 
 # ──────────────────────────────────────────────────────────
@@ -519,7 +550,7 @@ class _SinaFetcher:
         )
         req = urllib.request.Request(url, headers=cls.HEADERS)
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with _safe_urlopen(req, timeout=15) as resp:
                 raw = resp.read().decode("utf-8", errors="replace")
         except Exception as e:
             logger.info(f"[SinaFetcher] 请求失败 ({sina_code}): {type(e).__name__}: {e}")
@@ -590,7 +621,7 @@ class _UrllibFetcher:
         req = urllib.request.Request(url, headers=cls.HEADERS)
 
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with _safe_urlopen(req, timeout=20) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except Exception as e:
             logger.info(f"[UrllibFetcher] K线失败 ({symbol}): {type(e).__name__}: {e}")
@@ -624,7 +655,7 @@ class _UrllibFetcher:
                "&fields=f2,f3,f12,f14&fs=" + fs)
         req = urllib.request.Request(url, headers=cls.HEADERS)
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with _safe_urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except Exception as e:
             logger.info(f"[UrllibFetcher] 板块失败 ({fs}): {e}")
@@ -656,7 +687,7 @@ class _UrllibFetcher:
                    f"&fields=f2,f3,f12,f14&fs={fs}")
             req = urllib.request.Request(url, headers=cls.HEADERS)
             try:
-                with urllib.request.urlopen(req, timeout=15) as resp:
+                with _safe_urlopen(req, timeout=15) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
             except Exception as e:
                 logger.info(f"[UrllibFetcher] 板块失败 ({fs} p{pn}): {e}")
@@ -724,7 +755,7 @@ class _UrllibFetcher:
                f"&fields={fields}&invt=2&fltt=2")
         req = urllib.request.Request(url, headers=cls.HEADERS)
         try:
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with _safe_urlopen(req, timeout=12) as resp:
                 d = json.loads(resp.read().decode("utf-8")).get("data") or {}
         except Exception as e:  # noqa: BLE001
             logger.info(f"[UrllibFetcher] 基本面失败 ({symbol}): {type(e).__name__}: {e}")
@@ -1365,7 +1396,7 @@ class StockFetcher:
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 },
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with _safe_urlopen(req, timeout=10) as resp:
                 text = resp.read().decode("gbk", errors="replace")
 
             # 解析：var hq_str_sh601088="...";
@@ -1531,7 +1562,7 @@ class StockFetcher:
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 },
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with _safe_urlopen(req, timeout=10) as resp:
                 text = resp.read().decode("gbk", errors="replace")
             start = text.find('"')
             end = text.find('"', start + 1)
@@ -1603,7 +1634,7 @@ class StockFetcher:
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 },
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with _safe_urlopen(req, timeout=10) as resp:
                 text = resp.read().decode("gbk", errors="replace")
             import json as _json
             data = _json.loads(text)

@@ -103,19 +103,25 @@ def _etf_filter_fragment():
                      res["代码"].astype(str).str.contains(kw, case=False, na=False)]
         if ftype != "全部":
             res = res[res["类型"] == ftype]
-        res["涨跌幅"] = pd.to_numeric(res["涨跌幅"], errors="coerce")
-        res = res[(res["涨跌幅"] >= chg_range[0]) & (res["涨跌幅"] <= chg_range[1])]
+        # 列结构可能因上游接口变动而缺失，先判定存在再做数值化与区间过滤，避免 KeyError 崩溃
+        if "涨跌幅" in res.columns:
+            res["涨跌幅"] = pd.to_numeric(res["涨跌幅"], errors="coerce")
+            res = res[(res["涨跌幅"] >= chg_range[0]) & (res["涨跌幅"] <= chg_range[1])]
         if "成交额" in res.columns:
             res["成交额"] = pd.to_numeric(res["成交额"], errors="coerce")
             if min_amt > 0:
                 res = res[res["成交额"] / 1e8 >= min_amt]
 
-        # 排序
-        sort_col = st.selectbox("排序字段", [c for c in ["涨跌幅", "成交额", "最新价", "管理费"] if c in res.columns], key="etf_sort",
-                                  help="选择排序依据；与下方「升序」复选框组合使用")
-        asc = st.checkbox("升序", key="etf_asc")
-        if sort_col in res.columns:
-            res = res.sort_values(sort_col, ascending=asc, na_position="last")
+        # 排序（所有可排序列均缺失时降级提示，避免 st.selectbox 空选项报错）
+        sort_opts = [c for c in ["涨跌幅", "成交额", "最新价", "管理费"] if c in res.columns]
+        if sort_opts:
+            sort_col = st.selectbox("排序字段", sort_opts, key="etf_sort",
+                                    help="选择排序依据；与下方「升序」复选框组合使用")
+            asc = st.checkbox("升序", key="etf_asc")
+            if sort_col in res.columns:
+                res = res.sort_values(sort_col, ascending=asc, na_position="last")
+        else:
+            _empty_info("可用排序字段缺失（行情列结构异常），已跳过排序。")
 
         st.markdown(f"### 📋 筛选结果（{len(res)} 只）")
         if res.empty:

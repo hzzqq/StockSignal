@@ -284,6 +284,12 @@ def _card(col, cfg, df, dark_mode):
                 f"　{text}", unsafe_allow_html=True)
 
 
+@st.cache_data(ttl=120, show_spinner=False)
+def _load_drivers(days: int = 180):
+    """缓存市场驱动力取数，避免多个 fragment 重复拉取同一份数据。"""
+    return get_market_drivers(days=days)
+
+
 # ───────────────────────── 各区块（@safe_fragment 错误边界） ─────────────────────────
 @safe_fragment("市场温度计")
 def fragment_thermometer():
@@ -291,7 +297,8 @@ def fragment_thermometer():
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="mt_auto")
     try:
-        df, meta = get_market_drivers(days=180)
+        with st.spinner("加载市场驱动力数据…"):
+            df, meta = _load_drivers(180)
     except Exception as e:
         st.error(f"市场驱动力数据加载失败：{e}")
         return
@@ -321,7 +328,8 @@ def fragment_breadth():
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="br_auto")
     try:
-        df, meta = get_market_drivers(days=180)
+        with st.spinner("加载市场驱动力数据…"):
+            df, meta = _load_drivers(180)
     except Exception as e:
         st.error(f"市场驱动力数据加载失败：{e}")
         return
@@ -339,7 +347,8 @@ def fragment_sentiment():
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="se_auto")
     try:
-        df, meta = get_market_drivers(days=180)
+        with st.spinner("加载市场驱动力数据…"):
+            df, meta = _load_drivers(180)
     except Exception as e:
         st.error(f"市场驱动力数据加载失败：{e}")
         return
@@ -357,7 +366,8 @@ def fragment_valuation():
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="va_auto")
     try:
-        df, meta = get_market_drivers(days=180)
+        with st.spinner("加载市场驱动力数据…"):
+            df, meta = _load_drivers(180)
     except Exception as e:
         st.error(f"市场驱动力数据加载失败：{e}")
         return

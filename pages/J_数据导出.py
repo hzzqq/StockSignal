@@ -182,14 +182,19 @@ def _watch_rows(codes: list) -> list:
     for c in codes:
         try:
             q = fetcher.get_realtime_quote(c) or {}
+            cur = q.get("current")
+            prev = q.get("prev_close")
+            # 行情可能返回 NaN / 非数值：用 pd.notna 守卫，避免算出差额/涨跌幅为 "nan" 或除零
+            cur_ok = isinstance(cur, (int, float)) and pd.notna(cur)
+            prev_ok = isinstance(prev, (int, float)) and pd.notna(prev)
+            delta = round(cur - prev, 2) if (cur_ok and prev_ok) else None
+            pct = round((cur - prev) / prev * 100, 2) if (cur_ok and prev_ok and prev != 0) else None
             rows.append({
                 "代码": c,
                 "名称": q.get("name"),
-                "现价": q.get("current"),
-                "涨跌额": (round(q.get("current", 0) - q.get("prev_close", 0), 2)
-                           if q.get("current") is not None and q.get("prev_close") is not None else None),
-                "涨跌幅%": (round((q.get("current", 0) - q.get("prev_close", 0)) / q.get("prev_close", 0) * 100, 2)
-                            if q.get("prev_close") else None),
+                "现价": cur,
+                "涨跌额": delta,
+                "涨跌幅%": pct,
                 "开盘": q.get("open"),
                 "最高": q.get("high"),
                 "最低": q.get("low"),
@@ -303,8 +308,12 @@ def frag_industry():
     st.subheader("🏭 行业板块资金流向")
     st.caption("数据源：东方财富 stock_fund_flow_industry()")
     if st.button("生成并下载 CSV", key="exp_industry_btn"):
-        with st.spinner("获取行业板块资金流向…"):
-            df = get_industry_fund_flow()
+        try:
+            with st.spinner("获取行业板块资金流向…"):
+                df = get_industry_fund_flow()
+        except Exception as e:
+            st.error(f"⚠️ 获取行业板块资金流向失败：{e}")
+            return
         if df is None or df.empty:
             _empty_info("暂无数据")
         else:
@@ -322,8 +331,12 @@ def frag_northbound():
     st.subheader("🌐 北向资金")
     st.caption("数据源：东方财富 stock_hsgt_fund_flow_summary_em()（沪股通/深股通/北向）")
     if st.button("生成并下载 CSV", key="exp_north_btn"):
-        with st.spinner("获取北向资金…"):
-            d = get_northbound_fund_flow()
+        try:
+            with st.spinner("获取北向资金…"):
+                d = get_northbound_fund_flow()
+        except Exception as e:
+            st.error(f"⚠️ 获取北向资金失败：{e}")
+            return
         if d is None:
             _empty_info("暂无北向资金数据（接口暂不可用）")
             return
@@ -354,8 +367,12 @@ def frag_market():
     st.subheader("📊 大盘主力净流入（近30日）")
     st.caption("数据源：东方财富 stock_market_fund_flow()，取最近 30 日")
     if st.button("生成并下载 CSV", key="exp_market_btn"):
-        with st.spinner("获取大盘主力净流入…"):
-            df = get_market_fund_flow(days=30)
+        try:
+            with st.spinner("获取大盘主力净流入…"):
+                df = get_market_fund_flow(days=30)
+        except Exception as e:
+            st.error(f"⚠️ 获取大盘主力净流入失败：{e}")
+            return
         if df is None or df.empty:
             _empty_info("暂无数据")
         else:
@@ -379,7 +396,11 @@ def frag_individual():
             st.warning("请先选择股票")
             return
         with st.spinner(f"获取 {code} 主力资金…"):
-            r = get_individual_fund_flow(code)
+            try:
+                r = get_individual_fund_flow(code)
+            except Exception as e:
+                st.error(f"⚠️ 获取 {code} 主力资金失败：{e}")
+                return
         if not r:
             st.warning(f"暂未获取到 {code} 的主力资金数据，请稍后重试。")
             return
@@ -413,7 +434,11 @@ def frag_earnings():
             st.warning("报告期须为 8 位数字的 YYYYMMDD 格式")
             return
         with st.spinner(f"获取业绩报表 {period}…"):
-            df = get_earnings_report(period=period)
+            try:
+                df = get_earnings_report(period=period)
+            except Exception as e:
+                st.error(f"⚠️ 获取业绩报表失败：{e}")
+                return
         if df is None or df.empty:
             _empty_info("暂无数据")
         else:
@@ -431,9 +456,13 @@ def frag_portfolio():
     st.subheader("💼 组合持仓盈亏")
     st.caption("数据源：modules.portfolio.PortfolioManager（calc_pnl / summary）")
     if st.button("生成并下载 CSV", key="exp_port_btn"):
-        with st.spinner("计算持仓盈亏…"):
-            pm = PortfolioManager()
-            pnl_df = pm.calc_pnl()
+        try:
+            with st.spinner("计算持仓盈亏…"):
+                pm = PortfolioManager()
+                pnl_df = pm.calc_pnl()
+        except Exception as e:
+            st.error(f"⚠️ 计算持仓盈亏失败：{e}")
+            return
         if pnl_df is None or pnl_df.empty:
             _empty_info("暂无数据（当前组合为空）")
             return
@@ -456,9 +485,13 @@ def frag_watchlist():
     st.subheader("⭐ 自选股实时快照")
     st.caption("数据源：/api/watchlist + StockFetcher.get_realtime_quote()")
     if st.button("生成并下载 CSV", key="exp_watch_btn"):
-        with st.spinner("获取自选股实时行情…"):
-            _, body = api_get("/api/watchlist", timeout=10)
-            codes = _parse_watchlist(body)
+        try:
+            with st.spinner("获取自选股实时行情…"):
+                _, body = api_get("/api/watchlist", timeout=10)
+                codes = _parse_watchlist(body)
+        except Exception as e:
+            st.error(f"⚠️ 获取自选股失败：{e}")
+            return
         if not codes:
             _empty_info("暂无数据（自选股为空或接口不可用）")
             return

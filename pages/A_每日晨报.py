@@ -183,8 +183,8 @@ def fragment_watchlist_and_news():
                 # 名称优先用自选股库已存名称，其次本地股票库解析，最后回退代码
                 name = w.get("stock_name") or fetcher.get_name_only(code) or code
                 pe, alr = fund_map.get(code, (None, None))
-                _pe_s = f"{pe:.2f}" if isinstance(pe, (int, float)) else "—"
-                _alr_s = f"{alr:.2f}%" if isinstance(alr, (int, float)) else "—"
+                _pe_s = f"{pe:.2f}" if isinstance(pe, (int, float)) and not pd.isna(pe) else "—"
+                _alr_s = f"{alr:.2f}%" if isinstance(alr, (int, float)) and not pd.isna(alr) else "—"
                 if isinstance(rt, dict) and rt.get("current"):
                     cur = float(rt["current"])
                     prev = float(rt.get("prev_close") or cur)
@@ -230,9 +230,13 @@ def fragment_watchlist_and_news():
                 except Exception:
                     sel_rows = []
                 if sel_rows:
-                    r = snap_df.iloc[sel_rows[0]]
-                    selected_code = str(r["代码"])
-                    selected_name = str(r["名称"])
+                    # stale 选择保护：snap_df 在刷新后可能变短，越界则丢弃选择
+                    if sel_rows[0] < len(snap_df):
+                        r = snap_df.iloc[sel_rows[0]]
+                        selected_code = str(r["代码"])
+                        selected_name = str(r["名称"])
+                    else:
+                        sel_rows = []
 
     # 相关新闻速览（与快照同 fragment，行选择只重跑本 fragment）
     _news_title = f"📰 相关新闻速览 — {selected_name}（{selected_code}）" if selected_code else "📰 相关新闻速览"

@@ -71,6 +71,22 @@ from modules.fundamental_helpers import (
 import concurrent.futures as _cf
 
 
+def _nan_to_none(v):
+    """将 float nan / pd.NA 收敛为 None。
+
+    `_to_float`/`_to_num` 在收到 NaN 输入时会返回 float('nan')，而 `bool(float('nan'))`
+    为 True，会导致显示层 `if v` 的 falsy 判定失真、打印出 "nan"。此助手统一收敛。
+    """
+    try:
+        if v is None:
+            return None
+        if isinstance(v, float) and pd.isna(v):
+            return None
+        return v
+    except Exception:
+        return v
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def _industry_pe_median(industry: str):
     """同行业 PE(TTM) 中位数（best-effort，缓存 1h）。返回 (median, 样本数) 或 None。#544-13"""
@@ -214,6 +230,19 @@ def _calc_perf(code: str) -> dict:
     # ── ROE = 净利润 / 净资产 ──
     if out.get("_np0") is not None and out.get("_eq0"):
         out["roe"] = round(out["_np0"] / abs(out["_eq0"]) * 100, 2)
+
+    # ── 收敛：任何 float nan 统一收敛为 None ──
+    # `_to_num` 在收到 NaN/空单元格时会返回 float('nan')，未收敛会污染下游
+    # `f"{x:.2f}%" / f"{x:.2f}"` 显示层、打印出难看的 "nan"。
+    for _k in list(out.keys()):
+        try:
+            if isinstance(out[_k], float) and pd.isna(out[_k]):
+                out[_k] = None
+        except Exception:
+            pass
+    # 收敛后剔除值为 None 的键，使显示层 `perf.get(key, "—")` 回退到占位符而非 "None"
+    for _k in [k for k, v in out.items() if v is None]:
+        out.pop(_k, None)
     return out
 
 
@@ -377,12 +406,16 @@ if code:
     # 数据加载
     # ═══════════════════════════════════════════════
     with st.spinner("正在加载基本面数据…"):
-        fund = fetcher.get_fundamentals(code) or {}
+        try:
+            fund = fetcher.get_fundamentals(code) or {}
+        except Exception:
+            fund = {}
+            st.warning("⚠️ 实时行情接口暂时不可用，已降级为有限展示（估值/市值字段将为空）。")
         name = fund.get("name") or code
         industry = (fund.get("industry") or "").strip() or "—"
-        price = _to_float(fund.get("price"))
-        pe_ttm = _to_float(fund.get("pe_ttm"))
-        market_cap = _to_float(fund.get("market_cap"))
+        price = _nan_to_none(_to_float(fund.get("price")))
+        pe_ttm = _nan_to_none(_to_float(fund.get("pe_ttm")))
+        market_cap = _nan_to_none(_to_float(fund.get("market_cap")))
 
         # 业绩核心指标（利润表 + 资产负债表，含 SSL 旁路与缓存）
         try:

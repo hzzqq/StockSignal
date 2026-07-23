@@ -119,7 +119,8 @@ universe = []
 if source == "我的自选股":
     sc, body = api_get("/api/watchlist", timeout=10)
     if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        universe = [_norm_code(w["stock_code"]) for w in (body.get("data", []) or []) if w.get("stock_code")]
+        universe = [_norm_code(w["stock_code"]) for w in (body.get("data", []) or [])
+                     if isinstance(w, dict) and w.get("stock_code")]
         if universe:
             # 名称优先，显示 "名称(代码)"，超过 12 只省略
             def _name_code(c):
@@ -402,6 +403,9 @@ with st.container(border=True):
                 if df is None:
                     continue
                 composite = SignalEngine().price_score(df)
+                if composite is None or (isinstance(composite, float) and pd.isna(composite)):
+                    # 评分缺失（上游未返回有效值）时跳过该股，而非 int(round(None)) 崩溃
+                    continue
                 patterns = _merge_patterns(df)
                 pat_overview = "；".join(f"{p.get('name', '?')}·{p.get('bias', '')}" for p in patterns) if patterns else "—"
                 if keyword:

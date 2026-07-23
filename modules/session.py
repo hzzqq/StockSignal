@@ -581,66 +581,56 @@ def require_auth() -> None:
     st.stop()
 
 
+def _api_request(method: str, path: str, *, payload=None, timeout: int = 5, **kwargs):
+    """统一的带重试后端请求（瞬态网络错误兜底），api_get/post/put/delete 的公共实现。
+
+    行为契约与旧实现完全一致：
+      - 成功：返回 (status_code, 响应 dict)
+      - 网络异常（连接重置/超时/DNS 等瞬态错误）：重试 2 次（0.4s / 0.8s 退避），
+        仍失败返回 (-1, {"message": ...})
+      - 401：清登录态并 st.rerun(scope="app")（fragment 与顶层均安全），不在此重试
+    仅对瞬态网络错误重试；401/4xx/5xx 属有效响应，立即交给调用方。
+    """
+    import requests as _requests
+    url = f"{API_BASE}{path}"
+    last_exc = None
+    for attempt in range(3):
+        try:
+            if method == "GET":
+                resp = _requests.get(url, headers=auth_headers(), timeout=timeout, **kwargs)
+            else:
+                resp = _requests.request(
+                    method, url, json=(payload or {}), headers=auth_headers(),
+                    timeout=timeout, **kwargs
+                )
+        except _requests.exceptions.RequestException as e:
+            last_exc = e
+            if attempt < 2:
+                time.sleep(0.4 * (attempt + 1))
+                continue
+            return -1, {"message": f"网络错误: {e}"}
+        if resp.status_code == 401:
+            clear_auth()
+            # token 失效：清登录态并强制整页重跑（st.rerun 在 fragment 与顶层均安全）。
+            st.rerun(scope="app")
+        return resp.status_code, _safe_json(resp)
+    return -1, {"message": f"网络错误: {last_exc}"}
+
+
 def api_get(path: str, timeout: int = 5, **kwargs):
-    try:
-        resp = requests.get(f"{API_BASE}{path}", headers=auth_headers(), timeout=timeout, **kwargs)
-    except requests.exceptions.RequestException as e:
-        return -1, {"message": f"网络错误: {e}"}
-    if resp.status_code == 401:
-        clear_auth()
-        # token 失效：清登录态并强制整页重跑。
-        # 旧实现直接 safe_switch_page（=st.switch_page）在 fragment 内会抛异常（R1 高风险点）；
-        # st.rerun(scope="app") 在 fragment 与顶层均安全，重跑后 require_auth 显示登录门禁。
-        st.rerun(scope="app")
-    return resp.status_code, _safe_json(resp)
+    return _api_request("GET", path, timeout=timeout, **kwargs)
 
 
 def api_post(path: str, payload: dict | None = None, timeout: int = 5, **kwargs):
-    try:
-        resp = requests.post(
-            f"{API_BASE}{path}", json=payload or {}, headers=auth_headers(), timeout=timeout, **kwargs
-        )
-    except requests.exceptions.RequestException as e:
-        return -1, {"message": f"网络错误: {e}"}
-    if resp.status_code == 401:
-        clear_auth()
-        # token 失效：清登录态并强制整页重跑。
-        # 旧实现直接 safe_switch_page（=st.switch_page）在 fragment 内会抛异常（R1 高风险点）；
-        # st.rerun(scope="app") 在 fragment 与顶层均安全，重跑后 require_auth 显示登录门禁。
-        st.rerun(scope="app")
-    return resp.status_code, _safe_json(resp)
+    return _api_request("POST", path, payload=payload, timeout=timeout, **kwargs)
 
 
 def api_put(path: str, payload: dict | None = None, timeout: int = 5, **kwargs):
-    try:
-        resp = requests.put(
-            f"{API_BASE}{path}", json=payload or {}, headers=auth_headers(), timeout=timeout, **kwargs
-        )
-    except requests.exceptions.RequestException as e:
-        return -1, {"message": f"网络错误: {e}"}
-    if resp.status_code == 401:
-        clear_auth()
-        # token 失效：清登录态并强制整页重跑。
-        # 旧实现直接 safe_switch_page（=st.switch_page）在 fragment 内会抛异常（R1 高风险点）；
-        # st.rerun(scope="app") 在 fragment 与顶层均安全，重跑后 require_auth 显示登录门禁。
-        st.rerun(scope="app")
-    return resp.status_code, _safe_json(resp)
+    return _api_request("PUT", path, payload=payload, timeout=timeout, **kwargs)
 
 
 def api_delete(path: str, timeout: int = 5, **kwargs):
-    try:
-        resp = requests.delete(
-            f"{API_BASE}{path}", headers=auth_headers(), timeout=timeout, **kwargs
-        )
-    except requests.exceptions.RequestException as e:
-        return -1, {"message": f"网络错误: {e}"}
-    if resp.status_code == 401:
-        clear_auth()
-        # token 失效：清登录态并强制整页重跑。
-        # 旧实现直接 safe_switch_page（=st.switch_page）在 fragment 内会抛异常（R1 高风险点）；
-        # st.rerun(scope="app") 在 fragment 与顶层均安全，重跑后 require_auth 显示登录门禁。
-        st.rerun(scope="app")
-    return resp.status_code, _safe_json(resp)
+    return _api_request("DELETE", path, timeout=timeout, **kwargs)
 
 
 # ──────────────────────────────────────────────────────────────

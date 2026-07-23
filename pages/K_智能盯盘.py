@@ -155,8 +155,13 @@ def _color_net(val):
     return ""
 
 
+@st.cache_data(ttl=15, show_spinner=False)
 def _fetch_watchlist():
-    """抓取自选股列表，返回 [(code, name), ...]，全程防御。"""
+    """抓取自选股列表，返回 [(code, name), ...]，全程防御。
+
+    模块级缓存：本页 4 个 fragment（涨跌榜 / 个股资金流 / 预警 / 关注列表）都会取自选股，
+    交易时段每 60s 自动刷新会重复请求；缓存 15s 收敛为单次调用（不含 st.rerun/switch_page，线程安全）。
+    """
     try:
         sc, body = api_get("/api/watchlist", timeout=10)
     except Exception as e:
@@ -176,8 +181,12 @@ def _fetch_watchlist():
     return out, None
 
 
+@st.cache_data(ttl=15, show_spinner=False)
 def _fetch_watchlist_full():
-    """抓取自选股完整列表（含 id / note），供关注列表管理面板使用。"""
+    """抓取自选股完整列表（含 id / note），供关注列表管理面板使用。
+
+    同 _fetch_watchlist，模块级缓存避免与关注列表 fragment 的其它取数重复请求。
+    """
     try:
         sc, body = api_get("/api/watchlist", timeout=10)
     except Exception as e:

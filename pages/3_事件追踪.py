@@ -191,28 +191,35 @@ def fragment_signal_score():
         # 显示评分结果（从 session_state 恢复）
         if st.session_state.get("sig_scores") is not None:
             scores = st.session_state.sig_scores
+            # ── 兜底：上游 schema 漂移 / 计算失败可能让分值字段为 None（如缺 'total'），
+            # 统一按 0 处理，避免 f-string / 雷达图渲染抛异常 ──
+            _price = scores.get("price_score", 0) or 0
+            _event = scores.get("event_score", 0) or 0
+            _macro = scores.get("macro_score", 0) or 0
+            _total = scores.get("total", 0) or 0
+            _safe_scores = {k: (v if v is not None else 0) for k, v in scores.items()}
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("价格信号", f"{scores['price_score']}/100")
+                st.metric("价格信号", f"{_price}/100")
             with col2:
-                st.metric("事件信号", f"{scores['event_score']}/100")
+                st.metric("事件信号", f"{_event}/100")
             with col3:
-                st.metric("宏观信号", f"{scores['macro_score']}/100")
+                st.metric("宏观信号", f"{_macro}/100")
             with col4:
-                total = scores['total']
+                total = _total
                 delta_text = "买入信号" if total >= 70 else ("卖出信号" if total <= 40 else "观望")
                 st.metric("综合评分", f"{total}/100", delta=delta_text)
 
             col_radar, col_detail = st.columns([1, 1])
             with col_radar:
-                fig = Visualizer.signal_radar(scores)
+                fig = Visualizer.signal_radar(_safe_scores)
                 st.plotly_chart(fig, width="stretch")
             with col_detail:
                 st.markdown("#### 评分说明")
                 st.markdown(f"""
-                - **价格信号 ({scores['price_score']}）**: 基于均线趋势、动量、量价关系
-                - **事件信号 ({scores['event_score']}）**: 基于关键词匹配事件库，利好加分/利空减分
-                - **宏观信号 ({scores['macro_score']}）**: 基于制造业 PMI（>50扩张，<50收缩）
+                - **价格信号 ({_price}）**: 基于均线趋势、动量、量价关系
+                - **事件信号 ({_event}）**: 基于关键词匹配事件库，利好加分/利空减分
+                - **宏观信号 ({_macro}）**: 基于制造业 PMI（>50扩张，<50收缩）
                 - **综合评分 ({total}）**: 加权 = 价格×0.4 + 事件×0.4 + 宏观×0.2
                 - **阈值**: >70 买入 | 40-70 观望 | <40 卖出
                 """)
@@ -699,9 +706,14 @@ def fragment_news_mine():
                     st.success(f"成功挖掘 {len(mined)} 条事件并入库！")
 
                     col_s1, col_s2, col_s3 = st.columns(3)
-                    pos_count = len(mined[mined["type"] == "正面"])
-                    neg_count = len(mined[mined["type"] == "负面"])
-                    neu_count = len(mined[mined["type"] == "中性"])
+                    # ⚠️ 兜底：上游 schema 漂移可能让挖掘结果缺少 'type' 字段，直接 mined["type"] 抛 KeyError
+                    if "type" not in mined.columns:
+                        st.warning("⚠️ 挖掘结果缺少「type」字段，无法统计情感分布。")
+                        pos_count = neg_count = neu_count = 0
+                    else:
+                        pos_count = len(mined[mined["type"] == "正面"])
+                        neg_count = len(mined[mined["type"] == "负面"])
+                        neu_count = len(mined[mined["type"] == "中性"])
                     with col_s1:
                         st.metric("正面事件", f"{pos_count} 条")
                     with col_s2:
@@ -719,8 +731,11 @@ def fragment_news_mine():
 
                     display_cols = [c for c in ["date", "ticker", "title", "type", "keywords", "sentiment_score"] if c in mined.columns]
                     with st.expander("查看详细数据表格"):
-                        st.dataframe(mined[display_cols].sort_values("date", ascending=False),
-                                     width="stretch")
+                        _disp = mined[display_cols]
+                        # ⚠️ 兜底：'date' 字段缺失时不应再按它排序（否则 KeyError）
+                        if "date" in display_cols:
+                            _disp = _disp.sort_values("date", ascending=False)
+                        st.dataframe(_disp, width="stretch")
 
     except Exception as module_err:
         st.error(f"⚠️ 新闻挖掘模块异常: {module_err}")
@@ -753,21 +768,26 @@ def fragment_sentiment_report():
                     st.session_state.sentiment_report = None
                     st.session_state.sentiment_report_error = str(e)
 
-        if st.session_state.get("sentiment_report"):
-            report = st.session_state.sentiment_report
-            with report_container:
-                if report["total"] == 0:
-                    st.warning("未抓取到新闻。")
-                else:
-                    col_r1, col_r2, col_r3, col_r4 = st.columns(4)
-                    with col_r1:
-                        st.metric("新闻总数", f"{report['total']} 条")
-                    with col_r2:
-                        st.metric("正面占比", f"{report['positive_pct']}%")
-                    with col_r3:
-                        st.metric("负面占比", f"{report['negative_pct']}%")
-                    with col_r4:
-                        st.metric("中性占比", f"{report['neutral_pct']}%")
+            if st.session_state.get("sentiment_report"):
+                report = st.session_state.sentiment_report
+                # ── 兜底：report 字典字段可能因上游 schema 漂移缺失，统一用 .get 取默认值 ──
+                _total = report.get("total", 0) or 0
+                _pos = report.get("positive_pct", 0) or 0
+                _neg = report.get("negative_pct", 0) or 0
+                _neu = report.get("neutral_pct", 0) or 0
+                with report_container:
+                    if _total == 0:
+                        st.warning("未抓取到新闻。")
+                    else:
+                        col_r1, col_r2, col_r3, col_r4 = st.columns(4)
+                        with col_r1:
+                            st.metric("新闻总数", f"{_total} 条")
+                        with col_r2:
+                            st.metric("正面占比", f"{_pos}%")
+                        with col_r3:
+                            st.metric("负面占比", f"{_neg}%")
+                        with col_r4:
+                            st.metric("中性占比", f"{_neu}%")
 
                     import plotly.express as px
                     from modules.visualizer import (
@@ -775,9 +795,9 @@ def fragment_sentiment_report():
                     )
                     _dark = _is_dark()
                     pie_df = pd.DataFrame([
-                        {"类型": "正面", "占比": report["positive_pct"]},
-                        {"类型": "负面", "占比": report["negative_pct"]},
-                        {"类型": "中性", "占比": report["neutral_pct"]},
+                        {"类型": "正面", "占比": _pos},
+                        {"类型": "负面", "占比": _neg},
+                        {"类型": "中性", "占比": _neu},
                     ])
                     color_map = {"正面": UP_COLOR, "负面": DOWN_COLOR, "中性": "#94a3b8"}
                     fig_pie = px.pie(pie_df, values="占比", names="类型",
@@ -795,9 +815,10 @@ def fragment_sentiment_report():
                         fig_pie.update_layout(template="plotly_white", height=350)
                     st.plotly_chart(fig_pie, width="stretch")
 
-                    if report["top_keywords"]:
+                    _top_kws = report.get("top_keywords") or []
+                    if _top_kws:
                         st.markdown("#### 热门关键词 TOP15")
-                        kw_df = pd.DataFrame(report["top_keywords"], columns=["关键词", "频次"])
+                        kw_df = pd.DataFrame(_top_kws, columns=["关键词", "频次"])
                         fig_kw = px.bar(kw_df, x="频次", y="关键词", orientation="h",
                                         title="关键词频次排行",
                                         color="频次", color_continuous_scale="Reds")
@@ -818,7 +839,7 @@ def fragment_sentiment_report():
                                                  yaxis=dict(autorange="reversed"))
                         st.plotly_chart(fig_kw, width="stretch")
 
-                    if report["sample_news"]:
+                    if report.get("sample_news"):
                         st.markdown("#### 正负面新闻样本（点击标题可跳转原文）")
                         for s in report["sample_news"]:
                             color = UP_COLOR if s["sentiment"] == "正面" else DOWN_COLOR

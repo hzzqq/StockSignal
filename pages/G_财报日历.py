@@ -128,8 +128,9 @@ def fragment_forecast():
     period = PERIODS[period_label]
     try:
         df = get_earnings_forecast(period)
-    except Exception:
+    except Exception as e:
         df = pd.DataFrame()
+        st.warning(f"业绩预告接口加载失败，已降级为空数据（{e}）。")
     if df is None or df.empty:
         _empty_info(f"「{period_label}」业绩预告暂不可用（接口返回空）。")
         st.caption("💡 业绩预告接口稳定性较低，可切换报告期或稍后重试。")
@@ -155,8 +156,9 @@ def fragment_disclosure():
         )
     try:
         df = get_disclosure_calendar(market=market, period=period_str)
-    except Exception:
+    except Exception as e:
         df = pd.DataFrame()
+        st.warning(f"披露日历接口加载失败，已降级为空数据（{e}）。")
     if df is None or df.empty:
         _empty_info("披露日历暂不可用（接口返回空或参数不支持）。")
         st.caption("💡 可切换市场或报告期后重试；沪市 2025 年报通常最完整。")

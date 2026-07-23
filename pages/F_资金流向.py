@@ -141,7 +141,8 @@ def fragment_northbound():
                 "下方表格中的**涨跌家数 / 指数涨跌幅 / 港股通南向净买额** 仍为实时真实数据。",
                 icon="ℹ️")
     else:
-        if df["资金净流入"].abs().sum() == 0:
+        inflow_sum = df["资金净流入"].abs().sum()
+        if pd.notna(inflow_sum) and inflow_sum == 0:
             st.caption("提示：当前交易日北向资金净买额为 0（休市 / 尚未披露）。")
 
     # 北向资金历史趋势（线性表达）：当日净买额 + 历史累计净买额
@@ -199,14 +200,17 @@ def fragment_industry():
         st.caption("📌 概览：红=主力净流入行业，绿=净流出行业；逐日资金流以 industry_fund_flow 为准。")
 
     top = df.head(15).copy()
-    colors = [UP if v >= 0 else DOWN for v in top["净额"]]
-    fig = go.Figure(go.Bar(
-        x=top["行业"], y=top["净额"], marker_color=colors,
-        hovertemplate="%{x}<br>净额：%{y:.2f}亿<extra></extra>",
-    ))
-    fig.update_layout(**_fig_layout(dark), title="净流入 TOP15 行业（亿元）", height=360)
-    fig.update_xaxes(tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    try:
+        colors = [UP if v >= 0 else DOWN for v in top["净额"]]
+        fig = go.Figure(go.Bar(
+            x=top["行业"], y=top["净额"], marker_color=colors,
+            hovertemplate="%{x}<br>净额：%{y:.2f}亿<extra></extra>",
+        ))
+        fig.update_layout(**_fig_layout(dark), title="净流入 TOP15 行业（亿元）", height=360)
+        fig.update_xaxes(tickangle=-45)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    except Exception as e:
+        st.warning(f"行业净流入 TOP15 图表渲染失败：{e}")
 
     st.dataframe(
         df, use_container_width=True, hide_index=True,
@@ -233,35 +237,47 @@ def fragment_market():
     if df is None or df.empty:
         _empty_info("暂无大盘资金流向数据。")
         return
-    df["主力净流入-净额"] = pd.to_numeric(df["主力净流入-净额"], errors="coerce")
-    df["上证-涨跌幅"] = pd.to_numeric(df["上证-涨跌幅"], errors="coerce")
-    df["超大单净流入-净额"] = pd.to_numeric(df["超大单净流入-净额"], errors="coerce")
-    df["大单净流入-净额"] = pd.to_numeric(df["大单净流入-净额"], errors="coerce")
-    df = df.dropna(subset=["主力净流入-净额"])
-    if df.empty:
-        _empty_info("暂无有效数据。")
+    _need = ["日期", "主力净流入-净额", "上证-涨跌幅"]
+    if not all(c in df.columns for c in _need):
+        _miss = [c for c in _need if c not in df.columns]
+        st.info(f"大盘资金流向数据字段不完整（缺少：{', '.join(_miss)}），暂无法展示（接口字段变更或网络异常）。")
         return
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=df["日期"], y=df["主力净流入-净额"], name="主力净流入(亿)",
-        marker_color=[UP if v >= 0 else DOWN for v in df["主力净流入-净额"]],
-        hovertemplate="%{x}<br>主力净流入：%{y:.2f}亿<extra></extra>",
-    ))
-    fig.add_trace(go.Scatter(
-        x=df["日期"], y=df["上证-涨跌幅"], name="上证涨跌幅%", yaxis="y2",
-        mode="lines+markers", line=dict(color="#f5a623", width=2),
-        hovertemplate="%{x}<br>上证涨跌幅：%{y:.2f}%<extra></extra>",
-    ))
-    _layout = {k: v for k, v in _fig_layout(dark).items() if k != "margin"}
-    fig.update_layout(
-        **_layout, height=360,
-        title="主力净流入（柱）与上证涨跌幅（线）",
-        yaxis2=dict(title="涨跌幅%", overlaying="y", side="right", gridcolor="rgba(0,0,0,0)"),
-        margin=dict(l=60, r=60, t=50, b=90),
-        legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"),
-    )
-    fig.update_xaxes(tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    try:
+        df["主力净流入-净额"] = pd.to_numeric(df["主力净流入-净额"], errors="coerce")
+        df["上证-涨跌幅"] = pd.to_numeric(df["上证-涨跌幅"], errors="coerce")
+        df["超大单净流入-净额"] = pd.to_numeric(df["超大单净流入-净额"], errors="coerce")
+        df["大单净流入-净额"] = pd.to_numeric(df["大单净流入-净额"], errors="coerce")
+        df = df.dropna(subset=["主力净流入-净额"])
+        if df.empty:
+            _empty_info("暂无有效数据。")
+            return
+    except Exception as e:
+        st.warning(f"大盘资金流向数据解析失败：{e}")
+        return
+    try:
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=df["日期"], y=df["主力净流入-净额"], name="主力净流入(亿)",
+            marker_color=[UP if v >= 0 else DOWN for v in df["主力净流入-净额"]],
+            hovertemplate="%{x}<br>主力净流入：%{y:.2f}亿<extra></extra>",
+        ))
+        fig.add_trace(go.Scatter(
+            x=df["日期"], y=df["上证-涨跌幅"], name="上证涨跌幅%", yaxis="y2",
+            mode="lines+markers", line=dict(color="#f5a623", width=2),
+            hovertemplate="%{x}<br>上证涨跌幅：%{y:.2f}%<extra></extra>",
+        ))
+        _layout = {k: v for k, v in _fig_layout(dark).items() if k != "margin"}
+        fig.update_layout(
+            **_layout, height=360,
+            title="主力净流入（柱）与上证涨跌幅（线）",
+            yaxis2=dict(title="涨跌幅%", overlaying="y", side="right", gridcolor="rgba(0,0,0,0)"),
+            margin=dict(l=60, r=60, t=50, b=90),
+            legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"),
+        )
+        fig.update_xaxes(tickangle=-45)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    except Exception as e:
+        st.warning(f"大盘资金净流入图表渲染失败：{e}")
 
     # 大盘主力资金累计净流入（线性表达：累计面积线 + 当日细线）
     try:
@@ -317,8 +333,11 @@ def fragment_margin_trading():
     with cols[3]:
         st.metric("深市买入额", f"{summary.get('sz_rzmr_yi'):.2f}亿" if summary.get('sz_rzmr_yi') is not None else "—")
 
-    fig = plot_margin_trend(df, dark_mode=dark, metric=metric)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    try:
+        fig = plot_margin_trend(df, dark_mode=dark, metric=metric)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    except Exception as e:
+        st.warning(f"融资融券趋势图渲染失败：{e}")
     st.caption("数据来源：东方财富融资融券（沪+深），指数叠加辅助判断杠杆资金与大盘节奏关系。"
                "北交所暂无公开宏观融资融券序列，故合计未包含 BJ。")
 
@@ -353,7 +372,7 @@ def fragment_individual():
         name = fetcher.get_name_only(code) or code
     except Exception:
         name = code
-    st.markdown(f"**{name}** `{code}` ｜ 数据日期：{r.get('latest_date')} ｜ "
+    st.markdown(f"**{name}** `{code}` ｜ 数据日期：{r.get('latest_date') or '—'} ｜ "
                 f"来源：{'实时(东方财富)' if r.get('source')=='akshare' else '估算(量价模型)'}")
     cols = st.columns(3)
     is_estimate = r.get("source") == "estimate"

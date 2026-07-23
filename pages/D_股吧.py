@@ -262,9 +262,15 @@ def fragment_list():
             with st.container(border=True):
                 top1, top2 = st.columns([0.75, 0.25])
                 with top1:
-                    if st.button(f"📌 {p.get('title', '（无标题）')}", key=f"forum_open_{p['id']}",
-                                 use_container_width=True, on_click=_open_post, args=(p["id"],)):
-                        pass
+                    pid = p.get("id")
+                    if pid is None:
+                        # 帖子缺 id（上游 schema 漂移）时禁用打开按钮，避免 key 非法/args 崩溃
+                        st.button(f"📌 {p.get('title', '（无标题）')}", disabled=True,
+                                  use_container_width=True, help="该帖子缺少 id，暂无法打开")
+                    else:
+                        if st.button(f"📌 {p.get('title', '（无标题）')}", key=f"forum_open_{pid}",
+                                     use_container_width=True, on_click=_open_post, args=(pid,)):
+                            pass
                     excerpt = p.get("excerpt", "")
                     if excerpt:
                         st.caption(excerpt + ("…" if len(excerpt) >= 80 else ""))
@@ -279,7 +285,7 @@ def fragment_list():
                         f"justify-content:flex-end;'>"
                         f"{render_forum_avatar(p.get('avatar', ''), p.get('username', '?'), size=20)}"
                         f"👤 {p.get('username', '?')}</span><br>"
-                        f"💬 {p.get('comment_count', 0)} · 👍 {p.get('likes', 0)} · 👀 {p.get('views', 0)}"
+                        f"💬 {p.get('comment_count') or 0} · 👍 {p.get('likes') or 0} · 👀 {p.get('views') or 0}"
                         f"</div>",
                         unsafe_allow_html=True,
                     )

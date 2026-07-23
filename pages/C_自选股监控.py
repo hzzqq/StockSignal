@@ -136,7 +136,7 @@ def fragment_watchlist_monitor():
                 safe_switch_page("pages/Z_新手教程.py")
         return
 
-    codes = [it["stock_code"] for it in items]
+    codes = [it.get("stock_code") for it in items if isinstance(it, dict) and it.get("stock_code")]
     # 强制用本地库解析名称，避免后端 stock_name 为空或错误地显示代码。
     # 并行解析（P1）：本地库命中为主、快且线程安全；网络兜底（BaoStock/akshare）
     # 罕见触发，4 线程并发只读查询风险可控，显著快于逐只串行。
@@ -206,8 +206,8 @@ def fragment_watchlist_monitor():
             "code": code, "name": name, "cur": cur, "chg": chg,
             "change_amt": change_amt, "amplitude": amplitude,
             "volume": volume, "amount": amount,
-            "pe_ttm": f"{pe:.2f}" if isinstance(pe, (int, float)) else "—",
-            "alr": f"{alr:.2f}%" if isinstance(alr, (int, float)) else "—",
+            "pe_ttm": f"{pe:.2f}" if isinstance(pe, (int, float)) and not pd.isna(pe) else "—",
+            "alr": f"{alr:.2f}%" if isinstance(alr, (int, float)) and not pd.isna(alr) else "—",
         })
 
     st.caption("交易时段每 60 秒自动刷新；涨跌颜色遵循 A股 惯例：红涨绿跌。点击下方选择框可跳转个股研究页。")
@@ -522,8 +522,9 @@ def fragment_pool_watchlist():
         if not wl_items:
             _empty_info("自选股为空。先到「股票选取」页面点击「加入自选股」添加。")
         else:
-            codes = [_norm_code(it["stock_code"]) for it in wl_items]
-            id_map = {_norm_code(it["stock_code"]): it["id"] for it in wl_items}
+            codes = [_norm_code(it["stock_code"]) for it in wl_items if isinstance(it, dict) and it.get("stock_code")]
+            id_map = {_norm_code(it["stock_code"]): it.get("id") for it in wl_items
+                      if isinstance(it, dict) and it.get("stock_code")}
             scores = _load_scores_map(codes)
             df_wl = _build_pool_df(codes, scores)
 
@@ -548,8 +549,9 @@ def fragment_pool_junk():
         if not junk_items:
             _empty_info("垃圾股为空。先到「股票选取」页面点击「加入垃圾股」添加。")
         else:
-            codes = [_norm_code(it["stock_code"]) for it in junk_items]
-            id_map = {_norm_code(it["stock_code"]): it["id"] for it in junk_items}
+            codes = [_norm_code(it["stock_code"]) for it in junk_items if isinstance(it, dict) and it.get("stock_code")]
+            id_map = {_norm_code(it["stock_code"]): it.get("id") for it in junk_items
+                      if isinstance(it, dict) and it.get("stock_code")}
             scores = _load_scores_map(codes)
             df_jk = _build_pool_df(codes, scores)
 

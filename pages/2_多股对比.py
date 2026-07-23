@@ -168,7 +168,8 @@ def fragment_compare_result():
     # ── 两两对比选择器 + 选中 pair 卡片 ──
     if len(rows) >= 2:
         pairs = [(rows[i], rows[j]) for i in range(len(rows)) for j in range(i + 1, len(rows))]
-        pair_labels = [f"{a['name']} vs {b['name']}" for a, b in pairs]
+        # ⚠️ 兜底：上游对比结果若缺 'name' 字段，a['name'] 会抛 KeyError；统一用 .get 兜底
+        pair_labels = [f"{a.get('name', '?')} vs {b.get('name', '?')}" for a, b in pairs]
         selected_label = st.selectbox(
             "选择两两对比",
             options=pair_labels,

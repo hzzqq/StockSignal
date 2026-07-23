@@ -64,6 +64,8 @@ def _fmt_yi(x):
         x = float(x)
     except Exception:
         return "—"
+    if x != x:  # NaN
+        return "—"
     if abs(x) >= 1e8:
         return f"{x/1e8:.2f}亿"
     if abs(x) >= 1e4:

@@ -216,18 +216,18 @@ def scan_one(code: str, name):
         pass
     try:
         import akshare as ak
-        for ind, setter in (("市净率", "pb"), ("股息率TTM", "dv")):
+        def _fetch_val(ind):
             try:
                 vdf = ak.stock_zh_valuation_baidu(symbol=str(code).zfill(6),
                                                   indicator=ind, period="近一年")
                 if vdf is not None and not vdf.empty:
-                    val = float(str(vdf.iloc[-1].get("value")).replace(",", ""))
-                    if setter == "pb":
-                        pb = val
-                    else:
-                        dv = val
+                    return float(str(vdf.iloc[-1].get("value")).replace(",", ""))
             except Exception:
-                pass
+                return None
+            return None
+        # PB 与 股息率 串行调用改并行，缩短单只扫描耗时
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as _vex:
+            pb, dv = _vex.map(_fetch_val, ("市净率", "股息率TTM"))
     except Exception:
         pass
     vs = _valuation_score(pe, pb, dv)
@@ -247,7 +247,11 @@ def scan_one(code: str, name):
                     for col in fdf.columns:
                         if n.replace(" ", "") in col.replace(" ", ""):
                             try:
-                                return float(str(last[col]).replace(",", ""))
+                                v = float(str(last[col]).replace(",", ""))
+                                # 单元格可能是 NaN/空，float("nan") 会污染 _finance_score
+                                if pd.isna(v):
+                                    return None
+                                return v
                             except Exception:
                                 return None
                 return None
