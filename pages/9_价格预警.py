@@ -275,6 +275,7 @@ def fragment_alerts():
         st.caption("💡 小提示：先把想盯的标的加进「自选股监控」，再回来建预警更顺手。")
         if st.button("➕ 立即新建预警", key="alert_empty_new"):
             st.session_state["new_alert_exp"] = True
+            st.rerun(scope="app")
         st.info("🔔 通知机制：触发检测在**页面访问时**于前端实时比价/扫描；"
                  "若要持续接收异动，可关注右上角「🔔 市场异动」铃铛（系统级异动提醒），"
                  "并保持本页或持仓页在浏览器中打开。")

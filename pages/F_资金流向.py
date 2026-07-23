@@ -198,6 +198,8 @@ def fragment_industry():
         with oc4:
             st.metric("净流出行业", f"{int((d2['净额'] < 0).sum())}", help="净额为负（绿）的行业数")
         st.caption("📌 概览：红=主力净流入行业，绿=净流出行业；逐日资金流以 industry_fund_flow 为准。")
+    else:
+        st.info("行业净流入概览暂不可用：当前行业资金流净额数据为空（网络/代理受限或数据源暂未接入）。")
 
     top = df.head(15).copy()
     try:

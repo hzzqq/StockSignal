@@ -425,17 +425,18 @@ if not positions.empty:
 
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("总成本", f"¥{summary['total_cost']:,.2f}")
+                # 加法式健壮性：summary 字典字段用 .get 兜底，避免上游缺键抛 KeyError。
+                st.metric("总成本", f"¥{summary.get('total_cost', 0):,.2f}")
             with col2:
-                st.metric("总市值", f"¥{summary['total_market_value']:,.2f}")
+                st.metric("总市值", f"¥{summary.get('total_market_value', 0):,.2f}")
             with col3:
                 delta_pnl = summary.get("delta_pnl", 0)
                 st.metric(
-                    "总盈亏", f"¥{summary['total_pnl']:,.2f}",
+                    "总盈亏", f"¥{summary.get('total_pnl', 0):,.2f}",
                     delta=f"{summary.get('delta_pnl', 0):+.2f}" if abs(delta_pnl or 0) > 0.01 else None
                 )
             with col4:
-                st.metric("总收益率", f"{summary['total_pnl_pct']:+.2f}%")
+                st.metric("总收益率", f"{summary.get('total_pnl_pct', 0):+.2f}%")
 
             # 盈亏柱状图
             if not pnl_df.empty:

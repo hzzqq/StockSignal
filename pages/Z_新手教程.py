@@ -93,6 +93,10 @@ def fragment_onboarding():
 def fragment_modules():
     _section_title("🧭 模块导览（点击直达）", accent="#2b8aef")
     st.caption("平台按「看盘 → 选股 → 管仓 → 回测 → 交流 → 账户」组织，挑感兴趣的先点开看看。")
+    # 守卫：导航配置缺失或非列表时降级为空态，避免迭代崩溃
+    if not _NAV_GROUPS or not isinstance(_NAV_GROUPS, (list, tuple)):
+        _empty_info("模块导览暂不可用（导航配置缺失）。")
+        return
     for gname, items in _NAV_GROUPS:
         with st.expander(gname, expanded=False):
             for path, label, icon in items:

@@ -255,15 +255,17 @@ with hc1:
 with hc2:
     if st.button("➕ 加入自选股", use_container_width=True, key="pick_add_watch"):
         sc, body = api_post("/api/watchlist", {"stock_code": ticker})
-        msg = body.get("message") if isinstance(body, dict) else ""
-        if sc in (200, 201) or "已在" in msg:
+        # ⚠️ 兜底：api_post 网络失败时 body 可能为 None，原 else 分支 body.get 会抛 AttributeError
+        _msg = body.get("message") if isinstance(body, dict) else ""
+        if sc in (200, 201) or "已在" in _msg:
             st.success("✅ 已加入自选股")
         else:
-            st.error(f"加入失败：{body.get('message', '未知错误')}")
+            st.error(f"加入失败：{_msg or '未知错误'}")
 with hc3:
     if st.button("🗑️ 加入垃圾股", use_container_width=True, key="pick_add_junk"):
         body = api_add_junk_stock(ticker)
-        msg = body.get("message", "")
+        # ⚠️ 兜底：api_add_junk_stock 失败时 body 可能为 None，直接 body.get 会抛 AttributeError
+        msg = body.get("message", "") if isinstance(body, dict) else ""
         if "成功" in msg or "已在" in msg:
             st.success("✅ 已加入垃圾股")
         else:

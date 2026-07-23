@@ -89,6 +89,9 @@ def _recompute(book):
     total_mv = 0.0
     rows = []
     for code, pos in book["positions"].items():
+        # 守卫：本地持仓 JSON 损坏或缺键时跳过，避免 KeyError 拖垮 fragment
+        if not isinstance(pos, dict) or "qty" not in pos or "avg_cost" not in pos:
+            continue
         price, name = _price(code)
         price = price if price is not None else pos["avg_cost"]
         qty = pos["qty"]

@@ -140,9 +140,10 @@ def _render_analysis(R: dict):
     prev_close = R["prev_close"]
     change_pct = R["change_pct"]
     df = R["df"]
-    trend = R["trend"]
-    momentum = R["momentum"]
-    volume_info = R["volume_info"]
+    # ⚠️ 兜底：上游结果若缺失 trend/momentum/volume_info（None），后续 .get 会抛 AttributeError
+    trend = R.get("trend") or {}
+    momentum = R.get("momentum") or {}
+    volume_info = R.get("volume_info") or {}
     tech_score = R["tech_score"]
     news_score = R["news_score"]
     macro_score = R["macro_score"]
@@ -156,7 +157,8 @@ def _render_analysis(R: dict):
                                {"name": industry, "change_pct": None, "label": "—", "rank": None, "total": None})
     technical_profile = R.get("technical_profile",
                                 {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50})
-    news_rows = R["news_rows"]
+    # ⚠️ 兜底：news_rows 若为 None，下方 len(news_rows)/if news_rows 会抛 TypeError
+    news_rows = R.get("news_rows") or []
     pos_pct = R["pos_pct"]
     neg_pct = R["neg_pct"]
     support = R["support"]

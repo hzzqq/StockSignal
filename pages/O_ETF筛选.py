@@ -99,8 +99,12 @@ def _etf_filter_fragment():
 
         res = df.copy()
         if kw:
-            res = res[res["名称"].astype(str).str.contains(kw, case=False, na=False) |
-                     res["代码"].astype(str).str.contains(kw, case=False, na=False)]
+            # 守卫：上游列结构异常时 名称/代码 列可能缺失，先判定存在再筛选
+            if "名称" in res.columns and "代码" in res.columns:
+                res = res[res["名称"].astype(str).str.contains(kw, case=False, na=False) |
+                         res["代码"].astype(str).str.contains(kw, case=False, na=False)]
+            else:
+                st.warning("⚠️ 当前数据缺少「名称/代码」列，关键词筛选暂不可用。")
         if ftype != "全部":
             res = res[res["类型"] == ftype]
         # 列结构可能因上游接口变动而缺失，先判定存在再做数值化与区间过滤，避免 KeyError 崩溃

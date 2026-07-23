@@ -87,7 +87,11 @@ with login_tab:
                         json={"username": username, "password": password},
                         timeout=5,
                     )
-                    body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                    # ⚠️ 兜底：content-type 声明 json 但响应体为空/损坏时 resp.json() 会抛 JSONDecodeError
+                    try:
+                        body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                    except ValueError:
+                        body = {}
                     if resp.status_code == 200 and body.get("status") == "ok":
                         token = body["data"]["token"]
                         user = body["data"]["user"]
@@ -177,7 +181,11 @@ with register_tab:
                     },
                     timeout=5,
                 )
-                body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                # ⚠️ 兜底：同登录分支，content-type 为 json 但响应体损坏时 resp.json() 抛异常
+                try:
+                    body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                except ValueError:
+                    body = {}
                 if resp.status_code in (200, 201) and body.get("status") == "ok":
                     reg_name = (body.get("data") or {}).get("username", new_username)
                     st.success(f"✅ 注册成功！欢迎 {reg_name}，请切换到「登录」标签登录。")

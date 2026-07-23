@@ -326,13 +326,20 @@ try:
         timeout=5,
     )
     if resp.status_code == 200:
-        body = resp.json()
+        # 加法式健壮性：resp.json() 可能因返回非 JSON 抛异常；body 也需判定为 dict，
+        # 且 body.get("data") 可能是 dict 而非 list，统一兜底避免 DataFrame(Py) 异常。
+        try:
+            body = resp.json()
+        except Exception:
+            body = {}
+        body = body if isinstance(body, dict) else {}
         if body.get("status") == "ok" and body.get("data"):
             watchlist = body["data"]
-            if watchlist:
+            if isinstance(watchlist, list) and watchlist:
                 import pandas as pd
                 df = pd.DataFrame(watchlist)
                 st.dataframe(df, width="stretch")
+                st.caption(f"共 {len(watchlist)} 只自选股 · 数据实时同步自行情看板 ☆")
             else:
                 _empty_info("暂无自选股，请先添加你关注的股票。")
                 st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")

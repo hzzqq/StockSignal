@@ -391,7 +391,9 @@ def frag_individual():
     st.caption("数据源：东方财富 stock_individual_fund_flow()（失败则量价模型估算兜底）")
     from modules.search_ui import stock_search_input
     code = stock_search_input(label="选择股票", key="exp_stock", default="600519")
-    if st.button("生成并下载 CSV", key="exp_individual_btn"):
+    if st.button("生成并下载 CSV", key="exp_individual_btn",
+                 disabled=not bool(code),
+                 help="请先在上方选择股票；未选时按钮禁用。"):
         if not code:
             st.warning("请先选择股票")
             return
@@ -429,7 +431,10 @@ def frag_earnings():
         "报告期 (YYYYMMDD)", value="20260331", key="exp_period",
         help="例如 20260331=一季报，20260630=中报，20260930=三季报，20261231=年报",
     )
-    if st.button("生成并下载 CSV", key="exp_earnings_btn"):
+    period_valid = bool(period and period.isdigit() and len(period) == 8)
+    if st.button("生成并下载 CSV", key="exp_earnings_btn",
+                 disabled=not period_valid,
+                 help="报告期须为 8 位 YYYYMMDD（如 20260331）；格式非法时按钮禁用。"):
         if not (period and period.isdigit() and len(period) == 8):
             st.warning("报告期须为 8 位数字的 YYYYMMDD 格式")
             return

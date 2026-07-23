@@ -255,7 +255,10 @@ def fragment_list():
         posts = sorted(posts, key=lambda p: str(p.get("created_at", "")), reverse=True)
 
     if not posts:
-        _empty_info("还没有帖子，来发第一帖吧！用上方标题 + 内容输入框发布你的第一条帖子，社区即刻可见。")
+        if filter_code.strip():
+            _empty_info(f"没有与股票「{filter_code.strip()}」相关的帖子。换个代码试试，或发布第一条相关讨论～")
+        else:
+            _empty_info("还没有帖子，来发第一帖吧！用上方标题 + 内容输入框发布你的第一条帖子，社区即刻可见。")
     else:
         st.markdown(f"#### 📋 共 {len(posts)} 帖")
         for p in posts:

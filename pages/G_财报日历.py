@@ -103,18 +103,21 @@ def fragment_report():
     else:
         st.info("「净利润 / 名称」字段缺失，TOP 净利润柱状图暂不可绘制（接口字段变更或网络异常）。")
 
-    st.dataframe(
-        df, use_container_width=True, hide_index=True,
-        column_config={
-            "披露时间": st.column_config.TextColumn("披露时间", help="财报实际披露日期"),
-            "每股收益": st.column_config.NumberColumn("每股收益", format="%.2f"),
-            "营业总收入": st.column_config.NumberColumn("营业总收入", format="%.2e"),
-            "营收同比%": st.column_config.NumberColumn("营收同比%", format="%.1f"),
-            "净利润": st.column_config.NumberColumn("净利润", format="%.2e"),
-            "净利润同比%": st.column_config.NumberColumn("净利润同比%", format="%.1f"),
-            "ROE%": st.column_config.NumberColumn("ROE%", format="%.2f"),
-        },
-    )
+    try:
+        st.dataframe(
+            df, use_container_width=True, hide_index=True,
+            column_config={
+                "披露时间": st.column_config.TextColumn("披露时间", help="财报实际披露日期"),
+                "每股收益": st.column_config.NumberColumn("每股收益", format="%.2f"),
+                "营业总收入": st.column_config.NumberColumn("营业总收入", format="%.2e"),
+                "营收同比%": st.column_config.NumberColumn("营收同比%", format="%.1f"),
+                "净利润": st.column_config.NumberColumn("净利润", format="%.2e"),
+                "净利润同比%": st.column_config.NumberColumn("净利润同比%", format="%.1f"),
+                "ROE%": st.column_config.NumberColumn("ROE%", format="%.2f"),
+            },
+        )
+    except Exception as e:
+        st.warning(f"财报日历表格渲染失败：{e}")
 
 
 # ───────────────────────── 业绩预告（best-effort） ─────────────────────────

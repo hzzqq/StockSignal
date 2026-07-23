@@ -223,6 +223,12 @@ def fragment_watchlist_monitor():
     if quote_times:
         st.caption(f"🕒 行情更新于 {_rel_time(min(quote_times))}")
 
+    # 行情全失败时给出明确空态提示（避免整表 — 而无说明，误以为无持仓）
+    ok_n = sum(1 for r in rows if r["cur"] is not None)
+    if codes and ok_n == 0:
+        st.warning("⚠️ 实时行情暂时获取失败（接口/网络异常），已尝试回退本地源仍无数据；"
+                   "下表为持仓快照，行情相关列显示 —，交易时段将自动刷新或稍后重试。")
+
     if rows:
         df_rt = pd.DataFrame(rows)
         display_df = df_rt[["name", "code", "cur", "change_amt", "chg", "amplitude",

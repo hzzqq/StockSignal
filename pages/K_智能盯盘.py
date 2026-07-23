@@ -360,6 +360,11 @@ def fragment_watchlist():
             st.error(f"行情并行抓取失败：{e}")
             return
 
+    # 守卫：若全部标的实时行情均不可用（接口受限/网络异常），给出友好空态而非静默空表
+    if not quotes or all(q is None for q in quotes.values()):
+        _empty_info("实时行情暂不可用（接口受限或网络异常），稍后重试即可；可前往行情看板确认数据源状态。")
+        return
+
     rows = []
     for code in codes:
         q = quotes.get(code)

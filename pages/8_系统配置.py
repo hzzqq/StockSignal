@@ -39,7 +39,10 @@ tab_overview, tab_stocks, tab_config, tab_watch, tab_alert = st.tabs([
 # ----------------------------------------------------------------- 数据概览
 with tab_overview:
     col1, col2, col3 = st.columns(3)
+    # 加法式健壮性：api_get 返回 (code, body)，body 可能为 None。先兜底空字典，
+    # 否则下方 resp.get 抛 AttributeError 会让整个数据概览 Tab 崩溃。
     code, resp = get_stock_stats()
+    resp = resp or {}
     if code == 200 and resp.get("status") == "ok":
         stats = resp.get("data") or {}
         col1.metric("股票总数", stats.get("total", 0))

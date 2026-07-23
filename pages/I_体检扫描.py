@@ -442,6 +442,13 @@ def result_board():
         _empty_info("尚未体检。点击上方「🚀 开始体检」开始扫描（基于你跟踪的股票池，逐只体检打分并给出信号灯）。")
         return
 
+    # 守卫：结果须为列表，且仅保留结构合法的 dict 条目，
+    # 避免后端/异常写入 None 或非 dict 时后续渲染 KeyError 导致整页崩溃
+    if not isinstance(results, list):
+        results = []
+    else:
+        results = [r for r in results if isinstance(r, dict)]
+
     if results == []:
         _empty_info("当前范围没有可扫描的股票。先去「形态选股」挑选一些标的加入跟踪吧。")
         if st.button("➡️ 去形态选股", key="goto_shape_empty"):

@@ -223,6 +223,10 @@ def fragment_strength():
     # 序列定义
     all_keys = _IDX_KEYS + list(_FLOW_COLS.keys())
     present = [k for k in all_keys if k in df.columns]
+    # 空态守卫：无任何可用序列时给出提示并退出，避免空图/异常
+    if not present:
+        _empty_info("暂无可用的强弱序列（数据源未返回指数/资金流字段）。")
+        return
     names_map = {**_IDX_NAMES, **_FLOW_COLS}
     colors_map = dict(_IDX_COLORS)
     colors_map.update({

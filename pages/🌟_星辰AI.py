@@ -354,7 +354,8 @@ def _render_chips(options):
     for i, o in enumerate(options):
         if cols[i].button(o["label"], key=f"xc_chip_{i}", use_container_width=True):
             st.session_state["_xc_pending"] = o["prompt"]
-            st.rerun()
+            # fragment 内严禁裸 rerun（会整页变暗卡死）；限定作用域为本 fragment
+            st.rerun(scope="fragment")
 
 
 # ══════════════════════════════════════════════════════

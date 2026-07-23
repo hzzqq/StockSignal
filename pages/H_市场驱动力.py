@@ -63,7 +63,8 @@ def fragment_drivers_panel():
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="drv_auto")
     try:
-        df, meta = get_market_drivers(days=180)
+        with st.spinner("正在加载市场驱动力数据（约 180 天五维归一化）…"):
+            df, meta = get_market_drivers(days=180)
     except Exception as e:
         st.error(f"市场驱动力数据加载失败：{e}")
         return

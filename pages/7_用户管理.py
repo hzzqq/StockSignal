@@ -42,7 +42,10 @@ with tab_users:
     st.session_state["user_mgmt_keyword"] = keyword
     page = st.session_state["user_mgmt_page"]
 
+    # 加法式健壮性：api_get 返回 (code, body) 元组，body 可能为 None（网络/服务异常）。
+    # 直接 resp.get 会抛 AttributeError 导致整页崩溃，先兜底为空字典。
     code, resp = get_users(page=page, per_page=20, keyword=keyword)
+    resp = resp or {}
     if code != 200 or resp.get("status") != "ok":
         st.error(f"获取用户列表失败: {resp.get('message', '未知错误')}")
     else:
@@ -190,7 +193,9 @@ if "deleting_user" in st.session_state:
 # ----------------------------------------------------------------- 操作日志
 with tab_logs:
     page = st.session_state["log_page"]
+    # 加法式健壮性：与用户列表同理，body 可能为 None，先兜底避免 AttributeError。
     code, resp = get_logs(page=page, per_page=20)
+    resp = resp or {}
     if code != 200 or resp.get("status") != "ok":
         st.error(f"获取日志失败: {resp.get('message', '未知错误')}")
     else:

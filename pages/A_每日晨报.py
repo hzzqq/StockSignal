@@ -87,6 +87,16 @@ def _cached_sector():
     except Exception:
         return None
 
+def _fmt_pct(v):
+    """安全格式化涨跌幅：None/NaN 返回 —，避免 f-string 数值格式化崩溃。"""
+    try:
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return "—"
+        return f"{float(v):+.2f}%"
+    except Exception:
+        return "—"
+
+
 # ───────────────────────── 板块概览 ─────────────────────────
 @safe_fragment
 def fragment_sector_summary():
@@ -110,11 +120,11 @@ def fragment_sector_summary():
         with colu:
             st.markdown("**🟢 领涨板块**")
             for _, r in top_up.iterrows():
-                st.markdown(f"- {r.get('sector','?')}  `{r['change_pct']:+.2f}%`")
+                st.markdown(f"- {str(r.get('sector') or '?')}  `{_fmt_pct(r.get('change_pct'))}`")
         with cold:
             st.markdown("**🔴 领跌板块**")
             for _, r in top_dn.iterrows():
-                st.markdown(f"- {r.get('sector','?')}  `{r['change_pct']:+.2f}%`")
+                st.markdown(f"- {str(r.get('sector') or '?')}  `{_fmt_pct(r.get('change_pct'))}`")
     else:
         st.warning("⚠️ 暂未获取到板块行情（交易时间或网络恢复后自动可用）。")
 

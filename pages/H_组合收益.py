@@ -156,8 +156,11 @@ def fragment_portfolio():
 
     if pidx is None:
         st.warning("暂无法构建组合净值（持仓缺少可用历史行情）。请检查持仓买入日期与代码。")
-        # 仍展示当前盈亏快照
-        _show_pnl_snapshot()
+        # 仍展示当前盈亏快照（best-effort，失败不影响上方提示）
+        try:
+            _show_pnl_snapshot()
+        except Exception as e:
+            st.warning(f"盈亏快照渲染失败：{e}")
         return
 
     total_ret = float(pidx.iloc[-1] - 100)

@@ -67,7 +67,8 @@ def fragment_compare_setup():
         st.session_state["_cmp_period_input"] = period
 
     if submitted:
-        if len(codes) < 2:
+        # ⚠️ 兜底：multi_stock_search_input 可能返回 None 而非空列表，len(None) 会抛 TypeError
+        if len(codes or []) < 2:
             st.warning("请至少输入 2 只有效股票。")
         else:
             task_id, err = submit_task_with_error("compare", {"codes": codes, "period": period})

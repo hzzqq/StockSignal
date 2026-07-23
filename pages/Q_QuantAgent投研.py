@@ -176,6 +176,10 @@ def _render_live_progress(task: dict):
 
 def _render_report(result: dict):
     """渲染一份 QuantAgent 投研结果（result 即 ResearchState.to_dict()）。"""
+    # 守卫：结果为 None 或非 dict 时友好提示，避免直接崩溃
+    if not isinstance(result, dict):
+        st.warning("⚠️ 投研结果为空或格式异常，无法渲染报告。")
+        return
     c = result.get("chief_report", {}) or {}
 
     vc = _verdict_color(c.get("verdict", ""))
@@ -266,6 +270,10 @@ def _result_panel():
             else:
                 # fallback：不阻塞、不重跑整页；让用户手动刷新
                 st.caption("⏳ 任务运行中，请稍后刷新页面查看结果。")
+            return
+        else:
+            # 未知/失效状态（任务丢失、超时、取消等）：避免静默无输出，给出友好提示
+            st.warning(f"⏳ 投研任务状态未知（{task.get('status') if task else '无响应'}，若长时间未完成请重新发起）。")
             return
 
     if st.session_state.get("quant_result") is not None:

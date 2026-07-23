@@ -488,7 +488,8 @@ if code:
 
     pc1, pc2, pc3, pc4 = st.columns(4)
     with pc1:
-        st.metric("营业收入", f"{perf.get('revenue_yi', '—')} 亿",
+        rev_yi = perf.get("revenue_yi")
+        st.metric("营业收入", f"{rev_yi} 亿" if rev_yi is not None else "—",
                   delta=f"{rev_yoy:+.1f}%" if rev_yoy is not None else None,
                   delta_color="normal",
                   help="公司一定时期内的主营业务收入（单位：亿元）；同比>0 表示扩张")
@@ -496,7 +497,8 @@ if code:
             st.markdown(_tag("营收同比 " + (f"+{rev_yoy:.1f}%" if rev_yoy >= 0 else f"{rev_yoy:.1f}%"),
                               "good" if rev_yoy >= 0 else "bad"), unsafe_allow_html=True)
     with pc2:
-        st.metric("净利润", f"{perf.get('net_profit_yi', '—')} 亿",
+        np_yi = perf.get("net_profit_yi")
+        st.metric("净利润", f"{np_yi} 亿" if np_yi is not None else "—",
                   delta=f"{pr_yoy:+.1f}%" if pr_yoy is not None else None,
                   delta_color="normal",
                   help="归属母公司股东的净利润（单位：亿元）；衡量公司真正赚到的钱")

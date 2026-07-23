@@ -456,6 +456,10 @@ _ticker_list = [t.strip() for t in (_corr_tickers if isinstance(_corr_tickers, l
 if not _ticker_list and _corr_tickers:
     _ticker_list = [t.strip() for t in str(_corr_tickers).split(",") if t.strip()]
 
+# 空态提示：用户清空输入时，直接在按钮上方给出引导，避免点完才报「需要至少 2 只」
+if not _ticker_list:
+    st.info("💡 请输入至少 2 只股票代码/名称（逗号分隔）后点击「计算相关性」。已默认预填 4 只示例，直接点击即可。")
+
 
 def _fetch_one_corr(t, start, end):
     """单只股票取数（带超时兜底），返回 (label, df)。"""

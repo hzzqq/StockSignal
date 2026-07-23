@@ -203,7 +203,7 @@ def fragment_sectors():
     with safe_section("板块数据", hint="行业资金流接口可能受网络限制；可稍后重试。"):
         df, src = _load_flow()
         if df.empty:
-            st.error("⚠️ 板块数据暂时不可用，请稍后重试。")
+            _empty_info("板块数据暂时不可用，请稍后重试；也可切换数据源或检查网络连接。")
         else:
             st.success(f"数据来源：{src}　·　共 {len(df)} 个行业", icon="📡")
             render_data_degradation_banner()
