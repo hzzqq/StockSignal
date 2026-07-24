@@ -29,3 +29,10 @@ deploy_preview/
 
 # WorkBuddy 工作记忆与本地测试产物（含私有记忆/截图，不入库）
 .workbuddy/
+
+# 本地 pytest 临时目录（sandbox 禁止 rm 时保留，不入库）
+.pytest_tmp/
+
+# Windows 误创建的空设备文件
+/nul
+

@@ -62,15 +62,30 @@ class DataCleaner:
         return df.reset_index(drop=True)
 
     @staticmethod
+    def deduplicate(df, on="date", keep="last"):
+        """按 on 列去重（默认保留最后一条），并保持原有行序。
+
+        行情接口常返回重复日期行（如复权切分、源数据脏数据），重复行会令
+        pct_change / 均线计算错位，故作为标准清洗步骤提供。
+        """
+        if on not in df.columns:
+            return df.copy()
+        return df.drop_duplicates(subset=[on], keep=keep).reset_index(drop=True)
+
+    @staticmethod
     def align_dates(*dataframes, on="date"):
         """
         将多个 DataFrame 按日期对齐（取交集）。
         :param dataframes: 多个 DataFrame
         :param on: 对齐的列名
         """
+        if not dataframes:
+            raise ValueError("align_dates 至少需要一个 DataFrame")
         aligned = []
         common_dates = None
         for df in dataframes:
+            if on not in df.columns:
+                raise ValueError(f"对齐列 {on!r} 不存在于输入 DataFrame")
             dates = set(df[on].dt.strftime("%Y-%m-%d")) if pd.api.types.is_datetime64_any_dtype(df[on]) else set(df[on])
             if common_dates is None:
                 common_dates = dates

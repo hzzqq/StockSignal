@@ -256,3 +256,58 @@ def test_calc_ma_insufficient_rows():
         assert f"ma{w}" in out.columns
         # 行数不足，全部 NaN
         assert out[f"ma{w}"].isna().all()
+
+
+# ----------------------------------------------------------------------
+# 新增：deduplicate（R23 — 去重清洗步骤，新增能力）
+# ----------------------------------------------------------------------
+def test_deduplicate_removes_duplicate_dates():
+    df = pd.DataFrame({
+        "date": ["2024-01-01", "2024-01-01", "2024-01-02"],
+        "close": [1.0, 2.0, 3.0],
+    })
+    out = DataCleaner.deduplicate(df)
+    assert list(out["date"]) == ["2024-01-01", "2024-01-02"]
+    # 默认保留最后一条 → 1-01 的 close 取 2.0
+    assert list(out["close"]) == [2.0, 3.0]
+
+
+def test_deduplicate_keep_first():
+    df = pd.DataFrame({
+        "date": ["2024-01-01", "2024-01-01"],
+        "close": [1.0, 2.0],
+    })
+    out = DataCleaner.deduplicate(df, keep="first")
+    assert list(out["close"]) == [1.0]
+
+
+def test_deduplicate_no_duplicates_unchanged():
+    df = pd.DataFrame({
+        "date": ["2024-01-01", "2024-01-02"],
+        "close": [1.0, 2.0],
+    })
+    out = DataCleaner.deduplicate(df)
+    assert len(out) == 2
+
+
+def test_deduplicate_missing_on_column_returns_copy():
+    # on 列不存在 → 安全返回副本，不抛异常
+    df = pd.DataFrame({"x": [1, 2]})
+    out = DataCleaner.deduplicate(df, on="date")
+    assert len(out) == 2
+
+
+# ----------------------------------------------------------------------
+# 新增：align_dates 输入校验（隐性健壮性修复）
+# ----------------------------------------------------------------------
+def test_align_dates_empty_raises():
+    import pytest
+    with pytest.raises(ValueError):
+        DataCleaner.align_dates()
+
+
+def test_align_dates_missing_on_column_raises():
+    import pytest
+    df = pd.DataFrame({"x": [1]})
+    with pytest.raises(ValueError):
+        DataCleaner.align_dates(df, on="date")
