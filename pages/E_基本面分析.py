@@ -398,6 +398,7 @@ picked = stock_search_input(
     label="选择股票",
     key="fa_stock",
     default="600519",
+    help="输入代码或名称（如 600519 / 贵州茅台）搜索个股，开始基本面分析",
 )
 code = str(picked or "600519").zfill(6)
 

@@ -364,7 +364,12 @@ def fragment_margin_trading():
 @safe_fragment("个股主力资金")
 def fragment_individual():
     _section_title("🔍 个股主力资金动向", accent="#ef5da8")
-    code = stock_search_input(label="选择股票", key="ff_stock", default="600519")
+    code = stock_search_input(
+        label="选择股票",
+        key="ff_stock",
+        default="600519",
+        help="输入代码或名称（如 600519 / 贵州茅台）搜索个股，查看其主力资金动向",
+    )
     if not code:
         st.info("请选择一只股票查看主力资金。")
         st.caption("💡 在上方输入框输入代码或名称（如 `600519` / `贵州茅台`），支持模糊搜索与拼音首字母。")

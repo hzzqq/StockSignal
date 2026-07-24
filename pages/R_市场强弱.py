@@ -290,6 +290,10 @@ def fragment_strength():
                 )
             st.markdown("".join(chips), unsafe_allow_html=True)
             st.caption("数值=区间归一化（起点100）。>100 走强(红) / <100 走弱(绿)；信号灯语义与价格色一致：强=红、弱=绿。")
+    else:
+        # 加法式空态 UX：所选区间/序列样本点不足时无法算综合信号，
+        # 给出可操作的提示，避免「无信号灯、无说明」的空白困惑。
+        st.caption("💡 当前区间或所选序列不足以计算综合强弱信号（样本点不足），请放宽区间或增加序列后再看顶部信号灯。")
 
     # 可选：叠加自选股均值
     with st.expander("➕ 叠加自选股均值（可选）", expanded=False):

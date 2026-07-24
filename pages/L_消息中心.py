@@ -212,7 +212,9 @@ with c1:
 with c2:
     st.metric("总消息", len(msgs))
 with c3:
-    if st.button("✅ 全部标为已读", use_container_width=True, key="mark_all"):
+    if st.button("✅ 全部标为已读", use_container_width=True, key="mark_all",
+                 disabled=len(unread) == 0,
+                 help="一键将当前所有未读消息标记为已读（无未读时禁用）。"):
         st.session_state["msg_read_ids"].update(m["id"] for m in msgs)
         st.rerun()
 
@@ -220,7 +222,8 @@ render_data_degradation_banner()
 
 # ───────────────────────── 筛选 ─────────────────────────
 TYPES = ["全部", "异动", "社区", "系统"]
-_filt = st.radio("类型筛选", TYPES, horizontal=True, label_visibility="collapsed")
+_filt = st.radio("类型筛选", TYPES, horizontal=True, label_visibility="collapsed",
+                   help="按消息类型过滤：异动（自选股涨跌）、社区（股吧动态）、系统（数据源与健康提示）。")
 shown = msgs if _filt == "全部" else [m for m in msgs if m["type"] == _filt]
 
 if not shown:

@@ -199,6 +199,8 @@ def fragment_portfolio():
                       legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"))
     fig.update_xaxes(tickangle=-45)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    # 加法式小便利（Batch15）：标注净值曲线数据更新时间，便于判断是否为最新行情。
+    st.caption(f"🕒 数据更新时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}（组合净值基于各持仓历史收盘价加权构建）")
 
     # 加法式健壮性：summary() / pnl_attribution() 在持仓数据异常时可能抛 KeyError，
     # 原代码无兜底会导致整个 fragment 崩溃、净值曲线也一同消失。这里隔离两个子视图，

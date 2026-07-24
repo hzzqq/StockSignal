@@ -202,6 +202,10 @@ if "deleting_user" in st.session_state:
 
 # ----------------------------------------------------------------- 操作日志
 with tab_logs:
+    # 加法式便利：提供手动刷新按钮，便于后端产生新日志后立即拉取，而无需整页交互触发。
+    if st.button("🔄 刷新日志", key="log_refresh_btn",
+                 help="重新从后端拉取最新操作日志"):
+        st.rerun()
     page = st.session_state["log_page"]
     # 加法式健壮性：与用户列表同理，body 可能为 None，先兜底避免 AttributeError。
     code, resp = get_logs(page=page, per_page=20)

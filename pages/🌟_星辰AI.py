@@ -334,12 +334,17 @@ def render_message(m: dict, idx: int, username: str) -> None:
         return
 
     # assistant
+    # 加法式空态守卫：content 偶发为空（如后端返回了空回答 / 任务中断），
+    # 原逻辑会渲染一个空白气泡；这里给一个友好占位，避免用户看到「什么都没有」。
+    _content = m.get("content") or ""
+    if not str(_content).strip():
+        _content = "（星辰 AI 暂未返回内容，请稍后重试或换个问法）"
     st.markdown(
         '<div class="xc-msg"><div class="xc-av">🌟</div>'
         '<div class="xc-col"><div class="xc-who">'
         '<span class="xc-name">星辰 AI</span><span class="xc-role">助手</span>'
         '</div>'
-        f'<div class="xc-bubble">{_md_to_html(m.get("content", ""))}</div>'
+        f'<div class="xc-bubble">{_md_to_html(_content)}</div>'
         '</div></div>',
         unsafe_allow_html=True,
     )
@@ -352,7 +357,8 @@ def render_message(m: dict, idx: int, username: str) -> None:
 def _render_chips(options):
     cols = st.columns(len(options))
     for i, o in enumerate(options):
-        if cols[i].button(o["label"], key=f"xc_chip_{i}", use_container_width=True):
+        if cols[i].button(o["label"], key=f"xc_chip_{i}", use_container_width=True,
+                          help="点击直接把该问题发送给星辰 AI"):
             st.session_state["_xc_pending"] = o["prompt"]
             # fragment 内严禁裸 rerun（会整页变暗卡死）；限定作用域为本 fragment
             st.rerun(scope="fragment")

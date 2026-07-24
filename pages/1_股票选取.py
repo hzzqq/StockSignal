@@ -423,6 +423,7 @@ try:
                                      dragmode=drag_mode,
                                      events=events_df if show_events else None)
         st.plotly_chart(fig, width="stretch", key="pick_kline_chart")
+        st.caption("📈 K 线图含所选 MA 均线；开启「标注事件」后，利好事件标红↑、利空事件标绿↓（A股红涨绿跌惯例）。可拖动平移或框选缩放。")
 
         # 事件面板（可折叠）：列出可见区间内事件，便于对照 K 线标注
         if show_events and events_df is not None and not events_df.empty:

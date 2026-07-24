@@ -385,7 +385,13 @@ try:
         headers={"Authorization": f"Bearer {get_token()}"},
     )
     if resp.status_code == 200:
-        body = resp.json()
+        # 加法式健壮性：与上方自选股分支一致，resp.json() 可能因返回非 JSON 抛异常；
+        # 兜底为空 dict，避免整页被外层 except 报出难看的「获取登录历史失败」错误，
+        # 降级为更友好的「暂无登录记录」空态。
+        try:
+            body = resp.json()
+        except Exception:
+            body = {}
         logs = (body.get("data") or []) if body.get("status") == "ok" else []
         if logs:
             import pandas as pd

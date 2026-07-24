@@ -188,7 +188,7 @@ def _render_report(result: dict):
     st.markdown(
         f"<div style='padding:14px 18px;border-left:6px solid {vc};background:#11161d;border-radius:8px'>"
         f"<b style='font-size:20px;color:{vc}'>🏁 最终结论：{c.get('verdict','-')}</b> "
-        f"&nbsp; 综合评分 <b>{c.get('composite','-')}</b>/100"
+        f"&nbsp; 综合评分 <b>{c.get('composite') or '-'}</b>/100"
         + (f"<br>目标价 <b style='color:#e6edf3'>¥{c.get('target_price')}</b> ｜ 止损 <b style='color:#e6edf3'>¥{c.get('stop_price')}</b>" if c.get("target_price") else "")
         + f"<br><span style='color:#9fb0c0'>{str(c.get('rationale',''))[:300]}</span></div>",
         unsafe_allow_html=True,

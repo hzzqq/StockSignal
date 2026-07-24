@@ -678,7 +678,10 @@ def fragment_news_mine():
 
         col_mine_input, col_mine_btn, col_mine_limit = st.columns([4, 2, 2])
         with col_mine_input:
-            mine_keyword = st.text_input("挖掘关键词（留空抓财经要闻）", value="煤炭", key="mine_keyword")
+            mine_keyword = st.text_input(
+                "挖掘关键词（留空抓财经要闻）", value="煤炭", key="mine_keyword",
+                help="如：煤炭 / 中国神华 / 留空则抓取全部财经要闻。",
+            )
         with col_mine_limit:
             mine_limit = st.slider("抓取条数", min_value=10, max_value=50, value=20, key="mine_limit_v2")
         with col_mine_btn:
@@ -762,7 +765,10 @@ def fragment_sentiment_report():
         with report_container:
             col_rpt_input, col_rpt_btn = st.columns([3, 1])
             with col_rpt_input:
-                report_keyword = st.text_input("分析关键词", value="煤炭", key="report_keyword_v2")
+                report_keyword = st.text_input(
+                    "分析关键词", value="煤炭", key="report_keyword_v2",
+                    help="如：煤炭 / 中国神华 / 留空则分析全部财经要闻。",
+                )
             with col_rpt_btn:
                 rpt_submitted = st.button("📊 生成报告", type="primary", key="btn_sentiment_report_v2", use_container_width=True)
 

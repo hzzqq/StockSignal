@@ -31,6 +31,8 @@ def _fmt_money(x, prefix="¥", nd=2):
         return f"{prefix}—"
     if v != v:  # NaN
         return f"{prefix}—"
+    if v in (float("inf"), float("-inf")):  # 无穷（如成本为零导致除零）
+        return f"{prefix}—"
     return f"{prefix}{v:,.{nd}f}"
 
 
@@ -40,6 +42,8 @@ def _fmt_signed_pct(x, nd=2):
     except Exception:
         return "—"
     if v != v:
+        return "—"
+    if v in (float("inf"), float("-inf")):  # 无穷（如收益率为 inf）
         return "—"
     return f"{v:+.{nd}f}%"
 

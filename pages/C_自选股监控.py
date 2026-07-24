@@ -481,6 +481,7 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
                      "现价": st.column_config.NumberColumn(format="¥%.2f"),
                      "量比": st.column_config.NumberColumn(format="%.2fx"),
                  })
+    st.caption("涨跌颜色遵循 A股惯例：红涨绿跌。综合/短期/中期/长期为技术评分（0–100，越高越强）。")
 
     # 跳转选择
     opts = [f"{r['code']} {r['name']}" for _, r in df.iterrows()]

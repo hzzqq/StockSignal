@@ -125,6 +125,7 @@ def fragment_sector_summary():
             st.markdown("**🔴 领跌板块**")
             for _, r in top_dn.iterrows():
                 st.markdown(f"- {str(r.get('sector') or '?')}  `{_fmt_pct(r.get('change_pct'))}`")
+        st.caption(f"🕒 板块行情快照时间：{pd.Timestamp.now().strftime('%H:%M:%S')}（收盘后更新，盘中为实时快照）")
     else:
         st.warning("⚠️ 暂未获取到板块行情（交易时间或网络恢复后自动可用）。")
 

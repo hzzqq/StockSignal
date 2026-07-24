@@ -91,14 +91,19 @@ def fragment_drivers_panel():
         "drv", days_default=180, preset_default="近180天",
         series_options=series_options, show_ma=False,
     )
-    try:
-        fig = plot_drivers_panel(
-            df, meta=meta, dark_mode=dark,
-            dims=sel_dims or DIMS, date_range=dr, selected=sel,
-        )
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="drv_panel")
-    except Exception as e:
-        st.warning(f"驱动力面板图渲染失败：{e}")
+    # 加法式空态守卫（Batch15）：用户在区间控件中清空序列选择时 sel 为空，
+    # 此时绘制会得到空白/异常图；提前给出友好提示，不影响下方数据表与热力图。
+    if not sel:
+        st.info("请在上方区间控件中至少选择一个指标序列，以绘制驱动力面板。")
+    else:
+        try:
+            fig = plot_drivers_panel(
+                df, meta=meta, dark_mode=dark,
+                dims=sel_dims or DIMS, date_range=dr, selected=sel,
+            )
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="drv_panel")
+        except Exception as e:
+            st.warning(f"驱动力面板图渲染失败：{e}")
 
     # 加法式可访问性（第十四批）：plotly 图表对读屏软件不友好，补充一段文字版「涨跌概览」
     # 作为图表替代文本，让无法看图的用户也能获取各指标区间内累计变化的关键信息。

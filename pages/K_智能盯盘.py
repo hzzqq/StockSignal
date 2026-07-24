@@ -624,7 +624,8 @@ def fragment_watch_manage():
     # 添加关注
     a1, a2 = st.columns([3, 1])
     add_q = a1.text_input("➕ 添加关注（6 位代码）", value="", key="wl_add_q",
-                              placeholder="如 600519")
+                              placeholder="如 600519",
+                              help="输入 6 位数字代码（如 600519）后点击「添加」；也可在行情看板或形态选股中一键关注。")
     if a2.button("添加", key="wl_add_btn", use_container_width=True):
         raw = (add_q or "").strip()
         if not raw:

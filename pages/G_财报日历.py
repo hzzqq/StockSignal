@@ -178,7 +178,12 @@ def fragment_disclosure():
             st.session_state["dc_market"] = "沪市"
             st.session_state["dc_period"] = "2025年报"
         return
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    # 加法式渲染兜底（Batch15）：best-effort 接口返回的 DataFrame 可能含怪异列类型，
+    # 直接 st.dataframe 会异常；包裹后失败仅提示，不影响上方概览与下方其它视图。
+    try:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    except Exception as _e:
+        st.warning(f"披露日历表格渲染失败：{_e}")
 
 
 # ───────────────────────── 页面主体 ─────────────────────────

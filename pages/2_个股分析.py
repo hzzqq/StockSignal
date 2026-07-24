@@ -140,6 +140,12 @@ def _render_analysis(R: dict):
     prev_close = R["prev_close"]
     change_pct = R["change_pct"]
     df = R["df"]
+    # ══ 加法式健壮性守卫（Batch15）：行情序列 df 缺失或为空时，
+    # 原代码会在下方 `last = df.iloc[-1]` 抛 IndexError 使整个决策仪表盘崩溃。
+    # 提前降级为友好空态提示，正常数据渲染不受影响。
+    if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+        _empty_info("分析数据不完整（行情序列缺失），暂无法渲染决策仪表盘。请重新生成分析。")
+        return
     # ⚠️ 兜底：上游结果若缺失 trend/momentum/volume_info（None），后续 .get 会抛 AttributeError
     trend = R.get("trend") or {}
     momentum = R.get("momentum") or {}

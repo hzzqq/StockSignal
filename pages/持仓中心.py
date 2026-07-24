@@ -70,6 +70,7 @@ _view = st.radio(
     horizontal=True,
     label_visibility="collapsed",
     key="hub_cang_view",
+    help="切换三个子视图：⭐ 自选池（自选股实时行情）/ 💼 持仓（持仓盈亏与导入导出）/ 📈 收益归因（净值曲线与收益贡献）。切换会重新加载对应模块。",
 )
 st.divider()
 with st.spinner(f"正在加载「{_view}」..."):

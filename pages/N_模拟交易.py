@@ -115,6 +115,8 @@ def fragment_paper():
     trading_autorefresh(key="paper_autorefresh")
     user = (get_user() or {}).get("username", "guest")
     book = _load_book(user)
+    # 加法式便利：显示最近刷新时间，便于用户判断数据新鲜度（纯展示，不改逻辑）。
+    st.caption(f"🕒 最近刷新：{datetime.now():%Y-%m-%d %H:%M:%S}")
 
     with safe_section("账户概览"):
         rows, assets, mv = _recompute(book)

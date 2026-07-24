@@ -106,7 +106,7 @@ def fragment_detail():
         unsafe_allow_html=True,
     )
     _total_likes = int(post.get("likes", 0) or 0)
-    meta = (f"🕘 {_fmt_time(post.get('created_at', ''))} · 👀 {post.get('views', 0)}"
+    meta = (f"🕘 {_fmt_time(post.get('created_at', ''))} · 👀 {int(post.get('views') or 0)}"
             f" · 👍 {_total_likes}（点赞汇总）")
     st.caption(meta)
 

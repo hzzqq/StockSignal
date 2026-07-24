@@ -368,7 +368,8 @@ def fragment_lhb():
 
             # 点击跳转股票选取（K 线查看）
             opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in lhb_df.iterrows() if len(str(row['股票代码'])) == 6]
-            sel = st.selectbox("选择龙虎榜股票查看 K 线", ["— 请选择 —"] + opts, key="lhb_jump_select")
+            sel = st.selectbox("选择龙虎榜股票查看 K 线", ["— 请选择 —"] + opts, key="lhb_jump_select",
+                                help="选择一个标的后跳转到「股票选取」页查看其 K 线与详情。")
             if sel and sel != "— 请选择 —":
                 code = sel.split()[0]
                 st.query_params["pick_stock"] = code
@@ -412,7 +413,8 @@ def fragment_lhb():
 
                 # 热股榜内的 K 线跳转选择器
                 heat_opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in heat_df.iterrows() if len(str(row['股票代码'])) == 6]
-                hsel = st.selectbox("选择热股榜股票查看 K 线", ["— 请选择 —"] + heat_opts, key="heat_jump_select")
+                hsel = st.selectbox("选择热股榜股票查看 K 线", ["— 请选择 —"] + heat_opts, key="heat_jump_select",
+                                     help="选择热股榜中的标的后跳转到「股票选取」页查看其 K 线与详情。")
                 if hsel and hsel != "— 请选择 —":
                     code = hsel.split()[0]
                     st.query_params["pick_stock"] = code

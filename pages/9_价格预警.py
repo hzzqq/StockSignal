@@ -252,9 +252,11 @@ with st.expander("➕ 新建预警", expanded=False, key="new_alert_exp"):
         c1, c2 = st.columns(2)
         with c1:
             condition = st.selectbox("触发条件", ["above", "below"],
-                                     format_func=lambda x: "涨破 ▲" if x == "above" else "跌破 ▼")
+                                     format_func=lambda x: "涨破 ▲" if x == "above" else "跌破 ▼",
+                                     help="涨破 ▲：现价 ≥ 目标价时触发；跌破 ▼：现价 ≤ 目标价时触发。")
         with c2:
-            target = st.number_input("目标价格 (元)", min_value=0.0, step=0.01, value=0.0)
+            target = st.number_input("目标价格 (元)", min_value=0.0, step=0.01, value=0.0,
+                                     help="触发比价的参考价位；价格涨破或跌破该值即触发预警。")
     elif atype == "pattern":
         pattern_name = st.selectbox("技术形态", PATTERN_OPTIONS, index=0)
         params = {"pattern_name": pattern_name}

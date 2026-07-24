@@ -335,6 +335,7 @@ def fragment_breadth():
         return
     if df is None or df.empty:
         _empty_info("暂无市场广度数据（网络/代理受限或数据源暂未接入）。")
+        _render_status(meta)
         return
     cols = st.columns(len(_BREADTH))
     for c, cfg in zip(cols, _BREADTH):
@@ -354,6 +355,7 @@ def fragment_sentiment():
         return
     if df is None or df.empty:
         _empty_info("暂无市场情绪数据（网络/代理受限或数据源暂未接入）。")
+        _render_status(meta)
         return
     cols = st.columns(len(_SENTIMENT))
     for c, cfg in zip(cols, _SENTIMENT):
@@ -373,6 +375,7 @@ def fragment_valuation():
         return
     if df is None or df.empty:
         _empty_info("暂无估值数据（网络/代理受限或数据源暂未接入）。")
+        _render_status(meta)
         return
     cols = st.columns(len(_VALUATION))
     for c, cfg in zip(cols, _VALUATION):

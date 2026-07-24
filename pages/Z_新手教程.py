@@ -217,6 +217,7 @@ def fragment_video():
 
     if WALK_PATH.exists():
         st.caption(f"📎 文字漫游配套 HTML：{WALK_PATH.name}（已随本次更新一并生成，可在文件管理器打开）。")
+        st.code(str(WALK_PATH), language=None)
 
 
 # ──────────────────────────────────────────────────────────────

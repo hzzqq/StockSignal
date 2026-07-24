@@ -77,7 +77,8 @@ with login_tab:
                                  help="输入账户密码（输入时以掩码显示）。")
         remember = st.checkbox("记住我（关闭浏览器后仍可保持登录）", value=True,
                                help="token 已保存在地址栏，刷新/重开浏览器无需重新登录")
-        submit = st.form_submit_button("🔑 登录", width="stretch", type="primary")
+        submit = st.form_submit_button("🔑 登录", width="stretch", type="primary",
+                                  help="使用上方一键填入的账号或手动输入的用户名 / 密码登录 StockSignal。")
 
         if submit:
             if not username or not password:
