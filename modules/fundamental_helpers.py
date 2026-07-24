@@ -175,6 +175,19 @@ def _pe_status(pe: float | None) -> str:
         return "偏高区间"
     return "高估区间"
 
+def _alr_status(alr: float | None) -> str:
+    """资产负债率风险档位：低杠杆(<40%) / 中杠杆(40-60%) / 高杠杆(>60%)。
+
+    无数据或非法值（None / 越界 / <0）返回 「—」，与 _pe_status 对齐。
+    """
+    if alr is None or not (0 <= alr <= 100):
+        return "—"
+    if alr < 40:
+        return "低杠杆"
+    if alr <= 60:
+        return "中杠杆"
+    return "高杠杆"
+
 def _tag(text: str, level: str) -> str:
     """语义化彩色标签：good/warn/bad/neu（仅用于基本面「好/坏」语义，非价格涨跌色）。"""
     colors = {"good": "#16a34a", "warn": "#d97706", "bad": "#dc2626", "neu": "#6b7280"}
@@ -530,7 +543,7 @@ def calc_alr(code: str, fetcher) -> float | None:
         if asset_c is not None and liab_c is not None:
             av = _to_num(df.iloc[0][asset_c])
             lv = _to_num(df.iloc[0][liab_c])
-            if av and lv:
+            if av is not None and lv is not None and av != 0:
                 return round(lv / av * 100, 2)
 
         item_col = df.columns[0]
@@ -545,7 +558,7 @@ def calc_alr(code: str, fetcher) -> float | None:
                 vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
                 if vals:
                     lv = vals[-1]
-        if av and lv:
+        if av is not None and lv is not None and av != 0:
             return round(lv / av * 100, 2)
     except Exception:
         return None

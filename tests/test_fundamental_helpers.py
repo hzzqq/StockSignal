@@ -10,6 +10,7 @@ from modules.fundamental_helpers import (
     _to_num, _to_float, _percentile, _pe_status, _period_label,
     _compute_yoy, _compute_qoq, _normalize_industry,
     _fmt_fin_value, _fmt_fin_yoy, _composite_score,
+    calc_alr, _alr_status,
 )
 
 
@@ -153,3 +154,47 @@ class TestCompositeScore:
                   "alr": 20.0, "current_ratio": 3.0},
         )
         assert score <= 100
+
+
+class TestAlrStatus:
+    def test_low_leverage(self):
+        assert _alr_status(30.0) == "低杠杆"
+
+    def test_mid_leverage(self):
+        assert _alr_status(50.0) == "中杠杆"
+
+    def test_high_leverage(self):
+        assert _alr_status(70.0) == "高杠杆"
+
+    def test_none_is_dash(self):
+        assert _alr_status(None) == "—"
+
+    def test_negative_out_of_range_is_dash(self):
+        assert _alr_status(-5.0) == "—"
+
+    def test_over_100_out_of_range_is_dash(self):
+        assert _alr_status(150.0) == "—"
+
+
+class TestCalcAlr:
+    def test_normal_ratio(self):
+        class FakeFetcher:
+            def get_financial(self, code, sheet):
+                return pd.DataFrame({"资产总计": [200.0], "负债合计": [80.0]})
+
+        assert calc_alr("000001", FakeFetcher()) == 40.0
+
+    def test_zero_debt_returns_zero(self):
+        """0 负债应得 ALR=0.0，而非因真值判断被误判为缺失(None)。"""
+        class FakeFetcher:
+            def get_financial(self, code, sheet):
+                return pd.DataFrame({"资产总计": [100.0], "负债合计": [0.0]})
+
+        assert calc_alr("000001", FakeFetcher()) == 0.0
+
+    def test_missing_columns_returns_none(self):
+        class FakeFetcher:
+            def get_financial(self, code, sheet):
+                return pd.DataFrame({"其他": [1.0]})
+
+        assert calc_alr("000001", FakeFetcher()) is None
