@@ -11,6 +11,8 @@ v2 变更：
 """
 from __future__ import annotations
 
+import ast
+import operator
 import re
 import time
 import threading
@@ -106,11 +108,43 @@ def _resolve_multiple(question: str) -> List[Dict[str, str]]:
 
 
 def _safe_eval(expr: str) -> Optional[float]:
-    """仅对简单四则运算做安全求值（只允许数字、+ - * / 和括号）。"""
+    """仅对简单四则运算做安全求值（数字 + - * / 与括号）。
+
+    基于 AST 解析并白名单节点类型求值，**不使用 eval**，
+    从根本上消除「正则允许 '.' → 属性访问链沙箱逃逸」的代码执行风险
+    （例如 ``(1).__class__.__subclasses__()`` 这类 payload 会被直接拒绝）。
+    """
     if not re.match(r"^[0-9+\-*/().\s]+$", expr):
         return None
     try:
-        return float(eval(expr, {"__builtins__": {}}, {}))
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError:
+        return None
+
+    _BINOPS = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+    }
+
+    def _ev(node):
+        if isinstance(node, ast.Expression):
+            return _ev(node.body)
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
+                raise ValueError("仅支持数字字面量")
+            return float(node.value)
+        if isinstance(node, ast.BinOp) and type(node.op) in _BINOPS:
+            return _BINOPS[type(node.op)](_ev(node.left), _ev(node.right))
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            val = _ev(node.operand)
+            return val if isinstance(node.op, ast.UAdd) else -val
+        # 拒绝一切其它节点（属性访问 / 调用 / 命名 / 下标等）
+        raise ValueError("不支持的表达式")
+
+    try:
+        return _ev(tree)
     except Exception:
         return None
 
