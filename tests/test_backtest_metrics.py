@@ -27,7 +27,7 @@ from modules.backtest import BacktestResult
 
 
 def _make(cumulative_return=None, drawdown=None, daily_return=None,
-          total_asset=None, trades=None, initial_capital=100000):
+          total_asset=None, position=None, trades=None, initial_capital=100000):
     """构造裸 BacktestResult 并注入合成数据，规避 __init__。"""
     res = object.__new__(BacktestResult)
     data = {}
@@ -39,6 +39,8 @@ def _make(cumulative_return=None, drawdown=None, daily_return=None,
         data["daily_return"] = daily_return
     if total_asset is not None:
         data["total_asset"] = total_asset
+    if position is not None:
+        data["position"] = position
     res.df = pd.DataFrame(data) if data else pd.DataFrame()
     res.trades = trades or []
     res.initial_capital = initial_capital
@@ -163,3 +165,50 @@ def test_avg_trade_return_mean_profit():
 def test_avg_trade_return_empty_trades_is_zero():
     res = _make()
     assert res.avg_trade_return == 0
+
+
+# ---------- exposure_pct / annualized_return_pct（新增绩效维度）----------
+
+def test_exposure_pct_counts_held_bars():
+    # 4 个交易日中 2 天持仓 → 50.0%
+    res = _make(position=[0, 100, 100, 0], cumulative_return=[1, 2, 3, 4])
+    assert res.exposure_pct == 50.0
+
+
+def test_exposure_pct_fully_invested_is_100():
+    res = _make(position=[100, 100, 100], cumulative_return=[1, 2, 3])
+    assert res.exposure_pct == 100.0
+
+
+def test_exposure_pct_empty_df_is_zero():
+    res = _make()
+    assert res.exposure_pct == 0.0
+
+
+def test_exposure_pct_missing_position_column_is_zero():
+    # df 有数据但无 position 列（防御：不抛 KeyError）
+    res = _make(cumulative_return=[1.0, 2.0])
+    assert res.exposure_pct == 0.0
+
+
+def test_annualized_one_year_ten_pct():
+    # 252 个交易日 ≈ 1 年，累计 +10% → 年化 ≈ 10.0%
+    res = _make(cumulative_return=[0.0] * 251 + [10.0])
+    assert res.annualized_return_pct == 10.0
+
+
+def test_annualized_single_bar_is_zero():
+    # 单根 bar 无法年化
+    res = _make(cumulative_return=[5.0])
+    assert res.annualized_return_pct == 0.0
+
+
+def test_annualized_empty_df_is_zero():
+    res = _make()
+    assert res.annualized_return_pct == 0.0
+
+
+def test_annualized_total_loss_floor_is_zero():
+    # 累计 -100%（破产）growth<=0 → 不返回无意义负无穷
+    res = _make(cumulative_return=[-100.0] * 30)
+    assert res.annualized_return_pct == 0.0

@@ -536,7 +536,8 @@ class Backtester:
             raw_oversold = 0
 
         # 连续确认加成：连续 3 天以上低位 → 额外加最高 5 分
-        confirm_bonus = min(consecutive_low - 1, 5) * 1.0  # 最多 +5
+        # 无连续低位（consecutive_low<=1）时加成为 0，避免对普通行情误扣分
+        confirm_bonus = max(0, min(consecutive_low - 1, 5)) * 1.0  # 最多 +5，最少 0
         oversold_score = raw_oversold + confirm_bonus
         score += oversold_score
 
@@ -640,6 +641,7 @@ class Backtester:
             final_score = round(score * 0.7 + smoothed * 0.3, 1)
         else:
             final_score = round(score, 1)
+            smoothed = final_score
 
         # ══════════════════════════════════════
         # 7) 智能卖出信号预测
@@ -653,7 +655,7 @@ class Backtester:
             "close": latest["close"],
             "score": final_score,
             "raw_score": round(score, 1),
-            "smoothed_score": round(smoothed, 1) if 'smoothed' in dir() else final_score,
+            "smoothed_score": round(smoothed, 1),
             "rsi2": round(rsi2, 1),
             "rsi14": round(rsi14, 1),
             "trend_ok": trend_ok,
@@ -864,7 +866,7 @@ class Backtester:
                 elif rsi2 < 10: score += 30; reasons.append("RSI2超卖")
                 elif rsi2 < 15: score += 20; reasons.append("RSI2偏弱")
                 elif rsi2 < 25: score += 10; reasons.append("RSI2偏低")
-                score += min(cons_low - 1, 5) * 1.0
+                score += max(0, min(cons_low - 1, 5)) * 1.0
 
                 # 3) 健康分
                 rsi14 = latest["rsi14"]
@@ -1102,6 +1104,32 @@ class BacktestResult:
     @property
     def trade_count(self):
         return len(self.trades)
+
+    @property
+    def exposure_pct(self):
+        """持仓时间占比（%）：持有头寸的交易日数 / 总交易日数。"""
+        if self.df.empty or "position" not in self.df.columns:
+            return 0.0
+        bars = len(self.df)
+        if bars == 0:
+            return 0.0
+        held = int((self.df["position"] > 0).sum())
+        return round(held / bars * 100, 2)
+
+    @property
+    def annualized_return_pct(self):
+        """年化收益率（%）：以总交易日近似 252 交易日/年做几何年化。"""
+        if self.df.empty:
+            return 0.0
+        total = self.total_return
+        bars = len(self.df)
+        if bars <= 1 or total <= -100:
+            return 0.0
+        growth = 1 + total / 100
+        if growth <= 0:
+            return 0.0
+        years = bars / 252
+        return round((growth ** (1 / years) - 1) * 100, 2)
 
     def summary(self):
         """返回回测摘要字典。"""
