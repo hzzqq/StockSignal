@@ -21,6 +21,7 @@ from ..extensions import db
 from ..models import MarketAlert
 from ..utils.response import ok
 from ..utils.errors import NotFoundError
+from ..utils.timeutil import utc_now
 
 bp = Blueprint("market_alert", __name__, url_prefix="/api/market-alerts")
 
@@ -111,7 +112,7 @@ def mark_read(alert_id: int):
 @jwt_required
 def mark_all():
     """POST /api/market-alerts/read-all —— 全部已读。"""
-    _set_last_seen(g.current_user, datetime.utcnow())
+    _set_last_seen(g.current_user, utc_now())
     return ok(message="已全部标记为已读")
 
 

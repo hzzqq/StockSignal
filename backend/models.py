@@ -10,9 +10,9 @@ backend/models.py
 """
 from __future__ import annotations
 import json
-from datetime import datetime
 from werkzeug.security import check_password_hash, generate_password_hash
 from .extensions import db
+from .utils.timeutil import utc_now as _utcnow
 
 
 # ------------------------------------------------------------------ User
@@ -23,7 +23,7 @@ class User(db.Model):
     username = db.Column(db.String(64), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(16), nullable=False, default="user")  # user / admin
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     avatar = db.Column(db.Text, nullable=True)  # 头像数据 URL（base64），按用户持久化
     settings = db.Column(db.Text, nullable=True)  # 用户偏好 JSON（主题/字号等），按账号持久化
@@ -73,7 +73,7 @@ class Stock(db.Model):
     pinyin_initials = db.Column(db.String(32), nullable=False, default="", index=True)  # gzmt
     pinyin_full = db.Column(db.String(128), nullable=False, default="", index=True)     # guizhoumaotai
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
     def to_dict(self) -> dict:
         return {
@@ -95,7 +95,7 @@ class Watchlist(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     stock_code = db.Column(db.String(16), nullable=False, index=True)
     note = db.Column(db.String(256), default="")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
 
     __table_args__ = (db.UniqueConstraint("user_id", "stock_code", name="uq_user_stock"),)
 
@@ -116,7 +116,7 @@ class PriceAlert(db.Model):
     active = db.Column(db.Boolean, default=True)
     triggered = db.Column(db.Boolean, default=False)
     triggered_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
 
     def to_dict(self) -> dict:
         return {
@@ -144,7 +144,7 @@ class SystemConfig(db.Model):
     key = db.Column(db.String(64), unique=True, nullable=False, index=True)
     value = db.Column(db.Text, nullable=False, default="")
     description = db.Column(db.String(256), default="")
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
     updated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
     def to_dict(self) -> dict:
@@ -169,7 +169,7 @@ class OperationLog(db.Model):
     action = db.Column(db.String(64), nullable=False)        # create_user / delete_user / update_config ...
     target = db.Column(db.String(128), default="")
     detail = db.Column(db.Text, default="")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False, index=True)
 
     def to_dict(self) -> dict:
         return {
@@ -192,7 +192,7 @@ class JunkStock(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     stock_code = db.Column(db.String(16), nullable=False, index=True)
     note = db.Column(db.String(256), default="")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
 
     __table_args__ = (db.UniqueConstraint("user_id", "stock_code", name="uq_user_junk_stock"),)
 
@@ -216,7 +216,7 @@ class UserStockScore(db.Model):
     stock_code = db.Column(db.String(16), nullable=False, index=True)
     stock_name = db.Column(db.String(64), default="")
     score = db.Column(db.Integer, nullable=False, default=50)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
     __table_args__ = (db.UniqueConstraint("user_id", "stock_code", name="uq_user_stock_score"),)
 
@@ -248,7 +248,7 @@ class ChatHistory(db.Model):
         db.Integer, db.ForeignKey("users.id"), nullable=False, unique=True, index=True
     )
     messages = db.Column(db.Text, nullable=False, default="[]")  # JSON 数组
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
 
 # ------------------------------------------------------------------ ForumPost（股吧帖子）
@@ -268,8 +268,8 @@ class ForumPost(db.Model):
     stock_name = db.Column(db.String(64), default="")
     likes = db.Column(db.Integer, nullable=False, default=0)
     views = db.Column(db.Integer, nullable=False, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False, index=True)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
     def to_dict(self, with_content: bool = True) -> dict:
         author = db.session.get(User, self.user_id)
@@ -309,7 +309,7 @@ class MarketAlert(db.Model):
     message = db.Column(db.Text, nullable=False)
     value = db.Column(db.Float, nullable=True)
     threshold = db.Column(db.Float, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False, index=True)
 
     def to_dict(self) -> dict:
         return {
@@ -334,7 +334,7 @@ class ForumComment(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     username = db.Column(db.String(64), nullable=False, default="")
     content = db.Column(db.Text, nullable=False, default="")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False, index=True)
 
     def to_dict(self) -> dict:
         author = db.session.get(User, self.user_id)

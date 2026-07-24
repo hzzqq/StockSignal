@@ -23,6 +23,7 @@ from sqlalchemy import select
 
 from .extensions import db
 from .models import MarketAlert
+from .utils.timeutil import utc_now
 from .market_alert_config import get_alert_config, resolve_rules
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ _POSITIVE_HI = {"north_net", "margin_net"}
 
 
 def _beijing_now() -> datetime:
-    return datetime.utcnow() + timedelta(hours=8)
+    return utc_now() + timedelta(hours=8)
 
 
 def _in_trading_window() -> bool:
@@ -153,7 +154,7 @@ def scan_and_store(commit: bool = True) -> int:
         return 0
 
     cooldown_hours = get_alert_config().get("cooldown_hours", COOLDOWN_HOURS)
-    cutoff = datetime.utcnow() - timedelta(hours=cooldown_hours)
+    cutoff = utc_now() - timedelta(hours=cooldown_hours)
     inserted = 0
     for a in anomalies:
         recent = db.session.execute(

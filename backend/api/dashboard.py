@@ -5,10 +5,10 @@ api/dashboard.py
 任何用户登录后即可访问——对应截图中"市场全景看板"模块。
 """
 from __future__ import annotations
-from datetime import datetime
 from flask import Blueprint, g
 from ..auth.decorators import jwt_required
 from ..utils.response import ok
+from ..utils.timeutil import utc_now
 
 bp = Blueprint("dashboard", __name__, url_prefix="/api/dashboard")
 
@@ -35,6 +35,6 @@ def summary():
             {"key": "mood", "title": "事件驱动/评分", "icon": "🔔"},
             {"key": "news", "title": "全板块资讯", "icon": "📰"},
         ],
-        "ts": datetime.utcnow().isoformat() + "Z",
+        "ts": utc_now().isoformat() + "Z",
     }
     return ok(data=data, message="欢迎回来")
