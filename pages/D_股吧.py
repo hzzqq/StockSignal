@@ -7,6 +7,7 @@
 - 详情 / 列表拆为独立 @safe_fragment，交互只重跑本区块，避免整页 st.rerun（#543-8）。
 """
 import streamlit as st
+from datetime import date
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css
 from modules.session import (
@@ -71,6 +72,14 @@ def _open_post(pid: int):
 
 st.title("💬 股吧 · 社区讨论")
 st.caption("发表你的观点或文章，与其他投资者交流。可关联具体股票，点击帖子里的股票直达「股票选取」。")
+st.caption("⚠️ 社区内容由用户生成，数据仅供参考，不构成投资建议；请理性判断，风险自担。")
+
+# 页面间快捷跳转（#Batch19-5）：相关页面一键直达
+_pl1, _pl2 = st.columns(2)
+with _pl1:
+    st.page_link("pages/个股研究.py", label="📈 去个股研究", icon="📈")
+with _pl2:
+    st.page_link("pages/C_自选股监控.py", label="⭐ 去自选股监控", icon="⭐")
 
 _EMOJIS = [
     "😂", "🚀", "📈", "📉", "💰", "🎯", "✅", "❌", "👍", "💎",
@@ -246,6 +255,8 @@ def fragment_list():
         _sort = st.radio("排序", ["最新", "最热(点赞)", "最多评论"], horizontal=True, key="forum_sort")
     if st.button("🔄 清空筛选", key="forum_clear", help="清空股票代码筛选条件，查看全部帖子"):
         st.session_state["forum_filter_code"] = ""
+    # 列表内搜索/筛选框（#Batch19-3）：标题关键字，纯前端过滤，不动既有后端筛选
+    forum_kw = st.text_input("🔍 帖子标题关键字搜索（可选，纯前端过滤）", key="forum_kw_search")
     st.markdown("---")
 
     path = "/api/forum/posts"
@@ -272,14 +283,33 @@ def fragment_list():
     else:
         posts = sorted(posts, key=lambda p: str(p.get("created_at", "")), reverse=True)
 
+    # 列表内搜索：标题关键字纯前端过滤（#Batch19-3）
+    if forum_kw.strip():
+        posts = [p for p in posts if forum_kw.strip().lower() in str(p.get("title", "")).lower()]
+
+    # 分页 / 加载更多（#Batch19-4）：默认只显示前 N 条，按钮累加计数
+    _show_key = "forum_show_n"
+    if _show_key not in st.session_state:
+        st.session_state[_show_key] = 8
+    _visible = posts[: st.session_state[_show_key]]
+
     if not posts:
         if filter_code.strip():
             _empty_info(f"没有与股票「{filter_code.strip()}」相关的帖子。换个代码试试，或发布第一条相关讨论～")
         else:
             _empty_info("还没有帖子，来发第一帖吧！用上方标题 + 内容输入框发布你的第一条帖子，社区即刻可见。")
+            # 示例数据预览（#Batch19-9）：无数据时只读展示示例讨论
+            if st.button("👀 查看示例讨论", key="forum_sample"):
+                with st.container(border=True):
+                    st.markdown("#### 示例：白酒板块是否见底？")
+                    st.caption("📈 600519 贵州茅台")
+                    st.markdown("> 个人观点：估值回到近五年中枢下沿，分红率提升，长期配置价值渐显，仅供参考。")
+                    st.caption("🔥 热门 · 👍 12 · 💬 8 · 👀 230")
     else:
         st.markdown(f"#### 📋 共 {len(posts)} 帖")
-        for p in posts:
+        # 指标/字段说明 tooltip（#Batch19-6）：关键聚合指标的含义说明
+        st.caption("ℹ️ 指标说明：👍 点赞数 / 💬 评论数 / 👀 浏览量，均由社区实时聚合；🔥 热门(点赞或评论≥10) / 🆕 新(当日发布)。")
+        for p in _visible:
             with st.container(border=True):
                 top1, top2 = st.columns([0.75, 0.25])
                 with top1:
@@ -310,7 +340,20 @@ def fragment_list():
                         f"</div>",
                         unsafe_allow_html=True,
                     )
+                # 结果标记/徽章（#Batch19-10）：中性色标签，不动红涨绿跌配色
+                _badges = []
+                if (int(p.get("likes", 0) or 0) >= 10) or (int(p.get("comment_count", 0) or 0) >= 10):
+                    _badges.append("🔥 热门")
+                if str(p.get("created_at", ""))[:10] == date.today().isoformat():
+                    _badges.append("🆕 新")
+                if _badges:
+                    st.caption("　".join(_badges))
                 st.caption(f"🕘 {_fmt_time(p.get('created_at', ''))}")
+
+        # 分页 / 加载更多（#Batch19-4）：列表还有更多时展示累加按钮
+        if len(posts) > st.session_state[_show_key]:
+            if st.button("显示更多 ▼", key="forum_more"):
+                st.session_state[_show_key] += 8
 
 
 fragment_detail()

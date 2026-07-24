@@ -26,6 +26,15 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("🧰 ETF / 基金筛选器")
 st.caption("按类型、关键字、涨跌幅与成交额筛选；红涨绿跌。数据受限时自动降级到样本。")
 
+# 页面间快捷跳转（#Batch19-5）：相关页面一键直达
+_pl1, _pl2, _pl3 = st.columns(3)
+with _pl1:
+    st.page_link("pages/个股研究.py", label="📈 个股研究", icon="📈")
+with _pl2:
+    st.page_link("pages/C_自选股监控.py", label="⭐ 自选股监控", icon="⭐")
+with _pl3:
+    st.page_link("pages/9_价格预警.py", label="🔔 价格预警", icon="🔔")
+
 
 # 内置样本（网络不可用时使用），覆盖主流宽基 / 行业 / 债券 / 货币 ETF
 SAMPLE = [
@@ -142,10 +151,29 @@ def _etf_filter_fragment():
             _empty_info("可用排序字段缺失（行情列结构异常），已跳过排序。")
 
         st.markdown(f"### 📋 筛选结果（{len(res)} 只）")
+        # 指标/字段说明 tooltip（#Batch19-6）：关键列含义解释
+        st.caption("ℹ️ 字段说明：涨跌幅=当日涨跌幅(%)；成交额=单位为亿元；管理费=年化费率(%)；跟踪指数=标的指数。")
         if res.empty:
             _empty_info("没有符合条件的标的，放宽筛选条件试试。")
+            # 示例数据预览（#Batch19-9）：无结果时只读展示样本标的
+            if st.button("👀 查看示例标的", key="etf_sample"):
+                _samp = pd.DataFrame(SAMPLE, columns=["代码", "名称", "类型", "最新价", "涨跌幅", "成交额", "管理费", "跟踪指数"])
+                st.dataframe(_samp, use_container_width=True, hide_index=True, height=300)
         else:
             disp = res.copy()
+            # 结果标记/徽章（#Batch19-10）：中性色标签，不动红涨绿跌配色
+            if "涨跌幅" in disp.columns:
+                def _tag(v):
+                    try:
+                        v = float(v)
+                    except Exception:
+                        return ""
+                    if v >= 2:
+                        return "🔥 热门"
+                    if v <= -2:
+                        return "❄️ 冷门"
+                    return ""
+                disp["标签"] = disp["涨跌幅"].apply(_tag)
             if "涨跌幅" in disp.columns:
                 # 深层守卫：上游接口偶发把涨跌幅作为带单位字符串返回，
                 # 着色时 v >= 0 对字符串会抛 TypeError；先强转数值再判定

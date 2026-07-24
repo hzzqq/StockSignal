@@ -32,6 +32,8 @@ dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("🎮 模拟交易组合")
 st.caption("虚拟资金练习；持仓持久化到本地，模块独立运行，不影响真实账户。")
+# 加法式（新角度·风险提示）：页面顶部明示模拟属性与免责声明，纯展示不改逻辑。
+st.caption("⚠️ 模拟交易，仅供学习，不构成任何投资建议。")
 
 def _fmt_rel(ts):
     from datetime import datetime
@@ -146,6 +148,8 @@ def fragment_paper():
         c2.metric("可用现金", f"¥{book['cash']:,.0f}")
         c3.metric("持仓市值", f"¥{mv:,.0f}")
         c4.metric("累计盈亏", f"¥{pnl_total:,.0f}", delta=f"{pnl_pct:+.2f}%")
+        # 加法式（新角度·字段说明）：关键指标下方加 ℹ️ 解释，帮助用户理解口径。
+        st.caption("ℹ️ 累计盈亏 = 总资产 − 初始资金；净值曲线基于每笔成交后的总资产快照绘制。")
 
     # ───────────────────────── 交易操作 ─────────────────────────
     st.markdown("---")
@@ -205,32 +209,34 @@ def fragment_paper():
                       else "按当前设置的数量卖出")
         if st.button("确认卖出", key="pt_sell_btn", use_container_width=True,
                      disabled=_sell_disabled, help=_sell_help):
-            code = (scode or "").strip().zfill(6)
-            pos = book["positions"].get(code)
-            if not pos:
-                st.error("当前未持有该标的。")
-            elif sqty > pos["qty"]:
-                st.error(f"持仓不足：持有 {pos['qty']} 股。")
-            else:
-                with st.spinner("获取现价中…"):
-                    price, name = _price(code)
-                if price is None:
-                    st.error("无法获取现价，卖出失败。")
+            # 加法式（新角度·操作确认）：危险写操作前用 st.confirm 二次确认，防误卖。
+            if st.confirm("确定卖出该持仓？此操作不可撤销。", key="pt_sell_confirm"):
+                code = (scode or "").strip().zfill(6)
+                pos = book["positions"].get(code)
+                if not pos:
+                    st.error("当前未持有该标的。")
+                elif sqty > pos["qty"]:
+                    st.error(f"持仓不足：持有 {pos['qty']} 股。")
                 else:
-                    proceeds = price * sqty
-                    book["cash"] += proceeds
-                    pos["qty"] -= sqty
-                    if pos["qty"] <= 0:
-                        del book["positions"][code]
-                    book["trades"].append({
-                        "time": datetime.now().strftime("%Y-%m-%d %H:%M"), "code": code,
-                        "name": name, "side": "卖", "price": round(price, 2), "qty": sqty,
-                        "amount": round(proceeds, 2),
-                    })
-                    rows, assets, mv = _recompute(book)
-                    _snapshot(book, assets)
-                    _save_book(user, book)
-                    _toast(f"已卖出 {name}({code}) {sqty} 股 @ ¥{price:.2f}")
+                    with st.spinner("获取现价中…"):
+                        price, name = _price(code)
+                    if price is None:
+                        st.error("无法获取现价，卖出失败。")
+                    else:
+                        proceeds = price * sqty
+                        book["cash"] += proceeds
+                        pos["qty"] -= sqty
+                        if pos["qty"] <= 0:
+                            del book["positions"][code]
+                        book["trades"].append({
+                            "time": datetime.now().strftime("%Y-%m-%d %H:%M"), "code": code,
+                            "name": name, "side": "卖", "price": round(price, 2), "qty": sqty,
+                            "amount": round(proceeds, 2),
+                        })
+                        rows, assets, mv = _recompute(book)
+                        _snapshot(book, assets)
+                        _save_book(user, book)
+                        _toast(f"已卖出 {name}({code}) {sqty} 股 @ ¥{price:.2f}")
 
     # ───────────────────────── 持仓 / 成交 / 净值 ─────────────────────────
     st.markdown("---")
@@ -260,7 +266,23 @@ def fragment_paper():
             # 更直观体现成交距今时长，不改其它字段与排序逻辑。
             dft["成交时间"] = dft["time"].apply(_fmt_rel)
             dft = dft.drop(columns=["time"])
-            st.dataframe(dft, use_container_width=True, hide_index=True)
+            # 加法式（新角度·列表内搜索/筛选框）：纯前端过滤，不改动数据来源。
+            _kw = st.text_input("🔍 搜索成交（代码 / 名称 / 方向）", key="pt_trade_filter")
+            if _kw and _kw.strip():
+                _kw = _kw.strip()
+                _mask = dft.astype(str).apply(
+                    lambda col: col.str.contains(_kw, case=False, na=False)
+                ).any(axis=1)
+                dft = dft[_mask]
+                if dft.empty:
+                    st.caption("🔍 未找到匹配的成交记录。")
+            # 加法式（新角度·分页 / 加载更多）：默认只显示前 10 条，避免长列表卡顿。
+            _show_key = "pt_trade_show"
+            _show_n = st.session_state.get(_show_key, 10)
+            st.dataframe(dft.head(_show_n), use_container_width=True, hide_index=True)
+            if len(dft) > _show_n:
+                if st.button("显示更多 ▼", key="pt_trade_more", use_container_width=True):
+                    st.session_state[_show_key] = min(_show_n + 10, len(dft))
         else:
             _empty_info("暂无成交记录。买入成功后，这里会逐笔显示你的成交明细。")
 
@@ -289,6 +311,8 @@ def fragment_paper():
         else:
             _empty_info("完成至少一笔交易后生成净值曲线。")
         st.caption("💡 在上方「💱 交易」买入或卖出后，这里会基于每笔成交后的总资产快照绘制净值曲线。")
+        # 加法式（新角度·数据来源标注）：明示行情数据出处，纯展示不改动计算逻辑。
+        st.caption("数据来源：东方财富 / 新浪财经（实时行情，失败降级日线收盘价）。")
 
     st.markdown("---")
     if st.button("🗑️ 重置模拟账户", key="pt_reset", help="清空持仓与成交，恢复初始资金"):

@@ -717,6 +717,7 @@ if code:
         with st.expander("📋 查看明细数据", expanded=False):
             st.caption(f"📋 共 {len(display_table)} 条「{metric}」明细（{mode}）")
             st.dataframe(display_table, use_container_width=True, hide_index=True)
+            st.caption("数据来源：新浪财经 利润表 / 资产负债表 / 现金流量表")
 
 
     fragment_financial_analysis(code, name)
@@ -785,6 +786,8 @@ if code:
         st.plotly_chart(fig_hist, use_container_width=True)
     else:
         _empty_info("暂无历史行情数据，无法计算历史分位。")
+
+    st.caption("数据来源：东方财富 / 新浪财经 历史日线行情")
 
     # ═══════════════════════════════════════════════
     # 行业横向对比 + 大盘主线判断
@@ -878,6 +881,8 @@ if code:
                     hide_index=True,
                 )
 
+    st.caption("数据来源：东方财富 行业板块行情（涨跌幅 / 排名）")
+
     # ═══════════════════════════════════════════════
     # 综合评估
     # ═══════════════════════════════════════════════
@@ -950,6 +955,18 @@ if code:
             "可稍后刷新重试，或检查数据源连接。"
         )
 
+    st.caption("数据来源：东方财富 估值数据（PE / 总市值）")
+
+    with st.expander("📖 估值 / 盈利指标说明", expanded=False):
+        st.markdown(
+            "• <b>PE(TTM)</b>：市盈率 = 股价 ÷ 每股收益；越低通常估值越低，但需结合成长性。<br>"
+            "• <b>PE 状态</b>：按 PE 粗略划分低估/合理/偏高，仅供参考。<br>"
+            "• <b>总市值</b>：总股本 × 股价（亿元）；越大通常越稳健。<br>"
+            "• <b>ROE</b>：净资产收益率 = 净利润 ÷ 净资产，反映股东回报率（>15% 较优）。<br>"
+            "• <b>毛利率</b>：(营收−营业成本) ÷ 营收，越高说明产品溢价/成本控制越好。",
+            unsafe_allow_html=True,
+        )
+
     # 同行业 PE 中位数对比小卡（#544-13）
     fragment_industry_pe(industry, pe_ttm, dark)
 
@@ -958,6 +975,15 @@ if code:
     if st.button("🔍 查看该股票详细 K 线与技术面 →", type="primary", use_container_width=True):
         st.query_params["pick_stock"] = code
         safe_switch_page("pages/个股研究.py")
+
+    st.markdown("---")
+    col_jump1, col_jump2 = st.columns(2)
+    with col_jump1:
+        st.page_link("pages/2_个股分析.py", label="→ 去 个股深度分析（决策仪表盘）", icon="🔍")
+    with col_jump2:
+        st.page_link("pages/个股研究.py", label="→ 去 个股研究（K线与技术面）", icon="📈")
+
+    st.caption("⚠️ 风险提示：本页所有数据及分析均由程序基于公开数据自动计算，仅供参考，不构成任何投资建议。市场有风险，投资需谨慎。")
 
     # 快捷回到顶部（Batch18 #back-to-top：长页面底部一键回顶）
     if st.button("↑ 回到顶部", key="fa_back_to_top", use_container_width=True):

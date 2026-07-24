@@ -23,6 +23,9 @@ st.title("👤 我的")
 require_auth()
 render_user_badge(sidebar=True)
 
+# 加法式风险提示/免责声明
+st.caption("⚠️ 本页展示的数据与分析仅供参考，不构成任何投资建议。")
+
 user = get_user() or {}
 
 # 加法式操作成功反馈：刷新本页缓存后给出成功提示
@@ -173,6 +176,7 @@ def render_preferences():
     )
     if _kline_count != st.session_state["kline_default_count"]:
         st.session_state["kline_default_count"] = _kline_count
+    st.help("K线默认根数：打开行情看板时默认展示的最近 N 根日K。数值越大覆盖的历史区间越长，但单根越密。")
 
     _refresh_interval = st.slider(
         "行业板块自动刷新间隔（秒）",
@@ -183,6 +187,7 @@ def render_preferences():
     )
     if _refresh_interval != st.session_state["sector_refresh_interval"]:
         st.session_state["sector_refresh_interval"] = _refresh_interval
+    st.help("板块刷新间隔：交易时段内行业板块数据的自动刷新频率（秒）。间隔越短越及时，但请求越多、更占资源。")
 
     st.markdown("")
 
@@ -399,11 +404,29 @@ try:
                 st.caption(f"共 {len(watchlist)} 只自选股 · 数据实时同步自行情看板 ☆")
             else:
                 _empty_info("暂无自选股，请先添加你关注的股票。")
+                # 加法式示例数据预览：无数据时提供只读示例（不写库、不改逻辑）
+                with st.expander("👀 查看示例自选股（只读）", expanded=False):
+                    import pandas as pd
+                    _sample_wl = pd.DataFrame([
+                        {"股票代码": "600519", "股票名称": "贵州茅台", "最新价": 1680.0, "涨跌幅(%)": 1.23},
+                        {"股票代码": "000858", "股票名称": "五粮液", "最新价": 142.5, "涨跌幅(%)": -0.56},
+                    ])
+                    st.dataframe(_sample_wl, width="stretch")
+                    st.caption("⚠️ 以上为示意数据，非真实行情。")
                 st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
                 if st.button("➕ 去行情看板添加自选股", key="wl_go_add", use_container_width=True):
                     safe_switch_page("pages/1_行情看板.py")
         else:
             _empty_info("暂无自选股，请先添加你关注的股票。")
+            # 加法式示例数据预览：无数据时提供只读示例（不写库、不改逻辑）
+            with st.expander("👀 查看示例自选股（只读）", expanded=False):
+                import pandas as pd
+                _sample_wl2 = pd.DataFrame([
+                    {"股票代码": "600519", "股票名称": "贵州茅台", "最新价": 1680.0, "涨跌幅(%)": 1.23},
+                    {"股票代码": "000858", "股票名称": "五粮液", "最新价": 142.5, "涨跌幅(%)": -0.56},
+                ])
+                st.dataframe(_sample_wl2, width="stretch")
+                st.caption("⚠️ 以上为示意数据，非真实行情。")
             st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
             if st.button("➕ 去行情看板添加自选股", key="wl_go_add2", use_container_width=True):
                 safe_switch_page("pages/1_行情看板.py")
@@ -459,6 +482,15 @@ try:
             st.caption(f"共 {len(logs)} 条登录记录")
         else:
             _empty_info("暂无登录记录。")
+            # 加法式示例数据预览：无记录时提供只读示例（不写库、不改逻辑）
+            with st.expander("👀 查看示例登录记录（只读）", expanded=False):
+                import pandas as pd
+                _sample_log = pd.DataFrame([
+                    {"时间": "刚刚", "账号": "demo", "操作": "登录", "详情": "本地登录"},
+                    {"时间": "1小时前", "账号": "demo", "操作": "修改设置", "详情": "切换暗夜模式"},
+                ])
+                st.dataframe(_sample_log, width="stretch", use_container_width=True)
+                st.caption("⚠️ 以上为示意数据，非真实记录。")
     else:
         st.warning(f"获取登录历史失败：HTTP {resp.status_code}")
 except Exception as e:

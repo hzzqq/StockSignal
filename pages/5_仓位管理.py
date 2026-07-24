@@ -14,6 +14,14 @@ from modules.ui_theme import apply_page_config
 apply_page_config(page_title="仓位管理", page_icon="💰", layout="wide")
 st.session_state["_active_page"] = __file__
 st.title("💰 仓位管理")
+# 加法式（新角度·风险提示）：页面顶部明示模拟/历史属性与免责声明。
+st.caption("⚠️ 本页为模拟/历史持仓管理，仅供学习，不构成投资建议。")
+# 加法式（新角度·页面间快捷跳转）：一键直达相关页面。
+_c1, _c2 = st.columns(2)
+with _c1:
+    st.page_link("pages/N_模拟交易.py", label="🎮 前往模拟交易", icon="🎮")
+with _c2:
+    st.page_link("pages/H_组合收益.py", label="📈 前往组合收益", icon="📈")
 
 from modules.portfolio import PortfolioManager
 from modules.visualizer import Visualizer
@@ -152,7 +160,23 @@ else:
         display_pos["备注"] = ""
     show_cols = ["股票", "ticker", "买入日期", "买入价", "买入股数", "剩余股数", "成本", "备注"]
     show_cols = [c for c in show_cols if c in display_pos.columns]
-    st.dataframe(display_pos[show_cols], width="stretch", hide_index=True)
+    # 加法式（新角度·列表内搜索/筛选框）：纯前端过滤持仓，不改动数据源。
+    _kw = st.text_input("🔍 搜索持仓（代码 / 名称）", key="pm_pos_filter")
+    if _kw and _kw.strip():
+        _kw = _kw.strip()
+        _pmask = display_pos[["股票", "ticker"]].astype(str).apply(
+            lambda col: col.str.contains(_kw, case=False, na=False)
+        ).any(axis=1)
+        display_pos = display_pos[_pmask]
+        if display_pos.empty:
+            st.caption("🔍 未找到匹配的持仓。")
+    # 加法式（新角度·分页 / 加载更多）：默认只显示前 10 条，避免长列表卡顿。
+    _pshow_key = "pm_pos_show"
+    _pshow_n = st.session_state.get(_pshow_key, 10)
+    st.dataframe(display_pos[show_cols].head(_pshow_n), width="stretch", hide_index=True)
+    if len(display_pos) > _pshow_n:
+        if st.button("显示更多 ▼", key="pm_pos_more"):
+            st.session_state[_pshow_key] = min(_pshow_n + 10, len(display_pos))
 
 st.markdown("---")
 
@@ -268,6 +292,15 @@ if buy_submitted:
         st.rerun()
     except Exception as e:
         st.error(f"买入失败: {e}")
+
+# 加法式（新角度·快捷操作按钮）：一键将当前买入标的加入自选股（调用既有 add_watchlist API）。
+if st.button("⭐ ＋自选（当前买入标的）", key="pm_add_watch", use_container_width=True):
+    try:
+        from modules.admin_api import add_watchlist
+        add_watchlist(buy_ticker)
+        _toast(f"已加入自选：{buy_label} ({buy_ticker})")
+    except Exception as e:
+        st.error(f"加入自选失败：{e}")
 
 st.markdown("---")
 
@@ -417,7 +450,9 @@ with st.expander("🗑️ 删除持仓"):
         c_del, _ = st.columns([1, 4])
         _ck = "pm_del_cfm"
         if st.session_state.get(_ck):
-            if c_del.button("⚠️ 确认删除", type="primary"):
+            # 加法式（新角度·操作确认）：危险写操作前用 st.confirm 二次确认，防误删。
+            _ok = st.confirm("确定删除该持仓？此操作不可撤销。", key="pm_del_confirm")
+            if c_del.button("⚠️ 确认删除", type="primary", disabled=not _ok):
                 removed = pm.remove_position(int(del_index))
                 st.session_state.pop(_ck, None)
                 if removed is not None:
@@ -480,6 +515,8 @@ if not positions.empty:
                 )
             with col4:
                 st.metric("总收益率", f"{summary.get('total_pnl_pct', 0):+.2f}%")
+            # 加法式（新角度·数据来源标注）：明示行情数据出处，纯展示不改动计算逻辑。
+            st.caption("数据来源：东方财富 / 新浪财经（实时行情 + 日线兜底）。")
 
             # 盈亏柱状图
             if not pnl_df.empty:

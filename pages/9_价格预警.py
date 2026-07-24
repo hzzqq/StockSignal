@@ -71,6 +71,7 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
 st.title("🔔 自选股多维预警")
 st.caption("价格 / 技术形态 / 成交量异动 / 公告 四类预警；触发状态为页面访问时实时比价与扫描结果。")
+st.caption("⚠️ 数据仅供参考，不构成投资建议")
 
 
 @st.cache_resource(show_spinner=False)
@@ -351,6 +352,13 @@ def fragment_alerts():
                  "并保持本页或持仓页在浏览器中打开。")
     else:
         st.markdown(f"#### 共 {len(alerts)} 条预警（页面访问时实时检测）")
+        st.caption("数据来源：实时行情（新浪财经 / 东方财富）、新闻公告（东方财富）")
+        _filter = st.text_input("🔍 搜索预警（代码 / 名称 / 类型）", key="filter_alerts",
+                                help="按代码、名称或预警类型（price/pattern/volume/announcement）纯前端过滤。")
+        if _filter:
+            _fk = _norm(_filter)
+            alerts = [a for a in alerts if _fk in _norm(
+                f"{a.get('stock_code','')} {a.get('stock_name','')} {a.get('alert_type','')} {a.get('params','')}")]
         with st.spinner("正在检测预警触发状态…"):
             eval_results = _eval_alert_parallel(alerts)
         # 浏览器桌面通知去重集合（避免每次自动刷新重复弹窗）

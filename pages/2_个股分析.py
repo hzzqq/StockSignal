@@ -567,19 +567,41 @@ def _render_analysis(R: dict):
         unsafe_allow_html=True,
     )
     if news_rows:
-        st.caption(f"📰 共获取 {len(news_rows)} 条新闻，以下展示情绪权重最高的前 {min(10, len(news_rows))} 条")
+        # ── 列表内搜索/筛选（前端实时过滤，#Batch19 新角度）──
+        _news_q = st.text_input(
+            "🔍 搜索相关新闻…",
+            key=f"filter_news_{ticker}",
+            placeholder="输入关键词筛选新闻标题（仅前端过滤，不影响原始数据）",
+        )
+        _filtered_news = [
+            r for r in news_rows
+            if _news_q.strip().lower() in str(r.get("title") or "").lower()
+        ] if _news_q else news_rows
+        # ── 分页 / 加载更多（#Batch19 新角度）──
+        _news_limit_key = f"news_limit_{ticker}"
+        if _news_limit_key not in st.session_state:
+            st.session_state[_news_limit_key] = 10
+        _show_n = min(st.session_state[_news_limit_key], len(_filtered_news))
+        _disp_news = _filtered_news[:_show_n]
+        st.caption(
+            f"📰 共获取 {len(news_rows)} 条新闻"
+            + (f"，筛选命中 {len(_filtered_news)} 条" if _news_q else "")
+            + f"，当前显示前 {_show_n} 条（按情绪权重排序）"
+        )
         rows_html = "".join(
-            # ⚠️ 深层守卫：新闻项可能缺 title/sentiment 字段（契约漂移），
-            # 原 r['title'] 直接下标会抛 KeyError 使整个情报面渲染崩溃；统一 .get 兜底。
+            # ⚠️ 深层守卫：新闻项可能缺 title/sentiment 字段（契约漂移），统一 .get 兜底。
             f"<tr><td class='l'>{r.get('title') or '—'}</td>"
             f"<td><span class='sf-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{r.get('sentiment') or '中性'}</span></td></tr>"
-            for r in news_rows[:10]
+            for r in _disp_news
         )
         st.markdown(
             f"<table class='sf-table'><thead><tr><th class='l'>新闻标题</th><th>情绪</th></tr></thead>"
             f"<tbody>{rows_html}</tbody></table>",
             unsafe_allow_html=True,
         )
+        if _show_n < len(_filtered_news):
+            if st.button("显示更多 ▼", key=f"news_more_{ticker}", use_container_width=True):
+                st.session_state[_news_limit_key] += 10
     else:
         _empty_info("暂无新闻数据（网络不可用或该标的无公开新闻）")
 
@@ -847,6 +869,18 @@ def _render_analysis(R: dict):
         "</tbody></table>",
         unsafe_allow_html=True,
     )
+
+    # 评分维度说明（#Batch19 指标/字段说明）
+    with st.expander("📖 评分维度说明", expanded=False):
+        st.markdown(
+            "• <b>技术指标 25%</b>：多周期（短/中/长）趋势与动量强弱。<br>"
+            "• <b>新闻情绪 22%</b>：事件催化强度与正面占比。<br>"
+            "• <b>资金量能 18%</b>：量价配合与换手健康度。<br>"
+            "• <b>市场环境 15%</b>：宏观 PMI 与大盘强弱。<br>"
+            "• <b>板块强度 20%</b>：个股相对所属板块的强弱与排名。<br>"
+            "综合评分 = 五维加权汇总，仅作研究参考，不构成投资建议。",
+            unsafe_allow_html=True,
+        )
 
     # 最强看多 / 看空 callouts
     bull = []
@@ -1129,6 +1163,11 @@ def fragment_stock_videos(ticker):
 
 
 fragment_stock_videos(ticker)
+
+# 页面间快捷跳转（#Batch19 新角度）
+st.markdown("---")
+st.page_link("pages/E_基本面分析.py", label="→ 去 基本面分析（估值/业绩/行业对比）", icon="🏛️")
+st.page_link("pages/个股研究.py", label="→ 去 个股研究（K线与技术面）", icon="📈")
 
 # 快捷回到顶部（Batch18 #back-to-top：长页面底部一键回顶）
 if st.button("↑ 回到顶部", key="analysis_back_to_top", use_container_width=True):

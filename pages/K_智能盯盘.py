@@ -30,6 +30,12 @@ render_user_badge(sidebar=True)
 dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("👁️ 智能盯盘聚合")
+st.caption("⚠️ 数据仅供参考，不构成投资建议")
+lk1, lk2 = st.columns([1, 1])
+with lk1:
+    st.page_link("pages/3_事件追踪.py", label="🔔 事件追踪", icon="🔔")
+with lk2:
+    st.page_link("pages/个股研究.py", label="🔍 个股研究", icon="🔍")
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -314,6 +320,7 @@ def fragment_sector():
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     st.caption("净流入行业领涨：横条越长代表当日主力净流入越多（红=净流入 / 绿=净流出）。")
+    st.caption("数据来源：东方财富 / 同花顺 行业资金流向")
 
     show_cols = [c for c in ["行业", "涨跌幅", "流入资金", "流出资金", "净额", "领涨股", "领涨股涨跌幅"] if c in top.columns]
     if not show_cols:
@@ -334,6 +341,7 @@ def fragment_sector():
 @safe_fragment("自选股涨跌榜")
 def fragment_watchlist():
     st.markdown("### 📈 自选股涨跌榜")
+    st.help("涨跌% = (现价-昨收)/昨收×100%，红涨绿跌；并行抓取实时行情后按涨跌%排序，可逐只跳转行情看板。")
     # ── 自定义筛选 ──
     fq, frng, falert = st.columns([2, 2, 1])
     wl_q = fq.text_input("🔍 名称/代码筛选", value="", key="wl_filter_q", placeholder="留空=全部")
@@ -357,6 +365,14 @@ def fragment_watchlist():
         _empty_info("自选股为空，暂无盯盘项。请先添加关注的股票（可前往「形态选股」或行情看板一键关注），添加后本页将自动聚合异动信号。")
         if st.button("➡️ 去形态选股添加", key="wl_empty_go"):
             safe_switch_page("pages/B_形态选股.py")
+        # 加法式：示例数据预览（只读，无数据时展示样例结构）
+        if st.button("👀 查看示例", key="wl_sample"):
+            _sample = pd.DataFrame([
+                {"代码": "600519", "名称": "贵州茅台", "现价": 1680.00, "涨跌%": 2.35, "涨跌额": 38.50},
+                {"代码": "000858", "名称": "五粮液", "现价": 152.30, "涨跌%": -1.20, "涨跌额": -1.85},
+                {"代码": "601318", "名称": "中国平安", "现价": 48.60, "涨跌%": 0.42, "涨跌额": 0.20},
+            ])
+            st.dataframe(_sample, use_container_width=True, hide_index=True)
         return
 
     codes = [c for c, _ in items]
@@ -427,10 +443,17 @@ def fragment_watchlist():
                      })
 
     st.caption(f"📊 当前显示 {len(df)} / 总计 {len(codes)} 只自选股")
+    st.caption("数据来源：东方财富 / 新浪财经 实时行情")
 
     # 逐只跳转
     with st.expander("📌 逐只跳转至行情看板", expanded=False):
-        for r in rows:
+        # 加法式：分页/加载更多（仅显示前 N 只，避免长列表刷屏）
+        _jump_key = "wl_jump_n"
+        if _jump_key not in st.session_state:
+            st.session_state[_jump_key] = 10
+        _jump_total = len(rows)
+        _jump_show = min(st.session_state[_jump_key], _jump_total)
+        for r in rows[:_jump_show]:
             c1, c2, c3, c4 = st.columns([2, 2, 2, 1.2])
             c1.write(f"`{r['代码']}`")
             c2.write(r["名称"])
@@ -440,6 +463,9 @@ def fragment_watchlist():
                 st.session_state["pick_stock_confirmed"] = r["代码"]
                 st.session_state["pick_stock_query"] = r["代码"]
                 safe_switch_page("pages/个股研究.py")
+        if _jump_show < _jump_total:
+            if st.button("显示更多 ▼", key="wl_jump_more"):
+                st.session_state[_jump_key] = min(st.session_state[_jump_key] + 10, _jump_total)
 
 
 # ───────────────────────── 3. 个股资金流异动 ─────────────────────────
@@ -450,6 +476,7 @@ def fragment_individual_ff():
     d1, d2 = st.columns([2, 1])
     iff_dir = d1.selectbox("资金方向", ["全部", "仅净流入", "仅净流出"], index=0, key="iff_dir")
     iff_strong = d2.checkbox("仅看强异动(≥1亿)", value=False, key="iff_strong")
+    iff_q = st.text_input("🔍 名称/代码筛选", value="", key="iff_filter_q", placeholder="留空=全部")
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, key="iff_auto")
 
@@ -498,6 +525,11 @@ def fragment_individual_ff():
         return
 
     valid = valid.sort_values("主力净流入(亿)", ascending=False).reset_index(drop=True)
+    # 加法式：列表内搜索/筛选框（纯前端过滤）
+    if iff_q.strip():
+        q = iff_q.strip().lower()
+        valid = valid[valid.apply(
+            lambda r: (q in str(r["代码"]).lower()) or (q in str(r["名称"]).lower()), axis=1)]
     if iff_dir == "仅净流入":
         valid = valid[valid["主力净流入(亿)"] > 0]
     elif iff_dir == "仅净流出":
@@ -531,6 +563,7 @@ def fragment_individual_ff():
                          column_config={"主力净流入(亿)": st.column_config.NumberColumn(format="%.3f")})
 
     st.caption(f"📊 当前展示 {len(valid)} / 总计 {len(codes)} 只自选股的资金流异动")
+    st.caption("数据来源：东方财富 / 新浪财经 主力资金流")
 
     if any(r.get("source") == "estimate" for r in ff_map.values()):
         st.caption("⚠️ 标注「估算」的数据为量价模型（Chaikin 风格）估算的主力净流入，"
@@ -549,6 +582,7 @@ def fragment_alerts():
         key="smart_alert_threshold",
         help="自选股当日涨跌%绝对值超过该阈值即触发「异动预警」。",
     )
+    st.help("规则扫描：自选股当日|涨跌%|≥阈值 触发异动预警；主力净流入/流出绝对值≥1亿 触发资金异动，按强/中/弱分级。")
 
     items, err = _fetch_watchlist()
     if err is not None:
@@ -664,6 +698,21 @@ def fragment_watch_manage():
             safe_switch_page("pages/B_形态选股.py")
         return
     st.caption(f"共 {len(items)} 只关注 · 实时涨跌 + 跳转 / 移除")
+
+    # 加法式：危险写操作（取消关注全部）用 st.confirm 包裹，避免误触
+    if st.button("🗑️ 取消关注全部", key="wm_clear_all"):
+        if st.confirm("确定取消关注全部自选股？此操作不可撤销。", key="wm_clear_all_cfm"):
+            _ok = 0
+            _fail = 0
+            for it in items:
+                wid = it.get("id")
+                if wid is not None:
+                    dc, _ = api_delete(f"/api/watchlist/{wid}")
+                    if dc == 200:
+                        _ok += 1
+                    else:
+                        _fail += 1
+            st.toast(f"已取消关注 {_ok} 只" + (f"，失败 {_fail} 只" if _fail else ""))
 
     # 实时涨跌 + 跳转 / 移除
     codes = [it["code"] for it in items]

@@ -22,12 +22,20 @@ from modules.page_widgets import _empty_info
 apply_page_config(page_title="事件追踪", page_icon="🔔", layout="wide")
 st.session_state["_active_page"] = __file__
 st.title("🔔 事件追踪")
+st.caption("⚠️ 数据仅供参考，不构成投资建议")
+lk_p1, lk_p2 = st.columns([1, 1])
+with lk_p1:
+    if st.button("👁️ 智能盯盘", key="lk_go_k", use_container_width=True):
+        st.switch_page("pages/K_智能盯盘.py")
+with lk_p2:
+    if st.button("🔍 个股研究", key="lk_go_rs", use_container_width=True):
+        st.switch_page("pages/个股研究.py")
 
 from modules.signal import SignalEngine
 from modules.fetcher import StockFetcher
 from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
 from modules.search_ui import stock_search_input
-from modules.session import require_auth, render_user_badge, api_kline, trading_autorefresh
+from modules.session import require_auth, render_user_badge, api_kline, trading_autorefresh, api_post
 
 # ── 鉴权门禁（未登录直接 stop）──
 require_auth()
@@ -245,6 +253,18 @@ def fragment_signal_score():
                 - **综合评分 ({total}）**: 加权 = 价格×0.4 + 事件×0.4 + 宏观×0.2
                 - **阈值**: >70 买入 | 40-70 观望 | <40 卖出
                 """)
+            st.markdown("---")
+            st.caption("数据来源：东方财富 / 新浪财经 / 公开公告")
+            st.help("综合评分 = 价格信号×0.4 + 事件信号×0.4 + 宏观信号×0.2；>70 偏买入，<40 偏卖出，其余观望。")
+            if st.button("＋自选", key="sig_add_watch", help="将上方所选股票加入自选股"):
+                try:
+                    sc, body = api_post("/api/watchlist", payload={"stock_code": sig_ticker})
+                    if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
+                        st.toast(f"已加入自选：{sig_ticker}")
+                    else:
+                        st.info(f"自选操作返回：{sc}")
+                except Exception as e:
+                    st.warning(f"加入自选失败：{e}")
         elif st.session_state.get("sig_scores_error"):
             err_msg = st.session_state.sig_scores_error
             if "无法获取" in err_msg or "数据源" in err_msg or "不存在" in err_msg or "退市" in err_msg:
@@ -683,14 +703,47 @@ def fragment_event_manage():
             events_all = engine._load_events()
         if not events_all.empty:
             st.markdown("#### 现有事件库（全部）")
+            # 加法式：列表内搜索/筛选框（纯前端 session_state 过滤）
+            evt_filter = st.text_input("🔍 搜索事件（标题/股票/类型）", value="",
+                                       key="evt_filter_q", placeholder="如：煤炭 / 601088 / 利好")
             events_display = events_all[["date", "ticker", "title", "type"]].sort_values("date", ascending=False).copy()
             events_display["相对时间"] = events_display["date"].apply(lambda d: _fmt_rel(d))
             events_display["股票"] = events_display["ticker"].apply(
                 lambda x: fetcher._lookup_name_for_code(x) if x else ""
             )
-            with st.expander(f"展开查看全部事件库（共 {len(events_display)} 条）", expanded=False):
-                st.dataframe(events_display[["date", "股票", "ticker", "title", "type", "相对时间"]],
+            # 加法式徽章：近 7 天新增事件标记 🆕新（中性色，不改红涨绿跌配色）
+            def _is_new_evt(d):
+                try:
+                    dd = pd.to_datetime(d, errors="coerce")
+                    if dd is None or pd.isna(dd):
+                        return ""
+                    return "🆕新" if (pd.Timestamp(datetime.now()) - pd.Timestamp(dd)).days <= 7 else ""
+                except Exception:
+                    return ""
+            events_display["标记"] = events_display["date"].apply(_is_new_evt)
+            # 应用搜索过滤
+            if evt_filter.strip():
+                q = evt_filter.strip().lower()
+                events_display = events_display[events_display.apply(
+                    lambda r: (q in str(r["title"]).lower()) or (q in str(r["股票"]).lower())
+                    or (q in str(r["ticker"]).lower()) or (q in str(r["type"]).lower()), axis=1)]
+            # 加法式：分页/加载更多（仅显示前 N 条）
+            _evt_page_key = "evt_page_n"
+            _evt_last_key = "evt_filter_last"
+            if st.session_state.get(_evt_last_key) != evt_filter:
+                st.session_state[_evt_page_key] = 30
+                st.session_state[_evt_last_key] = evt_filter
+            if _evt_page_key not in st.session_state:
+                st.session_state[_evt_page_key] = 30
+            _evt_total = len(events_display)
+            _evt_show = min(st.session_state[_evt_page_key], _evt_total)
+            with st.expander(f"展开查看全部事件库（共 {_evt_total} 条，已显示 {_evt_show} 条）", expanded=False):
+                st.dataframe(events_display[["date", "股票", "ticker", "title", "type", "标记", "相对时间"]],
                              width="stretch")
+            if _evt_show < _evt_total:
+                if st.button("显示更多 ▼", key="evt_load_more"):
+                    st.session_state[_evt_page_key] = min(st.session_state[_evt_page_key] + 30, _evt_total)
+            st.caption("数据来源：东方财富 / 新浪财经 / 公开公告")
 
     except Exception as module_err:
         st.error(f"⚠️ 事件管理模块异常: {module_err}")
@@ -867,6 +920,13 @@ def fragment_sentiment_report():
                     if _top_kws:
                         st.markdown("#### 热门关键词 TOP15")
                         kw_df = pd.DataFrame(_top_kws, columns=["关键词", "频次"])
+                        # 加法式徽章：高频词标记 🔥热门（中性色，不动红涨绿跌）
+                        _maxf = kw_df["频次"].max() if not kw_df.empty else 0
+                        kw_df["标记"] = kw_df["频次"].apply(
+                            lambda f: "🔥热门" if f >= max(3, _maxf * 0.6) else "")
+                        _hot = kw_df[kw_df["标记"] == "🔥热门"]["关键词"].tolist()
+                        if _hot:
+                            st.caption("🔥 热门关键词：" + "、".join(_hot))
                         fig_kw = px.bar(kw_df, x="频次", y="关键词", orientation="h",
                                         title="关键词频次排行",
                                         color="频次", color_continuous_scale="Reds")

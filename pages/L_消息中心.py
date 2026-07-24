@@ -283,13 +283,28 @@ _filt = st.radio("类型筛选", TYPES, horizontal=True, label_visibility="colla
                    help="按消息类型过滤：异动（自选股涨跌）、社区（股吧动态）、系统（数据源与健康提示）。")
 shown = msgs if _filt == "全部" else [m for m in msgs if m["type"] == _filt]
 
+# 加法式列表内搜索/筛选：纯前端关键词过滤（不改后端、不改原有数据获取）
+_search_kw = st.text_input(
+    "🔍 搜索消息…", key="msg_search",
+    help="按标题或详情关键词过滤当前消息（仅前端显示过滤，不影响后台数据）。",
+)
+if _search_kw and _search_kw.strip():
+    _kw = _search_kw.strip().lower()
+    shown = [m for m in shown if _kw in (str(m.get("title", "")) + str(m.get("detail", ""))).lower()]
+
+# 加法式分页/加载更多：长列表只显示前 N 条，下方提供「显示更多 ▼」
+_MSG_STEP = 10
+if "msg_show_n" not in st.session_state:
+    st.session_state["msg_show_n"] = _MSG_STEP
+_visible = shown[: st.session_state["msg_show_n"]]
+
 # 加法式结果计数/摘要：当前筛选下的显示条数与总条数
-st.caption(f"当前显示 {len(shown)} / 总计 {len(msgs)} 条消息")
+st.caption(f"当前显示 {len(_visible)} / 总计 {len(msgs)} 条消息")
 
 if not shown:
     st.info("当前分类暂无消息。💡 异动消息需先添加自选股；社区消息来自股吧发帖；系统消息来自数据源健康度。多使用各功能模块后会逐步产生消息。")
 else:
-    for m in shown:
+    for m in _visible:
         read = m["id"] in st.session_state["msg_read_ids"]
         border_col = "#888"
         if "%" in m["title"]:
@@ -319,3 +334,12 @@ else:
             if not read and st.button("标为已读", key=f"rd_{m['id']}", help="标记为已读"):
                 st.session_state["msg_read_ids"].add(m["id"])
                 st.rerun()
+    # 加法式加载更多：仅前端分页，不删原数据
+    if st.session_state["msg_show_n"] < len(shown):
+        if st.button("显示更多 ▼", key="msg_more", use_container_width=False,
+                     help="每次多显示 10 条消息（仅前端分页）。"):
+            st.session_state["msg_show_n"] += _MSG_STEP
+            st.rerun()
+
+# 加法式数据来源标注
+st.caption("📡 数据来源：自选股实时行情（东方财富 / 新浪财经）、股吧社区动态、系统数据源健康度监控")

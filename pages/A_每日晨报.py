@@ -33,6 +33,7 @@ st.caption(f"生成日期：{today}（数据来源：板块行情 + 自选股 + 
 # 顶部主要指数收盘行情（轻量组件）
 from modules.widgets import render_index_compact
 render_index_compact(cols_per_row=5)
+st.caption("⚠️ 以上数据仅供参考，不构成任何投资建议")
 
 
 @st.cache_resource(show_spinner=False)
@@ -144,6 +145,7 @@ def fragment_sector_summary():
         c1.metric("上涨板块", up, delta=None, help="今日收盘涨幅大于 0 的板块数量")
         c2.metric("下跌板块", down, delta=None, help="今日收盘跌幅小于 0 的板块数量")
         c3.metric("平/无数据", flat, delta=None, help="涨跌幅为 0 或暂未获取到行情的板块数量")
+        st.caption("数据来源：东方财富板块行情")
         top_up = sector_df.sort_values("change_pct", ascending=False).head(5)
         top_dn = sector_df.sort_values("change_pct", ascending=True).head(5)
         colu, cold = st.columns(2)
@@ -223,6 +225,8 @@ def fragment_watchlist_and_news():
         else:
             st.caption("👉 点击表格中某一行，可在下方「相关新闻速览」查看该股票的专属新闻。")
             snap = []
+            st.text_input("🔍 搜索自选股（名称 / 代码）", key="filter_morning_wl",
+                          help="纯前端过滤快照列表，不影响行情获取。")
             for w in watchlist[:30]:
                 code = w["stock_code"]
                 rt = quotes_map.get(code)
@@ -252,6 +256,11 @@ def fragment_watchlist_and_news():
                                  "振幅%": None, "成交量": None, "成交额": None,
                                  "市盈率": _pe_s, "资产负债率": _alr_s})
             if snap:
+                _wl_filter = st.session_state.get("filter_morning_wl", "")
+                if _wl_filter:
+                    _ff = str(_wl_filter).strip().lower()
+                    snap = [s for s in snap if _ff in str(s.get("名称", "")).lower()
+                            or _ff in str(s.get("代码", "")).lower()]
                 snap_df = pd.DataFrame(snap)
                 event = st.dataframe(
                     snap_df,

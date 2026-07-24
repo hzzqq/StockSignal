@@ -68,6 +68,16 @@ if st.session_state.get("hub_cang_view") not in _options:
     st.session_state["hub_cang_view"] = _options[0]
 
 st.markdown("### 💼 持仓中心")
+# 加法式（新角度·风险提示）：合并页顶部明示数据属性与免责声明。
+st.caption("⚠️ 持仓中心为模拟/历史数据聚合视图，仅供学习，不构成投资建议。")
+# 加法式（新角度·页面间快捷跳转）：一键直达三个子视图对应独立页面。
+_hc1, _hc2, _hc3 = st.columns(3)
+with _hc1:
+    st.page_link("pages/C_自选股监控.py", label="⭐ 自选股监控", icon="⭐")
+with _hc2:
+    st.page_link("pages/5_仓位管理.py", label="💼 仓位管理", icon="💼")
+with _hc3:
+    st.page_link("pages/H_组合收益.py", label="📈 组合收益", icon="📈")
 _view = st.radio(
     "持仓视图",
     _options,
@@ -81,6 +91,8 @@ with st.spinner(f"正在加载「{_view}」..."):
     _run_subpage(_SUBPAGES[_view])
 
 # 加法式便利：长页面底部「↑ 回到顶部」按钮，通过 session_state 触发滚动。
+# 加法式（新角度·数据来源标注）：明示聚合数据出处，纯展示不改动子视图。
+st.caption("数据来源：东方财富 / 新浪财经。")
 st.divider()
 if st.button("↑ 回到顶部", key="hub_top", use_container_width=True):
     st.session_state["_hub_scroll_top"] = True

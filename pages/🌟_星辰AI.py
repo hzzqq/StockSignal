@@ -473,6 +473,36 @@ st.markdown(
 # 加法式结果计数/摘要：对话消息总条数
 st.caption(f"💬 当前对话共 {len(st.session_state.get('xc_messages', []))} 条消息")
 
+# 加法式风险提示/免责声明（页面顶部独立标注，不影响既有 banner 文案）
+st.caption("⚠️ 数据仅供参考，不构成投资建议；AI 回答为模型推演，请独立判断。")
+
+# 加法式数据来源标注
+st.caption("📡 数据来源：东方财富 / 新浪财经 / 公开财经资讯（经后端 ai_consult 任务聚合）")
+
+# 加法式页面间快捷跳转：关联功能页（新增，不改动既有布局）
+st.markdown("**🔗 相关页面**")
+_pc1, _pc2, _pc3 = st.columns(3)
+with _pc1:
+    st.page_link("pages/1_行情看板.py", label="→ 行情看板")
+with _pc2:
+    st.page_link("pages/个股研究.py", label="→ 个股研究")
+with _pc3:
+    st.page_link("pages/L_消息中心.py", label="→ 消息中心")
+
+# 加法式示例数据预览：只读示例回答（不写库、不改逻辑）
+with st.expander("👀 查看示例回答（只读）", expanded=False):
+    st.caption("以下为示例，仅展示 AI 可能的回答风格，非真实数据。")
+    st.markdown(
+        _md_to_html(
+            "**【个股诊断示例】太极实业(600667)**\n\n"
+            "- 近期量能温和放大，资金面偏积极；\n"
+            "- 半导体板块情绪回暖，存在事件催化；\n"
+            "- 风险提示：估值已不便宜，注意追高回撤。\n\n"
+            "> 以上为示例文本，实际回答以你提问后的模型推演为准。"
+        ),
+        unsafe_allow_html=True,
+    )
+
 # ── 渲染历史 ──
 @safe_fragment("AI 对话")
 def fragment_chat():

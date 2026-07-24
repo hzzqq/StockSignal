@@ -218,15 +218,24 @@ def fragment_watchlist_monitor():
             cur = chg = change_amt = amplitude = volume = amount = None
             name = names.get(code) or _resolve_name(code) or code
         pe, alr = fund_map.get(code, (None, None))
+        # 结果标记徽章（中性文字，不影响红涨绿跌配色）
+        tag = ""
+        if chg is not None:
+            if abs(chg) >= 5:
+                tag += "🔥热门 "
+            if amplitude is not None and amplitude >= 6:
+                tag += "📊异动"
         rows.append({
             "code": code, "name": name, "cur": cur, "chg": chg,
             "change_amt": change_amt, "amplitude": amplitude,
             "volume": volume, "amount": amount,
             "pe_ttm": f"{pe:.2f}" if isinstance(pe, (int, float)) and not pd.isna(pe) else "—",
             "alr": f"{alr:.2f}%" if isinstance(alr, (int, float)) and not pd.isna(alr) else "—",
+            "tag": tag,
         })
 
     st.caption("交易时段每 60 秒自动刷新；涨跌颜色遵循 A股 惯例：红涨绿跌。点击下方选择框可跳转个股研究页。")
+    st.caption("数据来源：实时行情（新浪财经 / 东方财富）、财务数据（新浪财经）")
     # ── 渲染监控表 ──
     up_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] >= 0)
     down_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] < 0)
@@ -248,12 +257,12 @@ def fragment_watchlist_monitor():
     if rows:
         df_rt = pd.DataFrame(rows)
         display_df = df_rt[["name", "code", "cur", "change_amt", "chg", "amplitude",
-                              "volume", "amount", "pe_ttm", "alr"]].copy()
+                              "volume", "amount", "pe_ttm", "alr", "tag"]].copy()
         display_df.rename(columns={
             "name": "名称", "code": "代码", "cur": "现价",
             "change_amt": "涨跌额", "chg": "涨跌%", "amplitude": "振幅%",
             "volume": "成交量", "amount": "成交额",
-            "pe_ttm": "市盈率(TTM)", "alr": "资产负债率",
+            "pe_ttm": "市盈率(TTM)", "alr": "资产负债率", "tag": "标记",
         }, inplace=True)
         # 成交额格式化：长数字加 亿/万 单位，提升可读性（导出 CSV 仍用原始数值）
         display_df["成交额"] = display_df["成交额"].apply(_fmt_amount)
@@ -327,6 +336,8 @@ def fragment_watchlist_monitor():
     with col_b:
         if st.button("🧭 用自选股做技术体检", use_container_width=True, key="wl_tech_check"):
             safe_switch_page("pages/B_形态选股.py")
+    if st.button("🔔 去设价格预警", use_container_width=True, key="wl_goto_alert"):
+        safe_switch_page("pages/9_价格预警.py")
 
     data_time = max(quote_times) if quote_times else "—"
     refresh_tag = " ｜ 🔴 交易时段每 60 秒自动刷新" if _is_trading_now() else ""
