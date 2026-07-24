@@ -633,6 +633,8 @@ def fragment_daily_picker():
                                                    "hold_return_pct", "rsi2", "rsi14", "reasons"]].copy()
                     all_picks_display.columns = ["选股日期", "代码", "名称", "评分", "买入价", "卖出价",
                                                  "持有收益(%)", "RSI(2)", "RSI(14)", "选股理由"]
+                    # 加法式 UX：全部选股记录默认按选股日期倒序，最新一期排在最前
+                    all_picks_display = all_picks_display.sort_values("选股日期", ascending=False)
                     st.dataframe(all_picks_display, use_container_width=True, hide_index=True)
                 except KeyError as _ke:
                     st.warning(f"全部选股记录列结构异常，已跳过表格展示：{_ke}")

@@ -310,6 +310,11 @@ def fragment_watchlist_monitor():
             key="wl_export_csv",
         )
 
+        # 复制全部自选股代码（便于粘贴到其他工具 / 批量查询）
+        with st.expander("📋 复制全部自选股代码", expanded=False):
+            st.code("\n".join(codes), language="text")
+            st.caption("点击代码块右上角复制按钮即可一次性复制所有自选股代码。")
+
     st.divider()
     col_a, col_b = st.columns(2)
     with col_a:

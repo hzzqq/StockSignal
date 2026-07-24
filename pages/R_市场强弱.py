@@ -330,6 +330,8 @@ def fragment_strength():
         tbl = _slice_date_range(df, dr)
         keep = [k for k in keys if k in tbl.columns]
         tbl = tbl[["date"] + keep] if keep else tbl[["date"]]
+        # 加法式 UX：数据表默认按日期倒序，最新交易日排在最前，便于核对近期强弱
+        tbl = tbl.sort_values("date", ascending=False)
         st.dataframe(tbl, use_container_width=True, hide_index=True)
     csv = to_trend_csv(df, names_map=names_map, selected=keys, date_range=dr)
     st.download_button("⬇️ 导出 CSV", data=csv, file_name="市场强弱一览.csv", mime="text/csv")

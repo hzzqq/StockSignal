@@ -535,6 +535,17 @@ def fragment_chat():
 
 fragment_chat()
 
+# ── 复制最近一次 AI 回答（便于摘录 / 分享）──
+_xc_msgs = st.session_state.get("xc_messages", [])
+_xc_last_ai = next(
+    (m.get("content", "") for m in reversed(_xc_msgs)
+     if m.get("role") == "assistant" and m.get("content")),
+    "",
+)
+if _xc_last_ai and _xc_last_ai != WELCOME["content"]:
+    with st.expander("📋 复制最近回答", expanded=False):
+        st.code(_xc_last_ai, language="text")
+
 # ── 轮询后台任务（收进 fragment，#402）──
 # 等待期间 st_autorefresh 只让本片段每 1.5s 局部重跑，不再整页全量重跑
 # （否则页面顶部鉴权/历史渲染/上下文构建会被反复执行，造成卡顿）。

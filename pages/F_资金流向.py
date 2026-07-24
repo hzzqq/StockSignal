@@ -146,6 +146,7 @@ def fragment_northbound():
         df["资金净流入"] = pd.to_numeric(df["资金净流入"], errors="coerce")
         df["指数涨跌幅"] = pd.to_numeric(df["指数涨跌幅"], errors="coerce")
         st.dataframe(df, use_container_width=True, hide_index=True)
+    st.caption("表格列说明：板块 / 资金方向 / 成交净买额（亿元）/ 资金净流入（红=流入，绿=流出）/ 上涨数 / 下跌数 / 指数涨跌幅（%）；数据来自东方财富。")
     # 北向净买额数据源说明（东方财富自 2024-08 起停止披露实时北向净买额）
     if not avail:
         st.info("⚠️ **北向资金实时净买额已停披露**：交易所自 2024-08-16 起不再实时公布沪股通/深股通/北向合计净买额，"

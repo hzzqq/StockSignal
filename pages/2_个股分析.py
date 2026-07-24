@@ -782,6 +782,7 @@ def _render_analysis(R: dict):
 
     st.markdown(_html, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
+    st.caption("板块内对比表格列说明：代码 / 名称 / 涨跌幅（绿涨红跌，本页配色）/ 总市值（亿元）；数据来自同板块实时行情。")
 
     st.markdown('<div class="sf-card">' + _section_header("信号归因 · 五维雷达", "技术 / 情绪 / 量能 / 宏观 / 板块", "🎯"), unsafe_allow_html=True)
     try:

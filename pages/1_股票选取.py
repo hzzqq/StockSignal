@@ -347,7 +347,14 @@ try:
             st.metric("区间最低", f"¥{df['low'].min():.2f}")
         with col_info4:
             total_vol = df['volume'].sum()
-            st.metric("区间总成交量", f"{total_vol/1e6:.0f}M")
+            # 加法式数字格式化：成交量按 亿/万 本地化展示（数据不变，仅改显示单位）。
+            if total_vol >= 1e8:
+                _vol_disp = f"{total_vol/1e8:.2f}亿股"
+            elif total_vol >= 1e4:
+                _vol_disp = f"{total_vol/1e4:.0f}万股"
+            else:
+                _vol_disp = f"{total_vol:.0f}股"
+            st.metric("区间总成交量", _vol_disp)
 
         n = len(df)
         if n > 20:

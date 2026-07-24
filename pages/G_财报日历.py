@@ -122,6 +122,14 @@ def fragment_report():
         )
     except Exception as e:
         st.warning(f"财报日历表格渲染失败：{e}")
+    else:
+        # 导出业绩报表 CSV（便于离线分析）
+        try:
+            csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+            st.download_button("⬇️ 导出业绩报表 CSV", data=csv,
+                               file_name=f"业绩报表_{period}.csv", mime="text/csv")
+        except Exception:
+            pass
 
 
 # ───────────────────────── 业绩预告（best-effort） ─────────────────────────

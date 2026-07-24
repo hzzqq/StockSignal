@@ -433,5 +433,15 @@ with st.container(border=True):
             st.success(f"✅ 扫描完成，命中 {len(results)} 只")
             results.sort(key=lambda r: r["技术评分"], reverse=True)
             st.dataframe(results, use_container_width=True, height=480)
+            # 加法式 UX：一键导出扫描结果为 CSV，便于离线筛选/留存（不影响扫描逻辑）。
+            _csv = pd.DataFrame(results).to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+            st.download_button(
+                "⬇️ 导出扫描结果 CSV",
+                data=_csv,
+                file_name=f"形态选股_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                key="screener_csv",
+                help="导出命中标的及技术评分、形态概述，便于离线分析。",
+            )
     elif not universe:
         _empty_info("请选择股票池（或先搜索加入扫描池）后点击「开始扫描」；也可在上方「📥 载入示例股票池」一键体验。")

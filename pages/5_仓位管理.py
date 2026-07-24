@@ -467,6 +467,12 @@ if not positions.empty:
                 display_pnl["已实现盈亏"] = display_pnl["realized_pnl"].apply(_fmt_money)
                 display_pnl["浮动盈亏"] = display_pnl["pnl"].apply(_fmt_money)
                 display_pnl["收益率"] = display_pnl["pnl_pct"].apply(_fmt_signed_pct)
+                # 加法式 UX：默认按收益率从高到低排序，盈利/亏损最显著的持仓优先展示
+                display_pnl = display_pnl.sort_values(
+                    "pnl_pct", ascending=False,
+                    key=lambda s: pd.to_numeric(s, errors="coerce"),
+                    ignore_index=True,
+                )
                 pnl_cols = [
                     "股票", "ticker", "buy_date", "买入价", "买入股数", "剩余股数",
                     "现价", "市值", "已实现盈亏", "浮动盈亏", "收益率"

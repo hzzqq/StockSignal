@@ -366,6 +366,11 @@ def fragment_lhb():
             st.dataframe(lhb_df[[c for c in display_cols if c in lhb_df.columns]].drop(columns=_tmp_cols, errors="ignore"),
                          use_container_width=True, height=420)
 
+            # 加法式 UX：一行复制所有龙虎榜代码，便于粘贴到自选/选股框批量关注
+            with st.expander("📋 复制龙虎榜代码", expanded=False):
+                _lhb_codes = "\n".join(str(c) for c in lhb_df["股票代码"].tolist() if str(c))
+                st.code(_lhb_codes or "—", language="text")
+
             # 点击跳转股票选取（K 线查看）
             opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in lhb_df.iterrows() if len(str(row['股票代码'])) == 6]
             sel = st.selectbox("选择龙虎榜股票查看 K 线", ["— 请选择 —"] + opts, key="lhb_jump_select",

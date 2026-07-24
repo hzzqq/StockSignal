@@ -85,6 +85,11 @@ with tab_stocks:
         if st.button("🔄 刷新", width="stretch"):
             st.session_state["stock_keyword"] = keyword
             st.rerun()
+        # 加法式 UX：一键清空搜索关键词并刷新，恢复完整股票列表（不改动现有刷新逻辑）。
+        if st.button("🧹 清空", width="stretch", key="stock_clear_btn",
+                     help="清空搜索关键词，显示全部股票。"):
+            st.session_state["stock_keyword"] = ""
+            st.rerun()
 
     st.session_state["stock_keyword"] = keyword
     page = st.session_state["stock_page"]
@@ -232,6 +237,11 @@ with tab_watch:
     # 搜索辅助
     st.caption("💡 搜索辅助：")
     search_q = st.text_input("搜索股票", placeholder="输入代码/名称/拼音首字母", key="watch_search")
+    # 加法式 UX：一键清空辅助搜索框并刷新，隐藏搜索结果列表（不改动上方添加自选逻辑）。
+    if st.button("🧹 清空搜索", key="watch_search_clear",
+                 help="清空辅助搜索框，隐藏搜索结果。"):
+        st.session_state["watch_search"] = ""
+        st.rerun()
     if search_q and len(search_q) >= 1:
         c, r = search_stocks(search_q, limit=8)
         if c == 200 and r.get("status") == "ok":

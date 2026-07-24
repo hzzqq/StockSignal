@@ -149,9 +149,17 @@ def fragment_faq():
         ("忘记密码怎么办？", "在登录页点击「忘记密码」按提示重置；管理员可在《用户管理》中重置普通用户密码。"),
         ("手机能远程用吗？", "可通过远程桌面连接运行本平台的电脑使用；当前无官方手机 App，但网页端自适应可用。"),
     ]
+    # 加法式 UX：关键词即时筛选常见问题，长列表也能快速定位
+    _faq_q = st.text_input("🔍 搜索常见问题关键词", key="faq_search",
+                           placeholder="如：回测、红涨绿跌、快捷键…",
+                           help="输入关键词即时筛选下方常见问题。").strip().lower()
     for q, a in faqs:
+        if _faq_q and _faq_q not in (q + a).lower():
+            continue
         with st.expander(f"❔ {q}", expanded=False):
             st.markdown(a)
+    if _faq_q:
+        st.caption("💡 仅显示含该关键词的问题；清空搜索框可恢复全部。")
 
 
 # ──────────────────────────────────────────────────────────────

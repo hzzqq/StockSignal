@@ -220,6 +220,8 @@ def fragment_paper():
     with tab_p:
         if rows:
             dfp = pd.DataFrame(rows)
+            # 加法式 UX：默认按盈亏从高到低排序，亏损最大的持仓排在最后，便于聚焦重点
+            dfp = dfp.sort_values("盈亏", ascending=False, ignore_index=True)
             # 盈亏着色
             def _color_row(r):
                 c = UP if r["盈亏"] >= 0 else DOWN

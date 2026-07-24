@@ -238,6 +238,8 @@ def fragment_list():
         filter_code = st.text_input("🔍 按股票代码筛选（可选）", key="forum_filter_code", placeholder="如 600519，留空看全部")
     with fc2:
         _sort = st.radio("排序", ["最新", "最热(点赞)", "最多评论"], horizontal=True, key="forum_sort")
+    if st.button("🔄 清空筛选", key="forum_clear", help="清空股票代码筛选条件，查看全部帖子"):
+        st.session_state["forum_filter_code"] = ""
     st.markdown("---")
 
     path = "/api/forum/posts"

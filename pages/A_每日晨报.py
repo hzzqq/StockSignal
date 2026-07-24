@@ -385,6 +385,17 @@ def fragment_review_notes():
             else:
                 if st.button("🗑️ 清空", use_container_width=True, key="review_clear"):
                     st.session_state[_ck] = True
+        # 加法式 UX：一键导出当前复盘笔记为 Markdown，便于本地留存/分享（不改变自动保存行为）。
+        _note_now = st.session_state.get("review_note", "")
+        if _note_now.strip():
+            st.download_button(
+                "⬇️ 导出笔记 (.md)",
+                data=_note_now.encode("utf-8"),
+                file_name=f"复盘笔记_{note_date_s}.md",
+                mime="text/markdown",
+                key="review_download",
+                help="将当前复盘内容导出为 Markdown 文件。",
+            )
         if st.session_state.get("review_autosaved"):
             st.caption(f"✅ 内容已自动保存到本地（review_notes_{note_date_s}.md），切换日期或刷新不丢失")
         else:

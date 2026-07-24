@@ -376,6 +376,15 @@ except Exception as e:
 
 st.markdown("---")
 
+# 加法式 UX：提供本页短缓存（自选股/登录历史 10 秒）的手动刷新入口，
+# 切换主题/字体后若仍看到旧快照，可一键清空缓存立即向后台重新拉取。
+_col_cache, _ = st.columns([1, 3])
+with _col_cache:
+    if st.button("🔄 刷新本页缓存", key="my_clear_cache", use_container_width=True,
+                 help="清空本页自选股/登录历史的 10 秒短缓存，立即重新向后台拉取最新数据。"):
+        st.session_state.pop("_my_cached_get", None)
+        st.rerun()
+
 # ── 登录历史 ──
 st.subheader("🕘 登录历史")
 

@@ -262,6 +262,13 @@ def _show_attribution():
             "contribution": st.column_config.NumberColumn("贡献%", format="%.2f"),
         },
     )
+    # 导出收益贡献 CSV（便于离线分析）
+    try:
+        csv = attr.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        st.download_button("⬇️ 导出收益贡献 CSV", data=csv,
+                           file_name="组合收益贡献.csv", mime="text/csv")
+    except Exception:
+        pass
 
 
 fragment_portfolio()

@@ -220,6 +220,12 @@ with c3:
 
 render_data_degradation_banner()
 
+# 加法式 UX：清空已读标记，重新将全部消息标为未读（仅清理本会话 session_state，不改后台数据）
+if st.button("🧹 清除已读标记", key="clear_read_marks", use_container_width=False,
+             help="将当前所有已读消息重新标记为未读（仅本会话生效，不影响后台数据）。"):
+    st.session_state["msg_read_ids"] = set()
+    st.rerun()
+
 # ───────────────────────── 筛选 ─────────────────────────
 TYPES = ["全部", "异动", "社区", "系统"]
 _filt = st.radio("类型筛选", TYPES, horizontal=True, label_visibility="collapsed",

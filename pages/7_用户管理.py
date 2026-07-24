@@ -38,6 +38,11 @@ with tab_users:
         if st.button("🔄 刷新", width="stretch"):
             st.session_state["user_mgmt_keyword"] = keyword
             st.rerun()
+        # 加法式 UX：一键清空搜索关键词并显示全部用户（不改动现有刷新逻辑）。
+        if st.button("🧹 清空", width="stretch", key="user_clear_btn",
+                     help="清空搜索关键词，显示全部用户。"):
+            st.session_state["user_mgmt_keyword"] = ""
+            st.rerun()
 
     st.session_state["user_mgmt_keyword"] = keyword
     page = st.session_state["user_mgmt_page"]

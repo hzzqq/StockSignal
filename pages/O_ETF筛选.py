@@ -102,6 +102,14 @@ def _etf_filter_fragment():
             min_amt = st.number_input("最小成交额(亿)", min_value=0.0, value=0.0, step=10.0, key="etf_amt",
                                       help="只保留成交额不低于该数值（亿元）的标的；0 表示不限制")
 
+        # 加法式 UX：一键清空全部筛选条件（点击即重跑本 fragment，控件 key 反映重置值）
+        if st.button("🔄 清空筛选", key="etf_reset",
+                     help="一键清空关键字 / 类型 / 涨跌区间 / 成交额等筛选条件，恢复全部标的"):
+            st.session_state["etf_kw"] = ""
+            st.session_state["etf_type"] = "全部"
+            st.session_state["etf_chg"] = (-10.0, 10.0)
+            st.session_state["etf_amt"] = 0.0
+
         res = df.copy()
         if kw:
             # 守卫：上游列结构异常时 名称/代码 列可能缺失，先判定存在再筛选

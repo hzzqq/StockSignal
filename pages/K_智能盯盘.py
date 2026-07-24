@@ -337,6 +337,12 @@ def fragment_watchlist():
     wl_rng = frng.slider("涨跌%范围", -10.0, 10.0, (-10.0, 10.0), 0.5, key="wl_filter_rng")
     wl_only_alert = falert.checkbox("仅看预警", value=False, key="wl_only_alert",
                                           help="只显示触发涨跌异动阈值（预警页设置）的标的。")
+    # 加法式 UX：一键清空自选股涨跌榜的筛选条件（点击即重跑本 fragment，控件 key 反映重置值）
+    if st.button("🔄 清空筛选", key="wl_reset",
+                 help="清空名称/代码筛选、涨跌区间与「仅看预警」，恢复全部标的"):
+        st.session_state["wl_filter_q"] = ""
+        st.session_state["wl_filter_rng"] = (-10.0, 10.0)
+        st.session_state["wl_only_alert"] = False
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, key="wl_auto")
 

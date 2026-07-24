@@ -67,6 +67,13 @@ with login_tab:
 
     st.caption("点击上方按钮自动填入账号，再点登录即可")
 
+    # 加法式 UX：清空已自动填入的账号/密码（仅清理本页临时回填，不影响已登录会话）
+    if st.button("🧹 清空输入", width="stretch", key="clear_login_input",
+                 help="清除上方一键填入的账号与密码，方便手动重新输入。"):
+        for _k in ("_login_username", "_login_password"):
+            st.session_state.pop(_k, None)
+        st.rerun()
+
     # 登录表单
     with st.form("login_form", clear_on_submit=False):
         username = st.text_input("用户名", placeholder="admin / demo", autocomplete="username",
