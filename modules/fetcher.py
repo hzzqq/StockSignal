@@ -32,7 +32,7 @@ def _safe_urlopen(req, timeout, retries=2, backoff=0.5):
     last_exc = None
     for attempt in range(retries + 1):
         try:
-            return _safe_urlopen(req, timeout=timeout)
+            return urllib.request.urlopen(req, timeout=timeout)
         except urllib.error.HTTPError:
             # 业务层响应（401/403/404/5xx 等），不重试，交给调用方按失败处理
             raise
