@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
+from modules.format_helpers import format_amount
+
 # 本机代理地址：默认 http://127.0.0.1:26561，可用环境变量 STOCKSIGNAL_PROXY 覆盖
 # （#407 集中魔法值：换机器/换端口时不必改代码）。
 _PROXY = os.environ.get("STOCKSIGNAL_PROXY", "http://127.0.0.1:26561")
@@ -102,16 +104,8 @@ def _retry_with_backoff(max_retries=3, base_delay=1.0):
 
 
 def _to_wan_yi(x):
-    """把金额(元)格式化为 亿/万 文本。"""
-    try:
-        x = float(x)
-    except Exception:
-        return "—"
-    if abs(x) >= 1e8:
-        return f"{x/1e8:.2f}亿"
-    if abs(x) >= 1e4:
-        return f"{x/1e4:.1f}万"
-    return f"{x:.0f}"
+    """把金额(元)格式化为 亿/万 文本（委托给 format_amount，屏蔽 NaN/inf/None）。"""
+    return format_amount(x)
 
 
 # ───────────────────────── 板块资金流向 ─────────────────────────

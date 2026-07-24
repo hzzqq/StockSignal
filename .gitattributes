@@ -1,0 +1,15 @@
+# 统一源码行尾为 LF，根除 Windows 下 CRLF 噪声污染提交历史
+* text=auto eol=lf
+
+# Windows 批处理/脚本需保留 CRLF 才能正常执行
+*.bat text eol=crlf
+*.vbs text eol=crlf
+
+# 二进制资源不做文本转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.gif binary
+*.woff binary
+*.woff2 binary
