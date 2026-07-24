@@ -121,6 +121,11 @@ with tab_stocks:
                 if st.button("➡️ 下一页", disabled=(page >= pages), key="stock_next"):
                     st.session_state["stock_page"] = page + 1
                     st.rerun()
+        else:
+            # 加法式空态引导：搜索无匹配或全部为空时，给出可操作的排查提示，
+            # 而非仅显示「共 0 只股票」一行，降低用户困惑。
+            _empty_info("未找到匹配的股票。请检查搜索关键词（支持代码 / 名称 / 拼音首字母），"
+                        "或点击上方「🔄 刷新」重置搜索条件后重试。")
 
 # ----------------------------------------------------------------- 系统配置
 with tab_config:

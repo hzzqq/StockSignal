@@ -701,7 +701,9 @@ def _render_analysis(R: dict):
             v = float(v)
             if v >= 1e8:
                 return f"{v / 1e8:.1f}亿"
-            return f"{v:.1f}亿"
+            if v >= 1e4:
+                return f"{v / 1e4:.1f}万"
+            return f"{v:.0f}"
         except Exception:
             return "—"
 

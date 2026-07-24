@@ -548,12 +548,17 @@ def fragment_alerts():
         quotes = {}
         ff_map = {}
         try:
-            with cf.ThreadPoolExecutor(max_workers=4) as ex:
-                for code, q in ex.map(_quote_one, codes):
-                    quotes[code] = q
-            with cf.ThreadPoolExecutor(max_workers=4) as ex:
-                for code, r in ex.map(_ff_one, codes):
-                    ff_map[code] = r
+            # 性能微优化：行情与资金流合并到单一线程池并行抓取，
+            # 避免创建两个线程池的额外开销，且两者同时进行更省时
+            with cf.ThreadPoolExecutor(max_workers=6) as ex:
+                futs_q = {ex.submit(_quote_one, c): "q" for c in codes}
+                futs_f = {ex.submit(_ff_one, c): "f" for c in codes}
+                for fut in cf.as_completed(list(futs_q) + list(futs_f)):
+                    res = fut.result()
+                    if futs_q.get(fut) == "q":
+                        quotes[res[0]] = res[1]
+                    else:
+                        ff_map[res[0]] = res[1]
         except Exception as e:
             st.error(f"预警扫描失败：{e}")
             return

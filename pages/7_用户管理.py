@@ -120,9 +120,16 @@ with tab_create:
                                 format_func=lambda x: "👤 普通用户 (user)" if x == "user" else "🛡️ 管理员 (admin)",
                                 help="user 仅能管理自己的数据；admin 拥有用户与系统配置管理权限。")
 
-        submitted = st.form_submit_button("✅ 创建用户", type="primary")
+        # 加法式 UX：用户名或密码为空时禁用「创建用户」按钮（前置校验），
+        # 避免空提交后才有错误提示；同时保留下方错误分支作为兜底。
+        _can_create = bool((new_username or "").strip()) and bool((new_password or "").strip())
+        submitted = st.form_submit_button(
+            "✅ 创建用户", type="primary",
+            disabled=not _can_create,
+            help="填写用户名与密码（均不为空）后方可点击创建。",
+        )
         if submitted:
-            if not new_username or not new_password:
+            if not _can_create:
                 st.error("用户名和密码不能为空")
             else:
                 code, resp = create_user(new_username, new_password, new_role)

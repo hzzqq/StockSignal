@@ -430,7 +430,8 @@ def result_board():
     results = st.session_state.get("scan_results")
 
     # 重新扫描：仅清空 session，fragment 自然重跑，不调用 st.rerun
-    if st.button("🔄 重新扫描", key="rescan"):
+    if st.button("🔄 重新扫描", key="rescan", disabled=results is None,
+                 help="清空当前体检结果并重新扫描；尚未体检时此按钮禁用。"):
         st.session_state.pop("scan_results", None)
         st.session_state.pop("scan_time", None)
         st.session_state.pop("scan_count", None)

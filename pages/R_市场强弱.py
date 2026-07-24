@@ -106,6 +106,7 @@ def _watchlist_codes(token: str):
     return []
 
 
+@st.cache_data(ttl=120, show_spinner=False)
 def _watchlist_avg_normalized(codes, start, end, days):
     """计算自选股收盘价区间归一化均值（起点=100）。防御式：单股失败跳过。"""
     from modules.fetcher import StockFetcher
@@ -298,7 +299,7 @@ def fragment_strength():
                 _empty_info("暂无自选股，先去《持仓中心》加几只再叠加。")
             else:
                 with st.spinner(f"计算 {len(codes[:15])} 只自选股均值…"):
-                    avg_series = _watchlist_avg_normalized(codes, dr[0] if dr else None, dr[1] if dr else None, 180)
+                    avg_series = _watchlist_avg_normalized(tuple(codes), dr[0] if dr else None, dr[1] if dr else None, 180)
                 if avg_series is None:
                     st.warning("自选股行情获取失败，已跳过叠加。")
                 else:

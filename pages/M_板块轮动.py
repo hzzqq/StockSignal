@@ -204,6 +204,9 @@ def fragment_sectors():
         df, src = _load_flow()
         if df.empty:
             _empty_info("板块数据暂时不可用，请稍后重试；也可切换数据源或检查网络连接。")
+            if st.button("➡️ 去行情看板查看", key="sector_empty_go",
+                         help="跳转到行情看板查看实时板块涨跌。"):
+                safe_switch_page("pages/1_行情看板.py")
         else:
             st.success(f"数据来源：{src}　·　共 {len(df)} 个行业", icon="📡")
             render_data_degradation_banner()

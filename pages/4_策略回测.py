@@ -542,9 +542,9 @@ def fragment_daily_picker():
 
             m5, m6 = st.columns(2)
             with m5:
-                st.metric("回测天数", f"{s['total_days']}")
+                st.metric("回测天数", f"{s['total_days']:,}")
             with m6:
-                st.metric("总选股数", f"{s['total_picks']}")
+                st.metric("总选股数", f"{s['total_picks']:,}")
 
             # ---- 今日推荐（prev_picks：昨日选股 → 今日买入）----
             st.markdown("---")

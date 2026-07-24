@@ -197,6 +197,14 @@ def _all_messages():
 msgs = _all_messages()
 unread = [m for m in msgs if m["id"] not in st.session_state["msg_read_ids"]]
 
+# session_state 清理防膨胀：已读集合只保留当前仍存在消息的 id，并对集合设上限，
+# 避免随使用时间无限增长（历史消息消失后其已读标记不再有意义）。
+_current_ids = {m["id"] for m in msgs}
+_read_set = st.session_state["msg_read_ids"]
+_read_set &= _current_ids
+if len(_read_set) > 500:
+    st.session_state["msg_read_ids"] = set(list(_read_set)[-500:])
+
 # ───────────────────────── 顶部操作栏 ─────────────────────────
 c1, c2, c3 = st.columns([1, 1, 2])
 with c1:

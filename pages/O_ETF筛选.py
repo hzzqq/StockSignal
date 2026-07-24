@@ -79,6 +79,11 @@ def _etf_filter_fragment():
     with safe_section("ETF 行情", hint="实时行情接口可能受网络限制，已自动降级到样本数据。"):
         df, src = _load_etfs()
         st.success(f"数据来源：{src}　·　共 {len(df)} 只", icon="📡")
+        # 空态守卫：接口与降级样本均未返回记录时显式提示，避免「共 0 只」后
+        # 筛选控件/结果区一片空白、用户不知发生了什么
+        if df is None or df.empty:
+            _empty_info("行情数据为空（实时接口与内置样本均未返回记录），暂无可筛选标的；请稍后重试或检查网络。")
+            return
 
         # ── 筛选器 ──
         st.markdown("### 🎚️ 筛选条件")

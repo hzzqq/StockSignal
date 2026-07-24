@@ -58,6 +58,18 @@ def _get_fetcher():
 fetcher = _get_fetcher()
 
 
+# 加法式性能优化（第十四批）：个股资金流接口在 60s 自动刷新下每次都重新请求网络，
+# 叠加重试/解析开销；用 cache_data 缓存 5 分钟，刷新周期内复用，显著降低重复请求。
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_individual_fund_flow(code: str):
+    return get_individual_fund_flow(code)
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_individual_series(code: str, days: int = 60):
+    return get_individual_fund_flow_series(code, days=days)
+
+
 
 
 
@@ -363,7 +375,7 @@ def fragment_individual():
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="indv_auto")
     try:
-        r = get_individual_fund_flow(code)
+        r = _cached_individual_fund_flow(code)
     except Exception as e:
         st.error(f"个股资金加载失败：{e}")
         return
@@ -392,7 +404,7 @@ def fragment_individual():
 
     # 个股主力资金逐日趋势（线性表达）
     try:
-        sdf = get_individual_fund_flow_series(code, days=60)
+        sdf = _cached_individual_series(code, days=60)
     except Exception as e:
         sdf = None
         st.warning(f"个股资金趋势加载失败：{e}")

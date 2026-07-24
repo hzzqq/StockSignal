@@ -180,6 +180,21 @@ def _parse_watchlist(body) -> list:
     return codes or []
 
 
+def _fmt_amount(v):
+    """把成交额/成交量等数值格式化为 亿/万 字符串（带千分位降级）。失败原样返回。"""
+    try:
+        v = float(v)
+    except Exception:
+        return v
+    if v == 0:
+        return "0"
+    if abs(v) >= 1e8:
+        return f"{v / 1e8:.2f}亿"
+    if abs(v) >= 1e4:
+        return f"{v / 1e4:.2f}万"
+    return f"{v:.2f}"
+
+
 def _watch_rows(codes: list) -> list:
     rows = []
     for c in codes:
@@ -201,8 +216,8 @@ def _watch_rows(codes: list) -> list:
                 "开盘": q.get("open"),
                 "最高": q.get("high"),
                 "最低": q.get("low"),
-                "成交额": q.get("amount"),
-                "成交量": q.get("volume"),
+                "成交额": _fmt_amount(q.get("amount")),
+                "成交量": _fmt_amount(q.get("volume")),
                 "时间": q.get("datetime"),
             })
         except Exception:

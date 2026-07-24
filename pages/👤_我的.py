@@ -5,6 +5,7 @@
 
 import streamlit as st
 import requests
+import time
 from datetime import datetime
 
 from modules.session import require_auth, render_user_badge, safe_switch_page, API_BASE, get_user, get_token, persist_prefs, get_avatar_path, save_avatar, get_avatar_data_url, set_avatar_data_url, save_avatar_to_backend, render_avatar
@@ -23,6 +24,25 @@ require_auth()
 render_user_badge(sidebar=True)
 
 user = get_user() or {}
+
+
+def _cached_get(url, headers, ttl=10):
+    """加法式性能优化：同一页面内的交互（切换主题/字体等）会触发整页重跑，
+    原实现每次重跑都重新打 /api/watchlist、/api/auth/logins，造成重复请求与卡顿。
+    这里用 session_state 做短 TTL(默认10秒) 缓存，避免短时间内重复拉取；
+    并限制缓存条目上限防 session_state 膨胀。返回的 Response 对象可重复调用 .json()。"""
+    _cache = st.session_state.setdefault("_my_cached_get", {})
+    _now = time.time()
+    if url in _cache:
+        _ts, _val = _cache[url]
+        if _now - _ts < ttl:
+            return _val
+    _resp = requests.get(url, headers=headers, timeout=5)
+    _cache[url] = (_now, _resp)
+    if len(_cache) > 20:
+        _oldest = min(_cache, key=lambda k: _cache[k][0])
+        _cache.pop(_oldest, None)
+    return _resp
 
 
 def render_preferences():
@@ -320,10 +340,9 @@ st.markdown("---")
 st.subheader("⭐ 我的自选股")
 
 try:
-    resp = requests.get(
+    resp = _cached_get(
         f"{API_BASE}/api/watchlist",
         headers={"Authorization": f"Bearer {get_token()}"},
-        timeout=5,
     )
     if resp.status_code == 200:
         # 加法式健壮性：resp.json() 可能因返回非 JSON 抛异常；body 也需判定为 dict，
@@ -361,10 +380,9 @@ st.markdown("---")
 st.subheader("🕘 登录历史")
 
 try:
-    resp = requests.get(
+    resp = _cached_get(
         f"{API_BASE}/api/auth/logins",
         headers={"Authorization": f"Bearer {get_token()}"},
-        timeout=5,
     )
     if resp.status_code == 200:
         body = resp.json()

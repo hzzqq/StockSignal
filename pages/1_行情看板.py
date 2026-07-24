@@ -478,7 +478,8 @@ def _fetch_one_corr(t, start, end):
         return None
 
 
-if st.button("计算相关性", key="calc_corr", use_container_width=True):
+if st.button("计算相关性", key="calc_corr", use_container_width=True,
+             disabled=len(_ticker_list) < 2, help="请至少输入 2 只股票（逗号分隔）后再计算相关性"):
     with st.spinner("正在并行获取行情并计算相关性（最多约 12 秒）..."):
         _end = _today_str()
         _start = (datetime.now().date() - timedelta(days=180)).strftime("%Y-%m-%d")

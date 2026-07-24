@@ -70,9 +70,11 @@ with login_tab:
     # 登录表单
     with st.form("login_form", clear_on_submit=False):
         username = st.text_input("用户名", placeholder="admin / demo", autocomplete="username",
-                                 value=st.session_state.get("_login_username", ""))
+                                 value=st.session_state.get("_login_username", ""),
+                                 help="输入已注册的用户名；可用上方快捷按钮一键填入示例账号。")
         password = st.text_input("密码", type="password", placeholder="Admin@123 / Demo@123", autocomplete="current-password",
-                                 value=st.session_state.get("_login_password", ""))
+                                 value=st.session_state.get("_login_password", ""),
+                                 help="输入账户密码（输入时以掩码显示）。")
         remember = st.checkbox("记住我（关闭浏览器后仍可保持登录）", value=True,
                                help="token 已保存在地址栏，刷新/重开浏览器无需重新登录")
         submit = st.form_submit_button("🔑 登录", width="stretch", type="primary")
@@ -151,10 +153,12 @@ with register_tab:
     new_username = st.text_input(
         "用户名", key="reg_username", placeholder="2-32位，字母/数字/下划线/中文",
         autocomplete="username",
+        help="用户名长度 2-32 位，仅支持字母、数字、下划线或中文。",
     )
     new_password = st.text_input(
         "密码", type="password", key="reg_password", placeholder="至少 6 位",
         autocomplete="new-password",
+        help="密码至少 6 位；下方实时显示强度，建议包含大小写字母与数字。",
     )
     # 实时密码强度
     if new_password:
@@ -163,6 +167,7 @@ with register_tab:
     confirm_password = st.text_input(
         "确认密码", type="password", key="reg_confirm", placeholder="再次输入密码",
         autocomplete="new-password",
+        help="请再次输入相同密码以完成注册校验。",
     )
     agree = st.checkbox(
         "我已阅读并同意《用户协议》与《隐私政策》",

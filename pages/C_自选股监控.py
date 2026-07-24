@@ -110,6 +110,19 @@ def _fund_one(code: str):
     return fund_one(code, fetcher)
 
 
+def _fmt_amount(v):
+    """成交额格式化：元 → 亿/万 单位，给长数字加可读边界（None/NaN 显示 —）。"""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return "—"
+    if v >= 1e8:
+        return f"{v / 1e8:.2f}亿"
+    if v >= 1e4:
+        return f"{v / 1e4:.2f}万"
+    return f"{v:.0f}"
+
+
 # ═══════════════════════════════════════════════════════════════
 # 主监控表（独立 fragment，交易时段自动刷新不影响整页）
 # ═══════════════════════════════════════════════════════════════
@@ -239,6 +252,8 @@ def fragment_watchlist_monitor():
             "volume": "成交量", "amount": "成交额",
             "pe_ttm": "市盈率(TTM)", "alr": "资产负债率",
         }, inplace=True)
+        # 成交额格式化：长数字加 亿/万 单位，提升可读性（导出 CSV 仍用原始数值）
+        display_df["成交额"] = display_df["成交额"].apply(_fmt_amount)
         def _chg_color(v):
             try:
                 x = float(v)
@@ -260,7 +275,6 @@ def fragment_watchlist_monitor():
                 "涨跌%": st.column_config.NumberColumn(format="%.2f%%"),
                 "振幅%": st.column_config.NumberColumn(format="%.2f%%"),
                 "成交量": st.column_config.NumberColumn(format="%d"),
-                "成交额": st.column_config.NumberColumn(format="%.0f"),
             },
         )
         # 点击行跳转（用 selectbox 选择）

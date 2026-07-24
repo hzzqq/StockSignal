@@ -207,14 +207,18 @@ with sidebar_target():
     custom_ma = st.text_input("自定义均线（用英文逗号分隔，如 30,90）", placeholder="例如：30,90", key="pick_custom_ma",
                              help="输入自定义均线周期，逗号分隔，例如 13,34,55；与上方勾选合并生效。")
     custom_windows = []
+    _invalid_ma = []
     if custom_ma:
         for x in custom_ma.split(","):
+            _tok = x.strip()
             try:
-                val = int(x.strip())
+                val = int(_tok)
                 if val > 0:
                     custom_windows.append(val)
             except ValueError:
-                pass
+                _invalid_ma.append(_tok)
+    if _invalid_ma:
+        st.warning(f"⚠️ 已忽略无效均线周期：{', '.join(_invalid_ma)}（仅接受正整数，如 30,90）")
     ma_windows = sorted(set(ma_select + custom_windows))
 
     st.markdown("---")

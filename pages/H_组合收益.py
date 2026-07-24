@@ -178,6 +178,10 @@ def fragment_portfolio():
     with cols[3]:
         st.metric("区间起始", start_str)
 
+    if bench is None:
+        st.caption("ℹ️ 沪深300基准暂未展示：未能获取足够历史行情（区间可能过短或接口受限），"
+                   "组合收益与回撤结论不受影响。")
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=pidx.index, y=pidx.values, name="组合净值",

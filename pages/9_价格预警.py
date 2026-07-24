@@ -11,6 +11,8 @@ import json
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+import time as _time
+from threading import Lock as _Lock
 from concurrent.futures import ThreadPoolExecutor
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
@@ -79,8 +81,21 @@ def _norm(s):
     return "".join(str(s).lower().split())
 
 
+_EVAL_TTL = 120.0  # 2 分钟：形态/量比基于日线，缓存避免每次自动刷新重复拉取 K 线
+_eval_cache = {}
+_eval_cache_lock = _Lock()
+
+
 def _eval_pattern(code, pattern_name):
-    """扫描个股日线，判断是否出现指定形态。返回 (triggered, detail)。"""
+    """扫描个股日线，判断是否出现指定形态。返回 (triggered, detail)。
+    结果按 (code, pattern_name) 记忆体缓存 2 分钟（跨自动刷新复用），降低重复网络请求。"""
+    _key = ("pat", code, pattern_name)
+    _now = _time.time()
+    with _eval_cache_lock:
+        _hit = _eval_cache.get(_key)
+    if _hit and _now - _hit[0] < _EVAL_TTL:
+        return _hit[1]
+    _trig, _detail = False, "日线数据不足"
     try:
         end = datetime.now().strftime("%Y-%m-%d")
         start = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
@@ -90,20 +105,34 @@ def _eval_pattern(code, pattern_name):
         df = pd.DataFrame(recs) if recs else None
         df = DataCleaner.full_pipeline(df)
         if df is None or df.empty or len(df) < 20:
-            return False, "日线数据不足"
-        pats = full_analysis(df).get("patterns", []) or []
-        names = [_norm(p.get("name", "")) for p in pats]
-        chosen = _norm(pattern_name)
-        hit = [n for n in names if chosen in n or n in chosen]
-        if hit:
-            return True, f"检测到：{hit[0]}"
-        return False, "未出现该形态"
+            _trig, _detail = False, "日线数据不足"
+        else:
+            pats = full_analysis(df).get("patterns", []) or []
+            names = [_norm(p.get("name", "")) for p in pats]
+            chosen = _norm(pattern_name)
+            hit = [n for n in names if chosen in n or n in chosen]
+            if hit:
+                _trig, _detail = True, f"检测到：{hit[0]}"
+            else:
+                _trig, _detail = False, "未出现该形态"
     except Exception as e:
-        return False, f"扫描失败：{e}"
+        _trig, _detail = False, f"扫描失败：{e}"
+    _res = (_trig, _detail)
+    with _eval_cache_lock:
+        _eval_cache[_key] = (_now, _res)
+    return _res
 
 
 def _eval_volume(code, threshold):
-    """当日量比 ≥ 阈值触发。返回 (triggered, detail)。"""
+    """当日量比 ≥ 阈值触发。返回 (triggered, detail)。
+    结果按 (code, threshold) 记忆体缓存 2 分钟（跨自动刷新复用），避免重复计算。"""
+    _key = ("vol", code, threshold)
+    _now = _time.time()
+    with _eval_cache_lock:
+        _hit = _eval_cache.get(_key)
+    if _hit and _now - _hit[0] < _EVAL_TTL:
+        return _hit[1]
+    _trig, _detail = False, "成交量数据不足"
     try:
         end = datetime.now().strftime("%Y-%m-%d")
         start = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
@@ -113,19 +142,26 @@ def _eval_volume(code, threshold):
         df = pd.DataFrame(recs) if recs else None
         df = DataCleaner.full_pipeline(df)
         if df is None or df.empty or "volume" not in df.columns or len(df) < 6:
-            return False, "成交量数据不足"
-        vols = pd.to_numeric(df["volume"], errors="coerce").dropna()
-        if len(vols) < 6:
-            return False, "成交量数据不足"
-        today = float(vols.iloc[-1])
-        prev = vols.iloc[:-1].tail(5)
-        ma5 = float(prev.mean()) if len(prev) else float(vols.iloc[-2])
-        if ma5 <= 0:
-            return False, "基准量为0"
-        ratio = today / ma5
-        return ratio >= threshold, f"量比 {ratio:.2f}×（阈值 {threshold:.2f}×）"
+            _trig, _detail = False, "成交量数据不足"
+        else:
+            vols = pd.to_numeric(df["volume"], errors="coerce").dropna()
+            if len(vols) < 6:
+                _trig, _detail = False, "成交量数据不足"
+            else:
+                today = float(vols.iloc[-1])
+                prev = vols.iloc[:-1].tail(5)
+                ma5 = float(prev.mean()) if len(prev) else float(vols.iloc[-2])
+                if ma5 <= 0:
+                    _trig, _detail = False, "基准量为0"
+                else:
+                    ratio = today / ma5
+                    _trig, _detail = (ratio >= threshold, f"量比 {ratio:.2f}×（阈值 {threshold:.2f}×）")
     except Exception as e:
-        return False, f"计算失败：{e}"
+        _trig, _detail = False, f"计算失败：{e}"
+    _res = (_trig, _detail)
+    with _eval_cache_lock:
+        _eval_cache[_key] = (_now, _res)
+    return _res
 
 
 def _eval_announcement(code, keyword):

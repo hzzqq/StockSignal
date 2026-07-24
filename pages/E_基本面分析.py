@@ -465,7 +465,8 @@ if code:
     with c3:
         st.metric("所属行业", industry)
     with c4:
-        st.metric("最新价", f"¥{price:.2f}" if price else "—")
+        st.metric("最新价", f"¥{price:.2f}" if price else "—",
+                  help="个股最新市场成交价（单位：元）；实时行情不可用时显示 —")
     with c5:
         st.metric("总市值", f"¥{market_cap:.1f}亿" if market_cap else "—",
                   help="公司总资产规模（单位：亿元人民币）；越大通常越稳健")

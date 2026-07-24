@@ -498,6 +498,13 @@ def fragment_chat():
 
     # ── 提交后台任务 ──
     if prompt:
+        # 守卫：上一轮分析仍在后台运行时禁止再堆叠新任务（否则覆盖 xc_task_id、
+        # 丢掉前次结果并制造并发请求）；给出引导而非静默吞掉输入
+        if st.session_state.get("xc_task_id"):
+            st.session_state["xc_messages"].append(
+                {"role": "assistant", "content": "⏳ 上一轮分析仍在进行中，请稍候它完成后再提问。"}
+            )
+            st.rerun(scope="fragment")
         st.session_state["xc_messages"].append({"role": "user", "content": prompt})
         history = [
             {"role": mm.get("role"), "content": mm.get("content", "")}

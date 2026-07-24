@@ -72,4 +72,5 @@ _view = st.radio(
     key="hub_cang_view",
 )
 st.divider()
-_run_subpage(_SUBPAGES[_view])
+with st.spinner(f"正在加载「{_view}」..."):
+    _run_subpage(_SUBPAGES[_view])

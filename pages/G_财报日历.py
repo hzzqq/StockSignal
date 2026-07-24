@@ -92,12 +92,16 @@ def fragment_report():
     if "净利润" in df.columns and "名称" in df.columns:
         top = df.dropna(subset=["净利润"]).sort_values("净利润", ascending=False).head(15).copy()
         if not top.empty:
+            # 加法式格式化边界（第十四批）：净利润原始单位为「元」，直接展示会得到 1.2e11
+            # 这类超长数字，可读性差。改以「亿元」为坐标/悬浮单位（涨跌着色仍以原始元符号判断）。
+            top["净利润_亿"] = top["净利润"] / 1e8
             fig = go.Figure(go.Bar(
-                x=top["名称"], y=top["净利润"],
+                x=top["名称"], y=top["净利润_亿"],
+                customdata=top["净利润_亿"],
                 marker_color=[UP if v >= 0 else DOWN for v in top["净利润"]],
-                hovertemplate="%{x}<br>净利润：%{y:,.0f}元<extra></extra>",
+                hovertemplate="%{x}<br>净利润：%{y:,.2f} 亿元<extra></extra>",
             ))
-            fig.update_layout(**_fig_layout(dark), title="净利润 TOP15（元）", height=340)
+            fig.update_layout(**_fig_layout(dark), title="净利润 TOP15（亿元）", height=340)
             fig.update_xaxes(tickangle=-45)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     else:

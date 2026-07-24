@@ -134,12 +134,18 @@ def fragment_paper():
         st.markdown("**买入**")
         bcode = stock_search_input("买入标的", key="pt_buy")
         bqty = st.number_input("买入股数", min_value=100, step=100, value=100, key="pt_bqty")
-        if st.button("确认买入", type="primary", key="pt_buy_btn", use_container_width=True):
+        # UX：代码无效时禁用买入按钮并给出原因，避免误点后才有错误反馈
+        _braw = (bcode or "").strip()
+        _bok = len(_braw) == 6 and _braw.isdigit()
+        if st.button("确认买入", type="primary", key="pt_buy_btn", use_container_width=True,
+                     disabled=not _bok,
+                     help="请先在上方输入有效的 6 位股票代码" if not _bok else "按当前设置的数量买入"):
             code = (bcode or "").strip().zfill(6)
             if len(code) != 6 or not code.isdigit():
                 st.error("请输入有效的 6 位股票代码。")
             else:
-                price, name = _price(code)
+                with st.spinner("获取现价中…"):
+                    price, name = _price(code)
                 if price is None:
                     st.error("无法获取现价，买入失败。")
                 else:
@@ -168,7 +174,16 @@ def fragment_paper():
         st.markdown("**卖出**")
         scode = stock_search_input("卖出标的", key="pt_sell")
         sqty = st.number_input("卖出股数", min_value=100, step=100, value=100, key="pt_sqty")
-        if st.button("确认卖出", key="pt_sell_btn", use_container_width=True):
+        # UX：代码无效或未持仓时禁用卖出按钮 + 前置提示，减少无效点击
+        _sraw = (scode or "").strip()
+        _sok = len(_sraw) == 6 and _sraw.isdigit()
+        _skey = _sraw.zfill(6)
+        _shas = bool(book["positions"].get(_skey)) if _sok else False
+        _sell_disabled = not (_sok and _shas)
+        _sell_help = ("请先输入有效代码，且当前持有该标的" if _sell_disabled
+                      else "按当前设置的数量卖出")
+        if st.button("确认卖出", key="pt_sell_btn", use_container_width=True,
+                     disabled=_sell_disabled, help=_sell_help):
             code = (scode or "").strip().zfill(6)
             pos = book["positions"].get(code)
             if not pos:
@@ -176,7 +191,8 @@ def fragment_paper():
             elif sqty > pos["qty"]:
                 st.error(f"持仓不足：持有 {pos['qty']} 股。")
             else:
-                price, name = _price(code)
+                with st.spinner("获取现价中…"):
+                    price, name = _price(code)
                 if price is None:
                     st.error("无法获取现价，卖出失败。")
                 else:

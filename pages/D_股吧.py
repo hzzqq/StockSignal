@@ -220,6 +220,8 @@ def fragment_list():
                 if st.form_submit_button("🚀 发布帖子", type="primary", use_container_width=True):
                     if not title.strip() or not content.strip():
                         st.warning("标题和正文都不能为空")
+                    elif stock_code.strip() and not (stock_code.strip().isdigit() and len(stock_code.strip()) == 6):
+                        st.warning("关联股票代码需为 6 位数字（如 600519），请检查后重试")
                     else:
                         payload = {"title": title.strip(), "content": content.strip()}
                         if stock_code.strip():

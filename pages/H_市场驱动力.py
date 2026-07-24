@@ -99,6 +99,28 @@ def fragment_drivers_panel():
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="drv_panel")
     except Exception as e:
         st.warning(f"驱动力面板图渲染失败：{e}")
+
+    # 加法式可访问性（第十四批）：plotly 图表对读屏软件不友好，补充一段文字版「涨跌概览」
+    # 作为图表替代文本，让无法看图的用户也能获取各指标区间内累计变化的关键信息。
+    try:
+        _ind_cols = [c for c in df.columns if c not in ("date", "ref")]
+        _sub = df.dropna(subset=["date"]).set_index("date")
+        _chg = {}
+        for _c in _ind_cols:
+            _s = _sub[_c].dropna()
+            if len(_s) >= 2:
+                _chg[_c] = float(_s.iloc[-1] - _s.iloc[0])
+        if _chg:
+            _up = sorted(_chg.items(), key=lambda kv: kv[1], reverse=True)[:3]
+            _dn = sorted(_chg.items(), key=lambda kv: kv[1])[:3]
+            st.caption(
+                "📊 图表文字版概览（各指标区间内累计变化，单位：点）："
+                "　↑ " + "，".join(f"{k} +{v:.1f}" for k, v in _up)
+                + "　↓ " + "，".join(f"{k} {v:.1f}" for k, v in _dn)
+            )
+    except Exception:
+        pass
+
     # 数据表联动（随区间 / 序列筛选）
     with st.expander("📋 数据表（随区间 / 序列联动）"):
         tbl = _slice_date_range(df, dr)

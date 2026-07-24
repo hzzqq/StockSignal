@@ -634,7 +634,15 @@ def fragment_event_manage():
                 evt_title = st.text_input("事件标题", value="", key="evt_title",
                                           placeholder="如：煤炭价格大涨10%")
 
-            add_submitted = st.form_submit_button("添加事件")
+            add_submitted = st.form_submit_button(
+                "添加事件",
+                disabled=not (evt_title or "").strip(),
+                help="填写「事件标题」后方可添加；标题为空时按钮不可用。",
+            )
+
+        if not (evt_title or "").strip():
+            # 加法式空态引导：标题为空时给出操作提示（按钮已 disabled，避免空提交）。
+            st.caption("💡 请先在「事件标题」中填写内容，再点击「添加事件」。")
 
         if add_submitted and evt_title:
             try:

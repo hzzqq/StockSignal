@@ -388,7 +388,7 @@ with st.container(border=True):
     _section_title("🚀 扫描结果", accent="#10b981")
     st.caption("点击「开始扫描」对当前股票池执行形态识别与技术评分。")
 
-    if st.button("🚀 开始扫描", type="primary", use_container_width=True) and universe:
+    if st.button("🚀 开始扫描", type="primary", use_container_width=True, disabled=not universe) and universe:
         universe = list(dict.fromkeys(universe))[:40]  # 安全上限，避免过慢
         today = datetime.now().date()
         start = (today - timedelta(days=365)).strftime("%Y-%m-%d")
