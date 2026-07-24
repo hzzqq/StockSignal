@@ -186,6 +186,7 @@ def fragment_signal_score():
                 "事件关键词（逗号分隔）",
                 value=default_kws,
                 key="sig_keywords",
+                placeholder="如：煤炭,保供,电厂库存（逗号分隔）",
                 help="根据所选股票的行业特征自动匹配高频事件关键词，可手动编辑"
             )
 
@@ -281,7 +282,9 @@ def fragment_live_keywords():
 
         extract_result = st.container()
 
-        if live_submitted:
+        if live_submitted or st.session_state.get("_retry_live_kw"):
+            if st.session_state.get("_retry_live_kw"):
+                st.session_state["_retry_live_kw"] = False
             with st.spinner("📰 正在抓取最新新闻并提取关键词，预计需要 10-30 秒…"):
                 try:
                     stock_name = fetcher._lookup_name_for_code(live_ticker) if (live_ticker and live_ticker.isdigit() and len(live_ticker) == 6) else (live_ticker or "")
@@ -352,6 +355,8 @@ def fragment_live_keywords():
             with extract_result:
                 if r.get("error") and r["error"] != "empty":
                     st.error(f"提取失败: {r['error']}")
+                    if st.button("🔄 重试", key="btn_live_kw_retry"):
+                        st.session_state["_retry_live_kw"] = True
                 elif r.get("error") == "empty":
                     st.warning(f"未抓取到与「{live_ticker or '全部'}」相关的新闻。")
                     if r.get("result_str"):
@@ -610,6 +615,7 @@ def fragment_timeline():
                     st.session_state.tl_n_show = new_n_show
 
                     st.caption("💡 拖动「显示位置」滑块可左右平移，拖动「显示 K 线数量」滑块可放大/缩小。")
+                    st.caption(f"📊 当前显示 {n_show} / 总计 {n_total} 根 K 线")
 
                     fig = Visualizer.event_timeline(
                         df,
@@ -673,7 +679,8 @@ def fragment_event_manage():
             except Exception as e:
                 st.error(f"添加失败: {e}")
 
-        events_all = engine._load_events()
+        with st.spinner("⏳ 正在加载全部事件库…"):
+            events_all = engine._load_events()
         if not events_all.empty:
             st.markdown("#### 现有事件库（全部）")
             events_display = events_all[["date", "ticker", "title", "type"]].sort_values("date", ascending=False).copy()
@@ -703,6 +710,7 @@ def fragment_news_mine():
         with col_mine_input:
             mine_keyword = st.text_input(
                 "挖掘关键词（留空抓财经要闻）", value="煤炭", key="mine_keyword",
+                placeholder="如：煤炭 / 中国神华 / 留空抓全部财经要闻",
                 help="如：煤炭 / 中国神华 / 留空则抓取全部财经要闻。",
             )
         with col_mine_limit:
@@ -790,12 +798,15 @@ def fragment_sentiment_report():
             with col_rpt_input:
                 report_keyword = st.text_input(
                     "分析关键词", value="煤炭", key="report_keyword_v2",
+                    placeholder="如：煤炭 / 中国神华 / 留空分析全部财经要闻",
                     help="如：煤炭 / 中国神华 / 留空则分析全部财经要闻。",
                 )
             with col_rpt_btn:
                 rpt_submitted = st.button("📊 生成报告", type="primary", key="btn_sentiment_report_v2", use_container_width=True)
 
-        if rpt_submitted:
+        if rpt_submitted or st.session_state.get("_retry_sentiment"):
+            if st.session_state.get("_retry_sentiment"):
+                st.session_state["_retry_sentiment"] = False
             with st.spinner("📊 正在抓取新闻并生成情感分析报告，预计需要 15-45 秒…"):
                 try:
                     report = engine.sentiment_report(keyword=report_keyword or None, limit=50)
@@ -917,6 +928,8 @@ def fragment_sentiment_report():
         elif st.session_state.get("sentiment_report_error"):
             with report_container:
                 st.error(f"生成报告失败: {st.session_state.sentiment_report_error}")
+                if st.button("🔄 重试", key="btn_sentiment_retry"):
+                    st.session_state["_retry_sentiment"] = True
 
     except Exception as module_err:
         st.error(f"⚠️ 情感报告模块异常: {module_err}")
@@ -931,3 +944,13 @@ fragment_timeline()
 fragment_event_manage()
 fragment_news_mine()
 fragment_sentiment_report()
+
+# ── 加法式：快捷回到顶部（长页面底部注入固定按钮，平滑滚动父页面）──
+st.components.v1.html(
+    '<button onclick="parent.window.scrollTo({top:0,behavior:\'smooth\'});" '
+    'style="position:fixed;right:24px;bottom:12px;z-index:9999;'
+    'background:#3498db;color:#fff;border:none;border-radius:20px;'
+    'padding:8px 14px;font-size:13px;cursor:pointer;'
+    'box-shadow:0 2px 8px rgba(0,0,0,.3);">↑ 回到顶部</button>',
+    height=40,
+)

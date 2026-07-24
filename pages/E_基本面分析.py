@@ -575,7 +575,9 @@ if code:
             try:
                 fa_df = _build_financial_df(fa_code)
             except Exception as e:
-                st.warning(f"财务报表解析失败，已跳过财务分析：{e}")
+                st.error(f"⚠️ 财务报表解析失败，请稍后重试：{e}")
+                if st.button("🔄 重试", key="fa_retry_btn"):
+                    st.rerun(scope="fragment")
                 return
 
         if fa_df is None or fa_df.empty:
@@ -713,6 +715,7 @@ if code:
         else:
             display_table = table_df[["报告期显示", "指标值", "同比", "环比"]].rename(columns={"报告期显示": "报告期"})
         with st.expander("📋 查看明细数据", expanded=False):
+            st.caption(f"📋 共 {len(display_table)} 条「{metric}」明细（{mode}）")
             st.dataframe(display_table, use_container_width=True, hide_index=True)
 
 
@@ -867,6 +870,7 @@ if code:
                 display = top10[["排名", "sector", "change_pct"]].rename(
                     columns={"sector": "行业", "change_pct": "涨跌幅"}
                 )
+                st.caption(f"🏭 全市场共 {len(sector_df)} 个行业，以下展示涨幅前 {len(top10)} 名")
                 st.dataframe(
                     display,
                     use_container_width=True,
@@ -954,5 +958,9 @@ if code:
     if st.button("🔍 查看该股票详细 K 线与技术面 →", type="primary", use_container_width=True):
         st.query_params["pick_stock"] = code
         safe_switch_page("pages/个股研究.py")
+
+    # 快捷回到顶部（Batch18 #back-to-top：长页面底部一键回顶）
+    if st.button("↑ 回到顶部", key="fa_back_to_top", use_container_width=True):
+        st.components.v1.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0)
 else:
     st.info("请在上方输入代码或名称选择一只股票开始分析（也可从「🎯 个股研究 / 📡 股票选取」跳转过来）。数据仅供参考，非投资建议。")

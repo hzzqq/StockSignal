@@ -87,11 +87,14 @@ def fragment_detail():
     if st.button("← 返回列表", key="forum_back", on_click=_go_list):
         pass
 
-    sc, body = api_get(f"/api/forum/posts/{_view_pid}")
+    with st.spinner("加载帖子详情…"):
+        sc, body = api_get(f"/api/forum/posts/{_view_pid}")
     if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
         st.error("帖子加载失败或已被删除。")
         if st.button("返回", key="forum_back2", on_click=_go_list):
             pass
+        if st.button("🔄 重试", key="forum_retry_detail"):
+            pass  # 点击即重跑本 fragment，重新加载帖子详情
         return
 
     post = body.get("data") or {}
@@ -257,6 +260,8 @@ def fragment_list():
             return
     if sc != 200 or not isinstance(body, dict):
         st.error("📡 帖子加载失败，请稍后重试。")
+        if st.button("🔄 重试", key="forum_retry_list"):
+            pass  # 点击即重跑本 fragment，重新拉取帖子列表
         return
     posts = body.get("data", []) or []
     # 排序（#543-6）
@@ -310,3 +315,10 @@ def fragment_list():
 
 fragment_detail()
 fragment_list()
+
+# 快捷回到顶部（#Batch18-6）：长列表滚动后一键回顶，由 session_state 触发 JS 滚动
+if st.button("↑ 回到顶部", key="forum_back_to_top"):
+    st.session_state["_forum_scroll_top"] = True
+if st.session_state.get("_forum_scroll_top"):
+    st.markdown("<script>window.scrollTo(0,0);</script>", unsafe_allow_html=True)
+    st.session_state["_forum_scroll_top"] = False

@@ -223,7 +223,9 @@ def _all_messages():
     return msgs
 
 
-msgs = _all_messages()
+# 加法式加载态反馈：聚合三类消息涉及多次后台请求 / 行情计算
+with st.spinner("加载中…"):
+    msgs = _all_messages()
 unread = [m for m in msgs if m["id"] not in st.session_state["msg_read_ids"]]
 
 # session_state 清理防膨胀：已读集合只保留当前仍存在消息的 id，并对集合设上限，
@@ -233,6 +235,14 @@ _read_set = st.session_state["msg_read_ids"]
 _read_set &= _current_ids
 if len(_read_set) > 500:
     st.session_state["msg_read_ids"] = set(list(_read_set)[-500:])
+
+# 加法式操作成功反馈：标记已读 / 清除已读后给出成功提示
+if st.session_state.get("_msg_marked_toast"):
+    st.session_state.pop("_msg_marked_toast", None)
+    st.success("✅ 已全部标记为已读")
+if st.session_state.get("_msg_cleared_toast"):
+    st.session_state.pop("_msg_cleared_toast", None)
+    st.success("✅ 已清除已读标记")
 
 # ───────────────────────── 顶部操作栏 ─────────────────────────
 c1, c2, c3 = st.columns([1, 1, 2])
@@ -245,6 +255,7 @@ with c3:
                  disabled=len(unread) == 0,
                  help="一键将当前所有未读消息标记为已读（无未读时禁用）。"):
         st.session_state["msg_read_ids"].update(m["id"] for m in msgs)
+        st.session_state["_msg_marked_toast"] = True
         st.rerun()
 
 render_data_degradation_banner()
@@ -253,6 +264,17 @@ render_data_degradation_banner()
 if st.button("🧹 清除已读标记", key="clear_read_marks", use_container_width=False,
              help="将当前所有已读消息重新标记为未读（仅本会话生效，不影响后台数据）。"):
     st.session_state["msg_read_ids"] = set()
+    st.session_state["_msg_cleared_toast"] = True
+    st.rerun()
+
+# 加法式失败重试：聚合取数经 safe_section 已降级，此处提供手动重新加载入口，
+# 清掉本页缓存后整页重跑重新向各数据源拉取最新消息。
+if st.button("🔄 重新加载", key="msg_reload", use_container_width=False):
+    try:
+        _load_watchlist.clear()
+        _load_forum.clear()
+    except Exception:
+        pass
     st.rerun()
 
 # ───────────────────────── 筛选 ─────────────────────────
@@ -260,6 +282,9 @@ TYPES = ["全部", "异动", "社区", "系统"]
 _filt = st.radio("类型筛选", TYPES, horizontal=True, label_visibility="collapsed",
                    help="按消息类型过滤：异动（自选股涨跌）、社区（股吧动态）、系统（数据源与健康提示）。")
 shown = msgs if _filt == "全部" else [m for m in msgs if m["type"] == _filt]
+
+# 加法式结果计数/摘要：当前筛选下的显示条数与总条数
+st.caption(f"当前显示 {len(shown)} / 总计 {len(msgs)} 条消息")
 
 if not shown:
     st.info("当前分类暂无消息。💡 异动消息需先添加自选股；社区消息来自股吧发帖；系统消息来自数据源健康度。多使用各功能模块后会逐步产生消息。")

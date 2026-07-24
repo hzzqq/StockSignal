@@ -263,9 +263,12 @@ def fragment_sector():
         st_autorefresh(interval=60000, key="sector_auto")
 
     try:
-        df = get_industry_fund_flow()
+        with st.spinner("⏳ 正在加载行业资金流向…"):
+            df = get_industry_fund_flow()
     except Exception as e:
         st.error(f"行业资金流向加载失败：{e}")
+        if st.button("🔄 重试", key="btn_sector_retry"):
+            st.rerun(scope="fragment")
         return
 
     try:
@@ -367,6 +370,8 @@ def fragment_watchlist():
                     quotes[code] = q
         except Exception as e:
             st.error(f"行情并行抓取失败：{e}")
+            if st.button("🔄 重试", key="btn_wl_retry"):
+                st.rerun(scope="fragment")
             return
 
     # 守卫：若全部标的实时行情均不可用（接口受限/网络异常），给出友好空态而非静默空表
@@ -421,6 +426,8 @@ def fragment_watchlist():
                          "涨跌额": st.column_config.NumberColumn(format="%.2f"),
                      })
 
+    st.caption(f"📊 当前显示 {len(df)} / 总计 {len(codes)} 只自选股")
+
     # 逐只跳转
     with st.expander("📌 逐只跳转至行情看板", expanded=False):
         for r in rows:
@@ -467,6 +474,8 @@ def fragment_individual_ff():
                     ff_map[code] = r
         except Exception as e:
             st.error(f"资金流并行抓取失败：{e}")
+            if st.button("🔄 重试", key="btn_iff_retry"):
+                st.rerun(scope="fragment")
             return
 
     rows = []
@@ -521,6 +530,8 @@ def fragment_individual_ff():
             st.dataframe(top_out, use_container_width=True, hide_index=True,
                          column_config={"主力净流入(亿)": st.column_config.NumberColumn(format="%.3f")})
 
+    st.caption(f"📊 当前展示 {len(valid)} / 总计 {len(codes)} 只自选股的资金流异动")
+
     if any(r.get("source") == "estimate" for r in ff_map.values()):
         st.caption("⚠️ 标注「估算」的数据为量价模型（Chaikin 风格）估算的主力净流入，"
                    "仅反映近期量价博弈方向，非交易所逐笔主力数据。")
@@ -567,6 +578,8 @@ def fragment_alerts():
                         ff_map[res[0]] = res[1]
         except Exception as e:
             st.error(f"预警扫描失败：{e}")
+            if st.button("🔄 重试", key="btn_alert_retry"):
+                st.rerun(scope="fragment")
             return
 
     alerts = []
@@ -705,3 +718,13 @@ st.markdown("---")
 fragment_individual_ff()
 st.markdown("---")
 fragment_alerts()
+
+# ── 加法式：快捷回到顶部（长页面底部注入固定按钮，平滑滚动父页面）──
+st.components.v1.html(
+    '<button onclick="parent.window.scrollTo({top:0,behavior:\'smooth\'});" '
+    'style="position:fixed;right:24px;bottom:12px;z-index:9999;'
+    'background:#3498db;color:#fff;border:none;border-radius:20px;'
+    'padding:8px 14px;font-size:13px;cursor:pointer;'
+    'box-shadow:0 2px 8px rgba(0,0,0,.3);">↑ 回到顶部</button>',
+    height=40,
+)

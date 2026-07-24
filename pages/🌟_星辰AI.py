@@ -470,6 +470,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# 加法式结果计数/摘要：对话消息总条数
+st.caption(f"💬 当前对话共 {len(st.session_state.get('xc_messages', []))} 条消息")
+
 # ── 渲染历史 ──
 @safe_fragment("AI 对话")
 def fragment_chat():
@@ -498,7 +501,10 @@ def fragment_chat():
     prompt = None
     if "_xc_pending" in st.session_state:
         prompt = st.session_state.pop("_xc_pending")
-    user_text = st.chat_input("问星辰 AI…（Enter 发送 / Shift+Enter 换行）")
+    user_text = st.chat_input(
+        "问星辰 AI…（Enter 发送 / Shift+Enter 换行）",
+        placeholder="例如：太极实业 600667 怎么样？",
+    )
     if user_text:
         prompt = user_text
 
@@ -506,6 +512,8 @@ def fragment_chat():
     if prompt:
         # 守卫：上一轮分析仍在后台运行时禁止再堆叠新任务（否则覆盖 xc_task_id、
         # 丢掉前次结果并制造并发请求）；给出引导而非静默吞掉输入
+        # 加法式：进入新一轮提交即清除上一轮失败重试标记，避免旧错误 UI 残留
+        st.session_state.pop("_xc_failed_prompt", None)
         if st.session_state.get("xc_task_id"):
             st.session_state["xc_messages"].append(
                 {"role": "assistant", "content": "⏳ 上一轮分析仍在进行中，请稍候它完成后再提问。"}
@@ -519,16 +527,27 @@ def fragment_chat():
         ]
         ctx = _slim_context()
         ctx["history"] = history[-6:]
-        task_id, err = submit_task_with_error("ai_consult", {"question": prompt, "context": ctx})
+        # 加法式加载态反馈：提交后台 AI 任务属网络请求，用 spinner 提示等待
+        with st.spinner("加载中…"):
+            task_id, err = submit_task_with_error("ai_consult", {"question": prompt, "context": ctx})
         if task_id:
             st.session_state["xc_task_id"] = task_id
             st.session_state["xc_task_started_at"] = time.time()
+            # 加法式操作成功反馈：已成功提交分析任务
+            st.toast("✅ 已发送，星辰 AI 正在分析…")
             st.rerun(scope="fragment")
         else:
-            st.session_state["xc_messages"].append(
-                {"role": "assistant", "content": f"❌ 后台任务提交失败：{err or '未知错误'}，请刷新后重试。"}
-            )
+            # 加法式失败重试：提交失败时不塞入错误消息气泡，改为错误提示 + 重试按钮；
+            # 点击重试会重新提交同一问题（仅置位 _xc_pending，由 fragment 内 rerun 触发，禁裸 rerun）。
+            st.session_state["_xc_failed_prompt"] = prompt
             st.session_state["xc_task_id"] = None
+            st.rerun(scope="fragment")
+
+    # ── 加法式失败重试入口：后台任务提交失败时展示 ──
+    if st.session_state.get("_xc_failed_prompt"):
+        st.error("⚠️ 加载失败，请稍后重试")
+        if st.button("🔄 重试", key="xc_retry_btn", use_container_width=True):
+            st.session_state["_xc_pending"] = st.session_state.pop("_xc_failed_prompt")
             st.rerun(scope="fragment")
 
 

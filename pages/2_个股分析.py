@@ -486,7 +486,9 @@ def _render_analysis(R: dict):
         except Exception:
             pass
     else:
-        _kdf = _cached_period_kline(ticker, _kstart, _kend, kline_period)
+        _period_name = {"weekly": "周线", "monthly": "月线"}.get(kline_period, "")
+        with st.spinner(f"正在加载{_period_name} K 线数据…"):
+            _kdf = _cached_period_kline(ticker, _kstart, _kend, kline_period)
         if _kdf is None or _kdf.empty:
             period_df = df
         else:
@@ -542,7 +544,9 @@ def _render_analysis(R: dict):
         _cap += f"数据区间 {_date_min} ~ {_date_max}。</div>"
         st.markdown(_cap, unsafe_allow_html=True)
     except Exception as e:
-        st.warning(f"⚠️ K线图渲染失败：{str(e)[:80]}")
+        st.error(f"⚠️ K线图渲染失败，请稍后重试：{str(e)[:80]}")
+        if st.button("🔄 重试", key="kline_retry_btn"):
+            st.rerun(scope="fragment")
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ════════════ 模块5：情报面 ════════════
@@ -563,6 +567,7 @@ def _render_analysis(R: dict):
         unsafe_allow_html=True,
     )
     if news_rows:
+        st.caption(f"📰 共获取 {len(news_rows)} 条新闻，以下展示情绪权重最高的前 {min(10, len(news_rows))} 条")
         rows_html = "".join(
             # ⚠️ 深层守卫：新闻项可能缺 title/sentiment 字段（契约漂移），
             # 原 r['title'] 直接下标会抛 KeyError 使整个情报面渲染崩溃；统一 .get 兜底。
@@ -1077,12 +1082,17 @@ def fragment_stock_videos(ticker):
     if vk not in st.session_state:
         st.session_state[vk] = []
     with st.form(key=f"video_form_{ticker}", clear_on_submit=True):
-        video_url = st.text_input("视频链接（如 https://www.bilibili.com/video/BVxxxx 或 YouTube 链接）", "")
+        video_url = st.text_input(
+            "视频链接（如 https://www.bilibili.com/video/BVxxxx 或 YouTube 链接）",
+            "",
+            placeholder="在此粘贴视频地址，例如 B站 / YouTube 分享链接",
+        )
         submitted = st.form_submit_button("➕ 添加到本股视频", use_container_width=True)
         if submitted and video_url:
             emb = _video_embed_url(video_url)
             if emb:
                 st.session_state[vk].append({"src": emb, "raw": video_url})
+                st.toast("✅ 已添加视频")
             else:
                 st.warning("⚠️ 暂仅支持 YouTube / B站 / 腾讯视频 的嵌入；其它平台已为你保留原链接，可点击观看。")
                 st.session_state[vk].append({"src": None, "raw": video_url})
@@ -1119,3 +1129,7 @@ def fragment_stock_videos(ticker):
 
 
 fragment_stock_videos(ticker)
+
+# 快捷回到顶部（Batch18 #back-to-top：长页面底部一键回顶）
+if st.button("↑ 回到顶部", key="analysis_back_to_top", use_container_width=True):
+    st.components.v1.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0)

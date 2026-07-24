@@ -5,6 +5,7 @@
 """
 import os
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from datetime import date
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -168,6 +169,11 @@ def fragment_watchlist_and_news():
     watchlist = []
     if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
         watchlist = body.get("data", []) or []
+    else:
+        st.error("⚠️ 加载失败，请稍后重试")
+        if st.button("🔄 重试", key="morning_wl_retry"):
+            st.rerun(scope="fragment")
+        return
 
     # 并行预拉市盈率 / 资产负债率（失败留 —，不阻塞快照渲染）
     wl_codes = [w.get("stock_code") for w in watchlist[:30] if w.get("stock_code")]
@@ -265,6 +271,7 @@ def fragment_watchlist_and_news():
                         "资产负债率": st.column_config.NumberColumn(format="%.2f%%"),
                     },
                 )
+                st.caption(f"共 {len(watchlist)} 只自选股（展示前 {len(snap)} 只）")
                 try:
                     sel_rows = event.selection.rows if event and event.selection else []
                 except Exception:
@@ -299,6 +306,7 @@ def fragment_watchlist_and_news():
                         st.markdown(f"- {_fmt_rel(date_s)}  **[{title}]({url})**  _{source_s}_")
                     else:
                         st.markdown(f"- {_fmt_rel(date_s)}  **{title}**  _{source_s}_")
+                st.caption(f"共 {len(news_df)} 条相关新闻，展示前 {min(len(news_df), 12)} 条")
             else:
                 st.info(f"暂无与 {selected_name} 相关的新闻。可尝试切换其它自选股，或稍后重试（资讯源每日更新）。")
 
@@ -454,3 +462,7 @@ def fragment_review_notes():
 
 
 fragment_review_notes()
+
+# 加法式 UX：长页面底部「↑ 回到顶部」按钮（前端平滑滚动，不触发整页 rerun）
+if st.button("↑ 回到顶部", key="morning_back_to_top"):
+    components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0, scrolling=False)

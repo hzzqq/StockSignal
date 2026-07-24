@@ -25,6 +25,11 @@ render_user_badge(sidebar=True)
 
 user = get_user() or {}
 
+# 加法式操作成功反馈：刷新本页缓存后给出成功提示
+if st.session_state.get("_my_cache_toast"):
+    st.session_state.pop("_my_cache_toast", None)
+    st.success("✅ 本页缓存已刷新")
+
 
 def _cached_get(url, headers, ttl=10):
     """加法式性能优化：同一页面内的交互（切换主题/字体等）会触发整页重跑，
@@ -371,10 +376,12 @@ st.markdown("---")
 st.subheader("⭐ 我的自选股")
 
 try:
-    resp = _cached_get(
-        f"{API_BASE}/api/watchlist",
-        headers={"Authorization": f"Bearer {get_token()}"},
-    )
+    # 加法式加载态反馈：自选股列表来自后台请求
+    with st.spinner("加载中…"):
+        resp = _cached_get(
+            f"{API_BASE}/api/watchlist",
+            headers={"Authorization": f"Bearer {get_token()}"},
+        )
     if resp.status_code == 200:
         # 加法式健壮性：resp.json() 可能因返回非 JSON 抛异常；body 也需判定为 dict，
         # 且 body.get("data") 可能是 dict 而非 list，统一兜底避免 DataFrame(Py) 异常。
@@ -414,16 +421,19 @@ with _col_cache:
     if st.button("🔄 刷新本页缓存", key="my_clear_cache", use_container_width=True,
                  help="清空本页自选股/登录历史的 10 秒短缓存，立即重新向后台拉取最新数据。"):
         st.session_state.pop("_my_cached_get", None)
+        st.session_state["_my_cache_toast"] = True
         st.rerun()
 
 # ── 登录历史 ──
 st.subheader("🕘 登录历史")
 
 try:
-    resp = _cached_get(
-        f"{API_BASE}/api/auth/logins",
-        headers={"Authorization": f"Bearer {get_token()}"},
-    )
+    # 加法式加载态反馈：登录历史来自后台请求
+    with st.spinner("加载中…"):
+        resp = _cached_get(
+            f"{API_BASE}/api/auth/logins",
+            headers={"Authorization": f"Bearer {get_token()}"},
+        )
     if resp.status_code == 200:
         # 加法式健壮性：与上方自选股分支一致，resp.json() 可能因返回非 JSON 抛异常；
         # 兜底为空 dict，避免整页被外层 except 报出难看的「获取登录历史失败」错误，
@@ -445,12 +455,18 @@ try:
                 for r in logs
             ]
             st.dataframe(pd.DataFrame(_hist), width="stretch", use_container_width=True)
+            # 加法式结果计数/摘要：登录历史总条数
+            st.caption(f"共 {len(logs)} 条登录记录")
         else:
             _empty_info("暂无登录记录。")
     else:
         st.warning(f"获取登录历史失败：HTTP {resp.status_code}")
 except Exception as e:
     st.error(f"获取登录历史失败：{e}")
+    # 加法式失败重试：请求异常时提供重试（清掉短缓存后重新拉取）
+    if st.button("🔄 重试", key="login_retry", use_container_width=True):
+        st.session_state.pop("_my_cached_get", None)
+        st.rerun()
 
 st.markdown("---")
 

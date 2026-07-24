@@ -6,6 +6,7 @@
 import os
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from datetime import datetime
 
@@ -121,6 +122,8 @@ def format_quote_table(quote):
 # ------------------------------------------------------------------
 st.subheader("当前持仓概览")
 positions = pm.get_positions()
+# 加法式结果摘要：展示当前持仓条数。
+st.caption(f"📊 当前持仓：共 {len(positions)} 条")
 if positions.empty:
     _empty_info("暂无持仓记录。在上方「添加持仓」表单录入代码、价格与股数后，即可开始跟踪。")
 else:
@@ -179,9 +182,11 @@ with st.form("buy_position_form"):
         buy_label = fetcher.get_stock_name(buy_ticker) or buy_ticker
         # 实时五档行情
         if buy_ticker:
-            buy_quote = api_quote(buy_ticker)
-            if buy_quote is None:
-                buy_quote = fetcher.get_realtime_quote(buy_ticker)
+            # 加法式加载态反馈：实时行情属于网络请求，包裹 spinner 提示获取中。
+            with st.spinner("获取实时行情中…"):
+                buy_quote = api_quote(buy_ticker)
+                if buy_quote is None:
+                    buy_quote = fetcher.get_realtime_quote(buy_ticker)
             if buy_quote:
                 try:
                     _cur = buy_quote.get("current")
@@ -232,6 +237,7 @@ with st.form("buy_position_form"):
         buy_price = st.number_input(
             "买入成交价", value=round(default_buy_price, 2), step=0.01,
             format="%.2f", min_value=0.01,
+            placeholder="如 20.00",
             help="默认按卖一价填充，可手动修改为卖二价或其他实际成交价"
         )
     with col3:
@@ -239,9 +245,11 @@ with st.form("buy_position_form"):
             "📊 买入股数",
             value=st.session_state.default_shares,
             min_value=1, step=100, format="%d",
+            placeholder="如 1000",
             help="点击 ± 按钮步进调节，或直接输入数字"
         )
         buy_note = st.text_input("备注", value="", key="buy_note",
+                                 placeholder="如：建仓理由 / 止盈目标",
                                  help="为该笔持仓添加备注（如建仓理由、止盈目标），便于后续回顾。")
 
     buy_submitted = st.form_submit_button("✅ 添加持仓")
@@ -295,9 +303,11 @@ else:
         with col1:
             st.metric("可卖股数", f"{sellable_shares:,} 股")
             # 实时五档行情
-            sell_quote = api_quote(sell_ticker)
-            if sell_quote is None:
-                sell_quote = fetcher.get_realtime_quote(sell_ticker)
+            # 加法式加载态反馈：实时行情属于网络请求，包裹 spinner 提示获取中。
+            with st.spinner("获取实时行情中…"):
+                sell_quote = api_quote(sell_ticker)
+                if sell_quote is None:
+                    sell_quote = fetcher.get_realtime_quote(sell_ticker)
             if sell_quote:
                 try:
                     _cur = sell_quote.get("current")
@@ -346,6 +356,7 @@ else:
         sell_price = st.number_input(
             "卖出成交价", value=round(default_sell_price, 2), step=0.01,
             format="%.2f", min_value=0.01,
+            placeholder="如 20.00",
             help="默认按买一价填充，可手动修改为买二价或其他实际成交价"
         )
         with col3:
@@ -355,9 +366,10 @@ else:
                 min_value=1,
                 max_value=int(sellable_shares),
                 step=100, format="%d",
+                placeholder="如 1000",
                 help="最多可卖剩余股数"
             )
-            sell_note = st.text_input("备注", value="", key="sell_note")
+            sell_note = st.text_input("备注", value="", key="sell_note", placeholder="如：止盈离场 / 补仓计划")
 
         sell_submitted = st.form_submit_button("✅ 记录卖出")
 
@@ -394,6 +406,7 @@ with st.expander("🗑️ 删除持仓"):
             "选择要删除的行号（从 0 开始）",
             min_value=0, max_value=len(positions) - 1,
             value=0, step=1,
+            placeholder=f"0 ~ {len(positions) - 1}",
             help="行号对应上方持仓列表的序号（从 0 开始）。删除不可恢复，请确认后再点「确认删除」。",
         )
         # 行号 → 股票 映射提示，降低误删风险
@@ -423,6 +436,8 @@ st.markdown("---")
 # ------------------------------------------------------------------
 st.subheader("卖出记录")
 trades = pm.get_trades()
+# 加法式结果摘要：展示卖出记录条数。
+st.caption(f"🧾 卖出记录：共 {len(trades)} 条")
 if trades.empty:
     _empty_info("暂无卖出记录。")
 else:
@@ -473,6 +488,8 @@ if not positions.empty:
                 st.plotly_chart(fig, width="stretch")
 
                 st.markdown("#### 持仓明细")
+                # 加法式结果摘要：展示持仓明细条数。
+                st.caption(f"📋 持仓明细：共 {len(pnl_df)} 条")
                 display_pnl = pnl_df.copy()
                 if "name" in display_pnl.columns:
                     display_pnl = display_pnl.drop(columns=["name"])
@@ -533,6 +550,17 @@ if not positions.empty:
                 st.success(f"报告已生成: {output}")
 
         except Exception as e:
-            st.error(f"计算盈亏失败: {e}")
+            # 加法式失败重试：行情/计算异常时提示失败并提供「🔄 重试」按钮（非 fragment，可用 st.rerun）。
+            st.error(f"⚠️ 加载失败，请稍后重试：{e}")
+            if st.button("🔄 重试", key="pnl_retry"):
+                st.rerun()
 else:
     st.info("请先添加持仓记录。")
+
+# 加法式便利：长页面底部「↑ 回到顶部」按钮，通过 session_state 触发滚动。
+st.divider()
+if st.button("↑ 回到顶部", key="cang_mgr_top", use_container_width=True):
+    st.session_state["_mgr_scroll_top"] = True
+if st.session_state.get("_mgr_scroll_top"):
+    components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0)
+    st.session_state["_mgr_scroll_top"] = False

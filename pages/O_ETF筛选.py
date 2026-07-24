@@ -77,7 +77,8 @@ def _load_etfs():
 @safe_fragment
 def _etf_filter_fragment():
     with safe_section("ETF 行情", hint="实时行情接口可能受网络限制，已自动降级到样本数据。"):
-        df, src = _load_etfs()
+        with st.spinner("⏳ 正在加载 ETF 行情…"):
+            df, src = _load_etfs()
         st.success(f"数据来源：{src}　·　共 {len(df)} 只", icon="📡")
         # 空态守卫：接口与降级样本均未返回记录时显式提示，避免「共 0 只」后
         # 筛选控件/结果区一片空白、用户不知发生了什么
@@ -163,3 +164,10 @@ def _etf_filter_fragment():
 
 
 _etf_filter_fragment()
+
+# 快捷回到顶部（#Batch18-6）：长表格滚动后一键回顶，由 session_state 触发 JS 滚动
+if st.button("↑ 回到顶部", key="etf_back_to_top"):
+    st.session_state["_etf_scroll_top"] = True
+if st.session_state.get("_etf_scroll_top"):
+    st.markdown("<script>window.scrollTo(0,0);</script>", unsafe_allow_html=True)
+    st.session_state["_etf_scroll_top"] = False

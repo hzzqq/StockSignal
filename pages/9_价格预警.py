@@ -295,7 +295,8 @@ with st.expander("➕ 新建预警", expanded=False, key="new_alert_exp"):
         params = {"volume_ratio": float(vr)}
         st.caption("当日量比 ≥ 阈值时触发（如 2.0 表示放量一倍）。")
     elif atype == "announcement":
-        kw = st.text_input("关键词（如：增持、回购、中标、减持）")
+        kw = st.text_input("关键词（如：增持、回购、中标、减持）",
+                         placeholder="输入触发关键词，如：增持、回购、中标、减持")
         params = {"keyword": kw}
         st.caption("近期新闻/公告标题或内容包含该关键词即触发。")
 
@@ -332,7 +333,9 @@ def fragment_alerts():
     # ───────────────────────── 列表 + 触发检测 ─────────────────────────
     sc, body = api_get("/api/price-alerts")
     if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
-        st.error("加载预警失败，请刷新重试。")
+        st.error("⚠️ 加载失败，请稍后重试")
+        if st.button("🔄 重试", key="alert_list_retry"):
+            st.rerun(scope="fragment")
         return
 
     alerts = body.get("data", []) or []
@@ -348,7 +351,8 @@ def fragment_alerts():
                  "并保持本页或持仓页在浏览器中打开。")
     else:
         st.markdown(f"#### 共 {len(alerts)} 条预警（页面访问时实时检测）")
-        eval_results = _eval_alert_parallel(alerts)
+        with st.spinner("正在检测预警触发状态…"):
+            eval_results = _eval_alert_parallel(alerts)
         # 浏览器桌面通知去重集合（避免每次自动刷新重复弹窗）
         _notified_ids = st.session_state.setdefault("_alert_notified_ids", set())
         _notify_msgs = []
@@ -434,6 +438,7 @@ def fragment_alerts():
             if st.session_state.get(_ck):
                 if st.button("确认删除", key=f"del_cfm_{aid}", type="primary", use_container_width=True):
                     api_delete(f"/api/price-alerts/{aid}")
+                    _toast("预警已删除")
                     st.session_state.pop(_ck, None)
                 if st.button("取消", key=f"del_cancel_{aid}", use_container_width=True):
                     st.session_state.pop(_ck, None)
@@ -480,3 +485,7 @@ if st.button("🧹 清空通知记录", key="alert_clear_notified",
     st.rerun()
 
 fragment_alerts()
+
+# 加法式 UX：长页面底部「↑ 回到顶部」按钮（前端平滑滚动，不触发整页 rerun）
+if st.button("↑ 回到顶部", key="alert_back_to_top"):
+    components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0, scrolling=False)

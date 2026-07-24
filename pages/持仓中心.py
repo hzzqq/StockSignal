@@ -10,6 +10,7 @@
 """
 import os
 import streamlit as st
+import streamlit.components.v1 as components
 
 from modules.ui_theme import apply_page_config
 apply_page_config(page_title="持仓中心", page_icon="💼", layout="wide")
@@ -53,6 +54,9 @@ def _run_subpage(path: str) -> None:
             exc,
             hint="该子视图加载失败，已隔离。可切换上方视图或刷新页面重试。",
         )
+        # 加法式失败重试：子视图加载异常时提供「🔄 重试」按钮（非 fragment，可用 st.rerun）。
+        if st.button("🔄 重试", key="hub_subpage_retry"):
+            st.rerun()
     finally:
         _uit.apply_page_config, _sess.require_auth, _sess.render_user_badge = _saved
         st.session_state["_embed_active"] = False
@@ -75,3 +79,11 @@ _view = st.radio(
 st.divider()
 with st.spinner(f"正在加载「{_view}」..."):
     _run_subpage(_SUBPAGES[_view])
+
+# 加法式便利：长页面底部「↑ 回到顶部」按钮，通过 session_state 触发滚动。
+st.divider()
+if st.button("↑ 回到顶部", key="hub_top", use_container_width=True):
+    st.session_state["_hub_scroll_top"] = True
+if st.session_state.get("_hub_scroll_top"):
+    components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0)
+    st.session_state["_hub_scroll_top"] = False

@@ -6,6 +6,7 @@
 纯前端聚合，不改动任何主功能逻辑。
 """
 import streamlit as st
+import streamlit.components.v1 as components
 import concurrent.futures as _cf
 import requests
 import pandas as pd
@@ -134,7 +135,9 @@ def fragment_watchlist_monitor():
 
     sc, body = api_get("/api/watchlist", timeout=10)
     if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
-        st.error("加载自选股失败，请刷新重试。")
+        st.error("⚠️ 加载失败，请稍后重试")
+        if st.button("🔄 重试", key="wl_load_retry"):
+            st.rerun(scope="fragment")
         return
 
     items = body.get("data", []) or []
@@ -486,6 +489,7 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
                      "现价": st.column_config.NumberColumn(format="¥%.2f"),
                      "量比": st.column_config.NumberColumn(format="%.2fx"),
                  })
+    st.caption(f"共 {len(df)} 只股票池标的")
     st.caption("涨跌颜色遵循 A股惯例：红涨绿跌。综合/短期/中期/长期为技术评分（0–100，越高越强）。")
 
     # 跳转选择
@@ -557,7 +561,8 @@ def fragment_pool_watchlist():
             id_map = {_norm_code(it["stock_code"]): it.get("id") for it in wl_items
                       if isinstance(it, dict) and it.get("stock_code")}
             scores = _load_scores_map(codes)
-            df_wl = _build_pool_df(codes, scores)
+            with st.spinner("正在计算自选股池技术指标…"):
+                df_wl = _build_pool_df(codes, scores)
 
             def _remove_wl(code: str):
                 item_id = id_map.get(_norm_code(code))
@@ -584,7 +589,8 @@ def fragment_pool_junk():
             id_map = {_norm_code(it["stock_code"]): it.get("id") for it in junk_items
                       if isinstance(it, dict) and it.get("stock_code")}
             scores = _load_scores_map(codes)
-            df_jk = _build_pool_df(codes, scores)
+            with st.spinner("正在计算垃圾股池技术指标…"):
+                df_jk = _build_pool_df(codes, scores)
 
             def _remove_jk(code: str):
                 item_id = id_map.get(_norm_code(code))
@@ -597,3 +603,7 @@ def fragment_pool_junk():
 
 
 fragment_pool_junk()
+
+# 加法式 UX：长页面底部「↑ 回到顶部」按钮（前端平滑滚动，不触发整页 rerun）
+if st.button("↑ 回到顶部", key="wl_back_to_top"):
+    components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0, scrolling=False)

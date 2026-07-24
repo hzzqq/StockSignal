@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 import json
 import os
 from datetime import datetime
+import streamlit.components.v1 as components
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge, get_user, trading_autorefresh
@@ -135,7 +136,9 @@ def fragment_paper():
     st.caption(f"🕒 最近刷新：{datetime.now():%Y-%m-%d %H:%M:%S}")
 
     with safe_section("账户概览"):
-        rows, assets, mv = _recompute(book)
+        # 加法式加载态反馈：刷新各持仓现价属于行情请求，包裹 spinner 提示计算中。
+        with st.spinner("加载持仓行情中…"):
+            rows, assets, mv = _recompute(book)
         pnl_total = assets - book["init_cash"]
         pnl_pct = pnl_total / book["init_cash"] * 100
         c1, c2, c3, c4 = st.columns(4)
@@ -151,7 +154,7 @@ def fragment_paper():
     with col_b:
         st.markdown("**买入**")
         bcode = stock_search_input("买入标的", key="pt_buy")
-        bqty = st.number_input("买入股数", min_value=100, step=100, value=100, key="pt_bqty")
+        bqty = st.number_input("买入股数", min_value=100, step=100, value=100, key="pt_bqty", placeholder="如 100（100 股的整数倍）")
         # UX：代码无效时禁用买入按钮并给出原因，避免误点后才有错误反馈
         _braw = (bcode or "").strip()
         _bok = len(_braw) == 6 and _braw.isdigit()
@@ -191,7 +194,7 @@ def fragment_paper():
     with col_s:
         st.markdown("**卖出**")
         scode = stock_search_input("卖出标的", key="pt_sell")
-        sqty = st.number_input("卖出股数", min_value=100, step=100, value=100, key="pt_sqty")
+        sqty = st.number_input("卖出股数", min_value=100, step=100, value=100, key="pt_sqty", placeholder="如 100（100 股的整数倍）")
         # UX：代码无效或未持仓时禁用卖出按钮 + 前置提示，减少无效点击
         _sraw = (scode or "").strip()
         _sok = len(_sraw) == 6 and _sraw.isdigit()
@@ -234,6 +237,8 @@ def fragment_paper():
     tab_p, tab_t, tab_e = st.tabs(["📦 当前持仓", "🧾 成交记录", "📈 净值曲线"])
 
     with tab_p:
+        # 加法式结果摘要：展示当前持仓条数。
+        st.caption(f"📦 当前持仓：共 {len(rows)} 条")
         if rows:
             dfp = pd.DataFrame(rows)
             # 加法式 UX：默认按盈亏从高到低排序，亏损最大的持仓排在最后，便于聚焦重点
@@ -247,6 +252,8 @@ def fragment_paper():
             _empty_info("暂无持仓。先在上方搜索框输入代码（如 600519 贵州茅台），设置数量后点「买入」开始你的第一笔模拟交易。")
 
     with tab_t:
+        # 加法式结果摘要：展示成交记录条数。
+        st.caption(f"🧾 成交记录：共 {len(book['trades'])} 条")
         if book["trades"]:
             dft = pd.DataFrame(book["trades"])
             # 加法式 UX：成交时间由绝对时间戳改为相对时间（刚刚 / X分钟前 / X小时前 / X天前），
@@ -289,6 +296,15 @@ def fragment_paper():
             book = {"init_cash": INIT_CASH, "cash": INIT_CASH, "positions": {}, "trades": [], "equity": []}
             _save_book(user, book)
             _toast("账户已重置。")
+
+    # 加法式便利：长页面底部「↑ 回到顶部」按钮。点击通过 session_state 触发滚动，
+    # 不使用裸 st.rerun()（fragment 内禁用）。
+    st.divider()
+    if st.button("↑ 回到顶部", key="pt_back_top", use_container_width=True):
+        st.session_state["_pt_scroll_top"] = True
+    if st.session_state.get("_pt_scroll_top"):
+        components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0)
+        st.session_state["_pt_scroll_top"] = False
 
 
 fragment_paper()
