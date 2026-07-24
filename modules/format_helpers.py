@@ -76,3 +76,16 @@ def format_pct(x, dp: int = 2) -> str:
     if v is None:
         return "—"
     return f"{v:.{dp}f}%"
+
+
+def safe_pct(numerator, denominator, default: float = 0.0) -> float:
+    """计算百分比 ``numerator / denominator * 100``，全程防 NaN / inf / 除零。
+
+    用于盈亏率、贡献率等场景：分母缺数据、分子出现 NaN、或分母为 0 时
+    一律返回 ``default``（以百分比原值返回，不再二次缩放），避免 ``nan`` /
+    ``inf`` 静默污染汇总与报告。
+    """
+    ratio = safe_div(numerator, denominator, default=float("nan"))
+    if math.isnan(ratio):
+        return default
+    return ratio * 100

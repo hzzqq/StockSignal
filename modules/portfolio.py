@@ -9,6 +9,7 @@ from datetime import datetime
 import pandas as pd
 
 from .fetcher import StockFetcher, load_config
+from .format_helpers import to_float, safe_pct
 
 
 class PortfolioManager:
@@ -77,13 +78,20 @@ class PortfolioManager:
                 name = self.fetcher.get_stock_name(ticker) or ticker
             except Exception:
                 name = ticker
-        cost = buy_price * shares
+        price = to_float(buy_price)
+        shares_n = to_float(shares)
+        if price is None or price <= 0:
+            raise ValueError("买入价格必须为正数")
+        if shares_n is None or shares_n <= 0:
+            raise ValueError("买入股数必须为正数")
+        shares_int = int(shares_n)
+        cost = price * shares_int
         new_row = pd.DataFrame([{
             "ticker": ticker,
             "name": name,
             "buy_date": buy_date,
-            "buy_price": float(buy_price),
-            "shares": int(shares),
+            "buy_price": price,
+            "shares": shares_int,
             "cost": round(cost, 2),
             "note": note
         }])
@@ -217,13 +225,16 @@ class PortfolioManager:
             except Exception:
                 current_price = float(row["buy_price"])
 
+            # 行情接口可能返回 NaN / inf，落入则静默污染盈亏；兜底回退到买入价
+            current_price = to_float(current_price, default=float(row["buy_price"]))
+
             remaining = int(row.get("remaining_shares", row["shares"]))
             market_value = current_price * remaining
             # 按剩余股数比例分摊成本
             cost_ratio = remaining / row["shares"] if row["shares"] > 0 else 0
             cost = round(row["cost"] * cost_ratio, 2)
             pnl = market_value - cost
-            pnl_pct = (pnl / cost * 100) if cost > 0 else 0
+            pnl_pct = safe_pct(pnl, cost)
 
             results.append({
                 "ticker": row["ticker"],
@@ -259,7 +270,7 @@ class PortfolioManager:
             "total_cost": round(total_cost, 2),
             "total_market_value": round(total_mv, 2),
             "total_pnl": round(total_pnl, 2),
-            "total_pnl_pct": round(total_pnl / total_cost * 100, 2) if total_cost > 0 else 0,
+            "total_pnl_pct": round(safe_pct(total_pnl, total_cost), 2),
             "position_count": len(pnl_df)
         }
 
@@ -311,7 +322,7 @@ class PortfolioManager:
             "pnl": "sum",
         }).reset_index()
         grouped["pnl_pct"] = grouped.apply(
-            lambda r: round(r["pnl"] / r["cost"] * 100, 2) if r["cost"] > 0 else 0,
+            lambda r: round(safe_pct(r["pnl"], r["cost"]), 2),
             axis=1
         )
 
