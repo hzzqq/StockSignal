@@ -32,6 +32,22 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("🎮 模拟交易组合")
 st.caption("虚拟资金练习；持仓持久化到本地，模块独立运行，不影响真实账户。")
 
+def _fmt_rel(ts):
+    from datetime import datetime
+    try:
+        if isinstance(ts, str):
+            ts = datetime.fromisoformat(ts.replace("Z", ""))
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (datetime.now() - ts).total_seconds()
+        if sec < 60: return "刚刚"
+        if sec < 3600: return f"{int(sec // 60)}分钟前"
+        if sec < 86400: return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts is not None else ""
+
+
 FETCHER = StockFetcher()
 INIT_CASH = 1_000_000.0
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
@@ -233,6 +249,10 @@ def fragment_paper():
     with tab_t:
         if book["trades"]:
             dft = pd.DataFrame(book["trades"])
+            # 加法式 UX：成交时间由绝对时间戳改为相对时间（刚刚 / X分钟前 / X小时前 / X天前），
+            # 更直观体现成交距今时长，不改其它字段与排序逻辑。
+            dft["成交时间"] = dft["time"].apply(_fmt_rel)
+            dft = dft.drop(columns=["time"])
             st.dataframe(dft, use_container_width=True, hide_index=True)
         else:
             _empty_info("暂无成交记录。买入成功后，这里会逐笔显示你的成交明细。")

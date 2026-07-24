@@ -52,6 +52,35 @@ def _color(pct):
     return UP if pct >= 0 else DOWN
 
 
+def _fmt_rel(ts):
+    """绝对时间 -> 相对时间：刚刚/X分钟前/X小时前/X天前。"""
+    from datetime import datetime
+    try:
+        if isinstance(ts, str):
+            s = ts.replace("Z", "")
+            if "." in s:
+                s = s[: s.index(".")]
+            s = s.replace("T", " ")
+            try:
+                ts = datetime.fromisoformat(s)
+            except Exception:
+                ts = datetime.strptime(s[:19], "%Y-%m-%d %H:%M:%S")
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (datetime.now() - ts).total_seconds()
+        if sec < 0:
+            return "刚刚"
+        if sec < 60:
+            return "刚刚"
+        if sec < 3600:
+            return f"{int(sec // 60)}分钟前"
+        if sec < 86400:
+            return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts else ""
+
+
 # ───────────────────────── 数据区块 ─────────────────────────
 @st.cache_data(ttl=30, show_spinner=False)
 def _load_watchlist():
@@ -255,7 +284,7 @@ else:
                     except Exception:
                         pass
                 st.markdown((f"~~{title_md}~~" if read else title_md), unsafe_allow_html=True)
-                st.caption(f"{m['type']}　·　{m['detail']}" + (f"　·　{m['time']}" if m["time"] else ""))
+                st.caption(f"{m['type']}　·　{m['detail']}" + (f"　·　{_fmt_rel(m['time'])}" if m["time"] else ""))
             with hc2:
                 if st.button("跳转", key=f"go_{m['id']}", help="前往对应模块"):
                     if m.get("params"):

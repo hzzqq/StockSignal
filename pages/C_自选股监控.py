@@ -328,7 +328,7 @@ def fragment_watchlist_monitor():
     data_time = max(quote_times) if quote_times else "—"
     refresh_tag = " ｜ 🔴 交易时段每 60 秒自动刷新" if _is_trading_now() else ""
     st.caption(
-        f"行情时间：{data_time} ｜ 本页刷新：{datetime.now().strftime('%H:%M:%S')}"
+        f"行情时间：{_rel_time(data_time) if data_time != '—' else '—'} ｜ 本页刷新：{datetime.now().strftime('%H:%M:%S')}"
         f" ｜ 红涨绿跌（A股惯例）{refresh_tag}"
     )
 

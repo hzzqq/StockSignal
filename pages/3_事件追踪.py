@@ -80,6 +80,23 @@ def _news_fallback_url(title: str, source: str = "") -> str:
     return f"https://www.baidu.com/s?wd={quote(q)}"
 
 
+def _fmt_rel(ts):
+    """把绝对时间转换为相对时间：刚刚 / X分钟前 / X小时前 / X天前。"""
+    from datetime import datetime
+    try:
+        if isinstance(ts, str):
+            ts = datetime.fromisoformat(ts.replace("Z", ""))
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (datetime.now() - ts).total_seconds()
+        if sec < 60: return "刚刚"
+        if sec < 3600: return f"{int(sec // 60)}分钟前"
+        if sec < 86400: return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts is not None else ""
+
+
 def _render_news_with_links(df, title_col="title", url_col="url", date_col="date",
                              source_col="source", type_col="type", max_items=50):
     """
@@ -94,7 +111,11 @@ def _render_news_with_links(df, title_col="title", url_col="url", date_col="date
     for i, (_, row) in enumerate(df.head(max_items).iterrows()):
         title = str(row.get(title_col, "")).strip()
         url = str(row.get(url_col, "")).strip()
-        date = str(row.get(date_col, ""))[:10]
+        date_raw = row.get(date_col, None)
+        if date_raw is None or str(date_raw) in ("", "NaT", "nan", "None"):
+            date = ""
+        else:
+            date = _fmt_rel(date_raw)
         source = str(row.get(source_col, "")).strip()
         etype = str(row.get(type_col, "")).strip()
 
@@ -528,10 +549,11 @@ def fragment_timeline():
                 if not events.empty:
                     with st.expander(f"展开查看事件库（共 {len(events)} 条）", expanded=False):
                         events_display = events[["date", "ticker", "title", "type"]].sort_values("date", ascending=False).copy()
+                        events_display["相对时间"] = events_display["date"].apply(lambda d: _fmt_rel(d))
                         st.dataframe(events_display, width="stretch")
                     st.caption(f"共 {len(events)} 条事件")
                 else:
-                    st.info("当前筛选条件下事件库为空。")
+                    st.info("当前筛选条件下事件库为空。可先在上方「股票搜索」选择关注标的并点击「生成时间轴」，或在下方「事件管理」中手动添加事件。")
 
             if st.session_state.get("tl_realtime_events") is not None:
                 st.markdown("#### 🌐 实时爬取最新事件")
@@ -546,7 +568,7 @@ def fragment_timeline():
                             type_col="sentiment"
                         )
                 else:
-                    st.warning("实时爬取未获取到事件，请检查股票代码或网络连接。")
+                    st.warning("实时爬取未获取到事件。请检查股票代码是否正确、网络是否可用；也可在「事件管理」中手动添加关注的事件。")
 
             # 时间轴图表 + 导航控件（key 双向绑定，拖动即重跑 fragment，无需 st.rerun）
             if "tl_df" in st.session_state and st.session_state.tl_df is not None and not st.session_state.tl_df.empty:
@@ -655,11 +677,12 @@ def fragment_event_manage():
         if not events_all.empty:
             st.markdown("#### 现有事件库（全部）")
             events_display = events_all[["date", "ticker", "title", "type"]].sort_values("date", ascending=False).copy()
+            events_display["相对时间"] = events_display["date"].apply(lambda d: _fmt_rel(d))
             events_display["股票"] = events_display["ticker"].apply(
                 lambda x: fetcher._lookup_name_for_code(x) if x else ""
             )
             with st.expander(f"展开查看全部事件库（共 {len(events_display)} 条）", expanded=False):
-                st.dataframe(events_display[["date", "股票", "ticker", "title", "type"]],
+                st.dataframe(events_display[["date", "股票", "ticker", "title", "type", "相对时间"]],
                              width="stretch")
 
     except Exception as module_err:

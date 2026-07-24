@@ -97,6 +97,35 @@ def _fmt_pct(v):
         return "—"
 
 
+def _fmt_rel(ts):
+    """把绝对时间戳转成相对时间（刚刚 / X分钟前 / X小时前 / X天前）。"""
+    from datetime import datetime as _dt
+    try:
+        if isinstance(ts, str):
+            s = ts.strip().replace("Z", "")
+            for _fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S",
+                         "%Y-%m-%d %H:%M", "%Y-%m-%d", "%Y-%m-%dT%H:%M"):
+                try:
+                    ts = _dt.strptime(s, _fmt)
+                    break
+                except ValueError:
+                    continue
+            else:
+                return s
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (_dt.now() - ts).total_seconds()
+        if sec < 60:
+            return "刚刚"
+        if sec < 3600:
+            return f"{int(sec // 60)}分钟前"
+        if sec < 86400:
+            return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts is not None else ""
+
+
 # ───────────────────────── 板块概览 ─────────────────────────
 @safe_fragment
 def fragment_sector_summary():
@@ -267,9 +296,9 @@ def fragment_watchlist_and_news():
                     date_s = str(r.get("date") or "")
                     source_s = str(r.get("source") or "")
                     if url:
-                        st.markdown(f"- {date_s}  **[{title}]({url})**  _{source_s}_")
+                        st.markdown(f"- {_fmt_rel(date_s)}  **[{title}]({url})**  _{source_s}_")
                     else:
-                        st.markdown(f"- {date_s}  **{title}**  _{source_s}_")
+                        st.markdown(f"- {_fmt_rel(date_s)}  **{title}**  _{source_s}_")
             else:
                 st.info(f"暂无与 {selected_name} 相关的新闻。可尝试切换其它自选股，或稍后重试（资讯源每日更新）。")
 
@@ -416,7 +445,8 @@ def fragment_review_notes():
         if _content.strip():
             st.markdown(_content, unsafe_allow_html=True)
         else:
-            st.info("（空白）")
+            st.info("该日暂无复盘内容。可在上方文本框记录今日盘面、操作与明日计划，编辑即自动保存到本地；"
+                     "也可点「🔍 查询」切换其它日期查看历史复盘。")
 
     note_date_s = _render_toolbar()
     _render_editor(note_date_s)

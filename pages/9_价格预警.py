@@ -32,6 +32,35 @@ import streamlit.components.v1 as components
 from modules.fundflow import _ensure_proxy_and_ssl
 _ensure_proxy_and_ssl()
 
+def _fmt_rel(ts):
+    """把绝对时间戳转成相对时间（刚刚 / X分钟前 / X小时前 / X天前）。"""
+    from datetime import datetime as _dt
+    try:
+        if isinstance(ts, str):
+            s = ts.strip().replace("Z", "")
+            for _fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S",
+                         "%Y-%m-%d %H:%M", "%Y-%m-%d", "%Y-%m-%dT%H:%M"):
+                try:
+                    ts = _dt.strptime(s, _fmt)
+                    break
+                except ValueError:
+                    continue
+            else:
+                return s
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (_dt.now() - ts).total_seconds()
+        if sec < 60:
+            return "刚刚"
+        if sec < 3600:
+            return f"{int(sec // 60)}分钟前"
+        if sec < 86400:
+            return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts is not None else ""
+
+
 apply_page_config(page_title="多维预警", page_icon="🔔", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
@@ -391,7 +420,7 @@ def fragment_alerts():
             st.markdown(
                 f"{ALERT_TYPE_LABEL.get(atype, atype)} **{display_name}** "
                 f"`{code}` ｜ {desc}",
-                help=f"创建于 {str(a.get('created_at', ''))[:19]}\n检测：{detail}",
+                help=f"创建于 {_fmt_rel(a.get('created_at'))}\n检测：{detail}",
             )
         with col_status:
             st.markdown(f'<span class="{status_cls}">{status_txt}</span>', unsafe_allow_html=True)

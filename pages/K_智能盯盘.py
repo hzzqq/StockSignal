@@ -351,7 +351,7 @@ def fragment_watchlist():
         st.error(err)
         return
     if not items:
-        _empty_info("自选股为空，请先添加关注的股票。")
+        _empty_info("自选股为空，暂无盯盘项。请先添加关注的股票（可前往「形态选股」或行情看板一键关注），添加后本页将自动聚合异动信号。")
         if st.button("➡️ 去形态选股添加", key="wl_empty_go"):
             safe_switch_page("pages/B_形态选股.py")
         return
@@ -451,7 +451,7 @@ def fragment_individual_ff():
         st.error(err)
         return
     if not items:
-        _empty_info("自选股为空，暂无法展示个股资金流。")
+        _empty_info("自选股为空，暂无盯盘项，暂无法展示个股资金流。请先添加关注的股票（可前往「形态选股」一键关注）。")
         if st.button("➡️ 去形态选股添加", key="iff_empty_go"):
             safe_switch_page("pages/B_形态选股.py")
         return
@@ -544,7 +544,7 @@ def fragment_alerts():
         st.error(err)
         return
     if not items:
-        _empty_info("自选股为空，暂无可扫描标的。")
+        _empty_info("自选股为空，暂无盯盘项，暂无可扫描标的。请先添加关注的股票，预警扫描才能生效。")
         return
 
     codes = [c for c, _ in items]
@@ -646,7 +646,7 @@ def fragment_watch_manage():
         else:
             st.warning("请输入 6 位数字代码（如 600519）")
     if not items:
-        _empty_info("自选股为空，可在「形态选股」或行情看板添加关注。")
+        _empty_info("自选股为空，暂无盯盘项。可在「形态选股」或行情看板添加关注，也可直接在上方输入框添加 6 位代码。")
         if st.button("➡️ 去形态选股添加", key="wm_empty_go"):
             safe_switch_page("pages/B_形态选股.py")
         return

@@ -57,6 +57,22 @@ def _fmt_int(x):
         return "—"
     return f"{int(v):,}"
 
+
+def _fmt_rel(ts):
+    from datetime import datetime
+    try:
+        if isinstance(ts, str):
+            ts = datetime.fromisoformat(ts.replace("Z", ""))
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (datetime.now() - ts).total_seconds()
+        if sec < 60: return "刚刚"
+        if sec < 3600: return f"{int(sec // 60)}分钟前"
+        if sec < 86400: return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts is not None else ""
+
 # 鉴权门禁
 require_auth()
 render_user_badge(sidebar=True)
@@ -124,7 +140,9 @@ else:
     # 加法式健壮性：上游持仓 schema 漂移可能缺 buy_date/note 列，
     # 直接赋值会抛 KeyError 让「持仓概览」整段崩溃。列存在才填充，缺失则留空列。
     if "buy_date" in display_pos.columns:
-        display_pos["买入日期"] = display_pos["buy_date"]
+        # 加法式 UX：建仓时间由日期改为相对时间（刚刚 / X分钟前 / X小时前 / X天前），
+        # 更直观体现持仓距今时长，不改其它列与排序。
+        display_pos["买入日期"] = display_pos["buy_date"].apply(_fmt_rel)
     if "note" in display_pos.columns:
         display_pos["备注"] = display_pos["note"].fillna("")
     else:
@@ -257,7 +275,7 @@ else:
     sellable_positions = positions.copy()
 
 if sellable_positions.empty:
-    st.info("当前没有可卖出的持仓。")
+    st.info("当前没有可卖出的持仓。请先在上方「买入股票」录入一笔持仓（代码、价格、股数）后，再来这里卖出。")
 else:
     sell_quote = None
     with st.form("sell_position_form"):
@@ -467,6 +485,9 @@ if not positions.empty:
                 display_pnl["已实现盈亏"] = display_pnl["realized_pnl"].apply(_fmt_money)
                 display_pnl["浮动盈亏"] = display_pnl["pnl"].apply(_fmt_money)
                 display_pnl["收益率"] = display_pnl["pnl_pct"].apply(_fmt_signed_pct)
+                # 加法式 UX：建仓时间由日期改为相对时间（刚刚 / X分钟前 / X小时前 / X天前）
+                if "buy_date" in display_pnl.columns:
+                    display_pnl["建仓时间"] = display_pnl["buy_date"].apply(_fmt_rel)
                 # 加法式 UX：默认按收益率从高到低排序，盈利/亏损最显著的持仓优先展示
                 display_pnl = display_pnl.sort_values(
                     "pnl_pct", ascending=False,
@@ -474,7 +495,7 @@ if not positions.empty:
                     ignore_index=True,
                 )
                 pnl_cols = [
-                    "股票", "ticker", "buy_date", "买入价", "买入股数", "剩余股数",
+                    "股票", "ticker", "建仓时间", "买入价", "买入股数", "剩余股数",
                     "现价", "市值", "已实现盈亏", "浮动盈亏", "收益率"
                 ]
                 pnl_cols = [c for c in pnl_cols if c in display_pnl.columns]

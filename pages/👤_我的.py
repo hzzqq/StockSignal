@@ -45,6 +45,35 @@ def _cached_get(url, headers, ttl=10):
     return _resp
 
 
+def _fmt_rel(ts):
+    """绝对时间 -> 相对时间：刚刚/X分钟前/X小时前/X天前。"""
+    from datetime import datetime
+    try:
+        if isinstance(ts, str):
+            s = ts.replace("Z", "")
+            if "." in s:
+                s = s[: s.index(".")]
+            s = s.replace("T", " ")
+            try:
+                ts = datetime.fromisoformat(s)
+            except Exception:
+                ts = datetime.strptime(s[:19], "%Y-%m-%d %H:%M:%S")
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (datetime.now() - ts).total_seconds()
+        if sec < 0:
+            return "刚刚"
+        if sec < 60:
+            return "刚刚"
+        if sec < 3600:
+            return f"{int(sec // 60)}分钟前"
+        if sec < 86400:
+            return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts else ""
+
+
 def render_preferences():
     """偏好设置（由独立的设置页合并而来）。
 
@@ -319,6 +348,8 @@ with col1:
     st.markdown(f"**用户名：** {_username}")
     st.markdown(f"**角色：** {'管理员' if user.get('role') == 'admin' else '普通用户'}")
     st.markdown(f"**登录时间：** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    if not _cur_avatar:
+        st.info("💡 资料尚未完善：上传头像让投资体验更个性化，也可在下方「账号绑定」中绑定邮箱 / 手机。")
 
 with col2:
     st.markdown("### 快捷入口")
@@ -406,7 +437,7 @@ try:
             import pandas as pd
             _hist = [
                 {
-                    "时间": (str(r.get("created_at", ""))[:19].replace("T", " ")),
+                    "时间": _fmt_rel(r.get("created_at", "")),
                     "账号": r.get("username", "-"),
                     "操作": r.get("action", "-"),
                     "详情": r.get("detail", "") or "—",

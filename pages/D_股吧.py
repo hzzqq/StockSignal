@@ -120,6 +120,9 @@ def fragment_detail():
 
     st.markdown("---")
     st.markdown(post.get("content", ""))
+    if not (post.get("content") or "").strip():
+        _empty_info("这条主题暂无正文内容。点击左上角「← 返回列表」浏览其他讨论，"
+                    "或到列表顶部用「标题 + 正文」发布你的主题。")
     st.markdown("---")
 
     ca1, ca2, _ = st.columns([0.2, 0.2, 0.6])

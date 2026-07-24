@@ -605,6 +605,9 @@ def _render_analysis(R: dict):
         st.markdown(_factor_list_html("利好清单（全集）", rise_factors), unsafe_allow_html=True)
     with col_fall:
         st.markdown(_factor_list_html("利空清单（全集）", fall_factors), unsafe_allow_html=True)
+    # 利好/利空清单空态引导（加法式）：两列均无因素数据时给出指引，而非空白卡片。
+    if not rise_factors and not fall_factors:
+        _empty_info("暂未提取到利好 / 利空因素（数据缺失或该标的尚未生成）。可重新生成分析，或检查行情与新闻数据源。")
 
     # ════════════ 新增模块：多空逻辑与致命风险 ════════════
     rise_logic, fall_logic, fatal_logic = _build_logic_lists(R)
