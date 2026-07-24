@@ -45,6 +45,16 @@ class SignalEngine:
             return 50
 
     @staticmethod
+    def strength_label(score):
+        """把 0-100 综合得分映射为信号强度档位：强(>=70) / 中(50-69) / 弱(<50)。"""
+        s = SignalEngine._clamp(score)
+        if s >= 70:
+            return "强"
+        if s >= 50:
+            return "中"
+        return "弱"
+
+    @staticmethod
     def _stable_offset(ticker: str, scale: float = 5.0) -> float:
         """确定性微偏移（±scale）。
 
@@ -66,6 +76,8 @@ class SignalEngine:
     def _score_by_return(r, breaks, scores):
         """把涨跌幅 r 映射到 0-100：breaks 降序阈值，scores 对应得分（线性插值）。"""
         r = float(r)
+        if pd.isna(r):
+            return 50  # 缺失行情 → 中性分，而非落到最低档
         if r >= breaks[0]:
             return scores[0]
         for i in range(1, len(breaks)):
@@ -222,7 +234,11 @@ class SignalEngine:
                 date_ts = pd.Timestamp(date)
                 events = events[events["date"] >= date_ts - timedelta(days=30)]
 
-            matched = events[events["title"].str.contains("|".join(keywords), na=False, regex=True)]
+            if keywords:
+                matched = events[events["title"].str.contains("|".join(keywords), na=False, regex=True)]
+            else:
+                # 空关键词不应匹配任何事件（空正则 "" 会命中全部，属隐性 bug）
+                matched = events.iloc[0:0]
             matched = matched[matched["ticker"].str.contains(ticker, na=False) | matched["ticker"].isna()]
 
             for _, evt in matched.iterrows():
@@ -388,7 +404,7 @@ class SignalEngine:
                 df = DataCleaner.full_pipeline(df)
                 tp = self.technical_profile(df, date)
                 p_score = tp["composite"]
-            except (RuntimeError, ValueError, Exception) as e:
+            except Exception as e:
                 p_score = 50
                 tp = {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50}
                 print(f"[SignalEngine] 传入行情清洗失败({ticker})，价格信号使用中性分50: {e}")
