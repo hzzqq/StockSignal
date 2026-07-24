@@ -165,7 +165,7 @@ def create_app(config_object: type = Config) -> Flask:
 def _register_error_handlers(app: Flask) -> None:
     @app.errorhandler(ApiError)
     def _api_error(err: ApiError):
-        return fail(message=err.message, code=err.code, http_status=err.status)
+        return err.to_response()
 
     @app.errorhandler(HTTPException)
     def _http_error(err: HTTPException):

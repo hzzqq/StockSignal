@@ -6,6 +6,8 @@ utils/errors.py
 """
 from __future__ import annotations
 
+from .response import fail
+
 
 class ApiError(Exception):
     """
@@ -23,7 +25,11 @@ class ApiError(Exception):
         self.code = code
 
     def to_dict(self) -> dict:
-        return {"message": self.message, "code": self.code}
+        return {"message": self.message, "code": self.code, "status": self.status}
+
+    def to_response(self):
+        """直接产出标准 JSON 错误响应（单一可信源，供全局 errorhandler 复用）。"""
+        return fail(message=self.message, code=self.code, http_status=self.status)
 
 
 class AuthError(ApiError):
