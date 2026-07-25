@@ -35,6 +35,22 @@ with _pl2:
 with _pl3:
     st.page_link("pages/9_价格预警.py", label="🔔 价格预警", icon="🔔")
 
+# 可折叠使用说明 / 快捷键提示（#Batch20-5 / #Batch20-9）：集合式帮助，纯前端折叠
+with st.expander("💡 使用说明 / 常见问题"):
+    st.markdown(
+        "- **筛选条件**：按关键字 / 类型 / 涨跌幅区间 / 最小成交额过滤 ETF，并可排序。\n"
+        "- **走势图**：可切换「线 / 柱 / 面积」三种图表类型查看涨跌幅分布。\n"
+        "- **收藏与批量**：用多选框勾选若干 ETF，可批量加入收藏或移出。\n"
+        "- **手动刷新**：点击「🔄 刷新行情」重新拉取实时数据（失败自动降级样本）。\n"
+        "- **风险提示**：筛选器仅为信息聚合，不构成任何投资建议。"
+    )
+with st.expander("⌨️ 快捷键提示"):
+    st.markdown(
+        "- 本页以鼠标 / 触控操作为主，无全局键盘快捷键。\n"
+        "- 长表格滚动后点击「↑ 回到顶部」可一键回顶。\n"
+        "- 走势图类型用「线 / 柱 / 面积」单选按钮即时切换。"
+    )
+
 
 # 内置样本（网络不可用时使用），覆盖主流宽基 / 行业 / 债券 / 货币 ETF
 SAMPLE = [
@@ -89,6 +105,10 @@ def _etf_filter_fragment():
         with st.spinner("⏳ 正在加载 ETF 行情…"):
             df, src = _load_etfs()
         st.success(f"数据来源：{src}　·　共 {len(df)} 只", icon="📡")
+        # 手动刷新（#Batch20-1）：清缓存并重跑本 fragment 重新拉取行情
+        if st.button("🔄 刷新行情", key="etf_manual_refresh"):
+            _load_etfs.clear()
+            st.rerun(scope="fragment")
         # 空态守卫：接口与降级样本均未返回记录时显式提示，避免「共 0 只」后
         # 筛选控件/结果区一片空白、用户不知发生了什么
         if df is None or df.empty:
@@ -96,6 +116,12 @@ def _etf_filter_fragment():
             return
 
         # ── 筛选器 ──
+        # 偏好记忆（#Batch20-10）：session 内记住上次筛选偏好，下次自动套用
+        for _pk, _sk in [("etf_rem_type", "etf_type"), ("etf_rem_amt", "etf_amt"),
+                         ("etf_rem_chg", "etf_chg"), ("etf_rem_kw", "etf_kw"),
+                         ("etf_rem_sort", "etf_sort"), ("etf_rem_asc", "etf_asc")]:
+            if _sk not in st.session_state and st.session_state.get(_pk) is not None:
+                st.session_state[_sk] = st.session_state[_pk]
         st.markdown("### 🎚️ 筛选条件")
         f1, f2, f3, f4 = st.columns(4)
         with f1:
@@ -149,6 +175,14 @@ def _etf_filter_fragment():
                 res = res.sort_values(sort_col, ascending=asc, na_position="last")
         else:
             _empty_info("可用排序字段缺失（行情列结构异常），已跳过排序。")
+        # 记忆当前筛选偏好（#Batch20-10）：session 级自动套用
+        st.session_state["etf_rem_type"] = ftype
+        st.session_state["etf_rem_amt"] = min_amt
+        st.session_state["etf_rem_chg"] = chg_range
+        st.session_state["etf_rem_kw"] = kw
+        if sort_opts:
+            st.session_state["etf_rem_sort"] = sort_col
+            st.session_state["etf_rem_asc"] = asc
 
         st.markdown(f"### 📋 筛选结果（{len(res)} 只）")
         # 指标/字段说明 tooltip（#Batch19-6）：关键列含义解释
@@ -187,6 +221,62 @@ def _etf_filter_fragment():
             else:
                 sty = disp.style
             st.dataframe(sty, use_container_width=True, hide_index=True, height=560)
+
+            # 图表类型切换（#Batch20-8）：走势图 line/柱/面积，session_state 控制，不改数据
+            st.markdown("### 📈 涨跌幅走势（按成交额 Top 15）")
+            _ct_opts = ["线", "柱", "面积"]
+            _ct = st.radio("图表类型", _ct_opts, horizontal=True, key="etf_chart_radio",
+                           index=_ct_opts.index(st.session_state.get("etf_chart_type", "线")))
+            st.session_state["etf_chart_type"] = _ct
+            _chart_df = res.copy()
+            if "涨跌幅" in _chart_df.columns and "成交额" in _chart_df.columns:
+                _chart_df["成交额"] = pd.to_numeric(_chart_df["成交额"], errors="coerce")
+                _chart_df = _chart_df.dropna(subset=["涨跌幅", "成交额"]).sort_values("成交额", ascending=False).head(15)
+                _chart_series = _chart_df.set_index("名称")["涨跌幅"]
+                if _ct == "线":
+                    st.line_chart(_chart_series)
+                elif _ct == "柱":
+                    st.bar_chart(_chart_series)
+                else:
+                    st.area_chart(_chart_series)
+            else:
+                st.caption("当前数据缺少「涨跌幅 / 成交额」列，暂无法绘制走势图。")
+
+            # 收藏 / 批量选择 + 操作（#Batch20-3 / #Batch20-6）：前端星标集合 + 批量按钮
+            _codes = res["代码"].astype(str).tolist() if "代码" in res.columns else []
+            if _codes:
+                _sel = st.multiselect("☑ 选择 ETF（可批量收藏）", _codes, key="etf_batch_sel",
+                                      help="勾选若干 ETF，下方可批量加入收藏")
+                _favs = st.session_state.setdefault("etf_fav_set", set())
+                b1, b2, b3 = st.columns(3)
+                with b1:
+                    if st.button("⭐ 批量收藏", key="etf_batch_fav", use_container_width=True):
+                        _favs.update(_sel)
+                with b2:
+                    if st.button("➖ 移出收藏", key="etf_batch_unfav", use_container_width=True):
+                        _favs.difference_update(_sel)
+                with b3:
+                    if st.button("🧹 清空选择", key="etf_batch_clear", use_container_width=True):
+                        st.session_state["etf_batch_sel"] = []
+            _favs = st.session_state.get("etf_fav_set", set())
+            if _favs:
+                st.caption(f"⭐ 已收藏 {len(_favs)} 只：" + "、".join(sorted(_favs)))
+
+            # 相关推荐块（#Batch20-4）：底部相关 ETF 推荐
+            _rec = res.copy()
+            if "成交额" in _rec.columns and "涨跌幅" in _rec.columns:
+                _rec["成交额"] = pd.to_numeric(_rec["成交额"], errors="coerce")
+                _rec["涨跌幅"] = pd.to_numeric(_rec["涨跌幅"], errors="coerce")
+                _rec = _rec.dropna(subset=["成交额"]).sort_values("成交额", ascending=False).head(3)
+                if not _rec.empty:
+                    st.markdown("---")
+                    st.subheader("🧰 相关 ETF 推荐（按成交额）")
+                    for _i, (_, rr) in enumerate(_rec.iterrows()):
+                        st.markdown(
+                            f"**{rr.get('名称', '?')}**  \n`{rr.get('代码', '?')}`  \n"
+                            f"涨跌幅 {float(rr.get('涨跌幅', 0) or 0):.2f}%  ·  "
+                            f"最新价 {rr.get('最新价', '—')}"
+                        )
 
         st.caption("提示：本筛选器仅为信息聚合，不构成任何投资建议。")
 

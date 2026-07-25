@@ -204,6 +204,10 @@ def _build_system():
 if "msg_read_ids" not in st.session_state:
     st.session_state["msg_read_ids"] = set()
 
+# 加法式收藏/星标（session 级，不接后端）
+if "msg_starred" not in st.session_state:
+    st.session_state["msg_starred"] = set()
+
 
 def _all_messages():
     msgs = []
@@ -279,8 +283,12 @@ if st.button("🔄 重新加载", key="msg_reload", use_container_width=False):
 
 # ───────────────────────── 筛选 ─────────────────────────
 TYPES = ["全部", "异动", "社区", "系统"]
+# 加法式偏好记忆：用 key 将上次选择的类型筛选项存入 session_state，
+# 下次进入本页自动套用（仅 session 级，不落库）。
 _filt = st.radio("类型筛选", TYPES, horizontal=True, label_visibility="collapsed",
-                   help="按消息类型过滤：异动（自选股涨跌）、社区（股吧动态）、系统（数据源与健康提示）。")
+                 index=TYPES.index(st.session_state.get("msg_type_filter", "全部")),
+                 key="msg_type_filter",
+                 help="按消息类型过滤：异动（自选股涨跌）、社区（股吧动态）、系统（数据源与健康提示）。")
 shown = msgs if _filt == "全部" else [m for m in msgs if m["type"] == _filt]
 
 # 加法式列表内搜索/筛选：纯前端关键词过滤（不改后端、不改原有数据获取）
@@ -314,7 +322,11 @@ else:
                 # 标题含 "%" 但解析不出涨跌数（如社区消息 "35% 折扣"），降级灰色边框而非崩溃
                 border_col = "#888"
         with st.container(border=True):
-            hc1, hc2 = st.columns([11, 1])
+            # 加法式批量选择+操作：每行加勾选框（纯前端 session_state）
+            hc0, hc1, hc2, hc3 = st.columns([1, 9, 1, 1])
+            with hc0:
+                st.checkbox("", key=f"sel_{m['id']}", label_visibility="collapsed",
+                            help="勾选后可在下方批量操作")
             with hc1:
                 title_md = m["title"]
                 if m["type"] == "异动":
@@ -325,21 +337,61 @@ else:
                         pass
                 st.markdown((f"~~{title_md}~~" if read else title_md), unsafe_allow_html=True)
                 st.caption(f"{m['type']}　·　{m['detail']}" + (f"　·　{_fmt_rel(m['time'])}" if m["time"] else ""))
+                if not read and st.button("标为已读", key=f"rd_{m['id']}", help="标记为已读"):
+                    st.session_state["msg_read_ids"].add(m["id"])
+                    st.rerun()
             with hc2:
                 if st.button("跳转", key=f"go_{m['id']}", help="前往对应模块"):
                     if m.get("params"):
                         for k, v in m["params"].items():
                             st.query_params[k] = v
                     safe_switch_page(m["target"])
-            if not read and st.button("标为已读", key=f"rd_{m['id']}", help="标记为已读"):
-                st.session_state["msg_read_ids"].add(m["id"])
-                st.rerun()
+            with hc3:
+                # 加法式收藏/星标：星标当前消息（纯前端 session_state，不接后端）
+                _starred = m["id"] in st.session_state["msg_starred"]
+                if st.button("⭐" if _starred else "☆", key=f"star_{m['id']}",
+                             help="收藏 / 取消收藏该消息"):
+                    if _starred:
+                        st.session_state["msg_starred"].discard(m["id"])
+                    else:
+                        st.session_state["msg_starred"].add(m["id"])
+                    st.rerun()
     # 加法式加载更多：仅前端分页，不删原数据
     if st.session_state["msg_show_n"] < len(shown):
         if st.button("显示更多 ▼", key="msg_more", use_container_width=False,
                      help="每次多显示 10 条消息（仅前端分页）。"):
             st.session_state["msg_show_n"] += _MSG_STEP
             st.rerun()
+
+# 加法式批量选择+操作：对勾选的消息执行批量标为已读 / 批量取消收藏
+_sel_ids = [m["id"] for m in shown if st.session_state.get(f"sel_{m['id']}", False)]
+if _sel_ids:
+    st.markdown("---")
+    _bc1, _bc2 = st.columns(2)
+    with _bc1:
+        if st.button("✅ 批量标为已读", key="msg_batch_read", use_container_width=True,
+                     help="将当前勾选的消息全部标记为已读（仅本会话生效）。"):
+            st.session_state["msg_read_ids"].update(_sel_ids)
+            for _id in _sel_ids:
+                st.session_state.pop(f"sel_{_id}", None)
+            st.rerun()
+    with _bc2:
+        if st.button("🗑️ 批量取消收藏", key="msg_batch_unstar", use_container_width=True,
+                     help="取消勾选消息的收藏标记（仅本会话生效）。"):
+            st.session_state["msg_starred"] -= set(_sel_ids)
+            for _id in _sel_ids:
+                st.session_state.pop(f"sel_{_id}", None)
+            st.rerun()
+
+# 加法式收藏/星标：展示用户收藏的消息（纯前端 session，不接后端）
+_msg_starred_ids = st.session_state.get("msg_starred", set())
+if _msg_starred_ids:
+    st.markdown("---")
+    st.markdown("**⭐ 我的收藏**")
+    for _sm in [m for m in msgs if m["id"] in _msg_starred_ids]:
+        with st.container(border=True):
+            st.markdown(_sm["title"], unsafe_allow_html=True)
+            st.caption(f"{_sm['type']}　·　{_sm['detail']}")
 
 # 加法式数据来源标注
 st.caption("📡 数据来源：自选股实时行情（东方财富 / 新浪财经）、股吧社区动态、系统数据源健康度监控")

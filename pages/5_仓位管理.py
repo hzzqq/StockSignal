@@ -4,6 +4,7 @@
 """
 
 import os
+import json
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -22,6 +23,33 @@ with _c1:
     st.page_link("pages/N_模拟交易.py", label="🎮 前往模拟交易", icon="🎮")
 with _c2:
     st.page_link("pages/H_组合收益.py", label="📈 前往组合收益", icon="📈")
+
+# 加法式（Batch20·手动刷新）：顶部刷新按钮，顶层安全（非 fragment）。
+if st.button("🔄 刷新", key="pm_refresh_top", help="重新加载本页持仓与行情"):
+    st.rerun()
+# 加法式（Batch20·最近浏览历史）：展示最近提交买卖的标的（纯前端 session）。
+st.session_state.setdefault("_pm_recent", [])
+if st.session_state["_pm_recent"]:
+    st.caption("🕘 最近浏览：" + "  ".join(f"`{c}`" for c in st.session_state["_pm_recent"][-6:][::-1]))
+
+# 加法式（Batch20·偏好记忆）：把默认股数持久化到本地预置文件，跨页面导航保留。
+_PM_PREF_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "pm_prefs.json")
+def _load_pm_pref(k, d):
+    try:
+        if os.path.exists(_PM_PREF_PATH):
+            return json.load(open(_PM_PREF_PATH, encoding="utf-8")).get(k, d)
+    except Exception:
+        pass
+    return d
+def _save_pm_pref(k, v):
+    try:
+        _d = {}
+        if os.path.exists(_PM_PREF_PATH):
+            _d = json.load(open(_PM_PREF_PATH, encoding="utf-8"))
+        _d[k] = v
+        json.dump(_d, open(_PM_PREF_PATH, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
 from modules.portfolio import PortfolioManager
 from modules.visualizer import Visualizer
@@ -89,9 +117,9 @@ render_user_badge(sidebar=True)
 pm = PortfolioManager()
 fetcher = StockFetcher()
 
-# 初始化 session_state 默认值
+# 初始化 session_state 默认值（Batch20·偏好记忆：从预置文件读取上次记忆的默认股数）
 if "default_shares" not in st.session_state:
-    st.session_state.default_shares = 1000
+    st.session_state.default_shares = _load_pm_pref("default_shares", 1000)
 
 
 def format_quote_table(quote):
@@ -177,6 +205,48 @@ else:
     if len(display_pos) > _pshow_n:
         if st.button("显示更多 ▼", key="pm_pos_more"):
             st.session_state[_pshow_key] = min(_pshow_n + 10, len(display_pos))
+    # 加法式（Batch20·批量选择+操作）：持仓概览项复选，批量加自选 / 批量平仓。
+    st.markdown("**批量操作（持仓概览）**")
+    _pm_sel = []
+    if not positions.empty:
+        for _i, _pr in positions.iterrows():
+            _t = _pr["ticker"]
+            if st.checkbox(f"选择 {_t}", key=f"pm_sel_{_t}"):
+                _pm_sel.append(_t)
+    if _pm_sel:
+        _pb1, _pb2 = st.columns(2)
+        with _pb1:
+            if st.button("⭐ 批量加自选", key="pm_batch_fav", use_container_width=True):
+                try:
+                    from modules.admin_api import add_watchlist
+                    for _t in _pm_sel:
+                        add_watchlist(_t)
+                    _toast(f"已加自选：{', '.join(_pm_sel)}")
+                except Exception as e:
+                    st.error(f"批量加自选失败：{e}")
+        with _pb2:
+            if st.button("📤 批量平仓", key="pm_batch_close", use_container_width=True):
+                try:
+                    for _t in _pm_sel:
+                        _q = api_quote(_t) or fetcher.get_realtime_quote(_t)
+                        _p = _q.get("current") if _q else None
+                        if _p is None:
+                            _ks = (datetime.now() - pd.Timedelta(days=10)).strftime("%Y-%m-%d")
+                            _ke = datetime.now().strftime("%Y-%m-%d")
+                            _rec = api_kline(_t, start=_ks, end=_ke)
+                            _pdf = pd.DataFrame(_rec) if _rec is not None else fetcher.get_daily(_t, start=_ks, end=_ke)
+                            _p = float(_pdf.iloc[-1]["close"]) if _pdf is not None and not _pdf.empty else None
+                        if _p is None:
+                            st.warning(f"无法获取 {_t} 现价，跳过平仓。")
+                            continue
+                        _ss = pm.get_sellable_shares(_t)
+                        if _ss and _ss > 0:
+                            pm.sell_position(ticker=_t, sell_date=datetime.now().strftime("%Y-%m-%d"),
+                                             sell_price=float(_p), sell_shares=int(_ss), note="批量平仓")
+                    _toast(f"已批量平仓：{', '.join(_pm_sel)}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"批量平仓失败：{e}")
 
 st.markdown("---")
 
@@ -191,6 +261,7 @@ quick_cols = st.columns(5)
 for col, qv in zip(quick_cols, [100, 500, 1000, 2000, 5000]):
     if col.button(f"{qv:,} 股", width="stretch", key=f"buy_quick_{qv}"):
         st.session_state.default_shares = qv
+        _save_pm_pref("default_shares", qv)
         st.rerun()
 
 buy_quote = None
@@ -264,6 +335,9 @@ with st.form("buy_position_form"):
             placeholder="如 20.00",
             help="默认按卖一价填充，可手动修改为卖二价或其他实际成交价"
         )
+        # 加法式（Batch20·输入内联校验）：买入价非正时实时告警。
+        if buy_price <= 0:
+            st.error("⚠️ 买入成交价必须大于 0。")
     with col3:
         buy_shares = st.number_input(
             "📊 买入股数",
@@ -272,6 +346,9 @@ with st.form("buy_position_form"):
             placeholder="如 1000",
             help="点击 ± 按钮步进调节，或直接输入数字"
         )
+        # 加法式（Batch20·输入内联校验）：买入股数非 100 整数倍时实时警告。
+        if buy_shares < 100 or buy_shares % 100 != 0:
+            st.warning("⚠️ 买入股数建议为 100 股整数倍（A 股最小交易单位）。")
         buy_note = st.text_input("备注", value="", key="buy_note",
                                  placeholder="如：建仓理由 / 止盈目标",
                                  help="为该笔持仓添加备注（如建仓理由、止盈目标），便于后续回顾。")
@@ -289,6 +366,8 @@ if buy_submitted:
             f"买入成功: {buy_label} ({buy_ticker}) "
             f"{int(buy_shares):,}股 @¥{buy_price:.2f}"
         )
+        # 加法式（Batch20·最近浏览历史）：记录本次买入标的。
+        st.session_state["_pm_recent"] = ([buy_ticker] + [x for x in st.session_state["_pm_recent"] if x != buy_ticker])[:10]
         st.rerun()
     except Exception as e:
         st.error(f"买入失败: {e}")
@@ -301,6 +380,16 @@ if st.button("⭐ ＋自选（当前买入标的）", key="pm_add_watch", use_co
         _toast(f"已加入自选：{buy_label} ({buy_ticker})")
     except Exception as e:
         st.error(f"加入自选失败：{e}")
+
+# 加法式（Batch20·收藏/星标）：把当前买入标的加入本地星标集合（纯前端 session）。
+if st.button("⭐ 收藏（本地星标）", key="pm_fav_add", use_container_width=True):
+    st.session_state.setdefault("_pm_fav", [])
+    _ft = (buy_ticker or "").strip()
+    if _ft and _ft not in st.session_state["_pm_fav"]:
+        st.session_state["_pm_fav"].append(_ft)
+        _toast(f"已收藏（星标）：{_ft}")
+    else:
+        st.warning("该标的已收藏或代码为空。")
 
 st.markdown("---")
 
@@ -402,6 +491,11 @@ else:
                 placeholder="如 1000",
                 help="最多可卖剩余股数"
             )
+            # 加法式（Batch20·输入内联校验）：数量非 100 整数倍 / 超可卖时实时告警。
+            if sell_shares < 100 or sell_shares % 100 != 0:
+                st.warning("⚠️ 卖出股数建议为 100 股整数倍。")
+            elif sell_shares > sellable_shares:
+                st.error("⚠️ 卖出股数超过可卖数量。")
             sell_note = st.text_input("备注", value="", key="sell_note", placeholder="如：止盈离场 / 补仓计划")
 
         sell_submitted = st.form_submit_button("✅ 记录卖出")
@@ -421,6 +515,8 @@ else:
                 f"{int(sell_shares):,}股 @¥{sell_price:.2f}，"
                 f"成交金额 ¥{result['proceeds']:,.2f}"
             )
+            # 加法式（Batch20·最近浏览历史）：记录本次卖出标的。
+            st.session_state["_pm_recent"] = ([sell_ticker] + [x for x in st.session_state["_pm_recent"] if x != sell_ticker])[:10]
             st.rerun()
         except Exception as e:
             st.error(f"卖出失败: {e}")

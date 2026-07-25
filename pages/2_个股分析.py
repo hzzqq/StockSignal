@@ -103,6 +103,38 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True, key=
             st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
 st.markdown('</div>', unsafe_allow_html=True)
 
+# ═══ Batch20 加法式：最近浏览 + 收藏（纯前端，session 级）═══
+def _analysis_goto(c):
+    st.session_state["analysis_stock"] = c
+    st.rerun()
+_hist_key2 = "_analysis_recent"
+if _hist_key2 not in st.session_state:
+    st.session_state[_hist_key2] = []
+_fav_key2 = "_analysis_favs"
+if _fav_key2 not in st.session_state:
+    st.session_state[_fav_key2] = []
+_col_hist, _col_fav = st.columns([0.7, 0.3])
+with _col_hist:
+    if st.session_state[_hist_key2]:
+        st.markdown("**🕘 最近浏览**")
+        _hc = st.columns(min(len(st.session_state[_hist_key2]), 6))
+        for i, hc in enumerate(st.session_state[_hist_key2]):
+            with _hc[i]:
+                if st.button(hc, key=f"anal_hist_{hc}", use_container_width=True):
+                    _analysis_goto(hc)
+with _col_fav:
+    _is_fav = ticker in st.session_state[_fav_key2]
+    if st.button(
+        ("⭐ 已收藏 " + ticker if _is_fav else "☆ 收藏当前标的"),
+        key="anal_fav_btn",
+        use_container_width=True,
+    ):
+        if _is_fav:
+            st.session_state[_fav_key2].remove(ticker)
+        else:
+            st.session_state[_fav_key2].append(ticker)
+        st.rerun()
+
 # ══════════════════════════════════════════════════════════════
 # 分析渲染：从 dict 中恢复所有变量并绘制 8 大模块
 # ══════════════════════════════════════════════════════════════
@@ -988,6 +1020,36 @@ def _render_analysis(R: dict):
         unsafe_allow_html=True,
     )
 
+    # ════════════ 新增模块：相关标的推荐（Batch20 加法式）══════════
+    _top_peers = sector_analysis.get("top_peers", []) or []
+    _better_peers = sector_analysis.get("better_peers", []) or []
+    _recs = []
+    for p in (_better_peers[:3] + _top_peers[:3]):
+        _pc = p.get("code")
+        if _pc and _pc not in [r.get("code") for r in _recs]:
+            _recs.append(p)
+    if _recs:
+        st.markdown('<div class="sf-card">' + _section_header("相关标的推荐", "同板块领涨 / 更强个股", "🔗"), unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:10px;'>"
+            f"基于「{_sa_name}」板块内实时表现，为你推荐以下关联标的"
+            f"（涨跌遵循本页绿涨红跌配色）：</div>",
+            unsafe_allow_html=True,
+        )
+        _rec_rows = "".join(_peer_row(p) for p in _recs[:6])
+        st.markdown(
+            f"<table style='width:100%;border-collapse:collapse;'>"
+            f"<thead><tr style='border-bottom:1px solid var(--border);'>"
+            f"<th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>代码</th>"
+            f"<th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>名称</th>"
+            f"<th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>涨跌幅</th>"
+            f"<th style='padding:6px 8px;text-align:right;font-size:12px;color:var(--txt2);font-weight:600;'>总市值</th>"
+            f"</tr></thead><tbody>{_rec_rows}</tbody></table>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
 
 # ══════════════════════════════════════════════════════════════
 # 主交互：提交后台任务，不阻塞页面，切页后继续运行
@@ -1022,6 +1084,13 @@ def fragment_analysis_result():
         task = _poll_analysis_once(analysis_task_id)
         if task and task.get("status") == "success":
             result = _deserialize_analysis_result(task.get("result"))
+            # 记录最近浏览（Batch20 加法式）
+            _rt = result.get("ticker")
+            if _rt:
+                _h2 = st.session_state.setdefault("_analysis_recent", [])
+                if _rt not in _h2:
+                    _h2.insert(0, _rt)
+                    st.session_state["_analysis_recent"] = _h2[:8]
             for w in result.pop("_warnings", []):
                 st.warning(w)
             st.session_state["analysis_result"] = result

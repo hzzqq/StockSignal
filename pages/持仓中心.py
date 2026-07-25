@@ -86,6 +86,28 @@ _view = st.radio(
     key="hub_cang_view",
     help="切换三个子视图：⭐ 自选池（自选股实时行情）/ 💼 持仓（持仓盈亏与导入导出）/ 📈 收益归因（净值曲线与收益贡献）。切换会重新加载对应模块。",
 )
+
+# 加法式（新角度·手动刷新按钮）：顶部「🔄 刷新」按钮，重新加载当前合并页全部子视图（顶层非 fragment，st.rerun 安全）。
+if st.button("🔄 刷新", key="hub_manual_refresh"):
+    st.rerun()
+
+# 加法式（新角度·最近浏览历史）：记录最近手动查看的标的，纯前端 session_state，chips 形式展示。
+st.session_state.setdefault("hub_recent_viewed", [])
+_hrv_left, _hrv_right = st.columns([3, 1])
+with _hrv_left:
+    _hrv_sym = st.text_input("输入标的代码", key="hub_recent_input")
+with _hrv_right:
+    if st.button("记录", key="hub_recent_add"):
+        _s = (_hrv_sym or "").strip().upper()
+        if _s:
+            _hist = st.session_state["hub_recent_viewed"]
+            if _s in _hist:
+                _hist.remove(_s)
+            _hist.insert(0, _s)
+            st.session_state["hub_recent_viewed"] = _hist[:8]
+if st.session_state["hub_recent_viewed"]:
+    st.caption("🕘 最近浏览：" + "　".join(f"#{s}" for s in st.session_state["hub_recent_viewed"]))
+
 st.divider()
 with st.spinner(f"正在加载「{_view}」..."):
     _run_subpage(_SUBPAGES[_view])
@@ -99,3 +121,10 @@ if st.button("↑ 回到顶部", key="hub_top", use_container_width=True):
 if st.session_state.get("_hub_scroll_top"):
     components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0)
     st.session_state["_hub_scroll_top"] = False
+
+# 加法式（新角度·键盘快捷键提示）：纯提示，不绑定真实快捷键逻辑，亦不改动既有布局。
+with st.expander("⌨️ 快捷键"):
+    st.markdown("- `🔄 刷新`：点击顶部「🔄 刷新」按钮重载当前合并页全部子视图")
+    st.markdown("- `↑ 回到顶部`：点击底部「↑ 回到顶部」返回页首")
+    st.markdown("- `持仓视图`：使用上方分段选择器在 ⭐自选池 / 💼持仓 / 📈收益归因 间切换")
+    st.markdown("- `🕘 最近浏览`：在上方输入框记录想跟踪的标的代码，纯前端记忆")

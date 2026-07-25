@@ -402,6 +402,24 @@ picked = stock_search_input(
 )
 code = str(picked or "600519").zfill(6)
 
+# ═══ Batch20 加法式：最近浏览历史（纯前端，session 级）═══
+def _fa_goto(c):
+    st.session_state["fa_stock"] = c
+    st.rerun()
+_fa_hist_key = "_fa_recent_viewed"
+if _fa_hist_key not in st.session_state:
+    st.session_state[_fa_hist_key] = []
+if code not in st.session_state[_fa_hist_key]:
+    st.session_state[_fa_hist_key].insert(0, code)
+    st.session_state[_fa_hist_key] = st.session_state[_fa_hist_key][:8]
+if st.session_state[_fa_hist_key]:
+    st.markdown("**🕘 最近浏览**")
+    _fa_hc = st.columns(min(len(st.session_state[_fa_hist_key]), 8))
+    for i, _hc in enumerate(st.session_state[_fa_hist_key]):
+        with _fa_hc[i]:
+            if st.button(_hc, key=f"fa_hist_{_hc}", use_container_width=True):
+                _fa_goto(_hc)
+
 if code:
     # ═══════════════════════════════════════════════
     # 数据加载
@@ -487,6 +505,21 @@ if code:
     with st.expander("📋 复制股票代码", expanded=False):
         st.code(code, language="text")
         st.caption("点击代码块右上角复制按钮即可复制当前分析的股票代码。")
+
+    # ═══ Batch20 加法式：收藏 / 星标（纯前端，session 级）═══
+    _fa_fav_key = "_fa_favorites"
+    if _fa_fav_key not in st.session_state:
+        st.session_state[_fa_fav_key] = []
+    _fa_is_fav = code in st.session_state[_fa_fav_key]
+    if st.button(
+        ("⭐ 已收藏 " + code if _fa_is_fav else "☆ 收藏 " + code),
+        key="fa_fav_btn",
+    ):
+        if _fa_is_fav:
+            st.session_state[_fa_fav_key].remove(code)
+        else:
+            st.session_state[_fa_fav_key].append(code)
+        st.rerun()
 
     st.markdown("---")
     st.subheader("💹 业绩分析（结合市值 / 市盈率 / 资产负债表）")
@@ -593,6 +626,20 @@ if code:
         metric = st.session_state["fa_metric"]
         mode = st.session_state["fa_mode"]
 
+        # 图表类型切换（Batch20 加法式）：线 / 柱 / 面积，仅改呈现不改数据
+        if "fa_chart_type" not in st.session_state:
+            st.session_state["fa_chart_type"] = "柱状"
+        _chart_opts = ["柱状", "折线", "面积"]
+        fa_chart = st.radio(
+            "图表类型",
+            options=_chart_opts,
+            index=_chart_opts.index(st.session_state["fa_chart_type"]),
+            horizontal=True,
+            key="fa_chart_radio",
+            help="切换业绩指标的呈现方式（线 / 柱 / 面积），不改变底层数据",
+        )
+        st.session_state["fa_chart_type"] = fa_chart
+
         # ── 指标选择按钮（2 行 × 4 列）──
         metric_cols = list(_FINANCIAL_METRICS.keys())
         st.markdown("**我的指标**")
@@ -641,33 +688,57 @@ if code:
         yoy_col = f"{metric}_同比"
         cfg = _FINANCIAL_METRICS.get(metric, {})
 
-        # ── 组合图：柱状（指标值）+ 折线（同比）──
+        # ── 组合图：指标值（按图表类型呈现）+ 折线（同比）──
         fig = go.Figure()
         x_labels = plot_df["标签"].tolist()
-        # 柱
-        fig.add_trace(
-            go.Bar(
-                x=x_labels,
-                y=plot_df[val_col],
-                name=metric,
-                marker_color=ACCENT,
-                text=[_fmt_fin_value(v, metric) for v in plot_df[val_col]],
-                textposition="outside",
-            )
-        )
-        # 折线（同比）
+        _yoy_trace = None
         if yoy_col in plot_df.columns and plot_df[yoy_col].notna().any():
+            _yoy_trace = go.Scatter(
+                x=x_labels,
+                y=plot_df[yoy_col],
+                name="同比",
+                mode="lines+markers",
+                line=dict(color=ACCENT2, width=2),
+                marker=dict(size=6),
+                yaxis="y2",
+            )
+        # 指标值主图：柱 / 折线 / 面积 三选一（Batch20 加法式）
+        if fa_chart == "折线":
             fig.add_trace(
                 go.Scatter(
                     x=x_labels,
-                    y=plot_df[yoy_col],
-                    name="同比",
+                    y=plot_df[val_col],
+                    name=metric,
                     mode="lines+markers",
-                    line=dict(color=ACCENT2, width=2),
+                    line=dict(color=ACCENT, width=2),
                     marker=dict(size=6),
-                    yaxis="y2",
                 )
             )
+        elif fa_chart == "面积":
+            fig.add_trace(
+                go.Scatter(
+                    x=x_labels,
+                    y=plot_df[val_col],
+                    name=metric,
+                    mode="lines",
+                    line=dict(color=ACCENT, width=2),
+                    fill="tozeroy",
+                    fillcolor=ACCENT_FILL,
+                )
+            )
+        else:  # 柱状（默认）
+            fig.add_trace(
+                go.Bar(
+                    x=x_labels,
+                    y=plot_df[val_col],
+                    name=metric,
+                    marker_color=ACCENT,
+                    text=[_fmt_fin_value(v, metric) for v in plot_df[val_col]],
+                    textposition="outside",
+                )
+            )
+        if _yoy_trace is not None:
+            fig.add_trace(_yoy_trace)
         # 季度模式下按年份添加竖向分隔线 / 背景色块，使年份分界更明显
         shapes = []
         if mode == "季度":

@@ -67,6 +67,12 @@ if st.session_state.get("tl_start_date") is None:
 if st.session_state.get("tl_end_date") is None:
     st.session_state.tl_end_date = datetime.now().date()
 
+# ── 加法式：最近浏览 / 收藏 的 session 初始化（纯前端，不依赖后端）──
+if "_recent_viewed" not in st.session_state:
+    st.session_state._recent_viewed = []
+if "_fav_set" not in st.session_state:
+    st.session_state._fav_set = []
+
 # ── 初始化（延迟加载，避免阻塞）──
 @st.cache_resource
 def get_engine():
@@ -173,6 +179,17 @@ def _render_news_with_links(df, title_col="title", url_col="url", date_col="date
 def fragment_signal_score():
     st.subheader("📊 信号评分")
 
+    # 加法式：最近浏览历史（纯前端 chips，点击重新填入搜索框）
+    _rv = st.session_state.get("_recent_viewed", [])
+    if _rv:
+        st.caption("🕘 最近浏览（点击重新填入）")
+        _rcs = st.columns(min(len(_rv), 6))
+        for _i, _t in enumerate(_rv[:6]):
+            with _rcs[_i]:
+                if st.button(_t, key=f"recent_chip_{_i}"):
+                    st.session_state["sig_ticker"] = _t
+                    st.rerun(scope="fragment")
+
     try:
         with st.form("signal_form"):
             col1, col2 = st.columns(2)
@@ -214,6 +231,10 @@ def fragment_signal_score():
                     scores = engine.evaluate(sig_ticker, keywords, date_str)
                     st.session_state.sig_scores = scores
                     st.session_state.sig_scores_error = None
+                    # 加法式：记录最近浏览（纯前端，最多保留 8 条）
+                    _rv = st.session_state.get("_recent_viewed", [])
+                    if sig_ticker and sig_ticker not in _rv:
+                        st.session_state._recent_viewed = ([sig_ticker] + _rv)[:8]
                 except Exception as e:
                     st.session_state.sig_scores = None
                     st.session_state.sig_scores_error = str(e)
@@ -265,6 +286,16 @@ def fragment_signal_score():
                         st.info(f"自选操作返回：{sc}")
                 except Exception as e:
                     st.warning(f"加入自选失败：{e}")
+            # 加法式：收藏/星标（纯前端 session 集合，与「＋自选」后端操作解耦）
+            _fav = st.session_state.get("_fav_set", [])
+            _is_fav = sig_ticker in _fav
+            if st.button(("⭐ 已收藏" if _is_fav else "☆ 收藏"), key="sig_fav_toggle",
+                         help="将当前股票加入/移出本地收藏（仅本会话有效）"):
+                if _is_fav:
+                    st.session_state._fav_set = [x for x in _fav if x != sig_ticker]
+                else:
+                    st.session_state._fav_set = _fav + [sig_ticker]
+                st.rerun(scope="fragment")
         elif st.session_state.get("sig_scores_error"):
             err_msg = st.session_state.sig_scores_error
             if "无法获取" in err_msg or "数据源" in err_msg or "不存在" in err_msg or "退市" in err_msg:
@@ -416,6 +447,10 @@ def fragment_timeline():
     st.markdown("---")
     st.subheader("📅 事件时间轴")
 
+    # 加法式：手动刷新（fragment 内 scope="fragment" 局部重跑，不冻结整页）
+    if st.button("🔄 刷新", key="tl_manual_refresh", help="手动局部刷新事件时间轴模块"):
+        st.rerun(scope="fragment")
+
     try:
         with st.form("timeline_form_v2"):
             col1, col2 = st.columns([2, 1])
@@ -450,9 +485,9 @@ def fragment_timeline():
 
             col_chk1, col_chk2 = st.columns(2)
             with col_chk1:
-                show_existing = st.checkbox("显示现有事件库", value=True, key="tl_show_existing")
+                show_existing = st.checkbox("显示现有事件库", value=st.session_state.get("pref_tl_show_existing", True), key="tl_show_existing")
             with col_chk2:
-                show_realtime = st.checkbox("实时爬取最新事件", value=False, key="tl_show_realtime")
+                show_realtime = st.checkbox("实时爬取最新事件", value=st.session_state.get("pref_tl_show_realtime", False), key="tl_show_realtime")
 
         # 快捷区间按钮：只改 session_state，fragment 因按钮交互自动跟随刷新
         quick_cols = st.columns([1, 1, 1, 1, 1])
@@ -483,6 +518,10 @@ def fragment_timeline():
             st.session_state.tl_start_date = st.session_state.get("tl_start_date_w", st.session_state.tl_start_date)
             st.session_state.tl_end_date = st.session_state.get("tl_end_date_w", st.session_state.tl_end_date)
             st.session_state.tl_start_idx = 0
+
+            # 加法式：偏好记忆（session 级记住上次勾选，下次自动套用）
+            st.session_state["pref_tl_show_existing"] = show_existing
+            st.session_state["pref_tl_show_realtime"] = show_realtime
 
             tl_start = st.session_state.tl_start_date
             tl_end = st.session_state.tl_end_date
@@ -1004,6 +1043,48 @@ fragment_timeline()
 fragment_event_manage()
 fragment_news_mine()
 fragment_sentiment_report()
+
+# ── 加法式：可折叠使用说明（集合式帮助，纯提示）──
+with st.expander("💡 使用说明", expanded=False):
+    st.markdown("""
+    **事件追踪使用指引**
+    - **信号评分**：选股票 → 填关键词 → 开始评分，查看价格 / 事件 / 宏观三维度信号。
+    - **实时关键词**：一键提取所选股票的最新新闻关键词。
+    - **事件时间轴**：选标的 + 区间，生成 K 线与事件叠加图。
+    - **事件管理**：手动添加 / 查看事件库。
+    - **新闻挖掘 / 情感报告**：抓取新闻做情感分析与入库。
+    - ⚠️ 所有数据仅供参考，不构成投资建议。
+    """)
+
+# ── 加法式：相关事件 / 标的推荐（底部，纯前端聚合事件库热门标的）──
+with st.expander("🔗 相关事件 / 标的推荐", expanded=False):
+    if "_rec_cache" not in st.session_state:
+        try:
+            st.session_state._rec_cache = engine._load_events()
+        except Exception:
+            st.session_state._rec_cache = None
+    _ev = st.session_state.get("_rec_cache")
+    if _ev is not None and not _ev.empty and "ticker" in _ev.columns:
+        _top = _ev["ticker"].value_counts().head(8)
+        st.caption("📌 事件库中提及最多的标的（点击填入信号评分）")
+        _cc = st.columns(len(_top))
+        for _j, (_code, _cnt) in enumerate(_top.items()):
+            with _cc[_j]:
+                if st.button(f"{_code}\n{_cnt}条", key=f"rec_{_code}"):
+                    st.session_state["sig_ticker"] = str(_code)
+                    st.rerun()
+    else:
+        st.caption("暂无推荐数据。")
+
+# ── 加法式：键盘快捷键提示（纯提示，无实际绑定）──
+with st.expander("⌨️ 快捷键", expanded=False):
+    st.markdown("""
+    本页为 Streamlit Web 应用，未绑定全局快捷键，以下为操作提示：
+    - **回车**：在表单输入框内按回车等效于点击该表单的提交按钮。
+    - **Tab**：在输入控件间切换焦点。
+    - **浏览器 F5 / Cmd·Ctrl+R**：刷新整页（将丢失未保存的会话状态）。
+    - 各模块「🔄 刷新」按钮可局部刷新对应模块。
+    """)
 
 # ── 加法式：快捷回到顶部（长页面底部注入固定按钮，平滑滚动父页面）──
 st.components.v1.html(

@@ -61,6 +61,15 @@ def render_forum_avatar(avatar_data_url, username, size: int = 32) -> str:
     )
 
 
+# 收藏 / 星标切换（#Batch20-3）：纯前端维护 session_state 收藏集合
+def _toggle_fav(x):
+    s = st.session_state.setdefault("forum_fav_set", set())
+    if x in s:
+        s.discard(x)
+    else:
+        s.add(x)
+
+
 # 视图切换：只改 session_state，fragment 自然重跑（不调 st.rerun，#543-8）
 def _go_list():
     st.session_state.pop("forum_view_post", None)
@@ -80,6 +89,22 @@ with _pl1:
     st.page_link("pages/个股研究.py", label="📈 去个股研究", icon="📈")
 with _pl2:
     st.page_link("pages/C_自选股监控.py", label="⭐ 去自选股监控", icon="⭐")
+
+# 可折叠使用说明 / 快捷键提示（#Batch20-5 / #Batch20-9）：集合式帮助，纯前端折叠
+with st.expander("💡 使用说明 / 常见问题"):
+    st.markdown(
+        "- **浏览帖子**：点击列表中的主题标题即可展开详情，含楼主信息、点赞与评论。\n"
+        "- **发表内容**：展开「✍️ 发表新帖」填写标题、正文，可关联一只股票代码。\n"
+        "- **收藏与历史**：帖子可「⭐ 收藏」，查看过的主题会出现在「最近浏览」。\n"
+        "- **筛选与排序**：顶部可按股票代码 / 关键字过滤，并切换最新 / 最热 / 最多评论。\n"
+        "- **风险提示**：社区内容由用户生成，仅供参考，不构成投资建议。"
+    )
+with st.expander("⌨️ 快捷键提示"):
+    st.markdown(
+        "- 本页以鼠标 / 触控操作为主，无全局键盘快捷键。\n"
+        "- 长列表滚动后点击「↑ 回到顶部」可一键回顶。\n"
+        "- 帖子详情页点击「← 返回列表」返回社区列表。"
+    )
 
 _EMOJIS = [
     "😂", "🚀", "📈", "📉", "💰", "🎯", "✅", "❌", "👍", "💎",
@@ -107,6 +132,14 @@ def fragment_detail():
         return
 
     post = body.get("data") or {}
+    # 最近浏览历史（#Batch20-2）：记录最近查看主题，纯前端
+    _pid = post.get("id")
+    _ptitle = post.get("title", "（无标题）")
+    if _pid is not None:
+        _recent = st.session_state.setdefault("forum_recent", [])
+        _recent = [r for r in _recent if r[0] != _pid]
+        _recent.insert(0, (_pid, _ptitle))
+        st.session_state["forum_recent"] = _recent[:6]
     _op_name = post.get("username", "")
     st.markdown(f"## {post.get('title', '（无标题）')}")
     st.markdown(
@@ -217,6 +250,25 @@ def fragment_list():
     if st.session_state.get("forum_view_post"):
         return
 
+    # 手动刷新（#Batch20-1）：fragment 内用 scope="fragment" 显式重跑本区块
+    if st.button("🔄 刷新帖子", key="forum_manual_refresh"):
+        st.rerun(scope="fragment")
+    # 偏好记忆（#Batch20-10）：session 内记住上次排序 / 筛选，下次自动套用
+    if "forum_sort" not in st.session_state and st.session_state.get("forum_remembered_sort"):
+        st.session_state["forum_sort"] = st.session_state["forum_remembered_sort"]
+    if "forum_filter_code" not in st.session_state and st.session_state.get("forum_remembered_filter"):
+        st.session_state["forum_filter_code"] = st.session_state["forum_remembered_filter"]
+    # 最近浏览（#Batch20-2）：chips 展示最近查看的主题，点击直达
+    _recent = st.session_state.get("forum_recent", [])
+    if _recent:
+        st.caption("🕘 最近浏览：")
+        _rc = st.columns(min(len(_recent), 6))
+        for _i, (rpid, rtitle) in enumerate(_recent[:6]):
+            with _rc[_i]:
+                if st.button(f"• {rtitle[:10]}", key=f"forum_recent_{rpid}",
+                             use_container_width=True, on_click=_open_post, args=(rpid,)):
+                    pass
+
     with st.expander("✍️ 发表新帖 / 文章", expanded=False):
         with st.container(border=True):
             st.markdown("### 📝 发布到股吧")
@@ -251,8 +303,14 @@ def fragment_list():
     fc1, fc2 = st.columns([0.4, 0.6])
     with fc1:
         filter_code = st.text_input("🔍 按股票代码筛选（可选）", key="forum_filter_code", placeholder="如 600519，留空看全部")
+        # 输入内联校验（#Batch20-7）：股票代码筛选实时校验，错误时 st.warning
+        if filter_code.strip() and not (filter_code.strip().isdigit() and len(filter_code.strip()) == 6):
+            st.warning("⚠️ 股票代码须为 6 位数字（如 600519），当前输入可能不完整。")
     with fc2:
         _sort = st.radio("排序", ["最新", "最热(点赞)", "最多评论"], horizontal=True, key="forum_sort")
+        # 记忆当前排序偏好（#Batch20-10）
+        st.session_state["forum_remembered_sort"] = _sort
+        st.session_state["forum_remembered_filter"] = filter_code.strip()
     if st.button("🔄 清空筛选", key="forum_clear", help="清空股票代码筛选条件，查看全部帖子"):
         st.session_state["forum_filter_code"] = ""
     # 列表内搜索/筛选框（#Batch19-3）：标题关键字，纯前端过滤，不动既有后端筛选
@@ -349,11 +407,53 @@ def fragment_list():
                 if _badges:
                     st.caption("　".join(_badges))
                 st.caption(f"🕘 {_fmt_time(p.get('created_at', ''))}")
+                # 收藏 / 批量选择（#Batch20-3 / #Batch20-6）：纯前端星标 + 勾选
+                if pid is not None:
+                    _favs = st.session_state.setdefault("forum_fav_set", set())
+                    _is_fav = pid in _favs
+                    scc1, scc2 = st.columns([0.2, 0.8])
+                    with scc1:
+                        if st.button("⭐" if _is_fav else "☆ 收藏", key=f"forum_fav_{pid}",
+                                     use_container_width=True, on_click=_toggle_fav, args=(pid,)):
+                            pass
+                    with scc2:
+                        st.checkbox("选择", key=f"forum_sel_{pid}", value=False)
 
         # 分页 / 加载更多（#Batch19-4）：列表还有更多时展示累加按钮
         if len(posts) > st.session_state[_show_key]:
             if st.button("显示更多 ▼", key="forum_more"):
                 st.session_state[_show_key] += 8
+
+        # 批量选择操作（#Batch20-6）：底部批量按钮，纯前端星标 + 清空选择
+        _sel_ids = [p.get("id") for p in _visible
+                    if p.get("id") is not None
+                    and st.session_state.get(f"forum_sel_{p.get('id')}", False)]
+        if _sel_ids:
+            st.markdown(f"#### ✅ 已选择 {len(_sel_ids)} 个主题")
+            b1, b2 = st.columns([0.3, 0.7])
+            with b1:
+                if st.button("⭐ 批量收藏", key="forum_batch_fav", use_container_width=True):
+                    st.session_state.setdefault("forum_fav_set", set()).update(_sel_ids)
+            with b2:
+                if st.button("🧹 清空选择", key="forum_batch_clear", use_container_width=True):
+                    for _id in _sel_ids:
+                        st.session_state[f"forum_sel_{_id}"] = False
+
+        # 相关推荐块（#Batch20-4）：底部热门主题推荐，点击直达
+        _rec = sorted(posts, key=lambda p: int(p.get("likes", 0) or 0), reverse=True)[:3]
+        if _rec:
+            st.markdown("---")
+            st.subheader("🔥 热门主题推荐")
+            _rcs = st.columns(len(_rec))
+            for _i, rp in enumerate(_rec):
+                rpid = rp.get("id")
+                if rpid is None:
+                    continue
+                with _rcs[_i]:
+                    if st.button(f"📌 {rp.get('title', '（无标题）')[:12]}",
+                                 key=f"forum_rec_{rpid}", use_container_width=True,
+                                 on_click=_open_post, args=(rpid,)):
+                        pass
 
 
 fragment_detail()

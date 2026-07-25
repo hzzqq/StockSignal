@@ -503,6 +503,16 @@ with st.expander("👀 查看示例回答（只读）", expanded=False):
         unsafe_allow_html=True,
     )
 
+# 加法式最近浏览历史：展示最近在对话中提及的 6 位股票代码（纯前端 session，不接后端）
+_xc_recent = st.session_state.get("xc_recent_stocks", [])
+if _xc_recent:
+    st.markdown("**🕘 最近浏览**")
+    _rc = st.columns(min(len(_xc_recent), 6))
+    for _i, _code in enumerate(_xc_recent[:6]):
+        if _rc[_i].button(f"📈 {_code}", key=f"xc_recent_{_i}", help="向星辰 AI 追问该股票"):
+            st.session_state["_xc_pending"] = f"{_code} 怎么样？"
+            st.rerun()
+
 # ── 渲染历史 ──
 @safe_fragment("AI 对话")
 def fragment_chat():
@@ -550,6 +560,14 @@ def fragment_chat():
             )
             st.rerun(scope="fragment")
         st.session_state["xc_messages"].append({"role": "user", "content": prompt})
+        # 加法式最近浏览历史：从用户提问中抽取 6 位股票代码，记录最近查看的标的
+        # （纯前端 session，不接后端；仅追加到 session_state，fragment 内禁裸 rerun）
+        for _code in re.findall(r"\b\d{6}\b", prompt):
+            _rs = st.session_state.setdefault("xc_recent_stocks", [])
+            if _code in _rs:
+                _rs.remove(_code)
+            _rs.insert(0, _code)
+        st.session_state["xc_recent_stocks"] = st.session_state.get("xc_recent_stocks", [])[:8]
         history = [
             {"role": mm.get("role"), "content": mm.get("content", "")}
             for mm in st.session_state["xc_messages"][:-1]
@@ -649,6 +667,44 @@ def _poll_ai_task():
 
 if st.session_state.get("xc_task_id"):
     _poll_ai_task()
+
+# 加法式相关推荐块：底部「你可能也关注」静态推荐（加法式，不改既有逻辑、不接后端）
+with st.expander("🔗 你可能也关注（相关推荐）", expanded=False):
+    st.caption("以下为静态推荐，点击可直接向星辰 AI 提问（仅前端，不接后端）。")
+    _recs = [
+        {"label": "📈 贵州茅台 600519", "prompt": "贵州茅台 600519 当前估值怎么样？"},
+        {"label": "🔋 宁德时代 300750", "prompt": "宁德时代 300750 近期走势如何？"},
+        {"label": "🏦 招商银行 600036", "prompt": "招商银行 600036 值得长期持有吗？"},
+        {"label": "💡 当前市场情绪", "prompt": "当前 A股 市场情绪和风格偏向如何？"},
+    ]
+    _rcols = st.columns(len(_recs))
+    for _i, _r in enumerate(_recs):
+        if _rcols[_i].button(_r["label"], key=f"xc_rec_{_i}", use_container_width=True,
+                             help="向星辰 AI 提问该推荐主题"):
+            st.session_state["_xc_pending"] = _r["prompt"]
+            st.rerun()
+
+# 加法式可折叠帮助/FAQ（与 Batch13 行内 help 不同，这是折叠面板）
+with st.expander("💡 使用说明 / 常见问题", expanded=False):
+    st.markdown(
+        "**如何使用星辰 AI？**\n"
+        "- 在底部输入框输入问题，按 Enter 发送（Shift+Enter 换行）；\n"
+        "- 可点击上方快捷问题 chips 直接提问；\n"
+        "- 对话历史按账号在后端持久化，刷新不丢失。\n\n"
+        "**常见问题**\n"
+        "- Q：回答需要多久？A：当前使用免费模型，首次响应可能较慢，请耐心等待。\n"
+        "- Q：数据从哪来？A：聚合东方财富 / 新浪财经等公开市场数据。\n"
+        "- Q：回答可靠吗？A：均为模型推演，不构成投资建议，请独立判断。"
+    )
+
+# 加法式键盘快捷键提示（纯提示文案，不绑定真实快捷键）
+with st.expander("⌨️ 快捷键", expanded=False):
+    st.markdown(
+        "- **Enter**：发送当前输入框内容\n"
+        "- **Shift + Enter**：在输入框内换行\n"
+        "- **R**：刷新页面重新加载对话（浏览器快捷键）\n"
+        "- 对话历史自动保存，无需手动操作"
+    )
 
 # 全局市场异动面板（与 P_市场情绪 页共享同一组件）
 fragment_market_alerts_panel()

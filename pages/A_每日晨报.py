@@ -341,7 +341,10 @@ def fragment_review_notes():
 
     # ── 子模块 1：工具栏（日期、查询、图片上传）──
     def _render_toolbar():
-        note_date = st.date_input("复盘日期", value=date.today(), key="review_date")
+        # 加法式 Batch20：偏好记忆（session 级）— 记住上次查询的复盘日期
+        note_date = st.date_input("复盘日期",
+                                  value=st.session_state.get("_morning_review_date_pref", date.today()),
+                                  key="review_date")
         note_date_s = note_date.strftime("%Y-%m-%d")
         notes_path = _notes_path(note_date_s)
 
@@ -369,6 +372,8 @@ def fragment_review_notes():
                     st.session_state["review_note"] = ""
                     _empty_info(f"{note_date_s} 暂无复盘记录，可直接在下方新建（写一句今天的市场观察或操作笔记）。")
                 st.session_state["review_queried"] = note_date_s
+                # 加法式 Batch20：偏好记忆 — 记录本次查询日期，下次进入自动套用
+                st.session_state["_morning_review_date_pref"] = note_date
                 # 不调用 st.rerun()：本 fragment 内的交互只会触发本 fragment 重跑，不影响整页
         with c_img:
             uploaded = st.file_uploader(
@@ -471,6 +476,32 @@ def fragment_review_notes():
 
 
 fragment_review_notes()
+
+# ══ 加法式 Batch20：键盘快捷键提示（纯提示）══
+with st.expander("⌨️ 快捷键", expanded=False, key="morning_hotkeys_exp"):
+    st.markdown(
+        "**页面快捷键（浏览器通用）**\n"
+        "- `F5` / `Ctrl + R`：刷新本页，重新生成晨报与快照。\n"
+        "- `Ctrl + F`：浏览器内查找页面文字（如板块名、股票名）。\n"
+        "- `End` / `Ctrl + End`：快速滚动到页面底部。\n"
+        "- `Home` / `Ctrl + Home`：快速滚动到页面顶部。\n"
+        "- `Tab` / `Shift + Tab`：在表单控件间前后切换焦点。\n\n"
+        "提示：本页为纯前端快捷键说明，不涉及任何隐藏组合键。"
+    )
+
+# ══ 加法式 Batch20：相关标的推荐块（纯前端，跳转个股研究）══
+st.markdown("---")
+st.markdown("#### 🔗 相关标的推荐")
+st.caption("基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。")
+_rec_codes = [("600519", "贵州茅台"), ("000858", "五粮液"), ("300750", "宁德时代"),
+              ("601318", "中国平安"), ("000001", "平安银行")]
+_rec_cols = st.columns(len(_rec_codes))
+for _i, (_c, _n) in enumerate(_rec_codes):
+    with _rec_cols[_i]:
+        if st.button(f"{_n} {_c}", key=f"morning_rec_{_c}", use_container_width=True):
+            st.session_state["pick_stock_confirmed"] = _c
+            st.session_state["pick_stock_query"] = _c
+            safe_switch_page("pages/个股研究.py")
 
 # 加法式 UX：长页面底部「↑ 回到顶部」按钮（前端平滑滚动，不触发整页 rerun）
 if st.button("↑ 回到顶部", key="morning_back_to_top"):

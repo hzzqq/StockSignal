@@ -19,7 +19,7 @@ from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import (
     require_auth, render_user_badge,
     api_get, api_post, api_put, api_delete, api_quote, api_kline,
-    trading_autorefresh,
+    trading_autorefresh, safe_switch_page,
 )
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
@@ -72,6 +72,20 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("🔔 自选股多维预警")
 st.caption("价格 / 技术形态 / 成交量异动 / 公告 四类预警；触发状态为页面访问时实时比价与扫描结果。")
 st.caption("⚠️ 数据仅供参考，不构成投资建议")
+
+# ══ 加法式 Batch20：可折叠使用说明 / FAQ ══
+with st.expander("💡 使用说明", expanded=False, key="alert_help_exp"):
+    st.markdown(
+        "**四类预警怎么用？**\n"
+        "- 💲 **价格预警**：设置目标价与「涨破/跌破」条件，页面访问时实时比价触发。\n"
+        "- 📐 **技术形态预警**：选择形态后，页面扫描该股日线，命中即触发。\n"
+        "- 📊 **成交量异动预警**：当日量比 ≥ 设定阈值时触发（放量信号）。\n"
+        "- 📢 **公告预警**：近 20 条新闻/公告出现关键词时触发。\n\n"
+        "**常见问题**\n"
+        "- *触发是准实时的吗？* 触发在页面访问时于前端检测，保持本页打开并定期刷新可更快捕捉异动。\n"
+        "- *为什么显示「待验证」？* 行情或日线数据不足时无法判定，稍后刷新重试。\n"
+        "- *如何持续盯盘？* 关注右上角「🔔 市场异动」铃铛，并保持本页在浏览器中打开。"
+    )
 
 
 @st.cache_resource(show_spinner=False)
@@ -321,10 +335,28 @@ with st.expander("➕ 新建预警", expanded=False, key="new_alert_exp"):
             sc, body = api_post("/api/price-alerts", body_payload)
             if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
                 _toast("预警已创建")
+                # 加法式 Batch20：记录最近新建/浏览标的（纯前端 session 记忆）
+                _rec = st.session_state.setdefault("_alert_recent_codes", [])
+                if code not in _rec:
+                    _rec.insert(0, code)
+                st.session_state["_alert_recent_codes"] = _rec[:8]
                 st.rerun()
             else:
                 msg = body.get("message", "创建失败") if isinstance(body, dict) else "创建失败"
                 st.error(f"❌ {msg}")
+
+
+# ══ 加法式 Batch20：最近浏览历史 chips（纯前端 session 记忆）══
+_recent = st.session_state.get("_alert_recent_codes", [])
+if _recent:
+    st.markdown("**🕘 最近浏览**")
+    _rc_cols = st.columns(min(len(_recent), 6))
+    for _i, _rc in enumerate(_recent[:6]):
+        with _rc_cols[_i]:
+            if st.button(f"📈 {_rc}", key=f"alert_recent_{_rc}", use_container_width=True):
+                st.session_state["pick_stock_confirmed"] = _rc
+                st.session_state["pick_stock_query"] = _rc
+                safe_switch_page("pages/个股研究.py")
 
 
 # ───────────────────────── 列表 + 触发检测 ─────────────────────────
@@ -359,6 +391,13 @@ def fragment_alerts():
             _fk = _norm(_filter)
             alerts = [a for a in alerts if _fk in _norm(
                 f"{a.get('stock_code','')} {a.get('stock_name','')} {a.get('alert_type','')} {a.get('params','')}")]
+        # 加法式 Batch20：收藏/星标过滤（纯前端 session 集合）
+        _alert_fav_set = st.session_state.get("_alert_fav_set", set())
+        _show_fav_only = st.checkbox("⭐ 只看收藏", key="alert_fav_only",
+                                     help="仅显示已加星标的预警。")
+        if _show_fav_only:
+            alerts = [a for i, a in enumerate(alerts)
+                      if (a.get("id") or f"idx{i}") in _alert_fav_set]
         with st.spinner("正在检测预警触发状态…"):
             eval_results = _eval_alert_parallel(alerts)
         # 浏览器桌面通知去重集合（避免每次自动刷新重复弹窗）
@@ -427,7 +466,17 @@ def fragment_alerts():
         elif triggered is False and a.get("id") in _notified_ids:
             _notified_ids.discard(a.get("id"))
 
-        col_info, col_status, col_toggle, col_del = st.columns([4, 2, 1.2, 1.2])
+        col_star, col_info, col_status, col_toggle, col_del = st.columns([1, 3.5, 2, 1.2, 1.2])
+        with col_star:
+            _is_fav = aid in st.session_state.get("_alert_fav_set", set())
+            if st.button("⭐" if _is_fav else "☆", key=f"fav_{aid}", use_container_width=True,
+                         help="收藏/取消收藏该预警"):
+                _fs = st.session_state.setdefault("_alert_fav_set", set())
+                if aid in _fs:
+                    _fs.discard(aid)
+                else:
+                    _fs.add(aid)
+                st.rerun(scope="fragment")
         with col_info:
             st.markdown(
                 f"{ALERT_TYPE_LABEL.get(atype, atype)} **{display_name}** "

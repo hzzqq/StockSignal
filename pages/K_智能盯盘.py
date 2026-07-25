@@ -31,6 +31,12 @@ dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("👁️ 智能盯盘聚合")
 st.caption("⚠️ 数据仅供参考，不构成投资建议")
+
+# ── 加法式：最近浏览 / 收藏 的 session 初始化（纯前端）──
+if "_wl_recent" not in st.session_state:
+    st.session_state._wl_recent = []
+if "_wl_fav" not in st.session_state:
+    st.session_state._wl_fav = []
 lk1, lk2 = st.columns([1, 1])
 with lk1:
     st.page_link("pages/3_事件追踪.py", label="🔔 事件追踪", icon="🔔")
@@ -303,12 +309,28 @@ def fragment_sector():
         _empty_info("暂无有效的行业净额数据")
         return
 
+    # 加法式：图表类型切换（柱状 / 折线 / 面积，不改数据）
+    _ctype = st.radio("图表类型", ["柱状", "折线", "面积"], index=0, key="sector_chart_type", horizontal=True)
     colors = [UP if v >= 0 else DOWN for v in top["净额"]]
-    fig = go.Bar(
-        x=top["净额"], y=top["行业"],
-        orientation="h", marker_color=colors,
-        hovertemplate="%{y}<br>净额：%{x:.2f}亿<extra></extra>",
-    )
+    if _ctype == "折线":
+        fig = go.Figure(go.Scatter(
+            x=top["净额"], y=top["行业"], mode="markers+lines",
+            marker=dict(color=colors, size=10), line=dict(color="#3498db", width=2),
+            hovertemplate="%{y}<br>净额：%{x:.2f}亿<extra></extra>",
+        ))
+    elif _ctype == "面积":
+        fig = go.Figure(go.Scatter(
+            x=top["净额"], y=top["行业"], mode="lines",
+            line=dict(color="#3498db", width=2), fill="tozerox",
+            fillcolor="rgba(150,150,150,0.18)",
+            hovertemplate="%{y}<br>净额：%{x:.2f}亿<extra></extra>",
+        ))
+    else:
+        fig = go.Figure(go.Bar(
+            x=top["净额"], y=top["行业"],
+            orientation="h", marker_color=colors,
+            hovertemplate="%{y}<br>净额：%{x:.2f}亿<extra></extra>",
+        ))
     fig = go.Figure(fig)
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -342,6 +364,17 @@ def fragment_sector():
 def fragment_watchlist():
     st.markdown("### 📈 自选股涨跌榜")
     st.help("涨跌% = (现价-昨收)/昨收×100%，红涨绿跌；并行抓取实时行情后按涨跌%排序，可逐只跳转行情看板。")
+
+    # 加法式：最近浏览历史（纯前端 chips，点击填入筛选）
+    _rv = st.session_state.get("_wl_recent", [])
+    if _rv:
+        st.caption("🕘 最近浏览（点击填入筛选）")
+        _rcs = st.columns(min(len(_rv), 6))
+        for _i, _t in enumerate(_rv[:6]):
+            with _rcs[_i]:
+                if st.button(_t, key=f"wl_recent_{_i}"):
+                    st.session_state["wl_filter_q"] = _t
+                    st.rerun(scope="fragment")
     # ── 自定义筛选 ──
     fq, frng, falert = st.columns([2, 2, 1])
     wl_q = fq.text_input("🔍 名称/代码筛选", value="", key="wl_filter_q", placeholder="留空=全部")
@@ -354,6 +387,9 @@ def fragment_watchlist():
         st.session_state["wl_filter_q"] = ""
         st.session_state["wl_filter_rng"] = (-10.0, 10.0)
         st.session_state["wl_only_alert"] = False
+    # 加法式：手动刷新（fragment 内 scope="fragment" 局部重跑）
+    if st.button("🔄 刷新", key="wl_manual_refresh", help="手动刷新本板块实时行情"):
+        st.rerun(scope="fragment")
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, key="wl_auto")
 
@@ -459,13 +495,39 @@ def fragment_watchlist():
             c2.write(r["名称"])
             cc = UP if (r["涨跌%"] or 0) > 0 else (DOWN if (r["涨跌%"] or 0) < 0 else "#888")
             c3.markdown(f"<span style='color:{cc};font-weight:600;'>{r['涨跌%'] if r['涨跌%'] is not None else '—'}%</span>", unsafe_allow_html=True)
-            if c4.button("跳转", key=f"wl_go_{r['代码']}"):
-                st.session_state["pick_stock_confirmed"] = r["代码"]
-                st.session_state["pick_stock_query"] = r["代码"]
-                safe_switch_page("pages/个股研究.py")
+            with c4:
+                # 加法式：收藏/星标（纯前端 session 集合）
+                _fav = st.session_state.get("_wl_fav", [])
+                _is = r["代码"] in _fav
+                if st.button(("⭐" if _is else "☆"), key=f"wl_fav_{r['代码']}", help="收藏/取消收藏"):
+                    if _is:
+                        st.session_state._wl_fav = [x for x in _fav if x != r["代码"]]
+                    else:
+                        st.session_state._wl_fav = _fav + [r["代码"]]
+                    st.rerun(scope="fragment")
+                # 跳转并记入最近浏览
+                if st.button("跳转", key=f"wl_go_{r['代码']}"):
+                    _rv = st.session_state.get("_wl_recent", [])
+                    if r["代码"] not in _rv:
+                        st.session_state._wl_recent = ([r["代码"]] + _rv)[:8]
+                    st.session_state["pick_stock_confirmed"] = r["代码"]
+                    st.session_state["pick_stock_query"] = r["代码"]
+                    safe_switch_page("pages/个股研究.py")
         if _jump_show < _jump_total:
             if st.button("显示更多 ▼", key="wl_jump_more"):
                 st.session_state[_jump_key] = min(st.session_state[_jump_key] + 10, _jump_total)
+
+        # 加法式：我的收藏（纯前端，列出已收藏标的并支持跳转）
+        _fav = st.session_state.get("_wl_fav", [])
+        if _fav:
+            with st.expander(f"⭐ 我的收藏（{len(_fav)}）", expanded=False):
+                for _fc in _fav:
+                    _f1, _f2 = st.columns([3, 1])
+                    _f1.write(f"`{_fc}`")
+                    if _f2.button("跳转", key=f"wl_fav_go_{_fc}"):
+                        st.session_state["pick_stock_confirmed"] = _fc
+                        st.session_state["pick_stock_query"] = _fc
+                        safe_switch_page("pages/个股研究.py")
 
 
 # ───────────────────────── 3. 个股资金流异动 ─────────────────────────
@@ -474,7 +536,12 @@ def fragment_individual_ff():
     st.markdown("### 💰 个股资金流异动")
     # ── 自定义筛选 ──
     d1, d2 = st.columns([2, 1])
-    iff_dir = d1.selectbox("资金方向", ["全部", "仅净流入", "仅净流出"], index=0, key="iff_dir")
+    iff_dir = d1.selectbox("资金方向", ["全部", "仅净流入", "仅净流出"],
+                           index=["全部", "仅净流入", "仅净流出"].index(
+                               st.session_state.get("pref_iff_dir", "全部")),
+                           key="iff_dir")
+    # 加法式：偏好记忆（session 级记住上次选择，下次自动套用）
+    st.session_state["pref_iff_dir"] = iff_dir
     iff_strong = d2.checkbox("仅看强异动(≥1亿)", value=False, key="iff_strong")
     iff_q = st.text_input("🔍 名称/代码筛选", value="", key="iff_filter_q", placeholder="留空=全部")
     if st_autorefresh is not None and is_trading_now():
@@ -679,6 +746,13 @@ def fragment_watch_manage():
     add_q = a1.text_input("➕ 添加关注（6 位代码）", value="", key="wl_add_q",
                               placeholder="如 600519",
                               help="输入 6 位数字代码（如 600519）后点击「添加」；也可在行情看板或形态选股中一键关注。")
+    # 加法式：输入内联校验（实时提示，不阻塞提交）
+    if add_q and add_q.strip():
+        _q = add_q.strip()
+        if not _q.isdigit():
+            st.warning("⚠️ 请输入纯数字代码（如 600519），当前含非数字字符。")
+        elif len(_q) != 6:
+            st.warning(f"⚠️ 代码应为 6 位，当前为 {len(_q)} 位。")
     if a2.button("添加", key="wl_add_btn", use_container_width=True):
         raw = (add_q or "").strip()
         if not raw:
@@ -756,6 +830,22 @@ def fragment_watch_manage():
             if c5.button("移除", key=f"wm_rm_{code}"):
                 st.session_state[_ck] = True
 
+    # 加法式：批量选择 + 操作（纯前端勾选，调用既有 api 取消关注选中）
+    with st.expander("☑️ 批量管理（勾选后取消关注）", expanded=False):
+        _sel = []
+        for it in items:
+            _code = it["code"]
+            if st.checkbox(f"{_code} {_resolve_name(_code, it.get('name'))}", key=f"batch_{_code}"):
+                _sel.append(_code)
+        if st.button("🗑️ 取消关注选中", key="batch_remove_btn"):
+            _ok = 0
+            for it in items:
+                if it["code"] in _sel and it.get("id") is not None:
+                    dc, _ = api_delete(f"/api/watchlist/{it['id']}")
+                    if dc == 200:
+                        _ok += 1
+            st.toast(f"已取消关注 {_ok} 只")
+
 
 # ───────────────────────── 页面主体 ─────────────────────────
 fragment_watch_manage()
@@ -767,6 +857,28 @@ st.markdown("---")
 fragment_individual_ff()
 st.markdown("---")
 fragment_alerts()
+
+# ── 加法式：可折叠使用说明（集合式帮助，纯提示）──
+with st.expander("💡 使用说明", expanded=False):
+    st.markdown("""
+    **智能盯盘使用指引**
+    - **板块资金异动**：行业主力净流入 TOP10（红=净流入 / 绿=净流出）。
+    - **自选股涨跌榜**：实时行情按涨跌%排序，可筛选 / 逐只跳转。
+    - **个股资金流异动**：主力净流入 TOP / 净流出 TOP。
+    - **预警触发**：按阈值扫描涨跌与资金异动。
+    - **我的关注列表**：添加 / 移除自选股。
+    - ⚠️ 数据仅供参考，不构成投资建议。
+    """)
+
+# ── 加法式：键盘快捷键提示（纯提示，无实际绑定）──
+with st.expander("⌨️ 快捷键", expanded=False):
+    st.markdown("""
+    本页为 Streamlit Web 应用，未绑定全局快捷键，以下为操作提示：
+    - **回车**：在表单 / 输入框内按回车可触发提交。
+    - **Tab**：在控件间切换焦点。
+    - **浏览器 F5 / Cmd·Ctrl+R**：刷新整页（将丢失未保存的会话状态）。
+    - 各板块「🔄 刷新」按钮可局部刷新对应模块。
+    """)
 
 # ── 加法式：快捷回到顶部（长页面底部注入固定按钮，平滑滚动父页面）──
 st.components.v1.html(

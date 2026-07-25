@@ -54,6 +54,20 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.title("📡 自选股监控")
 st.caption("实时跟踪自选股现价与涨跌幅；行情接口异常时自动回退本地源。数据仅供参考，非投资建议。")
 
+# ══ 加法式 Batch20：可折叠使用说明 / FAQ ══
+with st.expander("💡 使用说明", expanded=False, key="wl_help_exp"):
+    st.markdown(
+        "**本页能做什么？**\n"
+        "- 📡 **实时监控**：并行拉取自选股实时现价与涨跌幅（A股红涨绿跌）。\n"
+        "- 🔄 **自动刷新**：交易时段每 60 秒自动刷新行情；也可点「🔄 刷新行情」手动刷新。\n"
+        "- 🧭 **技术体检**：一键跳转「形态选股」用自选股池做技术扫描。\n"
+        "- 🔔 **价格预警**：跳转「价格预警」页为关注的标的设置异动提醒。\n\n"
+        "**常见问题**\n"
+        "- *行情显示 — ？* 接口/网络异常时自动回退本地源；若仍无数据，请检查网络后稍候自动刷新。\n"
+        "- *颜色含义？* 红涨绿跌为 A股惯例，本页严格遵循，不会被主题切换修改。\n"
+        "- *行情更新时间？* 页面底部标注最近行情时间与本页刷新时间。"
+    )
+
 
 @st.cache_resource(show_spinner=False)
 def _get_fetcher():
@@ -298,6 +312,28 @@ def fragment_watchlist_monitor():
                 st.session_state["pick_stock_confirmed"] = code
                 st.session_state["pick_stock_query"] = code
                 safe_switch_page("pages/个股研究.py")
+
+        # 加法式 Batch20：收藏/星标（基于自选股池，纯前端 session 集合）
+        _fav_set = st.session_state.setdefault("_wl_fav_set", set())
+        _fav_sel = st.selectbox("⭐ 选择要收藏/取消收藏的标的",
+                                ["— 请选择 —"] + opts, key="wl_fav_pick")
+        if st.button("🔖 切换收藏状态", key="wl_fav_toggle", use_container_width=True):
+            if _fav_sel and _fav_sel != "— 请选择 —":
+                _fc = _fav_sel.split()[0]
+                if _fc in _fav_set:
+                    _fav_set.discard(_fc)
+                else:
+                    _fav_set.add(_fc)
+        _fav_list = [c for c in codes if c in _fav_set]
+        if _fav_list:
+            st.markdown("**⭐ 我的收藏**")
+            _fc_cols = st.columns(min(len(_fav_list), 6))
+            for _i, _fc_code in enumerate(_fav_list[:6]):
+                with _fc_cols[_i]:
+                    if st.button(f"📈 {_fc_code}", key=f"wl_fav_{_fc_code}", use_container_width=True):
+                        st.session_state["pick_stock_confirmed"] = _fc_code
+                        st.session_state["pick_stock_query"] = _fc_code
+                        safe_switch_page("pages/个股研究.py")
     else:
         _empty_info("暂无可展示的实时行情（可能行情接口暂时未返回数据）。自选股列表非空但取数失败，稍候自动刷新，或检查网络后重试。")
 
@@ -614,6 +650,20 @@ def fragment_pool_junk():
 
 
 fragment_pool_junk()
+
+# ══ 加法式 Batch20：相关标的推荐块（纯前端，跳转个股研究）══
+st.markdown("---")
+st.markdown("#### 🔗 相关标的推荐")
+st.caption("基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。")
+_c_rec = [("600519", "贵州茅台"), ("000858", "五粮液"), ("601012", "隆基绿能"),
+          ("300059", "东方财富"), ("600036", "招商银行")]
+_c_cols = st.columns(len(_c_rec))
+for _i, (_c, _n) in enumerate(_c_rec):
+    with _c_cols[_i]:
+        if st.button(f"{_n} {_c}", key=f"wl_rec_{_c}", use_container_width=True):
+            st.session_state["pick_stock_confirmed"] = _c
+            st.session_state["pick_stock_query"] = _c
+            safe_switch_page("pages/个股研究.py")
 
 # 加法式 UX：长页面底部「↑ 回到顶部」按钮（前端平滑滚动，不触发整页 rerun）
 if st.button("↑ 回到顶部", key="wl_back_to_top"):

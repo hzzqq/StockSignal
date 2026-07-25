@@ -136,6 +136,15 @@ def fragment_paper():
     book = _load_book(user)
     # 加法式便利：显示最近刷新时间，便于用户判断数据新鲜度（纯展示，不改逻辑）。
     st.caption(f"🕒 最近刷新：{datetime.now():%Y-%m-%d %H:%M:%S}")
+    # 加法式（Batch20·手动刷新）：fragment 内刷新用 st.rerun(scope="fragment")，不裸 st.rerun()。
+    if st.button("🔄 刷新", key="pt_manual_refresh", help="手动刷新行情与持仓快照"):
+        st.rerun(scope="fragment")
+    # 加法式（Batch20·最近浏览历史）：session 内记录最近交易/查看的标的，纯前端展示 chips。
+    st.session_state.setdefault("_pt_recent", [])
+    if st.session_state["_pt_recent"]:
+        st.caption("🕘 最近浏览：" + "  ".join(f"`{c}`" for c in st.session_state["_pt_recent"][-6:][::-1]))
+    # 加法式（Batch20·收藏/星标）：session 集合保存收藏标的，纯前端。
+    st.session_state.setdefault("_pt_fav", [])
 
     with safe_section("账户概览"):
         # 加法式加载态反馈：刷新各持仓现价属于行情请求，包裹 spinner 提示计算中。
@@ -158,7 +167,11 @@ def fragment_paper():
     with col_b:
         st.markdown("**买入**")
         bcode = stock_search_input("买入标的", key="pt_buy")
-        bqty = st.number_input("买入股数", min_value=100, step=100, value=100, key="pt_bqty", placeholder="如 100（100 股的整数倍）")
+        # 加法式（Batch20·偏好记忆）：记住上次买入股数，session 级下次自动套用。
+        bqty = st.number_input("买入股数", min_value=100, step=100, value=st.session_state.get("_pt_def_bqty", 100), key="pt_bqty", placeholder="如 100（100 股的整数倍）")
+        # 加法式（Batch20·输入内联校验）：数量非 100 股整数倍时实时警告。
+        if bqty < 100 or bqty % 100 != 0:
+            st.warning("⚠️ 买入股数需为 100 股的整数倍（A 股最小交易单位）。")
         # UX：代码无效时禁用买入按钮并给出原因，避免误点后才有错误反馈
         _braw = (bcode or "").strip()
         _bok = len(_braw) == 6 and _braw.isdigit()
@@ -195,10 +208,26 @@ def fragment_paper():
                         _snapshot(book, assets)
                         _save_book(user, book)
                         _toast(f"已买入 {name}({code}) {bqty} 股 @ ¥{price:.2f}")
+                        # 加法式（Batch20·偏好记忆 / 最近浏览）：记录上次股数与浏览标的。
+                        st.session_state["_pt_def_bqty"] = bqty
+                        if code not in st.session_state["_pt_recent"]:
+                            st.session_state["_pt_recent"] = (st.session_state["_pt_recent"] + [code])[-10:]
+        # 加法式（Batch20·收藏/星标）：将当前买入标的加入收藏集合（纯前端）。
+        if st.button("⭐ 收藏该标的", key="pt_fav_add", use_container_width=True):
+            _fc = (bcode or "").strip().zfill(6)
+            if len(_fc) == 6 and _fc.isdigit() and _fc not in st.session_state["_pt_fav"]:
+                st.session_state["_pt_fav"].append(_fc)
+                _toast(f"已收藏 {_fc}")
+            else:
+                st.warning("请输入有效代码后再收藏。")
     with col_s:
         st.markdown("**卖出**")
         scode = stock_search_input("卖出标的", key="pt_sell")
-        sqty = st.number_input("卖出股数", min_value=100, step=100, value=100, key="pt_sqty", placeholder="如 100（100 股的整数倍）")
+        # 加法式（Batch20·偏好记忆）：记住上次卖出股数，session 级下次自动套用。
+        sqty = st.number_input("卖出股数", min_value=100, step=100, value=st.session_state.get("_pt_def_sqty", 100), key="pt_sqty", placeholder="如 100（100 股的整数倍）")
+        # 加法式（Batch20·输入内联校验）：数量非 100 股整数倍时实时警告。
+        if sqty < 100 or sqty % 100 != 0:
+            st.warning("⚠️ 卖出股数需为 100 股的整数倍。")
         # UX：代码无效或未持仓时禁用卖出按钮 + 前置提示，减少无效点击
         _sraw = (scode or "").strip()
         _sok = len(_sraw) == 6 and _sraw.isdigit()
@@ -237,6 +266,10 @@ def fragment_paper():
                         _snapshot(book, assets)
                         _save_book(user, book)
                         _toast(f"已卖出 {name}({code}) {sqty} 股 @ ¥{price:.2f}")
+                        # 加法式（Batch20·偏好记忆 / 最近浏览）：记录上次股数与浏览标的。
+                        st.session_state["_pt_def_sqty"] = sqty
+                        if code not in st.session_state["_pt_recent"]:
+                            st.session_state["_pt_recent"] = (st.session_state["_pt_recent"] + [code])[-10:]
 
     # ───────────────────────── 持仓 / 成交 / 净值 ─────────────────────────
     st.markdown("---")
@@ -254,6 +287,42 @@ def fragment_paper():
                 c = UP if r["盈亏"] >= 0 else DOWN
                 return [f"color:{c}"] * len(r)
             st.dataframe(dfp.style.apply(_color_row, axis=1), use_container_width=True, hide_index=True)
+            # 加法式（Batch20·批量选择+操作）：持仓项复选，批量加自选 / 批量平仓。
+            st.markdown("**批量操作**")
+            _pt_sel = [r["代码"] for r in rows if st.checkbox(f"选择 {r['名称']}({r['代码']})", key=f"pt_sel_{r['代码']}")]
+            if _pt_sel:
+                _b1, _b2 = st.columns(2)
+                with _b1:
+                    if st.button("⭐ 批量加自选", key="pt_batch_fav", use_container_width=True):
+                        try:
+                            from modules.admin_api import add_watchlist
+                            for _c in _pt_sel:
+                                add_watchlist(_c)
+                            _toast(f"已加自选：{', '.join(_pt_sel)}")
+                        except Exception as _e:
+                            st.error(f"批量加自选失败：{_e}")
+                with _b2:
+                    if st.button("📤 批量平仓", key="pt_batch_close", use_container_width=True):
+                        with st.spinner("批量平仓中…"):
+                            for _c in _pt_sel:
+                                _pos = book["positions"].get(_c)
+                                if _pos:
+                                    _pr, _nm = _price(_c)
+                                    if _pr is None:
+                                        _pr = _pos["avg_cost"]
+                                    _proceeds = _pr * _pos["qty"]
+                                    book["cash"] += _proceeds
+                                    book["trades"].append({
+                                        "time": datetime.now().strftime("%Y-%m-%d %H:%M"), "code": _c,
+                                        "name": _nm, "side": "卖", "price": round(_pr, 2), "qty": _pos["qty"],
+                                        "amount": round(_proceeds, 2),
+                                    })
+                                    del book["positions"][_c]
+                            rows, assets, mv = _recompute(book)
+                            _snapshot(book, assets)
+                            _save_book(user, book)
+                        _toast("已批量平仓所选持仓")
+                        st.rerun(scope="fragment")
         else:
             _empty_info("暂无持仓。先在上方搜索框输入代码（如 600519 贵州茅台），设置数量后点「买入」开始你的第一笔模拟交易。")
 
@@ -299,9 +368,20 @@ def fragment_paper():
         if len(eq) >= 2:
             xs = [e[0] for e in eq]
             ys = [e[1] for e in eq]
+            # 加法式（Batch20·图表类型切换）：线/柱/面积，session 控制，不改数据。
+            _pt_types = ["线", "柱", "面积"]
+            _pt_ct = st.radio("图表类型", _pt_types, index=_pt_types.index(st.session_state.get("_pt_eq_type", "线")),
+                              horizontal=True, key="pt_eq_type", help="切换净值曲线展示样式，不改变底层数据。")
             fig = go.Figure()
-            fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines+markers", name="总资产",
-                                     line=dict(color=UP if ys[-1] >= book["init_cash"] else DOWN, width=2)))
+            _pt_color = UP if ys[-1] >= book["init_cash"] else DOWN
+            if _pt_ct == "柱":
+                fig.add_trace(go.Bar(x=xs, y=ys, name="总资产", marker_color=_pt_color))
+            elif _pt_ct == "面积":
+                fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", name="总资产", fill="tozeroy",
+                                         line=dict(color=_pt_color, width=2), fillcolor=_pt_color))
+            else:
+                fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines+markers", name="总资产",
+                                         line=dict(color=_pt_color, width=2)))
             fig.add_hline(y=book["init_cash"], line_dash="dot", line_color="#888",
                           annotation_text="初始资金", annotation_position="bottom right")
             fig.update_layout(height=360, template="plotly_dark" if dark else "plotly_white",
@@ -313,6 +393,41 @@ def fragment_paper():
         st.caption("💡 在上方「💱 交易」买入或卖出后，这里会基于每笔成交后的总资产快照绘制净值曲线。")
         # 加法式（新角度·数据来源标注）：明示行情数据出处，纯展示不改动计算逻辑。
         st.caption("数据来源：东方财富 / 新浪财经（实时行情，失败降级日线收盘价）。")
+
+    # 加法式（Batch20·相关推荐）：从候选池取样展示相关标的，纯前端提示。
+    st.markdown("---")
+    st.subheader("🔗 相关标的推荐")
+    import random as _rnd
+    _cand = ["600519", "000858", "601318", "000333", "600036", "601012", "300750", "002594", "600276", "000001"]
+    _rec = _rnd.sample(_cand, 5)
+    st.caption("📌 " + "  ".join(f"`{c}`" for c in _rec))
+    # 加法式（Batch20·可折叠帮助/FAQ）
+    with st.expander("💡 使用说明"):
+        st.markdown(
+            "• 本页为模拟交易，使用虚拟资金，不影响真实账户。\n"
+            "• 买入/卖出需输入 6 位代码，并设置 100 股整数倍的数量。\n"
+            "• 持仓与成交持久化到本地文件，刷新不丢失。\n"
+            "• 净值曲线基于每笔成交后的总资产快照绘制。\n"
+            "• 点击「🔄 刷新」可手动刷新行情；可收藏标的、查看最近浏览。"
+        )
+    # 加法式（Batch20·键盘快捷键提示）
+    with st.expander("⌨️ 快捷键"):
+        st.markdown(
+            "• 当前页面以内联按钮/表单交互为主，无全局键盘快捷键。\n"
+            "• 行情每 20 秒自动刷新（见账户概览上方提示）。\n"
+            "• 可用「⭐ 收藏该标的」与「最近浏览」快速回到关注的股票。"
+        )
+    # 加法式（Batch20·收藏/星标展示）：列出已收藏标的，可一键移除。
+    with st.expander("⭐ 我的收藏"):
+        _pt_favs = st.session_state.get("_pt_fav", [])
+        if _pt_favs:
+            for _f in list(_pt_favs):
+                _fc1, _fc2 = st.columns([4, 1])
+                _fc1.caption(f"`{_f}`")
+                if _fc2.button("移除", key=f"pt_fav_del_{_f}"):
+                    st.session_state["_pt_fav"].remove(_f)
+        else:
+            st.caption("暂无收藏。在「买入」区点「⭐ 收藏该标的」即可添加。")
 
     st.markdown("---")
     if st.button("🗑️ 重置模拟账户", key="pt_reset", help="清空持仓与成交，恢复初始资金"):
