@@ -39,36 +39,13 @@ def _verdict_color(composite: float):
 
 
 def _calc_trade_levels(current_price: float, df: pd.DataFrame, support: float, resistance: float):
-    """基于 ATR 与支撑/压力计算入场/目标/止损价。"""
-    if current_price is None or current_price <= 0:
-        return current_price, resistance, support, 0.0
+    """基于 ATR 与支撑/压力计算入场/目标/止损价。
 
-    high = df["high"]
-    low = df["low"]
-    close = df["close"]
-    tr1 = high - low
-    tr2 = (high - close.shift(1)).abs()
-    tr3 = (low - close.shift(1)).abs()
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    atr14 = float(tr.rolling(14).mean().iloc[-1]) if len(tr) >= 14 else current_price * 0.025
-    if np.isnan(atr14) or atr14 <= 0:
-        atr14 = current_price * 0.025
-
-    stop_atr = current_price - 2.5 * atr14
-    stop_max_pct = current_price * 0.92
-    if support > 0 and support < current_price and support > stop_max_pct:
-        stop_price = support
-    else:
-        stop_price = max(stop_atr, stop_max_pct)
-    stop_price = max(stop_price, current_price * 0.80)
-
-    entry_price = max(current_price - 0.5 * atr14, stop_price * 1.01)
-    target_atr = current_price + 3 * atr14
-    target_pct_cap = current_price * 1.15
-    target_price = min(target_atr, resistance, target_pct_cap)
-    target_price = max(target_price, current_price * 1.03)
-
-    return round(entry_price, 2), round(target_price, 2), round(stop_price, 2), round(atr14, 2)
+    实现统一维护在 ``modules.stock_analysis_helpers._calc_trade_levels``（单一来源），
+    本函数仅做委托，避免两份逻辑漂移（R3 / DRY）。
+    """
+    from modules.stock_analysis_helpers import _calc_trade_levels as _impl
+    return _impl(current_price, df, support, resistance)
 
 
 def _board(code: str) -> str:

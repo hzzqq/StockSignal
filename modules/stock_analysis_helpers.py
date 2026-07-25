@@ -548,14 +548,19 @@ def _calc_trade_levels(current_price: float, df: pd.DataFrame, support: float, r
         return current_price, resistance, support, 0.0
 
     # ATR14
-    high = df["high"]
-    low = df["low"]
-    close = df["close"]
-    tr1 = high - low
-    tr2 = (high - close.shift(1)).abs()
-    tr3 = (low - close.shift(1)).abs()
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    atr14 = float(tr.rolling(14).mean().iloc[-1]) if len(tr) >= 14 else current_price * 0.025
+    # 隐性缺陷修复：旧实现直接 ``df["high"]``，若调用方传入精简行情（缺 high/low/close
+    # 列）会抛 KeyError 炸掉整页。现缺列时退化为 ATR 近似，保证函数永不崩。
+    if df is None or not all(c in df.columns for c in ("high", "low", "close")):
+        atr14 = current_price * 0.025
+    else:
+        high = df["high"]
+        low = df["low"]
+        close = df["close"]
+        tr1 = high - low
+        tr2 = (high - close.shift(1)).abs()
+        tr3 = (low - close.shift(1)).abs()
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr14 = float(tr.rolling(14).mean().iloc[-1]) if len(tr) >= 14 else current_price * 0.025
     if np.isnan(atr14) or atr14 <= 0:
         atr14 = current_price * 0.025
 
