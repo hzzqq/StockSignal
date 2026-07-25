@@ -89,3 +89,46 @@ def safe_pct(numerator, denominator, default: float = 0.0) -> float:
     if math.isnan(ratio):
         return default
     return ratio * 100
+
+
+def clamp(x, lo, hi):
+    """把数值限制在 [lo, hi] 区间。
+
+    替代散落的 ``max(lo, min(hi, x))``：后者在 x 为 NaN / inf 时（NaN 与任何数比较
+    恒 False、inf 参与比较会泄漏）会原样返回非法值，污染分数/比例等下游计算。
+    处理约定：None / NaN -> lo（未知，按最保守下界）；+inf -> hi；-inf -> lo。
+    """
+    x = to_float(x, default=None)
+    if x is None:
+        return lo
+    if math.isinf(x):
+        return hi if x > 0 else lo
+    return max(lo, min(hi, x))
+
+
+def safe_delta(a, b, default: float = 0.0) -> float:
+    """安全地计算 ``a - b``；任一为 None / NaN / inf 时返回 default。
+
+    替代裸 ``a - b``：当 a 或 b 来自行情接口可能为 None/NaN 时，裸减法会抛 TypeError
+    或产出 NaN 污染价差/变化量计算。
+    """
+    x = to_float(a, default=None)
+    y = to_float(b, default=None)
+    if x is None or y is None:
+        return default
+    r = x - y
+    if math.isnan(r) or math.isinf(r):
+        return default
+    return r
+
+
+def to_percent_str(x, dp: int = 2) -> str:
+    """把已是百分点原值的数值（如 12.34 表示 12.34%）格式化为 ``12.34%``。
+
+    与 ``format_pct`` 区别：``format_pct`` 用于「比率」（0.1234->12.34%），
+    本函数用于「已为百分点的数值」，避免二次乘 100 的口径错误。非法值返回「—」。
+    """
+    v = to_float(x, default=None)
+    if v is None:
+        return "—"
+    return f"{v:.{dp}f}%"
