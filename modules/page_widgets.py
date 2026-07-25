@@ -17,18 +17,58 @@ DOWN = DOWN_COLOR  # 绿（流出 / 跌）
 _PRESET_OPTS = ["近7天", "近30天", "近60天", "近90天", "近180天", "年初至今", "全部", "自定义"]
 
 
-def is_trading_now() -> bool:
-    """A股交易时段判定（统一来源）。
+def _now_cst() -> "datetime":
+    """返回当前「北京时间(Asia/Shanghai)」时刻，用于 A 股交易时段判定。
+
+    隐式修正（R2）：原 is_trading_now 直接用 datetime.now()（服务器本地时区），
+    若部署机不在 CST 时区，交易时段判定会整体错位，导致自动刷新在错误时间触发。
+    优先用 zoneinfo 取上海时区；不可用时回退到本地朴素时间（行为与原实现一致）。
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Asia/Shanghai"))
+    except Exception:
+        return datetime.now()
+
+
+_TRADING_START = 9 * 60 + 30    # 09:30
+_TRADING_MID = 11 * 60 + 30     # 11:30
+_TRADING_RESUME = 13 * 60       # 13:00
+_TRADING_END = 15 * 60          # 15:00
+
+
+def is_trading_now(now: "datetime | None" = None) -> bool:
+    """A股交易时段判定（统一来源，基于北京时间）。
 
     工作日 09:30-11:30 / 13:00-15:00 返回 True，周末与午休/收盘返回 False。
     替代各页散落的 4 份重复实现（session.trading_autorefresh / widgets._index_market_status
     / C_自选股监控._is_trading_now / 本模块 _in_trading_hours）。
+    now 可注入（测试 / 跨时区复用），缺省用北京时间。
     """
-    now = datetime.now()
+    now = now or _now_cst()
     if now.weekday() >= 5:
         return False
     hm = now.hour * 60 + now.minute
-    return (570 <= hm <= 690) or (780 <= hm <= 900)
+    return (_TRADING_START <= hm <= _TRADING_MID) or (_TRADING_RESUME <= hm <= _TRADING_END)
+
+
+def current_trading_session(now: "datetime | None" = None) -> str:
+    """返回更细粒度的交易时段标签（新能力，供 UI 文案 / 调度判断复用）：
+    weekend / pre_open / morning / lunch / afternoon / after_close。
+    """
+    now = now or _now_cst()
+    if now.weekday() >= 5:
+        return "weekend"
+    hm = now.hour * 60 + now.minute
+    if hm < _TRADING_START:
+        return "pre_open"
+    if hm <= _TRADING_MID:
+        return "morning"
+    if hm < _TRADING_RESUME:
+        return "lunch"
+    if hm <= _TRADING_END:
+        return "afternoon"
+    return "after_close"
 
 
 def _in_trading_hours():
