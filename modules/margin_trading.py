@@ -14,6 +14,7 @@
 并在图表副标题注明；若未来有可靠 BJ 源可扩展为三地求和。
 """
 from datetime import datetime
+import math
 import time
 
 import pandas as pd
@@ -29,13 +30,20 @@ _ensure_proxy_and_ssl()
 _MARGIN_CACHE = {}
 
 
-def _cached(ttl, key, fn):
+def _cached(ttl, key, fn, skip_empty=False):
+    """TTL 缓存。
+
+    skip_empty=True 时不缓存空结果（None / 空 DataFrame），避免把网络瞬时
+    失败的结果缓存一整个 TTL，导致页面长时间空白。
+    """
     now = time.time()
     hit = _MARGIN_CACHE.get(key)
     if hit and (now - hit[0]) < ttl:
         return hit[1]
     val = fn()
-    _MARGIN_CACHE[key] = (now, val)
+    empty = val is None or (isinstance(val, pd.DataFrame) and val.empty)
+    if not (skip_empty and empty):
+        _MARGIN_CACHE[key] = (now, val)
     return val
 
 
@@ -165,15 +173,53 @@ def get_margin_trading_data(days=180):
             import logging
             logging.getLogger(__name__).warning(f"get_margin_trading_data 最终失败：{e}")
             return pd.DataFrame()
-    return _cached(600, f"margin_trading_{days}", _fn)
+    return _cached(600, f"margin_trading_{days}", _fn, skip_empty=True)
+
+
+def safe_yuan_to_yi(x):
+    """元 -> 亿元；NaN / inf / None / 非法输入统一返回 None。
+
+    作为金额换算的单一可信源，避免 pd.to_numeric(coerce) 产生的 NaN 经
+    ``float(nan)/1e8`` 后渲染成图表/卡片上的 "nan"。
+    """
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(v):
+        return None
+    return v / 1e8
 
 
 def _to_yi(x):
-    """把 元 转换为 亿元 文本。"""
+    """把 元 转换为 亿元。向后兼容别名，统一走 safe_yuan_to_yi。"""
+    return safe_yuan_to_yi(x)
+
+
+def _delta_pct(cur, prev):
+    """两期环比百分比变化：(cur-prev)/|prev|*100。
+
+    cur/prev 为 None/NaN/非数值或 prev=0 时返回 None（避免除零与 nan）。
+    """
     try:
-        return float(x) / 1e8
-    except Exception:
+        c = float(cur)
+        p = float(prev)
+    except (TypeError, ValueError):
         return None
+    if not (math.isfinite(c) and math.isfinite(p)):
+        return None
+    if p == 0:
+        return None
+    return (c - p) / abs(p) * 100.0
+
+
+def _safe_delta_yi(cur, prev):
+    """两期绝对差额（亿元），任一为 None/NaN 时返回 None（避免 None-数值崩溃）。"""
+    va = safe_yuan_to_yi(cur)
+    vb = safe_yuan_to_yi(prev)
+    if va is None or vb is None:
+        return None
+    return va - vb
 
 
 def _fig_base(dark_mode):
@@ -341,7 +387,11 @@ def plot_margin_trend(df, dark_mode=False, metric="rzmr", show_extra=True):
 
 
 def get_latest_margin_summary():
-    """返回最近一个交易日的融资 summary 字典，用于页面顶部指标卡。"""
+    """返回最近一个交易日的融资 summary 字典，用于页面顶部指标卡。
+
+    新增 rzmr_change_pct / rzye_change_pct：环比百分比变化，
+    供指标卡同时展示绝对变动与相对变动。
+    """
     df = get_margin_trading_data(days=5)
     if df is None or df.empty:
         return {}
@@ -353,6 +403,8 @@ def get_latest_margin_summary():
         "total_rzye_yi": _to_yi(row.get("total_rzye")),
         "sh_rzmr_yi": _to_yi(row.get("sh_rzmr")),
         "sz_rzmr_yi": _to_yi(row.get("sz_rzmr")),
-        "rzmr_change_yi": _to_yi(row.get("total_rzmr")) - _to_yi(prev.get("total_rzmr")),
-        "rzye_change_yi": _to_yi(row.get("total_rzye")) - _to_yi(prev.get("total_rzye")),
+        "rzmr_change_yi": _safe_delta_yi(row.get("total_rzmr"), prev.get("total_rzmr")),
+        "rzye_change_yi": _safe_delta_yi(row.get("total_rzye"), prev.get("total_rzye")),
+        "rzmr_change_pct": _delta_pct(row.get("total_rzmr"), prev.get("total_rzmr")),
+        "rzye_change_pct": _delta_pct(row.get("total_rzye"), prev.get("total_rzye")),
     }
