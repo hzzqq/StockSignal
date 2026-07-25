@@ -67,10 +67,15 @@ def _plotly_layout_kwargs(title: str = "", height: int = 400) -> dict:
     }
 
 
-def _empty_kline_figure(title: str, msg: str) -> "go.Figure":
-    """空 / 异常数据的优雅兜底图：居中显示友好提示，不报错。"""
+def empty_figure(title: str = "", msg: str = "暂无数据", height: int = 400) -> "go.Figure":
+    """通用空 / 异常数据兜底图（新能力，R3 DRY）：居中显示友好提示，不报错。
+
+    原 _empty_kline_figure 仅服务 K 线；这里抽出统一入口，供回测/回撤/持仓/板块/
+    相关性等所有图表在输入缺失或畸形时复用，避免各自重复兜底逻辑、也避免 KeyError
+    炸页（R2 隐式 bug：这些函数原先直接 df[列] 取值，缺列即抛异常）。
+    """
     fig = go.Figure()
-    fig.update_layout(**_plotly_layout_kwargs(title=title, height=550))
+    fig.update_layout(**_plotly_layout_kwargs(title=title, height=height))
     fig.add_annotation(
         text=msg,
         x=0.5, y=0.5, xref="paper", yref="paper",
@@ -78,6 +83,11 @@ def _empty_kline_figure(title: str, msg: str) -> "go.Figure":
         font=dict(size=16, color=SF_TXT2 if _is_dark() else "#6B7280"),
     )
     return fig
+
+
+def _empty_kline_figure(title: str, msg: str) -> "go.Figure":
+    """空 / 异常数据的优雅兜底图：居中显示友好提示，不报错。"""
+    return empty_figure(title, msg, height=550)
 
 # 中文字体配置
 plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei", "Arial Unicode MS"]
@@ -587,12 +597,16 @@ class Visualizer:
     # 行业板块热力图
     # ------------------------------------------------------------------
     @staticmethod
-    def sector_heatmap(sector_df, title="行业板块涨跌热力图"):
+    def sector_heatmap(sector_df,         title="行业板块涨跌热力图"):
         """
         生成行业板块涨跌幅热力图。
         :param sector_df: DataFrame[sector, change_pct]
         :return: plotly Figure
         """
+        if (not isinstance(sector_df, pd.DataFrame)
+                or "sector" not in sector_df.columns
+                or "change_pct" not in sector_df.columns):
+            return empty_figure(title, "板块数据缺失：需要 sector / change_pct 列")
         df = sector_df.copy()
         df["change_pct"] = pd.to_numeric(df["change_pct"], errors="coerce").fillna(0)
 
@@ -638,13 +652,17 @@ class Visualizer:
         :param method: pearson / spearman
         :return: plotly Figure
         """
-        # 构建收益率 DataFrame
+        # 构建收益率 DataFrame（仅接受有效 DataFrame 且含 close、长度 >1）
         returns = {}
         for ticker, df in daily_dict.items():
-            if "close" in df.columns and len(df) > 1:
+            if (isinstance(df, pd.DataFrame) and "date" in df.columns
+                    and "close" in df.columns and len(df) > 1):
                 returns[ticker] = df.set_index("date")["close"].pct_change()
-
+        if not returns:
+            return empty_figure("个股收益率相关性矩阵", "无可用收益率数据")
         ret_df = pd.DataFrame(returns).dropna()
+        if ret_df.shape[1] < 2:
+            return empty_figure("个股收益率相关性矩阵", "标的不足，无法计算相关性")
         corr = ret_df.corr(method=method)
 
         fig = px.imshow(
@@ -673,12 +691,14 @@ class Visualizer:
     # 信号评分雷达图
     # ------------------------------------------------------------------
     @staticmethod
-    def signal_radar(scores, title="信号评分雷达图"):
+    def signal_radar(scores,         title="信号评分雷达图"):
         """
         生成信号评分雷达图。
         :param scores: {"price_score": 72, "event_score": 85, "macro_score": 60}
         :return: plotly Figure
         """
+        if not isinstance(scores, dict):
+            return empty_figure(title, "信号评分数据缺失")
         categories = ["价格信号", "事件信号", "宏观信号"]
         values = [scores.get("price_score", 0),
                   scores.get("event_score", 0),
@@ -727,13 +747,17 @@ class Visualizer:
     # 回测收益曲线
     # ------------------------------------------------------------------
     @staticmethod
-    def backtest_curve(result_df, benchmark=None, title="策略回测收益曲线"):
+    def backtest_curve(result_df, benchmark=None,         title="策略回测收益曲线"):
         """
         绘制回测累计收益曲线。
         :param result_df: 回测结果，需含 date, cumulative_return
         :param benchmark: 基准收益 Series（可选）
         :return: plotly Figure
         """
+        if (not isinstance(result_df, pd.DataFrame)
+                or "date" not in result_df.columns
+                or "cumulative_return" not in result_df.columns):
+            return empty_figure(title, "回测数据缺失：需要 date / cumulative_return 列")
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=result_df["date"], y=result_df["cumulative_return"],
@@ -775,11 +799,15 @@ class Visualizer:
     # 回撤曲线
     # ------------------------------------------------------------------
     @staticmethod
-    def drawdown_curve(result_df, title="最大回撤曲线"):
+    def drawdown_curve(result_df,         title="最大回撤曲线"):
         """
         绘制回撤曲线。
         :param result_df: 需含 date, drawdown 列
         """
+        if (not isinstance(result_df, pd.DataFrame)
+                or "date" not in result_df.columns
+                or "drawdown" not in result_df.columns):
+            return empty_figure(title, "回测数据缺失：需要 date / drawdown 列")
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=result_df["date"], y=result_df["drawdown"],
@@ -813,11 +841,15 @@ class Visualizer:
     # 持仓盈亏柱状图
     # ------------------------------------------------------------------
     @staticmethod
-    def portfolio_pnl(portfolio_df, title="持仓盈亏一览"):
+    def portfolio_pnl(portfolio_df,         title="持仓盈亏一览"):
         """
         持仓盈亏柱状图。
         :param portfolio_df: 需含 ticker, name, pnl_pct 列
         """
+        if (not isinstance(portfolio_df, pd.DataFrame)
+                or "name" not in portfolio_df.columns
+                or "pnl_pct" not in portfolio_df.columns):
+            return empty_figure(title, "持仓数据缺失：需要 name / pnl_pct 列")
         df = portfolio_df.copy()
         colors = np.where(df["pnl_pct"] >= 0, UP_COLOR, DOWN_COLOR)
         fig = go.Figure(go.Bar(
