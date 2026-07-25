@@ -281,8 +281,8 @@ def _estimate_individual_series(code, days):
     """量价模型估算逐日主力净流入（离线兜底，明确标注估算）。"""
     try:
         f = StockFetcher()
-        end = datetime.now().strftime("%Y-%m-%d")
-        start = (datetime.now() - timedelta(days=days + 5)).strftime("%Y-%m-%d")
+        end = now_cst_str("%Y-%m-%d")
+        start = (now_cst() - timedelta(days=days + 5)).strftime("%Y-%m-%d")
         df = f.get_daily(code, start=start, end=end)
         if df is None or df.empty or len(df) < 2:
             return pd.DataFrame()
@@ -669,8 +669,8 @@ def get_industry_index_series(top_n=8, days=120):
             if x not in selected:
                 selected.append(x)
         selected = selected[:top_n]
-        end = datetime.now().strftime("%Y%m%d")
-        start = (datetime.now() - timedelta(days=int(days * 1.6))).strftime("%Y%m%d")
+        end = now_cst_str("%Y%m%d")
+        start = (now_cst() - timedelta(days=int(days * 1.6))).strftime("%Y%m%d")
         frames = {}
         for nm in selected:
             try:
@@ -732,8 +732,8 @@ def get_etf_series(days=180):
     网络/接口失败返回空 DataFrame。
     """
     def _fn():
-        end = datetime.now().strftime("%Y%m%d")
-        start = (datetime.now() - timedelta(days=int(days * 1.6))).strftime("%Y%m%d")
+        end = now_cst_str("%Y%m%d")
+        start = (now_cst() - timedelta(days=int(days * 1.6))).strftime("%Y%m%d")
         frames = {}
         for code, _nm in _ETF_LIST:
             try:
