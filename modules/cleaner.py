@@ -94,8 +94,27 @@ class DataCleaner:
 
         for df in dataframes:
             mask = df[on].dt.strftime("%Y-%m-%d").isin(common_dates) if pd.api.types.is_datetime64_any_dtype(df[on]) else df[on].isin(common_dates)
-            aligned.append(df[mask].reset_index(drop=True))
+            sub = df[mask].copy()
+            # 隐性缺陷修复：旧实现各帧保留各自原始行序，交集日期在两帧中的先后顺序可能不同，
+            # 导致「对齐」后第 i 行在两帧里其实对应不同日期（静默错位，下游成对计算全错）。
+            # 现统一按 on 升序排序，保证所有对齐帧按同一日期顺序一一对应。
+            sub = sub.sort_values(on, kind="mergesort").reset_index(drop=True)
+            aligned.append(sub)
         return tuple(aligned)
+
+    @staticmethod
+    def sort_by_date(df, on="date"):
+        """把 date 列解析为 datetime 并按升序排序，返回排序后的副本。
+
+        新能力：下游指标（均线 / 收益率 / ATR）普遍假设输入按时间升序；此前调用方
+        各自重复 ``pd.to_datetime`` + ``sort_values``。本函数提供统一、可单测的入口，
+        并供 ``align_dates`` 复用，保证对齐后行序一致。
+        """
+        if on not in df.columns:
+            return df.copy()
+        out = df.copy()
+        out[on] = pd.to_datetime(out[on], errors="coerce")
+        return out.sort_values(on, kind="mergesort").reset_index(drop=True)
 
     @staticmethod
     def normalize(df, columns, method="minmax"):
