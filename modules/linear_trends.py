@@ -16,7 +16,7 @@ TTL 缓存、网络失败兜底空 DataFrame，避免页面红错。
 适配项目亮/暗主题（自包含 _fig_base，与 F_资金流向 / margin_trading 配色一致）。
 A股配色：净流入 / 涨 = 红，净流出 / 跌 = 绿。
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 import pandas as pd
@@ -32,6 +32,31 @@ from modules.fetcher import StockFetcher
 _ensure_proxy_and_ssl()
 
 _logger = logging.getLogger(__name__)
+
+
+def now_cst() -> datetime:
+    """返回带时区的「中国标准时间（Asia/Shanghai, UTC+8，无夏令时）」。
+
+    集中式时源：此前本模块多处以 ``datetime.now()``（服务器本地时区）生成
+    行情拉取的起止日期窗，部署机非 CST 时窗口会整体错位一天，造成静默数据
+    不一致。现统一走此单一入口，避免各函数各自内联 ``datetime.now()`` 漂移。
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Asia/Shanghai"))
+    except Exception:
+        pass
+    try:
+        import pytz
+        return datetime.now(pytz.timezone("Asia/Shanghai"))
+    except Exception:
+        # 兜底：固定 UTC+8（中国无夏令时）
+        return datetime.now(timezone(timedelta(hours=8)))
+
+
+def now_cst_str(fmt: str = "%Y-%m-%d") -> str:
+    """``now_cst()`` 格式化字符串（默认日期），供日期窗拼接复用。"""
+    return now_cst().strftime(fmt)
 
 # A股配色：净流入/涨=红、净流出/跌=绿（复用 modules.colors 权威调色板，消除色值漂移）
 from modules.colors import UP_COLOR, DOWN_COLOR

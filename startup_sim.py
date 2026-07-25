@@ -34,7 +34,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LOGS_DIR = os.path.join(HERE, "logs")
 DIAG = os.path.join(LOGS_DIR, "startup_sim.log")
 
-DEFAULT_VENV = r"C:\Users\24995\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
+DEFAULT_VENV = os.path.join(
+    os.path.expanduser("~"),
+    ".workbuddy", "binaries", "python", "envs", "default",
+    "Scripts", "python.exe",
+)
 
 # ---------------------------------------------------------------- 日志
 _lines = []
@@ -108,7 +112,12 @@ def resolve_pythonw(python):
         pw = python[:-len("python.exe")] + "pythonw.exe"
         if os.path.exists(pw):
             return pw
-    cand = r"C:\Users\24995\.workbuddy\binaries\python\envs\default\Scripts\pythonw.exe"
+    # 动态查找当前用户的 workbuddy managed venv 中的 pythonw
+    cand = os.path.join(
+        os.path.expanduser("~"),
+        ".workbuddy", "binaries", "python", "envs", "default",
+        "Scripts", "pythonw.exe",
+    )
     if os.path.exists(cand):
         return cand
     return python

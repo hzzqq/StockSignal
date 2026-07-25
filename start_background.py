@@ -41,18 +41,38 @@ def _log(msg: str) -> None:
 
 
 def _resolve_pythonw() -> str:
+    """按优先级查找 pythonw.exe，动态适配不同机器/用户名。"""
+    import shutil
+
+    # ① 项目本地 venv
     candidates = [
         os.path.join(HERE, "venv", "Scripts", "pythonw.exe"),
-        r"C:\Users\24995\.workbuddy\binaries\python\envs\default\Scripts\pythonw.exe",
     ]
+    # ② 当前用户的 workbuddy managed venv（动态取用户目录，不再硬编码用户名）
+    wb_venv = os.path.join(
+        os.path.expanduser("~"),
+        ".workbuddy", "binaries", "python", "envs", "default",
+        "Scripts", "pythonw.exe",
+    )
+    candidates.append(wb_venv)
+
     for cand in candidates:
         if os.path.exists(cand):
             return cand
+
+    # ③ 从 sys.executable 推导（当前跑的这个 Python）
     py = sys.executable
     if py.endswith("python.exe"):
         pw = py.replace("python.exe", "pythonw.exe")
         if os.path.exists(pw):
             return pw
+
+    # ④ 用 which/where 查系统 PATH
+    pw = shutil.which("pythonw.exe")
+    if pw:
+        return pw
+
+    # 最终降级：直接用当前 python.exe（功能相同，仅可能闪一下控制台）
     return py
 
 
