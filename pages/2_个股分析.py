@@ -21,7 +21,7 @@ st.session_state["_active_page"] = __file__
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.visualizer import Visualizer
-from modules.session import require_auth, render_user_badge, api_kline
+from modules.session import require_auth, render_user_badge, api_kline, api_intraday
 from modules.search_ui import stock_search_input
 from modules.ui_theme import dashboard_sf_css, _theme_is_dark
 from modules.background_tasks import submit_task_with_error, poll_task
@@ -103,6 +103,38 @@ if st.button("🔍 生成分析", type="primary", use_container_width=True, key=
             st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
 st.markdown('</div>', unsafe_allow_html=True)
 
+# ═══ Batch20 加法式：最近浏览 + 收藏（纯前端，session 级）═══
+def _analysis_goto(c):
+    st.session_state["analysis_stock"] = c
+    st.rerun()
+_hist_key2 = "_analysis_recent"
+if _hist_key2 not in st.session_state:
+    st.session_state[_hist_key2] = []
+_fav_key2 = "_analysis_favs"
+if _fav_key2 not in st.session_state:
+    st.session_state[_fav_key2] = []
+_col_hist, _col_fav = st.columns([0.7, 0.3])
+with _col_hist:
+    if st.session_state[_hist_key2]:
+        st.markdown("**🕘 最近浏览**")
+        _hc = st.columns(min(len(st.session_state[_hist_key2]), 6))
+        for i, hc in enumerate(st.session_state[_hist_key2]):
+            with _hc[i]:
+                if st.button(hc, key=f"anal_hist_{hc}", use_container_width=True):
+                    _analysis_goto(hc)
+with _col_fav:
+    _is_fav = ticker in st.session_state[_fav_key2]
+    if st.button(
+        ("⭐ 已收藏 " + ticker if _is_fav else "☆ 收藏当前标的"),
+        key="anal_fav_btn",
+        use_container_width=True,
+    ):
+        if _is_fav:
+            st.session_state[_fav_key2].remove(ticker)
+        else:
+            st.session_state[_fav_key2].append(ticker)
+        st.rerun()
+
 # ══════════════════════════════════════════════════════════════
 # 分析渲染：从 dict 中恢复所有变量并绘制 8 大模块
 # ══════════════════════════════════════════════════════════════
@@ -113,6 +145,24 @@ def _cached_period_kline(ticker: str, start: str, end: str, period: str):
     if recs is None:
         return StockFetcher().get_kline(ticker, start=start, end=end, period=period)
     return pd.DataFrame(recs)
+
+
+@st.cache_data(show_spinner=False, ttl=60)
+def _cached_intraday(ticker):
+    """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。"""
+    try:
+        rec = api_intraday(ticker)
+        if rec and isinstance(rec.get("records"), list) and rec["records"]:
+            return pd.DataFrame(rec["records"]), rec.get("prev_close"), rec.get("trade_date")
+    except Exception:
+        pass
+    try:
+        _df, _pc, _dt = fetcher.get_stock_intraday_sina(ticker)
+        if _df is not None and not _df.empty:
+            return _df, _pc, _dt
+    except Exception:
+        pass
+    return None
 
 
 def _render_analysis(R: dict):
@@ -140,6 +190,12 @@ def _render_analysis(R: dict):
     prev_close = R["prev_close"]
     change_pct = R["change_pct"]
     df = R["df"]
+    # ══ 加法式健壮性守卫（Batch15）：行情序列 df 缺失或为空时，
+    # 原代码会在下方 `last = df.iloc[-1]` 抛 IndexError 使整个决策仪表盘崩溃。
+    # 提前降级为友好空态提示，正常数据渲染不受影响。
+    if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+        _empty_info("分析数据不完整（行情序列缺失），暂无法渲染决策仪表盘。请重新生成分析。")
+        return
     # ⚠️ 兜底：上游结果若缺失 trend/momentum/volume_info（None），后续 .get 会抛 AttributeError
     trend = R.get("trend") or {}
     momentum = R.get("momentum") or {}
@@ -480,11 +536,37 @@ def _render_analysis(R: dict):
         except Exception:
             pass
     else:
-        _kdf = _cached_period_kline(ticker, _kstart, _kend, kline_period)
+        _period_name = {"weekly": "周线", "monthly": "月线"}.get(kline_period, "")
+        with st.spinner(f"正在加载{_period_name} K 线数据…"):
+            _kdf = _cached_period_kline(ticker, _kstart, _kend, kline_period)
         if _kdf is None or _kdf.empty:
             period_df = df
         else:
             period_df = DataCleaner.full_pipeline(_kdf.copy())
+
+    # ── 分时图（置于 K 线之上，默认开启；个股页沿用绿涨红跌语义）──
+    _show_intraday = st.checkbox("📈 显示分时图", value=True, key=f"intraday_chk_{ticker}",
+                                 help="展示该股票当日/最近交易日分时走势（价格线+均价+昨收基准）。")
+    if _show_intraday:
+        try:
+            _intra = _cached_intraday(ticker)
+            if _intra is not None:
+                _idf, _ipc, _idate = _intra
+                _ifig = Visualizer.intraday(
+                    _idf, prev_close=_ipc,
+                    title=f"{ticker} {display_name} 分时（{_idate}）",
+                    up_color=RED, down_color=GREEN,
+                )
+                st.plotly_chart(_ifig, use_container_width=True, key=f"intraday_chart_{ticker}")
+                st.markdown(
+                    "<div style='font-size:12px;color:#64748b;margin-top:4px;'>"
+                    "白线为当日价格走势，橙点为均价；虚线为昨收。绿涨红跌（参考文档配色）。</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.info("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
+        except Exception as _ie:
+            st.warning(f"分时图加载失败：{str(_ie)[:60]}")
 
     try:
         # 参考文档 002947：绿涨红跌、MA5橙/MA10靛/MA20绿、
@@ -536,7 +618,9 @@ def _render_analysis(R: dict):
         _cap += f"数据区间 {_date_min} ~ {_date_max}。</div>"
         st.markdown(_cap, unsafe_allow_html=True)
     except Exception as e:
-        st.warning(f"⚠️ K线图渲染失败：{str(e)[:80]}")
+        st.error(f"⚠️ K线图渲染失败，请稍后重试：{str(e)[:80]}")
+        if st.button("🔄 重试", key="kline_retry_btn"):
+            st.rerun(scope="fragment")
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ════════════ 模块5：情报面 ════════════
@@ -557,18 +641,41 @@ def _render_analysis(R: dict):
         unsafe_allow_html=True,
     )
     if news_rows:
+        # ── 列表内搜索/筛选（前端实时过滤，#Batch19 新角度）──
+        _news_q = st.text_input(
+            "🔍 搜索相关新闻…",
+            key=f"filter_news_{ticker}",
+            placeholder="输入关键词筛选新闻标题（仅前端过滤，不影响原始数据）",
+        )
+        _filtered_news = [
+            r for r in news_rows
+            if _news_q.strip().lower() in str(r.get("title") or "").lower()
+        ] if _news_q else news_rows
+        # ── 分页 / 加载更多（#Batch19 新角度）──
+        _news_limit_key = f"news_limit_{ticker}"
+        if _news_limit_key not in st.session_state:
+            st.session_state[_news_limit_key] = 10
+        _show_n = min(st.session_state[_news_limit_key], len(_filtered_news))
+        _disp_news = _filtered_news[:_show_n]
+        st.caption(
+            f"📰 共获取 {len(news_rows)} 条新闻"
+            + (f"，筛选命中 {len(_filtered_news)} 条" if _news_q else "")
+            + f"，当前显示前 {_show_n} 条（按情绪权重排序）"
+        )
         rows_html = "".join(
-            # ⚠️ 深层守卫：新闻项可能缺 title/sentiment 字段（契约漂移），
-            # 原 r['title'] 直接下标会抛 KeyError 使整个情报面渲染崩溃；统一 .get 兜底。
+            # ⚠️ 深层守卫：新闻项可能缺 title/sentiment 字段（契约漂移），统一 .get 兜底。
             f"<tr><td class='l'>{r.get('title') or '—'}</td>"
             f"<td><span class='sf-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{r.get('sentiment') or '中性'}</span></td></tr>"
-            for r in news_rows[:10]
+            for r in _disp_news
         )
         st.markdown(
             f"<table class='sf-table'><thead><tr><th class='l'>新闻标题</th><th>情绪</th></tr></thead>"
             f"<tbody>{rows_html}</tbody></table>",
             unsafe_allow_html=True,
         )
+        if _show_n < len(_filtered_news):
+            if st.button("显示更多 ▼", key=f"news_more_{ticker}", use_container_width=True):
+                st.session_state[_news_limit_key] += 10
     else:
         _empty_info("暂无新闻数据（网络不可用或该标的无公开新闻）")
 
@@ -599,6 +706,9 @@ def _render_analysis(R: dict):
         st.markdown(_factor_list_html("利好清单（全集）", rise_factors), unsafe_allow_html=True)
     with col_fall:
         st.markdown(_factor_list_html("利空清单（全集）", fall_factors), unsafe_allow_html=True)
+    # 利好/利空清单空态引导（加法式）：两列均无因素数据时给出指引，而非空白卡片。
+    if not rise_factors and not fall_factors:
+        _empty_info("暂未提取到利好 / 利空因素（数据缺失或该标的尚未生成）。可重新生成分析，或检查行情与新闻数据源。")
 
     # ════════════ 新增模块：多空逻辑与致命风险 ════════════
     rise_logic, fall_logic, fatal_logic = _build_logic_lists(R)
@@ -776,6 +886,7 @@ def _render_analysis(R: dict):
 
     st.markdown(_html, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
+    st.caption("板块内对比表格列说明：代码 / 名称 / 涨跌幅（绿涨红跌，本页配色）/ 总市值（亿元）；数据来自同板块实时行情。")
 
     st.markdown('<div class="sf-card">' + _section_header("信号归因 · 五维雷达", "技术 / 情绪 / 量能 / 宏观 / 板块", "🎯"), unsafe_allow_html=True)
     try:
@@ -832,6 +943,18 @@ def _render_analysis(R: dict):
         "</tbody></table>",
         unsafe_allow_html=True,
     )
+
+    # 评分维度说明（#Batch19 指标/字段说明）
+    with st.expander("📖 评分维度说明", expanded=False):
+        st.markdown(
+            "• <b>技术指标 25%</b>：多周期（短/中/长）趋势与动量强弱。<br>"
+            "• <b>新闻情绪 22%</b>：事件催化强度与正面占比。<br>"
+            "• <b>资金量能 18%</b>：量价配合与换手健康度。<br>"
+            "• <b>市场环境 15%</b>：宏观 PMI 与大盘强弱。<br>"
+            "• <b>板块强度 20%</b>：个股相对所属板块的强弱与排名。<br>"
+            "综合评分 = 五维加权汇总，仅作研究参考，不构成投资建议。",
+            unsafe_allow_html=True,
+        )
 
     # 最强看多 / 看空 callouts
     bull = []
@@ -939,6 +1062,36 @@ def _render_analysis(R: dict):
         unsafe_allow_html=True,
     )
 
+    # ════════════ 新增模块：相关标的推荐（Batch20 加法式）══════════
+    _top_peers = sector_analysis.get("top_peers", []) or []
+    _better_peers = sector_analysis.get("better_peers", []) or []
+    _recs = []
+    for p in (_better_peers[:3] + _top_peers[:3]):
+        _pc = p.get("code")
+        if _pc and _pc not in [r.get("code") for r in _recs]:
+            _recs.append(p)
+    if _recs:
+        st.markdown('<div class="sf-card">' + _section_header("相关标的推荐", "同板块领涨 / 更强个股", "🔗"), unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:10px;'>"
+            f"基于「{_sa_name}」板块内实时表现，为你推荐以下关联标的"
+            f"（涨跌遵循本页绿涨红跌配色）：</div>",
+            unsafe_allow_html=True,
+        )
+        _rec_rows = "".join(_peer_row(p) for p in _recs[:6])
+        st.markdown(
+            f"<table style='width:100%;border-collapse:collapse;'>"
+            f"<thead><tr style='border-bottom:1px solid var(--border);'>"
+            f"<th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>代码</th>"
+            f"<th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>名称</th>"
+            f"<th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>涨跌幅</th>"
+            f"<th style='padding:6px 8px;text-align:right;font-size:12px;color:var(--txt2);font-weight:600;'>总市值</th>"
+            f"</tr></thead><tbody>{_rec_rows}</tbody></table>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
 
 # ══════════════════════════════════════════════════════════════
 # 主交互：提交后台任务，不阻塞页面，切页后继续运行
@@ -973,6 +1126,13 @@ def fragment_analysis_result():
         task = _poll_analysis_once(analysis_task_id)
         if task and task.get("status") == "success":
             result = _deserialize_analysis_result(task.get("result"))
+            # 记录最近浏览（Batch20 加法式）
+            _rt = result.get("ticker")
+            if _rt:
+                _h2 = st.session_state.setdefault("_analysis_recent", [])
+                if _rt not in _h2:
+                    _h2.insert(0, _rt)
+                    st.session_state["_analysis_recent"] = _h2[:8]
             for w in result.pop("_warnings", []):
                 st.warning(w)
             st.session_state["analysis_result"] = result
@@ -1067,12 +1227,17 @@ def fragment_stock_videos(ticker):
     if vk not in st.session_state:
         st.session_state[vk] = []
     with st.form(key=f"video_form_{ticker}", clear_on_submit=True):
-        video_url = st.text_input("视频链接（如 https://www.bilibili.com/video/BVxxxx 或 YouTube 链接）", "")
+        video_url = st.text_input(
+            "视频链接（如 https://www.bilibili.com/video/BVxxxx 或 YouTube 链接）",
+            "",
+            placeholder="在此粘贴视频地址，例如 B站 / YouTube 分享链接",
+        )
         submitted = st.form_submit_button("➕ 添加到本股视频", use_container_width=True)
         if submitted and video_url:
             emb = _video_embed_url(video_url)
             if emb:
                 st.session_state[vk].append({"src": emb, "raw": video_url})
+                st.toast("✅ 已添加视频")
             else:
                 st.warning("⚠️ 暂仅支持 YouTube / B站 / 腾讯视频 的嵌入；其它平台已为你保留原链接，可点击观看。")
                 st.session_state[vk].append({"src": None, "raw": video_url})
@@ -1109,3 +1274,12 @@ def fragment_stock_videos(ticker):
 
 
 fragment_stock_videos(ticker)
+
+# 页面间快捷跳转（#Batch19 新角度）
+st.markdown("---")
+st.page_link("pages/E_基本面分析.py", label="→ 去 基本面分析（估值/业绩/行业对比）", icon="🏛️")
+st.page_link("pages/个股研究.py", label="→ 去 个股研究（K线与技术面）", icon="📈")
+
+# 快捷回到顶部（Batch18 #back-to-top：长页面底部一键回顶）
+if st.button("↑ 回到顶部", key="analysis_back_to_top", use_container_width=True):
+    st.components.v1.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0)

@@ -4,18 +4,25 @@
 K 线、参数设置、技术面分析已迁移至「股票选取」模块。
 """
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
+import requests
+import concurrent.futures as _cf
 from datetime import datetime, timedelta, time
 
-from modules.ui_theme import apply_page_config
+from modules.ui_theme import apply_page_config, _theme_is_dark
 from modules.fetcher import StockFetcher
 from modules.visualizer import Visualizer
-from modules.search_ui import multi_stock_search_input
-from modules.session import require_auth, render_user_badge, api_kline, safe_switch_page, fragment_market_alerts_panel
+from modules.search_ui import multi_stock_search_input, stock_search_input
+from modules.session import (
+    require_auth, render_user_badge, api_kline, safe_switch_page,
+    fragment_market_alerts_panel, api_get, api_post, api_delete, get_token, API_BASE, clear_auth,
+)
 from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules.widgets import render_index_compact
 from modules.page_guard import safe_fragment
-from modules.page_widgets import _empty_info, _fmt_yi
+from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
+from modules.fundamental_helpers import fund_one
 
 apply_page_config(page_title="行情看板", page_icon="📈", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -27,6 +34,27 @@ st.title("📈 行情看板")
 
 # 顶部主要指数收盘行情（轻量组件）
 render_index_compact(cols_per_row=5)
+
+
+# ------------------------------------------------------------------
+# 搜索股票 · 加入自选（匹配结果内联显示在输入框下方，模仿图片1）
+# ------------------------------------------------------------------
+st.markdown("---")
+st.subheader("🔍 搜索股票 · 加入自选")
+st.caption("输入代码 / 名称 / 拼音首字母，匹配结果直接显示在输入框下方（含市场标签），点击结果即选中；"
+           "选中后可一键加入自选股，下方「自选行情」会实时同步。")
+_wb_code = stock_search_input(label="输入代码 / 名称 / 拼音", key="wb_search", default="600519")
+_wb_c1, _wb_c2 = st.columns([1, 3])
+with _wb_c1:
+    if st.button("☆ 加入自选股", key="wb_add_wl", use_container_width=True):
+        if _wb_code:
+            _sc, _body = api_post("/api/watchlist", {"stock_code": _wb_code}, timeout=5)
+            if _sc == 200 and isinstance(_body, dict) and _body.get("status") == "ok":
+                _toast(f"✅ 已加入自选股 {_wb_code}")
+                st.rerun()
+            else:
+                _msg = _body.get("message", "添加失败") if isinstance(_body, dict) else "添加失败"
+                st.warning(f"⚠️ {_msg}")
 
 
 @st.cache_resource(show_spinner=False)
@@ -366,9 +394,15 @@ def fragment_lhb():
             st.dataframe(lhb_df[[c for c in display_cols if c in lhb_df.columns]].drop(columns=_tmp_cols, errors="ignore"),
                          use_container_width=True, height=420)
 
+            # 加法式 UX：一行复制所有龙虎榜代码，便于粘贴到自选/选股框批量关注
+            with st.expander("📋 复制龙虎榜代码", expanded=False):
+                _lhb_codes = "\n".join(str(c) for c in lhb_df["股票代码"].tolist() if str(c))
+                st.code(_lhb_codes or "—", language="text")
+
             # 点击跳转股票选取（K 线查看）
             opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in lhb_df.iterrows() if len(str(row['股票代码'])) == 6]
-            sel = st.selectbox("选择龙虎榜股票查看 K 线", ["— 请选择 —"] + opts, key="lhb_jump_select")
+            sel = st.selectbox("选择龙虎榜股票查看 K 线", ["— 请选择 —"] + opts, key="lhb_jump_select",
+                                help="选择一个标的后跳转到「股票选取」页查看其 K 线与详情。")
             if sel and sel != "— 请选择 —":
                 code = sel.split()[0]
                 st.query_params["pick_stock"] = code
@@ -412,7 +446,8 @@ def fragment_lhb():
 
                 # 热股榜内的 K 线跳转选择器
                 heat_opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in heat_df.iterrows() if len(str(row['股票代码'])) == 6]
-                hsel = st.selectbox("选择热股榜股票查看 K 线", ["— 请选择 —"] + heat_opts, key="heat_jump_select")
+                hsel = st.selectbox("选择热股榜股票查看 K 线", ["— 请选择 —"] + heat_opts, key="heat_jump_select",
+                                     help="选择热股榜中的标的后跳转到「股票选取」页查看其 K 线与详情。")
                 if hsel and hsel != "— 请选择 —":
                     code = hsel.split()[0]
                     st.query_params["pick_stock"] = code
@@ -511,6 +546,274 @@ if st.button("计算相关性", key="calc_corr", use_container_width=True,
                 st.warning(f"⚠️ 相关性矩阵渲染失败：{str(e)[:80]}。请检查输入代码或网络后重试。")
         else:
             st.warning("需要至少 2 只有效股票代码。请检查输入或网络后重试。")
+
+# ------------------------------------------------------------------
+# 自选行情（行情看板底部，模仿图片2：名称/代码/现价/涨跌幅/涨跌额/
+# 今开/最高/最低/换手率/市盈率/总市值(亿)/操作，行可点看 K 线）
+# ------------------------------------------------------------------
+def _wl_quote_one(code: str, token):
+    """并行取单只实时行情：优先后端 /api/quote，失败回退本地 fetcher。"""
+    try:
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        resp = requests.get(f"{API_BASE}/api/quote?ticker={code}", headers=headers, timeout=5)
+        if resp.status_code == 401:
+            return code, {"__auth_error": True}
+        if resp.status_code == 200:
+            body = resp.json()
+            if isinstance(body, dict) and body.get("status") == "ok":
+                data = body.get("data")
+                if isinstance(data, dict) and data.get("current"):
+                    return code, data
+    except Exception:
+        pass
+    try:
+        q = fetcher.get_realtime_quote(code)
+        if isinstance(q, dict) and q.get("current"):
+            return code, q
+    except Exception:
+        pass
+    return code, None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _wl_extra(code: str):
+    """缓存 1h：返回 总股本/流通股（股），用于计算 总市值 与 换手率。失败返回 None。"""
+    try:
+        import akshare as ak
+        from modules.ssl_helper import ssl_bypass
+        with ssl_bypass():
+            info = ak.stock_individual_info_em(symbol=str(code))
+        if info is None or info.empty:
+            return None
+        d = dict(zip(info["item"], info["value"]))
+        def _f(k):
+            try:
+                return float(str(d.get(k)).replace(",", "").replace("%", "").replace("亿", "").replace("万", ""))
+            except Exception:
+                return None
+        return {"total_shares": _f("总股本"), "float_shares": _f("流通股")}
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _wl_pe(code: str):
+    """缓存 1h：取市盈率(TTM)。"""
+    try:
+        _, pe, _ = fund_one(code, fetcher)
+        return pe
+    except Exception:
+        return None
+
+
+def _wl_render_table_html(rows, dark: bool):
+    """渲染自选行情 HTML 表（深色/浅色自适应），操作列可点击看 K 线。返回 height。"""
+    if dark:
+        bg, border = "#16161e", "#2d2d44"
+        head_bg, head_color = "#1f1f2e", "#cbd5e1"
+        row_color, hover = "#e2e8f0", "#23233a"
+        code_color = "#8b95a8"
+        op_bg, op_color = "#2a2a44", "#a5b4fc"
+    else:
+        bg, border = "#ffffff", "#e2e8f0"
+        head_bg, head_color = "#f8fafc", "#475569"
+        row_color, hover = "#1e293b", "#f1f5f9"
+        code_color = "#64748b"
+        op_bg, op_color = "#eef2ff", "#4f46e5"
+    up, down = UP_COLOR, DOWN_COLOR
+
+    cols = ["名称", "代码", "现价", "涨跌幅", "涨跌额", "今开", "最高", "最低", "换手率", "市盈率", "总市值(亿)", "操作"]
+    head = "".join(f'<th style="padding:7px 8px;white-space:nowrap;">{c}</th>' for c in cols)
+
+    body = ""
+    for r in rows:
+        chg = r.get("chg")
+        camt = r.get("change_amt")
+        col = up if (chg is not None and chg > 0) else (down if (chg is not None and chg < 0) else "#9aa0a6")
+        chg_s = f"{chg:+.2f}%" if isinstance(chg, (int, float)) else "—"
+        camt_s = f"{camt:+.2f}" if isinstance(camt, (int, float)) else "—"
+        cur_s = f"{r['cur']:.2f}" if isinstance(r.get("cur"), (int, float)) else "—"
+        open_s = f"{r['open']:.2f}" if isinstance(r.get("open"), (int, float)) else "—"
+        high_s = f"{r['high']:.2f}" if isinstance(r.get("high"), (int, float)) else "—"
+        low_s = f"{r['low']:.2f}" if isinstance(r.get("low"), (int, float)) else "—"
+        turn_s = r.get("turnover") if r.get("turnover") is not None else "—"
+        pe_s = r.get("pe") if r.get("pe") is not None else "—"
+        mv_s = r.get("mv_yi") if r.get("mv_yi") is not None else "—"
+        body += (
+            f'<tr style="color:{row_color};">'
+            f'<td style="padding:6px 8px;white-space:nowrap;">{r["name"]}</td>'
+            f'<td style="padding:6px 8px;color:{code_color};font-variant-numeric:tabular-nums;">{r["code"]}</td>'
+            f'<td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{cur_s}</td>'
+            f'<td style="padding:6px 8px;color:{col};font-weight:600;font-variant-numeric:tabular-nums;">{chg_s}</td>'
+            f'<td style="padding:6px 8px;color:{col};font-variant-numeric:tabular-nums;">{camt_s}</td>'
+            f'<td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{open_s}</td>'
+            f'<td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{high_s}</td>'
+            f'<td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{low_s}</td>'
+            f'<td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{turn_s}</td>'
+            f'<td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{pe_s}</td>'
+            f'<td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{mv_s}</td>'
+            f'<td style="padding:6px 8px;"><span class="wl-op" data-code="{r["code"]}" '
+            f'style="cursor:pointer;background:{op_bg};color:{op_color};font-size:12px;'
+            f'padding:2px 8px;border-radius:10px;white-space:nowrap;">📈 看K线</span></td>'
+            f'</tr>'
+        )
+
+    css = f"""
+    <style>
+    .wl-table{{width:100%;border-collapse:collapse;background:{bg};
+      border:1px solid {border};border-radius:8px;font-size:13px;font-family:inherit;}}
+    .wl-table th{{background:{head_bg};color:{head_color};text-align:right;font-weight:600;
+      border-bottom:1px solid {border};position:sticky;top:0;}}
+    .wl-table th:nth-child(1),.wl-table th:nth-child(2){{text-align:left;}}
+    .wl-table td{{text-align:right;border-bottom:1px solid {border};}}
+    .wl-table td:nth-child(1),.wl-table td:nth-child(2){{text-align:left;}}
+    .wl-table tr:hover td{{background:{hover};}}
+    </style>
+    """
+    html = (
+        css
+        + f'<div style="max-height:520px;overflow:auto;"><table class="wl-table">'
+        + f'<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+        + '<script>'
+        + 'var ops=document.querySelectorAll(".wl-op");'
+        + 'for(var i=0;i<ops.length;i++){ops[i].onclick=function(){'
+        + 'var s=window.parent&&window.parent.Streamlit;'
+        + 'if(s&&s.setComponentValue){s.setComponentValue(this.getAttribute("data-code"));}'
+        + '};}'
+        + '</script>'
+    )
+    return html
+
+
+@safe_fragment("自选行情")
+def fragment_watchlist_quotes():
+    st.markdown("---")
+    st.subheader("📌 自选行情")
+    st.caption("实时跟踪自选股现价与涨跌（A股红涨绿跌）；行情接口异常时自动回退本地源。点击操作列「📈 看K线」跳转个股 K 线。")
+
+    # 交易时段自动刷新（仅本 fragment 重跑）
+    try:
+        from streamlit_autorefresh import st_autorefresh
+        if is_trading_now():
+            st_autorefresh(interval=60 * 1000, key="wl_quotes_autorefresh")
+    except Exception:
+        pass
+
+    sc, body = api_get("/api/watchlist", timeout=10)
+    if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
+        st.error("⚠️ 加载自选股失败，请稍后重试")
+        return
+
+    items = body.get("data", []) or []
+    if not items:
+        _empty_info("自选股为空。可在上方「🔍 搜索股票 · 加入自选」搜索后点击 ☆ 加入，或前往「📡 自选股监控」管理。")
+        return
+
+    codes = [it.get("stock_code") for it in items if isinstance(it, dict) and it.get("stock_code")]
+    name_by_code = {it.get("stock_code"): it.get("stock_name") for it in items}
+    id_by_code = {it.get("stock_code"): it.get("id") for it in items}
+
+    # 并行解析名称（本地库兜底）
+    names = {}
+    with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+        _fut_map = {ex.submit(fetcher.get_name_only, c): c for c in codes}
+        for _fut in _cf.as_completed(_fut_map):
+            _c = _fut_map[_fut]
+            try:
+                names[_c] = _fut.result() or _c
+            except Exception:
+                names[_c] = _c
+
+    # 并行拉取实时行情
+    quotes = {}
+    _tok = get_token()
+    with st.spinner(f"并行获取 {len(codes)} 只自选股实时行情…"):
+        with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+            for code, q in ex.map(lambda c: _wl_quote_one(c, _tok), codes):
+                quotes[code] = q
+
+    if any(isinstance(q, dict) and q.get("__auth_error") for q in quotes.values()):
+        clear_auth()
+        st.warning("🔐 登录已过期，请重新登录")
+        return
+
+    rows = []
+    for code in codes:
+        q = quotes.get(code)
+        name = (q.get("name") if isinstance(q, dict) and q.get("name") else None) or names.get(code) or code
+        if q and q.get("current"):
+            cur = float(q["current"])
+            prev = float(q.get("prev_close") or 0)
+            high = float(q.get("high") or 0)
+            low = float(q.get("low") or 0)
+            open_ = float(q.get("open") or 0)
+            volume = int(q.get("volume") or 0)
+            chg = (cur - prev) / prev * 100 if prev else 0.0
+            change_amt = cur - prev if prev else 0.0
+        else:
+            cur = open_ = high = low = chg = change_amt = None
+            volume = 0
+
+        # 财务补充（缓存 1h）：市盈率 / 总市值 / 换手率
+        pe = _wl_pe(code)
+        extra = _wl_extra(code)
+        total_shares = extra.get("total_shares") if extra else None
+        float_shares = extra.get("float_shares") if extra else None
+        mv_yi = (cur * total_shares / 1e8) if (cur and total_shares) else None
+        turnover = None
+        if volume and float_shares:
+            _t = volume / float_shares * 100
+            turnover = f"{_t:.2f}%" if 0 <= _t <= 100 else "—"
+
+        rows.append({
+            "code": code, "name": name, "cur": cur, "chg": chg, "change_amt": change_amt,
+            "open": open_, "high": high, "low": low, "turnover": turnover,
+            "pe": (f"{pe:.2f}" if isinstance(pe, (int, float)) and not pd.isna(pe) else None),
+            "mv_yi": (f"{mv_yi:.2f}" if mv_yi is not None else None),
+        })
+
+    up_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] >= 0)
+    down_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] < 0)
+    st.markdown(
+        f"#### 共 {len(rows)} 只自选股 ｜ "
+        f"<span style='color:{UP_COLOR};font-weight:600;'>▲ {up_n}</span> ／ "
+        f"<span style='color:{DOWN_COLOR};font-weight:600;'>▼ {down_n}</span>",
+        unsafe_allow_html=True,
+    )
+
+    # 操作列点击（components.html 内联表）
+    picks = _wl_render_table_html(rows, _theme_is_dark())
+    picked = components.html(picks, height=min(60 + len(rows) * 38, 540), key="wl_table_html")
+    if picked and picked in codes:
+        st.query_params["pick_stock"] = picked
+        safe_switch_page("pages/1_股票选取.py")
+
+    # 加法式兜底：K 线跳转（可靠 selectbox）+ 移除自选
+    opts = [f"{r['code']} {r['name']}" for r in rows]
+    _kc1, _kc2 = st.columns(2)
+    with _kc1:
+        sel = st.selectbox("选择股票查看 K 线", ["— 请选择 —"] + opts, key="wl_kline_jump")
+        if sel and sel != "— 请选择 —":
+            c = sel.split()[0]
+            st.query_params["pick_stock"] = c
+            safe_switch_page("pages/1_股票选取.py")
+    with _kc2:
+        rsel = st.selectbox("移除自选", ["— 请选择 —"] + opts, key="wl_remove_sel")
+        if st.button("🗑 移除", key="wl_remove_btn", use_container_width=True):
+            if rsel and rsel != "— 请选择 —":
+                rc = rsel.split()[0]
+                rid = id_by_code.get(rc)
+                if rid is not None:
+                    dsc, dbody = api_delete(f"/api/watchlist/{rid}", timeout=5)
+                    if dsc == 200:
+                        _toast(f"🗑 已移除 {rc}")
+                        st.rerun(scope="fragment")
+                    else:
+                        st.warning("⚠️ 移除失败，请重试")
+
+
+fragment_watchlist_quotes()
+
 
 # 全局市场异动面板（与 P_市场情绪 页共享同一组件）
 fragment_market_alerts_panel()

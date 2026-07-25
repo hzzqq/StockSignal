@@ -17,6 +17,7 @@ v6 改进：
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import time
 import re
 from modules.fetcher import StockFetcher
@@ -157,6 +158,88 @@ def _cached_search(query: str, limit: int = 10):
     return results
 
 
+def _derive_tag(code: str) -> str:
+    """由代码前缀推导市场/板块标签（用于匹配结果下拉的「标签」列）。"""
+    if not code or not code.isdigit():
+        return "—"
+    if code.startswith("688"):
+        return "科创板"
+    if code.startswith("8") or code.startswith("4"):
+        return "北交所"
+    if code.startswith("3"):
+        return "创业板"
+    if code.startswith("6"):
+        return "沪A"
+    if code.startswith("0"):
+        return "深A"
+    return "—"
+
+
+def _render_match_dropdown(key: str, raw_input: str, results, active_code: str, dark: bool):
+    """渲染「匹配结果 N 条」内联下拉（HTML + 可点击行），返回点击的代码或 None。
+
+    直接显示在输入框下方，每行含 名称 / 代码 / 标签，点击即选中（点击由组件的
+    setComponentValue 触发重跑，fragment 内只重跑片段，无需手动 st.rerun）。
+    key 随输入词变化以确保换词后组件重新挂载、不残留旧选中值。
+    """
+    rows = []
+    for code, name, market in results:
+        tag = _derive_tag(code)
+        cls = " mk-active" if code == active_code else ""
+        rows.append(
+            f'<div class="mk-row{cls}" data-code="{code}">'
+            f'<span class="mk-name">{name}</span>'
+            f'<span class="mk-code">{code}</span>'
+            f'<span class="mk-tag">{tag}</span>'
+            f'</div>'
+        )
+    rows_html = "".join(rows)
+
+    if dark:
+        bg, border = "#16161e", "#2d2d44"
+        head_color, row_color = "#cbd5e1", "#e2e8f0"
+        code_color, tag_bg, tag_color = "#8b95a8", "#2d2d44", "#a5b4fc"
+        hover, active_bg = "#23233a", "#2a2a44"
+    else:
+        bg, border = "#ffffff", "#e2e8f0"
+        head_color, row_color = "#475569", "#1e293b"
+        code_color, tag_bg, tag_color = "#64748b", "#eef2ff", "#4f46e5"
+        hover, active_bg = "#f1f5f9", "#eef2ff"
+
+    css = f"""
+    <style>
+    .mk-wrap{{background:{bg};border:1px solid {border};border-radius:8px;
+      margin-top:4px;overflow:hidden;font-family:inherit;}}
+    .mk-head{{padding:6px 10px;font-size:12px;color:{head_color};font-weight:600;
+      border-bottom:1px solid {border};}}
+    .mk-row{{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;
+      color:{row_color};font-size:13px;}}
+    .mk-row:hover{{background:{hover};}}
+    .mk-active{{background:{active_bg};font-weight:600;}}
+    .mk-name{{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+    .mk-code{{color:{code_color};font-size:12px;font-variant-numeric:tabular-nums;}}
+    .mk-tag{{background:{tag_bg};color:{tag_color};font-size:11px;padding:1px 7px;
+      border-radius:10px;white-space:nowrap;}}
+    </style>
+    """
+    html = (
+        css
+        + f'<div class="mk-wrap"><div class="mk-head">🔍 匹配结果 ({len(results)} 条)</div>'
+        + f'{rows_html}</div>'
+        + '<script>'
+        + 'var rows=document.querySelectorAll(".mk-row");'
+        + 'for(var i=0;i<rows.length;i++){'
+        + 'rows[i].onclick=function(){'
+        + 'var s=window.parent&&window.parent.Streamlit;'
+        + 'if(s&&s.setComponentValue){s.setComponentValue(this.getAttribute("data-code"));}'
+        + '};}'
+        + '</script>'
+    )
+    height = min(38 + len(results) * 36, 460)
+    # key 随输入词变化 → 换词重新挂载组件，避免残留上一次点击的选中值
+    return components.html(html, height=height, key=f"{key}_match_{hash(raw_input)}")
+
+
 def stock_search_input(
     label="股票搜索",
     key="stock_search",
@@ -219,35 +302,18 @@ def stock_search_input(
                 pass
         return st.session_state[confirmed_key]
 
-    # ── 构建下拉选项（代码 + 名称 + 市场）──
-    options = []
-    codes_map = {}
+    # ── 内联「匹配结果」下拉（模仿图片：直接显示在输入框下方，含 名称/代码/标签）──
+    confirmed = st.session_state[confirmed_key]
+    codes_in = [c for c, _, _ in results]
+    # 保持旧行为：输入即选中结果首位（若已确认项不在当前结果则回退到首位）
+    active = confirmed if confirmed in codes_in else results[0][0]
 
-    for code, name, market in results:
-        market_tag = f"[{market}]" if market else ""
-        display = f"{code} {name} {market_tag}"
-        options.append(display)
-        codes_map[display] = code
+    picked = _render_match_dropdown(key, raw_input, results, active, _theme_is_dark())
+    if picked and picked in codes_in:
+        st.session_state[confirmed_key] = picked
+        active = picked
 
-    # selectbox key 包含查询词哈希，确保选项随输入变化而刷新
-    dynamic_select_key = f"{base_select_key}_{hash(raw_input)}"
-
-    selected_display = st.selectbox(
-        f"🔍 匹配结果 ({len(results)} 条)",
-        options=options,
-        index=0,
-        key=dynamic_select_key,
-        label_visibility="visible",
-    )
-
-    chosen_code = codes_map.get(selected_display, raw_input)
-
-    # 用户选了新股票 → 同步更新
-    if chosen_code != st.session_state[confirmed_key]:
-        st.session_state[confirmed_key] = chosen_code
-        st.rerun()
-
-    return chosen_code
+    return active
 
 
 def _add_item(key: str, max_rows: int):

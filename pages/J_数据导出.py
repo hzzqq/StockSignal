@@ -186,6 +186,8 @@ def _fmt_amount(v):
         v = float(v)
     except Exception:
         return v
+    if pd.isna(v):
+        return "—"
     if v == 0:
         return "0"
     if abs(v) >= 1e8:

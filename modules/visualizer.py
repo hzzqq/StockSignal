@@ -594,6 +594,126 @@ class Visualizer:
         return fig
 
     # ------------------------------------------------------------------
+    # 分时图（Plotly 交互式，配套 K 线）
+    # ------------------------------------------------------------------
+    @staticmethod
+    def intraday(df, prev_close=None, title="分时图", show_volume=True, height=420,
+                 up_color=UP_COLOR, down_color=DOWN_COLOR):
+        """
+        生成个股分时走势图：价格线（红涨绿跌）+ 均价线 + 昨收基准虚线 + 成交量副图。
+
+        :param df: DataFrame[time, open, high, low, close, volume, amount]
+                   time 形如 '2026-07-24 15:00:00'
+        :param prev_close: 昨收价（水平基准线）；为空则不画基准
+        :param title: 图表标题
+        :param show_volume: 是否显示成交量副图
+        :param up_color / down_color: 涨跌配色（A股默认红涨绿跌；个股页可传绿涨红跌）
+        :return: plotly Figure
+        """
+        if df is None or len(df) == 0:
+            return _empty_kline_figure(title, "暂无分时数据")
+        try:
+            d = df.copy()
+            d["_t"] = d["time"].astype(str)
+            d["_label"] = d["_t"].str[11:16]
+            x = list(range(len(d)))
+
+            close_arr = d["close"].astype(float).to_numpy()
+            cum_amount = np.cumsum(d["amount"].astype(float).to_numpy())
+            cum_volume = np.cumsum(d["volume"].astype(float).to_numpy())
+            with np.errstate(divide="ignore", invalid="ignore"):
+                avg = np.where(cum_volume > 0, cum_amount / cum_volume, close_arr)
+            close = close_arr.tolist()
+            avg = avg.tolist()
+
+            base = float(prev_close) if prev_close is not None else float(close[0])
+            is_up = close[-1] >= base
+            line_color = up_color if is_up else down_color
+
+            def _to_rgba(hex6, alpha):
+                h = str(hex6).lstrip("#")[:6]
+                r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+                return f"rgba({r},{g},{b},{alpha})"
+
+            fill_color = _to_rgba(up_color if is_up else down_color, 0.15)
+
+            rows_n = 2 if show_volume else 1
+            fig = make_subplots(
+                rows=rows_n, cols=1, shared_xaxes=True,
+                vertical_spacing=0.03,
+                row_heights=[0.78, 0.22] if show_volume else [1.0],
+            )
+            # 价格折线（含涨跌幅填充）
+            fig.add_trace(
+                go.Scatter(
+                    x=x, y=close, mode="lines", name="价格",
+                    line=dict(color=line_color, width=1.6),
+                    fill="tozeroy", fillcolor=fill_color,
+                    customdata=d["_label"].tolist(),
+                    hovertemplate="%{customdata}<br>价格: %{y:.2f}<extra></extra>",
+                ),
+                row=1, col=1,
+            )
+            # 均价线
+            fig.add_trace(
+                go.Scatter(
+                    x=x, y=avg, mode="lines", name="均价",
+                    line=dict(color="#ffa502", width=1.2, dash="dot"),
+                    hovertemplate="均价: %{y:.2f}<extra></extra>",
+                ),
+                row=1, col=1,
+            )
+            # 昨收基准线
+            if prev_close is not None:
+                fig.add_hline(
+                    y=float(prev_close), line=dict(color="#94a3b8", width=1, dash="dash"),
+                    row=1, col=1,
+                )
+            # 成交量副图
+            if show_volume:
+                vol_colors = [up_color if c >= base else down_color for c in close]
+                fig.add_trace(
+                    go.Bar(
+                        x=x, y=d["volume"].astype(float).tolist(), name="成交量",
+                        marker_color=vol_colors,
+                        customdata=d["_label"].tolist(),
+                        hovertemplate="%{customdata}<br>量: %{y:,.0f}<extra></extra>",
+                    ),
+                    row=2, col=1,
+                )
+
+            # X 轴稀疏标签（约 6 个时间点）
+            n = len(x)
+            step = max(1, n // 6)
+            tick_indices = list(range(0, n, step))
+            if (n - 1) not in tick_indices:
+                tick_indices.append(n - 1)
+            labels = d["_label"].tolist()
+            tick_labels = [labels[i] for i in tick_indices]
+
+            layout = _plotly_layout_kwargs(title=title, height=height)
+            fig.update_layout(**layout)
+            _xkw = dict(
+                type="category", categoryorder="array", categoryarray=x,
+                tickmode="array", tickvals=tick_indices, ticktext=tick_labels,
+                tickangle=0,
+            )
+            fig.update_xaxes(**_xkw, row=1, col=1)
+            fig.update_yaxes(
+                title_text="价格", row=1, col=1,
+                tickfont={"color": SF_TXT2 if _is_dark() else "#6B7280"},
+            )
+            if show_volume:
+                fig.update_xaxes(**_xkw, row=2, col=1)
+                fig.update_yaxes(
+                    title_text="量", row=2, col=1,
+                    tickfont={"color": SF_TXT2 if _is_dark() else "#6B7280"},
+                )
+            return fig
+        except Exception:
+            return _empty_kline_figure(title, "分时图渲染失败")
+
+    # ------------------------------------------------------------------
     # 行业板块热力图
     # ------------------------------------------------------------------
     @staticmethod

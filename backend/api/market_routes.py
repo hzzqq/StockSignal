@@ -100,3 +100,30 @@ def kline():
     if df is None or len(df) == 0:
         return fail(message="无行情数据", code="no_kline_data", http_status=404)
     return ok(data=df.to_dict(orient="records"), message="success")
+
+
+@bp.get("/intraday")
+@jwt_required
+def intraday():
+    """
+    GET /api/intraday?symbol=600519[&date=2026-07-24]
+    个股分时数据（新浪分钟 K 线）。symbol 须为 6 位数字；date 可选（默认最近交易日）。
+    返回 ok(data={"records": [...], "prev_close": float, "trade_date": str})。
+    """
+    symbol = (request.args.get("symbol") or "").strip()
+    if not _TICKER_RE.match(symbol):
+        return fail(message="参数无效", code="invalid_param", http_status=400)
+    trade_date = (request.args.get("date") or None)
+
+    try:
+        df, prev_close, target_date = get_fetcher().get_stock_intraday_sina(symbol, trade_date)
+    except Exception:
+        return fail(message="服务内部错误", code="internal_error", http_status=500)
+
+    if df is None or len(df) == 0:
+        return fail(message="无分时数据", code="no_intraday_data", http_status=404)
+    return ok(data={
+        "records": df.to_dict(orient="records"),
+        "prev_close": prev_close,
+        "trade_date": target_date,
+    }, message="success")

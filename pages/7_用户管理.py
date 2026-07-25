@@ -38,6 +38,11 @@ with tab_users:
         if st.button("🔄 刷新", width="stretch"):
             st.session_state["user_mgmt_keyword"] = keyword
             st.rerun()
+        # 加法式 UX：一键清空搜索关键词并显示全部用户（不改动现有刷新逻辑）。
+        if st.button("🧹 清空", width="stretch", key="user_clear_btn",
+                     help="清空搜索关键词，显示全部用户。"):
+            st.session_state["user_mgmt_keyword"] = ""
+            st.rerun()
 
     st.session_state["user_mgmt_keyword"] = keyword
     page = st.session_state["user_mgmt_page"]
@@ -202,6 +207,10 @@ if "deleting_user" in st.session_state:
 
 # ----------------------------------------------------------------- 操作日志
 with tab_logs:
+    # 加法式便利：提供手动刷新按钮，便于后端产生新日志后立即拉取，而无需整页交互触发。
+    if st.button("🔄 刷新日志", key="log_refresh_btn",
+                 help="重新从后端拉取最新操作日志"):
+        st.rerun()
     page = st.session_state["log_page"]
     # 加法式健壮性：与用户列表同理，body 可能为 None，先兜底避免 AttributeError。
     code, resp = get_logs(page=page, per_page=20)

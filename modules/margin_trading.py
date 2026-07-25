@@ -408,3 +408,77 @@ def get_latest_margin_summary():
         "rzmr_change_pct": _delta_pct(row.get("total_rzmr"), prev.get("total_rzmr")),
         "rzye_change_pct": _delta_pct(row.get("total_rzye"), prev.get("total_rzye")),
     }
+
+
+# ------------------------------------------------------------------ 逐股融资买入额（智能条件单用）
+@_retry(max_retries=3, base_delay=1.0)
+def _fetch_margin_detail(date_str: str):
+    """抓取某交易日的沪深两市融资融券明细（逐股）。
+
+    date_str: YYYYMMDD。返回 DataFrame（含 代码/名称/融资买入额 列）或 None。
+    """
+    import akshare as ak
+    frames = []
+    # 沪市明细
+    try:
+        df_sh = ak.stock_margin_detail_sse(date=date_str)
+        if df_sh is not None and not df_sh.empty:
+            frames.append(df_sh)
+    except Exception:
+        pass
+    # 深市明细
+    try:
+        df_sz = ak.stock_margin_detail_szse(date=date_str)
+        if df_sz is not None and not df_sz.empty:
+            frames.append(df_sz)
+    except Exception:
+        pass
+    if not frames:
+        return None
+    return pd.concat(frames, ignore_index=True)
+
+
+def get_stock_margin_buy(code: str, days_back: int = 7):
+    """取单只股票最近一个可用交易日的融资买入额（元）。
+
+    融资明细为 T+1 披露（今日只能看到上一交易日数据），
+    因此从昨天起往前找最多 days_back 天，命中即止。
+    返回 dict {"date": "YYYY-MM-DD", "rzmr": float 元} 或 None（无数据/非两融标的）。
+    """
+    code = str(code).strip().zfill(6)
+
+    def _fn():
+        from datetime import timedelta
+        today = datetime.now()
+        for i in range(1, days_back + 1):
+            d = today - timedelta(days=i)
+            if d.weekday() >= 5:  # 跳过周末
+                continue
+            ds = d.strftime("%Y%m%d")
+            try:
+                df = _cached(3600, f"margin_detail_{ds}", lambda: _fetch_margin_detail(ds))
+            except Exception:
+                df = None
+            if df is None or df.empty:
+                continue
+            # 兼容沪(标的证券代码/融资买入额)与深(证券代码/融资买入额)列名
+            code_col = next((c for c in df.columns if "证券代码" in str(c) or "标的证券代码" in str(c)), None)
+            buy_col = next((c for c in df.columns if "融资买入额" in str(c)), None)
+            if not code_col or not buy_col:
+                continue
+            sub = df[df[code_col].astype(str).str.zfill(6) == code]
+            if sub.empty:
+                continue
+            try:
+                rzmr = float(pd.to_numeric(sub.iloc[0][buy_col], errors="coerce"))
+            except Exception:
+                continue
+            if pd.isna(rzmr):
+                continue
+            return {"date": d.strftime("%Y-%m-%d"), "rzmr": rzmr}
+        return None
+
+    try:
+        return _cached(1800, f"stock_margin_buy_{code}", _fn)
+    except Exception:
+        return None

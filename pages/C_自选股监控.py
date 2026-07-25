@@ -6,6 +6,7 @@
 纯前端聚合，不改动任何主功能逻辑。
 """
 import streamlit as st
+import streamlit.components.v1 as components
 import concurrent.futures as _cf
 import requests
 import pandas as pd
@@ -52,6 +53,20 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
 st.title("📡 自选股监控")
 st.caption("实时跟踪自选股现价与涨跌幅；行情接口异常时自动回退本地源。数据仅供参考，非投资建议。")
+
+# ══ 加法式 Batch20：可折叠使用说明 / FAQ ══
+with st.expander("💡 使用说明", expanded=False, key="wl_help_exp"):
+    st.markdown(
+        "**本页能做什么？**\n"
+        "- 📡 **实时监控**：并行拉取自选股实时现价与涨跌幅（A股红涨绿跌）。\n"
+        "- 🔄 **自动刷新**：交易时段每 60 秒自动刷新行情；也可点「🔄 刷新行情」手动刷新。\n"
+        "- 🧭 **技术体检**：一键跳转「形态选股」用自选股池做技术扫描。\n"
+        "- 🔔 **价格预警**：跳转「价格预警」页为关注的标的设置异动提醒。\n\n"
+        "**常见问题**\n"
+        "- *行情显示 — ？* 接口/网络异常时自动回退本地源；若仍无数据，请检查网络后稍候自动刷新。\n"
+        "- *颜色含义？* 红涨绿跌为 A股惯例，本页严格遵循，不会被主题切换修改。\n"
+        "- *行情更新时间？* 页面底部标注最近行情时间与本页刷新时间。"
+    )
 
 
 @st.cache_resource(show_spinner=False)
@@ -134,7 +149,9 @@ def fragment_watchlist_monitor():
 
     sc, body = api_get("/api/watchlist", timeout=10)
     if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
-        st.error("加载自选股失败，请刷新重试。")
+        st.error("⚠️ 加载失败，请稍后重试")
+        if st.button("🔄 重试", key="wl_load_retry"):
+            st.rerun(scope="fragment")
         return
 
     items = body.get("data", []) or []
@@ -215,15 +232,24 @@ def fragment_watchlist_monitor():
             cur = chg = change_amt = amplitude = volume = amount = None
             name = names.get(code) or _resolve_name(code) or code
         pe, alr = fund_map.get(code, (None, None))
+        # 结果标记徽章（中性文字，不影响红涨绿跌配色）
+        tag = ""
+        if chg is not None:
+            if abs(chg) >= 5:
+                tag += "🔥热门 "
+            if amplitude is not None and amplitude >= 6:
+                tag += "📊异动"
         rows.append({
             "code": code, "name": name, "cur": cur, "chg": chg,
             "change_amt": change_amt, "amplitude": amplitude,
             "volume": volume, "amount": amount,
             "pe_ttm": f"{pe:.2f}" if isinstance(pe, (int, float)) and not pd.isna(pe) else "—",
             "alr": f"{alr:.2f}%" if isinstance(alr, (int, float)) and not pd.isna(alr) else "—",
+            "tag": tag,
         })
 
     st.caption("交易时段每 60 秒自动刷新；涨跌颜色遵循 A股 惯例：红涨绿跌。点击下方选择框可跳转个股研究页。")
+    st.caption("数据来源：实时行情（新浪财经 / 东方财富）、财务数据（新浪财经）")
     # ── 渲染监控表 ──
     up_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] >= 0)
     down_n = sum(1 for r in rows if r["chg"] is not None and r["chg"] < 0)
@@ -245,12 +271,12 @@ def fragment_watchlist_monitor():
     if rows:
         df_rt = pd.DataFrame(rows)
         display_df = df_rt[["name", "code", "cur", "change_amt", "chg", "amplitude",
-                              "volume", "amount", "pe_ttm", "alr"]].copy()
+                              "volume", "amount", "pe_ttm", "alr", "tag"]].copy()
         display_df.rename(columns={
             "name": "名称", "code": "代码", "cur": "现价",
             "change_amt": "涨跌额", "chg": "涨跌%", "amplitude": "振幅%",
             "volume": "成交量", "amount": "成交额",
-            "pe_ttm": "市盈率(TTM)", "alr": "资产负债率",
+            "pe_ttm": "市盈率(TTM)", "alr": "资产负债率", "tag": "标记",
         }, inplace=True)
         # 成交额格式化：长数字加 亿/万 单位，提升可读性（导出 CSV 仍用原始数值）
         display_df["成交额"] = display_df["成交额"].apply(_fmt_amount)
@@ -286,6 +312,28 @@ def fragment_watchlist_monitor():
                 st.session_state["pick_stock_confirmed"] = code
                 st.session_state["pick_stock_query"] = code
                 safe_switch_page("pages/个股研究.py")
+
+        # 加法式 Batch20：收藏/星标（基于自选股池，纯前端 session 集合）
+        _fav_set = st.session_state.setdefault("_wl_fav_set", set())
+        _fav_sel = st.selectbox("⭐ 选择要收藏/取消收藏的标的",
+                                ["— 请选择 —"] + opts, key="wl_fav_pick")
+        if st.button("🔖 切换收藏状态", key="wl_fav_toggle", use_container_width=True):
+            if _fav_sel and _fav_sel != "— 请选择 —":
+                _fc = _fav_sel.split()[0]
+                if _fc in _fav_set:
+                    _fav_set.discard(_fc)
+                else:
+                    _fav_set.add(_fc)
+        _fav_list = [c for c in codes if c in _fav_set]
+        if _fav_list:
+            st.markdown("**⭐ 我的收藏**")
+            _fc_cols = st.columns(min(len(_fav_list), 6))
+            for _i, _fc_code in enumerate(_fav_list[:6]):
+                with _fc_cols[_i]:
+                    if st.button(f"📈 {_fc_code}", key=f"wl_fav_{_fc_code}", use_container_width=True):
+                        st.session_state["pick_stock_confirmed"] = _fc_code
+                        st.session_state["pick_stock_query"] = _fc_code
+                        safe_switch_page("pages/个股研究.py")
     else:
         _empty_info("暂无可展示的实时行情（可能行情接口暂时未返回数据）。自选股列表非空但取数失败，稍候自动刷新，或检查网络后重试。")
 
@@ -310,6 +358,11 @@ def fragment_watchlist_monitor():
             key="wl_export_csv",
         )
 
+        # 复制全部自选股代码（便于粘贴到其他工具 / 批量查询）
+        with st.expander("📋 复制全部自选股代码", expanded=False):
+            st.code("\n".join(codes), language="text")
+            st.caption("点击代码块右上角复制按钮即可一次性复制所有自选股代码。")
+
     st.divider()
     col_a, col_b = st.columns(2)
     with col_a:
@@ -319,11 +372,13 @@ def fragment_watchlist_monitor():
     with col_b:
         if st.button("🧭 用自选股做技术体检", use_container_width=True, key="wl_tech_check"):
             safe_switch_page("pages/B_形态选股.py")
+    if st.button("🔔 去设价格预警", use_container_width=True, key="wl_goto_alert"):
+        safe_switch_page("pages/9_价格预警.py")
 
     data_time = max(quote_times) if quote_times else "—"
     refresh_tag = " ｜ 🔴 交易时段每 60 秒自动刷新" if _is_trading_now() else ""
     st.caption(
-        f"行情时间：{data_time} ｜ 本页刷新：{datetime.now().strftime('%H:%M:%S')}"
+        f"行情时间：{_rel_time(data_time) if data_time != '—' else '—'} ｜ 本页刷新：{datetime.now().strftime('%H:%M:%S')}"
         f" ｜ 红涨绿跌（A股惯例）{refresh_tag}"
     )
 
@@ -481,6 +536,8 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
                      "现价": st.column_config.NumberColumn(format="¥%.2f"),
                      "量比": st.column_config.NumberColumn(format="%.2fx"),
                  })
+    st.caption(f"共 {len(df)} 只股票池标的")
+    st.caption("涨跌颜色遵循 A股惯例：红涨绿跌。综合/短期/中期/长期为技术评分（0–100，越高越强）。")
 
     # 跳转选择
     opts = [f"{r['code']} {r['name']}" for _, r in df.iterrows()]
@@ -551,7 +608,8 @@ def fragment_pool_watchlist():
             id_map = {_norm_code(it["stock_code"]): it.get("id") for it in wl_items
                       if isinstance(it, dict) and it.get("stock_code")}
             scores = _load_scores_map(codes)
-            df_wl = _build_pool_df(codes, scores)
+            with st.spinner("正在计算自选股池技术指标…"):
+                df_wl = _build_pool_df(codes, scores)
 
             def _remove_wl(code: str):
                 item_id = id_map.get(_norm_code(code))
@@ -578,7 +636,8 @@ def fragment_pool_junk():
             id_map = {_norm_code(it["stock_code"]): it.get("id") for it in junk_items
                       if isinstance(it, dict) and it.get("stock_code")}
             scores = _load_scores_map(codes)
-            df_jk = _build_pool_df(codes, scores)
+            with st.spinner("正在计算垃圾股池技术指标…"):
+                df_jk = _build_pool_df(codes, scores)
 
             def _remove_jk(code: str):
                 item_id = id_map.get(_norm_code(code))
@@ -591,3 +650,21 @@ def fragment_pool_junk():
 
 
 fragment_pool_junk()
+
+# ══ 加法式 Batch20：相关标的推荐块（纯前端，跳转个股研究）══
+st.markdown("---")
+st.markdown("#### 🔗 相关标的推荐")
+st.caption("基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。")
+_c_rec = [("600519", "贵州茅台"), ("000858", "五粮液"), ("601012", "隆基绿能"),
+          ("300059", "东方财富"), ("600036", "招商银行")]
+_c_cols = st.columns(len(_c_rec))
+for _i, (_c, _n) in enumerate(_c_rec):
+    with _c_cols[_i]:
+        if st.button(f"{_n} {_c}", key=f"wl_rec_{_c}", use_container_width=True):
+            st.session_state["pick_stock_confirmed"] = _c
+            st.session_state["pick_stock_query"] = _c
+            safe_switch_page("pages/个股研究.py")
+
+# 加法式 UX：长页面底部「↑ 回到顶部」按钮（前端平滑滚动，不触发整页 rerun）
+if st.button("↑ 回到顶部", key="wl_back_to_top"):
+    components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0, scrolling=False)

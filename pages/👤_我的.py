@@ -23,7 +23,15 @@ st.title("👤 我的")
 require_auth()
 render_user_badge(sidebar=True)
 
+# 加法式风险提示/免责声明
+st.caption("⚠️ 本页展示的数据与分析仅供参考，不构成任何投资建议。")
+
 user = get_user() or {}
+
+# 加法式操作成功反馈：刷新本页缓存后给出成功提示
+if st.session_state.get("_my_cache_toast"):
+    st.session_state.pop("_my_cache_toast", None)
+    st.success("✅ 本页缓存已刷新")
 
 
 def _cached_get(url, headers, ttl=10):
@@ -43,6 +51,35 @@ def _cached_get(url, headers, ttl=10):
         _oldest = min(_cache, key=lambda k: _cache[k][0])
         _cache.pop(_oldest, None)
     return _resp
+
+
+def _fmt_rel(ts):
+    """绝对时间 -> 相对时间：刚刚/X分钟前/X小时前/X天前。"""
+    from datetime import datetime
+    try:
+        if isinstance(ts, str):
+            s = ts.replace("Z", "")
+            if "." in s:
+                s = s[: s.index(".")]
+            s = s.replace("T", " ")
+            try:
+                ts = datetime.fromisoformat(s)
+            except Exception:
+                ts = datetime.strptime(s[:19], "%Y-%m-%d %H:%M:%S")
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (datetime.now() - ts).total_seconds()
+        if sec < 0:
+            return "刚刚"
+        if sec < 60:
+            return "刚刚"
+        if sec < 3600:
+            return f"{int(sec // 60)}分钟前"
+        if sec < 86400:
+            return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts else ""
 
 
 def render_preferences():
@@ -139,6 +176,7 @@ def render_preferences():
     )
     if _kline_count != st.session_state["kline_default_count"]:
         st.session_state["kline_default_count"] = _kline_count
+    st.help("K线默认根数：打开行情看板时默认展示的最近 N 根日K。数值越大覆盖的历史区间越长，但单根越密。")
 
     _refresh_interval = st.slider(
         "行业板块自动刷新间隔（秒）",
@@ -149,6 +187,7 @@ def render_preferences():
     )
     if _refresh_interval != st.session_state["sector_refresh_interval"]:
         st.session_state["sector_refresh_interval"] = _refresh_interval
+    st.help("板块刷新间隔：交易时段内行业板块数据的自动刷新频率（秒）。间隔越短越及时，但请求越多、更占资源。")
 
     st.markdown("")
 
@@ -319,6 +358,8 @@ with col1:
     st.markdown(f"**用户名：** {_username}")
     st.markdown(f"**角色：** {'管理员' if user.get('role') == 'admin' else '普通用户'}")
     st.markdown(f"**登录时间：** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    if not _cur_avatar:
+        st.info("💡 资料尚未完善：上传头像让投资体验更个性化，也可在下方「账号绑定」中绑定邮箱 / 手机。")
 
 with col2:
     st.markdown("### 快捷入口")
@@ -340,10 +381,12 @@ st.markdown("---")
 st.subheader("⭐ 我的自选股")
 
 try:
-    resp = _cached_get(
-        f"{API_BASE}/api/watchlist",
-        headers={"Authorization": f"Bearer {get_token()}"},
-    )
+    # 加法式加载态反馈：自选股列表来自后台请求
+    with st.spinner("加载中…"):
+        resp = _cached_get(
+            f"{API_BASE}/api/watchlist",
+            headers={"Authorization": f"Bearer {get_token()}"},
+        )
     if resp.status_code == 200:
         # 加法式健壮性：resp.json() 可能因返回非 JSON 抛异常；body 也需判定为 dict，
         # 且 body.get("data") 可能是 dict 而非 list，统一兜底避免 DataFrame(Py) 异常。
@@ -361,11 +404,29 @@ try:
                 st.caption(f"共 {len(watchlist)} 只自选股 · 数据实时同步自行情看板 ☆")
             else:
                 _empty_info("暂无自选股，请先添加你关注的股票。")
+                # 加法式示例数据预览：无数据时提供只读示例（不写库、不改逻辑）
+                with st.expander("👀 查看示例自选股（只读）", expanded=False):
+                    import pandas as pd
+                    _sample_wl = pd.DataFrame([
+                        {"股票代码": "600519", "股票名称": "贵州茅台", "最新价": 1680.0, "涨跌幅(%)": 1.23},
+                        {"股票代码": "000858", "股票名称": "五粮液", "最新价": 142.5, "涨跌幅(%)": -0.56},
+                    ])
+                    st.dataframe(_sample_wl, width="stretch")
+                    st.caption("⚠️ 以上为示意数据，非真实行情。")
                 st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
                 if st.button("➕ 去行情看板添加自选股", key="wl_go_add", use_container_width=True):
                     safe_switch_page("pages/1_行情看板.py")
         else:
             _empty_info("暂无自选股，请先添加你关注的股票。")
+            # 加法式示例数据预览：无数据时提供只读示例（不写库、不改逻辑）
+            with st.expander("👀 查看示例自选股（只读）", expanded=False):
+                import pandas as pd
+                _sample_wl2 = pd.DataFrame([
+                    {"股票代码": "600519", "股票名称": "贵州茅台", "最新价": 1680.0, "涨跌幅(%)": 1.23},
+                    {"股票代码": "000858", "股票名称": "五粮液", "最新价": 142.5, "涨跌幅(%)": -0.56},
+                ])
+                st.dataframe(_sample_wl2, width="stretch")
+                st.caption("⚠️ 以上为示意数据，非真实行情。")
             st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
             if st.button("➕ 去行情看板添加自选股", key="wl_go_add2", use_container_width=True):
                 safe_switch_page("pages/1_行情看板.py")
@@ -374,24 +435,65 @@ try:
 except Exception as e:
     st.error(f"获取自选股失败：{e}")
 
+# 加法式收藏/星标：自选股星标收藏（纯前端 session，不接后端）
+if "my_starred_stocks" not in st.session_state:
+    st.session_state["my_starred_stocks"] = []
+st.markdown("### ⭐ 我的收藏")
+_my_star = st.text_input("添加收藏（输入 6 位股票代码）", key="my_star_input",
+                         help="输入股票代码后点击收藏，仅本会话保存，不接后端。")
+if st.button("⭐ 收藏", key="my_star_btn", use_container_width=False):
+    _code = (_my_star or "").strip()
+    if _code.isdigit() and len(_code) == 6:
+        if _code not in st.session_state["my_starred_stocks"]:
+            st.session_state["my_starred_stocks"].append(_code)
+            st.success(f"✅ 已收藏 {_code}")
+        else:
+            st.info(f"{_code} 已在收藏中")
+    else:
+        st.error("⚠️ 请输入正确的 6 位股票代码（仅数字）")
+if st.session_state["my_starred_stocks"]:
+    _scols = st.columns(min(len(st.session_state["my_starred_stocks"]), 6))
+    for _i, _c in enumerate(st.session_state["my_starred_stocks"][:6]):
+        if _scols[_i].button(f"⭐ {_c}", key=f"my_star_disp_{_i}", help="点击取消收藏"):
+            st.session_state["my_starred_stocks"].remove(_c)
+            st.rerun()
+
 st.markdown("---")
+
+# 加法式 UX：提供本页短缓存（自选股/登录历史 10 秒）的手动刷新入口，
+# 切换主题/字体后若仍看到旧快照，可一键清空缓存立即向后台重新拉取。
+_col_cache, _ = st.columns([1, 3])
+with _col_cache:
+    if st.button("🔄 刷新本页缓存", key="my_clear_cache", use_container_width=True,
+                 help="清空本页自选股/登录历史的 10 秒短缓存，立即重新向后台拉取最新数据。"):
+        st.session_state.pop("_my_cached_get", None)
+        st.session_state["_my_cache_toast"] = True
+        st.rerun()
 
 # ── 登录历史 ──
 st.subheader("🕘 登录历史")
 
 try:
-    resp = _cached_get(
-        f"{API_BASE}/api/auth/logins",
-        headers={"Authorization": f"Bearer {get_token()}"},
-    )
+    # 加法式加载态反馈：登录历史来自后台请求
+    with st.spinner("加载中…"):
+        resp = _cached_get(
+            f"{API_BASE}/api/auth/logins",
+            headers={"Authorization": f"Bearer {get_token()}"},
+        )
     if resp.status_code == 200:
-        body = resp.json()
+        # 加法式健壮性：与上方自选股分支一致，resp.json() 可能因返回非 JSON 抛异常；
+        # 兜底为空 dict，避免整页被外层 except 报出难看的「获取登录历史失败」错误，
+        # 降级为更友好的「暂无登录记录」空态。
+        try:
+            body = resp.json()
+        except Exception:
+            body = {}
         logs = (body.get("data") or []) if body.get("status") == "ok" else []
         if logs:
             import pandas as pd
             _hist = [
                 {
-                    "时间": (str(r.get("created_at", ""))[:19].replace("T", " ")),
+                    "时间": _fmt_rel(r.get("created_at", "")),
                     "账号": r.get("username", "-"),
                     "操作": r.get("action", "-"),
                     "详情": r.get("detail", "") or "—",
@@ -399,12 +501,27 @@ try:
                 for r in logs
             ]
             st.dataframe(pd.DataFrame(_hist), width="stretch", use_container_width=True)
+            # 加法式结果计数/摘要：登录历史总条数
+            st.caption(f"共 {len(logs)} 条登录记录")
         else:
             _empty_info("暂无登录记录。")
+            # 加法式示例数据预览：无记录时提供只读示例（不写库、不改逻辑）
+            with st.expander("👀 查看示例登录记录（只读）", expanded=False):
+                import pandas as pd
+                _sample_log = pd.DataFrame([
+                    {"时间": "刚刚", "账号": "demo", "操作": "登录", "详情": "本地登录"},
+                    {"时间": "1小时前", "账号": "demo", "操作": "修改设置", "详情": "切换暗夜模式"},
+                ])
+                st.dataframe(_sample_log, width="stretch", use_container_width=True)
+                st.caption("⚠️ 以上为示意数据，非真实记录。")
     else:
         st.warning(f"获取登录历史失败：HTTP {resp.status_code}")
 except Exception as e:
     st.error(f"获取登录历史失败：{e}")
+    # 加法式失败重试：请求异常时提供重试（清掉短缓存后重新拉取）
+    if st.button("🔄 重试", key="login_retry", use_container_width=True):
+        st.session_state.pop("_my_cached_get", None)
+        st.rerun()
 
 st.markdown("---")
 
@@ -428,6 +545,31 @@ st.markdown("---")
 # ── 系统消息 / 通知占位 ──
 st.subheader("📢 系统通知")
 _empty_info("暂无新通知。")
+
+# 加法式输入内联校验：实时校验 6 位股票代码格式（错误时 st.error 提示）
+_my_quick = st.text_input("🔎 快速查看股票（6 位代码）", key="my_quick_code",
+                          help="输入 6 位数字代码，实时校验格式。")
+if _my_quick:
+    if not (_my_quick.isdigit() and len(_my_quick) == 6):
+        st.error("⚠️ 格式错误：请输入 6 位数字股票代码（如 600519）")
+    else:
+        st.success(f"✅ 代码格式正确：{_my_quick}")
+        if st.button("前往个股研究", key="my_quick_go", use_container_width=False):
+            st.session_state["pick_stock"] = _my_quick
+            safe_switch_page("pages/个股研究.py")
+
+# 加法式可折叠帮助/FAQ（与 Batch13 行内 help 不同，这是折叠面板）
+with st.expander("💡 使用说明 / 常见问题", expanded=False):
+    st.markdown(
+        "**本页能做什么？**\n"
+        "- 查看 / 修改个人资料与头像；\n"
+        "- 管理自选股、查看登录历史；\n"
+        "- 在「偏好设置」中调整主题、字体、K线默认根数等。\n\n"
+        "**常见问题**\n"
+        "- Q：设置会保存吗？A：本页设置保存在会话内存，关闭浏览器后恢复默认；头像按账号云端保存。\n"
+        "- Q：自选股从哪里来？A：在「行情看板」搜索股票后点击 ☆ 加入，这里实时同步。\n"
+        "- Q：为什么有的功能提示未启用？A：邮箱 / 手机绑定需接入第三方服务，本地演示环境暂未开放。"
+    )
 
 # ------------------------------------------------------------------
 # 偏好设置（原「设置」页合并而来，作为独立页签）

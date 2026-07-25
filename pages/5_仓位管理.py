@@ -4,8 +4,10 @@
 """
 
 import os
+import json
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from datetime import datetime
 
@@ -13,6 +15,41 @@ from modules.ui_theme import apply_page_config
 apply_page_config(page_title="仓位管理", page_icon="💰", layout="wide")
 st.session_state["_active_page"] = __file__
 st.title("💰 仓位管理")
+# 加法式（新角度·风险提示）：页面顶部明示模拟/历史属性与免责声明。
+st.caption("⚠️ 本页为模拟/历史持仓管理，仅供学习，不构成投资建议。")
+# 加法式（新角度·页面间快捷跳转）：一键直达相关页面。
+_c1, _c2 = st.columns(2)
+with _c1:
+    st.page_link("pages/N_模拟交易.py", label="🎮 前往模拟交易", icon="🎮")
+with _c2:
+    st.page_link("pages/H_组合收益.py", label="📈 前往组合收益", icon="📈")
+
+# 加法式（Batch20·手动刷新）：顶部刷新按钮，顶层安全（非 fragment）。
+if st.button("🔄 刷新", key="pm_refresh_top", help="重新加载本页持仓与行情"):
+    st.rerun()
+# 加法式（Batch20·最近浏览历史）：展示最近提交买卖的标的（纯前端 session）。
+st.session_state.setdefault("_pm_recent", [])
+if st.session_state["_pm_recent"]:
+    st.caption("🕘 最近浏览：" + "  ".join(f"`{c}`" for c in st.session_state["_pm_recent"][-6:][::-1]))
+
+# 加法式（Batch20·偏好记忆）：把默认股数持久化到本地预置文件，跨页面导航保留。
+_PM_PREF_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "pm_prefs.json")
+def _load_pm_pref(k, d):
+    try:
+        if os.path.exists(_PM_PREF_PATH):
+            return json.load(open(_PM_PREF_PATH, encoding="utf-8")).get(k, d)
+    except Exception:
+        pass
+    return d
+def _save_pm_pref(k, v):
+    try:
+        _d = {}
+        if os.path.exists(_PM_PREF_PATH):
+            _d = json.load(open(_PM_PREF_PATH, encoding="utf-8"))
+        _d[k] = v
+        json.dump(_d, open(_PM_PREF_PATH, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
 from modules.portfolio import PortfolioManager
 from modules.visualizer import Visualizer
@@ -31,6 +68,8 @@ def _fmt_money(x, prefix="¥", nd=2):
         return f"{prefix}—"
     if v != v:  # NaN
         return f"{prefix}—"
+    if v in (float("inf"), float("-inf")):  # 无穷（如成本为零导致除零）
+        return f"{prefix}—"
     return f"{prefix}{v:,.{nd}f}"
 
 
@@ -40,6 +79,8 @@ def _fmt_signed_pct(x, nd=2):
     except Exception:
         return "—"
     if v != v:
+        return "—"
+    if v in (float("inf"), float("-inf")):  # 无穷（如收益率为 inf）
         return "—"
     return f"{v:+.{nd}f}%"
 
@@ -53,6 +94,22 @@ def _fmt_int(x):
         return "—"
     return f"{int(v):,}"
 
+
+def _fmt_rel(ts):
+    from datetime import datetime
+    try:
+        if isinstance(ts, str):
+            ts = datetime.fromisoformat(ts.replace("Z", ""))
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (datetime.now() - ts).total_seconds()
+        if sec < 60: return "刚刚"
+        if sec < 3600: return f"{int(sec // 60)}分钟前"
+        if sec < 86400: return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts is not None else ""
+
 # 鉴权门禁
 require_auth()
 render_user_badge(sidebar=True)
@@ -60,9 +117,9 @@ render_user_badge(sidebar=True)
 pm = PortfolioManager()
 fetcher = StockFetcher()
 
-# 初始化 session_state 默认值
+# 初始化 session_state 默认值（Batch20·偏好记忆：从预置文件读取上次记忆的默认股数）
 if "default_shares" not in st.session_state:
-    st.session_state.default_shares = 1000
+    st.session_state.default_shares = _load_pm_pref("default_shares", 1000)
 
 
 def format_quote_table(quote):
@@ -101,6 +158,8 @@ def format_quote_table(quote):
 # ------------------------------------------------------------------
 st.subheader("当前持仓概览")
 positions = pm.get_positions()
+# 加法式结果摘要：展示当前持仓条数。
+st.caption(f"📊 当前持仓：共 {len(positions)} 条")
 if positions.empty:
     _empty_info("暂无持仓记录。在上方「添加持仓」表单录入代码、价格与股数后，即可开始跟踪。")
 else:
@@ -120,14 +179,74 @@ else:
     # 加法式健壮性：上游持仓 schema 漂移可能缺 buy_date/note 列，
     # 直接赋值会抛 KeyError 让「持仓概览」整段崩溃。列存在才填充，缺失则留空列。
     if "buy_date" in display_pos.columns:
-        display_pos["买入日期"] = display_pos["buy_date"]
+        # 加法式 UX：建仓时间由日期改为相对时间（刚刚 / X分钟前 / X小时前 / X天前），
+        # 更直观体现持仓距今时长，不改其它列与排序。
+        display_pos["买入日期"] = display_pos["buy_date"].apply(_fmt_rel)
     if "note" in display_pos.columns:
         display_pos["备注"] = display_pos["note"].fillna("")
     else:
         display_pos["备注"] = ""
     show_cols = ["股票", "ticker", "买入日期", "买入价", "买入股数", "剩余股数", "成本", "备注"]
     show_cols = [c for c in show_cols if c in display_pos.columns]
-    st.dataframe(display_pos[show_cols], width="stretch", hide_index=True)
+    # 加法式（新角度·列表内搜索/筛选框）：纯前端过滤持仓，不改动数据源。
+    _kw = st.text_input("🔍 搜索持仓（代码 / 名称）", key="pm_pos_filter")
+    if _kw and _kw.strip():
+        _kw = _kw.strip()
+        _pmask = display_pos[["股票", "ticker"]].astype(str).apply(
+            lambda col: col.str.contains(_kw, case=False, na=False)
+        ).any(axis=1)
+        display_pos = display_pos[_pmask]
+        if display_pos.empty:
+            st.caption("🔍 未找到匹配的持仓。")
+    # 加法式（新角度·分页 / 加载更多）：默认只显示前 10 条，避免长列表卡顿。
+    _pshow_key = "pm_pos_show"
+    _pshow_n = st.session_state.get(_pshow_key, 10)
+    st.dataframe(display_pos[show_cols].head(_pshow_n), width="stretch", hide_index=True)
+    if len(display_pos) > _pshow_n:
+        if st.button("显示更多 ▼", key="pm_pos_more"):
+            st.session_state[_pshow_key] = min(_pshow_n + 10, len(display_pos))
+    # 加法式（Batch20·批量选择+操作）：持仓概览项复选，批量加自选 / 批量平仓。
+    st.markdown("**批量操作（持仓概览）**")
+    _pm_sel = []
+    if not positions.empty:
+        for _i, _pr in positions.iterrows():
+            _t = _pr["ticker"]
+            if st.checkbox(f"选择 {_t}", key=f"pm_sel_{_t}"):
+                _pm_sel.append(_t)
+    if _pm_sel:
+        _pb1, _pb2 = st.columns(2)
+        with _pb1:
+            if st.button("⭐ 批量加自选", key="pm_batch_fav", use_container_width=True):
+                try:
+                    from modules.admin_api import add_watchlist
+                    for _t in _pm_sel:
+                        add_watchlist(_t)
+                    _toast(f"已加自选：{', '.join(_pm_sel)}")
+                except Exception as e:
+                    st.error(f"批量加自选失败：{e}")
+        with _pb2:
+            if st.button("📤 批量平仓", key="pm_batch_close", use_container_width=True):
+                try:
+                    for _t in _pm_sel:
+                        _q = api_quote(_t) or fetcher.get_realtime_quote(_t)
+                        _p = _q.get("current") if _q else None
+                        if _p is None:
+                            _ks = (datetime.now() - pd.Timedelta(days=10)).strftime("%Y-%m-%d")
+                            _ke = datetime.now().strftime("%Y-%m-%d")
+                            _rec = api_kline(_t, start=_ks, end=_ke)
+                            _pdf = pd.DataFrame(_rec) if _rec is not None else fetcher.get_daily(_t, start=_ks, end=_ke)
+                            _p = float(_pdf.iloc[-1]["close"]) if _pdf is not None and not _pdf.empty else None
+                        if _p is None:
+                            st.warning(f"无法获取 {_t} 现价，跳过平仓。")
+                            continue
+                        _ss = pm.get_sellable_shares(_t)
+                        if _ss and _ss > 0:
+                            pm.sell_position(ticker=_t, sell_date=datetime.now().strftime("%Y-%m-%d"),
+                                             sell_price=float(_p), sell_shares=int(_ss), note="批量平仓")
+                    _toast(f"已批量平仓：{', '.join(_pm_sel)}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"批量平仓失败：{e}")
 
 st.markdown("---")
 
@@ -142,6 +261,7 @@ quick_cols = st.columns(5)
 for col, qv in zip(quick_cols, [100, 500, 1000, 2000, 5000]):
     if col.button(f"{qv:,} 股", width="stretch", key=f"buy_quick_{qv}"):
         st.session_state.default_shares = qv
+        _save_pm_pref("default_shares", qv)
         st.rerun()
 
 buy_quote = None
@@ -157,9 +277,11 @@ with st.form("buy_position_form"):
         buy_label = fetcher.get_stock_name(buy_ticker) or buy_ticker
         # 实时五档行情
         if buy_ticker:
-            buy_quote = api_quote(buy_ticker)
-            if buy_quote is None:
-                buy_quote = fetcher.get_realtime_quote(buy_ticker)
+            # 加法式加载态反馈：实时行情属于网络请求，包裹 spinner 提示获取中。
+            with st.spinner("获取实时行情中…"):
+                buy_quote = api_quote(buy_ticker)
+                if buy_quote is None:
+                    buy_quote = fetcher.get_realtime_quote(buy_ticker)
             if buy_quote:
                 try:
                     _cur = buy_quote.get("current")
@@ -210,16 +332,25 @@ with st.form("buy_position_form"):
         buy_price = st.number_input(
             "买入成交价", value=round(default_buy_price, 2), step=0.01,
             format="%.2f", min_value=0.01,
+            placeholder="如 20.00",
             help="默认按卖一价填充，可手动修改为卖二价或其他实际成交价"
         )
+        # 加法式（Batch20·输入内联校验）：买入价非正时实时告警。
+        if buy_price <= 0:
+            st.error("⚠️ 买入成交价必须大于 0。")
     with col3:
         buy_shares = st.number_input(
             "📊 买入股数",
             value=st.session_state.default_shares,
             min_value=1, step=100, format="%d",
+            placeholder="如 1000",
             help="点击 ± 按钮步进调节，或直接输入数字"
         )
+        # 加法式（Batch20·输入内联校验）：买入股数非 100 整数倍时实时警告。
+        if buy_shares < 100 or buy_shares % 100 != 0:
+            st.warning("⚠️ 买入股数建议为 100 股整数倍（A 股最小交易单位）。")
         buy_note = st.text_input("备注", value="", key="buy_note",
+                                 placeholder="如：建仓理由 / 止盈目标",
                                  help="为该笔持仓添加备注（如建仓理由、止盈目标），便于后续回顾。")
 
     buy_submitted = st.form_submit_button("✅ 添加持仓")
@@ -235,9 +366,30 @@ if buy_submitted:
             f"买入成功: {buy_label} ({buy_ticker}) "
             f"{int(buy_shares):,}股 @¥{buy_price:.2f}"
         )
+        # 加法式（Batch20·最近浏览历史）：记录本次买入标的。
+        st.session_state["_pm_recent"] = ([buy_ticker] + [x for x in st.session_state["_pm_recent"] if x != buy_ticker])[:10]
         st.rerun()
     except Exception as e:
         st.error(f"买入失败: {e}")
+
+# 加法式（新角度·快捷操作按钮）：一键将当前买入标的加入自选股（调用既有 add_watchlist API）。
+if st.button("⭐ ＋自选（当前买入标的）", key="pm_add_watch", use_container_width=True):
+    try:
+        from modules.admin_api import add_watchlist
+        add_watchlist(buy_ticker)
+        _toast(f"已加入自选：{buy_label} ({buy_ticker})")
+    except Exception as e:
+        st.error(f"加入自选失败：{e}")
+
+# 加法式（Batch20·收藏/星标）：把当前买入标的加入本地星标集合（纯前端 session）。
+if st.button("⭐ 收藏（本地星标）", key="pm_fav_add", use_container_width=True):
+    st.session_state.setdefault("_pm_fav", [])
+    _ft = (buy_ticker or "").strip()
+    if _ft and _ft not in st.session_state["_pm_fav"]:
+        st.session_state["_pm_fav"].append(_ft)
+        _toast(f"已收藏（星标）：{_ft}")
+    else:
+        st.warning("该标的已收藏或代码为空。")
 
 st.markdown("---")
 
@@ -253,7 +405,7 @@ else:
     sellable_positions = positions.copy()
 
 if sellable_positions.empty:
-    st.info("当前没有可卖出的持仓。")
+    st.info("当前没有可卖出的持仓。请先在上方「买入股票」录入一笔持仓（代码、价格、股数）后，再来这里卖出。")
 else:
     sell_quote = None
     with st.form("sell_position_form"):
@@ -273,9 +425,11 @@ else:
         with col1:
             st.metric("可卖股数", f"{sellable_shares:,} 股")
             # 实时五档行情
-            sell_quote = api_quote(sell_ticker)
-            if sell_quote is None:
-                sell_quote = fetcher.get_realtime_quote(sell_ticker)
+            # 加法式加载态反馈：实时行情属于网络请求，包裹 spinner 提示获取中。
+            with st.spinner("获取实时行情中…"):
+                sell_quote = api_quote(sell_ticker)
+                if sell_quote is None:
+                    sell_quote = fetcher.get_realtime_quote(sell_ticker)
             if sell_quote:
                 try:
                     _cur = sell_quote.get("current")
@@ -324,6 +478,7 @@ else:
         sell_price = st.number_input(
             "卖出成交价", value=round(default_sell_price, 2), step=0.01,
             format="%.2f", min_value=0.01,
+            placeholder="如 20.00",
             help="默认按买一价填充，可手动修改为买二价或其他实际成交价"
         )
         with col3:
@@ -333,9 +488,15 @@ else:
                 min_value=1,
                 max_value=int(sellable_shares),
                 step=100, format="%d",
+                placeholder="如 1000",
                 help="最多可卖剩余股数"
             )
-            sell_note = st.text_input("备注", value="", key="sell_note")
+            # 加法式（Batch20·输入内联校验）：数量非 100 整数倍 / 超可卖时实时告警。
+            if sell_shares < 100 or sell_shares % 100 != 0:
+                st.warning("⚠️ 卖出股数建议为 100 股整数倍。")
+            elif sell_shares > sellable_shares:
+                st.error("⚠️ 卖出股数超过可卖数量。")
+            sell_note = st.text_input("备注", value="", key="sell_note", placeholder="如：止盈离场 / 补仓计划")
 
         sell_submitted = st.form_submit_button("✅ 记录卖出")
 
@@ -354,6 +515,8 @@ else:
                 f"{int(sell_shares):,}股 @¥{sell_price:.2f}，"
                 f"成交金额 ¥{result['proceeds']:,.2f}"
             )
+            # 加法式（Batch20·最近浏览历史）：记录本次卖出标的。
+            st.session_state["_pm_recent"] = ([sell_ticker] + [x for x in st.session_state["_pm_recent"] if x != sell_ticker])[:10]
             st.rerun()
         except Exception as e:
             st.error(f"卖出失败: {e}")
@@ -372,6 +535,7 @@ with st.expander("🗑️ 删除持仓"):
             "选择要删除的行号（从 0 开始）",
             min_value=0, max_value=len(positions) - 1,
             value=0, step=1,
+            placeholder=f"0 ~ {len(positions) - 1}",
             help="行号对应上方持仓列表的序号（从 0 开始）。删除不可恢复，请确认后再点「确认删除」。",
         )
         # 行号 → 股票 映射提示，降低误删风险
@@ -382,7 +546,9 @@ with st.expander("🗑️ 删除持仓"):
         c_del, _ = st.columns([1, 4])
         _ck = "pm_del_cfm"
         if st.session_state.get(_ck):
-            if c_del.button("⚠️ 确认删除", type="primary"):
+            # 加法式（新角度·操作确认）：危险写操作前用 st.confirm 二次确认，防误删。
+            _ok = st.confirm("确定删除该持仓？此操作不可撤销。", key="pm_del_confirm")
+            if c_del.button("⚠️ 确认删除", type="primary", disabled=not _ok):
                 removed = pm.remove_position(int(del_index))
                 st.session_state.pop(_ck, None)
                 if removed is not None:
@@ -401,6 +567,8 @@ st.markdown("---")
 # ------------------------------------------------------------------
 st.subheader("卖出记录")
 trades = pm.get_trades()
+# 加法式结果摘要：展示卖出记录条数。
+st.caption(f"🧾 卖出记录：共 {len(trades)} 条")
 if trades.empty:
     _empty_info("暂无卖出记录。")
 else:
@@ -443,6 +611,8 @@ if not positions.empty:
                 )
             with col4:
                 st.metric("总收益率", f"{summary.get('total_pnl_pct', 0):+.2f}%")
+            # 加法式（新角度·数据来源标注）：明示行情数据出处，纯展示不改动计算逻辑。
+            st.caption("数据来源：东方财富 / 新浪财经（实时行情 + 日线兜底）。")
 
             # 盈亏柱状图
             if not pnl_df.empty:
@@ -451,6 +621,8 @@ if not positions.empty:
                 st.plotly_chart(fig, width="stretch")
 
                 st.markdown("#### 持仓明细")
+                # 加法式结果摘要：展示持仓明细条数。
+                st.caption(f"📋 持仓明细：共 {len(pnl_df)} 条")
                 display_pnl = pnl_df.copy()
                 if "name" in display_pnl.columns:
                     display_pnl = display_pnl.drop(columns=["name"])
@@ -463,8 +635,17 @@ if not positions.empty:
                 display_pnl["已实现盈亏"] = display_pnl["realized_pnl"].apply(_fmt_money)
                 display_pnl["浮动盈亏"] = display_pnl["pnl"].apply(_fmt_money)
                 display_pnl["收益率"] = display_pnl["pnl_pct"].apply(_fmt_signed_pct)
+                # 加法式 UX：建仓时间由日期改为相对时间（刚刚 / X分钟前 / X小时前 / X天前）
+                if "buy_date" in display_pnl.columns:
+                    display_pnl["建仓时间"] = display_pnl["buy_date"].apply(_fmt_rel)
+                # 加法式 UX：默认按收益率从高到低排序，盈利/亏损最显著的持仓优先展示
+                display_pnl = display_pnl.sort_values(
+                    "pnl_pct", ascending=False,
+                    key=lambda s: pd.to_numeric(s, errors="coerce"),
+                    ignore_index=True,
+                )
                 pnl_cols = [
-                    "股票", "ticker", "buy_date", "买入价", "买入股数", "剩余股数",
+                    "股票", "ticker", "建仓时间", "买入价", "买入股数", "剩余股数",
                     "现价", "市值", "已实现盈亏", "浮动盈亏", "收益率"
                 ]
                 pnl_cols = [c for c in pnl_cols if c in display_pnl.columns]
@@ -502,6 +683,17 @@ if not positions.empty:
                 st.success(f"报告已生成: {output}")
 
         except Exception as e:
-            st.error(f"计算盈亏失败: {e}")
+            # 加法式失败重试：行情/计算异常时提示失败并提供「🔄 重试」按钮（非 fragment，可用 st.rerun）。
+            st.error(f"⚠️ 加载失败，请稍后重试：{e}")
+            if st.button("🔄 重试", key="pnl_retry"):
+                st.rerun()
 else:
     st.info("请先添加持仓记录。")
+
+# 加法式便利：长页面底部「↑ 回到顶部」按钮，通过 session_state 触发滚动。
+st.divider()
+if st.button("↑ 回到顶部", key="cang_mgr_top", use_container_width=True):
+    st.session_state["_mgr_scroll_top"] = True
+if st.session_state.get("_mgr_scroll_top"):
+    components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0)
+    st.session_state["_mgr_scroll_top"] = False

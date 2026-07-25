@@ -347,3 +347,189 @@ class ForumComment(db.Model):
             "content": self.content,
             "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
         }
+
+
+# ================================================================== 实盘交易 & 智能条件单
+# 以下 4 个模型均按 user_id 隔离；金额单位：元（float），数量单位：股（int）。
+# 与 N_模拟交易（前端本地账本）完全独立，互不影响。
+
+class RealAccount(db.Model):
+    """实盘交易账户（每用户一条；含券商配置与 live 模式开关）。
+
+    安全护栏：live_mode 默认 False —— 未显式开启前，一切下单均走模拟账本
+    （SimulatedBroker），绝不触发真实资金操作。
+    """
+    __tablename__ = "real_accounts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    broker_type = db.Column(db.String(32), nullable=False, default="sim")  # sim / qmt / easytrader
+    broker_config = db.Column(db.Text, nullable=True)   # JSON：券商连接参数
+    live_mode = db.Column(db.Boolean, nullable=False, default=False)  # True=真实下单（须显式开启）
+    cash = db.Column(db.Float, nullable=False, default=1000000.0)     # 模拟账本可用资金
+    total_assets = db.Column(db.Float, nullable=False, default=1000000.0)
+    # 风控参数
+    max_order_amount = db.Column(db.Float, nullable=False, default=50000.0)   # 单笔金额上限（元）
+    daily_loss_limit = db.Column(db.Float, nullable=False, default=20000.0)   # 当日亏损停手线（元）
+    risk_paused_date = db.Column(db.String(10), nullable=True)                # 触发停手的日期 YYYY-MM-DD
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def config_dict(self) -> dict:
+        if not self.broker_config:
+            return {}
+        try:
+            v = json.loads(self.broker_config)
+            return v if isinstance(v, dict) else {}
+        except Exception:
+            return {}
+
+    def to_dict(self) -> dict:
+        cfg = self.config_dict()
+        # 对外脱敏：密码类字段不回明文
+        safe_cfg = {k: ("******" if "pass" in k.lower() or "pwd" in k.lower() else v) for k, v in cfg.items()}
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "broker_type": self.broker_type,
+            "broker_config": safe_cfg,
+            "live_mode": bool(self.live_mode),
+            "cash": round(self.cash or 0.0, 2),
+            "total_assets": round(self.total_assets or 0.0, 2),
+            "max_order_amount": self.max_order_amount,
+            "daily_loss_limit": self.daily_loss_limit,
+            "risk_paused_date": self.risk_paused_date,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() + "Z" if self.updated_at else None,
+        }
+
+
+class RealPosition(db.Model):
+    """实盘（或模拟账本）持仓。"""
+    __tablename__ = "real_positions"
+    __table_args__ = (db.UniqueConstraint("user_id", "stock_code", name="uq_realpos_user_code"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    stock_code = db.Column(db.String(16), nullable=False, index=True)
+    stock_name = db.Column(db.String(64), nullable=False, default="")
+    quantity = db.Column(db.Integer, nullable=False, default=0)        # 总持仓（股）
+    available = db.Column(db.Integer, nullable=False, default=0)       # 可卖数量（T+1）
+    avg_cost = db.Column(db.Float, nullable=False, default=0.0)        # 摊薄成本
+    last_price = db.Column(db.Float, nullable=False, default=0.0)      # 最近一次刷新价
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def to_dict(self) -> dict:
+        mv = round((self.quantity or 0) * (self.last_price or 0.0), 2)
+        cost = (self.quantity or 0) * (self.avg_cost or 0.0)
+        pnl = round(mv - cost, 2)
+        return {
+            "id": self.id,
+            "stock_code": self.stock_code,
+            "stock_name": self.stock_name,
+            "quantity": self.quantity,
+            "available": self.available,
+            "avg_cost": round(self.avg_cost or 0.0, 3),
+            "last_price": round(self.last_price or 0.0, 3),
+            "market_value": mv,
+            "pnl": pnl,
+            "pnl_pct": round(pnl / cost * 100, 2) if cost > 0 else 0.0,
+            "updated_at": self.updated_at.isoformat() + "Z" if self.updated_at else None,
+        }
+
+
+class RealOrder(db.Model):
+    """实盘订单流水（手动下单 + 条件单触发下单统一入口）。"""
+    __tablename__ = "real_orders"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    stock_code = db.Column(db.String(16), nullable=False, index=True)
+    stock_name = db.Column(db.String(64), nullable=False, default="")
+    side = db.Column(db.String(8), nullable=False)                     # buy / sell
+    price = db.Column(db.Float, nullable=False, default=0.0)           # 委托/成交价
+    quantity = db.Column(db.Integer, nullable=False, default=0)
+    amount = db.Column(db.Float, nullable=False, default=0.0)          # 成交金额
+    status = db.Column(db.String(16), nullable=False, default="filled")  # filled / rejected / submitted / failed
+    mode = db.Column(db.String(8), nullable=False, default="sim")      # sim / live 下单时账户所处模式
+    source = db.Column(db.String(16), nullable=False, default="manual")  # manual / conditional
+    cond_order_id = db.Column(db.Integer, nullable=True)               # 来源条件单 id
+    broker_order_id = db.Column(db.String(64), nullable=True)          # 券商侧委托编号（live 时）
+    message = db.Column(db.String(255), nullable=True)                 # 失败/风控拒绝原因
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "stock_code": self.stock_code,
+            "stock_name": self.stock_name,
+            "side": self.side,
+            "price": round(self.price or 0.0, 3),
+            "quantity": self.quantity,
+            "amount": round(self.amount or 0.0, 2),
+            "status": self.status,
+            "mode": self.mode,
+            "source": self.source,
+            "cond_order_id": self.cond_order_id,
+            "broker_order_id": self.broker_order_id,
+            "message": self.message,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+        }
+
+
+class ConditionalOrder(db.Model):
+    """智能条件单。
+
+    trigger_type：
+      - margin_stock   单只股票当日融资买入额 ≥ 阈值（万元）
+      - margin_market  全市场（沪+深）当日融资买入额合计 ≥ 阈值（亿元）
+      - ma5_break_up   收盘/现价上穿 5 日均线（沿 MA5 上涨突破）
+      - ma5_break_down 收盘/现价跌破 5 日均线（沿 MA5 下跌破位）
+    trigger_params JSON 示例：
+      {"threshold": 5000}      # margin_*：阈值（margin_stock 万元 / margin_market 亿元）
+      {"confirm_pct": 0.5}     # ma5_*：突破幅度确认（%），0 表示只要穿越即触发
+    """
+    __tablename__ = "conditional_orders"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    stock_code = db.Column(db.String(16), nullable=False, index=True)  # margin_market 类型也须指定要交易的股票
+    stock_name = db.Column(db.String(64), nullable=False, default="")
+    trigger_type = db.Column(db.String(24), nullable=False)            # 见 docstring
+    trigger_params = db.Column(db.Text, nullable=True)                 # JSON
+    action = db.Column(db.String(8), nullable=False, default="buy")    # 触发后动作 buy / sell
+    quantity = db.Column(db.Integer, nullable=False, default=100)      # 下单数量（股）
+    status = db.Column(db.String(16), nullable=False, default="pending")  # pending / triggered / filled / failed / cancelled / expired
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    expire_date = db.Column(db.String(10), nullable=True)              # YYYY-MM-DD 到期自动失效
+    triggered_at = db.Column(db.DateTime, nullable=True)
+    triggered_info = db.Column(db.String(255), nullable=True)          # 触发时快照说明
+    last_checked_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def params_dict(self) -> dict:
+        if not self.trigger_params:
+            return {}
+        try:
+            v = json.loads(self.trigger_params)
+            return v if isinstance(v, dict) else {}
+        except Exception:
+            return {}
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "stock_code": self.stock_code,
+            "stock_name": self.stock_name,
+            "trigger_type": self.trigger_type,
+            "trigger_params": self.params_dict(),
+            "action": self.action,
+            "quantity": self.quantity,
+            "status": self.status,
+            "active": bool(self.active),
+            "expire_date": self.expire_date,
+            "triggered_at": self.triggered_at.isoformat() + "Z" if self.triggered_at else None,
+            "triggered_info": self.triggered_info,
+            "last_checked_at": self.last_checked_at.isoformat() + "Z" if self.last_checked_at else None,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+        }

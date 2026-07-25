@@ -271,7 +271,8 @@ else:
 with st.container(border=True):
     _section_title("🧬 形态筛选", accent="#8b5bff")
     st.caption("留空表示显示所有命中形态；可输入关键词（如：金叉 / 突破 / 背离）筛选。")
-    keyword = st.text_input("形态关键词筛选（留空=显示所有命中形态，如：金叉 / 突破 / 背离）", "").strip()
+    keyword = st.text_input("形态关键词筛选（留空=显示所有命中形态，如：金叉 / 突破 / 背离）", "",
+                             help="仅显示名称或偏向含该关键词的形态，如「金叉」「突破」「背离」「看涨」。留空显示全部命中。").strip()
 
 
 # ───────────────────────── 形态识别（扩充版） ─────────────────────────
@@ -432,5 +433,15 @@ with st.container(border=True):
             st.success(f"✅ 扫描完成，命中 {len(results)} 只")
             results.sort(key=lambda r: r["技术评分"], reverse=True)
             st.dataframe(results, use_container_width=True, height=480)
+            # 加法式 UX：一键导出扫描结果为 CSV，便于离线筛选/留存（不影响扫描逻辑）。
+            _csv = pd.DataFrame(results).to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+            st.download_button(
+                "⬇️ 导出扫描结果 CSV",
+                data=_csv,
+                file_name=f"形态选股_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                key="screener_csv",
+                help="导出命中标的及技术评分、形态概述，便于离线分析。",
+            )
     elif not universe:
         _empty_info("请选择股票池（或先搜索加入扫描池）后点击「开始扫描」；也可在上方「📥 载入示例股票池」一键体验。")

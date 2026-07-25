@@ -5,6 +5,7 @@
 """
 import os
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from datetime import date
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -32,6 +33,7 @@ st.caption(f"生成日期：{today}（数据来源：板块行情 + 自选股 + 
 # 顶部主要指数收盘行情（轻量组件）
 from modules.widgets import render_index_compact
 render_index_compact(cols_per_row=5)
+st.caption("⚠️ 以上数据仅供参考，不构成任何投资建议")
 
 
 @st.cache_resource(show_spinner=False)
@@ -97,6 +99,35 @@ def _fmt_pct(v):
         return "—"
 
 
+def _fmt_rel(ts):
+    """把绝对时间戳转成相对时间（刚刚 / X分钟前 / X小时前 / X天前）。"""
+    from datetime import datetime as _dt
+    try:
+        if isinstance(ts, str):
+            s = ts.strip().replace("Z", "")
+            for _fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S",
+                         "%Y-%m-%d %H:%M", "%Y-%m-%d", "%Y-%m-%dT%H:%M"):
+                try:
+                    ts = _dt.strptime(s, _fmt)
+                    break
+                except ValueError:
+                    continue
+            else:
+                return s
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (_dt.now() - ts).total_seconds()
+        if sec < 60:
+            return "刚刚"
+        if sec < 3600:
+            return f"{int(sec // 60)}分钟前"
+        if sec < 86400:
+            return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts is not None else ""
+
+
 # ───────────────────────── 板块概览 ─────────────────────────
 @safe_fragment
 def fragment_sector_summary():
@@ -114,6 +145,7 @@ def fragment_sector_summary():
         c1.metric("上涨板块", up, delta=None, help="今日收盘涨幅大于 0 的板块数量")
         c2.metric("下跌板块", down, delta=None, help="今日收盘跌幅小于 0 的板块数量")
         c3.metric("平/无数据", flat, delta=None, help="涨跌幅为 0 或暂未获取到行情的板块数量")
+        st.caption("数据来源：东方财富板块行情")
         top_up = sector_df.sort_values("change_pct", ascending=False).head(5)
         top_dn = sector_df.sort_values("change_pct", ascending=True).head(5)
         colu, cold = st.columns(2)
@@ -125,6 +157,7 @@ def fragment_sector_summary():
             st.markdown("**🔴 领跌板块**")
             for _, r in top_dn.iterrows():
                 st.markdown(f"- {str(r.get('sector') or '?')}  `{_fmt_pct(r.get('change_pct'))}`")
+        st.caption(f"🕒 板块行情快照时间：{pd.Timestamp.now().strftime('%H:%M:%S')}（收盘后更新，盘中为实时快照）")
     else:
         st.warning("⚠️ 暂未获取到板块行情（交易时间或网络恢复后自动可用）。")
 
@@ -138,6 +171,11 @@ def fragment_watchlist_and_news():
     watchlist = []
     if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
         watchlist = body.get("data", []) or []
+    else:
+        st.error("⚠️ 加载失败，请稍后重试")
+        if st.button("🔄 重试", key="morning_wl_retry"):
+            st.rerun(scope="fragment")
+        return
 
     # 并行预拉市盈率 / 资产负债率（失败留 —，不阻塞快照渲染）
     wl_codes = [w.get("stock_code") for w in watchlist[:30] if w.get("stock_code")]
@@ -187,6 +225,8 @@ def fragment_watchlist_and_news():
         else:
             st.caption("👉 点击表格中某一行，可在下方「相关新闻速览」查看该股票的专属新闻。")
             snap = []
+            st.text_input("🔍 搜索自选股（名称 / 代码）", key="filter_morning_wl",
+                          help="纯前端过滤快照列表，不影响行情获取。")
             for w in watchlist[:30]:
                 code = w["stock_code"]
                 rt = quotes_map.get(code)
@@ -216,6 +256,11 @@ def fragment_watchlist_and_news():
                                  "振幅%": None, "成交量": None, "成交额": None,
                                  "市盈率": _pe_s, "资产负债率": _alr_s})
             if snap:
+                _wl_filter = st.session_state.get("filter_morning_wl", "")
+                if _wl_filter:
+                    _ff = str(_wl_filter).strip().lower()
+                    snap = [s for s in snap if _ff in str(s.get("名称", "")).lower()
+                            or _ff in str(s.get("代码", "")).lower()]
                 snap_df = pd.DataFrame(snap)
                 event = st.dataframe(
                     snap_df,
@@ -235,6 +280,7 @@ def fragment_watchlist_and_news():
                         "资产负债率": st.column_config.NumberColumn(format="%.2f%%"),
                     },
                 )
+                st.caption(f"共 {len(watchlist)} 只自选股（展示前 {len(snap)} 只）")
                 try:
                     sel_rows = event.selection.rows if event and event.selection else []
                 except Exception:
@@ -266,9 +312,10 @@ def fragment_watchlist_and_news():
                     date_s = str(r.get("date") or "")
                     source_s = str(r.get("source") or "")
                     if url:
-                        st.markdown(f"- {date_s}  **[{title}]({url})**  _{source_s}_")
+                        st.markdown(f"- {_fmt_rel(date_s)}  **[{title}]({url})**  _{source_s}_")
                     else:
-                        st.markdown(f"- {date_s}  **{title}**  _{source_s}_")
+                        st.markdown(f"- {_fmt_rel(date_s)}  **{title}**  _{source_s}_")
+                st.caption(f"共 {len(news_df)} 条相关新闻，展示前 {min(len(news_df), 12)} 条")
             else:
                 st.info(f"暂无与 {selected_name} 相关的新闻。可尝试切换其它自选股，或稍后重试（资讯源每日更新）。")
 
@@ -294,7 +341,10 @@ def fragment_review_notes():
 
     # ── 子模块 1：工具栏（日期、查询、图片上传）──
     def _render_toolbar():
-        note_date = st.date_input("复盘日期", value=date.today(), key="review_date")
+        # 加法式 Batch20：偏好记忆（session 级）— 记住上次查询的复盘日期
+        note_date = st.date_input("复盘日期",
+                                  value=st.session_state.get("_morning_review_date_pref", date.today()),
+                                  key="review_date")
         note_date_s = note_date.strftime("%Y-%m-%d")
         notes_path = _notes_path(note_date_s)
 
@@ -322,6 +372,8 @@ def fragment_review_notes():
                     st.session_state["review_note"] = ""
                     _empty_info(f"{note_date_s} 暂无复盘记录，可直接在下方新建（写一句今天的市场观察或操作笔记）。")
                 st.session_state["review_queried"] = note_date_s
+                # 加法式 Batch20：偏好记忆 — 记录本次查询日期，下次进入自动套用
+                st.session_state["_morning_review_date_pref"] = note_date
                 # 不调用 st.rerun()：本 fragment 内的交互只会触发本 fragment 重跑，不影响整页
         with c_img:
             uploaded = st.file_uploader(
@@ -384,6 +436,17 @@ def fragment_review_notes():
             else:
                 if st.button("🗑️ 清空", use_container_width=True, key="review_clear"):
                     st.session_state[_ck] = True
+        # 加法式 UX：一键导出当前复盘笔记为 Markdown，便于本地留存/分享（不改变自动保存行为）。
+        _note_now = st.session_state.get("review_note", "")
+        if _note_now.strip():
+            st.download_button(
+                "⬇️ 导出笔记 (.md)",
+                data=_note_now.encode("utf-8"),
+                file_name=f"复盘笔记_{note_date_s}.md",
+                mime="text/markdown",
+                key="review_download",
+                help="将当前复盘内容导出为 Markdown 文件。",
+            )
         if st.session_state.get("review_autosaved"):
             st.caption(f"✅ 内容已自动保存到本地（review_notes_{note_date_s}.md），切换日期或刷新不丢失")
         else:
@@ -404,7 +467,8 @@ def fragment_review_notes():
         if _content.strip():
             st.markdown(_content, unsafe_allow_html=True)
         else:
-            st.info("（空白）")
+            st.info("该日暂无复盘内容。可在上方文本框记录今日盘面、操作与明日计划，编辑即自动保存到本地；"
+                     "也可点「🔍 查询」切换其它日期查看历史复盘。")
 
     note_date_s = _render_toolbar()
     _render_editor(note_date_s)
@@ -412,3 +476,33 @@ def fragment_review_notes():
 
 
 fragment_review_notes()
+
+# ══ 加法式 Batch20：键盘快捷键提示（纯提示）══
+with st.expander("⌨️ 快捷键", expanded=False, key="morning_hotkeys_exp"):
+    st.markdown(
+        "**页面快捷键（浏览器通用）**\n"
+        "- `F5` / `Ctrl + R`：刷新本页，重新生成晨报与快照。\n"
+        "- `Ctrl + F`：浏览器内查找页面文字（如板块名、股票名）。\n"
+        "- `End` / `Ctrl + End`：快速滚动到页面底部。\n"
+        "- `Home` / `Ctrl + Home`：快速滚动到页面顶部。\n"
+        "- `Tab` / `Shift + Tab`：在表单控件间前后切换焦点。\n\n"
+        "提示：本页为纯前端快捷键说明，不涉及任何隐藏组合键。"
+    )
+
+# ══ 加法式 Batch20：相关标的推荐块（纯前端，跳转个股研究）══
+st.markdown("---")
+st.markdown("#### 🔗 相关标的推荐")
+st.caption("基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。")
+_rec_codes = [("600519", "贵州茅台"), ("000858", "五粮液"), ("300750", "宁德时代"),
+              ("601318", "中国平安"), ("000001", "平安银行")]
+_rec_cols = st.columns(len(_rec_codes))
+for _i, (_c, _n) in enumerate(_rec_codes):
+    with _rec_cols[_i]:
+        if st.button(f"{_n} {_c}", key=f"morning_rec_{_c}", use_container_width=True):
+            st.session_state["pick_stock_confirmed"] = _c
+            st.session_state["pick_stock_query"] = _c
+            safe_switch_page("pages/个股研究.py")
+
+# 加法式 UX：长页面底部「↑ 回到顶部」按钮（前端平滑滚动，不触发整页 rerun）
+if st.button("↑ 回到顶部", key="morning_back_to_top"):
+    components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0, scrolling=False)

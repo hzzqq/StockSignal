@@ -207,11 +207,13 @@ def get_northbound_history_series():
         if out.empty:
             return pd.DataFrame()
         if "当日成交净买额" in df.columns:
-            out["net_buy_yi"] = pd.to_numeric(df["当日成交净买额"], errors="coerce").apply(_to_yi)
+            # akshare 当前返回单位已是 亿元（如 12.28 / -19.86），无需再 ÷1e8
+            out["net_buy_yi"] = pd.to_numeric(df["当日成交净买额"], errors="coerce")
         else:
             out["net_buy_yi"] = pd.NA
         if "历史累计净买额" in df.columns:
-            out["cumulative_yi"] = pd.to_numeric(df["历史累计净买额"], errors="coerce").apply(_to_yi)
+            # akshare 当前返回单位已是 万亿元（如 1.359）→ 转 亿元需 ×1e4
+            out["cumulative_yi"] = pd.to_numeric(df["历史累计净买额"], errors="coerce") * 1e4
         else:
             out["cumulative_yi"] = pd.NA
         out = out.dropna(subset=["date"]).reset_index(drop=True)

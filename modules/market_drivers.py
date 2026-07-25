@@ -155,6 +155,16 @@ def _pdate(x):
         return pd.NaT
 
 
+def _pdate_cn(x):
+    """解析中文月度 '2026年06月份' -> datetime 序列；其余走 _pdate。"""
+    s = pd.Series(list(x)) if not isinstance(x, pd.Series) else x
+    out = []
+    for v in s.astype(str):
+        v = v.replace("月份", "").replace("年", "-").replace("月", "-01").strip()
+        out.append(pd.to_datetime(v, errors="coerce"))
+    return pd.Series(out)
+
+
 def _norm100(s: pd.Series):
     """归一化到起点=100（首个有效值）。"""
     s = pd.to_numeric(s, errors="coerce")
@@ -234,11 +244,12 @@ def _src_north_hist(days):
         return []
     if df is None or df.empty:
         return []
-    col = _col(df, "当日成交净买额", "净买额", "north")
+    col = _col(df, "net_buy", "当日成交净买额", "净买额", "north", "net")
     if col is None:
         return []
     dt = df["date"] if "date" in df.columns else df.index
-    s = pd.to_numeric(df[col], errors="coerce") / 1e8
+    # net_buy_yi 已是亿元（见 linear_trends.get_northbound_history_series），不再 ÷1e8
+    s = pd.to_numeric(df[col], errors="coerce")
     s.index = _pdate(dt)
     s = s.dropna()
     if days and len(s) > days:
@@ -251,6 +262,9 @@ def _src_activity(days):
     import akshare as ak
     df = ak.stock_market_activity_legu()
     if df is None or df.empty:
+        return []
+    # 当前 akshare 返回单日快照（item/value 长表），无历史序列，无法构建 ADL/ADR 时间序列
+    if "item" in df.columns or _col(df, "上涨", "up") is None:
         return []
     up = pd.to_numeric(df[_col(df, "上涨", "up")], errors="coerce")
     dn = pd.to_numeric(df[_col(df, "下跌", "down")], errors="coerce")
@@ -272,8 +286,9 @@ def _src_high_low(days):
     df = ak.stock_a_high_low_statistics()
     if df is None or df.empty:
         return []
-    nh = pd.to_numeric(df[_col(df, "新高", "new_high", "52周新高")], errors="coerce")
-    nl = pd.to_numeric(df[_col(df, "新低", "new_low", "52周新低")], errors="coerce")
+    # 新结构字段：high20/low20/high60/low60/high120/low120（20/60/120 日新高新低家数）
+    nh = pd.to_numeric(df[_col(df, "high20", "high120", "新高", "new_high", "52周新高")], errors="coerce")
+    nl = pd.to_numeric(df[_col(df, "low20", "low120", "新低", "new_low", "52周新低")], errors="coerce")
     dt = _pdate(df[_col(df, "日期", "date", "时间")])
     nh.index = nl.index = dt
     s = (nh - nl).dropna()
@@ -286,7 +301,8 @@ def _src_qvvix(days):
     df = ak.index_option_50etf_qvix()
     if df is None or df.empty:
         return []
-    col = _col(df, "vix", "qvix", "恐慌")
+    # qvix 数据列：date/open/high/low/close，恐慌值落在 close 列
+    col = _col(df, "close", "vix", "qvix", "恐慌")
     if col is None:
         return []
     s = pd.to_numeric(df[col], errors="coerce")
@@ -350,7 +366,7 @@ def _src_m2(days):
     df = ak.macro_china_m2_yearly()
     if df is None or df.empty:
         return []
-    col = _col(df, "m2", "货币", "同比")
+    col = _col(df, "今值", "m2", "货币", "同比")
     if col is None:
         return []
     s = pd.to_numeric(df[col], errors="coerce")
@@ -365,7 +381,7 @@ def _src_financing(days):
     df = ak.macro_china_bank_financing()
     if df is None or df.empty:
         return []
-    col = _col(df, "社融", "融资规模", "增量")
+    col = _col(df, "最新值", "社融", "融资规模", "增量")
     if col is None:
         return []
     s = pd.to_numeric(df[col], errors="coerce") / 1e8  # 元→亿元
@@ -381,19 +397,21 @@ def _src_yield(days):
     if df is None or df.empty:
         return []
     dcol = _col(df, "日期", "date", "时间")
-    # 找到 10年 与 2年 行
-    name_col = _col(df, "期限", "name", "类型")
-    val_col = _col(df, "收益率", "yield", "利率")
-    if dcol is None or name_col is None or val_col is None:
+    # 新结构：曲线名称 / 日期 / 3月..30年 列
+    name_col = _col(df, "曲线名称", "期限", "name", "类型")
+    if dcol is None or name_col is None:
         return []
-    long = pd.to_numeric(df.loc[df[name_col].astype(str).str.contains("10"), val_col], errors="coerce")
-    short = pd.to_numeric(df.loc[df[name_col].astype(str).str.contains("2"), val_col], errors="coerce")
-    if long.empty or short.empty:
+    sub = df[df[name_col].astype(str).str.contains("国债")]
+    if sub.empty:
+        sub = df
+    long_col = _col(sub, "10年", "10y", "ten")
+    # 新接口无 2年 列，退而取 1年 作为短端（曲线含 1年/3年/5年/7年/10年/30年）
+    short_col = _col(sub, "1年", "2年", "1y", "2y", "one", "two")
+    if long_col is None or short_col is None:
         return []
-    ldt = _pdate(df.loc[df[name_col].astype(str).str.contains("10"), dcol])
-    sdt = _pdate(df.loc[df[name_col].astype(str).str.contains("2"), dcol])
-    long.index = ldt
-    short.index = sdt
+    long = pd.to_numeric(sub[long_col], errors="coerce")
+    short = pd.to_numeric(sub[short_col], errors="coerce")
+    long.index = short.index = _pdate(sub[dcol])
     spread = (long - short).dropna()
     return [("yield_spread", "长短期利差", spread)] if not spread.empty else []
 
@@ -408,7 +426,10 @@ def _src_pmi(days):
     if col is None:
         return []
     s = pd.to_numeric(df[col], errors="coerce")
-    s.index = _pdate(df[_col(df, "日期", "date", "时间")])
+    dt_col = _col(df, "月份", "日期", "date", "时间")
+    if dt_col is None:
+        return []
+    s.index = _pdate_cn(df[dt_col]) if "月份" in dt_col else _pdate(df[dt_col])
     s = s.dropna()
     return [("pmi", "PMI(采购经理指数)", s)] if not s.empty else []
 

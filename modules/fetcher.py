@@ -1660,6 +1660,82 @@ class StockFetcher:
             logger.info(f"[StockFetcher] 新浪指数分时获取失败 ({code}): {e}")
             return None
 
+    def get_stock_intraday_sina(self, symbol, trade_date=None):
+        """获取 A 股个股当日/近期分时数据（新浪分钟 K 线接口，走代理可用）。
+
+        返回 (DataFrame[time, open, high, low, close, volume, amount], prev_close, trade_date)
+        或 (None, None, None)。
+
+        symbol 为 6 位股票代码；自动映射新浪前缀：6 开头 -> sh，其余 -> sz。
+        trade_date 为空时取最近交易日；prev_close 为所选交易日的前一交易日收盘价
+        （用于分时图昨收基准线）。新浪分时接口 day 字段形如 '2026-07-24 15:00:00'，
+        在 Eastmoney 被代理拦截的本环境下，这是唯一可用的个股分时来源。
+        """
+        code = str(symbol) if symbol is not None else ""
+        if not (code.isdigit() and len(code) == 6):
+            return None, None, None
+        prefix = "sh" if code.startswith("6") else "sz"
+        sym = f"{prefix}{code}"
+        url = (
+            "https://quotes.sina.cn/cn/api/json_v2.php/"
+            f"CN_MarketDataService.getKLineData?symbol={sym}&scale=1"
+            f"&ma=no&datalen=480"
+        )
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "Referer": "https://finance.sina.com.cn",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                },
+            )
+            with _safe_urlopen(req, timeout=10) as resp:
+                text = resp.read().decode("gbk", errors="replace")
+            import json as _json
+            data = _json.loads(text)
+            if not data:
+                return None, None, None
+            rows = []
+            for d in data:
+                try:
+                    day = str(d.get("day", ""))
+                    rows.append({
+                        "time": day,
+                        "open": float(d["open"]),
+                        "high": float(d["high"]),
+                        "low": float(d["low"]),
+                        "close": float(d["close"]),
+                        "volume": float(d.get("volume", 0) or 0),
+                        "amount": float(d.get("amount", 0) or 0),
+                    })
+                except (TypeError, ValueError, KeyError):
+                    continue
+            if not rows:
+                return None, None, None
+            df = pd.DataFrame(rows).sort_values("time").reset_index(drop=True)
+            # 按交易日分桶：取最近交易日为 trade_date（多日桶在客户端按 day[:10] 分）
+            df["_date"] = df["time"].str[:10]
+            dates = sorted(df["_date"].unique().tolist(), reverse=True)
+            if not dates:
+                return None, None, None
+            target = trade_date if trade_date in dates else dates[0]
+            sub = df[df["_date"] == target].copy().drop(columns=["_date"])
+            if sub.empty:
+                return None, None, None
+            # prev_close：前一交易日收盘（取不到时用当日首笔开盘近似）
+            prev_close = None
+            idx = dates.index(target)
+            if idx + 1 < len(dates):
+                prev_df = df[df["_date"] == dates[idx + 1]]
+                if not prev_df.empty:
+                    prev_close = float(prev_df.iloc[-1]["close"])
+            if prev_close is None:
+                prev_close = float(sub.iloc[0]["open"])
+            return sub, prev_close, target
+        except Exception as e:
+            logger.info(f"[StockFetcher] 新浪个股分时获取失败 ({symbol}): {e}")
+            return None, None, None
+
     def synth_us_index_intraday(self, open_, high, low, close, prev_close):
         """当美股指数只有 O/H/L/C 快照时，合成一条有真实日内形态的近似分时曲线。
 

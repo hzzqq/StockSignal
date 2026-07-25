@@ -1,21 +1,27 @@
 """
 资金流向 / 财报日历 数据层。
 
-环境约束（关键）：本机访问东方财富 / 同花顺等数据源需经本地代理
-(127.0.0.1:26561) 且关闭证书校验。akshare 走 requests，只认 HTTP_PROXY/HTTPS_PROXY
-环境变量而不认系统 WinHTTP 代理，因此本模块在导入时确保代理环境变量 + 全局关闭
-requests 证书校验，保证取数可用。所有函数带 TTL 缓存，并对失败做优雅降级。
+代理策略（#407 / #659）：akshare 走 requests，只认 HTTP_PROXY/HTTPS_PROXY 环境变量。
+本模块在导入时统一处理「代理 + 证书校验」，保证取数可用；所有函数带 TTL 缓存，
+并对失败做优雅降级。
 
-已验证可用接口（本机代理下）：
+- 显式配置 STOCKSIGNAL_PROXY -> 无条件使用该代理（部署机有代理时）。
+- 否则探测默认本地代理 127.0.0.1:26561 是否可达：可达则用，不可达则清空遗留的
+  本地代理变量、改走直连（避免把请求指向一个没监听的代理导致全挂）。
+- 始终关闭 requests 证书校验（verify=False），兼容数据源自签证书。
+
+已验证可用接口（直连或代理下）：
 - stock_fund_flow_industry       板块/行业资金流向
 - stock_hsgt_fund_flow_summary_em 北向资金（沪股通/深股通/北向）
 - stock_market_fund_flow         大盘主力/超大单/大单净流入（历史序列）
 - stock_yjbb_em                  业绩报表（每股收益/营收/净利润/同比）
 """
 import os
+import socket
 import time
 import functools
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
 import pandas as pd
 
@@ -27,14 +33,50 @@ _PROXY = os.environ.get("STOCKSIGNAL_PROXY", "http://127.0.0.1:26561")
 _patch_done = False
 
 
+def _proxy_reachable(proxy_url, timeout=2.0):
+    """探测代理地址（host:port）是否可连通；不可达返回 False。"""
+    try:
+        parsed = urlparse(proxy_url)
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or 80
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
 def _ensure_proxy_and_ssl():
-    """确保 akshare 能经本地代理访问数据源；幂等，仅执行一次。"""
+    """统一处理「代理 + 证书校验」；幂等，仅执行一次。
+
+    代理策略见模块 docstring：显式配置优先；否则探测默认本地代理可达性，
+    不可达则清掉遗留的本地代理变量走直连。
+    """
     global _patch_done
     if _patch_done:
         return
-    for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
-        if not os.environ.get(key):
-            os.environ[key] = _PROXY
+
+    explicit = os.environ.get("STOCKSIGNAL_PROXY")
+    if explicit:
+        _proxy = explicit
+        _use_proxy = True
+    elif _proxy_reachable(_PROXY):
+        _proxy = _PROXY
+        _use_proxy = True
+    else:
+        _proxy = None
+        _use_proxy = False
+
+    if _use_proxy:
+        for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+            if not os.environ.get(key):
+                os.environ[key] = _proxy
+    else:
+        # 走直连：清掉任何指向本地未监听代理（127.0.0.1/localhost:26561）的遗留变量
+        for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+            val = os.environ.get(key, "")
+            if "127.0.0.1:26561" in val or "localhost:26561" in val:
+                os.environ.pop(key, None)
+
     import urllib3
     import requests
     urllib3.disable_warnings()

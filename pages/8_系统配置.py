@@ -85,6 +85,11 @@ with tab_stocks:
         if st.button("🔄 刷新", width="stretch"):
             st.session_state["stock_keyword"] = keyword
             st.rerun()
+        # 加法式 UX：一键清空搜索关键词并刷新，恢复完整股票列表（不改动现有刷新逻辑）。
+        if st.button("🧹 清空", width="stretch", key="stock_clear_btn",
+                     help="清空搜索关键词，显示全部股票。"):
+            st.session_state["stock_keyword"] = ""
+            st.rerun()
 
     st.session_state["stock_keyword"] = keyword
     page = st.session_state["stock_page"]
@@ -141,9 +146,12 @@ with tab_config:
         else:
             for cfg in configs:
                 with st.container(border=True):
+                    # 加法式健壮性：后端配置项可能缺 "key" 字段，直接 cfg['key'] 会抛 KeyError
+                    # 让整个「系统配置」Tab 崩溃。先安全取值，缺键时降级为空串。
+                    cfg_key = cfg.get("key", "")
                     col_key, col_val, col_desc, col_action = st.columns([2, 2, 2, 1])
                     with col_key:
-                        label = CONFIG_LABELS.get(cfg['key'], cfg['key'])
+                        label = CONFIG_LABELS.get(cfg_key, cfg_key)
                         st.markdown(f"**{label}**")
                         st.caption(f"更新: {cfg.get('updated_at', 'N/A')[:10] if cfg.get('updated_at') else 'N/A'}")
                     with col_val:
@@ -164,10 +172,10 @@ with tab_config:
                                 st.caption("无变化")
                         if cfg.get("key") not in ("cache_days", "cache_hours_today", "jwt_expires_seconds",
                                                "default_page_size", "search_limit"):
-                            _ck = f"cfg_del_{cfg['key']}"
+                            _ck = f"cfg_del_{cfg_key}"
                             if st.session_state.get(_ck):
-                                if st.button("确认删除", key=f"cfg_del_cfm_{cfg['key']}", type="primary"):
-                                    c, r = delete_config(cfg["key"])
+                                if st.button("确认删除", key=f"cfg_del_cfm_{cfg_key}", type="primary"):
+                                    c, r = delete_config(cfg_key)
                                     if c == 200 and r.get("status") == "ok":
                                         st.success("已删除")
                                         st.session_state.pop(_ck, None)
@@ -175,10 +183,10 @@ with tab_config:
                                     else:
                                         st.error(r.get("message", "删除失败"))
                                         st.session_state.pop(_ck, None)
-                                if st.button("取消", key=f"cfg_del_cancel_{cfg['key']}"):
+                                if st.button("取消", key=f"cfg_del_cancel_{cfg_key}"):
                                     st.session_state.pop(_ck, None)
                             else:
-                                if st.button("🗑️", key=f"cfg_del_{cfg['key']}", help="删除"):
+                                if st.button("🗑️", key=f"cfg_del_{cfg_key}", help="删除"):
                                     st.session_state[_ck] = True
 
     # 新增配置
@@ -229,6 +237,11 @@ with tab_watch:
     # 搜索辅助
     st.caption("💡 搜索辅助：")
     search_q = st.text_input("搜索股票", placeholder="输入代码/名称/拼音首字母", key="watch_search")
+    # 加法式 UX：一键清空辅助搜索框并刷新，隐藏搜索结果列表（不改动上方添加自选逻辑）。
+    if st.button("🧹 清空搜索", key="watch_search_clear",
+                 help="清空辅助搜索框，隐藏搜索结果。"):
+        st.session_state["watch_search"] = ""
+        st.rerun()
     if search_q and len(search_q) >= 1:
         c, r = search_stocks(search_q, limit=8)
         if c == 200 and r.get("status") == "ok":

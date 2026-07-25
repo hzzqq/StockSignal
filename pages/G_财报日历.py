@@ -122,6 +122,14 @@ def fragment_report():
         )
     except Exception as e:
         st.warning(f"财报日历表格渲染失败：{e}")
+    else:
+        # 导出业绩报表 CSV（便于离线分析）
+        try:
+            csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+            st.download_button("⬇️ 导出业绩报表 CSV", data=csv,
+                               file_name=f"业绩报表_{period}.csv", mime="text/csv")
+        except Exception:
+            pass
 
 
 # ───────────────────────── 业绩预告（best-effort） ─────────────────────────
@@ -178,7 +186,12 @@ def fragment_disclosure():
             st.session_state["dc_market"] = "沪市"
             st.session_state["dc_period"] = "2025年报"
         return
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    # 加法式渲染兜底（Batch15）：best-effort 接口返回的 DataFrame 可能含怪异列类型，
+    # 直接 st.dataframe 会异常；包裹后失败仅提示，不影响上方概览与下方其它视图。
+    try:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    except Exception as _e:
+        st.warning(f"披露日历表格渲染失败：{_e}")
 
 
 # ───────────────────────── 页面主体 ─────────────────────────

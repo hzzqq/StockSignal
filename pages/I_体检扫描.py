@@ -381,6 +381,7 @@ def run_scan(scope: str):
     st.session_state["scan_time"] = elapsed
     st.session_state["scan_count"] = len(results)
     st.session_state["scan_scope"] = scope
+    st.session_state["scan_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 # ─────────────────────────── 控件（顶层，触发整页重跑） ───────────────────────────
@@ -460,6 +461,9 @@ def result_board():
     scan_count = st.session_state.get("scan_count", len(results))
     st.caption(f"共扫描 {scan_count} 只标的，耗时 {scan_time:.1f}s ｜ 综合分 = "
                "技术面 30% · 资金面 25% · 财务健康 25% · 估值 20%")
+    _scan_ts = st.session_state.get("scan_ts")
+    if _scan_ts:
+        st.caption(f"🕒 最后体检时间：{_scan_ts}")
 
     # 概览指标：健康 / 关注 / 警惕 数量 + 平均综合分
     comps = [r["composite"] for r in results if isinstance(r.get("composite"), (int, float))]
@@ -506,6 +510,13 @@ def result_board():
                 "综合分", min_value=0, max_value=100, format="%.0f"),
         },
     )
+    # 导出体检结果 CSV（便于离线分析 / 二次筛选）
+    try:
+        csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        st.download_button("⬇️ 导出体检结果 CSV", data=csv,
+                           file_name="体检扫描结果.csv", mime="text/csv")
+    except Exception:
+        pass
 
     # 卡片式待办列表（按优先级着色 + 多维打分条）
     st.markdown("### 📋 优先待办清单")

@@ -334,12 +334,17 @@ def render_message(m: dict, idx: int, username: str) -> None:
         return
 
     # assistant
+    # 加法式空态守卫：content 偶发为空（如后端返回了空回答 / 任务中断），
+    # 原逻辑会渲染一个空白气泡；这里给一个友好占位，避免用户看到「什么都没有」。
+    _content = m.get("content") or ""
+    if not str(_content).strip():
+        _content = "（星辰 AI 暂未返回内容，请稍后重试或换个问法）"
     st.markdown(
         '<div class="xc-msg"><div class="xc-av">🌟</div>'
         '<div class="xc-col"><div class="xc-who">'
         '<span class="xc-name">星辰 AI</span><span class="xc-role">助手</span>'
         '</div>'
-        f'<div class="xc-bubble">{_md_to_html(m.get("content", ""))}</div>'
+        f'<div class="xc-bubble">{_md_to_html(_content)}</div>'
         '</div></div>',
         unsafe_allow_html=True,
     )
@@ -352,7 +357,8 @@ def render_message(m: dict, idx: int, username: str) -> None:
 def _render_chips(options):
     cols = st.columns(len(options))
     for i, o in enumerate(options):
-        if cols[i].button(o["label"], key=f"xc_chip_{i}", use_container_width=True):
+        if cols[i].button(o["label"], key=f"xc_chip_{i}", use_container_width=True,
+                          help="点击直接把该问题发送给星辰 AI"):
             st.session_state["_xc_pending"] = o["prompt"]
             # fragment 内严禁裸 rerun（会整页变暗卡死）；限定作用域为本 fragment
             st.rerun(scope="fragment")
@@ -464,6 +470,49 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# 加法式结果计数/摘要：对话消息总条数
+st.caption(f"💬 当前对话共 {len(st.session_state.get('xc_messages', []))} 条消息")
+
+# 加法式风险提示/免责声明（页面顶部独立标注，不影响既有 banner 文案）
+st.caption("⚠️ 数据仅供参考，不构成投资建议；AI 回答为模型推演，请独立判断。")
+
+# 加法式数据来源标注
+st.caption("📡 数据来源：东方财富 / 新浪财经 / 公开财经资讯（经后端 ai_consult 任务聚合）")
+
+# 加法式页面间快捷跳转：关联功能页（新增，不改动既有布局）
+st.markdown("**🔗 相关页面**")
+_pc1, _pc2, _pc3 = st.columns(3)
+with _pc1:
+    st.page_link("pages/1_行情看板.py", label="→ 行情看板")
+with _pc2:
+    st.page_link("pages/个股研究.py", label="→ 个股研究")
+with _pc3:
+    st.page_link("pages/L_消息中心.py", label="→ 消息中心")
+
+# 加法式示例数据预览：只读示例回答（不写库、不改逻辑）
+with st.expander("👀 查看示例回答（只读）", expanded=False):
+    st.caption("以下为示例，仅展示 AI 可能的回答风格，非真实数据。")
+    st.markdown(
+        _md_to_html(
+            "**【个股诊断示例】太极实业(600667)**\n\n"
+            "- 近期量能温和放大，资金面偏积极；\n"
+            "- 半导体板块情绪回暖，存在事件催化；\n"
+            "- 风险提示：估值已不便宜，注意追高回撤。\n\n"
+            "> 以上为示例文本，实际回答以你提问后的模型推演为准。"
+        ),
+        unsafe_allow_html=True,
+    )
+
+# 加法式最近浏览历史：展示最近在对话中提及的 6 位股票代码（纯前端 session，不接后端）
+_xc_recent = st.session_state.get("xc_recent_stocks", [])
+if _xc_recent:
+    st.markdown("**🕘 最近浏览**")
+    _rc = st.columns(min(len(_xc_recent), 6))
+    for _i, _code in enumerate(_xc_recent[:6]):
+        if _rc[_i].button(f"📈 {_code}", key=f"xc_recent_{_i}", help="向星辰 AI 追问该股票"):
+            st.session_state["_xc_pending"] = f"{_code} 怎么样？"
+            st.rerun()
+
 # ── 渲染历史 ──
 @safe_fragment("AI 对话")
 def fragment_chat():
@@ -492,7 +541,10 @@ def fragment_chat():
     prompt = None
     if "_xc_pending" in st.session_state:
         prompt = st.session_state.pop("_xc_pending")
-    user_text = st.chat_input("问星辰 AI…（Enter 发送 / Shift+Enter 换行）")
+    user_text = st.chat_input(
+        "问星辰 AI…（Enter 发送 / Shift+Enter 换行）",
+        placeholder="例如：太极实业 600667 怎么样？",
+    )
     if user_text:
         prompt = user_text
 
@@ -500,12 +552,22 @@ def fragment_chat():
     if prompt:
         # 守卫：上一轮分析仍在后台运行时禁止再堆叠新任务（否则覆盖 xc_task_id、
         # 丢掉前次结果并制造并发请求）；给出引导而非静默吞掉输入
+        # 加法式：进入新一轮提交即清除上一轮失败重试标记，避免旧错误 UI 残留
+        st.session_state.pop("_xc_failed_prompt", None)
         if st.session_state.get("xc_task_id"):
             st.session_state["xc_messages"].append(
                 {"role": "assistant", "content": "⏳ 上一轮分析仍在进行中，请稍候它完成后再提问。"}
             )
             st.rerun(scope="fragment")
         st.session_state["xc_messages"].append({"role": "user", "content": prompt})
+        # 加法式最近浏览历史：从用户提问中抽取 6 位股票代码，记录最近查看的标的
+        # （纯前端 session，不接后端；仅追加到 session_state，fragment 内禁裸 rerun）
+        for _code in re.findall(r"\b\d{6}\b", prompt):
+            _rs = st.session_state.setdefault("xc_recent_stocks", [])
+            if _code in _rs:
+                _rs.remove(_code)
+            _rs.insert(0, _code)
+        st.session_state["xc_recent_stocks"] = st.session_state.get("xc_recent_stocks", [])[:8]
         history = [
             {"role": mm.get("role"), "content": mm.get("content", "")}
             for mm in st.session_state["xc_messages"][:-1]
@@ -513,21 +575,43 @@ def fragment_chat():
         ]
         ctx = _slim_context()
         ctx["history"] = history[-6:]
-        task_id, err = submit_task_with_error("ai_consult", {"question": prompt, "context": ctx})
+        # 加法式加载态反馈：提交后台 AI 任务属网络请求，用 spinner 提示等待
+        with st.spinner("加载中…"):
+            task_id, err = submit_task_with_error("ai_consult", {"question": prompt, "context": ctx})
         if task_id:
             st.session_state["xc_task_id"] = task_id
             st.session_state["xc_task_started_at"] = time.time()
+            # 加法式操作成功反馈：已成功提交分析任务
+            st.toast("✅ 已发送，星辰 AI 正在分析…")
             st.rerun(scope="fragment")
         else:
-            st.session_state["xc_messages"].append(
-                {"role": "assistant", "content": f"❌ 后台任务提交失败：{err or '未知错误'}，请刷新后重试。"}
-            )
+            # 加法式失败重试：提交失败时不塞入错误消息气泡，改为错误提示 + 重试按钮；
+            # 点击重试会重新提交同一问题（仅置位 _xc_pending，由 fragment 内 rerun 触发，禁裸 rerun）。
+            st.session_state["_xc_failed_prompt"] = prompt
             st.session_state["xc_task_id"] = None
+            st.rerun(scope="fragment")
+
+    # ── 加法式失败重试入口：后台任务提交失败时展示 ──
+    if st.session_state.get("_xc_failed_prompt"):
+        st.error("⚠️ 加载失败，请稍后重试")
+        if st.button("🔄 重试", key="xc_retry_btn", use_container_width=True):
+            st.session_state["_xc_pending"] = st.session_state.pop("_xc_failed_prompt")
             st.rerun(scope="fragment")
 
 
 
 fragment_chat()
+
+# ── 复制最近一次 AI 回答（便于摘录 / 分享）──
+_xc_msgs = st.session_state.get("xc_messages", [])
+_xc_last_ai = next(
+    (m.get("content", "") for m in reversed(_xc_msgs)
+     if m.get("role") == "assistant" and m.get("content")),
+    "",
+)
+if _xc_last_ai and _xc_last_ai != WELCOME["content"]:
+    with st.expander("📋 复制最近回答", expanded=False):
+        st.code(_xc_last_ai, language="text")
 
 # ── 轮询后台任务（收进 fragment，#402）──
 # 等待期间 st_autorefresh 只让本片段每 1.5s 局部重跑，不再整页全量重跑
@@ -583,6 +667,44 @@ def _poll_ai_task():
 
 if st.session_state.get("xc_task_id"):
     _poll_ai_task()
+
+# 加法式相关推荐块：底部「你可能也关注」静态推荐（加法式，不改既有逻辑、不接后端）
+with st.expander("🔗 你可能也关注（相关推荐）", expanded=False):
+    st.caption("以下为静态推荐，点击可直接向星辰 AI 提问（仅前端，不接后端）。")
+    _recs = [
+        {"label": "📈 贵州茅台 600519", "prompt": "贵州茅台 600519 当前估值怎么样？"},
+        {"label": "🔋 宁德时代 300750", "prompt": "宁德时代 300750 近期走势如何？"},
+        {"label": "🏦 招商银行 600036", "prompt": "招商银行 600036 值得长期持有吗？"},
+        {"label": "💡 当前市场情绪", "prompt": "当前 A股 市场情绪和风格偏向如何？"},
+    ]
+    _rcols = st.columns(len(_recs))
+    for _i, _r in enumerate(_recs):
+        if _rcols[_i].button(_r["label"], key=f"xc_rec_{_i}", use_container_width=True,
+                             help="向星辰 AI 提问该推荐主题"):
+            st.session_state["_xc_pending"] = _r["prompt"]
+            st.rerun()
+
+# 加法式可折叠帮助/FAQ（与 Batch13 行内 help 不同，这是折叠面板）
+with st.expander("💡 使用说明 / 常见问题", expanded=False):
+    st.markdown(
+        "**如何使用星辰 AI？**\n"
+        "- 在底部输入框输入问题，按 Enter 发送（Shift+Enter 换行）；\n"
+        "- 可点击上方快捷问题 chips 直接提问；\n"
+        "- 对话历史按账号在后端持久化，刷新不丢失。\n\n"
+        "**常见问题**\n"
+        "- Q：回答需要多久？A：当前使用免费模型，首次响应可能较慢，请耐心等待。\n"
+        "- Q：数据从哪来？A：聚合东方财富 / 新浪财经等公开市场数据。\n"
+        "- Q：回答可靠吗？A：均为模型推演，不构成投资建议，请独立判断。"
+    )
+
+# 加法式键盘快捷键提示（纯提示文案，不绑定真实快捷键）
+with st.expander("⌨️ 快捷键", expanded=False):
+    st.markdown(
+        "- **Enter**：发送当前输入框内容\n"
+        "- **Shift + Enter**：在输入框内换行\n"
+        "- **R**：刷新页面重新加载对话（浏览器快捷键）\n"
+        "- 对话历史自动保存，无需手动操作"
+    )
 
 # 全局市场异动面板（与 P_市场情绪 页共享同一组件）
 fragment_market_alerts_panel()

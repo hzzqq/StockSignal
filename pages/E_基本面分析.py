@@ -398,8 +398,27 @@ picked = stock_search_input(
     label="选择股票",
     key="fa_stock",
     default="600519",
+    help="输入代码或名称（如 600519 / 贵州茅台）搜索个股，开始基本面分析",
 )
 code = str(picked or "600519").zfill(6)
+
+# ═══ Batch20 加法式：最近浏览历史（纯前端，session 级）═══
+def _fa_goto(c):
+    st.session_state["fa_stock"] = c
+    st.rerun()
+_fa_hist_key = "_fa_recent_viewed"
+if _fa_hist_key not in st.session_state:
+    st.session_state[_fa_hist_key] = []
+if code not in st.session_state[_fa_hist_key]:
+    st.session_state[_fa_hist_key].insert(0, code)
+    st.session_state[_fa_hist_key] = st.session_state[_fa_hist_key][:8]
+if st.session_state[_fa_hist_key]:
+    st.markdown("**🕘 最近浏览**")
+    _fa_hc = st.columns(min(len(st.session_state[_fa_hist_key]), 8))
+    for i, _hc in enumerate(st.session_state[_fa_hist_key]):
+        with _fa_hc[i]:
+            if st.button(_hc, key=f"fa_hist_{_hc}", use_container_width=True):
+                _fa_goto(_hc)
 
 if code:
     # ═══════════════════════════════════════════════
@@ -454,6 +473,14 @@ if code:
             sector_df = pd.DataFrame()
 
     # ═══════════════════════════════════════════════
+    # 无对应标的引导（加法式空态）：行情接口未返回任何基础信息
+    # （代码错误 / 市场无此股票 / 接口降级）时，给出可操作指引而非一片「—」。
+    if not fund:
+        st.info(
+            "🔍 未找到该代码对应的标的（可能是代码拼写有误、该市场无此股票，或行情接口暂时不可用）。"
+            "请核对代码 / 名称后重试，或前往「📡 股票选取」页重新搜索选取一只个股。"
+        )
+
     # 概览卡片
     # ═══════════════════════════════════════════════
     st.markdown("---")
@@ -474,6 +501,26 @@ if code:
     # ═══════════════════════════════════════════════
     # 业绩分析（Batch8 #277 新增）
     # ═══════════════════════════════════════════════
+    # 复制股票代码（便于粘贴到其它工具 / 批量查询）
+    with st.expander("📋 复制股票代码", expanded=False):
+        st.code(code, language="text")
+        st.caption("点击代码块右上角复制按钮即可复制当前分析的股票代码。")
+
+    # ═══ Batch20 加法式：收藏 / 星标（纯前端，session 级）═══
+    _fa_fav_key = "_fa_favorites"
+    if _fa_fav_key not in st.session_state:
+        st.session_state[_fa_fav_key] = []
+    _fa_is_fav = code in st.session_state[_fa_fav_key]
+    if st.button(
+        ("⭐ 已收藏 " + code if _fa_is_fav else "☆ 收藏 " + code),
+        key="fa_fav_btn",
+    ):
+        if _fa_is_fav:
+            st.session_state[_fa_fav_key].remove(code)
+        else:
+            st.session_state[_fa_fav_key].append(code)
+        st.rerun()
+
     st.markdown("---")
     st.subheader("💹 业绩分析（结合市值 / 市盈率 / 资产负债表）")
     st.caption("读懂指标：营收/净利润看公司「赚多少、增长快不快」；ROE 看「股东每投 1 元赚回多少」；"
@@ -561,7 +608,9 @@ if code:
             try:
                 fa_df = _build_financial_df(fa_code)
             except Exception as e:
-                st.warning(f"财务报表解析失败，已跳过财务分析：{e}")
+                st.error(f"⚠️ 财务报表解析失败，请稍后重试：{e}")
+                if st.button("🔄 重试", key="fa_retry_btn"):
+                    st.rerun(scope="fragment")
                 return
 
         if fa_df is None or fa_df.empty:
@@ -576,6 +625,20 @@ if code:
 
         metric = st.session_state["fa_metric"]
         mode = st.session_state["fa_mode"]
+
+        # 图表类型切换（Batch20 加法式）：线 / 柱 / 面积，仅改呈现不改数据
+        if "fa_chart_type" not in st.session_state:
+            st.session_state["fa_chart_type"] = "柱状"
+        _chart_opts = ["柱状", "折线", "面积"]
+        fa_chart = st.radio(
+            "图表类型",
+            options=_chart_opts,
+            index=_chart_opts.index(st.session_state["fa_chart_type"]),
+            horizontal=True,
+            key="fa_chart_radio",
+            help="切换业绩指标的呈现方式（线 / 柱 / 面积），不改变底层数据",
+        )
+        st.session_state["fa_chart_type"] = fa_chart
 
         # ── 指标选择按钮（2 行 × 4 列）──
         metric_cols = list(_FINANCIAL_METRICS.keys())
@@ -625,33 +688,57 @@ if code:
         yoy_col = f"{metric}_同比"
         cfg = _FINANCIAL_METRICS.get(metric, {})
 
-        # ── 组合图：柱状（指标值）+ 折线（同比）──
+        # ── 组合图：指标值（按图表类型呈现）+ 折线（同比）──
         fig = go.Figure()
         x_labels = plot_df["标签"].tolist()
-        # 柱
-        fig.add_trace(
-            go.Bar(
-                x=x_labels,
-                y=plot_df[val_col],
-                name=metric,
-                marker_color=ACCENT,
-                text=[_fmt_fin_value(v, metric) for v in plot_df[val_col]],
-                textposition="outside",
-            )
-        )
-        # 折线（同比）
+        _yoy_trace = None
         if yoy_col in plot_df.columns and plot_df[yoy_col].notna().any():
+            _yoy_trace = go.Scatter(
+                x=x_labels,
+                y=plot_df[yoy_col],
+                name="同比",
+                mode="lines+markers",
+                line=dict(color=ACCENT2, width=2),
+                marker=dict(size=6),
+                yaxis="y2",
+            )
+        # 指标值主图：柱 / 折线 / 面积 三选一（Batch20 加法式）
+        if fa_chart == "折线":
             fig.add_trace(
                 go.Scatter(
                     x=x_labels,
-                    y=plot_df[yoy_col],
-                    name="同比",
+                    y=plot_df[val_col],
+                    name=metric,
                     mode="lines+markers",
-                    line=dict(color=ACCENT2, width=2),
+                    line=dict(color=ACCENT, width=2),
                     marker=dict(size=6),
-                    yaxis="y2",
                 )
             )
+        elif fa_chart == "面积":
+            fig.add_trace(
+                go.Scatter(
+                    x=x_labels,
+                    y=plot_df[val_col],
+                    name=metric,
+                    mode="lines",
+                    line=dict(color=ACCENT, width=2),
+                    fill="tozeroy",
+                    fillcolor=ACCENT_FILL,
+                )
+            )
+        else:  # 柱状（默认）
+            fig.add_trace(
+                go.Bar(
+                    x=x_labels,
+                    y=plot_df[val_col],
+                    name=metric,
+                    marker_color=ACCENT,
+                    text=[_fmt_fin_value(v, metric) for v in plot_df[val_col]],
+                    textposition="outside",
+                )
+            )
+        if _yoy_trace is not None:
+            fig.add_trace(_yoy_trace)
         # 季度模式下按年份添加竖向分隔线 / 背景色块，使年份分界更明显
         shapes = []
         if mode == "季度":
@@ -699,7 +786,9 @@ if code:
         else:
             display_table = table_df[["报告期显示", "指标值", "同比", "环比"]].rename(columns={"报告期显示": "报告期"})
         with st.expander("📋 查看明细数据", expanded=False):
+            st.caption(f"📋 共 {len(display_table)} 条「{metric}」明细（{mode}）")
             st.dataframe(display_table, use_container_width=True, hide_index=True)
+            st.caption("数据来源：新浪财经 利润表 / 资产负债表 / 现金流量表")
 
 
     fragment_financial_analysis(code, name)
@@ -768,6 +857,8 @@ if code:
         st.plotly_chart(fig_hist, use_container_width=True)
     else:
         _empty_info("暂无历史行情数据，无法计算历史分位。")
+
+    st.caption("数据来源：东方财富 / 新浪财经 历史日线行情")
 
     # ═══════════════════════════════════════════════
     # 行业横向对比 + 大盘主线判断
@@ -853,12 +944,15 @@ if code:
                 display = top10[["排名", "sector", "change_pct"]].rename(
                     columns={"sector": "行业", "change_pct": "涨跌幅"}
                 )
+                st.caption(f"🏭 全市场共 {len(sector_df)} 个行业，以下展示涨幅前 {len(top10)} 名")
                 st.dataframe(
                     display,
                     use_container_width=True,
                     column_config={"涨跌幅": st.column_config.NumberColumn(format="%.2f%%")},
                     hide_index=True,
                 )
+
+    st.caption("数据来源：东方财富 行业板块行情（涨跌幅 / 排名）")
 
     # ═══════════════════════════════════════════════
     # 综合评估
@@ -925,6 +1019,25 @@ if code:
         st.metric("总市值", f"¥{market_cap:.1f}亿" if market_cap else "—",
                   help="单位：亿元人民币")
 
+    # 估值摘要空态引导（加法式）：PE 与市值均无数据时给出指引，而非空白。
+    if pe_ttm is None and market_cap is None:
+        st.info(
+            "📊 估值摘要暂无可展示数据（实时行情 / 估值接口未返回 PE 与总市值）。"
+            "可稍后刷新重试，或检查数据源连接。"
+        )
+
+    st.caption("数据来源：东方财富 估值数据（PE / 总市值）")
+
+    with st.expander("📖 估值 / 盈利指标说明", expanded=False):
+        st.markdown(
+            "• <b>PE(TTM)</b>：市盈率 = 股价 ÷ 每股收益；越低通常估值越低，但需结合成长性。<br>"
+            "• <b>PE 状态</b>：按 PE 粗略划分低估/合理/偏高，仅供参考。<br>"
+            "• <b>总市值</b>：总股本 × 股价（亿元）；越大通常越稳健。<br>"
+            "• <b>ROE</b>：净资产收益率 = 净利润 ÷ 净资产，反映股东回报率（>15% 较优）。<br>"
+            "• <b>毛利率</b>：(营收−营业成本) ÷ 营收，越高说明产品溢价/成本控制越好。",
+            unsafe_allow_html=True,
+        )
+
     # 同行业 PE 中位数对比小卡（#544-13）
     fragment_industry_pe(industry, pe_ttm, dark)
 
@@ -933,5 +1046,18 @@ if code:
     if st.button("🔍 查看该股票详细 K 线与技术面 →", type="primary", use_container_width=True):
         st.query_params["pick_stock"] = code
         safe_switch_page("pages/个股研究.py")
+
+    st.markdown("---")
+    col_jump1, col_jump2 = st.columns(2)
+    with col_jump1:
+        st.page_link("pages/2_个股分析.py", label="→ 去 个股深度分析（决策仪表盘）", icon="🔍")
+    with col_jump2:
+        st.page_link("pages/个股研究.py", label="→ 去 个股研究（K线与技术面）", icon="📈")
+
+    st.caption("⚠️ 风险提示：本页所有数据及分析均由程序基于公开数据自动计算，仅供参考，不构成任何投资建议。市场有风险，投资需谨慎。")
+
+    # 快捷回到顶部（Batch18 #back-to-top：长页面底部一键回顶）
+    if st.button("↑ 回到顶部", key="fa_back_to_top", use_container_width=True):
+        st.components.v1.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0)
 else:
     st.info("请在上方输入代码或名称选择一只股票开始分析（也可从「🎯 个股研究 / 📡 股票选取」跳转过来）。数据仅供参考，非投资建议。")

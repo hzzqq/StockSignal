@@ -205,6 +205,10 @@ def fragment_manual_backtest():
                 _tr = s.get('total_return_pct') or 0
                 _md = s.get('max_drawdown_pct') or 0
                 _sh = s.get('sharpe_ratio')
+                # 加法式健壮性：夏普比率可能因无波动/除零返回 inf 或 NaN，
+                # 直接格式化会显示 "inf"/"nan"，统一降级为 "—"。
+                _sh_disp = (f"{_sh:.2f}" if isinstance(_sh, (int, float)) and _sh == _sh
+                            and _sh not in (float('inf'), float('-inf')) else "—")
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     win_color = "🟢" if _wr >= 60 else ("🟡" if _wr >= 40 else "🔴")
@@ -214,17 +218,20 @@ def fragment_manual_backtest():
                 with col3:
                     st.metric("最大回撤", f"{_md:.2f}%")
                 with col4:
-                    st.metric("夏普比率", f"{_sh if _sh is not None else '—'}")
+                    st.metric("夏普比率", _sh_disp)
 
                 _tc = s.get('trade_count') or 0
                 _pf = s.get('profit_factor')
+                # 加法式健壮性：无亏损交易时盈亏比为 inf，统一降级为 "—"。
+                _pf_disp = (f"{_pf:.2f}" if isinstance(_pf, (int, float)) and _pf == _pf
+                            and _pf not in (float('inf'), float('-inf')) else "—")
                 _atr = s.get('avg_trade_return_pct') or 0
                 _fv = s.get('final_value')
                 col5, col6, col7, col8 = st.columns(4)
                 with col5:
                     st.metric("交易次数", f"{_tc}")
                 with col6:
-                    st.metric("盈亏比", f"{_pf if _pf is not None else '—'}")
+                    st.metric("盈亏比", _pf_disp)
                 with col7:
                     st.metric("平均单笔", f"{_atr:+.2f}%")
                 with col8:
@@ -626,6 +633,8 @@ def fragment_daily_picker():
                                                    "hold_return_pct", "rsi2", "rsi14", "reasons"]].copy()
                     all_picks_display.columns = ["选股日期", "代码", "名称", "评分", "买入价", "卖出价",
                                                  "持有收益(%)", "RSI(2)", "RSI(14)", "选股理由"]
+                    # 加法式 UX：全部选股记录默认按选股日期倒序，最新一期排在最前
+                    all_picks_display = all_picks_display.sort_values("选股日期", ascending=False)
                     st.dataframe(all_picks_display, use_container_width=True, hide_index=True)
                 except KeyError as _ke:
                     st.warning(f"全部选股记录列结构异常，已跳过表格展示：{_ke}")

@@ -19,7 +19,7 @@ from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import (
     require_auth, render_user_badge,
     api_get, api_post, api_put, api_delete, api_quote, api_kline,
-    trading_autorefresh,
+    trading_autorefresh, safe_switch_page,
 )
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
@@ -32,6 +32,35 @@ import streamlit.components.v1 as components
 from modules.fundflow import _ensure_proxy_and_ssl
 _ensure_proxy_and_ssl()
 
+def _fmt_rel(ts):
+    """把绝对时间戳转成相对时间（刚刚 / X分钟前 / X小时前 / X天前）。"""
+    from datetime import datetime as _dt
+    try:
+        if isinstance(ts, str):
+            s = ts.strip().replace("Z", "")
+            for _fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S",
+                         "%Y-%m-%d %H:%M", "%Y-%m-%d", "%Y-%m-%dT%H:%M"):
+                try:
+                    ts = _dt.strptime(s, _fmt)
+                    break
+                except ValueError:
+                    continue
+            else:
+                return s
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (_dt.now() - ts).total_seconds()
+        if sec < 60:
+            return "刚刚"
+        if sec < 3600:
+            return f"{int(sec // 60)}分钟前"
+        if sec < 86400:
+            return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts is not None else ""
+
+
 apply_page_config(page_title="多维预警", page_icon="🔔", layout="wide")
 st.session_state["_active_page"] = __file__
 require_auth()
@@ -42,6 +71,21 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
 st.title("🔔 自选股多维预警")
 st.caption("价格 / 技术形态 / 成交量异动 / 公告 四类预警；触发状态为页面访问时实时比价与扫描结果。")
+st.caption("⚠️ 数据仅供参考，不构成投资建议")
+
+# ══ 加法式 Batch20：可折叠使用说明 / FAQ ══
+with st.expander("💡 使用说明", expanded=False, key="alert_help_exp"):
+    st.markdown(
+        "**四类预警怎么用？**\n"
+        "- 💲 **价格预警**：设置目标价与「涨破/跌破」条件，页面访问时实时比价触发。\n"
+        "- 📐 **技术形态预警**：选择形态后，页面扫描该股日线，命中即触发。\n"
+        "- 📊 **成交量异动预警**：当日量比 ≥ 设定阈值时触发（放量信号）。\n"
+        "- 📢 **公告预警**：近 20 条新闻/公告出现关键词时触发。\n\n"
+        "**常见问题**\n"
+        "- *触发是准实时的吗？* 触发在页面访问时于前端检测，保持本页打开并定期刷新可更快捕捉异动。\n"
+        "- *为什么显示「待验证」？* 行情或日线数据不足时无法判定，稍后刷新重试。\n"
+        "- *如何持续盯盘？* 关注右上角「🔔 市场异动」铃铛，并保持本页在浏览器中打开。"
+    )
 
 
 @st.cache_resource(show_spinner=False)
@@ -252,9 +296,11 @@ with st.expander("➕ 新建预警", expanded=False, key="new_alert_exp"):
         c1, c2 = st.columns(2)
         with c1:
             condition = st.selectbox("触发条件", ["above", "below"],
-                                     format_func=lambda x: "涨破 ▲" if x == "above" else "跌破 ▼")
+                                     format_func=lambda x: "涨破 ▲" if x == "above" else "跌破 ▼",
+                                     help="涨破 ▲：现价 ≥ 目标价时触发；跌破 ▼：现价 ≤ 目标价时触发。")
         with c2:
-            target = st.number_input("目标价格 (元)", min_value=0.0, step=0.01, value=0.0)
+            target = st.number_input("目标价格 (元)", min_value=0.0, step=0.01, value=0.0,
+                                     help="触发比价的参考价位；价格涨破或跌破该值即触发预警。")
     elif atype == "pattern":
         pattern_name = st.selectbox("技术形态", PATTERN_OPTIONS, index=0)
         params = {"pattern_name": pattern_name}
@@ -264,7 +310,8 @@ with st.expander("➕ 新建预警", expanded=False, key="new_alert_exp"):
         params = {"volume_ratio": float(vr)}
         st.caption("当日量比 ≥ 阈值时触发（如 2.0 表示放量一倍）。")
     elif atype == "announcement":
-        kw = st.text_input("关键词（如：增持、回购、中标、减持）")
+        kw = st.text_input("关键词（如：增持、回购、中标、减持）",
+                         placeholder="输入触发关键词，如：增持、回购、中标、减持")
         params = {"keyword": kw}
         st.caption("近期新闻/公告标题或内容包含该关键词即触发。")
 
@@ -288,10 +335,28 @@ with st.expander("➕ 新建预警", expanded=False, key="new_alert_exp"):
             sc, body = api_post("/api/price-alerts", body_payload)
             if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
                 _toast("预警已创建")
+                # 加法式 Batch20：记录最近新建/浏览标的（纯前端 session 记忆）
+                _rec = st.session_state.setdefault("_alert_recent_codes", [])
+                if code not in _rec:
+                    _rec.insert(0, code)
+                st.session_state["_alert_recent_codes"] = _rec[:8]
                 st.rerun()
             else:
                 msg = body.get("message", "创建失败") if isinstance(body, dict) else "创建失败"
                 st.error(f"❌ {msg}")
+
+
+# ══ 加法式 Batch20：最近浏览历史 chips（纯前端 session 记忆）══
+_recent = st.session_state.get("_alert_recent_codes", [])
+if _recent:
+    st.markdown("**🕘 最近浏览**")
+    _rc_cols = st.columns(min(len(_recent), 6))
+    for _i, _rc in enumerate(_recent[:6]):
+        with _rc_cols[_i]:
+            if st.button(f"📈 {_rc}", key=f"alert_recent_{_rc}", use_container_width=True):
+                st.session_state["pick_stock_confirmed"] = _rc
+                st.session_state["pick_stock_query"] = _rc
+                safe_switch_page("pages/个股研究.py")
 
 
 # ───────────────────────── 列表 + 触发检测 ─────────────────────────
@@ -301,7 +366,9 @@ def fragment_alerts():
     # ───────────────────────── 列表 + 触发检测 ─────────────────────────
     sc, body = api_get("/api/price-alerts")
     if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
-        st.error("加载预警失败，请刷新重试。")
+        st.error("⚠️ 加载失败，请稍后重试")
+        if st.button("🔄 重试", key="alert_list_retry"):
+            st.rerun(scope="fragment")
         return
 
     alerts = body.get("data", []) or []
@@ -317,7 +384,22 @@ def fragment_alerts():
                  "并保持本页或持仓页在浏览器中打开。")
     else:
         st.markdown(f"#### 共 {len(alerts)} 条预警（页面访问时实时检测）")
-        eval_results = _eval_alert_parallel(alerts)
+        st.caption("数据来源：实时行情（新浪财经 / 东方财富）、新闻公告（东方财富）")
+        _filter = st.text_input("🔍 搜索预警（代码 / 名称 / 类型）", key="filter_alerts",
+                                help="按代码、名称或预警类型（price/pattern/volume/announcement）纯前端过滤。")
+        if _filter:
+            _fk = _norm(_filter)
+            alerts = [a for a in alerts if _fk in _norm(
+                f"{a.get('stock_code','')} {a.get('stock_name','')} {a.get('alert_type','')} {a.get('params','')}")]
+        # 加法式 Batch20：收藏/星标过滤（纯前端 session 集合）
+        _alert_fav_set = st.session_state.get("_alert_fav_set", set())
+        _show_fav_only = st.checkbox("⭐ 只看收藏", key="alert_fav_only",
+                                     help="仅显示已加星标的预警。")
+        if _show_fav_only:
+            alerts = [a for i, a in enumerate(alerts)
+                      if (a.get("id") or f"idx{i}") in _alert_fav_set]
+        with st.spinner("正在检测预警触发状态…"):
+            eval_results = _eval_alert_parallel(alerts)
         # 浏览器桌面通知去重集合（避免每次自动刷新重复弹窗）
         _notified_ids = st.session_state.setdefault("_alert_notified_ids", set())
         _notify_msgs = []
@@ -384,12 +466,22 @@ def fragment_alerts():
         elif triggered is False and a.get("id") in _notified_ids:
             _notified_ids.discard(a.get("id"))
 
-        col_info, col_status, col_toggle, col_del = st.columns([4, 2, 1.2, 1.2])
+        col_star, col_info, col_status, col_toggle, col_del = st.columns([1, 3.5, 2, 1.2, 1.2])
+        with col_star:
+            _is_fav = aid in st.session_state.get("_alert_fav_set", set())
+            if st.button("⭐" if _is_fav else "☆", key=f"fav_{aid}", use_container_width=True,
+                         help="收藏/取消收藏该预警"):
+                _fs = st.session_state.setdefault("_alert_fav_set", set())
+                if aid in _fs:
+                    _fs.discard(aid)
+                else:
+                    _fs.add(aid)
+                st.rerun(scope="fragment")
         with col_info:
             st.markdown(
                 f"{ALERT_TYPE_LABEL.get(atype, atype)} **{display_name}** "
                 f"`{code}` ｜ {desc}",
-                help=f"创建于 {str(a.get('created_at', ''))[:19]}\n检测：{detail}",
+                help=f"创建于 {_fmt_rel(a.get('created_at'))}\n检测：{detail}",
             )
         with col_status:
             st.markdown(f'<span class="{status_cls}">{status_txt}</span>', unsafe_allow_html=True)
@@ -403,6 +495,7 @@ def fragment_alerts():
             if st.session_state.get(_ck):
                 if st.button("确认删除", key=f"del_cfm_{aid}", type="primary", use_container_width=True):
                     api_delete(f"/api/price-alerts/{aid}")
+                    _toast("预警已删除")
                     st.session_state.pop(_ck, None)
                 if st.button("取消", key=f"del_cancel_{aid}", use_container_width=True):
                     st.session_state.pop(_ck, None)
@@ -442,4 +535,14 @@ st.checkbox(
     help="开启后，本页预警触发时会向操作系统弹出桌面通知（需浏览器授予通知权限）。",
 )
 
+# 加法式 UX：清除已触发通知的去重记录，使下次触发可再次弹出桌面通知（不影响其它逻辑）。
+if st.button("🧹 清空通知记录", key="alert_clear_notified",
+             help="清除已触发通知的去重记录，下次触发将再次弹出桌面通知。"):
+    st.session_state["_alert_notified_ids"] = set()
+    st.rerun()
+
 fragment_alerts()
+
+# 加法式 UX：长页面底部「↑ 回到顶部」按钮（前端平滑滚动，不触发整页 rerun）
+if st.button("↑ 回到顶部", key="alert_back_to_top"):
+    components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0, scrolling=False)
