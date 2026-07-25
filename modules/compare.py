@@ -1150,7 +1150,9 @@ def _event_stance(stock: Dict[str, Any], event_text: str) -> Tuple[float, str]:
 
 def compute_method_scores(rows: List[Dict[str, Any]], method: str,
                           event: Optional[str] = None) -> Dict[str, float]:
-    """返回该方法下每只股票的综合得分(0-100)。"""
+    """返回该方法下每只股票的综合得分(0-100)。空列表安全返回 {}。"""
+    if not rows:
+        return {}
     if method == "事件":
         return {r["code"]: _event_stance(r, event)[0] for r in rows}
     if method == "短期":
@@ -1206,12 +1208,41 @@ def compute_method_scores(rows: List[Dict[str, Any]], method: str,
 
 
 def _ranked(rows, scores):
+    if not rows:
+        return []
     return sorted(rows, key=lambda r: _safe(scores.get(r["code"])), reverse=True)
+
+
+def rank_methods(rows: List[Dict[str, Any]], event: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    """返回每个对比方法下综合占优的标的（结构化结果，供 API / 其它模块复用，不依赖 HTML）。
+
+    新能力（R1）：此前对比结论只能以 HTML 卡片形式产出，无法被非 UI 场景（如后端
+    聚合接口、单元测试、量化调度）消费。这里给出纯数据的「每维度赢家」映射，
+    与 build_* HTML 渲染共享 compute_method_scores / _ranked 同一套评分逻辑。
+    """
+    if not rows:
+        return {}
+    out: Dict[str, Dict[str, Any]] = {}
+    for m in METHODS:
+        ev = event if m == "事件" else None
+        sc = compute_method_scores(rows, m, ev)
+        ranked = _ranked(rows, sc)
+        if ranked:
+            top = ranked[0]
+            out[m] = {
+                "method": m,
+                "winner_code": top["code"],
+                "winner_name": top["name"],
+                "score": _safe(sc.get(top["code"])),
+            }
+    return out
 
 
 def _method_summary(rows: List[Dict[str, Any]], method: str,
                     scores: Dict[str, float], event: Optional[str] = None) -> str:
     ranked = _ranked(rows, scores)
+    if not ranked:
+        return "暂无对比标的，无法生成结论。"
     best, worst = ranked[0], ranked[-1]
     bs = _safe(scores.get(best["code"]))
     ws = _safe(scores.get(worst["code"]))
@@ -1236,6 +1267,8 @@ def _method_summary(rows: List[Dict[str, Any]], method: str,
 def _method_analysis(method: str, scores: Dict[str, float],
                      ranked: List[Dict[str, Any]], event: Optional[str]) -> str:
     """生成 image #12 所需的详细分析过程。"""
+    if not ranked:
+        return "暂无对比标的。"
     best, worst = ranked[0], ranked[-1]
     bs = _safe(scores.get(best["code"]))
     ws = _safe(scores.get(worst["code"]))
@@ -1441,7 +1474,8 @@ def build_method_card(rows: List[Dict[str, Any]], method: str,
     scores = compute_method_scores(rows, method, event)
     ranked = _ranked(rows, scores)
     if len(ranked) < 2:
-        return '<div class="card"><h2>对比方法 · {method}</h2><div class="note">标的不足 2 只，无法生成对比。</div></div>'
+        return (f'<div class="card"><h2>对比方法 · {method}</h2>'
+                f'<div class="note">标的不足 2 只，无法生成对比。</div></div>')
     a, b = ranked[0], ranked[1]
     va = _method_vs_box(a, b, method, scores, event)
     vb = _method_vs_box(b, a, method, scores, event)
@@ -1460,6 +1494,9 @@ def build_method_card(rows: List[Dict[str, Any]], method: str,
 def build_aggregate_card(rows: List[Dict[str, Any]],
                          event: Optional[str] = None) -> str:
     """底部大汇总：九维对比结论表格。"""
+    if not rows:
+        return ('<div class="card"><h2>大汇总 · 九维对比结论</h2>'
+                '<div class="note">暂无对比标的，无法生成汇总。</div></div>')
     tr = []
     for m in METHODS:
         ev = event if m == "事件" else None
