@@ -57,6 +57,41 @@ def compute_atr(df: pd.DataFrame, period: int = 14) -> "float | None":
     return atr
 
 
+def compute_rsi(df: pd.DataFrame, period: int = 14) -> "float | None":
+    """计算相对强弱指数 RSI（纯函数，可单测）。
+
+    新能力：技术面模块此前缺少可复用的 RSI 原语（仅 technical_agent 内散落实现），
+    现抽出为通用纯函数，供个股分析 / 风控 / 量化策略统一调用。
+
+    采用简单移动平均法（与 compute_atr 同一定价口径）：
+      delta = close.diff()
+      gain/loss 分别取 delta 的正/负部分均值，RS = avg_gain/avg_loss，
+      RSI = 100 - 100/(1+RS)。
+    返回 0-100 的 RSI；数据不足 / 缺 close 列 / 结果为 NaN 时返回 ``None``。
+    全涨（无亏损）→ 100；全跌（无盈利）→ 0；持平（无波动）→ 50。
+    """
+    if df is None or df.empty or "close" not in df.columns:
+        return None
+    close = df["close"].dropna()
+    if len(close) < period + 1:
+        return None
+    delta = close.diff()
+    gain = delta.clip(lower=0.0)
+    loss = (-delta).clip(lower=0.0)
+    avg_gain = gain.rolling(period).mean()
+    avg_loss = loss.rolling(period).mean()
+    g = float(avg_gain.iloc[-1])
+    l = float(avg_loss.iloc[-1])
+    if pd.isna(g) or pd.isna(l):
+        return None
+    if l == 0:
+        return 100.0 if g > 0 else 50.0
+    rs = g / l
+    rsi = 100.0 - 100.0 / (1.0 + rs)
+    if pd.isna(rsi):
+        return None
+    return round(float(rsi), 2)
+
 
 # ============================================================
 # 1) 均线 / 趋势状态
@@ -80,6 +115,10 @@ def analyze_trend(df: pd.DataFrame) -> Dict[str, Any]:
 
     latest = df.iloc[-1]
     close = float(latest["close"])
+    # 隐性缺陷修复：close 为 NaN 时，下方所有 ``close > ma`` 比较恒为 False，
+    # 会把本该判不出的趋势静默误归为「纠缠」，甚至错误给出空头排列。先显式拦截。
+    if pd.isna(close):
+        return {"error": "收盘价缺失/NaN，无法分析趋势"}
     # 隐性缺陷修复：旧实现 ``float(latest["ma{w}"])`` 在 ma 为 NaN 时会得到 nan，
     # 而 nan 进入 ``ordered`` 后所有大小比较恒为 False，使多头/空头排列永远判不出
     # （即便 ma5>ma10>ma20 也会被 nan 拖成"纠缠"）。现用 _safe_float 过滤 NaN，
