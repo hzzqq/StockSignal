@@ -69,13 +69,16 @@ _INDEX_INFOS = [
 
 
 def _index_market_status():
-    """返回指数是否需要自动刷新：(is_open, status_text, refresh_ms)。"""
-    from datetime import datetime
-    from modules.page_widgets import is_trading_now
-    now = datetime.now()
-    if now.weekday() >= 5:
+    """返回指数是否需要自动刷新：(is_open, status_text, refresh_ms)。
+
+    统一委托 page_widgets.current_trading_session（基于北京时间），避免与
+    is_trading_now 各自算时区导致周末/盘中判定不一致（R3 DRY）。
+    """
+    from modules.page_widgets import current_trading_session
+    sess = current_trading_session()
+    if sess == "weekend":
         return False, "⚪ 已休市（周末）", 0
-    if is_trading_now():
+    if sess in ("morning", "afternoon"):
         return True, "🟢 交易中", 60 * 1000
     return False, "⚪ 已休市", 0
 
@@ -157,6 +160,14 @@ def _trend_label(open_: float, high: float, low: float, close: float, prev_close
         return "冲高回落"
     if _bounce_from_low(low, open_, close):
         return "探底回升"
+    # 隐式修复（R2）：原先此处无兜底分支，部分 OHLC（高低点距开盘均 < 0.15%
+    # 但 high-low 振幅 ≥ 0.15%）会走到函数末尾隐式返回 None，调用方渲染出 "None"。
+    # 与分时分支一致，按收盘相对开盘方向定性。
+    if close > open_:
+        return "震荡上行"
+    if close < open_:
+        return "震荡下行"
+    return "窄幅震荡"
 
     # 日内整体方向
     if close > open_:
@@ -1303,6 +1314,43 @@ def password_strength(pwd: str) -> tuple[int, str]:
         score += 1
     levels = ["弱", "弱", "中", "强", "很强"]
     return score, levels[score]
+
+
+_SYMBOLS = set("!@#$%^&*()_+-=[]{}|;:,.<>?/")
+
+
+def password_checklist(pwd: str) -> dict:
+    """返回密码各维度的达标情况（新能力，供注册/修改密码页结构化展示与校验）。
+
+    与 password_strength 共用同一套判定维度，但给出「逐项是否达标」的明细，
+    而非只给总分，便于前端逐条提示用户（如「至少 8 位」「需含大小写」）。
+    空密码视为全部不达标，但单独标注 empty 便于 UI 区分「未输入」与「太弱」。
+    """
+    if not pwd:
+        return {
+            "empty": True,
+            "length8": False,
+            "length12": False,
+            "mixed_case": False,
+            "digit_and_symbol": False,
+            "score": 0,
+            "level": "空",
+        }
+    length8 = len(pwd) >= 8
+    length12 = len(pwd) >= 12
+    mixed_case = any(c.isupper() for c in pwd) and any(c.islower() for c in pwd)
+    digit_and_symbol = any(c.isdigit() for c in pwd) and any(c in _SYMBOLS for c in pwd)
+    score = int(length8) + int(length12) + int(mixed_case) + int(digit_and_symbol)
+    levels = ["弱", "弱", "中", "强", "很强"]
+    return {
+        "empty": False,
+        "length8": length8,
+        "length12": length12,
+        "mixed_case": mixed_case,
+        "digit_and_symbol": digit_and_symbol,
+        "score": score,
+        "level": levels[score],
+    }
 
 
 # ──────────────────────────────────────────────────────────────
