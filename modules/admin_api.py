@@ -4,16 +4,28 @@ modules/admin_api.py
 管理后台 API 封装，给 Streamlit 管理页面调用。
 """
 from __future__ import annotations
+
+from urllib.parse import urlencode
+
 from .session import api_get, api_post, api_put, api_delete
+
+
+def build_query(**params) -> str:
+    """把查询参数安全编码为 URL 查询串（含前导 ``?``）。
+
+    新能力：统一管理列表接口的查询串构造，自动跳过 ``None`` / 空字符串，
+    并用 ``urlencode`` 编码，避免 ``keyword`` 含 ``&`` ``=`` 空格 中文 等破坏 URL 结构。
+    旧实现用 ``f"?page={page}&keyword={keyword}"`` 直插，关键词里一旦出现
+    ``&`` 会被拆成额外参数、空格/中文未编码导致后端解析错位（隐性 bug）。
+    """
+    clean = {k: v for k, v in params.items() if v not in (None, "")}
+    return ("?" + urlencode(clean)) if clean else ""
 
 
 # ================================================================ 用户管理
 def get_users(page=1, per_page=50, keyword=""):
     """获取用户列表。"""
-    params = f"?page={page}&per_page={per_page}"
-    if keyword:
-        params += f"&keyword={keyword}"
-    return api_get(f"/api/admin/users{params}", timeout=10)
+    return api_get("/api/admin/users" + build_query(page=page, per_page=per_page, keyword=keyword), timeout=10)
 
 
 def create_user(username: str, password: str, role: str = "user"):
@@ -33,21 +45,18 @@ def delete_user(user_id: int):
 
 def get_logs(page=1, per_page=50):
     """获取操作日志。"""
-    return api_get(f"/api/admin/logs?page={page}&per_page={per_page}", timeout=10)
+    return api_get("/api/admin/logs" + build_query(page=page, per_page=per_page), timeout=10)
 
 
 # ================================================================ 股票管理
 def search_stocks(q: str, limit: int = 15):
     """搜索股票。"""
-    return api_get(f"/api/stocks/search?q={q}&limit={limit}", timeout=5)
+    return api_get("/api/stocks/search" + build_query(q=q, limit=limit), timeout=5)
 
 
 def get_stock_list(page=1, per_page=50, keyword=""):
     """获取股票列表（管理）。"""
-    params = f"?page={page}&per_page={per_page}"
-    if keyword:
-        params += f"&keyword={keyword}"
-    return api_get(f"/api/stocks/list{params}", timeout=10)
+    return api_get("/api/stocks/list" + build_query(page=page, per_page=per_page, keyword=keyword), timeout=10)
 
 
 def get_stock_stats():
