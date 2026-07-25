@@ -93,6 +93,59 @@ def compute_rsi(df: pd.DataFrame, period: int = 14) -> "float | None":
     return round(float(rsi), 2)
 
 
+def compute_ema(series: "pd.Series", span: int) -> "pd.Series | None":
+    """指数移动平均（纯函数，可单测）。
+
+    新能力：此前 MACD / 均线叠加等多处散落 ``ewm`` 计算，且未对 NaN 做剔除，
+    单点 NaN 会沿序列向后污染整条 EMA。现抽出为带 NaN 守卫的单一实现。
+
+    返回与输入等长的 EMA Series；输入非法（None / 长度不足 / 全 NaN）返回 None。
+    """
+    if series is None:
+        return None
+    s = pd.to_numeric(series, errors="coerce").dropna()
+    if len(s) < 1:
+        return None
+    return s.ewm(span=span, adjust=False, min_periods=max(2, span // 2)).mean()
+
+
+def compute_macd(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9
+                 ) -> "dict | None":
+    """计算 MACD（纯函数，可单测）：DIF / DEA / MACD 柱。
+
+    新能力：技术面模块此前缺少可复用的 MACD 原语（仅 technical_agent 内散落
+    实现且未做 NaN 守卫）。现抽出为通用纯函数，供个股分析 / 量化策略统一调用。
+
+    算法（与通达信/AKShare 同口径，EMA 不调整）：
+      dif  = EMA(close, fast) - EMA(close, slow)
+      dea  = EMA(dif, signal)
+      macd = (dif - dea) * 2
+    返回最新一根的 {dif, dea, macd}；数据不足 / 缺 close 列 / 结果为 NaN 时返回 None。
+    隐性健壮化：先 ``dropna`` 再算 EMA，避免单点 NaN 向后污染整条 DIF/DEA。
+    """
+    if df is None or df.empty or "close" not in df.columns:
+        return None
+    close = pd.to_numeric(df["close"], errors="coerce").dropna()
+    if len(close) < slow:
+        return None
+    ema_fast = close.ewm(span=fast, adjust=False, min_periods=max(2, fast // 2)).mean()
+    ema_slow = close.ewm(span=slow, adjust=False, min_periods=max(2, slow // 2)).mean()
+    dif = ema_fast - ema_slow
+    dea = dif.ewm(span=signal, adjust=False, min_periods=max(2, signal // 2)).mean()
+    macd = (dif - dea) * 2
+    try:
+        out = {
+            "dif": round(float(dif.iloc[-1]), 4),
+            "dea": round(float(dea.iloc[-1]), 4),
+            "macd": round(float(macd.iloc[-1]), 4),
+        }
+    except (ValueError, TypeError, IndexError):
+        return None
+    if any(pd.isna(v) for v in out.values()):
+        return None
+    return out
+
+
 # ============================================================
 # 1) 均线 / 趋势状态
 # ============================================================
