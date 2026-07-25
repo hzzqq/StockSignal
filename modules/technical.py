@@ -20,6 +20,44 @@ from typing import Any, Dict, List
 import pandas as pd
 
 
+def _safe_float(v, default: float = 0.0) -> float:
+    """把任意值安全转 float；None / 空 / NaN 回落到 default（避免 NaN 经 `or 0.0` 泄漏）。"""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return default
+    return default if pd.isna(f) else f
+
+
+def compute_atr(df: pd.DataFrame, period: int = 14) -> "float | None":
+    """计算真实波幅 ATR（纯函数，可单测）。
+
+    新能力：此前 ATR 仅在 ``stock_analysis_helpers._calc_trade_levels`` 内联计算，
+    技术面模块缺少可复用的波动率原语。现抽出为通用纯函数，供风控/价位计算复用。
+
+    返回 ATR 数值；数据不足或列缺失或结果为 NaN/非正时返回 ``None``（调用方决定兜底）。
+    """
+    if df is None or df.empty:
+        return None
+    if not all(c in df.columns for c in ("high", "low", "close")):
+        return None
+    high = df["high"]
+    low = df["low"]
+    close = df["close"]
+    prev_close = close.shift(1)
+    tr = pd.concat(
+        [(high - low), (high - prev_close).abs(), (low - prev_close).abs()],
+        axis=1,
+    ).max(axis=1)
+    if len(tr) < period:
+        return None
+    atr = float(tr.rolling(period).mean().iloc[-1])
+    if pd.isna(atr) or atr <= 0:
+        return None
+    return atr
+
+
+
 # ============================================================
 # 1) 均线 / 趋势状态
 # ============================================================
@@ -42,7 +80,16 @@ def analyze_trend(df: pd.DataFrame) -> Dict[str, Any]:
 
     latest = df.iloc[-1]
     close = float(latest["close"])
-    ma_map = {w: float(latest[f"ma{w}"]) for w in (5, 10, 20, 60) if f"ma{w}" in df.columns}
+    # 隐性缺陷修复：旧实现 ``float(latest["ma{w}"])`` 在 ma 为 NaN 时会得到 nan，
+    # 而 nan 进入 ``ordered`` 后所有大小比较恒为 False，使多头/空头排列永远判不出
+    # （即便 ma5>ma10>ma20 也会被 nan 拖成"纠缠"）。现用 _safe_float 过滤 NaN，
+    # 仅保留有效均线参与排列判断。
+    ma_map = {}
+    for w in (5, 10, 20, 60):
+        if f"ma{w}" in df.columns:
+            v = _safe_float(latest[f"ma{w}"], default=None)
+            if v is not None:
+                ma_map[w] = v
 
     # 站上均线数
     above_count = sum(1 for v in ma_map.values() if close > v)
@@ -92,9 +139,9 @@ def analyze_momentum(df: pd.DataFrame) -> Dict[str, Any]:
 
     latest = df.iloc[-1]
     rets = {
-        "1日": float(latest.get("return_1d", 0.0) or 0.0),
-        "5日": float(latest.get("return_5d", 0.0) or 0.0),
-        "20日": float(latest.get("return_20d", 0.0) or 0.0),
+        "1日": _safe_float(latest.get("return_1d", 0.0)),
+        "5日": _safe_float(latest.get("return_5d", 0.0)),
+        "20日": _safe_float(latest.get("return_20d", 0.0)),
     }
 
     # 动量强度打分：5日涨幅 0~10% 映射到 50~100；负值扣分
@@ -182,7 +229,7 @@ def analyze_volume(df: pd.DataFrame) -> Dict[str, Any]:
                 break
 
     # 量价配合
-    change_pct = float(latest.get("change_pct", 0.0) or 0.0)
+    change_pct = _safe_float(latest.get("change_pct", 0.0))
     if vol_ratio >= 1.5 and change_pct > 0:
         vp_label, vp_score = "量价齐升", 85
     elif vol_ratio >= 1.2 and change_pct > 0:
@@ -336,3 +383,23 @@ def full_analysis(df: pd.DataFrame) -> Dict[str, Any]:
         "volume": analyze_volume(df),
         "patterns": detect_patterns(df),
     }
+
+
+def overall_technical_score(trend_score, momentum_score, volume_score,
+                            weights=(0.4, 0.35, 0.25)) -> float:
+    """把趋势 / 动量 / 量能三维度得分(0-100)加权合成为综合技术面得分。
+
+    任一维度为 None 或 NaN 时按中性 50 参与；超出 [0,100] 的得分先裁剪。
+    权重默认为 趋势0.4 / 动量0.35 / 量能0.25。
+    """
+    total_w = sum(weights)
+    if total_w <= 0:
+        return 50.0
+    acc = 0.0
+    for s, w in zip((trend_score, momentum_score, volume_score), weights):
+        if s is None or pd.isna(s):
+            s = 50.0
+        else:
+            s = max(0.0, min(100.0, float(s)))
+        acc += s * w
+    return round(acc / total_w, 1)
