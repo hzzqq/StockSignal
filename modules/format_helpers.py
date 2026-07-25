@@ -98,12 +98,15 @@ def clamp(x, lo, hi):
     恒 False、inf 参与比较会泄漏）会原样返回非法值，污染分数/比例等下游计算。
     处理约定：None / NaN -> lo（未知，按最保守下界）；+inf -> hi；-inf -> lo。
     """
-    x = to_float(x, default=None)
-    if x is None:
+    try:
+        xf = float(x)
+    except (TypeError, ValueError):
         return lo
-    if math.isinf(x):
-        return hi if x > 0 else lo
-    return max(lo, min(hi, x))
+    if math.isinf(xf):
+        return hi if xf > 0 else lo
+    if math.isnan(xf):
+        return lo
+    return max(lo, min(hi, xf))
 
 
 def safe_delta(a, b, default: float = 0.0) -> float:
