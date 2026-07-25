@@ -396,6 +396,20 @@ def get_token() -> str | None:
     return st.session_state.get(KEY_TOKEN)
 
 
+def mask_token(token, keep_head: int = 4, keep_tail: int = 4) -> str:
+    """安全脱敏 token（新能力，供日志/调试展示）：仅保留首尾各 keep_head/keep_tail 位，中间以 * 代替。
+
+    绝不输出完整凭证；空或极短 token 返回占位符，避免反向泄露长度之外的信息。
+    这是「可观测性 + 安全」的一次性增强：原先 token 一旦进入日志即整段明文，存在泄露风险。
+    """
+    if not token:
+        return ""
+    t = str(token)
+    if len(t) <= keep_head + keep_tail:
+        return "****"
+    return f"{t[:keep_head]}{'*' * (len(t) - keep_head - keep_tail)}{t[-keep_tail:]}"
+
+
 def get_user() -> dict | None:
     return st.session_state.get(KEY_USER)
 
@@ -848,39 +862,53 @@ def _refresh_user_from_backend() -> dict | None:
     return res if isinstance(res, dict) else None
 
 
+def _parse_iso(ts):
+    """把 ISO 时间戳解析为 datetime（统一来源；丢弃时区信息以与 datetime.now() 一致比较）。
+
+    隐式修复（R2）：原先 _rel_time / _parse_ts 各自内联同一段 `replace("Z","").replace("+08:00","")`
+    解析逻辑；且未丢弃 tzinfo，若时间戳带时区会与朴素 datetime.now() 混合比较抛 TypeError。
+    这里归一为朴素 datetime，作为全模块唯一的 ISO 解析入口。
+    """
+    if not ts:
+        return None
+    s = str(ts).replace("Z", "").replace("+08:00", "").replace("+00:00", "")
+    try:
+        dt = datetime.fromisoformat(s)
+    except Exception:
+        try:
+            dt = datetime.fromisoformat(str(ts).replace("Z", ""))
+        except Exception:
+            return None
+    # 丢弃时区，统一按朴素时间比较
+    return dt.replace(tzinfo=None)
+
+
 def _rel_time(ts) -> str:
     """把 ISO 时间戳转成友好相对时间（UI-only）：刚刚 / N分钟前 / N小时前 / 昨天 / N天前 / MM-DD。"""
     if not ts:
         return ""
-    try:
-        s = str(ts).replace("Z", "").replace("+08:00", "")
-        dt = datetime.fromisoformat(s)
-        diff = (datetime.now() - dt).total_seconds()
-        if diff < 0:
-            return "刚刚"
-        if diff < 60:
-            return "刚刚"
-        if diff < 3600:
-            return f"{int(diff // 60)}分钟前"
-        if diff < 86400:
-            return f"{int(diff // 3600)}小时前"
-        if diff < 86400 * 2:
-            return "昨天"
-        if diff < 86400 * 7:
-            return f"{int(diff // 86400)}天前"
-        return dt.strftime("%m-%d")
-    except Exception:
+    dt = _parse_iso(ts)
+    if dt is None:
         return str(ts)[:16].replace("T", " ")
+    diff = (datetime.now() - dt).total_seconds()
+    if diff < 0:
+        return "刚刚"
+    if diff < 60:
+        return "刚刚"
+    if diff < 3600:
+        return f"{int(diff // 60)}分钟前"
+    if diff < 86400:
+        return f"{int(diff // 3600)}小时前"
+    if diff < 86400 * 2:
+        return "昨天"
+    if diff < 86400 * 7:
+        return f"{int(diff // 86400)}天前"
+    return dt.strftime("%m-%d")
 
 
 def _parse_ts(ts):
     """把 ISO 时间戳解析为 datetime（失败返回 None），供「仅看未读」客户端过滤。"""
-    if not ts:
-        return None
-    try:
-        return datetime.fromisoformat(str(ts).replace("Z", "").replace("+08:00", ""))
-    except Exception:
-        return None
+    return _parse_iso(ts)
 
 
 def render_user_badge(sidebar: bool = True) -> None:
