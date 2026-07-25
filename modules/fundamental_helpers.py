@@ -75,6 +75,10 @@ def _extract_metric_series(df: pd.DataFrame | None, candidates: list) -> pd.Seri
         return None
     tmp[pcol] = pd.to_datetime(tmp[pcol], errors="coerce")
     tmp = tmp.dropna(subset=[pcol])
+    # 隐性缺陷修复：同一报告期可能出现重复行（源数据脏数据 / 不同批次合并），
+    # 直接 set_index 会产生重复索引，导致 _compute_yoy / _compute_qoq 用 .loc[mask].iloc[0]
+    # 命中错误报告期的值。现按报告期去重，保留最后一次出现（通常是最新修正值）。
+    tmp = tmp.drop_duplicates(subset=[pcol], keep="last")
     return tmp.set_index(pcol)[mcol].sort_index()
 
 def _period_label(dt: pd.Timestamp, mode: str) -> str:
@@ -187,6 +191,24 @@ def _alr_status(alr: float | None) -> str:
     if alr <= 60:
         return "中杠杆"
     return "高杠杆"
+
+def _roe_status(roe: float | None) -> str:
+    """净资产收益率(ROE)质量档位：优秀(>=15%) / 良好(>=10%) / 一般(>=5%) / 偏弱(<5%) / 亏损(<0)。
+
+    新能力：与 _pe_status / _alr_status 对齐的「单指标质量档位」，供基本面质量卡片复用；
+    无数据 / 非法值（None / NaN / 非数字）返回 「—」。
+    """
+    if roe is None or not isinstance(roe, (int, float)) or pd.isna(roe):
+        return "—"
+    if roe < 0:
+        return "亏损"
+    if roe < 5:
+        return "偏弱"
+    if roe < 10:
+        return "一般"
+    if roe < 15:
+        return "良好"
+    return "优秀"
 
 def _tag(text: str, level: str) -> str:
     """语义化彩色标签：good/warn/bad/neu（仅用于基本面「好/坏」语义，非价格涨跌色）。"""
