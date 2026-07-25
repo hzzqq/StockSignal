@@ -13,9 +13,30 @@ modules/llm_client.py
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import time
 from typing import Dict, List, Optional, Tuple
+
+
+# 失败原因可观测性：chat_completion 把最近一次失败的「真因」写到这里，
+# 调用方/监控可用 last_error() 读取，区分「未配置 Key」「客户端初始化失败」
+# 「全部模型失败」「空内容」等，避免 LLM 静默失败时只能盲回退到规则引擎。
+_LAST_ERR = ""
+
+
+def last_error() -> str:
+    """返回最近一次 chat_completion 失败的原因（可观测性）。
+
+    调用前若从未失败过则为空字符串。用于日志/遥测，不影响主流程返回值。
+    """
+    return _LAST_ERR
+
+
+def _set_last_err(msg: str) -> None:
+    global _LAST_ERR
+    _LAST_ERR = msg or ""
 
 
 # 自动加载项目根目录 .env 文件（若存在），方便用户配置 LLM
@@ -110,6 +131,7 @@ def chat_completion(
     规则引擎（瞬时），避免用户干等前端报「响应超时」。
     """
     if not is_configured():
+        _set_last_err("未配置 STARFIELD_LLM_API_KEY，已回退规则引擎")
         return None
 
     base_url, _model, api_key = config()
@@ -123,11 +145,13 @@ def chat_completion(
     chain = _model_chain()
     last_err = ""
     _start = time.time()
+    _set_last_err("")
     try:
         import openai
 
         client = openai.OpenAI(base_url=base_url, api_key=api_key, timeout=per_timeout)
     except Exception as e:
+        _set_last_err(f"LLM client init failed: {e}")
         print(f"[llm_client] LLM client init failed: {e}")
         return None
 
@@ -148,9 +172,13 @@ def chat_completion(
             content = resp.choices[0].message.content
             if content:
                 return content
+            # 空内容通常是模型主动拒答/截断，换模型也大概率同样空，立即终止回退链
             last_err = f"{model}: empty content"
+            _set_last_err(last_err)
+            break
         except Exception as e:
             last_err = f"{model}: {e}"
+            _set_last_err(last_err)
             # 限流/超时/端点错误 -> 尝试下一个回退模型
             continue
     print(f"[llm_client] all models failed: {last_err}")
@@ -172,3 +200,63 @@ def answer_with_llm(
         messages.extend(history[-6:])
     messages.append({"role": "user", "content": user_prompt})
     return chat_completion(messages, temperature=temperature, max_tokens=max_tokens, timeout=timeout)
+
+
+# =====================================================================
+# 结构化 JSON 输出（新增能力）
+# =====================================================================
+def _extract_json(text: str):
+    """从模型自由文本中尽力抽取 JSON。
+
+    策略（按收益递减）：
+      1. 整段直接 json.loads；
+      2. 剥离 ```json ... ``` / ``` ... ``` 围栏后解析；
+      3. 截取首个 { / [ 到最后一个 } / ] 的子串再解析。
+    全部失败返回 None（不抛异常，交给调用方按 default 兜底）。
+    """
+    if not text:
+        return None
+    text = text.strip()
+
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+
+    fence = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
+    if fence:
+        try:
+            return json.loads(fence.group(1).strip())
+        except Exception:
+            pass
+
+    opens = [i for i in (text.find("{"), text.find("[")) if i != -1]
+    if not opens:
+        return None
+    start = min(opens)
+    end = max(text.rfind("}"), text.rfind("]"))
+    if end == -1 or end < start:
+        return None
+    try:
+        return json.loads(text[start:end + 1])
+    except Exception:
+        return None
+
+
+def chat_completion_json(
+    messages: List[Dict[str, str]],
+    temperature: float = 0.3,
+    max_tokens: int = 1500,
+    timeout: int = 30,
+    default=None,
+):
+    """调用 LLM 并尝试把回复解析为结构化 JSON（dict / list）。
+
+    适用于「输出 JSON 评分/标签/结构化结论」的场景。任何失败（未配置 Key、
+    模型失败、无法解析为 JSON）一律返回 ``default``，由调用方兜底，绝不抛异常。
+    """
+    raw = chat_completion(messages, temperature=temperature, max_tokens=max_tokens, timeout=timeout)
+    if raw is None:
+        return default
+    parsed = _extract_json(raw)
+    return parsed if parsed is not None else default
