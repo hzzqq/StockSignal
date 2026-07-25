@@ -21,7 +21,7 @@ st.session_state["_active_page"] = __file__
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.visualizer import Visualizer
-from modules.session import require_auth, render_user_badge, api_kline
+from modules.session import require_auth, render_user_badge, api_kline, api_intraday
 from modules.search_ui import stock_search_input
 from modules.ui_theme import dashboard_sf_css, _theme_is_dark
 from modules.background_tasks import submit_task_with_error, poll_task
@@ -145,6 +145,24 @@ def _cached_period_kline(ticker: str, start: str, end: str, period: str):
     if recs is None:
         return StockFetcher().get_kline(ticker, start=start, end=end, period=period)
     return pd.DataFrame(recs)
+
+
+@st.cache_data(show_spinner=False, ttl=60)
+def _cached_intraday(ticker):
+    """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。"""
+    try:
+        rec = api_intraday(ticker)
+        if rec and isinstance(rec.get("records"), list) and rec["records"]:
+            return pd.DataFrame(rec["records"]), rec.get("prev_close"), rec.get("trade_date")
+    except Exception:
+        pass
+    try:
+        _df, _pc, _dt = fetcher.get_stock_intraday_sina(ticker)
+        if _df is not None and not _df.empty:
+            return _df, _pc, _dt
+    except Exception:
+        pass
+    return None
 
 
 def _render_analysis(R: dict):
@@ -525,6 +543,30 @@ def _render_analysis(R: dict):
             period_df = df
         else:
             period_df = DataCleaner.full_pipeline(_kdf.copy())
+
+    # ── 分时图（置于 K 线之上，默认开启；个股页沿用绿涨红跌语义）──
+    _show_intraday = st.checkbox("📈 显示分时图", value=True, key=f"intraday_chk_{ticker}",
+                                 help="展示该股票当日/最近交易日分时走势（价格线+均价+昨收基准）。")
+    if _show_intraday:
+        try:
+            _intra = _cached_intraday(ticker)
+            if _intra is not None:
+                _idf, _ipc, _idate = _intra
+                _ifig = Visualizer.intraday(
+                    _idf, prev_close=_ipc,
+                    title=f"{ticker} {display_name} 分时（{_idate}）",
+                    up_color=RED, down_color=GREEN,
+                )
+                st.plotly_chart(_ifig, use_container_width=True, key=f"intraday_chart_{ticker}")
+                st.markdown(
+                    "<div style='font-size:12px;color:#64748b;margin-top:4px;'>"
+                    "白线为当日价格走势，橙点为均价；虚线为昨收。绿涨红跌（参考文档配色）。</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.info("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
+        except Exception as _ie:
+            st.warning(f"分时图加载失败：{str(_ie)[:60]}")
 
     try:
         # 参考文档 002947：绿涨红跌、MA5橙/MA10靛/MA20绿、

@@ -695,6 +695,26 @@ def api_kline(symbol: str, start: str | None = None, end: str | None = None,
     return None
 
 
+def api_intraday(symbol: str, trade_date: str | None = None, timeout: int = 5) -> dict | None:
+    """
+    个股分时数据（后端 GET /api/intraday?symbol=...）。
+
+    返回 dict（含 records / prev_close / trade_date），或 None（失败/无数据）。
+    失败由调用方回退到本地 fetcher.get_stock_intraday_sina。
+    """
+    if not symbol:
+        return None
+    params = f"symbol={symbol}"
+    if trade_date:
+        params += f"&date={trade_date}"
+    code, body = api_get(f"/api/intraday?{params}", timeout=timeout)
+    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
+        data = body.get("data")
+        if isinstance(data, dict):
+            return data
+    return None
+
+
 def _safe_json(resp) -> dict:
     try:
         return resp.json()

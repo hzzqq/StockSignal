@@ -35,7 +35,7 @@ from modules.signal import SignalEngine
 from modules.fetcher import StockFetcher
 from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
 from modules.search_ui import stock_search_input
-from modules.session import require_auth, render_user_badge, api_kline, trading_autorefresh, api_post
+from modules.session import require_auth, render_user_badge, api_kline, api_intraday, trading_autorefresh, api_post
 
 # ── 鉴权门禁（未登录直接 stop）──
 require_auth()
@@ -84,6 +84,26 @@ def get_fetcher():
 
 engine = get_engine()
 fetcher = get_fetcher()
+
+
+@st.cache_data(show_spinner=False, ttl=60)
+def _cached_intraday(ticker):
+    """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。"""
+    if not ticker:
+        return None
+    try:
+        rec = api_intraday(ticker)
+        if rec and isinstance(rec.get("records"), list) and rec["records"]:
+            return pd.DataFrame(rec["records"]), rec.get("prev_close"), rec.get("trade_date")
+    except Exception:
+        pass
+    try:
+        _df, _pc, _dt = fetcher.get_stock_intraday_sina(ticker)
+        if _df is not None and not _df.empty:
+            return _df, _pc, _dt
+    except Exception:
+        pass
+    return None
 
 
 # ── 工具函数 ──
@@ -641,6 +661,22 @@ def fragment_timeline():
                     events_chart = st.session_state.get("tl_events", st.session_state.get("tl_realtime_events", pd.DataFrame()))
                     title = st.session_state.get("tl_chart_title", "事件时间轴")
                     n_total = len(df)
+
+                    # ── 分时图（置于事件时间轴 K 线之上，默认开启）──
+                    if tl_ticker:
+                        _show_intraday = st.checkbox("📈 显示分时图", value=True,
+                                                     key="tl_show_intraday",
+                                                     help="展示该股票当日/最近交易日分时走势（价格线+均价+昨收基准，红涨绿跌）。")
+                        if _show_intraday:
+                            _intra = _cached_intraday(tl_ticker)
+                            if _intra is not None:
+                                _idf, _ipc, _idate = _intra
+                                _ifig = Visualizer.intraday(_idf, prev_close=_ipc,
+                                                            title=f"{stock_name or tl_ticker} 分时（{_idate}）")
+                                st.plotly_chart(_ifig, width="stretch", key="tl_intraday_chart")
+                                st.caption("📈 分时图：白线为当日价格走势，橙点为均价；虚线为昨收。红涨绿跌（A股惯例）。")
+                            else:
+                                st.info("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
 
                     st.markdown("#### 📈 K 线事件时间轴")
 

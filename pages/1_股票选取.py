@@ -18,7 +18,7 @@ from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.linear_trends import plot_normalized_multi
 from modules.session import (
-    require_auth, render_user_badge, api_kline,
+    require_auth, render_user_badge, api_kline, api_intraday,
     api_post, api_add_junk_stock, api_user_score, api_save_user_score,
     get_user, trading_autorefresh,
 )
@@ -302,6 +302,24 @@ def _cached_kline(ticker, start, end, period, nonce: int = 0):
     return df if df is not None else pd.DataFrame()
 
 
+@st.cache_data(show_spinner=False, ttl=60)
+def _cached_intraday(ticker):
+    """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。"""
+    try:
+        rec = api_intraday(ticker)
+        if rec and isinstance(rec.get("records"), list) and rec["records"]:
+            return pd.DataFrame(rec["records"]), rec.get("prev_close"), rec.get("trade_date")
+    except Exception:
+        pass
+    try:
+        _df, _pc, _dt = fetcher.get_stock_intraday_sina(ticker)
+        if _df is not None and not _df.empty:
+            return _df, _pc, _dt
+    except Exception:
+        pass
+    return None
+
+
 @st.cache_data(show_spinner=False, ttl=600)
 def _load_stock_events(ticker):
     """加载该股票的事件库（本地 SignalEngine 事件表，按代码过滤）。失败返回空表。"""
@@ -423,6 +441,20 @@ try:
             key="pick_kline_csv",
             help="导出当前「显示位置 / 显示数量」框定区间的 K 线数据（含 OHLCV）",
         )
+
+        # ── 分时图（置于 K 线之上，默认开启）──
+        show_intraday = st.checkbox("📈 显示分时图", value=True, key="pick_show_intraday",
+                                    help="展示该股票当日/最近交易日分时走势（价格线+均价+昨收基准，红涨绿跌）。")
+        if show_intraday:
+            _intra = _cached_intraday(ticker)
+            if _intra is not None:
+                _idf, _ipc, _idate = _intra
+                _ifig = Visualizer.intraday(_idf, prev_close=_ipc,
+                                            title=f"{stock_label} 分时（{_idate}）")
+                st.plotly_chart(_ifig, width="stretch", key="pick_intraday_chart")
+                st.caption("📈 分时图：白线为当日价格走势，橙点为均价；基准虚线为昨收。红涨绿跌（A股惯例）。")
+            else:
+                st.info("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
 
         fig = Visualizer.candlestick(df, title=f"{stock_label} {period_label}",
                                      ma_windows=ma_windows, show_volume=True,

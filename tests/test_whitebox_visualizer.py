@@ -259,3 +259,54 @@ class TestEventTimeline:
         })
         fig = Visualizer.event_timeline(df, events)
         assert fig is not None
+
+
+class TestIntraday:
+    """Visualizer.intraday 分时图白盒测试（纯函数，无网络）。"""
+
+    @staticmethod
+    def _make_intraday(n=60, up=True):
+        base = 10.0
+        times = [f"2026-07-24 {9 + i // 60:02d}:{(i * 4) % 60:02d}:00" for i in range(n)]
+        closes = [base + (i * 0.05 if up else -i * 0.05) for i in range(n)]
+        opens = [c - 0.02 for c in closes]
+        highs = [c + 0.05 for c in closes]
+        lows = [c - 0.05 for c in closes]
+        volumes = [1000 + i for i in range(n)]
+        amounts = [v * c for v, c in zip(volumes, closes)]
+        return pd.DataFrame({
+            "time": times, "open": opens, "close": closes,
+            "high": highs, "low": lows, "volume": volumes, "amount": amounts,
+        })
+
+    def test_basic_up(self):
+        df = self._make_intraday(n=60, up=True)
+        fig = Visualizer.intraday(df, prev_close=10.0, title="T")
+        assert fig is not None
+        names = [t.name for t in fig.data]
+        assert "价格" in names
+        assert "均价" in names
+
+    def test_basic_down(self):
+        df = self._make_intraday(n=60, up=False)
+        fig = Visualizer.intraday(df, prev_close=10.0)
+        assert fig is not None
+
+    def test_none_returns_empty(self):
+        fig = Visualizer.intraday(None, prev_close=10.0)
+        assert fig is not None
+
+    def test_no_volume(self):
+        df = self._make_intraday(n=30, up=True)
+        fig = Visualizer.intraday(df, prev_close=10.0, show_volume=False)
+        assert fig is not None
+
+    def test_custom_colors(self):
+        df = self._make_intraday(n=30, up=True)
+        fig = Visualizer.intraday(df, prev_close=10.0,
+                                  up_color="#009e60", down_color="#dc2626")
+        assert fig is not None
+
+    def test_empty_df(self):
+        fig = Visualizer.intraday(pd.DataFrame(), prev_close=10.0)
+        assert fig is not None
