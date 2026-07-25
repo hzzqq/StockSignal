@@ -194,6 +194,7 @@ def scan_and_execute(app) -> dict:
                 db.session.add(account)
                 db.session.flush()
 
+            order_result_text = "（未下单）"
             try:
                 _order, result = execute_order(
                     account, db.session,
@@ -203,15 +204,18 @@ def scan_and_execute(app) -> dict:
                 if result.ok:
                     co.status = "filled" if result.status == "filled" else "triggered"
                     stats["filled"] += 1
+                    order_result_text = "已成交" + (f"（{result.message}）" if getattr(result, "message", "") else "")
                 else:
                     co.status = "failed"
                     co.triggered_info = f"{co.triggered_info}｜下单失败：{result.message}"[:250]
                     stats["failed"] += 1
+                    order_result_text = f"下单失败：{result.message}"
                 co.active = False
                 db.session.commit()
             except Exception as e:
                 db.session.rollback()
                 logger.exception("条件单 #%s 执行异常", co.id)
+                order_result_text = f"执行异常：{e}"
                 try:
                     co.status = "failed"
                     co.active = False
@@ -220,6 +224,19 @@ def scan_and_execute(app) -> dict:
                 except Exception:
                     db.session.rollback()
                 stats["failed"] += 1
+
+            # ── 桌面弹窗通知（每次触发必弹，异步不阻塞调度）──
+            try:
+                from .desktop_notify import notify as _desktop_notify
+                _title = f"⚡ 智能条件单触发 · {co.stock_code} {co.stock_name or ''}".strip()
+                _act = "买入▲" if co.action == "buy" else "卖出▼"
+                _msg = (f"标的：{co.stock_code} {co.stock_name or ''}\n"
+                        f"动作：{_act} {co.quantity} 股\n"
+                        f"触发：{info or ''}\n"
+                        f"下单：{order_result_text}")
+                _desktop_notify(_title, _msg)
+            except Exception as _ne:  # noqa: BLE001
+                logger.warning("条件单桌面弹窗通知失败（不影响下单）: %s", _ne)
     return stats
 
 
