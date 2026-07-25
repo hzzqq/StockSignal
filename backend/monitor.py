@@ -15,6 +15,7 @@ backend/monitor.py
 """
 from __future__ import annotations
 
+import math
 import time
 from collections import defaultdict, deque
 from datetime import datetime
@@ -36,12 +37,23 @@ _total_latency_ms = 0.0
 
 
 def record_request(endpoint: str, latency_ms: float, is_error: bool, user_id: int | None = None) -> None:
-    """记录一次 API 请求（在 after_request 中调用）。"""
+    """记录一次 API 请求（在 after_request 中调用）。
+
+    隐性缺陷修复：旧实现直接 ``_total_latency_ms += latency_ms``，若上游传入
+    NaN / inf / 负数延迟，平均值聚合会被污染为 NaN，使监控面板显示 ``nan``。
+    现对延迟做有限性 + 非负防护：非法值回落为 0，请求仍计入总数（不丢计数）。
+    """
     global _total_requests, _total_errors, _total_latency_ms
     now = time.time()
+    try:
+        lat = float(latency_ms)
+        if not math.isfinite(lat) or lat < 0:
+            lat = 0.0
+    except (TypeError, ValueError):
+        lat = 0.0
     with _lock:
         _total_requests += 1
-        _total_latency_ms += latency_ms
+        _total_latency_ms += lat
         if is_error:
             _total_errors += 1
         es = _endpoint_stats[endpoint]
@@ -102,6 +114,40 @@ def get_stats() -> dict:
             "active_users_1m": get_active_users(60),
             "endpoints": endpoints,
         }
+
+
+def reset() -> None:
+    """清空全部累计指标（测试隔离 / 运维手动重置用）。
+
+    仅重置可累计的指标，不改动进程启动时间 ``_start_time``，保持 uptime 语义连续。
+    """
+    global _total_requests, _total_errors, _total_latency_ms
+    with _lock:
+        _endpoint_stats.clear()
+        _recent_requests.clear()
+        _total_requests = 0
+        _total_errors = 0
+        _total_latency_ms = 0.0
+
+
+def get_error_endpoints(top_n: int = 5) -> list:
+    """返回错误数最多的端点（降序），供管理面板快速定位故障接口。
+
+    每项形如 ``{"endpoint", "count", "errors", "error_rate_pct"}``；无错误时返回空列表。
+    """
+    with _lock:
+        rows = [
+            {
+                "endpoint": ep,
+                "count": s["count"],
+                "errors": s["errors"],
+                "error_rate_pct": round((s["errors"] / s["count"]) * 100, 2) if s["count"] else 0.0,
+            }
+            for ep, s in _endpoint_stats.items()
+            if s["errors"] > 0
+        ]
+    rows.sort(key=lambda r: r["errors"], reverse=True)
+    return rows[: max(0, top_n)]
 
 
 def _fmt_uptime(sec: int) -> str:
