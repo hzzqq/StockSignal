@@ -90,6 +90,7 @@ def create_app(config_object: type = Config) -> Flask:
     from .api.stock_tag_routes import bp as stock_tag_bp
     from .api.forum_routes import bp as forum_bp
     from .api.market_alert_routes import bp as market_alert_bp
+    from .api.order_routes import bp as order_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(admin_bp)
@@ -102,6 +103,7 @@ def create_app(config_object: type = Config) -> Flask:
     app.register_blueprint(stock_tag_bp)
     app.register_blueprint(forum_bp)
     app.register_blueprint(market_alert_bp)
+    app.register_blueprint(order_bp)
 
     # ---- 市场指标异动定时调度器（守护线程，测试/禁用环境自动跳过）----
     try:
@@ -109,6 +111,13 @@ def create_app(config_object: type = Config) -> Flask:
         start_alert_scheduler(app)
     except Exception as e:  # noqa: BLE001
         app.logger.warning("启动市场异动调度器失败（不影响主服务）：%s", e)
+
+    # ---- 智能条件单定时调度器（守护线程，测试/禁用环境自动跳过）----
+    try:
+        from .conditional_engine import start_conditional_scheduler
+        start_conditional_scheduler(app)
+    except Exception as e:  # noqa: BLE001
+        app.logger.warning("启动条件单调度器失败（不影响主服务）：%s", e)
 
     # ---- 全局错误处理：把任何出口都锁回 JSON ----
     _register_error_handlers(app)
