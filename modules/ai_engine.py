@@ -12,6 +12,7 @@ v2 变更：
 from __future__ import annotations
 
 import ast
+import logging
 import operator
 import re
 import time
@@ -26,6 +27,8 @@ from modules import llm_client
 
 # 事件 / 新闻类提问关键词
 EVENT_KW = ["事件", "新闻", "公告", "消息", "舆情", "资讯", "报道", "利好", "利空", "最近发生", "近期"]
+
+logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -435,8 +438,29 @@ def _gather_one_stock(code: str, name: str):
         res = _independent_analysis(code)
         news = _fetch_news(code, name)
         return code, name, res, news
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        # R1/R2：失败必须可见（不再静默丢弃），同时仍返回安全值、不重抛（离线安全）。
+        logger.warning("gather failed for %s: %s", code, exc)
         return code, name, None, []
+
+
+def _build_stock_jobs(resolved: List[Dict[str, Any]]) -> List[Any]:
+    """从已解析股票列表构造取数任务（离线安全）。
+
+    R5/R6：用 .get 替代裸索引，缺失或空 ``code`` 的条目自动跳过，
+    绝不因缺失键而抛 KeyError；返回去重后的 [(code, name), ...]。
+    """
+    jobs: List[Any] = []
+    seen: set = set()
+    for r in resolved:
+        code = r.get("code")
+        if not code:  # 跳过缺失/空 code，避免后续 KeyError
+            continue
+        name = r.get("name", "")
+        if code not in seen:
+            seen.add(code)
+            jobs.append((code, name))
+    return jobs
 
 
 def _build_llm_prompt(
@@ -449,7 +473,7 @@ def _build_llm_prompt(
 ) -> str:
     """把本地数据汇总成一段给 LLM 的上下文（并发取数 + 精简指标，省 token）。"""
     # 1) 收集所有需要取数的股票，去重
-    jobs = [(r["code"], r["name"]) for r in resolved]
+    jobs = _build_stock_jobs(resolved)
     if history_stock and not resolved:
         jobs.append((history_stock["code"], history_stock["name"]))
     if analysis and isinstance(analysis, dict) and analysis.get("ticker"):
