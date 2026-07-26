@@ -12,6 +12,67 @@ from .fetcher import StockFetcher, load_config
 from .format_helpers import to_float, safe_pct
 
 
+# ----------------------------------------------------------------------
+# 纯逻辑函数（无网络 / 无 IO，便于单元测试）
+# 统一处理缺失键、None、除零、NaN / inf，保证空或退化输入不报错、不产生 NaN。
+# ----------------------------------------------------------------------
+def market_value_of(position):
+    """单条持仓的市值（current_price*remaining_shares 或 price*shares）。
+
+    缺失键 / None / 非数字 / NaN / inf 一律按 0 处理，绝不抛异常或产生 NaN。
+    """
+    if not isinstance(position, dict):
+        return 0.0
+    price = position.get("current_price", position.get("price"))
+    shares = position.get("remaining_shares", position.get("shares"))
+    price = to_float(price, default=0.0) or 0.0
+    shares = to_float(shares, default=0.0) or 0.0
+    return price * shares
+
+
+def total_market_value(positions):
+    """一组持仓的总市值；空输入 / None 直接返回 0.0（不抛异常）。"""
+    if not positions:
+        return 0.0
+    try:
+        return sum(market_value_of(p) for p in positions)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def position_weights(positions):
+    """每只持仓的市值占比（%）。
+
+    返回 {ticker: weight}，权重 = 市值 / 总市值 * 100。
+    - 空输入 -> {}
+    - 总市值为 0 -> 各持仓权重为 0.0（避免出现 NaN）
+    """
+    if not positions:
+        return {}
+    total = total_market_value(positions)
+    weights = {}
+    for p in positions:
+        if not isinstance(p, dict):
+            continue
+        ticker = p.get("ticker", "")
+        if total == 0:
+            weights[ticker] = 0.0
+        else:
+            weights[ticker] = round(market_value_of(p) / total * 100, 2)
+    return weights
+
+
+def position_pnl(current_price, remaining_shares, cost):
+    """单条持仓未实现盈亏（市值 - 成本）。
+
+    任意参数缺失 / None / 非数字 / NaN / inf 一律按 0 处理。
+    """
+    current_price = to_float(current_price, default=0.0) or 0.0
+    remaining_shares = to_float(remaining_shares, default=0.0) or 0.0
+    cost = to_float(cost, default=0.0) or 0.0
+    return current_price * remaining_shares - cost
+
+
 class PortfolioManager:
     """仓位管理器。"""
 
@@ -229,11 +290,15 @@ class PortfolioManager:
             current_price = to_float(current_price, default=float(row["buy_price"]))
 
             remaining = int(row.get("remaining_shares", row["shares"]))
-            market_value = current_price * remaining
+            # 用纯逻辑函数计算市值，缺失键 / None / NaN 均安全
+            market_value = market_value_of({
+                "current_price": current_price,
+                "remaining_shares": remaining,
+            })
             # 按剩余股数比例分摊成本
             cost_ratio = remaining / row["shares"] if row["shares"] > 0 else 0
             cost = round(row["cost"] * cost_ratio, 2)
-            pnl = market_value - cost
+            pnl = position_pnl(current_price, remaining, cost)
             pnl_pct = safe_pct(pnl, cost)
 
             results.append({
