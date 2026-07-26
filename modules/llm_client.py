@@ -259,4 +259,10 @@ def chat_completion_json(
     if raw is None:
         return default
     parsed = _extract_json(raw)
-    return parsed if parsed is not None else default
+    # 契约收紧：本函数承诺返回「结构化 JSON（dict / list）」。模型偶尔会吐出
+    # 裸标量（如 "false" → False、"123" → 123、"\"x\"" → "x"），若原样返回，
+    # 调用方对其做 .get()/下标会 AttributeError/TypeError 崩溃。这里只放行
+    # 容器类型，其余一律回退 default，保证调用方拿到的永远是可安全解构的结构。
+    if isinstance(parsed, (dict, list)):
+        return parsed
+    return default
