@@ -197,3 +197,79 @@ def test_aggregate_card_empty_does_not_crash():
     # 空 rows：各方法 summary 退化为「暂无对比标的」，但不抛 IndexError
     html = C.build_aggregate_card([])
     assert isinstance(html, str)
+
+
+# ── 需求 R1/R2：部分缺失 / None / NaN / 除零 / 空输入 健壮性 ──
+def test_row_score_helper_safe_when_missing():
+    # scores 缺失 / 为 None / 子项缺失 都安全返回 default
+    assert C._row_score({"code": "X"}, "composite") == 50.0
+    assert C._row_score({"code": "X", "scores": None}, "composite") == 50.0
+    assert C._row_score({"code": "X", "scores": {}}, "momentum") == 50.0
+    assert C._row_score({"code": "X", "scores": {"composite": 80}}, "composite") == 80.0
+
+
+def test_partial_metric_missing_scores_no_crash():
+    # 一只股票完全缺失 scores，另一只完整 —— 不应崩溃，且结果均为有限值
+    full = _row("600000", "A行", scores={"trend": 80, "momentum": 75, "volume": 70,
+                                          "pattern": 65, "composite": 72}, chg_pct=3.0)
+    partial = {"code": "600001", "name": "B行(缺数据)", "scores": None}
+    rows = [full, partial]
+    for m in C.METHODS:
+        sc = C.compute_method_scores(rows, m)
+        assert set(sc.keys()) == {"600000", "600001"}
+        assert not any(math.isnan(v) for v in sc.values())
+        # 缺数据那只退化为有限值、落在 [0,100]，不会污染另一只
+        assert 0.0 <= sc["600001"] <= 100.0
+    out = C.rank_methods(rows)
+    assert set(out.keys()) == set(C.METHODS)
+    # 完整股票在「价值」维度应当胜出（缺数据那只退化为中性）
+    assert out["价值"]["winner_code"] == "600000"
+
+
+def test_normal_comparison_expected_ordering():
+    a = _row("600000", "A行", scores={"trend": 80, "momentum": 75, "volume": 70,
+                                      "pattern": 65, "composite": 72})
+    b = _row("600001", "B行", scores={"trend": 40, "momentum": 45, "volume": 50,
+                                      "pattern": 48, "composite": 45})
+    rows = [a, b]
+    sc = C.compute_method_scores(rows, "综合")
+    assert sc["600000"] == 72.0 and sc["600001"] == 45.0
+    ranked = C._ranked(rows, sc)
+    assert ranked[0]["code"] == "600000"
+    # METHODS 中无「综合」键；用「短期」维度验证完整股票(A)胜出
+    assert C.rank_methods(rows)["短期"]["winner_code"] == "600000"
+
+
+def test_zero_and_none_denominator_safe():
+    # 1) 规范化除零（全部相等）→ 全部 50
+    assert C._norm([5.0, 5.0, 5.0]) == [50.0, 50.0, 50.0]
+    # 2) 输入含 None / NaN → 退化为有限值，不抛错、不产生 NaN
+    out = C._norm([None, 10.0, 20.0, float("nan")])
+    assert len(out) == 4
+    assert not any(math.isnan(v) for v in out)
+    # 3) 含 None / NaN 指标的评分不崩溃
+    a = _row("600000", "A", chg_pct=None, elasticity=float("nan"), pe_ttm=None, pb=None, dv_ttm=None)
+    b = _row("600001", "B", chg_pct=2.0, elasticity=20.0, pe_ttm=10.0, pb=1.0, dv_ttm=2.0)
+    for m in ("短期", "长期", "价值", "宏观"):
+        sc = C.compute_method_scores([a, b], m)
+        assert not any(math.isnan(v) for v in sc.values())
+
+
+def test_empty_input_safe_empty_result():
+    # 所有方法对空输入返回 {}
+    for m in C.METHODS:
+        assert C.compute_method_scores([], m) == {}
+    assert C.rank_methods([]) == {}
+    assert C._norm([]) == []          # 空列表规范化安全返回 []
+    assert C._ranked([], {}) == []
+
+
+def test_render_partial_scores_does_not_crash():
+    # 渲染层（R1）：部分股票缺失 scores 时，表格/一句话结论不抛异常
+    full = _row("600000", "A行", scores={"trend": 80, "momentum": 75, "volume": 70,
+                                         "pattern": 65, "composite": 72})
+    partial = {"code": "600001", "name": "B行(缺数据)", "scores": None, "signal": "持有"}
+    rows = [full, partial]
+    assert isinstance(C.build_one_line(rows), str)
+    assert isinstance(C.build_table(rows), str)
+    assert isinstance(C.build_vs_cards(rows), str)

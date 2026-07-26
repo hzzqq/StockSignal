@@ -681,10 +681,10 @@ def build_pairwise_card(a: Dict[str, Any], b: Dict[str, Any], idx: int = 1) -> s
 
 def _vs_box_v2(r: Dict[str, Any], other: Dict[str, Any]) -> str:
     """image #9 单卡：标题+类型+分数徽章+bullets。"""
-    win = _safe(r.get("scores", {}).get("composite"), 50) >= _safe(other.get("scores", {}).get("composite"), 50)
+    win = _row_score(r, "composite") >= _row_score(other, "composite")
     verdict = (
         f'{"领先" if win else "落后"} {other["name"]} '
-        f'（{r["scores"]["composite"]} vs {other["scores"]["composite"]}）'
+        f'（{_row_score(r, "composite"):.0f} vs {_row_score(other, "composite"):.0f}）'
     )
     cls = "b" if win else "o"
     lis = "".join(f"<li>{b}</li>" for b in _stock_bullets(r))
@@ -715,17 +715,17 @@ def build_header(rows: List[Dict[str, Any]], period_days: int) -> str:
 def build_one_line(rows: List[Dict[str, Any]]) -> str:
     if not rows:
         return ""
-    ranked = sorted(rows, key=lambda r: r["scores"]["composite"], reverse=True)
+    ranked = sorted(rows, key=lambda r: _row_score(r, "composite"), reverse=True)
     best, worst = ranked[0], ranked[-1]
     hold_cls = "" if best["signal"] == "买入" else " hold"
     tags = " ".join(
-        _tag(f'{r["name"]}：{r["scores"]["composite"]}分({r["signal"]})',
+        _tag(f'{r["name"]}：{_row_score(r, "composite"):.0f}分({r["signal"]})',
               "win" if r["signal"] == "买入" else ("mid" if r["signal"] == "持有" else "weak"))
         for r in ranked
     )
     summary = (
-        f'综合来看：<b>{best["name"]}</b>（{best["scores"]["composite"]}分）动能与趋势最强，'
-        f'为首选弹性标的；<b>{worst["name"]}</b>（{worst["scores"]["composite"]}分）评分偏弱、'
+        f'综合来看：<b>{best["name"]}</b>（{_row_score(best, "composite"):.0f}分）动能与趋势最强，'
+        f'为首选弹性标的；<b>{worst["name"]}</b>（{_row_score(worst, "composite"):.0f}分）评分偏弱、'
         f'信号「{worst["signal"]}」，建议谨慎。各标的评分与信号如下：'
     )
     return f'<div class="one-line{hold_cls}">{summary}</div><div style="margin-top:10px">{tags}</div>'
@@ -764,7 +764,7 @@ def build_table(rows: List[Dict[str, Any]]) -> str:
     corr_cells = "".join(f"<td>{_corr_tag(r.get('business_corr', 0.0))}</td>" for r in rows)
     cat_cells = "".join(f"<td>{_catalyst_tag(r.get('catalyst', 50))}</td>" for r in rows)
     elas_cells = "".join(f"<td>{_elasticity_label(r.get('elasticity', 0.0))}</td>" for r in rows)
-    comp_cells = "".join(f'<td><b>{r["scores"]["composite"]}</b></td>' for r in rows)
+    comp_cells = "".join(f'<td><b>{_row_score(r, "composite"):.0f}</b></td>' for r in rows)
     sig_cells = "".join(f"<td>{_sig_tag(r['signal'])}</td>" for r in rows)
 
     return f"""
@@ -874,17 +874,17 @@ def _fund_yi_cell(r, key: str) -> str:
 def build_vs_cards(rows: List[Dict[str, Any]]) -> str:
     if len(rows) < 2:
         return ""
-    ranked = sorted(rows, key=lambda r: r["scores"]["composite"], reverse=True)
+    ranked = sorted(rows, key=lambda r: _row_score(r, "composite"), reverse=True)
     pairs = list(zip(ranked[:-1], ranked[1:]))[:4]  # 至多 4 组相邻对比
     cards = []
     for i, (a, b) in enumerate(pairs, 1):
-        a_win = a["scores"]["composite"] >= b["scores"]["composite"]
+        a_win = _row_score(a, "composite") >= _row_score(b, "composite")
         va = _vs_box(a, a_win, b)
         vb = _vs_box(b, not a_win, a)
         conclusion = (
             f'<div class="alert cat"><b>结论：</b>'
-            f'从综合评分看，<span class="hl">{a["name"]}</span>（{a["scores"]["composite"]}分）'
-            f'{"领先" if a_win else "落后"}于 <span class="hr">{b["name"]}</span>（{b["scores"]["composite"]}分）'
+            f'从综合评分看，<span class="hl">{a["name"]}</span>（{_row_score(a, "composite"):.0f}分）'
+            f'{"领先" if a_win else "落后"}于 <span class="hr">{b["name"]}</span>（{_row_score(b, "composite"):.0f}分）'
             f'——{a["name"]} 在趋势/动量维度更占优，{b["name"]} 相对{"偏弱" if a_win else "抗跌/稳健"}。</div>'
         )
         cards.append(f"""
@@ -898,15 +898,15 @@ def build_vs_cards(rows: List[Dict[str, Any]]) -> str:
 
 def _vs_box(r: Dict[str, Any], win: bool, other: Dict[str, Any]) -> str:
     verdict = (
-        f'综合评分 {r["scores"]["composite"]} · {"领先" if win else "落后"} '
-        f'{other["name"]}({other["scores"]["composite"]})'
+        f'综合评分 {_row_score(r, "composite"):.0f} · {"领先" if win else "落后"} '
+        f'{other["name"]}({_row_score(other, "composite"):.0f})'
     )
     cls = "b" if win else "o"
-    s = r["scores"]
+    s = r.get("scores") or {}
     bullets = [
         f'收盘 ¥{r["close"]:.2f}（{r["chg_pct"]:+.1f}%）' if r.get("close") is not None
         else '行情数据缺失',
-        f'趋势 {s["trend"]:.0f} / 动量 {s["momentum"]:.0f} / 量能 {s["volume"]:.0f}',
+        f'趋势 {_safe(s.get("trend"), 50):.0f} / 动量 {_safe(s.get("momentum"), 50):.0f} / 量能 {_safe(s.get("volume"), 50):.0f}',
         f'弹性 {r.get("elasticity", 0):.0f}% · 业务关联度 {r.get("business_corr", 0):.0f}',
         f'信号 {r["signal"]} · 催化 {r.get("catalyst", 50):.0f}',
     ]
@@ -926,8 +926,8 @@ def build_radar(rows: List[Dict[str, Any]]):
             ("量价配合", "volume"), ("形态信号", "pattern"), ("综合评分", "composite")]
     fig = go.Figure()
     for i, r in enumerate(rows):
-        s = r["scores"]
-        vals = [s[d[1]] for d in dims]
+        s = r.get("scores") or {}
+        vals = [_safe(s.get(d[1]), 50) for d in dims]
         color = SERIES_COLORS[i % len(SERIES_COLORS)]
         theta = [d[0] for d in dims] + [dims[0][0]]
         rvals = vals + [vals[0]]
@@ -974,10 +974,10 @@ def _one_liner(r: Dict[str, Any]) -> str:
 
 def build_radar_right(rows: List[Dict[str, Any]]) -> str:
     """雷达图右侧：image #13 评分标签云 + 统一风险提示。"""
-    ranked = sorted(rows, key=lambda r: r["scores"]["composite"], reverse=True)
+    ranked = sorted(rows, key=lambda r: _row_score(r, "composite"), reverse=True)
     chips = []
     for r in ranked:
-        comp = int(round(r["scores"]["composite"]))
+        comp = int(round(_row_score(r, "composite")))
         kind = "win" if r["signal"] == "买入" else ("mid" if r["signal"] == "持有" else "weak")
         chips.append(
             f'<div class="chip">'
@@ -986,7 +986,7 @@ def build_radar_right(rows: List[Dict[str, Any]]) -> str:
         )
     cloud = '<div class="score-cloud">' + "".join(chips) + '</div>'
     # 统一风险提示
-    avg_comp = sum(r["scores"]["composite"] for r in rows) / len(rows) if rows else 50
+    avg_comp = sum(_row_score(r, "composite") for r in rows) / len(rows) if rows else 50
     overheat = len([r for r in rows if r.get("chg_pct", 0) >= 9]) >= 2
     heat_hint = "组内多只出现大涨，短期情绪过热，追高性价比低；" if overheat else ""
     risk = (
@@ -1000,7 +1000,7 @@ def build_radar_right(rows: List[Dict[str, Any]]) -> str:
 
 def build_action_plan(rows: List[Dict[str, Any]]) -> str:
     """image #10 模板：分层操作建议表。"""
-    ranked = sorted(rows, key=lambda r: r["scores"]["composite"], reverse=True)
+    ranked = sorted(rows, key=lambda r: _row_score(r, "composite"), reverse=True)
     tr = []
     for idx, r in enumerate(ranked):
         sig = r["signal"]
@@ -1107,12 +1107,31 @@ def _safe(v, d: float = 0.0) -> float:
         return d
 
 
+def _row_score(r: Dict[str, Any], key: str, default: float = 50.0) -> float:
+    """安全提取单只股票四维/综合评分；scores 缺失、为 None 或具体子项缺失时返回 default。
+
+    用于多股对比在「部分股票数据缺失」场景下仍可正常评分与排序（R1/R2）。
+    有效输入（scores 为含该 key 的 dict）行为与直接取值完全一致。
+    """
+    sc = r.get("scores")
+    if not isinstance(sc, dict):
+        return default
+    return _safe(sc.get(key), default)
+
+
 def _norm(vals: List[float]) -> List[float]:
-    """把一组值线性映射到 [50,100]，保持组内相对强弱。"""
-    lo, hi = min(vals), max(vals)
+    """把一组值线性映射到 [50,100]，保持组内相对强弱。
+
+    健壮性（R2）：空列表安全返回 []；输入中的 None/NaN 退化为 0.0，
+    不会因非有限值传播 NaN 或触发除零崩溃。有效输入行为与改动前完全一致。
+    """
+    if not vals:
+        return []
+    safe = [_safe(v, 0.0) for v in vals]
+    lo, hi = min(safe), max(safe)
     if hi - lo < 1e-9:
-        return [50.0 for _ in vals]
-    return [50 + (v - lo) / (hi - lo) * 50 for v in vals]
+        return [50.0 for _ in safe]
+    return [50 + (v - lo) / (hi - lo) * 50 for v in safe]
 
 
 def _event_stance(stock: Dict[str, Any], event_text: str) -> Tuple[float, str]:
@@ -1156,14 +1175,14 @@ def compute_method_scores(rows: List[Dict[str, Any]], method: str,
     if method == "事件":
         return {r["code"]: _event_stance(r, event)[0] for r in rows}
     if method == "短期":
-        mom = [_safe(r["scores"]["momentum"]) for r in rows]
-        vol = [_safe(r["scores"]["volume"]) for r in rows]
+        mom = [_row_score(r, "momentum") for r in rows]
+        vol = [_row_score(r, "volume") for r in rows]
         chg = _norm([_safe(r.get("chg_pct")) for r in rows])
         return {r["code"]: 0.45 * mom[i] + 0.30 * vol[i] + 0.25 * chg[i]
                 for i, r in enumerate(rows)}
     if method == "长期":
-        trend = [_safe(r["scores"]["trend"]) for r in rows]
-        pat = [_safe(r["scores"]["pattern"]) for r in rows]
+        trend = [_row_score(r, "trend") for r in rows]
+        pat = [_row_score(r, "pattern") for r in rows]
         elas = _norm([_safe(r.get("elasticity")) for r in rows])
         stab = [100 - e for e in elas]
         return {r["code"]: 0.50 * trend[i] + 0.30 * pat[i] + 0.20 * stab[i]
@@ -1195,16 +1214,16 @@ def compute_method_scores(rows: List[Dict[str, Any]], method: str,
         for r in rows:
             ind = r.get("industry") or ""
             base = 60.0 if any(k in ind for k in _POLICY_FRIENDLY) else 35.0
-            out.append(base + 0.1 * _safe(r["scores"]["composite"]) - 5)
+            out.append(base + 0.1 * _row_score(r, "composite") - 5)
         return {r["code"]: max(10.0, min(100.0, v)) for r, v in zip(rows, out)}
     if method == "宏观":
         elas = _norm([_safe(r.get("elasticity")) for r in rows])
         return {r["code"]: elas[i] for i, r in enumerate(rows)}
     if method == "微观":
-        trend = [_safe(r["scores"]["trend"]) for r in rows]
+        trend = [_row_score(r, "trend") for r in rows]
         return {r["code"]: trend[i] for i, r in enumerate(rows)}
     # 默认：综合评分
-    return {r["code"]: _safe(r["scores"]["composite"]) for r in rows}
+    return {r["code"]: _row_score(r, "composite") for r in rows}
 
 
 def _ranked(rows, scores):
