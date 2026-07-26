@@ -451,6 +451,11 @@ class Backtester:
         """
         if df is None or len(df) < 90:
             return None
+        # 输入校验（加固 R4）：缺少 OHLCV 基础列时直接返回 None，
+        # 避免下游 DataCleaner / _add_indicators 抛 KeyError（脆弱点）。
+        _required_cols = {"date", "open", "high", "low", "close", "volume"}
+        if not _required_cols.issubset(df.columns):
+            return None
         df = DataCleaner.full_pipeline(df)
         df = self._add_indicators(df)
 
@@ -575,7 +580,14 @@ class Backtester:
         # ══════════════════════════════════════
         # 4) 量能分（最高 15 分）— 放量 + 量价配合
         # ══════════════════════════════════════
-        vol_ratio = latest["volume"] / latest["vol_ma20"] if latest["vol_ma20"] > 0 else 1.0
+        # vol_ratio 计算加固：latest["volume"] / latest["vol_ma20"] 任一为
+        # NaN 时回退为 1.0（中性量能），避免评分中混入 NaN（脆弱点）。
+        _vol_ma20 = latest.get("vol_ma20", 0)
+        _vol = latest.get("volume", 0)
+        if pd.notna(_vol_ma20) and _vol_ma20 > 0 and pd.notna(_vol):
+            vol_ratio = _vol / _vol_ma20
+        else:
+            vol_ratio = 1.0
         if vol_ratio >= 1.5:
             score += 15
             reasons.append("显著放量")
