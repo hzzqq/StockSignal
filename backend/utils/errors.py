@@ -6,7 +6,9 @@ utils/errors.py
 """
 from __future__ import annotations
 
-from .response import fail
+from flask import jsonify
+
+from .response import _json_safe
 
 
 class ApiError(Exception):
@@ -25,11 +27,22 @@ class ApiError(Exception):
         self.code = code
 
     def to_dict(self) -> dict:
-        return {"message": self.message, "code": self.code, "status": self.status}
+        """结构化错误字典（契约）：status=错误态，error=异常类名，code=业务码，message=已脱敏描述。"""
+        return {
+            "status": "error",
+            "error": self.__class__.__name__,
+            "code": self.code,
+            "message": _json_safe(self.message),
+        }
 
     def to_response(self):
-        """直接产出标准 JSON 错误响应（单一可信源，供全局 errorhandler 复用）。"""
-        return fail(message=self.message, code=self.code, http_status=self.status)
+        """产出标准 JSON 错误响应（复用 response.fail 信封，status/code/message/data 齐备）。
+
+        与项目统一响应契约保持一致，供全局 errorhandler 复用。
+        """
+        from .response import fail
+
+        return fail(message=_json_safe(self.message), code=self.code, http_status=self.status)
 
 
 class AuthError(ApiError):
