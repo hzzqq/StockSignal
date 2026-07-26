@@ -106,11 +106,13 @@ class Visualizer:
         return Visualizer.MA_COLORS[i % len(Visualizer.MA_COLORS)]
 
     @staticmethod
-    def kline_legend_html(ma_windows=[5, 10, 20], up_color="#ff4d4f",
+    def kline_legend_html(ma_windows=None, up_color="#ff4d4f",
                         down_color="#00d486", ma_colors=None):
         """生成截图风格的自定义图例 HTML（K线 / MA / 成交量）。
         up_color/down_color：涨跌柱配色（默认 A 股红涨绿跌）。
         ma_colors：均线配色列表，默认 MA_COLORS。"""
+        if ma_windows is None:
+            ma_windows = [5, 10, 20]
         if ma_colors is None:
             ma_colors = Visualizer.MA_COLORS
         parts = [
@@ -137,7 +139,7 @@ class Visualizer:
     # K 线图（Plotly 交互式）
     # ------------------------------------------------------------------
     @staticmethod
-    def candlestick(df, title="K线图", show_volume=True, ma_windows=[5, 20, 60],
+    def candlestick(df, title="K线图", show_volume=True, ma_windows=None,
                    start_idx=0, n_show=None, annotations=None, support=None, resistance=None,
                    up_color=None, down_color=None, ma_colors=None,
                    dragmode="pan", show_range_levels=True, events=None,
@@ -168,6 +170,8 @@ class Visualizer:
         :param show_range_levels: 是否在可见窗口画「区间最高 / 区间最低」参考线（默认开）
         :return: plotly Figure
         """
+        if ma_windows is None:
+            ma_windows = [5, 20, 60]
         # ── 空 / 异常数据优雅兜底 ──
         if df is None or not isinstance(df, pd.DataFrame):
             return _empty_kline_figure(title, "暂无 K 线数据")
