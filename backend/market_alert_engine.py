@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import threading
 import time
@@ -95,20 +96,55 @@ def _latest_two(series):
 
 
 def _evaluate(rule: dict, latest, prev):
-    """阈值判定，返回 (severity, message, threshold) 或 None。"""
+    """阈值判定，返回 (severity, message, threshold) 或 None。
+
+    对畸形规则配置（缺失字段 / None 阈值 / NaN / 未知 kind）一律安全跳过，
+    不抛异常；合法输入行为保持不变。
+    """
+    if not isinstance(rule, dict):
+        return None
     if latest is None:
         return None
-    key = rule["key"]
-    if rule.get("danger_hi") is not None and latest >= rule["danger_hi"]:
+
+    # 非有限值（NaN / ±inf）无法做有意义的阈值比较，安全跳过。
+    try:
+        latest_f = float(latest)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(latest_f):
+        return None
+
+    key = rule.get("key")
+    if key is None:
+        # 规则缺少 key：无法定位指标，安全跳过。
+        return None
+    name = rule.get("name") or key
+
+    def _thr(field):
+        """读取数值阈值，非法（None / 非数字 / 非有限）返回 None。"""
+        v = rule.get(field)
+        if v is None:
+            return None
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return None
+        return v if math.isfinite(v) else None
+
+    danger_hi = _thr("danger_hi")
+    if danger_hi is not None and latest_f >= danger_hi:
         sev = "info" if key in _POSITIVE_HI else "danger"
-        return sev, rule.get("hi_msg") or f"{rule['name']} 触及危险高位 {latest:.2f}", rule["danger_hi"]
-    if rule.get("warn_hi") is not None and latest >= rule["warn_hi"]:
+        return sev, rule.get("hi_msg") or f"{name} 触及危险高位 {latest_f:.2f}", danger_hi
+    warn_hi = _thr("warn_hi")
+    if warn_hi is not None and latest_f >= warn_hi:
         sev = "info" if key in _POSITIVE_HI else "warning"
-        return sev, rule.get("hi_msg") or f"{rule['name']} 偏高 {latest:.2f}", rule["warn_hi"]
-    if rule.get("danger_lo") is not None and latest <= rule["danger_lo"]:
-        return "danger", rule.get("lo_msg") or f"{rule['name']} 触及危险低位 {latest:.2f}", rule["danger_lo"]
-    if rule.get("warn_lo") is not None and latest <= rule["warn_lo"]:
-        return "warning", rule.get("lo_msg") or f"{rule['name']} 偏低 {latest:.2f}", rule["warn_lo"]
+        return sev, rule.get("hi_msg") or f"{name} 偏高 {latest_f:.2f}", warn_hi
+    danger_lo = _thr("danger_lo")
+    if danger_lo is not None and latest_f <= danger_lo:
+        return "danger", rule.get("lo_msg") or f"{name} 触及危险低位 {latest_f:.2f}", danger_lo
+    warn_lo = _thr("warn_lo")
+    if warn_lo is not None and latest_f <= warn_lo:
+        return "warning", rule.get("lo_msg") or f"{name} 偏低 {latest_f:.2f}", warn_lo
     return None
 
 
@@ -118,8 +154,10 @@ def detect_anomalies(df, meta=None) -> list:
     if df is None or getattr(df, "empty", True):
         return out
     for rule in resolve_rules(RULES):
-        key = rule["key"]
-        if key not in df.columns:
+        if not isinstance(rule, dict):
+            continue
+        key = rule.get("key")
+        if key is None or key not in df.columns:
             continue
         latest, prev = _latest_two(df[key])
         res = _evaluate(rule, latest, prev)
@@ -127,7 +165,7 @@ def detect_anomalies(df, meta=None) -> list:
             sev, msg, thr = res
             out.append({
                 "metric_key": key,
-                "metric_name": rule["name"],
+                "metric_name": rule.get("name") or key,
                 "severity": sev,
                 "message": msg,
                 "value": latest,
