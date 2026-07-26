@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+import numpy as np
 import pandas as pd
 
 
@@ -91,6 +92,46 @@ def compute_rsi(df: pd.DataFrame, period: int = 14) -> "float | None":
     if pd.isna(rsi):
         return None
     return round(float(rsi), 2)
+
+
+def rsi_series(df: pd.DataFrame, period: int = 14) -> "pd.Series":
+    """返回与 close 对齐的完整 RSI 曲线（pd.Series, 0-100）。
+
+    与 ``compute_rsi``（返回最新标量快照）互补：本函数输出逐根 RSI 序列，
+    便于绘图 / 策略回测。采用简单移动平均法，口径与 ``compute_rsi`` 一致。
+
+    **退化输入一律返回空 Series（不抛异常、不爆 NaN 序列）**：
+      - df 为 None / 非 DataFrame / 空 / 缺 close 列；
+      - close 全为 NaN（dropna 后为空）；
+      - close 有效长度 < period + 1（窗口不足）；
+      - period 非法（< 1）。
+    正常时前 ``period`` 根为 NaN（SMA 初始化前无法计算），之后均为有限值。
+    """
+    empty: pd.Series = pd.Series(dtype="float64")
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return empty
+    if period < 1:
+        return empty
+    if "close" not in df.columns:
+        return empty
+    close = df["close"].dropna()
+    if len(close) < period + 1:
+        return empty
+
+    delta = close.diff()
+    gain = delta.clip(lower=0.0)
+    loss = (-delta).clip(lower=0.0)
+    avg_gain = gain.rolling(period).mean()
+    avg_loss = loss.rolling(period).mean()
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rs = avg_gain / avg_loss
+    rsi = 100.0 - 100.0 / (1.0 + rs)
+    # 全跌(无盈利)->0 已由 rs=0 推出；全涨(无亏损)->100 由 rs=inf 推出；
+    # 持平(avg_gain==0 且 avg_loss==0, rs=nan) 回落 50。
+    rsi = rsi.where(~((avg_gain == 0) & (avg_loss == 0)), 50.0)
+    rsi = rsi.clip(0.0, 100.0)
+    return rsi
 
 
 # ============================================================
