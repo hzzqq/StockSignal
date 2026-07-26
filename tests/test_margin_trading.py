@@ -1,12 +1,12 @@
 """margin_trading.py 单元自测：纯逻辑层（不触网）。
 
 覆盖：
-- safe_yuan_to_yi / _to_yi：NaN/inf/None/非法 -> None（杜绝图表 "nan"）
-- _delta_pct：环比百分比（除零 / NaN / None 防护）
-- _safe_delta_yi：None-数值不再崩溃
-- _parse_date：Timestamp / datetime / NA / 纯文本
+- safe_yuan_to_yi / _to_yi：NaN/inf/None/''/非法 -> 0.0（有限兜底，杜绝图表 "nan"，防 None 算术）
+- _delta_pct：环比百分比（除零 / NaN / None 防护，守卫分支返回 0.0）
+- _safe_delta_yi：None/NaN 不再崩溃，返回 0.0
+- _parse_date：Timestamp / datetime / NA / 有效字符串 / 非法字符串 -> None（不抛 ValueError）
 - _cached(skip_empty)：瞬时失败不被缓存
-- get_latest_margin_summary：合成 DataFrame 验证绝对值 + 百分比 + NaN 兜底
+- get_latest_margin_summary：合成 DataFrame 验证绝对值 + 百分比 + NaN 兜底（有限值）
 - plot_margin_trend(空 df)：无网返回空图
 """
 import math
@@ -27,43 +27,56 @@ def test_safe_yuan_to_yi_basics():
 
 
 def test_safe_yuan_to_yi_guards():
-    assert mt.safe_yuan_to_yi(None) is None
-    assert mt.safe_yuan_to_yi(float("nan")) is None
-    assert mt.safe_yuan_to_yi(float("inf")) is None
-    assert mt.safe_yuan_to_yi(float("-inf")) is None
-    assert mt.safe_yuan_to_yi("abc") is None
-    # ndarray NaN
-    assert mt.safe_yuan_to_yi(np.nan) is None
+    # 需求：None / NaN / inf / '' / 非法 -> 0.0（不崩溃）
+    assert mt.safe_yuan_to_yi(None) == 0.0
+    assert mt.safe_yuan_to_yi(float("nan")) == 0.0
+    assert mt.safe_yuan_to_yi(float("inf")) == 0.0
+    assert mt.safe_yuan_to_yi(float("-inf")) == 0.0
+    assert mt.safe_yuan_to_yi("") == 0.0
+    assert mt.safe_yuan_to_yi("abc") == 0.0
+    assert mt.safe_yuan_to_yi(np.nan) == 0.0
 
 
 def test_to_yi_delegates_to_safe():
-    assert mt._to_yi(np.nan) is None
+    assert mt._to_yi(np.nan) == 0.0
     assert mt._to_yi(1e8) == 1.0
-    assert mt._to_yi("bad") is None
+    assert mt._to_yi("bad") == 0.0
+    assert mt._to_yi(None) == 0.0
 
 
 def test_delta_pct():
+    # 合法输入行为不变
     assert mt._delta_pct(110, 100) == 10.0
     assert mt._delta_pct(90, 100) == -10.0
-    assert mt._delta_pct(100, 0) is None          # 除零防护
-    assert mt._delta_pct(np.nan, 100) is None      # NaN 防护
-    assert mt._delta_pct(100, np.nan) is None
-    assert mt._delta_pct(None, None) is None
     assert mt._delta_pct(100, 100) == 0.0
+    # 守卫分支：除零 / NaN / None -> 0.0（不抛异常）
+    assert mt._delta_pct(100, 0) == 0.0
+    assert mt._delta_pct(np.nan, 100) == 0.0
+    assert mt._delta_pct(100, np.nan) == 0.0
+    assert mt._delta_pct(None, None) == 0.0
+    # 显式需求用例
+    assert mt._delta_pct(100, 0) == 0.0
+    assert mt._delta_pct(110, 100) == 10.0
 
 
 def test_safe_delta_yi_none_safe():
-    # 之前：None - 100.0 触发 TypeError；现在返回 None
-    assert mt._safe_delta_yi(np.nan, 100e8) is None
+    # 之前：None - 100.0 触发 TypeError；现在返回有限兜底值，不崩溃
+    assert mt._safe_delta_yi(np.nan, 100e8) == -100.0
     assert mt._safe_delta_yi(110e8, 100e8) == 10.0
-    assert mt._safe_delta_yi(100e8, np.nan) is None
+    assert mt._safe_delta_yi(100e8, np.nan) == 100.0
+    assert mt._safe_delta_yi(None, None) == 0.0
 
 
 def test_parse_date():
     assert mt._parse_date(pd.Timestamp("2024-01-02")) == "2024-01-02"
     assert mt._parse_date(__import__("datetime").datetime(2024, 1, 2)) == "2024-01-02"
     assert mt._parse_date(pd.NaT) is None
+    assert mt._parse_date(None) is None
+    # 有效字符串 -> 原样 YYYY-MM-DD
+    assert mt._parse_date("2024-01-01") == "2024-01-01"
     assert mt._parse_date("2024-03-04") == "2024-03-04"
+    # 非法字符串 -> None（不抛 ValueError）
+    assert mt._parse_date("garbage") is None
 
 
 def test_cached_skip_empty_not_cached():
@@ -135,9 +148,11 @@ def test_get_latest_margin_summary_nan_safe(monkeypatch):
 
     monkeypatch.setattr(mt, "get_margin_trading_data", fake)
     s = mt.get_latest_margin_summary()
-    # NaN 单元：绝不出现 nan/崩溃，差额与百分比均回退为 None
-    assert s["rzmr_change_yi"] is None
-    assert s["rzmr_change_pct"] is None
+    # NaN 单元：绝不出现 nan / 崩溃，回退为有限兜底值（0.0 / -100.0），而非 None
+    assert s["rzmr_change_pct"] == 0.0
+    assert s["rzmr_change_yi"] == -100.0
+    assert math.isfinite(s["rzmr_change_pct"])
+    assert not isinstance(s["rzmr_change_pct"], type(None))
     # 其余单元仍正常
     assert abs(s["rzye_change_pct"] - (-10.0)) < 1e-9
 

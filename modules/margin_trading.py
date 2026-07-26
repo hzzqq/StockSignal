@@ -70,12 +70,21 @@ def _retry(max_retries=3, base_delay=1.0):
 
 
 def _parse_date(d):
+    if d is None:
+        return None
     if pd.isna(d):
         return None
     if isinstance(d, pd.Timestamp):
         return d.strftime("%Y-%m-%d")
     if isinstance(d, datetime):
         return d.strftime("%Y-%m-%d")
+    if isinstance(d, str):
+        # 非法日期字符串（如 'garbage'）不再抛错，统一回退 None
+        ts = pd.to_datetime(d, errors="coerce")
+        if pd.isna(ts):
+            return None
+        return ts.strftime("%Y-%m-%d")
+    # 其它类型保持原 str[:10] 行为，避免误伤
     return str(d)[:10]
 
 
@@ -177,17 +186,18 @@ def get_margin_trading_data(days=180):
 
 
 def safe_yuan_to_yi(x):
-    """元 -> 亿元；NaN / inf / None / 非法输入统一返回 None。
+    """元 -> 亿元；NaN / inf / None / '' / 非法输入统一返回 0.0（有限兜底）。
 
     作为金额换算的单一可信源，避免 pd.to_numeric(coerce) 产生的 NaN 经
-    ``float(nan)/1e8`` 后渲染成图表/卡片上的 "nan"。
+    ``float(nan)/1e8`` 后渲染成图表/卡片上的 "nan"；缺失值以 0.0 兜底而非 None，
+    防止下游算术出现 None 减数值的 TypeError。
     """
     try:
         v = float(x)
     except (TypeError, ValueError):
-        return None
+        return 0.0
     if not math.isfinite(v):
-        return None
+        return 0.0
     return v / 1e8
 
 
@@ -199,26 +209,29 @@ def _to_yi(x):
 def _delta_pct(cur, prev):
     """两期环比百分比变化：(cur-prev)/|prev|*100。
 
-    cur/prev 为 None/NaN/非数值或 prev=0 时返回 None（避免除零与 nan）。
+    cur/prev 为 None/NaN/非数值或 prev=0 时返回 0.0（避免除零与 nan，给出有限兜底值）。
     """
     try:
         c = float(cur)
         p = float(prev)
     except (TypeError, ValueError):
-        return None
+        return 0.0
     if not (math.isfinite(c) and math.isfinite(p)):
-        return None
+        return 0.0
     if p == 0:
-        return None
+        return 0.0
     return (c - p) / abs(p) * 100.0
 
 
 def _safe_delta_yi(cur, prev):
-    """两期绝对差额（亿元），任一为 None/NaN 时返回 None（避免 None-数值崩溃）。"""
-    va = safe_yuan_to_yi(cur)
-    vb = safe_yuan_to_yi(prev)
+    """两期绝对差额（亿元），任一为 None/NaN/非数值时返回 0.0（避免崩溃，给出有限兜底）。"""
+    try:
+        va = safe_yuan_to_yi(cur)
+        vb = safe_yuan_to_yi(prev)
+    except Exception:
+        return 0.0
     if va is None or vb is None:
-        return None
+        return 0.0
     return va - vb
 
 
