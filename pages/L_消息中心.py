@@ -52,6 +52,16 @@ def _color(pct):
     return UP if pct >= 0 else DOWN
 
 
+def _safe_title_html(title, read=False):
+    """转义消息标题中的 HTML，防止存储型 XSS；已读消息加删除线。
+
+    纯函数：仅依赖标准库 html.escape，不访问 st / 网络 / 会话状态。
+    """
+    import html
+    t = html.escape(str(title or ""))
+    return f"~~{t}~~" if read else t
+
+
 def _fmt_rel(ts):
     """绝对时间 -> 相对时间：刚刚/X分钟前/X小时前/X天前。"""
     from datetime import datetime
@@ -328,14 +338,14 @@ else:
                 st.checkbox("", key=f"sel_{m['id']}", label_visibility="collapsed",
                             help="勾选后可在下方批量操作")
             with hc1:
-                title_md = m["title"]
+                title_md = _safe_title_html(m["title"], read=read)
                 if m["type"] == "异动":
                     try:
                         pct = float(m["title"].split("%")[0].split(" ")[-1])
-                        title_md = f"<span style='color:{_color(pct)}'>{m['title']}</span>"
+                        title_md = f"<span style='color:{_color(pct)}'>{_safe_title_html(m['title'], read=read)}</span>"
                     except Exception:
                         pass
-                st.markdown((f"~~{title_md}~~" if read else title_md), unsafe_allow_html=True)
+                st.markdown(title_md, unsafe_allow_html=True)
                 st.caption(f"{m['type']}　·　{m['detail']}" + (f"　·　{_fmt_rel(m['time'])}" if m["time"] else ""))
                 if not read and st.button("标为已读", key=f"rd_{m['id']}", help="标记为已读"):
                     st.session_state["msg_read_ids"].add(m["id"])
@@ -390,7 +400,7 @@ if _msg_starred_ids:
     st.markdown("**⭐ 我的收藏**")
     for _sm in [m for m in msgs if m["id"] in _msg_starred_ids]:
         with st.container(border=True):
-            st.markdown(_sm["title"], unsafe_allow_html=True)
+            st.markdown(_safe_title_html(_sm["title"]), unsafe_allow_html=True)
             st.caption(f"{_sm['type']}　·　{_sm['detail']}")
 
 # 加法式数据来源标注
