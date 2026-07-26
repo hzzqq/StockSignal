@@ -59,6 +59,11 @@ def is_allowed(key: str) -> bool:
     if not _enabled():
         return True
 
+    # 退化配置保护：上限 <= 0 时不应「拒绝一切」，否则误配会把所有登录请求
+    # 全部挡在门外造成可用性事故；此时退化为放行（等价于关闭限流）。
+    if _max() <= 0:
+        return True
+
     now = time.monotonic()
     win = _window()
     with _lock:
