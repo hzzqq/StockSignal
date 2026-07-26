@@ -208,6 +208,27 @@ def safe_switch_page(page: str, **kwargs) -> None:
 # token 校验哨兵：后端明确判定为无效（401/403/伪造），与 None（网络瞬态）区分
 _TOKEN_INVALID = "___token_invalid_sentinel___"
 
+def _me_response_valid(data) -> bool:
+    """纯函数：判断 /api/auth/me 的 `data`（user 对象）是否构成已登录的有效证明。
+
+    接受以下任一结构（且 data 必须是 dict）：
+      - 含 truthy 的 'username'
+      - 含 truthy 的 'uid'
+      - 嵌套 user 字典含 truthy 的 'username'
+    空字符串 / None / 非 dict 一律视为无效。
+    """
+    if not isinstance(data, dict):
+        return False
+    if data.get("username"):
+        return True
+    if data.get("uid"):
+        return True
+    nested = data.get("user")
+    if isinstance(nested, dict) and nested.get("username"):
+        return True
+    return False
+
+
 def _verify_token(token: str):
     """调 /api/auth/me 验证 token。
 
@@ -227,11 +248,12 @@ def _verify_token(token: str):
             if body.get("status") == "ok":
                 data = body.get("data") or {}
                 # /api/auth/me 返回 data 即为 user 对象（扁平结构）
-                if isinstance(data, dict) and "username" in data:
+                # 兼容 username / uid / 嵌套 user.username 多种有效登录证明
+                if _me_response_valid(data):
+                    # 兼容：若 data 内仍嵌套 user 键，返回内层 user 对象
+                    if isinstance(data.get("user"), dict):
+                        return data["user"]
                     return data
-                # 兼容：若 data 内仍嵌套 user 键
-                if isinstance(data, dict) and isinstance(data.get("user"), dict):
-                    return data["user"]
             # 200 但 status!=ok（如 token 过期但非标准 401）→ 视为无效
             return _TOKEN_INVALID
         if resp.status_code in (401, 403):
