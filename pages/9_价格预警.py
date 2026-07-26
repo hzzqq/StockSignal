@@ -27,6 +27,7 @@ from modules.technical import full_analysis
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
+from modules.format_helpers import safe_float
 import streamlit.components.v1 as components
 # 副作用：导入即确保 akshare 经本地代理访问（资金/新闻源）——设置 HTTP(S)_PROXY 并关闭证书校验
 from modules.fundflow import _ensure_proxy_and_ssl
@@ -59,6 +60,49 @@ def _fmt_rel(ts):
         return f"{int(sec // 86400)}天前"
     except Exception:
         return str(ts) if ts is not None else ""
+
+
+def validate_alert_condition(kind, value, value2=None):
+    """纯函数：校验预警条件输入，返回 (ok, error)。
+
+    支持类型（与页面实际数值输入对应）：
+      - 'threshold'：数值阈值，必须可解析为数字且 > 0
+        （对应价格预警目标价 / 成交量异动量比阈值）。
+      - 'percent'：百分比，必须可解析为数字且落在 0~100 之间。
+      - 'cross'：需要 value 与 value2 两个数值，任一缺失或非数字即拒绝。
+    统一使用 safe_float 做安全解析，避免非数字输入导致页面崩溃。
+    """
+    def _num(x):
+        if x is None:
+            return None
+        s = str(x).strip()
+        if s == "":
+            return None
+        return safe_float(s, default=None)
+
+    if kind == "threshold":
+        v = _num(value)
+        if v is None:
+            return (False, "阈值必须为大于 0 的数字")
+        if v <= 0:
+            return (False, "阈值必须大于 0")
+        return (True, None)
+    elif kind == "percent":
+        v = _num(value)
+        if v is None:
+            return (False, "百分比必须为数字")
+        if v < 0 or v > 100:
+            return (False, "百分比须落在 0~100 之间")
+        return (True, None)
+    elif kind == "cross":
+        if value2 is None:
+            return (False, "需要第二个数值")
+        a = _num(value)
+        b = _num(value2)
+        if a is None or b is None:
+            return (False, "两个数值都必须为有效数字")
+        return (True, None)
+    return (False, f"不支持的预警类型：{kind}")
 
 
 apply_page_config(page_title="多维预警", page_icon="🔔", layout="wide")
@@ -317,10 +361,16 @@ with st.expander("➕ 新建预警", expanded=False, key="new_alert_exp"):
 
     submitted = st.button("保存预警", type="primary", use_container_width=True)
     if submitted:
+        _price_ok, _price_err = (validate_alert_condition("threshold", target)
+                                 if atype == "price" else (True, None))
+        _vol_ok, _vol_err = (validate_alert_condition("threshold", vr)
+                             if atype == "volume" else (True, None))
         if not code:
             st.error("请选择股票")
-        elif atype == "price" and target <= 0:
-            st.error("目标价格必须大于 0")
+        elif atype == "price" and not _price_ok:
+            st.error(_price_err or "目标价格必须大于 0")
+        elif atype == "volume" and not _vol_ok:
+            st.error(_vol_err or "量比阈值必须大于 0")
         elif atype == "announcement" and not kw:
             st.error("请填写关键词")
         else:
@@ -364,7 +414,13 @@ if _recent:
 def fragment_alerts():
     trading_autorefresh(key="alert_autorefresh")
     # ───────────────────────── 列表 + 触发检测 ─────────────────────────
-    sc, body = api_get("/api/price-alerts")
+    try:
+        sc, body = api_get("/api/price-alerts")
+    except Exception as _e:
+        st.error(f"⚠️ 加载失败，请稍后重试（{_e}）")
+        if st.button("🔄 重试", key="alert_list_retry"):
+            st.rerun(scope="fragment")
+        return
     if sc != 200 or not isinstance(body, dict) or body.get("status") != "ok":
         st.error("⚠️ 加载失败，请稍后重试")
         if st.button("🔄 重试", key="alert_list_retry"):
