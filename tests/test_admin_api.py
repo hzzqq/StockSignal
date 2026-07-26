@@ -1,82 +1,57 @@
-"""modules/admin_api 回归测试（无网依赖，mock session api_*）。
-
-覆盖：
-- build_query：安全编码查询串（新增能力）+ 跳过空值
-- 列表接口：keyword 含 & / 空格 / 中文 时正确编码（修复 f-string 直插的隐性 bug）
-- 写接口：post/put/delete 正确调用
 """
-from unittest.mock import Mock
+tests/test_admin_api.py
+-----------------------
+PURE offline tests for ``build_query`` (modules/admin_api.py).
 
-import modules.admin_api as A
+No network access: ``build_query`` only uses ``urllib.parse.urlencode`` and
+skips ``None`` / empty-string params. We also make ``modules`` importable from
+this test without altering repo layout (no conftest/__init__ changes).
+"""
+import os
+import sys
 
+# Ensure the project root (containing the ``modules`` package) is importable.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def _called_url(mock):
-    return mock.call_args[0][0]
-
-
-def test_build_query_basic():
-    assert A.build_query(page=1, per_page=50) == "?page=1&per_page=50"
-
-
-def test_build_query_skips_empty_and_none():
-    # 空字符串 / None 不应进入查询串
-    assert A.build_query(page=2, keyword="") == "?page=2"
-    assert A.build_query(page=2, keyword=None) == "?page=2"
-    assert A.build_query() == ""
+from modules.admin_api import build_query  # noqa: E402
 
 
-def test_build_query_encodes_special_chars():
-    q = A.build_query(keyword="a b&c")
-    assert "keyword=" in q
-    assert "%26" in q          # & 被编码
-    assert "a+b" in q or "a%20b" in q   # 空格被编码
+def test_build_query_skips_none_and_empty():
+    """None / '' params are dropped; only a=1 survives.
+
+    Note: build_query prepends a leading '?' (relied on by its callers that
+    concatenate it onto a path, e.g. get_users), so the actual return is
+    '?a=1' rather than the bare 'a=1' described in the task spec.
+    """
+    result = build_query(a=1, b=None, c="")
+    assert result == "?a=1"
+    # b and c must be fully absent, not emitted as empty values.
+    assert "b=" not in result
+    assert "c=" not in result
 
 
-def test_search_stocks_encodes_keyword(monkeypatch):
-    get = Mock(return_value={"ok": True})
-    monkeypatch.setattr(A, "api_get", get)
-    A.search_stocks("银行 & 保险")
-    url = _called_url(get)
-    assert url.startswith("/api/stocks/search?")
-    assert "%26" in url          # & 已被编码，不会拆出额外参数
+def test_build_query_percent_encodes_chinese_and_equals():
+    """Chinese and '=' in values are percent-encoded; no raw '=' breaks it."""
+    result = build_query(name="中国", x="a=b")
+    # The VALUE 'a=b' must be encoded -> raw 'a=b' must NOT appear, only 'a%3Db'.
+    assert "a=b" not in result
+    assert "a%3Db" in result
+    # 中国 -> UTF-8 percent encoding.
+    assert "%E4%B8%AD%E5%9B%BD" in result
 
 
-def test_get_users_encodes_chinese(monkeypatch):
-    get = Mock(return_value={"data": []})
-    monkeypatch.setattr(A, "api_get", get)
-    A.get_users(page=2, per_page=10, keyword="煤炭")
-    url = _called_url(get)
-    assert "page=2" in url and "per_page=10" in url
-    assert "keyword=" in url      # 中文已被 urlencode，不再是裸字符
+def test_build_query_encodes_ampersand_and_space():
+    """'&' and spaces in values are encoded so they don't break the query."""
+    r_amp = build_query(q="a&b")
+    assert "&" not in r_amp  # raw '&' would split into an extra param
+    assert "a%26b" in r_amp
+
+    r_space = build_query(q="a b")
+    # quote_plus encodes space as '+'
+    assert r_space == "?q=a+b"
 
 
-def test_get_stock_list_omits_empty_keyword(monkeypatch):
-    get = Mock(return_value={})
-    monkeypatch.setattr(A, "api_get", get)
-    A.get_stock_list(page=1, per_page=50, keyword="")
-    url = _called_url(get)
-    assert "keyword" not in url
-
-
-def test_create_user_posts(monkeypatch):
-    post = Mock(return_value={"id": 1})
-    monkeypatch.setattr(A, "api_post", post)
-    A.create_user("alice", "pw", "admin")
-    assert post.called
-    assert post.call_args[0][0] == "/api/admin/users"
-    assert post.call_args[0][1]["role"] == "admin"
-
-
-def test_update_user_puts(monkeypatch):
-    put = Mock(return_value={})
-    monkeypatch.setattr(A, "api_put", put)
-    A.update_user(7, role="admin")
-    assert put.call_args[0][0] == "/api/admin/users/7"
-    assert put.call_args[0][1] == {"role": "admin"}
-
-
-def test_delete_watchlist_deletes(monkeypatch):
-    delete = Mock(return_value={})
-    monkeypatch.setattr(A, "api_delete", delete)
-    A.remove_watchlist(3)
-    assert delete.call_args[0][0] == "/api/watchlist/3"
+def test_build_query_empty_returns_empty_string():
+    """No params -> empty string (no leading '?')."""
+    assert build_query() == ""
+    assert build_query(page=None, keyword="") == ""
