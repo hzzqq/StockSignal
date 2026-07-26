@@ -41,6 +41,17 @@ class TaskStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+def _parse_task_status(raw: Any) -> TaskStatus:
+    """把磁盘上读取的原始 status 安全地转成 TaskStatus。
+
+    若原始值为非法/未知/类型错误，回退到 TaskStatus.ERROR，避免加载时崩溃。
+    """
+    try:
+        return TaskStatus(raw)
+    except (ValueError, TypeError):
+        return TaskStatus.ERROR
+
+
 _TASK_STORE_DIR = _PROJECT_ROOT / "data"
 _TASK_STORE_FILE = _TASK_STORE_DIR / "background_tasks.json"
 _TASK_TTL_SECONDS = 24 * 3600
@@ -211,7 +222,7 @@ class TaskWorker:
                     created_at=created_at,
                 )
                 task.updated_at = float(item.get("updated_at", created_at))
-                task.status = TaskStatus(item.get("status", "pending"))
+                task.status = _parse_task_status(item.get("status", "pending"))
                 task.progress = int(item.get("progress", 0))
                 task.result = item.get("result")
                 task.error = item.get("error")
