@@ -6,7 +6,7 @@ backend/broker/sim.py
 """
 from __future__ import annotations
 
-from datetime import datetime
+from ..utils.timeutil import utc_now
 
 from .base import BrokerAdapter, OrderResult
 
@@ -65,7 +65,7 @@ class SimulatedBroker(BrokerAdapter):
             # T+1：当日买入不可卖（available 不加，次日由刷新逻辑补齐；简化为直接可用可改配置）
             pos.avg_cost = round(total_cost / pos.quantity, 4) if pos.quantity else 0.0
             pos.last_price = px
-            pos.updated_at = datetime.utcnow()
+            pos.updated_at = utc_now()
         elif side == "sell":
             sellable = pos.quantity if pos else 0  # 模拟账本简化：全部持仓可卖
             if not pos or sellable < quantity:
@@ -74,7 +74,7 @@ class SimulatedBroker(BrokerAdapter):
             pos.quantity -= quantity
             pos.available = max(0, pos.available - quantity)
             pos.last_price = px
-            pos.updated_at = datetime.utcnow()
+            pos.updated_at = utc_now()
             self.account.cash = round(self.account.cash + amount, 2)
             if pos.quantity == 0:
                 self.session.delete(pos)
@@ -82,7 +82,7 @@ class SimulatedBroker(BrokerAdapter):
             return OrderResult(ok=False, status="rejected", message=f"未知方向: {side}")
 
         return OrderResult(ok=True, status="filled", price=px, filled_qty=quantity,
-                           broker_order_id=f"SIM-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}",
+                           broker_order_id=f"SIM-{utc_now().strftime('%Y%m%d%H%M%S%f')}",
                            message="模拟撮合成交")
 
     def health_check(self) -> dict:

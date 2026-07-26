@@ -372,8 +372,8 @@ class RealAccount(db.Model):
     max_order_amount = db.Column(db.Float, nullable=False, default=50000.0)   # 单笔金额上限（元）
     daily_loss_limit = db.Column(db.Float, nullable=False, default=20000.0)   # 当日亏损停手线（元）
     risk_paused_date = db.Column(db.String(10), nullable=True)                # 触发停手的日期 YYYY-MM-DD
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
     def config_dict(self) -> dict:
         if not self.broker_config:
@@ -417,7 +417,7 @@ class RealPosition(db.Model):
     available = db.Column(db.Integer, nullable=False, default=0)       # 可卖数量（T+1）
     avg_cost = db.Column(db.Float, nullable=False, default=0.0)        # 摊薄成本
     last_price = db.Column(db.Float, nullable=False, default=0.0)      # 最近一次刷新价
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
     def to_dict(self) -> dict:
         mv = round((self.quantity or 0) * (self.last_price or 0.0), 2)
@@ -456,7 +456,7 @@ class RealOrder(db.Model):
     cond_order_id = db.Column(db.Integer, nullable=True)               # 来源条件单 id
     broker_order_id = db.Column(db.String(64), nullable=True)          # 券商侧委托编号（live 时）
     message = db.Column(db.String(255), nullable=True)                 # 失败/风控拒绝原因
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False, index=True)
 
     def to_dict(self) -> dict:
         return {
@@ -505,7 +505,7 @@ class ConditionalOrder(db.Model):
     triggered_at = db.Column(db.DateTime, nullable=True)
     triggered_info = db.Column(db.String(255), nullable=True)          # 触发时快照说明
     last_checked_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False, index=True)
 
     def params_dict(self) -> dict:
         if not self.trigger_params:

@@ -13,6 +13,7 @@ backend/broker
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from ..utils.timeutil import utc_now
 
 from .base import BrokerAdapter, BrokerUnavailable, OrderResult
 from .sim import SimulatedBroker
@@ -83,7 +84,7 @@ def risk_check(account, db_session, code: str, side: str, quantity: int,
     if account.risk_paused_date == today:
         return "已触发当日亏损停手线，今日停止自动交易（可在实盘交易页手动解除）"
     if account.daily_loss_limit:
-        day_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        day_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
         # 简化估算：当日 filled 卖单金额 - 当日 filled 买单金额，若净流出超过停手线则暂停
         orders = (db_session.query(RealOrder)
                   .filter(RealOrder.user_id == account.user_id,

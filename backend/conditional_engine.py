@@ -22,6 +22,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta
+from .utils.timeutil import utc_now
 from pathlib import Path
 
 # 确保项目根在 sys.path（复用 modules/*）
@@ -177,14 +178,14 @@ def scan_and_execute(app) -> dict:
                 continue
 
             hit, info = evaluate_order(co)
-            co.last_checked_at = datetime.utcnow()
+            co.last_checked_at = utc_now()
             if not hit:
                 db.session.commit()
                 continue
 
             # 触发 → 下单
             co.status = "triggered"
-            co.triggered_at = datetime.utcnow()
+            co.triggered_at = utc_now()
             co.triggered_info = (info or "")[:250]
             stats["triggered"] += 1
 
