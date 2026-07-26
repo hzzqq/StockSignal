@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 from datetime import datetime
+import html
 import time
 import requests
 import streamlit as st
@@ -31,7 +32,14 @@ def STAR_AI_LOGO(size: int = 20) -> str:
     """返回「星辰 AI」内联 SVG（可直接 unsafe_allow_html 渲染）。
 
     size 控制高/宽像素；vertical-align:middle 使其与同行文字基线对齐。
+    None/非数值/非正数安全降级为 20（R2：不崩溃）。
     """
+    try:
+        size = int(size)
+    except (TypeError, ValueError):
+        size = 20
+    if size <= 0:
+        size = 20
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
         f'viewBox="0 0 32 32" fill="none" '
@@ -84,10 +92,33 @@ def _index_market_status():
 
 
 def _hex_to_rgba(hex_color: str, alpha: float) -> str:
-    """Plotly 不接受 #RRGGBBAA，转 rgba。"""
-    h = hex_color.lstrip("#")
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    """Plotly 不接受 #RRGGBBAA，转 rgba。
+
+    None/空/非法色安全降级为透明黑，不再抛 ValueError（R2：不崩溃）。
+    """
+    if not hex_color:
+        return f"rgba(0,0,0,{alpha})"
+    h = str(hex_color).lstrip("#")
+    try:
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    except (ValueError, TypeError, IndexError):
+        return f"rgba(0,0,0,{alpha})"
     return f"rgba({r},{g},{b},{alpha})"
+
+
+def _index_name_html(name, color: str = "#111827", size_px: int = 17) -> str:
+    """纯函数：把数据派生的指数名称渲染为安全内联 HTML（转义防注入，R2）。
+
+    None/空/非字符串一律降级为占位符「—」；名称文本经 html.escape 处理，
+    杜绝来自行情接口的数据派生名称造成 HTML/JS 注入。
+    """
+    if not name:
+        name = "—"
+    safe = html.escape(str(name), quote=True)
+    return (
+        f'<div style="font-size:{size_px}px;font-weight:700;color:{color};">'
+        f'{safe}</div>'
+    )
 
 
 def _index_cache_key() -> str:
@@ -397,7 +428,7 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
                 c_left, c_mid, c_right = st.columns([0.20, 0.46, 0.34])
                 with c_left:
                     st.markdown(
-                        f"<div style='font-size:17px;font-weight:700;color:{name_color};'>{card['name']}</div>"
+                        f"{_index_name_html(card['name'], name_color, 17)}"
                         f"<div style='font-size:12px;color:{code_color};margin-top:3px;'>{card['label']} {card['code']}</div>",
                         unsafe_allow_html=True,
                     )
@@ -499,7 +530,7 @@ def render_index_compact(cols_per_row: int = 5) -> None:
                     st.markdown(
                         f"<div style='background:{card_bg};border:1px solid {border};"
                         f"border-radius:12px;padding:12px;text-align:center;'>"
-                        f"<div style='font-size:12px;color:{txt2};'>{card['name']}</div>"
+                        f"{_index_name_html(card['name'], txt2, 12)}"
                         f"<div style='font-size:20px;font-weight:800;color:{num_color};"
                         f"margin:4px 0;font-family:Fira Code,monospace;'>"
                         f"{card['current']:.2f}</div>"
@@ -511,7 +542,7 @@ def render_index_compact(cols_per_row: int = 5) -> None:
                     st.markdown(
                         f"<div style='background:{card_bg};border:1px solid {border};"
                         f"border-radius:12px;padding:12px;text-align:center;color:{txt2};'>"
-                        f"{card['name']}<br>—</div>",
+                        f"{_index_name_html(card['name'], txt2, 12)}<br>—</div>",
                         unsafe_allow_html=True,
                     )
 
