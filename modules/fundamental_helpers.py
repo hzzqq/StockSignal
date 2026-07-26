@@ -12,6 +12,8 @@ import numpy as np
 
 def _to_num(v):
     if isinstance(v, (int, float)):
+        if pd.isna(v):
+            return None
         return float(v)
     if isinstance(v, str):
         s = v.replace(",", "").replace("%", "").strip()
@@ -98,7 +100,7 @@ def _compute_yoy(s: pd.Series) -> pd.Series:
         mask = (s.index >= prev_idx - pd.Timedelta(days=10)) & (s.index <= prev_idx + pd.Timedelta(days=10))
         if mask.any():
             pv = s.loc[mask].iloc[0]
-            if pv and pv != 0:
+            if pv is not None and not pd.isna(pv) and pv != 0:
                 yoy[idx] = round((val - pv) / abs(pv) * 100, 2)
     return pd.Series(yoy)
 
@@ -110,7 +112,7 @@ def _compute_qoq(s: pd.Series) -> pd.Series:
     qoq = {}
     prev = None
     for idx, val in s.items():
-        if prev is not None and prev != 0:
+        if prev is not None and not pd.isna(prev) and prev != 0:
             qoq[idx] = round((val - prev) / abs(prev) * 100, 2)
         prev = val
     return pd.Series(qoq)
@@ -155,13 +157,15 @@ def _fmt_fin_qoq(v, metric: str) -> str:
 
 def _to_float(x):
     try:
-        return float(x) if x not in (None, "", "—") else None
+        if x in (None, "", "—") or pd.isna(x):
+            return None
+        return float(x)
     except Exception:
         return None
 
 def _percentile(series: pd.Series, value: float) -> float | None:
     """计算 value 在 series 中的百分位（0-100）。"""
-    if series is None or series.empty or value is None:
+    if series is None or series.empty or value is None or pd.isna(value):
         return None
     s = pd.to_numeric(series, errors="coerce").dropna()
     if s.empty:
@@ -565,7 +569,7 @@ def calc_alr(code: str, fetcher) -> float | None:
         if asset_c is not None and liab_c is not None:
             av = _to_num(df.iloc[0][asset_c])
             lv = _to_num(df.iloc[0][liab_c])
-            if av is not None and lv is not None and av != 0:
+            if av is not None and not pd.isna(av) and lv is not None and not pd.isna(lv) and av != 0:
                 return round(lv / av * 100, 2)
 
         item_col = df.columns[0]
@@ -580,7 +584,7 @@ def calc_alr(code: str, fetcher) -> float | None:
                 vals = [x for x in (_to_num(v) for v in row[1:]) if x is not None]
                 if vals:
                     lv = vals[-1]
-        if av is not None and lv is not None and av != 0:
+        if av is not None and not pd.isna(av) and lv is not None and not pd.isna(lv) and av != 0:
             return round(lv / av * 100, 2)
     except Exception:
         return None
