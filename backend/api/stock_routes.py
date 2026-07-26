@@ -17,6 +17,11 @@ from ..services.stock_service import search_stocks, get_stock_list
 bp = Blueprint("stocks", __name__, url_prefix="/api/stocks")
 
 
+def _count_by_key(rows, key_idx=0, default="unknown"):
+    """从 (key, count) 行序列构建计数字典，安全处理 None / 空 key。"""
+    return {row[key_idx] if row[key_idx] else default: row[key_idx + 1] for row in rows}
+
+
 # ================================================================ 搜索
 @bp.route("/search", methods=["GET"])
 @jwt_required
@@ -69,7 +74,7 @@ def stats():
             Stock.is_active.is_(True)
         ).group_by(Stock.asset_type)
     ).all()
-    asset_type_counts = {row[0]: row[1] for row in rows}
+    asset_type_counts = _count_by_key(rows)
     return ok(data={
         "total": total,
         "sh": sh_count,
