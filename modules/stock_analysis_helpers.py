@@ -13,6 +13,21 @@ import numpy as np
 from modules.colors import RED, GREEN, AMBER
 
 
+def _safe_float(value, default=0.0):
+    """将任意值安全转为 float。
+
+    None / 空串 / 非数字字符串 / NaN / ±inf 一律回退为 default，
+    避免后续算术或格式化因脏数据崩页（R1/R2 健壮性要求）。
+    """
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return default
+    if np.isnan(v) or np.isinf(v):
+        return default
+    return v
+
+
 def _sentiment_tag(label: str) -> str:
     """情绪标签 → CSS 类名。"""
     return {"正面": "up", "负面": "down", "中性": "mid"}.get(label, "neu")
@@ -20,12 +35,22 @@ def _sentiment_tag(label: str) -> str:
 
 def _tp_cls(score: float) -> str:
     """多周期技术评分 → CSS 类名（绿强 / 红弱 / 中性）。"""
-    return "up" if score >= 60 else ("down" if score <= 40 else "mid")
+    try:
+        s = float(score)
+    except (TypeError, ValueError):
+        return "mid"
+    if np.isnan(s) or np.isinf(s):
+        return "mid"
+    return "up" if s >= 60 else ("down" if s <= 40 else "mid")
 
 
 def _score_ring_html(score: int, color: str) -> str:
     """生成 SVG 评分环：0-100 评分，环按比例填充，数字居中。"""
-    score = max(0, min(100, int(score)))
+    try:
+        s = int(float(score))
+    except (TypeError, ValueError):
+        s = 0
+    score = max(0, min(100, s))
     r = 54
     c = 2 * 3.1415926 * r
     dash = c * score / 100.0
@@ -52,18 +77,30 @@ def _score_ring_html(score: int, color: str) -> str:
 
 def _verdict_color(composite: float):
     """根据综合评分返回 (信号文案, 颜色, css_class)。"""
-    if composite >= 70:
+    try:
+        c = float(composite)
+    except (TypeError, ValueError):
+        c = 50.0
+    if np.isnan(c) or np.isinf(c):
+        c = 50.0
+    if c >= 70:
         return "看多", RED, "win"
-    elif composite <= 40:
+    elif c <= 40:
         return "看空", GREEN, "weak"
     return "持有", AMBER, "mid"
 
 
 def _price_color(pct: float) -> str:
     """涨红跌绿。"""
-    if pct > 0:
+    try:
+        v = float(pct)
+    except (TypeError, ValueError):
+        return AMBER
+    if np.isnan(v) or np.isinf(v):
+        return AMBER
+    if v > 0:
         return RED
-    if pct < 0:
+    if v < 0:
         return GREEN
     return AMBER
 
@@ -84,6 +121,9 @@ def _support_resistance_bar(support: float, resistance: float, current: float,
                             markers=None) -> str:
     """支撑 → 压力 价格刻度条，标注当前价位置；
     markers=[(label, price, color), ...] 在条上方叠加标注点（MA5/MA10/MA20/套牢区 等）。"""
+    support = _safe_float(support, 0.0)
+    resistance = _safe_float(resistance, 0.0)
+    current = _safe_float(current, 0.0)
     if resistance <= support:
         return ""
     lo = support
@@ -131,6 +171,13 @@ def _support_resistance_bar(support: float, resistance: float, current: float,
 def _battle_plan_scale(support: float, resistance: float, current: float,
                        target: float, stop: float, entry: float, verdict: str) -> str:
     """作战计划价格刻度条（参考 HTML .scale）：仅关键价位，无 MA 重叠标记。"""
+    current = _safe_float(current, 0.0)
+    support = _safe_float(support, 0.0)
+    resistance = _safe_float(resistance, 0.0)
+    target = _safe_float(target, 0.0)
+    stop = _safe_float(stop, 0.0)
+    entry = _safe_float(entry, 0.0)
+    verdict = verdict or "持有"
     if resistance <= support:
         resistance = current * 1.10
         support = current * 0.90
@@ -183,14 +230,15 @@ def _battle_plan_scale(support: float, resistance: float, current: float,
 
 def _build_risk_iron_rules(R: dict) -> list[dict]:
     """基于分析结果生成风险铁律（风控铁律）。"""
+    R = R or {}
     items = []
-    current_price = float(R.get("current_price", 0) or 0)
-    stop_price = float(R.get("stop_price", 0) or 0)
-    support = float(R.get("support", 0) or 0)
-    resistance = float(R.get("resistance", current_price * 1.10) or 0)
-    entry_price = float(R.get("entry_price", current_price) or 0)
+    current_price = _safe_float(R.get("current_price"), 0.0)
+    stop_price = _safe_float(R.get("stop_price"), 0.0)
+    support = _safe_float(R.get("support"), 0.0)
+    resistance = _safe_float(R.get("resistance"), current_price * 1.10)
+    entry_price = _safe_float(R.get("entry_price"), current_price)
     verdict = R.get("verdict", "持有")
-    atr14 = float(R.get("atr14", current_price * 0.02) or 0)
+    atr14 = _safe_float(R.get("atr14"), current_price * 0.02)
     arrangement = (R.get("trend", {}) or {}).get("arrangement", "")
 
     if verdict == "看空":
@@ -242,6 +290,13 @@ def _risk_iron_html(title: str, items: list[dict]) -> str:
 def _build_plan_rows(verdict: str, current: float, support: float, resistance: float,
                      target: float, stop: float, entry: float, ma20: float) -> list[tuple]:
     """根据研判生成 A/B 两方案（参考 HTML 作战计划表）。"""
+    current = _safe_float(current, 0.0)
+    support = _safe_float(support, 0.0)
+    resistance = _safe_float(resistance, 0.0)
+    target = _safe_float(target, 0.0)
+    stop = _safe_float(stop, 0.0)
+    entry = _safe_float(entry, 0.0)
+    verdict = verdict or "持有"
     if verdict == "看空":
         return [
             ("A 反弹空", f"反弹至 {entry:.2f}–{resistance:.2f} 受阻", f"{entry:.2f}–{resistance:.2f} 分批", f"{stop:.2f}（破则认错）", f"{support:.2f} → {target:.2f}"),
@@ -266,31 +321,32 @@ def _section_header(title: str, subtitle: str = "", icon: str = "📊") -> str:
 
 def _build_rise_fall_factors(R: dict) -> tuple[list[dict], list[dict]]:
     """基于分析结果 R 构建上涨/下跌因素列表（含强度 1–3 星、标签、更丰富的数据描述）。"""
+    R = R or {}
     rise, fall = [], []
     technical_profile = R.get("technical_profile", {}) or {}
-    sector_score = float(R.get("sector_score", 50))
+    sector_score = _safe_float(R.get("sector_score"), 50.0)
     volume_info = R.get("volume_info", {}) or {}
     trend = R.get("trend", {}) or {}
     momentum = R.get("momentum", {}) or {}
-    current_price = float(R.get("current_price", 0))
-    support = float(R.get("support", 0))
-    resistance = float(R.get("resistance", current_price * 1.1))
-    deviation = float(R.get("deviation", 0))
-    pos52 = float(R.get("pos52", 50))
+    current_price = _safe_float(R.get("current_price"), 0.0)
+    support = _safe_float(R.get("support"), 0.0)
+    resistance = _safe_float(R.get("resistance"), current_price * 1.1)
+    deviation = _safe_float(R.get("deviation"), 0.0)
+    pos52 = _safe_float(R.get("pos52"), 50.0)
     patterns = R.get("patterns", []) or []
     news_rows = R.get("news", []) or []
     pos_news = [r for r in news_rows if r.get("sentiment") == "正面"]
     neg_news = [r for r in news_rows if r.get("sentiment") == "负面"]
 
-    short = float(technical_profile.get("short", 50))
-    mid = float(technical_profile.get("mid", 50))
-    long = float(technical_profile.get("long", 50))
-    vol_ratio = float(volume_info.get("vol_ratio", 1.0))
-    trend_score = float(trend.get("trend_score", 50))
+    short = _safe_float(technical_profile.get("short"), 50.0)
+    mid = _safe_float(technical_profile.get("mid"), 50.0)
+    long = _safe_float(technical_profile.get("long"), 50.0)
+    vol_ratio = _safe_float(volume_info.get("vol_ratio"), 1.0)
+    trend_score = _safe_float(trend.get("trend_score"), 50.0)
     arrangement = trend.get("arrangement", "")
     rets = momentum.get("returns", {})
-    r5 = float(rets.get("5日", 0))
-    r20 = float(rets.get("20日", 0))
+    r5 = _safe_float(rets.get("5日"), 0.0)
+    r20 = _safe_float(rets.get("20日"), 0.0)
 
     # 上涨因素
     if arrangement == "多头排列":
@@ -383,7 +439,8 @@ def _factor_list_html(title: str, factors: list[dict]) -> str:
     txt2 = "var(--txt2)"
     items = []
     for i, f in enumerate(factors[:8], 1):
-        stars = "★" * f["stars"] + "☆" * (3 - f["stars"])
+        stars_n = f.get("stars", 1)
+        stars = "★" * stars_n + "☆" * (3 - stars_n)
         tag = f.get("tag", "")
         tag_html = (
             f'<span style="display:inline-block;background:{tag_bg};color:#fff;'
@@ -397,10 +454,10 @@ def _factor_list_html(title: str, factors: list[dict]) -> str:
             f'font-size:14px;font-weight:800;">{i}</div>'
             f'<div style="flex:1;">'
             f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
-            f'<div style="font-size:15px;font-weight:700;color:{txt};line-height:1.4;">{tag_html}{f["title"]}</div>'
+            f'<div style="font-size:15px;font-weight:700;color:{txt};line-height:1.4;">{tag_html}{f.get("title", "")}</div>'
             f'<div style="font-size:12px;color:{accent};font-weight:700;white-space:nowrap;">强度 {stars}</div>'
             f'</div>'
-            f'<div style="font-size:12.5px;color:{txt2};line-height:1.7;">{f["desc"]}</div>'
+            f'<div style="font-size:12.5px;color:{txt2};line-height:1.7;">{f.get("desc", "")}</div>'
             f'</div></div>'
         )
     return (
@@ -414,31 +471,32 @@ def _factor_list_html(title: str, factors: list[dict]) -> str:
 
 def _build_logic_lists(R: dict) -> tuple[list[dict], list[dict], list[dict]]:
     """基于分析结果 R 构建 利好逻辑 / 利空逻辑 / 致命风险 条目（叙事级 + 高置信风险）。"""
+    R = R or {}
     technical_profile = R.get("technical_profile", {}) or {}
     volume_info = R.get("volume_info", {}) or {}
     trend = R.get("trend", {}) or {}
     momentum = R.get("momentum", {}) or {}
-    current_price = float(R.get("current_price", 0))
-    support = float(R.get("support", 0))
-    resistance = float(R.get("resistance", current_price * 1.1))
-    deviation = float(R.get("deviation", 0))
-    pos52 = float(R.get("pos52", 50))
+    current_price = _safe_float(R.get("current_price"), 0.0)
+    support = _safe_float(R.get("support"), 0.0)
+    resistance = _safe_float(R.get("resistance"), current_price * 1.1)
+    deviation = _safe_float(R.get("deviation"), 0.0)
+    pos52 = _safe_float(R.get("pos52"), 50.0)
     patterns = R.get("patterns", []) or []
     news_rows = R.get("news_rows", []) or []
     pos_news = [r for r in news_rows if r.get("sentiment") == "正面"]
     neg_news = [r for r in news_rows if r.get("sentiment") == "负面"]
-    composite = float(R.get("composite", 50))
+    composite = _safe_float(R.get("composite"), 50.0)
     verdict = R.get("verdict", "持有")
-    sector_score = float(R.get("sector_score", 55))
-    news_score = float(R.get("news_score", 50))
+    sector_score = _safe_float(R.get("sector_score"), 55.0)
+    news_score = _safe_float(R.get("news_score"), 50.0)
     arrangement = trend.get("arrangement", "")
-    vol_ratio = float(volume_info.get("vol_ratio", 1.0))
+    vol_ratio = _safe_float(volume_info.get("vol_ratio"), 1.0)
     rets = momentum.get("returns", {})
-    r5 = float(rets.get("5日", 0))
-    r20 = float(rets.get("20日", 0))
-    short = float(technical_profile.get("short", 50))
-    mid = float(technical_profile.get("mid", 50))
-    long = float(technical_profile.get("long", 50))
+    r5 = _safe_float(rets.get("5日"), 0.0)
+    r20 = _safe_float(rets.get("20日"), 0.0)
+    short = _safe_float(technical_profile.get("short"), 50.0)
+    mid = _safe_float(technical_profile.get("mid"), 50.0)
+    long = _safe_float(technical_profile.get("long"), 50.0)
 
     # 利好逻辑（叙事）
     rise_logic = []
@@ -526,8 +584,8 @@ def _logic_list_html(title: str, items: list[dict], accent: str, icon: str = "")
             f'<div style="display:flex;gap:12px;padding:13px 14px;margin-bottom:8px;background:var(--card);border-radius:10px;border-left:3px solid {accent};">'
             f'<div style="min-width:26px;height:26px;border-radius:50%;background:{accent};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;">{i}</div>'
             f'<div style="flex:1;">'
-            f'<div style="font-size:14.5px;font-weight:700;color:{txt};line-height:1.4;margin-bottom:4px;">{tag}{it["title"]}</div>'
-            f'<div style="font-size:12px;color:{txt2};line-height:1.7;">{it["desc"]}</div>'
+            f'<div style="font-size:14.5px;font-weight:700;color:{txt};line-height:1.4;margin-bottom:4px;">{tag}{it.get("title", "")}</div>'
+            f'<div style="font-size:12px;color:{txt2};line-height:1.7;">{it.get("desc", "")}</div>'
             f'</div></div>'
         )
     return (
@@ -544,8 +602,11 @@ def _calc_trade_levels(current_price: float, df: pd.DataFrame, support: float, r
     基于 ATR 与支撑/压力，计算合理的入场/目标/止损价。
     止损价不超过现价 8%，避免低价股出现 ¥101 股票止损 ¥43 的荒谬结果。
     """
-    if current_price is None or current_price <= 0:
+    if current_price is None or current_price <= 0 or np.isnan(current_price):
         return current_price, resistance, support, 0.0
+
+    support = _safe_float(support, 0.0)
+    resistance = _safe_float(resistance, 0.0)
 
     # ATR14
     # 隐性缺陷修复：旧实现直接 ``df["high"]``，若调用方传入精简行情（缺 high/low/close
