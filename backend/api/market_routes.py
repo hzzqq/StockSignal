@@ -37,6 +37,18 @@ bp = Blueprint("market", __name__, url_prefix="/api")
 
 _TICKER_RE = re.compile(r"^\d{6}$")
 
+# 合法复权参数集合：前复权(qfq)、后复权(hfq)、空字符串("") 或 None(默认透传)
+_VALID_ADJUST = ("qfq", "hfq", "")
+
+
+def _is_valid_adjust(a: "str | None") -> bool:
+    """纯函数：校验复权参数。
+
+    合法值：'qfq'、'hfq'、'' 或 None（默认）。其余一律视为非法。
+    不依赖 Flask 上下文，可直接被离线单测导入调用。
+    """
+    return a is None or a in _VALID_ADJUST
+
 # 进程内单例：首次请求时惰性创建（建连/预热只做一次）
 _fetcher = None
 
@@ -83,7 +95,10 @@ def kline():
 
     start = request.args.get("start") or "2024-01-01"
     end = request.args.get("end") or None
-    adjust = request.args.get("adjust") or "qfq"
+    adjust_raw = request.args.get("adjust")
+    if not _is_valid_adjust(adjust_raw):
+        return fail(message="不支持的复权参数", code="invalid_param", http_status=400)
+    adjust = adjust_raw or "qfq"
     period = (request.args.get("period") or "daily").lower()
     if period not in ("daily", "weekly", "monthly"):
         return fail(message="参数无效", code="invalid_param", http_status=400)
