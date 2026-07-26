@@ -139,19 +139,23 @@ class DataCleaner:
         return df
 
     @staticmethod
-    def calc_returns(df, price_col="close", periods=[1, 5, 20]):
+    def calc_returns(df, price_col="close", periods=None):
         """
         计算收益率。
-        :param periods: [1日, 5日(周), 20日(月)] 收益率
+        :param periods: [1日, 5日(周), 20日(月)] 收益率；默认 [1, 5, 20]
         """
+        if periods is None:
+            periods = [1, 5, 20]
         df = df.copy()
         for p in periods:
             df[f"return_{p}d"] = df[price_col].pct_change(p) * 100
         return df
 
     @staticmethod
-    def calc_ma(df, price_col="close", windows=[5, 10, 20, 60]):
-        """计算移动平均线。"""
+    def calc_ma(df, price_col="close", windows=None):
+        """计算移动平均线。默认窗口 [5, 10, 20, 60]。"""
+        if windows is None:
+            windows = [5, 10, 20, 60]
         df = df.copy()
         for w in windows:
             df[f"ma{w}"] = df[price_col].rolling(window=w).mean()
