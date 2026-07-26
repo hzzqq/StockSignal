@@ -85,13 +85,13 @@ class Retriever:
             dot = sum(q_vec.get(t, 0.0) * d_tfidf.get(t, 0.0) for t in q_vec)
             sim = dot / (q_norm * d_norm)
             if sim > 0:
-                scored.append({"id": self.docs[i].get("id", i), "text": self.docs[i]["text"], "score": round(sim, 3)})
+                scored.append({"id": self.docs[i].get("id", i), "text": self.docs[i].get("text", ""), "score": round(sim, 3)})
         scored.sort(key=lambda x: x["score"], reverse=True)
         if not scored and self.docs:
             # 查询与语料无词重叠（相似度全 0）时，至少返回前 k 条作为通用投研参考，
             # 避免「相关研报/笔记」段落永远为空。
             scored = [
-                {"id": self.docs[i].get("id", i), "text": self.docs[i]["text"], "score": 0.0}
+                {"id": self.docs[i].get("id", i), "text": self.docs[i].get("text", ""), "score": 0.0}
                 for i in range(min(k, len(self.docs)))
             ]
         return scored[:k]
@@ -288,7 +288,7 @@ class FinRAG:
         if past:
             ctx_lines.append("【该标的过往决策】")
             for p in past:
-                ctx_lines.append(f"  - {p['ts']}：{p.get('verdict')} 目标{p.get('target')} 止损{p.get('stop')}")
+                ctx_lines.append(f"  - {p.get('ts', '')}：{p.get('verdict')} 目标{p.get('target')} 止损{p.get('stop')}")
         if prefs:
             ctx_lines.append("【用户偏好】")
             for k, v in prefs.items():
