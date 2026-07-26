@@ -19,7 +19,18 @@ StockSignal 按钮配色系统 · 双模（Light / Dark）通用
       st.markdown(btn_html("提交", kind="primary"), unsafe_allow_html=True)
 """
 
+import html
+
 import streamlit as st
+
+
+def _esc(text):
+    """转义数据派生的文本，防止存储型 XSS（按钮标签/图标直接注入 <button> HTML）。
+
+    纯函数，不依赖 streamlit，便于离线测试。
+    """
+    return html.escape(str(text), quote=True)
+
 
 BUTTON_PALETTE = {
     "primary": {
@@ -130,7 +141,8 @@ def btn_html(text, kind="primary", icon=None, size="", disabled=False, block=Fal
         cls_parts.append("disabled")
     if extra_class:
         cls_parts.append(extra_class)
-    label = f"{icon or ''}{text}" if icon else text
+    icon_str = _esc(icon) if icon else ""
+    label = (icon_str + _esc(text)) if icon else _esc(text)
     return f'<button class="{" ".join(cls_parts)}"{" disabled" if disabled else ""}>{label}</button>'
 
 
