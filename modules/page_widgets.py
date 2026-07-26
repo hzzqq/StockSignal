@@ -5,6 +5,7 @@
 A股配色：净流入/上涨=红(UP)，净流出/下跌=绿(DOWN)。
 注意：本模块只定义函数与常量，不调用 st.set_page_config，可被任意页面 import。
 """
+import html
 import streamlit as st
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -90,13 +91,24 @@ def _fig_layout(dark_mode):
     return base
 
 
-def _section_title(text, accent="#2b8aef"):
-    st.markdown(
+def _section_title_html(text, accent="#2b8aef") -> str:
+    """PURE: 返回章节标题 HTML 字符串（调用方自行 markdown 渲染）。
+
+    数据派生文本 text / accent 做 html.escape，避免标签/颜色值注入；
+    None/空 -> 安全空默认，绝不抛异常。
+    """
+    text = "" if text is None else str(text)
+    accent = accent or "#2b8aef"
+    return (
         f'<div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;">'
-        f'<span style="width:4px;height:18px;background:{accent};border-radius:2px;display:inline-block;"></span>'
-        f'<span style="font-size:16px;font-weight:600;">{text}</span></div>',
-        unsafe_allow_html=True,
+        f'<span style="width:4px;height:18px;background:{html.escape(accent, quote=True)};'
+        f'border-radius:2px;display:inline-block;"></span>'
+        f'<span style="font-size:16px;font-weight:600;">{html.escape(text)}</span></div>'
     )
+
+
+def _section_title(text, accent="#2b8aef"):
+    st.markdown(_section_title_html(text, accent), unsafe_allow_html=True)
 
 
 def _fmt_yi(x):
@@ -211,6 +223,21 @@ def _trend_controls(key_prefix, days_default=120, series_options=None,
     return date_range, (tuple(ma) if show_ma else ()), selected, mode, (ma_type if show_ma else "sma")
 
 
+def _loading_html(text: str = "加载中…") -> str:
+    """PURE: 返回加载占位 HTML 字符串（调用方自行 markdown 渲染）。
+
+    text 为数据派生文本时做 html.escape；None/空 -> 安全默认，绝不抛异常。
+    """
+    text = "加载中…" if text is None else str(text)
+    return (
+        '<style>@keyframes ssspin{to{transform:rotate(360deg)}}</style>'
+        f'<div style="text-align:center;color:#8a8a8a;padding:14px 0;font-size:13px;">'
+        f'<span style="display:inline-block;width:13px;height:13px;margin-right:6px;vertical-align:-2px;'
+        f'border:2px solid #cfcfcf;border-top-color:#666;border-radius:50%;'
+        f'animation:ssspin 0.8s linear infinite;"></span>{html.escape(text)}</div>'
+    )
+
+
 @contextmanager
 def _loading(text: str = "加载中…"):
     """数据加载占位（UI-only）：在 with 块期间显示居中旋转提示，结束自动清空。
@@ -220,14 +247,7 @@ def _loading(text: str = "加载中…"):
     """
     ph = st.empty()
     with ph.container():
-        st.markdown(
-            '<style>@keyframes ssspin{to{transform:rotate(360deg)}}</style>'
-            f'<div style="text-align:center;color:#8a8a8a;padding:14px 0;font-size:13px;">'
-            f'<span style="display:inline-block;width:13px;height:13px;margin-right:6px;vertical-align:-2px;'
-            f'border:2px solid #cfcfcf;border-top-color:#666;border-radius:50%;'
-            f'animation:ssspin 0.8s linear infinite;"></span>{text}</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(_loading_html(text), unsafe_allow_html=True)
         try:
             yield
         finally:
@@ -235,13 +255,21 @@ def _loading(text: str = "加载中…"):
     ph.empty()
 
 
+def _empty_info_html(text: str = "暂无数据") -> str:
+    """PURE: 返回空数据态 HTML 字符串（调用方自行 markdown 渲染）。
+
+    text 为数据派生文本时做 html.escape；None/空 -> 安全默认，绝不抛异常。
+    """
+    text = "暂无数据" if text is None else str(text)
+    return (
+        f'<div style="text-align:center;color:#8a8a8a;padding:18px 0;font-size:13px;">'
+        f'🗂️ {html.escape(text)}</div>'
+    )
+
+
 def _empty_info(text: str = "暂无数据"):
     """空数据态（UI-only）：居中、弱化提示，统一替代散落的 st.info("暂无…")。"""
-    st.markdown(
-        f'<div style="text-align:center;color:#8a8a8a;padding:18px 0;font-size:13px;">'
-        f'🗂️ {text}</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(_empty_info_html(text), unsafe_allow_html=True)
 
 
 def _fmt_num(x, nd: int = 2, sign: bool = False) -> str:
@@ -303,22 +331,36 @@ def _delta_html(delta, is_pct: bool = True, nd: int = 2, inverse: bool = False) 
     return f'<span style="color:{color};font-weight:600;">{txt}</span>'
 
 
+def _data_card_html(label: str, value: str, delta_html: str = "", accent: str = "#2b8aef",
+                    unit: str = "") -> str:
+    """PURE: 返回紧凑指标卡 HTML 字符串（调用方自行 markdown 渲染）。
+
+    标签/数值/单位均为数据派生文本，统一 html.escape 防止注入；
+    None/空 -> 安全空默认，绝不抛异常。delta_html 为内部受信 HTML 片段，原样保留。
+    """
+    label = "" if label is None else str(label)
+    value = "" if value is None else str(value)
+    unit = "" if unit is None else str(unit)
+    delta_html = delta_html or ""
+    accent = accent or "#2b8aef"
+    delta_block = f'<div style="margin-top:2px;font-size:13px;">{delta_html}</div>' if delta_html else ""
+    return (
+        f'<div style="border:1px solid rgba(128,128,128,0.22);border-left:3px solid {html.escape(accent, quote=True)};'
+        f'border-radius:10px;padding:10px 12px;background:rgba(128,128,128,0.04);">'
+        f'<div style="font-size:12px;color:#8a8a8a;margin-bottom:2px;">{html.escape(label)}</div>'
+        f'<div style="font-size:20px;font-weight:700;line-height:1.2;">{html.escape(value)}'
+        f'<span style="font-size:12px;color:#8a8a8a;font-weight:400;margin-left:3px;">{html.escape(unit)}</span></div>'
+        f'{delta_block}</div>'
+    )
+
+
 def _data_card(label: str, value: str, delta_html: str = "", accent: str = "#2b8aef",
                unit: str = "") -> None:
     """紧凑指标卡（UI-only，HTML）：标签 + 大值 + 可选涨跌 chips。
 
     用于替换散落的 st.metric / markdown 拼装，统一视觉。
     """
-    delta_block = f'<div style="margin-top:2px;font-size:13px;">{delta_html}</div>' if delta_html else ""
-    st.markdown(
-        f'<div style="border:1px solid rgba(128,128,128,0.22);border-left:3px solid {accent};'
-        f'border-radius:10px;padding:10px 12px;background:rgba(128,128,128,0.04);">'
-        f'<div style="font-size:12px;color:#8a8a8a;margin-bottom:2px;">{label}</div>'
-        f'<div style="font-size:20px;font-weight:700;line-height:1.2;">{value}'
-        f'<span style="font-size:12px;color:#8a8a8a;font-weight:400;margin-left:3px;">{unit}</span></div>'
-        f'{delta_block}</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(_data_card_html(label, value, delta_html, accent, unit), unsafe_allow_html=True)
 
 
 def _auto_refresh(sec: int = 60, key: str = "auto_refresh") -> None:
