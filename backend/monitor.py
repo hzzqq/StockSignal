@@ -58,8 +58,8 @@ def record_request(endpoint: str, latency_ms: float, is_error: bool, user_id: in
             _total_errors += 1
         es = _endpoint_stats[endpoint]
         es["count"] += 1
-        es["total_ms"] += latency_ms
-        es["max_ms"] = max(es["max_ms"], latency_ms)
+        es["total_ms"] += lat
+        es["max_ms"] = max(es["max_ms"], lat)
         if is_error:
             es["errors"] += 1
         _recent_requests.append((now, user_id))
