@@ -93,6 +93,22 @@ def _verdict_color(v: str) -> str:
     return _VERDICT_COLOR.get(v, "#d97706")
 
 
+def _safe_qa_log_html(entries):
+    """将每条日志的 message 先 html.escape 转义再拼接，避免存储型 XSS。
+
+    entries 为日志 dict 列表（每项含 'stage' / 'message'）。保留原 qa-log
+    容器样式与「[阶段名] 消息」的逐行结构，仅对消息文本做转义。
+    """
+    import html as _html
+
+    safe_lines = "".join(
+        f"<div><span style='color:#5b8def'>[{label_for(e.get('stage', ''))[1]}]</span> "
+        f"{_html.escape(str(e.get('message', '')))}</div>"
+        for e in entries
+    )
+    return f"<div class='qa-log'>{safe_lines}</div>"
+
+
 def _poll_once(task_id: str):
     """缓存 1 秒：避免 fragment 重跑时请求堆积。"""
     from modules.background_tasks import poll_task
@@ -167,11 +183,7 @@ def _render_live_progress(task: dict):
     # 实时日志流
     with st.expander("🪵 实时协作日志", expanded=True):
         if logs:
-            lines = "".join(
-                f"<div><span style='color:#5b8def'>[{label_for(l.get('stage',''))[1]}]</span> {l.get('message','')}</div>"
-                for l in logs[-40:]
-            )
-            st.markdown(f"<div class='qa-log'>{lines}</div>", unsafe_allow_html=True)
+            st.markdown(_safe_qa_log_html(logs[-40:]), unsafe_allow_html=True)
         else:
             st.caption("等待首个 Agent 启动…")
 
