@@ -20,6 +20,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import time
 import re
+import html as _html
 from modules.fetcher import StockFetcher
 from modules.ui_theme import _theme_is_dark
 
@@ -162,10 +163,14 @@ def _derive_tag(code: str) -> str:
     """由代码前缀推导市场/板块标签（用于匹配结果下拉的「标签」列）。"""
     if not code or not code.isdigit():
         return "—"
-    if code.startswith("688"):
+    if code.startswith(("688", "689")):  # 689 为科创板 CDR
         return "科创板"
     if code.startswith("8") or code.startswith("4"):
         return "北交所"
+    if code.startswith("9"):  # 900xxx 沪市 B 股
+        return "沪B"
+    if code.startswith("2"):  # 200xxx 深市 B 股
+        return "深B"
     if code.startswith("3"):
         return "创业板"
     if code.startswith("6"):
@@ -186,11 +191,15 @@ def _render_match_dropdown(key: str, raw_input: str, results, active_code: str, 
     for code, name, market in results:
         tag = _derive_tag(code)
         cls = " mk-active" if code == active_code else ""
+        # HTML 转义：股票名/代码虽来自交易所可信源，仍防御含 < & " 的异常值破坏下拉标记
+        safe_code = _html.escape(str(code), quote=True)
+        safe_name = _html.escape(str(name), quote=True)
+        safe_tag = _html.escape(str(tag), quote=True)
         rows.append(
-            f'<div class="mk-row{cls}" data-code="{code}">'
-            f'<span class="mk-name">{name}</span>'
-            f'<span class="mk-code">{code}</span>'
-            f'<span class="mk-tag">{tag}</span>'
+            f'<div class="mk-row{cls}" data-code="{safe_code}">'
+            f'<span class="mk-name">{safe_name}</span>'
+            f'<span class="mk-code">{safe_code}</span>'
+            f'<span class="mk-tag">{safe_tag}</span>'
             f'</div>'
         )
     rows_html = "".join(rows)
