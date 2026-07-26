@@ -23,6 +23,19 @@ StockSignal 暗夜模式 · 全量文本可见性修复
 
 import streamlit as st
 
+
+# ===========================================================================
+# ★ 纯函数 HTML 转义（无 streamlit 依赖，可在测试中离线调用）
+# ===========================================================================
+def _esc(text):
+    """转义数据派生的文本，防止存储型 XSS。
+
+    纯函数：仅依赖标准库 html，不引用 st，可在无 streamlit 环境离线测试。
+    """
+    import html
+    return html.escape(str(text), quote=True)
+
+
 # ===========================================================================
 # 暗夜模式背景基准色
 # ===========================================================================
@@ -265,7 +278,7 @@ def colored_text(text, layer="body", emphasis=None, tag="span"):
     cls = f"sf-text-{layer}"
     if emphasis:
         cls += f" sf-emph-{emphasis}"
-    return f"<{tag} class=\"{cls}\">{text}</{tag}>"
+    return f"<{tag} class=\"{cls}\">{_esc(text)}</{tag}>"
 
 
 def highlight_value(value, fmt=None, direction=None):
@@ -283,7 +296,7 @@ def highlight_value(value, fmt=None, direction=None):
     return (
         f'<span class="sf-text-value sf-emph-{direction}"'
         f' style="color:{emph["dark"]["text"]};font-weight:600">'
-        f'{display}</span>'
+        f'{_esc(display)}</span>'
     )
 
 
@@ -294,7 +307,7 @@ def chip_html(text, state="default", icon=None, extra_class=""):
         cls.append(state)
     if extra_class:
         cls.append(extra_class)
-    label = f"{icon or ''}{text}" if icon else text
+    label = f"{_esc(icon) if icon else ''}{_esc(text)}"
     return f'<span class="{" ".join(cls)}">{label}</span>'
 
 
