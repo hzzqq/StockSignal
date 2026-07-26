@@ -9,10 +9,34 @@ from sqlalchemy import select
 from ..auth.decorators import jwt_required, admin_required
 from ..extensions import db
 from ..models import SystemConfig, Watchlist, Stock
-from ..utils.response import ok
+from ..utils.response import ok, fail
 from ..utils.errors import ValidationError, NotFoundError, ConflictError
 
 bp = Blueprint("config", __name__, url_prefix="/api")
+
+
+def _validate_config_value(raw):
+    """校验并规范化配置值，返回 (ok, value_or_error)。
+
+    - bool -> (True, "true"/"false")，避免被 str() 变成 "True"/"False"
+    - None -> (False, "值不能为空")，避免被 str() 静默存成 "None"
+    - str/int/float -> (True, str(value))；字符串超过 4096 视为过长拒绝
+    - 其它类型（dict/list/object 等）一律拒绝
+    纯函数，无外部依赖，可离线单测。
+    """
+    # bool 必须优先于 int 判断（bool 是 int 的子类）
+    if isinstance(raw, bool):
+        return (True, "true" if raw else "false")
+    if raw is None:
+        return (False, "值不能为空")
+    if isinstance(raw, (int, float)):
+        return (True, str(raw))
+    if isinstance(raw, str):
+        if len(raw) > 4096:
+            return (False, "值过长或格式不支持")
+        return (True, raw)
+    # 非预期类型（dict/list/object 等）一律拒绝
+    return (False, "值过长或格式不支持")
 
 
 # ================================================================ 系统配置（admin）
@@ -38,7 +62,10 @@ def update_config(key: str):
 
     data = request.get_json(silent=True) or {}
     if "value" in data:
-        cfg.value = str(data["value"])
+        ok_v, val = _validate_config_value(data["value"])
+        if not ok_v:
+            return fail(message=val, code="invalid_config", http_status=400)
+        cfg.value = val
     if "description" in data:
         cfg.description = data["description"]
     cfg.updated_by = g.current_user.id
@@ -57,13 +84,17 @@ def create_config():
     if not key:
         raise ValidationError("配置键不能为空")
 
+    ok_v, val = _validate_config_value(value)
+    if not ok_v:
+        return fail(message=val, code="invalid_config", http_status=400)
+
     exists = db.session.execute(
         select(SystemConfig).where(SystemConfig.key == key)
     ).scalar_one_or_none()
     if exists:
         raise ConflictError("配置键已存在")
 
-    cfg = SystemConfig(key=key, value=str(value), description=desc, updated_by=g.current_user.id)
+    cfg = SystemConfig(key=key, value=val, description=desc, updated_by=g.current_user.id)
     db.session.add(cfg)
     db.session.commit()
     return ok(data=cfg.to_dict(), message="创建成功", code="created")
