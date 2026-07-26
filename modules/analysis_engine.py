@@ -49,18 +49,9 @@ def _calc_trade_levels(current_price: float, df: pd.DataFrame, support: float, r
 
 
 def _board(code: str) -> str:
-    """由代码派生板块。"""
-    if str(code).startswith("60"):
-        return "沪市主板"
-    if str(code).startswith("00"):
-        return "深市主板"
-    if str(code).startswith("30"):
-        return "创业板"
-    if str(code).startswith("68"):
-        return "科创板"
-    if str(code).startswith(("8", "4")):
-        return "北交所"
-    return "A股"
+    """由代码派生板块。委托统一判定 modules.market_utils.board_name（DRY）。"""
+    from modules.market_utils import board_name
+    return board_name(code)
 
 
 def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | None = None) -> Dict[str, Any]:

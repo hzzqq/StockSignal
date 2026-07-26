@@ -54,11 +54,9 @@ def _search_via_local(query: str, limit: int = 15):
 
 
 def _guess_market(code: str) -> str:
-    if code.startswith("6"):
-        return "SH"
-    elif code.startswith("0") or code.startswith("3"):
-        return "SZ"
-    return ""
+    # 委托统一判定，避免多份前缀规则漂移（DRY）
+    from modules.market_utils import guess_exchange
+    return guess_exchange(code)
 
 
 def _code_exists(code: str) -> bool:
@@ -160,24 +158,12 @@ def _cached_search(query: str, limit: int = 10):
 
 
 def _derive_tag(code: str) -> str:
-    """由代码前缀推导市场/板块标签（用于匹配结果下拉的「标签」列）。"""
-    if not code or not code.isdigit():
-        return "—"
-    if code.startswith(("688", "689")):  # 689 为科创板 CDR
-        return "科创板"
-    if code.startswith("8") or code.startswith("4"):
-        return "北交所"
-    if code.startswith("9"):  # 900xxx 沪市 B 股
-        return "沪B"
-    if code.startswith("2"):  # 200xxx 深市 B 股
-        return "深B"
-    if code.startswith("3"):
-        return "创业板"
-    if code.startswith("6"):
-        return "沪A"
-    if code.startswith("0"):
-        return "深A"
-    return "—"
+    """由代码前缀推导市场/板块标签（用于匹配结果下拉的「标签」列）。
+
+    委托统一判定 modules.market_utils.short_tag（DRY，避免多份规则漂移）。
+    """
+    from modules.market_utils import short_tag
+    return short_tag(code)
 
 
 def _render_match_dropdown(key: str, raw_input: str, results, active_code: str, dark: bool):
