@@ -15,11 +15,20 @@ import json
 from flask import Blueprint, request, g
 
 from ..auth.decorators import jwt_required
-from ..utils.response import ok, fail
+from ..utils.response import ok, fail, _json_safe
 from ..models import ChatHistory
 from ..extensions import db
 
 bp = Blueprint("chat", __name__, url_prefix="/api/chat")
+
+
+def _ensure_json_safe(obj):
+    """递归把消息中的不可序列化对象（datetime/Decimal/bytes/set…）转成 JSON 安全形式。
+
+    直接复用 utils.response._json_safe（已覆盖常见类型且永不抛出），
+    本函数仅作命名包装，保证保存历史时序列化永不崩溃——存入的是净化副本。
+    """
+    return _json_safe(obj)
 
 # 保护上限：避免单用户历史无限膨胀撑爆字段
 _MAX_MESSAGES = 200
@@ -58,6 +67,10 @@ def save_history():
     # 截断到保护上限，保留最近 N 条
     if len(messages) > _MAX_MESSAGES:
         messages = messages[-_MAX_MESSAGES:]
+
+    # 序列化前做安全净化：datetime/Decimal/bytes/set 等转为 JSON 安全形式，
+    # 存入的是净化副本，避免 json.dumps 因不可序列化对象而崩溃丢失消息。
+    messages = _ensure_json_safe(messages)
 
     try:
         payload = json.dumps(messages, ensure_ascii=False)
