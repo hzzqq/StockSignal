@@ -52,10 +52,13 @@ class SimulatedBroker(BrokerAdapter):
                .first())
 
         if side == "buy":
-            if (self.account.cash or 0) < amount:
+            # cash 可能为 None（全新/迁移账户未初始化余额），统一按 0 处理，
+            # 避免拒绝分支 f-string 用 None 触发 TypeError 让撮合异常崩溃。
+            cash = self.account.cash or 0
+            if cash < amount:
                 return OrderResult(ok=False, status="rejected",
-                                   message=f"可用资金不足（需 {amount:,.2f}，剩 {self.account.cash:,.2f}）")
-            self.account.cash = round(self.account.cash - amount, 2)
+                                   message=f"可用资金不足（需 {amount:,.2f}，剩 {cash:,.2f}）")
+            self.account.cash = round(cash - amount, 2)
             if pos is None:
                 pos = RealPosition(user_id=self.account.user_id, stock_code=code,
                                    quantity=0, available=0, avg_cost=0.0)
