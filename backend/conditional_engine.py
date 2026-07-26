@@ -37,6 +37,29 @@ _SCHEDULER_STARTED = False
 _SCHEDULER_LOCK = threading.Lock()
 
 
+def build_trigger_notification(stock_code, stock_name, action, quantity,
+                              info, order_result_text):
+    """构造条件单触发通知的（标题, 正文）。纯函数，便于单测与复用。
+
+    action: "buy" / "sell"（其它值按原样显示，避免误判方向）。
+    """
+    name = (stock_name or "").strip()
+    title = f"⚡ 智能条件单触发 · {stock_code} {name}".strip()
+    if action == "buy":
+        act = "买入▲"
+    elif action == "sell":
+        act = "卖出▼"
+    else:
+        act = str(action)
+    message = (
+        f"标的：{stock_code} {name}\n"
+        f"动作：{act} {quantity} 股\n"
+        f"触发：{info or ''}\n"
+        f"下单：{order_result_text}"
+    )
+    return title, message
+
+
 # ================================================================== 评估函数
 def _latest_price(code: str):
     try:
@@ -226,15 +249,20 @@ def scan_and_execute(app) -> dict:
                     db.session.rollback()
                 stats["failed"] += 1
 
+            # ── 逐单可观测日志（持久追踪：即便弹窗错过/非Windows也有据可查）──
+            logger.info(
+                "条件单触发 #%s user=%s %s %s x%s 状态=%s 触发原因=%s 下单=%s",
+                co.id, co.user_id, co.stock_code, co.action, co.quantity,
+                co.status, (info or "")[:120], order_result_text,
+            )
+
             # ── 桌面弹窗通知（每次触发必弹，异步不阻塞调度）──
             try:
                 from .desktop_notify import notify as _desktop_notify
-                _title = f"⚡ 智能条件单触发 · {co.stock_code} {co.stock_name or ''}".strip()
-                _act = "买入▲" if co.action == "buy" else "卖出▼"
-                _msg = (f"标的：{co.stock_code} {co.stock_name or ''}\n"
-                        f"动作：{_act} {co.quantity} 股\n"
-                        f"触发：{info or ''}\n"
-                        f"下单：{order_result_text}")
+                _title, _msg = build_trigger_notification(
+                    co.stock_code, co.stock_name, co.action, co.quantity,
+                    info, order_result_text,
+                )
                 _desktop_notify(_title, _msg)
             except Exception as _ne:  # noqa: BLE001
                 logger.warning("条件单桌面弹窗通知失败（不影响下单）: %s", _ne)
