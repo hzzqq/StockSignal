@@ -21,7 +21,7 @@ modules/quantagent/langgraph_orchestrator.py
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from modules.quantagent.state import ResearchState
 from modules.quantagent.agents import (

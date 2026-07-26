@@ -17,7 +17,7 @@ import numpy as np
 from datetime import datetime
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, trading_autorefresh
+from modules.session import require_auth, render_user_badge, trading_autorefresh, safe_switch_page
 from modules.fundflow import get_industry_fund_flow
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, safe_fragment, render_data_degradation_banner
