@@ -107,12 +107,15 @@ def resolve_rules(base_rules: list[dict]) -> list[dict]:
     基于配置（thresholds / enabled_rules 覆盖）返回最终生效的规则表。
 
     - enabled_rules 为 list 时，仅保留其中的指标 key；
-    - thresholds 中出现的 key 会就地覆盖 warn_hi/danger_hi/warn_lo/danger_lo/hi_msg/lo_msg。
+    - thresholds 中出现的 key 会就地覆盖 warn_hi/danger_hi/warn_lo/danger_lo/hi_msg/lo_msg；
+      数值型阈值做容错：能转 float 才覆盖，非法（如非数字字符串 / None）跳过，
+      避免管理员误配把字符串塞进数值字段，导致下游比较 `value > warn_hi` 抛 TypeError。
     """
     cfg = get_alert_config()
     overrides = cfg.get("thresholds") or {}
     enabled = cfg.get("enabled_rules")
 
+    _NUM_KEYS = ("warn_hi", "danger_hi", "warn_lo", "danger_lo")
     out: list[dict] = []
     for r in base_rules:
         key = r["key"]
@@ -121,8 +124,19 @@ def resolve_rules(base_rules: list[dict]) -> list[dict]:
         rule = dict(r)
         ov = overrides.get(key)
         if isinstance(ov, dict):
-            for k in ("warn_hi", "danger_hi", "warn_lo", "danger_lo", "hi_msg", "lo_msg"):
+            for k in _NUM_KEYS:
                 if k in ov:
+                    v = ov[k]
+                    if isinstance(v, (int, float)):
+                        rule[k] = float(v)
+                    elif isinstance(v, str):
+                        try:
+                            rule[k] = float(v)
+                        except ValueError:
+                            pass  # 非数字字符串：保留原值，不污染
+                    # None / 其它类型：跳过
+            for k in ("hi_msg", "lo_msg"):
+                if k in ov and isinstance(ov[k], str):
                     rule[k] = ov[k]
         out.append(rule)
     return out
