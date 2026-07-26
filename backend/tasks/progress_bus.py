@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,6 +22,10 @@ _LOGGER = logging.getLogger(__name__)
 _REPORTERS: Dict[str, Callable[[str, str], None]] = {}
 # task_id -> 最近一次 reporter 调用抛出的异常信息（可观测性，供运维/前端排查）
 _LAST_ERROR: Dict[str, str] = {}
+# task_id -> 该任务最近若干条进度事件（有界，防止内存无限增长；R1 新需求）
+_EVENTS: Dict[str, List[Dict[str, str]]] = {}
+# 每个任务最多保留的事件条数（有界内存，避免无上限增长）
+MAX_EVENTS = 200
 _LOCK = threading.Lock()
 
 
@@ -30,6 +34,8 @@ def register(task_id: str, fn: Callable[[str, str], None]) -> None:
         _REPORTERS[task_id] = fn
         # 注册新 reporter 时清空旧错误，避免误导
         _LAST_ERROR.pop(task_id, None)
+        # 重新注册时清空旧事件，避免孤儿数据
+        _EVENTS.pop(task_id, None)
 
 
 def unregister(task_id: str) -> None:
@@ -54,10 +60,39 @@ def last_error(task_id: str) -> Optional[str]:
 
 
 def clear(task_id: str) -> None:
-    """注销进度上报函数并遗忘其错误记录。"""
+    """注销进度上报函数并遗忘其错误记录与事件缓存。"""
     with _LOCK:
         _REPORTERS.pop(task_id, None)
         _LAST_ERROR.pop(task_id, None)
+        _EVENTS.pop(task_id, None)
+
+
+def get_events(task_id: str) -> List[Dict[str, str]]:
+    """返回该任务最近记录的进度事件列表（副本，避免调用方绕过锁修改）。
+
+    对未知 task_id 返回空列表而非抛出 KeyError（R2）。
+    """
+    with _LOCK:
+        return list(_EVENTS.get(task_id, []))
+
+
+def get_status(task_id: str) -> Dict[str, object]:
+    """返回一个安全的状态字典，对未知 task_id 也不会抛异常（R2/R5/R6 可观测性）。
+
+    字段：
+      - registered: 是否注册了 reporter（bool）
+      - last_error: 最近一次 reporter 异常信息或 None（Optional[str]）
+      - event_count: 已记录事件条数（int）
+      - last_event: 最近一条事件或 None（Optional[dict]）
+    """
+    with _LOCK:
+        events = _EVENTS.get(task_id, [])
+        return {
+            "registered": task_id in _REPORTERS,
+            "last_error": _LAST_ERROR.get(task_id),
+            "event_count": len(events),
+            "last_event": events[-1] if events else None,
+        }
 
 
 def report(task_id: str, stage: str, message: str) -> None:
@@ -78,3 +113,13 @@ def report(task_id: str, stage: str, message: str) -> None:
             with _LOCK:
                 _LAST_ERROR[task_id] = err
             _LOGGER.warning("progress_bus reporter for %s failed at stage=%s: %s", task_id, stage, err)
+    # 记录进度事件（有界：仅保留最近 MAX_EVENTS 条，防止无上限内存增长 —— R1）
+    event = {"stage": stage, "message": message}
+    with _LOCK:
+        buf = _EVENTS.get(task_id)
+        if buf is None:
+            buf = []
+            _EVENTS[task_id] = buf
+        buf.append(event)
+        if len(buf) > MAX_EVENTS:
+            del buf[: len(buf) - MAX_EVENTS]
