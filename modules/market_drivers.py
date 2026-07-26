@@ -780,3 +780,91 @@ def plot_drivers_panel(df, meta=None, dark_mode=False, dims=None,
         fig.update_xaxes(tickangle=-30, row=i, col=1)
     fig.update_layout(**layout)
     return fig
+
+
+# ────────────────────────────────────────────────────────────
+# 市场温度（market-temperature / driver score）纯评分逻辑
+#
+# 注意：这些纯函数原定义于 pages/P_市场情绪.py，现作为「市场驱动力」
+# 模块的规范化、可测试实现集中于此。所有函数在退化输入（空 DataFrame /
+# 全 NaN / 缺列 / 短序列 / 非有限值）下均不抛错，并返回安全默认。
+# 对合法输入的行为与原实现保持一致。
+# ────────────────────────────────────────────────────────────
+
+# 市场温度无数据时的安全默认（中性 50，0-100 区间中点）
+_MARKET_TEMP_DEFAULT = 50.0
+
+# 各指标对「市场温度」的方向贡献：+1 越高越热，-1 越高越冷，0 不参与
+_DIR = {
+    "adl": 1, "adr": 1, "nhnl": 1,
+    "margin_balance": 1, "margin_net": 1, "north_net": 1,
+    "vix": -1, "pcr": -1, "zt_ratio": 1,
+    "pe_pct": 1, "div_yield": -1,
+    "m2_yoy": 1, "shr_zgm": 1, "yield_spread": 1, "pmi": 1,
+    "rsi": 1, "bias": 1, "boll": 0, "idx_ma5": 0, "idx_ma20": 0,
+}
+
+
+def _score_one_dim(series, direction):
+    """单指标方向得分（隔离出的纯 helper，便于单测）。
+
+    取最新值在自身历史分布中的分位（0-100）：方向为正时越高越热，
+    方向为负时越高越冷。样本不足(<3)或非有限返回 None。
+    """
+    try:
+        s = pd.to_numeric(series, errors="coerce").dropna()
+    except Exception:  # noqa
+        return None
+    if len(s) < 3:
+        return None
+    try:
+        pct = float(s.rank(pct=True).iloc[-1])
+    except Exception:  # noqa
+        return None
+    if not np.isfinite(pct):
+        return None
+    return float(pct * 100.0) if direction > 0 else float((1.0 - pct) * 100.0)
+
+
+def _market_temp(df):
+    """综合「市场温度」0-100。
+
+    对 _DIR 中每个有数据且方向非零的指标，取其在历史分布中的分位并加权，
+    返回各指标得分的均值。退化输入（df 为 None/非 DataFrame/空、所有指标
+    缺列或样本不足、出现非有限均值）一律返回安全默认 _MARKET_TEMP_DEFAULT，
+    绝不抛错。
+    """
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return _MARKET_TEMP_DEFAULT
+    subs = []
+    for k, d in _DIR.items():
+        if d == 0 or k not in df.columns:
+            continue
+        sc = _score_one_dim(df[k], d)
+        if sc is not None:
+            subs.append(sc)
+    if not subs:
+        return _MARKET_TEMP_DEFAULT
+    try:
+        m = float(np.mean(subs))
+    except Exception:  # noqa
+        return _MARKET_TEMP_DEFAULT
+    return m if np.isfinite(m) else _MARKET_TEMP_DEFAULT
+
+
+def _temp_level(t):
+    """将温度值(0-100)映射为 (等级, emoji, 颜色)。
+
+    输入非有限或 None 时返回安全中性默认，不抛错。
+    """
+    if t is None or not isinstance(t, (int, float)) or not np.isfinite(t):
+        return ("未知", "—", "#888888")
+    if t >= 75:
+        return ("过热", "🚨", "#ee2a2a")
+    if t >= 60:
+        return ("偏热", "🔥", "#f59e0b")
+    if t >= 40:
+        return ("中性", "⚖️", "#2b8aef")
+    if t >= 20:
+        return ("偏冷", "🌡️", "#16c2c2")
+    return ("冰点", "🥶", "#3b82f6")

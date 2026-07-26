@@ -26,6 +26,7 @@ import modules.market_drivers as m
 from modules.market_drivers import (
     INDICATORS, DIMS, KNOWN_UNAVAILABLE, _norm100, _col,
     get_market_drivers, plot_drivers_panel,
+    _market_temp, _temp_level, _score_one_dim, _DIR, _MARKET_TEMP_DEFAULT,
 )
 
 # 供复用测试：线性模块 helper
@@ -311,3 +312,120 @@ def test_reuse_correlation_heatmap_on_driver_df(driver_df):
     assert isinstance(fig, go.Figure)
     # 至少有 2 个有效序列，应含 heatmap trace
     assert len(fig.data) >= 1
+
+
+# ───────────────────────── 6. 市场温度评分（退化输入安全） ─────────────────────────
+def test_market_temp_normal_finite_score():
+    """正常输入 → 有限、在 0-100 区间的温度分。"""
+    rng = np.random.default_rng(7)
+    df = pd.DataFrame({
+        "margin_balance": 15000 + np.cumsum(rng.normal(0, 50, 30)),
+        "vix": rng.uniform(12, 30, 30),
+        "pe_pct": rng.uniform(20, 80, 30),
+        "rsi": rng.uniform(20, 80, 30),
+        "north_net": rng.normal(0, 30, 30),
+        "m2_yoy": rng.uniform(8, 12, 30),
+    })
+    t = _market_temp(df)
+    assert t is not None
+    assert np.isfinite(t)
+    assert 0.0 <= t <= 100.0
+
+
+def test_market_temp_empty_df_safe_default():
+    """空 DataFrame → 不抛错，返回安全中性默认。"""
+    df = pd.DataFrame()
+    t = _market_temp(df)
+    assert np.isfinite(t)
+    assert t == _MARKET_TEMP_DEFAULT
+
+
+def test_market_temp_none_input_safe():
+    """df 为 None → 不抛错，返回安全默认。"""
+    t = _market_temp(None)
+    assert np.isfinite(t)
+    assert t == _MARKET_TEMP_DEFAULT
+
+
+def test_market_temp_all_nan_safe():
+    """全 NaN 列 → 不抛错，返回有限默认（无 NaN/inf 传播）。"""
+    df = pd.DataFrame({
+        "margin_balance": [np.nan] * 10,
+        "vix": [np.nan] * 10,
+        "pe_pct": [np.nan] * 10,
+        "rsi": [np.nan] * 10,
+    })
+    t = _market_temp(df)
+    assert np.isfinite(t)
+    assert 0.0 <= t <= 100.0
+
+
+def test_market_temp_missing_columns_safe():
+    """_DIR 中的列全部缺失 → 不抛错，返回安全默认。"""
+    df = pd.DataFrame({"unrelated": np.arange(20, dtype=float)})
+    t = _market_temp(df)
+    assert np.isfinite(t)
+    assert t == _MARKET_TEMP_DEFAULT
+
+
+def test_market_temp_very_short_series_safe():
+    """每列仅 2 个样本(<3) → 不抛错，返回安全默认。"""
+    df = pd.DataFrame({
+        "margin_balance": [1.0, 2.0],
+        "vix": [15.0, 16.0],
+        "pe_pct": [30.0, 31.0],
+    })
+    t = _market_temp(df)
+    assert np.isfinite(t)
+    assert 0.0 <= t <= 100.0
+
+
+def test_score_one_dim_short_series_returns_none():
+    """隔离 helper：样本不足返回 None（不抛错）。"""
+    assert _score_one_dim(pd.Series([1.0, 2.0]), 1) is None
+
+
+def test_score_one_dim_full_nan_returns_none():
+    """隔离 helper：全 NaN 返回 None。"""
+    assert _score_one_dim(pd.Series([np.nan, np.nan, np.nan]), 1) is None
+
+
+def test_score_one_dim_valid_direction_positive():
+    """方向为正：最新值处于历史高位 → 高分。"""
+    s = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
+    sc = _score_one_dim(s, 1)
+    assert sc is not None and sc > 80.0  # 最新值=最高 → 分位近 100
+
+
+def test_score_one_dim_valid_direction_negative():
+    """方向为负：最新值处于历史高位(更冷) → 低分。"""
+    s = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
+    sc = _score_one_dim(s, -1)
+    assert sc is not None and sc < 20.0
+
+
+def test_temp_level_normal_levels():
+    """_temp_level 合法输入映射正确，行为与原实现一致。"""
+    assert _temp_level(80) == ("过热", "🚨", "#ee2a2a")
+    assert _temp_level(65) == ("偏热", "🔥", "#f59e0b")
+    assert _temp_level(50) == ("中性", "⚖️", "#2b8aef")
+    assert _temp_level(30) == ("偏冷", "🌡️", "#16c2c2")
+    assert _temp_level(5) == ("冰点", "🥶", "#3b82f6")
+
+
+def test_temp_level_nan_safe_default():
+    """_temp_level 接收 NaN/None → 不抛错，返回安全中性标记。"""
+    lvl, emoji, color = _temp_level(np.nan)
+    assert emoji == "—"
+    assert color == "#888888"
+    lvl2, _, _ = _temp_level(None)
+    assert lvl2 == "未知"
+
+
+def test_market_temp_then_temp_level_pipeline_safe_on_empty():
+    """端到端：空 df → 温度安全 → 等级安全，整链不抛错。"""
+    t = _market_temp(pd.DataFrame())
+    assert np.isfinite(t)
+    level, emoji, color = _temp_level(t)
+    assert isinstance(level, str)
+    assert emoji != ""
