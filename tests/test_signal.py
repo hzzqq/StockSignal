@@ -98,3 +98,91 @@ class TestSignalEngine:
         score = engine.event_score("601088", ["煤炭"], date="2025-06-15")
         assert 0 <= score <= 100
         assert score > 50  # 利好事件应偏高
+
+
+class TestSignalRobustness:
+    """针对三处脆弱点的纯逻辑单测（无网络）。"""
+
+    def test_macro_score_empty_pmi_col_returns_50(self):
+        """空 pmi_col 列表不得抛 IndexError，应返回中性 50。"""
+        engine = SignalEngine()
+
+        class FakeFetcher:
+            def get_macro(self, name):
+                # 不含任何 pmi 列的 DataFrame → pmi_col 为空
+                return pd.DataFrame({
+                    "date": pd.to_datetime(["2025-01-01"]),
+                    "value": [51.0],
+                })
+
+        engine.fetcher = FakeFetcher()
+        score = engine.macro_score(date=None)
+        assert score == 50
+
+    def test_macro_score_with_pmi_col_computes(self):
+        """正常有 pmi 列时按公式计分，证明上一例走的是空列分支而非异常兜底。"""
+        engine = SignalEngine()
+
+        class FakeFetcher:
+            def get_macro(self, name):
+                return pd.DataFrame({
+                    "date": pd.to_datetime(["2025-01-01"]),
+                    "pmi_mfg": [52.0],
+                })
+
+        engine.fetcher = FakeFetcher()
+        assert engine.macro_score(date=None) == 60  # 50 + (52-50)*5
+
+    def test_event_score_regex_metachar_keywords(self):
+        """关键词含正则元字符 (+ ( .) 不应抛错，且能正常匹配。"""
+        engine = SignalEngine()
+
+        def fake_load_events():
+            return pd.DataFrame({
+                "date": pd.to_datetime(["2025-06-01"]),
+                "ticker": [None],  # isna() 命中，使 ticker 过滤通过
+                "title": ["利好 A+B(C. 公告"],  # 含 + ( . 三种元字符
+                "type": ["利好"],
+            })
+
+        engine._load_events = fake_load_events
+        score = engine.event_score("601088", ["A+B(C."], date=None)
+        assert 0 <= score <= 100
+        assert score == 66  # 命中利好 → 52 + 14
+
+    def test_evaluate_missing_weight_keys_fallback(self):
+        """weights 缺 event/macro 键时回落默认 0.4/0.2，不 KeyError。"""
+        engine = SignalEngine()
+        engine.weights = {"price": 0.5}  # 缺 event、macro
+
+        class FakeFetcher:
+            def get_daily(self, *a, **k):
+                raise RuntimeError("no network")
+
+        engine.fetcher = FakeFetcher()
+        engine.event_score = lambda *a, **k: 80
+        engine.macro_score = lambda *a, **k: 60
+        engine.sector_relative_score = lambda *a, **k: 40
+
+        result = engine.evaluate("601088", ["煤炭"], df=None)
+        # 50*0.5 + 80*0.4 + 60*0.2 = 25 + 32 + 12 = 69
+        assert result["total"] == 69
+
+    def test_evaluate_all_weight_keys_missing(self):
+        """weights 全缺时全部回落默认权重。"""
+        engine = SignalEngine()
+        engine.weights = {}  # 全缺
+
+        class FakeFetcher:
+            def get_daily(self, *a, **k):
+                raise RuntimeError("no network")
+
+        engine.fetcher = FakeFetcher()
+        engine.event_score = lambda *a, **k: 80
+        engine.macro_score = lambda *a, **k: 60
+        engine.sector_relative_score = lambda *a, **k: 40
+
+        result = engine.evaluate("601088", ["煤炭"], df=None)
+        # 50*0.4 + 80*0.4 + 60*0.2 = 20 + 32 + 12 = 64
+        assert result["total"] == 64
+

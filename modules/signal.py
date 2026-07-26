@@ -4,6 +4,7 @@
 """
 
 import os
+import re
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -235,7 +236,9 @@ class SignalEngine:
                 events = events[events["date"] >= date_ts - timedelta(days=30)]
 
             if keywords:
-                matched = events[events["title"].str.contains("|".join(keywords), na=False, regex=True)]
+                # re.escape 每个关键词，避免关键词含正则元字符（如 ( + . ）时崩溃
+                matched = events[events["title"].str.contains(
+                    "|".join(re.escape(k) for k in keywords), na=False, regex=True)]
             else:
                 # 空关键词不应匹配任何事件（空正则 "" 会命中全部，属隐性 bug）
                 matched = events.iloc[0:0]
@@ -430,7 +433,7 @@ class SignalEngine:
         s_score = self.sector_relative_score(event_keywords, df, date, sector_name=sector_name)
 
         w = self.weights
-        total = int(p_score * w["price"] + e_score * w["event"] + m_score * w["macro"])
+        total = int(p_score * w.get("price", 0.4) + e_score * w.get("event", 0.4) + m_score * w.get("macro", 0.2))
 
         return {
             "price_score": p_score,
