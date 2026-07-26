@@ -12,6 +12,16 @@ DATA_DIR = BACKEND_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _env_int(name: str, default: int) -> int:
+    """安全读取整型环境变量：缺失/空/非法（非数字）一律回退默认，
+    避免误配导致整个后端在 import 时 int() 抛 ValueError 崩溃。"""
+    try:
+        v = os.environ.get(name)
+        return int(v) if v not in (None, "") else default
+    except (TypeError, ValueError):
+        return default
+
+
 class Config:
     # 基础
     DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
@@ -24,7 +34,7 @@ class Config:
     JWT_ALGORITHM = "HS256"
     # 默认 7 天：本地演示环境浏览器常驻，避免长时间停留后被迫重新登录。
     # 可通过环境变量 JWT_EXPIRES_SECONDS 覆盖（生产建议缩短）。
-    JWT_EXPIRES_SECONDS = int(os.environ.get("JWT_EXPIRES_SECONDS", "604800"))  # 7 天
+    JWT_EXPIRES_SECONDS = _env_int("JWT_EXPIRES_SECONDS", 604800)  # 7 天
     JWT_HEADER = "Authorization"
     JWT_PREFIX = "Bearer "
 
@@ -57,5 +67,5 @@ class Config:
     # 认证限流（进程内内存滑动窗口）：防 login/register 爆破
     # 测试可通过 STOCKSIGNAL_RATE_LIMIT_ENABLED=0 关闭，或用 reset_rate_limit()
     RATE_LIMIT_ENABLED = os.environ.get("STOCKSIGNAL_RATE_LIMIT_ENABLED", "1") != "0"
-    RATE_LIMIT_MAX = int(os.environ.get("RATE_LIMIT_MAX", "5"))      # 单 key 窗口内最大次数
-    RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", "60"))  # 滑动窗口秒数
+    RATE_LIMIT_MAX = _env_int("RATE_LIMIT_MAX", 5)        # 单 key 窗口内最大次数
+    RATE_LIMIT_WINDOW = _env_int("RATE_LIMIT_WINDOW", 60)  # 滑动窗口秒数
