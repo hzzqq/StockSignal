@@ -16,20 +16,81 @@ utils/response.py
 """
 from __future__ import annotations
 
+import datetime
+import decimal
 import math
 from typing import Any, Optional, Sequence
 
 from flask import jsonify
 
+try:  # numpy 在运行环境里通常可用，但允许缺省
+    import numpy as np
+except Exception:  # pragma: no cover - numpy 缺失时退化为纯 Python
+    np = None
 
-def _ok_payload(data: Any = None, message: str = "success", code: str = "ok") -> dict:
+
+def _json_safe(obj: Any) -> Any:
+    """递归地把常见「不可 JSON 序列化」类型转换为原生类型。
+
+    作为响应构造的最后一道防线，保证 jsonify / 响应路径永不因
+    datetime / Decimal / numpy 标量 / Exception 等而抛异常。
+    任何无法识别的对象退化为 str(obj)，因此本函数自身也永不抛出。
+    """
+    # 原生可序列化类型直接透传
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+    # 容器：递归净化
+    if isinstance(obj, dict):
+        return {_json_safe(k): _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set, frozenset)):
+        return [_json_safe(v) for v in obj]
+    # 日期 / 时间
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat()
+    # Decimal
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+    # numpy 标量 / 数组
+    if np is not None:
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.ndarray):
+            return [_json_safe(v) for v in obj.tolist()]
+    # 异常对象 -> 可读字符串
+    if isinstance(obj, Exception):
+        return f"{type(obj).__name__}: {obj}"
+    # 兜底
+    try:
+        return str(obj)
+    except Exception:
+        return repr(obj)
+
+
+def _ok_payload(data: Any = None, message: Any = "success", code: str = "ok") -> dict:
     """构造成功响应的纯字典（可单测，不与 Flask 耦合）。"""
-    return {"status": "ok", "code": code, "message": message, "data": data}
+    return {"status": "ok", "code": code, "message": _json_safe(message), "data": _json_safe(data)}
 
 
-def _fail_payload(message: str = "error", code: str = "error", data: Any = None) -> dict:
+def _fail_payload(message: Any = "error", code: str = "error", data: Any = None) -> dict:
     """构造失败响应的纯字典（可单测，不与 Flask 耦合）。"""
-    return {"status": "error", "code": code, "message": message, "data": data}
+    return {"status": "error", "code": code, "message": _json_safe(message), "data": _json_safe(data)}
+
+
+def error_from_exc(exc: BaseException, code: str = "error", data: Any = None) -> dict:
+    """从异常构造一个「永不抛出」的错误体字典。
+
+    即便 exc 本身是不可序列化对象也不会崩；用于 except 分支里
+    安全地回传错误，避免二次异常覆盖原始错误。
+    """
+    try:
+        msg = _json_safe(exc)
+    except Exception:  # 理论上不会触发，双保险
+        msg = f"{type(exc).__name__}: <unprintable>"
+    return {"status": "error", "code": code, "message": msg, "data": _json_safe(data)}
 
 
 def ok(data: Any = None, message: str = "success", code: str = "ok", http_status: int = 200):
