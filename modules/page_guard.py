@@ -26,10 +26,17 @@
      让用户知道某些模块显示的是缓存 / 估算数据。
 """
 
+import itertools
 import traceback
 
 import streamlit as st
 from contextlib import contextmanager
+
+
+# 单调递增序列：保证同一次脚本运行内，即使多个错误卡片用了相同的区块名，
+# 重试按钮的 key 也各不相同，避免 Streamlit DuplicateElementId 报错——
+# 否则「错误卡片本身崩溃」会击穿错误边界，与本模块的隔离初衷背道而驰。
+_err_card_seq = itertools.count(1)
 
 
 # ──────────────────────────────────────────────────────────
@@ -62,13 +69,15 @@ def render_error_card(name: str, exc: Exception, *, retry: bool | str = False, h
         st.code(traceback.format_exc(limit=8), language="text")
 
     if retry:
+        # 用单调序列后缀保证按钮 key 全局唯一（同名区块多次渲染也不会 key 冲突）。
+        _uid = next(_err_card_seq)
         if retry == "fragment":
             # 片段级重试：只重跑当前 fragment，不整页重跑（符合 fragment 内禁整页 rerun 铁律）。
-            if st.button("🔄 重试本区块", key=f"frag_retry_{name}", help="仅重新加载此模块"):
+            if st.button("🔄 重试本区块", key=f"frag_retry_{name}_{_uid}", help="仅重新加载此模块"):
                 st.rerun(scope="fragment")
         else:
             # 页面级重试（整页 st.rerun()）
-            if st.button("🔄 重试本页", key=f"pg_retry_{name}", help="重新运行整个页面"):
+            if st.button("🔄 重试本页", key=f"pg_retry_{name}_{_uid}", help="重新运行整个页面"):
                 st.rerun()
 
 

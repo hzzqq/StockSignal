@@ -31,11 +31,15 @@ def _clear_cache():
 
 # ───────────────────────── 1. 北向资金历史序列 ─────────────────────────
 def _nb_raw_df():
+    """模拟 akshare stock_hsgt_hist_em 的**真实单位**：
+    - 当日成交净买额：亿元（如 12.28 / -19.86），源码直接透传不再 ÷1e8；
+    - 历史累计净买额：万亿元（如 1.359），源码 ×1e4 转亿元。
+    """
     dates = [datetime(2024, 1, i * 2 + 1) for i in range(5)]
     return pd.DataFrame({
         "日期": pd.to_datetime(dates),
-        "当日成交净买额": [1e8, -5e7, 2e8, 0.0, 1.2e8],
-        "历史累计净买额": [1.0e10, 1.05e10, 1.07e10, 1.07e10, 1.08e10],
+        "当日成交净买额": [1.0, -0.5, 2.0, 0.0, 1.2],          # 亿元
+        "历史累计净买额": [1.0, 1.05, 1.07, 1.07, 1.08],       # 万亿元
     })
 
 
@@ -44,8 +48,8 @@ def test_northbound_history_series_ok():
         df = lt.get_northbound_history_series()
     assert not df.empty
     assert list(df.columns) == ["date", "net_buy_yi", "cumulative_yi"]
-    assert df["net_buy_yi"].iloc[0] == pytest.approx(1.0)         # 1e8 / 1e8 = 1.0 亿
-    assert df["cumulative_yi"].iloc[0] == pytest.approx(100.0)    # 1e10 / 1e8 = 100 亿
+    assert df["net_buy_yi"].iloc[0] == pytest.approx(1.0)         # 已是亿元，透传
+    assert df["cumulative_yi"].iloc[0] == pytest.approx(10000.0)  # 1.0 万亿元 ×1e4 = 10000 亿
     assert df["date"].iloc[0] == "2024-01-01"
 
 
