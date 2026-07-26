@@ -57,6 +57,7 @@ from modules.search_ui import stock_search_input
 from modules.fetcher import StockFetcher
 from modules.session import require_auth, render_user_badge, api_quote, api_kline
 from modules.page_widgets import _empty_info, _toast
+from modules.format_helpers import safe_int
 
 
 # 加法式健壮性：统一安全数值格式化——None/NaN/非数值显示"—"而非"nan"，
@@ -414,7 +415,7 @@ else:
         for _, row in sellable_positions.iterrows():
             ticker = row["ticker"]
             name = fetcher.get_stock_name(ticker) or ticker
-            sellable = int(row.get("remaining_shares", row["shares"]))
+            sellable = safe_int(row.get("remaining_shares", row.get("shares", 0)), 0)
             sell_options[f"{name} ({ticker}) — 可卖 {sellable:,} 股"] = ticker
 
         selected_label = st.selectbox("选择要卖出的持仓", options=list(sell_options.keys()), key="sell_select")

@@ -89,3 +89,31 @@ def safe_pct(numerator, denominator, default: float = 0.0) -> float:
     if math.isnan(ratio):
         return default
     return ratio * 100
+
+
+def safe_int(value, default: int = 0) -> int:
+    """把任意值安全转为 int；无法转换（None/空/非数字）返回 default。
+
+    用于替换散落的 ``int(x.get(k, 0) or 0)`` 写法，避免接口返回 ``None`` /
+    空串 / 非数字字符串时抛 ``TypeError`` / ``ValueError`` 导致页面崩溃。
+    对 ``float`` 先转 ``float`` 再截断取整（与 ``int(float(value))`` 一致）。
+    """
+    try:
+        if value is None or value == "":
+            return default
+        return int(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def safe_float(value, default: float = 0.0) -> float:
+    """把任意值安全转为 float；无法转换（None/空/非数字）返回 default。
+
+    与 :func:`safe_int` 同源，处理行情/资金流接口常见的缺值/脏值。
+    """
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default

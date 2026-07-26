@@ -10,8 +10,16 @@ from datetime import datetime
 
 from modules.session import require_auth, render_user_badge, safe_switch_page, API_BASE, get_user, get_token, persist_prefs, get_avatar_path, save_avatar, get_avatar_data_url, set_avatar_data_url, save_avatar_to_backend, render_avatar
 from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT
+from modules.format_helpers import safe_int
 
 from modules.ui_theme import apply_page_config
+
+# 安全解析字体档位在选项列表中的下标；legacy 值不在选项中时回退到默认档位，避免 .index() 抛 ValueError。
+def _resolve_font_index(value, font_opts, default):
+    keys = list(font_opts.keys())
+    if value in keys:
+        return keys.index(value)
+    return keys.index(default) if default in keys else 0
 from modules.page_widgets import _empty_info
 apply_page_config(page_title="我的", page_icon="👤", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -149,7 +157,7 @@ def render_preferences():
         "字体大小",
         options=list(_font_opts.keys()),
         format_func=lambda x: _font_labels[x],
-        index=list(_font_opts.keys()).index(st.session_state["font_size"]),
+        index=_resolve_font_index(st.session_state.get("font_size", FONT_DEFAULT), _font_opts, FONT_DEFAULT),
         key="setting_font_size",
         help="调整全局文字大小（影响标题、正文、表格等）。默认「标准」比旧版更大。",
     )
@@ -170,22 +178,22 @@ def render_preferences():
     _kline_count = st.slider(
         "K 线图默认显示数量",
         min_value=20, max_value=500, step=10,
-        value=int(st.session_state["kline_default_count"]),
+        value=int(st.session_state.get("kline_default_count", 120)),
         key="setting_kline_count",
         help="打开行情看板时，K线图默认展示的最近 N 根 K 线（可随时在页面上拖动滑块调整）",
     )
-    if _kline_count != st.session_state["kline_default_count"]:
+    if _kline_count != st.session_state.get("kline_default_count", 120):
         st.session_state["kline_default_count"] = _kline_count
     st.help("K线默认根数：打开行情看板时默认展示的最近 N 根日K。数值越大覆盖的历史区间越长，但单根越密。")
 
     _refresh_interval = st.slider(
         "行业板块自动刷新间隔（秒）",
         min_value=15, max_value=300, step=15,
-        value=int(st.session_state["sector_refresh_interval"]),
+        value=int(st.session_state.get("sector_refresh_interval", 60)),
         key="setting_refresh_interval",
         help="交易时间内行业板块数据的自动刷新频率。设为 300 秒则几乎不自动刷新",
     )
-    if _refresh_interval != st.session_state["sector_refresh_interval"]:
+    if _refresh_interval != st.session_state.get("sector_refresh_interval", 60):
         st.session_state["sector_refresh_interval"] = _refresh_interval
     st.help("板块刷新间隔：交易时段内行业板块数据的自动刷新频率（秒）。间隔越短越及时，但请求越多、更占资源。")
 

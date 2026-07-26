@@ -23,6 +23,7 @@ from modules.widgets import render_index_compact
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
+from modules.format_helpers import safe_int
 
 apply_page_config(page_title="行情看板", page_icon="📈", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -747,7 +748,7 @@ def fragment_watchlist_quotes():
             high = float(q.get("high") or 0)
             low = float(q.get("low") or 0)
             open_ = float(q.get("open") or 0)
-            volume = int(q.get("volume") or 0)
+            volume = safe_int(q.get("volume"), 0)
             chg = (cur - prev) / prev * 100 if prev else 0.0
             change_amt = cur - prev if prev else 0.0
         else:

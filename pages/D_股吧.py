@@ -16,6 +16,7 @@ from modules.session import (
 )
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
+from modules.format_helpers import safe_int
 
 apply_page_config(page_title="股吧", page_icon="💬", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -150,8 +151,8 @@ def fragment_detail():
         f"background:#2b8aef;color:#fff;'>楼主</span></div>",
         unsafe_allow_html=True,
     )
-    _total_likes = int(post.get("likes", 0) or 0)
-    meta = (f"🕘 {_fmt_time(post.get('created_at', ''))} · 👀 {int(post.get('views') or 0)}"
+    _total_likes = safe_int(post.get("likes", 0), 0)
+    meta = (f"🕘 {_fmt_time(post.get('created_at', ''))} · 👀 {safe_int(post.get('views'), 0)}"
             f" · 👍 {_total_likes}（点赞汇总）")
     st.caption(meta)
 
@@ -335,9 +336,9 @@ def fragment_list():
     posts = body.get("data", []) or []
     # 排序（#543-6）
     if _sort == "最热(点赞)":
-        posts = sorted(posts, key=lambda p: int(p.get("likes", 0) or 0), reverse=True)
+        posts = sorted(posts, key=lambda p: safe_int(p.get("likes", 0), 0), reverse=True)
     elif _sort == "最多评论":
-        posts = sorted(posts, key=lambda p: int(p.get("comment_count", 0) or 0), reverse=True)
+        posts = sorted(posts, key=lambda p: safe_int(p.get("comment_count", 0), 0), reverse=True)
     else:
         posts = sorted(posts, key=lambda p: str(p.get("created_at", "")), reverse=True)
 
@@ -400,7 +401,7 @@ def fragment_list():
                     )
                 # 结果标记/徽章（#Batch19-10）：中性色标签，不动红涨绿跌配色
                 _badges = []
-                if (int(p.get("likes", 0) or 0) >= 10) or (int(p.get("comment_count", 0) or 0) >= 10):
+                if (safe_int(p.get("likes", 0), 0) >= 10) or (safe_int(p.get("comment_count", 0), 0) >= 10):
                     _badges.append("🔥 热门")
                 if str(p.get("created_at", ""))[:10] == date.today().isoformat():
                     _badges.append("🆕 新")
@@ -440,7 +441,7 @@ def fragment_list():
                         st.session_state[f"forum_sel_{_id}"] = False
 
         # 相关推荐块（#Batch20-4）：底部热门主题推荐，点击直达
-        _rec = sorted(posts, key=lambda p: int(p.get("likes", 0) or 0), reverse=True)[:3]
+        _rec = sorted(posts, key=lambda p: safe_int(p.get("likes", 0), 0), reverse=True)[:3]
         if _rec:
             st.markdown("---")
             st.subheader("🔥 热门主题推荐")

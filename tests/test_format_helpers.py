@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 
-from modules.format_helpers import to_float, safe_div, format_amount, format_pct
+from modules.format_helpers import to_float, safe_div, format_amount, format_pct, safe_int, safe_float
 
 
 def test_to_float_valid():
@@ -74,3 +74,29 @@ def test_fundflow_wan_yi_delegates():
     assert _to_wan_yi(float("nan")) == "—"
     assert _to_wan_yi(None) == "—"
     assert _to_wan_yi(float("inf")) == "—"
+
+
+def test_safe_int():
+    # None / 空串 / 非数字 → 默认 0
+    assert safe_int(None) == 0
+    assert safe_int("") == 0
+    assert safe_int("abc") == 0
+    # 正常转换
+    assert safe_int("12") == 12
+    assert safe_int(12.9) == 12
+    # float('inf') 无法转 int → 默认 0
+    assert safe_int(float("inf")) == 0
+    # missing 入参（无 key）→ 默认 0
+    assert safe_int(None, default=-1) == -1
+
+
+def test_safe_float():
+    assert safe_float(None) == 0.0
+    assert safe_float("") == 0.0
+    assert safe_float("abc") == 0.0
+    assert safe_float("12.5") == 12.5
+    assert safe_float(7) == 7.0
+    # 按规范实现，float('inf') 经 float() 不抛异常，返回 inf（屏蔽 inf 由调用方决定）
+    assert math.isinf(safe_float(float("inf")))
+    # 缺省 default 生效
+    assert safe_float(None, default=-1.0) == -1.0

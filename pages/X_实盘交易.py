@@ -27,6 +27,7 @@ from modules.session import (
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
+from modules.format_helpers import safe_int
 
 apply_page_config(page_title="实盘交易", page_icon="💰", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -283,7 +284,7 @@ def fragment_positions():
     for p in rows:
         code = p.get("stock_code", "")
         name = p.get("stock_name") or code
-        qty = int(p.get("quantity") or 0)
+        qty = safe_int(p.get("quantity"), 0)
         mv = float(p.get("market_value") or 0)
         pnl = float(p.get("pnl") or 0)
         pnl_pct = float(p.get("pnl_pct") or 0)
