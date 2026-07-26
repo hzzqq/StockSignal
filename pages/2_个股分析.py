@@ -1196,6 +1196,28 @@ def _video_embed_url(url: str):
     return None
 
 
+def _safe_video_markdown(v):
+    """PURE, streamlit-free helper：把用户粘贴的视频 raw 链接安全地渲染为 markdown。
+
+    仅当 raw 为 http(s) 链接时才输出可点击的 <a href>，且对链接与文本做 html.escape，
+    杜绝 `javascript:` 等存储型 XSS 注入；其余情况（缺失 / 非 http(s) 协议）返回
+    转义后的纯文本（无 <a href>），由调用方以 unsafe_allow_html 渲染也不会执行脚本。
+    _video_embed_url 的逻辑保持不动，本函数仅负责「安全渲染」这一层。
+    """
+    import html
+    from urllib.parse import urlsplit
+    if not isinstance(v, dict):
+        return ""
+    raw = v.get("raw", "")
+    if not raw:
+        return ""
+    escaped = html.escape(raw)
+    scheme = urlsplit(raw).scheme.lower()
+    if scheme in ("http", "https"):
+        return f'<a href="{escaped}" target="_blank">{escaped}</a>'
+    return escaped
+
+
 @safe_fragment
 def fragment_stock_videos(ticker):
     with st.expander("📺 相关视频（把互联网上的股票视频接入项目 · 点击展开/收起）", expanded=False, key="stock_video_exp"):
@@ -1254,7 +1276,7 @@ def fragment_stock_videos(ticker):
                         height=400,
                     )
                 else:
-                    st.markdown(f'🔗 <a href="{v["raw"]}" target="_blank">{v["raw"]}</a>', unsafe_allow_html=True)
+                    st.markdown("🔗 " + _safe_video_markdown(v), unsafe_allow_html=True)
             with col_del:
                 _ck = f"vdel_cfm_{ticker}_{idx}"
                 if st.session_state.get(_ck):
