@@ -9,6 +9,7 @@ from sqlalchemy import select
 from ..extensions import db
 from ..utils.response import ok, fail
 from ..utils.errors import ValidationError
+from ..utils.params import parse_int_param
 from ..utils.ratelimit import is_allowed, make_key
 from ..models import OperationLog
 from .service import authenticate, issue_token, decode_token, register_user
@@ -169,7 +170,7 @@ def login_history():
     供「我的」页展示登录历史。
     """
     from ..extensions import db
-    limit = min(int(request.args.get("limit", "20")), 50)
+    limit = parse_int_param("limit", default=20, hi=50)
     stmt = (
         select(OperationLog)
         .where(OperationLog.user_id == g.current_user.id, OperationLog.action == "login")

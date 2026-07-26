@@ -11,6 +11,7 @@ from ..models import Stock
 from ..auth.decorators import jwt_required, admin_required
 from ..utils.response import ok
 from ..utils.errors import NotFoundError
+from ..utils.params import parse_int_param
 from ..services.stock_service import search_stocks, get_stock_list
 
 bp = Blueprint("stocks", __name__, url_prefix="/api/stocks")
@@ -25,7 +26,7 @@ def search():
     支持代码 / 名称 / 拼音首字母 / 全拼 / 首字模糊匹配。
     """
     q = request.args.get("q", "").strip()
-    limit = min(int(request.args.get("limit", "15")), 50)
+    limit = parse_int_param("limit", default=15, hi=50)
     if not q:
         return ok(data=[], message="success")
     results = search_stocks(q, limit=limit)
@@ -37,8 +38,8 @@ def search():
 @admin_required
 def list_stocks():
     """GET /api/stocks/list?page=1&per_page=50&keyword=茅台"""
-    page = int(request.args.get("page", "1"))
-    per_page = min(int(request.args.get("per_page", "50")), 200)
+    page = parse_int_param("page", default=1)
+    per_page = parse_int_param("per_page", default=50, hi=200)
     keyword = request.args.get("keyword", "").strip()
     data = get_stock_list(page=page, per_page=per_page, keyword=keyword)
     return ok(data=data, message="success")

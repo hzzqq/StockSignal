@@ -11,6 +11,7 @@ from ..extensions import db
 from ..models import User, OperationLog
 from ..utils.response import ok
 from ..utils.errors import ValidationError, NotFoundError, ConflictError
+from ..utils.params import parse_int_param
 import re
 
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -37,8 +38,8 @@ def _log(action: str, target: str = "", detail: str = ""):
 @admin_required
 def list_users():
     """GET /api/admin/users?page=1&per_page=50&keyword=adm"""
-    page = int(request.args.get("page", "1"))
-    per_page = min(int(request.args.get("per_page", "50")), 200)
+    page = parse_int_param("page", default=1)
+    per_page = parse_int_param("per_page", default=50, hi=200)
     keyword = request.args.get("keyword", "").strip()
 
     stmt = select(User).order_by(User.id.asc())
@@ -162,8 +163,8 @@ def delete_user(user_id: int):
 @admin_required
 def list_logs():
     """GET /api/admin/logs?page=1&per_page=50"""
-    page = int(request.args.get("page", "1"))
-    per_page = min(int(request.args.get("per_page", "50")), 200)
+    page = parse_int_param("page", default=1)
+    per_page = parse_int_param("per_page", default=50, hi=200)
 
     stmt = select(OperationLog).order_by(OperationLog.id.desc())
     total = db.session.execute(
