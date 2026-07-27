@@ -20,8 +20,11 @@ localStorage，使整页刷新(F5) 或跨页面跳转丢失 query_params 时仍�
 from __future__ import annotations
 
 import json
+import logging
 
 import streamlit.components.v1 as components
+
+logger = logging.getLogger(__name__)
 
 _LS_TOKEN = "ss_token"
 _LS_USER = "ss_user"
@@ -44,8 +47,8 @@ def save_to_local_storage(token: str, user: dict) -> None:
         </script>
         """
         components.html(js, height=0)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("[auth_persist] save_to_local_storage 失败: %s", e)
 
 
 def restore_from_local_storage() -> None:
@@ -70,8 +73,8 @@ def restore_from_local_storage() -> None:
         </script>
         """
         components.html(js, height=0)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("[auth_persist] restore_from_local_storage 失败: %s", e)
 
 
 def clear_local_storage() -> None:
@@ -88,5 +91,5 @@ def clear_local_storage() -> None:
         </script>
         """
         components.html(js, height=0)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("[auth_persist] clear_local_storage 失败: %s", e)
