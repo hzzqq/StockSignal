@@ -14,11 +14,14 @@
 并在图表副标题注明；若未来有可靠 BJ 源可扩展为三地求和。
 """
 from datetime import datetime
+import logging
 import math
 import time
 
 import pandas as pd
 import plotly.graph_objects as go
+
+logger = logging.getLogger(__name__)
 
 # 复用 fundflow 的代理/SSL 补丁，确保 akshare 经本地代理访问
 from modules.fundflow import _ensure_proxy_and_ssl
@@ -145,6 +148,8 @@ def get_margin_trading_data(days=180):
         # 并行抓取 5 个独立数据源（沪/深融资 + 3 指数），替代原来串行 10-25s
         import concurrent.futures as _cf
         results = {}
+        t0 = time.perf_counter()
+        per_src = {}
         with _cf.ThreadPoolExecutor(max_workers=5) as ex:
             futs = {
                 ex.submit(_fetch_margin_sh): "sh",
@@ -155,10 +160,17 @@ def get_margin_trading_data(days=180):
             }
             for fut in _cf.as_completed(futs):
                 key = futs[fut]
+                ts = time.perf_counter()
                 try:
                     results[key] = fut.result()
                 except Exception:
                     results[key] = pd.DataFrame()
+                per_src[key] = time.perf_counter() - ts
+        logger.info(
+            "[margin] 融资融券并行抓取完成，总耗时 %.2fs；各源耗时: %s",
+            time.perf_counter() - t0,
+            {k: round(v, 2) for k, v in per_src.items()},
+        )
 
         sh = results.get("sh", pd.DataFrame())
         sz = results.get("sz", pd.DataFrame())
@@ -195,8 +207,7 @@ def get_margin_trading_data(days=180):
         try:
             return _fetch_all()
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f"get_margin_trading_data 最终失败：{e}")
+            logger.warning(f"get_margin_trading_data 最终失败：{e}")
             return pd.DataFrame()
     return _cached(600, f"margin_trading_{days}", _fn, skip_empty=True)
 
