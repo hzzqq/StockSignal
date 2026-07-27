@@ -6,9 +6,12 @@ analyze_trend / detect_bottom_divergence / check_volume_surge /
 calculate_financial_ratios / calculate_growth_rates
 """
 
+import logging
 import pandas as pd
 import numpy as np
 from typing import Tuple, Optional, List, Dict
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_macd(close_prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> Tuple[Optional[pd.Series], Optional[pd.Series], Optional[pd.Series]]:
@@ -22,7 +25,7 @@ def calculate_macd(close_prices: pd.Series, fast: int = 12, slow: int = 26, sign
         macd_hist = macd_line - signal_line
         return macd_line, signal_line, macd_hist
     except Exception as e:
-        print(f"MACD计算错误: {e}")
+        logger.warning(f"MACD计算错误: {e}")
         return None, None, None
 
 
@@ -78,7 +81,7 @@ def detect_bottom_divergence(close_prices: pd.Series, macd_hist: pd.Series,
         min_hist = recent_hist.min()
         hist_at_trough = recent_hist.iloc[price_trough_pos]
         if min_hist < 0:
-            return hist_at_trough > min_hist * 0.5
+            return bool(hist_at_trough > min_hist * 0.5)
         return False
     except Exception:
         return False
@@ -102,7 +105,7 @@ def detect_top_divergence(close_prices: pd.Series, macd_hist: pd.Series,
         max_hist = recent_hist.max()
         hist_at_peak = recent_hist.iloc[price_peak_pos]
         if max_hist > 0:
-            return hist_at_peak < max_hist * 0.5
+            return bool(hist_at_peak < max_hist * 0.5)
         return False
     except Exception:
         return False
@@ -117,7 +120,7 @@ def check_volume_surge(volume: pd.Series, weeks: int = 5, threshold: float = 1.5
         if avg_vol <= 0:
             return False, None
         ratio = recent_vol / avg_vol
-        return ratio > threshold, round(ratio, 2)
+        return bool(ratio > threshold), round(ratio, 2)
     except Exception:
         return False, None
 
