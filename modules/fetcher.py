@@ -288,6 +288,11 @@ def _validate_sector_data(df: pd.DataFrame) -> bool:
         logger.info(f"[StockFetcher] 数据校验警告: {total} 个板块全部{'上涨' if up == total else '下跌'}，疑似数据源异常")
         return False
 
+    # 3. 检查是否全为零（休市/接口返回空数据时的兜底不应展示全零涨跌）
+    if up == 0 and down == 0:
+        logger.info("[StockFetcher] 数据校验警告: 所有板块涨跌幅均为 0，疑似空数据或非交易时段缓存")
+        return False
+
     # 2. 检查是否存在绝对值过大的异常值（正常板块日涨跌幅应小于 20%）
     if s.abs().max() > 20:
         logger.info(f"[StockFetcher] 数据校验警告: 最大涨跌幅 {s.abs().max():.2f}% 超出合理范围")

@@ -142,8 +142,26 @@ def get_margin_trading_data(days=180):
     网络最终失败时返回空 DataFrame，避免页面红错。
     """
     def _fetch_all():
-        sh = _fetch_margin_sh()
-        sz = _fetch_margin_sz()
+        # 并行抓取 5 个独立数据源（沪/深融资 + 3 指数），替代原来串行 10-25s
+        import concurrent.futures as _cf
+        results = {}
+        with _cf.ThreadPoolExecutor(max_workers=5) as ex:
+            futs = {
+                ex.submit(_fetch_margin_sh): "sh",
+                ex.submit(_fetch_margin_sz): "sz",
+                ex.submit(_fetch_index, "sh000001"): "idx000001",
+                ex.submit(_fetch_index, "sz399001"): "idx399001",
+                ex.submit(_fetch_index, "sz399006"): "idx399006",
+            }
+            for fut in _cf.as_completed(futs):
+                key = futs[fut]
+                try:
+                    results[key] = fut.result()
+                except Exception:
+                    results[key] = pd.DataFrame()
+
+        sh = results.get("sh", pd.DataFrame())
+        sz = results.get("sz", pd.DataFrame())
         if sh.empty and sz.empty:
             return pd.DataFrame()
         if sh.empty:
@@ -162,11 +180,9 @@ def get_margin_trading_data(days=180):
         df["total_rzmr"] = df["sh_rzmr"] + df["sz_rzmr"]
         df["total_rzye"] = df["sh_rzye"] + df["sz_rzye"]
 
-        # 合并三大指数
-        idx000001 = _fetch_index("sh000001")
-        idx399001 = _fetch_index("sz399001")
-        idx399006 = _fetch_index("sz399006")
-        for idx_df in (idx000001, idx399001, idx399006):
+        # 合并三大指数（已在并行阶段获取）
+        for idx_key in ("idx000001", "idx399001", "idx399006"):
+            idx_df = results.get(idx_key, pd.DataFrame())
             if not idx_df.empty:
                 df = df.merge(idx_df, on="日期", how="left")
 

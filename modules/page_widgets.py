@@ -196,7 +196,7 @@ def _trend_controls(key_prefix, days_default=120, series_options=None,
     if show_ma:
         with cells[ci]:
             ma = st.multiselect(
-                "均线叠加", options=[5, 10, 20, 60], default=[],
+                "均线叠加", options=[5, 10, 20, 60], default=[20],
                 format_func=lambda x: f"MA{x}", key=f"{key_prefix}_ma",
                 help="叠加移动平均线（虚线，图例中可单独开关）",
             )

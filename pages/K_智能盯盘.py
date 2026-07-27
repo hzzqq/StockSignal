@@ -363,7 +363,7 @@ def fragment_sector():
 @safe_fragment("自选股涨跌榜")
 def fragment_watchlist():
     st.markdown("### 📈 自选股涨跌榜")
-    st.help("涨跌% = (现价-昨收)/昨收×100%，红涨绿跌；并行抓取实时行情后按涨跌%排序，可逐只跳转行情看板。")
+    st.caption("涨跌% = (现价-昨收)/昨收×100%，红涨绿跌；并行抓取实时行情后按涨跌%排序，可逐只跳转行情看板。")
 
     # 加法式：最近浏览历史（纯前端 chips，点击填入筛选）
     _rv = st.session_state.get("_wl_recent", [])
@@ -649,7 +649,7 @@ def fragment_alerts():
         key="smart_alert_threshold",
         help="自选股当日涨跌%绝对值超过该阈值即触发「异动预警」。",
     )
-    st.help("规则扫描：自选股当日|涨跌%|≥阈值 触发异动预警；主力净流入/流出绝对值≥1亿 触发资金异动，按强/中/弱分级。")
+    st.caption("规则扫描：自选股当日|涨跌%|≥阈值 触发异动预警；主力净流入/流出绝对值≥1亿 触发资金异动，按强/中/弱分级。")
 
     items, err = _fetch_watchlist()
     if err is not None:

@@ -460,9 +460,19 @@ def get_index_series(days=180):
     """
     def _fn():
         try:
-            idx000001 = _fetch_index("sh000001")
-            idx399001 = _fetch_index("sz399001")
-            idx399006 = _fetch_index("sz399006")
+            # 并行抓取 3 个指数，替代串行 3×(2-5s)
+            import concurrent.futures as _cf
+            with _cf.ThreadPoolExecutor(max_workers=3) as ex:
+                futs = {ex.submit(_fetch_index, s): s for s in ("sh000001", "sz399001", "sz399006")}
+                results = {}
+                for fut in _cf.as_completed(futs):
+                    try:
+                        results[futs[fut]] = fut.result()
+                    except Exception:
+                        results[futs[fut]] = pd.DataFrame()
+            idx000001 = results.get("sh000001", pd.DataFrame())
+            idx399001 = results.get("sz399001", pd.DataFrame())
+            idx399006 = results.get("sz399006", pd.DataFrame())
         except Exception as e:
             _logger.warning(f"get_index_series 获取失败：{e}")
             return pd.DataFrame()

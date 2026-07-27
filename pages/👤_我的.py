@@ -184,7 +184,7 @@ def render_preferences():
     )
     if _kline_count != st.session_state.get("kline_default_count", 120):
         st.session_state["kline_default_count"] = _kline_count
-    st.help("K线默认根数：打开行情看板时默认展示的最近 N 根日K。数值越大覆盖的历史区间越长，但单根越密。")
+    st.caption("K线默认根数：打开行情看板时默认展示的最近 N 根日K。数值越大覆盖的历史区间越长，但单根越密。")
 
     _refresh_interval = st.slider(
         "行业板块自动刷新间隔（秒）",
@@ -195,7 +195,7 @@ def render_preferences():
     )
     if _refresh_interval != st.session_state.get("sector_refresh_interval", 60):
         st.session_state["sector_refresh_interval"] = _refresh_interval
-    st.help("板块刷新间隔：交易时段内行业板块数据的自动刷新频率（秒）。间隔越短越及时，但请求越多、更占资源。")
+    st.caption("板块刷新间隔：交易时段内行业板块数据的自动刷新频率（秒）。间隔越短越及时，但请求越多、更占资源。")
 
     st.markdown("")
 

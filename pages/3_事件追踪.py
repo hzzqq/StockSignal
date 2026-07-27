@@ -296,7 +296,7 @@ def fragment_signal_score():
                 """)
             st.markdown("---")
             st.caption("数据来源：东方财富 / 新浪财经 / 公开公告")
-            st.help("综合评分 = 价格信号×0.4 + 事件信号×0.4 + 宏观信号×0.2；>70 偏买入，<40 偏卖出，其余观望。")
+            st.caption("综合评分 = 价格信号×0.4 + 事件信号×0.4 + 宏观信号×0.2；>70 偏买入，<40 偏卖出，其余观望。")
             if st.button("＋自选", key="sig_add_watch", help="将上方所选股票加入自选股"):
                 try:
                     sc, body = api_post("/api/watchlist", payload={"stock_code": sig_ticker})
