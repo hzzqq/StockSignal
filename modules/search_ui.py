@@ -231,8 +231,10 @@ def _render_match_dropdown(key: str, raw_input: str, results, active_code: str, 
         + '</script>'
     )
     height = min(38 + len(results) * 36, 460)
-    # key 随输入词变化 → 换词重新挂载组件，避免残留上一次点击的选中值
-    return components.html(html, height=height, key=f"{key}_match_{hash(raw_input)}")
+    # 注意：streamlit.components.v1.html() 不支持 key 参数（签名只有
+    # html/width/height/scrolling/tab_index），传 key 会触发
+    # IframeMixin.__html__() got an unexpected keyword argument 'key'
+    return components.html(html, height=height)
 
 
 def stock_search_input(

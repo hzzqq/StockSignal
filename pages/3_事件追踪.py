@@ -1102,13 +1102,16 @@ with st.expander("🔗 相关事件 / 标的推荐", expanded=False):
     _ev = st.session_state.get("_rec_cache")
     if _ev is not None and not _ev.empty and "ticker" in _ev.columns:
         _top = _ev["ticker"].value_counts().head(8)
-        st.caption("📌 事件库中提及最多的标的（点击填入信号评分）")
-        _cc = st.columns(len(_top))
-        for _j, (_code, _cnt) in enumerate(_top.items()):
-            with _cc[_j]:
-                if st.button(f"{_code}\n{_cnt}条", key=f"rec_{_code}"):
-                    st.session_state["sig_ticker"] = str(_code)
-                    st.rerun()
+        if len(_top) == 0:
+            st.caption("暂无推荐数据。")
+        else:
+            st.caption("📌 事件库中提及最多的标的（点击填入信号评分）")
+            _cc = st.columns(len(_top))
+            for _j, (_code, _cnt) in enumerate(_top.items()):
+                with _cc[_j]:
+                    if st.button(f"{_code}\n{_cnt}条", key=f"rec_{_code}"):
+                        st.session_state["sig_ticker"] = str(_code)
+                        st.rerun()
     else:
         st.caption("暂无推荐数据。")
 

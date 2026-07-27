@@ -221,10 +221,58 @@ def fragment_sectors():
                 _rotation(df)
             st.divider()
             st.markdown("#### 🧭 板块轮动解读")
-            st.caption("🔥 热力图：块越大=资金净流入越多，颜色越红=涨幅越大；"
-                       "📊 排行榜：看哪些行业领涨/领跌；"
-                       "🔄 资金轮动：右上象限（价量齐升）是当前主线，资金从绿（净流出）板块流向红（净流入）板块即为轮动。"
-                       "交易时段内本区块每 60 秒自动刷新。")
+            # 动态摘要：从当前数据中提取关键信号
+            _d = df.copy()
+            _d["涨跌幅"] = _norm_num(_d.get("涨跌幅", pd.Series(dtype=float)))
+            _d["净额"] = _norm_num(_d.get("净额", pd.Series(dtype=float)))
+            if not _d.empty and _d["涨跌幅"].notna().any():
+                _top_gain = _d.nlargest(3, "涨跌幅")[["行业", "涨跌幅"]] if (_d["涨跌幅"].dropna() > 0).any() else None
+                _top_loss = _d.nsmallest(3, "涨跌幅")[["行业", "涨跌幅"]]
+                _net_top = None
+                if _d["净额"].notna().any():
+                    _net_tmp = _d.dropna(subset=["净额"])
+                    if not _net_tmp.empty:
+                        _net_top = _net_tmp.nlargest(3, "净额")[["行业", "净额"]]
+
+                _cols = st.columns(3)
+                with _cols[0]:
+                    if _top_gain is not None and not _top_gain.empty:
+                        st.markdown("**🟢 领涨前三**")
+                        for _, r in _top_gain.iterrows():
+                            st.text(f"{r['行业']}: {r['涨跌幅']:+.2f}%")
+                    else:
+                        st.markdown("**🟢 领涨前三**")
+                        st.caption("无上涨板块")
+                with _cols[1]:
+                    if _top_loss is not None and not _top_loss.empty:
+                        st.markdown("**🔴 领跌前三**")
+                        for _, r in _top_loss.iterrows():
+                            st.text(f"{r['行业']}: {r['涨跌幅']:+.2f}%")
+                with _cols[2]:
+                    if _net_top is not None and not _net_top.empty:
+                        st.markdown("**💰 净流入前三**")
+                        for _, r in _net_top.iterrows():
+                            st.text(f"{r['行业']}: {r['净额']/1e8:+.1f}亿")
+                    else:
+                        st.markdown("**💰 净流入前三**")
+                        st.caption("无资金流数据")
+
+                # 轮动判断
+                _avg = _d["涨跌幅"].mean()
+                _inflow_cnt = (_d["净额"] > 0).sum() if _d["净额"].notna().any() else 0
+                if _avg > 0.5 and _inflow_cnt > len(_d) * 0.6:
+                    st.info("📈 **偏强轮动**：多数板块上涨且资金净流入，市场情绪偏多，关注领涨主线持续性。")
+                elif _avg < -0.5 and _inflow_cnt < len(_d) * 0.4:
+                    st.warning("📉 **偏弱轮动**：多数板块下跌且资金净流出，注意风险控制，等待企稳信号。")
+                else:
+                    st.caption("⚖️ **震荡分化**：板块涨跌互现、资金方向不一，结构性行情为主，关注个别强势板块机会。")
+
+                st.caption("🔥 热力图：块越大=资金净流入越多，颜色越红=涨幅越大；"
+                           "📊 排行榜：看哪些行业领涨/领跌；"
+                           "🔄 资金轮动：右上象限（价量齐升）是当前主线，资金从绿（净流出）板块流向红（净流入）板块即为轮动。"
+                           "交易时段内本区块每 60 秒自动刷新。")
+            else:
+                st.caption("暂无足够数据生成轮动解读，请稍后刷新或检查数据源连接。")
 
 
 fragment_sectors()
