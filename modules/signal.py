@@ -13,6 +13,10 @@ from .fetcher import StockFetcher, load_config
 from .cleaner import DataCleaner
 from .news import EventMiner, SentimentAnalyzer, KeywordExtractor
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class SignalEngine:
     """事件驱动信号引擎（集成新闻挖掘 + 情感分析）。"""
@@ -410,7 +414,7 @@ class SignalEngine:
             except Exception as e:
                 p_score = 50
                 tp = {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50}
-                print(f"[SignalEngine] 传入行情清洗失败({ticker})，价格信号使用中性分50: {e}")
+                logger.warning(f"[SignalEngine] 传入行情清洗失败({ticker})，价格信号使用中性分50: {e}")
         else:
             end = date or datetime.now().strftime("%Y-%m-%d")
             start = (datetime.strptime(end, "%Y-%m-%d") if date else datetime.now()) - timedelta(days=120)
@@ -426,7 +430,7 @@ class SignalEngine:
                 # 行情数据不可用 → 价格信号给中性分，不影响事件和宏观评分
                 p_score = 50
                 tp = {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50}
-                print(f"[SignalEngine] 行情获取失败({ticker})，价格信号使用中性分50: {e}")
+                logger.warning(f"[SignalEngine] 行情获取失败({ticker})，价格信号使用中性分50: {e}")
 
         e_score = self.event_score(ticker, event_keywords, date)
         m_score = self.macro_score(date)

@@ -19,6 +19,10 @@ from __future__ import annotations
 import datetime as _dt
 import time as _time
 import re
+import logging
+
+logger = logging.getLogger(__name__)
+
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -322,7 +326,7 @@ def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> N
             if (not row.get("name") or row["name"] == row["code"]) and f.get("name"):
                 row["name"] = f["name"]
         elif last_err:
-            print(f"[compare] 基本面获取失败 {row['code']}: {last_err}")
+            logger.warning(f"[compare] 基本面获取失败 {row['code']}: {last_err}")
         # 行业兜底：基于股票名称关键词推断
         if not row.get("industry") and row.get("name") and row["name"] != row["code"]:
             try:
@@ -336,10 +340,10 @@ def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> N
             biz = fetcher.get_core_business(row["code"])
             row["core_business"] = biz if biz else None
         except Exception as e:  # noqa: BLE001
-            print(f"[compare] 核心业务获取失败 {row['code']}: {e}")
+            logger.warning(f"[compare] 核心业务获取失败 {row['code']}: {e}")
             row["core_business"] = None
     except Exception as e:  # noqa: BLE001
-        print(f"[compare] 基本面获取失败 {row['code']}: {e}")
+        logger.warning(f"[compare] 基本面获取失败 {row['code']}: {e}")
 
 
 def _fill_extra_metrics(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> None:

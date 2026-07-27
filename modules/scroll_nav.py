@@ -35,6 +35,10 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 # ===========================================================================
 # CSS -- 双按钮悬浮导航（精准对齐 WorkBuddy 截图 v2）
 # ===========================================================================
@@ -265,4 +269,4 @@ def chat_bottom_anchor():
 
 
 if __name__ == "__main__":
-    print("scroll_nav v2 OK")
+    logger.info("scroll_nav v2 OK")

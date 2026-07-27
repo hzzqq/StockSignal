@@ -12,6 +12,9 @@
 """
 
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 import re
 import time
 import json
@@ -98,7 +101,7 @@ def _fetch_url(url, headers=None, timeout=15, encoding="utf-8"):
                 enc = encoding
             return data.decode(enc, errors="ignore")
     except Exception as e:
-        print(f"[_fetch_url] {url[:60]}... failed: {e}")
+        logger.warning(f"[_fetch_url] {url[:60]}... failed: {e}")
         return None
 
 
@@ -414,7 +417,7 @@ class NewsFetcher:
             df = self._fetch_eastmoney_web(keyword, per_limit)
             if not df.empty:
                 frames.append(df)
-                print(f"[NewsFetcher] 东方财富网页: {len(df)} 条")
+                logger.info(f"[NewsFetcher] 东方财富网页: {len(df)} 条")
         except Exception as e:
             errors.append(f"东方财富网页: {e}")
 
@@ -423,7 +426,7 @@ class NewsFetcher:
             df = self._fetch_caixin(keyword, per_limit)
             if not df.empty:
                 frames.append(df)
-                print(f"[NewsFetcher] 财新数据通: {len(df)} 条")
+                logger.info(f"[NewsFetcher] 财新数据通: {len(df)} 条")
         except Exception as e:
             errors.append(f"财新: {e}")
 
@@ -433,7 +436,7 @@ class NewsFetcher:
                 df = self._fetch_cctv(keyword, per_limit // 2)
                 if not df.empty:
                     frames.append(df)
-                    print(f"[NewsFetcher] 央视新闻: {len(df)} 条")
+                    logger.info(f"[NewsFetcher] 央视新闻: {len(df)} 条")
             except Exception as e:
                 errors.append(f"央视: {e}")
 
@@ -442,7 +445,7 @@ class NewsFetcher:
             combined = combined.drop_duplicates(subset=["title"], keep="first")
             return combined.sort_values("date", ascending=False).head(limit).reset_index(drop=True)
 
-        print(f"[NewsFetcher] 所有源均失败: {errors[-1] if errors else 'unknown'}")
+        logger.error(f"[NewsFetcher] 所有源均失败: {errors[-1] if errors else 'unknown'}")
         return pd.DataFrame(columns=["date", "title", "content", "source", "url"])
 
     # ------------------------------------------------------------------
@@ -548,7 +551,7 @@ class NewsFetcher:
                     })
             return items
         except Exception as e:
-            print(f"[NewsFetcher] 东方财富搜索 API 失败: {e}")
+            logger.warning(f"[NewsFetcher] 东方财富搜索 API 失败: {e}")
             return []
 
     def _fetch_eastmoney_yw(self, keyword=None, limit=50):
@@ -652,7 +655,7 @@ class NewsFetcher:
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
             return df[["date", "title", "content", "source", "url"]].head(limit).dropna(subset=["title"])
         except Exception as e:
-            print(f"[NewsFetcher] 财新抓取失败: {e}")
+            logger.warning(f"[NewsFetcher] 财新抓取失败: {e}")
             return pd.DataFrame(columns=["date", "title", "content", "source", "url"])
 
     # ------------------------------------------------------------------
@@ -697,7 +700,7 @@ class NewsFetcher:
                 if not df.empty:
                     frames.append(df)
             except Exception as e:
-                print(f"[NewsFetcher] {src_name}: {e}")
+                logger.warning(f"[NewsFetcher] {src_name}: {e}")
         if frames:
             combined = pd.concat(frames, ignore_index=True)
             combined = combined.drop_duplicates(subset=["title"], keep="first")
@@ -749,7 +752,7 @@ class NewsFetcher:
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
             return df[["date", "title", "content", "source", "url"]].head(limit).dropna(subset=["title"])
         except Exception as e:
-            print(f"[NewsFetcher] 个股公告抓取失败({code}): {e}")
+            logger.warning(f"[NewsFetcher] 个股公告抓取失败({code}): {e}")
             return pd.DataFrame(columns=["date", "title", "content", "source", "url"])
 
     def fetch_stock_events(self, stock_code=None, stock_name=None, keywords=None, limit=50):
@@ -769,7 +772,7 @@ class NewsFetcher:
                 if not ann_df.empty:
                     frames.append(ann_df)
             except Exception as e:
-                print(f"[NewsFetcher] 公告源失败: {e}")
+                logger.warning(f"[NewsFetcher] 公告源失败: {e}")
 
         # 2) 板块新闻：用股票名称 + 行业关键词搜索
         keyword_parts = []
@@ -789,7 +792,7 @@ class NewsFetcher:
                 if not news_df.empty:
                     frames.append(news_df)
             except Exception as e:
-                print(f"[NewsFetcher] 板块新闻源失败: {e}")
+                logger.warning(f"[NewsFetcher] 板块新闻源失败: {e}")
 
         if not frames:
             return pd.DataFrame(columns=["date", "title", "content", "source", "url"])
@@ -1526,7 +1529,7 @@ class EventMiner:
         # 6. 入库
         if auto_save and not events_df.empty:
             new_cnt, total = self.db.save_news(events_df, keyword)
-            print(f"[EventMiner] 新增 {new_cnt} 条，总计 {total} 条")
+            logger.info(f"[EventMiner] 新增 {new_cnt} 条，总计 {total} 条")
 
             # 同时存到旧 CSV 格式（兼容）
             self._save_events_csv(events_df)

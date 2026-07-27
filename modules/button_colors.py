@@ -21,6 +21,10 @@ StockSignal 按钮配色系统 · 双模（Light / Dark）通用
 
 import html
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import streamlit as st
 
 
@@ -147,5 +151,5 @@ def btn_html(text, kind="primary", icon=None, size="", disabled=False, block=Fal
 
 
 if __name__ == "__main__":
-    print("button_colors OK")
-    print(f"Palette: {list(BUTTON_PALETTE.keys())}")
+    logger.info("button_colors OK")
+    logger.info(f"Palette: {list(BUTTON_PALETTE.keys())}")

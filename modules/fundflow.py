@@ -8,7 +8,7 @@
 - 显式配置 STOCKSIGNAL_PROXY -> 无条件使用该代理（部署机有代理时）。
 - 否则探测默认本地代理 127.0.0.1:26561 是否可达：可达则用，不可达则清空遗留的
   本地代理变量、改走直连（避免把请求指向一个没监听的代理导致全挂）。
-- 始终关闭 requests 证书校验（verify=False），兼容数据源自签证书。
+- 证书校验默认恢复（安全红线）；仅当 STOCKSIGNAL_SSL_BYPASS=1（本机代理做 TLS 拦截的开发环境）才临时关闭 requests 的 verify。
 
 已验证可用接口（直连或代理下）：
 - stock_fund_flow_industry       板块/行业资金流向
@@ -22,6 +22,10 @@ import time
 import functools
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 import pandas as pd
 
@@ -77,16 +81,23 @@ def _ensure_proxy_and_ssl():
             if "127.0.0.1:26561" in val or "localhost:26561" in val:
                 os.environ.pop(key, None)
 
-    import urllib3
-    import requests
-    urllib3.disable_warnings()
-    _orig = requests.Session.request
+    # 证书校验：默认恢复（安全红线）。
+    # 仅当 STOCKSIGNAL_SSL_BYPASS=1（本机代理做 TLS 拦截的开发环境）才临时关闭。
+    if os.environ.get("STOCKSIGNAL_SSL_BYPASS") == "1":
+        import urllib3
+        import requests
+        urllib3.disable_warnings()
+        _orig = requests.Session.request
 
-    def _patched(self, *a, **k):
-        k.setdefault("verify", False)
-        return _orig(self, *a, **k)
+        def _patched(self, *a, **k):
+            k.setdefault("verify", False)
+            return _orig(self, *a, **k)
 
-    requests.Session.request = _patched
+        requests.Session.request = _patched
+        logger.warning(
+            "fundflow: SSL 校验已按 STOCKSIGNAL_SSL_BYPASS=1 临时关闭"
+            "（仅用于本机代理 TLS 拦截环境）"
+        )
     _patch_done = True
 
 

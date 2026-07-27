@@ -12,6 +12,10 @@ from .fetcher import StockFetcher
 from .cleaner import DataCleaner
 from .signal import SignalEngine
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class Backtester:
     """策略回测器。"""
@@ -45,7 +49,7 @@ class Backtester:
         :param stamp_tax_pct: 印花税比例（默认 0.1%，仅卖出）
         :return: BacktestResult 对象
         """
-        valid_strategies = {"event_driven", "ma_cross", "multi_factor"}
+        valid_strategies = {"event_driven", "ma_cross", "multi_factor", "dual_trend"}
         if strategy not in valid_strategies:
             raise ValueError(f"不支持的策略: {strategy}，可选: {valid_strategies}")
 
@@ -63,6 +67,8 @@ class Backtester:
             signals = self._ma_cross_signals(df)
         elif strategy == "multi_factor":
             signals = self._multi_factor_signals(df)
+        elif strategy == "dual_trend":
+            signals = self._dual_trend_signals(df)
 
         result_df, trades = self._simulate(
             df, signals, initial_capital, commission,
@@ -311,6 +317,99 @@ class Backtester:
                 signals.append(1)
             elif sell:
                 signals.append(-1)
+            else:
+                signals.append(0)
+        return signals
+
+    # ------------------------------------------------------------------
+    # 双趋势共振策略（GMMA + 一目均衡 + ADX）
+    # 移植自 stockanalysispro 双趋势量化选股系统，适配回测信号格式。
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _adx(df, period=14):
+        """Wilder ADX：衡量趋势强度（>20 有趋势，>40 强趋势）。"""
+        tr1 = df["high"] - df["low"]
+        tr2 = (df["high"] - df["close"].shift(1)).abs()
+        tr3 = (df["low"] - df["close"].shift(1)).abs()
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr = tr.ewm(alpha=1 / period).mean()
+
+        plus_dm = df["high"].diff()
+        minus_dm = -df["low"].diff()
+        plus_dm = plus_dm.where(plus_dm > 0, 0.0)
+        minus_dm = minus_dm.where(minus_dm > 0, 0.0)
+        cond = plus_dm > minus_dm
+        plus_dm = plus_dm.where(cond, 0.0)
+        minus_dm = minus_dm.where(~cond, 0.0)
+
+        plus_di = 100 * (plus_dm.ewm(alpha=1 / period).mean() / atr)
+        minus_di = 100 * (minus_dm.ewm(alpha=1 / period).mean() / atr)
+        denom = (plus_di + minus_di).replace(0, np.nan)
+        dx = 100 * (plus_di - minus_di).abs() / denom
+        return dx.ewm(alpha=1 / period).mean()
+
+    def _dual_trend_signals(self, df):
+        """
+        双趋势共振策略（GMMA + 一目均衡表 + ADX 趋势过滤）。
+
+        核心思想：两套独立的趋势系统同时看多才入场（共振），任一走坏即离场。
+        与多因子策略互补——它是纯趋势跟踪，不看 RSI，天然覆盖长电科技类
+        「长期超买的强势上涨股」：只要 GMMA 多头排列不破坏，就一路持有。
+
+        入场（全部满足）：
+        - GMMA 多头：EMA15 > EMA30 且短期组均值 > 长期组均值（顾比均线多头排列）
+        - 一目均衡看多：价格在云层上方，或（云未形成时）转换线 > 基准线
+        - ADX >= 20：确认有趋势（拒绝震荡市假信号）
+        出场（满足其一）：
+        - GMMA 转空：EMA15 < EMA30（趋势主结构破坏）
+        - 收盘价跌破基准线 kijun（一目均衡的中期防线）
+        """
+        d = df.copy()
+        # ── GMMA 顾比均线（短期组 3-15 / 长期组 30-60）──
+        gmma_s = [3, 5, 8, 10, 12, 15]
+        gmma_l = [30, 35, 40, 45, 50, 60]
+        for p in gmma_s + gmma_l:
+            d[f"ema_{p}"] = d["close"].ewm(span=p, adjust=False).mean()
+        d["gmma_s_avg"] = d[[f"ema_{p}" for p in gmma_s]].mean(axis=1)
+        d["gmma_l_avg"] = d[[f"ema_{p}" for p in gmma_l]].mean(axis=1)
+        d["gmma_bull"] = (d["ema_15"] > d["ema_30"]) & (d["gmma_s_avg"] > d["gmma_l_avg"])
+
+        # ── 一目均衡表 ──
+        d["tenkan"] = (d["high"].rolling(9).max() + d["low"].rolling(9).min()) / 2
+        d["kijun"] = (d["high"].rolling(26).max() + d["low"].rolling(26).min()) / 2
+        d["senkou_a"] = ((d["tenkan"] + d["kijun"]) / 2).shift(26)
+        d["senkou_b"] = ((d["high"].rolling(52).max() + d["low"].rolling(52).min()) / 2).shift(26)
+        d["cloud_top"] = d[["senkou_a", "senkou_b"]].max(axis=1)
+        d["tk_bull"] = d["tenkan"] > d["kijun"]
+
+        # ── ADX 趋势强度 ──
+        d["adx"] = self._adx(d)
+
+        signals = []
+        in_bull = False
+        for i in range(len(d)):
+            curr = d.iloc[i]
+            # 预热期：GMMA 长期组需要 30 根、一目基准线需要 26 根
+            if i < 30 or pd.isna(curr["kijun"]) or pd.isna(curr["adx"]):
+                signals.append(0)
+                continue
+
+            # 一目看多：云已形成看云，云未形成（短区间）退化为 TK 多头
+            if not pd.isna(curr["cloud_top"]):
+                ichimoku_bull = curr["close"] > curr["cloud_top"] or (
+                    bool(curr["tk_bull"]) and curr["close"] > curr["kijun"])
+            else:
+                ichimoku_bull = bool(curr["tk_bull"])
+
+            entry = bool(curr["gmma_bull"]) and ichimoku_bull and curr["adx"] >= 20
+            exit_ = (not bool(curr["gmma_bull"])) or curr["close"] < curr["kijun"]
+
+            if not in_bull and entry:
+                signals.append(1)
+                in_bull = True
+            elif in_bull and exit_:
+                signals.append(-1)
+                in_bull = False
             else:
                 signals.append(0)
         return signals
@@ -797,7 +896,7 @@ class Backtester:
 
         # 并行获取股票数据并评分
         all_scores = []
-        print(f"[DailyPicker] 开始获取 {len(codes)} 只股票数据...")
+        logger.info(f"[DailyPicker] 开始获取 {len(codes)} 只股票数据...")
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(self._fetch_single_for_picker, code, fetch_start, fetch_end): code
@@ -807,7 +906,7 @@ class Backtester:
                 res = future.result()
                 if res is not None:
                     all_scores.append(res)
-        print(f"[DailyPicker] 成功评分 {len(all_scores)} 只股票")
+        logger.info(f"[DailyPicker] 成功评分 {len(all_scores)} 只股票")
 
         if not all_scores:
             raise RuntimeError("没有股票能通过评分过滤，请检查数据获取是否正常。")

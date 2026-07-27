@@ -23,6 +23,10 @@ StockSignal 暗夜模式 · 全量文本可见性修复
 
 import streamlit as st
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # ===========================================================================
 # ★ 纯函数 HTML 转义（无 streamlit 依赖，可在测试中离线调用）
@@ -374,6 +378,6 @@ def apply_plotly_theme(fig, dark=False):
 
 
 if __name__ == "__main__":
-    print("dark_text_fix OK")
-    print(f"Text layers: {list(TEXT_PALETTE.keys())}")
-    print(f"Emphasis types: {list(EMPHASIS_COLORS.keys())}")
+    logger.info("dark_text_fix OK")
+    logger.info(f"Text layers: {list(TEXT_PALETTE.keys())}")
+    logger.info(f"Emphasis types: {list(EMPHASIS_COLORS.keys())}")

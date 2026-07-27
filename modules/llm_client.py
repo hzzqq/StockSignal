@@ -16,6 +16,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import logging
+
+logger = logging.getLogger(__name__)
+
 import time
 from typing import Dict, List, Optional, Tuple
 
@@ -152,7 +156,7 @@ def chat_completion(
         client = openai.OpenAI(base_url=base_url, api_key=api_key, timeout=per_timeout)
     except Exception as e:
         _set_last_err(f"LLM client init failed: {e}")
-        print(f"[llm_client] LLM client init failed: {e}")
+        logger.warning(f"[llm_client] LLM client init failed: {e}")
         return None
 
     for model in chain:
@@ -181,7 +185,7 @@ def chat_completion(
             _set_last_err(last_err)
             # 限流/超时/端点错误 -> 尝试下一个回退模型
             continue
-    print(f"[llm_client] all models failed: {last_err}")
+    logger.warning(f"[llm_client] all models failed: {last_err}")
     return None
 
 

@@ -11,6 +11,10 @@ patch `requests`，其中行情看板 `_load_lhb` 曾把模块级 `requests.get`
 Session 的请求），避免全局污染。所有需要临时关闭 SSL 校验的地方都应改用它。
 """
 import contextlib
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @contextlib.contextmanager
@@ -29,6 +33,11 @@ def ssl_bypass():
     import urllib3
     import requests
 
+    if os.environ.get("STOCKSIGNAL_SSL_BYPASS") != "1":
+        # 默认恢复 TLS 校验（安全红线）：不 patch requests，直接放行
+        yield
+        return
+    logger.warning("SSL 校验已按 STOCKSIGNAL_SSL_BYPASS=1 临时关闭（仅用于本机代理 TLS 拦截环境）")
     urllib3.disable_warnings()
     _orig = requests.Session.request
 

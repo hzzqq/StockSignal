@@ -15,6 +15,10 @@ import time as _time
 from threading import Lock as _Lock
 from concurrent.futures import ThreadPoolExecutor
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import (
     require_auth, render_user_badge,
@@ -575,7 +579,7 @@ def fragment_alerts():
                 ).replace("MSG", json.dumps(_noti_body))
                 components.html(_js, height=0, scrolling=False)
             except Exception as _e:
-                print(f"[alerts] 浏览器通知注入失败: {_e}")
+                logger.warning(f"[alerts] 浏览器通知注入失败: {_e}")
 
         st.caption("提示：触发检测在页面访问时于前端执行（价格实时比价、形态/量比扫描日线、公告检索新闻）。"
                    "如需持续监控，可在本页保持打开或定时刷新。")

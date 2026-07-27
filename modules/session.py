@@ -25,6 +25,9 @@ Streamlit 跨页面 / 跨刷新持久化登录态。
 
 from __future__ import annotations
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 import json
 import time
 import jwt
@@ -99,7 +102,7 @@ def init_session_state() -> None:
             from .prefs_persist import restore_prefs_from_local_storage
             restore_prefs_from_local_storage()
         except Exception as e:
-            print(f"[session] restore_prefs error: {e}")
+            logger.warning(f"[session] restore_prefs error: {e}")
     _sync_prefs_query_params()
 
     # 记录当前页面作用域（供「个股分析」强制暗色等按页面生效的逻辑使用，
@@ -149,9 +152,9 @@ def _restore_from_query_params() -> None:
             _clear_query_params()
         else:
             # None = 网络/服务端瞬态错误：保留现有 token 与登录态，后端恢复后自动恢复
-            print("[session] token 校验网络异常，保留现有登录态，待后端恢复")
+            logger.warning("[session] token 校验网络异常，保留现有登录态，待后端恢复")
     except Exception as e:
-        print(f"[session] _restore_from_query_params error: {e}")
+        logger.warning(f"[session] _restore_from_query_params error: {e}")
 
 
 def _sync_query_params() -> None:
@@ -177,7 +180,7 @@ def _sync_query_params() -> None:
             if qp.get(QP_USER) != u_str:
                 qp[QP_USER] = u_str
     except Exception as e:
-        print(f"[session] _sync_query_params error: {e}")
+        logger.warning(f"[session] _sync_query_params error: {e}")
 
 
 def safe_switch_page(page: str, **kwargs) -> None:
@@ -275,13 +278,13 @@ def set_auth(token: str, user: dict) -> None:
         st.query_params[QP_TOKEN] = token
         st.query_params[QP_USER] = json.dumps(user, ensure_ascii=False)
     except Exception as e:
-        print(f"[session] set_auth query_params error: {e}")
+        logger.warning(f"[session] set_auth query_params error: {e}")
     # 双保险：写入浏览器 localStorage，F5 整页刷新后也能自动恢复
     try:
         from .auth_persist import save_to_local_storage
         save_to_local_storage(token, user)
     except Exception as e:
-        print(f"[session] set_auth localStorage error: {e}")
+        logger.warning(f"[session] set_auth localStorage error: {e}")
 
 
 def clear_auth() -> None:
@@ -293,7 +296,7 @@ def clear_auth() -> None:
         from .auth_persist import clear_local_storage
         clear_local_storage()
     except Exception as e:
-        print(f"[session] clear_auth localStorage error: {e}")
+        logger.warning(f"[session] clear_auth localStorage error: {e}")
 
 
 def _clear_query_params() -> None:
@@ -303,7 +306,7 @@ def _clear_query_params() -> None:
             if k in qp:
                 del qp[k]
     except Exception as e:
-        print(f"[session] _clear_query_params error: {e}")
+        logger.warning(f"[session] _clear_query_params error: {e}")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -337,7 +340,7 @@ def _sync_prefs_query_params() -> None:
         if cur != new:
             st.query_params[QP_PREFS] = new
     except Exception as e:
-        print(f"[session] _sync_prefs_query_params error: {e}")
+        logger.warning(f"[session] _sync_prefs_query_params error: {e}")
 
 
 def _apply_user_settings(user: dict | None) -> None:
@@ -404,7 +407,7 @@ def persist_prefs() -> None:
         from .prefs_persist import save_prefs
         save_prefs(_current_prefs())
     except Exception as e:
-        print(f"[session] persist_prefs localStorage error: {e}")
+        logger.warning(f"[session] persist_prefs localStorage error: {e}")
     _sync_prefs_query_params()
     # 按账号持久化到后端（换设备/清缓存也不丢）；失败静默忽略
     if is_authenticated():
