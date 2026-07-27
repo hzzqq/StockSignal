@@ -1,4 +1,4 @@
-# 交接文档：StockSignal 自主迭代与知识交接 · 2026-07-26（更新）
+# 交接文档：StockSignal 自主迭代与知识交接 · 2026-07-27（更新）
 
 > 本文件由 WorkBuddy「小帮手」在自主迭代（self-driving-dev）周期中持续维护，用于跨会话 / 跨环境续跑。
 > 新会话在 WorkBuddy 说「继续 StockSignal 的自主迭代」即可接手；本文件所在仓库即 `D:\project\ks\StockSignal`。
@@ -18,7 +18,7 @@ StockSignal 是 A 股事件驱动投资分析平台（Streamlit 前端 8501 + Fl
 - **红涨绿跌**：A 股约定（全局 UP 红 / DOWN 绿）；个股对比等少数语义场景另有说明，勿混淆。
 - **测试隔离铁律（本次新立）**：pytest 进程内 `sys.modules` 全局共享，**任何测试不得在模块顶层把真实包（如 `modules`）覆盖为 stub，也不得注入残缺的 `streamlit` 桩**。根目录 `conftest.py` 已在收集前把**真实 streamlit** 常驻 `sys.modules`（venv 已装 1.59.2，API 完整）。需要桩页面的测试（如 `test_msg_title.py`）必须在**临时命名空间**内桩入、导入后恢复，**严禁污染全局**。
 
-## 3. 已完成工作（自主迭代 Round 3 + Round 4，截至 cycle 55）
+## 3. 已完成工作（自主迭代 Round 3 + Round 4，截至 cycle 55，**已全部推送至 GitHub**）
 
 ### Round 3 — cycle 21–40（20 轮，已提交本地，HEAD=144e603）
 纯逻辑加固与崩溃根因治理，新增/补全白盒测试约 140 项，全量 pytest 达 **1223 passed / 0 failed**。
@@ -42,14 +42,15 @@ StockSignal 是 A 股事件驱动投资分析平台（Streamlit 前端 8501 + Fl
 | `py_compile` 全量 | 通过 |
 | `python -m backend.tests.test_security` | 12 / 12 通过 |
 | `pytest tests/test_backend_imports.py` | 74 / 74 通过 |
-| `pytest tests/`（全量） | 通过（0 collection error，0 failed） |
+| `pytest tests/`（全量） | **1293 passed / 0 failed / 0 error**（0 collection error） |
 | Round 4 新增测试 | Batch A/B/C 共约 110+ 项，全部通过 |
 
 ## 5. Git 与推送状态
-- 仓库根：`D:\project\ks\StockSignal`；默认分支 `main`。
-- **尚未推送的本地提交**：Round 3（cycle 21–40，20 commit，HEAD=144e603）→ Round 4（cycle 41–55，含 Batch A/B/C 与测试污染修复，共 15 commit）。
-- **推送方式**：GitHub 连接器当前 `connected`，直接用系统 git（`D:\Git\cmd\git.exe`）即可 `fetch`/`push`，无需 PAT。推送前先 `fetch` 并对齐远端分叉（若本地领先则 `git rebase origin/main` 再推）。
-- **本次动作**：用户要求「更新交接文档，传到 GitHub」——已将交接文档移入仓库内（本文件），连同 Round 4 全部已完成工作一并推送。
+- 仓库根：`D:\project\ks\StockSignal`；默认分支 `main`，已与 `origin/main` 对齐（ahead=0 / behind=0）。
+- **已全部推送至 GitHub**（2026-07-27 确认，`origin/main`=HEAD=`4eecfff`）：Round 3（cycle 21–40，20 commit）+ Round 4（cycle 41–55，含 Batch A/B/C 与测试污染修复、本交接文档移入仓库，共 17 commit），累计 37 commit 已上 `origin/main`。
+- **推送方式**：系统 git（`D:\Git\cmd\git.exe`）。若该环境凭据缓存失效报 `could not read Username`，则需用户临时提供 GitHub PAT（内联 credential helper，token 不落盘、不进 git config）。连接器 `connected` 仅代表可读，不代表可写。
+- **上次动作**：用户要求「更新交接文档，传到 GitHub」——交接文档已移入仓库并随 Round 4 工作一并推送（即 `4eecfff` 那次提交）。
+- **本次更新（2026-07-27）**：修正文档“尚未推送”为“已推送”，补全验证门禁精确数字（全量 `pytest` = **1293 passed**），并明确标注 Round 4 还剩 cycle 56–60 未做。本文件改动将作为新提交推送。
 
 ## 6. 待办与下一步
 - [ ] **Round 4 还有 cycle 56–60 未做**（用户本次仅要求更新交接 + 推送，未要求继续迭代）。可继续：`self-driving-dev` 再跑 5 轮，候选方向见 `state.json` 的 `coverage` 缺口（如 `auth_persist`/`background_tasks`/`fundflow`/`prefs_persist`/`scroll_nav`/`starfield_theme`/`ui_theme`、后端 `services/alert_service`/`task_service`、`tasks/scheduler`、未覆盖页面如 `P_市场情绪.py` 等）。
