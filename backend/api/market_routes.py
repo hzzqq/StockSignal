@@ -25,6 +25,7 @@ from flask import Blueprint, request
 
 from ..auth.decorators import jwt_required
 from ..utils.response import ok, fail
+from ..utils.params import parse_str_param
 
 # 确保项目根（StockSignal）在 sys.path，便于 `from modules.fetcher import StockFetcher`
 _PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
@@ -68,7 +69,7 @@ def quote():
     GET /api/quote?ticker=600519
     实时五档行情。ticker 须为 6 位数字。
     """
-    ticker = (request.args.get("ticker") or "").strip()
+    ticker = parse_str_param("ticker", max_len=16)
     if not _TICKER_RE.match(ticker):
         return fail(message="参数无效", code="invalid_param", http_status=400)
 
@@ -89,7 +90,7 @@ def kline():
     GET /api/kline?symbol=600519&start=2024-01-01&end=2026-07-09&period=daily&adjust=qfq
     历史 K 线（日/周/月）。symbol 须为 6 位数字；period 默认 daily；其余参数透传。
     """
-    symbol = (request.args.get("symbol") or "").strip()
+    symbol = parse_str_param("symbol", max_len=16)
     if not _TICKER_RE.match(symbol):
         return fail(message="参数无效", code="invalid_param", http_status=400)
 
@@ -125,7 +126,7 @@ def intraday():
     个股分时数据（新浪分钟 K 线）。symbol 须为 6 位数字；date 可选（默认最近交易日）。
     返回 ok(data={"records": [...], "prev_close": float, "trade_date": str})。
     """
-    symbol = (request.args.get("symbol") or "").strip()
+    symbol = parse_str_param("symbol", max_len=16)
     if not _TICKER_RE.match(symbol):
         return fail(message="参数无效", code="invalid_param", http_status=400)
     trade_date = (request.args.get("date") or None)

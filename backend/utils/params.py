@@ -31,3 +31,18 @@ def parse_int_param(name, default=0, lo=None, hi=None, source=None):
     if hi is not None:
         v = min(hi, v)
     return v
+
+
+def parse_str_param(name, default="", max_len=128, source=None):
+    """
+    安全解析一个字符串查询/表单参数，统一做 strip + 长度钳制。
+
+    防止超长字符串（恶意/误用）直接透传到下游 akshare / DB 查询，
+    导致资源占用或日志刷屏。缺失 / 非字符串 -> 返回 default。
+    """
+    if source is None:
+        source = request.args
+    raw = source.get(name)
+    if not isinstance(raw, str):
+        return default
+    return raw.strip()[:max_len]

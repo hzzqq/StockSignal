@@ -11,7 +11,7 @@ from ..extensions import db
 from ..models import User, OperationLog
 from ..utils.response import ok
 from ..utils.errors import ValidationError, NotFoundError, ConflictError
-from ..utils.params import parse_int_param
+from ..utils.params import parse_int_param, parse_str_param
 import re
 
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -40,7 +40,7 @@ def list_users():
     """GET /api/admin/users?page=1&per_page=50&keyword=adm"""
     page = parse_int_param("page", default=1)
     per_page = parse_int_param("per_page", default=50, hi=200)
-    keyword = request.args.get("keyword", "").strip()
+    keyword = parse_str_param("keyword", max_len=64)
 
     stmt = select(User).order_by(User.id.asc())
     if keyword:
