@@ -22,6 +22,10 @@ from __future__ import annotations
 import json
 
 import streamlit.components.v1 as components
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 _LS_PREFS = "ss_prefs"
 QP_PREFS = "prefs"
@@ -40,7 +44,8 @@ def save_prefs(prefs: dict) -> None:
         </script>
         """
         components.html(script, height=0)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[prefs_persist] 处理异常: {e}")
         pass
 
 
@@ -66,7 +71,8 @@ def restore_prefs_from_local_storage() -> None:
         </script>
         """
         components.html(script, height=0)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[prefs_persist] 处理异常: {e}")
         pass
 
 

@@ -25,6 +25,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 # 分析结果 TTL 缓存：避免重复抓取行情/新闻，显著提速（默认 90 秒）
 import time as _time
+import logging
+
+logger = logging.getLogger(__name__)
+
 _ANALYSIS_CACHE: Dict[str, Any] = {}
 _ANALYSIS_TTL = 90.0
 
@@ -151,7 +155,8 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | Non
                         cleaned = c_cleaned
                         use_concept = True
                         out["board_type"] = "概念"
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[analysis_engine] 处理异常: {e}")
                 pass
         if sec.empty:
             return out
@@ -218,10 +223,12 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | Non
                                     }
                                     for p in peers.iloc[:rank - 1].head(5).to_dict("records")
                                 ]
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[analysis_engine] 处理异常: {e}")
                 # 成分股获取失败不阻塞主板块分析返回
                 pass
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[analysis_engine] 处理异常: {e}")
         pass
     return out
 

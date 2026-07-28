@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import pandas as pd
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 
 def _to_num(v):
@@ -21,7 +25,8 @@ def _to_num(v):
             return None
         try:
             return float(s)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundamental_helpers] 处理异常: {e}")
             return None
     return None
 
@@ -134,7 +139,8 @@ def _fmt_fin_value(v, metric: str) -> str:
     cfg = _FINANCIAL_METRICS.get(metric, {})
     try:
         return cfg.get("fmt", "{:.2f}").format(float(v))
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundamental_helpers] 处理异常: {e}")
         return str(v)
 
 def _fmt_fin_yoy(v, metric: str) -> str:
@@ -143,7 +149,8 @@ def _fmt_fin_yoy(v, metric: str) -> str:
     cfg = _FINANCIAL_METRICS.get(metric, {})
     try:
         return cfg.get("yoy_fmt", "{:+.2f}%").format(float(v))
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundamental_helpers] 处理异常: {e}")
         return str(v)
 
 def _fmt_fin_qoq(v, metric: str) -> str:
@@ -152,7 +159,8 @@ def _fmt_fin_qoq(v, metric: str) -> str:
     cfg = _FINANCIAL_METRICS.get(metric, {})
     try:
         return cfg.get("qoq_fmt", "{:+.2f}%").format(float(v))
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundamental_helpers] 处理异常: {e}")
         return str(v)
 
 def _to_float(x):
@@ -160,7 +168,8 @@ def _to_float(x):
         if x in (None, "", "—") or pd.isna(x):
             return None
         return float(x)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundamental_helpers] 处理异常: {e}")
         return None
 
 def _percentile(series: pd.Series, value: float) -> float | None:
@@ -586,7 +595,8 @@ def calc_alr(code: str, fetcher) -> float | None:
                     lv = vals[-1]
         if av is not None and not pd.isna(av) and lv is not None and not pd.isna(lv) and av != 0:
             return round(lv / av * 100, 2)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundamental_helpers] 处理异常: {e}")
         return None
     return None
 
@@ -598,11 +608,12 @@ def fund_one(code: str, fetcher) -> tuple:
         f = fetcher.get_fundamentals(code)
         if isinstance(f, dict):
             pe = f.get("pe_ttm")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundamental_helpers] 处理异常: {e}")
         pe = None
     try:
         alr = calc_alr(code, fetcher)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundamental_helpers] 处理异常: {e}")
         alr = None
     return code, pe, alr
-

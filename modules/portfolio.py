@@ -10,6 +10,10 @@ import pandas as pd
 
 from .fetcher import StockFetcher, load_config
 from .format_helpers import to_float, safe_pct
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 
 # ----------------------------------------------------------------------
@@ -137,7 +141,8 @@ class PortfolioManager:
         if name is None:
             try:
                 name = self.fetcher.get_stock_name(ticker) or ticker
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[portfolio] 处理异常: {e}")
                 name = ticker
         price = to_float(buy_price)
         shares_n = to_float(shares)
@@ -283,7 +288,8 @@ class PortfolioManager:
                     end=datetime.now().strftime("%Y-%m-%d")
                 )
                 current_price = float(daily.iloc[-1]["close"]) if not daily.empty else float(row["buy_price"])
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[portfolio] 处理异常: {e}")
                 current_price = float(row["buy_price"])
 
             # 行情接口可能返回 NaN / inf，落入则静默污染盈亏；兜底回退到买入价
