@@ -1,0 +1,34 @@
+[tool.ruff]
+# 基线 lint 配置（渐进式引入，不强制全量通过）
+line-length = 120
+target-version = "py313"
+exclude = [
+    ".git",
+    "__pycache__",
+    "venv",
+    ".venv",
+    "backend/data",
+    "tests",
+    "quantagent",
+    "scripts",
+]
+
+[tool.ruff.lint]
+# F=pyflakes(未用/未定义), E=pycodestyle, I=isort, B=safe IO
+select = ["F", "E", "I", "B", "UP"]
+ignore = ["E501", "E402", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"modules/quantagent/*" = ["F", "E", "I"]
+"pages/*" = ["E402"]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+follow_imports = "silent"
+exclude = ["tests/", "quantagent/", "scripts/", "venv/"]
+
+# 仅检查核心模块，避免第三方库(A股数据/plotly)类型缺失刷屏
+[[tool.mypy.overrides]]
+module = ["akshare.*", "baostock.*", "tushare.*", "plotly.*", "streamlit.*", "jieba.*", "snownlp.*"]
+ignore_errors = true
