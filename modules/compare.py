@@ -203,7 +203,9 @@ def _build_row(fetcher: Optional[StockFetcher], code: str, period_days: int) -> 
         recent = df.tail(60)
         row["support"] = float(recent["low"].min())
         row["resistance"] = float(recent["high"].max())
-    except Exception as e:  # 行情不可用 → 中性默认，不影响整体渲染
+    except Exception as e:
+        logger.warning(f"[compare] 处理异常: {e}")
+        # 行情不可用 → 中性默认，不影响整体渲染
         row["error"] = str(e)
         row["df"] = None
         row["asof"] = end
@@ -1564,4 +1566,3 @@ def build_aggregate_card(rows: List[Dict[str, Any]],
   综合研判时建议结合多维度信号、控制好仓位，并关注组内集体异动风险。</div>
 </div>
 """
-

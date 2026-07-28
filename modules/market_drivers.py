@@ -157,7 +157,8 @@ def _col(df, *keys):
 def _pdate(x):
     try:
         return pd.to_datetime(x, errors="coerce")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[market_drivers] 处理异常: {e}")
         return pd.NaT
 
 

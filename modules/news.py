@@ -65,7 +65,8 @@ def _retry_request(func, max_retries=3, base_delay=2):
                 raise
             delay = base_delay * (2 ** (attempt - 1))
             time.sleep(delay)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[news] 处理异常: {e}")
             raise
     raise last_err
 
@@ -683,7 +684,8 @@ class NewsFetcher:
                         df["content"].apply(lambda x: any(k in str(x) for k in kws))
                     ]
             return df[["date", "title", "content", "source", "url"]].head(limit).dropna(subset=["date"])
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[news] 处理异常: {e}")
             return pd.DataFrame(columns=["date", "title", "content", "source", "url"])
 
     def fetch_all(self, keyword=None, limit_per_source=30):

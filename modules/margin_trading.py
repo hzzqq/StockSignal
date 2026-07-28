@@ -166,7 +166,8 @@ def get_margin_trading_data(days=180):
                 ts = time.perf_counter()
                 try:
                     results[key] = fut.result()
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[margin_trading] 处理异常: {e}")
                     results[key] = pd.DataFrame()
                 per_src[key] = time.perf_counter() - ts
         logger.info(
@@ -258,7 +259,8 @@ def _safe_delta_yi(cur, prev):
     try:
         va = safe_yuan_to_yi(cur)
         vb = safe_yuan_to_yi(prev)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[margin_trading] 处理异常: {e}")
         return 0.0
     if va is None or vb is None:
         return 0.0
@@ -378,7 +380,8 @@ def plot_margin_trend(df, dark_mode=False, metric="rzmr", show_extra=True):
                         hovertemplate="%{x}<br>北向净流入：%{y:.2f}亿<extra></extra>",
                         yaxis="y",
                     ))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[margin_trading] 处理异常: {e}")
             pass
         # 融资余额：万亿级，仅 metric=rzmr 时独立右轴 y3（避免与指数 y2 抢位 / 与买入额 y1 压扁）
         if metric == "rzmr" and "total_rzye" in df.columns:
@@ -467,14 +470,16 @@ def _fetch_margin_detail(date_str: str):
         df_sh = ak.stock_margin_detail_sse(date=date_str)
         if df_sh is not None and not df_sh.empty:
             frames.append(df_sh)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[margin_trading] 处理异常: {e}")
         pass
     # 深市明细
     try:
         df_sz = ak.stock_margin_detail_szse(date=date_str)
         if df_sz is not None and not df_sz.empty:
             frames.append(df_sz)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[margin_trading] 处理异常: {e}")
         pass
     if not frames:
         return None
@@ -500,7 +505,8 @@ def get_stock_margin_buy(code: str, days_back: int = 7):
             ds = d.strftime("%Y%m%d")
             try:
                 df = _cached(3600, f"margin_detail_{ds}", lambda: _fetch_margin_detail(ds))
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[margin_trading] 处理异常: {e}")
                 df = None
             if df is None or df.empty:
                 continue
@@ -514,7 +520,8 @@ def get_stock_margin_buy(code: str, days_back: int = 7):
                 continue
             try:
                 rzmr = float(pd.to_numeric(sub.iloc[0][buy_col], errors="coerce"))
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[margin_trading] 处理异常: {e}")
                 continue
             if pd.isna(rzmr):
                 continue
@@ -523,5 +530,6 @@ def get_stock_margin_buy(code: str, days_back: int = 7):
 
     try:
         return _cached(1800, f"stock_margin_buy_{code}", _fn)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[margin_trading] 处理异常: {e}")
         return None

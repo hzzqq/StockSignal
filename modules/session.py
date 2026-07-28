@@ -52,7 +52,8 @@ def trading_autorefresh(interval_ms: int = 60000, key: str = "auto_refresh"):
     """
     try:
         from streamlit_autorefresh import st_autorefresh
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[session] 处理异常: {e}")
         return
     from modules.page_widgets import is_trading_now
     if not is_trading_now():
@@ -137,7 +138,8 @@ def _restore_from_query_params() -> None:
         if raw_user:
             try:
                 user = json.loads(raw_user)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[session] 处理异常: {e}")
                 user = None
 
         # 兜底：URL 无 user 或解析失败 → 校验 token 取回
@@ -263,7 +265,8 @@ def _verify_token(token: str):
             return _TOKEN_INVALID
         # 5xx / 其他状态码：服务端瞬态，保留登录态
         return None
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[session] 处理异常: {e}")
         # 网络错误/超时：无法判定，保留现有登录态，不踢出（修复刷新时后端抖动被误踢）
         return None
 
@@ -475,7 +478,8 @@ def _logo_base64() -> str:
         logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "icon-256.png")
         with open(logo_path, "rb") as f:
             return f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[session] 处理异常: {e}")
         return ""
 
 
@@ -758,7 +762,8 @@ def api_intraday(symbol: str, trade_date: str | None = None, timeout: int = 5) -
 def _safe_json(resp) -> dict:
     try:
         return resp.json()
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[session] 处理异常: {e}")
         return {"message": f"非 JSON 响应 (HTTP {resp.status_code})"}
 
 
@@ -924,7 +929,8 @@ def _parse_iso(ts):
         logger.warning(f"[session] parse_ts 失败: {e}")
         try:
             dt = datetime.fromisoformat(str(ts).replace("Z", ""))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[session] 处理异常: {e}")
             return None
     # 丢弃时区，统一按朴素时间比较
     return dt.replace(tzinfo=None)

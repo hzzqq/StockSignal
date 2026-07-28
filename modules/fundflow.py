@@ -46,7 +46,8 @@ def _proxy_reachable(proxy_url, timeout=2.0):
         port = parsed.port or 80
         with socket.create_connection((host, port), timeout=timeout):
             return True
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundflow] 处理异常: {e}")
         return False
 
 
@@ -210,7 +211,8 @@ def get_northbound_history():
         import akshare as ak
         try:
             df = ak.stock_hsgt_hist_em(symbol="北向资金")
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundflow] 处理异常: {e}")
             return {}
         if df is None or df.empty:
             return {}
@@ -223,7 +225,8 @@ def get_northbound_history():
                     res["last_net_buy"] = float(s[idx])
                     d = df.loc[idx, "日期"]
                     res["last_net_buy_date"] = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundflow] 处理异常: {e}")
             pass
         try:
             if "历史累计净买额" in df.columns:
@@ -233,7 +236,8 @@ def get_northbound_history():
                     res["cumulative"] = float(s2[idx2])
                     d2 = df.loc[idx2, "日期"]
                     res["cumulative_date"] = d2.strftime("%Y-%m-%d") if hasattr(d2, "strftime") else str(d2)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundflow] 处理异常: {e}")
             pass
         return res
     return _cached(1800, "northbound_hist", _fn)
@@ -288,7 +292,8 @@ def get_northbound_fund_flow():
             boards.append(rec)
             try:
                 val = float(r.get("资金净流入") or 0)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[fundflow] 处理异常: {e}")
                 val = 0.0
             if str(r.get("板块")) == "沪股通":
                 sh = val
@@ -312,7 +317,8 @@ def get_northbound_fund_flow():
                         sz = float(last["深股通"])
                     if total in (0.0, None):
                         total = float(last["北向资金"])
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[fundflow] 处理异常: {e}")
                 pass
         if total in (0.0, None) and sh not in (0.0, None) and sz not in (0.0, None):
             total = sh + sz
@@ -320,7 +326,8 @@ def get_northbound_fund_flow():
         try:
             td = df.iloc[0].get("交易日")
             td = td.strftime("%Y-%m-%d") if hasattr(td, "strftime") else str(td)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundflow] 处理异常: {e}")
             td = None
         # 净额是否真实可用：三个通道都为 0/None 视为数据源未提供
         available = not ((sh in (0.0, None)) and (sz in (0.0, None)) and (total in (0.0, None)))
@@ -330,7 +337,8 @@ def get_northbound_fund_flow():
         hist = {}
         try:
             hist = get_northbound_history() or {}
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundflow] 处理异常: {e}")
             hist = {}
         return {"boards": boards, "trade_date": td, "total_inflow": total,
                 "sh_inflow": sh, "sz_inflow": sz,
@@ -394,7 +402,8 @@ def get_individual_fund_flow(code, use_estimate_fallback=True):
             df = ak.stock_individual_fund_flow(stock=code6, market=market)
             if df is not None and not df.empty:
                 return _normalize_individual_df(df)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundflow] 处理异常: {e}")
             pass
         return None
 
@@ -425,7 +434,8 @@ def _normalize_individual_df(df):
     date = _g("日期")
     try:
         date = date.strftime("%Y-%m-%d") if hasattr(date, "strftime") else str(date)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundflow] 处理异常: {e}")
         date = None
     return {
         "source": "akshare",
@@ -487,7 +497,8 @@ def _estimate_individual_fund_flow(code):
         latest = df.iloc[-1]["date"]
         try:
             latest = latest.strftime("%Y-%m-%d") if hasattr(latest, "strftime") else str(latest)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundflow] 处理异常: {e}")
             latest = str(latest)
         # 经验拆分：保持与主力净流入同号，避免 blank 卡片
         super_est = round(total_mf * 0.35, 2) if total_mf != 0 else None
@@ -500,7 +511,8 @@ def _estimate_individual_fund_flow(code):
             "super_net": super_est,
             "latest_date": latest,
         }
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundflow] 处理异常: {e}")
         return {"source": "none", "main_net": None, "main_net_pct": None,
                 "big_net": None, "super_net": None, "latest_date": None}
 
@@ -537,7 +549,8 @@ def get_earnings_forecast(period="20260331"):
             if df is None or df.empty:
                 return pd.DataFrame()
             return df
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundflow] 处理异常: {e}")
             return pd.DataFrame()
     return _cached(1800, f"yjyg_{period}", _fn)
 
@@ -577,7 +590,8 @@ def get_disclosure_calendar(market="沪市", period="2025年报"):
                     df = df.rename(columns={src: dst})
                     break
             return df
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundflow] 处理异常: {e}")
             return pd.DataFrame()
     return _cached(1800, f"disclosure_{market}_{period}", _fn)
 
@@ -624,7 +638,8 @@ def warm_fundflow_caches():
     def _job():
         try:
             get_market_wide_snapshot()
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundflow] 处理异常: {e}")
             pass
 
     threading.Thread(target=_job, daemon=True).start()
