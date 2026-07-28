@@ -703,8 +703,18 @@ class Visualizer:
                 tickangle=0,
             )
             fig.update_xaxes(**_xkw, row=1, col=1)
+            # ---- 价格轴：按当日实际波幅动态定范围（不再从 0 起步）----
+            day_high = float(d["high"].max()) if "high" in d.columns else max(close)
+            day_low = float(d["low"].min()) if "low" in d.columns else min(close)
+            span = day_high - day_low
+            # 至少保留 0.8% 的价格空间作上下留白；若当日几乎无波动则用昨收的 1%
+            pad = max(span * 0.25, base * 0.008) if base > 0 else span * 0.25
+            y_min = min(day_low, base) - pad
+            y_max = max(day_high, base) + pad
+
             fig.update_yaxes(
                 title_text="价格", row=1, col=1,
+                range=[y_min, y_max],
                 tickfont={"color": SF_TXT2 if _is_dark() else "#6B7280"},
             )
             if show_volume:
