@@ -196,8 +196,8 @@ def safe_switch_page(page: str, **kwargs) -> None:
     try:
         for k, v in st.query_params.items():
             qp[k] = v
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[session] 读取 query_params 失败: {e}")
     if token:
         qp[QP_TOKEN] = token
         if user is not None:
@@ -326,8 +326,8 @@ def _restore_prefs_from_query_params() -> dict:
         raw = st.query_params.get(QP_PREFS)
         if raw:
             return json.loads(raw)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[session] 解析 prefs query 失败: {e}")
     return {}
 
 
@@ -367,8 +367,8 @@ def push_settings_to_backend() -> None:
             headers={"Authorization": f"Bearer {token}"},
             timeout=3,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[session] set_user_setting 同步后端失败: {e}")
 
 
 def get_user_setting(key, default=None):
@@ -397,8 +397,8 @@ def save_user_setting(key, value) -> None:
             headers={"Authorization": f"Bearer {token}"},
             timeout=3,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[session] push_settings_to_backend 失败: {e}")
 
 
 def persist_prefs() -> None:
@@ -413,8 +413,8 @@ def persist_prefs() -> None:
     if is_authenticated():
         try:
             push_settings_to_backend()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[session] persist_prefs 同步后端失败: {e}")
 
 
 def get_token() -> str | None:
@@ -455,7 +455,8 @@ def is_authenticated() -> bool:
             clear_auth()
             return False
         return True
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[session] token 校验异常: {e}")
         return False
 
 
@@ -840,8 +841,8 @@ def save_avatar(username: str, file_bytes: bytes, ext: str = "png") -> str:
     for old in glob.glob(os.path.join(_avatar_dir(), f"{safe}.*")):
         try:
             os.remove(old)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[session] 删除旧头像失败: {e}")
     path = os.path.join(_avatar_dir(), f"{safe}.{ext.lstrip('.')}")
     with open(path, "wb") as f:
         f.write(file_bytes)
@@ -861,8 +862,8 @@ def render_avatar(target, avatar_value, width: int = 64) -> None:
             target.image(io.BytesIO(base64.b64decode(b64)), width=width)
         elif avatar_value:
             target.image(avatar_value, width=width)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[session] 渲染头像失败: {e}")
 
 
 def get_avatar_data_url() -> str | None:
@@ -919,7 +920,8 @@ def _parse_iso(ts):
     s = str(ts).replace("Z", "").replace("+08:00", "").replace("+00:00", "")
     try:
         dt = datetime.fromisoformat(s)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[session] parse_ts 失败: {e}")
         try:
             dt = datetime.fromisoformat(str(ts).replace("Z", ""))
         except Exception:
@@ -1003,10 +1005,10 @@ def _cached_alert_summary(token: str, nonce: int) -> dict:
         code, body = api_get("/api/market-alerts?limit=5", timeout=8)
         if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
             data = body.get("data")
-            if isinstance(data, dict):
-                return data
-    except Exception:
-        pass
+        if isinstance(data, dict):
+            return data
+    except Exception as e:
+        logger.warning(f"[session] 获取异动摘要失败: {e}")
     return {}
 
 
