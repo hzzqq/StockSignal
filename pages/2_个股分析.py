@@ -147,6 +147,19 @@ def _cached_period_kline(ticker: str, start: str, end: str, period: str):
     return pd.DataFrame(recs)
 
 
+@st.cache_data(show_spinner=False, ttl=120)
+def _cached_intraday_for_date(ticker, target_date):
+    """获取指定交易日的分时数据（用于K线双击回看历史分时）。
+    返回 (df, prev_close, trade_date) 或 None。"""
+    try:
+        _df, _pc, _dt = fetcher.get_stock_intraday_sina(ticker, trade_date=target_date)
+        if _df is not None and not _df.empty:
+            return _df, _pc, _dt
+    except Exception:
+        pass
+    return None
+
+
 @st.cache_data(show_spinner=False, ttl=60)
 def _cached_intraday(ticker):
     """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。"""
@@ -590,13 +603,68 @@ def _render_analysis(R: dict):
             down_color=GREEN,
             ma_colors=["#ffa502", "#667eea", "#009e60"],
         )
-        st.plotly_chart(fig, use_container_width=True)
-        # K线交互提示（解决用户对工具栏双机还原、框选放大、拖拽平移的困惑）
+        # ── K线图 + 双击弹分时 ──
+        _kline_key = f"kline_chart_{ticker}"
+        _kline_event = st.plotly_chart(fig, use_container_width=True, key=_kline_key, on_select="rerun")
+
+        # 双击检测：同一根K线在 500ms 内被点两次 → 弹出该日分时
+        _dbl_key = f"kline_dbl_{ticker}"
+        _now_ms = datetime.now().timestamp()
+        _clicked_date = None
+        if _kline_event and hasattr(_kline_event, "selection") and _kline_event.selection.points:
+            _pt = _kline_event.selection.points[0]
+            # x 值是 category 轴索引（整数）或日期字符串
+            _xval = _pt.get("x", _pt.get("pointIndex", None))
+            if _xval is not None:
+                try:
+                    _idx = int(_xval)
+                    if 0 <= _idx < len(period_df):
+                        _clicked_date = str(period_df.iloc[_idx]["date"])[:10]
+                except (ValueError, TypeError, IndexError):
+                    if isinstance(_xval, str) and len(_xval) >= 10:
+                        _clicked_date = _xval[:10]
+
+        if _clicked_date:
+            _prev_click = st.session_state.get(_dbl_key)
+            if (_prev_click and _now_ms - _prev_click[0] < 0.5
+                    and _prev_click[1] == _clicked_date):
+                # 双击确认！锁定目标日期
+                st.session_state[f"intraday_target_{ticker}"] = _clicked_date
+                st.session_state[_dbl_key] = None  # 消费掉，防重复触发
+            else:
+                st.session_state[_dbl_key] = (_now_ms, _clicked_date)
+
+        # 显示双击目标日的分时图（可关闭）
+        _target_dt = st.session_state.get(f"intraday_target_{ticker}")
+        if _target_dt:
+            with st.expander(f"📈 {_target_dt} 分时走势（双击K线弹出）", expanded=True):
+                st.caption("💡 提示：在上方 K 线图上**双击任意一根柱子**即可切换到该交易日分时。")
+                try:
+                    _di = _cached_intraday_for_date(ticker, _target_dt)
+                    if _di is not None:
+                        _didf, _dipc, _didt = _di
+                        _dfig = Visualizer.intraday(
+                            _didf, prev_close=_dipc,
+                            title=f"{ticker} {display_name} 分时（{_didt}）",
+                            up_color=RED, down_color=GREEN,
+                        )
+                        st.plotly_chart(_dfig, use_container_width=True, key=f"dbl_intra_{ticker}_{_target_dt}")
+                    else:
+                        st.info(f"📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。")
+                except Exception as _die:
+                    st.warning(f"分时图加载失败：{str(_die)[:80]}")
+                if st.button("✕ 关闭分时图", key=f"close_intra_{ticker}"):
+                    del st.session_state[f"intraday_target_{ticker}"]
+                    st.rerun(scope="fragment")
+
+        # K线交互提示
         st.markdown(
             "<div style='font-size:12px;color:#64748b;margin:8px 0 6px;display:flex;align-items:center;gap:8px;'>"
             "<span>💡</span>"
             "<span>按住鼠标拖拽可平移；点击工具栏 🔍 后框选区域可放大；"
-            "点击 🏠 可还原视图（部分浏览器需双击）。十字光标默认开启。</span>"
+            "点击 🏠 可还原视图（部分浏览器需双击）。</span>"
+            "<span style='margin-left:auto;background:#f0f9ff;padding:2px 8px;border-radius:4px;font-size:11px;color:#0369a1;'>"
+            "🖱️ <b>双击K线柱</b> → 弹出当日分时图</span>"
             "</div>",
             unsafe_allow_html=True,
         )

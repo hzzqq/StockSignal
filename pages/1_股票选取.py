@@ -302,6 +302,18 @@ def _cached_kline(ticker, start, end, period, nonce: int = 0):
     return df if df is not None else pd.DataFrame()
 
 
+@st.cache_data(show_spinner=False, ttl=120)
+def _cached_intraday_for_date(ticker, target_date):
+    """获取指定交易日的分时数据（用于K线双击回看历史分时）。"""
+    try:
+        _df, _pc, _dt = fetcher.get_stock_intraday_sina(ticker, trade_date=target_date)
+        if _df is not None and not _df.empty:
+            return _df, _pc, _dt
+    except Exception:
+        pass
+    return None
+
+
 @st.cache_data(show_spinner=False, ttl=60)
 def _cached_intraday(ticker):
     """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。"""
@@ -461,8 +473,51 @@ try:
                                      start_idx=view_start, n_show=view_count,
                                      dragmode=drag_mode,
                                      events=events_df if show_events else None)
-        st.plotly_chart(fig, width="stretch", key="pick_kline_chart")
-        st.caption("📈 K 线图含所选 MA 均线；开启「标注事件」后，利好事件标红↑、利空事件标绿↓（A股红涨绿跌惯例）。可拖动平移或框选缩放。")
+        # ── K线双击弹分时 ──
+        _pk_event = st.plotly_chart(fig, width="stretch", key="pick_kline_chart", on_select="rerun")
+        _pdbl_key = "pick_dblclick"
+        _pnow = datetime.now().timestamp()
+        _pclick_date = None
+        if _pk_event and hasattr(_pk_event, "selection") and _pk_event.selection.points:
+            _ppt = _pk_event.selection.points[0]
+            _pxval = _ppt.get("x", _ppt.get("pointIndex", None))
+            if _pxval is not None:
+                try:
+                    _pidx = int(_pxval)
+                    if 0 <= _pidx < len(df):
+                        _pclick_date = str(df.iloc[_pidx]["date"])[:10]
+                except (ValueError, TypeError, IndexError):
+                    if isinstance(_pxval, str) and len(_pxval) >= 10:
+                        _pclick_date = _pxval[:10]
+        if _pclick_date:
+            _pprev = st.session_state.get(_pdbl_key)
+            if (_pprev and _pnow - _pprev[0] < 0.5 and _pprev[1] == _pclick_date):
+                st.session_state["pick_intraday_target"] = _pclick_date
+                st.session_state[_pdbl_key] = None
+            else:
+                st.session_state[_pdbl_key] = (_pnow, _pclick_date)
+
+        _ptgt = st.session_state.get("pick_intraday_target")
+        if _ptgt:
+            with st.expander(f"📈 {_ptgt} 分时走势（双击K线弹出）", expanded=True):
+                st.caption("💡 双击上方 K 线任意柱子可切换到该日分时。")
+                try:
+                    _pdi = _cached_intraday_for_date(ticker, _ptgt)
+                    if _pdi is not None:
+                        _pdf, _ppc, _pdt = _pdi
+                        _pdfig = Visualizer.intraday(_pdf, prev_close=_ppc,
+                                                     title=f"{stock_label} 分时（{_pdt}）")
+                        st.plotly_chart(_pdfig, width="stretch", key=f"pick_dbl_intra_{_ptgt}")
+                    else:
+                        st.info(f"📭 {_ptgt} 暂无分时数据。")
+                except Exception as _pde:
+                    st.warning(f"分时加载失败：{str(_pde)[:80]}")
+                if st.button("✕ 关闭", key="pick_close_intra"):
+                    del st.session_state["pick_intraday_target"]
+                    st.rerun(scope="fragment")
+
+        st.caption("📈 K 线图含所选 MA 均线；开启「标注事件」后，利好事件标红↑、利空事件标绿↓（A股红涨绿跌惯例）。"
+                   "可拖动平移或框选缩放。🖱️ **双击K线柱** → 弹出当日分时图。")
 
         # 事件面板（可折叠）：列出可见区间内事件，便于对照 K 线标注
         if show_events and events_df is not None and not events_df.empty:
