@@ -22,6 +22,7 @@ import time
 import functools
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
+import threading
 
 import logging
 
@@ -120,17 +121,19 @@ def _now_ts():
 
 # 简易 TTL 缓存：用 (函数名+参数) -> (timestamp, value)
 _CACHE = {}
+_CACHE_LOCK = threading.Lock()
 
 
 def _cached(ttl, key, fn):
     """基于时间戳的轻量缓存，避免对同一昂贵 akshare 调用短时间内重复请求。"""
     now = time.time()
-    hit = _CACHE.get(key)
-    if hit and (now - hit[0]) < ttl:
-        return hit[1]
-    val = fn()
-    _CACHE[key] = (now, val)
-    return val
+    with _CACHE_LOCK:
+        hit = _CACHE.get(key)
+        if hit and (now - hit[0]) < ttl:
+            return hit[1]
+        val = fn()
+        _CACHE[key] = (now, val)
+        return val
 
 
 def _retry_with_backoff(max_retries=3, base_delay=1.0):
@@ -581,7 +584,8 @@ def get_disclosure_calendar(market="沪市", period="2025年报"):
 
 def clear_fundflow_cache():
     """清空缓存（调试用）。"""
-    _CACHE.clear()
+    with _CACHE_LOCK:
+        _CACHE.clear()
 
 
 # ───────────────────────── 启动预热 / 并行快照（性能加速） ─────────────────────────
