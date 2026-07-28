@@ -81,14 +81,16 @@ def _resolve_stock(query: str) -> Optional[Dict[str, str]]:
             _, name = fetcher.get_stock_basic(clean)
             if name and name != clean:
                 return {"code": clean, "name": name}
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[ai_engine] 未处理异常: {e}")
             pass
     # 名称搜索
     try:
         matches = fetcher.search_stocks(query, limit=5)
         if matches:
             return {"code": matches[0]["code"], "name": matches[0].get("name", query)}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[ai_engine] 未处理异常: {e}")
         pass
     # 兜底：返回 None，让 AI 给通用回复
     return None
@@ -148,7 +150,8 @@ def _safe_eval(expr: str) -> Optional[float]:
 
     try:
         return _ev(tree)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[ai_engine] 未处理异常: {e}")
         return None
 
 
@@ -217,7 +220,8 @@ def _raw_fetch_news(code: str, name: str, limit: int = 4) -> List[Dict[str, str]
             d = row.get("date")
             try:
                 ds = pd.to_datetime(d).strftime("%m-%d") if d is not None and str(d) != "NaT" else ""
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[ai_engine] 未处理异常: {e}")
                 ds = ""
             items.append({
                 "date": ds,

@@ -60,7 +60,8 @@ def _load_dotenv_once() -> None:
         dotenv_path = os.path.join(root, ".env")
         if os.path.isfile(dotenv_path):
             load_dotenv(dotenv_path, override=False)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[llm_client] 未处理异常: {e}")
         pass
 
 
@@ -224,14 +225,16 @@ def _extract_json(text: str):
 
     try:
         return json.loads(text)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[llm_client] 未处理异常: {e}")
         pass
 
     fence = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
     if fence:
         try:
             return json.loads(fence.group(1).strip())
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[llm_client] 未处理异常: {e}")
             pass
 
     opens = [i for i in (text.find("{"), text.find("[")) if i != -1]
@@ -243,7 +246,8 @@ def _extract_json(text: str):
         return None
     try:
         return json.loads(text[start:end + 1])
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[llm_client] 未处理异常: {e}")
         return None
 
 

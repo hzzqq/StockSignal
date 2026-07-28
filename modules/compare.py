@@ -38,7 +38,8 @@ def _is_dark() -> bool:
         from modules.ui_theme import _theme_is_dark
 
         return _theme_is_dark()
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[compare] 未处理异常: {e}")
         return False
 
 
@@ -150,7 +151,8 @@ def _build_row(fetcher: Optional[StockFetcher], code: str, period_days: int) -> 
         _, basic_name = fetcher.get_stock_basic(code)
         if basic_name and str(basic_name).strip() and str(basic_name).strip() != code:
             name = basic_name.strip()
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[compare] 未处理异常: {e}")
         pass
 
     # 2) 本地无名称时，尝试 BaoStock 并解析 "600519(贵州茅台)"
@@ -163,7 +165,8 @@ def _build_row(fetcher: Optional[StockFetcher], code: str, period_days: int) -> 
                     name = raw.split("(", 1)[1].split(")", 1)[0].strip()
                 else:
                     name = raw
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[compare] 未处理异常: {e}")
             pass
 
     # 3) 兜底：代码本身
@@ -333,7 +336,8 @@ def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> N
                 kws = fetcher.get_stock_keywords(row["name"], top_k=2)
                 if kws:
                     row["industry"] = kws.split(",")[0]
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[compare] 未处理异常: {e}")
                 pass
         # 核心业务：同花顺主营构成（真实主营业务，而非行业标签）
         try:
@@ -365,11 +369,14 @@ def _fill_extra_metrics(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> 
                     v = df.iloc[-1].get("value")
                     try:
                         row[key] = float(str(v).replace(",", ""))
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"[compare] 未处理异常: {e}")
                         pass
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[compare] 未处理异常: {e}")
                 pass
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[compare] 未处理异常: {e}")
         pass
 
     # 财务：ROE / 营收同比 / 净利润同比 —— 同花顺财务指标
@@ -387,14 +394,16 @@ def _fill_extra_metrics(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> 
                         if n.replace(" ", "") in cn:
                             try:
                                 return float(str(last[col]).replace(",", ""))
-                            except Exception:
+                            except Exception as e:
+                                logger.warning(f"[compare] 未处理异常: {e}")
                                 return None
                 return None
 
             row["roe"] = _pick("净资产收益率", "ROE")
             row["revenue_yoy"] = _pick("营业收入同比增长率", "营收同比")
             row["profit_yoy"] = _pick("净利润同比增长率", "净利润同比")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[compare] 未处理异常: {e}")
         pass
 
     # 资金面：个股主力资金（akshare 或量价估算兜底）
@@ -407,7 +416,8 @@ def _fill_extra_metrics(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> 
             row["fund_big_net"] = r.get("big_net")
             row["fund_source"] = r.get("source")
             row["fund_date"] = r.get("latest_date")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[compare] 未处理异常: {e}")
         pass
 
 
@@ -845,7 +855,8 @@ def _fmt(v, is_num: bool = False):
     if is_num:
         try:
             return f"{float(v):.1f}"
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[compare] 未处理异常: {e}")
             return str(v)
     return str(v)
 
@@ -856,7 +867,8 @@ def _fmt_pct(v):
         return "—"
     try:
         f = float(str(v).replace(",", ""))
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[compare] 未处理异常: {e}")
         return str(v)
     s = f * 100 if abs(f) < 1.6 else f
     return f"{s:.2f}%"
@@ -869,7 +881,8 @@ def _fund_yi_cell(r, key: str) -> str:
         return "<td>—</td>"
     try:
         yi = float(str(v).replace(",", "")) / 1e8
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[compare] 未处理异常: {e}")
         return "<td>—</td>"
     cls = "up" if yi >= 0 else "down"
     return f'<td class="{cls}">{yi:,.2f}</td>'
@@ -1107,7 +1120,8 @@ def _safe(v, d: float = 0.0) -> float:
     try:
         f = float(v)
         return f if (not np.isnan(f)) else d
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[compare] 未处理异常: {e}")
         return d
 
 

@@ -46,7 +46,8 @@ class SignalEngine:
     def _clamp(v, lo=0, hi=100):
         try:
             return max(lo, min(hi, int(round(float(v)))))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[signal] 未处理异常: {e}")
             return 50
 
     @staticmethod
@@ -74,7 +75,8 @@ class SignalEngine:
             # 取前 4 字节作为无符号整数，映射到 [0,1)
             val = int.from_bytes(digest[:4], "big") / 0xFFFFFFFF
             return (val - 0.5) * 2 * scale
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[signal] 未处理异常: {e}")
             return 0.0
 
     @staticmethod
@@ -271,7 +273,8 @@ class SignalEngine:
                     # live 为相对分(50=中性)，只允许 ±35 区间微调，地板 50
                     adj = (live - 50) * 0.7
                     score = 52 + adj
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[signal] 未处理异常: {e}")
                 pass
 
         # 最终按正/负面事件上下修，带下限保护（避免极端低分）
@@ -295,7 +298,8 @@ class SignalEngine:
             # （修复旧逻辑中性新闻被映射到 30 的偏误）
             live_score = 50 + (pos_pct - neg_pct) * 0.6
             return min(100, max(0, int(live_score)))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[signal] 未处理异常: {e}")
             return None
 
     def _load_events(self):
@@ -345,7 +349,8 @@ class SignalEngine:
             # PMI 50 为中线，每偏离 1 点 → 评分变动 5 分
             score = 50 + (latest_pmi - 50) * 5
             return min(100, max(0, int(score)))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[signal] 未处理异常: {e}")
             return 50
 
     # ------------------------------------------------------------------
@@ -388,7 +393,8 @@ class SignalEngine:
             # 板块维度：一半看板块绝对强度（行业好则加分），一半看个股相对强度
             score = 50 + rel * 2.0 + sector_chg * 2.0
             return self._clamp(score)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[signal] 未处理异常: {e}")
             return 55
 
     # ------------------------------------------------------------------

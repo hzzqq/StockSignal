@@ -859,7 +859,8 @@ class Backtester:
             score_info["code"] = code
             score_info["name"] = self.fetcher.get_name_only(code)
             return score_info
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[backtest] 未处理异常: {e}")
             return None
 
     def daily_picker_backtest(self, start, end, stock_pool_size=200, top_k=10,
