@@ -72,7 +72,8 @@ if not logger.handlers:
         )
         _fh.setFormatter(_logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
         logger.addHandler(_fh)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fetcher] 处理异常: {e}")
         pass
     logger.setLevel(_logging.INFO)
     logger.propagate = False
@@ -323,7 +324,8 @@ def _retry_request(func, max_retries=2, base_delay=2):
             if not is_transient or attempt == max_retries:
                 raise
             time.sleep(base_delay * (2 ** (attempt - 1)))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             raise
     raise last_err
 
@@ -391,7 +393,8 @@ class _BaoStockFetcher:
         if cls._login_done:
             try:
                 bs.logout()
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[fetcher] 处理异常: {e}")
                 pass
             cls._login_done = False
 
@@ -922,7 +925,8 @@ class StockFetcher:
                                 if name and name != code:
                                     setattr(self, cache_key, name)
                                     return name
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             pass
 
         # 4) akshare 东方财富个股信息兜底
@@ -935,7 +939,8 @@ class StockFetcher:
                 if name and name != code:
                     setattr(self, cache_key, name)
                     return name
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             pass
 
         # 5) 记录缓存为“无名称”后回退代码
@@ -959,7 +964,8 @@ class StockFetcher:
         def _to_float(x):
             try:
                 return float(x) if x not in (None, "", "-") else None
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[fetcher] 处理异常: {e}")
                 return None
 
         def _has(d):
@@ -1054,7 +1060,8 @@ class StockFetcher:
                         "pe_ttm": row[2], "industry": row[3],
                     })
                 conn.close()
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[fetcher] 处理异常: {e}")
                 pass
 
         if _has(res):
@@ -1180,7 +1187,8 @@ class StockFetcher:
                 if "date" in df.columns:
                     df["date"] = pd.to_datetime(df["date"], errors="coerce", format="mixed")
                 return df
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[fetcher] 处理异常: {e}")
                 # 非 DataFrame JSON（如实时行情字典），返回原始 dict/list
                 return json.loads(row[0])
         return None
@@ -1263,11 +1271,13 @@ class StockFetcher:
                 ).fetchone()
                 if source_row:
                     source = json.loads(source_row[0]).get("source", "未知")
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[fetcher] 处理异常: {e}")
                 pass
 
             return updated_at.isoformat(), age_minutes, source
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             return None
         finally:
             conn.close()
@@ -1416,13 +1426,15 @@ class StockFetcher:
             def _parse_float(val, default=0.0):
                 try:
                     return float(val) if val else default
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[fetcher] 处理异常: {e}")
                     return default
 
             def _parse_int(val, default=0):
                 try:
                     return int(float(val)) if val else default
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[fetcher] 处理异常: {e}")
                     return default
 
             quote = {
@@ -1520,7 +1532,8 @@ class StockFetcher:
                     high = float(last.get("high", current) or current)
                 if low is None:
                     low = float(last.get("low", current) or current)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[fetcher] 处理异常: {e}")
                 pass
 
         # 美股无日线历史 -> 用实时 OHLC 合成 4 点 sparkline（与 A 股无分钟线兜底一致）
@@ -1580,7 +1593,8 @@ class StockFetcher:
             def _pf(v, default=0.0):
                 try:
                     return float(v) if v not in ("", "-") else default
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[fetcher] 处理异常: {e}")
                     return default
 
             # 实测字段顺序（2026-07）：
@@ -1771,7 +1785,8 @@ class StockFetcher:
             curve[0] = open_
             curve[-1] = close
             return list(range(n)), [round(float(v), 3) for v in curve]
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             return None, None
 
     # ══════════════════════════════════════════════════════
@@ -1864,7 +1879,8 @@ class StockFetcher:
         try:
             import pypinyin
             return "".join([w[0][0] for w in pypinyin.pinyin(name, style=pypinyin.NORMAL)]).upper()
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             return ""
 
     @staticmethod
@@ -1881,7 +1897,8 @@ class StockFetcher:
             for combo in product(*py_lists):
                 variants.add("".join([w[0].upper() for w in combo]))
             return variants
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             return set()
 
     @staticmethod
@@ -1890,7 +1907,8 @@ class StockFetcher:
         try:
             import pypinyin
             return "".join([w[0] for w in pypinyin.pinyin(name, style=pypinyin.NORMAL)]).lower()
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             return name.lower()
 
 
@@ -1949,7 +1967,8 @@ class StockFetcher:
                         return float(latest["close"]), str(latest["date"])[:10]
             finally:
                 conn.close()
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             pass
         return None, None
 
@@ -2452,7 +2471,8 @@ class StockFetcher:
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
             df = df.dropna(subset=["date"])
             return df if not df.empty else None
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             return None
 
     def _fetch_level(self, level, symbol, start, end, adjust):
@@ -2471,11 +2491,13 @@ class StockFetcher:
         # 归一化日期为 Timestamp，避免 df['date'](Timestamp) 与字符串直接比较抛 TypeError
         try:
             _sd = pd.to_datetime(start)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             _sd = pd.Timestamp.min
         try:
             _ed = pd.to_datetime(end)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             _ed = pd.Timestamp.max
         try:
             if level == "L1" and _AK_OK:
@@ -2991,14 +3013,16 @@ class StockFetcher:
                 cached = self._read_cache(conn, "sector_cache", cache_key, max_age_hours=0.1)
                 if cached is not None and not cached.empty:
                     return cached
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             pass
         try:
             df = _retry_request(
                 lambda: ak.stock_board_concept_name_em(),
                 max_retries=2, base_delay=2,
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             return pd.DataFrame(columns=["sector", "change_pct"])
         if df is None or df.empty:
             return pd.DataFrame(columns=["sector", "change_pct"])
@@ -3008,7 +3032,8 @@ class StockFetcher:
         try:
             conn = self._get_conn()
             self._write_cache(conn, "sector_cache", cache_key, df)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             pass
         return df
 
