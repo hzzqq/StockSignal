@@ -830,7 +830,8 @@ class NewsFetcher:
                     if not new_df.empty:
                         all_frames.append(new_df)
                         searched_titles.update(new_df["title"].tolist())
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[news] 公司新闻抓取失败: {e}")
                 continue
 
         if all_frames:
@@ -945,8 +946,8 @@ class SentimentAnalyzer:
             try:
                 s = SnowNLP(text)
                 snownlp_score = s.sentiments
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[news] SnowNLP 情感分析失败: {e}")
 
         # 计算强度修饰词（非常/极度/显著/大幅）
         intensifiers = re.findall(r"(非常|极其|显著|大幅|急剧|持续|严重|深度)(?=的?[^\w])?", text)
