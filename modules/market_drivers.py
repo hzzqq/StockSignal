@@ -21,6 +21,7 @@
 """
 import time
 import logging
+import threading
 
 import numpy as np
 import pandas as pd
@@ -101,15 +102,20 @@ KNOWN_UNAVAILABLE = {
 # 简易 TTL 缓存
 _CACHE = {}
 _CACHE_TTL = 600
+# 并发保护：Streamlit 多线程 + 后台调度器可能同时读写 _CACHE，
+# 加锁避免脏读/竞态写（与 fundflow / margin_trading 同款修复）
+_CACHE_LOCK = threading.Lock()
 
 
 def _cached(ttl, key, fn):
     now = time.time()
-    hit = _CACHE.get(key)
-    if hit and (now - hit[0]) < ttl:
-        return hit[1]
+    with _CACHE_LOCK:
+        hit = _CACHE.get(key)
+        if hit and (now - hit[0]) < ttl:
+            return hit[1]
     val = fn()
-    _CACHE[key] = (now, val)
+    with _CACHE_LOCK:
+        _CACHE[key] = (now, val)
     return val
 
 
