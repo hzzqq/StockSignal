@@ -16,6 +16,7 @@
 from datetime import datetime
 import logging
 import math
+import threading
 import time
 
 import pandas as pd
@@ -31,6 +32,7 @@ _ensure_proxy_and_ssl()
 
 # 简易 TTL 缓存
 _MARGIN_CACHE = {}
+_MARGIN_CACHE_LOCK = threading.Lock()
 
 
 def _cached(ttl, key, fn, skip_empty=False):
@@ -40,14 +42,15 @@ def _cached(ttl, key, fn, skip_empty=False):
     失败的结果缓存一整个 TTL，导致页面长时间空白。
     """
     now = time.time()
-    hit = _MARGIN_CACHE.get(key)
-    if hit and (now - hit[0]) < ttl:
-        return hit[1]
-    val = fn()
-    empty = val is None or (isinstance(val, pd.DataFrame) and val.empty)
-    if not (skip_empty and empty):
-        _MARGIN_CACHE[key] = (now, val)
-    return val
+    with _MARGIN_CACHE_LOCK:
+        hit = _MARGIN_CACHE.get(key)
+        if hit and (now - hit[0]) < ttl:
+            return hit[1]
+        val = fn()
+        empty = val is None or (isinstance(val, pd.DataFrame) and val.empty)
+        if not (skip_empty and empty):
+            _MARGIN_CACHE[key] = (now, val)
+        return val
 
 
 def _retry(max_retries=3, base_delay=1.0):
