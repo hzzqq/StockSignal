@@ -34,7 +34,8 @@ def calculate_sma(data: pd.Series, window: int) -> Optional[pd.Series]:
         return None
     try:
         return data.rolling(window=window).mean()
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[screener_indicators] 处理异常: {e}")
         return None
 
 
@@ -43,7 +44,8 @@ def calculate_ema(data: pd.Series, window: int) -> Optional[pd.Series]:
         return None
     try:
         return data.ewm(span=window).mean()
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[screener_indicators] 处理异常: {e}")
         return None
 
 
@@ -59,7 +61,8 @@ def analyze_trend(data: pd.Series, min_points: int = 10) -> Tuple[Optional[float
         ss_tot = np.sum((y - np.mean(y)) ** 2)
         r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0
         return slope, r_squared
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[screener_indicators] 处理异常: {e}")
         return None, None
 
 
@@ -83,7 +86,8 @@ def detect_bottom_divergence(close_prices: pd.Series, macd_hist: pd.Series,
         if min_hist < 0:
             return bool(hist_at_trough > min_hist * 0.5)
         return False
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[screener_indicators] 处理异常: {e}")
         return False
 
 
@@ -107,7 +111,8 @@ def detect_top_divergence(close_prices: pd.Series, macd_hist: pd.Series,
         if max_hist > 0:
             return bool(hist_at_peak < max_hist * 0.5)
         return False
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[screener_indicators] 处理异常: {e}")
         return False
 
 
@@ -121,7 +126,8 @@ def check_volume_surge(volume: pd.Series, weeks: int = 5, threshold: float = 1.5
             return False, None
         ratio = recent_vol / avg_vol
         return bool(ratio > threshold), round(ratio, 2)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[screener_indicators] 处理异常: {e}")
         return False, None
 
 
@@ -137,7 +143,8 @@ def calculate_rsi(close_prices: pd.Series, window: int = 14) -> Optional[pd.Seri
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
         return rsi
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[screener_indicators] 处理异常: {e}")
         return None
 
 
@@ -150,7 +157,8 @@ def calculate_bollinger_bands(close_prices: pd.Series, window: int = 20, num_std
         upper_band = middle_band + (std * num_std)
         lower_band = middle_band - (std * num_std)
         return upper_band, middle_band, lower_band
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[screener_indicators] 处理异常: {e}")
         return None, None, None
 
 
@@ -174,7 +182,8 @@ def calculate_financial_ratios(fina_df: pd.DataFrame) -> Dict[str, Optional[floa
             "end_date": latest.get("end_date"),
             "ts_code": latest.get("ts_code"),
         }
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[screener_indicators] 处理异常: {e}")
         return {}
 
 
@@ -196,5 +205,6 @@ def calculate_growth_rates(income_df: pd.DataFrame, periods: int = 4) -> Dict[st
             if current > 0 and previous > 0:
                 profit_growth = (current - previous) / previous * 100
         return {"revenue_growth_yoy": revenue_growth, "profit_growth_yoy": profit_growth}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[screener_indicators] 处理异常: {e}")
         return {}

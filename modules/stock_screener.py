@@ -805,7 +805,8 @@ class StockScreener:
             dx = (di_p - di_m).abs() / (di_p + di_m + 1e-9) * 100
             adx = dx.ewm(span=period, adjust=False).mean()
             return float(adx.iloc[-1])
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[stock_screener] 处理异常: {e}")
             return None
 
     @staticmethod
@@ -813,7 +814,8 @@ class StockScreener:
         try:
             tr = pd.concat([high - low, (high - close.shift(1)).abs(), (low - close.shift(1)).abs()], axis=1).max(axis=1)
             return float(tr.ewm(span=period, adjust=False).mean().iloc[-1])
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[stock_screener] 处理异常: {e}")
             return None
 
     # ── 执行入口 ───────────────────────────────────────────────────────
@@ -858,7 +860,8 @@ class StockScreener:
                         try:
                             if code:
                                 r.setdefault("industry", self.fetcher.get_fundamentals(code).get("industry", "未知"))
-                        except Exception:
+                        except Exception as e:
+                            logger.warning(f"[stock_screener] 处理异常: {e}")
                             r.setdefault("industry", "未知")
                     return r
                 except Exception as e:

@@ -44,12 +44,14 @@ def now_cst() -> datetime:
     try:
         from zoneinfo import ZoneInfo
         return datetime.now(ZoneInfo("Asia/Shanghai"))
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[linear_trends] 处理异常: {e}")
         pass
     try:
         import pytz
         return datetime.now(pytz.timezone("Asia/Shanghai"))
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[linear_trends] 处理异常: {e}")
         # 兜底：固定 UTC+8（中国无夏令时）
         return datetime.now(timezone(timedelta(hours=8)))
 
@@ -85,7 +87,8 @@ def _parse_date(d):
         if isinstance(d, datetime):
             return d.strftime("%Y-%m-%d")
         return str(d)[:10]
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[linear_trends] 处理异常: {e}")
         return None
 
 
@@ -93,7 +96,8 @@ def _to_yi(x):
     """把 元 转换为 亿元（float）。失败返回 None。"""
     try:
         return float(x) / 1e8
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[linear_trends] 处理异常: {e}")
         return None
 
 
@@ -127,7 +131,8 @@ def _slice_date_range(df, date_range):
         return df
     try:
         start, end = date_range
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[linear_trends] 处理异常: {e}")
         return df
     s = _parse_date(start)
     e = _parse_date(end)
@@ -152,7 +157,8 @@ def _add_ma_traces(fig, x, y, name, color, ma_periods, visible_default=True, ma_
     for p in ma_periods:
         try:
             p = int(p)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[linear_trends] 处理异常: {e}")
             continue
         if p <= 1:
             continue
@@ -202,7 +208,8 @@ def get_northbound_history_series():
         try:
             if "日期" in df.columns:
                 out["date"] = df["日期"].apply(_parse_date)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[linear_trends] 处理异常: {e}")
             return pd.DataFrame()
         if out.empty:
             return pd.DataFrame()
@@ -314,7 +321,8 @@ def _estimate_individual_series(code, days):
             d = r["date"]
             try:
                 d = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[linear_trends] 处理异常: {e}")
                 d = str(d)
             if high == low or vol in (0, None):
                 rows.append({"date": d, "main_net": 0.0, "super_net": 0.0, "big_net": 0.0})
@@ -468,7 +476,8 @@ def get_index_series(days=180):
                 for fut in _cf.as_completed(futs):
                     try:
                         results[futs[fut]] = fut.result()
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"[linear_trends] 处理异常: {e}")
                         results[futs[fut]] = pd.DataFrame()
             idx000001 = results.get("sh000001", pd.DataFrame())
             idx399001 = results.get("sz399001", pd.DataFrame())
@@ -885,7 +894,8 @@ def plot_normalized_multi(df, names_map=None, colors_map=None, title="",
                 try:
                     px = d.loc[peak_i, "date"]
                     tx = d.loc[trough_i, "date"]
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[linear_trends] 处理异常: {e}")
                     px = xs.loc[peak_i] if peak_i in xs.index else None
                     tx = xs.loc[trough_i] if trough_i in xs.index else None
                 if px is not None and tx is not None:
@@ -985,4 +995,3 @@ def plot_correlation_heatmap(df, names_map=None, selected=None, date_range=None,
                   margin=dict(l=60, r=20, t=50, b=60))
     fig.update_layout(**layout)
     return fig
-
