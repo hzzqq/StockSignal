@@ -88,9 +88,17 @@ def init_session_state() -> None:
     # 1) session_state 里已有 → 直接用；否则 2) 从 URL query_params 恢复
     if not st.session_state[KEY_TOKEN]:
         _restore_from_query_params()
-
-    # 3) 关键：把登录态回写到 URL，确保「刷新后状态和刷新前一模一样」
-    _sync_query_params()
+    # 2.5) 仍无 token → 浏览器 localStorage 兜底（F5/导航丢失 query_params 时）。
+    #      set_auth 已把 token 写入 localStorage；此处注入 JS：若 localStorage 有 token
+    #      且当前 URL 无 token，则把 token 补回 URL 并触发父页面跳转，由本函数
+    #      再次运行时从 query_params 接管。此前这步缺失 → 刷新后 localStorage 里的
+    #      token 成了「死保险」，URL 一丢就掉登录（本次回归的根因）。
+    if not st.session_state[KEY_TOKEN]:
+        try:
+            from .auth_persist import restore_from_local_storage
+            restore_from_local_storage()
+        except Exception as e:
+            logger.warning(f"[session] restore_from_local_storage error: {e}")
 
     # 4) 恢复用户偏好（主题 / 字体）：先试 URL query_params（刷新/导航可靠）；
     #    若 URL 无偏好但 localStorage 有（浏览器关闭后再打开），则从 localStorage 兜底恢复。
@@ -150,8 +158,14 @@ def _restore_from_query_params() -> None:
             st.session_state[KEY_TOKEN] = token
             st.session_state[KEY_USER] = user
         elif user is _TOKEN_INVALID:
-            # token 明确失效（过期/伪造）→ 清掉，避免反复校验
+            # token 明确失效（过期/伪造）→ 清掉 URL，并同步清 localStorage，
+            # 否则 localStorage 里的失效 token 会让 2.5) 兜底逻辑无限重定向。
             _clear_query_params()
+            try:
+                from .auth_persist import clear_local_storage
+                clear_local_storage()
+            except Exception as e:
+                logger.warning(f"[session] clear_local_storage error: {e}")
         else:
             # None = 网络/服务端瞬态错误：保留现有 token 与登录态，后端恢复后自动恢复
             logger.warning("[session] token 校验网络异常，保留现有登录态，待后端恢复")

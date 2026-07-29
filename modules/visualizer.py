@@ -505,7 +505,13 @@ class Visualizer:
         grid_color = SF_GRID if _is_dark() else "#E5E7EB"
         paper_bg = "rgba(0,0,0,0)" if _is_dark() else "#FFFFFF"
         plot_bg = "rgba(0,0,0,0)" if _is_dark() else "#FFFFFF"
-        title_kwargs = {"text": title, "font": {"color": SF_TXT, "size": 14}} if _is_dark() else title
+        # 标题显式居中（x=0.5），避免暗色模板下与左上角图例/标注文字叠在一起
+        title_kwargs = {
+            "text": title,
+            "x": 0.5,
+            "xanchor": "center",
+            "font": {"color": SF_TXT if _is_dark() else "#111827", "size": 14},
+        }
 
         fig.update_layout(
             title=title_kwargs,
@@ -514,12 +520,14 @@ class Visualizer:
             height=550,
             margin=dict(l=40, r=50, t=80, b=80),
             showlegend=True,
+            # 图例移到右上角（顶栏 modebar 仅在 hover 时浮现，不常驻），彻底避开
+            # 暗夜模式下与左上角标题/事件标注的文字重合问题
             legend=dict(
                 orientation="h",
-                yanchor="bottom",
+                yanchor="top",
                 y=1.02,
-                xanchor="left",
-                x=0,
+                xanchor="right",
+                x=1.0,
                 bgcolor="rgba(0,0,0,0)",
                 font=dict(color=SF_TXT if _is_dark() else "#374151", size=12),
             ),

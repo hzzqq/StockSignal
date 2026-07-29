@@ -74,6 +74,23 @@ def test_candlestick_uses_real_date_axis():
     assert fig.layout.xaxis2 is None or fig.layout.xaxis2.type == "date"
 
 
+def test_candlestick_legend_top_right_not_top_left():
+    """回归 #T3：图例必须移到右上角，避免暗夜模式下与左上角标题/事件标注文字重合。"""
+    fig = Visualizer.candlestick(_kline_df())
+    leg = fig.layout.legend
+    assert leg is not None, "应显示图例"
+    # 右上角：x=1.0 + xanchor=right（原 bug 是 x=0 左上，导致左上文字重合）
+    assert leg.x == 1.0, f"图例应在右上角(x=1.0)，实际 x={leg.x}"
+    assert leg.xanchor == "right", f"图例 xanchor 应为 right，实际 {leg.xanchor}"
+
+
+def test_candlestick_title_centered():
+    """回归 #T3：标题显式居中(x=0.5)，不在左上与图例/标注叠字。"""
+    fig = Visualizer.candlestick(_kline_df())
+    assert fig.layout.title.x == 0.5, "标题应居中"
+    assert fig.layout.title.xanchor == "center", "标题 xanchor 应为 center"
+
+
 def test_candlestick_empty_df_returns_figure():
     import plotly.graph_objects as go
     fig = Visualizer.candlestick(None)
