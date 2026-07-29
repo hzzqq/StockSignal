@@ -302,6 +302,25 @@ def _cached_kline(ticker, start, end, period, nonce: int = 0):
     return df if df is not None else pd.DataFrame()
 
 
+@st.cache_data(show_spinner=False, ttl=300)
+def _period_end_to_trading_day(ticker, start, end, period_date):
+    """周/月线视图下，点击柱子的日期是周期末(可能落在周末/节假日)，
+    映射到最近的一个实际交易日，确保双击弹分时能取到数据。"""
+    import bisect
+    try:
+        dd = _cached_kline(ticker, start, end, "daily")
+        if dd is None or dd.empty:
+            return str(period_date)[:10]
+        dts = sorted(pd.to_datetime(dd["date"]).dt.strftime("%Y-%m-%d").tolist())
+        pd_str = str(period_date)[:10]
+        i = bisect.bisect_right(dts, pd_str) - 1
+        if i >= 0:
+            return dts[i]
+    except Exception:
+        pass
+    return str(period_date)[:10]
+
+
 @st.cache_data(show_spinner=False, ttl=120)
 def _cached_intraday_for_date(ticker, target_date):
     """获取指定交易日的分时数据（用于K线双击回看历史分时）。"""
@@ -490,6 +509,9 @@ try:
                     if isinstance(_pxval, str) and len(_pxval) >= 10:
                         _pclick_date = _pxval[:10]
         if _pclick_date:
+            # 周/月线视图：点击日期是周期末(可能周末)，映射到最近交易日再弹分时
+            if kline_period != "daily":
+                _pclick_date = _period_end_to_trading_day(ticker, start_str, end_str, _pclick_date)
             _pprev = st.session_state.get(_pdbl_key)
             if (_pprev and _pnow - _pprev[0] < 0.5 and _pprev[1] == _pclick_date):
                 st.session_state["pick_intraday_target"] = _pclick_date

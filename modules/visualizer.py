@@ -281,7 +281,7 @@ class Visualizer:
             if y_top > y_bottom + 0.001:  # 有上影线才画
                 fig.add_shape(
                     type="line",
-                    x0=i, y0=y_bottom, x1=i, y1=y_top,
+                    x0=x_vals[i], y0=y_bottom, x1=x_vals[i], y1=y_top,
                     line=dict(color=up_color if rising[i] else down_color, width=1),
                     xref="x", yref="y",
                     row=1, col=1,
@@ -294,7 +294,7 @@ class Visualizer:
             if y_top > y_bottom + 0.001:  # 有下影线才画
                 fig.add_shape(
                     type="line",
-                    x0=i, y0=y_top, x1=i, y1=y_bottom,
+                    x0=x_vals[i], y0=y_top, x1=x_vals[i], y1=y_bottom,
                     line=dict(color=up_color if rising[i] else down_color, width=1),
                     xref="x", yref="y",
                     row=1, col=1,
@@ -538,14 +538,12 @@ class Visualizer:
                 namelength=-1,
             ),
             xaxis=dict(
-                type="category",
-                categoryorder="array",
-                categoryarray=x_vals,
+                type="date",
                 tickmode="array",
-                tickvals=tick_indices,
+                tickvals=[x_vals[i] for i in tick_indices],
                 ticktext=[date_labels_full[i] for i in tick_indices],
                 tickangle=-45,
-                range=[-0.5, m - 0.5],
+                range=[x_vals[0], x_vals[-1]],
                 showgrid=True,
                 gridcolor=grid_color,
                 linecolor=SF_BORDER if _is_dark() else "#E5E7EB",
@@ -577,11 +575,9 @@ class Visualizer:
             max_vol = visible["volume"].max() if len(visible) > 0 else 1
             max_vol = max(1, max_vol)
             fig.update_xaxes(
-                type="category",
-                categoryorder="array",
-                categoryarray=x_vals,
+                type="date",
                 tickmode="array",
-                tickvals=tick_indices,
+                tickvals=[x_vals[i] for i in tick_indices],
                 ticktext=[date_labels_full[i] for i in tick_indices],
                 tickangle=-45,
                 row=2, col=1,

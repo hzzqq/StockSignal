@@ -56,6 +56,47 @@ class TestBacktester:
         assert len(signals) == 30
         assert all(s in [-1, 0, 1] for s in signals)
 
+    def test_multi_factor_covers_strong_uptrend(self):
+        """回归：长电科技类「长期 RSI>85 强势上涨股」不得被系统性排除（# 回测强涨股覆盖）。
+
+        构造单调上行序列（close 10→100），RSI14 长期 > 90，验证多因子策略仍生成买入信号。
+        """
+        bt = Backtester()
+        np.random.seed(7)
+        n = 120
+        close = np.maximum(np.linspace(10, 100, n) + np.random.normal(0, 0.4, n), 1)
+        open_ = np.concatenate([[close[0] * 0.99], close[:-1]])
+        high = np.maximum(open_, close) * 1.02
+        low = np.minimum(open_, close) * 0.98
+        volume = np.random.randint(8e5, 2e6, n).astype(float)
+        df = pd.DataFrame({
+            "date": pd.date_range("2025-01-01", periods=n, freq="B"),
+            "open": open_, "high": high, "low": low, "close": close, "volume": volume,
+        })
+
+        def _rsi(s, w):
+            d = s.diff(); g = d.clip(lower=0); l = -d.clip(upper=0)
+            ag = g.ewm(alpha=1 / w, adjust=False).mean()
+            al = l.ewm(alpha=1 / w, adjust=False).mean()
+            return 100 - 100 / (1 + ag / al)
+
+        df["ma20"] = df["close"].rolling(20).mean()
+        df["ma60"] = df["close"].rolling(60).mean()
+        df["rsi14"] = _rsi(df["close"], 14)
+        df["rsi2"] = _rsi(df["close"], 2)
+        prev_c = df["close"].shift(1)
+        tr = pd.concat([(df["high"] - df["low"]),
+                        (df["high"] - prev_c).abs(),
+                        (df["low"] - prev_c).abs()], axis=1).max(axis=1)
+        df["atr_ratio"] = tr.rolling(14).mean() / df["close"]
+        df["bb_lower"] = df["ma20"] - 2 * df["close"].rolling(20).std()
+        df["vol_ma20"] = df["volume"].rolling(20).mean()
+
+        signals = bt._multi_factor_signals(df)
+        buys = sum(1 for s in signals if s == 1)
+        # 强涨股必须能被策略捕获（买入信号 > 0），防止 V5 修复回归
+        assert buys > 0, "强势上涨股被多因子策略系统性排除"
+
     def test_run_ma_cross(self):
         """测试均线交叉策略回测（需要网络）。"""
         bt = Backtester()
