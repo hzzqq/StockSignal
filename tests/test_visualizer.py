@@ -67,6 +67,13 @@ def test_candlestick_default_is_none_not_shared_list():
     assert sig.parameters["ma_windows"].default is None
 
 
+def test_candlestick_uses_real_date_axis():
+    """回归：K 线 X 轴必须为真实日期轴（type='date'），周末/节假日留白，而非 category。"""
+    fig = Visualizer.candlestick(_kline_df())
+    assert fig.layout.xaxis.type == "date", "X 轴应为真实日期轴"
+    assert fig.layout.xaxis2 is None or fig.layout.xaxis2.type == "date"
+
+
 def test_candlestick_empty_df_returns_figure():
     import plotly.graph_objects as go
     fig = Visualizer.candlestick(None)
