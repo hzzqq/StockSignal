@@ -152,6 +152,9 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | Non
                         sectors = concepts
                         name_col = c_name
                         chg_col = next((c for c in concepts.columns if "change" in c.lower()), None)
+                        if chg_col is None:
+                            # 概念列表无涨跌幅列时无法排名，直接返回占位，避免 sec.iloc[0][None] 抛 KeyError
+                            return out
                         cleaned = c_cleaned
                         use_concept = True
                         out["board_type"] = "概念"
