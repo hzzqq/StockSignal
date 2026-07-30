@@ -16,7 +16,7 @@ from modules.session import (
 )
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
-from modules.format_helpers import safe_int
+from modules.format_helpers import safe_int, safe_html_text
 
 apply_page_config(page_title="股吧", page_icon="💬", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -47,12 +47,14 @@ _AVATAR_COLORS = [
 def render_forum_avatar(avatar_data_url, username, size: int = 32) -> str:
     """返回头像 HTML：有头像用 <img>，否则用首字母彩色圆。"""
     if avatar_data_url:
+        # ⚠️ 安全：avatar_data_url 是用户可控字段，未转义会从 src="…" 属性里逃逸
+        #    （形如 `" onerror="…`）注入事件处理器 → XSS。
         return (
-            f'<img src="{avatar_data_url}" width="{size}" height="{size}" '
+            f'<img src="{safe_html_text(avatar_data_url)}" width="{size}" height="{size}" '
             f'style="border-radius:50%;object-fit:cover;vertical-align:middle;'
             f'flex:0 0 auto;">'
         )
-    initial = (username or "?").strip()[:1] or "?"
+    initial = safe_html_text((username or "?").strip()[:1], "?")
     color = _AVATAR_COLORS[(hash(username or "x")) % len(_AVATAR_COLORS)]
     return (
         f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
@@ -146,7 +148,7 @@ def fragment_detail():
     st.markdown(
         f"<div style='display:flex;align-items:center;gap:8px;'>"
         f"{render_forum_avatar(post.get('avatar', ''), _op_name, size=32)}"
-        f"<span style='font-weight:600;'>{_op_name}</span>"
+        f"<span style='font-weight:600;'>{safe_html_text(_op_name)}</span>"
         f"<span style='font-size:11px;padding:1px 6px;border-radius:8px;"
         f"background:#2b8aef;color:#fff;'>楼主</span></div>",
         unsafe_allow_html=True,
@@ -209,9 +211,10 @@ def fragment_detail():
             f"<div style='display:flex;gap:8px;padding:8px 12px;margin-bottom:6px;"
             f"border-left:3px solid #B8860B;'>"
             f"<div style='flex:0 0 auto;'>{render_forum_avatar(c.get('avatar', ''), c.get('username', '?'), size=28)}</div>"
-            f"<div><b>{c.get('username', '?')}</b>{_cop_badge} "
+            # ⚠️ 安全：评论用户名与正文是外部输入，必须转义后再拼 HTML。
+            f"<div><b>{safe_html_text(c.get('username'), '?')}</b>{_cop_badge} "
             f"<span style='opacity:.6;font-size:12px;'>{_fmt_time(c.get('created_at', ''))}</span><br>"
-            f"{c.get('content', '')}</div></div>",
+            f"{safe_html_text(c.get('content'))}</div></div>",
             unsafe_allow_html=True,
         )
     if not comments:
@@ -387,14 +390,14 @@ def fragment_list():
                 with top2:
                     tag = ""
                     if p.get("stock_code"):
-                        tag = f"📈 {p.get('stock_name') or p['stock_code']}"
+                        tag = f"📈 {safe_html_text(p.get('stock_name') or p['stock_code'])}"
                     st.markdown(
                         f"<div style='text-align:right;font-size:12px;opacity:.75;'>"
                         f"{tag}<br>"
                         f"<span style='display:inline-flex;align-items:center;gap:6px;"
                         f"justify-content:flex-end;'>"
                         f"{render_forum_avatar(p.get('avatar', ''), p.get('username', '?'), size=20)}"
-                        f"👤 {p.get('username', '?')}</span><br>"
+                        f"👤 {safe_html_text(p.get('username'), '?')}</span><br>"
                         f"💬 {p.get('comment_count') or 0} · 👍 {p.get('likes') or 0} · 👀 {p.get('views') or 0}"
                         f"</div>",
                         unsafe_allow_html=True,

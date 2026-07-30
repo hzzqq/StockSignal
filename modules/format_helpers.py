@@ -13,8 +13,28 @@ modules/format_helpers.py
 """
 from __future__ import annotations
 
+import html as _html
 import math
 from typing import Optional
+
+
+def safe_html_text(x, default: str = "") -> str:
+    """把任意外部数据安全转义为可嵌入 HTML 的纯文本。
+
+    使用场景：页面用 ``st.markdown(..., unsafe_allow_html=True)`` 拼接 HTML 时，
+    任何来自外部（新闻标题、股吧正文、接口字段）的内容都必须先经本函数转义，
+    否则内容里的 ``<script>`` / ``<img onerror=...>`` / 未闭合标签会被浏览器当作
+    真实 HTML 解析——轻则页面标签泄露、排版错乱，重则构成 XSS。
+
+    - ``None`` / 空值 → 返回 ``default``（不返回字面量 "None"）；
+    - 同时转义引号（``quote=True``），支持嵌入属性值内。
+    """
+    if x is None:
+        return default
+    s = x if isinstance(x, str) else str(x)
+    if s == "":
+        return default
+    return _html.escape(s, quote=True)
 
 
 def to_float(x, default: Optional[float] = None) -> Optional[float]:

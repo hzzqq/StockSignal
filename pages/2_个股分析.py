@@ -27,6 +27,7 @@ from modules.ui_theme import dashboard_sf_css, _theme_is_dark
 from modules.background_tasks import submit_task_with_error, poll_task
 from modules.page_widgets import _empty_info
 from modules.autorefresh import st_autorefresh
+from modules.format_helpers import safe_html_text
 
 # 配色常量 + UI/计算纯函数簇已抽到 modules/stock_analysis_helpers（#408 拆分超大文件）。
 # 参考文档 002947「绿涨红跌」配色随常量一并迁移，页面行为完全不变。
@@ -751,8 +752,10 @@ def _render_analysis(R: dict):
         )
         rows_html = "".join(
             # ⚠️ 深层守卫：新闻项可能缺 title/sentiment 字段（契约漂移），统一 .get 兜底。
-            f"<tr><td class='l'>{r.get('title') or '—'}</td>"
-            f"<td><span class='sf-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{r.get('sentiment') or '中性'}</span></td></tr>"
+            # ⚠️ 安全：title/sentiment 是外部数据，拼进 unsafe_allow_html 前必须转义，
+            #    否则标题里的 HTML 标签会被浏览器解析（页面标签泄露 / XSS）。
+            f"<tr><td class='l'>{safe_html_text(r.get('title'), '—')}</td>"
+            f"<td><span class='sf-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{safe_html_text(r.get('sentiment'), '中性')}</span></td></tr>"
             for r in _disp_news
         )
         st.markdown(
@@ -768,8 +771,13 @@ def _render_analysis(R: dict):
 
     # 风险警报（负面新闻或偏空信号）
     if neg_pct >= 30 or verdict == "看空":
-        risk_titles = [r.get("title", "—") for r in news_rows if r.get("sentiment") == "负面"][:2]
-        risk_body = "；".join(risk_titles) if risk_titles else f"综合研判偏空（{verdict}）"
+        # ⚠️ 安全：新闻标题为外部数据，拼进 unsafe_allow_html 前统一转义。
+        risk_titles = [
+            safe_html_text(r.get("title"), "—")
+            for r in news_rows
+            if r.get("sentiment") == "负面"
+        ][:2]
+        risk_body = "；".join(risk_titles) if risk_titles else f"综合研判偏空（{safe_html_text(verdict)}）"
         st.markdown(
             f"<div class='sf-alert risk'><b>⚠️ 风险警报</b>检测到偏空信号：{risk_body}。"
             f"建议严格控制仓位并关注止损价 ¥{stop_price:.2f}。</div>",
@@ -777,8 +785,13 @@ def _render_analysis(R: dict):
         )
     # 积极催化（正面新闻或偏多信号）
     if pos_pct >= 40 or verdict == "看多":
-        cat_titles = [r.get("title", "—") for r in news_rows if r.get("sentiment") == "正面"][:2]
-        cat_body = "；".join(cat_titles) if cat_titles else f"综合研判偏多（{verdict}）"
+        # ⚠️ 安全：同上，外部新闻标题统一转义后再拼 HTML。
+        cat_titles = [
+            safe_html_text(r.get("title"), "—")
+            for r in news_rows
+            if r.get("sentiment") == "正面"
+        ][:2]
+        cat_body = "；".join(cat_titles) if cat_titles else f"综合研判偏多（{safe_html_text(verdict)}）"
         st.markdown(
             f"<div class='sf-alert cat'><b>🚀 积极催化</b>检测到正面信号：{cat_body}。"
             f"可关注突破压力 ¥{target_price:.2f} 后的趋势机会。</div>",
