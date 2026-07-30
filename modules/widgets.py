@@ -331,7 +331,7 @@ def render_index_mini_cards(cols_per_row: int = 3) -> None:
 
     # 自动刷新：交易时间 60s 后台更新，不影响页面状态（st_autorefresh 保持 session_state）
     try:
-        from streamlit_autorefresh import st_autorefresh
+        from modules.autorefresh import st_autorefresh
         is_open, _, refresh_ms = _index_market_status()
         if refresh_ms > 0:
             st_autorefresh(interval=refresh_ms, key="index_autorefresh")
@@ -433,7 +433,7 @@ def render_index_compact(cols_per_row: int = 5) -> None:
 
     # 自动刷新：交易时间 60s 后台更新
     try:
-        from streamlit_autorefresh import st_autorefresh
+        from modules.autorefresh import st_autorefresh
         is_open, _, refresh_ms = _index_market_status()
         if refresh_ms > 0:
             st_autorefresh(interval=refresh_ms, key="index_compact_autorefresh")

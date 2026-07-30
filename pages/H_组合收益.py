@@ -16,7 +16,7 @@ from modules.portfolio import PortfolioManager
 from modules.fetcher import StockFetcher
 
 try:
-    from streamlit_autorefresh import st_autorefresh
+    from modules.autorefresh import st_autorefresh
 except Exception:
     st_autorefresh = None
 

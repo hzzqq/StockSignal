@@ -26,7 +26,7 @@ from modules.search_ui import stock_search_input
 from modules.ui_theme import dashboard_sf_css, _theme_is_dark
 from modules.background_tasks import submit_task_with_error, poll_task
 from modules.page_widgets import _empty_info
-from streamlit_autorefresh import st_autorefresh
+from modules.autorefresh import st_autorefresh
 
 # 配色常量 + UI/计算纯函数簇已抽到 modules/stock_analysis_helpers（#408 拆分超大文件）。
 # 参考文档 002947「绿涨红跌」配色随常量一并迁移，页面行为完全不变。

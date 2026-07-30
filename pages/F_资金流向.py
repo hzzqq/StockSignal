@@ -33,7 +33,7 @@ from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fig_layout, _section_title, _fmt_yi, _trend_controls
 
 try:
-    from streamlit_autorefresh import st_autorefresh
+    from modules.autorefresh import st_autorefresh
 except Exception:
     st_autorefresh = None
 

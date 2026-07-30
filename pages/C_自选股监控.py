@@ -22,7 +22,7 @@ from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
-from streamlit_autorefresh import st_autorefresh
+from modules.autorefresh import st_autorefresh
 
 # A股配色：涨=红，跌=绿（统一走 page_widgets.UP/DOWN，避免三套常量漂移 #541-4）
 from modules.page_widgets import UP as _UP, DOWN as _DOWN

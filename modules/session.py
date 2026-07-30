@@ -48,10 +48,10 @@ def trading_autorefresh(interval_ms: int = 60000, key: str = "auto_refresh"):
     """交易时段（工作日 09:30-11:30 / 13:00-15:00）自动刷新当前页面数据，避免数据陈旧。
 
     非交易时段（午休 / 收盘 / 周末）不刷新，避免无意义请求与界面闪烁。
-    统一替换各页散落的 `from streamlit_autorefresh import st_autorefresh` + 交易时段判断。
+    统一替换各页散落的 `from modules.autorefresh import st_autorefresh` + 交易时段判断。
     """
     try:
-        from streamlit_autorefresh import st_autorefresh
+        from modules.autorefresh import st_autorefresh
     except Exception as e:
         logger.warning(f"[session] 处理异常: {e}")
         return

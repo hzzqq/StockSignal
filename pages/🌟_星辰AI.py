@@ -704,7 +704,7 @@ def _poll_ai_task():
             st.rerun(scope="app")
             return
         try:
-            from streamlit_autorefresh import st_autorefresh
+            from modules.autorefresh import st_autorefresh
 
             st_autorefresh(interval=1500, limit=300, key="xc_autorefresh")
         except Exception:

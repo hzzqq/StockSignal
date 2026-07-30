@@ -170,7 +170,7 @@ def fragment_sector_board():
     st.subheader("🏭 行业板块涨跌榜")
 
     try:
-        from streamlit_autorefresh import st_autorefresh
+        from modules.autorefresh import st_autorefresh
         is_open, status_text, refresh_ms = _get_market_status()
         if refresh_ms > 0:
             st_autorefresh(interval=refresh_ms, key="sector_autorefresh")
@@ -316,7 +316,7 @@ def fragment_lhb():
     st.markdown("---")
     # 交易时段每 60 秒自动刷新龙虎榜数据
     try:
-        from streamlit_autorefresh import st_autorefresh
+        from modules.autorefresh import st_autorefresh
         is_open, _, _ = _get_market_status()
         if is_open:
             st_autorefresh(interval=60000, key="lhb_autorefresh")
@@ -694,7 +694,7 @@ def fragment_watchlist_quotes():
 
     # 交易时段自动刷新（仅本 fragment 重跑）
     try:
-        from streamlit_autorefresh import st_autorefresh
+        from modules.autorefresh import st_autorefresh
         if is_trading_now():
             st_autorefresh(interval=60 * 1000, key="wl_quotes_autorefresh")
     except Exception:

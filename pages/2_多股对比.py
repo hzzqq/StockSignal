@@ -17,7 +17,7 @@ st.session_state["_active_page"] = __file__
 from modules.session import require_auth, render_user_badge
 from modules.search_ui import multi_stock_search_input
 from modules.background_tasks import submit_task_with_error, poll_task
-from streamlit_autorefresh import st_autorefresh
+from modules.autorefresh import st_autorefresh
 from modules.compare import (
     compare_css, build_header, build_one_line,
     build_table, build_pairwise_card, build_radar, build_radar_right,

@@ -27,7 +27,7 @@ from modules.page_widgets import (
 from modules.page_guard import safe_fragment
 
 try:
-    from streamlit_autorefresh import st_autorefresh
+    from modules.autorefresh import st_autorefresh
 except Exception:
     st_autorefresh = None
 

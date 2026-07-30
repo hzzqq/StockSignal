@@ -26,7 +26,7 @@ from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 
 try:
-    from streamlit_autorefresh import st_autorefresh
+    from modules.autorefresh import st_autorefresh
 except Exception:
     st_autorefresh = None
 

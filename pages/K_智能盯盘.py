@@ -44,7 +44,7 @@ with lk2:
     st.page_link("pages/个股研究.py", label="🔍 个股研究", icon="🔍")
 
 try:
-    from streamlit_autorefresh import st_autorefresh
+    from modules.autorefresh import st_autorefresh
 except Exception:
     st_autorefresh = None
 

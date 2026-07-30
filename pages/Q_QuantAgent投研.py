@@ -19,7 +19,7 @@ from __future__ import annotations
 import streamlit as st
 
 try:
-    from streamlit_autorefresh import st_autorefresh
+    from modules.autorefresh import st_autorefresh
 except Exception:  # pragma: no cover
     st_autorefresh = None
 
