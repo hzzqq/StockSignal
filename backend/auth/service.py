@@ -6,9 +6,11 @@ auth/service.py
 from __future__ import annotations
 import re
 import time
+import threading
 from typing import Any, Dict
 import jwt
 from flask import current_app
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from ..extensions import db
 from ..models import User, OperationLog
@@ -47,16 +49,55 @@ def decode_token(token: str) -> Dict[str, Any]:
         raise AuthError("无效的登录凭证", code="invalid_token")
 
 
+_DUMMY_PLAIN = "__stocksignal_timing_equalizer__"
+_dummy_hash: str | None = None
+_dummy_lock = threading.Lock()
+
+
+def _equalize_hash_time(password: str) -> None:
+    """用户不存在时，仍消耗一次等价的密码哈希校验开销。
+
+    ⚠️ 为什么必需：werkzeug 默认哈希为 scrypt(32768,8,1)，单次校验实测约
+    350ms。若「用户不存在」直接短路返回，而「用户存在但密码错」要跑满这
+    350ms，二者响应时间差了两个数量级——攻击者只用秒表就能判定任意用户名
+    是否注册（账户枚举），统一错误文案的防御被时序侧信道整个绕过。
+
+    这里用同一套 generate/check 生成哑哈希（自动跟随 werkzeug 当前默认算法，
+    无需手工同步参数），首次调用会多付一次 generate 的开销，之后缓存复用。
+    """
+    global _dummy_hash
+    if _dummy_hash is None:
+        with _dummy_lock:
+            if _dummy_hash is None:
+                _dummy_hash = generate_password_hash(_DUMMY_PLAIN)
+    # 结果必然为 False，仅为消耗与真实校验等量的 CPU 时间
+    check_password_hash(_dummy_hash, password or "")
+
+
 def authenticate(username: str, password: str) -> User:
     """
     校验用户名/密码。失败消息统一为 '用户名或密码错误'，避免账户枚举。
+
+    枚举防御分两层：
+      1. 文案层：用户不存在 / 已禁用 / 密码错，全部返回同一条消息与 code。
+      2. 时序层：用户不存在时也跑一次等价开销的哈希校验（见 _equalize_hash_time），
+         使三条失败路径的耗时同量级。缺了这层，第 1 层形同虚设。
     """
     if not username or not password:
         raise ValidationError("请提供用户名和密码")
 
     user = User.query.filter_by(username=username).first()
-    # 故意两个分支都走同样消息，防止通过响应差异枚举账号
-    if user is None or not user.is_active or not user.verify_password(password):
+
+    if user is None:
+        # 抹平时序：不存在的用户名同样付出一次哈希校验的时间
+        _equalize_hash_time(password)
+        password_ok = False
+    else:
+        # 已禁用的用户也照常校验密码，避免「禁用」成为另一个时序标记
+        password_ok = user.verify_password(password)
+
+    # 故意三个分支都走同样消息，防止通过响应差异枚举账号
+    if user is None or not user.is_active or not password_ok:
         raise AuthError("用户名或密码错误", code="invalid_credentials")
 
     return user
