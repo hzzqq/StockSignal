@@ -36,3 +36,6 @@ deploy_preview/
 # Windows 误创建的空设备文件
 /nul
 
+# 本地页面冒烟测试报告（分批产物，本机生成，不入库）
+tests/.pages_smoke_report*.json
+
