@@ -43,7 +43,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from modules.portfolio import allocate_fifo, market_value_of  # noqa: E402
+from modules.portfolio import allocate_fifo, market_value_of, compute_realized_fifo  # noqa: E402
 
 
 def _pos(rows):
@@ -194,7 +194,7 @@ class TestAggregatesNotInflated:
 class TestRealizedPnlSplit:
 
     def test_realized_split_sums_to_ticker_total(self):
-        """整票已实现盈亏按各批次卖出股数摊分，行求和 == 整票总额（不重复计数）。"""
+        """整票已实现盈亏(FIFO)按各批次卖出股数摊分,行求和 == 整票总额(不重复计数)。"""
         df = _pos([
             {"ticker": "600519", "buy_date": "2026-01-05", "buy_price": 1500.0,
              "shares": 100, "cost": 150000.0},
@@ -203,9 +203,12 @@ class TestRealizedPnlSplit:
         ])
         rem, used = allocate_fifo(df, {"600519": 120})
 
-        # 复刻 calc_pnl 的整票口径：均价成本 × 卖出股数
-        avg_cost = (1500.0 * 100 + 1600.0 * 200) / 300
-        ticker_realized = round(1700.0 * 120 - avg_cost * 120, 2)
+        # 整票 FIFO 已实现：先卖最早批次(1500)100股,再卖次批(1600)20股,卖价1700
+        # = 100*(1700-1500) + 20*(1700-1600) = 20000 + 2000 = 22000
+        ticker_realized = compute_realized_fifo(
+            [(1500.0, 100), (1600.0, 200)],
+            [(1700.0, 120)],
+        )
 
         used_total = sum(used)
         per_row = [ticker_realized * (u / used_total) if used_total else 0.0
@@ -213,7 +216,7 @@ class TestRealizedPnlSplit:
         assert sum(per_row) == pytest.approx(ticker_realized), (
             f"逐行已实现盈亏之和 {sum(per_row)} != 整票 {ticker_realized}（重复计数）"
         )
-        # 旧实现是每行照抄整票金额，行求和会是 2 倍
+        # 旧实现是每行照抄整票金额,行求和会是 2 倍
         assert sum(per_row) != pytest.approx(ticker_realized * 2)
 
     def test_no_sell_means_zero_realized(self):

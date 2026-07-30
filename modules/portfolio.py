@@ -130,6 +130,34 @@ def allocate_fifo(positions, sold_map):
     return remaining, consumed
 
 
+def compute_realized_fifo(buy_batches, sell_trades):
+    """按先进先出（FIFO）计算整只股票的已实现盈亏。
+
+    与 ``allocate_fifo`` 同一套 FIFO 契约：先买的批次先被卖出。每笔卖出交易
+    按其卖出价，沿买入批次升序吃货，已实现盈亏 = Σ(卖出价 - 该批次买入价) × 吃货股数。
+
+    :param buy_batches: [(buy_price, shares), ...]，调用方需按买入时间升序传入
+    :param sell_trades: [(sell_price, sell_shares), ...]，调用方需按卖出时间升序传入
+    :return: 整票已实现盈亏（四舍五入 2 位）
+    """
+    realized = 0.0
+    batches = [[to_float(bp, default=0.0), max(0, int(sh))] for bp, sh in buy_batches]
+    bi = 0
+    for sp, sh in sell_trades:
+        sp = to_float(sp, default=0.0)
+        left = max(0, int(sh))
+        while left > 0 and bi < len(batches):
+            bp, avail = batches[bi]
+            take = min(avail, left)
+            if take > 0:
+                realized += (sp - bp) * take
+                batches[bi][1] = avail - take
+                left -= take
+            if batches[bi][1] <= 0:
+                bi += 1
+    return round(realized, 2)
+
+
 class PortfolioManager:
     """仓位管理器。"""
 
@@ -321,12 +349,16 @@ class PortfolioManager:
             for ticker in trades["ticker"].unique():
                 t_trades = trades[trades["ticker"] == ticker]
                 t_positions = df[df["ticker"] == ticker]
-                total_bought_shares = int(t_positions["shares"].sum())
-                total_bought_cost = float((t_positions["buy_price"] * t_positions["shares"]).sum())
-                avg_cost = total_bought_cost / total_bought_shares if total_bought_shares > 0 else 0
-                total_sold_shares = int(t_trades["sell_shares"].sum())
-                total_sold_proceeds = float((t_trades["sell_price"] * t_trades["sell_shares"]).sum())
-                realized[ticker] = round(total_sold_proceeds - avg_cost * total_sold_shares, 2)
+                # FIFO 批次顺序：买入按买入日期升序，卖出按卖出日期升序
+                pos_sorted = t_positions.copy()
+                pos_sorted["_bd"] = pd.to_datetime(pos_sorted.get("buy_date"), errors="coerce")
+                pos_sorted = pos_sorted.sort_values("_bd")
+                buy_batches = [(r["buy_price"], r["shares"]) for _, r in pos_sorted.iterrows()]
+                tr_sorted = t_trades.copy()
+                tr_sorted["_sd"] = pd.to_datetime(tr_sorted.get("sell_date"), errors="coerce")
+                tr_sorted = tr_sorted.sort_values("_sd")
+                sell_list = [(r["sell_price"], r["sell_shares"]) for _, r in tr_sorted.iterrows()]
+                realized[ticker] = compute_realized_fifo(buy_batches, sell_list)
 
         # ⚠️ 已实现盈亏同样不能整票金额逐行照抄：同票多批次时逐行相加会重复计数。
         # 按各批次「实际被 FIFO 卖出的股数」占比摊分，保证 Σ各行 == 整票已实现盈亏。
@@ -403,7 +435,8 @@ class PortfolioManager:
 
         total_cost = pnl_df["cost"].sum()
         total_mv = pnl_df["market_value"].sum()
-        total_pnl = pnl_df["pnl"].sum()
+        # total_pnl 含已实现盈亏（calc_pnl 已产出 realized_pnl 列），避免总盈亏漏算已平仓收益
+        total_pnl = (pnl_df["pnl"] + pnl_df["realized_pnl"]).sum()
 
         return {
             "total_cost": round(total_cost, 2),
