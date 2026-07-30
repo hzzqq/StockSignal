@@ -224,7 +224,10 @@ class Visualizer:
         fig = make_subplots(
             rows=rows, cols=1, shared_xaxes=True,
             vertical_spacing=0.05, row_heights=row_heights,
-            subplot_titles=(None, None) if show_volume else (title,)
+            # 不在 subplot 层放标题：单/双行都统一用居中的主标题，
+            # 避免 show_volume=False 时 subplot_titles=(title,) 在左上角再叠加一份
+            # 与主标题相同的文字，暗色模式下造成「左上文字重合」
+            subplot_titles=(None,) if rows == 1 else (None, None)
         )
 
         # ── 统一悬停数据：日期 / OHLC / 成交量 / 成交量颜色 / MA 值 ──
