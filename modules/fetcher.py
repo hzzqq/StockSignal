@@ -50,6 +50,23 @@ from modules._feed_io import (  # noqa: F401
     _UrllibFetcher,
 )
 
+
+def _safe_json_loads(s, default=None):
+    """安全解析 JSON：损坏/空/非字符串一律返回 default，绝不抛异常。
+
+    用于缓存读取路径的容错——缓存数据可能因磁盘写半截、版本变更而损坏，
+    直接 json.loads 会抛 JSONDecodeError 炸到调用方；此处降级为 default，
+    让上层走缓存未命中/空结果分支，而不是崩溃。
+    """
+    if not s or not isinstance(s, str):
+        return default
+    try:
+        return json.loads(s)
+    except (json.JSONDecodeError, ValueError, TypeError):
+        logger.warning(f"[fetcher] 缓存 JSON 解析失败，降级返回默认: {type(s).__name__}")
+        return default
+
+
 # ──────────────────────────────────────────────────────────
 # 配置加载
 # ──────────────────────────────────────────────────────────
@@ -443,7 +460,7 @@ class StockFetcher:
             age_str = f"{age_s/3600:.1f}h" if age_s >= 3600 else f"{age_s/60:.1f}m"
             logger.debug(f"[CACHE] HIT  key={cache_key} table={table_name} age={age_str}")
             if not as_dataframe:
-                return json.loads(row[0])
+                return _safe_json_loads(row[0])
             # 如果缓存的是 DataFrame（原格式），返回 DataFrame
             try:
                 df = pd.read_json(io.StringIO(row[0]))
@@ -453,7 +470,7 @@ class StockFetcher:
             except Exception as e:
                 logger.warning(f"[fetcher] 处理异常: {e}")
                 # 非 DataFrame JSON（如实时行情字典），返回原始 dict/list
-                return json.loads(row[0])
+                return _safe_json_loads(row[0])
         return None
 
     def _read_stale_cache(self, conn, table_name, prefix):
@@ -1071,7 +1088,9 @@ class StockFetcher:
                 f"SELECT data_json FROM {table_name} WHERE cache_key = 'all'"
             ).fetchone()
             if row is not None:
-                data = json.loads(row[0])
+                data = _safe_json_loads(row[0])
+                if data is None:
+                    return pd.DataFrame(columns=["code", "name"])
                 return pd.DataFrame(data)
 
             # 缓存未命中 -> 从 BaoStock 拉取
