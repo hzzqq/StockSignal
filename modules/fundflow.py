@@ -103,9 +103,6 @@ def _ensure_proxy_and_ssl():
     _patch_done = True
 
 
-_ensure_proxy_and_ssl()
-
-
 def _cache(ttl=300):
     def deco(fn):
         @functools.lru_cache(maxsize=32)
@@ -126,7 +123,15 @@ _CACHE_LOCK = threading.Lock()
 
 
 def _cached(ttl, key, fn):
-    """基于时间戳的轻量缓存，避免对同一昂贵 akshare 调用短时间内重复请求。"""
+    """基于时间戳的轻量缓存，避免对同一昂贵 akshare 调用短时间内重复请求。
+
+    惰性触发代理/SSL 设置：原实现在模块导入时即同步执行 _proxy_reachable 的
+    socket 探测（默认本地代理 127.0.0.1:26561，timeout 2s），导致每个 import
+    fundflow 的页面在加载时都要先等这次最多 2 秒的网络探测——这正是「几乎所有
+    模块加载极慢」的隐藏根因之一。现改为在首次真实网络请求前惰性执行一次
+    （_patch_done 幂等守卫），import 不再阻塞，页面非网络部分可即时渲染。
+    """
+    _ensure_proxy_and_ssl()  # 惰性、幂等；仅首次网络请求前执行一次 socket 探测
     now = time.time()
     with _CACHE_LOCK:
         hit = _CACHE.get(key)
