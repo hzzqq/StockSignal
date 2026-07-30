@@ -638,14 +638,14 @@ def render_topright_bar() -> None:
             with _logo_c:
                 st.markdown(STAR_AI_LOGO(18), unsafe_allow_html=True)
             with _pop_c:
-                try:
+                # 用 hasattr 前置判断（不用 try/except AttributeError），
+                # 避免 popover 内部渲染抛 AttributeError 时被误捕 → fallback 再调
+                # render_ai_consultant() → st.form("ai_consult_global") 重复创建。
+                if hasattr(st, "popover"):
                     with st.popover("星辰 AI", use_container_width=True):
                         render_ai_consultant()
-                except AttributeError:
-                    # 极老版本 Streamlit 无 st.popover 属性时兜底：退回侧边栏
-                    # ⚠️ 不得用 bare Exception！popover 内 render_ai_consultant() 的运行时
-                    #    异常（如 duplicate key / 渲染错误）若被误捕，会导致 fallback 再调一次
-                    #    → st.form("ai_consult_global") 重复创建 → StreamlitAPIException。
+                else:
+                    # 极老版本 Streamlit 无 st.popover 时退回侧边栏
                     with st.sidebar:
                         render_ai_consultant()
         with c_set:
