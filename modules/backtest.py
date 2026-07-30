@@ -82,6 +82,8 @@ class Backtester:
     # ------------------------------------------------------------------
     @staticmethod
     def _rsi(series, window=14):
+        if series is None or len(series) < 2:
+            return pd.Series(dtype=float)
         delta = series.diff()
         gain = delta.where(delta > 0, 0).rolling(window=window).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
@@ -90,6 +92,8 @@ class Backtester:
 
     @staticmethod
     def _atr(df, window=14):
+        if df is None or df.empty or not all(c in df.columns for c in ("high", "low", "close")):
+            return pd.Series(dtype=float)
         high_low = df["high"] - df["low"]
         high_close = (df["high"] - df["close"].shift()).abs()
         low_close = (df["low"] - df["close"].shift()).abs()
@@ -98,6 +102,9 @@ class Backtester:
 
     @staticmethod
     def _macd(df):
+        if df is None or df.empty or "close" not in df.columns:
+            empty = pd.Series(dtype=float)
+            return empty, empty, empty
         ema12 = df["close"].ewm(span=12, adjust=False).mean()
         ema26 = df["close"].ewm(span=26, adjust=False).mean()
         dif = ema12 - ema26
@@ -107,6 +114,9 @@ class Backtester:
 
     @staticmethod
     def _bollinger(df, window=20, std=2):
+        if df is None or df.empty or "close" not in df.columns:
+            empty = pd.Series(dtype=float)
+            return empty, empty, empty
         ma = df["close"].rolling(window=window).mean()
         std_dev = df["close"].rolling(window=window).std()
         upper = ma + std_dev * std
@@ -328,6 +338,8 @@ class Backtester:
     @staticmethod
     def _adx(df, period=14):
         """Wilder ADX：衡量趋势强度（>20 有趋势，>40 强趋势）。"""
+        if df is None or df.empty or not all(c in df.columns for c in ("high", "low", "close")):
+            return pd.Series(dtype=float)
         tr1 = df["high"] - df["low"]
         tr2 = (df["high"] - df["close"].shift(1)).abs()
         tr3 = (df["low"] - df["close"].shift(1)).abs()

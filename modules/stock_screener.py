@@ -115,6 +115,8 @@ def _years_ago(years: int) -> str:
 
 def _norm_col(df: pd.DataFrame, mapping: Dict[str, List[str]]) -> pd.DataFrame:
     """按中文子串模糊匹配，把 akshare 中文列名规范为英文列名。"""
+    if df is None or not isinstance(df, pd.DataFrame):
+        return df
     df = df.copy()
     rename = {}
     for eng, candidates in mapping.items():
