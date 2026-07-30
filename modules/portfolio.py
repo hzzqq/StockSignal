@@ -77,6 +77,59 @@ def position_pnl(current_price, remaining_shares, cost):
     return current_price * remaining_shares - cost
 
 
+def allocate_fifo(positions, sold_map):
+    """把每只股票的累计卖出股数按「先进先出」摊到各买入批次。
+
+    ⚠️ 为什么必需（这是本函数存在的全部理由）：
+    add_position 每买一次就 append 一行，所以**同一只股票分批建仓会有多行**
+    （A 股最常见的加仓操作）。旧实现是
+
+        remaining[ticker] = 该票总买入 - 该票总卖出
+        df["remaining_shares"] = df["ticker"].map(remaining)
+
+    即把「整只票的剩余股数」原封不动写进该票的**每一行**。两批建仓
+    (100 股 + 200 股) 时两行的 remaining_shares 都是 300，于是 calc_pnl
+    逐行算市值再求和 = 2×真实市值，成本按 cost_ratio=300/100=3 也一并放大，
+    **持仓总市值 / 总成本 / 总盈亏全部成倍虚增**（实测 2.0x / 1.98x）。
+
+    这里改为按买入日期升序、先买的批次先被卖出，逐行分配剩余股数，
+    保证 Σ各行剩余 == 该票真实剩余。
+
+    :param positions: 持仓 DataFrame（需含 ticker / shares，buy_date 可选）
+    :param sold_map: {ticker: 累计已卖股数}
+    :return: (remaining_per_row, consumed_per_row) 两个与 positions 行序对齐的列表
+    """
+    n = len(positions)
+    remaining = [0] * n
+    consumed = [0] * n
+    if n == 0:
+        return remaining, consumed
+
+    shares = []
+    for _, r in positions.iterrows():
+        v = to_float(r.get("shares"), default=0.0) or 0.0
+        shares.append(max(0, int(v)))
+
+    # 按 ticker 分组；组内按买入日期升序，日期缺失/无法解析的排最后并保持原相对顺序
+    groups = {}
+    for pos, (_, r) in enumerate(positions.iterrows()):
+        ticker = str(r.get("ticker", ""))
+        dt = pd.to_datetime(r.get("buy_date"), errors="coerce")
+        sort_key = (1, pos) if pd.isna(dt) else (0, dt.value)
+        groups.setdefault(ticker, []).append((sort_key, pos))
+
+    for ticker, entries in groups.items():
+        entries.sort(key=lambda e: (e[0], e[1]))
+        left = to_float(sold_map.get(ticker, 0), default=0.0) or 0.0
+        left = max(0, int(left))
+        for _, pos in entries:
+            take = min(shares[pos], left)
+            consumed[pos] = take
+            remaining[pos] = shares[pos] - take
+            left -= take
+    return remaining, consumed
+
+
 class PortfolioManager:
     """仓位管理器。"""
 
@@ -238,15 +291,14 @@ class PortfolioManager:
         if df.empty:
             return df
         trades = self._load_trades()
-        remaining = {}
         if not trades.empty:
             sold = trades.groupby("ticker")["sell_shares"].sum().to_dict()
         else:
             sold = {}
-        for ticker in df["ticker"].unique():
-            bought = int(df[df["ticker"] == ticker]["shares"].sum())
-            remaining[ticker] = max(0, bought - sold.get(ticker, 0))
-        df["remaining_shares"] = df["ticker"].map(remaining)
+        # ⚠️ 必须逐行 FIFO 分配，不能用 df["ticker"].map(整票剩余)：
+        # 同票分批建仓有多行，map 会让每行都拿到整票剩余 → 市值/成本成倍虚增。
+        remaining_list, _ = allocate_fifo(df, sold)
+        df["remaining_shares"] = remaining_list
         return df
 
     # ------------------------------------------------------------------
@@ -275,6 +327,14 @@ class PortfolioManager:
                 total_sold_shares = int(t_trades["sell_shares"].sum())
                 total_sold_proceeds = float((t_trades["sell_price"] * t_trades["sell_shares"]).sum())
                 realized[ticker] = round(total_sold_proceeds - avg_cost * total_sold_shares, 2)
+
+        # ⚠️ 已实现盈亏同样不能整票金额逐行照抄：同票多批次时逐行相加会重复计数。
+        # 按各批次「实际被 FIFO 卖出的股数」占比摊分，保证 Σ各行 == 整票已实现盈亏。
+        consumed_total = {}
+        for _, row in df.iterrows():
+            t = row["ticker"]
+            used = max(0, int(row.get("shares", 0)) - int(row.get("remaining_shares", 0)))
+            consumed_total[t] = consumed_total.get(t, 0) + used
 
         results = []
         for _, row in df.iterrows():
@@ -307,6 +367,14 @@ class PortfolioManager:
             pnl = position_pnl(current_price, remaining, cost)
             pnl_pct = safe_pct(pnl, cost)
 
+            # 该批次被卖出的股数占整票已卖出的比例，用于摊分已实现盈亏
+            used = max(0, int(row.get("shares", 0)) - remaining)
+            used_total = consumed_total.get(row["ticker"], 0)
+            row_realized = (
+                realized.get(row["ticker"], 0.0) * (used / used_total)
+                if used_total > 0 else 0.0
+            )
+
             results.append({
                 "ticker": row["ticker"],
                 "name": row["name"],
@@ -317,7 +385,7 @@ class PortfolioManager:
                 "cost": cost,
                 "current_price": round(current_price, 2),
                 "market_value": round(market_value, 2),
-                "realized_pnl": round(realized.get(row["ticker"], 0.0), 2),
+                "realized_pnl": round(row_realized, 2),
                 "pnl": round(pnl, 2),
                 "pnl_pct": round(pnl_pct, 2)
             })
