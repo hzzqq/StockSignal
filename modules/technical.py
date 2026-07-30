@@ -406,6 +406,13 @@ def detect_patterns(df: pd.DataFrame, lookback: int = 30) -> List[Dict[str, Any]
     if df is None or df.empty or len(df) < 3:
         return []
 
+    # 隐性缺陷修复：形态识别需 open/high/low/close 四列，但旧实现直接下标访问 sub["open"] 等，
+    # 上游若取到缺列（如仅 close）的部分数据会抛 KeyError 拖垮整个技术面板块。
+    # 缺任一必要列时无法识别形态，安全返回空列表。
+    _ohlc = ("open", "high", "low", "close")
+    if not all(c in df.columns for c in _ohlc):
+        return []
+
     patterns: List[Dict[str, Any]] = []
     sub = df.tail(lookback).reset_index(drop=True)
     n = len(sub)
@@ -509,12 +516,22 @@ def detect_patterns(df: pd.DataFrame, lookback: int = 30) -> List[Dict[str, Any]
 def full_analysis(df: pd.DataFrame) -> Dict[str, Any]:
     """
     一键执行所有技术面分析，返回结构化字典，供 Streamlit 直接展示。
+
+    防御性设计：任一子分析（趋势/动量/量能/形态）抛异常时隔离为 {"error": ...}，
+    不再因单点崩溃拖垮整个技术面板块（行情看板/个股分析均依赖本函数）。
     """
+
+    def _safe(fn) -> Dict[str, Any]:
+        try:
+            return fn(df)
+        except Exception as e:  # noqa: BLE001 - 顶层兜底，保证页面不崩
+            return {"error": f"{fn.__name__} 分析失败: {type(e).__name__}"}
+
     return {
-        "trend": analyze_trend(df),
-        "momentum": analyze_momentum(df),
-        "volume": analyze_volume(df),
-        "patterns": detect_patterns(df),
+        "trend": _safe(analyze_trend),
+        "momentum": _safe(analyze_momentum),
+        "volume": _safe(analyze_volume),
+        "patterns": _safe(detect_patterns),
     }
 
 
