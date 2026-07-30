@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_macd(close_prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> Tuple[Optional[pd.Series], Optional[pd.Series], Optional[pd.Series]]:
+    if close_prices is None:
+        return None, None, None
     if len(close_prices) < slow:
         return None, None, None
     try:
@@ -30,6 +32,8 @@ def calculate_macd(close_prices: pd.Series, fast: int = 12, slow: int = 26, sign
 
 
 def calculate_sma(data: pd.Series, window: int) -> Optional[pd.Series]:
+    if data is None:
+        return None
     if len(data) < window:
         return None
     try:
@@ -40,6 +44,8 @@ def calculate_sma(data: pd.Series, window: int) -> Optional[pd.Series]:
 
 
 def calculate_ema(data: pd.Series, window: int) -> Optional[pd.Series]:
+    if data is None:
+        return None
     if len(data) < window:
         return None
     try:
@@ -50,6 +56,8 @@ def calculate_ema(data: pd.Series, window: int) -> Optional[pd.Series]:
 
 
 def analyze_trend(data: pd.Series, min_points: int = 10) -> Tuple[Optional[float], Optional[float]]:
+    if data is None:
+        return None, None
     if len(data) < min_points:
         return None, None
     try:
@@ -68,6 +76,8 @@ def analyze_trend(data: pd.Series, min_points: int = 10) -> Tuple[Optional[float
 
 def detect_bottom_divergence(close_prices: pd.Series, macd_hist: pd.Series,
                              lookback: int = 12, price_threshold: float = 1.02) -> bool:
+    if close_prices is None or macd_hist is None:
+        return False
     if len(close_prices) < lookback or len(macd_hist) < lookback:
         return False
     try:
@@ -93,6 +103,8 @@ def detect_bottom_divergence(close_prices: pd.Series, macd_hist: pd.Series,
 
 def detect_top_divergence(close_prices: pd.Series, macd_hist: pd.Series,
                           lookback: int = 12, price_threshold: float = 0.98) -> bool:
+    if close_prices is None or macd_hist is None:
+        return False
     if len(close_prices) < lookback or len(macd_hist) < lookback:
         return False
     try:
@@ -117,6 +129,8 @@ def detect_top_divergence(close_prices: pd.Series, macd_hist: pd.Series,
 
 
 def check_volume_surge(volume: pd.Series, weeks: int = 5, threshold: float = 1.5) -> Tuple[bool, Optional[float]]:
+    if volume is None:
+        return False, None
     if len(volume) < weeks + 2:
         return False, None
     try:
@@ -132,6 +146,8 @@ def check_volume_surge(volume: pd.Series, weeks: int = 5, threshold: float = 1.5
 
 
 def calculate_rsi(close_prices: pd.Series, window: int = 14) -> Optional[pd.Series]:
+    if close_prices is None:
+        return None
     if len(close_prices) < window + 1:
         return None
     try:
@@ -149,6 +165,8 @@ def calculate_rsi(close_prices: pd.Series, window: int = 14) -> Optional[pd.Seri
 
 
 def calculate_bollinger_bands(close_prices: pd.Series, window: int = 20, num_std: int = 2) -> Tuple[Optional[pd.Series], Optional[pd.Series], Optional[pd.Series]]:
+    if close_prices is None:
+        return None, None, None
     if len(close_prices) < window:
         return None, None, None
     try:
