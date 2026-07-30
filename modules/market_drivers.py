@@ -29,7 +29,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from modules.fundflow import _ensure_proxy_and_ssl
-_ensure_proxy_and_ssl()
 from modules.margin_trading import get_margin_trading_data
 from modules.linear_trends import get_index_series, get_northbound_history_series
 
@@ -122,6 +121,8 @@ def _cached(ttl, key, fn):
 def _retry(max_retries=3, base_delay=1.0):
     def deco(fn):
         def wrapper(*args, **kwargs):
+            # 惰性、幂等：首次网络请求前确保代理/SSL 补丁就绪（不在导入期阻塞）
+            _ensure_proxy_and_ssl()
             last = None
             for i in range(max_retries):
                 try:

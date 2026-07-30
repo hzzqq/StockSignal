@@ -23,13 +23,10 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from modules.fundflow import (
-    _ensure_proxy_and_ssl,
     _cached,
     _retry_with_backoff,
 )
 from modules.fetcher import StockFetcher
-
-_ensure_proxy_and_ssl()
 
 _logger = logging.getLogger(__name__)
 

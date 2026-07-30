@@ -25,10 +25,10 @@ import plotly.graph_objects as go
 logger = logging.getLogger(__name__)
 
 # 复用 fundflow 的代理/SSL 补丁，确保 akshare 经本地代理访问
+# 注意：代理/SSL 探测改为「首次真实网络请求前惰性执行」（见 _retry 包裹器），
+# 绝不在模块导入期同步跑 socket 探测（否则会阻塞所有 import 本模块的页面）。
 from modules.fundflow import _ensure_proxy_and_ssl
 from modules.linear_trends import get_northbound_history_series
-
-_ensure_proxy_and_ssl()
 
 # 简易 TTL 缓存
 _MARGIN_CACHE = {}
@@ -57,6 +57,8 @@ def _retry(max_retries=3, base_delay=1.0):
     """指数退避重试，缓解偶发连接中断。"""
     def deco(fn):
         def wrapper(*args, **kwargs):
+            # 惰性、幂等：首次网络请求前确保代理/SSL 补丁就绪（不在导入期阻塞）
+            _ensure_proxy_and_ssl()
             last_exc = None
             for attempt in range(max_retries):
                 try:
