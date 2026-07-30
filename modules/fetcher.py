@@ -1098,6 +1098,7 @@ class StockFetcher:
                 return pd.DataFrame(columns=["code", "name"])
 
             logger.info("[StockFetcher] 正在从 BaoStock 加载全量股票列表...")
+            import baostock as bs
             if not _BaoStockFetcher._ensure_login():
                 return pd.DataFrame(columns=["code", "name"])
             rs = bs.query_stock_basic()
