@@ -100,6 +100,8 @@ def _theme_css(dark: bool) -> str:
 .xc-name{{font-size:13px;font-weight:650;color:var(--txt)}}
 .xc-role{{font-size:11px;color:var(--acc1);background:rgba(102,126,234,.16);
   padding:1px 8px;border-radius:999px;font-weight:600}}
+.xc-role-user{{font-size:11px;color:#fff;background:linear-gradient(135deg,var(--buy),#ff7a45);
+  padding:1px 8px;border-radius:999px;font-weight:600}}
 .xc-bubble{{background:var(--card);border:1px solid var(--border);
   border-radius:4px 14px 14px 14px;padding:13px 16px;font-size:14.5px;color:var(--txt);
   box-shadow:0 6px 20px rgba(0,0,0,.28);line-height:1.75;word-break:break-word}}
@@ -326,7 +328,9 @@ def render_message(m: dict, idx: int, username: str) -> None:
     if m.get("role") == "user":
         st.markdown(
             f'<div class="xc-msg xc-user">'
-            f'<div class="xc-col"><div class="xc-who"><span class="xc-name">{esc(username)}</span></div>'
+            f'<div class="xc-col"><div class="xc-who">'
+            f'<span class="xc-name">{esc(username)}</span>'
+            f'<span class="xc-role xc-role-user">你问</span></div>'
             f'<div class="xc-bubble xc-user-bubble">{esc(m.get("content", ""))}</div>'
             f'</div><div class="xc-av xc-user-av">{_avatar_text(username)}</div></div>',
             unsafe_allow_html=True,
@@ -362,6 +366,45 @@ def _render_chips(options):
             st.session_state["_xc_pending"] = o["prompt"]
             # fragment 内严禁裸 rerun（会整页变暗卡死）；限定作用域为本 fragment
             st.rerun(scope="fragment")
+
+
+def _tutorial_example_buttons():
+    """使用指南里的可点击示例：点击直接把问题塞给星辰 AI（顶层 rerun 触发提交）。"""
+    examples = [
+        ("🔍 个股诊断", "太极实业 600667 怎么样？"),
+        ("📊 横向对比", "对比 贵州茅台 和 五粮液 谁更值得买"),
+        ("📰 事件解读", "最近半导体有哪些重要事件？"),
+        ("💡 操作建议", "当前市场环境下适合建仓吗？"),
+    ]
+    cols = st.columns(2)
+    for i, (label, prompt) in enumerate(examples):
+        if cols[i % 2].button(label, key=f"xc_tut_ex_{i}", use_container_width=True,
+                              help=f"点击直接问：{prompt}"):
+            st.session_state["_xc_pending"] = prompt
+            st.rerun()  # 顶层 rerun：整页重跑让 fragment_chat 读取 _xc_pending 并提交
+
+
+def render_ai_tutorial():
+    """星辰 AI 新手教程模块：首次使用引导（纯展示层，不改动任何业务逻辑）。"""
+    with st.expander("📘 使用指南 · 第一次用星辰 AI 看这里", expanded=False):
+        st.markdown(
+            "**🎯 你能问什么**\n"
+            "- **个股诊断**：*太极实业 600667 怎么样？*\n"
+            "- **横向对比**：*对比贵州茅台和五粮液谁更值得买*\n"
+            "- **事件解读**：*最近半导体有哪些重要事件？*\n"
+            "- **持仓 / 仓位建议**：*当前市场环境下适合建仓吗？*\n\n"
+            "**📦 怎么区分问答**\n"
+            "- 你的提问会显示在 **右侧蓝色方框** 里、带「**你问**」标签；\n"
+            "- 星辰 AI 的回复在 **左侧 🌟 气泡** 里，一眼分清谁说的。\n\n"
+            "**🧹 常用按钮**\n"
+            "- 顶部「🗑️ 清空」：重开一轮干净对话；\n"
+            "- 右下角「▼ 回到底部」：快速跳到最新消息。\n\n"
+            "**💾 其它**\n"
+            "- 对话按你的账号保存，**刷新页面不丢失**；\n"
+            "- 回复为模型推演，**不构成投资建议**，请独立判断。\n\n"
+            "下面 4 个示例点一下就能直接问 👇"
+        )
+        _tutorial_example_buttons()
 
 
 # ══════════════════════════════════════════════════════
@@ -469,6 +512,9 @@ st.markdown(
     '当前页面的对比组合或个股会自动作为上下文。回复为模型推演，不构成投资建议。</div>',
     unsafe_allow_html=True,
 )
+
+# 星辰 AI 新手教程模块（纯展示，不改动业务逻辑）
+render_ai_tutorial()
 
 # 加法式结果计数/摘要：对话消息总条数
 st.caption(f"💬 当前对话共 {len(st.session_state.get('xc_messages', []))} 条消息")

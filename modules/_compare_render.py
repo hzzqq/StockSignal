@@ -7,6 +7,7 @@ modules.ui_theme（_is_dark 内局部懒加载），不反向依赖 modules.comp
 
 from __future__ import annotations
 
+import datetime as _dt
 import logging
 import re
 
