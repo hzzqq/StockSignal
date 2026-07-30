@@ -641,8 +641,11 @@ def render_topright_bar() -> None:
                 try:
                     with st.popover("星辰 AI", use_container_width=True):
                         render_ai_consultant()
-                except Exception:
-                    # 极老版本 Streamlit 无 popover 时兜底：退回侧边栏
+                except AttributeError:
+                    # 极老版本 Streamlit 无 st.popover 属性时兜底：退回侧边栏
+                    # ⚠️ 不得用 bare Exception！popover 内 render_ai_consultant() 的运行时
+                    #    异常（如 duplicate key / 渲染错误）若被误捕，会导致 fallback 再调一次
+                    #    → st.form("ai_consult_global") 重复创建 → StreamlitAPIException。
                     with st.sidebar:
                         render_ai_consultant()
         with c_set:

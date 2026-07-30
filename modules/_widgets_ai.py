@@ -275,7 +275,16 @@ def render_ai_consultant() -> None:
       - 加载只在 AI 小框内感知，不污染页面主体 → 错误/状态全部放在 popover 内；
         autorefresh 只在任务运行且未超时前触发，并降低频率。
       - 聊天界面清晰区分用户/AI，清空按钮在标题右侧，可一键滚到底部输入框。
+
+    防重入：同一脚本 run 内若被多次调用（如 except 误捕 fallback），跳过后续渲染，
+    避免 st.form("ai_consult_global") 重复创建导致 StreamlitAPIException。
+    用函数属性（每次脚本 run 模块重新加载，自动重置）。
     """
+    # ── 防重入守卫 ──
+    if getattr(render_ai_consultant, "_called_this_run", False):
+        return
+    render_ai_consultant._called_this_run = True
+
     from modules.ui_theme import _theme_is_dark
     from modules.scroll_nav import scroll_bottom_inline_html
 

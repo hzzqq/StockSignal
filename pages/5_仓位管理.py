@@ -52,7 +52,7 @@ def _save_pm_pref(k, v):
         pass
 
 from modules.portfolio import PortfolioManager
-from modules.visualizer import Visualizer
+# Visualizer 延迟到函数内导入（节省 ~0.95s plotly+matplotlib 链）
 from modules.search_ui import stock_search_input
 from modules.fetcher import StockFetcher
 from modules.session import require_auth, render_user_badge, api_quote, api_kline
@@ -210,9 +210,11 @@ else:
     st.markdown("**批量操作（持仓概览）**")
     _pm_sel = []
     if not positions.empty:
-        for _i, _pr in positions.iterrows():
+        for _n, (_i, _pr) in enumerate(positions.iterrows()):
             _t = _pr["ticker"]
-            if st.checkbox(f"选择 {_t}", key=f"pm_sel_{_t}"):
+            # 同 ticker 可能多行（分批建仓），必须带行号保证 key 唯一，否则 Streamlit 抛
+            # StreamlitDuplicateElementKey 导致整页渲染崩溃
+            if st.checkbox(f"选择 {_t}", key=f"pm_sel_{_t}_{_n}"):
                 _pm_sel.append(_t)
     if _pm_sel:
         _pb1, _pb2 = st.columns(2)
@@ -617,6 +619,7 @@ if not positions.empty:
 
             # 盈亏柱状图
             if not pnl_df.empty:
+                from modules.visualizer import Visualizer  # lazy: only when portfolio has data to show
                 st.markdown("---")
                 fig = Visualizer.portfolio_pnl(pnl_df)
                 st.plotly_chart(fig, width="stretch")

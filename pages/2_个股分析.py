@@ -20,7 +20,7 @@ st.session_state["_active_page"] = __file__
 
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
-from modules.visualizer import Visualizer
+# Visualizer 延迟到函数内导入（节省 ~0.95s plotly+matplotlib 链）
 from modules.session import require_auth, render_user_badge, api_kline, api_intraday
 from modules.search_ui import stock_search_input
 from modules.ui_theme import dashboard_sf_css, _theme_is_dark
@@ -196,6 +196,8 @@ def _cached_intraday(ticker):
 
 
 def _render_analysis(R: dict):
+    """渲染个股分析决策仪表盘（延迟导入 Visualizer，避免每页加载 0.95s）。"""
+    from modules.visualizer import Visualizer  # lazy: only when user views stock analysis
     # 把结果字典展开到局部作用域，保持原渲染代码基本不变
     # ── 兜底：数值字段缺失（None / NaN）统一按 0.0 处理，
     # 避免后续大量 f-string 格式化（如 f"{x:.2f}"）在 x=None/NaN 时抛 TypeError

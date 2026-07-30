@@ -10,6 +10,7 @@ import pandas as pd
 
 from .fetcher import StockFetcher, load_config
 from .format_helpers import to_float, safe_pct
+from .finance_contract import validate_position_schema, validate_pnl_output
 import logging
 
 logger = logging.getLogger(__name__)
@@ -316,6 +317,8 @@ class PortfolioManager:
     def get_positions(self):
         """获取全部持仓，并附加剩余可卖股数。"""
         df = self._load()
+        # 契约层 fail-fast：落盘数据缺必需列立即报错，避免下游 FIFO/市值算错
+        validate_position_schema(df)
         if df.empty:
             return df
         trades = self._load_trades()
@@ -422,7 +425,11 @@ class PortfolioManager:
                 "pnl_pct": round(pnl_pct, 2)
             })
 
-        return pd.DataFrame(results)
+        out = pd.DataFrame(results)
+        # 契约层 fail-fast：输出列必须严格等于 PNL_OUTPUT_COLUMNS，
+        # 防止日后重构误增删列导致持仓页/汇总渲染错位
+        validate_pnl_output(out)
+        return out
 
     def summary(self):
         """返回持仓汇总信息。"""

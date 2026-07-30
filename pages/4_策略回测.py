@@ -20,7 +20,8 @@ st.session_state["_active_page"] = __file__
 st.title("⚙️ 策略回测")
 
 from modules.backtest import Backtester
-from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR, _is_dark, SF_GRID, SF_BORDER, SF_TXT, SF_TXT2
+# Visualizer + 其常量全部延迟导入（节省 ~0.95s plotly+matplotlib 链）
+# SF_* / UP_COLOR / DOWN_COLOR / _is_dark 均在函数内按需导入
 from modules.search_ui import stock_search_input
 from modules.fetcher import StockFetcher
 from modules.session import require_auth, render_user_badge
@@ -115,6 +116,10 @@ with st.expander("📖 策略方法论说明", expanded=False):
 # ==================================================================
 @safe_fragment("手动回测")
 def fragment_manual_backtest():
+    """手动回测面板（延迟导入 Visualizer 及其常量）。"""
+    from modules.visualizer import Visualizer  # lazy
+    from modules.colors import UP_COLOR, DOWN_COLOR  # lazy (lightweight)
+    from modules.ui_theme import _theme_is_dark as _is_dark  # lazy (lightweight)
     st.subheader("回测参数")
 
     # ── 强势上涨股快捷预设（点击填入股票搜索）──
@@ -667,6 +672,12 @@ def fragment_daily_picker():
 # ==================================================================
 @safe_fragment("强势上涨股批量回测")
 def fragment_strong_bull():
+    """强势上涨股批量回测（延迟导入 Visualizer 常量）。"""
+    from modules.colors import UP_COLOR, DOWN_COLOR  # lazy
+    from modules.ui_theme import _theme_is_dark as _is_dark  # lazy
+    # SF_* 暗色主题常量（原定义在 visualizer.py，在此本地定义避免拖入 plotly）
+    global SF_TXT, SF_TXT2, SF_GRID, SF_BORDER  # noqa: F821
+    SF_TXT = "#e2e8f0"; SF_TXT2 = "#94a3b8"; SF_GRID = "#23233c"; SF_BORDER = "#2d2d44"
     st.markdown("---")
     st.subheader("🚀 强势上涨股批量回测 vs 全市场")
     st.caption("一键对「强势上涨股样本」跑多因子策略，聚合胜率/收益，并对比全市场基准，"

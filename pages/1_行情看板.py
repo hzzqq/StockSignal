@@ -12,18 +12,17 @@ from datetime import datetime, timedelta, time
 
 from modules.ui_theme import apply_page_config, _theme_is_dark
 from modules.fetcher import StockFetcher
-from modules.visualizer import Visualizer
+from modules.colors import UP_COLOR, DOWN_COLOR  # 轻量：不再拖入 plotly+matplotlib
 from modules.search_ui import multi_stock_search_input, stock_search_input
 from modules.session import (
     require_auth, render_user_badge, api_kline, safe_switch_page,
     fragment_market_alerts_panel, api_get, api_post, api_delete, get_token, API_BASE, clear_auth,
 )
-from modules.visualizer import UP_COLOR, DOWN_COLOR
+from modules.format_helpers import safe_int
 from modules.widgets import render_index_compact
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
-from modules.format_helpers import safe_int
 
 apply_page_config(page_title="行情看板", page_icon="📈", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -166,6 +165,9 @@ def _get_market_status():
 # ------------------------------------------------------------------
 @safe_fragment("行业板块涨跌榜")
 def fragment_sector_board():
+    """行业板块涨跌榜（延迟导入 Visualizer，避免每页加载 0.95s plotly+matplotlib 链）。"""
+    from modules.visualizer import Visualizer  # lazy: only when user views sector board
+
     st.markdown("---")
     st.subheader("🏭 行业板块涨跌榜")
 
@@ -538,6 +540,7 @@ if st.button("计算相关性", key="calc_corr", use_container_width=True,
 
         if len(daily_dict) >= 2:
             try:
+                from modules.visualizer import Visualizer  # lazy: only when user clicks "计算相关性"
                 fig = Visualizer.correlation_matrix(daily_dict)
                 st.plotly_chart(fig, use_container_width=True)
             except Exception as e:

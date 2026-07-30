@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from modules.ui_theme import apply_page_config, _theme_is_dark
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
-from modules.visualizer import Visualizer
+# Visualizer 延迟到函数内导入（节省 ~0.95s plotly+matplotlib 链）
 from modules.search_ui import stock_search_input
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
@@ -469,6 +469,9 @@ try:
             key="pick_kline_csv",
             help="导出当前「显示位置 / 显示数量」框定区间的 K 线数据（含 OHLCV）",
         )
+
+        # ── 图表渲染区（Visualizer 延迟导入：仅用户选股后执行）──
+        from modules.visualizer import Visualizer  # lazy: ~0.95s saved on pages without chart action
 
         # ── 分时图（置于 K 线之上，默认开启）──
         show_intraday = st.checkbox("📈 显示分时图", value=True, key="pick_show_intraday",

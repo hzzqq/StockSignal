@@ -33,7 +33,8 @@ with lk_p2:
 
 from modules.signal import SignalEngine
 from modules.fetcher import StockFetcher
-from modules.visualizer import Visualizer, UP_COLOR, DOWN_COLOR
+from modules.colors import UP_COLOR, DOWN_COLOR  # 轻量：不再拖入 plotly+matplotlib
+# Visualizer 延迟到函数内导入（节省 ~0.95s）
 from modules.search_ui import stock_search_input
 from modules.session import require_auth, render_user_badge, api_kline, api_intraday, trading_autorefresh, api_post
 
@@ -197,6 +198,8 @@ def _render_news_with_links(df, title_col="title", url_col="url", date_col="date
 # ------------------------------------------------------------------
 @safe_fragment
 def fragment_signal_score():
+    """信号评分面板（延迟导入 Visualizer）。"""
+    from modules.visualizer import Visualizer  # lazy
     st.subheader("📊 信号评分")
 
     # 加法式：最近浏览历史（纯前端 chips，点击重新填入搜索框）
@@ -464,6 +467,8 @@ def fragment_live_keywords():
 # ------------------------------------------------------------------
 @safe_fragment
 def fragment_timeline():
+    """事件时间轴（延迟导入 Visualizer）。"""
+    from modules.visualizer import Visualizer  # lazy
     st.markdown("---")
     st.subheader("📅 事件时间轴")
 
