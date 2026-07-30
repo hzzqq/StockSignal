@@ -100,6 +100,13 @@ def init_session_state() -> None:
         except Exception as e:
             logger.warning(f"[session] restore_from_local_storage error: {e}")
 
+    # 3) 把已恢复的 token「回写」到 URL query_params（刷新保持登录的根本保障）。
+    # 原实现漏了这一步，导致仅凭 localStorage 兜底恢复的 token 始终未同步回 URL，
+    # 一旦 localStorage 也被清空便直接掉登录，且违背本模块「URL 为登录态主存储」的契约。
+    # _sync_query_params 仅在值变化时写入，幂等、不会触发 rerun 死循环。
+    if st.session_state.get(KEY_TOKEN):
+        _sync_query_params()
+
     # 4) 恢复用户偏好（主题 / 字体）：先试 URL query_params（刷新/导航可靠）；
     #    若 URL 无偏好但 localStorage 有（浏览器关闭后再打开），则从 localStorage 兜底恢复。
     _prefs = _restore_prefs_from_query_params()
