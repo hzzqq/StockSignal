@@ -65,7 +65,7 @@ from modules.fundamental_helpers import (
     _period_label, _compute_yoy, _compute_qoq, _FINANCIAL_METRICS,
     _fmt_fin_value, _fmt_fin_yoy, _fmt_fin_qoq, _to_float, _percentile,
     _pe_status, _tag,
-    _find_sector_name, _sector_rank, _composite_score,
+    _find_sector_name, _sector_rank, _composite_score, resolve_sector_df,
 )
 
 import concurrent.futures as _cf
@@ -456,19 +456,10 @@ if code:
             hist_df = None
 
         try:
-            sector_df = fetcher.get_sector_list()
-            if sector_df is None or sector_df.empty:
-                # fallback：行业资金流向接口也有行业涨跌幅，可复用
-                try:
-                    ff_df = ff.get_industry_fund_flow()
-                    if ff_df is not None and not ff_df.empty and "行业" in ff_df.columns and "涨跌幅" in ff_df.columns:
-                        sector_df = ff_df.rename(columns={"行业": "sector", "涨跌幅": "change_pct"})[["sector", "change_pct"]].copy()
-                        sector_df["change_pct"] = pd.to_numeric(sector_df["change_pct"], errors="coerce").fillna(0)
-                except Exception:
-                    sector_df = pd.DataFrame()
-            else:
-                sector_df = sector_df.copy()
-                sector_df["change_pct"] = pd.to_numeric(sector_df.get("change_pct", 0), errors="coerce").fillna(0)
+            # ══ 加法式健壮性（c39）：解析行业板块，保证返回 DataFrame 而非 None。
+            # 旧内联逻辑在两源皆失败时 sector_df 残留 None，导致后续 `sector_df.empty`
+            # 抛 AttributeError 使整页崩溃；现收敛为「任何路径都返回 DataFrame」的不变量。
+            sector_df = resolve_sector_df(fetcher.get_sector_list, ff.get_industry_fund_flow)
         except Exception:
             sector_df = pd.DataFrame()
 

@@ -421,6 +421,42 @@ def _sector_rank(sector_df: pd.DataFrame, industry: str) -> int | None:
             return int(hits.iloc[0]["rank"])
     return None
 
+def resolve_sector_df(get_sector_list, get_industry_fund_flow) -> pd.DataFrame:
+    """解析行业板块 DataFrame，保证**永远返回 DataFrame**（失败返回空 DataFrame，绝不返回 None）。
+
+    双源回退：优先 get_sector_list()；失败回退 get_industry_fund_flow()（需含「行业」/「涨跌幅」列）。
+    两源皆不可用（返回 None / 空 / 缺列 / 抛异常）时返回空 DataFrame，
+    避免上层 `if not sector_df.empty` 在 None 上抛 AttributeError 使整页崩溃。
+
+    ⚠️ 历史 bug：旧内联逻辑在 get_sector_list() 返回 None 且 fallback 的
+    get_industry_fund_flow() 也返回 None/缺列时，内层 if 不命中、又不抛异常，
+    导致 sector_df 残留为 None，后续 `sector_df.empty` 直接 AttributeError 崩页。
+    本函数以「任何路径都收敛到 DataFrame」为不变量。
+
+    入参为可调用对象（绑定方法或 lambda），保持本模块零 streamlit / 零 fetcher 依赖。
+    """
+    def _norm(df):
+        out = df.copy()
+        out["change_pct"] = pd.to_numeric(out.get("change_pct", 0), errors="coerce").fillna(0)
+        return out
+
+    try:
+        raw = get_sector_list()
+        if raw is not None and hasattr(raw, "empty") and not raw.empty:
+            return _norm(raw)
+    except Exception:
+        pass
+    try:
+        ff_df = get_industry_fund_flow()
+        if ff_df is not None and not ff_df.empty and "行业" in ff_df.columns and "涨跌幅" in ff_df.columns:
+            df = ff_df.rename(columns={"行业": "sector", "涨跌幅": "change_pct"})[["sector", "change_pct"]].copy()
+            df["change_pct"] = pd.to_numeric(df["change_pct"], errors="coerce").fillna(0)
+            return df
+    except Exception:
+        pass
+    return pd.DataFrame()
+
+
 def _composite_score(
     price, pe, hist_pct_5y, sector_rank, sector_total, market_cap, perf
 ) -> tuple[int, str]:
