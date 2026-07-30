@@ -431,7 +431,7 @@ with st.container(border=True):
             _empty_info("未命中任何形态（或股票池无可用日线数据，可尝试「手动输入代码」、检查网络，或先在上方「扫描池」载入示例股票池）。")
         else:
             st.success(f"✅ 扫描完成，命中 {len(results)} 只")
-            results.sort(key=lambda r: r["技术评分"], reverse=True)
+            results.sort(key=lambda r: r.get("技术评分", 0), reverse=True)
             st.dataframe(results, use_container_width=True, height=480)
             # 加法式 UX：一键导出扫描结果为 CSV，便于离线筛选/留存（不影响扫描逻辑）。
             _csv = pd.DataFrame(results).to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")

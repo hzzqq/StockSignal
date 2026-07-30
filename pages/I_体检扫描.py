@@ -374,7 +374,9 @@ def run_scan(scope: str):
     def _sort_key(r):
         comp = r.get("composite")
         comp_rank = -comp if isinstance(comp, (int, float)) else 999
-        return (PRIORITY_RANK.get(r["priority"], 9), comp_rank, r["code"])
+        # 防御：扫描结果任一条缺 priority/code 字段时不再 KeyError 崩整页，
+        # 缺失项按最低优先级 / 空 code 处理
+        return (PRIORITY_RANK.get(r.get("priority"), 9), comp_rank, r.get("code", ""))
 
     results.sort(key=_sort_key)
     st.session_state["scan_results"] = results
