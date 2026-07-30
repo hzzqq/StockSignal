@@ -1018,15 +1018,31 @@ def _confirm_logout_dialog() -> None:
             st.rerun()
 
 
+def _parse_alert_summary(code: int, body) -> dict:
+    """纯函数：把 /api/market-alerts 的 (code, body) 解析为摘要 dict。
+
+    仅当 HTTP 200 + 响应信封 status=="ok" + data 为 dict 时返回 data；
+    其余情况（非 200 / 信封非 ok / data 非 dict / body 非 dict）一律返回 {}。
+
+    抽离动机（隐式修复）：原 `_cached_alert_summary` 在 `if code==200…` 块内才赋值
+    `data`，但随后「无条件」`if isinstance(data, dict)` 引用它——一旦 API 返回非 200，
+    `data` 根本未绑定，会抛 NameError。该异常被外层 broad except 静默吞掉、恰好返回 {}，
+    行为「看似正确」实则极脆弱（一旦收窄 except 立即崩）。此处归一为纯函数，彻底消除
+    悬空引用，并便于单测覆盖各分支。
+    """
+    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
+        data = body.get("data")
+        if isinstance(data, dict):
+            return data
+    return {}
+
+
 @st.cache_data(ttl=30, show_spinner=False)
 def _cached_alert_summary(token: str, nonce: int) -> dict:
     """缓存市场异动摘要（未读数 + 最近 5 条），nonce 变化即击穿重取。"""
     try:
         code, body = api_get("/api/market-alerts?limit=5", timeout=8)
-        if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
-            data = body.get("data")
-        if isinstance(data, dict):
-            return data
+        return _parse_alert_summary(code, body)
     except Exception as e:
         logger.warning(f"[session] 获取异动摘要失败: {e}")
     return {}
