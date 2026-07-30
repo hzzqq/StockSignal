@@ -35,7 +35,7 @@ st.caption("红涨绿跌；热力图块大小代表资金净流入，颜色代�
 FETCHER = StockFetcher()
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def _load_flow():
     try:
         df = get_industry_fund_flow()

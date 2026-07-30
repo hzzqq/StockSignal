@@ -29,7 +29,7 @@ from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs
 #   固定高对比色，深底(#0f0f23)/浅底(#ffffff)均清晰可读，无外部依赖
 # ──────────────────────────────────────────────────────────────
 
-from modules._widgets_base import STAR_AI_LOGO  # 兼容：原 widgets.STAR_AI_LOGO 已抽到 _widgets_base
+from modules._widgets_base import STAR_AI_LOGO, _INDEX_INFOS  # P2 拆分后常量与 logo 均在 _widgets_base
 
 
 def _index_market_status():

@@ -70,6 +70,48 @@ def _cached_individual_series(code: str, days: int = 60):
     return get_individual_fund_flow_series(code, days=days)
 
 
+# ── 页面级缓存（fundflow 内部也有缓存，双层保险 + 跨会话复用）──
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_northbound():
+    return get_northbound_fund_flow()
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_industry_flow():
+    return get_industry_fund_flow()
+
+@st.cache_data(show_spinner=False, ttl=600)
+def _cached_market_flow(days: int = 30):
+    return get_market_fund_flow(days=days)
+
+@st.cache_data(show_spinner=False, ttl=1800)
+def _cached_margin_data(days: int = 180):
+    return get_margin_trading_data(days)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_margin_summary():
+    return get_latest_margin_summary()
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_northbound_history():
+    return get_northbound_history_series()
+
+@st.cache_data(show_spinner=False, ttl=600)
+def _cached_market_cumulative(days: int = 60):
+    return get_market_cumulative_series(days)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_index_series(days: int = 180):
+    return get_index_series(days)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_industry_index(top_n: int = 8, days: int = 120):
+    return get_industry_index_series(top_n=top_n, days=days)
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _cached_etf_series(days: int = 180):
+    return get_etf_series(days)
+
+
 
 
 
@@ -85,7 +127,7 @@ def fragment_northbound():
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="nb_auto")
     try:
-        nb = get_northbound_fund_flow()
+        nb = _cached_northbound()
     except Exception as e:
         st.error(f"北向资金加载失败：{e}")
         return
@@ -160,7 +202,7 @@ def fragment_northbound():
 
     # 北向资金历史趋势（线性表达）：当日净买额 + 历史累计净买额
     try:
-        hist = get_northbound_history_series()
+        hist = _cached_northbound_history()
     except Exception as e:
         hist = None
         st.warning(f"北向历史序列加载失败：{e}")
@@ -181,7 +223,7 @@ def fragment_industry():
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="ind_auto")
     try:
-        df = get_industry_fund_flow()
+        df = _cached_industry_flow()
     except Exception as e:
         st.error(f"行业资金流向加载失败：{e}")
         return
@@ -245,7 +287,7 @@ def fragment_market():
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="mkt_auto")
     try:
-        df = get_market_fund_flow(days=30)
+        df = _cached_market_flow(30)
     except Exception as e:
         st.error(f"大盘资金流向加载失败：{e}")
         return
@@ -296,7 +338,7 @@ def fragment_market():
 
     # 大盘主力资金累计净流入（线性表达：累计面积线 + 当日细线）
     try:
-        cum = get_market_cumulative_series(days=60)
+        cum = _cached_market_cumulative(60)
     except Exception as e:
         cum = None
         st.warning(f"大盘累计资金加载失败：{e}")
@@ -323,7 +365,7 @@ def fragment_margin_trading():
     )
 
     try:
-        df = get_margin_trading_data(days=180)
+        df = _cached_margin_data(180)
     except Exception as e:
         st.error(f"融资融券数据加载失败：{e}")
         return
@@ -332,7 +374,7 @@ def fragment_margin_trading():
         return
 
     try:
-        summary = get_latest_margin_summary() or {}
+        summary = _cached_margin_summary() or {}
     except Exception as e:
         summary = {}
         st.warning(f"融资融券摘要加载失败：{e}")
@@ -439,7 +481,7 @@ def fragment_index_trend():
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="idx_auto")
     try:
-        idx = get_index_series(days=180)
+        idx = _cached_index_series(180)
     except Exception as e:
         st.error(f"指数走势加载失败：{e}")
         return
@@ -460,7 +502,7 @@ def fragment_industry_trend():
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="indt_auto")
     try:
-        ind = get_industry_index_series(top_n=8, days=120)
+        ind = _cached_industry_index(8, 120)
     except Exception as e:
         st.error(f"行业指数走势加载失败：{e}")
         return
@@ -511,7 +553,7 @@ def fragment_etf_trend():
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="etf_auto")
     try:
-        etf = get_etf_series(days=180)
+        etf = _cached_etf_series(180)
     except Exception as e:
         st.error(f"ETF 走势加载失败：{e}")
         return

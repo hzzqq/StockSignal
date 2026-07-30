@@ -26,6 +26,20 @@ dark = _theme_is_dark()
 st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
 
+# ─────────────── 页面级缓存（fundflow 内部也有缓存，这里是双层保险：跨会话复用） ───────────────
+@st.cache_data(show_spinner=False, ttl=1800)
+def _cached_report(period: str):
+    return get_earnings_report(period)
+
+@st.cache_data(show_spinner=False, ttl=1800)
+def _cached_forecast(period: str):
+    return get_earnings_forecast(period)
+
+@st.cache_data(show_spinner=False, ttl=1800)
+def _cached_disclosure(market: str, period: str):
+    return get_disclosure_calendar(market=market, period=period)
+
+
 st.title("📅 财报与业绩日历")
 st.caption("按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。")
 
@@ -53,7 +67,7 @@ def fragment_report():
     )
     period = PERIODS[period_label]
     try:
-        df = get_earnings_report(period)
+        df = _cached_report(period)
     except Exception as e:
         st.error(f"业绩报表加载失败：{e}")
         return
@@ -142,7 +156,7 @@ def fragment_forecast():
     )
     period = PERIODS[period_label]
     try:
-        df = get_earnings_forecast(period)
+        df = _cached_forecast(period)
     except Exception as e:
         df = pd.DataFrame()
         st.warning(f"业绩预告接口加载失败，已降级为空数据（{e}）。")
@@ -175,7 +189,7 @@ def fragment_disclosure():
             index=0, key="dc_period",
         )
     try:
-        df = get_disclosure_calendar(market=market, period=period_str)
+        df = _cached_disclosure(market=market, period=period_str)
     except Exception as e:
         df = pd.DataFrame()
         st.warning(f"披露日历接口加载失败，已降级为空数据（{e}）。")
