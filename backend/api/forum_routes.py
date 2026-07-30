@@ -17,6 +17,7 @@ from ..extensions import db
 from ..models import ForumPost, ForumComment
 from ..utils.response import ok
 from ..utils.errors import ValidationError, NotFoundError
+from ..utils.params import parse_int_param, parse_limit_param
 
 bp = Blueprint("forum", __name__, url_prefix="/api/forum")
 
@@ -26,11 +27,10 @@ bp = Blueprint("forum", __name__, url_prefix="/api/forum")
 def list_posts():
     """GET /api/forum/posts?stock_code=600519&limit=50&offset=0"""
     stock_code = (request.args.get("stock_code") or "").strip()
-    try:
-        limit = min(int(request.args.get("limit", 50)), 200)
-        offset = max(int(request.args.get("offset", 0)), 0)
-    except Exception:
-        limit, offset = 50, 0
+    # ⚠️ 必须走 parse_limit_param：旧写法 min(int(...), 200) 只钳上界，
+    # ?limit=-1 -> LIMIT -1 -> SQLite 视为「不限制行数」，200 条上限被绕过拉全表。
+    limit = parse_limit_param("limit", default=50, hi=200)
+    offset = parse_int_param("offset", default=0, lo=0)
 
     stmt = select(ForumPost)
     if stock_code:

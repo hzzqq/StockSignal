@@ -21,6 +21,7 @@ from ..extensions import db
 from ..models import MarketAlert
 from ..utils.response import ok
 from ..utils.errors import NotFoundError
+from ..utils.params import parse_int_param, parse_limit_param
 from ..utils.timeutil import utc_now
 
 bp = Blueprint("market_alert", __name__, url_prefix="/api/market-alerts")
@@ -62,13 +63,10 @@ def _set_last_seen(user, dt: datetime) -> None:
 @jwt_required
 def list_alerts():
     """GET /api/market-alerts?limit=50&offset=0&unread_only=1"""
-    try:
-        limit = min(int(request.args.get("limit", 50)), 200)
-        offset = max(int(request.args.get("offset", 0)), 0)
-        unread_only = request.args.get("unread_only") == "1"
-    except Exception:
-        limit, offset = 50, 0
-        unread_only = False
+    # ⚠️ 见 parse_limit_param：负数 limit 在 SQLite 下等价于「无限制」，必须钳下界。
+    limit = parse_limit_param("limit", default=50, hi=200)
+    offset = parse_int_param("offset", default=0, lo=0)
+    unread_only = request.args.get("unread_only") == "1"
 
     last_seen = _parse_last_seen(g.current_user)
 

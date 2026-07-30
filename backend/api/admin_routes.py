@@ -11,7 +11,7 @@ from ..extensions import db
 from ..models import User, OperationLog
 from ..utils.response import ok
 from ..utils.errors import ValidationError, NotFoundError, ConflictError
-from ..utils.params import parse_int_param, parse_str_param
+from ..utils.params import parse_int_param, parse_str_param, parse_limit_param, parse_page_param
 import re
 
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -38,8 +38,9 @@ def _log(action: str, target: str = "", detail: str = ""):
 @admin_required
 def list_users():
     """GET /api/admin/users?page=1&per_page=50&keyword=adm"""
-    page = parse_int_param("page", default=1)
-    per_page = parse_int_param("per_page", default=50, hi=200)
+    # ⚠️ per_page 必须钳下界：负值 -> LIMIT -1 -> SQLite 不限行数 -> 全量用户表泄露。
+    page = parse_page_param("page", default=1)
+    per_page = parse_limit_param("per_page", default=50, hi=200)
     keyword = parse_str_param("keyword", max_len=64)
 
     stmt = select(User).order_by(User.id.asc())
@@ -163,8 +164,8 @@ def delete_user(user_id: int):
 @admin_required
 def list_logs():
     """GET /api/admin/logs?page=1&per_page=50"""
-    page = parse_int_param("page", default=1)
-    per_page = parse_int_param("per_page", default=50, hi=200)
+    page = parse_page_param("page", default=1)
+    per_page = parse_limit_param("per_page", default=50, hi=200)
 
     stmt = select(OperationLog).order_by(OperationLog.id.desc())
     total = db.session.execute(

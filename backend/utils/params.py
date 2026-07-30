@@ -19,6 +19,9 @@ def parse_int_param(name, default=0, lo=None, hi=None, source=None):
     - 非数字（TypeError / ValueError）-> 返回 default
     - 低于 lo -> 钳制为 lo
     - 高于 hi -> 钳制为 hi
+
+    ⚠️ 分页场景请勿直接用本函数解析 limit/per_page：只钳 hi 不钳 lo 时，
+    负数会穿透上限（见 `parse_limit_param` 的说明）。用 `parse_limit_param`。
     """
     if source is None:
         source = request.args
@@ -31,6 +34,24 @@ def parse_int_param(name, default=0, lo=None, hi=None, source=None):
     if hi is not None:
         v = min(hi, v)
     return v
+
+
+def parse_limit_param(name="limit", default=50, hi=200, source=None):
+    """
+    安全解析分页条数（limit / per_page），强制下界为 1。
+
+    ⚠️ 为什么必须钳下界：SQLite（以及 MySQL 的 `LIMIT -1` 语义差异）中
+    `LIMIT` 取负值表示「不限制行数」。若只写 `min(int(...), 200)`，
+    请求 `?limit=-1` 会得到 -1 -> `LIMIT -1` -> **200 条上限被完全绕过，
+    整表被一次性拉出**（用户表 / 帖子 / 告警全量泄露 + 内存打满的 DoS 面）。
+    因此分页条数一律走本函数，lo 恒为 1。
+    """
+    return parse_int_param(name, default=default, lo=1, hi=hi, source=source)
+
+
+def parse_page_param(name="page", default=1, source=None):
+    """安全解析页码，强制下界为 1（避免 offset 为负导致的越界/无意义查询）。"""
+    return parse_int_param(name, default=default, lo=1, source=source)
 
 
 def parse_str_param(name, default="", max_len=128, source=None):

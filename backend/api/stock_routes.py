@@ -11,7 +11,7 @@ from ..models import Stock
 from ..auth.decorators import jwt_required, admin_required
 from ..utils.response import ok
 from ..utils.errors import NotFoundError
-from ..utils.params import parse_int_param, parse_str_param
+from ..utils.params import parse_int_param, parse_str_param, parse_limit_param
 from ..services.stock_service import search_stocks, get_stock_list
 
 bp = Blueprint("stocks", __name__, url_prefix="/api/stocks")
@@ -31,7 +31,7 @@ def search():
     支持代码 / 名称 / 拼音首字母 / 全拼 / 首字模糊匹配。
     """
     q = parse_str_param("q", max_len=64)
-    limit = parse_int_param("limit", default=15, hi=50)
+    limit = parse_limit_param("limit", default=15, hi=50)
     if not q:
         return ok(data=[], message="success")
     results = search_stocks(q, limit=limit)

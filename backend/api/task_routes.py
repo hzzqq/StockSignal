@@ -11,7 +11,7 @@ from flask import Blueprint, request
 
 from ..auth.decorators import jwt_required
 from ..utils.response import ok, fail
-from ..utils.params import parse_int_param
+from ..utils.params import parse_int_param, parse_limit_param
 from ..tasks.worker import task_worker
 
 bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
@@ -73,6 +73,6 @@ def get_task(task_id: str):
 @jwt_required
 def list_tasks():
     """GET /api/tasks?limit=50 列出最近任务。"""
-    limit = parse_int_param("limit", default=50, hi=200)
+    limit = parse_limit_param("limit", default=50, hi=200)
     tasks = task_worker.list_tasks(limit=limit)
     return ok(data=tasks, message="success")
