@@ -603,7 +603,10 @@ class NewsFetcher:
 
             nearby = html[max(0, match.start() - 500):match.end() + 500]
             date_m = re.search(
-                r'(\d{4}-\d{2}-\d{2}|\d{2}-\d{2}\s+\d{2}:\d{2}|\d{2}-\d{2})',
+                # ⚠️ 优先级：先匹配「年-月-日[ 时:分[:秒]]」完整时间戳，
+                # 避免 \d{4}-\d{2}-\d{2} 抢先命中导致「时:分」被静默丢弃
+                # （历史 bug：新闻时间精度丢失，只留日期）。
+                r'(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?|\d{2}-\d{2}\s+\d{2}:\d{2}|\d{2}-\d{2})',
                 nearby,
             )
             date_str = date_m.group(1) if date_m else datetime.now().strftime("%Y-%m-%d")
