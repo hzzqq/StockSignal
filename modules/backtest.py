@@ -475,10 +475,12 @@ class Backtester:
                     sell_price = price * (1 - slippage_pct)
                     revenue = position * sell_price * (1 - commission - stamp_tax_pct)
                     cash += revenue
-                    gross_profit = (sell_price - entry_price) / entry_price * 100
-                    # 双边手续费 + 印花税 + 双边滑点后的净盈亏
-                    total_cost_rate = 2 * commission + stamp_tax_pct + 2 * slippage_pct
-                    net_profit = gross_profit - total_cost_rate * 100
+                    # 净收益率：直接用实际现金流入(revenue) / 实际现金流出(买入总成本) - 1。
+                    # entry_price 已含买入滑点+买入佣金，revenue 已扣卖出佣金+印花税，
+                    # 因此不得在 gross_profit 之上再减 2*commission+2*slippage，否则买入佣金与
+                    # 双边滑点被重复扣除，系统性低估每笔收益（profit_factor/win_rate/avg_return 随之失真）。
+                    buy_cost = position * entry_price
+                    net_profit = (revenue / buy_cost - 1) * 100 if buy_cost > 0 else 0.0
                     trades.append({
                         "entry_date": entry_date,
                         "exit_date": row["date"],
