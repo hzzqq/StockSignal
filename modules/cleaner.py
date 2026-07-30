@@ -147,6 +147,9 @@ class DataCleaner:
         if periods is None:
             periods = [1, 5, 20]
         df = df.copy()
+        # 防御性数值化：脏值列（object dtype）先 coerce，避免 pct_change 内部除法抛 TypeError
+        if price_col in df.columns:
+            df[price_col] = pd.to_numeric(df[price_col], errors="coerce")
         for p in periods:
             df[f"return_{p}d"] = df[price_col].pct_change(p) * 100
         return df
@@ -157,6 +160,9 @@ class DataCleaner:
         if windows is None:
             windows = [5, 10, 20, 60]
         df = df.copy()
+        # 防御性数值化：脏值列（object dtype）先 coerce，避免 rolling.mean 在对象列上报错
+        if price_col in df.columns:
+            df[price_col] = pd.to_numeric(df[price_col], errors="coerce")
         for w in windows:
             df[f"ma{w}"] = df[price_col].rolling(window=w).mean()
         return df
@@ -164,6 +170,14 @@ class DataCleaner:
     @staticmethod
     def full_pipeline(df):
         """一键清洗：缺失值填充 + 异常值处理 + 收益率 + 均线。"""
+        df = df.copy()
+        # ══ 加法式健壮性（c41）：OHLCV 列强制数值化，脏值（'x'/'n/a'/空串/None）
+        # 转为 NaN 而非保留 object dtype。否则后续 pct_change/rolling 除法会抛
+        # `TypeError: unsupported operand type(s) for /: 'str' and 'int'` 崩整条
+        # 清洗管线，导致该股票的 K线+技术分析全失败（真实脏数据：接口偶发坏值/手工CSV笔误）。
+        for _c in ("open", "high", "low", "close", "volume"):
+            if _c in df.columns:
+                df[_c] = pd.to_numeric(df[_c], errors="coerce")
         df = DataCleaner.fill_missing(df, method="ffill")
         df = DataCleaner.fill_missing(df, method="bfill")
         df = DataCleaner.calc_returns(df)
