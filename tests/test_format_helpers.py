@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import math
 
-from modules.format_helpers import to_float, safe_div, format_amount, format_pct, safe_int, safe_float
+from modules.format_helpers import to_float, safe_div, format_amount, format_pct, safe_int, safe_float, extract_pct
+
+from pathlib import Path  # noqa: E402
 
 
 def test_to_float_valid():
@@ -100,3 +102,26 @@ def test_safe_float():
     assert math.isinf(safe_float(float("inf")))
     # 缺省 default 生效
     assert safe_float(None, default=-1.0) == -1.0
+
+
+def test_extract_pct_normal():
+    assert extract_pct("贵州茅台(600519) 大涨 +3.45%") == 3.45
+    assert extract_pct("某某 大跌 -5.2%") == -5.2
+    # 取第一个 "%" 前的数字（真实异动标题通常只有一个）
+    assert extract_pct("区间 +1.1% 收盘 +2.5%") == 1.1
+
+
+def test_extract_pct_no_number_returns_default():
+    # 社区帖 / 系统消息标题无涨跌幅 → 返回默认 -inf，便于排序沉底
+    assert math.isinf(extract_pct("💬 无标题"))
+    assert math.isinf(extract_pct("⚠️ 部分数据源不可用"))
+    assert extract_pct(None) == float("-inf")
+    # 含 "%" 但 "%" 前无数字（如 "涨跌幅 % 未知"）→ -inf
+    assert math.isinf(extract_pct("涨跌幅 % 未知"))
+
+
+def test_extract_pct_used_in_message_center_import():
+    # 源码级防回退：消息中心排序/上色已改用 extract_pct，不再用脆弱的 split+float
+    src = (Path(__file__).resolve().parents[1] / "pages" / "L_消息中心.py").read_text(encoding="utf-8")
+    assert 'extract_pct(m["title"])' in src
+    assert 'float(m["title"].split' not in src

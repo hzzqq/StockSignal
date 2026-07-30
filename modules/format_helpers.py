@@ -15,7 +15,35 @@ from __future__ import annotations
 
 import html as _html
 import math
+import re as _re
 from typing import Optional
+
+
+_PCT_RE = _re.compile(r"(-?\d+(?:\.\d+)?)\s*%")
+
+def extract_pct(s, default: float = float("-inf")) -> float:
+    """从标题/文本提取涨跌幅数值（"%" 前的浮点数），用于排序或上色。
+
+    常见场景：消息/异动标题形如 "贵州茅台(600519) 大涨 +3.45%"，
+    但社区帖 / 系统消息标题（如 "💬 无标题"、"⚠️ 部分数据源不可用"）并不含数字涨跌幅。
+    旧实现用 ``title.split('%')[0].split(' ')[-1]`` 强转 float，遇到无 "%" 的标题会抛
+    ValueError，且在排序 lambda 中抛错会让**整个排序静默失效**。
+
+    本函数：
+    - 用正则匹配第一个 ``-?\\d+(\\.\\d+)?%``；
+    - 提取失败（None/无 "%"/数字非法）返回 ``default``（默认 ``-inf``，便于排序时沉底）；
+    - 绝不抛异常，调用方可放心用于 sort key。
+    """
+    if s is None:
+        return default
+    text = s if isinstance(s, str) else str(s)
+    m = _PCT_RE.search(text)
+    if not m:
+        return default
+    val = to_float(m.group(1), default)
+    if val is None:
+        return default
+    return val
 
 
 def safe_html_text(x, default: str = "") -> str:

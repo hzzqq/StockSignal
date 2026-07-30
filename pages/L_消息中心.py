@@ -12,6 +12,7 @@
 """
 import streamlit as st
 from datetime import datetime
+import math
 import concurrent.futures as _cf
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
@@ -21,6 +22,7 @@ from modules.session import (
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, render_data_degradation_banner
 from modules.page_widgets import UP, DOWN
+from modules.format_helpers import extract_pct
 
 apply_page_config(page_title="消息中心", page_icon="🔔", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -160,7 +162,9 @@ def _build_movers():
                     # 单只行情异常不应拖垮整个异动区块（safe_section 会整体降级）
                     continue
     try:
-        msgs.sort(key=lambda m: abs(float(m["title"].split("%")[0].split(" ")[-1])), reverse=True)
+        # extract_pct 永不抛异常：无 "%" 的标题返回 -inf，abs 后沉底，
+        # 不再因任意一条非数字标题就让整个排序静默失效
+        msgs.sort(key=lambda m: abs(extract_pct(m["title"])), reverse=True)
     except Exception:
         pass
     return msgs
@@ -326,11 +330,9 @@ else:
         read = m["id"] in st.session_state["msg_read_ids"]
         border_col = "#888"
         if "%" in m["title"]:
-            try:
-                border_col = _color(float(m["title"].split("%")[0].split(" ")[-1]))
-            except Exception:
-                # 标题含 "%" 但解析不出涨跌数（如社区消息 "35% 折扣"），降级灰色边框而非崩溃
-                border_col = "#888"
+            _p = extract_pct(m["title"])
+            # 含 "%" 但解析不出合法涨跌幅（如社区消息 "35% 折扣"）→ 灰色边框而非错误上色
+            border_col = _color(_p) if math.isfinite(_p) else "#888"
         with st.container(border=True):
             # 加法式批量选择+操作：每行加勾选框（纯前端 session_state）
             hc0, hc1, hc2, hc3 = st.columns([1, 9, 1, 1])
@@ -340,11 +342,9 @@ else:
             with hc1:
                 title_md = _safe_title_html(m["title"], read=read)
                 if m["type"] == "异动":
-                    try:
-                        pct = float(m["title"].split("%")[0].split(" ")[-1])
-                        title_md = f"<span style='color:{_color(pct)}'>{_safe_title_html(m['title'], read=read)}</span>"
-                    except Exception:
-                        pass
+                    _p = extract_pct(m["title"])
+                    if math.isfinite(_p):
+                        title_md = f"<span style='color:{_color(_p)}'>{_safe_title_html(m['title'], read=read)}</span>"
                 st.markdown(title_md, unsafe_allow_html=True)
                 st.caption(f"{m['type']}　·　{m['detail']}" + (f"　·　{_fmt_rel(m['time'])}" if m["time"] else ""))
                 if not read and st.button("标为已读", key=f"rd_{m['id']}", help="标记为已读"):
