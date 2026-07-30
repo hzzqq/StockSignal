@@ -95,6 +95,23 @@ class TestPagesUseEscaping:
         assert "{c.get('content', '')}" not in src
         assert '<img src="{avatar_data_url}"' not in src
 
+    def test_quantagent_page_escapes_llm_text(self):
+        # cycle 34：QuantAgent 投研页把 LLM 生成文本（结论/理由/辩论发言）原样拼进
+        # unsafe_allow_html=True 的卡片，含 < 的研报（如 "PE <20"）会被浏览器吞掉，
+        # 理论上也存在注入风险，必须转义
+        src = self._src("pages/Q_QuantAgent投研.py")
+        assert "safe_html_text" in src, "QuantAgent 页应导入 safe_html_text"
+        assert "safe_html_text(l.get('message'))" in src
+        assert "safe_html_text(c.get('verdict'), '-')" in src
+        assert "safe_html_text(c.get('rationale'))" in src
+        assert "safe_html_text(st_.get('text'))" in src
+        assert "safe_html_text(st_.get('name'))" in src
+        # 执行轨迹（markdown 渲染）也需转义动态字段
+        assert "safe_html_text(t.get('log'))" in src
+        # 实时日志流函数已自带转义，不应被回退
+        assert "_html.escape(str(e.get('message', '')))" in src
+
+
 
 @pytest.mark.parametrize(
     "payload",

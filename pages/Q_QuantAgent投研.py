@@ -61,6 +61,7 @@ except Exception:  # pragma: no cover - fallback
 
 from modules.page_guard import safe_fragment
 from modules.colors import UP_COLOR, DOWN_COLOR, AMBER
+from modules.format_helpers import safe_html_text
 
 st.set_page_config(page_title="QuantAgent 多智能体投研", page_icon="🤖", layout="wide")
 
@@ -176,7 +177,7 @@ def _render_live_progress(task: dict):
             dcols[j % 2].markdown(
                 f"<div class='qa-card'><div class='qa-row'><div class='qa-icon'>{icon}</div>"
                 f"<div class='qa-name'>{name}</div></div>"
-                f"<div style='color:#c9d4e0;font-size:13px'>{l.get('message','')}</div></div>",
+                f"<div style='color:#c9d4e0;font-size:13px'>{safe_html_text(l.get('message'))}</div></div>",
                 unsafe_allow_html=True,
             )
 
@@ -199,10 +200,10 @@ def _render_report(result: dict):
     vc = _verdict_color(c.get("verdict", ""))
     st.markdown(
         f"<div style='padding:14px 18px;border-left:6px solid {vc};background:#11161d;border-radius:8px'>"
-        f"<b style='font-size:20px;color:{vc}'>🏁 最终结论：{c.get('verdict','-')}</b> "
+        f"<b style='font-size:20px;color:{vc}'>🏁 最终结论：{safe_html_text(c.get('verdict'), '-')}</b> "
         f"&nbsp; 综合评分 <b>{c.get('composite') or '-'}</b>/100"
         + (f"<br>目标价 <b style='color:#e6edf3'>¥{c.get('target_price')}</b> ｜ 止损 <b style='color:#e6edf3'>¥{c.get('stop_price')}</b>" if c.get("target_price") else "")
-        + f"<br><span style='color:#9fb0c0'>{str(c.get('rationale',''))[:300]}</span></div>",
+        + f"<br><span style='color:#9fb0c0'>{safe_html_text(c.get('rationale'))[:300]}</span></div>",
         unsafe_allow_html=True,
     )
 
@@ -230,8 +231,8 @@ def _render_report(result: dict):
             lean_cls = {"看多": "qa-lean-bull", "看空": "qa-lean-bear", "持有": "qa-lean-hold"}.get(lean, "")
             dcols[j % 2].markdown(
                 f"<div class='qa-card'><div class='qa-row'><div class='qa-icon'>{st_.get('icon','')}</div>"
-                f"<div class='qa-name'>{st_.get('name','')} <span class='{lean_cls}'>[{lean}]</span></div></div>"
-                f"<div style='color:#c9d4e0;font-size:13px'>{st_.get('text','')}</div></div>",
+                f"<div class='qa-name'>{safe_html_text(st_.get('name'))} <span class='{lean_cls}'>[{lean}]</span></div></div>"
+                f"<div style='color:#c9d4e0;font-size:13px'>{safe_html_text(st_.get('text'))}</div></div>",
                 unsafe_allow_html=True,
             )
         st.divider()
@@ -255,7 +256,7 @@ def _render_report(result: dict):
 
     with st.expander("🪵 多智能体执行轨迹"):
         for t in result.get("trace", []) or []:
-            st.markdown(f"- **{t.get('node')}**: {t.get('log')}")
+            st.markdown(f"- **{safe_html_text(t.get('node'))}**: {safe_html_text(t.get('log'))}")
 
     if result.get("errors"):
         with st.expander("⚠️ 运行提示"):
