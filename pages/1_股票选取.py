@@ -306,16 +306,13 @@ def _cached_kline(ticker, start, end, period, nonce: int = 0):
 def _period_end_to_trading_day(ticker, start, end, period_date):
     """周/月线视图下，点击柱子的日期是周期末(可能落在周末/节假日)，
     映射到最近的一个实际交易日，确保双击弹分时能取到数据。"""
-    import bisect
     try:
+        from modules.calendar_utils import nearest_trading_day
         dd = _cached_kline(ticker, start, end, "daily")
         if dd is None or dd.empty:
             return str(period_date)[:10]
-        dts = sorted(pd.to_datetime(dd["date"]).dt.strftime("%Y-%m-%d").tolist())
-        pd_str = str(period_date)[:10]
-        i = bisect.bisect_right(dts, pd_str) - 1
-        if i >= 0:
-            return dts[i]
+        dts = pd.to_datetime(dd["date"]).dt.strftime("%Y-%m-%d").tolist()
+        return nearest_trading_day(period_date, dts)
     except Exception:
         pass
     return str(period_date)[:10]
