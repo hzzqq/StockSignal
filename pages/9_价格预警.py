@@ -31,7 +31,7 @@ from modules.technical import full_analysis
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
-from modules.format_helpers import safe_float
+from modules.format_helpers import safe_float, to_float
 import streamlit.components.v1 as components
 # 副作用：导入即确保 akshare 经本地代理访问（资金/新闻源）——设置 HTTP(S)_PROXY 并关闭证书校验
 from modules.fundflow import _ensure_proxy_and_ssl
@@ -157,13 +157,19 @@ ALERT_TYPE_LABEL = {
 
 
 def _current_price(code: str):
+    # 用 to_float 稳健解析：行情 current 可能为 None / "—" / 非数字（数据源对缺失返回短线），
+    # 直接 float() 会抛 ValueError；to_float 失败返回 None，调用方已处理 None 分支
     rt = api_quote(code)
-    if isinstance(rt, dict) and rt.get("current"):
-        return float(rt["current"])
+    if isinstance(rt, dict):
+        v = to_float(rt.get("current"))
+        if v is not None:
+            return v
     try:
         q = fetcher.get_realtime_quote(code)
-        if isinstance(q, dict) and q.get("current"):
-            return float(q["current"])
+        if isinstance(q, dict):
+            v = to_float(q.get("current"))
+            if v is not None:
+                return v
     except Exception:
         pass
     return None
