@@ -17,7 +17,7 @@ pages/2_多股对比.py、pages/C_自选股监控.py）。
 from __future__ import annotations
 
 try:
-    from modules.autorefresh import st_autorefresh as _st_autorefresh  # type: ignore
+    from streamlit_autorefresh import st_autorefresh as _st_autorefresh  # type: ignore
 except ImportError:  # pragma: no cover - 仅在未安装该包时触发
     def _st_autorefresh(*_args, **_kwargs):
         """缺失依赖时的零操作降级：接受任意参数，不抛异常。"""
