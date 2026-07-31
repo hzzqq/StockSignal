@@ -39,9 +39,9 @@ if "_wl_fav" not in st.session_state:
     st.session_state._wl_fav = []
 lk1, lk2 = st.columns([1, 1])
 with lk1:
-    st.page_link("pages/3_事件追踪.py", label="🔔 事件追踪", icon="🔔")
+    st.page_link("pages/3_事件追踪.py", label="🔔 事件追踪")
 with lk2:
-    st.page_link("pages/个股研究.py", label="🔍 个股研究", icon="🔍")
+    st.page_link("pages/个股研究.py", label="🔍 个股研究")
 
 try:
     from modules.autorefresh import st_autorefresh
