@@ -19,9 +19,10 @@ import os
 import socket
 import logging
 
+from modules.site_config import REQUEST_TIMEOUT as _TIMEOUT
+
 logger = logging.getLogger(__name__)
 
-_TIMEOUT = float(os.environ.get("STOCKSIGNAL_REQ_TIMEOUT", "15"))
 _installed = False
 
 

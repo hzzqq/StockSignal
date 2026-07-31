@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
 from modules.fundflow import (
     get_industry_fund_flow, get_northbound_fund_flow,
     get_market_fund_flow, get_individual_fund_flow,
@@ -32,30 +33,16 @@ from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fig_layout, _section_title, _fmt_yi, _trend_controls
 
-try:
-    from modules.autorefresh import st_autorefresh
-except Exception:
-    st_autorefresh = None
+st_autorefresh = import_autorefresh()
 
-apply_page_config(page_title="资金流向", page_icon="🌊", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-
-
-st.title("🌊 资金流向监控")
+dark = render_standard_page(
+    "资金流向", icon="🌊",
+    caption="北向资金 · 行业板块资金流向 · 大盘主力净流入 · 个股主力资金动向。数据来源：东方财富/同花顺（经本地代理）。",
+)
 st.caption("北向资金 · 行业板块资金流向 · 大盘主力净流入 · 个股主力资金动向。数据来源：东方财富/同花顺（经本地代理）。")
 
 
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 
 
 # 加法式性能优化（第十四批）：个股资金流接口在 60s 自动刷新下每次都重新请求网络，
@@ -70,46 +57,55 @@ def _cached_individual_series(code: str, days: int = 60):
     return get_individual_fund_flow_series(code, days=days)
 
 
-# ── 页面级缓存（fundflow 内部也有缓存，双层保险 + 跨会话复用）──
+# ── 并发预取：首屏一次性并行拉取全部板块数据，最坏 ~14s（而非各路串行之和 ~120s）──
+# 用 fetch_many 在共享线程池并发执行，每个取数有硬边界；结果由 @st.cache_data 复用。
 @st.cache_data(show_spinner=False, ttl=300)
+def _prefetch_all():
+    from modules.fetch_parallel import fetch_many
+    tasks = [
+        ("northbound", get_northbound_fund_flow),
+        ("industry", get_industry_fund_flow),
+        ("market", lambda: get_market_fund_flow(days=30)),
+        ("margin", lambda: get_margin_trading_data(days=180)),
+        ("margin_summary", get_latest_margin_summary),
+        ("northbound_hist", get_northbound_history_series),
+        ("market_cum", lambda: get_market_cumulative_series(days=60)),
+        ("index", lambda: get_index_series(days=180)),
+        ("industry_idx", lambda: get_industry_index_series(top_n=8, days=120)),
+        ("etf", lambda: get_etf_series(days=180)),
+    ]
+    return fetch_many(tasks, max_workers=6, timeout=14)
+
+
 def _cached_northbound():
-    return get_northbound_fund_flow()
+    return _prefetch_all().get("northbound")
 
-@st.cache_data(show_spinner=False, ttl=300)
 def _cached_industry_flow():
-    return get_industry_fund_flow()
+    return _prefetch_all().get("industry")
 
-@st.cache_data(show_spinner=False, ttl=600)
 def _cached_market_flow(days: int = 30):
-    return get_market_fund_flow(days=days)
+    return _prefetch_all().get("market")
 
-@st.cache_data(show_spinner=False, ttl=1800)
 def _cached_margin_data(days: int = 180):
-    return get_margin_trading_data(days)
+    return _prefetch_all().get("margin")
 
-@st.cache_data(show_spinner=False, ttl=300)
 def _cached_margin_summary():
-    return get_latest_margin_summary()
+    return _prefetch_all().get("margin_summary")
 
-@st.cache_data(show_spinner=False, ttl=300)
 def _cached_northbound_history():
-    return get_northbound_history_series()
+    return _prefetch_all().get("northbound_hist")
 
-@st.cache_data(show_spinner=False, ttl=600)
 def _cached_market_cumulative(days: int = 60):
-    return get_market_cumulative_series(days)
+    return _prefetch_all().get("market_cum")
 
-@st.cache_data(show_spinner=False, ttl=300)
 def _cached_index_series(days: int = 180):
-    return get_index_series(days)
+    return _prefetch_all().get("index")
 
-@st.cache_data(show_spinner=False, ttl=300)
 def _cached_industry_index(top_n: int = 8, days: int = 120):
-    return get_industry_index_series(top_n=top_n, days=days)
+    return _prefetch_all().get("industry_idx")
 
-@st.cache_data(show_spinner=False, ttl=300)
 def _cached_etf_series(days: int = 180):
-    return get_etf_series(days)
+    return _prefetch_all().get("etf")
 
 
 

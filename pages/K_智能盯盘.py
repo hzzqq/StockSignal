@@ -19,18 +19,16 @@ from datetime import datetime
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge, safe_switch_page, api_get, api_post, api_delete
 from modules.fundflow import get_industry_fund_flow, get_individual_fund_flow
+from modules.timeout_exec import run_with_timeout
 from modules.fetcher import StockFetcher
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
 
-apply_page_config(page_title="智能盯盘", page_icon="👁️", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-st.title("👁️ 智能盯盘聚合")
-st.caption("⚠️ 数据仅供参考，不构成投资建议")
+dark = render_standard_page(
+    "智能盯盘", icon="👁️",
+    caption="⚠️ 数据仅供参考，不构成投资建议",
+)
 
 # ── 加法式：最近浏览 / 收藏 的 session 初始化（纯前端）──
 if "_wl_recent" not in st.session_state:
@@ -43,10 +41,7 @@ with lk1:
 with lk2:
     st.page_link("pages/个股研究.py", label="🔍 个股研究")
 
-try:
-    from modules.autorefresh import st_autorefresh
-except Exception:
-    st_autorefresh = None
+st_autorefresh = import_autorefresh()
 
 # ───────────────────────── 常量 / 配色 ─────────────────────────
 MAIN_NET_STRONG = 1e8  # 主力净流入"强异动"阈值：1亿(元)
@@ -60,12 +55,7 @@ st.caption(
 # ───────────────────────── 工具函数 ─────────────────────────
 
 
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 
 
 
@@ -276,7 +266,8 @@ def fragment_sector():
 
     try:
         with st.spinner("⏳ 正在加载行业资金流向…"):
-            df = get_industry_fund_flow()
+            # 套硬边界：代理/上游挂起时最多等 12s，避免本区块无限转圈
+            df = run_with_timeout(get_industry_fund_flow, 12) or pd.DataFrame()
     except Exception as e:
         st.error(f"行业资金流向加载失败：{e}")
         if st.button("🔄 重试", key="btn_sector_retry"):

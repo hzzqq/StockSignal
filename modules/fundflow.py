@@ -20,7 +20,6 @@ import os
 import socket
 import time
 import functools
-import concurrent.futures as cf
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 import threading
@@ -29,11 +28,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# ── 全局请求超时（防 akshare 无限挂起，项目级兜底）──
-# akshare 底层 requests 默认不设 timeout：上游/本地代理挂起时调用会永远阻塞，
-# 表现为「资金流向模块卡住」（spinner 一直转）。这里在 fundflow 导入时（瞬时、无网络）
-# 给 requests.Session.request 注入默认 timeout；个别函数再用 _run_with_timeout 加强边界。
-_REQUEST_TIMEOUT = float(os.environ.get("STOCKSIGNAL_REQ_TIMEOUT", "15"))
+# 集中配置（代理 / 超时 / 测试密钥）统一从 modules.site_config 读取，避免散落硬编码
+from modules.site_config import REQUEST_TIMEOUT, PROXY_DEFAULT
+from modules.timeout_exec import run_with_timeout
+
+# 别名：保持下方 _patch_requests_timeout 与下游模块的引用不变
+_REQUEST_TIMEOUT = REQUEST_TIMEOUT
 
 
 def _patch_requests_timeout():
@@ -74,7 +74,7 @@ from modules.format_helpers import format_amount
 
 # 本机代理地址：默认 http://127.0.0.1:26561，可用环境变量 STOCKSIGNAL_PROXY 覆盖
 # （#407 集中魔法值：换机器/换端口时不必改代码）。
-_PROXY = os.environ.get("STOCKSIGNAL_PROXY", "http://127.0.0.1:26561")
+_PROXY = PROXY_DEFAULT
 _patch_done = False
 
 
@@ -210,29 +210,10 @@ def _to_wan_yi(x):
     return format_amount(x)
 
 
-def _run_with_timeout(fn, timeout):
-    """在独立线程执行 fn；超时（或异常）返回 None，由调用方决定兜底值。
-
-    用于给「可能无限阻塞」的网络取数（如 akshare 个股资金流）套硬边界，
-    保证 UI 永不因单只标的卡死而一直转圈。
-
-    注意：超时后**不 join** 工作线程（shutdown(wait=False)），否则退出上下文会
-    等待仍在阻塞的网络调用结束，反而把外层也卡住——那超时就没意义了。
-    被丢弃的线程会在其内部请求超时（见 _REQUEST_TIMEOUT）后自行退出。
-    """
-    ex = cf.ThreadPoolExecutor(max_workers=1)
-    fut = ex.submit(fn)
-    try:
-        return fut.result(timeout=timeout)
-    except cf.TimeoutError:
-        logger.warning(f"[fundflow] 处理异常: {getattr(fn, '__name__', 'fn')} 超时({timeout}s)，返回 None")
-        return None
-    except Exception as e:
-        logger.warning(f"[fundflow] 处理异常: {getattr(fn, '__name__', 'fn')} 异常：{e}")
-        return None
-    finally:
-        # 不等待挂起线程（可能仍在阻塞的网络调用中），避免外层被 join 卡住
-        ex.shutdown(wait=False)
+# 兼容别名：实现已迁移到 modules.timeout_exec.run_with_timeout（进程级共享有界线程池，
+# 底层网络超时 < 每调用硬边界，阻塞调用被传输层先唤醒、线程正常回池，从根上消除线程泄漏）。
+# 保留此别名是为了不动 linear_trends / margin_trading 等下游 import。
+_run_with_timeout = run_with_timeout
 
 
 # ───────────────────────── 板块资金流向 ─────────────────────────

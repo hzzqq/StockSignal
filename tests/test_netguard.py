@@ -26,7 +26,8 @@ def test_netguard_applies_without_fundflow():
     _drop_modules()
     import modules.fetcher  # 该模块不导入 fundflow
     after = socket.getdefaulttimeout()
-    assert after == 15.0, f"socket 默认超时未生效: {after}"
+    from modules.site_config import REQUEST_TIMEOUT
+    assert after == REQUEST_TIMEOUT, f"socket 默认超时未生效: {after}"
 
     import requests
     assert getattr(requests.Session.request, "_ss_timeout_patched", False) is True

@@ -61,9 +61,12 @@ _BATCH_TAG = os.environ.get("SMOKE_BATCH", "all").replace("/", "_")
 REPORT_PATH = os.path.join(os.path.dirname(__file__), f".pages_smoke_report_{_BATCH_TAG}.json")
 
 # 预生成一张「永不过期」的合法 JWT（is_authenticated 仅本地解码 exp，不验签）
+# 密钥集中到 modules.site_config.TEST_SMOKE_SECRET（仅测试桩，非生产）
+from modules.site_config import TEST_SMOKE_SECRET
+
 _FAKE_TOKEN = jwt.encode(
     {"sub": "demo", "username": "demo", "role": "admin", "exp": int(time.time()) + 999999},
-    "stocksignal-smoke",
+    TEST_SMOKE_SECRET,
     algorithm="HS256",
 )
 _FAKE_USER = {
