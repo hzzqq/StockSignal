@@ -37,7 +37,14 @@ _REQUEST_TIMEOUT = float(os.environ.get("STOCKSIGNAL_REQ_TIMEOUT", "15"))
 
 
 def _patch_requests_timeout():
-    """给 requests 注入默认超时，避免 akshare 等库的网络调用无限挂起。幂等。"""
+    """给 requests 注入默认超时，避免 akshare 等库的网络调用无限挂起。幂等。
+
+    双层兜底：
+    - requests 层：给 Session.request 注入默认 timeout（覆盖 akshare 走 requests 的接口）。
+    - socket 层：socket.setdefaulttimeout 覆盖 akshare 走 **urllib**（东方财富）的接口——
+      这类调用不经过 requests，上面那层拦不住，上游/代理挂起时会无限阻塞（资金流向页
+      就是典型受害者，表现为「卡住」）。socket 默认超时把「永久挂起」变成「≤N 秒失败」。
+    """
     import requests
     if getattr(requests.Session.request, "_ss_timeout_patched", False):
         return
@@ -49,6 +56,14 @@ def _patch_requests_timeout():
 
     _patched._ss_timeout_patched = True
     requests.Session.request = _patched
+
+    # socket 层兜底：仅当尚无更严格的全局默认超时时设置，避免覆盖用户显式配置
+    cur = socket.getdefaulttimeout()
+    if cur is None or cur > _REQUEST_TIMEOUT:
+        try:
+            socket.setdefaulttimeout(_REQUEST_TIMEOUT)
+        except Exception:
+            pass
 
 
 _patch_requests_timeout()  # 导入即生效（瞬时、无网络）
@@ -248,7 +263,12 @@ def get_industry_fund_flow():
             import logging
             logging.getLogger(__name__).warning(f"get_industry_fund_flow 最终失败：{e}")
             return pd.DataFrame()
-    return _cached(300, "industry_ff", _fn)
+
+    # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
+    def _safe():
+        res = _run_with_timeout(_fn, 12)
+        return res if res is not None else pd.DataFrame()
+    return _cached(300, "industry_ff", _safe)
 
 
 # ───────────────────────── 北向资金（历史真实值兜底） ─────────────────────────
@@ -402,7 +422,15 @@ def get_northbound_fund_flow():
                 "last_net_buy_date": hist.get("last_net_buy_date"),
                 "cumulative": hist.get("cumulative"),
                 "cumulative_date": hist.get("cumulative_date")}
-    return _cached(300, "northbound_ff", _fn)
+
+    _EMPTY = {"boards": [], "trade_date": None, "total_inflow": None,
+              "sh_inflow": None, "sz_inflow": None,
+              "northbound_net_available": False}
+    # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空结构，由 UI 兜底
+    def _safe():
+        res = _run_with_timeout(_fn, 12)
+        return res if res is not None else _EMPTY
+    return _cached(300, "northbound_ff", _safe)
 
 
 # ───────────────────────── 大盘资金流向 ─────────────────────────
@@ -434,7 +462,12 @@ def get_market_fund_flow(days=30):
             import logging
             logging.getLogger(__name__).warning(f"get_market_fund_flow 最终失败：{e}")
             return pd.DataFrame()
-    return _cached(600, f"market_ff_{days}", _fn)
+
+    # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
+    def _safe():
+        res = _run_with_timeout(_fn, 12)
+        return res if res is not None else pd.DataFrame()
+    return _cached(600, f"market_ff_{days}", _safe)
 
 
 # ───────────────────────── 个股资金流向（真实优先 + 量价估算兜底） ─────────────────────────

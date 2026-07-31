@@ -223,7 +223,8 @@ def get_northbound_history_series():
             out["cumulative_yi"] = pd.NA
         out = out.dropna(subset=["date"]).reset_index(drop=True)
         return out
-    return _cached(1800, "northbound_hist_series", _fn)
+    # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
+    return _cached(1800, "northbound_hist_series", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame())
 
 
 def plot_northbound_history(df, dark_mode=False, date_range=None, ma_periods=(),
@@ -502,7 +503,8 @@ def get_index_series(days=180):
         if len(df) > days:
             df = df.tail(days).reset_index(drop=True)
         return df
-    return _cached(900, f"index_series_{days}", _fn)
+    # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
+    return _cached(900, f"index_series_{days}", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame())
 
 
 def plot_index_series(df, dark_mode=False, date_range=None, ma_periods=(),
@@ -583,7 +585,8 @@ def get_market_cumulative_series(days=60):
             return pd.DataFrame()
         out["cumulative"] = out["main_net"].cumsum()
         return out
-    return _cached(600, f"market_cumulative_{days}", _fn)
+    # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
+    return _cached(600, f"market_cumulative_{days}", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame())
 
 
 def plot_market_cumulative(df, dark_mode=False, date_range=None, ma_periods=(),
@@ -718,7 +721,8 @@ def get_industry_index_series(top_n=8, days=120):
         if len(base) > days:
             base = base.tail(days).reset_index(drop=True)
         return base
-    return _cached(1800, f"industry_index_series_{top_n}_{days}", _fn)
+    # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
+    return _cached(1800, f"industry_index_series_{top_n}_{days}", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame())
 
 
 # ───────────────────────── 6. ETF 价格趋势（线性表达） ─────────────────────────
@@ -781,7 +785,8 @@ def get_etf_series(days=180):
         if len(base) > days:
             base = base.tail(days).reset_index(drop=True)
         return base
-    return _cached(1800, f"etf_series_{days}", _fn)
+    # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
+    return _cached(1800, f"etf_series_{days}", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame())
 
 
 # ───────────────────────── 共享：归一化多线对比（含区间切片 + 均线叠加 + 增强标注） ─────────────────────────

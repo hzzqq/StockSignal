@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # 复用 fundflow 的代理/SSL 补丁，确保 akshare 经本地代理访问
 # 注意：代理/SSL 探测改为「首次真实网络请求前惰性执行」（见 _retry 包裹器），
 # 绝不在模块导入期同步跑 socket 探测（否则会阻塞所有 import 本模块的页面）。
-from modules.fundflow import _ensure_proxy_and_ssl
+from modules.fundflow import _ensure_proxy_and_ssl, _run_with_timeout
 from modules.linear_trends import get_northbound_history_series
 
 # 简易 TTL 缓存
@@ -215,7 +215,8 @@ def get_margin_trading_data(days=180):
         except Exception as e:
             logger.warning(f"get_margin_trading_data 最终失败：{e}")
             return pd.DataFrame()
-    return _cached(600, f"margin_trading_{days}", _fn, skip_empty=True)
+    # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
+    return _cached(600, f"margin_trading_{days}", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame(), skip_empty=True)
 
 
 def safe_yuan_to_yi(x):

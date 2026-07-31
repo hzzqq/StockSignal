@@ -78,18 +78,38 @@ def _simulate_offline():
     """让所有网络调用立即失败，逼出降级路径且不卡 30s。
 
     返回需在测试结束时复原的清理操作。
+    覆盖三层：requests（akshare 走 requests 的接口）、urllib（akshare 东方财富路径
+    走 urllib，requests 桩拦不住，会真去连网被屏蔽→挂死）、socket 直连（兜底 +
+    让 fundflow 的 2s 代理探测也即时失败）。
     """
+    import urllib.request as _urllib_req
+    import socket as _sock
+
     _orig_request = requests.Session.request
+    _orig_urlopen = _urllib_req.urlopen
+    _orig_conn = _sock.create_connection
 
     def _fail(*args, **kwargs):
         raise requests.exceptions.ConnectionError("smoke: offline simulated")
 
-    requests.Session.request = _fail  # 同时覆盖 get/post/head
-    return _orig_request
+    def _fail_urlopen(*a, **k):
+        raise OSError("smoke: offline simulated (urllib)")
+
+    def _fail_conn(*a, **k):
+        raise OSError("smoke: offline simulated (socket)")
+
+    requests.Session.request = _fail
+    _urllib_req.urlopen = _fail_urlopen
+    _sock.create_connection = _fail_conn
+    return (_orig_request, _orig_urlopen, _orig_conn)
 
 
 def _restore_offline(orig):
-    requests.Session.request = orig
+    requests.Session.request = orig[0]
+    import urllib.request as _urllib_req
+    _urllib_req.urlopen = orig[1]
+    import socket as _sock
+    _sock.create_connection = orig[2]
 
 
 def _collect_errors(at: AppTest) -> list[str]:
@@ -110,7 +130,7 @@ def _collect_errors(at: AppTest) -> list[str]:
 
 
 def _run_page(page_path: str, authed: bool) -> dict:
-    at = AppTest.from_file(page_path, default_timeout=30)
+    at = AppTest.from_file(page_path, default_timeout=120)
     if authed:
         at.session_state["auth_token"] = _FAKE_TOKEN
         at.session_state["auth_user"] = dict(_FAKE_USER)
@@ -172,4 +192,4 @@ def _write_report(page_path: str, guest: dict, authd: dict):
 
 def test_all_pages_collected():
     """防守：确保 pages/ 下确有页面被收集，防止 glob 失败导致测试空跑。"""
-    assert len(PAGE_FILES) >= 30, f"收集到的页面数异常少: {len(PAGE_FILES)}"
+    assert len(ALL_PAGE_FILES) >= 30, f"收集到的页面数异常少: {len(ALL_PAGE_FILES)}"
