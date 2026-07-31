@@ -20,6 +20,7 @@ import os
 import socket
 import time
 import functools
+import concurrent.futures as cf
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 import threading
@@ -27,6 +28,30 @@ import threading
 import logging
 
 logger = logging.getLogger(__name__)
+
+# ── 全局请求超时（防 akshare 无限挂起，项目级兜底）──
+# akshare 底层 requests 默认不设 timeout：上游/本地代理挂起时调用会永远阻塞，
+# 表现为「资金流向模块卡住」（spinner 一直转）。这里在 fundflow 导入时（瞬时、无网络）
+# 给 requests.Session.request 注入默认 timeout；个别函数再用 _run_with_timeout 加强边界。
+_REQUEST_TIMEOUT = float(os.environ.get("STOCKSIGNAL_REQ_TIMEOUT", "15"))
+
+
+def _patch_requests_timeout():
+    """给 requests 注入默认超时，避免 akshare 等库的网络调用无限挂起。幂等。"""
+    import requests
+    if getattr(requests.Session.request, "_ss_timeout_patched", False):
+        return
+    _orig = requests.Session.request
+
+    def _patched(self, *a, **k):
+        k.setdefault("timeout", _REQUEST_TIMEOUT)
+        return _orig(self, *a, **k)
+
+    _patched._ss_timeout_patched = True
+    requests.Session.request = _patched
+
+
+_patch_requests_timeout()  # 导入即生效（瞬时、无网络）
 
 import pandas as pd
 
@@ -168,6 +193,31 @@ def _retry_with_backoff(max_retries=3, base_delay=1.0):
 def _to_wan_yi(x):
     """把金额(元)格式化为 亿/万 文本（委托给 format_amount，屏蔽 NaN/inf/None）。"""
     return format_amount(x)
+
+
+def _run_with_timeout(fn, timeout):
+    """在独立线程执行 fn；超时（或异常）返回 None，由调用方决定兜底值。
+
+    用于给「可能无限阻塞」的网络取数（如 akshare 个股资金流）套硬边界，
+    保证 UI 永不因单只标的卡死而一直转圈。
+
+    注意：超时后**不 join** 工作线程（shutdown(wait=False)），否则退出上下文会
+    等待仍在阻塞的网络调用结束，反而把外层也卡住——那超时就没意义了。
+    被丢弃的线程会在其内部请求超时（见 _REQUEST_TIMEOUT）后自行退出。
+    """
+    ex = cf.ThreadPoolExecutor(max_workers=1)
+    fut = ex.submit(fn)
+    try:
+        return fut.result(timeout=timeout)
+    except cf.TimeoutError:
+        logger.warning(f"[fundflow] 处理异常: {getattr(fn, '__name__', 'fn')} 超时({timeout}s)，返回 None")
+        return None
+    except Exception as e:
+        logger.warning(f"[fundflow] 处理异常: {getattr(fn, '__name__', 'fn')} 异常：{e}")
+        return None
+    finally:
+        # 不等待挂起线程（可能仍在阻塞的网络调用中），避免外层被 join 卡住
+        ex.shutdown(wait=False)
 
 
 # ───────────────────────── 板块资金流向 ─────────────────────────
@@ -388,38 +438,50 @@ def get_market_fund_flow(days=30):
 
 
 # ───────────────────────── 个股资金流向（真实优先 + 量价估算兜底） ─────────────────────────
-def get_individual_fund_flow(code, use_estimate_fallback=True):
+def get_individual_fund_flow(code, use_estimate_fallback=True, timeout=12.0):
     """个股资金流向。
 
     优先尝试 akshare 真实接口（stock_fund_flow_individual / stock_main_fund_flow），
     失败则用日线量价模型估算主力净流入（标注 估算）。
     返回 dict: {source, main_net(元), main_net_pct, big_net, super_net, latest_date}
+
+    强边界：整体用 _run_with_timeout 包 20s 硬超时。akshare 个股接口在本机代理下
+    常挂起（底层 requests 不设 timeout），若无此边界会导致调用方（盯盘页并行抓全自选股）
+    一直转圈「卡住」。超时/异常一律返回 source='none'，由 UI 优雅降级。
     """
-    def _real():
-        import akshare as ak
-        # 注意：stock_fund_flow_individual / stock_main_fund_flow 是「全市场排名」接口，
-        # 传入个股代码会返回错误数据，不能用于个股。真正的个股接口是
-        # stock_individual_fund_flow(stock, market)，但它在本机代理下常返回 None，
-        # 失败时由下方量价估算兜底。
-        code6 = str(code).zfill(6)
-        market = "sh" if code6.startswith(("6", "9")) else "sz"
-        try:
-            df = ak.stock_individual_fund_flow(stock=code6, market=market)
-            if df is not None and not df.empty:
-                return _normalize_individual_df(df)
-        except Exception as e:
-            logger.warning(f"[fundflow] 处理异常: {e}")
-            pass
-        return None
+    def _compute():
+        real = _real(code)
+        if real is not None:
+            return real
+        if use_estimate_fallback:
+            return _estimate_individual_fund_flow(code)
+        return {"source": "none", "main_net": None, "main_net_pct": None,
+                "big_net": None, "super_net": None, "latest_date": None}
 
-    real = _real()
-    if real is not None:
-        return real
+    res = _run_with_timeout(_compute, timeout)
+    if res is None:
+        # 超时或异常：返回 none 占位，避免调用方死等
+        return {"source": "none", "main_net": None, "main_net_pct": None,
+                "big_net": None, "super_net": None, "latest_date": None}
+    return res
 
-    if use_estimate_fallback:
-        return _estimate_individual_fund_flow(code)
-    return {"source": "none", "main_net": None, "main_net_pct": None,
-            "big_net": None, "super_net": None, "latest_date": None}
+
+def _real(code):
+    import akshare as ak
+    # 注意：stock_fund_flow_individual / stock_main_fund_flow 是「全市场排名」接口，
+    # 传入个股代码会返回错误数据，不能用于个股。真正的个股接口是
+    # stock_individual_fund_flow(stock, market)，但它在本机代理下常返回 None，
+    # 失败时由下方量价估算兜底。
+    code6 = str(code).zfill(6)
+    market = "sh" if code6.startswith(("6", "9")) else "sz"
+    try:
+        df = ak.stock_individual_fund_flow(stock=code6, market=market)
+        if df is not None and not df.empty:
+            return _normalize_individual_df(df)
+    except Exception as e:
+        logger.warning(f"[fundflow] 处理异常: {e}")
+        pass
+    return None
 
 
 def _normalize_individual_df(df):

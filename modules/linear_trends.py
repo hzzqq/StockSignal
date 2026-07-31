@@ -25,6 +25,7 @@ import plotly.graph_objects as go
 from modules.fundflow import (
     _cached,
     _retry_with_backoff,
+    _run_with_timeout,
 )
 from modules.fetcher import StockFetcher
 
@@ -385,7 +386,16 @@ def get_individual_fund_flow_series(code, days=60):
         empty.attrs["source"] = "none"
         return empty
 
-    df = _cached(600, f"individual_series_{code6}_{days}", _fn)
+    def _fn_timed():
+        res = _run_with_timeout(_fn, timeout=12.0)
+        if res is None:
+            # 超时/异常：返回空 DataFrame（source='none'），避免页面卡死
+            empty = pd.DataFrame(columns=["date", "main_net", "super_net", "big_net"])
+            empty.attrs["source"] = "none"
+            return empty
+        return res
+
+    df = _cached(600, f"individual_series_{code6}_{days}", _fn_timed)
     return df
 
 
