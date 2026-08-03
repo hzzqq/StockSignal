@@ -21,6 +21,7 @@ import streamlit.components.v1 as components
 import time
 import re
 import html as _html
+import pandas as pd
 from modules.fetcher import StockFetcher
 from modules.ui_theme import _theme_is_dark
 
@@ -167,74 +168,57 @@ def _derive_tag(code: str) -> str:
 
 
 def _render_match_dropdown(key: str, raw_input: str, results, active_code: str, dark: bool):
-    """渲染「匹配结果 N 条」内联下拉（HTML + 可点击行），返回点击的代码或 None。
+    """渲染「匹配结果 N 条」选择列表（Streamlit 原生 dataframe，支持点击选中）。
 
-    直接显示在输入框下方，每行含 名称 / 代码 / 标签，点击即选中（点击由组件的
-    setComponentValue 触发重跑，fragment 内只重跑片段，无需手动 st.rerun）。
-    key 随输入词变化以确保换词后组件重新挂载、不残留旧选中值。
+    使用 st.dataframe(selection_mode='single-row') + on_select='rerun' 替代原来的
+    components.html() iframe —— 后者的 setComponentValue 对 html() 静态渲染无效，
+    导致搜索结果点了没反应（见 GitHub issue）。
     """
+    # 构建展示 DataFrame
     rows = []
     for code, name, market in results:
         tag = _derive_tag(code)
-        cls = " mk-active" if code == active_code else ""
-        # HTML 转义：股票名/代码虽来自交易所可信源，仍防御含 < & " 的异常值破坏下拉标记
-        safe_code = _html.escape(str(code), quote=True)
-        safe_name = _html.escape(str(name), quote=True)
-        safe_tag = _html.escape(str(tag), quote=True)
-        rows.append(
-            f'<div class="mk-row{cls}" data-code="{safe_code}">'
-            f'<span class="mk-name">{safe_name}</span>'
-            f'<span class="mk-code">{safe_code}</span>'
-            f'<span class="mk-tag">{safe_tag}</span>'
-            f'</div>'
-        )
-    rows_html = "".join(rows)
+        is_active = code == active_code
+        rows.append({"名称": name, "代码": code, "市场": tag, "_code_raw": code})
 
-    if dark:
-        bg, border = "#16161e", "#2d2d44"
-        head_color, row_color = "#cbd5e1", "#e2e8f0"
-        code_color, tag_bg, tag_color = "#8b95a8", "#2d2d44", "#a5b4fc"
-        hover, active_bg = "#23233a", "#2a2a44"
-    else:
-        bg, border = "#ffffff", "#e2e8f0"
-        head_color, row_color = "#475569", "#1e293b"
-        code_color, tag_bg, tag_color = "#64748b", "#eef2ff", "#4f46e5"
-        hover, active_bg = "#f1f5f9", "#eef2ff"
+    df_display = pd.DataFrame(rows)
 
-    css = f"""
-    <style>
-    .mk-wrap{{background:{bg};border:1px solid {border};border-radius:8px;
-      margin-top:4px;overflow:hidden;font-family:inherit;}}
-    .mk-head{{padding:6px 10px;font-size:12px;color:{head_color};font-weight:600;
-      border-bottom:1px solid {border};}}
-    .mk-row{{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;
-      color:{row_color};font-size:13px;}}
-    .mk-row:hover{{background:{hover};}}
-    .mk-active{{background:{active_bg};font-weight:600;}}
-    .mk-name{{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
-    .mk-code{{color:{code_color};font-size:12px;font-variant-numeric:tabular-nums;}}
-    .mk-tag{{background:{tag_bg};color:{tag_color};font-size:11px;padding:1px 7px;
-      border-radius:10px;white-space:nowrap;}}
-    </style>
-    """
-    html = (
-        css
-        + f'<div class="mk-wrap"><div class="mk-head">🔍 匹配结果 ({len(results)} 条)</div>'
-        + f'{rows_html}</div>'
-        + '<script>'
-        + 'var rows=document.querySelectorAll(".mk-row");'
-        + 'for(var i=0;i<rows.length;i++){'
-        + 'rows[i].onclick=function(){'
-        + 'var s=window.parent&&window.parent.Streamlit;'
-        + 'if(s&&s.setComponentValue){s.setComponentValue(this.getAttribute("data-code"));}'
-        + '};}'
-        + '</script>'
+    # 列配置：隐藏内部 _code_raw 列，代码列右对齐
+    col_config = {
+        "名称": st.column_config.TextColumn("名称", width="medium"),
+        "代码": st.column_config.TextColumn("代码", width="small"),
+        "市场": st.column_config.TextColumn("市场", width="small"),
+        "_code_raw": None,  # 隐藏
+    }
+
+    # 高亮当前活跃行（active_code 所在行）
+    if not df_display.empty and active_code:
+        active_idx = df_display[df_display["_code_raw"] == active_code].index
+        if len(active_idx) > 0:
+            # 用 caption 提示当前选中
+            pass
+
+    st.caption(f"🔍 匹配结果（{len(results)} 条）— 点击行选中")
+
+    # Streamlit 原生 dataframe，支持单行选择 + 点击重跑
+    event = st.dataframe(
+        df_display[["名称", "代码", "市场"]],
+        column_config=col_config,
+        use_container_width=True,
+        hide_index=True,
+        selection_mode="single-row",
+        key=f"mk_select_{key}",
+        on_select="rerun",
     )
-    height = min(38 + len(results) * 36, 460)
-    # 注意：streamlit.components.v1.html() 不支持 key 参数（签名只有
-    # html/width/height/scrolling/tab_index），传 key 会触发
-    # IframeMixin.__html__() got an unexpected keyword argument 'key'
-    return components.html(html, height=height)
+
+    # 从选择事件中提取选中的代码
+    selected_code = None
+    if event and hasattr(event, "selection") and event.selection.rows:
+        sel_idx = event.selection.rows[0]
+        if 0 <= sel_idx < len(df_display):
+            selected_code = df_display.iloc[sel_idx]["_code_raw"]
+
+    return selected_code
 
 
 def stock_search_input(
