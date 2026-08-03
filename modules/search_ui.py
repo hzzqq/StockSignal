@@ -21,7 +21,6 @@ import streamlit.components.v1 as components
 import time
 import re
 import html as _html
-import pandas as pd
 from modules.fetcher import StockFetcher
 from modules.ui_theme import _theme_is_dark
 
@@ -168,57 +167,48 @@ def _derive_tag(code: str) -> str:
 
 
 def _render_match_dropdown(key: str, raw_input: str, results, active_code: str, dark: bool):
-    """渲染「匹配结果 N 条」选择列表（Streamlit 原生 dataframe，支持点击选中）。
+    """渲染「匹配结果 N 条」选择列表，返回被选中（点击）的代码或 None。
 
-    使用 st.dataframe(selection_mode='single-row') + on_select='rerun' 替代原来的
-    components.html() iframe —— 后者的 setComponentValue 对 html() 静态渲染无效，
-    导致搜索结果点了没反应（见 GitHub issue）。
+    用 Streamlit 原生 ``st.radio`` 渲染整列可点选项，原因是：
+    - ``st.button`` 在 ``st.form`` 内会抛 ``StreamlitAPIException``
+      （5_仓位管理 等页面把搜索框放在 form 里，导致整页崩溃）；
+    - ``streamlit.components.v1.html()`` 内 JS 的 ``setComponentValue()``
+      只对 ``components.declare()`` 自定义组件有效，对静态 iframe 无效，
+      点击结果行完全无响应（最初“点不了”的根因）。
+    - ``st.radio`` 是受支持的输入控件，form 内外都能正常选中并回传值，
+      点击即选中、非 form 页面会触发 rerun 立即生效。
+
+    radio key 带 ``mkradio_`` 前缀；key 中含 ``raw_input`` 保证换搜索词后
+    重新挂载、不残留旧选中态。
     """
-    # 构建展示 DataFrame
-    rows = []
-    for code, name, market in results:
+    st.caption(f"🔍 匹配结果（{len(results)} 条）")
+
+    # 输入词做 key 安全化：只保留字母数字，中文等转 codepoint，避免 key 冲突/非法字符
+    token = "".join(ch if ch.isalnum() and ch.isascii() else str(ord(ch)) for ch in raw_input)[:24]
+
+    labels = []
+    code_by_label = {}
+    default_idx = 0
+    for i, (code, name, market) in enumerate(results):
         tag = _derive_tag(code)
-        is_active = code == active_code
-        rows.append({"名称": name, "代码": code, "市场": tag, "_code_raw": code})
+        label = f"{name}　{code}　{tag}"
+        labels.append(label)
+        code_by_label[label] = code
+        if code == active_code:
+            default_idx = i
 
-    df_display = pd.DataFrame(rows)
-
-    # 列配置：隐藏内部 _code_raw 列，代码列右对齐
-    col_config = {
-        "名称": st.column_config.TextColumn("名称", width="medium"),
-        "代码": st.column_config.TextColumn("代码", width="small"),
-        "市场": st.column_config.TextColumn("市场", width="small"),
-        "_code_raw": None,  # 隐藏
-    }
-
-    # 高亮当前活跃行（active_code 所在行）
-    if not df_display.empty and active_code:
-        active_idx = df_display[df_display["_code_raw"] == active_code].index
-        if len(active_idx) > 0:
-            # 用 caption 提示当前选中
-            pass
-
-    st.caption(f"🔍 匹配结果（{len(results)} 条）— 点击行选中")
-
-    # Streamlit 原生 dataframe，支持单行选择 + 点击重跑
-    event = st.dataframe(
-        df_display[["名称", "代码", "市场"]],
-        column_config=col_config,
-        use_container_width=True,
-        hide_index=True,
-        selection_mode="single-row",
-        key=f"mk_select_{key}",
-        on_select="rerun",
+    radio_key = f"mkradio_{key}_{token}"
+    picked_label = st.radio(
+        "选择匹配的股票",
+        options=labels,
+        index=default_idx,
+        key=radio_key,
+        label_visibility="collapsed",
+        horizontal=False,
     )
-
-    # 从选择事件中提取选中的代码
-    selected_code = None
-    if event and hasattr(event, "selection") and event.selection.rows:
-        sel_idx = event.selection.rows[0]
-        if 0 <= sel_idx < len(df_display):
-            selected_code = df_display.iloc[sel_idx]["_code_raw"]
-
-    return selected_code
+    if picked_label and picked_label in code_by_label:
+        return code_by_label[picked_label]
+    return None
 
 
 def stock_search_input(
