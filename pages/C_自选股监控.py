@@ -12,13 +12,11 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import (
-    require_auth, render_user_badge, api_get, safe_switch_page, clear_auth,
+    api_get, safe_switch_page, clear_auth,
     api_delete, api_junk_stocks, api_remove_junk_stock, api_user_score,
     api_save_user_score, get_token, API_BASE, _rel_time,
 )
-from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
@@ -35,24 +33,20 @@ from modules.fundamental_helpers import calc_alr, fund_one
 
 
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page, get_fetcher
 
-apply_page_config(page_title="自选股监控", page_icon="📡", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
+dark = render_standard_page(
+    title="自选股监控", icon="📡",
+    caption="实时跟踪自选股现价与涨跌幅；行情接口异常时自动回退本地源。数据仅供参考，非投资建议。",
+    layout="wide",
+)
+
 
 # ── 交易时段自动刷新（实时跟踪）──
 def _is_trading_now():
     # 统一走 modules.page_widgets.is_trading_now（#541-2 消除 4 份重复）
     from modules.page_widgets import is_trading_now as _itn
     return _itn()
-
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-
-st.title("📡 自选股监控")
-st.caption("实时跟踪自选股现价与涨跌幅；行情接口异常时自动回退本地源。数据仅供参考，非投资建议。")
 
 # ══ 加法式 Batch20：可折叠使用说明 / FAQ ══
 with st.expander("💡 使用说明", expanded=False, key="wl_help_exp"):
@@ -69,12 +63,7 @@ with st.expander("💡 使用说明", expanded=False, key="wl_help_exp"):
     )
 
 
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 
 
 def _quote_one(code: str, token: str | None = None):

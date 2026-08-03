@@ -9,8 +9,6 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
 from modules.fundflow import (
@@ -29,7 +27,6 @@ from modules.linear_trends import (
     plot_normalized_multi, ETF_NAMES_MAP,
     to_trend_csv, plot_correlation_heatmap, _slice_date_range,
 )
-from modules.fetcher import StockFetcher
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fig_layout, _section_title, _fmt_yi, _trend_controls
 
@@ -39,8 +36,6 @@ dark = render_standard_page(
     "资金流向", icon="🌊",
     caption="北向资金 · 行业板块资金流向 · 大盘主力净流入 · 个股主力资金动向。数据来源：东方财富/同花顺（经本地代理）。",
 )
-st.caption("北向资金 · 行业板块资金流向 · 大盘主力净流入 · 个股主力资金动向。数据来源：东方财富/同花顺（经本地代理）。")
-
 
 fetcher = get_fetcher()
 

@@ -8,11 +8,11 @@ import requests
 import time
 from datetime import datetime
 
-from modules.session import require_auth, render_user_badge, safe_switch_page, API_BASE, get_user, get_token, persist_prefs, get_avatar_path, save_avatar, get_avatar_data_url, set_avatar_data_url, save_avatar_to_backend, render_avatar
+from modules.session import safe_switch_page, API_BASE, get_user, get_token, persist_prefs, get_avatar_path, save_avatar, get_avatar_data_url, set_avatar_data_url, save_avatar_to_backend, render_avatar
 from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT
 from modules.format_helpers import safe_int
 
-from modules.ui_theme import apply_page_config
+from modules.page_utils import render_standard_page
 
 # 安全解析字体档位在选项列表中的下标；legacy 值不在选项中时回退到默认档位，避免 .index() 抛 ValueError。
 def _resolve_font_index(value, font_opts, default):
@@ -21,18 +21,14 @@ def _resolve_font_index(value, font_opts, default):
         return keys.index(value)
     return keys.index(default) if default in keys else 0
 from modules.page_widgets import _empty_info
-apply_page_config(page_title="我的", page_icon="👤", layout="wide")
-st.session_state["_active_page"] = __file__
-
-# 确保 theme_mode 在 require_auth()/apply_theme() 之前就有默认值，避免默认 light 与后面被改回 dark 造成闪烁/状态错位
+# 确保 theme_mode 在 apply_theme()/require_auth() 之前就有默认值，避免默认 light 与后面被改回 dark 造成闪烁/状态错位
 st.session_state.setdefault("theme_mode", "light")
 
-st.title("👤 我的")
-require_auth()
-render_user_badge(sidebar=True)
-
-# 加法式风险提示/免责声明
-st.caption("⚠️ 本页展示的数据与分析仅供参考，不构成任何投资建议。")
+# 加法式风险提示/免责声明作为副标题
+render_standard_page(
+    title="我的", icon="👤",
+    caption="⚠️ 本页展示的数据与分析仅供参考，不构成任何投资建议。",
+)
 
 user = get_user() or {}
 

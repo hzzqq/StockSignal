@@ -13,8 +13,8 @@ import requests
 import pandas as pd
 import streamlit as st
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, get_token, safe_switch_page, API_BASE
+from modules.page_utils import render_standard_page, import_autorefresh
+from modules.session import get_token, safe_switch_page, API_BASE
 from modules.linear_trends import (
     get_index_series, get_northbound_history_series,
     get_market_cumulative_series, plot_normalized_multi, to_trend_csv,
@@ -26,22 +26,13 @@ from modules.page_widgets import (
 )
 from modules.page_guard import safe_fragment
 
-try:
-    from modules.autorefresh import st_autorefresh
-except Exception:
-    st_autorefresh = None
+st_autorefresh = import_autorefresh()
 
-apply_page_config(page_title="市场强弱", page_icon="📊", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-
-st.title("📊 市场强弱一览（归一化多线 · 一眼看懂）")
-st.caption("把指数与关键资金面统一归一化到起点=100 叠加，避免量纲差异；顶部信号灯把复杂多线压缩成一个直觉结论。"
-           "想看更细的五维拆解，去《市场驱动力》。")
+dark = render_standard_page(
+    title="市场强弱一览（归一化多线 · 一眼看懂）", icon="📊",
+    caption="把指数与关键资金面统一归一化到起点=100 叠加，避免量纲差异；顶部信号灯把复杂多线压缩成一个直觉结论。"
+            "想看更细的五维拆解，去《市场驱动力》。",
+)
 st.page_link("pages/H_市场驱动力.py", label="🧮 看《市场驱动力》五维归一化子图（详细版）", icon="🔗")
 
 

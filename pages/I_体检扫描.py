@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import concurrent.futures
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, safe_switch_page, api_get
+from modules.session import safe_switch_page, api_get
 from modules.fetcher import StockFetcher
 fetcher = StockFetcher()
 from modules.cleaner import DataCleaner
@@ -11,15 +10,10 @@ from modules.technical import full_analysis
 from modules.fundflow import get_individual_fund_flow
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page
 from modules.page_widgets import _empty_info, UP, DOWN
 
-apply_page_config(page_title="体检扫描", page_icon="🩺", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-st.title("🩺 一键体检扫描台")
+dark = render_standard_page(title="一键体检扫描台", icon="🩺", layout="wide")
 
 WATCH_COLOR = "#f5a623"  # 中性关注
 

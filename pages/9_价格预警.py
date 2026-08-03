@@ -19,13 +19,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.session import (
-    require_auth, render_user_badge,
     api_get, api_post, api_put, api_delete, api_quote, api_kline,
     trading_autorefresh, safe_switch_page,
 )
-from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 from modules.search_ui import stock_search_input
@@ -109,16 +107,10 @@ def validate_alert_condition(kind, value, value2=None):
     return (False, f"不支持的预警类型：{kind}")
 
 
-apply_page_config(page_title="多维预警", page_icon="🔔", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-
-st.title("🔔 自选股多维预警")
-st.caption("价格 / 技术形态 / 成交量异动 / 公告 四类预警；触发状态为页面访问时实时比价与扫描结果。")
+dark = render_standard_page(
+    title="自选股多维预警", icon="🔔",
+    caption="价格 / 技术形态 / 成交量异动 / 公告 四类预警；触发状态为页面访问时实时比价与扫描结果。",
+)
 st.caption("⚠️ 数据仅供参考，不构成投资建议")
 
 # ══ 加法式 Batch20：可折叠使用说明 / FAQ ══
@@ -136,12 +128,7 @@ with st.expander("💡 使用说明", expanded=False, key="alert_help_exp"):
     )
 
 
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 
 PATTERN_OPTIONS = [
     "均线金叉", "均线死叉", "MACD金叉", "MACD死叉", "KDJ金叉", "KDJ死叉",

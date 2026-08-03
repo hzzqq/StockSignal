@@ -10,21 +10,16 @@ ETF / 基金筛选器
 import streamlit as st
 import pandas as pd
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge
+from modules.page_utils import render_standard_page
 from modules.page_guard import safe_section
 
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _empty_info, UP, DOWN
 
-apply_page_config(page_title="ETF筛选", page_icon="🧰", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-st.title("🧰 ETF / 基金筛选器")
-st.caption("按类型、关键字、涨跌幅与成交额筛选；红涨绿跌。数据受限时自动降级到样本。")
+dark = render_standard_page(
+    title="ETF / 基金筛选器", icon="🧰",
+    caption="按类型、关键字、涨跌幅与成交额筛选；红涨绿跌。数据受限时自动降级到样本。",
+)
 
 # 页面间快捷跳转（#Batch19-5）：相关页面一键直达
 _pl1, _pl2, _pl3 = st.columns(3)

@@ -13,14 +13,11 @@
 import os
 import streamlit as st
 
-from modules.ui_theme import apply_page_config
-apply_page_config(page_title="个股研究", page_icon="🎯", layout="wide")
-st.session_state["_active_page"] = __file__
+from modules.page_utils import render_standard_page
+render_standard_page(title="个股研究", icon="🎯")
 
-from modules.session import require_auth, render_user_badge, trading_autorefresh
-require_auth()
+from modules.session import trading_autorefresh
 trading_autorefresh(key="hub_autorefresh")
-render_user_badge(sidebar=True)
 
 _HERE = os.path.dirname(__file__)
 _SUBPAGES = {
@@ -35,17 +32,25 @@ def _run_subpage(path: str) -> None:
     临时把子页会重复执行的样板函数 no-op 化（子页仍会 import 它们，
     绑定到当前的 no-op），避免二次 set_page_config / 二次全局组件 / 二次用户徽标。
     子页其余业务逻辑与 session_state 命名空间彼此独立，正常执行。
+
+    注意：子页多数已改用 ``modules.page_utils.render_standard_page``，该模块在导入时
+    已把这三个函数绑进自己的命名空间，因此必须一并 patch，否则 no-op 不生效。
     """
     import modules.ui_theme as _uit
     import modules.session as _sess
+    import modules.page_utils as _pu
 
     def _noop(*a, **k):
         return None
 
-    _saved = (_uit.apply_page_config, _sess.require_auth, _sess.render_user_badge)
+    _saved = (_uit.apply_page_config, _sess.require_auth, _sess.render_user_badge,
+              _pu.apply_page_config, _pu.require_auth, _pu.render_user_badge)
     _uit.apply_page_config = _noop
     _sess.require_auth = _noop
     _sess.render_user_badge = _noop
+    _pu.apply_page_config = _noop
+    _pu.require_auth = _noop
+    _pu.render_user_badge = _noop
     st.session_state["_embed_active"] = True
     try:
         with open(path, encoding="utf-8") as f:
@@ -61,7 +66,8 @@ def _run_subpage(path: str) -> None:
             hint="该子视图加载失败，已隔离。可切换上方视图或刷新页面重试。",
         )
     finally:
-        _uit.apply_page_config, _sess.require_auth, _sess.render_user_badge = _saved
+        (_uit.apply_page_config, _sess.require_auth, _sess.render_user_badge,
+         _pu.apply_page_config, _pu.require_auth, _pu.render_user_badge) = _saved
         st.session_state["_embed_active"] = False
 
 
@@ -71,7 +77,6 @@ st.session_state.setdefault("hub_gyj_view", _options[0])
 if st.session_state.get("hub_gyj_view") not in _options:
     st.session_state["hub_gyj_view"] = _options[0]
 
-st.markdown("### 🎯 个股研究")
 _view = st.radio(
     "研究视图",
     _options,

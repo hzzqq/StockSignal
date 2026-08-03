@@ -16,21 +16,17 @@ import plotly.graph_objects as go
 import numpy as np
 from datetime import datetime
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, trading_autorefresh, safe_switch_page
+from modules.page_utils import render_standard_page
+from modules.session import trading_autorefresh, safe_switch_page
 from modules.fundflow import get_industry_fund_flow
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, safe_fragment, render_data_degradation_banner
 from modules.page_widgets import _empty_info, UP, DOWN
 
-apply_page_config(page_title="板块轮动", page_icon="🔥", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-st.title("🔥 板块轮动热力图")
-st.caption("红涨绿跌；热力图块大小代表资金净流入，颜色代表涨跌幅。各视图独立取数。")
+dark = render_standard_page(
+    title="板块轮动热力图", icon="🔥",
+    caption="红涨绿跌；热力图块大小代表资金净流入，颜色代表涨跌幅。各视图独立取数。",
+)
 
 FETCHER = StockFetcher()
 

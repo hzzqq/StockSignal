@@ -9,8 +9,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 
-from modules.ui_theme import apply_page_config, _theme_is_dark
-from modules.fetcher import StockFetcher
+from modules.ui_theme import _theme_is_dark
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.cleaner import DataCleaner
 # Visualizer 延迟到函数内导入（节省 ~0.95s plotly+matplotlib 链）
 from modules.search_ui import stock_search_input
@@ -18,7 +18,7 @@ from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.linear_trends import plot_normalized_multi
 from modules.session import (
-    require_auth, render_user_badge, api_kline, api_intraday,
+    api_kline, api_intraday,
     api_post, api_add_junk_stock, api_user_score, api_save_user_score,
     get_user, trading_autorefresh,
 )
@@ -26,8 +26,7 @@ from modules.session import (
 from modules.page_guard import safe_fragment
 from modules.page_widgets import UP
 
-apply_page_config(page_title="股票选取", page_icon="🎯", layout="wide")
-st.session_state["_active_page"] = __file__
+render_standard_page(title="股票选取", icon="🎯")
 
 # 支持从龙虎榜/股票池点击跳转：URL ?pick_stock=600519
 _qp_code = st.query_params.get("pick_stock")
@@ -39,17 +38,9 @@ if _qp_code:
     except Exception:
         pass
 
-require_auth()
 trading_autorefresh(key="pick_autorefresh")
-render_user_badge(sidebar=True)
 
-
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 user = get_user() or {}
 
 

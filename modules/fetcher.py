@@ -474,12 +474,13 @@ class StockFetcher:
         return None
 
     def _read_stale_cache(self, conn, table_name, prefix):
-        """读取过期缓存（用于降级兜底）。"""
+        """读取过期缓存（用于降级兜底）。排除 _source 等元数据键。"""
         self._init_cache_table(conn, table_name)
         rows = conn.execute(
             f"SELECT data_json, updated_at FROM {table_name} "
-            f"WHERE cache_key LIKE ? ORDER BY updated_at DESC LIMIT 1",
-            (f"{prefix}%",),
+            f"WHERE cache_key LIKE ? AND cache_key NOT LIKE ? "
+            f"ORDER BY updated_at DESC LIMIT 1",
+            (f"{prefix}%", f"%_source"),
         ).fetchall()
         if not rows:
             return None
@@ -2186,7 +2187,12 @@ class StockFetcher:
             if not force_refresh:
                 cached = self._read_cache(conn, "sector_cache", cache_key, max_age_hours=cache_ttl_hours)
                 if cached is not None and not cached.empty:
-                    return cached
+                    # 缓存命中后校验：全零数据（如 BaoStock 兜底写入的）视为 miss，继续降级
+                    if _validate_sector_data(cached):
+                        return cached
+                    else:
+                        logger.warning("[StockFetcher] L0缓存数据校验未通过（可能为全零兜底），尝试重新获取")
+                        cached = None  # 视为 miss
         except Exception as e:
             logger.info(f"[StockFetcher] 板块缓存读取失败: {e}")
         finally:
@@ -2234,21 +2240,43 @@ class StockFetcher:
             try:
                 df = _BaoStockFetcher.fetch_sector_list()
                 if df is not None and not df.empty:
-                    source = "BaoStock（无涨跌幅）"
-                    logger.debug("[StockFetcher] L3-BaoStock 板块 OK（无涨跌幅）")
+                    # BaoStock 硬编码 change_pct=0.0，必须校验拦截
+                    if _validate_sector_data(df):
+                        source = "BaoStock"
+                        logger.debug("[StockFetcher] L3-BaoStock 板块 OK")
+                    else:
+                        logger.info("[StockFetcher] L3-BaoStock 数据全零（无涨跌幅），降级到过期缓存")
+                        df = None  # 全零 → 视为无效，继续降级
             except Exception as e:
                 errors.append(f"BaoStock: {type(e).__name__}")
                 df = None
 
-        # ── L4: 过期缓存兜底 ──
+        # ── L4: 过期缓存兜底（含交易日归档键回退）──
         if df is None or df.empty:
             conn = self._get_conn()
             try:
-                stale = self._read_stale_cache(conn, "sector_cache", "sector_list")
-                if stale is not None and not stale.empty:
+                # 4a: 尝试主缓存键的过期数据
+                stale = self._read_stale_cache(conn, "sector_cache", "sector_list_v3")
+                if stale is not None and not stale.empty and _validate_sector_data(stale):
                     source = "过期缓存"
-                    logger.debug("[StockFetcher] L4-过期缓存 板块 OK")
+                    logger.debug("[StockFetcher] L4a-过期缓存 板块 OK")
                     return stale
+
+                # 4b: 周末/休市 → 查找最近一个交易日的归档缓存（sector_list_v3_YYYYMMDD）
+                if not _is_market_open():
+                    archive_row = conn.execute(
+                        "SELECT data_json, updated_at FROM sector_cache "
+                        "WHERE cache_key LIKE 'sector_list_v3_%' "
+                        "AND cache_key NOT LIKE '%_source' "
+                        "AND LENGTH(cache_key) = 19 "  # sector_list_v3_YYYYMMDD = 19 chars
+                        "ORDER BY cache_key DESC LIMIT 1"
+                    ).fetchone()
+                    if archive_row:
+                        archive_df = pd.read_json(io.StringIO(archive_row[0]))
+                        if not archive_df.empty and _validate_sector_data(archive_df):
+                            source = f"交易日归档({archive_row[0][:19]})"
+                            logger.debug(f"[StockFetcher] L4b-交易日归档 板块 OK ({archive_row[0][:19]})")
+                            return archive_df
             finally:
                 conn.close()
             errors.append("缓存: 无可用数据")
@@ -2263,13 +2291,20 @@ class StockFetcher:
         df["change_pct"] = pd.to_numeric(df["change_pct"], errors="coerce").fillna(0)
         df = df[df["sector"].astype(str).str.strip() != ""].reset_index(drop=True)
 
-        # 写入缓存 + 来源标记
-        conn = self._get_conn()
-        try:
-            self._write_cache(conn, "sector_cache", cache_key, df)
-            self._write_cache_raw(conn, "sector_cache", f"{cache_key}_source", json.dumps({"source": source}, ensure_ascii=False))
-        finally:
-            conn.close()
+        # 写入缓存 + 来源标记（仅含真实涨跌幅的数据源才写主缓存，防止 BaoStock 全零污染）
+        if source in ("东方财富", "同花顺"):
+            conn = self._get_conn()
+            try:
+                self._write_cache(conn, "sector_cache", cache_key, df)
+                # 同时写入交易日归档键（按日期），供休市期间显式回退
+                trade_date = datetime.now().strftime("%Y%m%d")
+                archive_key = f"{cache_key}_{trade_date}"
+                self._write_cache(conn, "sector_cache", archive_key, df)
+                self._write_cache_raw(conn, "sector_cache", f"{cache_key}_source", json.dumps({"source": source}, ensure_ascii=False))
+            finally:
+                conn.close()
+        else:
+            logger.debug(f"[StockFetcher] 跳过缓存写入：数据源={source}，不含真实涨跌幅")
 
         return df
 

@@ -10,25 +10,19 @@ import pandas as pd
 from datetime import date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, api_get, safe_switch_page
-from modules.fetcher import StockFetcher
+from modules.session import api_get, safe_switch_page
 from modules.news import NewsFetcher
 
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info
 
-apply_page_config(page_title="每日晨报", page_icon="🌅", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-
-st.title("🌅 每日晨报 / 复盘笔记")
 today = date.today().strftime("%Y-%m-%d")
-st.caption(f"生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）")
+dark = render_standard_page(
+    title="每日晨报 / 复盘笔记", icon="🌅",
+    caption=f"生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）",
+    layout="wide",
+)
 
 # 顶部主要指数收盘行情（轻量组件）
 from modules.widgets import render_index_compact
@@ -36,12 +30,7 @@ render_index_compact(cols_per_row=5)
 st.caption("⚠️ 以上数据仅供参考，不构成任何投资建议")
 
 
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 
 
 @st.cache_data(ttl=600, show_spinner=False)

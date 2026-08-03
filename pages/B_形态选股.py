@@ -16,23 +16,20 @@ import streamlit as st
 import re
 from datetime import datetime, timedelta
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, api_get, api_kline, get_user_setting, save_user_setting, trading_autorefresh
-from modules.fetcher import StockFetcher
+from modules.session import api_get, api_kline, get_user_setting, save_user_setting, trading_autorefresh
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.search_ui import multi_stock_search_input, stock_search_input
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info
 
-apply_page_config(page_title="形态选股", page_icon="🧭", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
+dark = render_standard_page(
+    title="技术形态选股器", icon="🧭",
+    caption="在股票池中扫描技术形态并给出多维技术评分；结果仅供参考，非投资建议。",
+    layout="wide",
+)
 trading_autorefresh(key="pattern_autorefresh")
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
 
 def _section_title(text: str, accent: str = "#5b6cff"):
@@ -83,16 +80,7 @@ div[data-testid="stRadio"] label:hover,
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🧭 技术形态选股器")
-st.caption("在股票池中扫描技术形态并给出多维技术评分；结果仅供参考，非投资建议。")
-
-
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 
 import concurrent.futures as _cf
 

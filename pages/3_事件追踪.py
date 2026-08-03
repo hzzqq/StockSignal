@@ -15,14 +15,14 @@ import pandas as pd
 import html
 from datetime import datetime, timedelta
 
-from modules.ui_theme import apply_page_config
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info
 
-apply_page_config(page_title="事件追踪", page_icon="🔔", layout="wide")
-st.session_state["_active_page"] = __file__
-st.title("🔔 事件追踪")
-st.caption("⚠️ 数据仅供参考，不构成投资建议")
+render_standard_page(
+    title="事件追踪", icon="🔔",
+    caption="⚠️ 数据仅供参考，不构成投资建议", layout="wide",
+)
 lk_p1, lk_p2 = st.columns([1, 1])
 with lk_p1:
     if st.button("👁️ 智能盯盘", key="lk_go_k", use_container_width=True):
@@ -32,16 +32,12 @@ with lk_p2:
         st.switch_page("pages/个股研究.py")
 
 from modules.signal import SignalEngine
-from modules.fetcher import StockFetcher
 from modules.colors import UP_COLOR, DOWN_COLOR  # 轻量：不再拖入 plotly+matplotlib
 # Visualizer 延迟到函数内导入（节省 ~0.95s）
 from modules.search_ui import stock_search_input
-from modules.session import require_auth, render_user_badge, api_kline, api_intraday, trading_autorefresh, api_post
+from modules.session import api_kline, api_intraday, trading_autorefresh, api_post
 
-# ── 鉴权门禁（未登录直接 stop）──
-require_auth()
 trading_autorefresh(key="event_autorefresh")
-render_user_badge(sidebar=True)
 
 # ── 初始化所有功能模块的 session_state key（避免 KeyError 或意外丢失）──
 _FOR_ALL_KEYS = [
@@ -78,10 +74,6 @@ if "_fav_set" not in st.session_state:
 @st.cache_resource
 def get_engine():
     return SignalEngine()
-
-@st.cache_resource
-def get_fetcher():
-    return StockFetcher()
 
 engine = get_engine()
 fetcher = get_fetcher()

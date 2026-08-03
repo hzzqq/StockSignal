@@ -16,11 +16,8 @@ import json
 from datetime import datetime, timedelta
 
 import streamlit as st
-from modules.ui_theme import (
-    apply_page_config, dashboard_sf_css, _theme_is_dark,
-)
+from modules.page_utils import render_standard_page
 from modules.session import (
-    require_auth, render_user_badge,
     api_get, api_post, api_put, api_delete,
     trading_autorefresh,
 )
@@ -28,16 +25,10 @@ from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
 
-apply_page_config(page_title="智能条件单", page_icon="🤖", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-
-st.title("🤖 智能条件单")
-st.caption("融资买入额阈值 / 5 日均线突破破位 → 自动下单（交易时段后台扫描 + 可手动触发）")
+dark = render_standard_page(
+    title="智能条件单", icon="🤖",
+    caption="融资买入额阈值 / 5 日均线突破破位 → 自动下单（交易时段后台扫描 + 可手动触发）",
+)
 st.caption("⚠️ 数据仅供参考，不构成投资建议；触发后按账户实盘/模拟模式真实下单")
 
 # 同步代理环境（融资数据来自 akshare）

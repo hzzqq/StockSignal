@@ -15,24 +15,18 @@ from datetime import datetime
 import math
 import concurrent.futures as _cf
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import (
-    require_auth, render_user_badge, safe_switch_page, api_get, trading_autorefresh,
-)
+from modules.page_utils import render_standard_page
+from modules.session import safe_switch_page, api_get, trading_autorefresh
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, render_data_degradation_banner
 from modules.page_widgets import UP, DOWN
 from modules.format_helpers import extract_pct
 
-apply_page_config(page_title="消息中心", page_icon="🔔", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
+dark = render_standard_page(
+    title="消息 / 通知中心", icon="🔔",
+    caption="聚合自选股异动、社区动态与系统状态；各模块独立取数，互不干扰。",
+)
 trading_autorefresh(key="message_autorefresh")
-render_user_badge(sidebar=True)
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-st.title("🔔 消息 / 通知中心")
-st.caption("聚合自选股异动、社区动态与系统状态；各模块独立取数，互不干扰。")
 
 FETCHER = StockFetcher()
 

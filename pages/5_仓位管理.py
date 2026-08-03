@@ -11,12 +11,12 @@ import streamlit.components.v1 as components
 import pandas as pd
 from datetime import datetime
 
-from modules.ui_theme import apply_page_config
-apply_page_config(page_title="仓位管理", page_icon="💰", layout="wide")
-st.session_state["_active_page"] = __file__
-st.title("💰 仓位管理")
-# 加法式（新角度·风险提示）：页面顶部明示模拟/历史属性与免责声明。
-st.caption("⚠️ 本页为模拟/历史持仓管理，仅供学习，不构成投资建议。")
+from modules.page_utils import render_standard_page
+# 加法式（新角度·风险提示）：页面顶部明示模拟/历史属性与免责声明（caption 参数）。
+render_standard_page(
+    title="仓位管理", icon="💰",
+    caption="⚠️ 本页为模拟/历史持仓管理，仅供学习，不构成投资建议。", layout="wide",
+)
 # 加法式（新角度·页面间快捷跳转）：一键直达相关页面。
 _c1, _c2 = st.columns(2)
 with _c1:
@@ -55,7 +55,7 @@ from modules.portfolio import PortfolioManager
 # Visualizer 延迟到函数内导入（节省 ~0.95s plotly+matplotlib 链）
 from modules.search_ui import stock_search_input
 from modules.fetcher import StockFetcher
-from modules.session import require_auth, render_user_badge, api_quote, api_kline
+from modules.session import api_quote, api_kline
 from modules.page_widgets import _empty_info, _toast
 from modules.format_helpers import safe_int
 
@@ -110,10 +110,6 @@ def _fmt_rel(ts):
         return f"{int(sec // 86400)}天前"
     except Exception:
         return str(ts) if ts is not None else ""
-
-# 鉴权门禁
-require_auth()
-render_user_badge(sidebar=True)
 
 pm = PortfolioManager()
 fetcher = StockFetcher()

@@ -16,31 +16,19 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import (
-    require_auth, render_user_badge, get_token,
-    fragment_market_alerts_panel,
-)
+from modules.page_utils import render_standard_page, import_autorefresh
+from modules.session import get_token, fragment_market_alerts_panel
 from modules.market_drivers import get_market_drivers, DIMS
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 
-try:
-    from modules.autorefresh import st_autorefresh
-except Exception:
-    st_autorefresh = None
+st_autorefresh = import_autorefresh()
 
-apply_page_config(page_title="市场情绪", page_icon="🌡️", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-
-st.title("🌡️ 市场情绪 · 广度与情绪温度计")
-st.caption("市场冷/热一眼看尽：广度(ADL/ADR/新高新低) + 情绪(VIX/涨停占比/PCR/北向/融资净买) + "
-           "估值(PE 历史百分位/股息率) → 综合「市场温度」0-100。数据源同《市场驱动力》指标表，单源失败优雅降级。")
+dark = render_standard_page(
+    title="市场情绪 · 广度与情绪温度计", icon="🌡️",
+    caption="市场冷/热一眼看尽：广度(ADL/ADR/新高新低) + 情绪(VIX/涨停占比/PCR/北向/融资净买) + "
+            "估值(PE 历史百分位/股息率) → 综合「市场温度」0-100。数据源同《市场驱动力》指标表，单源失败优雅降级。",
+)
 st.page_link("pages/H_市场驱动力.py", label="📊 看《市场驱动力》五维归一化相关性分析（互补视角）", icon="🔗")
 
 

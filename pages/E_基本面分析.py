@@ -16,40 +16,28 @@ import pandas as pd
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, safe_switch_page, trading_autorefresh
-from modules.fetcher import StockFetcher
+from modules.session import safe_switch_page, trading_autorefresh
 from modules.search_ui import stock_search_input
 from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules import fundflow as ff
 
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info
 
-apply_page_config(page_title="基本面分析", page_icon="🏛️", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
+dark = render_standard_page(
+    title="基本面分析", icon="🏛️",
+    caption="个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）",
+    layout="wide",
+)
 trading_autorefresh(key="fundamental_autorefresh")
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
 # 主题感知图表强调色（#544-14）：暗色模式用更亮的同色系，保证可读性
 ACCENT = "#818cf8" if dark else "#6366f1"        # 靛蓝（柱状 / 价格线）
 ACCENT2 = "#fbbf24" if dark else "#f59e0b"       # 琥珀（同比折线）
 ACCENT_FILL = "rgba(129,140,248,0.14)" if dark else "rgba(99,102,241,0.10)"
 
-st.title("🏛️ 基本面分析")
-st.caption("个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）")
-
-
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 
 
 # ═══════════════════════════════════════════════════════════════

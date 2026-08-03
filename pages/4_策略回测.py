@@ -14,23 +14,16 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-from modules.ui_theme import apply_page_config
-apply_page_config(page_title="策略回测", page_icon="⚙️", layout="wide")
-st.session_state["_active_page"] = __file__
-st.title("⚙️ 策略回测")
+from modules.page_utils import render_standard_page
+render_standard_page(title="策略回测", icon="⚙️", layout="wide")
 
 from modules.backtest import Backtester
 # Visualizer + 其常量全部延迟导入（节省 ~0.95s plotly+matplotlib 链）
 # SF_* / UP_COLOR / DOWN_COLOR / _is_dark 均在函数内按需导入
 from modules.search_ui import stock_search_input
 from modules.fetcher import StockFetcher
-from modules.session import require_auth, render_user_badge
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _empty_info
-
-# 鉴权门禁
-require_auth()
-render_user_badge(sidebar=True)
 
 bt = Backtester()
 

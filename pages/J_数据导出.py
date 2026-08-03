@@ -9,39 +9,28 @@ import streamlit as st
 import pandas as pd
 import io, zipfile
 from datetime import datetime
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, api_get
+from modules.session import api_get
 from modules.fundflow import (
     get_industry_fund_flow, get_northbound_fund_flow,
     get_market_fund_flow, get_individual_fund_flow,
     get_earnings_report,
 )
 from modules.portfolio import PortfolioManager
-from modules.fetcher import StockFetcher
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info, UP, DOWN
 # 注：openpyxl / reportlab 为「重型导出」依赖，改为惰性加载（见 _to_excel_bytes / _to_pdf_bytes），
 #     避免进入本页（仅查看 CSV 导出入口）时也强制 import 拖慢首屏。
 
-apply_page_config(page_title="数据导出", page_icon="📤", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-st.title("📤 数据导出中心")
+dark = render_standard_page(
+    title="数据导出中心", icon="📤",
+    caption="统一导出平台数据：行业板块资金流向、北向资金、大盘主力净流入、个股主力资金、业绩报表、组合持仓盈亏、自选股实时快照。"
+            "支持三种格式 —— CSV（单表）、Excel 多 Sheet 汇总、PDF 摘要报告，并可一键 ZIP 打包。所有文本均使用中文友好编码。"
+            "在下方选择数据集后点击对应按钮即可导出；单个数据集失败不影响整体。",
+    layout="wide",
+)
 
-st.caption("统一导出平台数据：行业板块资金流向、北向资金、大盘主力净流入、个股主力资金、业绩报表、组合持仓盈亏、自选股实时快照。"
-           "支持三种格式 —— CSV（单表）、Excel 多 Sheet 汇总、PDF 摘要报告，并可一键 ZIP 打包。所有文本均使用中文友好编码。"
-           "在下方选择数据集后点击对应按钮即可导出；单个数据集失败不影响整体。")
-
-
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 
 
 def _to_csv_bytes(df: pd.DataFrame) -> bytes:

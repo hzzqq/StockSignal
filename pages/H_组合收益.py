@@ -10,38 +10,20 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge
 from modules.portfolio import PortfolioManager
-from modules.fetcher import StockFetcher
-
-try:
-    from modules.autorefresh import st_autorefresh
-except Exception:
-    st_autorefresh = None
-
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
 from modules.page_widgets import _empty_info, UP, DOWN, _fig_layout, _section_title
 
-apply_page_config(page_title="组合收益", page_icon="📊", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
+st_autorefresh = import_autorefresh()
 
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
+dark = render_standard_page(
+    title="自选股组合收益跟踪", icon="📊",
+    caption="基于「仓位管理」中的持仓，按剩余股数加权构建组合净值曲线，对比沪深300基准。",
+    layout="wide",
+)
 
-
-st.title("📊 自选股组合收益跟踪")
-st.caption("基于「仓位管理」中的持仓，按剩余股数加权构建组合净值曲线，对比沪深300基准。")
-
-
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 pm = PortfolioManager()
 
 

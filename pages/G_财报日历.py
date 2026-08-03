@@ -8,22 +8,19 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge
 from modules.fundflow import (
     get_earnings_report, get_earnings_forecast, get_disclosure_calendar,
 )
 
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page
 from modules.page_widgets import UP, DOWN, _fig_layout, _section_title, _empty_info
 
-apply_page_config(page_title="财报日历", page_icon="📅", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
+dark = render_standard_page(
+    title="财报与业绩日历", icon="📅",
+    caption="按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。",
+    layout="wide",
+)
 
 
 # ─────────────── 页面级缓存（fundflow 内部也有缓存，这里是双层保险：跨会话复用） ───────────────
@@ -39,9 +36,6 @@ def _cached_forecast(period: str):
 def _cached_disclosure(market: str, period: str):
     return get_disclosure_calendar(market=market, period=period)
 
-
-st.title("📅 财报与业绩日历")
-st.caption("按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。")
 
 PERIODS = {
     "2026 一季报": "20260331",

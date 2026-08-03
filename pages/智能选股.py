@@ -14,19 +14,16 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, api_get, get_user_setting, save_user_setting
+from modules.page_utils import render_standard_page
+from modules.session import api_get, get_user_setting, save_user_setting
 from modules.fetcher import StockFetcher
 from modules.stock_screener import StockScreener, STRATEGY_NAMES_CN, ALL_STRATEGIES, DEFAULT_PARAMS
 from modules.page_widgets import _empty_info
 
-apply_page_config(page_title="智能选股", page_icon="🎯", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
+dark = render_standard_page(
+    title="智能选股", icon="🎯",
+    caption="移植自 stock-selecter 策略库：11 种量化策略，支持单策略与多策略 AND/OR/综合评分组合。结果仅供参考，非投资建议。",
+)
 
 STRATEGY_DESC = {
     "roe": "净资产收益率≥阈值且 ROA 健康、毛利率高、负债率低的优质盈利股",
@@ -65,9 +62,6 @@ button[data-testid="stBaseButton-primary"]:hover {
 .stMultiSelect [data-baseweb=tag] { max-width: 160px; }
 </style>
 """, unsafe_allow_html=True)
-
-st.title("🎯 智能选股")
-st.caption("移植自 stock-selecter 策略库：11 种量化策略，支持单策略与多策略 AND/OR/综合评分组合。结果仅供参考，非投资建议。")
 
 fetcher = StockFetcher()
 screener = StockScreener()

@@ -12,18 +12,16 @@ import pandas as pd
 from datetime import datetime
 
 # ── 前置：本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）──
-from modules.ui_theme import apply_page_config
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page, get_fetcher
 
-apply_page_config(page_title="个股分析", page_icon="🔍", layout="wide")
-st.session_state["_active_page"] = __file__
+dark = render_standard_page(title="个股深度分析 · 决策仪表盘", icon="🔍", layout="wide")
 
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 # Visualizer 延迟到函数内导入（节省 ~0.95s plotly+matplotlib 链）
-from modules.session import require_auth, render_user_badge, api_kline, api_intraday
+from modules.session import api_kline, api_intraday
 from modules.search_ui import stock_search_input
-from modules.ui_theme import dashboard_sf_css, _theme_is_dark
 from modules.background_tasks import submit_task_with_error, poll_task
 from modules.page_widgets import _empty_info
 from modules.autorefresh import st_autorefresh
@@ -39,17 +37,7 @@ from modules.stock_analysis_helpers import (
     _factor_list_html, _build_logic_lists, _logic_list_html,
 )
 
-require_auth()
-render_user_badge(sidebar=True)
-st.title("🔍 个股深度分析 · 决策仪表盘")
-
-
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -72,9 +60,6 @@ st.markdown(
     '<b>个股深度分析</b></div><div class="sf-brand">事件驱动 · 多维归因</div></div>',
     unsafe_allow_html=True,
 )
-
-# 002947 参考文档风格：绿涨红跌，局部增强样式（白天 / 暗夜双主题自适应）
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1008,7 +993,6 @@ def _render_analysis(R: dict):
         # 复用 canonical 配色（暗夜 polar 轴 tickfont=#94a3b8，不再用 #1e293b 深字），
         # 套用后保留卡片透明底，与 .sf-card 深空背景一致。
         from modules.dark_text_fix import apply_plotly_theme
-        dark = _theme_is_dark()
         apply_plotly_theme(radar_fig, dark=dark)
         radar_fig.update_layout(
             paper_bgcolor="rgba(0,0,0,0)",

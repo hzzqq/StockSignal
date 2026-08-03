@@ -16,11 +16,9 @@ import streamlit as st
 import pandas as pd
 import concurrent.futures as cf
 from datetime import datetime
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, safe_switch_page, api_get, api_post, api_delete
+from modules.session import safe_switch_page, api_get, api_post, api_delete
 from modules.fundflow import get_industry_fund_flow, get_individual_fund_flow
 from modules.timeout_exec import run_with_timeout
-from modules.fetcher import StockFetcher
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher

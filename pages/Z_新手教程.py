@@ -18,22 +18,16 @@ from pathlib import Path
 
 import streamlit as st
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, safe_switch_page, _rel_time, get_token
+from modules.page_utils import render_standard_page
+from modules.session import safe_switch_page, _rel_time, get_token
 from modules.widgets import _NAV_GROUPS
 from modules.page_widgets import _section_title, _empty_info
 from modules.page_guard import safe_fragment
 
-apply_page_config(page_title="新手教程", page_icon="📘", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-
-st.title("📘 新手教程 · 5 分钟玩转 StockSignal")
-st.caption("本页帮你快速上手：三步完成首次操作、认识各模块、看懂术语与常见疑问。看完即可独立使用本平台。")
+dark = render_standard_page(
+    title="新手教程 · 5 分钟玩转 StockSignal", icon="📘",
+    caption="本页帮你快速上手：三步完成首次操作、认识各模块、看懂术语与常见疑问。看完即可独立使用本平台。",
+)
 
 ASSET_DIR = Path(__file__).resolve().parent.parent / "assets"
 VIDEO_PATH = ASSET_DIR / "tutorial_overview.mp4"

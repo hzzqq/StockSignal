@@ -12,13 +12,12 @@ import os
 import streamlit as st
 import streamlit.components.v1 as components
 
-from modules.ui_theme import apply_page_config
-apply_page_config(page_title="持仓中心", page_icon="💼", layout="wide")
-st.session_state["_active_page"] = __file__
-
-from modules.session import require_auth, render_user_badge
-require_auth()
-render_user_badge(sidebar=True)
+from modules.page_utils import render_standard_page
+# 加法式（新角度·风险提示）：合并页顶部明示数据属性与免责声明。
+render_standard_page(
+    title="持仓中心", icon="💼",
+    caption="⚠️ 持仓中心为模拟/历史数据聚合视图，仅供学习，不构成投资建议。",
+)
 
 _HERE = os.path.dirname(__file__)
 _SUBPAGES = {
@@ -29,17 +28,26 @@ _SUBPAGES = {
 
 
 def _run_subpage(path: str) -> None:
-    """在合并页内安全运行子页源码（临时 no-op 子页样板函数，避免重复渲染）。"""
+    """在合并页内安全运行子页源码（临时 no-op 子页样板函数，避免重复渲染）。
+
+    子页多数已改用 ``modules.page_utils.render_standard_page``，该模块导入时已把这三个
+    函数绑进自己的命名空间，因此必须一并 patch，否则 no-op 不生效。
+    """
     import modules.ui_theme as _uit
     import modules.session as _sess
+    import modules.page_utils as _pu
 
     def _noop(*a, **k):
         return None
 
-    _saved = (_uit.apply_page_config, _sess.require_auth, _sess.render_user_badge)
+    _saved = (_uit.apply_page_config, _sess.require_auth, _sess.render_user_badge,
+              _pu.apply_page_config, _pu.require_auth, _pu.render_user_badge)
     _uit.apply_page_config = _noop
     _sess.require_auth = _noop
     _sess.render_user_badge = _noop
+    _pu.apply_page_config = _noop
+    _pu.require_auth = _noop
+    _pu.render_user_badge = _noop
     st.session_state["_embed_active"] = True
     try:
         with open(path, encoding="utf-8") as f:
@@ -58,7 +66,8 @@ def _run_subpage(path: str) -> None:
         if st.button("🔄 重试", key="hub_subpage_retry"):
             st.rerun()
     finally:
-        _uit.apply_page_config, _sess.require_auth, _sess.render_user_badge = _saved
+        (_uit.apply_page_config, _sess.require_auth, _sess.render_user_badge,
+         _pu.apply_page_config, _pu.require_auth, _pu.render_user_badge) = _saved
         st.session_state["_embed_active"] = False
 
 
@@ -67,9 +76,6 @@ st.session_state.setdefault("hub_cang_view", _options[0])
 if st.session_state.get("hub_cang_view") not in _options:
     st.session_state["hub_cang_view"] = _options[0]
 
-st.markdown("### 💼 持仓中心")
-# 加法式（新角度·风险提示）：合并页顶部明示数据属性与免责声明。
-st.caption("⚠️ 持仓中心为模拟/历史数据聚合视图，仅供学习，不构成投资建议。")
 # 加法式（新角度·页面间快捷跳转）：一键直达三个子视图对应独立页面。
 _hc1, _hc2, _hc3 = st.columns(3)
 with _hc1:

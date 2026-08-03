@@ -9,22 +9,22 @@
 import streamlit as st
 from datetime import date
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css
 from modules.session import (
-    require_auth, render_user_badge, get_user, safe_switch_page,
+    get_user, safe_switch_page,
     api_get, api_post, api_delete, trading_autorefresh, _rel_time,
 )
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page
 from modules.format_helpers import safe_int, safe_html_text
 
-apply_page_config(page_title="股吧", page_icon="💬", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
+render_standard_page(
+    title="股吧 · 社区讨论", icon="💬",
+    caption="发表你的观点或文章，与其他投资者交流。可关联具体股票，点击帖子里的股票直达「股票选取」。",
+    layout="wide",
+)
+st.caption("⚠️ 社区内容由用户生成，数据仅供参考，不构成投资建议；请理性判断，风险自担。")
 trading_autorefresh(key="forum_autorefresh")
-render_user_badge(sidebar=True)
-
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 
 user = get_user() or {}
 
@@ -81,10 +81,6 @@ def _go_list():
 def _open_post(pid: int):
     st.session_state["forum_view_post"] = int(pid)
 
-
-st.title("💬 股吧 · 社区讨论")
-st.caption("发表你的观点或文章，与其他投资者交流。可关联具体股票，点击帖子里的股票直达「股票选取」。")
-st.caption("⚠️ 社区内容由用户生成，数据仅供参考，不构成投资建议；请理性判断，风险自担。")
 
 # 页面间快捷跳转（#Batch19-5）：相关页面一键直达
 _pl1, _pl2 = st.columns(2)

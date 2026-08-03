@@ -10,27 +10,20 @@ import requests
 import concurrent.futures as _cf
 from datetime import datetime, timedelta, time
 
-from modules.ui_theme import apply_page_config, _theme_is_dark
-from modules.fetcher import StockFetcher
 from modules.colors import UP_COLOR, DOWN_COLOR  # 轻量：不再拖入 plotly+matplotlib
 from modules.search_ui import multi_stock_search_input, stock_search_input
 from modules.session import (
-    require_auth, render_user_badge, api_kline, safe_switch_page,
+    api_kline, safe_switch_page,
     fragment_market_alerts_panel, api_get, api_post, api_delete, get_token, API_BASE, clear_auth,
 )
 from modules.format_helpers import safe_int
 from modules.widgets import render_index_compact
 from modules.page_guard import safe_fragment
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
 
-apply_page_config(page_title="行情看板", page_icon="📈", layout="wide")
-st.session_state["_active_page"] = __file__
-
-require_auth()
-render_user_badge(sidebar=True)
-
-st.title("📈 行情看板")
+dark = render_standard_page(title="行情看板", icon="📈", layout="wide")
 
 # 顶部主要指数收盘行情（轻量组件）
 render_index_compact(cols_per_row=5)
@@ -57,12 +50,7 @@ with _wb_c1:
                 st.warning(f"⚠️ {_msg}")
 
 
-@st.cache_resource(show_spinner=False)
-def _get_fetcher():
-    return StockFetcher()
-
-
-fetcher = _get_fetcher()
+fetcher = get_fetcher()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -77,7 +65,7 @@ def _get_stock_concept(code: str) -> str:
     """
     # 1) 优先 StockFetcher 的 get_stock_concept（如存在）
     try:
-        f = _get_fetcher()
+        f = get_fetcher()
         if hasattr(f, "get_stock_concept"):
             res = f.get_stock_concept(code)
             if res:
@@ -786,7 +774,7 @@ def fragment_watchlist_quotes():
     )
 
     # 操作列点击（components.html 内联表）
-    picks = _wl_render_table_html(rows, _theme_is_dark())
+    picks = _wl_render_table_html(rows, dark)
     picked = components.html(picks, height=min(60 + len(rows) * 38, 540), key="wl_table_html")
     if picked and picked in codes:
         st.query_params["pick_stock"] = picked

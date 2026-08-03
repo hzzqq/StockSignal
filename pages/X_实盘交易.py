@@ -16,11 +16,8 @@ import json
 from datetime import datetime, timedelta
 
 import streamlit as st
-from modules.ui_theme import (
-    apply_page_config, dashboard_sf_css, _theme_is_dark,
-)
+from modules.page_utils import render_standard_page
 from modules.session import (
-    require_auth, render_user_badge,
     api_get, api_post, api_put,
     trading_autorefresh,
 )
@@ -29,16 +26,10 @@ from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
 from modules.format_helpers import safe_int
 
-apply_page_config(page_title="实盘交易", page_icon="💰", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-
-st.title("💰 实盘交易")
-st.caption("真实券商 / 模拟账本 下单入口 · 全量订单落库可审计")
+dark = render_standard_page(
+    title="实盘交易", icon="💰",
+    caption="真实券商 / 模拟账本 下单入口 · 全量订单落库可审计",
+)
 st.warning(
     "⚠️ **资金安全提示**：默认「模拟账本」模式仅做虚拟撮合、**不涉及真实资金**。\n"
     "只有当您在下方选择真实券商（QMT / 同花顺客户端）并显式开启「实盘模式」后，"

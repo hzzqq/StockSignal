@@ -17,21 +17,17 @@ import os
 from datetime import datetime
 import streamlit.components.v1 as components
 
-from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
-from modules.session import require_auth, render_user_badge, get_user, trading_autorefresh
+from modules.page_utils import render_standard_page
+from modules.session import get_user, trading_autorefresh
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, safe_fragment
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast, UP, DOWN
 
-apply_page_config(page_title="模拟交易", page_icon="🎮", layout="wide")
-st.session_state["_active_page"] = __file__
-require_auth()
-render_user_badge(sidebar=True)
-dark = _theme_is_dark()
-st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-st.title("🎮 模拟交易组合")
-st.caption("虚拟资金练习；持仓持久化到本地，模块独立运行，不影响真实账户。")
+dark = render_standard_page(
+    title="模拟交易组合", icon="🎮",
+    caption="虚拟资金练习；持仓持久化到本地，模块独立运行，不影响真实账户。",
+)
 # 加法式（新角度·风险提示）：页面顶部明示模拟属性与免责声明，纯展示不改逻辑。
 st.caption("⚠️ 模拟交易，仅供学习，不构成任何投资建议。")
 
