@@ -4,18 +4,15 @@ pages/7_用户管理.py
 管理员用户管理页面：用户列表 / 创建 / 编辑 / 删除 / 操作日志。
 """
 import streamlit as st
-from modules.session import init_session_state, require_admin, render_user_badge, get_user
+from modules.session import init_session_state, require_admin, get_user
+from modules.page_utils import render_standard_page
 from modules.admin_api import get_users, create_user, update_user, delete_user, get_logs
 from modules.page_widgets import _empty_info
 
 init_session_state()
 require_admin()
 
-from modules.ui_theme import apply_page_config
-apply_page_config(page_title="用户管理", page_icon="👥", layout="wide")
-st.session_state["_active_page"] = __file__
-st.title("👥 用户管理")
-render_user_badge()
+dark = render_standard_page(title="用户管理", icon="👥", auth=False)
 
 # 初始化分页 state
 if "user_mgmt_page" not in st.session_state:

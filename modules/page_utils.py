@@ -21,11 +21,15 @@ from modules.session import require_auth, render_user_badge
 from modules.fetcher import StockFetcher
 
 
-def render_standard_page(title, icon="📊", caption=None, layout="wide"):
+def render_standard_page(title, icon="📊", caption=None, layout="wide", auth=True):
     """渲染页面标准头部，返回 dark(bool)。
 
     自动标记调用方页面为活跃页（用于侧边栏高亮），无需每个页面手写
     ``st.session_state["_active_page"] = __file__``。
+
+    ``auth`` 默认 True（执行 require_auth + 用户徽章）。管理员页若已调用
+    ``require_admin()``（内部已含 require_auth），传 ``auth=False`` 避免双重
+    注入全局组件（重复 key 异常）。
     """
     apply_page_config(page_title=title, page_icon=icon, layout=layout)
     try:
@@ -33,7 +37,8 @@ def render_standard_page(title, icon="📊", caption=None, layout="wide"):
     except Exception:
         caller_file = __file__
     st.session_state["_active_page"] = caller_file
-    require_auth()
+    if auth:
+        require_auth()
     render_user_badge(sidebar=True)
     dark = _theme_is_dark()
     st.markdown(dashboard_sf_css(), unsafe_allow_html=True)

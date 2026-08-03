@@ -5,7 +5,8 @@ pages/8_系统配置.py
 """
 import streamlit as st
 import json
-from modules.session import init_session_state, require_admin, render_user_badge, api_get, api_post
+from modules.session import init_session_state, require_admin, api_get, api_post
+from modules.page_utils import render_standard_page
 from modules.admin_api import (
     get_stock_stats, get_stock_list, get_config, update_config,
     create_config, delete_config, get_watchlist, add_watchlist, remove_watchlist,
@@ -25,11 +26,7 @@ CONFIG_LABELS = {
 init_session_state()
 require_admin()
 
-from modules.ui_theme import apply_page_config
-apply_page_config(page_title="系统配置", page_icon="⚙️", layout="wide")
-st.session_state["_active_page"] = __file__
-st.title("⚙️ 系统配置")
-render_user_badge()
+dark = render_standard_page(title="系统配置", icon="⚙️", auth=False)
 
 # ================================================================ Tab 布局
 tab_overview, tab_stocks, tab_config, tab_watch, tab_alert = st.tabs([
