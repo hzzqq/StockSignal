@@ -224,7 +224,10 @@ def get_northbound_history_series():
         out = out.dropna(subset=["date"]).reset_index(drop=True)
         return out
     # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
-    return _cached(1800, "northbound_hist_series", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame())
+    # 注意：_run_with_timeout 可能返回 None（超时）或空 DataFrame，不能用「or」
+    _result = _run_with_timeout(_fn, 12)
+    return _cached(1800, "northbound_hist_series",
+                   lambda: _result if _result is not None else pd.DataFrame())
 
 
 def plot_northbound_history(df, dark_mode=False, date_range=None, ma_periods=(),
@@ -504,7 +507,10 @@ def get_index_series(days=180):
             df = df.tail(days).reset_index(drop=True)
         return df
     # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
-    return _cached(900, f"index_series_{days}", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame())
+    # 注意：_run_with_timeout 可能返回 None（超时）或空 DataFrame，不能用「or」
+    _result = _run_with_timeout(_fn, 12)
+    return _cached(900, f"index_series_{days}",
+                   lambda: _result if _result is not None else pd.DataFrame())
 
 
 def plot_index_series(df, dark_mode=False, date_range=None, ma_periods=(),

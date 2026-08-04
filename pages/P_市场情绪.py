@@ -33,6 +33,25 @@ st.page_link("pages/H_市场驱动力.py", label="📊 看《市场驱动力》�
 
 
 # ───────────────────────── 辅助函数 ─────────────────────────
+def _cache_banner(meta):
+    """当数据来自 SQLite 缓存降级时，显示提示横幅。"""
+    if not meta or not isinstance(meta, dict):
+        return
+    if meta.get("_cache_fallback"):
+        msg = meta.get("_cache_message", "当前展示为最近一次成功缓存的数据（网络暂时不可用）")
+        st.markdown(
+            f'<div style="background:#fff3cd;border:1px solid #ffc107;'
+            f'border-radius:8px;padding:8px 14px;font-size:13px;color:#856404">'
+            f'📦 <b>缓存模式</b>：{msg}</div>',
+            unsafe_allow_html=True,
+        )
+    # 显示缓存时间戳（如果有）
+    cached_keys = meta.get("cached_keys", [])
+    stale_keys = meta.get("stale_keys", [])
+    if stale_keys:
+        st.caption(f"⚠️ 部分指标数据陈旧：{', '.join(k[0] for k in stale_keys)}")
+
+
 def _last(s):
     s = pd.to_numeric(s, errors="coerce").dropna()
     return float(s.iloc[-1]) if len(s) else None
@@ -294,6 +313,7 @@ def fragment_thermometer():
         _empty_info("暂无市场数据（网络/代理受限或数据源暂未接入）。")
         _render_status(meta)
         return
+    _cache_banner(meta)  # 缓存降级提示
     t = _market_temp(df)
     if t is None:
         st.warning("可用指标不足，无法计算综合温度。")
@@ -325,6 +345,7 @@ def fragment_breadth():
         _empty_info("暂无市场广度数据（网络/代理受限或数据源暂未接入）。")
         _render_status(meta)
         return
+    _cache_banner(meta)
     cols = st.columns(len(_BREADTH))
     for c, cfg in zip(cols, _BREADTH):
         _card(c, cfg, df, dark)
@@ -345,6 +366,7 @@ def fragment_sentiment():
         _empty_info("暂无市场情绪数据（网络/代理受限或数据源暂未接入）。")
         _render_status(meta)
         return
+    _cache_banner(meta)
     cols = st.columns(len(_SENTIMENT))
     for c, cfg in zip(cols, _SENTIMENT):
         _card(c, cfg, df, dark)
@@ -365,6 +387,7 @@ def fragment_valuation():
         _empty_info("暂无估值数据（网络/代理受限或数据源暂未接入）。")
         _render_status(meta)
         return
+    _cache_banner(meta)
     cols = st.columns(len(_VALUATION))
     for c, cfg in zip(cols, _VALUATION):
         _card(c, cfg, df, dark)

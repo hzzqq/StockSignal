@@ -216,7 +216,11 @@ def get_margin_trading_data(days=180):
             logger.warning(f"get_margin_trading_data 最终失败：{e}")
             return pd.DataFrame()
     # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
-    return _cached(600, f"margin_trading_{days}", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame(), skip_empty=True)
+    # 注意：_run_with_timeout 可能返回 None（超时）或空 DataFrame，不能用「or」
+    # （空 DataFrame 的 bool 值有歧义 → ValueError），必须显式判 None。
+    _result = _run_with_timeout(_fn, 12)
+    return _cached(600, f"margin_trading_{days}",
+                   lambda: _result if _result is not None else pd.DataFrame(), skip_empty=True)
 
 
 def safe_yuan_to_yi(x):

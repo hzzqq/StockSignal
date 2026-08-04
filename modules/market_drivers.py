@@ -267,25 +267,76 @@ def _src_north_hist(days):
 
 @_retry()
 def _src_activity(days):
+    """涨跌家数（ADL/ADR）。
+
+    主源：akshare legu（可能 DNS 失败）。
+    降级：东方财富全 A 列表（计算涨跌统计），若也不行则返回空。
+    """
     import akshare as ak
-    df = ak.stock_market_activity_legu()
-    if df is None or df.empty:
-        return []
-    # 当前 akshare 返回单日快照（item/value 长表），无历史序列，无法构建 ADL/ADR 时间序列
-    if "item" in df.columns or _col(df, "上涨", "up") is None:
-        return []
-    up = pd.to_numeric(df[_col(df, "上涨", "up")], errors="coerce")
-    dn = pd.to_numeric(df[_col(df, "下跌", "down")], errors="coerce")
-    dt = _pdate(df[_col(df, "日期", "date", "时间")])
-    up.index = dn.index = dt
-    adl = (up - dn).fillna(0).cumsum()
-    adr = (up / dn.replace(0, np.nan)).replace([np.inf, -np.inf], np.nan)
-    out = []
-    if not adl.dropna().empty:
-        out.append(("adl", "腾落指数(ADL)", adl.dropna()))
-    if not adr.dropna().empty:
-        out.append(("adr", "涨跌比率(ADR)", adr.dropna()))
-    return out
+    # 主源：legu
+    try:
+        df = ak.stock_market_activity_legu()
+        if df is not None and not df.empty:
+            if "item" in df.columns:
+                # 单日快照格式 → 无法构建时间序列，尝试降级
+                pass
+            else:
+                up = pd.to_numeric(df[_col(df, "上涨", "up")], errors="coerce")
+                dn = pd.to_numeric(df[_col(df, "下跌", "down")], errors="coerce")
+                dt = _pdate(df[_col(df, "日期", "date", "时间")])
+                up.index = dn.index = dt
+                adl = (up - dn).fillna(0).cumsum()
+                adr = (up / dn.replace(0, np.nan)).replace([np.inf, -np.inf], np.nan)
+                out = []
+                if not adl.dropna().empty:
+                    out.append(("adl", "腾落指数(ADL)", adl.dropna()))
+                if not adr.dropna().empty:
+                    out.append(("adr", "涨跌比率(ADR)", adr.dropna()))
+                if out:
+                    return out
+    except Exception:  # noqa
+        pass
+
+    # 降级：东方财富全 A（需联网）
+    try:
+        df = ak.stock_zh_a_spot_em()
+        if df is not None and not df.empty:
+            chg_col = _col(df, "涨跌幅", "change_percent")
+            if chg_col:
+                chg = pd.to_numeric(df[chg_col], errors="coerce")
+                up = int((chg > 0).sum())
+                dn = int((chg < 0).sum())
+                # 构造单日快照（累积值从 0 开始，后续刷新会修正）
+                now = pd.Timestamp.now().normalize()
+                adl_val = float(up - dn)
+                adr_val = float(up / max(dn, 1))
+                s_adl = pd.Series([adl_val], index=[now])
+                s_adr.name = "adl"
+                s_adr = pd.to_numeric(s_adl, errors="coerce")
+                s_adr = s_adr[s_adl.notna()]
+                s_adr.index = pd.to_datetime(s_adr.index)
+                s_adr = s_adl[~s_adr.index.duplicated(keep='last')]
+                s_adr = s_adr.sort_index()
+                
+                s_adr2 = pd.Series([adr_val], index=[now])
+                s_adr2.name = "adr"
+                s_adr2 = pd.to_numeric(s_adr2, errors="coerce")
+                s_adr2 = s_adr2[s_adr2.notna()]
+                s_adr2.index = pd.to_datetime(s_adr2.index)
+                s_adr2 = s_adr2[~s_adr2.index.duplicated(keep='last')]
+                s_adr2 = s_adr2.sort_index()
+                
+                out = []
+                if not s_adl.empty:
+                    out.append(("adl", "腾落指数(ADL)", s_adl))
+                if not s_adr2.empty:
+                    out.append(("adr", "涨跌比率(ADR)", s_adr2))
+                if out:
+                    return out
+    except Exception:  # noqa
+        pass
+
+    return []
 
 
 @_retry()
@@ -321,51 +372,113 @@ def _src_qvvix(days):
 
 @_retry()
 def _src_zt(days):
+    """涨停家数占比（主源 ak.stock_zt_pool_em，降级到 zg 涨停接口）。"""
     import akshare as ak
-    df = ak.stock_zt_pool_em()
-    if df is None or df.empty:
-        return []
-    dt = _pdate(df[_col(df, "日期", "date", "时间")])
-    # 涨停家数占全市场近似比（全市场约 5000 只，分母用常量近似并标注）
-    n = pd.Series(len(df), index=[dt] if pd.notna(dt) else [pd.Timestamp.now()])
-    s = (n / 5000.0 * 100.0)
-    s.index = pd.to_datetime(s.index, errors="coerce")
-    s = s.dropna()
-    return [("zt_ratio", "涨停家数占比", s)] if not s.empty else []
+    # 主源
+    try:
+        df = ak.stock_zt_pool_em()
+        if df is not None and not df.empty:
+            dt = _pdate(df[_col(df, "日期", "date", "时间")])
+            n = pd.Series(len(df), index=[dt] if pd.notna(dt) else [pd.Timestamp.now()])
+            s = (n / 5000.0 * 100.0)
+            s.index = pd.to_datetime(s.index, errors="coerce")
+            s = s.dropna()
+            if not s.empty:
+                return [("zt_ratio", "涨停家数占比", s)]
+    except Exception:  # noqa
+        pass
+
+    # 降级：尝试 zg 涨停接口（不同数据格式）
+    try:
+        df = ak.stock_zt_pool_zg_em()
+        if df is not None and not df.empty:
+            dt = _pdate(df[_col(df, "日期", "date", "时间")])
+            n = pd.Series(len(df), index=[dt] if pd.notna(dt) else [pd.Timestamp.now()])
+            s = (n / 5000.0 * 100.0)
+            s.index = pd.to_datetime(s.index, errors="coerce")
+            s = s.dropna()
+            if not s.empty:
+                return [("zt_ratio", "涨停家数占比", s)]
+    except Exception:  # noqa
+        pass
+
+    return []
 
 
 @_retry()
 def _src_pe(days):
+    """市场 PE（主源 legu，降级到东方财富指数估值）。"""
     import akshare as ak
-    df = ak.stock_market_pe_lg()
-    if df is None or df.empty:
-        return []
-    col = _col(df, "pe", "市盈率")
-    if col is None:
-        return []
-    s = pd.to_numeric(df[col], errors="coerce")
-    s.index = _pdate(df[_col(df, "日期", "date", "时间")])
-    s = s.dropna()
-    if s.empty:
-        return []
-    # PE 历史百分位（当前 PE 在自身历史分布中的位置）
-    pct = s.rank(pct=True) * 100.0
-    return [("pe_pct", "PE历史百分位", pct.dropna())]
+    # 主源：legu
+    try:
+        df = ak.stock_market_pe_lg()
+        if df is not None and not df.empty:
+            col = _col(df, "pe", "市盈率")
+            if col is not None:
+                s = pd.to_numeric(df[col], errors="coerce")
+                s.index = _pdate(df[_col(df, "日期", "date", "时间")])
+                s = s.dropna()
+                if not s.empty:
+                    pct = s.rank(pct=True) * 100.0
+                    return [("pe_pct", "PE历史百分位", pct.dropna())]
+    except Exception:  # noqa
+        pass
+
+    # 降级：用上证指数 PE（akshare stock_index_pe_lg 或类似接口）
+    try:
+        df = ak.stock_index_pe_lg(symbol="上证指数")
+        if df is not None and not df.empty:
+            col = _col(df, "pe", "pe_ttm", "市盈率")
+            if col:
+                s = pd.to_numeric(df[col], errors="coerce")
+                dt_col = _col(df, "日期", "date", "时间")
+                if dt_col:
+                    s.index = _pdate(df[dt_col])
+                    s = s.dropna()
+                    if not s.empty:
+                        pct = s.rank(pct=True) * 100.0
+                        return [("pe_pct", "PE历史百分位(上证)", pct.dropna())]
+    except Exception:  # noqa
+        pass
+
+    return []
 
 
 @_retry()
 def _src_div(days):
+    """股息率（主源 legu，降级到东方财富指数估值）。"""
     import akshare as ak
-    df = ak.stock_market_pe_lg()
-    if df is None or df.empty:
-        return []
-    col = _col(df, "股息", "dividend", "yield")
-    if col is None:
-        return []
-    s = pd.to_numeric(df[col], errors="coerce")
-    s.index = _pdate(df[_col(df, "日期", "date", "时间")])
-    s = s.dropna()
-    return [("div_yield", "股息率", s)] if not s.empty else []
+    # 主源：legu
+    try:
+        df = ak.stock_market_pe_lg()
+        if df is not None and not df.empty:
+            col = _col(df, "股息", "dividend", "yield")
+            if col is not None:
+                s = pd.to_numeric(df[col], errors="coerce")
+                s.index = _pdate(df[_col(df, "日期", "date", "时间")])
+                s = s.dropna()
+                if not s.empty:
+                    return [("div_yield", "股息率", s)]
+    except Exception:  # noqa
+        pass
+
+    # 降级：上证指数股息率
+    try:
+        df = ak.stock_index_pe_lg(symbol="上证指数")
+        if df is not None and not df.empty:
+            col = _col(df, "股息率", "dividend_yield", "股息", "yield")
+            if col:
+                s = pd.to_numeric(df[col], errors="coerce")
+                dt_col = _col(df, "日期", "date", "时间")
+                if dt_col:
+                    s.index = _pdate(df[dt_col])
+                    s = s.dropna()
+                    if not s.empty:
+                        return [("div_yield", "股息率(上证)", s)]
+    except Exception:  # noqa
+        pass
+
+    return []
 
 
 @_retry()
@@ -612,6 +725,11 @@ def get_market_drivers(days=180):
     df：宽表，列 = ['date'] + 各可用指标 key（已对齐到 common 日期索引）。
     meta：{dim: {'available':[key...], 'unavailable':[(key, reason)...]}}。
     单源失败不影响其他源；无任何数据返回空 df + 全 unavailable。
+
+    缓存策略（v2）：
+      - 网络取数成功 → 结果写入 SQLite 持久缓存（modules.market_cache）
+      - 网络取数完全失败 → 从 SQLite 缓存读取最近一次成功的数据（带时间戳警告）
+      - 双双失败 → 返回空 df + 全 unavailable（原有行为）
     """
     def _build():
         meta = {d: {"available": [], "unavailable": []} for d in DIMS}
@@ -648,9 +766,49 @@ def get_market_drivers(days=180):
         return df, meta
 
     try:
-        return _cached(_CACHE_TTL, f"drivers_{days}", _build)
+        df, meta = _cached(_CACHE_TTL, f"drivers_{days}", _build)
+
+        # 网络成功且有数据 → 异步写入持久化缓存（不阻塞返回）
+        if df is not None and not df.empty:
+            try:
+                from modules.market_cache import save_drivers_to_cache
+                save_drivers_to_cache(df, meta)
+            except Exception as cache_err:
+                logger.debug("[market_drivers] 后台写缓存失败（不阻塞）: %s", cache_err)
+            return df, meta
+
+        # 网络取数为空 → 尝试从持久化缓存降级
+        logger.info("[market_drivers] 网络取数空，尝试从 SQLite 缓存降级")
+        try:
+            from modules.market_cache import load_drivers_from_cache
+            cached_df, cached_meta = load_drivers_from_cache(days=days)
+            if cached_df is not None and not cached_df.empty:
+                # 合并 meta 信息
+                if cached_meta:
+                    meta = cached_meta
+                    meta["_cache_fallback"] = True
+                logger.info("[market_drivers] 缓存降级成功：%d 行", len(cached_df))
+                return cached_df, meta
+        except Exception as cache_err:
+            logger.warning("[market_drivers] 缓存降级也失败: %s", cache_err)
+
+        return df, meta
+
     except Exception as e:  # noqa
         logger.warning("get_market_drivers 最终失败：%s", e)
+        # 最终兜底：尝试读缓存
+        try:
+            from modules.market_cache import load_drivers_from_cache
+            cdf, cm = load_drivers_from_cache(days=days)
+            if cdf is not None and not cdf.empty:
+                if cm is None:
+                    cm = {}
+                cm["_cache_fallback"] = True
+                cm["_cache_message"] = "网络异常，展示最近一次缓存数据"
+                return cdf, cm
+        except Exception:
+            pass
+
         meta = {d: {"available": [], "unavailable": [(i["key"], "抓取失败") for i in INDICATORS if i["dim"] == d]} for d in DIMS}
         return pd.DataFrame(columns=["date"]), meta
 
