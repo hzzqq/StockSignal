@@ -123,10 +123,18 @@ def inject_theme():
 
 def inject_plotly_dark():
     """若页面用到 Plotly（st.plotly_chart / K线），调用一次本函数
-    让 Plotly 默认走暗色，根除白底白框。"""
+    让 Plotly 默认走暗色，根除白底白框。
+
+    实现与 modules.ui_theme.inject_plotly_dark 保持一致：用
+    ``go.layout.Template(layout=PLOTLY_DARK)`` 把纯 layout 字典包成合法模板
+    （make_template 需要完整 template 结构，直接传 layout dict 在 plotly 6.x 会
+    抛错被静默吞掉，导致暗色模板从未注册成功）。重复注册前先检查，避免无谓开销。
+    """
     try:
         import plotly.io as pio
-        pio.templates["starfield_dark"] = pio.templates.make_template(PLOTLY_DARK)
+        import plotly.graph_objects as go
+        if "starfield_dark" not in pio.templates:
+            pio.templates["starfield_dark"] = go.layout.Template(layout=PLOTLY_DARK)
         pio.templates.default = "starfield_dark"
     except Exception:
         pass  # 没装 plotly 也不影响其余组件
