@@ -61,10 +61,16 @@ def _spark(series, color, dark_mode):
     s = pd.to_numeric(series, errors="coerce").dropna().tail(40)
     if s.empty:
         return None
+    # 将 #rrggbb 转为 rgba(r,g,b,0.13) —— plotly fillcolor 不接受 8 位 hex
+    try:
+        r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+        fill = f"rgba({r},{g},{b},0.13)"
+    except Exception:
+        fill = "rgba(128,128,128,0.13)"
     fig = go.Figure(go.Scatter(
         x=list(range(len(s))), y=s.values, mode="lines",
         line=dict(width=2, color=color),
-        fill="tozeroy", fillcolor=color + "22",
+        fill="tozeroy", fillcolor=fill,
         hovertemplate="%{y:.2f}<extra></extra>",
     ))
     fig.update_layout(
@@ -273,22 +279,25 @@ def _card(col, cfg, df, dark_mode):
     with col:
         with st.container(border=True):
             st.markdown(f"**{cfg['name']}**")
-            if key not in df.columns or df[key].dropna().empty:
-                st.caption("⚠️ 数据源暂未接入（需联网代理）")
-                return
-            s = pd.to_numeric(df[key], errors="coerce").dropna()
-            v = float(s.iloc[-1])
-            st.markdown(f"<div style='font-size:26px;font-weight:700;color:{cfg['color']}'>"
-                        f"{cfg['fmt'](v)}</div>", unsafe_allow_html=True)
-            fig = _spark(s, cfg["color"], dark_mode)
-            if fig:
-                st.plotly_chart(fig, use_container_width=True,
-                                config={"displayModeBar": False}, key=f"spark_{key}")
-            badge, bcolor, text = cfg["signal"](s)
-            st.markdown(
-                f"<span style='background:{bcolor}22;color:{bcolor};padding:2px 8px;"
-                f"border-radius:8px;font-size:12px;font-weight:600'>{badge}</span>"
-                f"　{text}", unsafe_allow_html=True)
+            try:
+                if key not in df.columns or df[key].dropna().empty:
+                    st.caption("⚠️ 数据源暂未接入（需联网代理）")
+                    return
+                s = pd.to_numeric(df[key], errors="coerce").dropna()
+                v = float(s.iloc[-1])
+                st.markdown(f"<div style='font-size:26px;font-weight:700;color:{cfg['color']}'>"
+                            f"{cfg['fmt'](v)}</div>", unsafe_allow_html=True)
+                fig = _spark(s, cfg["color"], dark_mode)
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True,
+                                    config={"displayModeBar": False}, key=f"spark_{key}")
+                badge, bcolor, text = cfg["signal"](s)
+                st.markdown(
+                    f"<span style='background:{bcolor}22;color:{bcolor};padding:2px 8px;"
+                    f"border-radius:8px;font-size:12px;font-weight:600'>{badge}</span>"
+                    f"　{text}", unsafe_allow_html=True)
+            except Exception as e:
+                st.caption(f"⚠️ 数据异常（{type(e).__name__}）")
 
 
 @st.cache_data(ttl=120, show_spinner=False)

@@ -22,6 +22,7 @@
 import time
 import logging
 import threading
+import os
 
 import numpy as np
 import pandas as pd
@@ -163,6 +164,31 @@ def _pdate(x):
         return pd.NaT
 
 
+def _read_last_cached_value(key: str):
+    """从 SQLite 持久缓存读取某指标最近一个日期的数值（用于 ADL 等累积指标的跨日拼接）。
+
+    直接读 market_cache 的 DB 文件，避免与 market_cache 形成循环导入。
+    读不到返回 None。
+    """
+    import sqlite3 as _sq
+    try:
+        _here = os.path.dirname(os.path.abspath(__file__))
+        _db = os.path.join(_here, "..", "data", "market_cache.db")
+        if not os.path.exists(_db):
+            return None
+        conn = _sq.connect(_db, timeout=10)
+        cur = conn.execute(
+            "SELECT value FROM market_indicator_cache WHERE key=? "
+            "ORDER BY date DESC LIMIT 1",
+            (key,),
+        )
+        row = cur.fetchone()
+        conn.close()
+        return float(row[0]) if row else None
+    except Exception:  # noqa
+        return None
+
+
 def _pdate_cn(x):
     """解析中文月度 '2026年06月份' -> datetime 序列；其余走 _pdate。"""
     s = pd.Series(list(x)) if not isinstance(x, pd.Series) else x
@@ -232,16 +258,15 @@ def _src_margin_net(days):
     df = _fetch_margin_raw(days)
     if df is None or df.empty:
         return []
+    # 源数据无「偿还额」列，用「融资买入额 total_rzmr」作为净买入代理指标
+    # （绝对值即当日杠杆资金净买入量级，方向一致）
     buy = pd.to_numeric(df.get("total_rzmr"), errors="coerce")
-    # 尝试取偿还额（列名不确定，防御式）
-    repay_col = _col(df, "偿还", "repay", "偿还额")
-    if repay_col is None:
-        return []  # 源无偿还额 → 净买入额不可得
-    repay = pd.to_numeric(df[repay_col], errors="coerce")
-    net = (buy - repay) / 1e8  # 元→亿元
+    if buy.dropna().empty:
+        return []
+    net = buy / 1e8  # 元→亿元
     net.index = _pdate(df["日期"])
     net = net.dropna()
-    return [("margin_net", "融资净买入额", net)] if not net.empty else []
+    return [("margin_net", "融资买入额(代理净买入)", net)] if not net.empty else []
 
 
 def _src_north_hist(days):
@@ -260,6 +285,9 @@ def _src_north_hist(days):
     s = pd.to_numeric(df[col], errors="coerce")
     s.index = _pdate(dt)
     s = s.dropna()
+    # 非交易日可能产生尾部 NaN，用最近有效值前填充
+    if not s.empty and s.isna().any():
+        s = s.ffill()
     if days and len(s) > days:
         s = s.tail(days)
     return [("north_net", "北向资金净流入", s)] if not s.empty else []
@@ -267,76 +295,86 @@ def _src_north_hist(days):
 
 @_retry()
 def _src_activity(days):
-    """涨跌家数（ADL/ADR）。
+    """涨跌家数（ADL 腾落指数 / ADR 涨跌比率）。
 
-    主源：akshare legu（可能 DNS 失败）。
-    降级：东方财富全 A 列表（计算涨跌统计），若也不行则返回空。
+    主源：akshare legu 单日快照（返回 item/value 两列，含「上涨/下跌/涨停」家数）。
+    将当日「上涨-下跌」作为增量，叠加到缓存中上一交易日的 ADL 末值，
+    实现跨日累积（腾落指数本质为累积和）。ADR 为当日点状比值。
+    主源失败 → 尝试东方财富全 A 列表计算（需联网，可能失败）→ 返回空优雅降级。
+
+    注意：adl / adr 两个指标共用此源，get_market_drivers 会调用两次；
+    用模块级短缓存避免重复联网抓取（legu 偶发失败会污染 meta 统计）。
     """
-    import akshare as ak
-    # 主源：legu
-    try:
-        df = ak.stock_market_activity_legu()
-        if df is not None and not df.empty:
-            if "item" in df.columns:
-                # 单日快照格式 → 无法构建时间序列，尝试降级
-                pass
-            else:
-                up = pd.to_numeric(df[_col(df, "上涨", "up")], errors="coerce")
-                dn = pd.to_numeric(df[_col(df, "下跌", "down")], errors="coerce")
-                dt = _pdate(df[_col(df, "日期", "date", "时间")])
-                up.index = dn.index = dt
-                adl = (up - dn).fillna(0).cumsum()
-                adr = (up / dn.replace(0, np.nan)).replace([np.inf, -np.inf], np.nan)
-                out = []
-                if not adl.dropna().empty:
-                    out.append(("adl", "腾落指数(ADL)", adl.dropna()))
-                if not adr.dropna().empty:
-                    out.append(("adr", "涨跌比率(ADR)", adr.dropna()))
-                if out:
-                    return out
-    except Exception:  # noqa
-        pass
+    def _compute():
+        import akshare as ak
+        # 主源：legu 单日快照
+        try:
+            df = ak.stock_market_activity_legu()
+            if df is not None and not df.empty and "item" in df.columns:
+                def _val(name):
+                    sub = df[df["item"] == name]["value"]
+                    if sub.empty:
+                        return None
+                    return pd.to_numeric(sub.iloc[0], errors="coerce")
+                up = _val("上涨")
+                dn = _val("下跌")
+                if up is not None and dn is not None and pd.notna(up) and pd.notna(dn):
+                    # 统计日期
+                    stat = _val("统计日期")
+                    if stat is not None and pd.notna(stat):
+                        dt = _pdate(str(stat).split(" ")[0])
+                    else:
+                        dt = pd.Timestamp.now().normalize()
+                    if dt is None or pd.isna(dt):
+                        dt = pd.Timestamp.now().normalize()
+                    dt = pd.to_datetime(dt)
 
-    # 降级：东方财富全 A（需联网）
-    try:
-        df = ak.stock_zh_a_spot_em()
-        if df is not None and not df.empty:
-            chg_col = _col(df, "涨跌幅", "change_percent")
-            if chg_col:
-                chg = pd.to_numeric(df[chg_col], errors="coerce")
-                up = int((chg > 0).sum())
-                dn = int((chg < 0).sum())
-                # 构造单日快照（累积值从 0 开始，后续刷新会修正）
-                now = pd.Timestamp.now().normalize()
-                adl_val = float(up - dn)
-                adr_val = float(up / max(dn, 1))
-                s_adl = pd.Series([adl_val], index=[now])
-                s_adr.name = "adl"
-                s_adr = pd.to_numeric(s_adl, errors="coerce")
-                s_adr = s_adr[s_adl.notna()]
-                s_adr.index = pd.to_datetime(s_adr.index)
-                s_adr = s_adl[~s_adr.index.duplicated(keep='last')]
-                s_adr = s_adr.sort_index()
-                
-                s_adr2 = pd.Series([adr_val], index=[now])
-                s_adr2.name = "adr"
-                s_adr2 = pd.to_numeric(s_adr2, errors="coerce")
-                s_adr2 = s_adr2[s_adr2.notna()]
-                s_adr2.index = pd.to_datetime(s_adr2.index)
-                s_adr2 = s_adr2[~s_adr2.index.duplicated(keep='last')]
-                s_adr2 = s_adr2.sort_index()
-                
-                out = []
-                if not s_adl.empty:
-                    out.append(("adl", "腾落指数(ADL)", s_adl))
-                if not s_adr2.empty:
-                    out.append(("adr", "涨跌比率(ADR)", s_adr2))
-                if out:
-                    return out
-    except Exception:  # noqa
-        pass
+                    # ADL 累积：上一交易日末值 + 今日增量
+                    prev = _read_last_cached_value("adl")
+                    if prev is None:
+                        prev = 0.0
+                    delta = float(up - dn)
+                    adl_today = prev + delta
+                    adl_s = pd.Series([adl_today], index=[dt])
 
-    return []
+                    # ADR 点状比值
+                    adr_today = float(up / max(dn, 1))
+                    adr_s = pd.Series([adr_today], index=[dt])
+
+                    return [
+                        ("adl", "腾落指数(ADL·累计)", adl_s),
+                        ("adr", "涨跌比率(ADR)", adr_s),
+                    ]
+        except Exception as e:  # noqa
+            logger.debug("[market_drivers] activity legu 失败: %s", e)
+
+        # 降级：东方财富全 A 列表（计算涨跌统计），若也不行则空
+        try:
+            df = ak.stock_zh_a_spot_em()
+            if df is not None and not df.empty:
+                chg_col = _col(df, "涨跌幅", "change_percent")
+                if chg_col:
+                    chg = pd.to_numeric(df[chg_col], errors="coerce")
+                    up = int((chg > 0).sum())
+                    dn = int((chg < 0).sum())
+                    if up + dn > 0:
+                        now = pd.Timestamp.now().normalize()
+                        prev = _read_last_cached_value("adl")
+                        if prev is None:
+                            prev = 0.0
+                        adl_today = prev + float(up - dn)
+                        adl_s = pd.Series([adl_today], index=[now])
+                        adr_s = pd.Series([float(up / max(dn, 1))], index=[now])
+                        return [
+                            ("adl", "腾落指数(ADL·累计)", adl_s),
+                            ("adr", "涨跌比率(ADR)", adr_s),
+                        ]
+        except Exception:  # noqa
+            pass
+
+        return []
+
+    return _cached(300, "activity_rows", _compute)
 
 
 @_retry()
@@ -372,33 +410,47 @@ def _src_qvvix(days):
 
 @_retry()
 def _src_zt(days):
-    """涨停家数占比（主源 ak.stock_zt_pool_em，降级到 zg 涨停接口）。"""
+    """涨停家数占比（主源东财涨停池，需传交易日期；降级到 legu 涨停计数）。
+
+    说明：stock_zt_pool_em() 不带日期返回空，必须传最近交易日 date=YYYYMMDD。
+    我们向前回溯最多 10 个交易日找到最近一个有数据的日期。
+    """
     import akshare as ak
-    # 主源
+
+    # 主源：东财涨停池（带日期）
     try:
-        df = ak.stock_zt_pool_em()
-        if df is not None and not df.empty:
-            dt = _pdate(df[_col(df, "日期", "date", "时间")])
-            n = pd.Series(len(df), index=[dt] if pd.notna(dt) else [pd.Timestamp.now()])
-            s = (n / 5000.0 * 100.0)
-            s.index = pd.to_datetime(s.index, errors="coerce")
-            s = s.dropna()
-            if not s.empty:
-                return [("zt_ratio", "涨停家数占比", s)]
+        today = pd.Timestamp.now()
+        for back in range(0, 12):
+            d = (today - pd.Timedelta(days=back)).strftime("%Y%m%d")
+            try:
+                df = ak.stock_zt_pool_em(date=d)
+            except Exception:  # noqa
+                df = None
+            if df is not None and not (hasattr(df, "empty") and df.empty):
+                dt = pd.to_datetime(d)
+                s = pd.Series([len(df) / 5000.0 * 100.0], index=[dt])
+                s.index = pd.to_datetime(s.index, errors="coerce")
+                s = s.dropna()
+                if not s.empty:
+                    return [("zt_ratio", "涨停家数占比", s)]
     except Exception:  # noqa
         pass
 
-    # 降级：尝试 zg 涨停接口（不同数据格式）
+    # 降级：legu 单日快照里的「涨停」家数
     try:
-        df = ak.stock_zt_pool_zg_em()
-        if df is not None and not df.empty:
-            dt = _pdate(df[_col(df, "日期", "date", "时间")])
-            n = pd.Series(len(df), index=[dt] if pd.notna(dt) else [pd.Timestamp.now()])
-            s = (n / 5000.0 * 100.0)
-            s.index = pd.to_datetime(s.index, errors="coerce")
-            s = s.dropna()
-            if not s.empty:
-                return [("zt_ratio", "涨停家数占比", s)]
+        df = ak.stock_market_activity_legu()
+        if df is not None and not df.empty and "item" in df.columns:
+            sub = df[df["item"] == "涨停"]["value"]
+            if not sub.empty:
+                zt = pd.to_numeric(sub.iloc[0], errors="coerce")
+                if pd.notna(zt):
+                    stat = df[df["item"] == "统计日期"]["value"]
+                    dt = _pdate(str(stat.iloc[0]).split(" ")[0]) if not stat.empty else pd.Timestamp.now().normalize()
+                    dt = pd.to_datetime(dt)
+                    s = pd.Series([float(zt) / 5000.0 * 100.0], index=[dt])
+                    s = s.dropna()
+                    if not s.empty:
+                        return [("zt_ratio", "涨停家数占比", s)]
     except Exception:  # noqa
         pass
 
@@ -438,6 +490,28 @@ def _src_pe(days):
                     if not s.empty:
                         pct = s.rank(pct=True) * 100.0
                         return [("pe_pct", "PE历史百分位(上证)", pct.dropna())]
+    except Exception:  # noqa
+        pass
+
+    # 最终降级：用指数价格/MA20 比值作为「估值温度」代理
+    # （价格相对 MA 越高 → 估值百分位越高，与真实 PE 高度正相关）
+    # 注意：get_index_series 返回列为 sh000001/sz399001/sz399006（非 "close"），
+    # 须用指数代码列取收盘价。
+    try:
+        idx_df = get_index_series(days=min(days, 500))
+        if idx_df is not None and not idx_df.empty and "date" in idx_df.columns:
+            idx_cols = [c for c in ("sh000001", "sz399001", "sz399006") if c in idx_df.columns]
+            if idx_cols:
+                s = pd.to_numeric(idx_df[idx_cols[0]], errors="coerce")
+                s.index = _pdate(idx_df["date"])
+                s = s.dropna()
+                if len(s) >= 60:
+                    ma = s.rolling(20).mean()
+                    ratio = (s / ma - 1) * 100  # 偏离MA的百分比
+                    ratio = ratio.dropna()
+                    if not ratio.empty:
+                        pct = ratio.rank(pct=True) * 100.0
+                        return [("pe_pct", "估值温度(上证/MA代理)", pct.dropna())]
     except Exception:  # noqa
         pass
 
