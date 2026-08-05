@@ -59,12 +59,22 @@ _DB_LOCK = threading.Lock()
 
 
 def _get_conn() -> sqlite3.Connection:
-    """获取数据库连接（线程安全，自动建表）。"""
+    """获取数据库连接（线程安全，自动建表）。
+
+    注意：PRAGMA 必须容错。若 _DB_PATH 指向的文件被损坏 / 不是合法 sqlite 文件，
+    `PRAGMA journal_mode=WAL` 会立刻抛 sqlite3.DatabaseError。历史实现把它放在
+    调用方 try 之外，导致「缓存文件损坏 → 整页崩溃」而非优雅降级。
+    这里吞掉 PRAGMA 异常，让真正的读写在调用方的 try/except 内失败并正常降级。
+    """
     os.makedirs(_DATA_DIR, exist_ok=True)
     conn = sqlite3.connect(_DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
+    for pragma in ("PRAGMA journal_mode=WAL", "PRAGMA busy_timeout=5000"):
+        try:
+            conn.execute(pragma)
+        except sqlite3.Error as e:
+            logger.warning("[market_cache] %s 执行失败（DB 可能损坏）: %s", pragma, e)
+            break
     return conn
 
 
@@ -113,8 +123,9 @@ def save_drivers_to_cache(df: pd.DataFrame, meta: Optional[Dict] = None) -> int:
         return 0
 
     with _DB_LOCK:
-        conn = _get_conn()
+        conn = None
         try:
+            conn = _get_conn()
             _ensure_table(conn)
             count = 0
             # 逐列写入（跳过 date 和非指标列）
@@ -156,10 +167,18 @@ def save_drivers_to_cache(df: pd.DataFrame, meta: Optional[Dict] = None) -> int:
             return count
         except Exception as e:
             logger.error("[market_cache] 写入缓存失败: %s", e)
-            conn.rollback()
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
             return 0
         finally:
-            conn.close()
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
 
 def save_single_series(key: str, series: pd.Series) -> int:
@@ -178,8 +197,9 @@ def save_single_series(key: str, series: pd.Series) -> int:
     if not rows:
         return 0
     with _DB_LOCK:
-        conn = _get_conn()
+        conn = None
         try:
+            conn = _get_conn()
             _ensure_table(conn)
             conn.executemany(
                 "INSERT OR REPLACE INTO market_indicator_cache (key, date, value, updated_at) "
@@ -190,10 +210,18 @@ def save_single_series(key: str, series: pd.Series) -> int:
             return len(rows)
         except Exception as e:
             logger.error("[market_cache] save_single '%s' 失败: %s", key, e)
-            conn.rollback()
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
             return 0
         finally:
-            conn.close()
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
 
 # ── 读取 ───────────────────────────────────────────────────────
@@ -207,8 +235,9 @@ def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Op
         meta 含缓存时间戳信息供 UI 展示。
     """
     with _DB_LOCK:
-        conn = _get_conn()
+        conn = None
         try:
+            conn = _get_conn()
             _ensure_table(conn)
             # 查询最近 days 天的所有指标
             cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
@@ -220,11 +249,12 @@ def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Op
             conn.close()
         except Exception as e:
             logger.error("[market_cache] 读取缓存失败: %s", e)
-            try:
-                conn.close()
-            except Exception:
-                pass
-            return None, None
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            return None, {"cache_status": "error", "message": f"缓存不可读: {e}"}
 
     if df_raw.empty:
         return None, {"cache_status": "empty", "message": "无缓存数据"}
@@ -263,8 +293,9 @@ def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Op
 def get_cache_status() -> Dict[str, Any]:
     """返回缓存状态摘要（供调试 / 状态页展示）。"""
     with _DB_LOCK:
-        conn = _get_conn()
+        conn = None
         try:
+            conn = _get_conn()
             _ensure_table(conn)
             # 各指标最新日期 & 记录数
             summary = pd.read_sql_query(
@@ -290,10 +321,11 @@ def get_cache_status() -> Dict[str, Any]:
                 "db_size_mb": round(os.path.getsize(_DB_PATH) / 1048576, 2) if os.path.exists(_DB_PATH) else 0,
             }
         except Exception as e:
-            try:
-                conn.close()
-            except Exception:
-                pass
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
             return {"error": str(e), "db_path": _DB_PATH}
 
 
@@ -346,8 +378,9 @@ def refresh_all_indicators(force: bool = False) -> Dict[str, Any]:
 def clear_stale_cache(days: int = 90) -> int:
     """清理超过 N 天的旧缓存数据，释放空间。"""
     with _DB_LOCK:
-        conn = _get_conn()
+        conn = None
         try:
+            conn = _get_conn()
             _ensure_table(conn)
             cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
             cur = conn.execute(
@@ -361,10 +394,11 @@ def clear_stale_cache(days: int = 90) -> int:
             return deleted
         except Exception as e:
             logger.error("[market_cache] 清理失败: %s", e)
-            try:
-                conn.close()
-            except Exception:
-                pass
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
             return 0
 
 
