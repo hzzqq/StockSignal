@@ -25,3 +25,20 @@ FETCH_MAX_WORKERS = int(os.environ.get("STOCKSIGNAL_FETCH_WORKERS", "6"))
 
 # 冒烟测试用的弱密钥（仅测试桩，非生产）。生产由 STOCKSIGNAL_SECRET 控制。
 TEST_SMOKE_SECRET = os.environ.get("STOCKSIGNAL_TEST_SECRET", "stocksignal-smoke")
+
+
+# ── 不变量校验（防线程泄漏的关键闸门）──────────────────────────────────
+# CALL_TIMEOUT_CAP 必须大于 REQUEST_TIMEOUT，否则底层网络不会先被传输层超时唤醒、
+# 共享线程池会被硬边界丢弃线程 → 泄漏。错误配置（如运维误设 CALL_TIMEOUT_CAP 过小）
+# 时自动纠正为 REQUEST_TIMEOUT + 2 并打告警，而不是静默留下泄漏隐患。
+if CALL_TIMEOUT_CAP <= REQUEST_TIMEOUT:
+    import logging
+
+    logging.getLogger(__name__).warning(
+        "[site_config] CALL_TIMEOUT_CAP(%.1f) <= REQUEST_TIMEOUT(%.1f)，"
+        "底层网络不会先超时→共享线程池会丢弃线程造成泄漏！已自动纠正为 REQUEST_TIMEOUT+2。",
+        CALL_TIMEOUT_CAP,
+        REQUEST_TIMEOUT,
+    )
+    CALL_TIMEOUT_CAP = REQUEST_TIMEOUT + 2
+
