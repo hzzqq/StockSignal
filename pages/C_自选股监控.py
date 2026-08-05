@@ -183,21 +183,22 @@ def fragment_watchlist_monitor():
         st.warning("🔐 登录已过期，请重新登录")
         return
 
-    # 并行拉取市盈率与资产负债率
+    # 并行拉取市盈率与资产负债率（共享有界池，整批 15s 硬边界）
+    # ⚠️ 不可用 `with ThreadPoolExecutor(...)` + result(timeout=)：退出 with 的
+    # shutdown(wait=True) 会阻塞等所有慢任务跑完，超时保护被完全抵消（历史 bug）。
     fund_map = {}
     if codes:
+        from modules.fetch_parallel import fetch_many
         with st.spinner("并行获取市盈率与资产负债率…"):
             # 新浪财务报表在代理环境需临时关闭 SSL 校验，仅本次批量抓取内生效
             with _ssl_bypass():
-                with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-                    futs = {ex.submit(_fund_one, c): c for c in codes}
-                    for fut in _cf.as_completed(futs):
-                        c = futs[fut]
-                        try:
-                            _, pe, alr = fut.result(timeout=15)
-                        except Exception:
-                            pe = alr = None
-                        fund_map[c] = (pe, alr)
+                raw = fetch_many(
+                    [(c, (lambda code=c: _fund_one(code))) for c in codes],
+                    max_workers=4, timeout=15,
+                )
+        for c in codes:
+            r = raw.get(c)
+            fund_map[c] = (r[1], r[2]) if isinstance(r, (tuple, list)) and len(r) >= 3 else (None, None)
 
     rows = []
     quote_times = []

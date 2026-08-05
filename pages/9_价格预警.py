@@ -308,21 +308,26 @@ def _eval_alert(a):
 
 
 def _eval_alert_parallel(alerts):
-    """并行评估多条预警，避免串行网络请求阻塞页面。"""
+    """并行评估多条预警，避免串行网络请求阻塞页面。
+
+    走共享有界池（modules.fetch_parallel），整批带硬边界。
+    ⚠️ 不可用 `with ThreadPoolExecutor(...)` + result(timeout=)：退出 with 时的
+    shutdown(wait=True) 会阻塞等慢任务跑完，超时保护被完全抵消——某条公告类
+    预警卡住就会拖死整页 fragment（历史 bug）。
+    """
     if not alerts:
         return []
+    from modules.fetch_parallel import fetch_many
+
     n_workers = min(8, max(1, len(alerts)))
-    results = [None] * len(alerts)
-    with ThreadPoolExecutor(max_workers=n_workers) as ex:
-        futures = {i: ex.submit(_eval_alert, a) for i, a in enumerate(alerts)}
-        for i, fut in futures.items():
-            try:
-                # 单条预警扫描（如公告走 akshare）可能长时间无响应，
-                # 加超时避免整页 fragment 因某条卡住而挂起。
-                results[i] = fut.result(timeout=15)
-            except Exception as e:
-                results[i] = (False, f"评估失败：{e}")
-    return results
+    raw = fetch_many(
+        [(i, (lambda a=a: _eval_alert(a))) for i, a in enumerate(alerts)],
+        max_workers=n_workers, timeout=15,
+    )
+    return [
+        raw.get(i) if raw.get(i) is not None else (False, "评估超时或失败")
+        for i in range(len(alerts))
+    ]
 
 
 # ───────────────────────── 新建预警 ─────────────────────────

@@ -246,15 +246,12 @@ def _load_lhb(date_str: str):
             end = datetime.now().date().strftime("%Y%m%d")
             return ak.stock_lhb_detail_em(start_date=start, end_date=end)
 
-    # 1) 东方财富：akshare 调用无内置超时，用线程 + result(timeout=12) 兜底，
+    # 1) 东方财富：akshare 调用无内置超时，走共享池 + 硬边界兜底，
     # 超时/异常即降级到新浪，避免交易时段 60s 自动刷新下被网络挂起卡死 fragment。
-    em_raw = None
-    try:
-        with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
-            _fut = _ex.submit(_fetch_em)
-            em_raw = _fut.result(timeout=12)
-    except Exception:
-        em_raw = None
+    # ⚠️ 不可用 `with ThreadPoolExecutor(...)`：退出 with 会 shutdown(wait=True)，
+    # 反过来阻塞等慢任务跑完，result(timeout=) 的超时保护会被完全抵消。
+    from modules.timeout_exec import run_with_timeout
+    em_raw = run_with_timeout(_fetch_em, timeout=12)
 
     if em_raw is not None and hasattr(em_raw, "empty") and not em_raw.empty:
         df = em_raw.rename(columns=lambda x: str(x).strip())

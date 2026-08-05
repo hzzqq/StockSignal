@@ -94,18 +94,15 @@ def _industry_pe_median(industry: str):
         except Exception:
             return None
 
-    try:
-        with _cf.ThreadPoolExecutor(max_workers=10) as ex:
-            futs = {ex.submit(_safe_pe, c): c for c in codes}
-            for fut in _cf.as_completed(futs, timeout=60):
-                try:
-                    v = fut.result()
-                    if isinstance(v, (int, float)) and v > 0:
-                        pes.append(v)
-                except Exception:
-                    pass
-    except Exception:
-        pass
+    # 走共享有界池，整批 60s 硬边界。
+    # ⚠️ 不可用 `with ThreadPoolExecutor(...)`：退出 with 的 shutdown(wait=True)
+    # 会阻塞等所有慢任务跑完，as_completed(timeout=) 的保护被完全抵消（历史 bug）。
+    from modules.fetch_parallel import fetch_many
+    raw = fetch_many(
+        [(c, (lambda code=c: _safe_pe(code))) for c in codes],
+        max_workers=10, timeout=60,
+    )
+    pes = [v for v in raw.values() if isinstance(v, (int, float)) and v > 0]
     if len(pes) < 3:
         return None
     pes_sorted = sorted(pes)
