@@ -47,23 +47,25 @@ _FLOW_COLS = {
 
 @st.cache_data(ttl=600, show_spinner=False)
 def _build_strength_df(days=180):
-    """组装市场强弱宽表：date + 三大指数 + 融资余额 + 北向累计 + 大盘主力累计。"""
-    try:
-        idx = get_index_series(days=days)
-    except Exception:
-        idx = pd.DataFrame()
-    try:
-        mg = get_margin_trading_data(days=days)
-    except Exception:
-        mg = pd.DataFrame()
-    try:
-        nb = get_northbound_history_series()
-    except Exception:
-        nb = pd.DataFrame()
-    try:
-        mc = get_market_cumulative_series(days=days)
-    except Exception:
-        mc = pd.DataFrame()
+    """组装市场强弱宽表：date + 三大指数 + 融资余额 + 北向累计 + 大盘主力累计。
+
+    4 路取数彼此独立，走共享线程池并发（原串行首屏需累加 4 次网络往返，
+    最坏 4×12s；并发后收敛到最慢一路）。单路失败/超时 -> None，退化为空表，
+    不影响其余维度渲染。
+    """
+    from modules.fetch_parallel import fetch_many
+
+    res = fetch_many([
+        ("idx", lambda: get_index_series(days=days)),
+        ("mg", lambda: get_margin_trading_data(days=days)),
+        ("nb", get_northbound_history_series),
+        ("mc", lambda: get_market_cumulative_series(days=days)),
+    ])
+    empty = pd.DataFrame()
+    idx = res.get("idx") if res.get("idx") is not None else empty
+    mg = res.get("mg") if res.get("mg") is not None else empty
+    nb = res.get("nb") if res.get("nb") is not None else empty
+    mc = res.get("mc") if res.get("mc") is not None else empty
 
     frames = []
     if not idx.empty:
@@ -99,8 +101,13 @@ def _watchlist_codes(token: str):
 
 @st.cache_data(ttl=120, show_spinner=False)
 def _watchlist_avg_normalized(codes, start, end, days):
-    """计算自选股收盘价区间归一化均值（起点=100）。防御式：单股失败跳过。"""
+    """计算自选股收盘价区间归一化均值（起点=100）。防御式：单股失败跳过。
+
+    最多 15 只股票的日线取数走共享线程池并发（原逐只串行，15×1~3s 可达 45s，
+    自选股多的用户首屏几乎必然超时）。单只失败/超时 -> None，直接跳过。
+    """
     from modules.fetcher import StockFetcher
+    from modules.fetch_parallel import fetch_many
     try:
         if not codes:
             return None
@@ -110,12 +117,14 @@ def _watchlist_avg_normalized(codes, start, end, days):
             import datetime
             e = datetime.date.today()
             s = (e - datetime.timedelta(days=days))
+        picked = list(codes[:15])
+        raw = fetch_many([
+            (c, (lambda code=c: f.get_daily(code, start=str(s), end=str(e))))
+            for c in picked
+        ])
         normed = []
-        for c in codes[:15]:
-            try:
-                d = f.get_daily(c, start=str(s), end=str(e))
-            except Exception:
-                continue
+        for c in picked:            # 保持原有顺序，结果可复现
+            d = raw.get(c)
             if d is None or d.empty or len(d) < 2:
                 continue
             col = None
