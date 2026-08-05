@@ -592,7 +592,7 @@ def get_market_cumulative_series(days=60):
         out["cumulative"] = out["main_net"].cumsum()
         return out
     # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
-    return _cached(600, f"market_cumulative_{days}", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame())
+    return _cached(600, f"market_cumulative_{days}", lambda: (_r := _run_with_timeout(_fn, 12)) if _r is not None else pd.DataFrame())
 
 
 def plot_market_cumulative(df, dark_mode=False, date_range=None, ma_periods=(),
@@ -728,7 +728,7 @@ def get_industry_index_series(top_n=8, days=120):
             base = base.tail(days).reset_index(drop=True)
         return base
     # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
-    return _cached(1800, f"industry_index_series_{top_n}_{days}", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame())
+    return _cached(1800, f"industry_index_series_{top_n}_{days}", lambda: (_r := _run_with_timeout(_fn, 12)) if _r is not None else pd.DataFrame())
 
 
 # ───────────────────────── 6. ETF 价格趋势（线性表达） ─────────────────────────
@@ -792,7 +792,7 @@ def get_etf_series(days=180):
             base = base.tail(days).reset_index(drop=True)
         return base
     # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
-    return _cached(1800, f"etf_series_{days}", lambda: _run_with_timeout(_fn, 12) or pd.DataFrame())
+    return _cached(1800, f"etf_series_{days}", lambda: (_r := _run_with_timeout(_fn, 12)) if _r is not None else pd.DataFrame())
 
 
 # ───────────────────────── 共享：归一化多线对比（含区间切片 + 均线叠加 + 增强标注） ─────────────────────────

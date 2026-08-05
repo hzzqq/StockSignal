@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 from modules.ui_theme import _theme_is_dark
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.cleaner import DataCleaner
+# K 线图统一交互配置（隐藏工具栏图标、十字光标），与全站规范一致
+from modules.starfield_theme import KLINE_CHART_CONFIG
 # Visualizer 延迟到函数内导入（节省 ~0.95s plotly+matplotlib 链）
 from modules.search_ui import stock_search_input
 from modules.technical import full_analysis as technical_full_analysis
@@ -484,7 +486,8 @@ try:
                                      dragmode=drag_mode,
                                      events=events_df if show_events else None)
         # ── K线双击弹分时 ──
-        _pk_event = st.plotly_chart(fig, width="stretch", key="pick_kline_chart", on_select="rerun")
+        _pk_event = st.plotly_chart(fig, width="stretch", key="pick_kline_chart",
+                                    on_select="rerun", config=KLINE_CHART_CONFIG)
         _pdbl_key = "pick_dblclick"
         _pnow = datetime.now().timestamp()
         _pclick_date = None

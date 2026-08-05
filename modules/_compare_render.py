@@ -12,6 +12,7 @@ import logging
 import re
 
 import numpy as np
+from modules.colors import _hex_to_rgba
 
 logger = logging.getLogger(__name__)
 def _is_dark() -> bool:
@@ -92,18 +93,6 @@ SERIES_COLORS = ["#009e60", "#dc2626", "#4f46e5", "#d97706", "#7c3aed",
 
 
 
-def _hex_to_rgba(hex_color: str, alpha: float) -> str:
-    """把 #rrggbb / #rgb 转成 rgba(r,g,b,a)，供 Plotly fillcolor 使用。
-
-    注：当前 Plotly 版本拒绝 8 位 hex（#rrggbbaa）作为 fillcolor，必须用 rgba。
-    """
-    h = hex_color.lstrip("#")
-    if len(h) == 3:
-        h = "".join(c * 2 for c in h)
-    r = int(h[0:2], 16)
-    g = int(h[2:4], 16)
-    b = int(h[4:6], 16)
-    return f"rgba({r},{g},{b},{alpha})"
 
 
 

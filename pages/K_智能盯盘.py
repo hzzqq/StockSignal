@@ -265,7 +265,8 @@ def fragment_sector():
     try:
         with st.spinner("⏳ 正在加载行业资金流向…"):
             # 套硬边界：代理/上游挂起时最多等 12s，避免本区块无限转圈
-            df = run_with_timeout(get_industry_fund_flow, 12) or pd.DataFrame()
+            _r = run_with_timeout(get_industry_fund_flow, 12)
+            df = _r if _r is not None else pd.DataFrame()
     except Exception as e:
         st.error(f"行业资金流向加载失败：{e}")
         if st.button("🔄 重试", key="btn_sector_retry"):

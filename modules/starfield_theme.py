@@ -307,10 +307,41 @@ def kline_plotly(dates, opens, highs, lows, closes, volumes=None, title="K线"):
         title={"text": title, "font": {"color": "#e2e8f0", "size": 14}},
         xaxis_rangeslider_visible=False,
         yaxis2=dict(overlaying="y", side="right", showgrid=False),
+        hovermode="x",  # 默认开启十字光标：悬停显示垂直引线 + OHLC 数值
         margin=dict(l=40, r=20, t=40, b=30),
         **PLOTLY_DARK,
     )
+    # 十字光标：悬停时在 x/y 轴显示贯穿全图的虚线引线
+    fig.update_xaxes(
+        showspikes=True, spikemode="across", spikedash="dot",
+        spikecolor="#94a3b8", spikethickness=1,
+    )
+    fig.update_yaxes(
+        showspikes=True, spikemode="across", spikedash="dot",
+        spikecolor="#94a3b8", spikethickness=1,
+    )
     return fig
+
+
+# K 线图统一渲染配置：默认隐藏工具栏图标，鼠标悬停时显示可选按钮
+# （区域缩放、平移等），避免遮挡图表；双击/框选交互由页面 on_select 处理。
+KLINE_CHART_CONFIG = {
+    "displayModeBar": "hover",   # 默认隐藏，悬停才显示（即「可选按钮」）
+    "displaylogo": False,
+    "scrollZoom": True,
+    "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+}
+
+
+def st_kline(dates, opens, highs, lows, closes, volumes=None, title="K线", **plotly_chart_kwargs):
+    """渲染 K 线图（默认开启十字光标 + 隐藏工具栏图标）。
+
+    统一入口：页面应优先调用本函数而非 ``st.plotly_chart(kline_plotly(...))``，
+    以保证交互规范（十字光标、工具栏 hover 显示）在全站一致。
+    """
+    import streamlit as st
+    fig = kline_plotly(dates, opens, highs, lows, closes, volumes, title)
+    st.plotly_chart(fig, use_container_width=True, config=KLINE_CHART_CONFIG, **plotly_chart_kwargs)
 
 
 # ---------------------------------------------------------------------------

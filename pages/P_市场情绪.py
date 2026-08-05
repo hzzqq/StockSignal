@@ -21,6 +21,7 @@ from modules.session import get_token, fragment_market_alerts_panel
 from modules.market_drivers import get_market_drivers, DIMS
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
+from modules.colors import _hex_to_rgba
 
 st_autorefresh = import_autorefresh()
 
@@ -61,12 +62,8 @@ def _spark(series, color, dark_mode):
     s = pd.to_numeric(series, errors="coerce").dropna().tail(40)
     if s.empty:
         return None
-    # 将 #rrggbb 转为 rgba(r,g,b,0.13) —— plotly fillcolor 不接受 8 位 hex
-    try:
-        r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
-        fill = f"rgba({r},{g},{b},0.13)"
-    except Exception:
-        fill = "rgba(128,128,128,0.13)"
+    # 统一走 colors._hex_to_rgba，杜绝 8 位 hex fillcolor bug
+    fill = _hex_to_rgba(color, 0.13)
     fig = go.Figure(go.Scatter(
         x=list(range(len(s))), y=s.values, mode="lines",
         line=dict(width=2, color=color),

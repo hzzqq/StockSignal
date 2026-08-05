@@ -30,6 +30,7 @@ from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs
 # ──────────────────────────────────────────────────────────────
 
 from modules._widgets_base import STAR_AI_LOGO, _INDEX_INFOS  # P2 拆分后常量与 logo 均在 _widgets_base
+from modules.colors import _hex_to_rgba
 
 
 def _index_market_status():
@@ -45,20 +46,6 @@ def _index_market_status():
     if sess in ("morning", "afternoon"):
         return True, "🟢 交易中", 60 * 1000
     return False, "⚪ 已休市", 0
-
-def _hex_to_rgba(hex_color: str, alpha: float) -> str:
-    """Plotly 不接受 #RRGGBBAA，转 rgba。
-
-    None/空/非法色安全降级为透明黑，不再抛 ValueError（R2：不崩溃）。
-    """
-    if not hex_color:
-        return f"rgba(0,0,0,{alpha})"
-    h = str(hex_color).lstrip("#")
-    try:
-        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-    except (ValueError, TypeError, IndexError):
-        return f"rgba(0,0,0,{alpha})"
-    return f"rgba({r},{g},{b},{alpha})"
 
 def _index_name_html(name, color: str = "#111827", size_px: int = 17) -> str:
     """纯函数：把数据派生的指数名称渲染为安全内联 HTML（转义防注入，R2）。

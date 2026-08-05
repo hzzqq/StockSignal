@@ -19,3 +19,25 @@ AMBER = "#d97706"    # 中性 / 持有
 UP_COLOR = "#ff4d4f"    # 涨 · 红
 DOWN_COLOR = "#00d486"  # 跌 · 绿
 HOLD_COLOR = "#ffa502"  # 持有 / 中性
+
+
+def hex_to_rgba(hex_color: str, alpha: float) -> str:
+    """把 #rrggbb / #rgb 转成 rgba(r,g,b,a)，供 Plotly fillcolor 使用。
+
+    统一入口：避免各模块手写 ``color + "22"`` 生成 8 位 hex
+    （Plotly scatter 的 fillcolor 拒绝 8 位 hex，曾导致市场情绪页 9 个
+    卡片全部 ValueError 崩溃）。任何需要半透明填充的地方都用本函数。
+    """
+    if not hex_color:
+        return f"rgba(0,0,0,{alpha})"
+    h = str(hex_color).lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    r = int(h[0:2], 16)
+    g = int(h[2:4], 16)
+    b = int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+# 兼容旧调用点（部分模块曾用下划线前缀命名）
+_hex_to_rgba = hex_to_rgba

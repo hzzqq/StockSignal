@@ -520,39 +520,64 @@ def _src_pe(days):
 
 @_retry()
 def _src_div(days):
-    """股息率（主源 legu，降级到东方财富指数估值）。"""
-    import akshare as ak
-    # 主源：legu
-    try:
-        df = ak.stock_market_pe_lg()
-        if df is not None and not df.empty:
-            col = _col(df, "股息", "dividend", "yield")
-            if col is not None:
-                s = pd.to_numeric(df[col], errors="coerce")
-                s.index = _pdate(df[_col(df, "日期", "date", "时间")])
-                s = s.dropna()
-                if not s.empty:
-                    return [("div_yield", "股息率", s)]
-    except Exception:  # noqa
-        pass
+    """股息率（主源 legu，降级到上证指数 / 东方财富全 A 股息率中位数）。
 
-    # 降级：上证指数股息率
-    try:
-        df = ak.stock_index_pe_lg(symbol="上证指数")
-        if df is not None and not df.empty:
-            col = _col(df, "股息率", "dividend_yield", "股息", "yield")
-            if col:
-                s = pd.to_numeric(df[col], errors="coerce")
-                dt_col = _col(df, "日期", "date", "时间")
-                if dt_col:
-                    s.index = _pdate(df[dt_col])
+    用模块级短缓存（600s）避免每次刷新都重拉全 A 快照
+    （spot_em 全量拉取较慢，沙箱 / 弱网下尤甚），与 _src_activity 一致。
+    """
+    import akshare as ak
+
+    def _compute():
+        # 主源：legu
+        try:
+            df = ak.stock_market_pe_lg()
+            if df is not None and not df.empty:
+                col = _col(df, "股息", "dividend", "yield")
+                if col is not None:
+                    s = pd.to_numeric(df[col], errors="coerce")
+                    s.index = _pdate(df[_col(df, "日期", "date", "时间")])
                     s = s.dropna()
                     if not s.empty:
-                        return [("div_yield", "股息率(上证)", s)]
-    except Exception:  # noqa
-        pass
+                        return [("div_yield", "股息率", s)]
+        except Exception:  # noqa
+            pass
 
-    return []
+        # 降级：上证指数股息率
+        try:
+            df = ak.stock_index_pe_lg(symbol="上证指数")
+            if df is not None and not df.empty:
+                col = _col(df, "股息率", "dividend_yield", "股息", "yield")
+                if col:
+                    s = pd.to_numeric(df[col], errors="coerce")
+                    dt_col = _col(df, "日期", "date", "时间")
+                    if dt_col:
+                        s.index = _pdate(df[dt_col])
+                        s = s.dropna()
+                        if not s.empty:
+                            return [("div_yield", "股息率(上证)", s)]
+        except Exception:  # noqa
+            pass
+
+        # 最终降级：东方财富全 A 股息率列（市场整体股息率中位数，当日值）。
+        # 用硬超时包住，避免沙箱/弱网下 spot_em 全 A 拉取卡死 UI；超时则优雅降级。
+        try:
+            df = _run_with_timeout(lambda: ak.stock_zh_a_spot_em(), 10)
+            if df is not None and not df.empty:
+                col = _col(df, "股息率", "股息率TTM", "yield")
+                if col:
+                    vals = pd.to_numeric(df[col], errors="coerce").dropna()
+                    vals = vals[vals > 0]
+                    if not vals.empty:
+                        med = float(vals.median())
+                        now = pd.Timestamp.now().normalize()
+                        s = pd.Series([med], index=[now])
+                        return [("div_yield", "股息率(全A中位%)", s)]
+        except Exception:  # noqa
+            pass
+
+        return []
+
+    return _cached(600, "div_rows", _compute)
 
 
 @_retry()

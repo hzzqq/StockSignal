@@ -609,7 +609,11 @@ def _render_analysis(R: dict):
         )
         # ── K线图 + 双击弹分时 ──
         _kline_key = f"kline_chart_{ticker}"
-        _kline_event = st.plotly_chart(fig, use_container_width=True, key=_kline_key, on_select="rerun")
+        _kline_event = st.plotly_chart(
+            fig, use_container_width=True, key=_kline_key, on_select="rerun",
+            config={"displayModeBar": "hover", "displaylogo": False, "scrollZoom": True,
+                    "modeBarButtonsToRemove": ["lasso2d", "select2d"]},
+        )
 
         # 双击检测：同一根K线在 500ms 内被点两次 → 弹出该日分时
         _dbl_key = f"kline_dbl_{ticker}"

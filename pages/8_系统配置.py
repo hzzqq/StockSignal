@@ -148,7 +148,9 @@ with tab_config:
                     cfg_key = cfg.get("key", "")
                     col_key, col_val, col_desc, col_action = st.columns([2, 2, 2, 1])
                     with col_key:
-                        label = CONFIG_LABELS.get(cfg_key, cfg_key)
+                        # 仅显示中文可读名称；未知 key 用「自定义配置」兜底，
+                        # 不再直接暴露代码 key（用户要求：只显示中文名称）。
+                        label = CONFIG_LABELS.get(cfg_key, "自定义配置")
                         st.markdown(f"**{label}**")
                         st.caption(f"更新: {cfg.get('updated_at', 'N/A')[:10] if cfg.get('updated_at') else 'N/A'}")
                     with col_val:
