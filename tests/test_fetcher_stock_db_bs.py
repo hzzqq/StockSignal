@@ -62,3 +62,20 @@ def test_ensure_stock_db_loads_from_baostock_when_available(monkeypatch):
     # 修复前 NameError 被吞 -> 永远 0 条；修复后真正从 bs 取到 2 条
     assert len(result) == 2
     assert set(result["code"]) == {"600519", "000001"}
+
+
+def test_is_bs_available_reads_fetcher_switch_lazily(monkeypatch):
+    """R75 锁定：_is_bs_available() 必须延迟读 fetcher._BS_OK，不缓存值拷贝。
+
+    背景：_feed_io._is_bs_available 若在导入时 `from modules.fetcher import _BS_OK`
+    值拷贝，monkeypatch.setattr(fetcher, "_BS_OK", ...) 将失效，测试无法模拟
+    "BaoStock 未安装" 场景（曾出现过 re-export 值拷贝坑）。
+    """
+    import modules._feed_io as feed_io
+    import modules.fetcher as fetcher_mod
+
+    monkeypatch.setattr(fetcher_mod, "_BS_OK", True)
+    assert feed_io._is_bs_available() is True
+
+    monkeypatch.setattr(fetcher_mod, "_BS_OK", False)
+    assert feed_io._is_bs_available() is False

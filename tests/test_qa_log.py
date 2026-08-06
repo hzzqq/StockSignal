@@ -28,11 +28,18 @@ _sa = types.ModuleType("streamlit_autorefresh")
 sys.modules.setdefault("streamlit_autorefresh", _sa)
 
 # colors 等页面依赖的模块桩成最小实现（page_guard 允许真实导入，streamlit 已桩）
-_colors = types.ModuleType("modules.colors")
-_colors.UP_COLOR = "#e04848"
-_colors.DOWN_COLOR = "#19b36b"
-_colors.AMBER = "#d97706"
-sys.modules.setdefault("modules.colors", _colors)
+# R76 修复：先尝试真实导入 colors——若可用则让真实模块占位，桩不生效，
+# 避免 test_qa_log 在按字母序早于真实 colors 导入时注入 stub 且永不还原
+# （顺序性污染：后续测试 import modules.colors 拿到残缺桩）。仅当 colors
+# 不可导入（如离线裁剪环境）才注入桩。
+try:
+    import modules.colors as _real_colors  # noqa: F401  确保真实模块占位
+except Exception:
+    _colors = types.ModuleType("modules.colors")
+    _colors.UP_COLOR = "#e04848"
+    _colors.DOWN_COLOR = "#19b36b"
+    _colors.AMBER = "#d97706"
+    sys.modules.setdefault("modules.colors", _colors)
 
 
 def _load_page_module():
