@@ -84,3 +84,16 @@ def test_clean_input_still_works():
     assert out["return_1d"].iloc[-1] == pytest.approx(100.0 * (12 - 11) / 11)
     # 默认均线窗口 5/10/20/60 均已生成（3 行数据下值全为 NaN 但列存在）
     assert all(f"ma{w}" in out.columns for w in (5, 10, 20, 60))
+
+
+def test_full_pipeline_none_and_empty_safe():
+    """R82 回归：full_pipeline 对 None/空 DF/缺 close 列原样返回，不抛异常。
+
+    此前 None 传进来 df.copy() AttributeError、空 DF calc_returns KeyError('close')，
+    多数调用方靠 try/except 或前置守卫兜底；作为公共管线入口应自保
+    （B_形态选股等曾依赖吞异常降级，属隐性契约）。
+    """
+    assert DataCleaner.full_pipeline(None) is None
+    assert DataCleaner.full_pipeline(pd.DataFrame()).empty
+    miss = DataCleaner.full_pipeline(pd.DataFrame({"date": ["2024-01-01"]}))
+    assert "date" in miss.columns and "close" not in miss.columns

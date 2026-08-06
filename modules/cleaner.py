@@ -169,7 +169,17 @@ class DataCleaner:
 
     @staticmethod
     def full_pipeline(df):
-        """一键清洗：缺失值填充 + 异常值处理 + 收益率 + 均线。"""
+        """一键清洗：缺失值填充 + 异常值处理 + 收益率 + 均线。
+
+        R82 防御增强：None / 空 DataFrame / 缺 close 列直接原样返回（不抛异常），
+        由调用方判断兜底——此前 None 传进来会 ``df.copy()`` AttributeError、
+        空 DF 在 calc_returns 里 KeyError('close')，虽然多数调用方有 try/except
+        或前置守卫，但作为公共管线入口应自保（B_形态选股等曾依赖吞异常降级）。
+        """
+        if df is None or not isinstance(df, pd.DataFrame):
+            return df
+        if df.empty or "close" not in df.columns:
+            return df
         df = df.copy()
         # ══ 加法式健壮性（c41）：OHLCV 列强制数值化，脏值（'x'/'n/a'/空串/None）
         # 转为 NaN 而非保留 object dtype。否则后续 pct_change/rolling 除法会抛
