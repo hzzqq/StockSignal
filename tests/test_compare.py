@@ -273,3 +273,18 @@ def test_render_partial_scores_does_not_crash():
     assert isinstance(C.build_one_line(rows), str)
     assert isinstance(C.build_table(rows), str)
     assert isinstance(C.build_vs_cards(rows), str)
+
+
+def test_fetch_compare_empty_codes_returns_empty_list():
+    """R83 回归：空输入直接返回 []，不抛 ValueError。
+
+    此前 ThreadPoolExecutor(max_workers=min(len(codes),4)) 在空列表时
+    max_workers=0 抛 ValueError("max_workers must be greater than 0")，
+    对比页清空股票列表会白屏。
+    """
+    from modules.compare import fetch_compare
+
+    assert fetch_compare([]) == []
+    # 全空元素列表：被 zfill(6) 变 000000 属历史兼容行为（不在此测试范围），
+    # 但至少不应抛 ValueError（仍会构建 1 个 worker 的池）
+    assert isinstance(fetch_compare(["", None]), list)

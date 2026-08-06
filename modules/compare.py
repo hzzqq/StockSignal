@@ -41,6 +41,10 @@ def fetch_compare(codes: List[str], period_days: int = 120) -> List[Dict[str, An
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     codes = [str(c).strip().zfill(6) for c in codes if c]
+    if not codes:
+        # R83：空/全空输入直接返回空列表——此前 ThreadPoolExecutor(max_workers=0)
+        # 抛 ValueError("max_workers must be greater than 0")，对比页清空列表会白屏。
+        return []
     rows: List[Dict[str, Any]] = [None] * len(codes)
     with ThreadPoolExecutor(max_workers=min(len(codes), 4)) as ex:
         future_to_idx = {
