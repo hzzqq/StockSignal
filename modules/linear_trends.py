@@ -27,6 +27,7 @@ from modules.fundflow import (
     _retry_with_backoff,
     _run_with_timeout,
 )
+from modules.fetch_parallel import fetch_many  # R78：共享有界线程池并行取数
 from modules.fetcher import StockFetcher
 
 _logger = logging.getLogger(__name__)
@@ -479,20 +480,23 @@ def get_index_series(days=180):
     """
     def _fn():
         try:
-            # 并行抓取 3 个指数，替代串行 3×(2-5s)
-            import concurrent.futures as _cf
-            with _cf.ThreadPoolExecutor(max_workers=3) as ex:
-                futs = {ex.submit(_fetch_index, s): s for s in ("sh000001", "sz399001", "sz399006")}
-                results = {}
-                for fut in _cf.as_completed(futs):
-                    try:
-                        results[futs[fut]] = fut.result()
-                    except Exception as e:
-                        _logger.warning(f"[linear_trends] 处理异常: {e}")
-                        results[futs[fut]] = pd.DataFrame()
-            idx000001 = results.get("sh000001", pd.DataFrame())
-            idx399001 = results.get("sz399001", pd.DataFrame())
-            idx399006 = results.get("sz399006", pd.DataFrame())
+            # 并行抓取 3 个指数，替代串行 3×(2-5s)；R78 起走共享有界线程池
+            res = fetch_many(
+                [
+                    ("sh000001", lambda: _fetch_index("sh000001")),
+                    ("sz399001", lambda: _fetch_index("sz399001")),
+                    ("sz399006", lambda: _fetch_index("sz399006")),
+                ],
+                max_workers=3,
+                timeout=10,
+            )
+            idx000001 = res.get("sh000001")
+            idx399001 = res.get("sz399001")
+            idx399006 = res.get("sz399006")
+            # fetch_many 超时/异常项为 None；空 DataFrame 是合法值，不能 or
+            idx000001 = idx000001 if idx000001 is not None else pd.DataFrame()
+            idx399001 = idx399001 if idx399001 is not None else pd.DataFrame()
+            idx399006 = idx399006 if idx399006 is not None else pd.DataFrame()
         except Exception as e:
             _logger.warning(f"get_index_series 获取失败：{e}")
             return pd.DataFrame()

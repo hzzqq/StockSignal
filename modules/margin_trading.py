@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 # 注意：代理/SSL 探测改为「首次真实网络请求前惰性执行」（见 _retry 包裹器），
 # 绝不在模块导入期同步跑 socket 探测（否则会阻塞所有 import 本模块的页面）。
 from modules.fundflow import _ensure_proxy_and_ssl, _run_with_timeout
+from modules.fetch_parallel import fetch_many  # R78：共享有界线程池并行取数
 from modules.linear_trends import get_northbound_history_series
 
 # 简易 TTL 缓存
@@ -151,35 +152,29 @@ def get_margin_trading_data(days=180):
     """
     def _fetch_all():
         # 并行抓取 5 个独立数据源（沪/深融资 + 3 指数），替代原来串行 10-25s
-        import concurrent.futures as _cf
-        results = {}
+        # R78 起走共享有界线程池 fetch_many，不再每次新建 ThreadPoolExecutor
         t0 = time.perf_counter()
-        per_src = {}
-        with _cf.ThreadPoolExecutor(max_workers=5) as ex:
-            futs = {
-                ex.submit(_fetch_margin_sh): "sh",
-                ex.submit(_fetch_margin_sz): "sz",
-                ex.submit(_fetch_index, "sh000001"): "idx000001",
-                ex.submit(_fetch_index, "sz399001"): "idx399001",
-                ex.submit(_fetch_index, "sz399006"): "idx399006",
-            }
-            for fut in _cf.as_completed(futs):
-                key = futs[fut]
-                ts = time.perf_counter()
-                try:
-                    results[key] = fut.result()
-                except Exception as e:
-                    logger.warning(f"[margin_trading] 处理异常: {e}")
-                    results[key] = pd.DataFrame()
-                per_src[key] = time.perf_counter() - ts
+        res = fetch_many(
+            [
+                ("sh", _fetch_margin_sh),
+                ("sz", _fetch_margin_sz),
+                ("idx000001", lambda: _fetch_index("sh000001")),
+                ("idx399001", lambda: _fetch_index("sz399001")),
+                ("idx399006", lambda: _fetch_index("sz399006")),
+            ],
+            max_workers=5,
+            timeout=20,
+        )
         logger.info(
-            "[margin] 融资融券并行抓取完成，总耗时 %.2fs；各源耗时: %s",
+            "[margin] 融资融券并行抓取完成，总耗时 %.2fs",
             time.perf_counter() - t0,
-            {k: round(v, 2) for k, v in per_src.items()},
         )
 
-        sh = results.get("sh", pd.DataFrame())
-        sz = results.get("sz", pd.DataFrame())
+        # fetch_many 超时/异常项为 None；空 DataFrame 是合法值，不能 or（会触发歧义）
+        sh = res.get("sh")
+        sz = res.get("sz")
+        sh = sh if sh is not None else pd.DataFrame()
+        sz = sz if sz is not None else pd.DataFrame()
         if sh.empty and sz.empty:
             return pd.DataFrame()
         if sh.empty:
