@@ -15,6 +15,7 @@ from modules.technical import (
     _momentum_label,
     analyze_momentum,
     analyze_trend,
+    full_analysis,
 )
 
 
@@ -110,3 +111,39 @@ class TestAnalyzeTrend:
 
     def test_none_error(self):
         assert analyze_trend(None) == {"error": "数据为空"}
+
+
+class TestFullAnalysisContract:
+    """R81 契约：full_analysis 返回类型必须统一，页面消费方依赖。
+
+    消费方（pages/1_股票选取.py 等）用 ``if "error" not in trend`` 判断，
+    隐含约定 trend/momentum/volume 必为 dict、patterns 必为 list——
+    若某子分析漂移为 None/str 会直接 TypeError（"error" not in None）或
+    误走正常分支（字符串 in 检查）。本测试锁定四种输入下的类型契约。
+    """
+
+    def _assert_contract(self, result):
+        for k in ("trend", "momentum", "volume"):
+            assert isinstance(result[k], dict), f"{k} 必须是 dict，实际 {type(result[k]).__name__}"
+        assert isinstance(result["patterns"], list), "patterns 必须是 list"
+
+    def test_empty_df_contract(self):
+        self._assert_contract(full_analysis(pd.DataFrame()))
+        # 空数据时子分析应给 error 键（消费方据此降级展示）
+        assert "error" in full_analysis(pd.DataFrame())["volume"]
+
+    def test_incomplete_df_contract(self):
+        # 只有 date/close 的残缺 DF：各子分析仍返回 dict（不崩、不漂移）
+        df = pd.DataFrame({"date": ["2024-01-01", "2024-01-02"], "close": [1.0, 2.0]})
+        self._assert_contract(full_analysis(df))
+
+    def test_minimal_rows_contract(self):
+        df = pd.DataFrame({
+            "date": pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]),
+            "open": [1, 2, 3], "high": [2, 3, 4], "low": [0.5, 1, 2],
+            "close": [1.5, 2.5, 3.5], "volume": [100, 200, 300],
+        })
+        self._assert_contract(full_analysis(df))
+
+    def test_none_df_contract(self):
+        self._assert_contract(full_analysis(None))
