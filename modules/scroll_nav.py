@@ -35,6 +35,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
+import json  # R79：bottom_marker 经 json.dumps 转义进 JS 字符串，防引号/反斜杠注入
 import logging
 
 logger = logging.getLogger(__name__)
@@ -141,12 +142,12 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom, bot
         new MutationObserver(function(){ setTimeout(tupdate, 100); }).observe(P.document.body, {childList:true, subtree:true});
       }
     }
-    // ▼ 回到底部（由页面标记元素 __BOTTOM_MARKER__ 的存在性驱动）
+    // ▼ 回到底部（由页面标记元素 __BOTTOM_MARKER_SEL__ 的存在性驱动）
     // 说明：Streamlit 1.58 为客户端路由，window.location.pathname 恒为 "/"，
     // 无法用 URL 区分页面；故由星辰 AI 对话页用 st.markdown 渲染一个隐藏标记元素，
     // 本脚本监听该标记出现即创建 ▼、消失即移除，确保 ▼ 仅在该页出现。
     // （本脚本位于每页唯一可靠执行的首次 components.html 注入中，无需二次调用。）
-    if (__SHOW_BOTTOM__ && '__BOTTOM_MARKER__' !== '') {
+    if (__SHOW_BOTTOM__ && __BOTTOM_MARKER_JS__ !== '') {
       var bbtn = null;
       function createBottomBtn(){
         var broot = P.document.getElementById('sfChatBottomRoot');
@@ -166,7 +167,7 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom, bot
         if (distBottom > __BTH__) bbtn.classList.add('visible'); else bbtn.classList.remove('visible');
       }
       function syncBottom(){
-        var m = P.document.querySelector('[data-testid="__BOTTOM_MARKER__"]');
+        var m = P.document.querySelector('[data-testid="__BOTTOM_MARKER_SEL__"]');
         var cur = P.document.getElementById('sfChatBottomBtn');
         if (m && !cur) { createBottomBtn(); bupdate(); }
         else if (!m && cur && cur.__xcAuto) { if (cur.parentElement) cur.parentElement.remove(); }
@@ -203,12 +204,17 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom, bot
 })();
 </script>
 """
+    # R79：两上下文分别转义——JS 字符串比较用 json.dumps（引号/反斜杠安全）；
+    # CSS 属性选择器内转义双引号（避免 json.dumps 的双引号破坏选择器语法）。
+    marker_js = json.dumps(bottom_marker or "")
+    marker_sel = (bottom_marker or "").replace('"', '\\"')
     body = (body.replace("__SHOW_TOP__", show_top_js)
                  .replace("__SHOW_BOTTOM__", show_bottom_js)
                  .replace("__THRESH__", str(threshold_px))
                  .replace("__BTH__", str(bottom_threshold))
                  .replace("__CLS__", cls)
-                 .replace("__BOTTOM_MARKER__", bottom_marker))
+                 .replace("__BOTTOM_MARKER_JS__", marker_js)
+                 .replace("__BOTTOM_MARKER_SEL__", marker_sel))
     return body
 
 

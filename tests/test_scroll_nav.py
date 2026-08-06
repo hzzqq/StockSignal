@@ -30,14 +30,15 @@ PLACEHOLDERS = (
     "__THRESH__",
     "__BTH__",
     "__CLS__",
-    "__BOTTOM_MARKER__",
+    "__BOTTOM_MARKER_JS__",
+    "__BOTTOM_MARKER_SEL__",
 )
 
 
 def test_nav_script_replaces_all_placeholders():
     body = sn._nav_script(
         dark=True, threshold_px=300, bottom_threshold=150,
-        show_top=True, show_bottom=False, bottom_marker="stChatInput",
+        show_top=True, show_bottom=True, bottom_marker="stChatInput",
     )
     for ph in PLACEHOLDERS:
         assert ph not in body, f"占位符 {ph} 未被替换"
@@ -45,7 +46,7 @@ def test_nav_script_replaces_all_placeholders():
     assert "sf-scroll-bottom-float dark" in body
     # 阈值已落地为数字字面量
     assert "300" in body and "150" in body
-    # bottom_marker 驱动的选择器
+    # bottom_marker 驱动的选择器（R79：json.dumps 转义，仍保留双引号字面量）
     assert '[data-testid="stChatInput"]' in body
     # ▲ 启用：show_top=True -> if (true)
     assert "if (true)" in body
@@ -138,5 +139,25 @@ def test_nav_script_show_bottom_gate():
         dark=True, threshold_px=300, bottom_threshold=150,
         show_top=True, show_bottom=True, bottom_marker="stChatInput",
     )
+    # R79：json.dumps 转义后，空 marker 变为合法的 JS 空字符串字面量（'""'）
+    assert 'if (true &&' in body_on
     assert "if (true &&" in body_on, "show_bottom=True 应启用 ▼ 按钮块"
     assert '[data-testid="stChatInput"]' in body_on
+
+
+def test_nav_script_escapes_malicious_marker():
+    """R79 回归：恶意 marker（含引号/反斜杠）不得破坏 JS 或 CSS 选择器语法。
+
+    - JS 字符串比较上下文：json.dumps 转义，引号被编码为 \\\"，脚本仍合法；
+    - CSS 选择器上下文：双引号转义为 \\\"，选择器不提前闭合。
+    """
+    evil = 'x"y\z'
+    body = sn._nav_script(
+        dark=True, threshold_px=300, bottom_threshold=150,
+        show_top=False, show_bottom=True, bottom_marker=evil,
+    )
+    # JS 上下文：转义后的双引号不得以裸 " 形式中断字符串（出现在脚本体内应为 \"）
+    # 且原始 evil 作为连续 token 不应整体残留（被编码拆分）
+    assert 'x"y' not in body
+    # CSS 选择器上下文：转义双引号
+    assert '[data-testid="x\\"y\\z"]' in body
