@@ -41,17 +41,23 @@ def _cached(ttl, key, fn, skip_empty=False):
 
     skip_empty=True 时不缓存空结果（None / 空 DataFrame），避免把网络瞬时
     失败的结果缓存一整个 TTL，导致页面长时间空白。
+
+    R86 double-check：fn() 在锁**外**执行——此前 fn() 在 _MARGIN_CACHE_LOCK 内，
+    一路慢速网络调用会串行化所有键的缓存访问；改为锁内快速读（miss 即释放）、
+    锁外执行 fn、锁内写回（与 fundflow._cached 的 R85 改造一致）。
     """
     now = time.time()
     with _MARGIN_CACHE_LOCK:
         hit = _MARGIN_CACHE.get(key)
         if hit and (now - hit[0]) < ttl:
             return hit[1]
-        val = fn()
-        empty = val is None or (isinstance(val, pd.DataFrame) and val.empty)
-        if not (skip_empty and empty):
-            _MARGIN_CACHE[key] = (now, val)
-        return val
+    # 锁外执行昂贵取数：不阻塞其他键的缓存访问
+    val = fn()
+    empty = val is None or (isinstance(val, pd.DataFrame) and val.empty)
+    if not (skip_empty and empty):
+        with _MARGIN_CACHE_LOCK:
+            _MARGIN_CACHE[key] = (time.time(), val)
+    return val
 
 
 def _retry(max_retries=3, base_delay=1.0):
