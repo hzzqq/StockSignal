@@ -460,9 +460,11 @@ def get_individual_fund_flow(code, use_estimate_fallback=True, timeout=12.0):
     失败则用日线量价模型估算主力净流入（标注 估算）。
     返回 dict: {source, main_net(元), main_net_pct, big_net, super_net, latest_date}
 
-    强边界：整体用 _run_with_timeout 包 20s 硬超时。akshare 个股接口在本机代理下
-    常挂起（底层 requests 不设 timeout），若无此边界会导致调用方（盯盘页并行抓全自选股）
-    一直转圈「卡住」。超时/异常一律返回 source='none'，由 UI 优雅降级。
+    强边界：整体用 _run_with_timeout 包 timeout 硬超时（默认 12s，与全局
+    CALL_TIMEOUT_CAP 一致；底层网络超时 10s 恒小于边界，线程回池不泄漏）。
+    akshare 个股接口在本机代理下常挂起（底层 requests 不设 timeout），若无此
+    边界会导致调用方（盯盘页并行抓全自选股）一直转圈「卡住」。超时/异常一律
+    返回 source='none'，由 UI 优雅降级。
     """
     def _compute():
         real = _real(code)
