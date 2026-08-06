@@ -81,6 +81,10 @@ def _load_safe_title_html():
     # 临时命名空间：仅桩入完整 streamlit 与页面所需 modules.* 子桩
     sys.modules["streamlit"] = _build_streamlit_stub()
     _mods = _make_module("modules")
+    # 关键：给假 modules 一个 __path__ 指向真实目录，使其成为命名空间包，
+    # 未显式桩入的子模块（如 page_utils）才能正常解析；否则会出现
+    # "modules is not a package" 收集错误，导致本测试整体无法运行。
+    _mods.__path__ = [os.path.join(root, "modules")]
     sys.modules["modules"] = _mods
     sys.modules["modules.ui_theme"] = _make_module(
         "modules.ui_theme",
