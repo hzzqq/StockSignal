@@ -201,7 +201,7 @@ def get_margin_trading_data(days=180):
 
         # 合并三大指数（已在并行阶段获取）
         for idx_key in ("idx000001", "idx399001", "idx399006"):
-            idx_df = results.get(idx_key, pd.DataFrame())
+            idx_df = res.get(idx_key, pd.DataFrame())
             if not idx_df.empty:
                 df = df.merge(idx_df, on="日期", how="left")
 

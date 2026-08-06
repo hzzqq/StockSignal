@@ -520,10 +520,15 @@ def _src_pe(days):
 
 @_retry()
 def _src_div(days):
-    """股息率（主源 legu，降级到上证指数 / 东方财富全 A 股息率中位数）。
+    """股息率（主源 legu，降级到沪深 300 / 东方财富全 A / 申万行业聚合）。
 
     用模块级短缓存（600s）避免每次刷新都重拉全 A 快照
     （spot_em 全量拉取较慢，沙箱 / 弱网下尤甚），与 _src_activity 一致。
+
+    R89：原第 2 路用 symbol="上证指数" 触发 KeyError（legu 不支持该中文名，
+    仅接受其映射表内的 12 个指数名：沪深300/上证50/中证500/创业板50 等），
+    现改用 "沪深300"；并新增第 4 路申万行业静态股息率聚合（sw_index_third_info
+    国内可达，335 个三级行业静态股息率中位数 ~1.67% 与全市场量级一致）。
     """
     import akshare as ak
 
@@ -542,9 +547,10 @@ def _src_div(days):
         except Exception:  # noqa
             pass
 
-        # 降级：上证指数股息率
+        # 降级：legu 沪深 300 股息率（legu 不接受"上证指数"作为 symbol，
+        # 仅支持其映射表内的 12 个中文指数名，必须用其一）
         try:
-            df = ak.stock_index_pe_lg(symbol="上证指数")
+            df = ak.stock_index_pe_lg(symbol="沪深300")
             if df is not None and not df.empty:
                 col = _col(df, "股息率", "dividend_yield", "股息", "yield")
                 if col:
@@ -554,7 +560,7 @@ def _src_div(days):
                         s.index = _pdate(df[dt_col])
                         s = s.dropna()
                         if not s.empty:
-                            return [("div_yield", "股息率(上证)", s)]
+                            return [("div_yield", "股息率(沪深300)", s)]
         except Exception:  # noqa
             pass
 
@@ -572,6 +578,24 @@ def _src_div(days):
                         now = pd.Timestamp.now().normalize()
                         s = pd.Series([med], index=[now])
                         return [("div_yield", "股息率(全A中位%)", s)]
+        except Exception:  # noqa
+            pass
+
+        # R89 新增第 4 路：申万三级行业静态股息率聚合（国内可达，无 legu 依赖）。
+        # 335 个三级行业的「静态股息率」中位数 ≈ 1.67%，与全市场股息率量级一致，
+        # 作为全 legu 主路/spot_em 都不可用时的兜底。仅当前快照值（无历史时间序列），
+        # 用单点 + 当前日期构造 Series，使页面能渲染卡片（sparkline 自然空）。
+        try:
+            df = ak.sw_index_third_info()
+            if df is not None and not df.empty and "静态股息率" in df.columns:
+                raw = df["静态股息率"].astype(str).str.replace("%", "", regex=False)
+                vals = pd.to_numeric(raw, errors="coerce").dropna()
+                vals = vals[vals > 0]
+                if not vals.empty:
+                    med = float(vals.median())
+                    now = pd.Timestamp.now().normalize()
+                    s = pd.Series([med], index=[now])
+                    return [("div_yield", "股息率(申万行业中位%)", s)]
         except Exception:  # noqa
             pass
 
