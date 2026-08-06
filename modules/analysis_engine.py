@@ -321,16 +321,25 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
             messages.append(f"行情获取失败：{str(e)[:80]}")
             return pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
 
-    _fundamentals, _kws, _rt, _raw_df = {}, "", None, pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
-    with ThreadPoolExecutor(max_workers=4) as _ex:
-        _f1 = _ex.submit(_fetch_fund)
-        _f2 = _ex.submit(_fetch_kws)
-        _f3 = _ex.submit(_fetch_rt)
-        _f4 = _ex.submit(_fetch_daily)
-        _fundamentals = _f1.result()
-        _kws = _f2.result()
-        _rt = _f3.result()
-        _raw_df = _f4.result()
+    # R88：改用共享有界线程池 fetch_many（4 个 fetch 均已内部 try/except 兜底，
+    # 异常项 fetch_many 置 None 不影响语义；消除每次调用新建 ThreadPoolExecutor）
+    from modules.fetch_parallel import fetch_many
+    _batch = fetch_many(
+        [
+            ("fund", _fetch_fund),
+            ("kws", _fetch_kws),
+            ("rt", _fetch_rt),
+            ("daily", _fetch_daily),
+        ],
+        max_workers=4,
+        # timeout 不传：默认 CALL_TIMEOUT_CAP(12)，恒 > 底层网络超时(10)，线程回池不泄漏
+    )
+    _fundamentals = _batch.get("fund") or {}
+    _kws = _batch.get("kws") or ""
+    _rt = _batch.get("rt")
+    _raw_df = _batch.get("daily") if _batch.get("daily") is not None else pd.DataFrame(
+        columns=["date", "open", "high", "low", "close", "volume"]
+    )
 
     fundamentals = _fundamentals
     industry = (fundamentals.get("industry") or "").strip() or "—"
