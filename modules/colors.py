@@ -33,9 +33,13 @@ def hex_to_rgba(hex_color: str, alpha: float) -> str:
     h = str(hex_color).lstrip("#")
     if len(h) == 3:
         h = "".join(c * 2 for c in h)
-    r = int(h[0:2], 16)
-    g = int(h[2:4], 16)
-    b = int(h[4:6], 16)
+    try:
+        r = int(h[0:2], 16)
+        g = int(h[2:4], 16)
+        b = int(h[4:6], 16)
+    except (ValueError, IndexError):
+        # 非法 hex（如 "not-a-color" / 长度不足）：安全兜底为透明黑，避免调用点 ValueError 崩溃
+        return f"rgba(0,0,0,{alpha})"
     return f"rgba({r},{g},{b},{alpha})"
 
 

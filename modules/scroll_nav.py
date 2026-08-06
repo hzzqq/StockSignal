@@ -146,7 +146,7 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom, bot
     // 无法用 URL 区分页面；故由星辰 AI 对话页用 st.markdown 渲染一个隐藏标记元素，
     // 本脚本监听该标记出现即创建 ▼、消失即移除，确保 ▼ 仅在该页出现。
     // （本脚本位于每页唯一可靠执行的首次 components.html 注入中，无需二次调用。）
-    if ('__BOTTOM_MARKER__' !== '') {
+    if (__SHOW_BOTTOM__ && '__BOTTOM_MARKER__' !== '') {
       var bbtn = null;
       function createBottomBtn(){
         var broot = P.document.getElementById('sfChatBottomRoot');
@@ -224,7 +224,7 @@ def inject_scroll_nav(
 
     参数：
       show_top         -- 启用 ▲ 回到顶部（默认全局启用）
-      show_bottom      -- 显式启用 ▼ 回到底部
+      show_bottom      -- 显式启用 ▼ 回到底部（须配合 bottom_marker 指定页面标记；两者皆满足才创建）
       threshold_px     -- ▲ 显隐阈值：向下滚超此值显现
       bottom_threshold -- ▼ 显隐阈值：距底大于此值才显现
       dark             -- 是否暗色（影响 ▼ 配色）

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 
 # A股配色：净流入红、净流出绿（复用 modules.colors 权威调色板，消除色值漂移）
 from modules.colors import UP_COLOR, DOWN_COLOR
+from modules._widgets_base import render_empty_state
 UP = UP_COLOR      # 红（流入 / 涨）
 DOWN = DOWN_COLOR  # 绿（流出 / 跌）
 
@@ -259,12 +260,11 @@ def _empty_info_html(text: str = "暂无数据") -> str:
     """PURE: 返回空数据态 HTML 字符串（调用方自行 markdown 渲染）。
 
     text 为数据派生文本时做 html.escape；None/空 -> 安全默认，绝不抛异常。
+    R73 统一：委托 ``_widgets_base.render_empty_state``（CSS 变量自适应暗/亮主题，
+    旧实现硬编码 #8a8a8a 在深色主题下可读性差），保留 🗂️ 图标语义。
     """
     text = "暂无数据" if text is None else str(text)
-    return (
-        f'<div style="text-align:center;color:#8a8a8a;padding:18px 0;font-size:13px;">'
-        f'🗂️ {html.escape(text)}</div>'
-    )
+    return render_empty_state(text, icon="🗂️")
 
 
 def _empty_info(text: str = "暂无数据"):

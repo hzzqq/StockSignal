@@ -120,3 +120,23 @@ def test_scroll_inline_button_up_and_down():
 
 def test_chat_bottom_anchor():
     assert 'id="sf-chat-end"' in sn.chat_bottom_anchor()
+
+
+def test_nav_script_show_bottom_gate():
+    """回归：show_bottom 现在是 ▼ 按钮块的真实开关（R66 修复死代码）。
+
+    - show_bottom=False 时，即便给了 bottom_marker 也抑制 ▼ 块（if (false && ...）；
+    - show_bottom=True + marker 才启用（if (true && ... 且选择器存在）。
+    """
+    body_off = sn._nav_script(
+        dark=True, threshold_px=300, bottom_threshold=150,
+        show_top=True, show_bottom=False, bottom_marker="stChatInput",
+    )
+    assert "if (false &&" in body_off, "show_bottom=False 应抑制 ▼ 按钮块"
+
+    body_on = sn._nav_script(
+        dark=True, threshold_px=300, bottom_threshold=150,
+        show_top=True, show_bottom=True, bottom_marker="stChatInput",
+    )
+    assert "if (true &&" in body_on, "show_bottom=True 应启用 ▼ 按钮块"
+    assert '[data-testid="stChatInput"]' in body_on

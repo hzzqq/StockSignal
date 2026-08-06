@@ -1567,7 +1567,7 @@ def apply_theme() -> None:
     # ▼ 由星辰 AI 对话页的 st.chat_input（testid=stChatInput，全站唯一）驱动出现/消失，
     # 避免页面内再发起第二次 components.html 调用（实测同页多次 components.html 仅首次脚本可靠执行）。
     from modules.scroll_nav import inject_scroll_nav
-    inject_scroll_nav(show_bottom=False, bottom_marker="stChatInput", dark=_theme_is_dark())
+    inject_scroll_nav(show_bottom=True, bottom_marker="stChatInput", dark=_theme_is_dark())
 
     # 隐藏 Streamlit 原生自动生成的平铺页面导航列表（已在 apply_page_config 更早注入，
     # 此处保留兜底 but 不再加 fade 动画，避免每次 rerun 都触发闪一下）。

@@ -156,11 +156,17 @@ def test_col_returns_none_when_no_match():
 # ───────────────────────── 3. get_market_drivers ─────────────────────────
 def test_get_market_drivers_all_fail_graceful(monkeypatch):
     """所有源失败 → 返回空 df（仅 date 列）+ 全维度 unavailable，绝不抛红错。"""
+    # 绕过 _cached 缓存优先：降级逻辑必须在本次调用内真实执行，
+    # 否则会读到同进程其他用例（如 merge_and_meta）写入的缓存，使断言失真。
+    monkeypatch.setattr(m, "_cached", lambda ttl, key, fn: fn())
     def fake_fetch(ind, days):
         return [], "mock 抓取失败"
     monkeypatch.setattr(m, "_fetch_src", fake_fetch)
     # 参考线也失败
     monkeypatch.setattr(m, "_get_index_close", lambda days: None)
+    # 同时屏蔽 SQLite 持久缓存兜底，确保降级路径返回的是「空 df」而非历史缓存
+    import modules.market_cache as _mc
+    monkeypatch.setattr(_mc, "load_drivers_from_cache", lambda days: (None, None))
 
     df, meta = get_market_drivers(days=30)
     assert list(df.columns) == ["date"]
@@ -198,9 +204,14 @@ def test_get_market_drivers_merge_and_meta(monkeypatch):
 
 def test_get_market_drivers_top_level_no_raise(monkeypatch):
     """即使 _build 抛异常，也应降级返回空 df + 全 unavailable。"""
+    # 绕过 _cached：确保 _build 本次真实执行并触发异常降级路径
+    monkeypatch.setattr(m, "_cached", lambda ttl, key, fn: fn())
     def boom(ind, days):
         raise RuntimeError("boom")
     monkeypatch.setattr(m, "_fetch_src", boom)
+    # 同时屏蔽 SQLite 持久缓存兜底，确保异常降级路径返回的是「空 df」而非历史缓存
+    import modules.market_cache as _mc
+    monkeypatch.setattr(_mc, "load_drivers_from_cache", lambda days: (None, None))
     df, meta = get_market_drivers(days=10)
     assert list(df.columns) == ["date"]
     for d in DIMS:

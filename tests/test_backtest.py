@@ -97,6 +97,34 @@ class TestBacktester:
         # 强涨股必须能被策略捕获（买入信号 > 0），防止 V5 修复回归
         assert buys > 0, "强势上涨股被多因子策略系统性排除"
 
+    def test_score_picker_includes_strong_uptrend(self):
+        """回归：长电科技类长期 RSI>85 强势上涨股不得被选股器(_score_for_picker)硬排除。
+
+        旧 _score_for_picker 在 rsi14 > 80 时直接 return None，导致强涨股连候选池都进不了
+        （与 V5 多因子信号层「仅极端泡沫 >92 降分、RSI<=98 仍可买入」不一致）。
+        对齐 V5：仅 rsi14 > 92（极端泡沫）才排除；80-92 强涨股应正常进入候选池。
+        """
+        bt = Backtester()
+        np.random.seed(11)
+        n = 120
+        # 温和强涨（约 +0.3%/日）+ 小噪声 -> 末端 RSI14 落在 80-92 强趋势区间
+        close = 10 * np.power(1.003, np.arange(n)) + np.random.normal(0, 0.03, n)
+        close = np.maximum(close, 1.0)
+        open_ = np.concatenate([[close[0] * 0.99], close[:-1]])
+        high = np.maximum(open_, close) * 1.02
+        low = np.minimum(open_, close) * 0.98
+        volume = np.random.randint(8e5, 2e6, n).astype(float)
+        df = pd.DataFrame({
+            "date": pd.date_range("2025-01-01", periods=n, freq="B"),
+            "code": ["600584"] * n,
+            "open": open_, "high": high, "low": low, "close": close, "volume": volume,
+        })
+        res = bt._score_for_picker(df)
+        assert res is not None, "强势上涨股(RSI>85)被选股器硬排除，未进入候选池"
+        # 该票 RSI>80：旧代码(>80 即排除)会 return None；新代码(>92 才排除)正常入选
+        assert res["rsi14"] > 80, f"应构造为强涨股(RSI>80)，实际 {res['rsi14']}"
+        assert res["rsi14"] <= 92, f"末端 RSI 不应极端泡沫(>92)，实际 {res['rsi14']}"
+
     def test_run_ma_cross(self):
         """测试均线交叉策略回测（需要网络）。"""
         bt = Backtester()

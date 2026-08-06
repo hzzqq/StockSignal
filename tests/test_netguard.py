@@ -15,15 +15,23 @@ import sys
 import pytest
 
 
-def _drop_modules():
-    """卸载所有已加载的 modules.* 子模块，模拟「首个 modules.* 导入」场景。"""
+def _drop_modules(monkeypatch):
+    """卸载所有已加载的 modules.* 子模块，模拟「首个 modules.* 导入」场景。
+
+    R71 修复：旧实现直接 ``sys.modules.pop`` 且不恢复——被弹模块重新导入后
+    产生**新对象**，而其他测试文件在收集期已绑定旧引用（如 test_whitebox_fetcher
+    顶层的 ``StockFetcher`` 类），导致后续 monkeypatch 打在新模块上、旧类方法
+    读旧模块全局 ``_AK_OK``，出现顺序性 ``NameError: name 'ak' is not defined``。
+    改用 ``monkeypatch.delitem``：测试结束由 pytest 自动把旧模块引用写回，
+    保证 sys.modules 全局零污染。
+    """
     for name in [k for k in sys.modules if k == "modules" or k.startswith("modules.")]:
-        sys.modules.pop(name, None)
+        monkeypatch.delitem(sys.modules, name, raising=False)
 
 
-def test_netguard_applies_without_fundflow():
+def test_netguard_applies_without_fundflow(monkeypatch):
     """导入一个不依赖 fundflow 的模块也应触发网络护栏。"""
-    _drop_modules()
+    _drop_modules(monkeypatch)
     import modules.fetcher  # 该模块不导入 fundflow
     after = socket.getdefaulttimeout()
     from modules.site_config import REQUEST_TIMEOUT
@@ -45,7 +53,12 @@ def test_netguard_idempotent():
 
 def test_netguard_respects_stricter_existing_timeout():
     """若已存在更严格的全局 socket 超时（<15s），护栏不应放宽它。"""
+    prev = socket.getdefaulttimeout()
     socket.setdefaulttimeout(5.0)
-    from modules.netguard import install_network_guard
-    install_network_guard()
-    assert socket.getdefaulttimeout() == 5.0
+    try:
+        from modules.netguard import install_network_guard
+        install_network_guard()
+        assert socket.getdefaulttimeout() == 5.0
+    finally:
+        # R74 修复：恢复原全局默认超时，避免 5.0 污染后续网络相关测试
+        socket.setdefaulttimeout(prev)

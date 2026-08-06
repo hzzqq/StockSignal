@@ -3,6 +3,8 @@
 """
 from __future__ import annotations
 
+import html
+
 def STAR_AI_LOGO(size: int = 20) -> str:
     """返回「星辰 AI」内联 SVG（可直接 unsafe_allow_html 渲染）。
 
@@ -49,3 +51,28 @@ _INDEX_INFOS = [
     {"name": "富时100", "code": "FTSE", "label": "英国", "global": True, "sina_hist": "英国富时100指数"},
     {"name": "韩国KOSPI", "code": "KS11", "label": "韩国", "global": True, "sina_hist": "首尔综合指数"},
 ]
+
+
+# ──────────────────────────────────────────────────────────────
+# 统一空状态 / 加载态（T12 基建：避免数据缺失时白屏）
+# ──────────────────────────────────────────────────────────────
+def render_empty_state(message: str, icon: str = "📭", hint: str = "") -> str:
+    """返回友好的「空状态」HTML 片段（数据缺失 / 加载失败时展示）。
+
+    调用方用 ``st.markdown(html, unsafe_allow_html=True)`` 渲染即可。
+    统一暗/亮主题（走 --txt / --txt2 CSS 变量），避免数据缺失时白屏或裸报错。
+    message 为必填核心文案；icon 为 emoji 图标；hint 为可选的补充提示（如换代码/稍后重试）。
+    message / hint 为数据派生文本时做 html.escape，防止结构注入（R73 对齐 _empty_info 既有 XSS 契约）。
+    """
+    message = "" if message is None else html.escape(str(message))
+    hint = "" if hint is None else html.escape(str(hint))
+    hint_html = (
+        f'<div style="font-size:12px;color:var(--txt2);margin-top:6px">{hint}</div>'
+        if hint else ""
+    )
+    return (
+        f'<div style="text-align:center;padding:32px 16px;color:var(--txt2);">'
+        f'<div style="font-size:32px;margin-bottom:8px">{icon}</div>'
+        f'<div style="font-size:14px;font-weight:600;color:var(--txt)">{message}</div>'
+        f'{hint_html}</div>'
+    )

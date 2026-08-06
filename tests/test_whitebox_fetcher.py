@@ -235,3 +235,53 @@ class TestGetFinancial:
         fetcher = StockFetcher()
         with pytest.raises(RuntimeError, match="akshare 未安装"):
             fetcher.get_financial("600519", "income")
+
+
+class TestBareAkContract:
+    """R71 契约：任何用 `ak.xxx` / `bs.xxx` 的函数体内必须带局部 import。
+
+    背景：fetcher 顶层不 import akshare / baostock（保持"未装也能导入模块"），
+    `_AK_OK` / `_BS_OK` 为 True（库可用）时裸用 `ak` / `bs` 会直接 NameError——
+    曾潜伏 10 个 ak 函数（_fetch_level/get_kline/get_index/get_index_minute/
+    get_sector_list/get_sector_stocks/get_concept_list/get_concept_stocks/
+    get_commodity_price/get_financial）与 2 个 bs 函数（get_stock_name/stock_exists），
+    被 test_netguard 重载模块后暴露。此处 AST 全量扫描杜绝再犯。
+    """
+
+    def _bare_ak_bs_users(self):
+        import ast
+        import os
+
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, "modules", "fetcher.py"), encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+
+        def _has_local_import(node, module_names):
+            for n in ast.walk(node):
+                if isinstance(n, (ast.Import, ast.ImportFrom)):
+                    if isinstance(n, ast.ImportFrom) and n.module in module_names:
+                        return True
+                    if isinstance(n, ast.Import) and any(a.name in module_names for a in n.names):
+                        return True
+            return False
+
+        bad = []
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                uses = any(
+                    isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+                    and n.value.id in ("ak", "bs")
+                    for n in ast.walk(node)
+                )
+                if uses and not _has_local_import(node, {"akshare", "baostock"}):
+                    bad.append((node.lineno, node.name))
+        return bad
+
+    def test_all_ak_users_import_akshare_locally(self):
+        bad = [x for x in self._bare_ak_bs_users() if x[1] not in ("get_stock_name", "stock_exists")]
+        assert not bad, f"以下函数裸用 ak 但无局部 import，akshare 可用时会 NameError: {bad}"
+
+    def test_all_bs_users_import_baostock_locally(self):
+        bad = [x for x in self._bare_ak_bs_users() if x[1] in ("get_stock_name", "stock_exists")]
+        assert not bad, f"以下函数裸用 bs 但无局部 import，baostock 可用时会 NameError: {bad}"
+

@@ -7,6 +7,8 @@
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules.colors import hex_to_rgba, _hex_to_rgba
@@ -28,6 +30,14 @@ def test_hex_to_rgba_none_safe():
     # None / 空串 / 非法值安全降级为透明黑，不抛 ValueError
     assert hex_to_rgba(None, 0.13) == "rgba(0,0,0,0.13)"
     assert hex_to_rgba("", 0.13) == "rgba(0,0,0,0.13)"
+
+
+@pytest.mark.parametrize("bad", ["not-a-color", "zzzzzz", "#", "12345", "abcdefg"])
+def test_hex_to_rgba_invalid_string_safe(bad):
+    """R64 回归：非法 hex 字符串不得抛 ValueError（曾因裸 int(h[..],16) 崩溃）。"""
+    out = hex_to_rgba(bad, 0.3)
+    assert out.startswith("rgba(")
+    assert out.endswith("0.3)")
 
 
 def test_hex_to_rgba_alias_points_to_canonical():

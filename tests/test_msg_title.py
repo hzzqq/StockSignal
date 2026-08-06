@@ -72,53 +72,83 @@ def _build_streamlit_stub():
 
 
 def _load_safe_title_html():
-    """在临时命名空间导入页面，取回 _safe_title_html 后恢复全局 sys.modules。"""
-    saved = dict(sys.modules)
+    """在临时命名空间导入页面，取回 _safe_title_html 后精准恢复被改动的 sys.modules 键。
+
+    注意（R64 修复）：旧实现用 sys.modules.clear() + update(saved) 粗暴恢复，
+    会把本测试运行期间由页面间接导入的真实模块（如 modules.site_config /
+    modules.fetcher）一并抹掉，且 clear() 会破坏导入系统内部缓存，导致后续
+    test_site_config / test_whitebox_fetcher 等出现
+    "module modules.site_config not in sys.modules" 的顺序性污染失败。
+    改为只还原本函数显式桩入的键（原值回写 / 新增键删除），不触碰其他模块。
+    """
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if root not in sys.path:
         sys.path.insert(0, root)
 
-    # 临时命名空间：仅桩入完整 streamlit 与页面所需 modules.* 子桩
-    sys.modules["streamlit"] = _build_streamlit_stub()
-    _mods = _make_module("modules")
+    stubs = {
+        "streamlit": _build_streamlit_stub(),
+        "modules": _make_module("modules"),
+        "modules.ui_theme": _make_module(
+            "modules.ui_theme",
+            apply_page_config=lambda *a, **k: None,
+            dashboard_sf_css=lambda *a, **k: "",
+            _theme_is_dark=lambda *a, **k: False,
+        ),
+        "modules.session": _make_module(
+            "modules.session",
+            require_auth=lambda *a, **k: None,
+            render_user_badge=lambda *a, **k: None,
+            safe_switch_page=lambda *a, **k: None,
+            api_get=lambda *a, **k: (500, {}),
+            trading_autorefresh=lambda *a, **k: None,
+        ),
+        "modules.fetcher": _make_module(
+            "modules.fetcher", StockFetcher=lambda: _CtxMgr()
+        ),
+        "modules.page_guard": _make_module(
+            "modules.page_guard",
+            safe_section=lambda *a, **k: _CtxMgr(),
+            render_data_degradation_banner=lambda *a, **k: None,
+            get_data_source_health=lambda *a, **k: {"status": "ok", "down": [], "degraded": []},
+        ),
+        "modules.page_widgets": _make_module(
+            "modules.page_widgets", UP="#f00", DOWN="#0f0"
+        ),
+        # R74 修复：页面 import 的其余 modules.* 也必须桩化，否则在桩窗口期
+        # 会**真实加载**（如 page_utils 内部 from modules.fetcher import StockFetcher
+        # 会绑定桩类 _CtxMgr），桩还原后该模块仍缓存污染引用，导致后续
+        # test_page_utils 的 isinstance(StockFetcher) 断言失败。
+        "modules.page_utils": _make_module(
+            "modules.page_utils",
+            render_standard_page=lambda *a, **k: False,
+        ),
+        "modules.format_helpers": _make_module(
+            "modules.format_helpers", extract_pct=lambda *a, **k: 0.0
+        ),
+    }
+    # 记录被覆盖键的原始值，未存在的记为新增
+    _original = {}
+    _added = set()
+    for _k, _v in stubs.items():
+        if _k in sys.modules:
+            _original[_k] = sys.modules[_k]
+        else:
+            _added.add(_k)
+        sys.modules[_k] = _v
     # 关键：给假 modules 一个 __path__ 指向真实目录，使其成为命名空间包，
     # 未显式桩入的子模块（如 page_utils）才能正常解析；否则会出现
     # "modules is not a package" 收集错误，导致本测试整体无法运行。
-    _mods.__path__ = [os.path.join(root, "modules")]
-    sys.modules["modules"] = _mods
-    sys.modules["modules.ui_theme"] = _make_module(
-        "modules.ui_theme",
-        apply_page_config=lambda *a, **k: None,
-        dashboard_sf_css=lambda *a, **k: "",
-        _theme_is_dark=lambda *a, **k: False,
-    )
-    sys.modules["modules.session"] = _make_module(
-        "modules.session",
-        require_auth=lambda *a, **k: None,
-        render_user_badge=lambda *a, **k: None,
-        safe_switch_page=lambda *a, **k: None,
-        api_get=lambda *a, **k: (500, {}),
-        trading_autorefresh=lambda *a, **k: None,
-    )
-    sys.modules["modules.fetcher"] = _make_module(
-        "modules.fetcher", StockFetcher=lambda: _CtxMgr()
-    )
-    sys.modules["modules.page_guard"] = _make_module(
-        "modules.page_guard",
-        safe_section=lambda *a, **k: _CtxMgr(),
-        render_data_degradation_banner=lambda *a, **k: None,
-        get_data_source_health=lambda *a, **k: {"status": "ok", "down": [], "degraded": []},
-    )
-    sys.modules["modules.page_widgets"] = _make_module(
-        "modules.page_widgets", UP="#f00", DOWN="#0f0"
-    )
+    sys.modules["modules"].__path__ = [os.path.join(root, "modules")]
     try:
         mod = importlib.import_module("pages.L_消息中心")
         return mod._safe_title_html
     finally:
-        # 恢复导入前状态：全局 sys.modules 零污染
-        sys.modules.clear()
-        sys.modules.update(saved)
+        # 精准还原：新增键删除，覆盖键写回原值；不动其他模块（含页面间接导入的真实模块）
+        for _k in stubs:
+            if _k in _added:
+                sys.modules.pop(_k, None)
+            elif _k in _original:
+                sys.modules[_k] = _original[_k]
 
 
 _safe_title_html = _load_safe_title_html()

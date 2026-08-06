@@ -596,6 +596,7 @@ class StockFetcher:
 
             # 缓存未命中 -> 查询 BaoStock（复用连接池）
             if _BS_OK:
+                import baostock as bs  # 局部导入：与 _BS_OK 同源
                 try:
                     if not _BaoStockFetcher._ensure_login():
                         name = self.get_name_only(ticker)
@@ -1724,6 +1725,7 @@ class StockFetcher:
             # 复用 BaoStock 类级别的连接池（首次调用触发 login）
             if not _BaoStockFetcher._ensure_login():
                 return True, "BaoStock登录失败"
+            import baostock as bs  # 局部导入：与 _BS_OK 同源
             bs_code = _symbol_to_bs(symbol)
             rs = bs.query_stock_basic(code=bs_code)
             if rs.error_code == "0" and rs.next():
@@ -1785,6 +1787,7 @@ class StockFetcher:
             _ed = pd.Timestamp.max
         try:
             if level == "L1" and _AK_OK:
+                import akshare as ak  # 局部导入：与 _AK_OK 同源，可用时才引用
                 df = observe_source(
                     "akshare", level,
                     lambda: _retry_request(
@@ -1985,6 +1988,7 @@ class StockFetcher:
             errors = []
             # L1: akshare 真实周期
             if _AK_OK:
+                import akshare as ak  # 局部导入：与 _AK_OK 同源
                 try:
                     df = _retry_request(
                         lambda: ak.stock_zh_a_hist(
@@ -2065,6 +2069,7 @@ class StockFetcher:
 
             # ── L1: akshare ──
             if _AK_OK:
+                import akshare as ak  # 局部导入：与 _AK_OK 同源
                 try:
                     df = _retry_request(
                         lambda: ak.stock_zh_index_daily(
@@ -2130,6 +2135,7 @@ class StockFetcher:
         """
         if not _AK_OK:
             return None
+        import akshare as ak  # 局部导入：_AK_OK=True 才执行到此
         if trade_date is None:
             trade_date = datetime.now().strftime("%Y%m%d")
         try:
@@ -2218,6 +2224,7 @@ class StockFetcher:
         # ── L2: 同花顺 akshare（东财接口被关闭时的可靠备用）──
         if df is None or df.empty:
             if _AK_OK:
+                import akshare as ak  # 局部导入：与 _AK_OK 同源
                 try:
                     df = _retry_request(
                         lambda: ak.stock_board_industry_summary_ths(),
@@ -2312,6 +2319,7 @@ class StockFetcher:
         """指定行业的成分股列表（仅 akshare）。"""
         if not _AK_OK:
             raise RuntimeError("akshare 未安装，无法获取成分股")
+        import akshare as ak  # 局部导入：与 _AK_OK 同源
         df = _retry_request(
             lambda: ak.stock_board_industry_cons_em(symbol=sector_name),
             max_retries=2, base_delay=2,
@@ -2335,6 +2343,7 @@ class StockFetcher:
             logger.warning(f"[fetcher] 处理异常: {e}")
             pass
         try:
+            import akshare as ak  # 局部导入：未装时 ImportError 由下方 except 兜底返回空
             df = _retry_request(
                 lambda: ak.stock_board_concept_name_em(),
                 max_retries=2, base_delay=2,
@@ -2359,6 +2368,7 @@ class StockFetcher:
         """指定概念板块的成分股列表（东方财富）。失败抛异常由调用方兜底。"""
         if not _AK_OK:
             raise RuntimeError("akshare 未安装，无法获取成分股")
+        import akshare as ak  # 局部导入：与 _AK_OK 同源
         df = _retry_request(
             lambda: ak.stock_board_concept_cons_em(symbol=concept_name),
             max_retries=2, base_delay=2,
@@ -2392,6 +2402,7 @@ class StockFetcher:
             if not _AK_OK:
                 raise RuntimeError("akshare 未安装")
 
+            import akshare as ak
             func = getattr(ak, func_name)
             df = _retry_request(lambda: func(**kwargs), max_retries=2, base_delay=3)
             df = df.rename(columns={
@@ -2418,7 +2429,7 @@ class StockFetcher:
 
             if not _AK_OK:
                 raise RuntimeError("akshare 未安装")
-
+            import akshare as ak  # 局部导入：与 _AK_OK 同源
             df = _retry_request(
                 lambda: ak.spot_price_qsx(symbol="全部"),
                 max_retries=2, base_delay=3,
@@ -2438,7 +2449,7 @@ class StockFetcher:
     def get_financial(self, symbol="600519", report_type="income"):
         if not _AK_OK:
             raise RuntimeError("akshare 未安装")
-
+        import akshare as ak  # 局部导入：与 _AK_OK 同源
         func_map = {
             "income": ak.stock_financial_report_sina,
             "balance": ak.stock_financial_report_sina,

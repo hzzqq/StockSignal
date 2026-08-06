@@ -22,7 +22,7 @@ if "starfield_dark" not in pio.templates:
         pass
 
 # 涨跌配色（A股：红涨绿跌）统一从 modules.colors 引入，避免重复定义
-from modules.colors import UP_COLOR, DOWN_COLOR
+from modules.colors import UP_COLOR, DOWN_COLOR, hex_to_rgba
 
 # 星辰暗色图表令牌
 SF_TXT = "#e2e8f0"
@@ -641,12 +641,7 @@ class Visualizer:
             is_up = close[-1] >= base
             line_color = up_color if is_up else down_color
 
-            def _to_rgba(hex6, alpha):
-                h = str(hex6).lstrip("#")[:6]
-                r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-                return f"rgba({r},{g},{b},{alpha})"
-
-            fill_color = _to_rgba(up_color if is_up else down_color, 0.15)
+            fill_color = hex_to_rgba(up_color if is_up else down_color, 0.15)
 
             rows_n = 2 if show_volume else 1
             fig = make_subplots(

@@ -678,6 +678,10 @@ class Backtester:
         elif 60 < rsi14 <= 70:
             health_score = 12
             reasons.append("RSI14强势")
+        elif 70 < rsi14 <= 92:
+            # 强趋势（对齐 V5 多因子：RSI 70-92 为可买入强趋势区间，仅 >92 极端泡沫降分）
+            health_score = 10
+            reasons.append("RSI14强趋势")
         elif 25 <= rsi14 < 30:
             health_score = 8
             reasons.append("RSI14偏低")
@@ -714,9 +718,12 @@ class Backtester:
         # ══════════════════════════════════════
         # 5) 过滤条件（兼容 MA60 缺失的短区间）
         # ══════════════════════════════════════
-        # 只要收盘价在 MA20 上方（MA20 有效时），且 RSI14 不极端超买，就允许参与评分
+        # 只要收盘价在 MA20 上方（MA20 有效时），且 RSI14 非极端泡沫，就允许参与评分。
+        # 排除阈值从 80 对齐到 92：仅极端泡沫(>92)踢出候选池；80-92 强涨股允许参与选股，
+        # 与 V5 多因子信号层「RSI<=98 仍可买入、仅 >92 降分」保持一致，
+        # 修复长电科技类「长期 RSI>85 强势上涨股」连候选池都进不了的问题。
         price_above_trend = (not ma20_valid) or (latest["close"] > latest["ma20"])
-        if not price_above_trend or rsi14 > 80:
+        if not price_above_trend or rsi14 > 92:
             return None
 
         # ══════════════════════════════════════
@@ -750,7 +757,7 @@ class Backtester:
             d_rsi14 = day.get("rsi14", 50)
             if 40 <= d_rsi14 <= 70: ds += 20
             elif 30 <= d_rsi14 < 40: ds += 15
-            elif 60 < d_rsi14 <= 80: ds += 12
+            elif 60 < d_rsi14 <= 92: ds += 12
             # 量能分（快照）
             if day.get("volume", 0) > day.get("vol_ma20", 1) * 1.5: ds += 15
             elif day.get("volume", 0) > day.get("vol_ma20", 1) * 1.2: ds += 10

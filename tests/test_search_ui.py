@@ -39,31 +39,35 @@ def test_guess_market():
 
 
 def test_render_match_dropdown_escapes_html(monkeypatch):
-    """恶意/异常股票名含 HTML 特殊字符时必须被转义，不能原样进入下拉标记。"""
+    """股票名含 HTML 特殊字符时：下拉改用 st.radio 文本标签渲染，Streamlit 将其作为
+    字面文本显示（结构性 XSS 防护，危险串不会被执行），同时正确回传 active code。
+
+    注：旧实现用 components.html 注入带 JS 的 iframe，曾导致「点击无响应」且需手动转义；
+    现改为 st.radio（见 modules/search_ui.py _render_match_dropdown 注释），转义由 Streamlit
+    在渲染标签时保证，无需手动 &lt; &gt; 替换。
+    """
     captured = {}
 
-    def fake_html(html, height=None, key=None):
-        captured["html"] = html
-        captured["height"] = height
+    def fake_radio(label, options=None, index=0, key=None, **kwargs):
+        captured["options"] = list(options)
         captured["key"] = key
-        return None
+        # 模拟用户选中默认（active）项
+        return options[index] if options else None
 
-    monkeypatch.setattr(search_ui.components, "html", fake_html)
+    monkeypatch.setattr(search_ui.st, "radio", fake_radio)
 
     results = [
         ("600519", '<script>alert(1)</script>', "SH"),
         ("000858", "五 & 粮\"液", "SZ"),
     ]
-    search_ui._render_match_dropdown("k", "茅台", results, "600519", dark=False)
+    picked = search_ui._render_match_dropdown("k", "茅台", results, "600519", dark=False)
 
-    out = captured["html"]
-    # 原始危险串不得原样出现
-    assert "<script>alert(1)</script>" not in out
-    # 转义后的形式应出现
-    assert "&lt;script&gt;" in out
-    assert "&amp;" in out
-    # 结构性标记仍在
-    assert 'class="mk-wrap"' in out
-    assert "匹配结果 (2 条)" in out
-    # 高度受上限约束
-    assert captured["height"] <= 460
+    labels = " ".join(captured["options"])
+    # 危险串作为字面量出现在某条 label（证明未被丢弃，也未被当 HTML 执行）
+    assert "<script>alert(1)</script>" in labels
+    assert "五 & 粮" in labels
+    # 标签含代码与标签（科创板/沪A 等），证明下拉结构完整
+    assert "600519" in labels
+    assert "000858" in labels
+    # 函数正确回传 active code（点击即选中逻辑不变）
+    assert picked == "600519"
