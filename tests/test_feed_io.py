@@ -106,3 +106,48 @@ def test_safe_urlopen_persistent_failure_raises(monkeypatch):
             fio._safe_urlopen("req", timeout=5, retries=2, backoff=0)
     except ImportError:
         raise
+
+
+def test_ensure_login_serialized_under_concurrency(monkeypatch):
+    """R77 回归：多线程并发首次 _ensure_login 时，bs.login() 只执行一次。
+
+    背景：_fetch_level 并行竞速会从多个子线程调用 _ensure_login，
+    check-then-act 非原子时多线程同时首次 login（BaoStock 会话互踩）。
+    """
+    import concurrent.futures
+    import types
+    from types import SimpleNamespace
+
+    import modules._feed_io as fio
+
+    login_calls = {"n": 0}
+
+    class _FakeBs(types.ModuleType):
+        def login(self):
+            login_calls["n"] += 1
+            import time
+            time.sleep(0.05)  # 放大竞态窗口
+            return SimpleNamespace(error_code="0", error_msg="")
+
+        def logout(self):
+            return None
+
+    fake = _FakeBs("baostock")
+    # 直接替换 _feed_io 模块级 bs 引用（模块导入时已绑定真实 baostock，
+    # 仅 monkeypatch sys.modules 不影响已绑定引用）
+    monkeypatch.setattr(fio, "bs", fake)
+
+    # 重置类状态，确保是"首次登录"场景
+    monkeypatch.setattr(fio._BaoStockFetcher, "_login_done", False)
+
+    def _call():
+        return fio._BaoStockFetcher._ensure_login()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+        results = list(ex.map(lambda _: _call(), range(16)))
+
+    assert all(results), "所有线程都应判定登录成功"
+    assert login_calls["n"] == 1, f"bs.login() 应只执行 1 次，实际 {login_calls['n']} 次"
+    # 清理：恢复类状态，避免影响其他测试
+    monkeypatch.undo()
+    fio._BaoStockFetcher._login_done = False

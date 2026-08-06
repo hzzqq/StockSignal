@@ -14,6 +14,7 @@ import urllib.error
 import urllib.parse
 import contextlib
 import socket  # 捕获瞬时网络错误（超时/连接重置/DNS）做重试兜底
+import threading  # R77：BaoStock 首次登录锁（并行竞速串行化）
 from datetime import datetime, timedelta
 import concurrent.futures as _cf
 
@@ -382,20 +383,29 @@ class _BaoStockFetcher:
     """
 
     _login_done = False   # 类级别：是否已完成首次登录
+    _login_lock = threading.Lock()  # R77：并行竞速时串行化首次登录，防多线程同时 bs.login()
 
     @classmethod
     def _ensure_login(cls):
-        """确保已登录：第一次调用 login，后续直接复用。"""
+        """确保已登录：第一次调用 login，后续直接复用。
+
+        线程安全（R77）：_fetch_level 并行竞速会从多个子线程调用本方法；
+        此前 check-then-act 非原子，多线程可能同时首次 login（BaoStock 服务端
+        会话互踩）。加锁后仅一个线程执行 login，其余等待后直接复用 _login_done。
+        """
         if not _is_bs_available():
             return False
         if cls._login_done:
             return True
-        lg = bs.login()
-        if lg.error_code == "0":
-            cls._login_done = True
-            return True
-        logger.info(f"[BaoStockFetcher] 登录失败: {lg.error_msg}")
-        return False
+        with cls._login_lock:
+            if cls._login_done:  # double-check：锁内再查一次，避免等待者重复 login
+                return True
+            lg = bs.login()
+            if lg.error_code == "0":
+                cls._login_done = True
+                return True
+            logger.info(f"[BaoStockFetcher] 登录失败: {lg.error_msg}")
+            return False
 
     @classmethod
     def _ensure_logout(cls):
