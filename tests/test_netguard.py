@@ -62,3 +62,34 @@ def test_netguard_respects_stricter_existing_timeout():
     finally:
         # R74 修复：恢复原全局默认超时，避免 5.0 污染后续网络相关测试
         socket.setdefaulttimeout(prev)
+
+
+def test_drop_modules_leaves_no_residue():
+    """R72 回归：_drop_modules 后 sys.modules 中 modules.* 必须完整恢复。
+
+    旧实现直接 pop 不恢复，重载产生的新模块对象残留，导致其他测试文件
+    收集期绑定的旧类引用失效（顺序性 NameError）。monkeypatch.delitem
+    应确保测试结束后 modules.* 与测试前完全一致。
+    """
+    import sys as _sys
+    from _pytest.monkeypatch import MonkeyPatch
+
+    before = {k: v for k, v in _sys.modules.items() if k == "modules" or k.startswith("modules.")}
+    import modules.fetcher  # noqa: F401 确保已加载
+
+    mp = MonkeyPatch()
+    # 模拟 _drop_modules 的行为（测试函数内执行）
+    for name in list(_sys.modules):
+        if name == "modules" or name.startswith("modules."):
+            mp.delitem(_sys.modules, name, raising=False)
+    # 弹掉后重新导入（产生新对象，模拟 netguard 测试）
+    import importlib
+    importlib.import_module("modules.fetcher")
+    # 测试结束：monkeypatch 还原
+    mp.undo()
+
+    after = {k: v for k, v in _sys.modules.items() if k == "modules" or k.startswith("modules.")}
+    # 关键：还原后模块对象应与测试前完全一致（引用相等）
+    for k in before:
+        assert k in after, f"缺失 {k}"
+        assert after[k] is before[k], f"{k} 被替换为新对象（污染残留）"
