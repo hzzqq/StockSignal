@@ -472,7 +472,12 @@ def get_individual_fund_flow(code, use_estimate_fallback=True, timeout=12.0):
     akshare 个股接口在本机代理下常挂起（底层 requests 不设 timeout），若无此
     边界会导致调用方（盯盘页并行抓全自选股）一直转圈「卡住」。超时/异常一律
     返回 source='none'，由 UI 优雅降级。
+
+    R87：入口显式 _ensure_proxy_and_ssl()——本函数不走 _cached（由页面
+    st.cache_data 包裹），此前若用户只进个股资金流页、从未触发其他预取，
+    首次 akshare 请求会因代理/SSL 未设置而失败。
     """
+    _ensure_proxy_and_ssl()  # 惰性、幂等；仅首次网络请求前执行一次 socket 探测
     def _compute():
         real = _real(code)
         if real is not None:
