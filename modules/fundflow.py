@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 # 集中配置（代理 / 超时 / 测试密钥）统一从 modules.site_config 读取，避免散落硬编码
 from modules.site_config import REQUEST_TIMEOUT, PROXY_DEFAULT
 from modules.timeout_exec import run_with_timeout
+from modules.fetch_parallel import fetch_many  # R78：共享有界线程池并发取数
 
 # 别名：保持下方 _patch_requests_timeout 与下游模块的引用不变
 _REQUEST_TIMEOUT = REQUEST_TIMEOUT
@@ -690,16 +691,24 @@ def get_market_wide_snapshot():
     首次调用并行拉取（约 2s），缓存命中时近乎瞬时返回。
     返回 dict: {industry, northbound, market}（各为 getter 的原始返回值）。
     用于资金流向页首屏冷启动加速：一次并行替代三次串行。
+    R78 改造：原每次调用新建 ThreadPoolExecutor(max_workers=3)（线程创建/销毁
+    开销 + 无硬边界），改为共享有界线程池 fetch_many（信号量限流 + 整批硬边界，
+    超时/异常项自动置 None，与页面其他并发取数共用同一池）。
     """
-    from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=3) as ex:
-        f_ind = ex.submit(get_industry_fund_flow)
-        f_nb = ex.submit(get_northbound_fund_flow)
-        f_mkt = ex.submit(get_market_fund_flow, 30)
-        industry = f_ind.result()
-        northbound = f_nb.result()
-        market = f_mkt.result()
-    return {"industry": industry, "northbound": northbound, "market": market}
+    res = fetch_many(
+        [
+            ("industry", get_industry_fund_flow),
+            ("northbound", get_northbound_fund_flow),
+            ("market", lambda: get_market_fund_flow(30)),
+        ],
+        max_workers=3,
+        timeout=30,
+    )
+    return {
+        "industry": res.get("industry"),
+        "northbound": res.get("northbound"),
+        "market": res.get("market"),
+    }
 
 
 _warm_started = False

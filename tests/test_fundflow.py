@@ -53,3 +53,36 @@ def test_industry_fund_flow_empty_akshare_returns_empty():
     with patch("akshare.stock_fund_flow_industry", return_value=pd.DataFrame()):
         df = get_industry_fund_flow()
     assert df.empty
+
+
+def test_market_wide_snapshot_returns_all_three_keys(monkeypatch):
+    """R78 回归：get_market_wide_snapshot 走共享池 fetch_many，三键齐全。
+
+    原实现每次新建 ThreadPoolExecutor(max_workers=3)，无硬边界；
+    改为 fetch_many 后返回结构不变（industry/northbound/market 三键）。
+    """
+    ind = pd.DataFrame({"板块": ["银行"], "今日涨跌幅": [1.0]})
+    nb = pd.DataFrame({"北向资金": [1.0]})
+    mkt = pd.DataFrame({"大盘资金": [2.0]})
+    monkeypatch.setattr(fundflow, "get_industry_fund_flow", lambda: ind)
+    monkeypatch.setattr(fundflow, "get_northbound_fund_flow", lambda: nb)
+    monkeypatch.setattr(fundflow, "get_market_fund_flow", lambda days=30: mkt)
+
+    snap = fundflow.get_market_wide_snapshot()
+    assert set(snap.keys()) == {"industry", "northbound", "market"}
+    assert snap["industry"].equals(ind)
+    assert snap["northbound"].equals(nb)
+    assert snap["market"].equals(mkt)
+
+
+def test_market_wide_snapshot_tolerates_single_failure(monkeypatch):
+    """R78：单路取数失败不得拖垮整批（fetch_many 单项异常置 None）。"""
+    ind = pd.DataFrame({"板块": ["银行"], "今日涨跌幅": [1.0]})
+    monkeypatch.setattr(fundflow, "get_industry_fund_flow", lambda: ind)
+    monkeypatch.setattr(fundflow, "get_northbound_fund_flow", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(fundflow, "get_market_fund_flow", lambda days=30: pd.DataFrame({"大盘资金": [2.0]}))
+
+    snap = fundflow.get_market_wide_snapshot()
+    assert set(snap.keys()) == {"industry", "northbound", "market"}
+    assert snap["industry"].equals(ind)
+    assert snap["northbound"] is None  # 失败项置 None 而非抛异常
