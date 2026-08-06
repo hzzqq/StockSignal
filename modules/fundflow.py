@@ -171,6 +171,11 @@ def _cached(ttl, key, fn):
     fundflow 的页面在加载时都要先等这次最多 2 秒的网络探测——这正是「几乎所有
     模块加载极慢」的隐藏根因之一。现改为在首次真实网络请求前惰性执行一次
     （_patch_done 幂等守卫），import 不再阻塞，页面非网络部分可即时渲染。
+
+    R85 double-check：fn() 在锁**外**执行——此前 fn() 在锁内，一路慢速网络
+    调用会串行化**所有**键的缓存访问（并发预取时严重放大等待）。现改为
+    锁内快速读（未命中即释放），锁外执行 fn()，再锁内写回。同一 key 并发
+    miss 会重复计算（可接受权衡，且 fn 有 _run_with_timeout 硬边界）。
     """
     _ensure_proxy_and_ssl()  # 惰性、幂等；仅首次网络请求前执行一次 socket 探测
     now = time.time()
@@ -178,9 +183,11 @@ def _cached(ttl, key, fn):
         hit = _CACHE.get(key)
         if hit and (now - hit[0]) < ttl:
             return hit[1]
-        val = fn()
-        _CACHE[key] = (now, val)
-        return val
+    # 锁外执行昂贵取数：不阻塞其他键的缓存访问
+    val = fn()
+    with _CACHE_LOCK:
+        _CACHE[key] = (time.time(), val)
+    return val
 
 
 def _retry_with_backoff(max_retries=3, base_delay=1.0):

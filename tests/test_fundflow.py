@@ -86,3 +86,44 @@ def test_market_wide_snapshot_tolerates_single_failure(monkeypatch):
     assert set(snap.keys()) == {"industry", "northbound", "market"}
     assert snap["industry"].equals(ind)
     assert snap["northbound"] is None  # 失败项置 None 而非抛异常
+
+
+def test_cached_runs_fn_outside_lock(monkeypatch):
+    """R85 回归：_cached 的 fn() 在锁外执行，慢计算不阻塞其他键访问。
+
+    此前 fn() 在 _CACHE_LOCK 内执行，一路慢速网络调用会串行化所有键的
+    缓存访问；double-check 后锁内仅快速读、锁外执行 fn。
+    """
+    import threading
+    import time
+
+    import modules.fundflow as ff
+
+    slow_entered = threading.Event()
+    slow_done = threading.Event()
+    fast_results = []
+
+    def _slow():
+        slow_entered.set()
+        slow_done.wait(5)  # 模拟慢取数：阻塞直到主线程放行
+        return "slow-val"
+
+    def _fast():
+        return "fast-val"
+
+    # 清缓存保证 miss
+    ff.clear_fundflow_cache()
+    try:
+        # 在后台线程启动慢取数
+        t = threading.Thread(target=lambda: ff._cached(60, "k_slow", _slow))
+        t.start()
+        assert slow_entered.wait(5), "慢取数未开始"
+        # 慢取数进行中，快速键应立即可得（不被慢取数阻塞）
+        r = ff._cached(60, "k_fast", _fast)
+        fast_results.append(r)
+        assert r == "fast-val", f"快速键被慢取数阻塞: {r}"
+    finally:
+        slow_done.set()  # 放行慢取数，避免线程悬挂
+        t.join(5)
+        ff.clear_fundflow_cache()
+    assert fast_results, "快速键应已完成"
