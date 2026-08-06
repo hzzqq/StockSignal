@@ -480,7 +480,9 @@ def get_index_series(days=180):
     """
     def _fn():
         try:
-            # 并行抓取 3 个指数，替代串行 3×(2-5s)；R78 起走共享有界线程池
+            # 并行抓取 3 个指数，替代串行 3×(2-5s)；R78 起走共享有界线程池。
+            # timeout 不传：用全局 CALL_TIMEOUT_CAP(12)，恒 > 底层网络超时(10)，
+            # 线程回池不泄漏（显式 10 会与传输层超时同刻竞争，边界过紧）。
             res = fetch_many(
                 [
                     ("sh000001", lambda: _fetch_index("sh000001")),
@@ -488,7 +490,6 @@ def get_index_series(days=180):
                     ("sz399006", lambda: _fetch_index("sz399006")),
                 ],
                 max_workers=3,
-                timeout=10,
             )
             idx000001 = res.get("sh000001")
             idx399001 = res.get("sz399001")

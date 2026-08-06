@@ -702,7 +702,8 @@ def get_market_wide_snapshot():
             ("market", lambda: get_market_fund_flow(30)),
         ],
         max_workers=3,
-        timeout=30,
+        # timeout 不传：用全局 CALL_TIMEOUT_CAP（12s），与单取数硬边界一致；
+        # 底层网络超时(10s)恒小于边界，线程回池不泄漏。
     )
     return {
         "industry": res.get("industry"),
