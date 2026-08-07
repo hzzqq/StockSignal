@@ -88,12 +88,16 @@ class FakeFetcher:
 
     def __init__(self, quote_data=None, kline_df=None,
                  raise_on_quote=False, raise_on_kline=False,
-                 raise_value_on_kline=False):
+                 raise_value_on_kline=False,
+                 quote_map=None, quote_none_codes=None):
         self.quote_data = quote_data
         self.kline_df = kline_df
         self.raise_on_quote = raise_on_quote
         self.raise_on_kline = raise_on_kline
         self.raise_value_on_kline = raise_value_on_kline
+        # R90：批量行情 —— quote_map={code: quote_dict} 按代码返回；quote_none_codes 返回 None
+        self.quote_map = quote_map or {}
+        self.quote_none_codes = set(quote_none_codes or [])
         self.quote_calls = []
         self.kline_calls = []
 
@@ -101,6 +105,10 @@ class FakeFetcher:
         self.quote_calls.append(ticker)
         if self.raise_on_quote:
             raise RuntimeError("injected quote failure")
+        if ticker in self.quote_none_codes:
+            return None
+        if ticker in self.quote_map:
+            return self.quote_map[ticker]
         return self.quote_data
 
     def get_kline(self, symbol, start="2024-01-01", end=None, period="daily", adjust="qfq"):
@@ -309,4 +317,156 @@ class TestKline:
         """未带 JWT → 401。"""
         _use_fetcher(monkeypatch, kline_df=_sample_kline_df())
         r = client.get("/api/kline?symbol=600519")
+        assert r.status_code == 401
+
+
+# ================================================================ /api/quote/batch
+class TestQuoteBatch:
+    """R90：批量行情接口契约。
+
+    - 多只一次返回 {"quotes": {code: quote|{error}}, success_count, failed_count}
+    - 单只失败（None/异常）不回滚整体，标记 {"error": "行情获取失败"}
+    - 参数校验：空、>20 只、含非法代码 → 400
+    - 未鉴权 → 401
+    - 去重：tickers 重复只取一次
+    """
+
+    def test_batch_success_all(self, client, monkeypatch):
+        q1, q2 = dict(_sample_quote(), ticker="600519"), dict(_sample_quote(), ticker="000858")
+        _use_fetcher(monkeypatch, quote_map={"600519": q1, "000858": q2})
+        token = _token(client, "demo")
+        r = client.get("/api/quote/batch?tickers=600519,000858", headers=_auth_headers(token))
+        assert r.status_code == 200
+        obj = _get_json(r, "batch_ok")
+        assert obj["status"] == "ok"
+        data = obj["data"]
+        assert data["success_count"] == 2 and data["failed_count"] == 0
+        assert set(data["quotes"].keys()) == {"600519", "000858"}
+        assert data["quotes"]["600519"]["name"] == "贵州茅台"
+
+    def test_batch_partial_failure(self, client, monkeypatch):
+        """一只成功一只 None（数据源失败）→ 成功者正常、失败者 error 标记、整体仍 200。"""
+        q1 = dict(_sample_quote(), ticker="600519")
+        _use_fetcher(monkeypatch, quote_map={"600519": q1}, quote_none_codes={"601088"})
+        token = _token(client, "demo")
+        r = client.get("/api/quote/batch?tickers=600519,601088", headers=_auth_headers(token))
+        assert r.status_code == 200
+        obj = _get_json(r, "batch_partial")
+        data = obj["data"]
+        assert data["success_count"] == 1 and data["failed_count"] == 1
+        assert "name" in data["quotes"]["600519"]
+        assert "error" in data["quotes"]["601088"]
+
+    def test_batch_deduplicates(self, client, monkeypatch):
+        """重复代码去重：只调用一次。"""
+        q1 = dict(_sample_quote(), ticker="600519")
+        fake = _use_fetcher(monkeypatch, quote_map={"600519": q1})
+        token = _token(client, "demo")
+        r = client.get("/api/quote/batch?tickers=600519,600519,600519", headers=_auth_headers(token))
+        assert r.status_code == 200
+        data = _get_json(r, "batch_dedup")["data"]
+        assert data["success_count"] == 1
+        assert fake.quote_calls.count("600519") == 1
+
+    def test_batch_empty_tickers_400(self, client, monkeypatch):
+        _use_fetcher(monkeypatch)
+        token = _token(client, "demo")
+        r = client.get("/api/quote/batch?tickers=", headers=_auth_headers(token))
+        assert r.status_code == 400
+        assert _get_json(r, "batch_empty")["code"] == "invalid_param"
+
+    def test_batch_invalid_code_400(self, client, monkeypatch):
+        _use_fetcher(monkeypatch)
+        token = _token(client, "demo")
+        r = client.get("/api/quote/batch?tickers=600519,abc123", headers=_auth_headers(token))
+        assert r.status_code == 400
+        assert "非法代码" in _get_json(r, "batch_bad")["message"]
+
+    def test_batch_too_many_400(self, client, monkeypatch):
+        _use_fetcher(monkeypatch)
+        token = _token(client, "demo")
+        many = ",".join(f"60000{i:02d}" if i < 10 else f"6000{i}" for i in range(21))
+        r = client.get(f"/api/quote/batch?tickers={many}", headers=_auth_headers(token))
+        assert r.status_code == 400
+        assert "最多查询 20 只" in _get_json(r, "batch_many")["message"]
+
+    def test_batch_unauthorized(self, client, monkeypatch):
+        _use_fetcher(monkeypatch, quote_map={"600519": _sample_quote()})
+        r = client.get("/api/quote/batch?tickers=600519")
+        assert r.status_code == 401
+
+
+# ================================================================ /api/quote/batch
+class TestQuoteBatch:
+    """R90：批量行情接口契约。
+
+    - 多只一次返回 {"quotes": {code: quote|{error}}, success_count, failed_count}
+    - 单只失败（None/异常）不回滚整体，标记 {"error": "行情获取失败"}
+    - 参数校验：空、>20 只、含非法代码 → 400
+    - 未鉴权 → 401
+    - 去重：tickers 重复只取一次
+    """
+
+    def test_batch_success_all(self, client, monkeypatch):
+        q1, q2 = dict(_sample_quote(), ticker="600519"), dict(_sample_quote(), ticker="000858")
+        _use_fetcher(monkeypatch, quote_map={"600519": q1, "000858": q2})
+        token = _token(client, "demo")
+        r = client.get("/api/quote/batch?tickers=600519,000858", headers=_auth_headers(token))
+        assert r.status_code == 200
+        obj = _get_json(r, "batch_ok")
+        assert obj["status"] == "ok"
+        data = obj["data"]
+        assert data["success_count"] == 2 and data["failed_count"] == 0
+        assert set(data["quotes"].keys()) == {"600519", "000858"}
+        assert data["quotes"]["600519"]["name"] == "贵州茅台"
+
+    def test_batch_partial_failure(self, client, monkeypatch):
+        """一只成功一只 None（数据源失败）→ 成功者正常、失败者 error 标记、整体仍 200。"""
+        q1 = dict(_sample_quote(), ticker="600519")
+        _use_fetcher(monkeypatch, quote_map={"600519": q1}, quote_none_codes={"601088"})
+        token = _token(client, "demo")
+        r = client.get("/api/quote/batch?tickers=600519,601088", headers=_auth_headers(token))
+        assert r.status_code == 200
+        obj = _get_json(r, "batch_partial")
+        data = obj["data"]
+        assert data["success_count"] == 1 and data["failed_count"] == 1
+        assert "name" in data["quotes"]["600519"]
+        assert "error" in data["quotes"]["601088"]
+
+    def test_batch_deduplicates(self, client, monkeypatch):
+        """重复代码去重：只调用一次。"""
+        q1 = dict(_sample_quote(), ticker="600519")
+        fake = _use_fetcher(monkeypatch, quote_map={"600519": q1})
+        token = _token(client, "demo")
+        r = client.get("/api/quote/batch?tickers=600519,600519,600519", headers=_auth_headers(token))
+        assert r.status_code == 200
+        data = _get_json(r, "batch_dedup")["data"]
+        assert data["success_count"] == 1
+        assert fake.quote_calls.count("600519") == 1
+
+    def test_batch_empty_tickers_400(self, client, monkeypatch):
+        _use_fetcher(monkeypatch)
+        token = _token(client, "demo")
+        r = client.get("/api/quote/batch?tickers=", headers=_auth_headers(token))
+        assert r.status_code == 400
+        assert _get_json(r, "batch_empty")["code"] == "invalid_param"
+
+    def test_batch_invalid_code_400(self, client, monkeypatch):
+        _use_fetcher(monkeypatch)
+        token = _token(client, "demo")
+        r = client.get("/api/quote/batch?tickers=600519,abc123", headers=_auth_headers(token))
+        assert r.status_code == 400
+        assert "非法代码" in _get_json(r, "batch_bad")["message"]
+
+    def test_batch_too_many_400(self, client, monkeypatch):
+        _use_fetcher(monkeypatch)
+        token = _token(client, "demo")
+        many = ",".join(f"60000{i:02d}" if i < 10 else f"6000{i}" for i in range(21))
+        r = client.get(f"/api/quote/batch?tickers={many}", headers=_auth_headers(token))
+        assert r.status_code == 400
+        assert "最多查询 20 只" in _get_json(r, "batch_many")["message"]
+
+    def test_batch_unauthorized(self, client, monkeypatch):
+        _use_fetcher(monkeypatch, quote_map={"600519": _sample_quote()})
+        r = client.get("/api/quote/batch?tickers=600519")
         assert r.status_code == 401

@@ -83,6 +83,62 @@ def quote():
     return ok(data=data, message="success")
 
 
+@bp.get("/quote/batch")
+@jwt_required
+def quote_batch():
+    """
+    GET /api/quote/batch?tickers=600519,000858,601088
+    批量实时行情（最多 20 只，逗号分隔）。单只失败不回滚整体——返回
+    {"quotes": {code: {quote} 或 {"error": "..."}}, "success_count": N, "failed_count": M}。
+    供行情看板自选行情等「N 只并行」场景一次网络往返取数（替代前端逐只
+    串行 /api/quote × N），并发取数走共享有界线程池 fetch_many（R90）。
+    """
+    raw = parse_str_param("tickers", max_len=512)
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    if not parts:
+        return fail(message="参数无效", code="invalid_param", http_status=400)
+    if len(parts) > 20:
+        return fail(message="一次最多查询 20 只", code="invalid_param", http_status=400)
+    bad = [p for p in parts if not _TICKER_RE.match(p)]
+    if bad:
+        return fail(message=f"存在非法代码: {','.join(bad)}", code="invalid_param", http_status=400)
+
+    # 去重保持顺序
+    codes = list(dict.fromkeys(parts))
+
+    def _one(code):
+        try:
+            d = get_fetcher().get_realtime_quote(code)
+            return code, d
+        except Exception:
+            return code, None
+
+    try:
+        from modules.fetch_parallel import fetch_many
+        res = fetch_many([(c, (lambda code=c: _one(code))) for c in codes])
+    except Exception:
+        return fail(message="服务内部错误", code="internal_error", http_status=500)
+
+    quotes = {}
+    success_count = 0
+    for code in codes:
+        item = res.get(code)
+        if isinstance(item, tuple) and len(item) == 2:
+            _, d = item
+        else:
+            d = None
+        if d is not None:
+            quotes[code] = d
+            success_count += 1
+        else:
+            quotes[code] = {"error": "行情获取失败"}
+    return ok(data={
+        "quotes": quotes,
+        "success_count": success_count,
+        "failed_count": len(codes) - success_count,
+    }, message="success")
+
+
 @bp.get("/kline")
 @jwt_required
 def kline():
