@@ -6,7 +6,6 @@ K 线、参数设置、技术面分析已迁移至「股票选取」模块。
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
-import requests
 import concurrent.futures as _cf
 from datetime import datetime, timedelta, time
 
@@ -14,7 +13,7 @@ from modules.colors import UP_COLOR, DOWN_COLOR  # 轻量：不再拖入 plotly+
 from modules.search_ui import multi_stock_search_input, stock_search_input
 from modules.session import (
     api_kline, safe_switch_page,
-    fragment_market_alerts_panel, api_get, api_post, api_delete, get_token, API_BASE, clear_auth,
+    fragment_market_alerts_panel, api_get, api_post, api_delete, get_token, clear_auth,
 )
 from modules.format_helpers import safe_int
 from modules.widgets import render_index_compact
@@ -507,21 +506,22 @@ if st.button("计算相关性", key="calc_corr", use_container_width=True,
         _end = _today_str()
         _start = (datetime.now().date() - timedelta(days=180)).strftime("%Y-%m-%d")
         daily_dict = {}
-        # 并行取数，避免串行逐个网络超时造成「卡死」观感；单只超时 12s 兜底
-        _ex = __import__("concurrent.futures", fromlist=["ThreadPoolExecutor"]).ThreadPoolExecutor(
-            max_workers=max(1, min(8, len(_ticker_list)))
-        )
+        # R90：并行取数走共享有界线程池 fetch_many（原每次新建 ThreadPoolExecutor
+        # + shutdown(wait=False) 丢线程；共享池每路有硬边界，线程回池不泄漏）
         try:
-            _futs = {_ex.submit(_fetch_one_corr, t, _start, _end): t for t in _ticker_list}
-            for _fut in __import__("concurrent.futures", fromlist=["as_completed"]).as_completed(_futs, timeout=15):
-                _res = _fut.result(timeout=1)
-                if _res:
-                    _label, _d = _res
-                    daily_dict[_label] = _d
+            from modules.fetch_parallel import fetch_many as _fm
+            _tasks = [
+                (t, (lambda tt=t: _fetch_one_corr(tt, _start, _end)))
+                for t in _ticker_list
+            ]
+            _res = _fm(_tasks, max_workers=8, timeout=15)
+            # fetch_many 单任务异常/超时 → None；_fetch_one_corr 自身失败也返回 None，
+            # 均需跳过（成功项为 (label, df) 二元组）
+            for _item in _res.values():
+                if isinstance(_item, tuple) and len(_item) == 2 and _item[0] is not None:
+                    daily_dict[_item[0]] = _item[1]
         except Exception:
             pass
-        finally:
-            _ex.shutdown(wait=False, cancel_futures=True)
 
         if len(daily_dict) >= 2:
             try:
@@ -540,33 +540,43 @@ if st.button("计算相关性", key="calc_corr", use_container_width=True,
 # 自选行情（行情看板底部，模仿图片2：名称/代码/现价/涨跌幅/涨跌额/
 # 今开/最高/最低/换手率/市盈率/总市值(亿)/操作，行可点看 K 线）
 # ------------------------------------------------------------------
-def _wl_quote_one(code: str, token):
-    """并行取单只实时行情：优先后端 /api/quote，失败回退本地 fetcher。"""
+def _wl_quote_batch(codes, token):
+    """R90：优先批量接口（1 次网络往返替代 N 次 /api/quote）。
+
+    返回 (quotes_dict, has_auth_error)。批量接口失败的代码走本地 fetcher 回退。
+    每只失败返回 None，由调用方统一渲染空态。
+    """
+    quotes = {}
+    has_auth_error = False
+    if not codes:
+        return quotes, has_auth_error
     try:
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
-        resp = requests.get(f"{API_BASE}/api/quote?ticker={code}", headers=headers, timeout=5)
-        if resp.status_code == 401:
-            return code, {"__auth_error": True}
-        if resp.status_code == 200:
-            body = resp.json()
-            if isinstance(body, dict) and body.get("status") == "ok":
-                data = body.get("data")
-                if isinstance(data, dict) and data.get("current"):
-                    return code, data
+        import urllib.parse as _up
+        _qs = _up.urlencode({"tickers": ",".join(codes)})
+        _sc, _body = api_get(f"/api/quote/batch?{_qs}", timeout=10)
+        if _sc == 200 and isinstance(_body, dict) and _body.get("status") == "ok":
+            data = _body.get("data") or {}
+            batch_quotes = data.get("quotes") or {}
+            for code, q in batch_quotes.items():
+                if isinstance(q, dict) and q.get("__auth_error"):
+                    has_auth_error = True
+                    quotes[code] = q
+                elif isinstance(q, dict) and "error" not in q and q.get("current"):
+                    quotes[code] = q
     except Exception:
         pass
-    try:
-        q = fetcher.get_realtime_quote(code)
-        if isinstance(q, dict) and q.get("current"):
-            return code, q
-    except Exception:
-        pass
-    return code, None
+    # 批量接口未返回的代码 → 本地 fetcher 回退（并行，避免串行网络超时）
+    missing = [c for c in codes if c not in quotes]
+    if missing:
+        with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+            for code, q in ex.map(lambda c: (c, _wl_quote_local(c)), missing):
+                if q is not None:
+                    quotes[code] = q
+    return quotes, has_auth_error
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def _wl_extra(code: str):
-    """缓存 1h：返回 总股本/流通股（股），用于计算 总市值 与 换手率。失败返回 None。"""
+def _wl_extra_uncached(code: str):
+    """R90 拆分：未装饰底层（可在线程池并行调用）。返回 总股本/流通股。"""
     try:
         import akshare as ak
         from modules.ssl_helper import ssl_bypass
@@ -586,13 +596,24 @@ def _wl_extra(code: str):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _wl_pe(code: str):
-    """缓存 1h：取市盈率(TTM)。"""
+def _wl_extra(code: str):
+    """缓存 1h：返回 总股本/流通股（股），用于计算 总市值 与 换手率。失败返回 None。"""
+    return _wl_extra_uncached(code)
+
+
+def _wl_pe_uncached(code: str):
+    """R90 拆分：未装饰底层（可在线程池并行调用）。取市盈率(TTM)。"""
     try:
         _, pe, _ = fund_one(code, fetcher)
         return pe
     except Exception:
         return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _wl_pe(code: str):
+    """缓存 1h：取市盈率(TTM)。"""
+    return _wl_pe_uncached(code)
 
 
 def _wl_render_table_html(rows, dark: bool):
@@ -713,18 +734,27 @@ def fragment_watchlist_quotes():
             except Exception:
                 names[_c] = _c
 
-    # 并行拉取实时行情
-    quotes = {}
+    # R90：批量接口一次拉全（替代原逐只并行 /api/quote×N），失败的代码本地回退
     _tok = get_token()
     with st.spinner(f"并行获取 {len(codes)} 只自选股实时行情…"):
-        with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-            for code, q in ex.map(lambda c: _wl_quote_one(c, _tok), codes):
-                quotes[code] = q
+        quotes, _has_auth_err = _wl_quote_batch(codes, _tok)
 
-    if any(isinstance(q, dict) and q.get("__auth_error") for q in quotes.values()):
+    if _has_auth_err or any(isinstance(q, dict) and q.get("__auth_error") for q in quotes.values()):
         clear_auth()
         st.warning("🔐 登录已过期，请重新登录")
         return
+
+    # R90：财务补充（PE / 总股本）并发预取——原逐只串行（N×(akshare info + fund) 网络往返
+    # 可达数秒/只），改 fetch_many 共享池并行，冷缓存首屏大幅提速。失败项 None 由渲染兜底。
+    try:
+        from modules.fetch_parallel import fetch_many as _fetch_many
+        _fin_tasks = []
+        for code in codes:
+            _fin_tasks.append((f"pe_{code}", (lambda c=code: _wl_pe_uncached(c))))
+            _fin_tasks.append((f"ex_{code}", (lambda c=code: _wl_extra_uncached(c))))
+        _fin_res = _fetch_many(_fin_tasks, max_workers=6)
+    except Exception:
+        _fin_res = {}
 
     rows = []
     for code in codes:
@@ -743,9 +773,9 @@ def fragment_watchlist_quotes():
             cur = open_ = high = low = chg = change_amt = None
             volume = 0
 
-        # 财务补充（缓存 1h）：市盈率 / 总市值 / 换手率
-        pe = _wl_pe(code)
-        extra = _wl_extra(code)
+        # 财务补充（并发预取结果）：市盈率 / 总市值 / 换手率
+        pe = _fin_res.get(f"pe_{code}")
+        extra = _fin_res.get(f"ex_{code}")
         total_shares = extra.get("total_shares") if extra else None
         float_shares = extra.get("float_shares") if extra else None
         mv_yi = (cur * total_shares / 1e8) if (cur and total_shares) else None
