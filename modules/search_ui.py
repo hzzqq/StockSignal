@@ -59,6 +59,75 @@ def _guess_market(code: str) -> str:
     return guess_exchange(code)
 
 
+# ── 匹配方式标签（对齐 E:\project\dad 项目的 search_stock 设计）────────────
+# 每条搜索结果标注「为什么匹配上」，前端下拉以 chip 展示（如「拼音首字母」），
+# 用户搜「skj」看到「深技 ★ 000021 拼音首字母」即明白匹配来源，搜索更透明。
+_MATCH_LABELS = {
+    "code_exact":        "精确代码",
+    "name_exact":        "精确名称",
+    "code_prefix":       "代码前缀",
+    "name_prefix":       "名称前缀",
+    "pinyin_init":       "拼音首字母",
+    "pinyin_full":       "拼音全拼",
+    "name_contains":     "名称包含",
+    "dispersed":         "名称分散",
+}
+
+
+def _match_label(query: str, code: str, name: str) -> str:
+    """判定查询与结果的匹配方式（纯函数，可离线测试）。
+
+    优先级与 dad 项目 search_stock 一致：
+    精确代码 > 精确名称 > 代码前缀 > 名称前缀 > 拼音首字母 > 拼音全拼
+    > 名称包含 > 名称分散。命中返回中文标签，否则返回「市场」标签兜底。
+    """
+    if not query:
+        return _derive_tag(code)
+    q = query.strip()
+    if not q:
+        return _derive_tag(code)
+    q_up = q.upper()
+    q_low = q.lower()
+    has_chinese = any('\u4e00' <= ch <= '\u9fff' for ch in q)
+    c = str(code).strip().zfill(6)
+    n = str(name)
+
+    # L1: 6 位代码完全相等
+    if c == q and len(q) == 6:
+        return _MATCH_LABELS["code_exact"]
+    # L2: 名称完全相等
+    if n == q:
+        return _MATCH_LABELS["name_exact"]
+    # L3: 代码前缀（>=3 位数字才判，避免单数字误判）
+    if len(q) >= 3 and c.startswith(q):
+        return _MATCH_LABELS["code_prefix"]
+    # L4: 名称前缀
+    if n.startswith(q):
+        return _MATCH_LABELS["name_prefix"]
+    # L5: 拼音首字母（精确）
+    if not has_chinese:
+        initials = StockFetcher._pinyin_initials(n)
+        if initials and q_up == initials:
+            return _MATCH_LABELS["pinyin_init"]
+        # 多音字变体
+        variants = StockFetcher._pinyin_initials_variants(n)
+        if variants and q_up in variants:
+            return _MATCH_LABELS["pinyin_init"]
+    # L6: 拼音全拼（精确）
+    if not has_chinese:
+        full = StockFetcher._pinyin_full(n)
+        if full and q_low == full:
+            return _MATCH_LABELS["pinyin_full"]
+    # L7: 名称包含
+    if q in n:
+        return _MATCH_LABELS["name_contains"]
+    # L8: 名称分散（中文，逐字都在）
+    if has_chinese and len(q) >= 2 and all(ch in n for ch in q):
+        return _MATCH_LABELS["dispersed"]
+    # 兜底：市场标签（沪A/创业板/科创板…）
+    return _derive_tag(code)
+
+
 def _code_exists(code: str) -> bool:
     """本地股票库精确校验 6 位代码是否存在。"""
     try:
@@ -167,19 +236,25 @@ def _derive_tag(code: str) -> str:
 
 
 def _render_match_dropdown(key: str, raw_input: str, results, active_code: str, dark: bool):
-    """渲染「匹配结果 N 条」选择列表，返回被选中（点击）的代码或 None。
+    """渲染「匹配结果 N 条」选择列表（胶囊风格，对齐 dad 项目搜索前端），
+    返回被选中（点击）的代码或 None。
 
-    用 Streamlit 原生 ``st.radio`` 渲染整列可点选项，原因是：
+    交互载体用 Streamlit 原生 ``st.pills``（1.58+ 胶囊单选控件）：
+    - 视觉贴近 dad 项目 `trade_ui.html` 的 drop-tag chip（圆角胶囊）；
     - ``st.button`` 在 ``st.form`` 内会抛 ``StreamlitAPIException``
       （5_仓位管理 等页面把搜索框放在 form 里，导致整页崩溃）；
     - ``streamlit.components.v1.html()`` 内 JS 的 ``setComponentValue()``
       只对 ``components.declare()`` 自定义组件有效，对静态 iframe 无效，
-      点击结果行完全无响应（最初“点不了”的根因）。
-    - ``st.radio`` 是受支持的输入控件，form 内外都能正常选中并回传值，
+      点击结果行完全无响应（最初“点不了”的根因）；
+    - ``st.pills`` 是受支持的输入控件，form 内外都能正常选中并回传值，
       点击即选中、非 form 页面会触发 rerun 立即生效。
+    - 浅色/深色模式由 st.pills 原生适配（无需手工配色）。
 
-    radio key 带 ``mkradio_`` 前缀；key 中含 ``raw_input`` 保证换搜索词后
-    重新挂载、不残留旧选中态。
+    label 展示 dad 式三要素：``名称 ★ 代码 匹配方式``（★ 标注最优匹配，
+    匹配方式来自 _match_label：拼音首字母/拼音全拼/精确代码/名称包含等）。
+
+    pills key 带 ``mkpills_`` 前缀；key 中含 ``raw_input`` 保证换搜索词后
+    重新挂载、不残留旧选中态。Streamlit < 1.36（无 pills）时回退 st.radio。
     """
     st.caption(f"🔍 匹配结果（{len(results)} 条）")
 
@@ -189,23 +264,38 @@ def _render_match_dropdown(key: str, raw_input: str, results, active_code: str, 
     labels = []
     code_by_label = {}
     default_idx = 0
+    best_code = results[0][0] if results else None
     for i, (code, name, market) in enumerate(results):
-        tag = _derive_tag(code)
-        label = f"{name}　{code}　{tag}"
+        # dad 式：名称 + ★(最佳) + 代码 + 匹配方式标签（chip 语义）
+        star = " ★" if code == best_code else ""
+        mlabel = _match_label(raw_input, code, name)
+        label = f"{name}{star}　{code}　{mlabel}"
         labels.append(label)
         code_by_label[label] = code
         if code == active_code:
             default_idx = i
 
-    radio_key = f"mkradio_{key}_{token}"
-    picked_label = st.radio(
-        "选择匹配的股票",
-        options=labels,
-        index=default_idx,
-        key=radio_key,
-        label_visibility="collapsed",
-        horizontal=False,
-    )
+    pick_key = f"mkpills_{key}_{token}"
+
+    if hasattr(st, "pills"):
+        picked_label = st.pills(
+            "选择匹配的股票",
+            options=labels,
+            selection_mode="single",
+            default=labels[default_idx] if labels else None,
+            key=pick_key,
+            label_visibility="collapsed",
+        )
+    else:
+        # Streamlit < 1.36 回退：radio 单选（同一交互语义）
+        picked_label = st.radio(
+            "选择匹配的股票",
+            options=labels,
+            index=default_idx,
+            key=pick_key,
+            label_visibility="collapsed",
+            horizontal=False,
+        )
     if picked_label and picked_label in code_by_label:
         return code_by_label[picked_label]
     return None
