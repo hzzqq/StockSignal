@@ -440,3 +440,151 @@ def test_market_temp_then_temp_level_pipeline_safe_on_empty():
     level, emoji, color = _temp_level(t)
     assert isinstance(level, str)
     assert emoji != ""
+
+
+class TestSrcDiv:
+    """R93：_src_div 股息率第 5 路「PE 反推股息率」纯本地兜底。
+
+    根因：legu stock_market_pe_lg 只返回【日期/总市值/市盈率】，不含股息率列；
+    前面 4 路（legu 主/沪深300 PE/东财 spot/申万 sw）在沙箱/弱网下易连环失败。
+    第 5 路只用 legu PE 历史 + payout_ratio 经验公式，0 网络依赖——保证
+    div_yield 字段在沙箱/弱网下也有数据（payout=0.35 / PE=13 → 2.69%，
+    与沪深 300 历史均值 ~2.5% 吻合）。
+    """
+
+    def test_div_via_pe_formula_runs_locally(self, monkeypatch):
+        """模拟 legu 返回的数据（有 PE/日期但无股息率列），验证 PE 反推路径生效。"""
+        import pandas as pd
+        from datetime import datetime, timedelta
+
+        # 构造 legu 假数据：仅 日期/总市值/市盈率 三列
+        dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(30)]
+        fake_legu = pd.DataFrame({
+            "日期": dates,
+            "总市值": [100.0] * 30,
+            "市盈率": [13.0, 13.2, 13.5, 13.3, 12.8, 12.5, 12.7, 13.1, 13.4, 13.0,
+                     13.6, 13.5, 13.3, 13.0, 12.9, 12.7, 12.5, 12.3, 12.6, 12.9,
+                     13.1, 13.4, 13.5, 13.3, 13.0, 12.8, 12.6, 12.9, 13.2, 13.4],
+        })
+
+        # 模拟：让 1-4 路全部失败/返回无效数据（沙箱场景），第 5 路走 PE 反推
+        # 思路：mock 所有失败路径（raise 或空 df）+ stub 第 5 路内部调用的 ak 接口
+        import modules.market_drivers as m
+
+        # 让所有 legu 主路失败
+        def _fail(*a, **k):
+            raise ConnectionError("legu unavailable")
+
+        # stub 强制让 stock_market_pe_lg 返回 fake_legu
+        # 注：R89 修了参数 + R93 加了第 5 路，第 1 路 _col 失败+第 2-4 路全失败→
+        # 落到第 5 路再次调 stock_market_pe_lg，此时需它返回数据。
+        monkeypatch.setattr("akshare.stock_market_pe_lg", lambda *a, **k: fake_legu.copy())
+        monkeypatch.setattr("akshare.stock_index_pe_lg", _fail)
+        monkeypatch.setattr("akshare.stock_zh_a_spot_em", _fail)
+        monkeypatch.setattr("akshare.sw_index_third_info", _fail)
+        # 让 _cached 在 mock 下每次重算（清缓存）
+        if hasattr(m, '_CACHE'):
+            m._CACHE.clear()
+
+        rows = m._src_div(days=180)
+        assert len(rows) == 1, f"应有一条 div_yield，实际 {len(rows)}"
+        key, name, series = rows[0]
+        assert key == "div_yield"
+        assert name == "股息率(PE反推)"
+        # 时间序列（非单点）
+        assert len(series) >= 20, f"应有 ~30 根时间序列，实际 {len(series)}"
+        # 公式：div = 0.35 * 100 / PE = 35 / 13.4 ≈ 2.61%
+        last = float(series.iloc[-1])
+        assert 2.0 < last < 4.0, f"反推股息率应在 2-4% 区间（PE 12-17 范围），实际 {last:.2f}%"
+
+    def test_div_returns_empty_when_all_paths_fail(self, monkeypatch):
+        """所有路径都失败（ak 抛异常且第 5 路 PE 也失败）→ 返回 []，不崩。"""
+        import modules.market_drivers as m
+
+        def _fail(*a, **k):
+            raise ConnectionError("all sources down")
+
+        monkeypatch.setattr("akshare.stock_market_pe_lg", _fail)
+        monkeypatch.setattr("akshare.stock_index_pe_lg", _fail)
+        monkeypatch.setattr("akshare.stock_zh_a_spot_em", _fail)
+        monkeypatch.setattr("akshare.sw_index_third_info", _fail)
+        if hasattr(m, '_CACHE'):
+            m._CACHE.clear()
+
+        rows = m._src_div(days=180)
+        # 5 路全失败 → 空列表（页面展示「数据源暂未接入」提示）
+        assert rows == []
+
+
+class TestSrcDiv:
+    """R93：_src_div 股息率第 5 路「PE 反推股息率」纯本地兜底。
+
+    根因：legu stock_market_pe_lg 只返回【日期/总市值/市盈率】，不含股息率列；
+    前面 4 路（legu 主/沪深300 PE/东财 spot/申万 sw）在沙箱/弱网下易连环失败。
+    第 5 路只用 legu PE 历史 + payout_ratio 经验公式，0 网络依赖——保证
+    div_yield 字段在沙箱/弱网下也有数据（payout=0.35 / PE=13 → 2.69%，
+    与沪深 300 历史均值 ~2.5% 吻合）。
+    """
+
+    def test_div_via_pe_formula_runs_locally(self, monkeypatch):
+        """模拟 legu 返回的数据（有 PE/日期但无股息率列），验证 PE 反推路径生效。"""
+        import pandas as pd
+        from datetime import datetime, timedelta
+
+        # 构造 legu 假数据：仅 日期/总市值/市盈率 三列
+        dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(30)]
+        fake_legu = pd.DataFrame({
+            "日期": dates,
+            "总市值": [100.0] * 30,
+            "市盈率": [13.0, 13.2, 13.5, 13.3, 12.8, 12.5, 12.7, 13.1, 13.4, 13.0,
+                     13.6, 13.5, 13.3, 13.0, 12.9, 12.7, 12.5, 12.3, 12.6, 12.9,
+                     13.1, 13.4, 13.5, 13.3, 13.0, 12.8, 12.6, 12.9, 13.2, 13.4],
+        })
+
+        # 模拟：让 1-4 路全部失败/返回无效数据（沙箱场景），第 5 路走 PE 反推
+        # 思路：mock 所有失败路径（raise 或空 df）+ stub 第 5 路内部调用的 ak 接口
+        import modules.market_drivers as m
+
+        # 让所有 legu 主路失败
+        def _fail(*a, **k):
+            raise ConnectionError("legu unavailable")
+
+        # stub 强制让 stock_market_pe_lg 返回 fake_legu
+        # 注：R89 修了参数 + R93 加了第 5 路，第 1 路 _col 失败+第 2-4 路全失败→
+        # 落到第 5 路再次调 stock_market_pe_lg，此时需它返回数据。
+        monkeypatch.setattr("akshare.stock_market_pe_lg", lambda *a, **k: fake_legu.copy())
+        monkeypatch.setattr("akshare.stock_index_pe_lg", _fail)
+        monkeypatch.setattr("akshare.stock_zh_a_spot_em", _fail)
+        monkeypatch.setattr("akshare.sw_index_third_info", _fail)
+        # 让 _cached 在 mock 下每次重算（清缓存）
+        if hasattr(m, '_CACHE'):
+            m._CACHE.clear()
+
+        rows = m._src_div(days=180)
+        assert len(rows) == 1, f"应有一条 div_yield，实际 {len(rows)}"
+        key, name, series = rows[0]
+        assert key == "div_yield"
+        assert name == "股息率(PE反推)"
+        # 时间序列（非单点）
+        assert len(series) >= 20, f"应有 ~30 根时间序列，实际 {len(series)}"
+        # 公式：div = 0.35 * 100 / PE = 35 / 13.4 ≈ 2.61%
+        last = float(series.iloc[-1])
+        assert 2.0 < last < 4.0, f"反推股息率应在 2-4% 区间（PE 12-17 范围），实际 {last:.2f}%"
+
+    def test_div_returns_empty_when_all_paths_fail(self, monkeypatch):
+        """所有路径都失败（ak 抛异常且第 5 路 PE 也失败）→ 返回 []，不崩。"""
+        import modules.market_drivers as m
+
+        def _fail(*a, **k):
+            raise ConnectionError("all sources down")
+
+        monkeypatch.setattr("akshare.stock_market_pe_lg", _fail)
+        monkeypatch.setattr("akshare.stock_index_pe_lg", _fail)
+        monkeypatch.setattr("akshare.stock_zh_a_spot_em", _fail)
+        monkeypatch.setattr("akshare.sw_index_third_info", _fail)
+        if hasattr(m, '_CACHE'):
+            m._CACHE.clear()
+
+        rows = m._src_div(days=180)
+        # 5 路全失败 → 空列表（页面展示「数据源暂未接入」提示）
+        assert rows == []

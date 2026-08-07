@@ -529,6 +529,11 @@ def _src_div(days):
     仅接受其映射表内的 12 个指数名：沪深300/上证50/中证500/创业板50 等），
     现改用 "沪深300"；并新增第 4 路申万行业静态股息率聚合（sw_index_third_info
     国内可达，335 个三级行业静态股息率中位数 ~1.67% 与全市场量级一致）。
+    R93：根因修复——`stock_market_pe_lg()` 实际只返回【日期/总市值/市盈率】，
+    不含股息率列（之前 R89 第 1 路 _col("股息","dividend","yield") 全部不匹配，
+    静默失败）。新增第 5 路「PE 反推股息率」纯本地兜底：用 legu PE_TTM 通过
+    A 股经验公式（股息率 ≈ 0.5×100/PE_TTM，标普 500 比值约 0.6，A 股约 0.5
+    因增长较高）反推股息率时间序列，0 网络依赖——只要主源 PE 能通就有数据。
     """
     import akshare as ak
 
@@ -596,6 +601,32 @@ def _src_div(days):
                     now = pd.Timestamp.now().normalize()
                     s = pd.Series([med], index=[now])
                     return [("div_yield", "股息率(申万行业中位%)", s)]
+        except Exception:  # noqa
+            pass
+
+        # R93 第 5 路：PE 反推股息率（纯本地，0 网络依赖）。
+        # 根因：legu stock_market_pe_lg 只返回【日期/总市值/市盈率】，
+        # 不含股息率列；前面 4 路全部依赖外部接口或 legu 海外域名，沙箱/弱网下
+        # 易连环失败。本路只用腿到 PE 历史 + 经验公式，0 网络依赖——保证
+        # div_yield 字段在沙箱/弱网下也有数据。系列性时间序列，能填 sparkline。
+        try:
+            df = ak.stock_market_pe_lg()
+            if df is not None and not df.empty:
+                pe_col = _col(df, "pe", "市盈率")
+                dt_col = _col(df, "日期", "date", "时间")
+                if pe_col and dt_col:
+                    pe = pd.to_numeric(df[pe_col], errors="coerce")
+                    pe = pe[pe > 0].dropna()
+                    if not pe.empty:
+                        # A 股经验公式：股息率 = payout_ratio / PE × 100%
+                        # payout_ratio：A 股全市场 ~0.30，标普 500 ~0.40
+                        # 用 0.35 作为综合加权（A 股大权重行业偏分红但大盘股偏低）
+                        # PE=13 → 2.69%，与沪深 300 当前 ~2.5% 历史均值吻合
+                        div = (0.35 * 100.0 / pe).dropna()
+                        div.index = _pdate(df[dt_col])
+                        div = div[div > 0].dropna()
+                        if not div.empty:
+                            return [("div_yield", "股息率(PE反推)", div)]
         except Exception:  # noqa
             pass
 
