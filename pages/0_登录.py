@@ -40,7 +40,7 @@ try:
         st.error(f"后端健康检查失败 (HTTP {health.status_code})。请确认 Flask 已启动：")
         st.code("python -m flask --app backend.app:app run --host 127.0.0.1 --port 5050")
         st.stop()
-except requests.exceptions.RequestException as e:
+except Exception as e:  # noqa: BLE001 - 任何连接/网络异常都降级为友好提示，不抛未捕获异常
     st.error(f"❌ 无法连接后端服务 ({API_BASE})")
     st.code(f"错误: {e}\n\n请先启动 Flask：\npython -m flask --app backend.app:app run --host 127.0.0.1 --port 5050")
     st.stop()

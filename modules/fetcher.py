@@ -473,8 +473,12 @@ class StockFetcher:
                 return _safe_json_loads(row[0])
         return None
 
-    def _read_stale_cache(self, conn, table_name, prefix):
-        """读取过期缓存（用于降级兜底）。排除 _source 等元数据键。"""
+    def _read_stale_cache(self, conn, table_name, prefix, as_dataframe=True):
+        """读取过期缓存（用于降级兜底）。排除 _source 等元数据键。
+
+        as_dataframe=True（默认）：按 DataFrame 解析（daily/index/sector 等时序数据）；
+        as_dataframe=False：按 JSON 原始 dict/list 解析（实时行情等）。
+        """
         self._init_cache_table(conn, table_name)
         rows = conn.execute(
             f"SELECT data_json, updated_at FROM {table_name} "
@@ -493,6 +497,8 @@ class StockFetcher:
             f"数据源不可用，正在使用 {age_hours:.1f} 小时前的缓存数据",
             UserWarning, stacklevel=4,
         )
+        if not as_dataframe:
+            return _safe_json_loads(data_json)
         df = pd.read_json(io.StringIO(data_json))
         if "date" in df.columns:
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
@@ -750,6 +756,15 @@ class StockFetcher:
             return quote
         except Exception as e:
             logger.info(f"[StockFetcher] 获取实时行情失败 ({ticker}): {e}")
+            # 数据源不可用 → 回退到「过期缓存」兜底（与 daily/index/sector 同策略）。
+            # 避免 akshare/新浪全路挂时实时行情直接变 None，页面行情卡白。
+            try:
+                stale = self._read_stale_cache(conn, "rt_quote_cache", cache_key, as_dataframe=False)
+                if stale is not None:
+                    logger.info(f"[StockFetcher] 实时行情回退过期缓存 ({ticker})")
+                    return stale
+            except Exception:
+                pass
             return None
         finally:
             conn.close()
@@ -1158,15 +1173,13 @@ class StockFetcher:
             conn.close()
 
     # ───── 中文搜索辅助方法 ─────
+    # 注：纯函数实现已下沉至 modules._search_utils（R95 拆分），此处保留为委托壳，
+    # 维持 StockFetcher 对外接口零变化；_pinyin_initials 仍驻留本类（依赖类级预热缓存）。
     @staticmethod
     def _pinyin_static(name):
         """获取拼音首字母（纯函数，无副作用，用于缓存）。"""
-        try:
-            import pypinyin
-            return "".join([w[0][0] for w in pypinyin.pinyin(name, style=pypinyin.NORMAL)]).upper()
-        except Exception as e:
-            logger.warning(f"[fetcher] 处理异常: {e}")
-            return ""
+        from modules._search_utils import pinyin_initials_static
+        return pinyin_initials_static(name)
 
     @staticmethod
     def _pinyin_initials_variants(name):
@@ -1174,27 +1187,14 @@ class StockFetcher:
         获取股票名称的所有拼音首字母组合（处理多音字）。
         如 '长电科技' -> {'ZDKJ', 'CDKJ'}。
         """
-        try:
-            import pypinyin
-            py_lists = pypinyin.pinyin(name, style=pypinyin.NORMAL, heteronym=True)
-            from itertools import product
-            variants = set()
-            for combo in product(*py_lists):
-                variants.add("".join([w[0].upper() for w in combo]))
-            return variants
-        except Exception as e:
-            logger.warning(f"[fetcher] 处理异常: {e}")
-            return set()
+        from modules._search_utils import pinyin_initials_variants
+        return pinyin_initials_variants(name)
 
     @staticmethod
     def _pinyin_full(name):
         """获取股票名称的完整拼音（小写无空格）。如 '贵州茅台' -> 'guizhoumaotai'。"""
-        try:
-            import pypinyin
-            return "".join([w[0] for w in pypinyin.pinyin(name, style=pypinyin.NORMAL)]).lower()
-        except Exception as e:
-            logger.warning(f"[fetcher] 处理异常: {e}")
-            return name.lower()
+        from modules._search_utils import pinyin_full
+        return pinyin_full(name)
 
 
     @staticmethod
@@ -1216,24 +1216,8 @@ class StockFetcher:
         覆盖常见的简称模式：首字+尾字、中间词、2-gram等。
         如 '招商银行' -> {'招商', '银行', '招', '商', '银', '行', '商银', '招商银', '商银行'}
         """
-        tokens = set()
-        tokens.add(name)           # 全称
-        n = len(name)
-        # 2-gram（如 "招商" "商银" "银行"）
-        for i in range(n - 1):
-            tokens.add(name[i:i + 2])
-        # 3-gram（如 "招商银" "商银行"）
-        for i in range(n - 2):
-            tokens.add(name[i:i + 3])
-        # 单字
-        for ch in name:
-            tokens.add(ch)
-        # 首尾组合（简称常见形式：首字+尾字，如 "招行"）
-        if n >= 2:
-            tokens.add(name[0] + name[-1])
-        if n >= 3:
-            tokens.add(name[0] + name[2])     # 跳字简写
-        return tokens
+        from modules._search_utils import name_tokens
+        return name_tokens(name)
 
     def _get_latest_price(self, code):
         """从日线缓存中获取最近一个交易日的收盘价。返回 (price, date_str) 或 (None, None)。"""

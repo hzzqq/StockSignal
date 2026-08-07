@@ -77,44 +77,6 @@ _FAKE_USER = {
 }
 
 
-def _simulate_offline():
-    """让所有网络调用立即失败，逼出降级路径且不卡 30s。
-
-    返回需在测试结束时复原的清理操作。
-    覆盖三层：requests（akshare 走 requests 的接口）、urllib（akshare 东方财富路径
-    走 urllib，requests 桩拦不住，会真去连网被屏蔽→挂死）、socket 直连（兜底 +
-    让 fundflow 的 2s 代理探测也即时失败）。
-    """
-    import urllib.request as _urllib_req
-    import socket as _sock
-
-    _orig_request = requests.Session.request
-    _orig_urlopen = _urllib_req.urlopen
-    _orig_conn = _sock.create_connection
-
-    def _fail(*args, **kwargs):
-        raise requests.exceptions.ConnectionError("smoke: offline simulated")
-
-    def _fail_urlopen(*a, **k):
-        raise OSError("smoke: offline simulated (urllib)")
-
-    def _fail_conn(*a, **k):
-        raise OSError("smoke: offline simulated (socket)")
-
-    requests.Session.request = _fail
-    _urllib_req.urlopen = _fail_urlopen
-    _sock.create_connection = _fail_conn
-    return (_orig_request, _orig_urlopen, _orig_conn)
-
-
-def _restore_offline(orig):
-    requests.Session.request = orig[0]
-    import urllib.request as _urllib_req
-    _urllib_req.urlopen = orig[1]
-    import socket as _sock
-    _sock.create_connection = orig[2]
-
-
 def _collect_errors(at: AppTest) -> list[str]:
     """收集页面渲染出的 st.error / st.exception 小部件文本。"""
     out: list[str] = []
@@ -133,24 +95,33 @@ def _collect_errors(at: AppTest) -> list[str]:
 
 
 def _run_page(page_path: str, authed: bool) -> dict:
-    at = AppTest.from_file(page_path, default_timeout=120)
-    if authed:
-        at.session_state["auth_token"] = _FAKE_TOKEN
-        at.session_state["auth_user"] = dict(_FAKE_USER)
-    at.run()
-    return {
-        "exception_count": len(at.exception),
-        "exceptions": [str(e) for e in at.exception[:3]],
-        "errors": _collect_errors(at),
-    }
+    """加载并渲染单个页面。包在独立工作线程里跑，硬超时隔离「单页卡死」——
+    避免某一页 hang 住把整批 pytest 拖垮（此前靠 SMOKE_BATCH 手动分批绕过）。
+    """
+    import concurrent.futures as _cf
 
+    def _do():
+        at = AppTest.from_file(page_path, default_timeout=120)
+        if authed:
+            at.session_state["auth_token"] = _FAKE_TOKEN
+            at.session_state["auth_user"] = dict(_FAKE_USER)
+        at.run()
+        return {
+            "exception_count": len(at.exception),
+            "exceptions": [str(e) for e in at.exception[:3]],
+            "errors": _collect_errors(at),
+        }
 
-@pytest.fixture(autouse=True)
-def offline(monkeypatch):
-    """全局模拟离线，整轮测试内网络调用立即失败。"""
-    orig = _simulate_offline()
-    yield
-    _restore_offline(orig)
+    with _cf.ThreadPoolExecutor(max_workers=1) as ex:
+        fut = ex.submit(_do)
+        try:
+            return fut.result(timeout=150)
+        except _cf.TimeoutError:
+            return {
+                "exception_count": 1,
+                "exceptions": [f"页面渲染超时(>150s)被强制隔离，疑似卡死: {os.path.basename(page_path)}"],
+                "errors": [],
+            }
 
 
 @pytest.mark.parametrize("page_path", PAGE_FILES, ids=lambda p: os.path.basename(p))

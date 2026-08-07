@@ -181,6 +181,17 @@ class DataCleaner:
         if df.empty or "close" not in df.columns:
             return df
         df = df.copy()
+        # 防御式自保（R95）：保证按日期升序再做滚动计算。
+        # 部分数据源（如东方财富 urlib 路径、手动 CSV）可能返回乱序/重复行，
+        # 若直接 rolling 会基于错误位置计算均线/收益率，导致技术分析整体错位。
+        # 仅当 date 列存在且可解析时才排序，避免对无 date 的纯指标 df 误伤。
+        if "date" in df.columns:
+            try:
+                _d = pd.to_datetime(df["date"], errors="coerce")
+                if _d.notna().any() and not _d.is_monotonic_increasing:
+                    df = df.assign(_d=_d).sort_values("_d").drop(columns="_d").reset_index(drop=True)
+            except Exception:
+                pass
         # ══ 加法式健壮性（c41）：OHLCV 列强制数值化，脏值（'x'/'n/a'/空串/None）
         # 转为 NaN 而非保留 object dtype。否则后续 pct_change/rolling 除法会抛
         # `TypeError: unsupported operand type(s) for /: 'str' and 'int'` 崩整条

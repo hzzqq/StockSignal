@@ -69,3 +69,47 @@ def _install_streamlit():
 
 
 _install_streamlit()
+
+
+def _install_offline_guard():
+    """session 级永久网络屏蔽（R95 加固回归稳定性）。
+
+    替代 test_pages_smoke 内 autouse fixture 的「fixture 级 monkeypatch 复原」——
+    旧方案在 fixture yield 后复原网络桩，AppTest 子线程若延后触网会真连网被沙箱屏蔽→挂死，
+    整批 pytest 被单页卡死拖垮（此前只能靠 SMOKE_BATCH 手动分批绕过）。
+
+    这里在 session 启动时**永久**替换 socket.create_connection / urllib.urlopen /
+    requests.Session.request 为即时失败，scope=session，不随用例复原，
+    彻底杜绝「复原后延后触网」的卡死窗口。可用环境变量 OFFLINE_TEST=0 关闭（调试用）。
+    """
+    import os
+    if os.environ.get("OFFLINE_TEST", "1") == "0":
+        return
+    import urllib.request as _urllib_req
+    import socket as _sock
+
+    try:
+        import requests
+    except Exception:  # pragma: no cover
+        requests = None
+
+    def _fail(*args, **kwargs):
+        # 模拟「后端/网络不可达」——抛 ConnectionError（requests.exceptions.RequestException
+        # 子类），与真实「Flask 没起 / 断网」时 requests 抛出的异常一致，从而让页面内
+        # 既有的 _api_request 降级路径（返回 -1, {message}）正常生效，而非裸 OSError
+        # 穿透未被捕获的 RequestException 分支。这是验证真实降级能力，而非创造新异常。
+        raise requests.exceptions.ConnectionError("smoke: offline guard (session-level)")
+
+    def _fail_urlopen(*a, **k):
+        raise OSError("smoke: offline guard (urllib)")
+
+    def _fail_conn(*a, **k):
+        raise OSError("smoke: offline guard (socket)")
+
+    _sock.create_connection = _fail_conn
+    _urllib_req.urlopen = _fail_urlopen
+    if requests is not None:
+        requests.Session.request = _fail
+
+
+_install_offline_guard()
