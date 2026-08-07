@@ -95,6 +95,39 @@ def _quote_one(code: str, token: str | None = None):
     return code, None
 
 
+def _quote_batch(codes, token):
+    """R90：优先批量接口（1 次网络往返替代 N 次 /api/quote），失败代码本地回退。
+
+    返回 (quotes_dict, has_auth_error)。批量接口每只失败返回 None，由调用方渲染空态。
+    """
+    quotes = {}
+    has_auth_error = False
+    if not codes:
+        return quotes, has_auth_error
+    try:
+        import urllib.parse as _up
+        _qs = _up.urlencode({"tickers": ",".join(codes)})
+        _sc, _body = api_get(f"/api/quote/batch?{_qs}", timeout=10)
+        if _sc == 200 and isinstance(_body, dict) and _body.get("status") == "ok":
+            data = _body.get("data") or {}
+            batch_quotes = data.get("quotes") or {}
+            for code, q in batch_quotes.items():
+                if isinstance(q, dict) and q.get("__auth_error"):
+                    has_auth_error = True
+                    quotes[code] = q
+                elif isinstance(q, dict) and "error" not in q and q.get("current"):
+                    quotes[code] = q
+    except Exception:
+        pass
+    missing = [c for c in codes if c not in quotes]
+    if missing:
+        with _cf.ThreadPoolExecutor(max_workers=4) as ex:
+            for code, q in ex.map(lambda c: _quote_one(c, token), missing):
+                if q is not None:
+                    quotes[code] = q
+    return quotes, has_auth_error
+
+
 @st.cache_data(show_spinner=False, ttl=3600)
 def _resolve_name(code: str) -> str:
     """本地库兜底解析股票中文名；返回空串表示未知。"""
@@ -169,16 +202,14 @@ def fragment_watchlist_monitor():
             except Exception:
                 names[_c] = _c
 
-    # 并行拉取实时行情
+    # R90：批量接口一次拉全（替代原逐只并行 /api/quote×N），失败的代码本地回退
     with st.spinner(f"并行获取 {len(codes)} 只自选股实时行情…"):
         quotes = {}
         _tok = get_token()  # 主线程取 token，子线程无 ScriptRunContext 拿不到
-        with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-            for code, q in ex.map(lambda c: _quote_one(c, _tok), codes):
-                quotes[code] = q
+        quotes, _has_auth_err = _quote_batch(codes, _tok)
 
     # 线程内遇到 401 时不能直接跳转，统一在此处理
-    if any(isinstance(q, dict) and q.get("__auth_error") for q in quotes.values()):
+    if _has_auth_err or any(isinstance(q, dict) and q.get("__auth_error") for q in quotes.values()):
         clear_auth()
         st.warning("🔐 登录已过期，请重新登录")
         return
