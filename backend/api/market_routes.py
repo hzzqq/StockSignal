@@ -25,7 +25,7 @@ from flask import Blueprint, request
 
 from ..auth.decorators import jwt_required
 from ..utils.response import ok, fail
-from ..utils.params import parse_str_param
+from ..utils.params import parse_str_param, parse_limit_param
 
 # 确保项目根（StockSignal）在 sys.path，便于 `from modules.fetcher import StockFetcher`
 _PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
@@ -143,8 +143,9 @@ def quote_batch():
 @jwt_required
 def kline():
     """
-    GET /api/kline?symbol=600519&start=2024-01-01&end=2026-07-09&period=daily&adjust=qfq
+    GET /api/kline?symbol=600519&start=2024-01-01&end=2026-07-09&period=daily&adjust=qfq&limit=60
     历史 K 线（日/周/月）。symbol 须为 6 位数字；period 默认 daily；其余参数透传。
+    limit 可选：仅返回最近 N 根（如 limit=60 → tail(60)），供「最近 N 根」场景减少传输。
     """
     symbol = parse_str_param("symbol", max_len=16)
     if not _TICKER_RE.match(symbol):
@@ -160,6 +161,10 @@ def kline():
     if period not in ("daily", "weekly", "monthly"):
         return fail(message="参数无效", code="invalid_param", http_status=400)
 
+    # R91：limit 截断（最近 N 根）。走 parse_limit_param（项目护栏：分页条数
+    # 必须经该 helper，钳下界 1、防负数穿透）。default=None → 缺省/非法不截断。
+    limit = parse_limit_param("limit", default=None, hi=200)
+
     try:
         df = get_fetcher().get_kline(symbol, start, end, period, adjust)
     except RuntimeError:
@@ -171,6 +176,8 @@ def kline():
     # 兜底：极少数返回 None / 空 DataFrame 的情况，仍归为无行情数据
     if df is None or len(df) == 0:
         return fail(message="无行情数据", code="no_kline_data", http_status=404)
+    if limit is not None:
+        df = df.tail(limit)
     return ok(data=df.to_dict(orient="records"), message="success")
 
 

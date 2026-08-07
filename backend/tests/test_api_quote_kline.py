@@ -470,3 +470,133 @@ class TestQuoteBatch:
         _use_fetcher(monkeypatch, quote_map={"600519": _sample_quote()})
         r = client.get("/api/quote/batch?tickers=600519")
         assert r.status_code == 401
+
+
+# ================================================================ /api/kline limit
+class TestKlineLimit:
+    """R91：/api/kline 支持 limit=最近N根。
+
+    - limit 正整数 → 只返回最近 N 根（tail 截断）
+    - limit 缺失 / 空 → 全量返回
+    - limit 非正整数 / 非法字符串 → 400
+    """
+
+    def _mk_df(self, n=30):
+        import pandas as pd
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        return pd.DataFrame({
+            "date": dates, "open": [1.0] * n, "close": [2.0] * n,
+            "high": [2.5] * n, "low": [0.9] * n, "volume": [10] * n,
+            "amount": [100.0] * n, "change_pct": [1.0] * n,
+        })
+
+    def test_kline_limit_tail(self, client, monkeypatch):
+        _use_fetcher(monkeypatch, kline_df=self._mk_df(30))
+        token = _token(client, "demo")
+        r = client.get("/api/kline?symbol=600519&limit=5", headers=_auth_headers(token))
+        assert r.status_code == 200
+        data = _get_json(r, "kline_limit")["data"]
+        assert len(data) == 5
+        # tail：最后 5 根（日期为 1-26 到 1-30）
+        assert data[0]["date"] == "2026-01-26T00:00:00" or "01-26" in str(data[0]["date"])
+
+    def test_kline_no_limit_full(self, client, monkeypatch):
+        _use_fetcher(monkeypatch, kline_df=self._mk_df(30))
+        token = _token(client, "demo")
+        r = client.get("/api/kline?symbol=600519", headers=_auth_headers(token))
+        assert r.status_code == 200
+        data = _get_json(r, "kline_full")["data"]
+        assert len(data) == 30
+
+    def test_kline_limit_clamps_lower_bound(self, client, monkeypatch):
+        """parse_limit_param 钳下界：limit=0/-3 → 1（防 SQLite LIMIT -1 绕过上限的 DoS 面）。"""
+        _use_fetcher(monkeypatch, kline_df=self._mk_df(30))
+        token = _token(client, "demo")
+        for bad in ("0", "-3"):
+            r = client.get(f"/api/kline?symbol=600519&limit={bad}", headers=_auth_headers(token))
+            assert r.status_code == 200, f"limit={bad} 应钳制而非报错"
+            data = _get_json(r, f"kline_clamp_{bad}")["data"]
+            assert len(data) == 1, f"limit={bad} 应钳到 1 根"
+
+    def test_kline_limit_invalid_returns_full(self, client, monkeypatch):
+        """非法字符串（非数字）→ default=None → 不截断（全量返回）。"""
+        _use_fetcher(monkeypatch, kline_df=self._mk_df(30))
+        token = _token(client, "demo")
+        r = client.get("/api/kline?symbol=600519&limit=abc", headers=_auth_headers(token))
+        assert r.status_code == 200
+        data = _get_json(r, "kline_bad")["data"]
+        assert len(data) == 30
+
+    def test_kline_limit_bigger_than_data(self, client, monkeypatch):
+        """limit 大于数据量 → 返回全部（tail 越界安全）。"""
+        _use_fetcher(monkeypatch, kline_df=self._mk_df(10))
+        token = _token(client, "demo")
+        r = client.get("/api/kline?symbol=600519&limit=999", headers=_auth_headers(token))
+        assert r.status_code == 200
+        data = _get_json(r, "kline_over")["data"]
+        assert len(data) == 10
+
+
+# ================================================================ /api/kline limit
+class TestKlineLimit:
+    """R91：/api/kline 支持 limit=最近N根。
+
+    - limit 正整数 → 只返回最近 N 根（tail 截断）
+    - limit 缺失 / 空 → 全量返回
+    - limit 非正整数 / 非法字符串 → 400
+    """
+
+    def _mk_df(self, n=30):
+        import pandas as pd
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        return pd.DataFrame({
+            "date": dates, "open": [1.0] * n, "close": [2.0] * n,
+            "high": [2.5] * n, "low": [0.9] * n, "volume": [10] * n,
+            "amount": [100.0] * n, "change_pct": [1.0] * n,
+        })
+
+    def test_kline_limit_tail(self, client, monkeypatch):
+        _use_fetcher(monkeypatch, kline_df=self._mk_df(30))
+        token = _token(client, "demo")
+        r = client.get("/api/kline?symbol=600519&limit=5", headers=_auth_headers(token))
+        assert r.status_code == 200
+        data = _get_json(r, "kline_limit")["data"]
+        assert len(data) == 5
+        # tail：最后 5 根（日期为 1-26 到 1-30）
+        assert data[0]["date"] == "2026-01-26T00:00:00" or "01-26" in str(data[0]["date"])
+
+    def test_kline_no_limit_full(self, client, monkeypatch):
+        _use_fetcher(monkeypatch, kline_df=self._mk_df(30))
+        token = _token(client, "demo")
+        r = client.get("/api/kline?symbol=600519", headers=_auth_headers(token))
+        assert r.status_code == 200
+        data = _get_json(r, "kline_full")["data"]
+        assert len(data) == 30
+
+    def test_kline_limit_clamps_lower_bound(self, client, monkeypatch):
+        """parse_limit_param 钳下界：limit=0/-3 → 1（防 SQLite LIMIT -1 绕过上限的 DoS 面）。"""
+        _use_fetcher(monkeypatch, kline_df=self._mk_df(30))
+        token = _token(client, "demo")
+        for bad in ("0", "-3"):
+            r = client.get(f"/api/kline?symbol=600519&limit={bad}", headers=_auth_headers(token))
+            assert r.status_code == 200, f"limit={bad} 应钳制而非报错"
+            data = _get_json(r, f"kline_clamp_{bad}")["data"]
+            assert len(data) == 1, f"limit={bad} 应钳到 1 根"
+
+    def test_kline_limit_invalid_returns_full(self, client, monkeypatch):
+        """非法字符串（非数字）→ default=None → 不截断（全量返回）。"""
+        _use_fetcher(monkeypatch, kline_df=self._mk_df(30))
+        token = _token(client, "demo")
+        r = client.get("/api/kline?symbol=600519&limit=abc", headers=_auth_headers(token))
+        assert r.status_code == 200
+        data = _get_json(r, "kline_bad")["data"]
+        assert len(data) == 30
+
+    def test_kline_limit_bigger_than_data(self, client, monkeypatch):
+        """limit 大于数据量 → 返回全部（tail 越界安全）。"""
+        _use_fetcher(monkeypatch, kline_df=self._mk_df(10))
+        token = _token(client, "demo")
+        r = client.get("/api/kline?symbol=600519&limit=999", headers=_auth_headers(token))
+        assert r.status_code == 200
+        data = _get_json(r, "kline_over")["data"]
+        assert len(data) == 10
