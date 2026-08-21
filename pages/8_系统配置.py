@@ -66,6 +66,27 @@ with tab_overview:
         - 新闻库: `data/news.db`
         """)
 
+    # ── 数据源健康度（#锐评整改：静默降级不可观测 → 显式呈现）──
+    st.markdown("---")
+    st.subheader("数据源健康度")
+    try:
+        from modules.page_utils import get_fetcher
+        report = get_fetcher().data_source_health()
+        src_cols = st.columns(len(report["sources"]))
+        for col, (name, info) in zip(src_cols, report["sources"].items()):
+            ok = bool(info.get("ok"))
+            col.metric(
+                info.get("label", name),
+                "✅ 可用" if ok else "❌ 不可用",
+                help=info.get("detail", ""),
+            )
+        st.caption(
+            f"总览 {report.get('summary')} · 探测于 {report.get('timestamp')} · "
+            "仅检查依赖与本地缓存（不触网）；网络可达性由各页面取数时实时降级。"
+        )
+    except Exception as e:
+        st.warning(f"数据源健康度探测失败：{type(e).__name__}: {e}")
+
 # ----------------------------------------------------------------- 股票管理
 with tab_stocks:
     if "stock_page" not in st.session_state:

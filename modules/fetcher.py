@@ -50,6 +50,9 @@ from modules._feed_io import (  # noqa: F401
     _UrllibFetcher,
 )
 
+# 市场数据 I/O 叶子模块（#锐评整改：从 StockFetcher 下沉，零循环依赖）
+import modules._market_data_io as _mdi
+
 
 def _safe_json_loads(s, default=None):
     """安全解析 JSON：损坏/空/非字符串一律返回 default，绝不抛异常。
@@ -2034,411 +2037,144 @@ class StockFetcher:
     # 指数行情（四级降级链）
     # ══════════════════════════════════════════════════════
     def get_index(self, symbol="000001", start="2024-01-01", end=None):
-        """
-        获取指数日线行情。
-        降级链：akshare -> BaoStock -> 东方财富(urllib) -> 缓存兜底
-        """
-        if end is None:
-            end = datetime.now().strftime("%Y-%m-%d")
+        """指数日线行情（实现见 modules._market_data_io.fetch_index）。"""
+        return _mdi.fetch_index(self, symbol, start, end)
 
-        cache_key = f"index_{symbol}_{start}_{end}"
-        conn = self._get_conn()
-        try:
-            cached = self._read_cache(conn, "index_cache", cache_key)
-            if cached is not None:
-                return cached
-
-            df = None
-            errors = []
-
-            # ── L1: akshare ──
-            if _AK_OK:
-                import akshare as ak  # 局部导入：与 _AK_OK 同源
-                try:
-                    df = _retry_request(
-                        lambda: ak.stock_zh_index_daily(
-                            symbol=f"sh{symbol}" if symbol.startswith("000") else f"sz{symbol}"
-                        ),
-                        max_retries=2, base_delay=2,
-                    )
-                    df = df.rename(columns={
-                        "date": "date", "open": "open", "close": "close",
-                        "high": "high", "low": "low", "volume": "volume",
-                    })
-                    df["date"] = pd.to_datetime(df["date"])
-                    logger.debug(f"[StockFetcher] L1-akshare 指数 OK {symbol}")
-                except Exception as e:
-                    errors.append(f"akshare: {type(e).__name__}")
-                    df = None
-
-            # ── L2: BaoStock ──
-            if df is None or df.empty:
-                df = _BaoStockFetcher.fetch_index_kline(symbol, start, end)
-                if df is not None and not df.empty:
-                    logger.debug(f"[StockFetcher] L2-BaoStock 指数 OK {symbol}")
-                else:
-                    errors.append("BaoStock: 无数据")
-
-            # ── L3: 东方财富 urllib ──
-            if df is None or df.empty:
-                df = _UrllibFetcher.fetch_kline(symbol, start, end, is_index=True)
-                if df is not None and not df.empty:
-                    logger.debug(f"[StockFetcher] L3-东方财富 指数 OK {symbol}")
-                else:
-                    errors.append("东方财富: 无数据")
-
-            # ── L4: 缓存兜底 ──
-            if df is None or df.empty:
-                stale = self._read_stale_cache(conn, "index_cache", f"index_{symbol}")
-                if stale is not None:
-                    logger.debug(f"[StockFetcher] L4-缓存兜底 指数 OK {symbol}")
-                    return stale
-                errors.append("缓存: 无可用数据")
-
-            if df is None or df.empty:
-                detail = "\n   • ".join(errors)
-                raise RuntimeError(
-                    f"ERROR 无法获取 {symbol} 指数数据\n"
-                    f"   数据源全部失败：\n   • {detail}"
-                )
-
-            df = df[(df["date"] >= start) & (df["date"] <= end)]
-            df = df.sort_values("date").reset_index(drop=True)
-            self._write_cache(conn, "index_cache", cache_key, df)
-            return df
-        finally:
-            conn.close()
-
-    # ══════════════════════════════════════════════════════
-    # 指数日内 1 分钟 K 线（用于行情看板指数卡片展示当天走势）
-    # ══════════════════════════════════════════════════════
     def get_index_minute(self, symbol="000001", trade_date=None):
-        """
-        获取指数当日 1 分钟 K 线，返回 DataFrame[time, open, close, high, low, volume]。
-        失败返回 None；网络/证书异常时内部降级为 None，由调用方使用日线/OHLC 兜底。
-        """
-        if not _AK_OK:
-            return None
-        import akshare as ak  # 局部导入：_AK_OK=True 才执行到此
-        if trade_date is None:
-            trade_date = datetime.now().strftime("%Y%m%d")
-        try:
-            with StockFetcher._ak_ssl_context():
-                df = ak.index_zh_a_hist_min_em(symbol=symbol, period="1", start_date=trade_date, end_date=trade_date)
-            if df is None or df.empty:
-                return None
-            df = df.copy()
-            df.columns = [str(c).strip() for c in df.columns]
-            col_map = {
-                "时间": "time",
-                "开盘": "open",
-                "收盘": "close",
-                "最高": "high",
-                "最低": "low",
-                "成交量": "volume",
-                "成交额": "amount",
-                "振幅": "amplitude",
-            }
-            df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
-            for c in ["open", "close", "high", "low", "volume"]:
-                if c in df.columns:
-                    df[c] = pd.to_numeric(df[c], errors="coerce")
-            df["time"] = df["time"].astype(str)
-            # 明确按交易时间升序，避免接口返回顺序不确定导致走势标签误判
-            if "time" in df.columns:
-                df = df.sort_values("time").reset_index(drop=True)
-            return df.reset_index(drop=True)
-        except Exception as e:
-            logger.info(f"[StockFetcher] 指数分钟线失败 {symbol}: {type(e).__name__}")
-            return None
-
-    # ══════════════════════════════════════════════════════
-    # 板块数据（三级降级链 + 实时缓存）
-    # ══════════════════════════════════════════════════════
+        """指数当日 1 分钟 K 线（实现见 modules._market_data_io.fetch_index_minute）。"""
+        return _mdi.fetch_index_minute(self, symbol, trade_date)
 
     def get_sector_list(self, force_refresh=False):
-        """
-        行业板块列表。
-        降级链：本地实时缓存 -> 东方财富(urllib) -> 同花顺 akshare -> BaoStock -> 过期缓存兜底
-        交易时间内缓存 6 分钟，休市时延用最后一个交易日缓存（7 天内）。
-        """
-        cache_key = "sector_list_v3"
-        conn = self._get_conn()
-        try:
-            market_open = _is_market_open()
-            midday_break = _is_midday_break()
-            if market_open:
-                cache_ttl_hours = 0.1  # 交易时 6 分钟
-            elif midday_break:
-                cache_ttl_hours = 0.5  # 午间休市 30 分钟，避免延用昨日数据
-            else:
-                cache_ttl_hours = 24 * 7  # 已收盘/周末/盘前：7 天
-
-            if not force_refresh:
-                cached = self._read_cache(conn, "sector_cache", cache_key, max_age_hours=cache_ttl_hours)
-                if cached is not None and not cached.empty:
-                    # 缓存命中后校验：全零数据（如 BaoStock 兜底写入的）视为 miss，继续降级
-                    if _validate_sector_data(cached):
-                        return cached
-                    else:
-                        logger.warning("[StockFetcher] L0缓存数据校验未通过（可能为全零兜底），尝试重新获取")
-                        cached = None  # 视为 miss
-        except Exception as e:
-            logger.info(f"[StockFetcher] 板块缓存读取失败: {e}")
-        finally:
-            conn.close()
-
-        df = None
-        errors = []
-        source = None
-
-        # ── L1: 东方财富 urllib（通常最快）──
-        try:
-            df = _UrllibFetcher.fetch_sector_list()
-            if df is not None and not df.empty and not _validate_sector_data(df):
-                logger.info("[StockFetcher] L1-东方财富 数据异常，尝试降级")
-                df = None
-            if df is not None and not df.empty:
-                source = "东方财富"
-                logger.debug("[StockFetcher] L1-东方财富 板块 OK")
-        except Exception as e:
-            errors.append(f"东方财富: {type(e).__name__}")
-            df = None
-
-        # ── L2: 同花顺 akshare（东财接口被关闭时的可靠备用）──
-        if df is None or df.empty:
-            if _AK_OK:
-                import akshare as ak  # 局部导入：与 _AK_OK 同源
-                try:
-                    df = _retry_request(
-                        lambda: ak.stock_board_industry_summary_ths(),
-                        max_retries=1, base_delay=1,
-                    )
-                    df = df.rename(columns={"板块": "sector", "涨跌幅": "change_pct"})
-                    df = df[["sector", "change_pct"]]
-                    if not _validate_sector_data(df):
-                        logger.info("[StockFetcher] L2-同花顺 数据异常，尝试降级")
-                        df = None
-                    else:
-                        source = "同花顺"
-                        logger.debug("[StockFetcher] L2-同花顺 板块 OK")
-                except Exception as e:
-                    errors.append(f"同花顺: {type(e).__name__}")
-                    df = None
-
-        # ── L3: BaoStock（只有行业名称，无涨跌幅，作为兜底）──
-        if df is None or df.empty:
-            try:
-                df = _BaoStockFetcher.fetch_sector_list()
-                if df is not None and not df.empty:
-                    # BaoStock 硬编码 change_pct=0.0，必须校验拦截
-                    if _validate_sector_data(df):
-                        source = "BaoStock"
-                        logger.debug("[StockFetcher] L3-BaoStock 板块 OK")
-                    else:
-                        logger.info("[StockFetcher] L3-BaoStock 数据全零（无涨跌幅），降级到过期缓存")
-                        df = None  # 全零 → 视为无效，继续降级
-            except Exception as e:
-                errors.append(f"BaoStock: {type(e).__name__}")
-                df = None
-
-        # ── L4: 过期缓存兜底（含交易日归档键回退）──
-        if df is None or df.empty:
-            conn = self._get_conn()
-            try:
-                # 4a: 尝试主缓存键的过期数据
-                stale = self._read_stale_cache(conn, "sector_cache", "sector_list_v3")
-                if stale is not None and not stale.empty and _validate_sector_data(stale):
-                    source = "过期缓存"
-                    logger.debug("[StockFetcher] L4a-过期缓存 板块 OK")
-                    return stale
-
-                # 4b: 周末/休市 → 查找最近一个交易日的归档缓存（sector_list_v3_YYYYMMDD）
-                if not _is_market_open():
-                    archive_row = conn.execute(
-                        "SELECT data_json, updated_at FROM sector_cache "
-                        "WHERE cache_key LIKE 'sector_list_v3_%' "
-                        "AND cache_key NOT LIKE '%_source' "
-                        "AND LENGTH(cache_key) = 19 "  # sector_list_v3_YYYYMMDD = 19 chars
-                        "ORDER BY cache_key DESC LIMIT 1"
-                    ).fetchone()
-                    if archive_row:
-                        archive_df = pd.read_json(io.StringIO(archive_row[0]))
-                        if not archive_df.empty and _validate_sector_data(archive_df):
-                            source = f"交易日归档({archive_row[0][:19]})"
-                            logger.debug(f"[StockFetcher] L4b-交易日归档 板块 OK ({archive_row[0][:19]})")
-                            return archive_df
-            finally:
-                conn.close()
-            errors.append("缓存: 无可用数据")
-
-        if df is None or df.empty:
-            detail = "、".join(errors) if errors else "未知原因"
-            raise RuntimeError(
-                f"ERROR 无法获取板块数据\n   数据源全部失败：\n   • {detail}"
-            )
-
-        # 标准化列类型
-        df["change_pct"] = pd.to_numeric(df["change_pct"], errors="coerce").fillna(0)
-        df = df[df["sector"].astype(str).str.strip() != ""].reset_index(drop=True)
-
-        # 写入缓存 + 来源标记（仅含真实涨跌幅的数据源才写主缓存，防止 BaoStock 全零污染）
-        if source in ("东方财富", "同花顺"):
-            conn = self._get_conn()
-            try:
-                self._write_cache(conn, "sector_cache", cache_key, df)
-                # 同时写入交易日归档键（按日期），供休市期间显式回退
-                trade_date = datetime.now().strftime("%Y%m%d")
-                archive_key = f"{cache_key}_{trade_date}"
-                self._write_cache(conn, "sector_cache", archive_key, df)
-                self._write_cache_raw(conn, "sector_cache", f"{cache_key}_source", json.dumps({"source": source}, ensure_ascii=False))
-            finally:
-                conn.close()
-        else:
-            logger.debug(f"[StockFetcher] 跳过缓存写入：数据源={source}，不含真实涨跌幅")
-
-        return df
+        """行业板块列表（实现见 modules._market_data_io.fetch_sector_list）。"""
+        return _mdi.fetch_sector_list(self, force_refresh)
 
     def get_sector_stocks(self, sector_name):
-        """指定行业的成分股列表（仅 akshare）。"""
-        if not _AK_OK:
-            raise RuntimeError("akshare 未安装，无法获取成分股")
-        import akshare as ak  # 局部导入：与 _AK_OK 同源
-        df = _retry_request(
-            lambda: ak.stock_board_industry_cons_em(symbol=sector_name),
-            max_retries=2, base_delay=2,
-        )
-        df = df.rename(columns={
-            "代码": "code", "名称": "name", "涨跌幅": "change_pct",
-            "最新价": "close", "总市值": "market_cap",
-        })
-        return df[["code", "name", "close", "change_pct", "market_cap"]]
+        """行业成分股（实现见 modules._market_data_io.fetch_sector_stocks）。"""
+        return _mdi.fetch_sector_stocks(self, sector_name)
 
     def get_concept_list(self, force_refresh=False):
-        """概念板块列表（东方财富）。返回 DataFrame(sector, change_pct)。失败返回空 DataFrame。"""
-        cache_key = "concept_list_v1"
-        try:
-            if not force_refresh:
-                conn = self._get_conn()
-                cached = self._read_cache(conn, "sector_cache", cache_key, max_age_hours=0.1)
-                if cached is not None and not cached.empty:
-                    return cached
-        except Exception as e:
-            logger.warning(f"[fetcher] 处理异常: {e}")
-            pass
-        try:
-            import akshare as ak  # 局部导入：未装时 ImportError 由下方 except 兜底返回空
-            df = _retry_request(
-                lambda: ak.stock_board_concept_name_em(),
-                max_retries=2, base_delay=2,
-            )
-        except Exception as e:
-            logger.warning(f"[fetcher] 处理异常: {e}")
-            return pd.DataFrame(columns=["sector", "change_pct"])
-        if df is None or df.empty:
-            return pd.DataFrame(columns=["sector", "change_pct"])
-        df = df.rename(columns={"板块名称": "sector", "涨跌幅": "change_pct"})
-        keep = [c for c in ["sector", "change_pct"] if c in df.columns]
-        df = df[keep].copy() if keep else df
-        try:
-            conn = self._get_conn()
-            self._write_cache(conn, "sector_cache", cache_key, df)
-        except Exception as e:
-            logger.warning(f"[fetcher] 处理异常: {e}")
-            pass
-        return df
+        """概念板块列表（实现见 modules._market_data_io.fetch_concept_list）。"""
+        return _mdi.fetch_concept_list(self, force_refresh)
 
     def get_concept_stocks(self, concept_name):
-        """指定概念板块的成分股列表（东方财富）。失败抛异常由调用方兜底。"""
-        if not _AK_OK:
-            raise RuntimeError("akshare 未安装，无法获取成分股")
-        import akshare as ak  # 局部导入：与 _AK_OK 同源
-        df = _retry_request(
-            lambda: ak.stock_board_concept_cons_em(symbol=concept_name),
-            max_retries=2, base_delay=2,
-        )
-        df = df.rename(columns={
-            "代码": "code", "名称": "name", "涨跌幅": "change_pct",
-            "最新价": "close", "总市值": "market_cap",
-        })
-        return df[["code", "name", "close", "change_pct", "market_cap"]]
+        """概念成分股（实现见 modules._market_data_io.fetch_concept_stocks）。"""
+        return _mdi.fetch_concept_stocks(self, concept_name)
 
-    # ══════════════════════════════════════════════════════
-    # 宏观数据
-    # ══════════════════════════════════════════════════════
     def get_macro(self, indicator="pmi_mfg"):
-        indicator_map = {
-            "pmi_mfg": ("macro_china_pmi", {}),
-            "cpi": ("macro_china_cpi_monthly", {}),
-            "m2": ("macro_china_money_supply", {}),
-        }
-        if indicator not in indicator_map:
-            raise ValueError(f"不支持的指标: {indicator}")
+        """宏观数据（实现见 modules._market_data_io.fetch_macro）。"""
+        return _mdi.fetch_macro(self, indicator)
 
-        func_name, kwargs = indicator_map[indicator]
-        cache_key = f"macro_{indicator}"
-        conn = self._get_conn()
-        try:
-            cached = self._read_cache(conn, "macro_cache", cache_key)
-            if cached is not None:
-                return cached
-
-            if not _AK_OK:
-                raise RuntimeError("akshare 未安装")
-
-            import akshare as ak
-            func = getattr(ak, func_name)
-            df = _retry_request(lambda: func(**kwargs), max_retries=2, base_delay=3)
-            df = df.rename(columns={
-                "月份": "date", "日期": "date",
-                "制造业-Loss": "pmi_mfg", "全国-当月": "cpi_yoy",
-                "M2-数量": "m2", "M2-同比增长": "m2_yoy",
-            })
-            df = df.tail(60).reset_index(drop=True)
-            self._write_cache(conn, "macro_cache", cache_key, df)
-            return df
-        finally:
-            conn.close()
-
-    # ══════════════════════════════════════════════════════
-    # 大宗商品
-    # ══════════════════════════════════════════════════════
     def get_commodity_price(self, name="煤炭"):
-        cache_key = f"commodity_{name}"
-        conn = self._get_conn()
-        try:
-            cached = self._read_cache(conn, "commodity_cache", cache_key)
-            if cached is not None:
-                return cached
+        """大宗商品（实现见 modules._market_data_io.fetch_commodity_price）。"""
+        return _mdi.fetch_commodity_price(self, name)
 
-            if not _AK_OK:
-                raise RuntimeError("akshare 未安装")
-            import akshare as ak  # 局部导入：与 _AK_OK 同源
-            df = _retry_request(
-                lambda: ak.spot_price_qsx(symbol="全部"),
-                max_retries=2, base_delay=3,
-            )
-            df = df[df["品种"].str.contains(name, na=False)]
-            df = df.rename(columns={"日期": "date", "品种": "name", "价格": "price"})
-            df["date"] = pd.to_datetime(df["date"])
-            df = df[["date", "name", "price"]].sort_values("date").reset_index(drop=True)
-            self._write_cache(conn, "commodity_cache", cache_key, df)
-            return df
-        finally:
-            conn.close()
-
-    # ══════════════════════════════════════════════════════
-    # 财务数据
-    # ══════════════════════════════════════════════════════
     def get_financial(self, symbol="600519", report_type="income"):
-        if not _AK_OK:
-            raise RuntimeError("akshare 未安装")
-        import akshare as ak  # 局部导入：与 _AK_OK 同源
-        func_map = {
-            "income": ak.stock_financial_report_sina,
-            "balance": ak.stock_financial_report_sina,
-            "cash": ak.stock_financial_report_sina,
+        """财务三表（实现见 modules._market_data_io.fetch_financial）。"""
+        return _mdi.fetch_financial(self, symbol, report_type)
+
+    def data_source_health(self):
+        """数据源健康度探测（#锐评整改：数据源单点+静默降级不可观测）。
+
+        返回结构化健康报告：各路数据源的「依赖可用性 + 本地缓存状态」。
+        仅做静态/本地探测（import 能力、缓存表行数），**不发任何网络请求**，
+        保证秒回、离线可用；网络实时可达性由调用方按需另做（避免探测本身卡死）。
+
+        返回形如::
+
+            {
+              "timestamp": "2026-08-21 12:54:50",
+              "summary": "4/5 可用",
+              "sources": {
+                "akshare":   {"ok": True,  "label": "akshare",  "detail": "依赖可用 (1.16.x)"},
+                "baostock":  {"ok": False, "label": "BaoStock", "detail": "依赖缺失"},
+                "sina":      {"ok": True,  "label": "新浪财经", "detail": "fetcher 就绪"},
+                "eastmoney": {"ok": True,  "label": "东方财富", "detail": "fetcher 就绪"},
+                "cache":     {"ok": True,  "label": "本地缓存", "detail": "6 表 / 12,345 条"},
+              },
+            }
+        """
+        import importlib.util
+        from datetime import datetime
+        from modules import _feed_io as _fi  # 延迟 import：本模块仅 re-export 其符号，无 _feed_io 名称
+
+        def _spec(name):
+            try:
+                return importlib.util.find_spec(name) is not None
+            except Exception:
+                return False
+
+        sources = {}
+
+        # ── akshare：_AK_OK 信号 + 实际可导入 ──
+        ak_spec = _spec("akshare")
+        ak_ok = bool(getattr(_fi, "_AK_OK", False)) and ak_spec
+        ak_ver = ""
+        if ak_spec:
+            try:
+                import akshare as _ak
+                ak_ver = getattr(_ak, "__version__", "")
+            except Exception:
+                pass
+        sources["akshare"] = {
+            "ok": ak_ok, "label": "akshare",
+            "detail": f"依赖可用 ({ak_ver})" if ak_ok
+                      else ("依赖缺失" if not ak_spec else "信号关闭(_AK_OK=False)"),
         }
-        report_map = {"income": "利润表", "balance": "资产负债表", "cash": "现金流量表"}
-        df = func_map[report_type](stock=f"sh{symbol}", symbol=report_map[report_type])
-        return df.head(8)
+
+        # ── BaoStock ──
+        bs_spec = _spec("baostock")
+        bs_ok = bool(getattr(_fi, "_BS_OK", False)) and bs_spec
+        sources["baostock"] = {
+            "ok": bs_ok, "label": "BaoStock",
+            "detail": "依赖可用" if bs_ok
+                      else ("依赖缺失" if not bs_spec else "信号关闭(_BS_OK=False)"),
+        }
+
+        # ── 新浪 / 东方财富：fetcher 类就绪（真实可达性依赖网络，不做探测）──
+        sources["sina"] = {
+            "ok": hasattr(_fi, "_SinaFetcher"), "label": "新浪财经",
+            "detail": "fetcher 就绪" if hasattr(_fi, "_SinaFetcher") else "fetcher 缺失",
+        }
+        sources["eastmoney"] = {
+            "ok": hasattr(_fi, "_UrllibFetcher"), "label": "东方财富",
+            "detail": "fetcher 就绪" if hasattr(_fi, "_UrllibFetcher") else "fetcher 缺失",
+        }
+
+        # ── 本地缓存：表存在性 + 总行数 ──
+        try:
+            conn = self._get_conn()
+            try:
+                tables = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+                ).fetchall()
+                table_names = [t[0] for t in tables]
+                total_rows = 0
+                per_table = {}
+                for tname in table_names:
+                    try:
+                        n = conn.execute(f"SELECT COUNT(*) FROM {tname}").fetchone()[0]
+                        per_table[tname] = n
+                        total_rows += n
+                    except Exception:
+                        pass
+                cache_ok = len(table_names) > 0
+                sources["cache"] = {
+                    "ok": cache_ok, "label": "本地缓存",
+                    "detail": f"{len(table_names)} 表 / {total_rows:,} 条",
+                    "tables": per_table,
+                }
+            finally:
+                conn.close()
+        except Exception as e:
+            sources["cache"] = {
+                "ok": False, "label": "本地缓存",
+                "detail": f"缓存库不可读: {type(e).__name__}",
+            }
+
+        ok_n = sum(1 for v in sources.values() if v.get("ok"))
+        total_n = len(sources)
+        return {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "summary": f"{ok_n}/{total_n} 可用",
+            "sources": sources,
+        }
