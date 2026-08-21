@@ -35,12 +35,16 @@
 
 ## 📸 界面一览
 
-<!-- 截图占位：把截图放到 screenshots/ 目录后，用下面的格式引用（每个功能一张）：
-![行情看板](screenshots/01-dashboard.png)
-![策略回测](screenshots/02-backtest.png)
--->
+| 模块 | 截图 |
+|---|---|
+| 🪐 登录页（深色 + 紫蓝渐变） | ![登录](screenshots/00_login.png) |
+| 📈 行情看板 · 茅台日K + 4 均线 + 量能（亮色） | ![K线亮色](screenshots/01-kline-light.png) |
+| 🌙 暗夜主题 · 沪深300 日K（starfield_dark） | ![K线暗夜](screenshots/02-kline-dark.png) |
+| 🔥 行业板块涨跌热力图 | ![板块热力](screenshots/03-sector-heatmap.png) |
+| 📊 多股对比 · 5 只蓝筹归一化收益 | ![多股对比](screenshots/04-multi-stock-compare.png) |
+| 📉 策略回测 · 收益曲线 vs 沪深300 | ![回测曲线](screenshots/05-backtest-curve.png) |
 
-> 截图待补充。**如果你愿意贡献一张截图**，欢迎提 PR 或 Issue 附上图——我会立刻补进 README（并标注你的名字）。
+> 截图均由 `scripts/gen_screenshots.py` 从 SQLite 缓存真实数据 + 真实 visualizer 代码导出（与页面渲染 1:1 等价）。本地跑 `python scripts/gen_screenshots.py` 即可重生。
 
 ---
 
