@@ -1,0 +1,33 @@
+name: ❓ 使用问题
+description: 不知道怎么用 / 数据看起来不对 / 想了解原理？这里提问
+title: "[Question] 请简要描述你的问题"
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **欢迎提问！** 任何使用上的疑惑都可以问——没有蠢问题，只有没说清的问题。
+
+  - type: textarea
+    id: question
+    attributes:
+      label: 你的问题
+      description: 说清楚你遇到了什么困惑（附截图更好）
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 相关背景
+      description: 你当时在做什么操作 / 想达成什么目的？
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本 / 提交（可选）
+      description: 你运行的代码版本
+    validations:
+      required: false

@@ -16,6 +16,17 @@ from modules.portfolio import PortfolioManager
 from modules.visualizer import Visualizer
 
 
+def _offline_guard_active() -> bool:
+    """检测 conftest 的 session 级离线守卫是否生效。
+
+    守卫（R95 起）替换 requests.Session.request 并在 Session 上留
+    _ss_offline_guard 信号；netguard/fundflow 的 timeout 补丁会再包一层
+    request（函数名不再是 _fail），但信号属性保留——真网集成测试据此跳过。
+    """
+    import requests
+    return bool(getattr(requests.Session, "_ss_offline_guard", False))
+
+
 # ==================================================================
 # 模块 1 — 数据采集与预处理
 # ==================================================================
@@ -38,7 +49,13 @@ class TestBlackBox_Module1_DataCollection:
             pytest.skip("akshare 未安装")
 
     def test_req1_macro_data(self):
-        """需求：拉取宏观指标。"""
+        """需求：拉取宏观指标。
+
+        真网集成测试：conftest 的 session 级离线守卫（R95 起）激活时
+        （requests.Session.request 被替换为 _fail），跳过——离线环境无法真取数。
+        """
+        if _offline_guard_active():
+            pytest.skip("离线守卫激活（conftest session 级），跳过真实网络集成测试")
         fetcher = StockFetcher()
         try:
             df = fetcher.get_macro("pmi_mfg")

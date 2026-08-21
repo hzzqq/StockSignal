@@ -1,0 +1,80 @@
+name: 🐛 Bug 反馈
+description: 使用 StockSignal 时遇到了问题？请按模板填写，方便快速定位
+title: "[Bug] 请简要描述问题"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **感谢反馈！** 请尽量填全以下信息——每一条都能帮我更快定位问题。
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本 / 提交
+      description: 你运行的代码版本（`git log --oneline -1` 输出，或下载日期）
+      placeholder: 例如 917ffff 或 2026-08-21 下载
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 操作系统 + Python 版本 + 启动方式（bat / 手动 / Docker）
+      placeholder: Windows 11 / Python 3.11 / 双击 bat
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 1. 打开哪个页面 2. 点了什么 3. 输入了什么 → 出现什么问题
+      placeholder: |
+        1. 打开「行情看板」
+        2. 输入 600519
+        3. 点击「查询」
+        4. 页面报错…
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 你认为应该发生什么
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 实际发生了什么（粘贴报错信息 / 截图）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 问题所在
+      description: 问题属于哪个模块（可多选）
+      multiple: true
+      options:
+        - 行情看板 / K线
+        - 个股分析 / 多股对比
+        - 事件追踪 / 晨报
+        - 策略回测 / 选股
+        - 资金 / 情绪 / 板块
+        - 登录 / 用户 / 权限
+        - 数据源（行情取不到 / 数据为空）
+        - 界面 / 主题 / 样式
+        - 启动 / 部署 / 安装
+        - 其他
+    validations:
+      required: false

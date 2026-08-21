@@ -1,0 +1,45 @@
+name: 💡 功能建议
+description: 想要一个新功能？描述清楚"要解决什么问题"，比"要什么功能"更有效
+title: "[Feature] 请简要描述建议"
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **感谢你的想法！** 建议按「问题 → 方案 → 例子」描述，我会认真评估并排期。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你遇到的问题 / 痛点
+      description: 你在什么场景下，觉得缺了什么能力？
+      placeholder: 我每天都要看 XX，但每次都要点 5 次才能看到…
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 期望的解决方案
+      description: 你理想中的功能长什么样（越具体越好，甚至可以画个草图）
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: 使用场景举例
+      description: 举个例子：有了这个功能，你会怎么用它？
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 对你来说的重要性
+      options:
+        - 🔥 非常需要，没有它不想用
+        - 🙂 有用，但可以等
+        - 💭 只是个小想法
+    validations:
+      required: true

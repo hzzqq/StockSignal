@@ -110,6 +110,9 @@ def _install_offline_guard():
     _urllib_req.urlopen = _fail_urlopen
     if requests is not None:
         requests.Session.request = _fail
+        # 持久信号：netguard/fundflow 的 timeout 补丁会再包一层 Session.request
+        # （函数名不再是 _fail），但不会动这个属性——测试用它判断守卫是否生效。
+        requests.Session._ss_offline_guard = True
 
 
 _install_offline_guard()
