@@ -202,6 +202,8 @@ StockSignal/
 
 **每条 issue 都是这个项目的 roadmap。你的反馈会直接进入下一个迭代。**
 
+💬 **想聊天 / 分享策略 / 讨论风控** → 进 [Discussions 社区](https://github.com/hzzqq/StockSignal/discussions)（已开张，有社区公约：不荐股、拒绝"圣杯"、实盘风险自负）
+
 ---
 
 ## 📜 免责声明
