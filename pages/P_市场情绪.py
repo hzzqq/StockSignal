@@ -15,10 +15,12 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from modules.page_utils import render_standard_page, import_autorefresh
 from modules.session import get_token, fragment_market_alerts_panel
 from modules.market_drivers import get_market_drivers, DIMS
+from modules.shepherd import get_shepherd_indicators, THRESHOLDS, shepherd_temperature
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.colors import _hex_to_rgba
@@ -399,12 +401,174 @@ def fragment_valuation():
         _card(c, cfg, df, dark)
 
 
+# ───────────────────────── 牧羊人指标（股海牧羊人·情绪温度计） ─────────────────────────
+def _shep_sig_impl(key, s):
+    """按 THRESHOLDS 给单一牧羊人指标打信号灯（高=热 / 高=冷）。"""
+    v = _last(s)
+    th = THRESHOLDS.get(key)
+    if v is None or th is None:
+        return ("—", "#888", "暂无数据")
+    if th["dir"] > 0:
+        if v >= th["hot"]:
+            return (th["hot_label"], "#ee2a2a", f"{th['name']} {v:.0f}{th['unit']}，情绪亢奋")
+        if v >= th["warm"]:
+            return ("常温", "#f59e0b", f"{th['name']} {v:.0f}{th['unit']}，中性")
+        return (th["cold_label"], "#3b82f6", f"{th['name']} {v:.0f}{th['unit']}，偏冷")
+    else:
+        if v <= th["hot"]:
+            return (th["hot_label"], "#10b981", f"{th['name']} {v:.0f}{th['unit']}，安全")
+        if v <= th["warm"]:
+            return ("常温", "#f59e0b", f"{th['name']} {v:.0f}{th['unit']}，中性")
+        return (th["cold_label"], "#ee2a2a", f"{th['name']} {v:.0f}{th['unit']}，风险")
+
+
+def _make_shep_sig(key):
+    def _sig(s):
+        return _shep_sig_impl(key, s)
+    return _sig
+
+
+_SHEPHERD = [
+    dict(key="up_count", name="上涨家数", color="#ee2a2a", fmt=lambda v: f"{v:,.0f}",
+         signal=_make_shep_sig("up_count")),
+    dict(key="down_count", name="下跌家数", color="#3b82f6", fmt=lambda v: f"{v:,.0f}",
+         signal=_make_shep_sig("down_count")),
+    dict(key="limit_up", name="涨停家数", color="#ee2a2a", fmt=lambda v: f"{v:,.0f}",
+         signal=_make_shep_sig("limit_up")),
+    dict(key="limit_down", name="跌停家数", color="#3b82f6", fmt=lambda v: f"{v:,.0f}",
+         signal=_make_shep_sig("limit_down")),
+    dict(key="zt_prev_ret", name="昨日涨停表现", color="#7c5cff", fmt=lambda v: f"{v:+.2f}%",
+         signal=_make_shep_sig("zt_prev_ret")),
+    dict(key="red_ratio", name="红盘占比", color="#7c5cff", fmt=lambda v: f"{v:.1f}%",
+         signal=_make_shep_sig("red_ratio")),
+    dict(key="connect_hl", name="连板高度", color="#f59e0b", fmt=lambda v: f"{v:.0f}板",
+         signal=_make_shep_sig("connect_hl")),
+    dict(key="zt_fail_ratio", name="炸板率", color="#f59e0b", fmt=lambda v: f"{v:.1f}%",
+         signal=_make_shep_sig("zt_fail_ratio")),
+]
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _load_shepherd(days: int = 60):
+    """缓存牧羊人指标取数（历史回测 + 降级）。"""
+    return get_shepherd_indicators(days=days)
+
+
+@safe_fragment("牧羊人指标卡")
+def fragment_shepherd():
+    _section_title("🐑 牧羊人指标（股海牧羊人·情绪温度计）", accent="#f59e0b")
+    if st_autorefresh is not None and _in_trading_hours():
+        st_autorefresh(interval=120000, limit=120, key="shep_auto")
+    try:
+        with st.spinner("加载牧羊人指标…"):
+            df, meta = _load_shepherd(60)
+    except Exception as e:
+        st.error(f"牧羊人指标加载失败：{e}")
+        return
+    if df is None or df.empty:
+        _empty_info("暂无牧羊人指标数据（网络/代理受限）。")
+        return
+    # 牧羊人温度（最新一行快照 + 近期分位）
+    latest = {k: float(df[k].iloc[-1]) for k in THRESHOLDS
+              if k in df.columns and pd.notna(df[k].iloc[-1])}
+    if latest:
+        t = shepherd_temperature(latest)
+        level, emoji, color = _temp_level(t)
+        st.markdown(f"### {emoji} 牧羊人温度 {t:.0f} / 100　"
+                    f"<span style='color:{color};font-size:20px'>{level}</span>",
+                    unsafe_allow_html=True)
+        st.markdown(_temp_bar(t, color), unsafe_allow_html=True)
+        st.caption("综合「上涨/涨停/昨日涨停表现/红盘占比/连板高度」近期分位（高=热），"
+                   "与价格涨跌红绿无关。数据源：akshare 涨停池/昨日涨停池/全A快照。")
+    cols = st.columns(len(_SHEPHERD))
+    for c, cfg in zip(cols, _SHEPHERD):
+        _card(c, cfg, df, dark)
+
+
+@safe_fragment("牧羊人折线图")
+def fragment_shepherd_chart():
+    _section_title("📈 牧羊人指标折线图（真实历史序列）", accent="#7c5cff")
+    try:
+        with st.spinner("加载历史序列…"):
+            df, meta = _load_shepherd(60)
+    except Exception as e:
+        st.error(f"牧羊人历史加载失败：{e}")
+        return
+    if df is None or df.empty or "date" not in df.columns:
+        _empty_info("暂无牧羊人历史数据（网络/代理受限）。")
+        return
+    d = df.copy()
+    d["date"] = pd.to_datetime(d["date"], errors="coerce")
+    d = d.dropna(subset=["date"]).sort_values("date")
+    if len(d) < 2:
+        _empty_info("历史样本不足。")
+        return
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+        subplot_titles=("涨跌 / 涨停 / 跌停家数", "昨日涨停表现(%) / 红盘占比(%)"),
+        row_heights=[1, 1],
+    )
+    fam = dict(up_count=("#ee2a2a", "上涨家数"), down_count=("#3b82f6", "下跌家数"),
+               limit_up=("#f59e0b", "涨停家数"), limit_down=("#16c2c2", "跌停家数"))
+    for k, (col, name) in fam.items():
+        if k in d.columns:
+            s = pd.to_numeric(d[k], errors="coerce").dropna()
+            if s.empty:
+                continue
+            is_pt = len(s) < 2  # 仅末日快照点（涨跌/跌停）→ 菱形标记
+            tr = dict(x=d["date"], y=s.values, name=name + ("" if not is_pt else " (今)"),
+                      mode="markers" if is_pt else "lines",
+                      line=dict(width=1.8, color=col),
+                      hovertemplate=f"%{{x|%Y-%m-%d}}<br>{name}：%{{y:.0f}}<extra></extra>")
+            if is_pt:
+                tr["marker"] = dict(size=11, symbol="diamond", color=col)
+            fig.add_trace(go.Scatter(**tr), row=1, col=1)
+    pct = dict(zt_prev_ret=("#7c5cff", "昨日涨停表现%"), red_ratio=("#ee2a2a", "红盘占比%"))
+    for k, (col, name) in pct.items():
+        if k in d.columns:
+            s = pd.to_numeric(d[k], errors="coerce").dropna()
+            if s.empty:
+                continue
+            is_pt = len(s) < 2
+            tr = dict(x=d["date"], y=s.values, name=name + ("" if not is_pt else " (今)"),
+                      mode="markers" if is_pt else "lines",
+                      line=dict(width=1.8, color=col),
+                      hovertemplate=f"%{{x|%Y-%m-%d}}<br>{name}：%{{y:.2f}}%<extra></extra>")
+            if is_pt:
+                tr["marker"] = dict(size=11, symbol="diamond", color=col)
+            fig.add_trace(go.Scatter(**tr), row=2, col=1)
+    if "limit_up" in d.columns:
+        fig.add_hline(y=50, line_dash="dot", line_color="#888", row=1, col=1,
+                      annotation_text="涨停50(亢奋)", annotation_font_size=9)
+    if "zt_prev_ret" in d.columns:
+        fig.add_hline(y=0, line_dash="dot", line_color="#888", row=2, col=1)
+        fig.add_hline(y=3, line_dash="dot", line_color="#888", row=2, col=1,
+                      annotation_text="昨板3%(炸裂)", annotation_font_size=9)
+    theme = dict(
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e6e6e6" if dark else "#1a1a1a"),
+        xaxis=dict(gridcolor="#2a2a3a" if dark else "#ececec"),
+        yaxis=dict(gridcolor="#2a2a3a" if dark else "#ececec"),
+    )
+    fig.update_layout(
+        height=560, showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.5, xanchor="center", font=dict(size=10)),
+        margin=dict(l=55, r=25, t=60, b=40), hovermode="x unified", **theme)
+    fig.update_xaxes(tickangle=-30)
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="shep_lines")
+    st.caption("🐑 牧羊人指标源自抖音博主「股海牧羊人」《炒股绕不开的第一步》情绪温度计方法论："
+               "不盯指数红绿，先看大盘脸色（涨跌家数/涨停跌停/昨日涨停表现）。"
+               "折线图为 akshare 按交易日回测的真实历史序列，单源失败优雅降级。")
+
+
 # 市场异动面板已抽取到 modules.session.fragment_market_alerts_panel（全局共享，风格统一）。
 
 fragment_thermometer()
 fragment_breadth()
 fragment_sentiment()
 fragment_valuation()
+fragment_shepherd()
+fragment_shepherd_chart()
 fragment_market_alerts_panel()
 
 st.caption("🌡️ 《市场广度 & 情绪温度计》：与《市场驱动力》（五维归一化子图）互补——"
