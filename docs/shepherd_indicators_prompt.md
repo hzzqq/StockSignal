@@ -39,10 +39,19 @@
 ### B. 折线图规范
 - 数据源：akshare。优先 `stock_zt_pool_em(date=)`（涨停/连板/炸板）、
   `stock_zt_pool_previous_em(date=)`（昨日涨停表现）、`stock_zh_a_spot_em()`（涨跌/跌停/红盘占比）。
-- 按 `tool_trade_date_hist_sina()` 交易日历回测，窗口默认 60 个交易日。
+- **长周期重构（2007 起）**：东财接口仅能回溯近 ~12 个交易日；要拉长历史必须换源重构——
+  用新浪 `stock_zh_a_daily(symbol, start_date, end_date)` 逐只拉全 A 日线（前复权），
+  按交易日聚合涨跌家数，按板块规则（沪 68/深 30=20%、北交所=30%、其余=10%）反算涨停/跌停。
+  ⚠️ 新浪日线底层 V8（py_mini_racer）**多线程并发会崩溃**，全市场重构必须用
+  **多进程（ProcessPoolExecutor，worker 为模块级函数、不可带局部装饰器）** + 每只缓存
+  （`data/shepherd_cache/`）断点续跑；执行入口 `scripts/run_shepherd_reconstruct.py`。
 - 子图1：上涨/下跌/涨停/跌停家数；子图2：昨日涨停表现(%) / 红盘占比(%)。
+- 长周期报告须附「年度汇总」表（日均上涨/下跌、年均红盘占比、年度最多涨停/跌停、
+  亢奋日(涨停≥80)、恐慌日(跌停>30)）+ 年度柱线图。
 - 叠加阈值参考线（涨停 50、昨板 0/3）。
 - 单日/单源失败跳过该点，绝不抛红错；整体失败降级读 `data/shepherd_history.csv`。
+- **口径透明**：长周期涨跌家数存在幸存者偏差（仅含当前上市股票）；涨停/跌停历史为近似、
+  近期为东财真实；连板/炸板/昨板仅近期真实。报告必须标注，禁止冒充精确历史。
 
 ### C. 模块落地规范
 - 新建/扩展 `modules/shepherd.py`：`get_shepherd_indicators(days)` 返回 `(df, meta)`，
@@ -61,3 +70,5 @@
 来源：抖音「股海牧羊人」《炒股绕不开的第一步》→ 方法论 = 情绪温度计。
 指标（8 个）：上涨家数、下跌家数、涨停家数、跌停家数、昨日涨停表现、红盘占比、连板高度、炸板率。
 归类：牧羊人指标。已落地 `modules/shepherd.py` + `pages/P_市场情绪.py` 两个 fragment。
+历史深度：2007-01-01 至今约 4700+ 交易日（`modules/shepherd_reconstruct.py` 全 A 重构，
+结果存 `data/shepherd_history.csv`，报告 `docs/shepherd_indicators_report.html`）。

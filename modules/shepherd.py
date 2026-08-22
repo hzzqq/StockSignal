@@ -286,23 +286,49 @@ def _fetch_shepherd_history(n_days=60):
     return df
 
 
+def _read_history_csv(days=None):
+    """读持久 CSV 长历史（2007 起，由 scripts/run_shepherd_reconstruct.py 生成）。
+
+    :param days: 给定则只取尾部 days 行；None/0 返回全部。
+    """
+    try:
+        if not os.path.exists(_HISTORY_FILE):
+            return None
+        df = pd.read_csv(_HISTORY_FILE)
+        if df.empty:
+            return None
+        df["date"] = _pdate(df["date"])
+        df = df.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+        if days and days > 0 and len(df) > days:
+            df = df.tail(days).reset_index(drop=True)
+        return df
+    except Exception as e:  # noqa
+        logger.warning("[shepherd] 长历史 CSV 读取失败: %s", e)
+        return None
+
+
 def get_shepherd_history(days=60):
-    """历史回测（TTL 缓存 1h）。整体失败降级读取持久 CSV。"""
+    """历史回测（TTL 缓存 1h）。
+
+    - days >= 2000：读取持久 CSV 长历史（2007 起，由全 A 重构生成）；
+    - 否则：优先实时涨停池回测（近 90 日内真实连板/炸板/昨板），失败降级读 CSV 尾部 days 行。
+    """
+    long_mode = days is not None and days >= 2000
+    if long_mode:
+        df = _read_history_csv(days)
+        if df is not None and not df.empty:
+            return df
+        logger.warning("[shepherd] 长历史 CSV 不可用，返回空")
+        return pd.DataFrame(columns=["date"])
     try:
         df = _cached(_HISTORY_TTL, f"shep_hist_{days}", lambda: _fetch_shepherd_history(days))
         if df is not None and not df.empty:
             return df
     except Exception as e:  # noqa
         logger.warning("[shepherd] 历史回测失败，尝试 CSV 降级: %s", e)
-    # 降级：读持久缓存
-    try:
-        if os.path.exists(_HISTORY_FILE):
-            df = pd.read_csv(_HISTORY_FILE)
-            if not df.empty:
-                df["date"] = _pdate(df["date"])
-                return df
-    except Exception as e:  # noqa
-        logger.warning("[shepherd] CSV 降级也失败: %s", e)
+    df = _read_history_csv(days)
+    if df is not None and not df.empty:
+        return df
     return pd.DataFrame(columns=["date"])
 
 
@@ -357,15 +383,41 @@ def shepherd_temperature(today: dict):
 
 
 if __name__ == "__main__":
-    # 命令行：拉取并持久化历史到 data/shepherd_history.csv / .json
+    # 命令行入口（安全刷新，不覆盖长历史）：
+    # - 若已有长历史 CSV（2007 起），只拉最近 live 数据（涨停/连板/炸板/昨板）并合并到尾部；
+    # - 若无长历史，退化为旧行为（仅近期回测）。
+    # 全量重建（2007 起）请用：python -m scripts.run_shepherd_reconstruct
     import json
-    n = int(os.environ.get("SHEPHERD_DAYS", "60"))
-    logger.info("[shepherd] 开始回测 %d 个交易日…", n)
-    df = _fetch_shepherd_history(n)
-    if df is None or df.empty:
-        logger.warning("[shepherd] 未取到任何历史数据")
+    n = int(os.environ.get("SHEPHERD_DAYS", "30"))
+    os.makedirs(os.path.dirname(_HISTORY_FILE), exist_ok=True)
+    long_df = _read_history_csv(None)  # 读现有长历史（可能为空）
+    if long_df is not None and not long_df.empty and len(long_df) > 200:
+        logger.info("[shepherd] 检测到长历史 %d 行（%s 起），仅刷新尾部实时数据", len(long_df), long_df["date"].min().date())
+        live = _fetch_shepherd_history(n)  # 近期真实 zt_pool
+        if live is not None and not live.empty:
+            live_dates = {d.date() for d in live["date"]}
+            tail_mask = long_df["date"].dt.date.isin(live_dates)
+            df = long_df.copy()
+            merge_cols = [c for c in ("limit_up", "limit_down", "connect_hl", "zt_fail_ratio", "zt_prev_ret")
+                          if c in live.columns]
+            if merge_cols:
+                idx = {d.date(): i for i, d in enumerate(live["date"])}
+                for i, row in df[tail_mask].iterrows():
+                    li = idx.get(row["date"].date())
+                    if li is not None:
+                        for c in merge_cols:
+                            if pd.notna(live[c].iloc[li]):
+                                df.at[i, c] = live[c].iloc[li]
+            df = df.sort_values("date").reset_index(drop=True)
+        else:
+            df = long_df
+        logger.info("[shepherd] 刷新后 %d 行 → %s", len(df), _HISTORY_FILE)
     else:
-        os.makedirs(os.path.dirname(_HISTORY_FILE), exist_ok=True)
+        df = _fetch_shepherd_history(n)
+        if df is None or df.empty:
+            logger.warning("[shepherd] 未取到任何历史数据")
+            df = pd.DataFrame(columns=["date"])
+    if not df.empty:
         df.to_csv(_HISTORY_FILE, index=False, encoding="utf-8-sig")
         with open(os.path.join(os.path.dirname(_HISTORY_FILE), "shepherd_history.json"),
                   "w", encoding="utf-8") as f:

@@ -488,9 +488,23 @@ def fragment_shepherd():
 @safe_fragment("牧羊人折线图")
 def fragment_shepherd_chart():
     _section_title("📈 牧羊人指标折线图（真实历史序列）", accent="#7c5cff")
+    range_opts = {
+        "全部（2007 起）": 999999,
+        "近 5 年（1250 交易日）": 1250,
+        "近 1 年（250 交易日）": 250,
+        "近 60 交易日": 60,
+    }
+    key = "shep_range"
+    cur = st.session_state.get(key, "全部（2007 起）")
+    try:
+        sel = st.selectbox("历史范围", list(range_opts), index=list(range_opts).index(cur) if cur in range_opts else 0,
+                           key=key)
+    except Exception:  # noqa: BLE001
+        sel = "全部（2007 起）"
+    days = range_opts[sel]
     try:
         with st.spinner("加载历史序列…"):
-            df, meta = _load_shepherd(60)
+            df, meta = _load_shepherd(days)
     except Exception as e:
         st.error(f"牧羊人历史加载失败：{e}")
         return
@@ -558,7 +572,8 @@ def fragment_shepherd_chart():
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="shep_lines")
     st.caption("🐑 牧羊人指标源自抖音博主「股海牧羊人」《炒股绕不开的第一步》情绪温度计方法论："
                "不盯指数红绿，先看大盘脸色（涨跌家数/涨停跌停/昨日涨停表现）。"
-               "折线图为 akshare 按交易日回测的真实历史序列，单源失败优雅降级。")
+               "近 60 日为 akshare 实时回测；长区间读取 2007 起全 A 重构序列"
+               "（新浪日线聚合，涨跌/红盘为真实重构，涨停/跌停为板块规则近似，近期为东财真实）。")
 
 
 # 市场异动面板已抽取到 modules.session.fragment_market_alerts_panel（全局共享，风格统一）。
