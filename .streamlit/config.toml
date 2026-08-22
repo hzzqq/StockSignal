@@ -19,6 +19,9 @@ textColor = "#1A2332"
 font = "sans serif"
 
 [server]
+# 前端端口固定 8899：避开元量软件（QMT/xt_trader 等）常占用的 8000-8300 段，
+# 根治「启动抢端口」问题。与启动器 startup_sim.py 默认 --fe 8899 保持一致。
+port = 8899
 # 关闭默认的运行中提示，界面更干净
 runOnSave = false
 headless = true

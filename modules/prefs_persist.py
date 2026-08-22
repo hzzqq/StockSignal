@@ -16,38 +16,24 @@ modules/prefs_persist.py
   localStorage 作为「浏览器关闭后再打开」的补充兜底。
 - 所有 JS 均为静态可信字符串，不注入任何用户输入，无 XSS 风险。
 """
-
 from __future__ import annotations
-
 import json
-
 import streamlit.components.v1 as components
+import streamlit as st
 import logging
-
 logger = logging.getLogger(__name__)
-
-
-_LS_PREFS = "ss_prefs"
-QP_PREFS = "prefs"
-
+_LS_PREFS = 'ss_prefs'
+QP_PREFS = 'prefs'
 
 def save_prefs(prefs: dict) -> None:
     """把偏好 dict（含 theme_mode / font_size 等）写入浏览器 localStorage。"""
     try:
-        # 双重 json.dumps：先把 dict 序列化为字符串，再变成 JS 字符串字面量，避免引号/中文破坏脚本
         js = json.dumps(json.dumps(prefs, ensure_ascii=False), ensure_ascii=False)
-        script = f"""
-        <script>
-        (function() {{
-          try {{ localStorage.setItem({json.dumps(_LS_PREFS)}, {js}); }} catch (e) {{ /* 隐私模式/配额满 忽略 */ }}
-        }})();
-        </script>
-        """
-        components.html(script, height=0)
+        script = f'\n        <script>\n        (function() {{\n          try {{ localStorage.setItem({json.dumps(_LS_PREFS)}, {js}); }} catch (e) {{ /* 隐私模式/配额满 忽略 */ }}\n        }})();\n        </script>\n        '
+        st.markdown(script, unsafe_allow_html=True)
     except Exception as e:
-        logger.warning(f"[prefs_persist] 处理异常: {e}")
+        logger.warning(f'[prefs_persist] 处理异常: {e}')
         pass
-
 
 def restore_prefs_from_local_storage() -> None:
     """
@@ -56,25 +42,11 @@ def restore_prefs_from_local_storage() -> None:
     仅当 URL 缺 prefs 时触发，避免死循环。
     """
     try:
-        script = f"""
-        <script>
-        (function() {{
-          try {{
-            var raw = localStorage.getItem({json.dumps(_LS_PREFS)});
-            if (!raw) return;
-            var params = new URLSearchParams(window.parent.location.search);
-            if (params.get({json.dumps(QP_PREFS)})) return;  /* 已有则不打扰 */
-            params.set({json.dumps(QP_PREFS)}, raw);
-            window.parent.location.href = window.parent.location.pathname + '?' + params.toString();
-          }} catch (e) {{}}
-        }})();
-        </script>
-        """
-        components.html(script, height=0)
+        script = f"\n        <script>\n        (function() {{\n          try {{\n            var raw = localStorage.getItem({json.dumps(_LS_PREFS)});\n            if (!raw) return;\n            var params = new URLSearchParams(window.parent.location.search);\n            if (params.get({json.dumps(QP_PREFS)})) return;  /* 已有则不打扰 */\n            params.set({json.dumps(QP_PREFS)}, raw);\n            window.parent.location.href = window.parent.location.pathname + '?' + params.toString();\n          }} catch (e) {{}}\n        }})();\n        </script>\n        "
+        st.markdown(script, unsafe_allow_html=True)
     except Exception as e:
-        logger.warning(f"[prefs_persist] 处理异常: {e}")
+        logger.warning(f'[prefs_persist] 处理异常: {e}')
         pass
-
 
 def load_prefs_from_local_storage() -> dict:
     """占位：localStorage 读取由 restore_prefs_from_local_storage() 的 URL 跳转路径完成，

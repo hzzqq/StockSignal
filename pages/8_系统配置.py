@@ -61,7 +61,7 @@ with tab_overview:
     with col_b:
         st.info("""
         **前端服务**
-        - Streamlit: `http://127.0.0.1:8501`
+        - Streamlit: `http://127.0.0.1:8899`
         - 行情缓存: `data/cache.db`
         - 新闻库: `data/news.db`
         """)

@@ -9,66 +9,46 @@ import streamlit.components.v1 as components
 import pandas as pd
 from datetime import date
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
 from modules.session import api_get, safe_switch_page
 from modules.news import NewsFetcher
-
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info
-
-today = date.today().strftime("%Y-%m-%d")
-dark = render_standard_page(
-    title="每日晨报 / 复盘笔记", icon="🌅",
-    caption=f"生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）",
-    layout="wide",
-)
-
-# 顶部主要指数收盘行情（轻量组件）
+today = date.today().strftime('%Y-%m-%d')
+dark = render_standard_page(title='每日晨报 / 复盘笔记', icon='🌅', caption=f'生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）', layout='wide')
 from modules.widgets import render_index_compact
 render_index_compact(cols_per_row=5)
-st.caption("⚠️ 以上数据仅供参考，不构成任何投资建议")
-
-
+st.caption('⚠️ 以上数据仅供参考，不构成任何投资建议')
 fetcher = get_fetcher()
 
-
 @st.cache_data(ttl=600, show_spinner=False)
-def _cached_news(keyword: str, limit: int = 15):
+def _cached_news(keyword: str, limit: int=15):
     """缓存新闻 10 分钟 + 失败重试（最多 3 次），避免重复请求与瞬时失败。#542-10"""
     for _i in range(3):
         try:
-            df = NewsFetcher().fetch(keyword=keyword, source="auto", limit=limit)
+            df = NewsFetcher().fetch(keyword=keyword, source='auto', limit=limit)
             if df is not None:
                 return df
         except Exception:
             continue
     return None
-
-
-# ── 自选股快照：市盈率 / 资产负债率 解析（复用 C 页已验证逻辑）──
-# SSL 关闭补丁已收敛到 modules.ssl_helper（#404），此处复用公共上下文管理器
 from modules.ssl_helper import ssl_bypass as _ssl_bypass
 from modules.fundamental_helpers import calc_alr, fund_one
-
 
 def _calc_alr(code: str):
     """委托 fundamental_helpers.calc_alr（#545-16 消除与 C_自选股监控 的逐字重复）。"""
     return calc_alr(code, fetcher)
 
-
 def _fund_one(code: str):
     """委托 fundamental_helpers.fund_one（#545-16 消除重复）。"""
     return fund_one(code, fetcher)
 
-
 def _quote_one(code: str):
     """线程内取实时行情（本地 fetcher，规避线程内后端 token 调用）。"""
     try:
-        return code, fetcher.get_realtime_quote(code)
+        return (code, fetcher.get_realtime_quote(code))
     except Exception:
-        return code, None
-
+        return (code, None)
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _cached_sector():
@@ -82,20 +62,18 @@ def _fmt_pct(v):
     """安全格式化涨跌幅：None/NaN 返回 —，避免 f-string 数值格式化崩溃。"""
     try:
         if v is None or (isinstance(v, float) and pd.isna(v)):
-            return "—"
-        return f"{float(v):+.2f}%"
+            return '—'
+        return f'{float(v):+.2f}%'
     except Exception:
-        return "—"
-
+        return '—'
 
 def _fmt_rel(ts):
     """把绝对时间戳转成相对时间（刚刚 / X分钟前 / X小时前 / X天前）。"""
     from datetime import datetime as _dt
     try:
         if isinstance(ts, str):
-            s = ts.strip().replace("Z", "")
-            for _fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S",
-                         "%Y-%m-%d %H:%M", "%Y-%m-%d", "%Y-%m-%dT%H:%M"):
+            s = ts.strip().replace('Z', '')
+            for _fmt in ('%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d', '%Y-%m-%dT%H:%M'):
                 try:
                     ts = _dt.strptime(s, _fmt)
                     break
@@ -103,94 +81,75 @@ def _fmt_rel(ts):
                     continue
             else:
                 return s
-        elif hasattr(ts, "to_pydatetime"):
+        elif hasattr(ts, 'to_pydatetime'):
             ts = ts.to_pydatetime()
         sec = (_dt.now() - ts).total_seconds()
         if sec < 60:
-            return "刚刚"
+            return '刚刚'
         if sec < 3600:
-            return f"{int(sec // 60)}分钟前"
+            return f'{int(sec // 60)}分钟前'
         if sec < 86400:
-            return f"{int(sec // 3600)}小时前"
-        return f"{int(sec // 86400)}天前"
+            return f'{int(sec // 3600)}小时前'
+        return f'{int(sec // 86400)}天前'
     except Exception:
-        return str(ts) if ts is not None else ""
+        return str(ts) if ts is not None else ''
 
-
-# ───────────────────────── 板块概览 ─────────────────────────
 @safe_fragment
 def fragment_sector_summary():
-    with st.spinner("加载板块行情…"):
+    with st.spinner('加载板块行情…'):
         try:
             sector_df = _cached_sector()
         except Exception:
             sector_df = None
-
-    if sector_df is not None and not sector_df.empty and "change_pct" in sector_df.columns:
-        up = int((sector_df["change_pct"] > 0).sum())
-        down = int((sector_df["change_pct"] < 0).sum())
+    if sector_df is not None and (not sector_df.empty) and ('change_pct' in sector_df.columns):
+        up = int((sector_df['change_pct'] > 0).sum())
+        down = int((sector_df['change_pct'] < 0).sum())
         flat = len(sector_df) - up - down
         c1, c2, c3 = st.columns(3)
-        c1.metric("上涨板块", up, delta=None, help="今日收盘涨幅大于 0 的板块数量")
-        c2.metric("下跌板块", down, delta=None, help="今日收盘跌幅小于 0 的板块数量")
-        c3.metric("平/无数据", flat, delta=None, help="涨跌幅为 0 或暂未获取到行情的板块数量")
-        st.caption("数据来源：东方财富板块行情")
-        top_up = sector_df.sort_values("change_pct", ascending=False).head(5)
-        top_dn = sector_df.sort_values("change_pct", ascending=True).head(5)
+        c1.metric('上涨板块', up, delta=None, help='今日收盘涨幅大于 0 的板块数量')
+        c2.metric('下跌板块', down, delta=None, help='今日收盘跌幅小于 0 的板块数量')
+        c3.metric('平/无数据', flat, delta=None, help='涨跌幅为 0 或暂未获取到行情的板块数量')
+        st.caption('数据来源：东方财富板块行情')
+        top_up = sector_df.sort_values('change_pct', ascending=False).head(5)
+        top_dn = sector_df.sort_values('change_pct', ascending=True).head(5)
         colu, cold = st.columns(2)
         with colu:
-            st.markdown("**🟢 领涨板块**")
+            st.markdown('**🟢 领涨板块**')
             for _, r in top_up.iterrows():
                 st.markdown(f"- {str(r.get('sector') or '?')}  `{_fmt_pct(r.get('change_pct'))}`")
         with cold:
-            st.markdown("**🔴 领跌板块**")
+            st.markdown('**🔴 领跌板块**')
             for _, r in top_dn.iterrows():
                 st.markdown(f"- {str(r.get('sector') or '?')}  `{_fmt_pct(r.get('change_pct'))}`")
         st.caption(f"🕒 板块行情快照时间：{pd.Timestamp.now().strftime('%H:%M:%S')}（收盘后更新，盘中为实时快照）")
     else:
-        st.warning("⚠️ 暂未获取到板块行情（交易时间或网络恢复后自动可用）。")
-
-
+        st.warning('⚠️ 暂未获取到板块行情（交易时间或网络恢复后自动可用）。')
 fragment_sector_summary()
 
-# ───────────────────────── 自选股快照 + 相关新闻（独立 fragment，交互不阻塞整页） ─────────────────────────
 @safe_fragment
 def fragment_watchlist_and_news():
-    sc, body = api_get("/api/watchlist")
+    sc, body = api_get('/api/watchlist')
     watchlist = []
-    if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        watchlist = body.get("data", []) or []
+    if sc == 200 and isinstance(body, dict) and (body.get('status') == 'ok'):
+        watchlist = body.get('data', []) or []
     else:
-        st.error("⚠️ 加载失败，请稍后重试")
-        if st.button("🔄 重试", key="morning_wl_retry"):
-            st.rerun(scope="fragment")
+        st.error('⚠️ 加载失败，请稍后重试')
+        if st.button('🔄 重试', key='morning_wl_retry'):
+            st.rerun(scope='fragment')
         return
-
-    # 并行预拉市盈率 / 资产负债率（失败留 —，不阻塞快照渲染）
-    wl_codes = [w.get("stock_code") for w in watchlist[:30] if w.get("stock_code")]
+    wl_codes = [w.get('stock_code') for w in watchlist[:30] if w.get('stock_code')]
     fund_map = {}
     if wl_codes:
-        # 共享有界池，整批 15s 硬边界。
-        # ⚠️ 不可用 `with ThreadPoolExecutor(...)` + result(timeout=)：退出 with 的
-        # shutdown(wait=True) 会阻塞等所有慢任务跑完，超时保护被完全抵消（历史 bug）。
         from modules.fetch_parallel import fetch_many
         try:
-            with st.spinner("并行获取自选股市盈率与资产负债率…"):
+            with st.spinner('并行获取自选股市盈率与资产负债率…'):
                 with _ssl_bypass():
-                    raw = fetch_many(
-                        [(c, (lambda code=c: _fund_one(code))) for c in wl_codes],
-                        max_workers=4, timeout=15,
-                    )
+                    raw = fetch_many([(c, lambda code=c: _fund_one(code)) for c in wl_codes], max_workers=4, timeout=15)
             for c in wl_codes:
                 r = raw.get(c)
-                fund_map[c] = (
-                    (r[1], r[2]) if isinstance(r, (tuple, list)) and len(r) >= 3
-                    else (None, None)
-                )
+                fund_map[c] = (r[1], r[2]) if isinstance(r, (tuple, list)) and len(r) >= 3 else (None, None)
         except Exception:
             pass
-
-    # 并行预拉实时行情（避免逐个串行请求拖慢页面加载）
     quotes_map = {}
     if wl_codes:
         try:
@@ -199,261 +158,183 @@ def fragment_watchlist_and_news():
                     quotes_map[c] = q
         except Exception:
             quotes_map = {}
-
     selected_code = None
     selected_name = None
-    with st.expander("📌 自选股快照", expanded=True):
+    with st.expander('📌 自选股快照', expanded=True):
         if not watchlist:
-            st.info("📭 自选股为空，晨报暂无可展示的持仓快照。")
-            st.markdown(
-                "<div style='padding:12px 14px;border-radius:10px;"
-                "background:rgba(43,138,239,0.08);border:1px solid rgba(43,138,239,0.3);'>"
-                "💡 <b>三步开启你的晨报快照</b><br>"
-                "1. 进入「📡 自选股监控」添加关注的股票<br>"
-                "2. 或到「👤 我的」维护自选股清单<br>"
-                "3. 回到本页，快照与专属新闻会自动出现</div>",
-                unsafe_allow_html=True,
-            )
-            if st.button("➕ 去添加自选股", type="primary", use_container_width=True, key="morning_goto_wl"):
-                safe_switch_page("pages/C_自选股监控.py")
+            st.info('📭 自选股为空，晨报暂无可展示的持仓快照。')
+            st.markdown("<div style='padding:12px 14px;border-radius:10px;background:rgba(43,138,239,0.08);border:1px solid rgba(43,138,239,0.3);'>💡 <b>三步开启你的晨报快照</b><br>1. 进入「📡 自选股监控」添加关注的股票<br>2. 或到「👤 我的」维护自选股清单<br>3. 回到本页，快照与专属新闻会自动出现</div>", unsafe_allow_html=True)
+            if st.button('➕ 去添加自选股', type='primary', use_container_width=True, key='morning_goto_wl'):
+                safe_switch_page('pages/C_自选股监控.py')
         else:
-            st.caption("👉 点击表格中某一行，可在下方「相关新闻速览」查看该股票的专属新闻。")
+            st.caption('👉 点击表格中某一行，可在下方「相关新闻速览」查看该股票的专属新闻。')
             snap = []
-            st.text_input("🔍 搜索自选股（名称 / 代码）", key="filter_morning_wl",
-                          help="纯前端过滤快照列表，不影响行情获取。")
+            st.text_input('🔍 搜索自选股（名称 / 代码）', key='filter_morning_wl', help='纯前端过滤快照列表，不影响行情获取。')
             for w in watchlist[:30]:
-                code = w["stock_code"]
+                code = w['stock_code']
                 rt = quotes_map.get(code)
-                # 名称优先用自选股库已存名称，其次本地股票库解析，最后回退代码
-                name = w.get("stock_name") or fetcher.get_name_only(code) or code
+                name = w.get('stock_name') or fetcher.get_name_only(code) or code
                 pe, alr = fund_map.get(code, (None, None))
-                _pe_s = f"{pe:.2f}" if isinstance(pe, (int, float)) and not pd.isna(pe) else "—"
-                _alr_s = f"{alr:.2f}%" if isinstance(alr, (int, float)) and not pd.isna(alr) else "—"
-                if isinstance(rt, dict) and rt.get("current"):
-                    cur = float(rt["current"])
-                    prev = float(rt.get("prev_close") or cur)
-                    high = float(rt.get("high") or 0)
-                    low = float(rt.get("low") or 0)
-                    volume = int(rt.get("volume") or 0)
-                    amount = float(rt.get("amount") or 0)
+                _pe_s = f'{pe:.2f}' if isinstance(pe, (int, float)) and (not pd.isna(pe)) else '—'
+                _alr_s = f'{alr:.2f}%' if isinstance(alr, (int, float)) and (not pd.isna(alr)) else '—'
+                if isinstance(rt, dict) and rt.get('current'):
+                    cur = float(rt['current'])
+                    prev = float(rt.get('prev_close') or cur)
+                    high = float(rt.get('high') or 0)
+                    low = float(rt.get('low') or 0)
+                    volume = int(rt.get('volume') or 0)
+                    amount = float(rt.get('amount') or 0)
                     chg = (cur - prev) / prev * 100 if prev else 0.0
                     change_amt = cur - prev if prev else 0.0
                     amplitude = (high - low) / prev * 100 if prev else 0.0
-                    snap.append({
-                        "名称": name, "代码": code, "现价": cur,
-                        "涨跌额": change_amt, "涨跌%": chg,
-                        "振幅%": amplitude, "成交量": volume, "成交额": amount,
-                        "市盈率": _pe_s, "资产负债率": _alr_s,
-                    })
+                    snap.append({'名称': name, '代码': code, '现价': cur, '涨跌额': change_amt, '涨跌%': chg, '振幅%': amplitude, '成交量': volume, '成交额': amount, '市盈率': _pe_s, '资产负债率': _alr_s})
                 else:
-                    snap.append({"名称": name, "代码": code, "现价": None, "涨跌额": None, "涨跌%": None,
-                                 "振幅%": None, "成交量": None, "成交额": None,
-                                 "市盈率": _pe_s, "资产负债率": _alr_s})
+                    snap.append({'名称': name, '代码': code, '现价': None, '涨跌额': None, '涨跌%': None, '振幅%': None, '成交量': None, '成交额': None, '市盈率': _pe_s, '资产负债率': _alr_s})
             if snap:
-                _wl_filter = st.session_state.get("filter_morning_wl", "")
+                _wl_filter = st.session_state.get('filter_morning_wl', '')
                 if _wl_filter:
                     _ff = str(_wl_filter).strip().lower()
-                    snap = [s for s in snap if _ff in str(s.get("名称", "")).lower()
-                            or _ff in str(s.get("代码", "")).lower()]
+                    snap = [s for s in snap if _ff in str(s.get('名称', '')).lower() or _ff in str(s.get('代码', '')).lower()]
                 snap_df = pd.DataFrame(snap)
-                event = st.dataframe(
-                    snap_df,
-                    use_container_width=True,
-                    height=320,
-                    on_select="rerun",
-                    selection_mode="single-row",
-                    key="morning_snap",
-                    column_config={
-                        "现价": st.column_config.NumberColumn(format="¥%.2f"),
-                        "涨跌额": st.column_config.NumberColumn(format="%.2f"),
-                        "涨跌%": st.column_config.NumberColumn(format="%.2f%%"),
-                        "振幅%": st.column_config.NumberColumn(format="%.2f%%"),
-                        "成交量": st.column_config.NumberColumn(format="%d"),
-                        "成交额": st.column_config.NumberColumn(format="%.0f"),
-                        "市盈率": st.column_config.NumberColumn(format="%.2f"),
-                        "资产负债率": st.column_config.NumberColumn(format="%.2f%%"),
-                    },
-                )
-                st.caption(f"共 {len(watchlist)} 只自选股（展示前 {len(snap)} 只）")
+                event = st.dataframe(snap_df, use_container_width=True, height=320, on_select='rerun', selection_mode='single-row', key='morning_snap', column_config={'现价': st.column_config.NumberColumn(format='¥%.2f'), '涨跌额': st.column_config.NumberColumn(format='%.2f'), '涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '振幅%': st.column_config.NumberColumn(format='%.2f%%'), '成交量': st.column_config.NumberColumn(format='%d'), '成交额': st.column_config.NumberColumn(format='%.0f'), '市盈率': st.column_config.NumberColumn(format='%.2f'), '资产负债率': st.column_config.NumberColumn(format='%.2f%%')})
+                st.caption(f'共 {len(watchlist)} 只自选股（展示前 {len(snap)} 只）')
                 try:
                     sel_rows = event.selection.rows if event and event.selection else []
                 except Exception:
                     sel_rows = []
                 if sel_rows:
-                    # stale 选择保护：snap_df 在刷新后可能变短，越界则丢弃选择
                     if sel_rows[0] < len(snap_df):
                         r = snap_df.iloc[sel_rows[0]]
-                        selected_code = str(r["代码"])
-                        selected_name = str(r["名称"])
+                        selected_code = str(r['代码'])
+                        selected_name = str(r['名称'])
                     else:
                         sel_rows = []
-
-    # 相关新闻速览（与快照同 fragment，行选择只重跑本 fragment）
-    _news_title = f"📰 相关新闻速览 — {selected_name}（{selected_code}）" if selected_code else "📰 相关新闻速览"
+    _news_title = f'📰 相关新闻速览 — {selected_name}（{selected_code}）' if selected_code else '📰 相关新闻速览'
     with st.expander(_news_title, expanded=bool(selected_code)):
         if not watchlist:
-            st.info("添加自选股后，此处展示相关新闻。")
+            st.info('添加自选股后，此处展示相关新闻。')
         elif not selected_code:
-            st.info("👆 请在上方「自选股快照」中点击某一行，查看该股票的相关新闻。")
+            st.info('👆 请在上方「自选股快照」中点击某一行，查看该股票的相关新闻。')
         else:
-            with st.spinner(f"加载 {selected_name} 相关新闻…"):
+            with st.spinner(f'加载 {selected_name} 相关新闻…'):
                 news_df = _cached_news(selected_name, limit=15)
-            if news_df is not None and not news_df.empty:
+            if news_df is not None and (not news_df.empty):
                 for _, r in news_df.head(12).iterrows():
-                    # 字段级兜底：上游新闻源个别字段可能为 None/NaN，强制转字符串避免显示 "None"
-                    title = str(r.get("title") or "")
-                    url = r.get("url") or r.get("link") or ""
-                    date_s = str(r.get("date") or "")
-                    source_s = str(r.get("source") or "")
+                    title = str(r.get('title') or '')
+                    url = r.get('url') or r.get('link') or ''
+                    date_s = str(r.get('date') or '')
+                    source_s = str(r.get('source') or '')
                     if url:
-                        st.markdown(f"- {_fmt_rel(date_s)}  **[{title}]({url})**  _{source_s}_")
+                        st.markdown(f'- {_fmt_rel(date_s)}  **[{title}]({url})**  _{source_s}_')
                     else:
-                        st.markdown(f"- {_fmt_rel(date_s)}  **{title}**  _{source_s}_")
-                st.caption(f"共 {len(news_df)} 条相关新闻，展示前 {min(len(news_df), 12)} 条")
+                        st.markdown(f'- {_fmt_rel(date_s)}  **{title}**  _{source_s}_')
+                st.caption(f'共 {len(news_df)} 条相关新闻，展示前 {min(len(news_df), 12)} 条')
             else:
-                st.info(f"暂无与 {selected_name} 相关的新闻。可尝试切换其它自选股，或稍后重试（资讯源每日更新）。")
-
-
+                st.info(f'暂无与 {selected_name} 相关的新闻。可尝试切换其它自选股，或稍后重试（资讯源每日更新）。')
 fragment_watchlist_and_news()
 
-# ───────────────────────── 复盘笔记 ─────────────────────────
 @safe_fragment
 def fragment_review_notes():
-    st.markdown("#### 📝 复盘笔记")
+    st.markdown('#### 📝 复盘笔记')
     import re as _re
-
-    NOTES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
-    REVIEW_IMG_DIR = os.path.join(NOTES_DIR, "review_images")
+    NOTES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+    REVIEW_IMG_DIR = os.path.join(NOTES_DIR, 'review_images')
     os.makedirs(NOTES_DIR, exist_ok=True)
     os.makedirs(REVIEW_IMG_DIR, exist_ok=True)
-
-    if "review_img_counter" not in st.session_state:
-        st.session_state["review_img_counter"] = 0
+    if 'review_img_counter' not in st.session_state:
+        st.session_state['review_img_counter'] = 0
 
     def _notes_path(d):
-        return os.path.join(NOTES_DIR, f"review_notes_{d}.md")
+        return os.path.join(NOTES_DIR, f'review_notes_{d}.md')
 
-    # ── 子模块 1：工具栏（日期、查询、图片上传）──
     def _render_toolbar():
-        # 加法式 Batch20：偏好记忆（session 级）— 记住上次查询的复盘日期
-        note_date = st.date_input("复盘日期",
-                                  value=st.session_state.get("_morning_review_date_pref", date.today()),
-                                  key="review_date")
-        note_date_s = note_date.strftime("%Y-%m-%d")
+        note_date = st.date_input('复盘日期', value=st.session_state.get('_morning_review_date_pref', date.today()), key='review_date')
+        note_date_s = note_date.strftime('%Y-%m-%d')
         notes_path = _notes_path(note_date_s)
-
-        # 初次进入默认载入当日复盘（若已存在）
-        if "review_note" not in st.session_state:
+        if 'review_note' not in st.session_state:
             if os.path.exists(notes_path):
                 try:
-                    with open(notes_path, "r", encoding="utf-8") as f:
-                        st.session_state["review_note"] = f.read()
+                    with open(notes_path, 'r', encoding='utf-8') as f:
+                        st.session_state['review_note'] = f.read()
                 except Exception:
-                    st.session_state["review_note"] = ""
+                    st.session_state['review_note'] = ''
             else:
-                st.session_state["review_note"] = ""
-
+                st.session_state['review_note'] = ''
         c_q, c_img = st.columns([0.5, 0.5])
         with c_q:
-            if st.button("🔍 查询", type="primary", use_container_width=True, key="review_query"):
+            if st.button('🔍 查询', type='primary', use_container_width=True, key='review_query'):
                 if os.path.exists(notes_path):
                     try:
-                        with open(notes_path, "r", encoding="utf-8") as f:
-                            st.session_state["review_note"] = f.read()
+                        with open(notes_path, 'r', encoding='utf-8') as f:
+                            st.session_state['review_note'] = f.read()
                     except Exception:
-                        st.session_state["review_note"] = ""
+                        st.session_state['review_note'] = ''
                 else:
-                    st.session_state["review_note"] = ""
-                    _empty_info(f"{note_date_s} 暂无复盘记录，可直接在下方新建（写一句今天的市场观察或操作笔记）。")
-                st.session_state["review_queried"] = note_date_s
-                # 加法式 Batch20：偏好记忆 — 记录本次查询日期，下次进入自动套用
-                st.session_state["_morning_review_date_pref"] = note_date
-                # 不调用 st.rerun()：本 fragment 内的交互只会触发本 fragment 重跑，不影响整页
+                    st.session_state['review_note'] = ''
+                    _empty_info(f'{note_date_s} 暂无复盘记录，可直接在下方新建（写一句今天的市场观察或操作笔记）。')
+                st.session_state['review_queried'] = note_date_s
+                st.session_state['_morning_review_date_pref'] = note_date
         with c_img:
-            uploaded = st.file_uploader(
-                "📷 添加图片到复盘",
-                type=["png", "jpg", "jpeg", "gif", "webp"],
-                key=f"review_img_{st.session_state['review_img_counter']}",
-                help="上传后自动把图片链接插入到复盘文本末尾",
-            )
+            uploaded = st.file_uploader('📷 添加图片到复盘', type=['png', 'jpg', 'jpeg', 'gif', 'webp'], key=f"review_img_{st.session_state['review_img_counter']}", help='上传后自动把图片链接插入到复盘文本末尾')
             if uploaded is not None:
-                safe_name = f"review_{note_date_s}_{uploaded.name}"
+                safe_name = f'review_{note_date_s}_{uploaded.name}'
                 img_path = os.path.join(REVIEW_IMG_DIR, safe_name)
-                with open(img_path, "wb") as f:
+                with open(img_path, 'wb') as f:
                     f.write(uploaded.getbuffer())
-                rel = f"review_images/{safe_name}"
-                cur = st.session_state.get("review_note", "")
-                st.session_state["review_note"] = (cur + f"\n\n![{uploaded.name}]({rel})\n").strip() + "\n"
-                st.session_state["review_img_counter"] += 1
-                st.success(f"✅ 已插入图片：{uploaded.name}")
-                # 动态 key 已自动清空上传框，避免反复插入同一张图
+                rel = f'review_images/{safe_name}'
+                cur = st.session_state.get('review_note', '')
+                st.session_state['review_note'] = (cur + f'\n\n![{uploaded.name}]({rel})\n').strip() + '\n'
+                st.session_state['review_img_counter'] += 1
+                st.success(f'✅ 已插入图片：{uploaded.name}')
         return note_date_s
 
-    # ── 子模块 2：编辑器（文本框 + 保存/清空）──
     def _render_editor(note_date_s):
-        def _autosave():
-            # 自动保存：每次编辑即时落盘到当日文件，避免丢失（#542-11）
-            try:
-                with open(_notes_path(note_date_s), "w", encoding="utf-8") as f:
-                    f.write(st.session_state.get("review_note", ""))
-                st.session_state["review_autosaved"] = True
-            except Exception:
-                st.session_state["review_autosaved"] = False
 
-        note = st.text_area(
-            f"复盘内容（{note_date_s}，支持 Markdown）",
-            height=220,
-            key="review_note",
-            placeholder="记录今日盘面、操作与明日计划…",
-            on_change=_autosave,
-        )
+        def _autosave():
+            try:
+                with open(_notes_path(note_date_s), 'w', encoding='utf-8') as f:
+                    f.write(st.session_state.get('review_note', ''))
+                st.session_state['review_autosaved'] = True
+            except Exception:
+                st.session_state['review_autosaved'] = False
+        note = st.text_area(f'复盘内容（{note_date_s}，支持 Markdown）', height=220, key='review_note', placeholder='记录今日盘面、操作与明日计划…', on_change=_autosave)
         c_save, c_clear = st.columns([1, 1])
         with c_save:
-            if st.button("💾 保存复盘", type="primary", use_container_width=True, key="review_save"):
+            if st.button('💾 保存复盘', type='primary', use_container_width=True, key='review_save'):
                 try:
-                    with open(_notes_path(note_date_s), "w", encoding="utf-8") as f:
+                    with open(_notes_path(note_date_s), 'w', encoding='utf-8') as f:
                         f.write(note)
-                    st.session_state["review_autosaved"] = True
-                    st.success(f"✅ 已保存到 review_notes_{note_date_s}.md")
+                    st.session_state['review_autosaved'] = True
+                    st.success(f'✅ 已保存到 review_notes_{note_date_s}.md')
                 except Exception as e:
-                    st.session_state["review_autosaved"] = False
-                    st.error(f"❌ 保存失败：{e}")
+                    st.session_state['review_autosaved'] = False
+                    st.error(f'❌ 保存失败：{e}')
         with c_clear:
-            _ck = "review_clear_confirm"
+            _ck = 'review_clear_confirm'
             if st.session_state.get(_ck):
-                if st.button("确认清空", use_container_width=True, key="review_clear_cfm", type="primary"):
-                    st.session_state["review_note"] = ""
-                    st.session_state["review_autosaved"] = False
+                if st.button('确认清空', use_container_width=True, key='review_clear_cfm', type='primary'):
+                    st.session_state['review_note'] = ''
+                    st.session_state['review_autosaved'] = False
                     st.session_state.pop(_ck, None)
-                if st.button("取消", use_container_width=True, key="review_clear_cancel"):
+                if st.button('取消', use_container_width=True, key='review_clear_cancel'):
                     st.session_state.pop(_ck, None)
-            else:
-                if st.button("🗑️ 清空", use_container_width=True, key="review_clear"):
-                    st.session_state[_ck] = True
-        # 加法式 UX：一键导出当前复盘笔记为 Markdown，便于本地留存/分享（不改变自动保存行为）。
-        _note_now = st.session_state.get("review_note", "")
+            elif st.button('🗑️ 清空', use_container_width=True, key='review_clear'):
+                st.session_state[_ck] = True
+        _note_now = st.session_state.get('review_note', '')
         if _note_now.strip():
-            st.download_button(
-                "⬇️ 导出笔记 (.md)",
-                data=_note_now.encode("utf-8"),
-                file_name=f"复盘笔记_{note_date_s}.md",
-                mime="text/markdown",
-                key="review_download",
-                help="将当前复盘内容导出为 Markdown 文件。",
-            )
-        if st.session_state.get("review_autosaved"):
-            st.caption(f"✅ 内容已自动保存到本地（review_notes_{note_date_s}.md），切换日期或刷新不丢失")
+            st.download_button('⬇️ 导出笔记 (.md)', data=_note_now.encode('utf-8'), file_name=f'复盘笔记_{note_date_s}.md', mime='text/markdown', key='review_download', help='将当前复盘内容导出为 Markdown 文件。')
+        if st.session_state.get('review_autosaved'):
+            st.caption(f'✅ 内容已自动保存到本地（review_notes_{note_date_s}.md），切换日期或刷新不丢失')
         else:
-            st.caption("💡 内容会随编辑自动保存到本地；也可点「💾 保存复盘」手动确认")
+            st.caption('💡 内容会随编辑自动保存到本地；也可点「💾 保存复盘」手动确认')
 
-    # ── 子模块 3：查询结果展示区（仅在点击查询后展开）──
     def _render_preview():
-        if not st.session_state.get("review_queried"):
+        if not st.session_state.get('review_queried'):
             return
-        st.markdown("---")
+        st.markdown('---')
         st.markdown(f"#### 📄 复盘内容预览（{st.session_state['review_queried']}）")
-        _content = st.session_state.get("review_note", "")
-        _img_re = _re.compile(r"!\[.*?\]\((review_images/[^)]+)\)")
+        _content = st.session_state.get('review_note', '')
+        _img_re = _re.compile('!\\[.*?\\]\\((review_images/[^)]+)\\)')
         for _m in _img_re.finditer(_content):
             _ip = os.path.join(NOTES_DIR, _m.group(1))
             if os.path.exists(_ip):
@@ -461,42 +342,23 @@ def fragment_review_notes():
         if _content.strip():
             st.markdown(_content, unsafe_allow_html=True)
         else:
-            st.info("该日暂无复盘内容。可在上方文本框记录今日盘面、操作与明日计划，编辑即自动保存到本地；"
-                     "也可点「🔍 查询」切换其它日期查看历史复盘。")
-
+            st.info('该日暂无复盘内容。可在上方文本框记录今日盘面、操作与明日计划，编辑即自动保存到本地；也可点「🔍 查询」切换其它日期查看历史复盘。')
     note_date_s = _render_toolbar()
     _render_editor(note_date_s)
     _render_preview()
-
-
 fragment_review_notes()
-
-# ══ 加法式 Batch20：键盘快捷键提示（纯提示）══
-with st.expander("⌨️ 快捷键", expanded=False, key="morning_hotkeys_exp"):
-    st.markdown(
-        "**页面快捷键（浏览器通用）**\n"
-        "- `F5` / `Ctrl + R`：刷新本页，重新生成晨报与快照。\n"
-        "- `Ctrl + F`：浏览器内查找页面文字（如板块名、股票名）。\n"
-        "- `End` / `Ctrl + End`：快速滚动到页面底部。\n"
-        "- `Home` / `Ctrl + Home`：快速滚动到页面顶部。\n"
-        "- `Tab` / `Shift + Tab`：在表单控件间前后切换焦点。\n\n"
-        "提示：本页为纯前端快捷键说明，不涉及任何隐藏组合键。"
-    )
-
-# ══ 加法式 Batch20：相关标的推荐块（纯前端，跳转个股研究）══
-st.markdown("---")
-st.markdown("#### 🔗 相关标的推荐")
-st.caption("基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。")
-_rec_codes = [("600519", "贵州茅台"), ("000858", "五粮液"), ("300750", "宁德时代"),
-              ("601318", "中国平安"), ("000001", "平安银行")]
+with st.expander('⌨️ 快捷键', expanded=False, key='morning_hotkeys_exp'):
+    st.markdown('**页面快捷键（浏览器通用）**\n- `F5` / `Ctrl + R`：刷新本页，重新生成晨报与快照。\n- `Ctrl + F`：浏览器内查找页面文字（如板块名、股票名）。\n- `End` / `Ctrl + End`：快速滚动到页面底部。\n- `Home` / `Ctrl + Home`：快速滚动到页面顶部。\n- `Tab` / `Shift + Tab`：在表单控件间前后切换焦点。\n\n提示：本页为纯前端快捷键说明，不涉及任何隐藏组合键。')
+st.markdown('---')
+st.markdown('#### 🔗 相关标的推荐')
+st.caption('基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。')
+_rec_codes = [('600519', '贵州茅台'), ('000858', '五粮液'), ('300750', '宁德时代'), ('601318', '中国平安'), ('000001', '平安银行')]
 _rec_cols = st.columns(len(_rec_codes))
 for _i, (_c, _n) in enumerate(_rec_codes):
     with _rec_cols[_i]:
-        if st.button(f"{_n} {_c}", key=f"morning_rec_{_c}", use_container_width=True):
-            st.session_state["pick_stock_confirmed"] = _c
-            st.session_state["pick_stock_query"] = _c
-            safe_switch_page("pages/个股研究.py")
-
-# 加法式 UX：长页面底部「↑ 回到顶部」按钮（前端平滑滚动，不触发整页 rerun）
-if st.button("↑ 回到顶部", key="morning_back_to_top"):
-    components.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0, scrolling=False)
+        if st.button(f'{_n} {_c}', key=f'morning_rec_{_c}', use_container_width=True):
+            st.session_state['pick_stock_confirmed'] = _c
+            st.session_state['pick_stock_query'] = _c
+            safe_switch_page('pages/个股研究.py')
+if st.button('↑ 回到顶部', key='morning_back_to_top'):
+    st.markdown("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", unsafe_allow_html=True)

@@ -15,49 +15,22 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
-
 from modules.session import safe_switch_page, trading_autorefresh
 from modules.search_ui import stock_search_input
 from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules import fundflow as ff
-
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info
-
-dark = render_standard_page(
-    title="基本面分析", icon="🏛️",
-    caption="个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）",
-    layout="wide",
-)
-trading_autorefresh(key="fundamental_autorefresh")
-
-# 主题感知图表强调色（#544-14）：暗色模式用更亮的同色系，保证可读性
-ACCENT = "#818cf8" if dark else "#6366f1"        # 靛蓝（柱状 / 价格线）
-ACCENT2 = "#fbbf24" if dark else "#f59e0b"       # 琥珀（同比折线）
-ACCENT_FILL = "rgba(129,140,248,0.14)" if dark else "rgba(99,102,241,0.10)"
-
+dark = render_standard_page(title='基本面分析', icon='🏛️', caption='个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）', layout='wide')
+trading_autorefresh(key='fundamental_autorefresh')
+ACCENT = '#818cf8' if dark else '#6366f1'
+ACCENT2 = '#fbbf24' if dark else '#f59e0b'
+ACCENT_FILL = 'rgba(129,140,248,0.14)' if dark else 'rgba(99,102,241,0.10)'
 fetcher = get_fetcher()
-
-
-# ═══════════════════════════════════════════════════════════════
-# 财务报表解析（Batch8 #277）：业绩核心指标
-# ═══════════════════════════════════════════════════════════════
-# SSL 关闭补丁已收敛到 modules.ssl_helper（#404），此处复用公共上下文管理器
 from modules.ssl_helper import ssl_bypass as _ssl_bypass
-
-
-# 纯函数簇与常量已抽到 modules.fundamental_helpers（#408），此处导入复用
-from modules.fundamental_helpers import (
-    _to_num, _find_col, _extract_metric_series,
-    _period_label, _compute_yoy, _compute_qoq, _FINANCIAL_METRICS,
-    _fmt_fin_value, _fmt_fin_yoy, _fmt_fin_qoq, _to_float, _percentile,
-    _pe_status, _tag,
-    _find_sector_name, _sector_rank, _composite_score, resolve_sector_df,
-)
-
+from modules.fundamental_helpers import _to_num, _find_col, _extract_metric_series, _period_label, _compute_yoy, _compute_qoq, _FINANCIAL_METRICS, _fmt_fin_value, _fmt_fin_yoy, _fmt_fin_qoq, _to_float, _percentile, _pe_status, _tag, _find_sector_name, _sector_rank, _composite_score, resolve_sector_df
 import concurrent.futures as _cf
-
 
 def _nan_to_none(v):
     """将 float nan / pd.NA 收敛为 None。
@@ -74,7 +47,6 @@ def _nan_to_none(v):
     except Exception:
         return v
 
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def _industry_pe_median(industry: str):
     """同行业 PE(TTM) 中位数（best-effort，缓存 1h）。返回 (median, 样本数) 或 None。#544-13"""
@@ -84,24 +56,17 @@ def _industry_pe_median(industry: str):
         return None
     if cons is None or cons.empty:
         return None
-    codes = [str(c) for c in cons["code"].tolist()][:30]
+    codes = [str(c) for c in cons['code'].tolist()][:30]
     pes = []
 
     def _safe_pe(c: str):
         try:
             info = fetcher.get_basic_info(c)
-            return _to_float(info.get("pe_ttm")) if isinstance(info, dict) else None
+            return _to_float(info.get('pe_ttm')) if isinstance(info, dict) else None
         except Exception:
             return None
-
-    # 走共享有界池，整批 60s 硬边界。
-    # ⚠️ 不可用 `with ThreadPoolExecutor(...)`：退出 with 的 shutdown(wait=True)
-    # 会阻塞等所有慢任务跑完，as_completed(timeout=) 的保护被完全抵消（历史 bug）。
     from modules.fetch_parallel import fetch_many
-    raw = fetch_many(
-        [(c, (lambda code=c: _safe_pe(code))) for c in codes],
-        max_workers=10, timeout=60,
-    )
+    raw = fetch_many([(c, lambda code=c: _safe_pe(code)) for c in codes], max_workers=10, timeout=60)
     pes = [v for v in raw.values() if isinstance(v, (int, float)) and v > 0]
     if len(pes) < 3:
         return None
@@ -109,43 +74,27 @@ def _industry_pe_median(industry: str):
     n = len(pes_sorted)
     mid = n // 2
     median = pes_sorted[mid] if n % 2 else (pes_sorted[mid - 1] + pes_sorted[mid]) / 2
-    return median, n
-
+    return (median, n)
 
 @safe_fragment
 def fragment_industry_pe(industry: str, pe_ttm, dark: bool):
     """同行业 PE 中位数对比小卡（#544-13）。独立 fragment，取数失败只影响本块。"""
-    if not industry or industry == "—" or not pe_ttm:
+    if not industry or industry == '—' or (not pe_ttm):
         return
-    with st.spinner("计算同行业 PE 中位数…"):
+    with st.spinner('计算同行业 PE 中位数…'):
         _pe_med = _industry_pe_median(industry)
     if _pe_med:
         _med, _n = _pe_med
         _ratio = pe_ttm / _med if _med else 0
         if _ratio <= 0.8:
-            _verdict, _vcolor = "低估", UP_COLOR
+            _verdict, _vcolor = ('低估', UP_COLOR)
         elif _ratio >= 1.2:
-            _verdict, _vcolor = "偏高", DOWN_COLOR
+            _verdict, _vcolor = ('偏高', DOWN_COLOR)
         else:
-            _verdict, _vcolor = "合理", "#f59e0b"
-        st.markdown(
-            f'<div style="padding:12px 16px;border-radius:10px;margin-top:10px;'
-            f'background:{"rgba(26,26,46,0.4)" if dark else "#f9fafb"};'
-            f'border:1px solid {"rgba(255,255,255,0.08)" if dark else "#e5e7eb"};'
-            f'font-size:14px;line-height:1.7;">'
-            f'🏭 <b>同行业 PE 中位数</b>：<b>{_med:.1f}</b>（基于 {_n} 只样本）<br>'
-            f'当前 PE(TTM) <b>{pe_ttm:.1f}</b> → '
-            f'<span style="color:{_vcolor};font-weight:700;">{_verdict}</span>'
-            f'（约为行业中位数的 {_ratio:.2f} 倍）</div>',
-            unsafe_allow_html=True,
-        )
+            _verdict, _vcolor = ('合理', '#f59e0b')
+        st.markdown(f"""<div style="padding:12px 16px;border-radius:10px;margin-top:10px;background:{('rgba(26,26,46,0.4)' if dark else '#f9fafb')};border:1px solid {('rgba(255,255,255,0.08)' if dark else '#e5e7eb')};font-size:14px;line-height:1.7;">🏭 <b>同行业 PE 中位数</b>：<b>{_med:.1f}</b>（基于 {_n} 只样本）<br>当前 PE(TTM) <b>{pe_ttm:.1f}</b> → <span style="color:{_vcolor};font-weight:700;">{_verdict}</span>（约为行业中位数的 {_ratio:.2f} 倍）</div>""", unsafe_allow_html=True)
     else:
-        st.caption("🏭 同行业 PE 中位数暂不可用（行业成分或估值数据未就绪）。")
-
-
-
-
-
+        st.caption('🏭 同行业 PE 中位数暂不可用（行业成分或估值数据未就绪）。')
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def _calc_perf(code: str) -> dict:
@@ -159,45 +108,41 @@ def _calc_perf(code: str) -> dict:
     inc_df = bal_df = None
     with _ssl_bypass():
         try:
-            inc_df = fetcher.get_financial(code, "income")
+            inc_df = fetcher.get_financial(code, 'income')
         except Exception:
             inc_df = None
         try:
-            bal_df = fetcher.get_financial(code, "balance")
+            bal_df = fetcher.get_financial(code, 'balance')
         except Exception:
             bal_df = None
-
-    # ── 利润表 ──
     if inc_df is not None and len(inc_df) >= 1:
-        rev_c = _find_col(inc_df, {"营业总收入", "营业收入"}, ("营业总收入", "营业收入"))
-        np_c = _find_col(inc_df, {"净利润", "归属母公司股东的净利润"}, ("净利润", "归属母公司股东的净利润"))
-        cost_c = _find_col(inc_df, {"营业成本"}, ("营业成本",))
+        rev_c = _find_col(inc_df, {'营业总收入', '营业收入'}, ('营业总收入', '营业收入'))
+        np_c = _find_col(inc_df, {'净利润', '归属母公司股东的净利润'}, ('净利润', '归属母公司股东的净利润'))
+        cost_c = _find_col(inc_df, {'营业成本'}, ('营业成本',))
         r0 = inc_df.iloc[0]
         r1 = inc_df.iloc[1] if len(inc_df) >= 2 else None
         rev0 = _to_num(r0[rev_c]) if rev_c else None
         np0 = _to_num(r0[np_c]) if np_c else None
         cost0 = _to_num(r0[cost_c]) if cost_c else None
-        rev1 = _to_num(r1[rev_c]) if (r1 is not None and rev_c) else None
-        np1 = _to_num(r1[np_c]) if (r1 is not None and np_c) else None
+        rev1 = _to_num(r1[rev_c]) if r1 is not None and rev_c else None
+        np1 = _to_num(r1[np_c]) if r1 is not None and np_c else None
         if rev0:
-            out["revenue_yi"] = round(rev0 / 1e8, 2)
+            out['revenue_yi'] = round(rev0 / 100000000.0, 2)
         if rev0 and rev1:
-            out["revenue_yoy"] = round((rev0 - rev1) / abs(rev1) * 100, 2)
+            out['revenue_yoy'] = round((rev0 - rev1) / abs(rev1) * 100, 2)
         if np0 is not None:
-            out["net_profit_yi"] = round(np0 / 1e8, 2)
-        if np0 is not None and np1 is not None and np1 != 0:
-            out["profit_yoy"] = round((np0 - np1) / abs(np1) * 100, 2)
+            out['net_profit_yi'] = round(np0 / 100000000.0, 2)
+        if np0 is not None and np1 is not None and (np1 != 0):
+            out['profit_yoy'] = round((np0 - np1) / abs(np1) * 100, 2)
         if rev0 and cost0:
-            out["gross_margin"] = round((rev0 - cost0) / rev0 * 100, 2)
-        out["_np0"] = np0  # 原始元，供 ROE 计算
-
-    # ── 资产负债表 ──
+            out['gross_margin'] = round((rev0 - cost0) / rev0 * 100, 2)
+        out['_np0'] = np0
     if bal_df is not None and len(bal_df) >= 1:
-        asset_c = _find_col(bal_df, {"资产总计", "资产合计"}, ("资产总计", "资产合计"))
-        liab_c = _find_col(bal_df, {"负债合计", "负债总计"}, ("负债合计", "负债总计"))
-        equity_c = _find_col(bal_df, {"所有者权益合计", "股东权益合计"}, ("所有者权益合计", "股东权益合计"))
-        ca_c = _find_col(bal_df, {"流动资产合计"}, ("流动资产合计",))
-        cl_c = _find_col(bal_df, {"流动负债合计"}, ("流动负债合计",))
+        asset_c = _find_col(bal_df, {'资产总计', '资产合计'}, ('资产总计', '资产合计'))
+        liab_c = _find_col(bal_df, {'负债合计', '负债总计'}, ('负债合计', '负债总计'))
+        equity_c = _find_col(bal_df, {'所有者权益合计', '股东权益合计'}, ('所有者权益合计', '股东权益合计'))
+        ca_c = _find_col(bal_df, {'流动资产合计'}, ('流动资产合计',))
+        cl_c = _find_col(bal_df, {'流动负债合计'}, ('流动负债合计',))
         b0 = bal_df.iloc[0]
         av = _to_num(b0[asset_c]) if asset_c else None
         lv = _to_num(b0[liab_c]) if liab_c else None
@@ -205,31 +150,23 @@ def _calc_perf(code: str) -> dict:
         ca = _to_num(b0[ca_c]) if ca_c else None
         cl = _to_num(b0[cl_c]) if cl_c else None
         if av and lv:
-            out["alr"] = round(lv / av * 100, 2)
+            out['alr'] = round(lv / av * 100, 2)
         if av and eq:
-            out["equity_ratio"] = round(eq / av * 100, 2)
+            out['equity_ratio'] = round(eq / av * 100, 2)
         if ca and cl:
-            out["current_ratio"] = round(ca / cl, 2)
-        out["_eq0"] = eq  # 原始元，供 ROE 计算
-
-    # ── ROE = 净利润 / 净资产 ──
-    if out.get("_np0") is not None and out.get("_eq0"):
-        out["roe"] = round(out["_np0"] / abs(out["_eq0"]) * 100, 2)
-
-    # ── 收敛：任何 float nan 统一收敛为 None ──
-    # `_to_num` 在收到 NaN/空单元格时会返回 float('nan')，未收敛会污染下游
-    # `f"{x:.2f}%" / f"{x:.2f}"` 显示层、打印出难看的 "nan"。
+            out['current_ratio'] = round(ca / cl, 2)
+        out['_eq0'] = eq
+    if out.get('_np0') is not None and out.get('_eq0'):
+        out['roe'] = round(out['_np0'] / abs(out['_eq0']) * 100, 2)
     for _k in list(out.keys()):
         try:
             if isinstance(out[_k], float) and pd.isna(out[_k]):
                 out[_k] = None
         except Exception:
             pass
-    # 收敛后剔除值为 None 的键，使显示层 `perf.get(key, "—")` 回退到占位符而非 "None"
     for _k in [k for k, v in out.items() if v is None]:
         out.pop(_k, None)
     return out
-
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def _fetch_financial_reports(code: str) -> dict:
@@ -238,52 +175,36 @@ def _fetch_financial_reports(code: str) -> dict:
     out = {}
     with _ssl_bypass():
         try:
-            out["income"] = ak.stock_financial_report_sina(stock=f"sh{code}", symbol="利润表")
+            out['income'] = ak.stock_financial_report_sina(stock=f'sh{code}', symbol='利润表')
         except Exception:
-            out["income"] = None
+            out['income'] = None
         try:
-            out["balance"] = ak.stock_financial_report_sina(stock=f"sh{code}", symbol="资产负债表")
+            out['balance'] = ak.stock_financial_report_sina(stock=f'sh{code}', symbol='资产负债表')
         except Exception:
-            out["balance"] = None
+            out['balance'] = None
         try:
-            out["cash"] = ak.stock_financial_report_sina(stock=f"sh{code}", symbol="现金流量表")
+            out['cash'] = ak.stock_financial_report_sina(stock=f'sh{code}', symbol='现金流量表')
         except Exception:
-            out["cash"] = None
+            out['cash'] = None
     return out
-
-
-
-
-
-
-
-
-
-
-
 
 def _build_financial_df(code: str) -> pd.DataFrame | None:
     """构建财务分析统一 DataFrame，列：报告期/标签/年度-or-季度/各指标值/各指标同比。"""
     reps = _fetch_financial_reports(code)
-    inc = reps.get("income")
-    bal = reps.get("balance")
-    cash = reps.get("cash")
-
-    # 原始指标序列
-    rev = _extract_metric_series(inc, ["营业总收入", "营业收入"])
-    np_ = _extract_metric_series(inc, ["净利润", "归属母公司股东的净利润", "归属于上市公司股东的净利润"])
-    np_ded = _extract_metric_series(inc, ["扣除非经常性损益后的净利润", "扣非净利润"])
-    eps = _extract_metric_series(inc, ["基本每股收益", "每股收益", "稀释每股收益"])
-    cost = _extract_metric_series(inc, ["营业成本", "营业总成本"])
-    equity = _extract_metric_series(bal, ["所有者权益合计", "股东权益合计", "归属于母公司所有者权益合计"])
-    asset = _extract_metric_series(bal, ["资产总计", "资产合计"])
-    liab = _extract_metric_series(bal, ["负债合计", "负债总计"])
-    ops_cf = _extract_metric_series(cash, ["经营活动产生的现金流量净额", "经营活动现金流入小计", "经营活动现金流量净额"])
-    share_cap = _extract_metric_series(bal, ["实收资本(或股本)", "股本", "实收资本"])
-
-    ops_cf_ps = _extract_metric_series(cash, ["每股经营活动产生的现金流量净额", "每股经营现金流量"])
-
-    # 合并所有报告期
+    inc = reps.get('income')
+    bal = reps.get('balance')
+    cash = reps.get('cash')
+    rev = _extract_metric_series(inc, ['营业总收入', '营业收入'])
+    np_ = _extract_metric_series(inc, ['净利润', '归属母公司股东的净利润', '归属于上市公司股东的净利润'])
+    np_ded = _extract_metric_series(inc, ['扣除非经常性损益后的净利润', '扣非净利润'])
+    eps = _extract_metric_series(inc, ['基本每股收益', '每股收益', '稀释每股收益'])
+    cost = _extract_metric_series(inc, ['营业成本', '营业总成本'])
+    equity = _extract_metric_series(bal, ['所有者权益合计', '股东权益合计', '归属于母公司所有者权益合计'])
+    asset = _extract_metric_series(bal, ['资产总计', '资产合计'])
+    liab = _extract_metric_series(bal, ['负债合计', '负债总计'])
+    ops_cf = _extract_metric_series(cash, ['经营活动产生的现金流量净额', '经营活动现金流入小计', '经营活动现金流量净额'])
+    share_cap = _extract_metric_series(bal, ['实收资本(或股本)', '股本', '实收资本'])
+    ops_cf_ps = _extract_metric_series(cash, ['每股经营活动产生的现金流量净额', '每股经营现金流量'])
     all_idx = set()
     for s in (rev, np_, np_ded, eps, cost, equity, asset, liab, ops_cf, share_cap):
         if s is not None:
@@ -291,10 +212,9 @@ def _build_financial_df(code: str) -> pd.DataFrame | None:
     if not all_idx:
         return None
     all_idx = sorted(all_idx)
-
     rows = []
     for idx in all_idx:
-        row = {"报告期": idx, "标签": _period_label(idx, "年度" if idx.month == 12 else "季度")}
+        row = {'报告期': idx, '标签': _period_label(idx, '年度' if idx.month == 12 else '季度')}
         r = rev.get(idx) if rev is not None else None
         n = np_.get(idx) if np_ is not None else None
         nd = np_ded.get(idx) if np_ded is not None else None
@@ -305,50 +225,33 @@ def _build_financial_df(code: str) -> pd.DataFrame | None:
         lb = liab.get(idx) if liab is not None else None
         oc = ops_cf.get(idx) if ops_cf is not None else None
         sc = share_cap.get(idx) if share_cap is not None else None
-
-        # 单位统一：利润表/资产负债表 元 -> 亿元；每股/比率 保持原样
-        row["营业总收入"] = round(r / 1e8, 2) if r is not None else None
-        row["归母净利润"] = round(n / 1e8, 2) if n is not None else None
-        row["扣非净利润"] = round(nd / 1e8, 2) if nd is not None else None
-        row["每股收益"] = round(e, 3) if e is not None else None
-        row["净资产收益率"] = round(n / eq * 100, 2) if (n is not None and eq and eq != 0) else None
-        row["销售净利率"] = round(n / r * 100, 2) if (n is not None and r and r != 0) else None
-        row["销售毛利率"] = round((r - c) / r * 100, 2) if (r is not None and c is not None and r != 0) else None
-        row["资产负债率"] = round(lb / ast * 100, 2) if (lb is not None and ast and ast != 0) else None
-        if oc is not None and sc is not None and sc != 0:
-            row["每股经营现金流"] = round(oc / sc, 3)
+        row['营业总收入'] = round(r / 100000000.0, 2) if r is not None else None
+        row['归母净利润'] = round(n / 100000000.0, 2) if n is not None else None
+        row['扣非净利润'] = round(nd / 100000000.0, 2) if nd is not None else None
+        row['每股收益'] = round(e, 3) if e is not None else None
+        row['净资产收益率'] = round(n / eq * 100, 2) if n is not None and eq and (eq != 0) else None
+        row['销售净利率'] = round(n / r * 100, 2) if n is not None and r and (r != 0) else None
+        row['销售毛利率'] = round((r - c) / r * 100, 2) if r is not None and c is not None and (r != 0) else None
+        row['资产负债率'] = round(lb / ast * 100, 2) if lb is not None and ast and (ast != 0) else None
+        if oc is not None and sc is not None and (sc != 0):
+            row['每股经营现金流'] = round(oc / sc, 3)
         elif ops_cf_ps is not None:
-            row["每股经营现金流"] = ops_cf_ps.get(idx)
+            row['每股经营现金流'] = ops_cf_ps.get(idx)
         else:
-            row["每股经营现金流"] = None
+            row['每股经营现金流'] = None
         rows.append(row)
-
     df = pd.DataFrame(rows)
     if df.empty:
         return None
-    df = df.sort_values("报告期", ascending=False).reset_index(drop=True)
-
-    # 计算同比、环比
-    numeric_cols = ["营业总收入", "归母净利润", "扣非净利润", "每股收益", "净资产收益率",
-                    "销售净利率", "销售毛利率", "每股经营现金流"]
+    df = df.sort_values('报告期', ascending=False).reset_index(drop=True)
+    numeric_cols = ['营业总收入', '归母净利润', '扣非净利润', '每股收益', '净资产收益率', '销售净利率', '销售毛利率', '每股经营现金流']
     for col in numeric_cols:
-        s = df.set_index("报告期")[col]
+        s = df.set_index('报告期')[col]
         yoy = _compute_yoy(s)
         qoq = _compute_qoq(s)
-        df[f"{col}_同比"] = df["报告期"].map(yoy.to_dict())
-        df[f"{col}_环比"] = df["报告期"].map(qoq.to_dict())
+        df[f'{col}_同比'] = df['报告期'].map(yoy.to_dict())
+        df[f'{col}_环比'] = df['报告期'].map(qoq.to_dict())
     return df
-
-
-
-
-
-
-
-
-
-
-
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def _cached_daily(code: str, start: str, end: str):
@@ -356,684 +259,352 @@ def _cached_daily(code: str, start: str, end: str):
         return fetcher.get_daily(code, start=start, end=end)
     except Exception:
         return None
+picked = stock_search_input(label='选择股票', key='fa_stock', default='600519', help_text='输入代码或名称（如 600519 / 贵州茅台）搜索个股，开始基本面分析')
+code = str(picked or '600519').zfill(6)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ═══════════════════════════════════════════════════
-# 选股
-# ═══════════════════════════════════════════════════
-picked = stock_search_input(
-    label="选择股票",
-    key="fa_stock",
-    default="600519",
-    help_text="输入代码或名称（如 600519 / 贵州茅台）搜索个股，开始基本面分析",
-)
-code = str(picked or "600519").zfill(6)
-
-# ═══ Batch20 加法式：最近浏览历史（纯前端，session 级）═══
 def _fa_goto(c):
-    st.session_state["fa_stock"] = c
+    st.session_state['fa_stock'] = c
     st.rerun()
-_fa_hist_key = "_fa_recent_viewed"
+_fa_hist_key = '_fa_recent_viewed'
 if _fa_hist_key not in st.session_state:
     st.session_state[_fa_hist_key] = []
 if code not in st.session_state[_fa_hist_key]:
     st.session_state[_fa_hist_key].insert(0, code)
     st.session_state[_fa_hist_key] = st.session_state[_fa_hist_key][:8]
 if st.session_state[_fa_hist_key]:
-    st.markdown("**🕘 最近浏览**")
+    st.markdown('**🕘 最近浏览**')
     _fa_hc = st.columns(min(len(st.session_state[_fa_hist_key]), 8))
     for i, _hc in enumerate(st.session_state[_fa_hist_key]):
         with _fa_hc[i]:
-            if st.button(_hc, key=f"fa_hist_{_hc}", use_container_width=True):
+            if st.button(_hc, key=f'fa_hist_{_hc}', use_container_width=True):
                 _fa_goto(_hc)
-
 if code:
-    # ═══════════════════════════════════════════════
-    # 数据加载
-    # ═══════════════════════════════════════════════
-    with st.spinner("正在加载基本面数据…"):
+    with st.spinner('正在加载基本面数据…'):
         try:
             fund = fetcher.get_fundamentals(code) or {}
         except Exception:
             fund = {}
-            st.warning("⚠️ 实时行情接口暂时不可用，已降级为有限展示（估值/市值字段将为空）。")
-        name = fund.get("name") or code
-        industry = (fund.get("industry") or "").strip() or "—"
-        price = _nan_to_none(_to_float(fund.get("price")))
-        pe_ttm = _nan_to_none(_to_float(fund.get("pe_ttm")))
-        market_cap = _nan_to_none(_to_float(fund.get("market_cap")))
-
-        # 业绩核心指标（利润表 + 资产负债表，含 SSL 旁路与缓存）
+            st.warning('⚠️ 实时行情接口暂时不可用，已降级为有限展示（估值/市值字段将为空）。')
+        name = fund.get('name') or code
+        industry = (fund.get('industry') or '').strip() or '—'
+        price = _nan_to_none(_to_float(fund.get('price')))
+        pe_ttm = _nan_to_none(_to_float(fund.get('pe_ttm')))
+        market_cap = _nan_to_none(_to_float(fund.get('market_cap')))
         try:
             perf = _calc_perf(code)
         except Exception:
             perf = {}
-
         end = datetime.now().date()
-        start_5y = (end - timedelta(days=365 * 5 + 30)).strftime("%Y-%m-%d")
+        start_5y = (end - timedelta(days=365 * 5 + 30)).strftime('%Y-%m-%d')
         try:
-            hist_df = _cached_daily(code, start=start_5y, end=end.strftime("%Y-%m-%d"))
-            if hist_df is not None and not hist_df.empty:
+            hist_df = _cached_daily(code, start=start_5y, end=end.strftime('%Y-%m-%d'))
+            if hist_df is not None and (not hist_df.empty):
                 hist_df = hist_df.copy()
-                hist_df["close"] = pd.to_numeric(hist_df["close"], errors="coerce")
-                hist_df = hist_df.dropna(subset=["close"]).reset_index(drop=True)
+                hist_df['close'] = pd.to_numeric(hist_df['close'], errors='coerce')
+                hist_df = hist_df.dropna(subset=['close']).reset_index(drop=True)
             else:
                 hist_df = None
         except Exception:
             hist_df = None
-
         try:
-            # ══ 加法式健壮性（c39）：解析行业板块，保证返回 DataFrame 而非 None。
-            # 旧内联逻辑在两源皆失败时 sector_df 残留 None，导致后续 `sector_df.empty`
-            # 抛 AttributeError 使整页崩溃；现收敛为「任何路径都返回 DataFrame」的不变量。
             sector_df = resolve_sector_df(fetcher.get_sector_list, ff.get_industry_fund_flow)
         except Exception:
             sector_df = pd.DataFrame()
-
-    # ═══════════════════════════════════════════════
-    # 无对应标的引导（加法式空态）：行情接口未返回任何基础信息
-    # （代码错误 / 市场无此股票 / 接口降级）时，给出可操作指引而非一片「—」。
     if not fund:
-        st.info(
-            "🔍 未找到该代码对应的标的（可能是代码拼写有误、该市场无此股票，或行情接口暂时不可用）。"
-            "请核对代码 / 名称后重试，或前往「📡 股票选取」页重新搜索选取一只个股。"
-        )
-
-    # 概览卡片
-    # ═══════════════════════════════════════════════
-    st.markdown("---")
+        st.info('🔍 未找到该代码对应的标的（可能是代码拼写有误、该市场无此股票，或行情接口暂时不可用）。请核对代码 / 名称后重试，或前往「📡 股票选取」页重新搜索选取一只个股。')
+    st.markdown('---')
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        st.metric("股票", f"{name}")
+        st.metric('股票', f'{name}')
     with c2:
-        st.metric("代码", code)
+        st.metric('代码', code)
     with c3:
-        st.metric("所属行业", industry)
+        st.metric('所属行业', industry)
     with c4:
-        st.metric("最新价", f"¥{price:.2f}" if price else "—",
-                  help="个股最新市场成交价（单位：元）；实时行情不可用时显示 —")
+        st.metric('最新价', f'¥{price:.2f}' if price else '—', help='个股最新市场成交价（单位：元）；实时行情不可用时显示 —')
     with c5:
-        st.metric("总市值", f"¥{market_cap:.1f}亿" if market_cap else "—",
-                  help="公司总资产规模（单位：亿元人民币）；越大通常越稳健")
-
-    # ═══════════════════════════════════════════════
-    # 业绩分析（Batch8 #277 新增）
-    # ═══════════════════════════════════════════════
-    # 复制股票代码（便于粘贴到其它工具 / 批量查询）
-    with st.expander("📋 复制股票代码", expanded=False):
-        st.code(code, language="text")
-        st.caption("点击代码块右上角复制按钮即可复制当前分析的股票代码。")
-
-    # ═══ Batch20 加法式：收藏 / 星标（纯前端，session 级）═══
-    _fa_fav_key = "_fa_favorites"
+        st.metric('总市值', f'¥{market_cap:.1f}亿' if market_cap else '—', help='公司总资产规模（单位：亿元人民币）；越大通常越稳健')
+    with st.expander('📋 复制股票代码', expanded=False):
+        st.code(code, language='text')
+        st.caption('点击代码块右上角复制按钮即可复制当前分析的股票代码。')
+    _fa_fav_key = '_fa_favorites'
     if _fa_fav_key not in st.session_state:
         st.session_state[_fa_fav_key] = []
     _fa_is_fav = code in st.session_state[_fa_fav_key]
-    if st.button(
-        ("⭐ 已收藏 " + code if _fa_is_fav else "☆ 收藏 " + code),
-        key="fa_fav_btn",
-    ):
+    if st.button('⭐ 已收藏 ' + code if _fa_is_fav else '☆ 收藏 ' + code, key='fa_fav_btn'):
         if _fa_is_fav:
             st.session_state[_fa_fav_key].remove(code)
         else:
             st.session_state[_fa_fav_key].append(code)
         st.rerun()
-
-    st.markdown("---")
-    st.subheader("💹 业绩分析（结合市值 / 市盈率 / 资产负债表）")
-    st.caption("读懂指标：营收/净利润看公司「赚多少、增长快不快」；ROE 看「股东每投 1 元赚回多少」；"
-               "毛利率看「产品赚钱能力」；资产负债率/流动比率看「会不会还不起钱」。")
-    st.caption("📌 颜色遵循 A股 惯例：红涨绿跌；所有指标仅供参考，不构成投资建议。")
-
-    rev_yoy = perf.get("revenue_yoy")
-    pr_yoy = perf.get("profit_yoy")
-    roe = perf.get("roe")
-    gm = perf.get("gross_margin")
-    alr = perf.get("alr")
-    cr = perf.get("current_ratio")
-
+    st.markdown('---')
+    st.subheader('💹 业绩分析（结合市值 / 市盈率 / 资产负债表）')
+    st.caption('读懂指标：营收/净利润看公司「赚多少、增长快不快」；ROE 看「股东每投 1 元赚回多少」；毛利率看「产品赚钱能力」；资产负债率/流动比率看「会不会还不起钱」。')
+    st.caption('📌 颜色遵循 A股 惯例：红涨绿跌；所有指标仅供参考，不构成投资建议。')
+    rev_yoy = perf.get('revenue_yoy')
+    pr_yoy = perf.get('profit_yoy')
+    roe = perf.get('roe')
+    gm = perf.get('gross_margin')
+    alr = perf.get('alr')
+    cr = perf.get('current_ratio')
     pc1, pc2, pc3, pc4 = st.columns(4)
     with pc1:
-        rev_yi = perf.get("revenue_yi")
-        st.metric("营业收入", f"{rev_yi} 亿" if rev_yi is not None else "—",
-                  delta=f"{rev_yoy:+.1f}%" if rev_yoy is not None else None,
-                  delta_color="normal",
-                  help="公司一定时期内的主营业务收入（单位：亿元）；同比>0 表示扩张")
+        rev_yi = perf.get('revenue_yi')
+        st.metric('营业收入', f'{rev_yi} 亿' if rev_yi is not None else '—', delta=f'{rev_yoy:+.1f}%' if rev_yoy is not None else None, delta_color='normal', help='公司一定时期内的主营业务收入（单位：亿元）；同比>0 表示扩张')
         if rev_yoy is not None:
-            st.markdown(_tag("营收同比 " + (f"+{rev_yoy:.1f}%" if rev_yoy >= 0 else f"{rev_yoy:.1f}%"),
-                              "good" if rev_yoy >= 0 else "bad"), unsafe_allow_html=True)
+            st.markdown(_tag('营收同比 ' + (f'+{rev_yoy:.1f}%' if rev_yoy >= 0 else f'{rev_yoy:.1f}%'), 'good' if rev_yoy >= 0 else 'bad'), unsafe_allow_html=True)
     with pc2:
-        np_yi = perf.get("net_profit_yi")
-        st.metric("净利润", f"{np_yi} 亿" if np_yi is not None else "—",
-                  delta=f"{pr_yoy:+.1f}%" if pr_yoy is not None else None,
-                  delta_color="normal",
-                  help="归属母公司股东的净利润（单位：亿元）；衡量公司真正赚到的钱")
+        np_yi = perf.get('net_profit_yi')
+        st.metric('净利润', f'{np_yi} 亿' if np_yi is not None else '—', delta=f'{pr_yoy:+.1f}%' if pr_yoy is not None else None, delta_color='normal', help='归属母公司股东的净利润（单位：亿元）；衡量公司真正赚到的钱')
         if pr_yoy is not None:
-            st.markdown(_tag("净利同比 " + (f"+{pr_yoy:.1f}%" if pr_yoy >= 0 else f"{pr_yoy:.1f}%"),
-                              "good" if pr_yoy >= 0 else "bad"), unsafe_allow_html=True)
+            st.markdown(_tag('净利同比 ' + (f'+{pr_yoy:.1f}%' if pr_yoy >= 0 else f'{pr_yoy:.1f}%'), 'good' if pr_yoy >= 0 else 'bad'), unsafe_allow_html=True)
     with pc3:
-        st.metric("ROE（净资产收益率）", f"{roe:.2f}%" if roe is not None else "—",
-                  help="净利润 / 净资产 ×100；反映股东投入的回报率，通常 >15% 较优")
+        st.metric('ROE（净资产收益率）', f'{roe:.2f}%' if roe is not None else '—', help='净利润 / 净资产 ×100；反映股东投入的回报率，通常 >15% 较优')
         if roe is not None:
-            st.markdown(_tag("盈利能力 " + ("强" if roe >= 15 else ("中" if roe >= 8 else "弱")),
-                              "good" if roe >= 15 else ("warn" if roe >= 8 else "bad")), unsafe_allow_html=True)
+            st.markdown(_tag('盈利能力 ' + ('强' if roe >= 15 else '中' if roe >= 8 else '弱'), 'good' if roe >= 15 else 'warn' if roe >= 8 else 'bad'), unsafe_allow_html=True)
     with pc4:
-        st.metric("毛利率", f"{gm:.2f}%" if gm is not None else "—",
-                  help="(营收-营业成本)/营收 ×100；越高说明产品溢价/成本控制越好")
-
+        st.metric('毛利率', f'{gm:.2f}%' if gm is not None else '—', help='(营收-营业成本)/营收 ×100；越高说明产品溢价/成本控制越好')
     pc5, pc6 = st.columns(2)
     with pc5:
-        st.metric("资产负债率", f"{alr:.2f}%" if alr is not None else "—",
-                  help="总负债 / 总资产 ×100；越低偿债压力越小，但过低也可能杠杆利用不足")
+        st.metric('资产负债率', f'{alr:.2f}%' if alr is not None else '—', help='总负债 / 总资产 ×100；越低偿债压力越小，但过低也可能杠杆利用不足')
         if alr is not None:
-            st.markdown(_tag("偿债压力 " + ("低" if alr < 40 else ("中" if alr < 60 else "高")),
-                              "good" if alr < 40 else ("warn" if alr < 60 else "bad")), unsafe_allow_html=True)
+            st.markdown(_tag('偿债压力 ' + ('低' if alr < 40 else '中' if alr < 60 else '高'), 'good' if alr < 40 else 'warn' if alr < 60 else 'bad'), unsafe_allow_html=True)
     with pc6:
-        st.metric("流动比率", f"{cr:.2f}" if cr is not None else "—",
-                  help="流动资产 / 流动负债；≥1.5 短期偿债能力较稳健，<1 偏紧")
-
-    # 一句话业绩解读
+        st.metric('流动比率', f'{cr:.2f}' if cr is not None else '—', help='流动资产 / 流动负债；≥1.5 短期偿债能力较稳健，<1 偏紧')
     _perf_lines = []
     if rev_yoy is not None and pr_yoy is not None:
         if rev_yoy > 0 and pr_yoy > 0:
-            _perf_lines.append(f"公司处于**扩张期**：营收同比 +{rev_yoy:.1f}%、净利润同比 +{pr_yoy:.1f}%，挣钱速度在加快。")
+            _perf_lines.append(f'公司处于**扩张期**：营收同比 +{rev_yoy:.1f}%、净利润同比 +{pr_yoy:.1f}%，挣钱速度在加快。')
         elif rev_yoy > 0 and pr_yoy <= 0:
-            _perf_lines.append(f"营收在涨（+{rev_yoy:.1f}%）但净利润下滑（{pr_yoy:.1f}%），可能存在「增收不增利」（成本上升或降价）。")
+            _perf_lines.append(f'营收在涨（+{rev_yoy:.1f}%）但净利润下滑（{pr_yoy:.1f}%），可能存在「增收不增利」（成本上升或降价）。')
         elif rev_yoy <= 0 and pr_yoy > 0:
-            _perf_lines.append(f"营收承压（{rev_yoy:.1f}%）但净利润反而增长（+{pr_yoy:.1f}%），降本增效或产品结构优化。")
+            _perf_lines.append(f'营收承压（{rev_yoy:.1f}%）但净利润反而增长（+{pr_yoy:.1f}%），降本增效或产品结构优化。')
         else:
-            _perf_lines.append(f"营收（{rev_yoy:.1f}%）与净利润（{pr_yoy:.1f}%）双双下滑，业绩面临压力。")
+            _perf_lines.append(f'营收（{rev_yoy:.1f}%）与净利润（{pr_yoy:.1f}%）双双下滑，业绩面临压力。')
     if roe is not None:
-        _perf_lines.append(f"ROE {roe:.2f}%，股东回报率{'优秀' if roe >= 15 else ('一般' if roe >= 8 else '偏弱')}。")
+        _perf_lines.append(f"ROE {roe:.2f}%，股东回报率{('优秀' if roe >= 15 else '一般' if roe >= 8 else '偏弱')}。")
     if alr is not None:
-        _perf_lines.append(f"资产负债率 {alr:.2f}%，财务杠杆{'稳健' if alr < 40 else ('适中' if alr < 60 else '偏高')}。")
+        _perf_lines.append(f"资产负债率 {alr:.2f}%，财务杠杆{('稳健' if alr < 40 else '适中' if alr < 60 else '偏高')}。")
     if _perf_lines:
-        st.info("📌 **一句话业绩解读**：" + " ".join(_perf_lines))
+        st.info('📌 **一句话业绩解读**：' + ' '.join(_perf_lines))
     else:
-        st.info("ℹ️ 暂未获取到财报数据，业绩解读不可用（可检查网络或切换数据源）。")
+        st.info('ℹ️ 暂未获取到财报数据，业绩解读不可用（可检查网络或切换数据源）。')
 
-
-    # ═══════════════════════════════════════════════
-    # 财务分析（仿同花顺 F10 财务分析 1:1）
-    # ═══════════════════════════════════════════════
     @safe_fragment
     def fragment_financial_analysis(fa_code: str, fa_name: str):
-        st.markdown("---")
-        st.subheader("📊 财务分析")
-        st.caption("多期财务指标趋势：柱状图看绝对值，折线看同比；数据来自利润表/资产负债表/现金流量表。")
-
-        with st.spinner("正在解析财务报表…"):
+        st.markdown('---')
+        st.subheader('📊 财务分析')
+        st.caption('多期财务指标趋势：柱状图看绝对值，折线看同比；数据来自利润表/资产负债表/现金流量表。')
+        with st.spinner('正在解析财务报表…'):
             try:
                 fa_df = _build_financial_df(fa_code)
             except Exception as e:
-                st.error(f"⚠️ 财务报表解析失败，请稍后重试：{e}")
-                if st.button("🔄 重试", key="fa_retry_btn"):
-                    st.rerun(scope="fragment")
+                st.error(f'⚠️ 财务报表解析失败，请稍后重试：{e}')
+                if st.button('🔄 重试', key='fa_retry_btn'):
+                    st.rerun(scope='fragment')
                 return
-
         if fa_df is None or fa_df.empty:
-            _empty_info("暂无可用的多期财报数据，财务分析无法展示（可检查网络或切换数据源）。")
+            _empty_info('暂无可用的多期财报数据，财务分析无法展示（可检查网络或切换数据源）。')
             return
-
-        # 状态初始化
-        if "fa_metric" not in st.session_state:
-            st.session_state["fa_metric"] = "归母净利润"
-        if "fa_mode" not in st.session_state:
-            st.session_state["fa_mode"] = "年度"
-
-        metric = st.session_state["fa_metric"]
-        mode = st.session_state["fa_mode"]
-
-        # 图表类型切换（Batch20 加法式）：线 / 柱 / 面积，仅改呈现不改数据
-        if "fa_chart_type" not in st.session_state:
-            st.session_state["fa_chart_type"] = "柱状"
-        _chart_opts = ["柱状", "折线", "面积"]
-        fa_chart = st.radio(
-            "图表类型",
-            options=_chart_opts,
-            index=_chart_opts.index(st.session_state["fa_chart_type"]),
-            horizontal=True,
-            key="fa_chart_radio",
-            help="切换业绩指标的呈现方式（线 / 柱 / 面积），不改变底层数据",
-        )
-        st.session_state["fa_chart_type"] = fa_chart
-
-        # ── 指标选择按钮（2 行 × 4 列）──
+        if 'fa_metric' not in st.session_state:
+            st.session_state['fa_metric'] = '归母净利润'
+        if 'fa_mode' not in st.session_state:
+            st.session_state['fa_mode'] = '年度'
+        metric = st.session_state['fa_metric']
+        mode = st.session_state['fa_mode']
+        if 'fa_chart_type' not in st.session_state:
+            st.session_state['fa_chart_type'] = '柱状'
+        _chart_opts = ['柱状', '折线', '面积']
+        fa_chart = st.radio('图表类型', options=_chart_opts, index=_chart_opts.index(st.session_state['fa_chart_type']), horizontal=True, key='fa_chart_radio', help='切换业绩指标的呈现方式（线 / 柱 / 面积），不改变底层数据')
+        st.session_state['fa_chart_type'] = fa_chart
         metric_cols = list(_FINANCIAL_METRICS.keys())
-        st.markdown("**我的指标**")
-        r1, r2 = st.columns(4), st.columns(4)
+        st.markdown('**我的指标**')
+        r1, r2 = (st.columns(4), st.columns(4))
         for i, m in enumerate(metric_cols):
             col = r1[i] if i < 4 else r2[i - 4]
             with col:
                 is_sel = metric == m
-                btn_type = "primary" if is_sel else "secondary"
-                if st.button(m, key=f"fa_btn_{m}", use_container_width=True, type=btn_type):
-                    st.session_state["fa_metric"] = m
-                    # 不调用 st.rerun()：按钮点击触发本 fragment 自然重跑
-
-        # ── 年度/季度 + 最新 切换 ──
+                btn_type = 'primary' if is_sel else 'secondary'
+                if st.button(m, key=f'fa_btn_{m}', use_container_width=True, type=btn_type):
+                    st.session_state['fa_metric'] = m
         c_mode, c_sort = st.columns([0.5, 0.5])
         with c_mode:
             m1, m2 = st.columns(2)
             with m1:
-                if st.button("年度", key="fa_mode_year", use_container_width=True,
-                             type="primary" if mode == "年度" else "secondary"):
-                    st.session_state["fa_mode"] = "年度"
+                if st.button('年度', key='fa_mode_year', use_container_width=True, type='primary' if mode == '年度' else 'secondary'):
+                    st.session_state['fa_mode'] = '年度'
             with m2:
-                if st.button("季度", key="fa_mode_quarter", use_container_width=True,
-                             type="primary" if mode == "季度" else "secondary"):
-                    st.session_state["fa_mode"] = "季度"
+                if st.button('季度', key='fa_mode_quarter', use_container_width=True, type='primary' if mode == '季度' else 'secondary'):
+                    st.session_state['fa_mode'] = '季度'
         with c_sort:
             st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-            st.caption("最新数据优先显示")
-
-        # ── 过滤数据 ──
+            st.caption('最新数据优先显示')
         plot_df = fa_df.copy()
-        plot_df["period_dt"] = pd.to_datetime(plot_df["报告期"], errors="coerce")
-        if mode == "年度":
-            plot_df = plot_df[plot_df["period_dt"].dt.month == 12]
+        plot_df['period_dt'] = pd.to_datetime(plot_df['报告期'], errors='coerce')
+        if mode == '年度':
+            plot_df = plot_df[plot_df['period_dt'].dt.month == 12]
         else:
-            plot_df = plot_df[plot_df["period_dt"].dt.month != 12]
-        plot_df = plot_df.dropna(subset=["period_dt"]).sort_values("报告期", ascending=True)
+            plot_df = plot_df[plot_df['period_dt'].dt.month != 12]
+        plot_df = plot_df.dropna(subset=['period_dt']).sort_values('报告期', ascending=True)
         if len(plot_df) > 12:
-            plot_df = plot_df.tail(12)  # 最多展示最近 12 期
-
+            plot_df = plot_df.tail(12)
         if plot_df.empty:
-            st.info(f"ℹ️ 暂无「{mode}」数据可供展示。")
+            st.info(f'ℹ️ 暂无「{mode}」数据可供展示。')
             return
-
         val_col = metric
-        yoy_col = f"{metric}_同比"
+        yoy_col = f'{metric}_同比'
         cfg = _FINANCIAL_METRICS.get(metric, {})
-
-        # ── 组合图：指标值（按图表类型呈现）+ 折线（同比）──
         fig = go.Figure()
-        x_labels = plot_df["标签"].tolist()
+        x_labels = plot_df['标签'].tolist()
         _yoy_trace = None
         if yoy_col in plot_df.columns and plot_df[yoy_col].notna().any():
-            _yoy_trace = go.Scatter(
-                x=x_labels,
-                y=plot_df[yoy_col],
-                name="同比",
-                mode="lines+markers",
-                line=dict(color=ACCENT2, width=2),
-                marker=dict(size=6),
-                yaxis="y2",
-            )
-        # 指标值主图：柱 / 折线 / 面积 三选一（Batch20 加法式）
-        if fa_chart == "折线":
-            fig.add_trace(
-                go.Scatter(
-                    x=x_labels,
-                    y=plot_df[val_col],
-                    name=metric,
-                    mode="lines+markers",
-                    line=dict(color=ACCENT, width=2),
-                    marker=dict(size=6),
-                )
-            )
-        elif fa_chart == "面积":
-            fig.add_trace(
-                go.Scatter(
-                    x=x_labels,
-                    y=plot_df[val_col],
-                    name=metric,
-                    mode="lines",
-                    line=dict(color=ACCENT, width=2),
-                    fill="tozeroy",
-                    fillcolor=ACCENT_FILL,
-                )
-            )
-        else:  # 柱状（默认）
-            fig.add_trace(
-                go.Bar(
-                    x=x_labels,
-                    y=plot_df[val_col],
-                    name=metric,
-                    marker_color=ACCENT,
-                    text=[_fmt_fin_value(v, metric) for v in plot_df[val_col]],
-                    textposition="outside",
-                )
-            )
+            _yoy_trace = go.Scatter(x=x_labels, y=plot_df[yoy_col], name='同比', mode='lines+markers', line=dict(color=ACCENT2, width=2), marker=dict(size=6), yaxis='y2')
+        if fa_chart == '折线':
+            fig.add_trace(go.Scatter(x=x_labels, y=plot_df[val_col], name=metric, mode='lines+markers', line=dict(color=ACCENT, width=2), marker=dict(size=6)))
+        elif fa_chart == '面积':
+            fig.add_trace(go.Scatter(x=x_labels, y=plot_df[val_col], name=metric, mode='lines', line=dict(color=ACCENT, width=2), fill='tozeroy', fillcolor=ACCENT_FILL))
+        else:
+            fig.add_trace(go.Bar(x=x_labels, y=plot_df[val_col], name=metric, marker_color=ACCENT, text=[_fmt_fin_value(v, metric) for v in plot_df[val_col]], textposition='outside'))
         if _yoy_trace is not None:
             fig.add_trace(_yoy_trace)
-        # 季度模式下按年份添加竖向分隔线 / 背景色块，使年份分界更明显
         shapes = []
-        if mode == "季度":
-            years = plot_df["period_dt"].dt.year.tolist()
+        if mode == '季度':
+            years = plot_df['period_dt'].dt.year.tolist()
             for i in range(1, len(years)):
                 if years[i] != years[i - 1]:
-                    shapes.append(
-                        dict(
-                            type="line",
-                            x0=i - 0.5,
-                            x1=i - 0.5,
-                            y0=0,
-                            y1=1,
-                            yref="paper",
-                            line=dict(color="rgba(148,163,184,0.4)", width=1.5, dash="dot"),
-                        )
-                    )
-        fig.update_layout(
-            title=f"{fa_name}({fa_code}) {metric}趋势（{mode}）",
-            xaxis=dict(title=""),
-            yaxis=dict(title=cfg.get("unit", ""), side="left"),
-            yaxis2=dict(title="同比(%)", side="right", overlaying="y", showgrid=False),
-            height=420,
-            margin=dict(l=40, r=60, t=50, b=90),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            # 图例移到图表底部，避免与顶部标题/工具栏重叠
-            legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"),
-            # 精简右上角工具栏，避免与标题/图例重叠
-            modebar=dict(orientation="v"),
-            shapes=shapes,
-        )
+                    shapes.append(dict(type='line', x0=i - 0.5, x1=i - 0.5, y0=0, y1=1, yref='paper', line=dict(color='rgba(148,163,184,0.4)', width=1.5, dash='dot')))
+        fig.update_layout(title=f'{fa_name}({fa_code}) {metric}趋势（{mode}）', xaxis=dict(title=''), yaxis=dict(title=cfg.get('unit', ''), side='left'), yaxis2=dict(title='同比(%)', side='right', overlaying='y', showgrid=False), height=420, margin=dict(l=40, r=60, t=50, b=90), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', yanchor='top', y=-0.25, x=0.5, xanchor='center'), modebar=dict(orientation='v'), shapes=shapes)
         st.plotly_chart(fig, use_container_width=True)
-
-        # ── 数据表格（可折叠）──
-        qoq_col = f"{metric}_环比"
-        table_df = plot_df.copy().sort_values("报告期", ascending=False)
-        table_df["指标值"] = table_df[val_col].apply(lambda v: _fmt_fin_value(v, metric))
-        table_df["同比"] = table_df[yoy_col].apply(lambda v: _fmt_fin_yoy(v, metric))
-        table_df["环比"] = table_df[qoq_col].apply(lambda v: _fmt_fin_qoq(v, metric))
-        table_df["报告期显示"] = table_df["标签"]
-        # 年度模式下环比与同比重复，隐藏环比列更合理
-        if mode == "年度":
-            display_table = table_df[["报告期显示", "指标值", "同比"]].rename(columns={"报告期显示": "报告期"})
+        qoq_col = f'{metric}_环比'
+        table_df = plot_df.copy().sort_values('报告期', ascending=False)
+        table_df['指标值'] = table_df[val_col].apply(lambda v: _fmt_fin_value(v, metric))
+        table_df['同比'] = table_df[yoy_col].apply(lambda v: _fmt_fin_yoy(v, metric))
+        table_df['环比'] = table_df[qoq_col].apply(lambda v: _fmt_fin_qoq(v, metric))
+        table_df['报告期显示'] = table_df['标签']
+        if mode == '年度':
+            display_table = table_df[['报告期显示', '指标值', '同比']].rename(columns={'报告期显示': '报告期'})
         else:
-            display_table = table_df[["报告期显示", "指标值", "同比", "环比"]].rename(columns={"报告期显示": "报告期"})
-        with st.expander("📋 查看明细数据", expanded=False):
-            st.caption(f"📋 共 {len(display_table)} 条「{metric}」明细（{mode}）")
+            display_table = table_df[['报告期显示', '指标值', '同比', '环比']].rename(columns={'报告期显示': '报告期'})
+        with st.expander('📋 查看明细数据', expanded=False):
+            st.caption(f'📋 共 {len(display_table)} 条「{metric}」明细（{mode}）')
             st.dataframe(display_table, use_container_width=True, hide_index=True)
-            st.caption("数据来源：新浪财经 利润表 / 资产负债表 / 现金流量表")
-
-
+            st.caption('数据来源：新浪财经 利润表 / 资产负债表 / 现金流量表')
     fragment_financial_analysis(code, name)
-
-    # ═══════════════════════════════════════════════
-    # 历史位置（纵向对比）
-    # ═══════════════════════════════════════════════
-    st.markdown("---")
-    st.subheader("📍 历史位置 · 纵向对比")
-    st.caption("价格分位：当前价在对应周期内所有交易日收盘价中的相对高低。")
-    with st.expander("📖 分位解读（数值越高代表当前价越贵）", expanded=False):
-        st.info(
-            "📌 **分位解读**（数值越高代表当前价越贵）：\n\n"
-            "- **0%**：历史最低（最便宜）\n"
-            "- **0–20%**：历史低位（相对便宜，可能超跌）\n"
-            "- **20–40%**：偏低区间\n"
-            "- **40–75%**：合理中枢（不贵也不便宜）\n"
-            "- **75–90%**：偏高区间\n"
-            "- **90–100%**：历史高位（相对较贵，注意风险）\n"
-            "- **100%**：历史最高（最贵）\n\n"
-            "💡 **例子**：若 5 年分位为 7.9%，表示当前价只比过去 5 年里约 8% 的交易日收盘价高，"
-            "处于历史较低位置。"
-        )
-    if hist_df is not None and not hist_df.empty:
-        current = float(hist_df["close"].iloc[-1])
-        p_1y = _percentile(hist_df.tail(252)["close"], current) if len(hist_df) >= 60 else None
-        p_3y = _percentile(hist_df.tail(756)["close"], current) if len(hist_df) >= 400 else None
-        # 加法式边界守卫（更深一层）：p_1y/p_3y 已有长度门槛，但 p_5y 此前无条件计算；
-        # 当历史数据不足（<60 个交易日）时计算出的「5 年分位」会严重失真（如单点得 100%），
-        # 故补上数据量门槛，不足则降级为 "—"，避免误导。
-        p_5y = _percentile(hist_df["close"], current) if len(hist_df) >= 60 else None
-
+    st.markdown('---')
+    st.subheader('📍 历史位置 · 纵向对比')
+    st.caption('价格分位：当前价在对应周期内所有交易日收盘价中的相对高低。')
+    with st.expander('📖 分位解读（数值越高代表当前价越贵）', expanded=False):
+        st.info('📌 **分位解读**（数值越高代表当前价越贵）：\n\n- **0%**：历史最低（最便宜）\n- **0–20%**：历史低位（相对便宜，可能超跌）\n- **20–40%**：偏低区间\n- **40–75%**：合理中枢（不贵也不便宜）\n- **75–90%**：偏高区间\n- **90–100%**：历史高位（相对较贵，注意风险）\n- **100%**：历史最高（最贵）\n\n💡 **例子**：若 5 年分位为 7.9%，表示当前价只比过去 5 年里约 8% 的交易日收盘价高，处于历史较低位置。')
+    if hist_df is not None and (not hist_df.empty):
+        current = float(hist_df['close'].iloc[-1])
+        p_1y = _percentile(hist_df.tail(252)['close'], current) if len(hist_df) >= 60 else None
+        p_3y = _percentile(hist_df.tail(756)['close'], current) if len(hist_df) >= 400 else None
+        p_5y = _percentile(hist_df['close'], current) if len(hist_df) >= 60 else None
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("当前价", f"¥{current:.2f}")
-        m2.metric("1年价格分位", f"{p_1y:.1f}%" if p_1y is not None else "—")
-        m3.metric("3年价格分位", f"{p_3y:.1f}%" if p_3y is not None else "—")
-        m4.metric("5年价格分位", f"{p_5y:.1f}%" if p_5y is not None else "—")
-
+        m1.metric('当前价', f'¥{current:.2f}')
+        m2.metric('1年价格分位', f'{p_1y:.1f}%' if p_1y is not None else '—')
+        m3.metric('3年价格分位', f'{p_3y:.1f}%' if p_3y is not None else '—')
+        m4.metric('5年价格分位', f'{p_5y:.1f}%' if p_5y is not None else '—')
         fig_hist = go.Figure()
-        fig_hist.add_trace(
-            go.Scatter(
-                x=hist_df["date"],
-                y=hist_df["close"],
-                mode="lines",
-                name="收盘价",
-                line=dict(color=ACCENT, width=1.4),
-                fill="tozeroy",
-                fillcolor=ACCENT_FILL,
-            )
-        )
-        fig_hist.add_hline(
-            y=current,
-            line=dict(color=UP_COLOR, dash="dash", width=1.5),
-            annotation_text="当前价",
-            annotation_position="top right",
-        )
-        fig_hist.update_layout(
-            title=f"{name} 近5年走势与当前位置",
-            xaxis_title="",
-            yaxis_title="收盘价",
-            height=360,
-            margin=dict(l=40, r=40, t=40, b=20),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-        )
+        fig_hist.add_trace(go.Scatter(x=hist_df['date'], y=hist_df['close'], mode='lines', name='收盘价', line=dict(color=ACCENT, width=1.4), fill='tozeroy', fillcolor=ACCENT_FILL))
+        fig_hist.add_hline(y=current, line=dict(color=UP_COLOR, dash='dash', width=1.5), annotation_text='当前价', annotation_position='top right')
+        fig_hist.update_layout(title=f'{name} 近5年走势与当前位置', xaxis_title='', yaxis_title='收盘价', height=360, margin=dict(l=40, r=40, t=40, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig_hist, use_container_width=True)
     else:
-        _empty_info("暂无历史行情数据，无法计算历史分位。")
-
-    st.caption("数据来源：东方财富 / 新浪财经 历史日线行情")
-
-    # ═══════════════════════════════════════════════
-    # 行业横向对比 + 大盘主线判断
-    # ═══════════════════════════════════════════════
-    st.markdown("---")
-    mapped_sector = _find_sector_name(sector_df, industry) if (industry and industry != "—" and not sector_df.empty) else None
-    rank = _sector_rank(sector_df, industry) if (industry and industry != "—" and not sector_df.empty) else None
+        _empty_info('暂无历史行情数据，无法计算历史分位。')
+    st.caption('数据来源：东方财富 / 新浪财经 历史日线行情')
+    st.markdown('---')
+    mapped_sector = _find_sector_name(sector_df, industry) if industry and industry != '—' and (not sector_df.empty) else None
+    rank = _sector_rank(sector_df, industry) if industry and industry != '—' and (not sector_df.empty) else None
     sector_total = len(sector_df) if not sector_df.empty else 0
     has_horizontal = mapped_sector is not None
     has_theme = rank is not None and sector_total > 0
-
-    if sector_df.empty or industry == "—" or (not has_horizontal and not has_theme):
-        st.info(
-            "🏭 行业数据暂未就绪或未能匹配当前股票行业，「行业横向对比」与「大盘主线判断」暂时无法展示。"
-            "可稍后刷新，或尝试切换一只行业分类更完整的个股。"
-        )
+    if sector_df.empty or industry == '—' or (not has_horizontal and (not has_theme)):
+        st.info('🏭 行业数据暂未就绪或未能匹配当前股票行业，「行业横向对比」与「大盘主线判断」暂时无法展示。可稍后刷新，或尝试切换一只行业分类更完整的个股。')
     else:
         if has_horizontal:
-            st.subheader("🏭 行业横向对比")
+            st.subheader('🏭 行业横向对比')
             top_n = 15
-            top_sectors = sector_df.sort_values("change_pct", ascending=False).head(top_n).copy()
-            bar_colors = [
-                UP_COLOR if mapped_sector and str(row["sector"]) == mapped_sector else (DOWN_COLOR if row["change_pct"] < 0 else "#94a3b8")
-                for _, row in top_sectors.iterrows()
-            ]
-
+            top_sectors = sector_df.sort_values('change_pct', ascending=False).head(top_n).copy()
+            bar_colors = [UP_COLOR if mapped_sector and str(row['sector']) == mapped_sector else DOWN_COLOR if row['change_pct'] < 0 else '#94a3b8' for _, row in top_sectors.iterrows()]
             fig_sector = go.Figure()
-            fig_sector.add_trace(
-                go.Bar(
-                    x=top_sectors["sector"],
-                    y=top_sectors["change_pct"],
-                    marker_color=bar_colors,
-                    text=[f"{v:+.2f}%" for v in top_sectors["change_pct"]],
-                    textposition="outside",
-                )
-            )
-            fig_sector.update_layout(
-                title=f"行业涨跌幅 Top {top_n}（{industry} 高亮显示）",
-                xaxis_tickangle=-45,
-                yaxis_title="涨跌幅 %",
-                height=420,
-                margin=dict(l=40, r=20, t=50, b=100),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-            )
+            fig_sector.add_trace(go.Bar(x=top_sectors['sector'], y=top_sectors['change_pct'], marker_color=bar_colors, text=[f'{v:+.2f}%' for v in top_sectors['change_pct']], textposition='outside'))
+            fig_sector.update_layout(title=f'行业涨跌幅 Top {top_n}（{industry} 高亮显示）', xaxis_tickangle=-45, yaxis_title='涨跌幅 %', height=420, margin=dict(l=40, r=20, t=50, b=100), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_sector, use_container_width=True)
-
-            sector_row = sector_df[sector_df["sector"].astype(str) == mapped_sector]
+            sector_row = sector_df[sector_df['sector'].astype(str) == mapped_sector]
             if not sector_row.empty:
-                sector_chg = float(sector_row.iloc[0]["change_pct"])
-                avg_chg = float(sector_df["change_pct"].mean())
+                sector_chg = float(sector_row.iloc[0]['change_pct'])
+                avg_chg = float(sector_df['change_pct'].mean())
                 delta = sector_chg - avg_chg
                 sc1, sc2 = st.columns(2)
                 with sc1:
-                    st.metric(f"{industry} 今日涨跌", f"{sector_chg:+.2f}%")
+                    st.metric(f'{industry} 今日涨跌', f'{sector_chg:+.2f}%')
                 with sc2:
-                    st.metric("相对全市场平均", f"{delta:+.2f}%", delta=f"{delta:+.2f}%",
-                              help="当前行业涨跌幅减去全市场行业均值；>0 表示强于大盘")
-
+                    st.metric('相对全市场平均', f'{delta:+.2f}%', delta=f'{delta:+.2f}%', help='当前行业涨跌幅减去全市场行业均值；>0 表示强于大盘')
         if has_theme:
             if has_horizontal:
-                st.markdown("---")
-            st.subheader("🚩 大盘主线判断")
+                st.markdown('---')
+            st.subheader('🚩 大盘主线判断')
             is_main = rank <= 5
-            main_html = (
-                f'<div style="padding:14px 18px;border-radius:10px;'
-                f'background:rgba(16,185,129,0.12);border-left:4px solid {UP_COLOR};'
-                f'color={"#e2e8f0" if dark else "#064e3b"};font-size:15px;">'
-                f'✅ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，'
-                f'处于市场主线前列，资金关注度较高。</div>'
-            ) if is_main else (
-                f'<div style="padding:14px 18px;border-radius:10px;'
-                f'background:rgba(245,158,11,0.12);border-left:4px solid #f59e0b;'
-                f'color={"#e2e8f0" if dark else "#78350f"};font-size:15px;">'
-                f'⚠️ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，'
-                f'暂未进入主线 Top5，建议结合题材与资金面综合判断。</div>'
-            )
+            main_html = f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(16,185,129,0.12);border-left:4px solid {UP_COLOR};color={('#e2e8f0' if dark else '#064e3b')};font-size:15px;">✅ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，处于市场主线前列，资金关注度较高。</div>""" if is_main else f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(245,158,11,0.12);border-left:4px solid #f59e0b;color={('#e2e8f0' if dark else '#78350f')};font-size:15px;">⚠️ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，暂未进入主线 Top5，建议结合题材与资金面综合判断。</div>"""
             st.markdown(main_html, unsafe_allow_html=True)
-
-            with st.expander("查看行业排名 Top10", expanded=False):
-                top10 = sector_df.sort_values("change_pct", ascending=False).head(10).reset_index(drop=True)
-                top10["排名"] = top10.index + 1
-                display = top10[["排名", "sector", "change_pct"]].rename(
-                    columns={"sector": "行业", "change_pct": "涨跌幅"}
-                )
-                st.caption(f"🏭 全市场共 {len(sector_df)} 个行业，以下展示涨幅前 {len(top10)} 名")
-                st.dataframe(
-                    display,
-                    use_container_width=True,
-                    column_config={"涨跌幅": st.column_config.NumberColumn(format="%.2f%%")},
-                    hide_index=True,
-                )
-
-    st.caption("数据来源：东方财富 行业板块行情（涨跌幅 / 排名）")
-
-    # ═══════════════════════════════════════════════
-    # 综合评估
-    # ═══════════════════════════════════════════════
-    st.markdown("---")
-    st.subheader("🎯 综合评估")
+            with st.expander('查看行业排名 Top10', expanded=False):
+                top10 = sector_df.sort_values('change_pct', ascending=False).head(10).reset_index(drop=True)
+                top10['排名'] = top10.index + 1
+                display = top10[['排名', 'sector', 'change_pct']].rename(columns={'sector': '行业', 'change_pct': '涨跌幅'})
+                st.caption(f'🏭 全市场共 {len(sector_df)} 个行业，以下展示涨幅前 {len(top10)} 名')
+                st.dataframe(display, use_container_width=True, column_config={'涨跌幅': st.column_config.NumberColumn(format='%.2f%%')}, hide_index=True)
+    st.caption('数据来源：东方财富 行业板块行情（涨跌幅 / 排名）')
+    st.markdown('---')
+    st.subheader('🎯 综合评估')
     try:
-        score, reasons_html = _composite_score(
-            price, pe_ttm, p_5y if hist_df is not None else None,
-            rank, sector_total, market_cap, perf,
-        )
+        score, reasons_html = _composite_score(price, pe_ttm, p_5y if hist_df is not None else None, rank, sector_total, market_cap, perf)
     except Exception as e:
-        st.warning(f"综合评估计算失败，已跳过：{e}")
-        score, reasons_html = 0, "综合评估暂不可用（计算异常）。"
-
+        st.warning(f'综合评估计算失败，已跳过：{e}')
+        score, reasons_html = (0, '综合评估暂不可用（计算异常）。')
     if score >= 75:
         score_color = UP_COLOR
-        score_label = "较强"
+        score_label = '较强'
     elif score >= 50:
-        score_color = "#f59e0b"
-        score_label = "中等"
+        score_color = '#f59e0b'
+        score_label = '中等'
     else:
         score_color = DOWN_COLOR
-        score_label = "偏弱"
-
+        score_label = '偏弱'
     sc1, sc2 = st.columns([0.25, 0.75])
     with sc1:
-        # 综合评分环形进度条（#544-15）
-        _ring = go.Figure(go.Pie(
-            values=[max(score, 0.01), max(100 - score, 0.01)],
-            hole=0.78,
-            marker=dict(colors=[score_color, "rgba(148,163,184,0.20)"]),
-            showlegend=False, hoverinfo="skip", textinfo="none",
-        ))
-        _ring.update_layout(
-            annotations=[dict(
-                text=(f"<b style='font-size:34px;color:{score_color}'>{score}</b><br>"
-                      f"<span style='font-size:13px;color:{score_color}'>{score_label}</span>"),
-                x=0.5, y=0.5, showarrow=False)],
-            margin=dict(l=4, r=4, t=4, b=4), height=170,
-            paper_bgcolor="rgba(0,0,0,0)", showlegend=False,
-        )
+        _ring = go.Figure(go.Pie(values=[max(score, 0.01), max(100 - score, 0.01)], hole=0.78, marker=dict(colors=[score_color, 'rgba(148,163,184,0.20)']), showlegend=False, hoverinfo='skip', textinfo='none'))
+        _ring.update_layout(annotations=[dict(text=f"<b style='font-size:34px;color:{score_color}'>{score}</b><br><span style='font-size:13px;color:{score_color}'>{score_label}</span>", x=0.5, y=0.5, showarrow=False)], margin=dict(l=4, r=4, t=4, b=4), height=170, paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
         st.plotly_chart(_ring, use_container_width=True)
     with sc2:
-        st.markdown(
-            f'<div style="padding:14px 18px;border-radius:10px;'
-            f'background:{"rgba(26,26,46,0.4)" if dark else "#f9fafb"};'
-            f'border:1px solid {"rgba(255,255,255,0.08)" if dark else "#e5e7eb"};'
-            f'font-size:14px;line-height:1.8;">{reasons_html}</div>',
-            unsafe_allow_html=True,
-        )
-
-    # 估值摘要
-    st.markdown("---")
-    st.subheader("📊 估值摘要")
+        st.markdown(f"""<div style="padding:14px 18px;border-radius:10px;background:{('rgba(26,26,46,0.4)' if dark else '#f9fafb')};border:1px solid {('rgba(255,255,255,0.08)' if dark else '#e5e7eb')};font-size:14px;line-height:1.8;">{reasons_html}</div>""", unsafe_allow_html=True)
+    st.markdown('---')
+    st.subheader('📊 估值摘要')
     v1, v2, v3 = st.columns(3)
     with v1:
-        st.metric("PE(TTM)", f"{pe_ttm:.2f}" if pe_ttm else "—",
-                  help="市盈率 = 股价 / 每股收益；越低通常代表估值越低（但需结合成长性）")
+        st.metric('PE(TTM)', f'{pe_ttm:.2f}' if pe_ttm else '—', help='市盈率 = 股价 / 每股收益；越低通常代表估值越低（但需结合成长性）')
     with v2:
-        st.metric("PE 状态", _pe_status(pe_ttm),
-                  help="根据 PE 粗略划分低估/合理/偏高区间，仅供参考")
+        st.metric('PE 状态', _pe_status(pe_ttm), help='根据 PE 粗略划分低估/合理/偏高区间，仅供参考')
     with v3:
-        st.metric("总市值", f"¥{market_cap:.1f}亿" if market_cap else "—",
-                  help="单位：亿元人民币")
-
-    # 估值摘要空态引导（加法式）：PE 与市值均无数据时给出指引，而非空白。
+        st.metric('总市值', f'¥{market_cap:.1f}亿' if market_cap else '—', help='单位：亿元人民币')
     if pe_ttm is None and market_cap is None:
-        st.info(
-            "📊 估值摘要暂无可展示数据（实时行情 / 估值接口未返回 PE 与总市值）。"
-            "可稍后刷新重试，或检查数据源连接。"
-        )
-
-    st.caption("数据来源：东方财富 估值数据（PE / 总市值）")
-
-    with st.expander("📖 估值 / 盈利指标说明", expanded=False):
-        st.markdown(
-            "• <b>PE(TTM)</b>：市盈率 = 股价 ÷ 每股收益；越低通常估值越低，但需结合成长性。<br>"
-            "• <b>PE 状态</b>：按 PE 粗略划分低估/合理/偏高，仅供参考。<br>"
-            "• <b>总市值</b>：总股本 × 股价（亿元）；越大通常越稳健。<br>"
-            "• <b>ROE</b>：净资产收益率 = 净利润 ÷ 净资产，反映股东回报率（>15% 较优）。<br>"
-            "• <b>毛利率</b>：(营收−营业成本) ÷ 营收，越高说明产品溢价/成本控制越好。",
-            unsafe_allow_html=True,
-        )
-
-    # 同行业 PE 中位数对比小卡（#544-13）
+        st.info('📊 估值摘要暂无可展示数据（实时行情 / 估值接口未返回 PE 与总市值）。可稍后刷新重试，或检查数据源连接。')
+    st.caption('数据来源：东方财富 估值数据（PE / 总市值）')
+    with st.expander('📖 估值 / 盈利指标说明', expanded=False):
+        st.markdown('• <b>PE(TTM)</b>：市盈率 = 股价 ÷ 每股收益；越低通常估值越低，但需结合成长性。<br>• <b>PE 状态</b>：按 PE 粗略划分低估/合理/偏高，仅供参考。<br>• <b>总市值</b>：总股本 × 股价（亿元）；越大通常越稳健。<br>• <b>ROE</b>：净资产收益率 = 净利润 ÷ 净资产，反映股东回报率（>15% 较优）。<br>• <b>毛利率</b>：(营收−营业成本) ÷ 营收，越高说明产品溢价/成本控制越好。', unsafe_allow_html=True)
     fragment_industry_pe(industry, pe_ttm, dark)
-
-    # 个股跳转
-    st.markdown("---")
-    if st.button("🔍 查看该股票详细 K 线与技术面 →", type="primary", use_container_width=True):
-        st.query_params["pick_stock"] = code
-        safe_switch_page("pages/个股研究.py")
-
-    st.markdown("---")
+    st.markdown('---')
+    if st.button('🔍 查看该股票详细 K 线与技术面 →', type='primary', use_container_width=True):
+        st.query_params['pick_stock'] = code
+        safe_switch_page('pages/个股研究.py')
+    st.markdown('---')
     col_jump1, col_jump2 = st.columns(2)
     with col_jump1:
-        st.page_link("pages/2_个股分析.py", label="→ 去 个股深度分析（决策仪表盘）", icon="🔍")
+        st.page_link('pages/2_个股分析.py', label='→ 去 个股深度分析（决策仪表盘）', icon='🔍')
     with col_jump2:
-        st.page_link("pages/个股研究.py", label="→ 去 个股研究（K线与技术面）", icon="📈")
-
-    st.caption("⚠️ 风险提示：本页所有数据及分析均由程序基于公开数据自动计算，仅供参考，不构成任何投资建议。市场有风险，投资需谨慎。")
-
-    # 快捷回到顶部（Batch18 #back-to-top：长页面底部一键回顶）
-    if st.button("↑ 回到顶部", key="fa_back_to_top", use_container_width=True):
-        st.components.v1.html("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", height=0)
+        st.page_link('pages/个股研究.py', label='→ 去 个股研究（K线与技术面）', icon='📈')
+    st.caption('⚠️ 风险提示：本页所有数据及分析均由程序基于公开数据自动计算，仅供参考，不构成任何投资建议。市场有风险，投资需谨慎。')
+    if st.button('↑ 回到顶部', key='fa_back_to_top', use_container_width=True):
+        st.markdown("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", unsafe_allow_html=True)
 else:
-    st.info("请在上方输入代码或名称选择一只股票开始分析（也可从「🎯 个股研究 / 📡 股票选取」跳转过来）。数据仅供参考，非投资建议。")
+    st.info('请在上方输入代码或名称选择一只股票开始分析（也可从「🎯 个股研究 / 📡 股票选取」跳转过来）。数据仅供参考，非投资建议。')

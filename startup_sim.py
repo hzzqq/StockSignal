@@ -8,9 +8,9 @@ StockSignal 启动器（原启动模拟器）
 覆盖步骤：
   1) 解析 Python 解释器（优先 envs/default，其次 PATH 中实测可用的）
   2) 检查/初始化数据库（backend.scripts.init_db，幂等）
-  3) 探测并清理 5050 / 8501 端口占用
+  3) 探测并清理 5050 / 8899 端口占用
   4) 后台拉起 Flask 后端 (5050)
-  5) 后台拉起 Streamlit 前端 (8501)
+  5) 后台拉起 Streamlit 前端 (8899)
   6) 用 urllib 探测两端健康（不依赖 curl.exe）
   7) 汇总报告 + 打开浏览器 + 写日志
 
@@ -184,6 +184,36 @@ def port_in_use(port, host="127.0.0.1"):
             pass
 
 
+def find_free_port(preferred, host="127.0.0.1", max_tries=20, step=1):
+    """从 preferred 起递增寻找第一个空闲端口，避免与量化软件等抢端口。
+    不再强制 kill 占用进程（那会误杀别人），而是优雅让位到下一个空闲端口。
+    """
+    import socket
+
+    def _free(p):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1)
+        try:
+            return s.connect_ex((host, p)) != 0
+        except Exception:  # noqa
+            return True
+        finally:
+            try:
+                s.close()
+            except Exception:  # noqa
+                pass
+
+    cand = preferred
+    for _ in range(max_tries):
+        if _free(cand):
+            return cand
+        log(f"  端口 {cand} 被占用，尝试下一个 {cand + step}…")
+        cand += step
+    # 兜底：仍返回首选（让启动器后续自行报错，避免无限循环）
+    return preferred
+
+
+
 def kill_port(port):
     """Windows: 用 netstat 找到占用端口的 PID 并 taskkill。失败则忽略。"""
     try:
@@ -279,7 +309,9 @@ def cleanup(proc, port):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--be", type=int, default=5050, help="后端端口")
-    ap.add_argument("--fe", type=int, default=8501, help="前端端口")
+    # 前端默认端口从 8501 改到 8899：避开元量软件(QMT/xt_trader等)常占用的 8000-8300 段，
+    # 杜绝「启动抢端口」问题。如需自定义可用 --fe 覆盖。
+    ap.add_argument("--fe", type=int, default=8899, help="前端端口（默认8899，避开量化软件占用的8000-8300段）")
     ap.add_argument("--keep", action="store_true", help="探测成功后保留进程不清理（正式启动用）")
     ap.add_argument("--pause", action="store_true", help="启动成功后等待用户按键再退出")
     ap.add_argument("--no-browser", action="store_true", help="成功后不自动打开浏览器")
@@ -330,15 +362,14 @@ def main():
         flush_log()
         return 1
 
-    # 3) 端口
-    log("--- [3/6] 检查端口占用 ---")
-    for port in (args.be, args.fe):
-        if port_in_use(port):
-            log(f"  端口 {port} 已被占用，尝试清理旧进程…")
-            kill_port(port)
-            time.sleep(2)
-        else:
-            log(f"  端口 {port} 空闲")
+    # 3) 端口：智能选端口（不再强杀占用进程，避免误杀量化软件等）
+    log("--- [3/6] 智能选择空闲端口（避让其他进程） ---")
+    args.be = find_free_port(args.be)
+    args.fe = find_free_port(args.fe)
+    if args.fe == args.be:
+        # 极端情况：前后端撞了，再给前端让一位
+        args.fe = find_free_port(args.fe + 1)
+    log(f"  初步选定：后端={args.be}  前端={args.fe}（探测成功后再写 active_ports.json）")
 
     # 4/5) 同时拉起后端和前端（两者无依赖，可并行节省启动时间）
     log("--- [4-5/6] 同时拉起 Flask 后端和 Streamlit 前端 ---")
@@ -392,6 +423,14 @@ def main():
     # 7) 汇总
     log("=" * 60)
     if be_ok and fe_ok:
+        # 端口已稳定：写入实际运行端口，供 _stop_services.bat 精确停止（不再无差别杀 python）
+        try:
+            with open(os.path.join(LOGS_DIR, "active_ports.json"), "w", encoding="utf-8") as pf:
+                import json
+                json.dump({"backend": args.be, "frontend": args.fe}, pf)
+            log(f"已记录实际端口到 logs/active_ports.json: 后端={args.be} 前端={args.fe}")
+        except Exception as e:  # noqa
+            log(f"[warn] 写入端口状态文件失败: {e}")
         log("[结论] 启动成功 ✅  后端+前端均已就绪")
         if not args.no_browser:
             url = f"http://localhost:{args.fe}"

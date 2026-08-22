@@ -16,40 +16,24 @@ localStorage，使整页刷新(F5) 或跨页面跳转丢失 query_params 时仍�
 - 仅当 URL 缺 token 时才触发跳转，避免死循环。
 - 所有 JS 均为静态可信字符串，不注入任何用户输入，无 XSS 风险。
 """
-
 from __future__ import annotations
-
 import json
 import logging
-
 import streamlit.components.v1 as components
-
+import streamlit as st
 logger = logging.getLogger(__name__)
-
-_LS_TOKEN = "ss_token"
-_LS_USER = "ss_user"
-
+_LS_TOKEN = 'ss_token'
+_LS_USER = 'ss_user'
 
 def save_to_local_storage(token: str, user: dict) -> None:
     """把 token 与 user 写入浏览器 localStorage（token 单独存，user 以 JSON 字符串存）。"""
     try:
-        # 双重 json.dumps：先序列化 user dict，再把它变成 JS 字符串字面量，避免引号/中文破坏脚本
         token_js = json.dumps(token, ensure_ascii=False)
         user_js = json.dumps(json.dumps(user, ensure_ascii=False), ensure_ascii=False)
-        js = f"""
-        <script>
-        (function() {{
-          try {{
-            localStorage.setItem({json.dumps(_LS_TOKEN)}, {token_js});
-            localStorage.setItem({json.dumps(_LS_USER)}, {user_js});
-          }} catch (e) {{ /* 隐私模式/配额满 可能抛错，忽略 */ }}
-        }})();
-        </script>
-        """
-        components.html(js, height=0)
+        js = f'\n        <script>\n        (function() {{\n          try {{\n            localStorage.setItem({json.dumps(_LS_TOKEN)}, {token_js});\n            localStorage.setItem({json.dumps(_LS_USER)}, {user_js});\n          }} catch (e) {{ /* 隐私模式/配额满 可能抛错，忽略 */ }}\n        }})();\n        </script>\n        '
+        st.markdown(js, unsafe_allow_html=True)
     except Exception as e:
-        logger.warning("[auth_persist] save_to_local_storage 失败: %s", e)
-
+        logger.warning('[auth_persist] save_to_local_storage 失败: %s', e)
 
 def restore_from_local_storage() -> None:
     """
@@ -58,38 +42,15 @@ def restore_from_local_storage() -> None:
     仅当 URL 缺 token 时触发，避免死循环。
     """
     try:
-        js = f"""
-        <script>
-        (function() {{
-          try {{
-            var token = localStorage.getItem({json.dumps(_LS_TOKEN)});
-            if (!token) return;
-            var params = new URLSearchParams(window.parent.location.search);
-            if (params.get('token')) return;  /* 已有则不打扰 */
-            params.set('token', token);
-            window.parent.location.href = window.parent.location.pathname + '?' + params.toString();
-          }} catch (e) {{}}
-        }})();
-        </script>
-        """
-        components.html(js, height=0)
+        js = f"\n        <script>\n        (function() {{\n          try {{\n            var token = localStorage.getItem({json.dumps(_LS_TOKEN)});\n            if (!token) return;\n            var params = new URLSearchParams(window.parent.location.search);\n            if (params.get('token')) return;  /* 已有则不打扰 */\n            params.set('token', token);\n            window.parent.location.href = window.parent.location.pathname + '?' + params.toString();\n          }} catch (e) {{}}\n        }})();\n        </script>\n        "
+        st.markdown(js, unsafe_allow_html=True)
     except Exception as e:
-        logger.warning("[auth_persist] restore_from_local_storage 失败: %s", e)
-
+        logger.warning('[auth_persist] restore_from_local_storage 失败: %s', e)
 
 def clear_local_storage() -> None:
     """退出登录时清除浏览器 localStorage 中的凭证。"""
     try:
-        js = f"""
-        <script>
-        (function() {{
-          try {{
-            localStorage.removeItem({json.dumps(_LS_TOKEN)});
-            localStorage.removeItem({json.dumps(_LS_USER)});
-          }} catch (e) {{}}
-        }})();
-        </script>
-        """
-        components.html(js, height=0)
+        js = f'\n        <script>\n        (function() {{\n          try {{\n            localStorage.removeItem({json.dumps(_LS_TOKEN)});\n            localStorage.removeItem({json.dumps(_LS_USER)});\n          }} catch (e) {{}}\n        }})();\n        </script>\n        '
+        st.markdown(js, unsafe_allow_html=True)
     except Exception as e:
-        logger.warning("[auth_persist] clear_local_storage 失败: %s", e)
+        logger.warning('[auth_persist] clear_local_storage 失败: %s', e)

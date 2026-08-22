@@ -58,7 +58,7 @@ git clone https://github.com/hzzqq/StockSignal.git
 cd StockSignal
 
 # 2) 双击 启动StockSignal.bat
-#    脚本自动：检查 Python → 建虚拟环境 → 初始化数据库 → 启动后端(5050)+前端(8501) → 打开浏览器
+#    脚本自动：检查 Python → 建虚拟环境 → 初始化数据库 → 启动后端(5050)+前端(8899) → 打开浏览器
 ```
 
 ### 方式 B：手动分步（macOS / Linux / Windows 通用）
@@ -78,17 +78,17 @@ python -m backend.scripts.init_db
 # 4) 终端 1：启动 Flask 后端（端口 5050）
 python -m flask --app backend.app:app run --host 127.0.0.1 --port 5050
 
-# 5) 终端 2：启动 Streamlit 前端（端口 8501）
-streamlit run app.py --server.port 8501 --server.headless true
+# 5) 终端 2：启动 Streamlit 前端（端口 8899）
+streamlit run app.py --server.port 8899 --server.headless true
 ```
 
-浏览器打开 **http://localhost:8501** 🎉
+浏览器打开 **http://localhost:8899** 🎉
 
 ### 方式 C：Docker
 
 ```bash
 docker compose -f docker-compose.yml up --build
-# 前端 http://localhost:8501   后端 http://localhost:5050
+# 前端 http://localhost:8899   后端 http://localhost:5050
 ```
 
 ### 👤 默认账号（仅本地开发）
@@ -137,7 +137,7 @@ docker compose -f docker-compose.yml up --build
 
 ```
 ┌──────────────────────────────┐         ┌───────────────────────────────┐
-│   Streamlit 多页前端 (8501)   │  HTTP   │   Flask 后端 API (5050)        │
+│   Streamlit 多页前端 (8899)   │  HTTP   │   Flask 后端 API (5050)        │
 │   pages/ (38页) + modules/    │ ──────▶ │  auth / stocks / admin / config│
 │   双主题 · 数据正确性测试      │   JWT   └───────────────┬───────────────┘
 └──────────────┬───────────────┘                         │ SQLAlchemy

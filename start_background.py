@@ -4,7 +4,7 @@
 StockSignal 后台启动器
 ====================
 作用：替代 VBS，让启动脚本无需 wscript.exe 也能在后台运行，
-      关闭启动命令行窗口后 Flask(5050) + Streamlit(8501) 仍继续运行。
+      关闭启动命令行窗口后 Flask(5050) + Streamlit(8899) 仍继续运行。
 
 运行方式：
   pythonw start_background.py          # 用户双击启动文件时调用
@@ -115,9 +115,9 @@ def main() -> int:
         _log(f"[错误] 启动 startup_sim.py 失败: {type(e).__name__}: {e}")
         return 1
 
-    # 轮询健康检查
+    # 轮询健康检查（前端默认端口 8899，避开量化软件占用的 8000-8300 段）
     be_url = "http://127.0.0.1:5050/api/health"
-    fe_url = "http://127.0.0.1:8501"
+    fe_url = "http://127.0.0.1:8899"
     ok = False
     for i in range(60):
         be_ok = _probe(be_url)

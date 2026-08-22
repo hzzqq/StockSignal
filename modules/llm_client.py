@@ -113,7 +113,7 @@ def _extra_headers(base_url: str) -> Dict[str, str]:
     """OpenRouter 等兼容服务需要的额外头部。"""
     if "openrouter.ai" in base_url:
         return {
-            "HTTP-Referer": "https://localhost:8501",
+            "HTTP-Referer": "https://localhost:8899",
             "X-Title": "StockSignal",
         }
     return {}

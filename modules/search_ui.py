@@ -15,7 +15,6 @@ v6 改进：
 - 搜索结果展示市场信息（SH/SZ）
 - 降级链：后端 API → 本地 fetcher → 原始输入
 """
-
 import streamlit as st
 import streamlit.components.v1 as components
 import time
@@ -23,56 +22,35 @@ import re
 import html as _html
 from modules.fetcher import StockFetcher
 from modules.ui_theme import _theme_is_dark
-
 try:
     from modules.session import is_authenticated, api_get
     _HAS_SESSION = True
 except ImportError:
     _HAS_SESSION = False
 
-
-def _search_via_backend(query: str, limit: int = 15):
+def _search_via_backend(query: str, limit: int=15):
     """通过后端 API 搜索，返回 [(code, name, market), ...] 或 None。"""
     if not _HAS_SESSION or not is_authenticated():
         return None
     try:
-        code, resp = api_get(f"/api/stocks/search?q={query}&limit={limit}", timeout=3)
-        if code == 200 and resp.get("status") == "ok":
-            data = resp.get("data", [])
-            return [(d["code"], d["name"], d.get("market", "")) for d in data]
+        code, resp = api_get(f'/api/stocks/search?q={query}&limit={limit}', timeout=3)
+        if code == 200 and resp.get('status') == 'ok':
+            data = resp.get('data', [])
+            return [(d['code'], d['name'], d.get('market', '')) for d in data]
     except Exception:
         pass
     return None
 
-
-def _search_via_local(query: str, limit: int = 15):
+def _search_via_local(query: str, limit: int=15):
     """通过本地 fetcher 搜索，返回 [(code, name, market), ...]。"""
     fetcher = StockFetcher()
     results = fetcher.lookup_code(query, limit=limit)
-    # fetcher 返回 [(code, name), ...]，补上 market
     return [(code, name, _guess_market(code)) for code, name in results]
 
-
 def _guess_market(code: str) -> str:
-    # 委托统一判定，避免多份前缀规则漂移（DRY）
     from modules.market_utils import guess_exchange
     return guess_exchange(code)
-
-
-# ── 匹配方式标签（对齐 E:\project\dad 项目的 search_stock 设计）────────────
-# 每条搜索结果标注「为什么匹配上」，前端下拉以 chip 展示（如「拼音首字母」），
-# 用户搜「skj」看到「深技 ★ 000021 拼音首字母」即明白匹配来源，搜索更透明。
-_MATCH_LABELS = {
-    "code_exact":        "精确代码",
-    "name_exact":        "精确名称",
-    "code_prefix":       "代码前缀",
-    "name_prefix":       "名称前缀",
-    "pinyin_init":       "拼音首字母",
-    "pinyin_full":       "拼音全拼",
-    "name_contains":     "名称包含",
-    "dispersed":         "名称分散",
-}
-
+_MATCH_LABELS = {'code_exact': '精确代码', 'name_exact': '精确名称', 'code_prefix': '代码前缀', 'name_prefix': '名称前缀', 'pinyin_init': '拼音首字母', 'pinyin_full': '拼音全拼', 'name_contains': '名称包含', 'dispersed': '名称分散'}
 
 def _match_label(query: str, code: str, name: str) -> str:
     """判定查询与结果的匹配方式（纯函数，可离线测试）。
@@ -88,45 +66,33 @@ def _match_label(query: str, code: str, name: str) -> str:
         return _derive_tag(code)
     q_up = q.upper()
     q_low = q.lower()
-    has_chinese = any('\u4e00' <= ch <= '\u9fff' for ch in q)
+    has_chinese = any(('一' <= ch <= '鿿' for ch in q))
     c = str(code).strip().zfill(6)
     n = str(name)
-
-    # L1: 6 位代码完全相等
     if c == q and len(q) == 6:
-        return _MATCH_LABELS["code_exact"]
-    # L2: 名称完全相等
+        return _MATCH_LABELS['code_exact']
     if n == q:
-        return _MATCH_LABELS["name_exact"]
-    # L3: 代码前缀（>=3 位数字才判，避免单数字误判）
+        return _MATCH_LABELS['name_exact']
     if len(q) >= 3 and c.startswith(q):
-        return _MATCH_LABELS["code_prefix"]
-    # L4: 名称前缀
+        return _MATCH_LABELS['code_prefix']
     if n.startswith(q):
-        return _MATCH_LABELS["name_prefix"]
-    # L5: 拼音首字母（精确）
+        return _MATCH_LABELS['name_prefix']
     if not has_chinese:
         initials = StockFetcher._pinyin_initials(n)
         if initials and q_up == initials:
-            return _MATCH_LABELS["pinyin_init"]
-        # 多音字变体
+            return _MATCH_LABELS['pinyin_init']
         variants = StockFetcher._pinyin_initials_variants(n)
         if variants and q_up in variants:
-            return _MATCH_LABELS["pinyin_init"]
-    # L6: 拼音全拼（精确）
+            return _MATCH_LABELS['pinyin_init']
     if not has_chinese:
         full = StockFetcher._pinyin_full(n)
         if full and q_low == full:
-            return _MATCH_LABELS["pinyin_full"]
-    # L7: 名称包含
+            return _MATCH_LABELS['pinyin_full']
     if q in n:
-        return _MATCH_LABELS["name_contains"]
-    # L8: 名称分散（中文，逐字都在）
-    if has_chinese and len(q) >= 2 and all(ch in n for ch in q):
-        return _MATCH_LABELS["dispersed"]
-    # 兜底：市场标签（沪A/创业板/科创板…）
+        return _MATCH_LABELS['name_contains']
+    if has_chinese and len(q) >= 2 and all((ch in n for ch in q)):
+        return _MATCH_LABELS['dispersed']
     return _derive_tag(code)
-
 
 def _code_exists(code: str) -> bool:
     """本地股票库精确校验 6 位代码是否存在。"""
@@ -137,8 +103,7 @@ def _code_exists(code: str) -> bool:
     except Exception:
         return False
 
-
-def resolve_stock_codes(raw_text: str, max_rows: int = 8):
+def resolve_stock_codes(raw_text: str, max_rows: int=8):
     """
     把多行/逗号/空格分隔的原始输入解析为股票代码列表。
     支持 6 位代码、中文名称、拼音首字母。返回 (codes, labels, unresolved)。
@@ -147,8 +112,8 @@ def resolve_stock_codes(raw_text: str, max_rows: int = 8):
     unresolved: 未识别或无效的原始输入列表
     """
     if not raw_text:
-        return [], [], []
-    parts = [p.strip() for p in re.split(r"[\n,，;\s]+", raw_text) if p.strip()]
+        return ([], [], [])
+    parts = [p.strip() for p in re.split('[\\n,，;\\s]+', raw_text) if p.strip()]
     parts = parts[:max_rows]
     fetcher = StockFetcher()
     codes = []
@@ -157,74 +122,61 @@ def resolve_stock_codes(raw_text: str, max_rows: int = 8):
     for raw in parts:
         if raw.isdigit():
             if len(raw) != 6:
-                unresolved.append(f"{raw}（须6位）")
+                unresolved.append(f'{raw}（须6位）')
                 continue
             try:
                 _, name = fetcher.get_stock_basic(raw)
             except Exception:
                 name = None
             if not name or name == raw:
-                # fallback：后端/本地搜索按代码精确匹配（补全本地库缺失的深市/创业板代码）
                 results = _cached_search(raw, limit=1)
                 if results:
                     code, name, _ = results[0]
                     if code == raw.zfill(6):
                         codes.append(code)
-                        labels.append(f"{name}({code})")
+                        labels.append(f'{name}({code})')
                         continue
-                unresolved.append(f"{raw}（代码不存在）")
+                unresolved.append(f'{raw}（代码不存在）')
                 continue
             codes.append(raw)
-            labels.append(f"{name}({raw})")
+            labels.append(f'{name}({raw})')
         else:
             results = _cached_search(raw, limit=1)
             if results:
                 code, name, _ = results[0]
                 codes.append(code)
-                labels.append(f"{name}({code})")
+                labels.append(f'{name}({code})')
             else:
-                unresolved.append(f"{raw}（未识别）")
-    return codes, labels, unresolved
-
-
-
-# 搜索结果缓存（query → (timestamp, results)）
+                unresolved.append(f'{raw}（未识别）')
+    return (codes, labels, unresolved)
 _search_cache = {}
-_CACHE_TTL = 30  # 30 秒缓存
+_CACHE_TTL = 30
 
-
-def _cached_search(query: str, limit: int = 10):
+def _cached_search(query: str, limit: int=10):
     """带缓存的搜索，后端 + 本地合并，确保拼音首字母等匹配更全面。"""
-    cache_key = f"{query}:{limit}"
+    cache_key = f'{query}:{limit}'
     now = time.time()
     if cache_key in _search_cache:
         ts, results = _search_cache[cache_key]
         if now - ts < _CACHE_TTL:
             return results
-
     seen = set()
     merged = []
-
-    # 优先后端 API
     backend_results = _search_via_backend(query, limit)
     if backend_results:
         for code, name, market in backend_results:
             if code not in seen:
                 merged.append((code, name, market))
                 seen.add(code)
-
-    # 再查本地，补充后端可能遗漏的结果（如拼音大小写、本地缓存差异）
     local_results = _search_via_local(query, limit * 2)
     if local_results:
         for code, name, market in local_results:
             if code not in seen:
                 merged.append((code, name, market))
                 seen.add(code)
-
     results = merged[:limit]
     _search_cache[cache_key] = (now, results)
     return results
-
 
 def _derive_tag(code: str) -> str:
     """由代码前缀推导市场/板块标签（用于匹配结果下拉的「标签」列）。
@@ -233,7 +185,6 @@ def _derive_tag(code: str) -> str:
     """
     from modules.market_utils import short_tag
     return short_tag(code)
-
 
 def _render_match_dropdown(key: str, raw_input: str, results, active_code: str, dark: bool):
     """渲染「匹配结果 N 条」选择列表（胶囊风格，对齐 dad 项目搜索前端），
@@ -256,250 +207,149 @@ def _render_match_dropdown(key: str, raw_input: str, results, active_code: str, 
     pills key 带 ``mkpills_`` 前缀；key 中含 ``raw_input`` 保证换搜索词后
     重新挂载、不残留旧选中态。Streamlit < 1.36（无 pills）时回退 st.radio。
     """
-    st.caption(f"🔍 匹配结果（{len(results)} 条）")
-
-    # 输入词做 key 安全化：只保留字母数字，中文等转 codepoint，避免 key 冲突/非法字符
-    token = "".join(ch if ch.isalnum() and ch.isascii() else str(ord(ch)) for ch in raw_input)[:24]
-
+    st.caption(f'🔍 匹配结果（{len(results)} 条）')
+    token = ''.join((ch if ch.isalnum() and ch.isascii() else str(ord(ch)) for ch in raw_input))[:24]
     labels = []
     code_by_label = {}
     default_idx = 0
     best_code = results[0][0] if results else None
     for i, (code, name, market) in enumerate(results):
-        # dad 式：名称 + ★(最佳) + 代码 + 匹配方式标签（chip 语义）
-        star = " ★" if code == best_code else ""
+        star = ' ★' if code == best_code else ''
         mlabel = _match_label(raw_input, code, name)
-        label = f"{name}{star}　{code}　{mlabel}"
+        label = f'{name}{star}\u3000{code}\u3000{mlabel}'
         labels.append(label)
         code_by_label[label] = code
         if code == active_code:
             default_idx = i
-
-    pick_key = f"mkpills_{key}_{token}"
-
-    if hasattr(st, "pills"):
-        picked_label = st.pills(
-            "选择匹配的股票",
-            options=labels,
-            selection_mode="single",
-            default=labels[default_idx] if labels else None,
-            key=pick_key,
-            label_visibility="collapsed",
-        )
+    pick_key = f'mkpills_{key}_{token}'
+    if hasattr(st, 'pills'):
+        picked_label = st.pills('选择匹配的股票', options=labels, selection_mode='single', default=labels[default_idx] if labels else None, key=pick_key, label_visibility='collapsed')
     else:
-        # Streamlit < 1.36 回退：radio 单选（同一交互语义）
-        picked_label = st.radio(
-            "选择匹配的股票",
-            options=labels,
-            index=default_idx,
-            key=pick_key,
-            label_visibility="collapsed",
-            horizontal=False,
-        )
+        picked_label = st.radio('选择匹配的股票', options=labels, index=default_idx, key=pick_key, label_visibility='collapsed', horizontal=False)
     if picked_label and picked_label in code_by_label:
         return code_by_label[picked_label]
     return None
 
-
-def stock_search_input(
-    label="股票搜索",
-    key="stock_search",
-    default="600519",
-    placeholder="输入代码/名称/拼音首字母，如：600519 / 贵州茅台 / gzmt / 茅台",
-    help_text="支持：6位代码、中文名称、拼音首字母(gzmt)、全拼(maotai)、首字模糊(茅)",
-):
+def stock_search_input(label='股票搜索', key='stock_search', default='600519', placeholder='输入代码/名称/拼音首字母，如：600519 / 贵州茅台 / gzmt / 茅台', help_text='支持：6位代码、中文名称、拼音首字母(gzmt)、全拼(maotai)、首字模糊(茅)'):
     """
     统一的股票搜索组件 —— 后端 API + 本地降级 + 防抖缓存。
     返回选中的纯股票代码（如 "600519"）。
     """
-    # ── session_state 初始化 ──
-    confirmed_key = f"{key}_confirmed"
-    query_key = f"{key}_query"
-    base_select_key = f"{key}_select"
-
+    confirmed_key = f'{key}_confirmed'
+    query_key = f'{key}_query'
+    base_select_key = f'{key}_select'
     if confirmed_key not in st.session_state:
         st.session_state[confirmed_key] = default
     if query_key not in st.session_state:
         st.session_state[query_key] = default
-
-    # ── 搜索输入框 ──
-    query = st.text_input(
-        label,
-        placeholder=placeholder,
-        help=help_text,
-        key=query_key,
-    )
-
-    # ── 空输入 → 返回已确认的代码 ──
+    query = st.text_input(label, placeholder=placeholder, help=help_text, key=query_key)
     if not query or not query.strip():
         return st.session_state[confirmed_key]
-
     raw_input = query.strip()
-
-    # ── 严格 6 位代码校验 ──
     if raw_input.isdigit():
         if len(raw_input) != 6:
-            st.error(
-                f"⚠️ 股票代码须为 6 位数字，当前输入 {len(raw_input)} 位，"
-                f"请输入完整代码（如 600519）"
-            )
+            st.error(f'⚠️ 股票代码须为 6 位数字，当前输入 {len(raw_input)} 位，请输入完整代码（如 600519）')
             return st.session_state[confirmed_key]
         if not _code_exists(raw_input):
-            st.error(f"⚠️ 未找到代码 {raw_input} 对应的股票，请检查代码是否正确")
+            st.error(f'⚠️ 未找到代码 {raw_input} 对应的股票，请检查代码是否正确')
             return st.session_state[confirmed_key]
-
-    # ── 防抖：单字符也搜索（首字模糊匹配）──
     results = _cached_search(raw_input, limit=10)
-
     if not results:
-        st.error("⚠️ 未找到匹配的股票，请检查代码或名称是否正确")
-        # 拼音提示
-        if any('\u4e00' <= ch <= '\u9fff' for ch in raw_input):
+        st.error('⚠️ 未找到匹配的股票，请检查代码或名称是否正确')
+        if any(('一' <= ch <= '鿿' for ch in raw_input)):
             try:
                 pinyin_hint = StockFetcher._pinyin_full(raw_input)
                 if pinyin_hint and pinyin_hint.lower() != raw_input.lower():
-                    st.info(f"💡 尝试用拼音搜索: **{pinyin_hint}**")
+                    st.info(f'💡 尝试用拼音搜索: **{pinyin_hint}**')
             except Exception:
                 pass
         return st.session_state[confirmed_key]
-
-    # ── 内联「匹配结果」下拉（模仿图片：直接显示在输入框下方，含 名称/代码/标签）──
     confirmed = st.session_state[confirmed_key]
     codes_in = [c for c, _, _ in results]
-    # 保持旧行为：输入即选中结果首位（若已确认项不在当前结果则回退到首位）
     active = confirmed if confirmed in codes_in else results[0][0]
-
     picked = _render_match_dropdown(key, raw_input, results, active, _theme_is_dark())
     if picked and picked in codes_in:
         st.session_state[confirmed_key] = picked
         active = picked
-
     return active
-
 
 def _add_item(key: str, max_rows: int):
     """多股输入：增加一行空输入框。"""
-    items_key = f"{key}_items"
+    items_key = f'{key}_items'
     items = st.session_state[items_key]
     if len(items) < max_rows:
-        new_id = max((it["id"] for it in items), default=-1) + 1
-        items.append({"id": new_id, "value": "", "code": None, "name": None})
-
+        new_id = max((it['id'] for it in items), default=-1) + 1
+        items.append({'id': new_id, 'value': '', 'code': None, 'name': None})
 
 def _remove_item(key: str, item_id: int):
     """多股输入：删除指定行。"""
-    items_key = f"{key}_items"
-    st.session_state[items_key] = [it for it in st.session_state[items_key] if it["id"] != item_id]
+    items_key = f'{key}_items'
+    st.session_state[items_key] = [it for it in st.session_state[items_key] if it['id'] != item_id]
 
-
-def multi_stock_search_input(
-    label="输入多只股票",
-    key="multi_stock_search",
-    default="600519,000858,601088,600036",
-    placeholder="代码 / 名称 / 拼音",
-    max_rows=8,
-):
+def multi_stock_search_input(label='输入多只股票', key='multi_stock_search', default='600519,000858,601088,600036', placeholder='代码 / 名称 / 拼音', max_rows=8):
     """
     多股票搜索组件（动态行版）。
     每行一只，支持代码、中文名称、拼音；可添加/删除，已解析的股票以 chip 展示。
     返回 list[str] 股票代码列表。
     """
-    items_key = f"{key}_items"
+    items_key = f'{key}_items'
     fetcher = StockFetcher()
-
-    # 初始化：把逗号分隔的 default 拆成多行
     if items_key not in st.session_state:
-        defaults = [p.strip() for p in str(default).split(",") if p.strip()]
-        st.session_state[items_key] = [
-            {"id": i, "value": val, "code": None, "name": None}
-            for i, val in enumerate(defaults)
-        ]
-
-    st.markdown(
-        f"<div style='font-size:14px;font-weight:600;margin-bottom:6px;'>{label}</div>",
-        unsafe_allow_html=True,
-    )
-    st.caption("每行一只，支持代码 / 中文名 / 拼音；点击 🗑️ 删除，➕ 添加。")
-
+        defaults = [p.strip() for p in str(default).split(',') if p.strip()]
+        st.session_state[items_key] = [{'id': i, 'value': val, 'code': None, 'name': None} for i, val in enumerate(defaults)]
+    st.markdown(f"<div style='font-size:14px;font-weight:600;margin-bottom:6px;'>{label}</div>", unsafe_allow_html=True)
+    st.caption('每行一只，支持代码 / 中文名 / 拼音；点击 🗑️ 删除，➕ 添加。')
     items = st.session_state[items_key]
-
-    # 检测单行输入里是否粘贴了逗号/中文逗号/分号/空格/换行分隔的多只股票，
-    # 如果是则自动拆成多行，避免用户把“深科技，太极实业...”整段贴进一个框导致全部未识别。
     _need_split = False
     new_items = []
-    max_id = max((it["id"] for it in items), default=-1)
+    max_id = max((it['id'] for it in items), default=-1)
     for item in items:
-        val = item.get("value", "")
-        if val and any(sep in val for sep in [",", "，", ";", " ", "\n", "\t"]):
-            parts = [p.strip() for p in re.split(r"[\n,，;\s]+", val) if p.strip()]
+        val = item.get('value', '')
+        if val and any((sep in val for sep in [',', '，', ';', ' ', '\n', '\t'])):
+            parts = [p.strip() for p in re.split('[\\n,，;\\s]+', val) if p.strip()]
             if len(parts) > 1:
                 _need_split = True
                 for p in parts:
                     max_id += 1
-                    new_items.append({"id": max_id, "value": p, "code": None, "name": None})
+                    new_items.append({'id': max_id, 'value': p, 'code': None, 'name': None})
                 continue
         new_items.append(item)
     if _need_split:
-        # 去重并限制 max_rows
         seen = set()
         deduped = []
         for it in new_items:
-            v = it["value"].strip()
+            v = it['value'].strip()
             if v not in seen:
                 seen.add(v)
-                deduped.append({"id": len(deduped), "value": v, "code": None, "name": None})
+                deduped.append({'id': len(deduped), 'value': v, 'code': None, 'name': None})
         st.session_state[items_key] = deduped[:max_rows]
         st.rerun()
-
-    # 添加按钮
     if len(items) < max_rows:
-        st.button(
-            "➕ 添加股票",
-            key=f"{key}_add",
-            on_click=_add_item,
-            args=(key, max_rows),
-            use_container_width=True,
-        )
-
+        st.button('➕ 添加股票', key=f'{key}_add', on_click=_add_item, args=(key, max_rows), use_container_width=True)
     resolved_codes = []
     resolved_labels = []
     unresolved = []
-
     for idx, item in enumerate(items):
         cols = st.columns([5, 1])
         with cols[0]:
-            val = st.text_input(
-                f"股票 {idx + 1}",
-                value=item["value"],
-                key=f"{key}_input_{item['id']}",
-                placeholder=placeholder,
-                label_visibility="collapsed",
-            )
+            val = st.text_input(f'股票 {idx + 1}', value=item['value'], key=f"{key}_input_{item['id']}", placeholder=placeholder, label_visibility='collapsed')
         with cols[1]:
-            st.button(
-                "🗑️",
-                key=f"{key}_del_{item['id']}",
-                on_click=_remove_item,
-                args=(key, item["id"]),
-                help="删除",
-            )
-
-        # 解析当前行
-        item["value"] = val
+            st.button('🗑️', key=f"{key}_del_{item['id']}", on_click=_remove_item, args=(key, item['id']), help='删除')
+        item['value'] = val
         if val and val.strip():
             raw = val.strip()
             if raw.isdigit():
                 if len(raw) != 6:
-                    item["code"] = None
-                    item["name"] = None
-                    unresolved.append(f"{raw}（代码须为6位）")
+                    item['code'] = None
+                    item['name'] = None
+                    unresolved.append(f'{raw}（代码须为6位）')
                     continue
                 code = raw
                 try:
                     name = fetcher.get_stock_basic(code)[1] or code
                 except Exception:
                     name = code
-                if name == code:  # 本地库无此代码 -> fallback 搜索
+                if name == code:
                     results = _cached_search(code, limit=1)
                     if results:
                         code, name, _ = results[0]
@@ -510,9 +360,9 @@ def multi_stock_search_input(
                         code = None
                         name = None
                 if name == raw or not code:
-                    item["code"] = None
-                    item["name"] = None
-                    unresolved.append(f"{raw}（代码不存在）")
+                    item['code'] = None
+                    item['name'] = None
+                    unresolved.append(f'{raw}（代码不存在）')
                     continue
             else:
                 results = _cached_search(raw, limit=1)
@@ -521,32 +371,23 @@ def multi_stock_search_input(
                 else:
                     code = None
                     name = None
-            item["code"] = code
-            item["name"] = name
+            item['code'] = code
+            item['name'] = name
             if code:
                 resolved_codes.append(code)
-                resolved_labels.append(f"{name or code}({code})")
+                resolved_labels.append(f'{name or code}({code})')
             else:
                 unresolved.append(raw)
         else:
-            item["code"] = None
-            item["name"] = None
-
-    # 已解析股票 chip 展示（跟随全局亮/暗主题）
+            item['code'] = None
+            item['name'] = None
     if resolved_labels:
         if _theme_is_dark():
-            chip_bg, chip_border, chip_color = "#1a1a2e", "#2d2d44", "#e2e8f0"
+            chip_bg, chip_border, chip_color = ('#1a1a2e', '#2d2d44', '#e2e8f0')
         else:
-            chip_bg, chip_border, chip_color = "#ffffff", "#e2e8f0", "#1e293b"
-        chips_html = "".join(
-            f'<span style="display:inline-block;background:{chip_bg};border:1px solid {chip_border};'
-            f'border-radius:12px;padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:{chip_color};"'
-            f'>{lab}</span>'
-            for lab in resolved_labels
-        )
+            chip_bg, chip_border, chip_color = ('#ffffff', '#e2e8f0', '#1e293b')
+        chips_html = ''.join((f'<span style="display:inline-block;background:{chip_bg};border:1px solid {chip_border};border-radius:12px;padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:{chip_color};">{lab}</span>' for lab in resolved_labels))
         st.markdown(f"<div style='margin-top:8px;'>{chips_html}</div>", unsafe_allow_html=True)
-
     if unresolved:
         st.error(f"⚠️ 未识别或无效: {', '.join(unresolved)}")
-
     return resolved_codes
