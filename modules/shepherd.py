@@ -182,9 +182,20 @@ def get_shepherd_today():
     meta = {"available": [], "unavailable": []}
     merged = {}
 
+    # 并发预取三源（legu / zt_pool / prev_pool），用共享有界池 + 整批超时，
+    # 避免顺序请求叠加延迟（每源一个网络往返），整体耗时≈最慢单源。
+    from modules.fetch_parallel import fetch_many
+
+    _tasks = [
+        ("legu", _fetch_legu),
+        ("zt_pool", _fetch_zt_pool),
+        ("zt_prev_ret", _fetch_prev_pool),
+    ]
+    _results = fetch_many(_tasks, max_workers=3, timeout=12)
+
     # 1) legu 涨跌家数 + 涨停/跌停/红盘占比（快）
     try:
-        legu = _fetch_legu()
+        legu = _results.get("legu")
         if legu:
             merged.update(legu)
             meta["available"].extend(legu.keys())
@@ -195,7 +206,7 @@ def get_shepherd_today():
 
     # 2) 涨停池（连板高度 / 炸板率，并补涨停家数）
     try:
-        zt = _fetch_zt_pool()
+        zt = _results.get("zt_pool")
         if zt:
             for k, v in zt.items():
                 if k not in merged:
@@ -209,7 +220,7 @@ def get_shepherd_today():
 
     # 3) 昨日涨停表现
     try:
-        prev = _fetch_prev_pool()
+        prev = _results.get("zt_prev_ret")
         if prev:
             merged.update(prev)
             meta["available"].extend(prev.keys())
@@ -350,16 +361,20 @@ def get_shepherd_indicators(days=60):
 
 
 # ───────── 牧羊人温度计评分（0-100，与价格涨跌红绿无关）─────────
-def shepherd_temperature(today: dict):
+def shepherd_temperature(today: dict, hist_days: int = 60):
     """把今日快照映射为 0-100 综合「牧羊人温度」。
 
     规则：每个可用指标按其在近期历史中的分位打分（高=热 / 高=冷），均值。
     退化输入返回安全默认 50。
+
+    :param hist_days: 分位计算所用的历史回看天数（默认 60；>=2000 取 2007 起长历史）。
+                      调用方（如 MCP 工具）可透传用户指定的 days，使温度计真正反映
+                      所请求的时间窗口，而非永远用固定 60 天。
     """
     if not today:
         return 50.0
     try:
-        hist = get_shepherd_history(60)
+        hist = get_shepherd_history(hist_days)
     except Exception:  # noqa
         hist = None
     subs = []
@@ -370,7 +385,9 @@ def shepherd_temperature(today: dict):
         if hist is not None and k in hist.columns and len(hist) >= 5:
             s = pd.to_numeric(hist[k], errors="coerce").dropna()
             if len(s) >= 5:
-                pct = float(s.rank(pct=True).iloc[-1])  # 最新值在自身分布中的分位
+                # 今日值 today[k] 在历史时期分布中的经验分位（0-1）：
+                # 历史中小于今日值的比例，避免旧实现误用「历史末值」打分导致 today 形同虚设。
+                pct = float((s < v).mean())
                 subs.append(pct * 100 if th["dir"] > 0 else (1 - pct) * 100)
                 continue
         # 无历史时退化为阈值线性打分

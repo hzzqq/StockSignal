@@ -34,6 +34,8 @@ _TOOL_FUNCS: Dict[str, str] = {
     "risk_assess": "risk_assess",
     "conditional_orders": "conditional_orders",
     "portfolio_query": "portfolio_query",
+    "get_realtime_quote": "get_realtime_quote",
+    "get_market_sentiment": "get_market_sentiment",
 }
 
 
@@ -60,20 +62,33 @@ def call_tool(name: str, **kwargs: Any) -> Dict[str, Any]:
         {"ok": True, "data": {...}}          # 成功
         {"ok": False, "error": "工具不存在"}  # 工具名不合法
         {"ok": False, "error": "数据获取失败: ..."}  # 工具内部业务失败（已捕获）
+        {"ok": False, "error": "工具调用超时(>12s)"}  # 总超时护栏触发
     """
+    from modules.timeout_exec import run_with_timeout
+
     func = _resolve_func(name)
     if func is None:
         return {"ok": False, "error": f"工具不存在: {name}"}
     try:
-        result = func(**kwargs)
+        # 总超时护栏：任何工具内部无界阻塞（远程取数）都会在 _GATEWAY_TIMEOUT 内
+        # 被强制返回 None，网关转成友好错误，避免站内 AI 页 / 外部客户端永久卡死。
+        result = run_with_timeout(lambda: func(**kwargs), timeout=_GATEWAY_TIMEOUT)
     except Exception as e:  # noqa: BLE001 - 网关统一兜底，不让异常冒泡到页面
         logger.warning(f"[mcp_gateway] 工具 {name} 调用异常: {e}")
         return {"ok": False, "error": f"工具调用异常: {e}"}
+
+    if result is None:
+        return {"ok": False, "error": f"工具调用超时（>{_GATEWAY_TIMEOUT}s）或内部无返回: {name}"}
 
     # 工具自身已约定：出错时返回含 "error" 键的 dict
     if isinstance(result, dict) and result.get("error"):
         return {"ok": False, "error": result["error"], "data": result}
     return {"ok": True, "data": result}
+
+
+# 网关总超时（秒）：与底层网络默认超时(10s) < CALL_TIMEOUT_CAP(12s) 保持一致，
+# 正常阻塞路径下工具会在边界内自行返回，线程回池复用、不泄漏。
+_GATEWAY_TIMEOUT = 12
 
 
 # ── 意图识别：把自然语言问句映射到工具 + 参数提取 ────────────────────────────
@@ -122,6 +137,14 @@ _INTENT_RULES: Dict[str, Dict[str, Any]] = {
         "keywords": ["K线", "行情", "价格", "走势图", "日线"],
         "needs_code": True,
     },
+    "get_realtime_quote": {
+        "keywords": ["实时", "盘口", "现在价格", "现价", "最新价", "五档", "现在多少钱", "现在涨", "现在跌"],
+        "needs_code": True,
+    },
+    "get_market_sentiment": {
+        "keywords": ["市场情绪", "情绪", "温度计", "恐慌", "贪婪", "冰点", "市场温度", "市场怎么样", "大盘情绪"],
+        "needs_code": False,
+    },
 }
 
 
@@ -154,6 +177,13 @@ def detect_intent(question: str) -> Dict[str, Any]:
         # 当同一句同时命中 smart_pick 与 analyze_technical 时，选股意图胜出。
         if tool == "smart_pick" and any(
             v in q for v in ("选", "挑", "筛选", "推荐", "找股票")
+        ):
+            score += 0.1
+        # 实时盘口强意图词（实时/盘口/现价/五档）优先级高于泛化技术面词
+        # （走势/技术面），当同一句同时命中 get_realtime_quote 与 analyze_technical 时，
+        # 实时意图胜出，避免用户问「现在价格」被误判为「技术面分析」。
+        if tool == "get_realtime_quote" and any(
+            v in q for v in ("实时", "盘口", "现价", "最新价", "五档", "现在价格", "现在多少钱")
         ):
             score += 0.1
         hits.append((tool, score))

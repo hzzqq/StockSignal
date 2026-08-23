@@ -146,6 +146,12 @@ def _theme_css(dark: bool) -> str:
 .xc-tool-tbl th,.xc-tool-tbl td{{text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);
   color:var(--txt);vertical-align:top}}
 .xc-tool-tbl th{{color:var(--acc1);font-weight:650;background:rgba(102,126,234,.08)}}
+/* 实时盘口 / 市场情绪卡片的 KV 键值网格 */
+.xc-kv-grid{{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;margin-top:6px}}
+.xc-kv{{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:13px;padding:3px 0;border-bottom:1px dashed rgba(125,140,180,.18)}}
+.xc-kv span{{color:var(--txt2)}}
+.xc-kv b{{color:var(--txt);font-weight:650}}
 .xc-typing{{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--txt2);font-size:13px}}
 .xc-typing .dot{{width:8px;height:8px;border-radius:50%;background:var(--acc1);
   animation:xcblink 1.2s infinite both}}
@@ -390,6 +396,8 @@ _TOOL_TITLE = {
     "conditional_orders": "📋 条件单",
     "analyze_technical": "🔬 技术面分析",
     "get_kline": "📉 行情数据",
+    "get_realtime_quote": "⚡ 实时盘口",
+    "get_market_sentiment": "🌡️ 市场情绪温度计",
 }
 
 
@@ -474,6 +482,72 @@ def _tool_payload_to_html(tool: str, data: dict) -> str:
         for k, v in list(data.items())[:10]:
             rows.append(f"<tr><td>{esc(str(k))}</td><td>{esc(str(v))}</td></tr>")
         return '<table class="xc-tool-tbl"><tbody>' + "".join(rows) + "</tbody></table>"
+    if tool == "get_realtime_quote":
+        # 实时盘口：A 股红涨绿跌语义着色（change_pct>0 红，<0 绿）
+        cp = data.get("change_pct")
+        cur = data.get("current")
+        color = "#ff4d4f" if (cp is not None and cp > 0) else ("#00d486" if (cp is not None and cp < 0) else "#999")
+        head = ""
+        if cur is not None:
+            sign = "+" if (cp is not None and cp > 0) else ""
+            cp_txt = f"{sign}{cp:.2f}%" if cp is not None else ""
+            chg_txt = f"{sign}{data.get('change', 0):.2f}" if cp is not None else ""
+            head = (f'<div style="font-size:18px;font-weight:700;color:{color}">'
+                    f'{esc(str(cur))} <span style="font-size:13px">{chg_txt} {cp_txt}</span></div>')
+        meta = (f'<div style="color:#aaa;font-size:12px;margin:4px 0">'
+                f'{esc(str(data.get("name", "")))} · {esc(str(data.get("ticker", "")))}'
+                f' · {esc(str(data.get("datetime", "")))}</div>')
+        # 市场时段徽标：收盘后/周末查到的是上一交易日快照，明确提示避免误读为实时价
+        ms = data.get("market_status_hint")
+        if ms:
+            _ms_cold = any(k in ms for k in ("收盘", "周末", "休市", "盘前"))
+            _ms_color = "#f59e0b" if _ms_cold else "#00d486"
+            meta += (f'<div style="display:inline-block;margin-top:2px;padding:1px 8px;'
+                     f'border-radius:10px;font-size:11px;color:{_ms_color};'
+                     f'border:1px solid {_ms_color}55">{esc(str(ms))}</div>')
+        kv = [
+            ("今开", data.get("open")), ("昨收", data.get("prev_close")),
+            ("最高", data.get("high")), ("最低", data.get("low")),
+            ("成交量", data.get("volume")), ("成交额", data.get("amount")),
+        ]
+        kv_html = "".join(
+            f'<div class="xc-kv"><span>{esc(str(k))}</span><b>{esc(str(v))}</b></div>'
+            for k, v in kv if v is not None
+        )
+        return head + meta + f'<div class="xc-kv-grid">{kv_html}</div>'
+    if tool == "get_market_sentiment":
+        # 市场情绪温度计：0-100 大数字 + 视觉温度条 + 8 项指标（中文名）
+        temp = data.get("temperature")
+        label = data.get("temperature_label", "")
+        bar_color = "#ff4d4f" if temp is not None and temp >= 55 else ("#00d486" if temp is not None and temp < 45 else "#f59e0b")
+        if temp is not None:
+            pct = max(0, min(100, float(temp)))
+            head = (
+                f'<div style="font-size:22px;font-weight:700;color:{bar_color}">'
+                f'温度计 {temp:.0f} <span style="font-size:13px;color:#aaa">{esc(str(label))}</span></div>'
+                f'<div style="height:8px;border-radius:6px;background:rgba(125,140,180,.2);'
+                f'margin:6px 0 2px;overflow:hidden">'
+                f'<div style="height:100%;width:{pct:.0f}%;border-radius:6px;'
+                f'background:{bar_color};transition:width .4s"></div></div>'
+                f'<div style="font-size:11px;color:#888">冰点 0 ───── 中性 50 ───── 亢奋 100</div>'
+            )
+        else:
+            head = '<div class="xc-tool-err">（温度计不可用）</div>'
+        inds = data.get("indicators") or {}
+        # 中文名映射（避免用户看到 up_count 这类内部键）
+        try:
+            from modules.shepherd import THRESHOLDS as _SHEP_TH
+            _name_map = {k: _SHEP_TH.get(k, {}).get("name", k) for k in inds}
+        except Exception:
+            _name_map = {k: k for k in inds}
+        ind_html = "".join(
+            f'<div class="xc-kv"><span>{esc(str(_name_map.get(k, k)))}</span><b>{esc(str(v))}</b></div>'
+            for k, v in inds.items()
+        )
+        unavail = data.get("meta", {}).get("unavailable") or []
+        warn = (f'<div class="xc-tool-err" style="margin-top:6px">部分数据缺失：{esc(", ".join(unavail))}</div>'
+                if unavail else "")
+        return head + f'<div class="xc-kv-grid" style="margin-top:6px">{ind_html}</div>' + warn
     for k, v in list(data.items())[:10]:
         rows.append(f"<tr><td>{esc(str(k))}</td><td>{esc(str(v))}</td></tr>")
     return '<table class="xc-tool-tbl"><tbody>' + "".join(rows) + "</tbody></table>"
@@ -494,8 +568,8 @@ def _tutorial_example_buttons():
     examples = [
         ("🔍 个股诊断", "太极实业 600667 怎么样？"),
         ("📊 横向对比", "对比 贵州茅台 和 五粮液 谁更值得买"),
-        ("📰 事件解读", "最近半导体有哪些重要事件？"),
-        ("💡 操作建议", "当前市场环境下适合建仓吗？"),
+        ("⚡ 实时盘口", "600519 现在实时价格和盘口怎么样"),
+        ("🌡️ 市场情绪", "现在市场情绪如何，温度计到冰点了吗"),
     ]
     cols = st.columns(2)
     for i, (label, prompt) in enumerate(examples):
@@ -512,6 +586,8 @@ def render_ai_tutorial():
             "**🎯 你能问什么**\n"
             "- **个股诊断**：*太极实业 600667 怎么样？*\n"
             "- **横向对比**：*对比贵州茅台和五粮液谁更值得买*\n"
+            "- **实时盘口**：*600519 现在实时价格和盘口怎么样*\n"
+            "- **市场情绪**：*现在市场情绪如何，温度计到冰点了吗*\n"
             "- **事件解读**：*最近半导体有哪些重要事件？*\n"
             "- **持仓 / 仓位建议**：*当前市场环境下适合建仓吗？*\n\n"
             "**📦 怎么区分问答**\n"

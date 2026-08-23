@@ -52,6 +52,25 @@ def _jsonable(obj: Any) -> Any:
     return str(obj)
 
 
+# ── 工具结果短缓存（同进程内，避免站内外重复问同一标的时反复拉远程）──
+# 仅缓存只读行情/技术面结果；条件单/持仓等含实时账户状态的工具不缓存。
+import time as _time
+
+_TOOL_CACHE: Dict[str, Any] = {}
+_TOOL_CACHE_TTL = 30  # 秒（行情类短缓存，适配盘中变化）
+
+
+def _tool_cache_get(key: str):
+    item = _TOOL_CACHE.get(key)
+    if item and (_time.time() - item[0]) < _TOOL_CACHE_TTL:
+        return item[1]
+    return None
+
+
+def _tool_cache_set(key: str, val: Any) -> None:
+    _TOOL_CACHE[key] = (_time.time(), val)
+
+
 # ---------------------------------------------------------------------------
 # 工具 1：行情 K 线
 # ---------------------------------------------------------------------------
@@ -71,6 +90,10 @@ def get_kline(code: str, start: str = "", end: str = "", days: int = 120) -> Dic
     from modules.cleaner import DataCleaner
 
     real_code = _resolve_code(code)
+    _cache_key = f"kline:{real_code}:{start}:{end}:{days}"
+    _cached = _tool_cache_get(_cache_key)
+    if _cached is not None:
+        return _cached
     end_d = end or datetime.now().strftime("%Y-%m-%d")
     if not start:
         start_d = (datetime.now() - timedelta(days=int(days) * 1.6)).strftime("%Y-%m-%d")
@@ -94,13 +117,15 @@ def get_kline(code: str, start: str = "", end: str = "", days: int = 120) -> Dic
                 "volume": float(r.get("volume")),
             }
         )
-    return {
+    _result = {
         "code": real_code,
         "count": len(rows),
         "start": rows[0]["date"] if rows else None,
         "end": rows[-1]["date"] if rows else None,
         "data": rows,
     }
+    _tool_cache_set(_cache_key, _result)
+    return _result
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +146,10 @@ def analyze_technical(code: str, days: int = 180) -> Dict[str, Any]:
     from modules.technical import full_analysis
 
     real_code = _resolve_code(code)
+    _cache_key = f"tech:{real_code}:{days}"
+    _cached = _tool_cache_get(_cache_key)
+    if _cached is not None:
+        return _cached
     end_d = datetime.now().strftime("%Y-%m-%d")
     start_d = (datetime.now() - timedelta(days=int(days) * 1.6)).strftime("%Y-%m-%d")
     fetcher = StockFetcher()
@@ -129,7 +158,9 @@ def analyze_technical(code: str, days: int = 180) -> Dict[str, Any]:
         return {"error": f"未获取到 {code} 的行情数据", "code": real_code}
     df = DataCleaner.full_pipeline(raw)
     result = full_analysis(df)
-    return {"code": real_code, "analysis": _jsonable(result)}
+    _out = {"code": real_code, "analysis": _jsonable(result)}
+    _tool_cache_set(_cache_key, _out)
+    return _out
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +185,7 @@ def smart_pick(
         {strategy, generated_at, picks:[{rank,code,name,score,backtest_return,...}]}
     """
     from modules.backtest import Backtester
+    from modules.timeout_exec import run_with_timeout
 
     end_d = end or datetime.now().strftime("%Y-%m-%d")
     if not start:
@@ -163,13 +195,20 @@ def smart_pick(
         start_d = start
 
     bt = Backtester()
-    picks = bt.daily_picker_backtest(
-        start=start_d,
-        end=end_d,
-        stock_pool_size=int(pool_size),
-        top_k=int(top_k),
-        strategy=strategy,
-    )
+
+    def _run():
+        return bt.daily_picker_backtest(
+            start=start_d,
+            end=end_d,
+            stock_pool_size=int(pool_size),
+            top_k=int(top_k),
+            strategy=strategy,
+        )
+
+    # 总超时护栏：远程回测（pool_size 大）可能很慢，超时返回友好错误而非永久卡死
+    picks = run_with_timeout(_run, timeout=90)
+    if picks is None:
+        return {"error": f"选股回测超时（>{90}s），请减小 pool_size 或稍后重试", "strategy": strategy}
     return {
         "strategy": strategy,
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -199,18 +238,24 @@ def run_backtest(
         {code, strategy, total_return, annual_return, sharpe, max_drawdown, trades,...}
     """
     from modules.backtest import Backtester
+    from modules.timeout_exec import run_with_timeout
 
     real_code = _resolve_code(code)
     bt = Backtester()
-    res = bt.run(
-        real_code,
-        start,
-        end,
-        strategy=strategy,
-        initial_capital=float(initial_capital),
-    )
+
+    def _run():
+        return bt.run(
+            real_code,
+            start,
+            end,
+            strategy=strategy,
+            initial_capital=float(initial_capital),
+        )
+
+    # 总超时护栏：远程回测可能很慢，超时返回友好错误而非永久卡死
+    res = run_with_timeout(_run, timeout=60)
     if res is None:
-        return {"error": f"回测失败：{code} 数据不足或区间无效", "code": real_code}
+        return {"error": f"回测超时（>{60}s）或数据不足：{code}", "code": real_code}
     # BacktestResult 对象 → 字典
     out = {
         "code": real_code,
@@ -480,6 +525,113 @@ def portfolio_query(account_id: int = 1, mode: str = "sim") -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# 工具 10：实时盘口
+# ---------------------------------------------------------------------------
+def get_realtime_quote(code: str) -> Dict[str, Any]:
+    """获取个股/指数实时五档行情（新浪财经，含涨跌/量能/买卖五档）。
+
+    Args:
+        code: 股票代码（如 600519）或名称（如 贵州茅台）
+
+    Returns:
+        {ticker, name, current, prev_close, open, high, low, volume, amount,
+         bid:[{price,volume}...], ask:[{price,volume}...], datetime, change_pct}
+        获取失败返回 {error}
+    """
+    from modules.fetcher import StockFetcher
+    from modules import page_widgets
+
+    real_code = _resolve_code(code)
+    fetcher = StockFetcher()
+    q = fetcher.get_realtime_quote(real_code)
+    # 市场时段（基于北京时间）：供 AI / 前端正确语境化「当前价」——
+    # 收盘后/周末查到的其实是上一交易日收盘快照，避免被误报为实时价。
+    session = page_widgets.current_trading_session()
+    _SESSION_HINT = {
+        "morning": "盘中（上午）",
+        "afternoon": "盘中（下午）",
+        "lunch": "午间休市",
+        "pre_open": "盘前（尚未开盘）",
+        "after_close": "已收盘（显示上一交易日收盘快照）",
+        "weekend": "周末休市（显示最近交易日收盘快照）",
+    }
+    if q is None:
+        return {
+            "error": f"未获取到 {code} 的实时行情（可能非交易时间或数据源不可用）",
+            "code": real_code,
+            "market_status": session,
+            "market_status_hint": _SESSION_HINT.get(session, session),
+        }
+    out = {
+        "market_status": session,
+        "market_status_hint": _SESSION_HINT.get(session, session),
+        "ticker": q.get("ticker", real_code),
+        "name": q.get("name"),
+        "current": q.get("current"),
+        "prev_close": q.get("prev_close"),
+        "open": q.get("open"),
+        "high": q.get("high"),
+        "low": q.get("low"),
+        "volume": q.get("volume"),
+        "amount": q.get("amount"),
+        "datetime": q.get("datetime"),
+    }
+    # 派生涨跌额/涨跌幅（A 股红涨绿跌语义，纯数据透出，由前端着色）
+    prev = q.get("prev_close")
+    cur = q.get("current")
+    if isinstance(prev, (int, float)) and isinstance(cur, (int, float)) and prev:
+        out["change"] = round(cur - prev, 4)
+        out["change_pct"] = round((cur - prev) / prev * 100.0, 4)
+    # 五档买卖盘（结构透出，供 AI/前端渲染）
+    out["bid"] = q.get("bid") or []
+    out["ask"] = q.get("ask") or []
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 工具 11：市场情绪（牧羊人温度计）
+# ---------------------------------------------------------------------------
+def get_market_sentiment(days: int = 30) -> Dict[str, Any]:
+    """获取全市场情绪快照：8 项牧羊人指标 + 综合温度计（0-100）。
+
+    Args:
+        days: 历史回看天数（默认 30，用于温度计分位打分；>=2000 取长历史）
+
+    Returns:
+        {temperature, indicators:{指标名:值}, meta:{available,unavailable}, generated_at}
+        网络不可用时 indicators 为空、meta.unavailable 标注缺失源。
+    """
+    from modules import shepherd
+
+    today, meta = shepherd.get_shepherd_today()
+    temp = shepherd.shepherd_temperature(today, hist_days=int(days))
+    # 仅透出 THRESHOLDS 定义的 8 项，过滤合并过程中产生的辅助键（如 flat_count）
+    indicators = {k: today.get(k) for k in shepherd.THRESHOLDS if k in today}
+    return {
+        "temperature": temp,
+        "temperature_label": _temp_label(temp),
+        "indicators": indicators,
+        "meta": {
+            "available": meta.get("available", []),
+            "unavailable": [k for k, _ in meta.get("unavailable", [])],
+        },
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+
+
+def _temp_label(temp: float) -> str:
+    if temp >= 75:
+        return "亢奋（高风险区）"
+    if temp >= 55:
+        return "偏热"
+    if temp >= 45:
+        return "中性"
+    if temp >= 25:
+        return "偏冷"
+    return "冰点（防守区）"
+
+
+# ---------------------------------------------------------------------------
 # 注册
 # ---------------------------------------------------------------------------
 def _register_all() -> None:
@@ -621,6 +773,30 @@ def _register_all() -> None:
             "required": [],
         },
         portfolio_query,
+    )
+    register_tool(
+        "get_realtime_quote",
+        "获取个股/指数实时五档行情（新浪，含现价/涨跌/量能/买卖五档）。用于回答实时盘口类问题。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "股票代码(如600519)或名称(如贵州茅台)"},
+            },
+            "required": ["code"],
+        },
+        get_realtime_quote,
+    )
+    register_tool(
+        "get_market_sentiment",
+        "获取全市场情绪：8 项牧羊人指标（涨跌/涨停/炸板/连板等）+ 综合温度计(0-100)。用于回答市场情绪/恐慌/温度计类问题。",
+        {
+            "type": "object",
+            "properties": {
+                "days": {"type": "integer", "description": "历史回看天数，默认30（>=2000取长历史）", "default": 30},
+            },
+            "required": [],
+        },
+        get_market_sentiment,
     )
 
 

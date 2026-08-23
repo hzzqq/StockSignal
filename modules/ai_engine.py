@@ -55,19 +55,54 @@ def _cache_set(key: str, val: Any) -> None:
         _CACHE[key] = (val, time.time())
 
 
+# 句首动词前缀：提取中文名前先剥离，避免「对比贵州茅台」被贪婪成「对比贵州茅」
+_NAME_PREFIX_STRIP = ["对比", "分析", "请问", "帮我", "看看", "查查", "我想", "觉得",
+                    "说说", "讲讲", "评估", "诊断", "推荐", "选", "挑", "筛选"]
+# 中文名后的常见拖尾词：贪婪匹配会把「贵州茅台怎么样」吞成 6 字，需在首个拖尾词处截断
+_NAME_SUFFIX_CUT = ["怎么样", "怎么", "如何", "为何", "为啥", "吗", "呢", "啊",
+                   "哪个更", "哪个", "谁更", "值得买", "值得", "更值得", "好不好",
+                   "行不行", "可以不", "分析", "诊断", "评估", "推荐", "走势"]
+
+_CODE_NUM = re.compile(r"\b\d{6}\b")
+_HAN = re.compile(r"[\u4e00-\u9fa5]{2,6}")  # A股名 2-6 字为主，收紧上限减少误吞
+
+
+def _strip_name_prefix(text: str) -> str:
+    for p in _NAME_PREFIX_STRIP:
+        if text.startswith(p):
+            return text[len(p):]
+    return text
+
+
+def _cut_name_suffix(text: str) -> str:
+    """在首个拖尾词处截断，避免「贵州茅台怎么样」→「贵州茅台」。"""
+    for s in _NAME_SUFFIX_CUT:
+        idx = text.find(s)
+        if idx > 0:
+            return text[:idx]
+    return text
+
+
 def _extract_codes_or_names(question: str) -> List[str]:
-    """从问题中提取 6 位代码或候选名称。"""
+    """从问题中提取 6 位代码或候选名称。
+
+    修复（迭代 #8）：原先整句贪婪匹配 + 并列拆分只取 part 首匹配，会导致
+    「对比贵州茅台和五粮液」提取成「对比贵州茅」而非精确的「贵州茅台」。
+    现改为：先剥离句首动词前缀、再用收紧的 {2,6} 窗口提取、最后按拖尾词截断，
+    让「贵州茅台」「五粮液」这类精确名更易浮现（最终仍交 _resolve_stock 去歧义）。
+    """
     # 6 位数字代码
-    codes = re.findall(r"\b\d{6}\b", question)
-    # 可能的中文名（简单 heuristic：连续 2-8 个汉字）
-    names = re.findall(r"[\u4e00-\u9fa5]{2,8}", question)
-    # 把「A 和 B 哪个更好」这种并列结构也拆出来
+    codes = _CODE_NUM.findall(question)
+    q = _strip_name_prefix(question.strip())
+    # 可能的中文名（收紧窗口 + 去前缀 + 拖尾截断，减少贪婪误吞）
+    names = [_cut_name_suffix(m) for m in _HAN.findall(q)]
+    # 把「A 和 B 哪个更好」这种并列结构也拆出来（每个 part 同样处理）
     for sep in ["和", "与", "、", " vs ", " VS ", " vs. ", " VS. "]:
-        if sep in question:
-            for part in question.split(sep):
-                m = re.search(r"[\u4e00-\u9fa5]{2,8}", part)
+        if sep in q:
+            for part in q.split(sep):
+                m = _HAN.search(_strip_name_prefix(part))
                 if m:
-                    names.append(m.group(0))
+                    names.append(_cut_name_suffix(m.group(0)))
     return list(dict.fromkeys(codes + names))
 
 

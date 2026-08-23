@@ -12,10 +12,10 @@ from mcp_server import gateway as gw
 def test_available_tools_nonempty():
     tools = gw.available_tools()
     assert isinstance(tools, list)
-    assert len(tools) >= 9
+    assert len(tools) >= 11
     for t in ("get_kline", "analyze_technical", "smart_pick", "run_backtest",
               "fund_flow", "stock_news", "risk_assess", "conditional_orders",
-              "portfolio_query"):
+              "portfolio_query", "get_realtime_quote", "get_market_sentiment"):
         assert t in tools
 
 
@@ -72,3 +72,52 @@ def test_call_tool_is_idempotent_import():
     gw.call_tool("smart_pick", market="A", limit=1)
     gw.call_tool("run_backtest", code="600519")
     assert True
+
+
+def test_detect_intent_realtime_quote_with_code():
+    intent = gw.detect_intent("600519 现在价格多少，实时盘口怎么样")
+    assert intent["tool"] == "get_realtime_quote"
+    assert intent["params"].get("code") == "600519"
+    assert intent["confidence"] >= 0.85
+
+
+def test_detect_intent_realtime_quote_without_code_low():
+    # 问实时但没给标的 => 低置信（needs_code），不拦截
+    intent = gw.detect_intent("现在大盘实时走势怎么样")
+    assert intent["tool"] == "get_realtime_quote"
+    assert intent["confidence"] < 0.85
+
+
+def test_detect_intent_market_sentiment_no_code():
+    intent = gw.detect_intent("现在市场情绪怎么样，温度计到冰点了吗")
+    assert intent["tool"] == "get_market_sentiment"
+    assert intent["confidence"] >= 0.85
+
+
+def test_detect_intent_sentiment_panic_keyword():
+    intent = gw.detect_intent("今天市场是不是很恐慌")
+    assert intent["tool"] == "get_market_sentiment"
+    assert intent["confidence"] >= 0.85
+
+
+def test_call_tool_timeout_guard(monkeypatch):
+    """call_tool 应有总超时护栏：工具内部无界阻塞时返回友好错误，不卡死。"""
+    import time
+
+    def slow(**kwargs):
+        time.sleep(2)
+        return {"ok": True, "data": {}}
+
+    # 注入一个慢工具并临时把超时压到极小
+    monkeypatch.setattr(gw, "_GATEWAY_TIMEOUT", 0.1)
+    monkeypatch.setitem(gw._TOOL_FUNCS, "slow_tool", "slow_tool")
+    gw._resolve_func_cache = {}  # 清缓存（若有）
+
+    # 直接 patch _resolve_func 返回 slow
+    def fake_resolve(n):
+        return slow if n == "slow_tool" else gw._resolve_func(n)
+
+    monkeypatch.setattr(gw, "_resolve_func", fake_resolve)
+    r = gw.call_tool("slow_tool")
+    assert r["ok"] is False
+    assert "超时" in r["error"]

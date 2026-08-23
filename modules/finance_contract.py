@@ -58,11 +58,13 @@ def validate_position_schema(df: pd.DataFrame, *, require_remaining: bool = Fals
 
 
 def validate_pnl_output(df: pd.DataFrame) -> None:
-    """fail-fast 校验 calc_pnl 输出列严格等于契约（不多不少）。"""
+    """fail-fast 校验 calc_pnl 输出列严格等于契约（不多不少）。
+
+    注意：即使 df.empty（无数据行），列结构也必须符合契约——空 DataFrame 的列
+    缺失会被下游 calc_pnl 调用 NaN/KeyError 漂移，故列校验不受 empty 短路影响。
+    """
     if not isinstance(df, pd.DataFrame):
         raise FinanceContractError(f"盈亏必须是 DataFrame，收到 {type(df).__name__}")
-    if df.empty:
-        return
     cols = set(df.columns)
     missing = set(PNL_OUTPUT_COLUMNS) - cols
     if missing:
