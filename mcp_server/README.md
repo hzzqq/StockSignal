@@ -65,6 +65,23 @@ C:/Users/Administrator/.workbuddy/binaries/python/envs/default/Scripts/python.ex
 
 **Cursor / OpenClaw / Trae**：同样以 stdio 子进程方式指向 `run.py` 即可（原生支持 MCP）。
 
+**Trae Work（推荐，零插件）**：项目根已提供 `.mcp.json`，Trae Work 打开本项目即自动识别并加载
+`stocksignal` 服务器，无需任何插件。若需手动配置，把下面内容合并进 Trae 的 MCP 配置即可：
+```json
+{
+  "mcpServers": {
+    "stocksignal": {
+      "command": "C:/Users/Administrator/.workbuddy/binaries/python/envs/default/Scripts/python.exe",
+      "args": ["E:/project/ks/StockSignal/mcp_server/run.py"],
+      "env": { "PYTHONPATH": "E:/project/ks/StockSignal", "STOCKSIGNAL_SSL_BYPASS": "0" }
+    }
+  }
+}
+```
+加载后，在 Trae Work 里直接用自然语言驱动 StockSignal，例如：
+> "帮我用双趋势策略选 5 只 A 股" / "回测一下 600519 的多因子策略" / "查一下我账户持仓和盈亏"
+Trae 会自动路由到对应 MCP 工具并执行。
+
 ### 3) 自检
 ```bash
 PYTHONPATH=E:/project/ks/StockSignal \
@@ -91,6 +108,12 @@ StockSignal 已有 `🌟_星辰AI.py`（站内对话页）和 `backend/api/chat_
 MCP Server 是**对外的标准协议网关**，让站外任意 AI 助手也能复用同一套底层能力，三者
 共用 `modules/ai_engine.py` + `modules/technical.py` + `modules/backtest.py` 等，
 不重复造轮子。
+
+**站内统一入口（🌟_星辰AI.py）**：该页已接入 `mcp_server.gateway`（同进程内工具网关，
+不走 stdio、零序列化开销）。用户提问经 `detect_intent` 意图识别后，命中的结构化请求
+（选股/回测/资金流/风险/新闻/持仓/条件单/技术面/行情）会**直接调用 MCP 工具拿真实数据**，
+渲染为「数据透视」卡片，与后台 `ai_answer` 的自然语言回答并存、互为补充、可核验。
+意图识别置信度 < 0.85 的模糊问句仍交给后台 AI 自由回答，不强行拦截。
 
 ## 测试
 

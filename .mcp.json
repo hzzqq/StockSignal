@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "stocksignal": {
+      "command": "C:/Users/Administrator/.workbuddy/binaries/python/envs/default/Scripts/python.exe",
+      "args": ["E:/project/ks/StockSignal/mcp_server/run.py"],
+      "env": {
+        "PYTHONPATH": "E:/project/ks/StockSignal",
+        "STOCKSIGNAL_SSL_BYPASS": "0"
+      }
+    }
+  }
+}

@@ -27,6 +27,7 @@ from modules.background_tasks import submit_task_with_error, poll_task, get_chat
 from modules.widgets import _slim_context
 from modules.widgets import STAR_AI_LOGO
 from modules.page_guard import safe_fragment
+from mcp_server.gateway import detect_intent, call_tool
 
 apply_page_config(page_title="🌟 星辰 AI", page_icon="🌟", layout="wide")
 st.session_state["_active_page"] = __file__
@@ -134,6 +135,17 @@ def _theme_css(dark: bool) -> str:
 .xc-divider::before,.xc-divider::after{{content:"";flex:1;height:1px;background:var(--border)}}
 .xc-banner{{font-size:12px;color:var(--txt2);background:rgba(102,126,234,.10);
   border:1px solid rgba(102,126,234,.30);border-radius:10px;padding:8px 12px;margin-bottom:14px}}
+
+/* 工具卡片：数据透视，区别于自然语言气泡 */
+.xc-role-tool{{color:#fff;background:linear-gradient(135deg,#0ea5e9,#22d3ee);
+  border:1px solid rgba(14,165,233,.5)}}
+.xc-tool-card{{border-radius:14px 4px 14px 14px;border:1px solid rgba(14,165,233,.35);
+  background:linear-gradient(135deg,rgba(14,165,233,.06),rgba(34,211,238,.04))}}
+.xc-tool-card .xc-tool-err{{color:var(--hold);font-size:13px;padding:4px 2px}}
+.xc-tool-tbl{{width:100%;border-collapse:collapse;font-size:13px;margin-top:2px}}
+.xc-tool-tbl th,.xc-tool-tbl td{{text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);
+  color:var(--txt);vertical-align:top}}
+.xc-tool-tbl th{{color:var(--acc1);font-weight:650;background:rgba(102,126,234,.08)}}
 .xc-typing{{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--txt2);font-size:13px}}
 .xc-typing .dot{{width:8px;height:8px;border-radius:50%;background:var(--acc1);
   animation:xcblink 1.2s infinite both}}
@@ -337,6 +349,11 @@ def render_message(m: dict, idx: int, username: str) -> None:
         )
         return
 
+    # tool 卡片（MCP 工具返回的结构化数据透视）
+    if m.get("role") == "tool":
+        render_tool_card(m.get("tool", ""), m.get("payload") or {})
+        return
+
     # assistant
     # 加法式空态守卫：content 偶发为空（如后端返回了空回答 / 任务中断），
     # 原逻辑会渲染一个空白气泡；这里给一个友好占位，避免用户看到「什么都没有」。
@@ -356,6 +373,110 @@ def render_message(m: dict, idx: int, username: str) -> None:
     chips = m.get("chips") or []
     if chips and len(st.session_state.get("xc_messages", [])) <= 1:
         _render_chips(chips)
+
+
+# ══════════════════════════════════════════════════════
+# 工具卡片：把 MCP 工具返回的结构化数据渲染为「数据透视」卡片
+# （与 ai_answer 的自然语言回答并存，作为可核验的真实数据补充）
+# ══════════════════════════════════════════════════════
+
+_TOOL_TITLE = {
+    "smart_pick": "📊 智能选股结果",
+    "run_backtest": "📈 策略回测结果",
+    "fund_flow": "💰 资金流向",
+    "risk_assess": "⚠️ 风险评估",
+    "stock_news": "📰 个股新闻",
+    "portfolio_query": "💼 持仓查询",
+    "conditional_orders": "📋 条件单",
+    "analyze_technical": "🔬 技术面分析",
+    "get_kline": "📉 行情数据",
+}
+
+
+def render_tool_card(tool: str, payload: dict) -> None:
+    """渲染一个 MCP 工具卡片（左侧 assistant 风格，带工具标识）。"""
+    title = _TOOL_TITLE.get(tool, "🔧 工具结果")
+    if isinstance(payload, dict) and ("ok" in payload or "error" in payload):
+        ok = payload.get("ok")
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+        err = payload.get("error")
+    else:
+        ok, data, err = True, payload, None
+
+    if not ok or err:
+        body = f'<div class="xc-tool-err">⚠️ {esc(str(err or "调用失败"))}</div>'
+    else:
+        body = _tool_payload_to_html(tool, data or {})
+
+    st.markdown(
+        '<div class="xc-msg"><div class="xc-av">🛠️</div>'
+        '<div class="xc-col"><div class="xc-who">'
+        f'<span class="xc-name">星辰 AI · 工具</span>'
+        f'<span class="xc-role xc-role-tool">{esc(title)}</span></div>'
+        f'<div class="xc-bubble xc-tool-card">{body}</div>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _tool_payload_to_html(tool: str, data: dict) -> str:
+    """把各类工具结果 dict 转成紧凑 HTML 表格/列表。"""
+    if not data:
+        return '<div class="xc-tool-err">（无数据）</div>'
+    rows = []
+    if tool == "smart_pick":
+        picks = data.get("picks") or []
+        if not picks:
+            return f'<div class="xc-tool-err">未选出标的（策略：{esc(str(data.get("strategy","")))}）</div>'
+        for p in picks[:8]:
+            nm = esc(str(p.get("name", p.get("code", ""))))
+            sc = esc(str(p.get("score", "")))
+            rs = esc(str(p.get("reason", "") or p.get("signal", "")))
+            rows.append(f"<tr><td>{nm}</td><td>{sc}</td><td>{rs}</td></tr>")
+        return (
+            '<table class="xc-tool-tbl"><thead><tr><th>标的</th><th>评分</th><th>信号</th></tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table>'
+        )
+    if tool in ("analyze_technical", "risk_assess"):
+        for k, v in list(data.items())[:10]:
+            rows.append(f"<tr><td>{esc(str(k))}</td><td>{esc(str(v))}</td></tr>")
+        return '<table class="xc-tool-tbl"><tbody>' + "".join(rows) + "</tbody></table>"
+    if tool == "fund_flow":
+        for k in ("code", "name", "main_net_inflow", "northbound", "summary"):
+            if k in data:
+                rows.append(f"<tr><td>{esc(k)}</td><td>{esc(str(data[k]))}</td></tr>")
+        return '<table class="xc-tool-tbl"><tbody>' + "".join(rows) + "</tbody></table>"
+    if tool == "run_backtest":
+        for k in ("code", "strategy", "total_return", "win_rate", "sharpe", "trades", "summary"):
+            if k in data:
+                rows.append(f"<tr><td>{esc(k)}</td><td>{esc(str(data[k]))}</td></tr>")
+        return '<table class="xc-tool-tbl"><tbody>' + "".join(rows) + "</tbody></table>"
+    if tool == "stock_news":
+        items = data.get("news") or data.get("items") or []
+        if not items:
+            return '<div class="xc-tool-err">（暂无新闻）</div>'
+        for it in items[:6]:
+            t = esc(str(it.get("title", "")))
+            d = esc(str(it.get("date", it.get("time", ""))))
+            rows.append(f'<tr><td>{t}</td><td>{d}</td></tr>')
+        return '<table class="xc-tool-tbl"><thead><tr><th>标题</th><th>时间</th></tr></thead>' \
+               f'<tbody>{"".join(rows)}</tbody></table>'
+    if tool in ("portfolio_query", "conditional_orders"):
+        if data.get("error"):
+            return f'<div class="xc-tool-err">{esc(str(data["error"]))}</div>'
+        items = data.get("orders") or data.get("positions") or data.get("accounts") or []
+        if isinstance(items, list) and items:
+            for it in items[:8]:
+                if isinstance(it, dict):
+                    cells = "".join(f"<td>{esc(str(v))}</td>" for v in it.values())
+                    rows.append(f"<tr>{cells}</tr>")
+            return '<table class="xc-tool-tbl"><tbody>' + "".join(rows) + "</tbody></table>"
+        for k, v in list(data.items())[:10]:
+            rows.append(f"<tr><td>{esc(str(k))}</td><td>{esc(str(v))}</td></tr>")
+        return '<table class="xc-tool-tbl"><tbody>' + "".join(rows) + "</tbody></table>"
+    for k, v in list(data.items())[:10]:
+        rows.append(f"<tr><td>{esc(str(k))}</td><td>{esc(str(v))}</td></tr>")
+    return '<table class="xc-tool-tbl"><tbody>' + "".join(rows) + "</tbody></table>"
 
 
 def _render_chips(options):
@@ -606,6 +727,15 @@ def fragment_chat():
             )
             st.rerun(scope="fragment")
         st.session_state["xc_messages"].append({"role": "user", "content": prompt})
+        # 加法式：意图识别 → 命中的结构化请求直接走 MCP 工具网关拿真实数据，
+        # 渲染为「数据透视」卡片，与后台 ai_answer 的自然语言回答并存、互为补充。
+        # 仅当置信度足够高（有明确标的或无需标的）才拦截，否则仍交后台 AI 自由回答。
+        _intent = detect_intent(prompt)
+        if _intent["tool"] and _intent["confidence"] >= 0.85:
+            _tool_res = call_tool(_intent["tool"], **_intent["params"])
+            st.session_state["xc_messages"].append(
+                {"role": "tool", "tool": _intent["tool"], "payload": _tool_res}
+            )
         # 加法式最近浏览历史：从用户提问中抽取 6 位股票代码，记录最近查看的标的
         # （纯前端 session，不接后端；仅追加到 session_state，fragment 内禁裸 rerun）
         for _code in re.findall(r"\b\d{6}\b", prompt):
