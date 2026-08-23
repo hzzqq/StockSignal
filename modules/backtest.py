@@ -11,6 +11,7 @@ import concurrent.futures
 from .fetcher import StockFetcher
 from .cleaner import DataCleaner
 from .signal import SignalEngine
+from .strategies import STRATEGY_REGISTRY, get_strategy
 
 import logging
 
@@ -49,9 +50,9 @@ class Backtester:
         :param stamp_tax_pct: 印花税比例（默认 0.1%，仅卖出）
         :return: BacktestResult 对象
         """
-        valid_strategies = {"event_driven", "ma_cross", "multi_factor", "dual_trend"}
+        valid_strategies = set(STRATEGY_REGISTRY.keys())
         if strategy not in valid_strategies:
-            raise ValueError(f"不支持的策略: {strategy}，可选: {valid_strategies}")
+            raise ValueError(f"不支持的策略: {strategy}，可选: {sorted(valid_strategies)}")
 
         df = self.fetcher.get_daily(ticker, start=start, end=end)
         df = DataCleaner.full_pipeline(df)
@@ -61,14 +62,15 @@ class Backtester:
         # 为所有策略统一计算技术指标
         df = self._add_indicators(df)
 
-        if strategy == "event_driven":
-            signals = self._event_driven_signals(df, ticker, keywords)
-        elif strategy == "ma_cross":
-            signals = self._ma_cross_signals(df)
-        elif strategy == "multi_factor":
-            signals = self._multi_factor_signals(df)
-        elif strategy == "dual_trend":
-            signals = self._dual_trend_signals(df)
+        # 从策略注册表取策略类并生成信号（可插拔，不再硬编码）
+        strategy_cls = get_strategy(strategy)
+        strategy_inst = strategy_cls()
+        if getattr(strategy_cls, "needs_context", False):
+            signals = strategy_inst.generate_signals_with_context(
+                df, ctx={"signal_engine": self.signal_engine, "ticker": ticker, "keywords": keywords}
+            )
+        else:
+            signals = strategy_inst.generate_signals(df)
 
         result_df, trades = self._simulate(
             df, signals, initial_capital, commission,
@@ -76,6 +78,114 @@ class Backtester:
             max_holding, min_holding, slippage_pct, stamp_tax_pct
         )
         return BacktestResult(ticker, strategy, result_df, initial_capital, trades)
+
+    # ------------------------------------------------------------------
+    # P0 可插拔增强：参数扫描 + 多标的批量回测（绩效归因）
+    # ------------------------------------------------------------------
+    def run_param_scan(self, ticker, start, end, strategy="multi_factor",
+                       param_grid=None, keywords=None, initial_capital=100000):
+        """
+        对单一标的做参数网格扫描，返回每组参数的绩效，便于挑最优参数。
+
+        :param param_grid: dict，键为 run() 支持的参数名，值为候选列表。
+            例：{"take_profit_pct": [0.03, 0.05, 0.08], "stop_loss_pct": [0.05, 0.07]}
+        :return: list[dict]，每个元素含参数组合 + 绩效指标（total_return/sharpe/
+                 max_drawdown/win_rate/trade_count 等），按 total_return 降序。
+        """
+        if param_grid is None:
+            param_grid = {
+                "take_profit_pct": [0.03, 0.05, 0.08],
+                "stop_loss_pct": [0.05, 0.07],
+                "max_holding": [15, 30],
+            }
+        # 笛卡尔积展开
+        import itertools
+        keys = list(param_grid.keys())
+        combos = [dict(zip(keys, vals)) for vals in itertools.product(*param_grid.values())]
+
+        rows = []
+        for combo in combos:
+            try:
+                res = self.run(ticker, start, end, strategy=strategy, keywords=keywords,
+                               initial_capital=initial_capital, **combo)
+                rows.append({
+                    "params": combo,
+                    "total_return": res.total_return(),
+                    "annualized_return": res.annualized_return_pct(),
+                    "sharpe": res.sharpe_ratio(),
+                    "max_drawdown": res.max_drawdown(),
+                    "win_rate": res.win_rate(),
+                    "profit_factor": res.profit_factor(),
+                    "trade_count": res.trade_count(),
+                })
+            except Exception as e:  # 单组参数失败不影响其他组
+                logger.warning(f"[param_scan] {ticker} {combo} 失败: {e}")
+                rows.append({"params": combo, "error": str(e)})
+        rows.sort(key=lambda r: r.get("total_return", -1e9), reverse=True)
+        return rows
+
+    def run_batch(self, tickers, start, end, strategy="multi_factor",
+                  keywords=None, initial_capital=100000, max_workers=4,
+                  **run_kwargs):
+        """
+        多标的批量回测，聚合绩效归因（夏普/回撤/胜率/盈亏比/年化）。
+
+        :param tickers: 股票代码列表
+        :param max_workers: 并发数（线程池，受 site_config 共享池约束）
+        :return: dict {
+            "per_stock": {code: BacktestResult},
+            "summary": {聚合指标: 均值/中位数},
+        }
+        """
+        from .timeout_exec import run_with_timeout  # 复用共享有界池，避免线程泄漏
+        per_stock = {}
+
+        def _one(code):
+            try:
+                return code, self.run(code, start, end, strategy=strategy,
+                                      keywords=keywords, initial_capital=initial_capital,
+                                      **run_kwargs)
+            except Exception as e:
+                logger.warning(f"[batch] {code} 回测失败: {e}")
+                return code, None
+
+        # 并发执行（共享池，超时返回 None，不丢线程）
+        results = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(_one, c): c for c in tickers}
+            for fut in concurrent.futures.as_completed(futures):
+                try:
+                    code, res = fut.result(timeout=120)
+                except Exception:
+                    code, res = futures[fut], None
+                if res is not None:
+                    per_stock[code] = res
+
+        # 聚合绩效归因
+        if not per_stock:
+            return {"per_stock": {}, "summary": {}}
+
+        returns = [r.total_return() for r in per_stock.values()]
+        sharpes = [r.sharpe_ratio() for r in per_stock.values() if r.sharpe_ratio() is not None]
+        drawdowns = [r.max_drawdown() for r in per_stock.values()]
+        win_rates = [r.win_rate() for r in per_stock.values() if r.win_rate() is not None]
+        profits = [r.profit_factor() for r in per_stock.values() if r.profit_factor() is not None]
+
+        def _mean(xs):
+            return round(sum(xs) / len(xs), 4) if xs else None
+
+        summary = {
+            "stock_count": len(per_stock),
+            "avg_total_return": _mean(returns),
+            "median_total_return": round(float(pd.Series(returns).median()), 4) if returns else None,
+            "avg_sharpe": _mean(sharpes),
+            "avg_max_drawdown": _mean(drawdowns),
+            "avg_win_rate": _mean(win_rates),
+            "avg_profit_factor": _mean(profits),
+            "best_stock": max(per_stock.items(), key=lambda kv: kv[1].total_return())[0],
+            "worst_stock": min(per_stock.items(), key=lambda kv: kv[1].total_return())[0],
+        }
+        return {"per_stock": per_stock, "summary": summary}
 
     # ------------------------------------------------------------------
     # 技术指标计算

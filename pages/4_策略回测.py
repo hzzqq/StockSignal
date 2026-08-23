@@ -24,6 +24,8 @@ from modules.search_ui import stock_search_input
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _empty_info
+# P0 可插拔：策略列表从注册表动态读取（新增策略无需改页面）
+from modules.strategies import list_strategies
 
 bt = Backtester()
 
@@ -135,16 +137,15 @@ def fragment_manual_backtest():
             bt_fetcher = StockFetcher()
             bt_label = bt_fetcher.get_name_only(bt_ticker) or bt_fetcher.get_stock_name(bt_ticker)
         with col2:
+            _strategies = list_strategies()
+            _strategy_options = [s["name"] for s in _strategies]
+            _strategy_labels = {s["name"]: s["display_name"] for s in _strategies}
             strategy = st.selectbox(
                 "策略",
-                options=["multi_factor", "dual_trend", "ma_cross", "event_driven"],
-                format_func=lambda x: {
-                    "multi_factor": "趋势动量多因子（推荐）",
-                    "dual_trend": "双趋势共振 GMMA+一目（强势股）",
-                    "ma_cross": "均线交叉",
-                    "event_driven": "事件驱动",
-                }.get(x, x),
-                help="多因子：RSI 均值回归 + 趋势跟踪，胜率更优；双趋势共振：GMMA+一目均衡纯趋势跟踪，"
+                options=_strategy_options,
+                format_func=lambda x: _strategy_labels.get(x, x),
+                help="策略列表由后端策略注册表动态加载（modules/strategies/）。"
+                     "多因子：趋势为核心、动量不惩罚高 RSI；双趋势共振：GMMA+一目均衡纯趋势跟踪，"
                      "不看 RSI，专攻长电科技类长期超买的强势上涨股，建议搭配移动止损、放大止盈"
             )
         with col3:
@@ -832,8 +833,129 @@ def fragment_strong_bull():
 
 
 # ==================================================================
-# 调用三个独立模块
+# P0 可插拔增强模块：参数扫描 + 多标的批量回测（绩效归因）
+# ==================================================================
+@safe_fragment("参数扫描")
+def fragment_param_scan():
+    """对单一标的做参数网格扫描，挑最优止盈/止损/持仓组合。"""
+    st.subheader("🎛️ 参数扫描（最优参数搜索）")
+    st.caption("在固定标的上网格遍历止盈/止损/最大持仓，按累计收益排序，"
+               "帮你跳出「凭感觉设 3% 止盈」的坑。历史模拟，不构成投资建议。")
+
+    with st.form("param_scan_form"):
+        ps_ticker = st.text_input("股票代码", value="600519", key="ps_ticker",
+                                  help="如 600519 贵州茅台 / 600900 长江电力")
+        ps_start = st.date_input("起始日期", value=datetime.now() - timedelta(days=365), key="ps_start")
+        ps_end = st.date_input("截止日期", value=datetime.now(), key="ps_end")
+        # 策略从注册表动态读
+        _ps_strategies = list_strategies()
+        ps_strategy = st.selectbox("策略", options=[s["name"] for s in _ps_strategies],
+                                   format_func=lambda x: {s["name"]: s["display_name"] for s in _ps_strategies}.get(x, x),
+                                   key="ps_strategy")
+        st.caption("候选参数（可在代码 param_grid 扩展）：止盈 3/5/8%、止损 5/7%、最大持仓 15/30 日")
+        ps_submit = st.form_submit_button("🚀 运行参数扫描")
+
+    if ps_submit:
+        if not ps_ticker.strip():
+            st.warning("请输入股票代码")
+            return
+        with st.spinner("正在网格扫描参数，请稍候…"):
+            try:
+                rows = bt.run_param_scan(
+                    ps_ticker.strip(), ps_start.strftime("%Y-%m-%d"), ps_end.strftime("%Y-%m-%d"),
+                    strategy=ps_strategy, initial_capital=100000,
+                )
+                ok = [r for r in rows if "error" not in r]
+                if not ok:
+                    st.warning("所有参数组合均回测失败，请检查区间或标的。")
+                    return
+                df_rows = [{
+                    "止盈%": f"{r['params'].get('take_profit_pct', 0)*100:.1f}",
+                    "止损%": f"{r['params'].get('stop_loss_pct', 0)*100:.1f}",
+                    "最大持仓": r['params'].get('max_holding', '-'),
+                    "累计收益%": f"{r['total_return']*100:+.2f}",
+                    "年化%": f"{r['annualized_return']*100:+.2f}" if r.get('annualized_return') is not None else "-",
+                    "夏普": f"{r['sharpe']:.2f}" if r.get('sharpe') is not None else "-",
+                    "回撤%": f"{r['max_drawdown']*100:.2f}" if r.get('max_drawdown') is not None else "-",
+                    "胜率%": f"{r['win_rate']*100:.1f}" if r.get('win_rate') is not None else "-",
+                    "交易数": r['trade_count'],
+                } for r in ok]
+                df_ps = pd.DataFrame(df_rows)
+                st.dataframe(df_ps, use_container_width=True, hide_index=True)
+                best = ok[0]
+                st.success(f"🏆 最优组合：止盈 {best['params'].get('take_profit_pct',0)*100:.1f}% / "
+                           f"止损 {best['params'].get('stop_loss_pct',0)*100:.1f}% / "
+                           f"持仓 {best['params'].get('max_holding','-')}日 → "
+                           f"累计 {best['total_return']*100:+.2f}%，夏普 {best.get('sharpe')}")
+            except Exception as e:
+                st.error(f"参数扫描失败：{e}")
+
+
+@safe_fragment("多标的批量回测")
+def fragment_batch_backtest():
+    """任意多标的批量回测，聚合绩效归因（夏普/回撤/胜率/盈亏比）。"""
+    st.subheader("📊 多标的批量回测（绩效归因）")
+    st.caption("一次跑多只股票，自动聚合平均收益/夏普/回撤/胜率/盈亏比，并标出最佳/最差标的。"
+               "可直接粘贴代码清单（逗号或换行分隔）。历史模拟，不构成投资建议。")
+
+    with st.form("batch_form"):
+        bt_codes = st.text_area("股票代码清单", value="600900,600519,000858,300750,601012",
+                                key="batch_codes", height=90,
+                                help="逗号或换行分隔，如 600900,600519")
+        bt_start = st.date_input("起始日期", value=datetime.now() - timedelta(days=365), key="batch_start")
+        bt_end = st.date_input("截止日期", value=datetime.now(), key="batch_end")
+        _bt_strategies = list_strategies()
+        bt_strategy = st.selectbox("策略", options=[s["name"] for s in _bt_strategies],
+                                   format_func=lambda x: {s["name"]: s["display_name"] for s in _bt_strategies}.get(x, x),
+                                   key="batch_strategy")
+        bt_submit = st.form_submit_button("🚀 运行批量回测")
+
+    if bt_submit:
+        codes = [c.strip() for c in bt_codes.replace("\n", ",").split(",") if c.strip()]
+        if len(codes) < 2:
+            st.warning("请至少输入 2 只股票代码")
+            return
+        with st.spinner(f"正在对 {len(codes)} 只股票并发回测…"):
+            try:
+                out = bt.run_batch(codes, bt_start.strftime("%Y-%m-%d"), bt_end.strftime("%Y-%m-%d"),
+                                   strategy=bt_strategy, initial_capital=100000, max_workers=4)
+                summary = out["summary"]
+                if not summary:
+                    st.warning("批量回测无有效结果，请检查代码或区间。")
+                    return
+                # 聚合摘要
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("标的数", summary["stock_count"])
+                col2.metric("平均累计收益", f"{summary['avg_total_return']*100:+.2f}%")
+                col3.metric("平均夏普", f"{summary['avg_sharpe']:.2f}" if summary.get('avg_sharpe') else "-")
+                col4.metric("平均回撤", f"{summary['avg_max_drawdown']*100:.2f}%" if summary.get('avg_max_drawdown') is not None else "-")
+                st.caption(f"平均胜率 {summary.get('avg_win_rate')} · 平均盈亏比 {summary.get('avg_profit_factor')} · "
+                           f"🏆最佳 {summary['best_stock']} · 🔻最差 {summary['worst_stock']}")
+
+                # 逐股明细表
+                detail = []
+                for code, res in out["per_stock"].items():
+                    detail.append({
+                        "代码": code,
+                        "累计收益%": f"{res.total_return()*100:+.2f}",
+                        "年化%": f"{res.annualized_return_pct()*100:+.2f}" if res.annualized_return_pct() is not None else "-",
+                        "夏普": f"{res.sharpe_ratio():.2f}" if res.sharpe_ratio() is not None else "-",
+                        "回撤%": f"{res.max_drawdown()*100:.2f}" if res.max_drawdown() is not None else "-",
+                        "胜率%": f"{res.win_rate()*100:.1f}" if res.win_rate() is not None else "-",
+                        "盈亏比": f"{res.profit_factor():.2f}" if res.profit_factor() is not None else "-",
+                        "交易数": res.trade_count(),
+                    })
+                df_detail = pd.DataFrame(detail).sort_values("累计收益%", ascending=False)
+                st.dataframe(df_detail, use_container_width=True, hide_index=True)
+            except Exception as e:
+                st.error(f"批量回测失败：{e}")
+
+
+# ==================================================================
+# 调用所有独立模块
 # ==================================================================
 fragment_manual_backtest()
 fragment_daily_picker()
 fragment_strong_bull()
+fragment_param_scan()
+fragment_batch_backtest()
