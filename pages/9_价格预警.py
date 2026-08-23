@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 import logging
 logger = logging.getLogger(__name__)
 from modules.page_utils import render_standard_page, get_fetcher
+import modules.scroll_nav as sn
 from modules.session import api_get, api_post, api_put, api_delete, api_quote, api_kline, trading_autorefresh, safe_switch_page
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
@@ -473,4 +474,4 @@ if st.button('🧹 清空通知记录', key='alert_clear_notified', help='清除
     st.rerun()
 fragment_alerts()
 if st.button('↑ 回到顶部', key='alert_back_to_top'):
-    st.markdown("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", unsafe_allow_html=True)
+    sn.back_to_top_button()

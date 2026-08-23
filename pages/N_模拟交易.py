@@ -17,6 +17,7 @@ import os
 from datetime import datetime
 import streamlit.components.v1 as components
 from modules.page_utils import render_standard_page
+import modules.scroll_nav as sn
 from modules.session import get_user, trading_autorefresh
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, safe_fragment
@@ -339,6 +340,6 @@ def fragment_paper():
     if st.button('↑ 回到顶部', key='pt_back_top', use_container_width=True):
         st.session_state['_pt_scroll_top'] = True
     if st.session_state.get('_pt_scroll_top'):
-        st.markdown("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", unsafe_allow_html=True)
+        sn.back_to_top_button()
         st.session_state['_pt_scroll_top'] = False
 fragment_paper()

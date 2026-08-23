@@ -72,25 +72,23 @@ def test_nav_script_show_top_false_disables_top_button():
 
 
 def test_inject_scroll_nav_calls_markdown_and_html(monkeypatch):
-    md_called = {}
     html_cap = {}
-
-    def fake_markdown(*a, **k):
-        md_called["yes"] = True
 
     def fake_html(script, height=0, **k):
         html_cap["script"] = script
 
-    monkeypatch.setattr(st, "markdown", fake_markdown)
     monkeypatch.setattr(components, "html", fake_html)
 
     sn.inject_scroll_nav(show_top=True, dark=True, bottom_marker="stChatInput")
 
-    assert md_called.get("yes"), "未注入 CSS"
-    assert "<script>" in html_cap["script"]
+    assert "script" in html_cap, "未通过 components.html 注入"
+    payload = html_cap["script"]
+    # CSS 与 JS 合并为单次注入（修复前曾拆分两次 markdown，bare mode 下 no-op）
+    assert ".sf-scroll-top" in payload, "CSS 未注入"
+    assert "<script>" in payload, "导航 JS 未注入"
     # 注入脚本内占位符已完全替换
     for ph in PLACEHOLDERS:
-        assert ph not in html_cap["script"]
+        assert ph not in payload
 
 
 def test_scroll_bottom_inline_html():
@@ -151,7 +149,7 @@ def test_nav_script_escapes_malicious_marker():
     - JS 字符串比较上下文：json.dumps 转义，引号被编码为 \\\"，脚本仍合法；
     - CSS 选择器上下文：双引号转义为 \\\"，选择器不提前闭合。
     """
-    evil = 'x"y\z'
+    evil = 'x"y\\z'
     body = sn._nav_script(
         dark=True, threshold_px=300, bottom_threshold=150,
         show_top=False, show_bottom=True, bottom_marker=evil,
@@ -161,3 +159,32 @@ def test_nav_script_escapes_malicious_marker():
     assert 'x"y' not in body
     # CSS 选择器上下文：转义双引号
     assert '[data-testid="x\\"y\\z"]' in body
+
+
+def test_back_to_top_button_injects_components_html(monkeypatch):
+    """回归：回到顶部按钮必须走 components.html（st.markdown 注入 <script> 会被过滤，点击无反应）。"""
+    cap = {}
+
+    def fake_html(script, height=0, **kw):
+        cap["script"] = script
+        cap["height"] = height
+
+    monkeypatch.setattr(components, "html", fake_html)
+    sn.back_to_top_button(label="↑ 回到顶部")
+    assert "script" in cap, "未通过 components.html 注入"
+    s = cap["script"]
+    assert "window.parent" in s or "window.scrollTo" in s, "滚动必须作用在父窗口"
+    assert "scrollTo" in s
+    assert "回到顶部" in s, "label 透传"
+
+
+def test_back_to_top_button_custom_label(monkeypatch):
+    cap = {}
+
+    def fake_html(script, height=0, **kw):
+        cap["script"] = script
+
+    monkeypatch.setattr(components, "html", fake_html)
+    sn.back_to_top_button(label="回顶", use_container_width=False)
+    assert "回顶" in cap["script"]
+    assert "width:100%" not in cap["script"]

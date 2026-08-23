@@ -6,12 +6,12 @@
 
 import numpy as np
 import pandas as pd
-import concurrent.futures
 
 from .fetcher import StockFetcher
 from .cleaner import DataCleaner
 from .signal import SignalEngine
 from .strategies import STRATEGY_REGISTRY, get_strategy
+from .site_config import CALL_TIMEOUT_CAP
 
 import logging
 
@@ -137,29 +137,21 @@ class Backtester:
             "summary": {聚合指标: 均值/中位数},
         }
         """
-        from .timeout_exec import run_with_timeout  # 复用共享有界池，避免线程泄漏
-        per_stock = {}
+        from .fetch_parallel import fetch_many  # 共享池 + 整批超时，杜绝线程泄漏/卡死
 
         def _one(code):
             try:
-                return code, self.run(code, start, end, strategy=strategy,
-                                      keywords=keywords, initial_capital=initial_capital,
-                                      **run_kwargs)
+                return self.run(code, start, end, strategy=strategy,
+                                keywords=keywords, initial_capital=initial_capital,
+                                **run_kwargs)
             except Exception as e:
                 logger.warning(f"[batch] {code} 回测失败: {e}")
-                return code, None
+                return None
 
-        # 并发执行（共享池，超时返回 None，不丢线程）
-        results = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
-            futures = {ex.submit(_one, c): c for c in tickers}
-            for fut in concurrent.futures.as_completed(futures):
-                try:
-                    code, res = fut.result(timeout=120)
-                except Exception:
-                    code, res = futures[fut], None
-                if res is not None:
-                    per_stock[code] = res
+        tasks = [(c, (lambda c=c: _one(c))) for c in tickers]
+        # 整批硬边界 120s：单个标的网络阻塞不会拖垮整个批量（as_completed 超时即截断）
+        out = fetch_many(tasks, max_workers=max_workers, timeout=120)
+        per_stock = {c: res for c, res in out.items() if res is not None}
 
         # 聚合绩效归因
         if not per_stock:
@@ -1142,18 +1134,15 @@ class Backtester:
         if not codes:
             raise RuntimeError("无法获取股票池，请检查本地股票库是否已初始化。")
 
-        # 并行获取股票数据并评分
+        # 并行获取股票数据并评分（共享有界池 + 整批超时，避免单标的网络阻塞拖垮整体）
         all_scores = []
         logger.info(f"[DailyPicker] 开始获取 {len(codes)} 只股票数据...")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(self._fetch_single_for_picker, code, fetch_start, fetch_end): code
-                for code in codes
-            }
-            for future in concurrent.futures.as_completed(futures):
-                res = future.result()
-                if res is not None:
-                    all_scores.append(res)
+        from .fetch_parallel import fetch_many
+        tasks = [(code, (lambda c=code: self._fetch_single_for_picker(c, fetch_start, fetch_end))) for code in codes]
+        out = fetch_many(tasks, max_workers=max_workers, timeout=CALL_TIMEOUT_CAP)
+        for res in out.values():
+            if res is not None:
+                all_scores.append(res)
         logger.info(f"[DailyPicker] 成功评分 {len(all_scores)} 只股票")
 
         if not all_scores:

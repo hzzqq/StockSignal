@@ -71,9 +71,17 @@ def inject_scroll_nav(show_top: bool=True, show_bottom: bool=False, threshold_px
       bottom_threshold -- ▼ 显隐阈值：距底大于此值才显现
       dark             -- 是否暗色（影响 ▼ 配色）
       bottom_marker    -- 非空时，顶层文档存在该 id 标记元素即启用 ▼（用于星辰 AI 对话页）
+
+    实现：CSS + JS 合并为**一次** components.html 注入。
+    关键约束（见模块 docstring）：Streamlit 对 st.markdown 内的 <script> 会过滤、
+    且多次 components.html 仅首次可靠执行；故必须合并单次注入。
     """
-    st.markdown(SCROLL_NAV_CSS, unsafe_allow_html=True)
-    st.markdown(_nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom, bottom_marker), unsafe_allow_html=True)
+    payload = SCROLL_NAV_CSS + "\n" + _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom, bottom_marker)
+    try:
+        components.html(payload, height=0)
+    except Exception as e:  # bare mode / 无 ScriptRunContext 时降级为 markdown，避免抛错
+        logger.warning(f'[scroll_nav] 注入异常，降级 markdown: {e}')
+        st.markdown(payload, unsafe_allow_html=True)
 
 def scroll_bottom_inline_html(dark: bool=False) -> str:
     """弹层（星辰 AI popover）内嵌 ▼ 按钮 HTML（居中于输入栏上方，点击滚动聊天框到底）。"""
@@ -91,5 +99,30 @@ def scroll_inline_button(direction='down', label=None):
 def chat_bottom_anchor():
     """消息流底部锚点元素（辅助定位）。"""
     return '<div id="sf-chat-end" style="height:1px"></div>'
+
+
+def back_to_top_button(label: str = "↑ 回到顶部", use_container_width: bool = True) -> None:
+    """渲染一个【真实可点击】的「回到顶部」按钮。
+
+    关键：原先各页用 ``st.markdown("<script>window.scrollTo(...)</script>")``，
+    Streamlit 会过滤 markdown 内的 <script> 标签，导致按钮【点击无反应】。
+    本函数改用 components.html 注入真实 <button>，且滚动作用在 window.parent
+    （Streamlit 1.58 客户端路由下页面文档在父窗口），确保点击真正滚到顶部。
+
+    use_container_width 仅影响占位宽度提示，组件本身自适应。
+    """
+    width = "width:100%" if use_container_width else "width:auto"
+    btn = (
+        f'<button id="sfBackToTopBtn" onclick="(window.parent||window).scrollTo({{top:0,behavior:\'smooth\'}})" '
+        f'style="{width};padding:0.5rem 1rem;border:none;border-radius:8px;cursor:pointer;'
+        f'background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:0.95rem;'
+        f'box-shadow:0 2px 8px rgba(102,126,234,.35)">'
+        f'{label}</button>'
+    )
+    try:
+        components.html(btn, height=44)
+    except Exception as e:
+        logger.warning(f'[scroll_nav] back_to_top_button 注入异常: {e}')
+        st.button(label, on_click=lambda: None, use_container_width=use_container_width)
 if __name__ == '__main__':
     logger.info('scroll_nav v2 OK')

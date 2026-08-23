@@ -12,6 +12,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 from modules.session import api_get, safe_switch_page, clear_auth, api_delete, api_junk_stocks, api_remove_junk_stock, api_user_score, api_save_user_score, get_token, API_BASE, _rel_time
+import modules.scroll_nav as sn
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
@@ -492,4 +493,4 @@ for _i, (_c, _n) in enumerate(_c_rec):
             st.session_state['pick_stock_query'] = _c
             safe_switch_page('pages/个股研究.py')
 if st.button('↑ 回到顶部', key='wl_back_to_top'):
-    st.markdown("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", unsafe_allow_html=True)
+    sn.back_to_top_button()

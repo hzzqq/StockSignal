@@ -23,6 +23,7 @@ from modules.format_helpers import safe_html_text
 from modules.stock_analysis_helpers import RED, GREEN, AMBER, _sentiment_tag, _tp_cls, _score_ring_html, _battle_plan_scale, _build_risk_iron_rules, _risk_iron_html, _build_plan_rows, _section_header, _build_rise_fall_factors, _factor_list_html, _build_logic_lists, _logic_list_html
 fetcher = get_fetcher()
 from modules.widgets import sidebar_target
+import modules.scroll_nav as sn
 with sidebar_target():
     st.header('分析目标')
     ticker = stock_search_input(label='股票搜索', key='analysis_stock', default='600519', placeholder='输入代码或名称搜索，如：600519 / 贵州茅台 / GZMT / 茅台')
@@ -758,4 +759,4 @@ st.markdown('---')
 st.page_link('pages/E_基本面分析.py', label='→ 去 基本面分析（估值/业绩/行业对比）', icon='🏛️')
 st.page_link('pages/个股研究.py', label='→ 去 个股研究（K线与技术面）', icon='📈')
 if st.button('↑ 回到顶部', key='analysis_back_to_top', use_container_width=True):
-    st.markdown("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", unsafe_allow_html=True)
+    sn.back_to_top_button()

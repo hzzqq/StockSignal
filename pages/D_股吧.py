@@ -17,6 +17,7 @@ from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
 from modules.format_helpers import safe_int, safe_html_text
+import modules.scroll_nav as sn
 
 render_standard_page(
     title="股吧 · 社区讨论", icon="💬",
@@ -459,9 +460,7 @@ def fragment_list():
 fragment_detail()
 fragment_list()
 
-# 快捷回到顶部（#Batch18-6）：长列表滚动后一键回顶，由 session_state 触发 JS 滚动
+# 快捷回到顶部（#Batch18-6）：长列表滚动后一键回顶。
+# 原 st.markdown 注入 <script> 会被 Streamlit 过滤导致点击无效，改用 components.html（#MCP-2026）。
 if st.button("↑ 回到顶部", key="forum_back_to_top"):
-    st.session_state["_forum_scroll_top"] = True
-if st.session_state.get("_forum_scroll_top"):
-    st.markdown("<script>window.scrollTo(0,0);</script>", unsafe_allow_html=True)
-    st.session_state["_forum_scroll_top"] = False
+    sn.back_to_top_button()

@@ -10,6 +10,7 @@ import pandas as pd
 from datetime import date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from modules.session import api_get, safe_switch_page
+import modules.scroll_nav as sn
 from modules.news import NewsFetcher
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
@@ -361,4 +362,4 @@ for _i, (_c, _n) in enumerate(_rec_codes):
             st.session_state['pick_stock_query'] = _c
             safe_switch_page('pages/个股研究.py')
 if st.button('↑ 回到顶部', key='morning_back_to_top'):
-    st.markdown("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", unsafe_allow_html=True)
+    sn.back_to_top_button()

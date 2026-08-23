@@ -41,6 +41,7 @@ def _save_pm_pref(k, v):
         pass
 from modules.portfolio import PortfolioManager
 from modules.search_ui import stock_search_input
+import modules.scroll_nav as sn
 from modules.fetcher import StockFetcher
 from modules.session import api_quote, api_kline
 from modules.page_widgets import _empty_info, _toast
@@ -486,7 +487,5 @@ else:
     st.info('请先添加持仓记录。')
 st.divider()
 if st.button('↑ 回到顶部', key='cang_mgr_top', use_container_width=True):
-    st.session_state['_mgr_scroll_top'] = True
-if st.session_state.get('_mgr_scroll_top'):
-    st.markdown("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", unsafe_allow_html=True)
+    sn.back_to_top_button()
     st.session_state['_mgr_scroll_top'] = False

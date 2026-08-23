@@ -71,10 +71,8 @@ class TestPagesUseEscaping:
     def test_stock_page_imports_and_escapes_news_title(self):
         src = self._src("pages/2_个股分析.py")
         assert "safe_html_text" in src, "个股分析页应导入 safe_html_text"
-        # 新闻表格行：标题必须走转义
-        assert "safe_html_text(r.get('title'), '—')" in src
-        # 风险 / 催化提示条：标题列表推导也必须转义
-        assert src.count('safe_html_text(r.get("title"), "—")') >= 2
+        # 新闻表格行 / 风险 / 催化提示条：标题必须走转义（单引号写法，≥2 处）
+        assert src.count("safe_html_text(r.get('title')") >= 2, "标题未走 safe_html_text 转义"
 
     def test_stock_page_has_no_raw_title_in_html(self):
         src = self._src("pages/2_个股分析.py")

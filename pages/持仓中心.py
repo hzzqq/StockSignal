@@ -12,6 +12,7 @@ import os
 import streamlit as st
 import streamlit.components.v1 as components
 from modules.page_utils import render_standard_page
+import modules.scroll_nav as sn
 render_standard_page(title='持仓中心', icon='💼', caption='⚠️ 持仓中心为模拟/历史数据聚合视图，仅供学习，不构成投资建议。')
 _HERE = os.path.dirname(__file__)
 _SUBPAGES = {'⭐ 自选池': os.path.join(_HERE, 'C_自选股监控.py'), '💼 持仓': os.path.join(_HERE, '5_仓位管理.py'), '📈 收益归因': os.path.join(_HERE, 'H_组合收益.py')}
@@ -86,7 +87,7 @@ st.divider()
 if st.button('↑ 回到顶部', key='hub_top', use_container_width=True):
     st.session_state['_hub_scroll_top'] = True
 if st.session_state.get('_hub_scroll_top'):
-    st.markdown("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", unsafe_allow_html=True)
+    sn.back_to_top_button()
     st.session_state['_hub_scroll_top'] = False
 with st.expander('⌨️ 快捷键'):
     st.markdown('- `🔄 刷新`：点击顶部「🔄 刷新」按钮重载当前合并页全部子视图')

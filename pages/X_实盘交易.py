@@ -16,6 +16,7 @@ import json
 from datetime import datetime, timedelta
 import streamlit as st
 from modules.page_utils import render_standard_page
+import modules.scroll_nav as sn
 from modules.session import api_get, api_post, api_put, trading_autorefresh
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
@@ -238,4 +239,4 @@ fragment_positions()
 st.divider()
 fragment_orders()
 if st.button('↑ 回到顶部', key='trade_back_to_top'):
-    st.markdown("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", unsafe_allow_html=True)
+    sn.back_to_top_button()

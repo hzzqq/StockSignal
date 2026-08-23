@@ -16,6 +16,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 from modules.session import safe_switch_page, trading_autorefresh
+import modules.scroll_nav as sn
 from modules.search_ui import stock_search_input
 from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules import fundflow as ff
@@ -605,6 +606,6 @@ if code:
         st.page_link('pages/个股研究.py', label='→ 去 个股研究（K线与技术面）', icon='📈')
     st.caption('⚠️ 风险提示：本页所有数据及分析均由程序基于公开数据自动计算，仅供参考，不构成任何投资建议。市场有风险，投资需谨慎。')
     if st.button('↑ 回到顶部', key='fa_back_to_top', use_container_width=True):
-        st.markdown("<script>window.scrollTo({top:0,behavior:'smooth'});</script>", unsafe_allow_html=True)
+        sn.back_to_top_button()
 else:
     st.info('请在上方输入代码或名称选择一只股票开始分析（也可从「🎯 个股研究 / 📡 股票选取」跳转过来）。数据仅供参考，非投资建议。')
