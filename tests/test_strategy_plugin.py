@@ -195,3 +195,51 @@ class TestBacktesterPluggable:
             assert s["avg_total_return"] is not None
         finally:
             bt.run = orig_run
+
+
+class TestPickerMultiStrategy:
+    """P1：选股池多策略化（dual_trend 进每日选股）。"""
+
+    @staticmethod
+    def _strong_uptrend_picker_df(seed=11):
+        np.random.seed(seed)
+        n = 120
+        close = 10 * np.power(1.003, np.arange(n)) + np.random.normal(0, 0.03, n)
+        close = np.maximum(close, 1.0)
+        open_ = np.concatenate([[close[0] * 0.99], close[:-1]])
+        high = np.maximum(open_, close) * 1.02
+        low = np.minimum(open_, close) * 0.98
+        volume = np.random.randint(8e5, 2e6, n).astype(float)
+        return pd.DataFrame({
+            "date": pd.date_range("2025-01-01", periods=n, freq="B"),
+            "code": ["600584"] * n,
+            "open": open_, "high": high, "low": low, "close": close, "volume": volume,
+        })
+
+    def test_dual_trend_picker_scores_strong_uptrend(self):
+        """双趋势选股对长期强势上涨股应产出候选（不看 RSI 低位）。"""
+        from modules.backtest import Backtester
+        bt = Backtester()
+        df = self._strong_uptrend_picker_df()
+        cand = bt._score_for_picker(df, strategy="dual_trend")
+        assert cand is not None, "双趋势选股未产出候选"
+        assert cand["trend_ok"] is True
+        assert "ADX" in cand["reasons"] or "均线多头排列" in cand["reasons"]
+
+    def test_multi_factor_picker_still_works(self):
+        """多因子选股对同数据仍正常（RSI>80 但 <92 应入选，V5 修复保持）。"""
+        from modules.backtest import Backtester
+        bt = Backtester()
+        df = self._strong_uptrend_picker_df()
+        cand = bt._score_for_picker(df, strategy="multi_factor")
+        assert cand is not None, "多因子选股未产出候选"
+        assert cand["rsi14"] > 80
+
+    def test_daily_picker_backtest_accepts_strategy(self):
+        """daily_picker_backtest 应接受 strategy 参数且不崩（合成小池）。"""
+        from modules.backtest import Backtester
+        bt = Backtester()
+        # 用 _score_for_picker 直接验证透传路径已覆盖；此处仅确认签名兼容
+        import inspect
+        sig = inspect.signature(bt.daily_picker_backtest)
+        assert "strategy" in sig.parameters

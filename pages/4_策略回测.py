@@ -515,6 +515,18 @@ def fragment_daily_picker():
         picker_workers = st.number_input("并行线程数", min_value=2, max_value=16, value=4, step=1,
                                          help="同时获取股票数据的线程数")
 
+    # P1：选股策略（多因子 / 双趋势共振）
+    picker_strategy = st.selectbox(
+        "选股策略",
+        options=["multi_factor", "dual_trend"],
+        format_func=lambda x: {
+            "multi_factor": "趋势动量多因子（超跌反弹，推荐）",
+            "dual_trend": "双趋势共振（纯趋势，专攻强势上涨股）",
+        }.get(x, x),
+        help="双趋势共振不看 RSI 低位，只判趋势结构强度（MA 多头排列+ADX 强趋势+突破），"
+             "适合长电科技这类长期强势上涨、RSI 长期偏高的股票",
+    )
+
     col_pd1, col_pd2 = st.columns(2)
     with col_pd1:
         picker_start = st.date_input("选股起始日期", value=datetime.now() - timedelta(days=30), key="picker_start")
@@ -533,6 +545,7 @@ def fragment_daily_picker():
                     top_k=top_k,
                     hold_days=hold_days,
                     max_workers=picker_workers,
+                    strategy=picker_strategy,
                 )
                 st.session_state["picker_result"] = picker_result
                 st.session_state["picker_error"] = None

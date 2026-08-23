@@ -653,23 +653,17 @@ class Backtester:
     # ------------------------------------------------------------------
     # 每日选股回测（从 A 股中挑选今天/明天推荐购买的股票）
     # ------------------------------------------------------------------
-    def _score_for_picker(self, df):
+    def _score_for_picker(self, df, strategy="multi_factor"):
         """
         为每日选股计算单只股票的买入评分（V2 — 多日趋势确认版）。
 
-        V2 升级（相对 V1 只看最新一天快照）：
-        - 趋势确认周期：RSI(2) 连续 N 天处于低位才算真正超卖（避免单日抖动）
-        - 多日评分平滑：取近 5 天评分的加权平均（越近权重越高）
-        - 智能卖出预测：基于 multi_factor 策略退出条件预判持仓周期
-        - 均线趋势持续性：不只看当日位置，还看均线斜率变化方向
-
-        评分维度：
-        - 趋势分（40）：close > MA20 > MA60 + 均线向上 + 趋势持续确认
-        - 超跌分（35）：RSI(2) 连续低位（多日加权）
-        - 健康分（15）：RSI(14) 在健康区间 + 近期未超买
-        - 量能分（10）：放量 + 量价配合
+        支持多策略选股（P1 增强）：
+        - strategy="multi_factor"（默认）：多因子超跌反弹评分（RSI 均值回归 + 趋势）
+        - strategy="dual_trend"：双趋势共振纯趋势强度评分（GMMA 多头 + ADX 强趋势 +
+          价格突破 + 量能配合，不依赖 RSI 低位，专攻长电科技类长期强势上涨股）
 
         :param df: 行情 DataFrame（需 >= 90 个交易日数据，用于多日分析）
+        :param strategy: 选股策略，可选 multi_factor / dual_trend
         :return: dict 或 None（不满足条件时返回 None）
         """
         if df is None or len(df) < 90:
@@ -681,6 +675,10 @@ class Backtester:
             return None
         df = DataCleaner.full_pipeline(df)
         df = self._add_indicators(df)
+
+        if strategy == "dual_trend":
+            return self._score_dual_trend(df)
+
 
         # ── 取最近 10 天用于多日分析 ──
         recent = df.iloc[-10:].copy()
@@ -909,6 +907,124 @@ class Backtester:
             "df": df,
         }
 
+    def _score_dual_trend(self, df):
+        """
+        双趋势共振选股评分（P1 新增）。专攻长期强势上涨股（长电科技类），
+        不依赖 RSI 低位，只看趋势结构强度。
+
+        评分维度（满分 100）：
+        - 趋势结构分（45）：close>MA20>MA60 多头排列 + 均线向上 + 斜率确认
+        - 强趋势分（30）：ADX>=25 强趋势市 + ADX 上行
+        - 突破分（15）：收盘价创近 20 日新高
+        - 量能分（10）：放量配合（vol_ratio>=1.0）
+
+        退出预测：用双趋势判据（跌破 MA20 或 ADX 转弱）预估持仓周期。
+        """
+        from .strategies.dual_trend import DualTrendStrategy
+
+        latest = df.iloc[-1]
+        if pd.isna(latest.get("ma20")) or pd.isna(latest.get("ma60")):
+            return None
+        recent = df.iloc[-10:].copy()
+        dual = DualTrendStrategy()
+        _adx_series = dual._adx(df)
+        adx_now = float(_adx_series.iloc[-1]) if len(_adx_series) else None
+        adx_prev = float(dual._adx(df.iloc[:-1]).iloc[-1]) if len(df) > 1 and len(dual._adx(df.iloc[:-1])) else adx_now
+
+        score = 0
+        reasons = []
+
+        # 1) 趋势结构分（45）
+        ma20_valid = not pd.isna(latest["ma20"])
+        ma60_valid = not pd.isna(latest["ma60"])
+        close_gt_ma20 = bool(latest["close"] > latest["ma20"])
+        ma20_gt_ma60 = bool(latest["ma20"] > latest["ma60"])
+        bull_aligned = bool(ma20_valid and ma60_valid and close_gt_ma20 and ma20_gt_ma60)
+        if bull_aligned:
+            score += 35
+            reasons.append("均线多头排列")
+            if latest.get("ma20_rising", False):
+                score += 10
+                reasons.append("MA20上行")
+        elif ma20_valid and latest["close"] > latest["ma20"]:
+            score += 20
+            reasons.append("站上MA20")
+        elif ma60_valid and latest["close"] > latest["ma60"]:
+            score += 10
+            reasons.append("站上MA60")
+        else:
+            return None  # 趋势向下不参与双趋势选股
+        if latest.get("ma60_rising", False):
+            score += 5
+            reasons.append("MA60上行")
+
+        # 2) 强趋势分（30）
+        if adx_now is not None and not pd.isna(adx_now):
+            if adx_now >= 25:
+                score += 20
+                reasons.append("ADX强趋势")
+                if adx_prev is not None and not pd.isna(adx_prev) and adx_now >= adx_prev:
+                    score += 10
+                    reasons.append("ADX上行")
+            elif adx_now >= 20:
+                score += 10
+                reasons.append("ADX偏强")
+        else:
+            score += 5  # ADX 不可算时给中性分，不致命
+
+        # 3) 突破分（15）
+        lookback = df.iloc[-21:-1]["high"] if len(df) >= 21 else df["high"]
+        recent_high = lookback.max()
+        if pd.notna(recent_high) and latest["close"] >= recent_high * 0.98:
+            score += 15
+            reasons.append("创近期新高")
+        elif pd.notna(recent_high) and latest["close"] >= recent_high * 0.9:
+            score += 7
+            reasons.append("接近前高")
+
+        # 4) 量能分（10）
+        _vol_ma20 = latest.get("vol_ma20", 0)
+        _vol = latest.get("volume", 0)
+        if pd.notna(_vol_ma20) and _vol_ma20 > 0 and pd.notna(_vol):
+            vol_ratio = _vol / _vol_ma20
+        else:
+            vol_ratio = 1.0
+        if vol_ratio >= 1.5:
+            score += 10
+            reasons.append("显著放量")
+        elif vol_ratio >= 1.0:
+            score += 6
+            reasons.append("量能温和")
+        else:
+            score += 2
+
+        # 退出预测（双趋势口径）：跌破 MA20 或 ADX 转弱
+        predicted_exit = {"signal": "hold", "reason": "趋势完好持有", "days": 5}
+        if ma20_valid and latest["close"] < latest["ma20"] * 1.005:
+            predicted_exit = {"signal": "sell", "reason": "跌破MA20趋势走坏", "days": 1}
+        elif adx_now is not None and not pd.isna(adx_now) and adx_prev is not None \
+                and not pd.isna(adx_prev) and adx_now < adx_prev - 3:
+            predicted_exit = {"signal": "sell", "reason": "ADX转弱", "days": 2}
+
+        return {
+            "code": latest.get("code", ""),
+            "date": latest["date"],
+            "close": latest["close"],
+            "score": round(score, 1),
+            "raw_score": round(score, 1),
+            "smoothed_score": round(score, 1),
+            "rsi2": round(float(latest.get("rsi2", 50)), 1),
+            "rsi14": round(float(latest.get("rsi14", 50)), 1),
+            "trend_ok": bull_aligned,
+            "trend_persistence": round(float((recent["close"] > recent["ma20"]).mean()), 2)
+                            if ma20_valid else 0.0,
+            "consecutive_low_days": 0,
+            "vol_ratio": round(float(vol_ratio), 2),
+            "reasons": ",".join(reasons),
+            "predicted_exit": predicted_exit,
+            "df": df,
+        }
+
     def _predict_exit_signal(self, df, look_ahead=10):
         """
         预测智能卖出信号。
@@ -996,7 +1112,7 @@ class Backtester:
 
     def daily_picker_backtest(self, start, end, stock_pool_size=200, top_k=10,
                               hold_days=1, min_score=40, max_workers=8,
-                              use_smart_exit=True):
+                              use_smart_exit=True, strategy="multi_factor"):
         """
         每日选股回测 V2（支持智能卖出信号）。
 
@@ -1061,77 +1177,92 @@ class Backtester:
                 if row.empty or len(row) < 10:  # 至少需要 10 天数据做多日分析
                     continue
                 latest = row.iloc[-1]
-                if pd.isna(latest["rsi14"]) or pd.isna(latest["rsi2"]):
-                    continue
 
-                # ── V3 多日评分（与 _score_for_picker 逻辑一致）──
-                recent_10 = row.iloc[-10:] if len(row) >= 10 else row
-                score = 0
-                reasons = []
+                # ═══ 策略分发：评分计算 ═══
+                if strategy == "dual_trend":
+                    # 双趋势共振：复用 _score_dual_trend，不依赖 RSI 低位
+                    cand = self._score_dual_trend(row)
+                    if cand is None:
+                        continue
+                    score = cand["score"]
+                    reasons = [cand["reasons"]]
+                    trend_persist = cand["trend_persistence"]
+                    rsi2 = cand["rsi2"]
+                    rsi14 = cand["rsi14"]
+                    cons_low = 0
+                else:
+                    # 多因子超跌反弹（原 V3 逻辑）
+                    if pd.isna(latest["rsi14"]) or pd.isna(latest["rsi2"]):
+                        continue
 
-                # 1) 趋势分（分级，不再一刀切；MA20 为核心，MA60 为加分项）
-                trend_score = 0
-                l_ma20_valid = not pd.isna(latest["ma20"])
-                l_ma60_valid = not pd.isna(latest["ma60"])
-                if l_ma20_valid and latest["close"] > latest["ma20"]:
-                    trend_score = 25
-                    if latest.get("ma20_rising", False):
-                        trend_score += 10
-                    if l_ma60_valid and latest["ma20"] > latest["ma60"]:
-                        trend_score += 10
-                    if l_ma60_valid and latest["close"] > latest["ma60"]:
+                    # ── V3 多日评分（与 _score_for_picker 逻辑一致）──
+                    recent_10 = row.iloc[-10:] if len(row) >= 10 else row
+                    score = 0
+                    reasons = []
+
+                    # 1) 趋势分（分级，不再一刀切；MA20 为核心，MA60 为加分项）
+                    trend_score = 0
+                    l_ma20_valid = not pd.isna(latest["ma20"])
+                    l_ma60_valid = not pd.isna(latest["ma60"])
+                    if l_ma20_valid and latest["close"] > latest["ma20"]:
+                        trend_score = 25
+                        if latest.get("ma20_rising", False):
+                            trend_score += 10
+                        if l_ma60_valid and latest["ma20"] > latest["ma60"]:
+                            trend_score += 10
+                        if l_ma60_valid and latest["close"] > latest["ma60"]:
+                            trend_score += 5
+                    elif l_ma60_valid and latest["close"] > latest["ma60"]:
+                        trend_score = 15
+                    if latest.get("ma60_rising", False):
                         trend_score += 5
-                elif l_ma60_valid and latest["close"] > latest["ma60"]:
-                    trend_score = 15
-                if latest.get("ma60_rising", False):
-                    trend_score += 5
-                trend_score = min(trend_score, 50)
-                if trend_score >= 35:
-                    reasons.append("强趋势")
-                elif trend_score >= 20:
-                    reasons.append("短期趋势")
-                score += trend_score
+                    trend_score = min(trend_score, 50)
+                    if trend_score >= 35:
+                        reasons.append("强趋势")
+                    elif trend_score >= 20:
+                        reasons.append("短期趋势")
+                    score += trend_score
 
-                recent_above_ma20 = (recent_10["close"] > recent_10["ma20"]).sum()
-                trend_persist = min(recent_above_ma20 / min(len(recent_10), 5), 1.0)
-                if trend_persist >= 0.9:
-                    reasons[-1] = reasons[-1] + "(持续)"
+                    recent_above_ma20 = (recent_10["close"] > recent_10["ma20"]).sum()
+                    trend_persist = min(recent_above_ma20 / min(len(recent_10), 5), 1.0)
+                    if trend_persist >= 0.9:
+                        reasons[-1] = reasons[-1] + "(持续)"
 
-                # 2) 超跌分（保留，作为加分项）
-                rsi2 = latest["rsi2"]
-                rsi2_arr = recent_10["rsi2"].dropna().values[::-1]
-                cons_low = 0
-                for v in rsi2_arr:
-                    if v < 15: cons_low += 1
-                    else: break
+                    # 2) 超跌分（保留，作为加分项）
+                    rsi2 = latest["rsi2"]
+                    rsi2_arr = recent_10["rsi2"].dropna().values[::-1]
+                    cons_low = 0
+                    for v in rsi2_arr:
+                        if v < 15: cons_low += 1
+                        else: break
 
-                if rsi2 < 5: score += 35; reasons.append("RSI2极弱")
-                elif rsi2 < 10: score += 30; reasons.append("RSI2超卖")
-                elif rsi2 < 15: score += 20; reasons.append("RSI2偏弱")
-                elif rsi2 < 25: score += 10; reasons.append("RSI2偏低")
-                score += max(0, min(cons_low - 1, 5)) * 1.0
+                    if rsi2 < 5: score += 35; reasons.append("RSI2极弱")
+                    elif rsi2 < 10: score += 30; reasons.append("RSI2超卖")
+                    elif rsi2 < 15: score += 20; reasons.append("RSI2偏弱")
+                    elif rsi2 < 25: score += 10; reasons.append("RSI2偏低")
+                    score += max(0, min(cons_low - 1, 5)) * 1.0
 
-                # 3) 健康分
-                rsi14 = latest["rsi14"]
-                h_score = 0
-                if 40 <= rsi14 <= 70: h_score = 20; reasons.append("RSI14健康")
-                elif 30 <= rsi14 < 40: h_score = 15; reasons.append("RSI14回踩")
-                elif 60 < rsi14 <= 80: h_score = 12; reasons.append("RSI14强势")
-                elif 25 <= rsi14 < 30: h_score = 8; reasons.append("RSI14偏低")
-                if (recent_10["rsi14"] > 80).sum() >= 2:
-                    h_score = max(0, h_score - 5)
-                score += h_score
+                    # 3) 健康分
+                    rsi14 = latest["rsi14"]
+                    h_score = 0
+                    if 40 <= rsi14 <= 70: h_score = 20; reasons.append("RSI14健康")
+                    elif 30 <= rsi14 < 40: h_score = 15; reasons.append("RSI14回踩")
+                    elif 60 < rsi14 <= 80: h_score = 12; reasons.append("RSI14强势")
+                    elif 25 <= rsi14 < 30: h_score = 8; reasons.append("RSI14偏低")
+                    if (recent_10["rsi14"] > 80).sum() >= 2:
+                        h_score = max(0, h_score - 5)
+                    score += h_score
 
-                # 4) 量能分
-                vol_r = latest["volume"] / latest["vol_ma20"] if latest.get("vol_ma20", 0) > 0 else 1.0
-                if vol_r >= 1.5: score += 15; reasons.append("显著放量")
-                elif vol_r >= 1.2: score += 10; reasons.append("放量")
-                elif vol_r >= 0.8: score += 6; reasons.append("量能温和")
+                    # 4) 量能分
+                    vol_r = latest["volume"] / latest["vol_ma20"] if latest.get("vol_ma20", 0) > 0 else 1.0
+                    if vol_r >= 1.5: score += 15; reasons.append("显著放量")
+                    elif vol_r >= 1.2: score += 10; reasons.append("放量")
+                    elif vol_r >= 0.8: score += 6; reasons.append("量能温和")
 
-                # 过滤条件（兼容 MA60 缺失）
-                price_above_trend = (not l_ma20_valid) or (latest["close"] > latest["ma20"])
-                if not price_above_trend or rsi14 > 80 or score < min_score:
-                    continue
+                    # 过滤条件（兼容 MA60 缺失）
+                    price_above_trend = (not l_ma20_valid) or (latest["close"] > latest["ma20"])
+                    if not price_above_trend or rsi14 > 80 or score < min_score:
+                        continue
 
                 # ═══ 智能卖出信号预测（替代固定 hold_days）═══
                 future_rows = df_code[df_code["date"] > trade_date]
