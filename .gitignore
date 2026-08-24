@@ -39,3 +39,9 @@ deploy_preview/
 # 本地页面冒烟测试报告（分批产物，本机生成，不入库）
 tests/.pages_smoke_report*.json
 
+# 覆盖率产物（观测模式本地产，不入库）
+.coverage
+.coverage.*
+.coverage.json
+htmlcov/
+

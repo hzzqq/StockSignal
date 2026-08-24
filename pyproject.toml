@@ -32,3 +32,27 @@ exclude = ["tests/", "quantagent/", "scripts/", "venv/"]
 [[tool.mypy.overrides]]
 module = ["akshare.*", "baostock.*", "tushare.*", "plotly.*", "streamlit.*", "jieba.*", "snownlp.*"]
 ignore_errors = true
+
+# ───────────────────────── pytest 全局配置 ─────────────────────────
+# 默认跑测试**不含覆盖率**（避免 Windows 沙箱 safe-delete 回收站在 combine/erase
+# 阶段 OSError 中断整批）。覆盖率作为可选观测手段，手动开启：
+#   pytest --cov=modules --cov-report=term-missing --cov-report=json:.coverage.json
+# skip 率由 conftest 的 pytest_sessionfinish 钩子打印，暴露「黑盒大量 skip 虚高」问题。
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-q"]
+filterwarnings = [
+  "ignore::UserWarning",
+]
+
+[tool.coverage.run]
+omit = [
+  "tests/*",
+  "scripts/*",
+  "modules/quantagent/*",
+  "*/__pycache__/*",
+]
+source = ["modules"]
+# 并行模式：每个 pytest 进程写独立 .coverage.<host>.<pid> 文件，避免单文件 erase
+# 触发 Windows 沙箱 safe-delete 回收站不可用导致的 OSError（_safe_remove 失败）。
+parallel = true

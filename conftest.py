@@ -116,3 +116,27 @@ def _install_offline_guard():
 
 
 _install_offline_guard()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """session 收尾：打印 skip 率与覆盖率红线提示。
+
+    暴露「黑盒测试大量 pytest.skip 致覆盖率虚高」问题（评测集诊断项 #3）。
+    仅观测、不强制 fail——CI 可据 .coverage.json 自行设门槛。
+    """
+    try:
+        stats = session.testscollected
+        skipped = session.skipped
+        if stats:
+            rate = skipped / stats * 100
+            msg = (
+                f"\n[评测集体检] 收集 {stats} 用例 | 跳过 {skipped} "
+                f"({rate:.1f}%) | 通过 {session.testspassed} "
+                f"| 失败 {session.testsfailed}"
+            )
+            if rate > 30:
+                msg += "\n  ⚠️ skip 率 >30%：黑盒/集成用例大量跳过，覆盖率存在虚高风险，"
+                msg += "建议补真网集成测试或区分『真 skip』与『应跑未跑』。"
+            print(msg, flush=True)
+    except Exception:
+        pass
