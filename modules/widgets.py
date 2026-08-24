@@ -9,6 +9,8 @@ modules/widgets.py
   - password_strength      密码强度评估（注册用）
 """
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 from typing import Any, Dict
 from datetime import datetime
 import html
@@ -138,7 +140,8 @@ def _build_index_card(info, fetcher, start_str):
         gq = None
         try:
             gq = fetcher.get_global_index_quote(info)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[widgets] 处理异常: {e}")
             gq = None
         if not gq or gq.get('current') is None:
             return {**info, 'current': None, 'change': None, 'change_pct': None, 'spark': None}
@@ -164,7 +167,8 @@ def _build_index_card(info, fetcher, start_str):
         rt = None
         try:
             rt = fetcher.get_realtime_quote(info['code'])
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[widgets] 处理异常: {e}")
             rt = None
         if rt and rt.get('current'):
             current = float(rt['current'])
@@ -187,12 +191,14 @@ def _build_index_card(info, fetcher, start_str):
                 high = current
                 low = current
                 prev_close = prev
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[widgets] 处理异常: {e}")
                 return {**info, 'current': None, 'change': None, 'change_pct': None, 'spark': None}
         today_df = None
         try:
             today_df = fetcher.get_index_kline_sina(info['code'], scale=5, datalen=48)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[widgets] 处理异常: {e}")
             pass
         if today_df is not None and (not today_df.empty):
             open_ = float(today_df['open'].iloc[0])
@@ -245,7 +251,8 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
         is_open, _, refresh_ms = _index_market_status()
         if refresh_ms > 0:
             st_autorefresh(interval=refresh_ms, key='index_autorefresh')
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[widgets] 处理异常: {e}")
         pass
     end_date = datetime.now().date()
     start_date = end_date - timedelta(days=30)
@@ -259,7 +266,8 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
         def _worker(info):
             try:
                 return _build_index_card(info, StockFetcher(), start_str)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[widgets] 处理异常: {e}")
                 return {**info, 'current': None, 'change': None, 'change_pct': None, 'spark': None}
         with ThreadPoolExecutor(max_workers=min(len(_INDEX_INFOS), 8)) as _ex:
             cards = list(_ex.map(_worker, _INDEX_INFOS))
@@ -312,7 +320,8 @@ def render_index_compact(cols_per_row: int=5) -> None:
         is_open, _, refresh_ms = _index_market_status()
         if refresh_ms > 0:
             st_autorefresh(interval=refresh_ms, key='index_compact_autorefresh')
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[widgets] 处理异常: {e}")
         pass
     end_date = datetime.now().date()
     start_date = end_date - timedelta(days=30)
@@ -325,7 +334,8 @@ def render_index_compact(cols_per_row: int=5) -> None:
         def _worker(info):
             try:
                 return _build_index_card(info, StockFetcher(), start_str)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[widgets] 处理异常: {e}")
                 return {**info, 'current': None, 'change': None, 'change_pct': None, 'spark': None}
         with ThreadPoolExecutor(max_workers=min(len(_INDEX_INFOS), 8)) as _ex:
             cards = list(_ex.map(_worker, _INDEX_INFOS))
@@ -361,6 +371,7 @@ def render_index_compact(cols_per_row: int=5) -> None:
         fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin={'l': 40, 'r': 20, 't': 10, 'b': 30}, height=220, yaxis_title='涨跌幅 %', xaxis={'tickfont': {'color': txt2, 'size': 11}, 'showgrid': False}, yaxis={'tickfont': {'color': txt2, 'size': 11}, 'gridcolor': grid, 'zerolinecolor': txt2, 'zerolinewidth': 1}, font={'color': txt}, showlegend=False)
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     except Exception as e:
+        logger.warning(f"[widgets] 处理异常: {e}")
         st.caption(f'指数图表渲染失败：{e}')
 
 def render_global_search() -> None:
@@ -381,7 +392,8 @@ def render_global_search() -> None:
                             _push_recent(item.get('code'), item.get('name'))
                             try:
                                 st.query_params['pick_stock'] = item.get('code')
-                            except Exception:
+                            except Exception as e:
+                                logger.warning(f"[widgets] 处理异常: {e}")
                                 pass
                             safe_switch_page('pages/个股研究.py')
                 else:
@@ -391,7 +403,8 @@ def render_global_search() -> None:
                 st.caption('🔒 请先登录后搜索')
             else:
                 st.caption('搜索服务暂时不可用，请稍后再试')
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[widgets] 处理异常: {e}")
             st.caption('搜索服务不可用')
 
 def render_theme_toggle() -> None:
@@ -492,7 +505,8 @@ def render_sidebar_nav() -> None:
         会抛 KeyError('url_pathname')，降级为按钮，避免整页崩溃。"""
         try:
             st.page_link(path, label=label, icon=icon)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[widgets] 处理异常: {e}")
             if st.button(f'{icon} {label}', key=f'navbtn_{label}', use_container_width=True):
                 safe_switch_page(path)
     try:
@@ -518,13 +532,15 @@ def render_sidebar_nav() -> None:
                     if st.button(f'{_rn} {_rc}', key=f'sb_recent_{_rc}', use_container_width=True):
                         try:
                             st.query_params['pick_stock'] = _rc
-                        except Exception:
+                        except Exception as e:
+                            logger.warning(f"[widgets] 处理异常: {e}")
                             pass
                         safe_switch_page('pages/1_股票选取.py')
             st.markdown('---')
             try:
                 st.page_link('app.py', label='返回首页', icon='🏠')
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[widgets] 处理异常: {e}")
                 pass
     except Exception as e:
         with st.sidebar:
@@ -537,7 +553,8 @@ def _cached_watchlist_count(token: str) -> int:
         resp = requests.get(f'{API_BASE}/api/watchlist', headers={'Authorization': f'Bearer {token}'}, timeout=5)
         if resp.status_code == 200:
             return len(resp.json().get('data') or [])
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[widgets] 处理异常: {e}")
         pass
     return 0
 
@@ -554,7 +571,8 @@ def render_notifications() -> None:
                 last = logs[0].get('created_at', '')
                 rel = _rel_time(last)
                 st.caption(f"🕒 上次登录：{rel or last[:19].replace('T', ' ')}")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[widgets] 处理异常: {e}")
         pass
     with st.expander('📌 使用提示', expanded=False):
         st.markdown('\n        **K 线图（股票选取 / 个股分析）**\n        - 顶部可切换 **日K / 周K / 月K** 周期\n        - 均线支持多选 + 自定义（如 `30,90`）\n        - 「显示 K 线数量 / 显示位置」滑块定位任意区间\n        - **鼠标拖拽** 可切换「平移」与「区域缩放」（框选放大）\n        - 图中自动标注可见窗口的 **区间最高 / 区间最低**，下方显示区间涨幅、振幅、均价\n\n        **全局导航**\n        - 下滚超过一屏后，右侧浮现 **▲ 回到顶部** 悬浮按钮\n        - 星辰 AI 对话页右下角有 **▼ 回到底部** 按钮\n        - 浏览器弹出的「清除缓存」确认框已自动拦截，无需手动处理\n\n        **其他模块**\n        - 行情看板支持板块、龙虎榜、自选股监控\n        - 事件追踪综合三类信号评分；股吧可发帖 / 评论 / 点赞\n        - 右侧 **★ 星辰AI** 可随时咨询多市场分析\n        - 新手？先看 **📘 新手教程**：三步上手 + 模块导览 + 术语表 + 教学视频\n\n        **市场异动 & 容错**\n        - 侧边栏 **🔔 市场异动** 铃铛常驻，点开看未读摘要、相对时间、一键全部已读\n        - 任意页面底部可挂「近期异动提醒」面板，支持「仅看未读」过滤\n        - 单模块取数失败会被**隔离**为该区块错误卡，并带「🔄 重试本区块」按钮，不影响其它模块\n        - 退出登录前会弹**确认框**，避免误触\n        ')
@@ -621,7 +639,8 @@ def get_session_remaining() -> int | None:
         if not exp:
             return None
         return max(0, int(exp - _time.time()))
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[widgets] 处理异常: {e}")
         return None
 
 def render_session_countdown() -> None:
