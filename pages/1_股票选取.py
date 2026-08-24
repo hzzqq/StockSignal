@@ -323,7 +323,7 @@ def _cached_intraday_for_date(ticker, target_date):
     return None
 
 
-@st.cache_data(show_spinner=False, ttl=60)
+@st.cache_data(show_spinner=False, ttl=300)
 def _cached_intraday(ticker):
     """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。"""
     try:
@@ -339,6 +339,34 @@ def _cached_intraday(ticker):
     except Exception:
         pass
     return None
+
+
+@safe_fragment("分时图自动刷新")
+def _fragment_intraday(ticker: str, stock_label: str) -> None:
+    """分时图区块：独立 fragment，仅在交易时段每 5 分钟自动刷新一次。
+
+    与整页 trading_autorefresh（默认 1 分钟）解耦，避免分时图随整页无意义重算；
+    数据走 _cached_intraday（ttl=300，与 5 分钟刷新节奏对齐）。
+    """
+    from modules.autorefresh import st_autorefresh
+    from modules.page_widgets import is_trading_now
+    if is_trading_now():
+        st_autorefresh(interval=300000, limit=400, key="pick_intraday_auto")
+    show_intraday = st.checkbox("📈 显示分时图", value=True, key="pick_show_intraday",
+                                help="展示该股票当日/最近交易日分时走势（价格线+均价+昨收基准，红涨绿跌）。交易时段每5分钟自动刷新。")
+    if not show_intraday:
+        return
+    _intra = _cached_intraday(ticker)
+    if _intra is not None:
+        from modules.visualizer import Visualizer  # lazy import: 仅渲染时加载
+        _idf, _ipc, _idate = _intra
+        _ifig = Visualizer.intraday(_idf, prev_close=_ipc,
+                                    title=f"{stock_label} 分时（{_idate}）")
+        st.plotly_chart(_ifig, width="stretch", key="pick_intraday_chart")
+        _status = "（每5分钟自动刷新中）" if is_trading_now() else "（非交易时段，已暂停刷新）"
+        st.caption("📈 分时图：白线为当日价格走势，橙点为均价；基准虚线为昨收。红涨绿跌（A股惯例）。" + _status)
+    else:
+        st.info("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
 
 
 @st.cache_data(show_spinner=False, ttl=600)
@@ -466,19 +494,8 @@ try:
         # ── 图表渲染区（Visualizer 延迟导入：仅用户选股后执行）──
         from modules.visualizer import Visualizer  # lazy: ~0.95s saved on pages without chart action
 
-        # ── 分时图（置于 K 线之上，默认开启）──
-        show_intraday = st.checkbox("📈 显示分时图", value=True, key="pick_show_intraday",
-                                    help="展示该股票当日/最近交易日分时走势（价格线+均价+昨收基准，红涨绿跌）。")
-        if show_intraday:
-            _intra = _cached_intraday(ticker)
-            if _intra is not None:
-                _idf, _ipc, _idate = _intra
-                _ifig = Visualizer.intraday(_idf, prev_close=_ipc,
-                                            title=f"{stock_label} 分时（{_idate}）")
-                st.plotly_chart(_ifig, width="stretch", key="pick_intraday_chart")
-                st.caption("📈 分时图：白线为当日价格走势，橙点为均价；基准虚线为昨收。红涨绿跌（A股惯例）。")
-            else:
-                st.info("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
+        # ── 分时图（独立 fragment，交易时段每 5 分钟自动刷新）──
+        _fragment_intraday(ticker, stock_label)
 
         fig = Visualizer.candlestick(df, title=f"{stock_label} {period_label}",
                                      ma_windows=ma_windows, show_volume=True,
