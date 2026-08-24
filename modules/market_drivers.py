@@ -185,7 +185,8 @@ def _read_last_cached_value(key: str):
         row = cur.fetchone()
         conn.close()
         return float(row[0]) if row else None
-    except Exception:  # noqa
+    except Exception as e:  # noqa
+        logger.warning(f"[market_drivers] 处理异常: {e}")
         return None
 
 
@@ -369,8 +370,8 @@ def _src_activity(days):
                             ("adl", "腾落指数(ADL·累计)", adl_s),
                             ("adr", "涨跌比率(ADR)", adr_s),
                         ]
-        except Exception:  # noqa
-            pass
+        except Exception as e:  # noqa
+            logger.warning(f"[market_drivers] 处理异常: {e}")
 
         return []
 
@@ -424,7 +425,8 @@ def _src_zt(days):
             d = (today - pd.Timedelta(days=back)).strftime("%Y%m%d")
             try:
                 df = ak.stock_zt_pool_em(date=d)
-            except Exception:  # noqa
+            except Exception as e:  # noqa
+                logger.warning(f"[market_drivers] 处理异常: {e}")
                 df = None
             if df is not None and not (hasattr(df, "empty") and df.empty):
                 dt = pd.to_datetime(d)
@@ -433,8 +435,8 @@ def _src_zt(days):
                 s = s.dropna()
                 if not s.empty:
                     return [("zt_ratio", "涨停家数占比", s)]
-    except Exception:  # noqa
-        pass
+    except Exception as e:  # noqa
+        logger.warning(f"[market_drivers] 处理异常: {e}")
 
     # 降级：legu 单日快照里的「涨停」家数
     try:
@@ -451,8 +453,8 @@ def _src_zt(days):
                     s = s.dropna()
                     if not s.empty:
                         return [("zt_ratio", "涨停家数占比", s)]
-    except Exception:  # noqa
-        pass
+    except Exception as e:  # noqa
+        logger.warning(f"[market_drivers] 处理异常: {e}")
 
     return []
 
@@ -473,8 +475,8 @@ def _src_pe(days):
                 if not s.empty:
                     pct = s.rank(pct=True) * 100.0
                     return [("pe_pct", "PE历史百分位", pct.dropna())]
-    except Exception:  # noqa
-        pass
+    except Exception as e:  # noqa
+        logger.warning(f"[market_drivers] 处理异常: {e}")
 
     # 降级：用上证指数 PE（akshare stock_index_pe_lg 或类似接口）
     try:
@@ -490,8 +492,8 @@ def _src_pe(days):
                     if not s.empty:
                         pct = s.rank(pct=True) * 100.0
                         return [("pe_pct", "PE历史百分位(上证)", pct.dropna())]
-    except Exception:  # noqa
-        pass
+    except Exception as e:  # noqa
+        logger.warning(f"[market_drivers] 处理异常: {e}")
 
     # 最终降级：用指数价格/MA20 比值作为「估值温度」代理
     # （价格相对 MA 越高 → 估值百分位越高，与真实 PE 高度正相关）
@@ -512,8 +514,8 @@ def _src_pe(days):
                     if not ratio.empty:
                         pct = ratio.rank(pct=True) * 100.0
                         return [("pe_pct", "估值温度(上证/MA代理)", pct.dropna())]
-    except Exception:  # noqa
-        pass
+    except Exception as e:  # noqa
+        logger.warning(f"[market_drivers] 处理异常: {e}")
 
     return []
 
@@ -549,8 +551,8 @@ def _src_div(days):
                     s = s.dropna()
                     if not s.empty:
                         return [("div_yield", "股息率", s)]
-        except Exception:  # noqa
-            pass
+        except Exception as e:  # noqa
+            logger.warning(f"[market_drivers] 处理异常: {e}")
 
         # 降级：legu 沪深 300 股息率（legu 不接受"上证指数"作为 symbol，
         # 仅支持其映射表内的 12 个中文指数名，必须用其一）
@@ -566,8 +568,8 @@ def _src_div(days):
                         s = s.dropna()
                         if not s.empty:
                             return [("div_yield", "股息率(沪深300)", s)]
-        except Exception:  # noqa
-            pass
+        except Exception as e:  # noqa
+            logger.warning(f"[market_drivers] 处理异常: {e}")
 
         # 最终降级：东方财富全 A 股息率列（市场整体股息率中位数，当日值）。
         # 用硬超时包住，避免沙箱/弱网下 spot_em 全 A 拉取卡死 UI；超时则优雅降级。
@@ -583,8 +585,8 @@ def _src_div(days):
                         now = pd.Timestamp.now().normalize()
                         s = pd.Series([med], index=[now])
                         return [("div_yield", "股息率(全A中位%)", s)]
-        except Exception:  # noqa
-            pass
+        except Exception as e:  # noqa
+            logger.warning(f"[market_drivers] 处理异常: {e}")
 
         # R89 新增第 4 路：申万三级行业静态股息率聚合（国内可达，无 legu 依赖）。
         # 335 个三级行业的「静态股息率」中位数 ≈ 1.67%，与全市场股息率量级一致，
@@ -601,8 +603,8 @@ def _src_div(days):
                     now = pd.Timestamp.now().normalize()
                     s = pd.Series([med], index=[now])
                     return [("div_yield", "股息率(申万行业中位%)", s)]
-        except Exception:  # noqa
-            pass
+        except Exception as e:  # noqa
+            logger.warning(f"[market_drivers] 处理异常: {e}")
 
         # R93 第 5 路：PE 反推股息率（纯本地，0 网络依赖）。
         # 根因：legu stock_market_pe_lg 只返回【日期/总市值/市盈率】，
@@ -627,8 +629,8 @@ def _src_div(days):
                         div = div[div > 0].dropna()
                         if not div.empty:
                             return [("div_yield", "股息率(PE反推)", div)]
-        except Exception:  # noqa
-            pass
+        except Exception as e:  # noqa
+            logger.warning(f"[market_drivers] 处理异常: {e}")
 
         return []
 
@@ -748,11 +750,13 @@ def _src_pcr(days=180):
         ds = dt.strftime("%Y%m%d")
         try:
             sse = ak.option_daily_stats_sse(date=ds)
-        except Exception:  # noqa
+        except Exception as e:  # noqa
+            logger.warning(f"[market_drivers] 处理异常: {e}")
             sse = None
         try:
             szse = ak.option_daily_stats_szse(date=ds)
-        except Exception:  # noqa
+        except Exception as e:  # noqa
+            logger.warning(f"[market_drivers] 处理异常: {e}")
             szse = None
         cv = _opt_vol_sum(sse, "call") + _opt_vol_sum(szse, "call")
         pv = _opt_vol_sum(sse, "put") + _opt_vol_sum(szse, "put")
@@ -960,8 +964,8 @@ def get_market_drivers(days=180):
                 cm["_cache_fallback"] = True
                 cm["_cache_message"] = "网络异常，展示最近一次缓存数据"
                 return cdf, cm
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[market_drivers] 处理异常: {e}")
 
         meta = {d: {"available": [], "unavailable": [(i["key"], "抓取失败") for i in INDICATORS if i["dim"] == d]} for d in DIMS}
         return pd.DataFrame(columns=["date"]), meta
@@ -1133,13 +1137,15 @@ def _score_one_dim(series, direction):
     """
     try:
         s = pd.to_numeric(series, errors="coerce").dropna()
-    except Exception:  # noqa
+    except Exception as e:  # noqa
+        logger.warning(f"[market_drivers] 处理异常: {e}")
         return None
     if len(s) < 3:
         return None
     try:
         pct = float(s.rank(pct=True).iloc[-1])
-    except Exception:  # noqa
+    except Exception as e:  # noqa
+        logger.warning(f"[market_drivers] 处理异常: {e}")
         return None
     if not np.isfinite(pct):
         return None
@@ -1167,7 +1173,8 @@ def _market_temp(df):
         return _MARKET_TEMP_DEFAULT
     try:
         m = float(np.mean(subs))
-    except Exception:  # noqa
+    except Exception as e:  # noqa
+        logger.warning(f"[market_drivers] 处理异常: {e}")
         return _MARKET_TEMP_DEFAULT
     return m if np.isfinite(m) else _MARKET_TEMP_DEFAULT
 

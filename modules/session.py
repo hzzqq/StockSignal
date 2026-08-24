@@ -669,6 +669,7 @@ def _api_request(method: str, path: str, *, payload=None, timeout: int = 5, **kw
                     timeout=timeout, **kwargs
                 )
         except _requests.exceptions.RequestException as e:
+            logger.warning(f"[session] 处理异常: {e}")
             last_exc = e
             if attempt < 2:
                 time.sleep(0.4 * (attempt + 1))
@@ -1007,6 +1008,7 @@ def render_user_badge(sidebar: bool = True) -> None:
     try:
         render_market_alert_bell(target)
     except Exception as e:  # noqa: BLE001
+        logger.warning(f"[session] 处理异常: {e}")
         target.caption(f"提醒加载失败：{str(e)[:40]}")
 
 

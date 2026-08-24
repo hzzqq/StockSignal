@@ -210,7 +210,6 @@ class StockFetcher:
                                     return name
         except Exception as e:
             logger.warning(f"[fetcher] 处理异常: {e}")
-            pass
 
         # 4) akshare 东方财富个股信息兜底
         try:
@@ -224,7 +223,6 @@ class StockFetcher:
                     return name
         except Exception as e:
             logger.warning(f"[fetcher] 处理异常: {e}")
-            pass
 
         # 5) 记录缓存为“无名称”后回退代码
         setattr(self, cache_key, code)
@@ -345,7 +343,6 @@ class StockFetcher:
                 conn.close()
             except Exception as e:
                 logger.warning(f"[fetcher] 处理异常: {e}")
-                pass
 
         if _has(res):
             self._proc_cache_set(StockFetcher._fund_cache, code, res)
@@ -563,7 +560,6 @@ class StockFetcher:
                     source = json.loads(source_row[0]).get("source", "未知")
             except Exception as e:
                 logger.warning(f"[fetcher] 处理异常: {e}")
-                pass
 
             return updated_at.isoformat(), age_minutes, source
         except Exception as e:
@@ -766,8 +762,8 @@ class StockFetcher:
                 if stale is not None:
                     logger.info(f"[StockFetcher] 实时行情回退过期缓存 ({ticker})")
                     return stale
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[fetcher] 处理异常: {e}")
             return None
         finally:
             conn.close()
@@ -834,7 +830,6 @@ class StockFetcher:
                     low = float(last.get("low", current) or current)
             except Exception as e:
                 logger.warning(f"[fetcher] 处理异常: {e}")
-                pass
 
         # 美股无日线历史 -> 用实时 OHLC 合成 4 点 sparkline（与 A 股无分钟线兜底一致）
         if spark_y is None and None not in (open_, high, low, current):
@@ -1241,7 +1236,6 @@ class StockFetcher:
                 conn.close()
         except Exception as e:
             logger.warning(f"[fetcher] 处理异常: {e}")
-            pass
         return None, None
 
     # ───── 名称->代码映射（简单可靠）─────
@@ -1722,6 +1716,7 @@ class StockFetcher:
             # BaoStock 无此股票 -> 可能是退市/停牌/代码错误
             return False, "股票不存在、已退市或长期停牌（BaoStock无记录）"
         except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             # 检查失败时不阻塞（允许后续降级链尝试）
             return True, f"无法验证({e})"
 
@@ -1830,6 +1825,7 @@ class StockFetcher:
                         return df, None
                 return None, "东方财富: 无数据"
         except Exception as e:  # noqa: BLE001
+            logger.warning(f"[fetcher] 处理异常: {e}")
             return None, f"{level}: {type(e).__name__}"
         return None, f"{level}: 无数据"
 
@@ -2014,6 +2010,7 @@ class StockFetcher:
                     else:
                         errors.append("日线聚合: 无数据")
                 except Exception as e:
+                    logger.warning(f"[fetcher] 处理异常: {e}")
                     errors.append(f"日线聚合: {type(e).__name__}")
 
             if df is None or df.empty:
@@ -2100,7 +2097,8 @@ class StockFetcher:
         def _spec(name):
             try:
                 return importlib.util.find_spec(name) is not None
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[fetcher] 处理异常: {e}")
                 return False
 
         sources = {}
@@ -2113,8 +2111,8 @@ class StockFetcher:
             try:
                 import akshare as _ak
                 ak_ver = getattr(_ak, "__version__", "")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[fetcher] 处理异常: {e}")
         sources["akshare"] = {
             "ok": ak_ok, "label": "akshare",
             "detail": f"依赖可用 ({ak_ver})" if ak_ok
@@ -2155,8 +2153,8 @@ class StockFetcher:
                         n = conn.execute(f"SELECT COUNT(*) FROM {tname}").fetchone()[0]
                         per_table[tname] = n
                         total_rows += n
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"[fetcher] 处理异常: {e}")
                 cache_ok = len(table_names) > 0
                 sources["cache"] = {
                     "ok": cache_ok, "label": "本地缓存",
@@ -2166,6 +2164,7 @@ class StockFetcher:
             finally:
                 conn.close()
         except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
             sources["cache"] = {
                 "ok": False, "label": "本地缓存",
                 "detail": f"缓存库不可读: {type(e).__name__}",
