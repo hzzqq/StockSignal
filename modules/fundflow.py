@@ -63,7 +63,8 @@ def _patch_requests_timeout():
     if cur is None or cur > _REQUEST_TIMEOUT:
         try:
             socket.setdefaulttimeout(_REQUEST_TIMEOUT)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[fundflow] 处理异常: {e}")
             pass
 
 
