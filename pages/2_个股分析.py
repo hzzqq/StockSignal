@@ -17,7 +17,7 @@ from modules.cleaner import DataCleaner
 from modules.session import api_kline, api_intraday
 from modules.search_ui import stock_search_input
 from modules.background_tasks import submit_task_with_error, poll_task
-from modules.page_widgets import _empty_info
+from modules.page_widgets import _empty_info, is_trading_now
 from modules.autorefresh import st_autorefresh
 from modules.format_helpers import safe_html_text
 from modules.stock_analysis_helpers import RED, GREEN, AMBER, _sentiment_tag, _tp_cls, _score_ring_html, _battle_plan_scale, _build_risk_iron_rules, _risk_iron_html, _build_plan_rows, _section_header, _build_rise_fall_factors, _factor_list_html, _build_logic_lists, _logic_list_html
@@ -109,9 +109,10 @@ def _cached_intraday_for_date(ticker, target_date):
         pass
     return None
 
-@st.cache_data(show_spinner=False, ttl=60)
+@st.cache_data(show_spinner=False, ttl=300)
 def _cached_intraday(ticker):
-    """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。"""
+    """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。
+    ttl=300 与交易时段 5 分钟刷新节奏对齐：每 5 分钟重新拉一次真实数据，中间命中缓存。"""
     try:
         rec = api_intraday(ticker)
         if rec and isinstance(rec.get('records'), list) and rec['records']:
@@ -125,6 +126,49 @@ def _cached_intraday(ticker):
     except Exception:
         pass
     return None
+
+
+@safe_fragment(run_every=300)
+def _fragment_intraday(ticker: str, display_name: str) -> None:
+    """分时图独立片段：交易时段每 5 分钟自刷新，与整页 1 分钟节奏解耦。"""
+    from modules.visualizer import Visualizer
+
+    if is_trading_now():
+        st_autorefresh(interval=300000, key=f'intraday_auto_{ticker}')
+        _refresh_hint = "<span style='color:#009e60'>● 交易时段，每5分钟自动刷新中</span>"
+    else:
+        _refresh_hint = "<span style='color:#94a3b8'>● 非交易时段，已暂停刷新</span>"
+
+    _show_intraday = st.checkbox(
+        '📈 显示分时图',
+        value=True,
+        key=f'intraday_chk_{ticker}',
+        help='展示该股票当日/最近交易日分时走势（价格线+均价+昨收基准）。',
+    )
+    if not _show_intraday:
+        return
+
+    try:
+        _intra = _cached_intraday(ticker)
+        if _intra is not None:
+            _idf, _ipc, _idate = _intra
+            _ifig = Visualizer.intraday(
+                _idf,
+                prev_close=_ipc,
+                title=f'{ticker} {display_name} 分时（{_idate}）',
+                up_color=RED,
+                down_color=GREEN,
+            )
+            st.plotly_chart(_ifig, use_container_width=True, key=f'intraday_chart_{ticker}')
+            st.markdown(
+                f"<div style='font-size:12px;color:#64748b;margin-top:4px;display:flex;justify-content:space-between;'>"
+                f"<span>白线为当日价格走势，橙点为均价；虚线为昨收。绿涨红跌。</span>{_refresh_hint}</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.info('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
+    except Exception as _ie:
+        st.warning(f'分时图加载失败：{str(_ie)[:60]}')
 
 def _render_analysis(R: dict):
     """渲染个股分析决策仪表盘（延迟导入 Visualizer，避免每页加载 0.95s）。"""
@@ -299,19 +343,7 @@ def _render_analysis(R: dict):
             period_df = df
         else:
             period_df = DataCleaner.full_pipeline(_kdf.copy())
-    _show_intraday = st.checkbox('📈 显示分时图', value=True, key=f'intraday_chk_{ticker}', help='展示该股票当日/最近交易日分时走势（价格线+均价+昨收基准）。')
-    if _show_intraday:
-        try:
-            _intra = _cached_intraday(ticker)
-            if _intra is not None:
-                _idf, _ipc, _idate = _intra
-                _ifig = Visualizer.intraday(_idf, prev_close=_ipc, title=f'{ticker} {display_name} 分时（{_idate}）', up_color=RED, down_color=GREEN)
-                st.plotly_chart(_ifig, use_container_width=True, key=f'intraday_chart_{ticker}')
-                st.markdown("<div style='font-size:12px;color:#64748b;margin-top:4px;'>白线为当日价格走势，橙点为均价；虚线为昨收。绿涨红跌（参考文档配色）。</div>", unsafe_allow_html=True)
-            else:
-                st.info('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
-        except Exception as _ie:
-            st.warning(f'分时图加载失败：{str(_ie)[:60]}')
+    _fragment_intraday(ticker, display_name)
     try:
         kline_annotations = [{'price': ma20v, 'label': 'MA20压制', 'color': GREEN, 'dash': 'dash'}, {'price': ma10v, 'label': 'MA10', 'color': '#667eea', 'dash': 'dash'}, {'price': support, 'label': '前低支撑', 'color': RED, 'dash': 'dash'}, {'price': trapped, 'label': '套牢区', 'color': AMBER, 'dash': 'dot'}] if kline_period == 'daily' else None
         fig = Visualizer.candlestick(period_df, title=kline_title, show_volume=True, ma_windows=[5, 10, 20], annotations=kline_annotations, support=None, resistance=None, up_color=RED, down_color=GREEN, ma_colors=['#ffa502', '#667eea', '#009e60'])
