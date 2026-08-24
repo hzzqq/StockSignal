@@ -360,6 +360,102 @@ def get_shepherd_indicators(days=60):
     return df, meta
 
 
+# ───────── 自定义日期范围回溯（带缺失提示与近期补算）─────────
+def _trading_days_range(start, end):
+    """获取 [start, end] 内的交易日历（日期列表）。"""
+    try:
+        import akshare as ak
+        cal = ak.tool_trade_date_hist_sina()
+        cal["trade_date"] = pd.to_datetime(cal["trade_date"])
+        dts = cal[(cal["trade_date"] >= pd.to_datetime(start)) & (cal["trade_date"] <= pd.to_datetime(end))]["trade_date"]
+        return dts.tolist()
+    except Exception as e:  # noqa
+        logger.warning("[shepherd] 交易日历获取失败: %s", e)
+        return []
+
+
+def get_shepherd_history_range(start_date, end_date, backfill=False):
+    """按自定义日期范围读取牧羊人历史数据。
+
+    - 优先从 data/shepherd_history.csv 长历史中过滤；
+    - backfill=True 时，对范围内缺失的最近交易日（<=15天）尝试用 akshare zt_pool
+      补全涨停/连板/炸板/昨日涨停表现字段；
+    - 更早的历史缺失列保持 NaN，并在后续 meta 中标记为 unavailable。
+    """
+    start = pd.to_datetime(start_date).normalize()
+    end = pd.to_datetime(end_date).normalize()
+    today = pd.Timestamp.now().normalize()
+
+    df = _read_history_csv(None)
+    if df is not None and not df.empty:
+        df = df[(df["date"] >= start) & (df["date"] <= end)].copy()
+
+    if not backfill:
+        return df if df is not None and not df.empty else pd.DataFrame(columns=["date"])
+
+    # 获取缺失交易日
+    requested_dates = _trading_days_range(start, end)
+    if not requested_dates:
+        return df if df is not None and not df.empty else pd.DataFrame(columns=["date"])
+
+    if df is not None and not df.empty:
+        existing = set(df["date"].dt.date)
+        missing_dates = [d for d in requested_dates if d.date() not in existing]
+    else:
+        missing_dates = requested_dates
+
+    # 仅对最近 <=15 天的缺失日补 zt 数据（东财涨停池只保留近期）
+    recent_missing = [d for d in missing_dates if (today - d).days <= 15]
+    if recent_missing:
+        try:
+            from modules.shepherd_reconstruct import fetch_zt_data_for_dates as _fetch_zt_range
+            zt_df = _fetch_zt_range([d.strftime("%Y-%m-%d") for d in recent_missing])
+            if zt_df is not None and not zt_df.empty:
+                if df is None or df.empty:
+                    df = zt_df
+                else:
+                    df = pd.concat([df, zt_df], ignore_index=True)
+                    df["date"] = pd.to_datetime(df["date"])
+                    df = df.sort_values("date").drop_duplicates(subset=["date"], keep="last").reset_index(drop=True)
+        except Exception as e:  # noqa
+            logger.warning("[shepherd] 补算近期缺失 zt 数据失败: %s", e)
+
+    return df if df is not None and not df.empty else pd.DataFrame(columns=["date"])
+
+
+def get_shepherd_indicators_range(start_date, end_date, backfill=False):
+    """按自定义日期范围返回牧羊人指标 (df, meta)。
+
+    meta 包含：
+        date_range: (start, end)
+        missing_columns: {col: reason} —— 所选时段内全为 NaN 的列
+        unavailable: [(col, reason)] —— 数据源未覆盖的列
+    """
+    df = get_shepherd_history_range(start_date, end_date, backfill=backfill)
+    meta = {
+        "available": [],
+        "unavailable": [],
+        "_cache_fallback": False,
+        "date_range": (str(start_date), str(end_date)),
+        "missing_columns": {},
+    }
+    if df is None or df.empty or "date" not in df.columns:
+        meta["unavailable"] = [(k, "所选日期范围暂无数据（未开始统计或数据源未覆盖）") for k in THRESHOLDS]
+        return df, meta
+    cols = [c for c in THRESHOLDS if c in df.columns]
+    meta["available"] = cols
+    for c in THRESHOLDS:
+        if c not in df.columns:
+            meta["unavailable"].append((c, "该时段数据源未覆盖，未开始统计"))
+            continue
+        non_na = pd.to_numeric(df[c], errors="coerce").notna().sum()
+        if non_na == 0:
+            meta["missing_columns"][c] = "所选时段内该指标全为缺失"
+        elif non_na < len(df) * 0.5:
+            meta["missing_columns"][c] = f"所选时段内该指标缺失 {len(df)-non_na} 个交易日"
+    return df, meta
+
+
 # ───────── 牧羊人温度计评分（0-100，与价格涨跌红绿无关）─────────
 def shepherd_temperature(today: dict, hist_days: int = 60):
     """把今日快照映射为 0-100 综合「牧羊人温度」。

@@ -20,7 +20,8 @@ from plotly.subplots import make_subplots
 from modules.page_utils import render_standard_page, import_autorefresh
 from modules.session import get_token, fragment_market_alerts_panel
 from modules.market_drivers import get_market_drivers, DIMS
-from modules.shepherd import get_shepherd_indicators, THRESHOLDS, shepherd_temperature
+from modules.shepherd import (get_shepherd_indicators, get_shepherd_indicators_range,
+                              THRESHOLDS, shepherd_temperature)
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.colors import _hex_to_rgba
@@ -454,6 +455,12 @@ def _load_shepherd(days: int = 60):
     return get_shepherd_indicators(days=days)
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def _load_shepherd_range(start_date, end_date, backfill: bool = False):
+    """缓存牧羊人指标自定义日期范围取数。"""
+    return get_shepherd_indicators_range(start_date, end_date, backfill=backfill)
+
+
 @safe_fragment("牧羊人指标卡")
 def fragment_shepherd():
     _section_title("🐑 牧羊人指标（股海牧羊人·情绪温度计）", accent="#f59e0b")
@@ -493,6 +500,7 @@ def fragment_shepherd_chart():
         "近 5 年（1250 交易日）": 1250,
         "近 1 年（250 交易日）": 250,
         "近 60 交易日": 60,
+        "自定义日期范围…": "custom",
     }
     key = "shep_range"
     cur = st.session_state.get(key, "全部（2007 起）")
@@ -501,15 +509,32 @@ def fragment_shepherd_chart():
                            key=key)
     except Exception:  # noqa: BLE001
         sel = "全部（2007 起）"
-    days = range_opts[sel]
+    custom_mode = range_opts[sel] == "custom"
+    start_date = end_date = None
+    backfill = False
+    if custom_mode:
+        today = pd.Timestamp.now().date()
+        default_start = today - pd.Timedelta(days=365)
+        try:
+            start_date = st.date_input("开始日期", value=default_start, max_value=today, key="shep_start")
+            end_date = st.date_input("结束日期", value=today, max_value=today, key="shep_end")
+        except Exception:  # noqa: BLE001
+            start_date, end_date = default_start, today
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+        backfill = st.checkbox("自动补算近期缺失数据（涨停/连板/炸板/昨板，东财仅支持最近约12个交易日）",
+                               value=False, key="shep_backfill")
     try:
         with st.spinner("加载历史序列…"):
-            df, meta = _load_shepherd(days)
+            if custom_mode:
+                df, meta = _load_shepherd_range(start_date, end_date, backfill)
+            else:
+                df, meta = _load_shepherd(range_opts[sel])
     except Exception as e:
         st.error(f"牧羊人历史加载失败：{e}")
         return
     if df is None or df.empty or "date" not in df.columns:
-        _empty_info("暂无牧羊人历史数据（网络/代理受限）。")
+        _empty_info("暂无牧羊人历史数据（网络/代理受限或所选日期范围未开始统计）。")
         return
     d = df.copy()
     d["date"] = pd.to_datetime(d["date"], errors="coerce")
@@ -570,10 +595,18 @@ def fragment_shepherd_chart():
         margin=dict(l=55, r=25, t=60, b=40), hovermode="x unified", **theme)
     fig.update_xaxes(tickangle=-30)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="shep_lines")
-    st.caption("🐑 牧羊人指标源自抖音博主「股海牧羊人」《炒股绕不开的第一步》情绪温度计方法论："
+    caption = ("🐑 牧羊人指标源自抖音博主「股海牧羊人」《炒股绕不开的第一步》情绪温度计方法论："
                "不盯指数红绿，先看大盘脸色（涨跌家数/涨停跌停/昨日涨停表现）。"
                "近 60 日为 akshare 实时回测；长区间读取 2007 起全 A 重构序列"
                "（新浪日线聚合，涨跌/红盘为真实重构，涨停/跌停为板块规则近似，近期为东财真实）。")
+    if custom_mode:
+        dr = meta.get("date_range", (str(start_date), str(end_date)))
+        caption += f" 当前区间：{dr[0]} 至 {dr[1]}。"
+    missing = meta.get("missing_columns", {})
+    if missing:
+        names = [THRESHOLDS.get(k, {}).get("name", k) for k in missing.keys()]
+        caption += f" ⚠️ 以下指标在所选时段内缺失（未开始统计或数据源未覆盖）：{', '.join(names)}。"
+    st.caption(caption)
 
 
 # 市场异动面板已抽取到 modules.session.fragment_market_alerts_panel（全局共享，风格统一）。
