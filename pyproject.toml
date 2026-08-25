@@ -44,6 +44,11 @@ addopts = ["-q"]
 filterwarnings = [
   "ignore::UserWarning",
 ]
+# 真网集成测试默认不收集（评测集诊断 #4 落地）。手动开启：
+#   OFFLINE_TEST=0 pytest -m live
+markers = [
+  "live: 真网集成测试，默认跳过；需 OFFLINE_TEST=0 显式开启（CI 定时跑，抓接口契约变更）",
+]
 
 [tool.coverage.run]
 omit = [
@@ -56,3 +61,22 @@ source = ["modules"]
 # 并行模式：每个 pytest 进程写独立 .coverage.<host>.<pid> 文件，避免单文件 erase
 # 触发 Windows 沙箱 safe-delete 回收站不可用导致的 OSError（_safe_remove 失败）。
 parallel = true
+
+# ───────────────────────── 覆盖率红线（评测集诊断 #2 落地） ─────────────────────────
+# 评测集「全绿」不能掩盖黑盒 skip 虚高。核心模块设硬门槛，其余观测。
+# 注意：沙箱内 coverage 写盘被 safe-delete 拦截，无法自动 fail_under；此处为 CI 可观测
+# 门槛说明。CI 跑 `pytest --cov=modules --cov-fail-under=70`（仅核心模块）时强制报警。
+#
+# 核心模块（必须 >=70%）：
+#   modules/technical.py, modules/shepherd.py, modules/cleaner.py,
+#   modules/fetcher.py, modules/timeout_exec.py, modules/fetch_parallel.py
+# 其余 modules/* 为观测项（不强制），但全量 skip 率 >30% 时 conftest 会打印 ⚠️。
+#
+# 开启命令（CI 定时 / 本地手动）：
+#   OFFLINE_TEST=0 pytest --cov=modules --cov-report=term-missing \
+#     --cov-fail-under=70 tests/test_whitebox_technical.py tests/test_shepherd*.py \
+#     tests/test_page_data_contract.py tests/test_perf_guard.py
+[tool.coverage.report]
+# 红线条目：核心模块若低于此比例，CI 应报警（人工复核是否真 skip 过多）
+fail_under = 70
+show_missing = true

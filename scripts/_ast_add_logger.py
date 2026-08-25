@@ -76,15 +76,18 @@ def transform(path, tag):
 
     new_src = "".join(lines)
     if need_inject_logger_def:
-        # 在 import logging 后补 logger 定义
+        inject = "import logging\nlogger = logging.getLogger(__name__)\n"
         if "import logging" in new_src:
+            new_src = new_src.replace("import logging\n", inject, 1)
+        elif "from __future__ import" in new_src:
+            # from __future__ 必须在最前，插在它之后
             new_src = new_src.replace(
-                "import logging\n",
-                "import logging\nlogger = logging.getLogger(__name__)\n",
+                "from __future__ import annotations\n",
+                "from __future__ import annotations\n" + inject,
                 1,
             )
         else:
-            new_src = "import logging\nlogger = logging.getLogger(__name__)\n" + new_src
+            new_src = inject + new_src
 
     open(path, "w", encoding="utf-8").write(new_src)
     return True, f"patched {len(inserts)} blocks"
