@@ -170,14 +170,16 @@ def save_drivers_to_cache(df: pd.DataFrame, meta: Optional[Dict] = None) -> int:
             if conn is not None:
                 try:
                     conn.rollback()
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[market_cache] 处理异常: {e}")
                     pass
             return 0
         finally:
             if conn is not None:
                 try:
                     conn.close()
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[market_cache] 处理异常: {e}")
                     pass
 
 
@@ -213,14 +215,16 @@ def save_single_series(key: str, series: pd.Series) -> int:
             if conn is not None:
                 try:
                     conn.rollback()
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[market_cache] 处理异常: {e}")
                     pass
             return 0
         finally:
             if conn is not None:
                 try:
                     conn.close()
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[market_cache] 处理异常: {e}")
                     pass
 
 
@@ -252,7 +256,8 @@ def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Op
             if conn is not None:
                 try:
                     conn.close()
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[market_cache] 处理异常: {e}")
                     pass
             return None, {"cache_status": "error", "message": f"缓存不可读: {e}"}
 
@@ -280,7 +285,8 @@ def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Op
         try:
             dt = datetime.strptime(last_update[:19], "%Y-%m-%d %H:%M:%S") if last_update else now
             age_h = (now - dt).total_seconds() / 3600
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[market_cache] 处理异常: {e}")
             age_h = 0
         if age_h > ttl_h:
             meta["stale_keys"].append((col, f"缓存 {age_h:.0f}h 前 (TTL={ttl_h}h)"))
@@ -321,10 +327,12 @@ def get_cache_status() -> Dict[str, Any]:
                 "db_size_mb": round(os.path.getsize(_DB_PATH) / 1048576, 2) if os.path.exists(_DB_PATH) else 0,
             }
         except Exception as e:
+            logger.warning(f"[market_cache] 处理异常: {e}")
             if conn is not None:
                 try:
                     conn.close()
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[market_cache] 处理异常: {e}")
                     pass
             return {"error": str(e), "db_path": _DB_PATH}
 
@@ -397,7 +405,8 @@ def clear_stale_cache(days: int = 90) -> int:
             if conn is not None:
                 try:
                     conn.close()
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[market_cache] 处理异常: {e}")
                     pass
             return 0
 
