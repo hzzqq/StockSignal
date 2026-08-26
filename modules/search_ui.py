@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 """
 股票搜索UI组件模块 v6
 后端 API 搜索 + 本地 fetcher 降级 + 防抖优化
@@ -37,7 +39,8 @@ def _search_via_backend(query: str, limit: int=15):
         if code == 200 and resp.get('status') == 'ok':
             data = resp.get('data', [])
             return [(d['code'], d['name'], d.get('market', '')) for d in data]
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[search_ui] 处理异常: {e}")
         pass
     return None
 
@@ -100,7 +103,8 @@ def _code_exists(code: str) -> bool:
         fetcher = StockFetcher()
         _, name = fetcher.get_stock_basic(str(code).strip().zfill(6))
         return bool(name) and name != str(code).strip().zfill(6)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[search_ui] 处理异常: {e}")
         return False
 
 def resolve_stock_codes(raw_text: str, max_rows: int=8):
@@ -126,7 +130,8 @@ def resolve_stock_codes(raw_text: str, max_rows: int=8):
                 continue
             try:
                 _, name = fetcher.get_stock_basic(raw)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[search_ui] 处理异常: {e}")
                 name = None
             if not name or name == raw:
                 results = _cached_search(raw, limit=1)
@@ -261,7 +266,8 @@ def stock_search_input(label='股票搜索', key='stock_search', default='600519
                 pinyin_hint = StockFetcher._pinyin_full(raw_input)
                 if pinyin_hint and pinyin_hint.lower() != raw_input.lower():
                     st.info(f'💡 尝试用拼音搜索: **{pinyin_hint}**')
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[search_ui] 处理异常: {e}")
                 pass
         return st.session_state[confirmed_key]
     confirmed = st.session_state[confirmed_key]
@@ -347,7 +353,8 @@ def multi_stock_search_input(label='输入多只股票', key='multi_stock_search
                 code = raw
                 try:
                     name = fetcher.get_stock_basic(code)[1] or code
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"[search_ui] 处理异常: {e}")
                     name = code
                 if name == code:
                     results = _cached_search(code, limit=1)

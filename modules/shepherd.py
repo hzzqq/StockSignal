@@ -85,6 +85,7 @@ def _retry(max_retries=2, base_delay=0.5):
                 try:
                     return fn(*args, **kwargs)
                 except Exception as e:  # noqa
+                    logger.warning(f"[shepherd] 处理异常: {e}")
                     last = e
                     if i < max_retries - 1:
                         time.sleep(base_delay * (2 ** i))
@@ -202,6 +203,7 @@ def get_shepherd_today():
         else:
             meta["unavailable"].append(("legu", "乐股快照暂不可用"))
     except Exception as e:  # noqa
+        logger.warning(f"[shepherd] 处理异常: {e}")
         meta["unavailable"].append(("legu", f"失败:{e}"))
 
     # 2) 涨停池（连板高度 / 炸板率，并补涨停家数）
@@ -216,6 +218,7 @@ def get_shepherd_today():
         else:
             meta["unavailable"].append(("zt_pool", "涨停池暂不可用"))
     except Exception as e:  # noqa
+        logger.warning(f"[shepherd] 处理异常: {e}")
         meta["unavailable"].append(("zt_pool", f"失败:{e}"))
 
     # 3) 昨日涨停表现
@@ -227,6 +230,7 @@ def get_shepherd_today():
         else:
             meta["unavailable"].append(("zt_prev_ret", "昨日涨停池暂不可用"))
     except Exception as e:  # noqa
+        logger.warning(f"[shepherd] 处理异常: {e}")
         meta["unavailable"].append(("zt_prev_ret", f"失败:{e}"))
 
     # 红盘占比若 legu 有 up/down 但无 red_ratio，补算
@@ -265,13 +269,15 @@ def _fetch_shepherd_history(n_days=60):
             zt = _fetch_zt_pool(d)
             if zt:
                 rec.update(zt)
-        except Exception:  # noqa
+        except Exception:  # noqa as e:
+            logger.warning(f"[shepherd] 处理异常: {e}")
             pass
         try:
             prev = _fetch_prev_pool(d)
             if prev:
                 rec.update(prev)
-        except Exception:  # noqa
+        except Exception:  # noqa as e:
+            logger.warning(f"[shepherd] 处理异常: {e}")
             pass
         # 仅末日补 legu 快照（涨跌/跌停/红盘占比），避免逐日全A快照（重且沙箱不可用）
         if i == len(dates) - 1:
@@ -285,7 +291,8 @@ def _fetch_shepherd_history(n_days=60):
                         tot = legu["up_count"] + legu["down_count"]
                         if tot > 0:
                             rec["red_ratio"] = float(legu["up_count"] / tot * 100.0)
-            except Exception:  # noqa
+            except Exception:  # noqa as e:
+                logger.warning(f"[shepherd] 处理异常: {e}")
                 pass
         rows.append(rec)
         time.sleep(0.2)
@@ -471,7 +478,8 @@ def shepherd_temperature(today: dict, hist_days: int = 60):
         return 50.0
     try:
         hist = get_shepherd_history(hist_days)
-    except Exception:  # noqa
+    except Exception:  # noqa as e:
+        logger.warning(f"[shepherd] 处理异常: {e}")
         hist = None
     subs = []
     for k, th in THRESHOLDS.items():

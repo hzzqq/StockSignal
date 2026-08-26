@@ -182,6 +182,7 @@ def chat_completion(
             _set_last_err(last_err)
             break
         except Exception as e:
+            logger.warning(f"[llm_client] 处理异常: {e}")
             last_err = f"{model}: {e}"
             _set_last_err(last_err)
             # 限流/超时/端点错误 -> 尝试下一个回退模型

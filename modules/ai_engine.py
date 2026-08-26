@@ -542,7 +542,8 @@ def _build_llm_prompt(
                 try:
                     code, name, res, news = fut.result()
                     ctx_map[code] = (name, res, news)
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001 as e:
+                    logger.warning(f"[ai_engine] 处理异常: {e}")
                     pass
 
     blocks = []

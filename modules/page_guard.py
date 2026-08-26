@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 """
 模块级错误边界与数据源隔离
 ================================
@@ -108,6 +110,7 @@ def safe_fragment(name=None, **frag_kwargs):
             try:
                 return func(*args, **kwargs)
             except Exception as exc:  # noqa: BLE001
+                logger.warning(f"[page_guard] 处理异常: {exc}")
                 # fragment 内：提供片段级「重试本区块」(st.rerun(scope="fragment") 不整页重跑)
                 render_error_card(_title, exc, retry="fragment")
         wrapper.__name__ = getattr(func, "__name__", name)
@@ -143,6 +146,7 @@ def safe_section(name: str, *, default=None, hint: str = ""):
     try:
         yield ok
     except Exception as exc:  # noqa: BLE001
+        logger.warning(f"[page_guard] 处理异常: {exc}")
         ok = False
         render_error_card(name, exc, hint=hint)
     finally:
@@ -169,6 +173,7 @@ def page_error_boundary(name: str):
     try:
         yield
     except Exception as exc:  # noqa: BLE001
+        logger.warning(f"[page_guard] 处理异常: {exc}")
         render_error_card(name, exc, retry=True)
 
 
@@ -184,7 +189,8 @@ def get_data_source_health():
     """
     try:
         from modules.fetcher import get_source_metrics
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[page_guard] 处理异常: {e}")
         return {"status": "unknown", "degraded": [], "down": [], "sources": {}}
 
     metrics = get_source_metrics()

@@ -60,7 +60,8 @@ def run_with_timeout(fn, timeout=None):
         # 若任务尚未开始则取消；若已在运行，靠传输层超时被唤醒后自然结束、回池。
         try:
             fut.cancel()
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[timeout_exec] 处理异常: {e}")
             pass
         return None
     except Exception as e:  # noqa: BLE001

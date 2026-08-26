@@ -104,7 +104,8 @@ def _is_bs_available():
     try:
         import modules.fetcher as _fetcher_mod
         return bool(getattr(_fetcher_mod, "_BS_OK", True))
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[_feed_io] 处理异常: {e}")
         return True
 
 
@@ -216,6 +217,7 @@ def observe_source(source, level, func, validate=None):
     try:
         result = func()
     except Exception as e:
+        logger.warning(f"[_feed_io] 处理异常: {e}")
         dt = (time.time() - t0) * 1000
         detail = f"{type(e).__name__}: {e}"
         _record_source_metric(source, False, dt, detail)

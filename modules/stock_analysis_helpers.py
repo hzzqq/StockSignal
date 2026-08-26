@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 """
 个股分析页纯函数簇（从 pages/2_个股分析.py 抽出，#408 拆分超大文件）。
 
@@ -132,7 +134,8 @@ def _support_resistance_bar(support: float, resistance: float, current: float,
         try:
             lo = min(lo, float(_m[1]))
             hi = max(hi, float(_m[1]))
-        except Exception:  # noqa
+        except Exception:  # noqa as e:
+            logger.warning(f"[stock_analysis_helpers] 处理异常: {e}")
             pass
     span = hi - lo if hi > lo else 1.0
 

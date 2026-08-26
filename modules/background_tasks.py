@@ -5,6 +5,8 @@ modules/background_tasks.py
 个股分析、多股对比、AI 咨询统一走这里提交后台任务，避免阻塞 Streamlit 主线程。
 """
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import time
 from typing import Any, Dict, Optional
@@ -53,6 +55,7 @@ def submit_task_with_error(task_type: str, payload: Dict[str, Any]) -> tuple[Opt
     except requests.exceptions.ConnectionError as e:
         return None, f"连接失败：{e}"
     except Exception as e:
+        logger.warning(f"[background_tasks] 处理异常: {e}")
         return None, f"提交异常：{e}"
 
 
@@ -90,7 +93,8 @@ def get_task(task_id: str) -> Optional[Dict[str, Any]]:
         # 后端未监听 / 连接被拒 → 明确失败，让 wait_for_task 立即失败，
         # 不再把「连接不上」误当作「任务未就绪」空轮询到超时。
         return dict(_CONNECTION_ERROR)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[background_tasks] 处理异常: {e}")
         pass
     return None
 
@@ -167,7 +171,8 @@ def get_chat_history() -> list:
                 msgs = body.get("data", {}).get("messages")
                 if isinstance(msgs, list):
                     return msgs
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[background_tasks] 处理异常: {e}")
         pass
     return []
 
@@ -182,5 +187,6 @@ def save_chat_history(messages: list) -> bool:
             timeout=_TIMEOUT,
         )
         return resp.status_code == 200 and resp.json().get("status") == "ok"
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[background_tasks] 处理异常: {e}")
         return False

@@ -420,6 +420,7 @@ class NewsFetcher:
                 frames.append(df)
                 logger.info(f"[NewsFetcher] 东方财富网页: {len(df)} 条")
         except Exception as e:
+            logger.warning(f"[_news_io] 处理异常: {e}")
             errors.append(f"东方财富网页: {e}")
 
         # Source 2: 财新数据通（补充）
@@ -429,6 +430,7 @@ class NewsFetcher:
                 frames.append(df)
                 logger.info(f"[NewsFetcher] 财新数据通: {len(df)} 条")
         except Exception as e:
+            logger.warning(f"[_news_io] 处理异常: {e}")
             errors.append(f"财新: {e}")
 
         # Source 3: 央视新闻联播（宏观/政策类补充）
@@ -439,6 +441,7 @@ class NewsFetcher:
                     frames.append(df)
                     logger.info(f"[NewsFetcher] 央视新闻: {len(df)} 条")
             except Exception as e:
+                logger.warning(f"[_news_io] 处理异常: {e}")
                 errors.append(f"央视: {e}")
 
         if frames:

@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 """页面公共骨架：消除 40+ 页面重复的样板代码。
 
 提供高频复用的页面级工具，取代各页面里复制粘贴的头部初始化：
@@ -34,7 +36,8 @@ def render_standard_page(title, icon="📊", caption=None, layout="wide", auth=T
     apply_page_config(page_title=title, page_icon=icon, layout=layout)
     try:
         caller_file = inspect.stack()[1].filename
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[page_utils] 处理异常: {e}")
         caller_file = __file__
     st.session_state["_active_page"] = caller_file
     if auth:
@@ -53,7 +56,8 @@ def import_autorefresh():
     try:
         from modules.autorefresh import st_autorefresh
         return st_autorefresh
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 as e:
+        logger.warning(f"[page_utils] 处理异常: {e}")
         return None
 
 

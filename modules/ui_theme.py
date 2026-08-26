@@ -18,6 +18,8 @@ v9 核心变更：
   ✅ 坐标轴/网格线/图例文字统一为暗色系
 """
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 import os
 import streamlit as st
 import streamlit.config as _config
@@ -61,7 +63,8 @@ def inject_plotly_dark() -> None:
         if 'starfield_dark' not in pio.templates:
             pio.templates['starfield_dark'] = go.layout.Template(layout=PLOTLY_DARK)
         pio.templates.default = 'starfield_dark'
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[ui_theme] 处理异常: {e}")
         pass
 
 def _theme_is_dark() -> bool:
@@ -93,18 +96,21 @@ def apply_page_config(page_title: str, page_icon: str=None, layout: str='wide') 
         if _p:
             st.session_state.setdefault('theme_mode', _p.get('theme_mode', 'light'))
             st.session_state.setdefault('font_size', _p.get('font_size', FONT_DEFAULT))
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[ui_theme] 处理异常: {e}")
         pass
     theme = STREAMLIT_THEME_DARK if _theme_is_dark() else STREAMLIT_THEME_LIGHT
     try:
         for key, value in theme.items():
             _config.set_option(f'theme.{key}', value)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[ui_theme] 处理异常: {e}")
         pass
     try:
         _icon = page_icon or (ICON_SVG if os.path.exists(ICON_SVG) else '📈')
         st.set_page_config(page_title=page_title, page_icon=_icon, layout=layout, initial_sidebar_state='expanded')
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[ui_theme] 处理异常: {e}")
         pass
     st.markdown('<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"],[data-testid="stSidebarNavSeparator"],[data-testid="stSidebarNavLink"]{display:none!important;}</style>', unsafe_allow_html=True)
 

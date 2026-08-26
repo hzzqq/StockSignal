@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 """
 页面级共用 UI 助手（跨页面复用，避免重复定义）。
 
@@ -29,7 +31,8 @@ def _now_cst() -> "datetime":
     try:
         from zoneinfo import ZoneInfo
         return datetime.now(ZoneInfo("Asia/Shanghai"))
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[page_widgets] 处理异常: {e}")
         return datetime.now()
 
 
@@ -115,7 +118,8 @@ def _section_title(text, accent="#2b8aef"):
 def _fmt_yi(x):
     try:
         x = float(x)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[page_widgets] 处理异常: {e}")
         return "—"
     if x != x:  # NaN
         return "—"
@@ -276,7 +280,8 @@ def _fmt_num(x, nd: int = 2, sign: bool = False) -> str:
     """数值格式化（显示 only）：None/NaN/异常 → "—"；可选正负号；不自带量级缩写。"""
     try:
         x = float(x)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[page_widgets] 处理异常: {e}")
         return "—"
     if x != x:  # NaN
         return "—"
@@ -288,7 +293,8 @@ def _fmt_pct(x, nd: int = 2, sign: bool = True) -> str:
     """百分比格式化（显示 only）：None/异常 → "—"；自动 ×100 加 %；默认带正负号。"""
     try:
         x = float(x)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[page_widgets] 处理异常: {e}")
         return "—"
     if x != x:
         return "—"
@@ -303,7 +309,8 @@ def _delta_color(delta, inverse: bool = False) -> str:
     """
     try:
         d = float(delta)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[page_widgets] 处理异常: {e}")
         return ""
     if d == 0 or d != d:
         return ""
@@ -320,7 +327,8 @@ def _delta_html(delta, is_pct: bool = True, nd: int = 2, inverse: bool = False) 
     """
     try:
         d = float(delta)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[page_widgets] 处理异常: {e}")
         d = None
     if d is None or d != d:
         return '<span style="color:#9aa0a6;">—</span>'
@@ -371,7 +379,8 @@ def _auto_refresh(sec: int = 60, key: str = "auto_refresh") -> None:
     try:
         from modules.session import trading_autorefresh
         trading_autorefresh(interval_ms=sec * 1000, key=key)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[page_widgets] 处理异常: {e}")
         pass
 
 
@@ -379,5 +388,6 @@ def _toast(msg: str, icon: str = "✅"):
     """轻量提示（UI-only）：优先 st.toast，异常则降级为 st.success 短提示。"""
     try:
         st.toast(f"{icon} {msg}")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[page_widgets] 处理异常: {e}")
         st.success(msg)

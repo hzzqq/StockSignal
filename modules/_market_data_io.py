@@ -82,6 +82,7 @@ def fetch_index(fetcher, symbol="000001", start="2024-01-01", end=None):
                 df["date"] = pd.to_datetime(df["date"])
                 logger.debug(f"[StockFetcher] L1-akshare 指数 OK {symbol}")
             except Exception as e:
+                logger.warning(f"[_market_data_io] 处理异常: {e}")
                 errors.append(f"akshare: {type(e).__name__}")
                 df = None
 
@@ -211,6 +212,7 @@ def fetch_sector_list(fetcher, force_refresh=False):
             source = "东方财富"
             logger.debug("[StockFetcher] L1-东方财富 板块 OK")
     except Exception as e:
+        logger.warning(f"[_market_data_io] 处理异常: {e}")
         errors.append(f"东方财富: {type(e).__name__}")
         df = None
 
@@ -232,6 +234,7 @@ def fetch_sector_list(fetcher, force_refresh=False):
                     source = "同花顺"
                     logger.debug("[StockFetcher] L2-同花顺 板块 OK")
             except Exception as e:
+                logger.warning(f"[_market_data_io] 处理异常: {e}")
                 errors.append(f"同花顺: {type(e).__name__}")
                 df = None
 
@@ -248,6 +251,7 @@ def fetch_sector_list(fetcher, force_refresh=False):
                     logger.info("[StockFetcher] L3-BaoStock 数据全零（无涨跌幅），降级到过期缓存")
                     df = None  # 全零 → 视为无效，继续降级
         except Exception as e:
+            logger.warning(f"[_market_data_io] 处理异常: {e}")
             errors.append(f"BaoStock: {type(e).__name__}")
             df = None
 

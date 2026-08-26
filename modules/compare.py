@@ -218,6 +218,7 @@ def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> N
                 if f:
                     break
             except Exception as e:  # noqa: BLE001
+                logger.warning(f"[compare] 处理异常: {e}")
                 last_err = e
                 _time.sleep(0.5)
         if f:

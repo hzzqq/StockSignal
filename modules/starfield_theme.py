@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 """
 星辰决策仪表盘 · Streamlit 风格复刻（v2 · 暗夜修正版）
 =====================================================
@@ -45,7 +47,8 @@ def inject_plotly_dark():
         if 'starfield_dark' not in pio.templates:
             pio.templates['starfield_dark'] = go.layout.Template(layout=PLOTLY_DARK)
         pio.templates.default = 'starfield_dark'
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[starfield_theme] 处理异常: {e}")
         pass
 
 def header(brand, subtitle, meta):

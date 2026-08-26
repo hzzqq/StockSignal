@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 """
 数据清洗与预处理模块
 负责缺失值处理、复权调整、异常值识别、时间对齐等。
@@ -190,7 +192,8 @@ class DataCleaner:
                 _d = pd.to_datetime(df["date"], errors="coerce")
                 if _d.notna().any() and not _d.is_monotonic_increasing:
                     df = df.assign(_d=_d).sort_values("_d").drop(columns="_d").reset_index(drop=True)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[cleaner] 处理异常: {e}")
                 pass
         # ══ 加法式健壮性（c41）：OHLCV 列强制数值化，脏值（'x'/'n/a'/空串/None）
         # 转为 NaN 而非保留 object dtype。否则后续 pct_change/rolling 除法会抛

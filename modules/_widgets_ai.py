@@ -13,6 +13,7 @@ import streamlit.components.v1 as components
 from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin, _rel_time
 import json
 import logging
+logger = logging.getLogger(__name__)
 import re
 from modules._widgets_base import STAR_AI_LOGO
 
@@ -131,7 +132,8 @@ def _poll_ai_consult_task() -> None:
     try:
         from modules.autorefresh import st_autorefresh
         st_autorefresh(interval=5000, limit=150, key='ai_chat_autorefresh')
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[_widgets_ai] 处理异常: {e}")
         pass
 
 def render_ai_consultant() -> None:

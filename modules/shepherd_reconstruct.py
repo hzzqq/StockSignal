@@ -57,6 +57,7 @@ def _retry(max_retries: int = 3, base_delay: float = 0.6):
                 try:
                     return fn(*args, **kwargs)
                 except Exception as e:  # noqa: BLE001
+                    logger.warning(f"[shepherd_reconstruct] 处理异常: {e}")
                     last = e
                     if i < max_retries - 1:
                         time.sleep(base_delay * (2 ** i) + np.random.random() * 0.3)
@@ -141,6 +142,7 @@ def _aggregate_one_stock(symbol: str, start_date: str, end_date: str) -> Optiona
             df = ak.stock_zh_a_daily(symbol=symbol, start_date=sd, end_date=ed, adjust="qfq")
             break
         except Exception as e:  # noqa: BLE001
+            logger.warning(f"[shepherd_reconstruct] 处理异常: {e}")
             last_err = e
             if attempt < 2:
                 time.sleep(0.6 * (2 ** attempt) + np.random.random() * 0.3)
@@ -310,7 +312,8 @@ def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
     for fn in cache_files:
         try:
             frames.append(pd.read_csv(os.path.join(_CACHE_DIR, fn)))
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 as e:
+            logger.warning(f"[shepherd_reconstruct] 处理异常: {e}")
             continue
     if not frames:
         return pd.DataFrame(columns=["date", "up_count", "down_count", "flat_count", "limit_up", "limit_down", "red_ratio"])

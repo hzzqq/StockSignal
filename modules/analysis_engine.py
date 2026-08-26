@@ -300,24 +300,28 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
         try:
             return fetcher.get_fundamentals(ticker)
         except Exception as e:
+            logger.warning(f"[analysis_engine] 处理异常: {e}")
             messages.append(f"基本面获取失败：{str(e)[:80]}")
             return {}
     def _fetch_kws():
         try:
             return fetcher.get_stock_keywords(ticker, top_k=3)
         except Exception as e:
+            logger.warning(f"[analysis_engine] 处理异常: {e}")
             messages.append(f"行业关键词获取失败：{str(e)[:80]}")
             return ""
     def _fetch_rt():
         try:
             return fetcher.get_realtime_quote(ticker)
         except Exception as e:
+            logger.warning(f"[analysis_engine] 处理异常: {e}")
             messages.append(f"实时行情获取失败：{str(e)[:80]}")
             return None
     def _fetch_daily():
         try:
             return fetcher.get_daily(ticker, start=start_str, end=end_str)
         except Exception as e:
+            logger.warning(f"[analysis_engine] 处理异常: {e}")
             messages.append(f"行情获取失败：{str(e)[:80]}")
             return pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
 
@@ -398,6 +402,7 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
     try:
         news_df = NewsFetcher().fetch(keyword=display_name, source="auto", limit=50)
     except Exception as e:
+        logger.warning(f"[analysis_engine] 处理异常: {e}")
         messages.append(f"新闻抓取失败：{str(e)[:80]}")
         news_df = pd.DataFrame(columns=["date", "title", "content", "source", "url"])
 

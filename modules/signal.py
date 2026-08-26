@@ -470,6 +470,7 @@ class SignalEngine:
                 r["ticker"] = item["ticker"]
                 results.append(r)
             except Exception as e:
+                logger.warning(f"[signal] 处理异常: {e}")
                 results.append({
                     "ticker": item["ticker"], "price_score": 0,
                     "event_score": 0, "macro_score": 0, "total": 0, "error": str(e)

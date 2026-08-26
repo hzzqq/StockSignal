@@ -14,6 +14,8 @@
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 from typing import Any, Dict, List
 
@@ -525,6 +527,7 @@ def full_analysis(df: pd.DataFrame) -> Dict[str, Any]:
         try:
             return fn(df)
         except Exception as e:  # noqa: BLE001 - 顶层兜底，保证页面不崩
+            logger.warning(f"[technical] 处理异常: {e}")
             return {"error": f"{fn.__name__} 分析失败: {type(e).__name__}"}
 
     return {

@@ -444,7 +444,8 @@ def resolve_sector_df(get_sector_list, get_industry_fund_flow) -> pd.DataFrame:
         raw = get_sector_list()
         if raw is not None and hasattr(raw, "empty") and not raw.empty:
             return _norm(raw)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundamental_helpers] 处理异常: {e}")
         pass
     try:
         ff_df = get_industry_fund_flow()
@@ -452,7 +453,8 @@ def resolve_sector_df(get_sector_list, get_industry_fund_flow) -> pd.DataFrame:
             df = ff_df.rename(columns={"行业": "sector", "涨跌幅": "change_pct"})[["sector", "change_pct"]].copy()
             df["change_pct"] = pd.to_numeric(df["change_pct"], errors="coerce").fillna(0)
             return df
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[fundamental_helpers] 处理异常: {e}")
         pass
     return pd.DataFrame()
 

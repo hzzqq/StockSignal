@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 """
 可视化模块
 生成 K 线图、行业热力图、相关性矩阵、信号评分雷达图等。
@@ -18,7 +20,8 @@ import streamlit as st
 if "starfield_dark" not in pio.templates:
     try:
         pio.templates["starfield_dark"] = go.layout.Template(layout=pio.templates["plotly_dark"].layout)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[visualizer] 处理异常: {e}")
         pass
 
 # 涨跌配色（A股：红涨绿跌）统一从 modules.colors 引入，避免重复定义
@@ -38,10 +41,12 @@ def _is_dark() -> bool:
     try:
         from modules.ui_theme import _theme_is_dark
         return _theme_is_dark()
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[visualizer] 处理异常: {e}")
         try:
             return st.session_state.get("theme_mode", "light") == "dark"
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[visualizer] 处理异常: {e}")
             return False
 
 
@@ -501,7 +506,8 @@ class Visualizer:
                                         line=dict(color="#fbbf24", width=2)),
                             name="事件日", showlegend=False, hoverinfo="skip",
                         ), row=2, col=1)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[visualizer] 处理异常: {e}")
                 pass
 
         # 主题适配：暗色用透明底+暗灰网格，亮色用白底+浅灰网格
@@ -726,7 +732,8 @@ class Visualizer:
                     tickfont={"color": SF_TXT2 if _is_dark() else "#6B7280"},
                 )
             return fig
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[visualizer] 处理异常: {e}")
             return _empty_kline_figure(title, "分时图渲染失败")
 
     # ------------------------------------------------------------------
