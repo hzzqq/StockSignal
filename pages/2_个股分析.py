@@ -159,7 +159,7 @@ def _fragment_intraday(ticker: str, display_name: str) -> None:
                 up_color=RED,
                 down_color=GREEN,
             )
-            st.plotly_chart(_ifig, use_container_width=True, key=f'intraday_chart_{ticker}')
+            st.plotly_chart(_ifig, use_container_width=True, key=f'intraday_chart_{ticker}', config={'displaylogo': False, 'responsive': True})
             st.markdown(
                 f"<div style='font-size:12px;color:#64748b;margin-top:4px;display:flex;justify-content:space-between;'>"
                 f"<span>白线为当日价格走势，橙点为均价；虚线为昨收。绿涨红跌。</span>{_refresh_hint}</div>",
@@ -381,7 +381,7 @@ def _render_analysis(R: dict):
                     if _di is not None:
                         _didf, _dipc, _didt = _di
                         _dfig = Visualizer.intraday(_didf, prev_close=_dipc, title=f'{ticker} {display_name} 分时（{_didt}）', up_color=RED, down_color=GREEN)
-                        st.plotly_chart(_dfig, use_container_width=True, key=f'dbl_intra_{ticker}_{_target_dt}')
+                        st.plotly_chart(_dfig, use_container_width=True, key=f'dbl_intra_{ticker}_{_target_dt}', config={'displaylogo': False, 'responsive': True})
                     else:
                         st.info(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
                 except Exception as _die:
@@ -566,7 +566,7 @@ def _render_analysis(R: dict):
         from modules.dark_text_fix import apply_plotly_theme
         apply_plotly_theme(radar_fig, dark=dark)
         radar_fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=440, margin=dict(l=40, r=40, t=20, b=20))
-        st.plotly_chart(radar_fig, use_container_width=True)
+        st.plotly_chart(radar_fig, use_container_width=True, config={'displaylogo': False, 'responsive': True})
         st.markdown(f"<div style='text-align:center;font-size:14px;font-weight:700;color:#1e293b;margin:6px 0 2px;'>综合信号强度 <b style='color:{verdict_color};'>{composite}</b> · {verdict}（五维加权）</div>", unsafe_allow_html=True)
     except Exception as e:
         st.warning(f'⚠️ 雷达图渲染失败：{str(e)[:80]}')
@@ -675,7 +675,9 @@ def fragment_analysis_result():
         elif task and task.get('status') in ('pending', 'running'):
             st.warning('⏳ 分析正在后台并行运行：行情数据 → 新闻舆情 → 技术信号 → 综合评分。完成后会自动显示下方结果，无需切换页面。', icon='⏳')
             st.progress(0.0, text='等待分析结果...')
-            st_autorefresh(interval=1000, limit=30, key='analysis_autorefresh')
+            # 前端性能#B：轮询降频 1000ms→3000ms（仍秒级感知进度），limit 30→10（共 30s 窗口不变）。
+            # 减少 fragment 内重渲染约 67%，后台任务 10-30s 完成足够感知。
+            st_autorefresh(interval=3000, limit=10, key='analysis_autorefresh')
             return
     if st.session_state.get('analysis_result') is not None:
         _render_analysis(st.session_state['analysis_result'])

@@ -362,7 +362,7 @@ def _fragment_intraday(ticker: str, stock_label: str) -> None:
         _idf, _ipc, _idate = _intra
         _ifig = Visualizer.intraday(_idf, prev_close=_ipc,
                                     title=f"{stock_label} 分时（{_idate}）")
-        st.plotly_chart(_ifig, width="stretch", key="pick_intraday_chart")
+        st.plotly_chart(_ifig, width="stretch", key="pick_intraday_chart", config={"displaylogo": False, "responsive": True})
         _status = "（每5分钟自动刷新中）" if is_trading_now() else "（非交易时段，已暂停刷新）"
         st.caption("📈 分时图：白线为当日价格走势，橙点为均价；基准虚线为昨收。红涨绿跌（A股惯例）。" + _status)
     else:
@@ -540,7 +540,7 @@ try:
                         _pdf, _ppc, _pdt = _pdi
                         _pdfig = Visualizer.intraday(_pdf, prev_close=_ppc,
                                                      title=f"{stock_label} 分时（{_pdt}）")
-                        st.plotly_chart(_pdfig, width="stretch", key=f"pick_dbl_intra_{_ptgt}")
+                        st.plotly_chart(_pdfig, width="stretch", key=f"pick_dbl_intra_{_ptgt}", config={"displaylogo": False, "responsive": True})
                     else:
                         st.info(f"📭 {_ptgt} 暂无分时数据。")
                 except Exception as _pde:
