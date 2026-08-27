@@ -21,7 +21,6 @@ from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
 dark = render_standard_page(title='行情看板', icon='📈', layout='wide')
 render_index_compact(cols_per_row=5)
-st.markdown('---')
 sf_card("页面导读", "上方为市场指数迷你卡；下方输入代码 / 名称 / 拼音首字母搜索股票，点击结果即选中，可一键加入自选股，自选行情实时同步。K 线、技术面分析请前往「股票选取」。", icon="📈")
 sf_card('🔍 搜索股票 · 加入自选', "")
 st.caption('输入代码 / 名称 / 拼音首字母，匹配结果直接显示在输入框下方（含市场标签），点击结果即选中；选中后可一键加入自选股，下方「自选行情」会实时同步。')
@@ -135,7 +134,6 @@ def _build_correlation_fig(daily_dict):
 @safe_fragment('行业板块涨跌榜')
 def fragment_sector_board():
     """行业板块涨跌榜（板块图构建已迁移至模块级 _build_sector_heatmap_fig，延迟导入 Visualizer 仅缓存未命中时触发）。"""
-    st.markdown('---')
     sf_card('🏭 行业板块涨跌榜', "")
     try:
         from modules.autorefresh import st_autorefresh
@@ -336,7 +334,6 @@ def fragment_lhb():
         else:
             _empty_info('暂无龙虎榜数据（非交易日晚间或数据源暂不可用）。可先到「📡 股票选取」查看个股 K 线，交易时段会自动刷新。')
 fragment_lhb()
-st.markdown('---')
 sf_card('个股收益率相关性矩阵', "")
 st.caption('💡 解释：数值越接近 1（深红）表示两只股票走势高度同向；越接近 -1（深绿）表示反向；接近 0 表示关系不大。可用于判断持仓是否过于集中、分散风险。')
 with st.expander('📖 怎么看这张图？', expanded=False):
@@ -498,7 +495,6 @@ def _wl_render_table_html(rows, dark: bool):
 
 @safe_fragment('自选行情')
 def fragment_watchlist_quotes():
-    st.markdown('---')
     sf_card('📌 自选行情', "")
     st.caption('实时跟踪自选股现价与涨跌（A股红涨绿跌）；行情接口异常时自动回退本地源。点击操作列「📈 看K线」跳转个股 K 线；跳转后可在「股票选取」页调节 K 线显示数量与起始位置。')
     try:

@@ -218,7 +218,6 @@ def fragment_manual_backtest():
                 )
 
                 # 摘要
-                st.markdown("---")
                 sf_card("回测结果", "")
 
                 s = result.summary()
@@ -264,7 +263,6 @@ def fragment_manual_backtest():
                 st.code(result.summary_text().replace(f"[{bt_ticker}]", f"[{bt_label}]"), language="text")
 
                 # 收益曲线
-                st.markdown("---")
                 sf_card("收益曲线", "")
 
                 benchmark = None
@@ -283,13 +281,11 @@ def fragment_manual_backtest():
                 st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
 
                 # 回撤曲线
-                st.markdown("---")
                 sf_card("回撤曲线", "")
                 fig_dd = Visualizer.drawdown_curve(result.df)
                 st.plotly_chart(fig_dd, use_container_width=True, config={"displaylogo": False, "responsive": True})
 
                 # 交易明细
-                st.markdown("---")
                 sf_card("交易明细", "")
                 if result.trades:
                     trades_df = pd.DataFrame(result.trades)
@@ -302,7 +298,6 @@ def fragment_manual_backtest():
                     # 交易统计
                     wins = [t for t in result.trades if t["profit_pct"] > 0]
                     losses = [t for t in result.trades if t["profit_pct"] <= 0]
-                    st.markdown("---")
                     sf_card("交易统计", "")
                     stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
                     with stat_col1:
@@ -321,7 +316,6 @@ def fragment_manual_backtest():
                     st.info("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
                 # ── 回撤带（水下曲线） ──
-                st.markdown("---")
                 sf_card("回撤带（水下曲线）", "")
                 _dd = result.df["drawdown"] if "drawdown" in result.df.columns else None
                 if _dd is not None and not _dd.dropna().empty:
@@ -346,7 +340,6 @@ def fragment_manual_backtest():
                     _empty_info("暂无回撤数据。通常因回测区间过短，或策略未产生持仓净值波动导致；可拉长区间后重试。")
 
                 # ── 逐笔交易收益分布 ──
-                st.markdown("---")
                 sf_card("逐笔交易收益分布", "")
                 if result.trades:
                     _profits = [t.get("profit_pct", 0) for t in result.trades]
@@ -368,7 +361,6 @@ def fragment_manual_backtest():
                     st.info("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
                 # ── 参数敏感性分析 ──
-                st.markdown("---")
                 sf_card("🎯 参数敏感性分析", "")
                 st.caption("固定其余参数，扫描单一参数的不同取值，观察累计收益 / 胜率 / 最大回撤的变化，寻找参数拐点。")
                 sens_choice = st.selectbox(
@@ -461,7 +453,6 @@ def fragment_manual_backtest():
 # ==================================================================
 @safe_fragment("每日选股回测")
 def fragment_daily_picker():
-    st.markdown("---")
     sf_card("📊 每日选股回测", "")
     st.caption("从 A 股股票池中每日筛选评分最高的股票，模拟短线持有收益。"
                "「今日推荐」= 基于昨日收盘数据选股、今日买入；"
@@ -592,7 +583,6 @@ def fragment_daily_picker():
                 st.metric("总选股数", f"{s['total_picks']:,}")
 
             # ---- 今日推荐（prev_picks：昨日选股 → 今日买入）----
-            st.markdown("---")
             sf_card("📌 今日推荐买入", "")
             today_picks = picker_result.prev_picks(n=top_k)
             if today_picks.empty:
@@ -609,7 +599,6 @@ def fragment_daily_picker():
                 st.caption("💡 以上为基于上一交易日收盘数据选出的股票，可在今日开盘/盘中择机买入。")
 
             # ---- 明日推荐（latest_picks：今日选股 → 明日买入）----
-            st.markdown("---")
             sf_card("📌 明日推荐买入", "")
             tomorrow_picks = picker_result.latest_picks(n=top_k)
             if tomorrow_picks.empty:
@@ -625,7 +614,6 @@ def fragment_daily_picker():
 
             # ---- 累计收益曲线 ----
             if not picker_result.returns_df.empty:
-                st.markdown("---")
                 sf_card("累计收益曲线", "")
                 import plotly.graph_objects as go
                 _dark = _is_dark()
@@ -662,7 +650,6 @@ def fragment_daily_picker():
 
             # ---- 全部选股记录 ----
             if not picker_result.picks_df.empty:
-                st.markdown("---")
                 sf_card("全部选股记录", "")
                 all_picks = picker_result.picks_df.copy()
                 # 加法式健壮性：picks_df 上游 schema 漂移可能缺列，缺列时降级提示。
@@ -689,7 +676,6 @@ def fragment_strong_bull():
     # SF_* 暗色主题常量（原定义在 visualizer.py，在此本地定义避免拖入 plotly）
     global SF_TXT, SF_TXT2, SF_GRID, SF_BORDER  # noqa: F821
     SF_TXT = "#e2e8f0"; SF_TXT2 = "#94a3b8"; SF_GRID = "#23233c"; SF_BORDER = "#2d2d44"
-    st.markdown("---")
     sf_card("🚀 强势上涨股批量回测 vs 全市场", "")
     st.caption("一键对「强势上涨股样本」跑多因子策略，聚合胜率/收益，并对比全市场基准，"
                "验证策略对强趋势股的覆盖度。**历史模拟，不构成投资建议。**")
@@ -782,7 +768,6 @@ def fragment_strong_bull():
     market_summary = market.summary() if market is not None else None
 
     # ---- 对比表 ----
-    st.markdown("---")
     sf_card("📊 强势上涨股 vs 全市场 对比", "")
     cmp_rows = [{
         "样本": "强势上涨股样本(均值)",
@@ -807,7 +792,6 @@ def fragment_strong_bull():
 
     # ---- 个股累计收益对比柱状图 ----
     if ok:
-        st.markdown("---")
         sf_card("📈 个股累计收益对比", "")
         fig = go.Figure()
         names = [r["name"] for r in ok]
@@ -832,7 +816,6 @@ def fragment_strong_bull():
         st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
 
         # ---- 个股卡片 ----
-        st.markdown("---")
         sf_card("🧾 个股回测明细", "")
         cards = st.columns(min(4, len(ok)))
         for i, r in enumerate(ok):

@@ -425,7 +425,6 @@ if code:
         else:
             st.session_state[_fa_fav_key].append(code)
         st.rerun()
-    st.markdown('---')
     sf_card('💹 业绩分析（结合市值 / 市盈率 / 资产负债表）', "")
     st.caption('读懂指标：营收/净利润看公司「赚多少、增长快不快」；ROE 看「股东每投 1 元赚回多少」；毛利率看「产品赚钱能力」；资产负债率/流动比率看「会不会还不起钱」。')
     st.caption('📌 颜色遵循 A股 惯例：红涨绿跌；所有指标仅供参考，不构成投资建议。')
@@ -480,7 +479,6 @@ if code:
 
     @safe_fragment
     def fragment_financial_analysis(fa_code: str, fa_name: str):
-        st.markdown('---')
         sf_card('📊 财务分析', "")
         st.caption('多期财务指标趋势：柱状图看绝对值，折线看同比；数据来自利润表/资产负债表/现金流量表。')
         with st.spinner('正在解析财务报表…'):
@@ -559,7 +557,6 @@ if code:
             st.dataframe(display_table, use_container_width=True, hide_index=True, height=400)
             st.caption('数据来源：新浪财经 利润表 / 资产负债表 / 现金流量表')
     fragment_financial_analysis(code, name)
-    st.markdown('---')
     sf_card('📍 历史位置 · 纵向对比', "")
     st.caption('价格分位：当前价在对应周期内所有交易日收盘价中的相对高低。')
     with st.expander('📖 分位解读（数值越高代表当前价越贵）', expanded=False):
@@ -619,7 +616,6 @@ if code:
                 st.caption(f'🏭 全市场共 {len(sector_df)} 个行业，以下展示涨幅前 {len(top10)} 名')
                 st.dataframe(display, use_container_width=True, column_config={'涨跌幅': st.column_config.NumberColumn(format='%.2f%%')}, hide_index=True, height=400)
     st.caption('数据来源：东方财富 行业板块行情（涨跌幅 / 排名）')
-    st.markdown('---')
     sf_card('🎯 综合评估', "")
     try:
         score, reasons_html = _composite_score(price, pe_ttm, p_5y if hist_df is not None else None, rank, sector_total, market_cap, perf)
@@ -641,7 +637,6 @@ if code:
         st.plotly_chart(_ring, use_container_width=True, config={"displaylogo": False, "responsive": True})
     with sc2:
         st.markdown(f"""<div style="padding:14px 18px;border-radius:10px;background:{('rgba(26,26,46,0.4)' if dark else '#f9fafb')};border:1px solid {('rgba(255,255,255,0.08)' if dark else '#e5e7eb')};font-size:14px;line-height:1.8;">{reasons_html}</div>""", unsafe_allow_html=True)
-    st.markdown('---')
     sf_card('📊 估值摘要', "")
     v1, v2, v3 = st.columns(3)
     with v1:

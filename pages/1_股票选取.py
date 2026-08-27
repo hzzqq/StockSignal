@@ -72,7 +72,6 @@ def _norm_code(c: str) -> str:
 # ── 用户打分组件（Batch8 #271：独立 fragment，交互只重跑本块，提升响应速度）──
 @safe_fragment
 def _render_user_score(ticker: str, stock_label: str) -> None:
-    st.markdown("---")
     sf_card("⭐ 用户打分", "")
     # 已有分数缓存到 session_state，避免每次交互都回源后端
     _ss_key = f"_score_{ticker}"
@@ -610,7 +609,6 @@ except Exception as e:
 # 技术面分析 + 用户打分
 # ═══════════════════════════════════════════════════════════════
 if data_ok and df is not None:
-    st.markdown("---")
     sf_card("🧭 技术面分析", "")
     try:
         profile = SignalEngine().technical_profile(df)
@@ -699,7 +697,6 @@ if data_ok and df is not None:
         st.info(f"**综合评分 {composite}/100** · 短期 {short} / 中期 {mid} / 长期 {long} · {verdict}")
 
         # ── 📊 量化指标（RSI / MACD / KDJ / BOLL） ──
-        st.markdown("---")
         sf_card("📊 量化指标", "")
 
         def _calc_quant_indicators(d: pd.DataFrame) -> dict:

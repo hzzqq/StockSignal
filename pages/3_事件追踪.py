@@ -250,7 +250,6 @@ def fragment_signal_score():
 
 @safe_fragment
 def fragment_live_keywords():
-    st.markdown('---')
     sf_card('📰 实时关键词提取', "")
     try:
         col_live1, col_live2, col_live_btn = st.columns([3, 1, 1.2])
@@ -327,7 +326,6 @@ def fragment_live_keywords():
 def fragment_timeline():
     """事件时间轴（延迟导入 Visualizer）。"""
     from modules.visualizer import Visualizer
-    st.markdown('---')
     sf_card('📅 事件时间轴', "")
     if st.button('🔄 刷新', key='tl_manual_refresh', help='手动局部刷新事件时间轴模块'):
         st.rerun(scope='fragment')
@@ -509,7 +507,6 @@ def fragment_timeline():
 
 @safe_fragment
 def fragment_event_manage():
-    st.markdown('---')
     sf_card('📌 事件管理', "")
     try:
         with st.form('add_event_form'):
@@ -571,7 +568,6 @@ def fragment_event_manage():
 @safe_fragment
 def fragment_news_mine():
     try:
-        st.markdown('---')
         sf_card('⛏️ 新闻事件自动挖掘', "")
         st.caption('一键抓取最新新闻 → jieba 关键词提取 → 金融情感分析 → 自动入库')
         col_mine_input, col_mine_btn, col_mine_limit = st.columns([4, 2, 2])
@@ -630,7 +626,6 @@ def fragment_news_mine():
 
 @safe_fragment
 def fragment_sentiment_report():
-    st.markdown('---')
     sf_card('📊 新闻情感分析报告', "")
     try:
         report_container = st.container()

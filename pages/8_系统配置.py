@@ -53,7 +53,6 @@ with tab_overview:
     else:
         st.error(f"获取统计数据失败：{resp.get('message', '服务异常')}。请确认后端 Flask 已启动（:5050），稍后点右上角刷新重试。")
 
-    st.markdown("---")
     sf_card("系统信息", "")
     col_a, col_b = st.columns(2)
     with col_a:
@@ -72,7 +71,6 @@ with tab_overview:
         """)
 
     # ── 数据源健康度（#锐评整改：静默降级不可观测 → 显式呈现）──
-    st.markdown("---")
     sf_card("数据源健康度", "")
     try:
         from modules.page_utils import get_fetcher
@@ -215,7 +213,6 @@ with tab_config:
                                     st.session_state[_ck] = True
 
     # 新增配置
-    st.markdown("---")
     sf_card("➕ 新增配置", "")
     with st.form("add_config_form"):
         col1, col2, col3 = st.columns(3)

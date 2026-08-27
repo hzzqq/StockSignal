@@ -445,7 +445,6 @@ def fragment_list():
         # 相关推荐块（#Batch20-4）：底部热门主题推荐，点击直达
         _rec = sorted(posts, key=lambda p: safe_int(p.get("likes", 0), 0), reverse=True)[:3]
         if _rec:
-            st.markdown("---")
             sf_card("🔥 热门主题推荐", "")
             _rcs = st.columns(len(_rec))
             for _i, rp in enumerate(_rec):

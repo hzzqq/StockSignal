@@ -267,7 +267,6 @@ def _etf_filter_fragment():
                 _rec["涨跌幅"] = pd.to_numeric(_rec["涨跌幅"], errors="coerce")
                 _rec = _rec.dropna(subset=["成交额"]).sort_values("成交额", ascending=False).head(3)
                 if not _rec.empty:
-                    st.markdown("---")
                     sf_card("🧰 相关 ETF 推荐（按成交额）", "")
                     for _i, (_, rr) in enumerate(_rec.iterrows()):
                         st.markdown(
