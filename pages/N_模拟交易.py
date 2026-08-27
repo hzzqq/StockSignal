@@ -134,7 +134,7 @@ def fragment_paper():
         c4.metric('累计盈亏', f'¥{pnl_total:,.0f}', delta=f'{pnl_pct:+.2f}%')
         st.caption('ℹ️ 累计盈亏 = 总资产 − 初始资金；净值曲线基于每笔成交后的总资产快照绘制。')
     st.markdown('---')
-    st.subheader('💱 交易')
+    sf_card('💱 交易', "")
     col_b, col_s = st.columns(2)
     with col_b:
         st.markdown('**买入**')
@@ -314,7 +314,7 @@ def fragment_paper():
         st.caption('💡 在上方「💱 交易」买入或卖出后，这里会基于每笔成交后的总资产快照绘制净值曲线。')
         st.caption('数据来源：东方财富 / 新浪财经（实时行情，失败降级日线收盘价）。')
     st.markdown('---')
-    st.subheader('🔗 相关标的推荐')
+    sf_card('🔗 相关标的推荐', "")
     import random as _rnd
     _cand = ['600519', '000858', '601318', '000333', '600036', '601012', '300750', '002594', '600276', '000001']
     _rec = _rnd.sample(_cand, 5)
