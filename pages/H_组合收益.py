@@ -14,6 +14,7 @@ from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
 from modules.page_widgets import _empty_info, UP, DOWN, _fig_layout, _section_title
+from modules.chart_cache import cached_fig
 
 st_autorefresh = import_autorefresh()
 
@@ -121,6 +122,40 @@ def _max_drawdown(idxs: pd.Series):
     return float(dd.min())
 
 
+# ── 图表 figure 构建缓存（性能优化：避免每次脚本重跑/自动刷新时重复 rebuild）──
+@cached_fig(ttl=120)
+def _build_portfolio_nav_fig(pidx, bench, total_ret, dark):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=pidx.index, y=pidx.values, name="组合净值",
+        line=dict(color=UP if total_ret >= 0 else DOWN, width=2.5),
+        hovertemplate="%{x}<br>组合：%{y:.1f}<extra></extra>",
+    ))
+    if bench is not None and len(bench):
+        fig.add_trace(go.Scatter(
+            x=bench.index, y=bench.values, name="沪深300",
+            line=dict(color="#888888", width=1.8, dash="dot"),
+            hovertemplate="%{x}<br>沪深300：%{y:.1f}<extra></extra>",
+        ))
+    fig.add_hline(y=100, line=dict(color="#999", width=1, dash="dash"))
+    fig.update_layout(**_fig_layout(dark), height=380, title="组合净值 vs 沪深300（起点=100）",
+                      legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"))
+    fig.update_xaxes(tickangle=-45)
+    return fig
+
+
+@cached_fig(ttl=120)
+def _build_attribution_fig(top, dark):
+    fig = go.Figure(go.Bar(
+        x=top["name"], y=top["contribution"],
+        marker_color=[UP if v >= 0 else DOWN for v in top["contribution"]],
+        hovertemplate="%{x}<br>贡献：%{y:.2f}%<extra></extra>",
+    ))
+    fig.update_layout(**_fig_layout(dark), title="收益贡献 TOP15（%）", height=340)
+    fig.update_xaxes(tickangle=-45)
+    return fig
+
+
 # ───────────────────────── 主体 ─────────────────────────
 @safe_fragment
 def fragment_portfolio():
@@ -164,22 +199,7 @@ def fragment_portfolio():
         st.caption("ℹ️ 沪深300基准暂未展示：未能获取足够历史行情（区间可能过短或接口受限），"
                    "组合收益与回撤结论不受影响。")
 
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=pidx.index, y=pidx.values, name="组合净值",
-        line=dict(color=UP if total_ret >= 0 else DOWN, width=2.5),
-        hovertemplate="%{x}<br>组合：%{y:.1f}<extra></extra>",
-    ))
-    if bench is not None and len(bench):
-        fig.add_trace(go.Scatter(
-            x=bench.index, y=bench.values, name="沪深300",
-            line=dict(color="#888888", width=1.8, dash="dot"),
-            hovertemplate="%{x}<br>沪深300：%{y:.1f}<extra></extra>",
-        ))
-    fig.add_hline(y=100, line=dict(color="#999", width=1, dash="dash"))
-    fig.update_layout(**_fig_layout(dark), height=380, title="组合净值 vs 沪深300（起点=100）",
-                      legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"))
-    fig.update_xaxes(tickangle=-45)
+    fig = _build_portfolio_nav_fig(pidx, bench, total_ret, dark)
     st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     # 加法式小便利（Batch15）：标注净值曲线数据更新时间，便于判断是否为最新行情。
     st.caption(f"🕒 数据更新时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}（组合净值基于各持仓历史收盘价加权构建）")
@@ -228,13 +248,7 @@ def _show_attribution():
     if "name" not in attr.columns:
         attr["name"] = attr["ticker"] if "ticker" in attr.columns else ""
     top = attr.head(15).copy()
-    fig = go.Figure(go.Bar(
-        x=top["name"], y=top["contribution"],
-        marker_color=[UP if v >= 0 else DOWN for v in top["contribution"]],
-        hovertemplate="%{x}<br>贡献：%{y:.2f}%<extra></extra>",
-    ))
-    fig.update_layout(**_fig_layout(dark), title="收益贡献 TOP15（%）", height=340)
-    fig.update_xaxes(tickangle=-45)
+    fig = _build_attribution_fig(top, dark)
     st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     st.dataframe(
         attr, use_container_width=True, hide_index=True,
