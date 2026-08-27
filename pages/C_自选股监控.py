@@ -278,8 +278,7 @@ def fragment_watchlist_monitor():
     refresh_tag = ' ｜ 🔴 交易时段每 60 秒自动刷新' if _is_trading_now() else ''
     st.caption(f"行情时间：{(_rel_time(data_time) if data_time != '—' else '—')} ｜ 本页刷新：{datetime.now().strftime('%H:%M:%S')} ｜ 红涨绿跌（A股惯例）{refresh_tag}")
 fragment_watchlist_monitor()
-st.markdown('---')
-st.subheader('📂 股票池管理')
+sf_card('📂 股票池管理', '维护自选股分组与股票池，支持批量添加 / 移除与一键盯盘。')
 
 def _norm_code(c: str) -> str:
     if not c:
@@ -484,8 +483,7 @@ def fragment_pool_junk():
                     _toast('已移除')
             _render_pool_table(df_jk, 'junk', _remove_jk)
 fragment_pool_junk()
-st.markdown('---')
-st.markdown('#### 🔗 相关标的推荐')
+sf_card('🔗 相关标的推荐', '基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。')
 st.caption('基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。')
 _c_rec = [('600519', '贵州茅台'), ('000858', '五粮液'), ('601012', '隆基绿能'), ('300059', '东方财富'), ('600036', '招商银行')]
 _c_cols = st.columns(len(_c_rec))
