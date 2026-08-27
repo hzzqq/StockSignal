@@ -352,7 +352,7 @@ def fragment_kline_pick(ticker, stock_label, df, kline_period, period_label, sta
                                  start_idx=view_start, n_show=view_count,
                                  dragmode=drag_mode,
                                  events=events_df if show_events else None)
-    _pk_event = st.plotly_chart(fig, width="stretch", key="pick_kline_chart",
+    _pk_event = st.plotly_chart(fig, use_container_width=True, key="pick_kline_chart",
                                 on_select="rerun", config=KLINE_CHART_CONFIG)
     _pdbl_key = "pick_dblclick"
     _pnow = datetime.now().timestamp()
@@ -387,7 +387,7 @@ def fragment_kline_pick(ticker, stock_label, df, kline_period, period_label, sta
                     _pdf, _ppc, _pdt = _pdi
                     _pdfig = Visualizer.intraday(_pdf, prev_close=_ppc,
                                                  title=f"{stock_label} 分时（{_pdt}）")
-                    st.plotly_chart(_pdfig, width="stretch", key=f"pick_dbl_intra_{_ptgt}", config={"displaylogo": False, "responsive": True})
+                    st.plotly_chart(_pdfig, use_container_width=True, key=f"pick_dbl_intra_{_ptgt}", config={"displaylogo": False, "responsive": True})
                 else:
                     st.info(f"📭 {_ptgt} 暂无分时数据。")
             except Exception as _pde:
@@ -420,7 +420,7 @@ def _fragment_intraday(ticker: str, stock_label: str) -> None:
         _idf, _ipc, _idate = _intra
         _ifig = Visualizer.intraday(_idf, prev_close=_ipc,
                                     title=f"{stock_label} 分时（{_idate}）")
-        st.plotly_chart(_ifig, width="stretch", key="pick_intraday_chart", config={"displaylogo": False, "responsive": True})
+        st.plotly_chart(_ifig, use_container_width=True, key="pick_intraday_chart", config={"displaylogo": False, "responsive": True})
         _status = "（每5分钟自动刷新中）" if is_trading_now() else "（非交易时段，已暂停刷新）"
         st.caption("📈 分时图：白线为当日价格走势，橙点为均价；基准虚线为昨收。红涨绿跌（A股惯例）。" + _status)
     else:

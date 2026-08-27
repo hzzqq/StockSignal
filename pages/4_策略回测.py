@@ -278,13 +278,13 @@ def fragment_manual_backtest():
 
                 fig = Visualizer.backtest_curve(result.df, benchmark=benchmark,
                                                 title=f"{bt_label} 策略收益曲线")
-                st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
+                st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
 
                 # 回撤曲线
                 st.markdown("---")
                 st.subheader("回撤曲线")
                 fig_dd = Visualizer.drawdown_curve(result.df)
-                st.plotly_chart(fig_dd, width="stretch", config={"displaylogo": False, "responsive": True})
+                st.plotly_chart(fig_dd, use_container_width=True, config={"displaylogo": False, "responsive": True})
 
                 # 交易明细
                 st.markdown("---")
@@ -295,7 +295,7 @@ def fragment_manual_backtest():
                     trades_df["持仓天数"] = trades_df["bars_held"]
                     display_df = trades_df[["entry_date", "exit_date", "entry_price", "exit_price", "收益率", "exit_reason", "持仓天数"]]
                     display_df.columns = ["买入日期", "卖出日期", "买入价", "卖出价", "收益率", "退出原因", "持仓天数"]
-                    st.dataframe(display_df, width="stretch", height=400)
+                    st.dataframe(display_df, use_container_width=True, height=400)
 
                     # 交易统计
                     wins = [t for t in result.trades if t["profit_pct"] > 0]
