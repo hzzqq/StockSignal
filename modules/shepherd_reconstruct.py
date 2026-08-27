@@ -312,7 +312,7 @@ def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
     for fn in cache_files:
         try:
             frames.append(pd.read_csv(os.path.join(_CACHE_DIR, fn)))
-        except Exception:  # noqa: BLE001 as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"[shepherd_reconstruct] 处理异常: {e}")
             continue
     if not frames:

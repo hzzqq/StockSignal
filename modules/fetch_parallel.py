@@ -32,7 +32,7 @@ def _safe(fn):
     """包装：任务内任何异常都转成 None，绝不让单个取数拖垮整批。"""
     try:
         return fn()
-    except Exception:  # noqa: BLE001 as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"[fetch_parallel] 处理异常: {e}")
         return None
 
@@ -78,7 +78,7 @@ def fetch_many(tasks, max_workers=None, timeout=None):
             key = futs[fut]
             try:
                 out[key] = fut.result()      # 已完成，立即返回，不再二次计时
-            except Exception:  # noqa: BLE001 as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f"[fetch_parallel] 处理异常: {e}")
                 out[key] = None
     except Exception:  # noqa: BLE001  整批超时：未完成项保持预填的 None

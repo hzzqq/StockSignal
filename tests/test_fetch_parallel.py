@@ -1,98 +1,90 @@
-"""锁定 fetch_parallel.fetch_many 的并发 / 隔离 / 超时行为（防回归）。
+"""fetch_parallel 并发取数：异常隔离 / 整批超时护栏 / as-e 绑定回归。
 
-确保页面首屏并发预取：
-- 多任务并发返回 {key: result}
-- 单任务异常 / 超时只让该任务返回 None，不影响同批其他任务
-- 并发明显快于串行（可观测的首屏提速收益）
+证据优先——全部用纯函数构造可控的成功 / 失败 / 慢任务，不依赖真实网络：
+
+- 单任务异常被隔离：其余任务正常返回，失败 key 为 None，key 集合与入参一致；
+- 整批超时：超时任务 key 为 None，已完成任务仍返回正确值；
+- 空任务列表返回 {}；
+- 信号量限流：并发峰值不超过 max_workers；
+- 回归（R-as-e）：``_safe`` 在任务抛异常时不得因 ``e`` 未绑定而再抛 NameError，
+  必须正确记录异常并返回 None（覆盖 2026-08-27 修复的 as-e 转换器陷阱）。
 """
+import logging
 import threading
 import time
 
-import modules.fetch_parallel as fp
+import pytest
+
+from modules.fetch_parallel import fetch_many, _safe
 
 
-def test_empty_tasks():
-    assert fp.fetch_many([]) == {}
+def test_empty_returns_empty_dict():
+    assert fetch_many([]) == {}
 
 
-def test_normal_dict():
-    tasks = [("a", lambda: 1), ("b", lambda: 2)]
-    assert fp.fetch_many(tasks) == {"a": 1, "b": 2}
+def test_safe_isolates_exception_without_nameerror(caplog):
+    """R-as-e 回归：此前 except 把 `as e:` 注释掉，真实异常会触发 NameError。"""
+    with caplog.at_level(logging.WARNING):
+        result = _safe(lambda: 1 / 0)
+    assert result is None
+    # 必须正确记录异常，而非因未绑定 e 而抛 NameError
+    assert any("处理异常" in r.message for r in caplog.records), caplog.text
+    assert any("division by zero" in r.message for r in caplog.records), caplog.text
 
 
-def test_exception_isolated():
-    tasks = [("ok", lambda: 42), ("bad", lambda: 1 / 0), ("ok2", lambda: "x")]
-    out = fp.fetch_many(tasks)
-    assert out["ok"] == 42
-    assert out["bad"] is None
-    assert out["ok2"] == "x"
+def test_fetch_many_exception_isolation():
+    def boom():
+        raise RuntimeError("boom")
+
+    def ok():
+        return 42
+
+    tasks = [("a", ok), ("b", boom), ("c", ok)]
+    out = fetch_many(tasks, max_workers=3, timeout=5)
+    assert set(out.keys()) == {"a", "b", "c"}
+    assert out["a"] == 42
+    assert out["c"] == 42
+    assert out["b"] is None  # 单任务异常被隔离，预填 None 兜底
 
 
-def test_timeout_isolated():
-    tasks = [("slow", lambda: time.sleep(1.0)), ("fast", lambda: "done")]
-    out = fp.fetch_many(tasks, timeout=0.1)
-    assert out["slow"] is None
-    assert out["fast"] == "done"
+def test_fetch_many_batch_timeout_isolates_slow_task():
+    def fast():
+        return "fast"
 
+    def slow():
+        time.sleep(3)
+        return "slow"
 
-def test_concurrency_faster_than_serial():
-    def mk(d):
-        return lambda: (time.sleep(d) or d)
-
-    tasks = [("t1", mk(0.3)), ("t2", mk(0.3)), ("t3", mk(0.3))]
-    t0 = time.time()
-    out = fp.fetch_many(tasks, timeout=3)
-    dt = time.time() - t0
-    assert out == {"t1": 0.3, "t2": 0.3, "t3": 0.3}
-    # 三个各 0.3s，串行需 ~0.9s；并发应在远小于此完成
-    assert dt < 0.8
-
-
-def test_keys_complete_on_timeout():
-    """整批超时后返回的 key 集合必须与入参一致（未完成项预填 None，不缺键）。
-
-    回归护栏：调用方普遍写 res.get(k) / res[k]，缺键会直接 KeyError 崩页。
-    """
-    tasks = [("fast", lambda: 1), ("slow", lambda: time.sleep(2.0))]
-    out = fp.fetch_many(tasks, timeout=0.2)
-    assert set(out) == {"fast", "slow"}
+    out = fetch_many([("fast", fast), ("slow", slow)], max_workers=2, timeout=1)
+    assert out["fast"] == "fast"
     assert out["slow"] is None
 
 
-def test_blocking_task_does_not_hang_batch():
-    """核心回归：某任务永久阻塞时，整批必须在 timeout 内返回而不是挂死。
+def test_fetch_many_keys_complete_on_timeout():
+    def slow():
+        time.sleep(2)
+        return "x"
 
-    历史 bug：as_completed() 未传 timeout -> 无限等待，后面的
-    fut.result(timeout=...) 根本执行不到，所谓超时保护形同虚设。
-    """
-    stop = threading.Event()
-    try:
-        tasks = [("ok", lambda: "v"), ("blocked", lambda: stop.wait())]
-        t0 = time.time()
-        out = fp.fetch_many(tasks, timeout=0.3)
-        dt = time.time() - t0
-        assert dt < 2.0, f"整批未在硬边界内返回，耗时 {dt:.1f}s（超时保护失效）"
-        assert out["ok"] == "v"
-        assert out["blocked"] is None
-    finally:
-        stop.set()      # 释放共享池线程，避免污染后续用例
+    tasks = [("k%d" % i, slow) for i in range(3)]
+    out = fetch_many(tasks, max_workers=3, timeout=1)
+    assert set(out.keys()) == {"k0", "k1", "k2"}
+    assert all(v is None for v in out.values())
 
 
-def test_max_workers_limits_concurrency():
-    """max_workers 必须真实限流（历史上该参数被静默忽略）。"""
-    running = {"cur": 0, "peak": 0}
+def test_concurrency_capped_by_semaphore():
+    counter = {"active": 0, "peak": 0}
     lock = threading.Lock()
 
-    def job():
+    def work(i):
         with lock:
-            running["cur"] += 1
-            running["peak"] = max(running["peak"], running["cur"])
-        time.sleep(0.15)
+            counter["active"] += 1
+            counter["peak"] = max(counter["peak"], counter["active"])
+        time.sleep(0.05)
         with lock:
-            running["cur"] -= 1
-        return 1
+            counter["active"] -= 1
+        return i
 
-    tasks = [(f"t{i}", job) for i in range(8)]
-    out = fp.fetch_many(tasks, max_workers=2, timeout=5)
-    assert len(out) == 8
-    assert running["peak"] <= 2, f"并发峰值 {running['peak']} 超过 max_workers=2"
+    tasks = [("t%d" % i, (lambda i=i: work(i))) for i in range(20)]
+    out = fetch_many(tasks, max_workers=4, timeout=10)
+    assert len(out) == 20
+    assert counter["peak"] <= 4

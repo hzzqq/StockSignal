@@ -269,14 +269,14 @@ def _fetch_shepherd_history(n_days=60):
             zt = _fetch_zt_pool(d)
             if zt:
                 rec.update(zt)
-        except Exception:  # noqa as e:
+        except Exception as e:  # noqa
             logger.warning(f"[shepherd] 处理异常: {e}")
             pass
         try:
             prev = _fetch_prev_pool(d)
             if prev:
                 rec.update(prev)
-        except Exception:  # noqa as e:
+        except Exception as e:  # noqa
             logger.warning(f"[shepherd] 处理异常: {e}")
             pass
         # 仅末日补 legu 快照（涨跌/跌停/红盘占比），避免逐日全A快照（重且沙箱不可用）
@@ -291,7 +291,7 @@ def _fetch_shepherd_history(n_days=60):
                         tot = legu["up_count"] + legu["down_count"]
                         if tot > 0:
                             rec["red_ratio"] = float(legu["up_count"] / tot * 100.0)
-            except Exception:  # noqa as e:
+            except Exception as e:  # noqa
                 logger.warning(f"[shepherd] 处理异常: {e}")
                 pass
         rows.append(rec)
@@ -478,7 +478,7 @@ def shepherd_temperature(today: dict, hist_days: int = 60):
         return 50.0
     try:
         hist = get_shepherd_history(hist_days)
-    except Exception:  # noqa as e:
+    except Exception as e:  # noqa
         logger.warning(f"[shepherd] 处理异常: {e}")
         hist = None
     subs = []

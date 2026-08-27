@@ -134,7 +134,7 @@ def _support_resistance_bar(support: float, resistance: float, current: float,
         try:
             lo = min(lo, float(_m[1]))
             hi = max(hi, float(_m[1]))
-        except Exception:  # noqa as e:
+        except Exception as e:  # noqa
             logger.warning(f"[stock_analysis_helpers] 处理异常: {e}")
             pass
     span = hi - lo if hi > lo else 1.0

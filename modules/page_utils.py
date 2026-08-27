@@ -79,7 +79,7 @@ def import_autorefresh():
     try:
         from modules.autorefresh import st_autorefresh
         return st_autorefresh
-    except Exception:  # noqa: BLE001 as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"[page_utils] 处理异常: {e}")
         return None
 
