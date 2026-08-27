@@ -498,7 +498,7 @@ def _wl_render_table_html(rows, dark: bool):
 def fragment_watchlist_quotes():
     st.markdown('---')
     st.subheader('📌 自选行情')
-    st.caption('实时跟踪自选股现价与涨跌（A股红涨绿跌）；行情接口异常时自动回退本地源。点击操作列「📈 看K线」跳转个股 K 线。')
+    st.caption('实时跟踪自选股现价与涨跌（A股红涨绿跌）；行情接口异常时自动回退本地源。点击操作列「📈 看K线」跳转个股 K 线；跳转后可在「股票选取」页调节 K 线显示数量与起始位置。')
     try:
         from modules.autorefresh import st_autorefresh
         if is_trading_now():

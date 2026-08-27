@@ -61,16 +61,16 @@ def _build_status_chips(dark: bool) -> list:
             chips.append('<span class="ss-pill theme-dark"><span class="dot"></span>暗夜</span>')
         else:
             chips.append('<span class="ss-pill theme-light"><span class="dot"></span>白天</span>')
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[page_utils] 处理异常: {e}")
     try:
         from modules.page_widgets import is_trading_now
         if is_trading_now():
             chips.append('<span class="ss-pill open"><span class="dot"></span>交易中</span>')
         else:
             chips.append('<span class="ss-pill closed"><span class="dot"></span>已休市</span>')
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[page_utils] 处理异常: {e}")
     return chips
 
 
