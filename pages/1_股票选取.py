@@ -118,7 +118,7 @@ def _render_user_score(ticker: str, stock_label: str) -> None:
 # ═══════════════════════════════════════════════════════════════
 from modules.widgets import sidebar_target
 with sidebar_target():
-    st.header("参数设置")
+    sf_card("参数设置", "")
     ticker = stock_search_input(
         label="股票搜索",
         key="pick_stock",
