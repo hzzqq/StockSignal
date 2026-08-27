@@ -22,6 +22,8 @@ from modules.timeout_exec import run_with_timeout
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
+from modules.chart_cache import cached_fig
+import plotly.graph_objects as go
 dark = render_standard_page('智能盯盘', icon='👁️', caption='⚠️ 数据仅供参考，不构成投资建议')
 if '_wl_recent' not in st.session_state:
     st.session_state._wl_recent = []
@@ -219,6 +221,21 @@ def _resolve_name(code, *candidates):
         pass
     return code_s
 
+
+# ── 图表 figure 构建缓存（性能优化：避免每次脚本重跑/60s 自动刷新时重复 rebuild）──
+@cached_fig(ttl=120)
+def _build_sector_fig(top, dark, ctype):
+    colors = [UP if v >= 0 else DOWN for v in top['净额']]
+    if ctype == '折线':
+        fig = go.Figure(go.Scatter(x=top['净额'], y=top['行业'], mode='markers+lines', marker=dict(color=colors, size=10), line=dict(color='#3498db', width=2), hovertemplate='%{y}<br>净额：%{x:.2f}亿<extra></extra>'))
+    elif ctype == '面积':
+        fig = go.Figure(go.Scatter(x=top['净额'], y=top['行业'], mode='lines', line=dict(color='#3498db', width=2), fill='tozerox', fillcolor='rgba(150,150,150,0.18)', hovertemplate='%{y}<br>净额：%{x:.2f}亿<extra></extra>'))
+    else:
+        fig = go.Figure(go.Bar(x=top['净额'], y=top['行业'], orientation='h', marker_color=colors, hovertemplate='%{y}<br>净额：%{x:.2f}亿<extra></extra>'))
+    fig = go.Figure(fig)
+    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=20, t=30, b=20), height=380, title='净流入 TOP10 行业（亿元）', font=dict(color='#e6e6e6' if dark else '#1a1a1a'), xaxis=dict(gridcolor='#2a2a3a' if dark else '#ececec'), yaxis=dict(gridcolor='#2a2a3a' if dark else '#ececec', autorange='reversed'))
+    return fig
+
 @safe_fragment('板块资金异动')
 def fragment_sector():
     st.markdown('### 🏭 板块资金异动')
@@ -232,11 +249,6 @@ def fragment_sector():
         st.error(f'行业资金流向加载失败：{e}')
         if st.button('🔄 重试', key='btn_sector_retry'):
             st.rerun(scope='fragment')
-        return
-    try:
-        import plotly.graph_objects as go
-    except Exception as e:
-        st.error(f'绘图组件加载失败：{e}')
         return
     if df is None or df.empty:
         _empty_info('暂无行业资金流向数据')
@@ -255,15 +267,7 @@ def fragment_sector():
         _empty_info('暂无有效的行业净额数据')
         return
     _ctype = st.radio('图表类型', ['柱状', '折线', '面积'], index=0, key='sector_chart_type', horizontal=True)
-    colors = [UP if v >= 0 else DOWN for v in top['净额']]
-    if _ctype == '折线':
-        fig = go.Figure(go.Scatter(x=top['净额'], y=top['行业'], mode='markers+lines', marker=dict(color=colors, size=10), line=dict(color='#3498db', width=2), hovertemplate='%{y}<br>净额：%{x:.2f}亿<extra></extra>'))
-    elif _ctype == '面积':
-        fig = go.Figure(go.Scatter(x=top['净额'], y=top['行业'], mode='lines', line=dict(color='#3498db', width=2), fill='tozerox', fillcolor='rgba(150,150,150,0.18)', hovertemplate='%{y}<br>净额：%{x:.2f}亿<extra></extra>'))
-    else:
-        fig = go.Figure(go.Bar(x=top['净额'], y=top['行业'], orientation='h', marker_color=colors, hovertemplate='%{y}<br>净额：%{x:.2f}亿<extra></extra>'))
-    fig = go.Figure(fig)
-    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=20, t=30, b=20), height=380, title='净流入 TOP10 行业（亿元）', font=dict(color='#e6e6e6' if dark else '#1a1a1a'), xaxis=dict(gridcolor='#2a2a3a' if dark else '#ececec'), yaxis=dict(gridcolor='#2a2a3a' if dark else '#ececec', autorange='reversed'))
+    fig = _build_sector_fig(top, dark, _ctype)
     st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, 'displayModeBar': False})
     st.caption('净流入行业领涨：横条越长代表当日主力净流入越多（红=净流入 / 绿=净流出）。')
     st.caption('数据来源：东方财富 / 同花顺 行业资金流向')
