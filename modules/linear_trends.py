@@ -29,6 +29,7 @@ from modules.fundflow import (
 )
 from modules.fetch_parallel import fetch_many  # R78：共享有界线程池并行取数
 from modules.fetcher import StockFetcher
+from modules.perf import downsample
 
 _logger = logging.getLogger(__name__)
 
@@ -246,6 +247,7 @@ def plot_northbound_history(df, dark_mode=False, date_range=None, ma_periods=(),
     if d is None or d.empty:
         fig.update_layout(title="暂无北向资金历史数据（区间内）", **_fig_base(dark_mode), height=360)
         return fig
+    d = downsample(d, max_points=600)
     fig.add_trace(go.Scatter(
         x=d["date"], y=d["net_buy_yi"], name="当日净买额(亿)",
         mode="lines", fill="tozeroy",
@@ -419,6 +421,7 @@ def plot_individual_series(df, name="", code="", dark_mode=False, date_range=Non
     if d is None or d.empty or "main_net" not in d.columns:
         fig.update_layout(title="暂无个股资金趋势数据（区间内）", **_fig_base(dark_mode), height=360)
         return fig
+    d = downsample(d, max_points=600)
     has_main = d["main_net"].notna().any()
     fig.add_trace(go.Scatter(
         x=d["date"], y=d["main_net"], name="主力净流入(元)",
@@ -615,6 +618,7 @@ def plot_market_cumulative(df, dark_mode=False, date_range=None, ma_periods=(),
     if d is None or d.empty or "cumulative" not in d.columns:
         fig.update_layout(title="暂无大盘累计资金数据（区间内）", **_fig_base(dark_mode), height=360)
         return fig
+    d = downsample(d, max_points=600)
     last = d["cumulative"].iloc[-1]
     cum_color = UP if (last is not None and last >= 0) else DOWN
     fig.add_trace(go.Scatter(
