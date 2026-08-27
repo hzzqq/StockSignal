@@ -16,11 +16,13 @@ from modules.widgets import render_index_compact
 from modules.page_guard import safe_fragment
 from modules.chart_cache import cached_fig
 from modules.page_utils import render_standard_page, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
 dark = render_standard_page(title='行情看板', icon='📈', layout='wide')
 render_index_compact(cols_per_row=5)
 st.markdown('---')
+sf_card("页面导读", "上方为市场指数迷你卡；下方输入代码 / 名称 / 拼音首字母搜索股票，点击结果即选中，可一键加入自选股，自选行情实时同步。K 线、技术面分析请前往「股票选取」。", icon="📈")
 st.subheader('🔍 搜索股票 · 加入自选')
 st.caption('输入代码 / 名称 / 拼音首字母，匹配结果直接显示在输入框下方（含市场标签），点击结果即选中；选中后可一键加入自选股，下方「自选行情」会实时同步。')
 _wb_code = stock_search_input(label='输入代码 / 名称 / 拼音', key='wb_search', default='600519')

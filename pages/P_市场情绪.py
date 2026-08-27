@@ -18,6 +18,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from modules.page_utils import render_standard_page, import_autorefresh
+from modules.ui_theme import sf_card, sf_metric
 from modules.session import get_token, fragment_market_alerts_panel
 from modules.market_drivers import get_market_drivers, DIMS
 from modules.shepherd import (get_shepherd_indicators, get_shepherd_indicators_range,
@@ -35,6 +36,7 @@ dark = render_standard_page(
             "估值(PE 历史百分位/股息率) → 综合「市场温度」0-100。数据源同《市场驱动力》指标表，单源失败优雅降级。",
 )
 st.page_link("pages/H_市场驱动力.py", label="📊 看《市场驱动力》五维归一化相关性分析（互补视角）", icon="🔗")
+sf_card("市场温度计导读", "本页用「温度计卡 + 信号灯 + sparkline」呈现市场冷/热：广度(ADL/ADR/新高新低)、情绪(VIX/涨停占比/PCR/北向/融资净买)、估值(PE 百分位/股息率)，并给出综合「市场温度」0-100 读数。单源失败优雅降级。", icon="🌡️")
 
 
 # ───────────────────────── 辅助函数 ─────────────────────────

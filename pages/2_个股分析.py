@@ -11,7 +11,9 @@ import pandas as pd
 from datetime import datetime
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 dark = render_standard_page(title='个股深度分析 · 决策仪表盘', icon='🔍', layout='wide')
+sf_card("个股分析导读", "输入代码/名称/拼音搜索个股，查看暗色决策仪表盘：K 线、技术面、资金面、情绪与风险铁律。严格遵循绿涨红跌配色；所有外部数据获取失败均友好提示，不抛红错。", icon="🔍")
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.session import api_kline, api_intraday

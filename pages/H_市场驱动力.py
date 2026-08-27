@@ -12,6 +12,7 @@ from modules.linear_trends import to_trend_csv, plot_correlation_heatmap, _slice
 from modules.page_widgets import _section_title, _trend_controls, _in_trading_hours, _empty_info
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh
+from modules.ui_theme import sf_card, sf_metric
 
 st_autorefresh = import_autorefresh()
 
@@ -22,6 +23,7 @@ dark = render_standard_page(
     layout="wide",
 )
 st.page_link("pages/P_市场情绪.py", label="🌡️ 看《市场情绪》广度与情绪温度计（互补视角）", icon="🔗")
+sf_card("五维驱动力导读", "21 指标按 资金 / 情绪 / 估值 / 宏观 / 技术 分 5 维子图，每维含上证参考线，全部统一归一化到起点=100 叠加，规避量纲差异。下方可选维度与指标序列，联动数据表与相关性热力图。", icon="🧮")
 
 
 def _render_drivers_meta(meta):

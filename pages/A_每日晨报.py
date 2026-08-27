@@ -14,12 +14,13 @@ import modules.scroll_nav as sn
 from modules.news import NewsFetcher
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
 today = date.today().strftime('%Y-%m-%d')
 dark = render_standard_page(title='每日晨报 / 复盘笔记', icon='🌅', caption=f'生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）', layout='wide')
 from modules.widgets import render_index_compact
 render_index_compact(cols_per_row=5)
-st.caption('⚠️ 以上数据仅供参考，不构成任何投资建议')
+sf_card("免责与导读", "以上指数仅供参考，不构成任何投资建议。本页聚合板块涨跌概览、自选股快照与相关新闻，生成开盘前速览；下方可写当日复盘笔记，按日期本地保存。", icon="🌅")
 fetcher = get_fetcher()
 
 @st.cache_data(ttl=600, show_spinner=False)

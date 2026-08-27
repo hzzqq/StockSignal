@@ -15,7 +15,9 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 from modules.page_utils import render_standard_page
+from modules.ui_theme import sf_card, sf_metric
 render_standard_page(title="策略回测", icon="⚙️", layout="wide")
+sf_card("策略回测导读", "支持趋势动量多因子（推荐）、双趋势共振 GMMA+一目、均线交叉、事件驱动四种策略。手动回测与每日选股回测为独立模块，互不重算；下方可运行回测并查看收益曲线与交易明细。", icon="⚙️")
 
 from modules.backtest import Backtester
 # Visualizer + 其常量全部延迟导入（节省 ~0.95s plotly+matplotlib 链）
