@@ -25,6 +25,7 @@ from modules.shepherd import (get_shepherd_indicators, get_shepherd_indicators_r
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.colors import _hex_to_rgba
+from modules.chart_cache import cached_fig
 
 st_autorefresh = import_autorefresh()
 
@@ -61,6 +62,7 @@ def _last(s):
     return float(s.iloc[-1]) if len(s) else None
 
 
+@cached_fig(ttl=120)
 def _spark(series, color, dark_mode):
     s = pd.to_numeric(series, errors="coerce").dropna().tail(40)
     if s.empty:
@@ -461,6 +463,64 @@ def _load_shepherd_range(start_date, end_date, backfill: bool = False):
     return get_shepherd_indicators_range(start_date, end_date, backfill=backfill)
 
 
+@cached_fig(ttl=120)
+def _build_shepherd_chart(d, dark):
+    """构建牧羊人指标双行折线图（重计算，按数据+主题缓存）。"""
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+        subplot_titles=("涨跌 / 涨停 / 跌停家数", "昨日涨停表现(%) / 红盘占比(%)"),
+        row_heights=[1, 1],
+    )
+    fam = dict(up_count=("#ee2a2a", "上涨家数"), down_count=("#3b82f6", "下跌家数"),
+               limit_up=("#f59e0b", "涨停家数"), limit_down=("#16c2c2", "跌停家数"))
+    for k, (col, name) in fam.items():
+        if k in d.columns:
+            s = pd.to_numeric(d[k], errors="coerce").dropna()
+            if s.empty:
+                continue
+            is_pt = len(s) < 2  # 仅末日快照点（涨跌/跌停）→ 菱形标记
+            tr = dict(x=d["date"], y=s.values, name=name + ("" if not is_pt else " (今)"),
+                      mode="markers" if is_pt else "lines",
+                      line=dict(width=1.8, color=col),
+                      hovertemplate=f"%{{x|%Y-%m-%d}}<br>{name}：%{{y:.0f}}<extra></extra>")
+            if is_pt:
+                tr["marker"] = dict(size=11, symbol="diamond", color=col)
+            fig.add_trace(go.Scatter(**tr), row=1, col=1)
+    pct = dict(zt_prev_ret=("#7c5cff", "昨日涨停表现%"), red_ratio=("#ee2a2a", "红盘占比%"))
+    for k, (col, name) in pct.items():
+        if k in d.columns:
+            s = pd.to_numeric(d[k], errors="coerce").dropna()
+            if s.empty:
+                continue
+            is_pt = len(s) < 2
+            tr = dict(x=d["date"], y=s.values, name=name + ("" if not is_pt else " (今)"),
+                      mode="markers" if is_pt else "lines",
+                      line=dict(width=1.8, color=col),
+                      hovertemplate=f"%{{x|%Y-%m-%d}}<br>{name}：%{{y:.2f}}%<extra></extra>")
+            if is_pt:
+                tr["marker"] = dict(size=11, symbol="diamond", color=col)
+            fig.add_trace(go.Scatter(**tr), row=2, col=1)
+    if "limit_up" in d.columns:
+        fig.add_hline(y=50, line_dash="dot", line_color="#888", row=1, col=1,
+                      annotation_text="涨停50(亢奋)", annotation_font_size=9)
+    if "zt_prev_ret" in d.columns:
+        fig.add_hline(y=0, line_dash="dot", line_color="#888", row=2, col=1)
+        fig.add_hline(y=3, line_dash="dot", line_color="#888", row=2, col=1,
+                      annotation_text="昨板3%(炸裂)", annotation_font_size=9)
+    theme = dict(
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e6e6e6" if dark else "#1a1a1a"),
+        xaxis=dict(gridcolor="#2a2a3a" if dark else "#ececec"),
+        yaxis=dict(gridcolor="#2a2a3a" if dark else "#ececec"),
+    )
+    fig.update_layout(
+        height=560, showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.5, xanchor="center", font=dict(size=10)),
+        margin=dict(l=55, r=25, t=60, b=40), hovermode="x unified", **theme)
+    fig.update_xaxes(tickangle=-30)
+    return fig
+
+
 @safe_fragment("牧羊人指标卡")
 def fragment_shepherd():
     _section_title("🐑 牧羊人指标（股海牧羊人·情绪温度计）", accent="#f59e0b")
@@ -551,58 +611,7 @@ def fragment_shepherd_chart():
         step = len(d) / MAX_POINTS
         idx = sorted(set([0] + [int(i * step) for i in range(1, MAX_POINTS)] + [len(d) - 1]))
         d = d.iloc[idx].reset_index(drop=True)
-    fig = make_subplots(
-        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
-        subplot_titles=("涨跌 / 涨停 / 跌停家数", "昨日涨停表现(%) / 红盘占比(%)"),
-        row_heights=[1, 1],
-    )
-    fam = dict(up_count=("#ee2a2a", "上涨家数"), down_count=("#3b82f6", "下跌家数"),
-               limit_up=("#f59e0b", "涨停家数"), limit_down=("#16c2c2", "跌停家数"))
-    for k, (col, name) in fam.items():
-        if k in d.columns:
-            s = pd.to_numeric(d[k], errors="coerce").dropna()
-            if s.empty:
-                continue
-            is_pt = len(s) < 2  # 仅末日快照点（涨跌/跌停）→ 菱形标记
-            tr = dict(x=d["date"], y=s.values, name=name + ("" if not is_pt else " (今)"),
-                      mode="markers" if is_pt else "lines",
-                      line=dict(width=1.8, color=col),
-                      hovertemplate=f"%{{x|%Y-%m-%d}}<br>{name}：%{{y:.0f}}<extra></extra>")
-            if is_pt:
-                tr["marker"] = dict(size=11, symbol="diamond", color=col)
-            fig.add_trace(go.Scatter(**tr), row=1, col=1)
-    pct = dict(zt_prev_ret=("#7c5cff", "昨日涨停表现%"), red_ratio=("#ee2a2a", "红盘占比%"))
-    for k, (col, name) in pct.items():
-        if k in d.columns:
-            s = pd.to_numeric(d[k], errors="coerce").dropna()
-            if s.empty:
-                continue
-            is_pt = len(s) < 2
-            tr = dict(x=d["date"], y=s.values, name=name + ("" if not is_pt else " (今)"),
-                      mode="markers" if is_pt else "lines",
-                      line=dict(width=1.8, color=col),
-                      hovertemplate=f"%{{x|%Y-%m-%d}}<br>{name}：%{{y:.2f}}%<extra></extra>")
-            if is_pt:
-                tr["marker"] = dict(size=11, symbol="diamond", color=col)
-            fig.add_trace(go.Scatter(**tr), row=2, col=1)
-    if "limit_up" in d.columns:
-        fig.add_hline(y=50, line_dash="dot", line_color="#888", row=1, col=1,
-                      annotation_text="涨停50(亢奋)", annotation_font_size=9)
-    if "zt_prev_ret" in d.columns:
-        fig.add_hline(y=0, line_dash="dot", line_color="#888", row=2, col=1)
-        fig.add_hline(y=3, line_dash="dot", line_color="#888", row=2, col=1,
-                      annotation_text="昨板3%(炸裂)", annotation_font_size=9)
-    theme = dict(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e6e6e6" if dark else "#1a1a1a"),
-        xaxis=dict(gridcolor="#2a2a3a" if dark else "#ececec"),
-        yaxis=dict(gridcolor="#2a2a3a" if dark else "#ececec"),
-    )
-    fig.update_layout(
-        height=560, showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.5, xanchor="center", font=dict(size=10)),
-        margin=dict(l=55, r=25, t=60, b=40), hovermode="x unified", **theme)
-    fig.update_xaxes(tickangle=-30)
+    fig = _build_shepherd_chart(d, dark)
     st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="shep_lines")
     caption = ("🐑 牧羊人指标源自抖音博主「股海牧羊人」《炒股绕不开的第一步》情绪温度计方法论："
                "不盯指数红绿，先看大盘脸色（涨跌家数/涨停跌停/昨日涨停表现）。"
