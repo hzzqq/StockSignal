@@ -18,6 +18,7 @@ from modules.fundflow import (
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN
 from modules.ui_kit import info_banner
 # 注：openpyxl / reportlab 为「重型导出」依赖，改为惰性加载（见 _to_excel_bytes / _to_pdf_bytes），
@@ -317,7 +318,7 @@ def _collect_all(period: str, code: str):
 # ───────────────────────── 行业板块资金流向 ─────────────────────────
 @safe_fragment("行业板块数据")
 def frag_industry():
-    st.subheader("🏭 行业板块资金流向")
+    sf_card("🏭 行业板块资金流向", "")
     st.caption("数据源：东方财富 stock_fund_flow_industry()")
     if st.button("生成并下载 CSV", key="exp_industry_btn"):
         try:
@@ -340,7 +341,7 @@ def frag_industry():
 # ───────────────────────── 北向资金 ─────────────────────────
 @safe_fragment("北向资金")
 def frag_northbound():
-    st.subheader("🌐 北向资金")
+    sf_card("🌐 北向资金", "")
     st.caption("数据源：东方财富 stock_hsgt_fund_flow_summary_em()（沪股通/深股通/北向）")
     if st.button("生成并下载 CSV", key="exp_north_btn"):
         try:
@@ -376,7 +377,7 @@ def frag_northbound():
 # ───────────────────────── 大盘主力净流入(近30日) ─────────────────────────
 @safe_fragment("市场资金概览")
 def frag_market():
-    st.subheader("📊 大盘主力净流入（近30日）")
+    sf_card("📊 大盘主力净流入（近30日）", "")
     st.caption("数据源：东方财富 stock_market_fund_flow()，取最近 30 日")
     if st.button("生成并下载 CSV", key="exp_market_btn"):
         try:
@@ -399,7 +400,7 @@ def frag_market():
 # ───────────────────────── 个股主力资金 ─────────────────────────
 @safe_fragment("个股资金流")
 def frag_individual():
-    st.subheader("🎯 个股主力资金")
+    sf_card("🎯 个股主力资金", "")
     st.caption("数据源：东方财富 stock_individual_fund_flow()（失败则量价模型估算兜底）")
     from modules.search_ui import stock_search_input
     code = stock_search_input(label="选择股票", key="exp_stock", default="600519")
@@ -437,7 +438,7 @@ def frag_individual():
 # ───────────────────────── 业绩报表(财报) ─────────────────────────
 @safe_fragment("业绩日历")
 def frag_earnings():
-    st.subheader("📑 业绩报表（财报）")
+    sf_card("📑 业绩报表（财报）", "")
     st.caption("数据源：东方财富 stock_yjbb_em()，报告期格式 YYYYMMDD（如 20260331=一季报）")
     period = st.text_input(
         "报告期 (YYYYMMDD)", value="20260331", key="exp_period",
@@ -470,7 +471,7 @@ def frag_earnings():
 # ───────────────────────── 组合持仓盈亏 ─────────────────────────
 @safe_fragment("持仓组合")
 def frag_portfolio():
-    st.subheader("💼 组合持仓盈亏")
+    sf_card("💼 组合持仓盈亏", "")
     st.caption("数据源：modules.portfolio.PortfolioManager（calc_pnl / summary）")
     if st.button("生成并下载 CSV", key="exp_port_btn"):
         try:
@@ -499,7 +500,7 @@ def frag_portfolio():
 # ───────────────────────── 自选股实时快照 ─────────────────────────
 @safe_fragment("自选股池")
 def frag_watchlist():
-    st.subheader("⭐ 自选股实时快照")
+    sf_card("⭐ 自选股实时快照", "")
     st.caption("数据源：/api/watchlist + StockFetcher.get_realtime_quote()")
     if st.button("生成并下载 CSV", key="exp_watch_btn"):
         try:
@@ -527,7 +528,7 @@ def frag_watchlist():
 # ───────────────────────── 一键导出 Excel（多Sheet） ─────────────────────────
 @safe_fragment("Excel 多Sheet 导出")
 def frag_excel():
-    st.subheader("📊 一键导出 Excel（多 Sheet）")
+    sf_card("📊 一键导出 Excel（多 Sheet）", "")
     st.caption("将所有可用数据集汇总进单个 .xlsx，每个数据集一个 Sheet（自动列宽 + 冻结表头）。")
     from modules.search_ui import stock_search_input
     period = st.text_input("财报报告期 (YYYYMMDD)", value="20260331", key="expall_period")
@@ -550,7 +551,7 @@ def frag_excel():
 # ───────────────────────── 导出数据摘要 PDF ─────────────────────────
 @safe_fragment("PDF 摘要导出")
 def frag_pdf():
-    st.subheader("📄 导出数据摘要 PDF")
+    sf_card("📄 导出数据摘要 PDF", "")
     st.caption("生成中文数据摘要报告（每个数据集展示前 25 行）。完整数据请用 CSV / Excel / ZIP。")
     from modules.search_ui import stock_search_input
     period = st.text_input("财报报告期 (YYYYMMDD)", value="20260331", key="pdf_period")
