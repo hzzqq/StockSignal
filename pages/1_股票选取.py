@@ -341,6 +341,64 @@ def _cached_intraday(ticker):
     return None
 
 
+@safe_fragment
+def fragment_kline_pick(ticker, stock_label, df, kline_period, period_label, start_str, end_str,
+                        view_start, view_count, ma_windows, drag_mode, events_df, show_events):
+    """行情看板 K 线卡片独立 fragment：双击 K 线弹分时的 on_select="rerun" 只重跑本片段，
+    不再触发整页重跑（事件面板 / 区间统计等不受影响）。"""
+    from modules.visualizer import Visualizer
+    fig = Visualizer.candlestick(df, title=f"{stock_label} {period_label}",
+                                 ma_windows=ma_windows, show_volume=True,
+                                 start_idx=view_start, n_show=view_count,
+                                 dragmode=drag_mode,
+                                 events=events_df if show_events else None)
+    _pk_event = st.plotly_chart(fig, width="stretch", key="pick_kline_chart",
+                                on_select="rerun", config=KLINE_CHART_CONFIG)
+    _pdbl_key = "pick_dblclick"
+    _pnow = datetime.now().timestamp()
+    _pclick_date = None
+    if _pk_event and hasattr(_pk_event, "selection") and _pk_event.selection.points:
+        _ppt = _pk_event.selection.points[0]
+        _pxval = _ppt.get("x", _ppt.get("pointIndex", None))
+        if _pxval is not None:
+            try:
+                _pidx = int(_pxval)
+                if 0 <= _pidx < len(df):
+                    _pclick_date = str(df.iloc[_pidx]["date"])[:10]
+            except (ValueError, TypeError, IndexError):
+                if isinstance(_pxval, str) and len(_pxval) >= 10:
+                    _pclick_date = _pxval[:10]
+    if _pclick_date:
+        if kline_period != "daily":
+            _pclick_date = _period_end_to_trading_day(ticker, start_str, end_str, _pclick_date)
+        _pprev = st.session_state.get(_pdbl_key)
+        if (_pprev and _pnow - _pprev[0] < 0.5 and _pprev[1] == _pclick_date):
+            st.session_state["pick_intraday_target"] = _pclick_date
+            st.session_state[_pdbl_key] = None
+        else:
+            st.session_state[_pdbl_key] = (_pnow, _pclick_date)
+    _ptgt = st.session_state.get("pick_intraday_target")
+    if _ptgt:
+        with st.expander(f"📈 {_ptgt} 分时走势（双击K线弹出）", expanded=True):
+            st.caption("💡 双击上方 K 线任意柱子可切换到该日分时。")
+            try:
+                _pdi = _cached_intraday_for_date(ticker, _ptgt)
+                if _pdi is not None:
+                    _pdf, _ppc, _pdt = _pdi
+                    _pdfig = Visualizer.intraday(_pdf, prev_close=_ppc,
+                                                 title=f"{stock_label} 分时（{_pdt}）")
+                    st.plotly_chart(_pdfig, width="stretch", key=f"pick_dbl_intra_{_ptgt}", config={"displaylogo": False, "responsive": True})
+                else:
+                    st.info(f"📭 {_ptgt} 暂无分时数据。")
+            except Exception as _pde:
+                st.warning(f"分时加载失败：{str(_pde)[:80]}")
+            if st.button("✕ 关闭", key="pick_close_intra"):
+                del st.session_state["pick_intraday_target"]
+                st.rerun(scope="fragment")
+    st.caption("📈 K 线图含所选 MA 均线；开启「标注事件」后，利好事件标红↑、利空事件标绿↓（A股红涨绿跌惯例）。"
+               "可拖动平移或框选缩放。🖱️ **双击K线柱** → 弹出当日分时图。")
+
+
 @safe_fragment("分时图自动刷新")
 def _fragment_intraday(ticker: str, stock_label: str) -> None:
     """分时图区块：独立 fragment，仅在交易时段每 5 分钟自动刷新一次。
@@ -497,60 +555,8 @@ try:
         # ── 分时图（独立 fragment，交易时段每 5 分钟自动刷新）──
         _fragment_intraday(ticker, stock_label)
 
-        fig = Visualizer.candlestick(df, title=f"{stock_label} {period_label}",
-                                     ma_windows=ma_windows, show_volume=True,
-                                     start_idx=view_start, n_show=view_count,
-                                     dragmode=drag_mode,
-                                     events=events_df if show_events else None)
-        # ── K线双击弹分时 ──
-        _pk_event = st.plotly_chart(fig, width="stretch", key="pick_kline_chart",
-                                    on_select="rerun", config=KLINE_CHART_CONFIG)
-        _pdbl_key = "pick_dblclick"
-        _pnow = datetime.now().timestamp()
-        _pclick_date = None
-        if _pk_event and hasattr(_pk_event, "selection") and _pk_event.selection.points:
-            _ppt = _pk_event.selection.points[0]
-            _pxval = _ppt.get("x", _ppt.get("pointIndex", None))
-            if _pxval is not None:
-                try:
-                    _pidx = int(_pxval)
-                    if 0 <= _pidx < len(df):
-                        _pclick_date = str(df.iloc[_pidx]["date"])[:10]
-                except (ValueError, TypeError, IndexError):
-                    if isinstance(_pxval, str) and len(_pxval) >= 10:
-                        _pclick_date = _pxval[:10]
-        if _pclick_date:
-            # 周/月线视图：点击日期是周期末(可能周末)，映射到最近交易日再弹分时
-            if kline_period != "daily":
-                _pclick_date = _period_end_to_trading_day(ticker, start_str, end_str, _pclick_date)
-            _pprev = st.session_state.get(_pdbl_key)
-            if (_pprev and _pnow - _pprev[0] < 0.5 and _pprev[1] == _pclick_date):
-                st.session_state["pick_intraday_target"] = _pclick_date
-                st.session_state[_pdbl_key] = None
-            else:
-                st.session_state[_pdbl_key] = (_pnow, _pclick_date)
-
-        _ptgt = st.session_state.get("pick_intraday_target")
-        if _ptgt:
-            with st.expander(f"📈 {_ptgt} 分时走势（双击K线弹出）", expanded=True):
-                st.caption("💡 双击上方 K 线任意柱子可切换到该日分时。")
-                try:
-                    _pdi = _cached_intraday_for_date(ticker, _ptgt)
-                    if _pdi is not None:
-                        _pdf, _ppc, _pdt = _pdi
-                        _pdfig = Visualizer.intraday(_pdf, prev_close=_ppc,
-                                                     title=f"{stock_label} 分时（{_pdt}）")
-                        st.plotly_chart(_pdfig, width="stretch", key=f"pick_dbl_intra_{_ptgt}", config={"displaylogo": False, "responsive": True})
-                    else:
-                        st.info(f"📭 {_ptgt} 暂无分时数据。")
-                except Exception as _pde:
-                    st.warning(f"分时加载失败：{str(_pde)[:80]}")
-                if st.button("✕ 关闭", key="pick_close_intra"):
-                    del st.session_state["pick_intraday_target"]
-                    st.rerun(scope="fragment")
-
-        st.caption("📈 K 线图含所选 MA 均线；开启「标注事件」后，利好事件标红↑、利空事件标绿↓（A股红涨绿跌惯例）。"
-                   "可拖动平移或框选缩放。🖱️ **双击K线柱** → 弹出当日分时图。")
+        fragment_kline_pick(ticker, stock_label, df, kline_period, period_label, start_str, end_str,
+                            view_start, view_count, ma_windows, drag_mode, events_df, show_events)
 
         # 事件面板（可折叠）：列出可见区间内事件，便于对照 K 线标注
         if show_events and events_df is not None and not events_df.empty:

@@ -128,6 +128,123 @@ def _cached_intraday(ticker):
     return None
 
 
+@safe_fragment
+def fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped):
+    """技术指标 K 线卡片：独立 fragment。
+
+    双击 K 线弹分时（on_select='rerun'）/ 切换周期 / 改日期范围，均只重跑本片段，
+    不再触发整页（情报面、利好利空清单、板块分析等）重跑。修复此前双击 K 线导致整页 rerun 的性能问题。
+    """
+    _period_opts = ['daily', 'weekly', 'monthly']
+    kline_period = st.radio('K线周期', options=_period_opts,
+                            index=_period_opts.index(st.session_state.get(f'kline_period_{ticker}', 'daily')),
+                            format_func=lambda p: {'daily': '日 K', 'weekly': '周 K', 'monthly': '月 K'}[p],
+                            horizontal=True, key=f'kline_period_radio_{ticker}',
+                            help='切换 K 线周期：日线 / 周线 / 月线')
+    st.session_state[f'kline_period_{ticker}'] = kline_period
+    period_label = {'daily': '日K线', 'weekly': '周K线', 'monthly': '月K线'}[kline_period]
+    kline_title = f'{ticker} {display_name} {period_label}'
+    _dr_key = f'kline_daterange_{ticker}'
+    if _dr_key not in st.session_state:
+        st.session_state[_dr_key] = (datetime(2020, 1, 1), datetime.now())
+    _dr = st.date_input('K线日期范围（开始 / 结束）', value=st.session_state[_dr_key],
+                        max_value=datetime.now(), key=f'kline_daterange_input_{ticker}',
+                        help='选定开始与结束日期，按自定义区间查看 K 线（日线直接筛选；周/月线按区间重新拉取）')
+    _kstart, _kend = ('2020-01-01', datetime.now().strftime('%Y-%m-%d'))
+    if isinstance(_dr, (tuple, list)) and len(_dr) == 2:
+        st.session_state[_dr_key] = _dr
+        try:
+            _kstart = _dr[0].strftime('%Y-%m-%d')
+            _kend = _dr[1].strftime('%Y-%m-%d')
+        except Exception:
+            pass
+    if kline_period == 'daily':
+        period_df = df
+        try:
+            _dmask = (pd.to_datetime(period_df['date']) >= _kstart) & (pd.to_datetime(period_df['date']) <= _kend)
+            _filtered = period_df[_dmask]
+            if not _filtered.empty:
+                period_df = _filtered
+        except Exception:
+            pass
+    else:
+        _period_name = {'weekly': '周线', 'monthly': '月线'}.get(kline_period, '')
+        with st.spinner(f'正在加载{_period_name} K 线数据…'):
+            _kdf = _cached_period_kline(ticker, _kstart, _kend, kline_period)
+        if _kdf is not None and (not _kdf.empty):
+            period_df = DataCleaner.full_pipeline(_kdf.copy())
+        else:
+            period_df = df
+    _fragment_intraday(ticker, display_name)
+    try:
+        kline_annotations = [{'price': ma20v, 'label': 'MA20压制', 'color': GREEN, 'dash': 'dash'},
+                             {'price': ma10v, 'label': 'MA10', 'color': '#667eea', 'dash': 'dash'},
+                             {'price': support, 'label': '前低支撑', 'color': RED, 'dash': 'dash'},
+                             {'price': trapped, 'label': '套牢区', 'color': AMBER, 'dash': 'dot'}] if kline_period == 'daily' else None
+        fig = Visualizer.candlestick(period_df, title=kline_title, show_volume=True, ma_windows=[5, 10, 20],
+                                     annotations=kline_annotations, support=None, resistance=None,
+                                     up_color=RED, down_color=GREEN, ma_colors=['#ffa502', '#667eea', '#009e60'])
+        _kline_key = f'kline_chart_{ticker}'
+        _kline_event = st.plotly_chart(fig, use_container_width=True, key=_kline_key, on_select='rerun',
+                                       config={'displayModeBar': 'hover', 'displaylogo': False, 'scrollZoom': True,
+                                               'modeBarButtonsToRemove': ['lasso2d', 'select2d']})
+        _dbl_key = f'kline_dbl_{ticker}'
+        _now_ms = datetime.now().timestamp()
+        _clicked_date = None
+        if _kline_event and hasattr(_kline_event, 'selection') and _kline_event.selection.points:
+            _pt = _kline_event.selection.points[0]
+            _xval = _pt.get('x', _pt.get('pointIndex', None))
+            if _xval is not None:
+                try:
+                    _idx = int(_xval)
+                    if 0 <= _idx < len(period_df):
+                        _clicked_date = str(period_df.iloc[_idx]['date'])[:10]
+                except (ValueError, TypeError, IndexError):
+                    if isinstance(_xval, str) and len(_xval) >= 10:
+                        _clicked_date = _xval[:10]
+        if _clicked_date:
+            if kline_period != 'daily':
+                _clicked_date = _period_end_to_trading_day(ticker, _kstart, _kend, _clicked_date)
+            _prev_click = st.session_state.get(_dbl_key)
+            if _prev_click and _now_ms - _prev_click[0] < 0.5 and (_prev_click[1] == _clicked_date):
+                st.session_state[f'intraday_target_{ticker}'] = _clicked_date
+                st.session_state[_dbl_key] = None
+            else:
+                st.session_state[_dbl_key] = (_now_ms, _clicked_date)
+        _target_dt = st.session_state.get(f'intraday_target_{ticker}')
+        if _target_dt:
+            with st.expander(f'📈 {_target_dt} 分时走势（双击K线弹出）', expanded=True):
+                st.caption('💡 提示：在上方 K 线图上**双击任意一根柱子**即可切换到该交易日分时。')
+                try:
+                    _di = _cached_intraday_for_date(ticker, _target_dt)
+                    if _di is not None:
+                        _didf, _dipc, _didt = _di
+                        _dfig = Visualizer.intraday(_didf, prev_close=_dipc, title=f'{ticker} {display_name} 分时（{_didt}）', up_color=RED, down_color=GREEN)
+                        st.plotly_chart(_dfig, use_container_width=True, key=f'dbl_intra_{ticker}_{_target_dt}', config={'displaylogo': False, 'responsive': True})
+                    else:
+                        st.info(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
+                except Exception as _die:
+                    st.warning(f'分时图加载失败：{str(_die)[:80]}')
+                if st.button('✕ 关闭分时图', key=f'close_intra_{ticker}'):
+                    del st.session_state[f'intraday_target_{ticker}']
+                    st.rerun(scope='fragment')
+        st.markdown("<div style='font-size:12px;color:#64748b;margin:8px 0 6px;display:flex;align-items:center;gap:8px;'><span>💡</span><span>按住鼠标拖拽可平移；点击工具栏 🔍 后框选区域可放大；点击 🏠 可还原视图（部分浏览器需双击）。</span><span style='margin-left:auto;background:#f0f9ff;padding:2px 8px;border-radius:4px;font-size:11px;color:#0369a1;'>🖱️ <b>双击K线柱</b> → 弹出当日分时图</span></div>", unsafe_allow_html=True)
+        _date_min = pd.to_datetime(period_df['date']).min().strftime('%Y-%m-%d')
+        _date_max = pd.to_datetime(period_df['date']).max().strftime('%Y-%m-%d')
+        _cap = "<div style='font-size:12px;color:#64748b;margin-top:4px;'>绿柱为上涨、红柱为下跌（参考文档配色）。均线 MA5(橙)/MA10(靛)/MA20(绿)；"
+        if kline_period == 'daily':
+            _cap += f'标注线：MA20压制 ¥{ma20v:.2f} / MA10 ¥{ma10v:.2f} / 前低支撑 ¥{support:.2f} / 套牢区 ¥{trapped:.2f}。'
+        else:
+            _cap += f"当前为{('周线' if kline_period == 'weekly' else '月线')}视图，均线为对应周期数值。"
+        _cap += f'数据区间 {_date_min} ~ {_date_max}。</div>'
+        st.markdown(_cap, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f'⚠️ K线图渲染失败，请稍后重试：{str(e)[:80]}')
+        if st.button('🔄 重试', key='kline_retry_btn'):
+            st.rerun(scope='fragment')
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 @safe_fragment(run_every=300)
 def _fragment_intraday(ticker: str, display_name: str) -> None:
     """分时图独立片段：交易时段每 5 分钟自刷新，与整页 1 分钟节奏解耦。"""
@@ -308,102 +425,7 @@ def _render_analysis(R: dict):
     _drawdown = (last['close'] / trapped - 1) * 100 if trapped > 0 else 0.0
     st.markdown(f"<div style='margin-top:8px;font-size:13.5px;color:#64748b;line-height:1.7;'><b style='color:#1e293b;'>筹码结构：</b>近 120 日自 {trapped:.2f} 高点回落至现价 {last['close']:.2f}（约 {_drawdown:+.1f}%），{trapped:.2f}–{hi52:.2f} 区间为近期密集成交<b style='color:{AMBER};'>套牢区</b>，反弹至此抛压显著；前低 <b style='color:{RED};'>¥{support:.2f}</b> 为强支撑，MA5/MA10 为短期依托。</div>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sf-card">' + _section_header('技术指标图表', 'K线 + 均线 + 成交量 · 日期坐标', '📈'), unsafe_allow_html=True)
-    _period_opts = ['daily', 'weekly', 'monthly']
-    kline_period = st.radio('K线周期', options=_period_opts, index=_period_opts.index(st.session_state.get(f'kline_period_{ticker}', 'daily')), format_func=lambda p: {'daily': '日 K', 'weekly': '周 K', 'monthly': '月 K'}[p], horizontal=True, key=f'kline_period_radio_{ticker}', help='切换 K 线周期：日线 / 周线 / 月线')
-    st.session_state[f'kline_period_{ticker}'] = kline_period
-    period_label = {'daily': '日K线', 'weekly': '周K线', 'monthly': '月K线'}[kline_period]
-    kline_title = f'{ticker} {display_name} {period_label}'
-    _dr_key = f'kline_daterange_{ticker}'
-    if _dr_key not in st.session_state:
-        st.session_state[_dr_key] = (datetime(2020, 1, 1), datetime.now())
-    _dr = st.date_input('K线日期范围（开始 / 结束）', value=st.session_state[_dr_key], max_value=datetime.now(), key=f'kline_daterange_input_{ticker}', help='选定开始与结束日期，按自定义区间查看 K 线（日线直接筛选；周/月线按区间重新拉取）')
-    _kstart, _kend = ('2020-01-01', datetime.now().strftime('%Y-%m-%d'))
-    if isinstance(_dr, (tuple, list)) and len(_dr) == 2:
-        st.session_state[_dr_key] = _dr
-        try:
-            _kstart = _dr[0].strftime('%Y-%m-%d')
-            _kend = _dr[1].strftime('%Y-%m-%d')
-        except Exception:
-            pass
-    if kline_period == 'daily':
-        period_df = df
-        try:
-            _dmask = (pd.to_datetime(period_df['date']) >= _kstart) & (pd.to_datetime(period_df['date']) <= _kend)
-            _filtered = period_df[_dmask]
-            if not _filtered.empty:
-                period_df = _filtered
-        except Exception:
-            pass
-    else:
-        _period_name = {'weekly': '周线', 'monthly': '月线'}.get(kline_period, '')
-        with st.spinner(f'正在加载{_period_name} K 线数据…'):
-            _kdf = _cached_period_kline(ticker, _kstart, _kend, kline_period)
-        if _kdf is None or _kdf.empty:
-            period_df = df
-        else:
-            period_df = DataCleaner.full_pipeline(_kdf.copy())
-    _fragment_intraday(ticker, display_name)
-    try:
-        kline_annotations = [{'price': ma20v, 'label': 'MA20压制', 'color': GREEN, 'dash': 'dash'}, {'price': ma10v, 'label': 'MA10', 'color': '#667eea', 'dash': 'dash'}, {'price': support, 'label': '前低支撑', 'color': RED, 'dash': 'dash'}, {'price': trapped, 'label': '套牢区', 'color': AMBER, 'dash': 'dot'}] if kline_period == 'daily' else None
-        fig = Visualizer.candlestick(period_df, title=kline_title, show_volume=True, ma_windows=[5, 10, 20], annotations=kline_annotations, support=None, resistance=None, up_color=RED, down_color=GREEN, ma_colors=['#ffa502', '#667eea', '#009e60'])
-        _kline_key = f'kline_chart_{ticker}'
-        _kline_event = st.plotly_chart(fig, use_container_width=True, key=_kline_key, on_select='rerun', config={'displayModeBar': 'hover', 'displaylogo': False, 'scrollZoom': True, 'modeBarButtonsToRemove': ['lasso2d', 'select2d']})
-        _dbl_key = f'kline_dbl_{ticker}'
-        _now_ms = datetime.now().timestamp()
-        _clicked_date = None
-        if _kline_event and hasattr(_kline_event, 'selection') and _kline_event.selection.points:
-            _pt = _kline_event.selection.points[0]
-            _xval = _pt.get('x', _pt.get('pointIndex', None))
-            if _xval is not None:
-                try:
-                    _idx = int(_xval)
-                    if 0 <= _idx < len(period_df):
-                        _clicked_date = str(period_df.iloc[_idx]['date'])[:10]
-                except (ValueError, TypeError, IndexError):
-                    if isinstance(_xval, str) and len(_xval) >= 10:
-                        _clicked_date = _xval[:10]
-        if _clicked_date:
-            if kline_period != 'daily':
-                _clicked_date = _period_end_to_trading_day(ticker, _kstart, _kend, _clicked_date)
-            _prev_click = st.session_state.get(_dbl_key)
-            if _prev_click and _now_ms - _prev_click[0] < 0.5 and (_prev_click[1] == _clicked_date):
-                st.session_state[f'intraday_target_{ticker}'] = _clicked_date
-                st.session_state[_dbl_key] = None
-            else:
-                st.session_state[_dbl_key] = (_now_ms, _clicked_date)
-        _target_dt = st.session_state.get(f'intraday_target_{ticker}')
-        if _target_dt:
-            with st.expander(f'📈 {_target_dt} 分时走势（双击K线弹出）', expanded=True):
-                st.caption('💡 提示：在上方 K 线图上**双击任意一根柱子**即可切换到该交易日分时。')
-                try:
-                    _di = _cached_intraday_for_date(ticker, _target_dt)
-                    if _di is not None:
-                        _didf, _dipc, _didt = _di
-                        _dfig = Visualizer.intraday(_didf, prev_close=_dipc, title=f'{ticker} {display_name} 分时（{_didt}）', up_color=RED, down_color=GREEN)
-                        st.plotly_chart(_dfig, use_container_width=True, key=f'dbl_intra_{ticker}_{_target_dt}', config={'displaylogo': False, 'responsive': True})
-                    else:
-                        st.info(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
-                except Exception as _die:
-                    st.warning(f'分时图加载失败：{str(_die)[:80]}')
-                if st.button('✕ 关闭分时图', key=f'close_intra_{ticker}'):
-                    del st.session_state[f'intraday_target_{ticker}']
-                    st.rerun(scope='fragment')
-        st.markdown("<div style='font-size:12px;color:#64748b;margin:8px 0 6px;display:flex;align-items:center;gap:8px;'><span>💡</span><span>按住鼠标拖拽可平移；点击工具栏 🔍 后框选区域可放大；点击 🏠 可还原视图（部分浏览器需双击）。</span><span style='margin-left:auto;background:#f0f9ff;padding:2px 8px;border-radius:4px;font-size:11px;color:#0369a1;'>🖱️ <b>双击K线柱</b> → 弹出当日分时图</span></div>", unsafe_allow_html=True)
-        _date_min = pd.to_datetime(period_df['date']).min().strftime('%Y-%m-%d')
-        _date_max = pd.to_datetime(period_df['date']).max().strftime('%Y-%m-%d')
-        _cap = "<div style='font-size:12px;color:#64748b;margin-top:4px;'>绿柱为上涨、红柱为下跌（参考文档配色）。均线 MA5(橙)/MA10(靛)/MA20(绿)；"
-        if kline_period == 'daily':
-            _cap += f'标注线：MA20压制 ¥{ma20v:.2f} / MA10 ¥{ma10v:.2f} / 前低支撑 ¥{support:.2f} / 套牢区 ¥{trapped:.2f}。'
-        else:
-            _cap += f"当前为{('周线' if kline_period == 'weekly' else '月线')}视图，均线为对应周期数值。"
-        _cap += f'数据区间 {_date_min} ~ {_date_max}。</div>'
-        st.markdown(_cap, unsafe_allow_html=True)
-    except Exception as e:
-        st.error(f'⚠️ K线图渲染失败，请稍后重试：{str(e)[:80]}')
-        if st.button('🔄 重试', key='kline_retry_btn'):
-            st.rerun(scope='fragment')
-    st.markdown('</div>', unsafe_allow_html=True)
+    fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped)
     neu_pct = max(0, 100 - pos_pct - neg_pct)
     st.markdown('<div class="sf-card">' + _section_header('情报面', '新闻情绪 · 事件催化 · 风险提示', '📰'), unsafe_allow_html=True)
     st.markdown(f"<div class='sf-intel-header'><div><span class='sf-pill up'>正面 {pos_pct:.0f}%</span><span class='sf-pill mid'>中性 {neu_pct:.0f}%</span><span class='sf-pill down'>负面 {neg_pct:.0f}%</span></div></div><div class='sf-intel-bar'><div class='bar-pos' style='width:{pos_pct:.0f}%'></div><div class='bar-neu' style='width:{neu_pct:.0f}%'></div><div class='bar-neg' style='width:{neg_pct:.0f}%'></div></div>", unsafe_allow_html=True)
