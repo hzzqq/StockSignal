@@ -121,7 +121,7 @@ def fragment_compare_result():
                 icon="⏳",
             )
             st.progress(0.0, text="等待对比结果...")
-            st_autorefresh(interval=1000, limit=30, key="compare_autorefresh")
+            st_autorefresh(interval=2500, limit=30, key="compare_autorefresh")
             return
 
     rows = st.session_state.get("_cmp_rows")
@@ -152,7 +152,7 @@ def fragment_compare_result():
     )
     c1, c2 = st.columns([1.15, 1])
     with c1:
-        st.plotly_chart(build_radar(rows), use_container_width=True)
+        st.plotly_chart(build_radar(rows), use_container_width=True, config={"displaylogo": False, "responsive": True})
     with c2:
         st.markdown(build_radar_right(rows), unsafe_allow_html=True)
 

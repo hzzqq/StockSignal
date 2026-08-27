@@ -281,7 +281,7 @@ def _result_panel():
         elif task and task.get("status") in ("pending", "running"):
             _render_live_progress(task)
             if st_autorefresh is not None:
-                st_autorefresh(interval=1000, limit=240, key="quant_autorefresh")
+                st_autorefresh(interval=2500, limit=240, key="quant_autorefresh")
             else:
                 # fallback：不阻塞、不重跑整页；让用户手动刷新
                 st.caption("⏳ 任务运行中，请稍后刷新页面查看结果。")
