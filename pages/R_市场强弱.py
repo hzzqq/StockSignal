@@ -8,6 +8,9 @@
 UI-only；fragment 内无整页 st.rerun；A股红涨绿跌（信号灯语义：强=红 / 震荡=黄 / 弱=绿，与价格色一致）；
 与 H_市场驱动力（五维子图）互链，互为简化/详细视图。
 """
+import html
+from contextlib import contextmanager
+
 import requests
 
 import pandas as pd
@@ -22,18 +25,48 @@ from modules.linear_trends import (
 )
 from modules.margin_trading import get_margin_trading_data
 from modules.page_widgets import (
-    _section_title, _trend_controls, _in_trading_hours, _empty_info, UP, DOWN,
+    _trend_controls, _in_trading_hours, _empty_info, UP, DOWN,
 )
 from modules.page_guard import safe_fragment
 
 st_autorefresh = import_autorefresh()
+
+
+@contextmanager
+def _sf_card(title=None, icon=""):
+    """星辰主题卡片包装器（只注入视觉容器，不改内部业务逻辑）。"""
+    if title:
+        esc_title = html.escape(title)
+        esc_icon = html.escape(icon)
+        st.markdown(
+            f'<div class="sf-card"><div class="sf-card-title">'
+            f'<span>{esc_icon} {esc_title}</span></div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown('<div class="sf-card">', unsafe_allow_html=True)
+    try:
+        yield
+    finally:
+        st.markdown("</div>", unsafe_allow_html=True)
+
 
 dark = render_standard_page(
     title="市场强弱一览（归一化多线 · 一眼看懂）", icon="📊",
     caption="把指数与关键资金面统一归一化到起点=100 叠加，避免量纲差异；顶部信号灯把复杂多线压缩成一个直觉结论。"
             "想看更细的五维拆解，去《市场驱动力》。",
 )
-st.page_link("pages/H_市场驱动力.py", label="🧮 看《市场驱动力》五维归一化子图（详细版）", icon="🔗")
+with _sf_card(title="页面说明", icon="💡"):
+    st.markdown(
+        '<div class="sf-card-subtitle">把指数与关键资金面统一归一化到起点=100 叠加，避免量纲差异；'
+        '顶部信号灯把复杂多线压缩成一个直觉结论。想看更细的五维拆解，去《市场驱动力》。</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<a href="pages/H_市场驱动力.py" target="_self" class="sf-page-link">'
+        '🔗 看《市场驱动力》五维归一化子图（详细版）</a>',
+        unsafe_allow_html=True,
+    )
 
 
 # 列名映射
@@ -211,7 +244,6 @@ def _strength_percentile(d, keys):
 
 @safe_fragment
 def fragment_strength():
-    _section_title("📈 市场强弱信号 + 归一化多线", accent="#2b8aef")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="str_auto")
 
@@ -236,64 +268,67 @@ def fragment_strength():
         "大盘主力累计净流入(亿)": "#06b6d4",
     })
 
-    # 交互控件：区间 + 均线 + 序列多选 + 数值模式
-    series_options = [(k, names_map.get(k, k)) for k in present]
-    dr, ma, sel, mode, ma_type = _trend_controls(
-        "str", days_default=180, preset_default="近180天",
-        series_options=series_options, show_ma=True, mode_toggle=True,
-    )
-    keys = sel if sel else present
+    # 交互控件：区间 + 均线 + 序列多选 + 数值模式（星辰卡片 + pills 分段选择器）
+    with _sf_card(title="市场强弱信号 + 归一化多线", icon="📈"):
+        series_options = [(k, names_map.get(k, k)) for k in present]
+        dr, ma, sel, mode, ma_type = _trend_controls(
+            "str", days_default=180, preset_default="近180天",
+            series_options=series_options, show_ma=True, mode_toggle=True,
+            radio_pills=True,
+        )
+        keys = sel if sel else present
 
     # 信号计算（按当前区间/序列）
     d_view = _slice_date_range(df, dr)
     level, details, avg = _strength_signal(d_view, keys)
 
-    # 顶部信号卡 + 各序列 chips
-    if level:
-        label, color = level
-        pct = _strength_percentile(d_view, keys)
-        pct_line = ""
-        if pct is not None:
-            pct_line = (
-                f'<div style="font-size:12px;color:#9aa0a6;margin-top:4px;">'
-                f'历史分位 <b style="color:{color}">{pct:.0f}%</b>'
-                f' <span title="在当前所选区间内，当前市场强弱综合偏离处于第 {pct:.0f} 百分位——'
-                f'数值越高代表比区间内多数时候更强，越低代表越弱。">ⓘ</span></div>'
-            )
-        # 深层守卫：level 标签偶发缺空格分隔（如仅 "震荡"），
-        # label.split(" ",1)[1] 会 IndexError 拖垮整段；统一做安全切分
-        _lvl_parts = (label.split(" ", 1) + [""]) if isinstance(label, str) else ["", ""]
-        _lvl_icon = _lvl_parts[0]
-        _lvl_txt = _lvl_parts[1] if len(_lvl_parts) > 1 else ""
-        c1, c2 = st.columns([0.32, 0.68])
-        with c1:
-            st.markdown(
-                f'<div style="text-align:center;padding:14px 8px;border-radius:14px;'
-                f'background:rgba(255,255,255,0.03);border:1px solid {color}55;">'
-                f'<div style="font-size:30px;line-height:1.1;">{_lvl_icon}</div>'
-                f'<div style="font-size:18px;font-weight:700;color:{color};">{_lvl_txt}</div>'
-                f'<div style="font-size:12px;color:#9aa0a6;margin-top:4px;">综合偏离 {avg:+.1f}</div>'
-                f'{pct_line}'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-        with c2:
-            chips = []
-            for k, norm, dev in details:
-                c = UP if dev >= 0 else DOWN
-                chips.append(
-                    f'<span style="display:inline-block;margin:3px 4px;padding:3px 9px;'
-                    f'border-radius:999px;background:rgba(255,255,255,0.04);'
-                    f'border:1px solid {c}55;font-size:12px;">'
-                    f'{names_map.get(k,k)}：<b style="color:{c}">{norm:.1f}</b>'
-                    f'{" ▲" if dev>=0 else " ▼"}</span>'
+    # 顶部信号卡 + 各序列 chips（星辰卡片包装）
+    with _sf_card(title="综合信号灯", icon="🚦"):
+        if level:
+            label, color = level
+            pct = _strength_percentile(d_view, keys)
+            pct_line = ""
+            if pct is not None:
+                pct_line = (
+                    f'<div class="label" style="margin-top:4px;">'
+                    f'历史分位 <b style="color:{html.escape(color, quote=True)}">{pct:.0f}%</b>'
+                    f' <span title="在当前所选区间内，当前市场强弱综合偏离处于第 {pct:.0f} 百分位——'
+                    f'数值越高代表比区间内多数时候更强，越低代表越弱。">ⓘ</span></div>'
                 )
-            st.markdown("".join(chips), unsafe_allow_html=True)
-            st.caption("数值=区间归一化（起点100）。>100 走强(红) / <100 走弱(绿)；信号灯语义与价格色一致：强=红、弱=绿。")
-    else:
-        # 加法式空态 UX：所选区间/序列样本点不足时无法算综合信号，
-        # 给出可操作的提示，避免「无信号灯、无说明」的空白困惑。
-        st.caption("💡 当前区间或所选序列不足以计算综合强弱信号（样本点不足），请放宽区间或增加序列后再看顶部信号灯。")
+            # 深层守卫：level 标签偶发缺空格分隔（如仅 "震荡"），
+            # label.split(" ",1)[1] 会 IndexError 拖垮整段；统一做安全切分
+            _lvl_parts = (label.split(" ", 1) + [""]) if isinstance(label, str) else ["", ""]
+            _lvl_icon = _lvl_parts[0]
+            _lvl_txt = html.escape(_lvl_parts[1]) if len(_lvl_parts) > 1 else ""
+            c1, c2 = st.columns([0.32, 0.68])
+            with c1:
+                st.markdown(
+                    f'<div class="sf-metric-card" style="border-color:{html.escape(color, quote=True)}66;">'
+                    f'<div style="font-size:30px;line-height:1.1;">{html.escape(_lvl_icon)}</div>'
+                    f'<div class="value" style="font-size:20px;color:{html.escape(color, quote=True)};">{_lvl_txt}</div>'
+                    f'<div class="label">综合偏离 {avg:+.1f}</div>'
+                    f'{pct_line}'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with c2:
+                chips = []
+                for k, norm, dev in details:
+                    c = UP if dev >= 0 else DOWN
+                    name = html.escape(names_map.get(k, k))
+                    chips.append(
+                        f'<span style="display:inline-block;margin:3px 4px;padding:4px 10px;'
+                        f'border-radius:999px;background:rgba(255,255,255,0.04);'
+                        f'border:1px solid {html.escape(c, quote=True)}55;font-size:12px;">'
+                        f'{name}：<b style="color:{html.escape(c, quote=True)}">{norm:.1f}</b>'
+                        f'{" ▲" if dev >= 0 else " ▼"}</span>'
+                    )
+                st.markdown("".join(chips), unsafe_allow_html=True)
+                st.caption("数值=区间归一化（起点100）。>100 走强(红) / <100 走弱(绿)；信号灯语义与价格色一致：强=红、弱=绿。")
+        else:
+            # 加法式空态 UX：所选区间/序列样本点不足时无法算综合信号，
+            # 给出可操作的提示，避免「无信号灯、无说明」的空白困惑。
+            st.caption("💡 当前区间或所选序列不足以计算综合强弱信号（样本点不足），请放宽区间或增加序列后再看顶部信号灯。")
 
     # 可选：叠加自选股均值
     with st.expander("➕ 叠加自选股均值（可选）", expanded=False):

@@ -131,7 +131,8 @@ def _fmt_yi(x):
 
 
 def _trend_controls(key_prefix, days_default=120, series_options=None,
-                    preset_default="近90天", mode_toggle=False, show_ma=True):
+                    preset_default="近90天", mode_toggle=False, show_ma=True,
+                    radio_pills=False):
     """线性图交互控件：区间预设 + 区间选择 + 均线叠加/类型 + 序列多选 + 数值模式。
 
     返回 (date_range, ma_periods, selected_keys, mode, ma_type)：
@@ -141,11 +142,26 @@ def _trend_controls(key_prefix, days_default=120, series_options=None,
       - mode         : 'normalized' | 'raw'
       - ma_type      : 'sma' | 'ema'
     数据走缓存不触网，仅重跑所在 fragment。
+
+    新增 radio_pills（默认 False）：开启后使用 Streamlit 原生 ``st.segmented_control``
+    渲染区间预设 / 数值模式 / 均线类型，呈现按钮式分段选择器；关闭时保持原
+    ``st.radio`` 行为。纯加法式，不影响现有页面默认行为。
     """
-    preset = st.radio(
+
+    def _radio(label, options, default=None, key=None):
+        if radio_pills:
+            return st.segmented_control(
+                label, options, selection_mode="single", default=default,
+                key=key,
+            )
+        # 原 radio 行为：default 由 index 决定
+        index = options.index(default) if default in options else 0
+        return st.radio(label, options, index=index, horizontal=True, key=key)
+
+    preset = _radio(
         "区间预设", _PRESET_OPTS,
-        index=_PRESET_OPTS.index(preset_default) if preset_default in _PRESET_OPTS else 2,
-        horizontal=True, key=f"{key_prefix}_preset",
+        default=preset_default if preset_default in _PRESET_OPTS else _PRESET_OPTS[2],
+        key=f"{key_prefix}_preset",
     )
     end_d = datetime.now().date()
     date_range = None
@@ -168,9 +184,9 @@ def _trend_controls(key_prefix, days_default=120, series_options=None,
 
     mode = "normalized"
     if mode_toggle:
-        msel = st.radio(
-            "数值模式", ["归一化", "原始价格"], horizontal=True,
-            index=0, key=f"{key_prefix}_mode",
+        msel = _radio(
+            "数值模式", ["归一化", "原始价格"],
+            default="归一化", key=f"{key_prefix}_mode",
         )
         mode = "normalized" if msel == "归一化" else "raw"
 
@@ -208,9 +224,9 @@ def _trend_controls(key_prefix, days_default=120, series_options=None,
             ci += 1
     if show_ma:
         with cells[ci]:
-            ma_type = st.radio(
-                "均线类型", ["SMA", "EMA"], horizontal=True,
-                index=0, key=f"{key_prefix}_matype",
+            ma_type = _radio(
+                "均线类型", ["SMA", "EMA"],
+                default="SMA", key=f"{key_prefix}_matype",
             )
             ma_type = "ema" if ma_type == "EMA" else "sma"
             ci += 1
