@@ -116,8 +116,25 @@ def _biz_groups(industry: str) -> List[str]:
 
 
 
+_CSS_CACHE: Dict[bool, str] = {}
+
+
 def compare_css() -> str:
-    """一次性注入对比页样式（与参考 HTML 同构，亮/暗双主题自适应）。"""
+    """一次性注入对比页样式（与参考 HTML 同构，亮/暗双主题自适应）。
+
+    按主题缓存：仅在主题切换时重建一次大段 CSS 字符串，避免每次 fragment
+    轮询重渲染时重复格式化（原实现每次调用都重建 ~2KB f-string + 40 次主题查询）。
+    """
+    dark = _is_dark()
+    cached = _CSS_CACHE.get(dark)
+    if cached is None:
+        cached = _compare_css_body()
+        _CSS_CACHE[dark] = cached
+    return cached
+
+
+def _compare_css_body() -> str:
+    """实际构建对比页 CSS（无缓存，供 compare_css 按主题调用）。"""
     return f"""
 <style>
 .compare-wrap{{max-width:1200px;margin:0 auto;color:{_sf()['txt']};
