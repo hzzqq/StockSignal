@@ -84,7 +84,12 @@ def _render_sector_cards(df, top_n=24):
         arrow = '▲' if up else '▼'
         cards.append(f'<div style="background:{bg};border-left:3px solid {color};border-radius:8px;padding:10px 12px;min-height:64px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.05);"><div style="color:#1f2937;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{name}</div><div style="color:{color};font-size:18px;font-weight:700;margin-top:2px;">{arrow} {pct:+.2f}%</div></div>')
     grid = ''.join(cards)
-    st.markdown(f'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;">{grid}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="ss-chart" style="margin-top:0">'
+        f'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;">{grid}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
     if top_n and len(df) > top_n:
         st.caption(f'仅显示涨幅前 {top_n} 名（共 {len(df)} 个行业）。')
 

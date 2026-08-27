@@ -13,7 +13,7 @@ from modules.admin_api import (
     search_stocks,
 )
 from modules.page_widgets import _empty_info, _toast
-from modules.ui_kit import info_banner
+from modules.ui_kit import info_banner, stat_row
 
 # 系统配置项：key → 中文可读名称
 CONFIG_LABELS = {
@@ -38,16 +38,17 @@ tab_overview, tab_stocks, tab_config, tab_watch, tab_alert = st.tabs([
 
 # ----------------------------------------------------------------- 数据概览
 with tab_overview:
-    col1, col2, col3 = st.columns(3)
     # 加法式健壮性：api_get 返回 (code, body)，body 可能为 None。先兜底空字典，
     # 否则下方 resp.get 抛 AttributeError 会让整个数据概览 Tab 崩溃。
     code, resp = get_stock_stats()
     resp = resp or {}
     if code == 200 and resp.get("status") == "ok":
         stats = resp.get("data") or {}
-        col1.metric("股票总数", stats.get("total", 0))
-        col2.metric("沪市 (SH)", stats.get("sh", 0))
-        col3.metric("深市 (SZ)", stats.get("sz", 0))
+        stat_row([
+            {"label": "股票总数", "value": stats.get("total", 0), "accent": "var(--acc1)"},
+            {"label": "沪市 (SH)", "value": stats.get("sh", 0), "accent": "#ff4d4f"},
+            {"label": "深市 (SZ)", "value": stats.get("sz", 0), "accent": "#00d486"},
+        ])
     else:
         st.error(f"获取统计数据失败：{resp.get('message', '服务异常')}。请确认后端 Flask 已启动（:5050），稍后点右上角刷新重试。")
 
