@@ -7,6 +7,7 @@ import streamlit as st
 import json
 from modules.session import init_session_state, require_admin, api_get, api_post
 from modules.page_utils import render_standard_page
+from modules.ui_theme import sf_card, sf_metric
 from modules.admin_api import (
     get_stock_stats, get_stock_list, get_config, update_config,
     create_config, delete_config, get_watchlist, add_watchlist, remove_watchlist,
@@ -53,7 +54,7 @@ with tab_overview:
         st.error(f"获取统计数据失败：{resp.get('message', '服务异常')}。请确认后端 Flask 已启动（:5050），稍后点右上角刷新重试。")
 
     st.markdown("---")
-    st.subheader("系统信息")
+    sf_card("系统信息", "")
     col_a, col_b = st.columns(2)
     with col_a:
         st.info("""
@@ -72,7 +73,7 @@ with tab_overview:
 
     # ── 数据源健康度（#锐评整改：静默降级不可观测 → 显式呈现）──
     st.markdown("---")
-    st.subheader("数据源健康度")
+    sf_card("数据源健康度", "")
     try:
         from modules.page_utils import get_fetcher
         report = get_fetcher().data_source_health()
@@ -156,7 +157,7 @@ with tab_stocks:
 
 # ----------------------------------------------------------------- 系统配置
 with tab_config:
-    st.subheader("系统配置项")
+    sf_card("系统配置项", "")
 
     code, resp = get_config()
     if code != 200 or resp.get("status") != "ok":
@@ -215,7 +216,7 @@ with tab_config:
 
     # 新增配置
     st.markdown("---")
-    st.subheader("➕ 新增配置")
+    sf_card("➕ 新增配置", "")
     with st.form("add_config_form"):
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -241,7 +242,7 @@ with tab_config:
 
 # ----------------------------------------------------------------- 自选股
 with tab_watch:
-    st.subheader("⭐ 我的自选股")
+    sf_card("⭐ 我的自选股", "")
 
     col_add, col_search = st.columns([3, 1])
     with col_add:
@@ -314,7 +315,7 @@ with tab_watch:
 
 # ----------------------------------------------------------------- 异动扫描策略
 with tab_alert:
-    st.subheader("🔔 市场异动扫描策略")
+    sf_card("🔔 市场异动扫描策略", "")
     st.caption("后台调度器在交易时段自动扫描广度/情绪/估值指标越界并写库。"
                "以下参数为运行时生效；重启服务后恢复环境变量默认值。")
 
