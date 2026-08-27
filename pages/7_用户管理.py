@@ -6,6 +6,7 @@ pages/7_用户管理.py
 import streamlit as st
 from modules.session import init_session_state, require_admin, get_user
 from modules.page_utils import render_standard_page
+from modules.ui_theme import sf_card, sf_metric
 from modules.admin_api import get_users, create_user, update_user, delete_user, get_logs
 from modules.page_widgets import _empty_info
 
@@ -13,6 +14,8 @@ init_session_state()
 require_admin()
 
 dark = render_standard_page(title="用户管理", icon="👥", auth=False)
+
+sf_card("👥 用户管理 · 管理员视图", "查看与维护平台用户列表、创建 / 编辑 / 删除账号、查阅操作日志。仅管理员可见，操作请谨慎。", icon="🛡️")
 
 # 初始化分页 state
 if "user_mgmt_page" not in st.session_state:

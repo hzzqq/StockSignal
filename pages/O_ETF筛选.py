@@ -11,6 +11,7 @@ import streamlit as st
 import pandas as pd
 
 from modules.page_utils import render_standard_page
+from modules.ui_theme import sf_card, sf_metric
 import modules.scroll_nav as sn
 from modules.page_guard import safe_section
 
@@ -21,6 +22,7 @@ dark = render_standard_page(
     title="ETF / 基金筛选器", icon="🧰",
     caption="按类型、关键字、涨跌幅与成交额筛选；红涨绿跌。数据受限时自动降级到样本。",
 )
+sf_card("🧰 ETF / 基金筛选器", "按类型、关键字、涨跌幅与成交额筛选 A 股 ETF / 基金，支持排序与对比；数据受限时自动降级到样本，保证筛选器始终可用。", icon="🔎")
 
 # 页面间快捷跳转（#Batch19-5）：相关页面一键直达
 _pl1, _pl2, _pl3 = st.columns(3)

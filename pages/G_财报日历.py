@@ -14,6 +14,7 @@ from modules.fundflow import (
 
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
+from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import UP, DOWN, _fig_layout, _section_title, _empty_info
 
 dark = render_standard_page(
@@ -21,6 +22,7 @@ dark = render_standard_page(
     caption="按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。",
     layout="wide",
 )
+sf_card("📅 财报与业绩日历", "按报告期查看已披露财报个股（业绩报表），含每股收益 / 营收 / 净利润及同比；附业绩预告与披露日历（best-effort）。数据来源：东方财富。", icon="📊")
 
 
 # ─────────────── 页面级缓存（fundflow 内部也有缓存，这里是双层保险：跨会话复用） ───────────────

@@ -16,6 +16,7 @@ import math
 import concurrent.futures as _cf
 
 from modules.page_utils import render_standard_page
+from modules.ui_theme import sf_card, sf_metric
 from modules.session import safe_switch_page, api_get, trading_autorefresh
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, render_data_degradation_banner
@@ -26,6 +27,7 @@ dark = render_standard_page(
     title="消息 / 通知中心", icon="🔔",
     caption="聚合自选股异动、社区动态与系统状态；各模块独立取数，互不干扰。",
 )
+sf_card("🔔 消息 / 通知中心", "把分散在各模块的提醒汇成统一信息流：自选股异动、股吧社区动态、系统健康度。支持按类型筛选、标记已读、点击跳转对应模块。", icon="📬")
 trading_autorefresh(key="message_autorefresh")
 
 FETCHER = StockFetcher()

@@ -16,6 +16,7 @@ from modules.session import (
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
+from modules.ui_theme import sf_card, sf_metric
 from modules.format_helpers import safe_int, safe_html_text
 import modules.scroll_nav as sn
 
@@ -24,6 +25,7 @@ render_standard_page(
     caption="发表你的观点或文章，与其他投资者交流。可关联具体股票，点击帖子里的股票直达「股票选取」。",
     layout="wide",
 )
+sf_card("💬 股吧 · 社区讨论", "发表观点或文章，与其他投资者交流；可关联具体股票，点击帖子内股票直达「股票选取」。社区内容由用户生成，请理性判断、风险自担。", icon="💬")
 st.caption("⚠️ 社区内容由用户生成，数据仅供参考，不构成投资建议；请理性判断，风险自担。")
 trading_autorefresh(key="forum_autorefresh")
 

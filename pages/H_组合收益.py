@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN, _fig_layout, _section_title
 from modules.chart_cache import cached_fig
 
@@ -23,6 +24,7 @@ dark = render_standard_page(
     caption="基于「仓位管理」中的持仓，按剩余股数加权构建组合净值曲线，对比沪深300基准。",
     layout="wide",
 )
+sf_card("📊 自选股组合收益跟踪", "基于「仓位管理」中的持仓，按剩余股数加权构建组合净值曲线，对比沪深300基准，展示累计收益、个股贡献与最大回撤。", icon="📈")
 
 fetcher = get_fetcher()
 pm = PortfolioManager()

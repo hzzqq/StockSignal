@@ -11,9 +11,12 @@ from modules.fundflow import get_individual_fund_flow
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
+from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN
 
 dark = render_standard_page(title="一键体检扫描台", icon="🩺", layout="wide")
+
+sf_card("🩺 一键体检扫描台", "对自选股 / 持仓批量扫描技术面与资金面信号，按优先级（高 / 关注 / 警惕）给出信号灯，帮你快速定位异动个股。", icon="🔍")
 
 WATCH_COLOR = "#f5a623"  # 中性关注
 

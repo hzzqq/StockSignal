@@ -22,9 +22,12 @@ from modules.timeout_exec import run_with_timeout
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 from modules.chart_cache import cached_fig
 import plotly.graph_objects as go
 dark = render_standard_page('智能盯盘', icon='👁️', caption='⚠️ 数据仅供参考，不构成投资建议')
+
+sf_card("👁️ 智能盯盘 · 实时聚合", "单屏聚合自选股三类异动：板块资金 TOP10、自选股涨跌榜、个股资金流异动与规则预警。交易时段每 60 秒自动刷新。", icon="📡")
 if '_wl_recent' not in st.session_state:
     st.session_state._wl_recent = []
 if '_wl_fav' not in st.session_state:
