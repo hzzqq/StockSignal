@@ -14,6 +14,7 @@ from modules.session import api_kline, safe_switch_page, fragment_market_alerts_
 from modules.format_helpers import safe_int
 from modules.widgets import render_index_compact
 from modules.page_guard import safe_fragment
+from modules.chart_cache import cached_fig
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
@@ -115,10 +116,23 @@ def _get_market_status():
             return (False, '⚪ 尚未开盘，展示上一交易日数据', 0)
         return (False, '⚪ 已休市，展示最后一交易日数据', 0)
 
+@cached_fig(ttl=120)
+def _build_sector_heatmap_fig(detail_df):
+    """板块涨跌分布热力图（缓存未命中时才延迟导入 Visualizer，避免每轮刷新前页加载 0.95s）。"""
+    from modules.visualizer import Visualizer
+    return Visualizer.sector_heatmap(detail_df, title='全部行业板块涨跌幅')
+
+
+@cached_fig(ttl=120)
+def _build_correlation_fig(daily_dict):
+    """个股相关性矩阵（缓存未命中时才延迟导入 Visualizer）。"""
+    from modules.visualizer import Visualizer
+    return Visualizer.correlation_matrix(daily_dict)
+
+
 @safe_fragment('行业板块涨跌榜')
 def fragment_sector_board():
-    """行业板块涨跌榜（延迟导入 Visualizer，避免每页加载 0.95s plotly+matplotlib 链）。"""
-    from modules.visualizer import Visualizer
+    """行业板块涨跌榜（板块图构建已迁移至模块级 _build_sector_heatmap_fig，延迟导入 Visualizer 仅缓存未命中时触发）。"""
     st.markdown('---')
     st.subheader('🏭 行业板块涨跌榜')
     try:
@@ -165,7 +179,7 @@ def fragment_sector_board():
                     st.dataframe(detail_df[display_cols].rename(columns={'sector': '板块', 'change_pct': '涨跌幅'}), use_container_width=True, column_config={'涨跌幅': st.column_config.NumberColumn(format='%.2f%%')}, height=700)
                 with col2:
                     st.markdown('#### 涨跌分布')
-                    fig = Visualizer.sector_heatmap(detail_df, title='全部行业板块涨跌幅')
+                    fig = _build_sector_heatmap_fig(detail_df)
                     st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
             except Exception as e:
                 st.error(f'获取板块详情失败: {e}')
@@ -366,8 +380,7 @@ if st.button('计算相关性', key='calc_corr', use_container_width=True, disab
             pass
         if len(daily_dict) >= 2:
             try:
-                from modules.visualizer import Visualizer
-                fig = Visualizer.correlation_matrix(daily_dict)
+                fig = _build_correlation_fig(daily_dict)
                 st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
             except Exception as e:
                 st.warning(f'⚠️ 相关性矩阵渲染失败：{str(e)[:80]}。请检查输入代码或网络后重试。')
