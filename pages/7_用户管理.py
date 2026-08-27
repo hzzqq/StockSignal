@@ -110,7 +110,7 @@ with tab_users:
 
 # ----------------------------------------------------------------- 创建用户
 with tab_create:
-    st.subheader("创建新用户")
+    sf_card("创建新用户", "")
     st.caption("填写用户名与密码创建新账户；管理员可分配 user / admin 角色。")
     with st.form("create_user_form"):
         col1, col2 = st.columns(2)
