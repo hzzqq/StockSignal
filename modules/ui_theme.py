@@ -288,3 +288,39 @@ def loading_spinner(text: str='加载中...', variant: str='default') -> None:
     variants = {'default': "<div style='text-align:center;padding:20px;color:" + _fc + ";'><div style='display:inline-block;width:36px;height:36px;border:3px solid " + _gs + ';border-top:3px solid ' + _g + ";border-radius:50%;animation:ld-spin 0.8s linear infinite;'></div><p style='margin-top:10px;font-size:0.9rem;'>" + _t + '</p></div><style>@keyframes ld-spin{to{transform:rotate(360deg);}}</style>', 'pulse': "<div style='text-align:center;padding:20px;color:" + _fc + ";'><div style='display:inline-block;width:40px;height:40px;background:" + _gs + ";border-radius:8px;animation:ld-pulse 1.2s ease-in-out infinite;'></div><p style='margin-top:10px;font-size:0.9rem;'>" + _t + '</p></div><style>@keyframes ld-pulse{0%,100%{opacity:0.4;transform:scale(0.95);}50%{opacity:1;transform:scale(1.05);}}</style>', 'dots': "<div style='text-align:center;padding:20px;color:" + _fc + ";'><div style='display:flex;gap:6px;justify-content:center;'><div style='width:8px;height:8px;background:" + _g + ";border-radius:50%;animation:ld-bounce 1s ease-in-out infinite;'></div><div style='width:8px;height:8px;background:" + _g + ";border-radius:50%;animation:ld-bounce 1s ease-in-out 0.15s infinite;'></div><div style='width:8px;height:8px;background:" + _g + ";border-radius:50%;animation:ld-bounce 1s ease-in-out 0.3s infinite;'></div></div><p style='margin-top:10px;font-size:0.9rem;'>" + _t + '</p></div><style>@keyframes ld-bounce{0%,80%,100%{transform:translateY(0);}40%{transform:translateY(-10px);}}</style>', 'bar': "<div style='text-align:center;padding:20px;color:" + _fc + ";'><div style='display:inline-block;width:120px;height:4px;background:rgba(0,0,0,0.04);border-radius:2px;overflow:hidden;'><div style='height:100%;background:linear-gradient(90deg," + _g + ',' + _gl + ");border-radius:2px;animation:ld-slide 1.5s ease-in-out infinite;width:40%;'></div></div><p style='margin-top:10px;font-size:0.9rem;'>" + _t + '</p></div><style>@keyframes ld-slide{0%{margin-left:-40%;}100%{margin-left:120%;}}</style>'}
     html_content = variants.get(variant, variants['default'])
     st.markdown(html_content, unsafe_allow_html=True)
+
+
+def sf_card(title: str, body: str, icon: str = "") -> None:
+    """渲染带标题的星辰卡片（.sf-card）。标题/正文做 html.escape，避免注入。
+
+    用于把页面中的说明/控制区/结果区包装成统一卡片，提升视觉层次。
+    纯视觉，不改动业务逻辑。
+    """
+    import html as _html
+    title = _html.escape(str(title))
+    body = _html.escape(str(body))
+    icon = _html.escape(str(icon)) if icon else ""
+    icon_html = f"{icon} " if icon else ""
+    st.markdown(
+        f'<div class="sf-card">'
+        f'<div class="sf-card-title">{icon_html}{title}</div>'
+        f'<div class="sf-card-subtitle">{body}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def sf_metric(label: str, value, delta: str = "") -> None:
+    """渲染星辰指标卡（.sf-metric-card）。数值/标签做 html.escape。"""
+    import html as _html
+    label = _html.escape(str(label))
+    value = _html.escape(str(value))
+    delta = _html.escape(str(delta)) if delta else ""
+    delta_html = f'<div style="font-size:12px;margin-top:4px;color:var(--txt2)">{delta}</div>' if delta else ""
+    st.markdown(
+        f'<div class="sf-metric-card">'
+        f'<div class="label">{label}</div>'
+        f'<div class="value">{value}</div>'
+        f'{delta_html}</div>',
+        unsafe_allow_html=True,
+    )
