@@ -9,7 +9,11 @@ import streamlit.components.v1 as components
 import pandas as pd
 from datetime import datetime
 from modules.page_utils import render_standard_page
+from modules.ui_theme import sf_card, sf_metric
 render_standard_page(title='仓位管理', icon='💰', caption='⚠️ 本页为模拟/历史持仓管理，仅供学习，不构成投资建议。', layout='wide')
+
+sf_card("仓位管理导读", "记录持仓、卖出交易、盈亏统计与 Excel 导出。本页为模拟/历史持仓管理，仅供学习，不构成投资建议。", icon="💰")
+
 _c1, _c2 = st.columns(2)
 with _c1:
     st.page_link('pages/N_模拟交易.py', label='🎮 前往模拟交易', icon='🎮')

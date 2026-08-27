@@ -23,7 +23,10 @@ from modules.page_widgets import _empty_info, _toast
 from modules.fundamental_helpers import calc_alr, fund_one
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 dark = render_standard_page(title='自选股监控', icon='📡', caption='实时跟踪自选股现价与涨跌幅；行情接口异常时自动回退本地源。数据仅供参考，非投资建议。', layout='wide')
+
+sf_card("自选股监控导读", "一览自选股实时现价与涨跌幅（A股红涨绿跌），交易时段自动刷新；可一键跳转形态选股做技术体检或个股分析做深度诊断。", icon="📡")
 
 def _is_trading_now():
     from modules.page_widgets import is_trading_now as _itn

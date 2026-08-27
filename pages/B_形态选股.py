@@ -22,6 +22,7 @@ from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.search_ui import multi_stock_search_input, stock_search_input
 from modules.page_utils import render_standard_page, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
 
 dark = render_standard_page(
@@ -29,6 +30,9 @@ dark = render_standard_page(
     caption="在股票池中扫描技术形态并给出多维技术评分；结果仅供参考，非投资建议。",
     layout="wide",
 )
+
+sf_card("技术形态选股器导读", "在自选股或手动股票池中扫描金叉、突破、背离等技术形态并给出多维评分，辅助盘前筛选。", icon="🧭")
+
 trading_autorefresh(key="pattern_autorefresh")
 
 

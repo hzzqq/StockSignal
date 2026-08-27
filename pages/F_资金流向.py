@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 from modules.chart_cache import cached_fig
 from modules.fundflow import (
     get_industry_fund_flow, get_northbound_fund_flow,
@@ -39,6 +40,12 @@ dark = render_standard_page(
 )
 
 fetcher = get_fetcher()
+
+sf_card(
+    "资金流向导读",
+    "本页汇总北向资金、行业板块资金流向、大盘主力净流入与个股主力资金动向。红为净流入、绿为净流出，与红涨绿跌一致。",
+    icon="🌊",
+)
 
 
 # 加法式性能优化（第十四批）：个股资金流接口在 60s 自动刷新下每次都重新请求网络，

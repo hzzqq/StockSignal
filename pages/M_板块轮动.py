@@ -17,6 +17,7 @@ import numpy as np
 from datetime import datetime
 
 from modules.page_utils import render_standard_page
+from modules.ui_theme import sf_card, sf_metric
 from modules.session import trading_autorefresh, safe_switch_page
 from modules.fundflow import get_industry_fund_flow
 from modules.fetcher import StockFetcher
@@ -26,6 +27,12 @@ from modules.page_widgets import _empty_info, UP, DOWN
 dark = render_standard_page(
     title="板块轮动热力图", icon="🔥",
     caption="红涨绿跌；热力图块大小代表资金净流入，颜色代表涨跌幅。各视图独立取数。",
+)
+
+sf_card(
+    "板块轮动导读",
+    "一张热力图 + 排行榜 + 资金轮动视图，直观呈现行业强弱与资金流向。红涨绿跌，块大小代表资金净流入。",
+    icon="🔥",
 )
 
 FETCHER = StockFetcher()

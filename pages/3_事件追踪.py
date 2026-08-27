@@ -15,8 +15,16 @@ import html
 from datetime import datetime, timedelta
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
 render_standard_page(title='事件追踪', icon='🔔', caption='⚠️ 数据仅供参考，不构成投资建议', layout='wide')
+
+sf_card(
+    "事件追踪导读",
+    "信号评分、事件时间轴、新闻挖掘与情感报告。各模块独立运行，点击按钮仅刷新对应区块。",
+    icon="🔔",
+)
+
 lk_p1, lk_p2 = st.columns([1, 1])
 with lk_p1:
     if st.button('👁️ 智能盯盘', key='lk_go_k', use_container_width=True):

@@ -9,7 +9,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 
-from modules.ui_theme import _theme_is_dark
+from modules.ui_theme import _theme_is_dark, sf_card, sf_metric
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.cleaner import DataCleaner
 # K 线图统一交互配置（隐藏工具栏图标、十字光标），与全站规范一致
@@ -29,6 +29,8 @@ from modules.page_guard import safe_fragment
 from modules.page_widgets import UP
 
 render_standard_page(title="股票选取", icon="🎯")
+
+sf_card("股票选取导读", "位于行情看板与个股分析之间：设置参数、查看 K 线与技术面，并可将标的加入自选股或垃圾股池，支持打分与折叠展示。", icon="🎯")
 
 # 支持从龙虎榜/股票池点击跳转：URL ?pick_stock=600519
 _qp_code = st.query_params.get("pick_stock")

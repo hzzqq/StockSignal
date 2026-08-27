@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 
 from modules.session import safe_switch_page, API_BASE, get_user, get_token, persist_prefs, get_avatar_path, save_avatar, get_avatar_data_url, set_avatar_data_url, save_avatar_to_backend, render_avatar
-from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT
+from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT, sf_card, sf_metric
 from modules.format_helpers import safe_int
 
 from modules.page_utils import render_standard_page
@@ -29,6 +29,8 @@ render_standard_page(
     title="我的", icon="👤",
     caption="⚠️ 本页展示的数据与分析仅供参考，不构成任何投资建议。",
 )
+
+sf_card("我的导读", "个人信息入口、我的自选股与快捷操作；可调整主题与字体档位。所有数据与分析仅供参考，不构成投资建议。", icon="👤")
 
 user = get_user() or {}
 

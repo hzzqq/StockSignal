@@ -22,6 +22,7 @@ from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules import fundflow as ff
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
 from modules.perf import downsample
 from modules.chart_cache import cached_fig
@@ -31,6 +32,13 @@ ACCENT = '#818cf8' if dark else '#6366f1'
 ACCENT2 = '#fbbf24' if dark else '#f59e0b'
 ACCENT_FILL = 'rgba(129,140,248,0.14)' if dark else 'rgba(99,102,241,0.10)'
 fetcher = get_fetcher()
+
+sf_card(
+    "基本面分析导读",
+    "个股估值、业绩、历史分位与行业横向对比一站式视图；结合市值/市盈率/资产负债等数据给出可读解读。",
+    icon="🏛️",
+)
+
 from modules.ssl_helper import ssl_bypass as _ssl_bypass
 from modules.fundamental_helpers import _to_num, _find_col, _extract_metric_series, _period_label, _compute_yoy, _compute_qoq, _FINANCIAL_METRICS, _fmt_fin_value, _fmt_fin_yoy, _fmt_fin_qoq, _to_float, _percentile, _pe_status, _tag, _find_sector_name, _sector_rank, _composite_score, resolve_sector_df
 import concurrent.futures as _cf
