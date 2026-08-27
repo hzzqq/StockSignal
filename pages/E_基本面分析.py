@@ -24,6 +24,7 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info
 from modules.perf import downsample
+from modules.chart_cache import cached_fig
 dark = render_standard_page(title='基本面分析', icon='🏛️', caption='个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）', layout='wide')
 trading_autorefresh(key='fundamental_autorefresh')
 ACCENT = '#818cf8' if dark else '#6366f1'
@@ -33,6 +34,83 @@ fetcher = get_fetcher()
 from modules.ssl_helper import ssl_bypass as _ssl_bypass
 from modules.fundamental_helpers import _to_num, _find_col, _extract_metric_series, _period_label, _compute_yoy, _compute_qoq, _FINANCIAL_METRICS, _fmt_fin_value, _fmt_fin_yoy, _fmt_fin_qoq, _to_float, _percentile, _pe_status, _tag, _find_sector_name, _sector_rank, _composite_score, resolve_sector_df
 import concurrent.futures as _cf
+
+
+# ── 图表 figure 构建缓存（性能优化：避免长周期图在交互重跑/刷新时重复 rebuild）──
+@cached_fig(ttl=120)
+def _build_fin_trend_fig(plot_df, metric, mode, fa_chart, fa_name, fa_code, unit):
+    fig = go.Figure()
+    x_labels = plot_df['标签'].tolist()
+    yoy_col = f'{metric}_同比'
+    _yoy_trace = None
+    if yoy_col in plot_df.columns and plot_df[yoy_col].notna().any():
+        _yoy_trace = go.Scatter(x=x_labels, y=plot_df[yoy_col], name='同比', mode='lines+markers',
+                                line=dict(color=ACCENT2, width=2), marker=dict(size=6), yaxis='y2')
+    if fa_chart == '折线':
+        fig.add_trace(go.Scatter(x=x_labels, y=plot_df[metric], name=metric, mode='lines+markers',
+                                line=dict(color=ACCENT, width=2), marker=dict(size=6)))
+    elif fa_chart == '面积':
+        fig.add_trace(go.Scatter(x=x_labels, y=plot_df[metric], name=metric, mode='lines',
+                                line=dict(color=ACCENT, width=2), fill='tozeroy', fillcolor=ACCENT_FILL))
+    else:
+        fig.add_trace(go.Bar(x=x_labels, y=plot_df[metric], name=metric, marker_color=ACCENT,
+                            text=[_fmt_fin_value(v, metric) for v in plot_df[metric]], textposition='outside'))
+    if _yoy_trace is not None:
+        fig.add_trace(_yoy_trace)
+    shapes = []
+    if mode == '季度':
+        years = plot_df['period_dt'].dt.year.tolist()
+        for i in range(1, len(years)):
+            if years[i] != years[i - 1]:
+                shapes.append(dict(type='line', x0=i - 0.5, x1=i - 0.5, y0=0, y1=1, yref='paper',
+                                   line=dict(color='rgba(148,163,184,0.4)', width=1.5, dash='dot')))
+    fig.update_layout(title=f'{fa_name}({fa_code}) {metric}趋势（{mode}）', xaxis=dict(title=''),
+                      yaxis=dict(title=unit, side='left'),
+                      yaxis2=dict(title='同比(%)', side='right', overlaying='y', showgrid=False),
+                      height=420, margin=dict(l=40, r=60, t=50, b=90), paper_bgcolor='rgba(0,0,0,0)',
+                      plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', yanchor='top', y=-0.25, x=0.5, xanchor='center'),
+                      modebar=dict(orientation='v'), shapes=shapes)
+    return fig
+
+
+@cached_fig(ttl=120)
+def _build_hist_fig(hist_plot, current, name):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=hist_plot['date'], y=hist_plot['close'], mode='lines', name='收盘价',
+                            line=dict(color=ACCENT, width=1.4), fill='tozeroy', fillcolor=ACCENT_FILL))
+    fig.add_hline(y=current, line=dict(color=UP_COLOR, dash='dash', width=1.5),
+                  annotation_text='当前价', annotation_position='top right')
+    fig.update_layout(title=f'{name} 近5年走势与当前位置', xaxis_title='', yaxis_title='收盘价',
+                      height=360, margin=dict(l=40, r=40, t=40, b=20),
+                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+    return fig
+
+
+@cached_fig(ttl=120)
+def _build_sector_fig(top_sectors, mapped_sector, industry, top_n):
+    bar_colors = [UP_COLOR if mapped_sector and str(row['sector']) == mapped_sector
+                  else DOWN_COLOR if row['change_pct'] < 0 else '#94a3b8'
+                  for _, row in top_sectors.iterrows()]
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=top_sectors['sector'], y=top_sectors['change_pct'], marker_color=bar_colors,
+                        text=[f'{v:+.2f}%' for v in top_sectors['change_pct']], textposition='outside'))
+    fig.update_layout(title=f'行业涨跌幅 Top {top_n}（{industry} 高亮显示）', xaxis_tickangle=-45,
+                      yaxis_title='涨跌幅 %', height=420, margin=dict(l=40, r=20, t=50, b=100),
+                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+    return fig
+
+
+@cached_fig(ttl=120)
+def _build_score_ring(score, score_color, score_label):
+    fig = go.Figure(go.Pie(values=[max(score, 0.01), max(100 - score, 0.01)], hole=0.78,
+                          marker=dict(colors=[score_color, 'rgba(148,163,184,0.20)']),
+                          showlegend=False, hoverinfo='skip', textinfo='none'))
+    fig.update_layout(annotations=[dict(
+        text=f"<b style='font-size:34px;color:{score_color}'>{score}</b><br>"
+             f"<span style='font-size:13px;color:{score_color}'>{score_label}</span>",
+        x=0.5, y=0.5, showarrow=False)], margin=dict(l=4, r=4, t=4, b=4), height=170,
+        paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
+    return fig
 
 def _nan_to_none(v):
     """将 float nan / pd.NA 收敛为 None。
@@ -456,26 +534,7 @@ if code:
         val_col = metric
         yoy_col = f'{metric}_同比'
         cfg = _FINANCIAL_METRICS.get(metric, {})
-        fig = go.Figure()
-        x_labels = plot_df['标签'].tolist()
-        _yoy_trace = None
-        if yoy_col in plot_df.columns and plot_df[yoy_col].notna().any():
-            _yoy_trace = go.Scatter(x=x_labels, y=plot_df[yoy_col], name='同比', mode='lines+markers', line=dict(color=ACCENT2, width=2), marker=dict(size=6), yaxis='y2')
-        if fa_chart == '折线':
-            fig.add_trace(go.Scatter(x=x_labels, y=plot_df[val_col], name=metric, mode='lines+markers', line=dict(color=ACCENT, width=2), marker=dict(size=6)))
-        elif fa_chart == '面积':
-            fig.add_trace(go.Scatter(x=x_labels, y=plot_df[val_col], name=metric, mode='lines', line=dict(color=ACCENT, width=2), fill='tozeroy', fillcolor=ACCENT_FILL))
-        else:
-            fig.add_trace(go.Bar(x=x_labels, y=plot_df[val_col], name=metric, marker_color=ACCENT, text=[_fmt_fin_value(v, metric) for v in plot_df[val_col]], textposition='outside'))
-        if _yoy_trace is not None:
-            fig.add_trace(_yoy_trace)
-        shapes = []
-        if mode == '季度':
-            years = plot_df['period_dt'].dt.year.tolist()
-            for i in range(1, len(years)):
-                if years[i] != years[i - 1]:
-                    shapes.append(dict(type='line', x0=i - 0.5, x1=i - 0.5, y0=0, y1=1, yref='paper', line=dict(color='rgba(148,163,184,0.4)', width=1.5, dash='dot')))
-        fig.update_layout(title=f'{fa_name}({fa_code}) {metric}趋势（{mode}）', xaxis=dict(title=''), yaxis=dict(title=cfg.get('unit', ''), side='left'), yaxis2=dict(title='同比(%)', side='right', overlaying='y', showgrid=False), height=420, margin=dict(l=40, r=60, t=50, b=90), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', yanchor='top', y=-0.25, x=0.5, xanchor='center'), modebar=dict(orientation='v'), shapes=shapes)
+        fig = _build_fin_trend_fig(plot_df, metric, mode, fa_chart, fa_name, fa_code, cfg.get('unit', ''))
         st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
         qoq_col = f'{metric}_环比'
         table_df = plot_df.copy().sort_values('报告期', ascending=False)
@@ -507,12 +566,8 @@ if code:
         m2.metric('1年价格分位', f'{p_1y:.1f}%' if p_1y is not None else '—')
         m3.metric('3年价格分位', f'{p_3y:.1f}%' if p_3y is not None else '—')
         m4.metric('5年价格分位', f'{p_5y:.1f}%' if p_5y is not None else '—')
-        fig_hist = go.Figure()
-        # 近5年日线点数很多，绘图前降采样（保留首尾关键点），百分位的精确计算仍用原始 hist_df
         hist_plot = downsample(hist_df, max_points=600)
-        fig_hist.add_trace(go.Scatter(x=hist_plot['date'], y=hist_plot['close'], mode='lines', name='收盘价', line=dict(color=ACCENT, width=1.4), fill='tozeroy', fillcolor=ACCENT_FILL))
-        fig_hist.add_hline(y=current, line=dict(color=UP_COLOR, dash='dash', width=1.5), annotation_text='当前价', annotation_position='top right')
-        fig_hist.update_layout(title=f'{name} 近5年走势与当前位置', xaxis_title='', yaxis_title='收盘价', height=360, margin=dict(l=40, r=40, t=40, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        fig_hist = _build_hist_fig(hist_plot, current, name)
         st.plotly_chart(fig_hist, use_container_width=True, config={"displaylogo": False, "responsive": True})
     else:
         _empty_info('暂无历史行情数据，无法计算历史分位。')
@@ -530,10 +585,7 @@ if code:
             st.subheader('🏭 行业横向对比')
             top_n = 15
             top_sectors = sector_df.sort_values('change_pct', ascending=False).head(top_n).copy()
-            bar_colors = [UP_COLOR if mapped_sector and str(row['sector']) == mapped_sector else DOWN_COLOR if row['change_pct'] < 0 else '#94a3b8' for _, row in top_sectors.iterrows()]
-            fig_sector = go.Figure()
-            fig_sector.add_trace(go.Bar(x=top_sectors['sector'], y=top_sectors['change_pct'], marker_color=bar_colors, text=[f'{v:+.2f}%' for v in top_sectors['change_pct']], textposition='outside'))
-            fig_sector.update_layout(title=f'行业涨跌幅 Top {top_n}（{industry} 高亮显示）', xaxis_tickangle=-45, yaxis_title='涨跌幅 %', height=420, margin=dict(l=40, r=20, t=50, b=100), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            fig_sector = _build_sector_fig(top_sectors, mapped_sector, industry, top_n)
             st.plotly_chart(fig_sector, use_container_width=True, config={"displaylogo": False, "responsive": True})
             sector_row = sector_df[sector_df['sector'].astype(str) == mapped_sector]
             if not sector_row.empty:
@@ -577,8 +629,7 @@ if code:
         score_label = '偏弱'
     sc1, sc2 = st.columns([0.25, 0.75])
     with sc1:
-        _ring = go.Figure(go.Pie(values=[max(score, 0.01), max(100 - score, 0.01)], hole=0.78, marker=dict(colors=[score_color, 'rgba(148,163,184,0.20)']), showlegend=False, hoverinfo='skip', textinfo='none'))
-        _ring.update_layout(annotations=[dict(text=f"<b style='font-size:34px;color:{score_color}'>{score}</b><br><span style='font-size:13px;color:{score_color}'>{score_label}</span>", x=0.5, y=0.5, showarrow=False)], margin=dict(l=4, r=4, t=4, b=4), height=170, paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
+        _ring = _build_score_ring(score, score_color, score_label)
         st.plotly_chart(_ring, use_container_width=True, config={"displaylogo": False, "responsive": True})
     with sc2:
         st.markdown(f"""<div style="padding:14px 18px;border-radius:10px;background:{('rgba(26,26,46,0.4)' if dark else '#f9fafb')};border:1px solid {('rgba(255,255,255,0.08)' if dark else '#e5e7eb')};font-size:14px;line-height:1.8;">{reasons_html}</div>""", unsafe_allow_html=True)
