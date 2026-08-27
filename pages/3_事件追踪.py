@@ -206,7 +206,7 @@ def fragment_signal_score():
             col_radar, col_detail = st.columns([1, 1])
             with col_radar:
                 fig = Visualizer.signal_radar(_safe_scores)
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, width='stretch', config={"displaylogo": False, "responsive": True})
             with col_detail:
                 st.markdown('#### 评分说明')
                 st.markdown(f'\n                - **价格信号 ({_price}）**: 基于均线趋势、动量、量价关系\n                - **事件信号 ({_event}）**: 基于关键词匹配事件库，利好加分/利空减分\n                - **宏观信号 ({_macro}）**: 基于制造业 PMI（>50扩张，<50收缩）\n                - **综合评分 ({total}）**: 加权 = 价格×0.4 + 事件×0.4 + 宏观×0.2\n                - **阈值**: >70 买入 | 40-70 观望 | <40 卖出\n                ')
@@ -469,7 +469,7 @@ def fragment_timeline():
                             if _intra is not None:
                                 _idf, _ipc, _idate = _intra
                                 _ifig = Visualizer.intraday(_idf, prev_close=_ipc, title=f'{stock_name or tl_ticker} 分时（{_idate}）')
-                                st.plotly_chart(_ifig, width='stretch', key='tl_intraday_chart')
+                                st.plotly_chart(_ifig, width='stretch', key='tl_intraday_chart', config={"displaylogo": False, "responsive": True})
                                 st.caption('📈 分时图：白线为当日价格走势，橙点为均价；虚线为昨收。红涨绿跌（A股惯例）。')
                             else:
                                 st.info('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
@@ -490,7 +490,7 @@ def fragment_timeline():
                     st.caption('💡 拖动「显示位置」滑块可左右平移，拖动「显示 K 线数量」滑块可放大/缩小。')
                     st.caption(f'📊 当前显示 {n_show} / 总计 {n_total} 根 K 线')
                     fig = Visualizer.event_timeline(df, events_chart, title=title, start_idx=new_idx, n_show=new_n_show, event_type_col='sentiment', event_title_col='title')
-                    st.plotly_chart(fig, width='stretch', key='tl_chart')
+                    st.plotly_chart(fig, width='stretch', key='tl_chart', config={"displaylogo": False, "responsive": True})
                 except Exception as chart_err:
                     st.error(f'K 线事件时间轴渲染失败: {chart_err}')
                     st.info('💡 请尝试缩短日期区间或切换股票后重试。')
@@ -672,7 +672,7 @@ def fragment_sentiment_report():
                         fig_pie.update_layout(template='starfield_dark', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font={'color': SF_TXT2}, height=350)
                     else:
                         fig_pie.update_layout(template='plotly_white', height=350)
-                    st.plotly_chart(fig_pie, width='stretch')
+                    st.plotly_chart(fig_pie, width='stretch', config={"displaylogo": False, "responsive": True})
                     _top_kws = report.get('top_keywords') or []
                     if _top_kws:
                         st.markdown('#### 热门关键词 TOP15')
@@ -687,7 +687,7 @@ def fragment_sentiment_report():
                             fig_kw.update_layout(template='starfield_dark', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font={'color': SF_TXT2}, height=400, yaxis=dict(autorange='reversed', gridcolor=SF_GRID, linecolor=SF_BORDER, tickfont={'color': SF_TXT2}), xaxis=dict(showgrid=True, gridcolor=SF_GRID, linecolor=SF_BORDER, tickfont={'color': SF_TXT2}))
                         else:
                             fig_kw.update_layout(template='plotly_white', height=400, yaxis=dict(autorange='reversed'))
-                        st.plotly_chart(fig_kw, width='stretch')
+                        st.plotly_chart(fig_kw, width='stretch', config={"displaylogo": False, "responsive": True})
                     if report.get('sample_news'):
                         st.markdown('#### 正负面新闻样本（点击标题可跳转原文）')
                         for s in report['sample_news']:

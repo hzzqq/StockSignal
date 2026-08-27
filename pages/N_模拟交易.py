@@ -305,7 +305,7 @@ def fragment_paper():
                 fig.add_trace(go.Scatter(x=xs, y=ys, mode='lines+markers', name='总资产', line=dict(color=_pt_color, width=2)))
             fig.add_hline(y=book['init_cash'], line_dash='dot', line_color='#888', annotation_text='初始资金', annotation_position='bottom right')
             fig.update_layout(height=360, template='plotly_dark' if dark else 'plotly_white', xaxis_title='时间', yaxis_title='总资产(元)', margin=dict(t=20, l=60, r=20, b=40))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
         else:
             _empty_info('完成至少一笔交易后生成净值曲线。')
         st.caption('💡 在上方「💱 交易」买入或卖出后，这里会基于每笔成交后的总资产快照绘制净值曲线。')

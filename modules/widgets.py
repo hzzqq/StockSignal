@@ -289,7 +289,7 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
                     st.markdown(f"{_index_name_html(card['name'], name_color, 17)}<div style='font-size:12px;color:{code_color};margin-top:3px;'>{card['label']} {card['code']}</div>", unsafe_allow_html=True)
                 with c_mid:
                     if card.get('spark'):
-                        st.plotly_chart(card['spark'], use_container_width=True, config={'displayModeBar': False})
+                        st.plotly_chart(card['spark'], use_container_width=True, config={"displaylogo": False, "responsive": True, 'displayModeBar': False})
                     else:
                         st.caption('暂无数据')
                 with c_right:
@@ -369,7 +369,7 @@ def render_index_compact(cols_per_row: int=5) -> None:
         fig = go.Figure()
         fig.add_trace(go.Bar(x=labels, y=values, marker_color=bar_colors, text=[f'{v:+.2f}%' for v in values], textposition='outside', textfont={'color': txt, 'size': 11}, hovertemplate='%{x}: %{y:.2f}%<extra></extra>'))
         fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin={'l': 40, 'r': 20, 't': 10, 'b': 30}, height=220, yaxis_title='涨跌幅 %', xaxis={'tickfont': {'color': txt2, 'size': 11}, 'showgrid': False}, yaxis={'tickfont': {'color': txt2, 'size': 11}, 'gridcolor': grid, 'zerolinecolor': txt2, 'zerolinewidth': 1}, font={'color': txt}, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, 'displayModeBar': False})
     except Exception as e:
         logger.warning(f"[widgets] 处理异常: {e}")
         st.caption(f'指数图表渲染失败：{e}')

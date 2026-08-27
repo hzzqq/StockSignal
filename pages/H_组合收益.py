@@ -180,7 +180,7 @@ def fragment_portfolio():
     fig.update_layout(**_fig_layout(dark), height=380, title="组合净值 vs 沪深300（起点=100）",
                       legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"))
     fig.update_xaxes(tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     # 加法式小便利（Batch15）：标注净值曲线数据更新时间，便于判断是否为最新行情。
     st.caption(f"🕒 数据更新时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}（组合净值基于各持仓历史收盘价加权构建）")
 
@@ -235,7 +235,7 @@ def _show_attribution():
     ))
     fig.update_layout(**_fig_layout(dark), title="收益贡献 TOP15（%）", height=340)
     fig.update_xaxes(tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     st.dataframe(
         attr, use_container_width=True, hide_index=True,
         column_config={

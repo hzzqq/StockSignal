@@ -186,7 +186,7 @@ def fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped
                                      up_color=RED, down_color=GREEN, ma_colors=['#ffa502', '#667eea', '#009e60'])
         _kline_key = f'kline_chart_{ticker}'
         _kline_event = st.plotly_chart(fig, use_container_width=True, key=_kline_key, on_select='rerun',
-                                       config={'displayModeBar': 'hover', 'displaylogo': False, 'scrollZoom': True,
+                                       config={"displaylogo": False, "responsive": True, 'displayModeBar': 'hover', 'displaylogo': False, 'scrollZoom': True,
                                                'modeBarButtonsToRemove': ['lasso2d', 'select2d']})
         _dbl_key = f'kline_dbl_{ticker}'
         _now_ms = datetime.now().timestamp()

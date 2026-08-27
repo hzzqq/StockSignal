@@ -264,7 +264,7 @@ def fragment_sector():
         fig = go.Figure(go.Bar(x=top['净额'], y=top['行业'], orientation='h', marker_color=colors, hovertemplate='%{y}<br>净额：%{x:.2f}亿<extra></extra>'))
     fig = go.Figure(fig)
     fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=20, t=30, b=20), height=380, title='净流入 TOP10 行业（亿元）', font=dict(color='#e6e6e6' if dark else '#1a1a1a'), xaxis=dict(gridcolor='#2a2a3a' if dark else '#ececec'), yaxis=dict(gridcolor='#2a2a3a' if dark else '#ececec', autorange='reversed'))
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, 'displayModeBar': False})
     st.caption('净流入行业领涨：横条越长代表当日主力净流入越多（红=净流入 / 绿=净流出）。')
     st.caption('数据来源：东方财富 / 同花顺 行业资金流向')
     show_cols = [c for c in ['行业', '涨跌幅', '流入资金', '流出资金', '净额', '领涨股', '领涨股涨跌幅'] if c in top.columns]

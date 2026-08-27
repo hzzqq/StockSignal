@@ -593,7 +593,7 @@ try:
                         dark_mode=_theme_is_dark(), date_range=None, ma_periods=(),
                         selected=None, mode="normalized", show_baseline=True,
                         show_cross=False, show_drawdown=False, ma_type="sma")
-                    st.plotly_chart(bfig, use_container_width=True, config={"displayModeBar": False},
+                    st.plotly_chart(bfig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False},
                                     key="pick_bench")
                 else:
                     st.info("区间内与上证基准无重合交易日，跳过对比。")

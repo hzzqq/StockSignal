@@ -323,7 +323,7 @@ def fragment_strength():
         date_range=None, ma_periods=ma, selected=keys,
         mode=mode, show_baseline=True, show_cross=(len(ma) >= 2), show_drawdown=False, ma_type=ma_type,
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="str_panel")
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="str_panel")
 
     # 数据表 + 导出
     with st.expander("📋 数据表（随区间 / 序列联动）"):

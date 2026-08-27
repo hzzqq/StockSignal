@@ -277,13 +277,13 @@ def fragment_manual_backtest():
 
                 fig = Visualizer.backtest_curve(result.df, benchmark=benchmark,
                                                 title=f"{bt_label} 策略收益曲线")
-                st.plotly_chart(fig, width="stretch")
+                st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
 
                 # 回撤曲线
                 st.markdown("---")
                 st.subheader("回撤曲线")
                 fig_dd = Visualizer.drawdown_curve(result.df)
-                st.plotly_chart(fig_dd, width="stretch")
+                st.plotly_chart(fig_dd, width="stretch", config={"displaylogo": False, "responsive": True})
 
                 # 交易明细
                 st.markdown("---")
@@ -337,7 +337,7 @@ def fragment_manual_backtest():
                         template="plotly_white" if not _is_dark() else "plotly_dark",
                         margin=dict(l=50, r=20, t=40, b=30),
                     )
-                    st.plotly_chart(fig_dd_band, use_container_width=True)
+                    st.plotly_chart(fig_dd_band, use_container_width=True, config={"displaylogo": False, "responsive": True})
                 else:
                     _empty_info("暂无回撤数据。通常因回测区间过短，或策略未产生持仓净值波动导致；可拉长区间后重试。")
 
@@ -359,7 +359,7 @@ def fragment_manual_backtest():
                         template="plotly_white" if not _is_dark() else "plotly_dark",
                         margin=dict(l=50, r=20, t=40, b=30),
                     )
-                    st.plotly_chart(fig_tr, use_container_width=True)
+                    st.plotly_chart(fig_tr, use_container_width=True, config={"displaylogo": False, "responsive": True})
                 else:
                     st.info("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
@@ -444,7 +444,7 @@ def fragment_manual_backtest():
                         margin=dict(l=50, r=20, t=50, b=70),
                         legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"),
                     )
-                    st.plotly_chart(fig_sens, use_container_width=True)
+                    st.plotly_chart(fig_sens, use_container_width=True, config={"displaylogo": False, "responsive": True})
                     st.caption("提示：曲线走平或反转处通常表示参数拐点，可据此微调风险管理参数。")
 
             except Exception as e:
@@ -654,7 +654,7 @@ def fragment_daily_picker():
                         height=400, template="plotly_white",
                         margin=dict(l=40, r=20, t=50, b=40),
                     )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
 
             # ---- 全部选股记录 ----
             if not picker_result.picks_df.empty:
@@ -825,7 +825,7 @@ def fragment_strong_bull():
             template="plotly_white" if not _is_dark() else "plotly_dark",
             margin=dict(l=50, r=20, t=50, b=80),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
 
         # ---- 个股卡片 ----
         st.markdown("---")

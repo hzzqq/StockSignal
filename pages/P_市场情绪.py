@@ -290,7 +290,7 @@ def _card(col, cfg, df, dark_mode):
                 fig = _spark(s, cfg["color"], dark_mode)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True,
-                                    config={"displayModeBar": False}, key=f"spark_{key}")
+                                    config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key=f"spark_{key}")
                 badge, bcolor, text = cfg["signal"](s)
                 st.markdown(
                     f"<span style='background:{bcolor}22;color:{bcolor};padding:2px 8px;"
@@ -603,7 +603,7 @@ def fragment_shepherd_chart():
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.5, xanchor="center", font=dict(size=10)),
         margin=dict(l=55, r=25, t=60, b=40), hovermode="x unified", **theme)
     fig.update_xaxes(tickangle=-30)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="shep_lines")
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="shep_lines")
     caption = ("🐑 牧羊人指标源自抖音博主「股海牧羊人」《炒股绕不开的第一步》情绪温度计方法论："
                "不盯指数红绿，先看大盘脸色（涨跌家数/涨停跌停/昨日涨停表现）。"
                "近 60 日为 akshare 实时回测；长区间读取 2007 起全 A 重构序列"

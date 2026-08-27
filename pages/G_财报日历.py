@@ -111,7 +111,7 @@ def fragment_report():
             ))
             fig.update_layout(**_fig_layout(dark), title="净利润 TOP15（亿元）", height=340)
             fig.update_xaxes(tickangle=-45)
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     else:
         st.info("「净利润 / 名称」字段缺失，TOP 净利润柱状图暂不可绘制（接口字段变更或网络异常）。")
 

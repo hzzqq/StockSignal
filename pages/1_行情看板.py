@@ -161,7 +161,7 @@ def fragment_sector_board():
                 with col2:
                     st.markdown('#### 涨跌分布')
                     fig = Visualizer.sector_heatmap(detail_df, title='全部行业板块涨跌幅')
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
             except Exception as e:
                 st.error(f'获取板块详情失败: {e}')
         else:
@@ -363,7 +363,7 @@ if st.button('计算相关性', key='calc_corr', use_container_width=True, disab
             try:
                 from modules.visualizer import Visualizer
                 fig = Visualizer.correlation_matrix(daily_dict)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
             except Exception as e:
                 st.warning(f'⚠️ 相关性矩阵渲染失败：{str(e)[:80]}。请检查输入代码或网络后重试。')
         else:

@@ -441,7 +441,7 @@ if not positions.empty:
                 from modules.visualizer import Visualizer
                 st.markdown('---')
                 fig = Visualizer.portfolio_pnl(pnl_df)
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, width='stretch', config={"displaylogo": False, "responsive": True})
                 st.markdown('#### 持仓明细')
                 st.caption(f'📋 持仓明细：共 {len(pnl_df)} 条')
                 display_pnl = pnl_df.copy()

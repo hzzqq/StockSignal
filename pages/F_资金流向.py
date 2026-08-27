@@ -201,7 +201,7 @@ def fragment_northbound():
         dr, ma, _s, _m, ma_type = _trend_controls("nb", days_default=365, preset_default="全部")
         st.plotly_chart(plot_northbound_history(hist, dark_mode=dark, date_range=dr, ma_periods=ma,
                                                 ma_type=ma_type, show_baseline=True),
-                        use_container_width=True, config={"displayModeBar": False})
+                        use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
         st.caption("📈 北向资金历史趋势（线性表达）：紫色面积=当日成交净买额，蓝色线=历史累计净买额。"
                    "交易所自 2024-08-16 起停止披露实时净买额，故近期序列末端可能空白或持平。"
                    "可用上方「区间 / 均线叠加」交互筛选。")
@@ -256,7 +256,7 @@ def fragment_industry():
         ))
         fig.update_layout(**_fig_layout(dark), title="净流入 TOP15 行业（亿元）", height=360)
         fig.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     except Exception as e:
         st.warning(f"行业净流入 TOP15 图表渲染失败：{e}")
 
@@ -323,7 +323,7 @@ def fragment_market():
             legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"),
         )
         fig.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     except Exception as e:
         st.warning(f"大盘资金净流入图表渲染失败：{e}")
 
@@ -337,7 +337,7 @@ def fragment_market():
         dr, ma, _s, _m, ma_type = _trend_controls("mkt_cum", days_default=60, preset_default="近60天")
         st.plotly_chart(plot_market_cumulative(cum, dark_mode=dark, date_range=dr, ma_periods=ma,
                                                ma_type=ma_type, show_baseline=True),
-                        use_container_width=True, config={"displayModeBar": False})
+                        use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
         st.caption("📈 大盘主力资金累计净流入（线性表达）：面积线为累计值，橙色细线为逐日主力净流入。"
                    "连续红（正）表示主力持续净流入，绿（负）表示持续净流出。可用上方「区间 / 均线叠加」交互筛选。")
 
@@ -383,7 +383,7 @@ def fragment_margin_trading():
 
     try:
         fig = plot_margin_trend(df, dark_mode=dark, metric=metric)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     except Exception as e:
         st.warning(f"融资融券趋势图渲染失败：{e}")
     st.caption("数据来源：东方财富融资融券（沪+深），指数叠加辅助判断杠杆资金与大盘节奏关系。"
@@ -454,7 +454,7 @@ def fragment_individual():
             st.plotly_chart(plot_individual_series(sdf, name=name, code=code, dark_mode=dark,
                                                    date_range=dr, ma_periods=ma,
                                                    ma_type=ma_type, show_baseline=True),
-                            use_container_width=True, config={"displayModeBar": False})
+                            use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
         except Exception as _e:
             st.warning(f"个股资金趋势图渲染失败：{_e}")
         if sdf.attrs.get("source") == "estimate":
@@ -481,7 +481,7 @@ def fragment_index_trend():
         return
     dr, ma, _s, _m, ma_type = _trend_controls("idx", days_default=180, preset_default="近180天")
     fig = plot_index_series(idx, dark_mode=dark, date_range=dr, ma_periods=ma, ma_type=ma_type)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     st.caption("📈 三大指数走势对比（线性表达，归一化起点=100）：用于横向比较上证 / 深证成指 / 创业板指"
                "的相对强弱，而非绝对点位。可用上方「区间 / 均线叠加」交互筛选。")
 
@@ -517,7 +517,7 @@ def fragment_industry_trend():
         mode=mode, ma_type=ma_type, show_baseline=True,
         show_cross=show_cross, show_drawdown=show_dd,
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="indt_norm")
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="indt_norm")
     # 数据表联动（随区间 / 序列筛选）
     with st.expander("📋 数据表（随区间 / 序列联动）"):
         tbl = _slice_date_range(ind, dr)
@@ -531,7 +531,7 @@ def fragment_industry_trend():
     # 相关性热力图
     st.plotly_chart(plot_correlation_heatmap(ind, names_map=None, selected=sel,
                                              date_range=dr, dark_mode=dark),
-                    use_container_width=True, config={"displayModeBar": False}, key="indt_corr")
+                    use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="indt_corr")
     st.caption("📈 行业板块指数走势（线性表达，归一化起点=100）：行业板块无逐日资金流时间序列 API，"
                "故以**行业指数日线收盘价**做相对强弱对比。区间预设 / 均线（SMA·EMA）/ 序列多选 / 原始价格切换"
                " / 金叉死叉 / 最大回撤 均可交互；下方数据表与相关性热力图随筛选联动。")
@@ -569,7 +569,7 @@ def fragment_etf_trend():
         mode=mode, ma_type=ma_type, show_baseline=True,
         show_cross=show_cross, show_drawdown=show_dd,
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="etf_norm")
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="etf_norm")
     # 数据表联动
     with st.expander("📋 数据表（随区间 / 序列联动）"):
         tbl = _slice_date_range(etf, dr)
@@ -583,7 +583,7 @@ def fragment_etf_trend():
     # 相关性热力图
     st.plotly_chart(plot_correlation_heatmap(etf, names_map=ETF_NAMES_MAP, selected=sel,
                                              date_range=dr, dark_mode=dark),
-                    use_container_width=True, config={"displayModeBar": False}, key="etf_corr")
+                    use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="etf_corr")
     st.caption("📈 ETF 价格走势（线性表达，归一化起点=100）：宽基（沪深300/中证500/创业板）+ 行业"
                "（军工/医药/新能源）+ 跨境（纳指/恒生科技）。区间预设 / 均线（SMA·EMA）/ 序列多选 / 原始价格切换"
                " / 金叉死叉 / 最大回撤 均可交互；下方数据表与相关性热力图随筛选联动。")

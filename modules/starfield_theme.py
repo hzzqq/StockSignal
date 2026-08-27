@@ -125,7 +125,7 @@ def kline_plotly(dates, opens, highs, lows, closes, volumes=None, title='K线'):
     fig.update_xaxes(showspikes=True, spikemode='across', spikedash='dot', spikecolor='#94a3b8', spikethickness=1)
     fig.update_yaxes(showspikes=True, spikemode='across', spikedash='dot', spikecolor='#94a3b8', spikethickness=1)
     return fig
-KLINE_CHART_CONFIG = {'displayModeBar': 'hover', 'displaylogo': False, 'scrollZoom': True, 'modeBarButtonsToRemove': ['lasso2d', 'select2d']}
+KLINE_CHART_CONFIG = {'displayModeBar': 'hover', 'displaylogo': False, 'responsive': True, 'scrollZoom': True, 'modeBarButtonsToRemove': ['lasso2d', 'select2d']}
 
 def st_kline(dates, opens, highs, lows, closes, volumes=None, title='K线', **plotly_chart_kwargs):
     """渲染 K 线图（默认开启十字光标 + 隐藏工具栏图标）。

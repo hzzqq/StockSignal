@@ -91,7 +91,7 @@ def fragment_drivers_panel():
                 df, meta=meta, dark_mode=dark,
                 dims=sel_dims or DIMS, date_range=dr, selected=sel,
             )
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key="drv_panel")
+            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="drv_panel")
         except Exception as e:
             st.warning(f"驱动力面板图渲染失败：{e}")
 
@@ -133,7 +133,7 @@ def fragment_drivers_panel():
     try:
         st.plotly_chart(plot_correlation_heatmap(df, names_map=None, selected=sel,
                                                  date_range=dr, dark_mode=dark),
-                        use_container_width=True, config={"displayModeBar": False}, key="drv_corr")
+                        use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="drv_corr")
     except Exception as e:
         st.warning(f"相关性热力图渲染失败：{e}")
     _render_drivers_meta(meta)
