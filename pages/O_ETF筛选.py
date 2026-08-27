@@ -268,7 +268,7 @@ def _etf_filter_fragment():
                 _rec = _rec.dropna(subset=["成交额"]).sort_values("成交额", ascending=False).head(3)
                 if not _rec.empty:
                     st.markdown("---")
-                    st.subheader("🧰 相关 ETF 推荐（按成交额）")
+                    sf_card("🧰 相关 ETF 推荐（按成交额）", "")
                     for _i, (_, rr) in enumerate(_rec.iterrows()):
                         st.markdown(
                             f"**{rr.get('名称', '?')}**  \n`{rr.get('代码', '?')}`  \n"
