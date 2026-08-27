@@ -21,6 +21,7 @@ from streamlit.runtime.caching import cache_resource
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge
 from modules.fetcher import StockFetcher
+from modules.ui_kit import page_hero
 
 
 def render_standard_page(title, icon="📊", caption=None, layout="wide", auth=True):
@@ -45,10 +46,32 @@ def render_standard_page(title, icon="📊", caption=None, layout="wide", auth=T
     render_user_badge(sidebar=True)
     dark = _theme_is_dark()
     st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
-    st.title(f"{icon} {title}")
-    if caption:
-        st.caption(caption)
+    # 签名页头：图标 + 标题 + 副标题 + 实时状态胶囊（主题 / 交易时段）
+    chips = _build_status_chips(dark)
+    page_hero(title=title, icon=icon, subtitle=caption, chips=chips)
     return dark
+
+
+def _build_status_chips(dark: bool) -> list:
+    """构造页头右侧状态胶囊：主题模式 + A股交易时段。UI-only，无业务副作用。"""
+    chips = []
+    try:
+        mode = st.session_state.get("theme_mode", "light")
+        if mode == "dark":
+            chips.append('<span class="ss-pill theme-dark"><span class="dot"></span>暗夜</span>')
+        else:
+            chips.append('<span class="ss-pill theme-light"><span class="dot"></span>白天</span>')
+    except Exception:
+        pass
+    try:
+        from modules.page_widgets import is_trading_now
+        if is_trading_now():
+            chips.append('<span class="ss-pill open"><span class="dot"></span>交易中</span>')
+        else:
+            chips.append('<span class="ss-pill closed"><span class="dot"></span>已休市</span>')
+    except Exception:
+        pass
+    return chips
 
 
 def import_autorefresh():
