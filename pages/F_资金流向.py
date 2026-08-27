@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
+from modules.chart_cache import cached_fig
 from modules.fundflow import (
     get_industry_fund_flow, get_northbound_fund_flow,
     get_market_fund_flow, get_individual_fund_flow,
@@ -101,6 +102,44 @@ def _cached_industry_index(top_n: int = 8, days: int = 120):
 
 def _cached_etf_series(days: int = 180):
     return _prefetch_all().get("etf")
+
+
+# ── 图表 figure 构建缓存（性能优化：避免每次脚本重跑/60s 自动刷新时重复 rebuild）──
+@cached_fig(ttl=120)
+def _build_industry_top15_fig(top, dark):
+    colors = [UP if v >= 0 else DOWN for v in top["净额"]]
+    fig = go.Figure(go.Bar(
+        x=top["行业"], y=top["净额"], marker_color=colors,
+        hovertemplate="%{x}<br>净额：%{y:.2f}亿<extra></extra>",
+    ))
+    fig.update_layout(**_fig_layout(dark), title="净流入 TOP15 行业（亿元）", height=360)
+    fig.update_xaxes(tickangle=-45)
+    return fig
+
+
+@cached_fig(ttl=120)
+def _build_market_main_fig(df, dark):
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df["日期"], y=df["主力净流入-净额"], name="主力净流入(亿)",
+        marker_color=[UP if v >= 0 else DOWN for v in df["主力净流入-净额"]],
+        hovertemplate="%{x}<br>主力净流入：%{y:.2f}亿<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=df["日期"], y=df["上证-涨跌幅"], name="上证涨跌幅%", yaxis="y2",
+        mode="lines+markers", line=dict(color="#f5a623", width=2),
+        hovertemplate="%{x}<br>上证涨跌幅：%{y:.2f}%<extra></extra>",
+    ))
+    _layout = {k: v for k, v in _fig_layout(dark).items() if k != "margin"}
+    fig.update_layout(
+        **_layout, height=360,
+        title="主力净流入（柱）与上证涨跌幅（线）",
+        yaxis2=dict(title="涨跌幅%", overlaying="y", side="right", gridcolor="rgba(0,0,0,0)"),
+        margin=dict(l=60, r=60, t=50, b=90),
+        legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"),
+    )
+    fig.update_xaxes(tickangle=-45)
+    return fig
 
 
 
@@ -249,13 +288,7 @@ def fragment_industry():
 
     top = df.head(15).copy()
     try:
-        colors = [UP if v >= 0 else DOWN for v in top["净额"]]
-        fig = go.Figure(go.Bar(
-            x=top["行业"], y=top["净额"], marker_color=colors,
-            hovertemplate="%{x}<br>净额：%{y:.2f}亿<extra></extra>",
-        ))
-        fig.update_layout(**_fig_layout(dark), title="净流入 TOP15 行业（亿元）", height=360)
-        fig.update_xaxes(tickangle=-45)
+        fig = _build_industry_top15_fig(top, dark)
         st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     except Exception as e:
         st.warning(f"行业净流入 TOP15 图表渲染失败：{e}")
@@ -303,26 +336,7 @@ def fragment_market():
         st.warning(f"大盘资金流向数据解析失败：{e}")
         return
     try:
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=df["日期"], y=df["主力净流入-净额"], name="主力净流入(亿)",
-            marker_color=[UP if v >= 0 else DOWN for v in df["主力净流入-净额"]],
-            hovertemplate="%{x}<br>主力净流入：%{y:.2f}亿<extra></extra>",
-        ))
-        fig.add_trace(go.Scatter(
-            x=df["日期"], y=df["上证-涨跌幅"], name="上证涨跌幅%", yaxis="y2",
-            mode="lines+markers", line=dict(color="#f5a623", width=2),
-            hovertemplate="%{x}<br>上证涨跌幅：%{y:.2f}%<extra></extra>",
-        ))
-        _layout = {k: v for k, v in _fig_layout(dark).items() if k != "margin"}
-        fig.update_layout(
-            **_layout, height=360,
-            title="主力净流入（柱）与上证涨跌幅（线）",
-            yaxis2=dict(title="涨跌幅%", overlaying="y", side="right", gridcolor="rgba(0,0,0,0)"),
-            margin=dict(l=60, r=60, t=50, b=90),
-            legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"),
-        )
-        fig.update_xaxes(tickangle=-45)
+        fig = _build_market_main_fig(df, dark)
         st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     except Exception as e:
         st.warning(f"大盘资金净流入图表渲染失败：{e}")
