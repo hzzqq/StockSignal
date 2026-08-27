@@ -23,6 +23,7 @@ from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
+from modules.ui_kit import info_banner
 from modules.page_guard import safe_fragment
 from modules.format_helpers import safe_float, to_float
 import streamlit.components.v1 as components
@@ -98,6 +99,7 @@ def validate_alert_condition(kind, value, value2=None):
         return (True, None)
     return (False, f'不支持的预警类型：{kind}')
 dark = render_standard_page(title='自选股多维预警', icon='🔔', caption='价格 / 技术形态 / 成交量异动 / 公告 四类预警；触发状态为页面访问时实时比价与扫描结果。')
+info_banner("数据仅供参考，不构成投资建议。预警在页面访问时于前端实时比价与扫描触发，保持本页打开并定期刷新可更快捕捉异动。", icon="🔔")
 st.caption('⚠️ 数据仅供参考，不构成投资建议')
 with st.expander('💡 使用说明', expanded=False, key='alert_help_exp'):
     st.markdown('**四类预警怎么用？**\n- 💲 **价格预警**：设置目标价与「涨破/跌破」条件，页面访问时实时比价触发。\n- 📐 **技术形态预警**：选择形态后，页面扫描该股日线，命中即触发。\n- 📊 **成交量异动预警**：当日量比 ≥ 设定阈值时触发（放量信号）。\n- 📢 **公告预警**：近 20 条新闻/公告出现关键词时触发。\n\n**常见问题**\n- *触发是准实时的吗？* 触发在页面访问时于前端检测，保持本页打开并定期刷新可更快捕捉异动。\n- *为什么显示「待验证」？* 行情或日线数据不足时无法判定，稍后刷新重试。\n- *如何持续盯盘？* 关注右上角「🔔 市场异动」铃铛，并保持本页在浏览器中打开。')

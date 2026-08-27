@@ -13,6 +13,7 @@ from modules.admin_api import (
     search_stocks,
 )
 from modules.page_widgets import _empty_info, _toast
+from modules.ui_kit import info_banner
 
 # 系统配置项：key → 中文可读名称
 CONFIG_LABELS = {
@@ -27,6 +28,8 @@ init_session_state()
 require_admin()
 
 dark = render_standard_page(title="系统配置", icon="⚙️", auth=False)
+
+info_banner("管理员配置页：修改系统配置键值后需点击「保存」并刷新缓存方可生效；任何异常改动都可随时改回，不影响其它功能。", icon="⚙️")
 
 # ================================================================ Tab 布局
 tab_overview, tab_stocks, tab_config, tab_watch, tab_alert = st.tabs([

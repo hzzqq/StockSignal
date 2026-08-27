@@ -19,6 +19,7 @@ from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info, UP, DOWN
+from modules.ui_kit import info_banner
 # 注：openpyxl / reportlab 为「重型导出」依赖，改为惰性加载（见 _to_excel_bytes / _to_pdf_bytes），
 #     避免进入本页（仅查看 CSV 导出入口）时也强制 import 拖慢首屏。
 
@@ -29,6 +30,8 @@ dark = render_standard_page(
             "在下方选择数据集后点击对应按钮即可导出；单个数据集失败不影响整体。",
     layout="wide",
 )
+
+info_banner("支持 CSV / Excel 多 Sheet / PDF 摘要三种格式，并可一键 ZIP 打包；单个数据集导出失败不影响整体，可单独重试。大文件建议分批导出以缩短等待。", icon="📤")
 
 fetcher = get_fetcher()
 
