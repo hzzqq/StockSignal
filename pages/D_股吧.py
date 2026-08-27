@@ -446,7 +446,7 @@ def fragment_list():
         _rec = sorted(posts, key=lambda p: safe_int(p.get("likes", 0), 0), reverse=True)[:3]
         if _rec:
             st.markdown("---")
-            st.subheader("🔥 热门主题推荐")
+            sf_card("🔥 热门主题推荐", "")
             _rcs = st.columns(len(_rec))
             for _i, rp in enumerate(_rec):
                 rpid = rp.get("id")
