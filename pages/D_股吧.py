@@ -198,7 +198,7 @@ def fragment_detail():
     if not isinstance(comments, list):
         # 二级嵌套兜底：comments 字段偶发非 list（如 {} / null），避免迭代崩溃中断详情页
         comments = []
-    st.subheader(f"💭 评论（{len(comments)}）")
+    sf_card(f"💭 评论（{len(comments)}）", "")
     for c in comments:
         if not isinstance(c, dict):
             # 列表元素兜底：单条评论 schema 漂移时跳过，不影响其余评论渲染

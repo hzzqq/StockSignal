@@ -578,7 +578,7 @@ def frag_pdf():
 # ───────────────────────── 一键打包导出全部 (ZIP) ─────────────────────────
 @safe_fragment("批量打包下载")
 def frag_zip():
-    st.subheader("📦 一键打包导出全部 (ZIP)")
+    sf_card("📦 一键打包导出全部 (ZIP)", "")
     st.caption("汇总上述所有数据集（成功返回的部分）打入内存 ZIP，内含 CSV + 多Sheet Excel + manifest。单个数据集失败不影响整体。")
     from modules.search_ui import stock_search_input
     period = st.text_input("财报报告期 (YYYYMMDD，用于打包)", value="20260331", key="zip_period")
