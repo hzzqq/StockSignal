@@ -24,6 +24,7 @@ import threading
 
 from modules.timeout_exec import _pool
 from modules.site_config import FETCH_MAX_WORKERS, CALL_TIMEOUT_CAP
+from modules.errors import report_error
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ def _safe(fn):
     try:
         return fn()
     except Exception as e:  # noqa: BLE001
-        logger.warning(f"[fetch_parallel] 处理异常: {e}")
+        report_error("fetch_parallel", e, context="single task")
         return None
 
 
@@ -79,7 +80,7 @@ def fetch_many(tasks, max_workers=None, timeout=None):
             try:
                 out[key] = fut.result()      # 已完成，立即返回，不再二次计时
             except Exception as e:  # noqa: BLE001
-                logger.warning(f"[fetch_parallel] 处理异常: {e}")
+                report_error("fetch_parallel", e, context=f"task:{key}")
                 out[key] = None
     except Exception:  # noqa: BLE001  整批超时：未完成项保持预填的 None
         pending = [k for f, k in futs.items() if not f.done()]
