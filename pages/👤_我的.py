@@ -13,6 +13,7 @@ from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT, sf_card
 from modules.format_helpers import safe_int
 
 from modules.page_utils import render_standard_page
+from modules.ui_theme import sf_card, sf_metric
 
 # 安全解析字体档位在选项列表中的下标；legacy 值不在选项中时回退到默认档位，避免 .index() 抛 ValueError。
 def _resolve_font_index(value, font_opts, default):
@@ -121,7 +122,7 @@ def render_preferences():
     # ════════════════════════════════════
     # 🎨 外观设置
     # ════════════════════════════════════
-    st.subheader("🎨 外观设置")
+    sf_card("🎨 外观设置", "")
 
     col_dark, col_light = st.columns(2)
     with col_dark:
@@ -171,7 +172,7 @@ def render_preferences():
     # ════════════════════════════════════
     # 📊 行情看板默认参数
     # ════════════════════════════════════
-    st.subheader("📊 行情看板默认参数")
+    sf_card("📊 行情看板默认参数", "")
 
     _kline_count = st.slider(
         "K 线图默认显示数量",
@@ -200,7 +201,7 @@ def render_preferences():
     # ════════════════════════════════════
     # 🔧 数据源偏好
     # ════════════════════════════════════
-    st.subheader("🔧 数据源偏好")
+    sf_card("🔧 数据源偏好", "")
 
     st.info("""
     **StockSignal 数据源降级链**（按顺序尝试，第一个成功即用）：
@@ -225,7 +226,7 @@ def render_preferences():
     # ════════════════════════════════════
     # 💾 重置与保存
     # ════════════════════════════════════
-    st.subheader("💾 重置与保存")
+    sf_card("💾 重置与保存", "")
 
     col_reset, col_save = st.columns([1, 3])
     with col_reset:
@@ -384,7 +385,7 @@ with col2:
 st.markdown("---")
 
 # ── 我的自选股 ──
-st.subheader("⭐ 我的自选股")
+sf_card("⭐ 我的自选股", "")
 
 try:
     # 加法式加载态反馈：自选股列表来自后台请求
@@ -477,7 +478,7 @@ with _col_cache:
         st.rerun()
 
 # ── 登录历史 ──
-st.subheader("🕘 登录历史")
+sf_card("🕘 登录历史", "")
 
 try:
     # 加法式加载态反馈：登录历史来自后台请求
@@ -532,7 +533,7 @@ except Exception as e:
 st.markdown("---")
 
 # ── 账号绑定（邮箱 / 手机） ──
-st.subheader("🔗 账号绑定")
+sf_card("🔗 账号绑定", "")
 
 _col_mail, _col_phone = st.columns(2)
 with _col_mail:
@@ -549,7 +550,7 @@ st.caption("说明：邮箱 / 手机号绑定用于找回密码与异地登录�
 st.markdown("---")
 
 # ── 系统消息 / 通知占位 ──
-st.subheader("📢 系统通知")
+sf_card("📢 系统通知", "")
 _empty_info("暂无新通知。")
 
 # 加法式输入内联校验：实时校验 6 位股票代码格式（错误时 st.error 提示）
