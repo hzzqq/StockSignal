@@ -23,6 +23,7 @@ from modules import fundflow as ff
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info
+from modules.perf import downsample
 dark = render_standard_page(title='基本面分析', icon='🏛️', caption='个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）', layout='wide')
 trading_autorefresh(key='fundamental_autorefresh')
 ACCENT = '#818cf8' if dark else '#6366f1'
@@ -488,7 +489,7 @@ if code:
             display_table = table_df[['报告期显示', '指标值', '同比', '环比']].rename(columns={'报告期显示': '报告期'})
         with st.expander('📋 查看明细数据', expanded=False):
             st.caption(f'📋 共 {len(display_table)} 条「{metric}」明细（{mode}）')
-            st.dataframe(display_table, use_container_width=True, hide_index=True)
+            st.dataframe(display_table, use_container_width=True, hide_index=True, height=400)
             st.caption('数据来源：新浪财经 利润表 / 资产负债表 / 现金流量表')
     fragment_financial_analysis(code, name)
     st.markdown('---')
@@ -507,7 +508,9 @@ if code:
         m3.metric('3年价格分位', f'{p_3y:.1f}%' if p_3y is not None else '—')
         m4.metric('5年价格分位', f'{p_5y:.1f}%' if p_5y is not None else '—')
         fig_hist = go.Figure()
-        fig_hist.add_trace(go.Scatter(x=hist_df['date'], y=hist_df['close'], mode='lines', name='收盘价', line=dict(color=ACCENT, width=1.4), fill='tozeroy', fillcolor=ACCENT_FILL))
+        # 近5年日线点数很多，绘图前降采样（保留首尾关键点），百分位的精确计算仍用原始 hist_df
+        hist_plot = downsample(hist_df, max_points=600)
+        fig_hist.add_trace(go.Scatter(x=hist_plot['date'], y=hist_plot['close'], mode='lines', name='收盘价', line=dict(color=ACCENT, width=1.4), fill='tozeroy', fillcolor=ACCENT_FILL))
         fig_hist.add_hline(y=current, line=dict(color=UP_COLOR, dash='dash', width=1.5), annotation_text='当前价', annotation_position='top right')
         fig_hist.update_layout(title=f'{name} 近5年走势与当前位置', xaxis_title='', yaxis_title='收盘价', height=360, margin=dict(l=40, r=40, t=40, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig_hist, use_container_width=True, config={"displaylogo": False, "responsive": True})
