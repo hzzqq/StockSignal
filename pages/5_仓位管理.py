@@ -126,7 +126,7 @@ def format_quote_table(quote):
         except (KeyError, TypeError, ValueError):
             continue
     return pd.DataFrame(rows) if rows else None
-st.subheader('当前持仓概览')
+sf_card('📊 当前持仓概览', '跟踪所有持仓的买入成本、剩余股数与实时市值；支持搜索与批量加自选 / 平仓。')
 positions = pm.get_positions()
 st.caption(f'📊 当前持仓：共 {len(positions)} 条')
 if positions.empty:
@@ -205,8 +205,7 @@ else:
                     st.rerun()
                 except Exception as e:
                     st.error(f'批量平仓失败：{e}')
-st.markdown('---')
-st.subheader('买入股票')
+sf_card('➕ 买入股票', '录入代码、价格与股数添加持仓；支持 100 / 500 / 1000 等快捷股数按钮。')
 st.markdown('**⚡ 快捷选择股数：**')
 quick_cols = st.columns(5)
 for col, qv in zip(quick_cols, [100, 500, 1000, 2000, 5000]):
@@ -296,8 +295,7 @@ if st.button('⭐ 收藏（本地星标）', key='pm_fav_add', use_container_wid
         _toast(f'已收藏（星标）：{_ft}')
     else:
         st.warning('该标的已收藏或代码为空。')
-st.markdown('---')
-st.subheader('卖出股票')
+sf_card('💸 卖出股票', '记录卖出成交，自动计算已实现盈亏并扣减剩余股数。')
 if not positions.empty:
     remaining = positions['remaining_shares'] if 'remaining_shares' in positions.columns else positions['shares']
     sellable_positions = positions[remaining > 0].copy()
@@ -404,8 +402,7 @@ with st.expander('🗑️ 删除持仓'):
                 st.session_state.pop(_ck, None)
         elif c_del.button('🗑️ 删除持仓', type='secondary'):
             st.session_state[_ck] = True
-st.markdown('---')
-st.subheader('卖出记录')
+sf_card('🧾 卖出记录', '查看历史卖出明细与成交金额，便于复盘与导出。')
 trades = pm.get_trades()
 st.caption(f'🧾 卖出记录：共 {len(trades)} 条')
 if trades.empty:
@@ -422,8 +419,7 @@ else:
     display_trades['备注'] = display_trades['note'].fillna('')
     show_cols = ['股票', 'ticker', '卖出日期', '卖出价', '卖出股数', '成交金额', '备注']
     st.dataframe(display_trades[show_cols], use_container_width=True, hide_index=True, height=400)
-st.markdown('---')
-st.subheader('盈亏统计')
+sf_card('📈 盈亏统计', '汇总总成本、总市值、总盈亏与收益率，并绘制盈亏曲线与持仓明细。')
 positions = pm.get_positions()
 if not positions.empty:
     with st.spinner('正在获取行情并计算盈亏...'):
@@ -466,8 +462,7 @@ if not positions.empty:
                 pnl_cols = ['股票', 'ticker', '建仓时间', '买入价', '买入股数', '剩余股数', '现价', '市值', '已实现盈亏', '浮动盈亏', '收益率']
                 pnl_cols = [c for c in pnl_cols if c in display_pnl.columns]
                 st.dataframe(display_pnl[pnl_cols], use_container_width=True, hide_index=True, height=400)
-            st.markdown('---')
-            st.subheader('盈亏归因')
+            sf_card('🔬 盈亏归因', '按个股拆分盈亏贡献，定位收益的主要来源与拖累项。')
             attribution = pm.pnl_attribution()
             if not attribution.empty:
                 attr_fetcher = StockFetcher()
