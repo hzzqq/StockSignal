@@ -23,11 +23,14 @@ from modules.session import safe_switch_page, _rel_time, get_token
 from modules.widgets import _NAV_GROUPS
 from modules.page_widgets import _section_title, _empty_info
 from modules.page_guard import safe_fragment
+from modules.ui_kit import info_banner
 
 dark = render_standard_page(
     title="新手教程 · 5 分钟玩转 StockSignal", icon="📘",
     caption="本页帮你快速上手：三步完成首次操作、认识各模块、看懂术语与常见疑问。看完即可独立使用本平台。",
 )
+
+info_banner("欢迎来到 StockSignal！先完成下方「三步上手」勾选清单，再浏览模块导览与术语表；遇到疑问随时展开「常见问题」。全程约 5 分钟。", icon="📘")
 
 ASSET_DIR = Path(__file__).resolve().parent.parent / "assets"
 VIDEO_PATH = ASSET_DIR / "tutorial_overview.mp4"

@@ -8,9 +8,11 @@ import pandas as pd
 
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
+from modules.ui_kit import info_banner
 
 # 本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）
 render_standard_page(title="多股对比 · 决策仪表盘", icon="📊", layout="wide")
+info_banner("输入 2~8 只股票（代码 / 中文名 / 拼音首字母）即可横向对比；对比结果含五维雷达、成对卡片与作战计划，所有数据仅供参考。", icon="📊")
 
 from modules.search_ui import multi_stock_search_input
 from modules.background_tasks import submit_task_with_error, poll_task
