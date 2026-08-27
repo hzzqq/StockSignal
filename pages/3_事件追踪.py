@@ -443,7 +443,7 @@ def fragment_timeline():
                     with st.expander(f'展开查看事件库（共 {len(events)} 条）', expanded=False):
                         events_display = events[['date', 'ticker', 'title', 'type']].sort_values('date', ascending=False).copy()
                         events_display['相对时间'] = events_display['date'].apply(lambda d: _fmt_rel(d))
-                        st.dataframe(events_display, width='stretch')
+                        st.dataframe(events_display, width='stretch', height=400)
                     st.caption(f'共 {len(events)} 条事件')
                 else:
                     st.info('当前筛选条件下事件库为空。可先在上方「股票搜索」选择关注标的并点击「生成时间轴」，或在下方「事件管理」中手动添加事件。')
@@ -552,7 +552,7 @@ def fragment_event_manage():
             _evt_total = len(events_display)
             _evt_show = min(st.session_state[_evt_page_key], _evt_total)
             with st.expander(f'展开查看全部事件库（共 {_evt_total} 条，已显示 {_evt_show} 条）', expanded=False):
-                st.dataframe(events_display[['date', '股票', 'ticker', 'title', 'type', '标记', '相对时间']], width='stretch')
+                st.dataframe(events_display[['date', '股票', 'ticker', 'title', 'type', '标记', '相对时间']], width='stretch', height=400)
             if _evt_show < _evt_total:
                 if st.button('显示更多 ▼', key='evt_load_more'):
                     st.session_state[_evt_page_key] = min(st.session_state[_evt_page_key] + 30, _evt_total)
@@ -616,7 +616,7 @@ def fragment_news_mine():
                         _disp = mined[display_cols]
                         if 'date' in display_cols:
                             _disp = _disp.sort_values('date', ascending=False)
-                        st.dataframe(_disp, width='stretch')
+                        st.dataframe(_disp, width='stretch', height=400)
     except Exception as module_err:
         st.error(f'⚠️ 新闻挖掘模块异常: {module_err}')
 

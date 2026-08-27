@@ -131,7 +131,7 @@ with tab_stocks:
             _cols = [c for c in ["code", "name", "market", "pinyin_initials", "pinyin_full"] if c in df.columns]
             df = df[_cols] if _cols else df
             df.columns = ["代码", "名称", "市场", "拼音首字母", "全拼"][: len(_cols)]
-            st.dataframe(df, width="stretch", hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True, height=400)
 
             col_prev, col_info, col_next = st.columns([1, 2, 1])
             with col_prev:

@@ -157,7 +157,7 @@ else:
             st.caption('🔍 未找到匹配的持仓。')
     _pshow_key = 'pm_pos_show'
     _pshow_n = st.session_state.get(_pshow_key, 10)
-    st.dataframe(display_pos[show_cols].head(_pshow_n), width='stretch', hide_index=True)
+    st.dataframe(display_pos[show_cols].head(_pshow_n), width='stretch', hide_index=True, height=400)
     if len(display_pos) > _pshow_n:
         if st.button('显示更多 ▼', key='pm_pos_more'):
             st.session_state[_pshow_key] = min(_pshow_n + 10, len(display_pos))
@@ -229,7 +229,7 @@ with st.form('buy_position_form'):
                         st.caption(f'📈 最新价 ¥{float(_cur):.2f}  {_dt}')
                     _qdf = format_quote_table(buy_quote)
                     if _qdf is not None:
-                        st.dataframe(_qdf, width='stretch', hide_index=True)
+                        st.dataframe(_qdf, width='stretch', hide_index=True, height=400)
                     else:
                         st.caption('⚠️ 五档行情暂不可用')
                 except Exception:
@@ -328,7 +328,7 @@ else:
                         st.caption(f'📈 最新价 ¥{float(_cur):.2f}  {_dt}')
                     _qdf = format_quote_table(sell_quote)
                     if _qdf is not None:
-                        st.dataframe(_qdf, width='stretch', hide_index=True)
+                        st.dataframe(_qdf, width='stretch', hide_index=True, height=400)
                     else:
                         st.caption('⚠️ 五档行情暂不可用')
                 except Exception:
@@ -417,7 +417,7 @@ else:
     display_trades['成交金额'] = display_trades['proceeds'].apply(_fmt_money)
     display_trades['备注'] = display_trades['note'].fillna('')
     show_cols = ['股票', 'ticker', '卖出日期', '卖出价', '卖出股数', '成交金额', '备注']
-    st.dataframe(display_trades[show_cols], width='stretch', hide_index=True)
+    st.dataframe(display_trades[show_cols], width='stretch', hide_index=True, height=400)
 st.markdown('---')
 st.subheader('盈亏统计')
 positions = pm.get_positions()
@@ -461,7 +461,7 @@ if not positions.empty:
                 display_pnl = display_pnl.sort_values('pnl_pct', ascending=False, key=lambda s: pd.to_numeric(s, errors='coerce'), ignore_index=True)
                 pnl_cols = ['股票', 'ticker', '建仓时间', '买入价', '买入股数', '剩余股数', '现价', '市值', '已实现盈亏', '浮动盈亏', '收益率']
                 pnl_cols = [c for c in pnl_cols if c in display_pnl.columns]
-                st.dataframe(display_pnl[pnl_cols], width='stretch', hide_index=True)
+                st.dataframe(display_pnl[pnl_cols], width='stretch', hide_index=True, height=400)
             st.markdown('---')
             st.subheader('盈亏归因')
             attribution = pm.pnl_attribution()
@@ -469,7 +469,7 @@ if not positions.empty:
                 attr_fetcher = StockFetcher()
                 attribution['股票'] = attribution['ticker'].apply(lambda x: fetcher.get_name_only(x) or attr_fetcher.get_stock_name(x))
                 display_attr = attribution[['股票', 'ticker', 'pnl', 'pnl_pct', 'contribution']].copy()
-                st.dataframe(display_attr, width='stretch', hide_index=True)
+                st.dataframe(display_attr, width='stretch', hide_index=True, height=400)
             else:
                 _empty_info('暂无盈亏归因数据。需要先有至少一笔卖出记录，系统才能按股票拆分盈亏贡献。')
             st.markdown('---')

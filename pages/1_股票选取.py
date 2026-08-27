@@ -570,7 +570,7 @@ try:
                     with st.expander(f"📌 本区间事件（{len(ev_view)} 条）", expanded=False):
                         disp = ev_view[["date", "title", "type"]].copy() if "type" in ev_view.columns else ev_view[["date", "title"]].copy()
                         disp = disp.sort_values("date")
-                        st.dataframe(disp, use_container_width=True, hide_index=True)
+                        st.dataframe(disp, use_container_width=True, hide_index=True, height=400)
 
         # 叠加上证基准对比（归一化多线，可选）
         if st.checkbox("📈 叠加上证基准对比（归一化）", value=False, key="pick_show_bench",

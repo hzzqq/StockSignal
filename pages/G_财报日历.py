@@ -127,7 +127,7 @@ def fragment_report():
                 "净利润同比%": st.column_config.NumberColumn("净利润同比%", format="%.1f"),
                 "ROE%": st.column_config.NumberColumn("ROE%", format="%.2f"),
             },
-        )
+        height=400)
     except Exception as e:
         st.warning(f"财报日历表格渲染失败：{e}")
     else:
@@ -163,7 +163,7 @@ def fragment_forecast():
     # 加法式渲染兜底：best-effort 接口返回的 DataFrame 可能含怪异列类型（如嵌套列表/对象），
     # 直接 st.dataframe 会异常；包裹后失败仅提示，不影响上方概览与下方其它视图。
     try:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, use_container_width=True, hide_index=True, height=400)
     except Exception as _e:
         st.warning(f"业绩预告表格渲染失败：{_e}")
 
@@ -197,7 +197,7 @@ def fragment_disclosure():
     # 加法式渲染兜底（Batch15）：best-effort 接口返回的 DataFrame 可能含怪异列类型，
     # 直接 st.dataframe 会异常；包裹后失败仅提示，不影响上方概览与下方其它视图。
     try:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, use_container_width=True, hide_index=True, height=400)
     except Exception as _e:
         st.warning(f"披露日历表格渲染失败：{_e}")
 

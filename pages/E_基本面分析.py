@@ -557,7 +557,7 @@ if code:
                 top10['排名'] = top10.index + 1
                 display = top10[['排名', 'sector', 'change_pct']].rename(columns={'sector': '行业', 'change_pct': '涨跌幅'})
                 st.caption(f'🏭 全市场共 {len(sector_df)} 个行业，以下展示涨幅前 {len(top10)} 名')
-                st.dataframe(display, use_container_width=True, column_config={'涨跌幅': st.column_config.NumberColumn(format='%.2f%%')}, hide_index=True)
+                st.dataframe(display, use_container_width=True, column_config={'涨跌幅': st.column_config.NumberColumn(format='%.2f%%')}, hide_index=True, height=400)
     st.caption('数据来源：东方财富 行业板块行情（涨跌幅 / 排名）')
     st.markdown('---')
     st.subheader('🎯 综合评估')

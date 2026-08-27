@@ -243,7 +243,7 @@ def _show_attribution():
             "pnl_pct": st.column_config.NumberColumn("盈亏%", format="%.2f"),
             "contribution": st.column_config.NumberColumn("贡献%", format="%.2f"),
         },
-    )
+    height=400)
     # 导出收益贡献 CSV（便于离线分析）
     try:
         csv = attr.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")

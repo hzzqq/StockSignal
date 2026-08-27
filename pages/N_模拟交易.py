@@ -228,7 +228,7 @@ def fragment_paper():
             def _color_row(r):
                 c = UP if r['盈亏'] >= 0 else DOWN
                 return [f'color:{c}'] * len(r)
-            st.dataframe(dfp.style.apply(_color_row, axis=1), use_container_width=True, hide_index=True)
+            st.dataframe(dfp.style.apply(_color_row, axis=1), use_container_width=True, hide_index=True, height=400)
             st.markdown('**批量操作**')
             _pt_sel = [r['代码'] for r in rows if st.checkbox(f"选择 {r['名称']}({r['代码']})", key=f"pt_sel_{r['代码']}")]
             if _pt_sel:
@@ -277,7 +277,7 @@ def fragment_paper():
                     st.caption('🔍 未找到匹配的成交记录。')
             _show_key = 'pt_trade_show'
             _show_n = st.session_state.get(_show_key, 10)
-            st.dataframe(dft.head(_show_n), use_container_width=True, hide_index=True)
+            st.dataframe(dft.head(_show_n), use_container_width=True, hide_index=True, height=400)
             if len(dft) > _show_n:
                 if st.button('显示更多 ▼', key='pt_trade_more', use_container_width=True):
                     st.session_state[_show_key] = min(_show_n + 10, len(dft))

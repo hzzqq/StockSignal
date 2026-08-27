@@ -295,7 +295,7 @@ def fragment_manual_backtest():
                     trades_df["持仓天数"] = trades_df["bars_held"]
                     display_df = trades_df[["entry_date", "exit_date", "entry_price", "exit_price", "收益率", "exit_reason", "持仓天数"]]
                     display_df.columns = ["买入日期", "卖出日期", "买入价", "卖出价", "收益率", "退出原因", "持仓天数"]
-                    st.dataframe(display_df, width="stretch")
+                    st.dataframe(display_df, width="stretch", height=400)
 
                     # 交易统计
                     wins = [t for t in result.trades if t["profit_pct"] > 0]
@@ -601,7 +601,7 @@ def fragment_daily_picker():
                 try:
                     display_today = today_picks[["code", "name", "score", "buy_price", "rsi2", "rsi14", "reasons"]].copy()
                     display_today.columns = ["代码", "名称", "评分", "买入价", "RSI(2)", "RSI(14)", "选股理由"]
-                    st.dataframe(display_today, use_container_width=True, hide_index=True)
+                    st.dataframe(display_today, use_container_width=True, hide_index=True, height=400)
                 except KeyError as _ke:
                     st.warning(f"今日推荐数据列结构异常，已跳过表格展示：{_ke}")
                 st.caption("💡 以上为基于上一交易日收盘数据选出的股票，可在今日开盘/盘中择机买入。")
@@ -616,7 +616,7 @@ def fragment_daily_picker():
                 try:
                     display_tmr = tomorrow_picks[["code", "name", "score", "buy_price", "rsi2", "rsi14", "reasons"]].copy()
                     display_tmr.columns = ["代码", "名称", "评分", "参考价", "RSI(2)", "RSI(14)", "选股理由"]
-                    st.dataframe(display_tmr, use_container_width=True, hide_index=True)
+                    st.dataframe(display_tmr, use_container_width=True, hide_index=True, height=400)
                 except KeyError as _ke:
                     st.warning(f"明日推荐数据列结构异常，已跳过表格展示：{_ke}")
                 st.caption("💡 以上为基于今日收盘数据选出的股票，可在明日开盘/盘中择机买入。")
@@ -671,7 +671,7 @@ def fragment_daily_picker():
                                                  "持有收益(%)", "RSI(2)", "RSI(14)", "选股理由"]
                     # 加法式 UX：全部选股记录默认按选股日期倒序，最新一期排在最前
                     all_picks_display = all_picks_display.sort_values("选股日期", ascending=False)
-                    st.dataframe(all_picks_display, use_container_width=True, hide_index=True)
+                    st.dataframe(all_picks_display, use_container_width=True, hide_index=True, height=400)
                 except KeyError as _ke:
                     st.warning(f"全部选股记录列结构异常，已跳过表格展示：{_ke}")
 
@@ -797,7 +797,7 @@ def fragment_strong_bull():
             "最大回撤%": "—",
             "交易数": f"{market_summary['total_picks']}",
         })
-    st.dataframe(pd.DataFrame(cmp_rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(cmp_rows), use_container_width=True, hide_index=True, height=400)
     if market is None and st.session_state.get("sb_with_market", False) and "sb_market_error" in st.session_state:
         st.error(f"全市场基准计算失败: {st.session_state['sb_market_error']}")
     elif market is None:
@@ -896,7 +896,7 @@ def fragment_param_scan():
                     "交易数": r['trade_count'],
                 } for r in ok]
                 df_ps = pd.DataFrame(df_rows)
-                st.dataframe(df_ps, use_container_width=True, hide_index=True)
+                st.dataframe(df_ps, use_container_width=True, hide_index=True, height=400)
                 best = ok[0]
                 st.success(f"🏆 最优组合：止盈 {best['params'].get('take_profit_pct',0)*100:.1f}% / "
                            f"止损 {best['params'].get('stop_loss_pct',0)*100:.1f}% / "
@@ -961,7 +961,7 @@ def fragment_batch_backtest():
                         "交易数": res.trade_count(),
                     })
                 df_detail = pd.DataFrame(detail).sort_values("累计收益%", ascending=False)
-                st.dataframe(df_detail, use_container_width=True, hide_index=True)
+                st.dataframe(df_detail, use_container_width=True, hide_index=True, height=400)
             except Exception as e:
                 st.error(f"批量回测失败：{e}")
 

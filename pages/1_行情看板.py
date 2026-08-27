@@ -305,7 +305,7 @@ def fragment_lhb():
                 _heat = _anorm + 0.3 * pd.Series(_chgs, dtype=float)
                 heat_df = pd.DataFrame({'股票代码': lhb_df['股票代码'].values, '股票名称': lhb_df['股票名称'].values, '热度': [round(float(x), 2) for x in _heat], '买方金额': lhb_df['买方金额'].values if '买方金额' in lhb_df.columns else [0] * _n, '卖方金额': lhb_df['卖方金额'].values if '卖方金额' in lhb_df.columns else [0] * _n, '涨跌幅': lhb_df['涨跌幅'].values if '涨跌幅' in lhb_df.columns else [0] * _n})
                 heat_df = heat_df.sort_values('热度', ascending=False).reset_index(drop=True)
-                st.dataframe(heat_df, use_container_width=True, column_config={'热度': st.column_config.NumberColumn(format='%.2f')})
+                st.dataframe(heat_df, use_container_width=True, column_config={'热度': st.column_config.NumberColumn(format='%.2f')}, height=400)
                 heat_opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in heat_df.iterrows() if len(str(row['股票代码'])) == 6]
                 hsel = st.selectbox('选择热股榜股票查看 K 线', ['— 请选择 —'] + heat_opts, key='heat_jump_select', help='选择热股榜中的标的后跳转到「股票选取」页查看其 K 线与详情。')
                 if hsel and hsel != '— 请选择 —':

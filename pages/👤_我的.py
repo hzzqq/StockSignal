@@ -404,7 +404,7 @@ try:
             if isinstance(watchlist, list) and watchlist:
                 import pandas as pd
                 df = pd.DataFrame(watchlist)
-                st.dataframe(df, width="stretch")
+                st.dataframe(df, width="stretch", height=400)
                 st.caption(f"共 {len(watchlist)} 只自选股 · 数据实时同步自行情看板 ☆")
             else:
                 _empty_info("暂无自选股，请先添加你关注的股票。")
@@ -415,7 +415,7 @@ try:
                         {"股票代码": "600519", "股票名称": "贵州茅台", "最新价": 1680.0, "涨跌幅(%)": 1.23},
                         {"股票代码": "000858", "股票名称": "五粮液", "最新价": 142.5, "涨跌幅(%)": -0.56},
                     ])
-                    st.dataframe(_sample_wl, width="stretch")
+                    st.dataframe(_sample_wl, width="stretch", height=400)
                     st.caption("⚠️ 以上为示意数据，非真实行情。")
                 st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
                 if st.button("➕ 去行情看板添加自选股", key="wl_go_add", use_container_width=True):
@@ -429,7 +429,7 @@ try:
                     {"股票代码": "600519", "股票名称": "贵州茅台", "最新价": 1680.0, "涨跌幅(%)": 1.23},
                     {"股票代码": "000858", "股票名称": "五粮液", "最新价": 142.5, "涨跌幅(%)": -0.56},
                 ])
-                st.dataframe(_sample_wl2, width="stretch")
+                st.dataframe(_sample_wl2, width="stretch", height=400)
                 st.caption("⚠️ 以上为示意数据，非真实行情。")
             st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
             if st.button("➕ 去行情看板添加自选股", key="wl_go_add2", use_container_width=True):
@@ -504,7 +504,7 @@ try:
                 }
                 for r in logs
             ]
-            st.dataframe(pd.DataFrame(_hist), width="stretch", use_container_width=True)
+            st.dataframe(pd.DataFrame(_hist), width="stretch", use_container_width=True, height=400)
             # 加法式结果计数/摘要：登录历史总条数
             st.caption(f"共 {len(logs)} 条登录记录")
         else:
@@ -516,7 +516,7 @@ try:
                     {"时间": "刚刚", "账号": "demo", "操作": "登录", "详情": "本地登录"},
                     {"时间": "1小时前", "账号": "demo", "操作": "修改设置", "详情": "切换暗夜模式"},
                 ])
-                st.dataframe(_sample_log, width="stretch", use_container_width=True)
+                st.dataframe(_sample_log, width="stretch", use_container_width=True, height=400)
                 st.caption("⚠️ 以上为示意数据，非真实记录。")
     else:
         st.warning(f"获取登录历史失败：HTTP {resp.status_code}")

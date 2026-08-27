@@ -122,7 +122,7 @@ def fragment_drivers_panel():
         if sel:
             keep = [c for c in sel if c in tbl.columns]
             tbl = tbl[["date"] + keep] if keep else tbl[["date"]]
-        st.dataframe(tbl, use_container_width=True, hide_index=True)
+        st.dataframe(tbl, use_container_width=True, hide_index=True, height=400)
     # 导出 CSV
     try:
         csv = to_trend_csv(df, names_map=None, selected=sel, date_range=dr)

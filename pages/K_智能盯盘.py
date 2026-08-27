@@ -271,7 +271,7 @@ def fragment_sector():
     if not show_cols:
         _empty_info('板块明细列名与预期不符，暂无法以表格展示（图表仍可用）。')
         return
-    st.dataframe(top[show_cols], use_container_width=True, hide_index=True, column_config={'净额': st.column_config.NumberColumn('净额(亿)', format='%.2f'), '涨跌幅': st.column_config.NumberColumn('涨跌幅%', format='%.2f'), '流入资金': st.column_config.NumberColumn('流入(亿)', format='%.2f'), '流出资金': st.column_config.NumberColumn('流出(亿)', format='%.2f')})
+    st.dataframe(top[show_cols], use_container_width=True, hide_index=True, column_config={'净额': st.column_config.NumberColumn('净额(亿)', format='%.2f'), '涨跌幅': st.column_config.NumberColumn('涨跌幅%', format='%.2f'), '流入资金': st.column_config.NumberColumn('流入(亿)', format='%.2f'), '流出资金': st.column_config.NumberColumn('流出(亿)', format='%.2f')}, height=400)
 
 @safe_fragment('自选股涨跌榜')
 def fragment_watchlist():
@@ -308,7 +308,7 @@ def fragment_watchlist():
             safe_switch_page('pages/B_形态选股.py')
         if st.button('👀 查看示例', key='wl_sample'):
             _sample = pd.DataFrame([{'代码': '600519', '名称': '贵州茅台', '现价': 1680.0, '涨跌%': 2.35, '涨跌额': 38.5}, {'代码': '000858', '名称': '五粮液', '现价': 152.3, '涨跌%': -1.2, '涨跌额': -1.85}, {'代码': '601318', '名称': '中国平安', '现价': 48.6, '涨跌%': 0.42, '涨跌额': 0.2}])
-            st.dataframe(_sample, use_container_width=True, hide_index=True)
+            st.dataframe(_sample, use_container_width=True, hide_index=True, height=400)
         return
     codes = [c for c, _ in items]
     names = {c: n for c, n in items}
@@ -347,9 +347,9 @@ def fragment_watchlist():
         return
     try:
         styled = df.style.map(_color_chg, subset=['涨跌%'])
-        st.dataframe(styled, use_container_width=True, hide_index=True, column_config={'现价': st.column_config.NumberColumn(format='%.2f'), '涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '涨跌额': st.column_config.NumberColumn(format='%.2f')})
+        st.dataframe(styled, use_container_width=True, hide_index=True, column_config={'现价': st.column_config.NumberColumn(format='%.2f'), '涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '涨跌额': st.column_config.NumberColumn(format='%.2f')}, height=400)
     except Exception:
-        st.dataframe(df, use_container_width=True, hide_index=True, column_config={'现价': st.column_config.NumberColumn(format='%.2f'), '涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '涨跌额': st.column_config.NumberColumn(format='%.2f')})
+        st.dataframe(df, use_container_width=True, hide_index=True, column_config={'现价': st.column_config.NumberColumn(format='%.2f'), '涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '涨跌额': st.column_config.NumberColumn(format='%.2f')}, height=400)
     st.caption(f'📊 当前显示 {len(df)} / 总计 {len(codes)} 只自选股')
     st.caption('数据来源：东方财富 / 新浪财经 实时行情')
     with st.expander('📌 逐只跳转至行情看板', expanded=False):
@@ -458,16 +458,16 @@ def fragment_individual_ff():
         st.markdown('**🔺 主力净流入 TOP**')
         try:
             styled = top_in.style.map(_color_net, subset=['主力净流入(亿)'])
-            st.dataframe(styled, use_container_width=True, hide_index=True, column_config={'主力净流入(亿)': st.column_config.NumberColumn(format='%.3f')})
+            st.dataframe(styled, use_container_width=True, hide_index=True, column_config={'主力净流入(亿)': st.column_config.NumberColumn(format='%.3f')}, height=400)
         except Exception:
-            st.dataframe(top_in, use_container_width=True, hide_index=True, column_config={'主力净流入(亿)': st.column_config.NumberColumn(format='%.3f')})
+            st.dataframe(top_in, use_container_width=True, hide_index=True, column_config={'主力净流入(亿)': st.column_config.NumberColumn(format='%.3f')}, height=400)
     with col_r:
         st.markdown('**🔻 主力净流出 TOP**')
         try:
             styled = top_out.style.map(_color_net, subset=['主力净流入(亿)'])
-            st.dataframe(styled, use_container_width=True, hide_index=True, column_config={'主力净流入(亿)': st.column_config.NumberColumn(format='%.3f')})
+            st.dataframe(styled, use_container_width=True, hide_index=True, column_config={'主力净流入(亿)': st.column_config.NumberColumn(format='%.3f')}, height=400)
         except Exception:
-            st.dataframe(top_out, use_container_width=True, hide_index=True, column_config={'主力净流入(亿)': st.column_config.NumberColumn(format='%.3f')})
+            st.dataframe(top_out, use_container_width=True, hide_index=True, column_config={'主力净流入(亿)': st.column_config.NumberColumn(format='%.3f')}, height=400)
     st.caption(f'📊 当前展示 {len(valid)} / 总计 {len(codes)} 只自选股的资金流异动')
     st.caption('数据来源：东方财富 / 新浪财经 主力资金流')
     if any((r.get('source') == 'estimate' for r in ff_map.values())):

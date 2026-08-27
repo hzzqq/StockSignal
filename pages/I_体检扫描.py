@@ -505,7 +505,7 @@ def result_board():
             "综合分": st.column_config.ProgressColumn(
                 "综合分", min_value=0, max_value=100, format="%.0f"),
         },
-    )
+    height=400)
     # 导出体检结果 CSV（便于离线分析 / 二次筛选）
     try:
         csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")

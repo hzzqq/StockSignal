@@ -178,7 +178,7 @@ def fragment_northbound():
     if not df.empty:
         df["资金净流入"] = pd.to_numeric(df["资金净流入"], errors="coerce")
         df["指数涨跌幅"] = pd.to_numeric(df["指数涨跌幅"], errors="coerce")
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, use_container_width=True, hide_index=True, height=400)
     st.caption("表格列说明：板块 / 资金方向 / 成交净买额（亿元）/ 资金净流入（红=流入，绿=流出）/ 上涨数 / 下跌数 / 指数涨跌幅（%）；数据来自东方财富。")
     # 北向净买额数据源说明（东方财富自 2024-08 起停止披露实时北向净买额）
     if not avail:
@@ -268,7 +268,7 @@ def fragment_industry():
             "流入资金": st.column_config.NumberColumn("流入(亿)", format="%.2f"),
             "流出资金": st.column_config.NumberColumn("流出(亿)", format="%.2f"),
         },
-    )
+    height=400)
 
 
 # ───────────────────────── 大盘主力资金净流入 ─────────────────────────
@@ -524,7 +524,7 @@ def fragment_industry_trend():
         if sel:
             keep = [c for c in sel if c in tbl.columns]
             tbl = tbl[["date"] + keep] if keep else tbl[["date"]]
-        st.dataframe(tbl, use_container_width=True, hide_index=True)
+        st.dataframe(tbl, use_container_width=True, hide_index=True, height=400)
     # 导出 CSV
     csv = to_trend_csv(ind, names_map=None, selected=sel, date_range=dr)
     st.download_button("⬇️ 导出 CSV", data=csv, file_name="行业指数走势.csv", mime="text/csv")
@@ -576,7 +576,7 @@ def fragment_etf_trend():
         if sel:
             keep = [c for c in sel if c in tbl.columns]
             tbl = tbl[["date"] + keep] if keep else tbl[["date"]]
-        st.dataframe(tbl, use_container_width=True, hide_index=True)
+        st.dataframe(tbl, use_container_width=True, hide_index=True, height=400)
     # 导出 CSV
     csv = to_trend_csv(etf, names_map=ETF_NAMES_MAP, selected=sel, date_range=dr)
     st.download_button("⬇️ 导出 CSV", data=csv, file_name="ETF价格走势.csv", mime="text/csv")
