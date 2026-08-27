@@ -24,6 +24,23 @@ from modules.stock_analysis_helpers import RED, GREEN, AMBER, _sentiment_tag, _t
 fetcher = get_fetcher()
 from modules.widgets import sidebar_target
 import modules.scroll_nav as sn
+from modules.chart_cache import cached_fig
+
+
+# ── 图表 figure 构建缓存（性能优化：避免 K线/分时图在自动刷新或交互重跑时重复 rebuild）──
+# 注意：保留 Visualizer 延迟导入，避免拖累页面首屏加载（原注释：每页加载约 0.95s）
+@cached_fig(ttl=120)
+def _build_kline_fig(period_df, kline_title, kline_annotations):
+    from modules.visualizer import Visualizer
+    return Visualizer.candlestick(period_df, title=kline_title, show_volume=True, ma_windows=[5, 10, 20],
+                                  annotations=kline_annotations, support=None, resistance=None,
+                                  up_color=RED, down_color=GREEN, ma_colors=['#ffa502', '#667eea', '#009e60'])
+
+
+@cached_fig(ttl=120)
+def _build_intraday_fig(didf, prev_close, ticker, display_name, dt):
+    from modules.visualizer import Visualizer
+    return Visualizer.intraday(didf, prev_close=prev_close, title=f'{ticker} {display_name} 分时（{dt}）', up_color=RED, down_color=GREEN)
 with sidebar_target():
     st.header('分析目标')
     ticker = stock_search_input(label='股票搜索', key='analysis_stock', default='600519', placeholder='输入代码或名称搜索，如：600519 / 贵州茅台 / GZMT / 茅台')
@@ -181,9 +198,7 @@ def fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped
                              {'price': ma10v, 'label': 'MA10', 'color': '#667eea', 'dash': 'dash'},
                              {'price': support, 'label': '前低支撑', 'color': RED, 'dash': 'dash'},
                              {'price': trapped, 'label': '套牢区', 'color': AMBER, 'dash': 'dot'}] if kline_period == 'daily' else None
-        fig = Visualizer.candlestick(period_df, title=kline_title, show_volume=True, ma_windows=[5, 10, 20],
-                                     annotations=kline_annotations, support=None, resistance=None,
-                                     up_color=RED, down_color=GREEN, ma_colors=['#ffa502', '#667eea', '#009e60'])
+        fig = _build_kline_fig(period_df, kline_title, kline_annotations)
         _kline_key = f'kline_chart_{ticker}'
         _kline_event = st.plotly_chart(fig, use_container_width=True, key=_kline_key, on_select='rerun',
                                        config={"displaylogo": False, "responsive": True, 'displayModeBar': 'hover', 'displaylogo': False, 'scrollZoom': True,
@@ -219,7 +234,7 @@ def fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped
                     _di = _cached_intraday_for_date(ticker, _target_dt)
                     if _di is not None:
                         _didf, _dipc, _didt = _di
-                        _dfig = Visualizer.intraday(_didf, prev_close=_dipc, title=f'{ticker} {display_name} 分时（{_didt}）', up_color=RED, down_color=GREEN)
+                        _dfig = _build_intraday_fig(_didf, _dipc, ticker, display_name, _didt)
                         st.plotly_chart(_dfig, use_container_width=True, key=f'dbl_intra_{ticker}_{_target_dt}', config={'displaylogo': False, 'responsive': True})
                     else:
                         st.info(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
@@ -269,13 +284,7 @@ def _fragment_intraday(ticker: str, display_name: str) -> None:
         _intra = _cached_intraday(ticker)
         if _intra is not None:
             _idf, _ipc, _idate = _intra
-            _ifig = Visualizer.intraday(
-                _idf,
-                prev_close=_ipc,
-                title=f'{ticker} {display_name} 分时（{_idate}）',
-                up_color=RED,
-                down_color=GREEN,
-            )
+            _ifig = _build_intraday_fig(_idf, _ipc, ticker, display_name, _idate)
             st.plotly_chart(_ifig, use_container_width=True, key=f'intraday_chart_{ticker}', config={'displaylogo': False, 'responsive': True})
             st.markdown(
                 f"<div style='font-size:12px;color:#64748b;margin-top:4px;display:flex;justify-content:space-between;'>"
