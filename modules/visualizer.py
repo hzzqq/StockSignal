@@ -26,6 +26,7 @@ if "starfield_dark" not in pio.templates:
 
 # 涨跌配色（A股：红涨绿跌）统一从 modules.colors 引入，避免重复定义
 from modules.colors import UP_COLOR, DOWN_COLOR, hex_to_rgba
+from modules.perf import downsample
 
 # 星辰暗色图表令牌
 SF_TXT = "#e2e8f0"
@@ -901,6 +902,16 @@ class Visualizer:
                 or "date" not in result_df.columns
                 or "cumulative_return" not in result_df.columns):
             return empty_figure(title, "回测数据缺失：需要 date / cumulative_return 列")
+        # 超长回测区间（如日线多年）做均匀降采样，降低 Plotly JSON 体积与渲染开销
+        combined = result_df[["date", "cumulative_return"]].copy()
+        if benchmark is not None:
+            try:
+                combined["__bench__"] = np.asarray(benchmark)
+            except Exception:
+                benchmark = None
+        combined = downsample(combined, max_points=600)
+        result_df = combined
+        benchmark = combined.get("__bench__") if "__bench__" in combined.columns else None
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=result_df["date"], y=result_df["cumulative_return"],
@@ -951,6 +962,7 @@ class Visualizer:
                 or "date" not in result_df.columns
                 or "drawdown" not in result_df.columns):
             return empty_figure(title, "回测数据缺失：需要 date / drawdown 列")
+        result_df = downsample(result_df, max_points=600)
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=result_df["date"], y=result_df["drawdown"],

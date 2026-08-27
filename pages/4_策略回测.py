@@ -24,6 +24,7 @@ from modules.search_ui import stock_search_input
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _empty_info
+from modules.perf import downsample
 # P0 可插拔：策略列表从注册表动态读取（新增策略无需改页面）
 from modules.strategies import list_strategies
 
@@ -322,8 +323,9 @@ def fragment_manual_backtest():
                 st.subheader("回撤带（水下曲线）")
                 _dd = result.df["drawdown"] if "drawdown" in result.df.columns else None
                 if _dd is not None and not _dd.dropna().empty:
+                    _dd_df = downsample(result.df[["date", "drawdown"]], max_points=600)
                     fig_dd_band = go.Figure(go.Scatter(
-                        x=result.df["date"], y=_dd,
+                        x=_dd_df["date"], y=_dd_df["drawdown"],
                         fill="tozeroy",
                         fillcolor="rgba(26,162,96,0.25)",
                         line=dict(color=DOWN_COLOR, width=1),
