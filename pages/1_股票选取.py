@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 
 from modules.ui_theme import _theme_is_dark, sf_card, sf_metric
 from modules.page_utils import render_standard_page, get_fetcher
+from modules.ui_theme import sf_card, sf_metric
 from modules.cleaner import DataCleaner
 # K 线图统一交互配置（隐藏工具栏图标、十字光标），与全站规范一致
 from modules.starfield_theme import KLINE_CHART_CONFIG
@@ -72,7 +73,7 @@ def _norm_code(c: str) -> str:
 @safe_fragment
 def _render_user_score(ticker: str, stock_label: str) -> None:
     st.markdown("---")
-    st.subheader("⭐ 用户打分")
+    sf_card("⭐ 用户打分", "")
     # 已有分数缓存到 session_state，避免每次交互都回源后端
     _ss_key = f"_score_{ticker}"
     if _ss_key not in st.session_state:
@@ -250,7 +251,7 @@ period_label = {"daily": "日K线", "weekly": "周K线", "monthly": "月K线"}[k
 # ═══════════════════════════════════════════════════════════════
 hc1, hc2, hc3 = st.columns([0.4, 0.3, 0.3])
 with hc1:
-    st.subheader("🎯 股票选取")
+    sf_card("🎯 股票选取", "")
 with hc2:
     _ticker_ok = bool(ticker and str(ticker).strip())
     if st.button("➕ 加入自选股", use_container_width=True, key="pick_add_watch",
@@ -446,7 +447,7 @@ def _load_stock_events(ticker):
         return pd.DataFrame()
 
 
-st.subheader(f"{stock_label} {period_label}")
+sf_card(f"{stock_label} {period_label}", "")
 df = None
 data_ok = False
 
@@ -610,7 +611,7 @@ except Exception as e:
 # ═══════════════════════════════════════════════════════════════
 if data_ok and df is not None:
     st.markdown("---")
-    st.subheader("🧭 技术面分析")
+    sf_card("🧭 技术面分析", "")
     try:
         profile = SignalEngine().technical_profile(df)
         short, mid, long, composite = profile["short"], profile["mid"], profile["long"], profile["composite"]
@@ -699,7 +700,7 @@ if data_ok and df is not None:
 
         # ── 📊 量化指标（RSI / MACD / KDJ / BOLL） ──
         st.markdown("---")
-        st.subheader("📊 量化指标")
+        sf_card("📊 量化指标", "")
 
         def _calc_quant_indicators(d: pd.DataFrame) -> dict:
             close = pd.to_numeric(d["close"], errors="coerce")
