@@ -24,6 +24,7 @@ from modules.fundamental_helpers import calc_alr, fund_one
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
+from modules.ui_kit import xc_success_box, xc_warn_box
 dark = render_standard_page(title='自选股监控', icon='📡', caption='实时跟踪自选股现价与涨跌幅；行情接口异常时自动回退本地源。数据仅供参考，非投资建议。', layout='wide')
 
 sf_card("自选股监控导读", "一览自选股实时现价与涨跌幅（A股红涨绿跌），交易时段自动刷新；可一键跳转形态选股做技术体检或个股分析做深度诊断。", icon="📡")
@@ -160,7 +161,7 @@ def fragment_watchlist_monitor():
         quotes, _has_auth_err = _quote_batch(codes, _tok)
     if _has_auth_err or any((isinstance(q, dict) and q.get('__auth_error') for q in quotes.values())):
         clear_auth()
-        st.warning('🔐 登录已过期，请重新登录')
+        xc_warn_box('🔐 登录已过期，请重新登录')
         return
     fund_map = {}
     if codes:
@@ -209,7 +210,7 @@ def fragment_watchlist_monitor():
         st.caption(f'🕒 行情更新于 {_rel_time(min(quote_times))}')
     ok_n = sum((1 for r in rows if r['cur'] is not None))
     if codes and ok_n == 0:
-        st.warning('⚠️ 实时行情暂时获取失败（接口/网络异常），已尝试回退本地源仍无数据；下表为持仓快照，行情相关列显示 —，交易时段将自动刷新或稍后重试。')
+        xc_warn_box('⚠️ 实时行情暂时获取失败（接口/网络异常），已尝试回退本地源仍无数据；下表为持仓快照，行情相关列显示 —，交易时段将自动刷新或稍后重试。')
     if rows:
         df_rt = pd.DataFrame(rows)
         display_df = df_rt[['name', 'code', 'cur', 'change_amt', 'chg', 'amplitude', 'volume', 'amount', 'pe_ttm', 'alr', 'tag']].copy()
@@ -376,7 +377,7 @@ def _build_pool_df(codes: list, scores_map: dict) -> pd.DataFrame | None:
 def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
     """渲染可排序、可跳转、可改评分的股票池表格。"""
     if df is None:
-        st.warning('🔐 登录状态已过期，请刷新页面或重新登录。')
+        xc_warn_box('🔐 登录状态已过期，请刷新页面或重新登录。')
         return
     if df.empty:
         _empty_info('暂无数据')
@@ -430,7 +431,7 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
                 api_save_user_score(code, int(edit_score), name)
                 _toast('评分已更新')
             else:
-                st.warning('请先选择一只股票')
+                xc_warn_box('请先选择一只股票')
     if on_remove:
         st.markdown('**🗑️ 移除股票**')
         remove_opts = [f"{r['code']} {r['name']}" for _, r in df.iterrows()]

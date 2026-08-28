@@ -13,14 +13,14 @@ from modules.session import init_session_state, is_authenticated, set_auth, clea
 from modules.widgets import password_strength
 
 from modules.ui_theme import apply_page_config
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 apply_page_config(page_title="登录", page_icon="🔐", layout="centered")
 st.session_state["_active_page"] = __file__
 init_session_state()
 
 # 已登录用户访问 /登录 时直接跳走（避免重复登录）
 if is_authenticated():
-    st.success(f"✅ 已登录为 **{st.session_state['auth_user']['username']}**（{st.session_state['auth_user']['role']}）")
+    xc_success_box(f"✅ 已登录为 **{st.session_state['auth_user']['username']}**（{st.session_state['auth_user']['role']}）")
     col_a, col_b = st.columns(2)
     with col_a:
         if st.button("📈 进入行情看板", width="stretch"):
@@ -115,7 +115,7 @@ with login_tab:
                         else:
                             set_auth(token, user)
                             st.session_state["_remember_me"] = remember
-                            st.success(f"✅ 登录成功！欢迎 {user.get('username', '用户')}")
+                            xc_success_box(f"✅ 登录成功！欢迎 {user.get('username', '用户')}")
                             st.balloons()
                             # 跳到第一个业务页
                             safe_switch_page("pages/1_行情看板.py")
@@ -209,7 +209,7 @@ with register_tab:
                     body = {}
                 if resp.status_code in (200, 201) and body.get("status") == "ok":
                     reg_name = (body.get("data") or {}).get("username", new_username)
-                    st.success(f"✅ 注册成功！欢迎 {reg_name}，请切换到「登录」标签登录。")
+                    xc_success_box(f"✅ 注册成功！欢迎 {reg_name}，请切换到「登录」标签登录。")
                     # 回填登录表单，方便直接登录
                     st.session_state["_login_username"] = reg_name
                     st.session_state["_login_password"] = new_password

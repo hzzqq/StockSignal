@@ -18,10 +18,10 @@ from modules.page_guard import safe_fragment
 from modules.chart_cache import cached_fig
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
-from modules.ui_kit import xc_error_box
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
 
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box
 logger = logging.getLogger(__name__)
 dark = render_standard_page(title='行情看板', icon='📈', layout='wide')
 render_index_compact(cols_per_row=5)
@@ -39,7 +39,7 @@ with _wb_c1:
                 st.rerun()
             else:
                 _msg = _body.get('message', '添加失败') if isinstance(_body, dict) else '添加失败'
-                st.warning(f'⚠️ {_msg}')
+                xc_warn_box(f'⚠️ {_msg}')
 fetcher = get_fetcher()
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -164,14 +164,14 @@ def fragment_sector_board():
             sector_df['sector'] = ''
         if 'change_pct' not in sector_df.columns:
             sector_df['change_pct'] = 0.0
-            st.warning('⚠️ 板块涨跌幅字段缺失，已按 0 处理；数据源可能已变更字段名。')
+            xc_warn_box('⚠️ 板块涨跌幅字段缺失，已按 0 处理；数据源可能已变更字段名。')
         sector_df['change_pct'] = pd.to_numeric(sector_df['change_pct'], errors='coerce').fillna(0)
         sector_df = sector_df.sort_values('change_pct', ascending=False).reset_index(drop=True)
         if sector_df['change_pct'].abs().max() < 0.01:
-            st.warning('⚠️ 当前数据源未返回板块涨跌幅，仅展示行业列表。交易时间或网络恢复后会自动获取真实数据。')
+            xc_warn_box('⚠️ 当前数据源未返回板块涨跌幅，仅展示行业列表。交易时间或网络恢复后会自动获取真实数据。')
         _render_sector_cards(sector_df, top_n=24)
     else:
-        st.warning('未获取到板块数据。可能处于非交易时段、数据源暂不可用或网络波动；交易时段会自动刷新，也可手动刷新页面重试。')
+        xc_warn_box('未获取到板块数据。可能处于非交易时段、数据源暂不可用或网络波动；交易时段会自动刷新，也可手动刷新页面重试。')
     with st.expander('📊 板块涨跌详情（点击展开）', expanded=False):
         if sector_df is not None and (not sector_df.empty):
             try:
@@ -189,7 +189,7 @@ def fragment_sector_board():
             except Exception as e:
                 xc_handle_error("获取板块详情失败", e, hint="请稍后重试，或检查网络与数据源连接")
         else:
-            st.warning('未获取到板块数据。可能处于非交易时段、数据源暂不可用或网络波动；交易时段会自动刷新，也可手动刷新页面重试。')
+            xc_warn_box('未获取到板块数据。可能处于非交易时段、数据源暂不可用或网络波动；交易时段会自动刷新，也可手动刷新页面重试。')
 fragment_sector_board()
 
 def _load_lhb(date_str: str):
@@ -389,7 +389,7 @@ if st.button('计算相关性', key='calc_corr', use_container_width=True, disab
             except Exception as e:
                 xc_handle_error("相关性矩阵渲染失败", str(e)[:80], hint="请检查输入代码或网络后重试")
         else:
-            st.warning('需要至少 2 只有效股票代码。请检查输入或网络后重试。')
+            xc_warn_box('需要至少 2 只有效股票代码。请检查输入或网络后重试。')
 
 def _wl_quote_batch(codes, token):
     """R90：优先批量接口（1 次网络往返替代 N 次 /api/quote）。
@@ -533,11 +533,10 @@ def fragment_watchlist_quotes():
         quotes, _has_auth_err = _wl_quote_batch(codes, _tok)
     if _has_auth_err or any((isinstance(q, dict) and q.get('__auth_error') for q in quotes.values())):
         clear_auth()
-        st.warning('🔐 登录已过期，请重新登录')
+        xc_warn_box('🔐 登录已过期，请重新登录')
         return
     try:
         from modules.fetch_parallel import fetch_many as _fetch_many
-from modules.ui_kit import xc_handle_error
         _fin_tasks = []
         for code in codes:
             _fin_tasks.append((f'pe_{code}', lambda c=code: _wl_pe_uncached(c)))
@@ -599,6 +598,6 @@ from modules.ui_kit import xc_handle_error
                         _toast(f'🗑 已移除 {rc}')
                         st.rerun(scope='fragment')
                     else:
-                        st.warning('⚠️ 移除失败，请重试')
+                        xc_warn_box('⚠️ 移除失败，请重试')
 fragment_watchlist_quotes()
 fragment_market_alerts_panel()

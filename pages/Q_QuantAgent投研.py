@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 try:
     from modules.autorefresh import st_autorefresh
 except Exception:  # pragma: no cover
@@ -193,7 +194,7 @@ def _render_report(result: dict):
     """渲染一份 QuantAgent 投研结果（result 即 ResearchState.to_dict()）。"""
     # 守卫：结果为 None 或非 dict 时友好提示，避免直接崩溃
     if not isinstance(result, dict):
-        st.warning("⚠️ 投研结果为空或格式异常，无法渲染报告。")
+        xc_warn_box("⚠️ 投研结果为空或格式异常，无法渲染报告。")
         return
     c = result.get("chief_report", {}) or {}
 
@@ -261,7 +262,7 @@ def _render_report(result: dict):
     if result.get("errors"):
         with st.expander("⚠️ 运行提示"):
             for e in result["errors"]:
-                st.warning(e)
+                xc_warn_box(e)
 
 
 @safe_fragment
@@ -288,7 +289,7 @@ def _result_panel():
             return
         else:
             # 未知/失效状态（任务丢失、超时、取消等）：避免静默无输出，给出友好提示
-            st.warning(f"⏳ 投研任务状态未知（{task.get('status') if task else '无响应'}，若长时间未完成请重新发起）。")
+            xc_warn_box(f"⏳ 投研任务状态未知（{task.get('status') if task else '无响应'}，若长时间未完成请重新发起）。")
             return
 
     if st.session_state.get("quant_result") is not None:
@@ -326,7 +327,7 @@ def main():
         return
 
     if not ticker or len(ticker) != 6 or not ticker.isdigit():
-        st.warning("请输入 6 位数字的 A股代码。")
+        xc_warn_box("请输入 6 位数字的 A股代码。")
         return
 
     payload = {
@@ -354,7 +355,6 @@ def main():
     else:
         try:
             from modules.quantagent import run_research
-from modules.ui_kit import xc_handle_error
 
             with st.spinner("多智能体协作中（本地直跑）..."):
                 state = run_research(

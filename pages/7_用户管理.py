@@ -10,6 +10,7 @@ from modules.ui_theme import sf_card, sf_metric
 from modules.admin_api import get_users, create_user, update_user, delete_user, get_logs
 from modules.page_widgets import _empty_info
 
+from modules.ui_kit import xc_success_box, xc_warn_box
 init_session_state()
 require_admin()
 
@@ -140,7 +141,7 @@ with tab_create:
                 code, resp = create_user(new_username, new_password, new_role)
                 resp = resp or {}  # 加法式健壮性：网络/服务异常时 resp 可能为 None，先兜底避免下方 .get 抛 AttributeError
                 if code == 200 and resp.get("status") == "ok":
-                    st.success(f"✅ 用户 `{new_username}` 创建成功！")
+                    xc_success_box(f"✅ 用户 `{new_username}` 创建成功！")
                     st.balloons()
                 else:
                     st.error(f"创建失败: {resp.get('message', '未知错误')}")
@@ -173,7 +174,7 @@ if "editing_user" in st.session_state:
                 code, resp = update_user(u.get("id"), **payload)
                 resp = resp or {}
                 if code == 200 and resp.get("status") == "ok":
-                    st.success("更新成功！")
+                    xc_success_box("更新成功！")
                     del st.session_state["editing_user"]
                     st.rerun()
                 else:
@@ -187,7 +188,7 @@ if "editing_user" in st.session_state:
 if "deleting_user" in st.session_state:
     u = st.session_state["deleting_user"]
     with st.dialog("⚠️ 确认删除", width="small"):
-        st.warning(f"确定要删除用户 **{u.get('username', '该用户')}** (ID: {u.get('id', '?')}) 吗？")
+        xc_warn_box(f"确定要删除用户 **{u.get('username', '该用户')}** (ID: {u.get('id', '?')}) 吗？")
         st.caption("此操作不可撤销。")
         col_confirm, col_cancel = st.columns(2)
         with col_confirm:
@@ -195,7 +196,7 @@ if "deleting_user" in st.session_state:
                 code, resp = delete_user(u["id"])
                 resp = resp or {}
                 if code == 200 and resp.get("status") == "ok":
-                    st.success("删除成功！")
+                    xc_success_box("删除成功！")
                     del st.session_state["deleting_user"]
                     st.rerun()
                 else:

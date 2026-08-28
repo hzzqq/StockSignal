@@ -29,6 +29,7 @@ from modules.page_widgets import (
 )
 from modules.page_guard import safe_fragment
 
+from modules.ui_kit import xc_success_box, xc_warn_box
 st_autorefresh = import_autorefresh()
 
 
@@ -340,7 +341,7 @@ def fragment_strength():
                 with st.spinner(f"计算 {len(codes[:15])} 只自选股均值…"):
                     avg_series = _watchlist_avg_normalized(tuple(codes), dr[0] if dr else None, dr[1] if dr else None, 180)
                 if avg_series is None:
-                    st.warning("自选股行情获取失败，已跳过叠加。")
+                    xc_warn_box("自选股行情获取失败，已跳过叠加。")
                 else:
                     d2 = d_view.copy()
                     seq = list(avg_series[: len(d2)])

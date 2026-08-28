@@ -10,6 +10,7 @@ import pandas as pd
 from datetime import datetime
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 render_standard_page(title='仓位管理', icon='💰', caption='⚠️ 本页为模拟/历史持仓管理，仅供学习，不构成投资建议。', layout='wide')
 
 sf_card("仓位管理导读", "记录持仓、卖出交易、盈亏统计与 Excel 导出。本页为模拟/历史持仓管理，仅供学习，不构成投资建议。", icon="💰")
@@ -196,7 +197,7 @@ else:
                             _pdf = pd.DataFrame(_rec) if _rec is not None else fetcher.get_daily(_t, start=_ks, end=_ke)
                             _p = float(_pdf.iloc[-1]['close']) if _pdf is not None and (not _pdf.empty) else None
                         if _p is None:
-                            st.warning(f'无法获取 {_t} 现价，跳过平仓。')
+                            xc_warn_box(f'无法获取 {_t} 现价，跳过平仓。')
                             continue
                         _ss = pm.get_sellable_shares(_t)
                         if _ss and _ss > 0:
@@ -269,7 +270,7 @@ with st.form('buy_position_form'):
     with col3:
         buy_shares = st.number_input('📊 买入股数', value=st.session_state.default_shares, min_value=1, step=100, format='%d', placeholder='如 1000', help='点击 ± 按钮步进调节，或直接输入数字')
         if buy_shares < 100 or buy_shares % 100 != 0:
-            st.warning('⚠️ 买入股数建议为 100 股整数倍（A 股最小交易单位）。')
+            xc_warn_box('⚠️ 买入股数建议为 100 股整数倍（A 股最小交易单位）。')
         buy_note = st.text_input('备注', value='', key='buy_note', placeholder='如：建仓理由 / 止盈目标', help='为该笔持仓添加备注（如建仓理由、止盈目标），便于后续回顾。')
     buy_submitted = st.form_submit_button('✅ 添加持仓')
 if buy_submitted:
@@ -294,7 +295,7 @@ if st.button('⭐ 收藏（本地星标）', key='pm_fav_add', use_container_wid
         st.session_state['_pm_fav'].append(_ft)
         _toast(f'已收藏（星标）：{_ft}')
     else:
-        st.warning('该标的已收藏或代码为空。')
+        xc_warn_box('该标的已收藏或代码为空。')
 sf_card('💸 卖出股票', '记录卖出成交，自动计算已实现盈亏并扣减剩余股数。')
 if not positions.empty:
     remaining = positions['remaining_shares'] if 'remaining_shares' in positions.columns else positions['shares']
@@ -365,7 +366,7 @@ else:
         with col3:
             sell_shares = st.number_input('📊 卖出股数', value=min(1000, sellable_shares), min_value=1, max_value=int(sellable_shares), step=100, format='%d', placeholder='如 1000', help='最多可卖剩余股数')
             if sell_shares < 100 or sell_shares % 100 != 0:
-                st.warning('⚠️ 卖出股数建议为 100 股整数倍。')
+                xc_warn_box('⚠️ 卖出股数建议为 100 股整数倍。')
             elif sell_shares > sellable_shares:
                 st.error('⚠️ 卖出股数超过可卖数量。')
             sell_note = st.text_input('备注', value='', key='sell_note', placeholder='如：止盈离场 / 补仓计划')
@@ -374,7 +375,7 @@ else:
         try:
             result = pm.sell_position(ticker=sell_ticker, sell_date=sell_date.strftime('%Y-%m-%d'), sell_price=sell_price, sell_shares=int(sell_shares), note=sell_note)
             sell_label = fetcher.get_stock_name(sell_ticker) or sell_ticker
-            st.success(f"卖出成功: {sell_label} ({sell_ticker}) {int(sell_shares):,}股 @¥{sell_price:.2f}，成交金额 ¥{result['proceeds']:,.2f}")
+            xc_success_box(f"卖出成功: {sell_label} ({sell_ticker}) {int(sell_shares):,}股 @¥{sell_price:.2f}，成交金额 ¥{result['proceeds']:,.2f}")
             st.session_state['_pm_recent'] = ([sell_ticker] + [x for x in st.session_state['_pm_recent'] if x != sell_ticker])[:10]
             st.rerun()
         except Exception as e:
@@ -439,7 +440,6 @@ if not positions.empty:
             st.caption('数据来源：东方财富 / 新浪财经（实时行情 + 日线兜底）。')
             if not pnl_df.empty:
                 from modules.visualizer import Visualizer
-from modules.ui_kit import xc_handle_error
                 st.markdown('---')
                 fig = Visualizer.portfolio_pnl(pnl_df)
                 st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
@@ -478,7 +478,7 @@ from modules.ui_kit import xc_handle_error
                 output = pm.export_excel()
                 with open(output, 'rb') as f:
                     exp_col2.download_button(label='⬇️ 下载报告', data=f, file_name=output.split(os.sep)[-1], mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                st.success(f'报告已生成: {output}')
+                xc_success_box(f'报告已生成: {output}')
         except Exception as e:
             xc_handle_error("加载失败", e, hint="请稍后重试")
             if st.button('🔄 重试', key='pnl_retry'):

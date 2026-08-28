@@ -15,6 +15,7 @@ import time as _time
 from threading import Lock as _Lock
 from concurrent.futures import ThreadPoolExecutor
 import logging
+from modules.ui_kit import info_banner
 logger = logging.getLogger(__name__)
 from modules.page_utils import render_standard_page, get_fetcher
 import modules.scroll_nav as sn
@@ -23,7 +24,6 @@ from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
-from modules.ui_kit import info_banner
 from modules.page_guard import safe_fragment
 from modules.format_helpers import safe_float, to_float
 import streamlit.components.v1 as components

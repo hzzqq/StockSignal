@@ -25,6 +25,7 @@ from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
 
+from modules.ui_kit import xc_success_box, xc_warn_box
 dark = render_standard_page(
     title="技术形态选股器", icon="🧭",
     caption="在股票池中扫描技术形态并给出多维技术评分；结果仅供参考，非投资建议。",
@@ -128,7 +129,7 @@ if source == "我的自选股":
                 f"{display}{' …' if len(universe) > 12 else ''}"
             )
         else:
-            st.warning("自选股为空，请先到「我的 / 自选股」添加，或切换为「手动输入代码」。")
+            xc_warn_box("自选股为空，请先到「我的 / 自选股」添加，或切换为「手动输入代码」。")
     else:
         msg = body.get("message", "") if isinstance(body, dict) else ""
         st.error(f"❌ 加载自选股失败（HTTP {sc}）{msg}；可切换为「手动输入代码」继续。")
@@ -422,7 +423,7 @@ with st.container(border=True):
         if not results:
             _empty_info("未命中任何形态（或股票池无可用日线数据，可尝试「手动输入代码」、检查网络，或先在上方「扫描池」载入示例股票池）。")
         else:
-            st.success(f"✅ 扫描完成，命中 {len(results)} 只")
+            xc_success_box(f"✅ 扫描完成，命中 {len(results)} 只")
             results.sort(key=lambda r: r.get("技术评分", 0), reverse=True)
             st.dataframe(results, use_container_width=True, height=480)
             # 加法式 UX：一键导出扫描结果为 CSV，便于离线筛选/留存（不影响扫描逻辑）。

@@ -22,6 +22,7 @@ from modules.session import api_get, api_post, api_put, api_delete, trading_auto
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
+from modules.ui_kit import xc_success_box, xc_warn_box
 dark = render_standard_page(title='智能条件单', icon='🤖', caption='融资买入额阈值 / 5 日均线突破破位 → 自动下单（交易时段后台扫描 + 可手动触发）')
 
 sf_card("🤖 智能条件单", "设置触发条件（单股 / 全市场融资买入额阈值、5 日均线突破或破位），触发后由后端统一下单并写订单流水；交易时段后台扫描，也可手动触发一轮。", icon="⚡")
@@ -86,7 +87,7 @@ with col_scan:
         sc, body = api_post('/api/cond-orders/scan')
         if sc == 200 and isinstance(body, dict):
             stats = body.get('data') or {} if body.get('status') == 'ok' else {}
-            st.success(f"扫描完成：检查 {stats.get('checked', 0)} · 触发 {stats.get('triggered', 0)} · 成交 {stats.get('filled', 0)} · 失败 {stats.get('failed', 0)} · 过期 {stats.get('expired', 0)}")
+            xc_success_box(f"扫描完成：检查 {stats.get('checked', 0)} · 触发 {stats.get('triggered', 0)} · 成交 {stats.get('filled', 0)} · 失败 {stats.get('failed', 0)} · 过期 {stats.get('expired', 0)}")
         else:
             st.error('扫描失败')
 with col_info:

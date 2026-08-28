@@ -1,4 +1,5 @@
 import logging
+from modules.ui_kit import xc_warn_box
 logger = logging.getLogger(__name__)
 """
 模块级错误边界与数据源隔离
@@ -32,6 +33,7 @@ import itertools
 import traceback
 
 import streamlit as st
+
 from contextlib import contextmanager
 
 
@@ -233,7 +235,7 @@ def render_data_degradation_banner():
         )
     else:
         bad = ", ".join(h["degraded"])
-        st.warning(
-            f"⚠️ 部分数据源不稳定（{bad}），部分数据可能延迟或为估算值。",
+        xc_warn_box(
+            f"部分数据源不稳定（{bad}），部分数据可能延迟或为估算值。",
             icon="📡",
         )

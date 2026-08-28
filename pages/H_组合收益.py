@@ -16,8 +16,8 @@ from modules.page_utils import render_standard_page, import_autorefresh, get_fet
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN, _fig_layout, _section_title
 from modules.chart_cache import cached_fig
-from modules.ui_kit import xc_handle_error
 
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
@@ -175,7 +175,7 @@ def fragment_portfolio():
         pidx, bench, start_str = _build_portfolio_series(positions)
 
     if pidx is None:
-        st.warning("暂无法构建组合净值（持仓缺少可用历史行情）。请检查持仓买入日期与代码。")
+        xc_warn_box("暂无法构建组合净值（持仓缺少可用历史行情）。请检查持仓买入日期与代码。")
         # 仍展示当前盈亏快照（best-effort，失败不影响上方提示）
         try:
             _show_pnl_snapshot()
@@ -213,11 +213,11 @@ def fragment_portfolio():
     try:
         _show_pnl_snapshot()
     except Exception as _e:
-        st.warning(f"盈亏快照加载失败：{_e}")
+        xc_warn_box(f"盈亏快照加载失败：{_e}")
     try:
         _show_attribution()
     except Exception as _e:
-        st.warning(f"收益贡献加载失败：{_e}")
+        xc_warn_box(f"收益贡献加载失败：{_e}")
 
 
 def _show_pnl_snapshot():

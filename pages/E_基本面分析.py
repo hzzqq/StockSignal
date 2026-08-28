@@ -26,6 +26,7 @@ from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
 from modules.perf import downsample
 from modules.chart_cache import cached_fig
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 dark = render_standard_page(title='基本面分析', icon='🏛️', caption='个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）', layout='wide')
 trading_autorefresh(key='fundamental_autorefresh')
 ACCENT = '#818cf8' if dark else '#6366f1'
@@ -260,7 +261,6 @@ def _calc_perf(code: str) -> dict:
 def _fetch_financial_reports(code: str) -> dict:
     """直接调用 akshare 获取利润表/资产负债表/现金流量表（不限制 8 行）。"""
     import akshare as ak
-from modules.ui_kit import xc_handle_error
     out = {}
     with _ssl_bypass():
         try:
@@ -373,7 +373,7 @@ if code:
             fund = fetcher.get_fundamentals(code) or {}
         except Exception:
             fund = {}
-            st.warning('⚠️ 实时行情接口暂时不可用，已降级为有限展示（估值/市值字段将为空）。')
+            xc_warn_box('⚠️ 实时行情接口暂时不可用，已降级为有限展示（估值/市值字段将为空）。')
         name = fund.get('name') or code
         industry = (fund.get('industry') or '').strip() or '—'
         price = _nan_to_none(_to_float(fund.get('price')))

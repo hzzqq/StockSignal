@@ -10,13 +10,13 @@ modules/widgets.py
 """
 from __future__ import annotations
 import logging
+from modules.ui_kit import inject_kit_css, xc_handle_error
 logger = logging.getLogger(__name__)
 from typing import Any, Dict
 from datetime import datetime
 import html
 import time
 import requests
-from modules.ui_kit import xc_handle_error
 import streamlit as st
 import streamlit.components.v1 as components
 from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin, _rel_time
@@ -361,8 +361,8 @@ def render_index_compact(cols_per_row: int=5) -> None:
     grid = 'rgba(148,163,184,0.15)' if dark else 'rgba(148,163,184,0.25)'
     # 2026-08-28 接入"新城"风格（E:\project\app_dist\微应用大厅 视觉）
     # 用 ui_kit.xc_section_header 替代裸 h2；指数卡用 .xc-grid + .xc-card 一次性渲染。
+    from modules.ui_kit import xc_section_header  # 函数内惰性导入：与下方 except 中的局部重赋值共存
     try:
-        from modules.ui_kit import inject_kit_css, xc_section_header
         inject_kit_css()
     except Exception as e:
         logger.warning(f"[widgets] 处理异常: {e}")

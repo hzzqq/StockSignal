@@ -18,6 +18,7 @@ from modules.page_guard import safe_section
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _empty_info, UP, DOWN
 
+from modules.ui_kit import xc_success_box, xc_warn_box
 dark = render_standard_page(
     title="ETF / 基金筛选器", icon="🧰",
     caption="按类型、关键字、涨跌幅与成交额筛选；红涨绿跌。数据受限时自动降级到样本。",
@@ -102,7 +103,7 @@ def _etf_filter_fragment():
     with safe_section("ETF 行情", hint="实时行情接口可能受网络限制，已自动降级到样本数据。"):
         with st.spinner("⏳ 正在加载 ETF 行情…"):
             df, src = _load_etfs()
-        st.success(f"数据来源：{src}　·　共 {len(df)} 只", icon="📡")
+        xc_success_box(f"数据来源：{src}　·　共 {len(df)} 只", icon="📡")
         # 手动刷新（#Batch20-1）：清缓存并重跑本 fragment 重新拉取行情
         if st.button("🔄 刷新行情", key="etf_manual_refresh"):
             _load_etfs.clear()
@@ -151,7 +152,7 @@ def _etf_filter_fragment():
                 res = res[res["名称"].astype(str).str.contains(kw, case=False, na=False) |
                          res["代码"].astype(str).str.contains(kw, case=False, na=False)]
             else:
-                st.warning("⚠️ 当前数据缺少「名称/代码」列，关键词筛选暂不可用。")
+                xc_warn_box("⚠️ 当前数据缺少「名称/代码」列，关键词筛选暂不可用。")
         if ftype != "全部":
             res = res[res["类型"] == ftype]
         # 列结构可能因上游接口变动而缺失，先判定存在再做数值化与区间过滤，避免 KeyError 崩溃

@@ -20,10 +20,10 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN
-from modules.ui_kit import info_banner
 # 注：openpyxl / reportlab 为「重型导出」依赖，改为惰性加载（见 _to_excel_bytes / _to_pdf_bytes），
 #     避免进入本页（仅查看 CSV 导出入口）时也强制 import 拖慢首屏。
 
+from modules.ui_kit import info_banner, xc_handle_error, xc_success_box, xc_warn_box
 dark = render_standard_page(
     title="数据导出中心", icon="📤",
     caption="统一导出平台数据：行业板块资金流向、北向资金、大盘主力净流入、个股主力资金、业绩报表、组合持仓盈亏、自选股实时快照。"
@@ -335,7 +335,7 @@ def frag_industry():
                 "⬇️ 下载 CSV", data=csv,
                 file_name="行业板块资金流向.csv", mime="text/csv",
             )
-            st.success(f"已导出 {len(df)} 行")
+            xc_success_box(f"已导出 {len(df)} 行")
 
 
 # ───────────────────────── 北向资金 ─────────────────────────
@@ -371,7 +371,7 @@ def frag_northbound():
             "⬇️ 下载 CSV（汇总标量）", data=_to_csv_bytes(summary),
             file_name="北向资金_汇总.csv", mime="text/csv",
         )
-        st.success(f"已导出 {len(boards)} 行（板块）+ 1 行（汇总）")
+        xc_success_box(f"已导出 {len(boards)} 行（板块）+ 1 行（汇总）")
 
 
 # ───────────────────────── 大盘主力净流入(近30日) ─────────────────────────
@@ -394,7 +394,7 @@ def frag_market():
                 "⬇️ 下载 CSV", data=csv,
                 file_name="大盘主力净流入30日.csv", mime="text/csv",
             )
-            st.success(f"已导出 {len(df)} 行")
+            xc_success_box(f"已导出 {len(df)} 行")
 
 
 # ───────────────────────── 个股主力资金 ─────────────────────────
@@ -408,7 +408,7 @@ def frag_individual():
                  disabled=not bool(code),
                  help="请先在上方选择股票；未选时按钮禁用。"):
         if not code:
-            st.warning("请先选择股票")
+            xc_warn_box("请先选择股票")
             return
         with st.spinner(f"获取 {code} 主力资金…"):
             try:
@@ -417,7 +417,7 @@ def frag_individual():
                 xc_handle_error(f"获取 {code} 主力资金失败", e, hint="请稍后重试，或检查网络与数据源连接")
                 return
         if not r:
-            st.warning(f"暂未获取到 {code} 的主力资金数据，请稍后重试。")
+            xc_warn_box(f"暂未获取到 {code} 的主力资金数据，请稍后重试。")
             return
         row = pd.DataFrame([{
             "代码": code,
@@ -432,7 +432,7 @@ def frag_individual():
             "⬇️ 下载 CSV", data=_to_csv_bytes(row),
             file_name=f"个股主力资金_{code}.csv", mime="text/csv",
         )
-        st.success(f"已导出 1 行（来源：{r.get('source')}）")
+        xc_success_box(f"已导出 1 行（来源：{r.get('source')}）")
 
 
 # ───────────────────────── 业绩报表(财报) ─────────────────────────
@@ -449,7 +449,7 @@ def frag_earnings():
                  disabled=not period_valid,
                  help="报告期须为 8 位 YYYYMMDD（如 20260331）；格式非法时按钮禁用。"):
         if not (period and period.isdigit() and len(period) == 8):
-            st.warning("报告期须为 8 位数字的 YYYYMMDD 格式")
+            xc_warn_box("报告期须为 8 位数字的 YYYYMMDD 格式")
             return
         with st.spinner(f"获取业绩报表 {period}…"):
             try:
@@ -465,7 +465,7 @@ def frag_earnings():
                 "⬇️ 下载 CSV", data=csv,
                 file_name=f"业绩报表_{period}.csv", mime="text/csv",
             )
-            st.success(f"已导出 {len(df)} 行")
+            xc_success_box(f"已导出 {len(df)} 行")
 
 
 # ───────────────────────── 组合持仓盈亏 ─────────────────────────
@@ -494,7 +494,7 @@ def frag_portfolio():
             "⬇️ 下载 CSV（汇总）", data=_to_csv_bytes(summary_df),
             file_name="组合持仓汇总.csv", mime="text/csv",
         )
-        st.success(f"已导出 {len(pnl_df)} 行（明细）+ 1 行（汇总）")
+        xc_success_box(f"已导出 {len(pnl_df)} 行（明细）+ 1 行（汇总）")
 
 
 # ───────────────────────── 自选股实时快照 ─────────────────────────
@@ -522,7 +522,7 @@ def frag_watchlist():
             "⬇️ 下载 CSV", data=_to_csv_bytes(df),
             file_name="自选股实时快照.csv", mime="text/csv",
         )
-        st.success(f"已导出 {len(df)} 行")
+        xc_success_box(f"已导出 {len(df)} 行")
 
 
 # ───────────────────────── 一键导出 Excel（多Sheet） ─────────────────────────
@@ -545,7 +545,7 @@ def frag_excel():
             file_name=f"StockSignal_数据汇总_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        st.success(f"已生成 {len(datasets)} 个 Sheet" + (f"；跳过 {len(skipped)} 项" if skipped else ""))
+        xc_success_box(f"已生成 {len(datasets)} 个 Sheet" + (f"；跳过 {len(skipped)} 项" if skipped else ""))
 
 
 # ───────────────────────── 导出数据摘要 PDF ─────────────────────────
@@ -572,7 +572,7 @@ def frag_pdf():
             file_name=f"StockSignal_数据摘要_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
             mime="application/pdf",
         )
-        st.success(f"已生成摘要（{len(datasets)} 个数据集" + (f"；跳过 {len(skipped)} 项" if skipped else "") + "）")
+        xc_success_box(f"已生成摘要（{len(datasets)} 个数据集" + (f"；跳过 {len(skipped)} 项" if skipped else "") + "）")
 
 
 # ───────────────────────── 一键打包导出全部 (ZIP) ─────────────────────────
@@ -581,7 +581,6 @@ def frag_zip():
     sf_card("📦 一键打包导出全部 (ZIP)", "")
     st.caption("汇总上述所有数据集（成功返回的部分）打入内存 ZIP，内含 CSV + 多Sheet Excel + manifest。单个数据集失败不影响整体。")
     from modules.search_ui import stock_search_input
-from modules.ui_kit import xc_handle_error
     period = st.text_input("财报报告期 (YYYYMMDD，用于打包)", value="20260331", key="zip_period")
     code = stock_search_input(label="个股主力资金 - 选择股票", key="zip_stock", default="600519")
 
@@ -626,7 +625,7 @@ from modules.ui_kit import xc_handle_error
             file_name=f"StockSignal_数据导出_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
             mime="application/zip",
         )
-        st.success(f"已打包 {len(datasets)} 个数据集" + (f"；跳过 {len(skipped)} 项" if skipped else ""))
+        xc_success_box(f"已打包 {len(datasets)} 个数据集" + (f"；跳过 {len(skipped)} 项" if skipped else ""))
 
 
 # ───────────────────────── 渲染 ─────────────────────────

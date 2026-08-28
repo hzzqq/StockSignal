@@ -17,6 +17,7 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 render_standard_page(title='事件追踪', icon='🔔', caption='⚠️ 数据仅供参考，不构成投资建议', layout='wide')
 
 sf_card(
@@ -241,7 +242,7 @@ def fragment_signal_score():
         elif st.session_state.get('sig_scores_error'):
             err_msg = st.session_state.sig_scores_error
             if '无法获取' in err_msg or '数据源' in err_msg or '不存在' in err_msg or ('退市' in err_msg):
-                st.warning(f'⚠️ {err_msg}')
+                xc_warn_box(f'⚠️ {err_msg}')
                 st.info('💡 价格信号暂时不可用，事件信号和宏观信号仍可正常评分。建议换用 600519、000858 等活跃股票测试。')
             else:
                 st.error(f'评分失败: {err_msg}')
@@ -304,12 +305,12 @@ def fragment_live_keywords():
                     if st.button('🔄 重试', key='btn_live_kw_retry'):
                         st.session_state['_retry_live_kw'] = True
                 elif r.get('error') == 'empty':
-                    st.warning(f"未抓取到与「{live_ticker or '全部'}」相关的新闻。")
+                    xc_warn_box(f"未抓取到与「{live_ticker or '全部'}」相关的新闻。")
                     if r.get('result_str'):
                         st.info('💡 已根据「' + str(live_ticker) + '」的行业特征生成关键词：\n\n`' + str(r.get('result_str', '')) + '`')
                         st.code(r['result_str'], language=None)
                 else:
-                    st.success(f"✅ 成功从 {r['total']} 条新闻中提取到 {len(r['final_kws'])} 个关键词！")
+                    xc_success_box(f"✅ 成功从 {r['total']} 条新闻中提取到 {len(r['final_kws'])} 个关键词！")
                     with st.expander('📰 新闻样本（点击标题可跳转原文）', expanded=False):
                         _render_news_with_links(r['news'], title_col='title', url_col='url', date_col='date', source_col='source')
                     cols = st.columns(5)
@@ -457,11 +458,11 @@ def fragment_timeline():
                 st.markdown('#### 🌐 实时爬取最新事件')
                 events_realtime = st.session_state.tl_realtime_events
                 if not events_realtime.empty:
-                    st.success(f'✅ 实时爬取到 {len(events_realtime)} 条事件（含公司公告 + 板块新闻）')
+                    xc_success_box(f'✅ 实时爬取到 {len(events_realtime)} 条事件（含公司公告 + 板块新闻）')
                     with st.expander('展开查看实时事件列表（点击标题可跳转原文）', expanded=False):
                         _render_news_with_links(events_realtime, title_col='title', url_col='url', date_col='date', source_col='source', type_col='sentiment')
                 else:
-                    st.warning('实时爬取未获取到事件。请检查股票代码是否正确、网络是否可用；也可在「事件管理」中手动添加关注的事件。')
+                    xc_warn_box('实时爬取未获取到事件。请检查股票代码是否正确、网络是否可用；也可在「事件管理」中手动添加关注的事件。')
             if 'tl_df' in st.session_state and st.session_state.tl_df is not None and (not st.session_state.tl_df.empty):
                 try:
                     df = st.session_state.tl_df
@@ -501,7 +502,7 @@ def fragment_timeline():
                     st.error(f'K 线事件时间轴渲染失败: {chart_err}')
                     st.info('💡 请尝试缩短日期区间或切换股票后重试。')
             if not show_existing and (not show_realtime) and (not tl_submitted):
-                st.warning('请至少选择一个子模块（现有事件库 / 实时爬取）。')
+                xc_warn_box('请至少选择一个子模块（现有事件库 / 实时爬取）。')
     except Exception as module_err:
         st.error(f'⚠️ 事件时间轴模块异常: {module_err}')
 
@@ -523,7 +524,7 @@ def fragment_event_manage():
         if add_submitted and evt_title:
             try:
                 engine.add_event(evt_date.strftime('%Y-%m-%d'), evt_ticker, evt_title, evt_type)
-                st.success('事件添加成功！')
+                xc_success_box('事件添加成功！')
             except Exception as e:
                 xc_handle_error("添加失败", e, hint="请稍后重试，或检查网络与数据源连接")
         with st.spinner('⏳ 正在加载全部事件库…'):
@@ -592,16 +593,16 @@ def fragment_news_mine():
             mr = st.session_state.mined_result
             with mine_output:
                 if mr.get('error') == 'empty':
-                    st.warning(f"未抓取到与「{mr.get('keyword') or '全部'}」相关的新闻。")
+                    xc_warn_box(f"未抓取到与「{mr.get('keyword') or '全部'}」相关的新闻。")
                     st.info('💡 提示：尝试换一个更通用的关键词，或留空关键词抓取全部财经要闻。')
                 elif mr.get('error'):
                     st.error(f"挖掘失败: {mr['error']}")
                 else:
                     mined = mr['mined']
-                    st.success(f'成功挖掘 {len(mined)} 条事件并入库！')
+                    xc_success_box(f'成功挖掘 {len(mined)} 条事件并入库！')
                     col_s1, col_s2, col_s3 = st.columns(3)
                     if 'type' not in mined.columns:
-                        st.warning('⚠️ 挖掘结果缺少「type」字段，无法统计情感分布。')
+                        xc_warn_box('⚠️ 挖掘结果缺少「type」字段，无法统计情感分布。')
                         pos_count = neg_count = neu_count = 0
                     else:
                         pos_count = len(mined[mined['type'] == '正面'])
@@ -654,7 +655,7 @@ def fragment_sentiment_report():
                 _neu = report.get('neutral_pct', 0) or 0
                 with report_container:
                     if _total == 0:
-                        st.warning('未抓取到新闻。')
+                        xc_warn_box('未抓取到新闻。')
                     else:
                         col_r1, col_r2, col_r3, col_r4 = st.columns(4)
                         with col_r1:
@@ -667,7 +668,6 @@ def fragment_sentiment_report():
                             st.metric('中性占比', f'{_neu}%')
                     import plotly.express as px
                     from modules.visualizer import _is_dark, SF_GRID, SF_BORDER, SF_TXT2
-from modules.ui_kit import xc_handle_error
                     _dark = _is_dark()
                     pie_df = pd.DataFrame([{'类型': '正面', '占比': _pos}, {'类型': '负面', '占比': _neg}, {'类型': '中性', '占比': _neu}])
                     color_map = {'正面': UP_COLOR, '负面': DOWN_COLOR, '中性': '#94a3b8'}

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import html
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +170,8 @@ _KIT_CSS = r"""
   border:1px solid var(--border,#e2e8f0);background:var(--card2,#f4f6fb)}
 .xc-error-box{border-left:4px solid #ef4444;background:color-mix(in srgb,#ef4444 7%,var(--card2,#f4f6fb))}
 .xc-empty-box{border-left:4px solid var(--acc1,#667eea);background:color-mix(in srgb,var(--acc1,#667eea) 6%,var(--card2,#f4f6fb))}
+.xc-success-box{border-left:4px solid #00d486;background:color-mix(in srgb,#00d486 9%,var(--card2,#f4f6fb))}
+.xc-warn-box{border-left:4px solid #f59e0b;background:color-mix(in srgb,#f59e0b 10%,var(--card2,#f4f6fb))}
 .xc-err-ic{font-size:22px;line-height:1.3;flex-shrink:0}
 .xc-err-body{min-width:0}
 .xc-err-title{font-weight:700;font-size:14.5px}
@@ -354,6 +357,43 @@ def xc_handle_error(title: str, exc: Exception | str | None = None, hint: str = 
     if exc is not None:
         logger.warning("%s: %s", title, exc)
     xc_error_box(title, hint=hint, icon=icon)
+
+
+def _inline_md(text: str) -> str:
+    """极简行内 markdown：先整体 HTML 转义（防 XSS），再把 ``**粗体**`` / ``*斜体*``
+    还原为 ``<b>`` / ``<i>``。转义先行，故即使原文含标签也会被中和，安全。"""
+    s = html.escape("" if text is None else str(text))
+    s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
+    s = re.sub(r"\*(.+?)\*", r"<i>\1</i>", s)
+    return s
+
+
+def xc_success_box(title: str, hint: str = "", icon: str = "✅") -> None:
+    """新城风格成功卡（绿，A股涨色 #00d486）。title 支持 ``**粗体**`` 行内强调。"""
+    inject_kit_css()
+    title = "" if title is None else str(title)
+    title = title.replace("✅", "").replace("⚠️", "").strip()
+    icon = "✅" if icon is None else str(icon)
+    hint_html = f'<div class="xc-err-hint">💡 {html.escape(str(hint))}</div>' if hint else ""
+    st.markdown(
+        f'<div class="xc-success-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
+        f'<div class="xc-err-body"><div class="xc-err-title">{_inline_md(title)}</div>{hint_html}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def xc_warn_box(title: str, hint: str = "", icon: str = "⚠️") -> None:
+    """新城风格警告卡（琥珀色）。title 支持 ``**粗体**`` 行内强调。"""
+    inject_kit_css()
+    title = "" if title is None else str(title)
+    title = title.replace("✅", "").replace("⚠️", "").strip()
+    icon = "⚠️" if icon is None else str(icon)
+    hint_html = f'<div class="xc-err-hint">💡 {html.escape(str(hint))}</div>' if hint else ""
+    st.markdown(
+        f'<div class="xc-warn-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
+        f'<div class="xc-err-body"><div class="xc-err-title">{_inline_md(title)}</div>{hint_html}</div></div>',
+        unsafe_allow_html=True,
+    )
 
 
 def info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:

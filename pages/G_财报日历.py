@@ -16,8 +16,8 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import UP, DOWN, _fig_layout, _section_title, _empty_info
-from modules.ui_kit import xc_handle_error
 
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 dark = render_standard_page(
     title="财报与业绩日历", icon="📅",
     caption="按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。",
@@ -168,7 +168,7 @@ def fragment_forecast():
     try:
         st.dataframe(df, use_container_width=True, hide_index=True, height=400)
     except Exception as _e:
-        st.warning(f"业绩预告表格渲染失败：{_e}")
+        xc_warn_box(f"业绩预告表格渲染失败：{_e}")
 
 
 # ───────────────────────── 披露日历（best-effort） ─────────────────────────
@@ -202,7 +202,7 @@ def fragment_disclosure():
     try:
         st.dataframe(df, use_container_width=True, hide_index=True, height=400)
     except Exception as _e:
-        st.warning(f"披露日历表格渲染失败：{_e}")
+        xc_warn_box(f"披露日历表格渲染失败：{_e}")
 
 
 # ───────────────────────── 页面主体 ─────────────────────────

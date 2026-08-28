@@ -27,6 +27,7 @@ from __future__ import annotations
 import os
 import logging
 
+from modules.ui_kit import xc_success_box, xc_warn_box
 logger = logging.getLogger(__name__)
 import json
 import time
@@ -1015,7 +1016,7 @@ def render_user_badge(sidebar: bool = True) -> None:
 @st.dialog("确认退出登录？")
 def _confirm_logout_dialog() -> None:
     """退出登录确认对话框：防误触。确认 → 清登录态并跳登录页；取消 → 关闭。"""
-    st.warning("退出后需要重新登录才能继续使用全部功能。")
+    xc_warn_box("退出后需要重新登录才能继续使用全部功能。")
     c1, c2 = st.columns(2)
     with c1:
         if st.button("确认退出", key="dlg_logout_yes", use_container_width=True, type="primary"):

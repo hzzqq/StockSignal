@@ -1,4 +1,5 @@
 import logging
+from modules.ui_kit import page_hero
 logger = logging.getLogger(__name__)
 """页面公共骨架：消除 40+ 页面重复的样板代码。
 
@@ -21,7 +22,6 @@ from streamlit.runtime.caching import cache_resource
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge
 from modules.fetcher import StockFetcher
-from modules.ui_kit import page_hero
 
 
 def render_standard_page(title, icon="📊", caption=None, layout="wide", auth=True):

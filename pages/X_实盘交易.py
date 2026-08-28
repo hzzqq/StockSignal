@@ -23,10 +23,11 @@ from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
 from modules.format_helpers import safe_int
+from modules.ui_kit import xc_success_box, xc_warn_box
 dark = render_standard_page(title='实盘交易', icon='💰', caption='真实券商 / 模拟账本 下单入口 · 全量订单落库可审计')
 
 sf_card("💰 实盘交易 · 下单入口", "真实券商 / 模拟账本 下单入口；默认「模拟账本」仅虚拟撮合、不涉及真实资金，开启实盘前请确认券商配置与策略。全量订单落库可审计。", icon="🔒")
-st.warning('⚠️ **资金安全提示**：默认「模拟账本」模式仅做虚拟撮合、**不涉及真实资金**。\n只有当您在下方选择真实券商（QMT / 同花顺客户端）并显式开启「实盘模式」后，系统才会尝试真实下单——请务必确认券商配置与策略无误再开启。', icon='🔒')
+xc_warn_box('⚠️ **资金安全提示**：默认「模拟账本」模式仅做虚拟撮合、**不涉及真实资金**。\n只有当您在下方选择真实券商（QMT / 同花顺客户端）并显式开启「实盘模式」后，系统才会尝试真实下单——请务必确认券商配置与策略无误再开启。', icon='🔒')
 try:
     from modules.fundflow import _ensure_proxy_and_ssl
     _ensure_proxy_and_ssl()
@@ -115,7 +116,7 @@ with st.container(border=True):
                 if d is None:
                     d = body.get('data') or {}
                 ok_flag = d.get('ok', False)
-                st.success(f"✅ {d.get('message', '通道可用')}") if ok_flag else st.error(f"❌ {d.get('message', '通道不可用')}")
+                xc_success_box(f"✅ {d.get('message', '通道可用')}")
             else:
                 st.error('自检失败')
     with col_clear:
@@ -157,7 +158,7 @@ with st.container(border=True):
             if sc == 200 and isinstance(body, dict) and (body.get('status') == 'ok'):
                 od = body.get('data') or {}
                 if od.get('status') == 'rejected':
-                    st.warning(f"⚠️ 被风控拦截：{od.get('message', '')}")
+                    xc_warn_box(f"⚠️ 被风控拦截：{od.get('message', '')}")
                 elif od.get('status') == 'failed':
                     st.error(f"❌ 下单失败：{od.get('message', '')}")
                 else:

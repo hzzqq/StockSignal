@@ -27,8 +27,8 @@ from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.colors import _hex_to_rgba
 from modules.chart_cache import cached_fig
-from modules.ui_kit import xc_handle_error
 
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
@@ -330,7 +330,7 @@ def fragment_thermometer():
     _cache_banner(meta)  # 缓存降级提示
     t = _market_temp(df)
     if t is None:
-        st.warning("可用指标不足，无法计算综合温度。")
+        xc_warn_box("可用指标不足，无法计算综合温度。")
         _render_status(meta)
         return
     level, emoji, color = _temp_level(t)

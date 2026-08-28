@@ -14,9 +14,9 @@ from modules.admin_api import (
     search_stocks,
 )
 from modules.page_widgets import _empty_info, _toast
-from modules.ui_kit import info_banner, stat_row
 
 # 系统配置项：key → 中文可读名称
+from modules.ui_kit import info_banner, stat_row, xc_handle_error, xc_success_box, xc_warn_box
 CONFIG_LABELS = {
     "cache_days": "行情缓存天数",
     "cache_hours_today": "当日数据缓存小时数",
@@ -130,7 +130,6 @@ with tab_stocks:
 
         if items:
             import pandas as pd
-from modules.ui_kit import xc_handle_error
             df = pd.DataFrame(items)
             _cols = [c for c in ["code", "name", "market", "pinyin_initials", "pinyin_full"] if c in df.columns]
             df = df[_cols] if _cols else df
@@ -188,7 +187,7 @@ with tab_config:
                             if new_val != cfg.get("value", ""):
                                 c, r = update_config(cfg.get("key"), new_val)
                                 if c == 200 and r.get("status") == "ok":
-                                    st.success("已保存")
+                                    xc_success_box("已保存")
                                     st.rerun()
                                 else:
                                     st.error(r.get("message", "保存失败"))
@@ -201,7 +200,7 @@ with tab_config:
                                 if st.button("确认删除", key=f"cfg_del_cfm_{cfg_key}", type="primary"):
                                     c, r = delete_config(cfg_key)
                                     if c == 200 and r.get("status") == "ok":
-                                        st.success("已删除")
+                                        xc_success_box("已删除")
                                         st.session_state.pop(_ck, None)
                                         st.rerun()
                                     else:
@@ -233,7 +232,7 @@ with tab_config:
             else:
                 c, r = create_config(new_key, new_value, new_desc)
                 if c == 200 and r.get("status") == "ok":
-                    st.success("添加成功！")
+                    xc_success_box("添加成功！")
                     st.rerun()
                 else:
                     st.error(r.get("message", "添加失败"))
@@ -252,7 +251,7 @@ with tab_watch:
                 if add_code:
                     c, r = add_watchlist(add_code)
                     if c == 200 and r.get("status") == "ok":
-                        st.success("添加成功！")
+                        xc_success_box("添加成功！")
                         st.rerun()
                     else:
                         st.error(r.get("message", "添加失败"))
@@ -278,7 +277,7 @@ with tab_watch:
                         if st.button("➕", key=f"watch_add_{s.get('code')}"):
                             c2, r2 = add_watchlist(s.get("code"))
                             if c2 == 200:
-                                st.success(f"已添加 {s.get('name', s.get('code', '该股票'))}")
+                                xc_success_box(f"已添加 {s.get('name', s.get('code', '该股票'))}")
                                 st.rerun()
 
     st.markdown("---")
@@ -306,7 +305,7 @@ with tab_watch:
                     if st.button("🗑️", key=f"watch_del_{_wid}"):
                         c, r = remove_watchlist(_wid)
                         if c == 200 and r.get("status") == "ok":
-                            st.success("已移除")
+                            xc_success_box("已移除")
                             st.rerun()
                         else:
                             st.error(r.get("message", "移除失败"))
@@ -379,7 +378,7 @@ with tab_alert:
                 }
                 c, r = api_post("/api/market-alerts/config", json=body)
                 if c == 200 and r.get("status") == "ok":
-                    st.success("已保存（运行时生效，重启后失效）")
+                    xc_success_box("已保存（运行时生效，重启后失效）")
                     _toast("市场异动扫描策略已更新")
                     st.rerun()
                 else:

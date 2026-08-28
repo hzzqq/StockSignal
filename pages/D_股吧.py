@@ -19,8 +19,8 @@ from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 from modules.format_helpers import safe_int, safe_html_text
 import modules.scroll_nav as sn
-from modules.ui_kit import xc_handle_error
 
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 render_standard_page(
     title="股吧 · 社区讨论", icon="💬",
     caption="发表你的观点或文章，与其他投资者交流。可关联具体股票，点击帖子里的股票直达「股票选取」。",
@@ -246,7 +246,7 @@ def fragment_detail():
             else:
                 st.error(cb.get("message", "评论失败") if isinstance(cb, dict) else "评论失败")
         else:
-            st.warning("评论内容不能为空")
+            xc_warn_box("评论内容不能为空")
 
 
 @safe_fragment
@@ -290,9 +290,9 @@ def fragment_list():
                 st.caption("💡 正文支持 Markdown 语法。关联股票为可选项，留空则作为普通帖子发布。")
                 if st.form_submit_button("🚀 发布帖子", type="primary", use_container_width=True):
                     if not title.strip() or not content.strip():
-                        st.warning("标题和正文都不能为空")
+                        xc_warn_box("标题和正文都不能为空")
                     elif stock_code.strip() and not (stock_code.strip().isdigit() and len(stock_code.strip()) == 6):
-                        st.warning("关联股票代码需为 6 位数字（如 600519），请检查后重试")
+                        xc_warn_box("关联股票代码需为 6 位数字（如 600519），请检查后重试")
                     else:
                         payload = {"title": title.strip(), "content": content.strip()}
                         if stock_code.strip():
@@ -309,7 +309,7 @@ def fragment_list():
         filter_code = st.text_input("🔍 按股票代码筛选（可选）", key="forum_filter_code", placeholder="如 600519，留空看全部")
         # 输入内联校验（#Batch20-7）：股票代码筛选实时校验，错误时 st.warning
         if filter_code.strip() and not (filter_code.strip().isdigit() and len(filter_code.strip()) == 6):
-            st.warning("⚠️ 股票代码须为 6 位数字（如 600519），当前输入可能不完整。")
+            xc_warn_box("⚠️ 股票代码须为 6 位数字（如 600519），当前输入可能不完整。")
     with fc2:
         _sort = st.radio("排序", ["最新", "最热(点赞)", "最多评论"], horizontal=True, key="forum_sort")
         # 记忆当前排序偏好（#Batch20-10）

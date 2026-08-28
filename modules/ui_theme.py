@@ -19,6 +19,7 @@ v9 核心变更：
 """
 from __future__ import annotations
 import logging
+from modules.ui_kit import inject_kit_css
 logger = logging.getLogger(__name__)
 import os
 import streamlit as st
@@ -128,7 +129,6 @@ def apply_theme() -> None:
     inject_dark_text_css(mode='dark' if _theme_is_dark() else 'light')
     from modules.scroll_nav import inject_scroll_nav
     inject_scroll_nav(show_bottom=True, bottom_marker='stChatInput', dark=_theme_is_dark())
-    from modules.ui_kit import inject_kit_css
     inject_kit_css()
     st.markdown('<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"],[data-testid="stSidebarNavSeparator"],[data-testid="stSidebarNavLink"]{display:none!important;}</style>', unsafe_allow_html=True)
 

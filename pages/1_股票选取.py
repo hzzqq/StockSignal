@@ -29,6 +29,7 @@ from modules.session import (
 from modules.page_guard import safe_fragment
 from modules.page_widgets import UP
 
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 render_standard_page(title="股票选取", icon="🎯")
 
 sf_card("股票选取导读", "位于行情看板与个股分析之间：设置参数、查看 K 线与技术面，并可将标的加入自选股或垃圾股池，支持打分与折叠展示。", icon="🎯")
@@ -106,7 +107,7 @@ def _render_user_score(ticker: str, stock_label: str) -> None:
                 st.session_state[_ss_key] = score_val
                 # 清除旧 slider key，确保下次渲染从已保存值重新初始化（避免残留 50）
                 st.session_state.pop(f"pick_user_score_{ticker}", None)
-                st.success(f"✅ 评分已保存：{score_val} 分")
+                xc_success_box(f"✅ 评分已保存：{score_val} 分")
             else:
                 _msg = res.get("message", "未知错误") if isinstance(res, dict) else "未知错误"
                 st.error(f"保存失败：{_msg}")
@@ -213,7 +214,7 @@ with sidebar_target():
             except ValueError:
                 _invalid_ma.append(_tok)
     if _invalid_ma:
-        st.warning(f"⚠️ 已忽略无效均线周期：{', '.join(_invalid_ma)}（仅接受正整数，如 30,90）")
+        xc_warn_box(f"⚠️ 已忽略无效均线周期：{', '.join(_invalid_ma)}（仅接受正整数，如 30,90）")
     ma_windows = sorted(set(ma_select + custom_windows))
 
     st.markdown("---")
@@ -235,7 +236,7 @@ with sidebar_target():
             pass
         finally:
             conn.close()
-        st.success("缓存已清除，正在刷新...")
+        xc_success_box("缓存已清除，正在刷新...")
         # 击穿 @st.cache_data 内的 _cached_kline（参数变化强制重算并重新取数）
         st.session_state["_pick_kline_nonce"] = int(st.session_state.get("_pick_kline_nonce", 0)) + 1
         st.rerun()
@@ -259,7 +260,7 @@ with hc2:
         # ⚠️ 兜底：api_post 网络失败时 body 可能为 None，原 else 分支 body.get 会抛 AttributeError
         _msg = body.get("message") if isinstance(body, dict) else ""
         if sc in (200, 201) or "已在" in _msg:
-            st.success("✅ 已加入自选股")
+            xc_success_box("✅ 已加入自选股")
         else:
             st.error(f"加入失败：{_msg or '未知错误'}")
 with hc3:
@@ -269,7 +270,7 @@ with hc3:
         # ⚠️ 兜底：api_add_junk_stock 失败时 body 可能为 None，直接 body.get 会抛 AttributeError
         msg = body.get("message", "") if isinstance(body, dict) else ""
         if "成功" in msg or "已在" in msg:
-            st.success("✅ 已加入垃圾股")
+            xc_success_box("✅ 已加入垃圾股")
         else:
             st.error(f"加入失败：{msg or '未知错误'}")
 
@@ -454,7 +455,7 @@ try:
     df = _cached_kline(ticker, start_str, end_str, kline_period,
                        nonce=int(st.session_state.get("_pick_kline_nonce", 0)))
     if df is None or df.empty:
-        st.warning("⚠️ 暂未获取到该股票最新数据，正在使用历史快照。请稍后刷新页面。")
+        xc_warn_box("⚠️ 暂未获取到该股票最新数据，正在使用历史快照。请稍后刷新页面。")
     else:
         df = DataCleaner.full_pipeline(df)
         data_ok = True
@@ -553,7 +554,6 @@ try:
 
         # ── 图表渲染区（Visualizer 延迟导入：仅用户选股后执行）──
         from modules.visualizer import Visualizer  # lazy: ~0.95s saved on pages without chart action
-from modules.ui_kit import xc_handle_error
 
         # ── 分时图（独立 fragment，交易时段每 5 分钟自动刷新）──
         _fragment_intraday(ticker, stock_label)

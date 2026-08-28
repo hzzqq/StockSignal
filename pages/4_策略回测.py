@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 render_standard_page(title="策略回测", icon="⚙️", layout="wide")
 sf_card("策略回测导读", "支持趋势动量多因子（推荐）、双趋势共振 GMMA+一目、均线交叉、事件驱动四种策略。手动回测与每日选股回测为独立模块，互不重算；下方可运行回测并查看收益曲线与交易明细。", icon="⚙️")
 
@@ -196,7 +197,7 @@ def fragment_manual_backtest():
 
     if submitted:
         if not bt_ticker or not str(bt_ticker).strip():
-            st.warning("请先在「股票搜索」中选择一只股票，再点击「开始回测」。")
+            xc_warn_box("请先在「股票搜索」中选择一只股票，再点击「开始回测」。")
             return
         keywords = [k.strip() for k in keywords_input.split(",") if k.strip()] if keywords_input else []
 
@@ -558,7 +559,7 @@ def fragment_daily_picker():
         s = picker_result.summary()
 
         if s["total_days"] == 0:
-            st.warning("选股回测未产生有效数据，请尝试扩大日期范围或增加股票池大小。")
+            xc_warn_box("选股回测未产生有效数据，请尝试扩大日期范围或增加股票池大小。")
         else:
             # ---- 汇总指标 ----
             st.markdown("---")
@@ -595,7 +596,7 @@ def fragment_daily_picker():
                     display_today.columns = ["代码", "名称", "评分", "买入价", "RSI(2)", "RSI(14)", "选股理由"]
                     st.dataframe(display_today, use_container_width=True, hide_index=True, height=400)
                 except KeyError as _ke:
-                    st.warning(f"今日推荐数据列结构异常，已跳过表格展示：{_ke}")
+                    xc_warn_box(f"今日推荐数据列结构异常，已跳过表格展示：{_ke}")
                 st.caption("💡 以上为基于上一交易日收盘数据选出的股票，可在今日开盘/盘中择机买入。")
 
             # ---- 明日推荐（latest_picks：今日选股 → 明日买入）----
@@ -609,7 +610,7 @@ def fragment_daily_picker():
                     display_tmr.columns = ["代码", "名称", "评分", "参考价", "RSI(2)", "RSI(14)", "选股理由"]
                     st.dataframe(display_tmr, use_container_width=True, hide_index=True, height=400)
                 except KeyError as _ke:
-                    st.warning(f"明日推荐数据列结构异常，已跳过表格展示：{_ke}")
+                    xc_warn_box(f"明日推荐数据列结构异常，已跳过表格展示：{_ke}")
                 st.caption("💡 以上为基于今日收盘数据选出的股票，可在明日开盘/盘中择机买入。")
 
             # ---- 累计收益曲线 ----
@@ -662,7 +663,7 @@ def fragment_daily_picker():
                     all_picks_display = all_picks_display.sort_values("选股日期", ascending=False)
                     st.dataframe(all_picks_display, use_container_width=True, hide_index=True, height=400)
                 except KeyError as _ke:
-                    st.warning(f"全部选股记录列结构异常，已跳过表格展示：{_ke}")
+                    xc_warn_box(f"全部选股记录列结构异常，已跳过表格展示：{_ke}")
 
 
 # ==================================================================
@@ -695,7 +696,6 @@ def fragment_strong_bull():
 
     if st.button("🚀 运行强势上涨股批量回测", type="primary", key="sb_run"):
         from concurrent.futures import ThreadPoolExecutor, as_completed
-from modules.ui_kit import xc_handle_error
 
         def _run_one(code, name):
             try:
@@ -828,7 +828,7 @@ from modules.ui_kit import xc_handle_error
 
     if failed:
         st.markdown("---")
-        st.warning("以下样本回测失败（已跳过）：" + "、".join(f"{r['name']}({r['code']})" for r in failed))
+        xc_warn_box("以下样本回测失败（已跳过）：" + "、".join(f"{r['name']}({r['code']})" for r in failed))
         for r in failed:
             st.caption(f"{r['name']} {r['code']}：{r['error']}")
 
@@ -858,7 +858,7 @@ def fragment_param_scan():
 
     if ps_submit:
         if not ps_ticker.strip():
-            st.warning("请输入股票代码")
+            xc_warn_box("请输入股票代码")
             return
         with st.spinner("正在网格扫描参数，请稍候…"):
             try:
@@ -868,7 +868,7 @@ def fragment_param_scan():
                 )
                 ok = [r for r in rows if "error" not in r]
                 if not ok:
-                    st.warning("所有参数组合均回测失败，请检查区间或标的。")
+                    xc_warn_box("所有参数组合均回测失败，请检查区间或标的。")
                     return
                 df_rows = [{
                     "止盈%": f"{r['params'].get('take_profit_pct', 0)*100:.1f}",
@@ -884,7 +884,7 @@ def fragment_param_scan():
                 df_ps = pd.DataFrame(df_rows)
                 st.dataframe(df_ps, use_container_width=True, hide_index=True, height=400)
                 best = ok[0]
-                st.success(f"🏆 最优组合：止盈 {best['params'].get('take_profit_pct',0)*100:.1f}% / "
+                xc_success_box(f"🏆 最优组合：止盈 {best['params'].get('take_profit_pct',0)*100:.1f}% / "
                            f"止损 {best['params'].get('stop_loss_pct',0)*100:.1f}% / "
                            f"持仓 {best['params'].get('max_holding','-')}日 → "
                            f"累计 {best['total_return']*100:+.2f}%，夏普 {best.get('sharpe')}")
@@ -914,7 +914,7 @@ def fragment_batch_backtest():
     if bt_submit:
         codes = [c.strip() for c in bt_codes.replace("\n", ",").split(",") if c.strip()]
         if len(codes) < 2:
-            st.warning("请至少输入 2 只股票代码")
+            xc_warn_box("请至少输入 2 只股票代码")
             return
         with st.spinner(f"正在对 {len(codes)} 只股票并发回测…"):
             try:
@@ -922,7 +922,7 @@ def fragment_batch_backtest():
                                    strategy=bt_strategy, initial_capital=100000, max_workers=4)
                 summary = out["summary"]
                 if not summary:
-                    st.warning("批量回测无有效结果，请检查代码或区间。")
+                    xc_warn_box("批量回测无有效结果，请检查代码或区间。")
                     return
                 # 聚合摘要
                 col1, col2, col3, col4 = st.columns(4)

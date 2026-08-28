@@ -1,4 +1,5 @@
 import logging
+from modules.ui_kit import xc_success_box, xc_warn_box
 logger = logging.getLogger(__name__)
 """
 页面级共用 UI 助手（跨页面复用，避免重复定义）。
@@ -406,4 +407,4 @@ def _toast(msg: str, icon: str = "✅"):
         st.toast(f"{icon} {msg}")
     except Exception as e:
         logger.warning(f"[page_widgets] 处理异常: {e}")
-        st.success(msg)
+        xc_success_box(msg)

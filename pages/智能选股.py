@@ -21,6 +21,7 @@ from modules.fetcher import StockFetcher
 from modules.stock_screener import StockScreener, STRATEGY_NAMES_CN, ALL_STRATEGIES, DEFAULT_PARAMS
 from modules.page_widgets import _empty_info
 
+from modules.ui_kit import xc_success_box, xc_warn_box
 dark = render_standard_page(
     title="智能选股", icon="🎯",
     caption="移植自 stock-selecter 策略库：11 种量化策略，支持单策略与多策略 AND/OR/综合评分组合。结果仅供参考，非投资建议。",
@@ -83,7 +84,7 @@ with st.container(border=True):
             if universe_codes:
                 st.caption(f"✅ 已从自选股加载 **{len(universe_codes)}** 只")
             else:
-                st.warning("自选股为空，请先到「我的 / 自选股」添加，或切换其它来源。")
+                xc_warn_box("自选股为空，请先到「我的 / 自选股」添加，或切换其它来源。")
         else:
             st.error("❌ 加载自选股失败，可切换为「全市场前 N 只」继续。")
     elif source == "指定板块":
@@ -100,7 +101,7 @@ with st.container(border=True):
             sector_name = st.selectbox("选择板块", names)
             st.caption(f"将扫描「{sector_name}」板块内的全部标的。")
         else:
-            st.warning("板块列表为空（可能网络不可用），请切换其它来源。")
+            xc_warn_box("板块列表为空（可能网络不可用），请切换其它来源。")
     else:
         limit_n = st.number_input("扫描前 N 只（全市场）", min_value=20, max_value=1500,
                                    value=250, step=10,
@@ -127,7 +128,7 @@ with st.container(border=True):
     else:
         has_fund = any(k not in TECH for k in selected)
         if has_fund and source != "我的自选股" and source != "指定板块":
-            st.warning("⚠️ 已选基本面策略依赖 akshare 财务接口，全市场扫描可能耗时数分钟；"
+            xc_warn_box("已选基本面策略依赖 akshare 财务接口，全市场扫描可能耗时数分钟；"
                        "建议改用「自选股 / 指定板块」小池，或仅选技术面策略。", icon="⏱️")
 
 # ───────────────────────── 组合模式 + 参数 ─────────────────────────
@@ -197,7 +198,7 @@ with st.container(border=True):
             _empty_info(f"未命中任何标的。各策略扫描量：{detail}。"
                         f"可放宽阈值、减少策略数量，或检查网络/股票池。")
         else:
-            st.success(f"✅ {result['message']}")
+            xc_success_box(f"✅ {result['message']}")
             res = result["results"]
             # 展示 DataFrame
             if len(selected) == 1:

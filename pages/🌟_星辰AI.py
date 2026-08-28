@@ -29,6 +29,7 @@ from modules.widgets import STAR_AI_LOGO
 from modules.page_guard import safe_fragment
 from mcp_server.gateway import detect_intent, call_tool
 
+from modules.ui_kit import xc_success_box, xc_warn_box
 apply_page_config(page_title="🌟 星辰 AI", page_icon="🌟", layout="wide")
 st.session_state["_active_page"] = __file__
 
@@ -882,7 +883,7 @@ def _poll_ai_task():
     except Exception as _e:
         st.session_state["xc_task_id"] = None
         st.session_state["xc_task_started_at"] = None
-        st.warning(f"⚠️ 与后端通信异常，已取消本次分析：{_e}")
+        xc_warn_box(f"⚠️ 与后端通信异常，已取消本次分析：{_e}")
         st.rerun(scope="app")
         return
     if task and task.get("status") == "success":

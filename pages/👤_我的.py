@@ -16,6 +16,7 @@ from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 
 # 安全解析字体档位在选项列表中的下标；legacy 值不在选项中时回退到默认档位，避免 .index() 抛 ValueError。
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 def _resolve_font_index(value, font_opts, default):
     keys = list(font_opts.keys())
     if value in keys:
@@ -38,7 +39,7 @@ user = get_user() or {}
 # 加法式操作成功反馈：刷新本页缓存后给出成功提示
 if st.session_state.get("_my_cache_toast"):
     st.session_state.pop("_my_cache_toast", None)
-    st.success("✅ 本页缓存已刷新")
+    xc_success_box("✅ 本页缓存已刷新")
 
 
 def _cached_get(url, headers, ttl=10):
@@ -349,7 +350,7 @@ with col1:
                     if isinstance(res, dict) and res.get("status") == "ok":
                         set_avatar_data_url(data_url)
                         save_avatar(_username, content, ext=ext)  # 本地缓存兜底
-                        st.success("✅ 头像已按账号保存到云端，刷新后依然在。")
+                        xc_success_box("✅ 头像已按账号保存到云端，刷新后依然在。")
                         st.session_state["avatar_up_counter"] += 1
                         st.rerun()
                     else:
@@ -357,7 +358,7 @@ with col1:
                         save_avatar(_username, content, ext=ext)
                         set_avatar_data_url(data_url)
                         _msg = (res or {}).get("message", "未知错误") if isinstance(res, dict) else "后端无响应"
-                        st.warning(f"⚠️ 后端保存失败（{_msg}），已暂存本地；重启后端后可能丢失。")
+                        xc_warn_box(f"⚠️ 后端保存失败（{_msg}），已暂存本地；重启后端后可能丢失。")
                         st.session_state["avatar_up_counter"] += 1
                         st.rerun()
             except Exception as e:
@@ -438,7 +439,7 @@ try:
             if st.button("➕ 去行情看板添加自选股", key="wl_go_add2", use_container_width=True):
                 safe_switch_page("pages/1_行情看板.py")
     else:
-        st.warning(f"获取自选股失败：HTTP {resp.status_code}")
+        xc_warn_box(f"获取自选股失败：HTTP {resp.status_code}")
 except Exception as e:
     xc_handle_error("获取自选股失败", e, hint="请稍后重试，或检查网络与数据源连接")
 
@@ -453,7 +454,7 @@ if st.button("⭐ 收藏", key="my_star_btn", use_container_width=False):
     if _code.isdigit() and len(_code) == 6:
         if _code not in st.session_state["my_starred_stocks"]:
             st.session_state["my_starred_stocks"].append(_code)
-            st.success(f"✅ 已收藏 {_code}")
+            xc_success_box(f"✅ 已收藏 {_code}")
         else:
             st.info(f"{_code} 已在收藏中")
     else:
@@ -515,7 +516,6 @@ try:
             # 加法式示例数据预览：无记录时提供只读示例（不写库、不改逻辑）
             with st.expander("👀 查看示例登录记录（只读）", expanded=False):
                 import pandas as pd
-from modules.ui_kit import xc_handle_error
                 _sample_log = pd.DataFrame([
                     {"时间": "刚刚", "账号": "demo", "操作": "登录", "详情": "本地登录"},
                     {"时间": "1小时前", "账号": "demo", "操作": "修改设置", "详情": "切换暗夜模式"},
@@ -523,7 +523,7 @@ from modules.ui_kit import xc_handle_error
                 st.dataframe(_sample_log, width="stretch", use_container_width=True, height=400)
                 st.caption("⚠️ 以上为示意数据，非真实记录。")
     else:
-        st.warning(f"获取登录历史失败：HTTP {resp.status_code}")
+        xc_warn_box(f"获取登录历史失败：HTTP {resp.status_code}")
 except Exception as e:
     xc_handle_error("获取登录历史失败", e, hint="请稍后重试，或检查网络与数据源连接")
     # 加法式失败重试：请求异常时提供重试（清掉短缓存后重新拉取）
@@ -561,7 +561,7 @@ if _my_quick:
     if not (_my_quick.isdigit() and len(_my_quick) == 6):
         st.error("⚠️ 格式错误：请输入 6 位数字股票代码（如 600519）")
     else:
-        st.success(f"✅ 代码格式正确：{_my_quick}")
+        xc_success_box(f"✅ 代码格式正确：{_my_quick}")
         if st.button("前往个股研究", key="my_quick_go", use_container_width=False):
             st.session_state["pick_stock"] = _my_quick
             safe_switch_page("pages/个股研究.py")

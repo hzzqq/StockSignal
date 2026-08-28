@@ -10,10 +10,10 @@ import time
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
-from modules.ui_kit import xc_handle_error
 from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin, _rel_time
 import json
 import logging
+from modules.ui_kit import xc_handle_error
 logger = logging.getLogger(__name__)
 import re
 from modules._widgets_base import STAR_AI_LOGO

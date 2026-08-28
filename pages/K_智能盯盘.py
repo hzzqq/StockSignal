@@ -25,6 +25,7 @@ from modules.page_utils import render_standard_page, import_autorefresh, get_fet
 from modules.ui_theme import sf_card, sf_metric
 from modules.chart_cache import cached_fig
 import plotly.graph_objects as go
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 dark = render_standard_page('智能盯盘', icon='👁️', caption='⚠️ 数据仅供参考，不构成投资建议')
 
 sf_card("👁️ 智能盯盘 · 实时聚合", "单屏聚合自选股三类异动：板块资金 TOP10、自选股涨跌榜、个股资金流异动与规则预警。交易时段每 60 秒自动刷新。", icon="📡")
@@ -528,12 +529,11 @@ def fragment_alerts():
             tier, color, label = _grade_net(main_net)
             alerts.append({'类型': '资金异动', '代码': code, '名称': name, '说明': f"主力{('净流入' if main_net > 0 else '净流出')} {_fmt_yi(main_net)}（{label}）", 'tier': tier, 'color': color})
     if not alerts:
-        st.success('当前无触发预警 ✅（阈值 ±%.1f%%，主力强异动阈值 %s）' % (threshold, _fmt_yi(MAIN_NET_STRONG)))
+        xc_success_box('当前无触发预警 ✅（阈值 ±%.1f%%，主力强异动阈值 %s）' % (threshold, _fmt_yi(MAIN_NET_STRONG)))
         return
     from collections import Counter
-from modules.ui_kit import xc_handle_error
     cnt = Counter((a['tier'] for a in alerts))
-    st.warning(f"共触发 {len(alerts)} 条预警：🔴 强 {cnt.get('strong', 0)} ｜ 🟡 中 {cnt.get('mid', 0)} ｜ 🟢 弱 {cnt.get('weak', 0)}")
+    xc_warn_box(f"共触发 {len(alerts)} 条预警：🔴 强 {cnt.get('strong', 0)} ｜ 🟡 中 {cnt.get('mid', 0)} ｜ 🟢 弱 {cnt.get('weak', 0)}")
     for a in alerts:
         color = a['color']
         icon = {'strong': '🔴', 'mid': '🟡', 'weak': '🟢'}[a['tier']]
@@ -551,13 +551,13 @@ def fragment_watch_manage():
     if add_q and add_q.strip():
         _q = add_q.strip()
         if not _q.isdigit():
-            st.warning('⚠️ 请输入纯数字代码（如 600519），当前含非数字字符。')
+            xc_warn_box('⚠️ 请输入纯数字代码（如 600519），当前含非数字字符。')
         elif len(_q) != 6:
-            st.warning(f'⚠️ 代码应为 6 位，当前为 {len(_q)} 位。')
+            xc_warn_box(f'⚠️ 代码应为 6 位，当前为 {len(_q)} 位。')
     if a2.button('添加', key='wl_add_btn', use_container_width=True):
         raw = (add_q or '').strip()
         if not raw:
-            st.warning('请输入代码')
+            xc_warn_box('请输入代码')
         elif raw.isdigit():
             code = raw.zfill(6)
             sc, body = api_post('/api/watchlist', payload={'stock_code': code})
@@ -566,7 +566,7 @@ def fragment_watch_manage():
             else:
                 st.error(f'添加失败（{sc}）')
         else:
-            st.warning('请输入 6 位数字代码（如 600519）')
+            xc_warn_box('请输入 6 位数字代码（如 600519）')
     if not items:
         _empty_info('自选股为空，暂无盯盘项。可在「形态选股」或行情看板添加关注，也可直接在上方输入框添加 6 位代码。')
         if st.button('➡️ 去形态选股添加', key='wm_empty_go'):

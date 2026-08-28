@@ -24,6 +24,7 @@ from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, safe_fragment
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast, UP, DOWN
+from modules.ui_kit import xc_success_box, xc_warn_box
 dark = render_standard_page(title='模拟交易组合', icon='🎮', caption='虚拟资金练习；持仓持久化到本地，模块独立运行，不影响真实账户。')
 
 sf_card("🎮 模拟交易组合", "用虚拟资金买卖 A 股，跟踪持仓、盈亏与净值曲线；持仓持久化到本地，不接入真实券商，仅供策略演练。", icon="💡")
@@ -140,7 +141,7 @@ def fragment_paper():
         bcode = stock_search_input('买入标的', key='pt_buy')
         bqty = st.number_input('买入股数', min_value=100, step=100, value=st.session_state.get('_pt_def_bqty', 100), key='pt_bqty', placeholder='如 100（100 股的整数倍）')
         if bqty < 100 or bqty % 100 != 0:
-            st.warning('⚠️ 买入股数需为 100 股的整数倍（A 股最小交易单位）。')
+            xc_warn_box('⚠️ 买入股数需为 100 股的整数倍（A 股最小交易单位）。')
         _braw = (bcode or '').strip()
         _bok = len(_braw) == 6 and _braw.isdigit()
         if st.button('确认买入', type='primary', key='pt_buy_btn', use_container_width=True, disabled=not _bok, help='请先在上方输入有效的 6 位股票代码' if not _bok else '按当前设置的数量买入'):
@@ -179,13 +180,13 @@ def fragment_paper():
                 st.session_state['_pt_fav'].append(_fc)
                 _toast(f'已收藏 {_fc}')
             else:
-                st.warning('请输入有效代码后再收藏。')
+                xc_warn_box('请输入有效代码后再收藏。')
     with col_s:
         st.markdown('**卖出**')
         scode = stock_search_input('卖出标的', key='pt_sell')
         sqty = st.number_input('卖出股数', min_value=100, step=100, value=st.session_state.get('_pt_def_sqty', 100), key='pt_sqty', placeholder='如 100（100 股的整数倍）')
         if sqty < 100 or sqty % 100 != 0:
-            st.warning('⚠️ 卖出股数需为 100 股的整数倍。')
+            xc_warn_box('⚠️ 卖出股数需为 100 股的整数倍。')
         _sraw = (scode or '').strip()
         _sok = len(_sraw) == 6 and _sraw.isdigit()
         _skey = _sraw.zfill(6)

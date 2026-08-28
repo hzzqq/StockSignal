@@ -16,6 +16,7 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 today = date.today().strftime('%Y-%m-%d')
 dark = render_standard_page(title='每日晨报 / 复盘笔记', icon='🌅', caption=f'生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）', layout='wide')
 from modules.widgets import render_index_compact
@@ -125,7 +126,7 @@ def fragment_sector_summary():
                 st.markdown(f"- {str(r.get('sector') or '?')}  `{_fmt_pct(r.get('change_pct'))}`")
         st.caption(f"🕒 板块行情快照时间：{pd.Timestamp.now().strftime('%H:%M:%S')}（收盘后更新，盘中为实时快照）")
     else:
-        st.warning('⚠️ 暂未获取到板块行情（交易时间或网络恢复后自动可用）。')
+        xc_warn_box('⚠️ 暂未获取到板块行情（交易时间或网络恢复后自动可用）。')
 fragment_sector_summary()
 
 @safe_fragment
@@ -239,7 +240,6 @@ fragment_watchlist_and_news()
 def fragment_review_notes():
     st.markdown('#### 📝 复盘笔记')
     import re as _re
-from modules.ui_kit import xc_handle_error
     NOTES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
     REVIEW_IMG_DIR = os.path.join(NOTES_DIR, 'review_images')
     os.makedirs(NOTES_DIR, exist_ok=True)
@@ -288,7 +288,7 @@ from modules.ui_kit import xc_handle_error
                 cur = st.session_state.get('review_note', '')
                 st.session_state['review_note'] = (cur + f'\n\n![{uploaded.name}]({rel})\n').strip() + '\n'
                 st.session_state['review_img_counter'] += 1
-                st.success(f'✅ 已插入图片：{uploaded.name}')
+                xc_success_box(f'✅ 已插入图片：{uploaded.name}')
         return note_date_s
 
     def _render_editor(note_date_s):
@@ -308,7 +308,7 @@ from modules.ui_kit import xc_handle_error
                     with open(_notes_path(note_date_s), 'w', encoding='utf-8') as f:
                         f.write(note)
                     st.session_state['review_autosaved'] = True
-                    st.success(f'✅ 已保存到 review_notes_{note_date_s}.md')
+                    xc_success_box(f'✅ 已保存到 review_notes_{note_date_s}.md')
                 except Exception as e:
                     st.session_state['review_autosaved'] = False
                     xc_handle_error("保存失败", e, hint="请稍后重试，或检查网络与数据源连接")

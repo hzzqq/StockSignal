@@ -23,8 +23,8 @@ from modules.session import safe_switch_page, _rel_time, get_token
 from modules.widgets import _NAV_GROUPS
 from modules.page_widgets import _section_title, _empty_info
 from modules.page_guard import safe_fragment
-from modules.ui_kit import info_banner
 
+from modules.ui_kit import info_banner, xc_success_box, xc_warn_box
 dark = render_standard_page(
     title="新手教程 · 5 分钟玩转 StockSignal", icon="📘",
     caption="本页帮你快速上手：三步完成首次操作、认识各模块、看懂术语与常见疑问。看完即可独立使用本平台。",
@@ -77,7 +77,7 @@ def fragment_onboarding():
             done += 1
     st.progress(done / len(steps))
     if done == len(steps):
-        st.success("🎉 三步全部完成！你已经掌握基础操作，可以去《策略回测》试跑你的第一个策略，"
+        xc_success_box("🎉 三步全部完成！你已经掌握基础操作，可以去《策略回测》试跑你的第一个策略，"
                    "或用《星辰 AI》问一句「帮我看看某某股票」。")
     else:
         st.caption(f"已完成 {done}/{len(steps)} 步。每完成一步勾选左侧方框即可；进度会保留在当前会话。")

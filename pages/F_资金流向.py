@@ -32,6 +32,7 @@ from modules.linear_trends import (
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fig_layout, _section_title, _fmt_yi, _trend_controls
 
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
@@ -65,7 +66,6 @@ def _cached_individual_series(code: str, days: int = 60):
 @st.cache_data(show_spinner=False, ttl=300)
 def _prefetch_all():
     from modules.fetch_parallel import fetch_many
-from modules.ui_kit import xc_handle_error
     tasks = [
         ("northbound", get_northbound_fund_flow),
         ("industry", get_industry_fund_flow),
@@ -441,7 +441,7 @@ def fragment_individual():
         xc_handle_error("个股资金加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if r.get("source") == "none" or r.get("main_net") is None:
-        st.warning("该股主力资金数据暂不可用（接口受限或缺少历史）。")
+        xc_warn_box("该股主力资金数据暂不可用（接口受限或缺少历史）。")
         return
     try:
         name = fetcher.get_name_only(code) or code
@@ -478,7 +478,7 @@ def fragment_individual():
                                                    ma_type=ma_type, show_baseline=True),
                             use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
         except Exception as _e:
-            st.warning(f"个股资金趋势图渲染失败：{_e}")
+            xc_warn_box(f"个股资金趋势图渲染失败：{_e}")
         if sdf.attrs.get("source") == "estimate":
             st.caption("📈 个股主力资金逐日趋势（线性表达，量价模型估算）：面积线=主力净流入，"
                        "超大单/大单为经验拆分（图例可切换）。仅反映近期量价博弈方向。")

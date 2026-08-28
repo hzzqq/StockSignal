@@ -125,3 +125,31 @@ def test_xc_handle_error_logs_and_does_not_leak(monkeypatch):
     assert "北向资金加载失败" in out
     assert "internal_detail_xyz" not in out
     assert "xc-error-box" in out
+
+
+def test_xc_success_box_renders_bold_and_strips_emoji(monkeypatch):
+    import streamlit as st
+    captured = []
+    monkeypatch.setattr(st, "markdown", lambda html, *a, **k: captured.append(html))
+    kit.xc_success_box("✅ 操作**成功**完成", icon="🎉")
+    out = captured[-1]
+    assert "xc-success-box" in out
+    assert "<b>成功</b>" in out          # 行内 **粗体** 还原
+    assert "🎉" in out                    # 自定义图标保留
+    assert "✅" not in out               # 标题冗余 ✅ 被剥离（且本测试用自定义图标，全输出无 ✅）
+    assert "操作" in out and "完成" in out
+
+
+def test_xc_warn_box_escapes_xss_and_strips_emoji(monkeypatch):
+    import streamlit as st
+    captured = []
+    monkeypatch.setattr(st, "markdown", lambda html, *a, **k: captured.append(html))
+    kit.xc_warn_box("⚠️ 数据<source>不稳定", hint="请稍后重试", icon="📡")
+    out = captured[-1]
+    assert "xc-warn-box" in out
+    assert "<source>" not in out        # 标签被转义中和
+    assert "&lt;source&gt;" in out
+    assert "📡" in out                    # 自定义图标保留
+    assert "⚠️" not in out              # 标题冗余 ⚠️ 被剥离（本测试用自定义图标，全输出无 ⚠️）
+    assert "数据" in out and "不稳定" in out
+    assert "请稍后重试" in out

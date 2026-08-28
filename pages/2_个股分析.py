@@ -12,6 +12,7 @@ from datetime import datetime
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 dark = render_standard_page(title='个股深度分析 · 决策仪表盘', icon='🔍', layout='wide')
 sf_card("个股分析导读", "输入代码/名称/拼音搜索个股，查看暗色决策仪表盘：K 线、技术面、资金面、情绪与风险铁律。严格遵循绿涨红跌配色；所有外部数据获取失败均友好提示，不抛红错。", icon="🔍")
 from modules.fetcher import StockFetcher
@@ -698,7 +699,7 @@ def fragment_analysis_result():
                     _h2.insert(0, _rt)
                     st.session_state['_analysis_recent'] = _h2[:8]
             for w in result.pop('_warnings', []):
-                st.warning(w)
+                xc_warn_box(w)
             st.session_state['analysis_result'] = result
             del st.session_state['analysis_task_id']
             st.toast('✅ 个股分析完成')
@@ -706,7 +707,7 @@ def fragment_analysis_result():
             st.error(f"分析失败：{task.get('error')}")
             del st.session_state['analysis_task_id']
         elif task and task.get('status') in ('pending', 'running'):
-            st.warning('⏳ 分析正在后台并行运行：行情数据 → 新闻舆情 → 技术信号 → 综合评分。完成后会自动显示下方结果，无需切换页面。', icon='⏳')
+            xc_warn_box('⏳ 分析正在后台并行运行：行情数据 → 新闻舆情 → 技术信号 → 综合评分。完成后会自动显示下方结果，无需切换页面。', icon='⏳')
             st.progress(0.0, text='等待分析结果...')
             # 前端性能#B：轮询降频 1000ms→3000ms（仍秒级感知进度），limit 30→10（共 30s 窗口不变）。
             # 减少 fragment 内重渲染约 67%，后台任务 10-30s 完成足够感知。
@@ -719,7 +720,7 @@ def fragment_analysis_result():
         st.caption('💡 也可以直接点击下方按钮生成分析；任务在后台并行运行，完成后自动显示，无需等待。')
         if st.button('🔍 生成深度分析', type='primary', key='gen_analysis_inline', use_container_width=True):
             if not ticker:
-                st.warning('请先在上方「⚡ 快速选取」选择一只股票，再回到「🔬 深度分析」点击「生成分析」查看完整决策仪表盘。')
+                xc_warn_box('请先在上方「⚡ 快速选取」选择一只股票，再回到「🔬 深度分析」点击「生成分析」查看完整决策仪表盘。')
             else:
                 tid, e = submit_task_with_error('analysis', {'ticker': ticker})
                 if tid:
@@ -776,7 +777,6 @@ def fragment_stock_videos(ticker):
             name = ticker
     q = f'{name} 股票分析'
     from urllib.parse import quote
-from modules.ui_kit import xc_handle_error
     links = [('🅑️ B站', f'https://search.bilibili.com/all?keyword={quote(q)}'), ('🔍 百度视频', f'https://www.baidu.com/s?tn=baiduvi&wd={quote(q)}'), ('▶️ YouTube', f'https://www.youtube.com/results?search_query={quote(q)}'), ('🎵 抖音', f'https://www.douyin.com/search/{quote(q)}')]
     st.caption(f'「{name}」相关视频聚合（点击在浏览器新标签打开对应平台搜索结果）：')
     _lc = st.columns(len(links))
@@ -797,7 +797,7 @@ from modules.ui_kit import xc_handle_error
                 st.session_state[vk].append({'src': emb, 'raw': video_url})
                 st.toast('✅ 已添加视频')
             else:
-                st.warning('⚠️ 暂仅支持 YouTube / B站 / 腾讯视频 的嵌入；其它平台已为你保留原链接，可点击观看。')
+                xc_warn_box('⚠️ 暂仅支持 YouTube / B站 / 腾讯视频 的嵌入；其它平台已为你保留原链接，可点击观看。')
                 st.session_state[vk].append({'src': None, 'raw': video_url})
     if st.session_state[vk]:
         for idx, v in enumerate(st.session_state[vk]):

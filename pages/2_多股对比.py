@@ -8,9 +8,9 @@ import pandas as pd
 
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
-from modules.ui_kit import info_banner
 
 # 本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）
+from modules.ui_kit import info_banner, xc_handle_error, xc_success_box, xc_warn_box
 render_standard_page(title="多股对比 · 决策仪表盘", icon="📊", layout="wide")
 info_banner("输入 2~8 只股票（代码 / 中文名 / 拼音首字母）即可横向对比；对比结果含五维雷达、成对卡片与作战计划，所有数据仅供参考。", icon="📊")
 
@@ -18,7 +18,6 @@ from modules.search_ui import multi_stock_search_input
 from modules.background_tasks import submit_task_with_error, poll_task
 from modules.autorefresh import st_autorefresh
 from modules.compare import (
-from modules.ui_kit import xc_handle_error
     compare_css, build_header, build_one_line,
     build_table, build_pairwise_card, build_radar, build_radar_right,
     build_action_plan, build_footer, METHODS,
@@ -65,7 +64,7 @@ def fragment_compare_setup():
     if submitted:
         # ⚠️ 兜底：multi_stock_search_input 可能返回 None 而非空列表，len(None) 会抛 TypeError
         if len(codes or []) < 2:
-            st.warning("请至少输入 2 只有效股票。")
+            xc_warn_box("请至少输入 2 只有效股票。")
         else:
             task_id, err = submit_task_with_error("compare", {"codes": codes, "period": period})
             if task_id:
@@ -119,7 +118,7 @@ def fragment_compare_result():
             del st.session_state["compare_task_id"]
         elif task and task.get("status") in ("pending", "running"):
             _cmp_codes = st.session_state.get("cmp_codes", [])
-            st.warning(
+            xc_warn_box(
                 f"⏳ 正在后台并行拉取 {len(_cmp_codes)} 只股票数据：行情、技术面、相关性... 完成后自动显示，无需切换页面。",
                 icon="⏳",
             )
@@ -135,7 +134,7 @@ def fragment_compare_result():
     # 部分标的行情缺失提示
     failed = [r.get("name", str(r.get("code", "?"))) for r in rows if r.get("error")]
     if failed:
-        st.warning(f"以下标的行情获取失败，已按中性默认展示：{'、'.join(failed)}")
+        xc_warn_box(f"以下标的行情获取失败，已按中性默认展示：{'、'.join(failed)}")
 
     _period = st.session_state.get("_cmp_period", st.session_state.get("_cmp_period_input", 120))
 

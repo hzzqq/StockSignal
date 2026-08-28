@@ -24,6 +24,7 @@ from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, safe_fragment, render_data_degradation_banner
 from modules.page_widgets import _empty_info, UP, DOWN
 
+from modules.ui_kit import xc_success_box, xc_warn_box
 dark = render_standard_page(
     title="板块轮动热力图", icon="🔥",
     caption="红涨绿跌；热力图块大小代表资金净流入，颜色代表涨跌幅。各视图独立取数。",
@@ -213,7 +214,7 @@ def fragment_sectors():
                          help="跳转到行情看板查看实时板块涨跌。"):
                 safe_switch_page("pages/1_行情看板.py")
         else:
-            st.success(f"数据来源：{src}　·　共 {len(df)} 个行业", icon="📡")
+            xc_success_box(f"数据来源：{src}　·　共 {len(df)} 个行业", icon="📡")
             render_data_degradation_banner()
             tab1, tab2, tab3 = st.tabs(["🔥 热力图", "📊 排行榜", "🔄 资金轮动"])
             with tab1:
@@ -266,7 +267,7 @@ def fragment_sectors():
                 if _avg > 0.5 and _inflow_cnt > len(_d) * 0.6:
                     st.info("📈 **偏强轮动**：多数板块上涨且资金净流入，市场情绪偏多，关注领涨主线持续性。")
                 elif _avg < -0.5 and _inflow_cnt < len(_d) * 0.4:
-                    st.warning("📉 **偏弱轮动**：多数板块下跌且资金净流出，注意风险控制，等待企稳信号。")
+                    xc_warn_box("📉 **偏弱轮动**：多数板块下跌且资金净流出，注意风险控制，等待企稳信号。")
                 else:
                     st.caption("⚖️ **震荡分化**：板块涨跌互现、资金方向不一，结构性行情为主，关注个别强势板块机会。")
 

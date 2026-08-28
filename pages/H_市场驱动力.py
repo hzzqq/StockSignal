@@ -13,8 +13,8 @@ from modules.page_widgets import _section_title, _trend_controls, _in_trading_ho
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh
 from modules.ui_theme import sf_card, sf_metric
-from modules.ui_kit import xc_handle_error
 
+from modules.ui_kit import xc_handle_error
 st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(

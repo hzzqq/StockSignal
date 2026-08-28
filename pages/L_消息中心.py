@@ -23,6 +23,7 @@ from modules.page_guard import safe_section, render_data_degradation_banner
 from modules.page_widgets import UP, DOWN
 from modules.format_helpers import extract_pct
 
+from modules.ui_kit import xc_success_box, xc_warn_box
 dark = render_standard_page(
     title="消息 / 通知中心", icon="🔔",
     caption="聚合自选股异动、社区动态与系统状态；各模块独立取数，互不干扰。",
@@ -253,10 +254,10 @@ if len(_read_set) > 500:
 # 加法式操作成功反馈：标记已读 / 清除已读后给出成功提示
 if st.session_state.get("_msg_marked_toast"):
     st.session_state.pop("_msg_marked_toast", None)
-    st.success("✅ 已全部标记为已读")
+    xc_success_box("✅ 已全部标记为已读")
 if st.session_state.get("_msg_cleared_toast"):
     st.session_state.pop("_msg_cleared_toast", None)
-    st.success("✅ 已清除已读标记")
+    xc_success_box("✅ 已清除已读标记")
 
 # ───────────────────────── 顶部操作栏 ─────────────────────────
 c1, c2, c3 = st.columns([1, 1, 2])
