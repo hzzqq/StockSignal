@@ -17,7 +17,7 @@ from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import UP, DOWN, _fig_layout, _section_title, _empty_info
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
 dark = render_standard_page(
     title="财报与业绩日历", icon="📅",
     caption="按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。",
@@ -87,7 +87,7 @@ def fragment_report():
         down_cnt = int((yoy < 0).sum())
         beat_ratio = round(up_cnt / len(yoy) * 100, 1) if len(yoy) else 0.0
     else:
-        st.info("「净利润同比%」字段缺失，盈利改善占比暂不可计算（接口字段变更或网络异常）。")
+        info_banner("「净利润同比%」字段缺失，盈利改善占比暂不可计算（接口字段变更或网络异常）。")
     cols = st.columns(4)
     with cols[0]:
         st.metric("披露家数", f"{len(df)}")
@@ -116,7 +116,7 @@ def fragment_report():
             fig.update_xaxes(tickangle=-45)
             st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     else:
-        st.info("「净利润 / 名称」字段缺失，TOP 净利润柱状图暂不可绘制（接口字段变更或网络异常）。")
+        info_banner("「净利润 / 名称」字段缺失，TOP 净利润柱状图暂不可绘制（接口字段变更或网络异常）。")
 
     try:
         st.dataframe(

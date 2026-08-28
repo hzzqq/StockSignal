@@ -74,7 +74,7 @@ def fragment_compare_setup():
                 # fragment_compare_result 在 pending/running 分支会引用 len(codes) 而崩溃（NameError）。
                 # 提交时把 codes 存入 session_state，结果 fragment 读取同一份。
                 st.session_state["cmp_codes"] = list(codes)
-                st.info(f"📡 已提交 {len(codes)} 只股票的后台对比任务，切到其他页面也会继续跑。")
+                info_banner(f"📡 已提交 {len(codes)} 只股票的后台对比任务，切到其他页面也会继续跑。")
             else:
                 err = err or "未知错误"
                 if "登录" in err or "过期" in err or "凭证" in err:
@@ -128,7 +128,7 @@ def fragment_compare_result():
 
     rows = st.session_state.get("_cmp_rows")
     if not rows:
-        st.info("👇 在下方输入股票代码/名称后点击「开始对比」。已预填示例（5只），直接点击即可查看效果。")
+        info_banner("👇 在下方输入股票代码/名称后点击「开始对比」。已预填示例（5只），直接点击即可查看效果。")
         return
 
     # 部分标的行情缺失提示

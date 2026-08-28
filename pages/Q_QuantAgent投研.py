@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
 try:
     from modules.autorefresh import st_autorefresh
 except Exception:  # pragma: no cover
@@ -322,7 +322,7 @@ def main():
                     help="请输入 6 位数字 A股代码后再发起" if not _ticker_ok else "发起多智能体投研")
 
     if not run:
-        st.info("点击按钮，由 5 个分析智能体 + 多首席决策智能体协作产出投研报告，并以实时进度条展示每个 Agent 的工作状态。无 LLM Key 时自动走规则引擎，仍可完整演示。")
+        info_banner("点击按钮，由 5 个分析智能体 + 多首席决策智能体协作产出投研报告，并以实时进度条展示每个 Agent 的工作状态。无 LLM Key 时自动走规则引擎，仍可完整演示。")
         _result_panel()
         return
 
@@ -347,7 +347,7 @@ def main():
             if task_id:
                 st.session_state["quant_task_id"] = task_id
                 st.session_state["quant_result"] = None
-                st.info("📡 投研任务已提交到后台运行，可切到其他页面，进度会自动刷新。完成后展示报告。")
+                info_banner("📡 投研任务已提交到后台运行，可切到其他页面，进度会自动刷新。完成后展示报告。")
             else:
                 xc_handle_error("提交失败", err, hint="请确认后端 5050 已启动")
         except Exception as e:

@@ -14,7 +14,7 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh
 from modules.ui_theme import sf_card, sf_metric
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, info_banner
 st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
@@ -87,7 +87,7 @@ def fragment_drivers_panel():
     # 加法式空态守卫（Batch15）：用户在区间控件中清空序列选择时 sel 为空，
     # 此时绘制会得到空白/异常图；提前给出友好提示，不影响下方数据表与热力图。
     if not sel:
-        st.info("请在上方区间控件中至少选择一个指标序列，以绘制驱动力面板。")
+        info_banner("请在上方区间控件中至少选择一个指标序列，以绘制驱动力面板。")
     else:
         try:
             fig = plot_drivers_panel(

@@ -10,7 +10,7 @@ import pandas as pd
 from datetime import datetime
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
 render_standard_page(title='仓位管理', icon='💰', caption='⚠️ 本页为模拟/历史持仓管理，仅供学习，不构成投资建议。', layout='wide')
 
 sf_card("仓位管理导读", "记录持仓、卖出交易、盈亏统计与 Excel 导出。本页为模拟/历史持仓管理，仅供学习，不构成投资建议。", icon="💰")
@@ -303,7 +303,7 @@ if not positions.empty:
 else:
     sellable_positions = positions.copy()
 if sellable_positions.empty:
-    st.info('当前没有可卖出的持仓。请先在上方「买入股票」录入一笔持仓（代码、价格、股数）后，再来这里卖出。')
+    info_banner('当前没有可卖出的持仓。请先在上方「买入股票」录入一笔持仓（代码、价格、股数）后，再来这里卖出。')
 else:
     sell_quote = None
     with st.form('sell_position_form'):
@@ -484,7 +484,7 @@ if not positions.empty:
             if st.button('🔄 重试', key='pnl_retry'):
                 st.rerun()
 else:
-    st.info('请先添加持仓记录。')
+    info_banner('请先添加持仓记录。')
 st.divider()
 if st.button('↑ 回到顶部', key='cang_mgr_top', use_container_width=True):
     sn.back_to_top_button()

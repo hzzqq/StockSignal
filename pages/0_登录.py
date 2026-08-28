@@ -13,7 +13,7 @@ from modules.session import init_session_state, is_authenticated, set_auth, clea
 from modules.widgets import password_strength
 
 from modules.ui_theme import apply_page_config
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
 apply_page_config(page_title="登录", page_icon="🔐", layout="centered")
 st.session_state["_active_page"] = __file__
 init_session_state()
@@ -213,7 +213,7 @@ with register_tab:
                     # 回填登录表单，方便直接登录
                     st.session_state["_login_username"] = reg_name
                     st.session_state["_login_password"] = new_password
-                    st.info("已为你填入账号信息，可切回「登录」标签直接登录。")
+                    info_banner("已为你填入账号信息，可切回「登录」标签直接登录。")
                 else:
                     msg = body.get("message") or f"HTTP {resp.status_code}"
                     st.error(f"❌ 注册失败：{msg}")

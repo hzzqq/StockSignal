@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
 render_standard_page(title="策略回测", icon="⚙️", layout="wide")
 sf_card("策略回测导读", "支持趋势动量多因子（推荐）、双趋势共振 GMMA+一目、均线交叉、事件驱动四种策略。手动回测与每日选股回测为独立模块，互不重算；下方可运行回测并查看收益曲线与交易明细。", icon="⚙️")
 
@@ -314,7 +314,7 @@ def fragment_manual_backtest():
                         max_loss = min(t["profit_pct"] for t in result.trades) if result.trades else 0
                         st.metric("最大亏损", f"{max_loss:.2f}%")
                 else:
-                    st.info("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
+                    info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
                 # ── 回撤带（水下曲线） ──
                 sf_card("回撤带（水下曲线）", "")
@@ -359,7 +359,7 @@ def fragment_manual_backtest():
                     )
                     st.plotly_chart(fig_tr, use_container_width=True, config={"displaylogo": False, "responsive": True})
                 else:
-                    st.info("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
+                    info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
                 # ── 参数敏感性分析 ──
                 sf_card("🎯 参数敏感性分析", "")

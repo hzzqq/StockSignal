@@ -16,7 +16,7 @@ from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 
 # 安全解析字体档位在选项列表中的下标；legacy 值不在选项中时回退到默认档位，避免 .index() 抛 ValueError。
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
 def _resolve_font_index(value, font_opts, default):
     keys = list(font_opts.keys())
     if value in keys:
@@ -367,7 +367,7 @@ with col1:
     st.markdown(f"**角色：** {'管理员' if user.get('role') == 'admin' else '普通用户'}")
     st.markdown(f"**登录时间：** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     if not _cur_avatar:
-        st.info("💡 资料尚未完善：上传头像让投资体验更个性化，也可在下方「账号绑定」中绑定邮箱 / 手机。")
+        info_banner("💡 资料尚未完善：上传头像让投资体验更个性化，也可在下方「账号绑定」中绑定邮箱 / 手机。")
 
 with col2:
     st.markdown("### 快捷入口")
@@ -456,7 +456,7 @@ if st.button("⭐ 收藏", key="my_star_btn", use_container_width=False):
             st.session_state["my_starred_stocks"].append(_code)
             xc_success_box(f"✅ 已收藏 {_code}")
         else:
-            st.info(f"{_code} 已在收藏中")
+            info_banner(f"{_code} 已在收藏中")
     else:
         st.error("⚠️ 请输入正确的 6 位股票代码（仅数字）")
 if st.session_state["my_starred_stocks"]:
@@ -540,11 +540,11 @@ _col_mail, _col_phone = st.columns(2)
 with _col_mail:
     st.markdown("**📧 邮箱绑定**")
     if st.button("绑定邮箱", key="bind_mail", use_container_width=True):
-        st.info("邮箱绑定功能需在后端接入邮件服务后开放（当前为本地部署，暂未启用）。")
+        info_banner("邮箱绑定功能需在后端接入邮件服务后开放（当前为本地部署，暂未启用）。")
 with _col_phone:
     st.markdown("**📱 手机号绑定**")
     if st.button("绑定手机", key="bind_phone", use_container_width=True):
-        st.info("手机号绑定需接入短信网关，当前为本地部署，暂未启用。")
+        info_banner("手机号绑定需接入短信网关，当前为本地部署，暂未启用。")
 
 st.caption("说明：邮箱 / 手机号绑定用于找回密码与异地登录提醒，本地演示环境暂未接入第三方服务。")
 

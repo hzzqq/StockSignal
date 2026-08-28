@@ -23,7 +23,7 @@ from modules.page_guard import safe_section, render_data_degradation_banner
 from modules.page_widgets import UP, DOWN
 from modules.format_helpers import extract_pct
 
-from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.ui_kit import xc_success_box, xc_warn_box, info_banner
 dark = render_standard_page(
     title="消息 / 通知中心", icon="🔔",
     caption="聚合自选股异动、社区动态与系统状态；各模块独立取数，互不干扰。",
@@ -321,7 +321,7 @@ _visible = shown[: st.session_state["msg_show_n"]]
 st.caption(f"当前显示 {len(_visible)} / 总计 {len(msgs)} 条消息")
 
 if not shown:
-    st.info("当前分类暂无消息。💡 异动消息需先添加自选股；社区消息来自股吧发帖；系统消息来自数据源健康度。多使用各功能模块后会逐步产生消息。")
+    info_banner("当前分类暂无消息。💡 异动消息需先添加自选股；社区消息来自股吧发帖；系统消息来自数据源健康度。多使用各功能模块后会逐步产生消息。")
 else:
     for m in _visible:
         read = m["id"] in st.session_state["msg_read_ids"]

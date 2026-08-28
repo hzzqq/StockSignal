@@ -12,7 +12,7 @@ from datetime import datetime
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
 dark = render_standard_page(title='个股深度分析 · 决策仪表盘', icon='🔍', layout='wide')
 sf_card("个股分析导读", "输入代码/名称/拼音搜索个股，查看暗色决策仪表盘：K 线、技术面、资金面、情绪与风险铁律。严格遵循绿涨红跌配色；所有外部数据获取失败均友好提示，不抛红错。", icon="🔍")
 from modules.fetcher import StockFetcher
@@ -55,7 +55,7 @@ if st.button('🔍 生成分析', type='primary', use_container_width=True, key=
     if task_id:
         st.session_state['analysis_task_id'] = task_id
         st.session_state['analysis_result'] = None
-        st.info('📡 分析任务已提交到后台运行，你可以切到其他页面，完成后会在下方仪表盘自动显示结果。')
+        info_banner('📡 分析任务已提交到后台运行，你可以切到其他页面，完成后会在下方仪表盘自动显示结果。')
     else:
         err = err or '未知错误'
         if '登录' in err or '过期' in err or '凭证' in err:
@@ -240,7 +240,7 @@ def fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped
                         _dfig = _build_intraday_fig(_didf, _dipc, ticker, display_name, _didt)
                         st.plotly_chart(_dfig, use_container_width=True, key=f'dbl_intra_{ticker}_{_target_dt}', config={'displaylogo': False, 'responsive': True})
                     else:
-                        st.info(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
+                        info_banner(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
                 except Exception as _die:
                     xc_handle_error("分时图加载失败", str(_die)[:80], hint="请稍后重试，或检查网络与数据源连接")
                 if st.button('✕ 关闭分时图', key=f'close_intra_{ticker}'):
@@ -295,7 +295,7 @@ def _fragment_intraday(ticker: str, display_name: str) -> None:
                 unsafe_allow_html=True,
             )
         else:
-            st.info('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
+            info_banner('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
     except Exception as _ie:
         xc_handle_error("分时图加载失败", str(_ie)[:60], hint="请稍后重试，或检查网络与数据源连接")
 
@@ -676,7 +676,7 @@ def _deserialize_analysis_result(result: dict) -> dict:
         if 'date' in result['df'].columns:
             result['df']['date'] = pd.to_datetime(result['df']['date'], errors='coerce')
     return result
-st.info('👆 在上方「决策仪表盘」顶部点击红色「生成分析」即可生成完整的个股深度分析。')
+info_banner('👆 在上方「决策仪表盘」顶部点击红色「生成分析」即可生成完整的个股深度分析。')
 st.caption('💡 分析包含行情 / 新闻 / 技术 / 评分等模块，首次生成约需 10–30 秒，后台运行期间可浏览其它页面。')
 
 @st.cache_data(ttl=1)
@@ -716,7 +716,7 @@ def fragment_analysis_result():
     if st.session_state.get('analysis_result') is not None:
         _render_analysis(st.session_state['analysis_result'])
     else:
-        st.info('👈 在左侧选择股票后，点击「生成分析」查看完整的个股深度决策仪表盘。')
+        info_banner('👈 在左侧选择股票后，点击「生成分析」查看完整的个股深度决策仪表盘。')
         st.caption('💡 也可以直接点击下方按钮生成分析；任务在后台并行运行，完成后自动显示，无需等待。')
         if st.button('🔍 生成深度分析', type='primary', key='gen_analysis_inline', use_container_width=True):
             if not ticker:

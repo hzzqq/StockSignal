@@ -1,5 +1,5 @@
 import logging
-from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.ui_kit import xc_success_box, xc_warn_box, info_banner
 logger = logging.getLogger(__name__)
 """
 页面级共用 UI 助手（跨页面复用，避免重复定义）。
@@ -289,7 +289,7 @@ def _empty_info_html(text: str = "暂无数据") -> str:
 
 
 def _empty_info(text: str = "暂无数据"):
-    """空数据态（UI-only）：居中、弱化提示，统一替代散落的 st.info("暂无…")。"""
+    """空数据态（UI-only）：居中、弱化提示，统一替代散落的 info_banner("暂无…")。"""
     st.markdown(_empty_info_html(text), unsafe_allow_html=True)
 
 

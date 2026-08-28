@@ -16,7 +16,7 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
 today = date.today().strftime('%Y-%m-%d')
 dark = render_standard_page(title='每日晨报 / 复盘笔记', icon='🌅', caption=f'生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）', layout='wide')
 from modules.widgets import render_index_compact
@@ -165,7 +165,7 @@ def fragment_watchlist_and_news():
     selected_name = None
     with st.expander('📌 自选股快照', expanded=True):
         if not watchlist:
-            st.info('📭 自选股为空，晨报暂无可展示的持仓快照。')
+            info_banner('📭 自选股为空，晨报暂无可展示的持仓快照。')
             st.markdown("<div class='xc-note'>💡 <b>三步开启你的晨报快照</b><br>1. 进入「📡 自选股监控」添加关注的股票<br>2. 或到「👤 我的」维护自选股清单<br>3. 回到本页，快照与专属新闻会自动出现</div>", unsafe_allow_html=True)
             if st.button('➕ 去添加自选股', type='primary', use_container_width=True, key='morning_goto_wl'):
                 safe_switch_page('pages/C_自选股监控.py')
@@ -215,9 +215,9 @@ def fragment_watchlist_and_news():
     _news_title = f'📰 相关新闻速览 — {selected_name}（{selected_code}）' if selected_code else '📰 相关新闻速览'
     with st.expander(_news_title, expanded=bool(selected_code)):
         if not watchlist:
-            st.info('添加自选股后，此处展示相关新闻。')
+            info_banner('添加自选股后，此处展示相关新闻。')
         elif not selected_code:
-            st.info('👆 请在上方「自选股快照」中点击某一行，查看该股票的相关新闻。')
+            info_banner('👆 请在上方「自选股快照」中点击某一行，查看该股票的相关新闻。')
         else:
             with st.spinner(f'加载 {selected_name} 相关新闻…'):
                 news_df = _cached_news(selected_name, limit=15)
@@ -233,7 +233,7 @@ def fragment_watchlist_and_news():
                         st.markdown(f'- {_fmt_rel(date_s)}  **{title}**  _{source_s}_')
                 st.caption(f'共 {len(news_df)} 条相关新闻，展示前 {min(len(news_df), 12)} 条')
             else:
-                st.info(f'暂无与 {selected_name} 相关的新闻。可尝试切换其它自选股，或稍后重试（资讯源每日更新）。')
+                info_banner(f'暂无与 {selected_name} 相关的新闻。可尝试切换其它自选股，或稍后重试（资讯源每日更新）。')
 fragment_watchlist_and_news()
 
 @safe_fragment
@@ -345,7 +345,7 @@ def fragment_review_notes():
         if _content.strip():
             st.markdown(_content, unsafe_allow_html=True)
         else:
-            st.info('该日暂无复盘内容。可在上方文本框记录今日盘面、操作与明日计划，编辑即自动保存到本地；也可点「🔍 查询」切换其它日期查看历史复盘。')
+            info_banner('该日暂无复盘内容。可在上方文本框记录今日盘面、操作与明日计划，编辑即自动保存到本地；也可点「🔍 查询」切换其它日期查看历史复盘。')
     note_date_s = _render_toolbar()
     _render_editor(note_date_s)
     _render_preview()

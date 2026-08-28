@@ -27,7 +27,7 @@ from __future__ import annotations
 import os
 import logging
 
-from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.ui_kit import xc_success_box, xc_warn_box, info_banner
 logger = logging.getLogger(__name__)
 import json
 import time
@@ -1115,7 +1115,7 @@ def fragment_market_alerts_panel() -> None:
             st.session_state["_alert_panel_nonce"] = nonce + 1
 
     if not items:
-        st.info("暂无异动提醒。后台调度器会在交易时段扫描广度/情绪/估值指标越界并推送。")
+        info_banner("暂无异动提醒。后台调度器会在交易时段扫描广度/情绪/估值指标越界并推送。")
         return
 
     _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}

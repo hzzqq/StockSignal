@@ -21,7 +21,7 @@ from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
 
-from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box, info_banner
 logger = logging.getLogger(__name__)
 dark = render_standard_page(title='行情看板', icon='📈', layout='wide')
 render_index_compact(cols_per_row=5)
@@ -351,7 +351,7 @@ _ticker_list = [t.strip() for t in (_corr_tickers if isinstance(_corr_tickers, l
 if not _ticker_list and _corr_tickers:
     _ticker_list = [t.strip() for t in str(_corr_tickers).split(',') if t.strip()]
 if not _ticker_list:
-    st.info('💡 请输入至少 2 只股票代码/名称（逗号分隔）后点击「计算相关性」。已默认预填 4 只示例，直接点击即可。')
+    info_banner('💡 请输入至少 2 只股票代码/名称（逗号分隔）后点击「计算相关性」。已默认预填 4 只示例，直接点击即可。')
 
 def _fetch_one_corr(t, start, end):
     """单只股票取数（带超时兜底），返回 (label, df)。"""

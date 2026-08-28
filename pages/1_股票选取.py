@@ -29,7 +29,7 @@ from modules.session import (
 from modules.page_guard import safe_fragment
 from modules.page_widgets import UP
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
 render_standard_page(title="股票选取", icon="🎯")
 
 sf_card("股票选取导读", "位于行情看板与个股分析之间：设置参数、查看 K 线与技术面，并可将标的加入自选股或垃圾股池，支持打分与折叠展示。", icon="🎯")
@@ -392,7 +392,7 @@ def fragment_kline_pick(ticker, stock_label, df, kline_period, period_label, sta
                                                  title=f"{stock_label} 分时（{_pdt}）")
                     st.plotly_chart(_pdfig, use_container_width=True, key=f"pick_dbl_intra_{_ptgt}", config={"displaylogo": False, "responsive": True})
                 else:
-                    st.info(f"📭 {_ptgt} 暂无分时数据。")
+                    info_banner(f"📭 {_ptgt} 暂无分时数据。")
             except Exception as _pde:
                 xc_handle_error("分时加载失败", str(_pde)[:80], hint="请稍后重试，或检查网络与数据源连接")
             if st.button("✕ 关闭", key="pick_close_intra"):
@@ -427,7 +427,7 @@ def _fragment_intraday(ticker: str, stock_label: str) -> None:
         _status = "（每5分钟自动刷新中）" if is_trading_now() else "（非交易时段，已暂停刷新）"
         st.caption("📈 分时图：白线为当日价格走势，橙点为均价；基准虚线为昨收。红涨绿跌（A股惯例）。" + _status)
     else:
-        st.info("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
+        info_banner("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
 
 
 @st.cache_data(show_spinner=False, ttl=600)
@@ -599,9 +599,9 @@ try:
                     st.plotly_chart(bfig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False},
                                     key="pick_bench")
                 else:
-                    st.info("区间内与上证基准无重合交易日，跳过对比。")
+                    info_banner("区间内与上证基准无重合交易日，跳过对比。")
             else:
-                st.info("上证基准数据获取失败，跳过对比。")
+                info_banner("上证基准数据获取失败，跳过对比。")
 except Exception as e:
     xc_handle_error("K 线加载异常", str(e)[:80], hint="请稍后刷新页面重试，或切换其它周期 / 区间")
 
