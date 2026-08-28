@@ -123,6 +123,7 @@ def create_app(config_object: type = Config) -> Flask:
     _register_error_handlers(app)
     _register_security_headers(app)
     _register_monitoring(app)
+    _register_json_enforcement(app)
 
     # 关闭异常传播，避免默认 handler 漏出 HTML
     app.config["PROPAGATE_EXCEPTIONS"] = False
@@ -174,6 +175,36 @@ def create_app(config_object: type = Config) -> Flask:
 # =====================================================================
 # 错误处理
 # =====================================================================
+
+def _register_json_enforcement(app: Flask) -> None:
+    """API 边界加固：变异请求（POST/PUT/PATCH）到 /api/ 必须携带 JSON 正文。
+
+    非 JSON 媒体类型（form / multipart 等）一律返回结构化 415，
+    避免畸形/表单体绕过 get_json 解析、造成非预期行为或被表单 CSRF 式提交利用。
+    空正文（无 body）放行，由路由自行校验必填字段。
+    """
+    from .utils.response import fail
+    from flask import request
+
+    @app.before_request
+    def _require_json():
+        if not request.path.startswith("/api/"):
+            return None
+        if request.method not in ("POST", "PUT", "PATCH"):
+            return None
+        ct = request.headers.get("Content-Type") or ""
+        if not ct:
+            # 无 Content-Type：交由路由自行校验必填字段（保持既有行为）
+            return None
+        if not ct.startswith("application/json"):
+            # 与 auth._parse_json 一致：非 JSON 媒体类型返回 422 结构化信封
+            return fail(
+                message="请求体必须为 JSON",
+                code="validation_error",
+                http_status=422,
+            )
+        return None
+
 
 def _register_error_handlers(app: Flask) -> None:
     @app.errorhandler(ApiError)
