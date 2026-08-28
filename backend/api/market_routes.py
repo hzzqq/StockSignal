@@ -17,7 +17,6 @@ backend/api/market_routes.py
 """
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
@@ -25,7 +24,7 @@ from flask import Blueprint, request
 
 from ..auth.decorators import jwt_required
 from ..utils.response import ok, fail
-from ..utils.params import parse_str_param, parse_limit_param
+from ..utils.params import parse_str_param, parse_limit_param, validate_stock_code
 
 # 确保项目根（StockSignal）在 sys.path，便于 `from modules.fetcher import StockFetcher`
 _PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
@@ -35,8 +34,6 @@ if _PROJECT_ROOT not in sys.path:
 from modules.fetcher import StockFetcher  # noqa: E402
 
 bp = Blueprint("market", __name__, url_prefix="/api")
-
-_TICKER_RE = re.compile(r"^\d{6}$")
 
 # 合法复权参数集合：前复权(qfq)、后复权(hfq)、空字符串("") 或 None(默认透传)
 _VALID_ADJUST = ("qfq", "hfq", "")
@@ -70,7 +67,7 @@ def quote():
     实时五档行情。ticker 须为 6 位数字。
     """
     ticker = parse_str_param("ticker", max_len=16)
-    if not _TICKER_RE.match(ticker):
+    if not validate_stock_code(ticker)[0]:
         return fail(message="参数无效", code="invalid_param", http_status=400)
 
     try:
@@ -99,7 +96,7 @@ def quote_batch():
         return fail(message="参数无效", code="invalid_param", http_status=400)
     if len(parts) > 20:
         return fail(message="一次最多查询 20 只", code="invalid_param", http_status=400)
-    bad = [p for p in parts if not _TICKER_RE.match(p)]
+    bad = [p for p in parts if not validate_stock_code(p)[0]]
     if bad:
         return fail(message=f"存在非法代码: {','.join(bad)}", code="invalid_param", http_status=400)
 
@@ -148,7 +145,7 @@ def kline():
     limit 可选：仅返回最近 N 根（如 limit=60 → tail(60)），供「最近 N 根」场景减少传输。
     """
     symbol = parse_str_param("symbol", max_len=16)
-    if not _TICKER_RE.match(symbol):
+    if not validate_stock_code(symbol)[0]:
         return fail(message="参数无效", code="invalid_param", http_status=400)
 
     start = request.args.get("start") or "2024-01-01"
@@ -190,7 +187,7 @@ def intraday():
     返回 ok(data={"records": [...], "prev_close": float, "trade_date": str})。
     """
     symbol = parse_str_param("symbol", max_len=16)
-    if not _TICKER_RE.match(symbol):
+    if not validate_stock_code(symbol)[0]:
         return fail(message="参数无效", code="invalid_param", http_status=400)
     trade_date = (request.args.get("date") or None)
 
