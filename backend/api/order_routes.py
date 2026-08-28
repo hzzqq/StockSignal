@@ -172,7 +172,7 @@ def trade_place_order():
     db.session.commit()
     if result.ok:
         return ok(data=order.to_dict(), message=result.message or "下单成功")
-    return ok(data=order.to_dict(), message=result.message or "下单未成功")
+    return fail(message=result.message or "下单未成功", code="order_failed", http_status=400)
 
 
 # ================================================================== 条件单

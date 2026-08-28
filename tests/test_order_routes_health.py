@@ -19,6 +19,7 @@ from werkzeug.security import generate_password_hash
 def client():
     app = create_app()
     app.config["TESTING"] = True
+    app.config["RATE_LIMIT_ENABLED"] = False  # 测试不触发登录限流
     with app.app_context():
         db.create_all()
         u = User.query.filter_by(username="demo").first()
@@ -82,3 +83,29 @@ def test_health_ok_when_broker_available(client, monkeypatch):
     body = r.get_json()
     assert body["status"] == "ok"
     assert body["data"]["ok"] is True
+
+
+def test_place_order_failure_returns_fail(client, monkeypatch):
+    """下单业务失败（result.ok=False）必须返回 fail，不能当成功误报。"""
+    import backend.broker as broker_pkg
+
+    class _Res:
+        ok = False
+        message = "资金不足，无法买入"
+
+    def _exec(*a, **k):
+        return None, _Res()
+
+    monkeypatch.setattr(broker_pkg, "execute_order", _exec)
+    token = _login(client)
+    r = client.post(
+        "/api/trade/orders",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"stock_code": "600000", "stock_name": "浦发银行",
+              "side": "buy", "quantity": 100},
+    )
+    assert r.status_code == 400, r.text
+    body = r.get_json()
+    assert body["status"] == "error"
+    assert body.get("code") == "order_failed"
+    assert "资金不足" in body.get("message", "")

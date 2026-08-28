@@ -17,6 +17,7 @@ from werkzeug.security import generate_password_hash
 def client():
     app = create_app()
     app.config["TESTING"] = True
+    app.config["RATE_LIMIT_ENABLED"] = False  # 测试不触发登录限流
     with app.app_context():
         db.create_all()
         u = User.query.filter_by(username="demo").first()
