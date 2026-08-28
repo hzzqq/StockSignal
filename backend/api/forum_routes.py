@@ -17,7 +17,7 @@ from ..extensions import db
 from ..models import ForumPost, ForumComment
 from ..utils.response import ok
 from ..utils.errors import ValidationError, NotFoundError
-from ..utils.params import parse_int_param, parse_limit_param
+from ..utils.params import parse_int_param, parse_limit_param, sanitize_text
 
 bp = Blueprint("forum", __name__, url_prefix="/api/forum")
 
@@ -54,10 +54,10 @@ def list_posts():
 def create_post():
     """POST /api/forum/posts  body: {title, content, stock_code?, stock_name?}"""
     data = request.get_json(silent=True) or {}
-    title = (data.get("title") or "").strip()
-    content = (data.get("content") or "").strip()
-    stock_code = (data.get("stock_code") or "").strip()
-    stock_name = (data.get("stock_name") or "").strip()
+    title = sanitize_text(data.get("title"), max_len=200)
+    content = sanitize_text(data.get("content"), max_len=20000)
+    stock_code = sanitize_text(data.get("stock_code"), max_len=20)
+    stock_name = sanitize_text(data.get("stock_name"), max_len=50)
     if not title:
         raise ValidationError("标题不能为空")
     if not content:
@@ -133,7 +133,7 @@ def add_comment(post_id: int):
     if not p:
         raise NotFoundError("帖子不存在")
     data = request.get_json(silent=True) or {}
-    content = (data.get("content") or "").strip()
+    content = sanitize_text(data.get("content"), max_len=20000)
     if not content:
         raise ValidationError("评论内容不能为空")
     c = ForumComment(

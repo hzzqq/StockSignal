@@ -9,6 +9,7 @@ backend/utils/params.py
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from flask import request
 
@@ -86,3 +87,24 @@ def parse_str_param(name, default="", max_len=128, source=None):
     if not isinstance(raw, str):
         return default
     return raw.strip()[:max_len]
+
+
+def sanitize_text(value, max_len=2000):
+    """清洗用户自由文本：剥离控制/格式字符（零宽空格、NUL 等），保留换行/制表。
+
+    防止控制字符进入 DB / 日志 / 前端渲染造成异常、注入式布局或刷屏。
+    - category 以 ``C`` 开头的是控制/格式/其它非常规字符（含 \\u200b 零宽、\\x00），全部剔除；
+    - ``\\n \\t \\r`` 视为正常排版予以保留；
+    - 末尾 strip 并截断到 ``max_len``。
+    """
+    if not isinstance(value, str):
+        return ""
+    out = []
+    for ch in value:
+        if ch in "\n\t\r":
+            out.append(ch)
+        elif unicodedata.category(ch).startswith("C"):
+            continue
+        else:
+            out.append(ch)
+    return "".join(out).strip()[:max_len]
