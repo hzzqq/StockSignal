@@ -8,6 +8,7 @@
 import io
 import json
 import os
+import re
 import sqlite3
 import time
 import warnings
@@ -88,6 +89,17 @@ class StockFetcher:
     股票行情与宏观数据采集器。
     四级降级链：akshare -> BaoStock -> 新浪 -> 东方财富(urllib) -> 缓存兜底
     """
+
+    # SQLite 参数绑定只支持「值」占位（?），不支持标识符占位，因此拼接表名不可避免。
+    # 用白名单正则兜底：任何含 ; 空格 引号 -- / 等字符的注入载荷一律拒绝。
+    _SAFE_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+    @classmethod
+    def _safe_ident(cls, name: str) -> str:
+        """校验 SQLite 标识符（表名），非法标识符直接抛 ValueError，绝不拼接进 SQL。"""
+        if not isinstance(name, str) or not cls._SAFE_IDENT_RE.match(name):
+            raise ValueError(f"非法的 SQLite 标识符: {name!r}")
+        return name
 
     @staticmethod
     @contextlib.contextmanager
@@ -429,6 +441,7 @@ class StockFetcher:
             cls._stocks_loaded = True  # 标记已尝试，避免反复重试
 
     def _init_cache_table(self, conn, table_name):
+        table_name = self._safe_ident(table_name)
         conn.execute(f"""
             CREATE TABLE IF NOT EXISTS {table_name} (
                 cache_key   TEXT PRIMARY KEY,
@@ -505,12 +518,14 @@ class StockFetcher:
         return df
 
     def clear_cache(self, table_name=None, cache_key=None):
+        # 先校验标识符再开连接（fail-fast）：非法表名不做任何 DB 操作，绝不拼进 SQL
+        tables = (
+            [table_name] if table_name
+            else ["daily_cache", "index_cache", "macro_cache", "commodity_cache"]
+        )
+        tables = [self._safe_ident(t) for t in tables]
         conn = self._get_conn()
         try:
-            tables = (
-                [table_name] if table_name
-                else ["daily_cache", "index_cache", "macro_cache", "commodity_cache"]
-            )
             for t in tables:
                 try:
                     if cache_key:
@@ -2149,6 +2164,9 @@ class StockFetcher:
                 total_rows = 0
                 per_table = {}
                 for tname in table_names:
+                    # 标识符来自 sqlite_master，仍做白名单校验后再拼接（纵深防御）
+                    if not isinstance(tname, str) or not self._SAFE_IDENT_RE.match(tname):
+                        continue
                     try:
                         n = conn.execute(f"SELECT COUNT(*) FROM {tname}").fetchone()[0]
                         per_table[tname] = n
