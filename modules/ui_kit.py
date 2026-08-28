@@ -162,6 +162,17 @@ _KIT_CSS = r"""
 .xc-info.success{border-left:3px solid #16a34a;background:rgba(22,163,74,.08)}
 .xc-info.warning{border-left:3px solid #ffa502;background:rgba(255,165,2,.10)}
 .xc-info.danger{border-left:3px solid #ef4444;background:rgba(239,68,68,.08)}
+
+/* 新城友好错误卡 / 空态卡（不泄露内部异常，提供重试/降级引导） */
+.xc-error-box,.xc-empty-box{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border-radius:14px;
+  margin:14px 0;font-size:14px;line-height:1.6;color:var(--txt,#1e293b);
+  border:1px solid var(--border,#e2e8f0);background:var(--card2,#f4f6fb)}
+.xc-error-box{border-left:4px solid #ef4444;background:color-mix(in srgb,#ef4444 7%,var(--card2,#f4f6fb))}
+.xc-empty-box{border-left:4px solid var(--acc1,#667eea);background:color-mix(in srgb,var(--acc1,#667eea) 6%,var(--card2,#f4f6fb))}
+.xc-err-ic{font-size:22px;line-height:1.3;flex-shrink:0}
+.xc-err-body{min-width:0}
+.xc-err-title{font-weight:700;font-size:14.5px}
+.xc-err-hint{margin-top:6px;font-size:12.5px;color:var(--txt2,#64748b)}
 </style>
 """
 
@@ -293,6 +304,35 @@ def xc_info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
     st.markdown(
         f'<div class="xc-info {kind}"><span class="xc-ic">{html.escape(icon)}</span>'
         f'<div>{html.escape(text)}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def xc_error_box(title: str, hint: str = "", icon: str = "⚠️") -> None:
+    """新城风格友好错误卡：不泄露内部异常细节，提供重试/降级引导。
+
+    内部异常请由调用方用 logger.warning 记录，不要把原始异常拼进 title。
+    """
+    inject_kit_css()
+    title = "" if title is None else str(title)
+    icon = "⚠️" if icon is None else str(icon)
+    hint_html = f'<div class="xc-err-hint">💡 {html.escape(str(hint))}</div>' if hint else ""
+    st.markdown(
+        f'<div class="xc-error-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
+        f'<div class="xc-err-body"><div class="xc-err-title">{html.escape(title)}</div>{hint_html}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def xc_empty_box(title: str, hint: str = "", icon: str = "📭") -> None:
+    """新城风格空态卡：数据为空/暂无时的友好占位。"""
+    inject_kit_css()
+    title = "" if title is None else str(title)
+    icon = "📭" if icon is None else str(icon)
+    hint_html = f'<div class="xc-err-hint">{html.escape(str(hint))}</div>' if hint else ""
+    st.markdown(
+        f'<div class="xc-empty-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
+        f'<div class="xc-err-body"><div class="xc-err-title">{html.escape(title)}</div>{hint_html}</div></div>',
         unsafe_allow_html=True,
     )
 

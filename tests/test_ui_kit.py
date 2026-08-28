@@ -79,5 +79,29 @@ def test_chart_card_and_table_wrap():
 
 def test_module_imports_and_has_public_api():
     for name in ("inject_kit_css", "page_hero", "info_banner", "stat_tile",
-                 "stat_row", "chart_card", "table_wrap"):
+                 "stat_row", "chart_card", "table_wrap", "xc_error_box",
+                 "xc_empty_box", "xc_section_header", "xc_subheader", "xc_info_banner"):
         assert hasattr(kit, name), f"missing public api: {name}"
+
+
+def test_xc_error_box_renders_friendly_and_no_leak(monkeypatch):
+    import streamlit as st
+    captured = []
+    monkeypatch.setattr(st, "markdown", lambda html, *a, **k: captured.append(html))
+    kit.xc_error_box("获取板块数据失败", hint="请稍后重试")
+    out = captured[-1]  # 最后一个是错误卡 HTML（前一个是注入的 CSS）
+    assert "获取板块数据失败" in out
+    assert "请稍后重试" in out
+    assert "xc-error-box" in out
+    assert "xc-err-hint" in out
+
+
+def test_xc_empty_box_renders(monkeypatch):
+    import streamlit as st
+    captured = []
+    monkeypatch.setattr(st, "markdown", lambda html, *a, **k: captured.append(html))
+    kit.xc_empty_box("暂无自选股数据", hint="去添加几只股票吧")
+    out = captured[-1]
+    assert "暂无自选股数据" in out
+    assert "去添加几只股票吧" in out
+    assert "xc-empty-box" in out

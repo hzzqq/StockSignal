@@ -3,6 +3,7 @@
 指数迷你卡、行业板块涨跌榜（含涨跌排行/分布折叠区）、龙虎榜、个股相关性矩阵。
 K 线、参数设置、技术面分析已迁移至「股票选取」模块。
 """
+import logging
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -17,8 +18,11 @@ from modules.page_guard import safe_fragment
 from modules.chart_cache import cached_fig
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
+from modules.ui_kit import xc_error_box
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
+
+logger = logging.getLogger(__name__)
 dark = render_standard_page(title='行情看板', icon='📈', layout='wide')
 render_index_compact(cols_per_row=5)
 sf_card("页面导读", "上方为市场指数迷你卡；下方输入代码 / 名称 / 拼音首字母搜索股票，点击结果即选中，可一键加入自选股，自选行情实时同步。K 线、技术面分析请前往「股票选取」。", icon="📈")
@@ -147,7 +151,8 @@ def fragment_sector_board():
         sector_df = fetcher.get_sector_list()
     except Exception as e:
         sector_df = None
-        st.error(f'获取板块数据失败: {e}')
+        logger.warning("获取板块数据失败: %s", e)
+        xc_error_box("获取板块数据失败", hint="请稍后重试，或检查网络/数据源连接")
     if sector_df is not None and (not sector_df.empty):
         _sec_col = next((c for c in sector_df.columns if c in ('sector', '板块', '行业', '名称')), None)
         if _sec_col and _sec_col != 'sector':
