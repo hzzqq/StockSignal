@@ -63,8 +63,11 @@ except Exception:  # pragma: no cover - fallback
 from modules.page_guard import safe_fragment
 from modules.colors import UP_COLOR, DOWN_COLOR, AMBER
 from modules.format_helpers import safe_html_text
+from modules.page_utils import render_standard_page
 
-st.set_page_config(page_title="QuantAgent 多智能体投研", page_icon="🤖", layout="wide")
+# 统一走标准页面头部：补齐 require_auth 登录守卫 + 侧边栏高亮标记（此前裸调
+# st.set_page_config 导致本页未做登录校验，与其余 35 页不一致）。
+dark = render_standard_page(title="QuantAgent 多智能体投研", icon="🤖", layout="wide")
 
 # 多空研判配色统一引用全站 A股语义调色板（红涨绿跌），避免硬编码漂移
 _VERDICT_COLOR = {"看多": UP_COLOR, "看空": DOWN_COLOR, "持有": AMBER}
