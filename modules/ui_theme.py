@@ -147,9 +147,18 @@ def dashboard_sf_css() -> str:
     else:
         root = '\n  --bg:#ffffff; --card:#ffffff; --card2:#f4f6fb; --buy:#009e60; --sell:#dc2626; --hold:#d97706;\n  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#1e293b; --txt2:#64748b; --border:#e2e8f0;\n  --hover:#f1f5f9; --alert-risk:#991b1b; --alert-cat:#166534; --disclaimer:#94a3b8;\n  --header-g1:#eef2ff; --header-g2:#ede9fe; --icon-g1:#eef2ff; --icon-g2:#ede9fe;\n'
     return f"""\n<style>\n:root{{{root}}}\n/* 通用星辰卡片（供任意页面在 dashboard_sf_css 内使用） */
-.sf-card{{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px 20px;margin-top:18px;box-shadow:0 0 0 1px rgba(102,126,234,.06),0 6px 20px rgba(0,0,0,.28)}}
-.sf-card-title{{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--border);color:var(--txt)}}
-.sf-card-title::before{{content:"";width:4px;height:16px;background:linear-gradient(180deg,var(--acc1),var(--acc2));border-radius:3px}}
+/* 通用星辰卡片 → 2026-08-28 重渲染为「新城(xc)」视觉语言：深紫渐变描边 + 大圆角 + 抬升光晕 */
+.sf-card{{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));
+  border-radius:18px;padding:18px 20px;margin-top:18px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(102,126,234,.10),0 10px 28px rgba(102,126,234,.10);
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}}
+.sf-card::before{{content:"";position:absolute;inset:0;
+  background:radial-gradient(circle at 10% -12%, rgba(124,92,255,.12), transparent 52%);pointer-events:none}}
+.sf-card:hover{{transform:translateY(-3px);border-color:var(--acc1);
+  box-shadow:0 0 0 1px rgba(102,126,234,.18),0 14px 34px rgba(102,126,234,.18)}}
+.sf-card-title{{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:700;margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--border);color:var(--txt)}}
+.sf-card-title::before{{content:"";width:4px;height:18px;border-radius:3px;
+  background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.40)}}
 .sf-card-subtitle{{font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:6px}}
 .sf-page-link{{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--acc1);background:rgba(102,126,234,.10);border:1px solid rgba(102,126,234,.30);border-radius:10px;padding:8px 12px;margin:10px 0 4px;transition:all .2s ease}}
 .sf-page-link:hover{{background:rgba(102,126,234,.18);border-color:rgba(102,126,234,.50)}}
@@ -251,6 +260,77 @@ hr{{border-color:var(--border)!important}}
 [data-testid="stTabs"] [role="tab"]{{color:var(--txt2)!important;border-radius:8px 8px 0 0!important}}
 [data-testid="stTabs"] [role="tab"][aria-selected="true"]{{color:var(--acc1)!important;border-bottom:2px solid var(--acc1)!important}}
 [data-testid="stCodeBlock"] pre{{background:var(--card2)!important;border:1px solid var(--border)!important;border-radius:10px!important}}
+
+/* ===== 新城(xc)风格·全局原生组件增强（2026-08-28 接入，沿用 xc 视觉语言） =====
+   只改颜色/圆角/边框/阴影/表格观感，不改 DOM 结构与业务逻辑。 */
+/* 1. 原生标题（st.header→h2 / st.subheader→h3 / st.title→h1）统一渐变竖条 */
+.stApp h1,.stApp h2,.stApp h3,.stApp h4{{position:relative;padding-left:14px;font-weight:700;color:var(--txt)!important}}
+.stApp h2::before,.stApp h3::before,.stApp h4::before{{content:"";position:absolute;left:0;top:.16em;width:4px;height:1em;min-height:14px;border-radius:3px;background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.35)}}
+/* 2. 原生表格（st.dataframe/st.table）统一 xc 表格观感：圆角容器 + 粘性表头 + 斑马纹 + hover */
+.stDataFrame,.stTable{{border:1px solid var(--border)!important;border-radius:12px!important;overflow:hidden!important;box-shadow:0 1px 6px rgba(15,15,35,.06)}}
+.stDataFrame table,.stTable table{{border-collapse:collapse!important;width:100%!important;font-size:12.5px}}
+.stDataFrame thead th,.stTable thead th{{background:var(--card2)!important;color:var(--txt2)!important;font-weight:600!important;padding:9px 10px!important;text-align:center!important;border-bottom:1px solid var(--border)!important;position:sticky;top:0;z-index:1}}
+.stDataFrame tbody td,.stTable tbody td{{padding:8px 10px!important;border-bottom:1px solid var(--border)!important;color:var(--txt)!important;text-align:center!important}}
+.stDataFrame tbody tr:nth-child(even),.stTable tbody tr:nth-child(even){{background:color-mix(in srgb,var(--card2) 55%,transparent)!important}}
+.stDataFrame tbody tr:hover,.stTable tbody tr:hover{{background:color-mix(in srgb,var(--acc1) 10%,var(--card2))!important}}
+/* 3. st.metric 卡片化 + A股红涨绿跌由页面自行着色，此处仅统一容器 */
+[data-testid="stMetric"]{{background:var(--card)!important;border:1px solid var(--border)!important;border-radius:14px!important;padding:12px 16px!important;box-shadow:0 1px 4px rgba(15,15,35,.06)}}
+[data-testid="stMetric"] label{{color:var(--txt2)!important;font-size:12px!important}}
+[data-testid="stMetricValue"]{{color:var(--txt)!important;font-weight:800!important}}
+/* 4. 原生 info/warning/error/success 左条改用主题强调紫（与 xc 一致） */
+[data-testid="stAlert"][data-baseweb="notification"][data-kind="info"]{{border-left:4px solid var(--acc1)!important}}
+
+/* ===== xc 统一覆盖：旧 .sf-* 子类继承「新城(xc)」视觉（后定义优先，零调用点改动） ===== */
+.sf-metric-card{{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));border-radius:14px;padding:14px;text-align:center;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(102,126,234,.08),0 6px 18px rgba(102,126,234,.08);transition:transform .18s ease,border-color .18s ease}}
+.sf-metric-card:hover{{transform:translateY(-3px);border-color:var(--acc1)}}
+.sf-metric-card .label{{font-size:12px;color:var(--txt2);margin-bottom:6px}}
+.sf-metric-card .value{{font-size:22px;font-weight:700;font-family:'Fira Code',monospace;color:var(--txt)}}
+.sf-perspective-card{{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));border-radius:16px;padding:16px;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(102,126,234,.08),0 8px 22px rgba(102,126,234,.10);transition:transform .18s ease,border-color .18s ease}}
+.sf-perspective-card:hover{{transform:translateY(-3px);border-color:var(--acc1)}}
+.sf-perspective-card .title{{font-size:12px;color:var(--txt2);margin-bottom:10px}}
+.sf-perspective-card .body{{font-size:14px;color:var(--txt);line-height:1.6}}
+.sf-insight-box{{background:color-mix(in srgb,var(--acc1) 10%,var(--card2));border:1px solid color-mix(in srgb,var(--acc1) 35%,var(--border));border-radius:14px;padding:14px 16px;line-height:1.8;font-size:14px;color:var(--txt)}}
+.sf-insight-box.hold{{background:color-mix(in srgb,var(--hold) 10%,var(--card2));border-color:color-mix(in srgb,var(--hold) 35%,var(--border));color:var(--txt)}}
+.sf-grid-4{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}}
+@media(max-width:900px){{.sf-grid-4{{grid-template-columns:repeat(2,1fr)}}}}
+@media(max-width:540px){{.sf-grid-4{{grid-template-columns:1fr}}}}
+.sf-pill,.sf-tag{{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;background:rgba(102,126,234,.12);border:1px solid color-mix(in srgb,var(--acc1) 35%,var(--border));color:var(--acc1)}}
+.sf-vsbox{{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:600;padding:6px 12px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt)}}
+.sf-intel-bar{{height:4px;border-radius:3px;background:linear-gradient(90deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.25)}}
+.sf-intel-header{{font-size:13px;font-weight:700;color:var(--acc1);margin-bottom:8px;display:flex;align-items:center;gap:6px}}
+.sf-scale{{display:flex;flex-direction:column;gap:4px}}
+.sf-scale-bar{{height:6px;border-radius:3px;background:color-mix(in srgb,var(--acc1) 30%,var(--border));overflow:hidden}}
+.sf-scale-mk{{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--acc1),var(--acc2))}}
+.sf-scale-lab{{font-size:11px;color:var(--txt2)}}
+.sf-header{{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px;padding:16px 20px;background:linear-gradient(120deg,color-mix(in srgb,var(--acc1) 16%,var(--card)),color-mix(in srgb,var(--acc2) 14%,var(--card)));border:1px solid var(--border);border-radius:16px;box-shadow:0 0 0 1px rgba(102,126,234,.10),0 8px 24px rgba(102,126,234,.10)}}
+.sf-brand{{font-size:15px;color:var(--txt2);letter-spacing:1px}}
+.sf-brand b{{color:var(--acc1)}}
+.sf-note{{font-size:13px;color:var(--txt2);line-height:1.7}}
+.sf-one-line{{font-size:14.5px;font-weight:700;color:var(--buy);background:color-mix(in srgb,var(--buy) 8%,var(--card2));border-left:3px solid var(--buy);padding:10px 14px;border-radius:8px;margin-bottom:14px;line-height:1.7}}
+.sf-one-line.hold{{color:var(--hold);border-left-color:var(--hold);background:color-mix(in srgb,var(--hold) 8%,var(--card2))}}
+.sf-verdict{{font-size:15px;font-weight:700;padding:14px 18px;border-radius:14px;background:color-mix(in srgb,var(--acc1) 12%,var(--card));border:1px solid color-mix(in srgb,var(--acc1) 35%,var(--border));color:var(--txt)}}
+.sf-disclaimer{{font-size:12px;color:var(--txt2);line-height:1.7;opacity:.9}}
+.sf-price-big{{font-size:40px;font-weight:800;letter-spacing:-1px;font-family:'Fira Code',monospace;color:var(--buy)}}
+.sf-triangle{{font-size:22px;margin-right:4px}}
+.sf-buy-badge,.sf-sell-badge,.sf-hold-badge{{display:inline-block;font-size:20px;font-weight:800;letter-spacing:1px;padding:10px 26px;border-radius:14px;color:#fff;box-shadow:0 0 20px rgba(102,126,234,.20)}}
+.sf-buy-badge{{background:linear-gradient(135deg,#009e60,#047857)}}
+.sf-sell-badge{{background:linear-gradient(135deg,#dc2626,#b91c1c)}}
+.sf-hold-badge{{background:linear-gradient(135deg,#d97706,#b45309)}}
+.sf-doc-up,.sf-up{{color:var(--buy)!important}}
+.sf-doc-down,.sf-down{{color:var(--sell)!important}}
+.sf-doc-neu{{color:var(--hold)!important}}
+.sf-alert{{font-size:13px;color:var(--txt2);line-height:1.6}}
+.sf-table{{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px;border:1px solid var(--border);border-radius:12px;overflow:hidden}}
+.sf-table th,.sf-table td{{padding:9px 8px;text-align:center;border-bottom:1px solid var(--border)}}
+.sf-table th{{color:var(--txt2);font-weight:600;font-size:12px;background:var(--card2)}}
+
+/* 行情看板·行业板块涨跌卡（xc 风，动态涨跌色经 inline 传入） */
+.xc-sector-card{{background:color-mix(in srgb,var(--acc1) 8%,var(--card));border:1px solid color-mix(in srgb,var(--acc1) 22%,var(--border));border-left:3px solid var(--acc1);border-radius:14px;padding:12px 14px;min-height:64px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;box-shadow:0 0 0 1px rgba(102,126,234,.06),0 4px 14px rgba(102,126,234,.08);transition:transform .18s ease,border-color .18s ease}}
+.xc-sector-card:hover{{transform:translateY(-3px);border-color:var(--acc1)}}
+.xc-sector-name{{color:var(--txt);font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+.xc-sector-pct{{font-size:18px;font-weight:700;margin-top:2px}}
+.xc-sector-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;margin-top:0}}
+.xc-note{{padding:12px 14px;border-radius:12px;background:color-mix(in srgb,var(--acc1) 10%,var(--card2));border:1px solid color-mix(in srgb,var(--acc1) 30%,var(--border));font-size:14px;line-height:1.7;color:var(--txt)}}
 </style>
 """
 

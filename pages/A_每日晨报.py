@@ -165,7 +165,7 @@ def fragment_watchlist_and_news():
     with st.expander('📌 自选股快照', expanded=True):
         if not watchlist:
             st.info('📭 自选股为空，晨报暂无可展示的持仓快照。')
-            st.markdown("<div style='padding:12px 14px;border-radius:10px;background:rgba(43,138,239,0.08);border:1px solid rgba(43,138,239,0.3);'>💡 <b>三步开启你的晨报快照</b><br>1. 进入「📡 自选股监控」添加关注的股票<br>2. 或到「👤 我的」维护自选股清单<br>3. 回到本页，快照与专属新闻会自动出现</div>", unsafe_allow_html=True)
+            st.markdown("<div class='xc-note'>💡 <b>三步开启你的晨报快照</b><br>1. 进入「📡 自选股监控」添加关注的股票<br>2. 或到「👤 我的」维护自选股清单<br>3. 回到本页，快照与专属新闻会自动出现</div>", unsafe_allow_html=True)
             if st.button('➕ 去添加自选股', type='primary', use_container_width=True, key='morning_goto_wl'):
                 safe_switch_page('pages/C_自选股监控.py')
         else:

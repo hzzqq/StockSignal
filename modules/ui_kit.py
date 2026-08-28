@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 import streamlit as st
 
-_KIT_CSS = """
+_KIT_CSS = r"""
 <style>
 /* ===== ui_kit v1 组件层（沿用 ui_theme 主题变量 --acc1/--txt/--card/--border，随 theme_mode 自适应） ===== */
 
@@ -102,6 +102,66 @@ _KIT_CSS = """
   font-weight:600;z-index:1}
 .sf-table tbody tr:nth-child(even){background:color-mix(in srgb,var(--card2,#f4f6fb) 55%,transparent)}
 .sf-table tbody tr:hover{background:color-mix(in srgb,var(--acc1,#667eea) 12%,var(--card2,#f4f6fb))}
+
+/* ===== 新城风格视觉层（参照 E:\project\app_dist\微应用大厅\index.html 2026-08-28 接入） =====
+   命名空间 .xc-* 以避免污染既有 .sf-* / .ss-* 主题。深紫渐变 + 大圆角 + 抬升光晕。
+   颜色走 var(--acc1)/(--acc2) 主题变量，自动跟 theme_mode 切亮/暗。
+*/
+.xc-hero{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;
+  margin:6px 0 22px;padding:18px 24px;border-radius:18px;
+  background:linear-gradient(120deg,
+    color-mix(in srgb, var(--acc1,#667eea) 22%, var(--card,#fff)) 0%,
+    color-mix(in srgb, var(--acc2,#764ba2) 18%, var(--card,#fff)) 100%);
+  border:1px solid color-mix(in srgb, var(--acc1,#667eea) 30%, var(--border,#e2e8f0));
+  box-shadow:0 0 0 1px rgba(102,126,234,.14), 0 12px 32px rgba(102,126,234,.12);
+  position:relative;overflow:hidden}
+.xc-hero::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(circle at 12% -10%, rgba(124,92,255,.22), transparent 55%);
+  pointer-events:none}
+.xc-hero-main{display:flex;align-items:center;gap:14px;min-width:0;position:relative;z-index:1}
+.xc-hero-icon{font-size:26px;line-height:1;flex-shrink:0;
+  width:48px;height:48px;display:flex;align-items:center;justify-content:center;
+  border-radius:14px;background:linear-gradient(135deg,var(--acc1,#667eea),var(--acc2,#764ba2));
+  box-shadow:0 6px 18px rgba(102,126,234,.42)}
+.xc-hero-title{font-size:22px;font-weight:800;letter-spacing:.3px;color:var(--txt,#1e293b);line-height:1.2}
+.xc-hero-sub{font-size:13px;color:var(--txt2,#64748b);margin-top:4px;font-weight:500}
+.xc-hero-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:relative;z-index:1}
+
+/* 新城卡片网格容器（auto-fill 自适应） */
+.xc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px;margin:14px 0 22px}
+.xc-card{background:var(--card,#fff);border:1px solid color-mix(in srgb,var(--acc1,#667eea) 22%,var(--border,#e2e8f0));
+  border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;position:relative;
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;
+  box-shadow:0 1px 4px rgba(15,15,35,.06)}
+.xc-card:hover{transform:translateY(-4px);border-color:var(--acc1,#667eea);
+  box-shadow:0 10px 30px rgba(102,126,234,.18)}
+.xc-card .ctop{display:flex;align-items:center;gap:9px}
+.xc-card .ico{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  font-size:18px;background:linear-gradient(135deg,var(--acc1,#667eea),var(--acc2,#764ba2));flex-shrink:0}
+.xc-card .cname{font-size:14px;font-weight:600;color:var(--txt,#1e293b);line-height:1.2}
+.xc-card .csub{font-size:11.5px;color:var(--txt2,#64748b);margin-top:1px}
+.xc-card .value{font-size:22px;font-weight:800;font-family:'Fira Code',ui-monospace,monospace;line-height:1.15;letter-spacing:.2px}
+.xc-card .delta{font-size:13px;font-weight:700;margin-top:2px}
+.xc-card .delta.up{color:#ff4d4f}
+.xc-card .delta.down{color:#00d486}
+.xc-card .delta.flat{color:var(--txt2,#64748b)}
+.xc-card .meta{font-size:11px;color:var(--txt2,#64748b);line-height:1.55;margin-top:4px}
+.xc-card .meta .up{color:#ff4d4f}
+.xc-card .meta .down{color:#00d486}
+.xc-section-h{display:flex;align-items:center;gap:10px;margin:18px 0 12px;font-size:16px;font-weight:700;color:var(--txt,#1e293b)}
+.xc-section-h::before{content:"";width:4px;height:18px;border-radius:3px;
+  background:linear-gradient(180deg,var(--acc1,#667eea),var(--acc2,#764ba2))}
+.xc-section-h .xtra{margin-left:auto;font-size:12px;font-weight:500;color:var(--txt2,#64748b)}
+
+/* 新城信息横幅（info/success/warning/danger，沿用 xc 紫强调） */
+.xc-info{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:12px;
+  margin:10px 0;font-size:13.5px;line-height:1.6;color:var(--txt,#1e293b);
+  border:1px solid color-mix(in srgb,var(--acc1,#667eea) 30%,var(--border,#e2e8f0));
+  background:color-mix(in srgb,var(--acc1,#667eea) 8%,var(--card2,#f4f6fb))}
+.xc-info .xc-ic{font-size:16px;line-height:1.4;flex-shrink:0}
+.xc-info.success{border-left:3px solid #16a34a;background:rgba(22,163,74,.08)}
+.xc-info.warning{border-left:3px solid #ffa502;background:rgba(255,165,2,.10)}
+.xc-info.danger{border-left:3px solid #ef4444;background:rgba(239,68,68,.08)}
 </style>
 """
 
@@ -122,19 +182,28 @@ def inject_kit_css() -> None:
 # ──────────────────────────────────────────────────────────────
 # 纯函数 HTML 构建器（便于离线单测 / XSS 校验）
 # ──────────────────────────────────────────────────────────────
-def _hero_html(title: str, icon: str = "📊", subtitle: str = "", chips: list = None) -> str:
+def _hero_html(title: str, icon: str = "📊", subtitle: str = "", chips: list = None,
+               style: str = "xc") -> str:
+    """签名页头 HTML。``style='xc'``（新城·默认）走 .xc-hero；``style='sf'`` 走原 .ss-hero 兜底。"""
     title = "" if title is None else str(title)
     icon = "📊" if icon is None else str(icon)
-    subtitle_html = f'<div class="ss-hero-sub">{html.escape(str(subtitle))}</div>' if subtitle else ""
     chips = chips or []
+    cls = "xc-hero" if style == "xc" else "ss-hero"
+    icon_cls = "xc-hero-icon" if style == "xc" else "ss-hero-icon"
+    title_cls = "xc-hero-title" if style == "xc" else "ss-hero-title"
+    sub_cls = "xc-hero-sub" if style == "xc" else "ss-hero-sub"
+    chips_cls = "xc-hero-chips" if style == "xc" else "ss-hero-chips"
+    subtitle_html = (
+        f'<div class="{sub_cls}">{html.escape(str(subtitle))}</div>' if subtitle else ""
+    )
     chips_html = "".join(str(c) for c in chips)
     return (
-        f'<div class="ss-hero">'
-        f'<div class="ss-hero-main">'
-        f'<span class="ss-hero-icon">{html.escape(icon)}</span>'
-        f'<div><div class="ss-hero-title">{html.escape(title)}</div>{subtitle_html}</div>'
+        f'<div class="{cls}">'
+        f'<div class="{cls}-main">'
+        f'<span class="{icon_cls}">{html.escape(icon)}</span>'
+        f'<div><div class="{title_cls}">{html.escape(title)}</div>{subtitle_html}</div>'
         f'</div>'
-        f'<div class="ss-hero-chips">{chips_html}</div>'
+        f'<div class="{chips_cls}">{chips_html}</div>'
         f'</div>'
     )
 
@@ -188,10 +257,44 @@ def _table_wrap_html(table_html: str) -> str:
 # ──────────────────────────────────────────────────────────────
 # 公开封装（注入 CSS + 渲染）
 # ──────────────────────────────────────────────────────────────
-def page_hero(title: str, icon: str = "📊", subtitle: str = "", chips: list = None) -> None:
-    """签名页头：图标 + 标题 + 副标题 + 右侧状态胶囊。所有页面统一视觉记忆点。"""
+def page_hero(title: str, icon: str = "📊", subtitle: str = "", chips: list = None,
+              style: str = "xc") -> None:
+    """签名页头：图标 + 标题 + 副标题 + 右侧状态胶囊。所有页面统一视觉记忆点。
+
+    ``style`` 默认 ``'xc'``（新城·`微应用大厅` 视觉），传入 ``'sf'`` 回退到旧星辰 .ss-hero。
+    """
     inject_kit_css()
-    st.markdown(_hero_html(title, icon, subtitle, chips), unsafe_allow_html=True)
+    st.markdown(_hero_html(title, icon, subtitle, chips, style=style), unsafe_allow_html=True)
+
+
+def xc_section_header(title: str, xtra: str = "") -> str:
+    """新城风格分区小标题（带渐变紫竖条 + 可选右侧标注）。返回 HTML 片段。"""
+    title = "" if title is None else str(title)
+    xtra_html = f'<span class="xtra">{html.escape(str(xtra))}</span>' if xtra else ""
+    return f'<div class="xc-section-h">{html.escape(title)}{xtra_html}</div>'
+
+
+def xc_subheader(title: str, icon: str = "", xtra: str = "") -> None:
+    """新城风格分区标题（渲染版）。等同 xc_section_header 但直接渲染，替代裸 st.subheader。"""
+    inject_kit_css()
+    prefix = f"{html.escape(icon)} " if icon else ""
+    st.markdown(xc_section_header(f"{prefix}{title}", xtra=xtra), unsafe_allow_html=True)
+
+
+_BANNER_KIND_XC = {"info": "info", "success": "success", "warning": "warning", "danger": "danger"}
+
+
+def xc_info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
+    """新城风格彩色提示横幅（info/success/warning/danger）。"""
+    inject_kit_css()
+    text = "" if text is None else str(text)
+    kind = _BANNER_KIND_XC.get(kind, "info")
+    icon = "💡" if icon is None else str(icon)
+    st.markdown(
+        f'<div class="xc-info {kind}"><span class="xc-ic">{html.escape(icon)}</span>'
+        f'<div>{html.escape(text)}</div></div>',
+        unsafe_allow_html=True,
+    )
 
 
 def info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:

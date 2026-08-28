@@ -48,7 +48,7 @@ with sidebar_target():
     ticker = stock_search_input(label='股票搜索', key='analysis_stock', default='600519', placeholder='输入代码或名称搜索，如：600519 / 贵州茅台 / GZMT / 茅台')
     st.caption('本页为星辰决策仪表盘，右上角可切换暗夜 / 白天模式。')
 st.markdown('<div class="sf-header"><div class="sf-brand">决策仪表盘 · <b>个股深度分析</b></div><div class="sf-brand">事件驱动 · 多维归因</div></div>', unsafe_allow_html=True)
-st.markdown('<div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:14px;padding:14px 16px;margin:4px 0 14px;box-shadow:0 8px 24px rgba(79,70,229,.22)">', unsafe_allow_html=True)
+st.markdown('<div class="sf-card" style="background:linear-gradient(135deg,var(--acc1),var(--acc2));border:none;box-shadow:0 8px 24px rgba(102,126,234,.22)">', unsafe_allow_html=True)
 if st.button('🔍 生成分析', type='primary', use_container_width=True, key='gen_analysis_top'):
     task_id, err = submit_task_with_error('analysis', {'ticker': ticker})
     if task_id:
@@ -245,10 +245,10 @@ def fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped
                 if st.button('✕ 关闭分时图', key=f'close_intra_{ticker}'):
                     del st.session_state[f'intraday_target_{ticker}']
                     st.rerun(scope='fragment')
-        st.markdown("<div style='font-size:12px;color:#64748b;margin:8px 0 6px;display:flex;align-items:center;gap:8px;'><span>💡</span><span>按住鼠标拖拽可平移；点击工具栏 🔍 后框选区域可放大；点击 🏠 可还原视图（部分浏览器需双击）。</span><span style='margin-left:auto;background:#f0f9ff;padding:2px 8px;border-radius:4px;font-size:11px;color:#0369a1;'>🖱️ <b>双击K线柱</b> → 弹出当日分时图</span></div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:12px;color:var(--txt2);margin:8px 0 6px;display:flex;align-items:center;gap:8px;'><span>💡</span><span>按住鼠标拖拽可平移；点击工具栏 🔍 后框选区域可放大；点击 🏠 可还原视图（部分浏览器需双击）。</span><span style='margin-left:auto;background:color-mix(in srgb,var(--acc1) 12%,var(--card2));padding:2px 8px;border-radius:4px;font-size:11px;color:var(--acc1);'>🖱️ <b>双击K线柱</b> → 弹出当日分时图</span></div>", unsafe_allow_html=True)
         _date_min = pd.to_datetime(period_df['date']).min().strftime('%Y-%m-%d')
         _date_max = pd.to_datetime(period_df['date']).max().strftime('%Y-%m-%d')
-        _cap = "<div style='font-size:12px;color:#64748b;margin-top:4px;'>绿柱为上涨、红柱为下跌（参考文档配色）。均线 MA5(橙)/MA10(靛)/MA20(绿)；"
+        _cap = "<div style='font-size:12px;color:var(--txt2);margin-top:4px;'>绿柱为上涨、红柱为下跌（参考文档配色）。均线 MA5(橙)/MA10(靛)/MA20(绿)；"
         if kline_period == 'daily':
             _cap += f'标注线：MA20压制 ¥{ma20v:.2f} / MA10 ¥{ma10v:.2f} / 前低支撑 ¥{support:.2f} / 套牢区 ¥{trapped:.2f}。'
         else:
@@ -289,7 +289,7 @@ def _fragment_intraday(ticker: str, display_name: str) -> None:
             _ifig = _build_intraday_fig(_idf, _ipc, ticker, display_name, _idate)
             st.plotly_chart(_ifig, use_container_width=True, key=f'intraday_chart_{ticker}', config={'displaylogo': False, 'responsive': True})
             st.markdown(
-                f"<div style='font-size:12px;color:#64748b;margin-top:4px;display:flex;justify-content:space-between;'>"
+                f"<div style='font-size:12px;color:var(--txt2);margin-top:4px;display:flex;justify-content:space-between;'>"
                 f"<span>白线为当日价格走势，橙点为均价；虚线为昨收。绿涨红跌。</span>{_refresh_hint}</div>",
                 unsafe_allow_html=True,
             )
@@ -382,19 +382,19 @@ def _render_analysis(R: dict):
     if q_amount is not None:
         today_bits.append(f'成交额 {q_amount / 100000000.0:.2f}亿')
     today_bits.append(f"成交量 {df['volume'].iloc[-1] / 10000.0:.1f}万手")
-    today_pills = ''.join((f"<span style='display:inline-block;font-size:12px;color:#64748b;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:3px 9px;margin:0 6px 6px 0;'>{b}</span>" for b in today_bits)) if today_bits else '—'
+    today_pills = ''.join((f"<span style='display:inline-block;font-size:12px;color:var(--txt2);background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:3px 9px;margin:0 6px 6px 0;'>{b}</span>" for b in today_bits)) if today_bits else '—'
     hdr_left, hdr_right = st.columns([3, 1])
     with hdr_left:
         st.markdown(f"<div style='font-size:23px;font-weight:700;color:var(--txt);'>{display_name}</div><div style='font-size:12.5px;color:var(--txt2);margin-top:3px;'>{ticker} · {board} · {industry}</div><div style='margin-top:10px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;'><span class='sf-price-big' style='color:{price_color}!important;'>{price_disp}</span><span style='font-size:16px;font-weight:600;color:{price_color};'><span class='sf-triangle'>{triangle}</span>{chg_txt} ({change_amt:+.2f})</span></div><div style='margin-top:8px;'>{today_pills}</div>", unsafe_allow_html=True)
     with hdr_right:
-        st.markdown(f"<div style='text-align:center;margin-bottom:10px;'><span class='{badge_class}'>{badge_text}</span></div>{_score_ring_html(composite, verdict_color)}<div style='font-size:12px;color:#64748b;text-align:center;margin-top:4px;'>{verdict} · {('择机买入' if verdict == '看多' else '逢高减仓' if verdict == '看空' else '区间波段')}<br>({('65~79区间' if 65 <= composite <= 79 else '综合评分区间')})</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:center;margin-bottom:10px;'><span class='{badge_class}'>{badge_text}</span></div>{_score_ring_html(composite, verdict_color)}<div style='font-size:12px;color:var(--txt2);text-align:center;margin-top:4px;'>{verdict} · {('择机买入' if verdict == '看多' else '逢高减仓' if verdict == '看空' else '区间波段')}<br>({('65~79区间' if 65 <= composite <= 79 else '综合评分区间')})</div>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown(f"<div class='sf-metric-card'><div class='label'>入场价（首仓 / 回踩）</div><div class='value sf-doc-up'>¥{current_price:.1f} / ¥{entry_price:.1f}</div></div>", unsafe_allow_html=True)
     with c2:
         st.markdown(f"<div class='sf-metric-card'><div class='label'>目标价（一目标 / 压力）</div><div class='value sf-doc-up'>¥{target_price:.1f} / ¥{resistance:.1f}</div></div>", unsafe_allow_html=True)
     with c3:
-        st.markdown(f"<div class='sf-metric-card'><div class='label'>止损价（ATR14 风险位）</div><div class='value sf-doc-down'>¥{stop_price:.1f}</div><div style='font-size:11px;color:#64748b;margin-top:4px;'>ATR14=¥{atr14:.2f}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='sf-metric-card'><div class='label'>止损价（ATR14 风险位）</div><div class='value sf-doc-down'>¥{stop_price:.1f}</div><div style='font-size:11px;color:var(--txt2);margin-top:4px;'>ATR14=¥{atr14:.2f}</div></div>", unsafe_allow_html=True)
     st.markdown(f"<div style='margin-top:14px;border-left:4px solid var(--acc1);background:var(--card2);border-radius:0 12px 12px 0;padding:12px 16px;font-size:13.5px;color:var(--txt2);line-height:1.7;'><b style='color:var(--txt);'>📌 仓位建议：</b>{position_advice}</div>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('<div class="sf-card">' + _section_header('核心结论', 'AI 综合研判 · 多空信号', '💡'), unsafe_allow_html=True)
@@ -432,9 +432,9 @@ def _render_analysis(R: dict):
     _vol_desc = '明显放量' if vol_chg > 30 else '温和放大' if vol_chg > 0 else '缩量' if vol_chg < -15 else '地量企稳'
     _vol_health = '健康换手而非过热' if abs(vol_chg) < 40 else '异常波动需警惕'
     _q_amount_disp = f'{q_amount / 100000000.0:.2f}亿' if q_amount is not None and (not pd.isna(q_amount)) else '—'
-    st.markdown(f"<div style='margin-top:12px;font-size:13.5px;color:#64748b;line-height:1.7;'><b style='color:#1e293b;'>量能分析：</b>近 20 日均量约 {vol_avg / 10000.0:.1f} 万手；最新一日 {vol_now / 10000.0:.1f} 万手，较前一日 {vol_chg:+.1f}%（{_vol_desc}）；成交额 {_q_amount_disp}（实时行情），当前属{_vol_health}。</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='margin-top:12px;font-size:13.5px;color:var(--txt2);line-height:1.7;'><b style='color:var(--txt);'>量能分析：</b>近 20 日均量约 {vol_avg / 10000.0:.1f} 万手；最新一日 {vol_now / 10000.0:.1f} 万手，较前一日 {vol_chg:+.1f}%（{_vol_desc}）；成交额 {_q_amount_disp}（实时行情），当前属{_vol_health}。</div>", unsafe_allow_html=True)
     _drawdown = (last['close'] / trapped - 1) * 100 if trapped > 0 else 0.0
-    st.markdown(f"<div style='margin-top:8px;font-size:13.5px;color:#64748b;line-height:1.7;'><b style='color:#1e293b;'>筹码结构：</b>近 120 日自 {trapped:.2f} 高点回落至现价 {last['close']:.2f}（约 {_drawdown:+.1f}%），{trapped:.2f}–{hi52:.2f} 区间为近期密集成交<b style='color:{AMBER};'>套牢区</b>，反弹至此抛压显著；前低 <b style='color:{RED};'>¥{support:.2f}</b> 为强支撑，MA5/MA10 为短期依托。</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='margin-top:8px;font-size:13.5px;color:var(--txt2);line-height:1.7;'><b style='color:var(--txt);'>筹码结构：</b>近 120 日自 {trapped:.2f} 高点回落至现价 {last['close']:.2f}（约 {_drawdown:+.1f}%），{trapped:.2f}–{hi52:.2f} 区间为近期密集成交<b style='color:{AMBER};'>套牢区</b>，反弹至此抛压显著；前低 <b style='color:{RED};'>¥{support:.2f}</b> 为强支撑，MA5/MA10 为短期依托。</div>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped)
     neu_pct = max(0, 100 - pos_pct - neg_pct)
@@ -600,7 +600,7 @@ def _render_analysis(R: dict):
         apply_plotly_theme(radar_fig, dark=dark)
         radar_fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=440, margin=dict(l=40, r=40, t=20, b=20))
         st.plotly_chart(radar_fig, use_container_width=True, config={'displaylogo': False, 'responsive': True})
-        st.markdown(f"<div style='text-align:center;font-size:14px;font-weight:700;color:#1e293b;margin:6px 0 2px;'>综合信号强度 <b style='color:{verdict_color};'>{composite}</b> · {verdict}（五维加权）</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:center;font-size:14px;font-weight:700;color:var(--txt);margin:6px 0 2px;'>综合信号强度 <b style='color:{verdict_color};'>{composite}</b> · {verdict}（五维加权）</div>", unsafe_allow_html=True)
     except Exception as e:
         st.warning(f'⚠️ 雷达图渲染失败：{str(e)[:80]}')
     st.markdown(f"<table class='sf-table'><thead><tr><th class='l'>维度（权重）</th><th>得分</th><th class='l'>研判要点</th></tr></thead><tbody><tr><td class='l'><b>技术指标</b> 25%</td><td>{tech_score:.0f}</td><td class='l'>多周期（短/中/长）趋势 · 动量强弱</td></tr><tr><td class='l'><b>新闻情绪</b> 22%</td><td>{news_score:.0f}</td><td class='l'>事件催化强度 · 正面占比 {pos_pct:.0f}%</td></tr><tr><td class='l'><b>资金量能</b> 18%</td><td>{vol_score:.0f}</td><td class='l'>量价配合 · 换手健康度</td></tr><tr><td class='l'><b>市场环境</b> 15%</td><td>{macro_score:.0f}</td><td class='l'>宏观 PMI · 大盘强弱</td></tr><tr><td class='l'><b>板块强度</b> 20%</td><td>{sector_score:.0f}</td><td class='l'>个股相对所属板块的强弱 · 排名 {sector_analysis.get('rank', '—')}{('/' + str(sector_analysis.get('total')) if sector_analysis.get('total') else '')} 强</td></tr><tr><td class='l'><b>综合评分</b></td><td><b>{composite}</b></td><td class='l'>五维加权汇总</td></tr></tbody></table>", unsafe_allow_html=True)

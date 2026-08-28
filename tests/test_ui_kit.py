@@ -14,8 +14,24 @@ def test_hero_escapes_xss():
     out = kit._hero_html("<script>alert(1)</script>", icon="<b>x</b>", subtitle="<img src=x>")
     assert "<script>" not in out
     assert "&lt;script&gt;" in out
-    assert "ss-hero-title" in out
-    assert "ss-hero-icon" in out
+    # 默认 style='xc' → 输出 .xc-hero-* 类
+    assert "xc-hero-title" in out
+    assert "xc-hero-icon" in out
+    # 显式 style='sf' → 走原 .ss-hero-* fallback（保证旧路径仍能渲）
+    sf = kit._hero_html("行情看板", icon="📈", subtitle="XSS 测试", style="sf")
+    assert "ss-hero-title" in sf
+    assert "ss-hero-icon" in sf
+
+
+def test_hero_style_param_branches():
+    """2026-08-28 接入新城风格后，page_hero 默认走 xc（page_hero/_hero_html），
+    显式 style='sf' 走 .ss-hero fallback 仍能渲染。"""
+    # 默认：xc
+    assert "xc-hero" in kit._hero_html("A")
+    # 显式 sf
+    assert "ss-hero" in kit._hero_html("A", style="sf")
+    # 未知 style → 仍降级到 .ss-hero（保持旧行为兼容）
+    assert "ss-hero" in kit._hero_html("A", style="bogus")
 
 
 def test_hero_defaults():

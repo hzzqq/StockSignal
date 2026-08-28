@@ -180,7 +180,7 @@ def fragment_industry_pe(industry: str, pe_ttm, dark: bool):
             _verdict, _vcolor = ('偏高', DOWN_COLOR)
         else:
             _verdict, _vcolor = ('合理', '#f59e0b')
-        st.markdown(f"""<div style="padding:12px 16px;border-radius:10px;margin-top:10px;background:{('rgba(26,26,46,0.4)' if dark else '#f9fafb')};border:1px solid {('rgba(255,255,255,0.08)' if dark else '#e5e7eb')};font-size:14px;line-height:1.7;">🏭 <b>同行业 PE 中位数</b>：<b>{_med:.1f}</b>（基于 {_n} 只样本）<br>当前 PE(TTM) <b>{pe_ttm:.1f}</b> → <span style="color:{_vcolor};font-weight:700;">{_verdict}</span>（约为行业中位数的 {_ratio:.2f} 倍）</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div style="padding:12px 16px;border-radius:10px;margin-top:10px;background:var(--card2);border:1px solid var(--border);font-size:14px;line-height:1.7;">🏭 <b>同行业 PE 中位数</b>：<b>{_med:.1f}</b>（基于 {_n} 只样本）<br>当前 PE(TTM) <b>{pe_ttm:.1f}</b> → <span style="color:{_vcolor};font-weight:700;">{_verdict}</span>（约为行业中位数的 {_ratio:.2f} 倍）</div>""", unsafe_allow_html=True)
     else:
         st.caption('🏭 同行业 PE 中位数暂不可用（行业成分或估值数据未就绪）。')
 
@@ -607,7 +607,7 @@ if code:
                 st.markdown('---')
             sf_card('🚩 大盘主线判断', "")
             is_main = rank <= 5
-            main_html = f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(16,185,129,0.12);border-left:4px solid {UP_COLOR};color={('#e2e8f0' if dark else '#064e3b')};font-size:15px;">✅ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，处于市场主线前列，资金关注度较高。</div>""" if is_main else f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(245,158,11,0.12);border-left:4px solid #f59e0b;color={('#e2e8f0' if dark else '#78350f')};font-size:15px;">⚠️ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，暂未进入主线 Top5，建议结合题材与资金面综合判断。</div>"""
+            main_html = f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(16,185,129,0.12);border-left:4px solid {UP_COLOR};color:var(--txt);font-size:15px;">✅ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，处于市场主线前列，资金关注度较高。</div>""" if is_main else f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(245,158,11,0.12);border-left:4px solid #f59e0b;color={('#e2e8f0' if dark else '#78350f')};font-size:15px;">⚠️ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，暂未进入主线 Top5，建议结合题材与资金面综合判断。</div>"""
             st.markdown(main_html, unsafe_allow_html=True)
             with st.expander('查看行业排名 Top10', expanded=False):
                 top10 = sector_df.sort_values('change_pct', ascending=False).head(10).reset_index(drop=True)
@@ -636,7 +636,7 @@ if code:
         _ring = _build_score_ring(score, score_color, score_label)
         st.plotly_chart(_ring, use_container_width=True, config={"displaylogo": False, "responsive": True})
     with sc2:
-        st.markdown(f"""<div style="padding:14px 18px;border-radius:10px;background:{('rgba(26,26,46,0.4)' if dark else '#f9fafb')};border:1px solid {('rgba(255,255,255,0.08)' if dark else '#e5e7eb')};font-size:14px;line-height:1.8;">{reasons_html}</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div style="padding:14px 18px;border-radius:10px;background:var(--card2);border:1px solid var(--border);font-size:14px;line-height:1.8;">{reasons_html}</div>""", unsafe_allow_html=True)
     sf_card('📊 估值摘要', "")
     v1, v2, v3 = st.columns(3)
     with v1:

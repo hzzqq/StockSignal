@@ -536,7 +536,7 @@ def fragment_alerts():
     for a in alerts:
         color = a['color']
         icon = {'strong': '🔴', 'mid': '🟡', 'weak': '🟢'}[a['tier']]
-        st.markdown(f"""<div style="border-left:4px solid {color};background:rgba(128,128,128,0.08);padding:8px 12px;margin:6px 0;border-radius:6px;">{icon} <b>[{a['类型']}]</b> `{a['代码']}` {a['名称']} ｜ {a['说明']}</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div style="border-left:4px solid {color};background:color-mix(in srgb,var(--acc1) 8%,var(--card2));padding:8px 12px;margin:6px 0;border-radius:6px;">{icon} <b>[{a['类型']}]</b> `{a['代码']}` {a['名称']} ｜ {a['说明']}</div>""", unsafe_allow_html=True)
 
 @safe_fragment('关注列表')
 def fragment_watch_manage():

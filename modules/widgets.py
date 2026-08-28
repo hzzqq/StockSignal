@@ -294,9 +294,18 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
                         st.caption('暂无数据')
                 with c_right:
                     if card['current'] is not None:
-                        sign = '+' if card['change_pct'] >= 0 else ''
-                        trend_color = card['color'] if card['trend'] != '窄幅震荡' else code_color
-                        st.markdown(f"<div style='text-align:right;font-size:22px;font-weight:800;color:{card['color']};font-family:Fira Code,monospace;line-height:1.15;'>{card['current']:.2f}</div><div style='text-align:right;font-size:13px;color:{card['color']};font-weight:600;margin-top:3px;'>{sign}{card['change']:.2f} ({sign}{card['change_pct']:.2f}%)</div><div style='text-align:right;font-size:12px;color:{trend_color};font-weight:600;margin-top:3px;'>{card['trend']}</div><div style='text-align:right;font-size:11px;color:{code_color};margin-top:4px;line-height:1.5;'>O {card['open']:.2f}<br><span style='color:#ff4d4f;'>▲ 最高 {card['high']:.2f} (+{card['high_pct']:.2f}%)</span><br><span style='color:#00d486;'>▼ 最低 {card['low']:.2f} ({card['low_pct']:.2f}%)</span><br>振幅 {card['amplitude']:.2f}%</div>", unsafe_allow_html=True)
+                        # P0 fix 2026-08-28：数据源异常路径会返回 current 有值但 change_pct=None，
+                        # 直接 `'>= 0'` 会抛 TypeError（'>=' not supported between 'NoneType' and 'int'）。
+                        # 这里把 None 视作与 0 等价（不算涨也不算跌，sign 留空、颜色用中性）。
+                        cp = card.get('change_pct')
+                        if cp is None:
+                            sign = ''
+                            num_color = code_color
+                        else:
+                            sign = '+' if cp >= 0 else ''
+                            num_color = UP_COLOR if cp >= 0 else DOWN_COLOR
+                        trend_color = card['color'] if card.get('trend') and card['trend'] != '窄幅震荡' else code_color
+                        st.markdown(f"<div style='text-align:right;font-size:22px;font-weight:800;color:{card['color']};font-family:Fira Code,monospace;line-height:1.15;'>{card['current']:.2f}</div><div style='text-align:right;font-size:13px;color:{num_color};font-weight:600;margin-top:3px;'>{sign}{card.get('change', 0):.2f} ({sign}{cp if cp is not None else 0:.2f}%)</div><div style='text-align:right;font-size:12px;color:{trend_color};font-weight:600;margin-top:3px;'>{card.get('trend', '')}</div><div style='text-align:right;font-size:11px;color:{code_color};margin-top:4px;line-height:1.5;'>O {card.get('open', 0):.2f}<br><span style='color:#ff4d4f;'>▲ 最高 {card.get('high', 0):.2f} (+{card.get('high_pct', 0):.2f}%)</span><br><span style='color:#00d486;'>▼ 最低 {card.get('low', 0):.2f} ({card.get('low_pct', 0):.2f}%)</span><br>振幅 {card.get('amplitude', 0):.2f}%</div>", unsafe_allow_html=True)
                     else:
                         st.caption('—')
             st.markdown('</div>', unsafe_allow_html=True)
@@ -349,18 +358,66 @@ def render_index_compact(cols_per_row: int=5) -> None:
     card_bg = 'rgba(26,26,46,0.55)' if dark else '#ffffff'
     border = 'rgba(102,126,234,0.12)' if dark else '#E5E7EB'
     grid = 'rgba(148,163,184,0.15)' if dark else 'rgba(148,163,184,0.25)'
-    st.markdown('<h2>📉 主要指数（收盘）</h2>', unsafe_allow_html=True)
-    for i in range(0, len(cards), cols_per_row):
-        row = cards[i:i + cols_per_row]
-        cols = st.columns(cols_per_row)
-        for j, card in enumerate(row):
-            with cols[j]:
-                if card.get('current') is not None:
-                    sign = '+' if card['change_pct'] >= 0 else ''
-                    num_color = UP_COLOR if card['change_pct'] >= 0 else DOWN_COLOR
-                    st.markdown(f"<div style='background:{card_bg};border:1px solid {border};border-radius:12px;padding:12px;text-align:center;'>{_index_name_html(card['name'], txt2, 12)}<div style='font-size:20px;font-weight:800;color:{num_color};margin:4px 0;font-family:Fira Code,monospace;'>{card['current']:.2f}</div><div style='font-size:12px;font-weight:700;color:{num_color};'>{sign}{card['change_pct']:.2f}%</div></div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div style='background:{card_bg};border:1px solid {border};border-radius:12px;padding:12px;text-align:center;color:{txt2};'>{_index_name_html(card['name'], txt2, 12)}<br>—</div>", unsafe_allow_html=True)
+    # 2026-08-28 接入"新城"风格（E:\project\app_dist\微应用大厅 视觉）
+    # 用 ui_kit.xc_section_header 替代裸 h2；指数卡用 .xc-grid + .xc-card 一次性渲染。
+    try:
+        from modules.ui_kit import inject_kit_css, xc_section_header
+        inject_kit_css()
+    except Exception as e:
+        logger.warning(f"[widgets] 处理异常: {e}")
+        xc_section_header = None
+    if xc_section_header is not None:
+        try:
+            _, _, status_text_local = _index_market_status()
+        except Exception as e:
+            logger.warning(f"[widgets] 处理异常: {e}")
+            status_text_local = '实时'
+        st.markdown(xc_section_header('📉 主要指数', f'收盘 · {status_text_local}'),
+                     unsafe_allow_html=True)
+    else:
+        st.markdown(f'<h2 style="color:{txt};">📉 主要指数（收盘）</h2>', unsafe_allow_html=True)
+
+    def _index_dir(cp):
+        """A 股红涨绿跌：返回 ('up'|'down'|'flat', sign)"""
+        if cp is None:
+            return ('flat', '')
+        if cp > 0:
+            return ('up', '+')
+        if cp < 0:
+            return ('down', '')
+        return ('flat', '+' if cp == 0 else '')
+
+    def _esc(s):
+        return html.escape(str(s) if s is not None else '', quote=True)
+
+    cards_html = []
+    for card in cards:
+        cur = card.get('current')
+        cp = card.get('change_pct')
+        ch = card.get('change')
+        if cur is None:
+            cards_html.append(
+                f'<div class="xc-card"><div class="ctop"><div class="ico">📊</div>'
+                f'<div><div class="cname">{_esc(card.get("name"))}</div>'
+                f'<div class="csub">{_esc(card.get("code"))}</div></div></div>'
+                f'<div class="value" style="color:{txt2};">—</div>'
+                f'<div class="delta flat">暂无数据</div></div>'
+            )
+            continue
+        d, sign = _index_dir(cp)
+        num_color = UP_COLOR if d == 'up' else (DOWN_COLOR if d == 'down' else txt2)
+        ch_s = f'{sign}{ch:.2f}' if ch is not None else ''
+        cp_s = f'{sign}{cp:.2f}' if cp is not None else ''
+        cards_html.append(
+            f'<div class="xc-card">'
+            f'<div class="ctop"><div class="ico">📊</div>'
+            f'<div><div class="cname">{_esc(card.get("name"))}</div>'
+            f'<div class="csub">{_esc(card.get("label"))} {_esc(card.get("code"))}</div></div></div>'
+            f'<div class="value" style="color:{num_color};">{cur:.2f}</div>'
+            f'<div class="delta {d}">{ch_s} ({cp_s}%)</div>'
+            f'</div>'
+        )
+    st.markdown(f'<div class="xc-grid">{"".join(cards_html)}</div>', unsafe_allow_html=True)
     try:
         import plotly.graph_objects as go
         labels = [c['name'] for c in cards]
