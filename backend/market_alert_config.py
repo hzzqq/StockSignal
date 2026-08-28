@@ -10,8 +10,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
+
+logger = logging.getLogger("stocksignal.market_alert")
 
 # 可被环境变量覆盖的基础参数默认值。
 DEFAULT_CONFIG: dict[str, Any] = {
@@ -62,8 +65,9 @@ def get_alert_config() -> dict:
             parsed = json.loads(raw)
             if isinstance(parsed, dict):
                 cfg["thresholds"] = parsed
-        except Exception:
-            pass
+        except Exception as e:
+            # 阈值 JSON 配错会静默退回内置默认，必须 warning 提示运维
+            logger.warning("MARKET_ALERT_THRESHOLDS 解析失败，回退内置默认阈值：%s", e)
 
     # 运行时覆盖优先（管理员经 API 设置）
     cfg = _deep_merge(cfg, _RUNTIME_OVERRIDES)
@@ -132,8 +136,9 @@ def resolve_rules(base_rules: list[dict]) -> list[dict]:
                     elif isinstance(v, str):
                         try:
                             rule[k] = float(v)
-                        except ValueError:
-                            pass  # 非数字字符串：保留原值，不污染
+                        except ValueError as e:
+                            # 非数字字符串：保留原值，不污染（仅 debug 留痕）
+                            logger.debug("阈值覆盖 %s 非数字，保留原值：%r（%s）", k, v, e)
                     # None / 其它类型：跳过
             for k in ("hi_msg", "lo_msg"):
                 if k in ov and isinstance(ov[k], str):

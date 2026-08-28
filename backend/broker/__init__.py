@@ -12,11 +12,14 @@ backend/broker
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from ..utils.timeutil import utc_now
 
 from .base import BrokerAdapter, BrokerUnavailable, OrderResult
 from .sim import SimulatedBroker
+
+logger = logging.getLogger("stocksignal.broker")
 
 __all__ = ["BrokerAdapter", "BrokerUnavailable", "OrderResult",
            "SimulatedBroker", "get_broker", "execute_order", "risk_check"]
@@ -45,8 +48,8 @@ def _server_quote(code: str):
         if data and data.get("current"):
             px = float(data["current"])
             return px if px > 0 else None
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("服务端取最新价失败（%s）：%s", code, e)
     return None
 
 

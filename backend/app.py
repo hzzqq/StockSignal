@@ -266,8 +266,8 @@ def _register_security_headers(app: Flask) -> None:
         if "text/html" not in ct and not ct.startswith("application/json"):
             try:
                 resp.headers["Content-Type"] = "application/json; charset=utf-8"
-            except Exception:
-                pass
+            except Exception as e:
+                app.logger.debug("响应 Content-Type 兜底设置失败：%s", e)
         # 安全头
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
         resp.headers.setdefault("X-Frame-Options", "DENY")
@@ -303,12 +303,14 @@ def _register_monitoring(app: Flask) -> None:
             try:
                 payload = decode_token(auth[7:])
                 uid = payload.get("sub") or payload.get("user_id")
-            except Exception:
-                pass
+            except Exception as e:
+                # 匿名请求 / token 过期或无效均属正常路径，仅 debug 留痕
+                app.logger.debug("解析 Bearer token 失败（按匿名请求处理）：%s", e)
         try:
             record_request(endpoint, latency_ms, is_error, uid)
-        except Exception:
-            pass
+        except Exception as e:
+            # 指标采集失败会静默掩盖监控盲区，必须 warning
+            app.logger.warning("记录请求监控指标失败：%s", e)
         return resp
 
 

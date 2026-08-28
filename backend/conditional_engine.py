@@ -68,8 +68,8 @@ def _latest_price(code: str):
         if q and q.get("current"):
             px = float(q["current"])
             return px if px > 0 else None
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("条件单取最新价失败（%s）：%s", code, e)
     return None
 
 
