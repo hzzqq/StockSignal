@@ -24,6 +24,7 @@ import json
 import re
 
 from flask import Blueprint, current_app, g, request
+import logging
 
 from ..auth.decorators import jwt_required
 from ..extensions import db
@@ -31,6 +32,8 @@ from ..models import ConditionalOrder, RealAccount, RealOrder, RealPosition
 from ..utils.response import fail, ok
 
 bp = Blueprint("trade", __name__, url_prefix="/api")
+
+logger = logging.getLogger(__name__)
 
 _TICKER_RE = re.compile(r"^\d{6}$")
 _BROKER_TYPES = ("sim", "qmt", "easytrader")
@@ -114,7 +117,8 @@ def trade_account_health():
         broker = get_broker(acc, db.session)
         return ok(data=broker.health_check(), message="success")
     except BrokerUnavailable as e:
-        return ok(data={"ok": False, "message": str(e)}, message="success")
+        logger.warning("券商健康检查不可用: %s", e)
+        return fail(message="券商服务暂时不可用，请稍后重试", code="broker_unavailable", http_status=503)
     except Exception:
         return fail(message="服务内部错误", code="internal_error", http_status=500)
 
