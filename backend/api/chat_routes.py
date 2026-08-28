@@ -19,6 +19,7 @@ from ..utils.response import ok, fail, _json_safe
 from ..models import ChatHistory
 from ..extensions import db
 
+from ..utils.params import json_body
 bp = Blueprint("chat", __name__, url_prefix="/api/chat")
 
 
@@ -58,7 +59,7 @@ def save_history():
 
     body: {"messages": [ {role, content, ...}, ... ]}
     """
-    body = request.get_json(silent=True) or {}
+    body = json_body()
     messages = body.get("messages")
 
     if not isinstance(messages, list):

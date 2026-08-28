@@ -11,7 +11,7 @@ from ..extensions import db
 from ..models import User, OperationLog
 from ..utils.response import ok
 from ..utils.errors import ValidationError, NotFoundError, ConflictError
-from ..utils.params import parse_int_param, parse_str_param, parse_limit_param, parse_page_param
+from ..utils.params import parse_int_param, parse_str_param, parse_limit_param, parse_page_param, json_body
 import re
 
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -69,7 +69,7 @@ def list_users():
 @admin_required
 def create_user():
     """POST /api/admin/users  body: {username, password, role}"""
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
     role = (data.get("role") or "user").strip()
@@ -107,7 +107,7 @@ def update_user(user_id: int):
     if not user:
         raise NotFoundError("资源不存在")
 
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     changes = []
 
     if "role" in data:

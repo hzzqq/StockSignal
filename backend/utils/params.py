@@ -13,8 +13,29 @@ import unicodedata
 
 from flask import request
 
+from .errors import ValidationError
+
 # A 股代码：6 位纯数字（沪市 60xxxx / 68xxxx，深市 00xxxx / 30xxxx 等）
 _TICKER_RE = re.compile(r"^\d{6}$")
+
+
+def json_body() -> dict:
+    """读取 JSON 请求体，并确保返回 ``dict``。
+
+    为什么不能只写 ``request.get_json(silent=True) or {}``：
+    该写法只能兜住 ``None`` / 空值，挡不住 **truthy 的非对象值**
+    （如 ``[1, 2]``、``"str"``、``123``）——后续 ``data.get(...)`` 会抛
+    ``AttributeError`` 并冒泡成 500 internal_error。
+
+    客户端传错类型属于「参数不合法」，这里统一收敛为 422 validation_error，
+    让各路由拿到的永远是 dict，无需各自重复判断。
+    """
+    body = request.get_json(silent=True)
+    if body is None:
+        return {}
+    if not isinstance(body, dict):
+        raise ValidationError("请求体必须是 JSON 对象")
+    return body
 
 
 def validate_stock_code(code):

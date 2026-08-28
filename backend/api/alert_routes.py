@@ -13,6 +13,7 @@ from ..models import PriceAlert
 from ..utils.response import ok
 from ..utils.errors import ValidationError, NotFoundError
 
+from ..utils.params import json_body
 ALERT_TYPES = ("price", "pattern", "volume", "announcement")
 
 bp = Blueprint("alert", __name__, url_prefix="/api")
@@ -41,7 +42,7 @@ def create_alert():
       params?: {pattern_name?, volume_ratio?, keyword?}     # 其余类型用
     }
     """
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     code = (data.get("stock_code") or "").strip()
     alert_type = (data.get("alert_type") or "price").strip().lower()
     raw_params = data.get("params") or {}

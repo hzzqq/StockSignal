@@ -12,6 +12,7 @@ from ..models import SystemConfig, Watchlist, Stock
 from ..utils.response import ok, fail
 from ..utils.errors import ValidationError, NotFoundError, ConflictError
 
+from ..utils.params import json_body
 bp = Blueprint("config", __name__, url_prefix="/api")
 
 
@@ -60,7 +61,7 @@ def update_config(key: str):
     if not cfg:
         raise NotFoundError("资源不存在")
 
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     if "value" in data:
         ok_v, val = _validate_config_value(data["value"])
         if not ok_v:
@@ -77,7 +78,7 @@ def update_config(key: str):
 @admin_required
 def create_config():
     """POST /api/admin/config  body: {key, value, description?}"""
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     key = (data.get("key") or "").strip()
     value = data.get("value", "")
     desc = data.get("description", "")
@@ -142,7 +143,7 @@ def get_watchlist():
 @jwt_required
 def add_watchlist():
     """POST /api/watchlist  body: {stock_code, note?}"""
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     code = (data.get("stock_code") or "").strip()
     note = data.get("note", "")
     if not code:
@@ -190,7 +191,7 @@ def add_watchlist_batch():
     批量加自选；仅绑定当前用户，天然越权安全。
     响应 data: {added:[...], skipped:[...], failed:[{code,reason}]}
     """
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     codes = data.get("codes")
     note = data.get("note", "")
     if not isinstance(codes, list) or not codes:
@@ -227,7 +228,7 @@ def remove_watchlist_batch():
     严格越权：归属他人项进 forbidden 绝不删除；不存在进 not_found。
     响应 data: {deleted:[...], forbidden:[{code,reason}], not_found:[...]}
     """
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     ids = data.get("ids")
     codes = data.get("codes")
     if not isinstance(ids, list) and not isinstance(codes, list):

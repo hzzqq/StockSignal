@@ -21,7 +21,7 @@ from ..extensions import db
 from ..models import MarketAlert
 from ..utils.response import ok
 from ..utils.errors import NotFoundError
-from ..utils.params import parse_int_param, parse_limit_param
+from ..utils.params import parse_int_param, parse_limit_param, json_body
 from ..utils.timeutil import utc_now
 
 bp = Blueprint("market_alert", __name__, url_prefix="/api/market-alerts")
@@ -142,6 +142,6 @@ def update_config():
     """POST /api/market-alerts/config —— 管理员更新扫描策略（运行时生效，重启后失效）。"""
     from ..market_alert_config import set_runtime_overrides
 
-    body = request.get_json(silent=True) or {}
+    body = json_body()
     cfg = set_runtime_overrides(body)
     return ok(data={"config": cfg}, message="扫描策略已更新（运行时生效）")

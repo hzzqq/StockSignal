@@ -11,7 +11,7 @@ from flask import Blueprint, request
 
 from ..auth.decorators import jwt_required
 from ..utils.response import ok, fail
-from ..utils.params import parse_int_param, parse_limit_param
+from ..utils.params import parse_int_param, parse_limit_param, json_body
 from ..tasks.worker import task_worker
 
 bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
@@ -40,7 +40,7 @@ def create_task():
     """POST /api/tasks
     body: {"type": "analysis|compare|ai_consult|quant_research", "payload": {...}}
     """
-    body = request.get_json(silent=True) or {}
+    body = json_body()
     task_type = (body.get("type") or "").strip()
     payload = body.get("payload")
 

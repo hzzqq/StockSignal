@@ -14,6 +14,7 @@ from ..models import JunkStock, UserStockScore, Stock
 from ..utils.response import ok
 from ..utils.errors import ValidationError, NotFoundError
 
+from ..utils.params import json_body
 bp = Blueprint("stock_tags", __name__, url_prefix="/api")
 
 
@@ -42,7 +43,7 @@ def get_junk_stocks():
 @jwt_required
 def add_junk_stock():
     """POST /api/junk-stocks  body: {stock_code, note?}"""
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     code = (data.get("stock_code") or "").strip()
     note = data.get("note", "")
     if not code:
@@ -84,7 +85,7 @@ def remove_junk_stock(item_id: int):
 @jwt_required
 def remove_junk_stocks_batch():
     """DELETE /api/junk-stocks/batch  body: {ids:[1,2,3]}"""
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     ids = data.get("ids")
     if not isinstance(ids, list) or not ids:
         raise ValidationError("ids 不能为空且须为数组")
@@ -134,7 +135,7 @@ def get_user_score(stock_code: str):
 @jwt_required
 def upsert_user_score():
     """POST /api/user-scores  body: {stock_code, stock_name?, score}"""
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     code = (data.get("stock_code") or "").strip()
     name = (data.get("stock_name") or "").strip()
     score = data.get("score")

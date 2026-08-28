@@ -29,7 +29,7 @@ import logging
 from ..auth.decorators import jwt_required
 from ..extensions import db
 from ..models import ConditionalOrder, RealAccount, RealOrder, RealPosition
-from ..utils.params import validate_stock_code
+from ..utils.params import validate_stock_code, json_body
 from ..utils.response import fail, ok
 
 bp = Blueprint("trade", __name__, url_prefix="/api")
@@ -60,7 +60,7 @@ def trade_account():
 @bp.put("/trade/account")
 @jwt_required
 def trade_account_update():
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     acc = _get_or_create_account(g.current_user.id)
 
     if "broker_type" in data:
@@ -144,7 +144,7 @@ def trade_orders():
 @jwt_required
 def trade_place_order():
     from ..broker import execute_order
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     code = (str(data.get("stock_code") or "")).strip()
     name = (str(data.get("stock_name") or "")).strip()
     side = (str(data.get("side") or "")).strip().lower()
@@ -187,7 +187,7 @@ def cond_list():
 @bp.post("/cond-orders")
 @jwt_required
 def cond_create():
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     code = (str(data.get("stock_code") or "")).strip()
     name = (str(data.get("stock_name") or "")).strip()
     trigger_type = (str(data.get("trigger_type") or "")).strip()
@@ -241,7 +241,7 @@ def cond_toggle(oid: int):
     co = ConditionalOrder.query.filter_by(id=oid, user_id=g.current_user.id).first()
     if co is None:
         return fail(message="条件单不存在", code="not_found", http_status=404)
-    data = request.get_json(silent=True) or {}
+    data = json_body()
     if "active" in data:
         if co.status != "pending":
             return fail(message="仅待触发状态可启停", code="invalid_state", http_status=400)
