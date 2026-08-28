@@ -105,3 +105,23 @@ def test_xc_empty_box_renders(monkeypatch):
     assert "暂无自选股数据" in out
     assert "去添加几只股票吧" in out
     assert "xc-empty-box" in out
+
+
+def test_xc_handle_error_logs_and_does_not_leak(monkeypatch):
+    import streamlit as st
+    import logging
+    captured = []
+    monkeypatch.setattr(st, "markdown", lambda html, *a, **k: captured.append(html))
+    logs = []
+    monkeypatch.setattr(logging.Logger, "warning",
+                       lambda self, msg, *a, **k: logs.append((msg % a) if a else msg))
+    class _Boom(Exception):
+        pass
+    exc = _Boom("internal_detail_xyz")
+    kit.xc_handle_error("北向资金加载失败", exc, hint="请稍后重试")
+    out = captured[-1]
+    # 异常细节必须进日志，绝不进用户可见的 HTML
+    assert any("internal_detail_xyz" in str(m) for m in logs)
+    assert "北向资金加载失败" in out
+    assert "internal_detail_xyz" not in out
+    assert "xc-error-box" in out

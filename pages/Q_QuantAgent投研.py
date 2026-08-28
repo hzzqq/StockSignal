@@ -348,12 +348,13 @@ def main():
                 st.session_state["quant_result"] = None
                 st.info("📡 投研任务已提交到后台运行，可切到其他页面，进度会自动刷新。完成后展示报告。")
             else:
-                st.error(f"提交失败：{err}（请确认后端 5050 已启动）")
+                xc_handle_error("提交失败", err, hint="请确认后端 5050 已启动")
         except Exception as e:
-            st.error(f"任务通道不可用：{e}（请确认后端 5050 已启动，或改用本地直跑模式）")
+            xc_handle_error("任务通道不可用", e, hint="请确认后端 5050 已启动，或改用本地直跑模式")
     else:
         try:
             from modules.quantagent import run_research
+from modules.ui_kit import xc_handle_error
 
             with st.spinner("多智能体协作中（本地直跑）..."):
                 state = run_research(

@@ -16,6 +16,7 @@ from modules.page_utils import render_standard_page, import_autorefresh, get_fet
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN, _fig_layout, _section_title
 from modules.chart_cache import cached_fig
+from modules.ui_kit import xc_handle_error
 
 st_autorefresh = import_autorefresh()
 
@@ -179,7 +180,7 @@ def fragment_portfolio():
         try:
             _show_pnl_snapshot()
         except Exception as e:
-            st.warning(f"盈亏快照渲染失败：{e}")
+            xc_handle_error("盈亏快照渲染失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
 
     total_ret = float(pidx.iloc[-1] - 100)

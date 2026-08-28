@@ -18,6 +18,7 @@ from modules.search_ui import multi_stock_search_input
 from modules.background_tasks import submit_task_with_error, poll_task
 from modules.autorefresh import st_autorefresh
 from modules.compare import (
+from modules.ui_kit import xc_handle_error
     compare_css, build_header, build_one_line,
     build_table, build_pairwise_card, build_radar, build_radar_right,
     build_action_plan, build_footer, METHODS,
@@ -78,12 +79,12 @@ def fragment_compare_setup():
             else:
                 err = err or "未知错误"
                 if "登录" in err or "过期" in err or "凭证" in err:
-                    st.error(f"❌ {err}")
+                    xc_handle_error("操作失败", err, hint="请稍后重试，或检查网络与数据源连接")
                     if st.button("重新登录", key="cmp_relogin", use_container_width=True):
                         st.session_state.clear()
                         st.switch_page("pages/0_登录.py")
                 else:
-                    st.error(f"❌ 后台任务提交失败：{err}，请刷新重试。")
+                    xc_handle_error("后台任务提交失败", err, hint="请刷新重试")
 
 
 

@@ -13,6 +13,7 @@ from modules.session import init_session_state, is_authenticated, set_auth, clea
 from modules.widgets import password_strength
 
 from modules.ui_theme import apply_page_config
+from modules.ui_kit import xc_handle_error
 apply_page_config(page_title="登录", page_icon="🔐", layout="centered")
 st.session_state["_active_page"] = __file__
 init_session_state()
@@ -132,7 +133,7 @@ with login_tab:
                 except requests.exceptions.Timeout:
                     st.error("❌ 登录请求超时，请检查后端服务")
                 except requests.exceptions.RequestException as e:
-                    st.error(f"❌ 网络错误：{e}")
+                    xc_handle_error("网络错误", e, hint="请稍后重试，或检查网络与数据源连接")
 
     # 忘记密码（离线环境无邮件服务，提供引导）
     with st.expander("❓ 忘记密码？", expanded=False):
@@ -219,7 +220,7 @@ with register_tab:
             except requests.exceptions.Timeout:
                 st.error("❌ 注册请求超时，请检查后端服务")
             except requests.exceptions.RequestException as e:
-                st.error(f"❌ 网络错误：{e}")
+                xc_handle_error("网络错误", e, hint="请稍后重试，或检查网络与数据源连接")
 
     st.caption("注册遇到问题？可使用上方「登录」标签的演示账号直接体验。")
 

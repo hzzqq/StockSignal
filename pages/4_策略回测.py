@@ -444,7 +444,7 @@ def fragment_manual_backtest():
                     st.caption("提示：曲线走平或反转处通常表示参数拐点，可据此微调风险管理参数。")
 
             except Exception as e:
-                st.error(f"回测失败: {e}")
+                xc_handle_error("回测失败", e, hint="请稍后重试，或检查网络与数据源连接")
                 st.exception(e)
 
 
@@ -695,6 +695,7 @@ def fragment_strong_bull():
 
     if st.button("🚀 运行强势上涨股批量回测", type="primary", key="sb_run"):
         from concurrent.futures import ThreadPoolExecutor, as_completed
+from modules.ui_kit import xc_handle_error
 
         def _run_one(code, name):
             try:
@@ -888,7 +889,7 @@ def fragment_param_scan():
                            f"持仓 {best['params'].get('max_holding','-')}日 → "
                            f"累计 {best['total_return']*100:+.2f}%，夏普 {best.get('sharpe')}")
             except Exception as e:
-                st.error(f"参数扫描失败：{e}")
+                xc_handle_error("参数扫描失败", e, hint="请稍后重试，或检查网络与数据源连接")
 
 
 @safe_fragment("多标的批量回测")
@@ -948,7 +949,7 @@ def fragment_batch_backtest():
                 df_detail = pd.DataFrame(detail).sort_values("累计收益%", ascending=False)
                 st.dataframe(df_detail, use_container_width=True, hide_index=True, height=400)
             except Exception as e:
-                st.error(f"批量回测失败：{e}")
+                xc_handle_error("批量回测失败", e, hint="请稍后重试，或检查网络与数据源连接")
 
 
 # ==================================================================

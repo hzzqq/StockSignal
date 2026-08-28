@@ -16,6 +16,7 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import UP, DOWN, _fig_layout, _section_title, _empty_info
+from modules.ui_kit import xc_handle_error
 
 dark = render_standard_page(
     title="财报与业绩日历", icon="📅",
@@ -65,7 +66,7 @@ def fragment_report():
     try:
         df = _cached_report(period)
     except Exception as e:
-        st.error(f"业绩报表加载失败：{e}")
+        xc_handle_error("业绩报表加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty:
         _empty_info(f"「{period_label}」暂无已披露财报数据（可能尚未到披露期或接口受限）。")
@@ -131,7 +132,7 @@ def fragment_report():
             },
         height=400)
     except Exception as e:
-        st.warning(f"财报日历表格渲染失败：{e}")
+        xc_handle_error("财报日历表格渲染失败", e, hint="请稍后重试，或检查网络与数据源连接")
     else:
         # 导出业绩报表 CSV（便于离线分析）
         try:
@@ -155,7 +156,7 @@ def fragment_forecast():
         df = _cached_forecast(period)
     except Exception as e:
         df = pd.DataFrame()
-        st.warning(f"业绩预告接口加载失败，已降级为空数据（{e}）。")
+        xc_handle_error("业绩预告接口加载失败", e, hint="已降级为空数据，请稍后重试")
     if df is None or df.empty:
         _empty_info(f"「{period_label}」业绩预告暂不可用（接口返回空）。")
         st.caption("💡 业绩预告接口稳定性较低，可切换报告期或稍后重试。")
@@ -188,7 +189,7 @@ def fragment_disclosure():
         df = _cached_disclosure(market=market, period=period_str)
     except Exception as e:
         df = pd.DataFrame()
-        st.warning(f"披露日历接口加载失败，已降级为空数据（{e}）。")
+        xc_handle_error("披露日历接口加载失败", e, hint="已降级为空数据，请稍后重试")
     if df is None or df.empty:
         _empty_info("披露日历暂不可用（接口返回空或参数不支持）。")
         st.caption("💡 可切换市场或报告期后重试；沪市 2025 年报通常最完整。")

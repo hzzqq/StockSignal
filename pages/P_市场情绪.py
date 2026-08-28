@@ -27,6 +27,7 @@ from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.colors import _hex_to_rgba
 from modules.chart_cache import cached_fig
+from modules.ui_kit import xc_handle_error
 
 st_autorefresh = import_autorefresh()
 
@@ -320,7 +321,7 @@ def fragment_thermometer():
         with st.spinner("加载市场驱动力数据…"):
             df, meta = _load_drivers(180)
     except Exception as e:
-        st.error(f"市场驱动力数据加载失败：{e}")
+        xc_handle_error("市场驱动力数据加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty:
         _empty_info("暂无市场数据（网络/代理受限或数据源暂未接入）。")
@@ -352,7 +353,7 @@ def fragment_breadth():
         with st.spinner("加载市场驱动力数据…"):
             df, meta = _load_drivers(180)
     except Exception as e:
-        st.error(f"市场驱动力数据加载失败：{e}")
+        xc_handle_error("市场驱动力数据加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty:
         _empty_info("暂无市场广度数据（网络/代理受限或数据源暂未接入）。")
@@ -373,7 +374,7 @@ def fragment_sentiment():
         with st.spinner("加载市场驱动力数据…"):
             df, meta = _load_drivers(180)
     except Exception as e:
-        st.error(f"市场驱动力数据加载失败：{e}")
+        xc_handle_error("市场驱动力数据加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty:
         _empty_info("暂无市场情绪数据（网络/代理受限或数据源暂未接入）。")
@@ -394,7 +395,7 @@ def fragment_valuation():
         with st.spinner("加载市场驱动力数据…"):
             df, meta = _load_drivers(180)
     except Exception as e:
-        st.error(f"市场驱动力数据加载失败：{e}")
+        xc_handle_error("市场驱动力数据加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty:
         _empty_info("暂无估值数据（网络/代理受限或数据源暂未接入）。")
@@ -532,7 +533,7 @@ def fragment_shepherd():
         with st.spinner("加载牧羊人指标…"):
             df, meta = _load_shepherd(60)
     except Exception as e:
-        st.error(f"牧羊人指标加载失败：{e}")
+        xc_handle_error("牧羊人指标加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty:
         _empty_info("暂无牧羊人指标数据（网络/代理受限）。")
@@ -593,7 +594,7 @@ def fragment_shepherd_chart():
             else:
                 df, meta = _load_shepherd(range_opts[sel])
     except Exception as e:
-        st.error(f"牧羊人历史加载失败：{e}")
+        xc_handle_error("牧羊人历史加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty or "date" not in df.columns:
         _empty_info("暂无牧羊人历史数据（网络/代理受限或所选日期范围未开始统计）。")

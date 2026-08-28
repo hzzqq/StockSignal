@@ -361,7 +361,7 @@ with col1:
                         st.session_state["avatar_up_counter"] += 1
                         st.rerun()
             except Exception as e:
-                st.error(f"保存失败：{e}")
+                xc_handle_error("保存失败", e, hint="请稍后重试，或检查网络与数据源连接")
     st.markdown(f"**用户名：** {_username}")
     st.markdown(f"**角色：** {'管理员' if user.get('role') == 'admin' else '普通用户'}")
     st.markdown(f"**登录时间：** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
@@ -440,7 +440,7 @@ try:
     else:
         st.warning(f"获取自选股失败：HTTP {resp.status_code}")
 except Exception as e:
-    st.error(f"获取自选股失败：{e}")
+    xc_handle_error("获取自选股失败", e, hint="请稍后重试，或检查网络与数据源连接")
 
 # 加法式收藏/星标：自选股星标收藏（纯前端 session，不接后端）
 if "my_starred_stocks" not in st.session_state:
@@ -515,6 +515,7 @@ try:
             # 加法式示例数据预览：无记录时提供只读示例（不写库、不改逻辑）
             with st.expander("👀 查看示例登录记录（只读）", expanded=False):
                 import pandas as pd
+from modules.ui_kit import xc_handle_error
                 _sample_log = pd.DataFrame([
                     {"时间": "刚刚", "账号": "demo", "操作": "登录", "详情": "本地登录"},
                     {"时间": "1小时前", "账号": "demo", "操作": "修改设置", "详情": "切换暗夜模式"},
@@ -524,7 +525,7 @@ try:
     else:
         st.warning(f"获取登录历史失败：HTTP {resp.status_code}")
 except Exception as e:
-    st.error(f"获取登录历史失败：{e}")
+    xc_handle_error("获取登录历史失败", e, hint="请稍后重试，或检查网络与数据源连接")
     # 加法式失败重试：请求异常时提供重试（清掉短缓存后重新拉取）
     if st.button("🔄 重试", key="login_retry", use_container_width=True):
         st.session_state.pop("_my_cached_get", None)

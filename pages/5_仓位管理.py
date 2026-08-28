@@ -182,7 +182,7 @@ else:
                         add_watchlist(_t)
                     _toast(f"已加自选：{', '.join(_pm_sel)}")
                 except Exception as e:
-                    st.error(f'批量加自选失败：{e}')
+                    xc_handle_error("批量加自选失败", e, hint="请稍后重试，或检查网络与数据源连接")
         with _pb2:
             if st.button('📤 批量平仓', key='pm_batch_close', use_container_width=True):
                 try:
@@ -204,7 +204,7 @@ else:
                     _toast(f"已批量平仓：{', '.join(_pm_sel)}")
                     st.rerun()
                 except Exception as e:
-                    st.error(f'批量平仓失败：{e}')
+                    xc_handle_error("批量平仓失败", e, hint="请稍后重试，或检查网络与数据源连接")
 sf_card('➕ 买入股票', '录入代码、价格与股数添加持仓；支持 100 / 500 / 1000 等快捷股数按钮。')
 st.markdown('**⚡ 快捷选择股数：**')
 quick_cols = st.columns(5)
@@ -279,14 +279,14 @@ if buy_submitted:
         st.session_state['_pm_recent'] = ([buy_ticker] + [x for x in st.session_state['_pm_recent'] if x != buy_ticker])[:10]
         st.rerun()
     except Exception as e:
-        st.error(f'买入失败: {e}')
+        xc_handle_error("买入失败", e, hint="请稍后重试，或检查网络与数据源连接")
 if st.button('⭐ ＋自选（当前买入标的）', key='pm_add_watch', use_container_width=True):
     try:
         from modules.admin_api import add_watchlist
         add_watchlist(buy_ticker)
         _toast(f'已加入自选：{buy_label} ({buy_ticker})')
     except Exception as e:
-        st.error(f'加入自选失败：{e}')
+        xc_handle_error("加入自选失败", e, hint="请稍后重试，或检查网络与数据源连接")
 if st.button('⭐ 收藏（本地星标）', key='pm_fav_add', use_container_width=True):
     st.session_state.setdefault('_pm_fav', [])
     _ft = (buy_ticker or '').strip()
@@ -378,7 +378,7 @@ else:
             st.session_state['_pm_recent'] = ([sell_ticker] + [x for x in st.session_state['_pm_recent'] if x != sell_ticker])[:10]
             st.rerun()
         except Exception as e:
-            st.error(f'卖出失败: {e}')
+            xc_handle_error("卖出失败", e, hint="请稍后重试，或检查网络与数据源连接")
 st.markdown('---')
 with st.expander('🗑️ 删除持仓'):
     positions = pm.get_positions()
@@ -439,6 +439,7 @@ if not positions.empty:
             st.caption('数据来源：东方财富 / 新浪财经（实时行情 + 日线兜底）。')
             if not pnl_df.empty:
                 from modules.visualizer import Visualizer
+from modules.ui_kit import xc_handle_error
                 st.markdown('---')
                 fig = Visualizer.portfolio_pnl(pnl_df)
                 st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
@@ -479,7 +480,7 @@ if not positions.empty:
                     exp_col2.download_button(label='⬇️ 下载报告', data=f, file_name=output.split(os.sep)[-1], mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 st.success(f'报告已生成: {output}')
         except Exception as e:
-            st.error(f'⚠️ 加载失败，请稍后重试：{e}')
+            xc_handle_error("加载失败", e, hint="请稍后重试")
             if st.button('🔄 重试', key='pnl_retry'):
                 st.rerun()
 else:

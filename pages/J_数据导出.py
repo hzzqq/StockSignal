@@ -325,7 +325,7 @@ def frag_industry():
             with st.spinner("获取行业板块资金流向…"):
                 df = get_industry_fund_flow()
         except Exception as e:
-            st.error(f"⚠️ 获取行业板块资金流向失败：{e}")
+            xc_handle_error("获取行业板块资金流向失败", e, hint="请稍后重试，或检查网络与数据源连接")
             return
         if df is None or df.empty:
             _empty_info("暂无数据")
@@ -348,7 +348,7 @@ def frag_northbound():
             with st.spinner("获取北向资金…"):
                 d = get_northbound_fund_flow()
         except Exception as e:
-            st.error(f"⚠️ 获取北向资金失败：{e}")
+            xc_handle_error("获取北向资金失败", e, hint="请稍后重试，或检查网络与数据源连接")
             return
         if d is None:
             _empty_info("暂无北向资金数据（接口暂不可用）")
@@ -384,7 +384,7 @@ def frag_market():
             with st.spinner("获取大盘主力净流入…"):
                 df = get_market_fund_flow(days=30)
         except Exception as e:
-            st.error(f"⚠️ 获取大盘主力净流入失败：{e}")
+            xc_handle_error("获取大盘主力净流入失败", e, hint="请稍后重试，或检查网络与数据源连接")
             return
         if df is None or df.empty:
             _empty_info("暂无数据")
@@ -414,7 +414,7 @@ def frag_individual():
             try:
                 r = get_individual_fund_flow(code)
             except Exception as e:
-                st.error(f"⚠️ 获取 {code} 主力资金失败：{e}")
+                xc_handle_error(f"获取 {code} 主力资金失败", e, hint="请稍后重试，或检查网络与数据源连接")
                 return
         if not r:
             st.warning(f"暂未获取到 {code} 的主力资金数据，请稍后重试。")
@@ -455,7 +455,7 @@ def frag_earnings():
             try:
                 df = get_earnings_report(period=period)
             except Exception as e:
-                st.error(f"⚠️ 获取业绩报表失败：{e}")
+                xc_handle_error("获取业绩报表失败", e, hint="请稍后重试，或检查网络与数据源连接")
                 return
         if df is None or df.empty:
             _empty_info("暂无数据")
@@ -479,7 +479,7 @@ def frag_portfolio():
                 pm = PortfolioManager()
                 pnl_df = pm.calc_pnl()
         except Exception as e:
-            st.error(f"⚠️ 计算持仓盈亏失败：{e}")
+            xc_handle_error("计算持仓盈亏失败", e, hint="请稍后重试，或检查网络与数据源连接")
             return
         if pnl_df is None or pnl_df.empty:
             _empty_info("暂无数据（当前组合为空）")
@@ -508,7 +508,7 @@ def frag_watchlist():
                 _, body = api_get("/api/watchlist", timeout=10)
                 codes = _parse_watchlist(body)
         except Exception as e:
-            st.error(f"⚠️ 获取自选股失败：{e}")
+            xc_handle_error("获取自选股失败", e, hint="请稍后重试，或检查网络与数据源连接")
             return
         if not codes:
             _empty_info("暂无数据（自选股为空或接口不可用）")
@@ -565,7 +565,7 @@ def frag_pdf():
         try:
             pdf = _to_pdf_bytes(datasets, skipped, period, code)
         except Exception as e:  # PDF 生成极端失败兜底
-            st.error(f"PDF 生成失败：{e}")
+            xc_handle_error("PDF 生成失败", e, hint="请稍后重试，或检查网络与数据源连接")
             return
         st.download_button(
             "⬇️ 下载 PDF 摘要", data=pdf,
@@ -581,6 +581,7 @@ def frag_zip():
     sf_card("📦 一键打包导出全部 (ZIP)", "")
     st.caption("汇总上述所有数据集（成功返回的部分）打入内存 ZIP，内含 CSV + 多Sheet Excel + manifest。单个数据集失败不影响整体。")
     from modules.search_ui import stock_search_input
+from modules.ui_kit import xc_handle_error
     period = st.text_input("财报报告期 (YYYYMMDD，用于打包)", value="20260331", key="zip_period")
     code = stock_search_input(label="个股主力资金 - 选择股票", key="zip_stock", default="600519")
 

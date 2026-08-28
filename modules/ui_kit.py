@@ -337,6 +337,25 @@ def xc_empty_box(title: str, hint: str = "", icon: str = "📭") -> None:
     )
 
 
+def xc_handle_error(title: str, exc: Exception | str | None = None, hint: str = "",
+                    icon: str = "⚠️") -> None:
+    """一站式「捕获异常 → 记录日志 → 友好展示」。
+
+    取代 ``except Exception as e: st.error(f"...{e}")`` 这类直接把内部异常
+    细节泄露给终端用户的反模式。异常文本只进日志（logger.warning），
+    绝不拼进用户可见的 title。
+
+    Args:
+        title: 给用户看的中文友好文案（不含异常细节）。
+        exc:   捕获到的异常对象（或其字符串），仅用于日志记录。
+        hint:  可选的引导文案（重试 / 检查网络等）。
+        icon:  展示图标，默认 ⚠️。
+    """
+    if exc is not None:
+        logger.warning("%s: %s", title, exc)
+    xc_error_box(title, hint=hint, icon=icon)
+
+
 def info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
     """彩色提示横幅。kind: info/success/warning/danger。"""
     inject_kit_css()

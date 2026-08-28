@@ -229,7 +229,7 @@ def fragment_signal_score():
                     else:
                         st.info(f'自选操作返回：{sc}')
                 except Exception as e:
-                    st.warning(f'加入自选失败：{e}')
+                    xc_handle_error("加入自选失败", e, hint="请稍后重试，或检查网络与数据源连接")
             _fav = st.session_state.get('_fav_set', [])
             _is_fav = sig_ticker in _fav
             if st.button('⭐ 已收藏' if _is_fav else '☆ 收藏', key='sig_fav_toggle', help='将当前股票加入/移出本地收藏（仅本会话有效）'):
@@ -401,7 +401,7 @@ def fragment_timeline():
                                 st.session_state.tl_existing_events = pd.DataFrame()
                         except Exception as e:
                             st.session_state.tl_existing_events = None
-                            st.error(f'加载事件库失败: {e}')
+                            xc_handle_error("加载事件库失败", e, hint="请稍后重试，或检查网络与数据源连接")
                 if show_realtime:
                     st.markdown('#### 🌐 实时爬取最新事件')
                     with st.spinner('正在实时爬取新闻和公告...'):
@@ -439,7 +439,7 @@ def fragment_timeline():
                                 st.session_state.tl_realtime_events = pd.DataFrame()
                         except Exception as e:
                             st.session_state.tl_realtime_events = None
-                            st.error(f'实时爬取失败: {e}')
+                            xc_handle_error("实时爬取失败", e, hint="请稍后重试，或检查网络与数据源连接")
         timeline_display = st.container()
         with timeline_display:
             if st.session_state.get('tl_existing_events') is not None:
@@ -525,7 +525,7 @@ def fragment_event_manage():
                 engine.add_event(evt_date.strftime('%Y-%m-%d'), evt_ticker, evt_title, evt_type)
                 st.success('事件添加成功！')
             except Exception as e:
-                st.error(f'添加失败: {e}')
+                xc_handle_error("添加失败", e, hint="请稍后重试，或检查网络与数据源连接")
         with st.spinner('⏳ 正在加载全部事件库…'):
             events_all = engine._load_events()
         if not events_all.empty:
@@ -667,6 +667,7 @@ def fragment_sentiment_report():
                             st.metric('中性占比', f'{_neu}%')
                     import plotly.express as px
                     from modules.visualizer import _is_dark, SF_GRID, SF_BORDER, SF_TXT2
+from modules.ui_kit import xc_handle_error
                     _dark = _is_dark()
                     pie_df = pd.DataFrame([{'类型': '正面', '占比': _pos}, {'类型': '负面', '占比': _neg}, {'类型': '中性', '占比': _neu}])
                     color_map = {'正面': UP_COLOR, '负面': DOWN_COLOR, '中性': '#94a3b8'}

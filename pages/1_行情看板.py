@@ -187,7 +187,7 @@ def fragment_sector_board():
                     fig = _build_sector_heatmap_fig(detail_df)
                     st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
             except Exception as e:
-                st.error(f'获取板块详情失败: {e}')
+                xc_handle_error("获取板块详情失败", e, hint="请稍后重试，或检查网络与数据源连接")
         else:
             st.warning('未获取到板块数据。可能处于非交易时段、数据源暂不可用或网络波动；交易时段会自动刷新，也可手动刷新页面重试。')
 fragment_sector_board()
@@ -387,7 +387,7 @@ if st.button('计算相关性', key='calc_corr', use_container_width=True, disab
                 fig = _build_correlation_fig(daily_dict)
                 st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
             except Exception as e:
-                st.warning(f'⚠️ 相关性矩阵渲染失败：{str(e)[:80]}。请检查输入代码或网络后重试。')
+                xc_handle_error("相关性矩阵渲染失败", str(e)[:80], hint="请检查输入代码或网络后重试")
         else:
             st.warning('需要至少 2 只有效股票代码。请检查输入或网络后重试。')
 
@@ -537,6 +537,7 @@ def fragment_watchlist_quotes():
         return
     try:
         from modules.fetch_parallel import fetch_many as _fetch_many
+from modules.ui_kit import xc_handle_error
         _fin_tasks = []
         for code in codes:
             _fin_tasks.append((f'pe_{code}', lambda c=code: _wl_pe_uncached(c)))

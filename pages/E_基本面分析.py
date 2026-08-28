@@ -260,6 +260,7 @@ def _calc_perf(code: str) -> dict:
 def _fetch_financial_reports(code: str) -> dict:
     """直接调用 akshare 获取利润表/资产负债表/现金流量表（不限制 8 行）。"""
     import akshare as ak
+from modules.ui_kit import xc_handle_error
     out = {}
     with _ssl_bypass():
         try:
@@ -485,7 +486,7 @@ if code:
             try:
                 fa_df = _build_financial_df(fa_code)
             except Exception as e:
-                st.error(f'⚠️ 财务报表解析失败，请稍后重试：{e}')
+                xc_handle_error("财务报表解析失败", e, hint="请稍后重试")
                 if st.button('🔄 重试', key='fa_retry_btn'):
                     st.rerun(scope='fragment')
                 return
@@ -620,7 +621,7 @@ if code:
     try:
         score, reasons_html = _composite_score(price, pe_ttm, p_5y if hist_df is not None else None, rank, sector_total, market_cap, perf)
     except Exception as e:
-        st.warning(f'综合评估计算失败，已跳过：{e}')
+        xc_handle_error("综合评估计算失败，已跳过", e, hint="请稍后重试，或检查网络与数据源连接")
         score, reasons_html = (0, '综合评估暂不可用（计算异常）。')
     if score >= 75:
         score_color = UP_COLOR

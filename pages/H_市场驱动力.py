@@ -13,6 +13,7 @@ from modules.page_widgets import _section_title, _trend_controls, _in_trading_ho
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, import_autorefresh
 from modules.ui_theme import sf_card, sf_metric
+from modules.ui_kit import xc_handle_error
 
 st_autorefresh = import_autorefresh()
 
@@ -58,7 +59,7 @@ def fragment_drivers_panel():
         with st.spinner("正在加载市场驱动力数据（约 180 天五维归一化）…"):
             df, meta = get_market_drivers(days=180)
     except Exception as e:
-        st.error(f"市场驱动力数据加载失败：{e}")
+        xc_handle_error("市场驱动力数据加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty:
         _empty_info("暂无市场驱动力数据（网络/代理受限或数据源暂未接入）。")
@@ -95,7 +96,7 @@ def fragment_drivers_panel():
             )
             st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="drv_panel")
         except Exception as e:
-            st.warning(f"驱动力面板图渲染失败：{e}")
+            xc_handle_error("驱动力面板图渲染失败", e, hint="请稍后重试，或检查网络与数据源连接")
 
     # 加法式可访问性（第十四批）：plotly 图表对读屏软件不友好，补充一段文字版「涨跌概览」
     # 作为图表替代文本，让无法看图的用户也能获取各指标区间内累计变化的关键信息。
@@ -130,14 +131,14 @@ def fragment_drivers_panel():
         csv = to_trend_csv(df, names_map=None, selected=sel, date_range=dr)
         st.download_button("⬇️ 导出 CSV", data=csv, file_name="市场驱动力全景.csv", mime="text/csv")
     except Exception as e:
-        st.warning(f"CSV 导出失败：{e}")
+        xc_handle_error("CSV 导出失败", e, hint="请稍后重试，或检查网络与数据源连接")
     # 相关性热力图
     try:
         st.plotly_chart(plot_correlation_heatmap(df, names_map=None, selected=sel,
                                                  date_range=dr, dark_mode=dark),
                         use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="drv_corr")
     except Exception as e:
-        st.warning(f"相关性热力图渲染失败：{e}")
+        xc_handle_error("相关性热力图渲染失败", e, hint="请稍后重试，或检查网络与数据源连接")
     _render_drivers_meta(meta)
     st.caption("📈 《核心指标与大盘趋势关联性全景图》（五维归一化子图）：资金/情绪/估值/宏观/技术分 5 个子图，"
                "每个子图内所有指标与上证指数**统一归一化到起点=100** 叠加，规避量纲差异导致的失真"

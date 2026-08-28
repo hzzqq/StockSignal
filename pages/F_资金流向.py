@@ -65,6 +65,7 @@ def _cached_individual_series(code: str, days: int = 60):
 @st.cache_data(show_spinner=False, ttl=300)
 def _prefetch_all():
     from modules.fetch_parallel import fetch_many
+from modules.ui_kit import xc_handle_error
     tasks = [
         ("northbound", get_northbound_fund_flow),
         ("industry", get_industry_fund_flow),
@@ -166,7 +167,7 @@ def fragment_northbound():
     try:
         nb = _cached_northbound()
     except Exception as e:
-        st.error(f"北向资金加载失败：{e}")
+        xc_handle_error("北向资金加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if not nb or not nb.get("boards"):
         _empty_info("暂无北向资金数据。")
@@ -242,7 +243,7 @@ def fragment_northbound():
         hist = _cached_northbound_history()
     except Exception as e:
         hist = None
-        st.warning(f"北向历史序列加载失败：{e}")
+        xc_handle_error("北向历史序列加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
     if hist is not None and not hist.empty:
         dr, ma, _s, _m, ma_type = _trend_controls("nb", days_default=365, preset_default="全部")
         st.plotly_chart(plot_northbound_history(hist, dark_mode=dark, date_range=dr, ma_periods=ma,
@@ -262,7 +263,7 @@ def fragment_industry():
     try:
         df = _cached_industry_flow()
     except Exception as e:
-        st.error(f"行业资金流向加载失败：{e}")
+        xc_handle_error("行业资金流向加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty:
         _empty_info("暂无行业资金流向数据。")
@@ -298,7 +299,7 @@ def fragment_industry():
         fig = _build_industry_top15_fig(top, dark)
         st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     except Exception as e:
-        st.warning(f"行业净流入 TOP15 图表渲染失败：{e}")
+        xc_handle_error("行业净流入 TOP15 图表渲染失败", e, hint="请稍后重试，或检查网络与数据源连接")
 
     st.dataframe(
         df, use_container_width=True, hide_index=True,
@@ -320,7 +321,7 @@ def fragment_market():
     try:
         df = _cached_market_flow(30)
     except Exception as e:
-        st.error(f"大盘资金流向加载失败：{e}")
+        xc_handle_error("大盘资金流向加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty:
         _empty_info("暂无大盘资金流向数据。")
@@ -340,20 +341,20 @@ def fragment_market():
             _empty_info("暂无有效数据。")
             return
     except Exception as e:
-        st.warning(f"大盘资金流向数据解析失败：{e}")
+        xc_handle_error("大盘资金流向数据解析失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     try:
         fig = _build_market_main_fig(df, dark)
         st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     except Exception as e:
-        st.warning(f"大盘资金净流入图表渲染失败：{e}")
+        xc_handle_error("大盘资金净流入图表渲染失败", e, hint="请稍后重试，或检查网络与数据源连接")
 
     # 大盘主力资金累计净流入（线性表达：累计面积线 + 当日细线）
     try:
         cum = _cached_market_cumulative(60)
     except Exception as e:
         cum = None
-        st.warning(f"大盘累计资金加载失败：{e}")
+        xc_handle_error("大盘累计资金加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
     if cum is not None and not cum.empty:
         dr, ma, _s, _m, ma_type = _trend_controls("mkt_cum", days_default=60, preset_default="近60天")
         st.plotly_chart(plot_market_cumulative(cum, dark_mode=dark, date_range=dr, ma_periods=ma,
@@ -379,7 +380,7 @@ def fragment_margin_trading():
     try:
         df = _cached_margin_data(180)
     except Exception as e:
-        st.error(f"融资融券数据加载失败：{e}")
+        xc_handle_error("融资融券数据加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty:
         _empty_info("暂无融资融券数据。")
@@ -389,7 +390,7 @@ def fragment_margin_trading():
         summary = _cached_margin_summary() or {}
     except Exception as e:
         summary = {}
-        st.warning(f"融资融券摘要加载失败：{e}")
+        xc_handle_error("融资融券摘要加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
     cols = st.columns(4)
     with cols[0]:
         st.metric("融资买入额(最新)", f"{summary.get('total_rzmr_yi'):.2f}亿" if summary.get('total_rzmr_yi') is not None else "—",
@@ -406,7 +407,7 @@ def fragment_margin_trading():
         fig = plot_margin_trend(df, dark_mode=dark, metric=metric)
         st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     except Exception as e:
-        st.warning(f"融资融券趋势图渲染失败：{e}")
+        xc_handle_error("融资融券趋势图渲染失败", e, hint="请稍后重试，或检查网络与数据源连接")
     st.caption("数据来源：东方财富融资融券（沪+深），指数叠加辅助判断杠杆资金与大盘节奏关系。"
                "北交所暂无公开宏观融资融券序列，故合计未包含 BJ。")
 
@@ -437,7 +438,7 @@ def fragment_individual():
     try:
         r = _cached_individual_fund_flow(code)
     except Exception as e:
-        st.error(f"个股资金加载失败：{e}")
+        xc_handle_error("个股资金加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if r.get("source") == "none" or r.get("main_net") is None:
         st.warning("该股主力资金数据暂不可用（接口受限或缺少历史）。")
@@ -467,7 +468,7 @@ def fragment_individual():
         sdf = _cached_individual_series(code, days=60)
     except Exception as e:
         sdf = None
-        st.warning(f"个股资金趋势加载失败：{e}")
+        xc_handle_error("个股资金趋势加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
     if sdf is not None and not sdf.empty and sdf.attrs.get("source") != "none":
         dr, ma, _s, _m, ma_type = _trend_controls("indv", days_default=60, preset_default="近60天")
         # 加法式渲染兜底：个股资金序列可能含异常值/缺列，plotly 渲染失败不应拖垮整个 fragment
@@ -495,7 +496,7 @@ def fragment_index_trend():
     try:
         idx = _cached_index_series(180)
     except Exception as e:
-        st.error(f"指数走势加载失败：{e}")
+        xc_handle_error("指数走势加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if idx is None or idx.empty:
         _empty_info("暂无指数走势数据。")
@@ -516,7 +517,7 @@ def fragment_industry_trend():
     try:
         ind = _cached_industry_index(8, 120)
     except Exception as e:
-        st.error(f"行业指数走势加载失败：{e}")
+        xc_handle_error("行业指数走势加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if ind is None or ind.empty:
         _empty_info("暂无行业指数走势数据（接口受限或网络不可用）。")
@@ -567,7 +568,7 @@ def fragment_etf_trend():
     try:
         etf = _cached_etf_series(180)
     except Exception as e:
-        st.error(f"ETF 走势加载失败：{e}")
+        xc_handle_error("ETF 走势加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if etf is None or etf.empty:
         _empty_info("暂无 ETF 走势数据（接口受限或网络不可用）。")

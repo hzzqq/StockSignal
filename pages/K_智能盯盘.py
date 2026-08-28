@@ -249,7 +249,7 @@ def fragment_sector():
             _r = run_with_timeout(get_industry_fund_flow, 12)
             df = _r if _r is not None else pd.DataFrame()
     except Exception as e:
-        st.error(f'行业资金流向加载失败：{e}')
+        xc_handle_error("行业资金流向加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         if st.button('🔄 重试', key='btn_sector_retry'):
             st.rerun(scope='fragment')
         return
@@ -326,7 +326,7 @@ def fragment_watchlist():
                 for code, q in ex.map(_quote_one, codes):
                     quotes[code] = q
         except Exception as e:
-            st.error(f'行情并行抓取失败：{e}')
+            xc_handle_error("行情并行抓取失败", e, hint="请稍后重试，或检查网络与数据源连接")
             if st.button('🔄 重试', key='btn_wl_retry'):
                 st.rerun(scope='fragment')
             return
@@ -429,7 +429,7 @@ def fragment_individual_ff():
                 for code, r in ex.map(_ff_one, codes):
                     ff_map[code] = r
         except Exception as e:
-            st.error(f'资金流并行抓取失败：{e}')
+            xc_handle_error("资金流并行抓取失败", e, hint="请稍后重试，或检查网络与数据源连接")
             if st.button('🔄 重试', key='btn_iff_retry'):
                 st.rerun(scope='fragment')
             return
@@ -510,7 +510,7 @@ def fragment_alerts():
                     else:
                         ff_map[res[0]] = res[1]
         except Exception as e:
-            st.error(f'预警扫描失败：{e}')
+            xc_handle_error("预警扫描失败", e, hint="请稍后重试，或检查网络与数据源连接")
             if st.button('🔄 重试', key='btn_alert_retry'):
                 st.rerun(scope='fragment')
             return
@@ -531,6 +531,7 @@ def fragment_alerts():
         st.success('当前无触发预警 ✅（阈值 ±%.1f%%，主力强异动阈值 %s）' % (threshold, _fmt_yi(MAIN_NET_STRONG)))
         return
     from collections import Counter
+from modules.ui_kit import xc_handle_error
     cnt = Counter((a['tier'] for a in alerts))
     st.warning(f"共触发 {len(alerts)} 条预警：🔴 强 {cnt.get('strong', 0)} ｜ 🟡 中 {cnt.get('mid', 0)} ｜ 🟢 弱 {cnt.get('weak', 0)}")
     for a in alerts:

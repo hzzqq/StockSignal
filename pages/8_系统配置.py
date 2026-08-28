@@ -88,7 +88,7 @@ with tab_overview:
             "仅检查依赖与本地缓存（不触网）；网络可达性由各页面取数时实时降级。"
         )
     except Exception as e:
-        st.warning(f"数据源健康度探测失败：{type(e).__name__}: {e}")
+        xc_handle_error(f"数据源健康度探测失败：{type(e).__name__}", e, hint="请稍后重试，或检查网络与数据源连接")
 
 # ----------------------------------------------------------------- 股票管理
 with tab_stocks:
@@ -130,6 +130,7 @@ with tab_stocks:
 
         if items:
             import pandas as pd
+from modules.ui_kit import xc_handle_error
             df = pd.DataFrame(items)
             _cols = [c for c in ["code", "name", "market", "pinyin_initials", "pinyin_full"] if c in df.columns]
             df = df[_cols] if _cols else df
@@ -367,7 +368,7 @@ with tab_alert:
                 if not isinstance(thr, dict):
                     raise ValueError("必须是 JSON 对象")
             except Exception as e:
-                st.error(f"阈值 JSON 解析失败：{e}")
+                xc_handle_error("阈值 JSON 解析失败", e, hint="请稍后重试，或检查网络与数据源连接")
                 thr = None
             if thr is not None:
                 body = {

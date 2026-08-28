@@ -58,12 +58,12 @@ if st.button('🔍 生成分析', type='primary', use_container_width=True, key=
     else:
         err = err or '未知错误'
         if '登录' in err or '过期' in err or '凭证' in err:
-            st.error(f'❌ {err}')
+            xc_handle_error("操作失败", err, hint="请稍后重试，或检查网络与数据源连接")
             if st.button('重新登录', key='anal_relogin_top', use_container_width=True):
                 st.session_state.clear()
                 st.switch_page('pages/0_登录.py')
         else:
-            st.error(f'❌ 后台任务提交失败：{err}，请刷新重试。')
+            xc_handle_error("后台任务提交失败", err, hint="请刷新重试")
 st.markdown('</div>', unsafe_allow_html=True)
 
 def _analysis_goto(c):
@@ -241,7 +241,7 @@ def fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped
                     else:
                         st.info(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
                 except Exception as _die:
-                    st.warning(f'分时图加载失败：{str(_die)[:80]}')
+                    xc_handle_error("分时图加载失败", str(_die)[:80], hint="请稍后重试，或检查网络与数据源连接")
                 if st.button('✕ 关闭分时图', key=f'close_intra_{ticker}'):
                     del st.session_state[f'intraday_target_{ticker}']
                     st.rerun(scope='fragment')
@@ -256,7 +256,7 @@ def fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped
         _cap += f'数据区间 {_date_min} ~ {_date_max}。</div>'
         st.markdown(_cap, unsafe_allow_html=True)
     except Exception as e:
-        st.error(f'⚠️ K线图渲染失败，请稍后重试：{str(e)[:80]}')
+        xc_handle_error("K线图渲染失败", str(e)[:80], hint="请稍后重试")
         if st.button('🔄 重试', key='kline_retry_btn'):
             st.rerun(scope='fragment')
     st.markdown('</div>', unsafe_allow_html=True)
@@ -296,7 +296,7 @@ def _fragment_intraday(ticker: str, display_name: str) -> None:
         else:
             st.info('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
     except Exception as _ie:
-        st.warning(f'分时图加载失败：{str(_ie)[:60]}')
+        xc_handle_error("分时图加载失败", str(_ie)[:60], hint="请稍后重试，或检查网络与数据源连接")
 
 def _render_analysis(R: dict):
     """渲染个股分析决策仪表盘（延迟导入 Visualizer，避免每页加载 0.95s）。"""
@@ -602,7 +602,7 @@ def _render_analysis(R: dict):
         st.plotly_chart(radar_fig, use_container_width=True, config={'displaylogo': False, 'responsive': True})
         st.markdown(f"<div style='text-align:center;font-size:14px;font-weight:700;color:var(--txt);margin:6px 0 2px;'>综合信号强度 <b style='color:{verdict_color};'>{composite}</b> · {verdict}（五维加权）</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.warning(f'⚠️ 雷达图渲染失败：{str(e)[:80]}')
+        xc_handle_error("雷达图渲染失败", str(e)[:80], hint="请稍后重试，或检查网络与数据源连接")
     st.markdown(f"<table class='sf-table'><thead><tr><th class='l'>维度（权重）</th><th>得分</th><th class='l'>研判要点</th></tr></thead><tbody><tr><td class='l'><b>技术指标</b> 25%</td><td>{tech_score:.0f}</td><td class='l'>多周期（短/中/长）趋势 · 动量强弱</td></tr><tr><td class='l'><b>新闻情绪</b> 22%</td><td>{news_score:.0f}</td><td class='l'>事件催化强度 · 正面占比 {pos_pct:.0f}%</td></tr><tr><td class='l'><b>资金量能</b> 18%</td><td>{vol_score:.0f}</td><td class='l'>量价配合 · 换手健康度</td></tr><tr><td class='l'><b>市场环境</b> 15%</td><td>{macro_score:.0f}</td><td class='l'>宏观 PMI · 大盘强弱</td></tr><tr><td class='l'><b>板块强度</b> 20%</td><td>{sector_score:.0f}</td><td class='l'>个股相对所属板块的强弱 · 排名 {sector_analysis.get('rank', '—')}{('/' + str(sector_analysis.get('total')) if sector_analysis.get('total') else '')} 强</td></tr><tr><td class='l'><b>综合评分</b></td><td><b>{composite}</b></td><td class='l'>五维加权汇总</td></tr></tbody></table>", unsafe_allow_html=True)
     with st.expander('📖 评分维度说明', expanded=False):
         st.markdown('• <b>技术指标 25%</b>：多周期（短/中/长）趋势与动量强弱。<br>• <b>新闻情绪 22%</b>：事件催化强度与正面占比。<br>• <b>资金量能 18%</b>：量价配合与换手健康度。<br>• <b>市场环境 15%</b>：宏观 PMI 与大盘强弱。<br>• <b>板块强度 20%</b>：个股相对所属板块的强弱与排名。<br>综合评分 = 五维加权汇总，仅作研究参考，不构成投资建议。', unsafe_allow_html=True)
@@ -776,6 +776,7 @@ def fragment_stock_videos(ticker):
             name = ticker
     q = f'{name} 股票分析'
     from urllib.parse import quote
+from modules.ui_kit import xc_handle_error
     links = [('🅑️ B站', f'https://search.bilibili.com/all?keyword={quote(q)}'), ('🔍 百度视频', f'https://www.baidu.com/s?tn=baiduvi&wd={quote(q)}'), ('▶️ YouTube', f'https://www.youtube.com/results?search_query={quote(q)}'), ('🎵 抖音', f'https://www.douyin.com/search/{quote(q)}')]
     st.caption(f'「{name}」相关视频聚合（点击在浏览器新标签打开对应平台搜索结果）：')
     _lc = st.columns(len(links))

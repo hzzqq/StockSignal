@@ -393,7 +393,7 @@ def fragment_kline_pick(ticker, stock_label, df, kline_period, period_label, sta
                 else:
                     st.info(f"📭 {_ptgt} 暂无分时数据。")
             except Exception as _pde:
-                st.warning(f"分时加载失败：{str(_pde)[:80]}")
+                xc_handle_error("分时加载失败", str(_pde)[:80], hint="请稍后重试，或检查网络与数据源连接")
             if st.button("✕ 关闭", key="pick_close_intra"):
                 del st.session_state["pick_intraday_target"]
                 st.rerun(scope="fragment")
@@ -553,6 +553,7 @@ try:
 
         # ── 图表渲染区（Visualizer 延迟导入：仅用户选股后执行）──
         from modules.visualizer import Visualizer  # lazy: ~0.95s saved on pages without chart action
+from modules.ui_kit import xc_handle_error
 
         # ── 分时图（独立 fragment，交易时段每 5 分钟自动刷新）──
         _fragment_intraday(ticker, stock_label)
@@ -602,7 +603,7 @@ try:
             else:
                 st.info("上证基准数据获取失败，跳过对比。")
 except Exception as e:
-    st.error(f"⚠️ K 线加载异常：{str(e)[:80]}。请稍后刷新页面重试，或切换其它周期 / 区间。")
+    xc_handle_error("K 线加载异常", str(e)[:80], hint="请稍后刷新页面重试，或切换其它周期 / 区间")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -784,4 +785,4 @@ if data_ok and df is not None:
         # 用户打分（独立 fragment，交互只重跑本块，提升响应速度）
         _render_user_score(ticker, stock_label)
     except Exception as e:
-        st.error(f"技术面分析失败: {e}")
+        xc_handle_error("技术面分析失败", e, hint="请稍后重试，或检查网络与数据源连接")

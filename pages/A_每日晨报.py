@@ -239,6 +239,7 @@ fragment_watchlist_and_news()
 def fragment_review_notes():
     st.markdown('#### 📝 复盘笔记')
     import re as _re
+from modules.ui_kit import xc_handle_error
     NOTES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
     REVIEW_IMG_DIR = os.path.join(NOTES_DIR, 'review_images')
     os.makedirs(NOTES_DIR, exist_ok=True)
@@ -310,7 +311,7 @@ def fragment_review_notes():
                     st.success(f'✅ 已保存到 review_notes_{note_date_s}.md')
                 except Exception as e:
                     st.session_state['review_autosaved'] = False
-                    st.error(f'❌ 保存失败：{e}')
+                    xc_handle_error("保存失败", e, hint="请稍后重试，或检查网络与数据源连接")
         with c_clear:
             _ck = 'review_clear_confirm'
             if st.session_state.get(_ck):

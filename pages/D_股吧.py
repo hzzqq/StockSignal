@@ -19,6 +19,7 @@ from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 from modules.format_helpers import safe_int, safe_html_text
 import modules.scroll_nav as sn
+from modules.ui_kit import xc_handle_error
 
 render_standard_page(
     title="股吧 · 社区讨论", icon="💬",
@@ -328,7 +329,7 @@ def fragment_list():
         try:
             sc, body = api_get(path)
         except Exception as e:
-            st.error(f"📡 帖子加载失败：{e}")
+            xc_handle_error("📡 帖子加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
             return
     if sc != 200 or not isinstance(body, dict):
         st.error("📡 帖子加载失败，请稍后重试。")
