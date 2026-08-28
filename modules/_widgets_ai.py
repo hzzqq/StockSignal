@@ -10,6 +10,7 @@ import time
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
+from modules.ui_kit import xc_handle_error
 from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin, _rel_time
 import json
 import logging
@@ -203,12 +204,12 @@ def render_ai_consultant() -> None:
             st.session_state['ai_chat'].pop()
             err = err or '未知错误'
             if '登录' in err or '过期' in err or '凭证' in err:
-                st.error(f'❌ {err}')
+                xc_handle_error(err)
                 if st.button('重新登录', key='ai_relogin', use_container_width=True):
                     st.session_state.clear()
                     st.switch_page('pages/0_登录.py')
             else:
-                st.error(f'❌ 后台任务提交失败：{err}，请刷新后重试。')
+                xc_handle_error("后台任务提交失败", err, hint="请刷新后重试")
             st.session_state['ai_task_id'] = None
     if st.session_state.get('ai_task_id'):
         _poll_ai_consult_task()

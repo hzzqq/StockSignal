@@ -16,6 +16,7 @@ from datetime import datetime
 import html
 import time
 import requests
+from modules.ui_kit import xc_handle_error
 import streamlit as st
 import streamlit.components.v1 as components
 from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin, _rel_time
@@ -601,7 +602,7 @@ def render_sidebar_nav() -> None:
                 pass
     except Exception as e:
         with st.sidebar:
-            st.error(f'导航渲染失败：{e}')
+            xc_handle_error("导航渲染失败", e, hint="请稍后重试")
 
 @st.cache_data(ttl=30, show_spinner=False)
 def _cached_watchlist_count(token: str) -> int:
