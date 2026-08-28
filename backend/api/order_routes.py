@@ -29,13 +29,13 @@ import logging
 from ..auth.decorators import jwt_required
 from ..extensions import db
 from ..models import ConditionalOrder, RealAccount, RealOrder, RealPosition
+from ..utils.params import validate_stock_code
 from ..utils.response import fail, ok
 
 bp = Blueprint("trade", __name__, url_prefix="/api")
 
 logger = logging.getLogger(__name__)
 
-_TICKER_RE = re.compile(r"^\d{6}$")
 _BROKER_TYPES = ("sim", "qmt", "easytrader")
 _TRIGGER_TYPES = ("margin_stock", "margin_market", "ma5_break_up", "ma5_break_down")
 
@@ -158,7 +158,7 @@ def trade_place_order():
     except (TypeError, ValueError):
         return fail(message="价格无效", code="invalid_param", http_status=400)
 
-    if not _TICKER_RE.match(code):
+    if not validate_stock_code(code)[0]:
         return fail(message="股票代码须为 6 位数字", code="invalid_param", http_status=400)
     if side not in ("buy", "sell"):
         return fail(message="方向须为 buy/sell", code="invalid_param", http_status=400)
@@ -201,7 +201,7 @@ def cond_create():
 
     if trigger_type not in _TRIGGER_TYPES:
         return fail(message="不支持的触发类型", code="invalid_param", http_status=400)
-    if not _TICKER_RE.match(code):
+    if not validate_stock_code(code)[0]:
         return fail(message="股票代码须为 6 位数字", code="invalid_param", http_status=400)
     if action not in ("buy", "sell"):
         return fail(message="动作须为 buy/sell", code="invalid_param", http_status=400)

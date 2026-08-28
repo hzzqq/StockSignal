@@ -8,7 +8,26 @@ backend/utils/params.py
 """
 from __future__ import annotations
 
+import re
+
 from flask import request
+
+# A 股代码：6 位纯数字（沪市 60xxxx / 68xxxx，深市 00xxxx / 30xxxx 等）
+_TICKER_RE = re.compile(r"^\d{6}$")
+
+
+def validate_stock_code(code):
+    """校验 A 股股票代码（6 位纯数字），返回 ``(ok: bool, normalized: str)``。
+
+    ``normalized`` 为去空格后的原始输入；校验失败时为 ``""``。
+    供各 API 边界复用，统一「股票代码须为 6 位数字」契约，避免每处重复正则。
+    """
+    if not isinstance(code, str):
+        return False, ""
+    normalized = code.strip()
+    if not _TICKER_RE.match(normalized):
+        return False, ""
+    return True, normalized
 
 
 def parse_int_param(name, default=0, lo=None, hi=None, source=None):
