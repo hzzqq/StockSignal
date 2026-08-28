@@ -93,6 +93,11 @@ def _load_safe_title_html():
             apply_page_config=lambda *a, **k: None,
             dashboard_sf_css=lambda *a, **k: "",
             _theme_is_dark=lambda *a, **k: False,
+            sf_card=lambda *a, **k: None,
+            sf_metric=lambda *a, **k: None,
+            # 兜底：页面未来新增的 ui_theme import 符号一律返回 noop，
+            # 避免桩窗口期 ImportError 中断整个测试 collection（脆弱耦合债）
+            __getattr__=lambda name: (lambda *a, **k: None),
         ),
         "modules.session": _make_module(
             "modules.session",
