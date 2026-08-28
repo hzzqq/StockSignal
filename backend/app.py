@@ -129,6 +129,10 @@ def create_app(config_object: type = Config) -> Flask:
     app.config["TRAP_HTTP_EXCEPTIONS"] = False
     app.json.sort_keys = False  # JSON 字段顺序稳定
 
+    # 可用性加固：限制请求体大小，防止超大 payload 造成内存/DoS
+    # （可在部署环境用环境变量覆盖）
+    app.config.setdefault("MAX_CONTENT_LENGTH", 2 * 1024 * 1024)  # 2 MB
+
     # ---- 健康检查（同样走 ok() 包装；含 DB 连通性探针）----
     @app.get("/api/health")
     def health():
@@ -188,6 +192,7 @@ def _register_error_handlers(app: Flask) -> None:
             "bad_request": (400, "请求参数错误"),
             "forbidden": (403, "无权限访问"),
             "unauthorized": (401, "未授权"),
+            "request_entity_too_large": (413, "请求体过大"),
             "internal_server_error": (500, "服务内部错误"),
         }
         if code in code_map:
