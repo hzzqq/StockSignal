@@ -161,7 +161,7 @@ StockSignal/
 ├── backend/              # Flask 后端（JWT 鉴权 / REST API / 管理界面）
 ├── data/                 # 前端运行数据（cache.db / portfolio.csv / news.db）
 ├── tests/ + backend/tests/  # 158 个测试文件 / 1767 用例
-└── 启动StockSignal.bat / .sh  # 一键启动脚本
+└── 启动StockSignal.bat          # Windows 一键启动（macOS/Linux 见方式 B 手动 / 方式 C Docker）
 ```
 
 ---
