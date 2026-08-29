@@ -2,7 +2,8 @@
 牧羊人指标历史重构模块
 
 目标：把「股海牧羊人·情绪温度计」所需的市场广度指标（上涨/下跌/涨停/跌停家数、
-红盘占比）从 2007 年起尽量补全。
+红盘占比）从 2007 年起尽量补全；v2 再新增横截面复盘指标
+（中位数涨跌幅 / 平均股价 / 回头波>10% / 炸板家数 / 倒跌停家数）。
 
 数据现实：
 - 东财 stock_zh_a_spot_em / stock_zh_a_hist 在沙箱/部分网络环境下会被远程断连；
@@ -15,8 +16,12 @@
   必须用「多进程」(ProcessPoolExecutor) 让每只 worker 进程各自持有独立 V8 实例。
 - worker 函数必须是「模块级纯函数、不带局部闭包装饰器」，否则 multiprocessing 在
   Windows(spawn) 下 pickle 失败（Can't get local object ...wrapper）。
-- 每只股票聚合结果落地到 data/shepherd_cache/<symbol>.csv，支持断点续跑；崩溃后
+- 每只股票聚合结果落地到 data/shepherd_cache_v2/<symbol>.csv，支持断点续跑；崩溃后
   重跑只会补拉缺失标的，已缓存的不重复下载。
+- v2 与 v1 缓存目录分离：v2 每股每日多存 change_pct/close/触板标记（横截面指标
+  需要个股级明细，无法从 v1 的 0/1 计数聚合而来），因此 v1 缓存不能复用，需全量重拉。
+- 前复权(qfq)口径说明：涨停/跌停/回头波按比例计算不受影响；平均股价为 qfq 近似值
+  （绝对价位与真实不复权价有偏差，趋势仍有效）。
 """
 from __future__ import annotations
 
@@ -41,11 +46,19 @@ _SYMBOLS_CACHE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "data", "shepherd_symbols.json"
 )
 _CACHE_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "data", "shepherd_cache"
+    os.path.dirname(os.path.abspath(__file__)), "..", "data", "shepherd_cache_v2"
 )
 
 # 新浪 daily 列名
 _DAILY_COLS = ["date", "open", "high", "low", "close", "volume", "amount", "outstanding_share", "turnover"]
+
+# v2 横截面聚合口径：sum=家数计数，median/mean=横截面统计
+_AGG_SPEC = {
+    "up_count": "sum", "down_count": "sum", "flat_count": "sum",
+    "limit_up": "sum", "limit_down": "sum",
+    "touch_down": "sum", "zt_fail_count": "sum", "hb_wave10": "sum",
+    "change_pct": "median", "close": "mean",
+}
 
 
 def _retry(max_retries: int = 3, base_delay: float = 0.6):
@@ -81,27 +94,35 @@ def _board_limit_pct(symbol: str) -> float:
     return 0.10
 
 
-def _detect_limit(row: pd.Series, limit_pct: float, tol: float = 0.005) -> tuple[int, int]:
-    """返回 (是否涨停, 是否跌停)。"""
+def _detect_limit(row: pd.Series, limit_pct: float, tol: float = 0.005) -> tuple[int, int, int, int]:
+    """返回 (是否涨停, 是否跌停, 是否盘中触涨停, 是否盘中触跌停)。"""
     prev_close = row["prev_close"]
     close = row["close"]
     if pd.isna(prev_close) or prev_close <= 0 or pd.isna(close) or close <= 0:
-        return 0, 0
+        return 0, 0, 0, 0
     up_limit = prev_close * (1 + limit_pct)
     down_limit = prev_close * (1 - limit_pct)
+    high = row.get("high")
+    low = row.get("low")
+    touch_up = 0
+    touch_down = 0
+    if pd.notna(high) and high >= up_limit * (1 - tol):
+        touch_up = 1
+    if pd.notna(low) and low <= down_limit * (1 + tol):
+        touch_down = 1
     is_up = (abs(close - up_limit) / up_limit < tol) and (close > prev_close)
     is_down = (abs(close - down_limit) / down_limit < tol) and (close < prev_close)
-    return int(is_up), int(is_down)
+    return int(is_up), int(is_down), touch_up, touch_down
 
 
 def _normalize_daily(df: pd.DataFrame) -> Optional[pd.DataFrame]:
-    """把新浪日线 DataFrame 标准化为含 date/close/high/volume 的 DataFrame。"""
+    """把新浪日线 DataFrame 标准化为含 date/close/high/low/volume 的 DataFrame。"""
     if df is None or len(df) < 2:
         return None
     df = df.copy()
     df.columns = [str(c).strip() for c in df.columns]
     col_map = {}
-    for want in ("date", "close", "high", "volume"):
+    for want in ("date", "close", "high", "low", "volume"):
         for c in df.columns:
             if want in c.lower():
                 col_map[want] = c
@@ -114,6 +135,10 @@ def _normalize_daily(df: pd.DataFrame) -> Optional[pd.DataFrame]:
         df["high"] = pd.to_numeric(df[col_map["high"]], errors="coerce")
     else:
         df["high"] = df["close"]
+    if "low" in col_map:
+        df["low"] = pd.to_numeric(df[col_map["low"]], errors="coerce")
+    else:
+        df["low"] = df["close"]
     df["volume"] = pd.to_numeric(df.get(col_map.get("volume")), errors="coerce")
     df = df.dropna(subset=["date", "close"])
     if len(df) < 2:
@@ -127,7 +152,8 @@ def _normalize_daily(df: pd.DataFrame) -> Optional[pd.DataFrame]:
 def _aggregate_one_stock(symbol: str, start_date: str, end_date: str) -> Optional[pd.DataFrame]:
     """拉取单只股票日线并聚合为每日 0/1 计数（模块级纯函数，带内部重试，无装饰器）。
 
-    返回 DataFrame[date, up_count, down_count, flat_count, limit_up, limit_down]，
+    v2：额外输出 change_pct/close/触板标记/回头波标记，供跨股横截面聚合
+    （中位数涨跌幅/平均股价/炸板家数/倒跌停家数/回头波>10%家数）。
     失败返回 None。
     """
     import akshare as ak
@@ -167,22 +193,36 @@ def _aggregate_one_stock(symbol: str, start_date: str, end_date: str) -> Optiona
     is_down = is_down & (~suspended)
     is_flat = is_flat & (~suspended)
 
-    limit_up_flags = []
-    limit_down_flags = []
+    sealed_up_flags, sealed_down_flags, touch_up_flags, touch_down_flags = [], [], [], []
     for _, row in df.iterrows():
-        up, down = _detect_limit(row, limit_pct)
-        limit_up_flags.append(up)
-        limit_down_flags.append(down)
+        up, down, tup, tdn = _detect_limit(row, limit_pct)
+        sealed_up_flags.append(up)
+        sealed_down_flags.append(down)
+        touch_up_flags.append(tup)
+        touch_down_flags.append(tdn)
+
+    # 回头波 = (最高-收盘)/最高 > 10%（追高者日内回撤，杨哥口径）
+    hw = np.where((df["high"] > 0) & df["high"].notna(),
+                  (df["high"] - df["close"]) / df["high"] * 100.0, np.nan)
+    hb10 = (pd.Series(hw, index=df.index) > 10).astype(int)
+    hb10 = hb10.where(~suspended, 0)
 
     out = pd.DataFrame({
         "date": df["date"].dt.date,
         "up_count": is_up.astype(int),
         "down_count": is_down.astype(int),
         "flat_count": is_flat.astype(int),
-        "limit_up": limit_up_flags,
-        "limit_down": limit_down_flags,
+        "limit_up": sealed_up_flags,
+        "limit_down": sealed_down_flags,
+        "touch_up": touch_up_flags,
+        "touch_down": touch_down_flags,
+        # 炸板 = 盘中触涨停但收盘未封住（杨哥：摸板/尾盘炸板均算）
+        "zt_fail_count": [int(t and not s) for t, s in zip(touch_up_flags, sealed_up_flags)],
+        "hb_wave10": hb10.values,
+        "change_pct": df["change_pct"].values,
+        "close": df["close"].values,
     })
-    return out.groupby("date").sum().reset_index()
+    return out.groupby("date").first().reset_index()
 
 
 def _cache_path(symbol: str, cache_dir: str) -> str:
@@ -253,13 +293,14 @@ def _fetch_a_share_codes() -> Optional[pd.DataFrame]:
 
 def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
                         symbols: Optional[list] = None, use_cache: bool = True) -> pd.DataFrame:
-    """重构全 A 市场广度日序列（多进程 + 断点续跑）。
+    """重构全 A 市场广度日序列（多进程 + 断点续跑，v2 含横截面复盘指标）。
 
     :param start_date/end_date: YYYYMMDD 或 YYYY-MM-DD。
     :param max_workers: 多进程 worker 数。
     :param symbols: 指定股票代码列表（测试用）；None 则自动获取全 A。
-    :param use_cache: 是否复用/写入 data/shepherd_cache 缓存。
-    :returns: DataFrame[date, up_count, down_count, flat_count, limit_up, limit_down, red_ratio]
+    :param use_cache: 是否复用/写入 data/shepherd_cache_v2 缓存。
+    :returns: DataFrame[date, up_count, down_count, flat_count, limit_up, limit_down,
+              touch_down, zt_fail_count, hb_wave10, median_chg, avg_price, red_ratio]
     """
     sd = pd.to_datetime(start_date).strftime("%Y%m%d")
     ed = pd.to_datetime(end_date).strftime("%Y%m%d")
@@ -268,7 +309,7 @@ def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
         codes_df = _fetch_a_share_codes()
         if codes_df is None or codes_df.empty:
             logger.warning("[shepherd_reconstruct] 无法获取全 A 代码列表，返回空 DataFrame")
-            return pd.DataFrame(columns=["date", "up_count", "down_count", "flat_count", "limit_up", "limit_down", "red_ratio"])
+            return pd.DataFrame(columns=["date"] + list(_AGG_SPEC.keys()) + ["red_ratio"])
         symbols = codes_df["symbol"].astype(str).tolist()
 
     os.makedirs(_CACHE_DIR, exist_ok=True)
@@ -316,27 +357,44 @@ def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
             logger.warning(f"[shepherd_reconstruct] 处理异常: {e}")
             continue
     if not frames:
-        return pd.DataFrame(columns=["date", "up_count", "down_count", "flat_count", "limit_up", "limit_down", "red_ratio"])
+        return pd.DataFrame(columns=["date"] + list(_AGG_SPEC.keys()) + ["red_ratio"])
 
+    # 跨股横截面聚合：家数求和 + 中位数/均值统计（v2）
+    out = _aggregate_frames(frames)
+    out = out[(out["date"] >= pd.to_datetime(start_date)) & (out["date"] <= pd.to_datetime(end_date))]
+    return out.reset_index(drop=True)
+
+
+def _aggregate_frames(frames: list) -> pd.DataFrame:
+    """跨股横截面聚合（纯函数，可离线测试）。
+
+    输入：每股 DataFrame 的列表（v2 schema：date + 计数/标记 + change_pct + close）。
+    输出：DataFrame[date, up_count, ..., limit_up, limit_down, touch_down, zt_fail_count,
+    hb_wave10, median_chg, avg_price, red_ratio]。
+    """
+    empty_cols = ["date"] + list(_AGG_SPEC.keys()) + ["red_ratio"]
+    if not frames:
+        return pd.DataFrame(columns=empty_cols)
     big = pd.concat(frames, ignore_index=True)
     big["date"] = pd.to_datetime(big["date"], errors="coerce")
     big = big.dropna(subset=["date"])
+    if big.empty:
+        return pd.DataFrame(columns=empty_cols)
     big["date"] = big["date"].dt.date
-    for c in ("up_count", "down_count", "flat_count", "limit_up", "limit_down"):
+    for c, how in _AGG_SPEC.items():
         if c not in big.columns:
-            big[c] = 0
-        big[c] = pd.to_numeric(big[c], errors="coerce").fillna(0).astype(np.int64)
-    agg = big.groupby("date", sort=True)[["up_count", "down_count", "flat_count", "limit_up", "limit_down"]].sum().reset_index()
-    agg.columns = ["date", "up_count", "down_count", "flat_count", "limit_up", "limit_down"]
+            big[c] = 0 if how == "sum" else np.nan
+        big[c] = pd.to_numeric(big[c], errors="coerce")
+        if how == "sum":
+            big[c] = big[c].fillna(0).astype(np.int64)
+    agg = big.groupby("date", sort=True).agg(_AGG_SPEC).reset_index()
+    agg = agg.rename(columns={"change_pct": "median_chg", "close": "avg_price"})
     out = agg.copy()
     out["date"] = pd.to_datetime(out["date"])
     out = out.sort_values("date").reset_index(drop=True)
-
     denom = out["up_count"] + out["down_count"]
     out["red_ratio"] = np.where(denom > 0, out["up_count"] / denom * 100.0, np.nan)
-
-    out = out[(out["date"] >= pd.to_datetime(start_date)) & (out["date"] <= pd.to_datetime(end_date))]
-    return out.reset_index(drop=True)
+    return out
 
 
 def _col(df, *keys):
@@ -353,24 +411,23 @@ def _col(df, *keys):
 
 @_retry()
 def _fetch_zt_pool(date: str):
-    """拉取某日涨停池，返回 dict。"""
+    """拉取某日涨停池，返回 dict（含连板梯队/封成比，复用 shepherd 纯函数口径）。"""
     import akshare as ak
+    from modules.shepherd import _compute_zt_pool_indicators
     d = pd.to_datetime(date).strftime("%Y%m%d")
     df = ak.stock_zt_pool_em(date=d)
+    return _compute_zt_pool_indicators(df)
+
+
+@_retry(max_retries=1)
+def _fetch_zt_zbgc(date: str):
+    """拉取某日炸板股池，返回炸板家数 dict（仅支持近约 30 交易日，业务性报错不重试）。"""
+    import akshare as ak
+    d = pd.to_datetime(date).strftime("%Y%m%d")
+    df = ak.stock_zt_pool_zbgc_em(date=d)
     if df is None or df.empty:
         return None
-    out = {"limit_up": float(len(df))}
-    col_hl = _col(df, "连板数")
-    if col_hl:
-        hl = pd.to_numeric(df[col_hl], errors="coerce").max()
-        if pd.notna(hl):
-            out["connect_hl"] = float(hl)
-    col_zb = _col(df, "炸板次数")
-    if col_zb:
-        zb = pd.to_numeric(df[col_zb], errors="coerce").fillna(0)
-        total = len(df)
-        out["zt_fail_ratio"] = float((zb > 0).mean() * 100.0) if total > 0 else 0.0
-    return out
+    return {"zt_fail_count": float(len(df))}
 
 
 @_retry()
@@ -402,11 +459,21 @@ def _fetch_zt_dtgc(date: str):
 
 
 def fetch_zt_data_for_dates(dates: list) -> pd.DataFrame:
-    """对给定日期列表并发拉取 zt_pool / previous / dtgc，返回 DataFrame。"""
+    """对给定日期列表并发拉取 zt_pool / zbgc / previous / dtgc，返回 DataFrame。"""
     tasks = []
     for d in dates:
         ds = pd.to_datetime(d).strftime("%Y-%m-%d")
-        tasks.append((f"zt_{ds}", lambda date=ds: {**(_fetch_zt_pool(date) or {}), **(_fetch_zt_dtgc(date) or {}), **(_fetch_zt_previous(date) or {})}))
+
+        def _pull(date=ds):
+            vals = {**(_fetch_zt_pool(date) or {}), **(_fetch_zt_zbgc(date) or {}),
+                    **(_fetch_zt_dtgc(date) or {}), **(_fetch_zt_previous(date) or {})}
+            # 炸板率修正为杨哥口径：炸板/(涨停+炸板)
+            zc, lu = vals.get("zt_fail_count"), vals.get("limit_up")
+            if zc is not None and lu is not None and (zc + lu) > 0:
+                vals["zt_fail_ratio"] = float(zc / (zc + lu) * 100.0)
+            return vals
+
+        tasks.append((f"zt_{ds}", _pull))
 
     results = fetch_many(tasks, max_workers=6, timeout=20)
     rows = []
@@ -415,7 +482,8 @@ def fetch_zt_data_for_dates(dates: list) -> pd.DataFrame:
         key = f"zt_{ds}"
         vals = results.get(key) or {}
         row = {"date": pd.to_datetime(d)}
-        for k in ("limit_up", "limit_down", "connect_hl", "zt_fail_ratio", "zt_prev_ret"):
+        for k in ("limit_up", "limit_down", "connect_hl", "connect_2b", "fc_ratio",
+                  "zt_fail_count", "zt_fail_ratio", "zt_prev_ret"):
             row[k] = vals.get(k)
         rows.append(row)
     return pd.DataFrame(rows)
@@ -434,7 +502,7 @@ def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
     if reconstruct:
         breadth = reconstruct_breadth(start_date, end_date)
     else:
-        breadth = pd.DataFrame(columns=["date", "up_count", "down_count", "flat_count", "limit_up", "limit_down", "red_ratio"])
+        breadth = pd.DataFrame(columns=["date"] + list(_AGG_SPEC.keys()) + ["red_ratio"])
 
     # 尝试用 zt_pool 补充最近约 12 个交易日的真实涨停/跌停/连板/炸板/昨板表现
     try:
@@ -442,7 +510,8 @@ def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
         zt_df = fetch_zt_data_for_dates(recent_days)
         if not zt_df.empty:
             merged = breadth.merge(zt_df, on="date", how="outer", suffixes=("", "_zt"))
-            for col in ("limit_up", "limit_down", "connect_hl", "zt_fail_ratio", "zt_prev_ret"):
+            for col in ("limit_up", "limit_down", "connect_hl", "connect_2b", "fc_ratio",
+                        "zt_fail_count", "zt_fail_ratio", "zt_prev_ret"):
                 zt_col = f"{col}_zt"
                 if zt_col in merged.columns:
                     merged[col] = merged[zt_col].combine_first(merged.get(col))
@@ -451,8 +520,10 @@ def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
     except Exception as e:  # noqa: BLE001
         logger.warning("[shepherd_reconstruct] 合并 zt_pool 失败: %s", e)
 
-    # 确保列顺序
-    cols = ["date", "up_count", "down_count", "flat_count", "limit_up", "limit_down", "red_ratio", "connect_hl", "zt_fail_ratio", "zt_prev_ret"]
+    # 确保列顺序（v2：新增 touch_down / zt_fail_count / hb_wave10 / median_chg / avg_price 等）
+    cols = ["date", "up_count", "down_count", "flat_count", "limit_up", "limit_down", "red_ratio",
+            "touch_down", "zt_fail_count", "hb_wave10", "median_chg", "avg_price",
+            "connect_hl", "connect_2b", "fc_ratio", "zt_fail_ratio", "zt_prev_ret"]
     for c in cols:
         if c not in breadth.columns:
             breadth[c] = np.nan

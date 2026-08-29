@@ -592,7 +592,11 @@ def get_realtime_quote(code: str) -> Dict[str, Any]:
 # 工具 11：市场情绪（牧羊人温度计）
 # ---------------------------------------------------------------------------
 def get_market_sentiment(days: int = 30) -> Dict[str, Any]:
-    """获取全市场情绪快照：8 项牧羊人指标 + 综合温度计（0-100）。
+    """获取全市场情绪快照：17 项牧羊人指标 + 综合温度计（0-100）。
+
+    指标含经典情绪温度计（上涨/下跌/涨停/跌停/昨日涨停表现/红盘占比/连板高度/炸板率）
+    与复盘方法论新增项（有效涨停/中位数涨跌幅/回头波>10%家数/炸板家数/2板及以上家数/
+    倒跌停家数/平均封成比/平均股价/成交额，其中平均股价/成交额为观察项不参与打分）。
 
     Args:
         days: 历史回看天数（默认 30，用于温度计分位打分；>=2000 取长历史）
@@ -605,7 +609,7 @@ def get_market_sentiment(days: int = 30) -> Dict[str, Any]:
 
     today, meta = shepherd.get_shepherd_today()
     temp = shepherd.shepherd_temperature(today, hist_days=int(days))
-    # 仅透出 THRESHOLDS 定义的 8 项，过滤合并过程中产生的辅助键（如 flat_count）
+    # 仅透出 THRESHOLDS 定义的指标，过滤合并过程中产生的辅助键（如 flat_count）
     indicators = {k: today.get(k) for k in shepherd.THRESHOLDS if k in today}
     return {
         "temperature": temp,
@@ -788,7 +792,7 @@ def _register_all() -> None:
     )
     register_tool(
         "get_market_sentiment",
-        "获取全市场情绪：8 项牧羊人指标（涨跌/涨停/炸板/连板等）+ 综合温度计(0-100)。用于回答市场情绪/恐慌/温度计类问题。",
+        "获取全市场情绪：17 项牧羊人指标（涨跌/涨停/炸板/连板/中位数涨跌幅/回头波/倒跌停/封成比等）+ 综合温度计(0-100)。用于回答市场情绪/恐慌/温度计类问题。",
         {
             "type": "object",
             "properties": {

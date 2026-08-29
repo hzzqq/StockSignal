@@ -13,11 +13,27 @@
   上涨家数        全市场上涨个股数                               >3000 / 1500~3000 / <1500
   下跌家数        全市场下跌个股数                               <1500 / 1500~3000 / >3000（防守）
   涨停家数        当日收盘涨停个股数（东财涨停池）               >50 / 20~50 / <20
+  有效涨停        真实涨停（乐股，剔除 ST/未封死）               >50 / 20~50 / <20
   跌停家数        当日收盘跌停个股数（全A快照反算）              <5 / 5~15 / >15（>30 恐慌）
   昨日涨停表现    昨日涨停股今日平均涨跌幅(%)                    >3% / 0~3% / <0%（吃面）
   红盘占比        上涨/(上涨+下跌)×100%                         >60% / 45~60% / <45%
   连板高度        当日最高连板数（涨停池 max 连板数）            ≥6板 / 3~5板 / <3板
-  炸板率          涨停池中「炸板次数>0」占比(%)（封板不稳代理）  <30% / 30~50% / >50%
+  炸板家数        炸板股池家数（东财 zbgc，摸板未封住）          <20 / 20~45 / >45
+  炸板率          炸板/(涨停+炸板)×100%（杨哥口径：49/128=38%）  <30% / 30~50% / >50%（次日易V反）
+
+v2 新增（源自视频《如何复盘非常重要》完整方法论，2026-08-29 接入）：
+  中位数涨跌幅    剔除 ST 后全A 涨跌幅中位数（当日人均赚/亏）    >1% / 0~1% / <0%（亏钱效应）
+  回头波>10%家数  (最高-收盘)/最高>10% 的家数（追高者回撤）      <20 / 20~50 / ≥30~50（次日易V反）
+  连板家数(≥2板)  2 板及以上家数（赚钱效应梯队厚度）             >15 / 5~15 / <5（梯队断层）
+  倒跌停家数      盘中最低价触及跌停价的家数（恐慌抛压）         <15 / 15~40 / >40
+  平均封成比      涨停池 封板资金/成交额 均值（封板强度）        >1.0 / 0.4~1.0 / <0.4
+  平均股价        全A 最新价均值（观察项，不参与温度计）          —
+  全A成交额       新浪快照成交额合计(亿元)（观察项）             —
+
+杨哥规律（信号文案内置）：
+  - 炸板率 ≥50% → 次日大概率 V 反；
+  - 回头波>10% 家数 ≥30/50 → 次日易 V 反（退潮修复特征）；
+  - 两融余额持续增加 + 指数不创新高 = 顶背离 → 警惕见顶（页面端结合市场驱动力数据展示）。
 
 数据层设计（对齐 modules/market_drivers 的优雅降级约定）：
 - get_shepherd_today()   实时快照（约 3 次轻量请求，<1s），供温度计卡使用。
@@ -99,6 +115,7 @@ def _retry(max_retries=2, base_delay=0.5):
 # ───────── 高温/常温/低温 阈值（牧羊人温度计）─────────
 # dir: +1 越高越热；-1 越高越冷
 THRESHOLDS = {
+    # ── 核心 8 项（v1 情绪温度计）──
     "up_count":      dict(name="上涨家数", unit="家", dir=1, hot=3000, warm=1500, hot_label="高温(可出手)", cold_label="低温(先防守)"),
     "down_count":    dict(name="下跌家数", unit="家", dir=-1, hot=1500, warm=3000, hot_label="低温(可出手)", cold_label="高温(先防守)"),
     "limit_up":      dict(name="涨停家数", unit="家", dir=1, hot=50, warm=20, hot_label="亢奋", cold_label="低迷"),
@@ -106,7 +123,18 @@ THRESHOLDS = {
     "zt_prev_ret":   dict(name="昨日涨停表现", unit="%", dir=1, hot=3.0, warm=0.0, hot_label="炸裂", cold_label="吃面"),
     "red_ratio":     dict(name="红盘占比", unit="%", dir=1, hot=60.0, warm=45.0, hot_label="普涨", cold_label="普跌"),
     "connect_hl":    dict(name="连板高度", unit="板", dir=1, hot=6, warm=3, hot_label="高风险偏好", cold_label="冰点"),
-    "zt_fail_ratio": dict(name="炸板率", unit="%", dir=-1, hot=30.0, warm=50.0, hot_label="封板稳", cold_label="分歧大"),
+    "zt_fail_ratio": dict(name="炸板率", unit="%", dir=-1, hot=30.0, warm=50.0, hot_label="封板稳", cold_label="分歧大(≥50%易V反)"),
+    # ── 复盘方法论新增（视频《如何复盘非常重要》，2026-08-29）──
+    "real_limit_up": dict(name="有效涨停(真实涨停)", unit="家", dir=1, hot=50, warm=20, hot_label="亢奋", cold_label="低迷"),
+    "median_chg":    dict(name="中位数涨跌幅", unit="%", dir=1, hot=1.0, warm=0.0, hot_label="普涨修复", cold_label="亏钱效应"),
+    "hb_wave10":     dict(name="回头波>10%家数", unit="家", dir=-1, hot=20, warm=50, hot_label="追高安全", cold_label="退潮(易V反)"),
+    "zt_fail_count": dict(name="炸板家数", unit="家", dir=-1, hot=20, warm=45, hot_label="封板稳", cold_label="分歧大"),
+    "connect_2b":    dict(name="连板家数(≥2板)", unit="家", dir=1, hot=15, warm=5, hot_label="梯队厚", cold_label="梯队断层"),
+    "touch_down":    dict(name="倒跌停家数", unit="家", dir=-1, hot=15, warm=40, hot_label="安全", cold_label="恐慌抛压"),
+    "fc_ratio":      dict(name="平均封成比", unit="", dir=1, hot=1.0, warm=0.4, hot_label="封板强", cold_label="封板弱"),
+    # ── 观察项（dir=0，不参与温度计打分，仅展示）──
+    "avg_price":     dict(name="平均股价", unit="元", dir=0, hot=0.0, warm=999.0, hot_label="观察", cold_label="观察"),
+    "turnover_amt":  dict(name="全A成交额", unit="亿", dir=0, hot=0.0, warm=999.0, hot_label="观察", cold_label="观察"),
 }
 
 
@@ -125,30 +153,137 @@ def _fetch_legu():
             return None
         return pd.to_numeric(sub.iloc[0], errors="coerce")
     for name, key in (("上涨", "up_count"), ("下跌", "down_count"),
-                      ("涨停", "limit_up"), ("跌停", "limit_down"), ("横盘", "flat_count")):
+                      ("涨停", "limit_up"), ("跌停", "limit_down"), ("横盘", "flat_count"),
+                      ("真实涨停", "real_limit_up"), ("真实跌停", "real_limit_down")):
         v = _val(name)
         if v is not None and pd.notna(v):
             out[key] = float(v)
     return out or None
 
 
-@_retry()
-def _fetch_zt_pool(date=None):
-    """涨停池：涨停家数 / 连板高度 / 炸板不稳比例。"""
-    import akshare as ak
-    d = date or pd.Timestamp.now().strftime("%Y%m%d")
-    df = ak.stock_zt_pool_em(date=d)
+def _compute_zt_pool_indicators(df):
+    """从涨停池 DataFrame 计算涨停/连板/炸板/封成比指标（纯函数，可离线测试）。"""
     if df is None or df.empty:
         return None
     out = {"limit_up": float(len(df))}
-    if "连板数" in df.columns:
-        hl = pd.to_numeric(df["连板数"], errors="coerce").max()
+    col_hl = _col(df, "连板数")
+    if col_hl:
+        boards = pd.to_numeric(df[col_hl], errors="coerce")
+        hl = boards.max()
         if pd.notna(hl):
             out["connect_hl"] = float(hl)
-    if "炸板次数" in df.columns:
-        zb = pd.to_numeric(df["炸板次数"], errors="coerce").fillna(0)
+        out["connect_2b"] = float((boards >= 2).sum())
+    col_zb = _col(df, "炸板次数")
+    if col_zb:
+        zb = pd.to_numeric(df[col_zb], errors="coerce").fillna(0)
         out["zt_fail_ratio"] = float((zb > 0).mean() * 100.0)
+    # 平均封成比：封板资金(元)/成交额(元) —— 杨哥用封成比代替手数涨停家数（有封单才有封成比）
+    col_fc = _col(df, "封板资金")
+    col_amt = _col(df, "成交额")
+    if col_fc and col_amt and col_fc != col_amt:
+        fc = pd.to_numeric(df[col_fc], errors="coerce")
+        amt = pd.to_numeric(df[col_amt], errors="coerce")
+        ok = fc.notna() & amt.notna() & (amt > 0)
+        if ok.any():
+            out["fc_ratio"] = float((fc[ok] / amt[ok]).mean())
     return out
+
+
+@_retry()
+def _fetch_zt_pool(date=None):
+    """涨停池：涨停家数 / 连板高度 / 连板梯队 / 炸板不稳比例 / 平均封成比。"""
+    import akshare as ak
+    d = date or pd.Timestamp.now().strftime("%Y%m%d")
+    df = ak.stock_zt_pool_em(date=d)
+    return _compute_zt_pool_indicators(df)
+
+
+@_retry(max_retries=1)
+def _fetch_zbgc_pool(date=None):
+    """炸板股池（东财 zbgc）：炸板家数（摸板未封住）。注：仅支持最近约 30 个交易日，
+    更早日期为业务性报错（不重试），历史值由重构管线从个股 high/close 反算。"""
+    import akshare as ak
+    d = date or pd.Timestamp.now().strftime("%Y%m%d")
+    df = ak.stock_zt_pool_zbgc_em(date=d)
+    if df is None or df.empty:
+        return None
+    return {"zt_fail_count": float(len(df))}
+
+
+def _limit_pct_for_code(code):
+    """按代码前缀推断日涨跌停幅度（与 shepherd_reconstruct._board_limit_pct 同口径）。"""
+    s = str(code).lower().strip()
+    body = s[2:] if len(s) > 2 and s[:2] in ("sh", "sz", "bj") else s
+    if s.startswith("bj"):
+        return 0.30
+    if body.startswith("68"):  # 科创板（仅沪市存在 68 段）
+        return 0.20
+    if body.startswith("30"):  # 创业板（仅深市存在 30 段）
+        return 0.20
+    return 0.10
+
+
+def _compute_spot_indicators(df):
+    """从新浪全 A 快照计算中位数/平均股价/回头波/倒跌停/成交额（纯函数，可离线测试）。
+
+    口径对齐视频《如何复盘非常重要》：
+    - 中位数涨跌幅：剔除 ST 后全体涨跌幅的中位数 —— 当日「所有人平均赚钱还是亏钱」；
+    - 平均股价：全部 A 股最新价均值（杨哥：高价股多时会拉高，观察用）；
+    - 回头波>10%：日内（最高-最新）/最高 > 10% —— 追高者的回撤幅度；
+    - 倒跌停：盘中最低价触及按板块跌幅计算的跌停价（含封死，杨哥单列封死跌停）。
+    """
+    if df is None or df.empty:
+        return None
+    chg = pd.to_numeric(df.get("涨跌幅"), errors="coerce")
+    price = pd.to_numeric(df.get("最新价"), errors="coerce")
+    high = pd.to_numeric(df.get("最高"), errors="coerce")
+    low = pd.to_numeric(df.get("最低"), errors="coerce")
+    prev = pd.to_numeric(df.get("昨收"), errors="coerce")
+    vol = pd.to_numeric(df.get("成交量"), errors="coerce")
+    amt = pd.to_numeric(df.get("成交额"), errors="coerce")
+    name = df.get("名称") if "名称" in df.columns else None
+    active = vol.fillna(0) > 0
+    out = {}
+    # 中位数涨跌幅（剔除 ST，杨哥口径）
+    m = active & chg.notna()
+    if name is not None:
+        m = m & (~name.astype(str).str.upper().str.contains("ST", na=False))
+    if m.any():
+        out["median_chg"] = float(chg[m].median())
+    # 平均股价（全部 A 股，含 ST）
+    ap = active & price.notna() & (price > 0)
+    if ap.any():
+        out["avg_price"] = float(price[ap].mean())
+    # 回头波>10%家数
+    hw_ok = active & high.notna() & (high > 0) & price.notna() & (price > 0) & (high >= price)
+    if hw_ok.any():
+        hw = (high[hw_ok] - price[hw_ok]) / high[hw_ok] * 100.0
+        out["hb_wave10"] = float((hw > 10).sum())
+    # 倒跌停家数（盘中触及跌停价）
+    codes = df.get("代码") if "代码" in df.columns else None
+    if codes is not None and prev is not None and low is not None:
+        lp = codes.map(_limit_pct_for_code).astype(float)
+        dl = prev * (1.0 - lp)
+        td = active & prev.notna() & (prev > 0) & low.notna() & (low <= dl * 1.005)
+        out["touch_down"] = float(td.sum())
+    # 全A成交额（亿元）
+    if amt is not None and amt.notna().any():
+        out["turnover_amt"] = float(amt.sum() / 1e8)
+    return out or None
+
+
+@_retry(max_retries=1)
+def _fetch_sina_spot():
+    """新浪全 A 快照（约 70 页、~25s），TTL 缓存 10 分钟。"""
+    import akshare as ak
+    df = ak.stock_zh_a_spot()
+    return _compute_spot_indicators(df)
+
+
+def _get_spot_cached():
+    """带 10 分钟 TTL 缓存 + 30s 硬超时的新浪快照指标。"""
+    from modules.timeout_exec import run_with_timeout
+    return run_with_timeout(lambda: _cached(600, "sina_spot_v2", _fetch_sina_spot), timeout=30)
 
 
 @_retry()
@@ -191,8 +326,9 @@ def get_shepherd_today():
         ("legu", _fetch_legu),
         ("zt_pool", _fetch_zt_pool),
         ("zt_prev_ret", _fetch_prev_pool),
+        ("zbgc_pool", _fetch_zbgc_pool),
     ]
-    _results = fetch_many(_tasks, max_workers=3, timeout=12)
+    _results = fetch_many(_tasks, max_workers=4, timeout=12)
 
     # 1) legu 涨跌家数 + 涨停/跌停/红盘占比（快）
     try:
@@ -232,6 +368,38 @@ def get_shepherd_today():
     except Exception as e:  # noqa
         logger.warning(f"[shepherd] 处理异常: {e}")
         meta["unavailable"].append(("zt_prev_ret", f"失败:{e}"))
+
+    # 4) 炸板股池（炸板家数，杨哥复盘第 3 项）
+    try:
+        zbgc = _results.get("zbgc_pool")
+        if zbgc:
+            merged.update(zbgc)
+            meta["available"].extend(zbgc.keys())
+        else:
+            meta["unavailable"].append(("zbgc_pool", "炸板股池暂不可用"))
+    except Exception as e:  # noqa
+        logger.warning(f"[shepherd] 处理异常: {e}")
+        meta["unavailable"].append(("zbgc_pool", f"失败:{e}"))
+
+    # 5) 新浪全 A 快照（重，~25s，TTL 10 分钟缓存）：中位数/平均股价/回头波/倒跌停/成交额
+    try:
+        spot = _get_spot_cached()
+        if spot:
+            merged.update(spot)
+            meta["available"].extend(spot.keys())
+        else:
+            meta["unavailable"].append(("sina_spot", "新浪全A快照暂不可用"))
+    except Exception as e:  # noqa
+        logger.warning(f"[shepherd] 处理异常: {e}")
+        meta["unavailable"].append(("sina_spot", f"失败:{e}"))
+
+    # 炸板率修正为杨哥口径：炸板/(涨停+炸板)×100%（视频案例：49/(79+49)=38%）
+    if "zt_fail_count" in merged and "limit_up" in merged:
+        tot = merged["zt_fail_count"] + merged["limit_up"]
+        if tot > 0:
+            merged["zt_fail_ratio"] = float(merged["zt_fail_count"] / tot * 100.0)
+            if "zt_fail_ratio" not in meta["available"]:
+                meta["available"].append("zt_fail_ratio")
 
     # 红盘占比若 legu 有 up/down 但无 red_ratio，补算
     if "red_ratio" not in merged and "up_count" in merged and "down_count" in merged:
@@ -273,24 +441,49 @@ def _fetch_shepherd_history(n_days=60):
             logger.warning(f"[shepherd] 处理异常: {e}")
             pass
         try:
+            zbgc = _fetch_zbgc_pool(d)
+            if zbgc:
+                rec.update(zbgc)
+        except Exception as e:  # noqa
+            logger.warning(f"[shepherd] 处理异常: {e}")
+            pass
+        # 炸板率修正为杨哥口径：炸板/(涨停+炸板)
+        try:
+            zc, lu = rec.get("zt_fail_count"), rec.get("limit_up")
+            if zc is not None and lu is not None and (zc + lu) > 0:
+                rec["zt_fail_ratio"] = float(zc / (zc + lu) * 100.0)
+        except Exception as e:  # noqa
+            logger.warning(f"[shepherd] 处理异常: {e}")
+            pass
+        try:
             prev = _fetch_prev_pool(d)
             if prev:
                 rec.update(prev)
         except Exception as e:  # noqa
             logger.warning(f"[shepherd] 处理异常: {e}")
             pass
-        # 仅末日补 legu 快照（涨跌/跌停/红盘占比），避免逐日全A快照（重且沙箱不可用）
+        # 仅末日补 legu 快照（涨跌/跌停/红盘占比/真实涨停），避免逐日全A快照（重且沙箱不可用）
         if i == len(dates) - 1:
             try:
                 legu = _fetch_legu()
                 if legu:
-                    for k in ("up_count", "down_count", "limit_down"):
+                    for k in ("up_count", "down_count", "limit_down", "real_limit_up", "real_limit_down"):
                         if k in legu and k not in rec:
                             rec[k] = legu[k]
                     if "red_ratio" not in rec and "up_count" in legu and "down_count" in legu:
                         tot = legu["up_count"] + legu["down_count"]
                         if tot > 0:
                             rec["red_ratio"] = float(legu["up_count"] / tot * 100.0)
+            except Exception as e:  # noqa
+                logger.warning(f"[shepherd] 处理异常: {e}")
+                pass
+            # 新浪快照（中位数/平均股价/回头波/倒跌停/成交额）——仅末日，TTL 缓存 10 分钟
+            try:
+                spot = _get_spot_cached()
+                if spot:
+                    for k in ("median_chg", "avg_price", "hb_wave10", "touch_down", "turnover_amt"):
+                        if k in spot:
+                            rec[k] = spot[k]
             except Exception as e:  # noqa
                 logger.warning(f"[shepherd] 处理异常: {e}")
                 pass
@@ -486,6 +679,8 @@ def shepherd_temperature(today: dict, hist_days: int = 60):
         v = today.get(k)
         if v is None or not np.isfinite(v):
             continue
+        if th.get("dir", 1) == 0:
+            continue  # 观察项（平均股价/成交额）不参与温度打分
         if hist is not None and k in hist.columns and len(hist) >= 5:
             s = pd.to_numeric(hist[k], errors="coerce").dropna()
             if len(s) >= 5:
@@ -501,6 +696,55 @@ def shepherd_temperature(today: dict, hist_days: int = 60):
             score = 100.0 if v <= th["hot"] else (50.0 if v <= th["warm"] else 10.0)
         subs.append(score)
     return float(np.mean(subs)) if subs else 50.0
+
+
+# ───────── 涨停板复盘辅助（视频第三表：每票板块/行业/最高板标的）─────────
+def _zt_pool_detail_cached(date=None):
+    """涨停池明细（含 所属行业/连板数/封板资金），TTL 缓存 10 分钟。"""
+    d = (date or pd.Timestamp.now().strftime("%Y%m%d"))
+
+    def _pull():
+        import akshare as ak
+        df = ak.stock_zt_pool_em(date=d)
+        return df if (df is not None and not df.empty) else None
+
+    return _cached(600, f"zt_detail_{d}", _pull)
+
+
+def get_zt_industry_distribution(top=10, date=None):
+    """今日涨停按行业分布（视频：每个涨停票炒什么板块都要了如指掌）。"""
+    try:
+        df = _zt_pool_detail_cached(date)
+        col = _col(df, "所属行业") if df is not None else None
+        if df is None or col is None:
+            return None
+        dist = df.groupby(col).size().sort_values(ascending=False).head(top)
+        return pd.DataFrame({"行业": dist.index, "涨停家数": dist.values})
+    except Exception as e:  # noqa
+        logger.warning(f"[shepherd] 处理异常: {e}")
+        return None
+
+
+def get_zt_top_board(date=None):
+    """今日最高连板标的（视频：每天最高板代表市场情绪高度）。"""
+    try:
+        df = _zt_pool_detail_cached(date)
+        col_hl = _col(df, "连板数") if df is not None else None
+        if df is None or col_hl is None:
+            return None
+        boards = pd.to_numeric(df[col_hl], errors="coerce")
+        if boards.notna().sum() == 0:
+            return None
+        row = df.loc[boards.idxmax()]
+        return {
+            "name": str(row.get("名称", "")),
+            "code": str(row.get("代码", "")),
+            "boards": int(boards.max()),
+            "industry": str(row.get("所属行业", "")),
+        }
+    except Exception as e:  # noqa
+        logger.warning(f"[shepherd] 处理异常: {e}")
+        return None
 
 
 if __name__ == "__main__":
@@ -519,7 +763,10 @@ if __name__ == "__main__":
             live_dates = {d.date() for d in live["date"]}
             tail_mask = long_df["date"].dt.date.isin(live_dates)
             df = long_df.copy()
-            merge_cols = [c for c in ("limit_up", "limit_down", "connect_hl", "zt_fail_ratio", "zt_prev_ret")
+            merge_cols = [c for c in ("limit_up", "limit_down", "real_limit_up", "real_limit_down",
+                                      "connect_hl", "connect_2b", "zt_fail_ratio", "zt_fail_count",
+                                      "zt_prev_ret", "median_chg", "hb_wave10", "touch_down",
+                                      "fc_ratio", "avg_price", "turnover_amt")
                           if c in live.columns]
             if merge_cols:
                 idx = {d.date(): i for i, d in enumerate(live["date"])}

@@ -22,7 +22,8 @@ from modules.ui_theme import sf_card, sf_metric
 from modules.session import get_token, fragment_market_alerts_panel
 from modules.market_drivers import get_market_drivers, DIMS
 from modules.shepherd import (get_shepherd_indicators, get_shepherd_indicators_range,
-                              THRESHOLDS, shepherd_temperature)
+                              THRESHOLDS, shepherd_temperature,
+                              get_zt_industry_distribution, get_zt_top_board)
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.colors import _hex_to_rgba
@@ -409,11 +410,13 @@ def fragment_valuation():
 
 # ───────────────────────── 牧羊人指标（股海牧羊人·情绪温度计） ─────────────────────────
 def _shep_sig_impl(key, s):
-    """按 THRESHOLDS 给单一牧羊人指标打信号灯（高=热 / 高=冷）。"""
+    """按 THRESHOLDS 给单一牧羊人指标打信号灯（高=热 / 高=冷 / dir=0 观察项）。"""
     v = _last(s)
     th = THRESHOLDS.get(key)
     if v is None or th is None:
         return ("—", "#888", "暂无数据")
+    if th["dir"] == 0:
+        return ("观察", "#888", f"{th['name']} {v:.2f}{th['unit']}（不参与温度计）")
     if th["dir"] > 0:
         if v >= th["hot"]:
             return (th["hot_label"], "#ee2a2a", f"{th['name']} {v:.0f}{th['unit']}，情绪亢奋")
@@ -454,6 +457,82 @@ _SHEPHERD = [
 ]
 
 
+# ───────── 复盘方法论新增卡（视频《如何复盘非常重要》，含杨哥规律文案）─────────
+def _median_sig(s):
+    v = _last(s)
+    if v is None:
+        return ("—", "#888", "暂无数据")
+    if v >= 1.0:
+        return ("普涨修复", "#ee2a2a", f"中位数 {v:+.2f}%，今日人均赚钱（确定性修复）")
+    if v >= 0:
+        return ("中性", "#f59e0b", f"中位数 {v:+.2f}%，人均微赚/微亏")
+    return ("亏钱效应", "#3b82f6", f"中位数 {v:+.2f}%，今日人均亏钱")
+
+
+def _hb_wave_sig(s):
+    v = _last(s)
+    if v is None:
+        return ("—", "#888", "暂无数据")
+    if v >= 30:
+        return ("易V反", "#f59e0b", f"回头波>10% 共 {v:.0f} 家；杨哥规律：≥30~50 家次日易V反")
+    if v >= 20:
+        return ("分歧", "#f59e0b", f"回头波>10% 共 {v:.0f} 家，说多不多说少不少")
+    return ("追高安全", "#10b981", f"回头波>10% 仅 {v:.0f} 家，追高回撤小")
+
+
+def _zbfail_sig(s):
+    v = _last(s)
+    if v is None:
+        return ("—", "#888", "暂无数据")
+    if v >= 45:
+        return ("分歧大", "#ee2a2a", f"炸板 {v:.0f} 家；炸板率≥50% 次日易V反(杨哥规律)")
+    if v >= 20:
+        return ("分歧", "#f59e0b", f"炸板 {v:.0f} 家")
+    return ("封板稳", "#10b981", f"炸板仅 {v:.0f} 家")
+
+
+def _c2b_sig(s):
+    v = _last(s)
+    if v is None:
+        return ("—", "#888", "暂无数据")
+    if v >= 15:
+        return ("梯队厚", "#ee2a2a", f"2板及以上 {v:.0f} 家，赚钱效应好")
+    if v >= 5:
+        return ("常温", "#f59e0b", f"2板及以上 {v:.0f} 家")
+    return ("梯队断层", "#3b82f6", f"2板及以上仅 {v:.0f} 家")
+
+
+def _fc_sig(s):
+    v = _last(s)
+    if v is None:
+        return ("—", "#888", "暂无数据")
+    if v >= 1.0:
+        return ("封板强", "#ee2a2a", f"平均封成比 {v:.2f}（封板资金/成交额）")
+    if v >= 0.4:
+        return ("常温", "#f59e0b", f"平均封成比 {v:.2f}")
+    return ("封板弱", "#3b82f6", f"平均封成比 {v:.2f}")
+
+
+_SHEPHERD_REVIEW = [
+    dict(key="median_chg", name="中位数涨跌幅", color="#ee2a2a", fmt=lambda v: f"{v:+.2f}%",
+         signal=_median_sig),
+    dict(key="hb_wave10", name="回头波>10%家数", color="#7c5cff", fmt=lambda v: f"{v:.0f}家",
+         signal=_hb_wave_sig),
+    dict(key="zt_fail_count", name="炸板家数", color="#f59e0b", fmt=lambda v: f"{v:.0f}家",
+         signal=_zbfail_sig),
+    dict(key="connect_2b", name="连板家数(≥2板)", color="#f59e0b", fmt=lambda v: f"{v:.0f}家",
+         signal=_c2b_sig),
+    dict(key="touch_down", name="倒跌停家数", color="#3b82f6", fmt=lambda v: f"{v:.0f}家",
+         signal=_make_shep_sig("touch_down")),
+    dict(key="fc_ratio", name="平均封成比", color="#16c2c2", fmt=lambda v: f"{v:.2f}",
+         signal=_fc_sig),
+    dict(key="real_limit_up", name="有效涨停(真实)", color="#ee2a2a", fmt=lambda v: f"{v:.0f}家",
+         signal=_make_shep_sig("real_limit_up")),
+    dict(key="avg_price", name="平均股价(观察)", color="#2b8aef", fmt=lambda v: f"{v:.2f}元",
+         signal=_make_shep_sig("avg_price")),
+]
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def _load_shepherd(days: int = 60):
     """缓存牧羊人指标取数（历史回测 + 降级）。"""
@@ -468,11 +547,17 @@ def _load_shepherd_range(start_date, end_date, backfill: bool = False):
 
 @cached_fig(ttl=120)
 def _build_shepherd_chart(d, dark):
-    """构建牧羊人指标双行折线图（重计算，按数据+主题缓存）。"""
+    """构建牧羊人指标三行折线图（重计算，按数据+主题缓存）。
+
+    第三行为复盘方法论新指标：中位数涨跌幅%（左轴）+ 回头波>10%家数 / 炸板家数（次轴）。
+    """
     fig = make_subplots(
-        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
-        subplot_titles=("涨跌 / 涨停 / 跌停家数", "昨日涨停表现(%) / 红盘占比(%)"),
-        row_heights=[1, 1],
+        rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+        specs=[[{}], [{}], [{"secondary_y": True}]],
+        subplot_titles=("涨跌 / 涨停 / 跌停家数",
+                        "昨日涨停表现(%) / 红盘占比(%)",
+                        "中位数涨跌幅(%) ｜ 回头波>10%家数 / 炸板家数"),
+        row_heights=[1, 1, 1],
     )
     fam = dict(up_count=("#ee2a2a", "上涨家数"), down_count=("#3b82f6", "下跌家数"),
                limit_up=("#f59e0b", "涨停家数"), limit_down=("#16c2c2", "跌停家数"))
@@ -503,6 +588,32 @@ def _build_shepherd_chart(d, dark):
             if is_pt:
                 tr["marker"] = dict(size=11, symbol="diamond", color=col)
             fig.add_trace(go.Scatter(**tr), row=2, col=1)
+    # ── 第三行：复盘方法论新指标（中位数% 左轴；回头波/炸板 次轴）──
+    med = pd.to_numeric(d["median_chg"], errors="coerce") if "median_chg" in d.columns else None
+    if med is not None and med.notna().any():
+        is_pt = med.notna().sum() < 2
+        tr = dict(x=d["date"], y=med.values, name="中位数涨跌幅%" + (" (今)" if is_pt else ""),
+                  mode="markers" if is_pt else "lines",
+                  line=dict(width=1.8, color="#ee2a2a"),
+                  hovertemplate="%{x|%Y-%m-%d}<br>中位数涨跌幅：%{y:.2f}%<extra></extra>")
+        if is_pt:
+            tr["marker"] = dict(size=11, symbol="diamond", color="#ee2a2a")
+        fig.add_trace(go.Scatter(**tr), row=3, col=1, secondary_y=False)
+    for k, (col, name) in dict(hb_wave10=("#7c5cff", "回头波>10%家数"),
+                               zt_fail_count=("#f59e0b", "炸板家数")).items():
+        if k not in d.columns:
+            continue
+        s = pd.to_numeric(d[k], errors="coerce").dropna()
+        if s.empty:
+            continue
+        is_pt = len(s) < 2
+        tr = dict(x=d["date"], y=s.values, name=name + (" (今)" if is_pt else ""),
+                  mode="markers" if is_pt else "lines",
+                  line=dict(width=1.6, color=col, dash="dot" if k == "zt_fail_count" else None),
+                  hovertemplate=f"%{{x|%Y-%m-%d}}<br>{name}：%{{y:.0f}} 家<extra></extra>")
+        if is_pt:
+            tr["marker"] = dict(size=11, symbol="diamond", color=col)
+        fig.add_trace(go.Scatter(**tr), row=3, col=1, secondary_y=True)
     if "limit_up" in d.columns:
         fig.add_hline(y=50, line_dash="dot", line_color="#888", row=1, col=1,
                       annotation_text="涨停50(亢奋)", annotation_font_size=9)
@@ -510,6 +621,17 @@ def _build_shepherd_chart(d, dark):
         fig.add_hline(y=0, line_dash="dot", line_color="#888", row=2, col=1)
         fig.add_hline(y=3, line_dash="dot", line_color="#888", row=2, col=1,
                       annotation_text="昨板3%(炸裂)", annotation_font_size=9)
+    # 第三行参考线：中位数 0 轴 + 回头波 50 家 V反参考（次轴）
+    if med is not None and med.notna().any():
+        fig.add_hline(y=0, line_dash="dot", line_color="#888", row=3, col=1)
+    if "hb_wave10" in d.columns:
+        try:
+            fig.add_hline(y=50, line_dash="dot", line_color="#7c5cff", row=3, col=1,
+                          secondary_y=True, annotation_text="回头波50家(易V反)",
+                          annotation_font_size=9)
+        except Exception:  # noqa: BLE001  # 旧版 plotly 无 secondary_y 参数
+            fig.add_hline(y=50, line_dash="dot", line_color="#7c5cff", row=3, col=1,
+                          annotation_text="回头波50家(易V反)", annotation_font_size=9)
     theme = dict(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#e6e6e6" if dark else "#1a1a1a"),
@@ -517,10 +639,12 @@ def _build_shepherd_chart(d, dark):
         yaxis=dict(gridcolor="#2a2a3a" if dark else "#ececec"),
     )
     fig.update_layout(
-        height=560, showlegend=True,
+        height=760, showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.5, xanchor="center", font=dict(size=10)),
         margin=dict(l=55, r=25, t=60, b=40), hovermode="x unified", **theme)
     fig.update_xaxes(tickangle=-30)
+    # 三行子图统一主题网格（yaxis/yaxis2 原有 + 第三行 yaxis5/yaxis6）
+    fig.update_yaxes(gridcolor="#2a2a3a" if dark else "#ececec")
     return fig
 
 
@@ -553,6 +677,98 @@ def fragment_shepherd():
     cols = st.columns(len(_SHEPHERD))
     for c, cfg in zip(cols, _SHEPHERD):
         _card(c, cfg, df, dark)
+
+
+@safe_fragment("牧羊人复盘方法论")
+def fragment_shepherd_review():
+    _section_title("📋 复盘方法论指标（视频《如何复盘非常重要》新增）", accent="#7c5cff")
+    if st_autorefresh is not None and _in_trading_hours():
+        st_autorefresh(interval=120000, limit=120, key="shep_rev_auto")
+    try:
+        with st.spinner("加载牧羊人指标…"):
+            df, meta = _load_shepherd(60)
+    except Exception as e:
+        xc_handle_error("牧羊人指标加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
+        return
+    if df is None or df.empty:
+        _empty_info("暂无牧羊人指标数据（网络/代理受限）。")
+        return
+
+    # 中位数涨跌加速（杨哥：上涨加速/下跌加速，数据出来会简化）
+    try:
+        if "median_chg" in df.columns:
+            s = pd.to_numeric(df["median_chg"], errors="coerce").dropna()
+            if len(s) >= 2:
+                acc = float(s.iloc[-1] - s.iloc[-2])
+                word = "上涨加速" if acc > 0.1 else ("下跌加速" if acc < -0.1 else "走平")
+                st.caption(f"⚡ 中位数涨跌加速：{word}（今日 {s.iloc[-1]:+.2f}% vs 昨日 {s.iloc[-2]:+.2f}%，Δ {acc:+.2f}pct）")
+    except Exception:  # noqa: BLE001
+        pass
+
+    # 新增指标卡（两行 × 4 列）
+    for row_start in (0, 4):
+        batch = _SHEPHERD_REVIEW[row_start:row_start + 4]
+        cols = st.columns(len(batch))
+        for c, cfg in zip(cols, batch):
+            _card(c, cfg, df, dark)
+
+    st.caption("🆕 以上指标源自杨哥复盘视频第二课：中位数=当日人均赚亏；回头波>10%=追高者回撤"
+               "（≥30~50 家次日易V反）；炸板率=炸板/(涨停+炸板)（≥50% 次日易V反）；"
+               "连板梯队=2板及以上家数（赚钱效应）；倒跌停=盘中触及跌停；封成比=封板资金/成交额。"
+               "历史序列需重跑 v2 重构脚本后才有长周期值，当前近 60 日为实时回测。")
+
+    # ── 最高板标的（视频：每天最高板代表市场情绪高度）──
+    top = get_zt_top_board()
+    if top:
+        st.markdown(
+            f"🏆 **今日最高板**：[{top['name']} ({top['code']})]({''}) {top['boards']} 板 · {top['industry']}"
+            if False else
+            f"🏆 **今日最高板**：{top['name']}（{top['code']}）{top['boards']} 板 · {top['industry']}"
+        )
+        st.caption("杨哥：把每天最高标的票列出来，它代表情绪——最高板往上走时容易赚钱，断板/回落时越来越难赚。")
+
+    # ── 涨停板行业分布（视频第三表：每个涨停票炒什么板块都要了如指掌）──
+    dist = get_zt_industry_distribution(8)
+    if dist is not None and not dist.empty:
+        fig = go.Figure(go.Bar(
+            x=dist["涨停家数"], y=dist["行业"], orientation="h",
+            marker_color="#ee2a2a", opacity=0.85,
+            hovertemplate="%{y}：%{x} 家<extra></extra>",
+        ))
+        fig.update_layout(
+            height=260, margin=dict(l=10, r=10, t=30, b=10),
+            title="今日涨停行业分布 Top8（板块效应）",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#e6e6e6" if dark else "#1a1a1a", size=11),
+            yaxis=dict(autorange="reversed", gridcolor="#2a2a3a" if dark else "#ececec"),
+        )
+        st.plotly_chart(fig, use_container_width=True,
+                        config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="zt_industry_bar")
+
+    # ── 两融-指数背离（视频：两融增加+指数不创新高=警惕见顶）──
+    try:
+        with st.spinner("检查两融与指数背离…"):
+            ddf, _ = _load_drivers(180)
+        if ddf is not None and not ddf.empty and "margin_balance" in ddf.columns:
+            mb = pd.to_numeric(ddf["margin_balance"], errors="coerce").dropna()
+            if len(mb) >= 21:
+                mb_delta = float(mb.iloc[-1] - mb.iloc[-21])
+                idx_delta = None
+                if "idx_ma20" in ddf.columns:
+                    im = pd.to_numeric(ddf["idx_ma20"], errors="coerce").dropna()
+                    if len(im) >= 21:
+                        idx_delta = float(im.iloc[-1] - im.iloc[-21])
+                txt = f"两融余额 {mb.iloc[-1]:,.0f} 亿，近20日 {mb_delta:+,.0f} 亿"
+                if idx_delta is not None:
+                    txt += f"；MA20 近20日 {idx_delta:+,.0f} 点"
+                    if mb_delta > 0 and idx_delta < 0:
+                        xc_warn_box(f"⚠️ 两融-指数顶背离（杨哥 7 月见顶信号）：{txt}。两融持续增加而指数不创新高，警惕见顶。")
+                    else:
+                        st.caption(f"💰 {txt} —— 暂无两融-指数背离。")
+                else:
+                    st.caption(f"💰 {txt}。")
+    except Exception:  # noqa: BLE001
+        pass
 
 
 @safe_fragment("牧羊人折线图")
@@ -637,6 +853,7 @@ fragment_breadth()
 fragment_sentiment()
 fragment_valuation()
 fragment_shepherd()
+fragment_shepherd_review()
 fragment_shepherd_chart()
 fragment_market_alerts_panel()
 
