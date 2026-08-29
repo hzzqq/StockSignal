@@ -1,20 +1,23 @@
-# StockSignal 全局主题配置（默认亮色金融仪表盘风）
+# StockSignal 全局主题配置（默认暗色·星辰决策仪表盘）
 # 适用于所有页面，无需改动任何页面代码。
 # 修改后重启 Streamlit 生效。
 #
 # ⚠️ 重要：此文件定义 Streamlit 原生主题的基底色。
-#   默认模式="light"，所以这里写的是亮色基底。
-#   暗色模式由 modules/ui_theme.py 的 _DARK_CSS 覆盖（它足够强）。
+#   默认模式="dark"（星辰风），与首页/侧边栏/卡片配色一致，
+#   解决「页面导航时 spinner 闪现老 light 主题」—— WebSocket 连接时即锁定 dark，
+#   CSS 只需做局部微调，不再有 light→dark 闪烁。
+#   亮色模式由 modules/ui_theme.py 的 _LIGHT_CSS 覆盖（极少数用户主动切换）。
 
 [theme]
-# 金色主色调（品牌色）—— 用于主按钮、强调、链接
-primaryColor = "#B8860B"
-# 应用主背景（微冷灰 —— 非纯白，护眼专业级）
-backgroundColor = "#F5F7FA"
+base = "dark"
+# 紫蓝主色调（品牌色）—— 用于主按钮、强调、链接
+primaryColor = "#667eea"
+# 应用主背景（深空黑 —— 星辰决策仪表盘风）
+backgroundColor = "#0f0f23"
 # 次级背景（卡片 / 输入框 / 侧边栏内面板）
-secondaryBackgroundColor = "#FFFFFF"
-# 正文文字（深墨色，WCAG AA 合规）
-textColor = "#1A2332"
+secondaryBackgroundColor = "#1a1a2e"
+# 正文文字（高对比浅色，WCAG AA 合规）
+textColor = "#E2E8F0"
 # 字体
 font = "sans serif"
 
