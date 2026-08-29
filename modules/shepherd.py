@@ -747,6 +747,75 @@ def get_zt_top_board(date=None):
         return None
 
 
+def get_zt_ladder(date=None, top_per_level=3):
+    """连板梯队全景（视频：把每天最高标的票列出来，梯队厚度决定赚钱效应能否扩散）。
+
+    返回 dict:
+      levels  [{boards, count, stocks:[{name, code, industry, seal, amount}]}]  按连板数倒序
+      total_connect  连板总家数（≥2 板）
+      max_boards     最高连板数
+      distribution   [(连板数, 家数)] 含首板，用于柱状图
+      top            最高板标的（等同 get_zt_top_board）
+
+    实盘意义：
+      · 梯队「断层」（如 4 板 1 家、3 板 0 家、2 板 3 家）= 接力资金缺席，主线是「一只独苗」；
+      · 梯队「厚」（≥15 家）= 赚钱效应线状扩散，接力顺畅；
+      · 结合最高板高度判断情绪空间：高度打开 + 梯队厚 = 主升确认。
+    """
+    out = dict(levels=[], total_connect=0, max_boards=0, distribution=[], top=None)
+    try:
+        df = _zt_pool_detail_cached(date)
+        if df is None or df.empty:
+            return out
+        col_hl = _col(df, "连板数")
+        if not col_hl:
+            return out
+        work = df.copy()
+        work["_boards"] = pd.to_numeric(work[col_hl], errors="coerce").fillna(1).astype(int)
+        col_name = _col(df, "名称")
+        col_code = _col(df, "代码")
+        col_ind = _col(df, "所属行业")
+        col_seal = _col(df, "封板资金")
+        col_amt = _col(df, "成交额")
+
+        # 分布（含首板），供柱状图
+        dist = work.groupby("_boards").size().sort_index(ascending=False)
+        out["distribution"] = [(int(b), int(c)) for b, c in dist.items()]
+        out["max_boards"] = int(work["_boards"].max())
+
+        # 逐档（≥2 板）取代表股：优先封单大的
+        for boards in sorted(work["_boards"].unique(), reverse=True):
+            if boards < 2:
+                continue
+            grp = work[work["_boards"] == boards]
+            if col_seal:
+                grp = grp.assign(_seal=pd.to_numeric(grp[col_seal], errors="coerce").fillna(0))
+                grp = grp.sort_values("_seal", ascending=False)
+            stocks = []
+            for _, r in grp.head(top_per_level).iterrows():
+                stocks.append({
+                    "name": str(r.get(col_name, "")) if col_name else "",
+                    "code": str(r.get(col_code, "")) if col_code else "",
+                    "industry": str(r.get(col_ind, "")) if col_ind else "",
+                    "seal": (float(r.get(col_seal, 0) or 0) if col_seal else 0.0),
+                    "amount": (float(r.get(col_amt, 0) or 0) if col_amt else 0.0),
+                })
+            out["levels"].append(dict(boards=int(boards), count=int(len(grp)), stocks=stocks))
+
+        out["total_connect"] = int((work["_boards"] >= 2).sum())
+        mx = work.loc[work["_boards"].idxmax()]
+        out["top"] = {
+            "name": str(mx.get(col_name, "")) if col_name else "",
+            "code": str(mx.get(col_code, "")) if col_code else "",
+            "boards": int(mx["_boards"]),
+            "industry": str(mx.get(col_ind, "")) if col_ind else "",
+        }
+        return out
+    except Exception as e:  # noqa
+        logger.warning(f"[shepherd] 处理异常: {e}")
+        return out
+
+
 if __name__ == "__main__":
     # 命令行入口（安全刷新，不覆盖长历史）：
     # - 若已有长历史 CSV（2007 起），只拉最近 live 数据（涨停/连板/炸板/昨板）并合并到尾部；
