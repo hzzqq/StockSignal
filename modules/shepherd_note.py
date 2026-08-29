@@ -367,6 +367,36 @@ def analyze_history(df) -> dict:
         return empty
 
 
+def backtest_real(days: int = 60) -> tuple:
+    """真机历史回测：拉取真实区间数据（含 backfill 近期 zt 字段）后跑 analyze_history。
+
+    与页面里直接 get_shepherd_indicators + analyze_history 的区别：
+      本函数走 get_shepherd_indicators_range(..., backfill=True)，对所选窗口内
+      缺失的近期（≤15 交易日）涨停池数据做真实补算，使 zt_prev_ret / 连板等
+      「次日走势主口径」真正可得，回测准确率不再是「暂无有效样本」。
+
+    返回 (analysis, meta)：网络/数据源失败时 analysis 返回空结构、meta 含 error，
+    页面可据此提示「网络受限」。惰性导入 get_shepherd_indicators_range 避免循环依赖。
+    """
+    empty = dict(rows=[], by_cycle=[], accuracy=dict(total=0, hit=0, rate=None), verdict_dist={})
+    try:
+        from datetime import timedelta
+        from modules.shepherd import get_shepherd_indicators_range
+        end = datetime.now()
+        start = end - timedelta(days=int(days * 1.6))   # 日历日放宽覆盖，取交易日子集
+        df, meta = get_shepherd_indicators_range(
+            start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"), backfill=True)
+        if df is None or df.empty or "date" not in df.columns:
+            meta = meta or {}
+            meta["error"] = "所选区间暂无数据（未开始统计或数据源未覆盖）"
+            return empty, meta
+        analysis = analyze_history(df)
+        return analysis, meta
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[shepherd_note] 真机回测失败: {e}")
+        return empty, {"error": str(e)}
+
+
 def summary_of(analysis: dict) -> str:
     """把回测结果压成一段人话总结（供页面 caption 用）。"""
     if not analysis or not analysis.get("rows"):

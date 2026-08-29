@@ -147,6 +147,24 @@ if recent:
                 st.session_state["pick_stock_query"] = str(r["code"])
                 safe_switch_page("pages/个股研究.py")
 
+# 快捷功能入口
+try:
+    st.caption("⚡ 一键直达常用功能")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("📔 情绪笔记", key="qe_mood_note", use_container_width=True,
+                     help="记录今日情绪快照 + 次日走势预判，并可回填实际走势形成复盘闭环"):
+            # 置标记：目标页据此提示并把笔记区块高亮一次（一次性，刷新即消）
+            st.session_state["shep_focus_note"] = True
+            safe_switch_page("pages/P_市场情绪.py")
+    with c2:
+        if st.button("🔮 次日走势预判", key="qe_mood_fc", use_container_width=True,
+                     help="牧羊人 18 项指标 → 情绪周期定位 + 次日方向与置信度 + 三情景推演"):
+            st.session_state["shep_focus_note"] = True
+            safe_switch_page("pages/P_市场情绪.py")
+except Exception:  # noqa: BLE001
+    pass
+
 # 自选股数量 + 未读提醒（调后端）
 try:
     wl_resp = requests.get(

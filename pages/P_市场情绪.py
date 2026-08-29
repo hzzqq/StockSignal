@@ -28,6 +28,7 @@ from modules.shepherd import (get_shepherd_indicators, get_shepherd_indicators_r
                               get_zt_ladder)
 from modules import shepherd_forecast as _sf
 from modules import shepherd_note as _sn
+from modules import shepherd_ladder as _sl
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.colors import _hex_to_rgba
@@ -43,6 +44,16 @@ dark = render_standard_page(
 )
 st.page_link("pages/H_市场驱动力.py", label="📊 看《市场驱动力》五维归一化相关性分析（互补视角）", icon="🔗")
 sf_card("市场温度计导读", "本页用「温度计卡 + 信号灯 + sparkline」呈现市场冷/热：广度(ADL/ADR/新高新低)、情绪(VIX/涨停占比/PCR/北向/融资净买)、估值(PE 百分位/股息率)，并给出综合「市场温度」0-100 读数。单源失败优雅降级。", icon="🌡️")
+
+# ── 首页快捷入口跳转聚焦（一次性：pop 掉标记，刷新即恢复常态）──
+_FOCUS_NOTE = bool(st.session_state.pop("shep_focus_note", False))
+if _FOCUS_NOTE:
+    st.markdown(
+        "<div style='border-left:4px solid #7c5cff;background:rgba(124,92,255,.10);"
+        "border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:6px'>"
+        "📔 已从首页跳转 —— <b>情绪笔记 / 次日走势预判</b>在页面下方，已为你高亮 👇</div>",
+        unsafe_allow_html=True,
+    )
 
 
 # ───────────────────────── 辅助函数 ─────────────────────────
@@ -738,6 +749,14 @@ def fragment_shepherd_review():
     except Exception:  # noqa: BLE001
         lad = None
     if lad and lad.get("levels"):
+        # 落盘各档家数（供跨日晋级率递推；缺历史时后续晋级率优雅为 None）
+        # ⚠️ 用**数据日期**而非 now()：周末/盘后打开页面时 now() 会记一个非交易日，
+        #    跨日递推就会把周末当「昨日」，晋级率直接算错。
+        try:
+            _sl.record_ladder_snapshot(_last_data_date(df),
+                                       lad.get("distribution"), lad.get("max_boards"), lad.get("total_connect"))
+        except Exception:  # noqa: BLE001
+            pass
         total = int(lad.get("total_connect") or 0)
         mx = int(lad.get("max_boards") or 0)
         # 梯队诊断：厚度 + 高度 + 断层
@@ -769,6 +788,26 @@ def fragment_shepherd_review():
                 f"font-size:13px;color:{dcolor}'>{diag}</div>",
                 unsafe_allow_html=True,
             )
+
+            # 连板晋级率（跨日递推，需≥2日历史；比「家数」更细的接力信号）
+            try:
+                _pr = _sl.ladder_promotion_rates()
+                # ⚠️ 用 overall 而非 rates["2b"]：2b 可能算不出（昨日缺首板档），
+                #    此时 overall 已回落到可用档均值；直接格式化 None 会抛 TypeError
+                #    并被下面的 except 吞掉，表现为「晋级率整块不显示」。
+                if _pr.get("ready") and _pr.get("overall") is not None:
+                    ov = float(_pr["overall"])
+                    p2 = _pr["rates"].get("2b")
+                    label = "首板→二板" if p2 is not None else "综合"
+                    _pr_txt = (f"📈 **连板晋级率（{label}）{ov:.1f}%**　"
+                               f"历史 {_pr['days']} 日"
+                               "　· 晋级率越高=接力意愿越强，梯队越能自我维持")
+                    st.markdown(
+                        f"<div style='margin-top:6px;font-size:12px;opacity:.85'>{_pr_txt}</div>",
+                        unsafe_allow_html=True,
+                    )
+            except Exception:  # noqa: BLE001
+                pass
 
             # 逐档代表股（封单大的优先）
             for lv in lad["levels"]:
@@ -926,6 +965,19 @@ def fragment_shepherd_chart():
     st.caption(caption)
 
 
+def _last_data_date(df) -> str:
+    """取牧羊人数据最后一行的交易日 'YYYY-MM-DD'；拿不到时退回今天。
+
+    落盘类操作（连板梯队快照 / 情绪笔记）一律用它而不是 now()：
+    周末、节假日、盘后打开页面时 now() 是个非交易日，会把「昨日」指到空档上，
+    导致跨日晋级率、笔记回填全部错位。
+    """
+    try:
+        return str(pd.to_datetime(df["date"].iloc[-1]).date())
+    except Exception:  # noqa: BLE001
+        return pd.Timestamp.now().strftime("%Y-%m-%d")
+
+
 def _row_to_indicators(df, i=-1):
     """把牧羊人 DataFrame 的第 i 行转成指标 dict（供 forecast/note 用）。"""
     if df is None or df.empty:
@@ -965,6 +1017,11 @@ def fragment_shepherd_forecast():
 
     today = _row_to_indicators(df, -1)
     prev = _row_to_indicators(df, -2) if len(df) >= 2 else None
+    # 合并连板晋级率（来自每日梯队落盘的历史递推），作为更细的接力信号
+    try:
+        today.update(_sl.current_promo_as_indicators())
+    except Exception:  # noqa: BLE001
+        pass
     if not today:
         _empty_info("今日指标不足，无法预判。")
         return
@@ -1068,6 +1125,13 @@ def fragment_shepherd_forecast():
 def fragment_shepherd_note():
     """每天记录一次情绪 + 回填次日实际 + 对过去的情绪做回测分析。"""
     _section_title("📔 情绪笔记（每日情绪快照 + 历史情绪回测）", accent="#7c5cff")
+    if _FOCUS_NOTE:   # 首页跳转过来时高亮一次，帮助定位
+        st.markdown(
+            "<div style='border:2px solid #7c5cff;border-radius:10px;padding:8px 12px;"
+            "font-size:13px;margin-bottom:8px'>🎯 <b>就是这里</b> —— "
+            "上方是「次日走势预判」，下方是「情绪笔记」与「历史情绪回测」。</div>",
+            unsafe_allow_html=True,
+        )
     try:
         with st.spinner("加载牧羊人指标…"):
             df, meta = _load_shepherd(60)
@@ -1080,10 +1144,13 @@ def fragment_shepherd_note():
 
     today = _row_to_indicators(df, -1)
     prev = _row_to_indicators(df, -2) if len(df) >= 2 else None
+    # 合并连板晋级率（与预判片段保持一致，让快照里的预判也含晋级率信号）
     try:
-        dstr = str(pd.to_datetime(df["date"].iloc[-1]).date())
+        today.update(_sl.current_promo_as_indicators())
     except Exception:  # noqa: BLE001
-        dstr = ""
+        pass
+    # 与梯队快照同口径：用数据日期，避免周末/盘后建出一条「非交易日」的空笔记
+    dstr = _last_data_date(df)
     try:
         fc = _sf.forecast_next_day(today, prev) if today else None
     except Exception:  # noqa: BLE001
@@ -1125,15 +1192,17 @@ def fragment_shepherd_note():
     rng = st.selectbox("回测区间", ["近 60 交易日", "近 250 交易日", "近 1250 交易日"],
                        index=0, key="shep_note_range")
     days_map = {"近 60 交易日": 60, "近 250 交易日": 250, "近 1250 交易日": 1250}
-    if st.button("📊 分析历史情绪", key="shep_note_analyze", use_container_width=True):
+    if st.button("📊 分析历史情绪（真机回测）", key="shep_note_analyze", use_container_width=True):
         try:
-            with st.spinner("逐日重跑情绪定位…"):
-                hdf, _ = _load_shepherd(days_map[rng])
-                analysis = _sn.analyze_history(hdf)
+            with st.spinner("拉取真实区间数据并逐日重跑情绪定位…"):
+                analysis, _meta = _sn.backtest_real(days_map[rng])
+            if _meta and _meta.get("missing_columns"):
+                st.caption("⚠️ 部分指标在所选区间缺失：" +
+                           "；".join(f"{k}（{r}）" for k, r in _meta["missing_columns"].items()))
         except Exception as e:  # noqa: BLE001
             xc_handle_error("历史情绪分析失败", e, hint="请稍后重试")
             analysis = None
-        if analysis:
+        if analysis is not None:
             st.session_state["shep_note_analysis"] = analysis
     analysis = st.session_state.get("shep_note_analysis")
     if analysis and analysis.get("rows"):
@@ -1143,7 +1212,7 @@ def fragment_shepherd_note():
             st.metric("预判方向准确率", f"{rate:.1f}%",
                       help=f"有效样本 {acc.get('valid')} 日，命中 {acc.get('hit')} 次")
         else:
-            st.caption("暂无可判定的次日样本（历史缺 zt_prev_ret，需跑 v2 重构补齐）。")
+            st.caption("暂无可判定的次日样本（所选区间缺 zt_prev_ret，需更长历史或跑 v2 重构补齐）。")
         byc = analysis.get("by_cycle") or []
         if byc:
             rows = []
