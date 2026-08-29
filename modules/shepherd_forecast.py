@@ -47,6 +47,21 @@ modules/shepherd_forecast.py — 牧羊人指标「次日走势预判」引擎
     · 昨板表现↑ + 梯队厚        → 接力强
     · 两融↑ + 指数不新高        → 顶背离
 
+七、外部资料交叉验证（2026-08-29 检索，多来源口径一致）
+    实盘复盘圈「盯四个数」的口径与本引擎高度吻合，可作为外部佐证：
+      · 涨停÷跌停比值：比值连续 2~3 天抬升+跌停收敛=回暖；
+                        比值<1 且跌停>15 家=退潮 → 已实现为派生指标 zt_ld_ratio
+      · 昨日涨停今日平均涨幅：连续两天<2%=打板亏钱（容错率极低）；
+                              稳定>4%=情绪高潮 → 即 zt_prev_ret，权重最高的正向指标
+      · 市场空间板高度：7板→3板=冰点；3板→5板以上=风险偏好回升 → 即 connect_hl
+      · 连板梯队完整性：「仅一只高位独苗+中位断层」=虚假回暖；
+                        「首板/二板/高位梯队完整」=健康 → 即 connect_2b + get_zt_ladder 断层检测
+      · 量能：缩量普涨=存量自救（弱修复），放量上涨=增量入场（真修复）→ 即 turnover_amt 环比
+
+    ⚠️ 已知缺口：分档「晋级率」（首板进二板 / 2进3 / 高位晋级率）在实盘复盘中
+       比「连板家数」更精细，但历史数据未保存分档明细，当前无法回溯计算。
+       若要补，需要在 shepherd 历史重跑时落盘各档家数（zt_pool 的连板数字段已可得）。
+
 设计原则：
     ✅ 纯函数为主（forecast_next_day / locate_cycle / score_next_day），可离线单测
     ✅ 单源缺失优雅降级：某项指标缺失则该规则不参与打分，不抛异常
@@ -155,6 +170,21 @@ FORECAST_INDICATORS = [
         why="当日「人均赚亏」。与跌停家数联动：跌停多 + 中位数大跌 = 恐慌见底。",
         bands=[],
     ),
+    # ── D 类：派生指标（由现有指标现算，不需要新数据源）──
+    dict(
+        key="zt_ld_ratio", name="涨停/跌停比", unit="倍", dir=1, weight=10, derived=True,
+        why="涨停家数 ÷ 跌停家数 = 多空力量对比（实盘复盘「四个数」之首）。"
+             "比值连续 2~3 天抬升、跌停收敛 = 亏钱效应消退、情绪回暖；"
+             "比值跌破 1 且跌停>15 家 = 空头占优，大概率进入退潮期。"
+             "（注意：单日突发消息会干扰，看连续趋势更可靠）",
+        bands=[
+            (0, 1, "空头占优", "跌停多于涨停，亏钱效应扩散，退潮期", "#00d486"),
+            (1, 3, "弱势平衡", "多空拉锯，控制仓位为主", "#3b82f6"),
+            (3, 10, "多头占优", "赚钱效应正常，可参与", "#f59e0b"),
+            (10, 40, "情绪健康", "★ 亏钱效应收敛，情绪回暖", "#ee2a2a"),
+            (40, 99999, "极度健康", "跌停近乎清零（也可能是高潮末端）", "#ee2a2a"),
+        ],
+    ),
 ]
 
 # 便于按 key 快速取配置
@@ -244,6 +274,24 @@ LINKAGE_RULES = [
         color="#f59e0b",
         tags=["风险", "高潮"],
     ),
+    dict(
+        id="retreat_by_ratio",
+        name="退潮（多空比失衡）",
+        conds=[("zt_ld_ratio", "<", 3), ("limit_down", ">", 15)],
+        logic="涨停/跌停比<3 且 跌停>15家",
+        effect="☆ 实盘复盘口径：空头力量占优，亏钱效应扩散，大概率进入情绪退潮期，首要任务是控制仓位",
+        color="#00d486",
+        tags=["看空次日", "退潮"],
+    ),
+    dict(
+        id="repair_by_ratio",
+        name="回暖（多空比修复）",
+        conds=[("zt_ld_ratio", ">=", 10), ("zt_fail_ratio", "<", 30)],
+        logic="涨停/跌停比≥10 且 炸板率<30%",
+        effect="☆ 实盘复盘口径：亏钱效应收敛且封板尚可，情绪回暖，可以提高关注度",
+        color="#ee2a2a",
+        tags=["看多次日", "回暖"],
+    ),
 ]
 
 _CMP = {
@@ -284,7 +332,12 @@ def _eval_cond(today, prev, key, op, thr):
 
 
 def eval_linkages(today: dict, prev: dict = None) -> list:
-    """评估所有联动规则，返回命中的规则列表（含 name/logic/effect/color/tags）。"""
+    """评估所有联动规则，返回命中的规则列表（含 name/logic/effect/color/tags）。
+
+    派生指标（如涨停/跌停比 zt_ld_ratio）在此统一补齐，调用方直接喂原始指标即可。
+    """
+    today = with_derived(today)
+    prev = with_derived(prev) if prev else None
     hits = []
     for rule in LINKAGE_RULES:
         try:
@@ -330,6 +383,30 @@ def _num(d, k):
         return None if v != v else v
     except Exception:
         return None
+
+
+def with_derived(d: dict) -> dict:
+    """补齐派生指标（不修改入参，返回新 dict；幂等）。
+
+    目前派生：
+      zt_ld_ratio = 涨停家数 / 跌停家数（多空力量对比，实盘复盘「四个数」之首）
+        · 跌停为 0 时用 0.5 做分母（避免除零），并 clamp 到 999 倍，避免失真极值
+        · 缺涨停家数时不派生（保持缺失语义，后续规则不会误触发）
+    """
+    if not d:
+        return d
+    out = dict(d)
+    if "zt_ld_ratio" in out:
+        return out
+    lu, ld = _num(d, "limit_up"), _num(d, "limit_down")
+    if lu is None:
+        return out
+    denom = ld if (ld is not None and ld > 0) else 0.5
+    try:
+        out["zt_ld_ratio"] = round(min(lu / denom, 999.0), 2)
+    except Exception:  # noqa: BLE001
+        pass
+    return out
 
 
 def locate_cycle(today: dict, prev: dict = None) -> dict:
@@ -552,6 +629,10 @@ def forecast_next_day(today: dict, prev: dict = None) -> dict:
     if not today:
         return dict(cycle=None, score=50.0, bias="中性", confidence=0,
                     scenario=[], signals=[], drivers=[], summary="暂无数据")
+
+    # 派生指标（涨停/跌停比等）在内层统一补齐，外部调用方无需关心
+    today = with_derived(today)
+    prev = with_derived(prev) if prev else None
 
     cyc = locate_cycle(today, prev)
     sc = score_next_day(today, prev)

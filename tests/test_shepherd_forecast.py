@@ -282,3 +282,73 @@ def test_forecast_bands_hit():
     drv = [d for d in r["drivers"] if d["key"] == "zt_fail_ratio"][0]
     assert drv["band"] == "抛压释放"
     assert "V" in drv["desc"]
+
+
+# ─────────────────────────────────────────────────────────────
+#  派生指标：涨停/跌停比（zt_ld_ratio）
+#  来源：实盘复盘「盯四个数」口径（2026-08-29 资料交叉验证），
+#        排在首位的多空力量对比指标，原引擎缺失，本次补齐。
+# ─────────────────────────────────────────────────────────────
+def test_derived_zt_ld_ratio_basic():
+    """涨停 60 / 跌停 5 → 12 倍。"""
+    d = sf.with_derived({"limit_up": 60.0, "limit_down": 5.0})
+    assert d["zt_ld_ratio"] == pytest.approx(12.0, abs=0.01)
+
+
+def test_derived_zt_ld_ratio_zero_limit_down():
+    """跌停为 0：用 0.5 兜底分母（避免除零），并 clamp 到 999 倍。"""
+    d = sf.with_derived({"limit_up": 60.0, "limit_down": 0.0})
+    assert d["zt_ld_ratio"] == pytest.approx(120.0, abs=0.01)
+    d2 = sf.with_derived({"limit_up": 2000.0, "limit_down": 0.0})
+    assert d2["zt_ld_ratio"] == 999.0
+
+
+def test_derived_zt_ld_ratio_missing_is_absent():
+    """缺涨停家数时不派生（保持缺失语义，规则不会误触发）。"""
+    d = sf.with_derived({"limit_down": 5.0})
+    assert "zt_ld_ratio" not in d
+
+
+def test_derived_is_pure_and_idempotent():
+    """不改入参；已有该键时原样返回（幂等）。"""
+    src = {"limit_up": 60.0, "limit_down": 5.0}
+    out = sf.with_derived(src)
+    assert "zt_ld_ratio" not in src          # 入参未被污染
+    assert sf.with_derived(out)["zt_ld_ratio"] == out["zt_ld_ratio"]
+
+
+def test_retreat_by_ratio_trigger():
+    """涨停/跌停比<3 且 跌停>15家 → 触发「退潮（多空比失衡）」。"""
+    hits = sf.eval_linkages({"limit_up": 40.0, "limit_down": 20.0})
+    ids = [h["id"] for h in hits]
+    assert "retreat_by_ratio" in ids
+
+
+def test_retreat_by_ratio_not_trigger_when_healthy():
+    """跌停虽多但涨停更多（比值≥3）时不触发。"""
+    hits = sf.eval_linkages({"limit_up": 90.0, "limit_down": 20.0})
+    ids = [h["id"] for h in hits]
+    assert "retreat_by_ratio" not in ids
+
+
+def test_repair_by_ratio_trigger():
+    """涨停/跌停比≥10 且 炸板率<30% → 触发「回暖（多空比修复）」。"""
+    hits = sf.eval_linkages({"limit_up": 60.0, "limit_down": 5.0, "zt_fail_ratio": 20.0})
+    ids = [h["id"] for h in hits]
+    assert "repair_by_ratio" in ids
+
+
+def test_zt_ld_ratio_appears_in_drivers():
+    """派生指标要出现在页面 drivers 里（带档位解读）。"""
+    r = sf.forecast_next_day({"limit_up": 60.0, "limit_down": 5.0})
+    keys = [d["key"] for d in r["drivers"]]
+    assert "zt_ld_ratio" in keys
+    drv = [d for d in r["drivers"] if d["key"] == "zt_ld_ratio"][0]
+    assert drv["band"] == "情绪健康"
+
+
+def test_forecast_no_crash_without_limit_counts():
+    """没有涨跌停家数时整体仍安全（派生缺失不抛异常）。"""
+    r = sf.forecast_next_day({"zt_fail_ratio": 30.0})
+    assert r["bias"] in ("偏多", "中性", "偏空")
+    assert "zt_ld_ratio" not in [d["key"] for d in r["drivers"]]

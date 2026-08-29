@@ -275,8 +275,13 @@ def test_get_realtime_quote_failure_market_status(monkeypatch):
 
 def test_get_market_sentiment_success(monkeypatch):
     """牧羊人情绪封装：应透出 8 项指标 + 温度（0-100）。"""
+    # ⚠️ 牧羊人 v2（8→17 项）后，THRESHOLDS 已扩到 17 项；这里必须给齐，
+    # 否则「仅 THRESHOLDS 指标透出」的等式断言会把「缺项」误判成「实现漏透出」。
     fake_today = ({"up_count": 4000, "down_count": 800, "limit_up": 60, "limit_down": 3,
                    "zt_prev_ret": 4.0, "red_ratio": 83.3, "connect_hl": 7, "zt_fail_ratio": 20.0,
+                   "real_limit_up": 55, "median_chg": 1.2, "hb_wave10": 12,
+                   "zt_fail_count": 15, "connect_2b": 18, "touch_down": 6,
+                   "fc_ratio": 1.1, "avg_price": 18.6, "turnover_amt": 19000.0,
                    "flat_count": 200},  # flat_count 不应进 indicators
                   {"available": ["up_count", "down_count"], "unavailable": []})
 
@@ -291,7 +296,7 @@ def test_get_market_sentiment_success(monkeypatch):
     r = mcp_tools.get_market_sentiment(30)
     assert 0.0 <= r["temperature"] <= 100.0
     assert "temperature_label" in r
-    # 仅 8 项 THRESHOLDS 指标透出
+    # 仅 THRESHOLDS 指标透出（辅助键 flat_count 被过滤）
     assert set(r["indicators"].keys()) == set(__import__("modules.shepherd", fromlist=["THRESHOLDS"]).THRESHOLDS.keys())
     assert "flat_count" not in r["indicators"]
     assert r["meta"]["available"] == ["up_count", "down_count"]

@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from datetime import datetime
 
 from modules.page_utils import render_standard_page, import_autorefresh
 from modules.ui_theme import sf_card, sf_metric
@@ -23,7 +24,10 @@ from modules.session import get_token, fragment_market_alerts_panel
 from modules.market_drivers import get_market_drivers, DIMS
 from modules.shepherd import (get_shepherd_indicators, get_shepherd_indicators_range,
                               THRESHOLDS, shepherd_temperature,
-                              get_zt_industry_distribution, get_zt_top_board)
+                              get_zt_industry_distribution, get_zt_top_board,
+                              get_zt_ladder)
+from modules import shepherd_forecast as _sf
+from modules import shepherd_note as _sn
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.colors import _hex_to_rgba
@@ -727,6 +731,82 @@ def fragment_shepherd_review():
         )
         st.caption("杨哥：把每天最高标的票列出来，它代表情绪——最高板往上走时容易赚钱，断板/回落时越来越难赚。")
 
+    # ── 连板梯队全景（视频：梯队厚度决定赚钱效应能否扩散）──
+    try:
+        with st.spinner("加载连板梯队…"):
+            lad = get_zt_ladder(top_per_level=3)
+    except Exception:  # noqa: BLE001
+        lad = None
+    if lad and lad.get("levels"):
+        total = int(lad.get("total_connect") or 0)
+        mx = int(lad.get("max_boards") or 0)
+        # 梯队诊断：厚度 + 高度 + 断层
+        if total >= 30 and mx >= 6:
+            diag, dcolor = "梯队极厚 + 高度打开 → 主升确认，接力环境健康（注意盛极而衰）", "#ee2a2a"
+        elif total >= 15:
+            diag, dcolor = "梯队厚 → 赚钱效应线状扩散，接力顺畅", "#f59e0b"
+        elif total >= 5:
+            diag, dcolor = "梯队正常 → 有一定接力，但补涨梯队不够厚", "#3b82f6"
+        else:
+            diag, dcolor = "梯队断层 / 独苗行情 → 主线缺乏补涨，持续性差", "#00d486"
+        # 断层检测：最高板往下到 2 板之间若有空档 = 接力资金缺席
+        have = {int(l["boards"]) for l in lad["levels"]}
+        gaps = [b for b in range(2, mx) if b not in have]
+        if gaps:
+            diag += f"；⚠️ **梯队断层**：{mx}板与2板之间缺 {'/'.join(str(g) + '板' for g in sorted(gaps, reverse=True))}，接力资金缺席"
+
+        with st.container(border=True):
+            st.markdown("**🪜 连板梯队全景**（最高板往下每一档的代表股，梯队厚度=赚钱效应能否扩散）")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric("最高板", f"{mx} 板")
+            with c2:
+                st.metric("连板总家数(≥2板)", f"{total} 家")
+            with c3:
+                st.metric("梯队档位", f"{len(lad['levels'])} 档")
+            st.markdown(
+                f"<div style='border-left:3px solid {dcolor};padding-left:10px;"
+                f"font-size:13px;color:{dcolor}'>{diag}</div>",
+                unsafe_allow_html=True,
+            )
+
+            # 逐档代表股（封单大的优先）
+            for lv in lad["levels"]:
+                bs, cnt = int(lv["boards"]), int(lv["count"])
+                names = []
+                for s in lv.get("stocks", []):
+                    nm = s.get("name") or "—"
+                    cd = str(s.get("code") or "")[-6:]
+                    ind = s.get("industry") or ""
+                    seal = float(s.get("seal") or 0)
+                    seal_txt = f"封{seal / 1e8:.2f}亿" if seal > 0 else ""
+                    names.append(f"`{nm}({cd})` {ind} {seal_txt}".strip())
+                line = f"**{bs}板** · {cnt}家：　" + "｜".join(names) if names else f"**{bs}板** · {cnt}家"
+                st.markdown(line)
+
+            # 连板分布柱状图（含首板）
+            dist = lad.get("distribution") or []
+            if dist:
+                dx = [str(b) for b, _ in dist]
+                dy = [c for _, c in dist]
+                fig = go.Figure(go.Bar(
+                    x=dx, y=dy, marker_color="#ee2a2a", opacity=0.85,
+                    hovertemplate="%{x}板：%{y} 家<extra></extra>",
+                ))
+                fig.update_layout(
+                    height=230, margin=dict(l=10, r=10, t=28, b=10),
+                    title="连板数分布（含首板）",
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#e6e6e6" if dark else "#1a1a1a", size=11),
+                    xaxis=dict(title="连板数", gridcolor="#2a2a3a" if dark else "#ececec"),
+                    yaxis=dict(title="家数", gridcolor="#2a2a3a" if dark else "#ececec"),
+                )
+                st.plotly_chart(fig, use_container_width=True,
+                                config={"displaylogo": False, "responsive": True, "displayModeBar": False},
+                                key="zt_ladder_bar")
+            st.caption("杨哥：梯队「厚」= 赚钱效应线状扩散，接力顺畅；梯队「断层」= 接力资金缺席，"
+                       "主线只是一只独苗。结合最高板高度判断情绪空间：高度打开 + 梯队厚 = 主升确认。")
+
     # ── 涨停板行业分布（视频第三表：每个涨停票炒什么板块都要了如指掌）──
     dist = get_zt_industry_distribution(8)
     if dist is not None and not dist.empty:
@@ -846,6 +926,282 @@ def fragment_shepherd_chart():
     st.caption(caption)
 
 
+def _row_to_indicators(df, i=-1):
+    """把牧羊人 DataFrame 的第 i 行转成指标 dict（供 forecast/note 用）。"""
+    if df is None or df.empty:
+        return {}
+    try:
+        row = df.iloc[i]
+    except Exception:  # noqa: BLE001
+        return {}
+    out = {}
+    for k in df.columns:
+        if k == "date":
+            continue
+        try:
+            v = float(row[k])
+            if v == v:  # 过滤 NaN
+                out[k] = v
+        except Exception:  # noqa: BLE001
+            continue
+    return out
+
+
+@safe_fragment("次日走势预判")
+def fragment_shepherd_forecast():
+    """「用今日指标判断明天大概怎么走」——周期定位 + 评分 + 方向 + 情景 + 联动信号。"""
+    _section_title("🔮 次日走势预判（今日指标 → 明日大概率走向）", accent="#ee2a2a")
+    if st_autorefresh is not None and _in_trading_hours():
+        st_autorefresh(interval=180000, limit=80, key="shep_fc_auto")
+    try:
+        with st.spinner("加载牧羊人指标…"):
+            df, meta = _load_shepherd(60)
+    except Exception as e:
+        xc_handle_error("牧羊人指标加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
+        return
+    if df is None or df.empty:
+        _empty_info("暂无牧羊人指标数据（网络/代理受限）。")
+        return
+
+    today = _row_to_indicators(df, -1)
+    prev = _row_to_indicators(df, -2) if len(df) >= 2 else None
+    if not today:
+        _empty_info("今日指标不足，无法预判。")
+        return
+    try:
+        fc = _sf.forecast_next_day(today, prev)
+    except Exception as e:  # noqa: BLE001
+        xc_handle_error("次日预判计算失败", e, hint="请稍后重试")
+        return
+
+    cyc = fc.get("cycle") or {}
+    bias = fc.get("bias", "中性")
+    bcolor = {"偏多": "#ee2a2a", "偏空": "#00d486", "中性": "#f59e0b"}.get(bias, "#f59e0b")
+
+    # ① 情绪周期定位 + 方向总览
+    with st.container(border=True):
+        st.markdown(
+            f"### {cyc.get('emoji', '⚪')} 情绪周期：**{cyc.get('name', '—')}**　"
+            f"<span style='color:{bcolor};font-size:22px'>{bias}</span>　"
+            f"<span style='font-size:13px;opacity:.75'>置信度 {fc.get('confidence', 0)}%</span>",
+            unsafe_allow_html=True,
+        )
+        if cyc.get("desc"):
+            st.caption(cyc["desc"])
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("次日情绪评分", f"{fc.get('score', 0):.0f} / 100")
+        with c2:
+            st.metric("方向判断", bias)
+        with c3:
+            st.metric("置信度", f"{fc.get('confidence', 0)}%")
+        for r in (cyc.get("reasons") or [])[:6]:
+            st.markdown(f"- {r}")
+
+    # ② 命中的指标联动规则（组合信号比单指标可靠）
+    sigs = fc.get("signals") or []
+    st.markdown("**🔗 今日命中的指标联动**")
+    if not sigs:
+        st.caption("今日未命中任何联动规则（信号较平淡，以单指标档位为准）。")
+    else:
+        for s in sigs:
+            st.markdown(
+                f"<div style='border-left:3px solid {s.get('color', '#888')};padding:6px 10px;"
+                f"margin:6px 0;background:rgba(255,255,255,.03)'>"
+                f"<b>{s.get('name')}</b>　<code>{s.get('logic', '')}</code><br>"
+                f"<span style='font-size:12px;opacity:.85'>→ {s.get('effect', '')}</span></div>",
+                unsafe_allow_html=True,
+            )
+
+    # ③ 三情景推演
+    st.markdown("**🎲 次日三情景推演**")
+    for sc in fc.get("scenario") or []:
+        p = int(sc.get("prob", 0))
+        st.markdown(
+            f"<div style='margin:6px 0'>"
+            f"<div style='display:flex;justify-content:space-between;font-size:13px'>"
+            f"<span style='color:{sc.get('color', '#888')}'><b>{sc.get('name')}</b></span>"
+            f"<span>{p}%</span></div>"
+            f"<div style='background:rgba(255,255,255,.08);height:8px;border-radius:4px'>"
+            f"<div style='width:{p}%;background:{sc.get('color', '#888')};height:8px;border-radius:4px'></div>"
+            f"</div><div style='font-size:12px;opacity:.7;margin-top:2px'>{sc.get('desc', '')}"
+            f"<br>　{sc.get('trigger', '')}</div></div>",
+            unsafe_allow_html=True,
+        )
+
+    # ④ 各预测指标档位（哪些指标最能反映次日 + 当前落在哪一档）
+    drivers = fc.get("drivers") or []
+    if drivers:
+        st.markdown("**📊 次日预测指标档位**（按权重排序，权重=对次日走向的影响强度）")
+        rows = []
+        for d in drivers:
+            dir_txt = {1: "正向延续（今日越强→明日越易接力）",
+                       -1: "反向修复（今日越惨→明日越易V反）",
+                       0: "观察/确认项"}.get(d.get("dir"), "")
+            unit = d.get("unit", "")
+            try:
+                val = f"{d['value']:.2f}{unit}" if isinstance(d["value"], float) else f"{d['value']}{unit}"
+            except Exception:  # noqa: BLE001
+                val = f"{d.get('value')}{unit}"
+            rows.append({
+                "指标": d.get("name"),
+                "当前值": val,
+                "档位": d.get("band", "—"),
+                "权重": d.get("weight", 0),
+                "与次日的关系": dir_txt,
+                "当前档位含义": d.get("desc", ""),
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True,
+                     column_config={"权重": st.column_config.NumberColumn(format="%d", width="small"),
+                                    "当前档位含义": st.column_config.TextColumn(width="large")})
+        with st.expander("📖 为什么这些指标能预示次日？（点击展开原理）"):
+            for d in drivers:
+                st.markdown(f"- **{d.get('name')}**（权重 {d.get('weight')}）：{d.get('why', '')}")
+    st.caption(fc.get("summary", ""))
+    st.caption("📚 口径来源：杨哥复盘视频方法论（V反/延续规律）+ 实盘复盘圈「盯四个数」"
+               "（涨停÷跌停比 / 昨板溢价 / 空间板高度 / 梯队完整性，2026-08-29 资料交叉验证一致）。"
+               "指标按「与次日走向的相关性强弱」加权，正向延续 / 反向修复 / 观察确认三类分开标注。")
+    st.caption("⚠️ 预判基于历史统计规律与情绪周期框架，是概率而非确定性结论，不构成投资建议。")
+
+
+@safe_fragment("情绪笔记")
+def fragment_shepherd_note():
+    """每天记录一次情绪 + 回填次日实际 + 对过去的情绪做回测分析。"""
+    _section_title("📔 情绪笔记（每日情绪快照 + 历史情绪回测）", accent="#7c5cff")
+    try:
+        with st.spinner("加载牧羊人指标…"):
+            df, meta = _load_shepherd(60)
+    except Exception as e:
+        xc_handle_error("牧羊人指标加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
+        return
+    if df is None or df.empty:
+        _empty_info("暂无牧羊人指标数据（网络/代理受限）。")
+        return
+
+    today = _row_to_indicators(df, -1)
+    prev = _row_to_indicators(df, -2) if len(df) >= 2 else None
+    try:
+        dstr = str(pd.to_datetime(df["date"].iloc[-1]).date())
+    except Exception:  # noqa: BLE001
+        dstr = ""
+    try:
+        fc = _sf.forecast_next_day(today, prev) if today else None
+    except Exception:  # noqa: BLE001
+        fc = None
+
+    # ── ① 今日情绪快照 ──
+    with st.container(border=True):
+        cyc = (fc or {}).get("cycle") or {}
+        st.markdown(f"**📅 今日（{dstr or '—'}）情绪快照**　"
+                    f"{cyc.get('emoji', '')} {cyc.get('name', '—')} ｜ "
+                    f"评分 {(fc or {}).get('score', 0):.0f} ｜ 次日方向 **{(fc or {}).get('bias', '—')}**")
+        note_txt = st.text_area("今日手记（可写盘面感受、主线、明日计划，留空则不改动已存手记）",
+                                value="", key="shep_note_text", height=80,
+                                placeholder="例：最高板断板，梯队只剩 2 家，明天先看能不能修复…")
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            if st.button("💾 保存/更新今日笔记", key="shep_note_save", use_container_width=True):
+                ok = _sn.save_note(dstr or datetime.now().strftime("%Y-%m-%d"), today, fc, note_txt or "")
+                if ok:
+                    xc_success_box("✅ 今日情绪笔记已保存（含指标快照与次日预判）。")
+                else:
+                    xc_warn_box("⚠️ 保存失败，请检查 data/ 目录写权限。")
+        with b2:
+            if st.button("🔄 回填次日实际走势", key="shep_note_backfill", use_container_width=True):
+                n = _sn.backfill_actuals(df)
+                if n:
+                    xc_success_box(f"✅ 已回填 {n} 条笔记的次日实际走势（用于验证预判准不准）。")
+                else:
+                    st.caption("没有需要回填的笔记（可能都已回填，或历史数据缺次日值）。")
+        with b3:
+            if st.button("🗑️ 删除今日笔记", key="shep_note_del", use_container_width=True):
+                if _sn.delete_note(dstr):
+                    xc_success_box("已删除今日笔记。")
+                else:
+                    st.caption("今日尚无笔记。")
+
+    # ── ② 历史情绪回测（分析过去的情绪）──
+    st.markdown("**🔬 历史情绪回测**（对过去每个交易日重跑情绪定位，统计「当时处于某阶段 → 次日实际怎么走」）")
+    rng = st.selectbox("回测区间", ["近 60 交易日", "近 250 交易日", "近 1250 交易日"],
+                       index=0, key="shep_note_range")
+    days_map = {"近 60 交易日": 60, "近 250 交易日": 250, "近 1250 交易日": 1250}
+    if st.button("📊 分析历史情绪", key="shep_note_analyze", use_container_width=True):
+        try:
+            with st.spinner("逐日重跑情绪定位…"):
+                hdf, _ = _load_shepherd(days_map[rng])
+                analysis = _sn.analyze_history(hdf)
+        except Exception as e:  # noqa: BLE001
+            xc_handle_error("历史情绪分析失败", e, hint="请稍后重试")
+            analysis = None
+        if analysis:
+            st.session_state["shep_note_analysis"] = analysis
+    analysis = st.session_state.get("shep_note_analysis")
+    if analysis and analysis.get("rows"):
+        acc = analysis.get("accuracy", {})
+        rate = acc.get("rate")
+        if rate is not None:
+            st.metric("预判方向准确率", f"{rate:.1f}%",
+                      help=f"有效样本 {acc.get('valid')} 日，命中 {acc.get('hit')} 次")
+        else:
+            st.caption("暂无可判定的次日样本（历史缺 zt_prev_ret，需跑 v2 重构补齐）。")
+        byc = analysis.get("by_cycle") or []
+        if byc:
+            rows = []
+            for b in byc:
+                rows.append({
+                    "情绪阶段": f"{b.get('emoji', '')}{b.get('name')}",
+                    "出现次数": b.get("count"),
+                    "有效样本": b.get("valid"),
+                    "次日打板溢价均值(%)": b.get("avg_next"),
+                    "次日偏强胜率(%)": b.get("win_rate"),
+                    "偏强/震荡/偏弱": f"{b.get('up')}/{b.get('flat')}/{b.get('down')}",
+                })
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            # 胜率柱状图
+            fig = go.Figure(go.Bar(
+                x=[f"{b.get('emoji', '')}{b.get('name')}" for b in byc],
+                y=[b.get("win_rate") or 0 for b in byc],
+                marker_color=[b.get("color", "#888") for b in byc], opacity=0.85,
+                hovertemplate="%{x}：次日偏强 %{y:.1f}%<extra></extra>",
+            ))
+            fig.update_layout(
+                height=260, margin=dict(l=10, r=10, t=28, b=10), title="各情绪阶段 → 次日偏强胜率(%)",
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#e6e6e6" if dark else "#1a1a1a", size=11),
+                yaxis=dict(gridcolor="#2a2a3a" if dark else "#ececec"),
+            )
+            st.plotly_chart(fig, use_container_width=True,
+                            config={"displaylogo": False, "responsive": True, "displayModeBar": False},
+                            key="shep_note_winrate")
+        st.caption(_sn.summary_of(analysis))
+        st.caption("口径：次日走势以「次日打板赚钱效应 zt_prev_ret」为主（历史全期可得），"
+                   "缺失时用次日涨停家数环比替代；命中=偏多→次日偏强 / 偏空→次日偏弱 / 中性→震荡。"
+                   "样本越小越不稳定，结论仅供参考，不构成投资建议。")
+
+    # ── ③ 历史笔记列表 ──
+    notes = _sn.load_notes() or {}
+    if notes:
+        st.markdown(f"**🗂️ 已记录的情绪笔记（{len(notes)} 条）**")
+        items = sorted(notes.items(), key=lambda kv: kv[0], reverse=True)[:20]
+        rows = []
+        for d, rec in items:
+            f_ = rec.get("forecast") or {}
+            a_ = rec.get("actual_next") or {}
+            rows.append({
+                "日期": d,
+                "情绪阶段": f"{f_.get('cycle_emoji') or ''}{f_.get('cycle_name') or '—'}",
+                "评分": f_.get("score"),
+                "预判次日": f_.get("bias") or "—",
+                "次日实际": a_.get("verdict") or "待回填",
+                "次日溢价(%)": a_.get("zt_prev_ret"),
+                "手记": (rec.get("user_note") or "")[:60],
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True,
+                     column_config={"手记": st.column_config.TextColumn(width="large")})
+    else:
+        st.caption("还没有笔记 —— 点上面「保存/更新今日笔记」开始记录，之后可回填次日实际走势验证预判。")
+
+
 # 市场异动面板已抽取到 modules.session.fragment_market_alerts_panel（全局共享，风格统一）。
 
 fragment_thermometer()
@@ -854,6 +1210,8 @@ fragment_sentiment()
 fragment_valuation()
 fragment_shepherd()
 fragment_shepherd_review()
+fragment_shepherd_forecast()
+fragment_shepherd_note()
 fragment_shepherd_chart()
 fragment_market_alerts_panel()
 
