@@ -44,7 +44,7 @@ except Exception:
 
 def _load_page_module():
     here = os.path.dirname(os.path.abspath(__file__))
-    page_path = os.path.join(here, "..", "pages", "Q_QuantAgent投研.py")
+    page_path = os.path.join(here, "..", "pages", "25_QuantAgent投研.py")
     spec = importlib.util.spec_from_file_location("q_quantagent_page", page_path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

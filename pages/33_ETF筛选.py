@@ -28,11 +28,11 @@ sf_card("🧰 ETF / 基金筛选器", "按类型、关键字、涨跌幅与成�
 # 页面间快捷跳转（#Batch19-5）：相关页面一键直达
 _pl1, _pl2, _pl3 = st.columns(3)
 with _pl1:
-    st.page_link("pages/个股研究.py", label="📈 个股研究", icon="📈")
+    st.page_link("pages/24_个股研究.py", label="📈 个股研究", icon="📈")
 with _pl2:
-    st.page_link("pages/C_自选股监控.py", label="⭐ 自选股监控", icon="⭐")
+    st.page_link("pages/46_自选股监控.py", label="⭐ 自选股监控", icon="⭐")
 with _pl3:
-    st.page_link("pages/9_价格预警.py", label="🔔 价格预警", icon="🔔")
+    st.page_link("pages/47_价格预警.py", label="🔔 价格预警", icon="🔔")
 
 # 可折叠使用说明 / 快捷键提示（#Batch20-5 / #Batch20-9）：集合式帮助，纯前端折叠
 with st.expander("💡 使用说明 / 常见问题"):

@@ -116,7 +116,7 @@ class TestAnalyzeTrend:
 class TestFullAnalysisContract:
     """R81 契约：full_analysis 返回类型必须统一，页面消费方依赖。
 
-    消费方（pages/1_股票选取.py 等）用 ``if "error" not in trend`` 判断，
+    消费方（pages/11_股票选取.py 等）用 ``if "error" not in trend`` 判断，
     隐含约定 trend/momentum/volume 必为 dict、patterns 必为 list——
     若某子分析漂移为 None/str 会直接 TypeError（"error" not in None）或
     误走正常分支（字符串 in 检查）。本测试锁定四种输入下的类型契约。

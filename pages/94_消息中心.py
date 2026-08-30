@@ -152,7 +152,7 @@ def _build_movers():
                         "title": f"{name}({code}) {'大涨' if pct >= 0 else '大跌'} {pct:+.2f}%",
                         "detail": f"现价 {cur_s}　高 {high_s}　低 {low_s}",
                         "time": q.get("datetime", ""),
-                        "target": "pages/个股研究.py",
+                        "target": "pages/24_个股研究.py",
                         "params": {"pick_stock": code},
                     })
                 except Exception:
@@ -178,7 +178,7 @@ def _build_forum():
             "detail": f"由 {p.get('username', '匿名')} 发布 · {p.get('comment_count', 0)} 条评论"
                       + (f" · 关联 {p.get('stock_name')}" if p.get("stock_name") else ""),
             "time": p.get("created_at", ""),
-            "target": "pages/D_股吧.py",
+            "target": "pages/52_股吧.py",
             "params": {},
         })
     return msgs
@@ -193,14 +193,14 @@ def _build_system():
             "id": "sys_down", "type": "系统",
             "title": "⚠️ 部分数据源不可用",
             "detail": f"受影响源：{', '.join(h['down'])}；相关模块已自动降级或展示缓存数据。",
-            "time": "", "target": "pages/1_行情看板.py", "params": {},
+            "time": "", "target": "pages/10_行情看板.py", "params": {},
         })
     elif h["status"] == "degraded":
         msgs.append({
             "id": "sys_deg", "type": "系统",
             "title": "📡 部分数据源不稳定",
             "detail": f"受影响源：{', '.join(h['degraded'])}；部分数据可能延迟或为估算值。",
-            "time": "", "target": "pages/1_行情看板.py", "params": {},
+            "time": "", "target": "pages/10_行情看板.py", "params": {},
         })
     msgs.append({
         "id": "sys_tip", "type": "系统",

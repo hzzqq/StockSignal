@@ -3,7 +3,7 @@
 为什么需要它：
 - ``mcp_server/server.py`` + ``run.py`` 是面向 **外部 AI 助手（Claude/Cursor/OpenClaw）**
   的 stdio MCP 服务，走 JSON-RPC 序列化，跨进程、适合被第三方客户端调用。
-- 但 **StockSignal 站内页面（如 🌟_星辰AI.py）** 与 MCP 工具同处一个 Python 进程，
+- 但 **StockSignal 站内页面（如 53_星辰AI.py）** 与 MCP 工具同处一个 Python 进程，
   没必要走 stdio 序列化再回来。本网关直接 import ``mcp_server.tools`` 里已注册的工具
   函数并调用，零序列化开销、零网络，返回结构化 dict。
 

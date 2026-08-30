@@ -140,10 +140,10 @@ def fragment_watchlist_monitor():
         c1, c2 = st.columns(2)
         with c1:
             if st.button('➡️ 去形态选股', use_container_width=True, key='wl_empty_go'):
-                safe_switch_page('pages/B_形态选股.py')
+                safe_switch_page('pages/31_形态选股.py')
         with c2:
             if st.button('📘 看新手教程', use_container_width=True, key='wl_empty_tut'):
-                safe_switch_page('pages/Z_新手教程.py')
+                safe_switch_page('pages/96_新手教程.py')
         return
     codes = [it.get('stock_code') for it in items if isinstance(it, dict) and it.get('stock_code')]
     names = {}
@@ -236,7 +236,7 @@ def fragment_watchlist_monitor():
                 code = sel.split()[0]
                 st.session_state['pick_stock_confirmed'] = code
                 st.session_state['pick_stock_query'] = code
-                safe_switch_page('pages/个股研究.py')
+                safe_switch_page('pages/24_个股研究.py')
         _fav_set = st.session_state.setdefault('_wl_fav_set', set())
         _fav_sel = st.selectbox('⭐ 选择要收藏/取消收藏的标的', ['— 请选择 —'] + opts, key='wl_fav_pick')
         if st.button('🔖 切换收藏状态', key='wl_fav_toggle', use_container_width=True):
@@ -255,7 +255,7 @@ def fragment_watchlist_monitor():
                     if st.button(f'📈 {_fc_code}', key=f'wl_fav_{_fc_code}', use_container_width=True):
                         st.session_state['pick_stock_confirmed'] = _fc_code
                         st.session_state['pick_stock_query'] = _fc_code
-                        safe_switch_page('pages/个股研究.py')
+                        safe_switch_page('pages/24_个股研究.py')
     else:
         _empty_info('暂无可展示的实时行情（可能行情接口暂时未返回数据）。自选股列表非空但取数失败，稍候自动刷新，或检查网络后重试。')
     if rows:
@@ -272,9 +272,9 @@ def fragment_watchlist_monitor():
             pass
     with col_b:
         if st.button('🧭 用自选股做技术体检', use_container_width=True, key='wl_tech_check'):
-            safe_switch_page('pages/B_形态选股.py')
+            safe_switch_page('pages/31_形态选股.py')
     if st.button('🔔 去设价格预警', use_container_width=True, key='wl_goto_alert'):
-        safe_switch_page('pages/9_价格预警.py')
+        safe_switch_page('pages/47_价格预警.py')
     data_time = max(quote_times) if quote_times else '—'
     refresh_tag = ' ｜ 🔴 交易时段每 60 秒自动刷新' if _is_trading_now() else ''
     st.caption(f"行情时间：{(_rel_time(data_time) if data_time != '—' else '—')} ｜ 本页刷新：{datetime.now().strftime('%H:%M:%S')} ｜ 红涨绿跌（A股惯例）{refresh_tag}")
@@ -405,7 +405,7 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
         code = selected.split()[0]
         st.session_state['pick_stock_confirmed'] = code
         st.session_state['pick_stock_query'] = code
-        safe_switch_page('pages/个股研究.py')
+        safe_switch_page('pages/24_个股研究.py')
     st.markdown('**✏️ 修改用户打分**')
     st.caption('评分范围 0–100，越高越看好；拖动滑块选择，无法输入越界值。')
     with st.form(key=f'{pool_key}_score_form'):
@@ -493,6 +493,6 @@ for _i, (_c, _n) in enumerate(_c_rec):
         if st.button(f'{_n} {_c}', key=f'wl_rec_{_c}', use_container_width=True):
             st.session_state['pick_stock_confirmed'] = _c
             st.session_state['pick_stock_query'] = _c
-            safe_switch_page('pages/个股研究.py')
+            safe_switch_page('pages/24_个股研究.py')
 if st.button('↑ 回到顶部', key='wl_back_to_top'):
     sn.back_to_top_button()

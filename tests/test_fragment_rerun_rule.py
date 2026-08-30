@@ -31,7 +31,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SWITCH_PAGE_ALLOWLIST = {
     # 重新登录分支：session 已 clear，需丢弃 URL 上过期 token，
     # 故不用 safe_switch_page（它会保留 query 参数/旧 token）。
-    ("pages/2_多股对比.py", "fragment_compare_setup"),
+    ("pages/21_多股对比.py", "fragment_compare_setup"),
 }
 
 

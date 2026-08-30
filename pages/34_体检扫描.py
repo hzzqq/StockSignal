@@ -453,7 +453,7 @@ def result_board():
     if results == []:
         _empty_info("当前范围没有可扫描的股票。先去「形态选股」挑选一些标的加入跟踪吧。")
         if st.button("➡️ 去形态选股", key="goto_shape_empty"):
-            safe_switch_page("pages/B_形态选股.py")
+            safe_switch_page("pages/31_形态选股.py")
         return
 
     scan_time = st.session_state.get("scan_time", 0.0)
@@ -580,13 +580,13 @@ def result_board():
         _code = r.get("code", "—")
         with b1:
             if st.button("跳转", key=f"jump_{_code}"):
-                safe_switch_page("pages/个股研究.py")
+                safe_switch_page("pages/24_个股研究.py")
         with b2:
             if st.button("看技术形态", key=f"shape_{_code}"):
-                safe_switch_page("pages/B_形态选股.py")
+                safe_switch_page("pages/31_形态选股.py")
         with b3:
             if st.button("看资金", key=f"flow_{_code}"):
-                safe_switch_page("pages/F_资金流向.py")
+                safe_switch_page("pages/35_资金流向.py")
 
 
 result_board()

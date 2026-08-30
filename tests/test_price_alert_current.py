@@ -4,7 +4,7 @@ tests/test_price_alert_current.py
 回归：价格预警页 _current_price 对脏值行情字段稳健（不抛 ValueError）。
 
 背景（真实脆弱点）：
-- pages/9_价格预警.py:_current_price 原用 `if rt.get("current"): return float(rt["current"])`
+- pages/47_价格预警.py:_current_price 原用 `if rt.get("current"): return float(rt["current"])`
   行情接口对缺失值常返回 "—" / None / 非数字字符串，float("—") 抛 ValueError 且无 try 包裹
   → 触发预警计算/检查的调用方崩溃。
 - 修复：改用 to_float（失败返回 None，调用方已处理 None 分支），同时正确处理 0.0 真实价。
@@ -22,7 +22,7 @@ from unittest import mock
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGE = ROOT / "pages" / "9_价格预警.py"
+PAGE = ROOT / "pages" / "47_价格预警.py"
 
 
 def _load_page():

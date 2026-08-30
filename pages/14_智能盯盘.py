@@ -35,9 +35,9 @@ if '_wl_fav' not in st.session_state:
     st.session_state._wl_fav = []
 lk1, lk2 = st.columns([1, 1])
 with lk1:
-    st.page_link('pages/3_事件追踪.py', label='🔔 事件追踪')
+    st.page_link('pages/23_事件追踪.py', label='🔔 事件追踪')
 with lk2:
-    st.page_link('pages/个股研究.py', label='🔍 个股研究')
+    st.page_link('pages/24_个股研究.py', label='🔍 个股研究')
 st_autorefresh = import_autorefresh()
 MAIN_NET_STRONG = 100000000.0
 st.caption('📡 聚合看板：板块资金异动 · 自选股涨跌榜 · 个股资金流异动 · 规则预警。交易时段内每 60 秒自动刷新；非交易时段数据刷新放缓。')
@@ -313,7 +313,7 @@ def fragment_watchlist():
     if not items:
         _empty_info('自选股为空，暂无盯盘项。请先添加关注的股票（可前往「形态选股」或行情看板一键关注），添加后本页将自动聚合异动信号。')
         if st.button('➡️ 去形态选股添加', key='wl_empty_go'):
-            safe_switch_page('pages/B_形态选股.py')
+            safe_switch_page('pages/31_形态选股.py')
         if st.button('👀 查看示例', key='wl_sample'):
             _sample = pd.DataFrame([{'代码': '600519', '名称': '贵州茅台', '现价': 1680.0, '涨跌%': 2.35, '涨跌额': 38.5}, {'代码': '000858', '名称': '五粮液', '现价': 152.3, '涨跌%': -1.2, '涨跌额': -1.85}, {'代码': '601318', '名称': '中国平安', '现价': 48.6, '涨跌%': 0.42, '涨跌额': 0.2}])
             st.dataframe(_sample, use_container_width=True, hide_index=True, height=400)
@@ -387,7 +387,7 @@ def fragment_watchlist():
                         st.session_state._wl_recent = ([r['代码']] + _rv)[:8]
                     st.session_state['pick_stock_confirmed'] = r['代码']
                     st.session_state['pick_stock_query'] = r['代码']
-                    safe_switch_page('pages/个股研究.py')
+                    safe_switch_page('pages/24_个股研究.py')
         if _jump_show < _jump_total:
             if st.button('显示更多 ▼', key='wl_jump_more'):
                 st.session_state[_jump_key] = min(st.session_state[_jump_key] + 10, _jump_total)
@@ -400,7 +400,7 @@ def fragment_watchlist():
                     if _f2.button('跳转', key=f'wl_fav_go_{_fc}'):
                         st.session_state['pick_stock_confirmed'] = _fc
                         st.session_state['pick_stock_query'] = _fc
-                        safe_switch_page('pages/个股研究.py')
+                        safe_switch_page('pages/24_个股研究.py')
 
 @safe_fragment('个股资金流异动')
 def fragment_individual_ff():
@@ -419,7 +419,7 @@ def fragment_individual_ff():
     if not items:
         _empty_info('自选股为空，暂无盯盘项，暂无法展示个股资金流。请先添加关注的股票（可前往「形态选股」一键关注）。')
         if st.button('➡️ 去形态选股添加', key='iff_empty_go'):
-            safe_switch_page('pages/B_形态选股.py')
+            safe_switch_page('pages/31_形态选股.py')
         return
     codes = [c for c, _ in items]
     names = {c: n for c, n in items}
@@ -570,7 +570,7 @@ def fragment_watch_manage():
     if not items:
         _empty_info('自选股为空，暂无盯盘项。可在「形态选股」或行情看板添加关注，也可直接在上方输入框添加 6 位代码。')
         if st.button('➡️ 去形态选股添加', key='wm_empty_go'):
-            safe_switch_page('pages/B_形态选股.py')
+            safe_switch_page('pages/31_形态选股.py')
         return
     st.caption(f'共 {len(items)} 只关注 · 实时涨跌 + 跳转 / 移除')
     if st.button('🗑️ 取消关注全部', key='wm_clear_all'):
@@ -607,7 +607,7 @@ def fragment_watch_manage():
         if c4.button('跳转', key=f'wm_go_{code}'):
             st.session_state['pick_stock_confirmed'] = code
             st.session_state['pick_stock_query'] = code
-            safe_switch_page('pages/个股研究.py')
+            safe_switch_page('pages/24_个股研究.py')
         _ck = f'wm_rm_cfm_{code}'
         if st.session_state.get(_ck):
             if c5.button('确认移除', key=f'wm_rm_cfm_btn_{code}', type='primary'):

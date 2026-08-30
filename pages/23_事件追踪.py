@@ -29,10 +29,10 @@ sf_card(
 lk_p1, lk_p2 = st.columns([1, 1])
 with lk_p1:
     if st.button('👁️ 智能盯盘', key='lk_go_k', use_container_width=True):
-        st.switch_page('pages/K_智能盯盘.py')
+        st.switch_page('pages/14_智能盯盘.py')
 with lk_p2:
     if st.button('🔍 个股研究', key='lk_go_rs', use_container_width=True):
-        st.switch_page('pages/个股研究.py')
+        st.switch_page('pages/24_个股研究.py')
 from modules.signal import SignalEngine
 from modules.colors import UP_COLOR, DOWN_COLOR
 from modules.search_ui import stock_search_input

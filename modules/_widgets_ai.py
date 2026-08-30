@@ -207,7 +207,7 @@ def render_ai_consultant() -> None:
                 xc_handle_error(err)
                 if st.button('重新登录', key='ai_relogin', use_container_width=True):
                     st.session_state.clear()
-                    st.switch_page('pages/0_登录.py')
+                    st.switch_page('pages/90_登录.py')
             else:
                 xc_handle_error("后台任务提交失败", err, hint="请刷新后重试")
             st.session_state['ai_task_id'] = None

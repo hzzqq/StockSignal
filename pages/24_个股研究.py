@@ -2,8 +2,8 @@
 个股研究（合并页）
 ------------------
 将「股票选取」与「个股分析」合并为单页，用分段选择器切换两个子视图：
-  ⚡ 快速选取  → pages/1_股票选取.py（参数设置 / K线 / 技术面 / 打分 / 自选·垃圾股）
-  🔬 深度分析  → pages/2_个股分析.py（决策仪表盘 / 五维雷达 / 作战计划）
+  ⚡ 快速选取  → pages/11_股票选取.py（参数设置 / K线 / 技术面 / 打分 / 自选·垃圾股）
+  🔬 深度分析  → pages/20_个股分析.py（决策仪表盘 / 五维雷达 / 作战计划）
 
 实现方式（monkeypatch exec）：
   临时把子页顶部样板函数（apply_page_config / require_auth / render_user_badge）
@@ -23,8 +23,8 @@ trading_autorefresh(key="hub_autorefresh")
 
 _HERE = os.path.dirname(__file__)
 _SUBPAGES = {
-    "⚡ 快速选取": os.path.join(_HERE, "1_股票选取.py"),
-    "🔬 深度分析": os.path.join(_HERE, "2_个股分析.py"),
+    "⚡ 快速选取": os.path.join(_HERE, "11_股票选取.py"),
+    "🔬 深度分析": os.path.join(_HERE, "20_个股分析.py"),
 }
 
 

@@ -58,11 +58,11 @@ def fragment_onboarding():
     _section_title("🚀 三步上手（勾选完成，进度自动保存）", accent="#2b8aef")
     steps = [
         ("tut_step1", "① 看盘", "打开《行情看板》，看指数迷你卡、行业板块涨跌榜、龙虎榜，先感受市场温度。",
-         "pages/1_行情看板.py"),
+         "pages/10_行情看板.py"),
         ("tut_step2", "② 选股", "在《个股研究》里搜索一只股票，看 K 线、技术面分析与评分，理解一只股票怎么看。",
-         "pages/个股研究.py"),
+         "pages/24_个股研究.py"),
         ("tut_step3", "③ 跟踪", "把看好的股票加入自选股，到《持仓中心》跟踪涨跌、设置价格预警。",
-         "pages/持仓中心.py"),
+         "pages/45_持仓中心.py"),
     ]
     done = 0
     for key, title, desc, page in steps:
@@ -106,7 +106,7 @@ def fragment_modules():
                 icon = item[2] if len(item) >= 3 else "🔗"
                 _link(path, label, icon)
     with st.expander("👤 账户", expanded=False):
-        _link("pages/👤_我的.py", "我的", "👤")
+        _link("pages/91_我的.py", "我的", "👤")
     st.page_link("app.py", label="🏠 返回首页", icon="🏠")
 
 

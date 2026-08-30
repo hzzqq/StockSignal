@@ -64,7 +64,7 @@ with _sf_card(title="页面说明", icon="💡"):
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<a href="pages/H_市场驱动力.py" target="_self" class="sf-page-link">'
+        '<a href="pages/15_市场驱动力.py" target="_self" class="sf-page-link">'
         '🔗 看《市场驱动力》五维归一化子图（详细版）</a>',
         unsafe_allow_html=True,
     )

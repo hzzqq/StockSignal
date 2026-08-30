@@ -4,8 +4,8 @@ tests/test_app_home_wiring.py — 首页「情绪笔记 / 次日预判」快捷�
 背景（2026-08-29）：情绪笔记与次日预判已接进《市场情绪》页，但从首页要点好几层才能到。
 老板要「首页快捷入口」。本测试锁死两点：
 
-1. **AST 源码级**：app.py 必须有情绪笔记快捷入口（按钮 + 跳 P_市场情绪.py + 置聚焦标记）；
-   P_市场情绪.py 必须消费该聚焦标记（pop 后高亮一次），否则跳过去等于没跳。
+1. **AST 源码级**：app.py 必须有情绪笔记快捷入口（按钮 + 跳 50_市场情绪.py + 置聚焦标记）；
+   50_市场情绪.py 必须消费该聚焦标记（pop 后高亮一次），否则跳过去等于没跳。
 2. **功能级**：AppTest 真跑首页（离线打桩后端），断言不崩且按钮真的渲染出来了
    —— 而不只是「源码里写了」。
 
@@ -22,7 +22,7 @@ import requests
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP = os.path.join(ROOT, "app.py")
-PAGE = os.path.join(ROOT, "pages", "P_市场情绪.py")
+PAGE = os.path.join(ROOT, "pages", "50_市场情绪.py")
 
 # 首页有登录门禁：游客态只渲染门禁，快捷入口在门禁之后，必须注入登录态才能逼出
 from modules.site_config import TEST_SMOKE_SECRET  # noqa: E402
@@ -63,14 +63,14 @@ def test_app_has_mood_note_entry():
     """首页必须有情绪笔记快捷入口：按钮 key + 跳市场情绪页。"""
     src = _src(APP)
     assert "qe_mood_note" in src, "首页缺少情绪笔记快捷入口按钮（key=qe_mood_note）"
-    assert "pages/P_市场情绪.py" in src, "快捷入口未指向《市场情绪》页"
+    assert "pages/50_市场情绪.py" in src, "快捷入口未指向《市场情绪》页"
 
 
 def test_app_sets_focus_flag_before_switch():
     """跳转前必须置 shep_focus_note 标记，否则目标页无从聚焦。"""
     src = _src(APP)
     i_flag = src.find('"shep_focus_note"')
-    i_switch = src.find('safe_switch_page("pages/P_市场情绪.py")')
+    i_switch = src.find('safe_switch_page("pages/50_市场情绪.py")')
     assert i_flag > 0, "未设置 shep_focus_note 聚焦标记"
     assert i_switch > 0, "未跳转市场情绪页"
     assert i_flag < i_switch, "聚焦标记必须在跳转之前设置（否则目标页读不到）"

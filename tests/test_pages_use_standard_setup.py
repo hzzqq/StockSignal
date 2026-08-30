@@ -30,9 +30,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 显式登记的不走标准入口的页面（必须写明原因）
 STANDARD_SETUP_EXCLUSIONS = {
     # 登录页本身就是「未认证入口」，不能 require_auth，否则死循环
-    "pages/0_登录.py",
+    "pages/90_登录.py",
     # 自带整套自定义 CSS / 主题体系，布局完全独立
-    "pages/🌟_星辰AI.py",
+    "pages/53_星辰AI.py",
 }
 
 

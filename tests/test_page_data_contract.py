@@ -142,7 +142,7 @@ class TestShepherdRangeMissingContract:
 
     def test_caption_text_contains_missing_hint(self):
         """复用页面 caption 构造逻辑：missing_columns 非空时文本必含「未开始统计」。"""
-        # 模拟页面里的 caption 拼接（与 P_市场情绪.py 行 605-608 同款）
+        # 模拟页面里的 caption 拼接（与 50_市场情绪.py 行 605-608 同款）
         missing = {"limit_up": "所选时段内该指标全为缺失"}
         names = [THRESHOLDS.get(k, {}).get("name", k) for k in missing.keys()]
         caption = "🐑 牧羊人指标…"

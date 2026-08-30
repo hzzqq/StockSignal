@@ -81,8 +81,8 @@ def test_both_raise_returns_empty_dataframe():
 
 
 def test_source_level_no_residual_none_pattern():
-    """源码级防回退：E_基本面分析.py 的 sector 解析已委托给 resolve_sector_df
+    """源码级防回退：22_基本面分析.py 的 sector 解析已委托给 resolve_sector_df
     （含 'ff.get_industry_fund_flow' 作为第二入参），不再内联残留 None 的风险路径。"""
     import pathlib
-    src = pathlib.Path("pages/E_基本面分析.py").read_text(encoding="utf-8")
+    src = pathlib.Path("pages/22_基本面分析.py").read_text(encoding="utf-8")
     assert "resolve_sector_df(fetcher.get_sector_list, ff.get_industry_fund_flow)" in src

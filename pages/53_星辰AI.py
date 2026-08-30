@@ -727,11 +727,11 @@ st.caption("📡 数据来源：东方财富 / 新浪财经 / 公开财经资讯
 st.markdown("**🔗 相关页面**")
 _pc1, _pc2, _pc3 = st.columns(3)
 with _pc1:
-    st.page_link("pages/1_行情看板.py", label="→ 行情看板")
+    st.page_link("pages/10_行情看板.py", label="→ 行情看板")
 with _pc2:
-    st.page_link("pages/个股研究.py", label="→ 个股研究")
+    st.page_link("pages/24_个股研究.py", label="→ 个股研究")
 with _pc3:
-    st.page_link("pages/L_消息中心.py", label="→ 消息中心")
+    st.page_link("pages/94_消息中心.py", label="→ 消息中心")
 
 # 加法式示例数据预览：只读示例回答（不写库、不改逻辑）
 with st.expander("👀 查看示例回答（只读）", expanded=False):

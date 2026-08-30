@@ -5,9 +5,9 @@ tests/test_html_escape_news.py
 ``st.markdown(..., unsafe_allow_html=True)`` 前必须转义。
 
 背景（cycle 33 修复的真实缺陷）：
-- ``pages/2_个股分析.py`` 把新闻标题原样拼进 HTML 表格与风险/催化提示条，
+- ``pages/20_个股分析.py`` 把新闻标题原样拼进 HTML 表格与风险/催化提示条，
   标题里若含 ``<script>`` / 未闭合标签 → 页面标签泄露、排版错乱、可执行脚本；
-- ``pages/D_股吧.py`` 把用户名、评论正文、头像 URL 原样拼进 HTML，
+- ``pages/52_股吧.py`` 把用户名、评论正文、头像 URL 原样拼进 HTML，
   其中头像位于 ``src="…"`` 属性内，未转义可直接从属性逃逸注入事件处理器。
 
 本文件只测纯函数 + 源码级断言，不启 Streamlit，跑得快且不依赖网络。
@@ -69,18 +69,18 @@ class TestPagesUseEscaping:
         return (ROOT / rel).read_text(encoding="utf-8")
 
     def test_stock_page_imports_and_escapes_news_title(self):
-        src = self._src("pages/2_个股分析.py")
+        src = self._src("pages/20_个股分析.py")
         assert "safe_html_text" in src, "个股分析页应导入 safe_html_text"
         # 新闻表格行 / 风险 / 催化提示条：标题必须走转义（单引号写法，≥2 处）
         assert src.count("safe_html_text(r.get('title')") >= 2, "标题未走 safe_html_text 转义"
 
     def test_stock_page_has_no_raw_title_in_html(self):
-        src = self._src("pages/2_个股分析.py")
+        src = self._src("pages/20_个股分析.py")
         # 裸 {r.get('title')} 直接插值到 f-string HTML 里应当已被消灭
         assert not re.search(r"\{r\.get\('title'\)\s*or\s*'—'\}", src)
 
     def test_forum_page_escapes_user_content(self):
-        src = self._src("pages/D_股吧.py")
+        src = self._src("pages/52_股吧.py")
         assert "safe_html_text" in src, "股吧页应导入 safe_html_text"
         # 头像 src 属性
         assert 'src="{safe_html_text(avatar_data_url)}"' in src
@@ -89,7 +89,7 @@ class TestPagesUseEscaping:
         assert "safe_html_text(c.get('username'), '?')" in src
 
     def test_forum_page_has_no_raw_comment_content(self):
-        src = self._src("pages/D_股吧.py")
+        src = self._src("pages/52_股吧.py")
         assert "{c.get('content', '')}" not in src
         assert '<img src="{avatar_data_url}"' not in src
 
@@ -97,7 +97,7 @@ class TestPagesUseEscaping:
         # cycle 34：QuantAgent 投研页把 LLM 生成文本（结论/理由/辩论发言）原样拼进
         # unsafe_allow_html=True 的卡片，含 < 的研报（如 "PE <20"）会被浏览器吞掉，
         # 理论上也存在注入风险，必须转义
-        src = self._src("pages/Q_QuantAgent投研.py")
+        src = self._src("pages/25_QuantAgent投研.py")
         assert "safe_html_text" in src, "QuantAgent 页应导入 safe_html_text"
         assert "safe_html_text(l.get('message'))" in src
         assert "safe_html_text(c.get('verdict'), '-')" in src

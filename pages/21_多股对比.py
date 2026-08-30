@@ -81,7 +81,7 @@ def fragment_compare_setup():
                     xc_handle_error("操作失败", err, hint="请稍后重试，或检查网络与数据源连接")
                     if st.button("重新登录", key="cmp_relogin", use_container_width=True):
                         st.session_state.clear()
-                        st.switch_page("pages/0_登录.py")
+                        st.switch_page("pages/90_登录.py")
                 else:
                     xc_handle_error("后台任务提交失败", err, hint="请刷新重试")
 

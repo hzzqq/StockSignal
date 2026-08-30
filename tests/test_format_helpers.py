@@ -122,6 +122,6 @@ def test_extract_pct_no_number_returns_default():
 
 def test_extract_pct_used_in_message_center_import():
     # 源码级防回退：消息中心排序/上色已改用 extract_pct，不再用脆弱的 split+float
-    src = (Path(__file__).resolve().parents[1] / "pages" / "L_消息中心.py").read_text(encoding="utf-8")
+    src = (Path(__file__).resolve().parents[1] / "pages" / "94_消息中心.py").read_text(encoding="utf-8")
     assert 'extract_pct(m["title"])' in src
     assert 'float(m["title"].split' not in src

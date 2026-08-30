@@ -1,7 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 """
-个股分析页纯函数簇（从 pages/2_个股分析.py 抽出，#408 拆分超大文件）。
+个股分析页纯函数簇（从 pages/20_个股分析.py 抽出，#408 拆分超大文件）。
 
 本模块只含「输入基础类型 / dict / DataFrame → 返回字符串 / 列表」的纯函数，
 不依赖 streamlit / session_state / fetcher，可被页面按名导入，行为与原来完全一致。

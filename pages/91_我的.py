@@ -374,14 +374,14 @@ with col2:
     c1, c2, c3 = st.columns(3)
     with c1:
         if st.button("📈 行情看板", width="stretch"):
-            safe_switch_page("pages/1_行情看板.py")
+            safe_switch_page("pages/10_行情看板.py")
     with c2:
         if st.button("💼 持仓中心", width="stretch"):
             st.session_state["hub_cang_view"] = "💼 持仓"
-            safe_switch_page("pages/持仓中心.py")
+            safe_switch_page("pages/45_持仓中心.py")
     with c3:
         if st.button("🔔 事件追踪", width="stretch"):
-            safe_switch_page("pages/3_事件追踪.py")
+            safe_switch_page("pages/23_事件追踪.py")
 
 st.markdown("---")
 
@@ -423,7 +423,7 @@ try:
                     st.caption("⚠️ 以上为示意数据，非真实行情。")
                 st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
                 if st.button("➕ 去行情看板添加自选股", key="wl_go_add", use_container_width=True):
-                    safe_switch_page("pages/1_行情看板.py")
+                    safe_switch_page("pages/10_行情看板.py")
         else:
             _empty_info("暂无自选股，请先添加你关注的股票。")
             # 加法式示例数据预览：无数据时提供只读示例（不写库、不改逻辑）
@@ -437,7 +437,7 @@ try:
                 st.caption("⚠️ 以上为示意数据，非真实行情。")
             st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
             if st.button("➕ 去行情看板添加自选股", key="wl_go_add2", use_container_width=True):
-                safe_switch_page("pages/1_行情看板.py")
+                safe_switch_page("pages/10_行情看板.py")
     else:
         xc_warn_box(f"获取自选股失败：HTTP {resp.status_code}")
 except Exception as e:
@@ -564,7 +564,7 @@ if _my_quick:
         xc_success_box(f"✅ 代码格式正确：{_my_quick}")
         if st.button("前往个股研究", key="my_quick_go", use_container_width=False):
             st.session_state["pick_stock"] = _my_quick
-            safe_switch_page("pages/个股研究.py")
+            safe_switch_page("pages/24_个股研究.py")
 
 # 加法式可折叠帮助/FAQ（与 Batch13 行内 help 不同，这是折叠面板）
 with st.expander("💡 使用说明 / 常见问题", expanded=False):

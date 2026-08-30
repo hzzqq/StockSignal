@@ -1,6 +1,6 @@
 """PURE offline tests for `_safe_video_markdown` (stored-XSS fix, R1/R2/R5).
 
-The page module (pages/2_个股分析.py) executes heavy Streamlit/network top-level
+The page module (pages/20_个股分析.py) executes heavy Streamlit/network top-level
 code, so we do NOT import it. We stub `streamlit` to keep things offline and load
 the pure helper in isolation via AST extraction, then exercise it directly.
 """
@@ -13,7 +13,7 @@ import os
 sys.modules.setdefault("streamlit", types.ModuleType("streamlit"))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PAGE = os.path.join(HERE, "..", "pages", "2_个股分析.py")
+PAGE = os.path.join(HERE, "..", "pages", "20_个股分析.py")
 
 
 def _load_pure_func(name):

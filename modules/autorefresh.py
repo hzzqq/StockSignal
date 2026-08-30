@@ -3,8 +3,8 @@
 
 背景：多个页面/组件用 `streamlit_autorefresh.st_autorefresh` 实现定时自动刷新。
 该第三方包并非所有运行环境都预装；一旦缺失，凡是顶层 `from streamlit_autorefresh
-import st_autorefresh` 的页面会在加载时直接 ModuleNotFoundError 硬崩溃（见 pages/2_个股分析.py、
-pages/2_多股对比.py、pages/C_自选股监控.py）。
+import st_autorefresh` 的页面会在加载时直接 ModuleNotFoundError 硬崩溃（见 pages/20_个股分析.py、
+pages/21_多股对比.py、pages/46_自选股监控.py）。
 
 这里统一收敛为单点导入：
 - 包存在 → 透传真实 `st_autorefresh`（行为完全不变）；

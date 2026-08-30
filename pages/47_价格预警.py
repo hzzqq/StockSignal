@@ -335,7 +335,7 @@ if _recent:
             if st.button(f'📈 {_rc}', key=f'alert_recent_{_rc}', use_container_width=True):
                 st.session_state['pick_stock_confirmed'] = _rc
                 st.session_state['pick_stock_query'] = _rc
-                safe_switch_page('pages/个股研究.py')
+                safe_switch_page('pages/24_个股研究.py')
 
 @safe_fragment('预警列表')
 def fragment_alerts():

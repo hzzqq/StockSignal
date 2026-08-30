@@ -24,7 +24,7 @@ if is_authenticated():
     col_a, col_b = st.columns(2)
     with col_a:
         if st.button("📈 进入行情看板", width="stretch"):
-            safe_switch_page("pages/1_行情看板.py")
+            safe_switch_page("pages/10_行情看板.py")
     with col_b:
         if st.button("🚪 退出登录", width="stretch"):
             clear_auth()
@@ -118,7 +118,7 @@ with login_tab:
                             xc_success_box(f"✅ 登录成功！欢迎 {user.get('username', '用户')}")
                             st.balloons()
                             # 跳到第一个业务页
-                            safe_switch_page("pages/1_行情看板.py")
+                            safe_switch_page("pages/10_行情看板.py")
                     elif resp.status_code == 429:
                         # 后端已做 60s/5 次限流
                         st.error("⏳ 登录尝试过于频繁，请 60 秒后再试（防爆破保护已启用）")

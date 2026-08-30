@@ -453,7 +453,7 @@ def render_global_search() -> None:
                             except Exception as e:
                                 logger.warning(f"[widgets] 处理异常: {e}")
                                 pass
-                            safe_switch_page('pages/个股研究.py')
+                            safe_switch_page('pages/24_个股研究.py')
                 else:
                     st.caption(f'😕 未找到与「{q}」匹配的股票')
                     st.caption('可尝试：代码（600519）、简称（茅台）或拼音首字母（mt）')
@@ -507,7 +507,7 @@ def render_topright_bar() -> None:
                         render_ai_consultant()
         with c_set:
             if st.button('⚙️', key='top_settings', use_container_width=True, help='设置（进入「我的」偏好设置）'):
-                safe_switch_page('pages/👤_我的.py')
+                safe_switch_page('pages/91_我的.py')
         with c_d:
             if st.button('🌙', key='top_theme_dark', use_container_width=True, type='primary' if mode == 'dark' else 'secondary', help='暗夜模式'):
                 st.session_state['theme_mode'] = 'dark'
@@ -534,8 +534,8 @@ def inject_global_widgets() -> None:
     from modules.scroll_nav import inject_scroll_nav
     render_topright_bar()
     inject_scroll_nav()
-_NAV_GROUPS = [('📘 新手引导', [('pages/Z_新手教程.py', '新手教程', '📘')]), ('📊 市场纵览', [('pages/A_每日晨报.py', '每日晨报', '🌅'), ('pages/1_行情看板.py', '行情看板', '📈'), ('pages/K_智能盯盘.py', '智能盯盘', '👁️'), ('pages/F_资金流向.py', '资金流向', '🌊'), ('pages/3_事件追踪.py', '事件追踪', '📡'), ('pages/G_财报日历.py', '财报日历', '📅'), ('pages/M_板块轮动.py', '板块轮动', '🌈'), ('pages/P_市场情绪.py', '市场情绪', '🌡️'), ('pages/R_市场强弱.py', '市场强弱', '📊')]), ('🔎 选股研究', [('pages/个股研究.py', '个股研究', '🎯'), ('pages/B_形态选股.py', '形态选股', '🧭'), ('pages/E_基本面分析.py', '基本面分析', '🏛️'), ('pages/2_多股对比.py', '多股对比', '📊'), ('pages/O_ETF筛选.py', 'ETF筛选', '🧰')]), ('💼 我的持仓', [('pages/持仓中心.py', '持仓中心', '💼'), ('pages/I_体检扫描.py', '体检扫描', '🩺'), ('pages/9_价格预警.py', '价格预警', '🚨'), ('pages/J_数据导出.py', '数据导出', '📤'), ('pages/N_模拟交易.py', '模拟交易', '🎮')]), ('🧪 策略工具', [('pages/4_策略回测.py', '策略回测', '⚙️')]), ('💰 实盘 & 条件单', [('pages/X_实盘交易.py', '实盘交易', '💰'), ('pages/Y_智能条件单.py', '智能条件单', '🤖')]), ('💬 社区与 AI', [('pages/🌟_星辰AI.py', '星辰 AI', '🌟'), ('pages/D_股吧.py', '股吧', '💬'), ('pages/L_消息中心.py', '消息中心', '🔔')])]
-_NAV_ADMIN = [('pages/7_用户管理.py', '用户管理', '👥'), ('pages/8_系统配置.py', '系统配置', '🛠️')]
+_NAV_GROUPS = [('📘 新手引导', [('pages/96_新手教程.py', '新手教程', '📘')]), ('📊 市场纵览', [('pages/51_每日晨报.py', '每日晨报', '🌅'), ('pages/10_行情看板.py', '行情看板', '📈'), ('pages/14_智能盯盘.py', '智能盯盘', '👁️'), ('pages/35_资金流向.py', '资金流向', '🌊'), ('pages/23_事件追踪.py', '事件追踪', '📡'), ('pages/16_财报日历.py', '财报日历', '📅'), ('pages/12_板块轮动.py', '板块轮动', '🌈'), ('pages/50_市场情绪.py', '市场情绪', '🌡️'), ('pages/13_市场强弱.py', '市场强弱', '📊')]), ('🔎 选股研究', [('pages/24_个股研究.py', '个股研究', '🎯'), ('pages/31_形态选股.py', '形态选股', '🧭'), ('pages/22_基本面分析.py', '基本面分析', '🏛️'), ('pages/21_多股对比.py', '多股对比', '📊'), ('pages/33_ETF筛选.py', 'ETF筛选', '🧰')]), ('💼 我的持仓', [('pages/45_持仓中心.py', '持仓中心', '💼'), ('pages/34_体检扫描.py', '体检扫描', '🩺'), ('pages/47_价格预警.py', '价格预警', '🚨'), ('pages/95_数据导出.py', '数据导出', '📤'), ('pages/42_模拟交易.py', '模拟交易', '🎮')]), ('🧪 策略工具', [('pages/30_策略回测.py', '策略回测', '⚙️')]), ('💰 实盘 & 条件单', [('pages/43_实盘交易.py', '实盘交易', '💰'), ('pages/44_智能条件单.py', '智能条件单', '🤖')]), ('💬 社区与 AI', [('pages/53_星辰AI.py', '星辰 AI', '🌟'), ('pages/52_股吧.py', '股吧', '💬'), ('pages/94_消息中心.py', '消息中心', '🔔')])]
+_NAV_ADMIN = [('pages/92_用户管理.py', '用户管理', '👥'), ('pages/93_系统配置.py', '系统配置', '🛠️')]
 
 def sidebar_target():
     """返回子页「侧边栏内容」应写入的目标容器。
@@ -575,7 +575,7 @@ def render_sidebar_nav() -> None:
                 for path, label, icon in items:
                     _nav_link(path, label, icon)
             st.caption('👤 账户')
-            _nav_link('pages/👤_我的.py', '我的', '👤')
+            _nav_link('pages/91_我的.py', '我的', '👤')
             if is_admin():
                 for path, label, icon in _NAV_ADMIN:
                     _nav_link(path, label, icon)
@@ -593,7 +593,7 @@ def render_sidebar_nav() -> None:
                         except Exception as e:
                             logger.warning(f"[widgets] 处理异常: {e}")
                             pass
-                        safe_switch_page('pages/1_股票选取.py')
+                        safe_switch_page('pages/11_股票选取.py')
             st.markdown('---')
             try:
                 st.page_link('app.py', label='返回首页', icon='🏠')

@@ -1021,7 +1021,7 @@ def _confirm_logout_dialog() -> None:
     with c1:
         if st.button("确认退出", key="dlg_logout_yes", use_container_width=True, type="primary"):
             clear_auth()
-            safe_switch_page("pages/0_登录.py")
+            safe_switch_page("pages/90_登录.py")
     with c2:
         if st.button("取消", key="dlg_logout_no", use_container_width=True):
             st.session_state["_show_logout_dialog"] = False

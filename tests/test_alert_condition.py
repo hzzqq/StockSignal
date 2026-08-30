@@ -1,4 +1,4 @@
-"""针对 pages/9_价格预警.py 中纯函数 validate_alert_condition 的单元测试。
+"""针对 pages/47_价格预警.py 中纯函数 validate_alert_condition 的单元测试。
 
 该页面在模块顶层会执行大量 Streamlit / akshare 相关逻辑，无法在 pytest 中
 直接 import。这里通过 ast 仅抽取目标纯函数的源码并独立执行，从而既能测试
@@ -13,7 +13,7 @@ sys.path.insert(0, ROOT)
 
 from modules.format_helpers import safe_float  # noqa: E402
 
-PAGE_PATH = os.path.join(ROOT, "pages", "9_价格预警.py")
+PAGE_PATH = os.path.join(ROOT, "pages", "47_价格预警.py")
 
 
 def _load_validator():

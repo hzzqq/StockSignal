@@ -303,7 +303,7 @@ def fragment_lhb():
             if sel and sel != '— 请选择 —':
                 code = sel.split()[0]
                 st.query_params['pick_stock'] = code
-                safe_switch_page('pages/1_股票选取.py')
+                safe_switch_page('pages/11_股票选取.py')
             with st.expander('🔥 热股榜', expanded=False):
                 _n = len(lhb_df)
                 _amounts = []
@@ -335,7 +335,7 @@ def fragment_lhb():
                 if hsel and hsel != '— 请选择 —':
                     code = hsel.split()[0]
                     st.query_params['pick_stock'] = code
-                    safe_switch_page('pages/1_股票选取.py')
+                    safe_switch_page('pages/11_股票选取.py')
         else:
             _empty_info('暂无龙虎榜数据（非交易日晚间或数据源暂不可用）。可先到「📡 股票选取」查看个股 K 线，交易时段会自动刷新。')
 fragment_lhb()
@@ -577,7 +577,7 @@ def fragment_watchlist_quotes():
     picked = st.markdown(picks, unsafe_allow_html=True)
     if picked and picked in codes:
         st.query_params['pick_stock'] = picked
-        safe_switch_page('pages/1_股票选取.py')
+        safe_switch_page('pages/11_股票选取.py')
     opts = [f"{r['code']} {r['name']}" for r in rows]
     _kc1, _kc2 = st.columns(2)
     with _kc1:
@@ -585,7 +585,7 @@ def fragment_watchlist_quotes():
         if sel and sel != '— 请选择 —':
             c = sel.split()[0]
             st.query_params['pick_stock'] = c
-            safe_switch_page('pages/1_股票选取.py')
+            safe_switch_page('pages/11_股票选取.py')
     with _kc2:
         rsel = st.selectbox('移除自选', ['— 请选择 —'] + opts, key='wl_remove_sel')
         if st.button('🗑 移除', key='wl_remove_btn', use_container_width=True):

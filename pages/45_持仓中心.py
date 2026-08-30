@@ -2,9 +2,9 @@
 持仓中心（合并页）
 ------------------
 将「自选股监控」「仓位管理」「组合收益」合并为单页，用分段选择器切换三个子视图：
-  ⭐ 自选池    → pages/C_自选股监控.py（自选股实时行情 / 股票池管理）
-  💼 持仓      → pages/5_仓位管理.py（持仓盈亏 / 导入导出）
-  📈 收益归因  → pages/H_组合收益.py（净值曲线 / 基准对比 / 收益贡献 / 回撤）
+  ⭐ 自选池    → pages/46_自选股监控.py（自选股实时行情 / 股票池管理）
+  💼 持仓      → pages/40_仓位管理.py（持仓盈亏 / 导入导出）
+  📈 收益归因  → pages/41_组合收益.py（净值曲线 / 基准对比 / 收益贡献 / 回撤）
 
 实现方式（monkeypatch exec）：同「个股研究」，子页文件零改动、仅运行当前选中子视图。
 """
@@ -17,7 +17,7 @@ from modules.ui_kit import info_banner
 render_standard_page(title='持仓中心', icon='💼', caption='⚠️ 持仓中心为模拟/历史数据聚合视图，仅供学习，不构成投资建议。')
 info_banner("本页合并「自选池 / 持仓 / 收益归因」三个子视图，用顶部分段切换；持仓与收益均为模拟或历史数据，仅供学习。", icon="💼")
 _HERE = os.path.dirname(__file__)
-_SUBPAGES = {'⭐ 自选池': os.path.join(_HERE, 'C_自选股监控.py'), '💼 持仓': os.path.join(_HERE, '5_仓位管理.py'), '📈 收益归因': os.path.join(_HERE, 'H_组合收益.py')}
+_SUBPAGES = {'⭐ 自选池': os.path.join(_HERE, '46_自选股监控.py'), '💼 持仓': os.path.join(_HERE, '40_仓位管理.py'), '📈 收益归因': os.path.join(_HERE, '41_组合收益.py')}
 
 def _run_subpage(path: str) -> None:
     """在合并页内安全运行子页源码（临时 no-op 子页样板函数，避免重复渲染）。
@@ -58,11 +58,11 @@ if st.session_state.get('hub_cang_view') not in _options:
     st.session_state['hub_cang_view'] = _options[0]
 _hc1, _hc2, _hc3 = st.columns(3)
 with _hc1:
-    st.page_link('pages/C_自选股监控.py', label='⭐ 自选股监控', icon='⭐')
+    st.page_link('pages/46_自选股监控.py', label='⭐ 自选股监控', icon='⭐')
 with _hc2:
-    st.page_link('pages/5_仓位管理.py', label='💼 仓位管理', icon='💼')
+    st.page_link('pages/40_仓位管理.py', label='💼 仓位管理', icon='💼')
 with _hc3:
-    st.page_link('pages/H_组合收益.py', label='📈 组合收益', icon='📈')
+    st.page_link('pages/41_组合收益.py', label='📈 组合收益', icon='📈')
 _view = st.radio('持仓视图', _options, horizontal=True, label_visibility='collapsed', key='hub_cang_view', help='切换三个子视图：⭐ 自选池（自选股实时行情）/ 💼 持仓（持仓盈亏与导入导出）/ 📈 收益归因（净值曲线与收益贡献）。切换会重新加载对应模块。')
 if st.button('🔄 刷新', key='hub_manual_refresh'):
     st.rerun()

@@ -62,7 +62,7 @@ if st.button('🔍 生成分析', type='primary', use_container_width=True, key=
             xc_handle_error("操作失败", err, hint="请稍后重试，或检查网络与数据源连接")
             if st.button('重新登录', key='anal_relogin_top', use_container_width=True):
                 st.session_state.clear()
-                st.switch_page('pages/0_登录.py')
+                st.switch_page('pages/90_登录.py')
         else:
             xc_handle_error("后台任务提交失败", err, hint="请刷新重试")
 st.markdown('</div>', unsafe_allow_html=True)
@@ -96,7 +96,7 @@ with _col_fav:
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _cached_period_kline(ticker: str, start: str, end: str, period: str):
-    """#78 周/月 K 线数据（复用 1_股票选取.py 已验证的取数模式）。"""
+    """#78 周/月 K 线数据（复用 11_股票选取.py 已验证的取数模式）。"""
     recs = api_kline(ticker, start=start, end=end, period=period)
     if recs is None:
         return StockFetcher().get_kline(ticker, start=start, end=end, period=period)
@@ -824,7 +824,7 @@ def fragment_stock_videos(ticker):
             st.session_state['stock_video_exp'] = True
 fragment_stock_videos(ticker)
 st.markdown('---')
-st.page_link('pages/E_基本面分析.py', label='→ 去 基本面分析（估值/业绩/行业对比）', icon='🏛️')
-st.page_link('pages/个股研究.py', label='→ 去 个股研究（K线与技术面）', icon='📈')
+st.page_link('pages/22_基本面分析.py', label='→ 去 基本面分析（估值/业绩/行业对比）', icon='🏛️')
+st.page_link('pages/24_个股研究.py', label='→ 去 个股研究（K线与技术面）', icon='📈')
 if st.button('↑ 回到顶部', key='analysis_back_to_top', use_container_width=True):
     sn.back_to_top_button()

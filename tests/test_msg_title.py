@@ -145,7 +145,7 @@ def _load_safe_title_html():
     # "modules is not a package" 收集错误，导致本测试整体无法运行。
     sys.modules["modules"].__path__ = [os.path.join(root, "modules")]
     try:
-        mod = importlib.import_module("pages.L_消息中心")
+        mod = importlib.import_module("pages.94_消息中心")
         return mod._safe_title_html
     finally:
         # 精准还原：新增键删除，覆盖键写回原值；不动其他模块（含页面间接导入的真实模块）

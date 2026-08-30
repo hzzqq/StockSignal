@@ -4,7 +4,7 @@
 / shepherd.get_zt_ladder（连板梯队）三个能力层已就绪，但**页面没接线 = 老板看不到**。
 本测试锁死两件事：
 
-1. **AST 源码级**：P_市场情绪.py 必须 import 并调用这三个能力，且连板梯队必须渲染在
+1. **AST 源码级**：50_市场情绪.py 必须 import 并调用这三个能力，且连板梯队必须渲染在
    「今日最高板」之后（老板原话：在今日最高板附近增加连板股票的相关信息）。
 2. **功能级**：用构造数据跑真实页面（AppTest），断言「连板梯队 / 次日预判 / 情绪笔记」
    三个区块真的渲染出了内容，而不只是「不崩」（冒烟测试只验证不崩）。
@@ -18,7 +18,7 @@ import pandas as pd
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PAGE = os.path.join(ROOT, "pages", "P_市场情绪.py")
+PAGE = os.path.join(ROOT, "pages", "50_市场情绪.py")
 
 # AppTest 需要在无浏览器 URL 上下文里中和这两个调用（同 test_pages_smoke）
 import streamlit as st  # noqa: E402
@@ -40,7 +40,7 @@ def test_page_imports_shepherd_forecast_and_note():
     """页面必须 import 次日预判引擎、情绪笔记模块与连板梯队接口。"""
     src = open(PAGE, "r", encoding="utf-8").read()
     for token in ("get_zt_ladder", "shepherd_forecast", "shepherd_note"):
-        assert token in src, f"P_市场情绪.py 缺少 {token} 的引用（能力没接线）"
+        assert token in src, f"50_市场情绪.py 缺少 {token} 的引用（能力没接线）"
 
 
 def test_page_defines_and_calls_new_fragments():

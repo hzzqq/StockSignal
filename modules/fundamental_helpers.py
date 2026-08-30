@@ -1,7 +1,7 @@
 """
 modules/fundamental_helpers.py
 ──────────────────────────────
-从 pages/E_基本面分析.py 抽出的纯函数簇与常量（#408 拆分超大文件）。
+从 pages/22_基本面分析.py 抽出的纯函数簇与常量（#408 拆分超大文件）。
 仅依赖 pandas / numpy，不依赖 streamlit / fetcher / session_state，便于复用与单测。
 """
 from __future__ import annotations

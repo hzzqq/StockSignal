@@ -168,7 +168,7 @@ def fragment_watchlist_and_news():
             info_banner('📭 自选股为空，晨报暂无可展示的持仓快照。')
             st.markdown("<div class='xc-note'>💡 <b>三步开启你的晨报快照</b><br>1. 进入「📡 自选股监控」添加关注的股票<br>2. 或到「👤 我的」维护自选股清单<br>3. 回到本页，快照与专属新闻会自动出现</div>", unsafe_allow_html=True)
             if st.button('➕ 去添加自选股', type='primary', use_container_width=True, key='morning_goto_wl'):
-                safe_switch_page('pages/C_自选股监控.py')
+                safe_switch_page('pages/46_自选股监控.py')
         else:
             st.caption('👉 点击表格中某一行，可在下方「相关新闻速览」查看该股票的专属新闻。')
             snap = []
@@ -362,6 +362,6 @@ for _i, (_c, _n) in enumerate(_rec_codes):
         if st.button(f'{_n} {_c}', key=f'morning_rec_{_c}', use_container_width=True):
             st.session_state['pick_stock_confirmed'] = _c
             st.session_state['pick_stock_query'] = _c
-            safe_switch_page('pages/个股研究.py')
+            safe_switch_page('pages/24_个股研究.py')
 if st.button('↑ 回到顶部', key='morning_back_to_top'):
     sn.back_to_top_button()

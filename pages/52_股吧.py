@@ -89,9 +89,9 @@ def _open_post(pid: int):
 # 页面间快捷跳转（#Batch19-5）：相关页面一键直达
 _pl1, _pl2 = st.columns(2)
 with _pl1:
-    st.page_link("pages/个股研究.py", label="📈 去个股研究", icon="📈")
+    st.page_link("pages/24_个股研究.py", label="📈 去个股研究", icon="📈")
 with _pl2:
-    st.page_link("pages/C_自选股监控.py", label="⭐ 去自选股监控", icon="⭐")
+    st.page_link("pages/46_自选股监控.py", label="⭐ 去自选股监控", icon="⭐")
 
 # 可折叠使用说明 / 快捷键提示（#Batch20-5 / #Batch20-9）：集合式帮助，纯前端折叠
 with st.expander("💡 使用说明 / 常见问题"):
@@ -164,7 +164,7 @@ def fragment_detail():
             label = f"📈 {post.get('stock_name') or post['stock_code']}（{post['stock_code']}）"
             if st.button(label, key="forum_jump_stock", use_container_width=True):
                 st.query_params["pick_stock"] = post["stock_code"]
-                safe_switch_page("pages/个股研究.py")
+                safe_switch_page("pages/24_个股研究.py")
 
     st.markdown("---")
     st.markdown(post.get("content", ""))

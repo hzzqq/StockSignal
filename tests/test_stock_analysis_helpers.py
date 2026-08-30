@@ -1,6 +1,6 @@
 """R11：modules/stock_analysis_helpers 纯函数单测。
 
-#408 从 pages/2_个股分析.py 抽出纯函数簇到本模块；本测试锁定其纯函数行为，
+#408 从 pages/20_个股分析.py 抽出纯函数簇到本模块；本测试锁定其纯函数行为，
 防止后续配色/逻辑重构（如 R8 配色单一来源）引入回归。
 所有函数均不依赖 streamlit / fetcher / session_state，可独立调用。
 """
