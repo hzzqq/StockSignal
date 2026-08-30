@@ -33,8 +33,11 @@ deploy_preview/
 # 本地 pytest 临时目录（sandbox 禁止 rm 时保留，不入库）
 .pytest_tmp/
 
-# Windows 误创建的空设备文件
+# Windows 误创建的空设备文件（Git Bash/MSYS 下 `> nul` 会建出普通文件 nul，
+# 它是保留设备名，删除需 cmd /c "del \\.\E:\project\ks\StockSignal\nul"，非 cmd 环境删不掉）
 /nul
+# 同上：`> 中文名` 重定向把变量/异常文本当文件名落盘（如「底层网络超时」）
+/底层网络超时
 
 # 本地页面冒烟测试报告（分批产物，本机生成，不入库）
 tests/.pages_smoke_report*.json
