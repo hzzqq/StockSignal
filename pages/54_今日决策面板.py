@@ -161,7 +161,16 @@ def derive_position(temp, score, bias, cycle_name, overall_promo):
 
 
 # ───────────────────────── 顶部：情绪信号总览 + 仓位建议 ─────────────────────────
-def _render_hero(df, today, prev):
+def _render_hero(df, today, prev, meta=None):
+    # 数据来自 SQLite 缓存降级时，显示提示横幅（与 50_市场情绪 同口径）
+    if meta and isinstance(meta, dict) and meta.get("_cache_fallback"):
+        msg = meta.get("_cache_message", "当前展示为最近一次成功缓存的数据（网络暂时不可用）")
+        st.markdown(
+            f'<div style="background:#fff3cd;border:1px solid #ffc107;'
+            f'border-radius:8px;padding:8px 14px;font-size:13px;color:#856404">'
+            f'📦 <b>缓存模式</b>：{msg}</div>',
+            unsafe_allow_html=True,
+        )
     try:
         temp = shepherd_temperature(today)
     except Exception as e:  # noqa: BLE001
@@ -218,21 +227,27 @@ def _render_hero(df, today, prev):
     st.caption("⚠️ 仓位建议由温度/周期/评分/晋级率透明推导，是概率参考而非确定性指令，不构成投资建议。")
 
 
-try:
-    with st.spinner("加载牧羊人指标…"):
-        df, meta = _load_shepherd(60)
+@safe_fragment("今日决策")
+def fragment_decision():
+    """情绪信号总览 + 仓位建议（交易时段自动刷新，隔离渲染失败）。"""
+    if st_autorefresh is not None and _in_trading_hours():
+        st_autorefresh(interval=180000, limit=80, key="dec_auto")
+    try:
+        with st.spinner("加载牧羊人指标…"):
+            df, meta = _load_shepherd(60)
+    except Exception as e:  # noqa: BLE401
+        xc_handle_error("牧羊人指标加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
+        return
     if df is None or df.empty:
         _empty_info("暂无牧羊人指标数据（网络/代理受限）。")
-    else:
-        today = _row_to_indicators(df, -1)
-        prev = _row_to_indicators(df, -2) if len(df) >= 2 else None
-        try:
-            today.update(_sl.current_promo_as_indicators())
-        except Exception:  # noqa: BLE401
-            pass
-        _render_hero(df, today, prev)
-except Exception as e:  # noqa: BLE401
-    xc_handle_error("牧羊人指标加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
+        return
+    today = _row_to_indicators(df, -1)
+    prev = _row_to_indicators(df, -2) if len(df) >= 2 else None
+    try:
+        today.update(_sl.current_promo_as_indicators())
+    except Exception:  # noqa: BLE401
+        pass
+    _render_hero(df, today, prev, meta)
 
 
 # ───────────────────────── 情绪信号明细（17 项温度计） ─────────────────────────
@@ -366,6 +381,7 @@ def fragment_review():
     st.caption("📚 口径：杨哥复盘方法论（V反/延续）+ 实盘圈「盯四个数」。预判为概率结论，不构成投资建议。")
 
 
+fragment_decision()
 fragment_signals()
 fragment_ladder()
 fragment_review()
