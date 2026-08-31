@@ -69,20 +69,7 @@ def _data_date(df) -> str:
     try:
         return str(df.iloc[-1]["date"])[:10]
     except Exception:  # noqa: BLE001
-        return _guess_trading_date()
-
-
-def _guess_trading_date() -> str:
-    """推测最近交易日：周六/周日回退到上周五。
-
-    只用于「牧羊人还没抓到、拿不到权威日期」时先落盘梯队。
-    拿到牧羊人的权威日期后会用它重新校正一次（见 main 里的日期校正）。
-    """
-    from datetime import timedelta
-    d = datetime.now()
-    if d.weekday() >= 5:  # 5=周六 6=周日
-        d = d - timedelta(days=d.weekday() - 4)
-    return d.strftime("%Y-%m-%d")
+        return _sl.trading_date()
 
 
 def _record_ladder(date: str, ladder: dict, log) -> bool:
@@ -103,11 +90,50 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="每日收盘后落盘决策快照 + 连板梯队快照")
     ap.add_argument("--dry-run", action="store_true", help="只计算不落盘，打印将要写入的内容")
     ap.add_argument("--quiet", action="store_true", help="静默模式（定时任务用），仅失败时输出")
+    ap.add_argument("--audit", action="store_true",
+                    help="体检梯队历史，列出不可信条目（只读，不触发任何网络抓取）")
+    ap.add_argument("--mark-suspect", metavar="DATE", nargs="+",
+                    help="把指定日期标记为不可信（软处理：数据不删，仅不参与晋级率计算，可撤销）")
+    ap.add_argument("--unmark-suspect", metavar="DATE", nargs="+", help="撤销不可信标记")
     args = ap.parse_args()
 
     def log(msg: str) -> None:
         if not args.quiet:
             print(msg)
+
+    # ── 0. 只读体检 / 软标记：不触发任何网络抓取，也不影响正常落盘流程 ──
+    if args.audit:
+        report = _sl.audit_history()
+        if not report:
+            print("[audit] 梯队历史未发现可疑条目")
+            return 0
+        bad = [d for d, r in report.items() if r["severity"] == "bad"]
+        warn = [d for d, r in report.items() if r["severity"] == "warn"]
+        pending = [d for d in bad if not report[d].get("marked")]
+        print(f"[audit] 发现 {len(report)} 条可疑：{len(bad)} 条强烈建议排除 / {len(warn)} 条仅提示"
+              f"（其中 {len(pending)} 条待处理）")
+        for d in sorted(report):
+            r = report[d]
+            tag = "bad " if r["severity"] == "bad" else "warn"
+            state = " [已排除]" if r.get("marked") else ""
+            print(f"  [{tag}] {d}  {r['reason']}：{r['detail']}{state}")
+        if pending:
+            print("\n排除（软标记，可撤销，数据不删）：")
+            print(f"  python scripts/daily_snapshot.py --mark-suspect {' '.join(sorted(pending))}")
+        elif bad:
+            print("\n所有强烈建议排除的条目均已处理。")
+        return 0
+
+    if args.mark_suspect:
+        n = _sl.mark_suspect(args.mark_suspect, reason="daily_snapshot --mark-suspect")
+        print(f"[mark] 已标记 {n} 条为不可信，不再参与晋级率计算：{', '.join(args.mark_suspect)}")
+        print("  撤销：python scripts/daily_snapshot.py --unmark-suspect <日期...>")
+        return 0
+
+    if args.unmark_suspect:
+        n = _sl.unmark_suspect(args.unmark_suspect)
+        print(f"[unmark] 已撤销 {n} 条标记：{', '.join(args.unmark_suspect)}")
+        return 0
 
     # ── 1. 抓连板梯队并落盘（**放最前面**：它最实时、也最容易丢）──
     # 设计要点：梯队快照绝不能被牧羊人抓取失败阻塞。盘中牧羊人常有指标取不到
@@ -120,7 +146,7 @@ def main() -> int:
         log(f"[warn] 连板梯队抓取失败（晋级率将缺失）: {e}")
 
     if isinstance(ladder, dict) and ladder.get("distribution"):
-        _record_ladder(_guess_trading_date(), ladder, log)
+        _record_ladder(_sl.trading_date(), ladder, log)
     else:
         log("[warn] 无梯队数据，跳过梯队快照落盘")
 
@@ -142,8 +168,8 @@ def main() -> int:
 
     # 日期校正：上面梯队用的是「推测交易日」，这里拿到了牧羊人的权威数据日期。
     # 两者不一致时按权威日期重写一次，避免把周末/非交易日写进晋级率链条。
-    if isinstance(ladder, dict) and ladder.get("distribution") and date != _guess_trading_date():
-        log(f"[fix] 梯队日期校正：{_guess_trading_date()} → {date}")
+    if isinstance(ladder, dict) and ladder.get("distribution") and date != _sl.trading_date():
+        log(f"[fix] 梯队日期校正：{_sl.trading_date()} → {date}")
         _record_ladder(date, ladder, log)
 
     # ── 3. 温度 / 预判 / 晋级率 → 仓位 ──

@@ -750,10 +750,15 @@ def fragment_shepherd_review():
         lad = None
     if lad and lad.get("levels"):
         # 落盘各档家数（供跨日晋级率递推；缺历史时后续晋级率优雅为 None）
-        # ⚠️ 用**数据日期**而非 now()：周末/盘后打开页面时 now() 会记一个非交易日，
-        #    跨日递推就会把周末当「昨日」，晋级率直接算错。
+        # ⚠️⚠️ 日期必须用 trading_date()（实时梯队所属的交易日）。
+        #     不能用 _last_data_date(df)（牧羊人的数据日期）——两者来源不同：
+        #       · lad 是**实时抓取**的当下梯队
+        #       · df 的最后一天可能还停在前几个交易日（数据源未更新时）
+        #     混用会把「今天的梯队」记到「历史日期」名下，产生「补记滞后」脏数据。
+        #     实测：8-30 打开页面时 df 停在 8-27，今日梯队就被记成了 8-27 的数据。
+        #     也不能用 now()：周末打开会把上周五收盘梯队记成周六/周日，跨日递推算错。
         try:
-            _sl.record_ladder_snapshot(_last_data_date(df),
+            _sl.record_ladder_snapshot(_sl.trading_date(),
                                        lad.get("distribution"), lad.get("max_boards"), lad.get("total_connect"))
         except Exception:  # noqa: BLE001
             pass

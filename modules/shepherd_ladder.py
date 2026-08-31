@@ -19,7 +19,7 @@ import json
 import logging
 import os
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,22 @@ def _ds(v) -> str:
         return str(v)[:10]
     except Exception:
         return str(v)[:10]
+
+
+def trading_date(now=None) -> str:
+    """推测「当前实时梯队该归属哪个交易日」：周六/周日回退到上周五。
+
+    ⚠️ 为什么不能直接用 now()：
+        get_zt_ladder() 抓的是**实时**梯队。周末跑脚本时它返回的是上周五收盘的数据，
+        若按 now() 落盘就会记成周六/周日 → 跨日晋级率递推把非交易日当「昨日」，直接算错。
+
+    ⚠️ 局限：只处理周末，**不处理法定节假日**（那需要交易日历）。
+       节假日跑脚本仍会记一条，由 audit_history() 事后检出。
+    """
+    d = now or datetime.now()
+    if d.weekday() >= 5:  # 5=周六 6=周日
+        d = d - timedelta(days=d.weekday() - 4)
+    return d.strftime("%Y-%m-%d")
 
 
 def _dist_to_map(distribution) -> dict:
@@ -157,7 +173,9 @@ def ladder_promotion_rates() -> dict:
     hist = load_history()
     if not hist:
         return empty
-    dates = sorted(hist.keys())
+    # 跳过被标记为不可信的条目（audit_history 检出 + mark_suspect 标记，软处理可撤销）
+    dates = sorted(d for d, e in hist.items()
+                   if not (isinstance(e, dict) and e.get("suspect")))
     if len(dates) < 2:
         return dict(ready=False, days=len(dates), latest=hist[dates[-1]],
                     latest_date=dates[-1], rates={}, overall=None)
@@ -192,3 +210,118 @@ def current_promo_as_indicators() -> dict:
     if not pr.get("ready") or pr.get("overall") is None:
         return {}
     return {"ladder_promo": pr["overall"]}
+
+
+# ────────────────── 历史数据体检：脏数据检测 + 软标记 ──────────────────
+def audit_history() -> dict:
+    """体检梯队历史，检出「不可信」条目。**只读，不改动任何数据。**
+
+    两条判据：
+
+    · **补记滞后（主判据，可靠）**：`updated_at` 的日期 ≠ 该条的 `date`。
+      说明这条不是当天写的 —— 而 distribution 来自**实时抓取**，于是「那一天」名下
+      记的其实是「补记那一刻」的梯队，日期张冠李戴。
+      典型场景：8-30 打开情绪页，牧羊人数据还停在 8-27，页面就把 8-30 抓到的实时
+      梯队记到了 8-27 名下（根因已在页面侧改用 trading_date() 修正）。
+
+    · **重复分布（辅助，仅提示）**：与相邻日期的分布逐档完全相同。
+      真实市场两天梯队完全一致的概率极低，通常意味着其中一条是陈旧/复制值。
+
+    :return: {date: {date, severity, reason, detail, updated_at, distribution}}
+             severity: "bad"（补记滞后，强烈建议排除）/ "warn"（仅提示）
+    """
+    hist = load_history()
+    if not hist:
+        return {}
+    dates = sorted(hist.keys())
+    out: dict = {}
+
+    # 主判据：补记滞后
+    for d in dates:
+        entry = hist[d]
+        if not isinstance(entry, dict):
+            continue
+        upd = str(entry.get("updated_at") or "")[:10]
+        if upd and upd != d:
+            out[d] = {
+                "date": d, "severity": "bad", "reason": "补记滞后",
+                "detail": (f"updated_at={entry.get('updated_at')} 与 date={d} 不符；"
+                           f"分布来自实时抓取，实为补记当日的梯队"),
+                "updated_at": entry.get("updated_at"),
+                "distribution": entry.get("distribution"),
+                "marked": bool(entry.get("suspect")),
+            }
+
+    # 辅助判据：与相邻日期分布完全相同
+    for i, d in enumerate(dates):
+        entry = hist[d]
+        if not isinstance(entry, dict) or d in out:
+            continue
+        cur = _int_keys(entry.get("distribution") or {})
+        if not cur:
+            continue
+        neighbours = [dates[i - 1] if i > 0 else None,
+                      dates[i + 1] if i + 1 < len(dates) else None]
+        for nb in neighbours:
+            if not nb:
+                continue
+            other = hist.get(nb)
+            if not isinstance(other, dict):
+                continue
+            if _int_keys(other.get("distribution") or {}) == cur:
+                out[d] = {
+                    "date": d, "severity": "warn", "reason": "分布与相邻日完全相同",
+                    "detail": f"与 {nb} 的分布逐档一致 {cur}，疑似陈旧/复制值",
+                    "updated_at": entry.get("updated_at"),
+                    "distribution": cur,
+                    "marked": bool(entry.get("suspect")),
+                }
+                break
+    return out
+
+
+def mark_suspect(dates, reason="人工标记") -> int:
+    """给指定日期打 suspect 标记 —— **软处理，数据不删，随时可 unmark 撤销**。
+
+    被标记的条目会被 ladder_promotion_rates() 跳过，不再污染晋级率。
+
+    :param dates: 单个日期字符串或日期列表
+    :return: 实际标记成功的条数
+    """
+    if isinstance(dates, str):
+        dates = [dates]
+    n = 0
+    with _lock:
+        hist = load_history()
+        for d in dates:
+            d = _ds(d)
+            e = hist.get(d)
+            if not isinstance(e, dict):
+                continue
+            e["suspect"] = True
+            e["suspect_reason"] = reason
+            e["suspect_at"] = datetime.now().isoformat(timespec="seconds")
+            n += 1
+        if n:
+            _save_history(hist)
+    return n
+
+
+def unmark_suspect(dates) -> int:
+    """撤销 suspect 标记，恢复参与晋级率计算（数据从未被删除，可完整恢复）。"""
+    if isinstance(dates, str):
+        dates = [dates]
+    n = 0
+    with _lock:
+        hist = load_history()
+        for d in dates:
+            d = _ds(d)
+            e = hist.get(d)
+            if not isinstance(e, dict):
+                continue
+            for k in ("suspect", "suspect_reason", "suspect_at"):
+                e.pop(k, None)
+            n += 1
+        if n:
+            _save_history(hist)
+    return n

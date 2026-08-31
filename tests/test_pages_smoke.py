@@ -129,9 +129,30 @@ def _run_page(page_path: str, authed: bool) -> dict:
             }
 
 
+def _isolate_writes(monkeypatch, tmp_path):
+    """把页面的落盘路径重定向到临时目录，避免冒烟测试写脏真实的 data/。
+
+    ⚠️ 为什么必须隔离：本测试用 AppTest **真跑页面**，而页面里的落盘逻辑
+    （如《市场情绪》页的 record_ladder_snapshot）用的是真实 data/shepherd_ladder_history.json。
+    离线 stub 下它会把 stub 出来的假梯队写进生产历史文件，污染晋级率链条 ——
+    实测 2026-08-27 那条脏数据就是这么来的：它的 updated_at 落在跑测试的时间点上，
+    而日期却取自 stub 的牧羊人 DataFrame，导致「今日梯队」被记到历史日期名下。
+
+    副作用（可接受）：隔离后页面读不到真实历史，会走降级分支；
+    本测试只验「不崩」，数据正确性由各模块的专项单测覆盖。
+    """
+    import modules.shepherd_ladder as _sl
+    import modules.decision as _dec
+
+    monkeypatch.setattr(_sl, "LADDER_FILE", str(tmp_path / "ladder_history.json"))
+    monkeypatch.setattr(_dec, "SNAPSHOT_PATH", str(tmp_path / "daily_snapshot.json"))
+    monkeypatch.setattr(_dec, "ARCHIVE_DIR", str(tmp_path / "snapshots"))
+
+
 @pytest.mark.parametrize("page_path", PAGE_FILES, ids=lambda p: os.path.basename(p))
-def test_page_renders_without_exception(page_path: str):
+def test_page_renders_without_exception(page_path: str, monkeypatch, tmp_path):
     """游客态 + 已登录态下，页面渲染均不应抛出未捕获异常。"""
+    _isolate_writes(monkeypatch, tmp_path)
     guest = _run_page(page_path, authed=False)
     authd = _run_page(page_path, authed=True)
 

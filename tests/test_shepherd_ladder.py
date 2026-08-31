@@ -104,3 +104,114 @@ def test_forecast_relay_weak_when_low(tmp_path, monkeypatch):
     fc = sf.forecast_next_day({"ladder_promo": 5.0}, None)
     ids = [s["id"] for s in fc["signals"]]
     assert "relay_promo_weak" in ids
+
+
+# ────────────────── 交易日判定 / 脏数据体检 / 软标记 ──────────────────
+def test_trading_date_weekend_rolls_back_to_friday():
+    """周末抓到的实时梯队其实是上周五收盘的数据，不能记成周六/周日。
+
+    记错会让跨日晋级率递推把非交易日当「昨日」，结果直接算错。
+    2026-08-28 周五 / 08-29 周六 / 08-30 周日 / 08-31 周一。
+    """
+    from datetime import datetime
+    assert sl.trading_date(datetime(2026, 8, 28, 15, 30)) == "2026-08-28"
+    assert sl.trading_date(datetime(2026, 8, 29, 10, 0)) == "2026-08-28"
+    assert sl.trading_date(datetime(2026, 8, 30, 10, 0)) == "2026-08-28"
+    assert sl.trading_date(datetime(2026, 8, 31, 10, 0)) == "2026-08-31"  # 周一 = 当天
+
+
+def _set_updated_at(date, when):
+    """改写某条的 updated_at。
+
+    record_ladder_snapshot 写的是 now()，而测试造的历史日期都在过去 —— 不改写的话
+    audit 的「补记滞后」判据会把它们全判成脏数据（生产环境不会这样：脚本当天跑，
+    date 与 updated_at 天然同日）。要测「干净历史」就得先模拟成当天写入。
+    """
+    import json
+    p = sl.LADDER_FILE
+    h = json.load(open(p, encoding="utf-8"))
+    if date in h:
+        h[date]["updated_at"] = when
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(h, f, ensure_ascii=False, indent=2)
+
+
+def test_audit_detects_backfill_lag(tmp_path, monkeypatch):
+    """主判据：updated_at 的日期 ≠ date → 补记数据，分布实为补记当日的梯队。"""
+    _use_tmp(tmp_path, monkeypatch)
+    sl.record_ladder_snapshot("2026-08-27", _dist((1, 45), (2, 13), (3, 4), (6, 1)), 6, 18)
+    # 模拟「8-30 打开页面时把当日梯队写到了 8-27 名下」
+    _set_updated_at("2026-08-27", "2026-08-30T21:41:02")
+
+    rep = sl.audit_history()
+    assert "2026-08-27" in rep
+    assert rep["2026-08-27"]["severity"] == "bad"
+    assert rep["2026-08-27"]["reason"] == "补记滞后"
+
+
+def test_audit_clean_history_is_empty(tmp_path, monkeypatch):
+    """当天写、分布各异的历史不该被误报（避免审计变成狼来了）。"""
+    _use_tmp(tmp_path, monkeypatch)
+    sl.record_ladder_snapshot("2026-08-27", _dist((1, 100), (2, 20)), 2, 20)
+    sl.record_ladder_snapshot("2026-08-28", _dist((1, 80), (2, 25)), 2, 25)
+    _set_updated_at("2026-08-27", "2026-08-27T15:30:00")
+    _set_updated_at("2026-08-28", "2026-08-28T15:30:00")
+    assert sl.audit_history() == {}
+
+
+def test_audit_detects_duplicate_distribution(tmp_path, monkeypatch):
+    """辅助判据：与相邻日分布逐档完全相同 → warn（真实市场极少完全一致）。"""
+    _use_tmp(tmp_path, monkeypatch)
+    d = _dist((1, 45), (2, 13), (3, 4), (6, 1))
+    sl.record_ladder_snapshot("2026-08-27", d, 6, 18)
+    sl.record_ladder_snapshot("2026-08-29", d, 6, 18)  # 与 8-27 逐档一致
+    _set_updated_at("2026-08-27", "2026-08-27T15:30:00")
+    _set_updated_at("2026-08-29", "2026-08-29T13:42:52")
+    rep = sl.audit_history()
+    assert any(r["severity"] == "warn" for r in rep.values())
+    # 两条都是当天写的，不该被主判据（补记滞后）误伤
+    assert all(r["reason"] != "补记滞后" for r in rep.values())
+
+
+def test_audit_is_read_only(tmp_path, monkeypatch):
+    """audit 只读，不改动文件 —— 它会被定时任务和人工反复跑。"""
+    _use_tmp(tmp_path, monkeypatch)
+    sl.record_ladder_snapshot("2026-08-27", _dist((1, 100), (2, 20)), 2, 20)
+    before = open(sl.LADDER_FILE, encoding="utf-8").read()
+    sl.audit_history()
+    assert open(sl.LADDER_FILE, encoding="utf-8").read() == before
+
+
+def test_mark_suspect_excludes_from_promotion(tmp_path, monkeypatch):
+    """标记后该条不再参与晋级率计算。"""
+    _use_tmp(tmp_path, monkeypatch)
+    sl.record_ladder_snapshot("2026-08-27", _dist((1, 100), (2, 20)), 2, 20)
+    sl.record_ladder_snapshot("2026-08-28", _dist((1, 80), (2, 25)), 2, 25)
+    assert sl.ladder_promotion_rates()["latest_date"] == "2026-08-28"
+
+    assert sl.mark_suspect("2026-08-28") == 1
+    pr = sl.ladder_promotion_rates()
+    assert pr["latest_date"] == "2026-08-27"
+    assert pr["ready"] is False  # 只剩一天，无法跨日递推
+
+
+def test_unmark_suspect_restores(tmp_path, monkeypatch):
+    """软标记必须可完整撤销 —— 数据从未被删除。"""
+    _use_tmp(tmp_path, monkeypatch)
+    sl.record_ladder_snapshot("2026-08-27", _dist((1, 100), (2, 20)), 2, 20)
+    sl.record_ladder_snapshot("2026-08-28", _dist((1, 80), (2, 25)), 2, 25)
+    sl.mark_suspect("2026-08-28")
+    assert sl.ladder_promotion_rates()["latest_date"] == "2026-08-27"
+
+    assert sl.unmark_suspect("2026-08-28") == 1
+    pr = sl.ladder_promotion_rates()
+    assert pr["latest_date"] == "2026-08-28"
+    assert pr["ready"] is True
+    assert pr["latest"]["distribution"] == {1: 80, 2: 25}  # 原始数据完好
+
+
+def test_mark_suspect_tolerates_missing_date(tmp_path, monkeypatch):
+    """标记不存在的日期应安全返回 0，不抛异常。"""
+    _use_tmp(tmp_path, monkeypatch)
+    assert sl.mark_suspect("1999-01-01") == 0
+    assert sl.unmark_suspect("1999-01-01") == 0
