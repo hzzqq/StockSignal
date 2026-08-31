@@ -111,10 +111,16 @@ def _run_page(page_path: str, authed: bool) -> dict:
             at.session_state["auth_token"] = _FAKE_TOKEN
             at.session_state["auth_user"] = dict(_FAKE_USER)
         at.run()
+        pos_pct = None
+        try:
+            pos_pct = at.session_state.get("decision_pos_pct")
+        except Exception:
+            pass
         return {
             "exception_count": len(at.exception),
             "exceptions": [str(e) for e in at.exception[:3]],
             "errors": _collect_errors(at),
+            "pos_pct": pos_pct,
         }
 
     with _cf.ThreadPoolExecutor(max_workers=1) as ex:
@@ -158,6 +164,15 @@ def test_page_renders_without_exception(page_path: str, monkeypatch, tmp_path):
 
     # 汇总写入报告（供排雷），即使本断言通过也保留
     _write_report(page_path, guest, authd)
+
+    # 数据正确性守卫（消除「只验不崩」的安慰剂问题）：
+    # 若《今日决策面板》成功算出仓位，则其暴露的 decision_pos_pct 必须落在 [5,95]
+    # （极端硬约束已在 decision.derive_position 锁死上沿/下沿）。离线无数据时该值为 None，跳过。
+    base = os.path.basename(page_path)
+    if base == "54_今日决策面板.py" and authd.get("pos_pct") is not None:
+        assert 5 <= authd["pos_pct"] <= 95, (
+            f"决策面板算出非法仓位 {authd['pos_pct']}%，应落在 [5,95]"
+        )
 
     msgs = []
     if guest["exception_count"]:

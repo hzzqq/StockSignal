@@ -35,6 +35,7 @@ if ROOT not in sys.path:
 from modules import decision as _dec  # noqa: E402
 from modules import shepherd_ladder as _sl  # noqa: E402
 from modules import shepherd_forecast as _sf  # noqa: E402
+from modules import decision_track as _track  # noqa: E402
 from modules.shepherd import (  # noqa: E402
     get_shepherd_indicators, shepherd_temperature, get_zt_ladder,
 )
@@ -232,6 +233,13 @@ def main() -> int:
         _dec.append_log(f"FAIL 快照落盘失败 {date}")
         print("[FAIL] 快照落盘失败")
         return 2
+
+    # ── 5. 记一笔预测（供「预测 vs 实际」回测；与每日快照一一对应）──
+    try:
+        _track.record_prediction(date, temp, snap.get("cycle") or "", snap.get("bias") or "中性",
+                                 pos.get("pct"))
+    except Exception as e:  # noqa: BLE001
+        log(f"[warn] 预测记录失败（不影响快照）: {e}")
 
     _dec.append_log(
         f"OK {date} temp={snap.get('temperature')} cycle={snap.get('cycle')} "

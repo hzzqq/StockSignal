@@ -1,0 +1,254 @@
+# -*- coding: utf-8 -*-
+"""
+modules/decision_track.py — 「预测 vs 实际」准确率回测（差异化主线的能力验证）
+
+为什么要这个模块（这是补「闭环最后一公里」，不是锦上添花）：
+    《今日决策面板》每天给出「偏多/偏空 + 几成仓」的预判，但**从没人验证过准不准**。
+    一个只给建议、从不复盘对错的系统，用户无法判断该信几分 —— 这是差异化主线
+    （事件驱动 + 市场情绪）目前最该补的缺口。
+
+    本模块把每天落盘的决策快照「记一笔预测」（date / 温度 / 周期 / 方向 / 仓位），
+    之后联网拉取**次日基准指数（上证 000001）真实涨跌**，判定方向是否命中，
+    积累出「方向命中率」+ 一张「预测仓位 vs 次日实际涨跌」的回测曲线。
+
+设计约束（与安全基线一致）：
+    · 不依赖 streamlit；纯 Python，定时任务与页面都能调。
+    · 路径读 SS_DATA_DIR（测试隔离复用同一套机制，不写穿真实 data/）。
+    · 任何单源失败（网络/akshare 缺失/基准取不到）都优雅降级：
+      记录照常落、打分返回 None、页面显示「暂无可打分样本」，绝不向上抛。
+    · 打分是「联网回测」动作，由页面按钮或定时任务显式触发，不在此模块 import 时自动跑。
+
+红涨绿跌：偏多/激进=红，偏空/防御=绿（与 decision.py 一致）。
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+from datetime import datetime, timedelta
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# 项目根（modules/ 的上一级）
+_HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(_HERE)
+# SS_DATA_DIR 可重定向整个数据目录（测试隔离用；生产默认 data/）。
+DATA_DIR = os.environ.get("SS_DATA_DIR", os.path.join(ROOT, "data"))
+
+# 预测记录落盘位置（与 daily_snapshot.json 同目录，回测曲线读它）
+PRED_PATH = os.path.join(DATA_DIR, "prediction_log.json")
+
+# 上证指数代码（基准：判定「次日实际涨跌方向」的参照物）
+_BENCH_SYMBOL = "000001"
+# 方向 → 数值（偏多看涨 +1 / 偏空看跌 -1 / 中性 0 表示「不表态」，不计入命中率）
+_DIR_MAP = {"偏多": 1, "偏空": -1, "中性": 0}
+
+
+# ───────────────────────── 记录写入 ─────────────────────────
+def record_prediction(date: str, temp, cycle_name: str, bias: str, pct: int) -> bool:
+    """落盘一条预测记录（按日期幂等：同一天重复跑只覆盖当天那条）。
+
+    在 scripts/daily_snapshot.py 落盘每日快照成功后调用，使「每天一份决策」与
+    「一条预测」一一对应，后续回测才有数据源。
+    """
+    if not date:
+        return False
+    try:
+        rec = {
+            "date": date,
+            "temp": round(float(temp), 1) if temp is not None else None,
+            "cycle": cycle_name or "",
+            "bias": bias or "中性",
+            "pct": int(pct) if pct is not None else None,
+            "realized": None,   # 次日实际涨跌(%)，联网打分时回填
+            "hit": None,        # 方向是否命中(True/False)，打分后回填
+        }
+        recs = _load()
+        # 按日期去重覆盖
+        replaced = False
+        for i, r in enumerate(recs):
+            if r.get("date") == date:
+                # 已打分的记录保留 realized/hit，只更新预测侧字段
+                rec["realized"] = r.get("realized")
+                rec["hit"] = r.get("hit")
+                recs[i] = rec
+                replaced = True
+                break
+        if not replaced:
+            recs.append(rec)
+        _save(recs)
+        logger.info("[track] 预测已记录 %s 方向=%s 仓位=%s%%", date, rec["bias"], rec["pct"])
+        return True
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[track] 预测记录失败 %s: %s", date, e)
+        return False
+
+
+def _load() -> list[dict]:
+    try:
+        with open(PRED_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return []
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[track] 预测记录读取失败: %s", e)
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _save(recs: list[dict]) -> None:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    tmp = PRED_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(recs, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, PRED_PATH)  # 原子替换
+
+
+# ───────────────────────── 本地汇总（不联网） ─────────────────────────
+def summary() -> dict:
+    """已落盘预测的本地统计（不触发任何网络，页面加载即可看）。"""
+    recs = _load()
+    scored = [r for r in recs if r.get("hit") is not None]
+    n_call = [r for r in scored if _DIR_MAP.get(r.get("bias"), 0) != 0]
+    hits = sum(1 for r in n_call if r.get("hit"))
+    accuracy = round(hits / len(n_call) * 100, 1) if n_call else None
+    dates = sorted(r["date"] for r in recs)
+    return {
+        "n": len(recs),
+        "scored": len(scored),
+        "n_call": len(n_call),
+        "hits": hits,
+        "accuracy": accuracy,
+        "start": dates[0] if dates else None,
+        "end": dates[-1] if dates else None,
+    }
+
+
+def chart_data() -> dict | None:
+    """回测曲线数据（纯本地，读已落盘记录）。
+
+    返回 {dates, predicted(仓位%), realized(次日涨跌%或None), cumulative_hit(累计命中率%)}
+    供页面用 plotly 画「预测仓位 vs 次日实际涨跌」双轴图。
+    """
+    recs = [r for r in _load() if r.get("date")]
+    recs.sort(key=lambda r: r["date"])
+    if not recs:
+        return None
+    dates, predicted, realized, cum = [], [], [], []
+    run_hits = 0
+    run_n = 0
+    for r in recs:
+        dates.append(r["date"])
+        predicted.append(r.get("pct"))
+        realized.append(r.get("realized"))
+        if r.get("hit") is not None and _DIR_MAP.get(r.get("bias"), 0) != 0:
+            run_n += 1
+            if r["hit"]:
+                run_hits += 1
+            cum.append(round(run_hits / run_n * 100, 1))
+        else:
+            cum.append(cum[-1] if cum else None)
+    return {"dates": dates, "predicted": predicted, "realized": realized, "cumulative_hit": cum}
+
+
+# ───────────────────────── 联网打分（次日实际走势） ─────────────────────────
+def _fetch_benchmark_close() -> dict[str, float] | None:
+    """拉取上证指数(000001)日线收盘，返回 {YYYY-MM-DD: close}。
+
+    失败（无网络 / akshare 缺失 / 接口变动）返回 None，由上层降级处理。
+    """
+    try:
+        import akshare as ak
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[track] akshare 不可用，跳过基准打分: %s", e)
+        return None
+    try:
+        end = datetime.now().strftime("%Y%m%d")
+        start = (datetime.now() - timedelta(days=400)).strftime("%Y%m%d")
+        df = ak.index_zh_a_hist(symbol=_BENCH_SYMBOL, period="daily",
+                                start_date=start, end_date=end)
+        if df is None or getattr(df, "empty", True):
+            return None
+        out: dict[str, float] = {}
+        date_col = "日期" if "日期" in df.columns else df.columns[0]
+        close_col = "收盘" if "收盘" in df.columns else df.columns[-1]
+        for _, row in df.iterrows():
+            try:
+                d = str(row[date_col])[:10]
+                c = float(row[close_col])
+                if d and c == c:
+                    out[d] = c
+            except Exception:  # noqa: BLE001
+                continue
+        return out or None
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[track] 基准指数拉取失败: %s", e)
+        return None
+
+
+def _next_day_return(date: str, closes: dict[str, float]) -> float | None:
+    """给定预测日 date，取下一个交易日相对当日收盘的涨跌幅(%)。
+
+    若 date 非交易日（周末/节假日），以 date 当日前最近一个交易日为基准，
+    取其后第一个交易日为「次日」——对齐实际资金面对应的交易日历。
+    """
+    sd = sorted(closes.keys())
+    if not sd:
+        return None
+    # 找到基准日：closes 中 <= date 的最大日期（含 date 当天）
+    base = None
+    for d in sd:
+        if d <= date:
+            base = d
+        else:
+            break
+    if base is None:
+        base = sd[0]
+    bi = sd.index(base)
+    if bi + 1 >= len(sd):
+        return None
+    nxt = sd[bi + 1]
+    cb, cn = closes[base], closes[nxt]
+    if not cb:
+        return None
+    return round((cn / cb - 1) * 100, 2)
+
+
+def score_predictions() -> dict:
+    """联网拉取基准、对未打分的预测回填 realized/hit，返回本次打分统计。
+
+    幂等：已打分的记录不重复拉取，只在首次调用时补 realized。
+    全程不抛：网络失败则未打分记录保持 None，返回 scored=0。
+    """
+    recs = _load()
+    pending = [r for r in recs if r.get("realized") is None]
+    if not pending:
+        s = summary()
+        return {"scored": 0, "accuracy": s["accuracy"], "n": s["n"]}
+
+    closes = _fetch_benchmark_close()
+    if not closes:
+        return {"scored": 0, "accuracy": summary()["accuracy"], "n": len(recs)}
+
+    n_scored = 0
+    for r in recs:
+        if r.get("realized") is not None:
+            continue
+        ret = _next_day_return(r["date"], closes)
+        if ret is None:
+            continue
+        r["realized"] = ret
+        pred_dir = _DIR_MAP.get(r.get("bias"), 0)
+        if pred_dir == 0:
+            r["hit"] = None  # 中性不表态，不判命中
+        else:
+            actual_dir = 1 if ret > 0 else (-1 if ret < 0 else 0)
+            r["hit"] = (pred_dir == actual_dir)
+        n_scored += 1
+
+    if n_scored:
+        _save(recs)
+    s = summary()
+    return {"scored": n_scored, "accuracy": s["accuracy"], "n": s["n"]}
