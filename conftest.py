@@ -118,6 +118,27 @@ def _install_offline_guard():
 _install_offline_guard()
 
 
+def _install_data_isolation():
+    """测试期数据落盘隔离（收尾硬伤修复）。
+
+    把 SS_DATA_DIR 指向一个 session 级临时目录。所有依赖 data/ 的模块
+    （shepherd_ladder.LADDER_FILE / decision.DATA_DIR 等）在测试中写到 tmp，
+    而非污染真实 data/shepherd_ladder_history.json —— 后者是 15:30 自动化读取、
+    晋级率/回测依赖的真实数据源，绝不能被测试 stub 假数据覆盖。
+
+    仅当环境变量未显式设置时启用（本地调试可 SS_DATA_DIR=真实路径 覆盖回真实目录）。
+    """
+    import os
+    import tempfile
+
+    if os.environ.get("SS_DATA_DIR"):
+        return
+    os.environ["SS_DATA_DIR"] = tempfile.mkdtemp(prefix="ss_test_data_")
+
+
+_install_data_isolation()
+
+
 def pytest_sessionfinish(session, exitstatus):
     """session 收尾：打印 skip 率与覆盖率红线提示。
 

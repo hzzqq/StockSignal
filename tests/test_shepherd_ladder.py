@@ -215,3 +215,22 @@ def test_mark_suspect_tolerates_missing_date(tmp_path, monkeypatch):
     _use_tmp(tmp_path, monkeypatch)
     assert sl.mark_suspect("1999-01-01") == 0
     assert sl.unmark_suspect("1999-01-01") == 0
+
+
+def test_prev_overall_returns_prior_day_rate(tmp_path, monkeypatch):
+    """prev_overall 返回倒数第二天的综合晋级率（用于环比 delta）。"""
+    _use_tmp(tmp_path, monkeypatch)
+    sl.record_ladder_snapshot("2026-08-27", _dist((1, 100), (2, 20)), 2, 20)
+    sl.record_ladder_snapshot("2026-08-28", _dist((1, 80), (2, 25)), 2, 25)
+    sl.record_ladder_snapshot("2026-08-29", _dist((1, 60), (2, 30)), 2, 30)
+    # 2b 晋级率 = 当日2板 / 昨日1板：day3=30/80=37.5；day2=25/100=25.0
+    assert sl.ladder_promotion_rates()["overall"] == 37.5
+    assert sl.prev_overall() == 25.0
+
+
+def test_prev_overall_insufficient_history(tmp_path, monkeypatch):
+    """历史不足 3 日时 prev_overall 返回 None（无法算环比）。"""
+    _use_tmp(tmp_path, monkeypatch)
+    sl.record_ladder_snapshot("2026-08-27", _dist((1, 100), (2, 20)), 2, 20)
+    sl.record_ladder_snapshot("2026-08-28", _dist((1, 80), (2, 25)), 2, 25)
+    assert sl.prev_overall() is None

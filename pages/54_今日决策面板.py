@@ -25,6 +25,7 @@ from modules import shepherd_note as _sn
 # 仓位推导收敛到 modules.decision 单一实现：决策面板 / 每日快照脚本 / 首页 banner 三处共用，
 # 避免各写一份漂移成互相矛盾的建议。改规则只需改 decision.derive_position 一处。
 from modules.decision import derive_position, load_snapshot, is_stale
+from modules.decision_view import render_signal_cards, render_position_card, render_ladder_table
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
@@ -132,40 +133,30 @@ def _render_hero(df, today, prev, meta=None):
     score = (fc or {}).get("score", 0)
     overall = promo.get("overall")
 
-    # ① 情绪信号总览：四张读数卡
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        _temp_label = "过热" if temp >= 70 else ("温和" if temp >= 45 else "偏冷")
-        st.metric("🌡️ 市场温度", f"{temp:.0f}", help="牧羊人 17 项综合温度 0-100，越高越热")
-        st.caption(_temp_label)
-    with c2:
-        st.metric("🔄 情绪周期", cyc.get("name", "—") or "—")
-        st.caption(cyc.get("emoji", "⚪"))
-    with c3:
-        st.metric("🔮 次日评分", f"{score:.0f}", help="次日情绪评分 0-100，越高环境越友好")
-        st.caption(f"方向 {bias}")
-    with c4:
-        st.metric("🪜 综合晋级率", f"{overall:.1f}%" if overall is not None else "—",
-                  help="连板梯队首板→二板晋级率，代表接力意愿")
-        st.caption(promo.get("latest_date", "—"))
+    # 环比 delta（较昨日）：温度直接算；晋级率用历史倒数第二日做基准
+    prev_temp = None
+    try:
+        if prev:
+            prev_temp = shepherd_temperature(prev)
+    except Exception:  # noqa: BLE001
+        prev_temp = None
+    temp_delta = (temp - prev_temp) if (prev_temp is not None) else None
+    prev_ov = None
+    try:
+        prev_ov = _sl.prev_overall()
+    except Exception:  # noqa: BLE001
+        prev_ov = None
+    overall_delta = (overall - prev_ov) if (overall is not None and prev_ov is not None) else None
+
+    # ① 情绪信号总览：四张读数卡（共享组件，与 50_市场情绪 同源，避免渲染漂移）
+    render_signal_cards(temp, cyc.get("name", ""), cyc.get("emoji", "⚪"),
+                        score, bias, overall, promo.get("latest_date", "—"),
+                        temp_delta=temp_delta, overall_delta=overall_delta)
 
     # ② 仓位建议大卡（闭环的输出端）
     pos = derive_position(temp, score, bias, cyc.get("name", ""), overall)
-    st.markdown(
-        f"<div style='border:1px solid {pos['color']};border-radius:12px;padding:14px 18px;"
-        f"margin:10px 0;background:linear-gradient(90deg,{pos['color']}22,{pos['color']}05)'>"
-        f"<div style='display:flex;justify-content:space-between;align-items:baseline'>"
-        f"<span style='font-size:14px;opacity:.8'>📊 仓位建议（{pos['band']}）</span>"
-        f"<span style='font-size:34px;font-weight:700;color:{pos['color']}'>{pos['pct']}%</span></div>"
-        f"<div style='height:10px;background:rgba(128,128,128,.2);border-radius:5px;margin:8px 0'>"
-        f"<div style='width:{pos['pct']}%;background:{pos['color']};height:10px;border-radius:5px'></div></div>"
-        f"<div style='font-size:12px;opacity:.85'>" +
-        "；".join(pos["reasons"]) +
-        f"<br><span style='opacity:.6'>次日方向 {bias}｜置信度 {(fc or {}).get('confidence',0)}%｜"
-        f"情绪周期 {cyc.get('name','—')}</span></div></div>",
-        unsafe_allow_html=True,
-    )
-    st.caption("⚠️ 仓位建议由温度/周期/评分/晋级率透明推导，是概率参考而非确定性指令，不构成投资建议。")
+    render_position_card(pos, bias=bias, confidence=(fc or {}).get("confidence", 0),
+                         cyc_name=cyc.get("name", ""))
 
 
 @safe_fragment("今日决策")
@@ -240,19 +231,7 @@ def fragment_ladder():
         _empty_info("连板梯队历史不足 2 日，暂无晋级率（每日收盘后本页会自动落盘快照，积累后即可算）。")
         return
     overall = promo.get("overall")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.metric("综合晋级率（首板→二板）", f"{overall:.1f}%" if overall is not None else "—")
-    with c2:
-        st.metric("历史天数", promo.get("days", 0))
-    rates = promo.get("rates") or {}
-    if rates:
-        rows = []
-        for tier, r in rates.items():
-            rows.append({"档位": tier, "晋级率": f"{r:.1f}%" if r is not None else "—"})
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-    st.caption(f"最新快照日期：{promo.get('latest_date', '—')}　·　"
-               "晋级率 = 当日 n 板家数 / 昨日 (n-1) 板家数；≥60% 接力强、<20% 梯队断档。")
+    render_ladder_table(promo)
 
 
 # ───────────────────────── 复盘归档（保存快照 + 历史回测） ─────────────────────────

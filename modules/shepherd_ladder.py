@@ -24,7 +24,9 @@ from datetime import datetime, timedelta
 logger = logging.getLogger(__name__)
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LADDER_DIR = os.path.join(_ROOT, "data")
+# SS_DATA_DIR 可重定向整个数据目录（测试隔离用；生产默认 data/）。
+# conftest 在 pytest 启动时把它指到临时目录，避免测试写穿真实 data/。
+LADDER_DIR = os.environ.get("SS_DATA_DIR", os.path.join(_ROOT, "data"))
 LADDER_FILE = os.path.join(LADDER_DIR, "shepherd_ladder_history.json")
 _lock = threading.Lock()
 
@@ -210,6 +212,25 @@ def current_promo_as_indicators() -> dict:
     if not pr.get("ready") or pr.get("overall") is None:
         return {}
     return {"ladder_promo": pr["overall"]}
+
+
+def prev_overall() -> float | None:
+    """倒数第二天的综合晋级率（用于首页/决策面板的环比 delta）。
+
+    口径与 ladder_promotion_rates() 一致：取「最新-1 日 vs 最新-2 日」的 2板晋级率。
+    历史不足 3 日返回 None（无法算环比）。
+    """
+    hist = load_history()
+    dates = sorted(d for d, e in hist.items() if not (isinstance(e, dict) and e.get("suspect")))
+    if len(dates) < 3:
+        return None
+    d_cur = _int_keys(hist[dates[-2]].get("distribution"))
+    d_prev = _int_keys(hist[dates[-3]].get("distribution"))
+    prev_cnt = d_prev.get(1)
+    cur_cnt = d_cur.get(2)
+    if not prev_cnt or prev_cnt <= 0:
+        return None
+    return round(cur_cnt / prev_cnt * 100, 1) if cur_cnt is not None else None
 
 
 # ────────────────── 历史数据体检：脏数据检测 + 软标记 ──────────────────

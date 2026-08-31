@@ -62,12 +62,21 @@ def test_page_defines_and_calls_new_fragments():
 
 
 def test_ladder_rendered_right_after_top_board():
-    """连板梯队必须渲染在「今日最高板」之后（老板要求：最高板附近带上连板股票信息）。"""
-    src = open(PAGE, "r", encoding="utf-8").read()
-    i_top = src.find("get_zt_top_board()")
-    i_lad = src.find("get_zt_ladder(")
+    """连板梯队必须渲染在「今日最高板」之后（老板要求：最高板附近带上连板股票信息）。
+
+    I7 重构后：50_市场情绪.py 仅调用共享组件 render_ladder_block(dark)，
+    真正的 get_zt_ladder 抓取已下沉到 modules/ladder_view.py。
+    本测试锁死：① 50_ 里 render_ladder_block 调用必须在 get_zt_top_board 之后；
+    ② ladder_view 内确实调用了 get_zt_ladder（区块未凭空消失）。
+    """
+    src50 = open(PAGE, "r", encoding="utf-8").read()
+    i_top = src50.find("get_zt_top_board()")
+    i_block = src50.find("render_ladder_block(")
     assert i_top > 0, "页面未渲染今日最高板"
-    assert i_lad > i_top, "连板梯队(get_zt_ladder)必须出现在最高板(get_zt_top_board)之后"
+    assert i_block > i_top, "连板梯队区块(render_ladder_block)必须出现在最高板之后"
+
+    ladder_view = open(os.path.join(ROOT, "modules", "ladder_view.py"), "r", encoding="utf-8").read()
+    assert "get_zt_ladder(" in ladder_view, "连板梯队抓取逻辑未下沉到 modules/ladder_view.py"
 
 
 # ══════════════════════════════════════════════════════════════

@@ -27,7 +27,9 @@ logger = logging.getLogger(__name__)
 # 项目根（modules/ 的上一级）
 _HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(_HERE)
-DATA_DIR = os.path.join(ROOT, "data")
+# SS_DATA_DIR 可重定向整个数据目录（测试隔离用；生产默认 data/）。
+# conftest 在 pytest 启动时把它指到临时目录，避免测试写穿真实 data/。
+DATA_DIR = os.environ.get("SS_DATA_DIR", os.path.join(ROOT, "data"))
 
 # 每日决策快照落盘位置（首页 banner 与复盘回测都读它）
 SNAPSHOT_PATH = os.path.join(DATA_DIR, "daily_snapshot.json")
@@ -62,14 +64,23 @@ def list_archive_dates() -> list[str]:
         return []
     return sorted(n[:10] for n in names if n.endswith(".json") and len(n) >= 10)
 
-# 情绪周期六阶段 → 仓位调节（与主升/修复/退潮/冰点语义一致）
+# 情绪周期六阶段 → 仓位调节（绝对百分点，叠加在温度基准之上）
+# 取值依据（与主升/修复/退潮/冰点语义一致，且经过风控校准，见 I9）：
+#   主升高潮 +5  ：趋势最一致、容错最高，可多扛一点
+#   修复确认 +3  ：右侧拐点确认，顺势加
+#   修复试探 0   ：方向未明，不加不减只观测
+#   高潮分化 -5  ：一致预期末端、分歧加大，提前收
+#   退潮   -10   ：亏钱效应扩散，最该防守的阶段，给最大负向
+#   冰点   +5    ：情绪杀到极致=超卖，物极必反的试探性左侧买点
 CYCLE_ADJ = {
     "主升高潮": 5, "修复确认": 3, "修复试探": 0,
     "高潮分化": -5, "退潮": -10, "冰点": 5,
 }
 BIAS_COLOR = {"偏多": "#ee2a2a", "偏空": "#00d486", "中性": "#f59e0b"}
 
-# 仓位档位阈值（从高到低）
+# 仓位档位阈值（从高到低，pct 命中第一个 >= threshold 的档）
+# 阈值刻度为「经验分档」，与红涨绿跌配色绑定（见 I9）：
+#   80/60 偏多偏激进(红) · 40 中性(黄) · 20/0 偏空防御(绿)
 _BANDS = [
     (80, "激进", "#ee2a2a"),
     (60, "偏多", "#ee2a2a"),
@@ -105,6 +116,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     pct = base
     reasons.append(f"市场温度 {base:.0f} 作为基准仓位")
 
+    # 方向调节：次日方向是短周期最强信号，给固定 ±8pt 权重（偏多+8 / 偏空-8 / 中性0）
     b = (bias or "中性")
     badj = {"偏多": 8, "偏空": -8, "中性": 0}.get(b, 0)
     pct += badj
@@ -118,6 +130,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
         reasons.append(f"情绪周期「{cname_core}」{'加' if cadj >= 0 else '减'}仓 {abs(cadj)}%")
 
     if overall_promo is not None:
+        # 梯队晋级率调节：接力强度是「赚钱效应能否延续」的硬指标（档位阈值见 I9）
         if overall_promo >= 60:
             padj, txt = 5, "梯队接力强（晋级率≥60%）"
         elif overall_promo >= 40:
@@ -130,6 +143,22 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
         reasons.append(f"{txt}：{'加' if padj >= 0 else '减'}仓 {abs(padj)}%")
 
     pct = max(5.0, min(95.0, pct))
+
+    # 极端行情硬约束（风控底线，凌驾于常规推导之上，见 I10）
+    # · 冰点退潮双杀：温度<20 且处「退潮」周期 → 即使其他因子加仓也不许超过 30%
+    #   （防止在流动性枯竭、接力资金缺席时重仓接飞刀；此约束在常规推导下多数已满足，
+    #    作为极端行情的最后防线锁死上沿）
+    # · 高潮分化过热：温度>=80 且处「高潮分化」周期 → 即使其他因子减仓也不许低于 40%
+    #   （过热分歧期容易踏空主升末端，留底仓不空仓；同理作为下沿防线）
+    if base < 20 and cname_core == "退潮":
+        if pct > 30:
+            reasons.append(f"⚠️ 极端风控：温度 {base:.0f}<20 且处退潮，仓位封顶 30%（原 {pct:.0f}%）")
+            pct = 30.0
+    if base >= 80 and cname_core == "高潮分化":
+        if pct < 40:
+            reasons.append(f"⚠️ 极端风控：温度 {base:.0f}≥80 且处高潮分化，仓位兜底 40%（原 {pct:.0f}%）")
+            pct = 40.0
+
     band, color = "中性", "#f59e0b"
     for threshold, bname, bcolor in _BANDS:
         if pct >= threshold:

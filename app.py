@@ -12,6 +12,9 @@ import streamlit as st
 
 from modules.ui_theme import apply_page_config
 from modules import decision as _decision
+from modules import shepherd as _sh
+from modules import shepherd_ladder as _sl
+from modules import shepherd_forecast as _sf
 apply_page_config(
     page_title="StockSignal · A股事件驱动投资分析平台",
     layout="wide"
@@ -61,43 +64,64 @@ st.markdown("---")
 # ── 今日决策（情绪信号 → 仓位建议）──
 # 只读本地快照 data/daily_snapshot.json，**零网络**：首页是打开频次最高的页面，
 # 任何抓取都会拖慢首屏。快照由 scripts/daily_snapshot.py 每日收盘后落盘。
-def _render_today_decision():
+def _build_estimate_payload():
+    """无收盘快照时的兜底载荷：只用本地数据（连板梯队历史 + 牧羊人本地缓存），零网络。
+
+    返回与 daily_snapshot 同构的 dict，多一个 estimate=True 标记；has_signal 表示
+    是否真的拿到了任一本地信号（否则估算无意义，回退到原空态提示）。
+    """
+    overall = None
     try:
-        snap = _decision.load_snapshot()
+        overall = _sl.ladder_promotion_rates().get("overall")
     except Exception:  # noqa: BLE001
-        return  # 首页绝不能因为读快照失败而崩
+        overall = None
+    temp = None
+    cycle_name = ""
+    bias = "中性"
+    score = None
+    try:
+        _df = _sh.get_shepherd_indicators(days=1)
+        if _df is not None and not getattr(_df, "empty", True):
+            _row = _df.iloc[-1].to_dict()
+            temp = _sh.shepherd_temperature(_row)
+            _fc = _sf.forecast_next_day(_row, None)
+            _cyc = (_fc or {}).get("cycle") or {}
+            cycle_name = _cyc.get("name", "")
+            bias = (_fc or {}).get("bias", "中性")
+            score = (_fc or {}).get("score")
+    except Exception:  # noqa: BLE001
+        pass  # 缓存缺失/网络受限：temp 留 None，derive_position 兜底 50
+    pos = _decision.derive_position(temp, score, bias, cycle_name, overall)
+    return {
+        "date": "估算", "temperature": temp, "cycle": cycle_name, "bias": bias,
+        "confidence": None, "position": pos, "overall": overall,
+        "estimate": True, "has_signal": temp is not None or overall is not None,
+    }
 
-    st.header("🎯 今日决策")
-    if not snap:
-        st.info(
-            "还没有决策快照。收盘后跑一次 `python scripts/daily_snapshot.py` 即可生成"
-            "（建议配成每日定时任务），或进《今日决策面板》直接看实时读数。"
-        )
-        if st.button("🎯 打开今日决策面板 →", key="td_open_empty"):
-            safe_switch_page("pages/54_今日决策面板.py")
-        return
 
-    pos = snap.get("position") or {}
-    date = snap.get("date") or "-"
-    temp = snap.get("temperature")
-    stale = _decision.is_stale()
-
+def _render_decision_card(payload, stale=False):
+    pos = payload.get("position") or {}
+    date = payload.get("date") or "-"
+    temp = payload.get("temperature")
+    estimate = payload.get("estimate", False)
     with st.container(border=True):
-        if stale:
+        if estimate:
+            st.caption("📡 实时估算（尚未生成今日收盘快照，仅供参考）")
+        elif stale:
             st.caption(f"⚠️ 快照日期 {date}，已超 20 小时未更新 —— 今天跑过 daily_snapshot.py 吗？")
         else:
             st.caption(f"数据日期 {date} · 由「市场温度 + 情绪周期 + 连板晋级率」透明推导")
 
         c1, c2, c3, c4, c5 = st.columns([1, 1.4, 1, 1.1, 1.1])
         with c1:
-            st.metric("🌡️ 市场温度", f"{temp:.0f}" if temp is not None else "-",
+            st.metric("🌡️ 市场温度", f"{temp:.0f}" if temp is not None else "—",
                       help="牧羊人 17 项综合温度 0-100，越高越热")
         with c2:
-            st.metric("🔄 情绪周期", snap.get("cycle") or "-",
+            st.metric("🔄 情绪周期", payload.get("cycle") or "-",
                       help="六阶段定位：冰点 / 修复试探 / 修复确认 / 主升高潮 / 高潮分化 / 退潮")
         with c3:
-            st.metric("🧭 次日方向", snap.get("bias") or "-",
-                      delta=f"置信 {snap.get('confidence') or '-'}", delta_color="off")
+            st.metric("🧭 次日方向", payload.get("bias") or "-",
+                      delta=f"置信 {payload.get('confidence') or '-'}", delta_color="off")
         with c4:
             st.metric("📊 建议仓位", f"{pos.get('pct', '-')}%",
                       delta=pos.get("band") or "-", delta_color="off",
@@ -114,6 +138,33 @@ def _render_today_decision():
                 for r in reasons:
                     st.caption(f"· {r}")
                 st.caption("⚠️ 由指标透明推导的概率参考，非确定性指令，不构成投资建议。")
+
+
+def _render_today_decision():
+    try:
+        snap = _decision.load_snapshot()
+    except Exception:  # noqa: BLE001
+        return  # 首页绝不能因为读快照失败而崩
+
+    st.header("🎯 今日决策")
+    if not snap:
+        # 兜底：用本地数据即时算估算仓位（零网络），避免每日开盘首页空白
+        try:
+            est = _build_estimate_payload()
+        except Exception:  # noqa: BLE001
+            est = None
+        if not est or not est.get("has_signal"):
+            st.info(
+                "还没有决策快照。收盘后跑一次 `python scripts/daily_snapshot.py` 即可生成"
+                "（建议配成每日定时任务），或进《今日决策面板》直接看实时读数。"
+            )
+            if st.button("🎯 打开今日决策面板 →", key="td_open_empty"):
+                safe_switch_page("pages/54_今日决策面板.py")
+            return
+        _render_decision_card(est, stale=False)
+        return
+
+    _render_decision_card(snap, stale=_decision.is_stale())
 
 
 _render_today_decision()

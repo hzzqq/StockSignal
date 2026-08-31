@@ -18,6 +18,7 @@
     python scripts/daily_snapshot.py                # 抓今天，落盘
     python scripts/daily_snapshot.py --dry-run      # 只算不写，看会得到什么
     python scripts/daily_snapshot.py --quiet        # 静默（定时任务用），仅失败时输出
+    python scripts/daily_snapshot.py --ladder-only  # 盘中高频：仅落盘连板梯队（不抓牧羊人）
 
 退出码：0 成功 / 1 抓取失败 / 2 落盘失败
 """
@@ -95,6 +96,8 @@ def main() -> int:
     ap.add_argument("--mark-suspect", metavar="DATE", nargs="+",
                     help="把指定日期标记为不可信（软处理：数据不删，仅不参与晋级率计算，可撤销）")
     ap.add_argument("--unmark-suspect", metavar="DATE", nargs="+", help="撤销不可信标记")
+    ap.add_argument("--ladder-only", action="store_true",
+                    help="仅落盘连板梯队快照（盘中高频用：不抓牧羊人、不写 daily_snapshot）")
     args = ap.parse_args()
 
     def log(msg: str) -> None:
@@ -134,6 +137,24 @@ def main() -> int:
         n = _sl.unmark_suspect(args.unmark_suspect)
         print(f"[unmark] 已撤销 {n} 条标记：{', '.join(args.unmark_suspect)}")
         return 0
+
+    # ── 盘中高频模式：仅落盘连板梯队（不抓牧羊人、不写 daily_snapshot）──
+    # 用途：交易时段每 30 分钟跑一次，确保今天梯队一定被捕获——
+    #   即使 15:30 全量跑因网络失败（EXIT=1），梯队历史也不丢；
+    #   且能在收盘附近（15:00）就记下当日分布，不依赖盘后全量。
+    # 幂等：同一交易日多次运行只覆盖当天那一条。
+    if args.ladder_only:
+        lad = None
+        try:
+            lad = get_zt_ladder(top_per_level=3)
+        except Exception as e:  # noqa: BLE001
+            log(f"[FAIL] 连板梯队抓取失败: {e}")
+            return 1
+        if isinstance(lad, dict) and lad.get("distribution"):
+            _record_ladder(_sl.trading_date(), lad, log)
+            return 0
+        log("[FAIL] 无梯队数据")
+        return 1
 
     # ── 1. 抓连板梯队并落盘（**放最前面**：它最实时、也最容易丢）──
     # 设计要点：梯队快照绝不能被牧羊人抓取失败阻塞。盘中牧羊人常有指标取不到
