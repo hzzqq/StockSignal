@@ -130,6 +130,16 @@ def apply_page_config(page_title: str, page_icon: str=None, layout: str='wide') 
         logger.warning(f"[ui_theme] pre-inject 处理异常: {e}")
         pass
     st.markdown('<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"],[data-testid="stSidebarNavSeparator"],[data-testid="stSidebarNavLink"]{display:none!important;}</style>', unsafe_allow_html=True)
+    # ★ 根因修复（首页「首屏无星辰样式、刷新后才生效」）：
+    # 此前完整主题仅由 require_auth→init_session_state 内部间接注入，注入点晚于 set_page_config，
+    # 叠加 Streamlit 原生 theme（config.set_option）首屏需一次 rerun 才生效，导致首帧走默认样式。
+    # 此处把 apply_theme() 紧耦合在 set_page_config 之后第一时间注入，所有页面（含首页入口）首帧即得完整样式。
+    # apply_theme 幂等，重复调用（如 init_session_state 内再调一次）无害。
+    try:
+        apply_theme()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[ui_theme] apply_theme 处理异常: {e}")
+
 
 def apply_theme() -> None:
     """注入全局润色 CSS（暗色/亮色）并设置 Plotly 模板。"""
