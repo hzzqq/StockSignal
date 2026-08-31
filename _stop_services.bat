@@ -1,4 +1,7 @@
 @echo off
+rem Run by double-click or cmd.exe only -- do NOT run from Git Bash / MSYS.
+rem In cmd, ">nul" is the null device, but Git Bash treats it as a filename and
+rem creates an undeletable 0-byte "nul" file (Windows reserved device name).
 title StockSignal Stop Services
 chcp 936 >nul 2>&1
 

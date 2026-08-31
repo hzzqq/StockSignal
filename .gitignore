@@ -33,10 +33,17 @@ deploy_preview/
 # 本地 pytest 临时目录（sandbox 禁止 rm 时保留，不入库）
 .pytest_tmp/
 
-# Windows 误创建的空设备文件（Git Bash/MSYS 下 `> nul` 会建出普通文件 nul，
-# 它是保留设备名，删除需 cmd /c "del \\.\E:\project\ks\StockSignal\nul"，非 cmd 环境删不掉）
+# Windows 误创建的空设备文件（0 字节，已定位来源）
+#   来源：启动StockSignal.bat / _stop_services.bat / backend/启动后端.bat 里的 `>nul`。
+#   `>nul` 在 cmd.exe 下是黑洞设备（正确），但用 Git Bash/MSYS 执行这些 bat 时，
+#   `nul` 被当成普通文件名 → 在项目根建出 0 字节的 `nul`。该文件是 Windows 保留设备名，
+#   普通 rm / Python / Node 的 unlink 全部被内核拒绝（回收站 API 报 0x800704B0），
+#   只能在本机 cmd 执行：del \\.\E:\project\ks\StockSignal\nul
+#   防再犯：上面三个 bat 已加英文警告注释，别再用 Git Bash 跑它们。
 /nul
-# 同上：`> 中文名` 重定向把变量/异常文本当文件名落盘（如「底层网络超时」）
+# 同类误建：`> 中文名` 重定向把变量/异常文本当文件名落盘（如「底层网络超时」，0 字节）。
+#   成因是 Git Bash 下执行了含 `>` 的中文文本行（如复制自 modules/fundflow.py 的注释）。
+#   已于 2026-08-30 从仓库移除；再出现按同名方式删除即可。
 /底层网络超时
 
 # 本地页面冒烟测试报告（分批产物，本机生成，不入库）
