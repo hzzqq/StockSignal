@@ -1,0 +1,259 @@
+"""
+modules/decision.py — 今日决策闭环的**单一真理源**（纯 Python，不依赖 streamlit）
+
+为什么单独成模块：
+    仓位推导逻辑被三处消费——① 决策面板页面（实时算）② 每日快照脚本（收盘落盘）
+    ③ 首页 banner（读盘展示）。若各自实现一份，必然漂移成三套互相矛盾的仓位建议。
+    这里收敛为唯一实现，三处共用。
+
+设计约束：
+    · **不 import streamlit** —— 快照脚本要在无 UI 的定时任务里跑。
+    · 落盘/读取全用标准库，路径相对项目根 data/ 目录。
+    · 任何单源失败都返回 None / 兜底值，绝不向上抛（脚本与首页都不能被它拖崩）。
+
+红涨绿跌：偏多/激进=红(#ee2a2a)，偏空/防御=绿(#00d486)，中性=黄(#f59e0b)。
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+from datetime import datetime
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# 项目根（modules/ 的上一级）
+_HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(_HERE)
+DATA_DIR = os.path.join(ROOT, "data")
+
+# 每日决策快照落盘位置（首页 banner 与复盘回测都读它）
+SNAPSHOT_PATH = os.path.join(DATA_DIR, "daily_snapshot.json")
+SNAPSHOT_LOG = os.path.join(DATA_DIR, "daily_snapshot.log")
+# 历史归档：一天一份，供「复盘归档 / 历史情绪回测」读，避免手动回填
+ARCHIVE_DIR = os.path.join(DATA_DIR, "snapshots")
+
+
+def archive_path(date: str) -> str:
+    """历史快照文件路径：data/snapshots/YYYY-MM-DD.json"""
+    return os.path.join(ARCHIVE_DIR, f"{date}.json")
+
+
+def load_archive(date: str) -> dict | None:
+    """读取指定日期的归档快照（复盘回测用）。"""
+    try:
+        with open(archive_path(date), "r", encoding="utf-8") as f:
+            snap = json.load(f)
+    except FileNotFoundError:
+        return None
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[decision] 归档读取失败 %s: %s", date, e)
+        return None
+    return snap if isinstance(snap, dict) else None
+
+
+def list_archive_dates() -> list[str]:
+    """列出已归档的日期（升序）。没有归档目录返回空列表，不抛。"""
+    try:
+        names = os.listdir(ARCHIVE_DIR)
+    except OSError:
+        return []
+    return sorted(n[:10] for n in names if n.endswith(".json") and len(n) >= 10)
+
+# 情绪周期六阶段 → 仓位调节（与主升/修复/退潮/冰点语义一致）
+CYCLE_ADJ = {
+    "主升高潮": 5, "修复确认": 3, "修复试探": 0,
+    "高潮分化": -5, "退潮": -10, "冰点": 5,
+}
+BIAS_COLOR = {"偏多": "#ee2a2a", "偏空": "#00d486", "中性": "#f59e0b"}
+
+# 仓位档位阈值（从高到低）
+_BANDS = [
+    (80, "激进", "#ee2a2a"),
+    (60, "偏多", "#ee2a2a"),
+    (40, "中性", "#f59e0b"),
+    (20, "偏空", "#00d486"),
+    (0, "防御", "#00d486"),
+]
+
+
+# ───────────────────────── 仓位推导（唯一实现） ─────────────────────────
+def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=None) -> dict:
+    """透明推导仓位建议。
+
+    规则（逐条留痕，前端直接展示 reasons，让建议可解释而非黑箱）：
+        base  = 市场温度(0-100) 当作基准仓位%
+        + 方向调节（偏多 +8 / 偏空 -8）
+        + 周期调节（主升 +5 / 修复确认 +3 / 高潮分化 -5 / 退潮 -10 / 冰点 +5 超卖试探）
+        + 梯队晋级率调节（≥60% +5 / 40-60% 0 / 20-40% -3 / <20% -6）
+        最终 clamp 到 5~95%。
+
+    :param temp: 市场温度 0-100（None 时兜底 50）
+    :param score: 次日情绪评分，仅留痕用，不参与计算（保持规则可解释）
+    :param bias: 偏多/偏空/中性
+    :param cycle_name: 情绪周期六阶段名，可能带括号后缀（如「主升高潮（加速）」）
+    :param overall_promo: 连板梯队整体晋级率(%)，None 表示数据缺失（不加不减）
+    :return: dict(pct=int, band=str, color=str, reasons=list[str])
+    """
+    reasons: list[str] = []
+    try:
+        base = float(temp) if temp is not None else 50.0
+    except (TypeError, ValueError):
+        base = 50.0
+    pct = base
+    reasons.append(f"市场温度 {base:.0f} 作为基准仓位")
+
+    b = (bias or "中性")
+    badj = {"偏多": 8, "偏空": -8, "中性": 0}.get(b, 0)
+    pct += badj
+    reasons.append(f"次日方向「{b}」{'加' if badj >= 0 else '减'}仓 {abs(badj)}%")
+
+    # 周期名可能带括号后缀，取括号前的核心名匹配
+    cname_core = (cycle_name or "").split("（")[0].strip()
+    cadj = CYCLE_ADJ.get(cname_core, 0)
+    pct += cadj
+    if cadj:
+        reasons.append(f"情绪周期「{cname_core}」{'加' if cadj >= 0 else '减'}仓 {abs(cadj)}%")
+
+    if overall_promo is not None:
+        if overall_promo >= 60:
+            padj, txt = 5, "梯队接力强（晋级率≥60%）"
+        elif overall_promo >= 40:
+            padj, txt = 0, "梯队晋级率中性"
+        elif overall_promo >= 20:
+            padj, txt = -3, "梯队偏薄（晋级率 20-40%）"
+        else:
+            padj, txt = -6, "梯队断档（晋级率<20%）"
+        pct += padj
+        reasons.append(f"{txt}：{'加' if padj >= 0 else '减'}仓 {abs(padj)}%")
+
+    pct = max(5.0, min(95.0, pct))
+    band, color = "中性", "#f59e0b"
+    for threshold, bname, bcolor in _BANDS:
+        if pct >= threshold:
+            band, color = bname, bcolor
+            break
+
+    return dict(pct=int(round(pct)), band=band, color=color, reasons=reasons)
+
+
+def _cycle_name_of(forecast: dict | None) -> str:
+    """从 forecast_next_day 的返回值里安全取周期名。"""
+    if not isinstance(forecast, dict):
+        return ""
+    cyc = forecast.get("cycle")
+    if isinstance(cyc, dict):
+        return str(cyc.get("name") or "")
+    return str(cyc or "")
+
+
+# ───────────────────────── 快照构建 / 落盘 / 读取 ─────────────────────────
+def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
+                   promo: dict | None, ladder: dict | None = None) -> dict:
+    """把「今天的情绪信号 + 推导出的仓位建议」组装成一份可落盘的快照。
+
+    :param date: 数据日期 YYYY-MM-DD（务必用**数据日期**而非 now()，否则周末/盘后
+                 会记成非交易日，跨日晋级率递推直接算错 —— 这是踩过的坑）
+    :param indicators: 牧羊人指标 dict
+    :param temp: 市场温度
+    :param forecast: shepherd_forecast.forecast_next_day 的返回
+    :param promo: shepherd_ladder.ladder_promotion_rates 的返回
+    :param ladder: get_zt_ladder 的原始返回（可选，存分布与最高板）
+    """
+    fc = forecast if isinstance(forecast, dict) else {}
+    pm = promo if isinstance(promo, dict) else {}
+    ld = ladder if isinstance(ladder, dict) else {}
+
+    cycle_name = _cycle_name_of(fc)
+    overall = pm.get("overall")
+    pos = derive_position(temp, fc.get("score"), fc.get("bias"), cycle_name, overall)
+
+    return {
+        "date": date,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "temperature": round(float(temp), 1) if temp is not None else None,
+        "cycle": cycle_name,
+        "score": fc.get("score"),
+        "bias": fc.get("bias"),
+        "confidence": fc.get("confidence"),
+        "promo_overall": overall,
+        "ladder": {
+            "distribution": ld.get("distribution"),
+            "max_boards": ld.get("max_boards"),
+            "total_connect": ld.get("total_connect"),
+        },
+        "position": pos,
+        "indicators": dict(indicators or {}),
+        "signals": fc.get("signals") or [],
+        "scenario": fc.get("scenario") or [],
+    }
+
+
+def save_snapshot(snap: dict) -> bool:
+    """落盘快照。同日期覆盖（幂等，一天跑多次只留最后一次）。失败返回 False 不抛。"""
+    if not isinstance(snap, dict) or not snap.get("date"):
+        logger.warning("[decision] 快照缺 date，拒绝落盘")
+        return False
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        tmp = SNAPSHOT_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(snap, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, SNAPSHOT_PATH)  # 原子替换，避免写一半被读到
+        logger.info("[decision] 快照已落盘: %s (%s)", SNAPSHOT_PATH, snap["date"])
+        # 历史归档（复盘回测的数据源）。归档失败不影响「最新快照可用」这一主目标。
+        try:
+            os.makedirs(ARCHIVE_DIR, exist_ok=True)
+            apath = archive_path(snap["date"])
+            atmp = apath + ".tmp"
+            with open(atmp, "w", encoding="utf-8") as f:
+                json.dump(snap, f, ensure_ascii=False, indent=2)
+            os.replace(atmp, apath)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[decision] 归档写入失败 %s: %s", snap["date"], e)
+        return True
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[decision] 快照落盘失败: %s", e)
+        return False
+
+
+def load_snapshot(date: str | None = None) -> dict | None:
+    """读取快照。不传 date 返回当前落盘的那份（无论是否今天）。
+
+    首页 banner 用它做到**零网络**：读本地 JSON，永不触发抓取。
+    """
+    try:
+        with open(SNAPSHOT_PATH, "r", encoding="utf-8") as f:
+            snap = json.load(f)
+    except FileNotFoundError:
+        return None
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[decision] 快照读取失败: %s", e)
+        return None
+    if not isinstance(snap, dict):
+        return None
+    if date and snap.get("date") != date:
+        return None
+    return snap
+
+
+def append_log(line: str) -> None:
+    """追加一行运行日志（便于 automation 跑完后肉眼核对有没有真的执行）。"""
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(SNAPSHOT_LOG, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().isoformat(timespec='seconds')}] {line}\n")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def is_stale(max_age_hours: float = 20.0) -> bool:
+    """快照是否过期（默认超过 20 小时没更新就算旧，覆盖不了一天一次收盘落盘的节奏）。"""
+    try:
+        mtime = os.path.getmtime(SNAPSHOT_PATH)
+    except OSError:
+        return True
+    import time
+    return (time.time() - mtime) > max_age_hours * 3600

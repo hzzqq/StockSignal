@@ -11,6 +11,7 @@ import requests
 import streamlit as st
 
 from modules.ui_theme import apply_page_config
+from modules import decision as _decision
 apply_page_config(
     page_title="StockSignal · A股事件驱动投资分析平台",
     layout="wide"
@@ -56,6 +57,69 @@ with status_col4:
 
 st.markdown("---")
 
+
+# ── 今日决策（情绪信号 → 仓位建议）──
+# 只读本地快照 data/daily_snapshot.json，**零网络**：首页是打开频次最高的页面，
+# 任何抓取都会拖慢首屏。快照由 scripts/daily_snapshot.py 每日收盘后落盘。
+def _render_today_decision():
+    try:
+        snap = _decision.load_snapshot()
+    except Exception:  # noqa: BLE001
+        return  # 首页绝不能因为读快照失败而崩
+
+    st.header("🎯 今日决策")
+    if not snap:
+        st.info(
+            "还没有决策快照。收盘后跑一次 `python scripts/daily_snapshot.py` 即可生成"
+            "（建议配成每日定时任务），或进《今日决策面板》直接看实时读数。"
+        )
+        if st.button("🎯 打开今日决策面板 →", key="td_open_empty"):
+            safe_switch_page("pages/54_今日决策面板.py")
+        return
+
+    pos = snap.get("position") or {}
+    date = snap.get("date") or "-"
+    temp = snap.get("temperature")
+    stale = _decision.is_stale()
+
+    with st.container(border=True):
+        if stale:
+            st.caption(f"⚠️ 快照日期 {date}，已超 20 小时未更新 —— 今天跑过 daily_snapshot.py 吗？")
+        else:
+            st.caption(f"数据日期 {date} · 由「市场温度 + 情绪周期 + 连板晋级率」透明推导")
+
+        c1, c2, c3, c4, c5 = st.columns([1, 1.4, 1, 1.1, 1.1])
+        with c1:
+            st.metric("🌡️ 市场温度", f"{temp:.0f}" if temp is not None else "-",
+                      help="牧羊人 17 项综合温度 0-100，越高越热")
+        with c2:
+            st.metric("🔄 情绪周期", snap.get("cycle") or "-",
+                      help="六阶段定位：冰点 / 修复试探 / 修复确认 / 主升高潮 / 高潮分化 / 退潮")
+        with c3:
+            st.metric("🧭 次日方向", snap.get("bias") or "-",
+                      delta=f"置信 {snap.get('confidence') or '-'}", delta_color="off")
+        with c4:
+            st.metric("📊 建议仓位", f"{pos.get('pct', '-')}%",
+                      delta=pos.get("band") or "-", delta_color="off",
+                      help="温度基准 + 方向/周期/晋级率调节，clamp 5~95%")
+        with c5:
+            st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+            if st.button("🎯 决策面板 →", key="td_open", use_container_width=True,
+                         help="看完整信号明细与推导理由，盘后可一键归档复盘"):
+                safe_switch_page("pages/54_今日决策面板.py")
+
+        reasons = pos.get("reasons") or []
+        if reasons:
+            with st.expander("仓位怎么算出来的", expanded=False):
+                for r in reasons:
+                    st.caption(f"· {r}")
+                st.caption("⚠️ 由指标透明推导的概率参考，非确定性指令，不构成投资建议。")
+
+
+_render_today_decision()
+
+st.markdown("---")
+
 # ── 功能模块卡片（分组，与左侧边栏自定义导航保持一致） ──
 # 分组顺序对应日常操作流：看盘 → 选股 → 管仓 → 回测 → 交流 → 账户。
 # 合并页：🎯个股研究＝股票选取+个股分析；💼持仓中心＝自选股监控+仓位管理+组合收益。
@@ -63,6 +127,10 @@ st.markdown("---")
 st.header("📦 功能模块")
 
 HOME_GROUPS = [
+    ("🎯 决策闭环", [
+        ("🎯", "今日决策面板", "pages/54_今日决策面板.py",
+         "情绪信号→仓位建议→复盘归档：温度+周期六阶段+连板晋级率透明推导今日该几成仓"),
+    ]),
     ("📘 新手引导", [
         ("📘", "新手教程", "pages/96_新手教程.py", "5 分钟上手：三步操作 + 模块导览 + 术语表 + 教学视频"),
     ]),

@@ -39,8 +39,13 @@ from streamlit.testing.v1 import AppTest
 st.page_link = lambda *a, **k: None  # noqa: E731
 st.switch_page = lambda *a, **k: None  # noqa: E731
 
-PAGE_DIR = os.path.join(os.path.dirname(__file__), "..", "pages")
-ALL_PAGE_FILES = sorted(glob.glob(os.path.join(PAGE_DIR, "*.py")))
+_PROJECT_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+PAGE_DIR = os.path.join(_PROJECT_ROOT, "pages")
+# 首页 app.py 打开频次最高，且现在承载「🎯 今日决策」快照卡片（读本地 JSON 渲染），
+# 一旦它崩，用户开屏就白屏 —— 必须与 pages 一并纳入冒烟，不能只测子页面。
+ALL_PAGE_FILES = sorted(glob.glob(os.path.join(PAGE_DIR, "*.py"))) + [
+    os.path.join(_PROJECT_ROOT, "app.py")
+]
 
 # 分批支持：SMOKE_BATCH=i/n 只跑第 i 批（共 n 批），用于绕过单条命令 10 分钟墙。
 def _select_batch(files):

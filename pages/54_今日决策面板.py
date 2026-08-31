@@ -22,6 +22,9 @@ from modules.shepherd import (get_shepherd_indicators, shepherd_temperature, THR
 from modules import shepherd_ladder as _sl
 from modules import shepherd_forecast as _sf
 from modules import shepherd_note as _sn
+# 仓位推导收敛到 modules.decision 单一实现：决策面板 / 每日快照脚本 / 首页 banner 三处共用，
+# 避免各写一份漂移成互相矛盾的建议。改规则只需改 decision.derive_position 一处。
+from modules.decision import derive_position, load_snapshot, is_stale
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
@@ -96,68 +99,6 @@ def _signal_light(key, value):
         if value <= th["warm"]:
             return ("常温", "#f59e0b", f"{th['name']} {value:.0f}{th['unit']}，中性")
         return (th["cold_label"], "#ee2a2a", f"{th['name']} {value:.0f}{th['unit']}，风险")
-
-
-# 情绪周期六阶段 → 仓位调节（与主升/修复/退潮/冰点语义一致）
-_CYCLE_ADJ = {
-    "主升高潮": 5, "修复确认": 3, "修复试探": 0,
-    "高潮分化": -5, "退潮": -10, "冰点": 5,
-}
-_BIAS_COLOR = {"偏多": "#ee2a2a", "偏空": "#00d486", "中性": "#f59e0b"}
-
-
-def derive_position(temp, score, bias, cycle_name, overall_promo):
-    """透明推导仓位建议：
-
-    base = 市场温度(0-100) 当作基准仓位%；
-    + 方向调节（偏多 +8 / 偏空 -8）；
-    + 周期调节（主升 +5 / 修复确认 +3 / 高潮分化 -5 / 退潮 -10 / 冰点 +5 超卖试探）；
-    + 梯队晋级率调节（≥60% +5 / 40-60% 0 / 20-40% -3 / <20% -6）。
-    最终 clamp 到 5~95%。
-
-    红涨绿跌：偏多/激进=红，偏空/防御=绿，中性=黄。
-    """
-    reasons = []
-    base = float(temp) if temp is not None else 50.0
-    pct = base
-    reasons.append(f"市场温度 {base:.0f} 作为基准仓位")
-
-    b = (bias or "中性")
-    badj = {"偏多": 8, "偏空": -8, "中性": 0}.get(b, 0)
-    pct += badj
-    reasons.append(f"次日方向「{b}」{'加' if badj >= 0 else '减'}仓 {abs(badj)}%")
-
-    cname = (cycle_name or "").replace("（", "（").strip()
-    cname_core = cname.split("（")[0].strip()
-    cadj = _CYCLE_ADJ.get(cname_core, 0)
-    pct += cadj
-    if cadj:
-        reasons.append(f"情绪周期「{cname_core}」{'加' if cadj >= 0 else '减'}仓 {abs(cadj)}%")
-
-    if overall_promo is not None:
-        if overall_promo >= 60:
-            padj, txt = 5, "梯队接力强（晋级率≥60%）"
-        elif overall_promo >= 40:
-            padj, txt = 0, "梯队晋级率中性"
-        elif overall_promo >= 20:
-            padj, txt = -3, "梯队偏薄（晋级率 20-40%）"
-        else:
-            padj, txt = -6, "梯队断档（晋级率<20%）"
-        pct += padj
-        reasons.append(f"{txt}：{'加' if padj >= 0 else '减'}仓 {abs(padj)}%")
-
-    pct = max(5.0, min(95.0, pct))
-    if pct >= 80:
-        band, color = "激进", "#ee2a2a"
-    elif pct >= 60:
-        band, color = "偏多", "#ee2a2a"
-    elif pct >= 40:
-        band, color = "中性", "#f59e0b"
-    elif pct >= 20:
-        band, color = "偏空", "#00d486"
-    else:
-        band, color = "防御", "#00d486"
-    return dict(pct=round(pct), band=band, color=color, reasons=reasons)
 
 
 # ───────────────────────── 顶部：情绪信号总览 + 仓位建议 ─────────────────────────
