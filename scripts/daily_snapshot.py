@@ -19,6 +19,7 @@
     python scripts/daily_snapshot.py --dry-run      # 只算不写，看会得到什么
     python scripts/daily_snapshot.py --quiet        # 静默（定时任务用），仅失败时输出
     python scripts/daily_snapshot.py --ladder-only  # 盘中高频：仅落盘连板梯队（不抓牧羊人）
+    python scripts/daily_snapshot.py --score-only   # 次日回填：只给历史预测打分（不抓数据）
 
 退出码：0 成功 / 1 抓取失败 / 2 落盘失败
 """
@@ -99,6 +100,8 @@ def main() -> int:
     ap.add_argument("--unmark-suspect", metavar="DATE", nargs="+", help="撤销不可信标记")
     ap.add_argument("--ladder-only", action="store_true",
                     help="仅落盘连板梯队快照（盘中高频用：不抓牧羊人、不写 daily_snapshot）")
+    ap.add_argument("--score-only", action="store_true",
+                    help="仅给历史预测回填次日实际涨跌（回测打分）：不抓牧羊人/梯队，不写快照")
     args = ap.parse_args()
 
     def log(msg: str) -> None:
@@ -156,6 +159,34 @@ def main() -> int:
             return 0
         log("[FAIL] 无梯队数据")
         return 1
+
+    # ── 回测打分模式：只给历史预测回填「次日实际涨跌」，不抓行情 ──
+    # 为什么单独开一个模式：打分只需要拉上证日线（一次请求），而全量落盘要抓
+    # 牧羊人 17 项 + 连板梯队（慢且可能失败）。把打分拆出来做成轻量定时任务，
+    # 命中率才能每天自动长起来 —— 否则只靠人工点页面按钮，样本永远积累不起来。
+    # 幂等：已打分的记录不会重复拉取（score_predictions 内部跳过 realized 非空的）。
+    if args.score_only:
+        try:
+            res = _track.score_predictions()
+        except Exception as e:  # noqa: BLE001
+            _dec.append_log(f"FAIL 回测打分异常: {e}")
+            print(f"[FAIL] 回测打分异常: {e}")
+            return 1
+        if not args.quiet:
+            s = _track.summary()
+            print(f"[score] 本次回填 {res.get('scored')} 条；"
+                  f"累计 {s['n']} 条预测 / {s['n_call']} 次表态 / 命中率 {s['accuracy']}%")
+            byc = _track.by_cycle()
+            if byc:
+                print("[score] 分情绪周期命中率：")
+                for c in byc:
+                    acc = "—" if c["accuracy"] is None else f"{c['accuracy']}%"
+                    print(f"    {c['cycle'] or '(未标注)'}: {acc}  （{c['hits']}/{c['n_call']}）")
+        elif res.get("scored", 0) > 0:
+            # 静默（定时任务）模式下，仅在真正回填了新数据时留一行日志，便于排障
+            print(f"[score] 回填 {res['scored']} 条")
+        _dec.append_log(f"SCORE 回填 {res.get('scored')} 条 / 命中率 {res.get('accuracy')}%")
+        return 0
 
     # ── 1. 抓连板梯队并落盘（**放最前面**：它最实时、也最容易丢）──
     # 设计要点：梯队快照绝不能被牧羊人抓取失败阻塞。盘中牧羊人常有指标取不到

@@ -91,6 +91,104 @@ def test_score_predictions_no_network_graceful(tmp_path, monkeypatch):
     assert _track.summary()["accuracy"] is None
 
 
+# ───────────────────── 分情绪周期命中率（战术细分） ─────────────────────
+def _seed_cycle_samples(monkeypatch):
+    """种一批带情绪周期的样本：进攻期 2 中 1，防守期 1 中 1，修复期不表态。"""
+    closes = {
+        "2026-08-26": 3000.0, "2026-08-27": 3060.0,   # +2.0% 涨
+        "2026-08-28": 3000.0,                         # -1.97% 跌
+        "2026-08-31": 3050.0,                         # +1.67% 涨
+    }
+    monkeypatch.setattr(_track, "_fetch_benchmark_close", lambda: closes)
+    _track.record_prediction("2026-08-26", 72, "主升高潮", "偏多", 80)   # 次日涨 → 命中
+    _track.record_prediction("2026-08-27", 68, "修复确认", "偏多", 70)   # 次日跌 → 未命中
+    _track.record_prediction("2026-08-28", 30, "退潮", "偏空", 25)       # 次日涨 → 未命中
+    _track.record_prediction("2026-08-30", 45, "冰点", "中性", 40)       # 不表态 → 不计入分母
+    _track.score_predictions()
+
+
+def test_by_cycle_groups_and_accuracy(tmp_path, monkeypatch):
+    _reset(monkeypatch, tmp_path)
+    _seed_cycle_samples(monkeypatch)
+    rows = _track.by_cycle()
+    by = {r["cycle"]: r for r in rows}
+
+    # 六阶段 → 四大战术分组映射正确
+    assert by["主升高潮"]["group"] == "进攻期"
+    assert by["修复确认"]["group"] == "进攻期"
+    assert by["退潮"]["group"] == "防守期"
+    assert by["冰点"]["group"] == "修复期"
+
+    # 进攻期 2 次表态、命中 1 次 → 50%
+    assert by["主升高潮"]["n_call"] == 1 and by["主升高潮"]["hits"] == 1
+    assert by["修复确认"]["n_call"] == 1 and by["修复确认"]["hits"] == 0
+    # 中性不表态：不计入分母
+    assert by["冰点"]["n_call"] == 0 and by["冰点"]["accuracy"] is None
+
+    # 顺序稳定：分组热度序 → 表态数降序（进攻期应排在防守期之前）
+    assert [r["group"] for r in rows][0] == "进攻期"
+
+
+def test_by_group_aggregates_phases(tmp_path, monkeypatch):
+    """四大分组把六阶段归并，解决单阶段样本稀疏。"""
+    _reset(monkeypatch, tmp_path)
+    _seed_cycle_samples(monkeypatch)
+    gs = {g["group"]: g for g in _track.by_group()}
+    # 进攻期 = 主升高潮(1中1) + 修复确认(1中0) = 2 表态 1 命中 → 50%
+    assert gs["进攻期"]["n_call"] == 2 and gs["进攻期"]["hits"] == 1
+    assert gs["进攻期"]["accuracy"] == 50.0
+    # 防守期 = 退潮(1 表态 0 命中) → 0%
+    assert gs["防守期"]["accuracy"] == 0.0
+    # 修复期只有中性样本 → 无表态，不出命中率
+    assert gs["修复期"]["n_call"] == 0 and gs["修复期"]["accuracy"] is None
+    # 顺序按热度：进攻期 → 分化期 → 修复期 → 防守期
+    names = [g["group"] for g in _track.by_group()]
+    assert names == sorted(names, key=lambda g: ["进攻期", "分化期", "修复期", "防守期"].index(g))
+
+
+def test_by_group_min_samples_filters_noise(tmp_path, monkeypatch):
+    """样本不足的分组默认可过滤，避免 1 条样本显示 0%/100% 误导。"""
+    _reset(monkeypatch, tmp_path)
+    _seed_cycle_samples(monkeypatch)
+    # 进攻期 2 次表态达标，防守期(1)/修复期(0) 样本不足被过滤
+    kept = _track.by_group(min_samples=2)
+    assert [g["group"] for g in kept] == ["进攻期"]
+    assert kept[0]["n_call"] == 2 and kept[0]["accuracy"] == 50.0
+
+
+# ───────────────────── 脚本 --score-only 轻量打分模式 ─────────────────────
+def _load_snapshot_script():
+    """scripts/ 无 __init__.py，按文件路径加载（与主脚本入口等价）。"""
+    import importlib.util
+    from pathlib import Path
+    root = Path(_track.ROOT)
+    spec = importlib.util.spec_from_file_location(
+        "_ds_score_only", root / "scripts" / "daily_snapshot.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_score_only_mode_does_not_fetch_market(tmp_path, monkeypatch):
+    """--score-only 只打分：绝不触碰牧羊人/梯队抓取（抓取函数被调即视为失败）。"""
+    _reset(monkeypatch, tmp_path)
+    ds = _load_snapshot_script()
+
+    def _boom(*a, **k):
+        raise AssertionError("--score-only 不应触发行情抓取")
+
+    monkeypatch.setattr(ds, "get_shepherd_indicators", _boom)
+    monkeypatch.setattr(ds, "get_zt_ladder", _boom)
+    monkeypatch.setattr(_track, "_fetch_benchmark_close", lambda: {"2026-08-26": 3000.0,
+                                                                   "2026-08-27": 3060.0})
+    _track.record_prediction("2026-08-26", 72, "主升高潮", "偏多", 80)
+    monkeypatch.setattr("sys.argv", ["daily_snapshot.py", "--score-only", "--quiet"])
+
+    assert ds.main() == 0, "打分模式应正常退出（退出码 0）"
+    assert _track.summary()["n_call"] == 1
+    assert _track.summary()["accuracy"] == 100.0
+
+
 def test_chart_data_shape(tmp_path, monkeypatch):
     _reset(monkeypatch, tmp_path)
     closes = {

@@ -153,6 +153,110 @@ def chart_data() -> dict | None:
     return {"dates": dates, "predicted": predicted, "realized": realized, "cumulative_hit": cum}
 
 
+# ───────────────────────── 分情绪周期命中率（战术细分） ─────────────────────────
+# 为什么要有这层：总体命中率是个「平均数的谎言」——
+#   主升高潮期人人看对，退潮期看对才值钱。老板真正要回答的是
+#   「这套情绪决策在哪些周期可信、在哪些周期該打折」，所以必须按周期拆开看。
+#
+# 六阶段 → 四大战术分组（分组是为了解决单阶段样本稀疏：一天一个阶段，
+#   六阶段拆完每组可能只有 2~3 条，统计上没意义；合并成 4 组才有参考价值）。
+CYCLE_GROUPS = {
+    "主升高潮": "进攻期",
+    "修复确认": "进攻期",
+    "高潮分化": "分化期",
+    "修复试探": "修复期",
+    "冰点": "修复期",
+    "退潮": "防守期",
+}
+# 展示顺序（非字典序：按情绪从热到冷，便于视觉上读出「越冷越准还是越热越准」）
+_GROUP_ORDER = ["进攻期", "分化期", "修复期", "防守期"]
+
+
+def by_cycle(min_samples: int = 0) -> list[dict]:
+    """按情绪周期分组统计命中率（纯本地，不联网）。
+
+    返回列表，每项 {cycle, group, n, n_call, hits, accuracy, avg_pct, avg_realized}：
+        · cycle   具体六阶段名（未标注为空串）
+        · group   归并后的四大战术分组（进攻/分化/修复/防守），样本稀疏时用这个看
+        · n_call  表态次数（偏多/偏空；中性不计入分母，与 summary() 口径一致）
+        · avg_pct 该周期下平均给的建议仓位（看是否敢给）
+        · avg_realized 该周期下次日基准平均实际涨跌（看给的值不值）
+    min_samples>0 时过滤掉表态次数不足的组（避免 1 条样本显示 100% 误导）。
+
+    排序：先按分组热度顺序，再按表态次数降序，保证输出稳定可测。
+    """
+    recs = _load()
+    buckets: dict[str, dict] = {}
+    for r in recs:
+        cyc = (r.get("cycle") or "").strip()
+        key = cyc or "(未标注)"
+        b = buckets.setdefault(key, {
+            "cycle": cyc, "group": CYCLE_GROUPS.get(cyc, "其他"),
+            "n": 0, "n_call": 0, "hits": 0, "_pct": [], "_real": [],
+        })
+        b["n"] += 1
+        if r.get("pct") is not None:
+            b["_pct"].append(float(r["pct"]))
+        if r.get("realized") is not None:
+            b["_real"].append(float(r["realized"]))
+        if r.get("hit") is not None and _DIR_MAP.get(r.get("bias"), 0) != 0:
+            b["n_call"] += 1
+            if r["hit"]:
+                b["hits"] += 1
+
+    out = []
+    for b in buckets.values():
+        if min_samples and b["n_call"] < min_samples:
+            continue
+        out.append({
+            "cycle": b["cycle"],
+            "group": b["group"],
+            "n": b["n"],
+            "n_call": b["n_call"],
+            "hits": b["hits"],
+            "accuracy": round(b["hits"] / b["n_call"] * 100, 1) if b["n_call"] else None,
+            "avg_pct": round(sum(b["_pct"]) / len(b["_pct"]), 1) if b["_pct"] else None,
+            "avg_realized": round(sum(b["_real"]) / len(b["_real"]), 2) if b["_real"] else None,
+        })
+
+    gi = {g: i for i, g in enumerate(_GROUP_ORDER)}
+    out.sort(key=lambda x: (gi.get(x["group"], 99), -x["n_call"], x["cycle"]))
+    return out
+
+
+def by_group(min_samples: int = 0) -> list[dict]:
+    """在 by_cycle() 之上再按四大战术分组聚合（样本更集中，结论更稳）。"""
+    agg: dict[str, dict] = {}
+    for c in by_cycle():
+        g = agg.setdefault(c["group"], {
+            "group": c["group"], "n": 0, "n_call": 0, "hits": 0, "_pct": [], "_real": [],
+        })
+        g["n"] += c["n"]
+        g["n_call"] += c["n_call"]
+        g["hits"] += c["hits"]
+        if c["avg_pct"] is not None:
+            g["_pct"].append(c["avg_pct"])
+        if c["avg_realized"] is not None:
+            g["_real"].append(c["avg_realized"])
+
+    out = []
+    for g in agg.values():
+        if min_samples and g["n_call"] < min_samples:
+            continue
+        out.append({
+            "group": g["group"],
+            "n": g["n"],
+            "n_call": g["n_call"],
+            "hits": g["hits"],
+            "accuracy": round(g["hits"] / g["n_call"] * 100, 1) if g["n_call"] else None,
+            "avg_pct": round(sum(g["_pct"]) / len(g["_pct"]), 1) if g["_pct"] else None,
+            "avg_realized": round(sum(g["_real"]) / len(g["_real"]), 2) if g["_real"] else None,
+        })
+    gi = {g: i for i, g in enumerate(_GROUP_ORDER)}
+    out.sort(key=lambda x: gi.get(x["group"], 99))
+    return out
+
+
 # ───────────────────────── 联网打分（次日实际走势） ─────────────────────────
 def _fetch_benchmark_close() -> dict[str, float] | None:
     """拉取上证指数(000001)日线收盘，返回 {YYYY-MM-DD: close}。

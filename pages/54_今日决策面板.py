@@ -309,6 +309,91 @@ def fragment_review():
 
 
 # ───────────────────────── 预测 vs 实际（准确率回测） ─────────────────────────
+# ───────────────────────── 分情绪周期命中率（战术细分） ─────────────────────────
+_GROUP_TIP = {
+    "进攻期": "主升高潮 / 修复确认 —— 顺势期，看对了是应该的",
+    "分化期": "高潮分化 —— 最容易骗人的阶段",
+    "修复期": "修复试探 / 冰点 —— 分歧转一致，看对含金量高",
+    "防守期": "退潮 —— 这时候看对才真正值钱",
+}
+
+
+def _acc_color(acc):
+    """命中率配色（注意：这里是「可不可信」而非涨跌，不套红涨绿跌）。"""
+    if acc is None:
+        return "#888"
+    if acc >= 60:
+        return "#00d486"   # 可信
+    if acc < 40:
+        return "#ee2a2a"   # 不可信
+    return "#f59e0b"       # 中性
+
+
+def _render_cycle_breakdown(dark: bool):
+    """按情绪周期拆解命中率 —— 回答「这套决策在哪些周期可信、哪些周期该打折」。"""
+    st.markdown("#### 🎭 分情绪周期命中率（哪些周期该信、哪些该打折）")
+    st.caption("总体命中率是个「平均数的谎言」—— 主升高潮期人人看对，退潮期看对才值钱。"
+               "按周期拆开，才知道建议该打几折。")
+    try:
+        rows = _track.by_cycle()
+        g_rows = _track.by_group(min_samples=2)
+    except Exception as e:  # noqa: BLE001
+        xc_handle_error("分周期统计失败", e)
+        return
+    if not rows:
+        _empty_info("尚无分周期样本（需要已落盘且带情绪周期标注的预测记录）。")
+        return
+
+    # ① 四大战术分组（样本更集中，结论更稳）
+    if g_rows:
+        gcols = st.columns(len(g_rows) if len(g_rows) <= 4 else 4)
+        for i, g in enumerate(g_rows[:4]):
+            acc = g["accuracy"]
+            with gcols[i % 4]:
+                st.metric(
+                    f"{g['group']}命中率",
+                    f"{acc:.0f}%" if acc is not None else "—",
+                    f"{g['hits']}/{g['n_call']} 次表态",
+                    delta_color="off",
+                )
+                st.caption(_GROUP_TIP.get(g["group"], ""))
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=[g["group"] for g in g_rows],
+            y=[g["accuracy"] if g["accuracy"] is not None else 0 for g in g_rows],
+            marker_color=[_acc_color(g["accuracy"]) for g in g_rows],
+            text=[f"{g['accuracy']:.0f}%<br>({g['hits']}/{g['n_call']})"
+                  if g["accuracy"] is not None else f"样本不足<br>({g['n_call']})"
+                  for g in g_rows],
+            textposition="outside",
+            hovertemplate="%{x}<br>命中率 %{y:.1f}%<br>表态 %{text}<extra></extra>",
+        ))
+        fig.add_hline(y=50, line_dash="dash", line_color="#888",
+                      annotation_text="抛硬币线 50%", annotation_position="bottom right")
+        fig.update_layout(
+            height=300, template="plotly_dark" if dark else "plotly_white",
+            yaxis=dict(title="方向命中率(%)", range=[0, 100]),
+            margin=dict(l=40, r=30, t=20, b=30), showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True, key="bt_cycle_bar")
+
+    # ② 明细表：具体六阶段 + 平均建议仓位 vs 次日平均实际（看「敢不敢给」对不对）
+    disp = pd.DataFrame([{
+        "情绪周期": (r["cycle"] or "(未标注)"),
+        "战术分组": r["group"],
+        "记录": r["n"],
+        "表态": r["n_call"],
+        "命中": r["hits"],
+        "命中率": "—" if r["accuracy"] is None else f"{r['accuracy']:.0f}%",
+        "平均建议仓位": "—" if r["avg_pct"] is None else f"{r['avg_pct']:.0f}%",
+        "次日平均实际": "—" if r["avg_realized"] is None else f"{r['avg_realized']:+.2f}%",
+    } for r in rows])
+    st.dataframe(disp, use_container_width=True, hide_index=True, key="bt_cycle_tbl")
+    st.caption("📊 「平均建议仓位」= 该周期下系统平均给了几成仓；「次日平均实际」= 对应交易日上证平均涨跌。"
+               "两者背离大说明该周期下的仓位刻度需要重新校准（如退潮期建议仓位偏高却持续下跌）。"
+               "样本 <2 的分组不纳入上图统计。")
+
+
 @safe_fragment("预测回测")
 def fragment_backtest():
     _section_title("📈 预测 vs 实际 · 仓位预判准确率回测", accent="#7c5cff")
@@ -374,6 +459,9 @@ def fragment_backtest():
     st.plotly_chart(fig, use_container_width=True, key="bt_chart")
     st.caption("📈 紫线=当日预测仓位；红/绿柱=次日上证指数真实涨跌（红涨绿跌）。命中率=偏多/偏空预测中方向判断正确的比例。"
                "预判为概率结论，不构成投资建议。")
+
+    # 分周期细分：总体命中率之上，再拆到「哪些周期可信」
+    _render_cycle_breakdown(dark)
 
 
 fragment_decision()
