@@ -181,6 +181,34 @@ _KIT_CSS = r"""
 
 _INJECTED_KEY = "_ui_kit_css_v1"
 
+# ★ 首帧兜底 CSS：page_hero 每次都注入，不走 session_state 去重。
+# 解决 streamlit 冷启动时序竞态下 ui_kit 的 _KIT_CSS 未生效、导致 chip/hero 容器「首屏朴素、
+# 刷新后才好」的问题。CSS 重声明无害，浏览器后到的覆盖先到的。
+_HERO_FALLBACK_CSS = r"""
+<style>
+/* page_hero 首帧兜底（与 _KIT_CSS 内的 .xc-hero* 等价，独立注入保证不丢） */
+.xc-hero{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;
+  margin:6px 0 22px;padding:18px 24px;border-radius:18px;
+  background:linear-gradient(120deg,
+    color-mix(in srgb, var(--acc1,#667eea) 22%, var(--card,#fff)) 0%,
+    color-mix(in srgb, var(--acc2,#764ba2) 18%, var(--card,#fff)) 100%);
+  border:1px solid color-mix(in srgb, var(--acc1,#667eea) 30%, var(--border,#e2e8f0));
+  box-shadow:0 0 0 1px rgba(102,126,234,.14), 0 12px 32px rgba(102,126,234,.12);
+  position:relative;overflow:hidden}
+.xc-hero::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(circle at 12% -10%, rgba(124,92,255,.22), transparent 55%);
+  pointer-events:none}
+.xc-hero-main{display:flex;align-items:center;gap:14px;min-width:0;position:relative;z-index:1}
+.xc-hero-icon{font-size:26px;line-height:1;flex-shrink:0;
+  width:48px;height:48px;display:flex;align-items:center;justify-content:center;
+  border-radius:14px;background:linear-gradient(135deg,var(--acc1,#667eea),var(--acc2,#764ba2));
+  box-shadow:0 6px 18px rgba(102,126,234,.42)}
+.xc-hero-title{font-size:22px;font-weight:800;letter-spacing:.3px;color:var(--txt,#1e293b);line-height:1.2}
+.xc-hero-sub{font-size:13px;color:var(--txt2,#64748b);margin-top:4px;font-weight:500}
+.xc-hero-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:relative;z-index:1}
+</style>
+"""
+
 
 def inject_kit_css() -> None:
     """注入 ui_kit 组件 CSS（全页面仅一次，session_state 去重）。"""
@@ -276,8 +304,12 @@ def page_hero(title: str, icon: str = "📊", subtitle: str = "", chips: list = 
     """签名页头：图标 + 标题 + 副标题 + 右侧状态胶囊。所有页面统一视觉记忆点。
 
     ``style`` 默认 ``'xc'``（新城·`微应用大厅` 视觉），传入 ``'sf'`` 回退到旧星辰 .ss-hero。
+
+    ★ 首帧兜底：再注入一次 .xc-hero* 关键样式（不走 session_state 去重），
+    保证 streamlit 冷启动竞态下 ui_kit._KIT_CSS 未生效时，hero 容器仍完整可见。
     """
     inject_kit_css()
+    st.markdown(_HERO_FALLBACK_CSS, unsafe_allow_html=True)
     st.markdown(_hero_html(title, icon, subtitle, chips, style=style), unsafe_allow_html=True)
 
 
