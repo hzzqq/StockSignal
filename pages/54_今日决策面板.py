@@ -28,6 +28,7 @@ from modules import shepherd_note as _sn
 from modules.decision import derive_position, load_snapshot, is_stale
 from modules.decision_view import render_signal_cards, render_position_card, render_ladder_table
 from modules import decision_track as _track
+from modules import calibration as _cal
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
@@ -464,8 +465,71 @@ def fragment_backtest():
     _render_cycle_breakdown(dark)
 
 
+# ──────────────────────────────────────────────────────────────
+# 刻度校准：用回测数据反推 CYCLE_ADJ 常数（只出建议，不自动改规则）
+# ──────────────────────────────────────────────────────────────
+@safe_fragment("刻度校准")
+def fragment_calibration():
+    _section_title("⚖️ 仓位刻度校准（用回测数据反推周期调节常数）", accent="#7c5cff")
+    st.caption("decision.py 里的「情绪周期 → 仓位调节」常数（如退潮 −10、主升高潮 +5）当初是拍出来的。"
+               "这里按四大战术分组对照「平均建议仓位 vs 次日真实涨跌」，算出**应该**调多少点。")
+    try:
+        v = _cal.verdict()
+        sug = _cal.suggestions()
+    except Exception as e:  # noqa: BLE401
+        xc_handle_error("刻度校准计算失败", e)
+        return
+
+    if v["n_call"] == 0:
+        _empty_info("尚无已打分的表态样本（中性预测不计入），无法校准刻度。"
+                    "预测积累并打分后，本版块会自动给出各周期的建议调节量。")
+        return
+
+    if v["ready"]:
+        xc_success_box(f"✅ {v['msg']}")
+    else:
+        xc_warn_box(f"⏳ {v['msg']}。当前数值仅供观察趋势，**不要据此修改规则**——小样本算出的结论是噪音。")
+    st.progress(min(v["n_call"] / float(v["strong_samples"]), 1.0),
+                text=f"表态样本 {v['n_call']} / {v['strong_samples']} 条")
+
+    if not sug:
+        _empty_info("各分组表态样本均不足，暂不展示校准建议。")
+        return
+
+    rows = []
+    for s in sug:
+        rows.append({
+            "战术分组": s["group"],
+            "覆盖周期": "/".join(s["cycles"]) or "—",
+            "表态数": s["n_call"],
+            "平均建议仓位": f"{s['avg_pct']:.0f}%" if s["avg_pct"] is not None else "—",
+            "次日平均实际": f"{s['avg_realized']:+.2f}%" if s["avg_realized"] is not None else "—",
+            "暴露收益": f"{s['edge']:+.3f}%" if s["edge"] is not None else "—",
+            "当前刻度": f"{s['cur_adj']:+.0f}" if s["cur_adj"] is not None else "—",
+            "建议调节": f"{s['sug_delta']:+d} 点" if s["sug_delta"] else "0 点",
+            "建议刻度": f"{s['sug_adj']:+.0f}" if s["sug_adj"] is not None else "—",
+            "置信度": f"{s['confidence']:.0%}",
+            "结论": s["verdict"],
+        })
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True, key="cal_table")
+
+    patch = _cal.as_patch()
+    if patch:
+        with st.expander("🛠️ 可直接抄进 decision.py 的 CYCLE_ADJ 补丁", expanded=False):
+            st.code("CYCLE_ADJ = " + repr(patch), language="python")
+            st.caption("⚠️ 本模块**不会自动修改规则**：过拟合比拍脑袋更危险。请人工判断后自行落地，"
+                       "并同步更新 tests/test_decision.py 的期望值。")
+    else:
+        st.caption("🔒 暂无「值得采纳」的校准建议（需表态样本 ≥20 条且调节量 ≥2 点）。"
+                   "此时 CYCLE_ADJ 保持原值不动。")
+
+    st.caption("⚖️ 口径：调节量 = clamp(2 × 次日平均涨跌, ±5 点)，即次日平均涨跌 1% → 刻度调 2 点，"
+               "单次上限 5 点以防过拟合；中性预测不表态、不计入分母。本页结论不构成投资建议。")
+
+
 fragment_decision()
 fragment_signals()
 fragment_ladder()
 fragment_review()
 fragment_backtest()
+fragment_calibration()
