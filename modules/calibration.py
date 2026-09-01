@@ -159,16 +159,32 @@ def as_patch(strong_samples: int = DEFAULT_STRONG_SAMPLES) -> dict[str, int]:
 
 
 def verdict(strong_samples: int = DEFAULT_STRONG_SAMPLES) -> dict:
-    """一句话总览：现在能不能校准、还差多少样本。"""
+    """一句话总览：现在能不能校准、还差多少样本。
+
+    「ready」的语义 = **至少有一个战术分组达到可采纳阈值**（样本够 + 调节量超噪音），
+    而不是「全局样本数 >= strong_samples」。原因：真实样本会平摊到 4 个分组，
+    全局到 20 时往往没有任何单组到 20，此时 as_patch() 返回空——若 verdict 仍报
+    「可校准」，会和页面下方「各分组表态样本均不足」自相矛盾。所以 ready 必须对齐
+    as_patch 的实际产出（见 test_verdict_spread_not_ready）。
+    """
     s = _track.summary()
     n_call = s["n_call"]
-    ready = n_call >= strong_samples
+    any_actionable = any(x["actionable"] for x in suggestions(strong_samples=strong_samples))
+    ready = any_actionable
+    if ready:
+        msg = "样本已足够，可据下方建议人工校准刻度"
+    elif n_call >= strong_samples:
+        msg = (f"总量已够（{n_call} 条）但各周期样本分散，尚无单组达到可采纳阈值"
+               f"（单组需 ≥{strong_samples} 条），继续积累")
+    else:
+        gap = max(0, strong_samples - n_call)
+        msg = f"样本积累中：已表态 {n_call} 条，还需 {gap} 条才能开始校准（单组需 ≥{strong_samples} 条）"
     return {
         "ready": ready,
+        "any_actionable": any_actionable,
         "n_call": n_call,
         "n": s["n"],
         "strong_samples": strong_samples,
         "gap": max(0, strong_samples - n_call),
-        "msg": ("样本已足够，可据下方建议人工校准刻度" if ready
-                else f"样本积累中：已表态 {n_call} 条，还需 {max(0, strong_samples - n_call)} 条才能给出可信校准"),
+        "msg": msg,
     }

@@ -153,6 +153,24 @@ def test_verdict_ready_threshold(tmp_path, monkeypatch):
     assert v["gap"] == 0
 
 
+def test_verdict_spread_not_ready(tmp_path, monkeypatch):
+    """全局样本已到 strong_samples，但平摊到 4 组无一达标 → ready 必须为 False。
+
+    防止 verdict 报「可校准」而 as_patch 返回空的自相矛盾（test_verdict_ready_threshold
+    只压单组，掩盖了平摊场景）。真实数据会平摊到 4 组，这条才是常态守卫。
+    """
+    recs = (_n(5, "退潮", "偏空", 20, -3.0)
+            + _n(5, "冰点", "偏多", 30, 2.0, start=50)
+            + _n(5, "主升高潮", "偏多", 80, 2.0, start=100)
+            + _n(5, "修复确认", "偏多", 60, 1.0, start=150))
+    _seed(monkeypatch, recs)
+    v = _cal.verdict(strong_samples=20)
+    assert v["n_call"] == 20, "全局表态 20 条"
+    assert v["ready"] is False, "无单组达标 → 不应报可校准"
+    assert v["any_actionable"] is False
+    assert "各周期样本分散" in v["msg"]
+
+
 def test_empty_history_is_safe(tmp_path, monkeypatch):
     """无样本时全链路返回空/零，不抛（页面首日不炸是底线）。"""
     _seed(monkeypatch, [])
