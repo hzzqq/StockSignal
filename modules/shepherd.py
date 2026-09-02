@@ -208,9 +208,15 @@ def _fetch_zt_pool(date=None):
 
 
 @_retry(max_retries=1)
+@_retry(max_retries=1)
 def _fetch_zbgc_pool(date=None):
     """炸板股池（东财 zbgc）：炸板家数（摸板未封住）。注：仅支持最近约 30 个交易日，
-    更早日期为业务性报错（不重试），历史值由重构管线从个股 high/close 反算。"""
+    更早日期为业务性报错（重试 1 次仍失败即放弃，不无限重试），历史值由重构管线从个股 high/close 反算。
+
+    带 @_retry 与亲兄弟 _fetch_zt_pool（涨停家数）一致：东财 push2 类端点在本机会整体
+    RemoteDisconnected（实测 2026-09-02，同时殃及炸板股池等东财端点），瞬断时重试 1 次
+    通常能拉回，避免炸板家数/炸板率维度被静默丢弃（杨哥 V反规律与封板质量评分权重 20 的关键输入）。
+    """
     import akshare as ak
     d = date or pd.Timestamp.now().strftime("%Y%m%d")
     df = ak.stock_zt_pool_zbgc_em(date=d)
