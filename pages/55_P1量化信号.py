@@ -56,7 +56,11 @@ with st.sidebar:
     sel_label = st.selectbox("信号模型", list(label_to_key.keys()), index=default_idx)
     model = label_to_key[sel_label]
     n = st.slider("榜单只数", 5, 30, 20, 5)
-    st.caption(f"数据日期：{loader.latest_date(model) or '未知'}")
+    if st.button("🔄 刷新信号", key="p1_refresh", use_container_width=True,
+                 help="清除缓存并重新读取信号文件（P1 重新导出后点此立即生效）"):
+        loader.invalidate()
+        st.rerun()
+    st.caption(f"数据日期：{loader.latest_date(model) or '未知'}　·　每 5 分钟自动刷新")
 
 # ───────────────────────── 头部说明 + 口径警告 ─────────────────────────
 sf_card(

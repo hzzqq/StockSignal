@@ -32,6 +32,7 @@ from modules import calibration as _cal
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GRU/融合）
 
 st_autorefresh = import_autorefresh()
 
@@ -240,6 +241,92 @@ def fragment_ladder():
         return
     overall = promo.get("overall")
     render_ladder_table(promo)
+
+
+# ───────────────────────── P1 量化信号 · 多头侧灰度（事件驱动参考） ─────────────────────────
+@safe_fragment("P1量化信号参考")
+def fragment_p1_ev():
+    """把 P1-QuantFactor 的 EV 看多榜接入决策面板，作为**多头侧灰度参考层**。
+
+    ⚠️ 灰度定位：这是神经网络给出的「未来 N 日超额收益概率」排序，不是 StockSignal 的
+    买入指令。它与本页牧羊人情绪信号相互独立、互为补充——情绪定仓位（该几成仓），
+    P1 定个股（仓里买什么）。两者一致时增强信心，分歧时提示人工复核。
+    """
+    _section_title("🧠 P1 量化信号 · 多头侧灰度参考", accent="#5b6cff")
+    if "p1_loader_54" not in st.session_state:
+        st.session_state.p1_loader_54 = P1SignalLoader(ttl=300)
+    ld: P1SignalLoader = st.session_state.p1_loader_54
+
+    models = ld.available_models()
+    if not models:
+        _empty_info("未找到 P1 信号文件（data/p1_signals/ 或 P1 产出目录）。"
+                    "详见 data/p1_signals/README.md。")
+        return
+    # 默认优先 EV（全量口径最优），否则取第一个可用模型
+    model = "ev" if "ev" in models else models[0]
+
+    col_ref, col_btn = st.columns([4, 1])
+    with col_ref:
+        st.caption(f"信号模型：**{ld.model_label(model)}**　·　数据日期：{ld.latest_date(model) or '未知'}"
+                   f"　·　与牧羊人情绪信号独立互补（情绪定仓位 / P1 定个股）")
+    with col_btn:
+        if st.button("🔄 刷新", key="p1_ev_refresh", use_container_width=True,
+                     help="P1 重新导出信号后点此立即生效"):
+            ld.invalidate()
+            st.rerun()
+
+    try:
+        long_rows = ld.top_long(model, 15)
+    except Exception as e:  # noqa: BLE401
+        xc_handle_error("EV 看多榜加载失败", e)
+        return
+
+    # 灰度参考卡：明确标注 ML 参考、非买入指令；红=A股涨色
+    body = (
+        "P1 神经网络给出的多头候选（按预测得分排序）。**仅作参考，非买入指令**；"
+        "A 股零售建议仅取多头侧，并与本页牧羊人仓位建议配合使用。"
+    )
+    sf_card("多头侧灰度 · EV 看多榜（前 15）", body, icon="🧠")
+
+    if not long_rows:
+        _empty_info("该信号无看多条目。")
+        return
+    rows_html = ""
+    for i, r in enumerate(long_rows, 1):
+        pred = float(r.get("pred", 0.0) or 0.0)
+        sym = r.get("symbol", "")
+        pcolor = "#ff5c5c" if pred >= 0 else "#19c37d"
+        rows_html += (
+            f"<tr><td style='color:#888'>{i}</td>"
+            f"<td style='font-family:monospace'>{sym}</td>"
+            f"<td style='color:{pcolor};font-weight:600'>{pred*100:+.2f}%</td></tr>"
+        )
+    st.markdown(
+        "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
+        "<thead><tr style='color:#ff5c5c;text-align:left'>"
+        "<th>#</th><th>代码</th><th>预测得分</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table>",
+        unsafe_allow_html=True,
+    )
+
+    # 稳定性附注：EV 与 GRU/融合看多榜重叠越低越互补；此处仅提示，不做重负载 A/B
+    with st.expander("ℹ️ 这是什么 / 怎么用", expanded=False):
+        st.markdown(
+            "这是 P1-QuantFactor 用 1427 只 A 股训练的 GRU 神经网络、并入「牧羊人市场广度情绪」"
+            "9 维事件因子后的**看多榜**。它是统计意义上的超额收益概率排序，**不是**涨跌预测；"
+            "2026 单年仍为负，真实价值在 2022–2025。把它当「候选池」而非「指令」：\n"
+            "- 与牧羊人仓位建议**一致**时（温度偏多 + P1 看多）→ 增强信心；\n"
+            "- **分歧**时（温度退潮但 P1 仍看多某股）→ 提示人工复核，不盲目跟。\n"
+            "完整三信号 A/B 对比见「🧠 P1 量化信号」专页。"
+        )
+    # A/B 重叠（轻量：仅与 gru 比，gru 已加载则快；未加载则跳过避免拉 55MB）
+    if "gru" in models and model != "gru":
+        try:
+            jac, inter = ld.top_overlap(model, "gru", 15)
+            st.caption(f"稳定性：与纯 GRU 看多榜重叠 {inter}/15（Jaccard={jac:.2f}）——"
+                       f"同源 GRU 的高重叠属正常，差异主要在湍流期 regime 收缩。")
+        except Exception:  # noqa: BLE401
+            pass
 
 
 # ───────────────────────── 复盘归档（保存快照 + 历史回测） ─────────────────────────
@@ -530,6 +617,7 @@ def fragment_calibration():
 fragment_decision()
 fragment_signals()
 fragment_ladder()
+fragment_p1_ev()
 fragment_review()
 fragment_backtest()
 fragment_calibration()
