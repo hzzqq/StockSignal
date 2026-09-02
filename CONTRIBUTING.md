@@ -37,7 +37,7 @@ git push origin feat/xxx
   export CODEBUDDY_SAFE_DELETE_ENABLED=0   # Windows PowerShell: $env:CODEBUDDY_SAFE_DELETE_ENABLED=0
   python -m pytest tests -q
   ```
-  关掉后套件应转绿（StockSignal 实测：护栏开 156 ERROR → 护栏关 2153 passed / 0 failed）。
+  仓库已提供封装脚本 `run_tests.sh`，自动设好该变量，直接 `./run_tests.sh [任意 pytest 参数]` 即可（真机/CI 无此护栏，用了也无害）。关掉后套件应转绿（StockSignal 实测：护栏开 156 ERROR → 护栏关 2155 passed / 0 failed）。
 
 - **`import scripts.xxx` 偶发 `ModuleNotFoundError`** → 本仓库 `scripts/` 可能与其它同名包（如 `backend/scripts`、或 venv 里 `site-packages/win32/scripts`）在 pytest 整目录收集时形成命名空间/常规包冲突，使 `import scripts` 解析到错误那个并缓存进 `sys.modules` 而失败（与收集顺序有关，故"偶发"）。`tests/test_daily_backfill.py` 的 `script` 夹具已改用 `importlib.util.spec_from_file_location` **按绝对路径直加载** `scripts/daily_snapshot.py`，与 sys.path 顺序完全解耦、确定性成功；其他测试若也踩，照此按文件路径加载即可，不要依赖 `import scripts`。
 
