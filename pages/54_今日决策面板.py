@@ -274,7 +274,7 @@ def fragment_p1_ev():
         if st.button("🔄 刷新", key="p1_ev_refresh", use_container_width=True,
                      help="P1 重新导出信号后点此立即生效"):
             ld.invalidate()
-            st.rerun()
+            st.rerun(scope="fragment")
 
     try:
         long_rows = ld.top_long(model, 15)

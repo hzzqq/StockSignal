@@ -33,6 +33,11 @@ def _reload_with(pkg_present: bool):
 
         fake.st_autorefresh = _real
         sys.modules[pkg] = fake
+    else:
+        # 确定性模拟「包缺失」：把 sys.modules 该键置 None，
+        # 使 `from streamlit_autorefresh import ...` 必抛 ImportError，
+        # 不论本机是否实际装了该包（修复：装包后原测试假阴性）。
+        sys.modules[pkg] = None
     try:
         importlib.reload(ar)
         return ar.st_autorefresh
