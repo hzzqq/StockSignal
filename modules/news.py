@@ -135,7 +135,9 @@ class NewsDatabase:
     """
 
     def __init__(self, db_path="data/news.db"):
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # 跟随 SS_DATA_DIR 隔离；未设时回落到仓库 data/，生产默认行为完全不变。
+        base_dir = os.environ.get("SS_DATA_DIR") or os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))
         self.db_path = os.path.join(base_dir, db_path)
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_db()

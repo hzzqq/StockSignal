@@ -69,3 +69,44 @@ def test_save_snapshot_goes_to_tmp_not_real():
 
     assert dc.load_snapshot() is not None
     assert dc.load_snapshot()["date"] == "2099-12-31"
+
+
+def _real_market_cache_db() -> str:
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.abspath(os.path.join(root, "..", "data", "market_cache.db"))
+
+
+def _real_news_db() -> str:
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.abspath(os.path.join(root, "..", "data", "news.db"))
+
+
+def test_market_cache_isolated():
+    """market_cache._DB_PATH 必须跟随 SS_DATA_DIR，而非硬编码真实 data/。"""
+    assert os.environ.get("SS_DATA_DIR"), "conftest 未启用数据隔离（SS_DATA_DIR 缺失）"
+    import modules.market_cache as mc
+    assert mc._DB_PATH != _real_market_cache_db(), "market_cache._DB_PATH 仍指向真实 data/"
+    assert mc._DB_PATH.startswith(os.environ["SS_DATA_DIR"]), \
+        "market_cache 未隔离到临时目录（SS_DATA_DIR）"
+
+
+def test_news_db_isolated():
+    """NewsDatabase 默认路径必须跟随 SS_DATA_DIR，而非硬编码真实 data/news.db。"""
+    assert os.environ.get("SS_DATA_DIR"), "conftest 未启用数据隔离（SS_DATA_DIR 缺失）"
+    from modules.news import NewsDatabase
+    nd = NewsDatabase()  # 默认路径，应落到 SS_DATA_DIR
+    assert nd.db_path != _real_news_db(), "NewsDatabase 默认仍指向真实 data/news.db"
+    assert nd.db_path.startswith(os.environ["SS_DATA_DIR"]), \
+        "NewsDatabase 未隔离到临时目录（SS_DATA_DIR）"
+
+
+def test_market_drivers_cache_path_aligned():
+    """market_drivers._read_last_cached_value 读的市场_cache.db 目录须与 market_cache 一致。"""
+    assert os.environ.get("SS_DATA_DIR"), "conftest 未启用数据隔离（SS_DATA_DIR 缺失）"
+    import modules.market_cache as mc
+    import modules.market_drivers as md
+    expected_dir = os.path.dirname(mc._DB_PATH)
+    _here = os.path.dirname(os.path.abspath(md.__file__))
+    got_dir = os.environ.get("SS_DATA_DIR") or os.path.join(_here, "..", "data")
+    assert os.path.abspath(got_dir) == os.path.abspath(expected_dir), \
+        "market_drivers 缓存目录与 market_cache 不一致 → 测试会读穿真实 data/"

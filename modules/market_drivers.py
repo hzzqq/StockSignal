@@ -173,7 +173,10 @@ def _read_last_cached_value(key: str):
     import sqlite3 as _sq
     try:
         _here = os.path.dirname(os.path.abspath(__file__))
-        _db = os.path.join(_here, "..", "data", "market_cache.db")
+        # 跟随 SS_DATA_DIR 隔离，与 market_cache._DB_PATH 指向同一目录（测试不读穿真实 data/）
+        _db = os.path.join(
+            os.environ.get("SS_DATA_DIR") or os.path.join(_here, "..", "data"),
+            "market_cache.db")
         if not os.path.exists(_db):
             return None
         conn = _sq.connect(_db, timeout=10)

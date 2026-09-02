@@ -36,7 +36,10 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 # ── 缓存 DB 路径 ──────────────────────────────────────────────
-_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+# 跟随 SS_DATA_DIR 隔离（与 decision/shepherd_ladder 一致）；未设时回落到仓库 data/，
+# 生产默认行为完全不变，仅测试会话（conftest 设 SS_DATA_DIR）自动隔离到临时目录。
+_DATA_DIR = os.environ.get("SS_DATA_DIR") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "data")
 _DB_PATH = os.path.join(_DATA_DIR, "market_cache.db")
 
 # 缓存有效期：宏观/估值类低频指标 24h，资金/情绪类高频指标 4h
