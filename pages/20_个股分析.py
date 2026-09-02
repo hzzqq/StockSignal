@@ -715,6 +715,7 @@ def fragment_analysis_result():
             return
     if st.session_state.get('analysis_result') is not None:
         _render_analysis(st.session_state['analysis_result'])
+        _render_event_factor_card(st.session_state['analysis_result'].get('ticker'))
     else:
         info_banner('👈 在左侧选择股票后，点击「生成分析」查看完整的个股深度决策仪表盘。')
         st.caption('💡 也可以直接点击下方按钮生成分析；任务在后台并行运行，完成后自动显示，无需等待。')
@@ -729,6 +730,38 @@ def fragment_analysis_result():
                 else:
                     st.error(f"❌ 后台任务提交失败：{e or '未知错误'}，请刷新重试。")
 fragment_analysis_result()
+
+
+def _render_event_factor_card(ticker):
+    """个股分析页「事件因子」卡片：展示真实 P1 EV 事件因子（适配器接入）。
+
+    仅在有真实信号时占用版面；取不到静默跳过。配色遵循本页「绿涨红跌」惯例。
+    """
+    if not ticker:
+        return
+    try:
+        from modules.event_factor import get_event_factor
+        ef = get_event_factor(ticker, model="ev")
+    except Exception as e:  # noqa: BLE401
+        xc_handle_error("事件因子加载失败", e)
+        return
+    if not ef.get("available"):
+        return
+    _sc = ef.get("score")
+    if isinstance(_sc, (int, float)):
+        _col = GREEN if _sc >= 0 else RED  # 本页：绿涨红跌
+        _sc_txt = f"{_sc:+.2%}"
+    else:
+        _col = AMBER
+        _sc_txt = "—"
+    st.markdown(
+        f"🧠 **事件因子（P1 EV，真实信号）**：得分 "
+        f"<span style='color:{_col};font-weight:600'>{_sc_txt}</span>"
+        f"　信号：**{ef.get('signal')}**　来源：<code>{ef.get('source')}</code>",
+        unsafe_allow_html=True)
+    st.caption("由 P1-QuantFactor 神经网络产出（并入牧羊人情绪 9 维事件/regime 通道），"
+               "为统计超额收益概率排序，非买卖指令。")
+
 
 def _video_embed_url(url: str):
     """把常见视频分享链接转换为可嵌入的 iframe src；不支持则返回 None。"""
