@@ -55,3 +55,11 @@ tests/.pages_smoke_report*.json
 .coverage.json
 htmlcov/
 
+# 调试探针脚本（一次性只读诊断 / plotly 探针，非项目源码，不入库）
+probe_chart_cache_*.py
+scripts/_patch_legu_comment.py
+scripts/diag_history_empty.py
+scripts/diag_legu_stability.py
+scripts/diag_shepherd_timeout.py
+scripts/verify_legu_fallback.py
+
