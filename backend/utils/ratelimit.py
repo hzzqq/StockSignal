@@ -64,6 +64,11 @@ def is_allowed(key: str) -> bool:
     if _max() <= 0:
         return True
 
+    # 退化配置保护：窗口 <= 0 时退化为「每次放行」（清空式窗口），
+    # 与 test_window_zero_does_not_crash 的约定一致，避免窗口归零后误锁所有请求。
+    if _window() <= 0:
+        return True
+
     now = time.monotonic()
     win = _window()
     with _lock:
