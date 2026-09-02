@@ -33,6 +33,7 @@ from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GRU/融合）
+from modules.event_factor import get_event_factor  # 事件因子适配器（真实信号，无合成）
 
 st_autorefresh = import_autorefresh()
 
@@ -327,6 +328,31 @@ def fragment_p1_ev():
                        f"同源 GRU 的高重叠属正常，差异主要在湍流期 regime 收缩。")
         except Exception:  # noqa: BLE401
             pass
+
+    # ── 个股事件因子查询（事件因子适配器端到端可用）──
+    st.divider()
+    _q = st.text_input("🔍 查个股事件因子（P1 EV）",
+                       placeholder="如 sh600000 / sz000001", key="p1_ev_symbol_q")
+    if _q:
+        try:
+            ef = get_event_factor(_q.strip(), model=model, loader=ld)
+        except Exception as e:  # noqa: BLE401
+            ef = {"available": False, "reason": str(e)}
+        if ef.get("available"):
+            _sc = ef.get("score")
+            if isinstance(_sc, (int, float)):
+                _sc_txt = f"{_sc:+.2%}"
+                _col = "#ff5c5c" if _sc >= 0 else "#19c37d"  # A股：涨红跌绿
+            else:
+                _sc_txt = "—"
+                _col = "#888"
+            st.markdown(
+                f"**{ef['symbol']}**　事件因子得分："
+                f"<span style='color:{_col};font-weight:600'>{_sc_txt}</span>"
+                f"　信号：<b>{ef.get('signal')}</b>　来源：<code>{ef.get('source')}</code>",
+                unsafe_allow_html=True)
+        else:
+            st.info(f"该标的无事件因子信号：{ef.get('reason', '未知')}")
 
 
 # ───────────────────────── 复盘归档（保存快照 + 历史回测） ─────────────────────────
