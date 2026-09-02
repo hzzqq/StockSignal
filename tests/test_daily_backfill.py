@@ -95,7 +95,20 @@ class TestBackfillPipeline:
 
     @pytest.fixture
     def script(self):
-        import scripts.daily_snapshot as _s
+        # 按绝对路径加载模块对象，彻底绕开 `scripts` 顶层包解析。
+        # 根因：venv 的 site-packages/win32/scripts 与本项目 scripts/ 同名，整目录收集时
+        # `import scripts` 可能被解析成命名空间包（含 win32/scripts portion，无 daily_snapshot）
+        # 并缓存进 sys.modules，导致 `import scripts.daily_snapshot` 偶发 ModuleNotFoundError。
+        # 仅 ROOT 置顶 + pop 缓存不足以根治（win32/scripts 仍会被并入 __path__），故改用
+        # importlib 按文件路径直加载，与 sys.path 顺序完全解耦，确定性成功。
+        import importlib.util
+        import pathlib
+
+        ROOT = pathlib.Path(__file__).resolve().parent.parent
+        mod_path = ROOT / "scripts" / "daily_snapshot.py"
+        spec = importlib.util.spec_from_file_location("scripts.daily_snapshot", str(mod_path))
+        _s = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_s)
         return _s
 
     @pytest.fixture

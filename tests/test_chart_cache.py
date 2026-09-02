@@ -63,11 +63,15 @@ _PROBE = textwrap.dedent(
 
 def _run_probe() -> AppTest:
     proj_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    fd, path = tempfile.mkstemp(suffix=".py", dir=proj_root, prefix="probe_chart_cache_")
+    # 探针写到系统临时目录（而非仓库目录）：避免 pytest 清理时触发项目级安全删除守卫，
+    # 也避免向仓库目录遗留探针文件。同时把项目根注入 sys.path，保证探针内
+    # `from modules.chart_cache import ...` 仍能解析。
+    probe_src = "import sys\nsys.path.insert(0, %r)\n" % proj_root + _PROBE
+    fd, path = tempfile.mkstemp(suffix=".py", dir=tempfile.gettempdir(), prefix="probe_chart_cache_")
     os.close(fd)
     try:
         with open(path, "w", encoding="utf-8") as fh:
-            fh.write(_PROBE)
+            fh.write(probe_src)
         at = AppTest.from_file(path, default_timeout=30)
         at.run()
         return at
