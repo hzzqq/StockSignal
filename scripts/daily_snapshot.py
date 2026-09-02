@@ -204,8 +204,13 @@ def main() -> int:
         log("[warn] 无梯队数据，跳过梯队快照落盘")
 
     # ── 2. 抓牧羊人指标 ──
+    # ⚠️ get_shepherd_indicators 返回的是 (df, meta) 二元组，必须解包。
+    # 曾漏解包：df 实为元组 → 元组无 .empty → 下面 getattr(..., True) 的默认值恒定生效
+    # → 100% 误判「牧羊人指标为空」→ 快照永不落盘 → record_prediction 永不触发
+    # → 「预测 vs 实际回测」与「仓位刻度校准」的样本永远是 0（整条闭环被掐死在源头）。
+    # 守卫见 tests/test_daily_snapshot_wiring.py，改动此处前先跑它。
     try:
-        df = get_shepherd_indicators(days=60)
+        df, _shepherd_meta = get_shepherd_indicators(days=60)
     except Exception as e:  # noqa: BLE001
         _dec.append_log(f"FAIL 牧羊人指标抓取失败: {e}")
         print(f"[FAIL] 牧羊人指标抓取失败: {e}（梯队快照已尝试落盘，不受影响）")
@@ -214,6 +219,9 @@ def main() -> int:
         _dec.append_log("FAIL 牧羊人指标为空")
         print("[FAIL] 牧羊人指标为空（网络/数据源受限）；梯队快照已尝试落盘，不受影响")
         return 1
+    # 部分指标不可用不算致命（单源失败有降级），但要留痕便于排查数据质量
+    if isinstance(_shepherd_meta, dict) and _shepherd_meta.get("unavailable"):
+        log(f"[warn] 牧羊人部分指标不可用: {_shepherd_meta['unavailable']}")
 
     date = _data_date(df)
     today = _row_to_indicators(df, -1)

@@ -80,7 +80,11 @@ def _build_estimate_payload():
     bias = "中性"
     score = None
     try:
-        _df = _sh.get_shepherd_indicators(days=1)
+        # ⚠️ get_shepherd_indicators 返回 (df, meta) 二元组，必须解包。
+        # 曾漏解包：_df 实为元组 → 元组无 .empty → 下面 getattr(..., True) 默认值恒定生效
+        # → 整块被跳过、异常又被 except 吞掉 → 首页温度/周期/方向永远显示兜底值，
+        # 真实情绪数据从未上过首页。守卫见 tests/test_daily_snapshot_wiring.py。
+        _df, _shep_meta = _sh.get_shepherd_indicators(days=1)
         if _df is not None and not getattr(_df, "empty", True):
             _row = _df.iloc[-1].to_dict()
             temp = _sh.shepherd_temperature(_row)

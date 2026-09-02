@@ -54,10 +54,12 @@ class TestLiveDataContract:
         from modules.shepherd import get_shepherd_indicators, THRESHOLDS
 
         t0 = time.time()
-        df = get_shepherd_indicators(days=30)
+        # 返回 (df, meta) 二元组，必须解包（漏解包会让下面 isinstance 恒 False）
+        df, meta = get_shepherd_indicators(days=30)
         elapsed = time.time() - t0
         assert elapsed < _LIVE_TIMEOUT + 10, f"get_shepherd_indicators 真网耗时异常: {elapsed:.1f}s"
         assert isinstance(df, pd.DataFrame), "get_shepherd_indicators 未返回 DataFrame"
+        assert {"available", "unavailable"} <= set(meta), "meta 缺失 available/unavailable"
         # 历史 CSV 应至少有数据（2007 起），真网补算不应全空
         assert not df.empty, "get_shepherd_indicators 真网返回空"
         # 核心阈值字段至少部分存在（数据源正常时全部存在）
