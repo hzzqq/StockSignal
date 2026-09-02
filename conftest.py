@@ -118,6 +118,62 @@ def _install_offline_guard():
 _install_offline_guard()
 
 
+def _install_sqlite_memory_journal():
+    """测试期把 SQLite 连接的 journal_mode=WAL 改写为 MEMORY（治本方案·测试 fixture 侧）。
+
+    根因：StockSignal 测试反复创建/删除临时 SQLite 库（market_cache.db / news.db /
+    backend 文件库等），这些库在生产代码里用 `PRAGMA journal_mode=WAL` 打开，
+    会在磁盘额外生成 `-wal` + `-shm` 兄弟文件；而本沙箱删除被 safe-delete 包装、
+    统统扔进回收站（genie-trash），导致 E 盘回收站被 .db-wal/.db-shm 刷屏。
+
+    本补丁仅在**测试会话**生效（conftest 注入，不碰任何生产源码）：
+      - 同时 patch sqlite3.connect 与 SQLAlchemy 实际使用的 sqlite3.dbapi2.connect；
+      - 通过自定义连接/游标子类把 `PRAGMA journal_mode=WAL` 重写为 MEMORY，
+        中和生产代码与 SQLAlchemy connect 事件里的 WAL PRAGMA（不依赖执行顺序）。
+        （注：Python 3.12+ 的 sqlite3.Connection.execute 是只读属性，不能实例赋值，
+         故用子类重写而非运行时 wrap。）
+    效果：测试库不再生成 -wal/-shm 兄弟文件 → 回收站少 ~96% 刷屏文件，对产品零影响。
+
+    红线：生产代码（market_cache.py / news.py / backend/app.py）的 WAL PRAGMA 原样保留，
+    仅在真实运行（无本补丁）时生效；WAL 提供的并发读+单写、损坏哨兵等行为不受影响。
+    """
+    import re
+    import sqlite3
+
+    _WAL_RE = re.compile(r"journal_mode\s*=\s*wal", re.I)
+
+    class _MemoryCursor(sqlite3.Cursor):
+        def execute(self, sql, *args, **kwargs):
+            if isinstance(sql, str) and _WAL_RE.search(sql):
+                sql = _WAL_RE.sub("journal_mode=MEMORY", sql)
+            return super().execute(sql, *args, **kwargs)
+
+    class _MemoryConn(sqlite3.Connection):
+        def execute(self, sql, *args, **kwargs):
+            if isinstance(sql, str) and _WAL_RE.search(sql):
+                sql = _WAL_RE.sub("journal_mode=MEMORY", sql)
+            return super().execute(sql, *args, **kwargs)
+
+        def cursor(self, *args, **kwargs):
+            return _MemoryCursor(self, *args, **kwargs)
+
+    _orig_connect = sqlite3.connect  # 捕获原始，避免递归
+
+    def _patched_connect(*a, **k):
+        if "factory" not in k:
+            k["factory"] = _MemoryConn
+        return _orig_connect(*a, **k)
+
+    sqlite3.connect = _patched_connect
+    # SQLAlchemy 2.x 经 `from sqlite3 import dbapi2 as sqlite` 拿 connect，
+    # 需同步 patch sqlite3.dbapi2.connect 才能覆盖 backend 文件库。
+    try:
+        import sqlite3.dbapi2 as _dbapi2
+        _dbapi2.connect = _patched_connect
+    except Exception:  # pragma: no cover
+        pass
+
+
 def _install_data_isolation():
     """测试期数据落盘隔离（收尾硬伤修复）。
 
@@ -135,6 +191,8 @@ def _install_data_isolation():
         return
     os.environ["SS_DATA_DIR"] = tempfile.mkdtemp(prefix="ss_test_data_")
 
+
+_install_sqlite_memory_journal()
 
 _install_data_isolation()
 
