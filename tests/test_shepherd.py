@@ -291,6 +291,9 @@ def test_get_shepherd_today_partial_failure(monkeypatch):
     monkeypatch.setattr(shepherd, "_fetch_prev_pool", lambda date=None: None, raising=False)
     monkeypatch.setattr(shepherd, "_fetch_zbgc_pool", lambda date=None: None, raising=False)
     monkeypatch.setattr(shepherd, "_get_spot_cached", lambda: None, raising=False)
+    # 显式关闭跌停池兜底，保持本用例「纯离线 + 聚焦部分失败」的原意；
+    # 兜底行为由 test_get_shepherd_today_*_fallback_* 专项覆盖。
+    monkeypatch.setattr(shepherd, "_fetch_dt_pool", lambda date=None: None, raising=False)
 
     merged, meta = shepherd.get_shepherd_today()
     assert merged.get("limit_up") == 55
@@ -300,6 +303,101 @@ def test_get_shepherd_today_partial_failure(monkeypatch):
     unavailable_keys = {k for k, _ in meta["unavailable"]}
     assert "legu" in unavailable_keys
     assert "zt_prev_ret" in unavailable_keys
+
+
+# ─────────────────────────────────────────────────────────────
+#  legu 限流 → 东财跌停池兜底（limit_down 不再是单点故障）
+#
+#  背景：akshare stock_market_activity_legu 底层走 read_html，对短时间重复
+#  请求敏感 —— 实测连续第 4 次起必抛 ValueError: No tables found（限流返回空
+#  页面）。legu 是 limit_down 的唯一源，一挂则次日预判的「冰点/退潮」判定全废。
+# ─────────────────────────────────────────────────────────────
+def test_fetch_dt_pool_empty_returns_zero(monkeypatch):
+    """空跌停池返回 0.0 而不是 None —— 「今日 0 家跌停」是有效事实，不是取数失败。"""
+    import akshare as ak
+    monkeypatch.setattr(ak, "stock_zt_pool_dtgc_em", lambda date=None: pd.DataFrame(),
+                        raising=False)
+    assert shepherd._fetch_dt_pool() == {"limit_down": 0.0}
+
+
+def test_fetch_dt_pool_counts_rows(monkeypatch):
+    """有数据则按行数计跌停家数。"""
+    import akshare as ak
+    monkeypatch.setattr(ak, "stock_zt_pool_dtgc_em",
+                        lambda date=None: pd.DataFrame({"代码": ["1", "2", "3"]}), raising=False)
+    assert shepherd._fetch_dt_pool() == {"limit_down": 3.0}
+
+
+def test_fetch_dt_pool_none_df_returns_zero(monkeypatch):
+    """接口返回 None（而非空表）时同样视为 0 家，不让 None 泄漏成缺失。"""
+    import akshare as ak
+    monkeypatch.setattr(ak, "stock_zt_pool_dtgc_em", lambda date=None: None, raising=False)
+    assert shepherd._fetch_dt_pool() == {"limit_down": 0.0}
+
+
+def test_get_shepherd_today_limit_down_fallback(monkeypatch):
+    """legu 整源失效时，limit_down 由东财跌停池补回，且 meta 说明降级而非报错。"""
+    monkeypatch.setattr(shepherd, "_fetch_legu", lambda: None, raising=False)
+    monkeypatch.setattr(shepherd, "_fetch_zt_pool",
+                        lambda date=None: {"limit_up": 40}, raising=False)
+    monkeypatch.setattr(shepherd, "_fetch_prev_pool", lambda date=None: None, raising=False)
+    monkeypatch.setattr(shepherd, "_fetch_zbgc_pool", lambda date=None: None, raising=False)
+    monkeypatch.setattr(shepherd, "_get_spot_cached", lambda: None, raising=False)
+    monkeypatch.setattr(shepherd, "_fetch_dt_pool",
+                        lambda date=None: {"limit_down": 7.0}, raising=False)
+
+    merged, meta = shepherd.get_shepherd_today()
+    assert merged.get("limit_down") == 7.0
+    assert "limit_down" in meta["available"]
+    # 降级说明里要点明「已兜底」，避免老板误以为是硬故障
+    reasons = [r for k, r in meta["unavailable"] if k == "legu"]
+    assert reasons and "兜底" in reasons[0]
+
+
+def test_get_shepherd_today_no_fallback_when_legu_ok(monkeypatch):
+    """legu 正常时绝不打跌停池 —— 兜底必须「按需」。
+
+    legu 被限流的成因就是请求过密，无脑多打一个请求只会加剧抖动。
+    本用例锁死该设计，防止后人把 _fetch_dt_pool 塞进 fetch_many 无脑并发。
+    """
+    calls = []
+    monkeypatch.setattr(shepherd, "_fetch_legu",
+                        lambda: {"up_count": 1000, "down_count": 900,
+                                 "limit_up": 40, "limit_down": 3}, raising=False)
+    monkeypatch.setattr(shepherd, "_fetch_zt_pool",
+                        lambda date=None: {"limit_up": 40}, raising=False)
+    monkeypatch.setattr(shepherd, "_fetch_prev_pool", lambda date=None: None, raising=False)
+    monkeypatch.setattr(shepherd, "_fetch_zbgc_pool", lambda date=None: None, raising=False)
+    monkeypatch.setattr(shepherd, "_get_spot_cached", lambda: None, raising=False)
+
+    def _should_not_call(date=None):
+        calls.append(1)
+        return {"limit_down": 99.0}
+
+    monkeypatch.setattr(shepherd, "_fetch_dt_pool", _should_not_call, raising=False)
+
+    merged, _meta = shepherd.get_shepherd_today()
+    assert calls == []
+    assert merged.get("limit_down") == 3.0
+
+
+def test_get_shepherd_today_fallback_tolerates_error(monkeypatch):
+    """兜底源自己也挂了时，不影响其余指标产出（异常被吞，仅记日志）。"""
+    monkeypatch.setattr(shepherd, "_fetch_legu", lambda: None, raising=False)
+    monkeypatch.setattr(shepherd, "_fetch_zt_pool",
+                        lambda date=None: {"limit_up": 40}, raising=False)
+    monkeypatch.setattr(shepherd, "_fetch_prev_pool", lambda date=None: None, raising=False)
+    monkeypatch.setattr(shepherd, "_fetch_zbgc_pool", lambda date=None: None, raising=False)
+    monkeypatch.setattr(shepherd, "_get_spot_cached", lambda: None, raising=False)
+
+    def _boom(date=None):
+        raise RuntimeError("dtgc down")
+
+    monkeypatch.setattr(shepherd, "_fetch_dt_pool", _boom, raising=False)
+
+    merged, _meta = shepherd.get_shepherd_today()
+    assert merged.get("limit_up") == 40       # 其余指标照常产出
+    assert merged.get("limit_down") is None   # 仅跌停数缺失
 
 
 # ─────────────────────────────────────────────────────────────

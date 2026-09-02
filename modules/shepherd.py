@@ -139,7 +139,16 @@ THRESHOLDS = {
 
 
 # ───────── 各数据源抓取（每个返回 dict 或 None）─────────
-@_retry()
+# 注：乐股 stock_market_activity_legu 底层走 pandas.read_html，对短时间重复请求敏感——
+# 实测连续第 4 次调用起必抛 ValueError: No tables found（接口限流返回空页面），
+# 且限流会持续一段时间，重试也未必能立刻跨过。
+#
+# 刻意**不做长退避**：legu 是在 fetch_many 整批（timeout=12s）内并发执行的，
+# 曾试过 3 次重试 / 1.2s 指数退避，结果 legu 一人吃掉整批预算并触发整批超时
+# （日志：[fetch_parallel] 整批超时 12.0s，1/4 个任务未完成: ['legu']），
+# 首屏被白白拖慢 12s。故改为批内快速失败（最多 2 次尝试 / 0.8s），
+# 真正的补救交给批外 _fetch_dt_pool 独立兜底 —— 慢源不该绑架整批。
+@_retry(max_retries=2, base_delay=0.8)
 def _fetch_legu():
     """涨跌家数实时快照（乐股）。"""
     import akshare as ak
@@ -208,6 +217,25 @@ def _fetch_zbgc_pool(date=None):
     if df is None or df.empty:
         return None
     return {"zt_fail_count": float(len(df))}
+
+
+@_retry(max_retries=2, base_delay=0.6)
+def _fetch_dt_pool(date=None):
+    """跌停股池（东财 dtgc）：跌停家数 —— legu 的独立兜底源。
+
+    legu 是 limit_down 的主源，但被限流时会整源失效（见 _fetch_legu 注释）。
+    跌停家数是次日预判里「冰点 / 退潮」判定的关键维度，不能因单源抖动而丢失，
+    故用东财跌停股池（不同域名、不同限流策略）作备份。
+
+    返回 {"limit_down": float}；**空池返回 0.0 而非 None** —— 「今日 0 家跌停」
+    是有效事实（市场无恐慌），与「取数失败」语义必须区分开。
+    """
+    import akshare as ak
+    d = date or pd.Timestamp.now().strftime("%Y%m%d")
+    df = ak.stock_zt_pool_dtgc_em(date=d)
+    if df is None or df.empty:
+        return {"limit_down": 0.0}
+    return {"limit_down": float(len(df))}
 
 
 def _limit_pct_for_code(code):
@@ -341,6 +369,23 @@ def get_shepherd_today():
     except Exception as e:  # noqa
         logger.warning(f"[shepherd] 处理异常: {e}")
         meta["unavailable"].append(("legu", f"失败:{e}"))
+
+    # 1b) 按需兜底：limit_down 缺失时才打东财跌停池。
+    # 刻意「按需」而非无脑进 fetch_many —— legu 被限流的成因就是请求过密，
+    # 每次都多打一个请求只会加剧抖动；绝大多数情况下 legu 正常，本分支不触发。
+    if merged.get("limit_down") is None:
+        try:
+            dt = _fetch_dt_pool()
+            if dt and dt.get("limit_down") is not None:
+                merged["limit_down"] = dt["limit_down"]
+                meta["available"].append("limit_down")
+                # legu 整体失效但跌停数已补回，降级说明而非错误
+                meta["unavailable"] = [
+                    (k, r) for k, r in meta["unavailable"] if k != "legu"
+                ]
+                meta["unavailable"].append(("legu", "乐股快照暂不可用（跌停数已由东财跌停池兜底）"))
+        except Exception as e:  # noqa
+            logger.warning(f"[shepherd] 处理异常: {e}")
 
     # 2) 涨停池（连板高度 / 炸板率，并补涨停家数）
     try:
