@@ -20,6 +20,8 @@
     python scripts/daily_snapshot.py --quiet        # 静默（定时任务用），仅失败时输出
     python scripts/daily_snapshot.py --ladder-only  # 盘中高频：仅落盘连板梯队（不抓牧羊人）
     python scripts/daily_snapshot.py --score-only   # 次日回填：只给历史预测打分（不抓数据）
+    python scripts/daily_snapshot.py --backfill-date YYYY-MM-DD [更多日期...]
+                                            # 历史回填：补算过去某日的快照+预测（时点诚实，仅写归档）
 
 退出码：0 成功 / 1 抓取失败 / 2 落盘失败
 """
@@ -89,6 +91,93 @@ def _record_ladder(date: str, ladder: dict, log) -> bool:
         return False
 
 
+def _backfill(dates: list[str], log) -> int:
+    """补算历史日期的决策快照与预测记录（时点诚实口径）。
+
+    为什么需要：08-31/09-01 因「牧羊人漏解包」footgun 损失了两天样本
+    （快照 FAIL 但梯队快照已落盘），校准样本起点被拖后。本函数在事后把
+    这两天补回来，且**绝不偷看未来数据**：
+
+      · 牧羊人指标逐行取该日（指标本就是逐日计算，历史行天然时点正确）
+      · 晋级率 ladder_promotion_rates(as_of=D) 只递推 ≤ D 的梯队历史
+      · 梯队分布取当日**已落盘**的梯队快照（盘中/收盘 automation 当时的原始值）
+      · 预判 forecast_next_day(today_D, prev_D) 只用该日及其前一日的指标
+
+    落盘纪律：
+      · 只写归档 snapshots/D.json（archive_only=True），绝不覆盖今日 daily_snapshot
+      · record_prediction 按日期幂等，重复跑只覆盖同日一条
+      · 牧羊人无该日行 → 明确跳过（不编造）
+
+    补完后跑 `--score-only` 可立即回填已可打分的次日涨跌（该日次日已收盘）。
+    """
+    # ⚠️ get_shepherd_indicators 返回 (df, meta) 二元组，必须解包（见主流程注释）。
+    try:
+        df, _shepherd_meta = get_shepherd_indicators(days=60)
+    except Exception as e:  # noqa: BLE001
+        print(f"[FAIL] 牧羊人指标抓取失败: {e}")
+        return 1
+    if df is None or getattr(df, "empty", True):
+        print("[FAIL] 牧羊人指标为空")
+        return 1
+    try:
+        dcol = df["date"].astype(str).str[:10]
+    except Exception as e:  # noqa: BLE001
+        print(f"[FAIL] 牧羊人数据日期列不可用: {e}")
+        return 1
+
+    hist = _sl.load_history()
+    n_ok = 0
+    for d in dates:
+        sub = df[dcol <= d]
+        if sub.empty or str(sub.iloc[-1]["date"])[:10] != d:
+            log(f"[skip] {d}: 牧羊人数据无该日行（不编造）")
+            continue
+        today = _row_to_indicators(sub, -1)
+        prev = _row_to_indicators(sub, -2) if len(sub) >= 2 else None
+
+        try:
+            temp = shepherd_temperature(today)
+        except Exception as e:  # noqa: BLE001
+            log(f"[warn] {d} 温度计算失败，兜底 50: {e}")
+            temp = 50.0
+        try:
+            fc = _sf.forecast_next_day(today, prev)
+        except Exception as e:  # noqa: BLE001
+            log(f"[warn] {d} 次日预判失败: {e}")
+            fc = {}
+        try:
+            promo = _sl.ladder_promotion_rates(as_of=d)
+        except Exception as e:  # noqa: BLE001
+            log(f"[warn] {d} 晋级率计算失败: {e}")
+            promo = {}
+
+        entry = hist.get(d) if isinstance(hist, dict) else None
+        ladder = ({"distribution": entry.get("distribution"),
+                   "max_boards": entry.get("max_boards"),
+                   "total_connect": entry.get("total_connect")}
+                  if isinstance(entry, dict) and entry.get("distribution") else None)
+
+        snap = _dec.build_snapshot(d, today, temp, fc, promo, ladder)
+        pos = snap.get("position") or {}
+        if not _dec.save_snapshot(snap, archive_only=True):
+            log(f"[FAIL] {d} 归档写入失败")
+            continue
+        try:
+            _track.record_prediction(d, temp, snap.get("cycle") or "",
+                                     snap.get("bias") or "中性", pos.get("pct"))
+        except Exception as e:  # noqa: BLE001
+            log(f"[warn] {d} 预测记录失败: {e}")
+        n_ok += 1
+        log(f"[backfill] {d} 温度={snap.get('temperature')} 周期={snap.get('cycle')} "
+            f"方向={snap.get('bias')} 晋级率={snap.get('promo_overall')} "
+            f"→ 仓位 {pos.get('pct')}% ({pos.get('band')})")
+
+    _dec.append_log(f"BACKFILL 成功 {n_ok}/{len(dates)}: {', '.join(dates)}")
+    print(f"[backfill] 完成 {n_ok}/{len(dates)}；"
+          f"跑 --score-only 可立即回填已可打分的次日涨跌")
+    return 0 if n_ok else 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="每日收盘后落盘决策快照 + 连板梯队快照")
     ap.add_argument("--dry-run", action="store_true", help="只计算不落盘，打印将要写入的内容")
@@ -102,6 +191,9 @@ def main() -> int:
                     help="仅落盘连板梯队快照（盘中高频用：不抓牧羊人、不写 daily_snapshot）")
     ap.add_argument("--score-only", action="store_true",
                     help="仅给历史预测回填次日实际涨跌（回测打分）：不抓牧羊人/梯队，不写快照")
+    ap.add_argument("--backfill-date", metavar="DATE", nargs="+",
+                    help="补算历史日期的决策快照+预测（时点诚实口径：只用截至该日已可见的"
+                         "数据；仅写归档 snapshots/<date>.json，绝不覆盖今日 daily_snapshot）")
     args = ap.parse_args()
 
     def log(msg: str) -> None:
@@ -187,6 +279,10 @@ def main() -> int:
             print(f"[score] 回填 {res['scored']} 条")
         _dec.append_log(f"SCORE 回填 {res.get('scored')} 条 / 命中率 {res.get('accuracy')}%")
         return 0
+
+    # ── 历史回填模式：补算历史日期的快照+预测（时点诚实，仅写归档）──
+    if args.backfill_date:
+        return _backfill(args.backfill_date, log)
 
     # ── 1. 抓连板梯队并落盘（**放最前面**：它最实时、也最容易丢）──
     # 设计要点：梯队快照绝不能被牧羊人抓取失败阻塞。盘中牧羊人常有指标取不到

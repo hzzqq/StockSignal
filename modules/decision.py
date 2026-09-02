@@ -220,18 +220,24 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
     }
 
 
-def save_snapshot(snap: dict) -> bool:
-    """落盘快照。同日期覆盖（幂等，一天跑多次只留最后一次）。失败返回 False 不抛。"""
+def save_snapshot(snap: dict, archive_only: bool = False) -> bool:
+    """落盘快照。同日期覆盖（幂等，一天跑多次只留最后一次）。失败返回 False 不抛。
+
+    :param archive_only: True 时**只写历史归档** snapshots/<date>.json，不覆盖
+                         data/daily_snapshot.json（历史回填专用：不能把补算的旧日期
+                         顶掉「首页直读的最新快照」）。
+    """
     if not isinstance(snap, dict) or not snap.get("date"):
         logger.warning("[decision] 快照缺 date，拒绝落盘")
         return False
     try:
         os.makedirs(DATA_DIR, exist_ok=True)
-        tmp = SNAPSHOT_PATH + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(snap, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, SNAPSHOT_PATH)  # 原子替换，避免写一半被读到
-        logger.info("[decision] 快照已落盘: %s (%s)", SNAPSHOT_PATH, snap["date"])
+        if not archive_only:
+            tmp = SNAPSHOT_PATH + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(snap, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, SNAPSHOT_PATH)  # 原子替换，避免写一半被读到
+            logger.info("[decision] 快照已落盘: %s (%s)", SNAPSHOT_PATH, snap["date"])
         # 历史归档（复盘回测的数据源）。归档失败不影响「最新快照可用」这一主目标。
         try:
             os.makedirs(ARCHIVE_DIR, exist_ok=True)

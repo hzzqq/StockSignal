@@ -155,13 +155,16 @@ def record_ladder_snapshot(date, distribution, max_boards=None, total_connect=No
         return _save_history(hist)
 
 
-def ladder_promotion_rates() -> dict:
+def ladder_promotion_rates(as_of: str | None = None) -> dict:
     """算各档晋级率（跨日递推）。
 
     晋级率定义：某档 n（≥2板）的晋级率 = 当日 n板家数 / 昨日 (n-1)板家数。
       · 2板晋级率 = 当日2板家数 / 昨日首板家数（最能代表接力意愿）
       · 3板晋级率 = 当日3板 / 昨日2板，以此类推
     仅当存在「今日」与「昨日」两条快照时才有意义。
+
+    :param as_of: 可选时点截止日（YYYY-MM-DD）。传入后只用 ≤ as_of 的历史快照递推
+                  （历史回填的时点诚实口径：不偷看未来数据）；None = 最新（现行为）。
 
     返回：
       ready       bool（有任一档晋级率可算才有意义）
@@ -178,6 +181,10 @@ def ladder_promotion_rates() -> dict:
     # 跳过被标记为不可信的条目（audit_history 检出 + mark_suspect 标记，软处理可撤销）
     dates = sorted(d for d, e in hist.items()
                    if not (isinstance(e, dict) and e.get("suspect")))
+    if as_of:
+        dates = [d for d in dates if d <= as_of]
+    if not dates:
+        return empty
     if len(dates) < 2:
         return dict(ready=False, days=len(dates), latest=hist[dates[-1]],
                     latest_date=dates[-1], rates={}, overall=None)
@@ -214,14 +221,17 @@ def current_promo_as_indicators() -> dict:
     return {"ladder_promo": pr["overall"]}
 
 
-def prev_overall() -> float | None:
+def prev_overall(as_of: str | None = None) -> float | None:
     """倒数第二天的综合晋级率（用于首页/决策面板的环比 delta）。
 
     口径与 ladder_promotion_rates() 一致：取「最新-1 日 vs 最新-2 日」的 2板晋级率。
+    :param as_of: 可选时点截止日——传入后只用 ≤ as_of 的历史（回填时点诚实口径）。
     历史不足 3 日返回 None（无法算环比）。
     """
     hist = load_history()
     dates = sorted(d for d, e in hist.items() if not (isinstance(e, dict) and e.get("suspect")))
+    if as_of:
+        dates = [d for d in dates if d <= as_of]
     if len(dates) < 3:
         return None
     d_cur = _int_keys(hist[dates[-2]].get("distribution"))

@@ -261,6 +261,12 @@ def by_group(min_samples: int = 0) -> list[dict]:
 def _fetch_benchmark_close() -> dict[str, float] | None:
     """拉取上证指数(000001)日线收盘，返回 {YYYY-MM-DD: close}。
 
+    双源降级：东财 index_zh_a_hist（主）→ 新浪 stock_zh_index_daily（备）。
+    为什么需要备源：东财 push2 接口在本机（无论直连还是走代理）会整体
+    RemoteDisconnected（实测 2026-09-02，同时殃及炸板股池等东财端点），
+    而新浪源带/不带代理都稳定可用 —— 不加备源，回测打分永远 0 条
+    （08:40 自动化连日「回填 0 条」的根因）。两源列名不同
+    （东财：日期/收盘；新浪：date/close），各自解析。
     失败（无网络 / akshare 缺失 / 接口变动）返回 None，由上层降级处理。
     """
     try:
@@ -268,16 +274,17 @@ def _fetch_benchmark_close() -> dict[str, float] | None:
     except Exception as e:  # noqa: BLE001
         logger.warning("[track] akshare 不可用，跳过基准打分: %s", e)
         return None
-    try:
-        end = datetime.now().strftime("%Y%m%d")
-        start = (datetime.now() - timedelta(days=400)).strftime("%Y%m%d")
-        df = ak.index_zh_a_hist(symbol=_BENCH_SYMBOL, period="daily",
-                                start_date=start, end_date=end)
+
+    def _df_to_closes(df) -> dict[str, float] | None:
         if df is None or getattr(df, "empty", True):
             return None
+        date_col = ("日期" if "日期" in df.columns
+                    else "date" if "date" in df.columns else df.columns[0])
+        close_col = ("收盘" if "收盘" in df.columns
+                     else "close" if "close" in df.columns else None)
+        if close_col is None:
+            return None
         out: dict[str, float] = {}
-        date_col = "日期" if "日期" in df.columns else df.columns[0]
-        close_col = "收盘" if "收盘" in df.columns else df.columns[-1]
         for _, row in df.iterrows():
             try:
                 d = str(row[date_col])[:10]
@@ -287,8 +294,27 @@ def _fetch_benchmark_close() -> dict[str, float] | None:
             except Exception:  # noqa: BLE001
                 continue
         return out or None
+
+    end = datetime.now().strftime("%Y%m%d")
+    start = (datetime.now() - timedelta(days=400)).strftime("%Y%m%d")
+
+    # 主源：东财（列名 日期/收盘）
+    try:
+        df = ak.index_zh_a_hist(symbol=_BENCH_SYMBOL, period="daily",
+                                start_date=start, end_date=end)
+        closes = _df_to_closes(df)
+        if closes:
+            return closes
+        logger.warning("[track] 东财基准数据为空，降级新浪源")
     except Exception as e:  # noqa: BLE001
-        logger.warning("[track] 基准指数拉取失败: %s", e)
+        logger.warning("[track] 东财基准拉取失败，降级新浪源: %s", e)
+
+    # 备源：新浪（symbol 需带交易所前缀，返回全量历史）
+    try:
+        df = ak.stock_zh_index_daily(symbol="sh000001")
+        return _df_to_closes(df)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[track] 新浪基准拉取失败: %s", e)
         return None
 
 
