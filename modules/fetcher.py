@@ -84,6 +84,26 @@ def load_config(config_path="config.yaml"):
 # ══════════════════════════════════════════════════════════
 # 主数据采集器
 # ══════════════════════════════════════════════════════════
+def _resolve_cache_db_path(explicit: str | None) -> str:
+    """解析缓存库路径，落实「测试隔离但不破坏显式配置」语义。
+
+    - 生产（不设 SS_DATA_DIR）：用显式 config 路径，缺省回落 "data/cache.db"（行为不变）。
+    - 测试（conftest 设 SS_DATA_DIR=临时目录）：仅当解析后的路径会落进**真实项目 data/**
+      时才重定向到 SS_DATA_DIR/cache.db，避免测试写穿真实 data/；
+      显式指向其他位置（如测试 tmp_path、生产自定义绝对路径）一律保留，不破坏测试对库位置的控制。
+    """
+    _env_db = os.environ.get("SS_DATA_DIR")
+    if not _env_db:
+        return explicit or "data/cache.db"
+    _candidate = explicit or "data/cache.db"
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _abs = os.path.abspath(_candidate if os.path.isabs(_candidate) else os.path.join(_root, _candidate))
+    _real_data = os.path.abspath(os.path.join(_root, "data"))
+    if _abs == _real_data or _abs.startswith(_real_data + os.sep):
+        return os.path.join(_env_db, "cache.db")
+    return _candidate
+
+
 class StockFetcher:
     """
     股票行情与宏观数据采集器。
@@ -128,7 +148,7 @@ class StockFetcher:
 
     def __init__(self, config_path="config.yaml"):
         self.config = load_config(config_path)
-        db_path = self.config.get("database", {}).get("path", "data/cache.db")
+        db_path = _resolve_cache_db_path(self.config.get("database", {}).get("path"))
         self.db_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))), db_path
         )
@@ -418,7 +438,7 @@ class StockFetcher:
             # 用默认配置创建临时实例来加载数据
             temp = cls.__new__(cls)
             temp.config = load_config("config.yaml")
-            db_path = temp.config.get("database", {}).get("path", "data/cache.db")
+            db_path = _resolve_cache_db_path(temp.config.get("database", {}).get("path"))
             temp.db_path = os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))), db_path
             )

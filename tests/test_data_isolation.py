@@ -110,3 +110,49 @@ def test_market_drivers_cache_path_aligned():
     got_dir = os.environ.get("SS_DATA_DIR") or os.path.join(_here, "..", "data")
     assert os.path.abspath(got_dir) == os.path.abspath(expected_dir), \
         "market_drivers 缓存目录与 market_cache 不一致 → 测试会读穿真实 data/"
+
+
+def test_fetcher_cache_db_isolated():
+    """StockFetcher 默认缓存库须跟随 SS_DATA_DIR，而非硬编码真实 data/cache.db。"""
+    assert os.environ.get("SS_DATA_DIR"), "conftest 未启用数据隔离（SS_DATA_DIR 缺失）"
+    from modules.fetcher import StockFetcher
+    f = StockFetcher()
+    real = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "data", "cache.db"))
+    assert os.path.abspath(f.db_path) != real, "fetcher 缓存库仍指向真实 data/cache.db"
+    assert f.db_path.startswith(os.environ["SS_DATA_DIR"]), \
+        "fetcher 缓存库未隔离到临时目录（SS_DATA_DIR）"
+
+
+def test_shepherd_history_isolated():
+    """shepherd 历史 CSV/JSON 须跟随 SS_DATA_DIR，而非硬编码真实 data/shepherd_history.*。"""
+    assert os.environ.get("SS_DATA_DIR"), "conftest 未启用数据隔离（SS_DATA_DIR 缺失）"
+    import modules.shepherd as sh
+    real = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.abspath(sh.__file__)), "..", "data", "shepherd_history.csv"))
+    assert os.path.abspath(sh._HISTORY_FILE) != real, "shepherd 历史仍指向真实 data/shepherd_history.csv"
+    assert sh._HISTORY_FILE.startswith(os.environ["SS_DATA_DIR"]), \
+        "shepherd 历史未隔离到临时目录（SS_DATA_DIR）"
+
+
+def test_session_avatar_dir_isolated():
+    """session 头像目录须跟随 SS_DATA_DIR，而非硬编码真实 data/avatars。"""
+    assert os.environ.get("SS_DATA_DIR"), "conftest 未启用数据隔离（SS_DATA_DIR 缺失）"
+    import modules.session as sess
+    d = sess._avatar_dir()
+    real = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.dirname(sess.__file__)), "data", "avatars"))
+    assert os.path.abspath(d) != real, "session 头像目录仍指向真实 data/avatars"
+    assert d.startswith(os.environ["SS_DATA_DIR"]), \
+        "session 头像未隔离到临时目录（SS_DATA_DIR）"
+
+
+def test_shepherd_note_dir_isolated():
+    """shepherd_note 笔记目录须跟随 SS_DATA_DIR，而非硬编码真实 data/shepherd_notes.json。"""
+    assert os.environ.get("SS_DATA_DIR"), "conftest 未启用数据隔离（SS_DATA_DIR 缺失）"
+    import modules.shepherd_note as sn
+    real = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(sn.__file__))), "data", "shepherd_notes.json"))
+    assert os.path.abspath(sn.NOTE_FILE) != real, "shepherd_note 仍指向真实 data/shepherd_notes.json"
+    assert sn.NOTE_DIR.startswith(os.environ["SS_DATA_DIR"]), \
+        "shepherd_note 未隔离到临时目录（SS_DATA_DIR）"

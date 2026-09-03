@@ -840,8 +840,8 @@ def api_save_user_score(code: str, score: int, name: str = "") -> dict:
 
 
 def _avatar_dir() -> str:
-    """头像本地存储目录：<项目根>/data/avatars。"""
-    d = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "avatars")
+    """头像本地存储目录：<项目根>/data/avatars（测试期跟随 SS_DATA_DIR 隔离）。"""
+    d = os.path.join(os.environ.get("SS_DATA_DIR") or os.path.dirname(os.path.dirname(__file__)), "data", "avatars")
     os.makedirs(d, exist_ok=True)
     return d
 

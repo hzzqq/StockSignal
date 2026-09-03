@@ -25,7 +25,7 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NOTE_DIR = os.path.join(_ROOT, "data")
+NOTE_DIR = os.path.join(os.environ.get("SS_DATA_DIR") or _ROOT, "data")
 NOTE_FILE = os.path.join(NOTE_DIR, "shepherd_notes.json")
 
 _lock = threading.Lock()

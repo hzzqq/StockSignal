@@ -53,7 +53,8 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 # ───────── 配置 ─────────
-_HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "shepherd_history.csv")
+_SHEPHERD_DATA_DIR = os.environ.get("SS_DATA_DIR") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+_HISTORY_FILE = os.path.join(_SHEPHERD_DATA_DIR, "shepherd_history.csv")
 _HISTORY_TTL = 3600  # 1h
 _CACHE = {}
 _CACHE_LOCK = threading.Lock()
