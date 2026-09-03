@@ -155,10 +155,67 @@ def _isolate_writes(monkeypatch, tmp_path):
     monkeypatch.setattr(_dec, "ARCHIVE_DIR", str(tmp_path / "snapshots"))
 
 
+def _offline_network_stub(monkeypatch):
+    """离线打桩：让所有页面取数路径**立即失败并走降级**，而非真连网挂起。
+
+    ⚠️ 为什么必须有这层（真问题，非测试洁癖）：
+    此前的版本只在文档里声称「monkeypatch requests/urllib 立即抛错」，
+    实现里却漏掉了——页面冒烟测试**真去连网**。离线/弱网环境下：
+    - 《仓位管理》calc_pnl 逐持仓取日线、《行情看板》《组合收益》批量取数，
+      会卡在真实的握手/超时上，单页渲染 >150s 被线程隔离强制杀掉 → 误报失败。
+    这层 stub 把网络入口全部速败（ConnectionError / URLError），逼出各取数函数
+    既有的 try/except 降级分支——正是用户断网时真实看到的「优雅降级」页面。
+
+    覆盖的四条网络入口：
+    1. requests.get / post（akshare 等走 requests 模块级）
+    2. requests.Session.get / post / request（akshare 走 Session 实例）
+    3. urllib.request.urlopen（_safe_urlopen / news 直连）
+    4. baostock.bs.login 直接返回失败（否则 bs.login() 真连 baostock 服务端挂起）
+    """
+    import requests as _requests
+    import urllib.request as _urllib_req
+    import urllib.error as _urllib_err
+
+    def _conn_boom(*a, **k):
+        raise _requests.exceptions.ConnectionError("offline stub")
+
+    for _target in (_requests, _requests.Session):
+        for _attr in ("get", "post", "request"):
+            try:
+                monkeypatch.setattr(_target, _attr, _conn_boom, raising=True)
+            except AttributeError:
+                pass
+
+    def _url_boom(*a, **k):
+        raise _urllib_err.URLError("offline stub")
+
+    monkeypatch.setattr(_urllib_req, "urlopen", _url_boom, raising=True)
+
+    # BaoStock：登录即失败，跳过其真连网路径（_ensure_login 见 error_code!='0' 返回 False）
+    try:
+        import baostock as bs
+
+        class _FakeLogin:
+            error_code = "1"
+            error_msg = "offline stub"
+
+        monkeypatch.setattr(bs, "login", lambda *a, **k: _FakeLogin(), raising=True)
+        monkeypatch.setattr(bs, "logout", lambda *a, **k: None, raising=True)
+    except Exception:
+        pass
+
+    # 清空 streamlit 内存缓存，避免上一页/上一轮的离线降级结果被缓存复用
+    try:
+        st.cache_data.clear()
+    except Exception:
+        pass
+
+
 @pytest.mark.parametrize("page_path", PAGE_FILES, ids=lambda p: os.path.basename(p))
 def test_page_renders_without_exception(page_path: str, monkeypatch, tmp_path):
     """游客态 + 已登录态下，页面渲染均不应抛出未捕获异常。"""
     _isolate_writes(monkeypatch, tmp_path)
+    _offline_network_stub(monkeypatch)
     guest = _run_page(page_path, authed=False)
     authd = _run_page(page_path, authed=True)
 
