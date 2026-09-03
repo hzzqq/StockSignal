@@ -94,6 +94,16 @@ def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) 
                     "date": str(row.get("date")),
                     "source": f"P1-{model}-daily"}
 
+    # ── 第二真实源：真实东方财富新闻情感（P1 无信号时仍给出现实事件信号）──
+    # 这是事件因子适配器的「多真实源」扩展：P1 EV 是 ranked pool 主源，新闻是
+    # 逐标的真实事件面兜底源，两者都真实、互不替代、绝不造数。
+    try:
+        nw = news_event_signal(symbol)
+        if nw.get("available"):
+            return nw
+    except Exception as e:  # noqa: BLE401
+        logger.warning(f"[event_factor] 新闻事件信号兜底失败: {e}")
+
     return {"available": False, "symbol": symbol,
             "reason": "该标的无 P1 事件因子信号（不在池内或近期无预测）"}
 
@@ -141,3 +151,50 @@ def event_driven_long_list(top_n: int = 20, model: str = "ev",
             "source": f"P1-{model}-top_long",
         })
     return out
+
+
+def news_event_signal(ticker: str, limit: int = 15) -> dict:
+    """真实新闻事件信号（东方财富）：抓 ticker 相关新闻 → 情感分布 → 事件得分。
+
+    事件因子适配器的**第二个真实源**（P1 EV 之外的真实事件/新闻源）。标的不在 P1 池
+    / 无 P1 信号时，仍能给出现实的新闻面事件信号，而非空。与 P1 EV 真实源独立互补、
+    绝不造数——无真实新闻即 ``available=False``。
+
+    返回结构（成功）：
+        {"available": True, "symbol": ..., "score": 0-100,
+         "rank": score/100（供 _event_factor_to_score 无损回映射）,
+         "signal": "看多"|"看空"|"中性", "source": "eastmoney-news"}
+    返回结构（无数据）：
+        {"available": False, "symbol": ..., "reason": ...}
+    """
+    sym = ticker or ""
+    if not sym:
+        return {"available": False, "symbol": sym, "reason": "未提供标的代码"}
+    try:
+        from modules.news import NewsFetcher, SentimentAnalyzer
+        news = NewsFetcher().fetch(keyword=sym, source="eastmoney", limit=limit)
+    except Exception as e:  # pragma: no cover - 网络/源异常
+        logger.warning(f"[event_factor] 新闻抓取失败({sym}): {e}")
+        return {"available": False, "symbol": sym, "reason": f"新闻抓取失败: {e}"}
+    if news is None or getattr(news, "empty", True) or news.empty:
+        return {"available": False, "symbol": sym, "reason": "无相关东方财富新闻"}
+    try:
+        dist = SentimentAnalyzer().sentiment_distribution(news)
+    except Exception as e:  # pragma: no cover - 分析异常
+        logger.warning(f"[event_factor] 情感分析失败({sym}): {e}")
+        return {"available": False, "symbol": sym, "reason": f"情感分析失败: {e}"}
+    # 与 modules.signal._live_news_sentiment 同口径（50=多空平衡），仅作事件信号参考
+    pos_pct = dist.get("正面", 0)
+    neg_pct = dist.get("负面", 0)
+    score = int(max(0, min(100, 50 + (pos_pct - neg_pct) * 0.6)))
+    if score >= 55:
+        sig = "看多"
+    elif score <= 45:
+        sig = "看空"
+    else:
+        sig = "中性"
+    return {
+        "available": True, "symbol": sym,
+        "score": float(score), "rank": float(score) / 100.0,
+        "signal": sig, "source": "eastmoney-news",
+    }
