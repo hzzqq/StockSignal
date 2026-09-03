@@ -163,8 +163,11 @@ def _backfill(dates: list[str], log) -> int:
             log(f"[FAIL] {d} 归档写入失败")
             continue
         try:
+            ef = snap.get("event_factor") or {}
             _track.record_prediction(d, temp, snap.get("cycle") or "",
-                                     snap.get("bias") or "中性", pos.get("pct"))
+                                     snap.get("bias") or "中性", pos.get("pct"),
+                                     event_adj=ef.get("adj"),
+                                     event_available=ef.get("available"))
         except Exception as e:  # noqa: BLE001
             log(f"[warn] {d} 预测记录失败: {e}")
         n_ok += 1
@@ -371,8 +374,10 @@ def main() -> int:
 
     # ── 5. 记一笔预测（供「预测 vs 实际」回测；与每日快照一一对应）──
     try:
+        ef = snap.get("event_factor") or {}
         _track.record_prediction(date, temp, snap.get("cycle") or "", snap.get("bias") or "中性",
-                                 pos.get("pct"))
+                                 pos.get("pct"),
+                                 event_adj=ef.get("adj"), event_available=ef.get("available"))
     except Exception as e:  # noqa: BLE001
         log(f"[warn] 预测记录失败（不影响快照）: {e}")
 

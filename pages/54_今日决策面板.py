@@ -434,6 +434,18 @@ def fragment_review():
         cyc = (fc or {}).get("cycle") or {}
         st.markdown(f"**📅 {dstr} 决策快照**　{cyc.get('emoji','')} {cyc.get('name','—')} ｜ "
                     f"评分 {(fc or {}).get('score',0):.0f} ｜ 次日 {(fc or {}).get('bias','—')}")
+        # 数据新鲜度徽标：避免用陈旧指标却展示得「像最新的」（I2）
+        try:
+            from datetime import date as _d
+            _age = (_d.today() - _d.fromisoformat(dstr[:10])).days if dstr else None
+        except Exception:
+            _age = None
+        if _age is None:
+            pass
+        elif _age > 1:
+            st.warning(f"⏰ 数据滞后 {_age} 日（最新指标截至 {dstr}）——决策依据可能偏旧，谨慎参考")
+        elif _age >= 0:
+            st.caption(f"数据截至 {dstr}（滞后 {_age} 日）")
         note_txt = st.text_area("今日决策手记（主线/计划/复盘感受，留空不改已存手记）", value="",
                                 key="dec_note_text", height=80,
                                 placeholder="例：温度 62 偏多，仓位 70%，盯连板晋级能否维持…")
@@ -655,6 +667,14 @@ def fragment_calibration():
         xc_warn_box(f"⏳ {v['msg']}。当前数值仅供观察趋势，**不要据此修改规则**——小样本算出的结论是噪音。")
     st.progress(min(v["n_call"] / float(v["strong_samples"]), 1.0),
                 text=f"表态样本 {v['n_call']} / {v['strong_samples']} 条")
+    # 样本新鲜度：评分自动化挂了，命中率会停在旧日期——必须如实暴露（I6）
+    _lsd = v.get("last_scored_date")
+    _stale = v.get("stale_days")
+    if _lsd:
+        if _stale is not None and _stale > 2:
+            st.caption(f"🕓 最近一次打分：{_lsd}（{_stale} 天前）——若评分自动化未跑，命中率已过时")
+        else:
+            st.caption(f"🕓 最近一次打分：{_lsd}")
 
     if not sug:
         _empty_info("各分组表态样本均不足，暂不展示校准建议。")
@@ -686,6 +706,21 @@ def fragment_calibration():
     else:
         st.caption("🔒 暂无「值得采纳」的校准建议（需表态样本 ≥20 条且调节量 ≥2 点）。"
                    "此时 CYCLE_ADJ 保持原值不动。")
+
+    # 事件驱动催化有效性：按「事件信号当日是否可用」拆命中率（I9）
+    try:
+        be = _track.by_event()
+    except Exception:  # noqa: BLE401
+        be = []
+    if be:
+        _ev_rows = [{
+            "事件信号": r["group"], "样本": r["n"], "表态数": r["n_call"],
+            "命中": r["hits"],
+            "方向命中率": f"{r['accuracy']:.0f}%" if r["accuracy"] is not None else "样本不足",
+        } for r in be]
+        st.markdown("**🎯 事件驱动催化有效性**（按当日事件信号是否可用拆分命中率）")
+        st.dataframe(pd.DataFrame(_ev_rows), width="stretch", hide_index=True, key="ev_eff")
+        st.caption("事件开=当日有真实 P1 EV 事件因子多头池；事件关=无。两者命中率差即事件催化的边际贡献。")
 
     st.caption("⚖️ 口径：调节量 = clamp(2 × 次日平均涨跌, ±5 点)，即次日平均涨跌 1% → 刻度调 2 点，"
                "单次上限 5 点以防过拟合；中性预测不表态、不计入分母。本页结论不构成投资建议。")

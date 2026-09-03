@@ -117,12 +117,22 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     try:
         base = float(temp) if temp is not None else 50.0
     except (TypeError, ValueError):
+        logger.warning("[decision] 温度入参非法 %r，兜底 50", temp)
         base = 50.0
+    # 入参越界保护：温度语义是 0-100，异常源喂出 150/-20 会污染快照与展示。
+    # 仅 clamp 基准仓位的输入；最终 pct 仍受 5~95 硬约束（双保险）。
+    if base < 0.0 or base > 100.0:
+        logger.warning("[decision] 温度 %s 越界[0,100]，已 clamp", base)
+        base = max(0.0, min(100.0, base))
     pct = base
     reasons.append(f"市场温度 {base:.0f} 作为基准仓位")
 
     # 方向调节：次日方向是短周期最强信号，给固定 ±8pt 权重（偏多+8 / 偏空-8 / 中性0）
     b = (bias or "中性")
+    if bias is not None and bias not in ("偏多", "偏空", "中性"):
+        # 未知方向不静默当中性——告警让数据问题看得见，避免脏源悄悄改仓位
+        logger.warning("[decision] 未知方向 %r，按中性处理", bias)
+        b = "中性"
     badj = {"偏多": 8, "偏空": -8, "中性": 0}.get(b, 0)
     pct += badj
     reasons.append(f"次日方向「{b}」{'加' if badj >= 0 else '减'}仓 {abs(badj)}%")
@@ -130,6 +140,9 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     # 周期名可能带括号后缀，取括号前的核心名匹配
     cname_core = (cycle_name or "").split("（")[0].strip()
     cadj = CYCLE_ADJ.get(cname_core, 0)
+    if cycle_name and cname_core not in CYCLE_ADJ:
+        # 未知周期不静默按 0 调节——告警，避免 forecast 改了周期名而规则悄悄失效
+        logger.warning("[decision] 未知情绪周期 %r，按 0 调节", cycle_name)
     pct += cadj
     if cadj:
         reasons.append(f"情绪周期「{cname_core}」{'加' if cadj >= 0 else '减'}仓 {abs(cadj)}%")
@@ -149,10 +162,15 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
 
     # 事件驱动催化调节：真实事件因子（P1 EV 多头池广度）映射的市场级仓位微调。
     # 接的是「事件驱动 + 市场情绪」决策主线的事件侧；取不到真实信号（event_adj=None）
-    # 时不臆造催化。置于常规推导内、极端风控约束外 —— 极端行情下沿/上沿仍凌驾其上。
+    # 时不臆造催化。置于常规推导内、极端风控约束**内**——极端行情下沿/上沿（下面 165-172
+    # 行）仍凌驾其上，所以事件催化也受极端风控封顶/兜底约束（注释修正：此前误写「约束外」）。
     if event_adj:
         pct += event_adj
         reasons.append(f"事件驱动催化：{'加' if event_adj >= 0 else '减'}仓 {abs(event_adj)}%")
+    elif event_adj is None:
+        # 事件信号不可用：明确留痕，让决策可解释「这次没靠事件催化」，也便于事后回测
+        # 按 event_available 拆分命中率，回答「事件驱动到底有没有用」（见 decision_track.by_event）
+        reasons.append("事件驱动信号不可用，未施加催化（不臆造）")
 
     pct = max(5.0, min(95.0, pct))
 
@@ -212,6 +230,22 @@ def _event_position_adj(top_n: int = 50) -> dict | None:
     return {"adj": min(5, n // 10), "long_count": n}
 
 
+def _age_days(date_str: str | None) -> int | None:
+    """数据日期距今天的自然日数（仅用于「数据滞后」展示，不参与任何推导）。
+
+    非交易日/周末跑出的快照 date 可能早于今天，这里如实反映滞后天数，
+    让面板能显示「数据滞后 N 日」徽标——而不是直接假装是最新的。
+    """
+    if not date_str:
+        return None
+    try:
+        from datetime import date as _d
+        d = _d.fromisoformat(str(date_str)[:10])
+        return (_d.today() - d).days
+    except Exception:  # noqa: BLE001
+        return None
+
+
 # ───────────────────────── 快照构建 / 落盘 / 读取 ─────────────────────────
 def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
                    promo: dict | None, ladder: dict | None = None,
@@ -250,6 +284,8 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
 
     return {
         "date": date,
+        "as_of": date,
+        "data_age_days": _age_days(date),
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "temperature": round(float(temp), 1) if temp is not None else None,
         "cycle": cycle_name,

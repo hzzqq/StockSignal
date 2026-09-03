@@ -47,11 +47,17 @@ _DIR_MAP = {"偏多": 1, "偏空": -1, "中性": 0}
 
 
 # ───────────────────────── 记录写入 ─────────────────────────
-def record_prediction(date: str, temp, cycle_name: str, bias: str, pct: int) -> bool:
+def record_prediction(date: str, temp, cycle_name: str, bias: str, pct: int,
+                       event_adj: int | None = None,
+                       event_available: bool | None = None) -> bool:
     """落盘一条预测记录（按日期幂等：同一天重复跑只覆盖当天那条）。
 
     在 scripts/daily_snapshot.py 落盘每日快照成功后调用，使「每天一份决策」与
     「一条预测」一一对应，后续回测才有数据源。
+
+    :param event_adj: 当日事件驱动仓位调节(绝对百分点)；None=信号不可用。
+    :param event_available: 当日事件驱动信号是否可用（布尔）。落库后供 by_event()
+                            按「事件开/关」拆分命中率，回答「事件催化到底有没有用」。
     """
     if not date:
         return False
@@ -62,6 +68,8 @@ def record_prediction(date: str, temp, cycle_name: str, bias: str, pct: int) -> 
             "cycle": cycle_name or "",
             "bias": bias or "中性",
             "pct": int(pct) if pct is not None else None,
+            "event_adj": int(event_adj) if event_adj is not None else None,
+            "event_available": bool(event_available) if event_available is not None else None,
             "realized": None,   # 次日实际涨跌(%)，联网打分时回填
             "hit": None,        # 方向是否命中(True/False)，打分后回填
         }
@@ -70,16 +78,22 @@ def record_prediction(date: str, temp, cycle_name: str, bias: str, pct: int) -> 
         replaced = False
         for i, r in enumerate(recs):
             if r.get("date") == date:
-                # 已打分的记录保留 realized/hit，只更新预测侧字段
+                # 已打分的记录保留 realized/hit，只更新预测侧字段；事件字段优先级：
+                # 本次传入值优先（更准），缺省时沿用旧值，避免重跑把 available 抹掉
                 rec["realized"] = r.get("realized")
                 rec["hit"] = r.get("hit")
+                if event_adj is None and r.get("event_adj") is not None:
+                    rec["event_adj"] = r.get("event_adj")
+                if event_available is None and r.get("event_available") is not None:
+                    rec["event_available"] = r.get("event_available")
                 recs[i] = rec
                 replaced = True
                 break
         if not replaced:
             recs.append(rec)
         _save(recs)
-        logger.info("[track] 预测已记录 %s 方向=%s 仓位=%s%%", date, rec["bias"], rec["pct"])
+        logger.info("[track] 预测已记录 %s 方向=%s 仓位=%s%% 事件=%s",
+                    date, rec["bias"], rec["pct"], rec["event_available"])
         return True
     except Exception as e:  # noqa: BLE001
         logger.warning("[track] 预测记录失败 %s: %s", date, e)
@@ -254,6 +268,46 @@ def by_group(min_samples: int = 0) -> list[dict]:
         })
     gi = {g: i for i, g in enumerate(_GROUP_ORDER)}
     out.sort(key=lambda x: gi.get(x["group"], 99))
+    return out
+
+
+def last_scored_date() -> str | None:
+    """最近一次成功打分的预测日期（由已回填 realized 的记录推算）。
+
+    供 calibration.verdict() 判断「样本是否新鲜」——若打分自动化挂了，
+    这里会停在旧日期，页面据此提示「最近打分 X 天前」，而不是假装闭环还在转。
+    """
+    recs = _load()
+    scored = [r["date"] for r in recs if r.get("realized") is not None]
+    return max(scored) if scored else None
+
+
+def by_event(min_samples: int = 0) -> list[dict]:
+    """按「事件驱动信号当日是否可用」拆分方向命中率，回答事件催化是否真有效。
+
+    返回 [{"group": "事件开"|"事件关", "n", "n_call", "hits", "accuracy"|None}]。
+    命中率口径与 summary() 一致（仅偏多/偏空表态计入分母；中性不计入）。
+    min_samples>0 时过滤表态不足的分组（避免「事件开 1 条 100%」误导）。
+    """
+    recs = _load()
+    buckets: dict[str, list[dict]] = {"事件开": [], "事件关": []}
+    for r in recs:
+        if r.get("hit") is None:
+            continue  # 未打分不参与命中率
+        key = "事件开" if r.get("event_available") else "事件关"
+        buckets[key].append(r)
+    out = []
+    for name in ("事件开", "事件关"):
+        rs = buckets[name]
+        n_call = [r for r in rs if _DIR_MAP.get(r.get("bias"), 0) != 0]
+        hits = sum(1 for r in n_call if r.get("hit"))
+        if min_samples and len(n_call) < min_samples:
+            out.append({"group": name, "n": len(rs), "n_call": len(n_call),
+                        "hits": hits, "accuracy": None})
+            continue
+        out.append({"group": name, "n": len(rs), "n_call": len(n_call),
+                    "hits": hits,
+                    "accuracy": round(hits / len(n_call) * 100, 1) if n_call else None})
     return out
 
 

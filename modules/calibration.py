@@ -158,6 +158,80 @@ def as_patch(strong_samples: int = DEFAULT_STRONG_SAMPLES) -> dict[str, int]:
     return patch
 
 
+def apply_patch(strong_samples: int = DEFAULT_STRONG_SAMPLES,
+                dry_run: bool = True, max_abs: int = 15) -> dict:
+    """把「值得采纳」的分组建议落到 decision.CYCLE_ADJ（带护栏，闭合校准环路）。
+
+    设计权衡（务必先读上面的「核心设计决策」）：
+        本模块原本 T1「只出建议不自动改规则」，是为了防止早期小样本过拟合把规则改坏。
+        但「只展示不闭环」导致 as_patch() 算出的补丁永远靠人肉 copy 进 decision.py，
+        容易漏改、容易与 tests/test_decision.py 期望值漂移 —— 闭环最后一步没接通。
+        本函数补上**带护栏的程序化落地**，仍守住 T1 的灵魂：
+          · 必须 verdict.ready（单组样本够 + 调节量超噪音）才允许写，否则拒绝；
+          · dry_run=True（默认）只回显将要改什么，**绝不写文件**；
+          · 改后值 clamp 到 [-max_abs, max_abs]，防离谱；
+          · 写前备份 decision.py.bak，写后追加审计日志 calibration_apply.log。
+        人仍在回路：真正落地需显式 dry_run=False（由 scripts/apply_calibration.py 触发）。
+
+    :return: {"applied": bool, "changed": {...}|None, "patch": {...}, "reason": str}
+    """
+    v = verdict(strong_samples=strong_samples)
+    if not v["ready"]:
+        return {"applied": False, "reason": v["msg"], "patch": {}, "changed": None}
+    patch = as_patch(strong_samples=strong_samples)
+    if not patch:
+        return {"applied": False, "reason": "无值得采纳的建议", "patch": {}, "changed": None}
+    if dry_run:
+        return {"applied": False, "dry_run": True, "patch": patch,
+                "reason": "dry-run，未写入；加 --apply 才真正落地", "changed": None}
+
+    # 真正写：只替换 CYCLE_ADJ 字面量中各键的值，保留其余文件与注释（不 ast.unparse 整文件）
+    try:
+        import re
+        import shutil
+        from datetime import datetime as _dt
+        from modules import decision as _dec
+        from pathlib import Path
+
+        src_path = Path(_dec.__file__)
+        src = src_path.read_text(encoding="utf-8")
+        start = src.index("CYCLE_ADJ = {")
+        i = src.index("{", start)
+        depth = 0
+        j = i
+        while j < len(src):
+            if src[j] == "{":
+                depth += 1
+            elif src[j] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        block = src[i:j + 1]
+        changed: dict[str, int] = {}
+        new_block = block
+        for key, val in patch.items():
+            nv = max(-max_abs, min(max_abs, int(val)))
+            pat = re.compile(r'("' + re.escape(key) + r'"\s*:\s*-?\d+)')
+            m = pat.search(new_block)
+            if m:
+                new_block = pat.sub(f'"{key}": {nv}', new_block, count=1)
+                changed[key] = nv
+        if not changed:
+            return {"applied": False, "reason": "无匹配键可改", "patch": patch, "changed": None}
+        # 备份 + 写回
+        shutil.copy(src_path, src_path.with_suffix(src_path.suffix + ".bak"))
+        src_path.write_text(src[:i] + new_block + src[j + 1:], encoding="utf-8")
+        log_path = Path(DATA_DIR) / "calibration_apply.log"
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{_dt.now().isoformat(timespec='seconds')}] apply CYCLE_ADJ {changed}\n")
+        logger.info("[calibration] 已落地 CYCLE_ADJ 补丁: %s", changed)
+        return {"applied": True, "changed": changed, "patch": patch, "reason": "已写入"}
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[calibration] apply_patch 写回失败: %s", e)
+        return {"applied": False, "reason": f"写回失败: {e}", "patch": patch, "changed": None}
+
+
 def verdict(strong_samples: int = DEFAULT_STRONG_SAMPLES) -> dict:
     """一句话总览：现在能不能校准、还差多少样本。
 
@@ -179,6 +253,17 @@ def verdict(strong_samples: int = DEFAULT_STRONG_SAMPLES) -> dict:
     else:
         gap = max(0, strong_samples - n_call)
         msg = f"样本积累中：已表态 {n_call} 条，还需 {gap} 条才能开始校准（单组需 ≥{strong_samples} 条）"
+
+    # 样本新鲜度：若打分自动化挂了，命中率会停在旧日期——必须如实暴露，
+    # 否则页面显示「闭环在转」是假的。
+    from datetime import date as _d
+    last_scored = _track.last_scored_date()
+    stale_days = None
+    if last_scored:
+        try:
+            stale_days = (_d.today() - _d.fromisoformat(str(last_scored)[:10])).days
+        except Exception:  # noqa: BLE001
+            stale_days = None
     return {
         "ready": ready,
         "any_actionable": any_actionable,
@@ -186,5 +271,7 @@ def verdict(strong_samples: int = DEFAULT_STRONG_SAMPLES) -> dict:
         "n": s["n"],
         "strong_samples": strong_samples,
         "gap": max(0, strong_samples - n_call),
+        "last_scored_date": last_scored,
+        "stale_days": stale_days,
         "msg": msg,
     }
