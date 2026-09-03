@@ -15,8 +15,9 @@ from modules.news import NewsFetcher
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
-from modules.page_widgets import _empty_info
+from modules.page_widgets import _empty_info, _section_title
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.event_factor import event_driven_long_list  # 事件驱动看多榜（真实 P1 EV 信号选股池）
 today = date.today().strftime('%Y-%m-%d')
 dark = render_standard_page(title='每日晨报 / 复盘笔记', icon='🌅', caption=f'生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）', layout='wide')
 from modules.widgets import render_index_compact
@@ -235,6 +236,73 @@ def fragment_watchlist_and_news():
             else:
                 info_banner(f'暂无与 {selected_name} 相关的新闻。可尝试切换其它自选股，或稍后重试（资讯源每日更新）。')
 fragment_watchlist_and_news()
+
+@safe_fragment
+def fragment_event_driven_pool():
+    """📈 事件驱动看多榜：把真实事件因子（P1 EV）直接落成「选股候选池」，接进每日晨报。
+
+    与决策面板 54 同源（都读 modules.event_factor.event_driven_long_list）。
+    晨报里作为开盘前「今日可重点观察的事件驱动候选」速览；并提供一键导出
+    Markdown，便于转发到自动推送 / 早报正文。
+    """
+    _section_title("📈 事件驱动看多榜（EV 事件因子 · 真实信号）", accent="#ff8a3d")
+    try:
+        rows = event_driven_long_list(top_n=20, model="ev")
+    except Exception as e:  # noqa: BLE401
+        xc_handle_error("事件驱动看多榜加载失败", e)
+        return
+
+    if not rows:
+        _empty_info("未找到 P1 EV 事件因子信号（data/p1_signals/ 或 P1 产出目录）。"
+                    "接入真实信号后此处自动出现候选池；当前事件维度回退本地事件库。")
+        return
+
+    body = ("由 P1-QuantFactor 神经网络产出的**事件因子多头候选池**（EV 模型，已并入牧羊人情绪"
+            "9 维事件/regime 通道）。这是统计意义上的超额收益概率排序，**非**买卖指令；"
+            "建议仅取多头侧，并与本页板块/自选股信号配合使用。")
+    sf_card("事件驱动 · EV 看多榜（前 20）", body, icon="📈")
+
+    rows_html = ""
+    for i, r in enumerate(rows, 1):
+        sym = r.get("symbol", "")
+        sc = r.get("score")
+        sc_txt = f"{sc:.1f}" if isinstance(sc, (int, float)) else "—"
+        _col = "#ff8a3d"
+        rows_html += (
+            f"<tr><td style='color:#888'>{i}</td>"
+            f"<td style='font-family:monospace'>{sym}</td>"
+            f"<td style='color:{_col};font-weight:600'>{sc_txt}</td>"
+            f"<td style='color:#888;font-size:12px'>{r.get('source','')}</td></tr>"
+        )
+    st.markdown(
+        "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
+        "<thead><tr style='color:#ff8a3d;text-align:left'>"
+        "<th>#</th><th>代码</th><th>事件因子分</th><th>来源</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table>",
+        unsafe_allow_html=True,
+    )
+    st.caption("口径：事件因子分 = P1 模型百分位排名 × 100（越高越看多）。"
+               "非买卖指令，建议结合本页板块/自选股信号综合判断。")
+
+    # 一键导出 Markdown：便于转发到自动推送 / 早报正文（与 scripts/gen_event_pool_brief.py 同源）
+    md_lines = [
+        f"# 📈 事件驱动看多榜（{today}）", "",
+        "> 由 P1-QuantFactor 产出的事件因子多头候选池（EV 模型）。统计意义排序，**非买卖指令**。", "",
+    ]
+    if rows:
+        md_lines.append("| # | 代码 | 事件因子分 | 来源 |")
+        md_lines.append("| -- | -- | -- | -- |")
+        for i, r in enumerate(rows, 1):
+            sc = r.get("score")
+            sc_txt = f"{sc:.1f}" if isinstance(sc, (int, float)) else "—"
+            md_lines.append(f"| {i} | `{r.get('symbol','')}` | {sc_txt} | {r.get('source','')} |")
+    md_text = "\n".join(md_lines) + "\n"
+    st.download_button("⬇️ 导出事件池 (.md)", data=md_text.encode("utf-8"),
+                       file_name=f"事件驱动看多榜_{today}.md", mime="text/markdown",
+                       key="morning_event_pool_dl",
+                       help="导出为 Markdown，可粘贴进早报正文或自动推送素材。")
+
+fragment_event_driven_pool()
 
 @safe_fragment
 def fragment_review_notes():
