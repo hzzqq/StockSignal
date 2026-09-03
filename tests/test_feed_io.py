@@ -133,9 +133,11 @@ def test_ensure_login_serialized_under_concurrency(monkeypatch):
             return None
 
     fake = _FakeBs("baostock")
-    # 直接替换 _feed_io 模块级 bs 引用（模块导入时已绑定真实 baostock，
-    # 仅 monkeypatch sys.modules 不影响已绑定引用）
-    monkeypatch.setattr(fio, "bs", fake)
+    # 生产代码对 baostock 为函数内惰性导入（import baostock as bs），
+    # 惰性导入的 bs 即 baostock 模块对象本身，故直接 patch baostock.login/logout 即生效。
+    import baostock
+    monkeypatch.setattr(baostock, "login", fake.login)
+    monkeypatch.setattr(baostock, "logout", fake.logout)
 
     # 重置类状态，确保是"首次登录"场景
     monkeypatch.setattr(fio._BaoStockFetcher, "_login_done", False)

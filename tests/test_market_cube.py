@@ -41,7 +41,7 @@ def _patch(monkeypatch):
 
 def test_cube_renders_without_exception(_patch):
     """集成：真跑页面，渲染不抛未捕获异常（三路样例数据已打通合并）。"""
-    at = AppTest.from_file("pages/16_市场魔方.py", default_timeout=90)
+    at = AppTest.from_file(os.path.join(os.path.dirname(__file__), "..", "pages", "16_市场魔方.py"), default_timeout=90)
     at.run()
     assert not at.exception, f"市场魔方渲染异常: {at.exception[:3]}"
 
@@ -51,7 +51,7 @@ def test_cube_degrades_when_sources_empty(_patch, monkeypatch):
     monkeypatch.setattr(_ff_mod, "get_industry_fund_flow", lambda: pd.DataFrame())
     monkeypatch.setattr(StockFetcher, "get_sector_list", lambda self, force_refresh=False: pd.DataFrame())
     monkeypatch.setattr(_shep_mod, "get_zt_industry_distribution", lambda top=10, date=None: pd.DataFrame())
-    at = AppTest.from_file("pages/16_市场魔方.py", default_timeout=90)
+    at = AppTest.from_file(os.path.join(os.path.dirname(__file__), "..", "pages", "16_市场魔方.py"), default_timeout=90)
     at.run()
     assert not at.exception, f"空数据下市场魔方应降级而非崩溃: {at.exception[:3]}"
 
@@ -84,7 +84,7 @@ def test_cube_merge_logic(_patch, monkeypatch):
     monkeypatch.setattr(_pg, "render_data_degradation_banner", lambda *a, **k: None)
     monkeypatch.setattr(_sess, "trading_autorefresh", lambda *a, **k: None)
 
-    spec = importlib.util.spec_from_file_location("cube_page_test", "pages/16_市场魔方.py")
+    spec = importlib.util.spec_from_file_location("cube_page_test", os.path.join(os.path.dirname(__file__), "..", "pages", "16_市场魔方.py"))
     cube = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cube)  # 底部 fragment 用样例数据跑，无异常即合并 OK
 
