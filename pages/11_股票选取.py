@@ -96,7 +96,7 @@ def _render_user_score(ticker: str, stock_label: str) -> None:
             )
         with sc2:
             st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-            submitted = st.form_submit_button("💾 保存评分", use_container_width=True)
+            submitted = st.form_submit_button("💾 保存评分", width="stretch")
 
         if submitted:
             # slider 返回值已强制在 [0, 100] 内
@@ -135,19 +135,19 @@ with sidebar_target():
 
     today = datetime.now().date()
     _qc1, _qc2, _qc3, _qc4 = st.columns(4)
-    if _qc1.button("近30天", key="pick_q_30", use_container_width=True):
+    if _qc1.button("近30天", key="pick_q_30", width="stretch"):
         st.session_state["pick_start"] = today - timedelta(days=30)
         st.session_state["pick_end"] = today
         st.rerun()
-    if _qc2.button("近90天", key="pick_q_90", use_container_width=True):
+    if _qc2.button("近90天", key="pick_q_90", width="stretch"):
         st.session_state["pick_start"] = today - timedelta(days=90)
         st.session_state["pick_end"] = today
         st.rerun()
-    if _qc3.button("近半年", key="pick_q_180", use_container_width=True):
+    if _qc3.button("近半年", key="pick_q_180", width="stretch"):
         st.session_state["pick_start"] = today - timedelta(days=180)
         st.session_state["pick_end"] = today
         st.rerun()
-    if _qc4.button("近1年", key="pick_q_365", use_container_width=True):
+    if _qc4.button("近1年", key="pick_q_365", width="stretch"):
         st.session_state["pick_start"] = today - timedelta(days=365)
         st.session_state["pick_end"] = today
         st.rerun()
@@ -218,7 +218,7 @@ with sidebar_target():
     ma_windows = sorted(set(ma_select + custom_windows))
 
     st.markdown("---")
-    if st.button("🔄 强制刷新数据", help="清除本地缓存，重新拉取最新行情", use_container_width=True):
+    if st.button("🔄 强制刷新数据", help="清除本地缓存，重新拉取最新行情", width="stretch"):
         start_str = start_date.strftime("%Y-%m-%d")
         end_str = end_date.strftime("%Y-%m-%d")
         if kline_period == "daily":
@@ -254,7 +254,7 @@ with hc1:
     sf_card("🎯 股票选取", "")
 with hc2:
     _ticker_ok = bool(ticker and str(ticker).strip())
-    if st.button("➕ 加入自选股", use_container_width=True, key="pick_add_watch",
+    if st.button("➕ 加入自选股", width="stretch", key="pick_add_watch",
                  disabled=not _ticker_ok, help="请先在左侧选择一只股票" if not _ticker_ok else "将当前股票加入自选池"):
         sc, body = api_post("/api/watchlist", {"stock_code": ticker})
         # ⚠️ 兜底：api_post 网络失败时 body 可能为 None，原 else 分支 body.get 会抛 AttributeError
@@ -264,7 +264,7 @@ with hc2:
         else:
             st.error(f"加入失败：{_msg or '未知错误'}")
 with hc3:
-    if st.button("🗑️ 加入垃圾股", use_container_width=True, key="pick_add_junk",
+    if st.button("🗑️ 加入垃圾股", width="stretch", key="pick_add_junk",
                  disabled=not _ticker_ok, help="请先在左侧选择一只股票" if not _ticker_ok else "将当前股票标记为垃圾股"):
         body = api_add_junk_stock(ticker)
         # ⚠️ 兜底：api_add_junk_stock 失败时 body 可能为 None，直接 body.get 会抛 AttributeError
@@ -355,7 +355,7 @@ def fragment_kline_pick(ticker, stock_label, df, kline_period, period_label, sta
                                  start_idx=view_start, n_show=view_count,
                                  dragmode=drag_mode,
                                  events=events_df if show_events else None)
-    _pk_event = st.plotly_chart(fig, use_container_width=True, key="pick_kline_chart",
+    _pk_event = st.plotly_chart(fig, width="stretch", key="pick_kline_chart",
                                 on_select="rerun", config=KLINE_CHART_CONFIG)
     _pdbl_key = "pick_dblclick"
     _pnow = datetime.now().timestamp()
@@ -390,7 +390,7 @@ def fragment_kline_pick(ticker, stock_label, df, kline_period, period_label, sta
                     _pdf, _ppc, _pdt = _pdi
                     _pdfig = Visualizer.intraday(_pdf, prev_close=_ppc,
                                                  title=f"{stock_label} 分时（{_pdt}）")
-                    st.plotly_chart(_pdfig, use_container_width=True, key=f"pick_dbl_intra_{_ptgt}", config={"displaylogo": False, "responsive": True})
+                    st.plotly_chart(_pdfig, width="stretch", key=f"pick_dbl_intra_{_ptgt}", config={"displaylogo": False, "responsive": True})
                 else:
                     info_banner(f"📭 {_ptgt} 暂无分时数据。")
             except Exception as _pde:
@@ -423,7 +423,7 @@ def _fragment_intraday(ticker: str, stock_label: str) -> None:
         _idf, _ipc, _idate = _intra
         _ifig = Visualizer.intraday(_idf, prev_close=_ipc,
                                     title=f"{stock_label} 分时（{_idate}）")
-        st.plotly_chart(_ifig, use_container_width=True, key="pick_intraday_chart", config={"displaylogo": False, "responsive": True})
+        st.plotly_chart(_ifig, width="stretch", key="pick_intraday_chart", config={"displaylogo": False, "responsive": True})
         _status = "（每5分钟自动刷新中）" if is_trading_now() else "（非交易时段，已暂停刷新）"
         st.caption("📈 分时图：白线为当日价格走势，橙点为均价；基准虚线为昨收。红涨绿跌（A股惯例）。" + _status)
     else:
@@ -573,7 +573,7 @@ try:
                     with st.expander(f"📌 本区间事件（{len(ev_view)} 条）", expanded=False):
                         disp = ev_view[["date", "title", "type"]].copy() if "type" in ev_view.columns else ev_view[["date", "title"]].copy()
                         disp = disp.sort_values("date")
-                        st.dataframe(disp, use_container_width=True, hide_index=True, height=400)
+                        st.dataframe(disp, width="stretch", hide_index=True, height=400)
 
         # 叠加上证基准对比（归一化多线，可选）
         if st.checkbox("📈 叠加上证基准对比（归一化）", value=False, key="pick_show_bench",
@@ -596,7 +596,7 @@ try:
                         dark_mode=_theme_is_dark(), date_range=None, ma_periods=(),
                         selected=None, mode="normalized", show_baseline=True,
                         show_cross=False, show_drawdown=False, ma_type="sma")
-                    st.plotly_chart(bfig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False},
+                    st.plotly_chart(bfig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False},
                                     key="pick_bench")
                 else:
                     info_banner("区间内与上证基准无重合交易日，跳过对比。")

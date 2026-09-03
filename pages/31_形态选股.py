@@ -155,7 +155,7 @@ else:
         with c_add:
             # 让「加入」按钮与搜索输入框纵向对齐
             st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
-            if st.button("➕ 加入扫描池", key="screener_add", type="secondary", use_container_width=True):
+            if st.button("➕ 加入扫描池", key="screener_add", type="secondary", width="stretch"):
                 if picked and picked not in st.session_state["screener_pool"]:
                     st.session_state["screener_pool"].append(picked)
                     save_user_setting("screener_pool", st.session_state["screener_pool"])
@@ -172,20 +172,20 @@ else:
                 with col_del:
                     _ck = f"screener_del_{code}"
                     if st.session_state.get(_ck):
-                        if st.button("确认", key=f"del_cfm_{code}", type="primary", use_container_width=True):
+                        if st.button("确认", key=f"del_cfm_{code}", type="primary", width="stretch"):
                             st.session_state["screener_pool"].remove(code)
                             save_user_setting("screener_pool", st.session_state["screener_pool"])
                             st.session_state.pop(_ck, None)
                             st.rerun()
-                        if st.button("取消", key=f"del_cancel_{code}", use_container_width=True):
+                        if st.button("取消", key=f"del_cancel_{code}", width="stretch"):
                             st.session_state.pop(_ck, None)
                     else:
-                        if st.button("删除", key=f"del_{code}", type="secondary", use_container_width=True):
+                        if st.button("删除", key=f"del_{code}", type="secondary", width="stretch"):
                             st.session_state[_ck] = True
         else:
             st.caption("不知道选什么？一键载入示例大盘蓝筹池，立刻体验形态扫描。")
             _empty_info("扫描池为空，请在上方搜索并「加入扫描池」，或点击下方按钮体验示例。")
-            if st.button("📥 载入示例股票池", key="screener_load_example", type="secondary", use_container_width=True):
+            if st.button("📥 载入示例股票池", key="screener_load_example", type="secondary", width="stretch"):
                 _ex = ["600519", "000858", "601318", "600036", "000333"]
                 st.session_state["screener_pool"] = _ex
                 save_user_setting("screener_pool", _ex)
@@ -196,15 +196,15 @@ else:
         with c_clear:
             _ck = "screener_clear_pool"
             if st.session_state.get(_ck):
-                if st.button("确认清空", key="screener_clear_cfm", type="primary", use_container_width=True):
+                if st.button("确认清空", key="screener_clear_cfm", type="primary", width="stretch"):
                     st.session_state["screener_pool"] = []
                     save_user_setting("screener_pool", [])
                     st.session_state.pop(_ck, None)
                     st.rerun()
-                if st.button("取消", key="screener_clear_cancel", use_container_width=True):
+                if st.button("取消", key="screener_clear_cancel", width="stretch"):
                     st.session_state.pop(_ck, None)
             else:
-                if st.button("🗑️ 清空扫描池", key="screener_clear", type="secondary", use_container_width=True):
+                if st.button("🗑️ 清空扫描池", key="screener_clear", type="secondary", width="stretch"):
                     st.session_state[_ck] = True
 
     st.divider()
@@ -382,7 +382,7 @@ with st.container(border=True):
     _section_title("🚀 扫描结果", accent="#10b981")
     st.caption("点击「开始扫描」对当前股票池执行形态识别与技术评分。")
 
-    if st.button("🚀 开始扫描", type="primary", use_container_width=True, disabled=not universe) and universe:
+    if st.button("🚀 开始扫描", type="primary", width="stretch", disabled=not universe) and universe:
         universe = list(dict.fromkeys(universe))[:40]  # 安全上限，避免过慢
         today = datetime.now().date()
         start = (today - timedelta(days=365)).strftime("%Y-%m-%d")
@@ -425,7 +425,7 @@ with st.container(border=True):
         else:
             xc_success_box(f"✅ 扫描完成，命中 {len(results)} 只")
             results.sort(key=lambda r: r.get("技术评分", 0), reverse=True)
-            st.dataframe(results, use_container_width=True, height=480)
+            st.dataframe(results, width="stretch", height=480)
             # 加法式 UX：一键导出扫描结果为 CSV，便于离线筛选/留存（不影响扫描逻辑）。
             _csv = pd.DataFrame(results).to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
             st.download_button(

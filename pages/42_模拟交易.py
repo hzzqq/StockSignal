@@ -144,7 +144,7 @@ def fragment_paper():
             xc_warn_box('⚠️ 买入股数需为 100 股的整数倍（A 股最小交易单位）。')
         _braw = (bcode or '').strip()
         _bok = len(_braw) == 6 and _braw.isdigit()
-        if st.button('确认买入', type='primary', key='pt_buy_btn', use_container_width=True, disabled=not _bok, help='请先在上方输入有效的 6 位股票代码' if not _bok else '按当前设置的数量买入'):
+        if st.button('确认买入', type='primary', key='pt_buy_btn', width="stretch", disabled=not _bok, help='请先在上方输入有效的 6 位股票代码' if not _bok else '按当前设置的数量买入'):
             code = (bcode or '').strip().zfill(6)
             if len(code) != 6 or not code.isdigit():
                 st.error('请输入有效的 6 位股票代码。')
@@ -174,7 +174,7 @@ def fragment_paper():
                         st.session_state['_pt_def_bqty'] = bqty
                         if code not in st.session_state['_pt_recent']:
                             st.session_state['_pt_recent'] = (st.session_state['_pt_recent'] + [code])[-10:]
-        if st.button('⭐ 收藏该标的', key='pt_fav_add', use_container_width=True):
+        if st.button('⭐ 收藏该标的', key='pt_fav_add', width="stretch"):
             _fc = (bcode or '').strip().zfill(6)
             if len(_fc) == 6 and _fc.isdigit() and (_fc not in st.session_state['_pt_fav']):
                 st.session_state['_pt_fav'].append(_fc)
@@ -193,7 +193,7 @@ def fragment_paper():
         _shas = bool(book['positions'].get(_skey)) if _sok else False
         _sell_disabled = not (_sok and _shas)
         _sell_help = '请先输入有效代码，且当前持有该标的' if _sell_disabled else '按当前设置的数量卖出'
-        if st.button('确认卖出', key='pt_sell_btn', use_container_width=True, disabled=_sell_disabled, help=_sell_help):
+        if st.button('确认卖出', key='pt_sell_btn', width="stretch", disabled=_sell_disabled, help=_sell_help):
             if st.confirm('确定卖出该持仓？此操作不可撤销。', key='pt_sell_confirm'):
                 code = (scode or '').strip().zfill(6)
                 pos = book['positions'].get(code)
@@ -231,13 +231,13 @@ def fragment_paper():
             def _color_row(r):
                 c = UP if r['盈亏'] >= 0 else DOWN
                 return [f'color:{c}'] * len(r)
-            st.dataframe(dfp.style.apply(_color_row, axis=1), use_container_width=True, hide_index=True, height=400)
+            st.dataframe(dfp.style.apply(_color_row, axis=1), width="stretch", hide_index=True, height=400)
             st.markdown('**批量操作**')
             _pt_sel = [r['代码'] for r in rows if st.checkbox(f"选择 {r['名称']}({r['代码']})", key=f"pt_sel_{r['代码']}")]
             if _pt_sel:
                 _b1, _b2 = st.columns(2)
                 with _b1:
-                    if st.button('⭐ 批量加自选', key='pt_batch_fav', use_container_width=True):
+                    if st.button('⭐ 批量加自选', key='pt_batch_fav', width="stretch"):
                         try:
                             from modules.admin_api import add_watchlist
                             for _c in _pt_sel:
@@ -246,7 +246,7 @@ def fragment_paper():
                         except Exception as _e:
                             st.error(f'批量加自选失败：{_e}')
                 with _b2:
-                    if st.button('📤 批量平仓', key='pt_batch_close', use_container_width=True):
+                    if st.button('📤 批量平仓', key='pt_batch_close', width="stretch"):
                         with st.spinner('批量平仓中…'):
                             for _c in _pt_sel:
                                 _pos = book['positions'].get(_c)
@@ -280,9 +280,9 @@ def fragment_paper():
                     st.caption('🔍 未找到匹配的成交记录。')
             _show_key = 'pt_trade_show'
             _show_n = st.session_state.get(_show_key, 10)
-            st.dataframe(dft.head(_show_n), use_container_width=True, hide_index=True, height=400)
+            st.dataframe(dft.head(_show_n), width="stretch", hide_index=True, height=400)
             if len(dft) > _show_n:
-                if st.button('显示更多 ▼', key='pt_trade_more', use_container_width=True):
+                if st.button('显示更多 ▼', key='pt_trade_more', width="stretch"):
                     st.session_state[_show_key] = min(_show_n + 10, len(dft))
         else:
             _empty_info('暂无成交记录。买入成功后，这里会逐笔显示你的成交明细。')
@@ -308,7 +308,7 @@ def fragment_paper():
                 fig.add_trace(go.Scatter(x=xs, y=ys, mode='lines+markers', name='总资产', line=dict(color=_pt_color, width=2)))
             fig.add_hline(y=book['init_cash'], line_dash='dot', line_color='#888', annotation_text='初始资金', annotation_position='bottom right')
             fig.update_layout(height=360, template='plotly_dark' if dark else 'plotly_white', xaxis_title='时间', yaxis_title='总资产(元)', margin=dict(t=20, l=60, r=20, b=40))
-            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+            st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
         else:
             _empty_info('完成至少一笔交易后生成净值曲线。')
         st.caption('💡 在上方「💱 交易」买入或卖出后，这里会基于每笔成交后的总资产快照绘制净值曲线。')
@@ -339,7 +339,7 @@ def fragment_paper():
             _save_book(user, book)
             _toast('账户已重置。')
     st.divider()
-    if st.button('↑ 回到顶部', key='pt_back_top', use_container_width=True):
+    if st.button('↑ 回到顶部', key='pt_back_top', width="stretch"):
         st.session_state['_pt_scroll_top'] = True
     if st.session_state.get('_pt_scroll_top'):
         sn.back_to_top_button()

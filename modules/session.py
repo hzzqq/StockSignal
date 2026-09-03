@@ -1001,7 +1001,7 @@ def render_user_badge(sidebar: bool = True) -> None:
     # 退出登录：先弹确认对话框，避免误触（对话框内 st.rerun 为页面级，安全）
     if st.session_state.get("_show_logout_dialog"):
         _confirm_logout_dialog()
-    if target.button("🚪 退出登录", key="logout_btn", use_container_width=True):
+    if target.button("🚪 退出登录", key="logout_btn", width="stretch"):
         st.session_state["_show_logout_dialog"] = True
         st.rerun()
 
@@ -1019,11 +1019,11 @@ def _confirm_logout_dialog() -> None:
     xc_warn_box("退出后需要重新登录才能继续使用全部功能。")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("确认退出", key="dlg_logout_yes", use_container_width=True, type="primary"):
+        if st.button("确认退出", key="dlg_logout_yes", width="stretch", type="primary"):
             clear_auth()
             safe_switch_page("pages/90_登录.py")
     with c2:
-        if st.button("取消", key="dlg_logout_no", use_container_width=True):
+        if st.button("取消", key="dlg_logout_no", width="stretch"):
             st.session_state["_show_logout_dialog"] = False
             st.rerun()
 
@@ -1066,7 +1066,7 @@ def render_market_alert_bell(target=st.sidebar) -> None:
     items = data.get("items", []) or []
 
     badge = f" 🔴{unread}" if unread else ""
-    with target.popover(f"🔔 市场异动{badge}", use_container_width=True):
+    with target.popover(f"🔔 市场异动{badge}", width="stretch"):
         _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}
         if items:
             for it in items[:5]:

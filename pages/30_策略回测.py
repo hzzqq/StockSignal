@@ -279,12 +279,12 @@ def fragment_manual_backtest():
 
                 fig = Visualizer.backtest_curve(result.df, benchmark=benchmark,
                                                 title=f"{bt_label} 策略收益曲线")
-                st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
 
                 # 回撤曲线
                 sf_card("回撤曲线", "")
                 fig_dd = Visualizer.drawdown_curve(result.df)
-                st.plotly_chart(fig_dd, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                st.plotly_chart(fig_dd, width="stretch", config={"displaylogo": False, "responsive": True})
 
                 # 交易明细
                 sf_card("交易明细", "")
@@ -294,7 +294,7 @@ def fragment_manual_backtest():
                     trades_df["持仓天数"] = trades_df["bars_held"]
                     display_df = trades_df[["entry_date", "exit_date", "entry_price", "exit_price", "收益率", "exit_reason", "持仓天数"]]
                     display_df.columns = ["买入日期", "卖出日期", "买入价", "卖出价", "收益率", "退出原因", "持仓天数"]
-                    st.dataframe(display_df, use_container_width=True, height=400)
+                    st.dataframe(display_df, width="stretch", height=400)
 
                     # 交易统计
                     wins = [t for t in result.trades if t["profit_pct"] > 0]
@@ -336,7 +336,7 @@ def fragment_manual_backtest():
                         template="plotly_white" if not _is_dark() else "plotly_dark",
                         margin=dict(l=50, r=20, t=40, b=30),
                     )
-                    st.plotly_chart(fig_dd_band, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                    st.plotly_chart(fig_dd_band, width="stretch", config={"displaylogo": False, "responsive": True})
                 else:
                     _empty_info("暂无回撤数据。通常因回测区间过短，或策略未产生持仓净值波动导致；可拉长区间后重试。")
 
@@ -357,7 +357,7 @@ def fragment_manual_backtest():
                         template="plotly_white" if not _is_dark() else "plotly_dark",
                         margin=dict(l=50, r=20, t=40, b=30),
                     )
-                    st.plotly_chart(fig_tr, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                    st.plotly_chart(fig_tr, width="stretch", config={"displaylogo": False, "responsive": True})
                 else:
                     info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
@@ -441,7 +441,7 @@ def fragment_manual_backtest():
                         margin=dict(l=50, r=20, t=50, b=70),
                         legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.5, xanchor="center"),
                     )
-                    st.plotly_chart(fig_sens, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                    st.plotly_chart(fig_sens, width="stretch", config={"displaylogo": False, "responsive": True})
                     st.caption("提示：曲线走平或反转处通常表示参数拐点，可据此微调风险管理参数。")
 
             except Exception as e:
@@ -594,7 +594,7 @@ def fragment_daily_picker():
                 try:
                     display_today = today_picks[["code", "name", "score", "buy_price", "rsi2", "rsi14", "reasons"]].copy()
                     display_today.columns = ["代码", "名称", "评分", "买入价", "RSI(2)", "RSI(14)", "选股理由"]
-                    st.dataframe(display_today, use_container_width=True, hide_index=True, height=400)
+                    st.dataframe(display_today, width="stretch", hide_index=True, height=400)
                 except KeyError as _ke:
                     xc_warn_box(f"今日推荐数据列结构异常，已跳过表格展示：{_ke}")
                 st.caption("💡 以上为基于上一交易日收盘数据选出的股票，可在今日开盘/盘中择机买入。")
@@ -608,7 +608,7 @@ def fragment_daily_picker():
                 try:
                     display_tmr = tomorrow_picks[["code", "name", "score", "buy_price", "rsi2", "rsi14", "reasons"]].copy()
                     display_tmr.columns = ["代码", "名称", "评分", "参考价", "RSI(2)", "RSI(14)", "选股理由"]
-                    st.dataframe(display_tmr, use_container_width=True, hide_index=True, height=400)
+                    st.dataframe(display_tmr, width="stretch", hide_index=True, height=400)
                 except KeyError as _ke:
                     xc_warn_box(f"明日推荐数据列结构异常，已跳过表格展示：{_ke}")
                 st.caption("💡 以上为基于今日收盘数据选出的股票，可在明日开盘/盘中择机买入。")
@@ -647,7 +647,7 @@ def fragment_daily_picker():
                         height=400, template="plotly_white",
                         margin=dict(l=40, r=20, t=50, b=40),
                     )
-                st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
 
             # ---- 全部选股记录 ----
             if not picker_result.picks_df.empty:
@@ -661,7 +661,7 @@ def fragment_daily_picker():
                                                  "持有收益(%)", "RSI(2)", "RSI(14)", "选股理由"]
                     # 加法式 UX：全部选股记录默认按选股日期倒序，最新一期排在最前
                     all_picks_display = all_picks_display.sort_values("选股日期", ascending=False)
-                    st.dataframe(all_picks_display, use_container_width=True, hide_index=True, height=400)
+                    st.dataframe(all_picks_display, width="stretch", hide_index=True, height=400)
                 except KeyError as _ke:
                     xc_warn_box(f"全部选股记录列结构异常，已跳过表格展示：{_ke}")
 
@@ -785,7 +785,7 @@ def fragment_strong_bull():
             "最大回撤%": "—",
             "交易数": f"{market_summary['total_picks']}",
         })
-    st.dataframe(pd.DataFrame(cmp_rows), use_container_width=True, hide_index=True, height=400)
+    st.dataframe(pd.DataFrame(cmp_rows), width="stretch", hide_index=True, height=400)
     if market is None and st.session_state.get("sb_with_market", False) and "sb_market_error" in st.session_state:
         st.error(f"全市场基准计算失败: {st.session_state['sb_market_error']}")
     elif market is None:
@@ -814,7 +814,7 @@ def fragment_strong_bull():
             template="plotly_white" if not _is_dark() else "plotly_dark",
             margin=dict(l=50, r=20, t=50, b=80),
         )
-        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+        st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
 
         # ---- 个股卡片 ----
         sf_card("🧾 个股回测明细", "")
@@ -882,7 +882,7 @@ def fragment_param_scan():
                     "交易数": r['trade_count'],
                 } for r in ok]
                 df_ps = pd.DataFrame(df_rows)
-                st.dataframe(df_ps, use_container_width=True, hide_index=True, height=400)
+                st.dataframe(df_ps, width="stretch", hide_index=True, height=400)
                 best = ok[0]
                 xc_success_box(f"🏆 最优组合：止盈 {best['params'].get('take_profit_pct',0)*100:.1f}% / "
                            f"止损 {best['params'].get('stop_loss_pct',0)*100:.1f}% / "
@@ -947,7 +947,7 @@ def fragment_batch_backtest():
                         "交易数": res.trade_count(),
                     })
                 df_detail = pd.DataFrame(detail).sort_values("累计收益%", ascending=False)
-                st.dataframe(df_detail, use_container_width=True, hide_index=True, height=400)
+                st.dataframe(df_detail, width="stretch", hide_index=True, height=400)
             except Exception as e:
                 xc_handle_error("批量回测失败", e, hint="请稍后重试，或检查网络与数据源连接")
 

@@ -94,7 +94,7 @@ def fragment_drivers_panel():
                 df, meta=meta, dark_mode=dark,
                 dims=sel_dims or DIMS, date_range=dr, selected=sel,
             )
-            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="drv_panel")
+            st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="drv_panel")
         except Exception as e:
             xc_handle_error("驱动力面板图渲染失败", e, hint="请稍后重试，或检查网络与数据源连接")
 
@@ -125,7 +125,7 @@ def fragment_drivers_panel():
         if sel:
             keep = [c for c in sel if c in tbl.columns]
             tbl = tbl[["date"] + keep] if keep else tbl[["date"]]
-        st.dataframe(tbl, use_container_width=True, hide_index=True, height=400)
+        st.dataframe(tbl, width="stretch", hide_index=True, height=400)
     # 导出 CSV
     try:
         csv = to_trend_csv(df, names_map=None, selected=sel, date_range=dr)
@@ -136,7 +136,7 @@ def fragment_drivers_panel():
     try:
         st.plotly_chart(plot_correlation_heatmap(df, names_map=None, selected=sel,
                                                  date_range=dr, dark_mode=dark),
-                        use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="drv_corr")
+                        width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="drv_corr")
     except Exception as e:
         xc_handle_error("相关性热力图渲染失败", e, hint="请稍后重试，或检查网络与数据源连接")
     _render_drivers_meta(meta)

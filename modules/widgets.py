@@ -290,7 +290,7 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
                     st.markdown(f"{_index_name_html(card['name'], name_color, 17)}<div style='font-size:12px;color:{code_color};margin-top:3px;'>{card['label']} {card['code']}</div>", unsafe_allow_html=True)
                 with c_mid:
                     if card.get('spark'):
-                        st.plotly_chart(card['spark'], use_container_width=True, config={"displaylogo": False, "responsive": True, 'displayModeBar': False})
+                        st.plotly_chart(card['spark'], width="stretch", config={"displaylogo": False, "responsive": True, 'displayModeBar': False})
                     else:
                         st.caption('暂无数据')
                 with c_right:
@@ -427,7 +427,7 @@ def render_index_compact(cols_per_row: int=5) -> None:
         fig = go.Figure()
         fig.add_trace(go.Bar(x=labels, y=values, marker_color=bar_colors, text=[f'{v:+.2f}%' for v in values], textposition='outside', textfont={'color': txt, 'size': 11}, hovertemplate='%{x}: %{y:.2f}%<extra></extra>'))
         fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin={'l': 40, 'r': 20, 't': 10, 'b': 30}, height=220, yaxis_title='涨跌幅 %', xaxis={'tickfont': {'color': txt2, 'size': 11}, 'showgrid': False}, yaxis={'tickfont': {'color': txt2, 'size': 11}, 'gridcolor': grid, 'zerolinecolor': txt2, 'zerolinewidth': 1}, font={'color': txt}, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, 'displayModeBar': False})
+        st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True, 'displayModeBar': False})
     except Exception as e:
         logger.warning(f"[widgets] 处理异常: {e}")
         st.caption(f'指数图表渲染失败：{e}')
@@ -446,7 +446,7 @@ def render_global_search() -> None:
                     st.caption(f'🔎 找到 {len(results)} 个匹配')
                     for item in results:
                         label = f"{item.get('code', '')} {item.get('name', '')}"
-                        if st.button(label, key=f"search_{item.get('code')}", use_container_width=True):
+                        if st.button(label, key=f"search_{item.get('code')}", width="stretch"):
                             _push_recent(item.get('code'), item.get('name'))
                             try:
                                 st.query_params['pick_stock'] = item.get('code')
@@ -471,13 +471,13 @@ def render_theme_toggle() -> None:
     mode = st.session_state.get('theme_mode', get_current_mode())
     col_dark, col_light = st.columns(2)
     with col_dark:
-        if st.button('🌙 暗夜', use_container_width=True, type='primary' if mode == 'dark' else 'secondary', key='theme_toggle_dark'):
+        if st.button('🌙 暗夜', width="stretch", type='primary' if mode == 'dark' else 'secondary', key='theme_toggle_dark'):
             st.session_state['theme_mode'] = 'dark'
             apply_theme()
             persist_prefs()
             st.rerun()
     with col_light:
-        if st.button('☀️ 白天', use_container_width=True, type='primary' if mode == 'light' else 'secondary', key='theme_toggle_light'):
+        if st.button('☀️ 白天', width="stretch", type='primary' if mode == 'light' else 'secondary', key='theme_toggle_light'):
             st.session_state['theme_mode'] = 'light'
             apply_theme()
             persist_prefs()
@@ -500,22 +500,22 @@ def render_topright_bar() -> None:
                 st.markdown(STAR_AI_LOGO(18), unsafe_allow_html=True)
             with _pop_c:
                 if hasattr(st, 'popover'):
-                    with st.popover('星辰 AI', use_container_width=True):
+                    with st.popover('星辰 AI', width="stretch"):
                         render_ai_consultant()
                 else:
                     with st.sidebar:
                         render_ai_consultant()
         with c_set:
-            if st.button('⚙️', key='top_settings', use_container_width=True, help='设置（进入「我的」偏好设置）'):
+            if st.button('⚙️', key='top_settings', width="stretch", help='设置（进入「我的」偏好设置）'):
                 safe_switch_page('pages/91_我的.py')
         with c_d:
-            if st.button('🌙', key='top_theme_dark', use_container_width=True, type='primary' if mode == 'dark' else 'secondary', help='暗夜模式'):
+            if st.button('🌙', key='top_theme_dark', width="stretch", type='primary' if mode == 'dark' else 'secondary', help='暗夜模式'):
                 st.session_state['theme_mode'] = 'dark'
                 apply_theme()
                 persist_prefs()
                 st.rerun()
         with c_l:
-            if st.button('☀️', key='top_theme_light', use_container_width=True, type='primary' if mode == 'light' else 'secondary', help='白天模式'):
+            if st.button('☀️', key='top_theme_light', width="stretch", type='primary' if mode == 'light' else 'secondary', help='白天模式'):
                 st.session_state['theme_mode'] = 'light'
                 apply_theme()
                 persist_prefs()
@@ -565,7 +565,7 @@ def render_sidebar_nav() -> None:
             st.page_link(path, label=label, icon=icon)
         except Exception as e:
             logger.warning(f"[widgets] 处理异常: {e}")
-            if st.button(f'{icon} {label}', key=f'navbtn_{label}', use_container_width=True):
+            if st.button(f'{icon} {label}', key=f'navbtn_{label}', width="stretch"):
                 safe_switch_page(path)
     try:
         with st.sidebar:
@@ -587,7 +587,7 @@ def render_sidebar_nav() -> None:
                     _rn = _r.get('name', '')
                     if not _rc:
                         continue
-                    if st.button(f'{_rn} {_rc}', key=f'sb_recent_{_rc}', use_container_width=True):
+                    if st.button(f'{_rn} {_rc}', key=f'sb_recent_{_rc}', width="stretch"):
                         try:
                             st.query_params['pick_stock'] = _rc
                         except Exception as e:

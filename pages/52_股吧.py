@@ -162,7 +162,7 @@ def fragment_detail():
         cst1, cst2 = st.columns([0.3, 0.7])
         with cst1:
             label = f"📈 {post.get('stock_name') or post['stock_code']}（{post['stock_code']}）"
-            if st.button(label, key="forum_jump_stock", use_container_width=True):
+            if st.button(label, key="forum_jump_stock", width="stretch"):
                 st.query_params["pick_stock"] = post["stock_code"]
                 safe_switch_page("pages/24_个股研究.py")
 
@@ -176,22 +176,22 @@ def fragment_detail():
     ca1, ca2, _ = st.columns([0.2, 0.2, 0.6])
     with ca1:
         # 点赞：只写后端，fragment 自然重跑后拉到最新点赞数（不调 st.rerun，#543-8）
-        if st.button(f"👍 点赞 ({post.get('likes', 0)})", key="forum_like", use_container_width=True):
+        if st.button(f"👍 点赞 ({post.get('likes', 0)})", key="forum_like", width="stretch"):
             api_post(f"/api/forum/posts/{_view_pid}/like", {})
     with ca2:
         can_del = post.get("user_id") == user.get("id") or user.get("role") == "admin"
         _ck = f"forum_del_{_view_pid}"
         if can_del:
             if st.session_state.get(_ck):
-                if st.button("确认删除帖子", key="forum_del_cfm", type="primary", use_container_width=True):
+                if st.button("确认删除帖子", key="forum_del_cfm", type="primary", width="stretch"):
                     api_delete(f"/api/forum/posts/{_view_pid}")
                     _toast("已删除")
                     st.session_state.pop("forum_view_post", None)
                     st.session_state.pop(_ck, None)
-                if st.button("取消", key="forum_del_cancel", use_container_width=True):
+                if st.button("取消", key="forum_del_cancel", width="stretch"):
                     st.session_state.pop(_ck, None)
             else:
-                if st.button("🗑️ 删除帖子", key="forum_del", use_container_width=True):
+                if st.button("🗑️ 删除帖子", key="forum_del", width="stretch"):
                     st.session_state[_ck] = True
 
     # ── 评论区 ──
@@ -237,7 +237,7 @@ def fragment_detail():
                 st.button(_emo, key=f"forum_emo_{_start}_{_i}", on_click=_append_emoji, args=(_emo,))
 
     new_comment = st.text_area("发表评论", key="forum_new_comment", height=90, placeholder="友善交流，理性发言…")
-    if st.button("💬 提交评论", type="primary", use_container_width=True):
+    if st.button("💬 提交评论", type="primary", width="stretch"):
         if new_comment.strip():
             sc, cb = api_post(f"/api/forum/posts/{_view_pid}/comments", {"content": new_comment.strip()})
             if sc in (200, 201):
@@ -270,7 +270,7 @@ def fragment_list():
         for _i, (rpid, rtitle) in enumerate(_recent[:6]):
             with _rc[_i]:
                 if st.button(f"• {rtitle[:10]}", key=f"forum_recent_{rpid}",
-                             use_container_width=True, on_click=_open_post, args=(rpid,)):
+                             width="stretch", on_click=_open_post, args=(rpid,)):
                     pass
 
     with st.expander("✍️ 发表新帖 / 文章", expanded=False):
@@ -288,7 +288,7 @@ def fragment_list():
                 with cc2:
                     stock_name = st.text_input("关联股票名称（可选）", key="forum_name", placeholder="如 贵州茅台，可留空")
                 st.caption("💡 正文支持 Markdown 语法。关联股票为可选项，留空则作为普通帖子发布。")
-                if st.form_submit_button("🚀 发布帖子", type="primary", use_container_width=True):
+                if st.form_submit_button("🚀 发布帖子", type="primary", width="stretch"):
                     if not title.strip() or not content.strip():
                         xc_warn_box("标题和正文都不能为空")
                     elif stock_code.strip() and not (stock_code.strip().isdigit() and len(stock_code.strip()) == 6):
@@ -379,10 +379,10 @@ def fragment_list():
                     if pid is None:
                         # 帖子缺 id（上游 schema 漂移）时禁用打开按钮，避免 key 非法/args 崩溃
                         st.button(f"📌 {p.get('title', '（无标题）')}", disabled=True,
-                                  use_container_width=True, help="该帖子缺少 id，暂无法打开")
+                                  width="stretch", help="该帖子缺少 id，暂无法打开")
                     else:
                         if st.button(f"📌 {p.get('title', '（无标题）')}", key=f"forum_open_{pid}",
-                                     use_container_width=True, on_click=_open_post, args=(pid,)):
+                                     width="stretch", on_click=_open_post, args=(pid,)):
                             pass
                     excerpt = p.get("excerpt", "")
                     if excerpt:
@@ -418,7 +418,7 @@ def fragment_list():
                     scc1, scc2 = st.columns([0.2, 0.8])
                     with scc1:
                         if st.button("⭐" if _is_fav else "☆ 收藏", key=f"forum_fav_{pid}",
-                                     use_container_width=True, on_click=_toggle_fav, args=(pid,)):
+                                     width="stretch", on_click=_toggle_fav, args=(pid,)):
                             pass
                     with scc2:
                         st.checkbox("选择", key=f"forum_sel_{pid}", value=False)
@@ -436,10 +436,10 @@ def fragment_list():
             st.markdown(f"#### ✅ 已选择 {len(_sel_ids)} 个主题")
             b1, b2 = st.columns([0.3, 0.7])
             with b1:
-                if st.button("⭐ 批量收藏", key="forum_batch_fav", use_container_width=True):
+                if st.button("⭐ 批量收藏", key="forum_batch_fav", width="stretch"):
                     st.session_state.setdefault("forum_fav_set", set()).update(_sel_ids)
             with b2:
-                if st.button("🧹 清空选择", key="forum_batch_clear", use_container_width=True):
+                if st.button("🧹 清空选择", key="forum_batch_clear", width="stretch"):
                     for _id in _sel_ids:
                         st.session_state[f"forum_sel_{_id}"] = False
 
@@ -454,7 +454,7 @@ def fragment_list():
                     continue
                 with _rcs[_i]:
                     if st.button(f"📌 {rp.get('title', '（无标题）')[:12]}",
-                                 key=f"forum_rec_{rpid}", use_container_width=True,
+                                 key=f"forum_rec_{rpid}", width="stretch",
                                  on_click=_open_post, args=(rpid,)):
                         pass
 

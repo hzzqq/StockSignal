@@ -365,7 +365,7 @@ if st.session_state[_fa_hist_key]:
     _fa_hc = st.columns(min(len(st.session_state[_fa_hist_key]), 8))
     for i, _hc in enumerate(st.session_state[_fa_hist_key]):
         with _fa_hc[i]:
-            if st.button(_hc, key=f'fa_hist_{_hc}', use_container_width=True):
+            if st.button(_hc, key=f'fa_hist_{_hc}', width="stretch"):
                 _fa_goto(_hc)
 if code:
     with st.spinner('正在加载基本面数据…'):
@@ -512,16 +512,16 @@ if code:
             with col:
                 is_sel = metric == m
                 btn_type = 'primary' if is_sel else 'secondary'
-                if st.button(m, key=f'fa_btn_{m}', use_container_width=True, type=btn_type):
+                if st.button(m, key=f'fa_btn_{m}', width="stretch", type=btn_type):
                     st.session_state['fa_metric'] = m
         c_mode, c_sort = st.columns([0.5, 0.5])
         with c_mode:
             m1, m2 = st.columns(2)
             with m1:
-                if st.button('年度', key='fa_mode_year', use_container_width=True, type='primary' if mode == '年度' else 'secondary'):
+                if st.button('年度', key='fa_mode_year', width="stretch", type='primary' if mode == '年度' else 'secondary'):
                     st.session_state['fa_mode'] = '年度'
             with m2:
-                if st.button('季度', key='fa_mode_quarter', use_container_width=True, type='primary' if mode == '季度' else 'secondary'):
+                if st.button('季度', key='fa_mode_quarter', width="stretch", type='primary' if mode == '季度' else 'secondary'):
                     st.session_state['fa_mode'] = '季度'
         with c_sort:
             st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
@@ -542,7 +542,7 @@ if code:
         yoy_col = f'{metric}_同比'
         cfg = _FINANCIAL_METRICS.get(metric, {})
         fig = _build_fin_trend_fig(plot_df, metric, mode, fa_chart, fa_name, fa_code, cfg.get('unit', ''))
-        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+        st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
         qoq_col = f'{metric}_环比'
         table_df = plot_df.copy().sort_values('报告期', ascending=False)
         table_df['指标值'] = table_df[val_col].apply(lambda v: _fmt_fin_value(v, metric))
@@ -555,7 +555,7 @@ if code:
             display_table = table_df[['报告期显示', '指标值', '同比', '环比']].rename(columns={'报告期显示': '报告期'})
         with st.expander('📋 查看明细数据', expanded=False):
             st.caption(f'📋 共 {len(display_table)} 条「{metric}」明细（{mode}）')
-            st.dataframe(display_table, use_container_width=True, hide_index=True, height=400)
+            st.dataframe(display_table, width="stretch", hide_index=True, height=400)
             st.caption('数据来源：新浪财经 利润表 / 资产负债表 / 现金流量表')
     fragment_financial_analysis(code, name)
     sf_card('📍 历史位置 · 纵向对比', "")
@@ -574,7 +574,7 @@ if code:
         m4.metric('5年价格分位', f'{p_5y:.1f}%' if p_5y is not None else '—')
         hist_plot = downsample(hist_df, max_points=600)
         fig_hist = _build_hist_fig(hist_plot, current, name)
-        st.plotly_chart(fig_hist, use_container_width=True, config={"displaylogo": False, "responsive": True})
+        st.plotly_chart(fig_hist, width="stretch", config={"displaylogo": False, "responsive": True})
     else:
         _empty_info('暂无历史行情数据，无法计算历史分位。')
     st.caption('数据来源：东方财富 / 新浪财经 历史日线行情')
@@ -592,7 +592,7 @@ if code:
             top_n = 15
             top_sectors = sector_df.sort_values('change_pct', ascending=False).head(top_n).copy()
             fig_sector = _build_sector_fig(top_sectors, mapped_sector, industry, top_n)
-            st.plotly_chart(fig_sector, use_container_width=True, config={"displaylogo": False, "responsive": True})
+            st.plotly_chart(fig_sector, width="stretch", config={"displaylogo": False, "responsive": True})
             sector_row = sector_df[sector_df['sector'].astype(str) == mapped_sector]
             if not sector_row.empty:
                 sector_chg = float(sector_row.iloc[0]['change_pct'])
@@ -615,7 +615,7 @@ if code:
                 top10['排名'] = top10.index + 1
                 display = top10[['排名', 'sector', 'change_pct']].rename(columns={'sector': '行业', 'change_pct': '涨跌幅'})
                 st.caption(f'🏭 全市场共 {len(sector_df)} 个行业，以下展示涨幅前 {len(top10)} 名')
-                st.dataframe(display, use_container_width=True, column_config={'涨跌幅': st.column_config.NumberColumn(format='%.2f%%')}, hide_index=True, height=400)
+                st.dataframe(display, width="stretch", column_config={'涨跌幅': st.column_config.NumberColumn(format='%.2f%%')}, hide_index=True, height=400)
     st.caption('数据来源：东方财富 行业板块行情（涨跌幅 / 排名）')
     sf_card('🎯 综合评估', "")
     try:
@@ -635,7 +635,7 @@ if code:
     sc1, sc2 = st.columns([0.25, 0.75])
     with sc1:
         _ring = _build_score_ring(score, score_color, score_label)
-        st.plotly_chart(_ring, use_container_width=True, config={"displaylogo": False, "responsive": True})
+        st.plotly_chart(_ring, width="stretch", config={"displaylogo": False, "responsive": True})
     with sc2:
         st.markdown(f"""<div style="padding:14px 18px;border-radius:10px;background:var(--card2);border:1px solid var(--border);font-size:14px;line-height:1.8;">{reasons_html}</div>""", unsafe_allow_html=True)
     sf_card('📊 估值摘要', "")
@@ -653,7 +653,7 @@ if code:
         st.markdown('• <b>PE(TTM)</b>：市盈率 = 股价 ÷ 每股收益；越低通常估值越低，但需结合成长性。<br>• <b>PE 状态</b>：按 PE 粗略划分低估/合理/偏高，仅供参考。<br>• <b>总市值</b>：总股本 × 股价（亿元）；越大通常越稳健。<br>• <b>ROE</b>：净资产收益率 = 净利润 ÷ 净资产，反映股东回报率（>15% 较优）。<br>• <b>毛利率</b>：(营收−营业成本) ÷ 营收，越高说明产品溢价/成本控制越好。', unsafe_allow_html=True)
     fragment_industry_pe(industry, pe_ttm, dark)
     st.markdown('---')
-    if st.button('🔍 查看该股票详细 K 线与技术面 →', type='primary', use_container_width=True):
+    if st.button('🔍 查看该股票详细 K 线与技术面 →', type='primary', width="stretch"):
         st.query_params['pick_stock'] = code
         safe_switch_page('pages/24_个股研究.py')
     st.markdown('---')
@@ -663,7 +663,7 @@ if code:
     with col_jump2:
         st.page_link('pages/24_个股研究.py', label='→ 去 个股研究（K线与技术面）', icon='📈')
     st.caption('⚠️ 风险提示：本页所有数据及分析均由程序基于公开数据自动计算，仅供参考，不构成任何投资建议。市场有风险，投资需谨慎。')
-    if st.button('↑ 回到顶部', key='fa_back_to_top', use_container_width=True):
+    if st.button('↑ 回到顶部', key='fa_back_to_top', width="stretch"):
         sn.back_to_top_button()
 else:
     info_banner('请在上方输入代码或名称选择一只股票开始分析（也可从「🎯 个股研究 / 📡 股票选取」跳转过来）。数据仅供参考，非投资建议。')

@@ -51,7 +51,7 @@ def _link(path: str, label: str, icon: str = "🔗") -> None:
     try:
         st.page_link(path, label=label, icon=icon)
     except Exception:
-        if st.button(f"{icon} {label}", key=f"tut_link_{path}", use_container_width=True):
+        if st.button(f"{icon} {label}", key=f"tut_link_{path}", width="stretch"):
             safe_switch_page(path)
 
 

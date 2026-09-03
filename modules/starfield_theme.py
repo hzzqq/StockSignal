@@ -135,7 +135,7 @@ def st_kline(dates, opens, highs, lows, closes, volumes=None, title='K线', **pl
     """
     import streamlit as st
     fig = kline_plotly(dates, opens, highs, lows, closes, volumes, title)
-    st.plotly_chart(fig, use_container_width=True, config=KLINE_CHART_CONFIG, **plotly_chart_kwargs)
+    st.plotly_chart(fig, width="stretch", config=KLINE_CHART_CONFIG, **plotly_chart_kwargs)
 if __name__ == '__main__':
     st.set_page_config(page_title='星辰风格复刻 v2 Demo', layout='wide')
     inject_theme()

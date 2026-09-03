@@ -50,7 +50,7 @@ with sidebar_target():
     st.caption('本页为星辰决策仪表盘，右上角可切换暗夜 / 白天模式。')
 st.markdown('<div class="sf-header"><div class="sf-brand">决策仪表盘 · <b>个股深度分析</b></div><div class="sf-brand">事件驱动 · 多维归因</div></div>', unsafe_allow_html=True)
 st.markdown('<div class="sf-card" style="background:linear-gradient(135deg,var(--acc1),var(--acc2));border:none;box-shadow:0 8px 24px rgba(102,126,234,.22)">', unsafe_allow_html=True)
-if st.button('🔍 生成分析', type='primary', use_container_width=True, key='gen_analysis_top'):
+if st.button('🔍 生成分析', type='primary', width="stretch", key='gen_analysis_top'):
     task_id, err = submit_task_with_error('analysis', {'ticker': ticker})
     if task_id:
         st.session_state['analysis_task_id'] = task_id
@@ -60,7 +60,7 @@ if st.button('🔍 生成分析', type='primary', use_container_width=True, key=
         err = err or '未知错误'
         if '登录' in err or '过期' in err or '凭证' in err:
             xc_handle_error("操作失败", err, hint="请稍后重试，或检查网络与数据源连接")
-            if st.button('重新登录', key='anal_relogin_top', use_container_width=True):
+            if st.button('重新登录', key='anal_relogin_top', width="stretch"):
                 st.session_state.clear()
                 st.switch_page('pages/90_登录.py')
         else:
@@ -83,11 +83,11 @@ with _col_hist:
         _hc = st.columns(min(len(st.session_state[_hist_key2]), 6))
         for i, hc in enumerate(st.session_state[_hist_key2]):
             with _hc[i]:
-                if st.button(hc, key=f'anal_hist_{hc}', use_container_width=True):
+                if st.button(hc, key=f'anal_hist_{hc}', width="stretch"):
                     _analysis_goto(hc)
 with _col_fav:
     _is_fav = ticker in st.session_state[_fav_key2]
-    if st.button('⭐ 已收藏 ' + ticker if _is_fav else '☆ 收藏当前标的', key='anal_fav_btn', use_container_width=True):
+    if st.button('⭐ 已收藏 ' + ticker if _is_fav else '☆ 收藏当前标的', key='anal_fav_btn', width="stretch"):
         if _is_fav:
             st.session_state[_fav_key2].remove(ticker)
         else:
@@ -203,7 +203,7 @@ def fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped
                              {'price': trapped, 'label': '套牢区', 'color': AMBER, 'dash': 'dot'}] if kline_period == 'daily' else None
         fig = _build_kline_fig(period_df, kline_title, kline_annotations)
         _kline_key = f'kline_chart_{ticker}'
-        _kline_event = st.plotly_chart(fig, use_container_width=True, key=_kline_key, on_select='rerun',
+        _kline_event = st.plotly_chart(fig, width="stretch", key=_kline_key, on_select='rerun',
                                        config={"displaylogo": False, "responsive": True, 'displayModeBar': 'hover', 'displaylogo': False, 'scrollZoom': True,
                                                'modeBarButtonsToRemove': ['lasso2d', 'select2d']})
         _dbl_key = f'kline_dbl_{ticker}'
@@ -238,7 +238,7 @@ def fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped
                     if _di is not None:
                         _didf, _dipc, _didt = _di
                         _dfig = _build_intraday_fig(_didf, _dipc, ticker, display_name, _didt)
-                        st.plotly_chart(_dfig, use_container_width=True, key=f'dbl_intra_{ticker}_{_target_dt}', config={'displaylogo': False, 'responsive': True})
+                        st.plotly_chart(_dfig, width="stretch", key=f'dbl_intra_{ticker}_{_target_dt}', config={'displaylogo': False, 'responsive': True})
                     else:
                         info_banner(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
                 except Exception as _die:
@@ -288,7 +288,7 @@ def _fragment_intraday(ticker: str, display_name: str) -> None:
         if _intra is not None:
             _idf, _ipc, _idate = _intra
             _ifig = _build_intraday_fig(_idf, _ipc, ticker, display_name, _idate)
-            st.plotly_chart(_ifig, use_container_width=True, key=f'intraday_chart_{ticker}', config={'displaylogo': False, 'responsive': True})
+            st.plotly_chart(_ifig, width="stretch", key=f'intraday_chart_{ticker}', config={'displaylogo': False, 'responsive': True})
             st.markdown(
                 f"<div style='font-size:12px;color:var(--txt2);margin-top:4px;display:flex;justify-content:space-between;'>"
                 f"<span>白线为当日价格走势，橙点为均价；虚线为昨收。绿涨红跌。</span>{_refresh_hint}</div>",
@@ -453,7 +453,7 @@ def _render_analysis(R: dict):
         rows_html = ''.join((f"<tr><td class='l'>{safe_html_text(r.get('title'), '—')}</td><td><span class='sf-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{safe_html_text(r.get('sentiment'), '中性')}</span></td></tr>" for r in _disp_news))
         st.markdown(f"<table class='sf-table'><thead><tr><th class='l'>新闻标题</th><th>情绪</th></tr></thead><tbody>{rows_html}</tbody></table>", unsafe_allow_html=True)
         if _show_n < len(_filtered_news):
-            if st.button('显示更多 ▼', key=f'news_more_{ticker}', use_container_width=True):
+            if st.button('显示更多 ▼', key=f'news_more_{ticker}', width="stretch"):
                 st.session_state[_news_limit_key] += 10
     else:
         _empty_info('暂无新闻数据（网络不可用或该标的无公开新闻）')
@@ -600,7 +600,7 @@ def _render_analysis(R: dict):
         from modules.dark_text_fix import apply_plotly_theme
         apply_plotly_theme(radar_fig, dark=dark)
         radar_fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=440, margin=dict(l=40, r=40, t=20, b=20))
-        st.plotly_chart(radar_fig, use_container_width=True, config={'displaylogo': False, 'responsive': True})
+        st.plotly_chart(radar_fig, width="stretch", config={'displaylogo': False, 'responsive': True})
         st.markdown(f"<div style='text-align:center;font-size:14px;font-weight:700;color:var(--txt);margin:6px 0 2px;'>综合信号强度 <b style='color:{verdict_color};'>{composite}</b> · {verdict}（五维加权）</div>", unsafe_allow_html=True)
     except Exception as e:
         xc_handle_error("雷达图渲染失败", str(e)[:80], hint="请稍后重试，或检查网络与数据源连接")
@@ -719,7 +719,7 @@ def fragment_analysis_result():
     else:
         info_banner('👈 在左侧选择股票后，点击「生成分析」查看完整的个股深度决策仪表盘。')
         st.caption('💡 也可以直接点击下方按钮生成分析；任务在后台并行运行，完成后自动显示，无需等待。')
-        if st.button('🔍 生成深度分析', type='primary', key='gen_analysis_inline', use_container_width=True):
+        if st.button('🔍 生成深度分析', type='primary', key='gen_analysis_inline', width="stretch"):
             if not ticker:
                 xc_warn_box('请先在上方「⚡ 快速选取」选择一只股票，再回到「🔬 深度分析」点击「生成分析」查看完整决策仪表盘。')
             else:
@@ -823,7 +823,7 @@ def fragment_stock_videos(ticker):
         st.session_state[vk] = []
     with st.form(key=f'video_form_{ticker}', clear_on_submit=True):
         video_url = st.text_input('视频链接（如 https://www.bilibili.com/video/BVxxxx 或 YouTube 链接）', '', placeholder='在此粘贴视频地址，例如 B站 / YouTube 分享链接')
-        submitted = st.form_submit_button('➕ 添加到本股视频', use_container_width=True)
+        submitted = st.form_submit_button('➕ 添加到本股视频', width="stretch")
         if submitted and video_url:
             emb = _video_embed_url(video_url)
             if emb:
@@ -843,12 +843,12 @@ def fragment_stock_videos(ticker):
             with col_del:
                 _ck = f'vdel_cfm_{ticker}_{idx}'
                 if st.session_state.get(_ck):
-                    if st.button('确认', key=f'vdel_cfm_btn_{ticker}_{idx}', type='primary', use_container_width=True):
+                    if st.button('确认', key=f'vdel_cfm_btn_{ticker}_{idx}', type='primary', width="stretch"):
                         st.session_state[vk].pop(idx)
                         st.session_state.pop(_ck, None)
-                    if st.button('取消', key=f'vdel_cancel_{ticker}_{idx}', use_container_width=True):
+                    if st.button('取消', key=f'vdel_cancel_{ticker}_{idx}', width="stretch"):
                         st.session_state.pop(_ck, None)
-                elif st.button('✕', key=f'vdel_{ticker}_{idx}', use_container_width=True, help='移除'):
+                elif st.button('✕', key=f'vdel_{ticker}_{idx}', width="stretch", help='移除'):
                     st.session_state[_ck] = True
     else:
         _empty_info('尚未添加视频。粘贴上方链接即可把网络视频「接到」本股票分析页内联播放')
@@ -859,5 +859,5 @@ fragment_stock_videos(ticker)
 st.markdown('---')
 st.page_link('pages/22_基本面分析.py', label='→ 去 基本面分析（估值/业绩/行业对比）', icon='🏛️')
 st.page_link('pages/24_个股研究.py', label='→ 去 个股研究（K线与技术面）', icon='📈')
-if st.button('↑ 回到顶部', key='analysis_back_to_top', use_container_width=True):
+if st.button('↑ 回到顶部', key='analysis_back_to_top', width="stretch"):
     sn.back_to_top_button()

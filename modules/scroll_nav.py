@@ -123,6 +123,6 @@ def back_to_top_button(label: str = "↑ 回到顶部", use_container_width: boo
         components.html(btn, height=44)
     except Exception as e:
         logger.warning(f'[scroll_nav] back_to_top_button 注入异常: {e}')
-        st.button(label, on_click=lambda: None, use_container_width=use_container_width)
+        st.button(label, on_click=lambda: None, width=("stretch" if use_container_width else "content"))
 if __name__ == '__main__':
     logger.info('scroll_nav v2 OK')

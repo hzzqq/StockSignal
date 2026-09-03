@@ -503,7 +503,7 @@ def result_board():
         })
     df = pd.DataFrame(rows)
     st.dataframe(
-        df, use_container_width=True, hide_index=True,
+        df, width="stretch", hide_index=True,
         column_config={
             "综合分": st.column_config.ProgressColumn(
                 "综合分", min_value=0, max_value=100, format="%.0f"),

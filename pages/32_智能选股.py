@@ -180,7 +180,7 @@ with st.container(border=True):
     run_disabled = (not selected) or \
         (source == "我的自选股" and not universe_codes) or \
         (source == "指定板块" and not sector_name)
-    if st.button("🚀 开始选股", type="primary", use_container_width=True, disabled=run_disabled):
+    if st.button("🚀 开始选股", type="primary", width="stretch", disabled=run_disabled):
         with st.spinner("选股中…（技术面较快；含基本面策略且股票池较大时可能需数分钟）"):
             result = screener.run(
                 strategy_names=selected, mode=mode, params=adv, top_n=top_n,
@@ -226,7 +226,7 @@ with st.container(border=True):
                         row[STRATEGY_NAMES_CN.get(sname, sname)] = round(sc, 1)
                     rows.append(row)
                 df = pd.DataFrame(rows)
-            st.dataframe(df, use_container_width=True, height=520)
+            st.dataframe(df, width="stretch", height=520)
             csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
             st.download_button("⬇️ 导出结果 CSV", data=csv,
                                file_name=f"智能选股_{datetime.now().strftime('%Y%m%d')}.csv",

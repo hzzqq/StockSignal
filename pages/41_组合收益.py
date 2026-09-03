@@ -203,7 +203,7 @@ def fragment_portfolio():
                    "组合收益与回撤结论不受影响。")
 
     fig = _build_portfolio_nav_fig(pidx, bench, total_ret, dark)
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     # 加法式小便利（Batch15）：标注净值曲线数据更新时间，便于判断是否为最新行情。
     st.caption(f"🕒 数据更新时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}（组合净值基于各持仓历史收盘价加权构建）")
 
@@ -252,9 +252,9 @@ def _show_attribution():
         attr["name"] = attr["ticker"] if "ticker" in attr.columns else ""
     top = attr.head(15).copy()
     fig = _build_attribution_fig(top, dark)
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     st.dataframe(
-        attr, use_container_width=True, hide_index=True,
+        attr, width="stretch", hide_index=True,
         column_config={
             "pnl": st.column_config.NumberColumn("盈亏", format="%.0f"),
             "pnl_pct": st.column_config.NumberColumn("盈亏%", format="%.2f"),

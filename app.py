@@ -132,7 +132,7 @@ def _render_decision_card(payload, stale=False):
                       help="温度基准 + 方向/周期/晋级率调节，clamp 5~95%")
         with c5:
             st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-            if st.button("🎯 决策面板 →", key="td_open", use_container_width=True,
+            if st.button("🎯 决策面板 →", key="td_open", width="stretch",
                          help="看完整信号明细与推导理由，盘后可一键归档复盘"):
                 safe_switch_page("pages/54_今日决策面板.py")
 
@@ -234,7 +234,7 @@ def _render_group(title, items):
             with st.container(border=True):
                 st.markdown(f"**{icon} {name}**")
                 st.caption(desc)
-                if st.button("进入 →", key=f"nav_{name}", use_container_width=True, help=desc):
+                if st.button("进入 →", key=f"nav_{name}", width="stretch", help=desc):
                     safe_switch_page(page)
 
 
@@ -265,7 +265,7 @@ if recent:
     rc = st.columns(min(len(recent), 4))
     for i, r in enumerate(recent[:4]):
         with rc[i]:
-            if st.button(f"{r['code']}\n{r['name']}", key=f"recent_{r['code']}", use_container_width=True):
+            if st.button(f"{r['code']}\n{r['name']}", key=f"recent_{r['code']}", width="stretch"):
                 st.session_state["pick_stock_confirmed"] = str(r["code"])
                 st.session_state["pick_stock_query"] = str(r["code"])
                 safe_switch_page("pages/24_个股研究.py")
@@ -275,13 +275,13 @@ try:
     st.caption("⚡ 一键直达常用功能")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("📔 情绪笔记", key="qe_mood_note", use_container_width=True,
+        if st.button("📔 情绪笔记", key="qe_mood_note", width="stretch",
                      help="记录今日情绪快照 + 次日走势预判，并可回填实际走势形成复盘闭环"):
             # 置标记：目标页据此提示并把笔记区块高亮一次（一次性，刷新即消）
             st.session_state["shep_focus_note"] = True
             safe_switch_page("pages/50_市场情绪.py")
     with c2:
-        if st.button("🔮 次日走势预判", key="qe_mood_fc", use_container_width=True,
+        if st.button("🔮 次日走势预判", key="qe_mood_fc", width="stretch",
                      help="牧羊人 18 项指标 → 情绪周期定位 + 次日方向与置信度 + 三情景推演"):
             st.session_state["shep_focus_note"] = True
             safe_switch_page("pages/50_市场情绪.py")

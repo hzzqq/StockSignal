@@ -86,7 +86,7 @@ with st.spinner(f'正在加载「{_view}」...'):
     _run_subpage(_SUBPAGES[_view])
 st.caption('数据来源：东方财富 / 新浪财经。')
 st.divider()
-if st.button('↑ 回到顶部', key='hub_top', use_container_width=True):
+if st.button('↑ 回到顶部', key='hub_top', width="stretch"):
     st.session_state['_hub_scroll_top'] = True
 if st.session_state.get('_hub_scroll_top'):
     sn.back_to_top_button()

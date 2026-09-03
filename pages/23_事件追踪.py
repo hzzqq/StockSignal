@@ -28,10 +28,10 @@ sf_card(
 
 lk_p1, lk_p2 = st.columns([1, 1])
 with lk_p1:
-    if st.button('👁️ 智能盯盘', key='lk_go_k', use_container_width=True):
+    if st.button('👁️ 智能盯盘', key='lk_go_k', width="stretch"):
         st.switch_page('pages/14_智能盯盘.py')
 with lk_p2:
-    if st.button('🔍 个股研究', key='lk_go_rs', use_container_width=True):
+    if st.button('🔍 个股研究', key='lk_go_rs', width="stretch"):
         st.switch_page('pages/24_个股研究.py')
 from modules.signal import SignalEngine
 from modules.colors import UP_COLOR, DOWN_COLOR
@@ -215,7 +215,7 @@ def fragment_signal_score():
             col_radar, col_detail = st.columns([1, 1])
             with col_radar:
                 fig = Visualizer.signal_radar(_safe_scores)
-                st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
             with col_detail:
                 st.markdown('#### 评分说明')
                 st.markdown(f'\n                - **价格信号 ({_price}）**: 基于均线趋势、动量、量价关系\n                - **事件信号 ({_event}）**: 基于关键词匹配事件库，利好加分/利空减分\n                - **宏观信号 ({_macro}）**: 基于制造业 PMI（>50扩张，<50收缩）\n                - **综合评分 ({total}）**: 加权 = 价格×0.4 + 事件×0.4 + 宏观×0.2\n                - **阈值**: >70 买入 | 40-70 观望 | <40 卖出\n                ')
@@ -259,7 +259,7 @@ def fragment_live_keywords():
         with col_live2:
             live_limit = st.slider('抓取条数', min_value=10, max_value=50, value=20, key='live_kw_limit')
         with col_live_btn:
-            live_submitted = st.button('🔍 提取关键词', type='primary', key='btn_extract_kws', use_container_width=True)
+            live_submitted = st.button('🔍 提取关键词', type='primary', key='btn_extract_kws', width="stretch")
         extract_result = st.container()
         if live_submitted or st.session_state.get('_retry_live_kw'):
             if st.session_state.get('_retry_live_kw'):
@@ -337,7 +337,7 @@ def fragment_timeline():
                 tl_ticker = stock_search_input(label='股票搜索', key='tl_ticker_v2', default='601088', placeholder='输入代码或名称搜索，如：601088 / 中国神华')
             with col2:
                 st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-                tl_submitted = st.form_submit_button('生成时间轴', use_container_width=True)
+                tl_submitted = st.form_submit_button('生成时间轴', width="stretch")
             col_d1, col_d2 = st.columns(2)
             with col_d1:
                 st.date_input('起始日期', value=st.session_state.get('tl_start_date', (datetime.now() - timedelta(days=180)).date()), key='tl_start_date_w', help='选择时间轴起始日期')
@@ -450,7 +450,7 @@ def fragment_timeline():
                     with st.expander(f'展开查看事件库（共 {len(events)} 条）', expanded=False):
                         events_display = events[['date', 'ticker', 'title', 'type']].sort_values('date', ascending=False).copy()
                         events_display['相对时间'] = events_display['date'].apply(lambda d: _fmt_rel(d))
-                        st.dataframe(events_display, use_container_width=True, height=400)
+                        st.dataframe(events_display, width="stretch", height=400)
                     st.caption(f'共 {len(events)} 条事件')
                 else:
                     info_banner('当前筛选条件下事件库为空。可先在上方「股票搜索」选择关注标的并点击「生成时间轴」，或在下方「事件管理」中手动添加事件。')
@@ -476,7 +476,7 @@ def fragment_timeline():
                             if _intra is not None:
                                 _idf, _ipc, _idate = _intra
                                 _ifig = Visualizer.intraday(_idf, prev_close=_ipc, title=f'{stock_name or tl_ticker} 分时（{_idate}）')
-                                st.plotly_chart(_ifig, use_container_width=True, key='tl_intraday_chart', config={"displaylogo": False, "responsive": True})
+                                st.plotly_chart(_ifig, width="stretch", key='tl_intraday_chart', config={"displaylogo": False, "responsive": True})
                                 st.caption('📈 分时图：白线为当日价格走势，橙点为均价；虚线为昨收。红涨绿跌（A股惯例）。')
                             else:
                                 info_banner('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
@@ -497,7 +497,7 @@ def fragment_timeline():
                     st.caption('💡 拖动「显示位置」滑块可左右平移，拖动「显示 K 线数量」滑块可放大/缩小。')
                     st.caption(f'📊 当前显示 {n_show} / 总计 {n_total} 根 K 线')
                     fig = Visualizer.event_timeline(df, events_chart, title=title, start_idx=new_idx, n_show=new_n_show, event_type_col='sentiment', event_title_col='title')
-                    st.plotly_chart(fig, use_container_width=True, key='tl_chart', config={"displaylogo": False, "responsive": True})
+                    st.plotly_chart(fig, width="stretch", key='tl_chart', config={"displaylogo": False, "responsive": True})
                 except Exception as chart_err:
                     st.error(f'K 线事件时间轴渲染失败: {chart_err}')
                     info_banner('💡 请尝试缩短日期区间或切换股票后重试。')
@@ -558,7 +558,7 @@ def fragment_event_manage():
             _evt_total = len(events_display)
             _evt_show = min(st.session_state[_evt_page_key], _evt_total)
             with st.expander(f'展开查看全部事件库（共 {_evt_total} 条，已显示 {_evt_show} 条）', expanded=False):
-                st.dataframe(events_display[['date', '股票', 'ticker', 'title', 'type', '标记', '相对时间']], use_container_width=True, height=400)
+                st.dataframe(events_display[['date', '股票', 'ticker', 'title', 'type', '标记', '相对时间']], width="stretch", height=400)
             if _evt_show < _evt_total:
                 if st.button('显示更多 ▼', key='evt_load_more'):
                     st.session_state[_evt_page_key] = min(st.session_state[_evt_page_key] + 30, _evt_total)
@@ -577,7 +577,7 @@ def fragment_news_mine():
         with col_mine_limit:
             mine_limit = st.slider('抓取条数', min_value=10, max_value=50, value=20, key='mine_limit_v2')
         with col_mine_btn:
-            mine_submitted = st.button('⛏️ 一键挖掘', type='primary', key='btn_mine_news_v2', use_container_width=True)
+            mine_submitted = st.button('⛏️ 一键挖掘', type='primary', key='btn_mine_news_v2', width="stretch")
         mine_output = st.container()
         if mine_submitted:
             with st.spinner('⛏️ 正在抓取新闻并执行 jieba 关键词提取与情感分析，预计需要 30-60 秒…'):
@@ -621,7 +621,7 @@ def fragment_news_mine():
                         _disp = mined[display_cols]
                         if 'date' in display_cols:
                             _disp = _disp.sort_values('date', ascending=False)
-                        st.dataframe(_disp, use_container_width=True, height=400)
+                        st.dataframe(_disp, width="stretch", height=400)
     except Exception as module_err:
         st.error(f'⚠️ 新闻挖掘模块异常: {module_err}')
 
@@ -635,7 +635,7 @@ def fragment_sentiment_report():
             with col_rpt_input:
                 report_keyword = st.text_input('分析关键词', value='煤炭', key='report_keyword_v2', placeholder='如：煤炭 / 中国神华 / 留空分析全部财经要闻', help='如：煤炭 / 中国神华 / 留空则分析全部财经要闻。')
             with col_rpt_btn:
-                rpt_submitted = st.button('📊 生成报告', type='primary', key='btn_sentiment_report_v2', use_container_width=True)
+                rpt_submitted = st.button('📊 生成报告', type='primary', key='btn_sentiment_report_v2', width="stretch")
         if rpt_submitted or st.session_state.get('_retry_sentiment'):
             if st.session_state.get('_retry_sentiment'):
                 st.session_state['_retry_sentiment'] = False
@@ -676,7 +676,7 @@ def fragment_sentiment_report():
                         fig_pie.update_layout(template='starfield_dark', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font={'color': SF_TXT2}, height=350)
                     else:
                         fig_pie.update_layout(template='plotly_white', height=350)
-                    st.plotly_chart(fig_pie, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                    st.plotly_chart(fig_pie, width="stretch", config={"displaylogo": False, "responsive": True})
                     _top_kws = report.get('top_keywords') or []
                     if _top_kws:
                         st.markdown('#### 热门关键词 TOP15')
@@ -691,7 +691,7 @@ def fragment_sentiment_report():
                             fig_kw.update_layout(template='starfield_dark', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font={'color': SF_TXT2}, height=400, yaxis=dict(autorange='reversed', gridcolor=SF_GRID, linecolor=SF_BORDER, tickfont={'color': SF_TXT2}), xaxis=dict(showgrid=True, gridcolor=SF_GRID, linecolor=SF_BORDER, tickfont={'color': SF_TXT2}))
                         else:
                             fig_kw.update_layout(template='plotly_white', height=400, yaxis=dict(autorange='reversed'))
-                        st.plotly_chart(fig_kw, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                        st.plotly_chart(fig_kw, width="stretch", config={"displaylogo": False, "responsive": True})
                     if report.get('sample_news'):
                         st.markdown('#### 正负面新闻样本（点击标题可跳转原文）')
                         for s in report['sample_news']:

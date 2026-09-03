@@ -557,7 +557,7 @@ def _tool_payload_to_html(tool: str, data: dict) -> str:
 def _render_chips(options):
     cols = st.columns(len(options))
     for i, o in enumerate(options):
-        if cols[i].button(o["label"], key=f"xc_chip_{i}", use_container_width=True,
+        if cols[i].button(o["label"], key=f"xc_chip_{i}", width="stretch",
                           help="点击直接把该问题发送给星辰 AI"):
             st.session_state["_xc_pending"] = o["prompt"]
             # fragment 内严禁裸 rerun（会整页变暗卡死）；限定作用域为本 fragment
@@ -574,7 +574,7 @@ def _tutorial_example_buttons():
     ]
     cols = st.columns(2)
     for i, (label, prompt) in enumerate(examples):
-        if cols[i % 2].button(label, key=f"xc_tut_ex_{i}", use_container_width=True,
+        if cols[i % 2].button(label, key=f"xc_tut_ex_{i}", width="stretch",
                               help=f"点击直接问：{prompt}"):
             st.session_state["_xc_pending"] = prompt
             st.rerun()  # 顶层 rerun：整页重跑让 fragment_chat 读取 _xc_pending 并提交
@@ -693,16 +693,16 @@ with h_left:
 with h_right:
     _ck = "xc_clear_confirm"
     if st.session_state.get(_ck):
-        if st.button("确认清空", key="xc_clear_cfm", type="primary", use_container_width=True, help="确认清空对话"):
+        if st.button("确认清空", key="xc_clear_cfm", type="primary", width="stretch", help="确认清空对话"):
             st.session_state["xc_messages"] = [dict(WELCOME)]
             st.session_state["xc_task_id"] = None
             st.session_state["xc_task_started_at"] = None
             st.session_state.pop(_ck, None)
             st.rerun()
-        if st.button("取消", key="xc_clear_cancel", use_container_width=True):
+        if st.button("取消", key="xc_clear_cancel", width="stretch"):
             st.session_state.pop(_ck, None)
     else:
-        if st.button("🗑️ 清空", key="xc_clear", use_container_width=True, help="清空对话"):
+        if st.button("🗑️ 清空", key="xc_clear", width="stretch", help="清空对话"):
             st.session_state[_ck] = True
 
 st.markdown(
@@ -847,7 +847,7 @@ def fragment_chat():
     # ── 加法式失败重试入口：后台任务提交失败时展示 ──
     if st.session_state.get("_xc_failed_prompt"):
         st.error("⚠️ 加载失败，请稍后重试")
-        if st.button("🔄 重试", key="xc_retry_btn", use_container_width=True):
+        if st.button("🔄 重试", key="xc_retry_btn", width="stretch"):
             st.session_state["_xc_pending"] = st.session_state.pop("_xc_failed_prompt")
             st.rerun(scope="fragment")
 
@@ -932,7 +932,7 @@ with st.expander("🔗 你可能也关注（相关推荐）", expanded=False):
     ]
     _rcols = st.columns(len(_recs))
     for _i, _r in enumerate(_recs):
-        if _rcols[_i].button(_r["label"], key=f"xc_rec_{_i}", use_container_width=True,
+        if _rcols[_i].button(_r["label"], key=f"xc_rec_{_i}", width="stretch",
                              help="向星辰 AI 提问该推荐主题"):
             st.session_state["_xc_pending"] = _r["prompt"]
             st.rerun()

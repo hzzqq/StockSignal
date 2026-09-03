@@ -130,7 +130,7 @@ def render_preferences():
         if st.button(
             "🌙 暗夜模式",
             type="primary",
-            use_container_width=(st.session_state["theme_mode"] == "dark"),
+            width=("stretch" if st.session_state['theme_mode'] == 'dark' else "content"),
             help="专业交易终端风格 · OLED暗色背景 + 金色点缀",
         ):
             st.session_state["theme_mode"] = "dark"
@@ -139,7 +139,7 @@ def render_preferences():
     with col_light:
         if st.button(
             "☀️ 白天模式",
-            use_container_width=(st.session_state["theme_mode"] != "dark"),
+            width=("stretch" if st.session_state['theme_mode'] != 'dark' else "content"),
             help="清爽金融仪表盘风格 · 浅灰白底 + 蓝金点缀",
         ):
             st.session_state["theme_mode"] = "light"
@@ -258,12 +258,12 @@ def render_preferences():
         with r1c2:
             b1, b2 = st.columns(2)
             with b1:
-                if st.button("切到 🌙 暗夜", key="ov_dark", use_container_width=True,
+                if st.button("切到 🌙 暗夜", key="ov_dark", width="stretch",
                              disabled=st.session_state.get("theme_mode") == "dark"):
                     st.session_state["theme_mode"] = "dark"
                     persist_prefs(); st.rerun()
             with b2:
-                if st.button("切到 ☀️ 白天", key="ov_light", use_container_width=True,
+                if st.button("切到 ☀️ 白天", key="ov_light", width="stretch",
                              disabled=st.session_state.get("theme_mode") != "dark"):
                     st.session_state["theme_mode"] = "light"
                     persist_prefs(); st.rerun()
@@ -335,7 +335,7 @@ with col1:
         help="上传后点击保存，头像会按账号保存到后端，刷新 / 换设备也不会丢失。",
     )
     if _up is not None:
-        if st.button("💾 保存头像", key="save_avatar_btn", use_container_width=True):
+        if st.button("💾 保存头像", key="save_avatar_btn", width="stretch"):
             try:
                 import base64
                 ext = (_up.name.rsplit(".", 1)[-1] or "png").lower()
@@ -422,7 +422,7 @@ try:
                     st.dataframe(_sample_wl, width="stretch", height=400)
                     st.caption("⚠️ 以上为示意数据，非真实行情。")
                 st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
-                if st.button("➕ 去行情看板添加自选股", key="wl_go_add", use_container_width=True):
+                if st.button("➕ 去行情看板添加自选股", key="wl_go_add", width="stretch"):
                     safe_switch_page("pages/10_行情看板.py")
         else:
             _empty_info("暂无自选股，请先添加你关注的股票。")
@@ -436,7 +436,7 @@ try:
                 st.dataframe(_sample_wl2, width="stretch", height=400)
                 st.caption("⚠️ 以上为示意数据，非真实行情。")
             st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
-            if st.button("➕ 去行情看板添加自选股", key="wl_go_add2", use_container_width=True):
+            if st.button("➕ 去行情看板添加自选股", key="wl_go_add2", width="stretch"):
                 safe_switch_page("pages/10_行情看板.py")
     else:
         xc_warn_box(f"获取自选股失败：HTTP {resp.status_code}")
@@ -449,7 +449,7 @@ if "my_starred_stocks" not in st.session_state:
 st.markdown("### ⭐ 我的收藏")
 _my_star = st.text_input("添加收藏（输入 6 位股票代码）", key="my_star_input",
                          help="输入股票代码后点击收藏，仅本会话保存，不接后端。")
-if st.button("⭐ 收藏", key="my_star_btn", use_container_width=False):
+if st.button("⭐ 收藏", key="my_star_btn", width="content"):
     _code = (_my_star or "").strip()
     if _code.isdigit() and len(_code) == 6:
         if _code not in st.session_state["my_starred_stocks"]:
@@ -472,7 +472,7 @@ st.markdown("---")
 # 切换主题/字体后若仍看到旧快照，可一键清空缓存立即向后台重新拉取。
 _col_cache, _ = st.columns([1, 3])
 with _col_cache:
-    if st.button("🔄 刷新本页缓存", key="my_clear_cache", use_container_width=True,
+    if st.button("🔄 刷新本页缓存", key="my_clear_cache", width="stretch",
                  help="清空本页自选股/登录历史的 10 秒短缓存，立即重新向后台拉取最新数据。"):
         st.session_state.pop("_my_cached_get", None)
         st.session_state["_my_cache_toast"] = True
@@ -508,7 +508,7 @@ try:
                 }
                 for r in logs
             ]
-            st.dataframe(pd.DataFrame(_hist), width="stretch", use_container_width=True, height=400)
+            st.dataframe(pd.DataFrame(_hist), width="stretch", height=400)
             # 加法式结果计数/摘要：登录历史总条数
             st.caption(f"共 {len(logs)} 条登录记录")
         else:
@@ -520,14 +520,14 @@ try:
                     {"时间": "刚刚", "账号": "demo", "操作": "登录", "详情": "本地登录"},
                     {"时间": "1小时前", "账号": "demo", "操作": "修改设置", "详情": "切换暗夜模式"},
                 ])
-                st.dataframe(_sample_log, width="stretch", use_container_width=True, height=400)
+                st.dataframe(_sample_log, width="stretch", height=400)
                 st.caption("⚠️ 以上为示意数据，非真实记录。")
     else:
         xc_warn_box(f"获取登录历史失败：HTTP {resp.status_code}")
 except Exception as e:
     xc_handle_error("获取登录历史失败", e, hint="请稍后重试，或检查网络与数据源连接")
     # 加法式失败重试：请求异常时提供重试（清掉短缓存后重新拉取）
-    if st.button("🔄 重试", key="login_retry", use_container_width=True):
+    if st.button("🔄 重试", key="login_retry", width="stretch"):
         st.session_state.pop("_my_cached_get", None)
         st.rerun()
 
@@ -539,11 +539,11 @@ sf_card("🔗 账号绑定", "")
 _col_mail, _col_phone = st.columns(2)
 with _col_mail:
     st.markdown("**📧 邮箱绑定**")
-    if st.button("绑定邮箱", key="bind_mail", use_container_width=True):
+    if st.button("绑定邮箱", key="bind_mail", width="stretch"):
         info_banner("邮箱绑定功能需在后端接入邮件服务后开放（当前为本地部署，暂未启用）。")
 with _col_phone:
     st.markdown("**📱 手机号绑定**")
-    if st.button("绑定手机", key="bind_phone", use_container_width=True):
+    if st.button("绑定手机", key="bind_phone", width="stretch"):
         info_banner("手机号绑定需接入短信网关，当前为本地部署，暂未启用。")
 
 st.caption("说明：邮箱 / 手机号绑定用于找回密码与异地登录提醒，本地演示环境暂未接入第三方服务。")
@@ -562,7 +562,7 @@ if _my_quick:
         st.error("⚠️ 格式错误：请输入 6 位数字股票代码（如 600519）")
     else:
         xc_success_box(f"✅ 代码格式正确：{_my_quick}")
-        if st.button("前往个股研究", key="my_quick_go", use_container_width=False):
+        if st.button("前往个股研究", key="my_quick_go", width="content"):
             st.session_state["pick_stock"] = _my_quick
             safe_switch_page("pages/24_个股研究.py")
 

@@ -162,7 +162,7 @@ else:
             st.caption('🔍 未找到匹配的持仓。')
     _pshow_key = 'pm_pos_show'
     _pshow_n = st.session_state.get(_pshow_key, 10)
-    st.dataframe(display_pos[show_cols].head(_pshow_n), use_container_width=True, hide_index=True, height=400)
+    st.dataframe(display_pos[show_cols].head(_pshow_n), width="stretch", hide_index=True, height=400)
     if len(display_pos) > _pshow_n:
         if st.button('显示更多 ▼', key='pm_pos_more'):
             st.session_state[_pshow_key] = min(_pshow_n + 10, len(display_pos))
@@ -176,7 +176,7 @@ else:
     if _pm_sel:
         _pb1, _pb2 = st.columns(2)
         with _pb1:
-            if st.button('⭐ 批量加自选', key='pm_batch_fav', use_container_width=True):
+            if st.button('⭐ 批量加自选', key='pm_batch_fav', width="stretch"):
                 try:
                     from modules.admin_api import add_watchlist
                     for _t in _pm_sel:
@@ -185,7 +185,7 @@ else:
                 except Exception as e:
                     xc_handle_error("批量加自选失败", e, hint="请稍后重试，或检查网络与数据源连接")
         with _pb2:
-            if st.button('📤 批量平仓', key='pm_batch_close', use_container_width=True):
+            if st.button('📤 批量平仓', key='pm_batch_close', width="stretch"):
                 try:
                     for _t in _pm_sel:
                         _q = api_quote(_t) or fetcher.get_realtime_quote(_t)
@@ -210,7 +210,7 @@ sf_card('➕ 买入股票', '录入代码、价格与股数添加持仓；支持
 st.markdown('**⚡ 快捷选择股数：**')
 quick_cols = st.columns(5)
 for col, qv in zip(quick_cols, [100, 500, 1000, 2000, 5000]):
-    if col.button(f'{qv:,} 股', use_container_width=True, key=f'buy_quick_{qv}'):
+    if col.button(f'{qv:,} 股', width="stretch", key=f'buy_quick_{qv}'):
         st.session_state.default_shares = qv
         _save_pm_pref('default_shares', qv)
         st.rerun()
@@ -233,7 +233,7 @@ with st.form('buy_position_form'):
                         st.caption(f'📈 最新价 ¥{float(_cur):.2f}  {_dt}')
                     _qdf = format_quote_table(buy_quote)
                     if _qdf is not None:
-                        st.dataframe(_qdf, use_container_width=True, hide_index=True, height=400)
+                        st.dataframe(_qdf, width="stretch", hide_index=True, height=400)
                     else:
                         st.caption('⚠️ 五档行情暂不可用')
                 except Exception:
@@ -281,14 +281,14 @@ if buy_submitted:
         st.rerun()
     except Exception as e:
         xc_handle_error("买入失败", e, hint="请稍后重试，或检查网络与数据源连接")
-if st.button('⭐ ＋自选（当前买入标的）', key='pm_add_watch', use_container_width=True):
+if st.button('⭐ ＋自选（当前买入标的）', key='pm_add_watch', width="stretch"):
     try:
         from modules.admin_api import add_watchlist
         add_watchlist(buy_ticker)
         _toast(f'已加入自选：{buy_label} ({buy_ticker})')
     except Exception as e:
         xc_handle_error("加入自选失败", e, hint="请稍后重试，或检查网络与数据源连接")
-if st.button('⭐ 收藏（本地星标）', key='pm_fav_add', use_container_width=True):
+if st.button('⭐ 收藏（本地星标）', key='pm_fav_add', width="stretch"):
     st.session_state.setdefault('_pm_fav', [])
     _ft = (buy_ticker or '').strip()
     if _ft and _ft not in st.session_state['_pm_fav']:
@@ -331,7 +331,7 @@ else:
                         st.caption(f'📈 最新价 ¥{float(_cur):.2f}  {_dt}')
                     _qdf = format_quote_table(sell_quote)
                     if _qdf is not None:
-                        st.dataframe(_qdf, use_container_width=True, hide_index=True, height=400)
+                        st.dataframe(_qdf, width="stretch", hide_index=True, height=400)
                     else:
                         st.caption('⚠️ 五档行情暂不可用')
                 except Exception:
@@ -419,7 +419,7 @@ else:
     display_trades['成交金额'] = display_trades['proceeds'].apply(_fmt_money)
     display_trades['备注'] = display_trades['note'].fillna('')
     show_cols = ['股票', 'ticker', '卖出日期', '卖出价', '卖出股数', '成交金额', '备注']
-    st.dataframe(display_trades[show_cols], use_container_width=True, hide_index=True, height=400)
+    st.dataframe(display_trades[show_cols], width="stretch", hide_index=True, height=400)
 sf_card('📈 盈亏统计', '汇总总成本、总市值、总盈亏与收益率，并绘制盈亏曲线与持仓明细。')
 positions = pm.get_positions()
 if not positions.empty:
@@ -442,7 +442,7 @@ if not positions.empty:
                 from modules.visualizer import Visualizer
                 st.markdown('---')
                 fig = Visualizer.portfolio_pnl(pnl_df)
-                st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
                 st.markdown('#### 持仓明细')
                 st.caption(f'📋 持仓明细：共 {len(pnl_df)} 条')
                 display_pnl = pnl_df.copy()
@@ -462,14 +462,14 @@ if not positions.empty:
                 display_pnl = display_pnl.sort_values('pnl_pct', ascending=False, key=lambda s: pd.to_numeric(s, errors='coerce'), ignore_index=True)
                 pnl_cols = ['股票', 'ticker', '建仓时间', '买入价', '买入股数', '剩余股数', '现价', '市值', '已实现盈亏', '浮动盈亏', '收益率']
                 pnl_cols = [c for c in pnl_cols if c in display_pnl.columns]
-                st.dataframe(display_pnl[pnl_cols], use_container_width=True, hide_index=True, height=400)
+                st.dataframe(display_pnl[pnl_cols], width="stretch", hide_index=True, height=400)
             sf_card('🔬 盈亏归因', '按个股拆分盈亏贡献，定位收益的主要来源与拖累项。')
             attribution = pm.pnl_attribution()
             if not attribution.empty:
                 attr_fetcher = StockFetcher()
                 attribution['股票'] = attribution['ticker'].apply(lambda x: fetcher.get_name_only(x) or attr_fetcher.get_stock_name(x))
                 display_attr = attribution[['股票', 'ticker', 'pnl', 'pnl_pct', 'contribution']].copy()
-                st.dataframe(display_attr, use_container_width=True, hide_index=True, height=400)
+                st.dataframe(display_attr, width="stretch", hide_index=True, height=400)
             else:
                 _empty_info('暂无盈亏归因数据。需要先有至少一笔卖出记录，系统才能按股票拆分盈亏贡献。')
             st.markdown('---')
@@ -486,6 +486,6 @@ if not positions.empty:
 else:
     info_banner('请先添加持仓记录。')
 st.divider()
-if st.button('↑ 回到顶部', key='cang_mgr_top', use_container_width=True):
+if st.button('↑ 回到顶部', key='cang_mgr_top', width="stretch"):
     sn.back_to_top_button()
     st.session_state['_mgr_scroll_top'] = False

@@ -190,7 +190,7 @@ def render_ai_consultant() -> None:
     busy = bool(st.session_state.get('ai_task_id'))
     with st.form('ai_consult_global', clear_on_submit=True):
         q = st.text_area('AI 咨询', placeholder='例如：深科技怎么样？ / 这组合里谁最值得买？风险在哪？', height=80, label_visibility='collapsed', key='ai_consult_q', disabled=busy)
-        submitted = st.form_submit_button('🚀 发送' if not busy else '⏳ AI 思考中…', use_container_width=True, disabled=busy)
+        submitted = st.form_submit_button('🚀 发送' if not busy else '⏳ AI 思考中…', width="stretch", disabled=busy)
     if submitted and q and (not busy):
         st.session_state['ai_chat'].append({'role': 'user', 'content': q})
         ctx = _slim_context()
@@ -205,7 +205,7 @@ def render_ai_consultant() -> None:
             err = err or '未知错误'
             if '登录' in err or '过期' in err or '凭证' in err:
                 xc_handle_error(err)
-                if st.button('重新登录', key='ai_relogin', use_container_width=True):
+                if st.button('重新登录', key='ai_relogin', width="stretch"):
                     st.session_state.clear()
                     st.switch_page('pages/90_登录.py')
             else:

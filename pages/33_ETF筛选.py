@@ -191,7 +191,7 @@ def _etf_filter_fragment():
             # 示例数据预览（#Batch19-9）：无结果时只读展示样本标的
             if st.button("👀 查看示例标的", key="etf_sample"):
                 _samp = pd.DataFrame(SAMPLE, columns=["代码", "名称", "类型", "最新价", "涨跌幅", "成交额", "管理费", "跟踪指数"])
-                st.dataframe(_samp, use_container_width=True, hide_index=True, height=300)
+                st.dataframe(_samp, width="stretch", hide_index=True, height=300)
         else:
             disp = res.copy()
             # 结果标记/徽章（#Batch19-10）：中性色标签，不动红涨绿跌配色
@@ -219,7 +219,7 @@ def _etf_filter_fragment():
                 sty = disp.style.map(_color_chg, subset=["涨跌幅"])
             else:
                 sty = disp.style
-            st.dataframe(sty, use_container_width=True, hide_index=True, height=560)
+            st.dataframe(sty, width="stretch", hide_index=True, height=560)
 
             # 图表类型切换（#Batch20-8）：走势图 line/柱/面积，session_state 控制，不改数据
             st.markdown("### 📈 涨跌幅走势（按成交额 Top 15）")
@@ -249,13 +249,13 @@ def _etf_filter_fragment():
                 _favs = st.session_state.setdefault("etf_fav_set", set())
                 b1, b2, b3 = st.columns(3)
                 with b1:
-                    if st.button("⭐ 批量收藏", key="etf_batch_fav", use_container_width=True):
+                    if st.button("⭐ 批量收藏", key="etf_batch_fav", width="stretch"):
                         _favs.update(_sel)
                 with b2:
-                    if st.button("➖ 移出收藏", key="etf_batch_unfav", use_container_width=True):
+                    if st.button("➖ 移出收藏", key="etf_batch_unfav", width="stretch"):
                         _favs.difference_update(_sel)
                 with b3:
-                    if st.button("🧹 清空选择", key="etf_batch_clear", use_container_width=True):
+                    if st.button("🧹 清空选择", key="etf_batch_clear", width="stretch"):
                         st.session_state["etf_batch_sel"] = []
             _favs = st.session_state.get("etf_fav_set", set())
             if _favs:

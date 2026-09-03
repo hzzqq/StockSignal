@@ -48,7 +48,7 @@ def fragment_compare_setup():
             )
         with c2:
             st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
-            if st.button("载入示例（5只）", use_container_width=True, key="cmp_load_example"):
+            if st.button("载入示例（5只）", width="stretch", key="cmp_load_example"):
                 st.session_state["cmp_multi_items"] = [
                     {"id": i, "value": c, "code": c, "name": None}
                     for i, c in enumerate(EXAMPLE.split(","))
@@ -57,7 +57,7 @@ def fragment_compare_setup():
 
         with st.form("cmp_form"):
             period = st.slider("回看天数", 60, 250, 120, 10)
-            submitted = st.form_submit_button("开始对比", use_container_width=True, type="primary")
+            submitted = st.form_submit_button("开始对比", width="stretch", type="primary")
 
         st.session_state["_cmp_period_input"] = period
 
@@ -79,7 +79,7 @@ def fragment_compare_setup():
                 err = err or "未知错误"
                 if "登录" in err or "过期" in err or "凭证" in err:
                     xc_handle_error("操作失败", err, hint="请稍后重试，或检查网络与数据源连接")
-                    if st.button("重新登录", key="cmp_relogin", use_container_width=True):
+                    if st.button("重新登录", key="cmp_relogin", width="stretch"):
                         st.session_state.clear()
                         st.switch_page("pages/90_登录.py")
                 else:
@@ -154,7 +154,7 @@ def fragment_compare_result():
     )
     c1, c2 = st.columns([1.15, 1])
     with c1:
-        st.plotly_chart(build_radar(rows), use_container_width=True, config={"displaylogo": False, "responsive": True})
+        st.plotly_chart(build_radar(rows), width="stretch", config={"displaylogo": False, "responsive": True})
     with c2:
         st.markdown(build_radar_right(rows), unsafe_allow_html=True)
 

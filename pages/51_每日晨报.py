@@ -167,7 +167,7 @@ def fragment_watchlist_and_news():
         if not watchlist:
             info_banner('📭 自选股为空，晨报暂无可展示的持仓快照。')
             st.markdown("<div class='xc-note'>💡 <b>三步开启你的晨报快照</b><br>1. 进入「📡 自选股监控」添加关注的股票<br>2. 或到「👤 我的」维护自选股清单<br>3. 回到本页，快照与专属新闻会自动出现</div>", unsafe_allow_html=True)
-            if st.button('➕ 去添加自选股', type='primary', use_container_width=True, key='morning_goto_wl'):
+            if st.button('➕ 去添加自选股', type='primary', width="stretch", key='morning_goto_wl'):
                 safe_switch_page('pages/46_自选股监控.py')
         else:
             st.caption('👉 点击表格中某一行，可在下方「相关新闻速览」查看该股票的专属新闻。')
@@ -199,7 +199,7 @@ def fragment_watchlist_and_news():
                     _ff = str(_wl_filter).strip().lower()
                     snap = [s for s in snap if _ff in str(s.get('名称', '')).lower() or _ff in str(s.get('代码', '')).lower()]
                 snap_df = pd.DataFrame(snap)
-                event = st.dataframe(snap_df, use_container_width=True, height=320, on_select='rerun', selection_mode='single-row', key='morning_snap', column_config={'现价': st.column_config.NumberColumn(format='¥%.2f'), '涨跌额': st.column_config.NumberColumn(format='%.2f'), '涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '振幅%': st.column_config.NumberColumn(format='%.2f%%'), '成交量': st.column_config.NumberColumn(format='%d'), '成交额': st.column_config.NumberColumn(format='%.0f'), '市盈率': st.column_config.NumberColumn(format='%.2f'), '资产负债率': st.column_config.NumberColumn(format='%.2f%%')})
+                event = st.dataframe(snap_df, width="stretch", height=320, on_select='rerun', selection_mode='single-row', key='morning_snap', column_config={'现价': st.column_config.NumberColumn(format='¥%.2f'), '涨跌额': st.column_config.NumberColumn(format='%.2f'), '涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '振幅%': st.column_config.NumberColumn(format='%.2f%%'), '成交量': st.column_config.NumberColumn(format='%d'), '成交额': st.column_config.NumberColumn(format='%.0f'), '市盈率': st.column_config.NumberColumn(format='%.2f'), '资产负债率': st.column_config.NumberColumn(format='%.2f%%')})
                 st.caption(f'共 {len(watchlist)} 只自选股（展示前 {len(snap)} 只）')
                 try:
                     sel_rows = event.selection.rows if event and event.selection else []
@@ -265,7 +265,7 @@ def fragment_review_notes():
                 st.session_state['review_note'] = ''
         c_q, c_img = st.columns([0.5, 0.5])
         with c_q:
-            if st.button('🔍 查询', type='primary', use_container_width=True, key='review_query'):
+            if st.button('🔍 查询', type='primary', width="stretch", key='review_query'):
                 if os.path.exists(notes_path):
                     try:
                         with open(notes_path, 'r', encoding='utf-8') as f:
@@ -303,7 +303,7 @@ def fragment_review_notes():
         note = st.text_area(f'复盘内容（{note_date_s}，支持 Markdown）', height=220, key='review_note', placeholder='记录今日盘面、操作与明日计划…', on_change=_autosave)
         c_save, c_clear = st.columns([1, 1])
         with c_save:
-            if st.button('💾 保存复盘', type='primary', use_container_width=True, key='review_save'):
+            if st.button('💾 保存复盘', type='primary', width="stretch", key='review_save'):
                 try:
                     with open(_notes_path(note_date_s), 'w', encoding='utf-8') as f:
                         f.write(note)
@@ -315,13 +315,13 @@ def fragment_review_notes():
         with c_clear:
             _ck = 'review_clear_confirm'
             if st.session_state.get(_ck):
-                if st.button('确认清空', use_container_width=True, key='review_clear_cfm', type='primary'):
+                if st.button('确认清空', width="stretch", key='review_clear_cfm', type='primary'):
                     st.session_state['review_note'] = ''
                     st.session_state['review_autosaved'] = False
                     st.session_state.pop(_ck, None)
-                if st.button('取消', use_container_width=True, key='review_clear_cancel'):
+                if st.button('取消', width="stretch", key='review_clear_cancel'):
                     st.session_state.pop(_ck, None)
-            elif st.button('🗑️ 清空', use_container_width=True, key='review_clear'):
+            elif st.button('🗑️ 清空', width="stretch", key='review_clear'):
                 st.session_state[_ck] = True
         _note_now = st.session_state.get('review_note', '')
         if _note_now.strip():
@@ -359,7 +359,7 @@ _rec_codes = [('600519', '贵州茅台'), ('000858', '五粮液'), ('300750', '�
 _rec_cols = st.columns(len(_rec_codes))
 for _i, (_c, _n) in enumerate(_rec_codes):
     with _rec_cols[_i]:
-        if st.button(f'{_n} {_c}', key=f'morning_rec_{_c}', use_container_width=True):
+        if st.button(f'{_n} {_c}', key=f'morning_rec_{_c}', width="stretch"):
             st.session_state['pick_stock_confirmed'] = _c
             st.session_state['pick_stock_query'] = _c
             safe_switch_page('pages/24_个股研究.py')

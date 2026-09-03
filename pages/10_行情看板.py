@@ -31,7 +31,7 @@ st.caption('输入代码 / 名称 / 拼音首字母，匹配结果直接显示�
 _wb_code = stock_search_input(label='输入代码 / 名称 / 拼音', key='wb_search', default='600519')
 _wb_c1, _wb_c2 = st.columns([1, 3])
 with _wb_c1:
-    if st.button('☆ 加入自选股', key='wb_add_wl', use_container_width=True):
+    if st.button('☆ 加入自选股', key='wb_add_wl', width="stretch"):
         if _wb_code:
             _sc, _body = api_post('/api/watchlist', {'stock_code': _wb_code}, timeout=5)
             if _sc == 200 and isinstance(_body, dict) and (_body.get('status') == 'ok'):
@@ -181,11 +181,11 @@ def fragment_sector_board():
                 with col1:
                     st.markdown('#### 涨跌排行表格')
                     display_cols = ['排名', 'sector', 'change_pct']
-                    st.dataframe(detail_df[display_cols].rename(columns={'sector': '板块', 'change_pct': '涨跌幅'}), use_container_width=True, column_config={'涨跌幅': st.column_config.NumberColumn(format='%.2f%%')}, height=700)
+                    st.dataframe(detail_df[display_cols].rename(columns={'sector': '板块', 'change_pct': '涨跌幅'}), width="stretch", column_config={'涨跌幅': st.column_config.NumberColumn(format='%.2f%%')}, height=700)
                 with col2:
                     st.markdown('#### 涨跌分布')
                     fig = _build_sector_heatmap_fig(detail_df)
-                    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                    st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
             except Exception as e:
                 xc_handle_error("获取板块详情失败", e, hint="请稍后重试，或检查网络与数据源连接")
         else:
@@ -294,7 +294,7 @@ def fragment_lhb():
             if reason_col:
                 display_cols.append(reason_col)
             _tmp_cols = [c for c in lhb_df.columns if c.startswith('_')]
-            st.dataframe(lhb_df[[c for c in display_cols if c in lhb_df.columns]].drop(columns=_tmp_cols, errors='ignore'), use_container_width=True, height=420)
+            st.dataframe(lhb_df[[c for c in display_cols if c in lhb_df.columns]].drop(columns=_tmp_cols, errors='ignore'), width="stretch", height=420)
             with st.expander('📋 复制龙虎榜代码', expanded=False):
                 _lhb_codes = '\n'.join((str(c) for c in lhb_df['股票代码'].tolist() if str(c)))
                 st.code(_lhb_codes or '—', language='text')
@@ -329,7 +329,7 @@ def fragment_lhb():
                 _heat = _anorm + 0.3 * pd.Series(_chgs, dtype=float)
                 heat_df = pd.DataFrame({'股票代码': lhb_df['股票代码'].values, '股票名称': lhb_df['股票名称'].values, '热度': [round(float(x), 2) for x in _heat], '买方金额': lhb_df['买方金额'].values if '买方金额' in lhb_df.columns else [0] * _n, '卖方金额': lhb_df['卖方金额'].values if '卖方金额' in lhb_df.columns else [0] * _n, '涨跌幅': lhb_df['涨跌幅'].values if '涨跌幅' in lhb_df.columns else [0] * _n})
                 heat_df = heat_df.sort_values('热度', ascending=False).reset_index(drop=True)
-                st.dataframe(heat_df, use_container_width=True, column_config={'热度': st.column_config.NumberColumn(format='%.2f')}, height=400)
+                st.dataframe(heat_df, width="stretch", column_config={'热度': st.column_config.NumberColumn(format='%.2f')}, height=400)
                 heat_opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in heat_df.iterrows() if len(str(row['股票代码'])) == 6]
                 hsel = st.selectbox('选择热股榜股票查看 K 线', ['— 请选择 —'] + heat_opts, key='heat_jump_select', help='选择热股榜中的标的后跳转到「股票选取」页查看其 K 线与详情。')
                 if hsel and hsel != '— 请选择 —':
@@ -368,7 +368,7 @@ def _fetch_one_corr(t, start, end):
         return (label, d)
     except Exception:
         return None
-if st.button('计算相关性', key='calc_corr', use_container_width=True, disabled=len(_ticker_list) < 2, help='请至少输入 2 只股票（逗号分隔）后再计算相关性'):
+if st.button('计算相关性', key='calc_corr', width="stretch", disabled=len(_ticker_list) < 2, help='请至少输入 2 只股票（逗号分隔）后再计算相关性'):
     with st.spinner('正在并行获取行情并计算相关性（最多约 12 秒）...'):
         _end = _today_str()
         _start = (datetime.now().date() - timedelta(days=180)).strftime('%Y-%m-%d')
@@ -385,7 +385,7 @@ if st.button('计算相关性', key='calc_corr', use_container_width=True, disab
         if len(daily_dict) >= 2:
             try:
                 fig = _build_correlation_fig(daily_dict)
-                st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+                st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
             except Exception as e:
                 xc_handle_error("相关性矩阵渲染失败", str(e)[:80], hint="请检查输入代码或网络后重试")
         else:
@@ -588,7 +588,7 @@ def fragment_watchlist_quotes():
             safe_switch_page('pages/11_股票选取.py')
     with _kc2:
         rsel = st.selectbox('移除自选', ['— 请选择 —'] + opts, key='wl_remove_sel')
-        if st.button('🗑 移除', key='wl_remove_btn', use_container_width=True):
+        if st.button('🗑 移除', key='wl_remove_btn', width="stretch"):
             if rsel and rsel != '— 请选择 —':
                 rc = rsel.split()[0]
                 rid = id_by_code.get(rc)

@@ -311,7 +311,7 @@ def _card(col, cfg, df, dark_mode):
                             f"{cfg['fmt'](v)}</div>", unsafe_allow_html=True)
                 fig = _spark(s, cfg["color"], dark_mode)
                 if fig:
-                    st.plotly_chart(fig, use_container_width=True,
+                    st.plotly_chart(fig, width="stretch",
                                     config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key=f"spark_{key}")
                 badge, bcolor, text = cfg["signal"](s)
                 st.markdown(
@@ -760,7 +760,7 @@ def fragment_shepherd_review():
             font=dict(color="#e6e6e6" if dark else "#1a1a1a", size=11),
             yaxis=dict(autorange="reversed", gridcolor="#2a2a3a" if dark else "#ececec"),
         )
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="zt_industry_bar")
 
     # ── 两融-指数背离（视频：两融增加+指数不创新高=警惕见顶）──
@@ -849,7 +849,7 @@ def fragment_shepherd_chart():
         idx = sorted(set([0] + [int(i * step) for i in range(1, MAX_POINTS)] + [len(d) - 1]))
         d = d.iloc[idx].reset_index(drop=True)
     fig = _build_shepherd_chart(d, dark)
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="shep_lines")
+    st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="shep_lines")
     caption = ("🐑 牧羊人指标源自抖音博主「股海牧羊人」《炒股绕不开的第一步》情绪温度计方法论："
                "不盯指数红绿，先看大盘脸色（涨跌家数/涨停跌停/昨日涨停表现）。"
                "近 60 日为 akshare 实时回测；长区间读取 2007 起全 A 重构序列"
@@ -1007,7 +1007,7 @@ def fragment_shepherd_forecast():
                 "与次日的关系": dir_txt,
                 "当前档位含义": d.get("desc", ""),
             })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True,
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True,
                      column_config={"权重": st.column_config.NumberColumn(format="%d", width="small"),
                                     "当前档位含义": st.column_config.TextColumn(width="large")})
         with st.expander("📖 为什么这些指标能预示次日？（点击展开原理）"):
@@ -1023,7 +1023,7 @@ def fragment_shepherd_forecast():
     # 避免「市场情绪」与「今日决策」双份复盘入口分散用户、逻辑漂移。
     st.page_link("pages/54_今日决策面板.py",
                  label="📔 去《今日决策面板》做复盘归档与历史回测（仓位闭环唯一入口）",
-                 icon="🔗", use_container_width=True)
+                 icon="🔗", width="stretch")
 
 
 @safe_fragment("情绪笔记")
@@ -1072,21 +1072,21 @@ def fragment_shepherd_note():
                                 placeholder="例：最高板断板，梯队只剩 2 家，明天先看能不能修复…")
         b1, b2, b3 = st.columns(3)
         with b1:
-            if st.button("💾 保存/更新今日笔记", key="shep_note_save", use_container_width=True):
+            if st.button("💾 保存/更新今日笔记", key="shep_note_save", width="stretch"):
                 ok = _sn.save_note(dstr or datetime.now().strftime("%Y-%m-%d"), today, fc, note_txt or "")
                 if ok:
                     xc_success_box("✅ 今日情绪笔记已保存（含指标快照与次日预判）。")
                 else:
                     xc_warn_box("⚠️ 保存失败，请检查 data/ 目录写权限。")
         with b2:
-            if st.button("🔄 回填次日实际走势", key="shep_note_backfill", use_container_width=True):
+            if st.button("🔄 回填次日实际走势", key="shep_note_backfill", width="stretch"):
                 n = _sn.backfill_actuals(df)
                 if n:
                     xc_success_box(f"✅ 已回填 {n} 条笔记的次日实际走势（用于验证预判准不准）。")
                 else:
                     st.caption("没有需要回填的笔记（可能都已回填，或历史数据缺次日值）。")
         with b3:
-            if st.button("🗑️ 删除今日笔记", key="shep_note_del", use_container_width=True):
+            if st.button("🗑️ 删除今日笔记", key="shep_note_del", width="stretch"):
                 if _sn.delete_note(dstr):
                     xc_success_box("已删除今日笔记。")
                 else:
@@ -1097,7 +1097,7 @@ def fragment_shepherd_note():
     rng = st.selectbox("回测区间", ["近 60 交易日", "近 250 交易日", "近 1250 交易日"],
                        index=0, key="shep_note_range")
     days_map = {"近 60 交易日": 60, "近 250 交易日": 250, "近 1250 交易日": 1250}
-    if st.button("📊 分析历史情绪（真机回测）", key="shep_note_analyze", use_container_width=True):
+    if st.button("📊 分析历史情绪（真机回测）", key="shep_note_analyze", width="stretch"):
         try:
             with st.spinner("拉取真实区间数据并逐日重跑情绪定位…"):
                 analysis, _meta = _sn.backtest_real(days_map[rng])
@@ -1130,7 +1130,7 @@ def fragment_shepherd_note():
                     "次日偏强胜率(%)": b.get("win_rate"),
                     "偏强/震荡/偏弱": f"{b.get('up')}/{b.get('flat')}/{b.get('down')}",
                 })
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
             # 胜率柱状图
             fig = go.Figure(go.Bar(
                 x=[f"{b.get('emoji', '')}{b.get('name')}" for b in byc],
@@ -1144,7 +1144,7 @@ def fragment_shepherd_note():
                 font=dict(color="#e6e6e6" if dark else "#1a1a1a", size=11),
                 yaxis=dict(gridcolor="#2a2a3a" if dark else "#ececec"),
             )
-            st.plotly_chart(fig, use_container_width=True,
+            st.plotly_chart(fig, width="stretch",
                             config={"displaylogo": False, "responsive": True, "displayModeBar": False},
                             key="shep_note_winrate")
         st.caption(_sn.summary_of(analysis))
@@ -1170,7 +1170,7 @@ def fragment_shepherd_note():
                 "次日溢价(%)": a_.get("zt_prev_ret"),
                 "手记": (rec.get("user_note") or "")[:60],
             })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True,
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True,
                      column_config={"手记": st.column_config.TextColumn(width="large")})
     else:
         st.caption("还没有笔记 —— 点上面「保存/更新今日笔记」开始记录，之后可回填次日实际走势验证预判。")

@@ -114,13 +114,13 @@ def fragment_report():
             ))
             fig.update_layout(**_fig_layout(dark), title="净利润 TOP15（亿元）", height=340)
             fig.update_xaxes(tickangle=-45)
-            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False})
+            st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     else:
         info_banner("「净利润 / 名称」字段缺失，TOP 净利润柱状图暂不可绘制（接口字段变更或网络异常）。")
 
     try:
         st.dataframe(
-            df, use_container_width=True, hide_index=True,
+            df, width="stretch", hide_index=True,
             column_config={
                 "披露时间": st.column_config.TextColumn("披露时间", help="财报实际披露日期"),
                 "每股收益": st.column_config.NumberColumn("每股收益", format="%.2f"),
@@ -166,7 +166,7 @@ def fragment_forecast():
     # 加法式渲染兜底：best-effort 接口返回的 DataFrame 可能含怪异列类型（如嵌套列表/对象），
     # 直接 st.dataframe 会异常；包裹后失败仅提示，不影响上方概览与下方其它视图。
     try:
-        st.dataframe(df, use_container_width=True, hide_index=True, height=400)
+        st.dataframe(df, width="stretch", hide_index=True, height=400)
     except Exception as _e:
         xc_warn_box(f"业绩预告表格渲染失败：{_e}")
 
@@ -200,7 +200,7 @@ def fragment_disclosure():
     # 加法式渲染兜底（Batch15）：best-effort 接口返回的 DataFrame 可能含怪异列类型，
     # 直接 st.dataframe 会异常；包裹后失败仅提示，不影响上方概览与下方其它视图。
     try:
-        st.dataframe(df, use_container_width=True, hide_index=True, height=400)
+        st.dataframe(df, width="stretch", hide_index=True, height=400)
     except Exception as _e:
         xc_warn_box(f"披露日历表格渲染失败：{_e}")
 

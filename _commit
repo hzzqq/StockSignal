@@ -1,0 +1,23 @@
+refactor: 全仓 use_container_width → width（Streamlit 1.58 弃用参数迁移治本）
+
+Streamlit 1.58 已将 use_container_width 标记为弃用，移除日标 2025-12-31（已过期）。
+不迁移则未来 Streamlit 移除该参数时全仓 298 处调用点集体 TypeError。
+
+用 scripts/_codemod_ucw.py（AST 安全改写，字节↔字符偏移换算 + 写时 ast.parse 护栏
++ 降序偏移应用 + 双逗号防护）等价迁移，官方 shim 语义已逐元素从 1.58 源码取证：
+    if use_container_width: width="stretch"
+    elif not isinstance(width, int): width="content"
+
+297 处代码级调用点全部迁移：
+  - ucw=True(287) → width="stretch"
+  - ucw=False(5)  → width="content"
+  - ucw=EXPR(3)   → width=("stretch" if EXPR else "content")
+  - 与 width=共现(2, 均 (True,'stretch')) → 删冗余 ucw
+1 处正确跳过：modules/scroll_nav.py:104 back_to_top_button 是项目自定义函数，
+其 use_container_width 是自家参数控制 CSS width:100%，不在 Streamlit 弃用范围。
+
+45 文件改动（app.py / 8 modules / 36 pages）。scripts/_codemod_ucw.py + _scan_ucw.py
+保留为可复用迁移工具（幂等，dry-run 默认）。
+
+验证：codemod 写时 ast.parse 护栏全过；整页冒烟 43 页×双态全过；
+全量套件 0 failed / 0 error（2186 进度点，与 2155 passed/15 skipped 基线一致）。

@@ -371,7 +371,7 @@ def fragment_cube():
 
     fig = _cube_fig(merged, face, dark)
     st.plotly_chart(
-        fig, use_container_width=True, on_select="rerun", key="cube",
+        fig, width="stretch", on_select="rerun", key="cube",
         config={"displaylogo": False, "responsive": True, "displayModeBar": False},
     )
     st.caption("🖱 拖拽旋转立方体；单击任一板块点可在下方下钻。X=涨跌幅 / Y=资金净额 / Z=涨停家数。")

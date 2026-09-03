@@ -127,7 +127,7 @@ def render_ladder_block(dark: bool, top_per_level: int = 3) -> bool:
                 xaxis=dict(title="连板数", gridcolor="#2a2a3a" if dark else "#ececec"),
                 yaxis=dict(title="家数", gridcolor="#2a2a3a" if dark else "#ececec"),
             )
-            st.plotly_chart(fig, use_container_width=True,
+            st.plotly_chart(fig, width="stretch",
                             config={"displaylogo": False, "responsive": True, "displayModeBar": False},
                             key="zt_ladder_bar")
         st.caption("杨哥：梯队「厚」= 赚钱效应线状扩散，接力顺畅；梯队「断层」= 接力资金缺席，"

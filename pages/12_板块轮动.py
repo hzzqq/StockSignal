@@ -99,7 +99,7 @@ def _heatmap(df):
         height=560, margin=dict(t=10, l=10, r=10, b=10),
         template="plotly_dark" if dark else "plotly_white",
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+    st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
 
 
 def _ranking(df):
@@ -126,7 +126,7 @@ def _ranking(df):
             text=[f"{v:+.2f}%" for v in top["涨跌幅"]], textposition="auto",
         ))
         fig.update_layout(**y_common, xaxis_title="涨跌幅%")
-        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+        st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
     with col2:
         st.markdown("#### 📉 跌幅 TOP10")
         fig = go.Figure(go.Bar(
@@ -135,7 +135,7 @@ def _ranking(df):
             text=[f"{v:+.2f}%" for v in bot["涨跌幅"]], textposition="auto",
         ))
         fig.update_layout(**y_common, xaxis_title="涨跌幅%")
-        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+        st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
 
 
 def _rotation(df):
@@ -165,7 +165,7 @@ def _rotation(df):
                 text=[f"{v/1e8:.1f}亿" for v in top_in["净额"]], textposition="auto",
             ))
             fig.update_layout(**y_common, xaxis_title="净额(亿元)")
-            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+            st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
         with col2:
             st.markdown("#### 💸 资金净流出 TOP12")
             fig = go.Figure(go.Bar(
@@ -174,7 +174,7 @@ def _rotation(df):
                 text=[f"{v/1e8:.1f}亿" for v in top_out["净额"]], textposition="auto",
             ))
             fig.update_layout(**y_common, xaxis_title="净额(亿元)")
-            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+            st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
     # 强弱象限：涨跌幅 × 净额
     st.markdown("#### 🔄 强弱象限（涨跌幅 × 资金净额）")
     quad = d.dropna(subset=["净额"]) if d["净额"].notna().any() else d.assign(净额=0)
@@ -196,7 +196,7 @@ def _rotation(df):
         height=480, template="plotly_dark" if dark else "plotly_white",
         xaxis_title="涨跌幅%", yaxis_title="资金净额(亿元)", margin=dict(t=20, l=60, r=20, b=40),
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True})
+    st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
     st.caption("右上象限＝价量齐升的领涨主线；左下象限＝价量齐跌的弱势板块。")
 
 

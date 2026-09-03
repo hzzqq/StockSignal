@@ -266,7 +266,7 @@ with c1:
 with c2:
     st.metric("总消息", len(msgs))
 with c3:
-    if st.button("✅ 全部标为已读", use_container_width=True, key="mark_all",
+    if st.button("✅ 全部标为已读", width="stretch", key="mark_all",
                  disabled=len(unread) == 0,
                  help="一键将当前所有未读消息标记为已读（无未读时禁用）。"):
         st.session_state["msg_read_ids"].update(m["id"] for m in msgs)
@@ -276,7 +276,7 @@ with c3:
 render_data_degradation_banner()
 
 # 加法式 UX：清空已读标记，重新将全部消息标为未读（仅清理本会话 session_state，不改后台数据）
-if st.button("🧹 清除已读标记", key="clear_read_marks", use_container_width=False,
+if st.button("🧹 清除已读标记", key="clear_read_marks", width="content",
              help="将当前所有已读消息重新标记为未读（仅本会话生效，不影响后台数据）。"):
     st.session_state["msg_read_ids"] = set()
     st.session_state["_msg_cleared_toast"] = True
@@ -284,7 +284,7 @@ if st.button("🧹 清除已读标记", key="clear_read_marks", use_container_wi
 
 # 加法式失败重试：聚合取数经 safe_section 已降级，此处提供手动重新加载入口，
 # 清掉本页缓存后整页重跑重新向各数据源拉取最新消息。
-if st.button("🔄 重新加载", key="msg_reload", use_container_width=False):
+if st.button("🔄 重新加载", key="msg_reload", width="content"):
     try:
         _load_watchlist.clear()
         _load_forum.clear()
@@ -365,7 +365,7 @@ else:
                     st.rerun()
     # 加法式加载更多：仅前端分页，不删原数据
     if st.session_state["msg_show_n"] < len(shown):
-        if st.button("显示更多 ▼", key="msg_more", use_container_width=False,
+        if st.button("显示更多 ▼", key="msg_more", width="content",
                      help="每次多显示 10 条消息（仅前端分页）。"):
             st.session_state["msg_show_n"] += _MSG_STEP
             st.rerun()
@@ -376,14 +376,14 @@ if _sel_ids:
     st.markdown("---")
     _bc1, _bc2 = st.columns(2)
     with _bc1:
-        if st.button("✅ 批量标为已读", key="msg_batch_read", use_container_width=True,
+        if st.button("✅ 批量标为已读", key="msg_batch_read", width="stretch",
                      help="将当前勾选的消息全部标记为已读（仅本会话生效）。"):
             st.session_state["msg_read_ids"].update(_sel_ids)
             for _id in _sel_ids:
                 st.session_state.pop(f"sel_{_id}", None)
             st.rerun()
     with _bc2:
-        if st.button("🗑️ 批量取消收藏", key="msg_batch_unstar", use_container_width=True,
+        if st.button("🗑️ 批量取消收藏", key="msg_batch_unstar", width="stretch",
                      help="取消勾选消息的收藏标记（仅本会话生效）。"):
             st.session_state["msg_starred"] -= set(_sel_ids)
             for _id in _sel_ids:

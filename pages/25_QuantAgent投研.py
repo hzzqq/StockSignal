@@ -320,7 +320,7 @@ def main():
 
     # UX：代码无效时禁用发起按钮并给出引导，避免点击后才报警告
     _ticker_ok = bool(ticker) and len(ticker) == 6 and ticker.isdigit()
-    run = st.button("发起多智能体投研", type="primary", use_container_width=True,
+    run = st.button("发起多智能体投研", type="primary", width="stretch",
                     disabled=not _ticker_ok,
                     help="请输入 6 位数字 A股代码后再发起" if not _ticker_ok else "发起多智能体投研")
 

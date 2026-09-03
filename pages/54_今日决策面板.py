@@ -271,7 +271,7 @@ def fragment_p1_ev():
         st.caption(f"信号模型：**{ld.model_label(model)}**　·　数据日期：{ld.latest_date(model) or '未知'}"
                    f"　·　与牧羊人情绪信号独立互补（情绪定仓位 / P1 定个股）")
     with col_btn:
-        if st.button("🔄 刷新", key="p1_ev_refresh", use_container_width=True,
+        if st.button("🔄 刷新", key="p1_ev_refresh", width="stretch",
                      help="P1 重新导出信号后点此立即生效"):
             ld.invalidate()
             st.rerun(scope="fragment")
@@ -388,18 +388,18 @@ def fragment_review():
                                 placeholder="例：温度 62 偏多，仓位 70%，盯连板晋级能否维持…")
         b1, b2, b3 = st.columns(3)
         with b1:
-            if st.button("💾 保存今日决策快照", key="dec_save", use_container_width=True):
+            if st.button("💾 保存今日决策快照", key="dec_save", width="stretch"):
                 ok = _sn.save_note(dstr, today, fc, note_txt or "")
                 if ok:
                     xc_success_box("✅ 今日决策快照已保存（含指标 + 次日预判 + 手记）。")
                 else:
                     xc_warn_box("⚠️ 保存失败，检查 data/ 写权限。")
         with b2:
-            if st.button("🔄 回填次日实际", key="dec_backfill", use_container_width=True):
+            if st.button("🔄 回填次日实际", key="dec_backfill", width="stretch"):
                 n = _sn.backfill_actuals(df)
                 xc_success_box(f"✅ 已回填 {n} 条笔记的次日实际走势。") if n else st.caption("无需回填。")
         with b3:
-            if st.button("🗑️ 删除今日快照", key="dec_del", use_container_width=True):
+            if st.button("🗑️ 删除今日快照", key="dec_del", width="stretch"):
                 if _sn.delete_note(dstr):
                     xc_success_box("已删除今日快照。")
                 else:
@@ -409,7 +409,7 @@ def fragment_review():
     rng = st.selectbox("回测区间", ["近 60 交易日", "近 250 交易日", "近 1250 交易日"],
                       index=0, key="dec_range")
     days_map = {"近 60 交易日": 60, "近 250 交易日": 250, "近 1250 交易日": 1250}
-    if st.button("📊 分析历史情绪（真机回测）", key="dec_analyze", use_container_width=True):
+    if st.button("📊 分析历史情绪（真机回测）", key="dec_analyze", width="stretch"):
         try:
             with st.spinner("拉取真实区间数据并逐日重跑情绪定位…"):
                 analysis, _meta = _sn.backtest_real(days_map[rng])
@@ -489,7 +489,7 @@ def _render_cycle_breakdown(dark: bool):
             yaxis=dict(title="方向命中率(%)", range=[0, 100]),
             margin=dict(l=40, r=30, t=20, b=30), showlegend=False,
         )
-        st.plotly_chart(fig, use_container_width=True, key="bt_cycle_bar")
+        st.plotly_chart(fig, width="stretch", key="bt_cycle_bar")
 
     # ② 明细表：具体六阶段 + 平均建议仓位 vs 次日平均实际（看「敢不敢给」对不对）
     disp = pd.DataFrame([{
@@ -502,7 +502,7 @@ def _render_cycle_breakdown(dark: bool):
         "平均建议仓位": "—" if r["avg_pct"] is None else f"{r['avg_pct']:.0f}%",
         "次日平均实际": "—" if r["avg_realized"] is None else f"{r['avg_realized']:+.2f}%",
     } for r in rows])
-    st.dataframe(disp, use_container_width=True, hide_index=True, key="bt_cycle_tbl")
+    st.dataframe(disp, width="stretch", hide_index=True, key="bt_cycle_tbl")
     st.caption("📊 「平均建议仓位」= 该周期下系统平均给了几成仓；「次日平均实际」= 对应交易日上证平均涨跌。"
                "两者背离大说明该周期下的仓位刻度需要重新校准（如退潮期建议仓位偏高却持续下跌）。"
                "样本 <2 的分组不纳入上图统计。")
@@ -529,7 +529,7 @@ def fragment_backtest():
     c3.metric("方向命中率", f"{s['accuracy']:.0f}%" if s["accuracy"] is not None else "—")
     c4.metric("覆盖区间", f"{s['start']} ~ {s['end']}")
 
-    if st.button("🔗 联网计算次日实际走势（打分）", key="bt_score", use_container_width=True):
+    if st.button("🔗 联网计算次日实际走势（打分）", key="bt_score", width="stretch"):
         try:
             with st.spinner("拉取上证指数次日涨跌并打分…"):
                 res = _track.score_predictions()
@@ -570,7 +570,7 @@ def fragment_backtest():
                     zerolinecolor="#888"),
         margin=dict(l=50, r=50, t=30, b=30),
     )
-    st.plotly_chart(fig, use_container_width=True, key="bt_chart")
+    st.plotly_chart(fig, width="stretch", key="bt_chart")
     st.caption("📈 紫线=当日预测仓位；红/绿柱=次日上证指数真实涨跌（红涨绿跌）。命中率=偏多/偏空预测中方向判断正确的比例。"
                "预判为概率结论，不构成投资建议。")
 
@@ -624,7 +624,7 @@ def fragment_calibration():
             "置信度": f"{s['confidence']:.0%}",
             "结论": s["verdict"],
         })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True, key="cal_table")
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True, key="cal_table")
 
     patch = _cal.as_patch()
     if patch:

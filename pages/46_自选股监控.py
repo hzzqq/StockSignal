@@ -139,10 +139,10 @@ def fragment_watchlist_monitor():
         _empty_info('自选股为空，请先到「行情看板 / 我的」添加，或前往「形态选股」用自选股池扫描。')
         c1, c2 = st.columns(2)
         with c1:
-            if st.button('➡️ 去形态选股', use_container_width=True, key='wl_empty_go'):
+            if st.button('➡️ 去形态选股', width="stretch", key='wl_empty_go'):
                 safe_switch_page('pages/31_形态选股.py')
         with c2:
-            if st.button('📘 看新手教程', use_container_width=True, key='wl_empty_tut'):
+            if st.button('📘 看新手教程', width="stretch", key='wl_empty_tut'):
                 safe_switch_page('pages/96_新手教程.py')
         return
     codes = [it.get('stock_code') for it in items if isinstance(it, dict) and it.get('stock_code')]
@@ -228,7 +228,7 @@ def fragment_watchlist_monitor():
                 return 'color:{_DOWN};font-weight:600'
             return 'color:#9aa0a6'
         _styled = display_df.style.map(_chg_color, subset=['涨跌额', '涨跌%'])
-        st.dataframe(_styled, use_container_width=True, height=max(200, min(480, 40 + len(rows) * 38)), column_config={'现价': st.column_config.NumberColumn(format='¥%.2f'), '涨跌额': st.column_config.NumberColumn(format='%.2f'), '涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '振幅%': st.column_config.NumberColumn(format='%.2f%%'), '成交量': st.column_config.NumberColumn(format='%d')})
+        st.dataframe(_styled, width="stretch", height=max(200, min(480, 40 + len(rows) * 38)), column_config={'现价': st.column_config.NumberColumn(format='¥%.2f'), '涨跌额': st.column_config.NumberColumn(format='%.2f'), '涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '振幅%': st.column_config.NumberColumn(format='%.2f%%'), '成交量': st.column_config.NumberColumn(format='%d')})
         opts = [f"{r['code']} {r['name']}" for r in rows if r['cur'] is not None]
         if opts:
             sel = st.selectbox('选择股票查看 K 线', ['— 请选择 —'] + opts, key='watch_rt_jump')
@@ -239,7 +239,7 @@ def fragment_watchlist_monitor():
                 safe_switch_page('pages/24_个股研究.py')
         _fav_set = st.session_state.setdefault('_wl_fav_set', set())
         _fav_sel = st.selectbox('⭐ 选择要收藏/取消收藏的标的', ['— 请选择 —'] + opts, key='wl_fav_pick')
-        if st.button('🔖 切换收藏状态', key='wl_fav_toggle', use_container_width=True):
+        if st.button('🔖 切换收藏状态', key='wl_fav_toggle', width="stretch"):
             if _fav_sel and _fav_sel != '— 请选择 —':
                 _fc = _fav_sel.split()[0]
                 if _fc in _fav_set:
@@ -252,7 +252,7 @@ def fragment_watchlist_monitor():
             _fc_cols = st.columns(min(len(_fav_list), 6))
             for _i, _fc_code in enumerate(_fav_list[:6]):
                 with _fc_cols[_i]:
-                    if st.button(f'📈 {_fc_code}', key=f'wl_fav_{_fc_code}', use_container_width=True):
+                    if st.button(f'📈 {_fc_code}', key=f'wl_fav_{_fc_code}', width="stretch"):
                         st.session_state['pick_stock_confirmed'] = _fc_code
                         st.session_state['pick_stock_query'] = _fc_code
                         safe_switch_page('pages/24_个股研究.py')
@@ -261,19 +261,19 @@ def fragment_watchlist_monitor():
     if rows:
         export_df = pd.DataFrame(rows)[['code', 'name', 'cur', 'change_amt', 'chg', 'amplitude', 'volume', 'amount', 'pe_ttm', 'alr']].rename(columns={'code': '代码', 'name': '名称', 'cur': '现价', 'change_amt': '涨跌额', 'chg': '涨跌%', 'amplitude': '振幅%', 'volume': '成交量', 'amount': '成交额', 'pe_ttm': '市盈率TTM', 'alr': '资产负债率'})
         csv_data = export_df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
-        st.download_button('⬇️ 导出自选股 CSV', data=csv_data, file_name=f'自选股_{datetime.now():%Y%m%d_%H%M%S}.csv', mime='text/csv', use_container_width=True, key='wl_export_csv')
+        st.download_button('⬇️ 导出自选股 CSV', data=csv_data, file_name=f'自选股_{datetime.now():%Y%m%d_%H%M%S}.csv', mime='text/csv', width="stretch", key='wl_export_csv')
         with st.expander('📋 复制全部自选股代码', expanded=False):
             st.code('\n'.join(codes), language='text')
             st.caption('点击代码块右上角复制按钮即可一次性复制所有自选股代码。')
     st.divider()
     col_a, col_b = st.columns(2)
     with col_a:
-        if st.button('🔄 刷新行情', type='primary', use_container_width=True, key='wl_refresh'):
+        if st.button('🔄 刷新行情', type='primary', width="stretch", key='wl_refresh'):
             pass
     with col_b:
-        if st.button('🧭 用自选股做技术体检', use_container_width=True, key='wl_tech_check'):
+        if st.button('🧭 用自选股做技术体检', width="stretch", key='wl_tech_check'):
             safe_switch_page('pages/31_形态选股.py')
-    if st.button('🔔 去设价格预警', use_container_width=True, key='wl_goto_alert'):
+    if st.button('🔔 去设价格预警', width="stretch", key='wl_goto_alert'):
         safe_switch_page('pages/47_价格预警.py')
     data_time = max(quote_times) if quote_times else '—'
     refresh_tag = ' ｜ 🔴 交易时段每 60 秒自动刷新' if _is_trading_now() else ''
@@ -396,7 +396,7 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
             return 'color:{_DOWN};font-weight:600'
         return 'color:#9aa0a6'
     _styled = display.style.map(_chg_color, subset=['涨跌%'])
-    st.dataframe(_styled, use_container_width=True, height=360, column_config={'涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '现价': st.column_config.NumberColumn(format='¥%.2f'), '量比': st.column_config.NumberColumn(format='%.2fx')})
+    st.dataframe(_styled, width="stretch", height=360, column_config={'涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '现价': st.column_config.NumberColumn(format='¥%.2f'), '量比': st.column_config.NumberColumn(format='%.2fx')})
     st.caption(f'共 {len(df)} 只股票池标的')
     st.caption('涨跌颜色遵循 A股惯例：红涨绿跌。综合/短期/中期/长期为技术评分（0–100，越高越强）。')
     opts = [f"{r['code']} {r['name']}" for _, r in df.iterrows()]
@@ -423,7 +423,7 @@ def _render_pool_table(df: pd.DataFrame | None, pool_key: str, on_remove):
             edit_score = st.slider('新评分', min_value=0, max_value=100, value=existing if existing is not None else 50, step=1, key=f'{pool_key}_edit_score', help='拖动选择 0–100 之间的整数')
         with c3:
             st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-            submitted = st.form_submit_button('保存', use_container_width=True)
+            submitted = st.form_submit_button('保存', width="stretch")
         if submitted:
             if edit_code and edit_code != '—':
                 code = edit_code.split()[0]
@@ -490,7 +490,7 @@ _c_rec = [('600519', '贵州茅台'), ('000858', '五粮液'), ('601012', '隆�
 _c_cols = st.columns(len(_c_rec))
 for _i, (_c, _n) in enumerate(_c_rec):
     with _c_cols[_i]:
-        if st.button(f'{_n} {_c}', key=f'wl_rec_{_c}', use_container_width=True):
+        if st.button(f'{_n} {_c}', key=f'wl_rec_{_c}', width="stretch"):
             st.session_state['pick_stock_confirmed'] = _c
             st.session_state['pick_stock_query'] = _c
             safe_switch_page('pages/24_个股研究.py')

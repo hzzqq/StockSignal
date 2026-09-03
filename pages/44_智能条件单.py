@@ -60,7 +60,7 @@ with st.expander('➕ 新建条件单', expanded=True, key='new_cond_exp'):
         default_expire = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
         expire_date = st.date_input('到期日（可选）', value=datetime.strptime(default_expire, '%Y-%m-%d'), help='超过该日期未触发则自动失效')
         expire_str = expire_date.strftime('%Y-%m-%d') if expire_date else None
-    if st.button('🚀 创建条件单', type='primary', use_container_width=True, key='cond_create'):
+    if st.button('🚀 创建条件单', type='primary', width="stretch", key='cond_create'):
         if not cond_code:
             st.error('请选择股票')
         elif quantity <= 0 or quantity % 100 != 0:
@@ -83,7 +83,7 @@ with st.expander('➕ 新建条件单', expanded=True, key='new_cond_exp'):
 st.divider()
 col_scan, col_info = st.columns([1, 2])
 with col_scan:
-    if st.button('🔍 立即扫描一轮', type='primary', use_container_width=True, key='cond_scan'):
+    if st.button('🔍 立即扫描一轮', type='primary', width="stretch", key='cond_scan'):
         sc, body = api_post('/api/cond-orders/scan')
         if sc == 200 and isinstance(body, dict):
             stats = body.get('data') or {} if body.get('status') == 'ok' else {}
@@ -142,13 +142,13 @@ def fragment_cond_list():
             with cm4:
                 if status == 'pending':
                     label = '停用' if active else '启用'
-                    if st.button(label, key=f'cond_tog_{cid}', use_container_width=True):
+                    if st.button(label, key=f'cond_tog_{cid}', width="stretch"):
                         api_put(f'/api/cond-orders/{cid}', {'active': not active})
                         st.rerun(scope='fragment')
                 else:
                     st.caption('—')
             with cm5:
-                if st.button('🗑️', key=f'cond_del_{cid}', use_container_width=True):
+                if st.button('🗑️', key=f'cond_del_{cid}', width="stretch"):
                     api_delete(f'/api/cond-orders/{cid}')
                     _toast('已删除')
                     st.rerun(scope='fragment')

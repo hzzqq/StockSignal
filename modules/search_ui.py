@@ -331,7 +331,7 @@ def multi_stock_search_input(label='输入多只股票', key='multi_stock_search
         st.session_state[items_key] = deduped[:max_rows]
         st.rerun()
     if len(items) < max_rows:
-        st.button('➕ 添加股票', key=f'{key}_add', on_click=_add_item, args=(key, max_rows), use_container_width=True)
+        st.button('➕ 添加股票', key=f'{key}_add', on_click=_add_item, args=(key, max_rows), width="stretch")
     resolved_codes = []
     resolved_labels = []
     unresolved = []

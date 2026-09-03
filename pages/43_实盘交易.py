@@ -96,7 +96,7 @@ with st.container(border=True):
     col_save, col_health, col_clear = st.columns([1, 1, 1])
     save_msg = None
     with col_save:
-        if st.button('💾 保存配置', type='primary', use_container_width=True):
+        if st.button('💾 保存配置', type='primary', width="stretch"):
             payload = {'broker_type': broker_type, 'live_mode': live_mode, 'max_order_amount': max_order_amount, 'daily_loss_limit': daily_loss_limit}
             if broker_config is not None:
                 payload['broker_config'] = broker_config
@@ -109,7 +109,7 @@ with st.container(border=True):
                 msg = body.get('message', '保存失败') if isinstance(body, dict) else '保存失败'
                 save_msg = f'❌ {msg}'
     with col_health:
-        if st.button('🔌 券商通道自检', use_container_width=True):
+        if st.button('🔌 券商通道自检', width="stretch"):
             sc, body = api_post('/api/trade/account/health')
             if sc == 200 and isinstance(body, dict):
                 d = body.get('data') or {} if body.get('status') == 'ok' else None
@@ -120,7 +120,7 @@ with st.container(border=True):
             else:
                 st.error('自检失败')
     with col_clear:
-        if st.button('🟢 解除当日停手', use_container_width=True, help='手动清除当日亏损停手标记'):
+        if st.button('🟢 解除当日停手', width="stretch", help='手动清除当日亏损停手标记'):
             sc, body = api_put('/api/trade/account', {'clear_risk_pause': True})
             if sc == 200 and isinstance(body, dict) and (body.get('status') == 'ok'):
                 _toast('已解除停手')
@@ -141,7 +141,7 @@ with st.container(border=True):
         quantity = st.number_input('数量 (股)', min_value=100, step=100, value=100, help='须为 100 的整数倍')
     with o4:
         price = st.number_input('限价 (元，0=市价)', min_value=0.0, step=0.01, value=0.0)
-    if st.button('🚀 提交委托', type='primary', use_container_width=True, key='trade_submit'):
+    if st.button('🚀 提交委托', type='primary', width="stretch", key='trade_submit'):
         if not order_code:
             st.error('请选择股票')
         elif quantity <= 0 or quantity % 100 != 0:

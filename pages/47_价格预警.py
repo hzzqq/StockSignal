@@ -297,7 +297,7 @@ with st.expander('➕ 新建预警', expanded=False, key='new_alert_exp'):
         kw = st.text_input('关键词（如：增持、回购、中标、减持）', placeholder='输入触发关键词，如：增持、回购、中标、减持')
         params = {'keyword': kw}
         st.caption('近期新闻/公告标题或内容包含该关键词即触发。')
-    submitted = st.button('保存预警', type='primary', use_container_width=True)
+    submitted = st.button('保存预警', type='primary', width="stretch")
     if submitted:
         _price_ok, _price_err = validate_alert_condition('threshold', target) if atype == 'price' else (True, None)
         _vol_ok, _vol_err = validate_alert_condition('threshold', vr) if atype == 'volume' else (True, None)
@@ -332,7 +332,7 @@ if _recent:
     _rc_cols = st.columns(min(len(_recent), 6))
     for _i, _rc in enumerate(_recent[:6]):
         with _rc_cols[_i]:
-            if st.button(f'📈 {_rc}', key=f'alert_recent_{_rc}', use_container_width=True):
+            if st.button(f'📈 {_rc}', key=f'alert_recent_{_rc}', width="stretch"):
                 st.session_state['pick_stock_confirmed'] = _rc
                 st.session_state['pick_stock_query'] = _rc
                 safe_switch_page('pages/24_个股研究.py')
@@ -434,7 +434,7 @@ def fragment_alerts():
         col_star, col_info, col_status, col_toggle, col_del = st.columns([1, 3.5, 2, 1.2, 1.2])
         with col_star:
             _is_fav = aid in st.session_state.get('_alert_fav_set', set())
-            if st.button('⭐' if _is_fav else '☆', key=f'fav_{aid}', use_container_width=True, help='收藏/取消收藏该预警'):
+            if st.button('⭐' if _is_fav else '☆', key=f'fav_{aid}', width="stretch", help='收藏/取消收藏该预警'):
                 _fs = st.session_state.setdefault('_alert_fav_set', set())
                 if aid in _fs:
                     _fs.discard(aid)
@@ -448,18 +448,18 @@ def fragment_alerts():
             st.caption(detail)
         with col_toggle:
             label = '停用' if a.get('active', False) else '启用'
-            if st.button(label, key=f'tog_{aid}', use_container_width=True):
+            if st.button(label, key=f'tog_{aid}', width="stretch"):
                 api_put(f'/api/price-alerts/{aid}/toggle')
         with col_del:
             _ck = f'alert_del_{aid}'
             if st.session_state.get(_ck):
-                if st.button('确认删除', key=f'del_cfm_{aid}', type='primary', use_container_width=True):
+                if st.button('确认删除', key=f'del_cfm_{aid}', type='primary', width="stretch"):
                     api_delete(f'/api/price-alerts/{aid}')
                     _toast('预警已删除')
                     st.session_state.pop(_ck, None)
-                if st.button('取消', key=f'del_cancel_{aid}', use_container_width=True):
+                if st.button('取消', key=f'del_cancel_{aid}', width="stretch"):
                     st.session_state.pop(_ck, None)
-            elif st.button('删除', key=f'del_{aid}', use_container_width=True):
+            elif st.button('删除', key=f'del_{aid}', width="stretch"):
                 st.session_state[_ck] = True
         if _notify_msgs:
             try:

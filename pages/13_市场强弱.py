@@ -359,7 +359,7 @@ def fragment_strength():
         date_range=None, ma_periods=ma, selected=keys,
         mode=mode, show_baseline=True, show_cross=(len(ma) >= 2), show_drawdown=False, ma_type=ma_type,
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="str_panel")
+    st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="str_panel")
 
     # 数据表 + 导出
     with st.expander("📋 数据表（随区间 / 序列联动）"):
@@ -368,7 +368,7 @@ def fragment_strength():
         tbl = tbl[["date"] + keep] if keep else tbl[["date"]]
         # 加法式 UX：数据表默认按日期倒序，最新交易日排在最前，便于核对近期强弱
         tbl = tbl.sort_values("date", ascending=False)
-        st.dataframe(tbl, use_container_width=True, hide_index=True, height=400)
+        st.dataframe(tbl, width="stretch", hide_index=True, height=400)
     csv = to_trend_csv(df, names_map=names_map, selected=keys, date_range=dr)
     st.download_button("⬇️ 导出 CSV", data=csv, file_name="市场强弱一览.csv", mime="text/csv")
 

@@ -56,7 +56,7 @@ with st.sidebar:
     sel_label = st.selectbox("信号模型", list(label_to_key.keys()), index=default_idx)
     model = label_to_key[sel_label]
     n = st.slider("榜单只数", 5, 30, 20, 5)
-    if st.button("🔄 刷新信号", key="p1_refresh", use_container_width=True,
+    if st.button("🔄 刷新信号", key="p1_refresh", width="stretch",
                  help="清除缓存并重新读取信号文件（P1 重新导出后点此立即生效）"):
         loader.invalidate()
         st.rerun()
@@ -170,9 +170,9 @@ if sym:
             sub["date"] = pd.to_datetime(sub["date"])
             sub = sub.sort_values("date").tail(40)
             st.line_chart(sub.set_index("date")[["score"]], height=220,
-                          use_container_width=True)
+                          width="stretch")
             st.dataframe(sub[["date", "symbol", "score", "signal"]].rename(
-                columns={"score": "预测得分", "signal": "信号"}), use_container_width=True)
+                columns={"score": "预测得分", "signal": "信号"}), width="stretch")
     else:
         st.info("无法加载 daily 明细（pandas 不可用或文件解析失败）。")
 

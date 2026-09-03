@@ -83,6 +83,6 @@ def render_ladder_table(promo):
         rows = []
         for tier, r in rates.items():
             rows.append({"档位": tier, "晋级率": f"{r:.1f}%" if r is not None else "—"})
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
     st.caption(f"最新快照日期：{promo.get('latest_date', '—')}　·　"
                "晋级率 = 当日 n 板家数 / 昨日 (n-1) 板家数；≥60% 接力强、<20% 梯队断档。")
