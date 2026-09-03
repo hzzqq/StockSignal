@@ -9,7 +9,7 @@
 
 import pytest
 
-from modules.decision import derive_position
+from modules.decision import derive_position, build_snapshot
 
 
 def test_temp_zero_floor():
@@ -87,3 +87,45 @@ def test_extreme_low_with_bullish_override_still_capped():
     # 若约束真正介入（少数高 temp 边界被其他正因子推过线），应留风控留痕
     if pos["pct"] >= 30:
         assert any("极端风控" in r for r in pos["reasons"])
+
+
+# ── 事件驱动催化调节（真实事件因子接入决策闭环）──
+def test_event_adj_adds_to_position():
+    # 基线 50 + 事件驱动催化 +3 = 53
+    pos = derive_position(50, event_adj=3)
+    assert pos["pct"] == 53
+    assert any("事件驱动催化" in r for r in pos["reasons"])
+
+
+def test_event_adj_none_no_reason():
+    pos = derive_position(50)
+    assert not any("事件驱动催化" in r for r in pos["reasons"])
+
+
+def test_event_adj_subject_to_extreme_risk_cap():
+    # 事件 +5 仍被「退潮双杀」极端风控上沿覆盖：温度<20 且退潮时不超过 30
+    pos = derive_position(10, cycle_name="退潮", event_adj=5)
+    assert pos["pct"] <= 30
+
+
+def test_build_snapshot_includes_event_factor(monkeypatch):
+    """决策快照应纳入真实事件因子（多头池广度 → 仓位调节）。"""
+    monkeypatch.setattr("modules.decision._event_position_adj",
+                        lambda top_n=50: {"adj": 3, "long_count": 30})
+    snap = build_snapshot("2026-08-21", {}, 50.0,
+                          {"bias": "偏多", "score": 0.5}, None, None)
+    assert snap["event_factor"]["available"] is True
+    assert snap["event_factor"]["adj"] == 3
+    assert snap["event_factor"]["long_count"] == 30
+    assert any("事件驱动催化" in r for r in snap["position"]["reasons"])
+    # 50 +8(偏多) +3(事件) = 61
+    assert snap["position"]["pct"] == 61
+
+
+def test_build_snapshot_event_unavailable_graceful(monkeypatch):
+    """取不到真实事件信号时平静降级：标记不可用、不臆造催化 reason。"""
+    monkeypatch.setattr("modules.decision._event_position_adj", lambda top_n=50: None)
+    snap = build_snapshot("2026-08-21", {}, 50.0, {"bias": "中性"}, None, None)
+    assert snap["event_factor"]["available"] is False
+    assert snap["event_factor"]["adj"] is None
+    assert not any("事件驱动催化" in r for r in snap["position"]["reasons"])

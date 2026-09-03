@@ -91,7 +91,8 @@ _BANDS = [
 
 
 # ───────────────────────── 仓位推导（唯一实现） ─────────────────────────
-def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=None) -> dict:
+def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=None,
+                   event_adj: int | None = None) -> dict:
     """透明推导仓位建议。
 
     规则（逐条留痕，前端直接展示 reasons，让建议可解释而非黑箱）：
@@ -99,6 +100,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
         + 方向调节（偏多 +8 / 偏空 -8）
         + 周期调节（主升 +5 / 修复确认 +3 / 高潮分化 -5 / 退潮 -10 / 冰点 +5 超卖试探）
         + 梯队晋级率调节（≥60% +5 / 40-60% 0 / 20-40% -3 / <20% -6）
+        + 事件驱动催化调节（真实事件因子多头池广度映射，见 _event_position_adj）
         最终 clamp 到 5~95%。
 
     :param temp: 市场温度 0-100（None 时兜底 50）
@@ -106,6 +108,9 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     :param bias: 偏多/偏空/中性
     :param cycle_name: 情绪周期六阶段名，可能带括号后缀（如「主升高潮（加速）」）
     :param overall_promo: 连板梯队整体晋级率(%)，None 表示数据缺失（不加不减）
+    :param event_adj: 事件驱动仓位调节(绝对百分点)；None/0 表示不调节。
+                       来源为真实 P1 EV 事件因子多头池广度（见 _event_position_adj），
+                       取不到真实信号时为 None —— 决策者不臆造事件催化。
     :return: dict(pct=int, band=str, color=str, reasons=list[str])
     """
     reasons: list[str] = []
@@ -141,6 +146,13 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
             padj, txt = -6, "梯队断档（晋级率<20%）"
         pct += padj
         reasons.append(f"{txt}：{'加' if padj >= 0 else '减'}仓 {abs(padj)}%")
+
+    # 事件驱动催化调节：真实事件因子（P1 EV 多头池广度）映射的市场级仓位微调。
+    # 接的是「事件驱动 + 市场情绪」决策主线的事件侧；取不到真实信号（event_adj=None）
+    # 时不臆造催化。置于常规推导内、极端风控约束外 —— 极端行情下沿/上沿仍凌驾其上。
+    if event_adj:
+        pct += event_adj
+        reasons.append(f"事件驱动催化：{'加' if event_adj >= 0 else '减'}仓 {abs(event_adj)}%")
 
     pct = max(5.0, min(95.0, pct))
 
@@ -178,9 +190,32 @@ def _cycle_name_of(forecast: dict | None) -> str:
     return str(cyc or "")
 
 
+def _event_position_adj(top_n: int = 50) -> dict | None:
+    """用真实 P1 EV 事件因子多头池广度，映射成市场级仓位调节。
+
+    返回 ``{"adj": int(0~5), "long_count": int}``；取不到真实信号（无目录 / 无文件 /
+    异常 / 多头池空）返回 ``None`` —— 决策者绝不臆造事件催化。
+
+    广度规则（透明、可解释）：
+        事件驱动多头池每满 10 只高置信标的 → 仓位 +1pt，封顶 +5。
+        多头池越宽 = 事件催化环境越旺 = 仓位越积极（与「事件驱动」主线一致）。
+    """
+    try:
+        from modules.event_factor import event_driven_long_list
+        longs = event_driven_long_list(top_n=top_n)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[decision] 事件因子多头池读取失败，跳过事件调节: %s", e)
+        return None
+    if not longs:
+        return None
+    n = len(longs)
+    return {"adj": min(5, n // 10), "long_count": n}
+
+
 # ───────────────────────── 快照构建 / 落盘 / 读取 ─────────────────────────
 def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
-                   promo: dict | None, ladder: dict | None = None) -> dict:
+                   promo: dict | None, ladder: dict | None = None,
+                   event_adj: int | None = None) -> dict:
     """把「今天的情绪信号 + 推导出的仓位建议」组装成一份可落盘的快照。
 
     :param date: 数据日期 YYYY-MM-DD（务必用**数据日期**而非 now()，否则周末/盘后
@@ -190,14 +225,28 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
     :param forecast: shepherd_forecast.forecast_next_day 的返回
     :param promo: shepherd_ladder.ladder_promotion_rates 的返回
     :param ladder: get_zt_ladder 的原始返回（可选，存分布与最高板）
+    :param event_adj: 事件驱动仓位调节(绝对百分点)；默认 None 时由真实事件因子
+                      （P1 EV 多头池广度）自动计算。显式传值可覆盖/关闭(传 0)。
     """
     fc = forecast if isinstance(forecast, dict) else {}
     pm = promo if isinstance(promo, dict) else {}
     ld = ladder if isinstance(ladder, dict) else {}
 
+    # 事件驱动催化：默认用真实事件因子多头池广度自动算；取不到则标记不可用（不臆造）
+    ev = _event_position_adj() if event_adj is None else (
+        {"adj": event_adj, "long_count": None} if event_adj else None)
+    ev_info = {
+        "available": bool(ev),
+        "long_count": ev["long_count"] if ev else 0,
+        "adj": ev["adj"] if ev else None,
+    }
+    if ev:
+        event_adj = ev["adj"]
+
     cycle_name = _cycle_name_of(fc)
     overall = pm.get("overall")
-    pos = derive_position(temp, fc.get("score"), fc.get("bias"), cycle_name, overall)
+    pos = derive_position(temp, fc.get("score"), fc.get("bias"), cycle_name, overall,
+                          event_adj=event_adj)
 
     return {
         "date": date,
@@ -214,6 +263,7 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
             "total_connect": ld.get("total_connect"),
         },
         "position": pos,
+        "event_factor": ev_info,
         "indicators": dict(indicators or {}),
         "signals": fc.get("signals") or [],
         "scenario": fc.get("scenario") or [],
