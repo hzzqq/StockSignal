@@ -221,15 +221,86 @@ class SignalEngine:
     # ------------------------------------------------------------------
     # 事件信号得分 (0-100)
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # 真实事件因子接入（P1 EV 信号）
+    # ------------------------------------------------------------------
+    def _p1_loader(self):
+        """懒加载并缓存 P1 信号加载器（避免每次 evaluate 重复扫描信号目录）。
+
+        取不到（模块/目录缺失）安全降级：置 False 并缓存，后续不再重试。
+        """
+        _ld = getattr(self, "_p1l", None)
+        if _ld is None:
+            try:
+                from modules.p1_signal import P1SignalLoader
+                self._p1l = P1SignalLoader(ttl=300)
+            except Exception as _e:  # noqa: BLE401
+                logger.warning(f"[signal] P1 加载器不可用，事件维度回退本地: {_e}")
+                self._p1l = False
+        return self._p1l or None
+
+    def _event_factor_to_score(self, ef: dict) -> int:
+        """把 P1 EV 事件因子 dict 映射为 0-100 事件得分（决策系统统一量纲）。
+
+        - ``rank`` 为模型自身百分位排名（0-1，越高越看多）→ 线性映射到 0-100；
+        - 无 rank（daily 精确路径）用 ``score``（日超额收益）方向近似，scale 保守；
+        - 仅含信号文本时按多/空定性。
+        取不到真实信号时调用方应回退本地事件库逻辑，不在此兜底。
+        """
+        rank = ef.get("rank")
+        if isinstance(rank, (int, float)):
+            base = 50 + (float(rank) - 0.5) * 100  # rank=1→100, rank=0→0, 0.5→50
+            return self._clamp(base, 5, 95)
+        sc = ef.get("score")
+        if isinstance(sc, (int, float)):
+            base = 50 + float(sc) * 200  # 日超额 ±0.25 → ±50
+            return self._clamp(base, 5, 95)
+        sig = ef.get("signal")
+        if sig in ("看多", "多头"):
+            return 80
+        if sig in ("看空", "空头"):
+            return 20
+        return 50
+
+    def event_signal_detail(self, ticker, model: str = "ev") -> dict | None:
+        """返回某标的真实事件因子明细（供展示增强用）；取不到返回 None。"""
+        try:
+            from modules.event_factor import get_event_factor
+            _ld = self._p1_loader()
+            if _ld is None:
+                return None
+            ef = get_event_factor(ticker, model=model, loader=_ld)
+            return ef if ef.get("available") else None
+        except Exception as _e:  # noqa: BLE401
+            logger.warning(f"[signal] 事件因子明细获取失败({ticker}): {_e}")
+            return None
+
     def event_score(self, ticker, keywords, date=None):
         """
-        基于事件库 + 实时新闻情感的事件信号得分（0-100）。
+        基于「真实事件因子」+ 本地事件库 + 实时新闻情感的事件信号得分（0-100）。
+
+        优先级：
+          1. 真实事件因子（P1 EV 信号，适配器接入，rank 百分位的 0-100 映射）——
+             这是去除旧「P4 合成演示依赖」后的主线数据源；
+          2. 取不到（标的不在 P1 池 / 无信号文件）优雅回退本地事件库 + 实时新闻情感。
 
         关键修复（长电科技无利空却得 42 分）：
           - 中性基准从 50 提到 52，且无利空事件时绝不打低分（下限 45）。
           - 实时新闻情绪改为「相对中性」映射（50=多空平衡），仅在事件库
             无法定性时才小幅微调，不再让中性/偏多新闻把分数拖到 40 出头。
         """
+        # ── 真实事件因子优先（P1 EV 信号，取代旧本地事件库合成路径）──
+        # 取不到（标的不在 P1 池 / 无信号文件）优雅回退到下方本地事件库逻辑。
+        try:
+            from modules.event_factor import get_event_factor
+            _ld = self._p1_loader()
+            if _ld is not None:
+                _ef = get_event_factor(ticker, model="ev", loader=_ld)
+                if _ef.get("available"):
+                    return self._event_factor_to_score(_ef)
+        except Exception as _e:  # noqa: BLE401
+            logger.warning(f"[signal] 事件因子真实信号获取失败，回退本地: {_e}")
+
         events = self._load_events()
         score = 52  # 中性偏多基准：无利空即不应低于 50
         pos_w = neg_w = 0
@@ -442,12 +513,19 @@ class SignalEngine:
         m_score = self.macro_score(date)
         s_score = self.sector_relative_score(event_keywords, df, date, sector_name=sector_name)
 
+        # 事件维度信号源（真实 P1 EV 信号 or 本地事件库回退），供展示与选股池标注
+        _ef_detail = self.event_signal_detail(ticker)
+        _event_source = _ef_detail.get("source") if _ef_detail else "本地事件库"
+        _event_signal = _ef_detail.get("signal") if _ef_detail else None
+
         w = self.weights
         total = int(p_score * w.get("price", 0.4) + e_score * w.get("event", 0.4) + m_score * w.get("macro", 0.2))
 
         return {
             "price_score": p_score,
             "event_score": e_score,
+            "event_source": _event_source,
+            "event_signal": _event_signal,
             "macro_score": m_score,
             "sector_score": s_score,
             "technical_profile": tp,

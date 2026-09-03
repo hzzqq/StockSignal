@@ -351,8 +351,59 @@ def fragment_p1_ev():
                 f"<span style='color:{_col};font-weight:600'>{_sc_txt}</span>"
                 f"　信号：<b>{ef.get('signal')}</b>　来源：<code>{ef.get('source')}</code>",
                 unsafe_allow_html=True)
-        else:
-            st.info(f"该标的无事件因子信号：{ef.get('reason', '未知')}")
+    else:
+        st.info(f"该标的无事件因子信号：{ef.get('reason', '未知')}")
+
+
+@safe_fragment("事件驱动看多榜")
+def fragment_event_driven_pool():
+    """📈 事件驱动看多榜：把真实事件因子（P1 EV）直接落成「选股候选池」。
+
+    与上方「🧠 P1 量化信号」的区别：那里是模型无关的「多头侧灰度参考」，
+    这里是**事件因子维度的选股池**（ev 模型 = EV 事件因子，已并入牧羊人情绪
+    9 维事件/regime 通道），明确标注真实信号来源，可直接喂给本页仓位决策。
+    universe = P1 EV 池本身（模型已排序），免全市场 5000 股实时重排。
+    """
+    _section_title("📈 事件驱动看多榜（EV 事件因子 · 真实信号）", accent="#ff8a3d")
+    try:
+        from modules.event_factor import event_driven_long_list
+        rows = event_driven_long_list(top_n=20, model="ev")
+    except Exception as e:  # noqa: BLE401
+        xc_handle_error("事件驱动看多榜加载失败", e)
+        return
+
+    if not rows:
+        _empty_info("未找到 P1 EV 事件因子信号（data/p1_signals/ 或 P1 产出目录）。"
+                    "接入真实信号后此处自动出现候选池；当前事件维度回退本地事件库。")
+        return
+
+    body = ("由 P1-QuantFactor 神经网络产出的**事件因子多头候选池**（EV 模型，已并入牧羊人情绪"
+            "9 维事件/regime 通道）。这是统计意义上的超额收益概率排序，**非**买卖指令；"
+            "建议仅取多头侧，并与本页牧羊人仓位建议配合使用。")
+    sf_card("事件驱动 · EV 看多榜（前 20）", body, icon="📈")
+
+    rows_html = ""
+    for i, r in enumerate(rows, 1):
+        sym = r.get("symbol", "")
+        sc = r.get("score")
+        sc_txt = f"{sc:.1f}" if isinstance(sc, (int, float)) else "—"
+        # 百分位越高越红（A股涨色），但此处是「信号强度」而非涨跌，用橙红梯度更中性
+        _col = "#ff8a3d"
+        rows_html += (
+            f"<tr><td style='color:#888'>{i}</td>"
+            f"<td style='font-family:monospace'>{sym}</td>"
+            f"<td style='color:{_col};font-weight:600'>{sc_txt}</td>"
+            f"<td style='color:#888;font-size:12px'>{r.get('source','')}</td></tr>"
+        )
+    st.markdown(
+        "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
+        "<thead><tr style='color:#ff8a3d;text-align:left'>"
+        "<th>#</th><th>代码</th><th>事件因子分</th><th>来源</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table>",
+        unsafe_allow_html=True,
+    )
+    st.caption("口径：事件因子分 = P1 模型百分位排名 × 100（越高越看多）。"
+               "与牧羊人仓位建议**一致**时增强信心，分歧时提示人工复核。")
 
 
 # ───────────────────────── 复盘归档（保存快照 + 历史回测） ─────────────────────────
@@ -644,6 +695,7 @@ fragment_decision()
 fragment_signals()
 fragment_ladder()
 fragment_p1_ev()
+fragment_event_driven_pool()
 fragment_review()
 fragment_backtest()
 fragment_calibration()

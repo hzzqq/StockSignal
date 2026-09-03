@@ -12,7 +12,10 @@
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) -> dict:
@@ -93,3 +96,48 @@ def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) 
 
     return {"available": False, "symbol": symbol,
             "reason": "该标的无 P1 事件因子信号（不在池内或近期无预测）"}
+
+
+def event_driven_long_list(top_n: int = 20, model: str = "ev",
+                            loader: Any | None = None) -> list[dict]:
+    """返回「事件驱动看多榜」——按真实事件因子排序的多头候选池。
+
+    来源即 P1 ``top_long``（EV 模型 = EV 事件因子，已并入牧羊人情绪 9 维
+    事件/regime 通道），天然带模型自身百分位排名，无需对全市场 5000 股
+    实时重排序。
+
+    返回每项（已统一展示量纲）：
+        {"symbol", "score"(0-100 由 rank 映射), "raw_rank", "raw_pred",
+         "signal"(恒为"看多"), "source"}
+
+    取不到真实信号（无文件 / 模型缺失 / 异常）优雅返回 ``[]``，
+    调用方应展示「无信号」提示而非报错。
+    """
+    if loader is None:
+        try:
+            from modules.p1_signal import P1SignalLoader
+            loader = P1SignalLoader(ttl=300)
+        except Exception as e:  # pragma: no cover - 模块级依赖异常
+            logger.warning(f"[event_factor] 事件驱动看多榜加载器不可用: {e}")
+            return []
+    try:
+        rows = loader.top_long(model, top_n)
+    except Exception as e:  # pragma: no cover - 视图层异常
+        logger.warning(f"[event_factor] 读取 top_long 失败: {e}")
+        return []
+
+    out: list[dict] = []
+    for r in rows:
+        rank = r.get("rank")
+        pct = None
+        if isinstance(rank, (int, float)):
+            pct = round(float(rank) * 100, 1)  # rank 0-1 → 0-100 百分位
+        out.append({
+            "symbol": r.get("symbol"),
+            "score": pct,
+            "raw_rank": rank,
+            "raw_pred": r.get("pred"),
+            "signal": "看多",
+            "source": f"P1-{model}-top_long",
+        })
+    return out

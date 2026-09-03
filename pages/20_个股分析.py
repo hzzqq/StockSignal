@@ -754,13 +754,15 @@ def _render_event_factor_card(ticker):
     else:
         _col = AMBER
         _sc_txt = "—"
+    _rank = ef.get("rank")
+    _rank_txt = f"{float(_rank)*100:.1f}" if isinstance(_rank, (int, float)) else "—"
     st.markdown(
         f"🧠 **事件因子（P1 EV，真实信号）**：得分 "
         f"<span style='color:{_col};font-weight:600'>{_sc_txt}</span>"
-        f"　信号：**{ef.get('signal')}**　来源：<code>{ef.get('source')}</code>",
+        f"　信号：**{ef.get('signal')}**　百分位排名：<b>{_rank_txt}</b>　来源：<code>{ef.get('source')}</code>",
         unsafe_allow_html=True)
     st.caption("由 P1-QuantFactor 神经网络产出（并入牧羊人情绪 9 维事件/regime 通道），"
-               "为统计超额收益概率排序，非买卖指令。")
+               "为统计超额收益概率排序，非买卖指令。百分位排名越高越看多。")
 
 
 def _video_embed_url(url: str):
