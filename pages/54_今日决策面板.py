@@ -25,7 +25,7 @@ from modules import shepherd_forecast as _sf
 from modules import shepherd_note as _sn
 # 仓位推导收敛到 modules.decision 单一实现：决策面板 / 每日快照脚本 / 首页 banner 三处共用，
 # 避免各写一份漂移成互相矛盾的建议。改规则只需改 decision.derive_position 一处。
-from modules.decision import derive_position, load_snapshot, is_stale
+from modules.decision import derive_position, load_snapshot, is_stale, _event_position_adj
 from modules.decision_view import render_signal_cards, render_position_card, render_ladder_table
 from modules import decision_track as _track
 from modules import calibration as _cal
@@ -158,8 +158,34 @@ def _render_hero(df, today, prev, meta=None):
                         score, bias, overall, promo.get("latest_date", "—"),
                         temp_delta=temp_delta, overall_delta=overall_delta)
 
+    # 数据新鲜度徽标：与「决策快照」快照片段同源（I2），避免实时面板假装最新（S2 自找缺口）
+    try:
+        _dstr = _last_data_date(df)
+        _age = (datetime.date.today() - datetime.date.fromisoformat(_dstr[:10])).days if _dstr else None
+    except Exception:  # noqa: BLE001
+        _age = None
+    if _age is not None and _age > 1:
+        st.warning(f"⏰ 数据滞后 {_age} 日（最新指标截至 {_dstr}）——决策依据可能偏旧，谨慎参考")
+    elif _age is not None:
+        st.caption(f"数据截至 {_dstr}（滞后 {_age} 日）")
+
     # ② 仓位建议大卡（闭环的输出端）
-    pos = derive_position(temp, score, bias, cyc.get("name", ""), overall)
+    # 事件驱动催化：实时接通事件因子，消除「活/归档漂移」（S1 自找缺口）。
+    # 与 build_snapshot 同源（都走 _event_position_adj），保证实时卡与归档快照一致；
+    # 底层读 11MB 信号文件，靠模块级 300s 缓存避免每次刷新重读。失败则降级为 None（不臆造）。
+    event_adj_val = None
+    try:
+        _ev = _event_position_adj()
+        event_adj_val = _ev["adj"] if isinstance(_ev, dict) else None
+    except Exception:  # noqa: BLE001
+        event_adj_val = None
+    # 暴露事件调节量到 session_state，供冒烟测试做「数据正确性」断言（不渲染、纯透传）
+    try:
+        st.session_state["decision_event_adj"] = event_adj_val
+    except Exception:  # noqa: BLE001
+        pass
+    pos = derive_position(temp, score, bias, cyc.get("name", ""), overall,
+                          event_adj=event_adj_val)
     # 暴露最终仓位到 session_state，供冒烟测试做「数据正确性」断言（不渲染、纯透传）
     try:
         st.session_state["decision_pos_pct"] = pos["pct"]

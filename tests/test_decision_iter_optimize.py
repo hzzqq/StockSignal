@@ -16,6 +16,7 @@ import pytest
 from modules import decision as _dec
 from modules import decision_track as _track
 from modules import calibration as _cal
+from modules import event_factor as _ev
 
 
 # ───────── I4 输入校验 ─────────
@@ -155,3 +156,93 @@ def test_verdict_freshness_keys(tmp_path, monkeypatch):
     assert "last_scored_date" in v
     assert "stale_days" in v
     assert v["last_scored_date"] is None  # 无样本 → 无最近打分
+
+
+# ───────── S1 实时仓位卡片接通事件因子（消除活/归档漂移）─────────
+def test_event_position_adj_ttl_cache_hits(monkeypatch):
+    """成功结果应被 300s 缓存，ttl 内二次调用返回同一对象（不重读 11MB 文件）。"""
+    calls = {"n": 0}
+
+    def fake_long_list(top_n=50, model="ev", loader=None):
+        calls["n"] += 1
+        return [{"symbol": f"S{i}"} for i in range(30)]  # 30 只 → adj=3
+
+    monkeypatch.setattr(_ev, "event_driven_long_list", fake_long_list)
+    # 清缓存，确保从干净态开始
+    _dec._event_adj_cache["value"] = None
+    _dec._event_adj_cache["ts"] = 0.0
+
+    a = _dec._event_position_adj(ttl=300)
+    b = _dec._event_position_adj(ttl=300)
+    assert a == b == {"adj": 3, "long_count": 30}
+    assert calls["n"] == 1  # 只算了一次，第二次命中缓存
+
+
+def test_event_position_adj_failure_not_cached(monkeypatch):
+    """失败（返回 None）不写入缓存，下次调用会重试。"""
+    calls = {"n": 0}
+
+    def fake_long_list(top_n=50, model="ev", loader=None):
+        calls["n"] += 1
+        raise RuntimeError("信号文件读不到")
+
+    monkeypatch.setattr(_ev, "event_driven_long_list", fake_long_list)
+    _dec._event_adj_cache["value"] = None
+    _dec._event_adj_cache["ts"] = 0.0
+
+    assert _dec._event_position_adj(ttl=300) is None
+    assert _dec._event_position_adj(ttl=300) is None
+    assert calls["n"] == 2  # 两次都重试（失败不缓存）
+
+
+def test_event_position_adj_ttl_zero_forces_recompute(monkeypatch):
+    """ttl=0 强制每次重算（绕过缓存）。"""
+    calls = {"n": 0}
+
+    def fake_long_list(top_n=50, model="ev", loader=None):
+        calls["n"] += 1
+        return [{"symbol": "X"}]
+
+    monkeypatch.setattr(_ev, "event_driven_long_list", fake_long_list)
+    _dec._event_adj_cache["value"] = None
+    _dec._event_adj_cache["ts"] = 0.0
+
+    _dec._event_position_adj(ttl=0)
+    _dec._event_position_adj(ttl=0)
+    assert calls["n"] == 2
+
+
+def test_live_hero_wires_event_into_position():
+    """实时路径等价：derive_position 收到 event_adj 时，仓位含事件催化、理由含「事件驱动催化」。
+
+    这是 S1 的核心不变量——实时大卡与归档快照必须同源（都经 _event_position_adj）。
+    直接验证「文档级」闭环：build_snapshot 走 _event_position_adj → derive_position(event_adj=…)；
+    实时 hero 现在也走同一条路。
+    """
+    # 模拟真实事件因子可用（多头池宽 → adj=3），两段路径都应产出一致的含催化仓位
+    with EventAdjStub(adj=3):
+        snap = _dec.build_snapshot("2026-09-03", {}, 50,
+                                   {"score": 60, "bias": "偏多", "cycle": {"name": "主升"}},
+                                   {"overall": 60})
+        live_pos = _dec.derive_position(50, 60, "偏多", "主升", 60, event_adj=3)
+    assert snap["position"]["pct"] == live_pos["pct"]
+    assert any("事件驱动催化" in r for r in live_pos["reasons"])
+    assert any("事件驱动催化" in r for r in snap["position"]["reasons"])
+
+
+class EventAdjStub:
+    """上下文管理器：用固定返回值 stub _event_position_adj，退出即恢复。"""
+
+    def __init__(self, adj):
+        self._adj = {"adj": adj, "long_count": 10 * adj}
+        self._orig = None
+
+    def __enter__(self):
+        import modules.decision as d
+        self._orig = d._event_position_adj
+        d._event_position_adj = lambda top_n=50, ttl=300: self._adj
+        return self
+
+    def __exit__(self, *exc):
+        import modules.decision as d
+        d._event_position_adj = self._orig

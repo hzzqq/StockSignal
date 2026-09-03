@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from datetime import datetime
 from typing import Any
 
@@ -208,8 +209,8 @@ def _cycle_name_of(forecast: dict | None) -> str:
     return str(cyc or "")
 
 
-def _event_position_adj(top_n: int = 50) -> dict | None:
-    """用真实 P1 EV 事件因子多头池广度，映射成市场级仓位调节。
+def _compute_event_adj(top_n: int = 50) -> dict | None:
+    """真实事件因子多头池 → 市场级仓位调节（无缓存，纯计算）。
 
     返回 ``{"adj": int(0~5), "long_count": int}``；取不到真实信号（无目录 / 无文件 /
     异常 / 多头池空）返回 ``None`` —— 决策者绝不臆造事件催化。
@@ -228,6 +229,25 @@ def _event_position_adj(top_n: int = 50) -> dict | None:
         return None
     n = len(longs)
     return {"adj": min(5, n // 10), "long_count": n}
+
+
+# 模块级 TTL 缓存：实时决策面板每次刷新（含 180s 自动刷新）都会调本函数，
+# 而底层要读 11MB 的 P1 信号文件。缓存成功结果 300s，避免反复重读拖慢 UI；
+# 失败（返回 None）不缓存，下次刷新仍可重试恢复。
+_event_adj_cache: dict = {"value": None, "ts": 0.0}
+
+
+def _event_position_adj(top_n: int = 50, ttl: int = 300) -> dict | None:
+    """见 ``_compute_event_adj``。``ttl`` 秒内复用上一次成功结果（仅缓存成功值）。"""
+    now = time.time()
+    cached = _event_adj_cache
+    if cached["value"] is not None and (now - cached["ts"]) < ttl:
+        return cached["value"]
+    ev = _compute_event_adj(top_n=top_n)
+    if ev is not None:  # 仅成功时缓存；失败不缓存，下次重试
+        cached["value"] = ev
+        cached["ts"] = now
+    return ev
 
 
 def _age_days(date_str: str | None) -> int | None:
