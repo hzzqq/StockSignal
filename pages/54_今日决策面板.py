@@ -25,7 +25,8 @@ from modules import shepherd_forecast as _sf
 from modules import shepherd_note as _sn
 # 仓位推导收敛到 modules.decision 单一实现：决策面板 / 每日快照脚本 / 首页 banner 三处共用，
 # 避免各写一份漂移成互相矛盾的建议。改规则只需改 decision.derive_position 一处。
-from modules.decision import derive_position, load_snapshot, is_stale, _event_position_adj, _event_long_symbols, assess_freshness
+from modules.decision import derive_position, load_snapshot, is_stale, _event_position_adj, _event_long_symbols
+from modules.data_health import health_rows, assess_freshness
 from modules.decision_view import render_signal_cards, render_position_card, render_ladder_table
 from modules import decision_track as _track
 from modules import calibration as _cal
@@ -202,6 +203,23 @@ def _render_hero(df, today, prev, meta=None):
                  if s.get("as_of")]
         if _bits:
             st.caption("数据截至：" + "、".join(_bits))
+
+    # ③ 决策数据健康看板：把守卫扩到「全部」决策相关源（S9），不止牧羊人+事件因子。
+    # 任一源陈旧即整体告警，避免连板晋级率/事件池/市场温度/快照陈旧时面板静默。
+    try:
+        _hr = health_rows()
+        _any_stale = any(r["status"] == "stale" for r in _hr)
+        _any_warn = any(r["status"] == "warn" for r in _hr)
+        with st.expander("🩺 决策数据健康（全部源新鲜度）", expanded=_any_stale or _any_warn):
+            for r in _hr:
+                _d = r["as_of"] or "未知"
+                _lag = f"滞后 {r['lag_days']} 天" if isinstance(r["lag_days"], int) else "无日期"
+                _icon = {"ok": "🟢", "warn": "🟡", "stale": "🔴", "unknown": "⚪"}.get(r["status"], "⚪")
+                st.caption(f"{_icon} {r['name']}：截至 {_d}（{_lag}）")
+            if _any_stale:
+                st.warning("⚠️ 存在陈旧数据源，以上仓位/信号建议请谨慎参考；刷新陈旧源后再决策。")
+    except Exception:  # noqa: BLE001
+        pass
 
     # ② 仓位建议大卡（闭环的输出端）
     # 事件驱动催化：实时接通事件因子，消除「活/归档漂移」（S1 自找缺口）。
