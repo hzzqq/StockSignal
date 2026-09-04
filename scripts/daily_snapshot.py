@@ -351,7 +351,18 @@ def main() -> int:
         log(f"[warn] 晋级率计算失败: {e}")
         promo = {}
 
-    snap = _dec.build_snapshot(date, today, temp, fc, promo, ladder)
+    # 决策级新鲜度守卫全量覆盖（S14）：把连板晋级率/市场温度缓存的「真实数据截止日」
+    # 也透传给 build_snapshot——否则这两个决策输入陈旧时守卫是 theater（只查牧羊人+事件）。
+    # 复用 data_health 抽取器作单一真理源；任一抽不到则对应源不入守卫（与 dashboard 同款容错）。
+    try:
+        from modules import data_health as _dh
+        _ladder_asof = _dh.source_as_of(next(e for e in _dh.DATA_SOURCES if e["key"] == "ladder"))
+        _mtemp_asof = _dh.source_as_of(next(e for e in _dh.DATA_SOURCES if e["key"] == "market_temp"))
+    except Exception:  # noqa: BLE001
+        _ladder_asof = _mtemp_asof = None
+
+    snap = _dec.build_snapshot(date, today, temp, fc, promo, ladder,
+                               ladder_as_of=_ladder_asof, market_temp_as_of=_mtemp_asof)
     pos = snap.get("position") or {}
 
     log(

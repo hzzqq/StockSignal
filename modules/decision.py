@@ -379,7 +379,9 @@ def assess_freshness(sources: dict) -> dict:
 def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
                    promo: dict | None, ladder: dict | None = None,
                    event_adj: int | None = None,
-                   temp_as_of: str | None = None) -> dict:
+                   temp_as_of: str | None = None,
+                   ladder_as_of: str | None = None,
+                   market_temp_as_of: str | None = None) -> dict:
     """把「今天的情绪信号 + 推导出的仓位建议」组装成一份可落盘的快照。
 
     :param date: 数据日期 YYYY-MM-DD（务必用**数据日期**而非 now()，否则周末/盘后
@@ -394,6 +396,12 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
     :param temp_as_of: 市场温度 ``temp`` 对应的**真实数据日期**。不传时回退取
                        ``indicators["date"]``。用于新鲜度判定——温度常取自情绪
                        历史末行，其日期往往早于快照日期，必须如实带出。
+    :param ladder_as_of: 连板晋级率数据的**真实截止日**（对应 promo 输入源）。
+                       传入后纳入新鲜度守卫——否则晋级率陈旧时守卫是 theater
+                       （S12 只查了牧羊人+事件两源）。由调用方（daily_snapshot）从
+                       data_health 抽取器取真实日期透传。不传则该源不入守卫。
+    :param market_temp_as_of: 市场温度缓存（market_cache.db）的真实截止日，对应 temp。
+                       同上，传入才纳入守卫。
     """
     fc = forecast if isinstance(forecast, dict) else {}
     pm = promo if isinstance(promo, dict) else {}
@@ -419,12 +427,20 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
     # 可能远早于快照日期。不显式带出，就会让「半个月前的温度/信号」冒充今天。
     # 必须在 derive_position 之前算好——守卫不能只"提示"，要把新鲜度透传给
     # 仓位推导，让陈旧输入真的降仓（见 derive_position 内 freshness_status 封顶）。
+    # 守卫覆盖**全部决策输入源**（S14 收口 S12 部分 theater）：连板晋级率、市场温度
+    # 缓存的真实截止日由调用方透传（ladder_as_of/market_temp_as_of），否则这两个源
+    # 陈旧时决策仍照算不误，守卫只是半套。
     _ind = indicators if isinstance(indicators, dict) else {}
     shepherd_as_of = temp_as_of or _ind.get("date")
-    freshness = assess_freshness({
+    _fresh_sources = {
         "牧羊人情绪": shepherd_as_of,
         "事件因子": ev_info.get("as_of"),
-    })
+    }
+    if ladder_as_of is not None:
+        _fresh_sources["连板晋级率"] = ladder_as_of
+    if market_temp_as_of is not None:
+        _fresh_sources["市场温度缓存"] = market_temp_as_of
+    freshness = assess_freshness(_fresh_sources)
     pos = derive_position(temp, fc.get("score"), fc.get("bias"), cycle_name, overall,
                           event_adj=event_adj, freshness_status=freshness["status"])
 
