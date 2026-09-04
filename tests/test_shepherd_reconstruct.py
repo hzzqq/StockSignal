@@ -13,7 +13,7 @@ import tempfile
 import pandas as pd
 import pytest
 
-from modules.shepherd_reconstruct import _enrich_zt_from_cache, _board_limit_pct
+from modules.shepherd_reconstruct import _enrich_zt_from_cache, _board_limit_pct, _atomic_to_csv, _atomic_json_dump
 
 
 def _write_cache(cache_dir, name, rows):
@@ -139,3 +139,25 @@ def test_board_limit_pct_bare_and_prefixed():
     assert _board_limit_pct("300750") == 0.20     # 裸创业板
     assert _board_limit_pct("830799") == 0.30     # 裸北交所 8 段
     assert _board_limit_pct("920002") == 0.30     # 裸北交所 920 段
+
+
+def test_atomic_to_csv_no_tmp_lingering(tmp_path):
+    """_atomic_to_csv 写完后临时文件须被 replace 掉，主文件可完整 reload。"""
+    import os
+    p = str(tmp_path / "cache" / "600000.csv")
+    df = pd.DataFrame({"a": [1, 2, 3]})
+    _atomic_to_csv(df, p)
+    assert os.path.exists(p)
+    assert not os.path.exists(p + ".tmp")
+    assert list(pd.read_csv(p)["a"]) == [1, 2, 3]
+
+
+def test_atomic_json_dump_no_tmp_lingering(tmp_path):
+    """_atomic_json_dump 写完后临时文件须被 replace 掉，主文件可完整 load。"""
+    import os
+    p = str(tmp_path / "symbols.json")
+    _atomic_json_dump(["600000", "000001"], p)
+    assert os.path.exists(p)
+    assert not os.path.exists(p + ".tmp")
+    import json
+    assert json.load(open(p, encoding="utf-8")) == ["600000", "000001"]

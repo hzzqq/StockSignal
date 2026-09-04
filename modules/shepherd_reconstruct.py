@@ -38,6 +38,25 @@ from modules.fetch_parallel import fetch_many
 
 logger = logging.getLogger(__name__)
 
+
+def _atomic_to_csv(df: pd.DataFrame, path: str) -> None:
+    """原子写 CSV：先写临时文件再 os.replace，避免多进程 worker 写时并发读读到半截缓存。"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = f"{path}.tmp"
+    df.to_csv(tmp, index=False)
+    os.replace(tmp, path)
+
+
+def _atomic_json_dump(obj, path: str) -> None:
+    """原子写 JSON：先写临时文件再 os.replace。"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = f"{path}.tmp"
+    import json
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
 # 输出文件（与 shepherd.py 共享）
 _BREADTH_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "data", "shepherd_history.csv"
@@ -245,8 +264,7 @@ def _aggregate_cached(symbol: str, start_date: str, end_date: str, cache_dir: st
     df = _aggregate_one_stock(symbol, start_date, end_date)
     if df is not None and not df.empty:
         try:
-            os.makedirs(cache_dir, exist_ok=True)
-            df.to_csv(path, index=False)
+            _atomic_to_csv(df, path)
         except Exception as e:  # noqa: BLE001
             logger.debug("[shepherd_reconstruct] 写缓存失败 %s: %s", symbol, e)
     return df
@@ -286,10 +304,7 @@ def _fetch_a_share_codes() -> Optional[pd.DataFrame]:
     df.rename(columns={code_col: "symbol"}, inplace=True)
     df = df[df["symbol"].astype(str).str.len() >= 8]
     try:
-        import json
-        os.makedirs(os.path.dirname(_SYMBOLS_CACHE), exist_ok=True)
-        with open(_SYMBOLS_CACHE, "w", encoding="utf-8") as f:
-            json.dump(df["symbol"].astype(str).tolist(), f, ensure_ascii=False)
+        _atomic_json_dump(df["symbol"].astype(str).tolist(), _SYMBOLS_CACHE)
     except Exception as e:  # noqa: BLE001
         logger.debug("[shepherd_reconstruct] 写代码缓存失败: %s", e)
     return df
