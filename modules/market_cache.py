@@ -342,11 +342,27 @@ def get_cache_status() -> Dict[str, Any]:
 
 # ── 刷新调度 ───────────────────────────────────────────────────
 
+def _worker_fetch_drivers(days: int):
+    """子进程入口：隔离 py_mini_racer(V8) 原生崩溃。
+
+    部分 akshare 接口在解密响应时会触发 V8（py_mini_racer）原生段错误，
+    该崩溃无法被 Python try/except 捕获，会直接杀死整个进程。
+    放到独立子进程里执行：子进程崩溃/超时只影响子进程，父进程捕获后
+    降级为 fetch_failed（缓存兜底，不报警）。
+
+    注意：本函数必须在模块顶层定义（可被 pickle 引用）；子进程会以 spawn
+    方式重新导入 __main__，调用方需保证入口脚本带 `if __name__ == "__main__"`
+    守卫（见 modules/_refresh_runner.py），否则 Windows 下会递归重跑。
+    """
+    from modules.market_drivers import get_market_drivers
+    return get_market_drivers(days=days)
+
+
 def refresh_all_indicators(force: bool = False) -> Dict[str, Any]:
     """刷新全部指标并写入缓存。
 
     这是定时任务的核心入口：
-    1. 调用 get_market_drivers() 取最新数据
+    1. 调用 get_market_drivers() 取最新数据（子进程隔离，防 V8 崩溃）
     2. 将结果写入 SQLite 缓存
     3. 返回刷新报告
 
@@ -357,16 +373,45 @@ def refresh_all_indicators(force: bool = False) -> Dict[str, Any]:
         刷新报告 dict。
     """
     t0 = time.time()
+    df, meta = None, None
     try:
-        from modules.market_drivers import get_market_drivers
-        df, meta = get_market_drivers(days=365)  # 缓存多存一点历史
-    except Exception as e:
-        logger.error("[market_cache] refresh get_market_drivers 失败: %s", e)
-        return {
-            "status": "fetch_failed",
-            "error": str(e),
-            "duration_sec": round(time.time() - t0, 1),
-        }
+        from concurrent.futures import ProcessPoolExecutor
+    except Exception:  # noqa
+        ProcessPoolExecutor = None  # type: ignore
+
+    if ProcessPoolExecutor is not None:
+        try:
+            # 子进程隔离：V8 原生崩溃 / 超时只杀死子进程，父进程降级为 fetch_failed
+            with ProcessPoolExecutor(max_workers=1) as ex:
+                fut = ex.submit(_worker_fetch_drivers, 365)  # 缓存多存一点历史
+                try:
+                    df, meta = fut.result(timeout=300)
+                except Exception as e:  # noqa
+                    logger.error("[market_cache] 子进程取数失败/崩溃(已隔离): %s", e)
+                    return {
+                        "status": "fetch_failed",
+                        "error": f"subprocess_isolated: {e}",
+                        "duration_sec": round(time.time() - t0, 1),
+                    }
+        except Exception as e:  # noqa
+            logger.error("[market_cache] ProcessPool 调度异常: %s", e)
+            return {
+                "status": "fetch_failed",
+                "error": f"scheduler: {e}",
+                "duration_sec": round(time.time() - t0, 1),
+            }
+    else:
+        # 兜底：无 multiprocessing 环境直接调用（无隔离，理论上不会走到）
+        try:
+            from modules.market_drivers import get_market_drivers
+            df, meta = get_market_drivers(days=365)
+        except Exception as e:  # noqa
+            logger.error("[market_cache] refresh get_market_drivers 失败: %s", e)
+            return {
+                "status": "fetch_failed",
+                "error": str(e),
+                "duration_sec": round(time.time() - t0, 1),
+            }
 
     if df is None or df.empty:
         return {
