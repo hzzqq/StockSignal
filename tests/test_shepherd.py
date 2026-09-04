@@ -142,7 +142,12 @@ def test_limit_pct_for_code():
     assert shepherd._limit_pct_for_code("sz300750") == 0.20   # 创业板
     assert shepherd._limit_pct_for_code("sh688981") == 0.20   # 科创板
     assert shepherd._limit_pct_for_code("bj920001") == 0.30   # 北交所
-    assert shepherd._limit_pct_for_code("600000") == 0.10     # 裸代码
+    assert shepherd._limit_pct_for_code("600000") == 0.10     # 裸代码主板
+    # 裸代码也应按代码段正确判定（修复前裸北交所/科创板/创业板误判为 10%）
+    assert shepherd._limit_pct_for_code("830799") == 0.30     # 裸北交所
+    assert shepherd._limit_pct_for_code("920002") == 0.30     # 裸北交所 920 段
+    assert shepherd._limit_pct_for_code("688001") == 0.20     # 裸科创板
+    assert shepherd._limit_pct_for_code("300750") == 0.20     # 裸创业板
 
 
 def test_compute_spot_indicators():

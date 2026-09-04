@@ -13,7 +13,7 @@ import tempfile
 import pandas as pd
 import pytest
 
-from modules.shepherd_reconstruct import _enrich_zt_from_cache
+from modules.shepherd_reconstruct import _enrich_zt_from_cache, _board_limit_pct
 
 
 def _write_cache(cache_dir, name, rows):
@@ -124,3 +124,18 @@ def test_enrich_empty_cache_is_noop():
         out = _enrich_zt_from_cache(breadth, d)
         assert out["zt_fail_ratio"].isna().all()
         assert out["zt_prev_ret"].isna().all()
+
+
+def test_board_limit_pct_bare_and_prefixed():
+    # 带前缀（原口径）
+    assert _board_limit_pct("sh600000") == 0.10   # 沪主板
+    assert _board_limit_pct("sz000001") == 0.10   # 深主板
+    assert _board_limit_pct("sh688981") == 0.20   # 科创板
+    assert _board_limit_pct("sz300750") == 0.20   # 创业板
+    assert _board_limit_pct("bj920001") == 0.30   # 北交所
+    # 裸代码（修复前裸 688/300 被前缀逻辑漏掉 → 误判 10%）
+    assert _board_limit_pct("600000") == 0.10     # 裸主板
+    assert _board_limit_pct("688001") == 0.20     # 裸科创板
+    assert _board_limit_pct("300750") == 0.20     # 裸创业板
+    assert _board_limit_pct("830799") == 0.30     # 裸北交所 8 段
+    assert _board_limit_pct("920002") == 0.30     # 裸北交所 920 段

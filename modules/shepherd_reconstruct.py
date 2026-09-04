@@ -82,14 +82,18 @@ def _retry(max_retries: int = 3, base_delay: float = 0.6):
 
 
 def _board_limit_pct(symbol: str) -> float:
-    """根据交易所前缀和代码段判断日涨跌停幅度（非 ST 常规规则）。"""
+    """按代码推断日涨跌停幅度（非 ST 常规规则）。支持带前缀与裸代码：
+    北交所 8xx/920=30%，科创板 68=20%，创业板 30/31=20%，其余=10%。
+    """
     s = symbol.lower().strip()
     code = s[2:] if len(s) > 2 and s[:2] in ("sh", "sz", "bj") else s
     if s.startswith("bj"):
         return 0.30
-    if s.startswith("sh") and code.startswith("68"):
+    if code.startswith(("83", "87", "88", "89", "92")):  # 北交所
+        return 0.30
+    if code.startswith("68"):  # 科创板
         return 0.20
-    if s.startswith("sz") and code.startswith("30"):
+    if code.startswith(("30", "31")):  # 创业板 300 / 301
         return 0.20
     return 0.10
 

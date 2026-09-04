@@ -246,14 +246,18 @@ def _fetch_dt_pool(date=None):
 
 
 def _limit_pct_for_code(code):
-    """按代码前缀推断日涨跌停幅度（与 shepherd_reconstruct._board_limit_pct 同口径）。"""
+    """按代码推断日涨跌停幅度（与 shepherd_reconstruct._board_limit_pct 同口径）。
+    支持带前缀(sh/sz/bj)与裸代码；北交所 8xx/920=30%，科创板 68=20%，创业板 30/31=20%，其余=10%。
+    """
     s = str(code).lower().strip()
     body = s[2:] if len(s) > 2 and s[:2] in ("sh", "sz", "bj") else s
     if s.startswith("bj"):
         return 0.30
-    if body.startswith("68"):  # 科创板（仅沪市存在 68 段）
+    if body.startswith(("83", "87", "88", "89", "92")):  # 北交所 8 段 / 920 段
+        return 0.30
+    if body.startswith("68"):  # 科创板
         return 0.20
-    if body.startswith("30"):  # 创业板（仅深市存在 30 段）
+    if body.startswith(("30", "31")):  # 创业板 300 / 301
         return 0.20
     return 0.10
 
