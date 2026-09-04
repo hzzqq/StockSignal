@@ -621,7 +621,11 @@ def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
 def save_history(df: pd.DataFrame, path: Optional[str] = None) -> str:
     path = path or _BREADTH_FILE
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    df.to_csv(path, index=False, encoding="utf-8-sig")
+    # ⚠️ 原子写：全量重算（5548 只股票）落盘期间若被 shepherd_note.analyze_history
+    # 并发读取，直接 to_csv 会让对方读到半截文件。先写临时文件再 os.replace。
+    _tmp = path + ".tmp"
+    df.to_csv(_tmp, index=False, encoding="utf-8-sig")
+    os.replace(_tmp, path)
     logger.info("[shepherd_reconstruct] 已保存 %d 行到 %s", len(df), path)
     return path
 

@@ -907,11 +907,19 @@ if __name__ == "__main__":
             logger.warning("[shepherd] 未取到任何历史数据")
             df = pd.DataFrame(columns=["date"])
     if not df.empty:
-        df.to_csv(_HISTORY_FILE, index=False, encoding="utf-8-sig")
-        with open(os.path.join(os.path.dirname(_HISTORY_FILE), "shepherd_history.json"),
-                  "w", encoding="utf-8") as f:
-            _js = df.copy()
-            _js["date"] = _js["date"].astype(str)
+        _hist_dir = os.path.dirname(_HISTORY_FILE)
+        # ⚠️ 原子写：shepherd_history.csv 是 5548 只股票全量重算的产物，
+        # 同时被 shepherd_note.analyze_history 并发读取；直接 to_csv 中途崩/被读到半截会损坏文件。
+        # 先写临时文件再 os.replace（与 decision.py / shepherd_note.py 同款原子模式）。
+        _csv_tmp = os.path.join(_hist_dir, ".shepherd_history.csv.tmp")
+        df.to_csv(_csv_tmp, index=False, encoding="utf-8-sig")
+        os.replace(_csv_tmp, _HISTORY_FILE)
+        _json_path = os.path.join(_hist_dir, "shepherd_history.json")
+        _json_tmp = os.path.join(_hist_dir, ".shepherd_history.json.tmp")
+        _js = df.copy()
+        _js["date"] = _js["date"].astype(str)
+        with open(_json_tmp, "w", encoding="utf-8") as f:
             json.dump(_js.to_dict(orient="records"), f, ensure_ascii=False, indent=2)
+        os.replace(_json_tmp, _json_path)
         logger.info("[shepherd] 已保存 %d 行 → %s", len(df), _HISTORY_FILE)
         print(df.tail(3).to_string())
