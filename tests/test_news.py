@@ -120,6 +120,27 @@ class TestEventMiner:
         loaded = pd.read_csv(miner.event_csv_path, encoding="utf-8-sig")
         assert len(loaded) == 2  # 去重后仍为2条
 
+    def test_save_events_is_atomic_no_tmp_lingering(self, tmp_path):
+        """事件 CSV 写入须为原子写：写完后无 .tmp 残留，且可完整 reload。"""
+        import os
+        miner = EventMiner()
+        miner.event_csv_path = str(tmp_path / "test_events.csv")
+
+        df = pd.DataFrame([
+            {"date": pd.Timestamp("2025-06-01"), "ticker": "601088",
+             "title": "煤炭涨价", "type": "正面", "keywords": "煤炭",
+             "sentiment_score": 0.8, "source": "eastmoney"},
+            {"date": pd.Timestamp("2025-06-02"), "ticker": "",
+             "title": "PMI超预期", "type": "正面", "keywords": "PMI",
+             "sentiment_score": 0.6, "source": "cctv"},
+        ])
+        miner._save_events_csv(df)
+        # 主文件存在、无残留 .tmp、reload 完整（2 条）
+        assert os.path.exists(miner.event_csv_path)
+        assert not os.path.exists(miner.event_csv_path + ".tmp")
+        loaded = pd.read_csv(miner.event_csv_path, encoding="utf-8-sig")
+        assert len(loaded) == 2
+
     def test_get_hot_keywords(self, tmp_path):
         # get_hot_keywords 现从 self.db（NewsDatabase）读取，使用隔离临时 DB 验证排序
         miner = EventMiner()

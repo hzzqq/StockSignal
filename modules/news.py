@@ -513,7 +513,10 @@ class EventMiner:
             combined = pd.concat([existing, to_save], ignore_index=True)
             combined = combined.drop_duplicates(subset=["title"], keep="last")
 
-        combined.to_csv(self.event_csv_path, index=False, encoding="utf-8-sig")
+        # 原子写：先写临时文件再 os.replace，避免事件页并发读取时读到半截事件 CSV
+        tmp = f"{self.event_csv_path}.tmp"
+        combined.to_csv(tmp, index=False, encoding="utf-8-sig")
+        os.replace(tmp, self.event_csv_path)
 
     def auto_mine_events(self, keyword=None, source="eastmoney", limit=30):
         """兼容旧接口。"""
