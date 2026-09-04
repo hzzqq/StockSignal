@@ -13,7 +13,7 @@ import tempfile
 import pandas as pd
 import pytest
 
-from modules.shepherd_reconstruct import _enrich_zt_from_cache, _board_limit_pct, _atomic_to_csv, _atomic_json_dump
+from modules.shepherd_reconstruct import _enrich_zt_from_cache, _board_limit_pct, _atomic_to_csv, _atomic_json_dump, _detect_limit
 
 
 def _write_cache(cache_dir, name, rows):
@@ -161,3 +161,35 @@ def test_atomic_json_dump_no_tmp_lingering(tmp_path):
     assert not os.path.exists(p + ".tmp")
     import json
     assert json.load(open(p, encoding="utf-8")) == ["600000", "000001"]
+
+
+def _row(prev, close, high, low):
+    return pd.Series({"prev_close": prev, "close": close, "high": high, "low": low})
+
+
+def test_detect_limit_board_aware_cyb():
+    """创业板 limit=20%：+20% 封板判涨停；+15% 不判涨停；盘中触板(high 到 20%)算 touch_up。
+    锁死 R3 修复的二阶正确性：非主板须按真实幅度判定，否则涨停家数会虚高。
+    """
+    # 封死涨停：close=high=prev*1.20
+    up_sealed = _row(10.0, 12.0, 12.0, 11.0)
+    assert _detect_limit(up_sealed, 0.20) == (1, 0, 1, 0)
+    # +15%（未到 20% 板）：不判涨停，也未触板（high 仅 15%）
+    mid = _row(10.0, 11.5, 11.5, 11.0)
+    assert _detect_limit(mid, 0.20) == (0, 0, 0, 0)
+    # 盘中触涨停后回落：high 到 20% 但 close 仅 19%
+    touched = _row(10.0, 11.9, 12.0, 11.5)
+    assert _detect_limit(touched, 0.20) == (0, 0, 1, 0)
+
+
+def test_detect_limit_board_aware_main_and_bse():
+    """主板 limit=10% / 北交所 limit=30% 的触板判定同样正确。"""
+    # 主板封死跌停：close=low=prev*0.90
+    main_down = _row(10.0, 9.0, 9.5, 9.0)
+    assert _detect_limit(main_down, 0.10) == (0, 1, 0, 1)
+    # 北交所 +30% 封板
+    bse_up = _row(10.0, 13.0, 13.0, 12.5)
+    assert _detect_limit(bse_up, 0.30) == (1, 0, 1, 0)
+    # 北交所 +20%（未到 30% 板）不判涨停
+    bse_mid = _row(10.0, 12.0, 12.0, 11.0)
+    assert _detect_limit(bse_mid, 0.30) == (0, 0, 0, 0)
