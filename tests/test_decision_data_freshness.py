@@ -15,9 +15,10 @@
 """
 import datetime as _dt
 
+import modules.decision as D
+import modules.decision_track as DT
 import modules.event_factor as EF
 import modules.p1_signal as P1
-import modules.decision as D
 
 
 def _iso(days_ago: int) -> str:
@@ -260,3 +261,57 @@ def test_snapshot_legacy_call_excludes_unpassed_sources(monkeypatch):
     assert "连板晋级率" not in _srcs
     assert "市场温度缓存" not in _srcs
     assert snap["data_freshness"]["status"] == "ok"
+
+
+# ──────────────────────────────────────────────
+# 事件因子 efficacy 护栏（自找缺口 S15）：无统计优势则不施加催化
+# ──────────────────────────────────────────────
+def _fake_by_event(on_acc, off_acc, n_on=25, n_off=25):
+    """构造 by_event 的受控返回：事件开/事件关 命中率与样本数。"""
+    def _fn(min_samples=0):
+        return [
+            {"group": "事件开", "n": n_on, "n_call": n_on,
+             "hits": int(n_on * on_acc / 100), "accuracy": on_acc},
+            {"group": "事件关", "n": n_off, "n_call": n_off,
+             "hits": int(n_off * off_acc / 100), "accuracy": off_acc},
+        ]
+    return _fn
+
+
+def _patch_event_signal(monkeypatch):
+    """让 _compute_event_adj 拿到真实多头池（不打 11MB 文件）。"""
+    class _FakeLoader:
+        def __init__(self, *a, **k):
+            pass
+
+        def latest_date(self, model):
+            return "2026-08-14"
+    monkeypatch.setattr(P1, "P1SignalLoader", _FakeLoader)
+    monkeypatch.setattr(EF, "event_driven_long_list",
+                        lambda top_n=50, model="ev", loader=None:
+                        [{"symbol": f"s{i}"} for i in range(20)])
+
+
+def test_event_adj_zeroed_when_no_edge(monkeypatch):
+    """事件开命中率不优于事件关（无统计优势）→ event_adj 归零，不往仓位注噪声。"""
+    monkeypatch.setattr(DT, "by_event", _fake_by_event(on_acc=45.0, off_acc=55.0))
+    _patch_event_signal(monkeypatch)
+    assert D._compute_event_adj() is None
+
+
+def test_event_adj_applied_when_edge(monkeypatch):
+    """事件开明显优于事件关（有统计优势）→ 正常施加催化。"""
+    monkeypatch.setattr(DT, "by_event", _fake_by_event(on_acc=62.0, off_acc=48.0))
+    _patch_event_signal(monkeypatch)
+    out = D._compute_event_adj()
+    assert out is not None
+    assert out["adj"] == 2
+
+
+def test_event_adj_applied_when_unknown(monkeypatch):
+    """样本不足无法确认优势 → 维持现状（真实信号、待验证），不擅自归零。"""
+    monkeypatch.setattr(DT, "by_event", _fake_by_event(on_acc=45.0, off_acc=55.0, n_on=5, n_off=5))
+    _patch_event_signal(monkeypatch)
+    out = D._compute_event_adj()
+    assert out is not None  # 样本不足 → 不归零
+    assert out["adj"] == 2

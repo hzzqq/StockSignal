@@ -232,6 +232,38 @@ def _cycle_name_of(forecast: dict | None) -> str:
     return str(cyc or "")
 
 
+def event_edge(min_samples: int = 20) -> dict:
+    """事件因子是否有统计优势——「事件开」命中率是否真优于「事件关」。
+
+    这是「事件驱动」头条特性的诚实性底线：若历史回测显示事件可用时的命中率
+    **并不比**事件不可用时高（甚至更低），那 event_adj 往仓位里加的 +1~+5pt 就是
+    **纯噪声**——必须归零，而非注进决策（与"不臆造催化"同源）。
+
+    :return: ``{"known": bool, "edge": bool|None, "on_acc", "off_acc", "diff",
+                "n_on", "n_off"}``；
+             known=False = 样本不足/无法确认（此时维持现状，不擅自归零）；
+             known=True 且 edge=False = 充分样本证伪，应归零 event_adj。
+    """
+    try:
+        from modules import decision_track as _dt
+        rows = _dt.by_event(min_samples=min_samples)
+    except Exception:  # noqa: BLE001
+        return {"known": False, "edge": None}
+    _m = {r["group"]: r for r in rows}
+    on, off = _m.get("事件开"), _m.get("事件关")
+    if not on or not off:
+        return {"known": False, "edge": None}
+    on_acc, off_acc = on.get("accuracy"), off.get("accuracy")
+    if on_acc is None or off_acc is None:
+        return {"known": False, "edge": None}
+    n_on, n_off = on.get("n_call") or 0, off.get("n_call") or 0
+    if n_on < min_samples or n_off < min_samples:
+        return {"known": False, "edge": None}  # 样本不足，无法确认优势
+    return {"known": True, "edge": (on_acc - off_acc) > 0,
+            "on_acc": on_acc, "off_acc": off_acc, "diff": on_acc - off_acc,
+            "n_on": n_on, "n_off": n_off}
+
+
 def _compute_event_adj(top_n: int = 50) -> dict | None:
     """真实事件因子多头池 → 市场级仓位调节（无缓存，纯计算）。
 
@@ -245,6 +277,11 @@ def _compute_event_adj(top_n: int = 50) -> dict | None:
     广度规则（透明、可解释）：
         事件驱动多头池每满 10 只高置信标的 → 仓位 +1pt，封顶 +5。
         多头池越宽 = 事件催化环境越旺 = 仓位越积极（与「事件驱动」主线一致）。
+
+    诚实护栏（自找缺口 S15）：即便当下多头池很宽、adj 算得出来，若历史回测证明
+    「事件开」命中率并不优于「事件关」（事件因子无统计优势），则该催化只是噪声，
+    必须返回 None 不施加——否则"事件驱动"是装饰性的，往仓位注噪声反而害决策。
+    样本不足（无法确认有无优势）时不擅自归零，维持现状（真实信号、待验证）。
     """
     try:
         from modules.p1_signal import P1SignalLoader
@@ -261,6 +298,13 @@ def _compute_event_adj(top_n: int = 50) -> dict | None:
         logger.warning("[decision] 事件因子多头池读取失败，跳过事件调节: %s", e)
         return None
     if not longs:
+        return None
+    # 诚实护栏：事件因子无统计优势 → 当下多头池再宽也不施加（避免注噪声）
+    _edge = event_edge()
+    if _edge.get("known") and not _edge.get("edge"):
+        logger.info("[decision] 事件因子无统计优势（事件开 %.1f%% vs 事件关 %.1f%%，"
+                    "n=%d/%d），不施加催化", _edge.get("on_acc"), _edge.get("off_acc"),
+                    _edge.get("n_on"), _edge.get("n_off"))
         return None
     n = len(longs)
     return {"adj": min(5, n // 10), "long_count": n, "as_of": as_of}
