@@ -30,11 +30,22 @@ import pandas as pd
 
 from modules import shepherd as _sh
 
-# 直接消费 get_shepherd_indicators 的调用点（页面侧经 _load_shepherd 包装后已正确解包，不在此列）
-_GUARDED_FILES = [
-    os.path.join("scripts", "daily_snapshot.py"),
-    "app.py",
-]
+# 直接消费 get_shepherd_indicators 的调用点。
+# 历史事故发生在 scripts/daily_snapshot.py 与 app.py；页面侧此前「假定」经 _load_shepherd 包装后已正确解包，
+# 但未纳入扫描——若将来有人在页面直接 `df = get_shepherd_indicators(...)` 漏解包，护栏会漏检。
+# 故把 pages/ 下全部页面也纳入 AST 扫描（return 语句非 Assign，不会误判包装层）。
+def _guarded_files():
+    root = _project_root()
+    files = [
+        os.path.join("scripts", "daily_snapshot.py"),
+        "app.py",
+    ]
+    pages_dir = os.path.join(root, "pages")
+    if os.path.isdir(pages_dir):
+        for name in sorted(os.listdir(pages_dir)):
+            if name.endswith(".py"):
+                files.append(os.path.join("pages", name))
+    return [os.path.join(root, f) for f in files]
 
 
 def _project_root() -> str:
@@ -80,8 +91,8 @@ def test_callers_unpack_the_tuple():
     漏解包不会报错、只会静默降级，靠肉眼看不出来，故用 AST 在测试期拦住。
     """
     root = _project_root()
-    for rel in _GUARDED_FILES:
-        path = os.path.join(root, rel)
+    for path in _guarded_files():
+        rel = os.path.relpath(path, root)
         with open(path, "r", encoding="utf-8") as f:
             tree = ast.parse(f.read())
         for node in ast.walk(tree):
