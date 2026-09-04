@@ -489,6 +489,85 @@ def fetch_zt_data_for_dates(dates: list) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _enrich_zt_from_cache(breadth: pd.DataFrame, cache_dir: str) -> pd.DataFrame:
+    """用 per-stock 缓存反推 zt_pool 类指标，覆盖全历史（不再只限近 30 天）。
+
+    缓存文件 ``shepherd_cache_v2/<symbol>.csv`` 每行已含 ``limit_up(0/1)`` /
+    ``zt_fail_count`` / ``change_pct``，足够反推：
+
+      * ``zt_fail_ratio`` = Σ炸板 / (Σ涨停 + Σ炸板) × 100
+      * ``zt_prev_ret``   = 昨日涨停股今日平均涨跌幅（打板赚钱效应）
+      * ``connect_hl``    = 全市场最高连板数（逐股连板天数取最大）
+
+    仅 fillna：历史缺失处用反推值补，近期 zt_pool 真实值优先保留。
+    """
+    if breadth is None or breadth.empty or not os.path.isdir(cache_dir):
+        return breadth
+
+    zf_sum, lu_sum, prev_ret_sum, prev_ret_cnt, streak_max = {}, {}, {}, {}, {}
+    files = [f for f in os.listdir(cache_dir) if f.endswith(".csv")]
+    for fn in files:
+        try:
+            df = pd.read_csv(os.path.join(cache_dir, fn))
+        except Exception:  # noqa: BLE001
+            continue
+        if "date" not in df.columns or "limit_up" not in df.columns:
+            continue
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+        if df.empty:
+            continue
+        lu = pd.to_numeric(df["limit_up"], errors="coerce").fillna(0)
+        zf = pd.to_numeric(df.get("zt_fail_count"), errors="coerce").fillna(0)
+        chg = pd.to_numeric(df.get("change_pct"), errors="coerce")
+        # 连板天数：连续 limit_up 计数（向量化）
+        s = (lu > 0).astype(int)
+        grp = (s != s.shift()).cumsum()
+        run = s.groupby(grp).cumcount() + 1
+        streak_arr = (run * s).astype(int)
+        prev_lu = lu.shift(1)
+        tmp = pd.DataFrame({
+            "date": df["date"], "lu": lu, "zf": zf, "chg": chg,
+            "streak": streak_arr, "prev_lu": prev_lu,
+        })
+        for d, v in tmp.groupby("date")["lu"].sum().items():
+            k = pd.Timestamp(d).normalize()
+            lu_sum[k] = lu_sum.get(k, 0.0) + float(v)
+        for d, v in tmp.groupby("date")["zf"].sum().items():
+            k = pd.Timestamp(d).normalize()
+            zf_sum[k] = zf_sum.get(k, 0.0) + float(v)
+        for d, v in tmp.groupby("date")["streak"].max().items():
+            k = pd.Timestamp(d).normalize()
+            if v > streak_max.get(k, 0):
+                streak_max[k] = int(v)
+        pr = tmp[tmp["prev_lu"] == 1]
+        if not pr.empty:
+            for d, row in pr.groupby("date")["chg"].agg(["sum", "count"]).iterrows():
+                k = pd.Timestamp(d).normalize()
+                prev_ret_sum[k] = prev_ret_sum.get(k, 0.0) + float(row["sum"])
+                prev_ret_cnt[k] = prev_ret_cnt.get(k, 0) + int(row["count"])
+
+    dates_norm = pd.to_datetime(breadth["date"]).dt.normalize()
+    zfr, zpr, chl = [], [], []
+    for k in dates_norm:
+        lu = lu_sum.get(k, 0.0)
+        zf = zf_sum.get(k, 0.0)
+        zfr.append(round(zf / (lu + zf) * 100, 2) if (lu + zf) > 0 else None)
+        c = prev_ret_cnt.get(k, 0)
+        zpr.append(round(prev_ret_sum.get(k, 0.0) / c, 3) if c > 0 else None)
+        chl.append(streak_max.get(k, 0))
+    out = breadth.copy()
+    for col, series in (("zt_fail_ratio", pd.Series(zfr, index=breadth.index)),
+                        ("zt_prev_ret", pd.Series(zpr, index=breadth.index)),
+                        ("connect_hl", pd.Series(chl, index=breadth.index))):
+        if col in out.columns:
+            # 保留已有（近期 zt_pool 真实）值，仅用反推值补 NaN 的历史缺口
+            out[col] = out[col].combine_first(series)
+        else:
+            out[col] = series
+    return out
+
+
 def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None, reconstruct: bool = True) -> pd.DataFrame:
     """构建完整的牧羊人指标历史表。
 
@@ -519,6 +598,14 @@ def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
             breadth = merged
     except Exception as e:  # noqa: BLE001
         logger.warning("[shepherd_reconstruct] 合并 zt_pool 失败: %s", e)
+
+    # 用 per-stock 缓存反推 zt_pool 指标（zt_fail_ratio/zt_prev_ret/connect_hl），
+    # 覆盖全历史，填补 zt_pool 仅近 30 天的空白（回测 99.6% 坍缩成「修复试探」的根因）。
+    # 缓存已就绪时纯本地计算，免联网。
+    try:
+        breadth = _enrich_zt_from_cache(breadth, _CACHE_DIR)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[shepherd_reconstruct] 反推 zt_pool 指标失败: %s", e)
 
     # 确保列顺序（v2：新增 touch_down / zt_fail_count / hb_wave10 / median_chg / avg_price 等）
     cols = ["date", "up_count", "down_count", "flat_count", "limit_up", "limit_down", "red_ratio",

@@ -205,6 +205,17 @@ FORECAST_INDICATORS = [
 _FC_BY_KEY = {c["key"]: c for c in FORECAST_INDICATORS}
 
 
+
+def _sf(v, spec=".0f", na="-"):
+    """安全格式化：None/NaN 返回占位符，避免 NoneType.__format__ 崩溃（历史数据常缺字段）。"""
+    try:
+        if v is None or (isinstance(v, float) and v != v):
+            return na
+        return format(v, spec)
+    except Exception:
+        return na
+
+
 def _band_of(key, value):
     """返回 (档位名, 解读, 颜色)；指标缺失或无档位返回 None。"""
     cfg = _FC_BY_KEY.get(key)
@@ -466,42 +477,42 @@ def locate_cycle(today: dict, prev: dict = None) -> dict:
 
     # 1) 冰点：跌停遍地（有数据）+ 高度压缩；无跌停数据时用「涨停枯竭 + 高度极低」兜底
     if ld is not None and ld >= 80 and (hl is None or hl <= 4):
-        reasons.append(f"跌停 {ld:.0f} 家（恐慌出清）")
+        reasons.append(f"跌停 {_sf(ld)} 家（恐慌出清）")
         if hl is not None:
-            reasons.append(f"最高板仅 {hl:.0f} 板（空间压缩）")
+            reasons.append(f"最高板仅 {_sf(hl)} 板（空间压缩）")
         if lu is not None:
-            reasons.append(f"涨停仅 {lu:.0f} 家")
+            reasons.append(f"涨停仅 {_sf(lu)} 家")
         return dict(CYCLES[0], reasons=reasons)
     if ld is None and lu is not None and lu < 30 and hl is not None and hl <= 3:
-        reasons.append(f"涨停仅 {lu:.0f} 家 + 最高板 {hl:.0f} 板（无跌停数据，按枯竭判定冰点）")
+        reasons.append(f"涨停仅 {_sf(lu)} 家 + 最高板 {_sf(hl)} 板（无跌停数据，按枯竭判定冰点）")
         return dict(CYCLES[0], reasons=reasons)
 
     # 2) 退潮：高度断崖（核心），或 梯队极薄 + 封板差
     if hl is not None and hl_p is not None and hl_p - hl >= 2:
-        reasons.append(f"最高板从 {hl_p:.0f} 板断崖至 {hl:.0f} 板")
+        reasons.append(f"最高板从 {_sf(hl_p)} 板断崖至 {_sf(hl)} 板")
         if ld is not None and ld >= 10:
-            reasons.append(f"跌停 {ld:.0f} 家（亏钱效应回升）")
+            reasons.append(f"跌停 {_sf(ld)} 家（亏钱效应回升）")
         return dict(CYCLES[5], reasons=reasons)
     if ld is not None and ld >= 30 and (zb is None or zb >= 30):
-        reasons.append(f"跌停 {ld:.0f} 家且炸板率 {zb:.0f}%（亏钱效应 + 封板差）")
+        reasons.append(f"跌停 {_sf(ld)} 家且炸板率 {_sf(zb)}%（亏钱效应 + 封板差）")
         return dict(CYCLES[5], reasons=reasons)
     if c2 is not None and c2 <= 2 and zb is not None and zb >= 45:
-        reasons.append(f"连板梯队仅 {c2:.0f} 家 + 炸板率 {zb:.0f}%（接力资金缺席 + 封板崩）")
+        reasons.append(f"连板梯队仅 {_sf(c2)} 家 + 炸板率 {_sf(zb)}%（接力资金缺席 + 封板崩）")
         return dict(CYCLES[5], reasons=reasons)
 
     # 3) 高潮分化：炸板率飙升 + 涨停仍多（核心：只看炸板率与涨停）
     if zb is not None and zb >= 40 and (lu is None or lu >= 50):
-        reasons.append(f"炸板率 {zb:.0f}%（≥40%，分歧剧烈）")
+        reasons.append(f"炸板率 {_sf(zb)}%（≥40%，分歧剧烈）")
         if lu is not None:
-            reasons.append(f"涨停仍有 {lu:.0f} 家（高度未崩但质量下降）")
+            reasons.append(f"涨停仍有 {_sf(lu)} 家（高度未崩但质量下降）")
         return dict(CYCLES[4], reasons=reasons)
 
     # 4) 主升高潮：高度打开 + 封板稳 + 有溢价（三项核心齐全即可，不再强制要求 pr > 0）
     if (hl is not None and hl >= 6 and zb is not None and zb < 20):
-        reasons.append(f"最高板 {hl:.0f} 板（空间打开）")
-        reasons.append(f"炸板率 {zb:.0f}%（<20%，封板稳）")
+        reasons.append(f"最高板 {_sf(hl)} 板（空间打开）")
+        reasons.append(f"炸板率 {_sf(zb)}%（<20%，封板稳）")
         if pr is not None:
-            reasons.append(f"昨板溢价 {pr:+.2f}%")
+            reasons.append(f"昨板溢价 {_sf(pr, '+.2f')}%")
         return dict(CYCLES[3], reasons=reasons)
 
     # 5) 修复确认：封板质量改善 + 高度晋级/达标 + 溢价不差
@@ -509,32 +520,32 @@ def locate_cycle(today: dict, prev: dict = None) -> dict:
     if (zb is not None and zb < 25
             and (hl_up or (hl is not None and hl >= 4))
             and (pr is None or pr > -1.0)):
-        reasons.append(f"炸板率 {zb:.0f}%（<25%，封板质量改善）")
+        reasons.append(f"炸板率 {_sf(zb)}%（<25%，封板质量改善）")
         if hl_up:
-            reasons.append(f"最高板 {hl_p:.0f}→{hl:.0f} 板（高度晋级/维持）")
+            reasons.append(f"最高板 {_sf(hl_p)}→{_sf(hl)} 板（高度晋级/维持）")
         elif hl is not None:
-            reasons.append(f"最高板 {hl:.0f} 板")
+            reasons.append(f"最高板 {_sf(hl)} 板")
         if ld is not None:
-            reasons.append(f"跌停 {ld:.0f} 家")
+            reasons.append(f"跌停 {_sf(ld)} 家")
         if pr is not None:
-            reasons.append(f"昨板溢价 {pr:+.2f}%")
+            reasons.append(f"昨板溢价 {_sf(pr, '+.2f')}%")
         if tu is not None and tu_p is not None and tu >= tu_p:
             reasons.append(f"成交额 {tu:,.0f} 亿（较昨日 {tu_p:,.0f} 亿放量）")
         return dict(CYCLES[2], reasons=reasons)
 
     # 6) 兜底：修复试探（附「为什么没进更乐观档位」的解释）
     if zb is not None and zb >= 25:
-        reasons.append(f"炸板率 {zb:.0f}%（≥25%，封板质量未达标，故未判修复确认）")
+        reasons.append(f"炸板率 {_sf(zb)}%（≥25%，封板质量未达标，故未判修复确认）")
     if hl is not None:
-        reasons.append(f"最高板 {hl:.0f} 板")
+        reasons.append(f"最高板 {_sf(hl)} 板")
     if hl is not None and hl_p is not None and hl < hl_p:
-        reasons.append(f"最高板 {hl_p:.0f}→{hl:.0f} 板（高度回落）")
+        reasons.append(f"最高板 {_sf(hl_p)}→{_sf(hl)} 板（高度回落）")
     if pr is not None:
-        reasons.append(f"昨板溢价 {pr:+.2f}%")
+        reasons.append(f"昨板溢价 {_sf(pr, '+.2f')}%")
     if c2 is not None and c2 < 8:
-        reasons.append(f"连板梯队仅 {c2:.0f} 家（梯队偏薄）")
+        reasons.append(f"连板梯队仅 {_sf(c2)} 家（梯队偏薄）")
     if ld is not None:
-        reasons.append(f"跌停 {ld:.0f} 家")
+        reasons.append(f"跌停 {_sf(ld)} 家")
     if tu is not None and tu_p is not None and tu < tu_p:
         reasons.append(f"成交额 {tu:,.0f} 亿（较昨日 {tu_p:,.0f} 亿缩量，存量博弈）")
     if not reasons:
@@ -590,7 +601,7 @@ def score_next_day(today: dict, prev: dict = None) -> dict:
     if pr is not None:
         r = max(0.0, min(1.0, (pr + 5.0) / 10.0))
         dims.append(dict(name="赚钱效应(昨板溢价)", score=round(r * 25, 1), max=25,
-                         value=f"{pr:+.2f}%",
+                         value=f"{_sf(pr, '+.2f')}%",
                          tip="昨板有溢价才有人接力" if pr > 0 else "打板亏钱，接力意愿弱"))
 
     # 2) 空间高度：最高板（0~10 板映射到 0~20）
@@ -598,7 +609,7 @@ def score_next_day(today: dict, prev: dict = None) -> dict:
     if hl is not None:
         r = max(0.0, min(1.0, hl / 10.0))
         dims.append(dict(name="空间高度(最高板)", score=round(r * 20, 1), max=20,
-                         value=f"{hl:.0f}板",
+                         value=f"{_sf(hl)}板",
                          tip="高度决定情绪天花板" if hl >= 5 else "空间未打开"))
 
     # 3) 梯队厚度：连板家数（0~30 家映射到 0~20）
@@ -606,7 +617,7 @@ def score_next_day(today: dict, prev: dict = None) -> dict:
     if c2 is not None:
         r = max(0.0, min(1.0, c2 / 30.0))
         dims.append(dict(name="梯队厚度(连板家数)", score=round(r * 20, 1), max=20,
-                         value=f"{c2:.0f}家",
+                         value=f"{_sf(c2)}家",
                          tip="梯队厚=赚钱效应扩散" if c2 >= 15 else "梯队偏薄，独苗难持续"))
 
     # 4) 封板质量：炸板率（U 型）
@@ -623,7 +634,7 @@ def score_next_day(today: dict, prev: dict = None) -> dict:
     if ld is not None:
         r = max(0.0, min(1.0, 1.0 - ld / 80.0))
         dims.append(dict(name="亏钱效应(跌停家数)", score=round(r * 15, 1), max=15,
-                         value=f"{ld:.0f}家",
+                         value=f"{_sf(ld)}家",
                          tip="跌停少=恐慌出清" if ld < 15 else "亏钱效应仍明显"))
 
     got = sum(d["max"] for d in dims)
