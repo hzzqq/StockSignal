@@ -95,10 +95,30 @@ def _build_estimate_payload():
             score = (_fc or {}).get("score")
     except Exception:  # noqa: BLE001
         pass  # 缓存缺失/网络受限：temp 留 None，derive_position 兜底 50
-    pos = _decision.derive_position(temp, score, bias, cycle_name, overall)
+    # 事件驱动催化：首页兜底估算也接通事件因子（与 54_ / build_snapshot 同源），
+    # 消除首页「实时估算」与归档快照的活/归档漂移（S6）。走模块级 300s TTL 缓存，
+    # 失败降级为 None（不臆造）。
+    event_adj_val = None
+    event_as_of = None
+    try:
+        _evd = _decision._event_position_adj()
+        if isinstance(_evd, dict):
+            event_adj_val = _evd.get("adj")
+            event_as_of = _evd.get("as_of")
+    except Exception:  # noqa: BLE001
+        event_adj_val = None
+    pos = _decision.derive_position(temp, score, bias, cycle_name, overall,
+                                    event_adj=event_adj_val)
+    # 双源新鲜度守卫：与 build_snapshot / 54_ 共用 assess_freshness（S7）。
+    # 估算路径无快照，牧羊人真实截止日未知 → 仅事件因子参与；但只要事件因子滞后
+    # 达阈值，仍会显式告警，避免「快照新鲜」假象掩盖事件信号陈旧。
+    _fresh = _decision.assess_freshness({"牧羊人情绪": None, "事件因子": event_as_of})
     return {
         "date": "估算", "temperature": temp, "cycle": cycle_name, "bias": bias,
         "confidence": None, "position": pos, "overall": overall,
+        "event_factor": {"available": event_adj_val is not None,
+                          "adj": event_adj_val, "as_of": event_as_of},
+        "data_freshness": _fresh,
         "estimate": True, "has_signal": temp is not None or overall is not None,
     }
 
@@ -110,11 +130,22 @@ def _render_decision_card(payload, stale=False):
     estimate = payload.get("estimate", False)
     with st.container(border=True):
         if estimate:
-            st.caption("📡 实时估算（尚未生成今日收盘快照，仅供参考）")
+            st.caption("📡 实时估算（尚未生成今日收盘快照，仅供参考）· 由「市场温度 + 情绪周期 + 连板晋级率 + 事件驱动」透明推导")
         elif stale:
             st.caption(f"⚠️ 快照日期 {date}，已超 20 小时未更新 —— 今天跑过 daily_snapshot.py 吗？")
         else:
-            st.caption(f"数据日期 {date} · 由「市场温度 + 情绪周期 + 连板晋级率」透明推导")
+            st.caption(f"数据日期 {date} · 由「市场温度 + 情绪周期 + 连板晋级率 + 事件驱动」透明推导")
+
+        # 双源新鲜度警示（与 54_ 同源）：事件因子滞后等关键陈旧不再被「快照新鲜」掩盖（S7）
+        _fresh = payload.get("data_freshness")
+        if _fresh and _fresh.get("status") in ("warn", "stale"):
+            _bits = [
+                f"{name}截至 {s['as_of']}（滞后 {s['lag_days']} 天）"
+                for name, s in _fresh.get("sources", {}).items()
+                if s.get("status") in ("warn", "stale") and s.get("as_of")
+            ]
+            if _bits:
+                st.warning("⏰ 数据滞后：" + "、".join(_bits) + "——决策依据可能偏旧，谨慎参考")
 
         c1, c2, c3, c4, c5 = st.columns([1, 1.4, 1, 1.1, 1.1])
         with c1:

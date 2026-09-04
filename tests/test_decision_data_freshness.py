@@ -1,0 +1,142 @@
+# -*- coding: utf-8 -*-
+"""决策「数据新鲜度守卫」回归测试。
+
+锁死的核心契约：
+    仓位建议必须如实暴露其所依赖数据的**真实截止日**；数据陈旧时必须在仓位旁
+    直接告警，绝不让「半个月前的情绪/事件信号」冒充当日结论。
+
+背景（真实事故，本测试即为防其复发而写）：
+    P1 事件信号 ``latest_date=2026-08-14``、牧羊人情绪历史末行 ``2026-08-21``，
+    而快照日期是 ``2026-09-04``。底层两个源**都有**日期，但聚合层把它丢了：
+    ``snapshot['event_factor']`` 只剩 ``{available, long_count, adj}``，
+    面板于是显示「数据滞后 0 日」且零警示——用户拿着 3 周前的信号加仓而不自知。
+
+全部用例离线、确定性，**不读 11MB 的 P1 信号文件**。
+"""
+import datetime as _dt
+
+import modules.event_factor as EF
+import modules.p1_signal as P1
+import modules.decision as D
+
+
+def _iso(days_ago: int) -> str:
+    """距今 N 天的日期串（用于构造可控的滞后天数）。"""
+    return (_dt.date.today() - _dt.timedelta(days=days_ago)).isoformat()
+
+
+# ──────────────────────────────────────────────
+# assess_freshness：阈值判定
+# ──────────────────────────────────────────────
+def test_assess_freshness_ok_within_weekend_gap():
+    """滞后 ≤3 天（覆盖周五→周一的正常周末间隔）仍算新鲜。"""
+    out = D.assess_freshness({"源A": _iso(3), "源B": _iso(0)})
+    assert out["status"] == "ok"
+    assert out["max_lag_days"] == 3
+
+
+def test_assess_freshness_warn_at_4_days():
+    out = D.assess_freshness({"源A": _iso(4)})
+    assert out["status"] == "warn"
+    assert out["sources"]["源A"]["lag_days"] == 4
+
+
+def test_assess_freshness_stale_at_8_days():
+    out = D.assess_freshness({"源A": _iso(8)})
+    assert out["status"] == "stale"
+
+
+def test_assess_freshness_worst_source_wins():
+    """任一源陈旧即整体陈旧，不能被新鲜源的平均/多数掩盖。"""
+    out = D.assess_freshness({"新": _iso(1), "旧": _iso(20)})
+    assert out["status"] == "stale"
+    assert out["max_lag_days"] == 20
+
+
+def test_assess_freshness_unknown_when_no_date():
+    out = D.assess_freshness({"源A": None})
+    assert out["status"] == "unknown"
+    assert out["sources"]["源A"]["lag_days"] is None
+
+
+# ──────────────────────────────────────────────
+# _compute_event_adj：聚合层不得丢弃数据日期
+# ──────────────────────────────────────────────
+def test_compute_event_adj_carries_as_of(monkeypatch):
+    """事件因子聚合结果必须带上 P1 信号的真实数据截止日。"""
+
+    class _FakeLoader:
+        def __init__(self, *a, **k):
+            pass
+
+        def latest_date(self, model):
+            return "2026-08-14"
+
+    # 两处均为函数内惰性导入，必须 patch 到各自模块上才生效
+    monkeypatch.setattr(P1, "P1SignalLoader", _FakeLoader)
+    monkeypatch.setattr(EF, "event_driven_long_list",
+                        lambda top_n=50, model="ev", loader=None:
+                        [{"symbol": f"s{i}"} for i in range(20)])
+
+    out = D._compute_event_adj(top_n=50)
+    assert out["adj"] == 2
+    assert out["long_count"] == 20
+    # 聚合层若再次丢弃日期，此断言立即失败
+    assert out["as_of"] == "2026-08-14"
+
+
+# ──────────────────────────────────────────────
+# build_snapshot：暴露新鲜度 + 陈旧告警 + 不误报
+# ──────────────────────────────────────────────
+def _snap(event_as_of, temp_as_of, monkeypatch):
+    monkeypatch.setattr(
+        D, "_event_position_adj",
+        lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": event_as_of})
+    return D.build_snapshot(
+        date="2026-09-04",
+        indicators={"date": temp_as_of} if temp_as_of else {},
+        temp=33.0,
+        forecast={"score": 0.4, "bias": 0.1, "confidence": 0.7},
+        promo={"overall": 0.6},
+    )
+
+
+def test_snapshot_exposes_data_freshness(monkeypatch):
+    snap = _snap(_iso(21), _iso(14), monkeypatch)
+    fr = snap["data_freshness"]
+    assert fr["status"] == "stale"
+    assert fr["max_lag_days"] == 21
+    assert fr["sources"]["事件因子"]["as_of"] == _iso(21)
+    assert fr["sources"]["牧羊人情绪"]["lag_days"] == 14
+
+
+def test_snapshot_warns_when_stale(monkeypatch):
+    """陈旧数据必须在仓位理由里给出可见告警。"""
+    snap = _snap(_iso(21), _iso(14), monkeypatch)
+    reasons = " ".join(snap["position"]["reasons"])
+    assert "数据陈旧" in reasons
+    assert "滞后 21 天" in reasons
+    assert "仓位建议仅供参考" in reasons
+
+
+def test_snapshot_silent_when_fresh(monkeypatch):
+    """新鲜数据不得误报——否则警示会被当成「狼来了」而遭忽略。"""
+    snap = _snap(_iso(1), _iso(1), monkeypatch)
+    assert snap["data_freshness"]["status"] == "ok"
+    reasons = " ".join(snap["position"]["reasons"])
+    assert "数据陈旧" not in reasons
+
+
+def test_snapshot_event_factor_carries_as_of(monkeypatch):
+    snap = _snap("2026-08-14", "2026-08-21", monkeypatch)
+    assert snap["event_factor"]["as_of"] == "2026-08-14"
+
+
+def test_snapshot_temp_as_of_param_overrides_indicators(monkeypatch):
+    """显式 temp_as_of 优先于 indicators['date']（温度来自非当日历史行时）。"""
+    monkeypatch.setattr(D, "_event_position_adj",
+                        lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": None})
+    snap = D.build_snapshot(
+        date="2026-09-04", indicators={"date": "2026-09-04"}, temp=33.0,
+        forecast={}, promo={}, temp_as_of="2026-08-21")
+    assert snap["data_freshness"]["sources"]["牧羊人情绪"]["as_of"] == "2026-08-21"
