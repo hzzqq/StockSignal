@@ -420,6 +420,32 @@ def fragment_p1_ev():
 
 
 @safe_fragment("事件驱动看多榜")
+def fragment_calibration_ready_banner():
+    """校准闭环最后一英里（S8）：样本够时**主动**提醒，不必滚到校准区才看到补丁就绪。
+
+    仅在 ``verdict.ready`` 时显示醒目 callout，带可复制的落地命令；人仍在回路
+    （默认 dry-run 仅预览，``--apply`` 才写 CYCLE_ADJ）。verdict 结果缓存进
+    session_state，``fragment_calibration`` 复用，避免双算。
+    """
+    try:
+        v = _cal.verdict()
+    except Exception:  # noqa: BLE001
+        return
+    try:
+        st.session_state["_cal_verdict"] = v
+    except Exception:  # noqa: BLE001
+        pass
+    if not v.get("ready"):
+        return
+    _cmd = "python scripts/apply_calibration.py --apply"
+    xc_success_box(
+        "✅ **刻度校准补丁已就绪**：回测样本已积累到可采纳阈值，建议执行以下命令把建议刻度"
+        f"写入 `modules/decision.py` 的 `CYCLE_ADJ`（写前自动备份 + 审计，需人触发）：\n\n"
+        f"```bash\n{_cmd}\n```\n\n"
+        "先 `python scripts/apply_calibration.py`（**不加** `--apply`）预览将改动的刻度，确认无误再加 `--apply`。"
+    )
+
+
 def fragment_event_driven_pool():
     """📈 事件驱动看多榜：把真实事件因子（P1 EV）直接落成「选股候选池」。
 
@@ -714,7 +740,8 @@ def fragment_calibration():
     st.caption("decision.py 里的「情绪周期 → 仓位调节」常数（如退潮 −10、主升高潮 +5）当初是拍出来的。"
                "这里按四大战术分组对照「平均建议仓位 vs 次日真实涨跌」，算出**应该**调多少点。")
     try:
-        v = _cal.verdict()
+        # 优先复用顶部 fragment_calibration_ready_banner 已算好的 verdict（避免双算 prediction_log）
+        v = st.session_state.get("_cal_verdict") or _cal.verdict()
         sug = _cal.suggestions()
     except Exception as e:  # noqa: BLE401
         xc_handle_error("刻度校准计算失败", e)
@@ -794,6 +821,7 @@ def fragment_calibration():
                "单次上限 5 点以防过拟合；中性预测不表态、不计入分母。本页结论不构成投资建议。")
 
 
+fragment_calibration_ready_banner()
 fragment_decision()
 fragment_signals()
 fragment_ladder()
