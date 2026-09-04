@@ -115,3 +115,69 @@ def test_cli_exits_0_when_all_fresh(monkeypatch, capsys):
     assert CLI._main() == 0
     assert "整体状态：ok" in capsys.readouterr().out
 
+
+# ───────────────────────── 刷新注册表 / 计划 ─────────────────────────
+def test_refresh_commands_cover_all_sources():
+    """每个源都登记了刷新命令，且 daily_snapshot 一条覆盖 3 源（去重）。"""
+    covered = {k for c in DH.REFRESH_COMMANDS.values() for k in c["covers"]}
+    assert {e["key"] for e in DH.DATA_SOURCES} <= covered
+    assert DH.REFRESH_COMMANDS["daily_snapshot"]["covers"] == [
+        "shepherd_sentiment", "ladder", "daily_snapshot"]
+
+
+def test_build_refresh_plan_dedupes_and_marks_stale(monkeypatch):
+    """仅陈旧源进入计划；daily_snapshot 三源都陈旧时只出现一条命令且 stale_sources 含三者。"""
+    fixed = {e["key"]: _iso(1) for e in DH.DATA_SOURCES}
+    fixed["p1_event"] = _iso(21)  # 制造一个外部源陈旧
+    # daily_snapshot 覆盖的 3 源全设陈旧 → 应去重为 1 条命令且 stale_sources 含三者
+    for k in ("shepherd_sentiment", "ladder", "daily_snapshot"):
+        fixed[k] = _iso(14)
+    monkeypatch.setattr(DH, "source_as_of", lambda e: fixed[e["key"]])
+    plan = DH.build_refresh_plan(stale_only=True)
+    cmd_ids = [p["cmd_id"] for p in plan]
+    # shepherd_sentiment 与 daily_snapshot/ladder 同属 daily_snapshot 命令 → 去重为 1 条
+    assert cmd_ids.count("daily_snapshot") == 1
+    assert "p1_event" in cmd_ids
+    ds = next(p for p in plan if p["cmd_id"] == "daily_snapshot")
+    assert set(ds["stale_sources"]) == {"牧羊人情绪", "连板晋级率", "今日快照"}
+
+
+def test_build_refresh_plan_skips_fresh_when_stale_only(monkeypatch):
+    """全部新鲜 + stale_only=True → 无计划。"""
+    monkeypatch.setattr(DH, "source_as_of", lambda e: _iso(0))
+    assert DH.build_refresh_plan(stale_only=True) == []
+
+
+def test_cli_refresh_prints_plan(monkeypatch, capsys):
+    """--refresh 打印去重刷新命令，且不执行（exit 仍 1 因 stale）。"""
+    import scripts.check_data_health as CLI
+    monkeypatch.setattr(DH, "source_as_of", lambda e: _iso(21))  # 全陈旧
+    monkeypatch.setattr("sys.argv", ["check_data_health.py", "--refresh"])
+    rc = CLI._main()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "刷新计划" in out
+    assert "python scripts/daily_snapshot.py" in out
+    assert "python scripts/refresh_event_db.py" in out
+
+
+def test_cli_refresh_exec_reports_honest_failure(monkeypatch, capsys):
+    """--exec 在命令失败时如实报「刷新失败」，绝不伪造成功。"""
+    import scripts.check_data_health as CLI
+    monkeypatch.setattr(DH, "source_as_of", lambda e: _iso(21))  # 全陈旧
+
+    class _FakeRC:
+        returncode = 1
+        stdout = ""
+        stderr = "akshare proxy not up"
+
+    monkeypatch.setattr(CLI.subprocess, "run", lambda *a, **k: _FakeRC())
+    monkeypatch.setattr("sys.argv", ["check_data_health.py", "--refresh", "--exec"])
+    rc = CLI._main()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "刷新失败" in out
+    assert "akshare proxy not up" in out  # 真实错误透传
+    assert "✅ 命令执行成功" not in out  # 没有伪造成功
+
+

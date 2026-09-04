@@ -218,6 +218,7 @@ def _render_hero(df, today, prev, meta=None):
                 st.caption(f"{_icon} {r['name']}：截至 {_d}（{_lag}）")
             if _any_stale:
                 st.warning("⚠️ 存在陈旧数据源，以上仓位/信号建议请谨慎参考；刷新陈旧源后再决策。")
+                st.caption("刷新命令：`python scripts/check_data_health.py --refresh`（加 `--exec` 尝试自动刷新，有网才真成功）")
     except Exception:  # noqa: BLE001
         pass
 

@@ -131,3 +131,86 @@ def health_rows() -> list[dict]:
             "status": s.get("status", "unknown"),
         })
     return rows
+
+
+# ───────────────────────── 刷新注册表（陈旧→可一键刷新，绝不伪造成功） ─────────────────────────
+# 守卫的最后一环：只「暴露滞后」不「自动刷新」＝闭环没真正活起来。
+# 这里登记每个源「怎么刷新」，CLI 据此生成去重命令清单 / 尝试执行。
+# mode:
+#   live     —— 需联网，在本仓可直接跑（沙箱无网会失败，如实报 failed，不伪造成功）
+#   external —— 数据来自独立仓库（P1-QuantFactor），本仓无入口，需跨仓流水线
+# 注意：当前本仓所有刷新路径都依赖联网/跨仓（market_temp 的 refresh_all_indicators
+#       底层走 akshare；shepherd/ladder/snapshot 走 daily_snapshot 联网抓取；
+#       event_pool 走 refresh_event_db 抓东财）。沙箱内均会失败——这是诚实现实，
+#       不是 bug。CLI --exec 在真机/CI（有网）才会真正刷新成功。
+REFRESH_COMMANDS: dict[str, dict] = {
+    "daily_snapshot": {
+        "cmd": "python scripts/daily_snapshot.py",
+        "mode": "live",
+        "covers": ["shepherd_sentiment", "ladder", "daily_snapshot"],
+        "desc": "抓今日牧羊人指标+连板梯队+推导仓位并落盘（一条命令覆盖 3 源）",
+    },
+    "event_pool": {
+        "cmd": "python scripts/refresh_event_db.py",
+        "mode": "live",
+        "covers": ["event_pool"],
+        "desc": "重抓东方财富新闻→情感分析→追加入库 events.csv",
+    },
+    "market_temp": {
+        "cmd": 'python -c "from modules.market_cache import refresh_all_indicators; refresh_all_indicators(force=True)"',
+        "mode": "live",
+        "covers": ["market_temp"],
+        "desc": "重算市场温度/驱动指标缓存（底层走 akshare，需联网）",
+    },
+    "p1_event": {
+        "cmd": ("# 事件因子信号由独立仓库 P1-QuantFactor 生成 signal_ev_h10.json；\n"
+                "# 在该仓库重新生成后，复制/软链回本仓 data/p1_signals/ 即可。"),
+        "mode": "external",
+        "covers": ["p1_event"],
+        "desc": "事件因子信号来自独立仓库 P1-QuantFactor；本仓无刷新入口，需跨仓流水线触发",
+    },
+}
+# 源 key -> 刷新命令 id（与 REFRESH_COMMANDS 对齐）
+_SOURCE_REFRESH: dict[str, str] = {
+    e["key"]: cid for cid, c in REFRESH_COMMANDS.items()
+    for e in DATA_SOURCES if e["key"] in c["covers"]
+}
+
+
+def build_refresh_plan(stale_only: bool = True) -> list[dict]:
+    """生成刷新计划（去重）。
+
+    返回 ``[{cmd_id, cmd, mode, desc, covers:[源名], stale_sources:[源名]}]``，
+    每个刷新命令只出现一次；``stale_sources`` 为该命令覆盖范围内**当前陈旧**的源。
+    ``stale_only=False`` 时连「新鲜」的覆盖源也列入 covers 但 stale_sources 仍只含陈旧的。
+    """
+    rows = health_rows()
+    by_key = {r["key"]: r for r in rows}
+    plan: list[dict] = []
+    seen: set[str] = set()
+    for cid, c in REFRESH_COMMANDS.items():
+        covers_names = [_name_of_key(k) for k in c["covers"]]
+        stale_names = [n for k, n in zip(c["covers"], covers_names)
+                       if by_key.get(k, {}).get("status") == "stale"]
+        if stale_only and not stale_names:
+            continue
+        if cid in seen:
+            continue
+        seen.add(cid)
+        plan.append({
+            "cmd_id": cid,
+            "cmd": c["cmd"],
+            "mode": c["mode"],
+            "desc": c["desc"],
+            "covers": covers_names,
+            "stale_sources": stale_names,
+        })
+    return plan
+
+
+def _name_of_key(key: str) -> str:
+    for e in DATA_SOURCES:
+        if e["key"] == key:
+            return e["name"]
+    return key
+
