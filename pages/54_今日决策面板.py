@@ -25,7 +25,9 @@ from modules import shepherd_forecast as _sf
 from modules import shepherd_note as _sn
 # 仓位推导收敛到 modules.decision 单一实现：决策面板 / 每日快照脚本 / 首页 banner 三处共用，
 # 避免各写一份漂移成互相矛盾的建议。改规则只需改 decision.derive_position 一处。
-from modules.decision import derive_position, load_snapshot, is_stale, _event_position_adj, _event_long_symbols
+from modules.decision import (derive_position, load_snapshot, is_stale,
+                             _event_position_adj, _event_long_symbols,
+                             event_edge, format_event_edge)
 from modules.data_health import health_rows, assess_freshness
 from modules.decision_view import render_signal_cards, render_position_card, render_ladder_table
 from modules import decision_track as _track
@@ -250,6 +252,20 @@ def _render_hero(df, today, prev, meta=None):
             st.dataframe(_sym_df, width="stretch", hide_index=True, key="ev_long_expand")
             st.caption("事件驱动催化 +X% 即来源于此多头池广度（每满 10 只 +1pt）。"
                        "点开看具体标的，非买入建议；数据来自 P1 EV 事件因子。")
+
+    # S16：把事件因子 efficacy 诚实摊到 UI——决策逻辑已用 edge 归零无优势催化，
+    # 这里让用户看见"事件驱动到底有没有用"，而非只默默归零。
+    try:
+        _ee = format_event_edge(event_edge(), event_adj_val)
+        if _ee:
+            if _ee["level"] == "warn":
+                st.warning(_ee["text"])
+            elif _ee["level"] == "ok":
+                st.success(_ee["text"])
+            else:
+                st.caption(_ee["text"])
+    except Exception:  # noqa: BLE001
+        pass
 
 
 @safe_fragment("今日决策")

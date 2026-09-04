@@ -264,6 +264,41 @@ def event_edge(min_samples: int = 20) -> dict:
             "n_on": n_on, "n_off": n_off}
 
 
+def format_event_edge(edge: dict | None, event_adj_val) -> dict | None:
+    """把 ``event_edge()`` 结果格式化成 UI 展示文本（诚实摊开事件因子优势）。
+
+    决策逻辑已在 ``_compute_event_adj`` 用 edge 归零无优势催化；这里把同一事实
+    **摊到 UI 上**，让用户看见"事件驱动到底有没有用"，而非只默默归零。
+    返回 ``{"level": "warn"|"ok"|"info", "text": str}``；``edge`` 为空则返回 None。
+
+    :param edge: ``event_edge()`` 的返回
+    :param event_adj_val: 实际施加的 event_adj（None=未施加）；用于措辞区分
+                         "有优势但未施加(多头池偏窄)" 与 "有优势且施加"。
+    """
+    if not edge:
+        return None
+    known = edge.get("known")
+    has_edge = edge.get("edge")
+    on_acc, off_acc = edge.get("on_acc"), edge.get("off_acc")
+    if known and not has_edge:
+        return {"level": "warn",
+                "text": (f"🎯 事件因子无统计优势：事件开命中率 {on_acc:.1f}% vs "
+                         f"事件关 {off_acc:.1f}%（n={edge.get('n_on')}/{edge.get('n_off')}），"
+                         f"本次不施加催化（避免往仓位注噪声）")}
+    if known and has_edge:
+        if event_adj_val:
+            return {"level": "ok",
+                    "text": (f"🎯 事件因子有统计优势：事件开 {on_acc:.1f}% vs "
+                             f"事件关 {off_acc:.1f}%，施加催化 +{event_adj_val}pt")}
+        return {"level": "info",
+                "text": (f"🎯 事件因子有统计优势（事件开 {on_acc:.1f}% vs "
+                         f"事件关 {off_acc:.1f}%），但当前多头池偏窄，未施加催化")}
+    # known=False：样本不足，无法确认有无优势——诚实标注"待验证"
+    return {"level": "info",
+            "text": (f"🎯 事件因子优势待验证（样本不足，需每组≥20条）；"
+                     f"当前施加催化 {'+' + str(event_adj_val) + 'pt' if event_adj_val else '0pt'}")}
+
+
 def _compute_event_adj(top_n: int = 50) -> dict | None:
     """真实事件因子多头池 → 市场级仓位调节（无缓存，纯计算）。
 

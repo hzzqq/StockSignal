@@ -315,3 +315,40 @@ def test_event_adj_applied_when_unknown(monkeypatch):
     out = D._compute_event_adj()
     assert out is not None  # 样本不足 → 不归零
     assert out["adj"] == 2
+
+
+# ──────────────────────────────────────────────
+# 事件因子 edge UI 展示（自找缺口 S16）：把 efficacy 诚实摊到 UI
+# ──────────────────────────────────────────────
+def _edge(known, edge, on=60.0, off=48.0, n_on=25, n_off=25):
+    return {"known": known, "edge": edge, "on_acc": on, "off_acc": off,
+            "diff": on - off, "n_on": n_on, "n_off": n_off}
+
+
+def test_format_event_edge_no_edge_is_warn():
+    out = D.format_event_edge(_edge(True, False), None)
+    assert out["level"] == "warn"
+    assert "无统计优势" in out["text"]
+
+
+def test_format_event_edge_has_edge_applied_is_ok():
+    out = D.format_event_edge(_edge(True, True), 2)
+    assert out["level"] == "ok"
+    assert "有统计优势" in out["text"]
+    assert "+2pt" in out["text"]
+
+
+def test_format_event_edge_has_edge_not_applied_is_info():
+    out = D.format_event_edge(_edge(True, True), 0)
+    assert out["level"] == "info"
+    assert "多头池偏窄" in out["text"]
+
+
+def test_format_event_edge_unknown_is_info():
+    out = D.format_event_edge({"known": False, "edge": None}, 2)
+    assert out["level"] == "info"
+    assert "待验证" in out["text"]
+
+
+def test_format_event_edge_none_returns_none():
+    assert D.format_event_edge(None, 2) is None
