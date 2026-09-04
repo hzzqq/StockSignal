@@ -17,6 +17,7 @@ from modules import decision as _dec
 from modules import decision_track as _track
 from modules import calibration as _cal
 from modules import event_factor as _ev
+from modules import p1_signal as _p1
 
 
 # ───────── I4 输入校验 ─────────
@@ -285,3 +286,32 @@ def test_event_long_symbols_failure_returns_none(monkeypatch):
     assert _dec._event_long_symbols(ttl=300) is None
     assert _dec._event_long_symbols(ttl=300) is None
     assert calls["n"] == 2
+
+
+# ───────── S5 实时 hero 共用 assess_freshness 守卫（事件因子日期必须一并摊开）─────────
+def test_event_position_adj_returns_as_of(monkeypatch):
+    """事件因子可用时，_event_position_adj 必须带真实数据截止日 as_of（P1 latest_date）。"""
+    def fake_long_list(top_n=50, model="ev", loader=None):
+        return [{"symbol": f"S{i}"} for i in range(30)]
+    def fake_latest_date(self, model="ev"):
+        return "2026-08-13"  # 实测 P1 信号滞后 ~21 天
+    monkeypatch.setattr(_ev, "event_driven_long_list", fake_long_list)
+    monkeypatch.setattr(_p1.P1SignalLoader, "latest_date", fake_latest_date)
+    _dec._event_adj_cache["value"] = None
+    _dec._event_adj_cache["ts"] = 0.0
+    ev = _dec._event_position_adj(ttl=0)
+    assert ev is not None and ev["as_of"] == "2026-08-13"
+
+
+def test_assess_freshness_worst_source_wins():
+    """牧羊人新鲜、事件因子滞后 21 天 → 整体 stale（避免被「牧羊人新鲜」掩盖）。"""
+    f = _dec.assess_freshness({"牧羊人情绪": "2026-09-02", "事件因子": "2026-08-13"})
+    assert f["status"] == "stale"
+    assert f["sources"]["事件因子"]["status"] == "stale"
+    assert f["sources"]["牧羊人情绪"]["status"] == "ok"
+
+
+def test_assess_freshness_all_ok():
+    """两源都新鲜 → ok。"""
+    f = _dec.assess_freshness({"牧羊人情绪": "2026-09-02", "事件因子": "2026-09-01"})
+    assert f["status"] == "ok"
