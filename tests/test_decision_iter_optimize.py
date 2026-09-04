@@ -304,14 +304,26 @@ def test_event_position_adj_returns_as_of(monkeypatch):
 
 
 def test_assess_freshness_worst_source_wins():
-    """牧羊人新鲜、事件因子滞后 21 天 → 整体 stale（避免被「牧羊人新鲜」掩盖）。"""
-    f = _dec.assess_freshness({"牧羊人情绪": "2026-09-02", "事件因子": "2026-08-13"})
+    """牧羊人新鲜、事件因子滞后 21 天 → 整体 stale（避免被「牧羊人新鲜」掩盖）。
+    日期相对 today 计算，避免写死绝对日期随墙钟推移腐烂（2026-09 实测曾因此假红）。
+    """
+    from datetime import date, timedelta
+    today = date.today()
+    f = _dec.assess_freshness({
+        "牧羊人情绪": (today - timedelta(days=1)).isoformat(),
+        "事件因子": (today - timedelta(days=21)).isoformat(),
+    })
     assert f["status"] == "stale"
     assert f["sources"]["事件因子"]["status"] == "stale"
     assert f["sources"]["牧羊人情绪"]["status"] == "ok"
 
 
 def test_assess_freshness_all_ok():
-    """两源都新鲜 → ok。"""
-    f = _dec.assess_freshness({"牧羊人情绪": "2026-09-02", "事件因子": "2026-09-01"})
+    """两源都新鲜 → ok。日期相对 today 计算，避免写死绝对日期随墙钟推移腐烂。"""
+    from datetime import date, timedelta
+    today = date.today()
+    f = _dec.assess_freshness({
+        "牧羊人情绪": (today - timedelta(days=1)).isoformat(),
+        "事件因子": (today - timedelta(days=2)).isoformat(),
+    })
     assert f["status"] == "ok"
