@@ -93,7 +93,8 @@ _BANDS = [
 
 # ───────────────────────── 仓位推导（唯一实现） ─────────────────────────
 def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=None,
-                   event_adj: int | None = None) -> dict:
+                   event_adj: int | None = None,
+                   freshness_status: str | None = None) -> dict:
     """透明推导仓位建议。
 
     规则（逐条留痕，前端直接展示 reasons，让建议可解释而非黑箱）：
@@ -112,6 +113,10 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     :param event_adj: 事件驱动仓位调节(绝对百分点)；None/0 表示不调节。
                        来源为真实 P1 EV 事件因子多头池广度（见 _event_position_adj），
                        取不到真实信号时为 None —— 决策者不臆造事件催化。
+    :param freshness_status: 输入源整体新鲜度（"ok"/"warn"/"stale"/"unknown"）。
+                       陈旧数据必须让位——守卫不能只"提示"，否则"半个月前的情绪"
+                       仍算出激进仓位、只是附了句"仅供参考"，与"诚实优先于好看"
+                       原则正面冲突。stale→封顶 40%，warn→封顶 60%（仅封顶不抬底）。
     :return: dict(pct=int, band=str, color=str, reasons=list[str])
     """
     reasons: list[str] = []
@@ -189,6 +194,24 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
         if pct < 40:
             reasons.append(f"⚠️ 极端风控：温度 {base:.0f}≥80 且处高潮分化，仓位兜底 40%（原 {pct:.0f}%）")
             pct = 40.0
+
+    # 数据新鲜度诚实降级：守卫不能只"提示"——陈旧输入必须真的让位。
+    # 这是「诚实优先于好看」的硬约束：基于过期数据的仓位建议不得保持激进。
+    # stale（滞后≥8天）→ 封顶 40%；warn（滞后≥4天）→ 封顶 60%；仅封顶、不抬底。
+    if freshness_status == "stale":
+        _cap = 40.0
+        if pct > _cap:
+            reasons.append(
+                f"⚠️ 数据陈旧：输入源滞后≥{FRESH_STALE_DAYS}天，仓位封顶 {_cap:.0f}%"
+                f"（原 {pct:.0f}%），避免基于过期数据重仓")
+            pct = _cap
+    elif freshness_status == "warn":
+        _cap = 60.0
+        if pct > _cap:
+            reasons.append(
+                f"⚠️ 数据偏旧：输入源滞后≥{FRESH_WARN_DAYS}天，仓位封顶 {_cap:.0f}%"
+                f"（原 {pct:.0f}%）")
+            pct = _cap
 
     band, color = "中性", "#f59e0b"
     for threshold, bname, bcolor in _BANDS:
@@ -390,18 +413,21 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
 
     cycle_name = _cycle_name_of(fc)
     overall = pm.get("overall")
-    pos = derive_position(temp, fc.get("score"), fc.get("bias"), cycle_name, overall,
-                          event_adj=event_adj)
 
     # ── 数据新鲜度守卫：如实摊开每个输入源的真实数据截止日 ──
     # 牧羊人温度取自情绪历史末行、事件因子取自 P1 信号 latest_date，两者都
     # 可能远早于快照日期。不显式带出，就会让「半个月前的温度/信号」冒充今天。
+    # 必须在 derive_position 之前算好——守卫不能只"提示"，要把新鲜度透传给
+    # 仓位推导，让陈旧输入真的降仓（见 derive_position 内 freshness_status 封顶）。
     _ind = indicators if isinstance(indicators, dict) else {}
     shepherd_as_of = temp_as_of or _ind.get("date")
     freshness = assess_freshness({
         "牧羊人情绪": shepherd_as_of,
         "事件因子": ev_info.get("as_of"),
     })
+    pos = derive_position(temp, fc.get("score"), fc.get("bias"), cycle_name, overall,
+                          event_adj=event_adj, freshness_status=freshness["status"])
+
     if freshness["status"] in ("warn", "stale"):
         stale_bits = [
             f"{name}截至 {s['as_of']}（滞后 {s['lag_days']} 天）"
@@ -410,7 +436,8 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
         ]
         if stale_bits:
             pos.setdefault("reasons", []).append(
-                "⚠️ 数据陈旧：" + "、".join(stale_bits) + "，仓位建议仅供参考")
+                "⚠️ 数据陈旧：" + "、".join(stale_bits)
+                + "，仓位已据陈旧程度主动降仓（详见推导明细）")
 
     return {
         "date": date,

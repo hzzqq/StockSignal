@@ -111,12 +111,13 @@ def test_snapshot_exposes_data_freshness(monkeypatch):
 
 
 def test_snapshot_warns_when_stale(monkeypatch):
-    """陈旧数据必须在仓位理由里给出可见告警。"""
+    """陈旧数据必须在仓位理由里给出可见告警，且守卫已真的降仓（不是只"仅供参考"）。"""
     snap = _snap(_iso(21), _iso(14), monkeypatch)
     reasons = " ".join(snap["position"]["reasons"])
     assert "数据陈旧" in reasons
     assert "滞后 21 天" in reasons
-    assert "仓位建议仅供参考" in reasons
+    assert "主动降仓" in reasons
+    assert "仅供参考" not in reasons  # 已真的降仓，不再是"仅供参考"的空头提示
 
 
 def test_snapshot_silent_when_fresh(monkeypatch):
@@ -140,3 +141,63 @@ def test_snapshot_temp_as_of_param_overrides_indicators(monkeypatch):
         date="2026-09-04", indicators={"date": "2026-09-04"}, temp=33.0,
         forecast={}, promo={}, temp_as_of="2026-08-21")
     assert snap["data_freshness"]["sources"]["牧羊人情绪"]["as_of"] == "2026-08-21"
+
+
+# ──────────────────────────────────────────────
+# 决策随新鲜度诚实降级（自找缺口 S12）：守卫必须真的让位，而非只提示
+# ──────────────────────────────────────────────
+def test_derive_position_caps_at_40_when_stale():
+    """陈旧输入必须真的降仓：激进仓位被封顶 40%（不是只附一句"仅供参考"）。"""
+    pos = D.derive_position(
+        temp=85, bias="偏多", cycle_name="主升", overall_promo=65,
+        event_adj=5, freshness_status="stale")
+    assert pos["pct"] == 40
+    _r = " ".join(pos["reasons"])
+    assert "数据陈旧" in _r
+    assert "封顶 40%" in _r
+
+
+def test_derive_position_caps_at_60_when_warn():
+    """偏旧输入（warn）封顶 60%。"""
+    pos = D.derive_position(
+        temp=85, bias="偏多", cycle_name="主升", overall_promo=65,
+        event_adj=5, freshness_status="warn")
+    assert pos["pct"] == 60
+    _r = " ".join(pos["reasons"])
+    assert "封顶 60%" in _r
+
+
+def test_derive_position_no_freshness_action_when_ok():
+    """新鲜数据：不施加新鲜度封顶，仓位保持激进原值；默认(None)等同 ok。"""
+    pos_full = D.derive_position(
+        temp=85, bias="偏多", cycle_name="主升", overall_promo=65, event_adj=5)
+    pos_ok = D.derive_position(
+        temp=85, bias="偏多", cycle_name="主升", overall_promo=65, event_adj=5,
+        freshness_status="ok")
+    assert pos_full["pct"] == pos_ok["pct"] == 95
+    assert "封顶" not in " ".join(pos_ok["reasons"])
+
+
+def test_derive_position_low_position_untouched_when_stale():
+    """陈旧但本就保守的仓位：仅封顶不抬底，不得被惩罚性改动。"""
+    pos = D.derive_position(
+        temp=15, bias="中性", cycle_name="冰点", overall_promo=10,
+        event_adj=0, freshness_status="stale")
+    assert "封顶" not in " ".join(pos["reasons"])
+
+
+def test_snapshot_caps_position_when_stale(monkeypatch):
+    """集成：build_snapshot 把新鲜度透传后，陈旧场景下仓位被真正封顶。"""
+    monkeypatch.setattr(
+        D, "_event_position_adj",
+        lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": _iso(21)})
+    snap = D.build_snapshot(
+        date="2026-09-04",
+        indicators={"date": _iso(14)},
+        temp=85.0,
+        forecast={"score": 0.4, "bias": "偏多", "confidence": 0.7},
+        promo={"overall": 65},
+    )
+    assert snap["data_freshness"]["status"] == "stale"
+    assert snap["position"]["pct"] <= 40
+    assert "封顶" in " ".join(snap["position"]["reasons"])
