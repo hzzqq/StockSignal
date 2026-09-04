@@ -27,7 +27,8 @@ def test_registry_covers_all_decision_sources():
             "event_pool", "market_temp", "daily_snapshot"} <= keys
     # 每个源都有可解析的 kind
     assert all(e.get("kind") in ("csv_last_date", "json_date_field",
-                                 "p1_latest_date", "mtime") for e in DH.DATA_SOURCES)
+                                 "p1_latest_date", "mtime", "track_last_scored")
+               for e in DH.DATA_SOURCES)
 
 
 # ───────────────────────── 抽取器容错 ─────────────────────────
@@ -179,5 +180,21 @@ def test_cli_refresh_exec_reports_honest_failure(monkeypatch, capsys):
     assert "刷新失败" in out
     assert "akshare proxy not up" in out  # 真实错误透传
     assert "✅ 命令执行成功" not in out  # 没有伪造成功
+
+
+# ───────────────────────── 校准证据源（prediction_log）入守卫 ─────────────────────────
+def test_calibration_evidence_registered_and_extracted(monkeypatch):
+    """prediction_log 作为第 7 个受守卫源，抽取器走 track_last_scored，刷新命令已登记。"""
+    keys = {e["key"] for e in DH.DATA_SOURCES}
+    assert "calibration_evidence" in keys
+    monkeypatch.setattr(DH, "_track_last_scored_date", lambda: "2026-09-03")
+    row = next(r for r in DH.health_rows() if r["key"] == "calibration_evidence")
+    assert row["as_of"] == "2026-09-03"
+    # 刷新命令去重时包含校准证据源
+    plan = DH.build_refresh_plan(stale_only=False)
+    calib = next((p for p in plan if p["cmd_id"] == "calibration_evidence"), None)
+    assert calib is not None, "刷新计划应含校准证据源的刷新命令"
+    assert "daily_snapshot.py --score-only" in calib["cmd"]
+
 
 

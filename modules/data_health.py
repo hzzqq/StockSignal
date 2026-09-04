@@ -76,6 +76,19 @@ def _p1_event_latest_date() -> str | None:
         return None
 
 
+def _track_last_scored_date() -> str | None:
+    """校准回测样本（prediction_log）最近一次成功打分的日期——校准证据的「数据截止日」。
+
+    这是决策闭环的「第二层」数据依赖：决策输入源（牧羊人/P1/…）陈旧会让仓位失真，
+    而**校准证据源**陈旧会让 CYCLE_ADJ 补丁基于过期回测被误采纳。两者都必须入守卫。
+    """
+    try:
+        from modules.decision_track import last_scored_date
+        return last_scored_date()
+    except Exception:  # noqa: BLE001
+        return None
+
+
 # ───────────────────────── 决策数据源注册表 ─────────────────────────
 # kind 决定抽取方式；path 用于 csv/json/mtime；col/field 用于字段定位。
 DATA_SOURCES: list[dict] = [
@@ -90,6 +103,9 @@ DATA_SOURCES: list[dict] = [
      "path": os.path.join(_DATA_DIR, "market_cache.db")},
     {"key": "daily_snapshot", "name": "今日快照", "kind": "json_date_field",
      "path": os.path.join(_DATA_DIR, "daily_snapshot.json"), "field": "date"},
+    # 校准证据源：prediction_log 最近一次打分日（与决策输入源同等重要，须入守卫）
+    {"key": "calibration_evidence", "name": "校准回测样本", "kind": "track_last_scored",
+     "path": None},
 ]
 
 
@@ -102,6 +118,8 @@ def source_as_of(entry: dict) -> str | None:
         return _json_date_field(entry["path"], entry.get("field"))
     if k == "p1_latest_date":
         return _p1_event_latest_date()
+    if k == "track_last_scored":
+        return _track_last_scored_date()
     if k == "mtime":
         return _mtime_date(entry["path"])
     return None
@@ -168,6 +186,12 @@ REFRESH_COMMANDS: dict[str, dict] = {
         "mode": "external",
         "covers": ["p1_event"],
         "desc": "事件因子信号来自独立仓库 P1-QuantFactor；本仓无刷新入口，需跨仓流水线触发",
+    },
+    "calibration_evidence": {
+        "cmd": "python scripts/daily_snapshot.py --score-only",
+        "mode": "live",
+        "covers": ["calibration_evidence"],
+        "desc": "重新给历史预测打次日涨跌分，刷新校准回测样本 prediction_log（不抓数据）",
     },
 }
 # 源 key -> 刷新命令 id（与 REFRESH_COMMANDS 对齐）

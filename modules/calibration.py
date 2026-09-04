@@ -47,6 +47,7 @@ MAX_DELTA = 5     # 单次校准调节上限（防过拟合）
 DEFAULT_MIN_SAMPLES = 8    # 样本低于此数，连建议都不展示（页面默认）
 DEFAULT_STRONG_SAMPLES = 20  # 样本达到此数，才认为「可以人工采纳」
 NOISE_DELTA = 2   # |sug_delta| 小于此值视为噪音，不建议动手
+CALIB_STALE_DAYS = 8  # 最近打分距今 ≥ 此天数 → 校准证据视为陈旧（与决策守卫 stale 阈值一致）
 
 
 # ───────────────────────── 分组 → 六阶段 ─────────────────────────
@@ -264,9 +265,16 @@ def verdict(strong_samples: int = DEFAULT_STRONG_SAMPLES) -> dict:
             stale_days = (_d.today() - _d.fromisoformat(str(last_scored)[:10])).days
         except Exception:  # noqa: BLE001
             stale_days = None
+    # 校准证据陈旧：样本虽够，但若打分停在很久以前，所谓「可采纳补丁」是基于陈旧
+    # 回测的——与「拿旧数据当当日结论」同性质的坑，必须让 UI 降级提示而非照亮「就绪」。
+    stale = stale_days is not None and stale_days >= CALIB_STALE_DAYS
+    if ready and stale:
+        msg = (f"样本数已够（{n_call} 条），但最近一次打分停在 {last_scored}（{stale_days} 天前），"
+               f"校准补丁基于陈旧回测；建议先刷新 prediction_log 再校准。")
     return {
         "ready": ready,
         "any_actionable": any_actionable,
+        "stale": stale,
         "n_call": n_call,
         "n": s["n"],
         "strong_samples": strong_samples,

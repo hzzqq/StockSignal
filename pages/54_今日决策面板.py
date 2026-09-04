@@ -457,6 +457,18 @@ def fragment_calibration_ready_banner():
     if not v.get("ready"):
         return
     _cmd = "python scripts/apply_calibration.py --apply"
+    if v.get("stale"):
+        # 样本够但打分陈旧 → 降级为告警，绝不照亮「就绪」（与决策新鲜度守卫同源）
+        _sd = v.get("stale_days")
+        _lsd = v.get("last_scored_date")
+        xc_warn_box(
+            f"⚠️ **刻度校准补丁「暂缓就绪」**：样本数已够，但最近一次打分停在 {_lsd}（{_sd} 天前），"
+            "所谓「可采纳补丁」是基于**陈旧回测**算出的——与拿旧数据当当日结论同性质，落地会误导仓位刻度。\n\n"
+            "请先刷新校准证据再校准：\n"
+            f"```bash\npython scripts/daily_snapshot.py --score-only\n```\n"
+            "（重新给历史预测打次日涨跌分，prediction_log 更新后本提示会自动消失。）"
+        )
+        return
     xc_success_box(
         "✅ **刻度校准补丁已就绪**：回测样本已积累到可采纳阈值，建议执行以下命令把建议刻度"
         f"写入 `modules/decision.py` 的 `CYCLE_ADJ`（写前自动备份 + 审计，需人触发）：\n\n"
