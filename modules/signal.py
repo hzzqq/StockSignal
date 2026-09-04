@@ -393,7 +393,10 @@ class SignalEngine:
         }])
         events = pd.concat([events, new_row], ignore_index=True)
         os.makedirs(os.path.dirname(self.event_db_path), exist_ok=True)
-        events.to_csv(self.event_db_path, index=False, encoding="utf-8-sig")
+        # 原子写：先写临时文件再 os.replace，避免并发 _load_events 读到半截事件库
+        tmp = f"{self.event_db_path}.tmp"
+        events.to_csv(tmp, index=False, encoding="utf-8-sig")
+        os.replace(tmp, self.event_db_path)
 
     # ------------------------------------------------------------------
     # 宏观信号得分 (0-100)

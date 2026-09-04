@@ -90,6 +90,21 @@ class TestSignalEngine:
         assert len(events) == 1
         assert events.iloc[0]["title"] == "煤炭价格大涨"
 
+    def test_add_event_is_atomic_no_tmp_lingering(self, tmp_path):
+        """事件库写入须为原子写：写完后无 .tmp 残留，且可完整 reload。"""
+        import os
+        engine = SignalEngine()
+        engine.event_db_path = str(tmp_path / "test_events.csv")
+
+        engine.add_event("2025-06-01", "601088", "煤炭价格大涨", "利好")
+        engine.add_event("2025-06-02", "600519", "白酒提价", "利好")
+
+        assert os.path.exists(engine.event_db_path)
+        assert not os.path.exists(engine.event_db_path + ".tmp")
+        events = engine._load_events()
+        assert len(events) == 2
+        assert set(events["ticker"]) == {"601088", "600519"}
+
     def test_event_score_with_keywords(self, tmp_path):
         engine = SignalEngine()
         engine.event_db_path = str(tmp_path / "test_events.csv")
