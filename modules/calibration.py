@@ -179,6 +179,12 @@ def apply_patch(strong_samples: int = DEFAULT_STRONG_SAMPLES,
     v = verdict(strong_samples=strong_samples)
     if not v["ready"]:
         return {"applied": False, "reason": v["msg"], "patch": {}, "changed": None}
+    # 诚实护栏（S11 闭环收口）：样本够但打分陈旧 → 所谓补丁基于过期回测，
+    # 绝不许写进 CYCLE_ADJ。54 页横幅已降级为"暂缓就绪"，apply 路径必须一致拒绝，
+    # 否则"banner 说别采纳、命令却照写"自相矛盾，陈旧刻度悄悄污染决策闭环。
+    if v.get("stale"):
+        return {"applied": False, "reason": v["msg"] or "校准证据陈旧，拒绝落地",
+                "patch": {}, "changed": None, "stale": True}
     patch = as_patch(strong_samples=strong_samples)
     if not patch:
         return {"applied": False, "reason": "无值得采纳的建议", "patch": {}, "changed": None}

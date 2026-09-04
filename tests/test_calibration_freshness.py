@@ -139,3 +139,23 @@ def test_page54_banner_ready_when_fresh(monkeypatch, tmp_path):
     assert len(at.exception) == 0, [str(e) for e in at.exception]
     _text = " ".join((getattr(m, "value", "") or "") for m in at.markdown)
     assert "已就绪" in _text, "新鲜校准证据下横幅应显示就绪"
+
+
+# ──────────────────────────────────────────────
+# apply_patch 诚实护栏（自找缺口 S13）：S11 闭环收口
+# ──────────────────────────────────────────────
+def test_apply_patch_refuses_when_stale(monkeypatch):
+    """校准证据陈旧时 apply_patch 必须拒绝写 CYCLE_ADJ——banner 已降级，apply 路径须一致。"""
+    monkeypatch.setattr(_CAL, "verdict", lambda *a, **k: _verdict(True, True))
+    res = _CAL.apply_patch(dry_run=True)
+    assert res["applied"] is False
+    assert res.get("stale") is True
+    assert "陈旧" in res["reason"]
+
+
+def test_apply_patch_not_blocked_by_staleness_when_fresh(monkeypatch):
+    """新鲜时 apply_patch 不因陈旧而拒绝，走正常 ready/dry-run 路径。"""
+    monkeypatch.setattr(_CAL, "verdict", lambda *a, **k: _verdict(True, False))
+    res = _CAL.apply_patch(dry_run=True)
+    assert res.get("stale") is not True
+    assert "陈旧" not in res["reason"]
