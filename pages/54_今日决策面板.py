@@ -25,7 +25,7 @@ from modules import shepherd_forecast as _sf
 from modules import shepherd_note as _sn
 # 仓位推导收敛到 modules.decision 单一实现：决策面板 / 每日快照脚本 / 首页 banner 三处共用，
 # 避免各写一份漂移成互相矛盾的建议。改规则只需改 decision.derive_position 一处。
-from modules.decision import derive_position, load_snapshot, is_stale, _event_position_adj
+from modules.decision import derive_position, load_snapshot, is_stale, _event_position_adj, _event_long_symbols
 from modules.decision_view import render_signal_cards, render_position_card, render_ladder_table
 from modules import decision_track as _track
 from modules import calibration as _cal
@@ -159,15 +159,38 @@ def _render_hero(df, today, prev, meta=None):
                         temp_delta=temp_delta, overall_delta=overall_delta)
 
     # 数据新鲜度徽标：与「决策快照」快照片段同源（I2），避免实时面板假装最新（S2 自找缺口）
+    # 事件因子滞后必须一并摊开：P1 信号的 latest_date 常远早于今天（实测滞后 21 天），
+    # 只提示牧羊人滞后，会让「事件驱动催化 +2pt」看起来像当日结论。
     try:
         _dstr = _last_data_date(df)
         _age = (datetime.date.today() - datetime.date.fromisoformat(_dstr[:10])).days if _dstr else None
     except Exception:  # noqa: BLE001
         _age = None
-    if _age is not None and _age > 1:
-        st.warning(f"⏰ 数据滞后 {_age} 日（最新指标截至 {_dstr}）——决策依据可能偏旧，谨慎参考")
-    elif _age is not None:
-        st.caption(f"数据截至 {_dstr}（滞后 {_age} 日）")
+    _ev_as_of = None
+    try:
+        _evd = _event_position_adj()
+        if isinstance(_evd, dict):
+            _ev_as_of = _evd.get("as_of")
+    except Exception:  # noqa: BLE001
+        _ev_as_of = None
+    _ev_age = None
+    if _ev_as_of:
+        try:
+            _ev_age = (datetime.date.today()
+                       - datetime.date.fromisoformat(str(_ev_as_of)[:10])).days
+        except Exception:  # noqa: BLE001
+            _ev_age = None
+    _lags = []
+    if _age is not None:
+        _lags.append(f"牧羊人 {_dstr}（滞后 {_age} 日）")
+    if _ev_age is not None:
+        _lags.append(f"事件因子 {_ev_as_of}（滞后 {_ev_age} 日）")
+    if _lags:
+        _max_age = max([a for a in (_age, _ev_age) if a is not None])
+        if _max_age > 1:
+            st.warning("⏰ 数据滞后：" + "、".join(_lags) + "——决策依据可能偏旧，谨慎参考")
+        else:
+            st.caption("数据截至：" + "、".join(_lags))
 
     # ② 仓位建议大卡（闭环的输出端）
     # 事件驱动催化：实时接通事件因子，消除「活/归档漂移」（S1 自找缺口）。
@@ -193,6 +216,21 @@ def _render_hero(df, today, prev, meta=None):
         pass
     render_position_card(pos, bias=bias, confidence=(fc or {}).get("confidence", 0),
                          cyc_name=cyc.get("name", ""))
+
+    # S4 事件驱动多头池下钻：实时卡可见具体标的，透明可解释（与事件催化同源）。
+    # 信号可用（多头池非空）才展示；读不到/异常则静默降级，不拖崩卡片。
+    try:
+        ev_syms = _event_long_symbols(top_n=20)
+    except Exception:  # noqa: BLE001
+        ev_syms = None
+    if ev_syms:
+        _n = len(ev_syms)
+        with st.expander(f"🔍 事件驱动多头池（前 {_n} 只，点开看标的）", expanded=False):
+            _sym_df = pd.DataFrame(ev_syms).rename(
+                columns={"symbol": "代码", "score": "模型百分位"})
+            st.dataframe(_sym_df, width="stretch", hide_index=True, key="ev_long_expand")
+            st.caption("事件驱动催化 +X% 即来源于此多头池广度（每满 10 只 +1pt）。"
+                       "点开看具体标的，非买入建议；数据来自 P1 EV 事件因子。")
 
 
 @safe_fragment("今日决策")
@@ -689,6 +727,10 @@ def fragment_calibration():
 
     if v["ready"]:
         xc_success_box(f"✅ {v['msg']}")
+        # S3 闭环最后一英里：样本够后明确告诉老板如何落地（不自动改规则，人仍在回路）
+        st.code("python scripts/apply_calibration.py --apply", language="bash")
+        st.caption("⚠️ 默认 dry-run 仅预览将改哪些刻度；加 ``--apply`` 才写 "
+                   "``decision.CYCLE_ADJ``（写前自动备份 + 审计日志）。人触发、人负责。")
     else:
         xc_warn_box(f"⏳ {v['msg']}。当前数值仅供观察趋势，**不要据此修改规则**——小样本算出的结论是噪音。")
     st.progress(min(v["n_call"] / float(v["strong_samples"]), 1.0),

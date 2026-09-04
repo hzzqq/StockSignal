@@ -174,7 +174,9 @@ def test_event_position_adj_ttl_cache_hits(monkeypatch):
 
     a = _dec._event_position_adj(ttl=300)
     b = _dec._event_position_adj(ttl=300)
-    assert a == b == {"adj": 3, "long_count": 30}
+    assert a == b  # 缓存命中，返回同一对象（含新增的 as_of 字段）
+    assert a["adj"] == 3 and a["long_count"] == 30
+    assert "as_of" in a and a["as_of"]  # 真理源新增：事件信号真实截止日必须摊开
     assert calls["n"] == 1  # 只算了一次，第二次命中缓存
 
 
@@ -246,3 +248,40 @@ class EventAdjStub:
     def __exit__(self, *exc):
         import modules.decision as d
         d._event_position_adj = self._orig
+
+
+# ───────── S4 事件因子长列表下钻（多头池个股缓存）─────────
+def test_event_long_symbols_shape_and_cache(monkeypatch):
+    """返回 [{symbol, score}] 列表；ttl 内二次调用命中缓存（不重读 11MB）。"""
+    calls = {"n": 0}
+
+    def fake_long_list(top_n=20, model="ev", loader=None):
+        calls["n"] += 1
+        return [{"symbol": f"S{i}", "score": 80 - i} for i in range(top_n)]
+
+    monkeypatch.setattr(_ev, "event_driven_long_list", fake_long_list)
+    _dec._event_symbols_cache["value"] = None
+    _dec._event_symbols_cache["ts"] = 0.0
+
+    a = _dec._event_long_symbols(ttl=300)
+    b = _dec._event_long_symbols(ttl=300)
+    assert a == b
+    assert all("symbol" in d and "score" in d for d in a)
+    assert calls["n"] == 1  # 命中缓存
+
+
+def test_event_long_symbols_failure_returns_none(monkeypatch):
+    """读取失败返回 None（不臆造），且不缓存以便下次重试。"""
+    calls = {"n": 0}
+
+    def fake_long_list(top_n=20, model="ev", loader=None):
+        calls["n"] += 1
+        raise RuntimeError("信号文件读不到")
+
+    monkeypatch.setattr(_ev, "event_driven_long_list", fake_long_list)
+    _dec._event_symbols_cache["value"] = None
+    _dec._event_symbols_cache["ts"] = 0.0
+
+    assert _dec._event_long_symbols(ttl=300) is None
+    assert _dec._event_long_symbols(ttl=300) is None
+    assert calls["n"] == 2

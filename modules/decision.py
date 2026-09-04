@@ -212,23 +212,35 @@ def _cycle_name_of(forecast: dict | None) -> str:
 def _compute_event_adj(top_n: int = 50) -> dict | None:
     """真实事件因子多头池 → 市场级仓位调节（无缓存，纯计算）。
 
-    返回 ``{"adj": int(0~5), "long_count": int}``；取不到真实信号（无目录 / 无文件 /
-    异常 / 多头池空）返回 ``None`` —— 决策者绝不臆造事件催化。
+    返回 ``{"adj": int(0~5), "long_count": int, "as_of": str|None}``；取不到真实信号
+    （无目录 / 无文件 / 异常 / 多头池空）返回 ``None`` —— 决策者绝不臆造事件催化。
+
+    ``as_of`` 是 P1 信号的**真实数据截止日**（不是文件生成时间、更不是今天），
+    供上层做数据新鲜度判定：信号滞后 20 天时，仓位建议必须被显式标注警示，
+    而不是让用户误以为自己看的是当天的事件催化。
 
     广度规则（透明、可解释）：
         事件驱动多头池每满 10 只高置信标的 → 仓位 +1pt，封顶 +5。
         多头池越宽 = 事件催化环境越旺 = 仓位越积极（与「事件驱动」主线一致）。
     """
     try:
+        from modules.p1_signal import P1SignalLoader
         from modules.event_factor import event_driven_long_list
-        longs = event_driven_long_list(top_n=top_n)
+        # 复用同一个 loader 实例：top_long 已把 11MB 信号载入内存缓存，
+        # 再取 latest_date 走缓存几乎零成本（否则会重复读盘）。
+        loader = P1SignalLoader(ttl=300)
+        longs = event_driven_long_list(top_n=top_n, loader=loader)
+        try:
+            as_of = loader.latest_date("ev")
+        except Exception:  # noqa: BLE001
+            as_of = None
     except Exception as e:  # noqa: BLE001
         logger.warning("[decision] 事件因子多头池读取失败，跳过事件调节: %s", e)
         return None
     if not longs:
         return None
     n = len(longs)
-    return {"adj": min(5, n // 10), "long_count": n}
+    return {"adj": min(5, n // 10), "long_count": n, "as_of": as_of}
 
 
 # 模块级 TTL 缓存：实时决策面板每次刷新（含 180s 自动刷新）都会调本函数，
@@ -250,6 +262,35 @@ def _event_position_adj(top_n: int = 50, ttl: int = 300) -> dict | None:
     return ev
 
 
+# 多头池个股列表缓存（与 _event_adj_cache 独立，避免互相踩 TTL）：实时卡下钻展示用。
+_event_symbols_cache: dict = {"value": None, "ts": 0.0}
+
+
+def _event_long_symbols(top_n: int = 20, ttl: int = 300) -> list[dict] | None:
+    """真实事件因子多头池个股列表（[{symbol, score}], score=模型百分位 0-100），供下钻展示。
+
+    与 ``_event_position_adj`` 同源自 ``event_driven_long_list``，但返回**明细**而非聚合 adj。
+    模块级 TTL 缓存（成功才缓存、失败不缓存），避免实时卡每次刷新重读 11MB 信号文件。
+    取不到真实信号返回 ``None``（不臆造）。
+    """
+    now = time.time()
+    cached = _event_symbols_cache
+    if cached["value"] is not None and (now - cached["ts"]) < ttl:
+        return cached["value"]
+    try:
+        from modules.event_factor import event_driven_long_list
+        longs = event_driven_long_list(top_n=top_n)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[decision] 事件因子多头池读取失败，跳过下钻: %s", e)
+        return None
+    if not longs:
+        return None
+    syms = [{"symbol": d.get("symbol"), "score": d.get("score")} for d in longs]
+    cached["value"] = syms
+    cached["ts"] = now
+    return syms
+
+
 def _age_days(date_str: str | None) -> int | None:
     """数据日期距今天的自然日数（仅用于「数据滞后」展示，不参与任何推导）。
 
@@ -266,10 +307,56 @@ def _age_days(date_str: str | None) -> int | None:
         return None
 
 
+# ── 数据新鲜度阈值（自然日）──
+# A 股日频数据：周五收盘 → 周一查看 = 3 个自然日，属正常周末间隔，仍算新鲜。
+FRESH_WARN_DAYS = 4     # 滞后 ≥4 天：提示
+FRESH_STALE_DAYS = 8    # 滞后 ≥8 天：判定陈旧，仓位建议旁必须显式告警
+
+
+def assess_freshness(sources: dict) -> dict:
+    """把各数据源的「真实数据截止日」汇总成统一的新鲜度判定。
+
+    这是决策面板的**诚实性底线**：仓位建议算得再准，也可能建立在半个月前的
+    情绪/事件数据上。若不把每个源的真实截止日和滞后天数摊开，用户会把陈旧
+    结论当成当日结论——那比没有结论更危险。
+
+    :param sources: ``{源名: 数据截止日 YYYY-MM-DD 或 None}``
+    :return: ``{"status", "max_lag_days", "sources"}``，status 取
+             ``ok`` / ``warn`` / ``stale`` / ``unknown``（全部源都无日期时）。
+    """
+    _rank = {"ok": 0, "unknown": -1, "warn": 1, "stale": 2}
+    out: dict = {}
+    worst = "ok"
+    max_lag: int | None = None
+    known = False
+    for name, as_of in (sources or {}).items():
+        lag = _age_days(as_of)
+        if lag is None:
+            st = "unknown"
+        else:
+            known = True
+            if lag >= FRESH_STALE_DAYS:
+                st = "stale"
+            elif lag >= FRESH_WARN_DAYS:
+                st = "warn"
+            else:
+                st = "ok"
+            max_lag = lag if max_lag is None else max(max_lag, lag)
+        out[name] = {"as_of": as_of, "lag_days": lag, "status": st}
+        if _rank[st] > _rank[worst]:
+            worst = st
+    return {
+        "status": worst if known else "unknown",
+        "max_lag_days": max_lag,
+        "sources": out,
+    }
+
+
 # ───────────────────────── 快照构建 / 落盘 / 读取 ─────────────────────────
 def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
                    promo: dict | None, ladder: dict | None = None,
-                   event_adj: int | None = None) -> dict:
+                   event_adj: int | None = None,
+                   temp_as_of: str | None = None) -> dict:
     """把「今天的情绪信号 + 推导出的仓位建议」组装成一份可落盘的快照。
 
     :param date: 数据日期 YYYY-MM-DD（务必用**数据日期**而非 now()，否则周末/盘后
@@ -281,6 +368,9 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
     :param ladder: get_zt_ladder 的原始返回（可选，存分布与最高板）
     :param event_adj: 事件驱动仓位调节(绝对百分点)；默认 None 时由真实事件因子
                       （P1 EV 多头池广度）自动计算。显式传值可覆盖/关闭(传 0)。
+    :param temp_as_of: 市场温度 ``temp`` 对应的**真实数据日期**。不传时回退取
+                       ``indicators["date"]``。用于新鲜度判定——温度常取自情绪
+                       历史末行，其日期往往早于快照日期，必须如实带出。
     """
     fc = forecast if isinstance(forecast, dict) else {}
     pm = promo if isinstance(promo, dict) else {}
@@ -288,11 +378,12 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
 
     # 事件驱动催化：默认用真实事件因子多头池广度自动算；取不到则标记不可用（不臆造）
     ev = _event_position_adj() if event_adj is None else (
-        {"adj": event_adj, "long_count": None} if event_adj else None)
+        {"adj": event_adj, "long_count": None, "as_of": None} if event_adj else None)
     ev_info = {
         "available": bool(ev),
         "long_count": ev["long_count"] if ev else 0,
         "adj": ev["adj"] if ev else None,
+        "as_of": ev.get("as_of") if ev else None,
     }
     if ev:
         event_adj = ev["adj"]
@@ -301,6 +392,25 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
     overall = pm.get("overall")
     pos = derive_position(temp, fc.get("score"), fc.get("bias"), cycle_name, overall,
                           event_adj=event_adj)
+
+    # ── 数据新鲜度守卫：如实摊开每个输入源的真实数据截止日 ──
+    # 牧羊人温度取自情绪历史末行、事件因子取自 P1 信号 latest_date，两者都
+    # 可能远早于快照日期。不显式带出，就会让「半个月前的温度/信号」冒充今天。
+    _ind = indicators if isinstance(indicators, dict) else {}
+    shepherd_as_of = temp_as_of or _ind.get("date")
+    freshness = assess_freshness({
+        "牧羊人情绪": shepherd_as_of,
+        "事件因子": ev_info.get("as_of"),
+    })
+    if freshness["status"] in ("warn", "stale"):
+        stale_bits = [
+            f"{name}截至 {s['as_of']}（滞后 {s['lag_days']} 天）"
+            for name, s in freshness["sources"].items()
+            if s["status"] in ("warn", "stale") and s["as_of"]
+        ]
+        if stale_bits:
+            pos.setdefault("reasons", []).append(
+                "⚠️ 数据陈旧：" + "、".join(stale_bits) + "，仓位建议仅供参考")
 
     return {
         "date": date,
@@ -320,6 +430,7 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
         },
         "position": pos,
         "event_factor": ev_info,
+        "data_freshness": freshness,
         "indicators": dict(indicators or {}),
         "signals": fc.get("signals") or [],
         "scenario": fc.get("scenario") or [],
