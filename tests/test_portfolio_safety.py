@@ -112,3 +112,53 @@ class TestPortfolioNanPrice:
         row = pnl.iloc[0]
         assert row["current_price"] == 1500.0
         assert not math.isnan(row["pnl_pct"])
+
+
+class TestPortfolioAtomicWrite:
+    """持仓/交易文件写入必须是原子写（tmp+os.replace），
+    避免 Streamlit rerun 并发读时读到半截 CSV 导致持仓显示错乱或文件损坏。
+    """
+
+    @staticmethod
+    def _make_pm(tmp_path):
+        import os
+        config_path = str(tmp_path / "config.yaml")
+        portfolio_file = str(tmp_path / "portfolio.csv")
+        with open(config_path, "w") as f:
+            f.write(f"portfolio:\n  file: '{portfolio_file}'\n")
+        pm = PortfolioManager(config_path)
+        pm.file_path = portfolio_file
+        pm._ensure_file()
+        return pm
+
+    def test_atomic_to_csv_leaves_no_tmp(self, tmp_path):
+        import os
+        from modules.portfolio import _atomic_to_csv
+        p = str(tmp_path / "x.csv")
+        _atomic_to_csv(pd.DataFrame({"a": [1, 2]}), p)
+        assert os.path.exists(p)
+        assert not os.path.exists(p + ".tmp")  # 关键：写完后临时文件已 replace 掉
+        assert list(pd.read_csv(p)["a"]) == [1, 2]
+
+    def test_add_position_is_atomic_and_reloadable(self, tmp_path):
+        import os
+        pm = self._make_pm(tmp_path)
+        pm.add_position("600519", "贵州茅台", "2025-01-01", 1500.0, 100)
+        # 主文件存在、无残留 .tmp、reload 完整
+        assert os.path.exists(pm.file_path)
+        assert not os.path.exists(pm.file_path + ".tmp")
+        reloaded = pm._load()
+        assert len(reloaded) == 1
+        assert reloaded.iloc[0]["ticker"] == "600519"
+
+    def test_sell_trades_write_atomic(self, tmp_path):
+        import os
+        pm = self._make_pm(tmp_path)
+        pm.add_position("600519", "贵州茅台", "2025-01-01", 1500.0, 100)
+        pm.sell_position("600519", "2025-02-01", 1600.0, 100)
+        tp = pm._trades_path()
+        assert os.path.exists(tp)
+        assert not os.path.exists(tp + ".tmp")
+        trades = pm._load_trades()
+        assert len(trades) == 1
+        assert trades.iloc[0]["ticker"] == "600519"

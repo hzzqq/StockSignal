@@ -16,6 +16,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _atomic_to_csv(df: pd.DataFrame, path: str) -> None:
+    """原子写 CSV：先写临时文件再 os.replace，避免 Streamlit rerun 并发读时读到半截文件。"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = f"{path}.tmp"
+    df.to_csv(tmp, index=False, encoding="utf-8-sig")
+    os.replace(tmp, path)
+
+
 
 # ----------------------------------------------------------------------
 # 纯逻辑函数（无网络 / 无 IO，便于单元测试）
@@ -199,7 +207,7 @@ class PortfolioManager:
         return pd.read_csv(self.file_path, encoding="utf-8-sig", dtype={"ticker": str})
 
     def _save(self, df):
-        df.to_csv(self.file_path, index=False, encoding="utf-8-sig")
+        _atomic_to_csv(df, self.file_path)
 
     def _load_trades(self):
         if not os.path.exists(self._trades_path()):
@@ -210,7 +218,7 @@ class PortfolioManager:
         return pd.read_csv(self._trades_path(), encoding="utf-8-sig", dtype={"ticker": str})
 
     def _save_trades(self, df):
-        df.to_csv(self._trades_path(), index=False, encoding="utf-8-sig")
+        _atomic_to_csv(df, self._trades_path())
 
     # ------------------------------------------------------------------
     # 持仓操作
