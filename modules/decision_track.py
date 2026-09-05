@@ -27,6 +27,8 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta
+
+from modules.atomic_io import atomic_json_dump
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -114,10 +116,7 @@ def _load() -> list[dict]:
 
 def _save(recs: list[dict]) -> None:
     os.makedirs(DATA_DIR, exist_ok=True)
-    tmp = PRED_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(recs, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, PRED_PATH)  # 原子替换
+    atomic_json_dump(recs, PRED_PATH)
 
 
 # ───────────────────────── 本地汇总（不联网） ─────────────────────────

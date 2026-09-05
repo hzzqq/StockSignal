@@ -112,6 +112,7 @@ def _fetch_url(url, headers=None, timeout=15, encoding="utf-8"):
 
 
 # ── re-export from split sub-modules (backward compat) ──
+from modules.atomic_io import atomic_to_csv
 from modules._news_io import (                       # noqa: F401
     _retry_request, _fetch_url,
     SemiconductorKeywordEngine, NewsFetcher,
@@ -514,9 +515,7 @@ class EventMiner:
             combined = combined.drop_duplicates(subset=["title"], keep="last")
 
         # 原子写：先写临时文件再 os.replace，避免事件页并发读取时读到半截事件 CSV
-        tmp = f"{self.event_csv_path}.tmp"
-        combined.to_csv(tmp, index=False, encoding="utf-8-sig")
-        os.replace(tmp, self.event_csv_path)
+        atomic_to_csv(combined, self.event_csv_path, encoding="utf-8-sig")
 
     def auto_mine_events(self, keyword=None, source="eastmoney", limit=30):
         """兼容旧接口。"""

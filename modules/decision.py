@@ -20,6 +20,8 @@ import json
 import logging
 import os
 import time
+
+from modules.atomic_io import atomic_json_dump
 from datetime import datetime
 from typing import Any
 
@@ -572,19 +574,13 @@ def save_snapshot(snap: dict, archive_only: bool = False) -> bool:
     try:
         os.makedirs(DATA_DIR, exist_ok=True)
         if not archive_only:
-            tmp = SNAPSHOT_PATH + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(snap, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, SNAPSHOT_PATH)  # 原子替换，避免写一半被读到
+            atomic_json_dump(snap, SNAPSHOT_PATH)
             logger.info("[decision] 快照已落盘: %s (%s)", SNAPSHOT_PATH, snap["date"])
         # 历史归档（复盘回测的数据源）。归档失败不影响「最新快照可用」这一主目标。
         try:
             os.makedirs(ARCHIVE_DIR, exist_ok=True)
             apath = archive_path(snap["date"])
-            atmp = apath + ".tmp"
-            with open(atmp, "w", encoding="utf-8") as f:
-                json.dump(snap, f, ensure_ascii=False, indent=2)
-            os.replace(atmp, apath)
+            atomic_json_dump(snap, apath)
         except Exception as e:  # noqa: BLE001
             logger.warning("[decision] 归档写入失败 %s: %s", snap["date"], e)
         return True

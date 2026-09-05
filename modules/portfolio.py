@@ -8,6 +8,7 @@ from datetime import datetime
 
 import pandas as pd
 
+from .atomic_io import atomic_to_csv
 from .fetcher import StockFetcher, load_config
 from .format_helpers import to_float, safe_pct
 from .finance_contract import validate_position_schema, validate_pnl_output
@@ -17,11 +18,13 @@ logger = logging.getLogger(__name__)
 
 
 def _atomic_to_csv(df: pd.DataFrame, path: str) -> None:
-    """原子写 CSV：先写临时文件再 os.replace，避免 Streamlit rerun 并发读时读到半截文件。"""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.tmp"
-    df.to_csv(tmp, index=False, encoding="utf-8-sig")
-    os.replace(tmp, path)
+    """原子写 CSV：委托共享实现 modules/atomic_io.atomic_to_csv。
+
+    共享版把 tmp 名唯一化（pid + 线程 id + uuid）。原因见 atomic_io 模块文档：
+    固定 tmp 名在多写者并发下会互相覆盖 tmp 并抛 PermissionError(WinError 32)，
+    压测实测 160 次写入失败 7 次。保留本包装是为避免改动全部调用点。
+    """
+    atomic_to_csv(df, path)
 
 
 

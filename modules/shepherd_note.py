@@ -20,6 +20,8 @@ import json
 import logging
 import os
 import threading
+
+from modules.atomic_io import atomic_json_dump
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -67,10 +69,7 @@ def load_notes() -> dict:
 def _save_notes(notes: dict) -> bool:
     try:
         _ensure_dir()
-        tmp = NOTE_FILE + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(notes, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, NOTE_FILE)   # 原子替换，避免写一半崩掉导致文件损坏
+        atomic_json_dump(notes, NOTE_FILE)
         return True
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[shepherd_note] 保存笔记失败: {e}")

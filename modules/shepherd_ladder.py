@@ -21,6 +21,8 @@ import os
 import threading
 from datetime import datetime, timedelta
 
+from modules.atomic_io import atomic_json_dump
+
 logger = logging.getLogger(__name__)
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -133,10 +135,7 @@ def load_history() -> dict:
 def _save_history(hist: dict) -> bool:
     try:
         _ensure_dir()
-        tmp = LADDER_FILE + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(hist, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, LADDER_FILE)   # 原子替换，避免写一半崩掉
+        atomic_json_dump(hist, LADDER_FILE)
         return True
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[shepherd_ladder] 保存历史失败: {e}")

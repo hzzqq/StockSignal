@@ -34,27 +34,24 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from modules.atomic_io import atomic_json_dump, atomic_to_csv
 from modules.fetch_parallel import fetch_many
 
 logger = logging.getLogger(__name__)
 
 
 def _atomic_to_csv(df: pd.DataFrame, path: str) -> None:
-    """原子写 CSV：先写临时文件再 os.replace，避免多进程 worker 写时并发读读到半截缓存。"""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.tmp"
-    df.to_csv(tmp, index=False)
-    os.replace(tmp, path)
+    """原子写 CSV：委托共享实现 modules/atomic_io（tmp 名唯一化 + replace 退避重试）。
+
+    原来的固定 tmp 名在多写者/多进程并发下会互相覆盖并抛 PermissionError(WinError 32)，
+    压测实测 160 次写入失败 7 次。详见 modules/atomic_io.py 文档。
+    """
+    atomic_to_csv(df, path, encoding=None)
 
 
 def _atomic_json_dump(obj, path: str) -> None:
-    """原子写 JSON：先写临时文件再 os.replace。"""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.tmp"
-    import json
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(obj, f, ensure_ascii=False)
-    os.replace(tmp, path)
+    """原子写 JSON：委托共享实现 modules/atomic_io（同上，tmp 名唯一化 + 重试）。"""
+    atomic_json_dump(obj, path)
 
 
 # 输出文件（与 shepherd.py 共享）
@@ -642,9 +639,8 @@ def save_history(df: pd.DataFrame, path: Optional[str] = None) -> str:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     # ⚠️ 原子写：全量重算（5548 只股票）落盘期间若被 shepherd_note.analyze_history
     # 并发读取，直接 to_csv 会让对方读到半截文件。先写临时文件再 os.replace。
-    _tmp = path + ".tmp"
-    df.to_csv(_tmp, index=False, encoding="utf-8-sig")
-    os.replace(_tmp, path)
+    # 保持原有 utf-8-sig：本文件是 breadth 历史主档，下游按 BOM 头读取。
+    atomic_to_csv(df, path, encoding="utf-8-sig")
     logger.info("[shepherd_reconstruct] 已保存 %d 行到 %s", len(df), path)
     return path
 
