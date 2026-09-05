@@ -174,8 +174,10 @@ class Backtester:
             "avg_max_drawdown": _mean(drawdowns),
             "avg_win_rate": _mean(win_rates),
             "avg_profit_factor": _mean(profits),
-            "best_stock": max(per_stock.items(), key=lambda kv: kv[1].total_return())[0],
-            "worst_stock": min(per_stock.items(), key=lambda kv: kv[1].total_return())[0],
+            "best_stock": max(per_stock.items(), key=lambda kv: kv[1].total_return())[0]
+            if per_stock else None,
+            "worst_stock": min(per_stock.items(), key=lambda kv: kv[1].total_return())[0]
+            if per_stock else None,
         }
         return {"per_stock": per_stock, "summary": summary}
 
