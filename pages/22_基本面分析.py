@@ -78,7 +78,8 @@ def _build_fin_trend_fig(plot_df, metric, mode, fa_chart, fa_name, fa_code, unit
                       yaxis2=dict(title='同比(%)', side='right', overlaying='y', showgrid=False),
                       height=420, margin=dict(l=40, r=60, t=50, b=90), paper_bgcolor='rgba(0,0,0,0)',
                       plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', yanchor='top', y=-0.25, x=0.5, xanchor='center'),
-                      modebar=dict(orientation='v'), shapes=shapes)
+                      modebar=dict(orientation='v'), shapes=shapes,
+                      template="plotly_dark" if dark else "plotly_white")
     return fig
 
 
@@ -91,7 +92,8 @@ def _build_hist_fig(hist_plot, current, name):
                   annotation_text='当前价', annotation_position='top right')
     fig.update_layout(title=f'{name} 近5年走势与当前位置', xaxis_title='', yaxis_title='收盘价',
                       height=360, margin=dict(l=40, r=40, t=40, b=20),
-                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                      template="plotly_dark" if dark else "plotly_white")
     return fig
 
 
@@ -105,7 +107,8 @@ def _build_sector_fig(top_sectors, mapped_sector, industry, top_n):
                         text=[f'{v:+.2f}%' for v in top_sectors['change_pct']], textposition='outside'))
     fig.update_layout(title=f'行业涨跌幅 Top {top_n}（{industry} 高亮显示）', xaxis_tickangle=-45,
                       yaxis_title='涨跌幅 %', height=420, margin=dict(l=40, r=20, t=50, b=100),
-                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                      template="plotly_dark" if dark else "plotly_white")
     return fig
 
 
@@ -118,7 +121,8 @@ def _build_score_ring(score, score_color, score_label):
         text=f"<b style='font-size:34px;color:{score_color}'>{score}</b><br>"
              f"<span style='font-size:13px;color:{score_color}'>{score_label}</span>",
         x=0.5, y=0.5, showarrow=False)], margin=dict(l=4, r=4, t=4, b=4), height=170,
-        paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
+        paper_bgcolor='rgba(0,0,0,0)', showlegend=False,
+        template="plotly_dark" if dark else "plotly_white")
     return fig
 
 def _nan_to_none(v):
