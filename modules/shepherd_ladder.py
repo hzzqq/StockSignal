@@ -22,6 +22,7 @@ import threading
 from datetime import datetime, timedelta
 
 from modules.atomic_io import atomic_json_dump
+from modules.time_utils import now_cst, now_cst_str, now_cst_naive
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def trading_date(now=None) -> str:
     ⚠️ 局限：只处理周末，**不处理法定节假日**（那需要交易日历）。
        节假日跑脚本仍会记一条，由 audit_history() 事后检出。
     """
-    d = now or datetime.now()
+    d = now or now_cst()
     if d.weekday() >= 5:  # 5=周六 6=周日
         d = d - timedelta(days=d.weekday() - 4)
     return d.strftime("%Y-%m-%d")
@@ -161,7 +162,7 @@ def record_ladder_snapshot(date, distribution, max_boards=None, total_connect=No
             "max_boards": int(max_boards) if max_boards is not None else max(dist.keys()),
             "total_connect": int(total_connect) if total_connect is not None
             else sum(v for k, v in dist.items() if k >= 2),
-            "updated_at": datetime.now().isoformat(timespec="seconds"),
+            "updated_at": now_cst_naive().isoformat(timespec="seconds"),
         }
         return _save_history(hist)
 
@@ -369,7 +370,7 @@ def mark_suspect(dates, reason="人工标记") -> int:
                 continue
             e["suspect"] = True
             e["suspect_reason"] = reason
-            e["suspect_at"] = datetime.now().isoformat(timespec="seconds")
+            e["suspect_at"] = now_cst_naive().isoformat(timespec="seconds")
             n += 1
         if n:
             _save_history(hist)

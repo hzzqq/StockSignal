@@ -25,6 +25,8 @@ from collections import Counter
 
 import pandas as pd
 
+from modules.time_utils import now_cst, now_cst_str
+
 try:
     import akshare as ak
     _AK_OK = True
@@ -327,7 +329,7 @@ class NewsDatabase:
         """获取情感趋势（按天聚合）。"""
         conn = self._get_conn()
         try:
-            cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            cutoff = (now_cst() - timedelta(days=days)).strftime("%Y-%m-%d")
             where = "date >= ?"
             params = [cutoff]
             if keyword:
@@ -355,7 +357,7 @@ class NewsDatabase:
         """热门关键词统计。"""
         conn = self._get_conn()
         try:
-            cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            cutoff = (now_cst() - timedelta(days=days)).strftime("%Y-%m-%d")
             rows = conn.execute(
                 """SELECT keywords FROM news
                    WHERE date >= ? AND keywords != ''""",
@@ -589,7 +591,7 @@ class EventMiner:
         查询最近 N 小时内的重大新闻，判断是否需要推送预警。
         :return: list of alert dicts
         """
-        since = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M")
+        since = (now_cst() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M")
         query_params = {"date_from": since, "is_major": True, "limit": 20}
 
         if stock_code:

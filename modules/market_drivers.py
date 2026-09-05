@@ -32,6 +32,7 @@ from plotly.subplots import make_subplots
 from modules.fundflow import _ensure_proxy_and_ssl
 from modules.margin_trading import get_margin_trading_data
 from modules.linear_trends import get_index_series, get_northbound_history_series
+from modules.time_utils import now_cst_naive
 
 logger = logging.getLogger(__name__)
 
@@ -328,9 +329,9 @@ def _src_activity(days):
                     if stat is not None and pd.notna(stat):
                         dt = _pdate(str(stat).split(" ")[0])
                     else:
-                        dt = pd.Timestamp.now().normalize()
+                        dt = pd.Timestamp(now_cst_naive()).normalize()
                     if dt is None or pd.isna(dt):
-                        dt = pd.Timestamp.now().normalize()
+                        dt = pd.Timestamp(now_cst_naive()).normalize()
                     dt = pd.to_datetime(dt)
 
                     # ADL 累积：上一交易日末值 + 今日增量
@@ -362,7 +363,7 @@ def _src_activity(days):
                     up = int((chg > 0).sum())
                     dn = int((chg < 0).sum())
                     if up + dn > 0:
-                        now = pd.Timestamp.now().normalize()
+                        now = pd.Timestamp(now_cst_naive()).normalize()
                         prev = _read_last_cached_value("adl")
                         if prev is None:
                             prev = 0.0
@@ -423,7 +424,7 @@ def _src_zt(days):
 
     # 主源：东财涨停池（带日期）
     try:
-        today = pd.Timestamp.now()
+        today = pd.Timestamp(now_cst_naive())
         for back in range(0, 12):
             d = (today - pd.Timedelta(days=back)).strftime("%Y%m%d")
             try:
@@ -450,7 +451,7 @@ def _src_zt(days):
                 zt = pd.to_numeric(sub.iloc[0], errors="coerce")
                 if pd.notna(zt):
                     stat = df[df["item"] == "统计日期"]["value"]
-                    dt = _pdate(str(stat.iloc[0]).split(" ")[0]) if not stat.empty else pd.Timestamp.now().normalize()
+                    dt = _pdate(str(stat.iloc[0]).split(" ")[0]) if not stat.empty else pd.Timestamp(now_cst_naive()).normalize()
                     dt = pd.to_datetime(dt)
                     s = pd.Series([float(zt) / 5000.0 * 100.0], index=[dt])
                     s = s.dropna()
@@ -585,7 +586,7 @@ def _src_div(days):
                     vals = vals[vals > 0]
                     if not vals.empty:
                         med = float(vals.median())
-                        now = pd.Timestamp.now().normalize()
+                        now = pd.Timestamp(now_cst_naive()).normalize()
                         s = pd.Series([med], index=[now])
                         return [("div_yield", "股息率(全A中位%)", s)]
         except Exception as e:  # noqa
@@ -603,7 +604,7 @@ def _src_div(days):
                 vals = vals[vals > 0]
                 if not vals.empty:
                     med = float(vals.median())
-                    now = pd.Timestamp.now().normalize()
+                    now = pd.Timestamp(now_cst_naive()).normalize()
                     s = pd.Series([med], index=[now])
                     return [("div_yield", "股息率(申万行业中位%)", s)]
         except Exception as e:  # noqa
@@ -744,7 +745,7 @@ def _opt_vol_sum(df, kind):
 def _src_pcr(days=180):
     import akshare as ak
     n = min(int(days), _PCR_DAYS)
-    end = pd.Timestamp.now().normalize()
+    end = pd.Timestamp(now_cst_naive()).normalize()
     # 取最近约 2.5*n 个自然日内的工作日，截尾 n 个，控制请求量
     cal = pd.bdate_range(end - pd.Timedelta(days=int(n * 2.5)), end)
     dates = cal[-n:]

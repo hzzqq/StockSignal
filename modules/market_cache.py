@@ -30,6 +30,8 @@ import threading
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
+from modules.time_utils import now_cst, now_cst_naive, now_cst_str
+
 import numpy as np
 import pandas as pd
 
@@ -247,7 +249,7 @@ def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Op
             conn = _get_conn()
             _ensure_table(conn)
             # 查询最近 days 天的所有指标
-            cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            cutoff = (now_cst() - timedelta(days=days)).strftime("%Y-%m-%d")
             df_raw = pd.read_sql_query(
                 "SELECT key, date, value, updated_at FROM market_indicator_cache "
                 "WHERE date >= ? ORDER BY key, date",
@@ -279,7 +281,7 @@ def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Op
 
     # 构造 meta（含各指标的缓存新鲜度）
     meta = {"cache_status": "ok", "cached_keys": [], "stale_keys": []}
-    now = datetime.now()
+    now = now_cst_naive()
     for col in df_pivot.columns:
         if col == "date":
             continue
@@ -438,7 +440,7 @@ def clear_stale_cache(days: int = 90) -> int:
         try:
             conn = _get_conn()
             _ensure_table(conn)
-            cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            cutoff = (now_cst() - timedelta(days=days)).strftime("%Y-%m-%d")
             cur = conn.execute(
                 "DELETE FROM market_indicator_cache WHERE date < ?", (cutoff,)
             )

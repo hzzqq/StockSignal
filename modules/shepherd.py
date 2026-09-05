@@ -48,6 +48,7 @@ import logging
 import threading
 
 from modules.atomic_io import atomic_json_dump, atomic_to_csv
+from modules.time_utils import now_cst_str, now_cst_naive
 
 import numpy as np
 import pandas as pd
@@ -205,7 +206,7 @@ def _compute_zt_pool_indicators(df):
 def _fetch_zt_pool(date=None):
     """涨停池：涨停家数 / 连板高度 / 连板梯队 / 炸板不稳比例 / 平均封成比。"""
     import akshare as ak
-    d = date or pd.Timestamp.now().strftime("%Y%m%d")
+    d = date or now_cst_str("%Y%m%d")
     df = ak.stock_zt_pool_em(date=d)
     return _compute_zt_pool_indicators(df)
 
@@ -221,7 +222,7 @@ def _fetch_zbgc_pool(date=None):
     通常能拉回，避免炸板家数/炸板率维度被静默丢弃（杨哥 V反规律与封板质量评分权重 20 的关键输入）。
     """
     import akshare as ak
-    d = date or pd.Timestamp.now().strftime("%Y%m%d")
+    d = date or now_cst_str("%Y%m%d")
     df = ak.stock_zt_pool_zbgc_em(date=d)
     if df is None or df.empty:
         return None
@@ -240,7 +241,7 @@ def _fetch_dt_pool(date=None):
     是有效事实（市场无恐慌），与「取数失败」语义必须区分开。
     """
     import akshare as ak
-    d = date or pd.Timestamp.now().strftime("%Y%m%d")
+    d = date or now_cst_str("%Y%m%d")
     df = ak.stock_zt_pool_dtgc_em(date=d)
     if df is None or df.empty:
         return {"limit_down": 0.0}
@@ -331,7 +332,7 @@ def _get_spot_cached():
 def _fetch_prev_pool(date=None):
     """昨日涨停表现：昨日涨停股今日平均涨跌幅(%)。"""
     import akshare as ak
-    d = date or pd.Timestamp.now().strftime("%Y%m%d")
+    d = date or now_cst_str("%Y%m%d")
     df = ak.stock_zt_pool_previous_em(date=d)
     if df is None or df.empty:
         return None
@@ -474,7 +475,7 @@ def _trading_days(n):
     import akshare as ak
     cal = ak.tool_trade_date_hist_sina()
     cal["trade_date"] = _pdate(cal["trade_date"])
-    today = pd.Timestamp.now().normalize()
+    today = pd.Timestamp(now_cst_naive()).normalize()
     dts = cal[cal["trade_date"] <= today]["trade_date"].sort_values().tail(n)
     return [d.strftime("%Y%m%d") for d in dts]
 
@@ -642,7 +643,7 @@ def get_shepherd_history_range(start_date, end_date, backfill=False):
     """
     start = pd.to_datetime(start_date).normalize()
     end = pd.to_datetime(end_date).normalize()
-    today = pd.Timestamp.now().normalize()
+    today = pd.Timestamp(now_cst_naive()).normalize()
 
     df = _read_history_csv(None)
     if df is not None and not df.empty:
@@ -759,7 +760,7 @@ def shepherd_temperature(today: dict, hist_days: int = 60):
 # ───────── 涨停板复盘辅助（视频第三表：每票板块/行业/最高板标的）─────────
 def _zt_pool_detail_cached(date=None):
     """涨停池明细（含 所属行业/连板数/封板资金），TTL 缓存 10 分钟。"""
-    d = (date or pd.Timestamp.now().strftime("%Y%m%d"))
+    d = (date or now_cst_str("%Y%m%d"))
 
     def _pull():
         import akshare as ak

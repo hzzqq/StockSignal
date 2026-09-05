@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
+from modules.time_utils import now_cst
 from modules.fetcher import StockFetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
@@ -292,7 +293,7 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
         return name.strip()
 
     # 并行抓取：基本面 / 行业关键词 / 实时行情 / 日线（互不依赖，并发提速）
-    today = datetime.now().date()
+    today = now_cst().date()
     start_str = (today - timedelta(days=365)).strftime("%Y-%m-%d")
     end_str = today.strftime("%Y-%m-%d")
 

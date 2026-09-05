@@ -10,6 +10,7 @@ import pandas as pd
 
 from .atomic_io import atomic_to_csv
 from .fetcher import StockFetcher, load_config
+from .time_utils import now_cst_str
 from .format_helpers import to_float, safe_pct
 from .finance_contract import validate_position_schema, validate_pnl_output
 import logging
@@ -391,7 +392,7 @@ class PortfolioManager:
                 daily = self.fetcher.get_daily(
                     row["ticker"],
                     start=fetch_start,
-                    end=datetime.now().strftime("%Y-%m-%d")
+                    end=now_cst_str("%Y-%m-%d")
                 )
                 current_price = float(daily.iloc[-1]["close"]) if not daily.empty else float(row["buy_price"])
             except Exception as e:
@@ -478,7 +479,7 @@ class PortfolioManager:
         if output_path is None:
             output_path = os.path.join(
                 os.path.dirname(self.file_path),
-                f"portfolio_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                f"portfolio_report_{now_cst_str('%Y%m%d_%H%M%S')}.xlsx"
             )
 
         with pd.ExcelWriter(output_path, engine="openpyxl") as writer:

@@ -13,6 +13,7 @@ import re
 
 import numpy as np
 from modules.colors import _hex_to_rgba
+from modules.time_utils import now_cst_str
 
 logger = logging.getLogger(__name__)
 def _is_dark() -> bool:
@@ -422,7 +423,7 @@ def _vs_box_v2(r: Dict[str, Any], other: Dict[str, Any]) -> str:
 
 
 def build_header(rows: List[Dict[str, Any]], period_days: int) -> str:
-    now = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = now_cst_str("%Y-%m-%d %H:%M")
     asof = max((r.get("asof", now[:10]) for r in rows), default=now[:10])
     codes = "、".join(f'{r["name"]}({r["code"]})' for r in rows)
     return f"""

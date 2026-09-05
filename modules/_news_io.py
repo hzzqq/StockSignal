@@ -25,6 +25,8 @@ from collections import Counter
 
 import pandas as pd
 
+from modules.time_utils import now_cst, now_cst_str, now_cst_naive
+
 try:
     import akshare as ak
     _AK_OK = True
@@ -510,7 +512,7 @@ class NewsFetcher:
         params = {
             "cb": "jQuery3510",
             "param": json.dumps(inner_param, ensure_ascii=False),
-            "_": str(int(datetime.now().timestamp() * 1000)),
+            "_": str(int(now_cst_naive().timestamp() * 1000)),
         }
         url = "https://search-api-web.eastmoney.com/search/jsonp?" + urllib.parse.urlencode(params)
 
@@ -545,7 +547,7 @@ class NewsFetcher:
                 title = re.sub(r"<[^>]+>", "", item.get("title", "")).strip()
                 content = re.sub(r"<[^>]+>", "", item.get("content", "")).strip()
                 url = item.get("url", "")
-                date_str = item.get("date", "") or datetime.now().strftime("%Y-%m-%d")
+                date_str = item.get("date", "") or now_cst_str("%Y-%m-%d")
                 if title and url:
                     items.append({
                         "date": date_str,
@@ -612,12 +614,12 @@ class NewsFetcher:
                 r'(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?|\d{2}-\d{2}\s+\d{2}:\d{2}|\d{2}-\d{2})',
                 nearby,
             )
-            date_str = date_m.group(1) if date_m else datetime.now().strftime("%Y-%m-%d")
+            date_str = date_m.group(1) if date_m else now_cst_str("%Y-%m-%d")
 
             if re.match(r"^\d{2}-\d{2}\s+\d{2}:\d{2}$", date_str):
-                date_str = f"{datetime.now().year}-{date_str}"
+                date_str = f"{now_cst().year}-{date_str}"
             elif re.match(r"^\d{2}-\d{2}$", date_str):
-                date_str = f"{datetime.now().year}-{date_str}"
+                date_str = f"{now_cst().year}-{date_str}"
 
             items.append({
                 "date": date_str,
@@ -645,7 +647,7 @@ class NewsFetcher:
 
             df["title"] = df["content"].str.split(r"[\n。，；]", n=1).str[0].str.strip()
             df["title"] = df["title"].str.slice(0, 80)
-            df["date"] = datetime.now().strftime("%Y-%m-%d")
+            df["date"] = now_cst_str("%Y-%m-%d")
             df["url"] = df.get("url", "")
 
             if keyword:
@@ -673,7 +675,7 @@ class NewsFetcher:
         if not _AK_OK:
             return pd.DataFrame(columns=["date", "title", "content", "source", "url"])
         try:
-            date_str = datetime.now().strftime("%Y%m%d")
+            date_str = now_cst_str("%Y%m%d")
             df = _retry_request(
                 lambda: ak.news_cctv(date=date_str),
                 max_retries=3, base_delay=2,
@@ -737,8 +739,8 @@ class NewsFetcher:
             return pd.DataFrame(columns=["date", "title", "content", "source", "url"])
 
         try:
-            end = datetime.now().strftime("%Y-%m-%d")
-            start = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+            end = now_cst_str("%Y-%m-%d")
+            start = (now_cst() - timedelta(days=365)).strftime("%Y-%m-%d")
             df = _retry_request(
                 lambda: ak.stock_individual_notice_report(
                     security=code, symbol="全部", begin_date=start, end_date=end

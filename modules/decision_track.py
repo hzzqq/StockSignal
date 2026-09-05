@@ -28,6 +28,8 @@ import logging
 import os
 from datetime import datetime, timedelta
 
+from modules.time_utils import now_cst, now_cst_str
+
 from modules.atomic_io import atomic_json_dump
 from typing import Any
 
@@ -348,8 +350,8 @@ def _fetch_benchmark_close() -> dict[str, float] | None:
                 continue
         return out or None
 
-    end = datetime.now().strftime("%Y%m%d")
-    start = (datetime.now() - timedelta(days=400)).strftime("%Y%m%d")
+    end = now_cst_str("%Y%m%d")
+    start = (now_cst() - timedelta(days=400)).strftime("%Y%m%d")
 
     # 主源：东财（列名 日期/收盘）
     try:

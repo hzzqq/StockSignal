@@ -24,6 +24,8 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 import threading
 
+from modules.time_utils import now_cst, now_cst_str
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -554,8 +556,8 @@ def _estimate_individual_fund_flow(code):
     try:
         from .fetcher import StockFetcher
         f = StockFetcher()
-        end = datetime.now().strftime("%Y-%m-%d")
-        start = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d")
+        end = now_cst_str("%Y-%m-%d")
+        start = (now_cst() - timedelta(days=60)).strftime("%Y-%m-%d")
         df = f.get_daily(code, start=start, end=end)
         if df is None or df.empty or len(df) < 2:
             return {"source": "none", "main_net": None, "main_net_pct": None,

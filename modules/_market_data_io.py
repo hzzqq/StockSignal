@@ -23,6 +23,8 @@ from datetime import datetime
 
 import pandas as pd
 
+from modules.time_utils import now_cst_str
+
 from modules._feed_io import (
     logger,
     _is_market_open,
@@ -53,7 +55,7 @@ def fetch_index(fetcher, symbol="000001", start="2024-01-01", end=None):
     降级链：akshare -> BaoStock -> 东方财富(urllib) -> 缓存兜底
     """
     if end is None:
-        end = datetime.now().strftime("%Y-%m-%d")
+        end = now_cst_str("%Y-%m-%d")
 
     cache_key = f"index_{symbol}_{start}_{end}"
     conn = fetcher._get_conn()
@@ -134,7 +136,7 @@ def fetch_index_minute(fetcher, symbol="000001", trade_date=None):
         return None
     import akshare as ak  # 局部导入：_AK_OK=True 才执行到此
     if trade_date is None:
-        trade_date = datetime.now().strftime("%Y%m%d")
+        trade_date = now_cst_str("%Y%m%d")
     try:
         with fetcher._ak_ssl_context():
             df = ak.index_zh_a_hist_min_em(symbol=symbol, period="1", start_date=trade_date, end_date=trade_date)
@@ -301,7 +303,7 @@ def fetch_sector_list(fetcher, force_refresh=False):
         try:
             fetcher._write_cache(conn, "sector_cache", cache_key, df)
             # 同时写入交易日归档键（按日期），供休市期间显式回退
-            trade_date = datetime.now().strftime("%Y%m%d")
+            trade_date = now_cst_str("%Y%m%d")
             archive_key = f"{cache_key}_{trade_date}"
             fetcher._write_cache(conn, "sector_cache", archive_key, df)
             fetcher._write_cache_raw(conn, "sector_cache", f"{cache_key}_source", json.dumps({"source": source}, ensure_ascii=False))

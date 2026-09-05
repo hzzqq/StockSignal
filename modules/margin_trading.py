@@ -14,6 +14,7 @@
 并在图表副标题注明；若未来有可靠 BJ 源可扩展为三地求和。
 """
 from datetime import datetime
+from modules.time_utils import now_cst
 import logging
 import math
 import threading
@@ -505,7 +506,7 @@ def get_stock_margin_buy(code: str, days_back: int = 7):
 
     def _fn():
         from datetime import timedelta
-        today = datetime.now()
+        today = now_cst()
         for i in range(1, days_back + 1):
             d = today - timedelta(days=i)
             if d.weekday() >= 5:  # 跳过周末

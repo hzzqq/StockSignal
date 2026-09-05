@@ -24,6 +24,8 @@ import yaml  # load_config 用到；原在抽离块内，抽到 _feed_io 后在�
 import pandas as pd  # 原在抽离块内，StockFetcher 大量使用 DataFrame
 import numpy as np  # 原在抽离块内，StockFetcher 用到 np.
 
+from modules.time_utils import now_cst_str, now_cst_naive
+
 
 # 底层 I/O 层已抽到 modules._feed_io（P2-1 降耦），此处 re-export 保持全站 import 兼容
 from modules._feed_io import (  # noqa: F401
@@ -487,7 +489,7 @@ class StockFetcher:
             max_age = timedelta(hours=max_age_hours)
         else:
             max_age = timedelta(days=self.cache_days)
-        age = datetime.now() - updated_at
+        age = now_cst_naive() - updated_at
         if age < max_age:
             age_s = age.total_seconds()
             age_str = f"{age_s/3600:.1f}h" if age_s >= 3600 else f"{age_s/60:.1f}m"
@@ -523,7 +525,7 @@ class StockFetcher:
             return None
         data_json, updated_at_str = rows[0]
         age_hours = (
-            datetime.now() - datetime.fromisoformat(updated_at_str)
+            now_cst_naive() - datetime.fromisoformat(updated_at_str)
         ).total_seconds() / 3600
         logger.debug(f"[StockFetcher] 使用过期缓存 (已过期 {age_hours:.1f} 小时)")
         warnings.warn(
@@ -567,7 +569,7 @@ class StockFetcher:
         conn.execute(
             f"INSERT OR REPLACE INTO {table_name} (cache_key, data_json, updated_at) "
             f"VALUES (?, ?, ?)",
-            (cache_key, data_json, datetime.now().isoformat()),
+            (cache_key, data_json, now_cst_naive().isoformat()),
         )
         conn.commit()
 
@@ -583,7 +585,7 @@ class StockFetcher:
             if row is None:
                 return None
             updated_at = datetime.fromisoformat(row[0])
-            age_minutes = (datetime.now() - updated_at).total_seconds() / 60
+            age_minutes = (now_cst_naive() - updated_at).total_seconds() / 60
 
             source = "未知"
             try:
@@ -669,7 +671,7 @@ class StockFetcher:
         conn.execute(
             f"INSERT OR REPLACE INTO {table_name} (cache_key, data_json, updated_at) "
             f"VALUES (?, ?, ?)",
-            (cache_key, json_str, datetime.now().isoformat()),
+            (cache_key, json_str, now_cst_naive().isoformat()),
         )
         conn.commit()
 
@@ -1877,13 +1879,13 @@ class StockFetcher:
         - 缓存命中率优先：cache_days 内直接返回
         """
         if end is None:
-            end = datetime.now().strftime("%Y-%m-%d")
+            end = now_cst_str("%Y-%m-%d")
 
         cache_key = f"daily_{symbol}_{start}_{end}_{adjust}"
         conn = self._get_conn()
         try:
             # 缓存优先
-            today_str = datetime.now().strftime("%Y-%m-%d")
+            today_str = now_cst_str("%Y-%m-%d")
             max_age_hours = 6 if end == today_str else None
             cached = self._read_cache(conn, "daily_cache", cache_key, max_age_hours=max_age_hours)
             if cached is not None:
@@ -1989,14 +1991,14 @@ class StockFetcher:
         if period not in ("daily", "weekly", "monthly"):
             raise ValueError("period 必须是 daily/weekly/monthly 之一")
         if end is None:
-            end = datetime.now().strftime("%Y-%m-%d")
+            end = now_cst_str("%Y-%m-%d")
         if period == "daily":
             return self.get_daily(symbol, start, end, adjust)
 
         cache_key = f"kline_{period}_{symbol}_{start}_{end}_{adjust}"
         conn = self._get_conn()
         try:
-            today_str = datetime.now().strftime("%Y-%m-%d")
+            today_str = now_cst_str("%Y-%m-%d")
             max_age_hours = 6 if end == today_str else None
             cached = self._read_cache(conn, "daily_cache", cache_key, max_age_hours=max_age_hours)
             if cached is not None:
@@ -2211,7 +2213,7 @@ class StockFetcher:
         ok_n = sum(1 for v in sources.values() if v.get("ok"))
         total_n = len(sources)
         return {
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "timestamp": now_cst_str("%Y-%m-%d %H:%M:%S"),
             "summary": f"{ok_n}/{total_n} 可用",
             "sources": sources,
         }

@@ -21,6 +21,8 @@ import time as _time
 import re
 import logging
 
+from modules.time_utils import now_cst, now_cst_str
+
 logger = logging.getLogger(__name__)
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -91,8 +93,8 @@ def _build_row(fetcher: Optional[StockFetcher], code: str, period_days: int) -> 
 
     row: Dict[str, Any] = {"code": code, "name": name}
 
-    end = _dt.datetime.now().strftime("%Y-%m-%d")
-    start = (_dt.datetime.now() - _dt.timedelta(days=period_days)).strftime("%Y-%m-%d")
+    end = now_cst_str("%Y-%m-%d")
+    start = (now_cst() - _dt.timedelta(days=period_days)).strftime("%Y-%m-%d")
     try:
         df = fetcher.get_daily(code, start=start, end=end)
         df = DataCleaner.full_pipeline(df)
@@ -284,7 +286,7 @@ def _fill_extra_metrics(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> 
     try:
         import akshare as ak
         df = ak.stock_financial_analysis_indicator(
-            symbol=code, start_year=str(_dt.datetime.now().year - 1))
+            symbol=code, start_year=str(now_cst().year - 1))
         if df is not None and not df.empty:
             last = df.iloc[-1]
 

@@ -12,6 +12,7 @@ import html
 import streamlit as st
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+from modules.time_utils import now_cst, now_cst_naive
 
 # A股配色：净流入红、净流出绿（复用 modules.colors 权威调色板，消除色值漂移）
 from modules.colors import UP_COLOR, DOWN_COLOR
@@ -34,7 +35,7 @@ def _now_cst() -> "datetime":
         return datetime.now(ZoneInfo("Asia/Shanghai"))
     except Exception as e:
         logger.warning(f"[page_widgets] 处理异常: {e}")
-        return datetime.now()
+        return now_cst_naive()
 
 
 _TRADING_START = 9 * 60 + 30    # 09:30
@@ -164,7 +165,7 @@ def _trend_controls(key_prefix, days_default=120, series_options=None,
         default=preset_default if preset_default in _PRESET_OPTS else _PRESET_OPTS[2],
         key=f"{key_prefix}_preset",
     )
-    end_d = datetime.now().date()
+    end_d = now_cst_naive().date()
     date_range = None
     if preset != "自定义":
         if preset == "近7天":

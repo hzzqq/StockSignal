@@ -34,6 +34,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from modules.time_utils import now_cst_str
+
 from modules.atomic_io import atomic_json_dump, atomic_to_csv
 from modules.fetch_parallel import fetch_many
 
@@ -592,7 +594,7 @@ def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
     :param reconstruct: 是否执行全 A 重构（较慢）；False 则只读现有 CSV/只取近期 zt_pool。
     """
     if end_date is None:
-        end_date = pd.Timestamp.now().strftime("%Y-%m-%d")
+        end_date = now_cst_str("%Y-%m-%d")
 
     if reconstruct:
         breadth = reconstruct_breadth(start_date, end_date)

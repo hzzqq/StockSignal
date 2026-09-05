@@ -23,6 +23,7 @@ import threading
 
 from modules.atomic_io import atomic_json_dump
 from datetime import datetime
+from modules.time_utils import now_cst_naive
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +114,8 @@ def save_note(date, indicators: dict, forecast: dict = None, user_note: str = ""
             }
         if user_note:
             rec["user_note"] = user_note
-        rec.setdefault("created_at", datetime.now().isoformat(timespec="seconds"))
-        rec["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        rec.setdefault("created_at", now_cst_naive().isoformat(timespec="seconds"))
+        rec["updated_at"] = now_cst_naive().isoformat(timespec="seconds")
         notes[d] = rec
         return _save_notes(notes)
 
@@ -127,7 +128,7 @@ def set_user_note(date, text: str) -> bool:
         if d not in notes:
             return False
         notes[d]["user_note"] = text
-        notes[d]["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        notes[d]["updated_at"] = now_cst_naive().isoformat(timespec="seconds")
         return _save_notes(notes)
 
 
@@ -381,7 +382,7 @@ def backtest_real(days: int = 60) -> tuple:
     try:
         from datetime import timedelta
         from modules.shepherd import get_shepherd_indicators_range
-        end = datetime.now()
+        end = now_cst_naive()
         start = end - timedelta(days=int(days * 1.6))   # 日历日放宽覆盖，取交易日子集
         df, meta = get_shepherd_indicators_range(
             start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"), backfill=True)

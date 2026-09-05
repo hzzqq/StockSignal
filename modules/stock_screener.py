@@ -18,6 +18,8 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+
+from modules.time_utils import now_cst, now_cst_str
 from typing import Dict, List, Optional, Any, Tuple
 
 import pandas as pd
@@ -106,11 +108,11 @@ def _ak():
 
 
 def _today_str() -> str:
-    return datetime.now().strftime("%Y%m%d")
+    return now_cst_str("%Y%m%d")
 
 
 def _years_ago(years: int) -> str:
-    return (datetime.now() - timedelta(days=years * 365)).strftime("%Y%m%d")
+    return (now_cst() - timedelta(days=years * 365)).strftime("%Y%m%d")
 
 
 def _norm_col(df: pd.DataFrame, mapping: Dict[str, List[str]]) -> pd.DataFrame:
@@ -173,8 +175,8 @@ class StockScreener:
     # ── 数据桥 ───────────────────────────────────────────────────────
     def _daily(self, code: str, years: int = 1) -> Optional[pd.DataFrame]:
         try:
-            end = datetime.now().strftime("%Y-%m-%d")
-            start = (datetime.now() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
+            end = now_cst_str("%Y-%m-%d")
+            start = (now_cst() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
             df = self.fetcher.get_daily(code, start=start, end=end)
             return _norm_price(df) if df is not None and not df.empty else None
         except Exception as e:
@@ -183,8 +185,8 @@ class StockScreener:
 
     def _weekly(self, code: str, years: int = 3) -> Optional[pd.DataFrame]:
         try:
-            end = datetime.now().strftime("%Y-%m-%d")
-            start = (datetime.now() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
+            end = now_cst_str("%Y-%m-%d")
+            start = (now_cst() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
             df = self.fetcher.get_kline(code, start=start, end=end, period="weekly")
             return _norm_price(df) if df is not None and not df.empty else None
         except Exception as e:

@@ -16,6 +16,7 @@ import contextlib
 import socket  # 捕获瞬时网络错误（超时/连接重置/DNS）做重试兜底
 import threading  # R77：BaoStock 首次登录锁（并行竞速串行化）
 from datetime import datetime, timedelta
+from modules.time_utils import now_cst_naive
 import concurrent.futures as _cf
 
 def _safe_urlopen(req, timeout, retries=2, backoff=0.5):
@@ -194,7 +195,7 @@ def _observe_log(source, level, ok, latency_ms, detail=""):
     if not CONFIG["observe"]["enabled"]:
         return
     rec = {
-        "ts": datetime.now().isoformat(timespec="seconds"),
+        "ts": now_cst_naive().isoformat(timespec="seconds"),
         "module": "fetcher",
         "source": source,
         "level": level,
@@ -265,7 +266,7 @@ def get_source_metrics():
 # ──────────────────────────────────────────────────────────
 def _is_market_open():
     """判断当前是否为 A 股交易时间（工作日 9:30-11:30, 13:00-15:00）。"""
-    now = datetime.now()
+    now = now_cst_naive()
     if now.weekday() >= 5:  # 周六日
         return False
     t = now.time()
@@ -276,7 +277,7 @@ def _is_market_open():
 
 def _is_midday_break():
     """判断当前是否为午间休市（工作日 11:30-13:00）。"""
-    now = datetime.now()
+    now = now_cst_naive()
     if now.weekday() >= 5:
         return False
     t = now.time()

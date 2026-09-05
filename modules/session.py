@@ -35,6 +35,7 @@ import jwt
 import streamlit as st
 import requests
 from datetime import datetime
+from modules.time_utils import now_cst_naive
 
 from .ui_theme import FONT_DEFAULT
 from .page_guard import safe_fragment
@@ -966,7 +967,7 @@ def _rel_time(ts) -> str:
     dt = _parse_iso(ts)
     if dt is None:
         return str(ts)[:16].replace("T", " ")
-    diff = (datetime.now() - dt).total_seconds()
+    diff = (now_cst_naive() - dt).total_seconds()
     if diff < 0:
         return "刚刚"
     if diff < 60:

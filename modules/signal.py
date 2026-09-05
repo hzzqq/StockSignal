@@ -11,6 +11,7 @@ import pandas as pd
 
 from .fetcher import StockFetcher, load_config
 from .atomic_io import atomic_to_csv
+from .time_utils import now_cst, now_cst_str
 from .cleaner import DataCleaner
 from .news import EventMiner, SentimentAnalyzer, KeywordExtractor
 
@@ -495,8 +496,8 @@ class SignalEngine:
                 tp = {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50}
                 logger.warning(f"[SignalEngine] 传入行情清洗失败({ticker})，价格信号使用中性分50: {e}")
         else:
-            end = date or datetime.now().strftime("%Y-%m-%d")
-            start = (datetime.strptime(end, "%Y-%m-%d") if date else datetime.now()) - timedelta(days=120)
+            end = date or now_cst_str("%Y-%m-%d")
+            start = (datetime.strptime(end, "%Y-%m-%d") if date else now_cst()) - timedelta(days=120)
             start_str = start.strftime("%Y-%m-%d")
 
             df = None

@@ -17,6 +17,8 @@ from datetime import datetime
 import html
 import time
 import requests
+
+from modules.time_utils import now_cst_str, now_cst_naive
 import streamlit as st
 import streamlit.components.v1 as components
 from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin, _rel_time
@@ -50,7 +52,7 @@ def _index_name_html(name, color: str='#111827', size_px: int=17) -> str:
 
 def _index_cache_key() -> str:
     """生成指数缓存键，按分钟粒度，避免每秒 rerun 都重新请求。"""
-    return datetime.now().strftime('%Y-%m-%d %H:%M')
+    return now_cst_str('%Y-%m-%d %H:%M')
 
 def _trend_label(open_: float, high: float, low: float, close: float, prev_close: float, spark_y=None) -> str:
     """根据日内 sparkline 或 OHLC 给出可读的走势定性。
@@ -255,7 +257,7 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
     except Exception as e:
         logger.warning(f"[widgets] 处理异常: {e}")
         pass
-    end_date = datetime.now().date()
+    end_date = now_cst_naive().date()
     start_date = end_date - timedelta(days=30)
     start_str = start_date.strftime('%Y-%m-%d')
     cache_key = f'index_cards_{_index_cache_key()}'
@@ -333,7 +335,7 @@ def render_index_compact(cols_per_row: int=5) -> None:
     except Exception as e:
         logger.warning(f"[widgets] 处理异常: {e}")
         pass
-    end_date = datetime.now().date()
+    end_date = now_cst_naive().date()
     start_date = end_date - timedelta(days=30)
     start_str = start_date.strftime('%Y-%m-%d')
     cache_key = f'index_compact_{_index_cache_key()}'
