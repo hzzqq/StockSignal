@@ -30,6 +30,18 @@ LADDER_DIR = os.environ.get("SS_DATA_DIR", os.path.join(_ROOT, "data"))
 LADDER_FILE = os.path.join(LADDER_DIR, "shepherd_ladder_history.json")
 _lock = threading.Lock()
 
+# 晋级率进入「决策」所需的最小样本天数。
+#
+# 背景（2026-09-05 锐评发现）：ladder_promotion_rates() 只用「最近 2 天」快照算比率，
+# 即 **1 个交易日对**；而 ready=True 仅代表"算得出来"，不代表"可信"。
+# 实测曾出现 6 天样本、单日比率 8.6% 以 ready=True 身份经 current_promo_as_indicators()
+# 注入 forecast 的 ladder_promo（weight=8）并驱动仓位建议——统计上属小样本过拟合。
+#
+# 对齐 modules/calibration.py 铁律 T3（n_call<8 不出观察行、<20 不 actionable），
+# 取 10 作为「可驱动决策」门槛。未达标时 ladder_promotion_rates() **仍返回数值**供页面
+# 展示（附 confidence="low"），只是不再进 forecast / 仓位推导。
+MIN_PROMO_DAYS = 10
+
 
 def _ensure_dir():
     try:
@@ -155,6 +167,26 @@ def record_ladder_snapshot(date, distribution, max_boards=None, total_connect=No
         return _save_history(hist)
 
 
+def _promo_confidence(days: int) -> str:
+    """样本天数 → 可信度档位（仅用于展示，不驱动决策）。"""
+    if days >= 20:
+        return "high"
+    if days >= MIN_PROMO_DAYS:
+        return "medium"
+    if days >= 2:
+        return "low"
+    return "none"
+
+
+def _promo_actionable(days: int, overall) -> bool:
+    """晋级率是否可信到能驱动决策（对齐 calibration 铁律 T3：小样本不表态）。
+
+    注意：晋级率只用最近 2 天算，days 是「已积累的快照天数」而非比率样本数；
+    用 days 兜底是因为单日比率噪声极大，必须靠积累天数证明序列稳定。
+    """
+    return days >= MIN_PROMO_DAYS and overall is not None
+
+
 def ladder_promotion_rates(as_of: str | None = None) -> dict:
     """算各档晋级率（跨日递推）。
 
@@ -174,7 +206,8 @@ def ladder_promotion_rates(as_of: str | None = None) -> dict:
       rates       {tier_label: rate_or_None}，tier_label 形如 "2b"(首板→二板) / "3b" / …
       overall     float|None（综合晋级率：优先取首板→二板，缺失则取可用档均值）
     """
-    empty = dict(ready=False, days=0, latest=None, latest_date=None, rates={}, overall=None)
+    empty = dict(ready=False, days=0, latest=None, latest_date=None, rates={}, overall=None,
+                 actionable=False, confidence="none")
     hist = load_history()
     if not hist:
         return empty
@@ -187,7 +220,8 @@ def ladder_promotion_rates(as_of: str | None = None) -> dict:
         return empty
     if len(dates) < 2:
         return dict(ready=False, days=len(dates), latest=hist[dates[-1]],
-                    latest_date=dates[-1], rates={}, overall=None)
+                    latest_date=dates[-1], rates={}, overall=None,
+                    actionable=False, confidence=_promo_confidence(len(dates)))
     latest = hist[dates[-1]]
     yest = hist[dates[-2]]
     d_cur = _int_keys(latest.get("distribution"))
@@ -207,16 +241,21 @@ def ladder_promotion_rates(as_of: str | None = None) -> dict:
         overall = round(sum(avail) / len(avail), 1) if avail else None
     return dict(ready=any(v is not None for v in rates.values()),
                 days=len(dates), latest=latest, latest_date=dates[-1],
-                rates=rates, overall=overall)
+                rates=rates, overall=overall,
+                actionable=_promo_actionable(len(dates), overall),
+                confidence=_promo_confidence(len(dates)))
 
 
 def current_promo_as_indicators() -> dict:
     """把最新综合晋级率打包成 forecast 派生指标 {ladder_promo: rate}。
 
-    缺历史（未积累≥2日）时返回 {}（不污染 today，forecast 不会出现该驱动）。
+    样本不足 MIN_PROMO_DAYS 天时返回 {}：晋级率只用最近 2 天算，样本太少时
+    单日噪声会被当成趋势喂进 forecast（ladder_promo weight=8）并驱动仓位，
+    属小样本过拟合。未达标时 ladder_promotion_rates() 仍返回数值供页面展示
+    （confidence="low"），只是不进决策链路。
     """
     pr = ladder_promotion_rates()
-    if not pr.get("ready") or pr.get("overall") is None:
+    if not pr.get("actionable") or pr.get("overall") is None:
         return {}
     return {"ladder_promo": pr["overall"]}
 

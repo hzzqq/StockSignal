@@ -20,6 +20,20 @@ def _dist(*pairs):
     return [(b, c) for b, c in pairs]
 
 
+def _pad_days(days: int, end_date: str, dist=None):
+    """在 end_date 之前垫 days 天占位快照，用于跨过 MIN_PROMO_DAYS 样本门槛。
+
+    晋级率只用「最近 2 天」算，垫底天数不改变比率本身，只增加 days 计数；
+    这样既能验证决策可达路径，又不扭曲被测比率。
+    """
+    from datetime import date, timedelta
+    d_end = date.fromisoformat(end_date)
+    d = dist or [(1, 100), (2, 20)]
+    for i in range(days, 0, -1):
+        sl.record_ladder_snapshot((d_end - timedelta(days=i)).isoformat(),
+                                  list(d), 2, sum(c for _, c in d))
+
+
 def test_record_and_promotion_rates(tmp_path, monkeypatch):
     _use_tmp(tmp_path, monkeypatch)
     # 昨日：首板100 / 2板20 / 3板5
@@ -50,10 +64,48 @@ def test_less_than_two_days_not_ready(tmp_path, monkeypatch):
 
 def test_current_promo_packaging(tmp_path, monkeypatch):
     _use_tmp(tmp_path, monkeypatch)
+    _pad_days(sl.MIN_PROMO_DAYS - 2, "2026-08-27")   # 垫够样本门槛
     sl.record_ladder_snapshot("2026-08-27", _dist((1, 100), (2, 20)), 2, 20)
     sl.record_ladder_snapshot("2026-08-28", _dist((1, 80), (2, 25)), 2, 25)
     ind = sl.current_promo_as_indicators()
     assert ind == {"ladder_promo": 25.0}
+
+
+def test_promo_small_sample_not_actionable(tmp_path, monkeypatch):
+    """样本不足 MIN_PROMO_DAYS 天：数值可展示，但不得驱动决策。
+
+    回归背景（2026-09-05 锐评发现）：晋级率只用「最近 2 天」算，即 1 个交易日对；
+    而 ready=True 仅代表"算得出来"，不代表"可信"。曾出现 6 天样本、单日比率 8.6%
+    以 ready=True 身份经 current_promo_as_indicators() 注入 forecast 的 ladder_promo
+    （weight=8）并驱动仓位建议——统计上属小样本过拟合。
+    现引入 actionable 门控：数值仍返回供展示（confidence="low"），但不进决策链路。
+    """
+    _use_tmp(tmp_path, monkeypatch)
+    sl.record_ladder_snapshot("2026-08-27", _dist((1, 100), (2, 20)), 2, 20)
+    sl.record_ladder_snapshot("2026-08-28", _dist((1, 80), (2, 25)), 2, 25)
+
+    pr = sl.ladder_promotion_rates()
+    assert pr["ready"] is True          # 技术语义：算得出来（保持不变）
+    assert pr["days"] == 2
+    assert pr["overall"] == 25.0        # 数值仍可用于页面展示
+    assert pr["confidence"] == "low"
+    assert pr["actionable"] is False    # 但不足以驱动决策
+    # 核心守卫：小样本不得污染 forecast
+    assert sl.current_promo_as_indicators() == {}
+
+
+def test_promo_enough_sample_is_actionable(tmp_path, monkeypatch):
+    """样本达到 MIN_PROMO_DAYS 天：actionable=True 且正常注入 forecast。"""
+    _use_tmp(tmp_path, monkeypatch)
+    _pad_days(sl.MIN_PROMO_DAYS - 2, "2026-08-27")
+    sl.record_ladder_snapshot("2026-08-27", _dist((1, 100), (2, 20)), 2, 20)
+    sl.record_ladder_snapshot("2026-08-28", _dist((1, 80), (2, 25)), 2, 25)
+
+    pr = sl.ladder_promotion_rates()
+    assert pr["days"] == sl.MIN_PROMO_DAYS
+    assert pr["confidence"] == "medium"
+    assert pr["actionable"] is True
+    assert sl.current_promo_as_indicators() == {"ladder_promo": 25.0}
 
 
 def test_overall_falls_back_when_2b_missing(tmp_path, monkeypatch):
@@ -94,6 +146,7 @@ def test_forecast_includes_ladder_promo_driver_and_signal():
 def test_forecast_relay_weak_when_low(tmp_path, monkeypatch):
     _use_tmp(tmp_path, monkeypatch)
     # 造一段历史让 current_promo 返回低值，验证弱接力规则
+    _pad_days(sl.MIN_PROMO_DAYS - 2, "2026-08-27")   # 垫够样本门槛
     sl.record_ladder_snapshot("2026-08-27", _dist((1, 200), (2, 50)), 2, 50)
     sl.record_ladder_snapshot("2026-08-28", _dist((1, 200), (2, 10)), 2, 10)  # 10/200=5%
     import modules.shepherd_forecast as sf
