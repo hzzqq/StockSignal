@@ -246,8 +246,8 @@ class MemoryStore:
 
 
 def _now() -> str:
-    import datetime as _dt
-    return _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    from modules.time_utils import now_cst_str
+    return now_cst_str("%Y-%m-%d %H:%M")
 
 
 class FinRAG:

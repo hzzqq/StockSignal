@@ -19,6 +19,7 @@ from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
+from modules.time_utils import now_cst_naive
 
 from modules.quantagent.agents.base import BaseAgent
 from modules.quantagent.state import ResearchState, store_df
@@ -27,7 +28,7 @@ from modules.quantagent.state import ResearchState, store_df
 def _synthetic_df(ticker: str, seed: int = 42, days: int = 250) -> pd.DataFrame:
     """确定性合成行情（随机游走 + 轻微趋势），仅用于离线演示。"""
     rng = np.random.default_rng(seed + int(ticker) if ticker.isdigit() else seed)
-    end = _dt.date.today()
+    end = now_cst_naive().date()
     start = end - _dt.timedelta(days=days * 1.4)
     dates = pd.bdate_range(start, end)[:days]
     price = 100.0
@@ -66,7 +67,7 @@ class DataAgent(BaseAgent):
 
     def run(self, state: ResearchState) -> str:
         ticker = state.ticker
-        today = _dt.date.today()
+        today = now_cst_naive().date()
         start = (today - _dt.timedelta(days=365)).strftime("%Y-%m-%d")
         end = today.strftime("%Y-%m-%d")
 

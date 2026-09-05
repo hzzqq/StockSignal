@@ -19,6 +19,7 @@ import datetime as _dt
 
 from modules.quantagent.agents.base import BaseAgent
 from modules.quantagent.state import ResearchState
+from modules.time_utils import now_cst_naive
 
 
 class BacktestAgent(BaseAgent):
@@ -43,7 +44,7 @@ class BacktestAgent(BaseAgent):
             state.backtest_report = {"text": "回测验证：回测引擎不可用。", "available": False}
             return f"[{self.role}] 回测引擎不可用"
 
-        today = _dt.date.today()
+        today = now_cst_naive().date()
         start = (today - _dt.timedelta(days=self.lookback_days)).strftime("%Y-%m-%d")
         end = today.strftime("%Y-%m-%d")
 

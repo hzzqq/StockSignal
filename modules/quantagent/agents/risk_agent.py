@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as _dt
 
 import pandas as pd
+from modules.time_utils import now_cst_naive
 
 from modules.quantagent.agents.base import BaseAgent
 from modules.quantagent.state import ResearchState, resolve_df
@@ -49,7 +50,7 @@ class RiskAgent(BaseAgent):
         Backtester = self._safe_import("modules.backtest", "Backtester", state)
         try:
             if Backtester is not None and df is not None:
-                today = _dt.date.today()
+                today = now_cst_naive().date()
                 start = (today - _dt.timedelta(days=365)).strftime("%Y-%m-%d")
                 end = today.strftime("%Y-%m-%d")
                 bt = Backtester().run(ticker, start, end, strategy="multi_factor")
