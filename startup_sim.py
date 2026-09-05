@@ -305,6 +305,40 @@ def cleanup(proc, port):
         pass
 
 
+def refresh_streamlit_static_mtime():
+    """刷新 streamlit 静态资源 mtime，规避前端陈旧缓存（永久护栏）。
+
+    streamlit 对带 hash 的 bundle 设 ``Cache-Control: immutable``，浏览器在
+    max-age 内不再 revalidation。若升级 streamlit 或换前端版本，旧 index.html
+    仍被浏览器长期缓存→引用已不存在的 chunk→报
+    "Failed to fetch dynamically imported module"。
+    启动时把 streamlit/static 下所有文件 mtime 刷到「现在」，可使浏览器在
+    下次加载时对静态资源重新拉取当前自洽版本。
+    纯防御性步骤：任何异常都吞掉，绝不影响启动。
+    """
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("streamlit")
+        if spec is None or not spec.origin:
+            return
+        static_dir = os.path.join(os.path.dirname(spec.origin), "static")
+        if not os.path.isdir(static_dir):
+            return
+        now = time.time()
+        cnt = 0
+        for root, _dirs, files in os.walk(static_dir):
+            for fn in files:
+                p = os.path.join(root, fn)
+                try:
+                    os.utime(p, (now, now))
+                    cnt += 1
+                except Exception:  # noqa
+                    pass
+        log(f"  已刷新 streamlit 静态资源 mtime：{cnt} 个文件（规避前端陈旧缓存）")
+    except Exception as e:  # noqa
+        log(f"  [提示] 刷新 streamlit 静态 mtime 跳过：{type(e).__name__}: {e}")
+
+
 # ---------------------------------------------------------------- 主流程
 def main():
     ap = argparse.ArgumentParser()
@@ -341,6 +375,11 @@ def main():
     log("--- [1.5/6] 清理 __pycache__ 缓存 ---")
     n = clean_pycache(HERE)
     log(f"已清理 {n} 个 __pycache__ 目录")
+
+    # 1.6) 刷新 streamlit 静态资源 mtime，规避升级/换版本后前端陈旧缓存
+    #      （详见 refresh_streamlit_static_mtime 注释；纯防御，不阻断启动）
+    log("--- [1.6/6] 刷新 streamlit 静态资源 mtime ---")
+    refresh_streamlit_static_mtime()
 
     # 子进程使用普通 python 解释器（与已验证可用的配置一致），
     # 靠 CREATE_NO_WINDOW 标志消除控制台窗口；CREATE_NEW_PROCESS_GROUP

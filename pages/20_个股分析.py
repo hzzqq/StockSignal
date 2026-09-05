@@ -25,6 +25,12 @@ from modules.autorefresh import st_autorefresh
 from modules.format_helpers import safe_html_text
 from modules.stock_analysis_helpers import RED, GREEN, AMBER, _sentiment_tag, _tp_cls, _score_ring_html, _battle_plan_scale, _build_risk_iron_rules, _risk_iron_html, _build_plan_rows, _section_header, _build_rise_fall_factors, _factor_list_html, _build_logic_lists, _logic_list_html
 from modules.fundflow import get_earnings_report, get_earnings_forecast, get_disclosure_calendar
+from modules.financial_report_helpers import (
+    fr_fmt as _fr_fmt,
+    fr_filter_by_code as _fr_filter_by_code,
+    fr_color_yoy as _fr_color_yoy,
+    fr_format_financial_df,
+)
 fetcher = get_fetcher()
 from modules.widgets import sidebar_target
 import modules.scroll_nav as sn
@@ -45,6 +51,51 @@ def _build_kline_fig(period_df, kline_title, kline_annotations):
 def _build_intraday_fig(didf, prev_close, ticker, display_name, dt):
     from modules.visualizer import Visualizer
     return Visualizer.intraday(didf, prev_close=prev_close, title=f'{ticker} {display_name} 分时（{dt}）', up_color=RED, down_color=GREEN)
+
+
+@cached_fig(ttl=600)
+def _build_financial_trend_fig(code: str):
+    """利润表多期趋势：营业总收入 / 净利润（单位：亿元），取新浪利润表最新 8 期。
+
+    best-effort：取数失败或字段缺失返回 None，调用方跳过渲染。
+    """
+    import plotly.graph_objects as go
+    try:
+        inc = _fr_cached_financial(code, "income")
+    except Exception:
+        inc = None
+    if inc is None or (hasattr(inc, "empty") and inc.empty) or "报告日" not in inc.columns:
+        return None
+    need = [c for c in ("营业总收入", "净利润") if c in inc.columns]
+    if not need:
+        return None
+    try:
+        d = inc[["报告日"] + need].copy()
+        for c in need:
+            d[c] = pd.to_numeric(d[c], errors="coerce")
+        d = d.dropna(subset=need, how="all").iloc[::-1]  # 旧→新，左→右
+        if d.empty:
+            return None
+        fig = go.Figure()
+        _line_colors = {"营业总收入": "#667eea", "净利润": "#ffa502"}
+        for c in need:
+            fig.add_trace(go.Scatter(
+                x=d["报告日"].astype(str), y=d[c] / 1e8,
+                mode="lines+markers", name=c,
+                line=dict(color=_line_colors.get(c, "#667eea"), width=2),
+                marker=dict(size=6),
+            ))
+        fig.update_layout(
+            height=320, margin=dict(l=50, r=20, t=34, b=40),
+            template="plotly_dark" if dark else "plotly_white",
+            xaxis_tickangle=-45, yaxis_title="亿元",
+            legend=dict(orientation="h", y=1.12, x=0),
+            title=f"{code} 利润表多期趋势（亿元）",
+        )
+        return fig
+    except Exception:
+        return None
+
 with sidebar_target():
     st.header('分析目标')
     ticker = stock_search_input(label='股票搜索', key='analysis_stock', default='600519', placeholder='输入代码或名称搜索，如：600519 / 贵州茅台 / GZMT / 茅台')
@@ -895,53 +946,6 @@ def _fr_cached_financial(code: str, report_type: str):
         return None
 
 
-def _fr_fmt(v):
-    """数值格式化：None/NaN→—；大数转 亿/万；其余保留 2 位。"""
-    try:
-        if v is None or (isinstance(v, float) and pd.isna(v)):
-            return "—"
-        fv = float(v)
-        if abs(fv) >= 1e8:
-            return f"{fv / 1e8:.2f}亿"
-        if abs(fv) >= 1e4:
-            return f"{fv / 1e4:.2f}万"
-        return f"{fv:.2f}"
-    except (TypeError, ValueError):
-        return str(v) if v is not None else "—"
-
-
-def _fr_filter_by_code(df, code: str):
-    """在任意财报 DataFrame 中按 6 位代码过滤出该股行（列名自适应）。"""
-    if df is None or (hasattr(df, "empty") and df.empty):
-        return None
-    code = str(code).zfill(6)
-    _col = None
-    for cand in ("代码", "股票代码", "证券代码", "code"):
-        if cand in df.columns:
-            _col = cand
-            break
-    if _col is None:
-        return None
-    try:
-        _s = df[_col].astype(str).str.strip().str.zfill(6)
-        return df[_s == code]
-    except Exception:
-        return None
-
-
-def _fr_color_yoy(v):
-    """业绩同比着色：>0 红(改善) / <0 绿(下滑)，与 16页 财报日历一致（红=好）。"""
-    try:
-        v = float(v)
-    except (TypeError, ValueError):
-        return AMBER, "—"
-    if v > 0:
-        return RED, f"+{v:.2f}%"
-    if v < 0:
-        return GREEN, f"{v:.2f}%"
-    return AMBER, "0.00%"
-
-
 @safe_fragment
 def fragment_financial_report(ticker):
     """个股财报（随搜索框联动，独立于「生成分析」）：业绩报表 / 业绩预告 / 披露日历 / 财务三表。
@@ -994,6 +998,15 @@ def fragment_financial_report(ticker):
             st.dataframe(row, width="stretch", hide_index=True, height=220)
         except Exception as e:
             xc_warn_box(f"业绩报表明细渲染失败：{e}")
+        try:
+            _csv = row.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+            st.download_button(
+                "⬇️ 导出业绩报表 CSV", data=_csv,
+                file_name=f"业绩报表_{code}_{period}.csv", mime="text/csv",
+                key=f"fr_csv_{ticker}_{period}",
+            )
+        except Exception:
+            pass
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ── 业绩预告（best-effort，按代码过滤）──
@@ -1033,7 +1046,14 @@ def fragment_financial_report(ticker):
 
     # ── 财务三表（新浪，best-effort）──
     st.markdown('<div class="sf-card">' + _section_header("财务三表", "利润表 · 资产负债表 · 现金流量表", "🧾"), unsafe_allow_html=True)
-    st.caption("数据来源：新浪财经财务三表（取最新 8 期）。接口偶发不稳定时单个表会单独提示。")
+    st.caption("数据来源：新浪财经财务三表（取最新 8 期，金额已自动换算为 亿/万）。接口偶发不稳定时单个表会单独提示。")
+    # ── 多期趋势（利润表：营业总收入 / 净利润，单位亿元）──
+    try:
+        _tf = _build_financial_trend_fig(code)
+        if _tf is not None:
+            st.plotly_chart(_tf, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False})
+    except Exception:
+        pass
     for _rt, _lbl in (("income", "利润表"), ("balance", "资产负债表"), ("cash", "现金流量表")):
         with st.expander(f"📄 {_lbl}", expanded=False, key=f"fr_tbl_{_rt}_{ticker}"):
             try:
@@ -1044,7 +1064,14 @@ def fragment_financial_report(ticker):
                 _empty_info(f"「{code}」{_lbl}暂不可用（接口返回空或网络受限）。可前往「基本面分析」页查看更完整的多期财务分析。")
                 continue
             try:
-                st.dataframe(_tdf, width="stretch", hide_index=True, height=360)
+                _tdf_disp = fr_format_financial_df(_tdf)
+                st.dataframe(_tdf_disp, width="stretch", hide_index=True, height=360)
+                _csv = _tdf.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+                st.download_button(
+                    f"⬇️ 导出{_lbl} CSV", data=_csv,
+                    file_name=f"{_lbl}_{code}.csv", mime="text/csv",
+                    key=f"fr_tbl_csv_{_rt}_{ticker}",
+                )
             except Exception as e:
                 xc_warn_box(f"{_lbl}渲染失败：{e}")
     st.markdown('</div>', unsafe_allow_html=True)
