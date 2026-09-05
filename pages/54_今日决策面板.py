@@ -139,7 +139,10 @@ def _render_hero(df, today, prev, meta=None):
     cyc = (fc or {}).get("cycle") or {}
     bias = (fc or {}).get("bias", "中性")
     score = (fc or {}).get("score", 0)
-    overall = promo.get("overall")
+    # 晋级率小样本门控：对齐 current_promo_as_indicators 的 actionable 约定
+    # （R-晋级率 修复只落地了一半，仓位推导路径此前仍吃小样本 overall）。
+    # actionable=False → overall=None → derive_position 走「不加不减」铁律。
+    overall = promo.get("overall") if promo.get("actionable", True) else None
 
     # 环比 delta（较昨日）：温度直接算；晋级率用历史倒数第二日做基准
     prev_temp = None

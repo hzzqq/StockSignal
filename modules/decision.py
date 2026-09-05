@@ -23,6 +23,7 @@ import time
 
 from modules.atomic_io import atomic_json_dump
 from datetime import datetime
+from modules.time_utils import now_cst_naive
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -501,7 +502,12 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
         event_adj = ev["adj"]
 
     cycle_name = _cycle_name_of(fc)
-    overall = pm.get("overall")
+    # ⚠️ 晋级率小样本门控：必须对齐 current_promo_as_indicators 的 actionable 约定，
+    # 否则小样本 overall 仍会绕过门控驱动仓位（R-晋级率 修复只落地了一半）。
+    # actionable=False → overall=None → derive_position 走「不加不减」铁律。
+    # 默认 True：测试桩常省略该键，保留旧行为；生产调用方传 ladder_promotion_rates()
+    # 真实返回（恒含 actionable），小样本时正确降级为 None。
+    overall = pm.get("overall") if pm.get("actionable", True) else None
 
     # ── 数据新鲜度守卫：如实摊开每个输入源的真实数据截止日 ──
     # 牧羊人温度取自情绪历史末行、事件因子取自 P1 信号 latest_date，两者都
@@ -540,7 +546,7 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
         "date": date,
         "as_of": date,
         "data_age_days": _age_days(date),
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "generated_at": now_cst_naive().isoformat(timespec="seconds"),
         "temperature": round(float(temp), 1) if temp is not None else None,
         "cycle": cycle_name,
         "score": fc.get("score"),
@@ -614,7 +620,7 @@ def append_log(line: str) -> None:
     try:
         os.makedirs(DATA_DIR, exist_ok=True)
         with open(SNAPSHOT_LOG, "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().isoformat(timespec='seconds')}] {line}\n")
+            f.write(f"[{now_cst_naive().isoformat(timespec='seconds')}] {line}\n")
     except Exception:  # noqa: BLE001
         pass
 
