@@ -24,6 +24,7 @@ from modules.page_widgets import _empty_info, is_trading_now
 from modules.autorefresh import st_autorefresh
 from modules.format_helpers import safe_html_text
 from modules.stock_analysis_helpers import RED, GREEN, AMBER, _sentiment_tag, _tp_cls, _score_ring_html, _battle_plan_scale, _build_risk_iron_rules, _risk_iron_html, _build_plan_rows, _section_header, _build_rise_fall_factors, _factor_list_html, _build_logic_lists, _logic_list_html
+from modules.fundflow import get_earnings_report, get_earnings_forecast, get_disclosure_calendar
 fetcher = get_fetcher()
 from modules.widgets import sidebar_target
 import modules.scroll_nav as sn
@@ -857,7 +858,198 @@ def fragment_stock_videos(ticker):
         st.caption('💡 也可以直接点击下方按钮展开「粘贴视频地址」输入框，把 YouTube / B站 / 腾讯视频 接入本页内联播放。')
         if st.button('➕ 展开添加视频', key='video_empty_add'):
             st.session_state['stock_video_exp'] = True
+
+# ───────────────────────── 个股财报（随搜索框联动，独立于「生成分析」） ─────────────────────────
+PERIODS_FIN = {
+    "2026 一季报": "20260331",
+    "2025 年报": "20251231",
+    "2026 中报": "20260630",
+    "2026 三季报": "20260930",
+    "2025 三季报": "20250930",
+    "2025 中报": "20250630",
+}
+
+
+@st.cache_data(show_spinner=False, ttl=1800)
+def _fr_cached_report(period: str):
+    return get_earnings_report(period)
+
+
+@st.cache_data(show_spinner=False, ttl=1800)
+def _fr_cached_forecast(period: str):
+    return get_earnings_forecast(period)
+
+
+@st.cache_data(show_spinner=False, ttl=1800)
+def _fr_cached_disclosure(market: str, period_str: str):
+    return get_disclosure_calendar(market=market, period=period_str)
+
+
+@st.cache_data(show_spinner=False, ttl=1800)
+def _fr_cached_financial(code: str, report_type: str):
+    """财务三表（利润表/资产负债表/现金流量表），best-effort，失败返回 None。"""
+    try:
+        df = fetcher.get_financial(code, report_type)
+        return df if (df is not None and not getattr(df, "empty", True)) else None
+    except Exception:
+        return None
+
+
+def _fr_fmt(v):
+    """数值格式化：None/NaN→—；大数转 亿/万；其余保留 2 位。"""
+    try:
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return "—"
+        fv = float(v)
+        if abs(fv) >= 1e8:
+            return f"{fv / 1e8:.2f}亿"
+        if abs(fv) >= 1e4:
+            return f"{fv / 1e4:.2f}万"
+        return f"{fv:.2f}"
+    except (TypeError, ValueError):
+        return str(v) if v is not None else "—"
+
+
+def _fr_filter_by_code(df, code: str):
+    """在任意财报 DataFrame 中按 6 位代码过滤出该股行（列名自适应）。"""
+    if df is None or (hasattr(df, "empty") and df.empty):
+        return None
+    code = str(code).zfill(6)
+    _col = None
+    for cand in ("代码", "股票代码", "证券代码", "code"):
+        if cand in df.columns:
+            _col = cand
+            break
+    if _col is None:
+        return None
+    try:
+        _s = df[_col].astype(str).str.strip().str.zfill(6)
+        return df[_s == code]
+    except Exception:
+        return None
+
+
+def _fr_color_yoy(v):
+    """业绩同比着色：>0 红(改善) / <0 绿(下滑)，与 16页 财报日历一致（红=好）。"""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return AMBER, "—"
+    if v > 0:
+        return RED, f"+{v:.2f}%"
+    if v < 0:
+        return GREEN, f"{v:.2f}%"
+    return AMBER, "0.00%"
+
+
+@safe_fragment
+def fragment_financial_report(ticker):
+    """个股财报（随搜索框联动，独立于「生成分析」）：业绩报表 / 业绩预告 / 披露日历 / 财务三表。
+
+    数据层复用 modules.fundflow（东财业绩报表/预告/披露日历）+ fetcher.get_financial（新浪三表）。
+    业绩配色：红=同比增长为正（改善）、绿=为负（下滑），与价格「绿涨红跌」不同，已在页内注明。
+    """
+    if not ticker:
+        return
+    code = str(ticker).zfill(6)
+    sf_card("📑 个股财报", "搜索个股后即时展示其业绩报表、业绩预告、披露日历与财务三表（利润表/资产负债表/现金流量表）。数据来源：东方财富 / 新浪财经。", icon="📑")
+    period_label = st.selectbox(
+        "报告期", options=list(PERIODS_FIN.keys()), index=0, key=f"fr_period_{ticker}",
+        help="选择财报报告期，查看该股对应期的业绩数据",
+    )
+    period = PERIODS_FIN[period_label]
+
+    # ── 业绩报表（东财，按代码过滤）──
+    st.markdown('<div class="sf-card">' + _section_header("业绩报表", "每股收益 · 营收 · 净利润 · ROE", "📊"), unsafe_allow_html=True)
+    try:
+        rep_df = _fr_cached_report(period)
+    except Exception as e:
+        rep_df = None
+        xc_handle_error("业绩报表加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
+    row = _fr_filter_by_code(rep_df, code)
+    if row is None or row.empty:
+        _empty_info(f"未查询到「{code}」在「{period_label}」的业绩报表（可能尚未披露或代码不匹配）。")
+    else:
+        _r = row.iloc[0]
+        yoy_col, yoy_txt = _fr_color_yoy(_r.get("净利润同比%"))
+        rev_col, rev_txt = _fr_color_yoy(_r.get("营收同比%"))
+        mc1, mc2, mc3, mc4 = st.columns(4)
+        with mc1:
+            st.metric("每股收益", _fr_fmt(_r.get("每股收益")))
+        with mc2:
+            st.metric("营业总收入", _fr_fmt(_r.get("营业总收入")), help="单位：元")
+        with mc3:
+            st.metric("净利润", _fr_fmt(_r.get("净利润")), help="单位：元")
+        with mc4:
+            st.metric("ROE%", _fr_fmt(_r.get("ROE%")))
+        st.markdown(
+            f"<div style='font-size:13px;line-height:1.9;color:var(--txt2);margin:6px 0 10px;'>"
+            f"净利润同比 <b style='color:{yoy_col};'>净利润 {yoy_txt}</b>　|　"
+            f"营收同比 <b style='color:{rev_col};'>营收 {rev_txt}</b>　|　"
+            f"披露时间：<b style='color:var(--txt);'>{_r.get('披露时间', '—')}</b></div>",
+            unsafe_allow_html=True,
+        )
+        st.caption("💡 业绩配色：红=同比增长为正（改善），绿=为负（下滑）；与价格「绿涨红跌」不同，仅针对业绩增速。")
+        try:
+            st.dataframe(row, width="stretch", hide_index=True, height=220)
+        except Exception as e:
+            xc_warn_box(f"业绩报表明细渲染失败：{e}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 业绩预告（best-effort，按代码过滤）──
+    with st.expander("🔮 业绩预告（best-effort）", expanded=False, key=f"fr_fc_{ticker}"):
+        try:
+            fc_df = _fr_cached_forecast(period)
+        except Exception:
+            fc_df = None
+        fc_row = _fr_filter_by_code(fc_df, code)
+        if fc_row is None or fc_row.empty:
+            _empty_info(f"「{code}」暂无「{period_label}」业绩预告（接口不稳定或尚未发布）。")
+        else:
+            try:
+                st.dataframe(fc_row, width="stretch", hide_index=True, height=300)
+            except Exception as e:
+                xc_warn_box(f"业绩预告渲染失败：{e}")
+
+    # ── 披露日历（best-effort，按代码过滤）──
+    with st.expander("🗓️ 披露日历（best-effort）", expanded=False, key=f"fr_dc_{ticker}"):
+        mcol1, mcol2 = st.columns(2)
+        with mcol1:
+            market = st.selectbox("市场", ["沪市", "深市", "沪深京"], index=0, key=f"fr_dc_mkt_{ticker}")
+        with mcol2:
+            period_str = st.selectbox("报告期（披露）", ["2025年报", "2024年报", "2023年报"], index=0, key=f"fr_dc_per_{ticker}")
+        try:
+            dc_df = _fr_cached_disclosure(market=market, period_str=period_str)
+        except Exception:
+            dc_df = None
+        dc_row = _fr_filter_by_code(dc_df, code)
+        if dc_row is None or dc_row.empty:
+            _empty_info(f"「{code}」在「{market}·{period_str}」披露日历中未匹配到记录（接口仅支持年报）。")
+        else:
+            try:
+                st.dataframe(dc_row, width="stretch", hide_index=True, height=300)
+            except Exception as e:
+                xc_warn_box(f"披露日历渲染失败：{e}")
+
+    # ── 财务三表（新浪，best-effort）──
+    st.markdown('<div class="sf-card">' + _section_header("财务三表", "利润表 · 资产负债表 · 现金流量表", "🧾"), unsafe_allow_html=True)
+    st.caption("数据来源：新浪财经财务三表（取最新 8 期）。接口偶发不稳定时单个表会单独提示。")
+    for _rt, _lbl in (("income", "利润表"), ("balance", "资产负债表"), ("cash", "现金流量表")):
+        with st.expander(f"📄 {_lbl}", expanded=False, key=f"fr_tbl_{_rt}_{ticker}"):
+            try:
+                _tdf = _fr_cached_financial(code, _rt)
+            except Exception:
+                _tdf = None
+            if _tdf is None or (hasattr(_tdf, "empty") and _tdf.empty):
+                _empty_info(f"「{code}」{_lbl}暂不可用（接口返回空或网络受限）。可前往「基本面分析」页查看更完整的多期财务分析。")
+                continue
+            try:
+                st.dataframe(_tdf, width="stretch", hide_index=True, height=360)
+            except Exception as e:
+                xc_warn_box(f"{_lbl}渲染失败：{e}")
+    st.markdown('</div>', unsafe_allow_html=True)
 fragment_stock_videos(ticker)
+fragment_financial_report(ticker)
 st.markdown('---')
 st.page_link('pages/22_基本面分析.py', label='→ 去 基本面分析（估值/业绩/行业对比）', icon='🏛️')
 st.page_link('pages/24_个股研究.py', label='→ 去 个股研究（K线与技术面）', icon='📈')
