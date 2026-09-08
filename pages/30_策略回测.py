@@ -938,13 +938,13 @@ def fragment_batch_backtest():
                 for code, res in out["per_stock"].items():
                     detail.append({
                         "代码": code,
-                        "累计收益%": f"{res.total_return()*100:+.2f}",
-                        "年化%": f"{res.annualized_return_pct()*100:+.2f}" if res.annualized_return_pct() is not None else "-",
-                        "夏普": f"{res.sharpe_ratio():.2f}" if res.sharpe_ratio() is not None else "-",
-                        "回撤%": f"{res.max_drawdown()*100:.2f}" if res.max_drawdown() is not None else "-",
-                        "胜率%": f"{res.win_rate()*100:.1f}" if res.win_rate() is not None else "-",
-                        "盈亏比": f"{res.profit_factor():.2f}" if res.profit_factor() is not None else "-",
-                        "交易数": res.trade_count(),
+                        "累计收益%": f"{res.total_return*100:+.2f}",
+                        "年化%": f"{res.annualized_return_pct*100:+.2f}" if res.annualized_return_pct is not None else "-",
+                        "夏普": f"{res.sharpe_ratio:.2f}" if res.sharpe_ratio is not None else "-",
+                        "回撤%": f"{res.max_drawdown*100:.2f}" if res.max_drawdown is not None else "-",
+                        "胜率%": f"{res.win_rate*100:.1f}" if res.win_rate is not None else "-",
+                        "盈亏比": f"{res.profit_factor:.2f}" if res.profit_factor is not None else "-",
+                        "交易数": res.trade_count,
                     })
                 df_detail = pd.DataFrame(detail).sort_values("累计收益%", ascending=False)
                 st.dataframe(df_detail, width="stretch", hide_index=True, height=400)

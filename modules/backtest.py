@@ -110,13 +110,13 @@ class Backtester:
                                initial_capital=initial_capital, **combo)
                 rows.append({
                     "params": combo,
-                    "total_return": res.total_return(),
-                    "annualized_return": res.annualized_return_pct(),
-                    "sharpe": res.sharpe_ratio(),
-                    "max_drawdown": res.max_drawdown(),
-                    "win_rate": res.win_rate(),
-                    "profit_factor": res.profit_factor(),
-                    "trade_count": res.trade_count(),
+                    "total_return": res.total_return,
+                    "annualized_return": res.annualized_return_pct,
+                    "sharpe": res.sharpe_ratio,
+                    "max_drawdown": res.max_drawdown,
+                    "win_rate": res.win_rate,
+                    "profit_factor": res.profit_factor,
+                    "trade_count": res.trade_count,
                 })
             except Exception as e:  # 单组参数失败不影响其他组
                 logger.warning(f"[param_scan] {ticker} {combo} 失败: {e}")
@@ -157,11 +157,11 @@ class Backtester:
         if not per_stock:
             return {"per_stock": {}, "summary": {}}
 
-        returns = [r.total_return() for r in per_stock.values()]
-        sharpes = [r.sharpe_ratio() for r in per_stock.values() if r.sharpe_ratio() is not None]
-        drawdowns = [r.max_drawdown() for r in per_stock.values()]
-        win_rates = [r.win_rate() for r in per_stock.values() if r.win_rate() is not None]
-        profits = [r.profit_factor() for r in per_stock.values() if r.profit_factor() is not None]
+        returns = [r.total_return for r in per_stock.values()]
+        sharpes = [r.sharpe_ratio for r in per_stock.values() if r.sharpe_ratio is not None]
+        drawdowns = [r.max_drawdown for r in per_stock.values()]
+        win_rates = [r.win_rate for r in per_stock.values() if r.win_rate is not None]
+        profits = [r.profit_factor for r in per_stock.values() if r.profit_factor is not None]
 
         def _mean(xs):
             return round(sum(xs) / len(xs), 4) if xs else None
@@ -174,9 +174,9 @@ class Backtester:
             "avg_max_drawdown": _mean(drawdowns),
             "avg_win_rate": _mean(win_rates),
             "avg_profit_factor": _mean(profits),
-            "best_stock": max(per_stock.items(), key=lambda kv: kv[1].total_return())[0]
+            "best_stock": max(per_stock.items(), key=lambda kv: kv[1].total_return)[0]
             if per_stock else None,
-            "worst_stock": min(per_stock.items(), key=lambda kv: kv[1].total_return())[0]
+            "worst_stock": min(per_stock.items(), key=lambda kv: kv[1].total_return)[0]
             if per_stock else None,
         }
         return {"per_stock": per_stock, "summary": summary}

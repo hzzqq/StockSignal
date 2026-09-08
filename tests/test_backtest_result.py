@@ -127,3 +127,29 @@ def test_summary_keys_present():
               "profit_factor", "trade_count", "start_date", "end_date"):
         assert k in s
     assert s["start_date"] == "2024-01-01"
+
+
+def test_run_param_scan_row_uses_property_access_not_call():
+    """回归：run_param_scan / run_batch 曾误用 res.total_return()（方法调用）访问 @property，
+    抛 TypeError 被 except 吞掉 → 每行都变成 {"params":..., "error":...}，参数扫描整功能静默失效。
+    锁定：用 property 方式（无括号）构建行字典不抛异常且值为数值；
+    反向锁定：若有人把 property 误写成方法调用，必须抛 TypeError（而非静默变成 error 行）。"""
+    df = _df([1.0, 2.0, -1.0, 0.5])
+    trades = [{"profit_pct": 10.0}, {"profit_pct": -5.0}, {"profit_pct": 20.0}]
+    r = BacktestResult("600519", "ma_cross", df, 10000.0, trades=trades)
+    row = {
+        "params": {},
+        "total_return": r.total_return,
+        "annualized_return": r.annualized_return_pct,
+        "sharpe": r.sharpe_ratio,
+        "max_drawdown": r.max_drawdown,
+        "win_rate": r.win_rate,
+        "profit_factor": r.profit_factor,
+        "trade_count": r.trade_count,
+    }
+    for k in ("total_return", "annualized_return", "sharpe", "max_drawdown",
+              "win_rate", "profit_factor", "trade_count"):
+        assert isinstance(row[k], (int, float)), k
+    # 反向锁定：误写为方法调用必须抛 TypeError，而不是被某处 except 吞成 error 行
+    with pytest.raises(TypeError):
+        _ = r.total_return()
