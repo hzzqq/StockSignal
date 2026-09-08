@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 700" width="880" height="700" font-family="Microsoft YaHei, SimHei, sans-serif">
+  <defs>
+    <marker id="ar3" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="880" height="700" fill="#ffffff"/>
+  <text x="440" y="26" text-anchor="middle" font-size="17" font-weight="bold" fill="#1e293b">图 5-1　决策闭环流程图（四维输入 → 可解释仓位 → 校准反馈）</text>
+
+  <!-- 输入 -->
+  <rect x="30" y="48" width="158" height="58" rx="8" fill="#eef2ff" stroke="#667eea" stroke-width="1.5"/>
+  <text x="109" y="72" text-anchor="middle" font-size="13" font-weight="bold" fill="#4338ca">市场温度 temp</text>
+  <text x="109" y="92" text-anchor="middle" font-size="11" fill="#475569">0–100，作基准仓位</text>
+
+  <rect x="194" y="48" width="158" height="58" rx="8" fill="#eef2ff" stroke="#667eea" stroke-width="1.5"/>
+  <text x="273" y="72" text-anchor="middle" font-size="13" font-weight="bold" fill="#4338ca">次日方向 bias</text>
+  <text x="273" y="92" text-anchor="middle" font-size="11" fill="#475569">偏多 +8 / 偏空 −8</text>
+
+  <rect x="358" y="48" width="158" height="58" rx="8" fill="#f5f3ff" stroke="#764ba2" stroke-width="1.5"/>
+  <text x="437" y="72" text-anchor="middle" font-size="13" font-weight="bold" fill="#5b21b6">情绪周期 cycle</text>
+  <text x="437" y="92" text-anchor="middle" font-size="11" fill="#475569">CYCLE_ADJ（校准变量）</text>
+
+  <rect x="522" y="48" width="158" height="58" rx="8" fill="#eef2ff" stroke="#667eea" stroke-width="1.5"/>
+  <text x="601" y="72" text-anchor="middle" font-size="13" font-weight="bold" fill="#4338ca">梯队晋级率 promo</text>
+  <text x="601" y="92" text-anchor="middle" font-size="11" fill="#475569">≥60:+5 / &lt;20:−6</text>
+
+  <rect x="686" y="48" width="158" height="58" rx="8" fill="#eef2ff" stroke="#667eea" stroke-width="1.5"/>
+  <text x="765" y="72" text-anchor="middle" font-size="13" font-weight="bold" fill="#4338ca">事件因子 event_adj</text>
+  <text x="765" y="92" text-anchor="middle" font-size="11" fill="#475569">取不到则 None，不臆造</text>
+
+  <line x1="109" y1="106" x2="109" y2="146" stroke="#64748b" stroke-width="1.4" marker-end="url(#ar3)"/>
+  <line x1="273" y1="106" x2="273" y2="146" stroke="#64748b" stroke-width="1.4" marker-end="url(#ar3)"/>
+  <line x1="437" y1="106" x2="437" y2="146" stroke="#64748b" stroke-width="1.4" marker-end="url(#ar3)"/>
+  <line x1="601" y1="106" x2="601" y2="146" stroke="#64748b" stroke-width="1.4" marker-end="url(#ar3)"/>
+  <line x1="765" y1="106" x2="765" y2="146" stroke="#64748b" stroke-width="1.4" marker-end="url(#ar3)"/>
+
+  <!-- derive_position -->
+  <rect x="140" y="150" width="600" height="60" rx="10" fill="#f5f3ff" stroke="#764ba2" stroke-width="1.8"/>
+  <text x="440" y="176" text-anchor="middle" font-size="14" font-weight="bold" fill="#5b21b6">derive_position(...)　单一真理源　decision.py L98</text>
+  <text x="440" y="197" text-anchor="middle" font-size="11.5" fill="#475569">逐条 reasons 留痕，让建议可解释而非黑箱输出</text>
+
+  <line x1="440" y1="210" x2="440" y2="242" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar3)"/>
+
+  <!-- 守卫 -->
+  <rect x="140" y="246" width="600" height="76" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="1.8"/>
+  <text x="440" y="272" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#b91c1c">诚实守卫：极端风控硬约束 + 数据新鲜度降级</text>
+  <text x="440" y="294" text-anchor="middle" font-size="11.5" fill="#475569">温度&lt;20 且「退潮」→ 封顶 30%　|　温度≥80 且「高潮分化」→ 兜底 40%</text>
+  <text x="440" y="313" text-anchor="middle" font-size="11.5" fill="#475569">stale（滞后≥8 天）→ 封顶 40%　|　warn（滞后≥4 天）→ 封顶 60%（仅封顶不抬底）</text>
+
+  <line x1="440" y1="322" x2="440" y2="354" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar3)"/>
+
+  <!-- clamp -->
+  <rect x="290" y="358" width="300" height="52" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.8"/>
+  <text x="440" y="382" text-anchor="middle" font-size="14" font-weight="bold" fill="#15803d">clamp(pct, 5, 95)</text>
+  <text x="440" y="401" text-anchor="middle" font-size="11.5" fill="#475569">硬约束，仓位恒落 5%~95%（decision.py L184）</text>
+
+  <line x1="440" y1="410" x2="440" y2="442" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar3)"/>
+
+  <!-- 输出 -->
+  <rect x="140" y="446" width="600" height="62" rx="10" fill="#eef2ff" stroke="#667eea" stroke-width="1.8"/>
+  <text x="440" y="472" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#4338ca">输出 {pct, band, color, reasons}　可解释的仓位建议</text>
+  <text x="440" y="494" text-anchor="middle" font-size="11.5" fill="#475569">落盘 daily_snapshot.json（最新）+ snapshots/YYYY-MM-DD.json（归档）</text>
+
+  <line x1="440" y1="508" x2="440" y2="540" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar3)"/>
+
+  <!-- 追踪 -->
+  <rect x="140" y="544" width="600" height="58" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="1.8"/>
+  <text x="440" y="570" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#c2410c">decision_track：预测 vs 实际每日对账（可验证）</text>
+  <text x="440" y="591" text-anchor="middle" font-size="11.5" fill="#475569">record_prediction → score_predictions（次日上证 000001 实际涨跌）</text>
+
+  <line x1="440" y1="602" x2="440" y2="634" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar3)"/>
+
+  <!-- 校准 -->
+  <rect x="140" y="638" width="600" height="52" rx="10" fill="#f5f3ff" stroke="#764ba2" stroke-width="1.8"/>
+  <text x="440" y="662" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#5b21b6">calibration：回测反推 → as_patch（只出建议）→ 人工确认 → CYCLE_ADJ</text>
+  <text x="440" y="682" text-anchor="middle" font-size="11.5" fill="#475569">T1 只建议不写文件　|　T2 有界 ±5　|　T3 小样本不表态</text>
+
+  <!-- 反馈 -->
+  <path d="M140 664 L70 664 L70 179 L136 179" fill="none" stroke="#764ba2" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#ar3)"/>
+  <text transform="rotate(-90 58 420)" x="58" y="420" text-anchor="middle" font-size="11.5" fill="#7c3aed">刻度校准反馈（有界 ±5 · 需人确认）</text>
+</svg>

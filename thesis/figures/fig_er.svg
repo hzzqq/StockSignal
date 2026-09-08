@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 480" width="880" height="480" font-family="Microsoft YaHei, SimHei, sans-serif">
+  <defs>
+    <marker id="ar2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="880" height="480" fill="#ffffff"/>
+  <text x="440" y="26" text-anchor="middle" font-size="17" font-weight="bold" fill="#1e293b">图 3-2　核心数据实体与关系（ER 示意）</text>
+
+  <!-- daily_snapshot -->
+  <rect x="40" y="54" width="350" height="330" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.8"/>
+  <rect x="40" y="54" width="350" height="34" rx="10" fill="#16a34a"/>
+  <text x="215" y="77" text-anchor="middle" font-size="14" font-weight="bold" fill="#ffffff">daily_snapshot.json（最新决策快照）</text>
+  <text x="58" y="108" font-size="12.5" fill="#334155">date　交易日期（数据日期，非 now()）</text>
+  <text x="58" y="130" font-size="12.5" fill="#334155">temperature　市场温度 0–100</text>
+  <text x="58" y="152" font-size="12.5" fill="#334155">cycle / score / bias / confidence</text>
+  <text x="58" y="174" font-size="12.5" fill="#334155">promo_overall　梯队整体晋级率</text>
+  <text x="58" y="196" font-size="12.5" fill="#334155">ladder　连板梯队快照</text>
+  <text x="58" y="222" font-size="12.5" font-weight="bold" fill="#15803d">position　仓位建议</text>
+  <text x="76" y="242" font-size="12" fill="#334155">pct　仓位百分比（clamp 5~95）</text>
+  <text x="76" y="261" font-size="12" fill="#334155">band / color　档位与配色</text>
+  <text x="76" y="280" font-size="12" fill="#334155">reasons[]　逐条推导依据（可解释核心）</text>
+  <text x="58" y="305" font-size="12.5" fill="#334155">event_factor　事件因子</text>
+  <text x="58" y="327" font-size="12.5" fill="#334155">indicators / signals / scenario</text>
+  <text x="58" y="349" font-size="12" fill="#64748b">（首页直读，决策面板数据源）</text>
+
+  <!-- snapshots 归档 -->
+  <rect x="470" y="54" width="370" height="120" rx="10" fill="#eef2ff" stroke="#667eea" stroke-width="1.8"/>
+  <rect x="470" y="54" width="370" height="34" rx="10" fill="#667eea"/>
+  <text x="655" y="77" text-anchor="middle" font-size="14" font-weight="bold" fill="#ffffff">snapshots/YYYY-MM-DD.json（每日归档）</text>
+  <text x="488" y="106" font-size="12.5" fill="#334155">按「数据日期」归档一份完整快照</text>
+  <text x="488" y="128" font-size="12.5" fill="#334155">复盘与回测的唯一事实源</text>
+  <text x="488" y="150" font-size="12" fill="#64748b">避免盘前/盘后用 now() 导致的错位</text>
+
+  <!-- prediction_log -->
+  <rect x="470" y="204" width="370" height="180" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="1.8"/>
+  <rect x="470" y="204" width="370" height="34" rx="10" fill="#ea580c"/>
+  <text x="655" y="227" text-anchor="middle" font-size="14" font-weight="bold" fill="#ffffff">prediction_log.json（预测 vs 实际）</text>
+  <text x="488" y="256" font-size="12.5" fill="#334155">date / temp / cycle / bias　预测上下文</text>
+  <text x="488" y="278" font-size="12.5" fill="#334155">pct　当日建议仓位</text>
+  <text x="488" y="300" font-size="12.5" fill="#334155">realized　次日实际涨跌（上证 000001）</text>
+  <text x="488" y="322" font-size="12.5" fill="#334155">hit　方向是否命中</text>
+  <text x="488" y="348" font-size="12" fill="#64748b">校准（calibration）的唯一输入来源</text>
+
+  <!-- relations -->
+  <path d="M390 120 C440 120 440 118 466 118" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar2)"/>
+  <text x="392" y="112" font-size="11.5" fill="#64748b">按数据日期归档</text>
+  <path d="M390 300 C440 300 440 292 466 292" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar2)"/>
+  <text x="392" y="284" font-size="11.5" fill="#64748b">record_prediction（落盘后）</text>
+</svg>

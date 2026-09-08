@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 520" width="880" height="520" font-family="Microsoft YaHei, SimHei, sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="880" height="520" fill="#ffffff"/>
+  <text x="440" y="26" text-anchor="middle" font-size="17" font-weight="bold" fill="#1e293b">图 3-1　StockSignal 系统总体架构图</text>
+
+  <rect x="90" y="44" width="700" height="62" rx="10" fill="#eef2ff" stroke="#667eea" stroke-width="1.6"/>
+  <text x="440" y="70" text-anchor="middle" font-size="15" font-weight="bold" fill="#4338ca">前端层　Streamlit 多页应用（app.py + pages/ · 41 页）</text>
+  <text x="440" y="91" text-anchor="middle" font-size="12" fill="#475569">render_standard_page 统一渲染　·　apply_page_config 首帧主题注入</text>
+
+  <line x1="440" y1="106" x2="440" y2="136" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar)"/>
+  <text x="454" y="126" font-size="11.5" fill="#64748b">HTTP · 统一 JSON 信封 {status, code, message, data}</text>
+
+  <rect x="90" y="140" width="700" height="62" rx="10" fill="#eef2ff" stroke="#667eea" stroke-width="1.6"/>
+  <text x="440" y="166" text-anchor="middle" font-size="15" font-weight="bold" fill="#4338ca">后端层　Flask 工厂 create_app（:5050）</text>
+  <text x="440" y="187" text-anchor="middle" font-size="12" fill="#475569">13 个 Blueprint　·　3 个全局 errorhandler　·　JWT（HS256，7 天）</text>
+
+  <line x1="440" y1="202" x2="440" y2="232" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar)"/>
+  <text x="454" y="222" font-size="11.5" fill="#64748b">逻辑层调用（算法与 UI 解耦，可独立单测）</text>
+
+  <rect x="90" y="236" width="700" height="62" rx="10" fill="#f5f3ff" stroke="#764ba2" stroke-width="1.6"/>
+  <text x="440" y="262" text-anchor="middle" font-size="15" font-weight="bold" fill="#5b21b6">逻辑层　modules/ · 56 个不依赖 streamlit 的纯逻辑模块</text>
+  <text x="440" y="283" text-anchor="middle" font-size="12" fill="#475569">decision · calibration · decision_track · backtest · fetcher · shepherd_ladder</text>
+
+  <line x1="440" y1="298" x2="440" y2="328" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar)"/>
+  <text x="454" y="318" font-size="11.5" fill="#64748b">落盘 / 读取</text>
+
+  <rect x="90" y="332" width="700" height="62" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.6"/>
+  <text x="440" y="358" text-anchor="middle" font-size="15" font-weight="bold" fill="#15803d">数据层　SQLite（data/）</text>
+  <text x="440" y="379" text-anchor="middle" font-size="12" fill="#475569">daily_snapshot.json · snapshots/YYYY-MM-DD.json · prediction_log.json · 梯队/情绪表</text>
+
+  <line x1="440" y1="394" x2="440" y2="424" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar)"/>
+  <text x="454" y="414" font-size="11.5" fill="#64748b">多源取数（五级降级，单源故障不中断）</text>
+
+  <rect x="90" y="428" width="700" height="62" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="1.6"/>
+  <text x="440" y="454" text-anchor="middle" font-size="15" font-weight="bold" fill="#c2410c">外部数据源　多源行情（五级降级链）</text>
+  <text x="440" y="475" text-anchor="middle" font-size="12" fill="#475569">akshare → BaoStock → 新浪 → 东方财富(urllib) → 本地缓存兜底</text>
+</svg>

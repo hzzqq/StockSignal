@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="560" viewBox="0 0 940 560" font-family="'Segoe UI','Microsoft YaHei',sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <marker id="arrowR" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#7c3aed"/>
+    </marker>
+    <style>
+      .box { fill:#ffffff; stroke:#94a3b8; stroke-width:1.5; rx:10; }
+      .t   { font-size:13px; fill:#0f172a; font-weight:600; }
+      .s   { font-size:11px; fill:#475569; }
+      .hl  { fill:#f5f3ff; stroke:#7c3aed; stroke-width:2; }
+      .hlt { font-size:13px; fill:#5b21b6; font-weight:700; }
+    </style>
+  </defs>
+
+  <!-- background -->
+  <rect x="0" y="0" width="940" height="560" fill="#f8fafc"/>
+
+  <!-- title -->
+  <text x="470" y="30" text-anchor="middle" class="hlt" font-size="16">StockSignal 系统架构（事件驱动投研平台 + 决策闭环）</text>
+
+  <!-- User -->
+  <rect x="395" y="48" width="150" height="40" rx="10" class="box"/>
+  <text x="470" y="73" text-anchor="middle" class="t">投资者（浏览器）</text>
+
+  <!-- Streamlit 多页前端 -->
+  <rect x="60" y="120" width="240" height="70" rx="10" class="box"/>
+  <text x="180" y="146" text-anchor="middle" class="t">Streamlit 多页前端</text>
+  <text x="180" y="166" text-anchor="middle" class="s">app.py + pages/（行情/事件/</text>
+  <text x="180" y="180" text-anchor="middle" class="s">回测/持仓/个股/决策）</text>
+
+  <!-- Flask 后端 -->
+  <rect x="350" y="120" width="240" height="70" rx="10" class="box"/>
+  <text x="470" y="146" text-anchor="middle" class="t">Flask 后端 (5050)</text>
+  <text x="470" y="166" text-anchor="middle" class="s">统一 JSON 响应 / JWT 鉴权</text>
+  <text x="470" y="180" text-anchor="middle" class="s">SQLAlchemy + 多源 fetcher</text>
+
+  <!-- Decision closed-loop highlight -->
+  <rect x="640" y="110" width="270" height="180" rx="12" class="hl"/>
+  <text x="775" y="134" text-anchor="middle" class="hlt">决策闭环（创新点）</text>
+  <rect x="660" y="146" width="230" height="34" rx="8" class="box"/>
+  <text x="775" y="168" text-anchor="middle" class="s">derive_position（四维→仓位）</text>
+  <rect x="660" y="190" width="230" height="34" rx="8" class="box"/>
+  <text x="775" y="212" text-anchor="middle" class="s">calibration（刻度校准）</text>
+  <rect x="660" y="234" width="230" height="34" rx="8" class="box"/>
+  <text x="775" y="256" text-anchor="middle" class="s">decision_track（预测vs实际）</text>
+
+  <!-- data + external -->
+  <rect x="60" y="250" width="240" height="70" rx="10" class="box"/>
+  <text x="180" y="276" text-anchor="middle" class="t">SQLite 数据层</text>
+  <text x="180" y="296" text-anchor="middle" class="s">daily_snapshot / snapshots/</text>
+  <text x="180" y="310" text-anchor="middle" class="s">prediction_log / 梯队·情绪</text>
+
+  <rect x="350" y="250" width="240" height="70" rx="10" class="box"/>
+  <text x="470" y="276" text-anchor="middle" class="t">多源行情 fallback</text>
+  <text x="470" y="296" text-anchor="middle" class="s">AKShare→BaoStock→新浪→东财</text>
+  <text x="470" y="310" text-anchor="middle" class="s">+ 腾讯自选股(westock-mcp)</text>
+
+  <!-- external sources -->
+  <rect x="640" y="320" width="270" height="60" rx="10" class="box"/>
+  <text x="775" y="344" text-anchor="middle" class="t">外部数据源</text>
+  <text x="775" y="364" text-anchor="middle" class="s">A股行情/基本面/公告/连板梯队</text>
+
+  <!-- arrows -->
+  <line x1="470" y1="88" x2="470" y2="118" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="300" y1="155" x2="348" y2="155" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="590" y1="155" x2="638" y2="155" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="470" y1="190" x2="470" y2="248" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="180" y1="190" x2="180" y2="248" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="775" y1="290" x2="775" y2="318" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="775" y1="380" x2="775" y2="430" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- closed-loop feedback (purple) -->
+  <path d="M660,290 C600,400 500,430 470,430 L470,440" fill="none" stroke="#7c3aed" stroke-width="2" marker-end="url(#arrowR)"/>
+  <text x="560" y="420" text-anchor="middle" class="s" fill="#7c3aed">回测反推 → 刻度校准（闭环反馈）</text>
+
+  <!-- note -->
+  <text x="60" y="500" class="s">说明：前端多页与后端 API 解耦；决策闭环（紫色）以 CYCLE_ADJ 为校准变量，经预测vs实际对账形成自纠偏回路。</text>
+  <text x="60" y="520" class="s">数据层采用 SQLite 轻量落盘，多源 fallback 保证取数韧性；与外部数据源通过统一 fetcher 接入。</text>
+</svg>

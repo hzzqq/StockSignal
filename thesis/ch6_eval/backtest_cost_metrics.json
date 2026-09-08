@@ -1,0 +1,26 @@
+{
+  "ticker": "000001",
+  "strategy": "ma_cross",
+  "start": "2024-01-01",
+  "end": "2026-09-06",
+  "initial_capital": 100000,
+  "with_cost": {
+    "total_return_pct": -10.02,
+    "annualized_return_pct": -4.02,
+    "max_drawdown_pct": -13.62,
+    "win_rate_pct": 37.5,
+    "profit_factor": 0.31,
+    "trade_count": 8
+  },
+  "zero_cost": {
+    "total_return_pct": -6.03,
+    "annualized_return_pct": -2.39,
+    "max_drawdown_pct": -10.89,
+    "win_rate_pct": 37.5,
+    "profit_factor": 0.52,
+    "trade_count": 8
+  },
+  "cost_drag_pct": 3.99,
+  "final_equity_with_cost": 89980.0,
+  "final_equity_zero_cost": 93970.0
+}

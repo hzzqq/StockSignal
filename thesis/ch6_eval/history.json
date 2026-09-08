@@ -1,0 +1,234 @@
+[
+  {
+    "run_at": "2026-09-07T10:56:20",
+    "snapshot_count": 4,
+    "prediction_count": 4,
+    "scored": 1,
+    "hit_rate": 0.0,
+    "cycle_distribution": {
+      "修复试探": 2,
+      "主升高潮": 1,
+      "退潮": 1
+    },
+    "by_group": [
+      {
+        "group": "进攻期",
+        "n_call": 1,
+        "accuracy": 0.0
+      },
+      {
+        "group": "修复期",
+        "n_call": 0,
+        "accuracy": null
+      },
+      {
+        "group": "防守期",
+        "n_call": 0,
+        "accuracy": null
+      }
+    ]
+  },
+  {
+    "run_at": "2026-09-07T10:57:11",
+    "snapshot_count": 4,
+    "prediction_count": 4,
+    "scored": 1,
+    "hit_rate": 0.0,
+    "cycle_distribution": {
+      "修复试探": 2,
+      "主升高潮": 1,
+      "退潮": 1
+    },
+    "by_group": [
+      {
+        "group": "进攻期",
+        "n_call": 1,
+        "accuracy": 0.0
+      },
+      {
+        "group": "修复期",
+        "n_call": 0,
+        "accuracy": null
+      },
+      {
+        "group": "防守期",
+        "n_call": 0,
+        "accuracy": null
+      }
+    ]
+  },
+  {
+    "run_at": "2026-09-07T10:57:37",
+    "snapshot_count": 4,
+    "prediction_count": 4,
+    "scored": 1,
+    "hit_rate": 0.0,
+    "cycle_distribution": {
+      "修复试探": 2,
+      "主升高潮": 1,
+      "退潮": 1
+    },
+    "by_group": [
+      {
+        "group": "进攻期",
+        "n_call": 1,
+        "accuracy": 0.0
+      },
+      {
+        "group": "修复期",
+        "n_call": 0,
+        "accuracy": null
+      },
+      {
+        "group": "防守期",
+        "n_call": 0,
+        "accuracy": null
+      }
+    ]
+  },
+  {
+    "run_at": "2026-09-07T10:58:14",
+    "snapshot_count": 4,
+    "prediction_count": 4,
+    "scored": 1,
+    "hit_rate": 0.0,
+    "cycle_distribution": {
+      "修复试探": 2,
+      "主升高潮": 1,
+      "退潮": 1
+    },
+    "by_group": [
+      {
+        "group": "进攻期",
+        "n_call": 1,
+        "accuracy": 0.0
+      },
+      {
+        "group": "修复期",
+        "n_call": 0,
+        "accuracy": null
+      },
+      {
+        "group": "防守期",
+        "n_call": 0,
+        "accuracy": null
+      }
+    ]
+  },
+  {
+    "run_at": "2026-09-07T11:34:12",
+    "snapshot_count": 4,
+    "prediction_count": 4,
+    "scored": 1,
+    "hit_rate": 0.0,
+    "cycle_distribution": {
+      "修复试探": 2,
+      "主升高潮": 1,
+      "退潮": 1
+    },
+    "by_group": [
+      {
+        "group": "进攻期",
+        "n_call": 1,
+        "accuracy": 0.0
+      },
+      {
+        "group": "修复期",
+        "n_call": 0,
+        "accuracy": null
+      },
+      {
+        "group": "防守期",
+        "n_call": 0,
+        "accuracy": null
+      }
+    ]
+  },
+  {
+    "run_at": "2026-09-07T11:52:43",
+    "snapshot_count": 4,
+    "prediction_count": 4,
+    "scored": 1,
+    "hit_rate": 0.0,
+    "cycle_distribution": {
+      "修复试探": 2,
+      "主升高潮": 1,
+      "退潮": 1
+    },
+    "by_group": [
+      {
+        "group": "进攻期",
+        "n_call": 1,
+        "accuracy": 0.0
+      },
+      {
+        "group": "修复期",
+        "n_call": 0,
+        "accuracy": null
+      },
+      {
+        "group": "防守期",
+        "n_call": 0,
+        "accuracy": null
+      }
+    ]
+  },
+  {
+    "run_at": "2026-09-07T21:00:54",
+    "snapshot_count": 4,
+    "prediction_count": 4,
+    "scored": 1,
+    "hit_rate": 0.0,
+    "cycle_distribution": {
+      "修复试探": 2,
+      "主升高潮": 1,
+      "退潮": 1
+    },
+    "by_group": [
+      {
+        "group": "进攻期",
+        "n_call": 1,
+        "accuracy": 0.0
+      },
+      {
+        "group": "修复期",
+        "n_call": 0,
+        "accuracy": null
+      },
+      {
+        "group": "防守期",
+        "n_call": 0,
+        "accuracy": null
+      }
+    ]
+  },
+  {
+    "run_at": "2026-09-08T21:00:32",
+    "snapshot_count": 4,
+    "prediction_count": 4,
+    "scored": 1,
+    "hit_rate": 0.0,
+    "cycle_distribution": {
+      "修复试探": 2,
+      "主升高潮": 1,
+      "退潮": 1
+    },
+    "by_group": [
+      {
+        "group": "进攻期",
+        "n_call": 1,
+        "accuracy": 0.0
+      },
+      {
+        "group": "修复期",
+        "n_call": 0,
+        "accuracy": null
+      },
+      {
+        "group": "防守期",
+        "n_call": 0,
+        "accuracy": null
+      }
+    ]
+  }
+]
