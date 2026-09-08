@@ -12,6 +12,8 @@
 全部纯 Python / pandas，不触发 streamlit 与网络。
 """
 
+import pytest
+
 from modules.compare import (
     _hex_to_rgba,
     _pattern_score,
@@ -79,8 +81,16 @@ def test_catalyst_score_neutral():
 def test_catalyst_score_bullish():
     s = _catalyst_score(_ta(80, 85, [{"bias": "看涨"}]))
     assert 50 < s <= 100
-    # 50 + (80-50)*0.45 + (85-50)*0.30 + (62-50)*0.35 = 50+13.5+10.5+4.2 = 78.2
-    assert s == 78.2
+    # 归一化后：raw=(80-50)*0.45+(85-50)*0.30+(62-50)*0.35=28.2; s=50+28.2/1.10≈75.64
+    # （旧实现权重和=1.10 未归一化，误算成 78.2）
+    raw = (80 - 50) * 0.45 + (85 - 50) * 0.30 + (62 - 50) * 0.35
+    assert s == 50 + raw / 1.10
+
+
+def test_catalyst_score_scale_full():
+    # 权重归一化后，满仓/空仓输入应精确得 100/0，而非靠 clamp 从 105/-5 截断
+    assert _catalyst_score(_ta(100, 100, [{"bias": "看涨"}] * 5)) == pytest.approx(100.0, abs=1e-9)
+    assert _catalyst_score(_ta(0, 0, [{"bias": "看跌"}] * 5)) == pytest.approx(0.0, abs=1e-9)
 
 
 def test_catalyst_score_clamp():

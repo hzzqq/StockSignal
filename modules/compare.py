@@ -155,11 +155,17 @@ def _pattern_score(patterns) -> float:
 
 
 def _catalyst_score(ta) -> float:
-    """订单/催化代理分（0-100）：动量 + 量能 + 形态突破。"""
+    """订单/催化代理分（0-100）：动量 + 量能 + 形态突破。
+
+    三项权重 0.45 + 0.30 + 0.35 = 1.10 不等于 1，必须先把偏离 50 的加权求和除以
+    1.10 归一化，否则任意非中性输入都会被多放大 10%（例如全 100 时 50+55=105，
+    靠 clamp 顶到 100 掩盖了刻度失真）。归一化后三项均在 [0,100] 内，clamp 仅为兜底。
+    """
     mom = float(ta["momentum"]["momentum_score"])
     vol = float(ta["volume"]["volume_price_score"])
     pat = _pattern_score(ta.get("patterns", []))
-    s = 50 + (mom - 50) * 0.45 + (vol - 50) * 0.30 + (pat - 50) * 0.35
+    raw = (mom - 50) * 0.45 + (vol - 50) * 0.30 + (pat - 50) * 0.35
+    s = 50 + raw / 1.10  # 归一化：权重和 1.10 -> 1.00
     return float(max(0, min(100, s)))
 
 
