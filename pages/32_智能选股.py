@@ -221,7 +221,7 @@ with st.container(border=True):
                     row = {"代码": r.get("code"), "名称": r.get("name"),
                            "行业": r.get("industry", "未知"),
                            "命中策略": "、".join(r.get("strategies_hit", [])),
-                           "综合评分": r.get("total_score", r.get("score"))}
+                           "综合评分": r.get("score", r.get("total_score"))}
                     for sname, sc in (r.get("scores", {}) or {}).items():
                         row[STRATEGY_NAMES_CN.get(sname, sname)] = round(sc, 1)
                     rows.append(row)

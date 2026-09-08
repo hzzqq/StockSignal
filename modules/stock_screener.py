@@ -939,10 +939,13 @@ class StockScreener:
                 for k, v in r.items():
                     if k not in ("code", "name", "industry", "strategy"):
                         merged[f"{name}_{k}"] = v
-            merged["total_score"] = sum(merged["scores"].values())
-            merged["score"] = merged["total_score"]
+            # 归一化综合评分：命中策略分项分的平均（0-100，跨股票可比）。
+            # 原始加和（可超过 100）保留在 total_score 供参考，但排序/对外一律用 score。
+            _subs = [v for v in merged["scores"].values() if v is not None]
+            merged["total_score"] = round(sum(_subs), 2) if _subs else 0.0
+            merged["score"] = round(sum(_subs) / len(_subs), 2) if _subs else 0.0
             out.append(merged)
-        out.sort(key=lambda x: x["total_score"], reverse=True)
+        out.sort(key=lambda x: x["score"], reverse=True)
         return out
 
     @staticmethod
@@ -957,7 +960,14 @@ class StockScreener:
                                        "strategies_hit": [], "scores": {}, "score": 0}
                 all_codes[code]["strategies_hit"].append(name)
                 all_codes[code]["scores"][name] = r.get("score", 0)
-                all_codes[code]["score"] += r.get("score", 0)
+        # 归一化综合评分：命中策略分项分的平均（0-100，跨股票可比），替代原始加和（可超 100）。
+        # 排序以 score 为主、命中策略数为次（仅作同分 tiebreak），确保「score 模式按总分排序」语义：
+        # 单策略强信号(95) 不因命中策略少而被双策略弱信号(各 60) 反超。
         out = list(all_codes.values())
-        out.sort(key=lambda x: (len(x["strategies_hit"]), x["score"]), reverse=True)
+        for item in out:
+            _subs = [v for v in item["scores"].values() if v is not None]
+            raw_sum = sum(_subs)
+            item["total_score"] = round(raw_sum, 2)
+            item["score"] = round(raw_sum / len(_subs), 2) if _subs else 0.0
+        out.sort(key=lambda x: (x["score"], len(x["strategies_hit"])), reverse=True)
         return out
