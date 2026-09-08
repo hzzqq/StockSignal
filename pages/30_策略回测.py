@@ -690,7 +690,7 @@ def fragment_strong_bull():
 
     sb_with_market = st.checkbox(
         "同时计算全市场基准（每日选股回测，约 1–3 分钟）",
-        value=False, key="sb_market",
+        value=False, key="sb_with_market",
         help="勾选后将额外运行一次全市场随机抽样回测作为对照；不勾选则复用本页『每日选股回测』结果（若有）。",
     )
 
@@ -744,7 +744,7 @@ def fragment_strong_bull():
                         end=sb_end.strftime("%Y-%m-%d"),
                         stock_pool_size=120, top_k=5, hold_days=1, max_workers=4,
                     )
-                    st.session_state["sb_market"] = mkt
+                    st.session_state["sb_market_result"] = mkt
                     st.session_state.pop("sb_market_error", None)
                 except Exception as e:
                     st.session_state["sb_market_error"] = str(e)
@@ -763,10 +763,16 @@ def fragment_strong_bull():
     total_trades = sum(r["trades"] for r in ok) if ok else 0
 
     # 全市场基准：优先用本次勾选计算的结果，否则复用本页每日选股结果
-    market = st.session_state.get("sb_market")
+    market = st.session_state.get("sb_market_result")
     if market is None and not st.session_state.get("sb_with_market", False):
         market = st.session_state.get("picker_result")
-    market_summary = market.summary() if market is not None else None
+    # 防御：market 可能为 None 或意外类型（如旧会话残留的 bool），避免 AttributeError 致整页崩溃
+    market_summary = None
+    if market is not None and hasattr(market, "summary"):
+        try:
+            market_summary = market.summary()
+        except Exception:
+            market_summary = None
 
     # ---- 对比表 ----
     sf_card("📊 强势上涨股 vs 全市场 对比", "")

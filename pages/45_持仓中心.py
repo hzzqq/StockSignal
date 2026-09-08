@@ -58,12 +58,13 @@ if st.session_state.get('hub_cang_view') not in _options:
     st.session_state['hub_cang_view'] = _options[0]
 _hc1, _hc2, _hc3 = st.columns(3)
 with _hc1:
-    st.page_link('pages/46_自选股监控.py', label='⭐ 自选股监控', icon='⭐')
+    st.page_link('pages/46_自选股监控.py', label='⭐ 自选股监控', icon='⭐', use_container_width=True)
 with _hc2:
-    st.page_link('pages/40_仓位管理.py', label='💼 仓位管理', icon='💼')
+    st.page_link('pages/40_仓位管理.py', label='💼 仓位管理', icon='💼', use_container_width=True)
 with _hc3:
-    st.page_link('pages/41_组合收益.py', label='📈 组合收益', icon='📈')
+    st.page_link('pages/41_组合收益.py', label='📈 组合收益', icon='📈', use_container_width=True)
 _view = st.radio('持仓视图', _options, horizontal=True, label_visibility='collapsed', key='hub_cang_view', help='切换三个子视图：⭐ 自选池（自选股实时行情）/ 💼 持仓（持仓盈亏与导入导出）/ 📈 收益归因（净值曲线与收益贡献）。切换会重新加载对应模块。')
+st.caption(f"📍 当前：持仓中心 › **{_view}**")
 if st.button('🔄 刷新', key='hub_manual_refresh'):
     st.rerun()
 st.session_state.setdefault('hub_recent_viewed', [])

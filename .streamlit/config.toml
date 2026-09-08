@@ -36,3 +36,5 @@ gatherUsageStats = false
 [client]
 # 禁用原生平铺页面导航，避免自定义分组侧边栏导航加载前「闪一下旧侧边栏」
 showSidebarNavigation = false
+# 侧边栏默认展开，确保自定义导航常驻可见（用户不再需要手动开侧边栏）
+initial_sidebar_state = "expanded"

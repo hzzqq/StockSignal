@@ -1238,16 +1238,19 @@ class Backtester:
                     if latest.get("ma60_rising", False):
                         trend_score += 5
                     trend_score = min(trend_score, 50)
+                    # 趋势持续性（与 _score_for_picker 对齐）：最近 5 天 close>MA20 占比
+                    recent_above_ma20 = (recent_10["close"] > recent_10["ma20"]).sum()
+                    trend_persist = min(recent_above_ma20 / min(len(recent_10), 5), 1.0)
                     if trend_score >= 35:
-                        reasons.append("强趋势")
+                        if trend_persist >= 0.9:
+                            reasons.append("强趋势(持续)")
+                        elif trend_persist >= 0.7:
+                            reasons.append("强趋势")
+                        else:
+                            reasons.append("强趋势(新)")
                     elif trend_score >= 20:
                         reasons.append("短期趋势")
                     score += trend_score
-
-                    recent_above_ma20 = (recent_10["close"] > recent_10["ma20"]).sum()
-                    trend_persist = min(recent_above_ma20 / min(len(recent_10), 5), 1.0)
-                    if trend_persist >= 0.9:
-                        reasons[-1] = reasons[-1] + "(持续)"
 
                     # 2) 超跌分（保留，作为加分项）
                     rsi2 = latest["rsi2"]

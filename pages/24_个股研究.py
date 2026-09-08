@@ -86,5 +86,6 @@ _view = st.radio(
     label_visibility="collapsed",
     key="hub_gyj_view",
 )
+st.caption(f"📍 当前：个股研究 › **{_view}**")
 st.divider()
 _run_subpage(_SUBPAGES[_view])

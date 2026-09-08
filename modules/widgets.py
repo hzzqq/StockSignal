@@ -536,7 +536,16 @@ def inject_global_widgets() -> None:
     from modules.scroll_nav import inject_scroll_nav
     render_topright_bar()
     inject_scroll_nav()
-_NAV_GROUPS = [('📘 新手引导', [('pages/96_新手教程.py', '新手教程', '📘')]), ('📊 市场纵览', [('pages/51_每日晨报.py', '每日晨报', '🌅'), ('pages/10_行情看板.py', '行情看板', '📈'), ('pages/14_智能盯盘.py', '智能盯盘', '👁️'), ('pages/35_资金流向.py', '资金流向', '🌊'), ('pages/23_事件追踪.py', '事件追踪', '📡'), ('pages/16_财报日历.py', '财报日历', '📅'), ('pages/12_板块轮动.py', '板块轮动', '🌈'), ('pages/50_市场情绪.py', '市场情绪', '🌡️'), ('pages/13_市场强弱.py', '市场强弱', '📊')]), ('🔎 选股研究', [('pages/24_个股研究.py', '个股研究', '🎯'), ('pages/31_形态选股.py', '形态选股', '🧭'), ('pages/22_基本面分析.py', '基本面分析', '🏛️'), ('pages/21_多股对比.py', '多股对比', '📊'), ('pages/33_ETF筛选.py', 'ETF筛选', '🧰')]), ('💼 我的持仓', [('pages/45_持仓中心.py', '持仓中心', '💼'), ('pages/34_体检扫描.py', '体检扫描', '🩺'), ('pages/47_价格预警.py', '价格预警', '🚨'), ('pages/95_数据导出.py', '数据导出', '📤'), ('pages/42_模拟交易.py', '模拟交易', '🎮')]), ('🧪 策略工具', [('pages/30_策略回测.py', '策略回测', '⚙️')]), ('💰 实盘 & 条件单', [('pages/43_实盘交易.py', '实盘交易', '💰'), ('pages/44_智能条件单.py', '智能条件单', '🤖')]), ('💬 社区与 AI', [('pages/53_星辰AI.py', '星辰 AI', '🌟'), ('pages/52_股吧.py', '股吧', '💬'), ('pages/94_消息中心.py', '消息中心', '🔔')])]
+_NAV_GROUPS = [
+    ('🎯 决策核心', [('pages/54_今日决策面板.py', '今日决策面板', '🎯')]),
+    ('📘 新手引导', [('pages/96_新手教程.py', '新手教程', '📘')]),
+    ('📊 市场纵览', [('pages/51_每日晨报.py', '每日晨报', '🌅'), ('pages/10_行情看板.py', '行情看板', '📈'), ('pages/15_市场驱动力.py', '市场驱动力', '🧲'), ('pages/14_智能盯盘.py', '智能盯盘', '👁️'), ('pages/35_资金流向.py', '资金流向', '🌊'), ('pages/23_事件追踪.py', '事件追踪', '📡'), ('pages/16_财报日历.py', '财报日历', '📅'), ('pages/12_板块轮动.py', '板块轮动', '🌈'), ('pages/50_市场情绪.py', '市场情绪', '🌡️'), ('pages/13_市场强弱.py', '市场强弱', '📊')]),
+    ('🔎 选股研究', [('pages/24_个股研究.py', '个股研究', '🎯'), ('pages/31_形态选股.py', '形态选股', '🧭'), ('pages/32_智能选股.py', '智能选股', '🤖'), ('pages/22_基本面分析.py', '基本面分析', '🏛️'), ('pages/21_多股对比.py', '多股对比', '📊'), ('pages/11_股票选取.py', '股票选取', '🔍'), ('pages/20_个股分析.py', '个股分析', '📈'), ('pages/25_QuantAgent投研.py', 'QuantAgent投研', '🧠'), ('pages/33_ETF筛选.py', 'ETF筛选', '🧰')]),
+    ('💼 我的持仓', [('pages/45_持仓中心.py', '持仓中心', '💼'), ('pages/40_仓位管理.py', '仓位管理', '📊'), ('pages/41_组合收益.py', '组合收益', '📈'), ('pages/46_自选股监控.py', '自选股监控', '⭐'), ('pages/34_体检扫描.py', '体检扫描', '🩺'), ('pages/47_价格预警.py', '价格预警', '🚨'), ('pages/95_数据导出.py', '数据导出', '📤'), ('pages/42_模拟交易.py', '模拟交易', '🎮')]),
+    ('🧪 策略工具', [('pages/30_策略回测.py', '策略回测', '⚙️'), ('pages/55_P1量化信号.py', 'P1量化信号', '📡')]),
+    ('💰 实盘 & 条件单', [('pages/43_实盘交易.py', '实盘交易', '💰'), ('pages/44_智能条件单.py', '智能条件单', '🤖')]),
+    ('💬 社区与 AI', [('pages/53_星辰AI.py', '星辰 AI', '🌟'), ('pages/52_股吧.py', '股吧', '💬'), ('pages/94_消息中心.py', '消息中心', '🔔')]),
+]
 _NAV_ADMIN = [('pages/92_用户管理.py', '用户管理', '👥'), ('pages/93_系统配置.py', '系统配置', '🛠️')]
 
 def sidebar_target():
@@ -550,6 +559,44 @@ def sidebar_target():
         return st.container()
     return st.sidebar
 
+def _current_page_basename() -> str:
+    """返回当前运行脚本的文件名（如 'pages/54_今日决策面板.py' 的末段）。
+
+    在脚本运行时通过 Streamlit runtime context 取主脚本路径；
+    非运行上下文（如 AppTest / 探针）安全返回空串。
+    """
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+        ctx = get_script_run_ctx()
+        if ctx is not None:
+            ses = getattr(ctx, 'session', None)
+            if ses is not None:
+                p = getattr(ses, '_main_script_path', None)
+                if p:
+                    return p.replace('\\', '/').split('/')[-1]
+    except Exception:
+        pass
+    return ''
+
+
+def _current_nav_label(basename: str) -> str:
+    """根据当前脚本名反查它在 _NAV_GROUPS / _NAV_ADMIN 中的标签，供「当前位置」提示用。"""
+    if not basename:
+        return ''
+    for _g, _items in _NAV_GROUPS:
+        for _path, _label, _icon in _items:
+            if _path.replace('\\', '/').split('/')[-1] == basename:
+                return _label
+    for _path, _label, _icon in _NAV_ADMIN:
+        if _path.replace('\\', '/').split('/')[-1] == basename:
+            return _label
+    if basename in ('app.py', 'main.py'):
+        return '首页'
+    if basename == 'pages/91_我的.py' or basename == '91_我的.py':
+        return '我的'
+    return ''
+
+
 def render_sidebar_nav() -> None:
     """在侧边栏顶部渲染自定义分组导航，并隐藏 Streamlit 原生平铺页面列表。
 
@@ -558,11 +605,20 @@ def render_sidebar_nav() -> None:
 
     ⚠️ 无论是否嵌入都渲染（不再因 _embed_active 跳过），确保侧边栏导航常驻。
     """
-    st.markdown('<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]{display:none!important;}/* 紧凑侧边栏导航：减少分组标题与链接间距，降低长导航的视觉负担 */[data-testid="stSidebar"] .stMarkdown [data-testid="stCaptionContainer"] {margin-top:4px!important;margin-bottom:2px!important;font-size:12px!important;}[data-testid="stSidebar"] [data-testid="stPageLink"] a {padding:4px 8px!important;margin:1px 0!important;border-radius:8px!important;}[data-testid="stSidebar"] [data-testid="stButton"] button {padding:4px 8px!important;min-height:28px!important;}</style>', unsafe_allow_html=True)
+    st.markdown('<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]{display:none!important;}/* 强制侧边栏常驻：禁用折叠按钮，避免用户误关后找不到导航 */[data-testid="stSidebarCollapseButton"]{display:none!important;}/* 紧凑侧边栏导航：减少分组标题与链接间距，降低长导航的视觉负担 */[data-testid="stSidebar"] .stMarkdown [data-testid="stCaptionContainer"] {margin-top:4px!important;margin-bottom:2px!important;font-size:12px!important;}[data-testid="stSidebar"] [data-testid="stPageLink"] a {padding:4px 8px!important;margin:1px 0!important;border-radius:8px!important;}[data-testid="stSidebar"] [data-testid="stButton"] button {padding:4px 8px!important;min-height:28px!important;}.ss-nav-active{padding:5px 9px!important;margin:2px 0!important;border-radius:8px!important;background:linear-gradient(90deg,#667eea33,#764ba233)!important;border-left:3px solid #667eea!important;font-weight:700!important;color:#E2E8F0!important;}</style>', unsafe_allow_html=True)
+
+    _cur_base = _current_page_basename()
 
     def _nav_link(path: str, label: str, icon: str) -> None:
         """渲染单个导航项；page_link 在无浏览器 URL 上下文（如 AppTest headless）
-        会抛 KeyError('url_pathname')，降级为按钮，避免整页崩溃。"""
+        会抛 KeyError('url_pathname')，降级为按钮，避免整页崩溃。当前页高亮。"""
+        try:
+            is_active = bool(_cur_base) and _cur_base == path.replace('\\', '/').split('/')[-1]
+        except Exception:
+            is_active = False
+        if is_active:
+            st.markdown(f'<div class="ss-nav-active">▶ {icon} {label}</div>', unsafe_allow_html=True)
+            return
         try:
             st.page_link(path, label=label, icon=icon)
         except Exception as e:
@@ -572,6 +628,9 @@ def render_sidebar_nav() -> None:
     try:
         with st.sidebar:
             st.markdown('### 🧭 导航')
+            _cur_label = _current_nav_label(_cur_base)
+            if _cur_label:
+                st.caption(f'📍 当前位置：**{_cur_label}**')
             for gname, items in _NAV_GROUPS:
                 st.caption(gname)
                 for path, label, icon in items:
