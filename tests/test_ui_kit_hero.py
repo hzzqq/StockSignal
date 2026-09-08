@@ -75,15 +75,17 @@ def test_status_chips_do_not_depend_on_css_class():
 
 
 def test_status_chips_light_vs_dark_colors():
-    """light 模式白天=浅紫底/深紫字；dark 模式暗夜=深紫底/淡紫字。"""
+    """light 模式=☀️ 浅色（浅紫底/深紫字）；dark 模式=🌙 深色（深紫底/淡紫字）。
+    标签加太阳/月亮图标，明确表示 app 主题（而非北京时间），避免与
+    「白天/交易中」时间状态词混淆（2026-09-07 老板反馈后改）。"""
     light = _build_status_chips(dark=False)
     dark = _build_status_chips(dark=True)
     # light
-    assert "白天" in light[0]
+    assert "☀️ 浅色" in light[0]
     assert "#eef2ff" in light[0], "light 主题背景应为 #eef2ff"
     assert "#4338ca" in light[0], "light 主题文字应为 #4338ca"
     # dark
-    assert "暗夜" in dark[0]
+    assert "🌙 深色" in dark[0]
     assert "#1a1a2e" in dark[0], "dark 主题背景应为 #1a1a2e"
     assert "#c7d2fe" in dark[0], "dark 主题文字应为 #c7d2fe"
 

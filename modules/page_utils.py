@@ -62,7 +62,8 @@ def _build_status_chips(dark: bool) -> list:
     已传入 ``_theme_is_dark()``）是唯一权威，避免「传参改了 chip 却没变」的隐 bug。
     """
     chips = []
-    # 主题胶囊（白天/暗夜）—— 依据 dark 参数直接判定
+    # 主题胶囊（☀️ 浅色 / 🌙 深色）—— 依据 dark 参数直接判定
+    # 用太阳/月亮图标避免与「白天/交易中」时间状态词混淆（语义明确：app 主题，非北京时间）
     try:
         if dark:
             theme_html = (
@@ -70,7 +71,7 @@ def _build_status_chips(dark: bool) -> list:
                 'font-weight:600;padding:5px 12px;border-radius:999px;'
                 'border:1px solid #3b3b66;background:#1a1a2e;color:#c7d2fe">'
                 '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
-                'background:#94a3b8"></span>暗夜</span>'
+                'background:#94a3b8"></span>🌙 深色</span>'
             )
         else:
             theme_html = (
@@ -78,7 +79,7 @@ def _build_status_chips(dark: bool) -> list:
                 'font-weight:600;padding:5px 12px;border-radius:999px;'
                 'border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca">'
                 '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
-                'background:#94a3b8"></span>白天</span>'
+                'background:#94a3b8"></span>☀️ 浅色</span>'
             )
         chips.append(theme_html)
     except Exception as e:
