@@ -143,6 +143,20 @@ def apply_page_config(page_title: str, page_icon: str=None, layout: str='wide') 
 
 def apply_theme() -> None:
     """注入全局润色 CSS（暗色/亮色）并设置 Plotly 模板。"""
+    # 消除 Streamlit 默认顶部内边距（非嵌入态默认 paddingTop=6rem/8rem）。
+    # 本项目已隐藏 stHeader/MainMenu/Toolbar（透明零高），若不缩减容器上边距，
+    # 每块页顶部会留下约 96px 的固定空白。统一收敛到 1.2rem，保留少量呼吸感。
+    # 用 !important 覆盖 Streamlit 写在该容器上的 inline style（未标 !important，可被覆盖）。
+    try:
+        st.markdown(
+            '<style>'
+            '.block-container,[data-testid="stMainBlockContainer"],.stMainBlockContainer'
+            '{padding-top:1.2rem!important}'
+            '</style>',
+            unsafe_allow_html=True,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[ui_theme] 顶部边距修正注入异常: {e}")
     if _theme_is_dark():
         st.markdown(_DARK_CSS, unsafe_allow_html=True)
         inject_plotly_dark()
