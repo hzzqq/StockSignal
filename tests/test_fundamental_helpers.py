@@ -233,6 +233,20 @@ class TestCompositeScore:
         )
         assert score <= 100
 
+    def test_perfect_profile_reaches_full_scale(self):
+        # 回归：各维度权重声明为 20+15+20+15+20+10=100 分制，但原实现顶档只给
+        # 18/13/18/13/18/10 → 满分画像仅得 90 分，顶端 10 分永远无法触及，
+        # 既与文档冲突、又压缩了「优秀 vs 完美」的区分度。锁定：完美画像应得满分。
+        score, text = _composite_score(
+            price=100.0, pe=10.0, hist_pct_5y=60.0,
+            sector_rank=1, sector_total=50, market_cap=5000.0,
+            perf={"revenue_yoy": 20.0, "profit_yoy": 20.0,
+                  "alr": 30.0, "current_ratio": 2.0},
+        )
+        assert score == 100, f"完美画像应得 100 分，实际 {score}"
+        # 反向锁定：若有人把顶档分值改回 18/13/18/13/18，必须回到 90（而非静默少算）
+        # （通过 score<=100 的既有断言已覆盖上限；此处确证下限=上限）
+
     def test_all_none_inputs_safe(self):
         # R6: 全部为 None / 缺字段不应崩溃
         score, text = _composite_score(

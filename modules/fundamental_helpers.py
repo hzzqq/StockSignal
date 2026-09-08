@@ -469,7 +469,7 @@ def _composite_score(
     pe_score = 10.0
     if pe is not None and pe > 0:
         if pe < 15:
-            pe_score = 18.0
+            pe_score = 20.0
             reasons.append(f"✅ PE(TTM) {pe:.1f} 处于低估区间，安全边际较高")
         elif pe < 30:
             pe_score = 15.0
@@ -487,7 +487,7 @@ def _composite_score(
     hist_score = 7.5
     if hist_pct_5y is not None:
         if 40 <= hist_pct_5y <= 75:
-            hist_score = 13.0
+            hist_score = 15.0
             reasons.append(f"✅ 5年价格分位 {hist_pct_5y:.1f}%，处于健康区间")
         elif hist_pct_5y < 20:
             hist_score = 9.0
@@ -505,7 +505,7 @@ def _composite_score(
     theme_score = 10.0
     if sector_rank is not None and sector_total > 0:
         if sector_rank <= 5:
-            theme_score = 18.0
+            theme_score = 20.0
             reasons.append(f"✅ 行业排名 #{sector_rank} / {sector_total}，位于主线前列")
         elif sector_rank <= 20:
             theme_score = 14.0
@@ -523,7 +523,7 @@ def _composite_score(
     cap_score = 7.5
     if market_cap is not None and market_cap > 0:
         if market_cap >= 1000:
-            cap_score = 13.0
+            cap_score = 15.0
             reasons.append(f"✅ 总市值 {market_cap:.1f} 亿，大盘蓝筹，抗风险强")
         elif market_cap >= 300:
             cap_score = 11.0
@@ -543,7 +543,7 @@ def _composite_score(
     pr_yoy = perf.get("profit_yoy")
     if rev_yoy is not None and pr_yoy is not None:
         if rev_yoy > 0 and pr_yoy > 0:
-            growth_score = 18.0
+            growth_score = 20.0
             reasons.append(f"✅ 营收同比 +{rev_yoy:.1f}%、净利润同比 +{pr_yoy:.1f}%，业绩双增")
         elif rev_yoy > 0:
             growth_score = 13.0
