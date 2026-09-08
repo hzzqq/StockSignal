@@ -18,6 +18,28 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _clamp100(v: float) -> float:
+    """把任意评分收束到 [0,100]。
+
+    多因子分段上限（趋势50+超跌40+健康20+量能15）合计 125，历史债导致
+    原始评分可溢出到 ~125，违反「0-100 评分契约」（UI 进度条/配色/排序均按 0-100
+    假设）。统一在此封顶，避免「评分 125/100」这类展示与排序失真。
+    """
+    try:
+        return max(0.0, min(100.0, float(v)))
+    except (TypeError, ValueError):
+        return 50.0
+
+
+def _final_picker_score(score: float, smoothed: float, enough_days: bool) -> float:
+    """混合当前详细评分与多日平滑评分，归一到 [0,100]。
+
+    :param enough_days: 是否已有 >=3 天日评分用于加权平均（否则只用当前详细评分）。
+    """
+    raw = (score * 0.7 + smoothed * 0.3) if enough_days else score
+    return round(_clamp100(raw), 1)
+
+
 class Backtester:
     """策略回测器。"""
 
@@ -871,10 +893,10 @@ class Backtester:
             weights = [0.4, 0.25, 0.15, 0.12, 0.08][:len(daily_scores)]
             weights = [w / sum(weights) for w in weights]
             smoothed = sum(s * w for s, w in zip(reversed(daily_scores), reversed(weights)))
-            # 混合：70% 当前详细评分 + 30% 平滑评分
-            final_score = round(score * 0.7 + smoothed * 0.3, 1)
+            # 混合：70% 当前详细评分 + 30% 平滑评分（封顶 [0,100]，分段上限合计 125 的历史债）
+            final_score = _final_picker_score(score, smoothed, True)
         else:
-            final_score = round(score, 1)
+            final_score = _final_picker_score(score, score, False)
             smoothed = final_score
 
         # ══════════════════════════════════════

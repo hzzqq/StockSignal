@@ -14,7 +14,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from modules.backtest import Backtester
+from modules.backtest import Backtester, _clamp100, _final_picker_score
 
 
 def _make_ohlcv(n=120, seed=42):
@@ -80,3 +80,31 @@ class TestScoreForPickerRegression:
         # 可能仍通过过滤；无论是否通过，只要返回就必须 vol_ratio 有限
         if res is not None:
             assert math.isfinite(res["vol_ratio"])
+
+
+# ───────────────────────── 评分收束纯函数（R8） ─────────────────────────
+def test_clamp100_bounds():
+    """任意评分收束到 [0,100]，多因子分段上限合计 125 的历史债不再泄漏。"""
+    assert _clamp100(125) == 100.0
+    assert _clamp100(200) == 100.0
+    assert _clamp100(-5) == 0.0
+    assert _clamp100(62.5) == 62.5
+    assert _clamp100(0) == 0.0
+    assert _clamp100(100) == 100.0
+
+
+def test_clamp100_non_numeric_safe():
+    """非数值兜底中性分，不抛。"""
+    assert _clamp100("坏") == 50.0
+
+
+def test_final_picker_score_clamp_overflow():
+    """分段上限合计 125，曾可溢出到 ~125，违反 0-100 契约。"""
+    # 多日平滑分支：score/smoothed 都满格 → 仍须封顶 100
+    assert _final_picker_score(125, 125, True) == 100.0
+    assert _final_picker_score(200, 0, True) == 100.0
+    # 单日分支（日评分不足 3 天）：直接用 score，仍须封顶
+    assert _final_picker_score(-10, -10, False) == 0.0
+    # 正常值不受影响
+    assert _final_picker_score(80, 80, True) == 80.0
+    assert _final_picker_score(40, 40, False) == 40.0
