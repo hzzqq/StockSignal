@@ -1272,6 +1272,10 @@ class Backtester:
                     elif vol_r >= 1.2: score += 10; reasons.append("放量")
                     elif vol_r >= 0.8: score += 6; reasons.append("量能温和")
 
+                    # 分段上限合计 125（趋势50+超跌40+健康20+量能15），封顶 [0,100]，
+                    # 避免 candidate["score"] 出现「评分 125/100」并污染排序/展示。
+                    score = _clamp100(score)
+
                     # 过滤条件（兼容 MA60 缺失）
                     price_above_trend = (not l_ma20_valid) or (latest["close"] > latest["ma20"])
                     if not price_above_trend or rsi14 > 80 or score < min_score:

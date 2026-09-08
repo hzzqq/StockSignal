@@ -108,3 +108,44 @@ def test_final_picker_score_clamp_overflow():
     # 正常值不受影响
     assert _final_picker_score(80, 80, True) == 80.0
     assert _final_picker_score(40, 40, False) == 40.0
+
+
+def test_daily_picker_candidate_score_clamped():
+    """R9：daily_picker_backtest 的候选 score 分段上限合计 125，
+    落盘为 candidate['score'] 并参与排序/展示，曾可出现「评分 125/100」。
+    修复后所有候选评分必须落在 [0,100]。"""
+    import pandas as pd
+
+    bt = Backtester()
+    n = 60
+    dates = pd.date_range("2023-01-02", periods=n, freq="B")
+    # 全行恒定工程化：趋势满(50)+超跌满(40)+健康满(20)+量能满(15)=125 → 触发溢出
+    df = pd.DataFrame({
+        "date": dates, "code": "600000",
+        "open": 100.0, "high": 105.0, "low": 95.0, "close": 100.0,
+        "volume": 150.0,
+        "ma20": 90.0, "ma60": 80.0,
+        "ma20_rising": True, "ma60_rising": True,
+        "rsi2": 3.0, "rsi14": 50.0, "vol_ma20": 100.0,
+    })
+
+    def fake_fetch(code, start, end):
+        return {"df": df, "code": code, "name": "测试", "score": 100.0}
+
+    class FakeFetcher:
+        def get_all_codes(self, limit=200, random_seed=None):
+            return ["600000"]
+
+    bt._fetch_single_for_picker = fake_fetch
+    bt.fetcher = FakeFetcher()
+
+    res = bt.daily_picker_backtest(
+        "2023-01-02", "2023-04-01", stock_pool_size=1, top_k=1,
+        hold_days=1, min_score=0, max_workers=1,
+        use_smart_exit=False, strategy="multi_factor",
+    )
+    picks = res.picks_df
+    assert not picks.empty, "应至少产出一条候选"
+    # 修复前 raw 达 125，修复后必须 [0,100]
+    assert (picks["score"] <= 100).all(), f"候选评分越界: {picks['score'].tolist()}"
+    assert (picks["score"] >= 0).all()
