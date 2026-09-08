@@ -101,6 +101,62 @@ def _build_financial_trend_fig(code: str):
         return None
 
 
+@cached_fig(ttl=600)
+def _build_financial_bar_fig(code: str):
+    """利润表多期对比柱状图：营业总收入 / 净利润（单位：亿元）。
+    净利润按环比增减着色（红=改善、绿=下滑），与页面「业绩配色」约定一致。
+    best-effort：取数失败或字段缺失返回 None，调用方跳过渲染。
+    """
+    try:
+        inc = _cached_financial(code, "income")
+    except Exception:
+        inc = None
+    if inc is None or (hasattr(inc, "empty") and inc.empty) or "报告日" not in inc.columns:
+        return None
+    need = [c for c in ("营业总收入", "净利润") if c in inc.columns]
+    if not need:
+        return None
+    try:
+        d = inc[["报告日"] + need].copy()
+        for c in need:
+            d[c] = pd.to_numeric(d[c], errors="coerce")
+        d = d.dropna(subset=need, how="all").iloc[::-1]  # 旧→新，左→右
+        if d.empty:
+            return None
+        fig = go.Figure()
+        if "营业总收入" in need:
+            fig.add_trace(go.Bar(
+                x=d["报告日"].astype(str), y=d["营业总收入"] / 1e8,
+                name="营业总收入", marker_color="#667eea",
+            ))
+        if "净利润" in need:
+            net = d["净利润"] / 1e8
+            net_colors = []
+            prev = None
+            for v in net:
+                if prev is None or pd.isna(prev):
+                    net_colors.append("#8a8f98")  # 首期无环比，中性灰
+                elif v >= prev:
+                    net_colors.append("#ff4d4f")  # 改善=红
+                else:
+                    net_colors.append("#00d486")  # 下滑=绿
+                prev = v
+            fig.add_trace(go.Bar(
+                x=d["报告日"].astype(str), y=net,
+                name="净利润", marker_color=net_colors,
+            ))
+        fig.update_layout(
+            height=340, margin=dict(l=50, r=20, t=34, b=40),
+            barmode="group",
+            template="plotly_dark" if dark else "plotly_white",
+            xaxis_tickangle=-45, yaxis_title="亿元",
+            legend=dict(orientation="h", y=1.12, x=0),
+            title=f"{code} 利润表多期对比（亿元，净利润红=改善/绿=下滑）",
+        )
+        return fig
+    except Exception:
+        return None
+
 
 PERIODS = {
     "2026 一季报": "20260331",
