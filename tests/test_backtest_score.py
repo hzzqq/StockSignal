@@ -11,9 +11,12 @@
 
 import math
 
+import inspect
+
 import numpy as np
 import pandas as pd
 
+import modules.backtest as backtest
 from modules.backtest import Backtester, _clamp100, _final_picker_score
 
 
@@ -149,3 +152,16 @@ def test_daily_picker_candidate_score_clamped():
     # 修复前 raw 达 125，修复后必须 [0,100]
     assert (picks["score"] <= 100).all(), f"候选评分越界: {picks['score'].tolist()}"
     assert (picks["score"] >= 0).all()
+
+
+def test_rsi_exclude_threshold_consistent():
+    """R10：两处 RSI 排除阈值必须引用同一常量(92)，不得残留 rsi14 > 80 的旧漂移。"""
+    assert backtest.RSI_EXCLUDE_THRESHOLD == 92
+    src_picker = inspect.getsource(Backtester._score_for_picker)
+    src_daily = inspect.getsource(Backtester.daily_picker_backtest)
+    # 旧阈值 80 不得残留（曾与 _score_for_picker 的 >92 漂移）
+    assert "rsi14 > 80" not in src_picker
+    assert "rsi14 > 80" not in src_daily
+    # 两处都引用统一常量
+    assert src_picker.count("rsi14 > RSI_EXCLUDE_THRESHOLD") == 1
+    assert src_daily.count("rsi14 > RSI_EXCLUDE_THRESHOLD") == 1

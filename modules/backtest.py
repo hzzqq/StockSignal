@@ -18,6 +18,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+# 选股排除阈值：RSI14 超过该值视为极端泡沫，踢出候选池。
+# V5 多因子对齐：仅极端泡沫(>92)排除，80-92 强涨股允许参与选股
+# （避免长电科技类「长期 RSI>85 强势上涨股」连候选池都进不了）。
+# 两处调用（_score_for_picker 入场过滤 / daily_picker_backtest 候选过滤）必须引用同一常量，
+# 否则会出现「一处改 92、另一处仍是 80」的阈值漂移（曾发生）。
+RSI_EXCLUDE_THRESHOLD = 92
+
+
 def _clamp100(v: float) -> float:
     """把任意评分收束到 [0,100]。
 
@@ -847,7 +855,7 @@ class Backtester:
         # 与 V5 多因子信号层「RSI<=98 仍可买入、仅 >92 降分」保持一致，
         # 修复长电科技类「长期 RSI>85 强势上涨股」连候选池都进不了的问题。
         price_above_trend = (not ma20_valid) or (latest["close"] > latest["ma20"])
-        if not price_above_trend or rsi14 > 92:
+        if not price_above_trend or rsi14 > RSI_EXCLUDE_THRESHOLD:
             return None
 
         # ══════════════════════════════════════
@@ -1278,7 +1286,7 @@ class Backtester:
 
                     # 过滤条件（兼容 MA60 缺失）
                     price_above_trend = (not l_ma20_valid) or (latest["close"] > latest["ma20"])
-                    if not price_above_trend or rsi14 > 80 or score < min_score:
+                    if not price_above_trend or rsi14 > RSI_EXCLUDE_THRESHOLD or score < min_score:
                         continue
 
                 # ═══ 智能卖出信号预测（替代固定 hold_days）═══
