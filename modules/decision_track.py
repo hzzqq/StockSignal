@@ -240,19 +240,34 @@ def by_cycle(min_samples: int = 0) -> list[dict]:
 
 
 def by_group(min_samples: int = 0) -> list[dict]:
-    """在 by_cycle() 之上再按四大战术分组聚合（样本更集中，结论更稳）。"""
+    """按四大战术分组聚合命中率与平均仓位/实际涨跌（样本更集中，结论更稳）。
+
+    ⚠️ 实现修正：旧实现在 by_cycle() 之上「对各周期已算好的均值再求平均」
+    （averaging of averages）。当同一分组内各阶段样本量不等时，这会系统性偏置
+    分组均值——例如「进攻期」含 主升高潮(100条,均值60) + 修复确认(2条,均值80)，
+    旧实现给 (60+80)/2=70，而真实分组均值应为 (100*60+2*80)/102≈60.4。
+    该偏差会沿 calibration.suggestions() 一路污染「刻度校准」补丁的 avg_pct/avg_realized。
+
+    修复：直接对原始预测记录按分组重新分桶，用样本量加权的真实均值，
+    与 n_call/hits 的求和口径一致。by_cycle() 保持原样（单阶段均值仍正确）。
+    """
+    recs = _load()
     agg: dict[str, dict] = {}
-    for c in by_cycle():
-        g = agg.setdefault(c["group"], {
-            "group": c["group"], "n": 0, "n_call": 0, "hits": 0, "_pct": [], "_real": [],
+    for r in recs:
+        cyc = (r.get("cycle") or "").strip()
+        g = agg.setdefault(CYCLE_GROUPS.get(cyc, "其他"), {
+            "group": CYCLE_GROUPS.get(cyc, "其他"),
+            "n": 0, "n_call": 0, "hits": 0, "_pct": [], "_real": [],
         })
-        g["n"] += c["n"]
-        g["n_call"] += c["n_call"]
-        g["hits"] += c["hits"]
-        if c["avg_pct"] is not None:
-            g["_pct"].append(c["avg_pct"])
-        if c["avg_realized"] is not None:
-            g["_real"].append(c["avg_realized"])
+        g["n"] += 1
+        if r.get("pct") is not None:
+            g["_pct"].append(float(r["pct"]))
+        if r.get("realized") is not None:
+            g["_real"].append(float(r["realized"]))
+        if r.get("hit") is not None and _DIR_MAP.get(r.get("bias"), 0) != 0:
+            g["n_call"] += 1
+            if r["hit"]:
+                g["hits"] += 1
 
     out = []
     for g in agg.values():

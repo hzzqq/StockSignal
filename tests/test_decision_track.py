@@ -156,6 +156,30 @@ def test_by_group_min_samples_filters_noise(tmp_path, monkeypatch):
     assert kept[0]["n_call"] == 2 and kept[0]["accuracy"] == 50.0
 
 
+def test_by_group_avg_pct_is_sample_weighted_not_average_of_means(tmp_path, monkeypatch):
+    """回归：分组 avg_pct / avg_realized 必须是原始记录的样本量加权均值，
+    而不是「各阶段均值再求平均」（averaging of averages）。
+
+    构造：进攻期 = 主升高潮(100 条, pct=60) + 修复确认(1 条, pct=80)。
+    真实分组均值 = (100*60 + 1*80)/101 ≈ 60.2；
+    旧实现（对阶段均值再平均）= (60+80)/2 = 70.0 —— 会被大样本阶段严重拉偏。
+    该偏差会沿 calibration.suggestions() 污染刻度校准补丁。
+    """
+    from datetime import date, timedelta
+    _reset(monkeypatch, tmp_path)
+    base = date(2026, 1, 1)
+    ds = [(base + timedelta(days=i)).isoformat() for i in range(101)]
+    for i in range(100):
+        _track.record_prediction(ds[i], 60, "主升高潮", "偏多", 60)
+    _track.record_prediction(ds[100], 80, "修复确认", "偏多", 80)
+
+    g = {x["group"]: x for x in _track.by_group()}
+    true_mean = round((100 * 60.0 + 1 * 80.0) / 101, 1)  # 60.2
+    assert g["进攻期"]["avg_pct"] == true_mean, f"应为样本加权均值 {true_mean}，实际 {g['进攻期']['avg_pct']}"
+    # 反向锁定：绝不能是 averaging-of-averages 的 70.0
+    assert g["进攻期"]["avg_pct"] != (60.0 + 80.0) / 2, "不应是各阶段均值的简单平均"
+
+
 # ───────────────────── 脚本 --score-only 轻量打分模式 ─────────────────────
 def _load_snapshot_script():
     """scripts/ 无 __init__.py，按文件路径加载（与主脚本入口等价）。"""
