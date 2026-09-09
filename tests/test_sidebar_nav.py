@@ -13,8 +13,10 @@ from unittest.mock import patch
 def _all_nav_paths():
     paths = []
     for _g, items in w._NAV_GROUPS:
-        for path, _label, _icon in items:
-            paths.append(path.replace('\\', '/'))
+        for _it in items:
+            paths.append(_it[0].replace('\\', '/'))
+    for _it in getattr(w, '_NAV_HERO', []):
+        paths.append(_it[0].replace('\\', '/'))
     return paths
 
 

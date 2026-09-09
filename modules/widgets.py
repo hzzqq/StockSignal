@@ -536,8 +536,8 @@ def inject_global_widgets() -> None:
     from modules.scroll_nav import inject_scroll_nav
     render_topright_bar()
     inject_scroll_nav()
+_NAV_HERO = [('pages/54_今日决策面板.py', '今日决策面板', '🎯')]
 _NAV_GROUPS = [
-    ('🎯 决策核心', [('pages/54_今日决策面板.py', '今日决策面板', '🎯')]),
     ('📘 新手引导', [('pages/96_新手教程.py', '新手教程', '📘')]),
     ('📈 行情盯盘', [('pages/10_行情看板.py', '行情看板', '📈'), ('pages/14_智能盯盘.py', '智能盯盘', '👁️'), ('pages/35_资金流向.py', '资金流向', '🌊'), ('pages/51_每日晨报.py', '每日晨报', '🌅')]),
     ('🌐 市场宽度', [('pages/13_市场强弱.py', '市场强弱', '📊'), ('pages/15_市场驱动力.py', '市场驱动力', '🧲'), ('pages/50_市场情绪.py', '市场情绪', '🌡️'), ('pages/23_事件追踪.py', '事件追踪', '📡'), ('pages/16_财报日历.py', '财报日历', '📅')]),
@@ -582,16 +582,19 @@ def _current_page_basename() -> str:
 
 
 def _current_nav_label(basename: str) -> str:
-    """根据当前脚本名反查它在 _NAV_GROUPS / _NAV_ADMIN 中的标签，供「当前位置」提示用。"""
+    """根据当前脚本名反查它在 _NAV_HERO / _NAV_GROUPS / _NAV_ADMIN 中的标签，供「当前位置」提示用。"""
     if not basename:
         return ''
+    for _it in _NAV_HERO:
+        if _it[0].replace('\\', '/').split('/')[-1] == basename:
+            return _it[1]
     for _g, _items in _NAV_GROUPS:
-        for _path, _label, _icon in _items:
-            if _path.replace('\\', '/').split('/')[-1] == basename:
-                return _label
-    for _path, _label, _icon in _NAV_ADMIN:
-        if _path.replace('\\', '/').split('/')[-1] == basename:
-            return _label
+        for _it in _items:
+            if _it[0].replace('\\', '/').split('/')[-1] == basename:
+                return _it[1]
+    for _it in _NAV_ADMIN:
+        if _it[0].replace('\\', '/').split('/')[-1] == basename:
+            return _it[1]
     if basename in ('app.py', 'main.py'):
         return '首页'
     if basename == 'pages/91_我的.py' or basename == '91_我的.py':
@@ -729,6 +732,20 @@ def render_sidebar_nav() -> None:
     try:
         with st.sidebar:
             st.markdown('### 🧭 导航')
+            # 决策中枢 Hero：项目差异化主线（决策闭环 + 刻度校准），常驻顶部高亮入口，高于普通分组
+            with st.container(border=True):
+                st.caption('🎯 决策中枢')
+                for _h_path, _h_label, _h_icon in _NAV_HERO:
+                    _h_active = bool(_cur_base) and _cur_base == _h_path.replace('\\', '/').split('/')[-1]
+                    if _h_active:
+                        st.markdown(f'<div class="ss-nav-active">▶ {_h_icon} {_h_label}</div>', unsafe_allow_html=True)
+                    else:
+                        try:
+                            st.page_link(_h_path, label=f"{_h_icon} {_h_label}", icon=_h_icon, use_container_width=True)
+                        except Exception as e:
+                            logger.warning(f"[widgets] 处理异常: {e}")
+                            if st.button(f"{_h_icon} {_h_label}", key=f"hero_{_h_label}", use_container_width=True):
+                                safe_switch_page(_h_path)
             _cur_label = _current_nav_label(_cur_base)
             if _cur_label:
                 st.caption(f'📍 当前位置：**{_cur_label}**')
