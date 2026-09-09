@@ -538,7 +538,6 @@ def inject_global_widgets() -> None:
     inject_scroll_nav()
 _NAV_HERO = [('pages/54_今日决策面板.py', '今日决策面板', '🎯')]
 _NAV_GROUPS = [
-    ('📘 新手引导', [('pages/96_新手教程.py', '新手教程', '📘')]),
     ('📈 行情盯盘', [('pages/10_行情看板.py', '行情看板', '📈'), ('pages/14_智能盯盘.py', '智能盯盘', '👁️'), ('pages/35_资金流向.py', '资金流向', '🌊'), ('pages/51_每日晨报.py', '每日晨报', '🌅')]),
     ('🌐 市场宽度', [('pages/13_市场强弱.py', '市场强弱', '📊'), ('pages/15_市场驱动力.py', '市场驱动力', '🧲'), ('pages/50_市场情绪.py', '市场情绪', '🌡️'), ('pages/23_事件追踪.py', '事件追踪', '📡'), ('pages/16_财报日历.py', '财报日历', '📅')]),
     ('🧩 板块结构', [('pages/12_板块轮动.py', '板块轮动', '🌈'), ('pages/17_市场魔方.py', '市场魔方', '🧊')]),
@@ -755,6 +754,7 @@ def render_sidebar_nav() -> None:
                     _nav_link(path, label, icon)
             st.caption('👤 账户')
             _nav_link('pages/91_我的.py', '我的', '👤')
+            _nav_link('pages/96_新手教程.py', '新手教程', '📘')
             if is_admin():
                 for path, label, icon in _NAV_ADMIN:
                     _nav_link(path, label, icon)
