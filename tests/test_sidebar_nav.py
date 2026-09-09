@@ -236,3 +236,27 @@ def test_version_chip_constant_present():
     assert hasattr(w, '_GIT_SHA'), "缺少 _GIT_SHA 版本指纹常量"
     assert isinstance(w._GIT_SHA, str) and w._GIT_SHA, "_GIT_SHA 应为非空字符串"
 
+
+def test_nav_active_css_obvious_and_theme_aware():
+    """当前页高亮必须一眼可见且随主题自适应。
+
+    锁死 R26 修复前的回归：旧 .ss-nav-active 写死 color:#E2E8F0（近白字）+ 20% 透明渐变，
+    在默认亮色侧边栏上≈隐形，用户感知不到「我在哪」。
+    """
+    dark = w._nav_active_css(True)
+    light = w._nav_active_css(False)
+    for css in (dark, light):
+        assert ".ss-nav-active" in css
+        # 实色填充（不再用 20% 透明度的淡背景）
+        assert "background:linear-gradient(90deg,#667eea,#764ba2)" in css
+        # 白字：在紫蓝实底上亮/暗主题均清晰可辨
+        assert "color:#FFFFFF" in css
+        # 明显加粗，区别于普通项
+        assert "font-weight:800" in css
+        # 旧实现的「亮色下隐形白字 / 20% alpha 残影」不得再出现
+        assert "#E2E8F0" not in css
+        assert "#667eea33" not in css
+    # 主题自适应：暗色金色描边 + 微光，亮色橙色高对比描边
+    assert "#FFD166" in dark and "#FF8C00" in light
+    assert dark != light
+

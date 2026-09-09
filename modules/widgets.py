@@ -826,6 +826,24 @@ def _filter_nav_groups(groups, kw: str):
     return out
 
 
+def _nav_active_css(dark: bool) -> str:
+    """当前页高亮样式（.ss-nav-active）。
+
+    旧实现写死 color:#E2E8F0（近白字）+ 20% 透明渐变，在默认亮色侧边栏上≈隐形，
+    用户感知不到「我在哪」。改为实色紫蓝渐变底 + 白字，亮/暗主题均一眼可见；
+    暗色加金色描边 + 微光增强「亮度感」，亮色加橙色高对比描边。
+    """
+    if dark:
+        return (".ss-nav-active{padding:5px 9px!important;margin:2px 0!important;border-radius:8px!important;"
+                "background:linear-gradient(90deg,#667eea,#764ba2)!important;"
+                "border-left:4px solid #FFD166!important;font-weight:800!important;color:#FFFFFF!important;"
+                "box-shadow:0 0 0 1px rgba(255,255,255,.18),0 2px 10px rgba(102,126,234,.5)!important;}")
+    return (".ss-nav-active{padding:5px 9px!important;margin:2px 0!important;border-radius:8px!important;"
+            "background:linear-gradient(90deg,#667eea,#764ba2)!important;"
+            "border-left:4px solid #FF8C00!important;font-weight:800!important;color:#FFFFFF!important;"
+            "box-shadow:0 1px 6px rgba(102,126,234,.35)!important;}")
+
+
 def render_sidebar_nav() -> None:
     """在侧边栏顶部渲染自定义分组导航，并隐藏 Streamlit 原生平铺页面列表。
 
@@ -834,7 +852,21 @@ def render_sidebar_nav() -> None:
 
     ⚠️ 无论是否嵌入都渲染（不再因 _embed_active 跳过），确保侧边栏导航常驻。
     """
-    st.markdown('<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]{display:none!important;}/* 强制侧边栏常驻：禁用折叠按钮，避免用户误关后找不到导航 */[data-testid="stSidebarCollapseButton"]{display:none!important;}/* 紧凑侧边栏导航：减少分组标题与链接间距，降低长导航的视觉负担 */[data-testid="stSidebar"] .stMarkdown [data-testid="stCaptionContainer"] {margin-top:4px!important;margin-bottom:2px!important;font-size:12px!important;}[data-testid="stSidebar"] [data-testid="stPageLink"] a {padding:4px 8px!important;margin:1px 0!important;border-radius:8px!important;}[data-testid="stSidebar"] [data-testid="stButton"] button {padding:4px 8px!important;min-height:28px!important;}.ss-nav-active{padding:5px 9px!important;margin:2px 0!important;border-radius:8px!important;background:linear-gradient(90deg,#667eea33,#764ba233)!important;border-left:3px solid #667eea!important;font-weight:700!important;color:#E2E8F0!important;}</style>', unsafe_allow_html=True)
+    from modules.ui_theme import _theme_is_dark
+    _dark = _theme_is_dark()
+    st.markdown(
+        '<style>'
+        '[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]{display:none!important;}'
+        '/* 强制侧边栏常驻：禁用折叠按钮，避免用户误关后找不到导航 */'
+        '[data-testid="stSidebarCollapseButton"]{display:none!important;}'
+        '/* 紧凑侧边栏导航：减少分组标题与链接间距，降低长导航的视觉负担 */'
+        '[data-testid="stSidebar"] .stMarkdown [data-testid="stCaptionContainer"] {margin-top:4px!important;margin-bottom:2px!important;font-size:12px!important;}'
+        '[data-testid="stSidebar"] [data-testid="stPageLink"] a {padding:4px 8px!important;margin:1px 0!important;border-radius:8px!important;}'
+        '[data-testid="stSidebar"] [data-testid="stButton"] button {padding:4px 8px!important;min-height:28px!important;}'
+        + _nav_active_css(_dark) +
+        '</style>',
+        unsafe_allow_html=True,
+    )
 
     _cur_base = _current_page_basename()
 
