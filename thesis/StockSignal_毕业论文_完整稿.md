@@ -1,4 +1,35 @@
-> 文献已植入：第 1.2 节研究现状与第 2 章技术基础的正文已引用 [1]–[15]，引用分布与全文对应关系见第 8 章。引用经检索核验，定稿前仍建议在知网/Google Scholar 复核作者、年卷期与页码（尤其中文文献），以免查重或答辩风险。
+# 基于事件驱动与市场情绪的 A 股仓位决策闭环与刻度校准研究
+## ——StockSignal 平台的设计与实现
+
+> **论文类型**：学位论文（本科 / 硕士，定稿时确认）
+> **作者**：黄子洲
+> **指导教师**：「导师姓名」
+> **培养单位**：「学校 · 学院 · 专业」
+> **完成日期**：2026 年　月
+
+---
+
+# 摘要
+
+A 股市场情绪驱动特征显著，个人投资者在信息过载与情绪噪声中难以形成稳定决策。本文以"事件驱动 + 市场情绪"为差异化主线，设计并实现了 StockSignal——一套面向 A 股的市场广度与情绪温度计分析平台，并提出"决策闭环 + 刻度校准"的方法论框架：先以全市场广度指标重建六阶段情绪周期，再据此推导可调仓位建议，最后用真实历史数据反向校准仓位刻度常数。
+
+论文的核心贡献在于把"拍脑袋"的仓位经验转化为可验证、可校准的闭环。为验证该框架，本文重建了覆盖 2009–2026 年共 4094 个真实交易日的 A 股全市场广度与情绪历史（离线可复现、防覆盖双备份）。在该数据上回测完整决策链路得到两个关键实证结论：（1）情绪周期对次日方向的预测≈随机（方向命中率 49.3%），如实界定了系统能力边界——不宣称"猜对明天涨跌"；（2）仓位建议随情绪周期显著分化（进攻期平均 57.8% 对比防守期 35.0%，价差 22.8 个百分点），证明闭环是一台"市场状态驱动的风险缩放器"。进一步用回测分组统计驱动刻度校准模块，验证原有 CYCLE_ADJ 常数在统计意义上基本合理，校准机制在噪音阈值内选择"不动"，且小样本被硬性门槛拦截以防过拟合。
+
+本文表明：在日频方向不可预测的现实下，把有限的可预测性配置在"仓位刻度"这一更稳健的维度、并以数据驱动方式持续校准，是事件驱动情绪类策略更诚实、更可持续的工程化路径。
+
+**关键词**：A 股；市场广度；情绪周期；决策闭环；刻度校准；回测；StockSignal
+
+---
+
+# Abstract
+
+The A-share market is prominently driven by sentiment, and individual investors struggle to form stable decisions amid information overload and emotional noise. Anchored on the differentiating thread of "event-driven + market sentiment," this thesis designs and implements StockSignal — an A-share market-breadth and sentiment-thermometer analysis platform — and proposes a methodological framework of "decision closed-loop + scale calibration": first reconstructing a six-stage sentiment cycle from whole-market breadth indicators, then deriving adjustable position suggestions therefrom, and finally back-calibrating the position-scale constants with real historical data.
+
+The core contribution lies in transforming seat-of-the-pants position instincts into a verifiable, self-calibrating closed loop. To validate the framework, this thesis reconstructs the A-share whole-market breadth and sentiment history covering 4,094 real trading days from 2009 to 2026 (offline-reproducible, with overwrite-guarded dual backups). Backtesting the full decision chain on this dataset yields two key empirical findings: (1) the sentiment cycle's prediction of next-day direction is approximately random (direction hit rate 49.3%), honestly delineating the system's capability boundary — it does not claim to "guess tomorrow's rise or fall"; (2) position suggestions diverge significantly across sentiment cycles (offensive phase avg. 57.8% vs. defensive phase 35.0%, a 22.8-percentage-point spread), proving the closed loop is a "market-state-driven risk scaler" rather than a daily-direction oracle. Furthermore, driving the calibration module with backtest group statistics confirms that the original CYCLE_ADJ constants are statistically reasonable, that the calibration mechanism correctly "holds" within the noise threshold, and that small samples are hard-blocked by thresholds to prevent overfitting.
+
+This work shows that, given the unpredictability of daily direction, allocating the limited predictability to the more robust dimension of "position scale" and continuously calibrating it in a data-driven manner is a more honest and sustainable engineering path for event-driven sentiment strategies.
+
+**Keywords**: A-share; market breadth; sentiment cycle; decision closed-loop; scale calibration; backtest; StockSignal
 
 ---
 
@@ -666,7 +697,6 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 ---
 
-> 全文各章草稿位置：第1–3章 `第1-3章_草稿.md`、第4章 `第4章_平台核心模块实现_草稿.md`、第5章 `第5章_决策闭环与刻度校准_草稿.md`、第6章 `第6章_系统测试与评估_草稿.md`。第8章（参考文献/致谢/附录）按 `详细写作提纲.md` 第 8/10 节补全。
 
 # 第 8 章 参考文献、致谢与附录
 
