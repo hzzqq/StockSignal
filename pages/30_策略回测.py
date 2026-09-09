@@ -454,6 +454,11 @@ def fragment_manual_backtest():
 # ==================================================================
 @safe_fragment("每日选股回测")
 def fragment_daily_picker():
+    # SF_* 暗色主题常量（原定义在 visualizer.py，在此本地定义避免拖入 plotly）
+    from modules.colors import UP_COLOR  # lazy
+    from modules.ui_theme import _theme_is_dark as _is_dark  # lazy
+    global SF_TXT, SF_TXT2, SF_GRID, SF_BORDER  # noqa: F821
+    SF_TXT = "#e2e8f0"; SF_TXT2 = "#94a3b8"; SF_GRID = "#23233c"; SF_BORDER = "#2d2d44"
     sf_card("📊 每日选股回测", "")
     st.caption("从 A 股股票池中每日筛选评分最高的股票，模拟短线持有收益。"
                "「今日推荐」= 基于昨日收盘数据选股、今日买入；"
@@ -735,7 +740,9 @@ def fragment_strong_bull():
                     res_map[_r["code"]] = _r
         results = [res_map[code] for code, _ in STRONG_BULL_PRESETS]
         st.session_state["sb_results"] = results
-        st.session_state["sb_with_market"] = sb_with_market
+        # 注意：复选框 key="sb_with_market" 已自动把勾选值写入 session_state，
+        # 切勿在此处再 st.session_state["sb_with_market"]=sb_with_market 重写同一 key，
+        # 否则会触发 StreamlitAPIException（widget key 实例化后不可改）。下方读取走 get()。
         if sb_with_market:
             with st.spinner("正在计算全市场基准（每日选股回测）…"):
                 try:
