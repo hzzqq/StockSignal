@@ -24,6 +24,7 @@ scripts/backtest_decision_closure.py — 决策闭环 × 真实广度历史 大�
 """
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import math
@@ -287,9 +288,16 @@ def run(breadth_file: str | None = None) -> dict:
 
 
 def main() -> dict:
-    result = run()
-    os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
-    with open(OUT_PATH, "w", encoding="utf-8") as f:
+    p = argparse.ArgumentParser(description="决策闭环全链路回测")
+    p.add_argument("--breadth", default=None,
+                   help="广度历史 CSV（默认 data/shepherd_history.csv）；可指向补充的 2007-2014 文件")
+    p.add_argument("--out", default=None, help="输出 JSON 路径（默认 reports/backtest_decision_closure.json）")
+    args = p.parse_args()
+
+    result = run(breadth_file=args.breadth)
+    out_path = args.out or OUT_PATH
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
     m = result["meta"]
@@ -305,7 +313,7 @@ def main() -> dict:
         print(f"    {r['group']:>4}  call={r['call']:>4}  方向命中={r['dir_accuracy']}%  "
               f"平均建议仓位={r['avg_pct']}  次日平均实际={r['avg_realized']}  "
               f"建议调节={r['suggest_delta']:+}  可采纳={r['actionable']}")
-    print(f"[backtest] 已写出 {OUT_PATH}")
+    print(f"[backtest] 已写出 {out_path}")
     return result
 
 
