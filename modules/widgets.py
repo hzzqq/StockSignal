@@ -596,7 +596,7 @@ def _current_nav_label(basename: str) -> str:
     if basename in ('app.py', 'main.py'):
         return '首页'
     if basename == 'pages/91_我的.py' or basename == '91_我的.py':
-        return '我的'
+        return '个人中心'
     return ''
 
 
@@ -765,8 +765,8 @@ def render_sidebar_nav() -> None:
                     _path, _label, _icon = _it[0], _it[1], _it[2]
                     _sub = _it[3] if len(_it) > 3 else None
                     _nav_link(_path, _label, _icon, sub=(_sub == 'sub'))
-            st.caption('👤 账户')
-            _nav_link('pages/91_我的.py', '我的', '👤')
+            st.caption('👤 账户中心')
+            _nav_link('pages/91_我的.py', '个人中心', '👤')
             _nav_link('pages/96_新手教程.py', '新手教程', '📘')
             if is_admin():
                 for path, label, icon in _NAV_ADMIN:
@@ -785,10 +785,10 @@ def render_sidebar_nav() -> None:
                         except Exception as e:
                             logger.warning(f"[widgets] 处理异常: {e}")
                             pass
-                        safe_switch_page('pages/11_股票选取.py')
+                        safe_switch_page('pages/20_个股分析.py')
             st.markdown('---')
             try:
-                st.page_link('app.py', label='返回首页', icon='🏠')
+                st.page_link('app.py', label='🏠 首页', icon='🏠')
             except Exception as e:
                 logger.warning(f"[widgets] 处理异常: {e}")
                 pass

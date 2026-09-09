@@ -98,7 +98,10 @@ def _build_financial_trend_fig(code: str):
 
 with sidebar_target():
     st.header('分析目标')
-    ticker = stock_search_input(label='股票搜索', key='analysis_stock', default='600519', placeholder='输入代码或名称搜索，如：600519 / 贵州茅台 / GZMT / 茅台')
+    # 深链支持：从侧边栏「最近浏览」点击股票时携带 ?pick_stock=CODE，作为初始分析标的
+    _qp = st.query_params.get("pick_stock")
+    _default_code = str(_qp[0]) if isinstance(_qp, list) and _qp else (str(_qp) if _qp else "600519")
+    ticker = stock_search_input(label='股票搜索', key='analysis_stock', default=_default_code, placeholder='输入代码或名称搜索，如：600519 / 贵州茅台 / GZMT / 茅台')
     st.caption('本页为星辰决策仪表盘，右上角可切换暗夜 / 白天模式。')
 st.markdown('<div class="sf-header"><div class="sf-brand">决策仪表盘 · <b>个股深度分析</b></div><div class="sf-brand">事件驱动 · 多维归因</div></div>', unsafe_allow_html=True)
 st.markdown('<div class="sf-card" style="background:linear-gradient(135deg,var(--acc1),var(--acc2));border:none;box-shadow:0 8px 24px rgba(102,126,234,.22)">', unsafe_allow_html=True)
