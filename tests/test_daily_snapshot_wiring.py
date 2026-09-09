@@ -30,10 +30,10 @@ import pandas as pd
 
 from modules import shepherd as _sh
 
-# 直接消费 get_shepherd_indicators 的调用点。
-# 历史事故发生在 scripts/daily_snapshot.py 与 app.py；页面侧此前「假定」经 _load_shepherd 包装后已正确解包，
-# 但未纳入扫描——若将来有人在页面直接 `df = get_shepherd_indicators(...)` 漏解包，护栏会漏检。
-# 故把 pages/ 下全部页面也纳入 AST 扫描（return 语句非 Assign，不会误判包装层）。
+# 直接消费 (df, meta) 二元组取数入口的所有调用点。
+# 历史事故发生在 scripts/daily_snapshot.py 与 app.py；现已把 app.py + scripts/daily_snapshot.py
+# + pages/ 下全部页面都纳入 AST 扫描（return 语句非 Assign，不会误判 _load_shepherd 这类包装层）。
+# 守卫同时覆盖姊妹函数 get_shepherd_indicators_range（同为 (df, meta) 元组，同样会静默 footgun）。
 def _guarded_files():
     root = _project_root()
     files = [
@@ -85,26 +85,75 @@ def test_tuple_has_no_empty_attr_so_guard_defaults_true(monkeypatch):
 
 
 # ───────────────────────── 3. 静态 AST 守卫 ─────────────────────────
+# 所有返回 (df, meta) 二元组的牧羊人取数入口，调用方都必须解包，否则静默降级。
+_GUARDED_FUNCS = ("get_shepherd_indicators", "get_shepherd_indicators_range")
+
+
+def _violations_in_source(src: str, func_names) -> list:
+    """扫描源码：对任何 `x = <func>(...)` 单赋值（未解包成二元组）返回违规位置 (lineno, name)。
+
+    - return 语句 / 多返回值包装层（如 `_load_shepherd` 直接 return 元组）不计入；
+    - 仅 `Assign` 且目标是 `Call` 的节点才算「直接消费点」。
+    """
+    out = []
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return out
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
+            continue
+        fn = node.value.func
+        name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
+        if name not in func_names:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Tuple) or len(target.elts) < 2:
+            out.append((node.lineno, name))
+    return out
+
+
 def test_callers_unpack_the_tuple():
     """所有直接消费点必须解包：写成 `df, meta = get_shepherd_indicators(...)`。
 
-    漏解包不会报错、只会静默降级，靠肉眼看不出来，故用 AST 在测试期拦住。
+    覆盖 app.py + scripts/daily_snapshot.py + pages/ 全部页面，以及返回 (df, meta) 的
+    姊妹函数 get_shepherd_indicators_range。漏解包不会报错、只会静默降级，靠肉眼看不出来，
+    故用 AST 在测试期拦住。
     """
     root = _project_root()
     for path in _guarded_files():
         rel = os.path.relpath(path, root)
         with open(path, "r", encoding="utf-8") as f:
-            tree = ast.parse(f.read())
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
-                continue
-            fn = node.value.func
-            name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
-            if name != "get_shepherd_indicators":
-                continue
-            target = node.targets[0]
-            assert isinstance(target, ast.Tuple), (
-                f"{rel}:{node.lineno} 未解包：get_shepherd_indicators 返回 (df, meta)，"
-                f"必须写成 `df, meta = ...`；否则 df 是元组、getattr(df,'empty',True) 恒为真"
-            )
-            assert len(target.elts) >= 2, f"{rel}:{node.lineno} 解包元素不足 2 个"
+            src = f.read()
+        violations = _violations_in_source(src, _GUARDED_FUNCS)
+        assert not violations, (
+            f"{rel} 存在未解包调用：{violations}。"
+            f"这些函数返回 (df, meta)，必须写成 `df, meta = ...`；"
+            f"否则 df 是元组、getattr(df,'empty',True) 恒为真，决策闭环被静默掐死。"
+        )
+
+
+def test_ast_guard_detects_single_assign_violation():
+    """守卫必须能抓出 `df = get_shepherd_indicators(...)` 这类历史事故写法。"""
+    bad = "def f():\n    df = get_shepherd_indicators(days=60)\n    return df\n"
+    violations = _violations_in_source(bad, _GUARDED_FUNCS)
+    assert violations, "守卫未能识别单赋值漏解包"
+    assert violations[0][1] == "get_shepherd_indicators"
+
+
+def test_ast_guard_detects_range_violation():
+    """姊妹函数 get_shepherd_indicators_range 同样必须解包，守卫不能漏。"""
+    bad = "def g():\n    df = get_shepherd_indicators_range(a, b)\n    return df\n"
+    violations = _violations_in_source(bad, _GUARDED_FUNCS)
+    assert violations and violations[0][1] == "get_shepherd_indicators_range"
+
+
+def test_ast_guard_ignores_proper_unpack_and_return():
+    """正确解包与 return 包装层不应误报。"""
+    good = (
+        "def h():\n"
+        "    df, meta = get_shepherd_indicators(days=60)\n"
+        "    return get_shepherd_indicators_range(s, e)\n"
+        "    df, mm = get_shepherd_indicators_range(s, e)\n"
+    )
+    assert not _violations_in_source(good, _GUARDED_FUNCS)
