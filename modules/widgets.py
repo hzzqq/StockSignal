@@ -549,13 +549,23 @@ def inject_global_widgets() -> None:
     render_topright_bar()
     inject_scroll_nav()
 _NAV_HERO = [('pages/54_今日决策面板.py', '今日决策面板', '🎯')]
+# 常用（高频直达）：默认 Top5 高频页（不含 Hero 已常驻的 54），用户无需扫描分组即可一键进入。
+# 后续可升级为基于 session_state 访问频率的动态 Top5（需 hook 跳转计数，暂用静态推荐）。
+_NAV_FAVORITES = [
+    ('pages/10_行情看板.py', '行情看板', '📺'),
+    ('pages/20_个股分析.py', '个股分析', '📊'),
+    ('pages/45_持仓中心.py', '持仓中心', '🏦'),
+    ('pages/30_策略回测.py', '策略回测', '⚙️'),
+    ('pages/32_智能选股.py', '智能选股', '🤖'),
+]
 _NAV_GROUPS = [
     ('📈 行情盯盘', [('pages/10_行情看板.py', '行情看板', '📺'), ('pages/14_智能盯盘.py', '智能盯盘', '👁️'), ('pages/35_资金流向.py', '资金流向', '🌊'), ('pages/51_每日晨报.py', '每日晨报', '🌅')]),
     ('🧩 板块结构', [('pages/12_板块轮动.py', '板块轮动', '🌈'), ('pages/17_市场魔方.py', '市场魔方', '🧊')]),
     ('🌐 市场宽度', [('pages/13_市场强弱.py', '市场强弱', '📶'), ('pages/15_市场驱动力.py', '市场驱动力', '🧲'), ('pages/50_市场情绪.py', '市场情绪', '🌡️'), ('pages/23_事件追踪.py', '事件追踪', '📡'), ('pages/16_财报日历.py', '财报日历', '📅')]),
     ('🔎 个股研究', [('pages/24_个股研究.py', '个股研究', '🔬'), ('pages/11_股票选取.py', '股票选取', '🔍', 'sub'), ('pages/20_个股分析.py', '个股分析', '📊', 'sub'), ('pages/21_多股对比.py', '多股对比', '⚖️'), ('pages/22_基本面分析.py', '基本面分析', '🏛️')]),
     ('🧪 量化选股', [('pages/32_智能选股.py', '智能选股', '🤖'), ('pages/31_形态选股.py', '形态选股', '🧭'), ('pages/33_ETF筛选.py', 'ETF筛选', '🧰'), ('pages/25_QuantAgent投研.py', 'QuantAgent投研', '🧠'), ('pages/30_策略回测.py', '策略回测', '⚙️'), ('pages/55_P1量化信号.py', 'P1量化信号', '🛰️')]),
-    ('💼 持仓交易', [('pages/45_持仓中心.py', '持仓中心', '🏦'), ('pages/40_仓位管理.py', '仓位管理', '🗂️', 'sub'), ('pages/41_组合收益.py', '组合收益', '💹', 'sub'), ('pages/46_自选股监控.py', '自选股监控', '⭐', 'sub'), ('pages/34_体检扫描.py', '体检扫描', '🩺'), ('pages/47_价格预警.py', '价格预警', '🚨'), ('pages/95_数据导出.py', '数据导出', '📤'), ('pages/42_模拟交易.py', '模拟交易', '🎮'), ('pages/43_实盘交易.py', '实盘交易', '💰'), ('pages/44_智能条件单.py', '智能条件单', '⏰')]),
+    ('💼 持仓交易', [('pages/45_持仓中心.py', '持仓中心', '🏦'), ('pages/40_仓位管理.py', '仓位管理', '🗂️', 'sub'), ('pages/41_组合收益.py', '组合收益', '💹', 'sub'), ('pages/46_自选股监控.py', '自选股监控', '⭐', 'sub'), ('pages/43_实盘交易.py', '实盘交易', '💰'), ('pages/42_模拟交易.py', '模拟交易', '🎮')]),
+    ('🛠 工具', [('pages/34_体检扫描.py', '体检扫描', '🩺'), ('pages/47_价格预警.py', '价格预警', '🚨'), ('pages/95_数据导出.py', '数据导出', '📤'), ('pages/44_智能条件单.py', '智能条件单', '⏰')]),
     ('💬 社区与 AI', [('pages/53_星辰AI.py', '星辰 AI', '🌟'), ('pages/52_股吧.py', '股吧', '💭'), ('pages/94_消息中心.py', '消息中心', '🔔')]),
 ]
 _NAV_ADMIN = [('pages/92_用户管理.py', '用户管理', '👥'), ('pages/93_系统配置.py', '系统配置', '🛠️')]
@@ -791,6 +801,10 @@ def render_sidebar_nav() -> None:
             _cur_label = _current_nav_label(_cur_base)
             if _cur_label:
                 st.caption(f'📍 当前位置：**{_cur_label}**')
+            # ⭐ 常用（高频直达区）：默认 Top5 高频页，不用扫分组即可一键进入
+            st.caption('⭐ 常用')
+            for _f_path, _f_label, _f_icon in _NAV_FAVORITES:
+                _nav_link(_f_path, _f_label, _f_icon)
             for gname, items in _filter_nav_groups(_NAV_GROUPS, _kw):
                 st.caption(gname)
                 for _it in items:

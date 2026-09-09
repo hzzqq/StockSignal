@@ -76,10 +76,10 @@ def test_current_basename_parses_path():
 
 
 def test_group_count_after_reorg():
-    """锐评重构后分组数收敛到 7（去单元素/合并单薄分组）。"""
+    """锐评重构后分组数收敛到 8（去单元素/合并单薄分组；R21 把超长『持仓交易』拆出『工具』子组）。"""
     from collections import Counter
     _names = [g for g, _ in w._NAV_GROUPS]
-    assert len(w._NAV_GROUPS) == 7, f"分组数应为 7，实际 {len(w._NAV_GROUPS)}: {_names}"
+    assert len(w._NAV_GROUPS) == 8, f"分组数应为 8，实际 {len(w._NAV_GROUPS)}: {_names}"
     # 已删除的反模式单元素/单薄分组不应再出现
     _forbidden = ['🎯 决策核心', '📘 新手引导', '💰 实盘 & 条件单', '🧪 策略工具', '💼 我的持仓']
     for f in _forbidden:
@@ -145,11 +145,37 @@ def test_personal_center_label():
 
 
 def test_group_order_mental_flow():
-    """分组顺序遵循用户心智流：行情→板块→宽度→个股研究→量化选股→持仓交易→社区与AI。"""
+    """分组顺序遵循用户心智流：行情→板块→宽度→个股研究→量化选股→持仓交易→工具→社区与AI。"""
     _order = [g for g, _ in w._NAV_GROUPS]
     _expected = ['📈 行情盯盘', '🧩 板块结构', '🌐 市场宽度', '🔎 个股研究',
-                 '🧪 量化选股', '💼 持仓交易', '💬 社区与 AI']
+                 '🧪 量化选股', '💼 持仓交易', '🛠 工具', '💬 社区与 AI']
     assert _order == _expected, f"分组顺序偏离心智流: {_order}"
+
+
+def test_hold_group_split_reduces_oversized():
+    """持仓交易拆出『工具』子组后，两组均符合 4-6 项封顶原则（不再有 10 项超长组）。"""
+    _by_group = {g: len(items) for g, items in w._NAV_GROUPS}
+    assert _by_group['💼 持仓交易'] <= 6, f"持仓交易应 ≤6 项，实际 {_by_group['💼 持仓交易']}"
+    assert _by_group['🛠 工具'] <= 6, f"工具应 ≤6 项，实际 {_by_group['🛠 工具']}"
+    assert _by_group['💼 持仓交易'] >= 4
+    assert _by_group['🛠 工具'] >= 4
+
+
+def test_tool_group_contains_expected_low_freq_items():
+    """『🛠 工具』组应包含低频工具类页面（体检/预警/导出/条件单），而非核心交易动作。"""
+    _tool_paths = {it[0].split('/')[-1] for g, items in w._NAV_GROUPS
+                   if g == '🛠 工具' for it in items}
+    for _p in ('34_体检扫描.py', '47_价格预警.py', '95_数据导出.py', '44_智能条件单.py'):
+        assert _p in _tool_paths, f"{_p} 应归入工具组"
+
+
+def test_favorites_present_and_reachable():
+    """⭐ 常用区默认 Top5 高频页，且每个都在 hero/分组中真实可达（不是悬空链接）。"""
+    _all_paths = {it[0].replace('\\', '/').split('/')[-1] for g, items in w._NAV_GROUPS for it in items}
+    _all_paths |= {it[0].replace('\\', '/').split('/')[-1] for it in w._NAV_HERO}
+    assert len(w._NAV_FAVORITES) == 5, "常用区应为 5 个高频页"
+    for _f in w._NAV_FAVORITES:
+        assert _f[0].replace('\\', '/').split('/')[-1] in _all_paths, f"{_f} 指向的页面不存在于导航"
 
 
 # ── 搜索框实验（R20）：按关键字实时过滤 _NAV_GROUPS ──
