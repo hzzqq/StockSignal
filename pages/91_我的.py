@@ -372,6 +372,16 @@ with col1:
 
 with col2:
     st.markdown("### 快捷入口")
+    # 打开方式开关：当前窗口（同标签跳转）/ 新窗口（浏览器新标签页，携带登录态不丢登录）
+    _open_mode = st.radio(
+        "打开方式",
+        options=["当前窗口", "新窗口"],
+        index=0,
+        horizontal=True,
+        key="my_open_mode",
+        help="新窗口：在浏览器新标签页打开目标页（URL 携带 token/user，登录态自动续接，不会掉登录）；当前窗口：同标签内跳转。",
+    )
+    _nav_mode = "new_window" if _open_mode == "新窗口" else "button"
     render_entry_cards([
         {'path': 'pages/10_行情看板.py', 'label': '行情看板', 'icon': '📈', 'desc': '大盘 / 板块 / 个股实时行情'},
         {'path': 'pages/45_持仓中心.py', 'label': '持仓中心', 'icon': '💼', 'desc': '自选池 / 持仓 / 收益归因', 'state': {'hub_cang_view': '💼 持仓'}},
@@ -379,7 +389,7 @@ with col2:
         {'path': 'pages/54_今日决策面板.py', 'label': '今日决策面板', 'icon': '🎯', 'desc': '情绪 → 仓位 → 复盘闭环'},
         {'path': 'pages/24_个股研究.py', 'label': '个股研究', 'icon': '🎯', 'desc': '快速选取 / 深度分析'},
         {'path': 'pages/30_策略回测.py', 'label': '策略回测', 'icon': '⚙️', 'desc': '选股 / 强势股批量回测'},
-    ], columns=3, nav_mode='button')
+    ], columns=3, nav_mode=_nav_mode)
 
 st.markdown("---")
 

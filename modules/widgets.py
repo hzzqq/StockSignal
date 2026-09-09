@@ -597,7 +597,27 @@ def _current_nav_label(basename: str) -> str:
     return ''
 
 
-def render_entry_cards(cards: list, columns: int = 3, active_label: str = None, nav_mode: str = "page_link") -> None:
+def _new_window_href(path: str) -> str:
+    """构造在「新窗口 / 新标签页」打开目标页的 URL，并携带当前 query_params（token/user/偏好）。
+
+    关键：本 app 登录态存于 URL query_params（见 modules/session.py，F5/导航都靠它保登录），
+    只要把当前 query_params 一并带过去，新标签页加载时 init_session_state() 即可从 query_params
+    恢复登录态，**不会掉登录**（此前顾虑的「新窗口登录态闪」由此规避）。
+    """
+    try:
+        try:
+            _d = dict(st.query_params)
+        except Exception:
+            _d = {_k: st.query_params[_k] for _k in list(st.query_params.keys())}
+        _d["page"] = path
+        from urllib.parse import urlencode
+        return "?" + urlencode(_d, doseq=True)
+    except Exception:
+        return f"?page={path}"
+
+
+def render_entry_cards(cards: list, columns: int = 3, active_label: str = None,
+                       nav_mode: str = "page_link", show_new_window: bool = True) -> None:
     """渲染一组高级入口卡片（图标 + 标题 + 描述），点击进入对应页面。
 
     用于把「隐藏页 / 合并页子视图」的入口做得更醒目、更高级（替代朴素按钮 / 单链接）。
@@ -613,6 +633,9 @@ def render_entry_cards(cards: list, columns: int = 3, active_label: str = None, 
     - nav_mode:
         'page_link'（默认）→ st.page_link 同标签内跳转（标准 multipage 路由，登录态自动续接）
         'button'     → st.button + safe_switch_page，支持 card['state'] 预置（如从『我的』进持仓中心前预选『持仓』）
+        'new_window' → 卡片主操作为「↗ 新窗口打开」（裸 <a target="_blank"> 新标签页，携带 query_params 保登录）
+    - show_new_window: 在 page_link/button 模式下，卡片额外渲染一个「↗ 新窗口」小链接（与默认导航并存，加法式），
+        点击在新标签页打开且携带当前 token/user 不会掉登录。默认开启；传 False 可关闭。
 
     卡片用 st.container(border=True) 包裹，天然高级卡片外观，无需自定义 CSS。
     """
@@ -629,7 +652,17 @@ def render_entry_cards(cards: list, columns: int = 3, active_label: str = None, 
                     _icon = _card.get("icon", "🔗")
                     _path = _card.get("path", "")
                     _active = (active_label is not None and _label == active_label)
-                    if nav_mode == "button":
+                    if nav_mode == "new_window":
+                        _href = _new_window_href(_path)
+                        st.markdown(
+                            f'<a href="{_href}" target="_blank" rel="noopener noreferrer" '
+                            f'style="text-decoration:none;font-weight:600;font-size:15px;color:#5b8def;">'
+                            f'{_icon} {_label} ↗</a>',
+                            unsafe_allow_html=True,
+                        )
+                        if _active:
+                            st.success("✓ 当前视图")
+                    elif nav_mode == "button":
                         if st.button(
                             f"{_icon} {_label}",
                             key=f"ec_btn_{_label}",
@@ -651,8 +684,16 @@ def render_entry_cards(cards: list, columns: int = 3, active_label: str = None, 
                     _desc = _card.get("desc")
                     if _desc:
                         st.caption(_desc)
-                    if _active:
+                    if _active and nav_mode != "new_window":
                         st.success("✓ 当前视图")
+                    # 加法式：新窗口快捷入口（与默认导航并存，不替换；new_window 模式本身已是新窗口故跳过）
+                    if show_new_window and nav_mode != "new_window" and _path:
+                        _href = _new_window_href(_path)
+                        st.markdown(
+                            f'<a href="{_href}" target="_blank" rel="noopener noreferrer" '
+                            f'style="font-size:12px;color:#5b8def;text-decoration:none;">↗ 新窗口打开</a>',
+                            unsafe_allow_html=True,
+                        )
 
 
 def render_sidebar_nav() -> None:
