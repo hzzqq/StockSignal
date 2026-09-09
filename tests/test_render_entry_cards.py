@@ -73,3 +73,43 @@ def test_page_link_mode_adds_new_window_affordance():
         assert "新窗口打开" in joined, "未出现『↗ 新窗口打开』文案"
     finally:
         os.remove(path)
+
+
+# ── 45_持仓中心 试点：三张子模块卡整体走 new_window ──
+_HUB_CARDS_SRC = textwrap.dedent("""
+    import streamlit as st
+    from modules.widgets import render_entry_cards
+    render_entry_cards([
+        {"path": "pages/46_自选股监控.py", "label": "⭐ 自选池", "icon": "⭐", "desc": "自选股实时行情 / 股票池管理"},
+        {"path": "pages/40_仓位管理.py", "label": "💼 持仓", "icon": "💼", "desc": "持仓盈亏 / 导入导出"},
+        {"path": "pages/41_组合收益.py", "label": "📈 收益归因", "icon": "📈", "desc": "净值曲线 / 基准对比 / 收益贡献"},
+    ], columns=3, nav_mode="new_window")
+""")
+
+
+def test_hub_45_cards_use_new_window():
+    """45_持仓中心 试点：三个子模块入口卡片整体走 new_window（target=_blank 且各带 page= 目标）。"""
+    fd, path = tempfile.mkstemp(suffix=".py", dir=_PROJECT_ROOT)
+    os.write(fd, _HUB_CARDS_SRC.encode("utf-8"))
+    os.close(fd)
+    try:
+        at = AppTest.from_file(path, default_timeout=60)
+        try:
+            at.query_params["auth_token"] = "dummy.jwt.token"
+            at.query_params["auth_user"] = "demo"
+        except Exception:
+            pass
+        at.run()
+        from urllib.parse import unquote
+        joined = " ".join(getattr(w, "value", "") for w in at.markdown)
+        joined_dec = unquote(joined)  # href 中文文件名被 URL 编码，解码后比对
+        # 三张子模块卡均为新窗口链接
+        assert joined.count('target="_blank"') >= 3, f"应有 ≥3 个新窗口链接，实际 {joined.count('target=\"_blank\"')}"
+        for sub in ("46_自选股监控", "40_仓位管理", "41_组合收益"):
+            assert f"page=pages/{sub}" in joined_dec, \
+                f"子模块 {sub} 未出现在新窗口 href 中"
+        # 登录态必须随 href 带走，否则新标签页掉登录
+        assert "auth_token" in joined, "新窗口链接未携带 auth_token"
+    finally:
+        os.remove(path)
+
