@@ -13,7 +13,10 @@ import tempfile
 import pandas as pd
 import pytest
 
-from modules.shepherd_reconstruct import _enrich_zt_from_cache, _board_limit_pct, _atomic_to_csv, _atomic_json_dump, _detect_limit
+from modules.shepherd_reconstruct import (
+    _enrich_zt_from_cache, _board_limit_pct, _atomic_to_csv, _atomic_json_dump,
+    _detect_limit, _aggregate_frames, _normalize_daily, _AGG_SPEC, reconstruct_breadth,
+)
 
 
 def _write_cache(cache_dir, name, rows):
@@ -193,3 +196,112 @@ def test_detect_limit_board_aware_main_and_bse():
     # 北交所 +20%（未到 30% 板）不判涨停
     bse_mid = _row(10.0, 12.0, 12.0, 11.0)
     assert _detect_limit(bse_mid, 0.30) == (0, 0, 0, 0)
+
+
+# ---------------------------------------------------------------------------
+# R24 离线回归网：补全 _aggregate_frames / _normalize_daily / reconstruct_breadth
+# 离线缓存主路径（之前仅覆盖了 _enrich_zt_from_cache / _board_limit_pct 等）。
+# 目的：用合成数据锁死重构核心行为，不改网络即可抓出回归。
+# ---------------------------------------------------------------------------
+
+def test_aggregate_frames_sums_and_stats():
+    """跨股横截面聚合：家数求和 + 中位数涨跌幅 + 均值股价 + 红盘率。"""
+    f1 = pd.DataFrame({
+        "date": ["2024-01-02", "2024-01-03"],
+        "up_count": [1, 0], "down_count": [0, 1], "flat_count": [0, 0],
+        "limit_up": [1, 0], "limit_down": [0, 1], "touch_down": [0, 0],
+        "zt_fail_count": [0, 1], "hb_wave10": [0, 1],
+        "change_pct": [5.0, -3.0], "close": [12.0, 11.0],
+    })
+    f2 = pd.DataFrame({
+        "date": ["2024-01-02", "2024-01-03"],
+        "up_count": [0, 1], "down_count": [1, 0], "flat_count": [0, 0],
+        "limit_up": [0, 1], "limit_down": [1, 0], "touch_down": [0, 0],
+        "zt_fail_count": [1, 0], "hb_wave10": [1, 0],
+        "change_pct": [2.0, 4.0], "close": [10.0, 13.0],
+    })
+    out = _aggregate_frames([f1, f2])
+    dates = pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d").tolist()
+    assert dates == ["2024-01-02", "2024-01-03"]
+    r0 = out.iloc[0]  # 01-02：两股一涨一跌（互换）
+    assert r0["up_count"] == 1 and r0["down_count"] == 1
+    assert r0["limit_up"] == 1 and r0["limit_down"] == 1
+    assert r0["zt_fail_count"] == 1 and r0["hb_wave10"] == 1
+    # median(5.0, 2.0)=3.5 ; mean(12.0, 10.0)=11.0
+    assert abs(r0["median_chg"] - 3.5) < 1e-6
+    assert abs(r0["avg_price"] - 11.0) < 1e-6
+    # 红盘率 = up/(up+down)*100 = 50
+    assert abs(r0["red_ratio"] - 50.0) < 1e-6
+    r1 = out.iloc[1]  # 01-03：一跌一涨
+    assert r1["up_count"] == 1 and r1["down_count"] == 1
+    assert abs(r1["median_chg"] - 0.5) < 1e-6   # median(-3.0, 4.0)
+    assert abs(r1["avg_price"] - 12.0) < 1e-6   # mean(11.0, 13.0)
+
+
+def test_aggregate_frames_empty_input():
+    """空输入返回空 DataFrame，但列 schema 必须完整（防回归列结构崩坏）。"""
+    out = _aggregate_frames([])
+    assert out.empty
+    expected_cols = ["date"] + list(_AGG_SPEC.keys()) + ["red_ratio"]
+    for c in expected_cols:
+        assert c in out.columns
+
+
+def test_normalize_daily_prev_close_and_dropna():
+    """新浪日线标准化：prev_close 取上一日 close；过滤缺 date/close 行；不足 2 行返回 None。"""
+    raw = pd.DataFrame({
+        "date": ["2024-01-01", "2024-01-02", "2024-01-03"],
+        "open": [10.0, 10.5, 11.0],
+        "high": [10.5, 11.0, 11.5],
+        "low": [9.8, 10.2, 10.8],
+        "close": [10.2, 11.0, 11.3],
+        "volume": [1000, 1100, 1200],
+    })
+    out = _normalize_daily(raw)
+    assert out is not None
+    # 首日 prev_close 为 NaN 被丢弃 → 剩 2 行
+    assert len(out) == 2
+    assert pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d").tolist() == \
+        ["2024-01-02", "2024-01-03"]
+    # prev_close 取上一日 close
+    assert abs(out["prev_close"].iloc[0] - 10.2) < 1e-6
+    assert abs(out["prev_close"].iloc[1] - 11.0) < 1e-6
+
+
+def test_normalize_daily_invalid_returns_none():
+    """非法输入（None / 单行）必须返回 None，不应抛异常或返回空壳。"""
+    assert _normalize_daily(None) is None
+    short = pd.DataFrame({"date": ["2024-01-01"], "close": [10.0]})
+    assert _normalize_daily(short) is None
+
+
+def test_reconstruct_breadth_reads_cache_offline(monkeypatch):
+    """断点续跑主路径：缓存全命中时完全不联网，直接从缓存聚合出横截面。
+    用 monkeypatch 把模块级 _CACHE_DIR 指到临时目录，避免污染真实 data/。
+    """
+    tmp = tempfile.mkdtemp()
+    monkeypatch.setattr("modules.shepherd_reconstruct._CACHE_DIR", tmp)
+    # 写两只「已聚合」缓存（与 _aggregate_cached 落盘 schema 一致）
+    pd.DataFrame({
+        "date": ["2024-03-01", "2024-03-02"],
+        "up_count": [1, 0], "down_count": [0, 1], "flat_count": [0, 0],
+        "limit_up": [1, 0], "limit_down": [0, 1], "touch_up": [1, 0], "touch_down": [0, 0],
+        "zt_fail_count": [0, 1], "hb_wave10": [0, 1],
+        "change_pct": [5.0, -3.0], "close": [12.0, 11.0],
+    }).to_csv(os.path.join(tmp, "600000.csv"), index=False)
+    pd.DataFrame({
+        "date": ["2024-03-01", "2024-03-02"],
+        "up_count": [0, 1], "down_count": [1, 0], "flat_count": [0, 0],
+        "limit_up": [0, 1], "limit_down": [1, 0], "touch_up": [0, 1], "touch_down": [0, 0],
+        "zt_fail_count": [1, 0], "hb_wave10": [1, 0],
+        "change_pct": [2.0, 4.0], "close": [10.0, 13.0],
+    }).to_csv(os.path.join(tmp, "000001.csv"), index=False)
+
+    out = reconstruct_breadth("2024-03-01", "2024-03-02",
+                              symbols=["600000", "000001"], use_cache=True)
+    assert not out.empty
+    # 两日，每日各 1 涨 1 跌
+    assert len(out) == 2
+    for _, r in out.iterrows():
+        assert r["up_count"] == 1 and r["down_count"] == 1
+        assert abs(r["red_ratio"] - 50.0) < 1e-6
