@@ -62,8 +62,7 @@ render_entry_cards([
     {'path': 'pages/46_自选股监控.py', 'label': '⭐ 自选池', 'icon': '⭐', 'desc': '自选股实时行情 / 股票池管理'},
     {'path': 'pages/40_仓位管理.py', 'label': '💼 持仓', 'icon': '💼', 'desc': '持仓盈亏 / 导入导出'},
     {'path': 'pages/41_组合收益.py', 'label': '📈 收益归因', 'icon': '📈', 'desc': '净值曲线 / 基准对比 / 收益贡献'},
-], columns=3, active_label=_view, nav_mode='new_window')
-st.caption("💡 卡片点击在**新标签页**打开对应子模块完整版（独立导航、保留本页）；上方分段用于原地快速切换。")
+], columns=3, active_label=_view)
 st.caption(f"📍 当前：持仓中心 › **{_view}**")
 if st.button('🔄 刷新', key='hub_manual_refresh'):
     st.rerun()

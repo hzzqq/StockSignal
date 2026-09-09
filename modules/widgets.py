@@ -620,7 +620,7 @@ def _new_window_href(path: str) -> str:
 
 
 def render_entry_cards(cards: list, columns: int = 3, active_label: str = None,
-                       nav_mode: str = "page_link", show_new_window: bool = True) -> None:
+                       nav_mode: str = "page_link", show_new_window: bool = False) -> None:
     """渲染一组高级入口卡片（图标 + 标题 + 描述），点击进入对应页面。
 
     用于把「隐藏页 / 合并页子视图」的入口做得更醒目、更高级（替代朴素按钮 / 单链接）。
@@ -714,24 +714,16 @@ def render_sidebar_nav() -> None:
     def _nav_link(path: str, label: str, icon: str, sub: bool = False) -> None:
         """渲染单个导航项；page_link 在无浏览器 URL 上下文（如 AppTest headless）
         会抛 KeyError('url_pathname')，降级为按钮，避免整页崩溃。当前页高亮。
-        sub=True 时渲染为合并页（hub）的子项：缩进 + ↳，直观表达『该页内嵌于上方 hub』层级。"""
+
+        sub 仅作为数据层级的语义标记（供 _current_nav_label / 测试识别父子关系），
+        渲染与常规项完全一致：均走 st.page_link 原生同标签页跳转，绝不弹新窗口、不破坏排版。
+        """
         try:
             is_active = bool(_cur_base) and _cur_base == path.replace('\\', '/').split('/')[-1]
         except Exception:
             is_active = False
-        _indent = '&nbsp;&nbsp;' if sub else ''
-        _prefix = '↳ ' if sub else ''
         if is_active:
-            st.markdown(f'<div class="ss-nav-active">{_indent}▶ {icon} {_prefix}{label}</div>', unsafe_allow_html=True)
-            return
-        if sub:
-            # 子项用裸 <a> 同标签页跳转（携带 query_params 保登录），并缩进表达层级
-            _href = _new_window_href(path)
-            st.markdown(
-                f'<a href="{_href}" style="text-decoration:none;display:block;padding-left:14px;'
-                f'opacity:.92;font-size:13px;">{_prefix}{icon} {label}</a>',
-                unsafe_allow_html=True,
-            )
+            st.markdown(f'<div class="ss-nav-active">▶ {icon} {label}</div>', unsafe_allow_html=True)
             return
         try:
             st.page_link(path, label=label, icon=icon)
