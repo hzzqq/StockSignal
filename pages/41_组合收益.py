@@ -70,6 +70,7 @@ def _build_portfolio_series(positions):
 
     # 加法式性能优化：原实现按持仓逐只串行拉取日线（持仓多时明显变慢）。
     # 改用线程池并行取数；线程内不共享可变状态，结果在主线程统一 merge，线程安全。
+    # series 结构：{date: 组合当日市值}；跨持仓同日期必须累加（不能用 dict.update 覆盖，会丢失其它持仓贡献）。
     series = {}
     _tasks = []
     for _, row in positions.iterrows():
@@ -82,13 +83,14 @@ def _build_portfolio_series(positions):
         with ThreadPoolExecutor(max_workers=min(8, len(_tasks))) as _ex:
             _futs = {_ex.submit(_fetch_position_series, t, r, start_str, end_str): t for t, r in _tasks}
             for _fut in as_completed(_futs):
-                series.update(_fut.result())
+                for _d, _v in _fut.result().items():
+                    series[_d] = series.get(_d, 0.0) + _v
 
     if not series:
         return None, None, start_str
 
-    pdict = {d: sum(v.values()) for d, v in series.items()}
-    pidx = pd.Series(pdict, name="组合").sort_index()
+    # 注意：series 的值已是「跨持仓累加后的当日组合市值」(float)，直接构造时序，勿再对 v 调 .values()。
+    pidx = pd.Series(series, name="组合").sort_index()
     pidx = pidx[pidx > 0]
     if len(pidx) < 2:
         return None, None, start_str
