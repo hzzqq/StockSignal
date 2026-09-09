@@ -216,4 +216,33 @@ StockSignal/
 
 Made with ❤️ by [hzzqq](https://github.com/hzzqq) · 一个 A 股事件驱动的业余项目
 
+---
+
+## 🏗️ 架构
+
+```mermaid
+flowchart TB
+    U[用户 / 浏览器] --> FE[Streamlit 前端 :8501<br/>多页应用]
+    subgraph 前端模块
+      FE --> M1[行情看板 / 板块详情]
+      FE --> M2[事件追踪 / 个股·多股分析]
+      FE --> M3[策略回测 Backtrader]
+      FE --> M4[持仓管理 UI]
+      FE --> M5[牧羊人市场情绪 · 8 项指标]
+    end
+    FE -->|HTTP / JSON| BE[Flask 后端 :5050]
+    subgraph 数据层
+      BE --> GW[数据网关 · 4 源自动降级]
+      GW --> A1[akshare]
+      GW --> A2[baostock]
+      GW --> A3[tushare]
+      GW --> A4[westock-mcp · 腾讯自选股]
+      GW --> CACHE[(SQLite 本地缓存)]
+    end
+    BE --> SIG[信号计算 / 牧羊人指标体系]
+    SIG --> CACHE
+```
+
+> 设计要点：**前后端分离**（Streamlit 8501 + Flask 5050），数据层做多源 fallback + SQLite 本地缓存，任意单源失效不拖垮全站；牧羊人指标体系统一收敛市场情绪。
+
 </div>
