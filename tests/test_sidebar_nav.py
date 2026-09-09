@@ -73,3 +73,81 @@ def test_current_basename_parses_path():
 
     with patch('streamlit.runtime.scriptrunner.get_script_run_ctx', lambda: FakeCtx()):
         assert w._current_page_basename() == '54_今日决策面板.py'
+
+
+def test_group_count_after_reorg():
+    """锐评重构后分组数收敛到 7（去单元素/合并单薄分组）。"""
+    from collections import Counter
+    _names = [g for g, _ in w._NAV_GROUPS]
+    assert len(w._NAV_GROUPS) == 7, f"分组数应为 7，实际 {len(w._NAV_GROUPS)}: {_names}"
+    # 已删除的反模式单元素/单薄分组不应再出现
+    _forbidden = ['🎯 决策核心', '📘 新手引导', '💰 实盘 & 条件单', '🧪 策略工具', '💼 我的持仓']
+    for f in _forbidden:
+        assert f not in _names, f"反模式分组仍残留: {f}"
+
+
+def test_hero_is_decision_panel():
+    """顶部 Hero 入口为决策面板（54），体现决策闭环主线。"""
+    assert len(w._NAV_HERO) == 1
+    assert w._NAV_HERO[0][0] == 'pages/54_今日决策面板.py'
+    assert w._NAV_HERO[0][1] == '今日决策面板'
+
+
+def test_sub_item_hierarchy():
+    """合并页子项以 4 元组 sub 标记：11/20 是 24 子项，40/41/46 是 45 子项。"""
+    _subs = {}
+    for _g, _items in w._NAV_GROUPS:
+        for _it in _items:
+            if len(_it) >= 4 and _it[3] == 'sub':
+                _subs.setdefault(_g, []).append(_it[0].split('/')[-1])
+    # 个股研究 分组下应有 11/20 两个 sub
+    _g_indiv = [g for g, _ in w._NAV_GROUPS if '个股研究' in g][0]
+    assert '11_股票选取.py' in _subs.get(_g_indiv, [])
+    assert '20_个股分析.py' in _subs.get(_g_indiv, [])
+    # 持仓交易 分组下应有 40/41/46 三个 sub
+    _g_hold = [g for g, _ in w._NAV_GROUPS if '持仓交易' in g][0]
+    for _p in ['40_仓位管理.py', '41_组合收益.py', '46_自选股监控.py']:
+        assert _p in _subs.get(_g_hold, []), f"{_p} 应标记为 45 子项"
+
+
+def test_icon_global_uniqueness():
+    """所有导航图标（分组头 + Hero + item + admin）全局唯一，无撞车。"""
+    _icons = []
+    for _g, _items in w._NAV_GROUPS:
+        _icons.append(_g.split()[0])  # 分组头图标
+        for _it in _items:
+            _icons.append(_it[2])
+    for _it in getattr(w, '_NAV_HERO', []):
+        _icons.append(_it[2])
+    for _it in w._NAV_ADMIN:
+        _icons.append(_it[2])
+    _dup = [k for k, v in __import__('collections').Counter(_icons).items() if v > 1]
+    assert not _dup, f"图标撞车: {_dup}"
+
+
+def test_no_duplicate_paths():
+    """任一页面路径在 hero + 各分组中至多出现一次（无重复登记）。"""
+    from collections import Counter
+    _paths = []
+    for _g, _items in w._NAV_GROUPS:
+        for _it in _items:
+            _paths.append(_it[0].replace('\\', '/'))
+    for _it in getattr(w, '_NAV_HERO', []):
+        _paths.append(_it[0].replace('\\', '/'))
+    _dup = [k for k, v in Counter(_paths).items() if v > 1]
+    assert not _dup, f"路径重复登记: {_dup}"
+
+
+def test_personal_center_label():
+    """91_我的 标签已统一为『个人中心』，与分组命名解耦。"""
+    assert w._current_nav_label('91_我的.py') == '个人中心'
+    assert w._current_nav_label('pages/91_我的.py') == '个人中心'
+
+
+def test_group_order_mental_flow():
+    """分组顺序遵循用户心智流：行情→板块→宽度→个股研究→量化选股→持仓交易→社区与AI。"""
+    _order = [g for g, _ in w._NAV_GROUPS]
+    _expected = ['📈 行情盯盘', '🧩 板块结构', '🌐 市场宽度', '🔎 个股研究',
+                 '🧪 量化选股', '💼 持仓交易', '💬 社区与 AI']
+    assert _order == _expected, f"分组顺序偏离心智流: {_order}"
+
