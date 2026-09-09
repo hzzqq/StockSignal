@@ -28,6 +28,7 @@ from __future__ import annotations
 import concurrent.futures as cf
 import logging
 import os
+import shutil
 import time
 from typing import Optional
 
@@ -636,9 +637,47 @@ def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
     return breadth
 
 
-def save_history(df: pd.DataFrame, path: Optional[str] = None) -> str:
+# 防覆盖护栏：重跑（尤其缓存残化成 6 行 stub 时）若输出行数远低于已存在的好表，
+# 默认拒绝覆盖，避免把 4094 行真实历史覆盖成 6 行且因 .gitignore 不可恢复。
+_BREADTH_OVERWRITE_GUARD_RATIO = 0.5  # 新表行数 < 现有表 * 0.5 视为异常退化
+
+
+def _existing_row_count(path: str) -> int:
+    """返回已有 CSV 的数据行数（不含表头）；文件不存在/读取异常返回 0。"""
+    if not os.path.exists(path):
+        return 0
+    try:
+        return int(pd.read_csv(path, usecols=[0], encoding="utf-8-sig").shape[0])
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def save_history(df: pd.DataFrame, path: Optional[str] = None, force: bool = False) -> str:
     path = path or _BREADTH_FILE
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    # ⚠️ 防覆盖护栏：仅对主表（_BREADTH_FILE）生效。
+    # 场景：shepherd_cache_v2 已被覆盖成每只股票仅 6 行近期残缓存，此时盲跑
+    # build_shepherd_history(reconstruct=True) 会把 4094 行真实历史覆盖成 6 行，
+    # 且 data/ 被 .gitignore 忽略、不可 git 恢复。故默认拒绝，除非显式 force。
+    if os.path.abspath(path) == os.path.abspath(_BREADTH_FILE) and os.path.exists(path):
+        existing = _existing_row_count(path)
+        degraded = existing > 0 and (len(df) == 0 or len(df) < existing * _BREADTH_OVERWRITE_GUARD_RATIO)
+        if degraded:
+            msg = (
+                f"[shepherd_reconstruct] 防覆盖护栏触发：新表 {len(df)} 行 < 现有好表 {existing} 行 × "
+                f"{_BREADTH_OVERWRITE_GUARD_RATIO}。疑似缓存残化/数据源历史退化，已拒绝覆盖真实历史。"
+                "如确要在联网机器重跑补全，请传 force=True；重跑前请务必先手动备份现有好表。"
+            )
+            if not force:
+                logger.error(msg)
+                raise RuntimeError(msg)
+            # force 模式：先备份现有好表，再覆盖（绝不静默丢数据）
+            bak = path + ".bak-before-rerun"
+            try:
+                shutil.copy2(path, bak)
+                logger.warning("[shepherd_reconstruct] force 模式：已备份现有好表到 %s", bak)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("[shepherd_reconstruct] 备份现有好表失败（仍继续覆盖）: %s", e)
     # ⚠️ 原子写：全量重算（5548 只股票）落盘期间若被 shepherd_note.analyze_history
     # 并发读取，直接 to_csv 会让对方读到半截文件。先写临时文件再 os.replace。
     # 保持原有 utf-8-sig：本文件是 breadth 历史主档，下游按 BOM 头读取。

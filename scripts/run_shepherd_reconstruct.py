@@ -23,6 +23,9 @@ def main():
     parser.add_argument("--end", default=None, help="结束日 YYYY-MM-DD（默认今天）")
     parser.add_argument("--workers", type=int, default=10, help="多进程 worker 数")
     parser.add_argument("--no-reconstruct", action="store_true", help="跳过全 A 重构，仅合并近期 zt_pool")
+    parser.add_argument("--force", action="store_true",
+                        help="跳过防覆盖护栏：仅在联网机器重跑补全时、且已手动备份好表后使用；"
+                             "会先把现有好表备份为 shepherd_history.csv.bak-before-rerun 再覆盖")
     args = parser.parse_args()
 
     t0 = time.time()
@@ -31,7 +34,7 @@ def main():
         end_date=args.end,
         reconstruct=not args.no_reconstruct,
     )
-    path = save_history(df)
+    path = save_history(df, force=args.force)
     elapsed = time.time() - t0
 
     logging.info("[run_shepherd_reconstruct] 完成：%d 行 -> %s，耗时 %.1fs", len(df), path, elapsed)
