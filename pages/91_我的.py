@@ -17,6 +17,7 @@ from modules.ui_theme import sf_card, sf_metric
 
 # 安全解析字体档位在选项列表中的下标；legacy 值不在选项中时回退到默认档位，避免 .index() 抛 ValueError。
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.widgets import render_entry_cards
 def _resolve_font_index(value, font_opts, default):
     keys = list(font_opts.keys())
     if value in keys:
@@ -371,17 +372,14 @@ with col1:
 
 with col2:
     st.markdown("### 快捷入口")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        if st.button("📈 行情看板", width="stretch"):
-            safe_switch_page("pages/10_行情看板.py")
-    with c2:
-        if st.button("💼 持仓中心", width="stretch"):
-            st.session_state["hub_cang_view"] = "💼 持仓"
-            safe_switch_page("pages/45_持仓中心.py")
-    with c3:
-        if st.button("🔔 事件追踪", width="stretch"):
-            safe_switch_page("pages/23_事件追踪.py")
+    render_entry_cards([
+        {'path': 'pages/10_行情看板.py', 'label': '行情看板', 'icon': '📈', 'desc': '大盘 / 板块 / 个股实时行情'},
+        {'path': 'pages/45_持仓中心.py', 'label': '持仓中心', 'icon': '💼', 'desc': '自选池 / 持仓 / 收益归因', 'state': {'hub_cang_view': '💼 持仓'}},
+        {'path': 'pages/23_事件追踪.py', 'label': '事件追踪', 'icon': '🔔', 'desc': '利好 / 利空事件信号'},
+        {'path': 'pages/54_今日决策面板.py', 'label': '今日决策面板', 'icon': '🎯', 'desc': '情绪 → 仓位 → 复盘闭环'},
+        {'path': 'pages/24_个股研究.py', 'label': '个股研究', 'icon': '🎯', 'desc': '快速选取 / 深度分析'},
+        {'path': 'pages/30_策略回测.py', 'label': '策略回测', 'icon': '⚙️', 'desc': '选股 / 强势股批量回测'},
+    ], columns=3, nav_mode='button')
 
 st.markdown("---")
 

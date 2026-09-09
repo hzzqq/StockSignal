@@ -539,7 +539,7 @@ def inject_global_widgets() -> None:
 _NAV_GROUPS = [
     ('🎯 决策核心', [('pages/54_今日决策面板.py', '今日决策面板', '🎯')]),
     ('📘 新手引导', [('pages/96_新手教程.py', '新手教程', '📘')]),
-    ('📊 市场纵览', [('pages/51_每日晨报.py', '每日晨报', '🌅'), ('pages/10_行情看板.py', '行情看板', '📈'), ('pages/15_市场驱动力.py', '市场驱动力', '🧲'), ('pages/14_智能盯盘.py', '智能盯盘', '👁️'), ('pages/35_资金流向.py', '资金流向', '🌊'), ('pages/23_事件追踪.py', '事件追踪', '📡'), ('pages/16_财报日历.py', '财报日历', '📅'), ('pages/12_板块轮动.py', '板块轮动', '🌈'), ('pages/50_市场情绪.py', '市场情绪', '🌡️'), ('pages/13_市场强弱.py', '市场强弱', '📊')]),
+    ('📊 市场纵览', [('pages/51_每日晨报.py', '每日晨报', '🌅'), ('pages/10_行情看板.py', '行情看板', '📈'), ('pages/15_市场驱动力.py', '市场驱动力', '🧲'), ('pages/14_智能盯盘.py', '智能盯盘', '👁️'), ('pages/35_资金流向.py', '资金流向', '🌊'), ('pages/23_事件追踪.py', '事件追踪', '📡'), ('pages/16_财报日历.py', '财报日历', '📅'), ('pages/12_板块轮动.py', '板块轮动', '🌈'), ('pages/17_市场魔方.py', '市场魔方', '🧊'), ('pages/50_市场情绪.py', '市场情绪', '🌡️'), ('pages/13_市场强弱.py', '市场强弱', '📊')]),
     ('🔎 选股研究', [('pages/24_个股研究.py', '个股研究', '🎯'), ('pages/31_形态选股.py', '形态选股', '🧭'), ('pages/32_智能选股.py', '智能选股', '🤖'), ('pages/22_基本面分析.py', '基本面分析', '🏛️'), ('pages/21_多股对比.py', '多股对比', '📊'), ('pages/11_股票选取.py', '股票选取', '🔍'), ('pages/20_个股分析.py', '个股分析', '📈'), ('pages/25_QuantAgent投研.py', 'QuantAgent投研', '🧠'), ('pages/33_ETF筛选.py', 'ETF筛选', '🧰')]),
     ('💼 我的持仓', [('pages/45_持仓中心.py', '持仓中心', '💼'), ('pages/40_仓位管理.py', '仓位管理', '📊'), ('pages/41_组合收益.py', '组合收益', '📈'), ('pages/46_自选股监控.py', '自选股监控', '⭐'), ('pages/34_体检扫描.py', '体检扫描', '🩺'), ('pages/47_价格预警.py', '价格预警', '🚨'), ('pages/95_数据导出.py', '数据导出', '📤'), ('pages/42_模拟交易.py', '模拟交易', '🎮')]),
     ('🧪 策略工具', [('pages/30_策略回测.py', '策略回测', '⚙️'), ('pages/55_P1量化信号.py', 'P1量化信号', '📡')]),
@@ -595,6 +595,64 @@ def _current_nav_label(basename: str) -> str:
     if basename == 'pages/91_我的.py' or basename == '91_我的.py':
         return '我的'
     return ''
+
+
+def render_entry_cards(cards: list, columns: int = 3, active_label: str = None, nav_mode: str = "page_link") -> None:
+    """渲染一组高级入口卡片（图标 + 标题 + 描述），点击进入对应页面。
+
+    用于把「隐藏页 / 合并页子视图」的入口做得更醒目、更高级（替代朴素按钮 / 单链接）。
+
+    - cards: [{'path':..., 'label':..., 'icon':..., 'desc':..., 'state':...}, ...]
+        * path   目标页面文件（pages/xx.py）
+        * label  卡片标题
+        * icon   图标（emoji）
+        * desc   可选一行描述
+        * state  可选 dict：跳转前预置到 st.session_state（如预选合并页子视图）
+    - columns: 每行卡片数（默认 3）
+    - active_label: 合并页当前子视图标题，匹配则高亮该卡片（防迷路）
+    - nav_mode:
+        'page_link'（默认）→ st.page_link 同标签内跳转（标准 multipage 路由，登录态自动续接）
+        'button'     → st.button + safe_switch_page，支持 card['state'] 预置（如从『我的』进持仓中心前预选『持仓』）
+
+    卡片用 st.container(border=True) 包裹，天然高级卡片外观，无需自定义 CSS。
+    """
+    if not cards:
+        return
+    _cols = max(1, min(int(columns), len(cards)))
+    for _i in range(0, len(cards), _cols):
+        _row = cards[_i:_i + _cols]
+        _grid = st.columns(_cols)
+        for _c, _card in zip(_grid, _row):
+            with _c:
+                with st.container(border=True):
+                    _label = _card.get("label", "")
+                    _icon = _card.get("icon", "🔗")
+                    _path = _card.get("path", "")
+                    _active = (active_label is not None and _label == active_label)
+                    if nav_mode == "button":
+                        if st.button(
+                            f"{_icon} {_label}",
+                            key=f"ec_btn_{_label}",
+                            use_container_width=True,
+                            type="primary" if _active else "secondary",
+                        ):
+                            _st = _card.get("state")
+                            if isinstance(_st, dict):
+                                for _k, _v in _st.items():
+                                    st.session_state[_k] = _v
+                            safe_switch_page(_path)
+                    else:
+                        try:
+                            st.page_link(_path, label=f"{_icon} {_label}", icon=_icon, use_container_width=True)
+                        except Exception as e:
+                            logger.warning(f"[widgets] 处理异常: {e}")
+                            if st.button(f"{_icon} {_label}", key=f"ec_btn_{_label}", use_container_width=True):
+                                safe_switch_page(_path)
+                    _desc = _card.get("desc")
+                    if _desc:
+                        st.caption(_desc)
+                    if _active:
+                        st.success("✓ 当前视图")
 
 
 def render_sidebar_nav() -> None:

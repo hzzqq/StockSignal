@@ -14,6 +14,7 @@ import streamlit.components.v1 as components
 from modules.page_utils import render_standard_page
 import modules.scroll_nav as sn
 from modules.ui_kit import info_banner
+from modules.widgets import render_entry_cards
 render_standard_page(title='持仓中心', icon='💼', caption='⚠️ 持仓中心为模拟/历史数据聚合视图，仅供学习，不构成投资建议。')
 info_banner("本页合并「自选池 / 持仓 / 收益归因」三个子视图，用顶部分段切换；持仓与收益均为模拟或历史数据，仅供学习。", icon="💼")
 _HERE = os.path.dirname(__file__)
@@ -56,14 +57,12 @@ _options = list(_SUBPAGES.keys())
 st.session_state.setdefault('hub_cang_view', _options[0])
 if st.session_state.get('hub_cang_view') not in _options:
     st.session_state['hub_cang_view'] = _options[0]
-_hc1, _hc2, _hc3 = st.columns(3)
-with _hc1:
-    st.page_link('pages/46_自选股监控.py', label='⭐ 自选股监控', icon='⭐', use_container_width=True)
-with _hc2:
-    st.page_link('pages/40_仓位管理.py', label='💼 仓位管理', icon='💼', use_container_width=True)
-with _hc3:
-    st.page_link('pages/41_组合收益.py', label='📈 组合收益', icon='📈', use_container_width=True)
 _view = st.radio('持仓视图', _options, horizontal=True, label_visibility='collapsed', key='hub_cang_view', help='切换三个子视图：⭐ 自选池（自选股实时行情）/ 💼 持仓（持仓盈亏与导入导出）/ 📈 收益归因（净值曲线与收益贡献）。切换会重新加载对应模块。')
+render_entry_cards([
+    {'path': 'pages/46_自选股监控.py', 'label': '⭐ 自选池', 'icon': '⭐', 'desc': '自选股实时行情 / 股票池管理'},
+    {'path': 'pages/40_仓位管理.py', 'label': '💼 持仓', 'icon': '💼', 'desc': '持仓盈亏 / 导入导出'},
+    {'path': 'pages/41_组合收益.py', 'label': '📈 收益归因', 'icon': '📈', 'desc': '净值曲线 / 基准对比 / 收益贡献'},
+], columns=3, active_label=_view)
 st.caption(f"📍 当前：持仓中心 › **{_view}**")
 if st.button('🔄 刷新', key='hub_manual_refresh'):
     st.rerun()
