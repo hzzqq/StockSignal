@@ -11,10 +11,11 @@ modules/widgets.py
 from __future__ import annotations
 import logging
 import os
+import json
 import subprocess
 from modules.ui_kit import inject_kit_css, xc_handle_error
 logger = logging.getLogger(__name__)
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 from datetime import datetime
 import html
 import time
@@ -558,6 +559,91 @@ _NAV_FAVORITES = [
     ('pages/30_策略回测.py', '策略回测', '⚙️'),
     ('pages/32_智能选股.py', '智能选股', '🤖'),
 ]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 动态「⭐ 常用」高频直达区：基于真实访问频率自动更新 Top5。
+# 设计要点：
+#  - 持久化到 data/nav_freq.json（dict: {basename: count}），随 SS_DATA_DIR 隔离、断网安全。
+#  - 计数仅在「页面切换」时触发（session 内去重），避免按钮点击等 rerun 污染频率。
+#  - 任何异常均 fail-safe 吞掉，绝不因统计逻辑拖垮页面渲染。
+#  - 无历史数据时回落到静态 _NAV_FAVORITES 兜底，保证首屏体验一致。
+# ─────────────────────────────────────────────────────────────────────────────
+def _nav_freq_path() -> str:
+    _data_dir = os.environ.get("SS_DATA_DIR") or os.path.join(_PROJECT_ROOT, "data")
+    return os.path.join(_data_dir, "nav_freq.json")
+
+
+def _all_nav_items() -> List[str]:
+    """返回所有可导航页的文件名集合（用于校验常用区条目合法性）。"""
+    _items = set()
+    for _g, _its in _NAV_GROUPS:
+        for _it in _its:
+            _items.add(_it[0].replace('\\', '/').split('/')[-1])
+    for _h in _NAV_HERO:
+        _items.add(_h[0].replace('\\', '/').split('/')[-1])
+    _items.add('app.py')
+    return _items
+
+
+def record_nav_visit(basename: str) -> None:
+    """记录一次页面访问（仅页面切换时调用）。fail-safe。"""
+    try:
+        if not basename or basename == 'app.py':
+            return  # 首页/概览不计入高频（常驻 Hero/常用）
+        # session 内去重：同一页连续 rerun 不重复计数（只统计真实跳转）
+        if st.session_state.get("_nav_last_seen") == basename:
+            return
+        st.session_state["_nav_last_seen"] = basename
+        _path = _nav_freq_path()
+        _freq = {}
+        if os.path.exists(_path):
+            try:
+                with open(_path, "r", encoding="utf-8") as _f:
+                    _d = json.load(_f)
+                if isinstance(_d, dict):
+                    _freq = _d
+            except Exception:
+                _freq = {}
+        _freq[basename] = int(_freq.get(basename, 0)) + 1
+        from modules.atomic_io import atomic_json_dump
+        atomic_json_dump(_freq, _path)
+    except Exception as _e:
+        logger.warning(f"[widgets] 处理异常: {_e}")
+
+
+def load_nav_favorites(top_n: int = 5) -> List[Tuple[str, str, str]]:
+    """按访问频率取 Top-N 高频页；无数据或不足时回落静态 _NAV_FAVORITES 兜底。"""
+    try:
+        _path = _nav_freq_path()
+        try:
+            with open(_path, "r", encoding="utf-8") as _f:
+                _freq = json.load(_f)
+        except Exception:
+            _freq = {}
+        # 全量页名 → (path, label, icon) 反查表
+        _by_base = {}
+        for _g, _its in _NAV_GROUPS:
+            for _it in _its:
+                _by_base[_it[0].replace('\\', '/').split('/')[-1]] = _it
+        for _h in _NAV_HERO:
+            _by_base[_h[0].replace('\\', '/').split('/')[-1]] = _h
+        _items = _all_nav_items()
+        # 只保留真实存在且非首页的高频页
+        _ranked = sorted(
+            ((b, c) for b, c in _freq.items() if b in _items and b != 'app.py'),
+            key=lambda kv: kv[1], reverse=True,
+        )
+        _out = []
+        for _b, _c in _ranked:
+            if _b in _by_base:
+                _out.append(tuple(_by_base[_b][:3]))  # 剥离 sub 标记，常用区不缩进
+            if len(_out) >= top_n:
+                break
+        return _out if _out else list(_NAV_FAVORITES)
+    except Exception as _e:
+        logger.warning(f"[widgets] 处理异常: {_e}")
+        return list(_NAV_FAVORITES)
 _NAV_GROUPS = [
     ('📈 行情盯盘', [('pages/10_行情看板.py', '行情看板', '📺'), ('pages/14_智能盯盘.py', '智能盯盘', '👁️'), ('pages/35_资金流向.py', '资金流向', '🌊'), ('pages/51_每日晨报.py', '每日晨报', '🌅')]),
     ('🧩 板块结构', [('pages/12_板块轮动.py', '板块轮动', '🌈'), ('pages/17_市场魔方.py', '市场魔方', '🧊')]),
@@ -801,9 +887,9 @@ def render_sidebar_nav() -> None:
             _cur_label = _current_nav_label(_cur_base)
             if _cur_label:
                 st.caption(f'📍 当前位置：**{_cur_label}**')
-            # ⭐ 常用（高频直达区）：默认 Top5 高频页，不用扫分组即可一键进入
+            # ⭐ 常用（高频直达区）：基于真实访问频率动态 Top5，无历史时回落静态兜底
             st.caption('⭐ 常用')
-            for _f_path, _f_label, _f_icon in _NAV_FAVORITES:
+            for _f_path, _f_label, _f_icon in load_nav_favorites():
                 _nav_link(_f_path, _f_label, _f_icon)
             for gname, items in _filter_nav_groups(_NAV_GROUPS, _kw):
                 st.caption(gname)

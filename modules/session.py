@@ -635,6 +635,14 @@ def require_auth() -> None:
     """
     init_session_state()
 
+    # 记录真实页面访问（仅页面切换计数，session 内去重），驱动侧边栏『⭐ 常用』动态 Top5。
+    # 放在门禁最前、不依赖认证分支，确保跳转即统计；任何异常在内部 fail-safe 吞掉。
+    from modules.widgets import record_nav_visit, _current_page_basename
+    try:
+        record_nav_visit(_current_page_basename())
+    except Exception:
+        pass
+
     if is_authenticated():
         # 注入所有页面通用组件：右上角主题开关 + 侧边栏全局 AI 咨询
         from modules.widgets import inject_global_widgets, render_sidebar_nav
