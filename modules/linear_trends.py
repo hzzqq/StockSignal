@@ -18,6 +18,7 @@ A股配色：净流入 / 涨 = 红，净流出 / 跌 = 绿。
 """
 from datetime import datetime, timedelta, timezone
 import logging
+import numpy as np
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -988,7 +989,16 @@ def to_trend_csv(df, names_map=None, selected=None, date_range=None):
 
 def plot_correlation_heatmap(df, names_map=None, selected=None, date_range=None,
                              dark_mode=False, title="收益率相关性热力图"):
-    """所选序列的日收益率相关性热力图（颜色 RdBu，红=正相关，蓝=负相关）。"""
+    """所选序列的日收益率相关性热力图（颜色 RdBu，红=正相关，蓝=负相关）。
+
+    异频友好：
+    1) 原始序列先 ffill（前向填充），把月频(6 点) / 季频稀疏观测传播成有意义的环比基准，
+       避免 pct_change 在 NaN 上全传播退化（pandas 默认 pct_change 遇到前值为 NaN 即全 NaN）；
+    2) 用 pandas .corr(min_periods=2) 的 pairwise complete observations，日频(180 点)与
+       月频(6 点)各自用共同日期算相关性，频率不一致不再互相拖累。
+    NaN 单元格（pairwise 仍不足的对）显示『-』；整体无任何一对达到 ≥2 共同样本时给出
+    最大重叠诊断，避免空白图误导。
+    """
     fig = go.Figure()
     if df is None or df.empty or "date" not in df.columns:
         fig.update_layout(title=title or "暂无数据", **_fig_base(dark_mode), height=300)
@@ -1004,17 +1014,33 @@ def plot_correlation_heatmap(df, names_map=None, selected=None, date_range=None,
     if len(keys) < 2:
         fig.update_layout(title="相关性需至少 2 个有效序列", **_fig_base(dark_mode), height=300)
         return fig
-    rets = pd.DataFrame({k: pd.to_numeric(d[k], errors="coerce").pct_change() for k in keys}).dropna()
-    if rets.empty or len(rets) < 2:
-        fig.update_layout(title="样本不足，无法计算相关性", **_fig_base(dark_mode), height=300)
+    raw = pd.DataFrame({k: pd.to_numeric(d[k], errors="coerce") for k in keys})
+    # 稀疏序列 ffill：使 pct_change 能算出有意义的环比（金融稀疏数据标准做法）
+    raw_ff = raw.ffill()
+    rets = raw_ff.pct_change()
+    # pairwise：每对用其共同非 NaN 日期算相关；min_periods=2 防止单点巧合
+    corr = rets.corr(min_periods=2)
+    # 诊断：若没有任何一对达到 ≥2 共同样本（极稀疏数据），给出最大重叠数
+    upper = corr.where(np.triu(np.ones(corr.shape, dtype=bool), k=1))
+    if upper.isna().all().all():
+        max_overlap = 0
+        for i, a in enumerate(keys):
+            for b in keys[i + 1:]:
+                n = int(rets[[a, b]].dropna().shape[0])
+                if n > max_overlap:
+                    max_overlap = n
+        fig.update_layout(
+            title=f"样本不足，无法计算相关性（最大指标对重叠仅 {max_overlap} 天，需 ≥2）",
+            **_fig_base(dark_mode), height=300,
+        )
         return fig
-    corr = rets.corr()
     labels = [(names_map or {}).get(k, k) for k in keys]
+    # NaN 单元格显示 "-"（pairwise 不足的对）
+    text = [[f"{v:.2f}" if pd.notna(v) else "-" for v in row] for row in corr.values]
     heat = go.Heatmap(
         z=corr.values, x=labels, y=labels,
         colorscale="RdBu", zmid=0, zmin=-1, zmax=1,
-        text=[[f"{v:.2f}" for v in row] for row in corr.values],
-        texttemplate="%{text}", colorbar=dict(title="相关系数"),
+        text=text, texttemplate="%{text}", colorbar=dict(title="相关系数"),
     )
     fig.add_trace(heat)
     layout = _fig_base(dark_mode)
