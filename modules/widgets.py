@@ -10,6 +10,8 @@ modules/widgets.py
 """
 from __future__ import annotations
 import logging
+import os
+import subprocess
 from modules.ui_kit import inject_kit_css, xc_handle_error
 logger = logging.getLogger(__name__)
 from typing import Any, Dict
@@ -24,6 +26,16 @@ import streamlit.components.v1 as components
 from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin, _rel_time
 from modules._widgets_base import STAR_AI_LOGO, _INDEX_INFOS
 from modules.colors import _hex_to_rgba
+
+# 模块级常量：项目根 + git short SHA（版本指纹，刷新后可见变化）
+_PROJECT_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+try:
+    _GIT_SHA = subprocess.check_output(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=_PROJECT_ROOT, stderr=subprocess.DEVNULL,
+    ).decode("utf-8", errors="ignore").strip() or "unknown"
+except Exception:
+    _GIT_SHA = "unknown"
 
 def _index_market_status():
     """返回指数是否需要自动刷新：(is_open, status_text, refresh_ms)。
@@ -699,6 +711,25 @@ def render_entry_cards(cards: list, columns: int = 3, active_label: str = None,
                         )
 
 
+def _filter_nav_groups(groups, kw: str):
+    """按关键字过滤 _NAV_GROUPS：子串匹配 label 或 path（忽略大小写）；空关键字返回原列表。
+
+    过滤后空组被剔除。供 render_sidebar_nav 实时过滤用，亦供测试直接驱动。
+    """
+    kw = (kw or "").strip().lower()
+    if not kw:
+        return list(groups)
+    out = []
+    for gname, items in groups:
+        hit = [
+            it for it in items
+            if kw in str(it[1]).lower() or kw in str(it[0]).lower()
+        ]
+        if hit:
+            out.append((gname, hit))
+    return out
+
+
 def render_sidebar_nav() -> None:
     """在侧边栏顶部渲染自定义分组导航，并隐藏 Streamlit 原生平铺页面列表。
 
@@ -734,6 +765,15 @@ def render_sidebar_nav() -> None:
     try:
         with st.sidebar:
             st.markdown('### 🧭 导航')
+            # 版本指纹：用户刷新后能立即看到 SHA 变化，确认新代码已加载（避免『页面没变』误判）
+            st.caption(f'🏷️ v{_GIT_SHA}  ·  Ctrl+Shift+R 强刷看新效果')
+            # 搜索框实验：实时过滤分组；空关键字=显示全部；忽略大小写、子串匹配 label/path
+            _kw = st.text_input(
+                '🔍 搜索模块',
+                key='_nav_filter',
+                placeholder='名称/路径关键字（行情/选股/持仓/回测…）',
+                label_visibility='visible',
+            ).strip().lower()
             # 决策中枢 Hero：项目差异化主线（决策闭环 + 刻度校准），常驻顶部高亮入口，高于普通分组
             with st.container(border=True):
                 st.caption('🎯 决策中枢')
@@ -751,7 +791,7 @@ def render_sidebar_nav() -> None:
             _cur_label = _current_nav_label(_cur_base)
             if _cur_label:
                 st.caption(f'📍 当前位置：**{_cur_label}**')
-            for gname, items in _NAV_GROUPS:
+            for gname, items in _filter_nav_groups(_NAV_GROUPS, _kw):
                 st.caption(gname)
                 for _it in items:
                     _path, _label, _icon = _it[0], _it[1], _it[2]

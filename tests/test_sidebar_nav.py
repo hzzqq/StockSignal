@@ -151,3 +151,62 @@ def test_group_order_mental_flow():
                  '🧪 量化选股', '💼 持仓交易', '💬 社区与 AI']
     assert _order == _expected, f"分组顺序偏离心智流: {_order}"
 
+
+# ── 搜索框实验（R20）：按关键字实时过滤 _NAV_GROUPS ──
+
+def test_filter_empty_kw_returns_all():
+    """空关键字=不过滤，返回与原列表等价（组数与每组 items 数一致）。"""
+    out = w._filter_nav_groups(w._NAV_GROUPS, "")
+    assert len(out) == len(w._NAV_GROUPS)
+    for (_g1, _i1), (_g2, _i2) in zip(out, w._NAV_GROUPS):
+        assert _g1 == _g2
+        assert len(_i1) == len(_i2)
+
+
+def test_filter_keyword_matches_label():
+    """关键字命中 label（如『回测』）：只保留命中的项；空组被剔除。"""
+    out = w._filter_nav_groups(w._NAV_GROUPS, "回测")
+    _hits = sum(len(items) for _, items in out)
+    assert _hits >= 1, "应至少命中 1 项（含『策略回测』）"
+    for gname, items in out:
+        for it in items:
+            assert "回测" in it[1] or "回测" in it[0], f"{it} 不应出现"
+
+
+def test_filter_keyword_matches_path():
+    """关键字命中 path（中文文件名 URL 编码前的局部）：能筛出文件名含关键字的项。"""
+    out = w._filter_nav_groups(w._NAV_GROUPS, "回测")
+    _all = [it for _, items in out for it in items]
+    assert any("30_策略回测" in it[0] for it in _all), "应命中『30_策略回测.py』"
+
+
+def test_filter_keyword_drops_empty_groups():
+    """过滤后空组被剔除（不渲染无条目的分组头）。"""
+    out = w._filter_nav_groups(w._NAV_GROUPS, "星辰")
+    # 『星辰 AI』只在『💬 社区与 AI』组，命中 1 项；其他组应被剔除
+    _gnames = [g for g, _ in out]
+    assert "💬 社区与 AI" in _gnames
+    assert "📈 行情盯盘" not in _gnames, "行情盯盘组应被剔除（无匹配）"
+    assert "🔎 个股研究" not in _gnames
+    assert len(out) == 1, f"应只返回 1 个分组，实际 {len(out)}: {_gnames}"
+
+
+def test_filter_keyword_case_insensitive():
+    """英文路径/标签大小写不敏感。"""
+    out_lower = w._filter_nav_groups(w._NAV_GROUPS, "p1")
+    out_upper = w._filter_nav_groups(w._NAV_GROUPS, "P1")
+    assert len(out_lower) == len(out_upper)
+    assert out_lower == out_upper
+
+
+def test_filter_unknown_keyword_returns_empty():
+    """无任何匹配的 keyword：返回空列表（侧边栏不渲染任何分组头）。"""
+    out = w._filter_nav_groups(w._NAV_GROUPS, "不存在的关键字xyz123")
+    assert out == []
+
+
+def test_version_chip_constant_present():
+    """版本指纹常量 _GIT_SHA 已注入；不为空，方便用户刷新后核对新代码已加载。"""
+    assert hasattr(w, '_GIT_SHA'), "缺少 _GIT_SHA 版本指纹常量"
+    assert isinstance(w._GIT_SHA, str) and w._GIT_SHA, "_GIT_SHA 应为非空字符串"
+
