@@ -139,13 +139,32 @@ def fetch_stock_history(bs, code: str, start: str, end: str, tries: int = 3) -> 
     return {}
 
 
+def _sample_seed_dates(trade_dates: list[str], max_seeds: int = 16) -> list[str]:
+    """沿交易日序列均匀采样种子日（含首末），用于扩大股票全集覆盖。
+
+    只取首末两日会漏掉「区间内上市、区间内又退市」的股票（既不在首日名单也不在
+    末日名单），使中间年份的广度分母系统性偏小。均匀采样可显著改善覆盖。
+    """
+    if not trade_dates:
+        return []
+    n = len(trade_dates)
+    if n <= max_seeds:
+        return list(trade_dates)
+    step = n / float(max_seeds)
+    idxs = sorted({int(i * step) for i in range(max_seeds)} | {0, n - 1})
+    return [trade_dates[i] for i in idxs]
+
+
 def reconstruct(start: str, end: str, out: str, sleep: float = 0.05,
                 max_codes: int | None = None) -> int:
     bs = _login()
     try:
         # 种子日必须是有交易的真实交易日，否则 query_all_stock 返回空
         trade_dates = get_trade_dates(bs, start, end)
-        seeds = [trade_dates[0], trade_dates[-1]] if trade_dates else [start, end]
+        # 锐评修复（R4）：原只取首末两个交易日作种子 —— 会漏掉「区间内上市、又区间内退市」
+        # 的股票（既不在首日名单、也不在末日名单），使中间年份的广度分母系统性偏小。
+        # 改为沿区间均匀采样多个种子日取并集，显著改善覆盖。
+        seeds = _sample_seed_dates(trade_dates, max_seeds=16) if trade_dates else [start, end]
         universe = get_universe(bs, seeds)
         if max_codes:
             universe = universe[:max_codes]
