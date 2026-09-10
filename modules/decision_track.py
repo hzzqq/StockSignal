@@ -113,7 +113,29 @@ def _load() -> list[dict]:
     except Exception as e:  # noqa: BLE001
         logger.warning("[track] 预测记录读取失败: %s", e)
         return []
-    return data if isinstance(data, list) else []
+    return _normalize_flat_days(data if isinstance(data, list) else [])
+
+
+def _normalize_flat_days(recs: list[dict]) -> list[dict]:
+    """纠正历史遗留口径：平盘日（次日涨跌恰为 0）曾被判为「方向错误」。
+
+    2026-09-09 锐评 R7。早期打分把 realized == 0 的日子拿去和 ±1 比较（恒 False），
+    使「无方向信息」被记成「模型看错」——既压低命中率，又让偏空预测白拿命中。
+    此处**读取时**统一归一（幂等、只改内存），使 summary / by_cycle / by_group /
+    by_event / chart_data 与回测脚本口径一致；磁盘旧记录会在下次打分落盘时被覆盖修正。
+    """
+    n_fix = 0
+    for r in recs:
+        try:
+            is_flat = float(r.get("realized")) == 0.0
+        except (TypeError, ValueError):
+            is_flat = False
+        if is_flat and r.get("hit") is False:
+            r["hit"] = None
+            n_fix += 1
+    if n_fix:
+        logger.info("[track] 平盘日口径纠正：%d 条历史记录改为「无方向信息」", n_fix)
+    return recs
 
 
 def _save(recs: list[dict]) -> None:
@@ -441,10 +463,13 @@ def score_predictions() -> dict:
             continue
         r["realized"] = ret
         pred_dir = _DIR_MAP.get(r.get("bias"), 0)
-        if pred_dir == 0:
-            r["hit"] = None  # 中性不表态，不判命中
+        # 三态口径（锐评 R7）：ret == 0 是平盘，**不构成方向信息**，与「中性预测」一样
+        # 不判命中（hit=None）。原实现让平盘取 actual_dir=0 再与 ±1 比较 → 永远 False，
+        # 等于把无信息的日子记成「模型看错」，系统性压低命中率并偏袒空方。
+        actual_dir = 1 if ret > 0 else (-1 if ret < 0 else 0)
+        if pred_dir == 0 or actual_dir == 0:
+            r["hit"] = None
         else:
-            actual_dir = 1 if ret > 0 else (-1 if ret < 0 else 0)
             r["hit"] = (pred_dir == actual_dir)
         n_scored += 1
 

@@ -136,6 +136,7 @@ def run(breadth_file: str | None = None) -> dict:
     total = 0
     total_call = 0
     total_hit = 0
+    flat_days = 0  # 次日平盘（median_chg 恰为 0.00）→ 无方向信息，不计入 call/hit
 
     rows = df.to_dict("records")
     for i in range(len(rows) - 1):
@@ -148,7 +149,14 @@ def run(breadth_file: str | None = None) -> dict:
         next_mchg = _num(nxt.get("median_chg"))
         if next_mchg is None:
             continue  # 次日无涨跌数据（末尾/缺口），跳过
-        actual_dir = 1 if next_mchg > 0 else -1
+        # ⚠️ 平盘日不构成方向信息：原先 `1 if next_mchg > 0 else -1` 把 median_chg 恰为 0.00
+        # 的日子一律归为「下跌」，于是偏空预测在平盘日白拿命中、偏多预测反被罚 —— 方向性偏置。
+        # 实测 data/shepherd_history.csv 4093 个评分日中 177 天（4.32%）为平盘。
+        # 改为三态：0 = 无方向信息，不计入 call/hit，只单独计数并在输出中披露。
+        actual_dir = 1 if next_mchg > 0 else (-1 if next_mchg < 0 else 0)
+        if actual_dir == 0:
+            flat_days += 1
+        has_dir = actual_dir != 0
 
         cyc = locate_cycle(today, prev)
         cname = cyc.get("name") or ""
@@ -158,9 +166,10 @@ def run(breadth_file: str | None = None) -> dict:
         sd = STAGE_DIR.get(cname)
         if sd in ("偏多", "偏空"):
             stage_dir[cname]["n"] += 1
-            stage_dir[cname]["call"] += 1
-            if (1 if sd == "偏多" else -1) == actual_dir:
-                stage_dir[cname]["hit"] += 1
+            if has_dir:
+                stage_dir[cname]["call"] += 1
+                if (1 if sd == "偏多" else -1) == actual_dir:
+                    stage_dir[cname]["hit"] += 1
         stage_dir[cname]["next_up"] += 1 if actual_dir == 1 else 0
         stage_dir[cname]["sum_next"] += next_mchg
         stage_dir[cname]["sum_sq_next"] += next_mchg * next_mchg
@@ -176,7 +185,7 @@ def run(breadth_file: str | None = None) -> dict:
         full_dir[cname]["sum_pct"] += pct if pct is not None else 50.0
         full_dir[cname]["sum_next"] += next_mchg
         full_dir[cname]["sum_sq_next"] += next_mchg * next_mchg
-        if bias in ("偏多", "偏空"):
+        if bias in ("偏多", "偏空") and has_dir:
             full_dir[cname]["call"] += 1
             if pred_dir == actual_dir:
                 full_dir[cname]["hit"] += 1
@@ -187,13 +196,13 @@ def run(breadth_file: str | None = None) -> dict:
         g["sum_pct"] += pct if pct is not None else 50.0
         g["sum_next"] += next_mchg
         g["sum_sq_next"] += next_mchg * next_mchg
-        if bias in ("偏多", "偏空"):
+        if bias in ("偏多", "偏空") and has_dir:
             g["call"] += 1
             if pred_dir == actual_dir:
                 g["hit"] += 1
 
         total += 1
-        if bias in ("偏多", "偏空"):
+        if bias in ("偏多", "偏空") and has_dir:
             total_call += 1
             if pred_dir == actual_dir:
                 total_hit += 1
@@ -268,6 +277,8 @@ def run(breadth_file: str | None = None) -> dict:
         "meta": {
             "source": "data/shepherd_history.csv",
             "n_trading_days_scored": total,
+            "flat_days_excluded": flat_days,
+            "direction_rule": "三态：next>0 看多 / next<0 看空 / next==0 平盘无方向信息(不计入命中率)", 
             "note": ("离线代理回测：temp=red_ratio, bias=同日广度推导, overall_promo=None, "
                      "次日真实方向=下一交易日 median_chg 符号。非实盘收益，验证闭环逻辑在真实"
                      "数据上的统计行为。"),
@@ -279,6 +290,8 @@ def run(breadth_file: str | None = None) -> dict:
             "call": total_call,
             "hit": total_hit,
             "dir_accuracy": round(total_hit / total_call * 100, 1) if total_call else None,
+            "flat_days": flat_days,
+            "dir_call_denominator": total_call,
         },
         "by_stage_implied_direction": stage_rows,
         "by_stage_full_closure": full_rows,
@@ -303,7 +316,8 @@ def main() -> dict:
     m = result["meta"]
     o = result["overall"]
     print(f"[backtest] 数据源={m['source']} 评分交易日={m['n_trading_days_scored']}")
-    print(f"[backtest] 全链路方向命中率：{o['hit']}/{o['call']} = {o['dir_accuracy']}%")
+    print(f"[backtest] 全链路方向命中率：{o['hit']}/{o['call']} = {o['dir_accuracy']}%"
+          f"（另有 {o['flat_days']} 个平盘日无方向信息，已排除）")
     print("[backtest] 六阶段「隐含方向」次日表现：")
     for r in result["by_stage_implied_direction"]:
         print(f"    {r['cycle']:>5}  n={r['n']:>4}  次日上涨占比={r['next_up_ratio']:>5}%  "

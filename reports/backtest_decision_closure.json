@@ -2,15 +2,19 @@
   "meta": {
     "source": "data/shepherd_history.csv",
     "n_trading_days_scored": 4092,
+    "flat_days_excluded": 177,
+    "direction_rule": "三态：next>0 看多 / next<0 看空 / next==0 平盘无方向信息(不计入命中率)",
     "note": "离线代理回测：temp=red_ratio, bias=同日广度推导, overall_promo=None, 次日真实方向=下一交易日 median_chg 符号。非实盘收益，验证闭环逻辑在真实数据上的统计行为。",
     "calibration_formula": "sug_delta=clamp(round(2.0*avg_realized), -5, +5)",
     "strong_samples": 20
   },
   "overall": {
     "n": 4092,
-    "call": 3667,
-    "hit": 1806,
-    "dir_accuracy": 49.3
+    "call": 3507,
+    "hit": 1722,
+    "dir_accuracy": 49.1,
+    "flat_days": 177,
+    "dir_call_denominator": 3507
   },
   "by_stage_implied_direction": [
     {
@@ -26,9 +30,9 @@
     {
       "cycle": "修复确认",
       "n": 421,
-      "call": 421,
+      "call": 396,
       "hit": 189,
-      "dir_accuracy": 44.9,
+      "dir_accuracy": 47.7,
       "next_up_ratio": 44.9,
       "avg_next_median_chg": -0.323,
       "std_next_median_chg": 1.983
@@ -36,9 +40,9 @@
     {
       "cycle": "主升高潮",
       "n": 293,
-      "call": 293,
+      "call": 285,
       "hit": 135,
-      "dir_accuracy": 46.1,
+      "dir_accuracy": 47.4,
       "next_up_ratio": 46.1,
       "avg_next_median_chg": -0.261,
       "std_next_median_chg": 2.567
@@ -56,9 +60,9 @@
     {
       "cycle": "退潮",
       "n": 380,
-      "call": 380,
-      "hit": 200,
-      "dir_accuracy": 52.6,
+      "call": 370,
+      "hit": 190,
+      "dir_accuracy": 51.4,
       "next_up_ratio": 47.4,
       "avg_next_median_chg": -0.218,
       "std_next_median_chg": 2.255
@@ -78,9 +82,9 @@
     {
       "cycle": "修复试探",
       "n": 2990,
-      "call": 2679,
-      "hit": 1344,
-      "dir_accuracy": 50.2,
+      "call": 2555,
+      "hit": 1278,
+      "dir_accuracy": 50.0,
       "avg_pct": 50.6,
       "avg_next_median_chg": -0.161,
       "std_next_median_chg": 2.117
@@ -88,9 +92,9 @@
     {
       "cycle": "修复确认",
       "n": 421,
-      "call": 375,
-      "hit": 171,
-      "dir_accuracy": 45.6,
+      "call": 355,
+      "hit": 163,
+      "dir_accuracy": 45.9,
       "avg_pct": 59.7,
       "avg_next_median_chg": -0.323,
       "std_next_median_chg": 1.983
@@ -98,9 +102,9 @@
     {
       "cycle": "主升高潮",
       "n": 293,
-      "call": 251,
-      "hit": 118,
-      "dir_accuracy": 47.0,
+      "call": 244,
+      "hit": 114,
+      "dir_accuracy": 46.7,
       "avg_pct": 55.2,
       "avg_next_median_chg": -0.261,
       "std_next_median_chg": 2.567
@@ -118,9 +122,9 @@
     {
       "cycle": "退潮",
       "n": 380,
-      "call": 354,
-      "hit": 171,
-      "dir_accuracy": 48.3,
+      "call": 345,
+      "hit": 165,
+      "dir_accuracy": 47.8,
       "avg_pct": 35.0,
       "avg_next_median_chg": -0.218,
       "std_next_median_chg": 2.255
@@ -130,8 +134,8 @@
     {
       "group": "进攻期",
       "n": 714,
-      "call": 626,
-      "hit": 289,
+      "call": 599,
+      "hit": 277,
       "dir_accuracy": 46.2,
       "avg_pct": 57.8,
       "avg_realized": -0.298,
@@ -154,9 +158,9 @@
     {
       "group": "修复期",
       "n": 2997,
-      "call": 2686,
-      "hit": 1346,
-      "dir_accuracy": 50.1,
+      "call": 2562,
+      "hit": 1280,
+      "dir_accuracy": 50.0,
       "avg_pct": 50.5,
       "avg_realized": -0.156,
       "std_next_median_chg": 2.123,
@@ -166,9 +170,9 @@
     {
       "group": "防守期",
       "n": 380,
-      "call": 354,
-      "hit": 171,
-      "dir_accuracy": 48.3,
+      "call": 345,
+      "hit": 165,
+      "dir_accuracy": 47.8,
       "avg_pct": 35.0,
       "avg_realized": -0.218,
       "std_next_median_chg": 2.255,
