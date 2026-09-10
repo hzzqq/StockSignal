@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import csv
 import logging
+import socket
 import sys
 import time
 
@@ -47,7 +48,32 @@ def _login():
     lg = bs.login()
     if lg.error_code != "0":
         raise RuntimeError(f"BaoStock 登录失败: {lg.error_code} {lg.error_msg}")
+    # 关键护栏：给全部 socket 操作设默认超时。
+    # 踩过的坑（2026-09-09）：无此超时时，某只股票的 query_history_k_data_plus 网络挂起会
+    # 永久阻塞且不抛异常 -> fetch_stock_history 的 tries=3 重试永远触发不了 ->
+    # 全量任务 47 分钟零进度（状态 running 却不出活，实为死锁）。
+    socket.setdefaulttimeout(25)
     return bs
+
+
+def _write_csv(out: str, daily: dict) -> int:
+    """把按日聚合好的广度落盘（覆盖写、按日期排序）。运行中可多次调用做检查点。"""
+    rows = 0
+    with open(out, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["date", "n_stocks", "limit_up", "limit_down", "red_ratio", "median_chg"])
+        for d in sorted(daily):
+            pcts = sorted(daily[d])
+            n = len(pcts)
+            if n == 0:
+                continue
+            ups = sum(1 for p in pcts if p >= 9.5)
+            downs = sum(1 for p in pcts if p <= -9.5)
+            reds = sum(1 for p in pcts if p > 0)
+            median = pcts[n // 2] if n % 2 else (pcts[n // 2 - 1] + pcts[n // 2]) / 2.0
+            w.writerow([d, n, ups, downs, round(reds / n * 100, 2), round(median, 4)])
+            rows += 1
+    return rows
 
 
 def get_trade_dates(bs, start: str, end: str) -> list[str]:
@@ -132,25 +158,15 @@ def reconstruct(start: str, end: str, out: str, sleep: float = 0.05,
             for d, pct in hist.items():
                 daily.setdefault(d, []).append(pct)
             time.sleep(sleep)
-            if i % 200 == 0 or i == total:
+            # 每 50 只打一次进度（原为每 200：粒度太粗，死锁时 47 分钟都看不出是卡了还是慢）
+            if i % 50 == 0 or i == total:
                 logger.info("[bs_breadth] 进度 %d/%d，已聚合 %d 个交易日", i, total, len(daily))
+            # 每 500 只落一次检查点：中途崩溃/被杀时保住已完成部分，不会整轮白跑
+            if i % 500 == 0:
+                chk = _write_csv(out, daily)
+                logger.info("[bs_breadth] 检查点：已落盘 %d 交易日 -> %s", chk, out)
 
-        # 写盘
-        rows = 0
-        with open(out, "w", encoding="utf-8-sig", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(["date", "n_stocks", "limit_up", "limit_down", "red_ratio", "median_chg"])
-            for d in sorted(daily):
-                pcts = sorted(daily[d])
-                n = len(pcts)
-                if n == 0:
-                    continue
-                ups = sum(1 for p in pcts if p >= 9.5)
-                downs = sum(1 for p in pcts if p <= -9.5)
-                reds = sum(1 for p in pcts if p > 0)
-                median = pcts[n // 2] if n % 2 else (pcts[n // 2 - 1] + pcts[n // 2]) / 2.0
-                w.writerow([d, n, ups, downs, round(reds / n * 100, 2), round(median, 4)])
-                rows += 1
+        rows = _write_csv(out, daily)
         logger.info("[bs_breadth] 完成：%d 个交易日 -> %s", rows, out)
         return rows
     finally:
