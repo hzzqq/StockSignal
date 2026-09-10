@@ -540,6 +540,15 @@ class StockFetcher:
         return df
 
     def clear_cache(self, table_name=None, cache_key=None):
+        """清空指定缓存表（或表中某个 cache_key 的记录）。
+
+        返回**实际删除的行数**（int），供调用方如实反馈"清了几条"而非无条件报成功。
+
+        ⚠️ 这里曾用 ``except sqlite3.OperationalError: pass`` 静默吞掉删除失败，
+        导致"库被锁 / 磁盘 I/O 错误 / 无写权限"时缓存并未清空，调用方（如
+        pages/11 的「强制刷新数据」）却照报"缓存已清除"，用户拿着旧缓存当新数据。
+        现改为：表不存在属预期（降级 debug），其余 OperationalError 一律 warning 留痕。
+        """
         # 先校验标识符再开连接（fail-fast）：非法表名不做任何 DB 操作，绝不拼进 SQL
         tables = (
             [table_name] if table_name
@@ -547,18 +556,29 @@ class StockFetcher:
         )
         tables = [self._safe_ident(t) for t in tables]
         conn = self._get_conn()
+        deleted = 0
         try:
             for t in tables:
                 try:
                     if cache_key:
-                        conn.execute(f"DELETE FROM {t} WHERE cache_key = ?", (cache_key,))
+                        cur = conn.execute(
+                            f"DELETE FROM {t} WHERE cache_key = ?", (cache_key,)
+                        )
                     else:
-                        conn.execute(f"DELETE FROM {t}")
-                except sqlite3.OperationalError:
-                    pass
+                        cur = conn.execute(f"DELETE FROM {t}")
+                    deleted += max(cur.rowcount or 0, 0)
+                except sqlite3.OperationalError as e:
+                    if "no such table" in str(e).lower():
+                        # 该表首次运行从未写过 → 无表可删，属预期
+                        logger.debug(f"[StockFetcher] 缓存表 {t} 尚未创建，跳过删除")
+                    else:
+                        logger.warning(
+                            f"[StockFetcher] 清空缓存表 {t} 失败，缓存未清空: {e}"
+                        )
             conn.commit()
         finally:
             conn.close()
+        return deleted
 
     def _write_cache(self, conn, table_name, cache_key, data):
         self._init_cache_table(conn, table_name)

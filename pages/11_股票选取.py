@@ -5,9 +5,12 @@
 - 从行情看板迁入：参数设置、K 线图、技术面分析。
 - 新增：加入自选股 / 加入垃圾股、用户打分、自选股/垃圾股折叠展示（可排序、可跳转）。
 """
+import logging
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 from modules.ui_theme import _theme_is_dark, sf_card, sf_metric
 from modules.page_utils import render_standard_page, get_fetcher
@@ -41,8 +44,8 @@ if _qp_code:
     st.session_state["pick_stock_query"] = str(_qp_code)
     try:
         del st.query_params["pick_stock"]
-    except Exception:
-        pass
+    except Exception as e:  # 部分 Streamlit 版本不允许删 query param，可忽略但要留痕
+        logger.debug("[11_股票选取] 清理 pick_stock query param 失败: %s", e)
 
 trading_autorefresh(key="pick_autorefresh")
 
@@ -227,16 +230,31 @@ with sidebar_target():
         else:
             cache_key = f"kline_{kline_period}_{ticker}_{start_str}_{end_str}_qfq"
             pattern = f"kline_{kline_period}_{ticker}_%"
-        fetcher.clear_cache(table_name="daily_cache", cache_key=cache_key)
+        # clear_cache 返回实际删除行数；此处只清精确匹配的那条
+        deleted = fetcher.clear_cache(table_name="daily_cache", cache_key=cache_key)
+        # 再按前缀批量清同标的的其他日期区间缓存。
+        # ⚠️ 此处原为 ``except Exception: pass``，失败后仍无条件报"缓存已清除"，
+        # 会让用户拿着旧缓存当新数据。改为记录日志 + 向用户明示失败。
+        batch_failed = False
         conn = fetcher._get_conn()
         try:
-            conn.execute("DELETE FROM daily_cache WHERE cache_key LIKE ?", (pattern,))
+            cur = conn.execute("DELETE FROM daily_cache WHERE cache_key LIKE ?", (pattern,))
+            deleted += max(cur.rowcount or 0, 0)
             conn.commit()
-        except Exception:
-            pass
+        except Exception as e:  # noqa: BLE001 - 需兜底并向用户明示，不能静默
+            batch_failed = True
+            logger.warning("[11_股票选取] 前缀批量清缓存失败（缓存可能未清空）: %s", e)
         finally:
             conn.close()
-        xc_success_box("缓存已清除，正在刷新...")
+        if batch_failed:
+            xc_warn_box(
+                "部分缓存未能清除",
+                hint="数据库可能被占用，本次刷新仍可能命中旧缓存，可稍后重试。",
+            )
+        elif deleted:
+            xc_success_box(f"缓存已清除（{deleted} 条），正在刷新...")
+        else:
+            xc_success_box("本地无对应缓存，正在从数据源拉取...")
         # 击穿 @st.cache_data 内的 _cached_kline（参数变化强制重算并重新取数）
         st.session_state["_pick_kline_nonce"] = int(st.session_state.get("_pick_kline_nonce", 0)) + 1
         st.rerun()
@@ -309,8 +327,8 @@ def _period_end_to_trading_day(ticker, start, end, period_date):
             return str(period_date)[:10]
         dts = pd.to_datetime(dd["date"]).dt.strftime("%Y-%m-%d").tolist()
         return nearest_trading_day(period_date, dts)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("[11_股票选取] 周期末日→交易日映射失败，回退原日期: %s", e)
     return str(period_date)[:10]
 
 
@@ -321,8 +339,8 @@ def _cached_intraday_for_date(ticker, target_date):
         _df, _pc, _dt = fetcher.get_stock_intraday_sina(ticker, trade_date=target_date)
         if _df is not None and not _df.empty:
             return _df, _pc, _dt
-    except Exception:
-        pass
+    except Exception as e:  # 用户双击 K 线却看不到分时 → 必须留下原因
+        logger.warning("[11_股票选取] 历史分时拉取失败 %s@%s: %s", ticker, target_date, e)
     return None
 
 
@@ -333,14 +351,14 @@ def _cached_intraday(ticker):
         rec = api_intraday(ticker)
         if rec and isinstance(rec.get("records"), list) and rec["records"]:
             return pd.DataFrame(rec["records"]), rec.get("prev_close"), rec.get("trade_date")
-    except Exception:
-        pass
+    except Exception as e:  # 后端不可用时本就走本地回退，属预期，降级 debug
+        logger.debug("[11_股票选取] 后端 /api/intraday 不可用，回退本地 fetcher: %s", e)
     try:
         _df, _pc, _dt = fetcher.get_stock_intraday_sina(ticker)
         if _df is not None and not _df.empty:
             return _df, _pc, _dt
-    except Exception:
-        pass
+    except Exception as e:  # 两条路径都失败 → 界面将显示"无分时"，必须留下原因
+        logger.warning("[11_股票选取] 分时数据本地回退亦失败 %s: %s", ticker, e)
     return None
 
 
