@@ -80,16 +80,28 @@ def trading_date(now=None) -> str:
 
 
 def _dist_to_map(distribution) -> dict:
-    """distribution: [(boards, count), ...] -> {boards: count}。"""
-    out = {}
+    """distribution: [(boards, count), ...] -> {boards: count}。
+
+    ⚠️ 锐评修复（R2）：原实现用两层 `except: pass` 把一切解析失败静默吞掉——
+    distribution 结构异常时直接返回空 dict，而下游晋级率会在空数据上照常计算，
+    结果是「静默算错且零报错」，正是本项目最危险的 bug 模式（与牧羊人二元组
+    footgun 同源）。现改为：**容错仍在（绝不因脏数据崩溃），但每次丢弃或失败
+    都 logger.warning 留痕**，让脏数据可被发现而不是无声消失。
+    """
+    out: dict = {}
+    if not distribution:
+        return out
     try:
-        for b, c in distribution or []:
-            try:
-                out[int(b)] = int(c)
-            except Exception:
-                pass
-    except Exception:
-        pass
+        items = list(distribution)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[ladder] distribution 不可迭代，按空处理: %r (%s)", distribution, e)
+        return out
+    for idx, item in enumerate(items):
+        try:
+            b, c = item
+            out[int(b)] = int(c)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[ladder] distribution 第 %d 项解析失败已丢弃: %r (%s)", idx, item, e)
     return out
 
 
