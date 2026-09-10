@@ -253,27 +253,98 @@ def _cache_path(symbol: str, cache_dir: str) -> str:
     return os.path.join(cache_dir, f"{safe}.csv")
 
 
-def _aggregate_cached(symbol: str, start_date: str, end_date: str, cache_dir: str, use_cache: bool) -> Optional[pd.DataFrame]:
-    """带磁盘缓存的聚合：已缓存则直接读，否则计算并落盘。"""
+def _merge_cache_frames(old: Optional[pd.DataFrame], new: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """把「旧缓存」与「本次新拉窗口」按日期合并（纯函数，可离线测试）。
+
+    这是防「缓存截断」的核心不变量：**刷新只能替换窗口内的行，绝不能把窗口外的历史抹掉**。
+
+    规则：
+      * 同一交易日：新数据覆盖旧数据（可修正当日错值 / 补 newly-listed）；
+      * 旧缓存独有的更早日期：原样保留（不许丢）。
+
+    实现注意：必须**先去重再排序**。``pd.concat([old, new])`` 保持「旧在前、新在后」，
+    ``drop_duplicates(keep="last")`` 因此取到新值；若先 ``sort_values`` 再 ``drop_duplicates``，
+    非稳定排序会打乱新旧顺序、可能把新值丢掉。
+    """
+    frames = [f for f in (old, new) if f is not None and not f.empty]
+    if not frames:
+        return None
+    big = pd.concat(frames, ignore_index=True)
+    big["date"] = pd.to_datetime(big["date"], errors="coerce")
+    big = big.dropna(subset=["date"])
+    if big.empty:
+        return None
+    big = big.drop_duplicates(subset=["date"], keep="last")
+    return big.sort_values("date").reset_index(drop=True)
+
+
+def _aggregate_cached(symbol: str, start_date: str, end_date: str, cache_dir: str,
+                      use_cache: bool = True, refresh_days: int = 0) -> Optional[pd.DataFrame]:
+    """带磁盘缓存的聚合（**合并语义**，绝不截断历史）。
+
+    :param refresh_days: ``0`` = 缓存命中即整段复用（快速路径：历史全量已完成时秒级重跑）；
+                         ``>0`` = 只重新拉取「近 refresh_days 个自然日」，再与旧缓存**合并**。
+
+    ⚠️ 历史缺陷（2026-09-04 事故根因，勿回退）：
+      1) 旧实现命中缓存直接 ``return`` → **永不刷新**，缓存一旦被污染就永久冻结；
+      2) 旧实现未命中时把「本次请求窗口」整份 ``_atomic_to_csv`` 覆盖写盘 →
+         一次 ``--start 2026-08-26`` 的窄窗口运行就把 3849/5548 只股票的 17 年历史截成 6 行。
+    因此本函数写盘时**永远写 ``_merge_cache_frames(old, new)``**，且拉取失败时保留旧缓存。
+    """
     path = _cache_path(symbol, cache_dir)
+    old = None
     if use_cache and os.path.exists(path):
         try:
-            return pd.read_csv(path)
+            old = pd.read_csv(path)
         except Exception as e:  # noqa: BLE001
             logger.debug("[shepherd_reconstruct] 读缓存失败 %s: %s", symbol, e)
-    df = _aggregate_one_stock(symbol, start_date, end_date)
-    if df is not None and not df.empty:
+            old = None
+
+    # 快速路径：无需刷新且已有缓存 → 整段复用（历史全量完成后重跑零成本）
+    if old is not None and refresh_days <= 0:
+        return old
+
+    fetch_start = start_date
+    if refresh_days > 0:
+        floor = pd.to_datetime(end_date) - pd.Timedelta(days=refresh_days)
+        fetch_start = max(pd.to_datetime(start_date), floor).strftime("%Y-%m-%d")
+
+    new = _aggregate_one_stock(symbol, fetch_start, end_date)
+    if new is None and old is not None:
+        # 拉取失败：保留旧缓存，绝不因一次网络失败把已有历史清空
+        return old
+
+    merged = _merge_cache_frames(old, new)
+    if merged is None:
+        return None
+    if not merged.empty:
         try:
-            _atomic_to_csv(df, path)
+            _atomic_to_csv(merged, path)
         except Exception as e:  # noqa: BLE001
             logger.debug("[shepherd_reconstruct] 写缓存失败 %s: %s", symbol, e)
-    return df
+    return merged
+
+
+# ⚠️ worker 进程级 socket 超时（秒）。akshare/requests 默认**没有** socket 超时，
+# 网络挂起时 worker 会永久阻塞且不抛异常 → 重试装饰器永不触发、进程池在退出时
+# ``shutdown(wait=True)`` 被吊死（2026-09-10 老板禁令针对的正是这种「死锁不是慢」）。
+# 必须在**子进程内**设置：Windows(spawn) 下父进程的 setdefaulttimeout 不会传递给 worker。
+_SOCKET_TIMEOUT_SEC = 30
 
 
 def _aggregate_worker(args) -> tuple[str, Optional[pd.DataFrame]]:
-    """多进程 worker：解包参数并调用 _aggregate_cached。"""
-    symbol, sd, ed, cache_dir, use_cache = args
-    return symbol, _aggregate_cached(symbol, sd, ed, cache_dir, use_cache)
+    """多进程 worker：设 socket 超时 → 解包参数 → 调用 _aggregate_cached（兼容 5 元组旧签名）。"""
+    import socket
+    try:
+        socket.setdefaulttimeout(_SOCKET_TIMEOUT_SEC)
+    except Exception as e:  # noqa: BLE001
+        logger.debug("[shepherd_reconstruct] 设置 socket 超时失败: %s", e)
+    if len(args) == 5:
+        symbol, sd, ed, cache_dir, use_cache = args
+        refresh_days = 0
+    else:
+        symbol, sd, ed, cache_dir, use_cache, refresh_days = args
+    return symbol, _aggregate_cached(symbol, sd, ed, cache_dir, use_cache, refresh_days)
 
 
 @_retry()
@@ -311,13 +382,16 @@ def _fetch_a_share_codes() -> Optional[pd.DataFrame]:
 
 
 def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
-                        symbols: Optional[list] = None, use_cache: bool = True) -> pd.DataFrame:
+                        symbols: Optional[list] = None, use_cache: bool = True,
+                        refresh_days: int = 0) -> pd.DataFrame:
     """重构全 A 市场广度日序列（多进程 + 断点续跑，v2 含横截面复盘指标）。
 
     :param start_date/end_date: YYYYMMDD 或 YYYY-MM-DD。
     :param max_workers: 多进程 worker 数。
     :param symbols: 指定股票代码列表（测试用）；None 则自动获取全 A。
     :param use_cache: 是否复用/写入 data/shepherd_cache_v2 缓存。
+    :param refresh_days: >0 时进入**增量刷新**：所有标的都重新拉取近 N 个自然日并
+                         与旧缓存**合并**（旧历史保留）。日常补齐缺口用，避免全量重拉 17 年。
     :returns: DataFrame[date, up_count, down_count, flat_count, limit_up, limit_down,
               touch_down, zt_fail_count, hb_wave10, median_chg, avg_price, red_ratio]
     """
@@ -333,9 +407,14 @@ def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
 
     os.makedirs(_CACHE_DIR, exist_ok=True)
 
-    # 命中缓存直接跳过（断点续跑 / 全量已完成时秒级重跑）
-    todo = [(s, sd, ed, _CACHE_DIR, use_cache) for s in symbols
-            if not (use_cache and os.path.exists(_cache_path(s, _CACHE_DIR)))]
+    # 命中缓存直接跳过（断点续跑 / 全量已完成时秒级重跑）。
+    # refresh_days>0 = 增量刷新：**所有**标的都进 todo（只拉近 N 天并合并进旧缓存）。
+    # 否则「已缓存」的标的永远不被刷新 → 数据永久停在构建日（2026-09-04 事故的另一半根因）。
+    if refresh_days > 0:
+        todo = [(s, sd, ed, _CACHE_DIR, use_cache, refresh_days) for s in symbols]
+    else:
+        todo = [(s, sd, ed, _CACHE_DIR, use_cache, refresh_days) for s in symbols
+                if not (use_cache and os.path.exists(_cache_path(s, _CACHE_DIR)))]
     cached_hits = len(symbols) - len(todo)
     if cached_hits:
         logger.info("[shepherd_reconstruct] %d 只命中缓存，跳过拉取", cached_hits)
@@ -587,18 +666,21 @@ def _enrich_zt_from_cache(breadth: pd.DataFrame, cache_dir: str) -> pd.DataFrame
     return out
 
 
-def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None, reconstruct: bool = True) -> pd.DataFrame:
+def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
+                           reconstruct: bool = True, refresh_days: int = 0) -> pd.DataFrame:
     """构建完整的牧羊人指标历史表。
 
     :param start_date: 重构起始日，默认 2007-01-01。
     :param end_date: 结束日，默认今天。
     :param reconstruct: 是否执行全 A 重构（较慢）；False 则只读现有 CSV/只取近期 zt_pool。
+    :param refresh_days: >0 时走**增量刷新**：只重拉近 N 个自然日并与 per-stock 缓存合并，
+                         日常补齐缺口用（避免每次全量重拉 17 年）。
     """
     if end_date is None:
         end_date = now_cst_str("%Y-%m-%d")
 
     if reconstruct:
-        breadth = reconstruct_breadth(start_date, end_date)
+        breadth = reconstruct_breadth(start_date, end_date, refresh_days=refresh_days)
     else:
         breadth = pd.DataFrame(columns=["date"] + list(_AGG_SPEC.keys()) + ["red_ratio"])
 

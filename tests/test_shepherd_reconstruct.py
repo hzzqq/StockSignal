@@ -305,3 +305,225 @@ def test_reconstruct_breadth_reads_cache_offline(monkeypatch):
     for _, r in out.iterrows():
         assert r["up_count"] == 1 and r["down_count"] == 1
         assert abs(r["red_ratio"] - 50.0) < 1e-6
+
+# ---------------------------------------------------------------------------
+# 2026-09-10 事故回归：缓存「截断 / 陈旧」双缺陷
+#   ① 命中缓存直接 return 永不刷新 → 数据永久冻结在构建日；
+#   ② 未命中时把「本次请求窗口」整份覆盖写盘 → 一次窄窗口运行把 17 年历史截成 6 行
+#      （实测 3849/5548 只中招，data/shepherd_history.csv 家数低估 ~3 倍、跌停 ~10 倍）。
+# 下列用例把「并集/合并」语义钉死，防止回退。
+# ---------------------------------------------------------------------------
+
+import pathlib  # noqa: E402
+
+from modules.shepherd_reconstruct import (  # noqa: E402
+    _aggregate_cached, _aggregate_worker, _merge_cache_frames, _SOCKET_TIMEOUT_SEC,
+)
+
+
+def _rows(dates, up=1, down=0):
+    return [{"date": d, "up_count": up, "down_count": down, "flat_count": 0,
+             "limit_up": 0, "limit_down": 0, "touch_up": 0, "touch_down": 0,
+             "zt_fail_count": 0, "hb_wave10": 0, "change_pct": 0.0, "close": 10.0}
+            for d in dates]
+
+
+def test_merge_cache_frames_unions_and_prefers_new():
+    """合并语义：旧缓存独有的日期保留，同日以新值覆盖。"""
+    old = pd.DataFrame(_rows(["2024-01-01", "2024-01-02"]))
+    new = pd.DataFrame(_rows(["2024-01-02", "2024-01-03"], up=9))
+    out = _merge_cache_frames(old, new)
+    assert out is not None
+    assert len(out) == 3
+    got = dict(zip(pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d"), out["up_count"]))
+    assert got == {"2024-01-01": 1, "2024-01-02": 9, "2024-01-03": 9}
+    assert pd.to_datetime(out["date"]).is_monotonic_increasing
+
+
+def test_merge_cache_frames_none_inputs():
+    """两端都可能为 None：全新取 new；拉取失败取 old；都空回 None。"""
+    only_new = pd.DataFrame(_rows(["2024-01-01"]))
+    assert len(_merge_cache_frames(None, only_new)) == 1
+    assert len(_merge_cache_frames(only_new, None)) == 1
+    assert _merge_cache_frames(None, None) is None
+    assert _merge_cache_frames(pd.DataFrame(), pd.DataFrame()) is None
+
+
+def test_narrow_window_refresh_does_not_truncate_history(monkeypatch):
+    """★ 事故核心回归：窄窗口刷新后缓存必须是「旧历史 ∪ 新窗口」，而不是只剩窗口那两行。"""
+    tmp = tempfile.mkdtemp()
+    old_dates = ["2024-01-%02d" % d for d in range(1, 11)]
+    _write_cache(tmp, "600000", _rows(old_dates))
+    monkeypatch.setattr("modules.shepherd_reconstruct._aggregate_one_stock",
+                        lambda sym, sd, ed: pd.DataFrame(_rows(["2024-01-11", "2024-01-12"])))
+
+    out = _aggregate_cached("600000", "2007-01-01", "2024-01-12", tmp,
+                            use_cache=True, refresh_days=5)
+    assert out is not None and len(out) == 12, "返回的应是并集 12 行"
+    on_disk = pd.read_csv(os.path.join(tmp, "600000.csv"))
+    assert len(on_disk) == 12, "★ 落盘被截断：只剩 %d 行（旧实现只有 2 行）" % len(on_disk)
+    assert pd.to_datetime(on_disk["date"]).min().strftime("%Y-%m-%d") == "2024-01-01"
+
+
+def test_refresh_replaces_same_day_value(monkeypatch):
+    """刷新窗口与旧缓存重叠时，同日必须取新值（否则无法修正当日错值）。"""
+    tmp = tempfile.mkdtemp()
+    _write_cache(tmp, "600000", _rows(["2024-01-01", "2024-01-02"], up=1))
+    monkeypatch.setattr("modules.shepherd_reconstruct._aggregate_one_stock",
+                        lambda sym, sd, ed: pd.DataFrame(_rows(["2024-01-02"], up=99)))
+
+    out = _aggregate_cached("600000", "2024-01-01", "2024-01-02", tmp,
+                            use_cache=True, refresh_days=5)
+    got = dict(zip(pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d"), out["up_count"]))
+    assert got["2024-01-02"] == 99 and got["2024-01-01"] == 1
+
+
+def test_fetch_failure_preserves_existing_cache(monkeypatch):
+    """拉取失败（返回 None）绝不能清空已有历史。"""
+    tmp = tempfile.mkdtemp()
+    _write_cache(tmp, "600000", _rows(["2024-01-01", "2024-01-02", "2024-01-03"]))
+    monkeypatch.setattr("modules.shepherd_reconstruct._aggregate_one_stock",
+                        lambda sym, sd, ed: None)
+
+    out = _aggregate_cached("600000", "2024-01-04", "2024-01-05", tmp,
+                            use_cache=True, refresh_days=5)
+    assert out is not None and len(out) == 3
+    assert len(pd.read_csv(os.path.join(tmp, "600000.csv"))) == 3
+
+
+def test_cache_hit_fast_path_skips_fetch(monkeypatch):
+    """refresh_days=0 且已有缓存 → 走快速路径，一次网络都不打。"""
+    tmp = tempfile.mkdtemp()
+    _write_cache(tmp, "600000", _rows(["2024-01-01"]))
+
+    def _boom(*a, **k):
+        raise AssertionError("快速路径不该触发拉取")
+
+    monkeypatch.setattr("modules.shepherd_reconstruct._aggregate_one_stock", _boom)
+    out = _aggregate_cached("600000", "2007-01-01", "2024-01-02", tmp,
+                            use_cache=True, refresh_days=0)
+    assert len(out) == 1
+
+
+class _InlineExecutor:
+    """把进程池换成同进程执行，便于用 monkeypatch 观察 worker 调用（spawn 子进程看不到 patch）。"""
+
+    def __init__(self, max_workers=None):
+        self.max_workers = max_workers
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def submit(self, fn, arg):
+        class _F:
+            def __init__(self, r):
+                self._r = r
+
+            def result(self, timeout=None):
+                return self._r
+
+        return _F(fn(arg))
+
+
+class _CfShim:
+    ProcessPoolExecutor = _InlineExecutor
+
+    @staticmethod
+    def as_completed(futures):
+        return list(futures)
+
+
+def _patch_inline_pool(monkeypatch):
+    monkeypatch.setattr("modules.shepherd_reconstruct.cf", _CfShim)
+
+
+def test_reconstruct_breadth_refresh_days_visits_cached_symbols(monkeypatch, tmp_path):
+    """★ refresh_days>0 时，已缓存的标的也必须被刷新（否则数据永久冻结在构建日）。"""
+    _write_cache(str(tmp_path), "600000", _rows(["2024-01-01"]))
+    _write_cache(str(tmp_path), "000001", _rows(["2024-01-01"]))
+    monkeypatch.setattr("modules.shepherd_reconstruct._CACHE_DIR", str(tmp_path))
+    _patch_inline_pool(monkeypatch)
+
+    calls = []
+
+    def _fake(sym, sd, ed):
+        calls.append(sym)
+        return pd.DataFrame(_rows(["2024-01-02"]))
+
+    monkeypatch.setattr("modules.shepherd_reconstruct._aggregate_one_stock", _fake)
+    out = reconstruct_breadth("2024-01-01", "2024-01-02", symbols=["600000", "000001"],
+                              use_cache=True, refresh_days=5)
+    assert sorted(calls) == ["000001", "600000"], "已缓存标的被跳过，实得 %s" % calls
+    assert not out.empty and len(out) == 2
+
+
+def test_reconstruct_breadth_without_refresh_skips_cached_symbols(monkeypatch, tmp_path):
+    """refresh_days=0 时保留断点续跑语义：已缓存标的不再拉取。"""
+    _write_cache(str(tmp_path), "600000", _rows(["2024-01-01"]))
+    monkeypatch.setattr("modules.shepherd_reconstruct._CACHE_DIR", str(tmp_path))
+    _patch_inline_pool(monkeypatch)
+
+    calls = []
+    monkeypatch.setattr("modules.shepherd_reconstruct._aggregate_one_stock",
+                        lambda sym, sd, ed: calls.append(sym) or pd.DataFrame(_rows(["2024-01-01"])))
+    reconstruct_breadth("2024-01-01", "2024-01-02", symbols=["600000"],
+                        use_cache=True, refresh_days=0)
+    assert calls == []
+
+
+def test_worker_sets_socket_timeout():
+    """worker 必须自设 socket 超时，否则网络挂起时永久阻塞、进程池退出被吊死。"""
+    import socket
+    prev = socket.getdefaulttimeout()
+    try:
+        socket.setdefaulttimeout(None)
+        _aggregate_worker(("600000", "2024-01-01", "2024-01-02", tempfile.mkdtemp(), True))
+        assert socket.getdefaulttimeout() == _SOCKET_TIMEOUT_SEC
+    finally:
+        socket.setdefaulttimeout(prev)
+
+
+def test_worker_accepts_legacy_5_tuple(monkeypatch):
+    """兼容旧 5 元组签名（老脚本可能仍这么传）。"""
+    seen = {}
+    monkeypatch.setattr("modules.shepherd_reconstruct._aggregate_cached",
+                        lambda sym, sd, ed, cd, uc, rd=0: seen.update(rd=rd) or pd.DataFrame())
+    _aggregate_worker(("600000", "2024-01-01", "2024-01-02", tempfile.mkdtemp(), True))
+    assert seen.get("rd") == 0
+
+
+def test_aggregate_cached_writes_merged_frame_not_raw_window():
+    """AST 不变量守卫：写盘对象必须是 _merge_cache_frames(...) 的结果，绝不能是原始窗口。"""
+    import ast
+    src = pathlib.Path("modules/shepherd_reconstruct.py").read_text(encoding="utf-8")
+    fn = next(n for n in ast.parse(src).body
+              if isinstance(n, ast.FunctionDef) and n.name == "_aggregate_cached")
+
+    merged_vars, written_args = set(), []
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+            f = node.value.func
+            if isinstance(f, ast.Name) and f.id == "_merge_cache_frames":
+                for t in node.targets:
+                    if isinstance(t, ast.Name):
+                        merged_vars.add(t.id)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
+                and node.func.id == "_atomic_to_csv" and node.args:
+            written_args.append(node.args[0])
+    assert merged_vars, "未找到 _merge_cache_frames 的赋值，合并语义可能已被移除"
+    assert written_args, "未找到 _atomic_to_csv 调用"
+    for a in written_args:
+        assert isinstance(a, ast.Name) and a.id in merged_vars, \
+            "写盘的不是合并结果（AST 节点 %s），存在截断历史的风险" % type(a).__name__
+        assert a.id != "new", "写盘对象是原始新窗口 → 必然截断历史"
+
+
+def test_reconstruct_breadth_exposes_refresh_days_param():
+    """入口参数存在性守卫：CLI/脚本靠它做增量刷新，不能悄悄删掉。"""
+    import inspect
+    from modules.shepherd_reconstruct import build_shepherd_history
+    for fn in (reconstruct_breadth, build_shepherd_history):
+        assert "refresh_days" in inspect.signature(fn).parameters, fn.__name__
