@@ -60,7 +60,14 @@ def discover_source_dirs():
     except Exception:
         pass
     # P1-QuantFactor 默认产出目录（本地开发机直连，免复制 55MB 大文件）
-    dirs.append(r"E:/project/sj/data/P1/processed/signals")
+    # 锐评修复（R3）：原为硬编码的机器专属绝对路径 `E:/project/sj/...`——
+    # 本项目是双机开发 + 有部署场景，该路径在另一台机器/部署环境上根本不存在，
+    # 会导致信号目录静默失效（不报错、只是找不到信号），属隐蔽故障。
+    # 改为环境变量 `P1_SIGNAL_FALLBACK_DIR` 可覆盖，保留原路径作默认值不影响本机。
+    fallback = os.environ.get(
+        "P1_SIGNAL_FALLBACK_DIR", r"E:/project/sj/data/P1/processed/signals"
+    )
+    dirs.append(fallback)
     # 去重保序
     seen: set[str] = set()
     out: list[str] = []
