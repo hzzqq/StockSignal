@@ -75,10 +75,16 @@ def main():
                                  mode="lines", name="含交易成本"))
         fig.add_trace(go.Scatter(x=xb, y=list(b.df["total_asset"]),
                                  mode="lines", name="零成本（对照）"))
+        # 画布必须够宽：默认 700x500 下这条长中文标题会被右边缘裁掉（截断成
+        # "…2026-09-0"），论文图与作品集卡片都会露出半个日期。显式给足宽度+居中。
         fig.update_layout(
-            title=f"回测净值曲线：成本模型开关对比（{TICKER} · {STRATEGY} · {START}~{END}）",
+            title=dict(
+                text=f"回测净值曲线：成本模型开关对比（{TICKER} · {STRATEGY} · {START}~{END}）",
+                x=0.5, xanchor="center", font=dict(size=15)),
             xaxis_title="日期", yaxis_title="总资产（元）",
-            legend=dict(x=0.02, y=0.98))
+            legend=dict(x=0.02, y=0.98),
+            width=1200, height=640,
+            margin=dict(l=70, r=30, t=75, b=55))
         fig.write_image(os.path.join(OUT, "fig_backtest_equity.png"))
         print("[png] fig_backtest_equity.png 已导出")
     except Exception as e:

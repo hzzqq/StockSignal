@@ -15,7 +15,6 @@ import sqlite3
 import sys
 from datetime import datetime, timedelta
 
-import numpy as np
 import pandas as pd
 
 # 确保项目根目录在 PYTHONPATH
@@ -168,58 +167,101 @@ def shot_multi_stock_compare():
 
 
 def shot_backtest_curve():
-    """5. 策略回测收益曲线（合成回测，演示视觉）"""
-    print("[5/6] 回测曲线")
-    n = 250
-    rng = np.random.default_rng(7)
-    dates = pd.bdate_range(end=datetime.today(), periods=n)
-    # 模拟：策略跑赢基准（年化 ~12% vs 基准 ~5%）
-    strategy = np.cumprod(1 + rng.normal(0.0006, 0.012, n))
-    benchmark = np.cumprod(1 + rng.normal(0.0003, 0.009, n))
-    result = pd.DataFrame({
-        "date": dates,
-        "strategy": strategy,
-        "benchmark": benchmark,
-    })
-    vz = Visualizer()
-    fig = vz.backtest_curve(result, benchmark="benchmark",
-                              title="双均线策略收益曲线 vs 沪深300")
+    """5. 回测净值曲线：成本模型 A/B 对照（真实数据 + 真实撮合）
+
+    历史缺陷（已修，勿回退）：本函数曾用随机数发生器合成一条"策略跑赢基准、
+    年化约 12%"的净值曲线（旧注释自述为模拟跑赢基准），只因列名不匹配
+    Visualizer 契约而静默退化成一张报错图。伪造的业绩曲线对一个以"诚实负
+    结果、不编数字"为卖点的项目是致命风险——只要有人把列名对齐，假曲线就
+    会以真截图的样子流出去。现改为调用真实 Backtester 跑本地缓存数据：
+    同标的、同策略、同区间跑两遍（含成本 / 零成本），差异即交易摩擦成本。
+    取数不足或两组不齐则直接跳过，绝不产出任何编造或占位图像。
+    """
+    print("[5/6] 回测净值曲线（真实成本 A/B）")
+    from modules.backtest import Backtester
+
+    ticker, start, end, strat = "000001", "2024-01-01", "2026-09-06", "ma_cross"
+    try:
+        runner = Backtester()
+        with_cost = runner.run(ticker, start, end, strategy=strat,
+                               initial_capital=100000)
+        zero_cost = runner.run(ticker, start, end, strategy=strat,
+                               initial_capital=100000,
+                               commission=0.0, slippage_pct=0.0, stamp_tax_pct=0.0)
+    except Exception as exc:
+        print(f"    回测失败（{exc}），跳过")
+        return
+
+    if (with_cost.df is None or len(with_cost.df) < 2
+            or len(zero_cost.df) != len(with_cost.df)):
+        print("    回测净值序列缺失或两组长短不齐，跳过")
+        return
+
+    import plotly.graph_objects as go
+    drag = round(float(zero_cost.df["cumulative_return"].iloc[-1])
+                 - float(with_cost.df["cumulative_return"].iloc[-1]), 2)
+    fig = go.Figure()
+    # x 必须转成日期字符串：直接传 Timestamp 会让 kaleido 的
+    # orjson 序列化抛 "Type is not JSON serializable: Timestamp"
+    xs = [str(d)[:10] for d in with_cost.df["date"]]
+    fig.add_trace(go.Scatter(
+        x=xs, y=list(with_cost.df["cumulative_return"]),
+        mode="lines", name="含交易成本"))
+    fig.add_trace(go.Scatter(
+        x=xs, y=list(zero_cost.df["cumulative_return"]),
+        mode="lines", name="零成本（对照）"))
+    fig.update_layout(
+        title=(f"回测净值曲线：成本模型 A/B 对照（{ticker} · {strat} · "
+               f"{start}~{end}）　交易摩擦拖累 {drag}pp"),
+        xaxis_title="日期", yaxis_title="累计收益（%）",
+        template="plotly_white", hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="right", x=1))
     _export(fig, "05-backtest-curve.png")
 
 
+
 def shot_signal_radar():
-    """6. 技术面信号雷达图（基于真实 600519 当前 K 线计算）"""
-    print("[6/6] 技术面雷达")
+    """6. 信号评分雷达图：价格 / 事件 / 宏观（真实 600519 缓存 K 线）
+
+    历史缺陷（已修，勿回退）：本函数原先传的是 {"趋势","动量","量能","形态"}，
+    而 Visualizer.signal_radar 只读 price_score / event_score / macro_score 三个键
+    （见 modules/visualizer.py 该函数 docstring），三个键全部 miss → 取值 0 →
+    导出一张塌缩在原点的空雷达图，标题却写着"600519 技术面四维评分雷达图"。
+    这类"不报错但语义全错"的产物比崩溃更危险，故：
+      ① 改用真实 SignalEngine 计算三分项（与 modules/backtest.py 同一条链路）；
+      ② 加契约守卫：三项若为全 0 即为契约不匹配，直接跳过而非导出一张误导图；
+      ③ 任何异常一律跳过，绝不导出伪造/示意图像。
+    """
+    print("[6/6] 信号评分雷达")
     df = _read_kline_from_cache("600519")
     if df.empty or len(df) < 60:
-        print(f"    缓存 K 线不足 60 天，跳过")
+        print("    缓存 K 线不足 60 天，跳过")
         return
     try:
-        from modules.technical import full_analysis
         from modules.cleaner import DataCleaner
+        from modules.signal import SignalEngine
         cleaned = DataCleaner.full_pipeline(df.copy())
-        r = full_analysis(cleaned)
-        # 4 个维度各取一个综合分（[0,100]），构图
-        def _score(d, keys):
-            for k in keys:
-                v = d.get(k) if isinstance(d, dict) else None
-                if isinstance(v, (int, float)):
-                    return float(v)
-            return 50.0
+        eng = SignalEngine()
+        last = cleaned["date"].iloc[-1]
+        date_str = last.strftime("%Y-%m-%d") if hasattr(last, "strftime") else str(last)[:10]
         scores = {
-            "趋势": _score(r.get("trend", {}), ("score", "overall", "trend_score")),
-            "动量": _score(r.get("momentum", {}), ("score", "overall", "momentum_score")),
-            "量能": _score(r.get("volume", {}), ("score", "overall", "volume_score")),
-            "形态": _score(r.get("patterns", {}), ("score", "overall", "pattern_score"))
-                  if isinstance(r.get("patterns"), dict)
-                  else 60.0,  # 形态是 list/dict，取中性
+            "price_score": float(eng.price_score(cleaned, date_str)),
+            "event_score": float(eng.event_score("600519", [], date_str)),
+            "macro_score": float(eng.macro_score(date_str)),
         }
     except Exception as e:
-        print(f"    技术面计算失败: {e}; 用示意数据")
-        scores = {"趋势": 72, "动量": 58, "量能": 65, "形态": 48}
+        print(f"    信号评分计算失败（{e}），跳过（不产出示意数据图）")
+        return
+
+    if not any(scores.values()):
+        print("    三项评分全为 0（疑似与 signal_radar 契约不匹配），跳过以避免导出误导性空图")
+        return
+
     vz = Visualizer()
-    fig = vz.signal_radar(scores, title="600519 技术面四维评分雷达图")
+    fig = vz.signal_radar(scores, title="600519 信号评分雷达图（价格 / 事件 / 宏观）")
     _export(fig, "06-signal-radar.png")
+
 
 
 if __name__ == "__main__":
