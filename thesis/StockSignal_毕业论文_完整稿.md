@@ -13,7 +13,7 @@
 
 A 股市场情绪驱动特征显著，个人投资者在信息过载与情绪噪声中难以形成稳定决策。本文以"事件驱动 + 市场情绪"为差异化主线，设计并实现了 StockSignal——一套面向 A 股的市场广度与情绪温度计分析平台，并提出"决策闭环 + 刻度校准"的方法论框架：先以全市场广度指标重建六阶段情绪周期，再据此推导可调仓位建议，最后用真实历史数据反向校准仓位刻度常数。
 
-论文的核心贡献在于把"拍脑袋"的仓位经验转化为可验证、可校准的闭环。为验证该框架，本文重建了覆盖 2009–2026 年共 4094 个真实交易日的 A 股全市场广度与情绪历史（离线可复现、防覆盖双备份）。在该数据上回测完整决策链路得到两个关键实证结论：（1）情绪周期对次日方向的预测≈随机（方向命中率 49.3%），如实界定了系统能力边界——不宣称"猜对明天涨跌"；（2）仓位建议随情绪周期显著分化（进攻期平均 57.8% 对比防守期 35.0%，价差 22.8 个百分点），证明闭环是一台"市场状态驱动的风险缩放器"。进一步用回测分组统计驱动刻度校准模块，验证原有 CYCLE_ADJ 常数在统计意义上基本合理，校准机制在噪音阈值内选择"不动"，且小样本被硬性门槛拦截以防过拟合。
+论文的核心贡献在于把"拍脑袋"的仓位经验转化为可验证、可校准的闭环。为验证该框架，本文重建了覆盖 2009–2026 年共 4094 个真实交易日的 A 股全市场广度与情绪历史（离线可复现、防覆盖双备份）。在该数据上回测完整决策链路得到两个关键实证结论：（1）情绪周期对次日方向的预测≈随机（方向命中率 49.1%，已按“平盘=无方向信息”口径剔除 177 个平盘日），如实界定了系统能力边界——不宣称"猜对明天涨跌"；（2）仓位建议随情绪周期显著分化（进攻期平均 57.8% 对比防守期 35.0%，价差 22.8 个百分点），证明闭环是一台"市场状态驱动的风险缩放器"。进一步用回测分组统计驱动刻度校准模块，验证原有 CYCLE_ADJ 常数在统计意义上基本合理，校准机制在噪音阈值内选择"不动"，且小样本被硬性门槛拦截以防过拟合。
 
 本文表明：在日频方向不可预测的现实下，把有限的可预测性配置在"仓位刻度"这一更稳健的维度、并以数据驱动方式持续校准，是事件驱动情绪类策略更诚实、更可持续的工程化路径。
 
@@ -25,7 +25,7 @@ A 股市场情绪驱动特征显著，个人投资者在信息过载与情绪噪
 
 The A-share market is prominently driven by sentiment, and individual investors struggle to form stable decisions amid information overload and emotional noise. Anchored on the differentiating thread of "event-driven + market sentiment," this thesis designs and implements StockSignal — an A-share market-breadth and sentiment-thermometer analysis platform — and proposes a methodological framework of "decision closed-loop + scale calibration": first reconstructing a six-stage sentiment cycle from whole-market breadth indicators, then deriving adjustable position suggestions therefrom, and finally back-calibrating the position-scale constants with real historical data.
 
-The core contribution lies in transforming seat-of-the-pants position instincts into a verifiable, self-calibrating closed loop. To validate the framework, this thesis reconstructs the A-share whole-market breadth and sentiment history covering 4,094 real trading days from 2009 to 2026 (offline-reproducible, with overwrite-guarded dual backups). Backtesting the full decision chain on this dataset yields two key empirical findings: (1) the sentiment cycle's prediction of next-day direction is approximately random (direction hit rate 49.3%), honestly delineating the system's capability boundary — it does not claim to "guess tomorrow's rise or fall"; (2) position suggestions diverge significantly across sentiment cycles (offensive phase avg. 57.8% vs. defensive phase 35.0%, a 22.8-percentage-point spread), proving the closed loop is a "market-state-driven risk scaler" rather than a daily-direction oracle. Furthermore, driving the calibration module with backtest group statistics confirms that the original CYCLE_ADJ constants are statistically reasonable, that the calibration mechanism correctly "holds" within the noise threshold, and that small samples are hard-blocked by thresholds to prevent overfitting.
+The core contribution lies in transforming seat-of-the-pants position instincts into a verifiable, self-calibrating closed loop. To validate the framework, this thesis reconstructs the A-share whole-market breadth and sentiment history covering 4,094 real trading days from 2009 to 2026 (offline-reproducible, with overwrite-guarded dual backups). Backtesting the full decision chain on this dataset yields two key empirical findings: (1) the sentiment cycle's prediction of next-day direction is approximately random (direction hit rate 49.1%, after excluding 177 flat close days), honestly delineating the system's capability boundary — it does not claim to "guess tomorrow's rise or fall"; (2) position suggestions diverge significantly across sentiment cycles (offensive phase avg. 57.8% vs. defensive phase 35.0%, a 22.8-percentage-point spread), proving the closed loop is a "market-state-driven risk scaler" rather than a daily-direction oracle. Furthermore, driving the calibration module with backtest group statistics confirms that the original CYCLE_ADJ constants are statistically reasonable, that the calibration mechanism correctly "holds" within the noise threshold, and that small samples are hard-blocked by thresholds to prevent overfitting.
 
 This work shows that, given the unpredictability of daily direction, allocating the limited predictability to the more robust dimension of "position scale" and continuously calibrating it in a data-driven manner is a more honest and sustainable engineering path for event-driven sentiment strategies.
 
@@ -639,7 +639,9 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 **数据与方法。** 数据源 `data/shepherd_history.csv`（4094 行，由 `modules/shepherd_reconstruct` 重建，离线可复现、防覆盖双备份）。回测脚本 `scripts/backtest_decision_closure.py` 逐日调用与生产一致的 `locate_cycle` 与 `derive_position`，以同日红盘率代理温度、以广度推导代理方向偏置、次日方向取下一交易日个股中位数涨跌幅符号，零前视。可评分交易日 **n = 4092**。
 
-**命题一：方向预测能力 ≈ 随机（诚实负向结论）。** 全链路次日方向命中率 **49.3%（1806/3667）**，与随机猜想无统计差异。这与有效市场下日频方向近似随机游走的研究共识（见第 2 章）一致，也界定了系统的能力边界——它**不宣称预测次日涨跌**，而是把有限的可预测性配置在更稳健的"仓位刻度"维度。
+**命题一：方向预测能力 ≈ 随机（诚实负向结论）。** 全链路次日方向命中率 **49.1%（1722/3507）**，与随机猜想无统计差异。这与有效市场下日频方向近似随机游走的研究共识（见第 2 章）一致，也界定了系统的能力边界——它**不宣称预测次日涨跌**，而是把有限的可预测性配置在更稳健的"仓位刻度"维度。
+
+**口径说明（平盘日如何处理）。** 方向判定采用三态口径：次日个股中位数涨跌幅 > 0 记为看多、< 0 记为看空、**恰为 0.00 视为“无方向信息”，不计入命中率分母**（与“中性预测不判命中”一致）。该规则源于实证复核中发现的真实缺陷：初版实现把平盘并入“下跌”，使偏空预测在平盘日白拿命中、偏多预测反被罚（4093 个评分日中平盘 177 天，占 4.32%）。修正后命中率由 49.3%（1806/3667）变为 **49.1%（1722/3507）**，即旧口径多计 84 次命中、160 个可判方向样本；分组统计同步回归无偏（如防守期 48.3% → 47.8%）。修正不改变“方向 ≈ 随机”的结论方向，但避免了把“无信息日”当作“看错”而系统性偏袒空方。
 
 **命题二：仓位刻度随情绪周期显著分化（正向发现）。** 仓位建议随情绪周期系统性分化，证明闭环是一台"市场状态驱动的风险缩放器"而非"每日方向预言机"：
 
@@ -668,7 +670,7 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 ## 6.7 本章小结
 
-第 6 章以真实运行数据与大规模历史回测证明：决策闭环功能正确（clamp 通过、预测可追踪）、刻度校准机制按设计在小样本下如实沉默（不编造命中率）、在 4092 交易日大规模回测中方向命中≈随机（49.3%）而仓位刻度随周期显著分化（22.8pt 价差）、回测成本模型真实扣除、平台具备可维护的架构治理。测试体系覆盖前端冒烟、2117 个逻辑单测、数据隔离与 AST 守卫，安全基线 13/13 与覆盖率门禁由 CI 持续校验。所有数字可经 `eval_ch6.py`、`scripts/backtest_decision_closure.py` 与对应测试脚本复现。
+第 6 章以真实运行数据与大规模历史回测证明：决策闭环功能正确（clamp 通过、预测可追踪）、刻度校准机制按设计在小样本下如实沉默（不编造命中率）、在 4092 交易日大规模回测中方向命中≈随机（49.1%，平盘日按“无方向信息”剔除）而仓位刻度随周期显著分化（22.8pt 价差）、回测成本模型真实扣除、平台具备可维护的架构治理。测试体系覆盖前端冒烟、2117 个逻辑单测、数据隔离与 AST 守卫，安全基线 13/13 与覆盖率门禁由 CI 持续校验。所有数字可经 `eval_ch6.py`、`scripts/backtest_decision_closure.py` 与对应测试脚本复现。
 
 # 第 7 章 总结与展望
 
