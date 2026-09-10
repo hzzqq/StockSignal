@@ -71,10 +71,26 @@ def _cur_adj(cycles: list[str]) -> float | None:
 
 # ───────────────────────── 建议生成 ─────────────────────────
 def _suggest_delta(avg_realized: float | None) -> int:
-    """由「次日平均实际涨跌」推出建议调节量（有界、取整）。"""
+    """由「次日平均实际涨跌」推出建议调节量（有界、取整）。
+
+    ⚠️ 非有限值一律按「无有效样本」返回 0（锐评 R10）：
+    原先只判 ``None``，但 ``float('nan') is not None`` —— NaN 会一路走到
+    ``round(raw)`` 抛 ``ValueError``、``inf`` 抛 ``OverflowError``，直接打断
+    ``calibration.suggestions()`` 与回测打分（页面表现为莫名其妙的报错）。
+    NaN 并非纯理论：``json.dump`` 默认 allow_nan=True，一旦有 NaN 写入
+    prediction_log.json 就会原样读回。
+    """
     if avg_realized is None:
         return 0
-    raw = GAIN * float(avg_realized)
+    try:
+        v = float(avg_realized)
+    except (TypeError, ValueError):
+        logger.warning("[calibration] avg_realized 非数值 %r，按 0 处理", avg_realized)
+        return 0
+    if v != v or v in (float("inf"), float("-inf")):
+        logger.warning("[calibration] avg_realized 非有限值 %r，按 0 处理", avg_realized)
+        return 0
+    raw = GAIN * v
     return int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 

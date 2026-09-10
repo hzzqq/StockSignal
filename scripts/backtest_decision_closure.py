@@ -44,6 +44,18 @@ from modules.shepherd_forecast import locate_cycle
 from modules.decision import derive_position
 from modules import decision_track as _track
 
+# ⚠️ 单一真理源（锐评 R10）：分组映射与校准常量**直接引用生产模块**，不再在本脚本内复制副本。
+# 旧写法在这里又存了 CYCLE_GROUPS / GAIN / MAX_DELTA / NOISE_DELTA / STRONG_SAMPLES 各一份，
+# 一旦生产侧改动而此处漏改，本脚本就会「用另一套规则」产出论文 6.6 节的实证结论 ——
+# 即论文校验的不再是生产校准器，且不会有任何测试报警。改为 import，从结构上杜绝漂移。
+from modules.calibration import (  # noqa: E402
+    DEFAULT_STRONG_SAMPLES as STRONG_SAMPLES,
+    GAIN,
+    MAX_DELTA,
+    NOISE_DELTA,
+)
+from modules.decision_track import CYCLE_GROUPS  # noqa: E402
+
 logger = logging.getLogger(__name__)
 
 # 路径（与 shepher_reconstruct / decision_track 同一套 SS_DATA_DIR 隔离机制）
@@ -69,22 +81,9 @@ STAGE_DIR = {
     "退潮": "偏空",
 }
 
-# 四大战术分组（与 decision_track.CYCLE_GROUPS 完全一致，避免口径漂移）
-CYCLE_GROUPS = {
-    "主升高潮": "进攻期",
-    "修复确认": "进攻期",
-    "高潮分化": "分化期",
-    "修复试探": "修复期",
-    "冰点": "修复期",
-    "退潮": "防守期",
-}
+# 四大战术分组：CYCLE_GROUPS 由 modules.decision_track 提供（见文件顶部 import），
+# 校准常量由 modules.calibration 提供 —— 本脚本不再持有任何副本（锐评 R10）。
 GROUP_ORDER = ["进攻期", "分化期", "修复期", "防守期"]
-
-# 刻度校准公式（与 modules/calibration.py 完全一致，仅作用对象换成回测分组统计）
-GAIN = 2.0
-MAX_DELTA = 5
-NOISE_DELTA = 2
-STRONG_SAMPLES = 20
 
 
 def _num(v):
@@ -111,11 +110,13 @@ def _proxy_bias(red, mchg) -> str:
 
 
 def _suggest_delta(avg_realized: float | None) -> int:
-    """与 calibration._suggest_delta 完全相同的公式。"""
-    if avg_realized is None:
-        return 0
-    raw = GAIN * float(avg_realized)
-    return int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
+    """刻度调节量建议 —— 直接复用生产实现，杜绝公式副本漂移（锐评 R10）。
+
+    生产 ``calibration._suggest_delta`` 对 None 的处理是 NaN 安全的三元表达式，
+    这里保持同一实现，不再维护第二份公式。
+    """
+    from modules.calibration import _suggest_delta as _prod_suggest_delta
+    return _prod_suggest_delta(avg_realized)
 
 
 def run(breadth_file: str | None = None) -> dict:
