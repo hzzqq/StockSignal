@@ -17,6 +17,7 @@
     fetcher.get_commodity_price(...) -> fetch_commodity_price(fetcher, ...)
     fetcher.get_financial(...)    -> fetch_financial(fetcher, ...)
 """
+import contextlib
 import io
 import json
 from datetime import datetime
@@ -334,15 +335,17 @@ def fetch_sector_stocks(fetcher, sector_name):
 def fetch_concept_list(fetcher, force_refresh=False):
     """概念板块列表（东方财富）。返回 DataFrame(sector, change_pct)。失败返回空 DataFrame。"""
     cache_key = "concept_list_v1"
+    # ⚠️ 连接必须关闭：原先直接 `conn = fetcher._get_conn()` 后无论命中缓存提前 return
+    # 还是继续走网络，连接都不关闭。Streamlit 每次交互整页重跑，本函数被频繁调用，
+    # 连接持续泄漏 → 文件句柄耗尽 + SQLite 文件被占（连带触发别处 database is locked）。
     try:
         if not force_refresh:
-            conn = fetcher._get_conn()
-            cached = fetcher._read_cache(conn, "sector_cache", cache_key, max_age_hours=0.1)
+            with contextlib.closing(fetcher._get_conn()) as conn:
+                cached = fetcher._read_cache(conn, "sector_cache", cache_key, max_age_hours=0.1)
             if cached is not None and not cached.empty:
                 return cached
     except Exception as e:
         logger.warning(f"[fetcher] 处理异常: {e}")
-        pass
     try:
         import akshare as ak  # 局部导入：未装时 ImportError 由下方 except 兜底返回空
         df = _retry_request(
@@ -358,11 +361,10 @@ def fetch_concept_list(fetcher, force_refresh=False):
     keep = [c for c in ["sector", "change_pct"] if c in df.columns]
     df = df[keep].copy() if keep else df
     try:
-        conn = fetcher._get_conn()
-        fetcher._write_cache(conn, "sector_cache", cache_key, df)
+        with contextlib.closing(fetcher._get_conn()) as conn:
+            fetcher._write_cache(conn, "sector_cache", cache_key, df)
     except Exception as e:
         logger.warning(f"[fetcher] 处理异常: {e}")
-        pass
     return df
 
 
