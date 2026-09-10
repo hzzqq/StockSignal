@@ -736,6 +736,13 @@ def fragment_backtest():
         try:
             with st.spinner("拉取上证指数次日涨跌并打分…"):
                 res = _track.score_predictions()
+            if res.get("out_of_range", 0) > 0:
+                # 早于基准数据窗口（主源只拉滚动 400 天）的老记录无法判定次日涨跌，
+                # 必须显式告知：否则「有记录却永远不打分」会被误读成打分器故障（锐评 R9）
+                xc_warn_box(
+                    f"{res['out_of_range']} 条预测早于基准数据窗口，无法判定次日涨跌",
+                    hint="这些记录不写入 realized/hit，也不进入命中率分母；如需纳入请补充更早的基准数据。",
+                )
             if res["scored"] == 0:
                 st.info("本轮无新样本需要打分（可能已全部分数，或暂无法联网获取基准走势）。")
             else:

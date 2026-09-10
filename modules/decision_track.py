@@ -427,7 +427,11 @@ def _next_day_return(date: str, closes: dict[str, float]) -> float | None:
         else:
             break
     if base is None:
-        base = sd[0]
+        # ⚠️ date 早于基准窗口起点（主源东财只拉滚动 400 天，见 _fetch_benchmark_close）。
+        # 旧实现用 `base = sd[0]` 兜底，会给这条老预测塞上「400 天之后」的涨跌幅当作
+        # 「次日涨跌」——静默错数据，直接污染命中率与刻度校准，且用户完全无从察觉。
+        # 正确语义是「无法判定」，交由调用方（score_predictions）单独计数并披露。
+        return None
     bi = sd.index(base)
     if bi + 1 >= len(sd):
         return None
@@ -443,20 +447,33 @@ def score_predictions() -> dict:
 
     幂等：已打分的记录不重复拉取，只在首次调用时补 realized。
     全程不抛：网络失败则未打分记录保持 None，返回 scored=0。
+
+    返回 ``scored``（本次新打分条数）与 ``out_of_range``（早于基准数据窗口、
+    无法判定因而**未写入** realized/hit 的条数）——后者必须可见，
+    否则「老记录长期不打分」会被误读成「打分器坏了」（锐评 R9）。
     """
     recs = _load()
     pending = [r for r in recs if r.get("realized") is None]
     if not pending:
         s = summary()
-        return {"scored": 0, "accuracy": s["accuracy"], "n": s["n"]}
+        return {"scored": 0, "out_of_range": 0, "accuracy": s["accuracy"], "n": s["n"]}
 
     closes = _fetch_benchmark_close()
     if not closes:
-        return {"scored": 0, "accuracy": summary()["accuracy"], "n": len(recs)}
+        return {"scored": 0, "out_of_range": 0,
+                "accuracy": summary()["accuracy"], "n": len(recs)}
 
     n_scored = 0
+    out_of_range = 0
+    window_first = min(closes)  # 主源只拉滚动 400 天，早于它的预测无法判定
     for r in recs:
         if r.get("realized") is not None:
+            continue
+        d = r.get("date") or ""
+        if d and d < window_first:
+            # 早于基准数据窗口 ≠ 「次日还没到」：属无法判定，单独计数上报，
+            # 绝不用窗口内头两天的收益顶替（旧实现 base=sd[0] 就会犯这个错）
+            out_of_range += 1
             continue
         ret = _next_day_return(r["date"], closes)
         if ret is None:
@@ -473,7 +490,14 @@ def score_predictions() -> dict:
             r["hit"] = (pred_dir == actual_dir)
         n_scored += 1
 
+    if out_of_range:
+        logger.warning(
+            "[track] %d 条预测早于基准数据窗口起点 %s，无法判定次日涨跌，已跳过"
+            "（未写入 realized/hit，不影响命中率分母）",
+            out_of_range, window_first,
+        )
     if n_scored:
         _save(recs)
     s = summary()
-    return {"scored": n_scored, "accuracy": s["accuracy"], "n": s["n"]}
+    return {"scored": n_scored, "out_of_range": out_of_range,
+            "accuracy": s["accuracy"], "n": s["n"]}

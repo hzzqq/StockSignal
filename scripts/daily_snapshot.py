@@ -271,6 +271,11 @@ def main() -> int:
             s = _track.summary()
             print(f"[score] 本次回填 {res.get('scored')} 条；"
                   f"累计 {s['n']} 条预测 / {s['n_call']} 次表态 / 命中率 {s['accuracy']}%")
+            if res.get("out_of_range"):
+                # 老记录早于基准窗口（主源只拉滚动 400 天）→ 无法判定，必须留痕（锐评 R9）
+                print(f"[score] 注意：{res['out_of_range']} 条预测早于基准数据窗口，"
+                      f"无法判定次日涨跌，未计入命中率")
+                _dec.append_log(f"WARN 回测打分：{res['out_of_range']} 条早于基准窗口未判定")
             byc = _track.by_cycle()
             if byc:
                 print("[score] 分情绪周期命中率：")
