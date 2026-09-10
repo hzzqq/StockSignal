@@ -11,6 +11,8 @@
 数据层复用 modules.market_drivers.get_market_drivers —— 该层照同一份 21 指标表
 （table_20260721.csv）实现，单源失败优雅降级（绝不抛红错）。
 """
+import logging
+
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -28,6 +30,9 @@ from modules.shepherd import (get_shepherd_indicators, get_shepherd_indicators_r
                               get_zt_industry_distribution, get_zt_top_board,
                               get_zt_ladder)
 from modules import shepherd_forecast as _sf
+
+# 模块级日志器：页面里做容错时必须留痕，不允许静默 pass（2026-09-10 补）
+logger = logging.getLogger(__name__)
 from modules import shepherd_note as _sn
 from modules import shepherd_ladder as _sl
 from modules.page_guard import safe_fragment
@@ -939,20 +944,74 @@ def fragment_shepherd_forecast():
         st.markdown(
             f"### {cyc.get('emoji', '⚪')} 情绪周期：**{cyc.get('name', '—')}**　"
             f"<span style='color:{bcolor};font-size:22px'>{bias}</span>　"
-            f"<span style='font-size:13px;opacity:.75'>置信度 {fc.get('confidence', 0)}%</span>",
+            f"<span style='font-size:13px;opacity:.75'>规则强度 {fc.get('confidence', 0)}%</span>",
             unsafe_allow_html=True,
         )
         if cyc.get("desc"):
             st.caption(cyc["desc"])
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.metric("次日情绪评分", f"{fc.get('score', 0):.0f} / 100")
+            # 口径诚实（2026-09-10 实证）：该评分与次日收益的秩相关 IC≈-0.03，
+            # 1547 天检验无法超越基准率 —— 它只表征**当日情绪热度**，不预测方向。
+            st.metric("情绪热度（不预测方向）", f"{fc.get('score', 0):.0f} / 100")
         with c2:
-            st.metric("方向判断", bias)
+            st.metric("方向判断（规则）", bias)
         with c3:
-            st.metric("置信度", f"{fc.get('confidence', 0)}%")
+            st.metric("规则强度", f"{fc.get('confidence', 0)}%",
+                      help="启发式规则命中强度，非统计校准的胜率；方向的可信度请看下方极值信号层")
         for r in (cyc.get("reasons") or [])[:6]:
             st.markdown(f"- {r}")
+
+    # ①.5 极值信号层（唯一经样本外+多重检验校正验证的方向信息）
+    #   设计原则：有统计依据才表态，否则明确弃权；不硬猜方向。
+    _edge = fc.get("edge") or {}
+    if _edge.get("triggered"):
+        st.warning(_edge.get("statement", ""))
+        for _h in (_edge.get("hits") or []):
+            st.caption(
+                f"触发依据：{_h['name']} {_h['value']:.2f}% ≥ 历史前 10% 分位 "
+                f"{_h['threshold']:.2f}%（walk-forward 触发 {_h['n']} 天，z={_h['z']}）"
+            )
+    elif not _edge.get("available"):
+        # 原先此分支什么都不渲染 → 校准件缺失时用户完全不知道有这层能力（静默失效）
+        st.caption(
+            "ℹ️ 情绪极值信号层当前不可用（校准件缺失或损坏）：本次不做方向表态。"
+            "如需启用，运行 `python scripts/calibrate_sentiment_edge.py` 重新生成。"
+        )
+    elif _edge.get("available") and _edge.get("evaluated") is False:
+        # 关键指标缺失 ≠ 未达极值：前者是「不知道」，必须如实说，不能用 info 轻描淡写
+        st.warning(_edge.get("statement", ""))
+    elif _edge.get("available") and _edge.get("statement"):
+        st.info(_edge.get("statement", ""))
+
+    # 证据展开：把「凭什么」摆在用户面前（walk-forward 无未来信息）
+    if _edge.get("available"):
+        try:
+            from modules.sentiment_edge import calibration_summary as _cs
+            _sum = _cs()
+            _feats = _sum.get("features") or {}
+            if _feats:
+                with st.expander("📊 这个信号的统计依据（walk-forward，无未来信息）"):
+                    st.caption(
+                        f"无条件基准率：次日上涨 {_sum.get('base_next_day_up_rate', 0):.1%}｜"
+                        f"校准区间 {(_sum.get('date_range') or ['—', '—'])[0]} ~ "
+                        f"{(_sum.get('date_range') or ['—', '—'])[1]}｜生成于 {_sum.get('generated_at', '—')}"
+                    )
+                    for _k, _v in _feats.items():
+                        _wf = _v.get("walk_forward") or {}
+                        st.markdown(
+                            f"- **{_v.get('name', _k)}** 达历史前 10% 分位 "
+                            f"（阈值 {_v.get('threshold')}%）：触发 {_wf.get('trigger_days')} 天，"
+                            f"次日上涨 **{(_wf.get('up_rate') or 0):.1%}**，z={_wf.get('z')}"
+                            f"　→ {'可发布' if _v.get('publishable') else '样本/显著性不足，不发布'}"
+                        )
+                    st.caption(
+                        "⚠️ 同时申明能力边界：普通交易日的次日涨跌方向**不可预测**"
+                        "（情绪热度评分与次日收益 IC≈0），本模块此时明确弃权；"
+                        "唯一稳健的就是上面的极端恐慌反弹。"
+                    )
+        except Exception as _e:  # noqa: BLE001
+            logger.debug("情绪信号证据展开渲染失败: %s", _e)
 
     # ② 命中的指标联动规则（组合信号比单指标可靠）
     sigs = fc.get("signals") or []

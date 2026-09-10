@@ -50,6 +50,11 @@ class _FakeDT:
 def _freeze(monkeypatch, y, mo, d, h, mi):
     _FakeDT._fixed = _dt.datetime(y, mo, d, h, mi)
     monkeypatch.setattr(fio, "datetime", _FakeDT)
+    # 关键（2026-09-10 修）：_is_market_open / _is_midday_break 当前时间取自
+    # now_cst_naive()（模块级 import 进来的函数），只 patch fio.datetime 对它无效 ——
+    # 假时钟形同虚设，断言打的是真实墙钟，于是「白天绿、晚上红」：22:00 跑必失败。
+    # 必须把时间源一并冻结。
+    monkeypatch.setattr(fio, "now_cst_naive", lambda: _FakeDT._fixed)
 
 
 def test_is_market_open(monkeypatch):

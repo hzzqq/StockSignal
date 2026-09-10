@@ -573,7 +573,20 @@ def fragment_review():
     with st.container(border=True):
         cyc = (fc or {}).get("cycle") or {}
         st.markdown(f"**📅 {dstr} 决策快照**　{cyc.get('emoji','')} {cyc.get('name','—')} ｜ "
-                    f"评分 {(fc or {}).get('score',0):.0f} ｜ 次日 {(fc or {}).get('bias','—')}")
+                    f"情绪热度 {(fc or {}).get('score',0):.0f}（不预测方向） ｜ "
+                    f"次日 {(fc or {}).get('bias','—')}（规则）")
+        # 极值信号层：有统计依据才表态，否则明确弃权
+        _edge = (fc or {}).get("edge") or {}
+        if _edge.get("triggered"):
+            st.warning(_edge.get("statement", ""))
+        elif not _edge.get("available"):
+            # 不可用时别默不作声（静默失效比低分更糟）
+            st.caption("ℹ️ 情绪极值信号层不可用（校准件缺失/损坏），本次不做方向表态。")
+        elif _edge.get("available") and _edge.get("evaluated") is False:
+            # 指标缺失 → 无法判定，别混同于「未进入极值」
+            st.warning(_edge.get("statement", ""))
+        elif _edge.get("abstain") and _edge.get("available"):
+            st.caption(_edge.get("statement", ""))
         # 数据新鲜度徽标：避免用陈旧指标却展示得「像最新的」（I2）
         try:
             from datetime import date as _d

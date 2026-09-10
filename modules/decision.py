@@ -109,7 +109,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
         最终 clamp 到 5~95%。
 
     :param temp: 市场温度 0-100（None 时兜底 50）
-    :param score: 次日情绪评分，仅留痕用，不参与计算（保持规则可解释）
+    :param score: 情绪热度（当日情绪强度，**不预测方向**），仅留痕用，不参与计算
     :param bias: 偏多/偏空/中性
     :param cycle_name: 情绪周期六阶段名，可能带括号后缀（如「主升高潮（加速）」）
     :param overall_promo: 连板梯队整体晋级率(%)，None 表示数据缺失（不加不减）

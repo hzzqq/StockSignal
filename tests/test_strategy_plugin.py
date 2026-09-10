@@ -128,33 +128,64 @@ class TestBacktesterPluggable:
         # 构造最小 result_df（signal 列驱动 simulate 逻辑由 Backtester 内部负责，
         # 此处仅验证 run_param_scan 的调度与排序逻辑，用 stub result）
         class _StubResult:
+            """绩效字段必须是 @property（对齐真实 BacktestResult 契约）。"""
+
             def __init__(self, ret):
                 self._ret = ret
                 self._trades = 3
+
+            @property
             def total_return(self):
                 return self._ret
+
+            @property
             def annualized_return_pct(self):
                 return self._ret * 0.8
+
+            @property
             def sharpe_ratio(self):
                 return 1.2
+
+            @property
             def max_drawdown(self):
                 return -0.1
+
+            @property
             def win_rate(self):
                 return 0.6
+
+            @property
             def profit_factor(self):
                 return 1.5
+
+            @property
             def trade_count(self):
                 return self._trades
 
         orig_run = bt.run
-        bt.run = lambda *a, **k: _StubResult(0.1 * len(k.get("take_profit_pct", [0.03])))
+        # 每组参数返回**互不相同**的收益（按调用序号递增），否则排序断言恒真、等于没测
+        _seq = [0]
+
+        def _fake_run(*a, **k):
+            _seq[0] += 1
+            return _StubResult(_seq[0] * 0.01)
+
+        bt.run = _fake_run
         try:
             rows = bt.run_param_scan("600900", "2025-01-01", "2025-06-01",
                                      strategy="multi_factor", initial_capital=100000)
-            assert len(rows) > 0
-            # 按 total_return 降序
-            rets = [r.get("total_return", -1e9) for r in rows]
-            assert rets == sorted(rets, reverse=True)
+            # ① 不许有空转：任何一组参数走 except 都会在行里留下 "error"
+            #    （原实现 lambda 里对 float 取 len 抛 TypeError，12 组全失败，
+            #      rows 全是 {"error": ...}，而排序断言拿 -1e9 哨兵比较 → 恒真全绿）
+            failed = [r for r in rows if "error" in r]
+            assert not failed, f"有 {len(failed)}/{len(rows)} 组参数走异常分支：{failed[:2]}"
+            # ② 样本量足够，排序才有意义
+            assert len(rows) >= 2, f"仅 {len(rows)} 组参数，排序断言无意义"
+            rets = [r["total_return"] for r in rows]
+            # ③ 互不相同，避免「相等的列表当然有序」这种假通过
+            assert len(set(rets)) == len(rets), f"收益值不互异，排序断言退化：{rets}"
+            # ④ 真正验证按 total_return 降序
+            assert rets == sorted(rets, reverse=True), f"未按 total_return 降序：{rets}"
         finally:
             bt.run = orig_run
 
@@ -164,20 +195,43 @@ class TestBacktesterPluggable:
         bt = Backtester()
 
         class _StubResult:
+            """契约必须与真实 BacktestResult 一致：绩效字段是 @property 而非方法。
+
+            2026-09-10 修复：原 stub 把它们写成普通方法，而 run_batch 按**属性**取值
+            （modules/backtest.py 内 ``r.total_return``），于是拿到 bound method，
+            ``sum(xs)`` 抛 TypeError —— 本用例自 0ee5fd0（BacktestResult 改 @property）
+            起就长期红灯且无人发现。契约守卫见文件末尾
+            test_stub_result_matches_backtestresult_contract。
+            """
+
             def __init__(self, ret):
                 self._ret = ret
+
+            @property
             def total_return(self):
                 return self._ret
+
+            @property
             def annualized_return_pct(self):
                 return self._ret
+
+            @property
             def sharpe_ratio(self):
                 return 1.0
+
+            @property
             def max_drawdown(self):
                 return -0.05
+
+            @property
             def win_rate(self):
                 return 0.55
+
+            @property
             def profit_factor(self):
                 return 1.4
+
+            @property
             def trade_count(self):
                 return 4
 
@@ -193,6 +247,11 @@ class TestBacktesterPluggable:
             assert s["best_stock"] == "600900"
             assert s["worst_stock"] == "000858"
             assert s["avg_total_return"] is not None
+            # 就地契约自检：绩效字段必须是属性（取到方法说明 stub 又漂了）
+            assert not callable(_StubResult(0.2).total_return), (
+                "_StubResult.total_return 应是 @property；"
+                "写成方法会让 run_batch 聚合到 bound method"
+            )
         finally:
             bt.run = orig_run
 
@@ -243,3 +302,64 @@ class TestPickerMultiStrategy:
         import inspect
         sig = inspect.signature(bt.daily_picker_backtest)
         assert "strategy" in sig.parameters
+
+
+def test_stub_result_matches_backtestresult_contract():
+    """契约守卫（AST）：run_batch 按**属性**读取绩效字段，故测试 stub 必须用
+    @property 提供、且覆盖生产实际读取的全部字段。
+
+    背景：0ee5fd0 把 BacktestResult 的绩效字段改成 @property 后，本文件的
+    _StubResult 仍是普通方法 —— test_run_batch_aggregates 取到 bound method、
+    sum() 抛 TypeError，长期红灯无人发现（隔离运行即可复现，非环境问题）。
+    本守卫让 stub 与生产契约不再各自漂移。
+    """
+    import ast
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    prod_src = (root / "modules" / "backtest.py").read_text(encoding="utf-8")
+    prod = ast.parse(prod_src)
+    tree = ast.parse(pathlib.Path(__file__).read_text(encoding="utf-8"))
+
+    def _is_property(item):
+        return any(
+            getattr(d, "id", None) == "property"
+            or (isinstance(d, ast.Attribute) and d.attr == "property")
+            for d in getattr(item, "decorator_list", [])
+        )
+
+    # 1) 生产侧：BacktestResult 上的 @property 名单
+    prod_props = set()
+    for node in ast.walk(prod):
+        if isinstance(node, ast.ClassDef) and node.name == "BacktestResult":
+            for item in node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and _is_property(item):
+                    prod_props.add(item.name)
+    assert prod_props, "未在 BacktestResult 上解析出任何 @property，解析逻辑已失效"
+
+    # 2) 生产侧：run_batch 实际按属性读到的绩效字段
+    used = set()
+    for node in ast.walk(prod):
+        if isinstance(node, ast.FunctionDef) and node.name == "run_batch":
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Attribute) and sub.attr in prod_props:
+                    used.add(sub.attr)
+    assert used, "未解析出 run_batch 读取的绩效字段，解析逻辑已失效"
+
+    # 3) stub 侧：同名成员必须是 property，且覆盖 used
+    stub_props, stub_methods = set(), set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == "_StubResult":
+            for item in node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    (stub_props if _is_property(item) else stub_methods).add(item.name)
+
+    missing = sorted(used - stub_props)
+    assert not missing, (
+        f"_StubResult 缺少绩效属性 {missing}；生产 run_batch 会按属性读取它们"
+    )
+    wrong = sorted(stub_methods & prod_props)
+    assert not wrong, (
+        f"_StubResult 把 {wrong} 写成了普通方法，但 BacktestResult 上是 @property；"
+        "run_batch 按属性取值会拿到 bound method（0ee5fd0 起的长期红灯根因）"
+    )

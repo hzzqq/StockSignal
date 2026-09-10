@@ -8,7 +8,7 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-red?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Flask](https://img.shields.io/badge/Flask-3.0+-black?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![AKShare](https://img.shields.io/badge/Data-AKShare%20%2F%20BaoStock%20%2F%20Sina%20%2F%20Eastmoney-orange)](https://akshare.akfamily.xyz/)
-[![Tests](https://img.shields.io/badge/Tests-2608%20passed-brightgreen)](https://github.com/hzzqq/StockSignal)
+[![Tests](https://img.shields.io/badge/Tests-2648%20passed-brightgreen)](https://github.com/hzzqq/StockSignal)
 [![License](https://img.shields.io/badge/License-学习研究-lightgrey)]()
 
 > **把「事件 → 主线 → 回测 → 交易」串成一个工作台的 A 股分析平台。**
@@ -31,7 +31,7 @@
 |---|---|
 | 🧭 **数据源会不会挂** | AKShare → BaoStock → 新浪 → 东方财富 → 本地缓存，**4 级自动降级**，单点故障不崩、断网也能看历史 |
 | 📊 **功能全不全** | **41 个功能页面**：行情看板 / 个股分析 / 多股对比 / 事件追踪 / 策略回测 / 智能选股 / 资金流向 / 市场情绪 / 模拟交易 / 智能条件单…… |
-| 🧪 **靠不靠谱** | **2608 个自动化测试**（含数据正确性断言、页面冒烟、后端安全回归），每个页面都有测试兜底 |
+| 🧪 **靠不靠谱** | **2648 个自动化测试**（含数据正确性断言、页面冒烟、后端安全回归），每个页面都有测试兜底 |
 | 🎨 **好不好用** | 暗夜 / 白天双主题，A 股红涨绿跌，K 线支持日/周/月切换 + 十字光标 + 双击弹分时 |
 | 🚀 **跑起来难不难** | Windows 双击 `.bat` 一键启动；Docker Compose 一条命令；手动启动 5 行命令 |
 
@@ -161,7 +161,7 @@ StockSignal/
 │                         #   market_drivers/visualizer/ui_theme…）
 ├── backend/              # Flask 后端（JWT 鉴权 / REST API / 管理界面）
 ├── data/                 # 前端运行数据（cache.db / portfolio.csv / news.db）
-├── tests/ + backend/tests/  # 246 个测试文件 / 2608 用例
+├── tests/ + backend/tests/  # 248 个测试文件 / 2648 用例
 └── 启动StockSignal.bat          # Windows 一键启动（macOS/Linux 见方式 B 手动 / 方式 C Docker）
 ```
 
@@ -169,7 +169,7 @@ StockSignal/
 
 ## 🛡 工程与质量（认真写的代码）
 
-- **测试 2608 passed**：数据正确性断言（OHLC 自洽 / 日期单调 / 股息率反推区间）、41 页离线冒烟（整批不卡死）、后端安全回归 12/12
+- **测试 2648 passed**：数据正确性断言（OHLC 自洽 / 日期单调 / 股息率反推区间）、41 页离线冒烟（整批不卡死）、后端安全回归 12/12
 - **统一 JSON 响应 + 全局 errorhandler**：绝不泄露 HTML / traceback
 - **安全基线**：JWT + 限流 + 默认 TLS 校验 + 登录持久化
 - **架构治理**：God Module 持续拆分（`_feed_io` / `_market_data_io` / `_search_utils` 叶子模块）、共享有界线程池、超时分层

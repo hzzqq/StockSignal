@@ -1,0 +1,126 @@
+{
+  "generated_at": "2026-09-10 20:52:48",
+  "source": "data\\shepherd_history.csv",
+  "method": "walk-forward / expanding window（第 i 天阈值只用 [warmup, i) 计算，无未来信息）",
+  "warmup": 500,
+  "quantile": 0.9,
+  "min_trigger_samples": 20,
+  "base_next_day_up_rate": 0.4651,
+  "date_range": [
+    "2020-04-20",
+    "2026-09-03"
+  ],
+  "universe_note": "本历史为逐年长大的采样（2009 年仅 26 只 → 2025 年 1669 只），故校准只使用尺度无关的占比类特征；绝对家数阈值不可用。",
+  "features": {
+    "limit_down_ratio": {
+      "key": "limit_down_ratio",
+      "name": "跌停占比",
+      "how": "limit_down / 当日有效样本数 × 100",
+      "sign": "high",
+      "expected_direction": "up",
+      "why": "跌停占比冲到历史前 10% = 恐慌彻底出清，次日易有抄底盘做 V 反",
+      "production_threshold": 0.3342,
+      "threshold_basis": "全样本 P90（2020-04-20~2026-09-03）",
+      "walk_forward": {
+        "trigger_days": 78,
+        "up_days": 52,
+        "up_rate": 0.6667,
+        "base_rate": 0.4651,
+        "mean_next_day": 0.5593,
+        "z": 3.57,
+        "p": 0.0004,
+        "significant": true
+      },
+      "by_year": {
+        "2022": {
+          "n": 13,
+          "up": 6,
+          "mean": -0.0753,
+          "up_rate": 0.4615
+        },
+        "2023": {
+          "n": 3,
+          "up": 2,
+          "mean": 0.9437,
+          "up_rate": 0.6667
+        },
+        "2024": {
+          "n": 21,
+          "up": 13,
+          "mean": 0.525,
+          "up_rate": 0.619
+        },
+        "2025": {
+          "n": 17,
+          "up": 13,
+          "mean": 1.1504,
+          "up_rate": 0.7647
+        },
+        "2026": {
+          "n": 24,
+          "up": 18,
+          "mean": 0.4662,
+          "up_rate": 0.75
+        }
+      },
+      "publishable": true
+    },
+    "touch_down_ratio": {
+      "key": "touch_down_ratio",
+      "name": "触及跌停占比",
+      "how": "touch_down / 当日有效样本数 × 100",
+      "sign": "high",
+      "expected_direction": "up",
+      "why": "盘中触及跌停的家数占比极高 = 抛压当日释放最充分，次日修复概率显著抬升",
+      "production_threshold": 0.5982,
+      "threshold_basis": "全样本 P90（2020-04-20~2026-09-03）",
+      "walk_forward": {
+        "trigger_days": 65,
+        "up_days": 41,
+        "up_rate": 0.6308,
+        "base_rate": 0.4651,
+        "mean_next_day": 0.5089,
+        "z": 2.68,
+        "p": 0.0074,
+        "significant": true
+      },
+      "by_year": {
+        "2022": {
+          "n": 12,
+          "up": 6,
+          "mean": -0.0476,
+          "up_rate": 0.5
+        },
+        "2023": {
+          "n": 4,
+          "up": 2,
+          "mean": 0.6748,
+          "up_rate": 0.5
+        },
+        "2024": {
+          "n": 22,
+          "up": 14,
+          "mean": 0.4792,
+          "up_rate": 0.6364
+        },
+        "2025": {
+          "n": 7,
+          "up": 6,
+          "mean": 2.1788,
+          "up_rate": 0.8571
+        },
+        "2026": {
+          "n": 20,
+          "up": 13,
+          "mean": 0.2577,
+          "up_rate": 0.65
+        }
+      },
+      "publishable": true
+    }
+  },
+  "strength_ic": {
+    "touch_down_ratio": 0.1556
+  },
+  "strength_note": "次日波动幅度与当日占比类指标秩相关 IC≈0.13~0.16（弱正），可用于『次日波动偏大』的风险提示；但**方向不可预测**。"
+}

@@ -18,7 +18,7 @@ def render_signal_cards(temp, cyc_name, cyc_emoji, score, bias, overall, latest_
     :param temp: 市场温度 0-100
     :param cyc_name: 情绪周期名（如「修复确认」）
     :param cyc_emoji: 周期 emoji
-    :param score: 次日情绪评分（可 None）
+    :param score: 情绪热度 0-100（当日情绪强度，不预测方向；可 None）
     :param bias: 偏多/偏空/中性
     :param overall: 综合晋级率(%) 或 None
     :param latest_date: 晋级率最新快照日期
@@ -37,8 +37,8 @@ def render_signal_cards(temp, cyc_name, cyc_emoji, score, bias, overall, latest_
         st.metric("🔄 情绪周期", cyc_name or "—")
         st.caption(cyc_emoji or "⚪")
     with c3:
-        st.metric("🔮 次日评分", f"{score:.0f}" if score is not None else "—",
-                  help="次日情绪评分 0-100，越高环境越友好")
+        st.metric("🔮 情绪热度", f"{score:.0f}" if score is not None else "—",
+                  help="当日情绪热度 0-100（仅表征情绪强度，实测不预测次日方向）")
         st.caption(f"方向 {bias}")
     with c4:
         _od = None if overall_delta is None else round(float(overall_delta), 1)

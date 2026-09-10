@@ -71,6 +71,8 @@ from __future__ import annotations
 
 import logging
 
+from modules.sentiment_edge import panic_reversal  # 有统计依据的极值信号层
+
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════
@@ -554,7 +556,10 @@ def locate_cycle(today: dict, prev: dict = None) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  四、次日情绪评分（0-100，越高代表次日环境越友好）
+#  四、当日情绪热度（0-100，越高代表当日情绪越强）
+#     ⚠️ 不预测方向：实证（scripts/analyze_sentiment_predictive_power.py）显示该分数
+#     与次日收益的秩相关 IC≈-0.03、十分位单调性 IC≈0.02，1547 天检验无法超越基准率。
+#     方向性结论请以 sentiment_edge 的极值信号层为准（唯一经样本外验证的方向信息）。
 # ═══════════════════════════════════════════════════════════════
 def _score_dim(key, value, vmax):
     """把单指标归一到 0~1（考虑 dir 方向）。缺失返回 None。"""
@@ -589,9 +594,12 @@ def _score_dim(key, value, vmax):
 
 
 def score_next_day(today: dict, prev: dict = None) -> dict:
-    """次日情绪评分（0-100）。返回 {total, dims:[{name, score, max, value, tip}]}。
+    """当日情绪热度（0-100）。返回 {total, dims:[{name, score, max, value, tip}]}。
 
-    维度与权重（参考实战复盘「次日情绪评分系统」改造为牧羊人可得指标）：
+    ⚠️ 该分数**不用于预测次日涨跌方向**（实测 IC≈0）；方向性结论见 sentiment_edge。
+
+    维度与权重（参考实战复盘「次日情绪评分系统」改造为牧羊人可得指标；
+    注意本分数仅表征情绪强度，方向性结论见 sentiment_edge）：
       昨日涨停溢价 25 / 连板高度 20 / 梯队厚度 20 / 封板质量(炸板率) 20 / 亏钱效应(跌停) 15
     """
     dims = []
@@ -661,17 +669,20 @@ def forecast_next_day(today: dict, prev: dict = None) -> dict:
     Returns:
         dict:
           cycle     情绪周期定位（含 name/emoji/color/desc/bias/reasons）
-          score     次日情绪评分（0-100）
-          bias      '偏多' / '中性' / '偏空'
-          confidence  置信度 0-100
+          score     情绪热度（0-100，⚠️ 不预测方向）
+          bias      '偏多' / '中性' / '偏空'（启发式规则投票，实测无超越基准的边际）
+          confidence  规则强度 0-100（启发式，非统计校准胜率）
           scenario  情景推演列表 [{name, prob, desc, trigger}]
           signals   命中的联动规则
           drivers   各预测指标的档位解读 [{key,name,value,band,desc,color,why}]
           summary   一句话总结
+          edge      极值信号层（sentiment_edge）：
+                      · triggered=True  → 极端恐慌出清，次日上涨概率显著高于基准（附样本/z）
+                      · abstain=True    → 未达历史极值，明确不表态（方向无统计边际）
     """
     if not today:
         return dict(cycle=None, score=50.0, bias="中性", confidence=0,
-                    scenario=[], signals=[], drivers=[], summary="暂无数据")
+                    scenario=[], signals=[], drivers=[], summary="暂无数据", edge=None)
 
     # 派生指标（涨停/跌停比等）在内层统一补齐，外部调用方无需关心
     today = with_derived(today)
@@ -680,6 +691,9 @@ def forecast_next_day(today: dict, prev: dict = None) -> dict:
     cyc = locate_cycle(today, prev)
     sc = score_next_day(today, prev)
     hits = eval_linkages(today, prev)
+    # 有统计依据的极值信号：只在极端恐慌（跌停/触及跌停占比达历史前 10%）时表态，
+    # 其余时候明确弃权——现有评分与次日收益 IC≈0，硬猜方向只是噪音（见 sentiment_edge）。
+    edge = panic_reversal(today)
 
     # ── 方向投票：周期基准 + 联动规则加减 ──
     cycle_bias = {
@@ -760,12 +774,12 @@ def forecast_next_day(today: dict, prev: dict = None) -> dict:
     drivers.sort(key=lambda x: -x["weight"])
 
     summary = (
-        f"{cyc['emoji']} 情绪周期：{cyc['name']} ｜ 次日情绪评分 {sc['total']:.0f}/100 ｜ "
+        f"{cyc['emoji']} 情绪周期：{cyc['name']} ｜ 情绪热度 {sc['total']:.0f}/100（不预测方向） ｜ "
         f"方向判断：{bias}（置信度 {confidence}%）"
     )
 
     return dict(
         cycle=cyc, score=sc["total"], score_dims=sc["dims"],
         bias=bias, confidence=confidence, scenario=scenario,
-        signals=hits, drivers=drivers, summary=summary,
+        signals=hits, drivers=drivers, summary=summary, edge=edge,
     )
