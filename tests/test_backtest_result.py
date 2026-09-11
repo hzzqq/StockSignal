@@ -46,7 +46,7 @@ def test_empty_trades_returns_zero_rates():
     df = _df([1.0, 2.0, -1.0, 0.5])
     r = BacktestResult("600519", "ma_cross", df, 10000.0, trades=[])
     assert r.win_rate == 0
-    assert r.profit_factor == 0
+    assert r.profit_factor is None
     assert r.avg_trade_return == 0
     assert r.trade_count == 0
 

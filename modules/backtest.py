@@ -1489,12 +1489,14 @@ class BacktestResult:
 
     @property
     def profit_factor(self):
-        """盈亏比：总盈利 / |总亏损|。"""
+        """盈亏比：总盈利 / |总亏损|。无亏损交易（全胜）或无交易时分母为 0，盈亏比无定义，返回 None（而非误导性的 0）。"""
         if not self.trades:
-            return 0
+            return None
         gross_profit = sum(t["profit_pct"] for t in self.trades if t["profit_pct"] > 0)
         gross_loss = abs(sum(t["profit_pct"] for t in self.trades if t["profit_pct"] < 0))
-        return round(gross_profit / gross_loss, 2) if gross_loss > 0 else 0
+        # 无亏损交易（全胜）时分母为 0，盈亏比无定义：返回 None 而非误导性的 0
+        # （与 run_batch 的 is not None 过滤、页面的「—」展示口径一致，见锐评 R4）。
+        return round(gross_profit / gross_loss, 2) if gross_loss > 0 else None
 
     @property
     def avg_trade_return(self):

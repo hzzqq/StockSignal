@@ -9,7 +9,7 @@ BacktestResult.__init__ 仅做属性赋值（ticker/strategy/df/trades/initial_c
 - max_drawdown      = df["drawdown"].min()（空 df → 0）
 - sharpe_ratio      = 年化夏普（rf=3%，std=0 → 0，空 df → 0）
 - win_rate          = 盈利交易占比 * 100（无 trades → 0）
-- profit_factor     = 总盈利 / |总亏损|（无亏损 → 0，无 trades → 0）
+- profit_factor     = 总盈利 / |总亏损|（无亏损 → None，无 trades → None）
 - avg_trade_return  = 单笔平均 profit_pct（无 trades → 0）
 
 附带覆盖 final_value / trade_count 两个辅助属性，确保回测结果封装的数值契约稳定。
@@ -142,15 +142,17 @@ def test_profit_factor_gross_profit_over_loss():
     assert res.profit_factor == 4.0
 
 
-def test_profit_factor_all_profit_returns_zero():
+def test_profit_factor_all_profit_is_none():
+    """全盈利（无亏损）→ 盈亏比无定义 → None（不应是误导性的 0）。锐评 R4。"""
     trades = [{"profit_pct": 5.0}, {"profit_pct": 3.0}]
     res = _make(trades=trades)
-    assert res.profit_factor == 0
+    assert res.profit_factor is None
 
 
-def test_profit_factor_empty_trades_is_zero():
+def test_profit_factor_empty_trades_is_none():
+    """无交易 → 盈亏比无定义 → None。锐评 R4。"""
     res = _make()
-    assert res.profit_factor == 0
+    assert res.profit_factor is None
 
 
 # ---------- avg_trade_return ----------
