@@ -61,6 +61,38 @@ def _trend_persistence_ratio(recent):
         return 0.0
     above = int((recent["close"] > recent["ma20"]).sum())
     return above / len(recent)
+
+
+def _rsi14_health_score(rsi14):
+    """RSI14 健康分（两条选股打分路径统一调用的单一真理源）。
+
+    锐评 R6：原 _score_for_picker 与 daily_picker_backtest 各自写一套 RSI14 分档，
+    且超买阈值不一致（75 vs 80），导致同一 RSI14 在两路径给不同分（如 75→主10/批0），
+    批量选股回测与单股诊断结论自相矛盾。统一到此函数后分支无法再漂移。
+    """
+    try:
+        r = float(rsi14)
+    except (TypeError, ValueError):
+        return 0
+    if 40 <= r <= 60:
+        return 20
+    elif 30 <= r < 40:
+        return 15
+    elif 60 < r <= 70:
+        return 12
+    elif 70 < r <= 92:
+        return 10
+    elif 25 <= r < 30:
+        return 8
+    return 0
+
+
+def _rsi14_overbought(recent):
+    """最近窗口内 RSI14>75 的交易日数（与主路径一致，阈值 75）。"""
+    if recent is None or len(recent) == 0:
+        return 0
+    return int((recent["rsi14"] > 75).sum())
+
 class Backtester:
     """策略回测器。"""
 
@@ -814,27 +846,16 @@ class Backtester:
         # 3) 健康分（最高 20 分）— RSI14 区间 + 未超买历史
         # ══════════════════════════════════════
         rsi14 = latest["rsi14"]
-        if 40 <= rsi14 <= 60:
-            health_score = 20
-            reasons.append("RSI14健康")
-        elif 30 <= rsi14 < 40:
-            health_score = 15
-            reasons.append("RSI14回踩")
-        elif 60 < rsi14 <= 70:
-            health_score = 12
-            reasons.append("RSI14强势")
-        elif 70 < rsi14 <= 92:
-            # 强趋势（对齐 V5 多因子：RSI 70-92 为可买入强趋势区间，仅 >92 极端泡沫降分）
-            health_score = 10
-            reasons.append("RSI14强趋势")
-        elif 25 <= rsi14 < 30:
-            health_score = 8
-            reasons.append("RSI14偏低")
-        else:
-            health_score = 0
+        # 健康分（统一走 _rsi14_health_score 单一真理源，避免与批量路径分档漂移；锐评 R6）
+        health_score = _rsi14_health_score(rsi14)
+        if 40 <= rsi14 <= 60: reasons.append("RSI14健康")
+        elif 30 <= rsi14 < 40: reasons.append("RSI14回踩")
+        elif 60 < rsi14 <= 70: reasons.append("RSI14强势")
+        elif 70 < rsi14 <= 92: reasons.append("RSI14强趋势")
+        elif 25 <= rsi14 < 30: reasons.append("RSI14偏低")
 
         # 近 5 天是否有过 RSI14 > 75（严重超买则扣分）
-        recent_overbought = (recent["rsi14"] > 75).sum()
+        recent_overbought = _rsi14_overbought(recent)
         if recent_overbought >= 2:
             health_score = max(0, health_score - 5)
         score += health_score
@@ -1279,14 +1300,17 @@ class Backtester:
                     elif rsi2 < 25: score += 10; reasons.append("RSI2偏低")
                     score += max(0, min(cons_low - 1, 5)) * 1.0
 
-                    # 3) 健康分
+                    # 3) 健康分（与 _score_for_picker 统一走 _rsi14_health_score 单一真理源；锐评 R6）
                     rsi14 = latest["rsi14"]
-                    h_score = 0
-                    if 40 <= rsi14 <= 70: h_score = 20; reasons.append("RSI14健康")
-                    elif 30 <= rsi14 < 40: h_score = 15; reasons.append("RSI14回踩")
-                    elif 60 < rsi14 <= 80: h_score = 12; reasons.append("RSI14强势")
-                    elif 25 <= rsi14 < 30: h_score = 8; reasons.append("RSI14偏低")
-                    if (recent_10["rsi14"] > 80).sum() >= 2:
+                    h_score = _rsi14_health_score(rsi14)
+                    if 40 <= rsi14 <= 60: reasons.append("RSI14健康")
+                    elif 30 <= rsi14 < 40: reasons.append("RSI14回踩")
+                    elif 60 < rsi14 <= 70: reasons.append("RSI14强势")
+                    elif 70 < rsi14 <= 92: reasons.append("RSI14强趋势")
+                    elif 25 <= rsi14 < 30: reasons.append("RSI14偏低")
+                    # 近 5 天是否有过 RSI14 > 75（严重超买则扣分，与主路径一致）
+                    recent_overbought = _rsi14_overbought(recent_10)
+                    if recent_overbought >= 2:
                         h_score = max(0, h_score - 5)
                     score += h_score
 
