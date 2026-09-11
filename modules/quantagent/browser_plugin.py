@@ -48,10 +48,10 @@ class BrowserCollector:
                 {"date": "2026-07-02", "title": f"【{ticker}】半年度业绩预增公告", "url": "#mock"},
             ][:limit]
         try:
-            import requests
+            from modules.request_utils import http_get
 
             url = f"https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/PageAjax?code={ticker}"
-            resp = requests.get(url, timeout=8)
+            resp = http_get(url, timeout=8)
             data = resp.json()
             items = data.get("ggmx", {}).get("data", [])[:limit]
             return [{"date": i.get("DATE", ""), "title": i.get("TITLE", ""), "url": ""} for i in items]
@@ -63,9 +63,9 @@ class BrowserCollector:
         if self.mock:
             return {"signal": 0.0, "sample": "（离线演示）网页舆情中性，未抓取实时讨论热度。"}
         try:
-            import requests
+            from modules.request_utils import http_get
 
-            requests.get("https://guba.eastmoney.com/", timeout=6)
+            http_get("https://guba.eastmoney.com/", timeout=6)
             return {"signal": 0.1, "sample": "网页讨论略偏积极。"}
         except Exception:
             self.mock = True

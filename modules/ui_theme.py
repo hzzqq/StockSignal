@@ -175,18 +175,27 @@ def apply_theme() -> None:
 def get_current_mode() -> str:
     return st.session_state.get('theme_mode', 'light')
 
+_DASHBOARD_SF_CSS_CACHE: dict = {}
+
+
 def dashboard_sf_css() -> str:
     """个股分析「决策仪表盘」的 .sf-* 组件样式（白天 / 暗夜双主题自适应）。
 
     通过 CSS 变量切换：暗夜用深空黑底 + 紫蓝渐变，白天用白卡 + 浅边框高对比。
     页面只需注入一次，:root 变量会覆盖全局主题里的同名变量，保证配色一致。
+
+    性能（R88）：CSS 仅随主题(dark/light)变化，故按主题缓存整段字符串，
+    避免每个页面重跑都重建这段等长 CSS。
     """
     dark = _theme_is_dark()
+    _cached = _DASHBOARD_SF_CSS_CACHE.get(dark)
+    if _cached is not None:
+        return _cached
     if dark:
         root = '\n  --bg:#0f0f23; --card:#1a1a2e; --card2:#15152a; --buy:#009e60; --sell:#dc2626; --hold:#d97706;\n  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44;\n  --hover:#15152a; --alert-risk:#ffb3bb; --alert-cat:#9af0dd; --disclaimer:#6b7280;\n  --header-g1:#1a1a2e; --header-g2:#241b3a; --icon-g1:#1a1a2e; --icon-g2:#241b3a;\n'
     else:
         root = '\n  --bg:#ffffff; --card:#ffffff; --card2:#f4f6fb; --buy:#009e60; --sell:#dc2626; --hold:#d97706;\n  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#1e293b; --txt2:#64748b; --border:#e2e8f0;\n  --hover:#f1f5f9; --alert-risk:#991b1b; --alert-cat:#166534; --disclaimer:#94a3b8;\n  --header-g1:#eef2ff; --header-g2:#ede9fe; --icon-g1:#eef2ff; --icon-g2:#ede9fe;\n'
-    return f"""\n<style>\n:root{{{root}}}\n/* 通用星辰卡片（供任意页面在 dashboard_sf_css 内使用） */
+    _css = f"""\n<style>\n:root{{{root}}}\n/* 通用星辰卡片（供任意页面在 dashboard_sf_css 内使用） */
 /* 通用星辰卡片 → 2026-08-28 重渲染为「新城(xc)」视觉语言：深紫渐变描边 + 大圆角 + 抬升光晕 */
 .sf-card{{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));
   border-radius:18px;padding:18px 20px;margin-top:18px;position:relative;overflow:hidden;
@@ -373,6 +382,9 @@ hr{{border-color:var(--border)!important}}
 .xc-note{{padding:12px 14px;border-radius:12px;background:color-mix(in srgb,var(--acc1) 10%,var(--card2));border:1px solid color-mix(in srgb,var(--acc1) 30%,var(--border));font-size:14px;line-height:1.7;color:var(--txt)}}
 </style>
 """
+    _DASHBOARD_SF_CSS_CACHE[dark] = _css
+    return _css
+
 
 def section_header(title: str, subtitle: str='', icon: str='📊') -> None:
     """轻量化模块标题（图标 + 标题 + 渐变竖条），与参考文档 .card h2 一致。

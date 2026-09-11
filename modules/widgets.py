@@ -20,6 +20,7 @@ from datetime import datetime
 import html
 import time
 import requests
+from modules.request_utils import http_get, http_post
 
 from modules.time_utils import now_cst_str, now_cst_naive
 import streamlit as st
@@ -453,7 +454,7 @@ def render_global_search() -> None:
     q = st.text_input('股票代码 / 名称 / 拼音', key='global_search_q', placeholder='如 600519 / 茅台 / mt', label_visibility='collapsed')
     if q:
         try:
-            resp = requests.get(f'{API_BASE}/api/stocks/search', params={'q': q, 'limit': 8}, headers={'Authorization': f'Bearer {get_token()}'}, timeout=5)
+            resp = http_get(f'{API_BASE}/api/stocks/search', params={'q': q, 'limit': 8}, headers={'Authorization': f'Bearer {get_token()}'}, timeout=5)
             if resp.status_code == 200:
                 body = resp.json()
                 results = body.get('data') or []
@@ -841,7 +842,32 @@ def _nav_active_css(dark: bool) -> str:
     return (".ss-nav-active{padding:5px 9px!important;margin:2px 0!important;border-radius:8px!important;"
             "background:linear-gradient(90deg,#667eea,#764ba2)!important;"
             "border-left:4px solid #FF8C00!important;font-weight:800!important;color:#FFFFFF!important;"
-            "box-shadow:0 1px 6px rgba(102,126,234,.35)!important;}")
+                "box-shadow:0 1px 6px rgba(102,126,234,.35)!important;}")
+
+
+# 侧边栏导航 CSS：仅随主题(dark/light)变化，按主题缓存整段（R88），避免每页重搭。
+_SIDEBAR_NAV_CSS_CACHE: dict = {}
+
+
+def _sidebar_nav_css(dark: bool) -> str:
+    """侧边栏导航样式（隐藏原生导航 + 当前页高亮）。按主题缓存，避免逐页重建等长 CSS。"""
+    cached = _SIDEBAR_NAV_CSS_CACHE.get(dark)
+    if cached is not None:
+        return cached
+    css = (
+        '<style>'
+        '[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]{display:none!important;}'
+        '/* 强制侧边栏常驻：禁用折叠按钮，避免用户误关后找不到导航 */'
+        '[data-testid="stSidebarCollapseButton"]{display:none!important;}'
+        '/* 紧凑侧边栏导航：减少分组标题与链接间距，降低长导航的视觉负担 */'
+        '[data-testid="stSidebar"] .stMarkdown [data-testid="stCaptionContainer"] {margin-top:4px!important;margin-bottom:2px!important;font-size:12px!important;}'
+        '[data-testid="stSidebar"] [data-testid="stPageLink"] a {padding:4px 8px!important;margin:1px 0!important;border-radius:8px!important;}'
+        '[data-testid="stSidebar"] [data-testid="stButton"] button {padding:4px 8px!important;min-height:28px!important;}'
+        + _nav_active_css(dark) +
+        '</style>'
+    )
+    _SIDEBAR_NAV_CSS_CACHE[dark] = css
+    return css
 
 
 def render_sidebar_nav() -> None:
@@ -854,19 +880,7 @@ def render_sidebar_nav() -> None:
     """
     from modules.ui_theme import _theme_is_dark
     _dark = _theme_is_dark()
-    st.markdown(
-        '<style>'
-        '[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"]{display:none!important;}'
-        '/* 强制侧边栏常驻：禁用折叠按钮，避免用户误关后找不到导航 */'
-        '[data-testid="stSidebarCollapseButton"]{display:none!important;}'
-        '/* 紧凑侧边栏导航：减少分组标题与链接间距，降低长导航的视觉负担 */'
-        '[data-testid="stSidebar"] .stMarkdown [data-testid="stCaptionContainer"] {margin-top:4px!important;margin-bottom:2px!important;font-size:12px!important;}'
-        '[data-testid="stSidebar"] [data-testid="stPageLink"] a {padding:4px 8px!important;margin:1px 0!important;border-radius:8px!important;}'
-        '[data-testid="stSidebar"] [data-testid="stButton"] button {padding:4px 8px!important;min-height:28px!important;}'
-        + _nav_active_css(_dark) +
-        '</style>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(_sidebar_nav_css(_dark), unsafe_allow_html=True)
 
     _cur_base = _current_page_basename()
 
@@ -964,7 +978,7 @@ def render_sidebar_nav() -> None:
 def _cached_watchlist_count(token: str) -> int:
     """缓存自选股数量请求，避免每个页面加载都打一次后端（性能提速）。"""
     try:
-        resp = requests.get(f'{API_BASE}/api/watchlist', headers={'Authorization': f'Bearer {token}'}, timeout=5)
+        resp = http_get(f'{API_BASE}/api/watchlist', headers={'Authorization': f'Bearer {token}'}, timeout=5)
         if resp.status_code == 200:
             return len(resp.json().get('data') or [])
     except Exception as e:
@@ -977,7 +991,7 @@ def _cached_watchlist_count(token: str) -> int:
 def _cached_recent_login(token: str) -> str:
     """缓存『最近登录时间』请求，避免每个页面加载都打一次后端（性能提速）。"""
     try:
-        resp = requests.get(f'{API_BASE}/api/auth/logins', headers={'Authorization': f'Bearer {token}'}, timeout=5)
+        resp = http_get(f'{API_BASE}/api/auth/logins', headers={'Authorization': f'Bearer {token}'}, timeout=5)
         if resp.status_code == 200:
             logs = resp.json().get('data') or []
             if logs:

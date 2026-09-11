@@ -28,6 +28,7 @@ from modules.fundflow import (
     _retry_with_backoff,
     _run_with_timeout,
 )
+from modules.chart_cache import cached_fig  # #90：纯函数 figure 构建缓存（消除 st_autorefresh 每 30~60s 重build）
 from modules.fetch_parallel import fetch_many  # R78：共享有界线程池并行取数
 from modules.fetcher import StockFetcher
 from modules.perf import downsample
@@ -858,6 +859,7 @@ def _max_drawdown_idx(s):
     return mdd_peak_i, mdd_trough_i, mdd
 
 
+@cached_fig(ttl=120)  # #90：纯函数 figure 构建缓存；被 11_/13_/15_/35_ 多个 st_autorefresh 页复用
 def plot_normalized_multi(df, names_map=None, colors_map=None, title="",
                           y_title="归一化点位（起点=100）", dark_mode=False,
                           date_range=None, ma_periods=(), selected=None,
@@ -987,6 +989,7 @@ def to_trend_csv(df, names_map=None, selected=None, date_range=None):
     return out.to_csv(index=False, encoding="utf-8-sig")
 
 
+@cached_fig(ttl=120)  # #90：纯函数 figure 构建缓存；被 15_/35_ 等 st_autorefresh 页复用
 def plot_correlation_heatmap(df, names_map=None, selected=None, date_range=None,
                              dark_mode=False, title="收益率相关性热力图"):
     """所选序列的日收益率相关性热力图（颜色 RdBu，红=正相关，蓝=负相关）。

@@ -35,6 +35,7 @@ import jwt
 import streamlit as st
 import requests
 from datetime import datetime
+from modules.request_utils import http_get, http_post
 from modules.time_utils import now_cst_naive
 
 from .ui_theme import FONT_DEFAULT
@@ -266,7 +267,7 @@ def _verify_token(token: str):
       - None                ：网络错误/超时/5xx 等瞬态异常，无法判定，调用方应保留现有登录态
     """
     try:
-        resp = requests.get(
+        resp = http_get(
             f"{API_BASE}/api/auth/me",
             headers={"Authorization": f"Bearer {token}"},
             timeout=3,
@@ -387,7 +388,7 @@ def push_settings_to_backend() -> None:
         return
     try:
         prefs = _current_prefs()
-        requests.post(
+        http_post(
             f"{API_BASE}/api/auth/settings",
             json={"settings": prefs},
             headers={"Authorization": f"Bearer {token}"},
@@ -417,7 +418,7 @@ def save_user_setting(key, value) -> None:
         settings[key] = value
         user["settings"] = settings
         st.session_state[KEY_USER] = user
-        requests.post(
+        http_post(
             f"{API_BASE}/api/auth/settings",
             json={"settings": settings},
             headers={"Authorization": f"Bearer {token}"},

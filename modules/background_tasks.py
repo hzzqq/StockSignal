@@ -12,6 +12,7 @@ import time
 from typing import Any, Dict, Optional
 
 import requests
+from modules.request_utils import http_get, http_post
 
 from modules.session import API_BASE, get_token
 
@@ -34,7 +35,7 @@ def _headers() -> Dict[str, str]:
 def submit_task_with_error(task_type: str, payload: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
     """提交任务，返回 (task_id, error_message)。成功时 error_message 为 None。"""
     try:
-        resp = requests.post(
+        resp = http_post(
             f"{API_BASE}/api/tasks/",
             json={"type": task_type, "payload": payload},
             headers=_headers(),
@@ -74,7 +75,7 @@ def get_task(task_id: str) -> Optional[Dict[str, Any]]:
     其余非 200（网络/5xx）仍返回 None，由调用方走超时/重试逻辑。
     """
     try:
-        resp = requests.get(
+        resp = http_get(
             f"{API_BASE}/api/tasks/{task_id}",
             headers=_headers(),
             timeout=_TIMEOUT,
@@ -160,7 +161,7 @@ def submit_and_wait(task_type: str, payload: Dict[str, Any],
 def get_chat_history() -> list:
     """获取当前登录用户的星辰 AI 对话历史。失败/无记录返回空列表。"""
     try:
-        resp = requests.get(
+        resp = http_get(
             f"{API_BASE}/api/chat/history",
             headers=_headers(),
             timeout=_TIMEOUT,
@@ -180,7 +181,7 @@ def get_chat_history() -> list:
 def save_chat_history(messages: list) -> bool:
     """保存当前登录用户的星辰 AI 对话历史。成功返回 True，失败返回 False。"""
     try:
-        resp = requests.post(
+        resp = http_post(
             f"{API_BASE}/api/chat/history",
             json={"messages": messages},
             headers=_headers(),

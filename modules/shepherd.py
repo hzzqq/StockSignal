@@ -59,21 +59,21 @@ logger = logging.getLogger(__name__)
 _SHEPHERD_DATA_DIR = os.environ.get("SS_DATA_DIR") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
 _HISTORY_FILE = os.path.join(_SHEPHERD_DATA_DIR, "shepherd_history.csv")
 _HISTORY_TTL = 3600  # 1h
-_CACHE = {}
-_CACHE_LOCK = threading.Lock()
+# 简易 TTL 缓存：收口到 modules.cache_utils（R87）
+# shepherd._CACHE / _CACHE_LOCK 别名到 cache_utils 的共享对象，
+# 以保证历史测试 `shepherd._CACHE.clear()` 仍清空真实使用的缓存。
+from modules.cache_utils import _CACHE, _CACHE_LOCK, cached_ttl
+
+
 _MAX_HISTORY_DAYS = 90
 
 
 def _cached(ttl, key, fn):
-    now = time.time()
-    with _CACHE_LOCK:
-        hit = _CACHE.get(key)
-        if hit and (now - hit[0]) < ttl:
-            return hit[1]
-    val = fn()
-    with _CACHE_LOCK:
-        _CACHE[key] = (now, val)
-    return val
+    """基于时间戳的轻量缓存（锁外执行 fn，见 modules.cache_utils.cached_ttl）。
+
+    注：shepherd 不在此处触发代理/SSL 探测——其网络取数路径自行负责。
+    """
+    return cached_ttl(ttl, key, fn)
 
 
 def _col(df, *keys):

@@ -161,36 +161,23 @@ def _now_ts():
     return time.time()
 
 
-# 简易 TTL 缓存：用 (函数名+参数) -> (timestamp, value)
-_CACHE = {}
-_CACHE_LOCK = threading.Lock()
+# 简易 TTL 缓存：收口到 modules.cache_utils（R87）
+# fundflow._CACHE / _CACHE_LOCK 别名到 cache_utils 的共享对象，
+# 以保证历史测试 `fundflow._CACHE.clear()` 仍清空真实使用的缓存。
+from modules.cache_utils import _CACHE, _CACHE_LOCK, cached_ttl
 
 
 def _cached(ttl, key, fn):
     """基于时间戳的轻量缓存，避免对同一昂贵 akshare 调用短时间内重复请求。
 
-    惰性触发代理/SSL 设置：原实现在模块导入时即同步执行 _proxy_reachable 的
-    socket 探测（默认本地代理 127.0.0.1:26561，timeout 2s），导致每个 import
-    fundflow 的页面在加载时都要先等这次最多 2 秒的网络探测——这正是「几乎所有
-    模块加载极慢」的隐藏根因之一。现改为在首次真实网络请求前惰性执行一次
-    （_patch_done 幂等守卫），import 不再阻塞，页面非网络部分可即时渲染。
+    惰性触发代理/SSL 设置：原实现在模块导入时即同步执行 socket 探测，导致页面
+    加载变慢。现改为在首次真实网络请求前惰性执行一次（_proxy_reachable 幂等守卫），
+    import 不再阻塞，页面非网络部分可即时渲染。
 
-    R85 double-check：fn() 在锁**外**执行——此前 fn() 在锁内，一路慢速网络
-    调用会串行化**所有**键的缓存访问（并发预取时严重放大等待）。现改为
-    锁内快速读（未命中即释放），锁外执行 fn()，再锁内写回。同一 key 并发
-    miss 会重复计算（可接受权衡，且 fn 有 _run_with_timeout 硬边界）。
+    R85 double-check：fn() 在锁**外**执行（委托 cache_utils.cached_ttl 实现）。
     """
     _ensure_proxy_and_ssl()  # 惰性、幂等；仅首次网络请求前执行一次 socket 探测
-    now = time.time()
-    with _CACHE_LOCK:
-        hit = _CACHE.get(key)
-        if hit and (now - hit[0]) < ttl:
-            return hit[1]
-    # 锁外执行昂贵取数：不阻塞其他键的缓存访问
-    val = fn()
-    with _CACHE_LOCK:
-        _CACHE[key] = (time.time(), val)
-    return val
+    return cached_ttl(ttl, key, fn)
 
 
 def _retry_with_backoff(max_retries=3, base_delay=1.0):
