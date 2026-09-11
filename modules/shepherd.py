@@ -556,22 +556,39 @@ def _fetch_shepherd_history(n_days=60):
     return df
 
 
+def _parse_history_csv_full():
+    """原始 CSV 解析（无缓存）。返回按日期排序的全量 DataFrame，或 None。"""
+    if not os.path.exists(_HISTORY_FILE):
+        return None
+    df = pd.read_csv(_HISTORY_FILE)
+    if df is None or df.empty:
+        return None
+    df["date"] = _pdate(df["date"])
+    df = df.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+    return df
+
+
 def _read_history_csv(days=None):
     """读持久 CSV 长历史（2007 起，由 scripts/run_shepherd_reconstruct.py 生成）。
 
     :param days: 给定则只取尾部 days 行；None/0 返回全部。
+
+    性能：原始 CSV 解析（约 4771 行）按文件 mtime 缓存 1h；文件未变则命中，
+    写入新历史即自动失效。市场情绪/状态机/全景等页在 st_autorefresh 下每 30~60s
+    触发一次 get_shepherd_indicators，此前每次都重新 parse 全量 CSV，是广度页的主要
+    CPU 浪费来源之一。返回副本，避免调用方改到缓存中的可变对象。
     """
     try:
         if not os.path.exists(_HISTORY_FILE):
             return None
-        df = pd.read_csv(_HISTORY_FILE)
-        if df.empty:
+        mtime = os.path.getmtime(_HISTORY_FILE)
+        # 以文件 mtime 为缓存键：内容未变即命中，落盘新历史后 mtime 变化自动失效
+        full = _cached(_HISTORY_TTL, f"hist_csv_{mtime}", _parse_history_csv_full)
+        if full is None:
             return None
-        df["date"] = _pdate(df["date"])
-        df = df.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
-        if days and days > 0 and len(df) > days:
-            df = df.tail(days).reset_index(drop=True)
-        return df
+        if days and days > 0 and len(full) > days:
+            return full.tail(days).reset_index(drop=True).copy()
+        return full.copy()
     except Exception as e:  # noqa
         logger.warning("[shepherd] 长历史 CSV 读取失败: %s", e)
         return None

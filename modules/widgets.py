@@ -972,19 +972,31 @@ def _cached_watchlist_count(token: str) -> int:
         pass
     return 0
 
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_recent_login(token: str) -> str:
+    """缓存『最近登录时间』请求，避免每个页面加载都打一次后端（性能提速）。"""
+    try:
+        resp = requests.get(f'{API_BASE}/api/auth/logins', headers={'Authorization': f'Bearer {token}'}, timeout=5)
+        if resp.status_code == 200:
+            logs = resp.json().get('data') or []
+            if logs:
+                return logs[0].get('created_at', '')
+    except Exception as e:
+        logger.warning(f"[widgets] 处理异常: {e}")
+        pass
+    return ''
+
 def render_notifications() -> None:
     """侧边栏通知中心：展示自选股数量、最近登录时间、使用提示。"""
     st.markdown('### 🔔 通知中心')
     wl_count = _cached_watchlist_count(get_token() or '')
     st.info(f'⭐ 自选股：**{wl_count}** 只')
     try:
-        resp = requests.get(f'{API_BASE}/api/auth/logins', headers={'Authorization': f'Bearer {get_token()}'}, timeout=5)
-        if resp.status_code == 200:
-            logs = resp.json().get('data') or []
-            if logs:
-                last = logs[0].get('created_at', '')
-                rel = _rel_time(last)
-                st.caption(f"🕒 上次登录：{rel or last[:19].replace('T', ' ')}")
+        last = _cached_recent_login(get_token() or '')
+        if last:
+            rel = _rel_time(last)
+            st.caption(f"🕒 上次登录：{rel or last[:19].replace('T', ' ')}")
     except Exception as e:
         logger.warning(f"[widgets] 处理异常: {e}")
         pass
