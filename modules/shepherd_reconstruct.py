@@ -325,6 +325,14 @@ def _aggregate_cached(symbol: str, start_date: str, end_date: str, cache_dir: st
     return merged
 
 
+# 抓取阶段总墙钟上限（秒）。全量 5548 只实测约 6~11 分钟，取 20 分钟做上限；
+# 超时后放弃等待卡死标的并继续落盘（宁可少几天数据，也不要整轮吊死）。
+_FETCH_TIMEOUT_SEC = 1200
+
+
+class _SkipNetwork(Exception):
+    """内部哨兵：enrich_network=False 时用它跳出 try 块，避免复制一整段合并逻辑。"""
+
 # ⚠️ worker 进程级 socket 超时（秒）。akshare/requests 默认**没有** socket 超时，
 # 网络挂起时 worker 会永久阻塞且不抛异常 → 重试装饰器永不触发、进程池在退出时
 # ``shutdown(wait=True)`` 被吊死（2026-09-10 老板禁令针对的正是这种「死锁不是慢」）。
@@ -383,7 +391,8 @@ def _fetch_a_share_codes() -> Optional[pd.DataFrame]:
 
 def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
                         symbols: Optional[list] = None, use_cache: bool = True,
-                        refresh_days: int = 0) -> pd.DataFrame:
+                        refresh_days: int = 0,
+                        fetch_timeout_sec: float = _FETCH_TIMEOUT_SEC) -> pd.DataFrame:
     """重构全 A 市场广度日序列（多进程 + 断点续跑，v2 含横截面复盘指标）。
 
     :param start_date/end_date: YYYYMMDD 或 YYYY-MM-DD。
@@ -392,6 +401,8 @@ def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
     :param use_cache: 是否复用/写入 data/shepherd_cache_v2 缓存。
     :param refresh_days: >0 时进入**增量刷新**：所有标的都重新拉取近 N 个自然日并
                          与旧缓存**合并**（旧历史保留）。日常补齐缺口用，避免全量重拉 17 年。
+    :param fetch_timeout_sec: 抓取阶段的**总墙钟上限**（秒）。到点即放弃等待尚未返回的
+                          worker 并继续落盘，避免个别卡死标点把整轮回测永久吊住。
     :returns: DataFrame[date, up_count, down_count, flat_count, limit_up, limit_down,
               touch_down, zt_fail_count, hb_wave10, median_chg, avg_price, red_ratio]
     """
@@ -424,10 +435,20 @@ def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
     t0 = time.time()
 
     if todo:
-        # 多进程：每只 worker 独立 V8 实例，避免多线程共享 V8 崩溃
-        with cf.ProcessPoolExecutor(max_workers=max_workers) as ex:
-            futures = {ex.submit(_aggregate_worker, t): t[0] for t in todo}
-            for fut in cf.as_completed(futures):
+        # 多进程：每只 worker 独立 V8 实例，避免多线程共享 V8 崩溃。
+        #
+        # ⚠️ 死锁防护（2026-09-10 实际踩过，26 分钟零进度）：
+        #   旧写法 `with ProcessPoolExecutor(...)` + `for fut in as_completed(futures)`
+        #   有两个致命点：
+        #     ① `fut.result(timeout=60)` 只对**已完成**的 future 计时；worker 卡在
+        #        非 socket 阻塞（V8 解码 / 代理连接不遵守超时）时 future 永远不完成，
+        #        as_completed 便**永久阻塞**，60s 形同虚设；
+        #     ② `with` 退出走 `shutdown(wait=True)`，卡住的 worker 让主进程**永不返回**。
+        #   现在改为：给整个抓取阶段一个**总墙钟上限** + `shutdown(wait=False)` 立即放手。
+        ex = cf.ProcessPoolExecutor(max_workers=max_workers)
+        futures = {ex.submit(_aggregate_worker, t): t[0] for t in todo}
+        try:
+            for fut in cf.as_completed(futures, timeout=fetch_timeout_sec):
                 sym = futures[fut]
                 done += 1
                 try:
@@ -440,20 +461,54 @@ def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
                 if done % 500 == 0:
                     logger.info("[shepherd_reconstruct] 进度 %d/%d (失败 %d)，已用 %.1fs",
                                 done, len(todo), failed, time.time() - t0)
+        except cf.TimeoutError:
+            hung = [s for f, s in futures.items() if not f.done()]
+            failed += len(hung)
+            done += len(hung)
+            logger.error("[shepherd_reconstruct] 抓取阶段超过总墙钟上限 %.0fs，放弃等待 %d 只卡死标的" 
+                         "（样例 %s）；它们已写入的缓存保留，未写入的下一轮增量补齐。",
+                         fetch_timeout_sec, len(hung), hung[:5])
+        finally:
+            # 绝不 wait=True：卡死的 worker 会让退出永久吊死（老板明令禁止的失败模式）
+            ex.shutdown(wait=False, cancel_futures=True)
 
     if done or cached_hits:
         logger.info("[shepherd_reconstruct] 聚合完成 %d 只新拉 + %d 缓存命中，失败 %d，耗时 %.1fs",
                     done, cached_hits, failed, time.time() - t0)
 
     # 从缓存目录读取全部已聚合结果（含续跑命中），向量化合并按日期求和
+    #
+    # ⚠️ 窗口裁剪（2026-09-10 实际踩过，进程被系统打掉且**无 traceback**）：
+    #   这里是「近 N 天增量刷新」类请求的**内存炸弹**。缓存文件是**每只股票的全史**
+    #   （实测 5548 只共 355 万行 / 200MB），旧写法无条件 `pd.read_csv` 全读进
+    #   frames 再 concat —— 只为了算近 27 天，却把 17 年全史一次性物化，
+    #   峰值内存以 GB 计，进程被 OS 杀掉时连 MemoryError 都来不及打日志
+    #   （表现为「抓取 5500/5548 完成后日志永久静默」）。
+    #   修法：**逐文件按请求区间裁剪后再累积**。per-date 的分组统计
+    #   （家数求和 / change_pct 中位数 / close 均值）在裁剪前后完全等价，
+    #   因为裁剪只丢弃区间外的日期，不动任何一个区间内日期的样本集合。
+    _win_start = pd.to_datetime(start_date)
+    _win_end = pd.to_datetime(end_date)
     cache_files = [f for f in os.listdir(_CACHE_DIR) if f.endswith(".csv")]
     frames = []
+    rows_raw = 0
+    rows_kept = 0
     for fn in cache_files:
         try:
-            frames.append(pd.read_csv(os.path.join(_CACHE_DIR, fn)))
+            raw = pd.read_csv(os.path.join(_CACHE_DIR, fn))
         except Exception as e:  # noqa: BLE001
             logger.warning(f"[shepherd_reconstruct] 处理异常: {e}")
             continue
+        rows_raw += len(raw)
+        if "date" in raw.columns:
+            d = pd.to_datetime(raw["date"], errors="coerce")
+            raw = raw[(d >= _win_start) & (d <= _win_end)]
+        rows_kept += len(raw)
+        frames.append(raw)
+    if rows_raw and rows_kept != rows_raw:
+        logger.info("[shepherd_reconstruct] 窗口裁剪 %s~%s：%d → %d 行（省 %.1f%% 内存）",
+                    _win_start.date(), _win_end.date(), rows_raw, rows_kept,
+                    (1 - rows_kept / rows_raw) * 100.0)
     if not frames:
         return pd.DataFrame(columns=["date"] + list(_AGG_SPEC.keys()) + ["red_ratio"])
 
@@ -602,9 +657,21 @@ def _enrich_zt_from_cache(breadth: pd.DataFrame, cache_dir: str) -> pd.DataFrame
     if breadth is None or breadth.empty or not os.path.isdir(cache_dir):
         return breadth
 
+    # ★ 只为「输出表里真实存在的日期」计算（2026-09-10 性能根因修复）
+    #   旧实现对每个缓存文件做 4 次 Python 级 groupby().items() 迭代：
+    #     5548 文件 × ~4800 日期 × 4 ≈ **1.06 亿次** Python 迭代，
+    #     每次还调一遍 pd.Timestamp(d).normalize()（微秒级）→ 单独这一段就要十几分钟，
+    #     表现为「日志停在抓取完成后再也不动」，与死锁无法区分。
+    #   而调用方只用到 breadth 里那些日期（P2 增量刷新时只有 19 天）→ 先按需裁剪再聚合，
+    #   迭代量降到 5548 × 19 × 4 ≈ 42 万次，秒级完成。
+    need = set(pd.to_datetime(breadth["date"]).dt.normalize())
+
     zf_sum, lu_sum, prev_ret_sum, prev_ret_cnt, streak_max = {}, {}, {}, {}, {}
     files = [f for f in os.listdir(cache_dir) if f.endswith(".csv")]
-    for fn in files:
+    for i, fn in enumerate(files, 1):
+        if i % 500 == 0:
+            logger.info("[shepherd_reconstruct] zt 指标反推进度 %d/%d（需算 %d 个日期）",
+                        i, len(files), len(need))
         try:
             df = pd.read_csv(os.path.join(cache_dir, fn))
         except Exception:  # noqa: BLE001
@@ -619,22 +686,29 @@ def _enrich_zt_from_cache(breadth: pd.DataFrame, cache_dir: str) -> pd.DataFrame
         zf = pd.to_numeric(df.get("zt_fail_count"), errors="coerce").fillna(0)
         chg = pd.to_numeric(df.get("change_pct"), errors="coerce")
         # 连板天数：连续 limit_up 计数（向量化）
+        # ⚠️ 必须在**全量历史**上算（连板数是跨日递推量），只能在算完之后再裁剪，
+        #    否则窗口首日的连板会被误判成 1 板。
         s = (lu > 0).astype(int)
         grp = (s != s.shift()).cumsum()
         run = s.groupby(grp).cumcount() + 1
         streak_arr = (run * s).astype(int)
         prev_lu = lu.shift(1)
+
+        mask = df["date"].isin(need)
+        if not mask.any():
+            continue
         tmp = pd.DataFrame({
-            "date": df["date"], "lu": lu, "zf": zf, "chg": chg,
-            "streak": streak_arr, "prev_lu": prev_lu,
+            "date": df["date"][mask], "lu": lu[mask], "zf": zf[mask],
+            "chg": chg[mask], "streak": streak_arr[mask], "prev_lu": prev_lu[mask],
         })
-        for d, v in tmp.groupby("date")["lu"].sum().items():
+        gb = tmp.groupby("date")
+        for d, v in gb["lu"].sum().items():
             k = pd.Timestamp(d).normalize()
             lu_sum[k] = lu_sum.get(k, 0.0) + float(v)
-        for d, v in tmp.groupby("date")["zf"].sum().items():
+        for d, v in gb["zf"].sum().items():
             k = pd.Timestamp(d).normalize()
             zf_sum[k] = zf_sum.get(k, 0.0) + float(v)
-        for d, v in tmp.groupby("date")["streak"].max().items():
+        for d, v in gb["streak"].max().items():
             k = pd.Timestamp(d).normalize()
             if v > streak_max.get(k, 0):
                 streak_max[k] = int(v)
@@ -667,7 +741,8 @@ def _enrich_zt_from_cache(breadth: pd.DataFrame, cache_dir: str) -> pd.DataFrame
 
 
 def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
-                           reconstruct: bool = True, refresh_days: int = 0) -> pd.DataFrame:
+                           reconstruct: bool = True, refresh_days: int = 0,
+                           enrich_network: bool = True) -> pd.DataFrame:
     """构建完整的牧羊人指标历史表。
 
     :param start_date: 重构起始日，默认 2007-01-01。
@@ -675,6 +750,8 @@ def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
     :param reconstruct: 是否执行全 A 重构（较慢）；False 则只读现有 CSV/只取近期 zt_pool。
     :param refresh_days: >0 时走**增量刷新**：只重拉近 N 个自然日并与 per-stock 缓存合并，
                          日常补齐缺口用（避免每次全量重拉 17 年）。
+    :param enrich_network: 是否联网拉 zt_pool 真实涨停池补最近 ~12 个交易日。置 False 则
+                         完全离线（只用本地缓存 + 反推），用于「抓取已完成后补算聚合」。
     """
     if end_date is None:
         end_date = now_cst_str("%Y-%m-%d")
@@ -686,6 +763,8 @@ def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
 
     # 尝试用 zt_pool 补充最近约 12 个交易日的真实涨停/跌停/连板/炸板/昨板表现
     try:
+        if not enrich_network:
+            raise _SkipNetwork()
         recent_days = pd.date_range(end=pd.to_datetime(end_date), periods=15, freq="B").strftime("%Y-%m-%d").tolist()
         zt_df = fetch_zt_data_for_dates(recent_days)
         if not zt_df.empty:
@@ -697,6 +776,8 @@ def build_shepherd_history(start_date: str = "2007-01-01", end_date: str = None,
                     merged[col] = merged[zt_col].combine_first(merged.get(col))
                     merged.drop(columns=[zt_col], inplace=True)
             breadth = merged
+    except _SkipNetwork:
+        logger.info("[shepherd_reconstruct] enrich_network=False，跳过 zt_pool 联网补充（走离线反推）")
     except Exception as e:  # noqa: BLE001
         logger.warning("[shepherd_reconstruct] 合并 zt_pool 失败: %s", e)
 

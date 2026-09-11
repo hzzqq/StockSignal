@@ -408,14 +408,23 @@ def test_cache_hit_fast_path_skips_fetch(monkeypatch):
 class _InlineExecutor:
     """把进程池换成同进程执行，便于用 monkeypatch 观察 worker 调用（spawn 子进程看不到 patch）。"""
 
+    instances = []
+
     def __init__(self, max_workers=None):
         self.max_workers = max_workers
+        self.shutdown_called_with = None
+        _InlineExecutor.instances.append(self)
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc):
         return False
+
+    def shutdown(self, wait=True, cancel_futures=False):
+        # 生产代码走 `shutdown(wait=False, cancel_futures=True)` 防死锁，
+        # 替身必须同样提供该接口，否则「替身与真实池不同构」会掩盖真实调用。
+        self.shutdown_called_with = {"wait": wait, "cancel_futures": cancel_futures}
 
     def submit(self, fn, arg):
         class _F:
@@ -425,14 +434,21 @@ class _InlineExecutor:
             def result(self, timeout=None):
                 return self._r
 
+            def done(self):
+                return True
+
         return _F(fn(arg))
 
 
 class _CfShim:
     ProcessPoolExecutor = _InlineExecutor
 
+    class TimeoutError(Exception):
+        pass
+
     @staticmethod
-    def as_completed(futures):
+    def as_completed(futures, timeout=None):
+        # 真实 as_completed 支持 timeout，生产代码现在会传总墙钟上限。
         return list(futures)
 
 
@@ -527,3 +543,126 @@ def test_reconstruct_breadth_exposes_refresh_days_param():
     from modules.shepherd_reconstruct import build_shepherd_history
     for fn in (reconstruct_breadth, build_shepherd_history):
         assert "refresh_days" in inspect.signature(fn).parameters, fn.__name__
+
+
+def test_reconstruct_breadth_never_shuts_down_with_wait_true(monkeypatch, tmp_path):
+    """★ 死锁守卫：进程池必须以 shutdown(wait=False) 放手。
+
+    旧写法是 `with ProcessPoolExecutor(...) as ex`，退出时走 `shutdown(wait=True)`；
+    worker 一旦卡在**非 socket 阻塞**（V8 解码 / 代理连接不遵守超时），future 永不完成，
+    as_completed 永久阻塞、with 退出又 wait=True —— 主进程**永不返回**。
+    2026-09-10 实际踩过：26 分 44 秒零进度，正是老板明令禁止的「长时间易卡死」模式。
+    """
+    _InlineExecutor.instances.clear()
+    _write_cache(str(tmp_path), "600000", _rows(["2024-01-01"]))
+    monkeypatch.setattr("modules.shepherd_reconstruct._CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr("modules.shepherd_reconstruct._aggregate_one_stock",
+                        lambda *a, **k: pd.DataFrame(_rows(["2024-01-02"])))
+    _patch_inline_pool(monkeypatch)
+
+    reconstruct_breadth("2024-01-01", "2024-01-02", max_workers=1,
+                        symbols=["600000"], refresh_days=7)
+
+    assert _InlineExecutor.instances, "未创建进程池"
+    called = _InlineExecutor.instances[-1].shutdown_called_with
+    assert called is not None, "进程池未显式 shutdown（退回 with 退出即 wait=True 的老坑）"
+    assert called["wait"] is False, \
+        "shutdown(wait=True) 会让卡死的 worker 永久吊死主进程"
+    assert called["cancel_futures"] is True, \
+        "未取消排队任务：卡死时剩余任务仍占着 worker 不放"
+
+
+def test_reconstruct_breadth_caps_total_fetch_wall_clock(monkeypatch, tmp_path):
+    """★ 总墙钟上限守卫：抓取阶段必须带 timeout 的 as_completed，不能无限等。
+
+    仅靠 `fut.result(timeout=60)` 无效——它只对**已完成**的 future 计时。
+    """
+    import inspect
+    src = inspect.getsource(reconstruct_breadth)
+    assert "as_completed(futures, timeout=" in src, "抓取阶段缺少总墙钟上限"
+    assert "_FETCH_TIMEOUT_SEC" in src, "上限未走可配置常量"
+
+
+def test_reconstruct_breadth_filters_cache_to_window_before_concat(monkeypatch, tmp_path):
+    """★ OOM 守卫：窄窗口请求必须先裁剪缓存再累积，不得物化全部历史。
+
+    实测事故：缓存是「每只股票全史」（5548 只共 355 万行 / 200MB），旧实现无条件
+    把全部行 read 进 frames 再 concat —— 只算近 27 天却物化 17 年全史，峰值内存 GB 级，
+    进程被 OS 杀掉且**来不及打任何 traceback**（表现为抓取完成 5500/5548 后日志永久静默）。
+    """
+    from modules import shepherd_reconstruct as sr
+
+    hist = ["2024-01-%02d" % d for d in range(1, 21)]          # 区间外（20 天）
+    win = ["2025-06-01", "2025-06-02"]                        # 区间内（2 天）
+    for sym in ("600000", "000001"):
+        _write_cache(str(tmp_path), sym, _rows(hist + win))
+    monkeypatch.setattr(sr, "_CACHE_DIR", str(tmp_path))
+
+    seen = {}
+    real_agg = sr._aggregate_frames
+
+    def spy(frames):
+        seen["rows"] = sum(len(f) for f in frames)
+        seen["n_files"] = len(frames)
+        return real_agg(frames)
+
+    monkeypatch.setattr(sr, "_aggregate_frames", spy)
+    out = sr.reconstruct_breadth("2025-06-01", "2025-06-02", max_workers=1,
+                                 symbols=["600000", "000001"], use_cache=True,
+                                 refresh_days=0)
+
+    assert seen.get("n_files") == 2, "缓存文件未被全部纳入"
+    assert seen["rows"] == 4, (
+        "★ 进入聚合的行数是 %d，应为 4（2 只 × 窗口内 2 天）——"
+        "说明区间外历史仍被读进内存，窄窗口刷新会重现 OOM" % seen["rows"])
+    assert len(out) == 2 and out["up_count"].sum() == 4
+
+
+def test_enrich_zt_from_cache_streak_seeded_by_preceding_history(tmp_path):
+    """★ 连板数必须由全量历史递推，不能因为窗口裁剪被截断成 1 板。
+
+    反推函数为了性能会按需裁剪日期，但**连板天数是跨日递推量**：
+    若先裁剪再算 streak，窗口首日的 6 连板会被误读成 1 板（数据错但不报错）。
+    """
+    from modules.shepherd_reconstruct import _enrich_zt_from_cache
+
+    rows = _rows(["2025-06-%02d" % d for d in range(1, 7)])
+    for r in rows:
+        r["limit_up"] = 1
+    _write_cache(str(tmp_path), "600000", rows)
+
+    breadth = pd.DataFrame({"date": [pd.Timestamp("2025-06-06")]})
+    out = _enrich_zt_from_cache(breadth, str(tmp_path))
+    got = int(out.loc[0, "connect_hl"])
+    assert got == 6, "连板被截断成 %d 板（应为 6）——streak 必须在裁剪前算" % got
+
+
+def test_enrich_zt_from_cache_never_fabricates_missing_dates(tmp_path):
+    """缺数据不编造：分母为 0 的红盘/炸板比率给 None，而不是 0。"""
+    from modules.shepherd_reconstruct import _enrich_zt_from_cache
+
+    rows = _rows(["2025-06-02", "2025-06-03"])
+    rows[0]["limit_up"] = 1
+    rows[0]["zt_fail_count"] = 2
+    _write_cache(str(tmp_path), "600000", rows)
+
+    breadth = pd.DataFrame({"date": [pd.Timestamp("2025-06-03"),
+                                     pd.Timestamp("2025-06-04")]})
+    out = _enrich_zt_from_cache(breadth, str(tmp_path))
+    assert pd.isna(out.loc[0, "zt_fail_ratio"]), "无涨停/炸板时不该编造 0"
+    assert int(out.loc[0, "connect_hl"]) == 0
+    assert pd.isna(out.loc[1, "zt_fail_ratio"]), "无该日数据时不该编造 0"
+
+
+def test_enrich_zt_from_cache_is_bounded_by_needed_dates():
+    """性能不变量守卫：必须先按 need 裁剪再聚合。
+
+    旧实现对每个缓存文件做 4 次 Python 级 groupby().items() 迭代 ——
+    5548 文件 × ~4800 日期 × 4 ≈ 1.06 亿次，单这一段要十几分钟，
+    日志表现为「再也不动」，与死锁无法区分。必须保持按需裁剪 + 进度日志。
+    """
+    import inspect
+    from modules.shepherd_reconstruct import _enrich_zt_from_cache
+    src = inspect.getsource(_enrich_zt_from_cache)
+    assert "isin(need)" in src, "缺少按需日期裁剪 → 会重现上亿次迭代的性能坑"
+    assert "进度 %d/%d" in src, "缺少进度日志 → 长耗时无法与死锁区分"
