@@ -232,7 +232,7 @@ def _render_hero(df, today, prev, meta=None):
     # 与 build_snapshot 同源（都走 _event_position_adj），保证实时卡与归档快照一致；
     # 底层读 11MB 信号文件，靠模块级 300s 缓存避免每次刷新重读。失败则降级为 None（不臆造）。
     pos = derive_position(temp, score, bias, cyc.get("name", ""), overall,
-                          event_adj=event_adj_val)
+                          event_adj=event_adj_val, explain=True)
     # 暴露最终仓位到 session_state，供冒烟测试做「数据正确性」断言（不渲染、纯透传）
     try:
         st.session_state["decision_pos_pct"] = pos["pct"]
@@ -240,6 +240,43 @@ def _render_hero(df, today, prev, meta=None):
         pass
     render_position_card(pos, bias=bias, confidence=(fc or {}).get("confidence", 0),
                          cyc_name=cyc.get("name", ""))
+
+    # F3 决策可解释归因：把上方仓位的每个因子贡献摊开，透明可解释（单一真理源 derive_position）。
+    try:
+        _contrib = pos.get("contributions") or []
+        _sens = pos.get("sensitivity") or {}
+        if _contrib:
+            st.markdown("**🧩 仓位归因（可解释）** —— 每个因子对最终仓位的边际贡献（百分点）")
+            _UP, _DOWN = "#ff4d4f", "#00d486"  # 红涨绿跌：加仓=红，减仓=绿
+            _fac = [c["factor"] for c in _contrib]
+            _d = [float(c["delta"]) for c in _contrib]
+            _run = [float(c["running"]) for c in _contrib]
+            _colors = [_UP if x >= 0 else _DOWN for x in _d]
+            _fig = go.Figure(go.Bar(
+                x=_d, y=_fac, orientation="h",
+                marker_color=_colors,
+                text=[f"{x:+.1f} → {r:.0f}" for x, r in zip(_d, _run)],
+                textposition="auto",
+            ))
+            _fig.update_layout(
+                template="plotly_dark" if dark else "plotly_white",
+                height=max(180, 40 * len(_fac) + 60), margin=dict(l=140, r=20, t=10, b=20),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#e5e7eb" if dark else "#1f2937"),
+                xaxis_title="仓位贡献 (pt)",
+            )
+            st.plotly_chart(_fig, use_container_width=True)
+            _parts = []
+            if "temp_+5" in _sens:
+                _parts.append(f"温度±5 → 仓位∓{abs(_sens['temp_+5']):.0f}pt")
+            if "promo_+5" in _sens:
+                _parts.append(f"梯队晋级率±5 → 仓位∓{abs(_sens['promo_+5']):.0f}pt")
+            if "event_+5" in _sens:
+                _parts.append(f"事件催化+5 → 仓位+{_sens['event_+5']:.0f}pt")
+            if _parts:
+                st.caption("🔎 局部敏感度：" + "；".join(_parts) + "（展示值基于 ±5 的线性近似）")
+    except Exception:  # noqa: BLE001
+        pass
 
     # S4 事件驱动多头池下钻：实时卡可见具体标的，透明可解释（与事件催化同源）。
     # 信号可用（多头池非空）才展示；读不到/异常则静默降级，不拖崩卡片。

@@ -97,7 +97,8 @@ _BANDS = [
 # ───────────────────────── 仓位推导（唯一实现） ─────────────────────────
 def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=None,
                    event_adj: int | None = None,
-                   freshness_status: str | None = None) -> dict:
+                   freshness_status: str | None = None,
+                   explain: bool = False) -> dict:
     """透明推导仓位建议。
 
     规则（逐条留痕，前端直接展示 reasons，让建议可解释而非黑箱）：
@@ -123,6 +124,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     :return: dict(pct=int, band=str, color=str, reasons=list[str])
     """
     reasons: list[str] = []
+    contrib: list[dict] = []
     try:
         base = float(temp) if temp is not None else 50.0
     except (TypeError, ValueError):
@@ -135,6 +137,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
         base = max(0.0, min(100.0, base))
     pct = base
     reasons.append(f"市场温度 {base:.0f} 作为基准仓位")
+    contrib.append({"factor": "市场温度（基准）", "delta": 0.0, "running": round(pct, 1)})
 
     # 方向调节：次日方向是短周期最强信号，给固定 ±8pt 权重（偏多+8 / 偏空-8 / 中性0）
     b = (bias or "中性")
@@ -145,6 +148,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     badj = {"偏多": 8, "偏空": -8, "中性": 0}.get(b, 0)
     pct += badj
     reasons.append(f"次日方向「{b}」{'加' if badj >= 0 else '减'}仓 {abs(badj)}%")
+    contrib.append({"factor": f"方向「{b}」", "delta": float(badj), "running": round(pct, 1)})
 
     # 周期名可能带括号后缀，取括号前的核心名匹配
     cname_core = (cycle_name or "").split("（")[0].strip()
@@ -155,6 +159,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     pct += cadj
     if cadj:
         reasons.append(f"情绪周期「{cname_core}」{'加' if cadj >= 0 else '减'}仓 {abs(cadj)}%")
+        contrib.append({"factor": f"周期「{cname_core}」", "delta": float(cadj), "running": round(pct, 1)})
 
     if overall_promo is not None:
         # 梯队晋级率调节：接力强度是「赚钱效应能否延续」的硬指标（档位阈值见 I9）
@@ -168,6 +173,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
             padj, txt = -6, "梯队断档（晋级率<20%）"
         pct += padj
         reasons.append(f"{txt}：{'加' if padj >= 0 else '减'}仓 {abs(padj)}%")
+        contrib.append({"factor": f"梯队晋级率({overall_promo:.0f}%)", "delta": float(padj), "running": round(pct, 1)})
 
     # 事件驱动催化调节：真实事件因子（P1 EV 多头池广度）映射的市场级仓位微调。
     # 接的是「事件驱动 + 市场情绪」决策主线的事件侧；取不到真实信号（event_adj=None）
@@ -176,12 +182,16 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     if event_adj:
         pct += event_adj
         reasons.append(f"事件驱动催化：{'加' if event_adj >= 0 else '减'}仓 {abs(event_adj)}%")
+        contrib.append({"factor": "事件驱动催化", "delta": float(event_adj), "running": round(pct, 1)})
     elif event_adj is None:
         # 事件信号不可用：明确留痕，让决策可解释「这次没靠事件催化」，也便于事后回测
         # 按 event_available 拆分命中率，回答「事件驱动到底有没有用」（见 decision_track.by_event）
         reasons.append("事件驱动信号不可用，未施加催化（不臆造）")
 
+    pct_before_clamp = pct
     pct = max(5.0, min(95.0, pct))
+    if pct != pct_before_clamp:
+        contrib.append({"factor": "仓位硬约束[5,95]", "delta": round(pct - pct_before_clamp, 1), "running": round(pct, 1)})
 
     # 极端行情硬约束（风控底线，凌驾于常规推导之上，见 I10）
     # · 冰点退潮双杀：温度<20 且处「退潮」周期 → 即使其他因子加仓也不许超过 30%
@@ -192,10 +202,12 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     if base < 20 and cname_core == "退潮":
         if pct > 30:
             reasons.append(f"⚠️ 极端风控：温度 {base:.0f}<20 且处退潮，仓位封顶 30%（原 {pct:.0f}%）")
+            contrib.append({"factor": "极端风控(退潮封顶30%)", "delta": round(30 - pct, 1), "running": 30.0})
             pct = 30.0
     if base >= 80 and cname_core == "高潮分化":
         if pct < 40:
             reasons.append(f"⚠️ 极端风控：温度 {base:.0f}≥80 且处高潮分化，仓位兜底 40%（原 {pct:.0f}%）")
+            contrib.append({"factor": "极端风控(过热兜底40%)", "delta": round(40 - pct, 1), "running": 40.0})
             pct = 40.0
 
     # 数据新鲜度诚实降级：守卫不能只"提示"——陈旧输入必须真的让位。
@@ -207,6 +219,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
             reasons.append(
                 f"⚠️ 数据陈旧：输入源滞后≥{FRESH_STALE_DAYS}天，仓位封顶 {_cap:.0f}%"
                 f"（原 {pct:.0f}%），避免基于过期数据重仓")
+            contrib.append({"factor": "数据陈旧封顶40%", "delta": round(_cap - pct, 1), "running": _cap})
             pct = _cap
     elif freshness_status == "warn":
         _cap = 60.0
@@ -214,6 +227,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
             reasons.append(
                 f"⚠️ 数据偏旧：输入源滞后≥{FRESH_WARN_DAYS}天，仓位封顶 {_cap:.0f}%"
                 f"（原 {pct:.0f}%）")
+            contrib.append({"factor": "数据偏旧封顶60%", "delta": round(_cap - pct, 1), "running": _cap})
             pct = _cap
 
     band, color = "中性", "#f59e0b"
@@ -222,7 +236,40 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
             band, color = bname, bcolor
             break
 
-    return dict(pct=int(round(pct)), band=band, color=color, reasons=reasons)
+    out = dict(pct=int(round(pct)), band=band, color=color, reasons=reasons)
+    if explain:
+        out["contributions"] = contrib
+        out["sensitivity"] = _position_sensitivity(
+            temp=temp, score=score, bias=bias, cycle_name=cycle_name,
+            overall_promo=overall_promo, event_adj=event_adj, freshness_status=freshness_status)
+    return out
+
+
+def _position_sensitivity(temp, score, bias, cycle_name, overall_promo, event_adj,
+                         freshness_status) -> dict:
+    """单因子局部敏感度：各输入 ±5 时仓位的变化（百分点）。
+
+    复用 derive_position（单一真理源），不另写计算逻辑。仅在 explain=True 时由
+    derive_position 调用，内部二次调用不传 explain，避免递归膨胀。
+    """
+    def _base_pct(**override):
+        kw = dict(temp=temp, score=score, bias=bias, cycle_name=cycle_name,
+                  overall_promo=overall_promo, event_adj=event_adj,
+                  freshness_status=freshness_status)
+        kw.update(override)
+        return derive_position(**kw)["pct"]
+
+    base_pct = _base_pct()
+    sens = {}
+    _t = temp if temp is not None else 50.0
+    sens["temp_+5"] = _base_pct(temp=min(100.0, _t + 5)) - base_pct
+    sens["temp_-5"] = _base_pct(temp=max(0.0, _t - 5)) - base_pct
+    if overall_promo is not None:
+        sens["promo_+5"] = _base_pct(overall_promo=min(100.0, overall_promo + 5)) - base_pct
+        sens["promo_-5"] = _base_pct(overall_promo=max(0.0, overall_promo - 5)) - base_pct
+    if event_adj is not None:
+        sens["event_+5"] = _base_pct(event_adj=event_adj + 5) - base_pct
+    return sens
 
 
 def _cycle_name_of(forecast: dict | None) -> str:

@@ -407,3 +407,266 @@ def unmark_suspect(dates) -> int:
         if n:
             _save_history(hist)
     return n
+
+
+# ────────────────── F4：连板龙头强度 + 事件×广度共振 ──────────────────
+# 设计红线（诚实性）：
+#   · 梯队历史只有逐日「家数分布」({boards:count})，**没有逐股名称/代码**，
+#     因此「龙头」只能是**市场级**的连板高度/强度刻画，绝不冒充个股名单。
+#   · 历史样本极短（生产环境仅 ~8 个交易日，含 1 条 suspect），任何「概率」
+#     都只是即时观测值，必须明确标注「非稳定历史概率、小样本」。
+#   · 事件源为本地 event_pool_brief.json（P1-QuantFactor EV 因子多头池），
+#     属离线快照，须展示数据日期并提示时效性，不臆造实时事件。
+#   · 全部函数纯函数 + 薄 IO，as_of 截断保证无前视泄漏，可离线单测。
+
+def _clamp(x, lo=0.0, hi=100.0):
+    try:
+        return max(lo, min(hi, float(x)))
+    except Exception:
+        return lo
+
+
+def _height_subscore(max_boards: int) -> float:
+    """连板高度子分（0-100）：分段饱和映射，越高代表市场最高板越高。
+
+    · <2 板：0（无连板梯队）
+    · 2 板：20  3 板：35  4 板：50  5 板：65  6 板：80  7 板及以上：100
+    """
+    table = {0: 0, 1: 0, 2: 20, 3: 35, 4: 50, 5: 65, 6: 80}
+    try:
+        mb = int(max_boards)
+    except Exception:
+        return 0.0
+    if mb <= 1:
+        return 0.0
+    if mb >= 7:
+        return 100.0
+    return float(table.get(mb, 0))
+
+
+def _density_subscore(dist: dict) -> float:
+    """高位集中度子分（0-100）：连板≥4板的家数 / 总连板家数。
+
+    比值越高，说明资金抱团在高位龙头而非散在首板，接力结构更健康。
+    总连板家数为 0 时返回 0。
+    """
+    try:
+        d = _int_keys(dist)
+    except Exception:
+        return 0.0
+    total = sum(v for k, v in d.items() if k >= 2)
+    if total <= 0:
+        return 0.0
+    high = sum(v for k, v in d.items() if k >= 4)
+    return _clamp(high / total * 100.0)
+
+
+def leader_strength_index(as_of: str | None = None) -> dict:
+    """市场级连板龙头强度指数（0-100），基于最新梯队分布刻画。
+
+    ⚠️ 这是**市场级**强度（高度+高位集中度+接力意愿），不是个股名单。
+       离线无逐股缓存，本函数不返回也不暗示任何具体个股。
+
+    :param as_of: 截止日（YYYY-MM-DD）；传入只用 ≤ as_of 的快照（回填诚实口径）。
+    返回：
+      available   bool
+      date        str（实际采用的最新快照日，≤ as_of）
+      score       0-100（0.40*高度 + 0.35*高位集中度 + 0.25*2板晋级率）
+      components  {height, density, promo}
+      max_boards / total_connect / distribution / promo_rate
+      note        诚实性声明
+    """
+    empty = dict(available=False, date=None, score=None, components={},
+                 max_boards=None, total_connect=None, distribution={},
+                 promo_rate=None, note="梯队历史为空或不可用")
+    hist = load_history()
+    if not hist:
+        return empty
+    dates = sorted(d for d, e in hist.items()
+                   if isinstance(e, dict) and not e.get("suspect") and e.get("distribution"))
+    if as_of:
+        dates = [d for d in dates if d <= as_of]
+    if not dates:
+        return empty
+    entry = hist[dates[-1]]
+    dist = _int_keys(entry.get("distribution") or {})
+    max_boards = int(entry.get("max_boards") or (max(dist.keys()) if dist else 0))
+    total_connect = int(entry.get("total_connect") if entry.get("total_connect") is not None
+                        else sum(v for k, v in dist.items() if k >= 2))
+
+    height = _height_subscore(max_boards)
+    density = _density_subscore(dist)
+    pr = ladder_promotion_rates(as_of=as_of)
+    promo = _clamp(pr.get("overall") or 0.0)  # 2板晋级率(%)，上限 100
+
+    score = _clamp(0.40 * height + 0.35 * density + 0.25 * promo)
+    return dict(
+        available=True,
+        date=dates[-1],
+        score=round(score, 1),
+        components=dict(height=round(height, 1), density=round(density, 1), promo=round(promo, 1)),
+        max_boards=max_boards,
+        total_connect=total_connect,
+        distribution=dist,
+        promo_rate=pr.get("overall"),
+        note=("市场级连板强度（高度+高位集中度+接力意愿），非个股名单；离线无逐股缓存。"
+              if pr.get("overall") is None
+              else "市场级连板强度（高度+高位集中度+接力意愿），非个股名单；晋级率由最近2日推算，小样本。"),
+    )
+
+
+def historical_promo_rate(as_of: str | None = None, min_pairs: int = 2) -> dict:
+    """跨全部可用日对的历史平均 2板晋级率（比单日对更稳，但仍是小样本）。
+
+    :param as_of: 截止日；只用 ≤ as_of 的日对（无前视泄漏）。
+    :param min_pairs: 至少需多少个日对才视为 available。
+    返回：{available, rate(%), n_pairs, note}
+    """
+    hist = load_history()
+    dates = sorted(d for d, e in hist.items()
+                   if isinstance(e, dict) and not e.get("suspect") and e.get("distribution"))
+    if as_of:
+        dates = [d for d in dates if d <= as_of]
+    rates = []
+    for i in range(1, len(dates)):
+        prev = _int_keys(hist[dates[i - 1]].get("distribution") or {})
+        cur = _int_keys(hist[dates[i]].get("distribution") or {})
+        p1 = prev.get(1)
+        c2 = cur.get(2)
+        if p1 and p1 > 0 and c2 is not None:
+            rates.append(c2 / p1 * 100.0)
+    if len(rates) < min_pairs:
+        return dict(available=False, rate=None, n_pairs=len(rates),
+                    note=f"可用日对仅 {len(rates)} 个（需≥{min_pairs}），样本过小不报告概率")
+    avg = sum(rates) / len(rates)
+    return dict(available=True, rate=round(avg, 1), n_pairs=len(rates),
+                note=f"基于 {len(rates)} 个历史日对的平均 2板晋级率；样本仍偏小，仅供参考")
+
+
+def next_day_promotion_probability(as_of: str | None = None) -> dict:
+    """次日晋级概率概览（诚实标注：即时观测，非稳定历史概率）。
+
+    由三部分构成：
+      live_rate      最近一对快照的 2板晋级率（即时观测）
+      hist_rate      跨全部日对的历史平均（稍稳，仍小样本）
+      height_trend   最新 max_boards vs 近 5 日均值 → 高度扩张/持平/退潮
+    返回：{available, live_rate, hist_rate, n_pairs, height_trend, max_boards, note}
+    """
+    pr = ladder_promotion_rates(as_of=as_of)
+    hr = historical_promo_rate(as_of=as_of)
+    hist = load_history()
+    dates = sorted(d for d, e in hist.items()
+                   if isinstance(e, dict) and not e.get("suspect") and e.get("distribution"))
+    if as_of:
+        dates = [d for d in dates if d <= as_of]
+    max_boards = pr.get("latest", {}).get("max_boards") if pr.get("latest") else None
+    height_trend = "无数据"
+    if len(dates) >= 2 and max_boards is not None:
+        recent = []
+        for d in dates[-5:]:
+            e = hist[d]
+            mb = e.get("max_boards")
+            if mb is None:
+                mb = max((_int_keys(e.get("distribution") or {})).keys(), default=0)
+            recent.append(int(mb))
+        avg5 = sum(recent) / len(recent)
+        if max_boards >= avg5 + 0.5:
+            height_trend = "高度扩张"
+        elif max_boards <= avg5 - 0.5:
+            height_trend = "高度退潮"
+        else:
+            height_trend = "高度持平"
+    return dict(
+        available=pr.get("ready", False),
+        live_rate=pr.get("overall"),
+        hist_rate=hr.get("rate"),
+        n_pairs=hr.get("n_pairs", 0),
+        height_trend=height_trend,
+        max_boards=max_boards,
+        note="晋级率由最近2日推算、历史平均为小样本估计；高度趋势取近5日均值。历史相似 ≠ 预测，本读数仅描述接力意愿现状。",
+    )
+
+
+def event_breadth_resonance(regime_state: str, leader_score: float | None,
+                            red_ratio: float | None = None) -> dict:
+    """连板强度 × 市场状态 共振判定（纯函数，可单测）。
+
+    :param regime_state: market_regime.STATE_ORDER 中的一档
+    :param leader_score: leader_strength_index().score（0-100，None=未知）
+    :param red_ratio: 红盘率(%)，仅用于文案补充
+    返回：{resonance, label, color, detail, support}  support∈{bullish,neutral,bearish,none}
+    """
+    if not regime_state:
+        return dict(resonance="无信号", label="状态未知", color="#94a3b8",
+                    detail="市场状态缺失，无法判定共振。", support="none")
+    band = "high" if (leader_score is not None and leader_score >= 60) else \
+        ("mid" if (leader_score is not None and leader_score >= 30) else "low")
+    # (regime, band) -> (label, color, support, detail)
+    MATRIX = {
+        ("结构牛", "high"): ("共振向上", "#16a34a", "bullish", "广度强 + 接力意愿强，龙头与趋势共振，容错率高。"),
+        ("结构牛", "mid"):  ("广度强·接力中性", "#22c55e", "bullish", "趋势结构健康，但连板接力一般，注意内部轮动。"),
+        ("结构牛", "low"):  ("广度强但接力弱", "#f59e0b", "neutral", "指数/板块强但连板断层，警惕高位分化、题材散乱。"),
+        ("普涨",   "high"): ("共振向上", "#16a34a", "bullish", "普涨 + 高位抱团，赚钱效应与接力共振。"),
+        ("普涨",   "mid"):  ("普涨·接力中性", "#22c55e", "bullish", "多数个股上涨，连板结构中性，可积极参与。"),
+        ("普涨",   "low"):  ("普涨但无主线", "#f59e0b", "neutral", "指数普涨却无连板主线，行情偏补涨、持续性待验。"),
+        ("震荡",   "high"): ("龙头抱团·看量能", "#f59e0b", "neutral", "震荡市中资金抱团高位龙头，成败看量能是否跟上。"),
+        ("震荡",   "mid"):  ("弱平衡·观望", "#94a3b8", "neutral", "广度与接力均中性，方向不明，控仓等待。"),
+        ("震荡",   "low"):  ("无共振·清淡", "#94a3b8", "neutral", "连板与广度双弱，市场清淡，多看少动。"),
+        ("恐慌",   "high"): ("退潮风险·高位松动", "#dc2626", "bearish", "弱势中高位龙头易补跌，抱团松动信号，避险为上。"),
+        ("恐慌",   "mid"):  ("弱势反弹·谨慎", "#f97316", "bearish", "恐慌未消，连板一般，反弹宜降仓快进快出。"),
+        ("恐慌",   "low"):  ("全面退潮", "#dc2626", "bearish", "广度与连板双弱，空仓或极低仓避险。"),
+        ("暴跌",   "high"): ("退潮风险·高位松动", "#dc2626", "bearish", "暴跌中高位抱团最危险，优先排雷而非追高。"),
+        ("暴跌",   "mid"):  ("弱势反弹·谨慎", "#f97316", "bearish", "暴跌后技术性反抽，连板弱，不宜重仓。"),
+        ("暴跌",   "low"):  ("全面退潮", "#dc2626", "bearish", "广度与连板双杀，空仓或极低仓避险。"),
+    }
+    key = (regime_state, band)
+    if key not in MATRIX:
+        # leader_score 未知（None）时 band 恒为 low，落入 (regime,low) 分支；
+        # 若连 (regime,low) 都不在（未知市场状态），安全地降级而非抛 KeyError。
+        key = (regime_state, "low")
+    if key not in MATRIX:
+        return dict(resonance="无信号", label="状态未知", color="#94a3b8",
+                    detail=f"未识别的市场状态「{regime_state}」，无法判定共振。", support="none")
+    label, color, support, detail = MATRIX[key]
+    if red_ratio is not None:
+        detail += f" 当前红盘率 {red_ratio:.0f}%。"
+    return dict(resonance=label, label=label, color=color, support=support, detail=detail)
+
+
+def load_event_pool(path: str | None = None) -> dict:
+    """读本地事件因子多头池快照（P1-QuantFactor EV 因子）。
+
+    离线快照，须展示数据日期与时效性，不臆造实时事件。缺失/损坏优雅降级。
+    返回：{available, date, pool(list), stale(bool), note, source}
+    """
+    p = path or os.path.join(LADDER_DIR, "event_pool_brief.json")
+    try:
+        if not os.path.exists(p):
+            return dict(available=False, date=None, pool=[], stale=False,
+                        note="事件因子多头池快照缺失（data/event_pool_brief.json）", source=None)
+        with open(p, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict) or not data.get("pool"):
+            return dict(available=False, date=None, pool=[], stale=False,
+                        note="事件因子多头池快照为空或结构异常", source=None)
+        pool = data.get("pool", [])
+        date_str = str(data.get("date") or "")[:10]
+        stale = False
+        try:
+            from datetime import datetime as _dt
+            if date_str:
+                d0 = _dt.strptime(date_str, "%Y-%m-%d").date()
+                age = (now_cst().date() - d0).days
+                stale = age > 7
+        except Exception:
+            pass
+        return dict(available=True, date=date_str, pool=pool, stale=stale,
+                    note=("事件因子多头池为离线快照，数据日期 "
+                          + (date_str or "未知")
+                          + ("（已超过7天，时效性存疑）" if stale else "")
+                          + "；仅代表统计超额收益概率排序，非买卖指令。"),
+                    source=data.get("source"))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[ladder] 读取事件池失败: {e}")
+        return dict(available=False, date=None, pool=[], stale=False,
+                    note=f"读取事件池失败：{e}", source=None)

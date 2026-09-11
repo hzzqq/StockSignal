@@ -1,0 +1,280 @@
+{
+  "available": true,
+  "data": {
+    "rows": 4771,
+    "start": "2007-01-05",
+    "end": "2026-08-21"
+  },
+  "latest": {
+    "date": "2026-08-21",
+    "state": "震荡",
+    "confidence": 0.52,
+    "metrics": {
+      "red_ratio": 46.67,
+      "limit_up": 54,
+      "limit_down": 13
+    }
+  },
+  "state_distribution": {
+    "暴跌": 130,
+    "恐慌": 379,
+    "震荡": 2620,
+    "结构牛": 356,
+    "普涨": 1286
+  },
+  "transition_matrix": {
+    "暴跌": {
+      "暴跌": 0.2230769230769231,
+      "恐慌": 0.03076923076923077,
+      "震荡": 0.2923076923076923,
+      "结构牛": 0.1076923076923077,
+      "普涨": 0.34615384615384615
+    },
+    "恐慌": {
+      "暴跌": 0.06068601583113457,
+      "恐慌": 0.10026385224274406,
+      "震荡": 0.5118733509234829,
+      "结构牛": 0.052770448548812667,
+      "普涨": 0.27440633245382584
+    },
+    "震荡": {
+      "暴跌": 0.01794578083237877,
+      "恐慌": 0.09469263077510501,
+      "震荡": 0.5643375334096984,
+      "结构牛": 0.06529209621993128,
+      "普涨": 0.25773195876288657
+    },
+    "结构牛": {
+      "暴跌": 0.028089887640449437,
+      "恐慌": 0.05056179775280899,
+      "震荡": 0.5533707865168539,
+      "结构牛": 0.1797752808988764,
+      "普涨": 0.18820224719101122
+    },
+    "普涨": {
+      "暴跌": 0.016329704510108865,
+      "恐慌": 0.0552099533437014,
+      "震荡": 0.5544323483670296,
+      "结构牛": 0.06765163297045101,
+      "普涨": 0.30637636080870917
+    }
+  },
+  "analogs": [
+    {
+      "date": "2025-04-15",
+      "distance": 0.0414,
+      "metrics": {
+        "red_ratio": 46.28,
+        "limit_up": 56,
+        "limit_down": 11
+      },
+      "state": "震荡",
+      "forward": {
+        "d5": {
+          "avg_red": 51.74,
+          "up_frac": 0.4,
+          "median_delta": 2.56
+        },
+        "d10": {
+          "avg_red": 49.51,
+          "up_frac": 0.5,
+          "median_delta": 5.43
+        },
+        "d20": {
+          "avg_red": 53.03,
+          "up_frac": 0.55,
+          "median_delta": 9.98
+        }
+      }
+    },
+    {
+      "date": "2022-06-15",
+      "distance": 0.0523,
+      "metrics": {
+        "red_ratio": 45.36,
+        "limit_up": 54,
+        "limit_down": 15
+      },
+      "state": "震荡",
+      "forward": {
+        "d5": {
+          "avg_red": 48.43,
+          "up_frac": 0.6,
+          "median_delta": 5.62
+        },
+        "d10": {
+          "avg_red": 54.77,
+          "up_frac": 0.7,
+          "median_delta": 17.09
+        },
+        "d20": {
+          "avg_red": 49.82,
+          "up_frac": 0.6,
+          "median_delta": 10.0
+        }
+      }
+    },
+    {
+      "date": "2020-07-27",
+      "distance": 0.058,
+      "metrics": {
+        "red_ratio": 46.71,
+        "limit_up": 51,
+        "limit_down": 16
+      },
+      "state": "震荡",
+      "forward": {
+        "d5": {
+          "avg_red": 74.5,
+          "up_frac": 0.8,
+          "median_delta": 28.0
+        },
+        "d10": {
+          "avg_red": 59.76,
+          "up_frac": 0.6,
+          "median_delta": 19.18
+        },
+        "d20": {
+          "avg_red": 55.02,
+          "up_frac": 0.6,
+          "median_delta": 12.91
+        }
+      }
+    },
+    {
+      "date": "2022-03-31",
+      "distance": 0.0694,
+      "metrics": {
+        "red_ratio": 45.54,
+        "limit_up": 51,
+        "limit_down": 11
+      },
+      "state": "震荡",
+      "forward": {
+        "d5": {
+          "avg_red": 34.1,
+          "up_frac": 0.2,
+          "median_delta": -11.91
+        },
+        "d10": {
+          "avg_red": 42.46,
+          "up_frac": 0.4,
+          "median_delta": -6.95
+        },
+        "d20": {
+          "avg_red": 42.88,
+          "up_frac": 0.4,
+          "median_delta": -11.23
+        }
+      }
+    },
+    {
+      "date": "2022-10-21",
+      "distance": 0.0764,
+      "metrics": {
+        "red_ratio": 47.19,
+        "limit_up": 50,
+        "limit_down": 16
+      },
+      "state": "震荡",
+      "forward": {
+        "d5": {
+          "avg_red": 39.67,
+          "up_frac": 0.2,
+          "median_delta": -8.0
+        },
+        "d10": {
+          "avg_red": 57.42,
+          "up_frac": 0.6,
+          "median_delta": 14.08
+        },
+        "d20": {
+          "avg_red": 53.56,
+          "up_frac": 0.5,
+          "median_delta": 3.44
+        }
+      }
+    },
+    {
+      "date": "2025-12-31",
+      "distance": 0.0792,
+      "metrics": {
+        "red_ratio": 47.13,
+        "limit_up": 58,
+        "limit_down": 9
+      },
+      "state": "震荡",
+      "forward": {
+        "d5": {
+          "avg_red": 68.12,
+          "up_frac": 0.8,
+          "median_delta": 27.43
+        },
+        "d10": {
+          "avg_red": 58.65,
+          "up_frac": 0.6,
+          "median_delta": 13.68
+        },
+        "d20": {
+          "avg_red": 53.53,
+          "up_frac": 0.5,
+          "median_delta": 1.54
+        }
+      }
+    },
+    {
+      "date": "2007-10-15",
+      "distance": 0.0797,
+      "metrics": {
+        "red_ratio": 46.83,
+        "limit_up": 51,
+        "limit_down": 6
+      },
+      "state": "震荡",
+      "forward": {
+        "d5": {
+          "avg_red": 37.91,
+          "up_frac": 0.2,
+          "median_delta": -8.53
+        },
+        "d10": {
+          "avg_red": 38.77,
+          "up_frac": 0.3,
+          "median_delta": -6.86
+        },
+        "d20": {
+          "avg_red": 43.74,
+          "up_frac": 0.35,
+          "median_delta": -7.82
+        }
+      }
+    },
+    {
+      "date": "2023-11-08",
+      "distance": 0.0805,
+      "metrics": {
+        "red_ratio": 46.29,
+        "limit_up": 53,
+        "limit_down": 4
+      },
+      "state": "震荡",
+      "forward": {
+        "d5": {
+          "avg_red": 54.86,
+          "up_frac": 0.6,
+          "median_delta": 13.22
+        },
+        "d10": {
+          "avg_red": 49.9,
+          "up_frac": 0.5,
+          "median_delta": 4.93
+        },
+        "d20": {
+          "avg_red": 47.94,
+          "up_frac": 0.45,
+          "median_delta": 1.61
+        }
+      }
+    }
+  ]
+}
