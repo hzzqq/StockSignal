@@ -48,6 +48,19 @@ def _final_picker_score(score: float, smoothed: float, enough_days: bool) -> flo
     return round(_clamp100(raw), 1)
 
 
+
+
+def _trend_persistence_ratio(recent):
+    """最近窗口内 close>MA20 的占比（∈[0,1]）。
+
+    锐评 R5：原代码用 min(len(recent),5) 作分母，但 recent 实为最近 10 天，
+    导致占比被放大 2 倍、区间 [0,2]，把仅一半交易日站上 MA20 的股票误标为
+    '强趋势(持续)'。改为除以窗口实际长度，与 daily_picker_backtest 同源一致。
+    """
+    if recent is None or len(recent) == 0:
+        return 0.0
+    above = int((recent["close"] > recent["ma20"]).sum())
+    return above / len(recent)
 class Backtester:
     """策略回测器。"""
 
@@ -738,7 +751,7 @@ class Backtester:
 
         # 趋势持续性：最近 5 天中 close > MA20 的天数比例
         recent_above_ma20 = (recent["close"] > recent["ma20"]).sum()
-        trend_persistence = recent_above_ma20 / min(len(recent), 5)
+        trend_persistence = _trend_persistence_ratio(recent)
 
         if trend_score >= 35:
             if trend_persistence >= 0.9:
@@ -1240,7 +1253,7 @@ class Backtester:
                     trend_score = min(trend_score, 50)
                     # 趋势持续性（与 _score_for_picker 对齐）：最近 5 天 close>MA20 占比
                     recent_above_ma20 = (recent_10["close"] > recent_10["ma20"]).sum()
-                    trend_persist = min(recent_above_ma20 / min(len(recent_10), 5), 1.0)
+                    trend_persist = min(_trend_persistence_ratio(recent_10), 1.0)
                     if trend_score >= 35:
                         if trend_persist >= 0.9:
                             reasons.append("强趋势(持续)")
