@@ -6,6 +6,17 @@
 本脚本把 ``data/shepherd_history.csv``（4094 个交易日）逐日喂给生产模块
 ``modules.shepherd_forecast.forecast_next_day``，并用**样本外**方式检验。
 
+2026-09-11 P3 修正（诚实口径）
+------------------------------
+原脚本把「次日方向」定义为 ``median_chg.shift(-1) > 0``（全市场涨跌中位数）。但
+``median_chg`` 仅在 2026-08-22 起的近窗 14 天有真实值，**全历史缺失**，重跑时
+无法在全历史复现，且旧报告「极端恐慌→次日反弹 66.7%」建立在口径不一致的基底上。
+本版改用**尺度无关、全历史可比**的「次日广度变动」作为方向标签：
+    y1 = (次日上涨家数 - 次日下跌家数) / 当日有效样本数
+y1 > 0 即「次日红盘日」（上涨家数 > 下跌家数），与「恐慌→反弹」假设直接对应，且
+由已用 v1 缓存全历史还原的 up/down 家数推出，2007–2026 全样本均可参与检验。
+结论因此可在全历史诚实复现（见产出 JSON 的 ``target`` 字段）。
+
 三个必须先纠正的口径（否则结论会反向）
 --------------------------------------
 1. **基准率不是 50%**：本样本无条件次日上涨率 ≈46.5%、5 日累计上涨率 ≈38.4%
@@ -70,6 +81,13 @@ def _p2(z: float) -> float:
     return round(2 * (1 - 0.5 * (1 + math.erf(abs(z) / math.sqrt(2)))), 4)
 
 
+def _fmt(v, spec: str) -> str:
+    """None / NaN 安全的格式化：缺失值显示占位符而非抛异常。"""
+    if v is None or (isinstance(v, float) and v != v):
+        return "  —  "
+    return f"{v:{spec}}"
+
+
 def _rate(series: pd.Series) -> float | None:
     s = pd.to_numeric(series, errors="coerce").dropna()
     return round(float((s > 0).mean()), 4) if len(s) else None
@@ -88,10 +106,17 @@ def build_frame(min_sample: int):
     # 只保留覆盖度足够的年份，避免 26 只股票时代的噪声
     d = df[df["sample"] >= min_sample].reset_index(drop=True).copy()
 
-    # ── 目标：次日 ──
-    d["y1"] = d["median_chg"].shift(-1)                 # 次日全市场涨跌中位数(%)
+    # ── 目标：次日（2026-09-11 P3 修正）──
+    # 原目标 median_chg.shift(-1)（次日全市场涨跌中位数）全历史缺失（仅近窗 14 天有值），
+    # 重跑时无法在全历史复现，且旧报告的 66.7% 建立在口径不一致的基底上。
+    # 改用全历史可比的「次日广度变动」：次日(上涨-下跌)/样本（带符号、连续、尺度无关）。
+    #   y1 > 0  ⇔ 次日红盘日（上涨家数 > 下跌家数），与「恐慌→反弹」假设直接对应；
+    #   y1 由 up_count/down_count 推出，两者已用 v1 缓存全历史还原、真实可用。
+    d["y1"] = (d["up_count"].shift(-1) - d["down_count"].shift(-1)) / d["sample"].shift(-1)
     d["y1_abs"] = d["y1"].abs()                          # 次日「强度」（波动幅度）
-    d["y5"] = d["median_chg"].shift(-1).rolling(5).sum().shift(-4)
+    d["y5"] = d["y1"].rolling(5).sum()                   # 未来 5 日广度变动累计
+    # 次级目标（仅近窗有值）：保留 median_chg 用于对照，不计入主结论
+    d["y1_median"] = d["median_chg"].shift(-1)
 
     # ── 特征：只用**尺度无关**的比率/位置类（全历史可比）──
     d["up_ratio"] = d["up_count"] / d["sample"] * 100
@@ -142,6 +167,10 @@ def run(min_sample: int, train_frac: float):
     rep: dict = dict(
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         source=os.path.relpath(HIST, ROOT),
+        target="next_day_breadth = (up_count.shift(-1) - down_count.shift(-1)) / sample "
+               "（次日广度变动，带符号；>0 即次日红盘日）。2026-09-11 P3 起替代缺失历史的 "
+               "median_chg.shift(-1) 目标，保证结论可在全历史复现。",
+        median_chg_coverage=int(df_all["median_chg"].notna().sum()),
         min_sample=min_sample, train_frac=train_frac,
         rows_all=int(len(df_all)), rows_used=int(len(eng)),
         engine_errors=n_err,
@@ -371,13 +400,13 @@ def main():
             print(f"    {x['rule']:28} 触发率={x['trigger_rate']:.2%} n={x['n']:5d} {x['note']}")
         else:
             print(f"    {x['rule']:28} 触发率={x['trigger_rate']:.2%} n={x['n']:5d} "
-                  f"上涨={x['up_rate']:.1%} 均值={x['mean']:+.3f} z={x['z']:+.2f} "
-                  f"{'★显著' if x['significant'] else '噪音'}")
+                  f"上涨={_fmt(x['up_rate'], '.1%')} 均值={_fmt(x['mean'], '+.3f')} "
+                  f"z={_fmt(x['z'], '+.2f')} {'★显著' if x['significant'] else '噪音'}")
     print("    比率化改写后：")
     for x in r["ratio_rewritten_rules"]:
         print(f"    {x['rule']:28} 触发率={x['trigger_rate']:.2%} n={x['n']:5d} "
-              f"上涨={x['up_rate']:.1%} 均值={x['mean']:+.3f} z={x['z']} "
-              f"{'★显著' if x['significant'] else '噪音'}")
+              f"上涨={_fmt(x['up_rate'], '.1%')} 均值={_fmt(x['mean'], '+.3f')} "
+              f"z={_fmt(x['z'], '+.2f')} {'★显著' if x['significant'] else '噪音'}")
     o = r["oos_tail"]
     print(f"\n[D] 样本外: 训练 {o['train_period'][0]}~{o['train_period'][1]} ({o['train_rows']} 天)"
           f" → 测试 {o['test_period'][0]}~{o['test_period'][1]} ({o['test_rows']} 天)")

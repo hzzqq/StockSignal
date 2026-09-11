@@ -1,16 +1,21 @@
 {
-  "generated_at": "2026-09-10 20:52:48",
+  "generated_at": "2026-09-11 10:08:28",
   "source": "data\\shepherd_history.csv",
   "method": "walk-forward / expanding window（第 i 天阈值只用 [warmup, i) 计算，无未来信息）",
+  "target": "next_day_up_day = (up_count.shift(-1) > down_count.shift(-1))；尺度无关、全历史可比。原 median_chg 标签全历史缺失，已于 P3 替换为该标签。",
   "warmup": 500,
   "quantile": 0.9,
   "min_trigger_samples": 20,
-  "base_next_day_up_rate": 0.4651,
+  "base_next_day_up_rate": 0.4982,
   "date_range": [
-    "2020-04-20",
-    "2026-09-03"
+    "2007-01-05",
+    "2026-09-10"
   ],
   "universe_note": "本历史为逐年长大的采样（2009 年仅 26 只 → 2025 年 1669 只），故校准只使用尺度无关的占比类特征；绝对家数阈值不可用。",
+  "feature_coverage": {
+    "limit_down_ratio": 4785,
+    "touch_down_ratio": 14
+  },
   "features": {
     "limit_down_ratio": {
       "key": "limit_down_ratio",
@@ -19,50 +24,129 @@
       "sign": "high",
       "expected_direction": "up",
       "why": "跌停占比冲到历史前 10% = 恐慌彻底出清，次日易有抄底盘做 V 反",
-      "production_threshold": 0.3342,
-      "threshold_basis": "全样本 P90（2020-04-20~2026-09-03）",
+      "production_threshold": 0.7612,
+      "threshold_basis": "全样本 P90（2007-01-05~2026-09-10）",
       "walk_forward": {
-        "trigger_days": 78,
-        "up_days": 52,
-        "up_rate": 0.6667,
-        "base_rate": 0.4651,
-        "mean_next_day": 0.5593,
-        "z": 3.57,
-        "p": 0.0004,
+        "trigger_days": 296,
+        "up_days": 185,
+        "up_rate": 0.625,
+        "base_rate": 0.4982,
+        "mean_next_day": 0.625,
+        "z": 4.36,
+        "p": 0.0,
         "significant": true
       },
       "by_year": {
-        "2022": {
-          "n": 13,
+        "2009": {
+          "n": 7,
+          "up": 5,
+          "mean": 0.7143,
+          "up_rate": 0.7143
+        },
+        "2010": {
+          "n": 10,
           "up": 6,
-          "mean": -0.0753,
-          "up_rate": 0.4615
+          "mean": 0.6,
+          "up_rate": 0.6
+        },
+        "2011": {
+          "n": 7,
+          "up": 3,
+          "mean": 0.4286,
+          "up_rate": 0.4286
+        },
+        "2012": {
+          "n": 7,
+          "up": 4,
+          "mean": 0.5714,
+          "up_rate": 0.5714
+        },
+        "2013": {
+          "n": 9,
+          "up": 7,
+          "mean": 0.7778,
+          "up_rate": 0.7778
+        },
+        "2014": {
+          "n": 8,
+          "up": 6,
+          "mean": 0.75,
+          "up_rate": 0.75
+        },
+        "2015": {
+          "n": 52,
+          "up": 30,
+          "mean": 0.5769,
+          "up_rate": 0.5769
+        },
+        "2016": {
+          "n": 20,
+          "up": 14,
+          "mean": 0.7,
+          "up_rate": 0.7
+        },
+        "2017": {
+          "n": 14,
+          "up": 10,
+          "mean": 0.7143,
+          "up_rate": 0.7143
+        },
+        "2018": {
+          "n": 24,
+          "up": 14,
+          "mean": 0.5833,
+          "up_rate": 0.5833
+        },
+        "2019": {
+          "n": 16,
+          "up": 11,
+          "mean": 0.6875,
+          "up_rate": 0.6875
+        },
+        "2020": {
+          "n": 17,
+          "up": 9,
+          "mean": 0.5294,
+          "up_rate": 0.5294
+        },
+        "2021": {
+          "n": 22,
+          "up": 14,
+          "mean": 0.6364,
+          "up_rate": 0.6364
+        },
+        "2022": {
+          "n": 22,
+          "up": 14,
+          "mean": 0.6364,
+          "up_rate": 0.6364
         },
         "2023": {
           "n": 3,
           "up": 2,
-          "mean": 0.9437,
+          "mean": 0.6667,
           "up_rate": 0.6667
         },
         "2024": {
-          "n": 21,
-          "up": 13,
-          "mean": 0.525,
-          "up_rate": 0.619
+          "n": 23,
+          "up": 15,
+          "mean": 0.6522,
+          "up_rate": 0.6522
         },
         "2025": {
-          "n": 17,
-          "up": 13,
-          "mean": 1.1504,
-          "up_rate": 0.7647
+          "n": 11,
+          "up": 9,
+          "mean": 0.8182,
+          "up_rate": 0.8182
         },
         "2026": {
           "n": 24,
-          "up": 18,
-          "mean": 0.4662,
-          "up_rate": 0.75
+          "up": 12,
+          "mean": 0.5,
+          "up_rate": 0.5
         }
       },
+      "data_availability": "4785/4785 天有值",
       "publishable": true
     },
     "touch_down_ratio": {
@@ -72,55 +156,26 @@
       "sign": "high",
       "expected_direction": "up",
       "why": "盘中触及跌停的家数占比极高 = 抛压当日释放最充分，次日修复概率显著抬升",
-      "production_threshold": 0.5982,
-      "threshold_basis": "全样本 P90（2020-04-20~2026-09-03）",
+      "production_threshold": 0.5266,
+      "threshold_basis": "全样本 P90（2007-01-05~2026-09-10）",
       "walk_forward": {
-        "trigger_days": 65,
-        "up_days": 41,
-        "up_rate": 0.6308,
-        "base_rate": 0.4651,
-        "mean_next_day": 0.5089,
-        "z": 2.68,
-        "p": 0.0074,
-        "significant": true
+        "trigger_days": 0,
+        "up_days": 0,
+        "up_rate": null,
+        "base_rate": 0.4982,
+        "mean_next_day": null,
+        "z": 0.0,
+        "p": 1.0,
+        "significant": false
       },
-      "by_year": {
-        "2022": {
-          "n": 12,
-          "up": 6,
-          "mean": -0.0476,
-          "up_rate": 0.5
-        },
-        "2023": {
-          "n": 4,
-          "up": 2,
-          "mean": 0.6748,
-          "up_rate": 0.5
-        },
-        "2024": {
-          "n": 22,
-          "up": 14,
-          "mean": 0.4792,
-          "up_rate": 0.6364
-        },
-        "2025": {
-          "n": 7,
-          "up": 6,
-          "mean": 2.1788,
-          "up_rate": 0.8571
-        },
-        "2026": {
-          "n": 20,
-          "up": 13,
-          "mean": 0.2577,
-          "up_rate": 0.65
-        }
-      },
-      "publishable": true
+      "by_year": {},
+      "data_availability": "14/4785 天有值",
+      "publishable": false,
+      "unpublishable_reason": "触发样本为 0：该特征历史覆盖不足（见 feature_coverage），walk-forward 无法在充足历史窗口内形成阈值，故不可验证、不发布。"
     }
   },
   "strength_ic": {
-    "touch_down_ratio": 0.1556
+    "limit_down_ratio": 0.0931
   },
-  "strength_note": "次日波动幅度与当日占比类指标秩相关 IC≈0.13~0.16（弱正），可用于『次日波动偏大』的风险提示；但**方向不可预测**。"
+  "strength_note": "次日波动幅度与当日占比类指标秩相关 IC≈[0.0931]（弱正），可用于『次日波动偏大』的风险提示；但**方向不可预测**。"
 }
