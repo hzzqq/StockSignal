@@ -35,6 +35,27 @@ from modules.technical import full_analysis
 from modules._compare_render import _biz_groups  # 拆分后此共享小工具位于渲染层（叶子模块）
 
 
+def _to_float(v) -> Optional[float]:
+    """把财务指标/估值接口返回的脏值（带千分位逗号、百分号、空白）安全转 float。
+
+    锐评 R2：原代码 ``float(str(v).replace(",", ""))`` 对 ``"12.5%"`` / ``"1,234.5"``
+    这类同花顺/百度估值常见格式会抛 ``ValueError`` 被静默吞掉、返回 ``None``，
+    导致真实存在的 ROE / 营收同比 / 净利润同比 / 股息率被当成「无数据」展示——
+    典型静默丢数据（用户看到空白，以为没抓到，实则数据在但被解析失败吞了）。
+    这里在转换前剥离百分号与千分位逗号、空白与占位符（-/--/nan），失败才返回 None。
+    """
+    if v is None:
+        return None
+    s = str(v).strip().replace(",", "").replace("%", "")
+    if s in ("", "-", "--", "nan", "None", "N/A", "n/a"):
+        return None
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        logger.warning("[compare] 数值解析失败 %r，按缺失处理", v)
+        return None
+
+
 # =====================================================================
 # 数据层
 # =====================================================================
@@ -276,11 +297,7 @@ def _fill_extra_metrics(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> 
                 df = ak.stock_zh_valuation_baidu(symbol=code, indicator=ind, period="近一年")
                 if df is not None and not df.empty:
                     v = df.iloc[-1].get("value")
-                    try:
-                        row[key] = float(str(v).replace(",", ""))
-                    except Exception as e:
-                        logger.warning(f"[compare] 未处理异常: {e}")
-                        pass
+                    row[key] = _to_float(v)
             except Exception as e:
                 logger.warning(f"[compare] 未处理异常: {e}")
                 pass
@@ -302,7 +319,7 @@ def _fill_extra_metrics(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> 
                         cn = col.replace(" ", "")
                         if n.replace(" ", "") in cn:
                             try:
-                                return float(str(last[col]).replace(",", ""))
+                                return _to_float(last[col])
                             except Exception as e:
                                 logger.warning(f"[compare] 未处理异常: {e}")
                                 return None
