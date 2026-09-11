@@ -83,6 +83,22 @@ def _load_one(path: str):
         return json.load(f)
 
 
+def format_rank(rank, as_percent=False):
+    """把 P1 信号的 rank 字段格式化为展示字符串（单一真理源）。
+
+    锐评 R8：看多榜 top_long 的 rank 是序数（1,2,3…），看空榜 top_short 的 rank 是
+    百分位（0.0007…）。页面曾统一 `rank*100` 渲染，导致看多榜出现 100%/200%/300% 的荒谬值。
+    序数直接取整展示，百分位才乘 100 显示为百分比。
+    """
+    try:
+        r = float(rank)
+    except (TypeError, ValueError):
+        return "—"
+    if as_percent:
+        return f"{r * 100:.2f}%"
+    return f"{r:.0f}"
+
+
 class P1SignalLoader:
     """懒加载、按 model 缓存的 P1 信号读取器。
 

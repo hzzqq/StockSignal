@@ -19,7 +19,7 @@ import streamlit as st
 from modules.page_utils import render_standard_page, import_autorefresh
 from modules.ui_theme import sf_card, sf_metric
 from modules.ui_kit import xc_warn_box, xc_success_box
-from modules.p1_signal import P1SignalLoader
+from modules.p1_signal import P1SignalLoader, format_rank
 
 dark = render_standard_page(
     title="P1 量化信号",
@@ -92,7 +92,7 @@ with c4:
 
 
 # ───────────────────────── 榜单渲染 ─────────────────────────
-def _board_html(rows, head_color, empty="无数据"):
+def _board_html(rows, head_color, empty="无数据", rank_as_percent=False):
     if not rows:
         return f"<div style='color:#888;padding:8px'>{empty}</div>"
     body = ""
@@ -101,11 +101,12 @@ def _board_html(rows, head_color, empty="无数据"):
         sym = r.get("symbol", "")
         rank = float(r.get("rank", 0.0) or 0.0)
         pcolor = "#ff5c5c" if pred >= 0 else "#19c37d"  # A股：涨红跌绿
+        rank_disp = format_rank(rank, rank_as_percent)  # 锐评 R8：序数不乘100，百分位才显示%
         body += (
             f"<tr><td style='color:#888'>{i}</td>"
             f"<td style='font-family:monospace'>{sym}</td>"
             f"<td style='color:{pcolor};font-weight:600'>{pred*100:+.2f}%</td>"
-            f"<td style='color:#888'>{rank*100:.0f}%</td></tr>"
+            f"<td style='color:#888'>{rank_disp}</td></tr>"
         )
     return (
         "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
@@ -119,10 +120,10 @@ long_rows = loader.top_long(model, n)
 short_rows = loader.top_short(model, n)
 
 st.markdown("### 📈 看多榜（前 {n} 只，红=A股涨色）".format(n=n))
-st.markdown(_board_html(long_rows, "#ff5c5c"), unsafe_allow_html=True)
+st.markdown(_board_html(long_rows, "#ff5c5c", rank_as_percent=False), unsafe_allow_html=True)
 
 st.markdown("### 📉 看空榜（前 {n} 只，绿=A股跌色）".format(n=n))
-st.markdown(_board_html(short_rows, "#19c37d"), unsafe_allow_html=True)
+st.markdown(_board_html(short_rows, "#19c37d", rank_as_percent=True), unsafe_allow_html=True)
 
 # ───────────────────────── 三信号 A/B 对比 ─────────────────────────
 if len(models) >= 2:
