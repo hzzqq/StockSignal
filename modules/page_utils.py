@@ -1,6 +1,15 @@
 import logging
 from modules.ui_kit import page_hero
 logger = logging.getLogger(__name__)
+
+def latest_quote_time(quote_times):
+    """返回行情报价时间列表中的【最新】一条（用于"行情更新于"等展示）。
+    空列表返回 "—"。quote_times 为 ISO 字符串时字典序即时间序，max 取最新。
+    锐评 R11：自选股监控页曾误用 min（取最早），系统性低估数据新鲜度。
+    """
+    if not quote_times:
+        return "—"
+    return max(quote_times)
 """页面公共骨架：消除 40+ 页面重复的样板代码。
 
 提供高频复用的页面级工具，取代各页面里复制粘贴的头部初始化：

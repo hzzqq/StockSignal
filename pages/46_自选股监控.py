@@ -22,7 +22,7 @@ from modules.ssl_helper import ssl_bypass as _ssl_bypass
 from modules.page_widgets import _empty_info, _toast
 from modules.fundamental_helpers import calc_alr, fund_one
 from modules.page_guard import safe_fragment
-from modules.page_utils import render_standard_page, get_fetcher
+from modules.page_utils import render_standard_page, get_fetcher, latest_quote_time
 from modules.ui_theme import sf_card, sf_metric
 from modules.ui_kit import xc_success_box, xc_warn_box
 dark = render_standard_page(title='自选股监控', icon='📡', caption='实时跟踪自选股现价与涨跌幅；行情接口异常时自动回退本地源。数据仅供参考，非投资建议。', layout='wide')
@@ -207,7 +207,7 @@ def fragment_watchlist_monitor():
     down_n = sum((1 for r in rows if r['chg'] is not None and r['chg'] < 0))
     st.markdown(f"#### 共 {len(rows)} 只自选股 ｜ <span style='color:{_UP};font-weight:600;'>▲ {up_n}</span> ／ <span style='color:{_DOWN};font-weight:600;'>▼ {down_n}</span>", unsafe_allow_html=True)
     if quote_times:
-        st.caption(f'🕒 行情更新于 {_rel_time(min(quote_times))}')
+        st.caption(f'🕒 行情更新于 {_rel_time(latest_quote_time(quote_times))}')
     ok_n = sum((1 for r in rows if r['cur'] is not None))
     if codes and ok_n == 0:
         xc_warn_box('⚠️ 实时行情暂时获取失败（接口/网络异常），已尝试回退本地源仍无数据；下表为持仓快照，行情相关列显示 —，交易时段将自动刷新或稍后重试。')
@@ -275,7 +275,7 @@ def fragment_watchlist_monitor():
             safe_switch_page('pages/31_形态选股.py')
     if st.button('🔔 去设价格预警', width="stretch", key='wl_goto_alert'):
         safe_switch_page('pages/47_价格预警.py')
-    data_time = max(quote_times) if quote_times else '—'
+    data_time = latest_quote_time(quote_times)
     refresh_tag = ' ｜ 🔴 交易时段每 60 秒自动刷新' if _is_trading_now() else ''
     st.caption(f"行情时间：{(_rel_time(data_time) if data_time != '—' else '—')} ｜ 本页刷新：{datetime.now().strftime('%H:%M:%S')} ｜ 红涨绿跌（A股惯例）{refresh_tag}")
 fragment_watchlist_monitor()
