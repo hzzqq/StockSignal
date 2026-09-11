@@ -172,8 +172,11 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | Non
         ranked = sectors.sort_values(chg_col, ascending=False).reset_index(drop=True)
         sector_full_name = str(sec.iloc[0][name_col])
         out["full_name"] = sector_full_name
-        # 排名按清理后的名或全名匹配
-        idx = ranked[cleaned == _clean_industry(sector_full_name)].index
+        # 排名按清理后的名或全名匹配 —— 必须在 ranked 上重算清理名，
+        # 否则 cleaned 保留原 sectors 索引、ranked 是 reset_index 后的新索引，
+        # 按标签对齐会选到「原始位置」匹配行而非「排序位置」匹配行，导致排名错乱（锐评 R9）。
+        ranked_clean = ranked[name_col].astype(str).apply(_clean_industry)
+        idx = ranked_clean[ranked_clean == _clean_industry(sector_full_name)].index
         if len(idx) == 0:
             idx = ranked[ranked[name_col].astype(str).str.contains(industry, na=False)].index
         if len(idx):
