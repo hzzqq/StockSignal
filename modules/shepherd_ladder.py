@@ -634,23 +634,25 @@ def event_breadth_resonance(regime_state: str, leader_score: float | None,
 
 
 def load_event_pool(path: str | None = None) -> dict:
-    """读本地事件因子多头池快照（P1-QuantFactor EV 因子）。
+    """读本地事件因子多头池快照（P1-QuantFactor 因子）。
 
-    离线快照，须展示数据日期与时效性，不臆造实时事件。缺失/损坏优雅降级。
-    返回：{available, date, pool(list), stale(bool), note, source}
+    离线快照或经 refresh_event_pool_from_p1 刷新的实时导出，须展示数据日期、
+    来源与时效性，不臆造实时事件。缺失/损坏优雅降级。
+    返回：{available, date, pool(list), stale(bool), live(bool), note, source}
     """
     p = path or os.path.join(LADDER_DIR, "event_pool_brief.json")
     try:
         if not os.path.exists(p):
-            return dict(available=False, date=None, pool=[], stale=False,
+            return dict(available=False, date=None, pool=[], stale=False, live=False,
                         note="事件因子多头池快照缺失（data/event_pool_brief.json）", source=None)
         with open(p, "r", encoding="utf-8") as f:
             data = json.load(f)
         if not isinstance(data, dict) or not data.get("pool"):
-            return dict(available=False, date=None, pool=[], stale=False,
+            return dict(available=False, date=None, pool=[], stale=False, live=False,
                         note="事件因子多头池快照为空或结构异常", source=None)
         pool = data.get("pool", [])
         date_str = str(data.get("date") or "")[:10]
+        live = bool(data.get("live", False))
         stale = False
         try:
             from datetime import datetime as _dt
@@ -660,13 +662,123 @@ def load_event_pool(path: str | None = None) -> dict:
                 stale = age > 7
         except Exception:
             pass
-        return dict(available=True, date=date_str, pool=pool, stale=stale,
-                    note=("事件因子多头池为离线快照，数据日期 "
-                          + (date_str or "未知")
+        src = data.get("source") or ("P1-QuantFactor 实时因子" if live else "P1-QuantFactor EV 事件因子")
+        return dict(available=True, date=date_str, pool=pool, stale=stale, live=live,
+                    note=((src + " · ")
+                          + ("实时导出快照" if live else "离线快照")
+                          + f"，数据日期 {date_str or '未知'}"
                           + ("（已超过7天，时效性存疑）" if stale else "")
                           + "；仅代表统计超额收益概率排序，非买卖指令。"),
-                    source=data.get("source"))
+                    source=src)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[ladder] 读取事件池失败: {e}")
-        return dict(available=False, date=None, pool=[], stale=False,
+        return dict(available=False, date=None, pool=[], stale=False, live=False,
                     note=f"读取事件池失败：{e}", source=None)
+
+
+def _p1_signals_dir() -> str:
+    """定位 P1-QuantFactor 信号导出目录（可配置，缺省降级到同机默认布局）。"""
+    env = os.environ.get("P1_PROJECT_DIR")
+    if env:
+        return os.path.join(env, "data", "P1", "processed", "signals")
+    # 默认同机双项目布局：本仓在 E:/project/ks，P1 在 E:/project/sj/P1-QuantFactor
+    return os.path.join("E:/project/sj/P1-QuantFactor", "data", "P1", "processed", "signals")
+
+
+def refresh_event_pool_from_p1(p1_signals_dir: str | None = None,
+                               out_path: str | None = None,
+                               max_age_days: int = 30) -> dict:
+    """从 P1-QuantFactor 信号导出刷新事件因子多头池。
+
+    **只在存在有效的 P1 信号导出（非空 top_long + 可解析 latest_date）时才写入
+    data/event_pool_brief.json**；否则优雅降级，绝不覆盖既有离线快照。
+    P1 信号产物由 `scripts/06_export_signal.py` 生成，离线环境通常不存在——
+    此时本函数返回 refreshed=False 并保留快照，属预期降级而非错误。
+
+    返回状态字典，供脚本/页面诚实展示可用性。
+    """
+    out = out_path or os.path.join(LADDER_DIR, "event_pool_brief.json")
+    sdir = p1_signals_dir or _p1_signals_dir()
+    status = dict(refreshed=False, live=False, reason=None, date=None,
+                  count=0, source=None, stale=False, note="")
+    if not os.path.isdir(sdir):
+        status["reason"] = "no_p1_signals_dir"
+        status["note"] = f"未找到 P1 信号目录：{sdir}（需先运行 P1 管线生成信号导出）"
+        return status
+    try:
+        cands = [os.path.join(sdir, f) for f in os.listdir(sdir)
+                 if f.startswith("signal_") and f.endswith(".json")]
+    except Exception as e:
+        status["reason"] = "list_failed"
+        status["note"] = f"列举 P1 信号目录失败：{e}"
+        return status
+    if not cands:
+        status["reason"] = "no_p1_signal"
+        status["note"] = "P1 信号目录无 signal_*.json（需先运行 P1 阶段6 导出）"
+        return status
+    cands.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    latest = cands[0]
+    try:
+        with open(latest, "r", encoding="utf-8") as f:
+            sig = json.load(f)
+    except Exception as e:
+        status["reason"] = "p1_signal_corrupt"
+        status["note"] = f"读取 P1 信号失败：{e}"
+        return status
+    top_long = sig.get("top_long") or []
+    latest_date = str(sig.get("latest_date") or "")
+    model = sig.get("model", "unknown")
+    if not top_long or not latest_date:
+        status["reason"] = "p1_signal_empty"
+        status["note"] = "P1 信号 top_long 为空或缺少 latest_date，拒绝刷新（避免覆盖有效快照）"
+        return status
+    # 时效性（仅作提示，不阻断：P1 离线产物也可能较旧）
+    stale = False
+    try:
+        from datetime import datetime as _dt
+        d0 = _dt.strptime(latest_date[:10], "%Y-%m-%d").date()
+        age = (now_cst().date() - d0).days
+        stale = age > max_age_days
+    except Exception:
+        pass
+    # 变换为 event_pool_brief schema（与离线快照同构，便于页面零改动复用）
+    pool = []
+    for i, it in enumerate(top_long):
+        sym = it.get("symbol")
+        if not sym:
+            continue
+        pct_rank = float(it.get("rank", 1.0)) if it.get("rank") is not None else 1.0
+        score = round(max(0.0, min(100.0, pct_rank * 100.0)), 1)
+        pool.append({
+            "rank": i + 1,
+            "symbol": sym,
+            "score": score,
+            "raw_rank": pct_rank,
+            "raw_pred": float(it.get("score", 0.0)),
+            "signal": "看多",
+            "source": f"P1-{model}-top_long",
+        })
+    if not pool:
+        status["reason"] = "transformed_empty"
+        status["note"] = "P1 信号变换后为空，拒绝刷新"
+        return status
+    brief = {
+        "date": latest_date[:10],
+        "model": model,
+        "source": f"P1-QuantFactor {model} 横截面预测因子（实时导出）",
+        "live": True,
+        "generated_at": sig.get("generated_at"),
+        "note": "由 P1-QuantFactor 预测信号导出，统计意义上的超额收益概率排序，非买卖指令",
+        "count": len(pool),
+        "pool": pool,
+    }
+    try:
+        atomic_json_dump(brief, out)
+    except Exception as e:
+        status["reason"] = "write_failed"
+        status["note"] = f"写入事件池失败：{e}"
+        return status
+    status.update(refreshed=True, live=True, date=latest_date[:10],
+                  count=len(pool), source=brief["source"], stale=stale,
+                  note=f"已从 P1 信号刷新（{os.path.basename(latest)}，模型 {model}）")
+    return status

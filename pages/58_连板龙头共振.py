@@ -138,15 +138,19 @@ try:
         f"<div style='font-size:18px;font-weight:800;color:{rcol}'>{reso.get('label')}</div>"
         f"<div style='font-size:13px;opacity:.85;margin-top:4px'>{reso.get('detail','')}</div>"
         f"<div style='font-size:12px;opacity:.7;margin-top:6px'>状态「{state}」× 龙头强度 "
-        f"{_safe(ls.get('score'),1)}（{('高' if ls.get('score',0)>=60 else '中' if ls.get('score',0)>=30 else '低')}）</div>"
+        f"{_safe(ls.get('score'),1)}（{('高' if (ls.get('score') or 0)>=60 else '中' if (ls.get('score') or 0)>=30 else '低')}）</div>"
         f"</div>",
         unsafe_allow_html=True,
     )
 
     # ── 事件因子多头池 ──
     st.markdown("---")
-    section_header("事件因子多头池（交叉验证源）", "P1-QuantFactor EV 因子离线快照", icon="🎯")
+    live_tag = "🔴 LIVE·P1实时" if ep.get("live") else "📦 离线快照"
+    section_header("事件因子多头池（交叉验证源）",
+                   f"P1-QuantFactor 因子 · {live_tag}", icon="🎯")
     if ep.get("available"):
+        if ep.get("live"):
+            st.success(f"🔴 实时因子源已接入（{ep.get('source')}），数据日期 {ep.get('date')}")
         if ep.get("stale"):
             st.warning("⚠️ 事件池数据较旧（" + str(ep.get("date")) + "），时效性存疑，仅作结构参考。")
         else:
