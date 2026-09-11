@@ -969,5 +969,11 @@ class StockScreener:
             raw_sum = sum(_subs)
             item["total_score"] = round(raw_sum, 2)
             item["score"] = round(raw_sum / len(_subs), 2) if _subs else 0.0
-        out.sort(key=lambda x: (x["score"], len(x["strategies_hit"])), reverse=True)
+            item["best_score"] = max(_subs) if _subs else 0.0
+        # 锐评 R10：OR 模式综合评分排序修正。旧实现按各命中策略分项分的平均(score)排序，
+        # 会产生「超集股票反排到子集之后」的错排——例如命中 a(95)+b(20) 平均 57.5，
+        # 排在仅命中 a(95) 的股票(95) 之后，尽管前者是后者的超集且多一条确认信号（单调性被破坏）。
+        # 主排序键改为各分项分的最大值（最强单信号强度），次键取加和 total_score 做强度/广度 tiebreak；
+        # 既消除错排（超集不会低于子集），也保留「单策略强信号不被双策略弱信号反超」的既有语义。
+        out.sort(key=lambda x: (x.get("best_score", 0), x["total_score"]), reverse=True)
         return out
