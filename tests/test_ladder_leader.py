@@ -138,3 +138,35 @@ def test_load_event_pool_missing(tmp_path, monkeypatch):
     out = sl.load_event_pool()
     assert out["available"] is False
     assert "缺失" in out["note"]
+
+
+def test_load_event_pool_malformed_date_is_stale(tmp_path, monkeypatch):
+    """锐评 R1 守卫：日期格式非法（非空但解析失败）必须保守视为陈旧。
+
+    旧实现：`except Exception: pass` 把解析错误吞掉，留下 stale=False，
+    页面静默展示「时效正常」而真实时效根本无法判定（谎报新鲜）。
+    本测试在修复后断言 stale=True；若回退到旧代码（stale=False）会失败，
+    构成负向验证：守卫能抓回流。
+    """
+    pool = {"date": "2026/09/11",  # 非法格式：非 %Y-%m-%d
+            "pool": [{"rank": 1, "symbol": "sh600001", "score": 99, "signal": "看多"}]}
+    edir = tmp_path / "data"
+    edir.mkdir(exist_ok=True)
+    (edir / "event_pool_brief.json").write_text(json.dumps(pool, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(sl, "LADDER_DIR", str(edir))
+    out = sl.load_event_pool()
+    assert out["available"] is True
+    assert out["stale"] is True, "非法日期应保守判陈旧，而非静默当作新鲜"
+    assert "时效性存疑" in out["note"]
+
+
+def test_load_event_pool_no_date_is_stale(tmp_path, monkeypatch):
+    """锐评 R1 守卫：缺少数据日期（时效完全未知）亦应保守视为陈旧。"""
+    pool = {"pool": [{"rank": 1, "symbol": "sh600001", "score": 99, "signal": "看多"}]}
+    edir = tmp_path / "data"
+    edir.mkdir(exist_ok=True)
+    (edir / "event_pool_brief.json").write_text(json.dumps(pool, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(sl, "LADDER_DIR", str(edir))
+    out = sl.load_event_pool()
+    assert out["available"] is True
+    assert out["stale"] is True, "无数据日期应保守判陈旧"

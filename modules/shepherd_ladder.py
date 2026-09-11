@@ -660,8 +660,14 @@ def load_event_pool(path: str | None = None) -> dict:
                 d0 = _dt.strptime(date_str, "%Y-%m-%d").date()
                 age = (now_cst().date() - d0).days
                 stale = age > 7
+            else:
+                # 无数据日期 → 时效完全未知，保守视为陈旧（避免静默展示「新鲜」）
+                stale = True
         except Exception:
-            pass
+            # 锐评 R1：日期格式非法（如 "2026/09/11"）→ 解析抛错被静默吞掉，
+            # 原实现留下 stale=False，UI 会显示「时效正常」而真实时效根本无法判定。
+            # 改为保守标记 stale=True，让页面降级提示「时效性存疑」，而非谎报新鲜。
+            stale = True
         src = data.get("source") or ("P1-QuantFactor 实时因子" if live else "P1-QuantFactor EV 事件因子")
         return dict(available=True, date=date_str, pool=pool, stale=stale, live=live,
                     note=((src + " · ")
