@@ -887,11 +887,11 @@ def fragment_param_scan():
                     "止盈%": f"{r['params'].get('take_profit_pct', 0)*100:.1f}",
                     "止损%": f"{r['params'].get('stop_loss_pct', 0)*100:.1f}",
                     "最大持仓": r['params'].get('max_holding', '-'),
-                    "累计收益%": f"{r['total_return']*100:+.2f}",
-                    "年化%": f"{r['annualized_return']*100:+.2f}" if r.get('annualized_return') is not None else "-",
+                    "累计收益%": f"{r['total_return']:+.2f}",
+                    "年化%": f"{r['annualized_return']:+.2f}" if r.get('annualized_return') is not None else "-",
                     "夏普": f"{r['sharpe']:.2f}" if r.get('sharpe') is not None else "-",
-                    "回撤%": f"{r['max_drawdown']*100:.2f}" if r.get('max_drawdown') is not None else "-",
-                    "胜率%": f"{r['win_rate']*100:.1f}" if r.get('win_rate') is not None else "-",
+                    "回撤%": f"{r['max_drawdown']:.2f}" if r.get('max_drawdown') is not None else "-",
+                    "胜率%": f"{r['win_rate']:.1f}" if r.get('win_rate') is not None else "-",
                     "交易数": r['trade_count'],
                 } for r in ok]
                 df_ps = pd.DataFrame(df_rows)
@@ -900,7 +900,7 @@ def fragment_param_scan():
                 xc_success_box(f"🏆 最优组合：止盈 {best['params'].get('take_profit_pct',0)*100:.1f}% / "
                            f"止损 {best['params'].get('stop_loss_pct',0)*100:.1f}% / "
                            f"持仓 {best['params'].get('max_holding','-')}日 → "
-                           f"累计 {best['total_return']*100:+.2f}%，夏普 {best.get('sharpe')}")
+                           f"累计 {best['total_return']:+.2f}%，夏普 {best.get('sharpe')}")
             except Exception as e:
                 xc_handle_error("参数扫描失败", e, hint="请稍后重试，或检查网络与数据源连接")
 
@@ -940,9 +940,9 @@ def fragment_batch_backtest():
                 # 聚合摘要
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("标的数", summary["stock_count"])
-                col2.metric("平均累计收益", f"{summary['avg_total_return']*100:+.2f}%")
+                col2.metric("平均累计收益", f"{summary['avg_total_return']:+.2f}%")
                 col3.metric("平均夏普", f"{summary['avg_sharpe']:.2f}" if summary.get('avg_sharpe') else "-")
-                col4.metric("平均回撤", f"{summary['avg_max_drawdown']*100:.2f}%" if summary.get('avg_max_drawdown') is not None else "-")
+                col4.metric("平均回撤", f"{summary['avg_max_drawdown']:.2f}%" if summary.get('avg_max_drawdown') is not None else "-")
                 st.caption(f"平均胜率 {summary.get('avg_win_rate')} · 平均盈亏比 {summary.get('avg_profit_factor')} · "
                            f"🏆最佳 {summary['best_stock']} · 🔻最差 {summary['worst_stock']}")
 
@@ -951,11 +951,11 @@ def fragment_batch_backtest():
                 for code, res in out["per_stock"].items():
                     detail.append({
                         "代码": code,
-                        "累计收益%": f"{res.total_return*100:+.2f}",
-                        "年化%": f"{res.annualized_return_pct*100:+.2f}" if res.annualized_return_pct is not None else "-",
+                        "累计收益%": f"{res.total_return:+.2f}",
+                        "年化%": f"{res.annualized_return_pct:+.2f}" if res.annualized_return_pct is not None else "-",
                         "夏普": f"{res.sharpe_ratio:.2f}" if res.sharpe_ratio is not None else "-",
-                        "回撤%": f"{res.max_drawdown*100:.2f}" if res.max_drawdown is not None else "-",
-                        "胜率%": f"{res.win_rate*100:.1f}" if res.win_rate is not None else "-",
+                        "回撤%": f"{res.max_drawdown:.2f}" if res.max_drawdown is not None else "-",
+                        "胜率%": f"{res.win_rate:.1f}" if res.win_rate is not None else "-",
                         "盈亏比": f"{res.profit_factor:.2f}" if res.profit_factor is not None else "-",
                         "交易数": res.trade_count,
                     })
