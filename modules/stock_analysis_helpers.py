@@ -15,6 +15,18 @@ import numpy as np
 from modules.colors import RED, GREEN, AMBER
 
 
+def event_factor_color(score):
+    """个股分析页事件因子评分卡配色（绿涨红跌约定，与本页价格行 426 一致）。
+
+    锐评 R7：原页面 20_个股分析.py:807 写成 `GREEN if _sc >= 0 else RED`，
+    把利好(正分)渲染成红色(利空色)，与本页价格逻辑 `RED if change_pct>0` 自相矛盾。
+    正分→RED 常量(实际绿=利好)，负分→GREEN 常量(实际红=利空)，None→AMBER。
+    """
+    if score is None:
+        return AMBER
+    return RED if score >= 0 else GREEN
+
+
 def _safe_float(value, default=0.0):
     """将任意值安全转为 float。
 

@@ -23,7 +23,7 @@ from modules.background_tasks import submit_task_with_error, poll_task
 from modules.page_widgets import _empty_info, is_trading_now
 from modules.autorefresh import st_autorefresh
 from modules.format_helpers import safe_html_text
-from modules.stock_analysis_helpers import RED, GREEN, AMBER, _sentiment_tag, _tp_cls, _score_ring_html, _battle_plan_scale, _build_risk_iron_rules, _risk_iron_html, _build_plan_rows, _section_header, _build_rise_fall_factors, _factor_list_html, _build_logic_lists, _logic_list_html
+from modules.stock_analysis_helpers import RED, GREEN, AMBER, event_factor_color, _sentiment_tag, _tp_cls, _score_ring_html, _battle_plan_scale, _build_risk_iron_rules, _risk_iron_html, _build_plan_rows, _section_header, _build_rise_fall_factors, _factor_list_html, _build_logic_lists, _logic_list_html
 from modules.fundflow import get_earnings_report, get_earnings_forecast, get_disclosure_calendar
 from modules.financial_report_helpers import (
     fr_fmt as _fr_fmt,
@@ -804,7 +804,7 @@ def _render_event_factor_card(ticker):
         return
     _sc = ef.get("score")
     if isinstance(_sc, (int, float)):
-        _col = GREEN if _sc >= 0 else RED  # 本页：绿涨红跌
+        _col = event_factor_color(_sc)  # 本页：绿涨红跌（正分=利好=绿=RED 常量，与价格行 426 一致；锐评 R7）
         _sc_txt = f"{_sc:+.2%}"
     else:
         _col = AMBER
