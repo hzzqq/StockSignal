@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>方案① 市场温度计 · 圆桌报告</title>
+<style>
+  :root{
+    --bg:#0f0f23; --card:#1a1a2e; --card2:#16162a; --line:#2a2a44;
+    --txt:#e6e6f0; --sub:#9aa0b5; --purple:#667eea; --blue:#764ba2;
+    --red:#ff4d4f; --green:#00d486; --amber:#ffb454; --cyan:#36c5d8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:radial-gradient(1200px 600px at 70% -10%,#221a3a 0%,var(--bg) 55%);
+    color:var(--txt);font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.75;padding-bottom:60px;
+  }
+  .nav{
+    position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
+    padding:14px 28px;background:rgba(15,15,35,.82);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .nav .brand{font-weight:700;font-size:15px;letter-spacing:.5px;}
+  .nav .brand span{background:linear-gradient(90deg,var(--purple),var(--blue));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .nav .meta{font-size:12px;color:var(--sub);}
+  .nav .meta b{color:var(--cyan);}
+  .wrap{max-width:980px;margin:0 auto;padding:0 22px;}
+  .hero{
+    margin:32px 0 26px;padding:34px 30px;border-radius:18px;
+    background:linear-gradient(135deg,#221a3a 0%,#1a1a2e 60%);
+    border:1px solid var(--line);position:relative;overflow:hidden;
+  }
+  .hero:after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;
+    background:radial-gradient(circle,var(--purple) 0%,transparent 70%);opacity:.18;}
+  .hero .kicker{font-size:12px;color:var(--amber);letter-spacing:2px;font-weight:600;}
+  .hero h1{font-size:30px;margin:8px 0 6px;}
+  .hero .sub{color:var(--sub);font-size:14px;margin-bottom:18px;}
+  .verdict{
+    display:inline-flex;align-items:center;gap:10px;padding:10px 18px;border-radius:12px;
+    background:rgba(255,180,84,.12);border:1px solid rgba(255,180,84,.4);font-weight:600;
+  }
+  .verdict .dot{width:10px;height:10px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px var(--amber);}
+  .module{margin:24px 0;}
+  .module > h2{
+    font-size:20px;display:flex;align-items:center;gap:12px;margin-bottom:14px;
+    padding-bottom:10px;border-bottom:1px solid var(--line);
+  }
+  .module > h2 .no{
+    display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;
+    background:linear-gradient(135deg,var(--purple),var(--blue));font-size:14px;font-weight:700;
+  }
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:14px 0;}
+  .card h3{font-size:15px;color:#cfd3ea;margin-bottom:10px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:14px 0;}
+  .stat{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px;}
+  .stat .k{font-size:12px;color:var(--sub);}
+  .stat .v{font-size:22px;font-weight:700;margin-top:4px;}
+  .stat .v.red{color:var(--red);} .stat .v.green{color:var(--green);} .stat .v.cyan{color:var(--cyan);}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px;}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;}
+  th{background:var(--card2);color:#cfd3ea;font-weight:600;}
+  td .hot{color:var(--amber);font-weight:600;}
+  ul{margin:8px 0 8px 20px;} li{margin:5px 0;}
+  .pill{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;margin-right:6px;}
+  .pill.red{background:rgba(255,77,79,.15);color:var(--red);border:1px solid rgba(255,77,79,.4);}
+  .pill.green{background:rgba(0,212,134,.15);color:var(--green);border:1px solid rgba(0,212,134,.4);}
+  .pill.cyan{background:rgba(54,197,216,.15);color:var(--cyan);border:1px solid rgba(54,197,216,.4);}
+  .pill.amber{background:rgba(255,180,84,.15);color:var(--amber);border:1px solid rgba(255,180,84,.4);}
+  .qa{border-left:3px solid var(--purple);padding:8px 14px;margin:10px 0;background:var(--card2);border-radius:0 10px 10px 0;}
+  .qa .tag{font-weight:700;margin-right:8px;}
+  .expert{display:flex;gap:16px;align-items:flex-start;}
+  .avatar{width:54px;height:54px;border-radius:14px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:20px;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;}
+  .note{background:var(--card2);border:1px dashed var(--line);border-radius:10px;padding:12px 14px;margin:10px 0;font-size:13.5px;color:#cfd3ea;}
+  .disclaimer{margin:40px 0 0;padding:18px 20px;border-radius:12px;background:rgba(255,77,79,.08);
+    border:1px solid rgba(255,77,79,.35);font-size:13px;color:#f0b9ba;}
+  .foot{margin-top:24px;text-align:center;color:var(--sub);font-size:12px;}
+</style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">方案① · <span>市场温度计 圆桌报告</span></div>
+    <div class="meta">主持：圆汇众（Yuan）｜ 上场专家：<b>逆向投资人·坤候底</b> ｜ 数据：腾讯自选股（westock-mcp）</div>
+  </nav>
+
+  <div class="wrap">
+    <header class="hero">
+      <div class="kicker">STOCKPARTNERTEAM · 单专家圆桌</div>
+      <h1>市场温度计 + 极端区历史回测</h1>
+      <div class="sub">实战可行性评价 &amp; 当下逆向研判 ｜ 2026-09-11 市场快照</div>
+      <div class="verdict"><span class="dot"></span>综合立场：偏多但克制 —— 分批慢慢建，而非恐慌底一把抄</div>
+    </header>
+
+    <!-- 01 结论卡 -->
+    <section class="module">
+      <h2><span class="no">01</span>结论卡</h2>
+      <div class="card">
+        <h3>YOU ASKED</h3>
+        <p>以 StockPartnerTeam 圆桌从实战视角评价 StockSignal「市场温度计 + 极端区历史回测（极端恐慌→次日红盘）」框架的<strong>可行性</strong>与<strong>使用纪律</strong>，并结合当前真实 A 股广度给出<strong>逆向研判</strong>。</p>
+      </div>
+
+      <div class="card">
+        <h3>当前关键数据快照（来源：data_changedist / data_quote 腾讯，2026-09-11）</h3>
+        <div class="grid">
+          <div class="stat"><div class="k">红盘占比</div><div class="v red">11%</div><div class="k">上涨 643 / 下跌 4870 · 冰冷</div></div>
+          <div class="stat"><div class="k">涨停 / 跌停</div><div class="v">40 <span style="color:var(--sub)">/</span> 21</div><div class="k">跌停未达极端恐慌阈值</div></div>
+          <div class="stat"><div class="k">全 A 成交</div><div class="v cyan">1.97 万亿</div></div>
+          <div class="stat"><div class="k">上证</div><div class="v red">3888.11</div><div class="k">-1.18% · PE 11.27</div></div>
+          <div class="stat"><div class="k">沪深300</div><div class="v red">4510.16</div><div class="k">-0.84% · PE 13.51 · 60日 -8.73%</div></div>
+        </div>
+        <div class="note">注释：过去一年约 <b>26%</b> 交易日处于该热度区间 → 偏冷到冰点边缘，<b>非极端</b>。</div>
+      </div>
+
+      <div class="card">
+        <h3>圆桌综合视角</h3>
+        <p>估值处历史偏低 + 广度冰冷 = 逆向喜欢的「打折区」，但<span class="pill amber">跌停仅 21 家未触发极端恐慌信号</span>，故当下是<strong>分批慢慢建、而非恐慌底一把抄</strong>的偏多窗口。</p>
+        <h3 style="margin-top:14px">核心分析观点（逆向投资人视角）</h3>
+        <ul>
+          <li><b>冰点布局铁律</b>：支撑位 + 历史 PE 低位双锚，分十次、每次一份、间距由 K 线定，绝不加倍。</li>
+          <li><b>温度是描述性指标</b>（冷热 ≠ 明天涨跌）：五档对应核心+卫星仓位——冰点核心仓 80–90%、狂热核心仓压到 20–30%。</li>
+          <li><b>框架边界①</b>：恐慌反弹概率 62.5% ≠ 100%，遇流动性枯竭 / 政策黑天鹅直接作废，且样本外会漂移。</li>
+          <li><b>框架边界②</b>：广度是「平均温度」，结构牛里「冷 ≠ 便宜」——核心资产贵但广度冷，按温度抄小票照样套。</li>
+          <li><b>当下研判</b>：偏多但克制——保守型观望/小仓试错，均衡型分 3–5 批建核心仓留 40% 现金，进取型积极分批守十次纪律。</li>
+        </ul>
+        <p style="margin-top:10px"><span class="pill cyan">立场分布（单专家）</span>逆向·偏多 1 ／ 偏空 0 ／ 观望（专家自身对「是否立即满仓」持克制，区分「偏多态度」与「不一把抄」）。</p>
+      </div>
+    </section>
+
+    <!-- 02 子专家观点 -->
+    <section class="module">
+      <h2><span class="no">02</span>子专家观点</h2>
+      <div class="card">
+        <div class="expert">
+          <div class="avatar">逆</div>
+          <div>
+            <h3 style="margin-bottom:6px">逆向投资人 · 坤候底（contrarian-investor）</h3>
+            <p style="color:var(--sub);font-size:13.5px"><b>方法论定调</b>：逆向 / 情绪极值框架——大公司短期可能亏时间但不会亏钱，时间站你这边；只买跌出来的机会，不追恐慌、不一把梭。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>关键数据 / 证据</h3>
+        <ul>
+          <li>广度：上涨 643 / 下跌 4870，红盘占比 11%；涨停 40 / 跌停 21；成交 1.97 万亿；「过去一年 26% 交易日处于该热度区间」。</li>
+          <li>估值：上证 PE 11.27、沪深300 PE 13.51、恒指 -0.6%；60 日沪深300 跌 8.73% → 估值处历史偏低区，确实「便宜」。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>五档温度 → 仓位纪律（参考，非指令）</h3>
+        <table>
+          <thead><tr><th>温度档</th><th>核心仓</th><th>现金</th><th>动作</th></tr></thead>
+          <tbody>
+            <tr><td><span class="pill cyan">冰点 0–20</span></td><td>80–90%</td><td>10–20%</td><td>分十次慢慢买，非一天满</td></tr>
+            <tr><td><span class="pill cyan">偏冷 20–40</span></td><td>60–70%</td><td>30–40%</td><td>逢支撑位开始建</td></tr>
+            <tr><td><span class="pill amber">中性 40–60</span></td><td>~50%</td><td>~50%</td><td>持有等、不折腾</td></tr>
+            <tr><td><span class="pill red">活跃 60–80</span></td><td>40%</td><td>60%</td><td>不追高，只减仓/小波段</td></tr>
+            <tr><td><span class="pill red">狂热 80–100</span></td><td>20–30%</td><td>70–80%</td><td>等第三波力竭（放量冲不动、长上影）一把清</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>冰点布局两锚</h3>
+        <p>支撑位（前期低点 / 成交密集区 / 52 周低 / 整数关口）撑住买一份、破了等更低；历史 PE 看行业+历史两维度，比历史便宜即可，不追求精确。</p>
+      </div>
+
+      <div class="card">
+        <h3>三大失效边界</h3>
+        <ul>
+          <li><b>恐慌反弹会失效</b>：前提是市场能正常交易；遇流动性枯竭（连续跌停卖不出、熔断）直接作废；政策黑天鹅（突发制裁、行业整顿）也断裂反弹逻辑；62.5% 是概率非铁律，样本外漂移随时把胜率拉回基准。</li>
+          <li><b>温度会钝化/误导</b>：广度是「平均温度」掩盖结构——红利银行涨但几千小票冷，红盘占比低但大盘不便宜；核心资产贵但广度冷，按温度抄小票照样套。</li>
+          <li><b>冰点 ≠ 底部</b>：今天红盘 11% 但跌停仅 21 家，是「冷」不是「极端恐慌」；没触发跌停占比前 10% 的极端信号，就不能当恐慌反弹急买。</li>
+        </ul>
+        <div class="note"><b>独立结论</b>：偏多。估值低 + 广度冷 = 打折区，但跌停 21 家未到极端恐慌阈值，故是「偏冷区慢慢建」而非「恐慌底一把抄」。隆基教训推动其向指数 ETF 进化——绕开行业判断，只赚「长期往上 + 跌了买」的贝塔。</div>
+      </div>
+    </section>
+
+    <!-- 03 深度思考 -->
+    <section class="module">
+      <h2><span class="no">03</span>深度思考</h2>
+      <div class="card">
+        <h3>3a 主持人札记</h3>
+        <ul>
+          <li><b>「温度」与「极端信号」是两套语言</b>：温度是连续体（描述冷热），极端信号是二值触发（跌停占比前 10%）。把两者混为一谈会把「偏冷」错当「恐慌底」——今天就是典型。</li>
+          <li><b>专家的克制比乐观更有价值</b>：它明确「没触发极端信号就不急买」，恰是温度计最该配的纪律，也呼应 sentiment_edge 层「其余时刻弃权」的诚实口径。</li>
+          <li><b>结构牛陷阱是框架最大诚实风险</b>：广度冷可能因为几千小票在跌，而你想买的权重股并不便宜。温度低 ≠ 你目标标的便宜。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>3b 主持人 Q&amp;A</h3>
+        <div class="qa"><span class="tag" style="color:var(--amber)">🔑 关键</span>跌停占比是否进入历史前 10%（约 ≥100 家量级 / 或占比阈值）——这是「该更敢买」的唯一统计开关，今天没到。</div>
+        <div class="qa"><span class="tag" style="color:var(--red)">⚠️ 易混淆</span>红盘占比 11%（冷）vs 跌停 21 家（非极端）。冷 ≠ 恐慌，操作上差一个数量级。</div>
+        <div class="qa"><span class="tag" style="color:var(--cyan)">🔍 易疏忽</span>62.5% 是概率非铁律，且样本外漂移；把它当「一定反弹」会吃大亏。</div>
+        <div class="qa"><span class="tag" style="color:var(--purple)">⭐ 重要</span>温度对「买什么」无能为力（只判冷热不判标的），专家因此转向指数 ETF 贝塔——这是框架使用者必须接受的边界。</div>
+      </div>
+    </section>
+
+    <!-- 04 后续关注 -->
+    <section class="module">
+      <h2><span class="no">04</span>后续关注</h2>
+      <div class="card">
+        <h3>4a 关键变量观察台</h3>
+        <table>
+          <thead><tr><th>变量（当前值）</th><th>重新评估触发线</th></tr></thead>
+          <tbody>
+            <tr><td>跌停家数（21 家）</td><td>进入历史前 10%（约 ≥100 家量级）→ 极端恐慌信号触发，逆向可更敢买</td></tr>
+            <tr><td>红盘占比（11%）</td><td>跌破 5% 且伴随放量 → 恐慌加速，警惕流动性枯竭而非机会</td></tr>
+            <tr><td>沪深300 PE（13.51）</td><td>跌破 12 → 估值更极端便宜，但需配合广度信号确认</td></tr>
+            <tr><td>60 日沪深300（-8.73%）</td><td>继续跌破 -15% → 进入技术性熊市区间，分批节奏需放慢</td></tr>
+            <tr><td>全 A 成交（1.97 万亿）</td><td>缩量至 1.2 万亿以下 → 地量见底信号之一，但需结合跌停结构</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>4b 综合视角失效条件</h3>
+        <ul>
+          <li>若跌停家数连续多日 ≥100（流动性枯竭 / 连环跌停）→ 恐慌反弹规律作废，逆向布局暂停。</li>
+          <li>若政策黑天鹅（突发制裁 / 行业整顿）打断反弹逻辑 → 框架「次日红盘」假设动摇。</li>
+          <li>若结构牛延续（权重涨、广度冷）→ 温度低 ≠ 标的便宜，按温度抄小票失效。</li>
+          <li>若样本外漂移使跌停占比前 10% 次日红盘率回落至基准 ~50% 附近 → 该信号失去统计边际，应回退到弃权。</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="disclaimer">
+      ⚠️ 以上内容由 AI 基于公开信息整理生成，仅供参考，不构成任何投资建议或个股推荐。投资有风险，决策需谨慎。
+    </div>
+    <div class="foot">StockPartnerTeam · 单专家圆桌（用户约束本轮仅调用 1 位专家）｜ 数据来源：腾讯自选股连接器（westock-mcp）</div>
+  </div>
+</body>
+</html>
