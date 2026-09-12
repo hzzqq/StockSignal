@@ -733,6 +733,26 @@ def get_shepherd_indicators_range(start_date, end_date, backfill=False):
 
 
 # ───────── 牧羊人温度计评分（0-100，与价格涨跌红绿无关）─────────
+def _indicator_score(value, th, hist_series):
+    """单个指标 → 0-100 热度分（单一打分真理源，shepherd_temperature / _detail 共用）。
+
+    dir>0：值越高越热（今日值在历史中分位越高 → 越热）；
+    dir<0：值越低越热（今日值在历史中分位越低 → 越热）。
+    无历史（序列缺失或样本<5）退化为阈值线性打分。
+    """
+    if hist_series is not None and len(hist_series) >= 5:
+        s = pd.to_numeric(hist_series, errors="coerce").dropna()
+        if len(s) >= 5:
+            # 今日值在历史分布中的经验分位（0-1）：历史中小于今日值的比例。
+            # 跨年代可比，避免绝对值阈值随采样规模漂移（见 sentiment_edge 同款理由）。
+            pct = float((s < value).mean())
+            return pct * 100 if th["dir"] > 0 else (1 - pct) * 100
+    # 无历史时退化为阈值线性打分
+    if th["dir"] > 0:
+        return 100.0 if value >= th["hot"] else (50.0 if value >= th["warm"] else 10.0)
+    return 100.0 if value <= th["hot"] else (50.0 if value <= th["warm"] else 10.0)
+
+
 def shepherd_temperature(today: dict, hist_days: int = 60):
     """把今日快照映射为 0-100 综合「牧羊人温度」。
 
@@ -757,21 +777,47 @@ def shepherd_temperature(today: dict, hist_days: int = 60):
             continue
         if th.get("dir", 1) == 0:
             continue  # 观察项（平均股价/成交额）不参与温度打分
-        if hist is not None and k in hist.columns and len(hist) >= 5:
-            s = pd.to_numeric(hist[k], errors="coerce").dropna()
-            if len(s) >= 5:
-                # 今日值 today[k] 在历史时期分布中的经验分位（0-1）：
-                # 历史中小于今日值的比例，避免旧实现误用「历史末值」打分导致 today 形同虚设。
-                pct = float((s < v).mean())
-                subs.append(pct * 100 if th["dir"] > 0 else (1 - pct) * 100)
-                continue
-        # 无历史时退化为阈值线性打分
-        if th["dir"] > 0:
-            score = 100.0 if v >= th["hot"] else (50.0 if v >= th["warm"] else 10.0)
-        else:
-            score = 100.0 if v <= th["hot"] else (50.0 if v <= th["warm"] else 10.0)
-        subs.append(score)
+        series = hist[k] if (hist is not None and k in hist.columns) else None
+        subs.append(_indicator_score(v, th, series))
     return float(np.mean(subs)) if subs else 50.0
+
+
+def shepherd_temperature_detail(today: dict, hist_days: int = 60):
+    """综合温度 + 各指标贡献明细（供页面渲染分档与贡献条）。
+
+    :returns: {"temp": float, "contributions": [ {key,name,unit,dir,value,hot,warm,heat} ]}
+              heat 为 0-100 单指标热度分，与 shepherd_temperature 完全同源。
+    """
+    if not today:
+        return {"temp": 50.0, "contributions": []}
+    try:
+        hist = get_shepherd_history(hist_days)
+    except Exception as e:  # noqa
+        logger.warning(f"[shepherd] 处理异常: {e}")
+        hist = None
+    subs = []
+    contributions = []
+    for k, th in THRESHOLDS.items():
+        v = today.get(k)
+        if v is None or not np.isfinite(v):
+            continue
+        if th.get("dir", 1) == 0:
+            continue  # 观察项不参与温度打分
+        series = hist[k] if (hist is not None and k in hist.columns) else None
+        score = _indicator_score(v, th, series)
+        subs.append(score)
+        contributions.append({
+            "key": k,
+            "name": th.get("name", k),
+            "unit": th.get("unit", ""),
+            "dir": th.get("dir", 1),
+            "value": float(v),
+            "hot": th.get("hot"),
+            "warm": th.get("warm"),
+            "heat": round(float(score), 1),
+        })
+    temp = float(np.mean(subs)) if subs else 50.0
+    return {"temp": temp, "contributions": contributions}
 
 
 # ───────── 涨停板复盘辅助（视频第三表：每票板块/行业/最高板标的）─────────
