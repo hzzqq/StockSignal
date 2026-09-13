@@ -86,3 +86,30 @@ def test_divergence_no_threshold_match():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+
+
+def test_breadth_trend_available_and_window():
+    tr = bd.breadth_trend(_df(), window_days=12)
+    assert tr["available"] is True
+    assert len(tr["dates"]) == 12
+    assert len(tr["red_ratio"]) == 12
+    assert len(tr["limit_down"]) == 12
+    # 日期升序
+    assert tr["dates"] == sorted(tr["dates"])
+    # red_ratio / limit_down 与构造一致（_df 末 12 行 = 2021 年）
+    assert all(v is not None for v in tr["red_ratio"])
+
+
+def test_breadth_trend_full_history():
+    tr = bd.breadth_trend(_df(), window_days=None)
+    assert tr["available"] is True
+    # _df 共 3 年 × 12 月 × 3 天 = 108 行
+    assert len(tr["dates"]) == 108
+
+
+def test_breadth_trend_empty_safe():
+    tr = bd.breadth_trend(pd.DataFrame())
+    assert tr["available"] is False
+    assert tr["dates"] == [] and tr["red_ratio"] == [] and tr["limit_down"] == []

@@ -163,3 +163,40 @@ def resonance_stats(matrix_result: dict | None = None) -> dict:
     dominant_cell = (matrix_result["rr_labels"][rb], matrix_result["mom_labels"][mb], int(M.max()))
     return dict(available=True, co_hot=round(co_hot * 100, 1), co_cold=round(co_cold * 100, 1),
                 dominant_cell=dominant_cell, n_days=int(n))
+
+
+
+def cell_trajectory(df: pd.DataFrame | None = None, n: int = 60) -> dict:
+    """当前共振格轨迹（趋势演化）：最近 n 行的（广度档, 动量档）时间序列。
+
+    返回 {available, dates, rr_band, mom_band}，按日期升序。
+    轨迹只描述历史共现结构如何随时间移动，不构成方向预测。
+
+    诚实边界：广度档来自 red_ratio、动量档来自 zt_prev_ret（均为离线可得变量），
+    不引入资金流/行业等离线基座没有的数据。
+    """
+    if df is None:
+        try:
+            df = load_breadth()
+        except Exception as exc:  # pragma: no cover
+            logger.warning("breadth load failed: %s", exc)
+            return dict(available=False, dates=[], rr_band=[], mom_band=[])
+    if df is None or len(df) == 0:
+        return dict(available=False, dates=[], rr_band=[], mom_band=[])
+
+    d = df.copy()
+    d["date"] = pd.to_datetime(d["date"], errors="coerce")
+    d = d.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+    d["rr"] = pd.to_numeric(d["red_ratio"], errors="coerce")
+    d["mom"] = pd.to_numeric(d["zt_prev_ret"], errors="coerce")
+    d = d.dropna(subset=["rr", "mom"])
+    if n and n > 0 and len(d) > n:
+        d = d.tail(int(n)).reset_index(drop=True)
+    if len(d) == 0:
+        return dict(available=False, dates=[], rr_band=[], mom_band=[])
+
+    dates = [str(x.date()) for x in d["date"]]
+    rr_band = [int(b) for b in d["rr"].apply(_rr_band).dropna().astype(int)]
+    mom_band = [int(b) for b in d["mom"].apply(_mom_band).dropna().astype(int)]
+    return dict(available=True, dates=dates, rr_band=rr_band, mom_band=mom_band)
+

@@ -26,7 +26,14 @@ dark = render_standard_page(
 )
 
 try:
-    res = tb.band_backtest()
+    # ── 侧栏：回测窗口 ──
+    _bt_sel = st.sidebar.selectbox(
+        "回测窗口",
+        options=[("全历史(2007起)", None), ("近10年", 3650), ("近5年", 1825), ("近3年", 1095), ("近1年", 365)],
+        index=0, format_func=lambda x: x[0],
+    )
+    window_days = _bt_sel[1]
+    res = tb.band_backtest(window_days=window_days)
 
     if not res.get("available"):
         st.warning(f"⚠️ 温度回测不可用：{res.get('reason', '未知')}")
@@ -38,6 +45,11 @@ try:
         "（次日改善率 = 次日红盘率高于当日占比），刻画广度均值回归结构，**不是**收益预测。"
         "全程离线（牧羊人广度长历史），零编造指数收益。"
     )
+
+    # ── 回测窗口提示 ──
+    win = res.get("window", {})
+    if win.get("applied"):
+        st.caption(f"🔎 当前回测窗口：最近 {win['days']} 个交易日（{win.get('start')} ~ {win.get('end')}）。")
 
     # ── 全样本基准卡 ──
     base = res["baseline"]

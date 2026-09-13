@@ -51,8 +51,18 @@ try:
     band = mt.temperature_band(temp)
     contributions = detail["contributions"]
 
+    # ── 离线快照兜底（实时指标全缺时）──
+    snapshot_fallback = False
+    snap = None
     if not contributions:
-        st.warning("⚠️ 当前实时指标全部缺失，无法合成有效温度（按安全默认 50° 展示）。请稍后重试或检查数据源。")
+        snap = shepherd.load_latest_snapshot()
+        if snap and isinstance(snap.get("temperature"), (int, float)):
+            snapshot_fallback = True
+            temp = float(snap["temperature"])
+            band = mt.temperature_band(temp)
+            st.error(f"⚠️ 实时数据全缺失，已用离线快照兜底（{snap.get('date', '?')}）")
+        else:
+            st.warning("⚠️ 当前实时指标全部缺失，无法合成有效温度（按安全默认 50° 展示）。请稍后重试或检查数据源。")
 
     # ── 温度计 gauge ──
     fig = go.Figure(go.Indicator(
@@ -121,6 +131,23 @@ try:
         )
         st.plotly_chart(fig_c, use_container_width=True)
         st.caption("方向说明：↑ 指标越高越热（如涨停家数）；↓ 指标越低越热（如跌停家数）。缺失指标不计入。")
+
+    # ── 离线快照背景卡（兜底时展示）──
+    if snapshot_fallback and snap:
+        _cyc = snap.get("cycle", "—")
+        _bias = snap.get("bias", "—")
+        _score = snap.get("score")
+        _conf = snap.get("confidence")
+        _body = f"周期定位：<b>{_cyc}</b> ｜ 方向倾向：<b>{_bias}</b>"
+        if _score is not None:
+            _body += f" ｜ 综合分 <b>{_score}</b>"
+        if _conf is not None:
+            _body += f" ｜ 置信度 <b>{_conf}%</b>"
+        st.markdown(sf_card(
+            title=f"📦 离线快照背景（{snap.get('date', '?')}）",
+            body=_body, accent="#ca8a04",
+        ), unsafe_allow_html=True)
+        st.caption("⚠️ 以上温度为离线快照兜底值，非实时合成；实时数据恢复后将以实时指标为准。")
 
     # ── 极端区信号 ──
     section_header("极端区信号", "极端恐慌 → 次日反弹（唯一经全历史实证的统计边际）", icon="⚠️")

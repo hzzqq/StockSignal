@@ -131,3 +131,38 @@ def divergence_episodes(df: pd.DataFrame | None = None,
     )
     return dict(available=True, threshold_red=red_thresh, ld_p90=ld_p90,
                 episodes=episodes, current=current, n_episodes=len(episodes))
+
+
+
+def breadth_trend(df: pd.DataFrame | None = None, window_days: int = 750) -> dict:
+    """红盘率 vs 跌停数 时间序列（趋势演化）。
+
+    返回最近 window_days 行（按日期升序）的 {dates, red_ratio, limit_down}，
+    供页面画双轴趋势折线。窗口仅截断样本，不改变任何口径。
+
+    诚实边界：只用广度内部可观测变量（red_ratio / limit_down），
+    不引入指数/行业/资金流等离线基座没有的数据。
+    """
+    if df is None:
+        try:
+            df = load_breadth_history()
+        except Exception as exc:  # pragma: no cover
+            logger.warning("breadth history load failed: %s", exc)
+            return dict(available=False, dates=[], red_ratio=[], limit_down=[])
+    if df is None or len(df) == 0:
+        return dict(available=False, dates=[], red_ratio=[], limit_down=[])
+
+    d = df.copy()
+    d["date"] = pd.to_datetime(d["date"], errors="coerce")
+    d = d.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+    d["rr"] = pd.to_numeric(d["red_ratio"], errors="coerce")
+    d["ld"] = pd.to_numeric(d["limit_down"], errors="coerce")
+    if window_days and window_days > 0 and len(d) > window_days:
+        d = d.tail(int(window_days)).reset_index(drop=True)
+
+    dates = [str(x.date()) for x in d["date"]]
+    rr = [None if pd.isna(v) else round(float(v), 2) for v in d["rr"]]
+    ld = [None if pd.isna(v) else int(v) for v in d["ld"]]
+    available = any(v is not None for v in rr) or any(v is not None for v in ld)
+    return dict(available=available, dates=dates, red_ratio=rr, limit_down=ld)
+

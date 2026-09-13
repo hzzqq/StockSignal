@@ -28,6 +28,13 @@ dark = render_standard_page(
 )
 
 try:
+    # ── 侧栏：趋势窗口 ──
+    _trend_sel = st.sidebar.selectbox(
+        "趋势窗口",
+        options=[("近1年 (250日)", 250), ("近3年 (750日)", 750), ("近5年 (1250日)", 1250), ("全历史", None)],
+        index=1, format_func=lambda x: x[0],
+    )
+    trend_window = _trend_sel[1]
     cal = bd.breadth_calendar()
     div = bd.divergence_episodes()
 
@@ -81,6 +88,34 @@ try:
         st.caption("蓝=冰点（普跌） → 红=狂热（普涨）。可读出广度牛熊区间结构（如 2015 上半年的极端红、2018 的全年冷）。")
     else:
         st.info("暂无足够广度历史生成日历热力图。")
+
+    # ── 红盘率 vs 跌停数 趋势（双轴）──
+    st.markdown("### 📈 红盘率 vs 跌停数 趋势")
+    trend = bd.breadth_trend(window_days=trend_window)
+    if trend.get("available"):
+        fig_t = go.Figure()
+        fig_t.add_trace(go.Scatter(
+            x=trend["dates"], y=trend["red_ratio"], name="红盘率(%)", mode="lines",
+            line=dict(color=("#36c5d8" if dark else "#0891b2"), width=1.5), yaxis="y1",
+        ))
+        fig_t.add_trace(go.Scatter(
+            x=trend["dates"], y=trend["limit_down"], name="跌停数", mode="lines",
+            line=dict(color="#dc2626", width=1.2), yaxis="y2",
+        ))
+        fig_t.update_layout(
+            template="plotly_dark" if dark else "plotly_white",
+            height=360, margin=dict(l=50, r=60, t=20, b=40),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#e5e7eb" if dark else "#1f2937"),
+            xaxis_title="日期",
+            yaxis=dict(title="红盘率(%)"),
+            yaxis2=dict(title="跌停数", overlaying="y", side="right", showgrid=False),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
+        st.plotly_chart(fig_t, use_container_width=True)
+        st.caption("蓝线=红盘率（左轴，0-100%）；红线=跌停数（右轴）。仅用广度内部可观测变量，不引入指数/行业数据。")
+    else:
+        st.info("暂无足够广度历史生成趋势。")
 
     # ── 历史分化日列表 ──
     st.markdown("### 📜 历史「涨多但杀跌」分化日（节选最近 15 个）")

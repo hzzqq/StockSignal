@@ -41,7 +41,7 @@ def _band_level(v):
     return int(mt.temperature_band(rr)["level"])
 
 
-def band_backtest(df: pd.DataFrame | None = None) -> dict:
+def band_backtest(df: pd.DataFrame | None = None, window_days: int | None = None) -> dict:
     """全温度档历史回测（次日 / 5 日 红盘率均值回归结构）。
 
     返回：
@@ -65,6 +65,17 @@ def band_backtest(df: pd.DataFrame | None = None) -> dict:
             return dict(available=False, reason=f"广度历史加载失败：{exc}")
     if df is None or len(df) == 0:
         return dict(available=False, reason="广度历史为空（数据缺失）")
+
+    # ── 时间窗口（window_days）：按日期升序后只保留最后 window_days 行 ──
+    _win_applied = bool(window_days and window_days > 0)
+    if _win_applied:
+        w = df.copy()
+        if "date" in w.columns:
+            w["date"] = pd.to_datetime(w["date"], errors="coerce")
+            w = w.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+        if len(w) > window_days:
+            w = w.tail(int(window_days)).reset_index(drop=True)
+        df = w
 
     d = df.copy()
     d["rr"] = pd.to_numeric(d.get("red_ratio"), errors="coerce")
@@ -132,6 +143,13 @@ def band_backtest(df: pd.DataFrame | None = None) -> dict:
             "回测统计各档后 1 日 / 5 日红盘率变化（次日改善率=次日红盘率高于当日占比），"
             "刻画广度均值回归结构，非收益预测。全程离线，零编造指数收益。"
             "小样本档(样本<50)置信低，仅供结构参考。"
+            "可按窗口回测（window_days）：仅取最近 N 个交易日作样本，方法学口径不变。"
+        ),
+        window=dict(
+            applied=_win_applied,
+            days=window_days if _win_applied else None,
+            start=str(pd.to_datetime(df["date"]).iloc[0].date()) if ("date" in df.columns and len(df)) else "",
+            end=str(pd.to_datetime(df["date"]).iloc[-1].date()) if ("date" in df.columns and len(df)) else "",
         ),
     )
 

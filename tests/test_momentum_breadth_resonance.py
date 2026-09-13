@@ -93,3 +93,32 @@ def test_band_functions_boundaries():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+
+
+def test_cell_trajectory_available_and_window():
+    tr = mbr.cell_trajectory(_df(), n=100)
+    assert tr["available"] is True
+    assert len(tr["dates"]) == 100
+    assert len(tr["rr_band"]) == 100
+    assert len(tr["mom_band"]) == 100
+    assert all(0 <= b <= 4 for b in tr["rr_band"])
+    assert all(0 <= b <= 4 for b in tr["mom_band"])
+    # 日期升序
+    assert tr["dates"] == sorted(tr["dates"])
+
+
+def test_cell_trajectory_drops_nan():
+    # 末行缺 zt_prev_ret → 被剔除，长度 < 原始
+    df = _df()
+    df.loc[df.index[-1], "zt_prev_ret"] = np.nan
+    tr = mbr.cell_trajectory(df, n=500)
+    assert tr["available"] is True
+    assert len(tr["dates"]) == 499
+
+
+def test_cell_trajectory_empty_safe():
+    tr = mbr.cell_trajectory(pd.DataFrame())
+    assert tr["available"] is False
+    assert tr["dates"] == [] and tr["rr_band"] == [] and tr["mom_band"] == []

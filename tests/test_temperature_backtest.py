@@ -92,3 +92,38 @@ def test_red_ratio_nan_dropped():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+
+
+def _win_df():
+    """30 天，红盘率恒为 60（活跃档）。每行都有 +5 前瞻 → 分析行 = 总行数 - 5。"""
+    dates = [f"2020-01-{d:02d}" for d in range(1, 31)]
+    return pd.DataFrame({"date": dates, "red_ratio": [60.0] * 30})
+
+
+def test_window_none_not_applied():
+    r = tb.band_backtest(_win_df(), window_days=None)
+    assert r["available"] is True
+    assert r["window"]["applied"] is False
+    assert r["window"]["days"] is None
+
+
+def test_window_truncates_sample():
+    full = tb.band_backtest(_win_df())
+    win = tb.band_backtest(_win_df(), window_days=10)
+    assert win["window"]["applied"] is True
+    assert win["window"]["days"] == 10
+    assert win["baseline"]["n"] == 5       # 10 行 - 5 前瞻
+    assert full["baseline"]["n"] == 25     # 30 行 - 5 前瞻
+    # 窗口后 start 应晚于全量 start
+    assert win["window"]["start"] > full["window"]["start"]
+    assert win["data"]["rows"] == 10
+
+
+def test_window_too_small_no_forward():
+    # 窗口过短（<6 行）无法同时拥有 +1/+5 前瞻 → 降级（available=False）。
+    # 错误路径不携带 window 字段（仅主路径返回携带），此处仅验证降级行为。
+    win = tb.band_backtest(_win_df(), window_days=3)
+    assert win["available"] is False
+    assert "无足够前瞻样本" in win["reason"]

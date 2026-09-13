@@ -26,6 +26,13 @@ dark = render_standard_page(
 )
 
 try:
+    # ── 侧栏：共振格轨迹窗口 N ──
+    _traj_sel = st.sidebar.selectbox(
+        "共振格轨迹窗口 (近 N 日)",
+        options=[30, 60, 120, 250],
+        index=1, format_func=lambda x: f"近 {x} 日",
+    )
+    traj_n = _traj_sel
     mat = mbr.resonance_matrix()
     cur = mbr.current_cell()
     stats = mbr.resonance_stats(mat)
@@ -91,6 +98,32 @@ try:
         st.info("最新广度记录缺 red_ratio / zt_prev_ret，无法定位共振格。")
     else:
         st.warning("⚠️ 无法读取当前广度状态。")
+
+    # ── 当前共振格轨迹 ──
+    st.markdown("### 🛤️ 当前共振格轨迹（近 N 日）")
+    traj = mbr.cell_trajectory(n=traj_n)
+    if traj.get("available") and traj.get("dates"):
+        fig_traj = go.Figure()
+        fig_traj.add_trace(go.Scatter(
+            x=traj["dates"], y=traj["rr_band"], name="广度档", mode="lines+markers",
+            line=dict(color=("#36c5d8" if dark else "#0891b2"), width=1.8),
+        ))
+        fig_traj.add_trace(go.Scatter(
+            x=traj["dates"], y=traj["mom_band"], name="动量档", mode="lines+markers",
+            line=dict(color="#ea580c", width=1.5),
+        ))
+        fig_traj.update_layout(
+            template="plotly_dark" if dark else "plotly_white",
+            height=340, margin=dict(l=40, r=20, t=20, b=40),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#e5e7eb" if dark else "#1f2937"),
+            xaxis_title="日期", yaxis_title="档位(0-4)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
+        st.plotly_chart(fig_traj, use_container_width=True)
+        st.caption("广度档/动量档取值 0-4（冰点/偏冷/中性/活跃/狂热 与 强杀跌~极强）。仅描述历史共现结构移动，非方向预测。")
+    else:
+        st.info("暂无足够广度历史生成共振格轨迹（最近交易日缺 red_ratio/zt_prev_ret）。")
 
     # ── 方法学声明 ──
     st.markdown("---")

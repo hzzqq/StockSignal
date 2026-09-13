@@ -46,6 +46,7 @@ import os
 import time
 import logging
 import threading
+import json
 
 from modules.atomic_io import atomic_json_dump, atomic_to_csv
 from modules.time_utils import now_cst_str, now_cst_naive
@@ -937,6 +938,47 @@ def get_zt_ladder(date=None, top_per_level=3):
         logger.warning(f"[shepherd] 处理异常: {e}")
         return out
 
+
+
+
+# ───────── 每日快照离线兜底（无实时推送时的温度/周期来源）─────────
+def load_latest_snapshot() -> "dict | None":
+    """读取每日市场快照（离线兜底源），无实时数据时供页面降级使用。
+
+    优先级：
+      1) data/daily_snapshot.json（主快照，含 temperature/cycle/bias/confidence 等）；
+      2) data/snapshots/ 目录下最新日期的 json 文件（按文件 mtime 取最新）；
+    任何异常（文件缺失/解析失败/非预期结构）均返回 None，由调用方自行降级处理。
+
+    诚实边界：快照是离线单点，不提供历史序列；本函数仅读取当前快照，
+    绝不编造指数/行业/资金流等离线基座没有的数据。
+    """
+    candidates = []
+    try:
+        main = os.path.join(_SHEPHERD_DATA_DIR, "daily_snapshot.json")
+        if os.path.exists(main):
+            candidates.append(main)
+    except Exception:  # noqa
+        pass
+    try:
+        snap_dir = os.path.join(_SHEPHERD_DATA_DIR, "snapshots")
+        if os.path.isdir(snap_dir):
+            files = [os.path.join(snap_dir, f) for f in os.listdir(snap_dir)
+                     if f.endswith(".json") and os.path.isfile(os.path.join(snap_dir, f))]
+            files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+            candidates.extend(files)
+    except Exception:  # noqa
+        pass
+    for path in candidates:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict) and "temperature" in data:
+                return data
+        except Exception as exc:  # noqa
+            logger.warning("[shepherd] 快照读取失败 %s: %s", path, exc)
+            continue
+    return None
 
 if __name__ == "__main__":
     # 命令行入口（安全刷新，不覆盖长历史）：

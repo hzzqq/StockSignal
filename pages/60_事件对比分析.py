@@ -12,11 +12,13 @@
 import logging
 
 import streamlit as st
+import plotly.graph_objects as go
 
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import event_compare as ec
+from modules import breadth_divergence as bd
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +91,32 @@ try:
         )
     else:
         st.info("事件因子池为空或不可用，无可对照信号。")
+
+    # ── 全市场红盘率趋势（市场背景）──
+    st.markdown("### 📉 全市场红盘率趋势（市场背景）")
+    st.caption("事件信号池为单点离线快照、无历史；下图仅展示全市场红盘率走势作背景参照，不声称信号池有趋势。")
+    try:
+        trend = bd.breadth_trend(window_days=250)
+        if trend.get("available") and trend.get("red_ratio"):
+            fig_bg = go.Figure(go.Scatter(
+                x=trend["dates"], y=trend["red_ratio"], mode="lines",
+                name="红盘率(%)", line=dict(color=("#36c5d8" if dark else "#0891b2"), width=1.5),
+            ))
+            fig_bg.add_hline(y=50, line_dash="dash", line_color="#94a3b8",
+                             annotation_text="50% 多空线", annotation_position="top right")
+            fig_bg.update_layout(
+                template="plotly_dark" if dark else "plotly_white",
+                height=300, margin=dict(l=40, r=20, t=20, b=30),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#e5e7eb" if dark else "#1f2937"),
+                xaxis_title="日期", yaxis_title="红盘率(%)",
+            )
+            st.plotly_chart(fig_bg, use_container_width=True)
+        else:
+            st.info("暂无足够广度历史生成红盘率趋势。")
+    except Exception as exc:  # noqa
+        logger.warning("事件对比页红盘率趋势渲染失败: %s", exc)
+        st.info("红盘率趋势暂不可用。")
 
     # ── 方法学声明 ──
     st.markdown("---")
