@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大盘主线 + 情绪研判 · 投研圆桌 (2026-09-11)</title>
+<style>
+  :root{
+    --up:#ff4d4f; --down:#00d486; --flat:#8c8c8c;
+    --bg:#f5f7fb; --card:#ffffff; --ink:#1f2330; --sub:#6b7280;
+    --line:#e6e9f0; --accent:#3b5bdb; --warn:#e8a33d;
+    --chip:#eef2ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.6;padding:28px 16px}
+  .wrap{max-width:1080px;margin:0 auto}
+  header{background:linear-gradient(135deg,#1f2a52,#3b5bdb);color:#fff;border-radius:18px;
+    padding:26px 28px;box-shadow:0 8px 28px rgba(59,91,219,.22)}
+  header h1{font-size:24px;letter-spacing:.5px}
+  header .meta{margin-top:8px;font-size:13px;opacity:.9}
+  .badge{display:inline-block;background:rgba(255,255,255,.16);border-radius:999px;
+    padding:3px 11px;font-size:12px;margin-right:8px}
+  section{margin-top:24px}
+  .ttl{font-size:16px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .ttl::before{content:"";width:5px;height:16px;background:var(--accent);border-radius:3px}
+  .grid{display:grid;gap:12px}
+  .kpis{grid-template-columns:repeat(3,1fr)}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .kpi .n{font-size:13px;color:var(--sub)}
+  .kpi .v{font-size:22px;font-weight:800;margin-top:2px}
+  .kpi .d{font-size:12px;margin-top:3px;color:var(--sub)}
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--flat)}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .sentiment{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .gauge{flex:1;min-width:240px;height:18px;border-radius:999px;overflow:hidden;
+    background:linear-gradient(90deg,#ff4d4f 0%,#ff9f43 25%,#e8a33d 50%,#9ccc65 75%,#00d486 100%);position:relative}
+  .gauge .mark{position:absolute;top:-5px;width:3px;height:28px;background:#1f2330;border-radius:2px}
+  .gauge .pin{position:absolute;top:-26px;transform:translateX(-50%);font-size:12px;font-weight:700;color:#1f2330}
+  .leg{display:flex;gap:14px;font-size:12px;color:var(--sub);flex-wrap:wrap}
+  .leg b{color:var(--ink)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--sub);font-weight:600;font-size:12px}
+  .bar{height:8px;border-radius:4px;background:var(--chip);position:relative;width:120px;display:inline-block;vertical-align:middle}
+  .bar i{position:absolute;left:0;top:0;height:100%;border-radius:4px}
+  .cards{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+  .ecard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;border-left:4px solid var(--accent)}
+  .ecard h3{font-size:15px;margin-bottom:6px}
+  .ecard .role{font-size:12px;color:var(--accent);font-weight:700;margin-bottom:8px}
+  .ecard p{font-size:13.5px;color:#333;}
+  .ecard .pts{margin-top:8px;font-size:13px;color:#444}
+  .ecard .pts li{margin-left:18px;margin-top:3px}
+  .consensus{width:100%;border-collapse:collapse;font-size:13.5px}
+  .consensus th,.consensus td{border:1px solid var(--line);padding:9px 10px;vertical-align:top}
+  .consensus th{background:#f0f3fb}
+  .pos{background:#eafaf1;color:#1b8a4b;font-weight:700;border-radius:8px;padding:10px 14px}
+  .risk{background:#fff6ec;border:1px solid #f3d7a8;border-radius:10px;padding:12px 14px;font-size:13px;color:#7a5a1e}
+  .risk b{color:#a45c00}
+  .note{font-size:12px;color:var(--sub);margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+  footer{margin-top:26px;font-size:12px;color:var(--sub);text-align:center}
+  @media(max-width:720px){.kpis,.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>大盘主线 + 情绪研判 · 投研圆桌</h1>
+  <div class="meta">
+    <span class="badge">数据日期 2026-09-11 收盘</span>
+    <span class="badge">来源 westock-mcp 实时</span>
+    <span class="badge">A股 红涨绿跌</span>
+  </div>
+  <div class="meta" style="margin-top:6px;opacity:.8">诚实声明：仅用实时接口，未取宏观PMI（service error）与北向（已暂停）。所有数字均真实拉取，缺维度显式标注。</div>
+</header>
+
+<!-- 市场快照 -->
+<section>
+  <div class="ttl">一、市场快照</div>
+  <div class="grid kpis">
+    <div class="kpi"><div class="n">上证指数</div><div class="v down">3888.11</div><div class="d down">−1.18% ｜ 60日 −4.95% ｜ PE 11.27</div></div>
+    <div class="kpi"><div class="n">创业板指</div><div class="v down">3322.04</div><div class="d down">−0.49% ｜ 60日 −21.88% ｜ PE 54.44</div></div>
+    <div class="kpi"><div class="n">沪深300</div><div class="v down">4510.16</div><div class="d down">−0.84% ｜ 60日 −8.73% ｜ PE 13.51</div></div>
+    <div class="kpi"><div class="n">科创50</div><div class="v down">1553.39</div><div class="d down">−1.01% ｜ 60日 −18.73% ｜ PE 131.41</div></div>
+    <div class="kpi"><div class="n">中证500</div><div class="v down">7580.54</div><div class="d down">−1.78% ｜ 60日 −12.60% ｜ PE 32.56</div></div>
+    <div class="kpi"><div class="n">深证成指</div><div class="v down">13471.26</div><div class="d down">−1.08% ｜ 60日 −15.97% ｜ PE 41.34</div></div>
+    <div class="kpi"><div class="n">涨跌家数</div><div class="v"><span class="up">643↑</span> / <span class="down">4870↓</span></div><div class="d flat">涨占比 <b>11%</b> ｜ 49 平</div></div>
+    <div class="kpi"><div class="n">涨跌停</div><div class="v">40 / 21</div><div class="d flat">涨停 / 跌停 ｜ 12 停牌</div></div>
+    <div class="kpi"><div class="n">成交额</div><div class="v">≈1.97万亿</div><div class="d up">较前日 +3247 亿（放量）</div></div>
+  </div>
+</section>
+
+<!-- 情绪温度 -->
+<section>
+  <div class="ttl">二、情绪温度（广度）</div>
+  <div class="panel">
+    <div class="sentiment">
+      <div class="gauge">
+        <div class="mark" style="left:11%"></div>
+        <div class="pin" style="left:11%">11%</div>
+      </div>
+      <div style="min-width:200px">
+        <div style="font-size:13px">上涨家数占比 <b>11%</b>，落入近一年<b>低景气区间</b>（仅约 1/4 交易日更冷）。</div>
+        <div style="font-size:12px;color:var(--sub);margin-top:4px">跌停仅 21 家 → 非系统性踩踏，属"偏冷 + 结构性分化"。</div>
+      </div>
+    </div>
+    <div class="leg" style="margin-top:14px">
+      <span>← 冰点 0%</span><span>偏冷 20%</span><span>中性 40%</span><span>活跃 60%</span><span>狂热 80% →</span>
+    </div>
+  </div>
+</section>
+
+<!-- 主线地图 -->
+<section>
+  <div class="ttl">三、主线地图（行业涨幅 + 资金净流入）</div>
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="panel">
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px">行业涨幅榜（红=涨 / 绿=跌）</div>
+      <table>
+        <tr><th>行业</th><th>涨幅</th></tr>
+        <tr><td>地面兵装Ⅱ</td><td class="up">+4.44%</td></tr>
+        <tr><td>玻璃玻纤</td><td class="up">+2.63%</td></tr>
+        <tr><td>元件</td><td class="up">+1.80%</td></tr>
+        <tr><td>通信设备</td><td class="up">+1.66%</td></tr>
+        <tr><td>风电设备</td><td class="up">+0.97%</td></tr>
+        <tr><td>工业金属</td><td class="down">−5.04%</td></tr>
+        <tr><td>证券</td><td class="down">−3.10%</td></tr>
+        <tr><td>半导体</td><td class="down">−1.59%</td></tr>
+        <tr><td>白酒</td><td class="down">−1.09%</td></tr>
+      </table>
+    </div>
+    <div class="panel">
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px">行业资金净流入（亿元）</div>
+      <table>
+        <tr><th>行业</th><th>净流入</th><th></th></tr>
+        <tr><td>通信设备</td><td class="up">+51.12</td><td><span class="bar"><i style="width:100%;background:var(--up)"></i></span></td></tr>
+        <tr><td>元件</td><td class="up">+41.01</td><td><span class="bar"><i style="width:80%;background:var(--up)"></i></span></td></tr>
+        <tr><td>地面兵装Ⅱ</td><td class="up">+13.73</td><td><span class="bar"><i style="width:27%;background:var(--up)"></i></span></td></tr>
+        <tr><td>玻璃玻纤</td><td class="up">+7.19</td><td><span class="bar"><i style="width:14%;background:var(--up)"></i></span></td></tr>
+        <tr><td>风电设备</td><td class="up">+6.47</td><td><span class="bar"><i style="width:13%;background:var(--up)"></i></span></td></tr>
+      </table>
+      <div style="font-size:12px;color:var(--sub);margin-top:10px">资金高度集中于 <b>通信设备 / 元件 / 军工</b>，与涨幅榜重合 → 主线有真实资金背书。</div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:12px">
+    <div style="font-weight:700;font-size:14px;margin-bottom:6px">清晰主线三条</div>
+    <div style="font-size:13.5px">
+      ① <b>AI 硬件链（通信设备 + 元件）</b>——涨幅与资金双强，唯一"趋势+资金"共振方向；<br>
+      ② <b>军工（地面兵装Ⅱ）</b>——事件/主题驱动，单日最强但持续性待观察；<br>
+      ③ <b>新能源细分（玻璃玻纤 / 风电设备）</b>——弱轮动，强度弱于前两条。
+    </div>
+  </div>
+</section>
+
+<!-- 投研圆桌 -->
+<section>
+  <div class="ttl">四、投研圆桌（五视角）</div>
+  <div class="grid cards">
+    <div class="ecard">
+      <div class="role">① 广度温度官 · 情绪研判</div>
+      <h3>接近冰点，但非恐慌</h3>
+      <p>涨占比 11% 落入近一年低景气区间（仅约 1/4 交易日更冷），属"偏冷/接近冰点"而非"恐慌极值"。</p>
+      <ul class="pts"><li>跌停仅 21 家 → 结构性分化+权重拖累，非踩踏</li><li>"低广度+低跌停"常对应阴跌磨底/结构性行情</li></ul>
+    </div>
+    <div class="ecard">
+      <div class="role">② 指数结构师 · 大盘研判</div>
+      <h3>成长远弱于权重，哑铃收缩</h3>
+      <p>60 日：科创50 −18.7%、创业板 −21.9%、中证500 −12.6%，远弱于上证 −4.95%、沪深300 −8.73%。</p>
+      <ul class="pts"><li>资金从"高估值成长"切向"低估值权重+主题成长"</li><li>放量滞跌，待广度修复确认止跌</li></ul>
+    </div>
+    <div class="ecard">
+      <div class="role">③ 主线猎手 · 主线识别</div>
+      <h3>AI硬件 + 军工 最清晰</h3>
+      <p>涨幅榜：地面兵装Ⅱ+4.44%、元件+1.80%、通信设备+1.66% 居前；工业金属−5.04%、证券−3.10% 领跌。</p>
+      <ul class="pts"><li>主线1：AI硬件链（通信/元件）趋势+资金共振</li><li>主线2：军工事件驱动；主线3：新能源细分弱轮动</li></ul>
+    </div>
+    <div class="ecard">
+      <div class="role">④ 资金行为师 · 聪明钱</div>
+      <h3>抱团少数方向</h3>
+      <p>净流入：通信设备+51亿、元件+41亿、军工+14亿。"涨幅榜≈资金榜"→ 主线有真实背书。</p>
+      <ul class="pts"><li>20日维度多数行业资金转负 → 短线避险式聚集</li><li>存量博弈，防"抱团少数方向"后的扩散失败</li></ul>
+    </div>
+    <div class="ecard">
+      <div class="role">⑤ 仓位司令 · 综合决策</div>
+      <h3>中性偏低，不追高</h3>
+      <p>偏冷 + 广度分化 + 主线窄 + 趋势未止 → 维持中性偏低仓位（≈2–3成）。</p>
+      <ul class="pts"><li>StockSignal离线快照(08-14滞后)印证：temperature 21.4偏冷、position 23%</li><li>涨占比回升至30%+再加仓</li></ul>
+    </div>
+    <div class="ecard">
+      <div class="role">交叉验证 · StockSignal 离线</div>
+      <h3>方向一致</h3>
+      <p>daily_snapshot.json（截至 2026-08-14，滞后约27天，仅供参考）：temperature 21.4（偏冷）、cycle"修复试探"、position.pct 23%。</p>
+      <ul class="pts"><li>与实时广度（11%）同处偏冷区间</li><li>59温度计/61广度分化/63温度回测可作离线验证面板</li></ul>
+    </div>
+  </div>
+</section>
+
+<!-- 共识分歧 -->
+<section>
+  <div class="ttl">五、共识与分歧</div>
+  <div class="panel">
+    <table class="consensus">
+      <tr><th style="width:20%">议题</th><th style="width:40%">共识</th><th>分歧 / 待观察</th></tr>
+      <tr><td>市场温度</td><td>偏冷，广度极度分化</td><td>11% 是否触发超跌反弹 vs 趋势未止</td></tr>
+      <tr><td>主线</td><td>AI硬件（通信/元件）、军工最清晰</td><td>军工持续性存疑；新能源细分偏弱</td></tr>
+      <tr><td>仓位</td><td>中性偏低、不追高</td><td>反弹时点与加仓触发条件</td></tr>
+      <tr><td>指数</td><td>成长弱于权重，哑铃结构</td><td>权重能否持续抗跌</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- 仓位与风险 -->
+<section>
+  <div class="ttl">六、仓位建议与风险</div>
+  <div class="pos">仓位建议：中性偏低（≈2–3 成）。不追高、不空仓；在 AI硬件/军工主线用小仓位结构性跟随，待涨占比回升至 30%+ 再加仓。</div>
+  <div class="risk" style="margin-top:12px">
+    <b>风险与情景：</b><br>
+    • 数据缺口：宏观PMI/社融未取到（service error）；北向暂停披露。下一轮需补宏观景气与政策变量。<br>
+    • 乐观：涨占比回升 30%+ 且主线扩散 → 轻仓跟随转加仓。<br>
+    • 基准：维持 2–3 成、抱团主线轮动。<br>
+    • 风险：成交额持续放大但广度不修复 → 防阴跌；跌停扩散至 50+ → 进入恐慌段，降至 1 成以内。
+  </div>
+  <div class="note">本圆桌为基于实时行情数据的多视角研判，不构成投资建议。所有数字来自 westock-mcp 实时接口，未做任何外推或编造。</div>
+</section>
+
+<footer>StockSignal · 投研圆桌 · 数据 2026-09-11 收盘 · 生成于 WorkBuddy</footer>
+</div>
+</body>
+</html>
