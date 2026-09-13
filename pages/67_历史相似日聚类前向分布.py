@@ -1,10 +1,10 @@
 """
 页面 67：历史相似日聚类 + 前向分布（方案⑧）
 
-取最新一日的 8 维广度向量，在全历史里按欧氏距离找最相似的 top-N 日（排除末日 ±15 交易日防前视泄漏），
+取最新一日的真实广度向量，在全历史按欧氏距离找最相似 top-N 日（排除末日 ±15 交易日防前视泄漏），
 统计这些相似日后继 5/10/20 交易日的红盘占比分布。这是**历史类比**，非预测。
 
-数据边界：仅用 shepherd_history 内部变量，无指数/行业/资金流/逐股，不编造。
+数据边界：连板梯队类维度离线缺真值，已通过数据闸门剔除，不进入距离计算、不编造。
 """
 import logging
 
@@ -15,13 +15,14 @@ import streamlit as st
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card
 from modules import similar_day_cluster as sdc
+from modules.breadth_features import OFFLINE_MISSING
 
 logger = logging.getLogger(__name__)
 
 dark = render_standard_page(
     title="历史相似日聚类 · 前向分布", icon="📰",
-    caption="最新一日广度向量在全历史找最相似 top-N 日，统计其后继 5/10/20 日红盘占比分布。"
-            "这是历史类比，非预测。维度均来自 shepherd_history 内部变量。",
+    caption="最新一日真实广度向量在全历史找最相似 top-N 日，统计其后继 5/10/20 日红盘占比分布。"
+            "历史类比，非预测。",
 )
 
 try:
@@ -41,7 +42,6 @@ try:
             else:
                 cols[i].info(f"后 {off} 日无足够前向样本")
 
-        # 前向红盘占比分布条
         fig = go.Figure(go.Bar(
             x=[f"后{off}日" for off in [5, 10, 20]],
             y=[fs.get(off, {}).get("up_ratio", 0) for off in [5, 10, 20]],
@@ -70,11 +70,21 @@ try:
     else:
         st.warning(f"⚠️ 无法生成历史相似日聚类（{res.get('reason','数据不足')}）。")
 
+    # ── 诚实数据边界 ──
     st.markdown("---")
-    st.caption(
-        "📐 方法学：本页取最新一日 8 维广度向量（红盘占比/涨停/跌停/昨日涨停表现/连板高度/连板家数/炸板率/倒跌停），"
-        "在全历史中按欧氏距离检索最相似日，并排除末日 ±15 交易日邻居以防前视泄漏；再以这些相似日的后继红盘占比构建经验分布。"
-        "这是历史类比，不构成预测或买卖建议；全部变量离线可得，不编造。"
+    st.markdown("### 🚧 离线数据边界（务必阅读）")
+    dropped = res.get("dropped", {})
+    if dropped:
+        lines = "".join(f"\n- **{k}**：{v}" for k, v in dropped.items())
+        st.markdown(f"以下维度经数据质量闸门剔除（离线缺真值，不参与距离计算）：{lines}")
+    else:
+        st.markdown("本次聚类使用的全部维度均为离线可靠字段。")
+    miss = "; ".join(f"**{k}**（{v}）" for k, v in OFFLINE_MISSING.items())
+    st.markdown(
+        f"本页仅用离线可靠广度字段（上涨/下跌/平盘家数、涨停/跌停家数、红盘占比）计算相似度。"
+        f"\n\n以下维度离线缺真值，已剔除、不编造：{miss}。"
+        f"\n\n📐 方法学：取最新一日向量，按标准化欧氏距离检索最相似日并排除末日邻居防前视泄漏；"
+        f"以相似日后继红盘占比构建经验分布。**历史类比非预测、不构成买卖建议**。"
     )
 except Exception as exc:  # noqa: BLE001
     logger.exception("历史相似日聚类页渲染失败")

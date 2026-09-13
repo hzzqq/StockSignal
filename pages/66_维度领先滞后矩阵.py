@@ -1,10 +1,11 @@
 """
 页面 66：维度领先-滞后矩阵（方案⑦）
 
-用牧羊人 8 个广度内部维度的全历史日序列，计算两两互相关在 lag 0~20 日的最优领先滞后，
+用离线可靠广度维度（涨跌/平家数、涨停/跌停家数、红盘占比）的全历史日序列，计算两两互相关在 lag 0~20 日的最优领先滞后，
 呈现「谁先动、谁确认」的传导结构。互相关仅描述协同/错位，**非因果、非预测**。
 
-数据边界：全部维度来自 shepherd_history 内部可观测变量，无指数/行业/资金流，不编造。
+数据边界：连板梯队类维度（连板高度/连板家数/炸板率/封成比/昨日涨停表现/倒跌停）离线缺真值，
+已通过数据闸门剔除，不进入相关计算、不编造。
 """
 import logging
 
@@ -13,13 +14,14 @@ import streamlit as st
 
 from modules.page_utils import render_standard_page
 from modules import lead_lag_matrix as ll
+from modules.breadth_features import OFFLINE_MISSING
 
 logger = logging.getLogger(__name__)
 
 dark = render_standard_page(
     title="维度领先-滞后矩阵", icon="📑",
-    caption="牧羊人 8 广度维度两两互相关的最优领先滞后（lag 0~20 日），看传导结构。"
-            "互相关仅描述协同/错位，非因果、非预测。维度均来自 shepherd_history 内部变量。",
+    caption="离线可靠广度维度两两互相关的最优领先滞后（lag 0~20 日），看传导结构。"
+            "互相关仅描述协同/错位，非因果、非预测。",
 )
 
 try:
@@ -46,11 +48,17 @@ try:
     else:
         st.info("暂无足够广度历史生成领先-滞后矩阵。")
 
+    # ── 诚实数据边界：展示被剔除维度 ──
     st.markdown("---")
-    st.caption(
-        "📐 方法学：本页对 8 个牧羊人广度维度（红盘占比/涨停/跌停/昨日涨停表现/连板高度/连板家数/炸板率/倒跌停）"
-        "的全历史日序列做 z-score 归一后，计算两两在 lag 0~20 日的最优互相关，取符号表示领先方向与相关性正负。"
-        "全部变量离线可得，不引入指数/行业/资金流等编造数据。"
+    st.markdown("### 🚧 离线数据边界（务必阅读）")
+    dropped = res.get("dropped", {})
+    if dropped:
+        lines = "".join(f"\n- **{k}**：{v}" for k, v in dropped.items())
+        st.markdown(f"以下维度经数据质量闸门剔除（非空率过低或近乎常数，不做相关计算）：{lines}")
+    st.markdown(
+        "本页仅使用离线健康镜像中**可靠填充**的广度字段（上涨/下跌/平盘家数、涨停/跌停家数、红盘占比）。"
+        "\n\n📐 方法学：对各维度日序列做 z-score 归一后，计算两两在 lag 0~20 日的最优互相关，"
+        "取符号表示领先方向与相关性正负。**非因果、非预测**，仅描述历史协同结构。"
     )
 except Exception as exc:  # noqa: BLE001
     logger.exception("维度领先滞后矩阵页渲染失败")

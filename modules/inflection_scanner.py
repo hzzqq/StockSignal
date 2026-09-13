@@ -1,11 +1,11 @@
 """
 模块 inflection_scanner：情绪拐点扫描器（方案⑨）
 
-数据边界（诚实声明）：
-  · 对每个广度维度算滚动 z-score（窗口 60 日），检测「极端后反转」形态：
-    自 < -2 回升越过 -1 → 触底反转；自 > +2 回落越过 +1 → 触顶回落。
+数据边界（诚实声明，实测确认 2026-09-11）：
+  · 仅对离线健康镜像可靠填充的广度维度（REAL_FEATURES）算滚动 z-score（窗口 60 日），
+    检测「极端后反转」形态：自 < -2 回升越过 -1 → 触底反转；自 > +2 回落越过 +1 → 触顶回落。
+  · 连板梯队类维度离线缺真值，已通过 `usable_dims` 闸门剔除，**不扫描、不编造**。
   · 仅描述历史序列的拐点形态，**不构成方向预测、不构成买卖建议**。
-  · 维度均为 shepherd_history 内部可观测变量，不引入指数/行业/资金流，不编造。
 
 取数失败优雅降级（available=False）。
 """
@@ -15,16 +15,10 @@ import numpy as np
 import pandas as pd
 
 from modules import market_regime as mr
+from modules.breadth_features import REAL_FEATURES, labels as _labels, usable_dims
 
 logger = logging.getLogger(__name__)
-
-_DIMS = ["red_ratio", "limit_up", "limit_down", "zt_prev_ret",
-         "connect_hl", "connect_2b", "zt_fail_ratio", "touch_down"]
-_LABELS = {
-    "red_ratio": "红盘占比", "limit_up": "涨停家数", "limit_down": "跌停家数",
-    "zt_prev_ret": "昨日涨停表现", "connect_hl": "连板高度", "connect_2b": "连板家数",
-    "zt_fail_ratio": "炸板率", "touch_down": "倒跌停家数",
-}
+_LABELS = _labels()
 _DOWN, _UP = -2.0, 2.0
 _RECOVER_DOWN, _RECOVER_UP = -1.0, 1.0
 
@@ -41,31 +35,30 @@ def _zscore(x, window):
     return ((s - m) / sd).values
 
 
+def _r(v):
+    return None if v is None or (isinstance(v, float) and v != v) else round(float(v), 3)
+
+
 def list_events(df: pd.DataFrame | None = None, dims=None,
                 window: int = 60, recent: int = 20) -> dict:
-    """扫描所有维度的近期拐点事件（末 recent 个交易日内）。
-
-    返回 {available, dims, events:[{dim,label,date,type,extreme,current}]}。
-    """
+    """扫描所有可用维度的近期拐点事件（末 recent 个交易日内）。"""
     if df is None:
         try:
             df = load_breadth_history()
         except Exception as exc:  # pragma: no cover
             logger.warning("breadth load failed: %s", exc)
-            return dict(available=False, events=[])
+            return dict(available=False, events=[], dropped={})
     if df is None or len(df) == 0:
-        return dict(available=False, events=[])
+        return dict(available=False, events=[], dropped={})
 
-    dims = dims or _DIMS
     d = df.copy()
     d["date"] = pd.to_datetime(d["date"], errors="coerce")
     d = d.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
     n = len(d)
 
+    dims, dropped = usable_dims(d, candidate=(dims or REAL_FEATURES))
     out = []
     for c in dims:
-        if c not in d.columns:
-            continue
         x = pd.to_numeric(d[c], errors="coerce").values.astype(float)
         if np.all(np.isnan(x)):
             continue
@@ -99,11 +92,7 @@ def list_events(df: pd.DataFrame | None = None, dims=None,
                                        type="触顶回落", extreme=_r(ext_v), current=_r(x[i])))
                     state, ext_z, ext_v = "none", None, None
     out.sort(key=lambda e: e["date"])
-    return dict(available=True, dims=[c for c in dims if c in d.columns], events=out)
-
-
-def _r(v):
-    return None if v is None or (isinstance(v, float) and v != v) else round(float(v), 3)
+    return dict(available=True, dims=dims, dropped=dropped, events=out)
 
 
 def series_for(dim: str, df: pd.DataFrame | None = None, window: int = 60) -> dict:
@@ -112,12 +101,14 @@ def series_for(dim: str, df: pd.DataFrame | None = None, window: int = 60) -> di
         try:
             df = load_breadth_history()
         except Exception:  # pragma: no cover
-            return dict(available=False, dates=[], raw=[], z=[])
+            return dict(available=False, dates=[], raw=[], z=[], markers=[])
     if df is None or len(df) == 0 or dim not in df.columns:
-        return dict(available=False, dates=[], raw=[], z=[])
+        return dict(available=False, dates=[], raw=[], z=[], markers=[])
     d = df.copy()
     d["date"] = pd.to_datetime(d["date"], errors="coerce")
     d = d.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+    if dim not in d.columns:
+        return dict(available=False, dates=[], raw=[], z=[], markers=[])
     x = pd.to_numeric(d[dim], errors="coerce").values.astype(float)
     z = _zscore(x, window)
     dates = [str(t.date()) for t in d["date"]]
