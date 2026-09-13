@@ -10,6 +10,8 @@ from modules import market_regime as mr
 from modules import lead_lag_matrix as ll
 from modules import similar_day_cluster as sdc
 from modules import inflection_scanner as ins
+from modules import speculative_clock as sc
+from modules import regime_duration as rd
 
 
 def test_usable_dims_drops_sparse_and_missing():
@@ -68,6 +70,48 @@ def test_data_as_of_returns_date():
     # 应返回 YYYY-MM-DD 格式的合法日期
     assert len(s) == 10 and s[4] == "-" and s[7] == "-"
     assert s != "未知"
+
+
+# ── R3：防静默空输出回归 —— 各模块在真实数据上必须 available 且产出非平凡结果 ──
+def test_current_phase_nonempty_on_real():
+    cur = sc.current_phase()
+    assert cur["available"] is True
+    assert cur["phase"] in {"亢奋", "活跃", "偏冷", "冰点", "中性", "数据不足"}
+
+
+def test_lead_lag_nonempty_on_real():
+    res = ll.lead_lag_matrix()
+    assert res["available"] is True
+    assert len(res["dims"]) == 6
+    assert len(res["matrix"]) == 6 and len(res["matrix"][0]) == 6
+    # 矩阵不应全 0（否则说明退化）
+    flat = [v for row in res["matrix"] for v in row]
+    assert any(v != 0 for v in flat)
+
+
+def test_similar_day_forward_present_on_real():
+    res = sdc.similar_day_cluster()
+    assert res["available"] is True
+    assert len(res["similar"]) > 0
+    # 至少一个前向窗口有样本（防止全部空 → 静默空输出）
+    fwd = res["forward_stats"]
+    assert any(fwd[off].get("n", 0) > 0 for off in (5, 10, 20))
+
+
+def test_inflection_events_on_real():
+    res = ins.list_events()
+    assert res["available"] is True
+    # 全历史应有拐点事件（4771 天不可能零事件）
+    assert len(res["events"]) > 0
+
+
+def test_regime_duration_nonempty_on_real():
+    res = rd.regime_duration()
+    assert res["available"] is True
+    # 各档都应有 run（4771 天覆盖五档）
+    for b in range(5):
+        assert res["durations"][b]["n"] > 0
+
 
 
 def test_phase_no_silent_neutral_on_empty():
