@@ -105,3 +105,18 @@ def availability_report(df: pd.DataFrame) -> dict:
         else:
             report[c] = dict(status="missing", reason=OFFLINE_MISSING.get(c, "离线无此字段"))
     return report
+
+
+def data_as_of(df: pd.DataFrame | None = None) -> str:
+    """返回离线健康镜像的最新数据日期（用于页面诚实声明『非实时』）。"""
+    if df is None:
+        try:
+            df = mr.load_breadth_history()
+        except Exception:  # pragma: no cover
+            return "未知"
+    if df is None or len(df) == 0:
+        return "未知"
+    d = pd.to_datetime(df["date"], errors="coerce").dropna()
+    if len(d) == 0:
+        return "未知"
+    return str(d.max().date())

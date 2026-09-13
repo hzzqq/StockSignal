@@ -14,7 +14,7 @@ import streamlit as st
 
 from modules.page_utils import render_standard_page
 from modules import lead_lag_matrix as ll
-from modules.breadth_features import OFFLINE_MISSING
+from modules.breadth_features import OFFLINE_MISSING, data_as_of
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ dark = render_standard_page(
     caption="离线可靠广度维度两两互相关的最优领先滞后（lag 0~20 日），看传导结构。"
             "互相关仅描述协同/错位，非因果、非预测。",
 )
+st.caption(f"📅 数据截至 **{data_as_of()}**（离线健康镜像快照，**非实时行情**）")
 
 try:
     res = ll.lead_lag_matrix()
@@ -57,6 +58,9 @@ try:
         st.markdown(f"以下维度经数据质量闸门剔除（非空率过低或近乎常数，不做相关计算）：{lines}")
     st.markdown(
         "本页仅使用离线健康镜像中**可靠填充**的广度字段（上涨/下跌/平盘家数、涨停/跌停家数、红盘占比）。"
+        "\n\n⚠️ 维度间并非独立：红盘占比由 涨/跌/平家数 直接派生（red_ratio = 上涨/(上涨+下跌+平盘)），"
+        "故 up/down/flat 与 red_ratio 之间的领先-滞后部分属于**机械相关**，真正有信息量的信号在"
+        "『涨跌家数族』与『涨停/跌停家数（极限宽度）』之间。"
         "\n\n📐 方法学：对各维度日序列做 z-score 归一后，计算两两在 lag 0~20 日的最优互相关，"
         "取符号表示领先方向与相关性正负。**非因果、非预测**，仅描述历史协同结构。"
     )

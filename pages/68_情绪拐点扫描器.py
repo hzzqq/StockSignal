@@ -13,7 +13,7 @@ import streamlit as st
 
 from modules.page_utils import render_standard_page
 from modules import inflection_scanner as ins
-from modules.breadth_features import OFFLINE_MISSING, labels as _flabels
+from modules.breadth_features import OFFLINE_MISSING, labels as _flabels, data_as_of
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ dark = render_standard_page(
     title="情绪拐点扫描器", icon="📝",
     caption="离线可靠广度维度滚动 z-score 极端后反转检测（触底反转 / 触顶回落）。仅描述历史形态，非预测。",
 )
+st.caption(f"📅 数据截至 **{data_as_of()}**（离线健康镜像快照，**非实时行情**）")
 
 try:
     ev = ins.list_events()
@@ -80,6 +81,8 @@ try:
     miss = "; ".join(f"**{k}**（{v}）" for k, v in OFFLINE_MISSING.items())
     st.markdown(
         f"本页仅对离线可靠广度字段（上涨/下跌/平盘家数、涨停/跌停家数、红盘占比）做 z-score 拐点检测。"
+        f"\n\n⚠️ 这些维度是**市场宽度的动量/反转形态**（涨跌幅家数、极限宽度），并非狭义『投资者情绪调查』类指标；"
+        f"连板梯队类情绪维度离线缺真值已剔除，故本页的『情绪』实为『广度动能的极端反转』。"
         f"\n\n以下维度离线缺真值，已剔除、不编造：{miss}。"
         f"\n\n📐 方法学：对维度计算 60 日滚动 z-score，检测「自极端(<−2 或 >+2)反转越过确认阈值(∓1)」形态。"
         f"这是历史序列的形态描述，**不构成方向预测或买卖建议**。"

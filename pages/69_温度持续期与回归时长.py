@@ -14,6 +14,7 @@ import streamlit as st
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card
 from modules import regime_duration as rd
+from modules.breadth_features import data_as_of
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ dark = render_standard_page(
     caption="红盘占比五档的持续期分布 + 冰点回归中性的中位磨底时长。历史统计描述，非预测。"
             "温度代理=红盘占比五档，变量来自 shepherd_history 内部。",
 )
+st.caption(f"📅 数据截至 **{data_as_of()}**（离线健康镜像快照，**非实时行情**）")
 
 try:
     res = rd.regime_duration()

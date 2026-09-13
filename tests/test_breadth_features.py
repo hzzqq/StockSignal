@@ -62,6 +62,14 @@ def test_inflection_only_real_features():
                    ["connect_2b", "connect_hl", "fc_ratio", "touch_down", "zt_fail_ratio"])
 
 
+def test_data_as_of_returns_date():
+    d = mr.load_breadth_history()
+    s = bf.data_as_of(d)
+    # 应返回 YYYY-MM-DD 格式的合法日期
+    assert len(s) == 10 and s[4] == "-" and s[7] == "-"
+    assert s != "未知"
+
+
 def test_phase_no_silent_neutral_on_empty():
     # 构造一行全空的最新记录 → 应诚实标注「数据不足」而非误判「中性」
     empty = pd.DataFrame([{"date": "2026-09-11", "up_count": None, "down_count": None,

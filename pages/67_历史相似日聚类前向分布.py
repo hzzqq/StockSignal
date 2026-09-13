@@ -15,7 +15,7 @@ import streamlit as st
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card
 from modules import similar_day_cluster as sdc
-from modules.breadth_features import OFFLINE_MISSING
+from modules.breadth_features import OFFLINE_MISSING, data_as_of
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ dark = render_standard_page(
     caption="最新一日真实广度向量在全历史找最相似 top-N 日，统计其后继 5/10/20 日红盘占比分布。"
             "历史类比，非预测。",
 )
+st.caption(f"📅 数据截至 **{data_as_of()}**（离线健康镜像快照，**非实时行情**）")
 
 try:
     res = sdc.similar_day_cluster()
@@ -82,9 +83,12 @@ try:
     miss = "; ".join(f"**{k}**（{v}）" for k, v in OFFLINE_MISSING.items())
     st.markdown(
         f"本页仅用离线可靠广度字段（上涨/下跌/平盘家数、涨停/跌停家数、红盘占比）计算相似度。"
+        f"\n\n⚠️ 相似度距离中 涨/跌/平家数 与 红盘占比 属同一信息族（red_ratio 由前三者派生），"
+        f"会放大『家数族』权重；结论应以『形态相似』定性参考，勿作精确趋同预期。"
         f"\n\n以下维度离线缺真值，已剔除、不编造：{miss}。"
         f"\n\n📐 方法学：取最新一日向量，按标准化欧氏距离检索最相似日并排除末日邻居防前视泄漏；"
-        f"以相似日后继红盘占比构建经验分布。**历史类比非预测、不构成买卖建议**。"
+        f"以相似日后继红盘占比构建经验分布（卡片中『红盘占比>50%的交易日占比』即 up_ratio）。"
+        f"**历史类比非预测、不构成买卖建议**。"
     )
 except Exception as exc:  # noqa: BLE001
     logger.exception("历史相似日聚类页渲染失败")

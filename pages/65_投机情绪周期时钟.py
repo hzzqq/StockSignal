@@ -16,7 +16,7 @@ import streamlit as st
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card
 from modules import speculative_clock as sc
-from modules.breadth_features import OFFLINE_MISSING, labels as _flabels
+from modules.breadth_features import OFFLINE_MISSING, labels as _flabels, data_as_of
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ dark = render_standard_page(
     caption="用涨停家数+红盘占比的历史分位识别投机情绪相位（亢奋/活跃/偏冷/冰点/中性）。"
             "纯离线、描述性框架，不预测收益。仅用离线可靠广度字段。",
 )
+st.caption(f"📅 数据截至 **{data_as_of()}**（离线健康镜像快照，**非实时行情**）")
 
 try:
     _win = st.sidebar.selectbox(
