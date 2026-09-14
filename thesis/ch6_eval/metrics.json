@@ -1,11 +1,11 @@
 {
-  "snapshot_count": 4,
+  "snapshot_count": 11,
   "snapshot_date_range": [
     "2026-08-31",
-    "2026-09-03"
+    "2026-09-14"
   ],
   "temperature_min_max": [
-    24.0,
+    11.4,
     75.2
   ],
   "position_min_max": [
@@ -14,9 +14,9 @@
   ],
   "position_clamp_5_95_ok": true,
   "cycle_distribution": {
-    "修复试探": 2,
-    "主升高潮": 1,
-    "退潮": 1
+    "修复试探": 7,
+    "主升高潮": 2,
+    "退潮": 2
   },
   "scenario_samples": [
     [
@@ -110,6 +110,29 @@
         "desc": "高度断崖、跌停回升、晋级率低迷，修复半途而废。",
         "trigger": "观察：最高板断板 + 跌停家数回升 + 缩量"
       }
+    ],
+    [
+      {
+        "name": "修复升级 / 情绪转强",
+        "prob": 27,
+        "color": "#ee2a2a",
+        "desc": "赚钱效应延续，最高板晋级打开空间，指数与情绪共振向上。",
+        "trigger": "观察：最高板从 5 板晋级 + 量能放大 + 炸板率回落"
+      },
+      {
+        "name": "震荡分化 / 高位分歧",
+        "prob": 46,
+        "color": "#f59e0b",
+        "desc": "指数与情绪背离，题材轮动加速，赚钱效应收缩到少数高辨识度标的。",
+        "trigger": "观察：最高板反复炸板或维持不变，量能无法有效放大"
+      },
+      {
+        "name": "退潮 / 二次探底",
+        "prob": 27,
+        "color": "#00d486",
+        "desc": "高度断崖、跌停回升、晋级率低迷，修复半途而废。",
+        "trigger": "观察：最高板断板 + 跌停家数回升 + 缩量"
+      }
     ]
   ],
   "explainability_samples": [
@@ -131,80 +154,80 @@
       "梯队断档（晋级率<20%）：减仓 6%"
     ]
   ],
-  "prediction_count": 4,
-  "prediction_scored": 1,
-  "prediction_hit_rate": 0.0,
+  "prediction_count": 11,
+  "prediction_scored": 4,
+  "prediction_hit_rate": 0.25,
   "note": "样本量小时如实标注，不推断统计显著性",
   "grouped_stats": {
     "by_cycle": [
       {
         "cycle": "主升高潮",
         "group": "进攻期",
-        "n": 1,
-        "n_call": 1,
-        "hits": 0,
-        "accuracy": 0.0,
-        "avg_pct": 82.0,
-        "avg_realized": -0.97
+        "n": 2,
+        "n_call": 2,
+        "hits": 1,
+        "accuracy": 50.0,
+        "avg_pct": 61.0,
+        "avg_realized": -0.39
       },
       {
         "cycle": "修复试探",
         "group": "修复期",
-        "n": 2,
+        "n": 7,
         "n_call": 0,
         "hits": 0,
         "accuracy": null,
-        "avg_pct": 34.5,
-        "avg_realized": -0.16
+        "avg_pct": 29.9,
+        "avg_realized": -0.34
       },
       {
         "cycle": "退潮",
         "group": "防守期",
-        "n": 1,
-        "n_call": 0,
+        "n": 2,
+        "n_call": 2,
         "hits": 0,
-        "accuracy": null,
-        "avg_pct": 10.0,
-        "avg_realized": null
+        "accuracy": 0.0,
+        "avg_pct": 18.5,
+        "avg_realized": 0.15
       }
     ],
     "by_group": [
       {
         "group": "进攻期",
-        "n": 1,
-        "n_call": 1,
-        "hits": 0,
-        "accuracy": 0.0,
-        "avg_pct": 82.0,
-        "avg_realized": -0.97
+        "n": 2,
+        "n_call": 2,
+        "hits": 1,
+        "accuracy": 50.0,
+        "avg_pct": 61.0,
+        "avg_realized": -0.39
       },
       {
         "group": "修复期",
-        "n": 2,
+        "n": 7,
         "n_call": 0,
         "hits": 0,
         "accuracy": null,
-        "avg_pct": 34.5,
-        "avg_realized": -0.16
+        "avg_pct": 29.9,
+        "avg_realized": -0.34
       },
       {
         "group": "防守期",
-        "n": 1,
-        "n_call": 0,
+        "n": 2,
+        "n_call": 2,
         "hits": 0,
-        "accuracy": null,
-        "avg_pct": 10.0,
-        "avg_realized": null
+        "accuracy": 0.0,
+        "avg_pct": 18.5,
+        "avg_realized": 0.15
       }
     ],
     "summary": {
-      "n": 4,
-      "scored": 1,
-      "n_call": 1,
-      "hits": 0,
-      "accuracy": 0.0,
+      "n": 11,
+      "scored": 4,
+      "n_call": 4,
+      "hits": 1,
+      "accuracy": 25.0,
       "start": "2026-08-31",
-      "end": "2026-09-03"
+      "end": "2026-09-14"
     }
   }
 }
