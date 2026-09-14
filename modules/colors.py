@@ -20,6 +20,25 @@ UP_COLOR = "#ff4d4f"    # 涨 · 红
 DOWN_COLOR = "#00d486"  # 跌 · 绿
 HOLD_COLOR = "#ffa502"  # 持有 / 中性
 
+# ──────────────────────────────────────────────────────────────
+# 品牌 / UI 设计令牌（主题无关，与 modules.ui_theme.dashboard_sf_css
+# 的 :root 变量保持同步；暗/亮主题下 --acc1/--acc2 同值，故此处为常量）。
+#
+# 用途：Python 侧需要直接给色值的地方（Plotly 标记/matplotlib/导出图/
+# 合成缩略图等）统一引用本区块，避免各模块再硬编码 #4f46e5 之类的散色，
+# 形成「页面 CSS 用 var(--acc1)，Python 用 BRAND_ACCENT」的单一来源。
+# 若 ui_theme 的调整了品牌色，改这里 + dashboard_sf_css 两处即可。
+# ──────────────────────────────────────────────────────────────
+BRAND_ACCENT = "#4f46e5"    # 主品牌强调色（= :root --acc1，靛蓝）
+BRAND_ACCENT2 = "#7c3aed"   # 次品牌强调色（= :root --acc2，紫）
+BRAND_GRADIENT = "linear-gradient(135deg,#667eea 0%,#764ba2 100%)"  # 品牌渐变（hero/分区竖条）
+BRAND_TEXT_ON = "#ffffff"   # 品牌色之上的前景文字（胶囊/按钮白字）
+# 语义信号色（与 A 股涨跌体系解耦，用于提示/徽标/状态点，不随涨跌语义翻转）
+SIG_INFO = "#3b82f6"
+SIG_SUCCESS = "#00d486"
+SIG_WARNING = "#f59e0b"
+SIG_DANGER = "#ef4444"
+
 
 def hex_to_rgba(hex_color: str, alpha: float) -> str:
     """把 #rrggbb / #rgb 转成 rgba(r,g,b,a)，供 Plotly fillcolor 使用。

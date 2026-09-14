@@ -46,9 +46,11 @@ STRATEGY_DESC = {
 TECH = {"macd", "trend", "bollinger", "volume_surge", "low_position", "pattern"}
 
 
-def _section_title(text, accent="#5b6cff"):
+def _section_title(text, accent="var(--acc1)"):
+    """渲染带强调色的分区标题胶囊。强调色统一走设计令牌 var(--acc1)（品牌色），
+    去彩虹、随主题切换；accent 参数保留仅作兼容，不再影响渲染。"""
     st.markdown(
-        f"<div style='display:inline-block;background:{accent};color:#fff;"
+        f"<div style='display:inline-block;background:var(--acc1);color:#fff;"
         f"padding:4px 12px;border-radius:8px;font-weight:600;font-size:14px;'"
         f">{text}</div>", unsafe_allow_html=True)
 

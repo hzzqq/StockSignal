@@ -97,23 +97,30 @@ def _fig_layout(dark_mode):
     return base
 
 
-def _section_title_html(text, accent="#2b8aef") -> str:
+# 设计令牌：section 竖条统一走 ui_theme 注入的 --acc1（品牌强调色），
+# 由 :root 在暗/亮主题下同值 (#4f46e5) 自动适配，全站一次性去彩虹。
+_SECTION_BAR_COLOR = "var(--acc1)"
+
+
+def _section_title_html(text, accent=None) -> str:
     """PURE: 返回章节标题 HTML 字符串（调用方自行 markdown 渲染）。
 
-    数据派生文本 text / accent 做 html.escape，避免标签/颜色值注入；
-    None/空 -> 安全空默认，绝不抛异常。
+    竖条颜色统一使用设计令牌 ``var(--acc1)``（由 modules.ui_theme.dashboard_sf_css
+    注入的 :root 变量），全站 section 标题共享同一品牌强调色并自动适配暗/亮主题。
+    ``accent`` 参数保留仅为向后兼容旧调用点，已不再影响渲染（去彩虹）。
+
+    文本 text 做 html.escape，避免标签/颜色值注入；None/空 -> 安全空默认，绝不抛异常。
     """
     text = "" if text is None else str(text)
-    accent = accent or "#2b8aef"
     return (
         f'<div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;">'
-        f'<span style="width:4px;height:18px;background:{html.escape(accent, quote=True)};'
+        f'<span style="width:4px;height:18px;background:{_SECTION_BAR_COLOR};'
         f'border-radius:2px;display:inline-block;"></span>'
         f'<span style="font-size:16px;font-weight:600;">{html.escape(text)}</span></div>'
     )
 
 
-def _section_title(text, accent="#2b8aef"):
+def _section_title(text, accent=None):
     st.markdown(_section_title_html(text, accent), unsafe_allow_html=True)
 
 

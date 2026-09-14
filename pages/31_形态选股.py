@@ -37,10 +37,14 @@ sf_card("技术形态选股器导读", "在自选股或手动股票池中扫描�
 trading_autorefresh(key="pattern_autorefresh")
 
 
-def _section_title(text: str, accent: str = "#5b6cff"):
-    """渲染带强调色的分区标题胶囊，使交互区与描述文字明显区分。"""
+def _section_title(text: str, accent: str = "var(--acc1)"):
+    """渲染带强调色的分区标题胶囊，使交互区与描述文字明显区分。
+
+    强调色统一走设计令牌 var(--acc1)（品牌色），去彩虹、随暗/亮主题切换；
+    accent 参数保留仅作兼容，不再影响渲染。
+    """
     st.markdown(
-        f"<div style='display:inline-block;background:{accent};color:#fff;"
+        f"<div style='display:inline-block;background:var(--acc1);color:#fff;"
         f"padding:4px 12px;border-radius:8px;font-weight:600;font-size:14px;"
         f"margin-bottom:2px;'>{text}</div>", unsafe_allow_html=True)
 
