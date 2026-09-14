@@ -555,7 +555,7 @@ _NAV_HERO = [('pages/54_今日决策面板.py', '今日决策面板', '🎯')]
 # 后续可升级为基于 session_state 访问频率的动态 Top5（需 hook 跳转计数，暂用静态推荐）。
 _NAV_FAVORITES = [
     ('pages/10_行情看板.py', '行情看板', '📺'),
-    ('pages/20_个股分析.py', '个股分析', '📊'),
+    ('pages/24_个股研究.py', '个股研究', '🔬'),
     ('pages/45_持仓中心.py', '持仓中心', '🏦'),
     ('pages/30_策略回测.py', '策略回测', '⚙️'),
     ('pages/32_智能选股.py', '智能选股', '🤖'),
@@ -695,9 +695,9 @@ _NAV_GROUPS = [
     ]),
     ('🔎 个股研究', [
         (None, [
+            # 11_股票选取 / 20_个股分析 已由 24_个股研究 内嵌（radio 子视图：快速选取 / 深度分析），
+            # 不再并列登记 —— 三者看起来是同一件事，重复入口才是「乱」的根源。
             ('pages/24_个股研究.py', '个股研究', '🔬'),
-            ('pages/11_股票选取.py', '股票选取', '🔍', 'sub'),
-            ('pages/20_个股分析.py', '个股分析', '📊', 'sub'),
             ('pages/21_多股对比.py', '多股对比', '⚖️'),
             ('pages/22_基本面分析.py', '基本面分析', '🏛️'),
         ]),
@@ -714,10 +714,8 @@ _NAV_GROUPS = [
     ]),
     ('💼 持仓交易', [
         (None, [
+            # 46_自选股监控 / 40_仓位管理 / 41_组合收益 已由 45_持仓中心 内嵌（radio 子视图），不再并列登记。
             ('pages/45_持仓中心.py', '持仓中心', '🏦'),
-            ('pages/40_仓位管理.py', '仓位管理', '🗂️', 'sub'),
-            ('pages/41_组合收益.py', '组合收益', '💹', 'sub'),
-            ('pages/46_自选股监控.py', '自选股监控', '⭐', 'sub'),
             ('pages/43_实盘交易.py', '实盘交易', '💰'),
             ('pages/42_模拟交易.py', '模拟交易', '🎮'),
         ]),
@@ -1002,6 +1000,17 @@ def render_sidebar_nav() -> None:
             st.markdown('### 🧭 导航')
             # 版本指纹：用户刷新后能立即看到 SHA 变化，确认新代码已加载（避免『页面没变』误判）
             st.caption(f'🏷️ v{_GIT_SHA}  ·  Ctrl+Shift+R 强刷看新效果')
+            # 🏠 首页常驻置顶：应用第一落点，任何页面都能一键回首页（原先埋在侧边栏最底部，等于不可见）
+            _home_active = bool(_cur_base) and _cur_base == 'app.py'
+            if _home_active:
+                st.markdown('<div class="ss-nav-active">▶ 🏠 首页</div>', unsafe_allow_html=True)
+            else:
+                try:
+                    st.page_link('app.py', label='🏠 首页', icon='🏠')
+                except Exception as e:
+                    logger.warning(f"[widgets] 处理异常: {e}")
+                    if st.button('🏠 首页', key='navbtn_home', width="stretch"):
+                        safe_switch_page('app.py')
             # 搜索框实验：实时过滤分组；空关键字=显示全部；忽略大小写、子串匹配 label/path
             _kw = st.text_input(
                 '🔍 命令面板',
@@ -1069,12 +1078,6 @@ def render_sidebar_nav() -> None:
                             logger.warning(f"[widgets] 处理异常: {e}")
                             pass
                         safe_switch_page('pages/20_个股分析.py')
-            st.markdown('---')
-            try:
-                st.page_link('app.py', label='🏠 首页', icon='🏠')
-            except Exception as e:
-                logger.warning(f"[widgets] 处理异常: {e}")
-                pass
     except Exception as e:
         with st.sidebar:
             xc_handle_error("导航渲染失败", e, hint="请稍后重试")

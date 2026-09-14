@@ -27,21 +27,31 @@ def test_decision_panel_in_nav():
     assert 'pages/54_今日决策面板.py' in paths
 
 
-def test_missing_key_pages_now_present():
-    """原缺失的关键页面已补入侧边栏：市场驱动力/智能选股/QuantAgent/仓位管理/组合收益/自选股监控/P1量化信号/个股分析/股票选取。"""
+def test_key_pages_present_and_absorbed_pages_deduped():
+    """导航既不能缺关键页，也不能重复登记已被「合并页」内嵌的子页。
+
+    沿革：这些页曾被补进侧边栏（当时确实无从进入）；后来 24_个股研究 / 45_持仓中心
+    把 11/20 与 46/40/41 内嵌为 radio 子视图 —— 此时再并列登记就是「同一件事三个入口」，
+    正是导航「乱/重叠」的根源。故守卫改为：关键页仍在，被吸收页只在合并页内部出现。
+    """
     paths = set(_all_nav_paths())
     for p in [
         'pages/15_市场驱动力.py',
         'pages/32_智能选股.py',
         'pages/25_QuantAgent投研.py',
+        'pages/55_P1量化信号.py',
+        'pages/24_个股研究.py',
+        'pages/45_持仓中心.py',
+    ]:
+        assert p in paths, f"{p} 未出现在侧边栏导航"
+    for p in [
+        'pages/11_股票选取.py',
+        'pages/20_个股分析.py',
         'pages/40_仓位管理.py',
         'pages/41_组合收益.py',
         'pages/46_自选股监控.py',
-        'pages/55_P1量化信号.py',
-        'pages/20_个股分析.py',
-        'pages/11_股票选取.py',
     ]:
-        assert p in paths, f"{p} 未出现在侧边栏导航"
+        assert p not in paths, f"{p} 已被合并页内嵌，不应再单独登记导航项"
 
 
 def test_nav_label_lookup():
@@ -94,20 +104,29 @@ def test_hero_is_decision_panel():
     assert w._NAV_HERO[0][1] == '今日决策面板'
 
 
-def test_sub_item_hierarchy():
-    """合并页子项以 4 元组 sub 标记：11/20 是『个股研究』子项，40/41/46 是『持仓交易』子项。"""
-    _subs_by_top = {}
-    for _top, _clusters in w._NAV_GROUPS:
-        for _sub, _items in _clusters:
-            for _it in _items:
-                if len(_it) >= 4 and _it[3] == 'sub':
-                    _subs_by_top.setdefault(_top, []).append(_it[0].split('/')[-1])
-    _g_indiv = [g for g, _ in w._NAV_GROUPS if '个股研究' in g][0]
-    assert '11_股票选取.py' in _subs_by_top.get(_g_indiv, [])
-    assert '20_个股分析.py' in _subs_by_top.get(_g_indiv, [])
-    _g_hold = [g for g, _ in w._NAV_GROUPS if '持仓交易' in g][0]
-    for _p in ['40_仓位管理.py', '41_组合收益.py', '46_自选股监控.py']:
-        assert _p in _subs_by_top.get(_g_hold, []), f"{_p} 应标记为持仓交易子项"
+def test_no_sub_markers_and_hubs_absorb_subpages():
+    """侧边栏已无 sub 叠层；可达性改由「合并页真的内嵌了被吸收子页」这份代码事实保证。
+
+    这是比「子页也登记一份」更强的守卫：既不重复，也不丢可达性。
+    """
+    _subs = [
+        _it[0]
+        for _top, _clusters in w._NAV_GROUPS
+        for _sub, _items in _clusters
+        for _it in _items
+        if len(_it) >= 4 and _it[3] == 'sub'
+    ]
+    assert not _subs, f"已并入合并页的重叠页不应再以 sub 标记并列: {_subs}"
+
+    _pages = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'pages')
+    with open(os.path.join(_pages, '24_个股研究.py'), encoding='utf-8') as _f:
+        _hub24 = _f.read()
+    with open(os.path.join(_pages, '45_持仓中心.py'), encoding='utf-8') as _f:
+        _hub45 = _f.read()
+    for _p in ('11_股票选取.py', '20_个股分析.py'):
+        assert _p in _hub24, f"24_个股研究 必须内嵌 {_p}（否则该页从导航不可达）"
+    for _p in ('46_自选股监控.py', '40_仓位管理.py', '41_组合收益.py'):
+        assert _p in _hub45, f"45_持仓中心 必须内嵌 {_p}（否则该页从导航不可达）"
 
 
 def test_icon_global_uniqueness():
@@ -164,7 +183,7 @@ def test_hold_group_split_reduces_oversized():
         if '工具与社区' in _top:
             for _sub, _items in _clusters:
                 _counts[_sub] = len(_items)
-    assert 4 <= _counts['持仓交易'] <= 6, f"持仓交易应 4–6 项，实际 {_counts['持仓交易']}"
+    assert 2 <= _counts['持仓交易'] <= 6, f"持仓交易应 2–6 项，实际 {_counts['持仓交易']}"
     assert 4 <= _counts.get('工具', 0) <= 6, f"工具子簇应 4–6 项，实际 {_counts.get('工具')}"
     assert 4 <= _counts.get('社区与AI', 0) <= 6, f"社区与AI子簇应 4–6 项，实际 {_counts.get('社区与AI')}"
 
@@ -271,3 +290,20 @@ def test_nav_active_css_obvious_and_theme_aware():
     # 主题自适应：暗色金色描边 + 微光，亮色橙色高对比描边
     assert "#FFD166" in dark and "#FF8C00" in light
     assert dark != light
+
+
+def test_home_entry_pinned_above_groups():
+    """🏠 首页入口必须置顶（先于分组导航渲染）。
+
+    回归锁定：首页链接原先写在侧边栏**最底部**，等于不可见，用户进任一分页后
+    找不到回首页的路（原生 stSidebarNav 已被 display:none 隐藏）。
+    """
+    _src_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'modules', 'widgets.py'
+    )
+    with open(_src_path, encoding='utf-8') as _f:
+        _src = _f.read()
+    assert _src.count("label='🏠 首页'") == 1, "首页入口应恰好出现一次（不得重复登记）"
+    assert _src.index("label='🏠 首页'") < _src.index(
+        "for _i, (top_label, clusters) in enumerate(_NAV_GROUPS)"
+    ), "首页入口必须渲染在分组导航之前（置顶）"

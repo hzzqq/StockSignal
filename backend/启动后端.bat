@@ -3,34 +3,34 @@ rem Run by double-click or cmd.exe only -- do NOT run from Git Bash / MSYS.
 rem In cmd, ">nul" is the null device, but Git Bash treats it as a filename and
 rem creates an undeletable 0-byte "nul" file (Windows reserved device name).
 chcp 936 >nul 2>&1
-title StockSignal åç«¯å¯åŠ¨
+title StockSignal ºó¶ËÆô¶¯
 setlocal EnableExtensions
 
-:: é¡¹ç›®æ ¹ç›®å½•ï¼ˆæœ¬æ–‡ä»¶åœ¨ backend/ ä¸‹ï¼Œä¸Šä¸€çº§å³é¡¹ç›®æ ¹ï¼‰
+:: ÏîÄ¿¸ùÄ¿Â¼£¨±¾ÎÄ¼şÔÚ backend/ ÏÂ£¬ÉÏÒ»¼¶¼´ÏîÄ¿¸ù£©
 set "PROJECT_DIR=%~dp0.."
 cd /d "%PROJECT_DIR%"
 
-:: â”€â”€ Python æŸ¥æ‰¾ç­–ç•¥ï¼ˆæŒ‰ä¼˜å…ˆçº§ï¼Œæ‰¾åˆ°å³ç”¨ï¼‰â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-:: â‘  é¡¹ç›®æœ¬åœ° venv
+:: ©¤©¤ Python ²éÕÒ²ßÂÔ£¨°´ÓÅÏÈ¼¶£¬ÕÒµ½¼´ÓÃ£©©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤
+:: ¢Ù ÏîÄ¿±¾µØ venv
 set "PY=%PROJECT_DIR%\venv\Scripts\python.exe"
 if exist "%PY%" goto :found
 
-:: â‘¡ å½“å‰ç”¨æˆ·çš„ workbuddy managed venvï¼ˆåŠ¨æ€å–ç”¨æˆ·åï¼Œä¸ç¡¬ç¼–ç ï¼‰
+:: ¢Ú µ±Ç°ÓÃ»§µÄ workbuddy managed venv£¨¶¯Ì¬È¡ÓÃ»§Ãû£¬²»Ó²±àÂë£©
 set "PY=%USERPROFILE%\.workbuddy\binaries\python\envs\default\Scripts\python.exe"
 if exist "%PY%" goto :found
 
-:: â‘¢ ç³»ç»Ÿ PATH é‡Œçš„ python
+:: ¢Û ÏµÍ³ PATH ÀïµÄ python
 for %%p in (python.exe) do set "PY=%%~$PATH:p"
 if defined PY if exist "%PY%" goto :found
 
-:: å…¨éƒ¨å¤±è´¥
-echo [é”™è¯¯] æ‰¾ä¸åˆ°å¯ç”¨çš„ Pythonï¼ˆvenv / managed venv / PATHï¼‰ã€‚
-echo è¯·ç¡®è®¤å·²å®‰è£… Python æˆ–åœ¨æœ¬é¡¹ç›®ç›®å½•ä¸‹åˆ›å»º venvã€‚
+:: È«²¿Ê§°Ü
+echo [´íÎó] ÕÒ²»µ½¿ÉÓÃµÄ Python£¨venv / managed venv / PATH£©¡£
+echo ÇëÈ·ÈÏÒÑ°²×° Python »òÔÚ±¾ÏîÄ¿Ä¿Â¼ÏÂ´´½¨ venv¡£
 pause
 exit /b 1
 
 :found
-echo ä½¿ç”¨è§£é‡Šå™¨: %PY%
-echo å¯åŠ¨ StockSignal åç«¯ï¼ˆCtrl+C åœæ­¢ï¼‰...
+echo Ê¹ÓÃ½âÊÍÆ÷: %PY%
+echo Æô¶¯ StockSignal ºó¶Ë£¨Ctrl+C Í£Ö¹£©...
 "%PY%" backend/run.py %*
 exit /b %ERRORLEVEL%
