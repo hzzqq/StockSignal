@@ -146,6 +146,10 @@ _KIT_CSS = r"""
 .xc-card .delta.up{color:#ff4d4f}
 .xc-card .delta.down{color:#00d486}
 .xc-card .delta.flat{color:var(--txt2,#64748b)}
+/* KPI 主数值语义色（A 股红涨绿跌；flat 用主文本色） */
+.xc-card .value.up{color:#ff4d4f}
+.xc-card .value.down{color:#00d486}
+.xc-card .value.flat{color:var(--txt,#1e293b)}
 .xc-card .meta{font-size:11px;color:var(--txt2,#64748b);line-height:1.55;margin-top:4px}
 .xc-card .meta .up{color:#ff4d4f}
 .xc-card .meta .down{color:#00d486}
@@ -267,20 +271,40 @@ def _info_banner_html(text: str, kind: str = "info", icon: str = "💡") -> str:
     )
 
 
-def _stat_tile_html(label: str, value: str, delta: str = "", delta_dir: str = "flat",
-                    accent: str = None) -> str:
+def _xc_card_html(label: str = "", value: str = "", delta: str = "", delta_dir: str = "flat",
+                  accent: str = None, icon: str = "", sub: str = "", meta: str = "",
+                  tone: str = None) -> str:
+    """新城(xc)风格 KPI 卡片 HTML（全站 canonical Bento 卡；纯函数，便于离线单测 / XSS 校验）。
+
+    - ``delta_dir``：up/down/flat —— A 股红涨绿跌（up=红）。非法值回落 flat。
+    - ``tone``：可选，给主数值着 A 股语义色（up=红 / down=绿 / flat=主文本色）。
+    - ``accent``：可选，卡片顶部强调边颜色（向后兼容旧 stat_tile 的 accent 参数）。
+    - 文本一律 html.escape，None/空安全，绝不抛异常。
+    """
     label = "" if label is None else str(label)
     value = "" if value is None else str(value)
-    delta = delta or ""
+    delta = "" if delta is None else str(delta)
     delta_dir = delta_dir if delta_dir in ("up", "down", "flat") else "flat"
-    accent = html.escape(accent, quote=True) if accent else "var(--ss-acc1)"
+    icon = "" if icon is None else str(icon)
+    sub = "" if sub is None else str(sub)
+    meta = "" if meta is None else str(meta)
+    tone_cls = f" {tone}" if tone in ("up", "down", "flat") else ""
+    style = f' style="border-top:3px solid {html.escape(accent, quote=True)}"' if accent else ""
+    top = ""
+    if icon or sub or label:
+        ico = f'<div class="ico">{html.escape(icon)}</div>' if icon else ""
+        sub_html = f'<div class="csub">{html.escape(sub)}</div>' if sub else ""
+        top = f'<div class="ctop">{ico}<div><div class="cname">{html.escape(label)}</div>{sub_html}</div></div>'
+    value_html = f'<div class="value{tone_cls}">{html.escape(value)}</div>'
     delta_html = f'<div class="delta {delta_dir}">{html.escape(delta)}</div>' if delta else ""
-    return (
-        f'<div class="ss-stat" style="border-top:3px solid {accent}">'
-        f'<div class="label">{html.escape(label)}</div>'
-        f'<div class="value">{html.escape(value)}</div>'
-        f'{delta_html}</div>'
-    )
+    meta_html = f'<div class="meta">{html.escape(meta)}</div>' if meta else ""
+    return f'<div class="xc-card"{style}>{top}{value_html}{delta_html}{meta_html}</div>'
+
+
+def _stat_tile_html(label: str, value: str, delta: str = "", delta_dir: str = "flat",
+                    accent: str = None) -> str:
+    """兼容层：旧指标瓦片 → 统一渲染为 .xc-card（全站单一 KPI 卡视觉，消除 .ss-stat 重复）。"""
+    return _xc_card_html(label=label, value=value, delta=delta, delta_dir=delta_dir, accent=accent)
 
 
 def _chart_card_html(title: str, body_html: str) -> str:
@@ -436,22 +460,61 @@ def info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
 
 def stat_tile(label: str, value: str, delta: str = "", delta_dir: str = "flat",
               accent: str = None) -> None:
-    """单个指标瓦片。delta_dir: up/down/flat（A股红涨绿跌，up=红）。"""
+    """单个指标瓦片（.xc-card 视觉）。delta_dir: up/down/flat（A股红涨绿跌，up=红）。"""
     inject_kit_css()
     st.markdown(_stat_tile_html(label, value, delta, delta_dir, accent), unsafe_allow_html=True)
 
 
-def stat_row(tiles: list) -> None:
-    """一行多瓦片（自适应换行）。tiles: list of dict(label,value,delta,delta_dir,accent)。"""
+def xc_kpi_grid(cards, min_col: int = 168) -> None:
+    """把一组 KPI 指标渲染成新城(xc)风格自适应卡片网格 —— 全站 canonical「Bento 样板」。
+
+    统一入口：替代各页 ``st.columns(N) + st.metric(...)`` 的散装指标条，好处有三：
+    ① 自适应列数（响应式，窄屏自动折行）；② 主数值 / delta 走 A 股红涨绿跌语义色
+    （``st.metric`` 默认是「涨绿跌红」，与 A 股相反）；③ 与全站 ``.xc-card`` 视觉一致。
+
+    Args:
+        cards: list[dict]（或单个 dict），每项键（除 label/value 外均可选）：
+            - label     : 主标签
+            - value     : 主数值（字符串，调用方自行格式化）
+            - icon      : 图标 emoji
+            - sub       : 图标旁小字副标题
+            - delta     : 变化文本（如 "+1.23%"）
+            - delta_dir : 'up'|'down'|'flat' —— delta 的 A 股语义色
+            - tone      : 'up'|'down'|'flat' —— 主数值的语义色（可选）
+            - accent    : 卡片顶部强调边颜色（可选）
+            - meta      : 底部小字补充说明（可选）
+        min_col: 单卡最小宽度（px），决定一行放几张；默认 168。
+
+    纯 HTML 渲染（不走 st.columns），故任意数量卡片均可自适应排列。
+    """
     inject_kit_css()
-    cells = "".join(
-        _stat_tile_html(
-            t.get("label", ""), t.get("value", ""), t.get("delta", ""),
-            t.get("delta_dir", "flat"), t.get("accent"),
-        )
-        for t in tiles
+    if not cards:
+        return
+    if isinstance(cards, dict):
+        cards = [cards]
+    cells = []
+    for c in cards:
+        if not isinstance(c, dict):
+            continue
+        cells.append(_xc_card_html(
+            label=c.get("label"), value=c.get("value"),
+            delta=c.get("delta", ""), delta_dir=c.get("delta_dir", "flat"),
+            accent=c.get("accent"), icon=c.get("icon", ""),
+            sub=c.get("sub", ""), meta=c.get("meta", ""), tone=c.get("tone"),
+        ))
+    if not cells:
+        return
+    st.markdown(
+        f'<div class="xc-grid" style="grid-template-columns:repeat(auto-fit,minmax({int(min_col)}px,1fr))">'
+        f'{"".join(cells)}</div>',
+        unsafe_allow_html=True,
     )
-    st.markdown(f'<div class="ss-stat-row">{cells}</div>', unsafe_allow_html=True)
+
+
+def stat_row(tiles: list) -> None:
+    """一行多瓦片（自适应换行）。tiles: list of dict(label,value,delta,delta_dir,accent)。
+    与 xc_kpi_grid 共用同一 .xc-card 视觉（全站统一 KPI 卡，消除 .ss-stat 重复视觉）。"""
+    xc_kpi_grid(tiles)
 
 
 def chart_card(title: str, body_html: str) -> None:

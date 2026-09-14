@@ -32,7 +32,7 @@ from modules.linear_trends import (
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fig_layout, _section_title, _fmt_yi, _trend_controls
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_kpi_grid
 st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
@@ -159,9 +159,17 @@ def _build_market_main_fig(df, dark):
 
 
 # ───────────────────────── 北向资金 ─────────────────────────
+def _flow_tone(v):
+    """资金净额 → A 股语义色方向（正=红 up / 负=绿 down / 无=flat）。"""
+    try:
+        return "up" if float(v) >= 0 else "down"
+    except (TypeError, ValueError):
+        return "flat"
+
+
 @safe_fragment("北向资金")
 def fragment_northbound():
-    _section_title("🧭 北向资金（沪股通 / 深股通）", accent="#7c5cff")
+    _section_title("🧭 北向资金（沪股通 / 深股通）")
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="nb_auto")
     try:
@@ -176,40 +184,32 @@ def fragment_northbound():
     sh = nb.get("sh_inflow")
     sz = nb.get("sz_inflow")
     avail = nb.get("northbound_net_available")
-    cols = st.columns(4)
     if avail:
-        with cols[0]:
-            st.metric("北向净流入(实时)", _fmt_yi(total) if total is not None else "—",
-                      help="沪股通 + 深股通 当日资金净流入合计")
-        with cols[1]:
-            st.metric("沪股通(实时)", _fmt_yi(sh) if sh is not None else "—")
-        with cols[2]:
-            st.metric("深股通(实时)", _fmt_yi(sz) if sz is not None else "—")
-        with cols[3]:
-            st.metric("交易日", nb.get("trade_date") or "—")
+        xc_kpi_grid([
+            {"label": "北向净流入(实时)", "value": _fmt_yi(total) if total is not None else "—",
+             "icon": "🧭", "tone": _flow_tone(total), "meta": "沪股通 + 深股通 当日净流入合计"},
+            {"label": "沪股通(实时)", "value": _fmt_yi(sh) if sh is not None else "—",
+             "icon": "🛰️", "tone": _flow_tone(sh)},
+            {"label": "深股通(实时)", "value": _fmt_yi(sz) if sz is not None else "—",
+             "icon": "🛰️", "tone": _flow_tone(sz)},
+            {"label": "交易日", "value": nb.get("trade_date") or "—", "icon": "🗓️"},
+        ])
     else:
         # 实时未披露：展示「最近一次真实披露」历史值与累计净买入，避免整块空白
-        with cols[0]:
-            st.metric("北向净流入(最近真实披露)", _fmt_yi(nb.get("last_net_buy")),
-                      help=f"交易所自 2024-08-16 起停披露实时净买额，此为停披露前最后真实值"
-                           f"（{nb.get('last_net_buy_date') or '—'}）")
-        with cols[1]:
-            st.metric("历史累计净买入", _fmt_yi(nb.get("cumulative")),
-                      help=f"北向资金历史累计净买入（截至 {nb.get('cumulative_date') or '—'}）")
         sh_board = next((b for b in nb["boards"] if str(b.get("板块")) == "沪股通"), None)
         sz_board = next((b for b in nb["boards"] if str(b.get("板块")) == "深股通"), None)
-        with cols[2]:
-            if sh_board:
-                st.metric("沪股通 涨/跌家数", f"{sh_board.get('上涨数','—')}/{sh_board.get('下跌数','—')}",
-                          help="沪股通成分股实时涨跌家数（真实数据）")
-            else:
-                st.metric("沪股通", "—")
-        with cols[3]:
-            if sz_board:
-                st.metric("深股通 涨/跌家数", f"{sz_board.get('上涨数','—')}/{sz_board.get('下跌数','—')}",
-                          help="深股通成分股实时涨跌家数（真实数据）")
-            else:
-                st.metric("深股通", "—")
+        xc_kpi_grid([
+            {"label": "北向净流入(最近真实披露)", "value": _fmt_yi(nb.get("last_net_buy")),
+             "icon": "🧭", "meta": f"停披露前最后真实值 · {nb.get('last_net_buy_date') or '—'}"},
+            {"label": "历史累计净买入", "value": _fmt_yi(nb.get("cumulative")),
+             "icon": "Σ", "meta": f"截至 {nb.get('cumulative_date') or '—'}"},
+            {"label": "沪股通 涨/跌家数",
+             "value": (f"{sh_board.get('上涨数','—')}/{sh_board.get('下跌数','—')}" if sh_board else "—"),
+             "icon": "📈", "meta": "成分股实时涨跌家数"},
+            {"label": "深股通 涨/跌家数",
+             "value": (f"{sz_board.get('上涨数','—')}/{sz_board.get('下跌数','—')}" if sz_board else "—"),
+             "icon": "📉", "meta": "成分股实时涨跌家数"},
+        ])
     detail = []
     for b in nb["boards"]:
         detail.append({
@@ -257,7 +257,7 @@ def fragment_northbound():
 # ───────────────────────── 行业板块资金流向 ─────────────────────────
 @safe_fragment("行业板块资金流向")
 def fragment_industry():
-    _section_title("🏭 行业板块资金流向", accent="#2b8aef")
+    _section_title("🏭 行业板块资金流向")
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="ind_auto")
     try:
@@ -281,15 +281,16 @@ def fragment_industry():
     d2 = df.dropna(subset=["净额"])
     if not d2.empty:
         top_in, top_out = d2.iloc[0], d2.iloc[-1]
-        oc1, oc2, oc3, oc4 = st.columns(4)
-        with oc1:
-            st.metric("最强净流入", f"{top_in['行业']}", help=f"净额 {top_in['净额']:.2f} 亿（红=流入）")
-        with oc2:
-            st.metric("最强净流出", f"{top_out['行业']}", help=f"净额 {top_out['净额']:.2f} 亿（绿=流出）")
-        with oc3:
-            st.metric("净流入行业", f"{int((d2['净额'] > 0).sum())}", help="净额为正（红）的行业数")
-        with oc4:
-            st.metric("净流出行业", f"{int((d2['净额'] < 0).sum())}", help="净额为负（绿）的行业数")
+        xc_kpi_grid([
+            {"label": "最强净流入", "value": f"{top_in['行业']}", "icon": "📥",
+             "delta": f"{top_in['净额']:+.2f} 亿", "delta_dir": "up", "meta": "红=主力净流入"},
+            {"label": "最强净流出", "value": f"{top_out['行业']}", "icon": "📤",
+             "delta": f"{top_out['净额']:+.2f} 亿", "delta_dir": "down", "meta": "绿=主力净流出"},
+            {"label": "净流入行业", "value": f"{int((d2['净额'] > 0).sum())}", "icon": "📈",
+             "meta": "净额为正（红）的行业数"},
+            {"label": "净流出行业", "value": f"{int((d2['净额'] < 0).sum())}", "icon": "📉",
+             "meta": "净额为负（绿）的行业数"},
+        ])
         st.caption("📌 概览：红=主力净流入行业，绿=净流出行业；逐日资金流以 industry_fund_flow 为准。")
     else:
         info_banner("行业净流入概览暂不可用：当前行业资金流净额数据为空（网络/代理受限或数据源暂未接入）。")
@@ -315,7 +316,7 @@ def fragment_industry():
 # ───────────────────────── 大盘主力资金净流入 ─────────────────────────
 @safe_fragment("大盘主力资金")
 def fragment_market():
-    _section_title("📈 大盘主力资金净流入（近 30 日）", accent="#10b981")
+    _section_title("📈 大盘主力资金净流入（近 30 日）")
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="mkt_auto")
     try:
@@ -367,7 +368,7 @@ def fragment_market():
 # ───────────────────────── 融资融券趋势（融资买入额 & 融资余额） ─────────────────────────
 @safe_fragment("融资融券趋势")
 def fragment_margin_trading():
-    _section_title("📊 融资融券趋势（融资买入额 & 三大指数）", accent="#f59e0b")
+    _section_title("📊 融资融券趋势（融资买入额 & 三大指数）")
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="margin_auto")
 
@@ -419,7 +420,7 @@ def fragment_margin_trading():
 # ───────────────────────── 个股主力资金 ─────────────────────────
 @safe_fragment("个股主力资金")
 def fragment_individual():
-    _section_title("🔍 个股主力资金动向", accent="#ef5da8")
+    _section_title("🔍 个股主力资金动向")
     code = stock_search_input(
         label="选择股票",
         key="ff_stock",
@@ -490,7 +491,7 @@ def fragment_individual():
 # ───────────────────────── 三大指数走势对比（线性表达） ─────────────────────────
 @safe_fragment("指数走势对比")
 def fragment_index_trend():
-    _section_title("📊 三大指数走势对比（归一化）", accent="#2b8aef")
+    _section_title("📊 三大指数走势对比（归一化）")
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="idx_auto")
     try:
@@ -511,7 +512,7 @@ def fragment_index_trend():
 # ───────────────────────── 行业板块指数价格趋势（线性表达） ─────────────────────────
 @safe_fragment("行业指数走势")
 def fragment_industry_trend():
-    _section_title("🏭 行业板块指数走势对比（归一化）", accent="#2b8aef")
+    _section_title("🏭 行业板块指数走势对比（归一化）")
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="indt_auto")
     try:
@@ -562,7 +563,7 @@ def fragment_industry_trend():
 # ───────────────────────── ETF 价格趋势（线性表达） ─────────────────────────
 @safe_fragment("ETF 价格走势")
 def fragment_etf_trend():
-    _section_title("🧩 ETF 价格走势对比（归一化）", accent="#16c2c2")
+    _section_title("🧩 ETF 价格走势对比（归一化）")
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, limit=200, key="etf_auto")
     try:

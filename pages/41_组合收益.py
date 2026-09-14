@@ -17,7 +17,7 @@ from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN, _fig_layout, _section_title
 from modules.chart_cache import cached_fig
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_kpi_grid
 st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
@@ -164,7 +164,7 @@ def _build_attribution_fig(top, dark):
 # ───────────────────────── 主体 ─────────────────────────
 @safe_fragment
 def fragment_portfolio():
-    _section_title("💼 组合净值与基准对比", accent="#2b8aef")
+    _section_title("💼 组合净值与基准对比")
     if st_autorefresh is not None:
         st_autorefresh(interval=300000, limit=100, key="pf_auto")
 
@@ -187,18 +187,19 @@ def fragment_portfolio():
 
     total_ret = float(pidx.iloc[-1] - 100)
     mdd = _max_drawdown(pidx)
-    cols = st.columns(4)
-    with cols[0]:
-        st.metric("组合累计收益", f"{total_ret:+.2f}%")
-    with cols[1]:
-        st.metric("最大回撤", f"{mdd:.2f}%")
-    with cols[2]:
-        bench_ret = float(bench.iloc[-1] - 100) if bench is not None and len(bench) else None
-        st.metric("沪深300基准", f"{bench_ret:+.2f}%" if bench_ret is not None else "—",
-                  delta=f"{total_ret - bench_ret:+.2f}%" if bench_ret is not None else None,
-                  help="组合收益 − 基准收益（超额收益）")
-    with cols[3]:
-        st.metric("区间起始", start_str)
+    bench_ret = float(bench.iloc[-1] - 100) if bench is not None and len(bench) else None
+    xc_kpi_grid([
+        {"label": "组合累计收益", "value": f"{total_ret:+.2f}%", "icon": "📈",
+         "tone": "up" if total_ret >= 0 else "down", "meta": "净值起点 = 100"},
+        {"label": "最大回撤", "value": f"{mdd:.2f}%", "icon": "📉",
+         "tone": "down" if mdd < 0 else "flat", "meta": "区间峰值回落"},
+        {"label": "沪深300基准", "value": f"{bench_ret:+.2f}%" if bench_ret is not None else "—",
+         "icon": "🧭",
+         "delta": (f"超额 {total_ret - bench_ret:+.2f}%" if bench_ret is not None else ""),
+         "delta_dir": ("up" if (bench_ret is not None and total_ret - bench_ret >= 0) else "down"),
+         "meta": "组合收益 − 基准收益"},
+        {"label": "区间起始", "value": str(start_str), "icon": "🗓️"},
+    ])
 
     if bench is None:
         st.caption("ℹ️ 沪深300基准暂未展示：未能获取足够历史行情（区间可能过短或接口受限），"
@@ -223,23 +224,24 @@ def fragment_portfolio():
 
 
 def _show_pnl_snapshot():
-    _section_title("💰 当前盈亏快照", accent="#10b981")
+    _section_title("💰 当前盈亏快照")
     # 加法式字段级兜底：summary() 因版本差异可能缺失个别键，用 .get 降级为 0，
     # 避免单键缺失导致整块盈亏快照崩溃（外层虽有 try，但部分数据仍应可见）。
     s = pm.summary() or {}
-    cols = st.columns(4)
-    with cols[0]:
-        st.metric("持仓成本", f"{s.get('total_cost', 0):,.0f}")
-    with cols[1]:
-        st.metric("市值", f"{s.get('total_market_value', 0):,.0f}")
-    with cols[2]:
-        st.metric("浮动盈亏", f"{s.get('total_pnl', 0):,.0f}", delta=f"{s.get('total_pnl_pct', 0):+.2f}%")
-    with cols[3]:
-        st.metric("持仓数", f"{s.get('position_count', 0)}")
+    _pnl = s.get('total_pnl', 0)
+    _pnl_pct = s.get('total_pnl_pct', 0)
+    xc_kpi_grid([
+        {"label": "持仓成本", "value": f"{s.get('total_cost', 0):,.0f}", "icon": "🧾"},
+        {"label": "市值", "value": f"{s.get('total_market_value', 0):,.0f}", "icon": "💼"},
+        {"label": "浮动盈亏", "value": f"{_pnl:,.0f}", "icon": "📊",
+         "tone": "up" if _pnl >= 0 else "down",
+         "delta": f"{_pnl_pct:+.2f}%", "delta_dir": "up" if _pnl_pct >= 0 else "down"},
+        {"label": "持仓数", "value": f"{s.get('position_count', 0)}", "icon": "🔢"},
+    ])
 
 
 def _show_attribution():
-    _section_title("🥧 个股收益贡献", accent="#ef5da8")
+    _section_title("🥧 个股收益贡献")
     attr = pm.pnl_attribution()
     if attr is None or attr.empty:
         _empty_info("暂无收益贡献数据。")

@@ -40,7 +40,7 @@ from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.colors import _hex_to_rgba
 from modules.chart_cache import cached_fig
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_kpi_grid
 st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
@@ -336,7 +336,7 @@ def _load_drivers(days: int = 180):
 # ───────────────────────── 各区块（@safe_fragment 错误边界） ─────────────────────────
 @safe_fragment("市场温度计")
 def fragment_thermometer():
-    _section_title("🌡️ 综合市场温度（广度+情绪+估值多空加权）", accent="#f59e0b")
+    _section_title("🌡️ 综合市场温度（广度+情绪+估值多空加权）")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="mt_auto")
     try:
@@ -368,7 +368,7 @@ def fragment_thermometer():
 
 @safe_fragment("市场广度")
 def fragment_breadth():
-    _section_title("📏 市场广度（涨跌家数透视）", accent="#ee2a2a")
+    _section_title("📏 市场广度（涨跌家数透视）")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="br_auto")
     try:
@@ -389,7 +389,7 @@ def fragment_breadth():
 
 @safe_fragment("市场情绪")
 def fragment_sentiment():
-    _section_title("🔥 市场情绪（恐慌/贪婪信号）", accent="#7c5cff")
+    _section_title("🔥 市场情绪（恐慌/贪婪信号）")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="se_auto")
     try:
@@ -410,7 +410,7 @@ def fragment_sentiment():
 
 @safe_fragment("市场估值")
 def fragment_valuation():
-    _section_title("💎 估值温度计（PE 百分位 / 股息率）", accent="#2b8aef")
+    _section_title("💎 估值温度计（PE 百分位 / 股息率）")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=60000, limit=200, key="va_auto")
     try:
@@ -671,7 +671,7 @@ def _build_shepherd_chart(d, dark):
 
 @safe_fragment("牧羊人指标卡")
 def fragment_shepherd():
-    _section_title("🐑 牧羊人指标（股海牧羊人·情绪温度计）", accent="#f59e0b")
+    _section_title("🐑 牧羊人指标（股海牧羊人·情绪温度计）")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=120000, limit=120, key="shep_auto")
     try:
@@ -702,7 +702,7 @@ def fragment_shepherd():
 
 @safe_fragment("牧羊人复盘方法论")
 def fragment_shepherd_review():
-    _section_title("📋 复盘方法论指标（视频《如何复盘非常重要》新增）", accent="#7c5cff")
+    _section_title("📋 复盘方法论指标（视频《如何复盘非常重要》新增）")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=120000, limit=120, key="shep_rev_auto")
     try:
@@ -796,7 +796,7 @@ def fragment_shepherd_review():
 
 @safe_fragment("牧羊人折线图")
 def fragment_shepherd_chart():
-    _section_title("📈 牧羊人指标折线图（真实历史序列）", accent="#7c5cff")
+    _section_title("📈 牧羊人指标折线图（真实历史序列）")
     range_opts = {
         "全部（2007 起）": 999999,
         "近 5 年（1250 交易日）": 1250,
@@ -906,7 +906,7 @@ def _row_to_indicators(df, i=-1):
 @safe_fragment("次日走势预判")
 def fragment_shepherd_forecast():
     """「用今日指标判断明天大概怎么走」——周期定位 + 评分 + 方向 + 情景 + 联动信号。"""
-    _section_title("🔮 次日走势预判（今日指标 → 明日大概率走向）", accent="#ee2a2a")
+    _section_title("🔮 次日走势预判（今日指标 → 明日大概率走向）")
     if st_autorefresh is not None and _in_trading_hours():
         st_autorefresh(interval=180000, limit=80, key="shep_fc_auto")
     try:
@@ -949,16 +949,14 @@ def fragment_shepherd_forecast():
         )
         if cyc.get("desc"):
             st.caption(cyc["desc"])
-        c1, c2, c3 = st.columns(3)
-        with c1:
+        xc_kpi_grid([
             # 口径诚实（2026-09-10 实证）：该评分与次日收益的秩相关 IC≈-0.03，
             # 1547 天检验无法超越基准率 —— 它只表征**当日情绪热度**，不预测方向。
-            st.metric("情绪热度（不预测方向）", f"{fc.get('score', 0):.0f} / 100")
-        with c2:
-            st.metric("方向判断（规则）", bias)
-        with c3:
-            st.metric("规则强度", f"{fc.get('confidence', 0)}%",
-                      help="启发式规则命中强度，非统计校准的胜率；方向的可信度请看下方极值信号层")
+            {"label": "情绪热度（不预测方向）", "value": f"{fc.get('score', 0):.0f} / 100", "icon": "🌡️"},
+            {"label": "方向判断（规则）", "value": bias, "icon": "🧭"},
+            {"label": "规则强度", "value": f"{fc.get('confidence', 0)}%", "icon": "📶",
+             "meta": "启发式规则命中强度，非统计校准胜率"},
+        ])
         for r in (cyc.get("reasons") or [])[:6]:
             st.markdown(f"- {r}")
 
@@ -1088,7 +1086,7 @@ def fragment_shepherd_forecast():
 @safe_fragment("情绪笔记")
 def fragment_shepherd_note():
     """每天记录一次情绪 + 回填次日实际 + 对过去的情绪做回测分析。"""
-    _section_title("📔 情绪笔记（每日情绪快照 + 历史情绪回测）", accent="#7c5cff")
+    _section_title("📔 情绪笔记（每日情绪快照 + 历史情绪回测）")
     if _FOCUS_NOTE:   # 首页跳转过来时高亮一次，帮助定位
         st.markdown(
             "<div style='border:2px solid #7c5cff;border-radius:10px;padding:8px 12px;"

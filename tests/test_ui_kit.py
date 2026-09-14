@@ -80,8 +80,30 @@ def test_chart_card_and_table_wrap():
 def test_module_imports_and_has_public_api():
     for name in ("inject_kit_css", "page_hero", "info_banner", "stat_tile",
                  "stat_row", "chart_card", "table_wrap", "xc_error_box",
-                 "xc_empty_box", "xc_section_header", "xc_subheader", "xc_info_banner"):
+                 "xc_empty_box", "xc_section_header", "xc_subheader", "xc_info_banner",
+                 "xc_kpi_grid"):
         assert hasattr(kit, name), f"missing public api: {name}"
+
+
+def test_xc_card_html_contract():
+    """全站 canonical KPI 卡（_xc_card_html）：A 股语义色 + 转义 + 可选字段 + 空安全。"""
+    out = kit._xc_card_html(label="组合收益", value="+3.2%", delta="+0.8%",
+                            delta_dir="up", icon="📈", meta="净值起点 = 100", tone="up")
+    assert 'class="xc-card"' in out                 # 统一卡容器
+    assert "value up" in out                        # 主数值语义色（up=红）
+    assert "delta up" in out                        # delta 沿用旧 stat_tile 契约
+    assert "组合收益" in out and "+3.2%" in out and "净值起点 = 100" in out
+    # 非法 delta_dir 回落 flat；非法 tone 不修饰 value
+    assert "delta flat" in kit._xc_card_html(label="x", value="1", delta="0", delta_dir="weird")
+    assert 'class="value"' in kit._xc_card_html(label="x", value="1", tone="bogus")
+    # accent 兼容旧 stat_tile（顶部强调边）+ XSS 转义
+    esc = kit._xc_card_html(label="<b>l</b>", value="<i>v</i>", accent="#ff0000")
+    assert "&lt;b&gt;l&lt;/b&gt;" in esc and "&lt;i&gt;v&lt;/i&gt;" in esc
+    assert "border-top:3px solid #ff0000" in esc
+    # None/空安全：绝不抛异常
+    assert 'class="xc-card"' in kit._xc_card_html()
+    # 旧 _stat_tile_html 必须复用同一 canonical 卡（消除 .ss-stat 重复视觉）
+    assert 'class="xc-card"' in kit._stat_tile_html("涨家数", "1200", "+3.2%", "up")
 
 
 def test_xc_error_box_renders_friendly_and_no_leak(monkeypatch):
