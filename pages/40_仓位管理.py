@@ -434,7 +434,7 @@ if not positions.empty:
                 st.metric('总市值', f"¥{summary.get('total_market_value', 0):,.2f}")
             with col3:
                 delta_pnl = summary.get('delta_pnl', 0)
-                st.metric('总盈亏', f"¥{summary.get('total_pnl', 0):,.2f}", delta=f"{summary.get('delta_pnl', 0):+.2f}" if abs(delta_pnl or 0) > 0.01 else None)
+                st.metric('总盈亏', f"¥{summary.get('total_pnl', 0):,.2f}", delta=f"{summary.get('delta_pnl', 0):+.2f}" if abs(delta_pnl or 0) > 0.01 else None, delta_color="inverse")
             with col4:
                 st.metric('总收益率', f"{summary.get('total_pnl_pct', 0):+.2f}%")
             st.caption('数据来源：东方财富 / 新浪财经（实时行情 + 日线兜底）。')

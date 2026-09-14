@@ -606,7 +606,7 @@ if code:
                 with sc1:
                     st.metric(f'{industry} 今日涨跌', f'{sector_chg:+.2f}%')
                 with sc2:
-                    st.metric('相对全市场平均', f'{delta:+.2f}%', delta=f'{delta:+.2f}%', help='当前行业涨跌幅减去全市场行业均值；>0 表示强于大盘')
+                    st.metric('相对全市场平均', f'{delta:+.2f}%', delta=f'{delta:+.2f}%', help='当前行业涨跌幅减去全市场行业均值；>0 表示强于大盘', delta_color="inverse")
         if has_theme:
             if has_horizontal:
                 st.markdown('---')

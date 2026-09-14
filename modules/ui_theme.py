@@ -454,16 +454,14 @@ def sf_card(title: str, body: str, icon: str = "") -> None:
 
 
 def sf_metric(label: str, value, delta: str = "") -> None:
-    """渲染星辰指标卡（.sf-metric-card）。数值/标签做 html.escape。"""
-    import html as _html
-    label = _html.escape(str(label))
-    value = _html.escape(str(value))
-    delta = _html.escape(str(delta)) if delta else ""
-    delta_html = f'<div style="font-size:12px;margin-top:4px;color:var(--txt2)">{delta}</div>' if delta else ""
+    """渲染指标卡 —— 已收敛到 ui_kit 的 canonical ``.xc-card``（全站单一 KPI 卡视觉）。
+
+    保留原签名（label/value/delta）以兼容既有调用点，视觉统一走 ``_xc_card_html``，
+    消除 ``.sf-metric-card`` 与 ``.xc-card`` 两套并存的重复。数值/标签均 html.escape。
+    """
+    from modules.ui_kit import _xc_card_html, inject_kit_css  # 惰性导入，规避循环依赖
+    inject_kit_css()
     st.markdown(
-        f'<div class="sf-metric-card">'
-        f'<div class="label">{label}</div>'
-        f'<div class="value">{value}</div>'
-        f'{delta_html}</div>',
+        _xc_card_html(label=label, value=value, delta=delta, delta_dir="flat"),
         unsafe_allow_html=True,
     )

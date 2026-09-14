@@ -486,7 +486,7 @@ try:
             # ⚠️ 兜底：change_pct 可能为 None（数据不足），f"{None:.2f}" 会抛 TypeError 致整块 K 线渲染失败
             _chg_pct = latest.get('change_pct')
             _chg_pct = 0.0 if _chg_pct is None else float(_chg_pct)
-            st.metric("最新收盘价", f"¥{latest_close:.2f}", delta=f"{_chg_pct:.2f}%")
+            st.metric("最新收盘价", f"¥{latest_close:.2f}", delta=f"{_chg_pct:.2f}%", delta_color="inverse")
         with col_info2:
             st.metric("区间最高", f"¥{df['high'].max():.2f}")
         with col_info3:
@@ -679,7 +679,7 @@ if data_ok and df is not None:
                 _r5 = rets.get("5日") or 0
                 _r20 = rets.get("20日") or 0
                 st.markdown(f"**{momentum.get('momentum_label', '—')}**")
-                st.metric("5日涨幅", f"{_r5:+.2f}%", delta=f"20日 {_r20:+.2f}%")
+                st.metric("5日涨幅", f"{_r5:+.2f}%", delta=f"20日 {_r20:+.2f}%", delta_color="inverse")
             else:
                 st.caption(momentum.get("error", "数据不足"))
         with c3:
@@ -689,7 +689,7 @@ if data_ok and df is not None:
                 ratio = volume_info.get("vol_ratio") or 1.0
                 _vol_chg_pct = volume_info.get("vol_change_pct") or 0
                 st.markdown(f"**{volume_info.get('volume_price_label', '—')}**")
-                st.metric("量比(今/5日均)", f"{ratio:.2f}x", delta=f"{_vol_chg_pct:+.1f}%")
+                st.metric("量比(今/5日均)", f"{ratio:.2f}x", delta=f"{_vol_chg_pct:+.1f}%", delta_color="inverse")
             else:
                 st.caption(volume_info.get("error", "数据不足"))
         with c4:

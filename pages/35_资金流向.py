@@ -395,10 +395,10 @@ def fragment_margin_trading():
     cols = st.columns(4)
     with cols[0]:
         st.metric("融资买入额(最新)", f"{summary.get('total_rzmr_yi'):.2f}亿" if summary.get('total_rzmr_yi') is not None else "—",
-                  delta=f"{summary.get('rzmr_change_yi'):+.2f}亿" if summary.get('rzmr_change_yi') is not None else None)
+                  delta=f"{summary.get('rzmr_change_yi'):+.2f}亿" if summary.get('rzmr_change_yi') is not None else None, delta_color="inverse")
     with cols[1]:
         st.metric("融资余额(最新)", f"{summary.get('total_rzye_yi'):.2f}亿" if summary.get('total_rzye_yi') is not None else "—",
-                  delta=f"{summary.get('rzye_change_yi'):+.2f}亿" if summary.get('rzye_change_yi') is not None else None)
+                  delta=f"{summary.get('rzye_change_yi'):+.2f}亿" if summary.get('rzye_change_yi') is not None else None, delta_color="inverse")
     with cols[2]:
         st.metric("沪市买入额", f"{summary.get('sh_rzmr_yi'):.2f}亿" if summary.get('sh_rzmr_yi') is not None else "—")
     with cols[3]:
@@ -454,7 +454,7 @@ def fragment_individual():
     is_estimate = r.get("source") == "estimate"
     with cols[0]:
         st.metric("主力净流入", _fmt_yi(r.get("main_net")),
-                  delta=f"{r.get('main_net_pct')}% 净占比" if r.get("main_net_pct") is not None else None)
+                  delta=f"{r.get('main_net_pct')}% 净占比" if r.get("main_net_pct") is not None else None, delta_color="inverse")
     with cols[1]:
         st.metric("超大单净流入" + ("(估算)" if is_estimate else ""), _fmt_yi(r.get("super_net")))
     with cols[2]:

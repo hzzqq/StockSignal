@@ -211,7 +211,7 @@ def fragment_signal_score():
             with col4:
                 total = _total
                 delta_text = '买入信号' if total >= 70 else '卖出信号' if total <= 40 else '观望'
-                st.metric('综合评分', f'{total}/100', delta=delta_text)
+                st.metric('综合评分', f'{total}/100', delta=delta_text, delta_color="off")
             col_radar, col_detail = st.columns([1, 1])
             with col_radar:
                 fig = Visualizer.signal_radar(_safe_scores)

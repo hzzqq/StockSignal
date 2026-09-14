@@ -255,13 +255,13 @@ def _bento(m: pd.DataFrame, health: dict):
     with c2:
         if consensus is not None:
             st.metric("💰 资金共识", f"{consensus['行业']}", help=f"净流入 {consensus['净额']/1e8:+.1f}亿",
-                      delta=f"{consensus['净额']/1e8:+.1f}亿")
+                      delta=f"{consensus['净额']/1e8:+.1f}亿", delta_color="inverse")
         else:
             st.metric("💰 资金共识", "—", help="资金流维度暂缺")
     with c3:
         temp = up / total * 100 if total else 0
         st.metric("🌡 情绪温度", f"{temp:.0f}%", help=f"上涨板块 {up}/{total}｜均值 {avg:+.2f}%",
-                  delta=f"{avg:+.2f}%")
+                  delta=f"{avg:+.2f}%", delta_color="inverse")
     with c4:
         if md["净额"].notna().any() and total:
             ratio = inflow_cnt / total * 100
@@ -286,7 +286,7 @@ def _drill(m: pd.DataFrame, picked: str):
         st.metric("涨跌幅", f"{r['涨跌幅']:+.2f}%" if pd.notna(r['涨跌幅']) else "—")
     with col2:
         if pd.notna(r.get("净额")):
-            st.metric("主力净额", f"{r['净额']/1e8:+.2f}亿", delta=f"{r['净额']/1e8:+.2f}亿")
+            st.metric("主力净额", f"{r['净额']/1e8:+.2f}亿", delta=f"{r['净额']/1e8:+.2f}亿", delta_color="inverse")
         else:
             st.metric("主力净额", "—")
     with col3:
