@@ -58,7 +58,7 @@ def _cached_financial(code: str, report_type: str):
 
 
 @cached_fig(ttl=600)
-def _build_financial_trend_fig(code: str):
+def _build_financial_trend_fig(code: str, dark: bool = False):
     """利润表多期趋势：营业总收入 / 净利润（单位：亿元），取新浪利润表最新 8 期。
 
     best-effort：取数失败或字段缺失返回 None，调用方跳过渲染。
@@ -102,7 +102,7 @@ def _build_financial_trend_fig(code: str):
 
 
 @cached_fig(ttl=600)
-def _build_financial_bar_fig(code: str):
+def _build_financial_bar_fig(code: str, dark: bool = False):
     """利润表多期对比柱状图：营业总收入 / 净利润（单位：亿元）。
     净利润按环比增减着色（红=改善、绿=下滑），与页面「业绩配色」约定一致。
     best-effort：取数失败或字段缺失返回 None，调用方跳过渲染。
@@ -433,7 +433,7 @@ def fragment_stock_financials():
     st.caption("数据来源：新浪财经财务三表（取最新 8 期，金额已自动换算为 亿/万）。接口偶发不稳定时单个表会单独提示。")
     # 多期趋势（利润表：营业总收入 / 净利润，单位亿元）
     try:
-        _tf = _build_financial_trend_fig(code)
+        _tf = _build_financial_trend_fig(code, dark)
         if _tf is not None:
             st.plotly_chart(_tf, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     except Exception:

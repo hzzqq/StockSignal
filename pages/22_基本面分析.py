@@ -47,7 +47,7 @@ import concurrent.futures as _cf
 
 # ── 图表 figure 构建缓存（性能优化：避免长周期图在交互重跑/刷新时重复 rebuild）──
 @cached_fig(ttl=120)
-def _build_fin_trend_fig(plot_df, metric, mode, fa_chart, fa_name, fa_code, unit):
+def _build_fin_trend_fig(plot_df, metric, mode, fa_chart, fa_name, fa_code, unit, dark: bool = False):
     fig = go.Figure()
     x_labels = plot_df['标签'].tolist()
     yoy_col = f'{metric}_同比'
@@ -84,7 +84,7 @@ def _build_fin_trend_fig(plot_df, metric, mode, fa_chart, fa_name, fa_code, unit
 
 
 @cached_fig(ttl=120)
-def _build_hist_fig(hist_plot, current, name):
+def _build_hist_fig(hist_plot, current, name, dark: bool = False):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=hist_plot['date'], y=hist_plot['close'], mode='lines', name='收盘价',
                             line=dict(color=ACCENT, width=1.4), fill='tozeroy', fillcolor=ACCENT_FILL))
@@ -98,7 +98,7 @@ def _build_hist_fig(hist_plot, current, name):
 
 
 @cached_fig(ttl=120)
-def _build_sector_fig(top_sectors, mapped_sector, industry, top_n):
+def _build_sector_fig(top_sectors, mapped_sector, industry, top_n, dark: bool = False):
     bar_colors = [UP_COLOR if mapped_sector and str(row['sector']) == mapped_sector
                   else DOWN_COLOR if row['change_pct'] < 0 else '#94a3b8'
                   for _, row in top_sectors.iterrows()]
@@ -113,7 +113,7 @@ def _build_sector_fig(top_sectors, mapped_sector, industry, top_n):
 
 
 @cached_fig(ttl=120)
-def _build_score_ring(score, score_color, score_label):
+def _build_score_ring(score, score_color, score_label, dark: bool = False):
     fig = go.Figure(go.Pie(values=[max(score, 0.01), max(100 - score, 0.01)], hole=0.78,
                           marker=dict(colors=[score_color, 'rgba(148,163,184,0.20)']),
                           showlegend=False, hoverinfo='skip', textinfo='none'))
@@ -545,7 +545,7 @@ if code:
         val_col = metric
         yoy_col = f'{metric}_同比'
         cfg = _FINANCIAL_METRICS.get(metric, {})
-        fig = _build_fin_trend_fig(plot_df, metric, mode, fa_chart, fa_name, fa_code, cfg.get('unit', ''))
+        fig = _build_fin_trend_fig(plot_df, metric, mode, fa_chart, fa_name, fa_code, cfg.get('unit', ''), dark)
         st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
         qoq_col = f'{metric}_环比'
         table_df = plot_df.copy().sort_values('报告期', ascending=False)
@@ -577,7 +577,7 @@ if code:
         m3.metric('3年价格分位', f'{p_3y:.1f}%' if p_3y is not None else '—')
         m4.metric('5年价格分位', f'{p_5y:.1f}%' if p_5y is not None else '—')
         hist_plot = downsample(hist_df, max_points=600)
-        fig_hist = _build_hist_fig(hist_plot, current, name)
+        fig_hist = _build_hist_fig(hist_plot, current, name, dark)
         st.plotly_chart(fig_hist, width="stretch", config={"displaylogo": False, "responsive": True})
     else:
         _empty_info('暂无历史行情数据，无法计算历史分位。')
@@ -595,7 +595,7 @@ if code:
             sf_card('🏭 行业横向对比', "")
             top_n = 15
             top_sectors = sector_df.sort_values('change_pct', ascending=False).head(top_n).copy()
-            fig_sector = _build_sector_fig(top_sectors, mapped_sector, industry, top_n)
+            fig_sector = _build_sector_fig(top_sectors, mapped_sector, industry, top_n, dark)
             st.plotly_chart(fig_sector, width="stretch", config={"displaylogo": False, "responsive": True})
             sector_row = sector_df[sector_df['sector'].astype(str) == mapped_sector]
             if not sector_row.empty:
@@ -638,7 +638,7 @@ if code:
         score_label = '偏弱'
     sc1, sc2 = st.columns([0.25, 0.75])
     with sc1:
-        _ring = _build_score_ring(score, score_color, score_label)
+        _ring = _build_score_ring(score, score_color, score_label, dark)
         st.plotly_chart(_ring, width="stretch", config={"displaylogo": False, "responsive": True})
     with sc2:
         st.markdown(f"""<div style="padding:14px 18px;border-radius:10px;background:var(--card2);border:1px solid var(--border);font-size:14px;line-height:1.8;">{reasons_html}</div>""", unsafe_allow_html=True)
