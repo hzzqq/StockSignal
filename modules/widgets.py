@@ -578,9 +578,8 @@ def _nav_freq_path() -> str:
 def _all_nav_items() -> List[str]:
     """返回所有可导航页的文件名集合（用于校验常用区条目合法性）。"""
     _items = set()
-    for _g, _its in _NAV_GROUPS:
-        for _it in _its:
-            _items.add(_it[0].replace('\\', '/').split('/')[-1])
+    for _it in _iter_nav_items():
+        _items.add(_it[0].replace('\\', '/').split('/')[-1])
     for _h in _NAV_HERO:
         _items.add(_h[0].replace('\\', '/').split('/')[-1])
     _items.add('app.py')
@@ -624,9 +623,8 @@ def load_nav_favorites(top_n: int = 5) -> List[Tuple[str, str, str]]:
             _freq = {}
         # 全量页名 → (path, label, icon) 反查表
         _by_base = {}
-        for _g, _its in _NAV_GROUPS:
-            for _it in _its:
-                _by_base[_it[0].replace('\\', '/').split('/')[-1]] = _it
+        for _it in _iter_nav_items():
+            _by_base[_it[0].replace('\\', '/').split('/')[-1]] = _it
         for _h in _NAV_HERO:
             _by_base[_h[0].replace('\\', '/').split('/')[-1]] = _h
         _items = _all_nav_items()
@@ -645,15 +643,99 @@ def load_nav_favorites(top_n: int = 5) -> List[Tuple[str, str, str]]:
     except Exception as _e:
         logger.warning(f"[widgets] 处理异常: {_e}")
         return list(_NAV_FAVORITES)
+# 两级分类导航（D 轮重构）：
+#   - 8 个扁平分组 → 6 个一级类目，每个一级类目下挂若干「子簇」(sub_label, [items])；
+#     子簇名为 None 表示该一级类目无二级细分（扁平渲染）。
+#   - 关键：原 20 项「🌐 市场宽度」大杂烩拆成 5 个子簇，单一职责、不再挤成一团；
+#     同时把瘦分组「行情盯盘+板块结构」「工具+社区与AI」合并，首屏只看到 6 个类目标题。
+#   - 页面路径与图标全部保留，图标全局唯一红线不动；合并页子项仍以 4 元组 'sub' 标记。
+#   - 结构：(top_label, [ (sub_label_or_None, [ (path,label,icon[, 'sub']) ... ]) ... ])
 _NAV_GROUPS = [
-    ('📈 行情盯盘', [('pages/10_行情看板.py', '行情看板', '📺'), ('pages/14_智能盯盘.py', '智能盯盘', '👁️'), ('pages/35_资金流向.py', '资金流向', '🌊'), ('pages/51_每日晨报.py', '每日晨报', '🌅')]),
-    ('🧩 板块结构', [('pages/12_板块轮动.py', '板块轮动', '🌈'), ('pages/17_市场魔方.py', '市场魔方', '🧊')]),
-    ('🌐 市场宽度', [('pages/13_市场强弱.py', '市场强弱', '📶'), ('pages/15_市场驱动力.py', '市场驱动力', '🧲'), ('pages/50_市场情绪.py', '市场情绪', '🌡️'), ('pages/23_事件追踪.py', '事件追踪', '📡'), ('pages/16_财报日历.py', '财报日历', '📅'), ('pages/58_连板龙头共振.py', '连板龙头共振', '🐉'), ('pages/59_市场温度计.py', '市场温度计', '🔥'), ('pages/60_事件对比分析.py', '事件对比分析', '🔀'), ('pages/61_广度分化.py', '广度分化', '🌓'), ('pages/62_动量广度共振.py', '动量广度共振', '🔗'), ('pages/63_温度回测.py', '温度回测', '♨️'), ('pages/65_投机情绪周期时钟.py', '投机情绪周期时钟', '🗞️'), ('pages/66_维度领先滞后矩阵.py', '维度领先-滞后矩阵', '📑'), ('pages/67_历史相似日聚类前向分布.py', '历史相似日聚类', '📰'), ('pages/68_情绪拐点扫描器.py', '情绪拐点扫描器', '📝'), ('pages/69_温度持续期与回归时长.py', '温度持续期与回归时长', '📚'), ('pages/56_市场状态机.py', '市场状态机', '🔄'), ('pages/57_市场全景.py', '市场全景', '🗺️')]),
-    ('🔎 个股研究', [('pages/24_个股研究.py', '个股研究', '🔬'), ('pages/11_股票选取.py', '股票选取', '🔍', 'sub'), ('pages/20_个股分析.py', '个股分析', '📊', 'sub'), ('pages/21_多股对比.py', '多股对比', '⚖️'), ('pages/22_基本面分析.py', '基本面分析', '🏛️')]),
-    ('🧪 量化选股', [('pages/32_智能选股.py', '智能选股', '🤖'), ('pages/31_形态选股.py', '形态选股', '🧭'), ('pages/33_ETF筛选.py', 'ETF筛选', '🧰'), ('pages/25_QuantAgent投研.py', 'QuantAgent投研', '🧠'), ('pages/30_策略回测.py', '策略回测', '⚙️'), ('pages/55_P1量化信号.py', 'P1量化信号', '🛰️')]),
-    ('💼 持仓交易', [('pages/45_持仓中心.py', '持仓中心', '🏦'), ('pages/40_仓位管理.py', '仓位管理', '🗂️', 'sub'), ('pages/41_组合收益.py', '组合收益', '💹', 'sub'), ('pages/46_自选股监控.py', '自选股监控', '⭐', 'sub'), ('pages/43_实盘交易.py', '实盘交易', '💰'), ('pages/42_模拟交易.py', '模拟交易', '🎮')]),
-    ('🛠 工具', [('pages/34_体检扫描.py', '体检扫描', '🩺'), ('pages/47_价格预警.py', '价格预警', '🚨'), ('pages/95_数据导出.py', '数据导出', '📤'), ('pages/44_智能条件单.py', '智能条件单', '⏰')]),
-    ('💬 社区与 AI', [('pages/53_星辰AI.py', '星辰 AI', '🌟'), ('pages/52_股吧.py', '股吧', '💭'), ('pages/94_消息中心.py', '消息中心', '🔔'), ('pages/64_投研圆桌.py', '投研圆桌', '📋')]),
+    ('📈 行情与板块', [
+        ('行情', [
+            ('pages/10_行情看板.py', '行情看板', '📺'),
+            ('pages/14_智能盯盘.py', '智能盯盘', '👁️'),
+            ('pages/35_资金流向.py', '资金流向', '🌊'),
+            ('pages/51_每日晨报.py', '每日晨报', '🌅'),
+        ]),
+        ('板块', [
+            ('pages/12_板块轮动.py', '板块轮动', '🌈'),
+            ('pages/17_市场魔方.py', '市场魔方', '🧊'),
+        ]),
+    ]),
+    ('🌐 市场广度·温度', [
+        ('广度温度核心', [
+            ('pages/13_市场强弱.py', '市场强弱', '📶'),
+            ('pages/15_市场驱动力.py', '市场驱动力', '🧲'),
+            ('pages/50_市场情绪.py', '市场情绪', '🌡️'),
+            ('pages/59_市场温度计.py', '市场温度计', '🔥'),
+            ('pages/61_广度分化.py', '广度分化', '🌓'),
+            ('pages/62_动量广度共振.py', '动量广度共振', '🔗'),
+            ('pages/63_温度回测.py', '温度回测', '♨️'),
+            ('pages/69_温度持续期与回归时长.py', '温度持续期与回归时长', '📚'),
+        ]),
+        ('状态机·全景', [
+            ('pages/56_市场状态机.py', '市场状态机', '🔄'),
+            ('pages/57_市场全景.py', '市场全景', '🗺️'),
+        ]),
+        ('事件·连板', [
+            ('pages/23_事件追踪.py', '事件追踪', '📡'),
+            ('pages/60_事件对比分析.py', '事件对比分析', '🔀'),
+            ('pages/58_连板龙头共振.py', '连板龙头共振', '🐉'),
+        ]),
+        ('情绪扫描器', [
+            ('pages/65_投机情绪周期时钟.py', '投机情绪周期时钟', '🗞️'),
+            ('pages/66_维度领先滞后矩阵.py', '维度领先-滞后矩阵', '📑'),
+            ('pages/67_历史相似日聚类前向分布.py', '历史相似日聚类', '📰'),
+            ('pages/68_情绪拐点扫描器.py', '情绪拐点扫描器', '📝'),
+        ]),
+        ('财报日历', [
+            ('pages/16_财报日历.py', '财报日历', '📅'),
+        ]),
+    ]),
+    ('🔎 个股研究', [
+        (None, [
+            ('pages/24_个股研究.py', '个股研究', '🔬'),
+            ('pages/11_股票选取.py', '股票选取', '🔍', 'sub'),
+            ('pages/20_个股分析.py', '个股分析', '📊', 'sub'),
+            ('pages/21_多股对比.py', '多股对比', '⚖️'),
+            ('pages/22_基本面分析.py', '基本面分析', '🏛️'),
+        ]),
+    ]),
+    ('🧪 量化选股', [
+        (None, [
+            ('pages/32_智能选股.py', '智能选股', '🤖'),
+            ('pages/31_形态选股.py', '形态选股', '🧭'),
+            ('pages/33_ETF筛选.py', 'ETF筛选', '🧰'),
+            ('pages/25_QuantAgent投研.py', 'QuantAgent投研', '🧠'),
+            ('pages/30_策略回测.py', '策略回测', '⚙️'),
+            ('pages/55_P1量化信号.py', 'P1量化信号', '🛰️'),
+        ]),
+    ]),
+    ('💼 持仓交易', [
+        (None, [
+            ('pages/45_持仓中心.py', '持仓中心', '🏦'),
+            ('pages/40_仓位管理.py', '仓位管理', '🗂️', 'sub'),
+            ('pages/41_组合收益.py', '组合收益', '💹', 'sub'),
+            ('pages/46_自选股监控.py', '自选股监控', '⭐', 'sub'),
+            ('pages/43_实盘交易.py', '实盘交易', '💰'),
+            ('pages/42_模拟交易.py', '模拟交易', '🎮'),
+        ]),
+    ]),
+    ('🛠 工具与社区', [
+        ('工具', [
+            ('pages/34_体检扫描.py', '体检扫描', '🩺'),
+            ('pages/47_价格预警.py', '价格预警', '🚨'),
+            ('pages/95_数据导出.py', '数据导出', '📤'),
+            ('pages/44_智能条件单.py', '智能条件单', '⏰'),
+        ]),
+        ('社区与AI', [
+            ('pages/53_星辰AI.py', '星辰 AI', '🌟'),
+            ('pages/52_股吧.py', '股吧', '💭'),
+            ('pages/94_消息中心.py', '消息中心', '🔔'),
+            ('pages/64_投研圆桌.py', '投研圆桌', '📋'),
+        ]),
+    ]),
 ]
 _NAV_ADMIN = [('pages/92_用户管理.py', '用户管理', '👥'), ('pages/93_系统配置.py', '系统配置', '🛠️')]
 
@@ -695,10 +777,9 @@ def _current_nav_label(basename: str) -> str:
     for _it in _NAV_HERO:
         if _it[0].replace('\\', '/').split('/')[-1] == basename:
             return _it[1]
-    for _g, _items in _NAV_GROUPS:
-        for _it in _items:
-            if _it[0].replace('\\', '/').split('/')[-1] == basename:
-                return _it[1]
+    for _it in _iter_nav_items():
+        if _it[0].replace('\\', '/').split('/')[-1] == basename:
+            return _it[1]
     for _it in _NAV_ADMIN:
         if _it[0].replace('\\', '/').split('/')[-1] == basename:
             return _it[1]
@@ -808,18 +889,30 @@ def render_entry_cards(cards: list, columns: int = 3, active_label: str = None,
                         )
 
 
-def _filter_nav_groups(groups, kw: str):
-    """按关键字过滤 _NAV_GROUPS：子串匹配 label 或 path（忽略大小写）；空关键字返回原列表。
+def _iter_nav_items(groups=None):
+    """扁平产出所有导航项 (path,label,icon[, 'sub'])；兼容两级 (top, [(sub, items)]) 结构。"""
+    _groups = groups if groups is not None else _NAV_GROUPS
+    for _top, _clusters in _groups:
+        for _sub, _items in _clusters:
+            for _it in _items:
+                yield _it
 
-    过滤后空组被剔除。供 render_sidebar_nav 实时过滤用，亦供测试直接驱动。
+
+def _filter_nav_groups(groups, kw: str):
+    """按关键字过滤 _NAV_GROUPS：子串匹配 label 或 path（忽略大小写）。
+
+    两级结构下先扁平化每个一级类目，再过滤；始终返回 (top_label, flat_items)，
+    供 render_sidebar_nav 在「搜索态」下跨类目直达渲染。空关键字=返回全部（已扁平）。
     """
     kw = (kw or "").strip().lower()
-    if not kw:
-        return list(groups)
     out = []
-    for gname, items in groups:
+    for gname, clusters in groups:
+        flat = [it for _sub, items in clusters for it in items]
+        if not kw:
+            out.append((gname, flat))
+            continue
         hit = [
-            it for it in items
+            it for it in flat
             if kw in str(it[1]).lower() or kw in str(it[0]).lower()
         ]
         if hit:
@@ -911,9 +1004,9 @@ def render_sidebar_nav() -> None:
             st.caption(f'🏷️ v{_GIT_SHA}  ·  Ctrl+Shift+R 强刷看新效果')
             # 搜索框实验：实时过滤分组；空关键字=显示全部；忽略大小写、子串匹配 label/path
             _kw = st.text_input(
-                '🔍 搜索模块',
+                '🔍 命令面板',
                 key='_nav_filter',
-                placeholder='名称/路径关键字（行情/选股/持仓/回测…）',
+                placeholder='⌘K / Ctrl+K 聚焦 · 行情/选股/持仓/回测…',
                 label_visibility='visible',
             ).strip().lower()
             # 决策中枢 Hero：项目差异化主线（决策闭环 + 刻度校准），常驻顶部高亮入口，高于普通分组
@@ -937,12 +1030,24 @@ def render_sidebar_nav() -> None:
             st.caption('⭐ 常用')
             for _f_path, _f_label, _f_icon in load_nav_favorites():
                 _nav_link(_f_path, _f_label, _f_icon)
-            for gname, items in _filter_nav_groups(_NAV_GROUPS, _kw):
-                st.caption(gname)
-                for _it in items:
-                    _path, _label, _icon = _it[0], _it[1], _it[2]
-                    _sub = _it[3] if len(_it) > 3 else None
-                    _nav_link(_path, _label, _icon, sub=(_sub == 'sub'))
+            if _kw:
+                # 搜索态：跨类目扁平直达（命令面板式）
+                for gname, items in _filter_nav_groups(_NAV_GROUPS, _kw):
+                    st.caption(gname)
+                    for _it in items:
+                        _nav_link(_it[0], _it[1], _it[2], sub=(len(_it) > 3 and _it[3] == 'sub'))
+            else:
+                # 常态：6 个一级类目可折叠，大组「市场广度·温度」默认折叠、其余默认展开
+                for _i, (top_label, clusters) in enumerate(_NAV_GROUPS):
+                    _default_open = (top_label != '🌐 市场广度·温度')
+                    _exp_key = f"_nav_exp_{_i}"
+                    _exp = st.session_state.get(_exp_key, _default_open)
+                    with st.expander(top_label, expanded=_exp, key=_exp_key):
+                        for _sub, _items in clusters:
+                            if _sub:
+                                st.caption(_sub)
+                            for _it in _items:
+                                _nav_link(_it[0], _it[1], _it[2], sub=(len(_it) > 3 and _it[3] == 'sub'))
             st.caption('👤 账户中心')
             _nav_link('pages/91_我的.py', '个人中心', '👤')
             _nav_link('pages/96_新手教程.py', '新手教程', '📘')

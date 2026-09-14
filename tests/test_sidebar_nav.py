@@ -1,6 +1,7 @@
 """Sidebar 导航补全 + 当前位置高亮的回归测试（锐评迭代：决策面板入栏 + 防迷路）。
 
 不依赖网络：只校验 _NAV_GROUPS 结构、_current_nav_label / _current_page_basename 逻辑。
+导航现为「6 个一级类目 → 若干子簇 (sub_label, [items])」两级结构。
 """
 import sys
 import os
@@ -8,13 +9,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import modules.widgets as w
 from unittest.mock import patch
+from collections import Counter
 
 
 def _all_nav_paths():
     paths = []
-    for _g, items in w._NAV_GROUPS:
-        for _it in items:
-            paths.append(_it[0].replace('\\', '/'))
+    for _it in w._iter_nav_items():
+        paths.append(_it[0].replace('\\', '/'))
     for _it in getattr(w, '_NAV_HERO', []):
         paths.append(_it[0].replace('\\', '/'))
     return paths
@@ -76,14 +77,14 @@ def test_current_basename_parses_path():
 
 
 def test_group_count_after_reorg():
-    """锐评重构后分组数收敛到 8（去单元素/合并单薄分组；R21 把超长『持仓交易』拆出『工具』子组）。"""
-    from collections import Counter
+    """锐评重构后一级类目收敛到 6（8 个扁平分组 → 6 个一级类目两级结构）。"""
     _names = [g for g, _ in w._NAV_GROUPS]
-    assert len(w._NAV_GROUPS) == 8, f"分组数应为 8，实际 {len(w._NAV_GROUPS)}: {_names}"
-    # 已删除的反模式单元素/单薄分组不应再出现
-    _forbidden = ['🎯 决策核心', '📘 新手引导', '💰 实盘 & 条件单', '🧪 策略工具', '💼 我的持仓']
+    assert len(w._NAV_GROUPS) == 6, f"一级类目数应为 6，实际 {len(w._NAV_GROUPS)}: {_names}"
+    # 旧的扁平分组（已被合并为两级结构）不应再作为一级类目出现
+    _forbidden = ['📈 行情盯盘', '🧩 板块结构', '🌐 市场宽度', '🛠 工具', '💬 社区与 AI',
+                  '🎯 决策核心', '📘 新手引导', '💰 实盘 & 条件单', '🧪 策略工具', '💼 我的持仓']
     for f in _forbidden:
-        assert f not in _names, f"反模式分组仍残留: {f}"
+        assert f not in _names, f"旧扁平分组仍残留为一级类目: {f}"
 
 
 def test_hero_is_decision_panel():
@@ -94,44 +95,40 @@ def test_hero_is_decision_panel():
 
 
 def test_sub_item_hierarchy():
-    """合并页子项以 4 元组 sub 标记：11/20 是 24 子项，40/41/46 是 45 子项。"""
-    _subs = {}
-    for _g, _items in w._NAV_GROUPS:
-        for _it in _items:
-            if len(_it) >= 4 and _it[3] == 'sub':
-                _subs.setdefault(_g, []).append(_it[0].split('/')[-1])
-    # 个股研究 分组下应有 11/20 两个 sub
+    """合并页子项以 4 元组 sub 标记：11/20 是『个股研究』子项，40/41/46 是『持仓交易』子项。"""
+    _subs_by_top = {}
+    for _top, _clusters in w._NAV_GROUPS:
+        for _sub, _items in _clusters:
+            for _it in _items:
+                if len(_it) >= 4 and _it[3] == 'sub':
+                    _subs_by_top.setdefault(_top, []).append(_it[0].split('/')[-1])
     _g_indiv = [g for g, _ in w._NAV_GROUPS if '个股研究' in g][0]
-    assert '11_股票选取.py' in _subs.get(_g_indiv, [])
-    assert '20_个股分析.py' in _subs.get(_g_indiv, [])
-    # 持仓交易 分组下应有 40/41/46 三个 sub
+    assert '11_股票选取.py' in _subs_by_top.get(_g_indiv, [])
+    assert '20_个股分析.py' in _subs_by_top.get(_g_indiv, [])
     _g_hold = [g for g, _ in w._NAV_GROUPS if '持仓交易' in g][0]
     for _p in ['40_仓位管理.py', '41_组合收益.py', '46_自选股监控.py']:
-        assert _p in _subs.get(_g_hold, []), f"{_p} 应标记为 45 子项"
+        assert _p in _subs_by_top.get(_g_hold, []), f"{_p} 应标记为持仓交易子项"
 
 
 def test_icon_global_uniqueness():
-    """所有导航图标（分组头 + Hero + item + admin）全局唯一，无撞车。"""
+    """所有导航图标（一级类目头 + Hero + item + admin）全局唯一，无撞车。"""
     _icons = []
-    for _g, _items in w._NAV_GROUPS:
-        _icons.append(_g.split()[0])  # 分组头图标
-        for _it in _items:
-            _icons.append(_it[2])
+    for _top, _clusters in w._NAV_GROUPS:
+        _icons.append(_top.split()[0])  # 一级类目头图标
+        for _sub, _items in _clusters:
+            for _it in _items:
+                _icons.append(_it[2])
     for _it in getattr(w, '_NAV_HERO', []):
         _icons.append(_it[2])
     for _it in w._NAV_ADMIN:
         _icons.append(_it[2])
-    _dup = [k for k, v in __import__('collections').Counter(_icons).items() if v > 1]
+    _dup = [k for k, v in Counter(_icons).items() if v > 1]
     assert not _dup, f"图标撞车: {_dup}"
 
 
 def test_no_duplicate_paths():
     """任一页面路径在 hero + 各分组中至多出现一次（无重复登记）。"""
-    from collections import Counter
-    _paths = []
-    for _g, _items in w._NAV_GROUPS:
-        for _it in _items:
-            _paths.append(_it[0].replace('\\', '/'))
+    _paths = [_it[0].replace('\\', '/') for _it in w._iter_nav_items()]
     for _it in getattr(w, '_NAV_HERO', []):
         _paths.append(_it[0].replace('\\', '/'))
     _dup = [k for k, v in Counter(_paths).items() if v > 1]
@@ -145,34 +142,48 @@ def test_personal_center_label():
 
 
 def test_group_order_mental_flow():
-    """分组顺序遵循用户心智流：行情→板块→宽度→个股研究→量化选股→持仓交易→工具→社区与AI。"""
+    """一级类目顺序遵循用户心智流：行情→广度温度→个股研究→量化选股→持仓交易→工具与社区。"""
     _order = [g for g, _ in w._NAV_GROUPS]
-    _expected = ['📈 行情盯盘', '🧩 板块结构', '🌐 市场宽度', '🔎 个股研究',
-                 '🧪 量化选股', '💼 持仓交易', '🛠 工具', '💬 社区与 AI']
-    assert _order == _expected, f"分组顺序偏离心智流: {_order}"
+    _expected = ['📈 行情与板块', '🌐 市场广度·温度', '🔎 个股研究',
+                 '🧪 量化选股', '💼 持仓交易', '🛠 工具与社区']
+    assert _order == _expected, f"一级类目顺序偏离心智流: {_order}"
 
 
 def test_hold_group_split_reduces_oversized():
-    """持仓交易拆出『工具』子组后，两组均符合 4-6 项封顶原则（不再有 10 项超长组）。"""
-    _by_group = {g: len(items) for g, items in w._NAV_GROUPS}
-    assert _by_group['💼 持仓交易'] <= 6, f"持仓交易应 ≤6 项，实际 {_by_group['💼 持仓交易']}"
-    assert _by_group['🛠 工具'] <= 6, f"工具应 ≤6 项，实际 {_by_group['🛠 工具']}"
-    assert _by_group['💼 持仓交易'] >= 4
-    assert _by_group['🛠 工具'] >= 4
+    """两级重构后任何『子簇』item 数均 ≤ 8（旧的 20 项『市场宽度』大杂烩已拆解，无超长簇）；
+    合并后的持仓交易与工具/社区子簇均落在 4–6 的合理区间。"""
+    _max_cluster = 0
+    for _top, _clusters in w._NAV_GROUPS:
+        for _sub, _items in _clusters:
+            _max_cluster = max(_max_cluster, len(_items))
+    assert _max_cluster <= 8, f"存在超过 8 项的子簇，违背两级拆解初衷: {_max_cluster}"
+    _counts = {}
+    for _top, _clusters in w._NAV_GROUPS:
+        if '持仓交易' in _top:
+            _counts['持仓交易'] = sum(len(_i) for _s, _i in _clusters)
+        if '工具与社区' in _top:
+            for _sub, _items in _clusters:
+                _counts[_sub] = len(_items)
+    assert 4 <= _counts['持仓交易'] <= 6, f"持仓交易应 4–6 项，实际 {_counts['持仓交易']}"
+    assert 4 <= _counts.get('工具', 0) <= 6, f"工具子簇应 4–6 项，实际 {_counts.get('工具')}"
+    assert 4 <= _counts.get('社区与AI', 0) <= 6, f"社区与AI子簇应 4–6 项，实际 {_counts.get('社区与AI')}"
 
 
 def test_tool_group_contains_expected_low_freq_items():
-    """『🛠 工具』组应包含低频工具类页面（体检/预警/导出/条件单），而非核心交易动作。"""
-    _tool_paths = {it[0].split('/')[-1] for g, items in w._NAV_GROUPS
-                   if g == '🛠 工具' for it in items}
+    """『工具』子簇（位于『🛠 工具与社区』一级类目下）应包含低频工具页（体检/预警/导出/条件单）。"""
+    _tool_paths = set()
+    for _top, _clusters in w._NAV_GROUPS:
+        if '工具与社区' in _top:
+            for _sub, _items in _clusters:
+                if _sub == '工具':
+                    _tool_paths = {it[0].split('/')[-1] for it in _items}
     for _p in ('34_体检扫描.py', '47_价格预警.py', '95_数据导出.py', '44_智能条件单.py'):
-        assert _p in _tool_paths, f"{_p} 应归入工具组"
+        assert _p in _tool_paths, f"{_p} 应归入工具子簇"
 
 
 def test_favorites_present_and_reachable():
     """⭐ 常用区默认 Top5 高频页，且每个都在 hero/分组中真实可达（不是悬空链接）。"""
-    _all_paths = {it[0].replace('\\', '/').split('/')[-1] for g, items in w._NAV_GROUPS for it in items}
-    _all_paths |= {it[0].replace('\\', '/').split('/')[-1] for it in w._NAV_HERO}
+    _all_paths = {p.replace('\\', '/').split('/')[-1] for p in _all_nav_paths()}
     assert len(w._NAV_FAVORITES) == 5, "常用区应为 5 个高频页"
     for _f in w._NAV_FAVORITES:
         assert _f[0].replace('\\', '/').split('/')[-1] in _all_paths, f"{_f} 指向的页面不存在于导航"
@@ -181,12 +192,13 @@ def test_favorites_present_and_reachable():
 # ── 搜索框实验（R20）：按关键字实时过滤 _NAV_GROUPS ──
 
 def test_filter_empty_kw_returns_all():
-    """空关键字=不过滤，返回与原列表等价（组数与每组 items 数一致）。"""
+    """空关键字=不过滤，返回与原列表等价（组数与每组扁平 item 数一致）。"""
     out = w._filter_nav_groups(w._NAV_GROUPS, "")
     assert len(out) == len(w._NAV_GROUPS)
-    for (_g1, _i1), (_g2, _i2) in zip(out, w._NAV_GROUPS):
+    for (_g1, _i1), (_g2, _clusters) in zip(out, w._NAV_GROUPS):
+        _expected = sum(len(_items) for _sub, _items in _clusters)
         assert _g1 == _g2
-        assert len(_i1) == len(_i2)
+        assert len(_i1) == _expected
 
 
 def test_filter_keyword_matches_label():
@@ -209,10 +221,10 @@ def test_filter_keyword_matches_path():
 def test_filter_keyword_drops_empty_groups():
     """过滤后空组被剔除（不渲染无条目的分组头）。"""
     out = w._filter_nav_groups(w._NAV_GROUPS, "星辰")
-    # 『星辰 AI』只在『💬 社区与 AI』组，命中 1 项；其他组应被剔除
+    # 『星辰 AI』只在『🛠 工具与社区』的『社区与AI』子簇，命中 1 项；其他组应被剔除
     _gnames = [g for g, _ in out]
-    assert "💬 社区与 AI" in _gnames
-    assert "📈 行情盯盘" not in _gnames, "行情盯盘组应被剔除（无匹配）"
+    assert "🛠 工具与社区" in _gnames
+    assert "📈 行情与板块" not in _gnames, "行情与板块组应被剔除（无匹配）"
     assert "🔎 个股研究" not in _gnames
     assert len(out) == 1, f"应只返回 1 个分组，实际 {len(out)}: {_gnames}"
 
@@ -259,4 +271,3 @@ def test_nav_active_css_obvious_and_theme_aware():
     # 主题自适应：暗色金色描边 + 微光，亮色橙色高对比描边
     assert "#FFD166" in dark and "#FF8C00" in light
     assert dark != light
-

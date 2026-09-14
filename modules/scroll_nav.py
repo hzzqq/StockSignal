@@ -327,6 +327,17 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom, bot
     if(P.__xc_dismiss_observer){ try{P.__xc_dismiss_observer.disconnect();}catch(e){} }
     P.__xc_dismiss_observer=new MutationObserver(function(){dismissClearCache();});
     P.__xc_dismiss_observer.observe(P.document.body,{childList:true,subtree:true});
+    /* ── ⌘K / Ctrl+K 聚焦侧栏搜索（命令面板）── */
+    P.document.addEventListener('keydown', function(e){
+      var kk = (e.key || '').toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && kk === 'k') {
+        e.preventDefault();
+        try {
+          var sb = P.document.querySelector('[data-testid="stSidebar"]');
+          if (sb) { var inp = sb.querySelector('input'); if (inp) { inp.focus(); } }
+        } catch(_e){}
+      }
+    }, true);
   } catch(e) {}
 })();
 </script>
