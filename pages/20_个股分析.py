@@ -35,6 +35,8 @@ from modules.financial_report_helpers import (
     fr_expand_rows,
     fr_period_label,
     fr_yoy_column,
+    fr_compute_margins,
+    fr_fmt_pct,
     _PERF_UP,
     _PERF_DOWN,
     _PERF_FLAT,
@@ -102,11 +104,13 @@ def _build_perf_history_fig(hist_df, metric: str = "净利润", dark: bool = Fal
                 showgrid=False, zeroline=True, zerolinecolor="rgba(128,128,128,.35)",
                 ticksuffix="%",
             ))
+        _pct_metrics = ("ROE%", "毛利率%", "净利率%")
+        _yunit = "%" if metric in _pct_metrics else "亿元"
         fig.update_layout(
             height=360, margin=dict(l=56, r=56, t=30, b=44),
             template="plotly_dark" if dark else "plotly_white",
             barmode="group", xaxis_tickangle=0,
-            yaxis=dict(title="亿元", zeroline=True, zerolinecolor="rgba(128,128,128,.35)"),
+            yaxis=dict(title=_yunit, zeroline=True, zerolinecolor="rgba(128,128,128,.35)"),
             legend=dict(orientation="h", y=1.14, x=0),
             bargap=0.42,
             hovermode="x unified",
@@ -168,7 +172,9 @@ with sidebar_target():
     ticker = stock_search_input(label='股票搜索', key='analysis_stock', default=_default_code, placeholder='输入代码或名称搜索，如：600519 / 贵州茅台 / GZMT / 茅台')
     st.caption('本页为星辰决策仪表盘，右上角可切换暗夜 / 白天模式。')
 st.markdown('<div class="sf-header"><div class="sf-brand">决策仪表盘 · <b>个股深度分析</b></div><div class="sf-brand">事件驱动 · 多维归因</div></div>', unsafe_allow_html=True)
-st.markdown('<div class="sf-card" style="background:linear-gradient(135deg,var(--acc1),var(--acc2));border:none;box-shadow:0 8px 24px rgba(102,126,234,.22)">', unsafe_allow_html=True)
+st.markdown('<div class="sf-cta-card">', unsafe_allow_html=True)
+st.markdown('<div class="sf-cta-title">🚀 一键生成个股深度分析</div>', unsafe_allow_html=True)
+st.markdown('<div class="sf-cta-sub">输入代码 / 名称 / 拼音，生成暗色决策仪表盘：行情 · 新闻 · 技术 · 评分 · 财报。任务后台并行运行，完成后自动显示。</div>', unsafe_allow_html=True)
 if st.button('🔍 生成分析', type='primary', width="stretch", key='gen_analysis_top'):
     task_id, err = submit_task_with_error('analysis', {'ticker': ticker})
     if task_id:
@@ -479,7 +485,7 @@ def _render_analysis(R: dict):
     data_src = R['data_src']
     quote_src = R['quote_src']
     last = df.iloc[-1]
-    st.markdown('<div class="sf-card">' + _section_header('顶部决策摘要', '🎯'), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header('顶部决策摘要', icon='🎯', level=1), unsafe_allow_html=True)
     chg_txt = f'{change_pct:+.2f}%'
     _close = last['close']
     if _close is None or (isinstance(_close, float) and pd.isna(_close)):
@@ -517,14 +523,14 @@ def _render_analysis(R: dict):
         st.markdown(f"<div class='sf-metric-card'><div class='label'>止损价（ATR14 风险位）</div><div class='value sf-doc-down'>¥{stop_price:.1f}</div><div style='font-size:11px;color:var(--txt2);margin-top:4px;'>ATR14=¥{atr14:.2f}</div></div>", unsafe_allow_html=True)
     st.markdown(f"<div style='margin-top:14px;border-left:4px solid var(--acc1);background:var(--card2);border-radius:0 12px 12px 0;padding:12px 16px;font-size:13.5px;color:var(--txt2);line-height:1.7;'><b style='color:var(--txt);'>📌 仓位建议：</b>{position_advice}</div>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sf-card">' + _section_header('核心结论', 'AI 综合研判 · 多空信号', '💡'), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header('核心结论', 'AI 综合研判 · 多空信号', '💡', level=1), unsafe_allow_html=True)
     trend_label = trend.get('trend_label', '—') if 'error' not in trend else '数据不足'
     mom_label = momentum.get('momentum_label', '—') if 'error' not in momentum else '—'
     vol_label = volume_info.get('volume_price_label', '—') if 'error' not in volume_info else '—'
     one_line = f'{display_name} 现价 ¥{current_price:.2f}（{chg_txt}），技术面「{trend_label}」、动量「{mom_label}」、量能「{vol_label}」；新闻情绪正面占比 {pos_pct:.0f}%，综合研判 <b>{verdict}</b>。'
     st.markdown(f"<div style='border-radius:14px;padding:18px 20px;background:linear-gradient(135deg, {verdict_color}22, {verdict_color}08);border:1px solid {verdict_color}55;'><div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;'><div style='font-size:22px;font-weight:800;color:{verdict_color};'>{verdict} · {display_name}</div><span class='sf-tag {verdict_cls}' style='font-size:13px;padding:5px 14px;'>{badge_text}</span></div><div style='margin-top:10px;font-size:14px;color:var(--txt);line-height:1.8;'>{one_line}</div><div style='margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;'><span class='sf-tag neu'>综合评分 {composite}</span><span class='sf-tag {verdict_cls}'>信号 · {verdict}</span><span class='sf-tag neu'>策略 · {('分批建仓' if verdict == '看多' else '逢高减仓' if verdict == '看空' else '区间波段')}</span><span class='sf-tag neu'>适用 · 事件驱动 / 中短线</span></div></div>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sf-card">' + _section_header('综合信息', '舆情 · 评分 · 五维 · 关联板块', '🧩'), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header('综合信息', '舆情 · 评分 · 五维 · 关联板块', '🧩', level=1), unsafe_allow_html=True)
     _sec = sector_analysis or {}
     _sec_name = _sec.get('name') or industry or '—'
     _sec_chg = _sec.get('change_pct')
@@ -535,7 +541,7 @@ def _render_analysis(R: dict):
     st.markdown(f"<div class='sf-grid-4'><div class='sf-perspective-card'><div class='title'>舆情热度（近 {len(news_rows)} 条）</div><div class='body'><span style='color:var(--buy);font-weight:700;'>正面 {pos_pct:.0f}%</span> / <span style='color:var(--sell);font-weight:700;'>负面 {neg_pct:.0f}%</span><div style='margin-top:8px;height:8px;border-radius:4px;background:var(--sell);overflow:hidden;'><div style='height:100%;width:{pos_pct:.0f}%;background:var(--buy);'></div></div></div></div><div class='sf-perspective-card'><div class='title'>综合评分</div><div class='body' style='display:flex;align-items:baseline;gap:8px;'><span style='font-size:30px;font-weight:800;color:{verdict_color};'>{composite}</span><span class='sf-tag {verdict_cls}'>{verdict}</span></div></div><div class='sf-perspective-card'><div class='title'>五维评分拆解</div><div class='body'><span class='sf-pill {_tp_cls(tech_score)}'>技术 {tech_score}</span><span class='sf-pill {_tp_cls(news_score)}'>舆情 {news_score}</span><span class='sf-pill {_tp_cls(vol_score)}'>量能 {vol_score}</span><span class='sf-pill {_tp_cls(macro_score)}'>宏观 {macro_score}</span><span class='sf-pill {_tp_cls(sector_score)}'>板块 {sector_score}</span></div></div><div class='sf-perspective-card'><div class='title'>关联板块 · {board or '—'}</div><div class='body'>{industry or '—'} · {_sec_name}<br>板块涨跌 {_sec_chg_txt} · 排名 {_sec_rank_txt}</div></div></div>", unsafe_allow_html=True)
     st.markdown(f"<div style='margin-top:12px;font-size:13px;color:var(--txt2);line-height:1.7;'><b style='color:var(--txt);'>📝 股评：</b>技术面 {tech_score} 分、舆情 {news_score} 分、量能 {vol_score} 分、宏观 {macro_score} 分、板块 {sector_score} 分，综合研判 <b>{verdict}</b>，建议{('分批建仓' if verdict == '看多' else '逢高减仓' if verdict == '看空' else '区间波段')}。</div>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sf-card">' + _section_header('数据透视', '量价 / 筹码 / 位置 / 乖离', '📊'), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header('数据透视', '量价 / 筹码 / 位置 / 乖离', '📊', level=1), unsafe_allow_html=True)
     dev5 = (last['close'] - ma5v) / ma5v * 100 if ma5v else 0.0
     dev10 = (last['close'] - ma10v) / ma10v * 100 if ma10v else 0.0
     dev20 = (last['close'] - ma20v) / ma20v * 100 if ma20v else 0.0
@@ -558,7 +564,7 @@ def _render_analysis(R: dict):
     st.markdown('</div>', unsafe_allow_html=True)
     fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped)
     neu_pct = max(0, 100 - pos_pct - neg_pct)
-    st.markdown('<div class="sf-card">' + _section_header('情报面', '新闻情绪 · 事件催化 · 风险提示', '📰'), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header('情报面', '新闻情绪 · 事件催化 · 风险提示', '📰', level=1), unsafe_allow_html=True)
     st.markdown(f"<div class='sf-intel-header'><div><span class='sf-pill up'>正面 {pos_pct:.0f}%</span><span class='sf-pill mid'>中性 {neu_pct:.0f}%</span><span class='sf-pill down'>负面 {neg_pct:.0f}%</span></div></div><div class='sf-intel-bar'><div class='bar-pos' style='width:{pos_pct:.0f}%'></div><div class='bar-neu' style='width:{neu_pct:.0f}%'></div><div class='bar-neg' style='width:{neg_pct:.0f}%'></div></div>", unsafe_allow_html=True)
     if news_rows:
         _news_q = st.text_input('🔍 搜索相关新闻…', key=f'filter_news_{ticker}', placeholder='输入关键词筛选新闻标题（仅前端过滤，不影响原始数据）')
@@ -601,7 +607,7 @@ def _render_analysis(R: dict):
         st.markdown(_logic_list_html('利空逻辑', fall_logic, GREEN, '🐻'), unsafe_allow_html=True)
     if fatal_logic:
         st.markdown(_logic_list_html('致命风险（必须盯死）', fatal_logic, '#ef4444', '⚠️'), unsafe_allow_html=True)
-    st.markdown('<div class="sf-card">' + _section_header('板块分析', '主板块定位 · 实时走势 · 同板块对比', '📊'), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header('板块分析', '主板块定位 · 实时走势 · 同板块对比', '📊', level=1), unsafe_allow_html=True)
     _sa_name = sector_analysis.get('name', '—')
     _sa_full = sector_analysis.get('full_name', _sa_name)
     _sa_chg = sector_analysis.get('change_pct')
@@ -709,7 +715,7 @@ def _render_analysis(R: dict):
     st.markdown(_html, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     st.caption('板块内对比表格列说明：代码 / 名称 / 涨跌幅（绿涨红跌，本页配色）/ 总市值（亿元）；数据来自同板块实时行情。')
-    st.markdown('<div class="sf-card">' + _section_header('信号归因 · 五维雷达', '技术 / 情绪 / 量能 / 宏观 / 板块', '🎯'), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header('信号归因 · 五维雷达', '技术 / 情绪 / 量能 / 宏观 / 板块', '🎯', level=1), unsafe_allow_html=True)
     try:
         import plotly.graph_objects as go
         radar_fig = go.Figure()
@@ -756,7 +762,7 @@ def _render_analysis(R: dict):
     st.markdown(f"<div class='sf-vsbox'><h3 style='color:{GREEN};'>最强看空信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bear)) if bear else '<ul><li>暂无显著看空信号</li></ul>') + '</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sf-card">' + _section_header('作战计划', '⚔️'), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header('作战计划', icon='⚔️', level=1), unsafe_allow_html=True)
     st.markdown(_battle_plan_scale(support, resistance, current_price, target_price, stop_price, entry_price, verdict), unsafe_allow_html=True)
     plan_rows = _build_plan_rows(verdict, current_price, support, resistance, target_price, stop_price, entry_price, ma20v)
     a_tag = 'up' if verdict == '看多' else 'down' if verdict == '看空' else 'mid'
@@ -780,7 +786,7 @@ def _render_analysis(R: dict):
         if _pc and _pc not in [r.get('code') for r in _recs]:
             _recs.append(p)
     if _recs:
-        st.markdown('<div class="sf-card">' + _section_header('相关标的推荐', '同板块领涨 / 更强个股', '🔗'), unsafe_allow_html=True)
+        st.markdown('<div class="sf-card">' + _section_header('相关标的推荐', '同板块领涨 / 更强个股', '🔗', level=1), unsafe_allow_html=True)
         st.markdown(f"<div style='font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:10px;'>基于「{_sa_name}」板块内实时表现，为你推荐以下关联标的（涨跌遵循本页绿涨红跌配色）：</div>", unsafe_allow_html=True)
         _rec_rows = ''.join((_peer_row(p) for p in _recs[:6]))
         st.markdown(f"<table style='width:100%;border-collapse:collapse;'><thead><tr style='border-bottom:1px solid var(--border);'><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>代码</th><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>名称</th><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>涨跌幅</th><th style='padding:6px 8px;text-align:right;font-size:12px;color:var(--txt2);font-weight:600;'>总市值</th></tr></thead><tbody>{_rec_rows}</tbody></table>", unsafe_allow_html=True)
@@ -795,7 +801,7 @@ def _deserialize_analysis_result(result: dict) -> dict:
         if 'date' in result['df'].columns:
             result['df']['date'] = pd.to_datetime(result['df']['date'], errors='coerce')
     return result
-info_banner('👆 在上方「决策仪表盘」顶部点击红色「生成分析」即可生成完整的个股深度分析。')
+
 st.caption('💡 分析包含行情 / 新闻 / 技术 / 评分等模块，首次生成约需 10–30 秒，后台运行期间可浏览其它页面。')
 
 @st.cache_data(ttl=1)
@@ -835,19 +841,7 @@ def fragment_analysis_result():
     if st.session_state.get('analysis_result') is not None:
         _render_analysis(st.session_state['analysis_result'])
         _render_event_factor_card(st.session_state['analysis_result'].get('ticker'))
-    else:
-        info_banner('👈 在左侧选择股票后，点击「生成分析」查看完整的个股深度决策仪表盘。')
-        st.caption('💡 也可以直接点击下方按钮生成分析；任务在后台并行运行，完成后自动显示，无需等待。')
-        if st.button('🔍 生成深度分析', type='primary', key='gen_analysis_inline', width="stretch"):
-            if not ticker:
-                xc_warn_box('请先在上方「⚡ 快速选取」选择一只股票，再回到「🔬 深度分析」点击「生成分析」查看完整决策仪表盘。')
-            else:
-                tid, e = submit_task_with_error('analysis', {'ticker': ticker})
-                if tid:
-                    st.session_state['analysis_task_id'] = tid
-                    st.session_state['analysis_result'] = None
-                else:
-                    st.error(f"❌ 后台任务提交失败：{e or '未知错误'}，请刷新重试。")
+
 fragment_analysis_result()
 
 
@@ -1025,6 +1019,8 @@ _HISTORY_METRICS = {
     "营业总收入": "营业总收入",
     "每股收益": "每股收益",
     "ROE%": "ROE%",
+    "毛利率%": "毛利率%",
+    "净利率%": "净利率%",
 }
 
 
@@ -1087,8 +1083,12 @@ def _build_perf_history_section(code: str, dark: bool = False) -> None:
       · 图下「展开分析」表列出各期明细（最新期在最前，红涨绿跌着色）。
     数据不足 2 期时给出诚实兜底提示，绝不合成假数据。
     """
-    st.markdown('<div class="sf-card">' + _section_header("业绩横向对比", "≥3 年主要指标 · 柱状规模 + 折线同比", "📈"), unsafe_allow_html=True)
-    st.caption("📊 柱=该指标规模（亿元），折线=同比增速（%）；红=增长 / 绿=下滑（业绩域红涨绿跌）。数据来源：东方财富业绩报表（自该股上市年份起，最多近 10 年）。")
+    st.markdown('<div class="sf-card">' + _section_header("业绩横向对比", "≥3 年主要指标 · 柱状规模 + 折线同比", "📈", level=2), unsafe_allow_html=True)
+    _pct_metrics = ("ROE%", "毛利率%", "净利率%")
+    if _cur in _pct_metrics:
+        st.caption("📊 柱=该指标（%）；红=正值 / 绿=负值。数据来源：东方财富业绩报表（自该股上市年份起，最多近 10 年）。")
+    else:
+        st.caption("📊 柱=该指标规模（亿元），折线=同比增速（%）；红=增长 / 绿=下滑（业绩域红涨绿跌）。数据来源：东方财富业绩报表（自该股上市年份起，最多近 10 年）。")
     try:
         hist = _fr_cached_history(code)
     except Exception:
@@ -1167,7 +1167,7 @@ def _build_perf_history_section(code: str, dark: bool = False) -> None:
 
 def _build_multi_period_table(code: str, periods: list, dark: bool = False) -> None:
     """用户多选报告期后，合并成一个「Excel 式」业绩对比表并支持 CSV 导出。"""
-    st.markdown('<div class="sf-card">' + _section_header("多期业绩对比表", "用户自选报告期 · 同一表格", "📊"), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("多期业绩对比表", "用户自选报告期 · 同一表格", "📊", level=2), unsafe_allow_html=True)
     if not periods:
         _empty_info("请在上方「多期对比」中至少选择一个报告期。")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1180,6 +1180,7 @@ def _build_multi_period_table(code: str, periods: list, dark: bool = False) -> N
             if _row is None or getattr(_row, "empty", True):
                 continue
             _r = _row.iloc[0]
+            _mg = fr_compute_margins(_r)
             _recs.append({
                 "报告期": fr_period_label(_p),
                 "每股收益": _fr_fmt(_r.get("每股收益")),
@@ -1188,6 +1189,8 @@ def _build_multi_period_table(code: str, periods: list, dark: bool = False) -> N
                 "净利润": _fr_fmt(_r.get("净利润")),
                 "净利润同比%": _fr_fmt(_r.get("净利润同比%")),
                 "ROE%": _fr_fmt(_r.get("ROE%")),
+                "毛利率%": fr_fmt_pct(_mg["毛利率%"]),
+                "净利率%": fr_fmt_pct(_mg["净利率%"]),
                 "披露时间": _r.get("披露时间", "—"),
             })
         except Exception:
@@ -1259,7 +1262,7 @@ def fragment_financial_report(ticker):
         multi_periods = [_label_to_period.get(_lbl) for _lbl in multi_selected if _label_to_period.get(_lbl)]
 
     # ── 业绩报表（东财，按代码过滤）──
-    st.markdown('<div class="sf-card">' + _section_header("业绩报表", "每股收益 · 营收 · 净利润 · ROE", "📊"), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("业绩报表", "每股收益 · 营收 · 净利润 · ROE", "📊", level=2), unsafe_allow_html=True)
     st.caption(f"当前报告期：**{period_label}**")
     try:
         rep_df = _fr_cached_report(period)
@@ -1282,6 +1285,12 @@ def fragment_financial_report(ticker):
             st.metric("净利润", _fr_fmt(_r.get("净利润")), help="单位：元")
         with mc4:
             st.metric("ROE%", _fr_fmt(_r.get("ROE%")))
+        _mg = fr_compute_margins(_r)
+        mc5, mc6 = st.columns(2)
+        with mc5:
+            st.metric("毛利率", fr_fmt_pct(_mg["毛利率%"]), help="毛利 / 营业总收入（东财业绩报表）")
+        with mc6:
+            st.metric("净利率", fr_fmt_pct(_mg["净利率%"]), help="净利润 / 营业总收入")
         st.markdown(
             f"<div style='font-size:13px;line-height:1.9;color:var(--txt2);margin:6px 0 10px;'>"
             f"净利润同比 <b style='color:{yoy_col};'>净利润 {yoy_txt}</b>　|　"
@@ -1344,7 +1353,7 @@ def fragment_financial_report(ticker):
                 xc_warn_box(f"披露日历渲染失败：{e}")
 
     # ── 财务三表（新浪，best-effort）──
-    st.markdown('<div class="sf-card">' + _section_header("财务三表", "利润表 · 资产负债表 · 现金流量表", "🧾"), unsafe_allow_html=True)
+    st.markdown('<div class="sf-card">' + _section_header("财务三表", "利润表 · 资产负债表 · 现金流量表", "🧾", level=2), unsafe_allow_html=True)
     st.caption("数据来源：新浪财经财务三表（取最新 8 期，金额已自动换算为 亿/万）。接口偶发不稳定时单个表会单独提示。")
     # ── 多期趋势（利润表：营业总收入 / 净利润，单位亿元）──
     try:

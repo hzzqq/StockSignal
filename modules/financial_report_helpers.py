@@ -69,6 +69,48 @@ def fr_color_yoy(v):
     return _PERF_FLAT, "0.00%"
 
 
+def fr_normalize_pct(v):
+    """把「百分数 / 带 % 字符串 / None」归一为 float（百分数数值）；非法返回 None。"""
+    if v is None:
+        return None
+    t = str(v).replace("%", "").replace(",", "").strip()
+    if t in ("", "-", "None", "nan", "NaN"):
+        return None
+    try:
+        return float(t)
+    except (TypeError, ValueError):
+        return None
+
+
+def fr_fmt_pct(v):
+    """百分数格式化：None/NaN → —；其余保留 2 位 + %。"""
+    x = fr_normalize_pct(v)
+    if x is None:
+        return "—"
+    return f"{x:.2f}%"
+
+
+def fr_compute_margins(row) -> dict:
+    """从单期业绩报表行计算 毛利率% / 净利率%（均为百分数）。
+
+    - 毛利率%：取东财「销售毛利率」（重命名后列名 毛利率，本身已是百分数）。
+    - 净利率%：= 净利润 / 营业总收入 × 100（两者原始单位为元）。
+    任一缺失 / 非法返回对应 None（不造假、不补零）。
+    """
+    if row is None or getattr(row, "empty", True):
+        return {"毛利率%": None, "净利率%": None}
+    gm = fr_normalize_pct(row.get("毛利率"))
+    net = None
+    try:
+        rev_f = float(row.get("营业总收入"))
+        np_f = float(row.get("净利润"))
+        if rev_f not in (None,) and rev_f != 0:
+            net = np_f / rev_f * 100
+    except (TypeError, ValueError):
+        net = None
+    return {"毛利率%": gm, "净利率%": net}
+
+
 # 新浪三表中应保留为原样的非数值/标识列（不参加金额单位换算）
 _NON_NUMERIC_COLS = (
     "报告日", "数据源", "是否审计", "公告日期", "币种", "类型", "更新日期",
@@ -139,7 +181,7 @@ def fr_build_history(period_rows) -> "pd.DataFrame":
     缺失期直接跳过（不补零，避免造假）；无任何有效数据时返回空 DataFrame。
     本函数不修改入参。
     """
-    cols = ["报告期", "报告期标签", "每股收益", "营业总收入", "营收同比%", "净利润", "净利润同比%", "ROE%"]
+    cols = ["报告期", "报告期标签", "每股收益", "营业总收入", "营收同比%", "净利润", "净利润同比%", "ROE%", "毛利率%", "净利率%"]
     recs = []
     for period, row in (period_rows or []):
         if row is None or getattr(row, "empty", True):
@@ -154,6 +196,7 @@ def fr_build_history(period_rows) -> "pd.DataFrame":
                 rec[c] = r.get(c)
             except Exception:
                 rec[c] = None
+        rec.update(fr_compute_margins(r))
         recs.append(rec)
     if not recs:
         return pd.DataFrame(columns=cols)
@@ -169,6 +212,8 @@ _METRIC_YOY_COL = {
     "净利润": "净利润同比%",
     "每股收益": None,   # 东财业绩报表未提供 EPS 同比
     "ROE%": None,       # 同上
+    "毛利率%": None,    # 毛利率无同列同比
+    "净利率%": None,    # 净利率（=净利润/营收）无同列同比
 }
 
 

@@ -209,6 +209,17 @@ def dashboard_sf_css() -> str:
 .sf-card-title::before{{content:"";width:4px;height:18px;border-radius:3px;
   background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.40)}}
 .sf-card-subtitle{{font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:6px}}
+/* ════════ 标题等级体系（父/子模块严格分级，避免“只看标题像内容很多”）════════ */
+.sf-card h2.sf-h1{{font-size:17px;font-weight:700;color:var(--txt);margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;letter-spacing:.3px}}
+.sf-card h2.sf-h1::before{{content:"";width:5px;height:18px;border-radius:3px;background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.45)}}
+.sf-card h2.sf-h2{{font-size:14.5px;font-weight:600;color:var(--txt2);margin:0 0 12px;padding-bottom:8px;border-bottom:1px dashed var(--border);display:flex;align-items:center;gap:7px}}
+.sf-card h2.sf-h2::before{{content:"";width:3px;height:14px;border-radius:2px;background:var(--acc1);opacity:.85}}
+/* CTA 生成分析调用区（去丑渐变卡，统一组件视觉语言） */
+.sf-cta-card{{margin:14px 0 4px;padding:16px 18px;border-radius:14px;background:var(--card2);border:1px solid color-mix(in srgb,var(--acc1) 26%,var(--border));box-shadow:0 0 0 1px rgba(102,126,234,.08),0 8px 22px rgba(102,126,234,.10);position:relative;overflow:hidden}}
+.sf-cta-card::before{{content:"";position:absolute;inset:0;background:radial-gradient(circle at 12% -20%, rgba(124,92,255,.12), transparent 55%);pointer-events:none}}
+.sf-cta-title{{font-size:15px;font-weight:700;color:var(--txt);margin:0 0 4px;display:flex;align-items:center;gap:8px}}
+.sf-cta-sub{{font-size:12.5px;color:var(--txt2);line-height:1.7;margin:0 0 12px}}
+
 .sf-page-link{{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--acc1);background:rgba(102,126,234,.10);border:1px solid rgba(102,126,234,.30);border-radius:10px;padding:8px 12px;margin:10px 0 4px;transition:all .2s ease}}
 .sf-page-link:hover{{background:rgba(102,126,234,.18);border-color:rgba(102,126,234,.50)}}
 .sf-page-link a{{color:var(--acc1)!important;text-decoration:none!important}}
