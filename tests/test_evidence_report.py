@@ -23,6 +23,20 @@ def _run():
     return gen.OUT_PATH
 
 
+def _first_last_dates() -> tuple[str, str]:
+    """从真实广度 CSV 实算区间端点 —— 期望值不得写死。
+
+    历史缺陷：本测试曾写死 ``"2009-11-02" / "2026-09-04"``；后来 CSV 被向前
+    扩到 2007 年（现 4785 行 / 2007-01-05~2026-09-10），断言随即静默失败。
+    测试必须钉在实算产物上，而非某一次快照的字面量。
+    """
+    import csv
+    with open(_BREADTH_FILE, encoding="utf-8-sig", newline="") as f:
+        ds = [r["date"] for r in csv.DictReader(f) if (r.get("date") or "").strip()]
+    assert ds, "广度 CSV 无有效日期行"
+    return min(ds), max(ds)
+
+
 def test_evidence_report_generates_valid_html(tmp_path, monkeypatch):
     # 重定向输出到临时目录，避免覆盖已提交的交付物
     out = tmp_path / "shepherd_history_evidence.html"
@@ -38,8 +52,9 @@ def test_evidence_report_generates_valid_html(tmp_path, monkeypatch):
     assert "__CYCLE_ROWS__" not in html
     assert "__BREADTH_ROWS__" not in html
     assert "__CONCL__" not in html
-    # 真实数据区间已写入静态表格
-    assert "2009-11-02" in html and "2026-09-04" in html
+    # 真实数据区间已写入静态表格 —— 期望值从 CSV 实算（不再写死）
+    first, last = _first_last_dates()
+    assert first in html and last in html, f"静态表格未含真实区间 {first} ~ {last}（写死日期会随数据扩展静默过期）"
     # 内嵌 JSON 可解析
     m = re.search(r"const D = (\{.*?\});", html, re.S)
     assert m, "内嵌数据缺失"

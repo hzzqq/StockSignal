@@ -3,6 +3,15 @@
 为什么要这个脚本（而不是手写 HTML）：
 1. **数字必须是真的**——所有规模指标从仓库实时算出（文件数/行数/提交数/数据行数），
    避免"README 写 1767 个测试、实际 2608"这类自降身价的陈旧数字。
+   **硬编码禁令**：模板里不得再写死任何规模数字（页数/端点数/测试数/模块数），
+   一律走 @占位符@。本文件就曾同时出现 "2608" 与 "2,648" 两个互相矛盾的测试数、
+   以及写死的 "41 个功能页面 / 76 个端点 / 77 业务模块"，全部已改为占位符；
+   由 tests/test_public_numbers_consistency.py 静态守住。
+   **图注必须与图片一致**：作品集页曾把 thesis/ch6_eval/fig_history_trend.png（实际内容是
+   「评估数据累积趋势（每次运行 +1）」）写成「15 年全市场广度历史（4094 交易日）」——
+   典型「图注与图不符」。现已由 scripts/gen_breadth_history_fig.py 从
+   data/shepherd_history.csv 产出真图（docs/assets/fig_breadth_history.png），
+   其余三张图注亦改为按图实述。
 2. **图片内嵌**——发给 HR 的是一个文件，不会出现「图片裂了」。
 3. **可重跑**——每次迭代后重跑一次，门面永远与代码同步。
 
@@ -54,9 +63,17 @@ def _walk(sub: str, suffix: str = ".py") -> list[str]:
 
 
 def _count_routes() -> int:
+    """生产 REST 路由装饰器数（**排除 backend/tests**）。
+
+    实测口径：本函数结果必须与 Flask ``app.url_map`` 的非 static 规则数一致（当前 75）。
+    曾经漏排 tests 目录，把 ``backend/tests/test_security.py`` 里的测试专用路由
+    ``/api/_test_boom`` 也算了进去 → 对外多报 1 个端点（76）。
+    """
     n = 0
     pat = re.compile(r"@[A-Za-z_]+\.(route|get|post|put|delete|patch)\(")
     for p in _walk("backend"):
+        if "tests" in os.path.relpath(p, ROOT).split(os.sep):
+            continue
         try:
             with open(p, encoding="utf-8", errors="ignore") as f:
                 n += len(pat.findall(f.read()))
@@ -117,6 +134,54 @@ def _csv_rows(rel: str) -> int:
         return max(sum(1 for _ in f) - 1, 0)
 
 
+def _csv_span(rel: str, col: int = 0, sep: str = "–") -> str:
+    """从 CSV 首/末有效行推导覆盖区间标签（如 '2007–2026'）；无数据返回空串。"""
+    import csv as _csv
+    p = os.path.join(ROOT, rel)
+    if not os.path.exists(p):
+        return ""
+    first = last = ""
+    try:
+        with open(p, encoding="utf-8-sig", errors="ignore", newline="") as f:
+            r = _csv.reader(f)
+            next(r, None)
+            for row in r:
+                if not row:
+                    continue
+                v = (row[col] or "").strip()
+                if not v:
+                    continue
+                if not first:
+                    first = v
+                last = v
+    except OSError:
+        return ""
+    if not first or not last:
+        return ""
+    return f"{first[:4]}{sep}{last[:4]}"
+
+
+def _backtest_stats() -> dict:
+    """回测权威口径（reports/backtest_decision_closure.json）；缺失时全 0，不猜。"""
+    import json as _json
+    p = os.path.join(ROOT, "reports", "backtest_decision_closure.json")
+    zero = {"scored": 0, "call": 0, "hit": 0, "acc": 0.0}
+    if not os.path.exists(p):
+        return zero
+    try:
+        d = _json.loads(open(p, encoding="utf-8").read())
+    except (OSError, ValueError):
+        return zero
+    o = d.get("overall") or {}
+    m = d.get("meta") or {}
+    return {
+        "scored": int(m.get("n_trading_days_scored") or o.get("n") or 0),
+        "call": int(o.get("call") or 0),
+        "hit": int(o.get("hit") or 0),
+        "acc": float(o.get("dir_accuracy") or 0.0),
+    }
+
+
 def _glob_count(sub: str, suffix: str = ".py") -> int:
     base = os.path.join(ROOT, sub)
     if not os.path.isdir(base):
@@ -161,6 +226,8 @@ def collect(fast: bool = False) -> dict:
         "first_day": hist[0] if hist else "",
         "last_day": hist[-1] if hist else "",
         "breadth_days": _csv_rows("data/shepherd_history.csv"),
+        "breadth_span": _csv_span("data/shepherd_history.csv"),
+        "bt": _backtest_stats(),
         "stocks": len([f for f in os.listdir(os.path.join(ROOT, "data", "shepherd_cache_v2"))
                        if f.endswith(".csv")]) if os.path.isdir(
             os.path.join(ROOT, "data", "shepherd_cache_v2")) else 0,
@@ -193,14 +260,18 @@ SHOTS = [
 ]
 
 CHARTS = [
-    ("thesis/ch6_eval/fig_history_trend.png", "15 年全市场广度历史（4094 交易日）",
-     "自己重建的数据基座：红盘率 + 涨跌家数逐年走势，覆盖 2009–2026。"),
-    ("thesis/ch6_eval/fig_hit_trend.png", "方向命中率长期围绕 50% 波动 —— 如实披露",
-     "全链路回测 1722/3507 = 49.1%。我们把「预测不准」写进论文，而不是藏起来。"),
-    ("thesis/ch6_eval/fig_position.png", "仓位刻度随情绪周期显著分化",
-     "进攻期 57.8% vs 防守期 35.0%，价差 22.8pt —— 闭环是「市场状态驱动的风险缩放器」。"),
-    ("thesis/ch6_eval/fig_temp_pos.png", "情绪温度 → 建议仓位映射（单调、有界）",
-     "输出恒在 [5,95]，极端周期有封底/封顶，杜绝拍脑袋满仓。"),
+    # 图 1：真·广度历史图（scripts/gen_breadth_history_fig.py 从真实 CSV 产出）。
+    # 曾误把 thesis/ch6_eval/fig_history_trend.png（实为「评估数据累积趋势」）当成广度历史图。
+    ("docs/assets/fig_breadth_history.png",
+     "A 股全市场广度历史（@BREADTH_SPAN@，@BREADTH@ 交易日）",
+     "自己重建的数据基座：年度平均红盘率（柱）+ 日均涨跌家数（线），逐日广度指标完整、离线可复现。"),
+    # 以下三张均为「每日自动落盘、次日回填」评估闭环的真实产物，图注按图实述。
+    ("thesis/ch6_eval/fig_position.png", "决策闭环 · 每日仓位建议（clamp 5~95 校验）",
+     "真实运行产出的每日仓位序列：输出恒落在 [5,95] 内（上下限虚线），随情绪定位逐日变化。"),
+    ("thesis/ch6_eval/fig_temp_pos.png", "情绪温度 → 建议仓位（真实散点）",
+     "温度与建议仓位的真实对应分布。样本仍在累积，故只呈现事实、不提前断言单调性。"),
+    ("thesis/ch6_eval/fig_hit_trend.png", "预测 vs 实际：预测仓位与次日实际涨跌",
+     "蓝=预测仓位(%)，红=次日实际涨跌(%)，绿/红点=命中/未中 —— 每日落盘、次日回填的真实评分链路。"),
 ]
 
 
@@ -282,7 +353,7 @@ HTML = """<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>StockSignal · A股事件驱动投资分析平台 | 项目作品集</title>
-<meta name="description" content="41 页 Streamlit + Flask 全栈平台，2608 个自动化测试，用 15 年 4094 个交易日真实数据回测并如实披露方向命中率≈随机。">
+<meta name="description" content="@PAGES@ 页 Streamlit + Flask 全栈平台，@TESTS@ 个自动化测试，基于 @BREADTH_SPAN@ 共 @BREADTH@ 个交易日的真实广度数据做全链路回测，并如实披露方向命中率≈随机。">
 <style>@CSS@</style>
 </head>
 <body>
@@ -293,14 +364,14 @@ HTML = """<!DOCTYPE html>
     <h1>StockSignal<br><span class="g">把「市场情绪」做成可回测、可自校准的仓位决策闭环</span></h1>
     <p class="sub">
       不是又一个「选股器」。这是一个把 <b>情绪周期定位 → 仓位推导 → 每日落盘预测 → 次日回填打分 → 分组刻度校准</b>
-      串成闭环的 A 股分析平台：41 个功能页面、76 个后端 REST 端点、@SRC_LOC@ 行自研源码、
-      <b>@TESTS@ 个自动化测试</b>，并用自己重建的 <b>@BREADTH@ 个交易日（2009–2026）</b>真实广度历史做了全链路回测。
+      串成闭环的 A 股分析平台：@PAGES@ 个功能页面、@ROUTES@ 个后端 REST 端点、@SRC_LOC@ 行自研源码、
+      <b>@TESTS@ 个自动化测试</b>，并重建了覆盖 <b>@BREADTH_SPAN@ 共 @BREADTH@ 个交易日</b>的全市场广度数据基座。
     </p>
     <div class="hero-tags">
       <span class="tag">Streamlit + Flask 前后端分离</span>
       <span class="tag">4 源自动降级 + SQLite 缓存</span>
       <span class="tag">Backtrader 回测（含真实成本模型）</span>
-      <span class="tag">2608 项测试 · 含 AST 源码护栏</span>
+      <span class="tag">@TESTS@ 项测试 · 含 AST 源码护栏</span>
       <span class="tag">诚实负向结论：方向命中率 @ACC@%</span>
     </div>
   </div>
@@ -314,7 +385,7 @@ HTML = """<!DOCTYPE html>
       <div class="card hl">
         <div class="kicker">诚实 / 可证伪</div>
         <h3>🔬 把「测不准」写进论文，而不是藏起来</h3>
-        <p>用 15 年真实广度历史回测完整决策链路，得到方向命中率 <b>@ACC@%（@HIT@/@CALL@）≈ 随机</b>。
+        <p>用 @BT_DAYS@ 个可评分交易日的真实广度历史回测完整决策链路，得到方向命中率 <b>@ACC@%（@HIT@/@CALL@）≈ 随机</b>。
         我没有改口径去凑一个好看的数字，而是把它作为「能力边界」如实披露，并进一步定位到：
         这套系统的价值不在「猜次日涨跌」，而在<b>仓位刻度随市场状态缩放</b>。
         <b>结论可复现</b>：一条命令重跑全部数字。</p>
@@ -346,7 +417,7 @@ HTML = """<!DOCTYPE html>
       <div class="stat"><div class="n">@ROUTES@</div><div class="l">后端 REST 端点</div><div class="x">Flask + JWT 鉴权</div></div>
       <div class="stat"><div class="n">@SRC_LOC@</div><div class="l">行自研源码</div><div class="x">@PY_FILES@ 个 Python 文件</div></div>
       <div class="stat"><div class="n">@TESTS@</div><div class="l">自动化测试用例</div><div class="x">@TEST_FILES@ 个测试文件</div></div>
-      <div class="stat"><div class="n">@BREADTH@</div><div class="l">真实交易日回测</div><div class="x">2009–2026，全市场广度</div></div>
+      <div class="stat"><div class="n">@BREADTH@</div><div class="l">真实交易日广度基座</div><div class="x">@BREADTH_SPAN@ · 全市场广度</div></div>
       <div class="stat"><div class="n">@STOCKS@</div><div class="l">覆盖标的</div><div class="x">逐股日线缓存重建</div></div>
       <div class="stat"><div class="n">@COMMITS@</div><div class="l">Git 提交</div><div class="x">@DAYS@ 个工作日 · @SPAN@</div></div>
       <div class="stat"><div class="n">4</div><div class="l">级数据源自动降级</div><div class="x">AKShare→BaoStock→新浪→东财→缓存</div></div>
@@ -356,9 +427,10 @@ HTML = """<!DOCTYPE html>
 
 <section>
   <div class="wrap">
-    <h2>📈 实证结果（真实图表，来自回测产物）</h2>
-    <p class="lead">这些图不是示意图：数据源是自建的 @BREADTH@ 个交易日广度历史，回测脚本与生产代码共用同一套
-    <code>locate_cycle</code> / <code>derive_position</code>，零前视。</p>
+    <h2>📈 实证结果（真实图表，来自本地数据与运行产物）</h2>
+    <p class="lead">这些图不是示意图：图 1 由自建广度基座（@BREADTH_SPAN@ 共 @BREADTH@ 个交易日）实算出图；
+    图 2–4 由每日自动落盘、次日回填的评估闭环产出，样本仍在累积，故只呈现事实、不做过强断言。
+    回测脚本与生产代码共用同一套 <code>locate_cycle</code> / <code>derive_position</code>，零前视。</p>
     <div class="grid g2">
       @CHARTS@
     </div>
@@ -420,7 +492,7 @@ HTML = """<!DOCTYPE html>
     <h2>🏗 系统架构</h2>
     <div class="arch">┌──────────────────────────────┐        ┌─────────────────────────────────────┐
 │  Streamlit 多页前端 :8899     │  HTTP  │  Flask 后端 :5050                    │
-│  @PAGES@ 个功能页面 + 77 业务模块    │ ─────▶ │  @ROUTES@ 个 REST 端点 · JWT 鉴权 · 限流   │
+│  @PAGES@ 个功能页面 + @MODULES@ 业务模块    │ ─────▶ │  @ROUTES@ 个 REST 端点 · JWT 鉴权 · 限流   │
 │  双主题 · A股红涨绿跌         │  JWT   └──────────────┬──────────────────────┘
 └───────────────┬──────────────┘                       │ SQLAlchemy
                 │                                      ▼
@@ -518,6 +590,7 @@ def render(stats: dict) -> str:
     html = HTML.replace("@CSS@", CSS)
     repl = {
         "@PAGES@": str(stats["pages"]),
+        "@MODULES@": str(stats["modules"]),
         "@ROUTES@": str(stats["routes"]),
         "@SRC_LOC@": f"{stats['src_loc']:,}",
         "@TESTS@": f"{stats['tests']:,}",
@@ -526,18 +599,28 @@ def render(stats: dict) -> str:
         "@GUARDS@": str(stats["guards"]),
         "@PY_FILES@": str(stats["py_files"]),
         "@BREADTH@": f"{stats['breadth_days']:,}",
+        "@BREADTH_SPAN@": stats["breadth_span"] or "全历史",
+        "@BT_DAYS@": f"{stats['bt']['scored']:,}",
         "@STOCKS@": f"{stats['stocks']:,}",
         "@COMMITS@": str(stats["commits"]),
         "@DAYS@": str(stats["days"]),
         "@SPAN@": f"{stats['first_day']} – {stats['last_day']}",
-        "@ACC@": "49.1",
-        "@HIT@": "1722",
-        "@CALL@": "3507",
+        # 回测三件套同样取自钉死的产物 JSON，不再手写（防漂移）
+        "@ACC@": f"{stats['bt']['acc']:g}" if stats["bt"]["acc"] else "—",
+        "@HIT@": str(stats["bt"]["hit"]) if stats["bt"]["hit"] else "—",
+        "@CALL@": str(stats["bt"]["call"]) if stats["bt"]["call"] else "—",
         "@CHARTS@": "\n      ".join(charts),
         "@SHOTS@": "\n      ".join(shots),
     }
     for k, v in repl.items():
         html = html.replace(k, v)
+
+    # 安全二次替换：CHARTS/SHOTS 的标题或描述里可能含 @BREADTH@ / @BREADTH_SPAN@ 等占位符，
+    # 这些键在主循环里先于 @CHARTS@ 被替换，而图注 HTML 是在 @CHARTS@ 注入时才进入 html 的，
+    # 因此图注内的占位符不会被主循环替换 → 永久残留（守卫测试 test_render_* 曾抓到）。
+    # 广度/回测键的值与位置无关、且本身不含占位符，可无条件二次替换兜底。
+    for k in ("@BREADTH@", "@BREADTH_SPAN@", "@BT_DAYS@", "@ACC@", "@HIT@", "@CALL@"):
+        html = html.replace(k, repl[k])
     return html
 
 
