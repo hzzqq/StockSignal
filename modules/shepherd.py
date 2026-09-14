@@ -68,6 +68,12 @@ from modules.cache_utils import _CACHE, _CACHE_LOCK, cached_ttl
 
 _MAX_HISTORY_DAYS = 90
 
+# 东财「炸板股池」接口硬限制：只能取最近 30 个交易日。
+# 超出窗口的日期**必然**抛「只能获取最近 30 个交易日的数据」，请求了也白请求
+# （叠加 _retry(max_retries=2) 即 2 倍无效请求）。已知后果：拉 90 天历史时会
+# 白打 ~120 次请求，既拖慢快照（数十秒）又加剧 legu 限流。故按窗口裁剪，不做无谓请求。
+_ZBGC_MAX_DAYS = 30
+
 
 def _cached(ttl, key, fn):
     """基于时间戳的轻量缓存（锁外执行 fn，见 modules.cache_utils.cached_ttl）。
@@ -491,6 +497,9 @@ def _fetch_shepherd_history(n_days=60):
     """
     dates = _trading_days(min(n_days, _MAX_HISTORY_DAYS))
     rows = []
+    # 炸板股池仅对最近 _ZBGC_MAX_DAYS 个交易日请求；更早的日期接口拿不到，
+    # 与其请求后失败再记一条噪音日志，不如直接不请求（省时 + 少给东财上压力）。
+    zbgc_from = max(0, len(dates) - _ZBGC_MAX_DAYS)
     for i, d in enumerate(dates):
         rec = {"date": d}
         try:
@@ -500,13 +509,14 @@ def _fetch_shepherd_history(n_days=60):
         except Exception as e:  # noqa
             logger.warning(f"[shepherd] 处理异常: {e}")
             pass
-        try:
-            zbgc = _fetch_zbgc_pool(d)
-            if zbgc:
-                rec.update(zbgc)
-        except Exception as e:  # noqa
-            logger.warning(f"[shepherd] 处理异常: {e}")
-            pass
+        if i >= zbgc_from:
+            try:
+                zbgc = _fetch_zbgc_pool(d)
+                if zbgc:
+                    rec.update(zbgc)
+            except Exception as e:  # noqa
+                logger.warning(f"[shepherd] 处理异常: {e}")
+                pass
         # 炸板率修正为杨哥口径：炸板/(涨停+炸板)
         try:
             zc, lu = rec.get("zt_fail_count"), rec.get("limit_up")
