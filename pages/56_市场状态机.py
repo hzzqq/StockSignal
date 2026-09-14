@@ -94,7 +94,7 @@ try:
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             font=dict(color="#e5e7eb" if dark else "#1f2937"),
         )
-        st.plotly_chart(fig_d, use_container_width=True)
+        st.plotly_chart(fig_d, width="stretch")
 
     with c2:
         section_header("状态转移矩阵", "行=今日状态，列=次日状态（概率）", icon="🔀")
@@ -113,7 +113,7 @@ try:
             font=dict(color="#e5e7eb" if dark else "#1f2937"),
             yaxis=dict(autorange="reversed"),
         )
-        st.plotly_chart(fig_m, use_container_width=True)
+        st.plotly_chart(fig_m, width="stretch")
 
     # ── 历史情境类比 ──
     section_header("历史情境类比", f"与 {latest['date']} 广度最相似的 {len(rep['analogs'])} 个交易日，及其后表现", icon="🕰️")

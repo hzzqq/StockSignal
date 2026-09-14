@@ -39,7 +39,7 @@ try:
         if ev.get("available") and ev["events"]:
             rows = [{"日期": e["date"], "维度": e["label"], "类型": e["type"],
                      "极值": e["extreme"], "现值": e["current"]} for e in ev["events"]]
-            st.dataframe(rows, use_container_width=True, hide_index=True)
+            st.dataframe(rows, width="stretch", hide_index=True)
             st.caption(f"共 {len(ev['events'])} 个事件；类型=触底反转(自<-2回升过-1) / 触顶回落(自>+2回落过+1)。")
         else:
             st.info("近 20 交易日未检测到显著拐点，或历史数据不足。")
@@ -66,7 +66,7 @@ try:
                 xaxis_title="日期", yaxis_title="z-score(60日)",
                 showlegend=False,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
             st.caption("橙点=检测到的拐点；红线 ±2 为极端阈值，黄线 ±1 为反转确认阈值。z-score 仅描述相对自身 60 日均值的偏离，非预测。")
         else:
             st.info("该维度无足够历史生成 z-score 轨迹。")

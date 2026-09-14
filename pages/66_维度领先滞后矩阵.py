@@ -43,7 +43,7 @@ try:
             font=dict(color="#e5e7eb" if dark else "#1f2937"),
             xaxis_title="领先维度", yaxis_title="滞后维度",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.caption("正值 = 行维度领先列维度该天数（正相关）；负值 = 反向领先；0 = 窗口内无显著领先。"
                    "互相关衡量两个序列在时间上的协同/错位，非因果、非预测。")
     else:

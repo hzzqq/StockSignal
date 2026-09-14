@@ -87,7 +87,7 @@ try:
             return f"color:{UP_COLOR}" if str(v) == "看多" else f"color:{DOWN_COLOR}"
         st.dataframe(
             df_disp.style.applymap(_sig_color, subset=["信号"]),
-            use_container_width=True, hide_index=True,
+            width="stretch", hide_index=True,
         )
     else:
         st.info("事件因子池为空或不可用，无可对照信号。")
@@ -111,7 +111,7 @@ try:
                 font=dict(color="#e5e7eb" if dark else "#1f2937"),
                 xaxis_title="日期", yaxis_title="红盘率(%)",
             )
-            st.plotly_chart(fig_bg, use_container_width=True)
+            st.plotly_chart(fig_bg, width="stretch")
         else:
             st.info("暂无足够广度历史生成红盘率趋势。")
     except Exception as exc:  # noqa

@@ -46,7 +46,7 @@ try:
             font=dict(color="#e5e7eb" if dark else "#1f2937"),
             xaxis_title="温度档", yaxis_title="中位持续天数",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.caption("每根柱=该温度档历史连续 run 的中位天数；样本数 n 标于柱上。仅描述历史停留时长，不预测未来。")
 
         # 明细表

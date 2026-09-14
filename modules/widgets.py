@@ -857,7 +857,7 @@ def render_entry_cards(cards: list, columns: int = 3, active_label: str = None,
                         if st.button(
                             f"{_icon} {_label}",
                             key=f"ec_btn_{_label}",
-                            use_container_width=True,
+                            width="stretch",
                             type="primary" if _active else "secondary",
                         ):
                             _st = _card.get("state")
@@ -867,10 +867,10 @@ def render_entry_cards(cards: list, columns: int = 3, active_label: str = None,
                             safe_switch_page(_path)
                     else:
                         try:
-                            st.page_link(_path, label=f"{_icon} {_label}", icon=_icon, use_container_width=True)
+                            st.page_link(_path, label=f"{_icon} {_label}", icon=_icon, width="stretch")
                         except Exception as e:
                             logger.warning(f"[widgets] 处理异常: {e}")
-                            if st.button(f"{_icon} {_label}", key=f"ec_btn_{_label}", use_container_width=True):
+                            if st.button(f"{_icon} {_label}", key=f"ec_btn_{_label}", width="stretch"):
                                 safe_switch_page(_path)
                     _desc = _card.get("desc")
                     if _desc:
@@ -1027,10 +1027,10 @@ def render_sidebar_nav() -> None:
                         st.markdown(f'<div class="ss-nav-active">▶ {_h_icon} {_h_label}</div>', unsafe_allow_html=True)
                     else:
                         try:
-                            st.page_link(_h_path, label=f"{_h_icon} {_h_label}", icon=_h_icon, use_container_width=True)
+                            st.page_link(_h_path, label=f"{_h_icon} {_h_label}", icon=_h_icon, width="stretch")
                         except Exception as e:
                             logger.warning(f"[widgets] 处理异常: {e}")
-                            if st.button(f"{_h_icon} {_h_label}", key=f"hero_{_h_label}", use_container_width=True):
+                            if st.button(f"{_h_icon} {_h_label}", key=f"hero_{_h_label}", width="stretch"):
                                 safe_switch_page(_h_path)
             _cur_label = _current_nav_label(_cur_base)
             if _cur_label:

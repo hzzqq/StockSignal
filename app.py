@@ -46,19 +46,6 @@ def _check_backend():
 st.title("📊 StockSignal · A股事件驱动投资分析平台")
 st.caption("A股事件驱动投资分析平台 · 快速识别行情主线 · 回测事件驱动策略")
 
-status_col1, status_col2, status_col3, status_col4 = st.columns(4)
-with status_col1:
-    role_label = "管理员" if user.get("role") == "admin" else "普通用户"
-    st.metric(label="当前用户", value=user.get("username", "-"), delta=role_label, delta_color="off")
-with status_col2:
-    backend_ok = _check_backend()
-    st.metric(label="后端服务", value="✅ 正常" if backend_ok else "❌ 异常")
-with status_col3:
-    st.metric(label="当前时间", value=time.strftime("%H:%M:%S"))
-with status_col4:
-    st.metric(label="版本", value="v1.0")
-
-st.markdown("---")
 
 
 # ── 今日决策（情绪信号 → 仓位建议）──
@@ -204,13 +191,40 @@ def _render_today_decision():
 
 _render_today_decision()
 
+# ── 紧凑状态行：状态退到一行 caption，不再用 4 个指标卡抢占首屏视觉 ──
+_backend_ok = _check_backend()
+_role = "管理员" if user.get("role") == "admin" else "普通用户"
+st.caption(
+    f"👤 {user.get('username', '-')}（{_role}）　·　"
+    + ("🟢 后端正常" if _backend_ok else "🔴 后端未连接")
+    + f"　·　🕒 {time.strftime('%H:%M:%S')}　·　🏷️ v1.0"
+)
+
+st.markdown("---")
+
+# ── ⚡ 常用直达：首页＝「起点 + 结论」而非全量目录；全量收进下方折叠分组 ──
+st.header("⚡ 常用直达")
+_QUICK = [
+    ("🎯", "今日决策面板", "pages/54_今日决策面板.py"),
+    ("📈", "行情看板", "pages/10_行情看板.py"),
+    ("👁️", "智能盯盘", "pages/14_智能盯盘.py"),
+    ("🔬", "个股研究", "pages/24_个股研究.py"),
+    ("🏦", "持仓中心", "pages/45_持仓中心.py"),
+    ("⚙️", "策略回测", "pages/30_策略回测.py"),
+]
+_qcols = st.columns(len(_QUICK))
+for _i, (_qic, _qnm, _qpg) in enumerate(_QUICK):
+    with _qcols[_i]:
+        if st.button(f"{_qic} {_qnm}", key=f"quick_{_qnm}", width="stretch"):
+            safe_switch_page(_qpg)
+
 st.markdown("---")
 
 # ── 功能模块卡片（分组，与左侧边栏自定义导航保持一致） ──
 # 分组顺序对应日常操作流：看盘 → 选股 → 管仓 → 回测 → 交流 → 账户。
 # 合并页：🎯个股研究＝股票选取+个股分析；💼持仓中心＝自选股监控+仓位管理+组合收益。
 # 图标去重：📡事件追踪、🚨价格预警、🛠️系统配置。
-st.header("📦 功能模块")
+st.header("📦 全部功能模块")
 
 HOME_GROUPS = [
     ("🎯 决策闭环", [
@@ -258,15 +272,20 @@ HOME_GROUPS = [
 
 
 def _render_group(title, items):
-    st.subheader(title)
-    cols = st.columns(3)
-    for i, (icon, name, page, desc) in enumerate(items):
-        with cols[i % 3]:
-            with st.container(border=True):
-                st.markdown(f"**{icon} {name}**")
-                st.caption(desc)
-                if st.button("进入 →", key=f"nav_{name}", width="stretch", help=desc):
-                    safe_switch_page(page)
+    """功能模块分组：折叠式。
+
+    首页定位是「起点 + 结论」，不是全量目录 —— 25+ 张卡片平铺会把首屏压成一堵墙、
+    层级全平。改为按组折叠，标题带条目数，需要时一键展开。
+    """
+    with st.expander(f"{title}　（{len(items)}）", expanded=False):
+        cols = st.columns(3)
+        for i, (icon, name, page, desc) in enumerate(items):
+            with cols[i % 3]:
+                with st.container(border=True):
+                    st.markdown(f"**{icon} {name}**")
+                    st.caption(desc)
+                    if st.button("进入 →", key=f"nav_{name}", width="stretch", help=desc):
+                        safe_switch_page(page)
 
 
 for _g, _items in HOME_GROUPS:

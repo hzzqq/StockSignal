@@ -79,7 +79,7 @@ try:
             xaxis_title="动量（涨停前日收益）", yaxis_title="广度（红盘率）",
             yaxis=dict(autorange="reversed"),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.caption("行=广度五档（冰点→狂热），列=动量五档（强杀跌→极强）。颜色越亮=共现天数越多。"
                     "◉ 标记当前交易日所处的（广度,动量）格。")
     else:
@@ -120,7 +120,7 @@ try:
             xaxis_title="日期", yaxis_title="档位(0-4)",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
-        st.plotly_chart(fig_traj, use_container_width=True)
+        st.plotly_chart(fig_traj, width="stretch")
         st.caption("广度档/动量档取值 0-4（冰点/偏冷/中性/活跃/狂热 与 强杀跌~极强）。仅描述历史共现结构移动，非方向预测。")
     else:
         st.info("暂无足够广度历史生成共振格轨迹（最近交易日缺 red_ratio/zt_prev_ret）。")

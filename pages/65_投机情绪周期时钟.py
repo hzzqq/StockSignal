@@ -78,7 +78,7 @@ try:
             xaxis_title="日期", yaxis_title="归一化(各自 min–max)",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.caption("各线按自身区间归一化以便叠加对比走势；仅描述历史周期，不构成方向预测。")
     else:
         st.info("暂无足够广度历史生成时序图。")

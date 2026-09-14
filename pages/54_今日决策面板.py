@@ -265,7 +265,7 @@ def _render_hero(df, today, prev, meta=None):
                 font=dict(color="#e5e7eb" if dark else "#1f2937"),
                 xaxis_title="仓位贡献 (pt)",
             )
-            st.plotly_chart(_fig, use_container_width=True)
+            st.plotly_chart(_fig, width="stretch")
             _parts = []
             if "temp_+5" in _sens:
                 _parts.append(f"温度±5 → 仓位∓{abs(_sens['temp_+5']):.0f}pt")

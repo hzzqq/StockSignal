@@ -84,7 +84,7 @@ try:
             font=dict(color="#e5e7eb" if dark else "#1f2937"),
             yaxis=dict(autorange="reversed"),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.caption("蓝=冰点（普跌） → 红=狂热（普涨）。可读出广度牛熊区间结构（如 2015 上半年的极端红、2018 的全年冷）。")
     else:
         st.info("暂无足够广度历史生成日历热力图。")
@@ -112,7 +112,7 @@ try:
             yaxis2=dict(title="跌停数", overlaying="y", side="right", showgrid=False),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
-        st.plotly_chart(fig_t, use_container_width=True)
+        st.plotly_chart(fig_t, width="stretch")
         st.caption("蓝线=红盘率（左轴，0-100%）；红线=跌停数（右轴）。仅用广度内部可观测变量，不引入指数/行业数据。")
     else:
         st.info("暂无足够广度历史生成趋势。")
@@ -123,7 +123,7 @@ try:
         import pandas as pd
         ep = div["episodes"][-15:]
         df = pd.DataFrame(ep)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
     else:
         st.info("无分化日记录。")
 

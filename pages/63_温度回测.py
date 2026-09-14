@@ -83,7 +83,7 @@ try:
         if b["n"] < 50:
             low_conf.append(b["label"])
     tbl = pd.DataFrame(rows)
-    st.dataframe(tbl, hide_index=True, use_container_width=True)
+    st.dataframe(tbl, hide_index=True, width="stretch")
     if low_conf:
         st.warning(f"⚠️ 低置信档位（样本<50，仅供结构参考）：{', '.join(low_conf)}")
 
@@ -103,7 +103,7 @@ try:
         font=dict(color="#e5e7eb" if dark else "#1f2937"),
         yaxis_title="次日红盘率改善率 (%)", xaxis_title="温度档",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # ── 结论解读 ──
     st.markdown("### 🔎 结论解读")

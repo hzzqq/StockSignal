@@ -56,7 +56,7 @@ try:
             font=dict(color="#e5e7eb" if dark else "#1f2937"),
             xaxis_title="前向窗口", yaxis_title="红盘占比(%)",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.caption("红盘占比(≥50%) 越高，说明历史上相似情境后继更常偏暖。仅描述经验分布，不保证复现。")
 
         st.markdown("### 📋 最相似历史日（按距离升序）")
@@ -67,7 +67,7 @@ try:
                 "日期": it["date"], "距离": it["dist"],
                 "后5日红盘%": f.get(5), "后10日红盘%": f.get(10), "后20日红盘%": f.get(20),
             })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
     else:
         st.warning(f"⚠️ 无法生成历史相似日聚类（{res.get('reason','数据不足')}）。")
 

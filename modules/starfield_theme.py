@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
     inject_theme()                 # 每个页面顶部调一次
     inject_plotly_dark()           # 若用 Plotly，再调一次
     fig = kline_plotly(...)        # 画K线
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 """
 from modules.colors import UP_COLOR, DOWN_COLOR
 import json
@@ -115,7 +115,7 @@ def kline_option(dates, ohlc, volumes=None, div_id='sf-kline'):
 
 def kline_plotly(dates, opens, highs, lows, closes, volumes=None, title='K线'):
     """返回 Plotly 暗色 K线 Figure（红涨绿跌）。
-    用法：st.plotly_chart(kline_plotly(...), use_container_width=True)"""
+    用法：st.plotly_chart(kline_plotly(...), width="stretch")"""
     import plotly.graph_objects as go
     fig = go.Figure()
     fig.add_trace(go.Candlestick(x=list(dates), open=list(opens), high=list(highs), low=list(lows), close=list(closes), increasing={'line': {'color': UP_COLOR}, 'fillcolor': UP_COLOR}, decreasing={'line': {'color': DOWN_COLOR}, 'fillcolor': DOWN_COLOR}, name='K线'))

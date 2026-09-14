@@ -95,7 +95,7 @@ try:
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#e5e7eb" if dark else "#1f2937"),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.caption(f"💡 {band['advice']}")
 
     # ── 分档图例 ──
@@ -129,7 +129,7 @@ try:
             xaxis=dict(range=[0, 108], title="热度"),
             yaxis=dict(autorange="reversed"),
         )
-        st.plotly_chart(fig_c, use_container_width=True)
+        st.plotly_chart(fig_c, width="stretch")
         st.caption("方向说明：↑ 指标越高越热（如涨停家数）；↓ 指标越低越热（如跌停家数）。缺失指标不计入。")
 
     # ── 离线快照背景卡（兜底时展示）──
