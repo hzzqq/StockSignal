@@ -8,6 +8,8 @@
    不得硬编码 hex（去彩虹：曾各页自取 accent 形成 9 处「彩虹标题」）。
 3. KPI 卡必须走 canonical ``.xc-card``：``_xc_card_html`` / ``_stat_tile_html`` 输出
    同为 ``.xc-card``（消除 ``.ss-stat`` 重复视觉）。
+4. 全局 ``[data-testid=stMetric]`` 皮肤必须与 ``.xc-card`` 共享同一组卡 token
+   （圆角/内边距/边框混色/阴影），防两处定义各自漂移出两种「同一个 KPI 卡」外观。
 """
 import ast
 import re
@@ -72,3 +74,50 @@ def test_kpi_cards_converge_to_canonical_xc_card():
     from modules import ui_theme
     src = inspect.getsource(ui_theme.sf_metric)
     assert "_xc_card_html" in src, "sf_metric 应委托 ui_kit._xc_card_html（单一 KPI 卡视觉）"
+
+
+def _decl(rule: str) -> dict:
+    """把一段 CSS 声明解析为 {prop: value}，值去掉 !important 便于跨处比对。"""
+    out = {}
+    for part in rule.split(";"):
+        if ":" in part:
+            k, v = part.split(":", 1)
+            out[k.strip()] = v.strip().replace("!important", "").strip()
+    return out
+
+
+def test_metric_skin_matches_canonical_xc_card(monkeypatch):
+    """全局 [data-testid=stMetric] 皮肤必须与 canonical .xc-card 共享同一组卡 token。
+
+    防漂移：KPI 卡的视觉曾分散在两处——``ui_kit._KIT_CSS`` 的 ``.xc-card`` 与
+    ``ui_theme.dashboard_sf_css()`` 的 ``[data-testid=stMetric]``。任一处单独改动，
+    同一个 KPI 卡就会出现两种外观（圆角/内边距/边框各说各话）。本守卫把两处的
+    圆角 / 内边距 / 边框混色 / 阴影钉死为一致——单一视觉源。
+    """
+    import modules.ui_kit as kit
+    import modules.ui_theme as ui_theme
+
+    monkeypatch.setattr(ui_theme, "_theme_is_dark", lambda: False)
+    ui_theme._DASHBOARD_SF_CSS_CACHE.clear()
+    css = ui_theme.dashboard_sf_css()
+
+    m = re.search(r'\[data-testid="stMetric"\]\{([^}]*)\}', css)
+    assert m, "全局 CSS 缺少 [data-testid=stMetric] 卡容器规则"
+    metric = _decl(m.group(1))
+
+    m2 = re.search(r"\.xc-card\{([^}]*)\}", kit._KIT_CSS)
+    assert m2, "ui_kit._KIT_CSS 缺少 .xc-card 基础规则"
+    xc = _decl(m2.group(1))
+
+    for key in ("border-radius", "padding"):
+        assert metric.get(key) == xc.get(key), (
+            f"stMetric 与 .xc-card 的 {key} 不一致：{metric.get(key)!r} vs {xc.get(key)!r}"
+        )
+    assert xc["border-radius"] == "16px"  # canonical 卡圆角基线下限
+    for name, d in (("stMetric", metric), ("xc-card", xc)):
+        b = d.get("border", "")
+        assert ("color-mix(" in b and "acc1" in b and "22%" in b), (
+            f"{name} 边框须为主题强调色 22% 混色（token 化，禁裸 --border）：{b!r}"
+        )
+    assert metric.get("box-shadow") == xc.get("box-shadow"), "两处卡阴影须一致"
+

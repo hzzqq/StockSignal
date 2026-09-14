@@ -333,10 +333,13 @@ hr{{border-color:var(--border)!important}}
 .stDataFrame tbody td,.stTable tbody td{{padding:8px 10px!important;border-bottom:1px solid var(--border)!important;color:var(--txt)!important;text-align:center!important}}
 .stDataFrame tbody tr:nth-child(even),.stTable tbody tr:nth-child(even){{background:color-mix(in srgb,var(--card2) 55%,transparent)!important}}
 .stDataFrame tbody tr:hover,.stTable tbody tr:hover{{background:color-mix(in srgb,var(--acc1) 10%,var(--card2))!important}}
-/* 3. st.metric 卡片化 + A股红涨绿跌由页面自行着色，此处仅统一容器 */
-[data-testid="stMetric"]{{background:var(--card)!important;border:1px solid var(--border)!important;border-radius:14px!important;padding:12px 16px!important;box-shadow:0 1px 4px rgba(15,15,35,.06)}}
-[data-testid="stMetric"] label{{color:var(--txt2)!important;font-size:12px!important}}
-[data-testid="stMetricValue"]{{color:var(--txt)!important;font-weight:800!important}}
+/* 3. st.metric 卡片化：逐 token 对齐 canonical .xc-card（ui_kit._KIT_CSS）——同一种 KPI 卡、单一视觉源。
+   A 股红涨绿跌由页面 delta_color="inverse"/tone 控制，此处只统一容器/字体，不碰颜色语义。 */
+[data-testid="stMetric"]{{background:var(--card)!important;border:1px solid color-mix(in srgb,var(--acc1) 22%,var(--border))!important;border-radius:16px!important;padding:14px 16px!important;box-shadow:0 1px 4px rgba(15,15,35,.06)!important;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease!important}}
+[data-testid="stMetric"]:hover{{transform:translateY(-4px);border-color:var(--acc1)!important;box-shadow:0 10px 30px rgba(102,126,234,.18)!important}}
+[data-testid="stMetric"] label{{color:var(--txt2)!important;font-size:12px!important;font-weight:500!important}}
+[data-testid="stMetricValue"]{{color:var(--txt)!important;font-weight:800!important;font-size:22px!important;font-family:'Fira Code',ui-monospace,monospace!important;letter-spacing:.2px!important}}
+[data-testid="stMetricDelta"]{{font-size:13px!important;font-weight:700!important}}
 /* 4. 原生 info/warning/error/success 左条改用主题强调紫（与 xc 一致） */
 [data-testid="stAlert"][data-baseweb="notification"][data-kind="info"]{{border-left:4px solid var(--acc1)!important}}
 
