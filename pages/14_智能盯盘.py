@@ -650,4 +650,4 @@ with st.expander('💡 使用说明', expanded=False):
     st.markdown('\n    **智能盯盘使用指引**\n    - **板块资金异动**：行业主力净流入 TOP10（红=净流入 / 绿=净流出）。\n    - **自选股涨跌榜**：实时行情按涨跌%排序，可筛选 / 逐只跳转。\n    - **个股资金流异动**：主力净流入 TOP / 净流出 TOP。\n    - **预警触发**：按阈值扫描涨跌与资金异动。\n    - **我的关注列表**：添加 / 移除自选股。\n    - ⚠️ 数据仅供参考，不构成投资建议。\n    ')
 with st.expander('⌨️ 快捷键', expanded=False):
     st.markdown('\n    本页为 Streamlit Web 应用，未绑定全局快捷键，以下为操作提示：\n    - **回车**：在表单 / 输入框内按回车可触发提交。\n    - **Tab**：在控件间切换焦点。\n    - **浏览器 F5 / Cmd·Ctrl+R**：刷新整页（将丢失未保存的会话状态）。\n    - 各板块「🔄 刷新」按钮可局部刷新对应模块。\n    ')
-st.markdown('<button onclick="parent.window.scrollTo({top:0,behavior:\'smooth\'});" style="position:fixed;right:24px;bottom:12px;z-index:9999;background:#3498db;color:#fff;border:none;border-radius:20px;padding:8px 14px;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);">↑ 回到顶部</button>', unsafe_allow_html=True)
+# v3：本页原有 inline「↑ 回到顶部」按钮已移除 —— 与全局悬浮 ▲（右下角，首次下滑即现）功能重复且样式冲突。

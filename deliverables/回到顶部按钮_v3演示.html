@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>回到顶部按钮 v3 演示（模拟 Streamlit 内部滚动容器）</title>
+
+<style>
+/* ══════════ ▲ 回到顶部 —— 页面右下角固定圆形悬浮按钮 ══════════
+   位置：right:24px / bottom:28px（右下角，与侧栏「市场异动」铃铛错开）
+   v2 曾把按钮固定在页面右侧中部（垂直居中）→ 已于 v3 改为右下角，且出现后位置恒定。 */
+.sf-scroll-top{
+  position:fixed;right:24px;bottom:28px;top:auto;transform:none;z-index:900;
+  width:40px;height:40px;border-radius:50%;
+  display:none;align-items:center;justify-content:center;
+  padding:0;margin:0;line-height:1;
+  font-size:16px;font-weight:600;
+  background:#ffffff;color:#374151;
+  border:1px solid #e2e8f0;cursor:pointer;
+  box-shadow:0 4px 14px rgba(15,23,42,.14),0 1px 3px rgba(15,23,42,.08);
+  transition:opacity .22s ease,transform .22s ease,box-shadow .22s ease,background .18s ease;
+  opacity:0;pointer-events:none;
+}
+.sf-scroll-top svg{width:20px;height:20px;display:block}
+.sf-scroll-top:hover{
+  background:#f8fafc;color:#111827;transform:translateY(-2px);
+  box-shadow:0 8px 22px rgba(15,23,42,.2),0 2px 6px rgba(15,23,42,.1);
+}
+.sf-scroll-top:active{transform:translateY(0) scale(.96)}
+.sf-scroll-top:focus-visible{outline:2px solid var(--acc1,#4f46e5);outline-offset:2px}
+
+/* 暗色主题：深底 + 浅箭头 */
+.sf-scroll-top.dark{
+  background:#1e1e32;color:#cbd5e1;border-color:#2d2d44;
+  box-shadow:0 4px 16px rgba(0,0,0,.45),0 1px 3px rgba(0,0,0,.3);
+}
+.sf-scroll-top.dark:hover{
+  background:#2a2a45;color:#f1f5f9;
+  box-shadow:0 8px 24px rgba(0,0,0,.55),0 2px 6px rgba(0,0,0,.35);
+}
+
+/* 显示态：fade-in + 轻微上浮，出现后不再位移（位置恒定） */
+.sf-scroll-top.visible{display:flex;opacity:1;pointer-events:auto;animation:sfFadeInUp .26s ease}
+@keyframes sfFadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ══════════ ▼ 回到底部（WorkBuddy 原版）—— 消息流右下角、输入栏上方 ══════════ */
+.sf-scroll-bottom-float{
+  position:fixed;right:24px;bottom:110px;z-index:900;
+  width:34px;height:34px;border-radius:50%;
+  background:#f0f0f5;color:#6b7280;border:none;cursor:pointer;
+  display:none;align-items:center;justify-content:center;font-size:15px;
+  box-shadow:0 3px 12px rgba(0,0,0,.12),0 1px 4px rgba(0,0,0,.08);
+  transition:all .22s ease;line-height:1;
+}
+.sf-scroll-bottom-float.dark{
+  background:#1e1e32;color:#94a3b8;
+  box-shadow:0 3px 12px rgba(0,0,0,.3),0 1px 4px rgba(0,0,0,.2)
+}
+.sf-scroll-bottom-float:hover{
+  background:#e0e0e8;color:#374151;transform:translateY(-2px);
+  box-shadow:0 5px 18px rgba(0,0,0,.16)}
+.sf-scroll-bottom-float.dark:hover{background:#2a2a45;color:#e2e8f0}
+.sf-scroll-bottom-float.visible{display:flex;animation:sf-slideUp .26s ease}
+@keyframes sf-slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1}}
+
+/* ══════════ 弹层内嵌版 ▼（星辰 AI 右上角 popover 用，居中于输入栏上方）══════════ */
+.sf-scroll-bottom-inline{
+  width:34px;height:34px;border-radius:50%;cursor:pointer;
+  background:#f0f0f5;color:#6b7280;border:none;
+  display:inline-flex;align-items:center;justify-content:center;font-size:15px;
+  box-shadow:0 3px 12px rgba(0,0,0,.12),0 1px 4px rgba(0,0,0,.08);
+  transition:all .22s ease;line-height:1;
+}
+.sf-scroll-bottom-inline.dark{background:#1e1e32;color:#94a3b8;
+  box-shadow:0 3px 12px rgba(0,0,0,.3),0 1px 4px rgba(0,0,0,.2)}
+.sf-scroll-bottom-inline:hover{background:#e0e0e8;color:#374151;transform:translateY(-2px)}
+.sf-scroll-bottom-inline.dark:hover{background:#2a2a45;color:#e2e8f0}
+
+/* ══════════ 页内行内按钮（历史 API 兼容）══════════ */
+.sf-scroll-inline{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:.35rem .8rem;border-radius:999px;cursor:pointer;
+  background:#f0f0f5;color:#374151;border:1px solid #e2e8f0;
+  font-size:.85rem;transition:all .18s ease;
+}
+.sf-scroll-inline:hover{background:#e0e0e8}
+
+/* ══════════ 响应式：窄屏收窄边距与尺寸 ══════════ */
+@media(max-width:768px){
+  .sf-scroll-top{right:14px;bottom:20px;width:38px;height:38px}
+  .sf-scroll-top svg{width:18px;height:18px}
+  .sf-scroll-bottom-float{right:14px;bottom:90px;width:31px;height:31px;font-size:13px}
+}
+</style>
+
+
+
+<style>
+  html,body{margin:0;height:100%;font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  #app{height:100vh;overflow-y:auto;background:#f7f8fc}
+  .inner{max-width:860px;margin:0 auto;padding:28px 24px 80px}
+  h1{font-size:22px;margin:0 0 6px;color:#1e293b}
+  .hint{color:#64748b;font-size:13.5px;line-height:1.8;margin-bottom:18px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;
+        margin-bottom:14px;box-shadow:0 4px 14px rgba(15,23,42,.05)}
+  .filler{height:150px;background:linear-gradient(180deg,#eef2ff,#f8fafc);
+          border-radius:14px;margin-bottom:14px;display:flex;align-items:center;
+          justify-content:center;color:#94a3b8;font-size:13px}
+  code{background:#f1f5f9;padding:1px 6px;border-radius:5px;font-size:12.5px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="inner">
+    <h1>&#9650; 回到顶部 · v3 真实行为演示</h1>
+    <div class="hint">
+      本页复刻 Streamlit 的结构：<code>body</code> 不滚动，<strong>内部容器</strong>
+      <code>#app</code> 滚动 —— 这正是旧版失效的原因（它滚的是 <code>window</code>）。<br>
+      &#128073; 往下滚<strong>一点点</strong>，右下角圆形按钮应立即浮现；点它应真正回到顶部。
+    </div>
+    <div class="card">
+      <strong>v3 行为清单</strong>
+      <ul>
+        <li>圆形 · 右下角 <code>right:24px / bottom:28px</code> · 固定不动</li>
+        <li>默认阈值 <code>120px</code> —— 第一次下滑就出现（之前完全不出现）</li>
+        <li>出现后位置恒定，不随内容高度或滚动位置漂移</li>
+        <li>点击<strong>真正滚动内部容器</strong>回顶（多候选探测 + window 兜底）</li>
+        <li>滚回顶部后自动淡出隐藏</li>
+      </ul>
+    </div>
+<div class="filler">第 1 屏内容（继续往下滚）</div><div class="filler">第 2 屏内容（继续往下滚）</div><div class="filler">第 3 屏内容（继续往下滚）</div><div class="filler">第 4 屏内容（继续往下滚）</div><div class="filler">第 5 屏内容（继续往下滚）</div><div class="filler">第 6 屏内容（继续往下滚）</div><div class="filler">第 7 屏内容（继续往下滚）</div><div class="filler">第 8 屏内容（继续往下滚）</div><div class="filler">第 9 屏内容（继续往下滚）</div><div class="filler">第 10 屏内容（继续往下滚）</div><div class="filler">第 11 屏内容（继续往下滚）</div><div class="filler">第 12 屏内容（继续往下滚）</div>
+  </div>
+</div>
+<script>
+/* 演示页内部滚动容器是 #app；仅把选择器指向它、把父窗口换成 window，
+   其余逻辑与线上注入代码逐字一致。 */
+<script>
+(function(){
+  var P = window;
+  if (!P || !P.document) return;
+  try {
+    /* ── 滚动容器探测（v3 修复：Streamlit 主内容区不是 window 的滚动）── */
+    var C_sels = ["#app"];
+function C_get(){
+  try{
+    for (var i=0;i<C_sels.length;i++){
+      var el = P.document.querySelector(C_sels[i]);
+      if (el && el.scrollHeight > el.clientHeight + 4) return el;
+    }
+    for (var j=0;j<C_sels.length;j++){
+      var el2 = P.document.querySelector(C_sels[j]);
+      if (el2) return el2;
+    }
+  }catch(e){}
+  return null;
+}
+function C_top(){
+  var el = C_get();
+  try{ if (el) { el.scrollTo({top:0, behavior:'smooth'}); return; } }catch(e){}
+  try{ P.scrollTo({top:0, behavior:'smooth'}); }catch(e){}
+  try{ P.document.documentElement.scrollTop = 0; }catch(e){}
+}
+function C_pos(){
+  var el = C_get();
+  try{ if (el) return el.scrollTop || 0; }catch(e){}
+  return (P.scrollY || P.pageYOffset || 0);
+}
+
+
+    // ▲ 回到顶部（v3：右下角圆形 · 首次下滑即现 · 位置固定 · 真正滚对容器）
+    if (true) {
+      var tbtn = P.document.getElementById('sfScrollTopBtn');
+      if (!tbtn) {
+        tbtn = P.document.createElement('button');
+        tbtn.id = 'sfScrollTopBtn';
+        tbtn.type = 'button';
+        tbtn.className = 'sf-scroll-top';
+        tbtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V6"/><path d="M6 12l6-6 6 6"/></svg>';
+        tbtn.title = '回到顶部';
+        tbtn.setAttribute('aria-label', '回到顶部');
+        tbtn.onclick = function(ev){ if(ev && ev.preventDefault) ev.preventDefault(); C_top(); };
+        P.document.body.appendChild(tbtn);
+      } else {
+        tbtn.className = 'sf-scroll-top';
+      }
+      var tupdate = function(){
+        var y = C_pos();
+        if (y > 120) tbtn.classList.add('visible');
+        else tbtn.classList.remove('visible');
+      };
+      // 绑定：window + 所有候选容器（含懒绑定的实际滚动元素），确保任一滚动都被感知
+      var __bound = [];
+      function bindScrollTargets(){
+        var cands = [];
+        try { cands.push(P); } catch(e){}
+        try { for (var i=0;i<C_sels.length;i++){ var e=P.document.querySelector(C_sels[i]); if(e) cands.push(e); } } catch(e){}
+        for (var k=0;k<cands.length;k++){
+          if (!cands[k] || __bound.indexOf(cands[k]) >= 0) continue;
+          try { cands[k].addEventListener('scroll', tupdate, {passive:true}); __bound.push(cands[k]); } catch(e){}
+        }
+      }
+      bindScrollTargets();
+      setTimeout(function(){ bindScrollTargets(); tupdate(); }, 120);
+      setTimeout(function(){ bindScrollTargets(); tupdate(); }, 600);
+      if (P.__sfScrollNavObserver) { try { P.__sfScrollNavObserver.disconnect(); } catch(e){} }
+      P.__sfScrollNavObserver = new MutationObserver(function(){ bindScrollTargets(); setTimeout(tupdate, 60); });
+      P.__sfScrollNavObserver.observe(P.document.body, {childList:true, subtree:true});
+    }
+    // ▼ 回到底部（由页面标记元素 stChatInput 的存在性驱动）
+    // 说明：Streamlit 1.58 为客户端路由，window.location.pathname 恒为 "/"，
+    // 无法用 URL 区分页面；故由星辰 AI 对话页用 st.markdown 渲染一个隐藏标记元素，
+    // 本脚本监听该标记出现即创建 ▼、消失即移除，确保 ▼ 仅在该页出现。
+    // （本脚本位于每页唯一可靠执行的首次 components.html 注入中，无需二次调用。）
+    if (true && "stChatInput" !== '') {
+      var bbtn = null;
+      function createBottomBtn(){
+        var broot = P.document.getElementById('sfChatBottomRoot');
+        if (broot) { bbtn = P.document.getElementById('sfChatBottomBtn'); if (bbtn) bbtn.className = 'sf-scroll-bottom-float'; }
+        else {
+          broot = P.document.createElement('div'); broot.id = 'sfChatBottomRoot';
+          bbtn = P.document.createElement('button'); bbtn.id = 'sfChatBottomBtn'; bbtn.className = 'sf-scroll-bottom-float'; bbtn.__xcAuto = true;
+          bbtn.innerHTML = '▼'; bbtn.title = '回到底部';
+          bbtn.onclick = function(){ var el=C_get(); if(el){ try{el.scrollTo({top:el.scrollHeight,behavior:'smooth'});}catch(e){} } try{ P.scrollTo({top: P.document.body.scrollHeight, behavior:'smooth'}); }catch(e){} };
+          broot.appendChild(bbtn); P.document.body.appendChild(broot);
+        }
+      }
+      function bupdate(){
+        if (!bbtn) return;
+        var el = C_get();
+        var sy = el ? (el.scrollTop||0) : (P.scrollY||P.pageYOffset||0);
+        var dh = el ? el.scrollHeight : P.document.documentElement.scrollHeight;
+        var wh = el ? el.clientHeight : P.innerHeight;
+        var distBottom = dh-(sy+wh);
+        if (distBottom > 150) bbtn.classList.add('visible'); else bbtn.classList.remove('visible');
+      }
+      function syncBottom(){
+        var m = P.document.querySelector('[data-testid="stChatInput"]');
+        var cur = P.document.getElementById('sfChatBottomBtn');
+        if (m && !cur) { createBottomBtn(); bupdate(); }
+        else if (!m && cur && cur.__xcAuto) { if (cur.parentElement) cur.parentElement.remove(); }
+      }
+      syncBottom();
+      P.addEventListener('scroll', bupdate, {passive:true});
+      setTimeout(function(){ syncBottom(); bupdate(); }, 200);
+      new MutationObserver(function(){ syncBottom(); }).observe(P.document.body, {childList:true, subtree:true});
+    }
+    // C 键清缓存拦截 + 安全网（合并进同一脚本，确保可靠执行）
+    function isEditingTarget(e){ var tag=(e.target&&e.target.tagName)||''; var ed=e.target&&(e.target.isContentEditable||e.target.contentEditable==='true'); return tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||ed; }
+    function isPlainC(e){ var k=e.key||''; var ic=(k==='c'||k==='C'||e.keyCode===67||e.which===67); if(!ic)return false; if(e.ctrlKey||e.metaKey||e.altKey)return false; return true; }
+    function ch(e){ if(!isPlainC(e))return; if(isEditingTarget(e))return; e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation)e.stopImmediatePropagation(); }
+    if(!P.__stocksignal_cache_handler_added){
+      P.__stocksignal_cache_handler_added=true;
+      ['keydown','keyup','keypress'].forEach(function(ev){ P.addEventListener(ev, ch, true); if(P.document)P.document.addEventListener(ev, ch, true); });
+    }
+    function dismissClearCache(){
+      try {
+        var d=P.document.querySelector('[role="dialog"]'); if(!d)return;
+        var t=(d.innerText||'').toLowerCase();
+        if(t.indexOf('clear cache')>=0 || t.indexOf('清除')>=0){
+          var bs=d.querySelectorAll('button');
+          for(var i=0;i<bs.length;i++){ var bt=(bs[i].innerText||'').toLowerCase(); if(bt.indexOf('cancel')>=0||bt.indexOf('取消')>=0){ bs[i].click(); return; } }
+        }
+      } catch(e){}
+    }
+    if(P.__xc_dismiss_interval){ try{clearInterval(P.__xc_dismiss_interval);}catch(e){} }
+    P.__xc_dismiss_interval=setInterval(dismissClearCache,150);
+    if(P.__xc_dismiss_observer){ try{P.__xc_dismiss_observer.disconnect();}catch(e){} }
+    P.__xc_dismiss_observer=new MutationObserver(function(){dismissClearCache();});
+    P.__xc_dismiss_observer.observe(P.document.body,{childList:true,subtree:true});
+  } catch(e) {}
+})();
+</script>
+
+</script>
+</body>
+</html>

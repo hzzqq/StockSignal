@@ -15,6 +15,11 @@ from modules.financial_report_helpers import (
     fr_filter_by_code,
     fr_color_yoy,
     fr_format_financial_df,
+    fr_period_label,
+    fr_build_history,
+    fr_history_metrics,
+    fr_expand_rows,
+    fr_yoy_column,
 )
 
 
@@ -146,3 +151,140 @@ def test_fr_format_financial_df_empty():
     import pandas as pd
     assert fr_format_financial_df(pd.DataFrame()) is not None
     assert fr_format_financial_df(None) is None
+
+# ══════════════════════════════════════════════════════════════════════════
+# 横向历史对比（v3 · 2026-09-13）：fr_period_label / fr_build_history /
+# fr_history_metrics / fr_expand_rows
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_fr_period_label_quarter_suffixes():
+    assert fr_period_label("20251231") == "2025年报"
+    assert fr_period_label("20260331") == "2026一季报"
+    assert fr_period_label("20260630") == "2026中报"
+    assert fr_period_label("20260930") == "2026三季报"
+
+
+def test_fr_period_label_passthrough_when_unparseable():
+    assert fr_period_label("2025年报") == "2025年报"   # 非 8 位数字，原样
+    assert fr_period_label("20269999") == "20269999"   # 非法 mmdd，原样
+    assert fr_period_label("") == ""
+
+
+def _one_row(code, eps, rev, rev_yoy, ni, ni_yoy, roe):
+    """构造与 get_earnings_report 输出同构的「单行」结果。"""
+    return pd.DataFrame([{
+        "代码": code, "名称": "测试股", "每股收益": eps,
+        "营业总收入": rev, "营收同比%": rev_yoy,
+        "净利润": ni, "净利润同比%": ni_yoy, "ROE%": roe,
+    }])
+
+
+def test_fr_build_history_merges_and_sorts_ascending():
+    rows = [
+        ("20251231", _one_row("600519", 60.0, 1.7e11, 8.0, 8.2e10, 12.0, 32.0)),
+        ("20231231", _one_row("600519", 50.0, 1.4e11, 10.0, 7.0e10, 9.0, 30.0)),
+        ("20241231", _one_row("600519", 55.0, 1.5e11, 7.0, 7.5e10, 6.0, 31.0)),
+    ]
+    df = fr_build_history(rows)
+    assert list(df["报告期"]) == ["20231231", "20241231", "20251231"], "必须按报告期升序（旧→新）"
+    assert list(df["报告期标签"]) == ["2023年报", "2024年报", "2025年报"]
+    assert df["净利润"].iloc[-1] == 8.2e10
+    assert df["净利润同比%"].iloc[0] == 9.0
+
+
+def test_fr_build_history_skips_missing_periods_without_fabricating():
+    """缺失期必须跳过（不补零/不插空行），避免把「没披露」伪造成「0」。"""
+    rows = [
+        ("20231231", _one_row("600519", 50.0, 1.4e11, 10.0, 7.0e10, 9.0, 30.0)),
+        ("20241231", None),                       # 未披露
+        ("20241231", pd.DataFrame()),             # 空表
+        ("20251231", _one_row("600519", 60.0, 1.7e11, 8.0, 8.2e10, 12.0, 32.0)),
+    ]
+    df = fr_build_history(rows)
+    assert len(df) == 2, "缺失期不得占位"
+    assert list(df["报告期"]) == ["20231231", "20251231"]
+    assert not (df["净利润"] == 0).any(), "不得把缺失伪造成 0"
+
+
+def test_fr_build_history_empty_when_no_valid_rows():
+    df = fr_build_history([("20241231", None)])
+    assert df.empty
+    assert "报告期" in df.columns, "空表也应带完整列名（下游可直接渲染）"
+
+
+def test_fr_build_history_does_not_mutate_input():
+    r = _one_row("600519", 60.0, 1.7e11, 8.0, 8.2e10, 12.0, 32.0)
+    before = r.copy(deep=True)
+    fr_build_history([("20251231", r)])
+    pd.testing.assert_frame_equal(r, before)
+
+
+def test_fr_history_metrics_extracts_series():
+    df = fr_build_history([
+        ("20231231", _one_row("600519", 50.0, 1.4e11, 10.0, 7.0e10, 9.0, 30.0)),
+        ("20241231", _one_row("600519", 55.0, 1.5e11, None, 7.5e10, -6.0, 31.0)),
+        ("20251231", _one_row("600519", 60.0, 1.7e11, 8.0, 8.2e10, 12.0, 32.0)),
+    ])
+    x, y, yoy = fr_history_metrics(df, "净利润")
+    assert x == ["2023年报", "2024年报", "2025年报"]
+    assert y == [7.0e10, 7.5e10, 8.2e10]
+    assert yoy == [9.0, -6.0, 12.0]
+
+    # 营收同比缺失期必须是 None（断线），不得变 0
+    _, _, rev_yoy = fr_history_metrics(df, "营业总收入")
+    assert rev_yoy == [10.0, None, 8.0]
+
+
+def test_fr_history_metrics_bad_input_returns_empty():
+    assert fr_history_metrics(None, "净利润") == ([], [], [])
+    assert fr_history_metrics(pd.DataFrame(), "净利润") == ([], [], [])
+    df = fr_build_history([("20251231", _one_row("600519", 60.0, 1.7e11, 8.0, 8.2e10, 12.0, 32.0))])
+    assert fr_history_metrics(df, "不存在的指标") == ([], [], [])
+
+
+def test_fr_expand_rows_is_newest_first_and_same_source():
+    """展开分析明细：与图同源但最新期在最前（用户视角）。"""
+    df = fr_build_history([
+        ("20231231", _one_row("600519", 50.0, 1.4e11, 10.0, 7.0e10, 9.0, 30.0)),
+        ("20241231", _one_row("600519", 55.0, 1.5e11, 7.0, 7.5e10, 6.0, 31.0)),
+        ("20251231", _one_row("600519", 60.0, 1.7e11, 8.0, 8.2e10, 12.0, 32.0)),
+    ])
+    rows = fr_expand_rows(df, "净利润")
+    assert [r[0] for r in rows] == ["2025年报", "2024年报", "2023年报"]
+    assert rows[0][1] == 8.2e10 and rows[0][2] == 12.0
+    # 与图源完全一致（同一函数抽取，只是顺序反转）
+    x, y, yoy = fr_history_metrics(df, "净利润")
+    assert [r[0] for r in rows] == x[::-1]
+    assert [r[1] for r in rows] == y[::-1]
+
+
+def test_fr_expand_rows_empty_is_safe():
+    assert fr_expand_rows(None) == []
+    assert fr_expand_rows(pd.DataFrame()) == []
+
+def test_fr_yoy_column_handles_dongcai_abbreviation():
+    """回归：东财把「营业总收入」的同比列命名为「营收同比%」（缩写），
+    不得用 f"{metric}同比%" 机械拼接——否则同比序列静默全 None。"""
+    assert fr_yoy_column("营业总收入") == "营收同比%"
+    assert fr_yoy_column("净利润") == "净利润同比%"
+    assert fr_yoy_column("每股收益") is None, "东财未提供 EPS 同比，应显式无列"
+    assert fr_yoy_column("ROE%") is None
+
+
+def test_fr_history_metrics_revenue_yoy_uses_abbrev_column():
+    """端到端：营收同比必须真的取到值（此前因列名拼接错误恒为 None）。"""
+    df = fr_build_history([
+        ("20231231", _one_row("600519", 50.0, 1.4e11, 10.0, 7.0e10, 9.0, 30.0)),
+        ("20241231", _one_row("600519", 55.0, 1.5e11, 7.0, 7.5e10, -6.0, 31.0)),
+    ])
+    _, _, rev_yoy = fr_history_metrics(df, "营业总收入")
+    assert rev_yoy == [10.0, 7.0], "营收同比不得因列名拼接而丢失"
+    assert any(v is not None for v in rev_yoy), "不得全为空（静默丢数据）"
+
+
+def test_fr_history_metrics_eps_has_no_yoy_series():
+    """EPS 无同比列 → 应返回全 None（而非抛错/错列）。"""
+    df = fr_build_history([("20251231", _one_row("600519", 60.0, 1.7e11, 8.0, 8.2e10, 12.0, 32.0))])
+    x, y, yoy = fr_history_metrics(df, "每股收益")
+    assert y == [60.0]
+    assert yoy == [None]

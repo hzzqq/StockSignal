@@ -30,7 +30,16 @@ from modules.financial_report_helpers import (
     fr_filter_by_code as _fr_filter_by_code,
     fr_color_yoy as _fr_color_yoy,
     fr_format_financial_df,
+    fr_build_history,
+    fr_history_metrics,
+    fr_expand_rows,
+    fr_period_label,
+    fr_yoy_column,
+    _PERF_UP,
+    _PERF_DOWN,
+    _PERF_FLAT,
 )
+from modules.dark_text_fix import apply_plotly_theme as _apply_plotly_theme
 fetcher = get_fetcher()
 from modules.widgets import sidebar_target
 import modules.scroll_nav as sn
@@ -51,6 +60,61 @@ def _build_kline_fig(period_df, kline_title, kline_annotations):
 def _build_intraday_fig(didf, prev_close, ticker, display_name, dt):
     from modules.visualizer import Visualizer
     return Visualizer.intraday(didf, prev_close=prev_close, title=f'{ticker} {display_name} 分时（{dt}）', up_color=RED, down_color=GREEN)
+
+
+@cached_fig(ttl=600)
+def _build_perf_history_fig(hist_df, metric: str = "净利润", dark: bool = False):
+    """三年+ 业绩主要指标「柱状 + 折线」横向对比图（参考手机端 F10 常见样式）。
+
+    柱 = 该指标规模（亿元，主轴）；折线 = 同比增速%（副轴，右）。
+    配色遵循 A 股铁律：涨/增长 = 红，跌/下滑 = 绿（业绩域走默认红涨绿跌）。
+
+    参数 hist_df 为 modules.financial_report_helpers.fr_build_history 的产物；
+    best-effort：数据不足 2 期或字段缺失返回 None，调用方跳过渲染。
+    """
+    import plotly.graph_objects as go
+    x, y, yoy = fr_history_metrics(hist_df, metric)
+    if len(x) < 2 or all(v is None for v in y):
+        return None
+    try:
+        y_yi = [None if v is None else v / 1e8 for v in y]          # 元 → 亿元
+        # 柱色：正/零红（增长）、负绿（下滑）；本金为负的指标同样按正负着色
+        bar_colors = [_PERF_UP if (v is None or v >= 0) else _PERF_DOWN for v in y_yi]
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=x, y=y_yi, name=f"{metric}（亿元）",
+            marker=dict(color=bar_colors),
+            text=[("—" if v is None else f"{v:,.2f}") for v in y_yi],
+            textposition="outside", cliponaxis=False,
+            hovertemplate="%{x}<br>" + metric + "：%{y:,.2f} 亿元<extra></extra>",
+        ))
+        # 同比折线（副轴）——仅当存在至少一个有效同比点
+        if any(v is not None for v in yoy):
+            fig.add_trace(go.Scatter(
+                x=x, y=yoy, name="同比（%）", yaxis="y2",
+                mode="lines+markers",
+                line=dict(color="#f0a020", width=2),
+                marker=dict(size=7, color="#f0a020", line=dict(color="#fff", width=1)),
+                hovertemplate="%{x}<br>同比：%{y:.2f}%<extra></extra>",
+            ))
+            fig.update_layout(yaxis2=dict(
+                title="同比（%）", overlaying="y", side="right",
+                showgrid=False, zeroline=True, zerolinecolor="rgba(128,128,128,.35)",
+                ticksuffix="%",
+            ))
+        fig.update_layout(
+            height=360, margin=dict(l=56, r=56, t=30, b=44),
+            template="plotly_dark" if dark else "plotly_white",
+            barmode="group", xaxis_tickangle=0,
+            yaxis=dict(title="亿元", zeroline=True, zerolinecolor="rgba(128,128,128,.35)"),
+            legend=dict(orientation="h", y=1.14, x=0),
+            bargap=0.42,
+            hovermode="x unified",
+        )
+        _apply_plotly_theme(fig, dark=dark)
+        return fig
+    except Exception:
+        return None
 
 
 @cached_fig(ttl=600)
@@ -923,6 +987,42 @@ PERIODS_FIN = {
     "2025 中报": "20250630",
 }
 
+# 报告期后缀 → 中文标签（pill 按钮回填 session_state 用，与 fr_period_label 同源）
+_QUARTER_SUFFIX_REVERSE = {"0331": "一季报", "0630": "中报", "0930": "三季报", "1231": "年报"}
+
+# 横向历史对比：默认覆盖的年度（近 4 年 → 每年 4 个法定报告期 = 最多 16 期，满足「≥3 年」）
+_HISTORY_YEARS = ("2023", "2024", "2025", "2026")
+_HISTORY_QUARTERS = ("0331", "0630", "0930", "1231")
+
+# 横向对比可选指标（东财业绩报表列名 → 展示名）
+_HISTORY_METRICS = {
+    "净利润": "净利润",
+    "营业总收入": "营业总收入",
+    "每股收益": "每股收益",
+    "ROE%": "ROE%",
+}
+
+
+@st.cache_data(show_spinner=False, ttl=1800)
+def _fr_cached_history(code: str):
+    """拉取近 4 年 × 4 个报告期的业绩报表并按代码过滤，合并为横向历史对比表。
+
+    东财 stock_yjbb_em 每期只返回「该期全市场」一张表，故需逐期拉取后过滤拼接。
+    任一期失败/未披露都会被 fr_build_history 跳过（不补零、不造假）；
+    全部失败时返回空 DataFrame，由调用方展示兜底提示。
+    返回 DataFrame（列：报告期/报告期标签/每股收益/营业总收入/营收同比%/净利润/净利润同比%/ROE%）。
+    """
+    rows = []
+    for _y in _HISTORY_YEARS:
+        for _q in _HISTORY_QUARTERS:
+            _p = f"{_y}{_q}"
+            try:
+                _df = _fr_cached_report(_p)
+            except Exception:
+                _df = None
+            rows.append((_p, _fr_filter_by_code(_df, code)))
+    return fr_build_history(rows)
+
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def _fr_cached_report(period: str):
@@ -949,25 +1049,166 @@ def _fr_cached_financial(code: str, report_type: str):
         return None
 
 
+def _build_perf_history_section(code: str, dark: bool = False) -> None:
+    """渲染「📈 业绩横向对比」区块：指标切换 + 柱状折线图 + 下方「展开分析」明细表。
+
+    参考手机端 F10「财务分析」常见交互：
+      · 顶部一行 pill 切换指标（净利润 / 营业总收入 / 每股收益 / ROE%）；
+      · 柱=规模（亿元，主轴）折线=同比%（副轴）；
+      · 图下「展开分析」表列出各期明细（最新期在最前，红涨绿跌着色）。
+    数据不足 2 期时给出诚实兜底提示，绝不合成假数据。
+    """
+    st.markdown('<div class="sf-card">' + _section_header("业绩横向对比", "≥3 年主要指标 · 柱状规模 + 折线同比", "📈"), unsafe_allow_html=True)
+    st.caption("📊 柱=该指标规模（亿元），折线=同比增速（%）；红=增长 / 绿=下滑（业绩域红涨绿跌）。数据来源：东方财富业绩报表（近 4 年）。")
+    try:
+        hist = _fr_cached_history(code)
+    except Exception:
+        hist = None
+    if hist is None or getattr(hist, "empty", True) or len(hist) < 2:
+        _empty_info(f"「{code}」暂无可用于横向对比的历史业绩数据（接口受限或披露不足 2 期）。")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    # ── 指标切换（pill）──
+    _mk = f"fr_hist_metric_{code}"
+    _cur = st.session_state.get(_mk, "净利润")
+    if _cur not in _HISTORY_METRICS:
+        _cur = "净利润"
+    _mcols = st.columns(len(_HISTORY_METRICS))
+    for _i, (_key, _disp) in enumerate(_HISTORY_METRICS.items()):
+        with _mcols[_i]:
+            if st.button(_disp, key=f"frhm_{code}_{_key}", width="stretch",
+                         type=("primary" if _cur == _key else "secondary")):
+                st.session_state[_mk] = _key
+                st.rerun(scope="fragment")
+
+    # ── 柱状 + 折线图 ──
+    _fig = _build_perf_history_fig(hist, metric=_cur, dark=dark)
+    if _fig is not None:
+        st.plotly_chart(_fig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False})
+    else:
+        _empty_info(f"「{_cur}」有效数据点不足，暂不绘图（避免以残缺数据误导判断）。")
+
+    # ── 「展开分析」明细表（与图同源，最新期在前）──
+    with st.expander("🔎 展开分析 · 各期明细", expanded=True, key=f"fr_hist_exp_{code}"):
+        _rows = fr_expand_rows(hist, _cur)
+        if not _rows:
+            _empty_info("暂无可展开的明细数据。")
+        else:
+            _yoy_col = fr_yoy_column(_cur)
+            _recs = []
+            for _lbl, _val, _yoy in _rows:
+                _c, _t = fr_color_yoy(_yoy)
+                _recs.append({
+                    "报告期": _lbl,
+                    _HISTORY_METRICS.get(_cur, _cur): _fr_fmt(_val),
+                    "同比": _t if _yoy_col else "—",
+                    "_yoy_color": _c,
+                })
+            _disp_df = pd.DataFrame(_recs)
+            # 明细表：用 st.dataframe 展示数值列，同比着色以 caption 行说明（Streamlit 表格不逐格着色）
+            st.dataframe(
+                _disp_df[["报告期", _HISTORY_METRICS.get(_cur, _cur), "同比"]],
+                width="stretch", hide_index=True, height=min(60 + 36 * len(_recs), 420),
+            )
+            # 同步输出一份「同比着色摘要」，把红涨绿跌语义显式呈现（表格本身不支持逐格着色）
+            _chips = "　".join(
+                f"<span style='color:{r['_yoy_color']};font-weight:600;'>{r['报告期']} {r['同比']}</span>"
+                for r in _recs
+            )
+            st.markdown(
+                "<div style='font-size:12.5px;line-height:2;color:var(--txt2);margin-top:6px;'>"
+                "同比速览（红=增长 / 绿=下滑）：" + _chips + "</div>",
+                unsafe_allow_html=True,
+            )
+            try:
+                _csv = _disp_df[["报告期", _HISTORY_METRICS.get(_cur, _cur), "同比"]].to_csv(
+                    index=False, encoding="utf-8-sig").encode("utf-8-sig")
+                st.download_button(
+                    f"⬇️ 导出「{_HISTORY_METRICS.get(_cur, _cur)}」历史明细 CSV", data=_csv,
+                    file_name=f"业绩历史_{code}_{_cur}.csv", mime="text/csv",
+                    key=f"fr_hist_csv_{code}_{_cur}",
+                )
+            except Exception:
+                pass
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 @safe_fragment
 def fragment_financial_report(ticker):
-    """个股财报（随搜索框联动，独立于「生成分析」）：业绩报表 / 业绩预告 / 披露日历 / 财务三表。
+    """个股财报（随搜索框联动，独立于「生成分析」）：横向历史对比 / 业绩报表 / 业绩预告 / 披露日历 / 财务三表。
 
     数据层复用 modules.fundflow（东财业绩报表/预告/披露日历）+ fetcher.get_financial（新浪三表）。
     业绩配色：红=同比增长为正（改善）、绿=为负（下滑），与价格「绿涨红跌」不同，已在页内注明。
+
+    v3 改版（2026-09-13）：
+      · 报告期选择器由「6 项长下拉」瘦身为**折叠 + 两行 pill 按钮**（默认年报/最新期）；
+      · 新增「📈 业绩横向对比」区块：≥3 年主要指标的柱状+折线图 + 下方「展开分析」明细表。
     """
     if not ticker:
         return
     code = str(ticker).zfill(6)
-    sf_card("📑 个股财报", "搜索个股后即时展示其业绩报表、业绩预告、披露日历与财务三表（利润表/资产负债表/现金流量表）。数据来源：东方财富 / 新浪财经。", icon="📑")
-    period_label = st.selectbox(
-        "报告期", options=list(PERIODS_FIN.keys()), index=0, key=f"fr_period_{ticker}",
-        help="选择财报报告期，查看该股对应期的业绩数据",
-    )
-    period = PERIODS_FIN[period_label]
+    sf_card("📑 个股财报", "搜索个股后即时展示其横向业绩对比、业绩报表、业绩预告、披露日历与财务三表（利润表/资产负债表/现金流量表）。数据来源：东方财富 / 新浪财经。", icon="📑")
+
+    # ── 报告期选择区（v3：折叠 + 两行，替代原先 6 行长下拉）─────────────────
+    # 主行：年报 / 中报 / 一季报 / 三季报（4 个常用期）；辅行：近 3 个年度切换。
+    # 用 pill 按钮而非 selectbox，视觉上仅占两行；高级期次收进折叠区。
+    _MAIN_PERIODS = [
+        ("年报", "1231"), ("中报", "0630"), ("一季报", "0331"), ("三季报", "0930"),
+    ]
+    _YEARS = ["2026", "2025", "2024"]
+    _pk_sel = f"fr_period_sel_{ticker}"
+    _pk_year = f"fr_period_year_{ticker}"
+
+    st.markdown('<div class="sf-card">' + _section_header("报告期", "选择财报报告期，查看该股对应期数据", "🗓️"), unsafe_allow_html=True)
+    st.caption("🏷️ 报告期 · 第一行选报告类型，第二行选年度；更多历史期次收在下方折叠区。")
+
+    # 第一行：报告类型
+    _c1 = st.columns(4)
+    _cur = st.session_state.get(_pk_sel, "年报")
+    for _i, (_lbl, _sfx) in enumerate(_MAIN_PERIODS):
+        with _c1[_i]:
+            if st.button(_lbl, key=f"frq_{ticker}_{_sfx}", width="stretch",
+                         type=("primary" if _cur == _lbl else "secondary")):
+                st.session_state[_pk_sel] = _lbl
+                st.rerun(scope="fragment")
+    # 第二行：年度
+    _c2 = st.columns(3)
+    _cur_y = st.session_state.get(_pk_year, "2025")
+    for _i, _y in enumerate(_YEARS):
+        with _c2[_i]:
+            if st.button(f"{_y} 年", key=f"fry_{ticker}_{_y}", width="stretch",
+                         type=("primary" if _cur_y == _y else "secondary")):
+                st.session_state[_pk_year] = _y
+                st.rerun(scope="fragment")
+
+    _sfx_map = dict(_MAIN_PERIODS)
+    period = f"{_cur_y}{_sfx_map.get(_cur, '1231')}"
+    period_label = fr_period_label(period)
+
+    # 折叠区：其余历史期次（构造近 4 年 × 4 类报告期，仅保留与当前不同的）
+    with st.expander("🗂️ 更多报告期（近 4 年历史期次）", expanded=False, key=f"fr_more_{ticker}"):
+        _all_periods = []
+        for _y in ("2026", "2025", "2024", "2023"):
+            for _lbl, _s in _MAIN_PERIODS:
+                _p = f"{_y}{_s}"
+                if _p != period:
+                    _all_periods.append(_p)
+        _cols_m = st.columns(4)
+        for _i, _p in enumerate(_all_periods):
+            with _cols_m[_i % 4]:
+                if st.button(fr_period_label(_p), key=f"frp_{ticker}_{_p}", width="stretch"):
+                    st.session_state[_pk_sel] = _QUARTER_SUFFIX_REVERSE.get(_p[4:], "年报")
+                    st.session_state[_pk_year] = _p[:4]
+                    st.rerun(scope="fragment")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 📈 业绩横向对比（v3 新增：≥3 年主要指标柱状+折线 + 展开分析）──────────
+    _build_perf_history_section(code, dark)
 
     # ── 业绩报表（东财，按代码过滤）──
     st.markdown('<div class="sf-card">' + _section_header("业绩报表", "每股收益 · 营收 · 净利润 · ROE", "📊"), unsafe_allow_html=True)
+    st.caption(f"当前报告期：**{period_label}**")
     try:
         rep_df = _fr_cached_report(period)
     except Exception as e:
@@ -1078,10 +1319,10 @@ def fragment_financial_report(ticker):
             except Exception as e:
                 xc_warn_box(f"{_lbl}渲染失败：{e}")
     st.markdown('</div>', unsafe_allow_html=True)
+
+
 fragment_stock_videos(ticker)
 fragment_financial_report(ticker)
 st.markdown('---')
 st.page_link('pages/22_基本面分析.py', label='→ 去 基本面分析（估值/业绩/行业对比）', icon='🏛️')
 st.page_link('pages/24_个股研究.py', label='→ 去 个股研究（K线与技术面）', icon='📈')
-if st.button('↑ 回到顶部', key='analysis_back_to_top', width="stretch"):
-    sn.back_to_top_button()

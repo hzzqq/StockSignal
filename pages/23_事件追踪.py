@@ -747,4 +747,4 @@ with st.expander('🔗 相关事件 / 标的推荐', expanded=False):
         st.caption('暂无推荐数据。')
 with st.expander('⌨️ 快捷键', expanded=False):
     st.markdown('\n    本页为 Streamlit Web 应用，未绑定全局快捷键，以下为操作提示：\n    - **回车**：在表单输入框内按回车等效于点击该表单的提交按钮。\n    - **Tab**：在输入控件间切换焦点。\n    - **浏览器 F5 / Cmd·Ctrl+R**：刷新整页（将丢失未保存的会话状态）。\n    - 各模块「🔄 刷新」按钮可局部刷新对应模块。\n    ')
-st.markdown('<button onclick="parent.window.scrollTo({top:0,behavior:\'smooth\'});" style="position:fixed;right:24px;bottom:12px;z-index:9999;background:#3498db;color:#fff;border:none;border-radius:20px;padding:8px 14px;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);">↑ 回到顶部</button>', unsafe_allow_html=True)
+# v3：本页原有 inline「↑ 回到顶部」按钮已移除 —— 与全局悬浮 ▲（右下角，首次下滑即现）功能重复且样式冲突。

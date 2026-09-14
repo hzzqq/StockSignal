@@ -104,3 +104,109 @@ def fr_format_financial_df(df):
             # 转换失败（罕见）保持原列
             pass
     return out
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 横向历史对比（v3 · 2026-09-13）
+# ══════════════════════════════════════════════════════════════════════════
+# 东财业绩报表（stock_yjbb_em）每个报告期只返回「该期全市场」一张表，
+# 故「同一只股票的多个报告期」必须拉多个 period 再按代码过滤、纵向拼接。
+# 下列函数把这一流程做成纯函数，便于单测（不发网络请求）。
+
+# 报告期代码 → 人类可读标签（如 "20251231" → "2025年报"）。
+# 覆盖 0331/0630/0930/1231 四种法定报告期。
+_QUARTER_SUFFIX = {"0331": "一季报", "0630": "中报", "0930": "三季报", "1231": "年报"}
+
+
+def fr_period_label(period: str) -> str:
+    """把报告期代码转中文标签：'20251231' → '2025年报'；无法识别时原样返回。"""
+    p = str(period).strip()
+    if len(p) != 8 or not p.isdigit():
+        return p
+    year, mmdd = p[:4], p[4:]
+    suffix = _QUARTER_SUFFIX.get(mmdd)
+    return f"{year}{suffix}" if suffix else p
+
+
+def fr_build_history(period_rows) -> "pd.DataFrame":
+    """把「多个报告期 → 各期该股单行」的结果合并为横向历史对比表。
+
+    参数 period_rows：可迭代的 (period, row) —— period 形如 '20251231'，
+      row 为 ``fr_filter_by_code(...)`` 的产物（0 或 1 行 DataFrame），可为 None。
+
+    返回列：报告期(period 代码) / 报告期标签 / 每股收益 / 营业总收入 / 营收同比% /
+      净利润 / 净利润同比% / ROE%。按报告期升序（旧→新）排列。
+    缺失期直接跳过（不补零，避免造假）；无任何有效数据时返回空 DataFrame。
+    本函数不修改入参。
+    """
+    cols = ["报告期", "报告期标签", "每股收益", "营业总收入", "营收同比%", "净利润", "净利润同比%", "ROE%"]
+    recs = []
+    for period, row in (period_rows or []):
+        if row is None or getattr(row, "empty", True):
+            continue
+        try:
+            r = row.iloc[0]
+        except Exception:
+            continue
+        rec = {"报告期": str(period), "报告期标签": fr_period_label(period)}
+        for c in ("每股收益", "营业总收入", "营收同比%", "净利润", "净利润同比%", "ROE%"):
+            try:
+                rec[c] = r.get(c)
+            except Exception:
+                rec[c] = None
+        recs.append(rec)
+    if not recs:
+        return pd.DataFrame(columns=cols)
+    out = pd.DataFrame(recs, columns=cols)
+    return out.sort_values("报告期").reset_index(drop=True)
+
+
+# 横向历史对比表里，指标列 → 其同比列名的映射。
+# ⚠️ 不能靠 f"{metric}同比%" 拼——东财把「营业总收入」的同比列命名为「营收同比%」（缩写）。
+# 拼错会导致同比序列全为 None（静默丢数据），故在此显式登记。
+_METRIC_YOY_COL = {
+    "营业总收入": "营收同比%",
+    "净利润": "净利润同比%",
+    "每股收益": None,   # 东财业绩报表未提供 EPS 同比
+    "ROE%": None,       # 同上
+}
+
+
+def fr_yoy_column(metric: str):
+    """返回 metric 对应的同比列名；无对应列时返回 None。"""
+    return _METRIC_YOY_COL.get(str(metric), f"{metric}同比%")
+
+
+def fr_history_metrics(df, metric: str = "净利润"):
+    """从横向历史表抽取绘图所需的 (x标签列表, 数值列表, 同比列表)。
+
+    - x：报告期标签（如 '2023年报'），按输入顺序
+    - 数值：metric 列转 float（NaN → None，Plotly 自动断线，不补零）
+    - 同比：metric 对应同比列（见 _METRIC_YOY_COL）转 float，缺失时为 None
+    数据不足（<2 个点）时仍返回（调用方自行决定是否绘图），但任何异常都返回三个空列表。
+    """
+    if df is None or getattr(df, "empty", True) or metric not in df.columns:
+        return [], [], []
+    try:
+        x = [str(v) for v in df["报告期标签"].tolist()]
+        y = pd.to_numeric(df[metric], errors="coerce")
+        y = [None if pd.isna(v) else float(v) for v in y.tolist()]
+        yoy_col = fr_yoy_column(metric)
+        if yoy_col and yoy_col in df.columns:
+            yy = pd.to_numeric(df[yoy_col], errors="coerce")
+            yoy = [None if pd.isna(v) else float(v) for v in yy.tolist()]
+        else:
+            yoy = [None] * len(x)
+        return x, y, yoy
+    except Exception:
+        return [], [], []
+
+
+def fr_expand_rows(df, metric: str = "净利润"):
+    """生成「展开分析」明细行：[(报告期标签, 数值, 同比数值)]，最新期在前。
+
+    与 ``fr_history_metrics`` 同源，仅排序方向相反（用户视角先看最新）。
+    """
+    x, y, yoy = fr_history_metrics(df, metric)
+    rows = list(zip(x, y, yoy))
+    return rows[::-1]
