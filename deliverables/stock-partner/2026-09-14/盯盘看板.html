@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>盯盘看板 · 行情盯盘 × 板块结构 · 2026-09-14</title>
+<style>
+  :root{
+    --bg:#0f0f23; --card:#1a1a2e; --card2:#20203a; --line:rgba(255,255,255,.08);
+    --txt:#e8ebf5; --sub:#9aa0b5; --up:#ff4d4f; --down:#00d486; --flat:#8a8fa3;
+    --acc1:#667eea; --acc2:#764ba2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+       padding:28px 20px 60px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto}
+  h1{font-size:26px;font-weight:800;letter-spacing:.5px;
+     background:linear-gradient(90deg,var(--acc1),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .meta{color:var(--sub);font-size:13px;margin-top:6px}
+  .note{margin-top:14px;font-size:12.5px;color:var(--sub);background:var(--card);border:1px solid var(--line);
+        border-radius:10px;padding:10px 14px}
+  .note b{color:#ffd166}
+  h2{font-size:17px;margin:34px 0 14px;padding-left:11px;border-left:4px solid var(--acc1)}
+  .grid{display:grid;gap:14px}
+  .idx{grid-template-columns:repeat(5,1fr)}
+  @media(max-width:900px){.idx{grid-template-columns:repeat(2,1fr)}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px;
+        transition:.2s}
+  .card:hover{border-color:rgba(102,126,234,.5)}
+  .idx .name{font-size:13px;color:var(--sub)}
+  .idx .px{font-size:22px;font-weight:800;margin:6px 0 2px;font-variant-numeric:tabular-nums}
+  .idx .chg{font-size:14px;font-weight:700}
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--flat)}
+  .two{grid-template-columns:1fr 1fr}
+  @media(max-width:760px){.two{grid-template-columns:1fr}}
+  .legend{font-size:12px;color:var(--sub);margin-bottom:10px}
+  .legend .k{display:inline-block;padding:1px 8px;border-radius:6px;margin-right:6px}
+  .bars{display:flex;flex-direction:column;gap:9px}
+  .bar{display:grid;grid-template-columns:96px 1fr 74px;align-items:center;gap:10px;font-size:13px}
+  .bar .lbl{color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar .track{background:rgba(255,255,255,.05);border-radius:6px;height:16px;overflow:hidden}
+  .bar .fill{height:100%;border-radius:6px}
+  .bar .val{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:12.5px}
+  .fill.in{background:linear-gradient(90deg,#ff4d4f,#ff7a7c)}
+  .fill.out{background:linear-gradient(90deg,#00d486,#4ee0a8)}
+  .exp{grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.exp{grid-template-columns:1fr}}
+  .exp .card h3{font-size:14.5px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
+  .exp .tag{font-size:11px;color:var(--sub);font-weight:400}
+  .exp ul{margin-left:16px;font-size:13px;color:#cfd4e6}
+  .exp li{margin:4px 0}
+  .pill{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:999px;margin:2px 6px 2px 0;
+        background:rgba(102,126,234,.16);border:1px solid rgba(102,126,234,.4);color:#b9c2ee}
+  .pill.bad{background:rgba(0,212,134,.13);border-color:rgba(0,212,134,.4);color:#7fe9c0}
+  .consensus{background:linear-gradient(135deg,rgba(102,126,234,.14),rgba(118,75,162,.14));
+             border:1px solid rgba(102,126,234,.35);border-radius:14px;padding:18px 20px}
+  .consensus h3{font-size:15px;margin-bottom:10px}
+  .consensus li{font-size:13.5px;margin:6px 0;color:#dde2f2}
+  .foot{margin-top:36px;font-size:12px;color:var(--sub);border-top:1px solid var(--line);padding-top:16px}
+  .src{font-size:12px;color:var(--sub);line-height:1.9}
+  code{background:rgba(255,255,255,.06);padding:1px 6px;border-radius:5px;font-size:11.5px;color:#c7cdea}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📈 盯盘看板 · 行情盯盘 × 板块结构</h1>
+  <div class="meta">2026-09-14（周一）盘中约 11:00 ｜ 数据源 westock-mcp 实时 ｜ 受 StockPartnerTeam 专家体系研判</div>
+  <div class="note">
+    <b>⚠️ 数据诚实声明</b>：政策面 / 消息面 / <b>北向资金净额</b> / 拥挤度指标本数据源未提供，未作臆测。
+    所有数字均来自 westock-mcp 实测。本看板仅供研究参考，<b>不构成投资建议</b>。
+    A 股惯例：<span class="up">红=涨/资金净流入</span>，<span class="down">绿=跌/资金净流出</span>。
+  </div>
+
+  <h2>一、指数速览（盘中）</h2>
+  <div class="grid idx">
+    <div class="card"><div class="name">上证指数</div><div class="px flat">3888.12</div><div class="chg flat">0.00%</div></div>
+    <div class="card"><div class="name">深证成指</div><div class="px down">13426.18</div><div class="chg down">−0.33%</div></div>
+    <div class="card"><div class="name">创业板指</div><div class="px down">3305.56</div><div class="chg down">−0.50%</div></div>
+    <div class="card"><div class="name">科创50</div><div class="px down">1529.95</div><div class="chg down">−1.51%</div></div>
+    <div class="card"><div class="name">沪深300</div><div class="px down">4493.86</div><div class="chg down">−0.36%</div></div>
+  </div>
+  <div class="meta" style="margin-top:10px">两市成交额约 <b style="color:#c7cdea">9483 亿</b>（半日口径）｜ 上一交易日(9/11)收 19718.98 亿，涨跌比 0.13（跌 87.56% 个股）｜ 价值 &gt; 成长 ｜ 中证全指 PE 分位 78.9%</div>
+
+  <h2>二、板块主力资金流（当日，亿元）</h2>
+  <div class="legend">
+    <span class="k" style="background:rgba(255,77,79,.2);color:#ff8f90">净流入</span>
+    <span class="k" style="background:rgba(0,212,134,.18);color:#66e0b8">净流出</span>
+    （条形长度按绝对值等比）
+  </div>
+  <div class="grid two">
+    <div class="card">
+      <div class="legend" style="margin:0 0 12px">净流入 TOP7</div>
+      <div class="bars">
+        <div class="bar"><span class="lbl">元件</span><span class="track"><span class="fill in" style="width:100%"></span></span><span class="val up">+30.67</span></div>
+        <div class="bar"><span class="lbl">电池</span><span class="track"><span class="fill in" style="width:49.2%"></span></span><span class="val up">+15.10</span></div>
+        <div class="bar"><span class="lbl">通用设备</span><span class="track"><span class="fill in" style="width:46.7%"></span></span><span class="val up">+14.32</span></div>
+        <div class="bar"><span class="lbl">电子化学品</span><span class="track"><span class="fill in" style="width:37.8%"></span></span><span class="val up">+11.59</span></div>
+        <div class="bar"><span class="lbl">软件开发</span><span class="track"><span class="fill in" style="width:29.6%"></span></span><span class="val up">+9.08</span></div>
+        <div class="bar"><span class="lbl">电力</span><span class="track"><span class="fill in" style="width:27.2%"></span></span><span class="val up">+8.34</span></div>
+        <div class="bar"><span class="lbl">医疗服务</span><span class="track"><span class="fill in" style="width:26.4%"></span></span><span class="val up">+8.09</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="legend" style="margin:0 0 12px">净流出 TOP6</div>
+      <div class="bars">
+        <div class="bar"><span class="lbl">通信设备</span><span class="track"><span class="fill out" style="width:100%"></span></span><span class="val down">−49.22</span></div>
+        <div class="bar"><span class="lbl">半导体</span><span class="track"><span class="fill out" style="width:76.4%"></span></span><span class="val down">−37.61</span></div>
+        <div class="bar"><span class="lbl">电网设备</span><span class="track"><span class="fill out" style="width:16.9%"></span></span><span class="val down">−8.30</span></div>
+        <div class="bar"><span class="lbl">消费电子</span><span class="track"><span class="fill out" style="width:16.4%"></span></span><span class="val down">−8.08</span></div>
+        <div class="bar"><span class="lbl">航空装备</span><span class="track"><span class="fill out" style="width:12.4%"></span></span><span class="val down">−6.12</span></div>
+        <div class="bar"><span class="lbl">工业金属</span><span class="track"><span class="fill out" style="width:10.9%"></span></span><span class="val down">−5.35</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>三、板块主力资金流（5 日累计，亿元）</h2>
+  <div class="grid two">
+    <div class="card">
+      <div class="legend" style="margin:0 0 12px">5 日净流入 TOP7</div>
+      <div class="bars">
+        <div class="bar"><span class="lbl">元件</span><span class="track"><span class="fill in" style="width:100%"></span></span><span class="val up">+14.82</span></div>
+        <div class="bar"><span class="lbl">玻璃玻纤</span><span class="track"><span class="fill in" style="width:31.8%"></span></span><span class="val up">+4.71</span></div>
+        <div class="bar"><span class="lbl">电力</span><span class="track"><span class="fill in" style="width:26.6%"></span></span><span class="val up">+3.94</span></div>
+        <div class="bar"><span class="lbl">航运港口</span><span class="track"><span class="fill in" style="width:8.2%"></span></span><span class="val up">+1.22</span></div>
+        <div class="bar"><span class="lbl">通信设备</span><span class="track"><span class="fill in" style="width:7.9%"></span></span><span class="val up">+1.17</span></div>
+        <div class="bar"><span class="lbl">地面兵装</span><span class="track"><span class="fill in" style="width:6.5%"></span></span><span class="val up">+0.96</span></div>
+        <div class="bar"><span class="lbl">风电设备</span><span class="track"><span class="fill in" style="width:6.4%"></span></span><span class="val up">+0.95</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="legend" style="margin:0 0 12px">5 日净流出 TOP7</div>
+      <div class="bars">
+        <div class="bar"><span class="lbl">半导体</span><span class="track"><span class="fill out" style="width:100%"></span></span><span class="val down">−23.43</span></div>
+        <div class="bar"><span class="lbl">消费电子</span><span class="track"><span class="fill out" style="width:32.0%"></span></span><span class="val down">−7.51</span></div>
+        <div class="bar"><span class="lbl">计算机设备</span><span class="track"><span class="fill out" style="width:26.6%"></span></span><span class="val down">−6.23</span></div>
+        <div class="bar"><span class="lbl">证券</span><span class="track"><span class="fill out" style="width:23.4%"></span></span><span class="val down">−5.49</span></div>
+        <div class="bar"><span class="lbl">IT服务</span><span class="track"><span class="fill out" style="width:22.8%"></span></span><span class="val down">−5.35</span></div>
+        <div class="bar"><span class="lbl">软件开发</span><span class="track"><span class="fill out" style="width:16.0%"></span></span><span class="val down">−3.76</span></div>
+        <div class="bar"><span class="lbl">游戏</span><span class="track"><span class="fill out" style="width:15.8%"></span></span><span class="val down">−3.70</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>四、行情盯盘 · 四专家结论</h2>
+  <div class="grid exp">
+    <div class="card"><h3>晨报专家 · morning-briefing <span class="tag">每日晨报</span></h3>
+      <ul><li>超卖后的<b>修复窗口，非反转</b>（RSI6 28.43 超卖，MACD 死叉未修复）</li>
+      <li>板块宽度 1/全面下跌，医药/电池逆势吸金 → 缩量下的结构性行情</li>
+      <li>轻仓试探、不追高；失守 3867 即修复失败</li></ul></div>
+    <div class="card"><h3>资金行为专家 · smart-money-tracker <span class="tag">资金流向</span></h3>
+      <ul><li><b>小盘题材吸金、权重科技失血</b>；钱撤 TMT、向医药/电池/元件</li>
+      <li>多数流入为「当日脉冲」（通用设备/软件/电池 5 日仍净流出）</li>
+      <li>元件＝唯一「当日+5日」双流入</li></ul></div>
+    <div class="card"><h3>信号总管 · signal-chief <span class="tag">行情看板</span></h3>
+      <ul><li>政策缺失 + 资金未确认 → <b>「等，不做最早的人」</b></li>
+      <li>「指数扛、个股杀」：上证持平但深成/创业板/科创50 全绿</li>
+      <li>反抽是减仓机会，非上车理由；支撑 3866→3741</li></ul></div>
+    <div class="card"><h3>短线冲浪手 · shortterm-surfer <span class="tag">智能盯盘</span></h3>
+      <ul><li>更像<b>切换日而非普涨日</b>：量不小但指数不涨</li>
+      <li>只认医药/电池两条有资金实锤的线，等一周持续性再上</li>
+      <li>龙头不带我不追；破 5/10 日线坚决走</li></ul></div>
+  </div>
+
+  <h2>五、板块结构 · 三专家结论</h2>
+  <div class="grid exp">
+    <div class="card"><h3>板块比较专家 · sector-screening <span class="tag">板块轮动</span></h3>
+      <ul><li>资金主线由成长科技<b>切向「医药 + 中游制造」</b></li>
+      <li>医药＝唯一「涨幅+宽度+资金」三重共振（51/51 全红）</li>
+      <li>回避半导体/通信设备/消费电子（今日+5日双流出）</li></ul></div>
+    <div class="card"><h3>主题猎手 · thematic-hunter <span class="tag">市场魔方</span></h3>
+      <ul><li>主线＝<b>电子元件/PCB 产业链</b>（唯一双周期居首）</li>
+      <li>上游 电子化学品/玻纤 → 中游 元件 → 下游 PCB 满坤/科翔/中京/超声（涨停）</li>
+      <li>次线医药；估值分位 78.9% 高，涨停股宜等回调</li></ul></div>
+    <div class="card" style="grid-column:1/-1"><h3>行业策略师 · industry-strategist <span class="tag">板块轮动 / 魔方</span></h3>
+      <ul><li>首选 <b>电子上游（元件/电子化学品）+ 电池</b>，电力打底；仓位 ≤ 六成、偏防御</li>
+      <li>成长端系统性失血＝缩量震荡下的<b>成长杀估值</b>；PE 分位 78.9% 是硬约束</li>
+      <li>医药今日领涨但缺 5 日承接 → 属情绪修复，先观察不追</li></ul></div>
+  </div>
+
+  <h2>六、整合共识与关注</h2>
+  <div class="consensus">
+    <h3>✅ 跨版块共识</h3>
+    <ul>
+      <li><b>格局</b>：指数扛、个股杀；缩量修复非反转；成长弱于价值。</li>
+      <li><b>资金主线</b>：从 TMT（半导体/通信设备/消费电子）撤出，流向 <b>医药 + 中游制造（元件/电池/电子化学品）</b>。</li>
+      <li><b>最强环节</b>：<b>元件</b>——唯一「当日+5日」双周期净流入；玻璃玻纤/电力 5 日亦净流入。</li>
+      <li><b>纪律</b>：估值偏高（PE 分位 78.9%）→ 不追高、控仓位、等确认。</li>
+    </ul>
+    <div style="margin-top:12px">
+      <span class="pill">优先：元件 · 电子化学品 · 玻璃玻纤</span>
+      <span class="pill">次选：电池 · 电力(防御)</span>
+      <span class="pill">观察：医药(持续性未验)</span>
+      <span class="pill bad">回避：半导体 · 通信设备 · 消费电子 · 游戏</span>
+    </div>
+    <div class="meta" style="margin-top:12px">⚠️ 分歧：医药能否成主线（今日最强但缺 5 日承接）；主线定位（电子元件链 vs 医药+中游双线）。<br>
+    ⚠️ 盲区：政策面 / 消息面 / 北向资金 / 拥挤度 —— 数据未提供。</div>
+  </div>
+
+  <div class="foot">
+    <div class="src"><b>数据出处</b>（westock-mcp，2026-09-14 盘中）：
+      <code>data_quote</code> 指数 ·
+      <code>data_sector</code> 行业涨跌/当日/5日/20日主力资金 ·
+      <code>data_hot</code> 热门股 ·
+      <code>data_market_overview</code> 9/11 收盘结构/估值/风格
+    </div>
+    <div style="margin-top:10px">生成：StockPartnerTeam 专家体系（4 位「行情盯盘」专家 + 3 位「板块结构」专家）｜ 本看板由 AI 基于公开数据整理，仅供参考，<b>不构成投资建议或个股推荐</b>。投资有风险，决策需谨慎。</div>
+  </div>
+</div>
+</body>
+</html>
