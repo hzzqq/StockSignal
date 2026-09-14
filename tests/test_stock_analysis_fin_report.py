@@ -1,20 +1,25 @@
-"""个股分析页 · 财报区块结构守卫（v3 · 2026-09-13 改版）。
+"""个股分析页 · 财报区块结构守卫（C 轮改版 · 2026-09-13 之后）。
 
-用 AST + 源码扫描锁定三件事，防止被后续改动静默回退：
+用 AST + 源码扫描锁定几件事，防止被后续改动静默回退：
 
-1. **报告期选择区必须「折叠 + 两行」**（需求 3）
-   旧实现是 6 项 `st.selectbox`（视觉上占一行但展开后 6 行长列表，用户嫌占位置）。
-   新实现：两行 pill 按钮（4 个报告类型 + 3 个年度），其余期次收进 expander。
-   守卫点：`fragment_financial_report` 内不得再出现"报告期 selectbox"；
-   必须存在 2 个 `st.columns` 行 + "更多报告期" expander。
+1. **报告期选择区 =「折叠 + selectbox + 多期 multiselect」**（C 轮用户要求「改回之前的报告模板」）
+   v3 的「两行 pill 按钮」被用户反馈「巨丑且功能缺失」，故回退为更实用的
+   折叠 expander 内：单期 `st.selectbox("单期报告期")` + 多期 `st.multiselect("多期对比")`。
+   守卫点：`fragment_financial_report` 必须含 `st.expander("🗓️ 报告期选择")` +
+   `st.selectbox("单期报告期")` + `st.multiselect("多期对比")`；
+   且横向对比 `_build_perf_history_section` 必须出现在报告期选择区之前（用户要求放到下面）。
 
 2. **必须存在横向历史对比区块**（需求 2）
    至少 3 年主要指标的柱状+折线图 + 下方「展开分析」模块。
    守卫点：`_build_perf_history_fig` 必须同时含 `go.Bar` 与 `go.Scatter`，
    且 `yaxis="y2"`（副轴同比）；`_build_perf_history_section` 必须含展开分析 expander。
 
-3. **不得再把 `window.scrollTo` 当唯一回顶手段**（需求 1 连带）
-   页内「回到顶部」按钮已移除（由全局悬浮 ▲ 承担），若重新引入需走 scroll_nav。
+3. **报告期选项必须动态生成（不硬编码）**
+   `PERIODS_FIN = _build_periods_fin()`，按「当前年 + 前 5 年 × 4 个法定报告期」生成；
+   业绩查询起点由 `_get_listing_year` 决定（上市年份，最多回看 10 年）。
+
+4. **不得再把 `window.scrollTo` 当唯一回顶手段**（需求 1 连带）
+   页内「回到顶部」按钮已移除（由全局悬浮 ▲ 承担，apply_theme 注入），若重新引入需走 scroll_nav。
 """
 
 from __future__ import annotations
@@ -65,47 +70,70 @@ def _local_list_literal(tree: ast.Module, func_name: str, var_name: str) -> list
     raise AssertionError(f"未在 {func_name} 内找到列表常量 {var_name}")
 
 
-# ───────────────────────── 需求 3：报告期选择区瘦身 ─────────────────────────
+# ───────────────────────── 需求 3：报告期选择区（折叠 + selectbox + 多期）─────────────────────────
 
-def test_period_selector_no_long_selectbox(src, tree):
-    """报告期不得再用 st.selectbox（旧实现的长列表正是用户抱怨的「太占位置」）。"""
+def test_period_selector_is_collapsible_selectbox(src, tree):
+    """报告期选择区必须是「折叠 expander + 单期 selectbox + 多期 multiselect」。
+
+    C 轮用户明确要求「改回之前的报告模板（保留可折叠）」——即 v3 之前的
+    selectbox 下拉模板，但保留可折叠，并追加上「多期对比」生成 Excel 式表格。
+    """
     body = _func_source(src, tree, "fragment_financial_report")
-    # 财报「报告期」选择不得走 selectbox（披露日历/市场的 selectbox 属合理保留）
-    assert 'st.selectbox(\n        "报告期"' not in body
-    assert '"报告期", options=list(PERIODS_FIN' not in body
-    # 更强的结构化断言：pill 按钮行必须存在
-    assert "_MAIN_PERIODS" in body and "_YEARS" in body
+    # 折叠容器
+    assert "st.expander(" in body, "报告期选择必须收在 st.expander（可折叠）"
+    assert "🗓️ 报告期选择" in body, "缺少「🗓️ 报告期选择」折叠区"
+    # 单期 selectbox（用户要求改回之前的下拉模板）
+    assert "单期报告期" in body and "st.selectbox(" in body, (
+        "必须保留单期报告期 selectbox（C 轮回退到此前模板）"
+    )
+    # 多期对比（C 轮新增）
+    assert "多期对比" in body and "st.multiselect(" in body, (
+        "必须支持多期对比 multiselect"
+    )
 
 
-def test_period_selector_is_two_rows_of_pills(src, tree):
-    """必须是「两行」：一行报告类型 + 一行年度。"""
+def test_period_selector_dynamic_not_hardcoded(src, tree):
+    """报告期选项必须动态生成（PERIODS_FIN = _build_periods_fin()），不得硬编码常量。
+
+    业绩查询起点由 _get_listing_year 决定（上市年份，最多回看 10 年）。
+    """
+    assert "def _build_periods_fin()" in src, "缺少 _build_periods_fin 动态生成函数"
+    assert "PERIODS_FIN = _build_periods_fin()" in src, (
+        "PERIODS_FIN 必须由 _build_periods_fin() 生成"
+    )
+    assert "def _get_listing_year(" in src, "缺少 _get_listing_year（上市年份推断）"
+    assert "_get_listing_year(code)" in src, "_fr_cached_history 须用 _get_listing_year 决定起点"
+
+    body = _func_source(src, tree, "_build_periods_fin")
+    # 4 个法定报告期后缀齐全
+    for sfx in ("0331", "0630", "0930", "1231"):
+        assert sfx in body, f"_build_periods_fin 缺少报告期后缀 {sfx}"
+    # 按年份区间循环生成（非硬编码枚举）
+    assert "range(" in body, "_build_periods_fin 应按年份区间循环生成"
+
+
+def test_period_history_called_before_selector(src, tree):
+    """横向对比必须出现在报告期选择区之前（用户要求「放到业绩横向对比下面」）。"""
     body = _func_source(src, tree, "fragment_financial_report")
-    # 报告类型行 4 列、年度行 3 列
-    assert "_MAIN_PERIODS" in body
-    assert "_YEARS" in body
-    assert body.count("st.columns(") >= 2, "至少两行 pill 按钮组"
-
-    # 4 个报告类型 + 3 个年度：从函数体内 AST 取局部字面量（不执行页面逻辑）
-    main_periods = _local_list_literal(tree, "fragment_financial_report", "_MAIN_PERIODS")
-    years = _local_list_literal(tree, "fragment_financial_report", "_YEARS")
-    assert len(main_periods) == 4, f"第一行应为 4 个报告类型，实际 {main_periods}"
-    assert len(years) == 3, f"第二行应为 3 个年度，实际 {years}"
-    # 后缀须覆盖 4 种法定报告期
-    assert {sfx for _lbl, sfx in main_periods} == {"0331", "0630", "0930", "1231"}
-
-
-def test_period_selector_is_collapsible(src, tree):
-    """其余历史期次必须收在 expander（折叠）。"""
-    body = _func_source(src, tree, "fragment_financial_report")
-    assert "更多报告期" in body, "缺少「更多报告期」折叠区"
-    assert "st.expander(" in body, "折叠区必须用 st.expander"
+    pos_history = body.find("_build_perf_history_section(")
+    pos_expander = body.find("🗓️ 报告期选择")
+    assert pos_history != -1 and pos_expander != -1, (
+        "横向对比与报告期选择区都必须存在"
+    )
+    assert pos_history < pos_expander, (
+        "横向对比必须位于报告期选择区之前（用户要求放到下面）"
+    )
 
 
 def test_period_code_built_from_type_and_year(src, tree):
-    """period 必须由「年度 + 报告类型后缀」拼接（而非硬编码 6 个常量）。"""
+    """period 必须来自动态 PERIODS_FIN（年度 + 报告类型后缀拼接），且复用 fr_period_label。"""
     body = _func_source(src, tree, "fragment_financial_report")
-    assert '_sfx_map.get(_cur' in body
-    assert "fr_period_label(period)" in body
+    assert "PERIODS_FIN[period_label]" in body, (
+        "单期 period 应取自动态 PERIODS_FIN"
+    )
+    assert "fr_period_label(" in body, (
+        "报告期标签须走 fr_period_label（避免列名拼接错误）"
+    )
 
 
 # ───────────────────────── 需求 2：横向历史对比 ─────────────────────────
@@ -182,6 +210,11 @@ def test_page_no_longer_injects_own_back_to_top_button(src):
     """页内「回到顶部」按钮已移除（改由全局悬浮 ▲ 承担，避免与右下角按钮重叠）。"""
     assert "analysis_back_to_top" not in src, (
         "页内回到顶部按钮应已移除；如需保留请改用 scroll_nav 的悬浮实现"
+    )
+    # 回到顶部必须走全局 inject_scroll_nav（apply_theme 注入），而非页内重复注入
+    assert "sn.inject_scroll_nav(dark=dark)" not in src, (
+        "不得再次页内注入 inject_scroll_nav：全局 apply_theme 已注入，"
+        "重复调用会触发 components.html 仅首次可靠执行的限制"
     )
 
 

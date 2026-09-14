@@ -978,14 +978,39 @@ def fragment_stock_videos(ticker):
             st.session_state['stock_video_exp'] = True
 
 # ───────────────────────── 个股财报（随搜索框联动，独立于「生成分析」） ─────────────────────────
-PERIODS_FIN = {
-    "2026 一季报": "20260331",
-    "2025 年报": "20251231",
-    "2026 中报": "20260630",
-    "2026 三季报": "20260930",
-    "2025 三季报": "20250930",
-    "2025 中报": "20250630",
-}
+def _build_periods_fin() -> dict:
+    """动态生成常用报告期选项（当前年 + 前 5 年 × 4 个法定报告期），避免硬编码过时。"""
+    from datetime import datetime
+    cur = datetime.now().year
+    suffix = {"0331": "一季报", "0630": "中报", "0930": "三季报", "1231": "年报"}
+    out = {}
+    for y in range(cur, cur - 6, -1):
+        for mm, lbl in (("0331", "一季报"), ("0630", "中报"), ("0930", "三季报"), ("1231", "年报")):
+            # 未来报告期（当年未披露）也保留选项，用户可选；接口会自然返回空
+            out[f"{y} {lbl}"] = f"{y}{mm}"
+    return out
+
+
+PERIODS_FIN = _build_periods_fin()
+
+
+def _get_listing_year(code: str) -> int:
+    """从东财业绩报表「上市时间」列推断该股上市年份；失败时回退 2010。"""
+    import re
+    for _p in ("20251231", "20240930", "20240630", "20240331", "20231231",
+               "20230930", "20230630", "20230331", "20221231"):
+        try:
+            _df = _fr_cached_report(_p)
+            _row = _fr_filter_by_code(_df, code)
+            if _row is not None and not getattr(_row, "empty", True):
+                _lt = str(_row.iloc[0].get("上市时间", "")).strip()
+                if _lt:
+                    _m = re.search(r"(\d{4})", _lt)
+                    if _m:
+                        return int(_m.group(1))
+        except Exception:
+            continue
+    return 2010
 
 # 报告期后缀 → 中文标签（pill 按钮回填 session_state 用，与 fr_period_label 同源）
 _QUARTER_SUFFIX_REVERSE = {"0331": "一季报", "0630": "中报", "0930": "三季报", "1231": "年报"}
@@ -1005,15 +1030,19 @@ _HISTORY_METRICS = {
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def _fr_cached_history(code: str):
-    """拉取近 4 年 × 4 个报告期的业绩报表并按代码过滤，合并为横向历史对比表。
+    """从该股上市年份（或近 10 年）逐期拉取业绩报表，合并为横向历史对比表。
 
     东财 stock_yjbb_em 每期只返回「该期全市场」一张表，故需逐期拉取后过滤拼接。
     任一期失败/未披露都会被 fr_build_history 跳过（不补零、不造假）；
     全部失败时返回空 DataFrame，由调用方展示兜底提示。
     返回 DataFrame（列：报告期/报告期标签/每股收益/营业总收入/营收同比%/净利润/净利润同比%/ROE%）。
     """
+    from datetime import datetime
+    _cur_y = datetime.now().year
+    _start_y = max(_get_listing_year(code), _cur_y - 9)
+    _years = [str(y) for y in range(_start_y, _cur_y + 1)]
     rows = []
-    for _y in _HISTORY_YEARS:
+    for _y in _years:
         for _q in _HISTORY_QUARTERS:
             _p = f"{_y}{_q}"
             try:
@@ -1059,7 +1088,7 @@ def _build_perf_history_section(code: str, dark: bool = False) -> None:
     数据不足 2 期时给出诚实兜底提示，绝不合成假数据。
     """
     st.markdown('<div class="sf-card">' + _section_header("业绩横向对比", "≥3 年主要指标 · 柱状规模 + 折线同比", "📈"), unsafe_allow_html=True)
-    st.caption("📊 柱=该指标规模（亿元），折线=同比增速（%）；红=增长 / 绿=下滑（业绩域红涨绿跌）。数据来源：东方财富业绩报表（近 4 年）。")
+    st.caption("📊 柱=该指标规模（亿元），折线=同比增速（%）；红=增长 / 绿=下滑（业绩域红涨绿跌）。数据来源：东方财富业绩报表（自该股上市年份起，最多近 10 年）。")
     try:
         hist = _fr_cached_history(code)
     except Exception:
@@ -1098,7 +1127,7 @@ def _build_perf_history_section(code: str, dark: bool = False) -> None:
             _yoy_col = fr_yoy_column(_cur)
             _recs = []
             for _lbl, _val, _yoy in _rows:
-                _c, _t = fr_color_yoy(_yoy)
+                _c, _t = _fr_color_yoy(_yoy)
                 _recs.append({
                     "报告期": _lbl,
                     _HISTORY_METRICS.get(_cur, _cur): _fr_fmt(_val),
@@ -1134,6 +1163,51 @@ def _build_perf_history_section(code: str, dark: bool = False) -> None:
     st.markdown('</div>', unsafe_allow_html=True)
 
 
+
+
+def _build_multi_period_table(code: str, periods: list, dark: bool = False) -> None:
+    """用户多选报告期后，合并成一个「Excel 式」业绩对比表并支持 CSV 导出。"""
+    st.markdown('<div class="sf-card">' + _section_header("多期业绩对比表", "用户自选报告期 · 同一表格", "📊"), unsafe_allow_html=True)
+    if not periods:
+        _empty_info("请在上方「多期对比」中至少选择一个报告期。")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+    _recs = []
+    for _p in sorted(set(periods)):
+        try:
+            _df = _fr_cached_report(_p)
+            _row = _fr_filter_by_code(_df, code)
+            if _row is None or getattr(_row, "empty", True):
+                continue
+            _r = _row.iloc[0]
+            _recs.append({
+                "报告期": fr_period_label(_p),
+                "每股收益": _fr_fmt(_r.get("每股收益")),
+                "营业总收入": _fr_fmt(_r.get("营业总收入")),
+                "营收同比%": _fr_fmt(_r.get("营收同比%")),
+                "净利润": _fr_fmt(_r.get("净利润")),
+                "净利润同比%": _fr_fmt(_r.get("净利润同比%")),
+                "ROE%": _fr_fmt(_r.get("ROE%")),
+                "披露时间": _r.get("披露时间", "—"),
+            })
+        except Exception:
+            continue
+    if not _recs:
+        _empty_info("所选报告期暂无该股业绩数据（尚未披露或接口受限）。")
+    else:
+        _disp = pd.DataFrame(_recs)
+        st.dataframe(_disp, width="stretch", hide_index=True, height=min(60 + 36 * len(_recs), 540))
+        try:
+            _csv = _disp.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+            st.download_button(
+                "⬇️ 导出多期业绩对比表 CSV", data=_csv,
+                file_name=f"多期业绩对比_{code}.csv", mime="text/csv",
+                key=f"fr_multi_csv_{code}",
+            )
+        except Exception:
+            pass
+    st.markdown('</div>', unsafe_allow_html=True)
+
 @safe_fragment
 def fragment_financial_report(ticker):
     """个股财报（随搜索框联动，独立于「生成分析」）：横向历史对比 / 业绩报表 / 业绩预告 / 披露日历 / 财务三表。
@@ -1150,61 +1224,39 @@ def fragment_financial_report(ticker):
     code = str(ticker).zfill(6)
     sf_card("📑 个股财报", "搜索个股后即时展示其横向业绩对比、业绩报表、业绩预告、披露日历与财务三表（利润表/资产负债表/现金流量表）。数据来源：东方财富 / 新浪财经。", icon="📑")
 
-    # ── 报告期选择区（v3：折叠 + 两行，替代原先 6 行长下拉）─────────────────
-    # 主行：年报 / 中报 / 一季报 / 三季报（4 个常用期）；辅行：近 3 个年度切换。
-    # 用 pill 按钮而非 selectbox，视觉上仅占两行；高级期次收进折叠区。
-    _MAIN_PERIODS = [
-        ("年报", "1231"), ("中报", "0630"), ("一季报", "0331"), ("三季报", "0930"),
-    ]
-    _YEARS = ["2026", "2025", "2024"]
-    _pk_sel = f"fr_period_sel_{ticker}"
-    _pk_year = f"fr_period_year_{ticker}"
-
-    st.markdown('<div class="sf-card">' + _section_header("报告期", "选择财报报告期，查看该股对应期数据", "🗓️"), unsafe_allow_html=True)
-    st.caption("🏷️ 报告期 · 第一行选报告类型，第二行选年度；更多历史期次收在下方折叠区。")
-
-    # 第一行：报告类型
-    _c1 = st.columns(4)
-    _cur = st.session_state.get(_pk_sel, "年报")
-    for _i, (_lbl, _sfx) in enumerate(_MAIN_PERIODS):
-        with _c1[_i]:
-            if st.button(_lbl, key=f"frq_{ticker}_{_sfx}", width="stretch",
-                         type=("primary" if _cur == _lbl else "secondary")):
-                st.session_state[_pk_sel] = _lbl
-                st.rerun(scope="fragment")
-    # 第二行：年度
-    _c2 = st.columns(3)
-    _cur_y = st.session_state.get(_pk_year, "2025")
-    for _i, _y in enumerate(_YEARS):
-        with _c2[_i]:
-            if st.button(f"{_y} 年", key=f"fry_{ticker}_{_y}", width="stretch",
-                         type=("primary" if _cur_y == _y else "secondary")):
-                st.session_state[_pk_year] = _y
-                st.rerun(scope="fragment")
-
-    _sfx_map = dict(_MAIN_PERIODS)
-    period = f"{_cur_y}{_sfx_map.get(_cur, '1231')}"
-    period_label = fr_period_label(period)
-
-    # 折叠区：其余历史期次（构造近 4 年 × 4 类报告期，仅保留与当前不同的）
-    with st.expander("🗂️ 更多报告期（近 4 年历史期次）", expanded=False, key=f"fr_more_{ticker}"):
-        _all_periods = []
-        for _y in ("2026", "2025", "2024", "2023"):
-            for _lbl, _s in _MAIN_PERIODS:
-                _p = f"{_y}{_s}"
-                if _p != period:
-                    _all_periods.append(_p)
-        _cols_m = st.columns(4)
-        for _i, _p in enumerate(_all_periods):
-            with _cols_m[_i % 4]:
-                if st.button(fr_period_label(_p), key=f"frp_{ticker}_{_p}", width="stretch"):
-                    st.session_state[_pk_sel] = _QUARTER_SUFFIX_REVERSE.get(_p[4:], "年报")
-                    st.session_state[_pk_year] = _p[:4]
-                    st.rerun(scope="fragment")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # ── 📈 业绩横向对比（v3 新增：≥3 年主要指标柱状+折线 + 展开分析）──────────
+    # ── 📈 业绩横向对比（放在首位：≥3 年主要指标柱状+折线 + 展开分析）──────────
     _build_perf_history_section(code, dark)
+
+    # ── 报告期选择区（折叠 + selectbox，改回之前熟悉的下拉模板）─────────────────
+    with st.expander("🗓️ 报告期选择", expanded=True, key=f"fr_sel_exp_{ticker}"):
+        st.caption("选择财报报告期查看该股对应期数据；也可多选报告期生成 Excel 式对比表。")
+        _period_options = list(PERIODS_FIN.keys())
+        # 默认选择最新年报
+        _default_idx = 0
+        for _i, _k in enumerate(_period_options):
+            if "年报" in _k and (_k.startswith(str(datetime.now().year)) or _k.startswith(str(datetime.now().year - 1))):
+                _default_idx = _i
+                break
+        period_label = st.selectbox(
+            "单期报告期", options=_period_options, index=_default_idx,
+            key=f"fr_period_{ticker}",
+            help="用于下方「业绩报表 / 业绩预告 / 披露日历」",
+        )
+        period = PERIODS_FIN[period_label]
+
+        # 多期对比：允许用户勾选多个报告期
+        _multi_options = [fr_period_label(f"{y}{q}") for y in range(datetime.now().year, datetime.now().year - 6, -1)
+                          for q in ("1231", "0630", "0930", "0331")]
+        multi_selected = st.multiselect(
+            "多期对比（生成 Excel 式表格）", options=_multi_options, default=[],
+            key=f"fr_multi_{ticker}",
+            help="选择多个报告期，合并显示该股在所有选中期的业绩数据并支持导出",
+        )
+        # 把标签转回 period 代码
+        _label_to_period = {fr_period_label(f"{y}{q}"): f"{y}{q}"
+                            for y in range(datetime.now().year, datetime.now().year - 6, -1)
+                            for q in ("1231", "0630", "0930", "0331")}
+        multi_periods = [_label_to_period.get(_lbl) for _lbl in multi_selected if _label_to_period.get(_lbl)]
 
     # ── 业绩报表（东财，按代码过滤）──
     st.markdown('<div class="sf-card">' + _section_header("业绩报表", "每股收益 · 营收 · 净利润 · ROE", "📊"), unsafe_allow_html=True)
@@ -1252,6 +1304,9 @@ def fragment_financial_report(ticker):
         except Exception:
             pass
     st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 多期业绩对比表（用户自选多期）──
+    _build_multi_period_table(code, multi_periods, dark=dark)
 
     # ── 业绩预告（best-effort，按代码过滤）──
     with st.expander("🔮 业绩预告（best-effort）", expanded=False, key=f"fr_fc_{ticker}"):
