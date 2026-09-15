@@ -58,6 +58,13 @@ def render_standard_page(title, icon="📊", caption=None, layout="wide", auth=T
     # 签名页头：图标 + 标题 + 副标题 + 实时状态胶囊（主题 / 交易时段）
     chips = _build_status_chips(dark)
     page_hero(title=title, icon=icon, subtitle=caption, chips=chips)
+    # 全局组件：Zen 专注模式（G11）——单点注入，全站 41 页自动生效；
+    # 失败静默（含嵌入态/重复 key），绝不影响页面主流程。
+    try:
+        from modules.zen_mode import render_zen_toggle
+        render_zen_toggle()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[page_utils] zen_mode 注入失败: {e}")
     return dark
 
 
