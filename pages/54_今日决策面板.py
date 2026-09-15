@@ -29,7 +29,8 @@ from modules.decision import (derive_position, load_snapshot, is_stale,
                              _event_position_adj, _event_long_symbols,
                              event_edge, format_event_edge)
 from modules.data_health import health_rows, assess_freshness
-from modules.decision_view import render_signal_cards, render_position_card, render_ladder_table
+from modules.decision_view import render_signal_cards, render_position_card, render_ladder_table, render_freshness_badge
+from modules import data_health as _dh
 from modules import decision_track as _track
 from modules import calibration as _cal
 from modules.page_guard import safe_fragment
@@ -231,6 +232,16 @@ def _render_hero(df, today, prev, meta=None):
     # 事件驱动催化：实时接通事件因子，消除「活/归档漂移」（S1 自找缺口）。
     # 与 build_snapshot 同源（都走 _event_position_adj），保证实时卡与归档快照一致；
     # 底层读 11MB 信号文件，靠模块级 300s 缓存避免每次刷新重读。失败则降级为 None（不臆造）。
+
+    # 方向 #7：信号陈旧→决策显式降权（可读化徽标）。在仓位卡之前先把"诚实边界"摊开：
+    # 不仅说"数据滞后"，还明确"仓位已因此降权到 X%"，并把"停更(stalled)源"标注出来。
+    try:
+        _all_fresh = assess_freshness({r["name"]: r["as_of"] for r in _dh.health_rows()})
+        _stalled = _dh.detect_stall()
+        render_freshness_badge(_all_fresh, stalled=_stalled, position_pct=pos["pct"])
+    except Exception:  # noqa: BLE001
+        pass
+
     pos = derive_position(temp, score, bias, cyc.get("name", ""), overall,
                           event_adj=event_adj_val, explain=True)
     # 暴露最终仓位到 session_state，供冒烟测试做「数据正确性」断言（不渲染、纯透传）

@@ -10,6 +10,71 @@ from __future__ import annotations
 import streamlit as st
 import pandas as pd
 
+from modules import data_health as _dh
+
+
+# 状态 → 配色（与 SLA 看板、ui_kit A股语义色保持一致，避免两处漂移）
+_STATUS_COLOR = {
+    "ok": "#1aa260", "warn": "#f5a623", "stale": "#ee2a2a", "unknown": "#94a3b8",
+}
+_STALL_COLOR = "#a855f7"  # 停更：紫色，与 stale 红区分
+
+
+def render_freshness_badge(freshness: dict, stalled: dict | None = None,
+                           position_pct: int | None = None) -> None:
+    """决策面板「数据新鲜度」显式徽标（方向 #7：信号陈旧→决策显式降权，可读化）。
+
+    把诚实边界**摊开**给用户看：不仅说"数据滞后"，还明确"仓位已因此降权到 X%"、
+    以及"哪个源停更(stalled)"。与 SLA 看板共用 assess_freshness / detect_stall 口径。
+
+    :param freshness: modules.decision.assess_freshness(...) 返回，含
+                      ``status`` / ``max_lag_days`` / ``sources``。
+    :param stalled: 可选，data_health.detect_stall() 返回（{key:{stalled,...}}），
+                    注入则徽标额外标出停更源。默认按源 key（与 DATA_SOURCES 对齐）匹配。
+    :param position_pct: 当前建议仓位百分比，陈旧时一并展示"已降权"结论。
+    """
+    if not isinstance(freshness, dict):
+        return
+    stt = freshness.get("status", "unknown")
+    color = _STALL_COLOR if (stalled and any(v.get("stalled") for v in stalled.values())) else _STATUS_COLOR.get(stt, "#94a3b8")
+    # assess_freshness 以「源名」为键；detect_stall 以「源 key」为键。
+    # 建立 源名→key 映射，才能让徽标把"停更"标注到正确源上。
+    _name_to_key = {e["name"]: e["key"] for e in _dh.DATA_SOURCES}
+    sources = freshness.get("sources", {}) or {}
+    bits = []
+    for name, s in sources.items():
+        sst = s.get("status", "unknown")
+        asof = s.get("as_of") or "未知"
+        lag = s.get("lag_days")
+        lag_txt = f"滞后{lag}天" if isinstance(lag, int) else "无日期"
+        stalled_flag = ""
+        if stalled:
+            _k = _name_to_key.get(name)
+            if _k and stalled.get(_k, {}).get("stalled"):
+                stalled_flag = f"⏸停更{stalled[_k].get('frozen_days')}天"
+        bits.append(f"<span style='color:{_STATUS_COLOR.get(sst, '#94a3b8')}'>"
+                    f"● {name} {asof}（{lag_txt}）{stalled_flag}</span>")
+    # 结论句：陈旧/偏旧时明确"已降权"
+    verdict = ""
+    if stt == "stale":
+        verdict = f"仓位已封顶 {position_pct}%——陈旧数据不可直接当当日结论"
+    elif stt == "warn":
+        verdict = f"仓位已封顶 {position_pct}%——数据偏旧，谨慎参考"
+    elif stt == "unknown":
+        verdict = "部分数据源日期缺失，新鲜度未知，谨慎参考"
+    else:
+        verdict = "决策依赖源均在时效阈值内"
+    head = "⏸ 数据停更告警" if (stalled and any(v.get("stalled") for v in stalled.values())) else (
+        "⏰ 数据滞后告警" if stt in ("warn", "stale") else "✅ 数据新鲜度")
+    html = (
+        f"<div style='border:1px solid {color};border-radius:12px;padding:10px 14px;"
+        f"margin:8px 0;background:{color}14;font-size:13px;line-height:1.7'>"
+        f"<div style='font-weight:700;color:{color};margin-bottom:4px'>{head}</div>"
+        f"<div>{'　'.join(bits) or '—'}</div>"
+        f"<div style='opacity:.85;margin-top:4px'>{verdict}</div></div>"
+    )
+    st.markdown(html, unsafe_allow_html=True)
+
 
 def render_signal_cards(temp, cyc_name, cyc_emoji, score, bias, overall, latest_date,
                          temp_delta=None, overall_delta=None):

@@ -205,17 +205,25 @@ def build_refresh_plan(stale_only: bool = True) -> list[dict]:
     """生成刷新计划（去重）。
 
     返回 ``[{cmd_id, cmd, mode, desc, covers:[源名], stale_sources:[源名]}]``，
-    每个刷新命令只出现一次；``stale_sources`` 为该命令覆盖范围内**当前陈旧**的源。
+    每个刷新命令只出现一次；``stale_sources`` 为该命令覆盖范围内**当前陈旧或停更**的源。
     ``stale_only=False`` 时连「新鲜」的覆盖源也列入 covers 但 stale_sources 仍只含陈旧的。
+
+    注意：判定"是否需要刷新"同时纳入 **stalled**（停更，见 detect_stall）——一个源可能
+    lag 还没到 stale 阈值（今天只有 5 天），但 as_of 已连续多日冻结，属"正在坏掉"，
+    也应进入刷新计划并提前告警（不等它彻底 stale 才处理）。
     """
-    rows = health_rows()
+    rows = health_rows_enriched()
     by_key = {r["key"]: r for r in rows}
     plan: list[dict] = []
     seen: set[str] = set()
     for cid, c in REFRESH_COMMANDS.items():
         covers_names = [_name_of_key(k) for k in c["covers"]]
-        stale_names = [n for k, n in zip(c["covers"], covers_names)
-                       if by_key.get(k, {}).get("status") == "stale"]
+
+        def _is_actionable(k: str) -> bool:
+            b = by_key.get(k, {})
+            return bool(b.get("status") == "stale" or b.get("stalled"))
+
+        stale_names = [n for k, n in zip(c["covers"], covers_names) if _is_actionable(k)]
         if stale_only and not stale_names:
             continue
         if cid in seen:
@@ -237,4 +245,144 @@ def _name_of_key(key: str) -> str:
         if e["key"] == key:
             return e["name"]
     return key
+
+
+# ───────────────────────── 源停更检测（Direction #2，区别于 lag-based stale） ─────────────────────────
+# 痛点：assess_freshness 只按「as_of 距今天数」判 stale；但一个源"今天 lag=5(还 warn)、
+# 却已连续 5 天没推进过 as_of"这种"正在冻结"的状态，靠 lag 看不出来——要等 lag 滚到 8 才报警。
+# 停更检测 = 拿"该源历史上最后推进到哪天"和"今天"比：冻结超过 STALL_DAYS 天即 stalled，
+# 不等它变成 stale 就提前告警（对应掘金/米筐的"数据质量/Point-in-Time"严谨性）。
+import sqlite3 as _sqlite3
+
+STALL_DAYS = 5  # 同一 as_of 冻结超过该自然日数 → 判定停更(stalled)，提前于 stale 报警
+
+_HEALTH_TABLE = "data_source_health"
+
+
+def _health_db_path() -> str:
+    return os.path.join(_DATA_DIR, "market_cache.db")
+
+
+def _ensure_health_table() -> None:
+    try:
+        with _sqlite3.connect(_health_db_path()) as conn:
+            conn.execute(
+                f"CREATE TABLE IF NOT EXISTS {_HEALTH_TABLE} ("
+                " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                " source_key TEXT NOT NULL,"      # 源 key（与 DATA_SOURCES 对齐）
+                " observed_at TEXT NOT NULL,"      # 观测写入时间（真实时刻）
+                " as_of TEXT,"                     # 该源当时的真实数据截止日
+                " status TEXT,"
+                " lag_days INTEGER)"
+            )
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_{_HEALTH_TABLE}_key_obs"
+                f" ON {_HEALTH_TABLE}(source_key, observed_at)"
+            )
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def record_health_observation(rows: list[dict] | None = None) -> int:
+    """把当前逐源健康快照落盘（供停更检测/趋势）。返回写入行数。
+
+    失败（无写权限/锁）静默返回 0，绝不因「记录失败」影响看板/决策渲染。
+    """
+    rows = rows if rows is not None else health_rows()
+    _ensure_health_table()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    n = 0
+    try:
+        with _sqlite3.connect(_health_db_path()) as conn:
+            for r in rows:
+                conn.execute(
+                    f"INSERT INTO {_HEALTH_TABLE}"
+                    "(source_key, observed_at, as_of, status, lag_days) VALUES (?,?,?,?,?)",
+                    (r["key"], now, r.get("as_of"), r.get("status"), r.get("lag_days")),
+                )
+                n += 1
+    except Exception:  # noqa: BLE001
+        return 0
+    return n
+
+
+def detect_stall(key: str | None = None) -> dict:
+    """返回各源停更状态：``{key: {stalled, frozen_days, last_as_of, last_advanced_at}}``。
+
+    ``stalled=True`` 当且仅当：该源有观测历史、其 ``as_of`` **最后一次变大（推进）**的那次
+    观测距今 ≥``STALL_DAYS``，且历史最大 ``as_of`` 仍早于今天（确实没推进到今日）。
+
+    与 lag-based ``stale`` 的区别：``stale`` 只看「as_of 距今天数」，一个日更源冻结 5 天
+    时 lag 也才 5（还没到 stale 阈值）就已经是「正在坏掉」；本函数按「停更」提前告警。
+    观测窗口内 as_of 从未推进时，退化为从**首次观测**算起（否则永远不报警）。
+    无历史/异常 → 该源 ``stalled=False``（不误报）；单源查询可用 ``key`` 缩小范围。
+    """
+    _ensure_health_table()
+    keys = [key] if key else [e["key"] for e in DATA_SOURCES]
+    out: dict = {}
+    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        with _sqlite3.connect(_health_db_path()) as conn:
+            for k in keys:
+                # 必须按时间**升序**回溯：要找的是「as_of 最后一次变大」发生在哪一次观测。
+                # 若按 DESC 走，第一次命中 max_as_of 的就是最新一次观测，frozen 会退化成
+                # 「距上次观测天数」——那就不是"停更"而是"多久没看"，会漏判正在冻结的源。
+                cur = conn.execute(
+                    f"SELECT observed_at, as_of FROM {_HEALTH_TABLE}"
+                    " WHERE source_key=? ORDER BY observed_at ASC",
+                    (k,),
+                )
+                rows = cur.fetchall()
+                if not rows:
+                    out[k] = {"stalled": False, "frozen_days": None,
+                              "last_as_of": None, "last_advanced_at": None}
+                    continue
+                last_advance_date: str | None = None
+                first_obs_date: str | None = None
+                prev_asof: str | None = None
+                max_as_of: str | None = None
+                for obs, ao in rows:
+                    obs_date = (obs or "")[:10]
+                    if first_obs_date is None and obs_date:
+                        first_obs_date = obs_date
+                    if ao and (max_as_of is None or ao > max_as_of):
+                        max_as_of = ao
+                    # 只有 as_of 严格变大才算「推进」，冻结/回退都不更新 last_advance
+                    if prev_asof is None or (ao or "") > (prev_asof or ""):
+                        last_advance_date = obs_date
+                    prev_asof = ao
+                # 全程 as_of 从未推进（观测窗口内一直是同一个日期）→ 从首次观测算起，
+                # 否则一个"一开始就冻结"的源会因为 last_advance 永远等于最新观测而永不报警。
+                ref_date = last_advance_date or first_obs_date
+                frozen = None
+                if ref_date:
+                    try:
+                        frozen = (datetime.now() - datetime.strptime(
+                            ref_date, "%Y-%m-%d")).days
+                    except Exception:  # noqa: BLE001
+                        frozen = None
+                stalled = bool(
+                    ref_date and frozen is not None
+                    and frozen >= STALL_DAYS
+                    and (max_as_of or "") < today
+                )
+                out[k] = {"stalled": stalled, "frozen_days": frozen,
+                          "last_as_of": max_as_of, "last_advanced_at": last_advance_date}
+    except Exception:  # noqa: BLE001
+        for k in keys:
+            out.setdefault(k, {"stalled": False, "frozen_days": None,
+                               "last_as_of": None, "last_advanced_at": None})
+    return out
+
+
+def health_rows_enriched() -> list[dict]:
+    """``health_rows`` + 每源 ``stalled``/``frozen_days`` 标记（供 SLA 看板/报警）。"""
+    rows = health_rows()
+    stalls = detect_stall()
+    for r in rows:
+        s = stalls.get(r["key"], {})
+        r["stalled"] = s.get("stalled", False)
+        r["frozen_days"] = s.get("frozen_days")
+        r["last_as_of"] = s.get("last_as_of")
+    return rows
 
