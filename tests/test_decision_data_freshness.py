@@ -331,6 +331,56 @@ def test_row_to_indicators_carries_data_date():
     assert out.get("limit_up") == 35.0
 
 
+def test_row_to_indicators_date_is_data_date_not_now():
+    """带出的 date 必须是**该行的数据日**，不得被 today() 之类污染。"""
+    import importlib.util
+    import os as _os
+    from datetime import date as _d
+    _p = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                       "scripts", "daily_snapshot.py")
+    spec = importlib.util.spec_from_file_location("_ds_probe2", _p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    import pandas as pd
+    df = pd.DataFrame({"date": ["2020-01-02"], "limit_up": [1.0]})
+    out = mod._row_to_indicators(df, -1)
+    assert out.get("date") == "2020-01-02"
+    assert out.get("date") != _d.today().isoformat(), "数据日被 today() 污染"
+
+
+def test_daily_snapshot_build_calls_fed_by_row_helper():
+    """AST 守卫：daily_snapshot 内 build_snapshot 的 indicators 实参必须来自
+    _row_to_indicators（而非自造 dict），否则牧羊人 as_of 会重新丢失、守卫再次失效。
+
+    这是「缺陷 2026-09-15（牧羊人 as_of 恒 None）」的防回退锁：
+    真实根因就是上游没把 date 交给 build_snapshot。修好一处后，任何新增/改动
+    的 build_snapshot 调用点若绕开该 helper，本守卫必须报红。
+    """
+    import ast
+    import os as _os
+    _p = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                       "scripts", "daily_snapshot.py")
+    tree = ast.parse(open(_p, encoding="utf-8").read())
+    calls = [
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and ((isinstance(n.func, ast.Attribute) and n.func.attr == "build_snapshot")
+             or (isinstance(n.func, ast.Name) and n.func.id == "build_snapshot"))
+    ]
+    assert calls, "未找到 build_snapshot 调用点——脚本结构变了，请复核本守卫"
+    for c in calls:
+        assert len(c.args) >= 2, "build_snapshot 调用缺 indicators 实参"
+        ind = c.args[1]
+        # 允许：_row_to_indicators(...) 调用 / 变量名 today（其值来自该 helper）
+        ok = (
+            (isinstance(ind, ast.Call) and isinstance(ind.func, ast.Name)
+             and ind.func.id == "_row_to_indicators")
+            or (isinstance(ind, ast.Name) and ind.id in {"today", "indicators"})
+        )
+        assert ok, (
+            f"build_snapshot 的 indicators 实参不是 _row_to_indicators 结果"
+            f"（行 {getattr(ind, 'lineno', '?')}）——牧羊人 as_of 会重新丢失")
+
 
 # ──────────────────────────────────────────────
 # 事件因子 efficacy 护栏（自找缺口 S15）：无统计优势则不施加催化
