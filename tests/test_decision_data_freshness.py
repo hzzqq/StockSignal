@@ -264,6 +264,75 @@ def test_snapshot_legacy_call_excludes_unpassed_sources(monkeypatch):
 
 
 # ──────────────────────────────────────────────
+# 牧羊人源新鲜度守卫不得为 "unknown"（真实缺陷 2026-09-15 修复）
+# ──────────────────────────────────────────────
+def test_shepherd_as_of_not_unknown_when_indicators_carry_date(monkeypatch):
+    """indicators 带 date 时，牧羊人源必须拿到真实 as_of，不得显示 unknown。"""
+    monkeypatch.setattr(
+        D, "_event_position_adj",
+        lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": _iso(1)})
+    snap = D.build_snapshot(
+        date=_iso(1), indicators={"date": _iso(1)}, temp=50.0,
+        forecast={}, promo={})
+    _sh = snap["data_freshness"]["sources"]["牧羊人情绪"]
+    assert _sh["as_of"] == _iso(1), "牧羊人 as_of 丢失 → 守卫对该源失效"
+    assert _sh["status"] == "ok"
+
+
+def test_shepherd_as_of_absent_stays_unknown_no_fabrication(monkeypatch):
+    """indicators 不带 date 且无 temp_as_of → 该源保持 unknown，**不得臆造日期**。
+
+    真实缺陷（2026-09-15）是上游 `_row_to_indicators` 丢掉了 date，使牧羊人这个最主要的
+    输入源恒为 unknown、永不告警。**修复落在上游把 date 带出来**（见
+    test_row_to_indicators_carries_data_date），而不是在本处拿快照 date 兜底——
+    快照 date 可被调用方任意指定（测试/历史回补），拿它冒充"牧羊人数据日"既可能假陈旧
+    又可能假新鲜，违背「日期必须是真实数据日」的口径。
+    """
+    monkeypatch.setattr(
+        D, "_event_position_adj",
+        lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": _iso(1)})
+    snap = D.build_snapshot(
+        date=_iso(2), indicators={"limit_up": 35.0}, temp=50.0,  # 无 date 键
+        forecast={}, promo={})
+    _sh = snap["data_freshness"]["sources"]["牧羊人情绪"]
+    assert _sh["as_of"] is None, "无 date 时不应臆造日期"
+    assert _sh["status"] == "unknown"
+
+
+def test_shepherd_stale_is_caught_and_caps_position(monkeypatch):
+    """牧羊人指标本身陈旧时，必须被判 stale 并参与降仓（修复前恒定 unknown → 漏报）。"""
+    monkeypatch.setattr(
+        D, "_event_position_adj",
+        lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": _iso(1)})
+    snap = D.build_snapshot(
+        date="2026-09-04", indicators={"date": _iso(21)}, temp=85.0,
+        forecast={"score": 0.4, "bias": "偏多", "confidence": 0.7},
+        promo={"overall": 65})
+    _sh = snap["data_freshness"]["sources"]["牧羊人情绪"]
+    assert _sh["status"] == "stale"
+    assert _sh["lag_days"] == 21
+    assert snap["data_freshness"]["status"] == "stale"
+    assert snap["position"]["pct"] <= 40
+
+
+def test_row_to_indicators_carries_data_date():
+    """daily_snapshot._row_to_indicators 必须把该行 date 一并带出（否则上层拿不到）。"""
+    import importlib.util
+    import os as _os
+    _p = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                       "scripts", "daily_snapshot.py")
+    spec = importlib.util.spec_from_file_location("_ds_probe", _p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    import pandas as pd
+    df = pd.DataFrame({"date": ["2026-09-11", "2026-09-14"], "limit_up": [30.0, 35.0]})
+    out = mod._row_to_indicators(df, -1)
+    assert out.get("date") == "2026-09-14", "指标行未带出权威数据日期"
+    assert out.get("limit_up") == 35.0
+
+
+
+# ──────────────────────────────────────────────
 # 事件因子 efficacy 护栏（自找缺口 S15）：无统计优势则不施加催化
 # ──────────────────────────────────────────────
 def _fake_by_event(on_acc, off_acc, n_on=25, n_off=25):

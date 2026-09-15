@@ -62,6 +62,18 @@ def _row_to_indicators(df, i=-1) -> dict:
                 out[k] = v
         except Exception:  # noqa: BLE001
             continue
+    # ⚠️ 把该行对应的**权威数据日期**一并带出（不是 now()）。
+    # 曾经只带纯数值指标、丢掉 date → build_snapshot 的
+    # `shepherd_as_of = temp_as_of or indicators["date"]` 两处都取不到 → 牧羊人情绪
+    # 数据源的 as_of 恒为 None、新鲜度状态恒为 "unknown"，决策级新鲜度守卫对**最重要
+    # 的那个输入源完全失效**（守卫只对事件因子生效，是半套 theater）。
+    # 带出后：牧羊人指标陈旧时同样会被 assess_freshness 判为 warn/stale 并参与降仓。
+    try:
+        _d = str(row["date"])[:10]
+        if _d and _d[4] == "-":
+            out["date"] = _d
+    except Exception:  # noqa: BLE001
+        pass
     return out
 
 

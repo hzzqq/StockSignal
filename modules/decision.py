@@ -565,6 +565,15 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
     # 缓存的真实截止日由调用方透传（ladder_as_of/market_temp_as_of），否则这两个源
     # 陈旧时决策仍照算不误，守卫只是半套。
     _ind = indicators if isinstance(indicators, dict) else {}
+    # 牧羊人情绪的真实数据日优先级：
+    #   ① 显式透传的 temp_as_of（调用方权威值，用于温度取自非当日历史行的场景）
+    #   ② indicators["date"] —— 真实生产路径由 daily_snapshot._row_to_indicators 写入该行
+    #      的权威数据日期（不是 now()）。
+    # 两处都取不到时保持 None（→ assess_freshness 记 "unknown"）：**不臆造日期**。
+    # 曾经的真实缺陷是 ① ② 都拿不到（_row_to_indicators 丢掉了 date），导致牧羊人这个
+    # 最主要的输入源**恒为 unknown、永不告警**——修复落在上游"把 date 带出来"，
+    # 而不是在此处兜底成快照 date：快照 date 由调用方可任意传入（测试/回补用历史日），
+    # 拿它冒充牧羊人数据日会制造假陈旧/假新鲜，违背"日期必须是真实数据日"的口径。
     shepherd_as_of = temp_as_of or _ind.get("date")
     _fresh_sources = {
         "牧羊人情绪": shepherd_as_of,
