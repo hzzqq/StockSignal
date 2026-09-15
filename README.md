@@ -8,12 +8,12 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-red?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Flask](https://img.shields.io/badge/Flask-3.0+-black?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![AKShare](https://img.shields.io/badge/Data-AKShare%20%2F%20BaoStock%20%2F%20Sina%20%2F%20Eastmoney-orange)](https://akshare.akfamily.xyz/)
-[![Tests](https://img.shields.io/badge/Tests-2986%20passed-brightgreen)](https://github.com/hzzqq/StockSignal)
+[![Tests](https://img.shields.io/badge/Tests-3088%20passed-brightgreen)](https://github.com/hzzqq/StockSignal)
 [![License](https://img.shields.io/badge/License-学习研究-lightgrey)]()
 
 > **把「事件 → 主线 → 回测 → 交易」串成一个工作台的 A 股分析平台。**
 > 不依赖任何券商接口，聚合 4 大免费数据源 + 本地 SQLite 缓存，
-> 55 个功能页面开箱即用——从行情看板到事件追踪，从策略回测到模拟交易。
+> 63 个功能页面开箱即用——从行情看板到事件追踪，从策略回测到模拟交易。
 
 ⭐ **如果你觉得有用，点个 Star，或者直接提 Issue —— 每一条反馈都是这个项目活下去的氧气。** ⭐
 
@@ -30,8 +30,8 @@
 | 你关心的 | StockSignal 给的 |
 |---|---|
 | 🧭 **数据源会不会挂** | AKShare → BaoStock → 新浪 → 东方财富 → 本地缓存，**4 级自动降级**，单点故障不崩、断网也能看历史 |
-| 📊 **功能全不全** | **55 个功能页面**：行情看板 / 个股分析 / 多股对比 / 事件追踪 / 策略回测 / 智能选股 / 资金流向 / 市场情绪 / 模拟交易 / 智能条件单…… |
-| 🧪 **靠不靠谱** | **2986 个自动化测试**（含数据正确性断言、页面冒烟、后端安全回归），每个页面都有测试兜底 |
+| 📊 **功能全不全** | **63 个功能页面**：行情看板 / 个股分析 / 多股对比 / 事件追踪 / 策略回测 / 智能选股 / 资金流向 / 市场情绪 / 模拟交易 / 智能条件单…… |
+| 🧪 **靠不靠谱** | **3088 个自动化测试**（含数据正确性断言、页面冒烟、后端安全回归），每个页面都有测试兜底 |
 | 🎨 **好不好用** | 暗夜 / 白天双主题，A 股红涨绿跌，K 线支持日/周/月切换 + 十字光标 + 双击弹分时 |
 | 🚀 **跑起来难不难** | Windows 双击 `.bat` 一键启动；Docker Compose 一条命令；手动启动 5 行命令 |
 
@@ -101,7 +101,7 @@ docker compose -f docker-compose.yml up --build
 
 ---
 
-## 🧭 功能地图（55 个页面）
+## 🧭 功能地图（63 个页面）
 
 ### 📊 行情与分析
 - **行情看板** — K 线（日/周/月切换、十字光标、双击弹分时、区域缩放）+ 技术面四大维度（趋势/动量/量能/形态）+ 板块涨跌榜
@@ -139,7 +139,7 @@ docker compose -f docker-compose.yml up --build
 ```
 ┌──────────────────────────────┐         ┌───────────────────────────────┐
 │   Streamlit 多页前端 (8899)   │  HTTP   │   Flask 后端 API (5050)        │
-│   pages/ (55页) + modules/    │ ──────▶ │  auth / stocks / admin / config│
+│   pages/ (63页) + modules/    │ ──────▶ │  auth / stocks / admin / config│
 │   双主题 · 数据正确性测试      │   JWT   └───────────────┬───────────────┘
 └──────────────┬───────────────┘                         │ SQLAlchemy
                │                                         ▼
@@ -156,12 +156,12 @@ docker compose -f docker-compose.yml up --build
 ```
 StockSignal/
 ├── app.py                # Streamlit 主入口
-├── pages/                # 55 个功能页面（Streamlit 多页）
+├── pages/                # 63 个功能页面（Streamlit 多页）
 ├── modules/              # 业务模块（fetcher/cleaner/technical/backtest/
 │                         #   market_drivers/visualizer/ui_theme…）
 ├── backend/              # Flask 后端（JWT 鉴权 / REST API / 管理界面）
 ├── data/                 # 前端运行数据（cache.db / portfolio.csv / news.db）
-├── tests/ + backend/tests/  # 288 个测试文件 / 2986 用例
+├── tests/ + backend/tests/  # 302 个测试文件 / 3088 用例
 └── 启动StockSignal.bat          # Windows 一键启动（macOS/Linux 见方式 B 手动 / 方式 C Docker）
 ```
 
@@ -169,7 +169,7 @@ StockSignal/
 
 ## 🛡 工程与质量（认真写的代码）
 
-- **测试 2986 passed**：数据正确性断言（OHLC 自洽 / 日期单调 / 股息率反推区间）、55 页离线冒烟（整批不卡死）、后端安全回归 12/12
+- **测试 3088 passed**：数据正确性断言（OHLC 自洽 / 日期单调 / 股息率反推区间）、63 页离线冒烟（整批不卡死）、后端安全回归 12/12
 - **统一 JSON 响应 + 全局 errorhandler**：绝不泄露 HTML / traceback
 - **安全基线**：JWT + 限流 + 默认 TLS 校验 + 登录持久化
 - **架构治理**：God Module 持续拆分（`_feed_io` / `_market_data_io` / `_search_utils` 叶子模块）、共享有界线程池、超时分层
