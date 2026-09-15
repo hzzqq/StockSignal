@@ -35,7 +35,13 @@ GEN_SHOTS = os.path.join(ROOT, "scripts", "gen_screenshots.py")
 GEN_PORTFOLIO = os.path.join(ROOT, "scripts", "gen_portfolio_page.py")
 GEN_BACKTEST_FIG = os.path.join(ROOT, "thesis", "gen_backtest_eval.py")
 VISUALIZER = os.path.join(ROOT, "modules", "visualizer.py")
-PUBLIC_DOCS = ["README.md", "docs/promo-final.md", "docs/promo-template.md"]
+PUBLIC_DOCS = ["README.md", "docs/promo-final.md", "docs/promo-template.md",
+               # 发布物料（真正对外发出去的文案）同样属于公开数字口径——
+               # 曾因不在清单里而长期停在「38 页 / 1767 测试」两代前的旧数（2026-09-15 修复）。
+               "docs/publish-kit/01-掘金-juejin.md",
+               "docs/publish-kit/02-知乎-zhihu.md",
+               "docs/publish-kit/03-V2EX.md",
+               "docs/publish-kit/04-朋友圈.md"]
 
 
 def _src(path):

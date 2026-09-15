@@ -59,6 +59,11 @@ PUBLIC_DOCS = [
     "docs/promo-final.md",
     "docs/promo-template.md",
     "docs/index.html",
+    # 发布物料（对外真正发出的文案）——曾不在清单内，数字长期停在 38 页（2026-09-15 修复）
+    "docs/publish-kit/01-掘金-juejin.md",
+    "docs/publish-kit/02-知乎-zhihu.md",
+    "docs/publish-kit/03-V2EX.md",
+    "docs/publish-kit/04-朋友圈.md",
 ]
 
 GEN = os.path.join(ROOT, "scripts", "gen_portfolio_page.py")
@@ -74,11 +79,14 @@ def _src(rel: str) -> str:
 # ── A. 页面数：既真实又互相一致 ──────────────────────────────────────
 
 # 只认「数字 + 页/页面」的规模声明，避免误伤「时间页」「翻页」等普通词。
+# ⚠️ 必须包含「个功能页」（无「面」）——发布物料里长期写的是「63 个功能页」，
+#    漏掉该变体会让物料数字完全逃逸守卫（真实缺陷 2026-09-15 发现）。
 _PAGE_PATTERNS = (
     r"(\d+)\s*个功能页面",
+    r"(\d+)\s*个功能页(?!面)",
     r"(\d+)\s*个页面",
     r"(\d+)\s*页面",
-    r"(\d+)\s*页",
+    r"(\d+)\s*页(?!面)",
 )
 
 
@@ -126,6 +134,7 @@ def test_readme_page_count_matches_actual_pages():
 # 模板里出现这些「数字 + 规模词」即视为硬编码违规（必须改写成 @占位符@）。
 _BANNED_IN_TEMPLATE = (
     r"\d+\s*个?功能页面",
+    r"\d+\s*个?功能页(?!面)",   # 「个功能页」变体同样属于规模声明
     r"\d+\s*个?页面",
     r"\d+\s*业务模块",
     r"\d+\s*(?:个)?(?:后端\s*)?REST\s*端点",
