@@ -638,6 +638,91 @@ def _temp_label(temp: float) -> str:
 # ---------------------------------------------------------------------------
 # 注册
 # ---------------------------------------------------------------------------
+# ─────────── 决策诚实 / 治理类工具（2026-09-16 新增） ───────────
+# 目的：外部 AI 在给投资建议前，必须先知道**数据有多旧、有没有停更**。
+# 这是「诚实口径」对外的延伸——不让 AI 基于陈旧/停更的数据给出满仓建议却毫无提示。
+# 全部只读；全部在内部 try/except，单个工具失败不拖垮整个 MCP 服务进程。
+
+
+def get_data_health() -> Dict[str, Any]:
+    """各数据源时效：真实数据截止日(as_of)、滞后天数、状态(ok/warn/stale)、是否停更(stalled)。"""
+    try:
+        from modules import data_health as dh
+
+        return {"ok": True, "sources": _jsonable(dh.health_rows_enriched())}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+def get_macro_indicators() -> Dict[str, Any]:
+    """宏观指标：PMI/CPI/PPI/GDP/M2/LPR 的最新值+前值+真实数据日期。取不到如实返回 None。"""
+    try:
+        from modules import macro_data as md
+
+        return {"ok": True, "indicators": _jsonable(md.fetch_all())}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+def get_lhb(date: str = "") -> Dict[str, Any]:
+    """龙虎榜席位动向：上榜家数、净买入 Top / 净卖出 Top。取不到或非交易日如实说明。"""
+    try:
+        from modules import lhb as _lhb
+
+        df = _lhb.fetch_lhb(date or None)
+        if df is None:
+            return {"ok": True, "available": False,
+                    "reason": "未取到龙虎榜（非交易日 / akshare 不可用 / 网络受限）"}
+        s = _lhb.summarize(df)
+        if s is None:
+            return {"ok": True, "available": False,
+                    "reason": "明细已取到但未能识别净买额列；"
+                              "为避免用错列编出资金方向，此处不展示排名"}
+        return {"ok": True, "available": True,
+                "count": s["count"], "net_sum": s["net_sum"],
+                "buy_top": _jsonable(s["buy_top"].to_dict("records")),
+                "sell_top": _jsonable(s["sell_top"].to_dict("records"))}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+def get_ai_skills(scope: str = "review") -> Dict[str, Any]:
+    """取指定场景生效的 AI 分析规则（用户自定义口径）。"""
+    try:
+        from modules import ai_skills as sk
+
+        return {"ok": True, "scope": scope,
+                "active": _jsonable(sk.active_skills(scope)),
+                "prompt": sk.compose_prompt(scope)}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+def get_p1_signal() -> Dict[str, Any]:
+    """P1 事件因子信号文件的 latest_date（判断事件因子是否陈旧 / 已被降权）。"""
+    try:
+        import json as _json
+        import os as _os
+
+        from modules import p1_signal as p1
+
+        files: Dict[str, Any] = {}
+        for d in (p1.discover_source_dirs() or []):
+            if not _os.path.isdir(d):
+                continue
+            for fn in sorted(_os.listdir(d)):
+                if not fn.endswith(".json"):
+                    continue
+                try:
+                    with open(_os.path.join(d, fn), encoding="utf-8") as fh:
+                        files[fn] = {"latest_date": _json.load(fh).get("latest_date")}
+                except Exception:  # noqa: BLE001
+                    files[fn] = {"latest_date": None, "error": "解析失败"}
+        return {"ok": True, "files": files}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
 def _register_all() -> None:
     register_tool(
         "get_kline",
@@ -801,6 +886,53 @@ def _register_all() -> None:
             "required": [],
         },
         get_market_sentiment,
+    )
+    register_tool(
+        "get_data_health",
+        "查询各数据源时效性：真实数据截止日(as_of)、滞后天数、状态(ok/warn/stale)、"
+        "是否停更(stalled)。**给投资建议前建议先调这个**，避免基于陈旧/停更数据却毫无提示。",
+        {"type": "object", "properties": {}, "required": []},
+        get_data_health,
+    )
+    register_tool(
+        "get_macro_indicators",
+        "宏观指标最新值：PMI/CPI/PPI/GDP/M2/LPR，含前值与真实数据日期；取不到返回 None（不臆造）。",
+        {"type": "object", "properties": {}, "required": []},
+        get_macro_indicators,
+    )
+    register_tool(
+        "get_lhb",
+        "龙虎榜席位动向：上榜家数、净买入 Top / 净卖出 Top。取不到或非交易日如实说明，不臆造明细。",
+        {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "交易日期 YYYYMMDD，默认今天"},
+            },
+            "required": [],
+        },
+        get_lhb,
+    )
+    register_tool(
+        "get_ai_skills",
+        "取指定场景生效的 AI 分析规则（用户自定义口径）。",
+        {
+            "type": "object",
+            "properties": {
+                "scope": {
+                    "type": "string",
+                    "enum": ["review", "premarket", "stock", "report", "decision"],
+                    "default": "review",
+                },
+            },
+            "required": [],
+        },
+        get_ai_skills,
+    )
+    register_tool(
+        "get_p1_signal",
+        "P1 事件因子信号文件的 latest_date，用于判断事件因子是否陈旧（若停在很久以前，决策已被降权）。",
+        {"type": "object", "properties": {}, "required": []},
+        get_p1_signal,
     )
 
 

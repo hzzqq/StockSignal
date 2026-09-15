@@ -14,7 +14,7 @@ AI 助手 (Claude/Cursor/OpenClaw)
         ▼
 mcp_server/server.py   ← 零依赖协议层（仅标准库）
         ▼
-mcp_server/tools.py    ← 9 个能力工具（薄转发）
+mcp_server/tools.py    ← 16 个能力工具（薄转发）
         ▼
 modules.* / backend.*  ← StockSignal 既有能力（行情/技术面/选股/回测/资金流/新闻/风险/条件单/实盘）
 ```
@@ -88,7 +88,7 @@ PYTHONPATH=E:/project/ks/StockSignal \
   C:/Users/Administrator/.workbuddy/binaries/python/envs/default/Scripts/python.exe \
   E:/project/ks/StockSignal/mcp_server/run.py --self-test
 ```
-应列出 9 个工具并跑通离线自检。
+应列出 16 个工具并跑通离线自检。
 
 ## 配套 Prompt
 
