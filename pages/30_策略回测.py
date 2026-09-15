@@ -222,6 +222,18 @@ def fragment_manual_backtest():
                 sf_card("回测结果", "")
 
                 s = result.summary()
+                # G12：记录本次回测（run ID 持久化 → 刷新/切页/重启可回溯；失败静默不影响主流程）
+                try:
+                    from modules.backtest_runs import record_run
+                    record_run(
+                        params={"ticker": bt_ticker, "start": bt_start.strftime("%Y-%m-%d"),
+                                "end": bt_end.strftime("%Y-%m-%d"), "strategy": strategy,
+                                "initial_capital": initial_capital},
+                        status="success",
+                        summary=s,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
                 # 加法式健壮性：summary() 字典字段若因上游 schema 漂移缺失（如 'win_rate_pct'），
                 # 直接 s['win_rate_pct'] 会抛 KeyError 让整个回测结果 fragment 崩溃。
                 # 统一用 .get 兜底为 0/None，保证指标卡始终可渲染。
@@ -965,6 +977,35 @@ def fragment_batch_backtest():
                 xc_handle_error("批量回测失败", e, hint="请稍后重试，或检查网络与数据源连接")
 
 
+def fragment_run_history():
+    """G12：历史回测运行记录（run ID 持久化，跨刷新/切页/重启可回溯）。"""
+    try:
+        from modules.backtest_runs import list_runs
+        runs = list_runs(limit=30)
+    except Exception:  # noqa: BLE001
+        runs = []
+    st.markdown("---")
+    st.markdown("#### 🗂️ 历史回测记录（run ID 持久化）")
+    if not runs:
+        st.info("暂无历史回测记录。运行一次「手动回测」后，这里会留下 run ID 与参数，刷新/切页不丢。")
+        return
+    rows = []
+    for r in runs:
+        p = r.get("params", {}) or {}
+        sm = r.get("summary", {}) or {}
+        rows.append({
+            "run_id": r.get("run_id", ""),
+            "记录时间": r.get("created_at", ""),
+            "标的": p.get("ticker", ""),
+            "策略": p.get("strategy", ""),
+            "区间": f"{p.get('start', '')}~{p.get('end', '')}",
+            "状态": r.get("status", ""),
+            "收益率%": sm.get("total_return_pct"),
+            "胜率%": sm.get("win_rate_pct"),
+        })
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True, height=260)
+
+
 # ==================================================================
 # 调用所有独立模块
 # ==================================================================
@@ -972,4 +1013,5 @@ fragment_manual_backtest()
 fragment_daily_picker()
 fragment_strong_bull()
 fragment_param_scan()
+fragment_run_history()
 fragment_batch_backtest()
