@@ -132,6 +132,40 @@ def _temp_bar(t, color):
     )
 
 
+def _temp_gauge(t, dark, title, level, color):
+    """市场温度 0-100 仪表盘（风险语义：冷=蓝、热=红；与价格涨跌红绿无关）。"""
+    _steps = [
+        {"range": [0, 20], "color": "#1d4ed8"},
+        {"range": [20, 40], "color": "#0891b2"},
+        {"range": [40, 60], "color": "#ca8a04"},
+        {"range": [60, 80], "color": "#ea580c"},
+        {"range": [80, 100], "color": "#b91c1c"},
+    ]
+    _fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=round(float(t), 1),
+        number={"font": {"size": 42, "color": color}, "suffix": "°"},
+        gauge={
+            "axis": {"range": [0, 100], "tickwidth": 1,
+                     "tickcolor": "#94a3b8", "tickfont": {"color": "#94a3b8"}},
+            "bar": {"color": color, "thickness": 0.26},
+            "bgcolor": "rgba(0,0,0,0)",
+            "borderwidth": 1, "bordercolor": "#475569",
+            "steps": _steps,
+            "threshold": {"line": {"color": color, "width": 5},
+                         "thickness": 0.85, "value": round(float(t), 1)},
+        },
+        title={"text": title, "font": {"size": 16, "color": color}},
+    ))
+    _fig.update_layout(
+        template="plotly_dark" if dark else "plotly_white",
+        height=300, margin=dict(l=20, r=20, t=50, b=10),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e5e7eb" if dark else "#1f2937"),
+    )
+    return _fig
+
+
 # 各指标对「市场温度」的方向贡献：+1 越高越热，-1 越高越冷，0 不参与
 _DIR = {
     "adl": 1, "adr": 1, "nhnl": 1,
@@ -356,10 +390,10 @@ def fragment_thermometer():
         _render_status(meta)
         return
     level, emoji, color = _temp_level(t)
-    st.markdown(f"### {emoji} 市场温度 {t:.0f} / 100　"
+    st.markdown(f"### {emoji} 综合市场温度　"
                 f"<span style='color:{color};font-size:20px'>{level}</span>",
                 unsafe_allow_html=True)
-    st.markdown(_temp_bar(t, color), unsafe_allow_html=True)
+    st.plotly_chart(_temp_gauge(t, dark, "广度·情绪·估值 多空加权", level, color), width="stretch")
     n = sum(1 for k, d in _DIR.items() if d != 0 and k in df.columns)
     st.caption(f"基于 {n} 项可用指标的近期分位多空加权（高=热：ADR/涨停/PE/北向/融资净买；"
                f"高=冷：VIX/PCR/股息率）。温度计为风险/健康语义，与价格涨跌红绿无关。")
@@ -689,10 +723,10 @@ def fragment_shepherd():
     if latest:
         t = shepherd_temperature(latest)
         level, emoji, color = _temp_level(t)
-        st.markdown(f"### {emoji} 牧羊人温度 {t:.0f} / 100　"
+        st.markdown(f"### {emoji} 牧羊人温度　"
                     f"<span style='color:{color};font-size:20px'>{level}</span>",
                     unsafe_allow_html=True)
-        st.markdown(_temp_bar(t, color), unsafe_allow_html=True)
+        st.plotly_chart(_temp_gauge(t, dark, "上涨/涨停/昨板/红盘/连板 近期分位", level, color), width="stretch")
         st.caption("综合「上涨/涨停/昨日涨停表现/红盘占比/连板高度」近期分位（高=热），"
                    "与价格涨跌红绿无关。数据源：akshare 涨停池/昨日涨停池/全A快照。")
     cols = st.columns(len(_SHEPHERD))

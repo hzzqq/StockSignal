@@ -114,6 +114,40 @@ def _signal_light(key, value):
         return (th["cold_label"], "#ee2a2a", f"{th['name']} {value:.0f}{th['unit']}，风险")
 
 
+def _temp_gauge(t, dark, title, level, color):
+    """市场温度 0-100 仪表盘（风险语义：冷=蓝、热=红；与价格涨跌红绿无关）。"""
+    _steps = [
+        {"range": [0, 20], "color": "#1d4ed8"},
+        {"range": [20, 40], "color": "#0891b2"},
+        {"range": [40, 60], "color": "#ca8a04"},
+        {"range": [60, 80], "color": "#ea580c"},
+        {"range": [80, 100], "color": "#b91c1c"},
+    ]
+    _fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=round(float(t), 1),
+        number={"font": {"size": 42, "color": color}, "suffix": "°"},
+        gauge={
+            "axis": {"range": [0, 100], "tickwidth": 1,
+                     "tickcolor": "#94a3b8", "tickfont": {"color": "#94a3b8"}},
+            "bar": {"color": color, "thickness": 0.26},
+            "bgcolor": "rgba(0,0,0,0)",
+            "borderwidth": 1, "bordercolor": "#475569",
+            "steps": _steps,
+            "threshold": {"line": {"color": color, "width": 5},
+                         "thickness": 0.85, "value": round(float(t), 1)},
+        },
+        title={"text": title, "font": {"size": 16, "color": color}},
+    ))
+    _fig.update_layout(
+        template="plotly_dark" if dark else "plotly_white",
+        height=300, margin=dict(l=20, r=20, t=50, b=10),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e5e7eb" if dark else "#1f2937"),
+    )
+    return _fig
+
+
 # ───────────────────────── 顶部：情绪信号总览 + 仓位建议 ─────────────────────────
 def _render_hero(df, today, prev, meta=None):
     # 数据来自 SQLite 缓存降级时，显示提示横幅（与 50_市场情绪 同口径）
@@ -167,6 +201,15 @@ def _render_hero(df, today, prev, meta=None):
     render_signal_cards(temp, cyc.get("name", ""), cyc.get("emoji", "⚪"),
                         score, bias, overall, promo.get("latest_date", "—"),
                         temp_delta=temp_delta, overall_delta=overall_delta)
+
+    # 情绪仪表盘化（gauge）：把 0-100 市场温度用仪表盘呈现，风险语义配色（冷蓝→热红）
+    try:
+        _tg_level = "过热" if temp >= 70 else ("温和" if temp >= 45 else "偏冷")
+        _tg_color = "#ee2a2a" if temp >= 70 else ("#2b8aef" if temp >= 45 else "#3b82f6")
+        st.plotly_chart(_temp_gauge(temp, dark, "市场温度 · 牧羊人 17 项综合", _tg_level, _tg_color),
+                        width="stretch")
+    except Exception:  # noqa: BLE001
+        pass
 
     # 数据新鲜度守卫 + 事件因子接入（S1/S2/S5 收敛为单一来源）
     # 实时与 build_snapshot 共用 assess_freshness：统一阈值（warn≥4 / stale≥8）、
