@@ -119,11 +119,21 @@ if st.button("🔍 评分", key="six_dim_run", type="primary"):
         v = dims.get(k)
         val_txt = f"{v:.1f}" if v is not None else "— 缺失"
         color = UP_COLOR if (v or 0) >= 60 else ("#f59e0b" if (v or 0) >= 40 else "#94a3b8")
+        # 钱来式评分进度条：维度分映射为横向填充条，直观拉开强弱差距
+        bar = ""
+        if v is not None:
+            pct = max(0, min(100, int(v)))
+            bar = (
+                "<div style='height:6px;width:100%;background:rgba(148,163,184,.15);"
+                "border-radius:3px;margin-top:5px;overflow:hidden'>"
+                f"<div style='height:100%;width:{pct}%;background:{color};border-radius:3px'></div></div>"
+            )
         rows += (
-            "<div style='display:flex;justify-content:space-between;padding:6px 0;"
-            "border-bottom:1px solid rgba(148,163,184,.15);font-size:13px'>"
+            "<div style='padding:7px 0;border-bottom:1px solid rgba(148,163,184,.15);font-size:13px'>"
+            "<div style='display:flex;justify-content:space-between'>"
             f"<span><b>{DIM_LABELS[k]}</b> <span style='opacity:.6;font-size:11px'>{_raw_hint[k]}</span></span>"
             f"<span style='font-weight:700;color:{color}'>{val_txt}</span></div>"
+            f"{bar}</div>"
         )
     st.markdown(rows, unsafe_allow_html=True)
 
