@@ -175,7 +175,10 @@ REFRESH_COMMANDS: dict[str, dict] = {
         "desc": "重抓东方财富新闻→情感分析→追加入库 events.csv",
     },
     "market_temp": {
-        "cmd": 'python -c "from modules.market_cache import refresh_all_indicators; refresh_all_indicators(force=True)"',
+        # ⚠️ 必须走 `-m modules._refresh_runner`（自带 __main__ 守卫）。
+        # 原写法用 `python -c` 内联调用 refresh_all_indicators：Windows spawn 下
+        # -c 代码会成为子进程的 __main__ 且无守卫 → 递归重跑 → 进程炸弹。
+        "cmd": "python -m modules._refresh_runner --force",
         "mode": "live",
         "covers": ["market_temp"],
         "desc": "重算市场温度/驱动指标缓存（底层走 akshare，需联网）",
