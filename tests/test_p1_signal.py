@@ -150,6 +150,23 @@ def test_scan_skips_corrupt_json(tmp_path):
     assert ld.available_models() == ["ev"]
 
 
+def test_model_key_normalizes_horizon_suffix(tmp_path):
+    """导出方把 horizon 写进 model 字段（如 baseline_h10）时，
+    应与 baseline 归一为同一模型 key，避免 UI 出现重复/丑陋条目。"""
+    d = tmp_path / "norm"
+    d.mkdir()
+    _write_signal(d, "signal_baseline_h10.json",
+                  {"model": "baseline_h10", "latest_date": "2026-08-14",
+                   "top_long": [], "top_short": [], "daily": []})
+    _write_signal(d, "signal_baseline_b.json",
+                  {"model": "baseline", "latest_date": "2026-08-14",
+                   "top_long": [], "top_short": [], "daily": []})
+    ld = _m.P1SignalLoader(source_dirs=[str(d)], ttl=10_000)
+    assert ld.available_models() == ["baseline"], \
+        "baseline 与 baseline_h10 应归一为同一模型"
+    assert ld.model_label("baseline") == "基线 LightGBM"
+
+
 # ───────────────────────── 缓存失效 ─────────────────────────
 def test_invalidate_clears_all(loader, sig_dir):
     _ = loader.load("ev")  # 填充缓存

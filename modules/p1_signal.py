@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from pathlib import Path
 
@@ -129,6 +130,11 @@ class P1SignalLoader:
                     continue
                 model = (meta.get("model")
                          or fp.stem.replace("signal_", "").replace("_h10", ""))
+                # 归一化 model key：部分导出把 horizon 写进了 model 字段
+                # （如 "baseline_h10"），会被当成与 "baseline" 不同的模型，
+                # 导致 UI 出现重复/丑陋的条目。按设计约定 model key 不含
+                # horizon，统一剥掉尾部 _h<数字>（h10/h20/...）。
+                model = re.sub(r"_h\d+$", "", model)
                 if model in found:
                     # 同 model 以文件体积更大者优先（更完整/更晚导出）
                     try:
