@@ -58,6 +58,8 @@ def main() -> None:
                         "最新值",
                         f"{item['value']}{item['unit']}",
                         delta=delta,
+                        # A 股惯例：涨红跌绿 → inverse（正红负绿）
+                        delta_color="inverse",
                     )
                     st.caption(
                         f"数据日期 {item['date']}　"

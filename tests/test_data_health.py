@@ -144,8 +144,17 @@ def test_build_refresh_plan_dedupes_and_marks_stale(monkeypatch):
 
 
 def test_build_refresh_plan_skips_fresh_when_stale_only(monkeypatch):
-    """全部新鲜 + stale_only=True → 无计划。"""
+    """全部新鲜 + stale_only=True → 无计划。
+
+    ⚠️ 隔离 stale_only 过滤逻辑必须「全源新鲜」：
+    - source_as_of → 今天（覆盖包括 p1_event 在内的全部 as_of 来源）；
+    - detect_stall → 空（p1_event 的 as_of 在真实环境冻结于 08-14，历史 DB 会判
+      stalled=True，属正确真实行为；本测试只验证 stale_only 过滤，故一并 pin 掉，
+      见 test_build_refresh_plan_dedupes_and_marks_stale 对 p1_event stale 入计划的断言）。
+    """
     monkeypatch.setattr(DH, "source_as_of", lambda e: _iso(0))
+    monkeypatch.setattr(DH, "_p1_event_latest_date", lambda: _iso(0))
+    monkeypatch.setattr(DH, "detect_stall", lambda key=None: {})
     assert DH.build_refresh_plan(stale_only=True) == []
 
 

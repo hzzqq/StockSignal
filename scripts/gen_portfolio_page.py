@@ -97,17 +97,22 @@ def _ast_test_count() -> int:
 
 
 def _pytest_count() -> int | None:
-    """真实「用例数」（含 parametrize 展开）——这是对外引用时应报的口径。"""
+    """真实「用例数」（含 parametrize 展开）——这是对外引用时应报的口径。
+
+    覆盖 tests/ + backend/tests/ + modules/tests/ 三处（modules/tests 此前被漏数，
+    导致对外少报约 35 用例，与「诚实口径」红线冲突）。
+    """
     try:
         r = subprocess.run(
-            [PY, "-m", "pytest", "tests", "backend/tests", "--collect-only", "-q", "-p", "no:cacheprovider"],
+            [PY, "-m", "pytest", "tests", "backend/tests", "modules/tests",
+             "--collect-only", "-q", "-p", "no:cacheprovider"],
             cwd=ROOT, capture_output=True, text=True, timeout=900,
         )
     except (subprocess.TimeoutExpired, OSError):
         return None
     total = 0
     for line in r.stdout.splitlines():
-        m = re.match(r"^(?:tests|backend)/.*: (\d+)$", line.strip())
+        m = re.match(r"^(?:tests|backend|modules/tests)/.*: (\d+)$", line.strip())
         if m:
             total += int(m.group(1))
     return total or None

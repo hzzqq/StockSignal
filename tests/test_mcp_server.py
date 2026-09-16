@@ -50,9 +50,15 @@ def test_tools_list_count():
         "portfolio_query",
         "get_realtime_quote",
         "get_market_sentiment",
+        # 2026-09-15 新增 5 个「诚实口径」工具（薄转发 modules.*）
+        "get_data_health",
+        "get_macro_indicators",
+        "get_lhb",
+        "get_ai_skills",
+        "get_p1_signal",
     ]:
         assert expected in names
-    assert len(names) == 11
+    assert len(names) == 16
 
 
 def test_unknown_method():

@@ -30,10 +30,10 @@ def test_visit_across_pages_merges_counts(fake_session):
     """跨页切换：30 计 1、切到 20 计 1，文件应同时保留 30 与 20（修复前丢历史）。"""
     _ss, freq_file = fake_session
     w.record_nav_visit("30_策略回测.py")
-    w.record_nav_visit("20_个股分析.py")
+    w.record_nav_visit("24_个股研究.py")
     data = json.load(open(freq_file, encoding="utf-8"))
     assert data.get("30_策略回测.py") == 1
-    assert data.get("20_个股分析.py") == 1
+    assert data.get("24_个股研究.py") == 1
 
 
 def test_session_dedup_counts_transitions_only(fake_session):
@@ -42,11 +42,11 @@ def test_session_dedup_counts_transitions_only(fake_session):
     w.record_nav_visit("30_策略回测.py")          # 跳转：计 1
     for _ in range(3):
         w.record_nav_visit("30_策略回测.py")       # 同页 rerun：去重
-    w.record_nav_visit("20_个股分析.py")          # 切页：计 1
-    w.record_nav_visit("20_个股分析.py")          # 同页 rerun：去重
+    w.record_nav_visit("24_个股研究.py")          # 切页：计 1
+    w.record_nav_visit("24_个股研究.py")          # 同页 rerun：去重
     data = json.load(open(freq_file, encoding="utf-8"))
     assert data.get("30_策略回测.py") == 1
-    assert data.get("20_个股分析.py") == 1
+    assert data.get("24_个股研究.py") == 1
 
 
 def test_frequency_ranking_drives_top5(fake_session):
@@ -56,14 +56,14 @@ def test_frequency_ranking_drives_top5(fake_session):
     for _ in range(3):
         w.record_nav_visit("30_策略回测.py")
         if _ < 2:
-            w.record_nav_visit("20_个股分析.py")
+            w.record_nav_visit("24_个股研究.py")
         if _ < 1:
             w.record_nav_visit("10_行情看板.py")
     favs = w.load_nav_favorites()
     assert len(favs) == 3
     labels = [f[1] for f in favs]
     assert labels[0] == "策略回测"      # 频次最高
-    assert labels[1] == "个股分析"
+    assert labels[1] == "个股研究"
     assert labels[2] == "行情看板"
     # 全部 3 元组（path, label, icon），无 sub 标记
     for f in favs:
@@ -71,11 +71,11 @@ def test_frequency_ranking_drives_top5(fake_session):
 
 
 def test_sub_marker_stripped_in_favorites(fake_session):
-    """20_个股分析 在导航里是 sub（4 元组），但常用区应剥离 sub 标记。"""
+    """24_个股研究 在导航里（原 20_个股分析 已内嵌合并，改用注册在册页校验常用区逻辑），但常用区应剥离 sub 标记。"""
     _ss, _ = fake_session
-    w.record_nav_visit("20_个股分析.py")
+    w.record_nav_visit("24_个股研究.py")
     favs = w.load_nav_favorites()
-    assert favs[0][0] == "pages/20_个股分析.py"
+    assert favs[0][0] == "pages/24_个股研究.py"
     assert len(favs[0]) == 3
 
 
