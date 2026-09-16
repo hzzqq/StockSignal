@@ -29,7 +29,7 @@ from modules.decision import (derive_position, load_snapshot, is_stale,
                              _event_position_adj, _event_long_symbols,
                              event_edge, format_event_edge)
 from modules.data_health import health_rows, assess_freshness
-from modules.decision_view import render_signal_cards, render_position_card, render_ladder_table, render_freshness_badge
+from modules.decision_view import render_signal_cards, render_position_card, render_ladder_table, render_freshness_badge, render_decision_loop_alarm
 from modules import data_health as _dh
 from modules import decision_track as _track
 from modules import calibration as _cal
@@ -53,6 +53,9 @@ sf_card(
     "可逐条核对理由；③ 盘后用「复盘归档」一键保存今日决策快照，并对历史情绪做回测，验证预判准不准。",
     icon="🎯",
 )
+
+# ── 决策闭环主动告警：调度是否还活着，一眼可见（根治 09-10/09-15 静默停摆）──
+render_decision_loop_alarm()
 
 
 # ───────────────────────── 本地辅助 ─────────────────────────

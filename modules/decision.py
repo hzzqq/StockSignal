@@ -689,3 +689,84 @@ def is_stale(max_age_hours: float = 20.0) -> bool:
         return True
     import time
     return (time.time() - mtime) > max_age_hours * 3600
+
+
+# ── 决策闭环「调度是否还活着」主动健康评估（根治静默停摆）──
+# 背景：2026-09-10 / 09-15 两次决策闭环静默停摆（快照停更、调度没跑），
+# 旧逻辑只被动封顶仓位、不主动告警，老板无从得知调度已死。
+# 这里把「文件是否还在更新 + 数据是否陈旧」升级为结构化分级告警，
+# 供决策面板显式横幅展示——看见 > 被悄悄降权。
+DECISION_LOOP_DEAD_HOURS = 48.0      # 快照 >48h 未更新：判定调度死/停摆（硬红线）
+DECISION_LOOP_STALE_HOURS = 26.0    # 快照 >26h 未更新：超过一个交易日，疑似延迟
+
+
+def assess_decision_loop_health() -> dict:
+    """决策闭环健康度：返回分级状态 + 人类可读告警文案。
+
+    返回字段：
+      status: ok | warn | stale | dead | unknown
+      rank:   0(ok) < 1(warn) < 2(stale) < 3(dead/unknown)
+      generated_at / as_of / gen_lag_hours / data_lag_days / message
+    """
+    from datetime import datetime as _dt
+
+    import time as _t
+
+    try:
+        if not os.path.exists(SNAPSHOT_PATH):
+            return {
+                "status": "dead", "rank": 3, "generated_at": None, "as_of": None,
+                "gen_lag_hours": None, "data_lag_days": None,
+                "message": "决策快照文件不存在，闭环可能从未成功运行过——请检查每日调度。",
+            }
+        mtime = os.path.getmtime(SNAPSHOT_PATH)
+        snap = load_snapshot() or {}
+        generated_at = snap.get("generated_at")
+        as_of = snap.get("as_of") or snap.get("date")
+        gen_lag_hours = (_t.time() - mtime) / 3600.0
+        if generated_at:
+            try:
+                gen_lag_hours = (_dt.now() - _dt.fromisoformat(str(generated_at))).total_seconds() / 3600.0
+            except Exception:  # noqa: BLE001
+                pass
+        data_lag_days = _age_days(as_of)
+
+        if gen_lag_hours >= DECISION_LOOP_DEAD_HOURS:
+            return {
+                "status": "dead", "rank": 3, "generated_at": generated_at, "as_of": as_of,
+                "gen_lag_hours": round(gen_lag_hours, 1), "data_lag_days": data_lag_days,
+                "message": f"⛔ 决策闭环疑似停摆：快照最后生成于 {generated_at or '未知'}，"
+                           f"已 {gen_lag_hours:.0f} 小时未更新。调度可能已死，"
+                           f"当前仓位建议仅基于陈旧数据，请以最新数据为准。",
+            }
+        if gen_lag_hours >= DECISION_LOOP_STALE_HOURS:
+            return {
+                "status": "stale", "rank": 2, "generated_at": generated_at, "as_of": as_of,
+                "gen_lag_hours": round(gen_lag_hours, 1), "data_lag_days": data_lag_days,
+                "message": f"⚠️ 决策快照超过一个交易日未更新（{gen_lag_hours:.0f} 小时），"
+                           f"调度可能延迟或失败，建议手动触发每日快照脚本确认。",
+            }
+        if data_lag_days is not None and data_lag_days >= FRESH_STALE_DAYS:
+            return {
+                "status": "stale", "rank": 2, "generated_at": generated_at, "as_of": as_of,
+                "gen_lag_hours": round(gen_lag_hours, 1), "data_lag_days": data_lag_days,
+                "message": f"⚠️ 数据陈旧：截至 {as_of}（滞后 {data_lag_days} 天）。"
+                           f"仓位已封顶，建议以最新数据为准。",
+            }
+        if data_lag_days is not None and data_lag_days >= FRESH_WARN_DAYS:
+            return {
+                "status": "warn", "rank": 1, "generated_at": generated_at, "as_of": as_of,
+                "gen_lag_hours": round(gen_lag_hours, 1), "data_lag_days": data_lag_days,
+                "message": f"数据偏旧：截至 {as_of}（滞后 {data_lag_days} 天）。",
+            }
+        return {
+            "status": "ok", "rank": 0, "generated_at": generated_at, "as_of": as_of,
+            "gen_lag_hours": round(gen_lag_hours, 1), "data_lag_days": data_lag_days,
+            "message": f"✅ 决策闭环正常，最后更新 {generated_at or as_of}。",
+        }
+    except Exception as e:  # noqa: BLE001
+        return {
+            "status": "unknown", "rank": 3, "generated_at": None, "as_of": None,
+            "gen_lag_hours": None, "data_lag_days": None,
+            "message": f"健康评估失败：{type(e).__name__}: {e}",
+        }

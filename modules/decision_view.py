@@ -11,6 +11,7 @@ import streamlit as st
 import pandas as pd
 
 from modules import data_health as _dh
+from modules.ui_kit import xc_error_box, xc_warn_box, xc_success_box
 
 
 # 状态 → 配色（与 SLA 看板、ui_kit A股语义色保持一致，避免两处漂移）
@@ -151,3 +152,29 @@ def render_ladder_table(promo):
         st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
     st.caption(f"最新快照日期：{promo.get('latest_date', '—')}　·　"
                "晋级率 = 当日 n 板家数 / 昨日 (n-1) 板家数；≥60% 接力强、<20% 梯队断档。")
+
+
+def render_decision_loop_alarm(health: dict | None = None) -> None:
+    """决策闭环「调度是否还活着」主动告警横幅（根治静默停摆，方向 #②）。
+
+    放在 54 页顶部，让老板一眼看到闭环是否停摆——而不是只在仓位旁悄悄降权。
+    health 缺省时现场调用 modules.decision.assess_decision_loop_health()。
+
+    分级：
+      dead / unknown -> 红（xc_error_box）
+      stale / warn   -> 橙（xc_warn_box）
+      ok             -> 绿（xc_success_box）
+    """
+    if health is None:
+        from modules.decision import assess_decision_loop_health
+        health = assess_decision_loop_health()
+    if not isinstance(health, dict):
+        return
+    status = health.get("status", "unknown")
+    msg = health.get("message", "")
+    if status in ("dead", "unknown"):
+        xc_error_box("决策闭环告警", msg, icon="⛔")
+    elif status in ("stale", "warn"):
+        xc_warn_box("决策闭环提示", msg, icon="⚠️")
+    else:  # ok
+        xc_success_box("决策闭环正常", msg, icon="✅")
