@@ -265,6 +265,24 @@ def test_ac7_stale_sources_surface_in_limitations():
     assert "tushare" in joined
 
 
+def test_ac7_source_name_fits_real_data_health_shape():
+    """真实 data_health 行字段是 name/key（非 source），源名必须提取成功（真实冒烟暴露）。"""
+    tools = dict(FAKE_TOOLS)
+    tools["get_data_health"] = _ok({
+        "ok": True,
+        "sources": [
+            {"key": "shepherd_sentiment", "name": "牧羊人情绪", "as_of": "2026-09-04",
+             "lag_days": 13, "status": "stale", "stalled": False},
+            {"key": "p1_event", "name": "P1 事件因子", "status": "ok", "stalled": True},
+        ],
+    })
+    r = _run("市场情绪怎么样", plan=None, tools=tools)
+    joined = "\n".join(r["limitations"])
+    assert "牧羊人情绪" in joined, f"stale 源名未浮出: {joined}"
+    assert "P1 事件因子" in joined, f"stalled 源名未浮出: {joined}"
+    assert "?" not in joined, f"源名提取落空: {joined}"
+
+
 # ---------------------------------------------------------------------------
 # AC8 确定性规划器路由
 # ---------------------------------------------------------------------------

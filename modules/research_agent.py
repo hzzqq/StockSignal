@@ -498,8 +498,10 @@ def run_research(
                     continue
                 st_val = src.get("status")
                 if st_val in ("warn", "stale") or src.get("stalled"):
+                    # 源名兼容真实 data_health 行（name/key）与早期假设（source）
+                    src_name = src.get("source") or src.get("name") or src.get("key") or "?"
                     limitations.append(
-                        f"数据源 {src.get('source', '?')} 状态 {st_val or 'stalled'}"
+                        f"数据源 {src_name} 状态 {st_val or 'stalled'}"
                     )
 
     if not ok_steps:
