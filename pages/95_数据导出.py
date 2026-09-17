@@ -628,6 +628,123 @@ def frag_zip():
         xc_success_box(f"已打包 {len(datasets)} 个数据集" + (f"；跳过 {len(skipped)} 项" if skipped else ""))
 
 
+# ───────────────────────── 一键研报 (H8) ─────────────────────────
+def _collect_report_data(code: str):
+    """为研报装配**真实**数据；任一板块取不到就留空（研报会标注「数据不可用」）。"""
+    import datetime as _dt
+    data: dict = {}
+    name = str(code or "").strip()
+    f = get_fetcher()
+    try:
+        name = f.get_name_only(code) or name
+    except Exception:
+        pass
+
+    # 行情 + 技术面
+    try:
+        today = _dt.datetime.now()
+        start = (today - _dt.timedelta(days=180)).strftime("%Y-%m-%d")
+        df = f.get_daily(code, start=start, end=today.strftime("%Y-%m-%d"))
+        if df is not None and not getattr(df, "empty", True):
+            from modules.cleaner import DataCleaner
+            from modules.technical import full_analysis
+            d = DataCleaner.full_pipeline(df)
+            data["technical"] = full_analysis(d)
+            last = d.iloc[-1]
+
+            def _pick(*cands):
+                for c in cands:
+                    if c in d.columns:
+                        return last.get(c)
+                return None
+
+            data["quote"] = {"price": _pick("close", "收盘", "收盘价"),
+                             "change_pct": _pick("pct_chg", "涨跌幅")}
+    except Exception:
+        pass
+
+    # 基本面
+    try:
+        fd = f.get_fundamentals(code)
+        if isinstance(fd, dict) and fd:
+            data["fundamentals"] = fd
+    except Exception:
+        pass
+
+    # 资金面
+    try:
+        ff = get_individual_fund_flow(code)
+        if isinstance(ff, dict) and ff:
+            data["fundflow"] = ff
+    except Exception:
+        pass
+
+    # 风险排雷 + 公告
+    try:
+        from modules import stock_risk as sr
+        res = sr.scan_stock(code, name)
+        data["risk_report"] = res.get("report")
+        data["announcements"] = sr.fetch_announcement_titles(code)
+    except Exception:
+        pass
+    return data, name
+
+
+@safe_fragment("一键研报")
+def frag_report():
+    sf_card("📄 一键研报（个股）", "把风险排雷 / 技术面 / 资金面 / 公告装配成一份可下载的"
+            "单文件研报（HTML 自包含 + Markdown）。缺数据的板块明确标注「数据不可用」，绝不编造。")
+    from modules.search_ui import stock_search_input
+    from modules import research_report as rrp
+    code = stock_search_input(label="选择股票", key="report_stock", default="600519")
+
+    if st.button("📄 生成研报", key="exp_report_btn"):
+        with st.spinner("正在装配研报（行情 / 技术面 / 资金面 / 风险排雷 / 公告）…"):
+            data, name = _collect_report_data(code)
+        rep = rrp.build_report(code, name, data)
+        st.session_state["report_html"] = rrp.render_html(rep)
+        st.session_state["report_md"] = rrp.render_markdown(rep)
+        st.session_state["report_meta"] = {
+            "code": code, "name": name,
+            "coverage": rep["coverage_pct"], "warnings": rep["warnings"],
+        }
+
+    meta = st.session_state.get("report_meta")
+    if not meta:
+        _empty_info("尚未生成研报。选择股票后点击「📄 生成研报」。")
+        return
+
+    cov = meta.get("coverage")
+    if cov == 0:
+        xc_warn_box("⚠️ 本报告无有效数据板块（覆盖率 0%）——可能行情源不可用或代码有误，"
+                    "请勿据此做任何判断。")
+    else:
+        xc_success_box(f"已生成 {meta.get('code')} {meta.get('name')} 研报，"
+                       f"板块覆盖率 {cov}%")
+        if meta.get("warnings"):
+            st.caption("未取到的板块：" + "；".join(meta["warnings"]))
+
+    if st.checkbox("预览研报内容（Markdown）", key="report_preview"):
+        st.markdown(st.session_state.get("report_md") or "")
+
+    _c1, _c2, _sp3 = st.columns([1, 1, 2])
+    _stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    with _c1:
+        st.download_button(
+            "⬇️ 下载 HTML 研报",
+            data=(st.session_state.get("report_html") or "").encode("utf-8"),
+            file_name=f"研报_{meta.get('code')}_{_stamp}.html",
+            mime="text/html", width="stretch",
+        )
+    with _c2:
+        st.download_button(
+            "⬇️ 下载 Markdown",
+            data=(st.session_state.get("report_md") or "").encode("utf-8"),
+            file_name=f"研报_{meta.get('code')}_{_stamp}.md",
+            mime="text/markdown", width="stretch",
+        )
+
+
 # ───────────────────────── 渲染 ─────────────────────────
 with st.expander("🏭 行业板块资金流向", expanded=True):
     frag_industry()
@@ -649,3 +766,5 @@ with st.expander("📄 导出数据摘要 PDF", expanded=False):
     frag_pdf()
 with st.expander("📦 一键打包导出全部 (ZIP)", expanded=False):
     frag_zip()
+with st.expander("📄 一键研报（个股 HTML / Markdown）", expanded=False):
+    frag_report()
