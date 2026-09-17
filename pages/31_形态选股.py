@@ -239,7 +239,17 @@ else:
                 resolved_codes.append(code)
             else:
                 # 尝试按名称反查代码
-                found = fetcher.get_code_by_name(tok)
+                # ⚠️ 修复（2026-09-17）：原调用 fetcher.get_code_by_name(tok) —— StockFetcher
+                # **没有这个方法**，AttributeError 被外层吞掉 → 名称永远解析不出代码，
+                # 粘贴「贵州茅台」这类名称会静默退化成拿原 token 去扫描并全部失败。
+                # 正确的名称→代码接口是 lookup_code()（返回 [(code, name), ...]）。
+                found = None
+                try:
+                    _hits = fetcher.lookup_code(tok, limit=1)
+                    if _hits:
+                        found = _hits[0][0]
+                except Exception:
+                    found = None
                 if found and str(found).isdigit() and len(str(found)) == 6:
                     resolved_codes.append(_norm_code(found))
                 else:

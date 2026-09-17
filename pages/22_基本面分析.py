@@ -42,6 +42,7 @@ sf_card(
 
 from modules.ssl_helper import ssl_bypass as _ssl_bypass
 from modules.fundamental_helpers import _to_num, _find_col, _extract_metric_series, _period_label, _compute_yoy, _compute_qoq, _FINANCIAL_METRICS, _fmt_fin_value, _fmt_fin_yoy, _fmt_fin_qoq, _to_float, _percentile, _pe_status, _tag, _find_sector_name, _sector_rank, _composite_score, resolve_sector_df
+from modules import valuation as _val
 import concurrent.futures as _cf
 
 
@@ -141,32 +142,58 @@ def _nan_to_none(v):
         return v
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _industry_pe_median(industry: str):
-    """同行业 PE(TTM) 中位数（best-effort，缓存 1h）。返回 (median, 样本数) 或 None。#544-13"""
+@st.cache_data(show_spinner=False, ttl=1800)
+def _industry_pe_sample(industry: str) -> list:
+    """同行业样本的估值快照（best-effort，缓存 30 分钟）。
+
+    返回 ``[{"code","name","pe","pb","roe"}, ...]``；取不到返回 ``[]``。
+
+    ⚠️ 修复（2026-09-17）：#544-13 原实现调用 ``fetcher.get_basic_info()``，但
+    ``StockFetcher`` **根本没有这个方法** —— AttributeError 被 ``_safe_pe`` 吞掉，
+    样本恒为空，导致「同行业 PE 中位数」卡片**永远显示「暂不可用」**（静默失败）。
+    改用真实存在的 ``fetcher.get_fundamentals()``。
+    """
     try:
         cons = fetcher.get_sector_stocks(industry)
     except Exception:
-        return None
-    if cons is None or cons.empty:
-        return None
-    codes = [str(c) for c in cons['code'].tolist()][:30]
-    pes = []
+        return []
+    if cons is None or getattr(cons, 'empty', True):
+        return []
+    try:
+        _codes = [str(c) for c in cons['code'].tolist()][:20]
+        _names = [str(n) for n in cons['name'].tolist()] if 'name' in cons.columns else []
+        names = dict(zip(_codes, _names))
+    except Exception:
+        return []
 
-    def _safe_pe(c: str):
+    def _one(c: str):
         try:
-            info = fetcher.get_basic_info(c)
-            return _to_float(info.get('pe_ttm')) if isinstance(info, dict) else None
+            info = fetcher.get_fundamentals(c)
         except Exception:
             return None
+        if not isinstance(info, dict):
+            return None
+        return {"code": c, "name": info.get("name") or names.get(c) or c,
+                "pe": _nan_to_none(_to_float(info.get("pe_ttm"))),
+                "pb": _nan_to_none(_to_float(info.get("pb"))),
+                "roe": _nan_to_none(_to_float(info.get("roe")))}
+
     from modules.fetch_parallel import fetch_many
-    raw = fetch_many([(c, lambda code=c: _safe_pe(code)) for c in codes], max_workers=10, timeout=60)
-    pes = [v for v in raw.values() if isinstance(v, (int, float)) and v > 0]
+    raw = fetch_many([(c, lambda code=c: _one(code)) for c in _codes], max_workers=10, timeout=60)
+    return [v for v in raw.values()
+            if isinstance(v, dict) and v.get("pe") is not None and v["pe"] > 0]
+
+
+def _industry_pe_median(industry: str):
+    """同行业 PE(TTM) 中位数（best-effort）。返回 (median, 样本数) 或 None。#544-13"""
+    sample = _industry_pe_sample(industry)
+    pes = sorted(v["pe"] for v in sample
+                 if isinstance(v.get("pe"), (int, float)) and v["pe"] > 0)
     if len(pes) < 3:
         return None
-    pes_sorted = sorted(pes)
-    n = len(pes_sorted)
+    n = len(pes)
     mid = n // 2
-    median = pes_sorted[mid] if n % 2 else (pes_sorted[mid - 1] + pes_sorted[mid]) / 2
+    median = pes[mid] if n % 2 else (pes[mid - 1] + pes[mid]) / 2
     return (median, n)
 
 @safe_fragment
@@ -188,6 +215,156 @@ def fragment_industry_pe(industry: str, pe_ttm, dark: bool):
         st.markdown(f"""<div style="padding:12px 16px;border-radius:10px;margin-top:10px;background:var(--card2);border:1px solid var(--border);font-size:14px;line-height:1.7;">🏭 <b>同行业 PE 中位数</b>：<b>{_med:.1f}</b>（基于 {_n} 只样本）<br>当前 PE(TTM) <b>{pe_ttm:.1f}</b> → <span style="color:{_vcolor};font-weight:700;">{_verdict}</span>（约为行业中位数的 {_ratio:.2f} 倍）</div>""", unsafe_allow_html=True)
     else:
         st.caption('🏭 同行业 PE 中位数暂不可用（行业成分或估值数据未就绪）。')
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def _val_series(code: str):
+    """近十年 PE(TTM) / PB 序列（best-effort，缓存 1h）。"""
+    try:
+        return _val.fetch_pe_pb_series(code)
+    except Exception:
+        return None
+
+
+def _collect_valuation(code: str, industry: str, pe_ttm) -> dict:
+    """装配「估值分位深钻」所需数据；每块独立 best-effort，取不到即标不可用。"""
+    out = {"code": code, "industry": industry or "—"}
+    series = _val_series(code)
+    cur_pb = series["pb"][-1] if (series and series.get("pb")) else None
+    if series:
+        band = _val.pe_pb_band(series.get("pe"), series.get("pb"), pe_ttm, cur_pb)
+        band["span"] = series.get("span") or ""
+        out["band"] = band
+    else:
+        out["band"] = None
+    sample = _industry_pe_sample(industry) if (industry and industry != "—") else []
+    out["ind"] = (_val.industry_relative(pe_ttm, [v.get("pe") for v in sample]) if sample
+                  else {"status": "unavailable", "reason": "行业样本不可用"})
+    if sample:
+        peers = [dict(v, market_cap=None) for v in sample]
+        if not any(p.get("code") == code for p in peers):
+            peers.insert(0, {"code": code, "name": "本股", "pe": pe_ttm, "pb": cur_pb, "roe": None})
+        out["peers"] = _val.peer_matrix(peers)
+    else:
+        out["peers"] = {"status": "unavailable", "reason": "行业样本不可用"}
+    try:
+        _di = _val.fetch_dupont_inputs(code)
+    except Exception:
+        _di = None
+    out["dupont"] = (_val.dupont(**_di) if _di
+                     else {"status": "unavailable", "missing": ["财务指标"],
+                           "reason": "杜邦因子取数失败（财务指标接口未返回）"})
+    out["cur_pb"] = cur_pb
+    return out
+
+
+@safe_fragment
+def fragment_valuation_band(code: str, name: str, industry: str, pe_ttm, dark: bool):
+    """估值分位深钻（H2）：PE/PB Band 历史分位 · 行业相对分位 · 杜邦分解 · 同业矩阵。"""
+    sf_card('📐 估值分位深钻',
+            '「PE 18 倍」本身没有信息量——贵不贵要跟**自己的历史**比、跟**同行**比：'
+            'PE/PB 历史分位带 · 行业相对分位 · ROE 杜邦分解 · 同业矩阵。')
+    _key = f'val_drill_{code}'
+    if st.button('📐 计算估值分位（需拉取历史序列与同业样本，约数秒）', key=f'val_btn_{code}',
+                 width="stretch"):
+        with st.spinner('正在计算 PE/PB 历史分位、行业相对分位与杜邦分解…'):
+            st.session_state[_key] = _collect_valuation(code, industry, pe_ttm)
+    data = st.session_state.get(_key)
+    if not data:
+        st.caption('尚未计算。点击上方按钮开始（历史序列来自百度股市通，同行业样本取该行业前 20 只）。')
+        return
+
+    def _cell(v, nd=2):
+        return f'{v:.{nd}f}' if isinstance(v, (int, float)) else '—'
+
+    # ① PE / PB 历史分位带
+    st.markdown('#### ① PE / PB 历史分位带')
+    band = data.get('band')
+    if not band:
+        st.warning('⚠️ 估值历史序列不可用（接口未返回）——无法给出分位结论，不做推测。')
+    else:
+        if band.get('span'):
+            st.caption(f'样本区间：{band["span"]}')
+        cols = st.columns(2)
+        for _c, _k, _label in zip(cols, ('pe', 'pb'), ('市盈率(TTM)', '市净率')):
+            b = band.get(_k) or {}
+            with _c:
+                if b.get('status') != 'ok':
+                    st.metric(_label, '—', help=b.get('reason', ''))
+                    st.caption(f'⛔ {b.get("reason", "不可用")}')
+                    continue
+                _zone = b.get('zone', '不可用')
+                _color = _val.ZONE_COLOR.get(_zone, '#8c8c8c')
+                st.markdown(
+                    f'<div style="padding:10px 14px;border-radius:10px;border:1px solid var(--border);'
+                    f'background:var(--card2);">'
+                    f'<div style="font-size:13px;color:#999;">{_label}（{b["n"]} 个样本）</div>'
+                    f'<div style="font-size:24px;font-weight:700;">{_cell(b.get("current"))}'
+                    f'　<span style="font-size:13px;background:{_color};color:#fff;padding:2px 10px;'
+                    f'border-radius:12px;">{_zone}</span></div>'
+                    f'<div style="font-size:12.5px;color:#999;margin-top:6px;">'
+                    f'历史分位 <b>{_cell(b.get("percentile"), 1)}%</b>　'
+                    f'20 分位 {_cell(b.get("p20"))} · 中位 {_cell(b.get("p50"))} · '
+                    f'80 分位 {_cell(b.get("p80"))}　'
+                    f'区间 {_cell(b.get("min"))}~{_cell(b.get("max"))}</div></div>',
+                    unsafe_allow_html=True)
+
+    # ② 行业相对分位
+    st.markdown('#### ② 行业相对分位')
+    ind = data.get('ind') or {}
+    if ind.get('status') != 'ok':
+        st.caption(f'⛔ 行业相对分位不可用：{ind.get("reason", "行业样本不足")}')
+    else:
+        _z = ind.get('zone', '不可用')
+        st.markdown(
+            f'PE(TTM) <b>{_cell(ind.get("current"))}</b> 在 {ind["n"]} 只同行业样本中排第 '
+            f'<b>{ind.get("rank")}</b> 便宜（分位 <b>{_cell(ind.get("percentile"), 1)}%</b>，'
+            f'行业最低 {_cell(ind.get("min"))} / 中位 {_cell(ind.get("median"))} / '
+            f'最高 {_cell(ind.get("max"))}）→ <span style="color:{_val.ZONE_COLOR.get(_z, "#8c8c8c")};'
+            f'font-weight:700;">{_z}</span>'
+            + (f'，约为行业中位数的 {ind["ratio_to_median"]:.2f} 倍' if ind.get("ratio_to_median") else ''))
+
+    # ③ 杜邦分解
+    st.markdown('#### ③ ROE 杜邦分解')
+    du = data.get('dupont') or {}
+    if du.get('status') != 'ok':
+        st.caption('⛔ 杜邦分解不可用：' + str(du.get('reason', '缺关键因子'))
+                   + (f'（缺 {("、".join(du.get("missing") or []))}）' if du.get('missing') else ''))
+    else:
+        d1, d2, d3, d4 = st.columns(4)
+        d1.metric('净利率', f'{du["net_margin"]:.2f}%')
+        d2.metric('总资产周转率', f'{du["asset_turnover"]:.3f} 次')
+        d3.metric('权益乘数', f'{du["equity_multiplier"]:.2f}')
+        d4.metric('ROE（披露）', f'{du["roe"]:.2f}%')
+        st.caption(f'三项乘积 = {du["implied_roe"]:.2f}%（容差 ±{du["tol"]:.2f}）'
+                   + ('　✅ 与披露 ROE 自洽' if du.get('consistent') else '　⚠️ 不一致'))
+        for _f in du.get('flags') or []:
+            st.markdown(f'- {_f}')
+        if du.get('note'):
+            st.caption('⚠️ ' + du['note'])
+
+    # ④ 同业矩阵
+    st.markdown('#### ④ 同业矩阵')
+    pm = data.get('peers') or {}
+    if pm.get('status') != 'ok':
+        st.caption(f'⛔ 同业矩阵不可用：{pm.get("reason", "样本不足")}')
+    else:
+        _rows = []
+        for r in pm['rows']:
+            _rows.append({
+                '代码': r.get('code'), '名称': r.get('name'),
+                'PE': r.get('pe'), 'PB': r.get('pb'), 'ROE(%)': r.get('roe'),
+                'PE 排名': r.get('rank_pe'), 'ROE 排名': r.get('rank_roe'),
+                '有效指标数': r.get('n_valid'),
+            })
+        st.dataframe(pd.DataFrame(_rows), width="stretch", hide_index=True, height=320)
+        _med = pm.get('medians') or {}
+        st.caption(f'样本中位数：PE {_cell(_med.get("pe"))} · PB {_cell(_med.get("pb"))} · '
+                   f'ROE {_cell(_med.get("roe"))}%（PE 排名越小越便宜，ROE 排名越小越好）；'
+                   '缺值单元格留空，不补 0。')
+
+    st.caption('⚠️ 分位与区间为**统计描述**，不代表未来回归；杜邦因子取自同花顺财务指标（官方口径）。'
+               '本页数据仅供参考，不构成投资建议。')
+
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def _calc_perf(code: str) -> dict:
@@ -656,6 +833,7 @@ if code:
     with st.expander('📖 估值 / 盈利指标说明', expanded=False):
         st.markdown('• <b>PE(TTM)</b>：市盈率 = 股价 ÷ 每股收益；越低通常估值越低，但需结合成长性。<br>• <b>PE 状态</b>：按 PE 粗略划分低估/合理/偏高，仅供参考。<br>• <b>总市值</b>：总股本 × 股价（亿元）；越大通常越稳健。<br>• <b>ROE</b>：净资产收益率 = 净利润 ÷ 净资产，反映股东回报率（>15% 较优）。<br>• <b>毛利率</b>：(营收−营业成本) ÷ 营收，越高说明产品溢价/成本控制越好。', unsafe_allow_html=True)
     fragment_industry_pe(industry, pe_ttm, dark)
+    fragment_valuation_band(code, name, industry, pe_ttm, dark)
     st.markdown('---')
     if st.button('🔍 查看该股票详细 K 线与技术面 →', type='primary', width="stretch"):
         st.query_params['pick_stock'] = code
