@@ -162,34 +162,119 @@ def _snapshot_dir() -> str:
     return os.path.join(base, "http_snapshots")
 
 
-def http_get(url: str, **kwargs):
-    """共享会话 GET（带 per-host 节流 + 熔断）。
+# ─────────── 代理 IP 池接入（免费 best-effort 抗封禁轮换） ───────────
+# 启用条件：环境变量 SS_PROXY_POOL=1。仅对**非本机**目标生效；本机 Flask 后端不走代理。
+# 代理池空/全失效时回退直连，绝不伪造数据、绝不无限阻塞。
+# 红线：本模块只改请求出口，不改动既有熔断/节流/快照回退逻辑；失败时仍如实走快照回退。
+_PROXY_MAX_ATTEMPTS = int(os.environ.get("SS_PROXY_MAX_ATTEMPTS", "3"))
 
-    - 未显式传 timeout 时回落到 site_config.REQUEST_TIMEOUT；
-    - 上游熔断冷却中抛 ``CircuitOpenError``（RequestException 子类，现有 except 不受影响）；
-    - 成功/失败均记账，供 ``breaker_stats()`` 观测。
-    """
-    kwargs.setdefault("timeout", REQUEST_TIMEOUT)
-    host = _host_of(url)
-    if _in_cooldown(host):
-        raise CircuitOpenError(f"上游熔断冷却中，已跳过请求: {host}")
-    _throttle(host)
+
+def _should_use_proxy(host: str) -> bool:
     try:
-        resp = get_session().get(url, **kwargs)
-    except Exception:
-        record_failure(host)
-        raise
+        from modules.proxy_pool import get_proxy_pool
+    except Exception:  # noqa: BLE001
+        return False
+    pool = get_proxy_pool()
+    if not pool.enabled:
+        return False
+    if host.split(":")[0] in _LOCAL_HOSTS:
+        return False
+    return True
+
+
+def _call(method: str, url: str, kwargs: dict):
+    """执行单次请求（不记账）。"""
+    kwargs.setdefault("timeout", REQUEST_TIMEOUT)
+    sess = get_session()
+    if method == "POST":
+        return sess.post(url, **kwargs)
+    return sess.get(url, **kwargs)
+
+
+def _account(resp, host: str) -> None:
     if getattr(resp, "status_code", 200) >= 500:
         record_failure(host)
     else:
         record_success(host)
+
+
+def _request(method: str, url: str, **kwargs):
+    """带治理 + 代理轮换的请求入口（http_get / http_post 共用）。"""
+    host = _host_of(url)
+    if _in_cooldown(host):
+        raise CircuitOpenError(f"上游熔断冷却中，已跳过请求: {host}")
+    _throttle(host)
+
+    # 未启用代理 或 目标为本机后端 → 直连（沿用既有熔断/节流/记账）
+    if not _should_use_proxy(host):
+        try:
+            resp = _call(method, url, kwargs)
+        except Exception:
+            record_failure(host)
+            raise
+        _account(resp, host)
+        return resp
+
+    # 代理轮换模式：封了换一个 IP 再试
+    max_attempts = 1 if method == "POST" else _PROXY_MAX_ATTEMPTS
+    for _ in range(max_attempts):
+        try:
+            from modules.proxy_pool import get_proxy_pool
+            pool = get_proxy_pool()
+            proxies = pool.acquire_for_request()
+        except Exception:  # noqa: BLE001
+            proxies = None
+        if proxies is None:
+            break  # 无可用代理 → 走直连兜底
+        kwargs["proxies"] = proxies
+        try:
+            resp = _call(method, url, kwargs)
+        except (requests.RequestException, OSError) as e:
+            logger.debug("代理出口失败，准备轮换: %s", e)
+            try:
+                pool.rotate_on_failure()
+            except Exception:  # noqa: BLE001
+                pass
+            continue
+        code = getattr(resp, "status_code", 200)
+        # 这些状态码通常意味着当前出口 IP 被限/被封 → 换 IP 重试
+        if code in (407, 429, 403) or code >= 500:
+            logger.debug("代理出口返回 %s，准备轮换", code)
+            try:
+                pool.rotate_on_failure()
+            except Exception:  # noqa: BLE001
+                pass
+            continue
+        _account(resp, host)
+        return resp
+
+    # 兜底：直连（无代理）
+    kwargs.pop("proxies", None)
+    logger.warning("代理池不可用/耗尽，回退直连: %s", host)
+    try:
+        resp = _call(method, url, kwargs)
+    except Exception:
+        record_failure(host)
+        raise
+    _account(resp, host)
     return resp
 
 
+def http_get(url: str, **kwargs):
+    """共享会话 GET（per-host 节流 + 熔断 + 可选代理轮换）。
+
+    - 未显式传 timeout 时回落到 site_config.REQUEST_TIMEOUT；
+    - 上游熔断冷却中抛 ``CircuitOpenError``（RequestException 子类，现有 except 不受影响）；
+    - 成功/失败均记账，供 ``breaker_stats()`` 观测；
+    - 启用 ``SS_PROXY_POOL=1`` 时，对非本机目标自动轮换免费代理 IP，封了换一个再试，
+      池空/全失效则回退直连（绝不伪造数据）。
+    """
+    return _request("GET", url, **kwargs)
+
+
 def http_post(url: str, **kwargs):
-    """共享会话 POST（不自动重试，见模块红线）。未显式传 timeout 时回落到默认。"""
-    kwargs.setdefault("timeout", REQUEST_TIMEOUT)
-    return get_session().post(url, **kwargs)
+    """共享会话 POST（不自动重试，见模块红线；可选代理出口）。未显式传 timeout 时回落到默认。"""
+    return _request("POST", url, **kwargs)
 
 
 def fetch_with_snapshot(key: str, fetcher, ttl: float = 600.0,

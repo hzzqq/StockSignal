@@ -56,6 +56,17 @@ from modules._feed_io import (  # noqa: F401
 # 市场数据 I/O 叶子模块（#锐评整改：从 StockFetcher 下沉，零循环依赖）
 import modules._market_data_io as _mdi
 
+# 代理 IP 池（免费，best-effort 抗封禁）：仅当 SS_PROXY_POOL=1 时启用。
+# 通过进程级 HTTPS_PROXY/HTTP_PROXY 让 akshare / requests 继承轮换出口 IP。
+# 初始化失败绝不影响主流程（akshare 仍可直连）。baostock 是账号级限流，不受本池影响。
+try:
+    from modules.proxy_pool import get_proxy_pool as _get_proxy_pool
+    _pp = _get_proxy_pool()
+    if _pp.enabled:
+        _pp.apply_to_env()
+except Exception as _pp_err:  # noqa: BLE001
+    logger.warning("代理 IP 池初始化失败（已忽略，回退直连）: %s", _pp_err)
+
 
 def _safe_json_loads(s, default=None):
     """安全解析 JSON：损坏/空/非字符串一律返回 default，绝不抛异常。
