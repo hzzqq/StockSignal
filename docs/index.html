@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>StockSignal · A股事件驱动投资分析平台 | 项目作品集</title>
-<meta name="description" content="68 页 Streamlit + Flask 全栈平台，3,324 个自动化测试，基于 2009–2026 共 4,094 个交易日的真实广度数据做全链路回测，并如实披露方向命中率≈随机。">
+<meta name="description" content="68 页 Streamlit + Flask 全栈平台，3,349 个自动化测试，基于 2009–2026 共 4,094 个交易日的真实广度数据做全链路回测，并如实披露方向命中率≈随机。">
 <style>
 :root{
   --bg:#0f0f23; --bg2:#141428; --card:#1a1a2e; --card2:#20203a;
@@ -84,14 +84,14 @@ footer{padding:44px 0 60px;border-top:1px solid var(--line);color:var(--dim2);fo
     <h1>StockSignal<br><span class="g">把「市场情绪」做成可回测、可自校准的仓位决策闭环</span></h1>
     <p class="sub">
       不是又一个「选股器」。这是一个把 <b>情绪周期定位 → 仓位推导 → 每日落盘预测 → 次日回填打分 → 分组刻度校准</b>
-      串成闭环的 A 股分析平台：68 个功能页面、75 个后端 REST 端点、77,043 行自研源码、
-      <b>3,324 个自动化测试</b>，并重建了覆盖 <b>2009–2026 共 4,094 个交易日</b>的全市场广度数据基座。
+      串成闭环的 A 股分析平台：68 个功能页面、75 个后端 REST 端点、77,464 行自研源码、
+      <b>3,349 个自动化测试</b>，并重建了覆盖 <b>2009–2026 共 4,094 个交易日</b>的全市场广度数据基座。
     </p>
     <div class="hero-tags">
       <span class="tag">Streamlit + Flask 前后端分离</span>
       <span class="tag">4 源自动降级 + SQLite 缓存</span>
       <span class="tag">Backtrader 回测（含真实成本模型）</span>
-      <span class="tag">3,324 项测试 · 含 AST 源码护栏</span>
+      <span class="tag">3,349 项测试 · 含 AST 源码护栏</span>
       <span class="tag">诚实负向结论：方向命中率 49.1%</span>
     </div>
   </div>
@@ -120,7 +120,7 @@ footer{padding:44px 0 60px;border-top:1px solid var(--line);color:var(--dim2);fo
       <div class="card">
         <div class="kicker">工程纪律</div>
         <h3>🛡 测试不是走过场，是能抓真 bug 的护栏</h3>
-        <p><b>3,324 个自动化测试</b>（41,566 行测试代码）+ <b>37 个文件</b>含源码级
+        <p><b>3,349 个自动化测试</b>（41,765 行测试代码）+ <b>37 个文件</b>含源码级
         AST 护栏。最近做的一批缺陷清零里，就抓到并修掉了「平盘日被当成下跌」这类
         <b>不崩溃但结果错</b> 的静默缺陷 —— 一个 4.32% 样本量级的系统性偏置。</p>
       </div>
@@ -135,11 +135,11 @@ footer{padding:44px 0 60px;border-top:1px solid var(--line);color:var(--dim2);fo
     <div class="grid g4">
       <div class="stat"><div class="n">68</div><div class="l">功能页面（Streamlit 多页）</div><div class="x">行情/事件/资金/情绪/策略/交易/AI</div></div>
       <div class="stat"><div class="n">75</div><div class="l">后端 REST 端点</div><div class="x">Flask + JWT 鉴权</div></div>
-      <div class="stat"><div class="n">77,043</div><div class="l">行自研源码</div><div class="x">639 个 Python 文件</div></div>
-      <div class="stat"><div class="n">3,324</div><div class="l">自动化测试用例</div><div class="x">319 个测试文件</div></div>
+      <div class="stat"><div class="n">77,464</div><div class="l">行自研源码</div><div class="x">648 个 Python 文件</div></div>
+      <div class="stat"><div class="n">3,349</div><div class="l">自动化测试用例</div><div class="x">320 个测试文件</div></div>
       <div class="stat"><div class="n">4,094</div><div class="l">真实交易日广度基座</div><div class="x">2009–2026 · 全市场广度</div></div>
       <div class="stat"><div class="n">5,548</div><div class="l">覆盖标的</div><div class="x">逐股日线缓存重建</div></div>
-      <div class="stat"><div class="n">697</div><div class="l">Git 提交</div><div class="x">58 个工作日 · 2026-06-28 – 2026-09-17</div></div>
+      <div class="stat"><div class="n">698</div><div class="l">Git 提交</div><div class="x">58 个工作日 · 2026-06-28 – 2026-09-17</div></div>
       <div class="stat"><div class="n">4</div><div class="l">级数据源自动降级</div><div class="x">AKShare→BaoStock→新浪→东财→缓存</div></div>
     </div>
   </div>
@@ -220,7 +220,7 @@ footer{padding:44px 0 60px;border-top:1px solid var(--line);color:var(--dim2);fo
     <h2>🏗 系统架构</h2>
     <div class="arch">┌──────────────────────────────┐        ┌─────────────────────────────────────┐
 │  Streamlit 多页前端 :8899     │  HTTP  │  Flask 后端 :5050                    │
-│  68 个功能页面 + 111 业务模块    │ ─────▶ │  75 个 REST 端点 · JWT 鉴权 · 限流   │
+│  68 个功能页面 + 112 业务模块    │ ─────▶ │  75 个 REST 端点 · JWT 鉴权 · 限流   │
 │  双主题 · A股红涨绿跌         │  JWT   └──────────────┬──────────────────────┘
 └───────────────┬──────────────┘                       │ SQLAlchemy
                 │                                      ▼
@@ -260,7 +260,7 @@ footer{padding:44px 0 60px;border-top:1px solid var(--line);color:var(--dim2);fo
       回测里四个战术分组的建议调节量全部 <code>actionable=False</code>，机制选择了沉默——这正是它该有的行为。</p>
     </div>
     <div class="q">
-      <b>Q3「3,324 个测试，怎么保证不是走过场？」</b>
+      <b>Q3「3,349 个测试，怎么保证不是走过场？」</b>
       <p>用「能不能抓真 bug」来验收。举上面那个例子：测试全绿的状态下，我通过审计发现
       「次日恰为平盘」被当成下跌，导致 84 次虚假命中——修完立刻把命中率从 49.3% 改到 49.1%，
       同步修正论文，并加了一条把「论文数字钉死在实算产物上」的一致性测试。
@@ -286,7 +286,7 @@ streamlit run app.py --server.port 8899                                   # 前�
 
 <footer>
   <div class="wrap">
-    StockSignal · 个人独立项目（2026-06-28 – 2026-09-17，697 次提交）<br>
+    StockSignal · 个人独立项目（2026-06-28 – 2026-09-17，698 次提交）<br>
     本页由 <code>scripts/gen_portfolio_page.py</code> 自动生成 · 仅用于学习与研究，不构成任何投资建议
   </div>
 </footer>
