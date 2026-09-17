@@ -977,6 +977,124 @@ def fragment_batch_backtest():
                 xc_handle_error("批量回测失败", e, hint="请稍后重试，或检查网络与数据源连接")
 
 
+# ==================================================================
+# H5 回测稳健性：walk-forward 样本外验证 + 过拟合检测
+# ==================================================================
+@safe_fragment("回测稳健性")
+def fragment_walk_forward():
+    """样本内选参数 → 样本外验证，回答「这套参数是真规律还是记住了历史」。"""
+    from modules.colors import UP_COLOR  # lazy
+    from modules.ui_theme import _theme_is_dark as _is_dark  # lazy
+    sf_card("🧪 回测稳健性（walk-forward 样本外验证）", "")
+    st.caption("把区间切成多段：每段先用「训练段」网格选最优参数，再拿这套参数到「测试段」独立验证。"
+               "训练段好看、测试段崩掉 = 过拟合。**历史模拟，不构成投资建议。**")
+
+    with st.form("wf_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            wf_ticker = st.text_input("股票代码", value="600519", key="wf_ticker")
+            wf_splits = st.slider("切分段数", min_value=2, max_value=5, value=3, step=1, key="wf_splits",
+                                  help="把区间切成几段做样本外验证；段数越多越严格，但每段越短。")
+        with col2:
+            _wf_strategies = list_strategies()
+            wf_strategy = st.selectbox("策略", options=[s["name"] for s in _wf_strategies],
+                                       format_func=lambda x: {s["name"]: s["display_name"] for s in _wf_strategies}.get(x, x),
+                                       key="wf_strategy")
+            wf_capital = st.number_input("初始资金", value=100000, step=10000, key="wf_capital")
+        wf_start = st.date_input("起始日期", value=datetime.now() - timedelta(days=730), key="wf_start")
+        wf_end = st.date_input("截止日期", value=datetime.now(), key="wf_end")
+        wf_submit = st.form_submit_button("🚀 运行稳健性检验")
+
+    if wf_submit:
+        if not wf_ticker.strip():
+            xc_warn_box("请输入股票代码")
+            return
+        from modules.backtest_robustness import walk_forward_windows, summarize_walk_forward
+        windows = walk_forward_windows(wf_start.strftime("%Y-%m-%d"), wf_end.strftime("%Y-%m-%d"),
+                                       n_splits=wf_splits)
+        if not windows:
+            xc_warn_box("区间过短，切不出合法的样本内/外窗口（建议区间 ≥1.5 年、且每段有足够交易日）。")
+            return
+        folds = []
+        prog = st.progress(0.0, text="正在逐段验证…")
+        for _i, w in enumerate(windows, start=1):
+            try:
+                rows = bt.run_param_scan(wf_ticker.strip(), w["train_start"], w["train_end"],
+                                         strategy=wf_strategy, initial_capital=wf_capital)
+                valid = [r for r in rows if "error" not in r and r.get("total_return") is not None]
+                if not valid:
+                    folds.append({**w, "is_return_pct": None, "oos_return_pct": None,
+                                  "params": None, "error": "训练段无有效参数组合"})
+                else:
+                    best = max(valid, key=lambda r: r["total_return"])
+                    is_ret = float(best["total_return"])
+                    r2 = bt.run(wf_ticker.strip(), w["test_start"], w["test_end"], strategy=wf_strategy,
+                                initial_capital=wf_capital, **best["params"])
+                    folds.append({**w, "is_return_pct": is_ret, "oos_return_pct": float(r2.total_return),
+                                  "params": best["params"], "error": None})
+            except Exception as e:  # noqa: BLE001  单段失败不影响其余段
+                folds.append({**w, "is_return_pct": None, "oos_return_pct": None,
+                              "params": None, "error": str(e)})
+            prog.progress(_i / len(windows), text=f"已完成第 {_i}/{len(windows)} 段")
+        prog.empty()
+
+        s = summarize_walk_forward(folds)
+        if s["status"] != "ok":
+            xc_warn_box(s.get("note", "无有效样本外结果"))
+        else:
+            a = s["assessment"]
+            _vmap = {"robust": ("🟢", "稳健"), "acceptable": ("🟡", "可接受"),
+                     "overfit_risk": ("🔴", "过拟合风险"), "no_edge": ("⚪", "无优势")}
+            _icon, _label = _vmap.get(a.get("verdict"), ("⚪", "—"))
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("样本内均值", f"{s['mean_is']:+.2f}%")
+            c2.metric("样本外均值", f"{s['mean_oos']:+.2f}%")
+            c3.metric("样本外胜段率", f"{s['oos_win_rate']:.0f}%")
+            c4.metric(f"{_icon} 判定", _label)
+            if a.get("verdict") in ("robust", "acceptable"):
+                xc_success_box(a.get("note", ""))
+            else:
+                xc_warn_box(a.get("note", ""))
+
+        _wf_rows = []
+        for f in folds:
+            _p = f.get("params")
+            _is, _oos = f["is_return_pct"], f["oos_return_pct"]
+            _decay = "—"
+            if _is not in (None, 0) and _oos is not None:
+                _decay = f"{(1 - _oos / _is) * 100:.0f}"
+            _wf_rows.append({
+                "Fold": f["fold"],
+                "训练段": f"{f['train_start']}~{f['train_end']}",
+                "测试段": f"{f['test_start']}~{f['test_end']}",
+                "选出参数": (f"止盈{_p.get('take_profit_pct', 0) * 100:.0f}%·"
+                           f"止损{_p.get('stop_loss_pct', 0) * 100:.0f}%·"
+                           f"持仓{_p.get('max_holding', '-')}日" if _p else "—"),
+                "样本内%": f"{_is:+.2f}" if _is is not None else "—",
+                "样本外%": f"{_oos:+.2f}" if _oos is not None else "—",
+                "衰减%": _decay,
+                "备注": f.get("error") or "",
+            })
+        st.dataframe(pd.DataFrame(_wf_rows), width="stretch", hide_index=True, height=300)
+
+        _ok = [f for f in folds if f["is_return_pct"] is not None and f["oos_return_pct"] is not None]
+        if _ok:
+            fig_wf = go.Figure()
+            fig_wf.add_trace(go.Bar(x=[f"F{f['fold']}" for f in _ok], y=[f["is_return_pct"] for f in _ok],
+                                    name="样本内%", marker_color="#2b8aef"))
+            fig_wf.add_trace(go.Bar(x=[f"F{f['fold']}" for f in _ok], y=[f["oos_return_pct"] for f in _ok],
+                                    name="样本外%", marker_color="#e0a33a"))
+            fig_wf.update_layout(
+                title="样本内 vs 样本外收益（样本外显著低于样本内 = 过拟合信号）",
+                xaxis_title="Fold", yaxis_title="收益%", height=360, barmode="group",
+                template="plotly_white" if not _is_dark() else "plotly_dark",
+                margin=dict(l=50, r=20, t=50, b=40),
+            )
+            st.plotly_chart(fig_wf, width="stretch", config={"displaylogo": False, "responsive": True})
+        st.caption("口径：训练段用默认参数网格（止盈 3/5/8% · 止损 5/7% · 持仓 15/30 日）选最优，"
+                   "再原样套用到测试段。样本外衰减越小越稳健。")
+
+
 def fragment_run_history():
     """G12：历史回测运行记录（run ID 持久化，跨刷新/切页/重启可回溯）。"""
     try:
@@ -1013,5 +1131,6 @@ fragment_manual_backtest()
 fragment_daily_picker()
 fragment_strong_bull()
 fragment_param_scan()
+fragment_walk_forward()
 fragment_run_history()
 fragment_batch_backtest()

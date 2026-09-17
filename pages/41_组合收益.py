@@ -221,6 +221,10 @@ def fragment_portfolio():
         _show_attribution()
     except Exception as _e:
         xc_warn_box(f"收益贡献加载失败：{_e}")
+    try:
+        _show_risk_xray()
+    except Exception as _e:
+        xc_warn_box(f"组合风险透视加载失败：{_e}")
 
 
 def _show_pnl_snapshot():
@@ -272,6 +276,127 @@ def _show_attribution():
                            file_name="组合收益贡献.csv", mime="text/csv")
     except Exception:
         pass
+
+
+def _show_risk_xray():
+    """H4：组合风险透视 —— 集中度 / 行业暴露 / 相关性 / 情景回放（对标米筐 RQBeta、组合 X-ray）。"""
+    from modules.risk_xray import concentration, sector_exposure, correlation_matrix, scenario_pnl
+    _section_title("🩻 组合风险透视（X-ray）")
+    try:
+        pnl_df = pm.calc_pnl()
+    except Exception as _e:
+        xc_warn_box(f"风险透视取数失败：{_e}")
+        return
+    if pnl_df is None or pnl_df.empty:
+        _empty_info("暂无持仓，无法做组合风险透视。")
+        return
+    # 权重 = 当前市值（仅取正值）
+    w = {}
+    for _, r in pnl_df.iterrows():
+        try:
+            mv = float(r.get("market_value") or 0)
+        except Exception:  # noqa: BLE001
+            mv = 0.0
+        if mv > 0:
+            w[str(r.get("ticker"))] = mv
+    if len(w) < 1:
+        _empty_info("持仓市值为 0，无法计算风险透视。")
+        return
+
+    # ── 集中度 ──
+    c = concentration(w)
+    if c.get("status") == "ok":
+        xc_kpi_grid([
+            {"label": "持仓数", "value": f"{c['n']}", "icon": "🔢"},
+            {"label": "集中度 HHI", "value": f"{c['hhi']:.3f}", "icon": "🎯", "meta": c["level"]},
+            {"label": "最大权重", "value": f"{c['max_weight_pct']:.1f}%", "icon": "📌"},
+            {"label": "有效持仓数", "value": f"{c['effective_n']:.1f}", "icon": "🧮", "meta": "1/HHI"},
+        ])
+        st.caption("HHI <0.15 分散 · 0.15–0.25 适中 · >0.25 集中；有效持仓数越低，组合越依赖个别标的。")
+
+    # ── 行业暴露（best-effort，取不到行业如实告警，不编造）──
+    try:
+        sector_of = {}
+        for code in w:
+            try:
+                sector_of[code] = (fetcher.get_fundamentals(code) or {}).get("industry")
+            except Exception:  # noqa: BLE001
+                sector_of[code] = None
+        se = sector_exposure(w, sector_of)
+        if se.get("status") == "ok":
+            st.markdown("**行业暴露**")
+            st.dataframe(pd.DataFrame([{"行业": k, "权重%": v} for k, v in se["exposure"].items()]),
+                         width="stretch", hide_index=True, height=200)
+            if se.get("warning"):
+                xc_warn_box(se["warning"])
+    except Exception as _e:  # noqa: BLE001
+        xc_warn_box(f"行业暴露计算失败：{_e}")
+
+    # ── 相关性 + 情景回放（按需触发，避免每次进页都拉行情）──
+    with st.expander("🔗 持仓相关性 & 情景压力测试", expanded=False):
+        st.caption("基于各持仓近一年日线（最多取权重最大的 8 只）。相关性衡量「是否同涨同跌」；"
+                   "情景回放把当前持仓放回最近 1/3/6/12 个月的行情里，看组合会经历多大波动。")
+        if st.button("运行相关性 + 情景分析", key="xray_run"):
+            top_codes = [k for k, _ in sorted(w.items(), key=lambda kv: -kv[1])][:8]
+            hist = {}
+            with st.spinner("拉取持仓历史行情…"):
+                for code in top_codes:
+                    try:
+                        df = fetcher.get_daily(
+                            code,
+                            start=(datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d"),
+                            end=datetime.now().strftime("%Y-%m-%d"),
+                        )
+                        if df is not None and not df.empty:
+                            hist[code] = df
+                    except Exception:  # noqa: BLE001
+                        continue
+            if not hist:
+                xc_warn_box("未能获取任何持仓历史行情，无法计算相关性/情景。")
+                return
+            # 相关性热图
+            rets = {}
+            for code, df in hist.items():
+                try:
+                    s = pd.to_numeric(df["close"], errors="coerce").dropna()
+                    rets[code] = s.pct_change().dropna().tolist()[-120:]
+                except Exception:  # noqa: BLE001
+                    continue
+            cm = correlation_matrix(rets)
+            if cm.get("status") == "ok":
+                _txt = [[f"{v:.2f}" for v in row] for row in cm["matrix"]]
+                figc = go.Figure(go.Heatmap(z=cm["matrix"], x=cm["codes"], y=cm["codes"],
+                                            colorscale="RdBu", zmin=-1, zmax=1,
+                                            text=_txt, texttemplate="%{text}"))
+                figc.update_layout(title=f"持仓收益相关性（近 {cm['n_obs']} 日 · 平均 {cm['avg_corr']}）",
+                                   height=380,
+                                   template="plotly_white" if not dark else "plotly_dark",
+                                   margin=dict(l=40, r=20, t=50, b=40))
+                st.plotly_chart(figc, width="stretch",
+                                config={"displaylogo": False, "responsive": True})
+                st.caption("越接近 1 = 越同涨同跌（分散效果差）；接近 0 = 独立；为负 = 互为对冲。")
+            else:
+                xc_warn_box(cm.get("reason", "相关性不可用"))
+
+            # 情景回放（历史区间，非虚构事件）
+            rows = []
+            for label, days in [("近 1 个月", 30), ("近 3 个月", 90), ("近 6 个月", 180), ("近 1 年", 365)]:
+                sr = {}
+                for code, df in hist.items():
+                    try:
+                        s = pd.to_numeric(df["close"], errors="coerce").dropna()
+                        seg = s.tail(days)
+                        if len(seg) >= 2 and float(seg.iloc[0]) > 0:
+                            sr[code] = float(seg.iloc[-1]) / float(seg.iloc[0]) - 1
+                    except Exception:  # noqa: BLE001
+                        continue
+                sp = scenario_pnl(w, sr)
+                rows.append({"情景": label,
+                             "组合损益%": sp.get("pnl_pct") if sp.get("status") == "ok" else None,
+                             "覆盖%": sp.get("coverage_pct"), "缺失数": sp.get("n_missing")})
+            st.markdown("**历史区间回放（按当前权重静态持有，期末/期初价格模拟）**")
+            st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True, height=200)
+            st.caption("⚠️ 回放按当前权重静态持有、未考虑区间内调仓与交易成本，仅作风险量级参考，不构成投资建议。")
 
 
 fragment_portfolio()
