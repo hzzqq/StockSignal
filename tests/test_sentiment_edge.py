@@ -197,7 +197,12 @@ def test_forecast_empty_input_edge_is_none():
 # ── 5. 生产校准件自身必须站得住 ─────────────────────────────────
 
 def test_shipped_calibration_exists_and_is_evidence_backed():
-    """随仓库发布的校准件必须存在，且每个可发布特征都真的显著（z≥1.96）。"""
+    """校准件**一旦本机存在**，其每个可发布特征都必须真的显著（z≥1.96）。
+
+    ⚠️ 事实澄清（2026-09-17）：该校准件位于 ``data/`` 下、被 ``.gitignore`` 忽略，
+    **并不随仓库分发**（旧 docstring 写「随仓库发布」与事实不符）。因此缺失时只能
+    skip；但只要它存在，就必须经得起检验——这条是防「本地改过口径却没过校验」的闸。
+    """
     if not os.path.exists(CAL_PATH):
         pytest.skip("校准件未生成（运行 scripts/calibrate_sentiment_edge.py）")
     cal = json.load(open(CAL_PATH, encoding="utf-8"))
@@ -212,7 +217,10 @@ def test_shipped_calibration_exists_and_is_evidence_backed():
 
 
 def test_shipped_calibration_uses_ratio_features_only():
-    """尺度无关铁律：特征必须是占比类，不得回到绝对家数阈值。"""
+    """尺度无关铁律：特征必须是占比类，不得回到绝对家数阈值。
+
+    同上一处：校准件未随仓分发，缺失时 skip；存在则必须全为 ``*_ratio``。（2026-09-17）
+    """
     if not os.path.exists(CAL_PATH):
         pytest.skip("校准件未生成")
     cal = json.load(open(CAL_PATH, encoding="utf-8"))

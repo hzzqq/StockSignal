@@ -683,12 +683,67 @@ def load_event_pool(path: str | None = None) -> dict:
 
 
 def _p1_signals_dir() -> str:
-    """定位 P1-QuantFactor 信号导出目录（可配置，缺省降级到同机默认布局）。"""
+    """定位 P1 信号导出目录（**单一真理源**：``modules.p1_signal.discover_source_dirs``）。
+
+    优先级：``P1_PROJECT_DIR`` 环境变量 → 候选目录中**第一个真实存在**的目录 → 候选首位。
+
+    历史缺陷（2026-09-17 修复）：本函数曾自抄一份默认路径
+    ``<P1 仓>/data/P1/processed/signals``，与 ``p1_signal`` 的口径**漂移**，且该目录在本机
+    根本不存在 → ``scripts/refresh_event_pool.py`` 文档承诺的「缺省用同机默认布局」**永远
+    刷新不了**（``reason=no_p1_signals_dir``），事件池长期停在离线快照且没有任何告警。
+    现改为直接复用 ``discover_source_dirs()``（它已支持 ``P1_SIGNAL_DIR`` /
+    ``P1_SIGNAL_FALLBACK_DIR`` 两个覆盖口），从根上消除第二份默认值再漂移的可能。
+    """
     env = os.environ.get("P1_PROJECT_DIR")
     if env:
         return os.path.join(env, "data", "P1", "processed", "signals")
-    # 默认同机双项目布局：本仓在 E:/project/ks，P1 在 E:/project/sj/P1-QuantFactor
-    return os.path.join("E:/project/sj/P1-QuantFactor", "data", "P1", "processed", "signals")
+    from modules.p1_signal import discover_source_dirs
+
+    cands = [d for d in discover_source_dirs() if d]
+    for d in cands:
+        if os.path.isdir(d):
+            return d
+    return cands[0] if cands else ""
+
+
+def _pick_latest_valid_signal(cands: list):
+    """从候选文件里挑出**数据日最新**的有效信号。
+
+    排序口径：``latest_date`` 降序（并列再按文件 mtime 降序）。**绝不能用文件 mtime
+    当数据新旧**——项目红线是「以数据日为准」。
+
+    历史缺陷（2026-09-17）：
+      (a) 原实现「按 mtime 取最新一个，无效就整体放弃」，而 P1 目录里最新的
+          ``signal_rotation.json`` 恰好 ``latest_date=None`` → 同目录 8 个有效导出
+          全部被无视，刷新永远失败（``reason=p1_signal_empty``）且不报警；
+      (b) 即便跳过无效文件，mtime 序也会先选到 ``latest_date=2026-07-31`` 的旧导出，
+          而同期存在 ``2026-08-14`` 的更新导出 —— **静默用了更旧的数据**。
+
+    返回 ``(sig | None, path | None, bad_paths, n_field_invalid)``：
+    ``bad_paths`` 为无法解析的文件，``n_field_invalid`` 为可解析但缺 top_long/latest_date
+    的文件数。全无有效候选时 ``sig`` 为 ``None``，调用方据此拒绝刷新（不覆盖既有快照）。
+    """
+    scanned, bad, n_invalid = [], [], 0
+    for p in cands:
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                sig = json.load(f)
+        except Exception:  # noqa: BLE001  损坏文件跳过，不阻断其他候选
+            bad.append(p)
+            continue
+        ld = str(sig.get("latest_date") or "")
+        if not sig.get("top_long") or not ld:
+            n_invalid += 1
+            continue
+        try:
+            mtime = os.path.getmtime(p)
+        except OSError:
+            mtime = 0.0
+        scanned.append((ld, mtime, p, sig))
+    if not scanned:
+        return None, None, bad, n_invalid
+    scanned.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return scanned[0][3], scanned[0][2], bad, n_invalid
 
 
 def refresh_event_pool_from_p1(p1_signals_dir: str | None = None,
@@ -722,22 +777,21 @@ def refresh_event_pool_from_p1(p1_signals_dir: str | None = None,
         status["reason"] = "no_p1_signal"
         status["note"] = "P1 信号目录无 signal_*.json（需先运行 P1 阶段6 导出）"
         return status
-    cands.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-    latest = cands[0]
-    try:
-        with open(latest, "r", encoding="utf-8") as f:
-            sig = json.load(f)
-    except Exception as e:
-        status["reason"] = "p1_signal_corrupt"
-        status["note"] = f"读取 P1 信号失败：{e}"
+    sig, src_path, bad, n_invalid = _pick_latest_valid_signal(cands)
+    if sig is None:
+        if bad and not n_invalid:
+            status["reason"] = "p1_signal_corrupt"
+            status["note"] = (f"P1 目录内 {len(cands)} 个 signal_*.json 全部无法解析，"
+                              "拒绝刷新（避免用无效产物覆盖有效快照）")
+        else:
+            status["reason"] = "p1_signal_empty"
+            status["note"] = (f"P1 目录内 {len(cands)} 个 signal_*.json 均无有效 "
+                              f"top_long/latest_date（无法解析 {len(bad)} 个、字段不全 "
+                              f"{n_invalid} 个），拒绝刷新（避免覆盖有效快照）")
         return status
     top_long = sig.get("top_long") or []
     latest_date = str(sig.get("latest_date") or "")
     model = sig.get("model", "unknown")
-    if not top_long or not latest_date:
-        status["reason"] = "p1_signal_empty"
-        status["note"] = "P1 信号 top_long 为空或缺少 latest_date，拒绝刷新（避免覆盖有效快照）"
-        return status
     # 时效性（仅作提示，不阻断：P1 离线产物也可能较旧）
     stale = False
     try:
@@ -784,7 +838,15 @@ def refresh_event_pool_from_p1(p1_signals_dir: str | None = None,
         status["reason"] = "write_failed"
         status["note"] = f"写入事件池失败：{e}"
         return status
+    skipped_note = ""
+    if bad or n_invalid:
+        skipped_note = (f"；已跳过不可用候选 {len(bad) + n_invalid} 个"
+                        f"（无法解析 {len(bad)}、字段不全 {n_invalid}）")
     status.update(refreshed=True, live=True, date=latest_date[:10],
                   count=len(pool), source=brief["source"], stale=stale,
-                  note=f"已从 P1 信号刷新（{os.path.basename(latest)}，模型 {model}）")
+                  picked=os.path.basename(src_path) if src_path else None,
+                  skipped_bad=[os.path.basename(x) for x in bad],
+                  skipped_invalid=n_invalid,
+                  note=f"已从 P1 信号刷新（{os.path.basename(src_path)}，模型 {model}）"
+                       + skipped_note)
     return status

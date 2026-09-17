@@ -75,8 +75,18 @@ def test_analyze_history_real_history_modern_non_collapsed():
     df = pd.read_csv(_BREADTH_FILE)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     modern = df[df["date"].dt.year >= 2015]
-    if len(modern) < 50:
-        pytest.skip(f"现代段样本不足（{len(modern)} 行），疑似被错误覆盖，人工核查")
+    # ⚠️ 这里**必须 fail，不能 skip**（2026-09-17 修）。
+    #    本测试的存在意义就是 docstring 里那句「防止被错误重跑覆盖后静默回退」——
+    #    而 skip 恰好在回退**真的发生**时把自己静音：实测把现代段缩到 20 行，
+    #    旧写法输出 SKIPPED、整套测试仍然全绿，警报根本不会响。
+    #    2026-09-16 真实发生过 shepherd_history.csv 退化（median_chg 大量空），
+    #    靠人工比对 .bak 才还原。只有「数据文件整体不存在」（gitignore 未分发，
+    #    见上一处 skip）才是可接受的跳过理由。
+    assert len(modern) >= 50, (
+        f"现代段（2015+）样本仅 {len(modern)} 行（正常约 2800 行）——"
+        "shepherd_history.csv 疑似被错误覆盖/退化；"
+        "请从 data/shepherd_history.csv.bak 还原后重跑，勿直接放行"
+    )
 
     res = analyze_history(modern)
     assert res["by_cycle"], "现代段 analyze_history 未产出阶段"

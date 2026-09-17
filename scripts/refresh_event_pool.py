@@ -9,7 +9,11 @@
       时才覆盖 data/event_pool_brief.json；
     - 离线环境通常无该产物，此时优雅降级、保留既有离线快照，属预期行为。
 环境变量：
-    P1_PROJECT_DIR  指向 P1-QuantFactor 根目录（缺省用同机默认布局）
+    P1_PROJECT_DIR        指向 P1-QuantFactor 根目录；设置后**优先**使用
+    P1_SIGNAL_DIR         直接指定信号目录（最高优先，见 modules.p1_signal）
+    P1_SIGNAL_FALLBACK_DIR  P1 产出目录的覆盖口（默认 E:/project/sj/data/P1/processed/signals）
+    均未设置时：按 modules.p1_signal.discover_source_dirs() 的候选顺序取**第一个真实存在**
+    的目录（本仓 data/p1_signals 通常命中，故无 P1 仓也能刷新）。
 """
 from __future__ import annotations
 
