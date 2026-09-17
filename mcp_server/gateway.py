@@ -87,7 +87,7 @@ def call_tool(name: str, **kwargs: Any) -> Dict[str, Any]:
         {"ok": True, "data": {...}}          # 成功
         {"ok": False, "error": "工具不存在"}  # 工具名不合法
         {"ok": False, "error": "数据获取失败: ..."}  # 工具内部业务失败（已捕获）
-        {"ok": False, "error": "工具调用超时(>12s)"}  # 总超时护栏触发
+        {"ok": False, "error": "工具调用超时（>分档上限）"}  # 总超时护栏触发
     """
     from modules.timeout_exec import run_with_timeout
 
@@ -95,9 +95,10 @@ def call_tool(name: str, **kwargs: Any) -> Dict[str, Any]:
     if func is None:
         return {"ok": False, "error": f"工具不存在: {name}"}
     try:
-        # 总超时护栏：任何工具内部无界阻塞（远程取数）都会在 _GATEWAY_TIMEOUT 内
-        # 被强制返回 None，网关转成友好错误，避免站内 AI 页 / 外部客户端永久卡死。
-        result = run_with_timeout(lambda: func(**kwargs), timeout=_GATEWAY_TIMEOUT)
+        # 总超时护栏：分工具覆盖（T-122）——重工具 ≥ 其内部护栏，未登记回落默认 12s。
+        # 任何工具内部无界阻塞（远程取数）都会在此被强制返回 None，网关转成友好错误，
+        # 避免站内 AI 页 / 外部客户端永久卡死。
+        result = run_with_timeout(lambda: func(**kwargs), timeout=_timeout_for(name))
     except Exception as e:  # noqa: BLE001 - 网关统一兜底，不让异常冒泡到页面
         logger.warning(f"[mcp_gateway] 工具 {name} 调用异常: {e}")
         return {"ok": False, "error": f"工具调用异常: {e}"}
@@ -111,9 +112,25 @@ def call_tool(name: str, **kwargs: Any) -> Dict[str, Any]:
     return {"ok": True, "data": result}
 
 
-# 网关总超时（秒）：与底层网络默认超时(10s) < CALL_TIMEOUT_CAP(12s) 保持一致，
+# 网关默认总超时（秒）：与底层网络默认超时(10s) < CALL_TIMEOUT_CAP(12s) 保持一致，
 # 正常阻塞路径下工具会在边界内自行返回，线程回池复用、不泄漏。
 _GATEWAY_TIMEOUT = 12
+
+# 分工具超时（T-122，2026-09-17）：重工具的 gateway 护栏必须 ≥ 其内部护栏，
+# 否则站内调用永远被统一 12s 砍死（外部 stdio MCP 无此护栏，行为不一致）：
+# - get_market_sentiment：实测冷启动 47.5s（akshare 限速拉 17 项牧羊人指标）
+# - smart_pick / run_backtest：内部 run_with_timeout 90s / 60s
+# 未列出的工具一律回落默认 12s。
+_PER_TOOL_TIMEOUT = {
+    "get_market_sentiment": 60,
+    "smart_pick": 100,
+    "run_backtest": 70,
+}
+
+
+def _timeout_for(name: str) -> int:
+    """取某工具的 gateway 超时（分档覆盖，未登记回落默认）。"""
+    return _PER_TOOL_TIMEOUT.get(name, _GATEWAY_TIMEOUT)
 
 
 # ── 意图识别：把自然语言问句映射到工具 + 参数提取 ────────────────────────────

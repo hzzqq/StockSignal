@@ -312,6 +312,9 @@ def test_get_market_sentiment_success(monkeypatch):
 
 def test_get_market_sentiment_network_down(monkeypatch):
     """全源失败时 indicators 为空、unavailable 标注。"""
+    # T-122：工具层加了结果缓存（sentiment:*，TTL 300s）且模块级跨测试持久，
+    # 先清缓存隔离前序测试（如成功路径）留下的条目，保证本测试真实走到失败分支。
+    mcp_tools._TOOL_CACHE.clear()
     fake_today = ({}, {"available": [], "unavailable": [("legu", "x"), ("zt_pool", "y")]})
 
     monkeypatch.setattr("modules.shepherd.get_shepherd_today", lambda: fake_today)
@@ -320,6 +323,8 @@ def test_get_market_sentiment_network_down(monkeypatch):
     assert r["temperature"] == 50.0
     assert r["indicators"] == {}
     assert set(r["meta"]["unavailable"]) == {"legu", "zt_pool"}
+    # 诚实语义（T-122）：失败结果不得写入缓存（否则网络抖动被放大成 5 分钟假数据）
+    assert not any(k.startswith("sentiment:") for k in mcp_tools._TOOL_CACHE)
 
 
 def test_smart_pick_timeout_returns_error(monkeypatch):

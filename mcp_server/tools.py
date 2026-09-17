@@ -58,17 +58,22 @@ import time as _time
 
 _TOOL_CACHE: Dict[str, Any] = {}
 _TOOL_CACHE_TTL = 30  # 秒（行情类短缓存，适配盘中变化）
+# 分档 TTL（T-122，2026-09-17）：sentiment 数据按交易日粒度变化（盘中涨停/炸板池
+# 才有分钟级变化），且冷启动实测 47.5s——5 分钟缓存让 agent 会话内重复提问近零成本，
+# 数据新鲜度损失可接受（generated_at 如实保留首次拉取时间）。
+_TOOL_CACHE_TTL_SENTIMENT = 300
 
 
-def _tool_cache_get(key: str):
+def _tool_cache_get(key: str, ttl: Optional[int] = None):
+    """读缓存。ttl=None 时用该条目 set 时登记的 TTL（向后兼容旧全局 30s 语义）。"""
     item = _TOOL_CACHE.get(key)
-    if item and (_time.time() - item[0]) < _TOOL_CACHE_TTL:
-        return item[1]
+    if item and (_time.time() - item[0]) < item[1]:
+        return item[2]
     return None
 
 
-def _tool_cache_set(key: str, val: Any) -> None:
-    _TOOL_CACHE[key] = (_time.time(), val)
+def _tool_cache_set(key: str, val: Any, ttl: Optional[int] = None) -> None:
+    _TOOL_CACHE[key] = (_time.time(), ttl if ttl is not None else _TOOL_CACHE_TTL, val)
 
 
 # ---------------------------------------------------------------------------
@@ -607,11 +612,17 @@ def get_market_sentiment(days: int = 30) -> Dict[str, Any]:
     """
     from modules import shepherd
 
+    # 结果缓存（T-122）：冷启动实测 47.5s，5 分钟 TTL 让会话内重复提问近零成本；
+    # generated_at 保留首次拉取时间（诚实：即数据真实生成时间）。
+    _cache_key = f"sentiment:{int(days)}"
+    _cached = _tool_cache_get(_cache_key)
+    if _cached is not None:
+        return _cached
     today, meta = shepherd.get_shepherd_today()
     temp = shepherd.shepherd_temperature(today, hist_days=int(days))
     # 仅透出 THRESHOLDS 定义的指标，过滤合并过程中产生的辅助键（如 flat_count）
     indicators = {k: today.get(k) for k in shepherd.THRESHOLDS if k in today}
-    return {
+    _result = {
         "temperature": temp,
         "temperature_label": _temp_label(temp),
         "indicators": indicators,
@@ -621,6 +632,11 @@ def get_market_sentiment(days: int = 30) -> Dict[str, Any]:
         },
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
+    # 诚实语义（T-122 回归修正）：全源失败/空结果**不缓存**——缓存失败会把一次网络
+    # 抖动放大成 5 分钟的假数据，且与「取不到如实说明」的诚实红线相悖。失败下次重试。
+    if meta.get("available"):
+        _tool_cache_set(_cache_key, _result, _TOOL_CACHE_TTL_SENTIMENT)
+    return _result
 
 
 def _temp_label(temp: float) -> str:

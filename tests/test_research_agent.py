@@ -404,3 +404,100 @@ def test_module_compiles():
     py_compile.compile(str(REPO / "modules" / "research_agent.py"), doraise=True)
     py_compile.compile(str(REPO / "mcp_server" / "gateway.py"), doraise=True)
     py_compile.compile(str(REPO / "backend" / "tasks" / "worker.py"), doraise=True)
+
+
+# ---------------------------------------------------------------------------
+# T-122：gateway 分工具超时 + sentiment 缓存 TTL 分档（H1 验收观察的修复）
+# ---------------------------------------------------------------------------
+def test_t122_gateway_timeout_per_tool():
+    """重工具 gateway 护栏 ≥ 内部护栏（sentiment 冷启动实测 47.5s；smart_pick/run_backtest 内部 90s/60s）。"""
+    from mcp_server import gateway
+
+    assert gateway._timeout_for("get_market_sentiment") == 60
+    assert gateway._timeout_for("smart_pick") == 100
+    assert gateway._timeout_for("run_backtest") == 70
+    assert gateway._timeout_for("get_realtime_quote") == 12  # 轻工具默认
+    assert gateway._timeout_for("no_such_tool") == 12        # 未知回落默认
+
+
+def test_t122_gateway_call_tool_passes_tiered_timeout(monkeypatch):
+    """call_tool 必须真的把分档超时传给 run_with_timeout（防纯函数对但没接上的假绿）。"""
+    import mcp_server.gateway as gw
+    import modules.timeout_exec as te
+
+    seen = {}
+
+    def _fake_rwt(fn, timeout=None):
+        seen["timeout"] = timeout
+        return {"marker": 1}
+
+    monkeypatch.setattr(te, "run_with_timeout", _fake_rwt)
+    monkeypatch.setattr(gw, "_resolve_func", lambda n: lambda **kw: {"x": 1})
+
+    assert gw.call_tool("get_market_sentiment")["ok"] is True
+    assert seen["timeout"] == 60
+    assert gw.call_tool("get_realtime_quote")["ok"] is True
+    assert seen["timeout"] == 12
+
+
+def test_t122_sentiment_cache_ttl_300s(monkeypatch):
+    """sentiment 结果缓存 TTL=300s：冷启动 47.5s 的重工具会话内重复提问应近零成本。
+
+    走 get_market_sentiment 真实代码路径（shepherd 打桩，离线）；回拨缓存时间戳 200s
+    后仍必须命中——若实现退回全局 30s TTL 则本测试变红（mutation 目标）。
+    """
+    import modules.shepherd as shepherd
+    from mcp_server import tools as mt
+
+    calls = {"n": 0}
+
+    def _fake_today():
+        calls["n"] += 1
+        today = {k: 1.0 for k in shepherd.THRESHOLDS}
+        return today, {"available": list(today.keys()), "unavailable": []}
+
+    monkeypatch.setattr(shepherd, "get_shepherd_today", _fake_today)
+    monkeypatch.setattr(shepherd, "shepherd_temperature", lambda today, hist_days=30: 55.0)
+    monkeypatch.setattr(mt, "_TOOL_CACHE", {})
+
+    mt.get_market_sentiment(days=30)
+    mt.get_market_sentiment(days=30)
+    assert calls["n"] == 1, "二次调用应命中缓存"
+
+    key = next(k for k in mt._TOOL_CACHE if k.startswith("sentiment:"))
+    ts, ttl, val = mt._TOOL_CACHE[key]
+    assert ttl == 300, f"sentiment 缓存 TTL 应为 300，实际 {ttl}"
+    mt._TOOL_CACHE[key] = (ts - 200, ttl, val)  # 回拨 200s（< 300 仍新鲜）
+    mt.get_market_sentiment(days=30)
+    assert calls["n"] == 1, "TTL=300 下 200s 前的缓存应仍命中"
+
+
+def test_t122_tool_cache_helper_backward_compatible():
+    """缓存 helper 旧行为兼容：不传 ttl 时按全局 30s 语义（kline/tech 等既有调用点不受影响）。"""
+    from mcp_server import tools as mt
+
+    mt._tool_cache_set("k:test", {"a": 1})
+    assert mt._TOOL_CACHE["k:test"][1] == mt._TOOL_CACHE_TTL
+    assert mt._tool_cache_get("k:test") == {"a": 1}
+
+
+def test_t122_sentiment_failure_not_cached(monkeypatch):
+    """失败/空结果绝不缓存（诚实语义）：全源失败时每次重试，不得把网络抖动放大成 5 分钟假数据。"""
+    import modules.shepherd as shepherd
+    from mcp_server import tools as mt
+
+    calls = {"n": 0}
+
+    def _fake_today_down():
+        calls["n"] += 1
+        return {}, {"available": [], "unavailable": [("legu", "x"), ("zt_pool", "y")]}
+
+    monkeypatch.setattr(shepherd, "get_shepherd_today", _fake_today_down)
+    monkeypatch.setattr(shepherd, "shepherd_temperature", lambda today, hist_days=30: 50.0)
+    monkeypatch.setattr(mt, "_TOOL_CACHE", {})
+
+    r1 = mt.get_market_sentiment(days=30)
+    r2 = mt.get_market_sentiment(days=30)
+    assert calls["n"] == 2, "全源失败不得写缓存（每次调用都应真实重试）"
+    assert r1["indicators"] == {} and r2["indicators"] == {}
+    assert not any(k.startswith("sentiment:") for k in mt._TOOL_CACHE)
