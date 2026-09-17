@@ -13,6 +13,7 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN
+from modules import stock_risk as sr
 
 dark = render_standard_page(title="一键体检扫描台", icon="🩺", layout="wide")
 
@@ -590,3 +591,173 @@ def result_board():
 
 
 result_board()
+
+
+# ─────────────────────── 风险排雷（H6：商誉 / 质押 / 解禁 / 减持 / 诉讼处罚 / ST） ───────────────────────
+_MAX_RISK_SCAN = 40  # 每只票要打 4 个外部接口，限流保护：单次最多扫 40 只
+
+sf_card("🧨 个股风险排雷", "体检分回答「这只票好不好」，排雷回答「这只票有没有雷」。"
+        "对同一股票池逐个拉取商誉 / 质押 / 解禁 / 减持 / 诉讼处罚 / ST 六类风险，"
+        "按 高 / 中 / 低 / 未知 给出风险灯。", icon="⚠️")
+
+
+def run_risk_scan(scope: str):
+    """批量排雷，结果写入 session_state。"""
+    stocks = build_stock_list(scope)
+    if not stocks:
+        st.session_state["risk_results"] = []
+        st.session_state["risk_count"] = 0
+        return
+    items = list(stocks.items())[:_MAX_RISK_SCAN]
+    prog = st.progress(0.0, text="正在逐只排雷…")
+
+    def _cb(done, total):
+        try:
+            prog.progress(min(1.0, done / max(1, total)),
+                          text=f"正在逐只排雷… {done}/{total}")
+        except Exception:
+            pass
+
+    res = sr.scan_many(items, max_workers=4, progress=_cb)
+    try:
+        prog.empty()
+    except Exception:
+        pass
+    st.session_state["risk_results"] = res
+    st.session_state["risk_count"] = len(res)
+    st.session_state["risk_scope"] = scope
+    st.session_state["risk_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+@safe_fragment("风险排雷")
+def risk_board():
+    results = st.session_state.get("risk_results")
+
+    rc1, rc2 = st.columns([1, 3])
+    with rc1:
+        if st.button("🧨 开始排雷扫描", key="risk_run",
+                     help=f"对当前扫描范围逐只判风险；单次最多 {_MAX_RISK_SCAN} 只（每只需 4 个外部接口）。"):
+            _scope = st.session_state.get(SCOPE_KEY, "自选股")
+            with st.spinner("正在拉取商誉 / 质押 / 解禁 / 减持 / 公告并判定风险，请稍候…"):
+                run_risk_scan(_scope)
+            results = st.session_state.get("risk_results")
+            st.toast("排雷扫描完成 ✅", icon="🧨")
+    with rc2:
+        st.caption(
+            "六维：**商誉**（商誉/净资产）· **质押**（未解押占总股本）· "
+            "**解禁**（未来 90 日占流通市值）· **减持**（近 90 日董监高净变动）· "
+            "**诉讼处罚**（近 1 年公告关键词）· **ST/退市**。阈值是启发式粗筛，非投资建议。")
+
+    if results is None:
+        _empty_info("尚未排雷。点击上方「🧨 开始排雷扫描」，对当前扫描范围逐只判定风险等级"
+                    "（与上方体检共用同一个股票池）。")
+        return
+
+    results = [r for r in results if isinstance(r, dict)] if isinstance(results, list) else []
+    if not results:
+        _empty_info("当前范围没有可排雷的股票，请先在「自选股 / 组合持仓」里添加标的。")
+        return
+
+    ts = st.session_state.get("risk_ts")
+    st.caption(f"共排雷 {st.session_state.get('risk_count', len(results))} 只标的"
+               + (f" ｜ 扫描时间：{ts}" if ts else ""))
+
+    # 概览：整体风险灯分布 + 平均风险分 + 平均覆盖率
+    def _cnt(lv):
+        return sum(1 for r in results if r["report"]["overall_level"] == lv)
+
+    scores = [r["report"]["risk_score"] for r in results]
+    covs = [r["report"]["coverage_pct"] for r in results]
+    avg_score = round(sum(scores) / len(scores), 1) if scores else None
+    avg_cov = round(sum(covs) / len(covs), 1) if covs else None
+    lvl_emoji = {sr.RISK_HIGH: "🔴", sr.RISK_MEDIUM: "🟠",
+                 sr.RISK_LOW: "🟢", sr.RISK_UNKNOWN: "⚪"}
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric(f"{lvl_emoji[sr.RISK_HIGH]} 高风险", _cnt(sr.RISK_HIGH))
+    k2.metric(f"{lvl_emoji[sr.RISK_MEDIUM]} 中风险", _cnt(sr.RISK_MEDIUM))
+    k3.metric(f"{lvl_emoji[sr.RISK_LOW]} 低风险", _cnt(sr.RISK_LOW))
+    k4.metric(f"{lvl_emoji[sr.RISK_UNKNOWN]} 未知", _cnt(sr.RISK_UNKNOWN))
+    k5.metric("平均风险分", f"{avg_score}" if avg_score is not None else "—",
+              delta=f"覆盖 {avg_cov}%" if avg_cov is not None else None,
+              delta_color="off")
+
+    # 明细表：一行一只票，六维等级
+    def _cell(rep, key):
+        c = (rep.get("components") or {}).get(key) or {}
+        lv = c.get("level", sr.RISK_UNKNOWN)
+        return f"{lvl_emoji.get(lv, '')}{sr.LEVEL_CN.get(lv, '未知')}"
+
+    rows = []
+    for r in results:
+        rep = r["report"]
+        rows.append({
+            "代码": r["code"], "名称": r["name"],
+            "整体风险": f"{lvl_emoji.get(rep['overall_level'], '')}"
+                        f"{sr.LEVEL_CN.get(rep['overall_level'], '未知')}",
+            "风险分": rep["risk_score"],
+            "覆盖%": rep["coverage_pct"],
+            "商誉": _cell(rep, "goodwill"), "质押": _cell(rep, "pledge"),
+            "解禁": _cell(rep, "unlock"), "减持": _cell(rep, "reduction"),
+            "诉讼处罚": _cell(rep, "litigation"), "ST": _cell(rep, "st"),
+        })
+    df = pd.DataFrame(rows)
+    st.dataframe(
+        df, width="stretch", hide_index=True, height=380,
+        column_config={"风险分": st.column_config.ProgressColumn(
+            "风险分", min_value=0, max_value=100, format="%d",
+            help="100 = 未见风险，每命中一个高风险维度 -35、中风险 -15（仅按已取到的维度计）")},
+    )
+    try:
+        csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        st.download_button("⬇️ 导出排雷结果 CSV", data=csv,
+                           file_name="个股风险排雷.csv", mime="text/csv")
+    except Exception:
+        pass
+
+    # 单只钻取：选一只看六维明细与「未知」原因
+    st.markdown("### 🔎 单只风险明细")
+    opts = [f"{r['code']} {r['name']}" for r in results]
+    picked = st.selectbox("选择标的", opts, key="risk_drill")
+    if picked:
+        target = next((r for r in results if f"{r['code']} {r['name']}" == picked), None)
+        if target:
+            rep = target["report"]
+            oc = sr.LEVEL_COLOR.get(rep["overall_level"], "#8c8c8c")
+            st.markdown(
+                f'<div style="border-left:6px solid {oc};border-radius:8px;padding:10px 14px;'
+                f'background:rgba(128,128,128,0.08);">'
+                f'<b style="font-size:15px;">{target["code"]} {target["name"]}</b>'
+                f'　<span style="background:{oc};color:#fff;padding:2px 10px;border-radius:12px;'
+                f'font-size:12px;">整体 {sr.LEVEL_CN[rep["overall_level"]]}风险</span>'
+                f'　<span style="font-size:12px;color:#888;">风险分 {rep["risk_score"]}'
+                f' ｜ 覆盖率 {rep["coverage_pct"]}%'
+                f'{"（覆盖不足，结论仅供参考）" if not rep["reliable"] else ""}</span></div>',
+                unsafe_allow_html=True)
+            if rep["notes"]:
+                st.caption("⚠️ 以下维度**未取到数据**（按未知处理，不代表安全）："
+                           + "；".join(rep["notes"]))
+
+            for key, cn, unit in sr.DIMENSIONS:
+                c = (rep.get("components") or {}).get(key) or {}
+                lv = c.get("level", sr.RISK_UNKNOWN)
+                color = sr.LEVEL_COLOR.get(lv, "#8c8c8c")
+                with st.expander(f"{lvl_emoji.get(lv, '')} {cn} · {sr.LEVEL_CN.get(lv, '未知')}"
+                                 f"　{c.get('note', '')}", expanded=(lv == sr.RISK_HIGH)):
+                    st.caption(f"口径：{unit}")
+                    detail = c.get("detail") or []
+                    if detail:
+                        st.dataframe(pd.DataFrame(detail), width="stretch", hide_index=True)
+                    elif not c.get("note"):
+                        st.caption("无明细。")
+
+            jc1, jc2 = st.columns([1, 1])
+            with jc1:
+                if st.button("跳转个股研究", key=f"risk_jump_{target['code']}"):
+                    safe_switch_page("pages/24_个股研究.py")
+            with jc2:
+                if st.button("查看资金流向", key=f"risk_flow_{target['code']}"):
+                    safe_switch_page("pages/35_资金流向.py")
+
+
+risk_board()
+
