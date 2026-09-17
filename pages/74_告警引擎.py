@@ -7,6 +7,9 @@
 - 指标来自既有本地数据源（牧羊人情绪指标 + 决策快照 + 市场状态机）；
 - 通道：日志文件**默认可用**；企业微信 / 飞书机器人需配 ``WECOM_WEBHOOK`` /
   ``FEISHU_WEBHOOK`` 环境变量，**未配置即标「不可用」，绝不伪造发送**；
+- **推送闭环（H7）**：触发结果可直接推到老板微信——优先走 ``modules.push_channel``
+  探测到的「微信桥接」（Server酱 / PushPlus / 企微应用，含每日额度保护），
+  发送失败 / 未配置一律**如实展示真实原因**，不谎报成功；
 - 条件三值逻辑：指标缺失=未知，AND 规则遇未知**不报**（宁可漏报不误报）。
 
 ⚠️ 规则为启发式阈值，非预测；告警只是提示「值得看一眼」，不构成投资建议。
@@ -22,6 +25,7 @@ import streamlit as st
 from modules.alert_rules import (
     channel_status, evaluate_all, load_rules, save_rules, write_alert_log,
 )
+from modules import push_channel
 from modules.page_utils import render_standard_page
 from modules.ui_theme import section_header, sf_metric
 
@@ -142,7 +146,7 @@ else:
                 st.success("✅ 已写入 data/alerts.log") if write_alert_log(lines) \
                     else st.warning("⚠️ 日志写入失败（磁盘异常）。")
 
-# ── ④ 通道状态 ────────────────────────────────────────────────────────
+# ── ④ 通道状态（真实探测） ─────────────────────────────────────────────
 st.markdown("---")
 section_header("通知通道状态", "未配置凭证的通道标为不可用；不伪造发送", icon="📡")
 for key, (label, ok) in channel_status().items():
@@ -150,6 +154,44 @@ for key, (label, ok) in channel_status().items():
         st.markdown(f"- ✅ **{label}** —— 可用")
     else:
         st.markdown(f"- ⛔ **{label}** —— 未配置（设环境变量后可用）")
+
+st.caption("以下为实际用于推送的通道探测结果（推送优先走微信桥接）：")
+for _k, _v in push_channel.channel_status().items():
+    if _v["available"]:
+        st.markdown(f"- ✅ **{_v['label']}** —— 可用 ｜ {_v['detail']}")
+    else:
+        st.markdown(f"- ⛔ **{_v['label']}** —— 不可用 ｜ {_v['detail']}")
+
+# ── ⑤ 推送闭环（H7） ──────────────────────────────────────────────────
+st.markdown("---")
+section_header("推送到微信", "把本次触发的告警推到老板微信；未配置通道则如实报告原因", icon="📲")
+_triggered_for_push = []
+if not parse_err and snapshot:
+    try:
+        _triggered_for_push = [r for r in evaluate_all(parsed, snapshot) if r["triggered"]]
+    except Exception:  # noqa: BLE001
+        _triggered_for_push = []
+
+_pc1, _pc2 = st.columns([1, 3])
+with _pc1:
+    if st.button("📲 推送本次告警", key="alert_push", width="stretch",
+                 disabled=not _triggered_for_push,
+                 help="无触发规则时不可推送（避免发空消息）。"):
+        _msg = push_channel.build_alert_message(_triggered_for_push, snapshot)
+        with st.spinner("正在推送…"):
+            _res = push_channel.push_text(_msg)
+        if _res["sent"]:
+            st.success(f"✅ 已推送（通道：{_res['channel']}）—— {_res['reason']}")
+        else:
+            st.error(f"⚠️ 推送失败（通道：{_res['channel']}）：{_res['reason']}")
+        with st.expander("查看推送内容", expanded=False):
+            st.code(_msg, language="text")
+with _pc2:
+    if _triggered_for_push:
+        st.caption(f"待推送 **{len(_triggered_for_push)}** 条触发规则；"
+                   "推送内容含指标快照与「非预测」免责声明。")
+    else:
+        st.caption("当前无触发规则，无可推送内容。")
 
 st.caption("⚠️ 说明：告警为启发式阈值触发，非预测模型，不构成投资建议；"
            "「触发」只代表值得关注，不代表必然发生。")
