@@ -109,6 +109,7 @@ class TaskWorker:
         self.register_handler("compare", _handle_compare)
         self.register_handler("ai_consult", _handle_ai_consult)
         self.register_handler("quant_research", _handle_quant_research)
+        self.register_handler("ai_research", _handle_ai_research)
 
     def register_handler(self, task_type: str, handler: Callable[[Dict[str, Any]], Any]) -> None:
         self._handlers[task_type] = handler
@@ -286,6 +287,38 @@ def _handle_ai_consult(payload: Dict[str, Any]) -> Dict[str, Any]:
     question = payload.get("question", "")
     context = payload.get("context", {})
     return ai_answer(question, context)
+
+
+def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """执行 H1 AI 研究智能体（多步工具调用 + 引用溯源）。
+
+    payload:
+      - question: 用户问题（必填）
+      - max_steps: 最大工具调用步数（可选，默认 6，上限 8）
+    每步经 progress_bus 上报（stage="research"），前端任务轮询可见过程。
+    契约见 .workbuddy/specs/ai_research_agent_contract.md。
+    """
+    import modules.research_agent as ra
+    from backend.tasks.progress_bus import report
+
+    question = str(payload.get("question", "")).strip()
+    if not question:
+        raise ValueError("question 不能为空")
+    task_id = payload.get("__task_id__")
+    try:
+        max_steps = int(payload.get("max_steps") or 6)
+    except (TypeError, ValueError):
+        max_steps = 6
+
+    def _on_step(message: str) -> None:
+        if not task_id:
+            return
+        try:
+            report(task_id, "research", message)
+        except Exception:  # noqa: BLE001 - 进度上报失败不影响研究主流程
+            pass
+
+    return ra.run_research(question, max_steps=max_steps, on_step=_on_step)
 
 
 def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:

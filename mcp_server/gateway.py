@@ -40,18 +40,43 @@ _TOOL_FUNCS: Dict[str, str] = {
 
 
 def available_tools() -> list[str]:
-    """返回当前网关支持的工具名列表。"""
-    return list(_TOOL_FUNCS.keys())
+    """返回当前网关支持的工具名列表。
+
+    单一真理源（2026-09-17 修复漂移）：手抄表 ∪ MCP 注册表全集——
+    此前手抄 11 个、注册表已 16 个，5 个「诚实口径」工具（data_health/macro/lhb/
+    ai_skills/p1_signal）在站内网关不可达。此后新增 MCP 工具自动可用，无需再抄。
+    """
+    names = set(_TOOL_FUNCS.keys())
+    try:
+        from .server import TOOLS
+        from . import tools as _tools  # noqa: F401  (注册副作用，幂等)
+
+        names.update(TOOLS.keys())
+    except Exception as e:  # noqa: BLE001 - 注册表不可用时退回手抄表
+        logger.warning(f"[mcp_gateway] 注册表不可用，退回手抄工具表: {e}")
+    return list(names)
 
 
 def _resolve_func(name: str):
-    """按工具名取真实函数（延迟 import tools 模块触发注册副作用）。"""
-    if name not in _TOOL_FUNCS:
-        return None
-    # 导入 tools 模块会执行 @register_tool 注册（幂等），同时确保函数已定义
-    from . import tools as _tools  # noqa: F401  (注册副作用)
+    """按工具名取真实函数（延迟 import tools 模块触发注册副作用）。
 
-    return getattr(_tools, _TOOL_FUNCS[name], None)
+    解析顺序：手抄表 → MCP 注册表 handler 兜底（单一真理源）。
+    """
+    if name in _TOOL_FUNCS:
+        # 导入 tools 模块会执行 @register_tool 注册（幂等），同时确保函数已定义
+        from . import tools as _tools  # noqa: F401  (注册副作用)
+
+        return getattr(_tools, _TOOL_FUNCS[name], None)
+    try:
+        from .server import TOOLS
+        from . import tools as _tools  # noqa: F401  (注册副作用)
+
+        meta = TOOLS.get(name)
+        if meta:
+            return meta.get("handler")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[mcp_gateway] 工具 {name} 注册表解析失败: {e}")
+    return None
 
 
 def call_tool(name: str, **kwargs: Any) -> Dict[str, Any]:

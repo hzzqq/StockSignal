@@ -23,14 +23,13 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+from modules.colors import DOWN_COLOR, UP_COLOR  # 单一真理源：A 股红涨绿跌（守卫 test_colors）
+
 __all__ = [
     "SECTION_KEYS", "UP_COLOR", "DOWN_COLOR",
     "build_report", "render_html", "render_markdown",
 ]
 
-# A 股配色：红=涨/流入，绿=跌/流出
-UP_COLOR = "#ee2a2a"
-DOWN_COLOR = "#1aa260"
 _FLAT = "#8c8c8c"
 
 SECTION_KEYS = [

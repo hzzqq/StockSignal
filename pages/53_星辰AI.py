@@ -343,6 +343,59 @@ def _avatar_text(username: str) -> str:
     return username[:2].upper()
 
 
+# ── H1 研究智能体结果卡片（additive 2026-09-17）：回答 + 研究过程时间线 + 引用溯源 ──
+_RESEARCH_STEP_ICON = {"ok": "✅", "error": "❌", "rejected": "🚫"}
+_RESEARCH_STATUS_ICON = {"ok": "✅", "partial": "🟡", "unavailable": "⛔"}
+
+
+def render_research_card(result: dict) -> None:
+    """渲染研究智能体结果：回答气泡（assistant 风格）+ 可展开的研究过程 + 引用。"""
+    status = str(result.get("status", "unknown"))
+    st_icon = _RESEARCH_STATUS_ICON.get(status, "⚙️")
+    answer = str(result.get("answer") or "（研究未产出回答）")
+    st.markdown(
+        '<div class="xc-msg"><div class="xc-av">🔬</div>'
+        '<div class="xc-col"><div class="xc-who">'
+        '<span class="xc-name">星辰研究</span><span class="xc-role">研究智能体</span>'
+        '</div>'
+        f'<div class="xc-bubble">{_md_to_html(answer)}</div>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+    steps = result.get("steps") or []
+    citations = result.get("citations") or []
+    limitations = result.get("limitations") or []
+    if steps:
+        elapsed = result.get("elapsed_s")
+        elapsed_s = f" · 耗时 {elapsed}s" if isinstance(elapsed, (int, float)) else ""
+        with st.expander(
+            f"🔬 研究过程（{len(steps)} 步 · {st_icon} {status}{elapsed_s}）", expanded=False
+        ):
+            for s in steps:
+                if not isinstance(s, dict):
+                    continue
+                s_icon = _RESEARCH_STEP_ICON.get(str(s.get("status")), "⚙️")
+                as_of = f" · 数据截至 {esc(str(s['data_as_of']))}" if s.get("data_as_of") else ""
+                dur = s.get("duration_ms")
+                dur_s = f" · {dur}ms" if isinstance(dur, (int, float)) else ""
+                reason = f" — {esc(str(s['reason']))}" if s.get("reason") else ""
+                st.markdown(
+                    f"{s_icon} **S{esc(str(s.get('idx', '?')))}** "
+                    f"`{esc(str(s.get('tool', '?')))}`{dur_s}{as_of}{reason}"
+                )
+            if limitations:
+                st.warning("；".join(str(x) for x in limitations[:6]))
+    if citations:
+        with st.expander(f"📎 引用溯源（{len(citations)} 项）", expanded=False):
+            for c in citations:
+                if not isinstance(c, dict):
+                    continue
+                st.markdown(
+                    f"- [S{esc(str(c.get('step', '?')))}] `{esc(str(c.get('tool', '?')))}` "
+                    f"— 数据时点 {esc(str(c.get('as_of') or '未知'))}"
+                )
+
+
 def render_message(m: dict, idx: int, username: str) -> None:
     if m.get("role") == "user":
         st.markdown(
@@ -359,6 +412,11 @@ def render_message(m: dict, idx: int, username: str) -> None:
     # tool 卡片（MCP 工具返回的结构化数据透视）
     if m.get("role") == "tool":
         render_tool_card(m.get("tool", ""), m.get("payload") or {})
+        return
+
+    # H1 研究智能体卡片（多步工具调用 + 引用溯源，additive 2026-09-17）
+    if m.get("role") == "research":
+        render_research_card(m.get("payload") or {})
         return
 
     # assistant
@@ -723,6 +781,16 @@ st.caption("⚠️ 数据仅供参考，不构成投资建议；AI 回答为模�
 # 加法式数据来源标注
 st.caption("📡 数据来源：东方财富 / 新浪财经 / 公开财经资讯（经后端 ai_consult 任务聚合）")
 
+# ── H1 深度研究开关（additive，2026-09-17）：开启后提问走研究智能体任务 ──
+st.checkbox(
+    "🔬 深度研究模式（多步工具调用 · 引用溯源 · 较慢）",
+    value=bool(st.session_state.get("xc_deep_mode", False)),
+    key="xc_deep_mode",
+    help="开启后问题交给研究智能体：自动调用行情 / 技术面 / 新闻 / 市场情绪等真实数据工具，"
+         "每一步与数据时点（as_of）全程留痕，回答附 [S#] 引用可溯源。"
+         "比普通问答慢（约 1 分钟），全程只读、不会下单。",
+)
+
 # 加法式页面间快捷跳转：关联功能页（新增，不改动既有布局）
 st.markdown("**🔗 相关页面**")
 _pc1, _pc2, _pc3 = st.columns(3)
@@ -804,11 +872,14 @@ def fragment_chat():
             )
             st.rerun(scope="fragment")
         st.session_state["xc_messages"].append({"role": "user", "content": prompt})
+        # H1 深度研究模式：开启时问题走 ai_research（多步工具调用 + 引用溯源），
+        # 不做意图拦截（智能体自行规划工具），避免双重工具调用。
+        _deep = bool(st.session_state.get("xc_deep_mode"))
         # 加法式：意图识别 → 命中的结构化请求直接走 MCP 工具网关拿真实数据，
         # 渲染为「数据透视」卡片，与后台 ai_answer 的自然语言回答并存、互为补充。
         # 仅当置信度足够高（有明确标的或无需标的）才拦截，否则仍交后台 AI 自由回答。
-        _intent = detect_intent(prompt)
-        if _intent["tool"] and _intent["confidence"] >= 0.85:
+        _intent = {"tool": None} if _deep else detect_intent(prompt)
+        if not _deep and _intent["tool"] and _intent["confidence"] >= 0.85:
             _tool_res = call_tool(_intent["tool"], **_intent["params"])
             st.session_state["xc_messages"].append(
                 {"role": "tool", "tool": _intent["tool"], "payload": _tool_res}
@@ -830,10 +901,16 @@ def fragment_chat():
         ctx["history"] = history[-6:]
         # 加法式加载态反馈：提交后台 AI 任务属网络请求，用 spinner 提示等待
         with st.spinner("加载中…"):
-            task_id, err = submit_task_with_error("ai_consult", {"question": prompt, "context": ctx})
+            _task_type = "ai_research" if _deep else "ai_consult"
+            _task_payload = (
+                {"question": prompt, "max_steps": 6} if _deep
+                else {"question": prompt, "context": ctx}
+            )
+            task_id, err = submit_task_with_error(_task_type, _task_payload)
         if task_id:
             st.session_state["xc_task_id"] = task_id
             st.session_state["xc_task_started_at"] = time.time()
+            st.session_state["xc_task_is_research"] = _deep
             # 加法式操作成功反馈：已成功提交分析任务
             st.toast("✅ 已发送，星辰 AI 正在分析…")
             st.rerun(scope="fragment")
@@ -888,12 +965,19 @@ def _poll_ai_task():
         return
     if task and task.get("status") == "success":
         result = task.get("result") or {}
-        answer = result.get("answer") or "AI 暂未给出回答"
-        st.session_state["xc_messages"].append({"role": "assistant", "content": answer})
+        # H1：研究智能体结果带步骤/引用 → 渲染为 research 卡片；否则走普通回答
+        if st.session_state.pop("xc_task_is_research", None) and \
+                isinstance(result, dict) and result.get("steps"):
+            st.session_state["xc_messages"].append({"role": "research", "payload": result})
+        else:
+            st.session_state.pop("xc_task_is_research", None)
+            answer = result.get("answer") or "AI 暂未给出回答"
+            st.session_state["xc_messages"].append({"role": "assistant", "content": answer})
         st.session_state["xc_task_id"] = None
         st.session_state["xc_task_started_at"] = None
         st.rerun(scope="app")
     elif task and task.get("status") == "error":
+        st.session_state.pop("xc_task_is_research", None)
         st.session_state["xc_messages"].append(
             {"role": "assistant", "content": f"❌ AI 分析失败：{task.get('error') or '未知错误'}"}
         )
@@ -903,6 +987,7 @@ def _poll_ai_task():
     else:
         started = st.session_state.get("xc_task_started_at") or time.time()
         if time.time() - started > 240:
+            st.session_state.pop("xc_task_is_research", None)
             st.session_state["xc_messages"].append(
                 {"role": "assistant", "content": "❌ AI 响应超时，请重新提问。"}
             )
