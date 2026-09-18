@@ -168,9 +168,14 @@ class _FakePool:
 @pytest.fixture
 def wire(monkeypatch):
     monkeypatch.setenv("SS_PROXY_POOL", "1")
+    # T-128：本文件只应验证代理轮换逻辑本身。ru 的熔断/节流状态是模块级全局，
+    # 其他测试（页面冒烟经 _verify_token 真打 127.0.0.1:5050）记账的冷却会泄漏进来，
+    # 令本文件测试撞 CircuitOpenError。前后各清一次，与 test_request_governance 同范式。
+    ru.reset_governance()
     fs = _FakeReqSession()
     monkeypatch.setattr(ru, "get_session", lambda: fs)
-    return fs
+    yield fs
+    ru.reset_governance()
 
 
 def test_request_utils_rotates_proxy_on_failure(wire, monkeypatch):
