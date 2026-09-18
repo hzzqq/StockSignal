@@ -8,6 +8,7 @@
 全部离线（monkeypatch 本地快照 + time），不触网。
 """
 
+import datetime as _dtmod
 import json
 import time as _time
 
@@ -25,6 +26,15 @@ def _patch(monkeypatch, tmp_path, snap, mtime_epoch, now_epoch):
     monkeypatch.setattr(D, "load_snapshot", lambda *a, **k: snap)
     monkeypatch.setattr(D.os.path, "getmtime", lambda p: mtime_epoch)
     monkeypatch.setattr(_time, "time", lambda: now_epoch)
+
+    # T-128：assess_decision_loop_health 在快照带 generated_at 时改用 datetime.now()
+    # 计算 gen_lag（modules/decision.py），time.time 补丁盖不住该旁路 → 冻结 datetime。
+    class _FrozenDatetime(_dtmod.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return _dtmod.datetime.fromtimestamp(now_epoch, tz)
+
+    monkeypatch.setattr(_dtmod, "datetime", _FrozenDatetime)
 
 
 def test_health_ok_for_fresh_snapshot(monkeypatch, tmp_path):
