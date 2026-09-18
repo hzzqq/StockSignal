@@ -83,6 +83,11 @@ def test_portfolio_series_no_attribute_error(monkeypatch):
     bad = [e for e in errs if "AttributeError" in e or ("组合收益" in e and "加载失败" in e)]
     assert not bad, f"组合收益 fragment 仍渲染错误卡片: {errs}"
     assert not at.exception, f"组合收益 fragment 抛未捕获异常: {[str(e) for e in at.exception]}"
-    # 正向确认：净值曲线成功构建并渲染（pidx 非 None → 渲染「组合累计收益」指标）
-    labels = [m.label for m in at.metric]
-    assert "组合累计收益" in labels, f"组合净值未正常构建（预期出现『组合累计收益』指标）；当前指标: {labels}"
+    # 正向确认：净值曲线成功构建并渲染（pidx 非 None → 渲染「组合累计收益」KPI 卡 + 图表）。
+    # T-128：全站 KPI 已迁移 ui_kit.xc_kpi_grid（纯 HTML markdown，canonical 替代 st.metric），
+    # 旧断言探 at.metric 在迁移后恒空（守卫自我失效）。改探 markdown HTML 文本：
+    # 「组合累计收益」KPI 卡仅在 pidx 非 None 分支渲染；图表渲染失败会进 at.exception 被上方断言兜住。
+    md_texts = "".join(str(getattr(m, "value", "")) for m in at.markdown)
+    assert "组合累计收益" in md_texts, (
+        f"组合净值未正常构建（KPI 卡未出现『组合累计收益』）；markdown 片段数: {len(list(at.markdown))}"
+    )
