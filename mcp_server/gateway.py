@@ -38,6 +38,27 @@ _TOOL_FUNCS: Dict[str, str] = {
     "get_market_sentiment": "get_market_sentiment",
 }
 
+# 网关默认总超时（秒）：与底层网络默认超时(10s) < CALL_TIMEOUT_CAP(12s) 保持一致，
+# 正常阻塞路径下工具会在边界内自行返回，线程回池复用、不泄漏。
+_GATEWAY_TIMEOUT = 12
+
+# 分工具超时（T-122，2026-09-17）：重工具的 gateway 护栏必须 ≥ 其内部护栏，
+# 否则站内调用永远被统一 12s 砍死（外部 stdio MCP 无此护栏，行为不一致）：
+# - get_market_sentiment：实测冷启动 47.5s（akshare 限速拉 17 项牧羊人指标）
+# - smart_pick / run_backtest：内部 run_with_timeout 90s / 60s
+# 未列出的工具一律回落默认 12s（get_kline 5.0s / analyze_technical 2.2s 实测无需分档）。
+# 配置块必须位于 call_tool 使用点之前（守卫 test_t124_timeout_config_defined_before_use）。
+_PER_TOOL_TIMEOUT: Dict[str, int] = {
+    "get_market_sentiment": 60,
+    "smart_pick": 100,
+    "run_backtest": 70,
+}
+
+
+def _timeout_for(name: str) -> int:
+    """取某工具的 gateway 超时（分档覆盖，未登记回落默认）。"""
+    return _PER_TOOL_TIMEOUT.get(name, _GATEWAY_TIMEOUT)
+
 
 def available_tools() -> list[str]:
     """返回当前网关支持的工具名列表。
@@ -104,33 +125,12 @@ def call_tool(name: str, **kwargs: Any) -> Dict[str, Any]:
         return {"ok": False, "error": f"工具调用异常: {e}"}
 
     if result is None:
-        return {"ok": False, "error": f"工具调用超时（>{_GATEWAY_TIMEOUT}s）或内部无返回: {name}"}
+        return {"ok": False, "error": f"工具调用超时（>{_timeout_for(name)}s）或内部无返回: {name}"}
 
     # 工具自身已约定：出错时返回含 "error" 键的 dict
     if isinstance(result, dict) and result.get("error"):
         return {"ok": False, "error": result["error"], "data": result}
     return {"ok": True, "data": result}
-
-
-# 网关默认总超时（秒）：与底层网络默认超时(10s) < CALL_TIMEOUT_CAP(12s) 保持一致，
-# 正常阻塞路径下工具会在边界内自行返回，线程回池复用、不泄漏。
-_GATEWAY_TIMEOUT = 12
-
-# 分工具超时（T-122，2026-09-17）：重工具的 gateway 护栏必须 ≥ 其内部护栏，
-# 否则站内调用永远被统一 12s 砍死（外部 stdio MCP 无此护栏，行为不一致）：
-# - get_market_sentiment：实测冷启动 47.5s（akshare 限速拉 17 项牧羊人指标）
-# - smart_pick / run_backtest：内部 run_with_timeout 90s / 60s
-# 未列出的工具一律回落默认 12s。
-_PER_TOOL_TIMEOUT = {
-    "get_market_sentiment": 60,
-    "smart_pick": 100,
-    "run_backtest": 70,
-}
-
-
-def _timeout_for(name: str) -> int:
-    """取某工具的 gateway 超时（分档覆盖，未登记回落默认）。"""
-    return _PER_TOOL_TIMEOUT.get(name, _GATEWAY_TIMEOUT)
 
 
 # ── 意图识别：把自然语言问句映射到工具 + 参数提取 ────────────────────────────

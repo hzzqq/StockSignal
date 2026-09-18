@@ -481,6 +481,37 @@ def test_t122_tool_cache_helper_backward_compatible():
     assert mt._tool_cache_get("k:test") == {"a": 1}
 
 
+# ---------------------------------------------------------------------------
+# T-124：分工具超时配置修复（错误消息报告真实分档 + 配置块位置归位）
+# ---------------------------------------------------------------------------
+def test_t124_timeout_error_message_reports_actual_tier(monkeypatch):
+    """超时错误消息必须报告真实分档上限：sentiment（60s 档）被砍时报 >60s，而非硬编码 >12s。"""
+    import mcp_server.gateway as gw
+    import modules.timeout_exec as te
+
+    monkeypatch.setattr(te, "run_with_timeout", lambda fn, timeout=None: None)  # 模拟超时
+    monkeypatch.setattr(gw, "_resolve_func", lambda n: lambda **kw: {"x": 1})
+
+    res = gw.call_tool("get_market_sentiment")
+    assert res["ok"] is False
+    assert ">60s" in res["error"], f"错误消息未反映真实分档: {res['error']}"
+
+    res2 = gw.call_tool("get_realtime_quote")  # 默认档仍报 12s
+    assert ">12s" in res2["error"], f"默认档错误消息异常: {res2['error']}"
+
+
+def test_t124_timeout_config_defined_before_use():
+    """配置块（_PER_TOOL_TIMEOUT/_timeout_for）必须在 call_tool 使用点之前定义（可读性/防误改）。"""
+    import inspect
+
+    import mcp_server.gateway as gw
+
+    src = inspect.getsource(gw)
+    pos_use = src.index("timeout=_timeout_for(name)")
+    pos_def = src.index("_PER_TOOL_TIMEOUT: Dict[str, int] = {")
+    assert pos_def < pos_use, "_PER_TOOL_TIMEOUT 定义出现在 call_tool 使用点之后（应上移到常量区）"
+
+
 def test_t122_sentiment_failure_not_cached(monkeypatch):
     """失败/空结果绝不缓存（诚实语义）：全源失败时每次重试，不得把网络抖动放大成 5 分钟假数据。"""
     import modules.shepherd as shepherd
