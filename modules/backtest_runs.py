@@ -24,7 +24,7 @@ MAX_KEEP = 100
 
 def new_run_id() -> str:
     """生成可读且唯一的 run ID（时间戳 + 随机后缀）。"""
-    return datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
+    return datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:12]
 
 
 def sanitize(obj):
