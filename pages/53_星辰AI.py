@@ -899,11 +899,20 @@ def fragment_chat():
         ]
         ctx = _slim_context()
         ctx["history"] = history[-6:]
+        # T-138 深度研究多轮记忆：提交时附带最近 ≤6 条真实对话（跳过 WELCOME 系统提示，
+        # 仅 user/assistant 角色），供规划器解析「它呢」「再看 600519」类追问；
+        # ai_consult 既有 history 行为不动（additive-only）。
+        _deep_history = [
+            {"role": mm.get("role"), "content": str(mm.get("content", ""))}
+            for mm in st.session_state["xc_messages"][:-1]
+            if isinstance(mm, dict) and mm.get("role") in ("user", "assistant")
+            and str(mm.get("content", "")) != WELCOME.get("content")
+        ][-6:]
         # 加法式加载态反馈：提交后台 AI 任务属网络请求，用 spinner 提示等待
         with st.spinner("加载中…"):
             _task_type = "ai_research" if _deep else "ai_consult"
             _task_payload = (
-                {"question": prompt, "max_steps": 6} if _deep
+                {"question": prompt, "max_steps": 6, "history": _deep_history} if _deep
                 else {"question": prompt, "context": ctx}
             )
             task_id, err = submit_task_with_error(_task_type, _task_payload)

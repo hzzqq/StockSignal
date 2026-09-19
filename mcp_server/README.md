@@ -88,7 +88,7 @@ PYTHONPATH=E:/project/ks/StockSignal \
   C:/Users/Administrator/.workbuddy/binaries/python/envs/default/Scripts/python.exe \
   E:/project/ks/StockSignal/mcp_server/run.py --self-test
 ```
-应列出 16 个工具并跑通离线自检。
+应列出 18 个工具并跑通离线自检。
 
 ## 配套 Prompt
 

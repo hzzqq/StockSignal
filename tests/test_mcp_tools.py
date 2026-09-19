@@ -54,3 +54,88 @@ def test_new_tools_are_thin_forwarders_not_stubs():
         assert "from modules import" in src or "import modules" in src, (
             f"{name} 疑似空壳：未转发到 modules.*"
         )
+
+
+# ---------------------------------------------------------------------------
+# T-138：估值深钻 / 风险排雷薄转发工具（H2/H6 能力暴露）
+# ---------------------------------------------------------------------------
+T138_TOOLS = ("get_valuation", "list_risk_alerts")
+
+
+@pytest.mark.parametrize("name", T138_TOOLS)
+def test_t138_tool_registered_with_schema(name):
+    assert name in _srv.TOOLS, f"T-138 新工具 {name} 未注册"
+    entry = _srv.TOOLS[name]
+    assert callable(entry["handler"])
+    assert entry["description"]
+
+
+@pytest.mark.parametrize("name", T138_TOOLS)
+def test_t138_tools_are_thin_forwarders(name):
+    import inspect
+
+    src = inspect.getsource(_srv.TOOLS[name]["handler"])
+    assert "from modules" in src, f"{name} 疑似空壳：未转发到 modules.*"
+
+
+def test_t138_get_valuation_passthrough(monkeypatch):
+    import modules.valuation as val
+
+    seen = {}
+
+    def _fake(code, period="近十年"):
+        seen["code"], seen["period"] = code, period
+        return {"pe": [11.2, 12.0], "pb": [1.8], "span": "2016~2026"}
+
+    monkeypatch.setattr(val, "fetch_pe_pb_series", _fake)
+    out = _tools_pkg.get_valuation("600519", period="近三年")
+    assert out == {"pe": [11.2, 12.0], "pb": [1.8], "span": "2016~2026"}  # 原样透传不加工
+    assert seen == {"code": "600519", "period": "近三年"}
+
+
+def test_t138_get_valuation_none_wraps_unavailable(monkeypatch):
+    import modules.valuation as val
+
+    monkeypatch.setattr(val, "fetch_pe_pb_series", lambda code, period="近十年": None)
+    out = _tools_pkg.get_valuation("600519")
+    assert out["ok"] is False
+    assert out["error"]  # 诚实语义：数据不足如实说明，绝不编造默认值
+
+
+def test_t138_get_valuation_exception_wraps_ok_false(monkeypatch):
+    import modules.valuation as val
+
+    def _boom(code, period="近十年"):
+        raise RuntimeError("估值源不可达")
+
+    monkeypatch.setattr(val, "fetch_pe_pb_series", _boom)
+    out = _tools_pkg.get_valuation("600519")
+    assert out["ok"] is False
+    assert "估值源不可达" in out["error"]
+
+
+def test_t138_list_risk_alerts_passthrough(monkeypatch):
+    import modules.stock_risk as sr
+
+    seen = {}
+
+    def _fake(code, name=None, st_set=None):
+        seen["code"] = code
+        return {"code": code, "components": {"质押": {"ratio": 0.3}}, "errors": []}
+
+    monkeypatch.setattr(sr, "scan_stock", _fake)
+    out = _tools_pkg.list_risk_alerts("000001")
+    assert out["components"] == {"质押": {"ratio": 0.3}}
+    assert seen == {"code": "000001"}
+
+
+def test_t138_list_risk_alerts_exception_wraps_ok_false(monkeypatch):
+    import modules.stock_risk as sr
+
+    def _boom(code, name=None, st_set=None):
+        raise RuntimeError("排雷源不可达")
+
+    monkeypatch.setattr(sr, "scan_stock", _boom)
+    out = _tools_pkg.list_risk_alerts("000001")
+    assert out["ok"] is False
+    assert "排雷源不可达" in out["error"]

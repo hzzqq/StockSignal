@@ -739,6 +739,52 @@ def get_p1_signal() -> Dict[str, Any]:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
+# ---------------------------------------------------------------------------
+# 工具 17/18：估值深钻 / 风险排雷（T-138，H2/H6 能力薄转发，2026-09-18）
+# ---------------------------------------------------------------------------
+def get_valuation(code: str, period: str = "近十年") -> Dict[str, Any]:
+    """个股估值深钻：PE(TTM)/PB 历史序列与分位带。
+
+    Args:
+        code: 股票代码或名称
+        period: 近一年 / 近三年 / 近五年 / 近十年（默认近十年）
+
+    Returns:
+        modules.valuation.fetch_pe_pb_series 原样透传（不加工，含其自带状态字段）；
+        数据不足（None）或异常 → {"ok": False, "error": ...}，诚实语义，绝不编造。
+    """
+    try:
+        from modules import valuation
+
+        res = valuation.fetch_pe_pb_series(code, period)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    if not res:
+        return {"ok": False, "error": f"未获取到 {code} 的估值序列（{period} 数据不足或源不可用）"}
+    return _jsonable(res)
+
+
+def list_risk_alerts(code: str) -> Dict[str, Any]:
+    """个股风险排雷：商誉/质押/解禁/减持/诉讼/ST 等六维风险点扫描（只读）。
+
+    Args:
+        code: 股票代码或名称
+
+    Returns:
+        modules.stock_risk.scan_stock 原样透传（{"code","name","components","report","errors"}）；
+        异常 → {"ok": False, "error": ...}，绝不静默。
+    """
+    try:
+        from modules.stock_risk import scan_stock
+
+        res = _jsonable(scan_stock(code))
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    if not isinstance(res, dict):
+        return {"ok": False, "error": f"排雷扫描返回异常结构: {type(res).__name__}"}
+    return res
+
+
 def _register_all() -> None:
     register_tool(
         "get_kline",
@@ -949,6 +995,38 @@ def _register_all() -> None:
         "P1 事件因子信号文件的 latest_date，用于判断事件因子是否陈旧（若停在很久以前，决策已被降权）。",
         {"type": "object", "properties": {}, "required": []},
         get_p1_signal,
+    )
+    register_tool(
+        "get_valuation",
+        "个股估值深钻：PE(TTM)/PB 历史序列与分位带（近一年/近三年/近五年/近十年），"
+        "用于回答估值贵不贵、历史分位类问题。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "股票代码(如600519)或名称(如贵州茅台)"},
+                "period": {
+                    "type": "string",
+                    "enum": ["近一年", "近三年", "近五年", "近十年"],
+                    "description": "回看区间，默认近十年",
+                    "default": "近十年",
+                },
+            },
+            "required": ["code"],
+        },
+        get_valuation,
+    )
+    register_tool(
+        "list_risk_alerts",
+        "个股风险排雷：商誉/质押/解禁/减持/诉讼/ST 等风险点扫描，"
+        "用于回答排雷、风险清单、质押/解禁类问题。只读。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "股票代码(如600519)或名称(如贵州茅台)"},
+            },
+            "required": ["code"],
+        },
+        list_risk_alerts,
     )
 
 

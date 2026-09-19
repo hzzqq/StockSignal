@@ -121,3 +121,37 @@ def test_call_tool_timeout_guard(monkeypatch):
     r = gw.call_tool("slow_tool")
     assert r["ok"] is False
     assert "超时" in r["error"]
+
+
+# ---------------------------------------------------------------------------
+# T-138：估值深钻 / 风险排雷工具经 gateway 自动可用（registry union）
+# ---------------------------------------------------------------------------
+def test_t138_available_tools_include_valuation_and_risk_alerts():
+    tools = gw.available_tools()
+    assert "get_valuation" in tools
+    assert "list_risk_alerts" in tools
+
+
+def test_t138_call_tool_valuation_smoke(monkeypatch):
+    """gateway → 注册表 handler → modules.valuation 链路冒烟（离线注入，零网络）。"""
+    import modules.valuation as val
+
+    monkeypatch.setattr(
+        val, "fetch_pe_pb_series",
+        lambda code, period="近十年": {"pe": [11.0], "pb": [1.7], "span": "t"},
+    )
+    r = gw.call_tool("get_valuation", code="600519")
+    assert r.get("ok") is True
+    assert r.get("data", {}).get("pe") == [11.0]
+
+
+def test_t138_call_tool_risk_alerts_smoke(monkeypatch):
+    import modules.stock_risk as sr
+
+    monkeypatch.setattr(
+        sr, "scan_stock",
+        lambda code, name=None, st_set=None: {"code": code, "components": {}, "errors": []},
+    )
+    r = gw.call_tool("list_risk_alerts", code="000001")
+    assert r.get("ok") is True
+    assert r.get("data", {}).get("code") == "000001"

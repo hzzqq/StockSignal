@@ -295,6 +295,7 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
     payload:
       - question: 用户问题（必填）
       - max_steps: 最大工具调用步数（可选，默认 6，上限 8）
+      - history: 最近对话（可选，[{role, content}]，≤8 条；非法整体忽略，降级单轮）
     每步经 progress_bus 上报（stage="research"），前端任务轮询可见过程。
     契约见 .workbuddy/specs/ai_research_agent_contract.md。
     """
@@ -318,7 +319,15 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
         except Exception:  # noqa: BLE001 - 进度上报失败不影响研究主流程
             pass
 
-    return ra.run_research(question, max_steps=max_steps, on_step=_on_step)
+    # T-138 M4：可选 history（多轮记忆）——list 且 ≤8 条、每项为 dict 才放行；
+    # 不合法 → 丢弃并照旧单轮执行（不报错不中断）；条目级规范化由 research_agent 负责。
+    history = payload.get("history")
+    extra: Dict[str, Any] = {}
+    if isinstance(history, list) and len(history) <= 8 \
+            and all(isinstance(h, dict) for h in history):
+        extra["history"] = history
+
+    return ra.run_research(question, max_steps=max_steps, on_step=_on_step, **extra)
 
 
 def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:

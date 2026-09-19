@@ -61,6 +61,10 @@ FAKE_TOOLS = {
     "risk_assess": _ok({"risk_level": "中"}),
     "smart_pick": _ok({"picks": [{"code": "600519", "rank": 1}]}),
     "conditional_orders": _ok({"orders": [], "count": 0}),
+    "get_valuation": _ok({"pe": [11.2], "pb": [1.8], "span": "2016~2026",
+                           "as_of": "2026-09-17"}),
+    "list_risk_alerts": _ok({"code": "600519",
+                             "components": {"质押": {"ratio": 0.3}}, "errors": []}),
 }
 
 
@@ -532,3 +536,299 @@ def test_t122_sentiment_failure_not_cached(monkeypatch):
     assert calls["n"] == 2, "全源失败不得写缓存（每次调用都应真实重试）"
     assert r1["indicators"] == {} and r2["indicators"] == {}
     assert not any(k.startswith("sentiment:") for k in mt._TOOL_CACHE)
+
+
+# ===========================================================================
+# T-138：H1 增量——多轮对话记忆 + 估值/排雷路由（spec: h1_increments_contract.md）
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# M1：history 规范化（角色过滤 / 截断 / 最近 6 条 / 非法整体降级）
+# ---------------------------------------------------------------------------
+def test_t138_m1_normalize_history_filters_and_truncates():
+    hist = [
+        {"role": "system", "content": "系统提示"},
+        {"role": "tool", "content": "数据卡片"},
+        {"role": "user", "content": "   "},
+        {"role": "user", "content": "q" * 300},
+        {"role": "assistant", "content": "a" * 300},
+        {"role": "user", "content": "最后一条"},
+    ]
+    out = ra.normalize_history(hist)
+    assert len(out) == 3
+    assert all(h["role"] in ("user", "assistant") for h in out)
+    assert len(out[0]["content"]) == 200
+    assert out[1]["content"] == "a" * 200
+    assert out[-1]["content"] == "最后一条"
+
+
+def test_t138_m1_normalize_history_keeps_most_recent_six():
+    hist = [{"role": "user", "content": f"消息{i}"} for i in range(10)]
+    out = ra.normalize_history(hist)
+    assert len(out) == 6
+    assert out[0]["content"] == "消息4"
+    assert out[-1]["content"] == "消息9"
+
+
+def test_t138_m1_normalize_history_invalid_input_degrades_to_empty():
+    assert ra.normalize_history(None) == []
+    assert ra.normalize_history("不是列表") == []
+    assert ra.normalize_history({"role": "user", "content": "dict 而非 list"}) == []
+    assert ra.normalize_history([{"role": "user"}]) == []
+    assert ra.normalize_history(["不是字典"]) == []
+    assert ra.normalize_history(
+        [{"role": "user", "content": "ok"}, {"content": "缺 role"}]
+    ) == []
+
+
+def test_t138_m1_run_research_accepts_history_and_garbage_without_error():
+    r = _run("它呢", plan=_plan("always_ok"),
+             history=[{"role": "user", "content": "600519 怎么样"}])
+    assert r["status"] == "ok"
+    r_bad = _run("它呢", plan=_plan("always_ok"), history=42)
+    assert r_bad["status"] == "ok"
+
+
+# ---------------------------------------------------------------------------
+# M2：LLM 规划 / 合成 prompt 带历史节（LLM 失败回退与 AC6 等价）
+# ---------------------------------------------------------------------------
+class _CapPlanLLM:
+    prompts = []
+
+    @staticmethod
+    def is_configured():
+        return True
+
+    @staticmethod
+    def chat_completion_json(messages, **kw):
+        _CapPlanLLM.prompts.append(messages[0]["content"])
+        return None  # 恒失败 → 回退确定性规划器
+
+    @staticmethod
+    def chat_completion(messages, **kw):
+        return None
+
+
+class _CapSynthLLM:
+    prompts = []
+
+    @staticmethod
+    def is_configured():
+        return True
+
+    @staticmethod
+    def chat_completion_json(messages, **kw):
+        return None
+
+    @staticmethod
+    def chat_completion(messages, **kw):
+        _CapSynthLLM.prompts.append(messages[0]["content"])
+        return None  # 恒失败 → 回退规则合成器
+
+
+def test_t138_m2_llm_plan_prompt_contains_history_section():
+    _CapPlanLLM.prompts = []
+    hist = [{"role": "user", "content": "600519 市盈率多少"}]
+    r = ra.run_research("再看看 PE 分位", tools=FAKE_TOOLS,
+                        use_llm=_CapPlanLLM, history=hist)
+    assert r["status"] in ("ok", "partial")
+    assert _CapPlanLLM.prompts, "LLM 规划未被调用"
+    assert "最近对话" in _CapPlanLLM.prompts[0]
+    assert "600519 市盈率多少" in _CapPlanLLM.prompts[0]
+    # LLM 失败回退后：确定性规划器 + M3 继承 + T3 路由仍命中（行为与 AC6 等价）
+    assert any(s["tool"] == "get_valuation" for s in r["steps"])
+
+
+def test_t138_m2_llm_plan_prompt_pins_code_constraint():
+    _CapPlanLLM.prompts = []
+    ra.run_research("测试", tools=FAKE_TOOLS, use_llm=_CapPlanLLM,
+                    history=[{"role": "user", "content": "600519 怎么样"}])
+    assert _CapPlanLLM.prompts
+    assert "6 位代码" in _CapPlanLLM.prompts[0]
+
+
+def test_t138_m2_llm_synthesize_prompt_contains_history():
+    _CapSynthLLM.prompts = []
+    hist = [{"role": "user", "content": "之前问过 600519"}]
+    r = ra.run_research("测试", tools=FAKE_TOOLS,
+                        planner=lambda q, avail: _plan("always_ok"),
+                        use_llm=_CapSynthLLM, history=hist)
+    assert "[S1]" in r["answer"]  # LLM 合成失败 → 规则合成器兜底且引用不丢（AC4/AC6）
+    assert _CapSynthLLM.prompts, "LLM 合成未被调用"
+    assert "最近对话" in _CapSynthLLM.prompts[0]
+    assert "之前问过 600519" in _CapSynthLLM.prompts[0]
+
+
+def test_t138_m2_no_history_no_history_section():
+    _CapPlanLLM.prompts = []
+    ra.run_research("市场情绪怎么样", tools=FAKE_TOOLS, use_llm=_CapPlanLLM)
+    assert _CapPlanLLM.prompts
+    assert "最近对话" not in _CapPlanLLM.prompts[0]
+
+
+# ---------------------------------------------------------------------------
+# M3：确定性规划器代码继承（mutation 目标）
+# ---------------------------------------------------------------------------
+def test_t138_m3_code_inherited_from_recent_history():
+    hist = [
+        {"role": "user", "content": "600519 基本面怎么样"},
+        {"role": "assistant", "content": "600519 研究结论如下"},
+    ]
+    plan = ra.plan_steps("它现在多少钱", hist)
+    tools = [s["tool"] for s in plan]
+    assert "get_realtime_quote" in tools
+    quote = next(s for s in plan if s["tool"] == "get_realtime_quote")
+    assert quote["args"].get("code") == "600519"
+
+
+def test_t138_m3_current_question_code_wins_over_history():
+    hist = [{"role": "user", "content": "600519 怎么样"}]
+    plan = ra.plan_steps("000001 现在多少钱", hist)
+    quote = next(s for s in plan if s["tool"] == "get_realtime_quote")
+    assert quote["args"]["code"] == "000001"  # 当前问题优先，不得被历史覆盖
+
+
+def test_t138_m3_inherits_most_recent_history_code():
+    hist = [
+        {"role": "user", "content": "看看 000001"},
+        {"role": "assistant", "content": "000001 的情况如下"},
+        {"role": "user", "content": "600519 呢"},
+        {"role": "assistant", "content": "600519 结论"},
+    ]
+    plan = ra.plan_steps("资金流怎么样", hist)
+    ff = next(s for s in plan if s["tool"] == "fund_flow")
+    assert ff["args"]["code"] == "600519"  # 取离当前问题最近的一条
+
+
+def test_t138_m3_inheritance_only_from_last_two_entries():
+    hist = [
+        {"role": "user", "content": "600519 早年如何"},
+        {"role": "assistant", "content": "600519 早年结论"},
+        {"role": "user", "content": "谢谢"},
+        {"role": "assistant", "content": "不客气，随时问"},
+    ]
+    tools = [s["tool"] for s in ra.plan_steps("资金流怎么样", hist)]
+    assert "fund_flow" not in tools    # 最近 2 条无代码 → needs_code 路由不得命中
+    assert "get_data_health" in tools  # 诚实兜底仍在
+
+
+def test_t138_m3_inheritance_does_not_create_new_routes():
+    # 历史带「资金流」路由词，当前问题「它呢」没有 → 不得因历史产生 fund_flow；
+    # 继承代码在无路由词时的合法出口只有默认研究三件套
+    hist = [
+        {"role": "user", "content": "600519 资金流怎么样"},
+        {"role": "assistant", "content": "主力净流入 1.2 亿"},
+    ]
+    tools = [s["tool"] for s in ra.plan_steps("它呢", hist)]
+    assert "fund_flow" not in tools
+    assert tools == ["get_realtime_quote", "analyze_technical", "stock_news"]
+
+
+# ---------------------------------------------------------------------------
+# T3：get_valuation / list_risk_alerts 路由词（mutation 目标）
+# ---------------------------------------------------------------------------
+def test_t138_t3_route_valuation():
+    plan = ra.plan_steps("600519 估值怎么样，PE 高吗")
+    tools = [s["tool"] for s in plan]
+    assert "get_valuation" in tools
+    v = next(s for s in plan if s["tool"] == "get_valuation")
+    assert v["args"]["code"] == "600519"
+
+
+def test_t138_t3_route_valuation_pb_and_percentile_words():
+    tools = [s["tool"] for s in ra.plan_steps("600519 市净率处于什么分位")]
+    assert "get_valuation" in tools
+
+
+def test_t138_t3_route_risk_alerts():
+    plan = ra.plan_steps("600519 帮我排雷，质押和解禁多吗")
+    tools = [s["tool"] for s in plan]
+    assert "list_risk_alerts" in tools
+    r = next(s for s in plan if s["tool"] == "list_risk_alerts")
+    assert r["args"]["code"] == "600519"
+
+
+def test_t138_t3_risk_alerts_coexists_with_risk_assess():
+    tools = [s["tool"] for s in ra.plan_steps("600519 风险高吗，帮我排雷")]
+    assert "risk_assess" in tools
+    assert "list_risk_alerts" in tools  # 互不替代，共存于同一计划
+
+
+def test_t138_t3_valuation_works_end_to_end_via_agent():
+    r = _run("600519 估值贵不贵", plan=None)  # 确定性规划器直连 FAKE_TOOLS
+    tools = [s["tool"] for s in r["steps"]]
+    assert "get_valuation" in tools
+    assert r["status"] in ("ok", "partial")
+
+
+# ---------------------------------------------------------------------------
+# M4：worker history 校验（非法静默降级单轮）
+# ---------------------------------------------------------------------------
+def _fake_run_research_capture(seen):
+    def _fake(question, **kw):
+        seen["question"] = question
+        seen.update(kw)
+        return {"question": question, "status": "ok", "steps": [], "answer": "a",
+                "citations": [], "limitations": [], "generated_at": "x", "elapsed_s": 0.0}
+    return _fake
+
+
+def test_t138_m4_worker_passes_valid_history(monkeypatch):
+    import backend.tasks.worker as w
+    import modules.research_agent as ra_mod
+
+    seen = {}
+    monkeypatch.setattr(ra_mod, "run_research", _fake_run_research_capture(seen))
+    hist = [{"role": "user", "content": "600519 怎么样"},
+            {"role": "assistant", "content": "结论如下"}]
+    w._handle_ai_research({"question": "它呢", "history": hist, "__task_id__": "tid"})
+    assert seen.get("history") == hist
+
+
+def test_t138_m4_worker_drops_invalid_history(monkeypatch):
+    import backend.tasks.worker as w
+    import modules.research_agent as ra_mod
+
+    seen = {}
+    monkeypatch.setattr(ra_mod, "run_research", _fake_run_research_capture(seen))
+    # 非 list
+    w._handle_ai_research({"question": "q", "history": "垃圾", "__task_id__": "tid"})
+    assert "history" not in seen
+    # 超过 8 条
+    seen.clear()
+    w._handle_ai_research({"question": "q",
+                           "history": [{"role": "user", "content": "x"}] * 9,
+                           "__task_id__": "tid"})
+    assert "history" not in seen
+    # 条目非 dict
+    seen.clear()
+    w._handle_ai_research({"question": "q", "history": ["垃圾"], "__task_id__": "tid"})
+    assert "history" not in seen
+    # 未带 history → 与旧契约一致（不多传键）
+    seen.clear()
+    w._handle_ai_research({"question": "q", "__task_id__": "tid"})
+    assert "history" not in seen
+
+
+def test_t138_m4_worker_history_at_eight_passes(monkeypatch):
+    import backend.tasks.worker as w
+    import modules.research_agent as ra_mod
+
+    seen = {}
+    monkeypatch.setattr(ra_mod, "run_research", _fake_run_research_capture(seen))
+    hist = [{"role": "user", "content": f"m{i}"} for i in range(8)]
+    w._handle_ai_research({"question": "q", "history": hist, "__task_id__": "tid"})
+    assert seen.get("history") == hist
+
+
+# ---------------------------------------------------------------------------
+# M4b：53 页深度模式提交带 history（additive；ai_consult 流程不动）
+# ---------------------------------------------------------------------------
+def test_t138_page53_deep_mode_submits_history():
+    src = (REPO / "pages" / "53_星辰AI.py").read_text(encoding="utf-8")
+    # 深度模式 payload 必须携带 history（多轮记忆上下文）
+    assert '"history": _deep_history' in src
+    # WELCOME/系统提示必须被排除在深度历史之外
+    assert '!= WELCOME.get("content")' in src
+    # ai_consult 既有 history 构建不得被移除（additive-only）
+    assert 'ctx["history"]' in src

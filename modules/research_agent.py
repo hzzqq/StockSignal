@@ -11,11 +11,12 @@
 - **有界执行**：max_steps clamp 1..8 + budget_s 时间预算，绝不永久挂死。
 - **只读红线**：conditional_orders 仅允许 action="list"，任何写操作直接拒绝执行。
 
-Spec：``.workbuddy/specs/ai_research_agent_contract.md``（AC1–AC8）。
+Spec：``.workbuddy/specs/ai_research_agent_contract.md``（AC1–AC8）；
+T-138 增量（多轮记忆 / 估值与排雷路由）：``.workbuddy/specs/h1_increments_contract.md``。
 测试：``tests/test_research_agent.py``（tools/planner/synthesizer 全依赖注入，离线零网络）。
 
 与 modules/quantagent/（单标的深度研报流水线）互补不重叠：本模块面向任意问题的
-轻量工具调用编排，复用 MCP 16 工具注册表，不重复角色流水线。
+轻量工具调用编排，复用 MCP 18 工具注册表，不重复角色流水线。
 """
 
 from __future__ import annotations
@@ -55,6 +56,8 @@ _ROUTE_WORDS: List[tuple] = [
     ("stock_news", ("新闻", "消息", "公告", "资讯", "最近有什么事"), True),
     ("fund_flow", ("资金流", "主力", "北向", "净流入", "资金", "大单"), True),
     ("risk_assess", ("风险", "会不会跌", "安不安全", "危险", "兜底"), True),
+    ("get_valuation", ("估值", "PE", "PB", "市盈", "市净", "分位"), True),
+    ("list_risk_alerts", ("排雷", "风险清单", "商誉", "质押", "解禁", "减持"), True),
     ("get_market_sentiment", ("市场情绪", "温度计", "市场温度", "大盘情绪", "市场怎么样"), False),
     ("get_macro_indicators", ("宏观", "PMI", "CPI", "PPI", "GDP", "M2", "LPR"), False),
     ("get_lhb", ("龙虎榜",), False),
@@ -65,11 +68,42 @@ _PICK_WORDS = ("选股", "挑股票", "找股票", "推荐股票", "筛选", "�
 
 _CODE_RE = re.compile(r"\b\d{6}\b")
 
+# 多轮历史规范化上限（T-138 M1）：内容截断 / 条数上限 / 合法角色
+_HISTORY_MAX_ITEMS = 6
+_HISTORY_CONTENT_CAP = 200
+_HISTORY_ROLES = ("user", "assistant")
+
+
+def normalize_history(history: Any) -> List[Dict[str, str]]:
+    """规范化多轮对话历史（T-138 M1）。
+
+    - 非 list → 无历史；条目非 dict 或缺 ``role``/``content`` 键 → 整体视为无历史
+      （结构垃圾不可信任，降级单轮执行）；
+    - role ∉ {user, assistant} 或 content 为空 → 剔除该条目；
+    - content 截断 ≤200 字符；最多保留最近 6 条。
+    任何情况下不抛错——历史只是规划/措辞上下文，绝不能让研究主流程失败。
+    """
+    if not isinstance(history, list):
+        return []
+    cleaned: List[Dict[str, str]] = []
+    for item in history:
+        if not isinstance(item, dict) or "role" not in item or "content" not in item:
+            return []
+        role = item.get("role")
+        content = item.get("content")
+        if role not in _HISTORY_ROLES or not isinstance(content, str) \
+                or not content.strip():
+            continue
+        cleaned.append(
+            {"role": str(role), "content": content.strip()[:_HISTORY_CONTENT_CAP]}
+        )
+    return cleaned[-_HISTORY_MAX_ITEMS:]
+
 
 # ---------------------------------------------------------------------------
 # 确定性规划器（AC8，纯正则关键词，零 LLM / 零网络）
 # ---------------------------------------------------------------------------
-def plan_steps(question: str) -> List[Dict[str, Any]]:
+def plan_steps(question: str, history: Any = None) -> List[Dict[str, Any]]:
     """把自然语言问题映射为工具调用计划 [{tool, args, why}]。
 
     规则（spec AC8 钉死，mutation 目标）：
@@ -77,11 +111,19 @@ def plan_steps(question: str) -> List[Dict[str, Any]]:
     - 各路由词按表命中；「仅代码无关键词」→ 研究三件套（quote+tech+news）；
     - 选股词 → ``smart_pick`` 置末位（慢任务）；
     - 全未命中 → 诚实兜底 ``[get_data_health, get_market_sentiment]``；
-    - 工具去重、总量 ≤8。
+    - 工具去重、总量 ≤8；
+    - T-138 M3 代码继承：当前问题无 6 位代码且最近 2 条历史出现代码 → 继承
+      离当前问题最近的一条（路由词判定仍只看当前问题，继承不产生新路由）。
     """
     q = str(question or "")
     codes = _CODE_RE.findall(q)
     code = codes[0] if codes else ""
+    if not code:
+        for item in reversed(normalize_history(history)[-2:]):
+            inherited = _CODE_RE.findall(item["content"])
+            if inherited:
+                code = inherited[0]
+                break
     plan: List[Dict[str, Any]] = []
 
     def _add(tool: str, args: Optional[Dict[str, Any]] = None, why: str = "") -> None:
@@ -204,17 +246,26 @@ def _resolve_llm(use_llm: Any):
     return use_llm  # 注入点
 
 
-def _plan_with_llm(question: str, available: List[str], llm: Any) -> Optional[List[Dict[str, Any]]]:
-    """LLM 规划：问题 + 工具目录 → 计划 JSON。任何失败返回 None（回退确定性规划器）。"""
+def _plan_with_llm(
+    question: str, available: List[str], llm: Any, history: Any = None
+) -> Optional[List[Dict[str, Any]]]:
+    """LLM 规划：问题 + 工具目录 + 最近对话 → 计划 JSON。任何失败返回 None（回退确定性规划器）。"""
     if llm is None:
         return None
     try:
         catalog = "\n".join(f"- {n}" for n in available)
+        norm_history = normalize_history(history)
+        history_block = ""
+        if norm_history:
+            lines = "\n".join(f"- {h['role']}: {h['content']}" for h in norm_history)
+            history_block = f"最近对话：\n{lines}\n"
         prompt = (
             "你是 A 股研究助手。根据用户问题，从下列工具中挑选 ≤6 个做一次研究：\n"
             f"{catalog}\n"
             '只输出 JSON：{"steps":[{"tool":"工具名","args":{...},"why":"一句话"}]}，'
-            "不要输出其它文字。args 只能用工具支持的简单参数（code 为 6 位代码）。\n"
+            "不要输出其它文字。args 只能用工具支持的简单参数；code 只能是当前问题或"
+            "历史里出现过的 6 位代码。\n"
+            f"{history_block}"
             f"用户问题：{question}"
         )
         parsed = llm.chat_completion_json(
@@ -245,7 +296,8 @@ def _plan_with_llm(question: str, available: List[str], llm: Any) -> Optional[Li
 
 
 def _synthesize_with_llm(
-    question: str, steps: List[Dict[str, Any]], citations: List[Dict[str, Any]], llm: Any
+    question: str, steps: List[Dict[str, Any]], citations: List[Dict[str, Any]],
+    llm: Any, history: Any = None,
 ) -> Optional[str]:
     """LLM 合成：只许基于步骤摘要措辞，数据事实必须带 [S#] 引用。失败返回 None。"""
     if llm is None or not citations:
@@ -259,11 +311,19 @@ def _synthesize_with_llm(
                 f"[S{s['idx']}] {s['tool']}（数据截至 {s.get('data_as_of') or '未知'}）："
                 f"{json.dumps(s.get('summary') or {}, ensure_ascii=False, default=str)[:400]}"
             )
+        norm_history = normalize_history(history)
+        history_block = ""
+        if norm_history:
+            lines = "\n".join(f"- {h['role']}: {h['content']}" for h in norm_history)
+            history_block = (
+                "\n\n最近对话（仅措辞参考；数据事实仍只来自上方工具返回，"
+                "不得从历史中取任何数字充当数据点）：\n" + lines
+            )
         prompt = (
             "你是严谨的 A 股研究员。只依据下列工具返回的真实数据回答用户问题，"
             "每个数据点必须标注 [S#] 引用（S 编号见各条目前缀）；数据没覆盖的部分如实说明，"
             "禁止编造或外推。\n\n"
-            f"用户问题：{question}\n\n工具数据：\n" + "\n".join(digest_lines)
+            f"用户问题：{question}\n\n工具数据：\n" + "\n".join(digest_lines) + history_block
         )
         text = llm.chat_completion(
             [{"role": "user", "content": prompt}], temperature=0.4, max_tokens=900, timeout=30
@@ -359,6 +419,7 @@ def _tool_exists(name: str, tools: Optional[Dict[str, Callable]]) -> bool:
 def run_research(
     question: str,
     *,
+    history: Any = None,
     tools: Optional[Dict[str, Callable]] = None,
     planner: Optional[Callable[[str, List[str]], List[Dict[str, Any]]]] = None,
     synthesizer: Optional[
@@ -372,6 +433,7 @@ def run_research(
     """执行一轮研究：规划 → 有界执行 → 带引用综合。契约见 spec AC1–AC8。"""
     t0 = time.time()
     question = str(question or "").strip()
+    norm_history = normalize_history(history)
     limitations: List[str] = []
 
     def _emit(msg: str) -> None:
@@ -412,7 +474,10 @@ def run_research(
             limitations.append(f"注入规划器失败（{e}），已回退确定性规划器")
             plan = None
     if plan is None:
-        plan = _plan_with_llm(question, available, llm) or plan_steps(question)
+        plan = (
+            _plan_with_llm(question, available, llm, history=norm_history)
+            or plan_steps(question, norm_history)
+        )
 
     # 规范化 + 截断（AC2）
     norm: List[Dict[str, Any]] = []
@@ -520,7 +585,7 @@ def run_research(
             answer = _rule_synthesize(question, steps, citations, limitations)
     else:
         answer = (
-            _synthesize_with_llm(question, steps, citations, llm)
+            _synthesize_with_llm(question, steps, citations, llm, history=norm_history)
             or _rule_synthesize(question, steps, citations, limitations)
         )
     if status == "unavailable" and not limitations:

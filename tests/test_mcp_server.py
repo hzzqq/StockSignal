@@ -56,9 +56,12 @@ def test_tools_list_count():
         "get_lhb",
         "get_ai_skills",
         "get_p1_signal",
+        # 2026-09-18 T-138 新增 2 个只读工具（薄转发 modules.valuation / modules.stock_risk）
+        "get_valuation",
+        "list_risk_alerts",
     ]:
         assert expected in names
-    assert len(names) == 16
+    assert len(names) == 18
 
 
 def test_unknown_method():
