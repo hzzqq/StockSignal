@@ -26,7 +26,7 @@ from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
 from modules.perf import downsample
 from modules.chart_cache import cached_fig
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
 dark = render_standard_page(title='基本面分析', icon='🏛️', caption='个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）', layout='wide')
 trading_autorefresh(key='fundamental_autorefresh')
 ACCENT = '#818cf8' if dark else '#6366f1'
@@ -280,7 +280,7 @@ def fragment_valuation_band(code: str, name: str, industry: str, pe_ttm, dark: b
     st.markdown('#### ① PE / PB 历史分位带')
     band = data.get('band')
     if not band:
-        st.warning('⚠️ 估值历史序列不可用（接口未返回）——无法给出分位结论，不做推测。')
+        xc_warn_box('⚠️ 估值历史序列不可用（接口未返回）——无法给出分位结论，不做推测。')
     else:
         if band.get('span'):
             st.caption(f'样本区间：{band["span"]}')
@@ -655,7 +655,7 @@ if code:
     if alr is not None:
         _perf_lines.append(f"资产负债率 {alr:.2f}%，财务杠杆{('稳健' if alr < 40 else '适中' if alr < 60 else '偏高')}。")
     if _perf_lines:
-        st.info('📌 **一句话业绩解读**：' + ' '.join(_perf_lines))
+        xc_info_banner('📌 **一句话业绩解读**：' + ' '.join(_perf_lines))
     else:
         info_banner('ℹ️ 暂未获取到财报数据，业绩解读不可用（可检查网络或切换数据源）。')
 
@@ -742,7 +742,7 @@ if code:
     sf_card('📍 历史位置 · 纵向对比', "")
     st.caption('价格分位：当前价在对应周期内所有交易日收盘价中的相对高低。')
     with st.expander('📖 分位解读（数值越高代表当前价越贵）', expanded=False):
-        st.info('📌 **分位解读**（数值越高代表当前价越贵）：\n\n- **0%**：历史最低（最便宜）\n- **0–20%**：历史低位（相对便宜，可能超跌）\n- **20–40%**：偏低区间\n- **40–75%**：合理中枢（不贵也不便宜）\n- **75–90%**：偏高区间\n- **90–100%**：历史高位（相对较贵，注意风险）\n- **100%**：历史最高（最贵）\n\n💡 **例子**：若 5 年分位为 7.9%，表示当前价只比过去 5 年里约 8% 的交易日收盘价高，处于历史较低位置。')
+        xc_info_banner('📌 **分位解读**（数值越高代表当前价越贵）：\n\n- **0%**：历史最低（最便宜）\n- **0–20%**：历史低位（相对便宜，可能超跌）\n- **20–40%**：偏低区间\n- **40–75%**：合理中枢（不贵也不便宜）\n- **75–90%**：偏高区间\n- **90–100%**：历史高位（相对较贵，注意风险）\n- **100%**：历史最高（最贵）\n\n💡 **例子**：若 5 年分位为 7.9%，表示当前价只比过去 5 年里约 8% 的交易日收盘价高，处于历史较低位置。')
     if hist_df is not None and (not hist_df.empty):
         current = float(hist_df['close'].iloc[-1])
         p_1y = _percentile(hist_df.tail(252)['close'], current) if len(hist_df) >= 60 else None

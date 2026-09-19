@@ -17,7 +17,7 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
 render_standard_page(title='事件追踪', icon='🔔', caption='⚠️ 数据仅供参考，不构成投资建议', layout='wide')
 
 sf_card(
@@ -245,9 +245,9 @@ def fragment_signal_score():
                 xc_warn_box(f'⚠️ {err_msg}')
                 info_banner('💡 价格信号暂时不可用，事件信号和宏观信号仍可正常评分。建议换用 600519、000858 等活跃股票测试。')
             else:
-                st.error(f'评分失败: {err_msg}')
+                xc_error_box(f'评分失败: {err_msg}')
     except Exception as module_err:
-        st.error(f'⚠️ 信号评分模块异常: {module_err}')
+        xc_error_box(f'⚠️ 信号评分模块异常: {module_err}')
 
 @safe_fragment
 def fragment_live_keywords():
@@ -301,13 +301,13 @@ def fragment_live_keywords():
             r = st.session_state.live_kw_result
             with extract_result:
                 if r.get('error') and r['error'] != 'empty':
-                    st.error(f"提取失败: {r['error']}")
+                    xc_error_box(f"提取失败: {r['error']}")
                     if st.button('🔄 重试', key='btn_live_kw_retry'):
                         st.session_state['_retry_live_kw'] = True
                 elif r.get('error') == 'empty':
                     xc_warn_box(f"未抓取到与「{live_ticker or '全部'}」相关的新闻。")
                     if r.get('result_str'):
-                        st.info('💡 已根据「' + str(live_ticker) + '」的行业特征生成关键词：\n\n`' + str(r.get('result_str', '')) + '`')
+                        xc_info_banner('💡 已根据「' + str(live_ticker) + '」的行业特征生成关键词：\n\n`' + str(r.get('result_str', '')) + '`')
                         st.code(r['result_str'], language=None)
                 else:
                     xc_success_box(f"✅ 成功从 {r['total']} 条新闻中提取到 {len(r['final_kws'])} 个关键词！")
@@ -321,7 +321,7 @@ def fragment_live_keywords():
                     st.code(r['result_str'], language=None)
                     info_banner('💡 点击上方代码框右侧的复制按钮，可将关键词粘贴到「事件关键词」输入框中。')
     except Exception as module_err:
-        st.error(f'⚠️ 实时关键词模块异常: {module_err}')
+        xc_error_box(f'⚠️ 实时关键词模块异常: {module_err}')
 
 @safe_fragment
 def fragment_timeline():
@@ -499,12 +499,12 @@ def fragment_timeline():
                     fig = Visualizer.event_timeline(df, events_chart, title=title, start_idx=new_idx, n_show=new_n_show, event_type_col='sentiment', event_title_col='title')
                     st.plotly_chart(fig, width="stretch", key='tl_chart', config={"displaylogo": False, "responsive": True})
                 except Exception as chart_err:
-                    st.error(f'K 线事件时间轴渲染失败: {chart_err}')
+                    xc_error_box(f'K 线事件时间轴渲染失败: {chart_err}')
                     info_banner('💡 请尝试缩短日期区间或切换股票后重试。')
             if not show_existing and (not show_realtime) and (not tl_submitted):
                 xc_warn_box('请至少选择一个子模块（现有事件库 / 实时爬取）。')
     except Exception as module_err:
-        st.error(f'⚠️ 事件时间轴模块异常: {module_err}')
+        xc_error_box(f'⚠️ 事件时间轴模块异常: {module_err}')
 
 @safe_fragment
 def fragment_event_manage():
@@ -564,7 +564,7 @@ def fragment_event_manage():
                     st.session_state[_evt_page_key] = min(st.session_state[_evt_page_key] + 30, _evt_total)
             st.caption('数据来源：东方财富 / 新浪财经 / 公开公告')
     except Exception as module_err:
-        st.error(f'⚠️ 事件管理模块异常: {module_err}')
+        xc_error_box(f'⚠️ 事件管理模块异常: {module_err}')
 
 @safe_fragment
 def fragment_news_mine():
@@ -596,7 +596,7 @@ def fragment_news_mine():
                     xc_warn_box(f"未抓取到与「{mr.get('keyword') or '全部'}」相关的新闻。")
                     info_banner('💡 提示：尝试换一个更通用的关键词，或留空关键词抓取全部财经要闻。')
                 elif mr.get('error'):
-                    st.error(f"挖掘失败: {mr['error']}")
+                    xc_error_box(f"挖掘失败: {mr['error']}")
                 else:
                     mined = mr['mined']
                     xc_success_box(f'成功挖掘 {len(mined)} 条事件并入库！')
@@ -623,7 +623,7 @@ def fragment_news_mine():
                             _disp = _disp.sort_values('date', ascending=False)
                         st.dataframe(_disp, width="stretch", height=400)
     except Exception as module_err:
-        st.error(f'⚠️ 新闻挖掘模块异常: {module_err}')
+        xc_error_box(f'⚠️ 新闻挖掘模块异常: {module_err}')
 
 @safe_fragment
 def fragment_sentiment_report():
@@ -711,11 +711,11 @@ def fragment_sentiment_report():
                                 st.markdown(f"[{sentiment}] <span style='color:{color};'>{title_html}</span> {score_str}", unsafe_allow_html=True)
         elif st.session_state.get('sentiment_report_error'):
             with report_container:
-                st.error(f'生成报告失败: {st.session_state.sentiment_report_error}')
+                xc_error_box(f'生成报告失败: {st.session_state.sentiment_report_error}')
                 if st.button('🔄 重试', key='btn_sentiment_retry'):
                     st.session_state['_retry_sentiment'] = True
     except Exception as module_err:
-        st.error(f'⚠️ 情感报告模块异常: {module_err}')
+        xc_error_box(f'⚠️ 情感报告模块异常: {module_err}')
 fragment_signal_score()
 fragment_live_keywords()
 fragment_timeline()

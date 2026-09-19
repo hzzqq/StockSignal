@@ -35,7 +35,7 @@ from modules import decision_track as _track
 from modules import calibration as _cal
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box
 from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GRU/融合）
 from modules.event_factor import get_event_factor  # 事件因子适配器（真实信号，无合成）
 
@@ -244,10 +244,10 @@ def _render_hero(df, today, prev, meta=None):
     ]
     if _fresh["status"] in ("warn", "stale"):
         if _stale_bits:
-            st.warning("⏰ 数据滞后：" + "、".join(_stale_bits)
+            xc_warn_box("⏰ 数据滞后：" + "、".join(_stale_bits)
                        + "——决策依据可能偏旧，谨慎参考")
         else:
-            st.warning("⏰ 部分数据来源日期缺失，决策依据可能偏旧，谨慎参考")
+            xc_warn_box("⏰ 部分数据来源日期缺失，决策依据可能偏旧，谨慎参考")
     elif _fresh["status"] == "unknown":
         st.caption("数据来源日期缺失，新鲜度未知")
     else:
@@ -269,7 +269,7 @@ def _render_hero(df, today, prev, meta=None):
                 _icon = {"ok": "🟢", "warn": "🟡", "stale": "🔴", "unknown": "⚪"}.get(r["status"], "⚪")
                 st.caption(f"{_icon} {r['name']}：截至 {_d}（{_lag}）")
             if _any_stale:
-                st.warning("⚠️ 存在陈旧数据源，以上仓位/信号建议请谨慎参考；刷新陈旧源后再决策。")
+                xc_warn_box("⚠️ 存在陈旧数据源，以上仓位/信号建议请谨慎参考；刷新陈旧源后再决策。")
                 st.caption("刷新命令：`python scripts/check_data_health.py --refresh`（加 `--exec` 尝试自动刷新，有网才真成功）")
     except Exception:  # noqa: BLE001
         pass
@@ -356,9 +356,9 @@ def _render_hero(df, today, prev, meta=None):
         _ee = format_event_edge(event_edge(), event_adj_val)
         if _ee:
             if _ee["level"] == "warn":
-                st.warning(_ee["text"])
+                xc_warn_box(_ee["text"])
             elif _ee["level"] == "ok":
-                st.success(_ee["text"])
+                xc_success_box(_ee["text"])
             else:
                 st.caption(_ee["text"])
     except Exception:  # noqa: BLE001
@@ -548,7 +548,7 @@ def fragment_p1_ev():
                 f"　信号：<b>{ef.get('signal')}</b>　来源：<code>{ef.get('source')}</code>",
                 unsafe_allow_html=True)
     else:
-        st.info(f"该标的无事件因子信号：{ef.get('reason', '未知')}")
+        xc_info_banner(f"该标的无事件因子信号：{ef.get('reason', '未知')}")
 
 
 @safe_fragment("事件驱动看多榜")
@@ -672,13 +672,13 @@ def fragment_review():
         # 极值信号层：有统计依据才表态，否则明确弃权
         _edge = (fc or {}).get("edge") or {}
         if _edge.get("triggered"):
-            st.warning(_edge.get("statement", ""))
+            xc_warn_box(_edge.get("statement", ""))
         elif not _edge.get("available"):
             # 不可用时别默不作声（静默失效比低分更糟）
             st.caption("ℹ️ 情绪极值信号层不可用（校准件缺失/损坏），本次不做方向表态。")
         elif _edge.get("available") and _edge.get("evaluated") is False:
             # 指标缺失 → 无法判定，别混同于「未进入极值」
-            st.warning(_edge.get("statement", ""))
+            xc_warn_box(_edge.get("statement", ""))
         elif _edge.get("abstain") and _edge.get("available"):
             st.caption(_edge.get("statement", ""))
         # 数据新鲜度徽标：避免用陈旧指标却展示得「像最新的」（I2）
@@ -690,7 +690,7 @@ def fragment_review():
         if _age is None:
             pass
         elif _age > 1:
-            st.warning(f"⏰ 数据滞后 {_age} 日（最新指标截至 {dstr}）——决策依据可能偏旧，谨慎参考")
+            xc_warn_box(f"⏰ 数据滞后 {_age} 日（最新指标截至 {dstr}）——决策依据可能偏旧，谨慎参考")
         elif _age >= 0:
             st.caption(f"数据截至 {dstr}（滞后 {_age} 日）")
         note_txt = st.text_area("今日决策手记（主线/计划/复盘感受，留空不改已存手记）", value="",
@@ -726,7 +726,7 @@ def fragment_review():
             if not analysis:
                 st.caption("无回测结果（数据不足）。")
             else:
-                st.info(_sn.summary_of(analysis))
+                xc_info_banner(_sn.summary_of(analysis))
         except Exception as e:  # noqa: BLE401
             xc_handle_error("历史回测失败", e)
     st.caption("📚 口径：杨哥复盘方法论（V反/延续）+ 实盘圈「盯四个数」。预判为概率结论，不构成投资建议。")
@@ -851,10 +851,10 @@ def fragment_backtest():
                     hint="这些记录不写入 realized/hit，也不进入命中率分母；如需纳入请补充更早的基准数据。",
                 )
             if res["scored"] == 0:
-                st.info("本轮无新样本需要打分（可能已全部分数，或暂无法联网获取基准走势）。")
+                xc_info_banner("本轮无新样本需要打分（可能已全部分数，或暂无法联网获取基准走势）。")
             else:
                 acc = res["accuracy"]
-                st.success(f"✅ 已对 {res['scored']} 条样本打分，累计方向命中率 "
+                xc_success_box(f"✅ 已对 {res['scored']} 条样本打分，累计方向命中率 "
                            f"{acc:.0f}%" if acc is not None else f"✅ 已对 {res['scored']} 条样本打分")
         except Exception as e:  # noqa: BLE401
             xc_handle_error("联网打分失败", e, hint="检查网络/代理；基准取不到时回测曲线仅显示预测侧")

@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
 render_standard_page(title="策略回测", icon="⚙️", layout="wide")
 sf_card("策略回测导读", "支持趋势动量多因子（推荐）、双趋势共振 GMMA+一目、均线交叉、事件驱动四种策略。手动回测与每日选股回测为独立模块，互不重算；下方可运行回测并查看收益曲线与交易明细。", icon="⚙️")
 
@@ -571,7 +571,7 @@ def fragment_daily_picker():
     picker_error = st.session_state.get("picker_error")
 
     if picker_error:
-        st.error(f"选股回测失败: {picker_error}")
+        xc_error_box(f"选股回测失败: {picker_error}")
     elif picker_result is not None:
         s = picker_result.summary()
 
@@ -812,7 +812,7 @@ def fragment_strong_bull():
         })
     st.dataframe(pd.DataFrame(cmp_rows), width="stretch", hide_index=True, height=400)
     if market is None and st.session_state.get("sb_with_market", False) and "sb_market_error" in st.session_state:
-        st.error(f"全市场基准计算失败: {st.session_state['sb_market_error']}")
+        xc_error_box(f"全市场基准计算失败: {st.session_state['sb_market_error']}")
     elif market is None:
         st.caption("💡 暂无全市场基准。可勾选上方复选框运行，或先在下方『每日选股回测』运行一次后回来查看。")
 
@@ -1105,7 +1105,7 @@ def fragment_run_history():
     st.markdown("---")
     st.markdown("#### 🗂️ 历史回测记录（run ID 持久化）")
     if not runs:
-        st.info("暂无历史回测记录。运行一次「手动回测」后，这里会留下 run ID 与参数，刷新/切页不丢。")
+        xc_info_banner("暂无历史回测记录。运行一次「手动回测」后，这里会留下 run ID 与参数，刷新/切页不丢。")
         return
     rows = []
     for r in runs:

@@ -24,7 +24,7 @@ from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, safe_fragment
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast, UP, DOWN
-from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.ui_kit import xc_error_box, xc_kpi_grid, xc_success_box, xc_warn_box
 dark = render_standard_page(title='模拟交易组合', icon='🎮', caption='虚拟资金练习；持仓持久化到本地，模块独立运行，不影响真实账户。')
 
 sf_card("🎮 模拟交易组合", "用虚拟资金买卖 A 股，跟踪持仓、盈亏与净值曲线；持仓持久化到本地，不接入真实券商，仅供策略演练。", icon="💡")
@@ -128,11 +128,14 @@ def fragment_paper():
             rows, assets, mv = _recompute(book)
         pnl_total = assets - book['init_cash']
         pnl_pct = pnl_total / book['init_cash'] * 100
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric('总资产', f'¥{assets:,.0f}')
-        c2.metric('可用现金', f"¥{book['cash']:,.0f}")
-        c3.metric('持仓市值', f'¥{mv:,.0f}')
-        c4.metric('累计盈亏', f'¥{pnl_total:,.0f}', delta=f'{pnl_pct:+.2f}%')
+        xc_kpi_grid([
+            {'label': '总资产', 'value': f'¥{assets:,.0f}'},
+            {'label': '可用现金', 'value': f"¥{book['cash']:,.0f}"},
+            {'label': '持仓市值', 'value': f'¥{mv:,.0f}'},
+            {'label': '累计盈亏', 'value': f'¥{pnl_total:,.0f}',
+             'delta': f'{pnl_pct:+.2f}%', 'delta_dir': 'up' if pnl_pct >= 0 else 'down',
+             'tone': 'up' if pnl_pct >= 0 else 'down'},
+        ])
         st.caption('ℹ️ 累计盈亏 = 总资产 − 初始资金；净值曲线基于每笔成交后的总资产快照绘制。')
     sf_card('💱 交易', "")
     col_b, col_s = st.columns(2)
@@ -147,16 +150,16 @@ def fragment_paper():
         if st.button('确认买入', type='primary', key='pt_buy_btn', width="stretch", disabled=not _bok, help='请先在上方输入有效的 6 位股票代码' if not _bok else '按当前设置的数量买入'):
             code = (bcode or '').strip().zfill(6)
             if len(code) != 6 or not code.isdigit():
-                st.error('请输入有效的 6 位股票代码。')
+                xc_error_box('请输入有效的 6 位股票代码。')
             else:
                 with st.spinner('获取现价中…'):
                     price, name = _price(code)
                 if price is None:
-                    st.error('无法获取现价，买入失败。')
+                    xc_error_box('无法获取现价，买入失败。')
                 else:
                     cost = price * bqty
                     if cost > book['cash']:
-                        st.error(f"现金不足：需要 ¥{cost:,.0f}，可用 ¥{book['cash']:,.0f}。")
+                        xc_error_box(f"现金不足：需要 ¥{cost:,.0f}，可用 ¥{book['cash']:,.0f}。")
                     else:
                         book['cash'] -= cost
                         pos = book['positions'].get(code)
@@ -198,14 +201,14 @@ def fragment_paper():
                 code = (scode or '').strip().zfill(6)
                 pos = book['positions'].get(code)
                 if not pos:
-                    st.error('当前未持有该标的。')
+                    xc_error_box('当前未持有该标的。')
                 elif sqty > pos['qty']:
-                    st.error(f"持仓不足：持有 {pos['qty']} 股。")
+                    xc_error_box(f"持仓不足：持有 {pos['qty']} 股。")
                 else:
                     with st.spinner('获取现价中…'):
                         price, name = _price(code)
                     if price is None:
-                        st.error('无法获取现价，卖出失败。')
+                        xc_error_box('无法获取现价，卖出失败。')
                     else:
                         proceeds = price * sqty
                         book['cash'] += proceeds
@@ -244,7 +247,7 @@ def fragment_paper():
                                 add_watchlist(_c)
                             _toast(f"已加自选：{', '.join(_pt_sel)}")
                         except Exception as _e:
-                            st.error(f'批量加自选失败：{_e}')
+                            xc_error_box(f'批量加自选失败：{_e}')
                 with _b2:
                     if st.button('📤 批量平仓', key='pt_batch_close', width="stretch"):
                         with st.spinner('批量平仓中…'):

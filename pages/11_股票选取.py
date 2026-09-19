@@ -32,7 +32,7 @@ from modules.session import (
 from modules.page_guard import safe_fragment
 from modules.page_widgets import UP
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
 render_standard_page(title="股票选取", icon="🎯")
 
 sf_card("股票选取导读", "位于行情看板与个股分析之间：设置参数、查看 K 线与技术面，并可将标的加入自选股或垃圾股池，支持打分与折叠展示。", icon="🎯")
@@ -113,7 +113,7 @@ def _render_user_score(ticker: str, stock_label: str) -> None:
                 xc_success_box(f"✅ 评分已保存：{score_val} 分")
             else:
                 _msg = res.get("message", "未知错误") if isinstance(res, dict) else "未知错误"
-                st.error(f"保存失败：{_msg}")
+                xc_error_box(f"保存失败：{_msg}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -280,7 +280,7 @@ with hc2:
         if sc in (200, 201) or "已在" in _msg:
             xc_success_box("✅ 已加入自选股")
         else:
-            st.error(f"加入失败：{_msg or '未知错误'}")
+            xc_error_box(f"加入失败：{_msg or '未知错误'}")
 with hc3:
     if st.button("🗑️ 加入垃圾股", width="stretch", key="pick_add_junk",
                  disabled=not _ticker_ok, help="请先在左侧选择一只股票" if not _ticker_ok else "将当前股票标记为垃圾股"):
@@ -290,7 +290,7 @@ with hc3:
         if "成功" in msg or "已在" in msg:
             xc_success_box("✅ 已加入垃圾股")
         else:
-            st.error(f"加入失败：{msg or '未知错误'}")
+            xc_error_box(f"加入失败：{msg or '未知错误'}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -713,7 +713,7 @@ if data_ok and df is not None:
             verdict = "⚪ 多空平衡，观望为主"
         else:
             verdict = "🔴 整体偏空，谨慎参与"
-        st.info(f"**综合评分 {composite}/100** · 短期 {short} / 中期 {mid} / 长期 {long} · {verdict}")
+        xc_info_banner(f"**综合评分 {composite}/100** · 短期 {short} / 中期 {mid} / 长期 {long} · {verdict}")
 
         # ── 📊 量化指标（RSI / MACD / KDJ / BOLL） ──
         sf_card("📊 量化指标", "")
