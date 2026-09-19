@@ -28,8 +28,8 @@ def test_hero_fallback_css_contains_xc_hero_class():
     assert "border-radius:18px" in _HERO_FALLBACK_CSS
     # 渐变背景是新城风格的核心特征，丢了就成了纯色卡片
     assert "linear-gradient(120deg," in _HERO_FALLBACK_CSS
-    # box-shadow 抬升光晕
-    assert "box-shadow:0 0 0 1px rgba(102,126,234" in _HERO_FALLBACK_CSS
+    # box-shadow 抬升光晕（T-145 A1 后走 --ss-shadow-hero token，兜底通道自带 token 层）
+    assert "box-shadow:var(--ss-shadow-hero);" in _HERO_FALLBACK_CSS
 
 
 def test_hero_fallback_css_contains_xc_hero_chips():

@@ -113,11 +113,12 @@ def test_metric_skin_matches_canonical_xc_card(monkeypatch):
         assert metric.get(key) == xc.get(key), (
             f"stMetric 与 .xc-card 的 {key} 不一致：{metric.get(key)!r} vs {xc.get(key)!r}"
         )
-    assert xc["border-radius"] == "16px"  # canonical 卡圆角基线下限
+    assert xc["border-radius"] == "var(--ss-radius-card)"  # canonical 卡圆角统一走 token（T-145 A3）
     for name, d in (("stMetric", metric), ("xc-card", xc)):
         b = d.get("border", "")
-        assert ("color-mix(" in b and "acc1" in b and "22%" in b), (
-            f"{name} 边框须为主题强调色 22% 混色（token 化，禁裸 --border）：{b!r}"
+        assert ("color-mix(" in b and "--ss-accent" in b and "22%" in b), (
+            f"{name} 边框须为主题强调色 22% 混色且走 --ss-accent token（禁裸 --border）：{b!r}"
         )
     assert metric.get("box-shadow") == xc.get("box-shadow"), "两处卡阴影须一致"
+    assert "var(--ss-shadow-card)" in metric.get("box-shadow", ""), "卡阴影应统一走 --ss-shadow-card token"
 

@@ -86,7 +86,6 @@ def _render_sector_cards(df, top_n=24):
             pct = 0.0
         up = pct >= 0
         color = UP_COLOR if up else DOWN_COLOR
-        bg = '#fde8e6' if up else '#e8f9ef'
         arrow = '▲' if up else '▼'
         cards.append(f'<div class="xc-sector-card" style="border-left-color:{color};"><div class="xc-sector-name">{name}</div><div class="xc-sector-pct" style="color:{color};">{arrow} {pct:+.2f}%</div></div>')
     grid = ''.join(cards)

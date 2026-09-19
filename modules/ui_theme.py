@@ -187,6 +187,7 @@ def dashboard_sf_css() -> str:
     性能（R88）：CSS 仅随主题(dark/light)变化，故按主题缓存整段字符串，
     避免每个页面重跑都重建这段等长 CSS。
     """
+    from modules.ui_kit import _TOKEN_CSS  # T-145 A3：ui_kit 设计令牌单一来源
     dark = _theme_is_dark()
     _cached = _DASHBOARD_SF_CSS_CACHE.get(dark)
     if _cached is not None:
@@ -195,7 +196,7 @@ def dashboard_sf_css() -> str:
         root = '\n  --bg:#0f0f23; --card:#1a1a2e; --card2:#15152a; --buy:#009e60; --sell:#dc2626; --hold:#d97706;\n  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44;\n  --hover:#15152a; --alert-risk:#ffb3bb; --alert-cat:#9af0dd; --disclaimer:#6b7280;\n  --header-g1:#1a1a2e; --header-g2:#241b3a; --icon-g1:#1a1a2e; --icon-g2:#241b3a;\n'
     else:
         root = '\n  --bg:#ffffff; --card:#ffffff; --card2:#f4f6fb; --buy:#009e60; --sell:#dc2626; --hold:#d97706;\n  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#1e293b; --txt2:#64748b; --border:#e2e8f0;\n  --hover:#f1f5f9; --alert-risk:#991b1b; --alert-cat:#166534; --disclaimer:#94a3b8;\n  --header-g1:#eef2ff; --header-g2:#ede9fe; --icon-g1:#eef2ff; --icon-g2:#ede9fe;\n'
-    _css = f"""\n<style>\n:root{{{root}}}\n/* 通用星辰卡片（供任意页面在 dashboard_sf_css 内使用） */
+    _css = _TOKEN_CSS + f"""\n<style>\n:root{{{root}}}\n/* 通用星辰卡片（供任意页面在 dashboard_sf_css 内使用） */
 /* 通用星辰卡片 → 2026-08-28 重渲染为「新城(xc)」视觉语言：深紫渐变描边 + 大圆角 + 抬升光晕 */
 .sf-card{{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));
   border-radius:18px;padding:18px 20px;margin-top:18px;position:relative;overflow:hidden;
@@ -335,10 +336,10 @@ hr{{border-color:var(--border)!important}}
 .stDataFrame tbody tr:hover,.stTable tbody tr:hover{{background:color-mix(in srgb,var(--acc1) 10%,var(--card2))!important}}
 /* 3. st.metric 卡片化：逐 token 对齐 canonical .xc-card（ui_kit._KIT_CSS）——同一种 KPI 卡、单一视觉源。
    A 股红涨绿跌由页面 delta_color="inverse"/tone 控制，此处只统一容器/字体，不碰颜色语义。 */
-[data-testid="stMetric"]{{background:var(--card)!important;border:1px solid color-mix(in srgb,var(--acc1) 22%,var(--border))!important;border-radius:16px!important;padding:14px 16px!important;box-shadow:0 1px 4px rgba(15,15,35,.06)!important;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease!important}}
-[data-testid="stMetric"]:hover{{transform:translateY(-4px);border-color:var(--acc1)!important;box-shadow:0 10px 30px rgba(102,126,234,.18)!important}}
+[data-testid="stMetric"]{{background:var(--card)!important;border:1px solid color-mix(in srgb,var(--ss-accent) 22%,var(--ss-line))!important;border-radius:var(--ss-radius-card)!important;padding:14px 16px!important;box-shadow:var(--ss-shadow-card)!important;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease!important}}
+[data-testid="stMetric"]:hover{{transform:translateY(-4px);border-color:var(--acc1)!important;box-shadow:var(--ss-shadow-lift)!important}}
 [data-testid="stMetric"] label{{color:var(--txt2)!important;font-size:12px!important;font-weight:500!important}}
-[data-testid="stMetricValue"]{{color:var(--txt)!important;font-weight:800!important;font-size:22px!important;font-family:'Fira Code',ui-monospace,monospace!important;letter-spacing:.2px!important}}
+[data-testid="stMetricValue"]{{color:var(--txt)!important;font-weight:800!important;font-size:22px!important;font-family:var(--ss-font-num)!important;letter-spacing:.2px!important}}
 [data-testid="stMetricDelta"]{{font-size:13px!important;font-weight:700!important}}
 /* 4. 原生 info/warning/error/success 左条改用主题强调紫（与 xc 一致） */
 [data-testid="stAlert"][data-baseweb="notification"][data-kind="info"]{{border-left:4px solid var(--acc1)!important}}
