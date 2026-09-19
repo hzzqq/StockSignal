@@ -854,8 +854,7 @@ def fragment_chat():
     if "_xc_pending" in st.session_state:
         prompt = st.session_state.pop("_xc_pending")
     user_text = st.chat_input(
-        "问星辰 AI…（Enter 发送 / Shift+Enter 换行）",
-        placeholder="例如：太极实业 600667 怎么样？",
+        placeholder="问星辰 AI…（Enter 发送 / Shift+Enter 换行）｜例如：太极实业 600667 怎么样？",
     )
     if user_text:
         prompt = user_text
