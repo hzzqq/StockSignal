@@ -65,7 +65,7 @@ def test_cube_degrades_when_all_sources_fail(_stub_page_module, monkeypatch):
     cube = _stub_page_module
     for fn in ("_load_foreign_commodity", "_load_global_futures_backup",
                "_load_forex", "_load_us_bond", "_load_concept_board",
-               "_load_industry_backup"):
+               "_load_industry_backup", "_load_vix"):
         monkeypatch.setattr(cube, fn, lambda *a, **k: (None, "mock: source down"))
 
     econ = cube._build_econ_cards()
@@ -101,6 +101,8 @@ def test_cube_cards_use_real_data_when_sources_ok(_stub_page_module, monkeypatch
     monkeypatch.setattr(cube, "_load_us_bond", lambda *a, **k: (bond.copy(), None))
     monkeypatch.setattr(cube, "_load_concept_board", lambda *a, **k: (concept.copy(), None))
     monkeypatch.setattr(cube, "_load_industry_backup", lambda *a, **k: (None, "mock: not needed"))
+    monkeypatch.setattr(cube, "_load_vix", lambda *a, **k: (
+        {"price": 21.67, "pct": -4.08, "name": "标普500波动率指数", "time": "09:30:00"}, None))
 
     econ = cube._build_econ_cards()
     by_label = {c["label"]: c for c in econ}
@@ -108,7 +110,9 @@ def test_cube_cards_use_real_data_when_sources_ok(_stub_page_module, monkeypatch
     assert by_label["布伦特原油"]["delta_dir"] == "down"  # -1.20% 绿跌
     assert by_label["黄金盎司"]["delta_dir"] == "up"      # +0.84% 红涨
     assert by_label["黄金盎司"]["_status"] == "ok"
-    assert by_label["恐慌指数"]["_status"] == "unavailable"  # 无稳定免费源，诚实降级
+    assert by_label["恐慌指数"]["_status"] == "ok"           # 腾讯行情 VIX 已接入
+    assert by_label["恐慌指数"]["value"] == "21.67"
+    assert by_label["恐慌指数"]["delta_dir"] == "down"       # -4.08% 绿
     assert by_label["美债长债"]["_status"] == "ok"          # 收益率口径
 
     ind = cube._build_industry_cards()

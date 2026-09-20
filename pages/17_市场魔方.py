@@ -140,6 +140,30 @@ def _load_forex() -> tuple:
     return None, last_err
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def _load_vix() -> tuple:
+    """VIX（Cboe 标普500波动率指数）：腾讯行情直连 qt.gtimg.cn（非东财，规避断连）。
+
+    返回 (dict(price,pct,name,time)|None, err|None)。实测 2026-09-20：usVIX 返回
+    「标普500波动率指数 .VIX」真实报价。字段：[1]名称 [3]最新价 [4]昨结 [30]时间。
+    """
+    try:
+        import requests
+        r = requests.get("https://qt.gtimg.cn/q=usVIX", timeout=10)
+        r.encoding = "gbk"
+        body = r.text.split('="', 1)[-1].strip().rstrip('";\r\n ')
+        parts = body.split("~")
+        if len(parts) < 5 or not parts[3]:
+            return None, "VIX 返回字段不足"
+        price = float(parts[3])
+        prev = float(parts[4]) if parts[4] else price
+        pct = (price - prev) / prev * 100 if prev else 0.0
+        t = parts[30] if len(parts) > 30 else ""
+        return {"price": price, "pct": pct, "name": parts[1] or "标普500波动率指数", "time": t}, None
+    except Exception as e:  # noqa: BLE001
+        return None, str(e)
+
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def _load_us_bond() -> tuple:
     """中美国债收益率（美国 30 年期口径）。返回 (df|None, err|None)。"""
@@ -241,8 +265,15 @@ def _build_econ_cards() -> list:
     cards.append(_commodity("白银盎司", "COMEX白银"))
     cards.append(_commodity("铜", "COMEX铜"))
 
-    # 恐慌指数：暂无稳定免费源（spec 钉死，诚实降级）
-    cards.append(_unavailable_card("恐慌指数", "暂无稳定免费数据源（VIX），接入后补"))
+    # 恐慌指数：腾讯行情直连 VIX（Cboe 标普500波动率指数）；失败诚实降级
+    vix, vix_err = _load_vix()
+    if vix is None:
+        cards.append(_unavailable_card("恐慌指数", "VIX 源暂不可用" + (f"：{vix_err[:60]}" if vix_err else "")))
+    else:
+        note = f"{vix['name']} · Cboe（腾讯行情）"
+        if vix.get("time"):
+            note += f" · {vix['time']}"
+        cards.append(_pct_card("恐慌指数", vix["price"], vix["pct"], note))
 
     # 美元强弱：东财外汇（限流常见，失败 unavailable）
     fd, fd_err = _load_forex()
