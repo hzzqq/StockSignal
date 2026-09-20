@@ -39,8 +39,12 @@ def test_defaults(fresh_config):
     assert fresh_config.RATE_LIMIT_MAX == 5
     assert fresh_config.RATE_LIMIT_WINDOW == 60
     assert fresh_config.RATE_LIMIT_ENABLED is True
-    assert fresh_config.SECRET_KEY == "dev-only-change-me-in-production"
-    assert fresh_config.CORS_ORIGINS == "*"
+    # T-144 缺陷③②修复后的新默认：SECRET_KEY 不再是公开弱默认（随机持久化），
+    # CORS 默认收敛到本机前后端来源（不再通配 '*'）。
+    assert fresh_config.SECRET_KEY != "dev-only-change-me-in-production"
+    assert len(str(fresh_config.SECRET_KEY)) >= 32
+    assert "*" not in str(fresh_config.CORS_ORIGINS)
+    assert "localhost:8899" in str(fresh_config.CORS_ORIGINS)
 
 
 def test_jwt_expires_override(fresh_config, monkeypatch):

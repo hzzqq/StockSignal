@@ -22,13 +22,42 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+# 密钥持久化文件（模块级：测试可注入重定向；gitignore 覆盖 backend/data/）
+SECRET_KEY_FILE = DATA_DIR / "secret_key"
+
+
+def _resolve_secret() -> str:
+    """SECRET_KEY 解析（T-144 缺陷③修复）：env 优先；未设置时首启生成随机密钥并
+    持久化到 backend/data/secret_key（每机唯一、重启稳定），消除公开弱默认的
+    「JWT 可被任何知道该默认值的人伪造」风险。极端只读环境兜底为进程内随机。"""
+    env = os.environ.get("STOCKSIGNAL_SECRET")
+    if env:
+        return env
+    key_file = SECRET_KEY_FILE
+    try:
+        if key_file.exists():
+            cached = key_file.read_text(encoding="utf-8").strip()
+            if len(cached) >= 32:
+                return cached
+        import secrets as _secrets
+        generated = _secrets.token_urlsafe(48)
+        key_file.write_text(generated, encoding="utf-8")
+        try:
+            os.chmod(key_file, 0o600)
+        except OSError:
+            pass
+        return generated
+    except Exception:  # noqa: BLE001
+        import secrets as _secrets
+        return _secrets.token_urlsafe(48)
+
+
 class Config:
     # 基础
     DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
 
-    # 安全
-    # 生产环境必须用环境变量注入；这里给一个开发态默认值方便本地启动
-    SECRET_KEY = os.environ.get("STOCKSIGNAL_SECRET", "dev-only-change-me-in-production")
+    # 安全（T-144 缺陷③：不再使用公开弱默认）
+    SECRET_KEY = _resolve_secret()
 
     # JWT
     JWT_ALGORITHM = "HS256"
@@ -58,8 +87,13 @@ class Config:
         "connect_args": {"check_same_thread": False, "timeout": 30},
     }
 
-    # CORS（开发态默认放行所有，方便 Streamlit 联调；生产请收紧）
-    CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
+    # CORS（T-144 缺陷②收紧）：默认收敛到本机前后端来源；局域网/生产用 env 覆盖
+    CORS_ORIGINS = os.environ.get(
+        "CORS_ORIGINS",
+        "http://localhost:8899,http://127.0.0.1:8899,"
+        "http://localhost:8501,http://127.0.0.1:8501,"
+        "http://localhost:5050,http://127.0.0.1:5050",
+    )
 
     # 错误响应开关：生产绝不暴露内部
     EXPOSE_INTERNAL_ERROR = os.environ.get("EXPOSE_INTERNAL_ERROR", "0") == "1"

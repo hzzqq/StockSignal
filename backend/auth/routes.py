@@ -52,6 +52,21 @@ def login():
 
     user = authenticate(username, password)
     token = issue_token(user)
+    # 登录审计（T-144 缺陷①修复）：/api/auth/logins 曾恒空——登录成功从未落
+    # OperationLog(action='login')。审计失败绝不阻断登录主流程（回滚+日志）。
+    try:
+        db.session.add(OperationLog(
+            user_id=user.id,
+            username=user.username,
+            action="login",
+            target=user.username,
+            detail=f"ip={request.remote_addr or '-'}",
+        ))
+        db.session.commit()
+    except Exception as e:  # noqa: BLE001
+        db.session.rollback()
+        import logging
+        logging.getLogger(__name__).warning("登录审计落库失败: %s", e)
     return ok(
         data={"token": token, "user": user.to_public()},
         message="登录成功",
