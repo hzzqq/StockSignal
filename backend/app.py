@@ -169,6 +169,11 @@ def create_app(config_object: type = Config) -> Flask:
     def admin_ui():
         return render_admin_ui()
 
+    # ---- OpenAPI 契约面（T-159）：机器可读 spec + Swagger UI 文档页 ----
+    from .openapi import register_openapi
+
+    register_openapi(app)
+
     return app
 
 
