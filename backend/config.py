@@ -4,6 +4,7 @@ backend/config.py
 集中管理配置。生产环境请通过环境变量覆盖 SECRET_KEY。
 """
 from __future__ import annotations
+import logging
 import os
 from pathlib import Path
 
@@ -44,8 +45,10 @@ def _resolve_secret() -> str:
         key_file.write_text(generated, encoding="utf-8")
         try:
             os.chmod(key_file, 0o600)
-        except OSError:
-            pass
+        except OSError as e:
+            # T-160：权限收紧失败留痕（Windows/FAT 常见）——密钥文件可能放宽到
+            # 用户组可读，运维需知情；不影响密钥本身正确性
+            logging.getLogger(__name__).debug("SECRET_KEY 文件 chmod 失败: %s", e)
         return generated
     except Exception:  # noqa: BLE001
         import secrets as _secrets

@@ -605,8 +605,9 @@ def frag_zip():
                     "StockSignal_全量数据.xlsx",
                     _to_excel_bytes(datasets),
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                # T-160：Excel 打包失败静默 = ZIP 缺文件用户不知情（CSV 部分仍完整）
+                logger.warning("[export] 全量数据 Excel 打包失败，ZIP 仅含 CSV: %s", e)
             # manifest 清单
             lines = [
                 "StockSignal 数据导出清单",
