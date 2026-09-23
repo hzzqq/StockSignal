@@ -1,22 +1,23 @@
 {
-  "snapshot_count": 11,
+  "snapshot_count": 15,
   "snapshot_date_range": [
     "2026-08-31",
-    "2026-09-14"
+    "2026-09-21"
   ],
   "temperature_min_max": [
     11.4,
-    75.2
+    81.1
   ],
   "position_min_max": [
-    10,
+    5,
     82
   ],
   "position_clamp_5_95_ok": true,
   "cycle_distribution": {
     "修复试探": 7,
-    "主升高潮": 2,
-    "退潮": 2
+    "主升高潮": 3,
+    "退潮": 3,
+    "修复确认": 2
   },
   "scenario_samples": [
     [
@@ -154,21 +155,31 @@
       "梯队断档（晋级率<20%）：减仓 6%"
     ]
   ],
-  "prediction_count": 11,
-  "prediction_scored": 4,
-  "prediction_hit_rate": 0.25,
+  "prediction_count": 15,
+  "prediction_scored": 6,
+  "prediction_hit_rate": 0.16666666666666666,
   "note": "样本量小时如实标注，不推断统计显著性",
   "grouped_stats": {
     "by_cycle": [
       {
         "cycle": "主升高潮",
         "group": "进攻期",
-        "n": 2,
-        "n_call": 2,
+        "n": 3,
+        "n_call": 3,
         "hits": 1,
-        "accuracy": 50.0,
-        "avg_pct": 61.0,
+        "accuracy": 33.3,
+        "avg_pct": 54.0,
         "avg_realized": -0.39
+      },
+      {
+        "cycle": "修复确认",
+        "group": "进攻期",
+        "n": 2,
+        "n_call": 0,
+        "hits": 0,
+        "accuracy": null,
+        "avg_pct": 40.0,
+        "avg_realized": null
       },
       {
         "cycle": "修复试探",
@@ -178,27 +189,27 @@
         "hits": 0,
         "accuracy": null,
         "avg_pct": 29.9,
-        "avg_realized": -0.34
+        "avg_realized": -0.37
       },
       {
         "cycle": "退潮",
         "group": "防守期",
-        "n": 2,
-        "n_call": 2,
+        "n": 3,
+        "n_call": 3,
         "hits": 0,
         "accuracy": 0.0,
-        "avg_pct": 18.5,
-        "avg_realized": 0.15
+        "avg_pct": 14.0,
+        "avg_realized": 0.34
       }
     ],
     "by_group": [
       {
         "group": "进攻期",
-        "n": 2,
-        "n_call": 2,
+        "n": 5,
+        "n_call": 3,
         "hits": 1,
-        "accuracy": 50.0,
-        "avg_pct": 61.0,
+        "accuracy": 33.3,
+        "avg_pct": 48.4,
         "avg_realized": -0.39
       },
       {
@@ -208,26 +219,26 @@
         "hits": 0,
         "accuracy": null,
         "avg_pct": 29.9,
-        "avg_realized": -0.34
+        "avg_realized": -0.37
       },
       {
         "group": "防守期",
-        "n": 2,
-        "n_call": 2,
+        "n": 3,
+        "n_call": 3,
         "hits": 0,
         "accuracy": 0.0,
-        "avg_pct": 18.5,
-        "avg_realized": 0.15
+        "avg_pct": 14.0,
+        "avg_realized": 0.34
       }
     ],
     "summary": {
-      "n": 11,
-      "scored": 4,
-      "n_call": 4,
+      "n": 15,
+      "scored": 6,
+      "n_call": 6,
       "hits": 1,
-      "accuracy": 25.0,
+      "accuracy": 16.7,
       "start": "2026-08-31",
-      "end": "2026-09-14"
+      "end": "2026-09-21"
     }
   }
 }
