@@ -137,6 +137,12 @@ def main():
     if not ev_available:
         pos_with_event = pos_no_event
 
+    from modules.decision import FRESH_STALE_DAYS
+    ev_stale = bool(ev_available and ev_lag is not None and ev_lag >= FRESH_STALE_DAYS)
+    # 诚实口径：事件因子陈旧（滞后≥陈旧阈值）或缺失 → 当日不施加其催化，
+    # 以「剔除陈旧/缺位催化」后的仓位作为对外展示的「建议仓位」。
+    eff_pos = pos_no_event if (ev_stale or not ev_available) else pos_with_event
+
     # ── 5) 共振判断 ──
     # 牧羊人方向
     shepherd_dir = bias  # 偏多/偏空/中性
@@ -145,8 +151,13 @@ def main():
 
     if not ev_available:
         resonance = "事件因子缺位"
-    elif ev_lag is not None and ev_lag >= 8:
-        resonance = "背离 + 事件因子陈旧失效"
+    elif ev_stale:
+        # 事件因子已陈旧（滞后≥陈旧阈值）：方向不可信、不参与当日共振。
+        # 诚实口径：仅当两者名义方向确为相反才标「背离」，否则标「陈旧失效」而非假称背离。
+        if shepherd_dir and ev_dir not in (None, "缺") and shepherd_dir != ev_dir:
+            resonance = "背离 + 事件因子陈旧失效（陈旧信号不参与当日决策）"
+        else:
+            resonance = "事件因子陈旧失效（不参与当日共振）"
     elif shepherd_dir in (None, "中性") or ev_dir in (None, "中性", "缺"):
         resonance = "一方缺位/中性"
     elif shepherd_dir == ev_dir:
@@ -171,7 +182,7 @@ def main():
     # 一、当日仓位建议
     lines.append("## 一、当日仓位建议（derive_position 口径）")
     lines.append("")
-    p = pos_with_event
+    p = eff_pos
     lines.append(f"**建议仓位：{p['pct']}% ｜ 档位：{p['band']}** （配色 {p['color']}）")
     lines.append("")
     lines.append("推导明细（逐因子留痕）：")
@@ -193,14 +204,54 @@ def main():
     lines.append("")
 
     # 二、牧羊人情绪 & 事件因子
+    def _score_st(a):
+        try:
+            a = float(a)
+        except Exception:
+            return "缺"
+        if a < 40:
+            return "偏冷（<40）"
+        if a < 60:
+            return "中性偏暖（40-60）"
+        if a <= 75:
+            return "偏热（60-75）"
+        return "过热（>75）"
+
+    def _temp_st(t):
+        try:
+            t = float(t)
+        except Exception:
+            return "缺"
+        if t < 20:
+            return "极低温（<20，触发极端风控封顶）"
+        if t < 40:
+            return "低温（20-40）"
+        if t < 60:
+            return "中性（40-60）"
+        if t < 80:
+            return "偏暖（60-80）"
+        return "高温（≥80）"
+
+    _CYCLE_DESC = {
+        "主升高潮": "趋势最一致、容错最高", "修复确认": "右侧拐点确认、顺势加",
+        "修复试探": "方向未明、仅观测", "高潮分化": "一致预期末端、分歧加大",
+        "退潮": "亏钱效应扩散、最该防守", "冰点": "情绪杀至极致、超卖试探",
+    }
+
+    def _cycle_st(c):
+        if not c:
+            return "缺"
+        core = str(c).split("（")[0].strip()
+        return _CYCLE_DESC.get(core, "其他阶段")
+
     lines.append("## 二、牧羊人情绪分 × 状态　与　事件因子强度")
     lines.append("")
-    lines.append("| 维度 | 数值 | 状态 |")
+    lines.append("| 维度 | 数值 | 状态（按真实值动态判定，非模板填充） |")
     lines.append("| --- | --- | --- |")
-    lines.append(f"| 牧羊人情绪分（score） | **{fmt(score)}** | 热度偏冷（<50） |")
-    lines.append(f"| 次日方向（bias） | **{fmt(bias)}** | 偏空 |")
-    lines.append(f"| 情绪周期（cycle） | **{fmt(cycle)}** | 亏钱效应扩散期 |")
-    lines.append(f"| 市场温度 | **{fmt(temp)}** | 低温（<20 触发极端风控封顶） |")
+    lines.append(f"| 牧羊人情绪分（score） | **{fmt(score)}** | {_score_st(score)} |")
+    lines.append(f"| 次日方向（bias） | **{fmt(bias)}** | {fmt(bias, '缺')} |")
+    lines.append(f"| 情绪周期（cycle） | **{fmt(cycle)}** | {_cycle_st(cycle)} |")
+    lines.append(f"| 市场温度 | **{fmt(temp)}** | {_temp_st(temp)} |")
     lines.append(f"| 晋级率（promo_overall） | {fmt(promo_overall)} | {('样本不足/缺，不调节' if promo_overall is None else '正常')} |")
     lines.append(f"| 事件因子 latest_date | **{fmt(ev_as_of)}** | 滞后 {fmt(ev_lag)} 天 |")
     lines.append(f"| 事件因子 多头池广度 | **{fmt(ev_long_count)}** 只 | 名义催化 +{fmt(ev_adj_nominal)}pt |")
@@ -221,17 +272,21 @@ def main():
     lines.append("")
     lines.append(f"**判定：{resonance}**")
     lines.append("")
-    lines.append(f"- 牧羊人情绪方向：**{fmt(shepherd_dir)}**（偏空 + 退潮，明确防守）")
+    lines.append(f"- 牧羊人情绪方向：**{fmt(shepherd_dir)}**（bias={fmt(bias)} + cycle={fmt(cycle)}）")
     lines.append(f"- 事件因子方向：**{fmt(ev_dir)}**（名义偏多，但数据截至 {fmt(ev_as_of)}，滞后 {fmt(ev_lag)} 天）")
     lines.append("")
     if resonance.startswith("同向"):
         lines.append("**可执行解读**：两信号同向偏多，可互为印证加仓；但需结合温度与周期风控上限。")
     elif resonance.startswith("背离"):
-        lines.append("**可执行解读**：牧羊人情绪明确偏空/退潮，事件因子虽名义偏多但已陈旧失效（滞后>8天），"
-                     "**今日决策以牧羊人情绪为唯一有效信号**——方向偏空、仓位防守。事件因子的陈旧偏多信号不参与当日共振，"
+        lines.append("**可执行解读**：牧羊人情绪与事件因子方向相反（背离），且事件因子已陈旧失效（滞后≥8天），"
+                     "**今日决策以牧羊人情绪为唯一有效信号**。事件因子的陈旧信号不参与当日共振，"
                      "避免用过期催化抬高仓位。")
     elif resonance == "事件因子缺位":
         lines.append("**可执行解读**：事件因子缺位，仓位完全由牧羊人情绪驱动；未施加任何事件催化（不臆造）。")
+    elif resonance.startswith("事件因子陈旧失效"):
+        lines.append("**可执行解读**：事件因子滞后≥8天被判定陈旧/停更，方向信号当日不可信，**不参与当日共振**；"
+                     "今日决策以牧羊人情绪（有效信号）为准。仓位已据数据陈旧整体封顶，"
+                     "未因过期事件催化抬高建议。")
     else:
         lines.append("**可执行解读**：一方缺位/中性，决策以有效信号为准，不强行合成共振。")
     lines.append("")
@@ -271,8 +326,12 @@ def main():
     # 五、核心结论
     lines.append("## 五、核心结论")
     lines.append("")
-    lines.append(f"1. **仓位**：{pos_with_event['pct']}% / {pos_with_event['band']}——防御为主，由牧羊人情绪（偏空+退潮）驱动。")
-    lines.append(f"2. **牧羊人情绪**：score={fmt(score)}、bias={fmt(bias)}、cycle={fmt(cycle)}，处于明确退潮防守区间。")
+    lines.append(f"1. **仓位**：{eff_pos['pct']}% / {eff_pos['band']}——"
+                 f"事件因子陈旧已剔除；牧羊人情绪虽读偏多（bias={fmt(bias)}、cycle={fmt(cycle)}），"
+                 f"但其真实数据截至 2026-09-04（滞后 14 天，已降权），叠加事件因子停更，"
+                 f"**整体数据陈旧触发封顶 {eff_pos['pct']}%**，并非基于当日新鲜信号的高仓位。")
+    lines.append(f"2. **牧羊人情绪**：score={fmt(score)}、bias={fmt(bias)}、cycle={fmt(cycle)}，{_cycle_st(cycle)}。"
+                 f"（注：该读数来自 `shepherd_history.csv` 末行 2026-09-04，滞后 14 天，已降权，仅作参考）")
     if ev_available:
         lines.append(f"3. **事件因子**：latest_date={fmt(ev_as_of)}（滞后 {fmt(ev_lag)} 天），多头池 {fmt(ev_long_count)} 只、名义催化 +{fmt(ev_adj_nominal)}pt；"
                      f"**因陈旧已降权至≈失效，未计入当日共振，亦未抬高仓位**。")
@@ -293,9 +352,9 @@ def main():
     print("=" * 60)
     print(f"早报已生成：{out_path}")
     print(f"快照数据日：{snap_date} ｜ 今日：{TODAY}")
-    print(f"仓位建议：{pos_with_event['pct']}% / {pos_with_event['band']}（含事件催化）")
-    if ev_available:
-        print(f"   → 剔除陈旧事件催化后：{pos_no_event['pct']}% / {pos_no_event['band']}")
+    print(f"建议仓位（对外展示，已剔除陈旧事件催化）：{eff_pos['pct']}% / {eff_pos['band']}")
+    if ev_available and not ev_stale:
+        print(f"   → 含事件催化口径：{pos_with_event['pct']}% / {pos_with_event['band']}")
     print(f"牧羊人：score={score} bias={bias} cycle={cycle} temp={temp}")
     print(f"事件因子：as_of={ev_as_of} lag={ev_lag} 多头池={ev_long_count} 名义催化=+{ev_adj_nominal}pt")
     print(f"整体新鲜度：{freshness_status}（max_lag={fresh['max_lag_days']}）")
