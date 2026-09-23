@@ -113,6 +113,16 @@ def main():
                                  "latest_date": m.get("latest_date"), "lag": _age_days(m.get("latest_date"))})
 
     # ── 3) 数据源时效（data_health.health_rows_enriched，唯一权威口径）──
+    # 必须先落盘一次「当前真实观测」，否则 detect_stall 会拿过期的观测历史（本仓上次
+    # 写表停在 2026-09-17）去判停更，把 mtime 实际新鲜的源（连板晋级率/市场温度/快照）
+    # 误标「停更」——那是另一种不诚实。落盘当前观测后：
+    #   · 真冻结源（牧羊人 09-04、P1 08-14）as_of 未推进 → last_advance 不更新 → 仍判停更（正确）
+    #   · 新鲜源（mtime 今/昨）as_of 推进 → last_advance=今日 → frozen=0 → 不判停更（正确）
+    try:
+        from modules.data_health import record_health_observation
+        record_health_observation()
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 写入健康观测失败（不影响时效判定）: {e}")
     rows = health_rows_enriched()
     _hrow = {r["name"]: r for r in rows}
     # 决策输入源的「真实数据截止日」一律取自 health_rows_enriched()（不以快照内部
@@ -130,9 +140,10 @@ def main():
     # 含事件因子名义催化(+2pt，来自陈旧信号)
     pos_with_event = derive_position(temp, score, bias, cycle, promo_overall,
                                      event_adj=ev_adj_nominal, freshness_status=freshness_status)
-    # 诚实对照：事件因子陈旧 → 视为降权至 0 时不施加催化
+    # 诚实对照：事件因子陈旧 → 视为降权至 0 时不施加催化（event_adj=0，不写「信号不可用」，
+    # 信号其实可用只是陈旧；下文 诚实口径 段会显式说明剔除原因）
     pos_no_event = derive_position(temp, score, bias, cycle, promo_overall,
-                                   event_adj=None, freshness_status=freshness_status)
+                                   event_adj=0, freshness_status=freshness_status)
     # 若事件因子不可用（缺），derive_position 也会走 event_adj=None 路径
     if not ev_available:
         pos_with_event = pos_no_event
@@ -326,12 +337,13 @@ def main():
     # 五、核心结论
     lines.append("## 五、核心结论")
     lines.append("")
+    _sh_ev_note = "叠加事件因子停更" if (ev_available and ev_stale) else "叠加事件因子陈旧"
     lines.append(f"1. **仓位**：{eff_pos['pct']}% / {eff_pos['band']}——"
-                 f"事件因子陈旧已剔除；牧羊人情绪虽读偏多（bias={fmt(bias)}、cycle={fmt(cycle)}），"
-                 f"但其真实数据截至 2026-09-04（滞后 14 天，已降权），叠加事件因子停更，"
+                 f"事件因子陈旧已剔除；牧羊人情绪虽读 {fmt(bias)}（bias={fmt(bias)}、cycle={fmt(cycle)}），"
+                 f"但其真实数据截至 {fmt(_sh_asof)}（滞后 {fmt(_sh_lag)} 天，已降权），{_sh_ev_note}，"
                  f"**整体数据陈旧触发封顶 {eff_pos['pct']}%**，并非基于当日新鲜信号的高仓位。")
     lines.append(f"2. **牧羊人情绪**：score={fmt(score)}、bias={fmt(bias)}、cycle={fmt(cycle)}，{_cycle_st(cycle)}。"
-                 f"（注：该读数来自 `shepherd_history.csv` 末行 2026-09-04，滞后 14 天，已降权，仅作参考）")
+                 f"（注：该读数来自 `shepherd_history.csv` 末行 {fmt(_sh_asof)}，滞后 {fmt(_sh_lag)} 天，已降权，仅作参考）")
     if ev_available:
         lines.append(f"3. **事件因子**：latest_date={fmt(ev_as_of)}（滞后 {fmt(ev_lag)} 天），多头池 {fmt(ev_long_count)} 只、名义催化 +{fmt(ev_adj_nominal)}pt；"
                      f"**因陈旧已降权至≈失效，未计入当日共振，亦未抬高仓位**。")
