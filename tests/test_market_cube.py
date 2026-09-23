@@ -122,3 +122,74 @@ def test_cube_cards_use_real_data_when_sources_ok(_stub_page_module, monkeypatch
     assert by_label_i["🧲 稀土"]["tone"] == "down"          # -1.83% 绿
     ok_count = sum(1 for c in ind if c["_status"] == "ok")
     assert ok_count == 3, f"样例概念表只有 3 个命中，其余应 unavailable：{ok_count}"
+
+
+def test_batch7_tabs_degrade_when_sources_fail(_stub_page_module, monkeypatch):
+    """批7：四 tab 数据源全挂 → 各 builder 全 unavailable、不崩（诚实降级）。"""
+    cube = _stub_page_module
+    for fn in ("_load_sina_index", "_load_fx", "_load_foreign_commodity",
+               "_load_concept_board", "_load_industry_backup"):
+        monkeypatch.setattr(cube, fn, lambda *a, **k: (None, "mock: down"))
+
+    kr = cube._build_kr_sections()
+    kr_cards = [c for _, cards in kr for c in cards]
+    assert len(kr_cards) >= 16, f"日韩 tab 卡数异常: {len(kr_cards)}"
+    assert all(c["_status"] == "unavailable" for c in kr_cards), "全源失败日韩卡应全 unavailable"
+
+    metals = cube._build_metals_sections()
+    metal_cards = [c for _, cards in metals for c in cards]
+    assert all(c["_status"] == "unavailable" for c in metal_cards), "全源失败有色卡应全 unavailable"
+
+    ai = cube._build_ai_sections()
+    ai_cards = [c for _, cards in ai for c in cards]
+    assert len(ai_cards) == 18, f"AI tab 应 18 卡，实际 {len(ai_cards)}"
+    assert all(c["_status"] == "unavailable" for c in ai_cards), "全源失败 AI 卡应全 unavailable"
+
+
+def test_batch7_tabs_use_real_data(_stub_page_module, monkeypatch):
+    """批7：指数/汇率/LME 真实数据语义（KOSPI 红涨、LME 数值、汇率换算口径）。"""
+    cube = _stub_page_module
+
+    def _sina(symbol):
+        data = {"KOSPI": ("韩国综合指数", 6894.23, 2.66),
+                "KOSDAQ": ("韩国创业板指数", 827.12, 0.60),
+                "NKY": ("日经225", 65018.73, 1.38),
+                "VNINDEX": ("越南胡志明市股票指数", 1670.79, 0.61),
+                "SENSEX": ("印度孟买SENSEX", 74294.96, -0.03)}
+        name, price, pct = data[symbol]
+        return {"name": name, "price": price, "pct": pct}, None
+
+    monkeypatch.setattr(cube, "_load_sina_index", _sina)
+    monkeypatch.setattr(cube, "_load_fx", lambda *a, **k: (
+        {"fx_susdcnh": 6.6943, "fx_susdjpy": 156.84, "fx_susdkrw": 1384.74}, None))
+    monkeypatch.setattr(cube, "_load_concept_board", lambda *a, **k: (None, "mock down"))
+    monkeypatch.setattr(cube, "_load_industry_backup", lambda *a, **k: (None, "mock down"))
+    fx_df = pd.DataFrame({
+        "名称": ["LME铜3个月", "LME铝3个月", "LME锌3个月", "LME镍3个月",
+                "LME锡3个月", "LME铅3个月", "COMEX黄金", "COMEX白银",
+                "布伦特原油", "NYMEX原油", "COMEX铜", "NG天然气"],
+        "最新价": [14562.84, 3300.99, 3941.02, 16226.20, 53499.60, 1921.11,
+                  4418.56, 66.68, 98.73, 95.41, 671.63, 3.04],
+        "涨跌幅": [0.28, 0.38, 0.54, 0.27, -0.38, 0.01,
+                  0.43, 0.89, -1.20, -1.87, 0.82, -0.13],
+        "行情时间": ["01:59:59"] * 12,
+    })
+    monkeypatch.setattr(cube, "_load_foreign_commodity", lambda *a, **k: (fx_df, None))
+
+    kr = cube._build_kr_sections()
+    kr_map = {}
+    for title, cards in kr:
+        for c in cards:
+            kr_map[c["label"]] = c
+    assert kr_map["KOSPI"]["_status"] == "ok" and kr_map["KOSPI"]["delta_dir"] == "up"
+    assert kr_map["KOSPI"]["value"] == "6,894.23"
+    assert kr_map["人民币/日元"]["_status"] == "ok"  # 换算口径：156.84/6.6943
+
+    metals = cube._build_metals_sections()
+    metal_map = {}
+    for title, cards in metals:
+        for c in cards:
+            metal_map[c["label"]] = c
+    assert metal_map["铜"]["_status"] == "ok" and metal_map["铜"]["value"] == "14,562.84"
+    assert metal_map["黄金"]["_status"] == "ok"
+    assert metal_map["⚠️ 钨"]["_status"] == "unavailable"  # 小金属无源，诚实降级

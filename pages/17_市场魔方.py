@@ -12,7 +12,9 @@
   📊 涨跌统计条  —— 8 经济卡 + 24 产业卡涨跌汇总（上涨/下跌/平盘）
   🏭 全球产业数据 —— 24 卡双列（emoji + 板块名 + 涨跌幅），东财概念板块名称匹配，
                     未命中显性标注「未命中」，绝不编造
-  🗂 其余 tab    —— 日韩/有色/AI/设置：素材待补占位（等小程序其余 tab 截图）
+  🗂 其余 tab    —— 日韩（韩综/韩产业8/日综/日产业8/亚洲综合/汇率）、有色（金银/LME 工业金属/
+                    战略小金属占位）、AI（产品+设备价格 18 卡）按 2026-09-21 老板提供的
+                    小程序截图逐 tab 复刻；设置为数据说明与免责声明。
 
 数据纪律（铁律五）：每路独立 try/except + st.cache_data(300s)；取数失败 → unavailable
 显性标注，绝不编造、绝不默认 0。A股红涨绿跌（与小程序语义一致）+ ▲▼ 双编码。
@@ -71,8 +73,11 @@ INDUSTRIES = [
     ("🧲", "稀土", ("稀土",)),
 ]
 
-# 经济卡匹配关键词（东财外盘商品名称；主关键词未命中时回退词如实标注口径）
-COMMODITY_CODES = ["B", "CL", "GC", "SI", "HG", "NG"]
+# 经济卡/有色 tab 匹配用（东财外盘商品名称；主关键词未命中时回退词如实标注口径）
+# T-147 批7：追加 LME 六金属（CAD铜/AHD铝/ZSD锌/NID镍/SND锡/PBD铅），供「有色」tab。
+# ⚠️ 不含 'B'：akshare 内部代码字典无 'B'，混入会让整个接口调用 KeyError（2026-09-22 实测）；
+# 布伦特原油改由备源 futures_global_spot_em 显式获取。
+COMMODITY_CODES = ["CL", "GC", "SI", "HG", "NG", "CAD", "AHD", "ZSD", "NID", "SND", "PBD"]
 
 
 def _unavailable_card(label: str, reason: str) -> dict:
@@ -97,15 +102,21 @@ def _pct_card(label: str, price: float, pct: float, meta: str, with_price: bool 
 # ───────────────────── 数据层：每路独立降级 + 缓存 ─────────────────────
 @st.cache_data(ttl=300, show_spinner=False)
 def _load_foreign_commodity() -> tuple:
-    """东财外盘商品实时（含布伦特/金/银/铜/天然气）。返回 (df|None, err|None)。"""
-    try:
-        import akshare as ak
-        df = ak.futures_foreign_commodity_realtime(symbol=COMMODITY_CODES)
-        if df is None or df.empty:
-            return None, "外盘商品实时接口返回空"
-        return df, None
-    except Exception as e:  # noqa: BLE001
-        return None, str(e)
+    """东财外盘商品实时（布伦特/金/银/铜/天然气 + LME 六金属）。轻量重试 2 次。"""
+    import time as _t
+    import akshare as ak
+    last_err = ""
+    for attempt in range(3):
+        try:
+            df = ak.futures_foreign_commodity_realtime(symbol=COMMODITY_CODES)
+            if df is not None and not df.empty:
+                return df, None
+            last_err = "外盘商品实时接口返回空"
+        except Exception as e:  # noqa: BLE001
+            last_err = str(e)
+        if attempt < 2:
+            _t.sleep(1.2)
+    return None, last_err
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -164,6 +175,28 @@ def _load_vix() -> tuple:
         return None, str(e)
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def _load_dini() -> tuple:
+    """美元指数（DINIW）：腾讯行情直连 whDINIW（东财外汇限流时的备源）。
+
+    返回 (dict(price,pct)|None, err|None)。实测 2026-09-22：whDINIW=99.64。
+    字段：[3]最新价 [13]涨跌幅%。
+    """
+    try:
+        import requests
+        r = requests.get("https://qt.gtimg.cn/q=whDINIW", timeout=10)
+        r.encoding = "gbk"
+        body = r.text.split('="', 1)[-1].strip().rstrip('";\r\n ')
+        parts = body.split("~")
+        if len(parts) < 14 or not parts[3]:
+            return None, "美元指数返回字段不足"
+        price = float(parts[3])
+        pct = float(parts[13]) if parts[13] else 0.0
+        return {"price": price, "pct": pct}, None
+    except Exception as e:  # noqa: BLE001
+        return None, str(e)
+
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def _load_us_bond() -> tuple:
     """中美国债收益率（美国 30 年期口径）。返回 (df|None, err|None)。"""
@@ -173,6 +206,59 @@ def _load_us_bond() -> tuple:
         if df is None or df.empty:
             return None, "美债收益率接口返回空"
         return df, None
+    except Exception as e:  # noqa: BLE001
+        return None, str(e)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_sina_index(symbol: str) -> tuple:
+    """新浪全球指数实时（znb_ 系：KOSPI/KOSDAQ/NKY/VNINDEX/SENSEX，非东财源）。
+
+    返回 (dict(name,price,pct)|None, err|None)。字段：,名称,最新,涨跌额,涨跌幅%,...
+    实测 2026-09-20：KOSPI +2.66 与小程序截图完全一致。
+    """
+    try:
+        import requests
+        r = requests.get(
+            f"https://hq.sinajs.cn/list=znb_{symbol}",
+            headers={"Referer": "https://finance.sina.com.cn"}, timeout=10)
+        r.encoding = "gbk"
+        body = r.text.split('="', 1)[-1].strip().rstrip('";\r\n ')
+        parts = body.split(",")
+        if len(parts) < 4 or not parts[1]:
+            return None, f"znb_{symbol} 返回字段不足"
+        return {"name": parts[0], "price": float(parts[1]),
+                "pct": float(parts[3])}, None
+    except Exception as e:  # noqa: BLE001
+        return None, str(e)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_fx() -> tuple:
+    """新浪外汇即期（fx_s 系）。返回 (dict(usdcny,usdjpy,usdkrw)|None, err|None)。
+
+    实测 2026-09-20：fx_susdkrw=1384.74 / fx_susdjpy=156.84，与小程序截图完全一致。
+    """
+    try:
+        import requests
+        r = requests.get(
+            "https://hq.sinajs.cn/list=fx_susdcnh,fx_susdjpy,fx_susdkrw",
+            headers={"Referer": "https://finance.sina.com.cn"}, timeout=10)
+        r.encoding = "gbk"
+        vals = {}
+        for line in r.text.strip().split(";"):
+            line = line.strip()
+            if '="' not in line:
+                continue
+            key = line.split("=")[0].replace("var hq_str_", "")
+            fields = line.split('="', 1)[1].rstrip('"').split(",")
+            if len(fields) >= 2 and fields[1]:
+                vals[key] = float(fields[1])
+        need = ("fx_susdcnh", "fx_susdjpy", "fx_susdkrw")
+        missing = [k for k in need if k not in vals]
+        if missing:
+            return None, f"外汇字段缺失: {missing}"
+        return vals, None
     except Exception as e:  # noqa: BLE001
         return None, str(e)
 
@@ -246,6 +332,12 @@ def _build_econ_cards() -> list:
         src_df = fx
         row = _match_row(src_df, primary, "名称")
         note = price_note + (f" · 行情时间 {trade_time}" if trade_time else "")
+        if row is None:
+            # 备源显式补位（如布伦特原油：外盘实时接口代码表无 'B'，备源 futures_global_spot_em 有）
+            bdf, _ = _load_global_futures_backup()
+            row = _match_row(bdf, primary, "名称")
+            if row is not None:
+                note = "备源口径" + (f" · {trade_time}" if trade_time else "")
         if row is None and fallback:
             row = _match_row(src_df, fallback, "名称")
             if row is not None:
@@ -275,17 +367,23 @@ def _build_econ_cards() -> list:
             note += f" · {vix['time']}"
         cards.append(_pct_card("恐慌指数", vix["price"], vix["pct"], note))
 
-    # 美元强弱：东财外汇（限流常见，失败 unavailable）
+    # 美元强弱：东财外汇（限流常见）→ 腾讯 whDINIW 备源 → unavailable
     fd, fd_err = _load_forex()
     row = _match_row(fd, "美元指数", "名称")
-    if row is None:
-        reason = "外汇源未命中" + (f"：{fd_err[:60]}" if fd_err else "")
-        cards.append(_unavailable_card("美元强弱", reason))
-    else:
+    if row is not None:
         try:
-            cards.append(_pct_card("美元强弱", float(row["最新价"]), float(row["涨跌幅"]), "美元指数口径"))
+            cards.append(_pct_card("美元强弱", float(row["最新价"]), float(row["涨跌幅"]),
+                                   "美元指数口径"))
         except Exception:  # noqa: BLE001
             cards.append(_unavailable_card("美元强弱", "外汇数值解析失败"))
+    else:
+        din, din_err = _load_dini()
+        if din is not None:
+            cards.append(_pct_card("美元强弱", din["price"], din["pct"],
+                                   "美元指数（腾讯行情）"))
+        else:
+            reason = "外汇源未命中" + (f"：{fd_err[:60]}" if fd_err else "")
+            cards.append(_unavailable_card("美元强弱", reason))
 
     # 美债长债：bond_zh_us_rate 美国 30 年期收益率（口径与小程序 TLT 价格不同，如实标注）
     bd, bd_err = _load_us_bond()
@@ -346,6 +444,149 @@ def _build_industry_cards() -> list:
     return cards
 
 
+def _pool_card(label: str, kws: tuple, pools: list, err_hint: str = "") -> dict:
+    """候选关键词 × 板块池（概念/行业）依次匹配的产业卡（批7 四 tab 复用）。"""
+    row = None
+    board_name = ""
+    for df in pools:
+        if df is None or "板块名称" not in df.columns:
+            continue
+        for kw in kws:
+            row = _match_row(df, kw, "板块名称")
+            if row is not None:
+                board_name = str(row["板块名称"])
+                break
+        if row is not None:
+            break
+    if row is None:
+        return _unavailable_card(label, "概念/行业池均未命中" + (f"：{err_hint[:60]}" if err_hint else ""))
+    try:
+        pct = float(row["涨跌幅"])
+    except Exception:  # noqa: BLE001
+        return _unavailable_card(label, "板块数值解析失败")
+    return _pct_card(label, pct, pct, f"匹配板块：{board_name}", with_price=False)
+
+
+def _index_card(label: str, symbol: str, meta: str = "") -> dict:
+    """新浪全球指数卡（znb_ 系）。TOPIX 等无源标的自动 unavailable。"""
+    d, err = _load_sina_index(symbol)
+    if d is None:
+        return _unavailable_card(label, (meta + "；" if meta else "") + (err or "指数源暂不可用"))
+    return _pct_card(label, d["price"], d["pct"], meta or d["name"])
+
+
+# ── 日韩 tab（照小程序截图：韩综/韩产业8/日综/日产业8/亚洲综合/汇率）──
+_KR_INDUSTRY = [
+    ("🗄 存储", ("存储",)), ("🔬 半导体", ("半导体",)), ("🔋 电池", ("电池", "锂电")),
+    ("📱 消费电子", ("消费电子",)), ("🌐 互联网", ("互联网",)), ("🚗 汽车", ("汽车",)),
+    ("💊 生物医药", ("生物医药", "创新药", "医药")), ("🧪 化工材料", ("化工",)),
+]
+_JP_INDUSTRY = [
+    ("🔧 半导体设备", ("半导体设备", "半导体")), ("🏭 工业自动化", ("工业自动化", "自动化设备")),
+    ("⚙️ 精密制造", ("精密制造", "精密", "专用设备")), ("🚙 汽车产业链", ("汽车",)),
+    ("📱 消费电子", ("消费电子",)), ("🧱 半导体材料", ("半导体材料", "材料")),
+    ("🔌 电子元件", ("电子元件", "元器件", "被动元件", "消费电子")),
+    ("🎮 游戏娱乐", ("游戏", "传媒")),
+]
+
+
+def _load_pools() -> tuple:
+    """概念/行业双池 + 错误提示汇总（四 tab 产业卡共用）。"""
+    cd, cd_err = _load_concept_board()
+    idb, idb_err = _load_industry_backup()
+    pools = [df for df in (cd, idb) if df is not None and "板块名称" in df.columns]
+    return pools, "；".join(x for x in (cd_err, idb_err) if x)
+
+
+def _build_kr_sections() -> list:
+    pools, hint = _load_pools()
+    sections = [
+        ("韩国综合", [_index_card("KOSPI", "KOSPI"), _index_card("KOSDAQ", "KOSDAQ")]),
+        ("韩国核心产业", [_pool_card(l, k, pools, hint) for l, k in _KR_INDUSTRY]),
+        ("日本综合", [_index_card("日经225", "NKY"),
+                    _unavailable_card("TOPIX", "暂无免费实时源（新浪 znb 无 TOPX），不编造")]),
+        ("日本核心产业", [_pool_card(l, k, pools, hint) for l, k in _JP_INDUSTRY]),
+        ("亚洲综合", [_index_card("越南胡志明", "VNINDEX"), _index_card("孟买SENSEX", "SENSEX")]),
+    ]
+    fx_cards = _build_fx_cards()
+    if fx_cards:
+        sections.append(("汇率", fx_cards))
+    return sections
+
+
+def _build_fx_cards() -> list:
+    """汇率 4 卡：美元/韩元、美元/日元直取即期；人民币/韩元、人民币/日元按 USD 交叉换算（如实标注）。"""
+    fx, err = _load_fx()
+    if fx is None:
+        return [_unavailable_card("汇率", f"外汇源暂不可用：{(err or '')[:60]}")]
+    usdcny = fx["fx_susdcnh"]
+    usdjpy = fx["fx_susdjpy"]
+    usdkrw = fx["fx_susdkrw"]
+
+    def _fx_card(label, value, meta):
+        return {"label": label, "value": f"{value:,.2f}", "delta": "即期", "delta_dir": "flat",
+                "meta": meta, "_status": "ok"}
+
+    out = [_fx_card("美元/韩元", usdkrw, "美元兑韩元即期"),
+           _fx_card("美元/日元", usdjpy, "美元兑日元即期"),
+           _fx_card("人民币/韩元", usdkrw / usdcny, "USD/KRW ÷ USD/CNH 换算"),
+           _fx_card("人民币/日元", usdjpy / usdcny, "USD/JPY ÷ USD/CNH 换算")]
+    return out
+
+
+def _build_metals_sections() -> list:
+    """有色 tab：金银（COMEX）+ 工业金属（LME 3个月，外盘实时）+ 战略小金属（无免费源→unavailable）。
+
+    主源失败时回落东财全球期货列表（futures_global_spot_em，有 COMEX 金银但无 LME——
+    LME 缺失时如实 unavailable，不编造）。
+    """
+    fx, err = _load_foreign_commodity()
+    if fx is None:
+        fx, err = _load_global_futures_backup()
+
+    def _metal(label, primary):
+        row = _match_row(fx, primary, "名称")
+        if row is None:
+            return _unavailable_card(label, "外盘源未命中" + (f"：{(err or '')[:60]}" if err else ""))
+        try:
+            t = str(row.get("行情时间", ""))
+            return _pct_card(label, float(row["最新价"]), float(row["涨跌幅"]),
+                             f"LME 3个月 · {t}" if t else "LME 3个月")
+        except Exception:  # noqa: BLE001
+            return _unavailable_card(label, "数值解析失败")
+
+    return [
+        ("金银", [_metal("黄金", "COMEX黄金"), _metal("白银", "COMEX白银")]),
+        ("工业金属", [_metal("铜", "LME铜"), _metal("铝", "LME铝"), _metal("锌", "LME锌"),
+                    _metal("镍", "LME镍"), _metal("锡", "LME锡"), _metal("铅", "LME铅")]),
+        ("其他金属", [_unavailable_card(f"⚠️ {n}", "战略小金属无免费实时源，暂不编造")
+                    for n in ("钨", "钼", "锗", "铟", "锑")]),
+    ]
+
+
+# ── AI tab（照小程序截图：AI 产品价格 2 + AI 设备价格 16）──
+_AI_ITEMS = [
+    ("🧠 云算力", ("东数西算", "算力")), ("🪙 Token", ("数字货币",)),
+    ("💾 DRAM", ("DRAM", "存储芯片")), ("💽 NAND", ("NAND", "闪存", "存储芯片")),
+    ("🔥 HBM", ("HBM", "存储芯片")), ("💽 SSD", ("SSD", "固态硬盘", "存储芯片")),
+    ("🔦 光模块", ("光模块", "光通信", "CPO")), ("🧵 光纤", ("光纤", "光通信")),
+    ("🟩 PCB", ("PCB",)), ("🔩 MLCC", ("MLCC",)),
+    ("🎮 GPU", ("GPU", "英伟达", "算力")), ("💻 CPU", ("CPU", "国产芯片", "芯片")),
+    ("⚙️ 先进制程", ("先进制程", "晶圆", "半导体")), ("📦 封装", ("先进封装", "封测")),
+    ("⚡ 电力", ("电力",)), ("🔌 电力设备", ("电力设备", "电网设备", "电源设备")),
+    ("🌬 散热", ("散热", "液冷")), ("🖥 算力租赁", ("算力租赁", "IDC")),
+]
+
+
+def _build_ai_sections() -> list:
+    pools, hint = _load_pools()
+    cards = [_pool_card(l, k, pools, hint) for l, k in _AI_ITEMS]
+    return [
+        ("AI 产品价格", cards[:2]),
+        ("AI 设备价格", cards[2:]),
+    ]
+
+
 def _summary_strip(cards: list) -> None:
     """涨跌统计条（上涨/下跌/平盘；unavailable 不计入）。"""
     ok = [c for c in cards if c.get("_status") == "ok"]
@@ -367,15 +608,11 @@ def _summary_strip(cards: list) -> None:
 def fragment_market_cube():
     trading_autorefresh(key="cube_global_autorefresh")
 
-    tab_global, tab_jp, tab_metal, tab_ai, tab_set = st.tabs(
+    tab_global, tab_kr, tab_metal, tab_ai, tab_set = st.tabs(
         ["🌍 全球", "🇯🇵 日韩", "⛏ 有色", "🤖 AI", "⚙️ 设置"])
-    for t, name in ((tab_jp, "日韩"), (tab_metal, "有色"), (tab_ai, "AI"), (tab_set, "设置")):
-        with t:
-            xc_empty_box(f"{name} tab · 素材待补",
-                         hint="等「市场魔方助手」其余 tab 截图后按同规格接入（不造假数据）。")
 
+    # ── 全球 tab（批6 已复刻）──
     with tab_global:
-        # ---- 全球经济数据 ----
         xc_section_header("全球经济数据")
         try:
             econ = _build_econ_cards()
@@ -390,7 +627,6 @@ def fragment_market_cube():
             xc_warn_box("经济卡全部不可用", hint="检查网络后刷新重试。")
 
         st.divider()
-        # ---- 涨跌统计条 ----
         try:
             industry = _build_industry_cards()
         except Exception as e:  # noqa: BLE001
@@ -401,15 +637,63 @@ def fragment_market_cube():
         _summary_strip(econ + industry)
 
         st.divider()
-        # ---- 全球产业数据 ----
         xc_section_header("全球产业数据")
         if industry:
             xc_kpi_grid(industry, min_col=170)
-            st.caption("产业卡 = 东财概念板块涨跌幅名称匹配；「未命中」为诚实降级，不代表涨跌为 0。")
+            st.caption("产业卡 = 概念/行业池涨跌幅名称匹配；「未命中」为诚实降级，不代表涨跌为 0。")
         else:
-            xc_empty_box("产业数据暂不可用", hint="东财概念板块接口暂不可达，稍后刷新。")
-        xc_info_banner("数据源：东财外盘商品实时 / 东财外汇 / 中美国债收益率 / 东财概念板块 · 缓存 5 分钟 · "
+            xc_empty_box("产业数据暂不可用", hint="板块接口暂不可达，稍后刷新。")
+        xc_info_banner("数据源：东财外盘商品实时 / 东财外汇 / 中美国债收益率 / 概念行业池 · 缓存 5 分钟 · "
                        "微信小程序「市场魔方助手」复刻版")
+
+    # ── 日韩 tab（批7：照截图 韩综/韩产业/日综/日产业/亚洲综合/汇率）──
+    with tab_kr:
+        try:
+            for title, cards in _build_kr_sections():
+                xc_section_header(title)
+                if cards:
+                    xc_kpi_grid(cards, min_col=170)
+        except Exception as e:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).warning("市场魔方日韩 tab 异常: %s", e)
+            xc_error_box("日韩数据加载异常", hint="请稍后刷新重试。")
+
+    # ── 有色 tab（批7：金银 COMEX + LME 工业金属 + 战略小金属占位）──
+    with tab_metal:
+        try:
+            for title, cards in _build_metals_sections():
+                xc_section_header(title)
+                if cards:
+                    xc_kpi_grid(cards, min_col=170)
+            st.caption("工业金属为 LME 3 个月期货（东财外盘实时）；钨/钼/锗/铟/锑等战略小金属"
+                       "暂无免费实时源，如实降级。")
+        except Exception as e:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).warning("市场魔方有色 tab 异常: %s", e)
+            xc_error_box("有色数据加载异常", hint="请稍后刷新重试。")
+
+    # ── AI tab（批7：AI 产品/设备价格 18 卡，产业链概念池匹配）──
+    with tab_ai:
+        try:
+            for title, cards in _build_ai_sections():
+                xc_section_header(title)
+                if cards:
+                    xc_kpi_grid(cards, min_col=170)
+            st.caption("AI 卡 = 产业链概念/行业池涨跌幅名称匹配，口径为 A 股映射板块而非硬件现货报价。")
+        except Exception as e:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).warning("市场魔方 AI tab 异常: %s", e)
+            xc_error_box("AI 数据加载异常", hint="请稍后刷新重试。")
+
+    # ── 设置 tab（批7：数据说明 + 免责声明，不搬小程序广告/二维码）──
+    with tab_set:
+        xc_section_header("数据说明")
+        xc_info_banner("数据来源：东财外盘商品实时（COMEX/LME）、新浪全球指数（znb_）、"
+                       "新浪外汇即期（fx_s）、东财外汇、中美国债收益率、同花顺概念/行业资金流、"
+                       "腾讯行情（VIX）。全部为公开查询数据，缓存 5~30 分钟。")
+        xc_warn_box("免责声明", hint="本页所有数据仅供个人研究参考，不构成任何投资建议；"
+                                   "数据可能延迟或缺失，缺失时页面会显性标注（unavailable），不编造。")
+        st.caption("复刻自微信小程序「市场魔方助手」全球行情速览 · StockSignal 版")
 
     render_data_degradation_banner()
 

@@ -70,6 +70,18 @@ def test_market_cube_skeleton_and_hygiene():
         assert hexbg not in src.lower(), f"硬编码浅色底 {hexbg} 禁止复活"
 
 
+def test_market_cube_four_tabs_implemented():
+    """批7：日韩/有色/AI/设置 四 tab 必须实装（占位符「素材待补」应移除）。"""
+    src = _src()
+    assert "素材待补" not in src, "四 tab 已按截图实装，占位符应移除"
+    required = ("KOSPI", "KOSDAQ", "日经225", "越南胡志明", "孟买SENSEX",   # 日韩
+                "LME铜", "LME铝", "LME锌", "LME镍", "LME锡",               # 有色
+                "DRAM", "光模块", "算力租赁", "人民币/日元",                # AI/汇率
+                "免责声明")                                                # 设置
+    missing = [k for k in required if k not in src]
+    assert not missing, f"四 tab 内容缺失: {missing}"
+
+
 def test_market_cube_market_semantics_tokens():
     """涨跌语义必须走 ui_kit token/A股语义（红涨绿跌 + ▲▼ 双编码组件，不硬编码散色）。"""
     src = _src()
