@@ -82,9 +82,10 @@ def test_ac3_tampered_signature_rejected(app_ctx):
     """篡改签名字节必须被拒，code==invalid_token。"""
     u = _StubUser("carol", 11, "user")
     tok = auth_service.issue_token(u)
-    # 翻转末尾签名字节（HS256 签名段在最后一个 '.' 之后）
+    # 篡改签名：整段替换为等长占位（T-158 修复时间性 flaky——base64url 末字符
+    # 只有 4 个有效位，逐字符翻转有 ~1/16 概率解码等价而逃过验签）。
     head, _, sig = tok.rpartition(".")
-    tampered = f"{head}.{sig[:-1]}X" if sig else tok + "x"
+    tampered = f"{head}.{'A' * len(sig)}"
     with pytest.raises(AuthError) as exc:
         auth_service.decode_token(tampered)
     assert exc.value.code == "invalid_token"

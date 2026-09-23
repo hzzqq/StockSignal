@@ -61,9 +61,12 @@ class Config:
 
     # JWT
     JWT_ALGORITHM = "HS256"
-    # 默认 7 天：本地演示环境浏览器常驻，避免长时间停留后被迫重新登录。
-    # 可通过环境变量 JWT_EXPIRES_SECONDS 覆盖（生产建议缩短）。
-    JWT_EXPIRES_SECONDS = _env_int("JWT_EXPIRES_SECONDS", 604800)  # 7 天
+    # T-158（JWT 缩期）：access token 默认 1 小时——泄露后的可用窗口从 7 天压缩到
+    # 1 小时。短效带来的重登成本由 /api/auth/refresh 滑动续期抵消（见下）。
+    JWT_EXPIRES_SECONDS = _env_int("JWT_EXPIRES_SECONDS", 3600)  # 1 小时
+    # 刷新滑动窗口：签名有效且 iat 距今不超窗的 token，即使已过期也可换新。
+    # 超窗必须重新登录（token 被「遗忘」的最长时限，默认 7 天）。
+    JWT_REFRESH_SECONDS = _env_int("JWT_REFRESH_SECONDS", 604800)  # 7 天
     JWT_HEADER = "Authorization"
     JWT_PREFIX = "Bearer "
 

@@ -167,6 +167,20 @@ def _restore_from_query_params() -> None:
         if isinstance(user, dict):
             st.session_state[KEY_TOKEN] = token
             st.session_state[KEY_USER] = user
+        elif user is _TOKEN_EXPIRED:
+            # T-158：过期先静默续期——成功即恢复登录（_try_refresh 内部已 set_auth
+            # 更新三层存储）；后端明确拒绝才走失效清理；网络瞬态保留现有登录态
+            # （与下方「校验网络异常保留登录态」同语义，避免后端抖动误踢）。
+            r = _try_refresh()
+            if r is True:
+                return
+            if r is _REFRESH_REJECTED:
+                _clear_query_params()
+                try:
+                    from .auth_persist import clear_local_storage
+                    clear_local_storage()
+                except Exception as e:
+                    logger.warning(f"[session] clear_local_storage error: {e}")
         elif user is _TOKEN_INVALID:
             # token 明确失效（过期/伪造）→ 清掉 URL，并同步清 localStorage，
             # 否则 localStorage 里的失效 token 会让 2.5) 兜底逻辑无限重定向。
@@ -236,6 +250,10 @@ def safe_switch_page(page: str, **kwargs) -> None:
 
 # token 校验哨兵：后端明确判定为无效（401/403/伪造），与 None（网络瞬态）区分
 _TOKEN_INVALID = "___token_invalid_sentinel___"
+# token 过期但签名有效（T-158）：可在滑动刷新窗口内静默续期，区别于伪造/无效
+_TOKEN_EXPIRED = "___token_expired_sentinel___"
+# 续期请求被后端明确拒绝（超窗/用户禁用/伪造）——区别于 None（网络瞬态不可判定）
+_REFRESH_REJECTED = "___refresh_rejected_sentinel___"
 
 def _me_response_valid(data) -> bool:
     """纯函数：判断 /api/auth/me 的 `data`（user 对象）是否构成已登录的有效证明。
@@ -286,12 +304,58 @@ def _verify_token(token: str):
             # 200 但 status!=ok（如 token 过期但非标准 401）→ 视为无效
             return _TOKEN_INVALID
         if resp.status_code in (401, 403):
+            # T-158：区分「过期」与「无效」——过期可静默续期，伪造/无效不可
+            try:
+                code = (resp.json() or {}).get("code")
+            except Exception as e:
+                logger.warning(f"[session] 401 body 解析异常: {e}")
+                code = None
+            if code == "token_expired":
+                return _TOKEN_EXPIRED
             return _TOKEN_INVALID
         # 5xx / 其他状态码：服务端瞬态，保留登录态
         return None
     except Exception as e:
         logger.warning(f"[session] 处理异常: {e}")
         # 网络错误/超时：无法判定，保留现有登录态，不踢出（修复刷新时后端抖动被误踢）
+        return None
+
+
+def _try_refresh():
+    """静默续期（T-158）：用现有 token 换新 access token。
+
+    返回：
+      - True               ：续期成功，新 token/user 已通过 set_auth 写入三层存储
+      - _REFRESH_REJECTED  ：后端明确拒绝（超窗/用户禁用/伪造）→ 调用方应清登录态
+      - None               ：网络瞬态/5xx，无法判定 → 调用方应保留登录态
+    """
+    token = st.session_state.get(KEY_TOKEN)
+    if not token:
+        return _REFRESH_REJECTED
+    try:
+        resp = http_post(
+            f"{API_BASE}/api/auth/refresh",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=3,
+        )
+        if resp.status_code == 200:
+            body = resp.json()
+            if body.get("status") == "ok":
+                data = body.get("data") or {}
+                new_token = data.get("token")
+                user = data.get("user")
+                if new_token and isinstance(user, dict) and _me_response_valid(user):
+                    set_auth(new_token, user)
+                    logger.info("[session] token 已静默续期")
+                    return True
+            # 200 但 status!=ok / data 不完整：按明确拒绝处理（异常响应不值得重试）
+            return _REFRESH_REJECTED
+        if resp.status_code in (401, 403):
+            return _REFRESH_REJECTED
+        # 5xx / 其他：服务端瞬态
+        return None
+    except Exception as e:
+        logger.warning(f"[session] refresh 网络异常: {e}")
         return None
 
 
@@ -470,7 +534,10 @@ def is_authenticated() -> bool:
     """检查是否已登录，并在本地校验 JWT 是否过期。
 
     仅检查 token 存在会导致「token 已过期但前端仍显示登录」的不一致。
-    这里用 PyJWT 无签名验证地解析 exp，过期则统一清理登录态。
+    这里用 PyJWT 无签名验证地解析 exp：
+    - 未过期 → True；
+    - 已过期（T-158）→ 先试静默续期（滑动窗口内无感换新），续期成功仍算已登录；
+      后端明确拒绝才清登录态；网络瞬态保留登录态（后端不可达时踢人只会放大故障）。
     """
     token = st.session_state.get(KEY_TOKEN)
     if not token:
@@ -479,8 +546,14 @@ def is_authenticated() -> bool:
         payload = jwt.decode(token, options={"verify_signature": False})
         exp = payload.get("exp")
         if exp and isinstance(exp, (int, float)) and int(exp) < int(time.time()):
-            clear_auth()
-            return False
+            r = _try_refresh()
+            if r is True:
+                return True
+            if r is _REFRESH_REJECTED:
+                clear_auth()
+                return False
+            # None：网络瞬态，保留现有登录态，待后端恢复
+            return True
         return True
     except Exception as e:
         logger.warning(f"[session] token 校验异常: {e}")

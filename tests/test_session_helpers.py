@@ -110,9 +110,27 @@ def test_is_authenticated_valid(fake_st):
     assert S.is_authenticated() is True
 
 
-def test_is_authenticated_expired(fake_st):
+def test_is_authenticated_expired(monkeypatch, fake_st):
+    """T-158 新契约：过期先试静默续期；后端明确拒绝才清登录态返回 False。"""
     token = jwt.encode({"exp": int(time.time()) - 10}, "s", algorithm="HS256")
     fake_st.session_state[S.KEY_TOKEN] = token
-    # 过期 → 清理登录态并返回 False（clear_auth 在 fake session 上可安全执行）
+    monkeypatch.setattr(S, "_try_refresh", lambda: S._REFRESH_REJECTED)
     assert S.is_authenticated() is False
     assert fake_st.session_state[S.KEY_TOKEN] is None
+
+
+def test_is_authenticated_expired_refresh_ok(monkeypatch, fake_st):
+    """T-158 新契约：过期但续期成功 → 视为已登录（静默换新）。"""
+    token = jwt.encode({"exp": int(time.time()) - 10}, "s", algorithm="HS256")
+    fake_st.session_state[S.KEY_TOKEN] = token
+    monkeypatch.setattr(S, "_try_refresh", lambda: True)
+    assert S.is_authenticated() is True
+
+
+def test_is_authenticated_expired_network_kept(monkeypatch, fake_st):
+    """T-158 新契约：过期且后端不可达（网络瞬态）→ 保留登录态不误踢。"""
+    token = jwt.encode({"exp": int(time.time()) - 10}, "s", algorithm="HS256")
+    fake_st.session_state[S.KEY_TOKEN] = token
+    monkeypatch.setattr(S, "_try_refresh", lambda: None)
+    assert S.is_authenticated() is True
+    assert fake_st.session_state[S.KEY_TOKEN] == token

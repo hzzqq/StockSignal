@@ -35,7 +35,9 @@ def _reload(monkeypatch, **env):
 
 
 def test_defaults(fresh_config):
-    assert fresh_config.JWT_EXPIRES_SECONDS == 604800
+    # T-158：access token 默认 1 小时（泄露可用窗口收敛），滑动刷新窗口仍 7 天
+    assert fresh_config.JWT_EXPIRES_SECONDS == 3600
+    assert fresh_config.JWT_REFRESH_SECONDS == 604800
     assert fresh_config.RATE_LIMIT_MAX == 5
     assert fresh_config.RATE_LIMIT_WINDOW == 60
     assert fresh_config.RATE_LIMIT_ENABLED is True
@@ -61,12 +63,12 @@ def test_rate_limit_override(fresh_config, monkeypatch):
 def test_malformed_jwt_expires_falls_back(fresh_config, monkeypatch):
     """回归：非法整型 env 不应让后端 import 时 int() 崩溃，应回退默认。"""
     C = _reload(monkeypatch, JWT_EXPIRES_SECONDS="abc")
-    assert C.JWT_EXPIRES_SECONDS == 604800
+    assert C.JWT_EXPIRES_SECONDS == 3600
 
 
 def test_empty_jwt_expires_falls_back(fresh_config, monkeypatch):
     C = _reload(monkeypatch, JWT_EXPIRES_SECONDS="")
-    assert C.JWT_EXPIRES_SECONDS == 604800
+    assert C.JWT_EXPIRES_SECONDS == 3600
 
 
 def test_malformed_rate_limit_max_falls_back(fresh_config, monkeypatch):

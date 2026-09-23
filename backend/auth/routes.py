@@ -8,12 +8,12 @@ from flask import Blueprint, request, g
 from sqlalchemy import select
 from ..extensions import db
 from ..utils.response import ok, fail
-from ..utils.errors import ValidationError
+from ..utils.errors import ValidationError, AuthError
 from ..utils.params import parse_int_param
 from ..utils.ratelimit import is_allowed, make_key
-from ..models import OperationLog
-from .service import authenticate, issue_token, decode_token, register_user
-from .decorators import jwt_required
+from ..models import OperationLog, User
+from .service import authenticate, issue_token, decode_token, register_user, refresh_payload
+from .decorators import jwt_required, _extract_bearer_token
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -107,6 +107,36 @@ def register():
 def me():
     """返回当前登录用户。"""
     return ok(data=g.current_user.to_public())
+
+
+@bp.post("/refresh")
+def refresh():
+    """
+    POST /api/auth/refresh（T-158）
+    Authorization: Bearer <token（可已过期，签名须有效且 iat 在刷新窗口内）>
+    返回: {"status":"ok", "data": {"token": "<新 access token>", "user": {...}}}
+
+    与 login 的分工：login 认密码、落审计；refresh 只凭「仍在滑动窗口内的
+    合法凭证」续期，不落 OperationLog（每次续期都审计会刷爆日志表，续期
+    频率与限流共同约束滥用）。限流与 login 同源（同 IP+身份 60s/5 次）。
+    """
+    token = _extract_bearer_token()
+    payload = refresh_payload(token)
+    # 限流在资格校验之后：伪造 token 活不到这一步，不会污染限流计数
+    if not is_allowed(make_key(request.remote_addr or "", payload.get("sub") or "")):
+        return fail(
+            message="请求过于频繁，请稍后再试",
+            code="rate_limited",
+            http_status=429,
+        )
+    user = User.query.filter_by(username=payload["sub"]).first()
+    if user is None or not user.is_active:
+        raise AuthError("用户不存在或已停用", code="user_inactive")
+    new_token = issue_token(user)
+    return ok(
+        data={"token": new_token, "user": user.to_public()},
+        message="续期成功",
+    )
 
 
 @bp.post("/avatar")

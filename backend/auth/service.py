@@ -49,6 +49,35 @@ def decode_token(token: str) -> Dict[str, Any]:
         raise AuthError("无效的登录凭证", code="invalid_token")
 
 
+def refresh_payload(token: str) -> Dict[str, Any]:
+    """校验「刷新资格」（T-158）：签名必须有效；exp 已过也放行——这正是 refresh
+    的意义。但 iat 距今不得超过 JWT_REFRESH_SECONDS（滑动窗口），超窗即要求
+    重新登录。资格与身份分离：本函数只做资格判定，身份/活跃检查留给路由层。
+
+    为什么用 iat 而不是 exp：exp 会随每次刷新前移，若以 exp-签发时间为基准，
+    攻击者持续刷新可无限续命；iat 是该 token 链的「出生时刻」，窗口从登录起算，
+    连续活跃最多续 7 天，之后必须重登。
+    """
+    secret = current_app.config["SECRET_KEY"]
+    alg = current_app.config.get("JWT_ALGORITHM", "HS256")
+    try:
+        payload = jwt.decode(
+            token, secret, algorithms=[alg], options={"verify_exp": False}
+        )
+    except jwt.InvalidTokenError:
+        # 覆盖签名错误/格式错误/缺字段等一切无效情形；不暴露细节
+        raise AuthError("无效的登录凭证", code="invalid_token")
+    window = int(current_app.config.get("JWT_REFRESH_SECONDS", 604800))
+    iat = payload.get("iat")
+    now = int(time.time())
+    if not isinstance(iat, (int, float)) or now - int(iat) > window or now < int(iat) - 60:
+        # 第三支：iat 在「未来」（时钟偏差容忍 60s）——异常 token 一律拒绝
+        raise AuthError("登录已过期，请重新登录", code="token_expired")
+    if not payload.get("sub"):
+        raise AuthError("无效的登录凭证", code="invalid_token")
+    return payload
+
+
 _DUMMY_PLAIN = "__stocksignal_timing_equalizer__"
 _dummy_hash: str | None = None
 _dummy_lock = threading.Lock()
