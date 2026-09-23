@@ -4,6 +4,7 @@
 """
 import os
 import json
+import logging
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -26,6 +27,7 @@ st.session_state.setdefault('_pm_recent', [])
 if st.session_state['_pm_recent']:
     st.caption('🕘 最近浏览：' + '  '.join((f'`{c}`' for c in st.session_state['_pm_recent'][-6:][::-1])))
 _PM_PREF_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'pm_prefs.json')
+logger = logging.getLogger(__name__)
 
 def _load_pm_pref(k, d):
     try:
@@ -42,8 +44,9 @@ def _save_pm_pref(k, v):
             _d = json.load(open(_PM_PREF_PATH, encoding='utf-8'))
         _d[k] = v
         json.dump(_d, open(_PM_PREF_PATH, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    except Exception as e:
+        # T-160：偏好写盘失败留痕——静默吞掉会让用户以为设置已保存
+        logger.warning('[pm] 仓位偏好写盘失败(%s): %s', _PM_PREF_PATH, e)
 from modules.portfolio import PortfolioManager
 from modules.search_ui import stock_search_input
 import modules.scroll_nav as sn

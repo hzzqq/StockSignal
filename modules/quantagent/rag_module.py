@@ -16,10 +16,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 import re
 from typing import Dict, List
+
+logger = logging.getLogger(__name__)
 
 # 延迟导入 chromadb，保证模块在无依赖环境仍可 import（仅使用真实向量检索时才会真正用到）
 try:
@@ -222,8 +225,10 @@ class MemoryStore:
             os.makedirs(os.path.dirname(self.path), exist_ok=True)
             with open(self.path, "w", encoding="utf-8") as f:
                 json.dump(self.data, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            # T-160：记忆索引写盘失败必须留痕——静默吞掉会让「已保存决策/结论」
+            # 的假象存活到进程重启（数据实际丢失）
+            logger.warning("[rag] 记忆索引写盘失败(%s): %s", self.path, e)
 
     # episodic
     def save_decision(self, ticker: str, decision: Dict[str, object]):

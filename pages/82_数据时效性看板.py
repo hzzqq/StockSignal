@@ -13,11 +13,15 @@
 """
 from __future__ import annotations
 
+import logging
+
 import streamlit as st
 
 from modules.page_utils import render_standard_page
 from modules.ui_kit import xc_kpi_grid, stat_tile, info_banner
 from modules import data_health as dh
+
+logger = logging.getLogger(__name__)
 
 
 STATUS_META = {
@@ -56,8 +60,8 @@ def main():
     # 落一条观测，积累"最后推进日"历史（停更检测依赖历史）
     try:
         dh.record_health_observation()
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001 - 观测失败不阻断看板，但留痕可查（T-160）
+        logger.warning("[data-sla] 健康观测落盘失败: %s", e)
 
     rows = dh.health_rows_enriched()
     if not rows:

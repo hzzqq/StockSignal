@@ -677,8 +677,8 @@ def append_log(line: str) -> None:
         os.makedirs(DATA_DIR, exist_ok=True)
         with open(SNAPSHOT_LOG, "a", encoding="utf-8") as f:
             f.write(f"[{now_cst_naive().isoformat(timespec='seconds')}] {line}\n")
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001 - 写盘失败不中断决策，但必须留痕可查（T-160）
+        logger.warning("[decision] 运行日志写入失败(%s): %s", SNAPSHOT_LOG, e)
 
 
 def is_stale(max_age_hours: float = 20.0) -> bool:

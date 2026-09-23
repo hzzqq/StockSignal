@@ -11,9 +11,12 @@ backend/tasks/worker.py
 from __future__ import annotations
 
 import json
+import logging
 import math
 import sys
 import threading
+
+logger = logging.getLogger(__name__)
 import time
 import uuid
 import warnings
@@ -316,8 +319,8 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
             return
         try:
             report(task_id, "research", message)
-        except Exception:  # noqa: BLE001 - 进度上报失败不影响研究主流程
-            pass
+        except Exception as e:  # noqa: BLE001 - 进度上报失败不影响研究主流程
+            logger.debug("research 进度上报失败(task=%s): %s", task_id, e)
 
     # T-138 M4：可选 history（多轮记忆）——list 且 ≤8 条、每项为 dict 才放行；
     # 不合法 → 丢弃并照旧单轮执行（不报错不中断）；条目级规范化由 research_agent 负责。

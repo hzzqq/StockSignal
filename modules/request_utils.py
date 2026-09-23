@@ -319,6 +319,6 @@ def fetch_with_snapshot(key: str, fetcher, ttl: float = 600.0,
         os.makedirs(d, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"_ts": now, "_iso": iso, "data": data}, f, ensure_ascii=False)
-    except Exception:  # noqa: BLE001  # 缓存写失败不影响本次真实结果
-        pass
+    except Exception as e:  # noqa: BLE001  # 缓存写失败不影响本次真实结果（T-160 留痕）
+        logger.debug("[request_utils] 缓存写盘失败(%s): %s", path, e)
     return {"data": data, "source": "live", "as_of": iso, "error": None}
