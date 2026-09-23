@@ -15,6 +15,10 @@
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def render_ladder_block(dark: bool, top_per_level: int = 3) -> bool:
     """渲染连板梯队全景区块。
@@ -40,8 +44,8 @@ def render_ladder_block(dark: bool, top_per_level: int = 3) -> bool:
     try:
         _sl.record_ladder_snapshot(_sl.trading_date(),
                                    lad.get("distribution"), lad.get("max_boards"), lad.get("total_connect"))
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[ladder] 梯队快照落盘失败（晋级率递推历史将缺失）: %s", e)
 
     total = int(lad.get("total_connect") or 0)
     mx = int(lad.get("max_boards") or 0)

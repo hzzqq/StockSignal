@@ -799,8 +799,9 @@ def refresh_event_pool_from_p1(p1_signals_dir: str | None = None,
         d0 = _dt.strptime(latest_date[:10], "%Y-%m-%d").date()
         age = (now_cst().date() - d0).days
         stale = age > max_age_days
-    except Exception:
-        pass
+    except Exception as e:
+        # T-160：解析失败保守留痕——stale=False 意味着陈旧数据可能不被标注
+        logger.debug("[shepherd_ladder] P1 时效解析失败(latest_date=%r): %s", latest_date, e)
     # 变换为 event_pool_brief schema（与离线快照同构，便于页面零改动复用）
     pool = []
     for i, it in enumerate(top_long):

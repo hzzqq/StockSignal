@@ -12,9 +12,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 # 生效范围：与 UI 的下拉多选一一对应
 SCOPES = [
@@ -71,8 +74,8 @@ def load_skills(path: str | None = None) -> list[dict]:
         skills = obj.get("skills") if isinstance(obj, dict) else obj
         if isinstance(skills, list):
             return skills
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        logger.debug("[ai_skills] 规则库读取失败(%s)，使用内置默认: %s", p, e)
     return [dict(s) for s in DEFAULT_SKILLS]
 
 

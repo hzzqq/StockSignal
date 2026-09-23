@@ -5,6 +5,8 @@
 数据层见 modules.fundflow / modules.portfolio / modules.fetcher / modules.session。
 A股配色：红=涨/流入，绿=跌/流出。
 """
+import logging
+
 import streamlit as st
 import pandas as pd
 import io, zipfile
@@ -20,6 +22,8 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN
+
+logger = logging.getLogger(__name__)
 # 注：openpyxl / reportlab 为「重型导出」依赖，改为惰性加载（见 _to_excel_bytes / _to_pdf_bytes），
 #     避免进入本页（仅查看 CSV 导出入口）时也强制 import 拖慢首屏。
 
@@ -637,8 +641,8 @@ def _collect_report_data(code: str):
     f = get_fetcher()
     try:
         name = f.get_name_only(code) or name
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("[export] %s 名称获取失败: %s", code, e)
 
     # 行情 + 技术面
     try:
@@ -660,24 +664,24 @@ def _collect_report_data(code: str):
 
             data["quote"] = {"price": _pick("close", "收盘", "收盘价"),
                              "change_pct": _pick("pct_chg", "涨跌幅")}
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("[export] %s 行情装配失败: %s", code, e)
 
     # 基本面
     try:
         fd = f.get_fundamentals(code)
         if isinstance(fd, dict) and fd:
             data["fundamentals"] = fd
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("[export] %s 基本面装配失败: %s", code, e)
 
     # 资金面
     try:
         ff = get_individual_fund_flow(code)
         if isinstance(ff, dict) and ff:
             data["fundflow"] = ff
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("[export] %s 资金面装配失败: %s", code, e)
 
     # 风险排雷 + 公告
     try:
@@ -685,8 +689,8 @@ def _collect_report_data(code: str):
         res = sr.scan_stock(code, name)
         data["risk_report"] = res.get("report")
         data["announcements"] = sr.fetch_announcement_titles(code)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("[export] %s 风险/公告装配失败: %s", code, e)
     return data, name
 
 

@@ -19,10 +19,14 @@ from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
+import logging
+
 from modules.time_utils import now_cst_naive
 
 from modules.quantagent.agents.base import BaseAgent
 from modules.quantagent.state import ResearchState, store_df
+
+logger = logging.getLogger(__name__)
 
 
 def _synthetic_df(ticker: str, seed: int = 42, days: int = 250) -> pd.DataFrame:
@@ -93,8 +97,9 @@ class DataAgent(BaseAgent):
         try:
             if cleaner is not None:
                 df = cleaner.full_pipeline(df)
-        except Exception:
-            pass
+        except Exception as e:
+            # T-160：清洗失败意味着原始脏数据直接进后续分析——必须留痕可查
+            logger.warning("[data_agent] 数据清洗失败，退回原始行情: %s", e)
         df = _ensure_indicators(df)
         state.df = df
         store_df(state.ticker, df)  # 注册表留存，供 LangGraph 跨节点取用（避免 DataFrame 序列化）

@@ -22,10 +22,13 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import os
 from datetime import datetime
 
 from modules.decision import assess_freshness
+
+logger = logging.getLogger(__name__)
 
 # 项目根 / data 目录（data_health.py 在 modules/ 下，根在上两级）
 _PROJECT_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -282,8 +285,8 @@ def _ensure_health_table() -> None:
                 f"CREATE INDEX IF NOT EXISTS idx_{_HEALTH_TABLE}_key_obs"
                 f" ON {_HEALTH_TABLE}(source_key, observed_at)"
             )
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[data_health] 观测表初始化失败（健康观测历史将缺失）: %s", e)
 
 
 def record_health_observation(rows: list[dict] | None = None) -> int:

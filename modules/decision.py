@@ -727,8 +727,8 @@ def assess_decision_loop_health() -> dict:
         if generated_at:
             try:
                 gen_lag_hours = (_dt.now() - _dt.fromisoformat(str(generated_at))).total_seconds() / 3600.0
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as e:  # noqa: BLE001
+                logger.debug("[decision] generated_at 解析失败(%r)，回退 mtime 口径: %s", generated_at, e)
         data_lag_days = _age_days(as_of)
 
         if gen_lag_hours >= DECISION_LOOP_DEAD_HOURS:

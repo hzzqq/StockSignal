@@ -217,8 +217,9 @@ class MemoryStore:
                     self.data["episodic"] = {}
                 if "semantic" not in self.data:
                     self.data["semantic"] = {}
-        except Exception:
-            pass
+        except Exception as e:
+            # T-160：读盘失败静默 = 记忆库被当空库（历史决策/结论丢失且无人知晓）
+            logger.warning("[rag] 记忆索引读盘失败(%s)，按空库启动: %s", self.path, e)
 
     def _save(self):
         try:

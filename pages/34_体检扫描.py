@@ -1,3 +1,5 @@
+import logging
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
@@ -14,6 +16,8 @@ from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN
 from modules import stock_risk as sr
+
+logger = logging.getLogger(__name__)
 
 dark = render_standard_page(title="一键体检扫描台", icon="🩺", layout="wide")
 
@@ -345,8 +349,9 @@ def run_scan(scope: str):
         for fut in concurrent.futures.as_completed(futs):
             try:
                 entries.append(fut.result())
-            except Exception:
-                pass
+            except Exception as e:
+                # T-160：单股扫描异常静默 = 该股从排雷结果里无声消失
+                logger.warning("[xray] %s 扫描失败，已跳过: %s", futs.get(fut, "?"), e)
     elapsed = (datetime.now() - t0).total_seconds()
 
     results = []

@@ -10,6 +10,8 @@
 每个区块独立取数（safe_section 隔离），单源失败不影响其它模块。
 支持按类型筛选、标记已读、点击跳转到对应模块。
 """
+import logging
+
 import streamlit as st
 from datetime import datetime
 import math
@@ -20,6 +22,8 @@ from modules.ui_theme import sf_card, sf_metric
 from modules.session import safe_switch_page, api_get, trading_autorefresh
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, render_data_degradation_banner
+
+logger = logging.getLogger(__name__)
 from modules.page_widgets import UP, DOWN
 from modules.format_helpers import extract_pct
 
@@ -97,8 +101,8 @@ def _load_watchlist():
         sc, body = api_get("/api/watchlist", timeout=5)
         if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
             return body.get("data") or []
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("[msg] 自选股取数失败: %s", e)
     return []
 
 
@@ -108,8 +112,8 @@ def _load_forum(limit=15):
         sc, body = api_get(f"/api/forum/posts?limit={limit}", timeout=5)
         if sc == 200 and isinstance(body, dict):
             return body.get("data") or []
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("[msg] 股吧取数失败: %s", e)
     return []
 
 

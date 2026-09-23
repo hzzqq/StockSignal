@@ -9,7 +9,11 @@
 """
 from __future__ import annotations
 
+import logging
+
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 # 各维映射区间（lo→0分, hi→100分；hi<lo 表示越小越好）
 BANDS = {
@@ -160,8 +164,8 @@ def compute_dims(code, fetch_hist, fetch_spot, fetch_fin, state_fn=None):
         h = fetch_hist(code)
         if h is not None and "收盘" in h.columns:
             close = pd.to_numeric(h["收盘"], errors="coerce").dropna().reset_index(drop=True)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        logger.debug("[six_dim] %s 行情获取失败，技术维缺失: %s", code, e)
 
     try:
         row = fetch_spot(code) or {}
@@ -171,15 +175,15 @@ def compute_dims(code, fetch_hist, fetch_spot, fetch_fin, state_fn=None):
     roe = yoy = None
     try:
         roe, yoy = parse_fin(fetch_fin(code))
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        logger.debug("[six_dim] %s 财务获取失败，成长/基本面维可能缺失: %s", code, e)
 
     state = None
     try:
         if state_fn is not None:
             state = state_fn()
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        logger.debug("[six_dim] %s 周期状态获取失败，周期维缺失: %s", code, e)
 
     pos60 = None
     if close is not None and len(close) > 61:
