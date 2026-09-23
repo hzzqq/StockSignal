@@ -21,7 +21,7 @@ import time
 import streamlit as st
 
 from modules.ui_theme import apply_page_config, _theme_is_dark
-from modules.session import require_auth, get_user, render_user_badge, fragment_market_alerts_panel
+from modules.session import require_auth, get_user, render_user_badge
 from modules.starfield_theme import inject_plotly_dark
 from modules.background_tasks import submit_task_with_error, poll_task, get_chat_history, save_chat_history
 from modules.widgets import _slim_context
@@ -1051,6 +1051,3 @@ with st.expander("⌨️ 快捷键", expanded=False):
         "- **R**：刷新页面重新加载对话（浏览器快捷键）\n"
         "- 对话历史自动保存，无需手动操作"
     )
-
-# 全局市场异动面板（与 P_市场情绪 页共享同一组件）
-fragment_market_alerts_panel()
