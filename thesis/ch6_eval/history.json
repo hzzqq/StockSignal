@@ -465,5 +465,35 @@
         "accuracy": 0.0
       }
     ]
+  },
+  {
+    "run_at": "2026-09-23T21:00:41",
+    "snapshot_count": 15,
+    "prediction_count": 15,
+    "scored": 8,
+    "hit_rate": 0.375,
+    "cycle_distribution": {
+      "修复试探": 7,
+      "主升高潮": 3,
+      "退潮": 3,
+      "修复确认": 2
+    },
+    "by_group": [
+      {
+        "group": "进攻期",
+        "n_call": 5,
+        "accuracy": 60.0
+      },
+      {
+        "group": "修复期",
+        "n_call": 0,
+        "accuracy": null
+      },
+      {
+        "group": "防守期",
+        "n_call": 3,
+        "accuracy": 0.0
+      }
+    ]
   }
 ]
