@@ -33,6 +33,7 @@ from modules.decision_view import render_signal_cards, render_position_card, ren
 from modules import data_health as _dh
 from modules import decision_track as _track
 from modules import calibration as _cal
+from modules.experiment_improvements import shap_style_attribution
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box
@@ -332,6 +333,18 @@ def _render_hero(df, today, prev, meta=None):
                 _parts.append(f"事件催化+5 → 仓位+{_sens['event_+5']:.0f}pt")
             if _parts:
                 st.caption("🔎 局部敏感度：" + "；".join(_parts) + "（展示值基于 ±5 的线性近似）")
+            # 毕设改进 #4：SHAP 式因子归因表（标准化归因，直接用作论文"可解释融合"证据）
+            try:
+                _attr = shap_style_attribution(_contrib)
+                if _attr:
+                    _attr_df = pd.DataFrame(
+                        [{"因子": k, "仓位贡献 (pt)": round(v, 1)} for k, v in _attr.items()])
+                    st.markdown("**🧠 SHAP 式因子归因表**（按贡献绝对值排序 · 毕设可解释性改进 #4）")
+                    st.dataframe(_attr_df, width="stretch", hide_index=True, key="shap_attr_tbl")
+                    st.caption("归因基于决策闭环单一真理源 derive_position 的 contributions，"
+                               "标准化为 SHAP 式因子贡献表——对应开题改进清单 #4 可解释 AI(XAI)。")
+            except Exception:  # noqa: BLE401
+                pass
     except Exception:  # noqa: BLE001
         pass
 
