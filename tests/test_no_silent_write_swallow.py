@@ -36,7 +36,8 @@ def _call_name(node: ast.Call):
 def _is_write_call(call: ast.Call) -> bool:
     name = _call_name(call)
     if name in {"write", "writelines", "dump", "savefig", "commit", "flush",
-                "save_to_local_storage", "save_prefs", "atomic_write"}:
+                "save_to_local_storage", "save_prefs", "atomic_write",
+                "chmod"}:  # chmod=写安全元数据，失败静默有安全影响（T-176 加固）
         return True
     # pandas 风格导出：仅当指定了目标路径才算落盘；
     # 无 path（path_or_buf=None）是内存转换（如供 st.download_button），不算
@@ -94,7 +95,10 @@ def _scan(path: str):
         if not has_write:
             continue
         for handler in node.handlers:
-            if _is_broad(handler) and _is_silent(handler):
+            # T-176 加固：不再要求 broad——OSError 等窄捕获的纯 pass 同样会让
+            # 「写盘失败无人知晓」（config.py chmod 留痕曾被旧会话副本回写回退，
+            # 正是钻了只查 broad 的空子）。写盘 + 纯 pass 一律红，理由写注释里。
+            if _is_silent(handler):
                 bad.append((path, handler.lineno))
     return bad
 

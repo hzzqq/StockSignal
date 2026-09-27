@@ -8,10 +8,13 @@ importlib.reload 重新求值。重点守护：整型配置项（JWT_EXPIRES_SEC
 RATE_LIMIT_MAX / RATE_LIMIT_WINDOW）对非法/缺失值安全回退默认，不再让后端 import 时崩溃。
 """
 import importlib
+import os
 
 import pytest
 
 import backend.config as cfg_mod
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 _ENV_KEYS = [
     "JWT_EXPIRES_SECONDS", "RATE_LIMIT_MAX", "RATE_LIMIT_WINDOW",
@@ -84,3 +87,11 @@ def test_malformed_rate_limit_window_falls_back(fresh_config, monkeypatch):
 def test_rate_limit_enabled_toggle(fresh_config, monkeypatch):
     assert _reload(monkeypatch, STOCKSIGNAL_RATE_LIMIT_ENABLED="0").RATE_LIMIT_ENABLED is False
     assert _reload(monkeypatch, STOCKSIGNAL_RATE_LIMIT_ENABLED="1").RATE_LIMIT_ENABLED is True
+
+
+def test_chmod_failure_left_trace():
+    """T-160/T-176 防回潮：SECRET_KEY chmod 失败必须留痕——曾被旧会话工作副本
+    整文件回写回退为 except OSError: pass（静默），本断言钉死不回潮。"""
+    src = open(os.path.join(_ROOT, "backend", "config.py"), encoding="utf-8").read()
+    assert "chmod 失败" in src, "config.py chmod 留痕被移除（回潮）"
+    assert "except OSError:\n            pass" not in src, "chmod 又回到静默吞异常"
