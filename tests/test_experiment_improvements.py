@@ -37,7 +37,9 @@ def test_holdout_accuracy_basic():
 
 def test_holdout_empty():
     assert strict_holdout_eval([], [])["n"] == 0
-    assert strict_holdout_eval([1.0], [2])["n"] == 0  # 长度不一致
+    # 长度不一致必须拒算（T-176 修复：原构造 [1.0] vs [2] 长度相同，守卫恒红）
+    assert strict_holdout_eval([1.0], [2, 3])["n"] == 0
+    assert strict_holdout_eval([1.0, -1.0], [2])["n"] == 0
 
 
 def test_four_directions_present():

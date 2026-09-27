@@ -52,7 +52,16 @@ _TOKEN_CSS = r"""
   --ss-shadow-lift:0 10px 30px rgba(102,126,234,.18);
   --ss-shadow-hero:0 0 0 1px rgba(102,126,234,.14),0 12px 32px rgba(102,126,234,.12);
   --ss-font-num:'Fira Code',ui-monospace,monospace;
+  /* v10 微动效令牌（T-176） */
+  --ss-fade:.25s;
 }
+@keyframes ss-fade-in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+/* hero 与统计卡：单次淡入 + stat 悬浮轻抬（克制微动效） */
+.ss-hero{animation:ss-fade-in var(--ss-fade) ease both}
+.ss-stat{transition:transform .18s ease,box-shadow .18s ease;border-radius:var(--ss-radius-card);box-shadow:var(--ss-shadow-card)}
+.ss-stat:hover{transform:translateY(-2px);box-shadow:var(--ss-shadow-lift)}
+::selection{background:color-mix(in srgb,var(--ss-accent) 30%,transparent)}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 </style>
 """
 
