@@ -63,3 +63,6 @@ scripts/diag_legu_stability.py
 scripts/diag_shepherd_timeout.py
 scripts/verify_legu_fallback.py
 
+# 毕设邮件草稿（含手机号/私人邮箱/学号等个人信息，不入公开仓库）
+/毕设_导师邀请邮件草稿.md
+
