@@ -1,8 +1,8 @@
 {
-  "snapshot_count": 15,
+  "snapshot_count": 16,
   "snapshot_date_range": [
     "2026-08-31",
-    "2026-09-21"
+    "2026-09-24"
   ],
   "temperature_min_max": [
     11.4,
@@ -17,7 +17,7 @@
     "修复试探": 7,
     "主升高潮": 3,
     "退潮": 3,
-    "修复确认": 2
+    "修复确认": 3
   },
   "scenario_samples": [
     [
@@ -155,7 +155,7 @@
       "梯队断档（晋级率<20%）：减仓 6%"
     ]
   ],
-  "prediction_count": 15,
+  "prediction_count": 16,
   "prediction_scored": 8,
   "prediction_hit_rate": 0.375,
   "note": "样本量小时如实标注，不推断统计显著性",
@@ -174,7 +174,7 @@
       {
         "cycle": "修复确认",
         "group": "进攻期",
-        "n": 2,
+        "n": 3,
         "n_call": 2,
         "hits": 2,
         "accuracy": 100.0,
@@ -205,11 +205,11 @@
     "by_group": [
       {
         "group": "进攻期",
-        "n": 5,
+        "n": 6,
         "n_call": 5,
         "hits": 3,
         "accuracy": 60.0,
-        "avg_pct": 48.4,
+        "avg_pct": 47.0,
         "avg_realized": -0.03
       },
       {
@@ -232,13 +232,13 @@
       }
     ],
     "summary": {
-      "n": 15,
+      "n": 16,
       "scored": 8,
       "n_call": 8,
       "hits": 3,
       "accuracy": 37.5,
       "start": "2026-08-31",
-      "end": "2026-09-21"
+      "end": "2026-09-24"
     }
   }
 }
