@@ -48,6 +48,7 @@ def _resolve_secret() -> str:
         except OSError as e:
             # T-160：权限收紧失败留痕（Windows/FAT 常见）——密钥文件可能放宽到
             # 用户组可读，运维需知情；不影响密钥本身正确性
+            # （2026-09-27 备案：本修复曾被旧会话工作副本回写回退为 except pass，已恢复）
             logging.getLogger(__name__).debug("SECRET_KEY 文件 chmod 失败: %s", e)
         return generated
     except Exception:  # noqa: BLE001
