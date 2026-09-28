@@ -112,17 +112,17 @@ def _fetch_page(pn: int, pz: int, timeout: float = 10.0) -> dict:
     return data
 
 
-def fetch_a_spot_em(max_pages: int = 8, pz: int = 1000,
+def fetch_a_spot_em(max_pages: int = 12, pz: int = 500,
                     retries: int = 3, timeout: float = 10.0) -> pd.DataFrame | None:
     """拉全市场 A 股快照（分页合并）。全部失败返回 None（诚实降级）。
 
-    防风控三件套（T-177 实测 clist 端点有频率风控，窗口 >2 分钟）：
+    防风控四件套（T-177/T-178 实测 clist 端点有频率风控，触发阈值极低——
+    连续 4 请求即封 >2min；单页 pz 超限会被截断为 600 行且 total 失真）：
       1. 共享缓存：成功结果 60s 内直接复用（强势榜/市场驱动力等共用一次拉取）；
       2. 冷却退避：连续失败 ≥2 轮进入 5 分钟冷却，期内不打请求（快速返回 None）；
-      3. 请求强度最小化：pz=1000 大页少翻（akshare 60 页循环正是触封主因）。
-
-    :param max_pages: 分页上限（pz=1000 × 8 页 = 8000 只，覆盖 ~5700 只 A 股）
-    :param retries: 整体尝试次数（每次尝试内部分页直到拉满 total）
+      3. 请求强度最小化：pz=500 × 12 页 + 页间 0.25s 节流
+         （akshare 60 页无间隔循环正是触封主因；pz=1000 实测被截断成 600 行）；
+      4. 诚实降级：全失败返 None，绝不编造。
     """
     now = time.time()
     if now - _state["ts"] < _CACHE_TTL and _state["df"] is not None:
@@ -138,9 +138,13 @@ def fetch_a_spot_em(max_pages: int = 8, pz: int = 1000,
             rows: list[dict] = []
             total: int | None = None
             for pn in range(1, max_pages + 1):
+                if pn > 1:
+                    _sleep(0.25)  # 页间节流：连发即触风控
                 data = _fetch_page(pn, pz, timeout=timeout)
-                total = int(data.get("total") or 0)
+                page_total = int(data.get("total") or 0)
                 diff = data.get("diff") or []
+                if total is None:
+                    total = page_total
                 rows.extend(diff)
                 if not diff or pn * pz >= total:
                     break
