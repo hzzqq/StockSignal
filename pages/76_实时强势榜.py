@@ -18,7 +18,7 @@ import logging
 
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules.page_utils import render_standard_page, import_autorefresh
-from modules.spot_rank import _col, _num, load_spot, strong_score
+from modules.spot_rank import _col, _num, load_spot_with_source, strong_score
 import streamlit as st
 
 logger = logging.getLogger(__name__)
@@ -40,21 +40,18 @@ def _score_bar(label, value, color):
 dark = render_standard_page(
     title="实时强势榜", icon="🏅",
     caption="全市场多因子强势 Top N：涨幅 0.40 + 量比 0.30 + 换手 0.20 + 成交额 0.10"
-            "（启发式，非预测）。盘中每 60 秒自动刷新。数据源东财实时快照。",
+            "（启发式，非预测）。盘中每 60 秒自动刷新。数据源东财实时快照（接口受限时自动切换应急源，页内如实标注）。",
 )
 
 _top_n = st.select_slider("显示数量", options=[10, 20, 30, 50], value=20, key="strong_n")
 _only_up = st.toggle("仅看上涨", value=True, key="strong_up")
 
-try:
-    raw = load_spot()
-except Exception as e:  # noqa: BLE001
-    logger.warning(f"[strong-rank] 快照获取失败: {e}")
+# 三层取数（T-177/T-178）：东财直连 → akshare → 腾讯应急；来源如实标注
+raw, _src_label = load_spot_with_source()
+if raw is not None and not raw.empty:
+    st.caption(f"📡 本次数据源：{_src_label}")
+else:
     st.error("⚠️ 实时行情快照获取失败（网络不可用或接口异常），请稍后重试。")
-    st.stop()
-
-if raw is None or raw.empty:
-    st.info("📭 实时行情快照未就绪（可能非交易时段或接口暂不可用）。")
     st.stop()
 
 df = strong_score(raw)

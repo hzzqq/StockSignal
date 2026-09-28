@@ -150,23 +150,28 @@ def test_fetch_paginates_by_total(monkeypatch):
 
 
 def test_spot_rank_uses_snapshot_first(monkeypatch):
-    """spot_rank._spot_cached：直连层优先，且其结果直接返回（不调 akshare）。"""
+    """spot_rank：直连层优先，且其结果直接返回（不调 akshare）。"""
     fake = pd.DataFrame({"代码": ["600000"], "名称": ["浦发银行"], "最新价": [12.34],
                          "涨跌幅": [1.5], "成交额": [1e8], "换手率": [0.8], "量比": [1.2]})
     monkeypatch.setattr(ems, "fetch_a_spot_em", lambda **k: fake)
     monkeypatch.setattr(sr, "_spot_cached_akshare",
                         lambda: (_ for _ in ()).throw(AssertionError("直连成功不应走 akshare")))
     # 直连层成功时 st.cache_data 缓存内层函数——直接调内层实现
-    out = sr._spot_impl()
+    out, source = sr._spot_impl()
     assert out is fake
+    assert "东财" in source
 
 
 def test_spot_rank_falls_back_to_akshare(monkeypatch):
-    """直连 None → akshare 兜底；akshare 也炸 → 异常上抛由页面诚实降级。"""
+    """直连 None → akshare 兜底。"""
     monkeypatch.setattr(ems, "fetch_a_spot_em", lambda **k: None)
     sentinel = pd.DataFrame({"代码": ["000001"]})
     monkeypatch.setattr(sr, "_spot_cached_akshare", lambda: sentinel)
-    assert sr._spot_impl() is sentinel
+    monkeypatch.setattr(sr, "_spot_from_qq",
+                        lambda: (_ for _ in ()).throw(AssertionError("akshare 成功不应走腾讯")))
+    out, source = sr._spot_impl()
+    assert out is sentinel
+    assert "akshare" in source
 
 
 # ───────────────────────── 5. 风控防御（T-177 实测 clist 频率风控） ─────────────────────────
