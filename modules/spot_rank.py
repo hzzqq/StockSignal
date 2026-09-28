@@ -63,11 +63,25 @@ def strong_score(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-@st.cache_data(ttl=60, show_spinner=False)
-def _spot_cached() -> pd.DataFrame:
-    """东财全市场实时快照（缓存 60s）。失败抛出，由调用方诚实降级。"""
+def _spot_cached_akshare() -> pd.DataFrame:
+    """akshare 兜底源（82.push2 子域在本机恒断连，仅当直连层 None 时才走）。"""
     import akshare as ak
     return ak.stock_zh_a_spot_em()
+
+
+def _spot_impl() -> pd.DataFrame:
+    """东财直连薄层优先（T-177）→ akshare 兜底；双失败异常上抛由页面诚实降级。"""
+    from modules import em_snapshot as ems
+    df = ems.fetch_a_spot_em()
+    if df is not None and not df.empty:
+        return df
+    return _spot_cached_akshare()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _spot_cached() -> pd.DataFrame:
+    """全市场实时快照（缓存 60s）。失败抛出，由调用方诚实降级。"""
+    return _spot_impl()
 
 
 def load_spot():

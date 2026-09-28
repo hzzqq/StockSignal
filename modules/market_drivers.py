@@ -354,8 +354,12 @@ def _src_activity(days):
             logger.debug("[market_drivers] activity legu 失败: %s", e)
 
         # 降级：东方财富全 A 列表（计算涨跌统计），若也不行则空
+        # （T-177：直连薄层优先——akshare 的 82.push2 子域在本机恒断连）
         try:
-            df = ak.stock_zh_a_spot_em()
+            from modules.em_snapshot import fetch_a_spot_em
+            df = fetch_a_spot_em()
+            if df is None or df.empty:
+                df = ak.stock_zh_a_spot_em()
             if df is not None and not df.empty:
                 chg_col = _col(df, "涨跌幅", "change_percent")
                 if chg_col:
@@ -577,8 +581,14 @@ def _src_div(days):
 
         # 最终降级：东方财富全 A 股息率列（市场整体股息率中位数，当日值）。
         # 用硬超时包住，避免沙箱/弱网下 spot_em 全 A 拉取卡死 UI；超时则优雅降级。
+        # （T-177：直连薄层优先——akshare 的 82.push2 子域在本机恒断连）
         try:
-            df = _run_with_timeout(lambda: ak.stock_zh_a_spot_em(), 10)
+            from modules.em_snapshot import fetch_a_spot_em
+
+            def _spot_all():
+                return fetch_a_spot_em() or ak.stock_zh_a_spot_em()
+
+            df = _run_with_timeout(_spot_all, 10)
             if df is not None and not df.empty:
                 col = _col(df, "股息率", "股息率TTM", "yield")
                 if col:
