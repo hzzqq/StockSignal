@@ -12,10 +12,11 @@ loading_spinner / section_header）、``button_colors`` 互补，不重复实现
      page_widgets 既有 XSS 契约对齐）。
   ✅ 颜色全部走 CSS 变量（--acc1/--acc2/--txt/--txt2/--border/--card/--bg），
      并内置 fallback，保证未加载其它主题 CSS 的页面也能正常渲染。
-  ✅ inject_kit_css 用 session_state 去重，全页面仅注入一次。
+  ✅ inject_kit_css 每次调用都注入（T-180 教训：session_state 去重会导致
+     st.switch_page 导航重建 DOM 后跳过注入 → 新页面样式全丢）。
 
 提供：
-  - inject_kit_css()            一次性注入组件 CSS（自动去重）
+  - inject_kit_css()            每次注入组件 CSS（幂等，不做去重）
   - page_hero(...)              签名页头（图标 + 标题 + 副标题 + 状态胶囊）
   - info_banner(...)            彩色提示横幅（info/success/warning/danger）
   - stat_tile(...)              指标瓦片（标签 + 大值 + 涨跌 delta）
@@ -215,8 +216,6 @@ _KIT_CSS = _TOKEN_CSS + r"""
 </style>
 """
 
-_INJECTED_KEY = "_ui_kit_css_v1"
-
 # ★ 首帧兜底 CSS：page_hero 每次都注入，不走 session_state 去重。
 # 解决 streamlit 冷启动时序竞态下 ui_kit 的 _KIT_CSS 未生效、导致 chip/hero 容器「首屏朴素、
 # 刷新后才好」的问题。CSS 重声明无害，浏览器后到的覆盖先到的。
@@ -247,12 +246,16 @@ _HERO_FALLBACK_CSS = _TOKEN_CSS + r"""
 
 
 def inject_kit_css() -> None:
-    """注入 ui_kit 组件 CSS（全页面仅一次，session_state 去重）。"""
-    if st.session_state.get(_INJECTED_KEY):
-        return
+    """注入 ui_kit 组件 CSS——每次调用都注入，绝不 session_state 去重。
+
+    ⚠️ T-180 事故教训：曾用 session_state 标记「全页面仅一次」，但
+    st.switch_page 导航会重建 DOM（旧页面的 <style> 元素随旧 DOM 消失），
+    而 session_state 跨页面保留 → 新页面跳过注入 → 导航后组件样式全丢
+    （卡片裸文本），F5 重置 session_state 才恢复。CSS 注入幂等且开销
+    极小，必须每次注入（与主题层 apply_theme 同策略）。
+    """
     try:
         st.markdown(_KIT_CSS, unsafe_allow_html=True)
-        st.session_state[_INJECTED_KEY] = True
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[ui_kit] 处理异常: {e}")
 
