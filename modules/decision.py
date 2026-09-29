@@ -26,6 +26,10 @@ from datetime import datetime
 from modules.time_utils import now_cst_naive
 from typing import Any
 
+# 羊群拥挤度决策阈值（T-182 因子 B）：单一真理源在 modules/herd_crowding.py，
+# 这里只引用不复制——阈值改动必须同时过两侧测试（test_threshold_contract 钉住）。
+from modules.herd_crowding import MILD_CROWD, STRONG_CROWD
+
 logger = logging.getLogger(__name__)
 
 # 项目根（modules/ 的上一级）
@@ -93,11 +97,25 @@ _BANDS = [
     (0, "防御", "#00d486"),
 ]
 
+# Regime 状态门控目录（T-182 因子 A）：状态 → 仓位上限(%)。
+# 仅防守型：暴跌/恐慌压缩上限；震荡/结构牛/普涨不干预（不抬底不封顶）。
+# 依据：market_regime 全样本（4771 日）中暴跌(130日)/恐慌(379日)是唯二
+# 系统性左尾状态，历史相似日前瞻分布显著差于基准（T-182 回测复核）。
+REGIME_CAPS = {"暴跌": 50.0, "恐慌": 60.0}
+REGIME_CONF_MIN = 0.5  # 置信度门槛：低于此（或缺失）不启用门控——不臆造门控
+# market_regime 合法五状态全集：其中震荡/结构牛/普涨不在门控目录（无调节、
+# 不告警不留痕——正常状态刷 reasons 是噪声）；不在全集的状态才算未知（告警）。
+REGIME_KNOWN_STATES = {"暴跌", "恐慌", "震荡", "结构牛", "普涨"}
+
 
 # ───────────────────────── 仓位推导（唯一实现） ─────────────────────────
 def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=None,
                    event_adj: int | None = None,
                    freshness_status: str | None = None,
+                   herd_score: float | None = None,
+                   herd_side: str | None = None,
+                   regime_state: str | None = None,
+                   regime_confidence: float | None = None,
                    explain: bool = False) -> dict:
     """透明推导仓位建议。
 
@@ -107,7 +125,8 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
         + 周期调节（主升 +5 / 修复确认 +3 / 高潮分化 -5 / 退潮 -10 / 冰点 +5 超卖试探）
         + 梯队晋级率调节（≥60% +5 / 40-60% 0 / 20-40% -3 / <20% -6）
         + 事件驱动催化调节（真实事件因子多头池广度映射，见 _event_position_adj）
-        最终 clamp 到 5~95%。
+        + 羊群拥挤反向调节（T-182 因子 B：红挤 ≥85 -8pt / 70~85 -4pt；绿挤不调节）
+        最终 clamp 到 5~95%；随后极端风控 / 状态门控 / 新鲜度逐级封顶（仅封顶不抬底）。
 
     :param temp: 市场温度 0-100（None 时兜底 50）
     :param score: 情绪热度（当日情绪强度，**不预测方向**），仅留痕用，不参与计算
@@ -121,6 +140,14 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
                        陈旧数据必须让位——守卫不能只"提示"，否则"半个月前的情绪"
                        仍算出激进仓位、只是附了句"仅供参考"，与"诚实优先于好看"
                        原则正面冲突。stale→封顶 40%，warn→封顶 60%（仅封顶不抬底）。
+    :param herd_score: 羊群拥挤度 0-100（T-182 因子 B，modules/herd_crowding.py）。
+                       None=指标不可用（不调节——诚实数据语义，不臆造）。
+    :param herd_side: "greed"（红挤，反向减仓防守）/"fear"（绿挤，不减仓——与
+                      「冰点+5 超卖试探」既有语义自洽）。未知值告警按不调节。
+    :param regime_state: 市场状态机五状态（T-182 因子 A，modules/market_regime）。
+                         暴跌/恐慌且置信度足够 → 仓位上限收缩（仅封顶不抬底）。
+    :param regime_confidence: 状态置信度 0-1；<REGIME_CONF_MIN 或 None → 门控
+                              不启用（低置信度/无置信度都不臆造硬约束）。
     :return: dict(pct=int, band=str, color=str, reasons=list[str])
     """
     reasons: list[str] = []
@@ -188,6 +215,30 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
         # 按 event_available 拆分命中率，回答「事件驱动到底有没有用」（见 decision_track.by_event）
         reasons.append("事件驱动信号不可用，未施加催化（不臆造）")
 
+    # 羊群拥挤度反向调节（T-182 因子 B）：散户一致性极端化时次日均值回归风险
+    # 最高——贪婪端（红挤）反向减仓防守；恐惧端（绿挤）与「冰点 +5 超卖试探」
+    # 既有语义自洽，不反向加仓也不减仓（方向信号仍由 bias 承担）。
+    # 指标不可用（herd_score=None）不调节不臆造；未知方向告警不静默。
+    if herd_score is not None and herd_side is not None:
+        hadj = 0
+        if herd_side == "greed":
+            if herd_score >= STRONG_CROWD:
+                hadj = -8
+                pct += hadj
+                reasons.append(f"羊群极端拥挤(红挤 {herd_score:.0f})：反向减仓 8%")
+                contrib.append({"factor": "羊群拥挤反向(红挤极端)", "delta": float(hadj),
+                                "running": round(pct, 1)})
+            elif herd_score >= MILD_CROWD:
+                hadj = -4
+                pct += hadj
+                reasons.append(f"羊群中度拥挤(红挤 {herd_score:.0f})：谨慎减仓 4%")
+                contrib.append({"factor": "羊群拥挤反向(红挤中度)", "delta": float(hadj),
+                                "running": round(pct, 1)})
+        elif herd_side == "fear":
+            reasons.append(f"羊群拥挤(绿挤 {herd_score:.0f})：与超卖试探语义一致，不反向调节")
+        else:
+            logger.warning("[decision] 未知羊群方向 %r，按不调节处理", herd_side)
+
     pct_before_clamp = pct
     pct = max(5.0, min(95.0, pct))
     if pct != pct_before_clamp:
@@ -209,6 +260,28 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
             reasons.append(f"⚠️ 极端风控：温度 {base:.0f}≥80 且处高潮分化，仓位兜底 40%（原 {pct:.0f}%）")
             contrib.append({"factor": "极端风控(过热兜底40%)", "delta": round(40 - pct, 1), "running": 40.0})
             pct = 40.0
+
+    # Regime 状态门控（T-182 因子 A）：市场状态机判定的系统性风险日，历史上
+    # 尾部分布最差，仓位上限主动收缩——仅封顶不抬底（与极端风控/新鲜度同哲学，
+    # min 链可交换故次序不影响结果）。置信度不足/缺失不启用（不臆造门控）；
+    # 未知状态告警不静默。
+    if regime_state is not None:
+        rcap = REGIME_CAPS.get(regime_state)
+        if rcap is None:
+            if regime_state in REGIME_KNOWN_STATES:
+                pass  # 合法非门控状态（震荡/结构牛/普涨）：无调节，不告警不留痕
+            else:
+                logger.warning("[decision] 未知市场状态 %r，门控不启用", regime_state)
+                reasons.append(f"状态「{regime_state}」不在门控目录，未启用")
+        elif regime_confidence is None or regime_confidence < REGIME_CONF_MIN:
+            _c = "无" if regime_confidence is None else f"{regime_confidence:.2f}"
+            reasons.append(f"状态「{regime_state}」置信度不足（{_c} < {REGIME_CONF_MIN}），门控未启用")
+        elif pct > rcap:
+            reasons.append(f"⚠️ 状态门控：市场处「{regime_state}」（置信度 {regime_confidence:.0%}），"
+                           f"仓位封顶 {rcap:.0f}%（原 {pct:.0f}%）")
+            contrib.append({"factor": f"状态门控({regime_state})封顶{rcap:.0f}%",
+                            "delta": round(rcap - pct, 1), "running": rcap})
+            pct = rcap
 
     # 数据新鲜度诚实降级：守卫不能只"提示"——陈旧输入必须真的让位。
     # 这是「诚实优先于好看」的硬约束：基于过期数据的仓位建议不得保持激进。
@@ -241,12 +314,15 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
         out["contributions"] = contrib
         out["sensitivity"] = _position_sensitivity(
             temp=temp, score=score, bias=bias, cycle_name=cycle_name,
-            overall_promo=overall_promo, event_adj=event_adj, freshness_status=freshness_status)
+            overall_promo=overall_promo, event_adj=event_adj, freshness_status=freshness_status,
+            herd_score=herd_score, herd_side=herd_side,
+            regime_state=regime_state, regime_confidence=regime_confidence)
     return out
 
 
 def _position_sensitivity(temp, score, bias, cycle_name, overall_promo, event_adj,
-                         freshness_status) -> dict:
+                         freshness_status, herd_score=None, herd_side=None,
+                         regime_state=None, regime_confidence=None) -> dict:
     """单因子局部敏感度：各输入 ±5 时仓位的变化（百分点）。
 
     复用 derive_position（单一真理源），不另写计算逻辑。仅在 explain=True 时由
@@ -255,7 +331,9 @@ def _position_sensitivity(temp, score, bias, cycle_name, overall_promo, event_ad
     def _base_pct(**override):
         kw = dict(temp=temp, score=score, bias=bias, cycle_name=cycle_name,
                   overall_promo=overall_promo, event_adj=event_adj,
-                  freshness_status=freshness_status)
+                  freshness_status=freshness_status,
+                  herd_score=herd_score, herd_side=herd_side,
+                  regime_state=regime_state, regime_confidence=regime_confidence)
         kw.update(override)
         return derive_position(**kw)["pct"]
 

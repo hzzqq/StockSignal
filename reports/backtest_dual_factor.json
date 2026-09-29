@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "generated_at": "2026-09-29T16:50:42",
+    "source": "data\\shepherd_history.csv",
+    "n_trading_days_scored": 4091,
+    "baseline_rule": "temp=red_ratio 代理 + bias=同日广度推导（无前视），无周期/晋级率/事件输入——纯因子对照实验",
+    "factor_a": "regime 门控 {'暴跌': 50.0, '恐慌': 60.0}（conf≥0.5 启用，仅封顶不抬底）",
+    "factor_b": "羊群拥挤反向：greed ≥85 → -8pt / ≥70 → -4pt / fear 不调节",
+    "tail_rule": "尾部风险日 = 次日 median_chg < -2.0%",
+    "disclosure": "门控与反向因子只调仓位不改方向，故不设方向命中率（方向口径见 backtest_decision_closure.json）；temp/bias 为离线代理，结论验证统计行为而非实盘收益。",
+    "state_days": {
+      "震荡": 2380,
+      "普涨": 1244,
+      "恐慌": 455,
+      "暴跌": 7,
+      "结构牛": 5
+    }
+  },
+  "groups": {
+    "baseline": {
+      "n": 4091,
+      "avg_position": 0.5058,
+      "avg_weighted_ret_bp": -0.0689,
+      "cum_ret_pct": -95.7144,
+      "max_drawdown_pct": 96.3249,
+      "tail_days": 559,
+      "tail_avg_position": 0.4528,
+      "tail_avg_weighted_loss_bp": -1.6913
+    },
+    "regime": {
+      "n": 4091,
+      "avg_position": 0.5058,
+      "avg_weighted_ret_bp": -0.0689,
+      "cum_ret_pct": -95.7144,
+      "max_drawdown_pct": 96.3249,
+      "tail_days": 559,
+      "tail_avg_position": 0.4528,
+      "tail_avg_weighted_loss_bp": -1.6913,
+      "capped_days": 0,
+      "cap_by_state": {
+        "暴跌": 0,
+        "恐慌": 0
+      }
+    },
+    "herd": {
+      "n": 4091,
+      "avg_position": 0.5046,
+      "avg_weighted_ret_bp": -0.0687,
+      "cum_ret_pct": -95.6767,
+      "max_drawdown_pct": 96.2921,
+      "tail_days": 559,
+      "tail_avg_position": 0.452,
+      "tail_avg_weighted_loss_bp": -1.6873,
+      "greed_strong_days": 39,
+      "greed_mild_days": 298,
+      "fear_days": 2075,
+      "unavailable_days": 0
+    },
+    "dual": {
+      "n": 4091,
+      "avg_position": 0.5046,
+      "avg_weighted_ret_bp": -0.0687,
+      "cum_ret_pct": -95.6767,
+      "max_drawdown_pct": 96.2921,
+      "tail_days": 559,
+      "tail_avg_position": 0.452,
+      "tail_avg_weighted_loss_bp": -1.6873
+    }
+  }
+}
