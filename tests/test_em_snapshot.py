@@ -121,31 +121,53 @@ def test_fetch_retries_three_then_none(monkeypatch):
 
 
 def test_fetch_success_single_page(monkeypatch):
-    """单页成功 → DataFrame 中文列齐全；total <= pz 不再翻页。"""
-    calls = {"n": 0}
+    """单页成功 → DataFrame 中文列齐全；末页信号（返回行数 < pz）即停。"""
+    calls = {"urls": []}
 
     def _ok(url, **k):
-        calls["n"] += 1
-        return _FakeResp(_raw_page())
+        calls["urls"].append(url)
+        if "pn=1" in url:
+            return _FakeResp(_raw_page())
+        return _FakeResp({"data": {"total": 2, "diff": []}})  # pn>=2 空页
 
     monkeypatch.setattr(ems, "_http_get_raw", _ok)
-    out = ems.fetch_a_spot_em(max_pages=3, pz=1000)
+    out = ems.fetch_a_spot_em(max_pages=3, pz=1000, min_rows=1)
     assert out is not None and len(out) == 2
     assert "代码" in out.columns and "涨跌幅" in out.columns
-    assert calls["n"] == 1, "total=2 <= pz=1000 时不应翻页"
+    assert len(calls["urls"]) == 1, "2 行 < pz=1000 → 末页信号即停（不空翻页）"
+
+
+def test_fetch_partial_snapshot_rejected(monkeypatch):
+    """T-177 灰度降级守卫：残缺快照（如 100 行全北交所）必须返 None 交兜底，
+    且立即停止重试（灰度态说明已触发风控，继续打只会加剧）。"""
+    calls = {"n": 0}
+
+    def _partial(url, **k):
+        calls["n"] += 1
+        # 模拟灰度降级：单页 100 行全北交所（fid=f12 降序下 920 开头排最前）
+        diff = [{"f12": f"9209{i:02d}", "f14": f"北交所{i}", "f2": 10.0, "f3": 1.0,
+                 "f4": 0.1, "f5": 100, "f6": 1e6, "f7": 2.0, "f8": 1.0,
+                 "f9": 10.0, "f10": 1.0, "f20": 1e8, "f21": 5e7, "f23": 2.0}
+                for i in range(100)]
+        return _FakeResp({"data": {"total": 5700, "diff": diff}})
+
+    monkeypatch.setattr(ems, "_http_get_raw", _partial)
+    monkeypatch.setattr(ems, "_sleep", lambda *_: None)
+    out = ems.fetch_a_spot_em(retries=3, max_pages=1, pz=500, min_rows=3000)
+    assert out is None, "残缺快照必须返 None（不冒充全市场）"
+    assert calls["n"] == 1, "灰度态必须立即放弃重试（实际调用 %d 次）" % calls["n"]
+    assert ems._state["fail_streak"] == 1
 
 
 def test_fetch_paginates_by_total(monkeypatch):
-    """total > pz 时按页翻齐并合并。"""
+    """多页翻齐合并（末页信号驱动，total 字段失真不影响翻页）。"""
+    page = _raw_page()["data"]["diff"][:1]
+
     def _resp(url, **k):
-        pn = 1
-        if "pn=2" in url:
-            pn = 2
-        page = _raw_page()["data"]["diff"][:1]
         return _FakeResp({"data": {"total": 2, "diff": page}})
 
     monkeypatch.setattr(ems, "_http_get_raw", _resp)
-    out = ems.fetch_a_spot_em(max_pages=2, pz=1)
+    out = ems.fetch_a_spot_em(max_pages=2, pz=1, min_rows=1)
     assert out is not None and len(out) == 2
 
 
@@ -209,7 +231,7 @@ def test_cooldown_expires_and_recovers(monkeypatch):
         return _FakeResp(_raw_page())
 
     monkeypatch.setattr(ems, "_http_get_raw", _ok)
-    out = ems.fetch_a_spot_em(retries=1, max_pages=1)
+    out = ems.fetch_a_spot_em(retries=1, max_pages=1, min_rows=1)
     assert out is not None
     assert ems._state["fail_streak"] == 0, "成功后必须复位失败计数"
 
@@ -223,8 +245,8 @@ def test_shared_cache_ttl(monkeypatch):
         return _FakeResp(_raw_page())
 
     monkeypatch.setattr(ems, "_http_get_raw", _ok)
-    out1 = ems.fetch_a_spot_em()
-    out2 = ems.fetch_a_spot_em()
+    out1 = ems.fetch_a_spot_em(min_rows=1)
+    out2 = ems.fetch_a_spot_em(min_rows=1)
     assert calls["n"] == 1, "60s 内第二次调用应命中共享缓存"
     assert out2 is not out1, "缓存必须返回副本（防调用方污染共享态）"
     pd.testing.assert_frame_equal(out1, out2)

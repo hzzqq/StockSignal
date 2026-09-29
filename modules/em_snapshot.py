@@ -113,7 +113,8 @@ def _fetch_page(pn: int, pz: int, timeout: float = 10.0) -> dict:
 
 
 def fetch_a_spot_em(max_pages: int = 12, pz: int = 500,
-                    retries: int = 3, timeout: float = 10.0) -> pd.DataFrame | None:
+                    retries: int = 3, timeout: float = 10.0,
+                    min_rows: int = 3000) -> pd.DataFrame | None:
     """拉全市场 A 股快照（分页合并）。全部失败返回 None（诚实降级）。
 
     防风控四件套（T-177/T-178 实测 clist 端点有频率风控，触发阈值极低——
@@ -122,7 +123,11 @@ def fetch_a_spot_em(max_pages: int = 12, pz: int = 500,
       2. 冷却退避：连续失败 ≥2 轮进入 5 分钟冷却，期内不打请求（快速返回 None）；
       3. 请求强度最小化：pz=500 × 12 页 + 页间 0.25s 节流
          （akshare 60 页无间隔循环正是触封主因；pz=1000 实测被截断成 600 行）；
-      4. 诚实降级：全失败返 None，绝不编造。
+      4. 诚实降级：全失败/覆盖不足返 None，绝不编造。
+
+    :param min_rows: 最小覆盖阈值——东财风控存在「灰度降级」形态（不断连但只回
+        残缺行数，实测 100 行全北交所），残缺数据用于全市场排名即失真，不足
+        阈值返 None 交兜底层（akshare/腾讯），绝不拿残缺冒充全市场。
     """
     now = time.time()
     if now - _state["ts"] < _CACHE_TTL and _state["df"] is not None:
@@ -141,20 +146,32 @@ def fetch_a_spot_em(max_pages: int = 12, pz: int = 500,
                 if pn > 1:
                     _sleep(0.25)  # 页间节流：连发即触风控
                 data = _fetch_page(pn, pz, timeout=timeout)
-                page_total = int(data.get("total") or 0)
-                diff = data.get("diff") or []
                 if total is None:
-                    total = page_total
+                    total = int(data.get("total") or 0)
+                diff = data.get("diff") or []
                 rows.extend(diff)
-                if not diff or pn * pz >= total:
+                # 末页信号 = 返回行数 < 请求数。⚠️ 不信 total：东财对匿名会话
+                # 的 total 字段失真（实测报 600/1200 而真实全市场 ~5700），
+                # 用它判断会提前断页（T-177 深市全缺事故）。
+                if not diff or len(diff) < pz:
                     break
             if rows:
                 df = map_diff_to_df(rows)
+                if len(df) < min_rows:
+                    # 风控灰度降级：残缺数据不冒充全市场（不计成功/不进缓存），
+                    # 且立即放弃重试——灰度态说明已触发风控，继续打只会加剧
+                    logger.warning("[em_snapshot] 覆盖 %d 只 < 阈值 %d，视为残缺快照，返 None 交兜底",
+                                   len(df), min_rows)
+                    _state["fail_streak"] += 1
+                    if _state["fail_streak"] >= _FAIL_STREAK_COOL:
+                        _state["cool_until"] = time.time() + _COOLDOWN_SEC
+                    return None
                 _state.update({"fail_streak": 0, "df": df, "ts": now})
-                logger.info("[em_snapshot] 全市场快照 %d 只（total=%s, %d 页）",
+                logger.info("[em_snapshot] 全市场快照 %d 只（服务端 total=%s, %d 页）",
                             len(df), total, (len(rows) + pz - 1) // pz)
                 return df
-            last_err = ValueError(f"no rows (total={total})")
+            else:
+                last_err = ValueError(f"no rows (total={total})")
         except Exception as e:  # noqa: BLE001 - 网络层一切失败统一重试
             last_err = e
             logger.debug("[em_snapshot] 第 %d 次尝试失败: %s", attempt + 1, e)
