@@ -50,12 +50,21 @@ def _synthetic_csv(tmp_path):
 
 
 def test_four_groups_complete(tmp_path):
-    """四组都产出且共享同一有效样本集（n 恒等——控制变量实验完整性）。"""
+    """五组（含 dual_cap 变体）都产出且共享同一有效样本集（n 恒等）。"""
     rep = run(str(_synthetic_csv(tmp_path)))
     gs = rep["groups"]
-    assert set(gs) == {"baseline", "regime", "herd", "dual"}
+    assert set(gs) == {"baseline", "regime", "herd", "dual", "dual_cap"}
     ns = {g: gs[g]["n"] for g in gs}
     assert len(set(ns.values())) == 1 and next(iter(ns.values())) > 0, ns
+
+
+def test_dual_cap_variant_semantics(tmp_path):
+    """封顶变体：合成强红挤日 → dual_cap 仓位被压到 ≤60 且低于 dual（-8pt 不够时）。"""
+    rep = run(str(_synthetic_csv(tmp_path)))
+    gs = rep["groups"]
+    assert gs["dual_cap"]["n"] == gs["dual"]["n"]
+    assert gs["dual_cap"]["avg_position"] <= gs["dual"]["avg_position"]
+    assert "dual_cap" in rep["meta"]["variants"]
 
 
 def test_factors_never_increase_position(tmp_path):

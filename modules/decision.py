@@ -28,7 +28,7 @@ from typing import Any
 
 # 羊群拥挤度决策阈值（T-182 因子 B）：单一真理源在 modules/herd_crowding.py，
 # 这里只引用不复制——阈值改动必须同时过两侧测试（test_threshold_contract 钉住）。
-from modules.herd_crowding import MILD_CROWD, STRONG_CROWD
+from modules.herd_crowding import MILD_CROWD, STRONG_CROWD, crowding_from_history
 
 logger = logging.getLogger(__name__)
 
@@ -583,6 +583,66 @@ def assess_freshness(sources: dict) -> dict:
 
 
 # ───────────────────────── 快照构建 / 落盘 / 读取 ─────────────────────────
+# 双因子输入汇聚缓存（T-183）：与 _event_adj_cache 同模式——成功才缓存、失败
+# 不缓存下次重试；TTL 300s 覆盖实时面板刷新与每日快照两个消费方。
+_dual_factor_cache: dict = {"value": None, "ts": 0.0}
+
+
+def compute_dual_factor_inputs(ttl: int = 300,
+                               history_path: str | None = None) -> dict:
+    """双因子决策输入汇聚（T-183 生产接线，单一真理源）。
+
+    从牧羊人广度历史（data/shepherd_history.json）最近**有效**日算出：
+      · regime_state / regime_confidence —— market_regime 五状态分类 + 置信度
+      · herd_score / herd_side —— herd_crowding 羊群拥挤度 + 方向侧
+    供 derive_position 的新参数直接消费；build_snapshot 与 54 决策面板共用本
+    函数（各写一份必然漂移）。
+
+    诚实语义：
+      · 历史文件缺失/空/末行特征缺数 → available=False 且各输入 None（不臆造）
+      · keep_nan 加载后 dropna 取最近有效日——缺数日绝不冒充当日去触发门控
+        （T-183 修复：缺数被填 0 会误判恐慌、错误压仓）
+    :param ttl: 成功结果缓存秒数；失败不缓存
+    :param history_path: 覆盖历史路径（测试注入用；默认 SS_DATA_DIR 隔离）
+    :return: dict(regime_state, regime_confidence, herd_score, herd_side,
+                  available: bool, detail: dict)
+    """
+    now = time.time()
+    cached = _dual_factor_cache
+    if cached["value"] is not None and (now - cached["ts"]) < ttl and history_path is None:
+        return cached["value"]
+    out: dict = {"regime_state": None, "regime_confidence": None,
+                 "herd_score": None, "herd_side": None, "available": False,
+                 "detail": {}}
+    try:
+        from modules.market_regime import classify_state, load_breadth_history, _state_confidence
+        p = history_path or os.path.join(DATA_DIR, "shepherd_history.json")
+        # keep_nan=True：区分「真 0 日」与「缺数日」（见 load_breadth_history docstring）
+        df = load_breadth_history(path=p, keep_nan=True).dropna(
+            subset=["red_ratio", "limit_up", "limit_down"])
+        if len(df) == 0:
+            raise ValueError("广度历史无有效行")
+        i = len(df) - 1
+        row = df.iloc[i]
+        state = classify_state(row)
+        conf = float(_state_confidence(row, state))
+        herd = crowding_from_history(df, i)
+        if herd.get("status") == "ok":
+            out["herd_score"] = herd["score"]
+            out["herd_side"] = herd["side"]
+        out["regime_state"] = state
+        out["regime_confidence"] = conf
+        out["available"] = True
+        out["detail"] = {"as_of": str(row["date"])[:10], "rows": int(len(df))}
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[decision] 双因子输入不可用，诚实降级: %s", e)
+        out["detail"] = {"error": str(e)}
+    if out["available"] and history_path is None:
+        cached["value"] = out
+        cached["ts"] = now
+    return out
+
+
 def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
                    promo: dict | None, ladder: dict | None = None,
                    event_adj: int | None = None,
@@ -662,8 +722,15 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
     if market_temp_as_of is not None:
         _fresh_sources["市场温度缓存"] = market_temp_as_of
     freshness = assess_freshness(_fresh_sources)
+    # T-183 双因子接线：regime 门控 + 羊群拥挤反向输入（单一真理源汇聚函数，
+    # 数据缺失诚实降级为 None——derive_position 各新因子自动走「不调节」路径）
+    _dfi = compute_dual_factor_inputs()
     pos = derive_position(temp, fc.get("score"), fc.get("bias"), cycle_name, overall,
-                          event_adj=event_adj, freshness_status=freshness["status"])
+                          event_adj=event_adj, freshness_status=freshness["status"],
+                          herd_score=_dfi.get("herd_score"),
+                          herd_side=_dfi.get("herd_side"),
+                          regime_state=_dfi.get("regime_state"),
+                          regime_confidence=_dfi.get("regime_confidence"))
 
     if freshness["status"] in ("warn", "stale"):
         stale_bits = [

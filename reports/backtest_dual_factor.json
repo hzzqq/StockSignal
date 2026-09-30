@@ -1,12 +1,15 @@
 {
   "meta": {
-    "generated_at": "2026-09-29T16:50:42",
+    "generated_at": "2026-09-30T11:36:49",
     "source": "data\\shepherd_history.csv",
     "n_trading_days_scored": 4091,
     "baseline_rule": "temp=red_ratio 代理 + bias=同日广度推导（无前视），无周期/晋级率/事件输入——纯因子对照实验",
     "factor_a": "regime 门控 {'暴跌': 50.0, '恐慌': 60.0}（conf≥0.5 启用，仅封顶不抬底）",
     "factor_b": "羊群拥挤反向：greed ≥85 → -8pt / ≥70 → -4pt / fear 不调节",
     "tail_rule": "尾部风险日 = 次日 median_chg < -2.0%",
+    "variants": {
+      "dual_cap": "红挤极端(≥85)以封顶 60% 替代 -8pt（仅回测对照，未进生产）"
+    },
     "disclosure": "门控与反向因子只调仓位不改方向，故不设方向命中率（方向口径见 backtest_decision_closure.json）；temp/bias 为离线代理，结论验证统计行为而非实盘收益。",
     "state_days": {
       "震荡": 2380,
@@ -65,6 +68,16 @@
       "tail_days": 559,
       "tail_avg_position": 0.452,
       "tail_avg_weighted_loss_bp": -1.6873
+    },
+    "dual_cap": {
+      "n": 4091,
+      "avg_position": 0.5015,
+      "avg_weighted_ret_bp": -0.0705,
+      "cum_ret_pct": -95.874,
+      "max_drawdown_pct": 96.4613,
+      "tail_days": 559,
+      "tail_avg_position": 0.449,
+      "tail_avg_weighted_loss_bp": -1.6659
     }
   }
 }

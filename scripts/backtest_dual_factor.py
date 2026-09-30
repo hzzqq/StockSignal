@@ -58,8 +58,13 @@ OUT_PATH = os.environ.get(
     os.path.join(_ROOT, "reports", "backtest_dual_factor.json"),
 )
 
-GROUPS = ("baseline", "regime", "herd", "dual")
+GROUPS = ("baseline", "regime", "herd", "dual", "dual_cap")
 TAIL_DROP_PCT = -2.0  # 尾部风险日口径：次日中位收益 < -2%
+
+# 封顶变体（T-183，仅回测未进生产）：红挤极端日以「仓位封顶 60%」替代 -8pt
+# delta，中度红挤维持 -4pt。用于量化「delta vs cap」的敏感性，供生产规则
+# 升级决策参考——改生产规则须老板拍板 + 重跑全量守卫。
+HERD_CAP_VARIANT = 60.0
 
 # 基线 bias 推导：与 backtest_decision_closure._proxy_bias 同口径（无前视）。
 # 不直接 import 兄弟脚本（scripts 非稳定包），此规则仅两处且都有测试钉住；
@@ -146,6 +151,13 @@ def run(breadth_file: str | None = None) -> dict:
 
         w_next = next_mchg / 100.0  # 次日真实收益（小数）
         tail_day = next_mchg < TAIL_DROP_PCT
+        # 封顶变体（仅回测）：红挤极端日 min(无herd仓位, 60)；其余日与 dual 同
+        if h_side == "greed" and h_score is not None and h_score >= STRONG_CROWD:
+            _cap_out = derive_position(**base_kw, regime_state=state,
+                                       regime_confidence=conf)
+            outs["dual_cap"] = {"pct": min(_cap_out["pct"], HERD_CAP_VARIANT)}
+        else:
+            outs["dual_cap"] = outs["dual"]
         for g, out in outs.items():
             p = out["pct"] / 100.0
             w = p * w_next  # 仓位加权次日收益（小数）
@@ -209,6 +221,8 @@ def run(breadth_file: str | None = None) -> dict:
             "factor_b": f"羊群拥挤反向：greed ≥{STRONG_CROWD:.0f} → -8pt / "
                         f"≥{MILD_CROWD:.0f} → -4pt / fear 不调节",
             "tail_rule": f"尾部风险日 = 次日 median_chg < {TAIL_DROP_PCT}%",
+            "variants": {"dual_cap": f"红挤极端(≥{STRONG_CROWD:.0f})以封顶 "
+                          f"{HERD_CAP_VARIANT:.0f}% 替代 -8pt（仅回测对照，未进生产）"},
             "disclosure": "门控与反向因子只调仓位不改方向，故不设方向命中率"
                           "（方向口径见 backtest_decision_closure.json）；"
                           "temp/bias 为离线代理，结论验证统计行为而非实盘收益。",

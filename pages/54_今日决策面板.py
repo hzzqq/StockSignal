@@ -27,7 +27,8 @@ from modules import shepherd_note as _sn
 # 避免各写一份漂移成互相矛盾的建议。改规则只需改 decision.derive_position 一处。
 from modules.decision import (derive_position, load_snapshot, is_stale,
                              _event_position_adj, _event_long_symbols,
-                             event_edge, format_event_edge)
+                             event_edge, format_event_edge,
+                             compute_dual_factor_inputs)
 from modules.data_health import health_rows, assess_freshness
 from modules.decision_view import render_signal_cards, render_position_card, render_ladder_table, render_freshness_badge, render_decision_loop_alarm
 from modules import data_health as _dh
@@ -289,8 +290,15 @@ def _render_hero(df, today, prev, meta=None):
     except Exception:  # noqa: BLE001
         pass
 
+    # T-183 双因子接线：与 build_snapshot 同源（compute_dual_factor_inputs），
+    # 保证实时卡与归档快照一致；数据缺失诚实降级 None（不臆造）。
+    _dfi = compute_dual_factor_inputs()
     pos = derive_position(temp, score, bias, cyc.get("name", ""), overall,
-                          event_adj=event_adj_val, explain=True)
+                          event_adj=event_adj_val, explain=True,
+                          herd_score=_dfi.get("herd_score"),
+                          herd_side=_dfi.get("herd_side"),
+                          regime_state=_dfi.get("regime_state"),
+                          regime_confidence=_dfi.get("regime_confidence"))
     # 暴露最终仓位到 session_state，供冒烟测试做「数据正确性」断言（不渲染、纯透传）
     try:
         st.session_state["decision_pos_pct"] = pos["pct"]
@@ -298,6 +306,21 @@ def _render_hero(df, today, prev, meta=None):
         pass
     render_position_card(pos, bias=bias, confidence=(fc or {}).get("confidence", 0),
                          cyc_name=cyc.get("name", ""))
+
+    # T-183 双因子透明展示：拥挤度与市场状态摊给用户（additive，仅视觉层）
+    if _dfi.get("available"):
+        _bits = []
+        _hs, _sd = _dfi.get("herd_score"), _dfi.get("herd_side")
+        _rs, _rc = _dfi.get("regime_state"), _dfi.get("regime_confidence")
+        if _hs is not None:
+            _side_txt = {"greed": "红挤", "fear": "绿挤"}.get(_sd, "无向")
+            _bits.append(f"🐑 羊群拥挤度 {_hs:.0f}（{_side_txt}）")
+        if _rs is not None:
+            _rc_txt = f"{_rc:.0%}" if _rc is not None else "—"
+            _bits.append(f"📊 市场状态 {_rs}（置信度 {_rc_txt}）")
+        _as_of = (_dfi.get("detail") or {}).get("as_of")
+        if _bits:
+            st.caption(" · ".join(_bits) + (f" —— 数据截至 {_as_of}" if _as_of else ""))
 
     # F3 决策可解释归因：把上方仓位的每个因子贡献摊开，透明可解释（单一真理源 derive_position）。
     try:

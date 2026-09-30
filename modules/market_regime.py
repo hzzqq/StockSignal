@@ -40,9 +40,14 @@ _FEATURES = ["red_ratio", "limit_up", "limit_down"]
 _HORIZONS = (5, 10, 20)
 
 
-def load_breadth_history(path: Optional[str] = None) -> pd.DataFrame:
+def load_breadth_history(path: Optional[str] = None,
+                         keep_nan: bool = False) -> pd.DataFrame:
     """加载牧羊人广度长历史（健康镜像 JSON，4771 天真值）。
 
+    :param keep_nan: True 时**不**把特征列 NaN 填 0（T-183）——供决策门控等
+              「必须区分『真 0 日』与『缺数日』」的调用方使用；缺数日由调用方
+              dropna 后取最近有效日，避免缺数被误判成恐慌（rr=0≤15）触发封顶。
+              默认 False 保持既有类比行为（填 0 防距离被 NaN 污染）。
     :returns: DataFrame[date, up_count, down_count, flat_count, limit_up,
               limit_down, red_ratio, connect_hl, zt_fail_ratio, zt_prev_ret]
               按 date 升序；数值列已 to_numeric。
@@ -57,11 +62,12 @@ def load_breadth_history(path: Optional[str] = None) -> pd.DataFrame:
               "red_ratio", "connect_hl", "zt_fail_ratio", "zt_prev_ret"]:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
-    # 防御：缺失特征填 0，避免类比距离被 NaN 污染
+    # 防御：缺失特征填 0，避免类比距离被 NaN 污染（keep_nan=True 时跳过——见上）
     for c in _FEATURES:
-        if c not in df.columns:
-            df[c] = 0.0
-        df[c] = df[c].fillna(0.0)
+        if not keep_nan:
+            if c not in df.columns:
+                df[c] = 0.0
+            df[c] = df[c].fillna(0.0)
     return df
 
 
