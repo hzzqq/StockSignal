@@ -148,6 +148,7 @@ def apply_theme() -> None:
     # 每块页顶部会留下约 96px 的固定空白。统一收敛到 1.2rem，保留少量呼吸感。
     # 用 !important 覆盖 Streamlit 写在该容器上的 inline style（未标 !important，可被覆盖）。
     _sync_style_mode()
+    style_switcher()
     try:
         st.markdown(
             '<style>'

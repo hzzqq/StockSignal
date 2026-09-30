@@ -53,6 +53,8 @@ def test_apply_theme_wired():
     """apply_theme 已接线：开头 _sync_style_mode()，inject_kit_css 后 inject_style_css()。"""
     src = inspect.getsource(ui_theme.apply_theme)
     assert "_sync_style_mode()" in src
+    assert "style_switcher()" in src  # T-187a：切换器必须挂载（曾漏挂致侧边栏无入口）
+    assert src.index("style_switcher()") < src.index("inject_kit_css()")
     assert src.index("inject_kit_css()") < src.index("inject_style_css()")
 
 
