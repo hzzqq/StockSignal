@@ -25,6 +25,34 @@ def test_shap_attribution_sorts_by_abs():
     assert out["市场温度（基准）"] == 0.0
 
 
+def test_shap_baseline_split_additive():
+    """SHAP 加性归因语义：base + Σφi == final（可加性可验，教师 #4 核心实证）。"""
+    contribs = [
+        {"factor": "市场温度（基准）", "delta": 0.0, "running": 80.0},
+        {"factor": "方向「偏多」", "delta": 8.0, "running": 88.0},
+        {"factor": "羊群拥挤反向(红挤极端)", "delta": -12.0, "running": 76.0},
+        {"factor": "梯队晋级率(70%)", "delta": 5.0, "running": 81.0},
+    ]
+    out = shap_style_attribution(contribs, baseline_split=True)
+    assert out["baseline"] == 80.0
+    assert out["adjustments"]["羊群拥挤反向(红挤极端)"] == -12.0
+    assert "市场温度（基准）" not in out["adjustments"]  # 基准不入调节项
+    assert out["adjustments_total"] == 1.0
+    assert abs(out["baseline"] + out["adjustments_total"] - out["final_running"]) < 0.05
+    # 排序：绝对值降序（12 > 8 > 5，无打平歧义）
+    keys = list(out["adjustments"].keys())
+    assert keys[0] == "羊群拥挤反向(红挤极端)"
+
+
+def test_shap_baseline_split_empty_and_backward_compat():
+    """空输入诚实返回 None 域；默认参数行为与旧版逐位一致（向后兼容铁律）。"""
+    empty = shap_style_attribution([], baseline_split=True)
+    assert empty["baseline"] is None and empty["final_running"] is None
+    assert shap_style_attribution([]) == {}
+    contribs = [{"factor": "A", "delta": 3.0, "running": 53.0}]
+    assert shap_style_attribution(contribs) == {"A": 3.0}  # 旧签名不变
+
+
 def test_holdout_accuracy_basic():
     preds = [1.0, -1.0, 0.5, -0.2]
     labels = [1, -1, 0, 1]  # 第 3 个平盘不计

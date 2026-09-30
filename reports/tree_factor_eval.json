@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "generated_at": "2026-09-30T19:34:29",
+    "source": "shepherd_history.csv",
+    "n_total": 2742,
+    "n_train": 1645,
+    "n_test": 1097,
+    "train_end": "2021-12-31",
+    "test_start": "2022-01-04",
+    "train_frac": 0.6,
+    "p_features": [
+      "red_ratio",
+      "limit_up",
+      "limit_down",
+      "connect_hl",
+      "zt_fail_ratio",
+      "zt_prev_ret"
+    ],
+    "b_features": [
+      "crowd_score",
+      "crowd_greed",
+      "crowd_fear",
+      "streak_days",
+      "rr_dev",
+      "state_crash",
+      "state_panic",
+      "state_bull",
+      "state_boom"
+    ],
+    "test_base_rate_up": 0.4822,
+    "disclosure": "时序 60/40 不 shuffle；显著性以 test base_rate 为 p0；增强组若不涨反跌即为诚实负向（特征无增益），不包装。"
+  },
+  "results": {
+    "baseline_majority": {
+      "direction_accuracy": 0.5178,
+      "auc": null
+    },
+    "hist_gb_pure": {
+      "direction_accuracy": 0.5068,
+      "auc": 0.4975
+    },
+    "hist_gb_enhanced": {
+      "direction_accuracy": 0.4859,
+      "auc": 0.4977
+    },
+    "rf_pure": {
+      "direction_accuracy": 0.5251,
+      "auc": 0.5266
+    },
+    "rf_enhanced": {
+      "direction_accuracy": 0.5333,
+      "auc": 0.5291
+    }
+  },
+  "enhancement_delta": {
+    "hist_gb_delta_acc": -0.0209,
+    "rf_delta_acc": 0.0082
+  },
+  "rf_feature_importance_top": [
+    {
+      "feature": "crowd_score",
+      "importance": 0.1687
+    },
+    {
+      "feature": "zt_prev_ret",
+      "importance": 0.1644
+    },
+    {
+      "feature": "rr_dev",
+      "importance": 0.1632
+    },
+    {
+      "feature": "red_ratio",
+      "importance": 0.1579
+    },
+    {
+      "feature": "zt_fail_ratio",
+      "importance": 0.1017
+    },
+    {
+      "feature": "limit_up",
+      "importance": 0.0769
+    },
+    {
+      "feature": "connect_hl",
+      "importance": 0.0643
+    },
+    {
+      "feature": "streak_days",
+      "importance": 0.0349
+    },
+    {
+      "feature": "limit_down",
+      "importance": 0.0341
+    },
+    {
+      "feature": "state_panic",
+      "importance": 0.0134
+    }
+  ]
+}

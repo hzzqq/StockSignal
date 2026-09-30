@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "generated_at": "2026-09-30T19:34:01",
+    "source": "shepherd_history.csv",
+    "n_scored": 4091,
+    "bucket_edges": [
+      "0-30",
+      "30-50",
+      "50-70",
+      "70-85",
+      "85+"
+    ],
+    "thresholds": {
+      "mild": 70.0,
+      "strong": 85.0
+    },
+    "disclosure": "无前视（拥挤度/状态只用当日及以前）；真值=次日 median_chg；小样本桶（如暴跌）结论仅描述性，不外推；Spearman 样本<10 不算。"
+  },
+  "monotonic": {
+    "greed_side_score_vs_next_chg": {
+      "rho": 0.0132,
+      "p_value": 0.55412,
+      "n": 2012
+    },
+    "all_days_score_vs_next_chg": {
+      "rho": 0.022,
+      "p_value": 0.158955,
+      "n": 4091
+    },
+    "interpretation": "rho<0 且显著 = 红挤越极端次日越差（因子化成立）"
+  },
+  "by_crowding_bucket": [
+    {
+      "bucket": "0-30",
+      "n": 973,
+      "avg_next_chg": -0.1672,
+      "median_next_chg": 0.0,
+      "up_frac": 0.4656
+    },
+    {
+      "bucket": "30-50",
+      "n": 1305,
+      "avg_next_chg": -0.1928,
+      "median_next_chg": 0.0,
+      "up_frac": 0.4705
+    },
+    {
+      "bucket": "50-70",
+      "n": 1232,
+      "avg_next_chg": -0.3319,
+      "median_next_chg": -0.0875,
+      "up_frac": 0.4545
+    },
+    {
+      "bucket": "70-85",
+      "n": 498,
+      "avg_next_chg": 0.098,
+      "median_next_chg": 0.1679,
+      "up_frac": 0.5321
+    },
+    {
+      "bucket": "85+",
+      "n": 83,
+      "avg_next_chg": 0.0571,
+      "median_next_chg": 0.1718,
+      "up_frac": 0.5301
+    }
+  ],
+  "by_state": {
+    "暴跌": {
+      "n": 7,
+      "avg_next_chg": 2.3194,
+      "median_next_chg": 1.8406,
+      "up_frac": 0.8571
+    },
+    "恐慌": {
+      "n": 455,
+      "avg_next_chg": -0.188,
+      "median_next_chg": 0.2135,
+      "up_frac": 0.5231
+    },
+    "震荡": {
+      "n": 2380,
+      "avg_next_chg": -0.2713,
+      "median_next_chg": -0.0785,
+      "up_frac": 0.4534
+    },
+    "结构牛": {
+      "n": 5,
+      "avg_next_chg": 0.0738,
+      "median_next_chg": 0.2241,
+      "up_frac": 0.8
+    },
+    "普涨": {
+      "n": 1244,
+      "avg_next_chg": -0.0442,
+      "median_next_chg": 0.0,
+      "up_frac": 0.4895
+    }
+  }
+}

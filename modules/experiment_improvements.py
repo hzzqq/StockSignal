@@ -22,24 +22,52 @@ from typing import Any
 
 
 # ───────────────────────── #4 SHAP 风格因子归因（零训练，现在可跑） ─────────────────────────
-def shap_style_attribution(contributions: list[dict]) -> dict:
+def shap_style_attribution(contributions: list[dict],
+                           baseline_split: bool = False):
     """把 derive_position(explain=True) 的 contributions 转成标准因子归因表。
 
     contributions 形如 [{"factor": str, "delta": float, "running": float}, ...]
-    返回 {factor: 累计贡献 delta} 并按贡献绝对值降序。
 
-    这是 XAI 热点方向（开题 #4）的安全落地：不训练新模型，只是把现有决策的
-    可解释性**标准化**成 SHAP 式归因表，直接可用作毕设"可解释融合"的实证证据。
+    :param baseline_split: False（默认）→ 返回 {factor: 累计贡献 delta} 按
+        绝对值降序（既有行为，向后兼容）。
+        True → 按 SHAP 加性归因语义三段式拆解：
+        ``f(x) = base + Σφi``，即「基准仓位 + 各因子调节 = 最终仓位」：
+        ``{"baseline": 基准仓位(市场温度), "adjustments": {因子: φi},
+           "adjustments_total": Σφi, "final_running": 最终仓位}``
+        —— 这正是 SHAP 的 additive feature attribution 定义在决策闭环上的
+        精确映射（教师 #4「可解释融合」的核心实证：决策不是黑箱，可加性可验）。
+
+    验证口径（tests/test_experiment_improvements.py 钉住）：
+        baseline + adjustments_total == final_running（加性可验，容差 0.05）
     """
     if not contributions:
-        return {}
+        return {} if not baseline_split else {
+            "baseline": None, "adjustments": {},
+            "adjustments_total": 0.0, "final_running": None}
     out: dict[str, float] = {}
+    baseline = 0.0
+    final_running = None
     for c in contributions:
         f = c.get("factor")
         d = c.get("delta") or 0.0
         if f is None:
             continue
         out[f] = out.get(f, 0.0) + float(d)
+        if c.get("running") is not None:
+            final_running = float(c["running"])
+    if baseline_split:
+        # 基准 = 首条（市场温度基准，delta 恒 0，running 即基准仓位）
+        first = contributions[0]
+        baseline = float(first.get("running") or 0.0) if first.get("factor") else 0.0
+        adjustments = {k: v for k, v in out.items()
+                       if k != first.get("factor")}
+        return {
+            "baseline": round(baseline, 2),
+            "adjustments": dict(sorted(adjustments.items(),
+                                       key=lambda kv: abs(kv[1]), reverse=True)),
+            "adjustments_total": round(sum(adjustments.values()), 2),
+            "final_running": final_running,
+        }
     return dict(sorted(out.items(), key=lambda kv: abs(kv[1]), reverse=True))
 
 
