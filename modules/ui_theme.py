@@ -147,6 +147,7 @@ def apply_theme() -> None:
     # 本项目已隐藏 stHeader/MainMenu/Toolbar（透明零高），若不缩减容器上边距，
     # 每块页顶部会留下约 96px 的固定空白。统一收敛到 1.2rem，保留少量呼吸感。
     # 用 !important 覆盖 Streamlit 写在该容器上的 inline style（未标 !important，可被覆盖）。
+    _sync_style_mode()
     try:
         st.markdown(
             '<style>'
@@ -170,6 +171,7 @@ def apply_theme() -> None:
     from modules.scroll_nav import inject_scroll_nav
     inject_scroll_nav(show_bottom=True, bottom_marker='stChatInput', dark=_theme_is_dark())
     inject_kit_css()
+    inject_style_css()
     st.markdown('<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"],[data-testid="stSidebarNavSeparator"],[data-testid="stSidebarNavLink"]{display:none!important;}</style>', unsafe_allow_html=True)
 
 def get_current_mode() -> str:
@@ -469,3 +471,187 @@ def sf_metric(label: str, value, delta: str = "") -> None:
         _xc_card_html(label=label, value=value, delta=delta, delta_dir="flat"),
         unsafe_allow_html=True,
     )
+
+
+# ───────────── T-186 四风格主题切换（additive-only，classic 默认零影响） ─────────────
+# 设计：每套风格 = 一组 :root 变量覆盖（vars）+ 组件特征层（extra），在既有
+# _DARK/_LIGHT CSS 之后注入（同特异性下后到者胜）。mode 锁定联动 theme_mode：
+# terminal/aurora→dark，swiss/ink→light；classic（默认）不注入任何东西，
+# 行为与本特性上线前逐位一致。红涨绿跌语义四套全保留（--buy/--sell/--ss-up/--ss-down）。
+STYLE_PRESETS = {
+    'classic': {'label': '经典星辰（默认）', 'mode': None, 'vars': '', 'extra': ''},
+    'terminal': {'label': 'A · 彭博终端风（琥珀黑）', 'mode': 'dark',
+        'vars': ('--bg:#0a0a0a; --card:#141414; --card2:#101010; --acc1:#e8a33d; '
+                 '--acc2:#b8860b; --txt:#d4d4d4; --txt2:#8a8a8a; --border:#262626; '
+                 '--grid:#1c1c1c; --buy:#ff5c5c; --sell:#3ddc97; --hold:#e8a33d; '
+                 '--ss-up:#ff5c5c; --ss-down:#3ddc97; '
+                 '--ss-glass-bg:linear-gradient(145deg,#141414,#101010);'),
+        'extra': (
+            '.stApp{background-color:#0a0a0a!important;background-image:none!important}'
+            '.stApp::before{display:none!important}'
+            '.stApp,.stMarkdown p,.stMarkdown span,.stMarkdown li{'
+            "font-family:'Fira Code','Inter','PingFang SC','Microsoft YaHei',monospace!important}"
+            '.stMetric,.sf-card,.sf-cta-card,[data-testid="stForm"]{'
+            'border-radius:8px!important;box-shadow:0 0 0 1px #262626!important;'
+            'backdrop-filter:none!important;-webkit-backdrop-filter:none!important;'
+            'background:#141414!important;border:1px solid #262626!important}'
+            '.stMetric:hover{box-shadow:0 0 0 1px #e8a33d!important}'
+            '.stMetric [data-testid="stMetricValue"]{background:none!important;'
+            '-webkit-text-fill-color:#e8a33d!important;color:#e8a33d!important;'
+            'text-shadow:none!important}'
+            'h2[data-testid="stHeader"]::before,h3[data-testid="stHeader"]::before{'
+            'background:#e8a33d!important}'
+            'h2{border-left:4px solid #e8a33d!important}'
+            'h2::after{background:#e8a33d!important}'
+            '.stTitle h1{background:none!important;-webkit-text-fill-color:#e8a33d!important}'
+            '.stApp .stButton button[kind="primary"],.stApp [data-testid="stFormSubmitButton"] button{'
+            'background:#e8a33d!important;color:#0a0a0a!important;border:none!important}'
+            'section[data-testid="stSidebar"]{background:#0d0d0d!important}'
+            '.stTabs [data-baseweb="tab"][aria-selected="true"]{'
+            'color:#e8a33d!important;border-bottom:2.5px solid #e8a33d!important}'
+            '.sf-card::before{display:none!important}'
+            '.sf-card-title::before{background:#e8a33d!important}'
+            '.js-plotly-plot .plotly .modebar{background:#141414!important}')},
+    'swiss': {'label': 'B · 瑞士极简白', 'mode': 'light',
+        'vars': ('--bg:#ffffff; --card:#ffffff; --card2:#fafafa; --acc1:#111111; '
+                 '--acc2:#1a56db; --txt:#111111; --txt2:#666666; --border:#e2e2e2; '
+                 '--buy:#d93025; --sell:#0f9d58; --hold:#111111; '
+                 '--ss-up:#d93025; --ss-down:#0f9d58;'),
+        'extra': (
+            '.stApp{background-color:#ffffff!important;background-image:none!important}'
+            '.stApp::before{display:none!important}'
+            '.stMetric,.sf-card,.sf-cta-card,[data-testid="stForm"]{'
+            'border-radius:6px!important;box-shadow:none!important;'
+            'border:1px solid #e2e2e2!important;background:#fff!important;'
+            'backdrop-filter:none!important;-webkit-backdrop-filter:none!important;animation:none!important}'
+            '.stMetric{border-left:3px solid #111111!important}'
+            '.stMetric:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)!important;border-color:#c9c9c9!important}'
+            '.stMetric [data-testid="stMetricValue"]{background:none!important;'
+            '-webkit-text-fill-color:#111111!important;color:#111111!important}'
+            'h2[data-testid="stHeader"]::before,h3[data-testid="stHeader"]::before{'
+            'background:#111111!important}'
+            'h2{border-left:4px solid #111111!important}'
+            'h2::after{background:#111111!important}'
+            '.stTitle h1{background:none!important;-webkit-text-fill-color:#111111!important;color:#111111!important}'
+            '.stApp .stButton button[kind="primary"],.stApp [data-testid="stFormSubmitButton"] button{'
+            'background:#111111!important;color:#ffffff!important;border:none!important}'
+            'section[data-testid="stSidebar"]{background:#f4f4f4!important}'
+            '.stTabs [data-baseweb="tab"][aria-selected="true"]{'
+            'color:#111111!important;border-bottom:2.5px solid #111111!important}'
+            '.sf-card::before{display:none!important}'
+            '.sf-card-title::before{background:#111111!important}')},
+    'aurora': {'label': 'C · 极光玻璃 2.0', 'mode': 'dark',
+        'vars': ('--bg:#101334; --card:#181a44; --card2:#14163a; --acc1:#8b7cff; '
+                 '--acc2:#5d5fef; --txt:#e9ecff; --txt2:#a5acdf; --border:#2c2f66; '
+                 '--buy:#ff5c7a; --sell:#2fe0a8; --hold:#f5a623; '
+                 '--ss-up:#ff5c7a; --ss-down:#2fe0a8; '
+                 '--ss-glass-bg:linear-gradient(145deg,rgba(40,42,100,.66),rgba(28,29,80,.78));'),
+        'extra': (
+            '.stApp{background-color:#101334!important;'
+            'background-image:radial-gradient(ellipse 70% 50% at 15% -8%,rgba(139,124,255,.22) 0%,transparent 58%),'
+            'radial-gradient(ellipse 60% 45% at 85% 6%,rgba(45,212,255,.14) 0%,transparent 55%),'
+            'radial-gradient(ellipse 80% 50% at 50% 108%,rgba(139,124,255,.18) 0%,transparent 58%)!important}'
+            '.stApp::before{background:linear-gradient(90deg,transparent,rgba(139,124,255,.9),'
+            'rgba(93,95,239,.85),rgba(45,212,255,.6),transparent)!important}'
+            '.stMetric,.sf-card,.sf-cta-card,[data-testid="stForm"]{'
+            'border-radius:18px!important;border:1px solid rgba(139,124,255,.28)!important;'
+            'box-shadow:0 0 0 1px rgba(139,124,255,.10),0 14px 40px rgba(8,8,32,.5),'
+            '0 0 34px rgba(139,124,255,.12)!important}'
+            '.stMetric:hover{box-shadow:0 0 0 1px rgba(139,124,255,.30),0 18px 48px rgba(8,8,32,.55),'
+            '0 0 44px rgba(139,124,255,.18)!important}'
+            '.stMetric [data-testid="stMetricValue"]{'
+            'background:linear-gradient(180deg,#ffffff 15%,#b9c0ff 100%);'
+            '-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}'
+            'h2[data-testid="stHeader"]::before,h3[data-testid="stHeader"]::before{'
+            'background:linear-gradient(180deg,#8b7cff,#5d5fef)!important}'
+            'h2{border-left:4px solid #8b7cff!important}'
+            'h2::after{background:linear-gradient(180deg,#8b7cff,#5d5fef)!important}'
+            '.stApp .stButton button[kind="primary"],.stApp [data-testid="stFormSubmitButton"] button{'
+            'background:linear-gradient(135deg,#8b7cff,#5d5fef)!important;color:#fff!important}'
+            '.stTabs [data-baseweb="tab"][aria-selected="true"]{'
+            'color:#b9c0ff!important;border-bottom:2.5px solid #8b7cff!important}'
+            '.sf-card-title::before{background:linear-gradient(180deg,#8b7cff,#5d5fef)!important}')},
+    'ink': {'label': 'D · 东方墨韵（宣纸朱砂）', 'mode': 'light',
+        'vars': ('--bg:#f7f3ea; --card:#fbf8f1; --card2:#f3eee2; --acc1:#b03a2e; '
+                 '--acc2:#1e7f6b; --txt:#2b2b2b; --txt2:#7a7263; --border:#ddd3bd; '
+                 '--buy:#c0392b; --sell:#1e7f6b; --hold:#8a6d3b; '
+                 '--ss-up:#c0392b; --ss-down:#1e7f6b;'),
+        'extra': (
+            '.stApp{background-color:#f7f3ea!important;background-image:none!important}'
+            '.stApp::before{display:none!important}'
+            "h1,h2,h3{font-family:'Songti SC','STSong','SimSun',serif!important}"
+            '.stTitle h1{background:none!important;-webkit-text-fill-color:#2b2b2b!important;color:#2b2b2b!important}'
+            'h2[data-testid="stHeader"]::before,h3[data-testid="stHeader"]::before{'
+            'background:#b03a2e!important}'
+            'h2{border-left:4px solid #b03a2e!important}'
+            'h2::after{background:#b03a2e!important}'
+            '.stMetric{background:#fbf8f1!important;border:1px solid #ddd3bd!important;'
+            'border-left:3px solid #b03a2e!important;box-shadow:none!important;'
+            'border-radius:4px!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;'
+            'animation:none!important}'
+            '.stMetric [data-testid="stMetricValue"]{background:none!important;'
+            '-webkit-text-fill-color:#2b2b2b!important;color:#2b2b2b!important}'
+            '.stApp .stButton button[kind="primary"],.stApp [data-testid="stFormSubmitButton"] button{'
+            'background:#b03a2e!important;color:#fff!important;border:none!important}'
+            '.sf-card{border:1px solid #ddd3bd!important;'
+            'box-shadow:0 2px 10px rgba(90,80,60,.08)!important;border-radius:6px!important;'
+            'backdrop-filter:none!important;-webkit-backdrop-filter:none!important}'
+            '.sf-card::before{display:none!important}'
+            ".sf-card-title{font-family:'Songti SC','STSong','SimSun',serif!important}"
+            '.sf-card-title::before{background:#b03a2e!important}'
+            'section[data-testid="stSidebar"]{background:#f2ecdf!important}'
+            '.stMetric,.sf-card{animation:none!important}')},
+}
+
+
+def _sync_style_mode() -> None:
+    """非 classic 风格锁定 theme_mode（terminal/aurora→dark，swiss/ink→light）。
+
+    classic 不动用户自己的暗/亮切换；风格层接管底色后，原右上角暗/亮按钮
+    对新风格不再生效（风格即底色，避免两套开关打架）。
+    """
+    try:
+        preset = STYLE_PRESETS.get(st.session_state.get('ui_style', 'classic'))
+        if preset and preset.get('mode'):
+            st.session_state['theme_mode'] = preset['mode']
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[ui_theme] _sync_style_mode 处理异常: {e}")
+
+
+def get_current_style() -> str:
+    return st.session_state.get('ui_style', 'classic')
+
+
+def style_switcher() -> None:
+    """侧边栏界面风格切换器（T-186 additive）：经典默认 + 四套新风格。"""
+    try:
+        labels = {k: v['label'] for k, v in STYLE_PRESETS.items()}
+        cur = get_current_style()
+        if cur not in labels:
+            cur = 'classic'
+        with st.sidebar:
+            choice = st.selectbox(
+                '🎨 界面风格', list(labels.keys()),
+                index=list(labels.keys()).index(cur),
+                format_func=lambda k: labels[k], key='ui_style_select')
+        if choice != cur:
+            st.session_state['ui_style'] = choice
+            st.rerun()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[ui_theme] style_switcher 处理异常: {e}")
+
+
+def inject_style_css() -> None:
+    """非 classic 风格注入 :root 变量覆盖 + 组件特征层（后到者胜）。"""
+    style = st.session_state.get('ui_style', 'classic')
+    preset = STYLE_PRESETS.get(style)
+    if not preset or style == 'classic':
+        return
+    try:
+        if preset.get('vars'):
+            st.markdown(f'<style>:root{{{preset["vars"]}}}</style>', unsafe_allow_html=True)
+        if preset.get('extra'):
+            st.markdown(f'<style>{preset["extra"]}</style>', unsafe_allow_html=True)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[ui_theme] inject_style_css 处理异常: {e}")
+
