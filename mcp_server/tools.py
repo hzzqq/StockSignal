@@ -671,11 +671,18 @@ def get_data_health() -> Dict[str, Any]:
 
 
 def get_macro_indicators() -> Dict[str, Any]:
-    """宏观指标：PMI/CPI/PPI/GDP/M2/LPR 的最新值+前值+真实数据日期。取不到如实返回 None。"""
+    """宏观指标：国内(PMI/CPI/PPI/GDP/M2/LPR) + 全球(美股/美债/美元/汇率/美国宏观)的最新值+前值+真实数据日期。取不到如实返回 None。
+
+    另附 ``global_regime``：规则化合成的全球风险偏好/流动性评分(0-100)，分项取不到时不臆造。
+    """
     try:
         from modules import macro_data as md
 
-        return {"ok": True, "indicators": _jsonable(md.fetch_all())}
+        return {
+            "ok": True,
+            "indicators": _jsonable(md.fetch_all()),
+            "global_regime": _jsonable(md.global_regime_score()),
+        }
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
