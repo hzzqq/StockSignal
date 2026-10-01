@@ -93,21 +93,7 @@ with _pl1:
 with _pl2:
     st.page_link("pages/46_自选股监控.py", label="⭐ 去自选股监控", icon="⭐")
 
-# 可折叠使用说明 / 快捷键提示（#Batch20-5 / #Batch20-9）：集合式帮助，纯前端折叠
-with st.expander("💡 使用说明 / 常见问题"):
-    st.markdown(
-        "- **浏览帖子**：点击列表中的主题标题即可展开详情，含楼主信息、点赞与评论。\n"
-        "- **发表内容**：展开「✍️ 发表新帖」填写标题、正文，可关联一只股票代码。\n"
-        "- **收藏与历史**：帖子可「⭐ 收藏」，查看过的主题会出现在「最近浏览」。\n"
-        "- **筛选与排序**：顶部可按股票代码 / 关键字过滤，并切换最新 / 最热 / 最多评论。\n"
-        "- **风险提示**：社区内容由用户生成，仅供参考，不构成投资建议。"
-    )
-with st.expander("⌨️ 快捷键提示"):
-    st.markdown(
-        "- 本页以鼠标 / 触控操作为主，无全局键盘快捷键。\n"
-        "- 长列表滚动后点击「↑ 回到顶部」可一键回顶。\n"
-        "- 帖子详情页点击「← 返回列表」返回社区列表。"
-    )
+# 使用说明 / 快捷键提示移至帖子列表之后（T-193：筛选与帖子列表优先）
 
 _EMOJIS = [
     "😂", "🚀", "📈", "📉", "💰", "🎯", "✅", "❌", "👍", "💎",
@@ -273,37 +259,6 @@ def fragment_list():
                              width="stretch", on_click=_open_post, args=(rpid,)):
                     pass
 
-    with st.expander("✍️ 发表新帖 / 文章", expanded=False):
-        with st.container(border=True):
-            st.markdown("### 📝 发布到股吧")
-            st.caption("分享你的观点或文章，与社区交流。")
-            with st.form("forum_new_post", clear_on_submit=True):
-                title = st.text_input("**标题** *", key="forum_title",
-                                      placeholder="一句话说清你的观点（例如：白酒板块是否见底？）")
-                content = st.text_area("**正文（支持 Markdown）** *", key="forum_content", height=180,
-                                       placeholder="展开你的分析、逻辑或提问… 支持 Markdown 语法")
-                cc1, cc2 = st.columns(2)
-                with cc1:
-                    stock_code = st.text_input("关联股票代码（可选）", key="forum_code", placeholder="如 600519，可留空")
-                with cc2:
-                    stock_name = st.text_input("关联股票名称（可选）", key="forum_name", placeholder="如 贵州茅台，可留空")
-                st.caption("💡 正文支持 Markdown 语法。关联股票为可选项，留空则作为普通帖子发布。")
-                if st.form_submit_button("🚀 发布帖子", type="primary", width="stretch"):
-                    if not title.strip() or not content.strip():
-                        xc_warn_box("标题和正文都不能为空")
-                    elif stock_code.strip() and not (stock_code.strip().isdigit() and len(stock_code.strip()) == 6):
-                        xc_warn_box("关联股票代码需为 6 位数字（如 600519），请检查后重试")
-                    else:
-                        payload = {"title": title.strip(), "content": content.strip()}
-                        if stock_code.strip():
-                            payload["stock_code"] = stock_code.strip()
-                            payload["stock_name"] = stock_name.strip()
-                        sc, cb = api_post("/api/forum/posts", payload)
-                        if sc in (200, 201):
-                            _toast("发布成功！")
-                        else:
-                            st.error(cb.get("message", "发布失败") if isinstance(cb, dict) else "发布失败")
-
     fc1, fc2 = st.columns([0.4, 0.6])
     with fc1:
         filter_code = st.text_input("🔍 按股票代码筛选（可选）", key="forum_filter_code", placeholder="如 600519，留空看全部")
@@ -458,11 +413,53 @@ def fragment_list():
                                  on_click=_open_post, args=(rpid,)):
                         pass
 
+    with st.expander("✍️ 发表新帖 / 文章", expanded=False):
+        with st.container(border=True):
+            st.markdown("### 📝 发布到股吧")
+            st.caption("分享你的观点或文章，与社区交流。")
+            with st.form("forum_new_post", clear_on_submit=True):
+                title = st.text_input("**标题** *", key="forum_title",
+                                      placeholder="一句话说清你的观点（例如：白酒板块是否见底？）")
+                content = st.text_area("**正文（支持 Markdown）** *", key="forum_content", height=180,
+                                       placeholder="展开你的分析、逻辑或提问… 支持 Markdown 语法")
+                cc1, cc2 = st.columns(2)
+                with cc1:
+                    stock_code = st.text_input("关联股票代码（可选）", key="forum_code", placeholder="如 600519，可留空")
+                with cc2:
+                    stock_name = st.text_input("关联股票名称（可选）", key="forum_name", placeholder="如 贵州茅台，可留空")
+                st.caption("💡 正文支持 Markdown 语法。关联股票为可选项，留空则作为普通帖子发布。")
+                if st.form_submit_button("🚀 发布帖子", type="primary", width="stretch"):
+                    if not title.strip() or not content.strip():
+                        xc_warn_box("标题和正文都不能为空")
+                    elif stock_code.strip() and not (stock_code.strip().isdigit() and len(stock_code.strip()) == 6):
+                        xc_warn_box("关联股票代码需为 6 位数字（如 600519），请检查后重试")
+                    else:
+                        payload = {"title": title.strip(), "content": content.strip()}
+                        if stock_code.strip():
+                            payload["stock_code"] = stock_code.strip()
+                            payload["stock_name"] = stock_name.strip()
+                        sc, cb = api_post("/api/forum/posts", payload)
+                        if sc in (200, 201):
+                            _toast("发布成功！")
+                        else:
+                            st.error(cb.get("message", "发布失败") if isinstance(cb, dict) else "发布失败")
+
 
 fragment_detail()
 fragment_list()
 
-# 快捷回到顶部（#Batch18-6）：长列表滚动后一键回顶。
-# 原 st.markdown 注入 <script> 会被 Streamlit 过滤导致点击无效，改用 components.html（#MCP-2026）。
-if st.button("↑ 回到顶部", key="forum_back_to_top"):
-    sn.back_to_top_button()
+# 使用说明 / 快捷键提示（T-193：移至页面下部；回顶统一用右下角圆形悬浮 ▲）
+with st.expander("💡 使用说明 / 常见问题"):
+    st.markdown(
+        "- **浏览帖子**：点击列表中的主题标题即可展开详情，含楼主信息、点赞与评论。\n"
+        "- **发表内容**：展开「✍️ 发表新帖」填写标题、正文，可关联一只股票代码。\n"
+        "- **收藏与历史**：帖子可「⭐ 收藏」，查看过的主题会出现在「最近浏览」。\n"
+        "- **筛选与排序**：列表上方可按股票代码 / 关键字过滤，并切换最新 / 最热 / 最多评论。\n"
+        "- **风险提示**：社区内容由用户生成，仅供参考，不构成投资建议。"
+    )
+with st.expander("⌨️ 快捷键提示"):
+    st.markdown(
+        "- 本页以鼠标 / 触控操作为主，无全局键盘快捷键。\n"
+        "- 长列表滚动后点击右下角圆形悬浮「▲」按钮可一键回顶。\n"
+        "- 帖子详情页点击「← 返回列表」返回社区列表。"
+    )

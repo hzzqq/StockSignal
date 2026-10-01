@@ -228,33 +228,24 @@ def test_v3_appearance_is_fixed_not_repositioned():
         assert prop not in seg, f"visible 态不应重设定位属性 {prop}"
 
 
-def test_v3_back_to_top_button_scrolls_container(monkeypatch):
-    """回归：back_to_top_button 也必须滚真实容器（与悬浮 ▲ 同一套逻辑）。"""
-    cap = {}
+def test_back_to_top_button_is_noop_since_t193(monkeypatch):
+    """T-193：页内回顶按钮停用——全局悬浮 ▲ 已覆盖，且页内 iframe 按钮
+    实测 onclick JS 泄漏为可见文本（股吧页截图实证）。调用必须零注入。"""
+    def boom(script, height=0, **kw):
+        raise AssertionError("back_to_top_button 已停用，不得再注入 components.html")
 
-    def fake_html(script, height=0, **kw):
-        cap["script"] = script
-
-    monkeypatch.setattr(components, "html", fake_html)
-    sn.back_to_top_button(label="↑ 回到顶部")
-    assert "script" in cap, "未通过 components.html 注入"
-    s = cap["script"]
-    assert "scrollTo" in s
-    assert "window.parent" in s
-    assert "stAppViewContainer" in s, "页内按钮也必须探测 Streamlit 滚动容器"
-    assert "回到顶部" in s, "label 透传"
+    monkeypatch.setattr(components, "html", boom)
+    sn.back_to_top_button(label="↑ 回到顶部")  # 不应抛错、不应注入
 
 
-def test_v3_back_to_top_button_custom_label(monkeypatch):
-    cap = {}
+def test_back_to_top_button_noop_with_custom_label(monkeypatch):
+    """no-op 对任意参数组合均静默（兼容既有 12 处调用点）。"""
+    def boom(script, height=0, **kw):
+        raise AssertionError("不得注入")
 
-    def fake_html(script, height=0, **kw):
-        cap["script"] = script
-
-    monkeypatch.setattr(components, "html", fake_html)
+    monkeypatch.setattr(components, "html", boom)
     sn.back_to_top_button(label="回顶", use_container_width=False)
-    assert "回顶" in cap["script"]
-    assert "width:100%" not in cap["script"]
+    sn.back_to_top_button()
 
 
 def test_v3_top_icon_is_inline_svg():

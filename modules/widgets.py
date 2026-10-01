@@ -1061,16 +1061,16 @@ def render_sidebar_nav() -> None:
                     for _it in items:
                         _nav_link(_it[0], _it[1], _it[2], sub=(len(_it) > 3 and _it[3] == 'sub'))
             else:
-                # 常态：6 个一级类目可折叠，大组「市场广度·温度」默认折叠、其余默认展开
-                for _i, (top_label, clusters) in enumerate(_NAV_GROUPS):
-                    _default_open = (top_label != '🌐 市场广度·温度')
-                    _exp_key = f"_nav_exp_{_i}"
-                    _exp = st.session_state.get(_exp_key, _default_open)
-                    with st.expander(top_label, expanded=_exp, key=_exp_key):
-                        for _sub, _items in clusters:
-                            if _sub:
-                                st.caption(_sub)
-                            for _it in _items:
+                # T-193 画廊式导航：类目 = 紧凑标题行，组内页面双列胶囊排列（纵向长度大幅压缩，
+                # 参考力扣顶部横向分类的密度思路）；搜索态仍走扁平直达，决策中枢/常用区不变
+                for top_label, clusters in _NAV_GROUPS:
+                    st.caption(f'▍{top_label}')
+                    _flat = [_it for _sub, _items in clusters for _it in _items]
+                    for _ci in range(0, len(_flat), 2):
+                        _pair = _flat[_ci:_ci + 2]
+                        _cols = st.columns(2)
+                        for _col, _it in zip(_cols, _pair):
+                            with _col:
                                 _nav_link(_it[0], _it[1], _it[2], sub=(len(_it) > 3 and _it[3] == 'sub'))
             st.caption('👤 账户中心')
             _nav_link('pages/91_我的.py', '个人中心', '👤')

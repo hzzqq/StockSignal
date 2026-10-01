@@ -449,7 +449,13 @@ def back_to_top_button(label: str = "↑ 回到顶部", use_container_width: boo
     页面底部**无需**再放一个页内按钮。保留本函数仅为兼容既有页面；
     新页面请勿新增调用（避免与悬浮按钮功能重复）。若仍需要，请使用
     ``modules.scroll_nav.embedded_back_to_top()``（渲染为次要样式）。
+
+    T-193 起本函数停用（no-op）：全局悬浮 ▲（inject_scroll_nav 右下角圆形）已全站覆盖，
+    页内 iframe 按钮实测存在 onclick JS 泄漏为可见文本的问题（股吧页截图实证：
+    页面出现 el.scrollTo 等代码文本），且与悬浮按钮功能重复。保留签名仅为兼容既有
+    12 处调用点，调用即静默返回。
     """
+    return
     width = "width:100%;" if use_container_width else "width:auto;"
     btn = (
         f'<button id="sfBackToTopBtn" type="button" '

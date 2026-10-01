@@ -305,5 +305,5 @@ def test_home_entry_pinned_above_groups():
         _src = _f.read()
     assert _src.count("label='🏠 首页'") == 1, "首页入口应恰好出现一次（不得重复登记）"
     assert _src.index("label='🏠 首页'") < _src.index(
-        "for _i, (top_label, clusters) in enumerate(_NAV_GROUPS)"
+        "for top_label, clusters in _NAV_GROUPS"
     ), "首页入口必须渲染在分组导航之前（置顶）"
