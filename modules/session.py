@@ -135,6 +135,9 @@ def init_session_state() -> None:
         st.session_state.pop(_old_key, None)
 
     # 注入金融级 UI 主题（仅视觉，不影响任何功能逻辑）
+    # T-194：每帧首清除切换器渲染标记——同帧内 widgets 主题切换等二次 apply_theme
+    # 不再重复渲染 selectbox（根治 duplicate key='ui_style_select' 报错）
+    st.session_state["_ui_style_switcher_drawn"] = False
     from .ui_theme import apply_theme
     apply_theme()
 

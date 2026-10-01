@@ -67,7 +67,7 @@ SCROLL_NAV_CSS = """
    v2 曾把按钮固定在页面右侧中部（垂直居中）→ 已于 v3 改为右下角，且出现后位置恒定。 */
 .sf-scroll-top{
   position:fixed;right:24px;bottom:28px;top:auto;transform:none;z-index:900;
-  width:40px;height:40px;border-radius:50%;
+  width:48px;height:48px;border-radius:50%;
   display:none;align-items:center;justify-content:center;
   padding:0;margin:0;line-height:1;
   font-size:16px;font-weight:600;
@@ -77,7 +77,7 @@ SCROLL_NAV_CSS = """
   transition:opacity .22s ease,transform .22s ease,box-shadow .22s ease,background .18s ease;
   opacity:0;pointer-events:none;
 }
-.sf-scroll-top svg{width:20px;height:20px;display:block}
+.sf-scroll-top svg{width:24px;height:24px;display:block}
 .sf-scroll-top:hover{
   background:#f8fafc;color:#111827;transform:translateY(-2px);
   box-shadow:0 8px 22px rgba(15,23,42,.2),0 2px 6px rgba(15,23,42,.1);
@@ -143,8 +143,8 @@ SCROLL_NAV_CSS = """
 
 /* ══════════ 响应式：窄屏收窄边距与尺寸 ══════════ */
 @media(max-width:768px){
-  .sf-scroll-top{right:14px;bottom:20px;width:38px;height:38px}
-  .sf-scroll-top svg{width:18px;height:18px}
+  .sf-scroll-top{right:14px;bottom:20px;width:42px;height:42px}
+  .sf-scroll-top svg{width:20px;height:20px}
   .sf-scroll-bottom-float{right:14px;bottom:90px;width:31px;height:31px;font-size:13px}
 }
 </style>

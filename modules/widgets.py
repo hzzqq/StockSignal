@@ -987,6 +987,14 @@ def render_sidebar_nav() -> None:
     from modules.ui_theme import _theme_is_dark
     _dark = _theme_is_dark()
     st.markdown(_sidebar_nav_css(_dark), unsafe_allow_html=True)
+    # T-194：3 列画廊胶囊紧凑化——防长标签截断破相（属性选择器值免引号）
+    _pill_css = ('<style>'
+                 'section[data-testid=stSidebar] [data-testid=stPageLink-NavLink]{'
+                 'font-size:.8rem!important;padding:3px 4px!important;white-space:nowrap;'
+                 'overflow:hidden;text-overflow:ellipsis;display:block;max-width:100%}'
+                 'section[data-testid=stSidebar] [data-testid=stPageLink]{min-width:0!important}'
+                 '</style>')
+    st.markdown(_pill_css, unsafe_allow_html=True)
 
     _cur_base = _current_page_basename()
 
@@ -1066,9 +1074,9 @@ def render_sidebar_nav() -> None:
                 for top_label, clusters in _NAV_GROUPS:
                     st.caption(f'▍{top_label}')
                     _flat = [_it for _sub, _items in clusters for _it in _items]
-                    for _ci in range(0, len(_flat), 2):
-                        _pair = _flat[_ci:_ci + 2]
-                        _cols = st.columns(2)
+                    for _ci in range(0, len(_flat), 3):
+                        _pair = _flat[_ci:_ci + 3]
+                        _cols = st.columns(3)
                         for _col, _it in zip(_cols, _pair):
                             with _col:
                                 _nav_link(_it[0], _it[1], _it[2], sub=(len(_it) > 3 and _it[3] == 'sub'))

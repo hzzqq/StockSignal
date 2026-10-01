@@ -398,21 +398,6 @@ def fragment_list():
                     for _id in _sel_ids:
                         st.session_state[f"forum_sel_{_id}"] = False
 
-        # 相关推荐块（#Batch20-4）：底部热门主题推荐，点击直达
-        _rec = sorted(posts, key=lambda p: safe_int(p.get("likes", 0), 0), reverse=True)[:3]
-        if _rec:
-            sf_card("🔥 热门主题推荐", "")
-            _rcs = st.columns(len(_rec))
-            for _i, rp in enumerate(_rec):
-                rpid = rp.get("id")
-                if rpid is None:
-                    continue
-                with _rcs[_i]:
-                    if st.button(f"📌 {rp.get('title', '（无标题）')[:12]}",
-                                 key=f"forum_rec_{rpid}", width="stretch",
-                                 on_click=_open_post, args=(rpid,)):
-                        pass
-
     with st.expander("✍️ 发表新帖 / 文章", expanded=False):
         with st.container(border=True):
             st.markdown("### 📝 发布到股吧")
@@ -444,6 +429,20 @@ def fragment_list():
                         else:
                             st.error(cb.get("message", "发布失败") if isinstance(cb, dict) else "发布失败")
 
+        # 相关推荐块（#Batch20-4）：底部热门主题推荐，点击直达
+        _rec = sorted(posts, key=lambda p: safe_int(p.get("likes", 0), 0), reverse=True)[:3]
+        if _rec:
+            sf_card("🔥 热门主题推荐", "")
+            _rcs = st.columns(len(_rec))
+            for _i, rp in enumerate(_rec):
+                rpid = rp.get("id")
+                if rpid is None:
+                    continue
+                with _rcs[_i]:
+                    if st.button(f"📌 {rp.get('title', '（无标题）')[:12]}",
+                                 key=f"forum_rec_{rpid}", width="stretch",
+                                 on_click=_open_post, args=(rpid,)):
+                        pass
 
 fragment_detail()
 fragment_list()
