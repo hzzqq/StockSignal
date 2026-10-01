@@ -116,6 +116,7 @@ def init_session_state() -> None:
     if _prefs:
         st.session_state.setdefault("theme_mode", _prefs.get("theme_mode", "light"))
         st.session_state.setdefault("font_size", _prefs.get("font_size", FONT_DEFAULT))
+        st.session_state.setdefault("ui_style", _prefs.get("ui_style", "classic"))
     else:
         try:
             from .prefs_persist import restore_prefs_from_local_storage
@@ -408,6 +409,7 @@ def _current_prefs() -> dict:
     return {
         "theme_mode": st.session_state.get("theme_mode", "light"),
         "font_size": st.session_state.get("font_size", FONT_DEFAULT),
+        "ui_style": st.session_state.get("ui_style", "classic"),
     }
 
 
@@ -443,6 +445,14 @@ def _apply_user_settings(user: dict | None) -> None:
         st.session_state["theme_mode"] = settings["theme_mode"]
     if settings.get("font_size"):
         st.session_state["font_size"] = settings["font_size"]
+    _us = settings.get("ui_style")
+    if _us:
+        try:
+            from .ui_theme import STYLE_PRESETS
+            if _us in STYLE_PRESETS:
+                st.session_state["ui_style"] = _us
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[session] ui_style 应用失败: {e}")
 
 
 def push_settings_to_backend() -> None:

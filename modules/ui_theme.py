@@ -923,6 +923,11 @@ def style_switcher() -> None:
                 format_func=lambda k: labels[k], key='ui_style_select')
         if choice != cur:
             st.session_state['ui_style'] = choice
+            try:
+                from modules.session import persist_prefs
+                persist_prefs()  # URL prefs + localStorage + 后端 settings 三路持久化
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"[ui_theme] 风格持久化失败: {e}")
             st.rerun()
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[ui_theme] style_switcher 处理异常: {e}")
