@@ -597,9 +597,9 @@ def _render_login_gate() -> None:
     .ss-login-card {{
         max-width: 420px;
         margin: 5rem auto 0 auto;
-        background: linear-gradient(145deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 28px;
+        background: linear-gradient(145deg, color-mix(in srgb, var(--acc1) 10%, var(--card)) 0%, var(--card) 100%);
+        border: 1px solid color-mix(in srgb, var(--acc1) 35%, var(--border));
+        border-radius: var(--ss-login-radius, 28px);
         padding: 2.5rem 2rem 2.25rem 2rem;
         text-align: center;
         box-shadow: 0 32px 80px rgba(0, 0, 0, 0.45),
@@ -614,50 +614,50 @@ def _render_login_gate() -> None:
         position: absolute;
         top: 0; left: 0; right: 0;
         height: 4px;
-        background: linear-gradient(90deg, #f59e0b 0%, #3b82f6 50%, #6366f1 100%);
+        background: linear-gradient(90deg, var(--acc1) 0%, var(--acc2) 50%, var(--acc1) 100%);
     }}
     .ss-login-card::after {{
         content: "";
         position: absolute;
         top: -60px; right: -60px;
         width: 140px; height: 140px;
-        background: radial-gradient(circle, rgba(59, 130, 246, 0.18) 0%, transparent 70%);
+        background: radial-gradient(circle, color-mix(in srgb, var(--acc2) 20%, transparent) 0%, transparent 70%);
         pointer-events: none;
     }}
     .ss-login-logo {{
         width: 96px;
         height: 96px;
         border-radius: 22px;
-        box-shadow: 0 10px 32px rgba(59, 130, 246, 0.28);
+        box-shadow: 0 10px 32px color-mix(in srgb, var(--acc2) 30%, transparent);
         margin-bottom: 1.5rem;
         border: 1px solid rgba(255, 255, 255, 0.1);
     }}
     .ss-login-title {{
         font-size: 2.1rem;
         font-weight: 800;
-        background: linear-gradient(90deg, #fbbf24 0%, #60a5fa 100%);
+        background: linear-gradient(90deg, var(--acc1) 0%, var(--acc2) 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.35rem;
         letter-spacing: -0.5px;
     }}
     .ss-login-subtitle {{
-        color: #e2e8f0;
+        color: var(--txt);
         font-size: 1.05rem;
         font-weight: 500;
         margin-bottom: 0.5rem;
     }}
     .ss-login-desc {{
-        color: #94a3b8;
+        color: var(--txt2);
         font-size: 0.9rem;
         margin-bottom: 1.25rem;
         line-height: 1.5;
     }}
     .ss-login-badge {{
         display: inline-block;
-        background: rgba(245, 158, 11, 0.13);
-        color: #fbbf24;
-        border: 1px solid rgba(245, 158, 11, 0.35);
+        background: color-mix(in srgb, var(--acc1) 12%, transparent);
+        color: var(--acc1);
+        border: 1px solid color-mix(in srgb, var(--acc1) 35%, transparent);
         border-radius: 999px;
         padding: 0.45rem 1rem;
         font-size: 0.82rem;
@@ -668,25 +668,25 @@ def _render_login_gate() -> None:
         display: block;
         width: 100%;
         padding: 0.75rem 1rem;
-        background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
-        color: #fff !important;
+        background: linear-gradient(90deg, var(--acc1), var(--acc2));
+        color: var(--ss-login-btn-text, #fff) !important;
         font-size: 1rem;
         font-weight: 700;
         text-align: center;
         text-decoration: none;
         border-radius: 12px;
         border: none;
-        box-shadow: 0 8px 24px rgba(245, 158, 11, 0.35);
+        box-shadow: 0 8px 24px color-mix(in srgb, var(--acc1) 35%, transparent);
         transition: transform 0.15s ease, box-shadow 0.15s ease;
         cursor: pointer;
     }}
     .ss-login-btn:hover {{
         transform: translateY(-2px);
-        box-shadow: 0 12px 32px rgba(245, 158, 11, 0.45);
+        box-shadow: 0 12px 32px color-mix(in srgb, var(--acc1) 45%, transparent);
     }}
     .ss-login-footer {{
         text-align: center;
-        color: #64748b;
+        color: var(--txt2);
         font-size: 0.75rem;
         margin-top: 2rem;
     }}

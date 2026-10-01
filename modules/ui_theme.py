@@ -488,6 +488,8 @@ STYLE_PRESETS = {
                  '--ss-up:#ff5c5c; --ss-down:#3ddc97; '
                  '--ss-glass-bg:linear-gradient(145deg,#141414,#101010);'),
         'extra': '''
+:root{--ss-login-radius:6px;--ss-login-btn-text:#050505}.ss-login-card{border-radius:6px!important;backdrop-filter:none!important}.ss-login-title{background:none!important;-webkit-text-fill-color:#e8a33d!important;color:#e8a33d!important;font-family:Consolas,monospace!important;letter-spacing:1px!important}.ss-login-btn{border-radius:0!important;font-family:Consolas,monospace!important;text-transform:uppercase!important}.ss-login-badge{font-family:Consolas,monospace!important;border-radius:0!important}
+.stApp{background-color:#050505
 .stApp{background-color:#050505!important;
   background-image:radial-gradient(rgba(232,163,61,.055) 1px,transparent 1px),
   repeating-linear-gradient(0deg,rgba(232,163,61,.02) 0 1px,transparent 1px 3px)!important;
@@ -574,6 +576,8 @@ a{color:#e8a33d!important}a:hover{color:#ffc76b!important}
                  '--buy:#d93025; --sell:#0f9d58; --hold:#111111; '
                  '--ss-up:#d93025; --ss-down:#0f9d58;'),
         'extra': '''
+:root{--ss-login-radius:4px;--ss-login-btn-text:#ffffff}.ss-login-card{border-radius:4px!important;border:2px solid #111111!important;backdrop-filter:none!important}.ss-login-title{background:none!important;-webkit-text-fill-color:#111111!important;color:#111111!important;font-weight:900!important;letter-spacing:-.02em!important}.ss-login-btn{border-radius:0!important;background:#111111!important;color:#ffffff!important;font-weight:700!important}.ss-login-btn:hover{background:#ffffff!important;color:#111111!important;box-shadow:4px 4px 0 #111111!important}
+.stApp{background-color:#ffffff
 .stApp{background-color:#ffffff!important;
   background-image:linear-gradient(#f2f2f2 1px,transparent 1px),
   linear-gradient(90deg,#f2f2f2 1px,transparent 1px)!important;
@@ -645,6 +649,8 @@ a:hover{color:#1a56db!important}
                  '--ss-up:#ff5c7a; --ss-down:#2fe0a8; '
                  '--ss-glass-bg:linear-gradient(145deg,rgba(40,42,100,.66),rgba(28,29,80,.78));'),
         'extra': '''
+:root{--ss-login-radius:26px;--ss-login-btn-text:#ffffff}.ss-login-card{border-radius:26px!important;box-shadow:0 0 0 1px rgba(139,124,255,.22),0 24px 70px rgba(8,8,32,.55),0 0 44px rgba(139,124,255,.16)!important;animation:ss-glow-breathe 3.5s ease-in-out infinite!important}.ss-login-btn{background:linear-gradient(90deg,#8b7cff,#5d5fef,#2dd4ff,#8b7cff)!important;background-size:250% 100%!important;animation:ss-btn-flow 4s linear infinite!important}
+.stApp{background-color:#0d1030
 .stApp{background-color:#0d1030!important;
   background-image:radial-gradient(1.5px 1.5px at 20% 30%,rgba(255,255,255,.5),transparent),
   radial-gradient(1px 1px at 70% 15%,rgba(255,255,255,.4),transparent),
@@ -717,6 +723,8 @@ a{color:#b9c0ff!important}a:hover{color:#8b7cff!important}
                  '--buy:#c0392b; --sell:#1e7f6b; --hold:#8a6d3b; '
                  '--ss-up:#c0392b; --ss-down:#1e7f6b;'),
         'extra': '''
+:root{--ss-login-radius:8px;--ss-login-btn-text:#f5f0e4}.ss-login-card{border-radius:8px!important;outline:1px solid #ddd3bd!important;outline-offset:4px!important;backdrop-filter:none!important;animation:none!important}.ss-login-title{font-family:serif!important;letter-spacing:3px!important;font-weight:800!important}.ss-login-subtitle{font-family:serif!important;letter-spacing:2px!important}.ss-login-btn{font-family:serif!important;letter-spacing:2px!important;border-radius:2px!important}.ss-login-badge{font-family:serif!important;border-radius:2px!important}
+.stApp{background-color:#f5f0e4
 .stApp{background-color:#f5f0e4!important;
   background-image:radial-gradient(ellipse 30% 22% at 82% 18%,rgba(43,43,43,.05),transparent 70%),
   radial-gradient(ellipse 22% 18% at 12% 78%,rgba(43,43,43,.045),transparent 70%),
@@ -806,6 +814,8 @@ a{color:#8a2f24!important}a:hover{color:#b03a2e!important}
                  '--buy:#ff2a6d; --sell:#00ff9f; --hold:#fcee0a; '
                  '--ss-up:#ff2a6d; --ss-down:#00ff9f;'),
         'extra': '''
+:root{--ss-login-radius:0px;--ss-login-btn-text:#0a0e17}.ss-login-card{border-radius:0!important;clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px))!important;box-shadow:0 0 26px rgba(0,240,255,.14),inset 0 0 30px rgba(0,240,255,.05)!important}.ss-login-title{text-shadow:2px 0 rgba(255,42,109,.75),-2px 0 rgba(0,240,255,.75)!important;animation:ss-glitch 3.2s infinite steps(1)!important;font-family:Consolas,monospace!important;letter-spacing:2px!important}.ss-login-btn{clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))!important;border-radius:0!important;font-family:Consolas,monospace!important;text-transform:uppercase!important;font-weight:800!important}.ss-login-badge{font-family:Consolas,monospace!important;border-radius:0!important;text-transform:uppercase!important}
+.stApp{background-color:#0a0e17
 .stApp{background-color:#0a0e17!important;
   background-image:repeating-linear-gradient(0deg,rgba(0,240,255,.025) 0 1px,transparent 1px 4px),
   linear-gradient(rgba(0,240,255,.06) 1px,transparent 1px),
