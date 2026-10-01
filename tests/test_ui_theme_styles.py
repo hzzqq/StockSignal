@@ -14,7 +14,8 @@ from modules.ui_theme import STYLE_PRESETS
 
 def test_registry_complete():
     """五套齐全：classic + 四新风格；字段完整。"""
-    assert set(STYLE_PRESETS) == {"classic", "terminal", "swiss", "aurora", "ink"}
+    assert set(STYLE_PRESETS) == {
+        "classic", "terminal", "swiss", "aurora", "ink", "cyber"}
     for k, p in STYLE_PRESETS.items():
         assert set(p) == {"label", "mode", "vars", "extra"}, k
         assert isinstance(p["label"], str) and p["label"], k
@@ -23,10 +24,10 @@ def test_registry_complete():
 def test_semantic_colors_pinned_all_styles():
     """红涨绿跌四套全钉住：--buy/--ss-up 为红系，--sell/--ss-down 为绿系，绝不反转。"""
     reds = {"terminal": "#ff5c5c", "swiss": "#d93025",
-            "aurora": "#ff5c7a", "ink": "#c0392b"}
+            "aurora": "#ff5c7a", "ink": "#c0392b", "cyber": "#ff2a6d"}
     greens = {"terminal": "#3ddc97", "swiss": "#0f9d58",
-              "aurora": "#2fe0a8", "ink": "#1e7f6b"}
-    for k in ("terminal", "swiss", "aurora", "ink"):
+              "aurora": "#2fe0a8", "ink": "#1e7f6b", "cyber": "#00ff9f"}
+    for k in ("terminal", "swiss", "aurora", "ink", "cyber"):
         vars_ = STYLE_PRESETS[k]["vars"]
         assert f"--buy:{reds[k]}" in vars_, k
         assert f"--sell:{greens[k]}" in vars_, k
@@ -40,6 +41,7 @@ def test_mode_binding():
     assert STYLE_PRESETS["aurora"]["mode"] == "dark"
     assert STYLE_PRESETS["swiss"]["mode"] == "light"
     assert STYLE_PRESETS["ink"]["mode"] == "light"
+    assert STYLE_PRESETS["cyber"]["mode"] == "dark"
     assert STYLE_PRESETS["classic"]["mode"] is None
 
 
@@ -69,6 +71,6 @@ def test_switcher_and_injector_exist():
 
 def test_non_classic_styles_have_visual_layers():
     """四套新风格的 vars/extra 均非空（真的会注入东西，不是空壳）。"""
-    for k in ("terminal", "swiss", "aurora", "ink"):
+    for k in ("terminal", "swiss", "aurora", "ink", "cyber"):
         assert STYLE_PRESETS[k]["vars"], k
         assert STYLE_PRESETS[k]["extra"], k
