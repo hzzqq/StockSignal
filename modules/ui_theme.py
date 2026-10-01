@@ -547,7 +547,7 @@ STYLE_PRESETS = {
             '::-webkit-scrollbar-thumb{background:#3a3a3a!important;border-radius:0!important}'
             '::-webkit-scrollbar-thumb:hover{background:#e8a33d!important}'
             'a{color:#e8a33d!important}a:hover{color:#ffc76b!important}'
-            '.js-plotly-plot .plotly .modebar{background:#141414!important;border-radius:0!important}')},
+            '.js-plotly-plot .plotly .modebar{background:#141414!important;border-radius:0!important}''.stApp{font-size:.9rem!important;line-height:1.42!important}''.block-container,[data-testid="stMainBlockContainer"]{padding-top:.7rem!important;padding-bottom:.8rem!important;padding-left:1.1rem!important;padding-right:1.1rem!important}''[data-testid="stVerticalBlock"]{gap:.32rem!important}''.stMetric{padding:8px 12px!important}''.stMetric [data-testid="stMetricValue"]{font-size:1.08rem!important}''.sf-card{padding:10px 12px!important;margin-top:10px!important}''.sf-card-title{font-size:13px!important;margin-bottom:8px!important;padding-bottom:6px!important}''[data-testid="stForm"]{padding:10px 12px!important}''.stDataFrame tbody td,.stDataFrame thead th{padding:4px 7px!important}''.sf-table th,.sf-table td{padding:5px 6px!important;font-size:11.5px!important}''.stMarkdown p{margin:.35em 0!important}''h2{margin-top:10px!important}''.stTabs [data-baseweb="tab"]{padding:5px 12px!important}')},
     'swiss': {'label': 'B · 瑞士极简白', 'mode': 'light',
         'vars': ('--bg:#ffffff; --card:#ffffff; --card2:#fafafa; --acc1:#111111; '
                  '--acc2:#1a56db; --txt:#111111; --txt2:#666666; --border:#e2e2e2; '
@@ -672,7 +672,10 @@ STYLE_PRESETS = {
             'border:1px solid rgba(139,124,255,.25)!important;background:rgba(24,26,68,.6)!important}'
             '.stDataFrame thead th{color:#b9c0ff!important;background:rgba(44,47,102,.5)!important}'
             '.sf-card-title::before{background:linear-gradient(180deg,#8b7cff,#5d5fef)!important}'
-            'a{color:#b9c0ff!important}a:hover{color:#8b7cff!important}')},
+            'a{color:#b9c0ff!important}a:hover{color:#8b7cff!important}''.stApp{background-size:170% 170%,150% 150%,160% 160%,170% 170%!important;animation:ss-aurora-drift 22s ease-in-out infinite alternate!important}''@keyframes ss-aurora-drift{0%{background-position:0% 0%,100% 0%,50% 100%,20% 80%}50%{background-position:60% 30%,20% 60%,80% 20%,60% 100%}100%{background-position:100% 60%,0% 30%,30% 0%,80% 20%}}'
+            '.stMetric,.sf-card,.sf-cta-card{animation:ss-glow-breathe 3.5s ease-in-out infinite!important}'
+            '.stMetric:hover,.sf-card:hover{animation:ss-glow-breathe 1.6s ease-in-out infinite!important;transform:translateY(-3px)!important}'
+            '.stApp::before{animation:ss-aurora-slide 5s linear infinite!important;height:5px!important}')},
     'ink': {'label': 'D · 东方墨韵（宣纸朱砂）', 'mode': 'light',
         'vars': ('--bg:#f7f3ea; --card:#fbf8f1; --card2:#f3eee2; --acc1:#b03a2e; '
                  '--acc2:#1e7f6b; --txt:#2b2b2b; --txt2:#7a7263; --border:#ddd3bd; '
@@ -751,7 +754,7 @@ STYLE_PRESETS = {
             '::-webkit-scrollbar-thumb{background:#c9bfa8!important;border-radius:2px!important}'
             '::-webkit-scrollbar-thumb:hover{background:#b03a2e!important}'
             'a{color:#8a2f24!important}a:hover{color:#b03a2e!important}'
-            '.stMarkdown code,code{background:#f0e9da!important;border:1px dashed #c9bfa8!important}')},
+            '.stMarkdown code,code{background:#f0e9da!important;border:1px dashed #c9bfa8!important}''.stApp::after{content:"量策";width:38px;height:72px;top:16px;right:16px;font-size:24px;writing-mode:vertical-rl;letter-spacing:5px;padding-top:6px;transform:rotate(-4deg);border:2.5px solid #8a2f24;border-radius:5px;background:radial-gradient(circle at 30% 28%,#c1483a,#a63327 68%,#8f2a20);box-shadow:inset 0 0 0 3px rgba(245,240,228,.5),0 4px 12px rgba(176,58,46,.4);text-shadow:0 0 2px rgba(245,240,228,.4);opacity:.94}')},
 }
 
 def _sync_style_mode() -> None:
