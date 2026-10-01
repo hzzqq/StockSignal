@@ -912,10 +912,12 @@ def get_current_style() -> str:
 def style_switcher() -> None:
     """侧边栏界面风格切换器（T-186 additive）：经典默认 + 六套风格。
 
-    T-194 防重入：apply_theme 同帧可能被多次调用（session init + widgets 主题
-    切换），selectbox 固定 key 会触发 duplicate key 异常——同帧只渲染一次，
-    帧首由 init_session_state 清除标记。"""
-    if st.session_state.get("_ui_style_switcher_drawn"):
+    T-194b 防重入（时间窗）：apply_theme 同帧可能被多次调用（apply_page_config
+    + session init + widgets 主题切换），selectbox 固定 key 会触发 duplicate
+    key 异常。0.5s 时间窗内只渲染一次——同帧调用（毫秒级间隔）必然命中窗口；
+    用户操作（秒级间隔）正常重渲染。不依赖「帧首」锚（apply_page_config 更早）。"""
+    import time as _time
+    if _time.time() - st.session_state.get("_ui_style_switcher_ts", 0) < 0.5:
         return
     try:
         labels = {k: v['label'] for k, v in STYLE_PRESETS.items()}
@@ -927,7 +929,7 @@ def style_switcher() -> None:
                 '🎨 界面风格', list(labels.keys()),
                 index=list(labels.keys()).index(cur),
                 format_func=lambda k: labels[k], key='ui_style_select')
-        st.session_state["_ui_style_switcher_drawn"] = True
+        st.session_state["_ui_style_switcher_ts"] = _time.time()
         if choice != cur:
             st.session_state['ui_style'] = choice
             try:
