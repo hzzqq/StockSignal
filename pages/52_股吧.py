@@ -86,13 +86,6 @@ def _open_post(pid: int):
     st.session_state["forum_view_post"] = int(pid)
 
 
-# 页面间快捷跳转（#Batch19-5）：相关页面一键直达
-_pl1, _pl2 = st.columns(2)
-with _pl1:
-    st.page_link("pages/24_个股研究.py", label="📈 去个股研究", icon="📈")
-with _pl2:
-    st.page_link("pages/46_自选股监控.py", label="⭐ 去自选股监控", icon="⭐")
-
 # 使用说明 / 快捷键提示移至帖子列表之后（T-193：筛选与帖子列表优先）
 
 _EMOJIS = [
@@ -240,6 +233,16 @@ def fragment_list():
     if st.session_state.get("forum_view_post"):
         return
 
+    # T-196 力扣式分类行：视图 Tab（全部/热门/收藏）+ 发帖主按钮（右浮）
+    _vw1, _vw2 = st.columns([0.72, 0.28])
+    with _vw1:
+        _view = st.radio("视图", ["📋 全部", "🔥 热门", "⭐ 我的收藏"],
+                         horizontal=True, key="forum_view_tab", label_visibility="collapsed")
+    with _vw2:
+        if st.button("✍️ 发帖", key="forum_new_btn", type="primary", width="stretch",
+                     help="展开发表新帖表单"):
+            st.session_state["forum_composer_open"] = not st.session_state.get(
+                "forum_composer_open", False)
     # 手动刷新（#Batch20-1）：fragment 内用 scope="fragment" 显式重跑本区块
     if st.button("🔄 刷新帖子", key="forum_manual_refresh"):
         st.rerun(scope="fragment")
@@ -303,6 +306,14 @@ def fragment_list():
     # 列表内搜索：标题关键字纯前端过滤（#Batch19-3）
     if forum_kw.strip():
         posts = [p for p in posts if forum_kw.strip().lower() in str(p.get("title", "")).lower()]
+
+    # T-196 力扣式视图过滤：热门=点赞或评论≥10；收藏=已星标集合
+    if _view == "🔥 热门":
+        posts = [p for p in posts if safe_int(p.get("likes", 0), 0) >= 10
+                 or safe_int(p.get("comment_count", 0), 0) >= 10]
+    elif _view == "⭐ 我的收藏":
+        _favset = st.session_state.get("forum_fav_set", set())
+        posts = [p for p in posts if p.get("id") in _favset]
 
     # 分页 / 加载更多（#Batch19-4）：默认只显示前 N 条，按钮累加计数
     _show_key = "forum_show_n"
@@ -398,7 +409,7 @@ def fragment_list():
                     for _id in _sel_ids:
                         st.session_state[f"forum_sel_{_id}"] = False
 
-    with st.expander("✍️ 发表新帖 / 文章", expanded=False):
+    with st.expander("✍️ 发表新帖 / 文章", expanded=st.session_state.get("forum_composer_open", False)):
         with st.container(border=True):
             st.markdown("### 📝 发布到股吧")
             st.caption("分享你的观点或文章，与社区交流。")
@@ -429,36 +440,58 @@ def fragment_list():
                         else:
                             st.error(cb.get("message", "发布失败") if isinstance(cb, dict) else "发布失败")
 
-        # 相关推荐块（#Batch20-4）：底部热门主题推荐，点击直达
-        _rec = sorted(posts, key=lambda p: safe_int(p.get("likes", 0), 0), reverse=True)[:3]
-        if _rec:
-            sf_card("🔥 热门主题推荐", "")
-            _rcs = st.columns(len(_rec))
-            for _i, rp in enumerate(_rec):
-                rpid = rp.get("id")
-                if rpid is None:
-                    continue
-                with _rcs[_i]:
-                    if st.button(f"📌 {rp.get('title', '（无标题）')[:12]}",
-                                 key=f"forum_rec_{rpid}", width="stretch",
-                                 on_click=_open_post, args=(rpid,)):
-                        pass
+        # 🔥 热榜 Top10（T-196 力扣讨论区样式：编号 + 标题 + 热度，前三甲强调色）
+        _hot = sorted(posts, key=lambda p: safe_int(p.get("likes", 0), 0)
+                      + safe_int(p.get("comment_count", 0), 0) * 2, reverse=True)[:10]
+        if _hot:
+            sf_card("🔥 热榜 · 社区最热讨论", "")
+            st.markdown(
+                '<style>.ss-hot-row{display:flex;align-items:center;gap:10px;padding:3px 0}'
+                '.ss-hot-rank{font-family:\'Fira Code\',Consolas,monospace;font-weight:800;'
+                'font-size:15px;color:var(--txt2);min-width:22px;text-align:center}'
+                '.ss-hot-rank.top3{color:#ff4d4f;font-size:17px}'
+                '.ss-hot-btn{width:100%!important;text-align:left!important;'
+                'background:transparent!important;border:none!important;'
+                'box-shadow:none!important;padding:2px 4px!important;color:var(--txt)!important}'
+                '.ss-hot-btn:hover{color:var(--acc1)!important;background:transparent!important;'
+                'transform:none!important}</style>',
+                unsafe_allow_html=True)
+            for _hi, hp in enumerate(_hot, 1):
+                _hid = hp.get("id")
+                _rk = "ss-hot-rank top3" if _hi <= 3 else "ss-hot-rank"
+                _hr1, _hr2 = st.columns([0.08, 0.92])
+                with _hr1:
+                    st.markdown(f'<div class="{_rk}">{_hi}</div>', unsafe_allow_html=True)
+                with _hr2:
+                    if _hid is None:
+                        st.caption(f"{hp.get('title', '（无标题）')}")
+                    else:
+                        if st.button(str(hp.get("title", "（无标题）"))[:24],
+                                     key=f"forum_hot_{_hid}", width="stretch",
+                                     on_click=_open_post, args=(_hid,)):
+                            pass
 
-fragment_detail()
-fragment_list()
-
-# 使用说明 / 快捷键提示（T-193：移至页面下部；回顶统一用右下角圆形悬浮 ▲）
-with st.expander("💡 使用说明 / 常见问题"):
-    st.markdown(
-        "- **浏览帖子**：点击列表中的主题标题即可展开详情，含楼主信息、点赞与评论。\n"
-        "- **发表内容**：展开「✍️ 发表新帖」填写标题、正文，可关联一只股票代码。\n"
-        "- **收藏与历史**：帖子可「⭐ 收藏」，查看过的主题会出现在「最近浏览」。\n"
-        "- **筛选与排序**：列表上方可按股票代码 / 关键字过滤，并切换最新 / 最热 / 最多评论。\n"
-        "- **风险提示**：社区内容由用户生成，仅供参考，不构成投资建议。"
-    )
-with st.expander("⌨️ 快捷键提示"):
-    st.markdown(
-        "- 本页以鼠标 / 触控操作为主，无全局键盘快捷键。\n"
-        "- 长列表滚动后点击右下角圆形悬浮「▲」按钮可一键回顶。\n"
-        "- 帖子详情页点击「← 返回列表」返回社区列表。"
-    )
+# T-196 力扣讨论区布局：主区（帖子流）+ 右栏（辅助信息，参考力扣 /discuss/）
+_main, _side = st.columns([0.68, 0.32], gap="medium")
+with _main:
+    fragment_detail()
+    fragment_list()
+with _side:
+    st.caption("📌 快捷跳转")
+    st.page_link("pages/24_个股研究.py", label="📈 去个股研究", icon="📈")
+    st.page_link("pages/46_自选股监控.py", label="⭐ 去自选股监控", icon="⭐")
+    with st.expander("💡 使用说明 / 常见问题"):
+        st.markdown(
+            "- **浏览帖子**：点击列表中的主题标题即可展开详情，含楼主信息、点赞与评论。\n"
+            "- **发表内容**：点击「✍️ 发帖」按钮展开表单，可关联一只股票代码。\n"
+            "- **收藏与历史**：帖子可「⭐ 收藏」，「⭐ 我的收藏」视图一键过滤。\n"
+            "- **筛选与排序**：列表上方可按股票代码 / 关键字过滤，并切换最新 / 最热 / 最多评论。\n"
+            "- **风险提示**：社区内容由用户生成，仅供参考，不构成投资建议。"
+        )
+    with st.expander("⌨️ 快捷键提示"):
+        st.markdown(
+            "- 本页以鼠标 / 触控操作为主，无全局键盘快捷键。\n"
+            "- 长列表滚动后点击右下角圆形悬浮「▲」按钮可一键回顶。\n"
+            "- 帖子详情页点击「← 返回列表」返回社区列表。"
+        )
+    st.caption("⚠️ 社区内容由用户生成，数据仅供参考，不构成投资建议；请理性判断，风险自担。")
