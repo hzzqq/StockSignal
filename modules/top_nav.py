@@ -190,8 +190,11 @@ TOPNAV_CSS = """
   font-family:'Inter','PingFang SC','Microsoft YaHei',sans-serif}
 .ss-brand{text-decoration:none;font-size:15px;color:var(--txt);margin-right:14px;white-space:nowrap}
 .ss-brand b{color:var(--acc1)}
-.ss-topnav-menus{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow:hidden}
-.ss-menu{padding:8px 13px;cursor:pointer;position:relative;font-weight:600;font-size:14px;
+/* T-199 修复：menus 容器不得 overflow:hidden——mega 面板是容器内绝对定位子元素，
+   hidden 会整块裁掉面板（悬停无反应的根因）；同时 .ss-menu 去掉 position:relative，
+   让 .ss-mega 的 left/right:0 锚到 position:fixed 的 .ss-topnav → 面板全宽展开于顶栏正下方 */
+.ss-topnav-menus{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow:visible}
+.ss-menu{padding:8px 13px;cursor:pointer;font-weight:600;font-size:14px;
   color:var(--txt);white-space:nowrap;border-radius:6px;user-select:none}
 .ss-menu:hover{color:var(--acc1);background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .ss-menu-link{text-decoration:none}
@@ -243,7 +246,7 @@ TOPNAV_CSS = """
 [data-testid="stMetricLabel"]{font-size:.78rem!important}
 /* ── 响应式 ── */
 @media(max-width:1100px){.ss-menu{padding:8px 9px;font-size:13px}}
-@media(max-width:860px){.ss-search{display:none}.ss-topnav-menus{overflow-x:auto}}
+@media(max-width:860px){.ss-search{display:none}}
 </style>
 """
 

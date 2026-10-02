@@ -120,3 +120,30 @@ def test_active_highlight(monkeypatch):
                   is_admin_user=False, cur_base="52_股吧.py")
     html = _drawn[-1]
     assert "ss-entry-active" in html
+
+
+def test_mega_hover_visible_contract():
+    """T-199 mega 面板悬停可见性契约：容器不裁剪 + 面板全宽锚定顶栏 + :hover 展开。
+
+    根因回归守卫：.ss-topnav-menus 曾带 overflow:hidden——mega 面板是其内绝对定位
+    子元素，整块被裁剪导致悬停无反应；.ss-menu 曾带 position:relative——面板
+    left/right:0 锚到菜单项（宽~100px）而非全宽。
+    """
+    def _rule(css: str, selector: str) -> str:
+        i = css.index(selector)
+        return css[i:css.index("}", i)]
+
+    # 1) menus 容器不得 overflow:hidden / overflow-x:auto（裁掉绝对定位面板）
+    menus_rule = _rule(TOPNAV_CSS, ".ss-topnav-menus{")
+    assert "overflow:hidden" not in menus_rule
+    assert "overflow-x:auto" not in menus_rule
+    # 2) .ss-menu 不得 position:relative（面板须锚到 position:fixed 的 .ss-topnav 全宽展开）
+    menu_rule = _rule(TOPNAV_CSS, ".ss-menu{")
+    assert "position:relative" not in menu_rule
+    # 3) 悬停展开契约 + 面板锚定顶栏正下方
+    assert ".ss-menu:hover .ss-mega{display:block}" in TOPNAV_CSS
+    mega_rule = _rule(TOPNAV_CSS, ".ss-mega{")
+    assert "position:absolute" in mega_rule and "top:100%" in mega_rule
+    # 4) 用户下拉锚定不受影响（.ss-user 保持 position:relative）
+    user_rule = _rule(TOPNAV_CSS, ".ss-user{")
+    assert "position:relative" in user_rule
