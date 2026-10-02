@@ -164,31 +164,7 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
     </div>
   </div>
 </div>
-<script>
-function ssSetStyle(v){{
-  try {{
-    var raw = localStorage.getItem('ss_prefs');
-    var p = raw ? JSON.parse(raw) : {{}};
-    p.ui_style = v;
-    localStorage.setItem('ss_prefs', JSON.stringify(p));
-    var params = new URLSearchParams(window.location.search);
-    params.set('prefs', JSON.stringify(p));
-    window.location.href = window.location.pathname + '?' + params.toString();
-  }} catch (e) {{ window.location.reload(); }}
-}}
-function ssFocusSearch(){{
-  try {{
-    var sb = window.document.querySelector('[data-testid="stSidebar"]');
-    if (sb) {{ var inp = sb.querySelector('input'); if (inp) {{ inp.focus(); return; }} }}
-  }} catch (e) {{}}
-  var kw = window.prompt('搜索页面 / 功能（输入关键字）：');
-  if (kw) {{
-    var params = new URLSearchParams(window.location.search);
-    params.set('nav_kw', kw);
-    window.location.href = window.location.pathname + '?' + params.toString();
-  }}
-}}
-</script>
+
 """
     st.markdown(
         TOPNAV_CSS
@@ -268,4 +244,52 @@ TOPNAV_CSS = """
 @media(max-width:1100px){.ss-menu{padding:8px 9px;font-size:13px}}
 @media(max-width:860px){.ss-search{display:none}.ss-topnav-menus{overflow-x:auto}}
 </style>
+"""
+
+
+def build_nav_index(nav_groups: list, nav_hero: list, nav_admin: list,
+                    favorites: list) -> list[dict]:
+    """扁平化导航索引（命令面板数据源）：[{label, icon, href, group}]。"""
+    idx: list[dict] = []
+    for p, l, i in nav_hero:
+        idx.append({"label": l, "icon": i, "href": _slug(p), "group": "决策中枢"})
+    for top_label, clusters in nav_groups:
+        for _sub, items in clusters:
+            for p, l, i in items:
+                idx.append({"label": l, "icon": i, "href": _slug(p), "group": top_label})
+    for p, l, i in favorites:
+        idx.append({"label": l, "icon": i, "href": _slug(p), "group": "常用"})
+    for p, l, i in nav_admin:
+        idx.append({"label": l, "icon": i, "href": _slug(p), "group": "管理"})
+    return idx
+
+
+def topnav_extra_js() -> str:
+    """顶栏专属 JS（T-197 经 scroll_nav extra_js 通道并入单次 components.html 注入）。
+
+    修复历史：T-195 曾把本段 JS 放在 st.markdown 的 <script> 中——Streamlit 会
+    剥离 markdown 内 script，导致风格切换下拉实际不生效。现经 extra_js 通道可靠注入。
+    """
+    return """
+/* ── T-195/T-197 顶栏 JS（风格切换 + 搜索聚焦命令面板）── */
+function ssSetStyle(v){
+  try {
+    var raw = localStorage.getItem('ss_prefs');
+    var p = raw ? JSON.parse(raw) : {};
+    p.ui_style = v;
+    localStorage.setItem('ss_prefs', JSON.stringify(p));
+    var params = new URLSearchParams(window.location.search);
+    params.set('prefs', JSON.stringify(p));
+    window.location.href = window.location.pathname + '?' + params.toString();
+  } catch (e) { window.location.reload(); }
+}
+function ssFocusSearch(){
+  try {
+    if (window.__ssOpenPalette) { window.__ssOpenPalette(); return; }
+  } catch (e) {}
+  try {
+    var sb = window.document.querySelector('[data-testid="stSidebar"]');
+    if (sb) { var inp = sb.querySelector('input'); if (inp) { inp.focus(); return; } }
+  } catch (e) {}
+}
 """

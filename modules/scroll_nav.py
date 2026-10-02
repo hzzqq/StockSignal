@@ -141,6 +141,23 @@ SCROLL_NAV_CSS = """
 }
 .sf-scroll-inline:hover{background:#e0e0e8}
 
+/* ══════════ T-197 命令面板（Ctrl+K）══════════ */
+.ss-cmd-backdrop{position:fixed;inset:0;background:rgba(8,10,24,.55);z-index:100001}
+.ss-cmd-box{position:fixed;top:14vh;left:50%;transform:translateX(-50%);width:min(560px,92vw);
+  background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);border-radius:12px;
+  box-shadow:0 24px 70px rgba(0,0,0,.4);z-index:100002;overflow:hidden;
+  font-family:'Inter','PingFang SC',sans-serif}
+.ss-cmd-input{width:100%;box-sizing:border-box;border:none;outline:none;background:transparent;
+  padding:14px 18px;font-size:15px;color:var(--txt,#1f2937);
+  border-bottom:1px solid var(--border,#e2e8f0)}
+.ss-cmd-list{max-height:46vh;overflow-y:auto;padding:6px}
+.ss-cmd-item{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:7px;
+  text-decoration:none;color:var(--txt,#1f2937);font-size:14px}
+.ss-cmd-item:hover,.ss-cmd-item.active{background:color-mix(in srgb,var(--acc1,#4f46e5) 10%,transparent)}
+.ss-cmd-group{margin-left:auto;font-size:11px;color:var(--txt2,#6b7280)}
+.ss-cmd-empty{padding:16px;text-align:center;color:var(--txt2,#6b7280);font-size:13px}
+.ss-cmd-hint{padding:8px 14px;border-top:1px solid var(--border,#e2e8f0);
+  font-size:11px;color:var(--txt2,#6b7280)}
 /* ══════════ 响应式：窄屏收窄边距与尺寸 ══════════ */
 @media(max-width:768px){
   .sf-scroll-top{right:14px;bottom:20px;width:42px;height:42px}
@@ -197,7 +214,8 @@ def _scroll_container_js(var_name: str = "C") -> str:
     )
 
 
-def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom, bottom_marker=''):
+def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom,
+                bottom_marker='', nav_index=None, extra_js=''):
     """构建【单一 <script> 块】的导航 + C 键清缓存拦截脚本。
 
     关键：所有逻辑（▲回到顶部 / ▼回到底部 / C键拦截+安全网）合并进**同一个**
@@ -327,17 +345,77 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom, bot
     if(P.__xc_dismiss_observer){ try{P.__xc_dismiss_observer.disconnect();}catch(e){} }
     P.__xc_dismiss_observer=new MutationObserver(function(){dismissClearCache();});
     P.__xc_dismiss_observer.observe(P.document.body,{childList:true,subtree:true});
-    /* ── ⌘K / Ctrl+K 聚焦侧栏搜索（命令面板）── */
-    P.document.addEventListener('keydown', function(e){
-      var kk = (e.key || '').toLowerCase();
-      if ((e.metaKey || e.ctrlKey) && kk === 'k') {
-        e.preventDefault();
-        try {
-          var sb = P.document.querySelector('[data-testid="stSidebar"]');
-          if (sb) { var inp = sb.querySelector('input'); if (inp) { inp.focus(); } }
-        } catch(_e){}
+    /* ── T-197 命令面板（Ctrl+K / ⌘K）：页面/功能模糊搜索 + 股票代码直达 ── */
+    var SS_IDX = __NAV_INDEX_JSON__;
+    var pal = P.document.getElementById('ssCmdPalette');
+    if (!pal && SS_IDX && SS_IDX.length) {
+      pal = P.document.createElement('div'); pal.id = 'ssCmdPalette';
+      pal.innerHTML = '<div class="ss-cmd-backdrop"></div>'
+        + '<div class="ss-cmd-box"><input class="ss-cmd-input" type="text"'
+        + ' placeholder="搜索页面 / 功能，或输入 6 位股票代码直达…" />'
+        + '<div class="ss-cmd-list"></div>'
+        + '<div class="ss-cmd-hint">↑↓ 选择 · Enter 跳转 · Esc 关闭</div></div>';
+      P.document.body.appendChild(pal);
+      var box = pal.querySelector('.ss-cmd-box');
+      var inp = pal.querySelector('.ss-cmd-input');
+      var lst = pal.querySelector('.ss-cmd-list');
+      var items = [], cur = -1;
+      function openPal(){ pal.classList.add('open'); inp.value=''; renderList(''); setTimeout(function(){ inp.focus(); }, 30); }
+      function closePal(){ pal.classList.remove('open'); cur = -1; }
+      function renderList(kw){
+        kw = (kw || '').toLowerCase().trim();
+        items = [];
+        if (/^\\d{6}$/.test(kw)) {
+          items.push({label:'📈 打开个股分析：' + kw, href:'/个股分析?pick_stock=' + kw});
+        }
+        for (var i=0;i<SS_IDX.length;i++){
+          var it = SS_IDX[i];
+          if (!kw || (it.label + ' ' + (it.group || '')).toLowerCase().indexOf(kw) >= 0) items.push(it);
+        }
+        var h = '';
+        for (var j=0;j<items.length && j<12;j++){
+          h += '<a class="ss-cmd-item" data-i="' + j + '" href="' + items[j].href + '">'
+             + (items[j].icon || '📄') + ' ' + items[j].label
+             + (items[j].group ? '<span class="ss-cmd-group">' + items[j].group + '</span>' : '') + '</a>';
+        }
+        lst.innerHTML = h || '<div class="ss-cmd-empty">无匹配结果</div>';
+        cur = -1;
+        var as = lst.querySelectorAll('.ss-cmd-item');
+        for (var k2=0;k2<as.length;k2++){
+          as[k2].addEventListener('mousedown', function(ev){ ev.preventDefault(); });
+        }
       }
-    }, true);
+      inp.addEventListener('input', function(){ renderList(inp.value); });
+      inp.addEventListener('keydown', function(e){
+        var as = lst.querySelectorAll('.ss-cmd-item');
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (!as.length) return;
+          cur = e.key === 'ArrowDown' ? (cur + 1) % as.length : (cur - 1 + as.length) % as.length;
+          for (var m=0;m<as.length;m++) as[m].classList.remove('active');
+          as[cur].classList.add('active'); as[cur].scrollIntoView({block:'nearest'});
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          var idx = cur >= 0 ? cur : 0;
+          if (as[idx]) { closePal(); window.parent.location.href = as[idx].getAttribute('href'); }
+        } else if (e.key === 'Escape') { closePal(); }
+      });
+      pal.querySelector('.ss-cmd-backdrop').addEventListener('mousedown', closePal);
+      P.document.addEventListener('keydown', function(e){
+        var kk = (e.key || '').toLowerCase();
+        if ((e.metaKey || e.ctrlKey) && kk === 'k') { e.preventDefault(); openPal(); }
+        else if (e.key === 'Escape' && pal.classList.contains('open')) { closePal(); }
+      }, true);
+      try { P.__ssOpenPalette = openPal; } catch(e0){}
+      /* 顶栏搜索框点击打开面板（top_nav 注入的 .ss-search 与本面板同文档） */
+      try {
+        var sq = P.document.querySelector('.ss-search');
+        if (sq) { sq.addEventListener('mousedown', function(ev){ ev.preventDefault(); openPal(); }); }
+      } catch(e2){}
+    }
+    /* ── T-195 顶栏 JS（ssSetStyle 风格切换）经 extra_js 通道并入单次注入 ── */
+    __EXTRA_JS__
+
   } catch(e) {}
 })();
 </script>
@@ -355,13 +433,16 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom, bot
             .replace('__BTH__', str(bottom_threshold))
             .replace('__CLS__', cls)
             .replace('__BOTTOM_MARKER_JS__', marker_js)
-            .replace('__BOTTOM_MARKER_SEL__', marker_sel))
+            .replace('__BOTTOM_MARKER_SEL__', marker_sel)
+            .replace('__NAV_INDEX_JSON__', json.dumps(nav_index or []))
+            .replace('__EXTRA_JS__', extra_js or ''))
     return body
 
 
 def inject_scroll_nav(show_top: bool = True, show_bottom: bool = False,
                       threshold_px: int = DEFAULT_TOP_THRESHOLD, bottom_threshold: int = 150,
-                      dark: bool = False, bottom_marker: str = ''):
+                      dark: bool = False, bottom_marker: str = '',
+                      nav_index: list | None = None, extra_js: str = ''):
     """注入 CSS + 悬浮导航按钮 JS + C 键清缓存拦截。每个页面顶部调一次（幂等）。
 
     参数：
@@ -377,7 +458,8 @@ def inject_scroll_nav(show_top: bool = True, show_bottom: bool = False,
     且多次 components.html 仅首次可靠执行；故必须合并单次注入。
     """
     payload = SCROLL_NAV_CSS + "\n" + _nav_script(
-        dark, threshold_px, bottom_threshold, show_top, show_bottom, bottom_marker)
+        dark, threshold_px, bottom_threshold, show_top, show_bottom, bottom_marker,
+        nav_index=nav_index, extra_js=extra_js)
     try:
         components.html(payload, height=0)
     except Exception as e:  # bare mode / 无 ScriptRunContext 时降级为 markdown，避免抛错

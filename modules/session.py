@@ -720,6 +720,12 @@ def _render_login_gate() -> None:
     </div>
     <div class="ss-login-footer">StockSignal · 仅供学习与研究所用，不构成投资建议</div>
     """, unsafe_allow_html=True)
+    # T-197：未登录 gate 页也注入回顶悬浮（无命令面板索引）
+    try:
+        from modules.scroll_nav import inject_scroll_nav
+        inject_scroll_nav()
+    except Exception as e:
+        logger.warning(f'[session] gate scroll_nav 注入失败: {e}')
 
 
 def require_auth() -> None:

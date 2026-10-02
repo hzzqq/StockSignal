@@ -58,8 +58,10 @@ def test_mega_structure_complete(monkeypatch):
     assert 'href="/行情看板"' in html                    # slug 链接
     assert "ss-user-menu" in html and "ssSetStyle" in html  # 用户下拉 + 风格 JS
     assert 'value="cyber" selected' in html              # 当前风格选中态
-    assert "ss_prefs" in html                            # localStorage 持久化键一致
     assert "ss-login" not in html                        # 不误渲染登录卡
+    # T-197：JS（含 ss_prefs 持久化键）经 extra_js 通道注入，不在 markdown HTML 内
+    js = top_nav.topnav_extra_js()
+    assert "ss_prefs" in js and "ui_style" in js         # localStorage 持久化键一致
 
 
 def test_sidebar_retired_css(monkeypatch):
