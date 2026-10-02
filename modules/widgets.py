@@ -560,7 +560,9 @@ def inject_global_widgets() -> None:
     # （scroll_nav 约束：同页多次 components.html 仅首次脚本可靠执行）
     _nav_index = build_nav_index(_NAV_GROUPS, _NAV_HERO, _NAV_ADMIN,
                                  load_nav_favorites())
-    inject_scroll_nav(nav_index=_nav_index, extra_js=topnav_extra_js())
+    from modules.drawer import drawer_js
+    inject_scroll_nav(nav_index=_nav_index,
+                      extra_js=topnav_extra_js() + drawer_js())
 _NAV_HERO = [('pages/54_今日决策面板.py', '今日决策面板', '🎯')]
 # 常用（高频直达）：默认 Top5 高频页（不含 Hero 已常驻的 54），用户无需扫描分组即可一键进入。
 # 后续可升级为基于 session_state 访问频率的动态 Top5（需 hook 跳转计数，暂用静态推荐）。

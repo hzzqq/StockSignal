@@ -18,6 +18,7 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 from modules.format_helpers import safe_int, safe_html_text
+import modules.drawer
 import modules.scroll_nav as sn
 
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
@@ -353,6 +354,16 @@ def fragment_list():
                     excerpt = p.get("excerpt", "")
                     if excerpt:
                         st.caption(excerpt + ("…" if len(excerpt) >= 80 else ""))
+                    # T-198 详情抽屉预览：点击不跳页，右侧滑出快速预览
+                    _pv_meta = (f"👤 {safe_html_text(p.get('username'), '?')} · "
+                                f"🕘 {_fmt_time(p.get('created_at', ''))} · "
+                                f"💬 {p.get('comment_count') or 0} · 👍 {p.get('likes') or 0} · "
+                                f"👀 {p.get('views') or 0}")
+                    _pv_body = safe_html_text(excerpt or p.get("title", ""))
+                    st.markdown(
+                        modules.drawer.preview_button(
+                            str(p.get("title", "（无标题）")), _pv_body, _pv_meta),
+                        unsafe_allow_html=True)
                 with top2:
                     tag = ""
                     if p.get("stock_code"):

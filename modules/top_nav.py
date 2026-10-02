@@ -166,8 +166,9 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
 </div>
 
 """
+    from modules.drawer import drawer_css
     st.markdown(
-        TOPNAV_CSS
+        TOPNAV_CSS + drawer_css()
         + "<style>"
         # 内容区下移让出固定顶栏；侧栏退役；字号层级（核心大/次要小）
         ".block-container,[data-testid=\"stMainBlockContainer\"]{padding-top:66px!important}"
