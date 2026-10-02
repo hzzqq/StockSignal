@@ -548,7 +548,14 @@ def inject_global_widgets() -> None:
     AI 咨询收进右上角 popover，任意页面唤起；不再占用左侧栏空间。
     """
     from modules.scroll_nav import inject_scroll_nav
-    render_topright_bar()
+    from modules.top_nav import render_topnav
+    from modules.ui_theme import get_current_style
+    # T-195：阿里云风格顶栏 Mega 导航（侧栏退役，唯一主导航）
+    render_topnav(
+        nav_groups=_NAV_GROUPS, nav_hero=_NAV_HERO, nav_admin=_NAV_ADMIN,
+        favorites=load_nav_favorites(), recents=get_recent_stocks(),
+        current_style=get_current_style(), is_admin_user=is_admin(),
+        cur_base=_current_page_basename())
     inject_scroll_nav()
 _NAV_HERO = [('pages/54_今日决策面板.py', '今日决策面板', '🎯')]
 # 常用（高频直达）：默认 Top5 高频页（不含 Hero 已常驻的 54），用户无需扫描分组即可一键进入。

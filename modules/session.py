@@ -730,12 +730,11 @@ def require_auth() -> None:
         pass
 
     if is_authenticated():
-        # 注入所有页面通用组件：右上角主题开关 + 侧边栏全局 AI 咨询
-        from modules.widgets import inject_global_widgets, render_sidebar_nav
+        # 注入所有页面通用组件：顶栏 Mega 导航 + 右下角回顶悬浮（T-195）。
+        # T-195 侧栏退役：render_sidebar_nav 保留函数但不再调用（顶栏为唯一主导航，
+        # 参考阿里云官网 mega 面板交互）；函数与 _NAV_GROUPS 数据保留供回滚。
+        from modules.widgets import inject_global_widgets
         inject_global_widgets()
-        # 自定义分组侧边栏导航（替代原生平铺页面列表）。
-        # 始终渲染，确保合并页嵌入子页时侧边栏导航也不丢失（#360）。
-        render_sidebar_nav()
         return
 
     _render_login_gate()
