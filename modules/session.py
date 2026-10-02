@@ -621,6 +621,12 @@ def _render_login_gate() -> None:
         overflow: hidden;
         backdrop-filter: blur(12px);
     }}
+    .ss-login-hero {{text-align:center;margin:4px 0 26px}}
+    .ss-login-hero h1 {{font-size:2.2rem;font-weight:900;color:var(--txt);margin:0 0 6px}}
+    .ss-login-hero h1 .ss-grad {{background:linear-gradient(90deg,var(--acc1),var(--acc2));
+      -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}}
+    .ss-login-hero p {{font-size:1rem;color:var(--txt2);margin:0}}
+    .ss-login-hero p b {{color:var(--acc1);font-weight:800}}
     .ss-login-card::before {{
         content: "";
         position: absolute;
@@ -703,6 +709,7 @@ def _render_login_gate() -> None:
         margin-top: 2rem;
     }}
     </style>
+    <div class="ss-login-hero"><h1><span class="ss-grad">📊 决策</span> 放心交给 StockSignal</h1><p>超过 <b>3,300+</b> 条自动化测试护航 · <b>4,091</b> 日真实回测实证</p></div>
     <div class="ss-login-card">
         {logo_html}
         <div class="ss-login-title">StockSignal</div>
