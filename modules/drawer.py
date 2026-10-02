@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 def js_escape(text: str) -> str:
     """JS 字符串字面量转义（反斜杠/引号/换行/回车/尖括号），防注入与语法破坏。"""
     t = str(text)
-    t = t.replace("\\\\", "\\\\\\\\")
-    t = t.replace("'", "\\\\'")
-    t = t.replace('"', '\\\\"')
-    t = t.replace("\\r", "\\\\r")
-    t = t.replace("\\n", "\\\\n")
+    t = t.replace("\\", "\\\\")
+    t = t.replace("'", "\\'")
+    t = t.replace('"', '\\"')
+    t = t.replace("\n", "\\n")
+    t = t.replace("\r", "\\r")
     t = t.replace("<", "&lt;").replace(">", "&gt;")
     return t
 
