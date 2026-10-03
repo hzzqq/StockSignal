@@ -83,3 +83,19 @@ def test_non_classic_styles_have_visual_layers():
     for k in ("terminal", "swiss", "aurora", "ink", "cyber"):
         assert STYLE_PRESETS[k]["vars"], k
         assert STYLE_PRESETS[k]["extra"], k
+
+
+def test_st_toolbar_hidden_both_modes():
+    """T-200：stToolbar（Deploy 按钮+状态控件的容器）必须整体隐藏——其悬浮在
+    自绘顶栏右上角图标（搜索/✦/⚙️/👤）之上造成重叠并拦截点击；曾只清 padding
+    未隐藏，Deploy 文字压住图标。dark/light 两套全局 CSS 都要钉住。"""
+    marker = '[data-testid="stToolbar"] { display: none !important; }'
+    assert marker in ui_theme._DARK_CSS
+    assert marker in ui_theme._LIGHT_CSS
+
+
+def test_ink_seal_below_topnav():
+    """T-200：墨韵印章 top 必须 ≥ 顶栏 52px（曾 top:16px 上半截被不透明顶栏盖住）。"""
+    extra = STYLE_PRESETS["ink"]["extra"]
+    assert 'content:"量策"' in extra
+    assert 'content:"量策";position:fixed;top:64px' in extra
