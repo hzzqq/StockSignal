@@ -147,3 +147,20 @@ def test_mega_hover_visible_contract():
     # 4) 用户下拉锚定不受影响（.ss-user 保持 position:relative）
     user_rule = _rule(TOPNAV_CSS, ".ss-user{")
     assert "position:relative" in user_rule
+
+
+def test_topnav_html_no_blank_line_split(monkeypatch):
+    """T-199b：html 段不得含纯空白行——markdown 把空白行后的 </div> 当段落文本
+    转义显示（用户菜单底部漏出 </div> 字样的根因：admin/recents 为空时模板
+    产生空白行）。仅校验 <div class="ss-topnav"> 至最后一个 </div> 的区间。
+    """
+    monkeypatch.setattr("streamlit.markdown", _fake_markdown)
+    render_topnav(nav_groups=_NAV_GROUPS, nav_hero=_NAV_HERO, nav_admin=_NAV_ADMIN,
+                  favorites=[], recents=[], current_style="classic",
+                  is_admin_user=False, cur_base="")
+    payload = _drawn[-1]
+    html_part = payload[payload.rindex("</style>") + len("</style>"):]
+    start = html_part.index('<div class="ss-topnav">')
+    end = html_part.rindex("</div>")
+    for ln in html_part[start:end].splitlines():
+        assert ln.strip() != "", f"html 段含纯空白行（markdown 会转义后续闭合标签）: {ln!r}"

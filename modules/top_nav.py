@@ -157,9 +157,7 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
         <select class="ss-style-select" onchange="ssSetStyle(this.value)">{opts}</select>
         <div class="ss-user-sec">👤 账户</div>
         <a class="ss-user-item" href="/我的">👤 个人中心</a>
-        <a class="ss-user-item" href="/新手教程">📘 新手教程</a>
-        {admin_html}
-        {recents_html}
+        <a class="ss-user-item" href="/新手教程">📘 新手教程</a>{admin_html}{recents_html}
       </div>
     </div>
   </div>
