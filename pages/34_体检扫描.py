@@ -71,8 +71,9 @@ def build_stock_list(scope: str) -> dict:
                     raw_name = it.get("stock_name") or it.get("name")
                     if code:
                         codes[str(code)] = _coerce_name(str(code), raw_name)
-    except Exception:
-        pass
+    except Exception as e:
+        # T-205：自选股取数失败曾静默吞——扫描会静默不含自选股且无任何提示，误导用户
+        logger.warning(f"[体检扫描] 自选股列表取数失败，本次扫描将不含自选股: {e}")
 
     try:
         if scope in ("组合持仓", "全部"):
@@ -84,8 +85,9 @@ def build_stock_list(scope: str) -> dict:
                     raw_name = row.get("name")
                     if code:
                         codes[str(code)] = _coerce_name(str(code), raw_name)
-    except Exception:
-        pass
+    except Exception as e:
+        # T-205：组合持仓取数失败曾静默吞——扫描会静默不含持仓股
+        logger.warning(f"[体检扫描] 组合持仓取数失败，本次扫描将不含持仓股: {e}")
 
     return codes
 
@@ -204,8 +206,9 @@ def scan_one(code: str, name):
         if isinstance(ff, dict):
             entry["main_net"] = ff.get("main_net")
             entry["dims"]["资金面"] = _fund_score(ff.get("main_net"))
-    except Exception:
-        pass
+    except Exception as e:
+        # T-205：资金面取数失败曾静默吞（该维度将静默缺分）
+        logger.warning(f"[体检扫描] 个股资金流取数失败({code})，资金面维度缺分: {e}")
 
     # 估值（PE 来自 fetcher；PB/股息率 best-effort 补充）
     pe = pb = dv = None
@@ -214,8 +217,9 @@ def scan_one(code: str, name):
         if isinstance(fd, dict):
             pe = fd.get("pe_ttm")
             entry["pe"] = pe
-    except Exception:
-        pass
+    except Exception as e:
+        # T-205：估值取数失败曾静默吞（PE 将静默为空）
+        logger.warning(f"[体检扫描] 个股基本面取数失败({code})，PE 将为空: {e}")
     try:
         import akshare as ak
         def _fetch_val(ind):

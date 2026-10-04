@@ -824,8 +824,9 @@ def fragment_shepherd_review():
                         st.caption(f"💰 {txt} —— 暂无两融-指数背离。")
                 else:
                     st.caption(f"💰 {txt}。")
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        # T-205：两融-指数背离检查失败曾静默吞——「见顶警惕」风险信号会静默消失
+        logger.warning(f"[市场情绪] 两融-指数背离检查失败，见顶风险信号缺失: {e}")
 
 
 @safe_fragment("牧羊人折线图")
