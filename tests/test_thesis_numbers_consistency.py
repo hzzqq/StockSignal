@@ -21,15 +21,35 @@ import re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-THESIS = os.path.join(ROOT, "thesis", "StockSignal_毕业论文_完整稿.md")
 BT_JSON = os.path.join(ROOT, "reports", "backtest_decision_closure.json")
+THESIS_NAME = "StockSignal_毕业论文_完整稿.md"
+
+
+def _locate_thesis(name: str) -> str:
+    """T-203：定位 thesis/ 下的论文产物。
+
+    WorkBuddy 于 2026-10-04 重组 thesis/ 目录（扁平 → 正文/素材/图表 分区），
+    旧扁平路径失效（thesis/StockSignal_毕业论文_完整稿.md → thesis/正文/…）。
+    本定位器「候选路径优先 + thesis/ 下递归 glob 兜底」，不硬编码单一新路径，
+    以耐受后续再重组；找不到则明确 fail（**不 skip**——论文缺失是真实退化）。
+    """
+    import glob
+    cands = [os.path.join(ROOT, "thesis", name)] + [
+        os.path.join(ROOT, "thesis", d, name) for d in ("正文", "素材", "图表")]
+    for c in cands:
+        if os.path.exists(c):
+            return c
+    hits = sorted(glob.glob(os.path.join(ROOT, "thesis", "**", name), recursive=True))
+    if hits:
+        return hits[0]
+    raise AssertionError(f"未能在 thesis/ 下定位论文产物 {name!r}；已试 {cands}，递归 glob 无命中")
 
 
 def _load():
     assert os.path.exists(BT_JSON), f"缺少回测产物：{BT_JSON}（先跑 scripts/backtest_decision_closure.py）"
     with open(BT_JSON, encoding="utf-8") as f:
         bt = json.load(f)
-    with open(THESIS, encoding="utf-8") as f:
+    with open(_locate_thesis(THESIS_NAME), encoding="utf-8") as f:
         thesis = f.read()
     return bt, thesis
 

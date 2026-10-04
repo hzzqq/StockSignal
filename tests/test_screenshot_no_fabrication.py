@@ -33,8 +33,25 @@ sys.path.insert(0, ROOT)
 
 GEN_SHOTS = os.path.join(ROOT, "scripts", "gen_screenshots.py")
 GEN_PORTFOLIO = os.path.join(ROOT, "scripts", "gen_portfolio_page.py")
-GEN_BACKTEST_FIG = os.path.join(ROOT, "thesis", "gen_backtest_eval.py")
 VISUALIZER = os.path.join(ROOT, "modules", "visualizer.py")
+
+
+def _locate_thesis(name: str) -> str:
+    """T-203：定位 thesis/ 下的产物（WorkBuddy 2026-10-04 重组为 正文/素材/图表 分区，
+    旧扁平路径失效，如 thesis/gen_backtest_eval.py → thesis/素材/…）。候选优先 +
+    递归 glob 兜底；找不到明确 fail（不 skip）。"""
+    import glob
+    cands = [os.path.join(ROOT, "thesis", name)] + [
+        os.path.join(ROOT, "thesis", d, name) for d in ("正文", "素材", "图表")]
+    for c in cands:
+        if os.path.exists(c):
+            return c
+    hits = sorted(glob.glob(os.path.join(ROOT, "thesis", "**", name), recursive=True))
+    if hits:
+        return hits[0]
+    raise AssertionError(f"未能在 thesis/ 下定位产物 {name!r}；已试 {cands}，递归 glob 无命中")
+
+
 PUBLIC_DOCS = ["README.md", "docs/promo-final.md", "docs/promo-template.md",
                # 发布物料（真正对外发出去的文案）同样属于公开数字口径——
                # 曾因不在清单里而长期停在「38 页 / 1767 测试」两代前的旧数（2026-09-15 修复）。
@@ -207,7 +224,7 @@ def test_readme_page_count_matches_actual_pages():
 
 def test_thesis_backtest_figure_prevents_title_clipping():
     """论文回测图须显式给足画布宽高，否则长中文标题被右边缘裁掉。"""
-    src = _src(GEN_BACKTEST_FIG)
+    src = _src(_locate_thesis("gen_backtest_eval.py"))
     assert "width=1200" in src and "height=640" in src, \
         "须显式设置画布宽高（默认 700x500 会把标题截断成 '…2026-09-0'）"
     assert "title=dict(" in src and 'xanchor="center"' in src, "标题应居中而非左贴边"
