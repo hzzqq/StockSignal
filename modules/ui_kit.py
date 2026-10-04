@@ -213,6 +213,27 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .xc-err-body{min-width:0}
 .xc-err-title{font-weight:700;font-size:14.5px}
 .xc-err-hint{margin-top:6px;font-size:12.5px;color:var(--ss-text-muted)}
+
+/* ---- H1+ 数据来源底账徽标（additive，T-212；纯前端 <details>，零 rerun） ---- */
+.ss-prov{margin:8px 0;font-size:12.5px;color:var(--ss-text-muted)}
+.ss-prov>summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:6px;
+  padding:4px 10px;border:1px solid var(--ss-line);border-radius:var(--ss-radius-pill);
+  background:var(--ss-surface-2);color:var(--ss-text-muted);font-weight:600}
+.ss-prov>summary::-webkit-details-marker{display:none}
+.ss-prov[open]>summary{color:var(--ss-accent);border-color:var(--ss-accent)}
+.ss-prov-table{margin-top:8px;border:1px solid var(--ss-line);border-radius:var(--ss-radius);overflow:hidden}
+.ss-prov-row{display:flex;gap:10px;align-items:center;padding:6px 10px;border-top:1px solid var(--ss-line)}
+.ss-prov-row:first-child{border-top:none}
+.ss-prov-name{flex:0 0 auto;font-weight:600;color:var(--ss-text)}
+.ss-prov-meta{flex:1 1 auto;color:var(--ss-text-muted)}
+.ss-prov-st{border-radius:var(--ss-radius-pill);padding:1px 8px;font-size:11px;font-weight:700;flex:0 0 auto;
+  background:color-mix(in srgb,var(--ss-text-muted) 16%,transparent);color:var(--ss-text-muted)}
+.ss-prov-st.ok{background:color-mix(in srgb,var(--ss-ok) 16%,transparent);color:var(--ss-ok)}
+.ss-prov-st.warn{background:color-mix(in srgb,var(--ss-warn) 18%,transparent);color:var(--ss-warn)}
+.ss-prov-st.stale,.ss-prov-st.unknown{background:color-mix(in srgb,var(--ss-danger) 16%,transparent);color:var(--ss-danger)}
+.ss-prov-fb{background:color-mix(in srgb,var(--ss-accent) 16%,transparent);color:var(--ss-accent);
+  border-radius:var(--ss-radius-pill);padding:1px 8px;font-size:11px;font-weight:700;flex:0 0 auto}
+
 </style>
 """
 
@@ -240,8 +261,7 @@ _HERO_FALLBACK_CSS = _TOKEN_CSS + r"""
   box-shadow:0 6px 18px rgba(102,126,234,.42)}
 .xc-hero-title{font-size:22px;font-weight:800;letter-spacing:.3px;color:var(--ss-text);line-height:1.2}
 .xc-hero-sub{font-size:13px;color:var(--ss-text-muted);margin-top:4px;font-weight:500}
-.xc-hero-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:relative;z-index:1}
-</style>
+.xc-hero-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:relative;z-index:1}</style>
 """
 
 
@@ -304,6 +324,69 @@ def _info_banner_html(text: str, kind: str = "info", icon: str = "💡") -> str:
         f'<div>{html.escape(text)}</div>'
         f'</div>'
     )
+
+
+_PROV_ST_LABEL = {"ok": "正常", "warn": "偏旧", "stale": "陈旧", "unknown": "未知"}
+
+
+def _prov_badge_html(rows, title: str = "数据来源") -> str:
+    """H1+ 数据来源底账徽标 HTML（纯函数，便于离线单测 / XSS 校验）。
+
+    诚实语义（守 §五）：``unknown`` 显示「未取到」且状态标「未知」，**绝不显示为正常**；
+    ``is_fallback=True`` 显式标「回退源」。纯前端 ``<details>``，**不触发任何 rerun**。
+    空行 → 返回 ``""``（调用方据此零破坏）。
+    """
+    rows = list(rows or [])
+    if not rows:
+        return ""
+    n_old = sum(1 for r in rows if r.get("status") in ("warn", "stale"))
+    items = []
+    for r in rows:
+        st = r.get("status", "unknown")
+        st = st if st in _PROV_ST_LABEL else "unknown"
+        name = html.escape(str(r.get("name") or r.get("key") or "?"))
+        as_of = r.get("as_of")
+        if not as_of:
+            meta = "未取到（未知）"
+        else:
+            meta = html.escape(str(as_of))
+            if r.get("lag_days") is not None:
+                meta += f"（滞后 {r['lag_days']} 天）"
+        fb = '<span class="ss-prov-fb">回退源</span>' if r.get("is_fallback") is True else ""
+        items.append(
+            f'<div class="ss-prov-row"><span class="ss-prov-name">{name}</span>'
+            f'<span class="ss-prov-meta">{meta}</span>{fb}'
+            f'<span class="ss-prov-st {st}">{_PROV_ST_LABEL[st]}</span></div>')
+    head = f"ⓘ {html.escape(str(title or '数据来源'))}"
+    if n_old:
+        head += f" · ⚠️ {n_old} 源偏旧/陈旧"
+    return (f'<details class="ss-prov"><summary>{head}</summary>'
+            f'<div class="ss-prov-table">{"".join(items)}</div></details>')
+
+
+def prov_badge(rows=None, *, slug: str = None, title: str = "数据来源",
+               includes: dict = None) -> None:
+    """渲染「ⓘ 数据来源」底账徽标（H1+ 方向 A，additive-only）。
+
+    :param rows: 直接给底账行（``data_provenance.build_provenance`` 输出）
+    :param slug: 或给页面 slug，经 ``data_provenance.sources_for`` 取依赖源；
+        **未登记页面 → no-op**（AC-A5 零破坏）
+    :param includes: 可选，调用方确知的 `{key: {is_fallback, source_chain}}`
+
+    只读展示：不取数、不写盘、不触发 rerun。
+    """
+    try:
+        from modules import data_provenance as _dp
+        if rows is None and slug:
+            _keys = _dp.sources_for(slug)
+            if not _keys:
+                return
+            rows = _dp.build_provenance(_keys, includes=includes)
+        _h = _prov_badge_html(rows, title=title)
+        if _h:
+            st.markdown(_h, unsafe_allow_html=True)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[ui_kit] prov_badge 处理异常: {e}")
 
 
 def _xc_card_html(label: str = "", value: str = "", delta: str = "", delta_dir: str = "flat",
