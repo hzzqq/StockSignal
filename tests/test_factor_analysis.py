@@ -78,7 +78,9 @@ def test_build_panels_insufficient_returns_none():
 def test_build_panels_with_fake_fetcher():
     def _fetch(code):
         return pd.DataFrame({"日期": pd.date_range("2026-01-01", periods=60),
-                             "收盘": np.linspace(10, 20, 60) + hash(code) % 5,
+                             # T-207：原用 hash(code)（进程随机化 → 非确定性夹具）；
+                             # 改确定性偏移，与 T-204 同口径消除测试非确定性。
+                             "收盘": np.linspace(10, 20, 60) + sum(map(ord, code)) % 5,
                              "换手率": np.linspace(1, 3, 60)})
     fp, ret, errs = build_panels(["a", "b", "c", "d"], 60, "momentum", _fetch)
     assert fp is not None and not fp.empty
