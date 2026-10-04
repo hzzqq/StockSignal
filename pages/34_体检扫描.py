@@ -524,8 +524,9 @@ def result_board():
         csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
         st.download_button("⬇️ 导出体检结果 CSV", data=csv,
                            file_name="体检扫描结果.csv", mime="text/csv")
-    except Exception:
-        pass
+    except Exception as e:
+        # T-205：导出构建失败曾静默吞——导出按钮会静默消失、用户无任何提示
+        logger.warning(f"[体检扫描] 体检结果 CSV 导出构建失败，导出按钮不可用: {e}")
 
     # 卡片式待办列表（按优先级着色 + 多维打分条）
     st.markdown("### 📋 优先待办清单")
@@ -720,8 +721,9 @@ def risk_board():
         csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
         st.download_button("⬇️ 导出排雷结果 CSV", data=csv,
                            file_name="个股风险排雷.csv", mime="text/csv")
-    except Exception:
-        pass
+    except Exception as e:
+        # T-205：导出构建失败曾静默吞——导出按钮会静默消失、用户无任何提示
+        logger.warning(f"[体检扫描] 排雷结果 CSV 导出构建失败，导出按钮不可用: {e}")
 
     # 单只钻取：选一只看六维明细与「未知」原因
     st.markdown("### 🔎 单只风险明细")

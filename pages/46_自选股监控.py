@@ -8,6 +8,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import concurrent.futures as _cf
+import logging
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
@@ -25,6 +26,8 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher, latest_quote_time
 from modules.ui_theme import sf_card, sf_metric
 from modules.ui_kit import xc_success_box, xc_warn_box
+
+logger = logging.getLogger(__name__)
 dark = render_standard_page(title='自选股监控', icon='📡', caption='实时跟踪自选股现价与涨跌幅；行情接口异常时自动回退本地源。数据仅供参考，非投资建议。', layout='wide')
 
 sf_card("自选股监控导读", "一览自选股实时现价与涨跌幅（A股红涨绿跌），交易时段自动刷新；可一键跳转形态选股做技术体检或个股分析做深度诊断。", icon="📡")
@@ -345,8 +348,9 @@ def _load_scores_map(codes: list) -> dict:
             for r in body.get('data', []):
                 if isinstance(r, dict):
                     scores[_norm_code(r.get('stock_code', ''))] = int(r.get('score', 0))
-    except Exception:
-        pass
+    except Exception as e:
+        # T-205：用户打分取数失败曾静默吞——打分将静默显示为缺失
+        logger.warning(f"[自选股监控] 用户打分取数失败，打分将显示为空: {e}")
     return scores
 
 def _build_pool_df(codes: list, scores_map: dict) -> pd.DataFrame | None:

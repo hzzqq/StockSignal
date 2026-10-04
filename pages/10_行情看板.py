@@ -413,8 +413,9 @@ def _wl_quote_batch(codes, token):
                     quotes[code] = q
                 elif isinstance(q, dict) and 'error' not in q and q.get('current'):
                     quotes[code] = q
-    except Exception:
-        pass
+    except Exception as e:
+        # T-205：批量行情接口失败曾静默吞（随后有本地逐只回退，但失败本身须留痕便于诊断）
+        logger.warning(f"[行情看板] 批量行情接口失败，回退本地逐只取数: {e}")
     missing = [c for c in codes if c not in quotes]
     if missing:
         with _cf.ThreadPoolExecutor(max_workers=4) as ex:
