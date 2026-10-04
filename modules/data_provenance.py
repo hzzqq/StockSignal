@@ -27,12 +27,16 @@ logger = logging.getLogger(__name__)
 # key 取自 data_health.DATA_SOURCES（源定义**不在此重复**，仅登记「谁依赖谁」）。
 # 未登记的页面 = 不渲染徽标（AC-A5 零破坏）。
 PAGE_SOURCES: dict[str, list[str]] = {
-    "10_行情看板": ["market_temp", "daily_snapshot"],
+    # ★ 诚实优先：仅登记「页面的数据**确实**来自 data_health 注册表源」的映射，绝不虚挂。
+    #  54_今日决策面板：牧羊人情绪 / P1 事件因子 / 连板晋级率 / 今日快照 / 校准样本
+    #  （decision 决策链，见该页 import data_health + render_freshness_badge）。
     "54_今日决策面板": ["shepherd_sentiment", "p1_event", "ladder",
                         "daily_snapshot", "calibration_evidence"],
-    "50_市场情绪": ["market_temp", "shepherd_sentiment"],
-    "24_个股研究": ["daily_snapshot"],
-    "76_实时强势榜": ["market_temp"],
+    # ★ 以下页面**暂不登记**（勘测实证后如实留白，勿猜）：
+    #  · 10_行情看板（指数迷你卡 = 实时指数行情）、76_实时强势榜（ems/akshare/腾讯三层）、
+    #    24_个股研究（个股实时/财务）等，数据来自**实时行情/三方源**，**不在** data_health
+    #    注册表内。若要对它们溯源，须先**扩展注册表**（登记这些源及其 as_of 抽取方式，另立批次），
+    #    否则把 decision 源挂上去＝误导用户。
 }
 
 # key → 源定义（复用 data_health 注册表，不自建）
