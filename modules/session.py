@@ -91,17 +91,11 @@ def init_session_state() -> None:
     # 1) session_state 里已有 → 直接用；否则 2) 从 URL query_params 恢复
     if not st.session_state[KEY_TOKEN]:
         _restore_from_query_params()
-    # 2.5) 仍无 token → 浏览器 localStorage 兜底（F5/导航丢失 query_params 时）。
-    #      set_auth 已把 token 写入 localStorage；此处注入 JS：若 localStorage 有 token
-    #      且当前 URL 无 token，则把 token 补回 URL 并触发父页面跳转，由本函数
-    #      再次运行时从 query_params 接管。此前这步缺失 → 刷新后 localStorage 里的
-    #      token 成了「死保险」，URL 一丢就掉登录（本次回归的根因）。
-    if not st.session_state[KEY_TOKEN]:
-        try:
-            from .auth_persist import restore_from_local_storage
-            restore_from_local_storage()
-        except Exception as e:
-            logger.warning(f"[session] restore_from_local_storage error: {e}")
+    # 2.5) T-206：localStorage 兜底已废弃删除。原 auth_persist 用 st.markdown 注入
+    #      <script>，被 Streamlit 剥离（从未生效）；且其「补回 URL 并跳转父页」依赖
+    #      component iframe 导航父窗口，被 sandbox（无 allow-top-navigation）拦截——
+    #      架构上不可行，勿再引入。登录态持久化现由 URL query_params 承载：登录写、
+    #      导航 href 带 token（session.nav_query_string）、每帧 _sync_query_params 回写。
 
     # 3) 把已恢复的 token「回写」到 URL query_params（刷新保持登录的根本保障）。
     # 原实现漏了这一步，导致仅凭 localStorage 兜底恢复的 token 始终未同步回 URL，
@@ -179,20 +173,10 @@ def _restore_from_query_params() -> None:
                 return
             if r is _REFRESH_REJECTED:
                 _clear_query_params()
-                try:
-                    from .auth_persist import clear_local_storage
-                    clear_local_storage()
-                except Exception as e:
-                    logger.warning(f"[session] clear_local_storage error: {e}")
         elif user is _TOKEN_INVALID:
-            # token 明确失效（过期/伪造）→ 清掉 URL，并同步清 localStorage，
-            # 否则 localStorage 里的失效 token 会让 2.5) 兜底逻辑无限重定向。
+            # token 明确失效（过期/伪造）→ 清掉 URL 参数（T-206：localStorage 兜底
+            # 已删除，无需再同步清理）。
             _clear_query_params()
-            try:
-                from .auth_persist import clear_local_storage
-                clear_local_storage()
-            except Exception as e:
-                logger.warning(f"[session] clear_local_storage error: {e}")
         else:
             # None = 网络/服务端瞬态错误：保留现有 token 与登录态，后端恢复后自动恢复
             logger.warning("[session] token 校验网络异常，保留现有登录态，待后端恢复")
@@ -373,24 +357,13 @@ def set_auth(token: str, user: dict) -> None:
         st.query_params[QP_USER] = json.dumps(user, ensure_ascii=False)
     except Exception as e:
         logger.warning(f"[session] set_auth query_params error: {e}")
-    # 双保险：写入浏览器 localStorage，F5 整页刷新后也能自动恢复
-    try:
-        from .auth_persist import save_to_local_storage
-        save_to_local_storage(token, user)
-    except Exception as e:
-        logger.warning(f"[session] set_auth localStorage error: {e}")
 
 
 def clear_auth() -> None:
-    """退出登录时调用：清除 session_state + URL query_params + 浏览器 localStorage。"""
+    """退出登录时调用：清除 session_state + URL query_params。"""
     st.session_state[KEY_TOKEN] = None
     st.session_state[KEY_USER] = None
     _clear_query_params()
-    try:
-        from .auth_persist import clear_local_storage
-        clear_local_storage()
-    except Exception as e:
-        logger.warning(f"[session] clear_auth localStorage error: {e}")
 
 
 def _clear_query_params() -> None:
@@ -407,10 +380,9 @@ def nav_query_string() -> str:
     """T-201：构造顶栏/命令面板导航 href 的查询串（token + u + prefs）。
 
     背景：<a href> 整页跳转会新建 Streamlit 会话，登录态/偏好只能靠 URL 恢复；
-    localStorage 兜底脚本（auth_persist）被 Streamlit st.markdown 剥离 <script>
-    从未生效，且组件 iframe 发起的父页导航被 sandbox 拦截（无 allow-top-
-    navigation）——故 token 必须随每个导航 href 走，落页由 _restore_from_query_params
-    快速路径（带 u 免 /me 往返）原位恢复登录态与界面状态。
+    localStorage 兜底已废弃（T-206 删除：st.markdown 注入的 <script> 被 Streamlit
+    剥离从未生效，组件 iframe 又无法导航父页），故 token 必须随每个导航 href 走，
+    落页由 _restore_from_query_params 快速路径（带 u 免 /me 往返）原位恢复登录态与界面状态。
 
     未登录返回空串（调用方据此省略查询串）。
     """

@@ -36,7 +36,7 @@ def _call_name(node: ast.Call):
 def _is_write_call(call: ast.Call) -> bool:
     name = _call_name(call)
     if name in {"write", "writelines", "dump", "savefig", "commit", "flush",
-                "save_to_local_storage", "save_prefs", "atomic_write",
+                "save_prefs", "atomic_write",
                 "chmod"}:  # chmod=写安全元数据，失败静默有安全影响（T-176 加固）
         return True
     # pandas 风格导出：仅当指定了目标路径才算落盘；

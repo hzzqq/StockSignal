@@ -10,9 +10,9 @@ modules/top_nav.py — 阿里云风格顶部 Mega 导航（T-195，侧栏退役�
 设计铁律：
   · 纯视觉/导航，不改任何业务逻辑（additive-only）
   · 颜色全部走 CSS 变量（--acc1/--acc2/--card/--txt/--txt2/--border），六套风格自动适配
-  · 页面跳转用 <a href="/{slug}">（Streamlit 页面 slug），整页刷新由
-    auth_persist（localStorage token）+ prefs 管道（URL/localStorage/后端）
-    双保险恢复登录态与界面风格——已有机制，零新增风险
+  · 页面跳转用 <a href="/{slug}?token=…&u=…&prefs=…">（T-201：token 随 href 走，
+    落页由 URL query_params 原位恢复登录态与界面风格；T-206 已删除从未生效的
+    auth_persist localStorage 兜底）
   · 悬停展开纯 CSS（:hover），无 JS 依赖，可靠执行
 """
 from __future__ import annotations
