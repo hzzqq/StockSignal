@@ -63,7 +63,7 @@ def test_apply_theme_wired():
 def test_switcher_and_injector_exist():
     """T-195 侧栏退役后：style_switcher 保留兼容（sidebar 渲染退役），注入器仍在。
 
-    界面风格选择的用户入口已迁移至顶栏右侧用户下拉（top_nav ssSetStyle JS），
+    界面风格选择的用户入口已迁移至顶栏右侧用户下拉（T-201 起为纯锚点导航），
     持久化管道（URL prefs/localStorage/后端）与 apply_style_css 注入不变。
     """
     assert callable(ui_theme.style_switcher)  # 兼容保留（生产不再调用）
@@ -71,11 +71,12 @@ def test_switcher_and_injector_exist():
     assert callable(ui_theme._sync_style_mode)
     sw_src = inspect.getsource(ui_theme.style_switcher)
     assert "selectbox" in sw_src  # 函数体保留（未删，回滚可用）
-    # 生产入口迁移：顶栏 JS 风格下拉必须存在
+    # 生产入口迁移：T-201 起顶栏风格切换为纯锚点导航（用户手势不受 iframe
+    # sandbox 限制；原 JS select+ssSetStyle 路径因作用域/sandbox 双重缺陷废除）
     from modules import top_nav
     tn_src = inspect.getsource(top_nav)
-    assert "ssSetStyle" in tn_src, "顶栏 JS 风格切换必须存在"
-    assert "ss_prefs" in tn_src, "顶栏 JS 必须写 prefs localStorage（三路持久化一致）"
+    assert "ss-style-opt" in tn_src, "顶栏风格锚点切换必须存在"
+    assert 'href="?' in tn_src, "风格锚点必须以相对 ?prefs 查询串导航"
 
 
 def test_non_classic_styles_have_visual_layers():

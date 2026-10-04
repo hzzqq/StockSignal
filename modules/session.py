@@ -403,6 +403,35 @@ def _clear_query_params() -> None:
         logger.warning(f"[session] _clear_query_params error: {e}")
 
 
+def nav_query_string() -> str:
+    """T-201：构造顶栏/命令面板导航 href 的查询串（token + u + prefs）。
+
+    背景：<a href> 整页跳转会新建 Streamlit 会话，登录态/偏好只能靠 URL 恢复；
+    localStorage 兜底脚本（auth_persist）被 Streamlit st.markdown 剥离 <script>
+    从未生效，且组件 iframe 发起的父页导航被 sandbox 拦截（无 allow-top-
+    navigation）——故 token 必须随每个导航 href 走，落页由 _restore_from_query_params
+    快速路径（带 u 免 /me 往返）原位恢复登录态与界面状态。
+
+    未登录返回空串（调用方据此省略查询串）。
+    """
+    token = st.session_state.get(KEY_TOKEN)
+    if not token:
+        return ""
+    try:
+        user = st.session_state.get(KEY_USER) or {}
+        u_safe = {k: v for k, v in user.items() if k != "avatar"}
+        params = {
+            QP_TOKEN: token,
+            QP_USER: json.dumps(u_safe, ensure_ascii=False),
+            QP_PREFS: json.dumps(_current_prefs(), ensure_ascii=False),
+        }
+        from urllib.parse import urlencode
+        return urlencode(params)
+    except Exception as e:
+        logger.warning(f"[session] nav_query_string error: {e}")
+        return ""
+
+
 # ══════════════════════════════════════════════════════════════
 # 用户偏好（主题 / 字体大小）持久化：与登录态同源机制，保证刷新 / 跨页 / 关闭浏览器后恢复
 # ══════════════════════════════════════════════════════════════

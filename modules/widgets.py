@@ -550,18 +550,22 @@ def inject_global_widgets() -> None:
     from modules.scroll_nav import inject_scroll_nav
     from modules.top_nav import build_nav_index, render_topnav, topnav_extra_js
     from modules.ui_theme import get_current_style
+    # T-201：导航查询串（token+u+prefs）——顶栏/面板所有 <a href> 携带，
+    # 整页跳转后由 query_params 快速路径原位恢复登录态与界面状态
+    from modules.session import nav_query_string
+    _nav_qs = nav_query_string()
     # T-195：阿里云风格顶栏 Mega 导航（侧栏退役，唯一主导航）
     render_topnav(
         nav_groups=_NAV_GROUPS, nav_hero=_NAV_HERO, nav_admin=_NAV_ADMIN,
         favorites=load_nav_favorites(), recents=get_recent_stocks(),
         current_style=get_current_style(), is_admin_user=is_admin(),
-        cur_base=_current_page_basename())
+        cur_base=_current_page_basename(), nav_qs=_nav_qs)
     # T-197：命令面板索引 + 顶栏 JS 经 extra_js 并入 scroll_nav 单次注入
     # （scroll_nav 约束：同页多次 components.html 仅首次脚本可靠执行）
     _nav_index = build_nav_index(_NAV_GROUPS, _NAV_HERO, _NAV_ADMIN,
-                                 load_nav_favorites())
+                                 load_nav_favorites(), nav_qs=_nav_qs)
     from modules.drawer import drawer_js
-    inject_scroll_nav(nav_index=_nav_index,
+    inject_scroll_nav(nav_index=_nav_index, nav_qs=_nav_qs,
                       extra_js=topnav_extra_js() + drawer_js())
 _NAV_HERO = [('pages/54_今日决策面板.py', '今日决策面板', '🎯')]
 # 常用（高频直达）：默认 Top5 高频页（不含 Hero 已常驻的 54），用户无需扫描分组即可一键进入。

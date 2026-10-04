@@ -215,7 +215,7 @@ def _scroll_container_js(var_name: str = "C") -> str:
 
 
 def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom,
-                bottom_marker='', nav_index=None, extra_js=''):
+                bottom_marker='', nav_index=None, extra_js='', nav_qs=''):
     """构建【单一 <script> 块】的导航 + C 键清缓存拦截脚本。
 
     关键：所有逻辑（▲回到顶部 / ▼回到底部 / C键拦截+安全网）合并进**同一个**
@@ -347,6 +347,7 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom,
     P.__xc_dismiss_observer.observe(P.document.body,{childList:true,subtree:true});
     /* ── T-197 命令面板（Ctrl+K / ⌘K）：页面/功能模糊搜索 + 股票代码直达 ── */
     var SS_IDX = __NAV_INDEX_JSON__;
+    var SS_QS = __NAV_QS__;  /* T-201 导航查询串（token+u+prefs），拼进动态 href */
     var pal = P.document.getElementById('ssCmdPalette');
     if (!pal && SS_IDX && SS_IDX.length) {
       pal = P.document.createElement('div'); pal.id = 'ssCmdPalette';
@@ -366,7 +367,8 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom,
         kw = (kw || '').toLowerCase().trim();
         items = [];
         if (/^\\d{6}$/.test(kw)) {
-          items.push({label:'📈 打开个股分析：' + kw, href:'/个股分析?pick_stock=' + kw});
+          items.push({label:'📈 打开个股分析：' + kw,
+            href:'/个股分析?pick_stock=' + kw + (SS_QS ? '&' + SS_QS : '')});
         }
         for (var i=0;i<SS_IDX.length;i++){
           var it = SS_IDX[i];
@@ -397,7 +399,11 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom,
         } else if (e.key === 'Enter') {
           e.preventDefault();
           var idx = cur >= 0 ? cur : 0;
-          if (as[idx]) { closePal(); window.parent.location.href = as[idx].getAttribute('href'); }
+          /* T-201：改为点击面板内的真实 <a>（父文档元素）。组件 iframe 脚本直接
+             赋值 window.parent.location 会被 sandbox（无 allow-top-navigation）
+             静默拦截——历史版本 Enter 跳转失效的根因。锚点自身 href 已带
+             token+u+prefs（T-201 导航查询串），整页跳转后原位恢复登录态。 */
+          if (as[idx]) { closePal(); try { as[idx].click(); } catch (e3) {} }
         } else if (e.key === 'Escape') { closePal(); }
       });
       pal.querySelector('.ss-cmd-backdrop').addEventListener('mousedown', closePal);
@@ -435,6 +441,7 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom,
             .replace('__BOTTOM_MARKER_JS__', marker_js)
             .replace('__BOTTOM_MARKER_SEL__', marker_sel)
             .replace('__NAV_INDEX_JSON__', json.dumps(nav_index or []))
+            .replace('__NAV_QS__', json.dumps(nav_qs or ''))
             .replace('__EXTRA_JS__', extra_js or ''))
     return body
 
@@ -442,7 +449,8 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom,
 def inject_scroll_nav(show_top: bool = True, show_bottom: bool = False,
                       threshold_px: int = DEFAULT_TOP_THRESHOLD, bottom_threshold: int = 150,
                       dark: bool = False, bottom_marker: str = '',
-                      nav_index: list | None = None, extra_js: str = ''):
+                      nav_index: list | None = None, extra_js: str = '',
+                      nav_qs: str = ''):
     """注入 CSS + 悬浮导航按钮 JS + C 键清缓存拦截。每个页面顶部调一次（幂等）。
 
     参数：
@@ -452,14 +460,21 @@ def inject_scroll_nav(show_top: bool = True, show_bottom: bool = False,
       bottom_threshold -- ▼ 显隐阈值：距底大于此值才显现
       dark             -- 是否暗色（影响 ▲/▼ 配色）
       bottom_marker    -- 非空时，顶层文档存在该 testid 标记元素即启用 ▼（用于星辰 AI 对话页）
+      nav_index        -- 命令面板页面索引（T-197）
+      nav_qs           -- T-201 导航查询串（token+u+prefs）：拼进动态生成的
+                          pick_stock href（静态索引 href 已由 build_nav_index 携带）
 
-    实现：CSS + JS 合并为**一次** components.html 注入。
+    实现：CSS + JS 合并为**一次** components.html 注入；T-201 另经 st.markdown 把
+    SCROLL_NAV_CSS 同步注入【父文档】——组件 iframe 内的 <style> 作用不到父文档，
+    而面板/▲▼按钮 DOM 全部创建在父文档（历史版本命令面板样式实际缺失）。
     关键约束（见模块 docstring）：Streamlit 对 st.markdown 内的 <script> 会过滤、
-    且多次 components.html 仅首次可靠执行；故必须合并单次注入。
+    且多次 components.html 仅首次可靠执行；故 JS 必须合并单次注入。
     """
+    # T-201：父文档 CSS 管道（style 标签不受 markdown 剥离影响；重复注入幂等无害）
+    st.markdown(SCROLL_NAV_CSS, unsafe_allow_html=True)
     payload = SCROLL_NAV_CSS + "\n" + _nav_script(
         dark, threshold_px, bottom_threshold, show_top, show_bottom, bottom_marker,
-        nav_index=nav_index, extra_js=extra_js)
+        nav_index=nav_index, extra_js=extra_js, nav_qs=nav_qs)
     try:
         components.html(payload, height=0)
     except Exception as e:  # bare mode / 无 ScriptRunContext 时降级为 markdown，避免抛错

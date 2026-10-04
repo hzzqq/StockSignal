@@ -56,12 +56,17 @@ def test_mega_structure_complete(monkeypatch):
     assert "ss-mega-sub" not in html or "ss-mega-sub" in html  # 子分类标记可选
     assert 'href="/今日决策面板"' in html                # Hero 直达
     assert 'href="/行情看板"' in html                    # slug 链接
-    assert "ss-user-menu" in html and "ssSetStyle" in html  # 用户下拉 + 风格 JS
-    assert 'value="cyber" selected' in html              # 当前风格选中态
+    assert "ss-user-menu" in html and "ss-style-opt" in html  # 用户下拉 + 风格锚点
+    html_part = html[html.rindex("</style>") + len("</style>"):]
+    assert html_part.count("ss-style-cur") == 1          # 当前风格唯一选中态（cyber）
+    assert "✓" in html                                   # 选中风格打勾标记
+    assert "ss-style-select" not in html                 # T-201：JS select 已废除
     assert "ss-login" not in html                        # 不误渲染登录卡
-    # T-197：JS（含 ss_prefs 持久化键）经 extra_js 通道注入，不在 markdown HTML 内
+    # T-201：JS 作用域修复——搜索函数挂 P（父窗口），mega 钉住绑定存在
     js = top_nav.topnav_extra_js()
-    assert "ss_prefs" in js and "ui_style" in js         # localStorage 持久化键一致
+    assert "P.ssFocusSearch" in js
+    assert "__ssMegaBound" in js and "ss-menu-pinned" in js
+    assert "ssSetStyle" not in js                        # JS 风格切换路径已废除
 
 
 def test_sidebar_retired_css(monkeypatch):
@@ -164,3 +169,68 @@ def test_topnav_html_no_blank_line_split(monkeypatch):
     end = html_part.rindex("</div>")
     for ln in html_part[start:end].splitlines():
         assert ln.strip() != "", f"html 段含纯空白行（markdown 会转义后续闭合标签）: {ln!r}"
+
+
+def test_nav_qs_propagated_to_all_hrefs(monkeypatch):
+    """T-201：nav_qs（token+u+prefs）必须拼进全部导航 href——整页跳转丢 token
+    即落登录 gate（老板反馈「点击功能模块要求重新登录」的根因）。
+    """
+    monkeypatch.setattr("streamlit.markdown", _fake_markdown)
+    render_topnav(nav_groups=_NAV_GROUPS, nav_hero=_NAV_HERO, nav_admin=_NAV_ADMIN,
+                  favorites=_FAVS, recents=_RECENTS, current_style="classic",
+                  is_admin_user=False, cur_base="10_行情看板.py",
+                  nav_qs="token=tok123&u=%7B%7D&prefs=%7B%7D")
+    html = _drawn[-1]
+    assert 'href="/?token=tok123' in html                       # 品牌/首页
+    assert 'href="/行情看板?token=tok123' in html               # mega 条目
+    assert 'href="/策略回测?token=tok123' in html               # 常用条目
+    assert "pick_stock=600519&token=tok123" in html             # 最近浏览合并参数
+    assert 'href="/星辰AI?token=tok123' in html                 # 右上角图标
+    assert 'href="/我的?token=tok123' in html                   # ⚙️/个人中心
+    assert 'href="?token=tok123' in html                        # 风格锚点（相对路径）
+    assert 'href="/股吧"' not in html                           # 不允许再有裸 slug
+    # 未传 nav_qs 时保持原 slug（向后兼容）
+    render_topnav(nav_groups=_NAV_GROUPS, nav_hero=_NAV_HERO, nav_admin=_NAV_ADMIN,
+                  favorites=[], recents=[], current_style="classic",
+                  is_admin_user=False, cur_base="")
+    assert 'href="/行情看板"' in _drawn[-1]
+
+
+def test_style_anchor_carries_switched_prefs(monkeypatch):
+    """T-201：风格锚点 href 必须携带「当前 prefs 仅替换 ui_style」的查询串，
+    相对 ?href 保留当前路径；选中项唯一且带 ✓。
+    """
+    monkeypatch.setattr("streamlit.markdown", _fake_markdown)
+    render_topnav(nav_groups=_NAV_GROUPS, nav_hero=_NAV_HERO, nav_admin=_NAV_ADMIN,
+                  favorites=[], recents=[], current_style="ink",
+                  is_admin_user=False, cur_base="",
+                  nav_qs="token=tok123&u=%7B%7D&prefs=%7B%22ui_style%22%3A%20%22ink%22%7D")
+    html = _drawn[-1]
+    html_part = html[html.rindex("</style>") + len("</style>"):]
+    assert html_part.count("ss-style-cur") == 1
+    assert "✓ D · 东方墨韵" in html                             # ink 为当前风格
+    assert "prefs=" in html and "token=tok123" in html          # 锚点带 prefs+token
+    for k in ("classic", "terminal", "swiss", "aurora", "ink", "cyber"):
+        assert f"ui_style%22%3A+%22{k}%22" in html or f"ui_style%22%3A%22{k}%22" in html
+
+
+def test_mega_pinned_and_full_height_css():
+    """T-201：①点击钉住 CSS 契约 ②菜单项满栏高（消除项底与面板顶之间的
+    hover 死区——鼠标移入面板即收起的根因）。
+    """
+    assert ".ss-menu.ss-menu-pinned .ss-mega{display:block}" in TOPNAV_CSS
+    menus_rule = TOPNAV_CSS[TOPNAV_CSS.index(".ss-topnav-menus{"):]
+    menus_rule = menus_rule[:menus_rule.index("}")]
+    assert "align-self:stretch" in menus_rule
+    menu_rule = TOPNAV_CSS[TOPNAV_CSS.index(".ss-menu{"):]
+    menu_rule = menu_rule[:menu_rule.index("}")]
+    assert "height:100%" in menu_rule and "align-items:center" in menu_rule
+
+
+def test_build_nav_index_carries_qs():
+    """T-201：命令面板索引 href 携带导航查询串（面板条目为整页跳转）。"""
+    idx = top_nav.build_nav_index(_NAV_GROUPS, _NAV_HERO, [], [],
+                                  nav_qs="token=tok123")
+    assert idx, "索引不应为空"
+    for it in idx:
+        assert it["href"].startswith("/") and "token=tok123" in it["href"], it

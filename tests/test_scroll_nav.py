@@ -38,6 +38,10 @@ PLACEHOLDERS = (
     "__SCROLL_CONTAINER_JS__",
     "__TOPICON__",
     "__TOPCLS__",
+    # T-197/T-201
+    "__NAV_INDEX_JSON__",
+    "__NAV_QS__",
+    "__EXTRA_JS__",
 )
 
 
@@ -257,3 +261,61 @@ def test_v3_top_icon_is_inline_svg():
     assert "<svg" in body
     assert "currentColor" in body
     assert "aria-label" in body, "按钮须有无障碍标签"
+
+
+# ───────────── T-201：命令面板跳转 / 父文档 CSS 管道 / 导航查询串 ─────────────
+
+def test_palette_enter_uses_anchor_click_not_parent_location():
+    """T-201：面板 Enter 必须点击面板内真实 <a>（父文档元素）——组件 iframe 脚本
+    直接赋值 window.parent.location 会被 sandbox（无 allow-top-navigation）静默
+    拦截，历史版本 Enter 跳转失效的根因。
+    """
+    body = sn._nav_script(dark=False, threshold_px=120, bottom_threshold=150,
+                          show_top=True, show_bottom=False, bottom_marker="",
+                          nav_index=[{"label": "x", "icon": "x", "href": "/x", "group": "g"}],
+                          nav_qs="token%3Dtok")
+    assert "as[idx].click()" in body
+    assert "window.parent.location.href" not in body, \
+        "脚本发起的父页导航会被 sandbox 拦截，必须走父文档锚点点击"
+
+
+def test_palette_dynamic_stock_href_carries_nav_qs():
+    """T-201：6 位股票代码直达 href 必须拼导航查询串（token+u+prefs），
+    否则代码直达跳转后丢登录态/风格。
+    """
+    body = sn._nav_script(dark=False, threshold_px=120, bottom_threshold=150,
+                          show_top=True, show_bottom=False, bottom_marker="",
+                          nav_index=[{"label": "x", "icon": "x", "href": "/x", "group": "g"}],
+                          nav_qs="token%3Dtok123")
+    assert "pick_stock=' + kw + (SS_QS ? '&' + SS_QS : '')" in body
+    assert "var SS_QS" in body
+
+
+def test_inject_scroll_nav_emits_parent_css_pipe(monkeypatch):
+    """T-201：SCROLL_NAV_CSS 必须同步经 st.markdown 注入【父文档】——组件 iframe
+    内的 <style> 作用不到父文档，而命令面板/▲▼按钮 DOM 全部创建在父文档
+    （历史版本面板样式实际缺失，搜索弹层裸 HTML 的根因）。
+    """
+    md_captured = []
+    monkeypatch.setattr(st, "markdown",
+                        lambda payload, **k: md_captured.append(payload))
+    monkeypatch.setattr(components, "html", lambda payload, height=0, **k: None)
+    sn.inject_scroll_nav(show_top=True, dark=True)
+    assert any(".ss-cmd-box" in p and ".sf-scroll-top" in p for p in md_captured), \
+        "父文档未收到面板/悬浮按钮 CSS"
+
+
+def test_inject_scroll_nav_passes_nav_qs(monkeypatch):
+    """T-201：inject_scroll_nav 的 nav_qs 参数必须落到脚本 SS_QS（动态 href 用）。"""
+    html_cap = {}
+
+    def fake_html(script, height=0, **k):
+        html_cap["script"] = script
+
+    monkeypatch.setattr(st, "markdown", lambda payload, **k: None)
+    monkeypatch.setattr(components, "html", fake_html)
+    sn.inject_scroll_nav(nav_index=[{"label": "x", "icon": "x",
+                                     "href": "/x", "group": "g"}],
+                         nav_qs="token%3Dtok123")
+    assert "SS_QS" in html_cap["script"]
+    assert "token%3Dtok123" in html_cap["script"]
