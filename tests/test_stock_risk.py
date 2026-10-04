@@ -194,8 +194,12 @@ def fake_ak(monkeypatch):
     mod.stock_gpzy_individual_pledge_ratio_detail_em = _pledge
 
     def _queue(symbol):
+        # T-202 时钟稳健：解禁日必须落在 unlock_risk 的「未来 90 日」窗口内——
+        # 硬编码绝对日期会随真实时钟漂移成过去（2026-10-04 实证 test_scan_stock
+        # 由 medium 退化为 low 恒红）。取 now()+30d，恒落窗口内。
+        _soon = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
         return pd.DataFrame({
-            "解禁时间": ["2026-10-01"], "占流通市值比例": ["0.1523"], "限售股类型": ["定向增发"],
+            "解禁时间": [_soon], "占流通市值比例": ["0.1523"], "限售股类型": ["定向增发"],
         })
 
     mod.stock_restricted_release_queue_em = _queue
@@ -246,6 +250,17 @@ def test_scan_stock_assembles_report(fake_ak, monkeypatch):
     assert rep["components"]["litigation"]["level"] == sr.RISK_MEDIUM
     assert rep["overall_level"] == sr.RISK_MEDIUM
     assert res["errors"] == []
+
+
+def test_fake_unlock_date_stays_upcoming(fake_ak):
+    """T-202 时钟稳健守卫：假解禁日必须恒落「未来 90 日」窗口内（相对 now）——
+    否则 test_scan_stock 会随真实时钟漂移成恒红（时间炸弹，2026-10-04 实证
+    硬编码 2026-10-01 由 medium 退化为 low）。本守卫令夹具腐化即刻暴露。
+    """
+    q = sr.fetch_unlock_queue("000001")
+    d = datetime.strptime(str(q[0]["date"])[:10], "%Y-%m-%d")
+    delta = (d - datetime.now()).days
+    assert 0 <= delta <= 90, f"假解禁日 {q[0]['date']} 距今 {delta} 天，已脱离窗口（夹具腐化）"
 
 
 def test_scan_stock_all_sources_down_stays_unknown(monkeypatch):

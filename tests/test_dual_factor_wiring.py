@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date as _date
 
 import numpy as np
 import pandas as pd
@@ -14,6 +15,11 @@ import pytest
 
 from modules import decision
 from modules.market_regime import load_breadth_history
+
+# T-202：快照/指标 date 必须时钟相对——硬编码历史日期会随真实时钟漂移，令
+# build_snapshot 的新鲜度守卫（滞后≥FRESH_WARN_DAYS 封顶 60%）误触发，掩盖
+# 本文件真正要测的 herd/regime 语义（2026-10-04 实证：硬编码 2026-09-30 滞后 4 天恒红）。
+_TODAY = _date.today().isoformat()
 
 
 # ───────────── 夹具 ─────────────
@@ -111,12 +117,12 @@ def test_success_result_cached(tmp_path):
 # ───────────── build_snapshot 自动接线 ─────────────
 
 def test_build_snapshot_wires_herd(tmp_path, monkeypatch):
-    """快照链自动消费双因子：极端红挤日 reasons 含「羊群」，仓位 95→87。"""
+    """快照链自动消费双因子：极端红挤日 reasons 含「羊群」，仓位 93→85。"""
     (tmp_path / "shepherd_history.json").write_text(
         json.dumps(_mk_history_dicts()), encoding="utf-8")
     monkeypatch.setattr(decision, "DATA_DIR", str(tmp_path))
     snap = decision.build_snapshot(
-        "2026-09-30", {"date": "2026-09-30"}, 80.0,
+        _TODAY, {"date": _TODAY}, 80.0,
         {"score": 70, "bias": "偏多", "cycle": {"name": "主升高潮"}},
         {"overall": None, "actionable": True}, None, event_adj=0)
     pos = snap["position"]
@@ -128,7 +134,7 @@ def test_build_snapshot_degrades_without_history(tmp_path, monkeypatch):
     """无历史文件 → 双因子全 None → 快照行为与旧版一致（reasons 无羊群条目）。"""
     monkeypatch.setattr(decision, "DATA_DIR", str(tmp_path))
     snap = decision.build_snapshot(
-        "2026-09-30", {"date": "2026-09-30"}, 90.0,
+        _TODAY, {"date": _TODAY}, 90.0,
         {"score": 70, "bias": "偏多", "cycle": {"name": "主升高潮"}},
         {"overall": None, "actionable": True}, None, event_adj=0)
     pos = snap["position"]
