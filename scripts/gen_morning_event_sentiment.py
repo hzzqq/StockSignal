@@ -105,7 +105,7 @@ def main():
 
     # 跨模型 latest_date（cheap head 读取），展示各模型同样陈旧的现实
     cross_models = []
-    for fn in ["signal_ev_h10.json", "signal_gru_h10.json", "signal_fusion_h10.json", "signal_baseline_h10.json"]:
+    for fn in ["signal_ev_h10.json", "signal_gru_h10.json", "signal_fusion_h10.json", "signal_baseline_h10.json", "signal_ens_v39gru_w025_h10.json"]:
         p = os.path.join(DATA_DIR, "p1_signals", fn)
         if os.path.exists(p):
             m = read_signal_meta_cheap(p)
@@ -332,6 +332,16 @@ def main():
     lines.append("**跨模型事件信号 latest_date（同源陈旧，验证事件因子整体过期）：**")
     for cm in cross_models:
         lines.append(f"- `{cm['file']}`（{cm['model']}）：latest_date **{fmt(cm['latest_date'])}**，滞后 **{fmt(cm['lag'])}** 天")
+    lines.append("")
+    # 诚实口径：市场温度缓存 as_of 取的是文件 mtime（文件最后改写日），不是数据的真实落盘日；
+    # 本早报实际喂进 derive_position 的温度来自 {snap_date} 快照。若今日 mtime 由本早报脚本自身
+    # 写盘/快照重算触发，而非真正的联网重算，则该源新鲜度被轻微高估——以「温度来自 {snap_date} 快照」为准更稳。
+    _mt_row = _hrow.get("市场温度缓存", {})
+    lines.append(f"> ⚠️ **诚实口径（市场温度缓存 as_of 取 mtime，可能假性新鲜）**：该源 `as_of={fmt(_mt_row.get('as_of'))}`"
+                 f"来自 `market_cache.db` 文件最后改写日（mtime），**不代表数据真实落盘日**。本早报实际喂入决策的市场温度"
+                 f" **{fmt(temp)}** 取自 `{os.path.basename(snap_path)}`（快照数据日 {fmt(snap_date)}，滞后 {fmt(_hrow.get('今日快照', {}).get('lag_days'))} 天）。"
+                 f"若今日 mtime 由本早报/快照重算顺带写盘、而非真正的联网重算，则该源新鲜度被轻微高估——"
+                 f"以「温度来自 {fmt(snap_date)} 快照、滞后 {fmt(_hrow.get('今日快照', {}).get('lag_days'))} 天」为准更稳。")
     lines.append("")
 
     # 五、核心结论
