@@ -91,6 +91,7 @@ def create_app(config_object: type = Config) -> Flask:
     from .api.forum_routes import bp as forum_bp
     from .api.market_alert_routes import bp as market_alert_bp
     from .api.order_routes import bp as order_bp
+    from .api.research_routes import bp as research_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(admin_bp)
@@ -104,6 +105,7 @@ def create_app(config_object: type = Config) -> Flask:
     app.register_blueprint(forum_bp)
     app.register_blueprint(market_alert_bp)
     app.register_blueprint(order_bp)
+    app.register_blueprint(research_bp)
 
     # ---- 市场指标异动定时调度器（守护线程，测试/禁用环境自动跳过）----
     try:
@@ -118,6 +120,14 @@ def create_app(config_object: type = Config) -> Flask:
         start_conditional_scheduler(app)
     except Exception as e:  # noqa: BLE001
         app.logger.warning("启动条件单调度器失败（不影响主服务）：%s", e)
+
+    # ---- 自驱研究调度器（H1+ 方向 B，守护线程，测试/禁用环境自动跳过）----
+    # 盯到市场异动 → 自驱发起只读研究 → 落库 research_runs（复用 H1 只读红线 + 有界 clamp）
+    try:
+        from .research_watch import start_research_watch_scheduler
+        start_research_watch_scheduler(app)
+    except Exception as e:  # noqa: BLE001
+        app.logger.warning("启动自驱研究调度器失败（不影响主服务）：%s", e)
 
     # ---- 全局错误处理：把任何出口都锁回 JSON ----
     _register_error_handlers(app)

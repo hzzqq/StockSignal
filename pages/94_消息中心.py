@@ -6,6 +6,7 @@
   🔔 异动  —— 自选股当日涨跌异动（基于实时行情计算）
   💬 社区  —— 股吧最新帖子 / 评论动态
   🛡️ 系统  —— 数据源健康度、使用提示
+  🔬 研究  —— 研究智能体定时自驱盯盘产出（H1+ 方向 B，含引用溯源）
 
 每个区块独立取数（safe_section 隔离），单源失败不影响其它模块。
 支持按类型筛选、标记已读、点击跳转到对应模块。
@@ -215,6 +216,40 @@ def _build_system():
     return msgs
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def _load_research_runs(limit=10):
+    """H1+ 自驱研究记录（additive）。取不到即空列表，不编造。"""
+    try:
+        sc, body = api_get(f"/api/research-runs?limit={limit}", timeout=5)
+        if sc == 200 and isinstance(body, dict) and body.get("status") == "ok":
+            return (body.get("data") or {}).get("items") or []
+    except Exception as e:
+        logger.debug("[msg] 自驱研究记录取数失败: %s", e)
+    return []
+
+
+def _build_research():
+    """研究智能体定时自驱盯盘产出（含触发原因 + 引用溯源入口）。"""
+    runs = _load_research_runs(10)
+    _st = {"ok": "✅", "partial": "⚠️", "unavailable": "⛔"}
+    msgs = []
+    for r in runs:
+        status = str(r.get("status") or "unavailable")
+        name = r.get("trigger_metric_name") or r.get("trigger_metric_key") or "市场异动"
+        n_cit = len(r.get("citations") or [])
+        msgs.append({
+            "id": f"rr_{r.get('id')}",
+            "type": "研究",
+            "title": f"{_st.get(status, 'ℹ️')} 自驱研究 · {name}（{status}）",
+            "detail": f"{str(r.get('question') or '')[:60]}"
+                      + (f"　·　引用 {n_cit} 条" if n_cit else "　·　无引用（诚实降级）"),
+            "time": r.get("created_at", ""),
+            "target": "pages/53_星辰AI.py",
+            "params": {},
+        })
+    return msgs
+
+
 # 已读状态（session 级）
 if "msg_read_ids" not in st.session_state:
     st.session_state["msg_read_ids"] = set()
@@ -232,6 +267,8 @@ def _all_messages():
         msgs += _build_forum()
     with safe_section("系统状态"):
         msgs += _build_system()
+    with safe_section("自驱研究"):
+        msgs += _build_research()
     # 解析时间排序（能解析的排前）
     def _ts(m):
         try:
@@ -292,12 +329,13 @@ if st.button("🔄 重新加载", key="msg_reload", width="content"):
     try:
         _load_watchlist.clear()
         _load_forum.clear()
+        _load_research_runs.clear()
     except Exception:
         pass
     st.rerun()
 
 # ───────────────────────── 筛选 ─────────────────────────
-TYPES = ["全部", "异动", "社区", "系统"]
+TYPES = ["全部", "异动", "社区", "系统", "研究"]
 # 加法式偏好记忆：用 key 将上次选择的类型筛选项存入 session_state，
 # 下次进入本页自动套用（仅 session 级，不落库）。
 _filt = st.radio("类型筛选", TYPES, horizontal=True, label_visibility="collapsed",

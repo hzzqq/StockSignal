@@ -324,6 +324,52 @@ class MarketAlert(db.Model):
         }
 
 
+# ------------------------------------------------------------------ ResearchRun（H1+ 自驱研究记录）
+class ResearchRun(db.Model):
+    """研究智能体「定时自驱盯盘」的研究记录（T-213，AC-B5 可追溯）。
+
+    由 ``backend.research_watch`` 在盯到市场异动时自动产出；``status`` 诚实透传
+    research_agent 的判定（ok/partial/unavailable，绝不粉饰）。``citations_json`` /
+    ``limitations_json`` 存 JSON 文本，前端可读取并点开溯源。
+    """
+    __tablename__ = "research_runs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    trigger_metric_key = db.Column(db.String(32), nullable=True, index=True)
+    trigger_metric_name = db.Column(db.String(64), nullable=True)
+    trigger_severity = db.Column(db.String(16), nullable=True)
+    alert_id = db.Column(db.Integer, nullable=True)
+    question = db.Column(db.Text, nullable=False, default="")
+    status = db.Column(db.String(16), nullable=False, default="unavailable")  # ok/partial/unavailable
+    answer = db.Column(db.Text, nullable=False, default="")
+    citations_json = db.Column(db.Text, nullable=False, default="[]")
+    limitations_json = db.Column(db.Text, nullable=False, default="[]")
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False, index=True)
+
+    @staticmethod
+    def _loads(s):
+        import json as _json
+        try:
+            return _json.loads(s or "[]")
+        except Exception:  # noqa: BLE001 - 脏数据兜底为 []
+            return []
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "trigger_metric_key": self.trigger_metric_key,
+            "trigger_metric_name": self.trigger_metric_name,
+            "trigger_severity": self.trigger_severity,
+            "alert_id": self.alert_id,
+            "question": self.question,
+            "status": self.status,
+            "answer": self.answer,
+            "citations": self._loads(self.citations_json),
+            "limitations": self._loads(self.limitations_json),
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+        }
+
+
 # ------------------------------------------------------------------ ForumComment（股吧评论）
 class ForumComment(db.Model):
     """股吧帖子的评论。"""
