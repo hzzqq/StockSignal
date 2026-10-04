@@ -271,11 +271,14 @@ CHARTS = [
      "A 股全市场广度历史（@BREADTH_SPAN@，@BREADTH@ 交易日）",
      "自己重建的数据基座：年度平均红盘率（柱）+ 日均涨跌家数（线），逐日广度指标完整、离线可复现。"),
     # 以下三张均为「每日自动落盘、次日回填」评估闭环的真实产物，图注按图实述。
-    ("thesis/ch6_eval/fig_position.png", "决策闭环 · 每日仓位建议（clamp 5~95 校验）",
+    # T-204：thesis 重组（2026-10-04，扁平 → 正文/素材/图表 分区）后路径由
+    # thesis/ch6_eval/* 迁至 thesis/素材/ch6_eval/*；_data_uri 缺失时静默跳过，
+    # 故旧路径会静默丢图（存在性守卫 test_portfolio_charts_refer_to_existing_files 兜底）。
+    ("thesis/素材/ch6_eval/fig_position.png", "决策闭环 · 每日仓位建议（clamp 5~95 校验）",
      "真实运行产出的每日仓位序列：输出恒落在 [5,95] 内（上下限虚线），随情绪定位逐日变化。"),
-    ("thesis/ch6_eval/fig_temp_pos.png", "情绪温度 → 建议仓位（真实散点）",
+    ("thesis/素材/ch6_eval/fig_temp_pos.png", "情绪温度 → 建议仓位（真实散点）",
      "温度与建议仓位的真实对应分布。样本仍在累积，故只呈现事实、不提前断言单调性。"),
-    ("thesis/ch6_eval/fig_hit_trend.png", "预测 vs 实际：预测仓位与次日实际涨跌",
+    ("thesis/素材/ch6_eval/fig_hit_trend.png", "预测 vs 实际：预测仓位与次日实际涨跌",
      "蓝=预测仓位(%)，红=次日实际涨跌(%)，绿/红点=命中/未中 —— 每日落盘、次日回填的真实评分链路。"),
 ]
 
@@ -445,7 +448,7 @@ HTML = """<!DOCTYPE html>
 <section>
   <div class="wrap">
     <h2>🖥 界面与产出实拍</h2>
-    <p class="lead">截图与图表全部由 <code>scripts/gen_screenshots.py</code> / <code>thesis/gen_backtest_eval.py</code>
+    <p class="lead">截图与图表全部由 <code>scripts/gen_screenshots.py</code> / <code>thesis/素材/gen_backtest_eval.py</code>
       从本地 SQLite 真实缓存与真实回测引擎导出 —— <b>没有一张是合成数据或示意曲线</b>。
       这一点我们专门做过一次自查：早期脚本里确实有两处用随机数兜底的图，已全部改为真实数据或直接跳过。</p>
     <div class="grid g3">

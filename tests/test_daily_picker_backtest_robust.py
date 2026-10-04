@@ -6,6 +6,8 @@
 IndexError。修复后改为在 reason 创建时按 _score_for_picker 的口径写入。
 """
 
+import zlib
+
 import numpy as np
 import pandas as pd
 import modules.backtest as bt_mod
@@ -38,7 +40,10 @@ class _FakeFetcher:
     def get_daily(self, symbol, start, end, adjust="qfq"):
         n = 130
         idx = pd.date_range(end="2024-06-30", periods=n, freq="B")
-        np.random.seed(abs(hash(symbol)) % 1000)
+        # T-204：种子必须确定性——原 abs(hash(symbol)) 受 Python 字符串 hash 每进程
+        # 随机化（PYTHONHASHSEED）影响，伪数据随进程变化 → 间歇红（5 次全量复现 1 次）。
+        # 改用 zlib.crc32（跨进程稳定），消除唯一非确定性源。
+        np.random.seed(zlib.crc32(str(symbol).encode("utf-8")) % 1000)
         price = np.maximum(100 + np.cumsum(np.random.randn(n) * 1.5), 5)
         return pd.DataFrame({
             "date": idx,

@@ -299,3 +299,23 @@ def test_portfolio_no_longer_cites_mislabelled_eval_chart():
         "「评估数据累积趋势（每次运行 +1）」，不是全市场广度历史图"
     )
     assert "fig_breadth_history.png" in gen, "作品集页未引用真·广度历史图"
+
+
+def test_portfolio_charts_refer_to_existing_files():
+    """T-204：CHARTS 每条引用的图片必须真实存在。
+
+    render() 经 _data_uri 取图，文件缺失时**静默 continue**——路径失效（如 thesis
+   重组搬目录）会让作品集页静默丢图、且无任何红。本守卫把「静默丢图」变「响亮失败」：
+    2026-10-04 thesis 重组后 CHARTS 三条仍指 thesis/ch6_eval/*（实已移
+    thesis/素材/ch6_eval/*），即为此类。
+    """
+    tree = ast.parse(_src("scripts/gen_portfolio_page.py"))
+    charts = None
+    for node in tree.body:
+        if (isinstance(node, ast.Assign)
+                and getattr(node.targets[0], "id", "") == "CHARTS"):
+            charts = ast.literal_eval(node.value)
+    assert charts, "未找到 CHARTS 清单"
+    missing = [rel for rel, *_ in charts
+               if not os.path.exists(os.path.join(ROOT, rel))]
+    assert not missing, f"作品集 CHARTS 引用了不存在的图：{missing}（路径失效会被静默丢图）"
