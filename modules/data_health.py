@@ -70,6 +70,59 @@ def _mtime_date(path: str) -> str | None:
         return None
 
 
+def _json_max_date(path: str) -> str | None:
+    """JSON 内容最大日期（内容优先，取不到退回文件 mtime）。
+
+    兼容两种落盘形态：``{日期: {...}}`` 字典键（如连板历史）或
+    ``[{"date": ...}, ...]`` 记录数组。取内容日期而非 mtime，是因为 mtime 只代表
+    「文件被改写」——同目录/同文件被无关写入触碰时会虚报「新鲜」。
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        dates: list[str] = []
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if isinstance(k, str) and len(k) >= 10:
+                    dates.append(k)
+                if isinstance(v, dict) and v.get("date"):
+                    dates.append(str(v["date"]))
+        elif isinstance(data, list):
+            for it in data:
+                if isinstance(it, dict) and it.get("date"):
+                    dates.append(str(it["date"]))
+        norm = [str(d)[:10] for d in dates if d]
+        if norm:
+            return max(norm)
+    except Exception:  # noqa: BLE001
+        pass
+    return _mtime_date(path)
+
+
+def _sqlite_col_max_date(path: str, table: str, col: str = "date") -> str | None:
+    """SQLite 表某日期列的**内容**最大值（取不到退回文件 mtime）。
+
+    针对「同一 DB 被多写者共享」的源（如 ``market_cache.db`` 既存指标缓存、又被
+    健康观测表写入）：mtime 会被无关写入不断刷新 → **假新鲜**，必须读内容日期。
+    标识符白名单校验，非法表/列直接返回 mtime（不拼进 SQL）。
+    """
+    import re as _re
+    if not (_re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table or "")
+            and _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", col or "")):
+        return _mtime_date(path)
+    try:
+        import sqlite3
+        if not os.path.exists(path):
+            return None
+        with sqlite3.connect(path) as conn:
+            row = conn.execute(f"SELECT MAX({col}) FROM {table}").fetchone()
+        if row and row[0]:
+            return str(row[0])[:10]
+    except Exception:  # noqa: BLE001
+        pass
+    return _mtime_date(path)
+
+
 def _p1_event_latest_date() -> str | None:
     """P1 事件信号真实数据截止日（内容 latest_date，与决策同源）。"""
     try:
@@ -98,12 +151,15 @@ DATA_SOURCES: list[dict] = [
     {"key": "shepherd_sentiment", "name": "牧羊人情绪", "kind": "csv_last_date",
      "path": os.path.join(_DATA_DIR, "shepherd_history.csv"), "col": 0},
     {"key": "p1_event", "name": "P1 事件因子", "kind": "p1_latest_date", "path": None},
-    {"key": "ladder", "name": "连板晋级率", "kind": "mtime",
+    {"key": "ladder", "name": "连板晋级率", "kind": "json_max_date",
      "path": os.path.join(_DATA_DIR, "shepherd_ladder_history.json")},
     {"key": "event_pool", "name": "事件池", "kind": "csv_last_date",
      "path": os.path.join(_DATA_DIR, "events.csv"), "col": 0},
-    {"key": "market_temp", "name": "市场温度缓存", "kind": "mtime",
-     "path": os.path.join(_DATA_DIR, "market_cache.db")},
+    # 市场温度：内容日期取自 market_indicator_cache.date。**不可用 mtime**——
+    # 同一 market_cache.db 还被 data_source_health 观测表高频写入，mtime 恒为「今天」＝假新鲜。
+    {"key": "market_temp", "name": "市场温度缓存", "kind": "sqlite_col_max_date",
+     "path": os.path.join(_DATA_DIR, "market_cache.db"),
+     "table": "market_indicator_cache", "col": "date"},
     {"key": "daily_snapshot", "name": "今日快照", "kind": "json_date_field",
      "path": os.path.join(_DATA_DIR, "daily_snapshot.json"), "field": "date"},
     # 校准证据源：prediction_log 最近一次打分日（与决策输入源同等重要，须入守卫）
@@ -123,6 +179,11 @@ def source_as_of(entry: dict) -> str | None:
         return _p1_event_latest_date()
     if k == "track_last_scored":
         return _track_last_scored_date()
+    if k == "json_max_date":
+        return _json_max_date(entry["path"])
+    if k == "sqlite_col_max_date":
+        return _sqlite_col_max_date(entry["path"], entry.get("table", ""),
+                                    entry.get("col", "date"))
     if k == "mtime":
         return _mtime_date(entry["path"])
     return None

@@ -27,7 +27,8 @@ def test_registry_covers_all_decision_sources():
             "event_pool", "market_temp", "daily_snapshot"} <= keys
     # 每个源都有可解析的 kind
     assert all(e.get("kind") in ("csv_last_date", "json_date_field",
-                                 "p1_latest_date", "mtime", "track_last_scored")
+                                 "p1_latest_date", "mtime", "track_last_scored",
+                                 "json_max_date", "sqlite_col_max_date")
                for e in DH.DATA_SOURCES)
 
 
@@ -42,6 +43,57 @@ def test_json_date_field_handles_corrupt(monkeypatch):
 
 def test_mtime_date_handles_missing(monkeypatch):
     assert DH._mtime_date("/no/such/file.db") is None
+
+
+# ───────── 内容型抽取器（json_max_date / sqlite_col_max_date，T-214） ─────────
+def test_json_max_date_dict_and_list(tmp_path):
+    import json as _json
+    p = tmp_path / "ladder.json"
+    p.write_text(_json.dumps({"2026-08-27": {"date": "2026-08-27"},
+                              "2026-08-31": {"date": "2026-08-31"}}), encoding="utf-8")
+    assert DH._json_max_date(str(p)) == "2026-08-31"
+    p2 = tmp_path / "recs.json"
+    p2.write_text(_json.dumps([{"date": "2026-09-01"}, {"date": "2026-09-03"}]),
+                  encoding="utf-8")
+    assert DH._json_max_date(str(p2)) == "2026-09-03"
+
+
+def test_json_max_date_missing_file_none(tmp_path):
+    assert DH._json_max_date(str(tmp_path / "nope.json")) is None
+
+
+def test_sqlite_col_max_date_reads_content(tmp_path):
+    import sqlite3
+    db = tmp_path / "mc.db"
+    with sqlite3.connect(db) as c:
+        c.execute("CREATE TABLE market_indicator_cache (key TEXT, date TEXT, value REAL)")
+        c.executemany("INSERT INTO market_indicator_cache VALUES (?,?,?)",
+                      [("a", "2026-09-30", 1.0), ("a", "2026-10-02", 2.0)])
+    assert DH._sqlite_col_max_date(str(db), "market_indicator_cache", "date") == "2026-10-02"
+
+
+def test_sqlite_col_max_date_missing_file_none(tmp_path):
+    assert DH._sqlite_col_max_date(str(tmp_path / "nope.db"), "t", "date") is None
+
+
+def test_sqlite_col_max_date_rejects_bad_identifier(tmp_path):
+    """非法表/列标识符 → 不拼进 SQL，退回 mtime（不抛异常）。"""
+    db = tmp_path / "x.db"
+    db.write_text("", encoding="utf-8")
+    assert DH._sqlite_col_max_date(str(db), "t; DROP TABLE x", "date") == DH._mtime_date(str(db))
+
+
+def test_ladder_and_market_temp_use_content_dates():
+    """防回退：连板晋级率/市场温度必须走**内容日期**，而非会被无关写入刷新的 mtime。
+
+    市场温度尤甚：market_cache.db 同时被 data_source_health 观测表高频写入，
+    若用 mtime 则恒为「今天」＝假新鲜。
+    """
+    by_key = {e["key"]: e for e in DH.DATA_SOURCES}
+    assert by_key["ladder"]["kind"] == "json_max_date"
+    assert by_key["market_temp"]["kind"] == "sqlite_col_max_date"
+    assert by_key["market_temp"]["table"] == "market_indicator_cache"
+    assert by_key["market_temp"]["col"] == "date"
 
 
 def test_p1_latest_date_fault_tolerant(monkeypatch):

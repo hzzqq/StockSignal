@@ -41,6 +41,15 @@
    > 及其 `as_of` 抽取方式；**(b) 逐页去重**——多页已有「数据来源」文案/caption（如 `12/33` 的动态 `{src}`、
    > `76` 的 `load_spot_with_source`、`54` 的 `render_freshness_badge`），须与 `prov_badge` 统一或并存而非重复。
    > 结论：方向 A 的**核心与基元已交付**（见下 AC），「全站铺开」是**注册表扩展 + 逐页治理**的独立工程。
+   >
+   > **勘测补记 2（2026-10-04，T-214 实现期纠偏）**：原拟「扩展注册表纳入显示源」经实测**不可行/不恰当**——
+   > ① 强势榜（`spot_rank` 三层）/个股财务（akshare 新浪三表）**零落盘缓存**，无任何离线 `as_of`（含 mtime 兜底都无），
+   > 只能标 unknown，硬造 mtime＝误导；② 实时行情/指数**确有**离线内容日期（`cache.db` 的 `rt_quote_cache.data_json.datetime` /
+   > `index_cache.date`），但属**展示源非决策源**——纳入 decision 健康注册表会污染「决策健康判定」
+   > （`check_data_health` CI 门禁会被展示缓存新旧左右），且注册表契约要求「每源有可执行刷新命令」，行情缓存由运行时按需写入、
+   > 无独立刷新入口。故 T-214 收敛为**已登记决策源的 as_of 质量修复**：`ladder`/`market_temp` 由 mtime 升级为**内容日期**
+   > （尤以 `market_temp` 为要：`market_cache.db` 同时被健康观测表高频写入 → mtime 恒为「今天」＝假新鲜，实测 mtime=2026-10-04
+   > vs 内容日期=2026-10-02）。显示源溯源如需，应另立**独立展示溯源通道**（需老板另拍板）。
 
 ### A.3 验收标准（AC，可测）
 - **AC-A1 单一真理源**：`build_provenance` 的 `as_of/freshness` 必须来自 `assess_freshness`/`data_health`，
