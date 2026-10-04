@@ -142,6 +142,11 @@ SCROLL_NAV_CSS = """
 .sf-scroll-inline:hover{background:#e0e0e8}
 
 /* ══════════ T-197 命令面板（Ctrl+K）══════════ */
+/* T-201 显隐门控：面板 DOM（backdrop+box）常驻父文档，必须默认隐藏——
+   缺失此门控时全屏 backdrop 永久可见，吞掉整页点击并打断 mega 面板 hover 链
+   （T-197 时代 CSS 只在 iframe 内从不生效，潜伏至父文档 CSS 管道补齐才显形） */
+#ssCmdPalette{display:none}
+#ssCmdPalette.open{display:block}
 .ss-cmd-backdrop{position:fixed;inset:0;background:rgba(8,10,24,.55);z-index:100001}
 .ss-cmd-box{position:fixed;top:14vh;left:50%;transform:translateX(-50%);width:min(560px,92vw);
   background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);border-radius:12px;
@@ -375,7 +380,7 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom,
           if (!kw || (it.label + ' ' + (it.group || '')).toLowerCase().indexOf(kw) >= 0) items.push(it);
         }
         var h = '';
-        for (var j=0;j<items.length && j<12;j++){
+        for (var j=0;j<items.length && j<20;j++){
           h += '<a class="ss-cmd-item" data-i="' + j + '" href="' + items[j].href + '">'
              + (items[j].icon || '📄') + ' ' + items[j].label
              + (items[j].group ? '<span class="ss-cmd-group">' + items[j].group + '</span>' : '') + '</a>';

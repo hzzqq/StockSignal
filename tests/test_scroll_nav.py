@@ -319,3 +319,15 @@ def test_inject_scroll_nav_passes_nav_qs(monkeypatch):
                          nav_qs="token%3Dtok123")
     assert "SS_QS" in html_cap["script"]
     assert "token%3Dtok123" in html_cap["script"]
+
+
+def test_palette_display_gated_by_open_class():
+    """T-201：面板必须默认 display:none、仅 .open 显示——面板 DOM 常驻父文档，
+    缺门控时全屏 backdrop 永久可见（吞整页点击+打断 mega hover 链；T-197 潜伏
+    缺陷，父文档 CSS 管道补齐后显形）。
+    """
+    css = sn.SCROLL_NAV_CSS
+    assert "#ssCmdPalette{display:none}" in css
+    assert "#ssCmdPalette.open{display:block}" in css
+    # 门控规则必须先于/独立于 backdrop 规则存在（缺一即裸奔）
+    assert ".ss-cmd-backdrop{position:fixed" in css
