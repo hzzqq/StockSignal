@@ -21,10 +21,17 @@ from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
 
-from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box, info_banner, prov_badge
 logger = logging.getLogger(__name__)
 dark = render_standard_page(title='行情看板', icon='📈', layout='wide')
 render_index_compact(cols_per_row=5)
+# 加法式展示源溯源（H1+ 方向 A 续·T-215）：独立展示溯源通道（展示源非决策源，不污染决策健康；
+# 无离线证据的源不登记，缺证据即显示「未知」）。失败只留痕，绝不影响行情看板主流程。
+try:
+    from modules.display_provenance import build_display_provenance, DISPLAY_PAGE_SOURCES
+    prov_badge(build_display_provenance(DISPLAY_PAGE_SOURCES.get("10_行情看板")), title="行情数据来源")
+except Exception as _prov_e:  # noqa: BLE001
+    logger.debug("[10_行情看板] 展示源溯源徽标渲染失败: %s", _prov_e)
 sf_card("页面导读", "上方为市场指数迷你卡；下方输入代码 / 名称 / 拼音首字母搜索股票，点击结果即选中，可一键加入自选股，自选行情实时同步。K 线、技术面分析请前往「股票选取」。", icon="📈")
 sf_card('🔍 搜索股票 · 加入自选', "")
 st.caption('输入代码 / 名称 / 拼音首字母，匹配结果直接显示在输入框下方（含市场标签），点击结果即选中；选中后可一键加入自选股，下方「自选行情」会实时同步。')
