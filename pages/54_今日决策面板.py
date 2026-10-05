@@ -15,7 +15,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from modules.page_utils import render_standard_page, import_autorefresh
 from modules.ui_theme import sf_card
@@ -273,8 +276,8 @@ def _render_hero(df, today, prev, meta=None):
             if _any_stale:
                 xc_warn_box("⚠️ 存在陈旧数据源，以上仓位/信号建议请谨慎参考；刷新陈旧源后再决策。")
                 st.caption("刷新命令：`python scripts/check_data_health.py --refresh`（加 `--exec` 尝试自动刷新，有网才真成功）")
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001 - T-217：健康面板数据失败留痕（原静默 pass → 面板静默缩水）
+        logger.warning("决策数据健康面板渲染失败: %s", e)
 
     # ② 仓位建议大卡（闭环的输出端）
     # 事件驱动催化：实时接通事件因子，消除「活/归档漂移」（S1 自找缺口）。
@@ -287,8 +290,8 @@ def _render_hero(df, today, prev, meta=None):
         _all_fresh = assess_freshness({r["name"]: r["as_of"] for r in _dh.health_rows()})
         _stalled = _dh.detect_stall()
         render_freshness_badge(_all_fresh, stalled=_stalled, position_pct=pos["pct"])
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001 - T-217：新鲜度徽标是诚实语义载体，失败留痕不静默
+        logger.warning("新鲜度徽标渲染失败: %s", e)
 
     # T-183 双因子接线：与 build_snapshot 同源（compute_dual_factor_inputs），
     # 保证实时卡与归档快照一致；数据缺失诚实降级 None（不臆造）。
@@ -397,8 +400,8 @@ def _render_hero(df, today, prev, meta=None):
                 xc_success_box(_ee["text"])
             else:
                 st.caption(_ee["text"])
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001 - T-217：事件提示含取数（event_edge），失败留痕不静默
+        logger.warning("事件提示渲染失败: %s", e)
 
 
 @safe_fragment("今日决策")
@@ -419,8 +422,8 @@ def fragment_decision():
     prev = _row_to_indicators(df, -2) if len(df) >= 2 else None
     try:
         today.update(_sl.current_promo_as_indicators())
-    except Exception:  # noqa: BLE401
-        pass
+    except Exception as e:  # noqa: BLE401 - T-217：晋级率指标合并失败留痕（原静默缺数据）
+        logger.warning("晋级率指标合并失败（今日 hero 缺晋级率数据）: %s", e)
     _render_hero(df, today, prev, meta)
 
 
@@ -692,8 +695,8 @@ def fragment_review():
     prev = _row_to_indicators(df, -2) if len(df) >= 2 else None
     try:
         today.update(_sl.current_promo_as_indicators())
-    except Exception:  # noqa: BLE401
-        pass
+    except Exception as e:  # noqa: BLE401 - T-217：晋级率指标合并失败留痕（原静默缺数据）
+        logger.warning("晋级率指标合并失败（决策快照缺晋级率数据）: %s", e)
     dstr = _last_data_date(df)
     try:
         fc = _sf.forecast_next_day(today, prev) if today else None
