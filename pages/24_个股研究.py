@@ -18,6 +18,17 @@ from modules.ui_kit import info_banner
 render_standard_page(title="个股研究", icon="🎯")
 info_banner("本页合并「快速选取」与「深度分析」两个子视图，用顶部分段切换；所有数据仅供参考，不构成投资建议。", icon="🎯")
 
+# 加法式展示源溯源（H1+ 方向 A 续·T-215 补接线）：K 线走 daily_cache（11/20 子页 get_kline），
+# 现价经后端 analysis 任务走 rt_quote_cache（modules/analysis_engine.py 实证）。
+# 失败只留痕，绝不影响页面主流程；无证据源不展示（诚实语义）。
+try:
+    from modules.display_provenance import build_display_provenance, DISPLAY_PAGE_SOURCES
+    from modules.ui_kit import prov_badge
+    prov_badge(build_display_provenance(DISPLAY_PAGE_SOURCES.get("24_个股研究")), title="研究数据来源")
+except Exception as _prov_e:  # noqa: BLE001
+    import logging as _logging
+    _logging.getLogger("pages.24_个股研究").debug("展示源溯源徽标渲染失败: %s", _prov_e)
+
 from modules.session import trading_autorefresh
 trading_autorefresh(key="hub_autorefresh")
 
