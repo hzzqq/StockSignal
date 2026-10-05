@@ -91,6 +91,7 @@ DISPLAY_SOURCES: list[dict] = [
 DISPLAY_PAGE_SOURCES: dict[str, list[str]] = {
     "10_行情看板": ["index_quote", "realtime_quote"],
     "24_个股研究": ["daily_kline", "realtime_quote"],
+    "14_智能盯盘": ["realtime_quote"],
 }
 
 _BY_KEY: dict[str, dict] = {e["key"]: e for e in DISPLAY_SOURCES}

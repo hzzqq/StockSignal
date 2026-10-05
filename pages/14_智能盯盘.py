@@ -28,6 +28,16 @@ import plotly.graph_objects as go
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 dark = render_standard_page('智能盯盘', icon='👁️', caption='⚠️ 数据仅供参考，不构成投资建议')
 
+# 加法式展示源溯源（H1+ 方向 A 续·T-218）：自选股涨跌榜并行抓实时行情（get_realtime_quote
+# → cache.db rt_quote_cache，14:49 实证）。失败只留痕，不影响主流程。
+try:
+    from modules.display_provenance import build_display_provenance, DISPLAY_PAGE_SOURCES
+    from modules.ui_kit import prov_badge
+    prov_badge(build_display_provenance(DISPLAY_PAGE_SOURCES.get("14_智能盯盘")), title="盯盘数据来源")
+except Exception as _prov_e:  # noqa: BLE001 - additive 区块失败只留痕
+    import logging as _plog
+    _plog.getLogger("pages.14_智能盯盘").debug("展示源溯源徽标渲染失败: %s", _prov_e)
+
 sf_card("👁️ 智能盯盘 · 实时聚合", "单屏聚合自选股三类异动：板块资金 TOP10、自选股涨跌榜、个股资金流异动与规则预警。交易时段每 60 秒自动刷新。", icon="📡")
 if '_wl_recent' not in st.session_state:
     st.session_state._wl_recent = []
