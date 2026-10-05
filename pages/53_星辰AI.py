@@ -791,6 +791,57 @@ st.checkbox(
          "比普通问答慢（约 1 分钟），全程只读、不会下单。",
 )
 
+# ── H1+ 自驱盯盘研究记录（additive，T-216）：定时自驱产出的研究记录 + 引用溯源 ──
+# spec B.2：前端在「星辰 AI」与「消息中心」展示自驱研究记录；此处为星辰AI 侧入口。
+try:
+    import logging as _xlog
+    from modules.session import api_get as _xc_api_get
+
+    _xc_logger = _xlog.getLogger("pages.53_星辰AI")
+
+    @st.cache_data(ttl=60, show_spinner=False)
+    def _xc_load_research_runs(limit=8):
+        try:
+            _sc, _body = _xc_api_get(f"/api/research-runs?limit={limit}", timeout=5)
+            if _sc == 200 and isinstance(_body, dict) and _body.get("status") == "ok":
+                return (_body.get("data") or {}).get("items") or []
+            _xc_logger.debug("自驱研究记录取数异常: status=%s", _sc)
+        except Exception as _e:  # noqa: BLE001
+            _xc_logger.debug("自驱研究记录取数失败: %s", _e)
+        return []  # 取不到即空（诚实，不编造）
+
+    _xc_runs = _xc_load_research_runs()
+    _st_icon = {"ok": "✅", "partial": "⚠️", "unavailable": "⛔"}
+    with st.expander(
+            f"🛰️ 自驱盯盘研究记录（{len(_xc_runs)}）—— 盯到市场异动后自动研究，含引用溯源",
+            expanded=False):
+        if not _xc_runs:
+            st.caption("暂无记录：交易时段盯到异动告警后会自动产生研究（只读，不下单）。")
+        else:
+            for _r in _xc_runs:
+                _status = str(_r.get("status") or "unavailable")
+                _name = _r.get("trigger_metric_name") or _r.get("trigger_metric_key") or "市场异动"
+                _cits = _r.get("citations") or []
+                _lims = _r.get("limitations") or []
+                st.markdown(
+                    f"**{_st_icon.get(_status, 'ℹ️')} {_name}**　·　"
+                    f"{str(_r.get('created_at') or '')[:19].replace('T', ' ')}"
+                    f"　·　`{_status}`　·　引用 {len(_cits)} 条"
+                )
+                if _r.get("question"):
+                    st.caption(f"❓ {str(_r['question'])[:120]}")
+                if _r.get("answer"):
+                    st.markdown(str(_r["answer"])[:800])
+                if _cits:
+                    st.caption("📎 " + "；".join(
+                        f"[{c.get('id', '?')}] {c.get('title', '')}" for c in _cits[:6]))
+                if _lims:
+                    st.caption("⚠️ 局限：" + "；".join(str(x) for x in _lims[:4]))
+                st.divider()
+except Exception as _rw_e:  # noqa: BLE001 - additive 区块失败只留痕，不影响对话主流程
+    import logging as _xlog
+    _xlog.getLogger("pages.53_星辰AI").debug("自驱研究记录展示失败: %s", _rw_e)
+
 # 加法式页面间快捷跳转：关联功能页（新增，不改动既有布局）
 st.markdown("**🔗 相关页面**")
 _pc1, _pc2, _pc3 = st.columns(3)

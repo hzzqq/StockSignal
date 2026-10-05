@@ -308,3 +308,86 @@ def test_scheduler_skipped_when_env_disabled(app, monkeypatch):
     after = {t.name for t in threading.enumerate()}
     assert "research-watch-scheduler" not in (after - before)
     assert rw._SCHEDULER_STARTED is False
+
+
+# ─────────────────── T-216 桌面通知 + 手动触发端点 ───────────────────
+def test_notify_run_disabled_by_env(monkeypatch):
+    """STOCKSIGNAL_RESEARCH_NOTIFY=0 → 不触发桌面通知（防测试真弹窗）。"""
+    monkeypatch.setenv("STOCKSIGNAL_RESEARCH_NOTIFY", "0")
+    import backend.desktop_notify as dn
+    called = []
+    monkeypatch.setattr(dn, "notify", lambda t, m: called.append((t, m)))
+    rw.notify_run({"metric_name": "ADR"}, {"status": "ok"})
+    assert called == []
+
+
+def test_notify_run_calls_desktop_notify(monkeypatch):
+    """默认开 → 经 backend.desktop_notify.notify 弹出（异步），失败只留痕。"""
+    monkeypatch.delenv("STOCKSIGNAL_RESEARCH_NOTIFY", raising=False)
+    import backend.desktop_notify as dn
+    called = []
+    monkeypatch.setattr(dn, "notify", lambda t, m: called.append((t, m)))
+    rw.notify_run({"metric_name": "VIX恐慌指数"}, {"status": "unavailable"})
+    assert len(called) == 1
+    t, m = called[0]
+    assert "VIX恐慌指数" in m and "unavailable" in m
+
+
+def test_notify_run_failure_does_not_raise(monkeypatch):
+    monkeypatch.delenv("STOCKSIGNAL_RESEARCH_NOTIFY", raising=False)
+    import backend.desktop_notify as dn
+
+    def _boom(t, m):
+        raise RuntimeError("no user32")
+
+    monkeypatch.setattr(dn, "notify", _boom)
+    rw.notify_run({"metric_key": "adr"}, {"status": "ok"})  # 不应抛
+
+
+def test_scheduler_notifies_on_completion():
+    """调度循环研究完成后必须调 notify_run（防通知链路被静默摘除）。"""
+    src = inspect.getsource(rw.start_research_watch_scheduler)
+    assert "notify_run(a, rec)" in src
+
+
+def test_manual_run_requires_admin(app, client):
+    r = client.post("/api/research-runs/run")
+    assert r.status_code in (401, 403)
+    tok = _token(client, "demo")
+    r2 = client.post("/api/research-runs/run", headers=_auth(tok))
+    assert r2.status_code == 403
+
+
+def test_manual_run_honest_when_no_alert(app, client, monkeypatch):
+    monkeypatch.setenv("STOCKSIGNAL_RESEARCH_NOTIFY", "0")
+    admin_tok = _token(client, "admin")
+    r = client.post("/api/research-runs/run", headers=_auth(admin_tok))
+    obj = r.get_json(force=True)
+    assert obj["status"] == "ok"
+    assert obj["data"]["ran"] is False
+    assert "无未处理告警" in obj["data"]["reason"]
+
+
+def test_manual_run_executes_and_persists(app, client, monkeypatch):
+    """有未处理告警 → 同步跑一轮：落库 + status 原样透传 + 标记已跑。"""
+    monkeypatch.setenv("STOCKSIGNAL_RESEARCH_NOTIFY", "0")
+    monkeypatch.setattr(
+        "modules.research_agent.run_research",
+        lambda q, **k: {"status": "partial", "answer": "a", "citations": [{"id": "S1"}],
+                        "limitations": ["限"], "steps": []})
+    with app.app_context():
+        db.session.add(MarketAlert(metric_key="pcr", metric_name="PCR(认沽/认购比)",
+                                   severity="warning", message="避险", value=1.1))
+        db.session.commit()
+    admin_tok = _token(client, "admin")
+    r = client.post("/api/research-runs/run", headers=_auth(admin_tok))
+    obj = r.get_json(force=True)
+    assert obj["status"] == "ok" and obj["data"]["ran"] is True
+    rec = obj["data"]["record"]
+    assert rec["status"] == "partial" and rec["citations"][0]["id"] == "S1"
+    # 落库可查 + 该告警已被消费（重复触发 → 诚实 ran=False）
+    with app.app_context():
+        assert ResearchRun.query.count() == 1
+        assert rw.latest_unprocessed_alert(app) is None
+    r2 = client.post("/api/research-runs/run", headers=_auth(admin_tok))
+    assert r2.get_json(force=True)["data"]["ran"] is False

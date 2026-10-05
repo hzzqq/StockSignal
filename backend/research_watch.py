@@ -150,6 +150,23 @@ def _mark_ran(now_ts: float, metric_key: str | None) -> None:
         _last_trigger_ts[metric_key] = now_ts
 
 
+def notify_run(trigger: dict, record: dict) -> None:
+    """研究完成后的桌面弹窗通知（T-216，复用 conditional_engine 的 desktop_notify 先例）。
+
+    - ``STOCKSIGNAL_RESEARCH_NOTIFY=0`` 关闭（默认开）；
+    - 通知异步非阻塞，失败只留痕，绝不影响研究/调度链路。
+    """
+    if os.environ.get("STOCKSIGNAL_RESEARCH_NOTIFY", "1") == "0":
+        return
+    try:
+        from .desktop_notify import notify as _notify
+        name = (trigger or {}).get("metric_name") or (trigger or {}).get("metric_key") or "市场异动"
+        _notify("🛰️ 自驱研究完成",
+                f"{name}：status={record.get('status')}（详见 消息中心/星辰AI）")
+    except Exception as e:  # noqa: BLE001
+        logger.debug("自驱研究桌面通知失败（不影响链路）: %s", e)
+
+
 def latest_unprocessed_alert(app):
     """取最近一条「尚未被自驱研究过」的告警（只读）。无则 None。
 
@@ -201,6 +218,7 @@ def start_research_watch_scheduler(app, *, interval_minutes: int = SCAN_INTERVAL
                             if ok:
                                 rec = run_watch_once(alert=a, persist_fn=persist_run)
                                 _mark_ran(now_ts, a.get("metric_key"))
+                                notify_run(a, rec)
                                 app.logger.info("自驱研究完成：%s（status=%s）",
                                                 a.get("metric_name"), rec.get("status"))
                             else:
