@@ -333,15 +333,16 @@ def main():
     for cm in cross_models:
         lines.append(f"- `{cm['file']}`（{cm['model']}）：latest_date **{fmt(cm['latest_date'])}**，滞后 **{fmt(cm['lag'])}** 天")
     lines.append("")
-    # 诚实口径：市场温度缓存 as_of 取的是文件 mtime（文件最后改写日），不是数据的真实落盘日；
-    # 本早报实际喂进 derive_position 的温度来自 {snap_date} 快照。若今日 mtime 由本早报脚本自身
-    # 写盘/快照重算触发，而非真正的联网重算，则该源新鲜度被轻微高估——以「温度来自 {snap_date} 快照」为准更稳。
+    # 诚实口径：市场温度缓存 as_of 现取自 market_cache.db 的 market_indicator_cache 表**内容最大日期**
+    # （内容日期；T-214 起由 mtime 改内容日期——mtime 会被健康观测表等无关写入刷新，属假新鲜，已废弃）。
+    # 本早报实际喂进 derive_position 的温度仍来自 {snap_date} 快照，以快照数据日为准更稳。
     _mt_row = _hrow.get("市场温度缓存", {})
-    lines.append(f"> ⚠️ **诚实口径（市场温度缓存 as_of 取 mtime，可能假性新鲜）**：该源 `as_of={fmt(_mt_row.get('as_of'))}`"
-                 f"来自 `market_cache.db` 文件最后改写日（mtime），**不代表数据真实落盘日**。本早报实际喂入决策的市场温度"
-                 f" **{fmt(temp)}** 取自 `{os.path.basename(snap_path)}`（快照数据日 {fmt(snap_date)}，滞后 {fmt(_hrow.get('今日快照', {}).get('lag_days'))} 天）。"
-                 f"若今日 mtime 由本早报/快照重算顺带写盘、而非真正的联网重算，则该源新鲜度被轻微高估——"
-                 f"以「温度来自 {fmt(snap_date)} 快照、滞后 {fmt(_hrow.get('今日快照', {}).get('lag_days'))} 天」为准更稳。")
+    lines.append(f"> ⚠️ **诚实口径（市场温度缓存 as_of 取内容日期）**：该源 `as_of={fmt(_mt_row.get('as_of'))}` "
+                 f"取 `market_cache.db` 的 `market_indicator_cache` 表**内容最大日期**（T-214 起改用内容日期；"
+                 f"旧口径取文件 mtime 会被健康观测表等无关写入刷新、属假新鲜，已废弃）。"
+                 f"本早报实际喂入决策的市场温度 **{fmt(temp)}** 取自 `{os.path.basename(snap_path)}`"
+                 f"（快照数据日 {fmt(snap_date)}，滞后 {fmt(_hrow.get('今日快照', {}).get('lag_days'))} 天），"
+                 f"以「温度来自 {fmt(snap_date)} 快照、滞后 {fmt(_hrow.get('今日快照', {}).get('lag_days'))} 天」为准。")
     lines.append("")
 
     # 五、核心结论

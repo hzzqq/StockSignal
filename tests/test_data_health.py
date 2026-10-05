@@ -96,6 +96,28 @@ def test_ladder_and_market_temp_use_content_dates():
     assert by_key["market_temp"]["col"] == "date"
 
 
+def test_morning_report_market_temp_disclosure_matches_source_kind():
+    """防口径漂移：晨报对 market_temp as_of 的披露必须与 data_health 实际抽取口径一致。
+
+    T-214 把 market_temp 由 mtime 改为内容日期（sqlite_col_max_date）后，晨报正文
+    仍称「as_of 取 mtime」即失实（消费者未同步）。本守卫锁死：kind 非 mtime 时，
+    脚本不得再宣称取 mtime；kind 为 mtime 时则必须保留提示。
+    """
+    import os as _os
+    src_path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "scripts", "gen_morning_event_sentiment.py")
+    text = open(src_path, encoding="utf-8").read()
+    kind = next(e for e in DH.DATA_SOURCES if e["key"] == "market_temp")["kind"]
+    if kind == "mtime":
+        assert "取 mtime" in text, "market_temp 行 mtime 口径时，晨报须保留 mtime 假新鲜提示"
+    else:
+        assert "as_of 取 mtime" not in text, \
+            f"market_temp 已改用 {kind}（内容日期），晨报披露不得再称「as_of 取 mtime」"
+        assert "content" in text or "内容" in text or "market_indicator_cache" in text, \
+            "晨报须如实披露 market_temp 的 as_of 现取内容日期"
+
+
 def test_p1_latest_date_fault_tolerant(monkeypatch):
     # P1SignalLoader 抛异常 → 返回 None（不崩）
     import modules.p1_signal as P1
