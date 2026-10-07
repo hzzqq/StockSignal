@@ -104,9 +104,13 @@ def test_individual_series_estimate_fallback():
         "volume": [1000, 1100, 1200],
     })
 
+    # StockFetcher() 构造会做真实网络 I/O（BaoStock 登录 + 拉全量股票列表），
+    # CI/离线环境下会触发 12s 硬超时使估算路径取不到数据；整体替换 fetcher 保持用例 hermetic。
+    fake_fetcher = mock.Mock()
+    fake_fetcher.get_daily.return_value = daily
     with mock.patch("akshare.stock_individual_fund_flow",
                    side_effect=RuntimeError("no real")):
-        with mock.patch("modules.fetcher.StockFetcher.get_daily", return_value=daily):
+        with mock.patch("modules.linear_trends.StockFetcher", return_value=fake_fetcher):
             df = lt.get_individual_fund_flow_series("600519", days=60)
     assert not df.empty
     assert df.attrs.get("source") == "estimate"
@@ -120,8 +124,9 @@ def test_individual_series_estimate_fallback():
 def test_individual_series_none_when_both_fail():
     with mock.patch("akshare.stock_individual_fund_flow",
                    side_effect=RuntimeError("no real")):
-        with mock.patch("modules.fetcher.StockFetcher.get_daily",
-                        return_value=pd.DataFrame()):
+        fake_fetcher = mock.Mock()
+        fake_fetcher.get_daily.return_value = pd.DataFrame()
+        with mock.patch("modules.linear_trends.StockFetcher", return_value=fake_fetcher):
             df = lt.get_individual_fund_flow_series("600519", days=60)
     assert df.attrs.get("source") == "none"
 
