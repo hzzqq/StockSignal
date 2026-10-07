@@ -6,7 +6,7 @@ StockSignal 毕业论文 · 第6.4节 回测成本模型有效性验证脚本（
   B 组：全部成本置 0
 比较两组净值曲线与总收益，用差额证明成本模型确实被扣除，而非形同虚设。
 
-产出（thesis/ch6_eval/）：
+产出（thesis/素材/ch6_eval/）：
   backtest_cost_metrics.json   两组指标 + 差额
   fig_backtest_equity.png      两条净值曲线对比图（论文用）
 
@@ -16,10 +16,20 @@ import json
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+def _project_root(start_file):
+    cur = os.path.abspath(start_file)
+    for _ in range(6):
+        if os.path.exists(os.path.join(cur, "app.py")) or os.path.exists(os.path.join(cur, "modules")):
+            return cur
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            break
+        cur = parent
+    return os.path.dirname(os.path.dirname(os.path.abspath(start_file)))
+ROOT = _project_root(__file__)
 sys.path.insert(0, ROOT)
 
-OUT = os.path.join(ROOT, "thesis", "ch6_eval")
+OUT = os.path.join(ROOT, "thesis", "素材", "ch6_eval")
 os.makedirs(OUT, exist_ok=True)
 
 TICKER = "000001"

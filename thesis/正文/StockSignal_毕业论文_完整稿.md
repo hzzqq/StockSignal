@@ -133,7 +133,7 @@ A 股市场个人投资者占比高、信息来源庞杂，行情、公告、板
 
 图 3-1 给出四层结构与层间契约，箭头上标注的是各层唯一的通信方式：前端与后端之间只有 JSON 信封，逻辑层与数据层之间只有落盘读写，逻辑层到外部源之间只有取数与降级。
 
-![图 3-1　StockSignal 系统总体架构图](figures/fig_architecture.svg)
+![图 3-1　StockSignal 系统总体架构图](../图表/figures/fig_architecture.svg)
 
 ## 3.4 数据库设计
 
@@ -146,7 +146,7 @@ A 股市场个人投资者占比高、信息来源庞杂，行情、公告、板
 
 三份产物按"最新 / 归档 / 对账"分工，彼此以日期为主键关联：`daily_snapshot.json` 是 `snapshots/` 中最后一份的副本，供首页零成本直读；`snapshots/YYYY-MM-DD.json` 是按天归档的不可变事实源，决策复盘与回测只认它；`prediction_log.json` 只存预测侧必要字段与次日回填的 `realized`、`hit`，不复制快照全集。这样拆分使"当天看什么"、"事后查什么"、"长期统什么"三条访问路径互不干扰，也避免单文件随样本增长而膨胀。图 3-2 给出三者及核心字段的关系。
 
-![图 3-2　决策数据核心实体关系图](figures/fig_er.svg)
+![图 3-2　决策数据核心实体关系图](../图表/figures/fig_er.svg)
 
 ## 3.5 设计模式与关键质量属性
 
@@ -187,7 +187,7 @@ StockSignal 采用"前端多页应用 + 后端 JSON 服务 + 轻量本地数据�
 
 这种分层带来的直接收益是关注点分离：前端只消费后端返回的 JSON 信封，逻辑层不感知展示框架，后端不持有领域算法。第 6 章的 2117 个单元测试函数能脱离界面独立运行，正是这一解耦结构的产物。
 
-> 架构分层图建议取自 `thesis/ch6_eval/` 下的架构 SVG，或按"前端 / 后端 / 逻辑层 / 数据层 / 外部源"五层自绘，标注各层之间的 JSON 契约与降级链路。
+> 架构分层图建议取自 `thesis/素材/ch6_eval/` 下的架构 SVG，或按"前端 / 后端 / 逻辑层 / 数据层 / 外部源"五层自绘，标注各层之间的 JSON 契约与降级链路。
 
 ---
 
@@ -220,7 +220,7 @@ def full_analysis(df) -> Dict[str, Any]:
 ---
 
 
-![图 4-1　行情看板页——多指数实时看板 + K 线主图 + 五日资金雷达 + 龙头股快照 + 板块涨幅面板 + 自选管理与新闻/公告推送，体现红涨绿跌全局配色（#ff4d4f 涨 / #00d486 跌）](figures/fig_行情看板.png)
+![图 4-1　行情看板页——多指数实时看板 + K 线主图 + 五日资金雷达 + 龙头股快照 + 板块涨幅面板 + 自选管理与新闻/公告推送，体现红涨绿跌全局配色（#ff4d4f 涨 / #00d486 跌）](../图表/figures/fig_行情看板.png)
 
 ## 4.3 事件追踪与板块详情
 
@@ -246,7 +246,7 @@ return {"adj": min(5, n // 10), "long_count": n, "as_of": as_of}
 ---
 
 
-![图 4-2　事件追踪 / 板块详情页——事件追踪导读 + 信号评分 + 实时大盘异动监控 + 事件时间轴 + 事件管理表单 + 现有事件库与按时间/事件名检索](figures/fig_事件追踪.png)
+![图 4-2　事件追踪 / 板块详情页——事件追踪导读 + 信号评分 + 实时大盘异动监控 + 事件时间轴 + 事件管理表单 + 现有事件库与按时间/事件名检索](../图表/figures/fig_事件追踪.png)
 
 ## 4.4 策略回测引擎与多进程隔离
 
@@ -266,7 +266,7 @@ return {"adj": min(5, n // 10), "long_count": n, "as_of": as_of}
 
 图 4-3 把上述流程串成一条可复核的链路：配置与数据是输入，信号生成与撮合彼此解耦（信号由策略预生成、撮合只消费信号序列），成本扣除集中在撮合环节，绩效统计与产物输出位于末端。并行的部分被刻意画成独立分支——只有批量与历史回溯走多进程，单标的回测仍是同步执行，避免为少量任务付出进程创建与序列化开销。
 
-![图 4-3　策略回测引擎执行流程](figures/fig_backtest.svg)
+![图 4-3　策略回测引擎执行流程](../图表/figures/fig_backtest.svg)
 > **【待补截图 6】** 回测结果页：含净值曲线 + 逐笔交易明细 + 绩效指标（总收益/最大回撤/胜率/盈亏比），与正文图 4-3、图 6-5 对应。
 
 
@@ -378,7 +378,7 @@ if df is None or df.empty:
 
 图 5-1 是本章的全景：上半部分是"推导"，把四类输入收口到唯一函数并输出带理由的仓位；下半部分是"回溯"，把每天的建议落盘、与次日实际对账，再把对账结果反馈给刻度校准，形成闭环。两条支路的区别在于——推导是同步的、每天必跑；回溯是异步的、依赖次日数据到位后才补。
 
-![图 5-1　决策闭环流程图](figures/fig_decision_loop.svg)
+![图 5-1　决策闭环流程图](../图表/figures/fig_decision_loop.svg)
 
 ### 5.2.1 单一实现入口 `derive_position`
 
@@ -492,7 +492,7 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 图 5-2 把 5.3 的机制串成一条带闸门的链路。注意两处"拒绝"分支：样本不足时 `suggestions()` 直接不给建议（T3），证据陈旧时 `apply_patch()` 拒绝落地——它们不是异常路径，而是设计的正常行为，目的都是让"不表态"成为可能，而不是被迫输出一个听起来专业却站不住的数字。
 
-![图 5-2　刻度校准机制框图](figures/fig_calibration.svg)
+![图 5-2　刻度校准机制框图](../图表/figures/fig_calibration.svg)
 
 ---
 
@@ -528,7 +528,7 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 `C:/Users/Administrator/.workbuddy/binaries/python/envs/default/Scripts/python.exe thesis/eval_ch6.py`
 
-产出见 `thesis/ch6_eval/`：`metrics.json`、`history.json`、`fig_*.png`。
+产出见 `thesis/素材/ch6_eval/`：`metrics.json`、`history.json`、`fig_*.png`。
 
 ---
 
@@ -564,19 +564,19 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 图 6-1 给出四天的仓位建议及 5/95 上下限参考线，用于直观校验 clamp 约束确实生效：
 
-![图 6-1　决策闭环：每日仓位建议（clamp 5~95 校验）](ch6_eval/fig_position.png)
+![图 6-1　决策闭环：每日仓位建议（clamp 5~95 校验）](../素材/ch6_eval/fig_position.png)
 
 图 6-2 是周期分布。四天覆盖三个周期，样本虽小，但说明分类逻辑对真实数据产生了区分，而非恒定输出同一档：
 
-![图 6-2　市场周期分布](ch6_eval/fig_cycle.png)
+![图 6-2　市场周期分布](../素材/ch6_eval/fig_cycle.png)
 
 图 6-3 把温度与仓位画成散点，用于观察决策函数的形态。理想情况下二者应呈正相关，且所有点都落在 [5,95] 带内——这正是本系统期望看到的"温度驱动、边界收敛"行为：
 
-![图 6-3　温度 vs 仓位散点（决策函数形态）](ch6_eval/fig_temp_pos.png)
+![图 6-3　温度 vs 仓位散点（决策函数形态）](../素材/ch6_eval/fig_temp_pos.png)
 
 图 6-4 是已评分样本的命中情况。当前仅 1 条样本且未命中，**此处只证明对账链路能跑通并正确落盘，不构成任何统计结论**；随着每日快照累积，该图才会逐步具备评价意义：
 
-![图 6-4　预测 vs 实际命中（已评分样本，n=1）](ch6_eval/fig_hit.png)
+![图 6-4　预测 vs 实际命中（已评分样本，n=1）](../素材/ch6_eval/fig_hit.png)
 
 解读：系统上线初期样本量有限，本章以"**决策闭环功能正确性 + 校准机制设计正确性**"为评估主线，纵向命中率仅作趋势性证据，不夸大统计结论（与 5.3 的保守设计自洽）。
 
@@ -617,7 +617,7 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 图 6-5 给出两组净值曲线，两条线的间距随交易次数单调拉开，是成本逐笔累积的直观体现：
 
-![图 6-5　回测净值曲线：成本模型开关对比](ch6_eval/fig_backtest_equity.png)
+![图 6-5　回测净值曲线：成本模型开关对比](../素材/ch6_eval/fig_backtest_equity.png)
 
 ## 6.5 质量门禁与持续集成
 
@@ -660,9 +660,9 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 图 6-6 给出 4094 个交易日的广度历史走势（红盘率与涨跌家数），是上述回测的数据基座；图 6-7 给出分阶段决策命中率随时间的趋势，直观呈现方向命中在长周期上围绕 50% 波动、无稳定超额 edge。
 
-![图 6-6　全市场广度历史（4094 交易日）](ch6_eval/fig_history_trend.png)
+![图 6-6　全市场广度历史（4094 交易日）](../素材/ch6_eval/fig_history_trend.png)
 
-![图 6-7　分阶段决策命中率趋势（围绕 50% 波动）](ch6_eval/fig_hit_trend.png)
+![图 6-7　分阶段决策命中率趋势（围绕 50% 波动）](../素材/ch6_eval/fig_hit_trend.png)
 
 **刻度校准演示。** 用回测分组统计驱动 `calibration.py` 公式 `sug_delta = clamp(round(2.0 × avg_realized), ±5)`，四大战术分组建议调节量均 ≤ 1 点（进攻期 −1、修复期 0、防守期 0；分化期 −5 但 n_call=1 被 `STRONG_SAMPLES=20` 硬性拦截），**全部 actionable=False**。这说明原有 `CYCLE_ADJ` 经验常数在统计意义上基本合理，且校准机制在噪音阈值内正确"不动"、小样本被护栏阻断过拟合——与命题一（方向≈随机）自洽。
 
@@ -957,9 +957,9 @@ def _simulate(self, df, signals, initial_capital=100000, commission=0.001,
 - `data/daily_snapshot.json`：最新决策快照（首页直读），含 `position.pct` 与逐条 `reasons`；
 - `data/snapshots/YYYY-MM-DD.json`：每日归档，决策复盘与回测的唯一事实源；
 - `data/prediction_log.json`：预测 vs 实际对账记录（`date, temp, cycle, bias, pct, realized, hit, event_adj, event_available`）；
-- `thesis/ch6_eval/metrics.json`：样本量、温度/仓位取值区间、clamp 校验结果、周期分布；
-- `thesis/ch6_eval/backtest_cost_metrics.json`：同一标的在"含成本 / 零成本"两组设定下的绩效差额（验证成本模型确实生效）；
-- `thesis/ch6_eval/fig_*.png`：图 6-1 至图 6-4 及回测净值对比图。
+- `thesis/素材/ch6_eval/metrics.json`：样本量、温度/仓位取值区间、clamp 校验结果、周期分布；
+- `thesis/素材/ch6_eval/backtest_cost_metrics.json`：同一标的在"含成本 / 零成本"两组设定下的绩效差额（验证成本模型确实生效）；
+- `thesis/素材/ch6_eval/fig_*.png`：图 6-1 至图 6-4 及回测净值对比图。
 
 上述文件均由系统实际运行生成，未做数字编造；样例缺失或不足时，正文已明确标注"不做显著性推断"。
 
@@ -972,11 +972,11 @@ def _simulate(self, df, signals, initial_capital=100000, commission=0.001,
 ```bash
 # 1) 第 6 章决策闭环评估：读 daily_snapshot.json + snapshots/ + prediction_log.json
 python thesis/eval_ch6.py
-#    产出 thesis/ch6_eval/{metrics.json, history.json, report.md, fig_*.png}
+#    产出 thesis/素材/ch6_eval/{metrics.json, history.json, report.md, fig_*.png}
 
 # 2) 第 6.4 节回测成本模型验证：同一标的跑「含成本 / 零成本」两组
 python thesis/gen_backtest_eval.py
-#    产出 thesis/ch6_eval/{backtest_cost_metrics.json, fig_backtest_equity.png}
+#    产出 thesis/素材/ch6_eval/{backtest_cost_metrics.json, fig_backtest_equity.png}
 #    需联网取真实日线；取数失败时脚本报错退出，不产出任何占位数字
 ```
 

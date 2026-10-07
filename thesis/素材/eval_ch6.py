@@ -6,7 +6,7 @@ StockSignal 毕业论文 · 第6章 评估脚本（只读真实数据，不伪�
   data/snapshots/*.json           每日归档（复盘/回测源）
   data/prediction_log.json        决策闭环「预测 vs 实际」落盘记录
 
-产出（thesis/ch6_eval/）：
+产出（thesis/素材/ch6_eval/）：
   metrics.json   真实指标（含样本量、clamp 校验、命中率）
   fig_*.html     论文用可交互图（同时尝试导出 png）
   report.md      可直接贴进论文第6章的「评估结果」草稿
@@ -22,9 +22,19 @@ import sys
 from datetime import datetime
 from collections import Counter
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+def _project_root(start_file):
+    cur = os.path.abspath(start_file)
+    for _ in range(6):
+        if os.path.exists(os.path.join(cur, "app.py")) or os.path.exists(os.path.join(cur, "modules")):
+            return cur
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            break
+        cur = parent
+    return os.path.dirname(os.path.dirname(os.path.abspath(start_file)))
+ROOT = _project_root(__file__)
 DATA = os.path.join(ROOT, "data")
-OUT = os.path.join(ROOT, "thesis", "ch6_eval")
+OUT = os.path.join(ROOT, "thesis", "素材", "ch6_eval")
 os.makedirs(OUT, exist_ok=True)
 
 import plotly.graph_objects as go
