@@ -640,7 +640,8 @@ def _tutorial_example_buttons():
 
 def render_ai_tutorial():
     """星辰 AI 新手教程模块：首次使用引导（纯展示层，不改动任何业务逻辑）。"""
-    with st.expander("📘 使用指南 · 第一次用星辰 AI 看这里", expanded=False):
+    with st.container():
+        st.markdown("#### 📘 使用指南 · 第一次用星辰 AI 看这里")
         st.markdown(
             "**🎯 你能问什么**\n"
             "- **个股诊断**：*太极实业 600667 怎么样？*\n"
@@ -769,112 +770,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 星辰 AI 新手教程模块（纯展示，不改动业务逻辑）
-render_ai_tutorial()
-
-# 加法式结果计数/摘要：对话消息总条数
-st.caption(f"💬 当前对话共 {len(st.session_state.get('xc_messages', []))} 条消息")
-
-# 加法式风险提示/免责声明（页面顶部独立标注，不影响既有 banner 文案）
-st.caption("⚠️ 数据仅供参考，不构成投资建议；AI 回答为模型推演，请独立判断。")
-
-# 加法式数据来源标注
-st.caption("📡 数据来源：东方财富 / 新浪财经 / 公开财经资讯（经后端 ai_consult 任务聚合）")
-
-# ── H1 深度研究开关（additive，2026-09-17）：开启后提问走研究智能体任务 ──
-st.checkbox(
-    "🔬 深度研究模式（多步工具调用 · 引用溯源 · 较慢）",
-    value=bool(st.session_state.get("xc_deep_mode", False)),
-    key="xc_deep_mode",
-    help="开启后问题交给研究智能体：自动调用行情 / 技术面 / 新闻 / 市场情绪等真实数据工具，"
-         "每一步与数据时点（as_of）全程留痕，回答附 [S#] 引用可溯源。"
-         "比普通问答慢（约 1 分钟），全程只读、不会下单。",
-)
-
-# ── H1+ 自驱盯盘研究记录（additive，T-216）：定时自驱产出的研究记录 + 引用溯源 ──
-# spec B.2：前端在「星辰 AI」与「消息中心」展示自驱研究记录；此处为星辰AI 侧入口。
-try:
-    import logging as _xlog
-    from modules.session import api_get as _xc_api_get
-
-    _xc_logger = _xlog.getLogger("pages.53_星辰AI")
-
-    @st.cache_data(ttl=60, show_spinner=False)
-    def _xc_load_research_runs(limit=8):
-        try:
-            _sc, _body = _xc_api_get(f"/api/research-runs?limit={limit}", timeout=5)
-            if _sc == 200 and isinstance(_body, dict) and _body.get("status") == "ok":
-                return (_body.get("data") or {}).get("items") or []
-            _xc_logger.debug("自驱研究记录取数异常: status=%s", _sc)
-        except Exception as _e:  # noqa: BLE001
-            _xc_logger.debug("自驱研究记录取数失败: %s", _e)
-        return []  # 取不到即空（诚实，不编造）
-
-    _xc_runs = _xc_load_research_runs()
-    _st_icon = {"ok": "✅", "partial": "⚠️", "unavailable": "⛔"}
-    with st.expander(
-            f"🛰️ 自驱盯盘研究记录（{len(_xc_runs)}）—— 盯到市场异动后自动研究，含引用溯源",
-            expanded=False):
-        if not _xc_runs:
-            st.caption("暂无记录：交易时段盯到异动告警后会自动产生研究（只读，不下单）。")
-        else:
-            for _r in _xc_runs:
-                _status = str(_r.get("status") or "unavailable")
-                _name = _r.get("trigger_metric_name") or _r.get("trigger_metric_key") or "市场异动"
-                _cits = _r.get("citations") or []
-                _lims = _r.get("limitations") or []
-                st.markdown(
-                    f"**{_st_icon.get(_status, 'ℹ️')} {_name}**　·　"
-                    f"{str(_r.get('created_at') or '')[:19].replace('T', ' ')}"
-                    f"　·　`{_status}`　·　引用 {len(_cits)} 条"
-                )
-                if _r.get("question"):
-                    st.caption(f"❓ {str(_r['question'])[:120]}")
-                if _r.get("answer"):
-                    st.markdown(str(_r["answer"])[:800])
-                if _cits:
-                    st.caption("📎 " + "；".join(
-                        f"[{c.get('id', '?')}] {c.get('title', '')}" for c in _cits[:6]))
-                if _lims:
-                    st.caption("⚠️ 局限：" + "；".join(str(x) for x in _lims[:4]))
-                st.divider()
-except Exception as _rw_e:  # noqa: BLE001 - additive 区块失败只留痕，不影响对话主流程
-    import logging as _xlog
-    _xlog.getLogger("pages.53_星辰AI").debug("自驱研究记录展示失败: %s", _rw_e)
-
-# 加法式页面间快捷跳转：关联功能页（新增，不改动既有布局）
-st.markdown("**🔗 相关页面**")
-_pc1, _pc2, _pc3 = st.columns(3)
-with _pc1:
-    st.page_link("pages/10_行情看板.py", label="→ 行情看板")
-with _pc2:
-    st.page_link("pages/24_个股研究.py", label="→ 个股研究")
-with _pc3:
-    st.page_link("pages/94_消息中心.py", label="→ 消息中心")
-
-# 加法式示例数据预览：只读示例回答（不写库、不改逻辑）
-with st.expander("👀 查看示例回答（只读）", expanded=False):
-    st.caption("以下为示例，仅展示 AI 可能的回答风格，非真实数据。")
-    st.markdown(
-        _md_to_html(
-            "**【个股诊断示例】太极实业(600667)**\n\n"
-            "- 近期量能温和放大，资金面偏积极；\n"
-            "- 半导体板块情绪回暖，存在事件催化；\n"
-            "- 风险提示：估值已不便宜，注意追高回撤。\n\n"
-            "> 以上为示例文本，实际回答以你提问后的模型推演为准。"
-        ),
-        unsafe_allow_html=True,
-    )
-
-# 加法式最近浏览历史：展示最近在对话中提及的 6 位股票代码（纯前端 session，不接后端）
-_xc_recent = st.session_state.get("xc_recent_stocks", [])
-if _xc_recent:
-    st.markdown("**🕘 最近浏览**")
-    _rc = st.columns(min(len(_xc_recent), 6))
-    for _i, _code in enumerate(_xc_recent[:6]):
-        if _rc[_i].button(f"📈 {_code}", key=f"xc_recent_{_i}", help="向星辰 AI 追问该股票"):
-            st.session_state["_xc_pending"] = f"{_code} 怎么样？"
-            st.rerun()
 
 # ── 渲染历史 ──
 @safe_fragment("AI 对话")
@@ -991,17 +886,6 @@ def fragment_chat():
 
 fragment_chat()
 
-# ── 复制最近一次 AI 回答（便于摘录 / 分享）──
-_xc_msgs = st.session_state.get("xc_messages", [])
-_xc_last_ai = next(
-    (m.get("content", "") for m in reversed(_xc_msgs)
-     if m.get("role") == "assistant" and m.get("content")),
-    "",
-)
-if _xc_last_ai and _xc_last_ai != WELCOME["content"]:
-    with st.expander("📋 复制最近回答", expanded=False):
-        st.code(_xc_last_ai, language="text")
-
 # ── 轮询后台任务（收进 fragment，#402）──
 # 等待期间 st_autorefresh 只让本片段每 1.5s 局部重跑，不再整页全量重跑
 # （否则页面顶部鉴权/历史渲染/上下文构建会被反复执行，造成卡顿）。
@@ -1065,9 +949,109 @@ def _poll_ai_task():
 if st.session_state.get("xc_task_id"):
     _poll_ai_task()
 
-# 加法式相关推荐块：底部「你可能也关注」静态推荐（加法式，不改既有逻辑、不接后端）
-with st.expander("🔗 你可能也关注（相关推荐）", expanded=False):
-    st.caption("以下为静态推荐，点击可直接向星辰 AI 提问（仅前端，不接后端）。")
+
+# ── 「更多功能与帮助」：T-228 起把次要模块统一收进单个折叠区 ──
+# 目的：突出主对话区（老板 2026-10-07 指示「除正常对话区外，其他功能模块做适当隐藏/简化」）。
+# 说明：Streamlit 不支持 expander 嵌套，故组内各模块改用四级标题分区；
+#       深度研究开关移入组内——其值仍写入 session_state，fragment 提交时照常读取。
+with st.expander("⚙️ 更多功能与帮助（深度研究 · 研究记录 · 最近浏览 · 帮助）", expanded=False):
+    # ── 深度研究模式（H1 开关）──
+    st.checkbox(
+        "🔬 深度研究模式（多步工具调用 · 引用溯源 · 较慢）",
+        value=bool(st.session_state.get("xc_deep_mode", False)),
+        key="xc_deep_mode",
+        help="开启后问题交给研究智能体：自动调用行情 / 技术面 / 新闻 / 市场情绪等真实数据工具，"
+             "每一步与数据时点（as_of）全程留痕，回答附 [S#] 引用可溯源。"
+             "比普通问答慢（约 1 分钟），全程只读、不会下单。",
+    )
+
+    # ── H1+ 自驱盯盘研究记录（T-216）：定时自驱产出的研究记录 + 引用溯源 ──
+    st.markdown("#### 🛰️ 自驱盯盘研究记录")
+    try:
+        import logging as _xlog
+        from modules.session import api_get as _xc_api_get
+
+        _xc_logger = _xlog.getLogger("pages.53_星辰AI")
+
+        @st.cache_data(ttl=60, show_spinner=False)
+        def _xc_load_research_runs(limit=8):
+            try:
+                _sc, _body = _xc_api_get(f"/api/research-runs?limit={limit}", timeout=5)
+                if _sc == 200 and isinstance(_body, dict) and _body.get("status") == "ok":
+                    return (_body.get("data") or {}).get("items") or []
+                _xc_logger.debug("自驱研究记录取数异常: status=%s", _sc)
+            except Exception as _e:  # noqa: BLE001
+                _xc_logger.debug("自驱研究记录取数失败: %s", _e)
+            return []  # 取不到即空（诚实，不编造）
+
+        _xc_runs = _xc_load_research_runs()
+        _st_icon = {"ok": "✅", "partial": "⚠️", "unavailable": "⛔"}
+        if not _xc_runs:
+            st.caption("暂无记录：交易时段盯到异动告警后会自动产生研究（只读，不下单）。")
+        else:
+            for _r in _xc_runs:
+                _status = str(_r.get("status") or "unavailable")
+                _name = _r.get("trigger_metric_name") or _r.get("trigger_metric_key") or "市场异动"
+                _cits = _r.get("citations") or []
+                _lims = _r.get("limitations") or []
+                st.markdown(
+                    f"**{_st_icon.get(_status, 'ℹ️')} {_name}**　·　"
+                    f"{str(_r.get('created_at') or '')[:19].replace('T', ' ')}"
+                    f"　·　`{_status}`　·　引用 {len(_cits)} 条"
+                )
+                if _r.get("question"):
+                    st.caption(f"❓ {str(_r['question'])[:120]}")
+                if _r.get("answer"):
+                    st.markdown(str(_r["answer"])[:800])
+                if _cits:
+                    st.caption("📎 " + "；".join(
+                        f"[{c.get('id', '?')}] {c.get('title', '')}" for c in _cits[:6]))
+                if _lims:
+                    st.caption("⚠️ 局限：" + "；".join(str(x) for x in _lims[:4]))
+                st.divider()
+    except Exception as _rw_e:  # noqa: BLE001 - additive 区块失败只留痕，不影响对话主流程
+        import logging as _xlog
+        _xlog.getLogger("pages.53_星辰AI").debug("自驱研究记录展示失败: %s", _rw_e)
+
+    st.divider()
+    # ── 最近浏览：展示最近在对话中提及的股票代码（纯前端 session，不接后端）──
+    _xc_recent = st.session_state.get("xc_recent_stocks", [])
+    if _xc_recent:
+        st.markdown("#### 🕘 最近浏览")
+        _rc = st.columns(min(len(_xc_recent), 6))
+        for _i, _code in enumerate(_xc_recent[:6]):
+            if _rc[_i].button(f"📈 {_code}", key=f"xc_recent_{_i}", help="向星辰 AI 追问该股票"):
+                st.session_state["_xc_pending"] = f"{_code} 怎么样？"
+                st.rerun()
+
+    # ── 复制最近一次 AI 回答（便于摘录 / 分享）──
+    _xc_msgs = st.session_state.get("xc_messages", [])
+    _xc_last_ai = next(
+        (m.get("content", "") for m in reversed(_xc_msgs)
+         if m.get("role") == "assistant" and m.get("content")),
+        "",
+    )
+    if _xc_last_ai and _xc_last_ai != WELCOME["content"]:
+        st.markdown("#### 📋 复制最近回答")
+        st.code(_xc_last_ai, language="text")
+
+    st.divider()
+    # ── 使用指南（新手教程 + 可点击示例）──
+    render_ai_tutorial()
+
+    st.divider()
+    # ── 相关页面 ──
+    st.markdown("#### 🔗 相关页面")
+    _pc1, _pc2, _pc3 = st.columns(3)
+    with _pc1:
+        st.page_link("pages/10_行情看板.py", label="→ 行情看板")
+    with _pc2:
+        st.page_link("pages/24_个股研究.py", label="→ 个股研究")
+    with _pc3:
+        st.page_link("pages/94_消息中心.py", label="→ 消息中心")
+
+    # ── 你可能也关注（静态推荐，点击直接提问）──
+    st.markdown("#### 🔗 你可能也关注")
     _recs = [
         {"label": "📈 贵州茅台 600519", "prompt": "贵州茅台 600519 当前估值怎么样？"},
         {"label": "🔋 宁德时代 300750", "prompt": "宁德时代 300750 近期走势如何？"},
@@ -1081,24 +1065,18 @@ with st.expander("🔗 你可能也关注（相关推荐）", expanded=False):
             st.session_state["_xc_pending"] = _r["prompt"]
             st.rerun()
 
-# 加法式可折叠帮助/FAQ（与 Batch13 行内 help 不同，这是折叠面板）
-with st.expander("💡 使用说明 / 常见问题", expanded=False):
+    # ── 使用说明 / 常见问题（并入快捷键说明）──
+    st.markdown("#### 💡 使用说明 / 常见问题")
     st.markdown(
         "**如何使用星辰 AI？**\n"
         "- 在底部输入框输入问题，按 Enter 发送（Shift+Enter 换行）；\n"
-        "- 可点击上方快捷问题 chips 直接提问；\n"
+        "- 可点击「使用指南」里的快捷示例直接提问；\n"
         "- 对话历史按账号在后端持久化，刷新不丢失。\n\n"
+        "**键盘快捷**\n"
+        "- **Enter**：发送当前输入框内容；**Shift + Enter**：输入框内换行；\n"
+        "- **R**：刷新页面重新加载对话（浏览器快捷键）。\n\n"
         "**常见问题**\n"
         "- Q：回答需要多久？A：当前使用免费模型，首次响应可能较慢，请耐心等待。\n"
         "- Q：数据从哪来？A：聚合东方财富 / 新浪财经等公开市场数据。\n"
         "- Q：回答可靠吗？A：均为模型推演，不构成投资建议，请独立判断。"
-    )
-
-# 加法式键盘快捷键提示（纯提示文案，不绑定真实快捷键）
-with st.expander("⌨️ 快捷键", expanded=False):
-    st.markdown(
-        "- **Enter**：发送当前输入框内容\n"
-        "- **Shift + Enter**：在输入框内换行\n"
-        "- **R**：刷新页面重新加载对话（浏览器快捷键）\n"
-        "- 对话历史自动保存，无需手动操作"
     )
