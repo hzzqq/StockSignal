@@ -18,9 +18,11 @@
 
 范围边界（诚实声明）：
     勘测另发现 **重叠段**（2009-11-02 起 4084 天）JSON 与 CSV 的广度字段口径不一致
-    （JSON 全市场 vs CSV v1 稀疏样本）。按规则应以 json 为准重写，但那会改变历史
-    温度序列与已钉论文回测口径 —— **超出本脚本职责，须老板单独拍板**，本脚本
-    绝不触碰任何 CSV 已有日期的行。
+    （JSON 全市场 vs CSV v1 稀疏样本）。**老板 2026-10-07 拍板「按选项 A 维持现状」**
+    （DECISIONS 同日备案；守卫 tests/test_shepherd_history_backfill.py::
+    test_overlap_segment_keeps_sparse_era_values 钉住稀疏签名）：重叠段以 CSV 现状
+    为准、**绝不**按 JSON 重写（那会改变历史温度序列与已钉论文回测口径）。本脚本
+    因此绝不触碰任何 CSV 已有日期的行。
 
 用法：
     python scripts/backfill_shepherd_history_from_json.py            # dry-run（默认）

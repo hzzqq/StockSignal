@@ -84,3 +84,21 @@ def test_mirror_synced_with_csv():
     """持久镜像必须与运行真理源一致（T-221/T-222 两次同步的契约）。"""
     assert _load_lines(CSV_PATH) == _load_lines(MIRROR_PATH), \
         "backups/shepherd_history_restored.csv 与 data/shepherd_history.csv 不一致"
+
+
+def test_overlap_segment_keeps_sparse_era_values(csv_data):
+    """重叠段维持 CSV 稀疏口径（老板 2026-10-07 拍板「按选项 A 维持现状」，DECISIONS 同日备案）。
+
+    背景：JSON（全市场口径）与 CSV（v1 稀疏样本口径）在重叠段 4084 天上广度字段
+    全量不一致（如 2009-11-02 up_count：JSON=1363 vs CSV=2.0）。规则 §四「冲突以
+    json 为准」**不适用于本文件的重叠段**——老板已明确拒绝按 JSON 重写（那会改变
+    历史温度序列与已钉论文回测口径 49.1%/4094）。本守卫钉住稀疏签名：若变红，说明
+    有人重写了重叠段——须先取得老板对该口径变更的明确批准，勿静默「统一口径」。
+    """
+    _header, _mi, rows = csv_data
+    by_date = {d: cells for d, cells, _ln in rows}
+    row = by_date.get("2009-11-02")
+    assert row is not None, "2009-11-02 行缺失"
+    assert row[1] == "2.0", \
+        f"重叠段稀疏口径签名漂移：2009-11-02 up_count={row[1]!r}（期望 2.0）。" \
+        "重叠段属老板拍板「维持现状」区（2026-10-07），重写需另行批准"
