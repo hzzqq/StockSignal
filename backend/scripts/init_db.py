@@ -31,6 +31,7 @@ from backend.scripts.migrate_add_avatar import migrate as migrate_avatar  # noqa
 from backend.scripts.migrate_add_settings import migrate as migrate_settings  # noqa: E402
 from backend.scripts.migrate_add_alert_type import migrate as migrate_alert_type  # noqa: E402
 from backend.scripts.migrate_add_trading import migrate as migrate_trading  # noqa: E402
+from backend.scripts.migrate_add_research_run import migrate as migrate_research_run  # noqa: E402
 
 
 _DEFAULT_CONFIGS = [
@@ -56,6 +57,8 @@ def main() -> None:
         migrate_alert_type(app)
         # 实盘交易 & 智能条件单 4 张表（幂等建表）
         migrate_trading(app)
+        # 自驱研究记录表（H1+ 幂等建表）
+        migrate_research_run(app)
 
         seeds = [
             {"username": "admin", "password": "Admin@123", "role": "admin"},
