@@ -165,3 +165,39 @@ def safe_float(value, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def clamp(x, lo, hi):
+    """把数值限制在 ``[lo, hi]`` 区间（全 NaN / inf / None 安全）。
+
+    替代散落的 ``max(lo, min(hi, x))``：后者在 ``x`` 为 NaN / inf / None 时会
+    原样返回非法值（NaN 与任何数比较恒 False、inf 参与比较会泄漏、None 直接抛
+    ``TypeError``），污染分数 / 比例 / 仓位等下游计算。
+    处理约定：None / 非数字 / NaN -> ``lo``（未知，按最保守下界）；
+    ``+inf`` -> ``hi``；``-inf`` -> ``lo``。
+    """
+    try:
+        xf = float(x)
+    except (TypeError, ValueError):
+        return lo
+    if math.isinf(xf):
+        return hi if xf > 0 else lo
+    if math.isnan(xf):
+        return lo
+    return max(lo, min(hi, xf))
+
+
+def safe_delta(a, b, default: float = 0.0) -> float:
+    """安全计算 ``a - b``；任一为 None / NaN / inf / 非数字时返回 ``default``。
+
+    替代裸 ``a - b``：当 a 或 b 来自行情接口可能为 None / NaN 时，裸减法会抛
+    ``TypeError`` 或产出 NaN 污染价差 / 变化量计算。
+    """
+    x = to_float(a, default=None)
+    y = to_float(b, default=None)
+    if x is None or y is None:
+        return default
+    r = x - y
+    if math.isnan(r) or math.isinf(r):
+        return default
+    return r
