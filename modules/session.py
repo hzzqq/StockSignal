@@ -1200,46 +1200,46 @@ def _cached_alerts_panel(token: str, nonce: int) -> dict:
 
 @safe_fragment("市场异动提醒面板")
 def fragment_market_alerts_panel() -> None:
-    """共享市场异动面板：可在任意页面末尾挂载，风格与 P 页统一。"""
-    from modules.page_widgets import _section_title
-    _section_title("🔔 近期异动提醒（自动扫描 · 后台调度）", accent="#ee2a2a")
+    """共享市场异动面板：可在任意页面末尾挂载；T-224 起整体可折叠（默认收起，未读数进标签）。"""
     nonce = int(st.session_state.get("_alert_panel_nonce", 0))
     data = _cached_alerts_panel(get_token() or "", nonce)
     items = data.get("items", []) or []
     unread = int(data.get("unread_count", 0) or 0)
 
+    label = "🔔 近期异动提醒（自动扫描 · 后台调度）"
     if unread:
-        st.markdown(f"未读 **{unread}** 条")
-    # 「仅看未读」客户端过滤（依据后端 last_seen，无需改后端 / 重启服务）
-    last_seen = _parse_ts(data.get("last_seen")) if data.get("last_seen") else None
-    if st.checkbox("仅看未读", key="panel_unread_only", value=False):
-        if last_seen is not None:
-            items = [it for it in items if (_parse_ts(it.get("created_at")) or datetime.min) > last_seen]
-        else:
-            items = []  # 从未查看过 → 全部视为已读
-    if st.button("✅ 全部标为已读", key="panel_mark_all"):
-        code, _ = api_mark_all_alerts_read()
-        if code == 200:
-            st.session_state["_alert_panel_nonce"] = nonce + 1
+        label += f" · 未读 {unread} 条"
+    with st.expander(label, expanded=False):
+        # 「仅看未读」客户端过滤（依据后端 last_seen，无需改后端 / 重启服务）
+        last_seen = _parse_ts(data.get("last_seen")) if data.get("last_seen") else None
+        if st.checkbox("仅看未读", key="panel_unread_only", value=False):
+            if last_seen is not None:
+                items = [it for it in items if (_parse_ts(it.get("created_at")) or datetime.min) > last_seen]
+            else:
+                items = []  # 从未查看过 → 全部视为已读
+        if st.button("✅ 全部标为已读", key="panel_mark_all"):
+            code, _ = api_mark_all_alerts_read()
+            if code == 200:
+                st.session_state["_alert_panel_nonce"] = nonce + 1
 
-    if not items:
-        info_banner("暂无异动提醒。后台调度器会在交易时段扫描广度/情绪/估值指标越界并推送。")
-        return
+        if not items:
+            info_banner("暂无异动提醒。后台调度器会在交易时段扫描广度/情绪/估值指标越界并推送。")
+            return
 
-    _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}
-    for it in items:
-        sev = it.get("severity", "info")
-        icon = _sev_icon.get(sev, "ℹ️")
-        ts = _rel_time(it.get("created_at"))
-        c1, c2 = st.columns([0.88, 0.12])
-        with c1:
-            st.markdown(f"{icon} **{it.get('metric_name')}**：{it.get('message')}")
-            st.caption(f"　└ {ts}　值 {it.get('value')}　阈值 {it.get('threshold')}")
-        with c2:
-            if st.button("✓", key=f"panel_read_{it.get('id')}", help="标为已读"):
-                code, _ = api_mark_alert_read(it.get("id"))
-                if code == 200:
-                    st.session_state["_alert_panel_nonce"] = nonce + 1
+        _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}
+        for it in items:
+            sev = it.get("severity", "info")
+            icon = _sev_icon.get(sev, "ℹ️")
+            ts = _rel_time(it.get("created_at"))
+            c1, c2 = st.columns([0.88, 0.12])
+            with c1:
+                st.markdown(f"{icon} **{it.get('metric_name')}**：{it.get('message')}")
+                st.caption(f"　└ {ts}　值 {it.get('value')}　阈值 {it.get('threshold')}")
+            with c2:
+                if st.button("✓", key=f"panel_read_{it.get('id')}", help="标为已读"):
+                    code, _ = api_mark_alert_read(it.get("id"))
+                    if code == 200:
+                        st.session_state["_alert_panel_nonce"] = nonce + 1
 
 
 def is_admin() -> bool:
