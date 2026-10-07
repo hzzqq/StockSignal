@@ -52,8 +52,11 @@ def create_task():
     if task_type not in _ALLOWED_TASK_TYPES:
         return fail(message=f"不支持的任务类型: {task_type}", code="unsupported_type", http_status=400)
 
-    ok, payload_or_err = _validate_task_payload(task_type, payload)
-    if not ok:
+    # 注意：此处局部变量名不得用 `ok`——它会遮蔽本模块导入的响应助手 ok()，
+    # 导致末尾 `return ok(data=...)` 抛 TypeError: 'bool' object is not callable（HTTP 500），
+    # 使所有后台任务（ai_consult/analysis/...）提交即失败、前端永远拿不到 task_id。
+    valid, payload_or_err = _validate_task_payload(task_type, payload)
+    if not valid:
         return fail(message=payload_or_err, code="invalid_payload", http_status=400)
     # None 视为空负载，归一化为 dict 以匹配 worker.submit 的签名约定
     payload = payload_or_err if payload_or_err is not None else {}
