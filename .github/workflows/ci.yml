@@ -9,9 +9,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: StockSignal
     steps:
       - uses: actions/checkout@v4
 
