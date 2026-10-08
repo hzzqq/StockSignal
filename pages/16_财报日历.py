@@ -28,7 +28,6 @@ dark = render_standard_page(
     caption="按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。",
     layout="wide",
 )
-sf_card("📅 财报与业绩日历", "按报告期查看已披露财报个股（业绩报表），含每股收益 / 营收 / 净利润及同比；附业绩预告与披露日历（best-effort）。数据来源：东方财富。", icon="📊")
 fetcher = get_fetcher()
 
 
@@ -466,5 +465,7 @@ st.markdown("---")
 fragment_forecast()
 st.markdown("---")
 fragment_disclosure()
-st.markdown("---")
-fragment_stock_financials()
+# ── T-229：个股财报查询收进折叠区——其业绩报表/预告/日历与上方三块同源（按代码过滤），
+#    独有的新浪财务三表能力保留；主区留给报告期维度的三个核心面板。
+with st.expander("🔍 个股财报查询（按代码过滤 · 含财务三表）", expanded=False):
+    fragment_stock_financials()
