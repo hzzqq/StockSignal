@@ -18,7 +18,6 @@ from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
 render_standard_page(title="策略回测", icon="⚙️", layout="wide")
-sf_card("策略回测导读", "支持趋势动量多因子（推荐）、双趋势共振 GMMA+一目、均线交叉、事件驱动四种策略。手动回测与每日选股回测为独立模块，互不重算；下方可运行回测并查看收益曲线与交易明细。", icon="⚙️")
 
 from modules.backtest import Backtester
 # Visualizer + 其常量全部延迟导入（节省 ~0.95s plotly+matplotlib 链）
@@ -27,7 +26,6 @@ from modules.search_ui import stock_search_input
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _empty_info
-from modules.perf import downsample
 # P0 可插拔：策略列表从注册表动态读取（新增策略无需改页面）
 from modules.strategies import list_strategies
 
@@ -121,13 +119,14 @@ def fragment_manual_backtest():
     from modules.ui_theme import _theme_is_dark as _is_dark  # lazy (lightweight)
     sf_card("回测参数", "")
 
-    # ── 强势上涨股快捷预设（点击填入股票搜索）──
-    st.caption("⚡ 强势上涨股快捷预设（点击一键填入上方股票搜索，验证多因子策略对强趋势股的覆盖）：")
-    preset_cols = st.columns(len(STRONG_BULL_PRESETS))
-    for i, (code, name) in enumerate(STRONG_BULL_PRESETS):
-        if preset_cols[i].button(name, key=f"preset_{code}", help=f"代码 {code} · 一键填入"):
-            st.session_state["bt_ticker_confirmed"] = code
-            st.session_state["bt_ticker_query"] = code
+    # ── 强势上涨股快捷预设（T-229 收进折叠区，主区留给回测参数）──
+    with st.expander("⚡ 强势上涨股快捷预设（一键填入标的）", expanded=False):
+        st.caption("点击一键填入股票搜索，验证多因子策略对强趋势股的覆盖。")
+        preset_cols = st.columns(len(STRONG_BULL_PRESETS))
+        for i, (code, name) in enumerate(STRONG_BULL_PRESETS):
+            if preset_cols[i].button(name, key=f"preset_{code}", help=f"代码 {code} · 一键填入"):
+                st.session_state["bt_ticker_confirmed"] = code
+                st.session_state["bt_ticker_query"] = code
 
     with st.form("backtest_form"):
         col1, col2, col3 = st.columns(3)
@@ -328,50 +327,28 @@ def fragment_manual_backtest():
                 else:
                     info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
-                # ── 回撤带（水下曲线） ──
-                sf_card("回撤带（水下曲线）", "")
-                _dd = result.df["drawdown"] if "drawdown" in result.df.columns else None
-                if _dd is not None and not _dd.dropna().empty:
-                    _dd_df = downsample(result.df[["date", "drawdown"]], max_points=600)
-                    fig_dd_band = go.Figure(go.Scatter(
-                        x=_dd_df["date"], y=_dd_df["drawdown"],
-                        fill="tozeroy",
-                        fillcolor="rgba(26,162,96,0.25)",
-                        line=dict(color=DOWN_COLOR, width=1),
-                        name="回撤%",
-                        hovertemplate="%{x}<br>回撤：%{y:.2f}%<extra></extra>",
-                    ))
-                    fig_dd_band.update_layout(
-                        title="资金使用率回撤（水下）",
-                        xaxis_title="日期", yaxis_title="回撤%",
-                        height=320,
-                        template="plotly_white" if not _is_dark() else "plotly_dark",
-                        margin=dict(l=50, r=20, t=40, b=30),
-                    )
-                    st.plotly_chart(fig_dd_band, width="stretch", config={"displaylogo": False, "responsive": True})
-                else:
-                    _empty_info("暂无回撤数据。通常因回测区间过短，或策略未产生持仓净值波动导致；可拉长区间后重试。")
-
-                # ── 逐笔交易收益分布 ──
-                sf_card("逐笔交易收益分布", "")
-                if result.trades:
-                    _profits = [t.get("profit_pct", 0) for t in result.trades]
-                    fig_tr = go.Figure(go.Bar(
-                        x=[f"#{i+1}" for i in range(len(_profits))],
-                        y=_profits,
-                        marker_color=[UP_COLOR if p > 0 else DOWN_COLOR for p in _profits],
-                        hovertemplate="交易%{x}<br>收益率：%{y:.2f}%<extra></extra>",
-                    ))
-                    fig_tr.update_layout(
-                        title="每笔交易收益率（红盈绿亏）",
-                        xaxis_title="交易序号", yaxis_title="收益率%",
-                        height=320,
-                        template="plotly_white" if not _is_dark() else "plotly_dark",
-                        margin=dict(l=50, r=20, t=40, b=30),
-                    )
-                    st.plotly_chart(fig_tr, width="stretch", config={"displaylogo": False, "responsive": True})
-                else:
-                    info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
+                # ── 逐笔交易收益分布（T-229 收进折叠区）──
+                with st.expander("📈 逐笔交易收益分布", expanded=False):
+                    # ── 逐笔交易收益分布 ──
+                    sf_card("逐笔交易收益分布", "")
+                    if result.trades:
+                        _profits = [t.get("profit_pct", 0) for t in result.trades]
+                        fig_tr = go.Figure(go.Bar(
+                            x=[f"#{i+1}" for i in range(len(_profits))],
+                            y=_profits,
+                            marker_color=[UP_COLOR if p > 0 else DOWN_COLOR for p in _profits],
+                            hovertemplate="交易%{x}<br>收益率：%{y:.2f}%<extra></extra>",
+                        ))
+                        fig_tr.update_layout(
+                            title="每笔交易收益率（红盈绿亏）",
+                            xaxis_title="交易序号", yaxis_title="收益率%",
+                            height=320,
+                            template="plotly_white" if not _is_dark() else "plotly_dark",
+                            margin=dict(l=50, r=20, t=40, b=30),
+                        )
+                        st.plotly_chart(fig_tr, width="stretch", config={"displaylogo": False, "responsive": True})
+                    else:
+                        info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
                 # ── 参数敏感性分析 ──
                 sf_card("🎯 参数敏感性分析", "")
@@ -1129,8 +1106,10 @@ def fragment_run_history():
 # ==================================================================
 fragment_manual_backtest()
 fragment_daily_picker()
-fragment_strong_bull()
-fragment_param_scan()
-fragment_walk_forward()
-fragment_run_history()
-fragment_batch_backtest()
+# ── T-229：次要回测工具统一收进「更多回测工具」折叠区（功能不减，主区清爽）──
+with st.expander("🧰 更多回测工具（批量回测 · 参数扫描 · 稳健性检验 · 历史记录）", expanded=False):
+    fragment_strong_bull()
+    fragment_param_scan()
+    fragment_batch_backtest()
+    fragment_walk_forward()
+    fragment_run_history()
