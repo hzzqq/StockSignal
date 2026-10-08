@@ -22,7 +22,6 @@ today = date.today().strftime('%Y-%m-%d')
 dark = render_standard_page(title='每日晨报 / 复盘笔记', icon='🌅', caption=f'生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）', layout='wide')
 from modules.widgets import render_index_compact
 render_index_compact(cols_per_row=5)
-sf_card("免责与导读", "以上指数仅供参考，不构成任何投资建议。本页聚合板块涨跌概览、自选股快照与相关新闻，生成开盘前速览；下方可写当日复盘笔记，按日期本地保存。", icon="🌅")
 fetcher = get_fetcher()
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -302,7 +301,9 @@ def fragment_event_driven_pool():
                        key="morning_event_pool_dl",
                        help="导出为 Markdown，可粘贴进早报正文或自动推送素材。")
 
-fragment_event_driven_pool()
+# ── T-230：事件驱动看多榜收进折叠区（真实 EV 信号保留，主区留核心速览）──
+with st.expander('📈 事件驱动看多榜（EV 事件因子 · 真实信号）', expanded=False):
+    fragment_event_driven_pool()
 
 @safe_fragment
 def fragment_review_notes():
@@ -418,18 +419,3 @@ def fragment_review_notes():
     _render_editor(note_date_s)
     _render_preview()
 fragment_review_notes()
-with st.expander('⌨️ 快捷键', expanded=False, key='morning_hotkeys_exp'):
-    st.markdown('**页面快捷键（浏览器通用）**\n- `F5` / `Ctrl + R`：刷新本页，重新生成晨报与快照。\n- `Ctrl + F`：浏览器内查找页面文字（如板块名、股票名）。\n- `End` / `Ctrl + End`：快速滚动到页面底部。\n- `Home` / `Ctrl + Home`：快速滚动到页面顶部。\n- `Tab` / `Shift + Tab`：在表单控件间前后切换焦点。\n\n提示：本页为纯前端快捷键说明，不涉及任何隐藏组合键。')
-st.markdown('---')
-st.markdown('#### 🔗 相关标的推荐')
-st.caption('基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。')
-_rec_codes = [('600519', '贵州茅台'), ('000858', '五粮液'), ('300750', '宁德时代'), ('601318', '中国平安'), ('000001', '平安银行')]
-_rec_cols = st.columns(len(_rec_codes))
-for _i, (_c, _n) in enumerate(_rec_codes):
-    with _rec_cols[_i]:
-        if st.button(f'{_n} {_c}', key=f'morning_rec_{_c}', width="stretch"):
-            st.session_state['pick_stock_confirmed'] = _c
-            st.session_state['pick_stock_query'] = _c
-            safe_switch_page('pages/24_个股研究.py')
-if st.button('↑ 回到顶部', key='morning_back_to_top'):
-    sn.back_to_top_button()
