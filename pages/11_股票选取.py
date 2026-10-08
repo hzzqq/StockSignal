@@ -35,7 +35,14 @@ from modules.page_widgets import UP
 from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
 render_standard_page(title="股票选取", icon="🎯")
 
-sf_card("股票选取导读", "位于行情看板与个股分析之间：设置参数、查看 K 线与技术面，并可将标的加入自选股或垃圾股池，支持打分与折叠展示。", icon="🎯")
+# ── T-230：图表/指标教学说明统一收进折叠区（主区留给参数与图表）──
+with st.expander("📘 图表与指标说明", expanded=False):
+    st.markdown(
+        "- **K 线图**：含所选 MA 均线；开启「标注事件」后，利好事件标红↑、利空事件标绿↓（A股红涨绿跌惯例）。"
+        "可拖动平移或框选缩放；**双击 K 线柱**弹出当日分时图。\n"
+        "- **量化指标**：RSI>70 超买 / <30 超卖；MACD 柱>0 多头动能；KDJ J>100 超买、<0 超卖；"
+        "BOLL 位置 = 收盘价在布林带内的相对高度。"
+    )
 
 # 支持从龙虎榜/股票池点击跳转：URL ?pick_stock=600519
 _qp_code = st.query_params.get("pick_stock")
@@ -416,8 +423,6 @@ def fragment_kline_pick(ticker, stock_label, df, kline_period, period_label, sta
             if st.button("✕ 关闭", key="pick_close_intra"):
                 del st.session_state["pick_intraday_target"]
                 st.rerun(scope="fragment")
-    st.caption("📈 K 线图含所选 MA 均线；开启「标注事件」后，利好事件标红↑、利空事件标绿↓（A股红涨绿跌惯例）。"
-               "可拖动平移或框选缩放。🖱️ **双击K线柱** → 弹出当日分时图。")
 
 
 @safe_fragment("分时图自动刷新")
@@ -798,7 +803,6 @@ if data_ok and df is not None:
                 st.metric("BOLL 位置", f"{bp:.0f}%", delta=pos, delta_color="off")
             else:
                 st.metric("BOLL 位置", "—")
-        st.caption("RSI>70 超买 / <30 超卖；MACD 柱>0 多头动能；KDJ J>100 超买、<0 超卖；BOLL 位置=收盘价在布林带内的相对高度。")
 
         # 用户打分（独立 fragment，交互只重跑本块，提升响应速度）
         _render_user_score(ticker, stock_label)
