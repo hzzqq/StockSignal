@@ -33,8 +33,6 @@ render_standard_page(
     caption="⚠️ 本页展示的数据与分析仅供参考，不构成任何投资建议。",
 )
 
-sf_card("我的导读", "个人信息入口、我的自选股与快捷操作；可调整主题与字体档位。所有数据与分析仅供参考，不构成投资建议。", icon="👤")
-
 user = get_user() or {}
 
 # 加法式操作成功反馈：刷新本页缓存后给出成功提示
@@ -243,72 +241,7 @@ def render_preferences():
             "关闭或刷新浏览器后会恢复为默认值。"
         )
 
-    st.markdown("---")
-    with st.expander("📋 当前全部设置一览（可直接调节）", expanded=True):
-        st.caption("下方汇总了你的全部个性化设置，均为中文说明，可直接点击按钮或拖动滑块调节，改动即时生效。")
 
-        _theme_cn = "🌙 暗夜模式" if st.session_state.get("theme_mode") == "dark" else "☀️ 白天模式"
-        _font_map = {"small": "小", "medium": "标准", "large": "大", "xlarge": "特大", "xxlarge": "巨大"}
-        _font_cn_val = _font_map.get(st.session_state.get("font_size", "medium"), "标准")
-        _ds_order = st.session_state.get("setting_ds_order") or ["akshare", "BaoStock", "新浪财经", "东方财富"]
-
-        # —— 1. 主题模式（按钮切换）——
-        r1c1, r1c2 = st.columns([0.42, 0.58])
-        with r1c1:
-            st.markdown(f"**🎨 主题模式**　当前：`{_theme_cn}`")
-        with r1c2:
-            b1, b2 = st.columns(2)
-            with b1:
-                if st.button("切到 🌙 暗夜", key="ov_dark", width="stretch",
-                             disabled=st.session_state.get("theme_mode") == "dark"):
-                    st.session_state["theme_mode"] = "dark"
-                    persist_prefs(); st.rerun()
-            with b2:
-                if st.button("切到 ☀️ 白天", key="ov_light", width="stretch",
-                             disabled=st.session_state.get("theme_mode") != "dark"):
-                    st.session_state["theme_mode"] = "light"
-                    persist_prefs(); st.rerun()
-
-        # —— 2. 字体大小（下拉调节）——
-        r2c1, r2c2 = st.columns([0.42, 0.58])
-        with r2c1:
-            st.markdown(f"**🔤 字体大小**　当前：`{_font_cn_val}`")
-        with r2c2:
-            _ov_font = st.select_slider(
-                "拖动调节字体大小", options=list(_font_map.keys()),
-                value=st.session_state.get("font_size", "medium"),
-                format_func=lambda x: _font_map[x], key="ov_font_size",
-                label_visibility="collapsed",
-            )
-            if _ov_font != st.session_state.get("font_size"):
-                st.session_state["font_size"] = _ov_font
-                persist_prefs(); st.rerun()
-
-        # —— 3. K线默认根数（滑块调节）——
-        r3c1, r3c2 = st.columns([0.42, 0.58])
-        with r3c1:
-            st.markdown(f"**📊 K线默认根数**　当前：`{st.session_state.get('kline_default_count', 120)} 根`")
-        with r3c2:
-            _ov_kc = st.slider("拖动调节 K线默认根数", 20, 500,
-                               int(st.session_state.get("kline_default_count", 120)), step=10,
-                               key="ov_kline_count", label_visibility="collapsed")
-            if _ov_kc != st.session_state.get("kline_default_count"):
-                st.session_state["kline_default_count"] = _ov_kc
-
-        # —— 4. 板块刷新间隔（滑块调节）——
-        r4c1, r4c2 = st.columns([0.42, 0.58])
-        with r4c1:
-            st.markdown(f"**🔄 板块刷新间隔**　当前：`{st.session_state.get('sector_refresh_interval', 60)} 秒`")
-        with r4c2:
-            _ov_ri = st.slider("拖动调节板块刷新间隔", 15, 300,
-                               int(st.session_state.get("sector_refresh_interval", 60)), step=15,
-                               key="ov_refresh_interval", label_visibility="collapsed")
-            if _ov_ri != st.session_state.get("sector_refresh_interval"):
-                st.session_state["sector_refresh_interval"] = _ov_ri
-
-        # —— 5. 数据源优先级（只读展示）——
-        st.markdown(f"**🔧 数据源优先级**　当前顺序：`{' → '.join(_ds_order)}`")
-        st.caption("如需调整数据源顺序，请在上方「🔧 数据源偏好」中拖动选择。")
 
 # ── 个人信息卡片 ──
 col1, col2 = st.columns([1, 3])
@@ -368,7 +301,7 @@ with col1:
     st.markdown(f"**角色：** {'管理员' if user.get('role') == 'admin' else '普通用户'}")
     st.markdown(f"**登录时间：** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     if not _cur_avatar:
-        info_banner("💡 资料尚未完善：上传头像让投资体验更个性化，也可在下方「账号绑定」中绑定邮箱 / 手机。")
+        info_banner("💡 资料尚未完善：上传头像让投资体验更个性化。")
 
 with col2:
     st.markdown("### 快捷入口")
@@ -411,68 +344,21 @@ try:
         except Exception:
             body = {}
         body = body if isinstance(body, dict) else {}
-        if body.get("status") == "ok" and body.get("data"):
+        if body.get("status") == "ok" and isinstance(body.get("data"), list) and body["data"]:
             watchlist = body["data"]
-            if isinstance(watchlist, list) and watchlist:
-                import pandas as pd
-                df = pd.DataFrame(watchlist)
-                st.dataframe(df, width="stretch", height=400)
-                st.caption(f"共 {len(watchlist)} 只自选股 · 数据实时同步自行情看板 ☆")
-            else:
-                _empty_info("暂无自选股，请先添加你关注的股票。")
-                # 加法式示例数据预览：无数据时提供只读示例（不写库、不改逻辑）
-                with st.expander("👀 查看示例自选股（只读）", expanded=False):
-                    import pandas as pd
-                    _sample_wl = pd.DataFrame([
-                        {"股票代码": "600519", "股票名称": "贵州茅台", "最新价": 1680.0, "涨跌幅(%)": 1.23},
-                        {"股票代码": "000858", "股票名称": "五粮液", "最新价": 142.5, "涨跌幅(%)": -0.56},
-                    ])
-                    st.dataframe(_sample_wl, width="stretch", height=400)
-                    st.caption("⚠️ 以上为示意数据，非真实行情。")
-                st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
-                if st.button("➕ 去行情看板添加自选股", key="wl_go_add", width="stretch"):
-                    safe_switch_page("pages/10_行情看板.py")
+            import pandas as pd
+            df = pd.DataFrame(watchlist)
+            st.dataframe(df, width="stretch", height=400)
+            st.caption(f"共 {len(watchlist)} 只自选股 · 数据实时同步自行情看板 ☆")
         else:
             _empty_info("暂无自选股，请先添加你关注的股票。")
-            # 加法式示例数据预览：无数据时提供只读示例（不写库、不改逻辑）
-            with st.expander("👀 查看示例自选股（只读）", expanded=False):
-                import pandas as pd
-                _sample_wl2 = pd.DataFrame([
-                    {"股票代码": "600519", "股票名称": "贵州茅台", "最新价": 1680.0, "涨跌幅(%)": 1.23},
-                    {"股票代码": "000858", "股票名称": "五粮液", "最新价": 142.5, "涨跌幅(%)": -0.56},
-                ])
-                st.dataframe(_sample_wl2, width="stretch", height=400)
-                st.caption("⚠️ 以上为示意数据，非真实行情。")
             st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
-            if st.button("➕ 去行情看板添加自选股", key="wl_go_add2", width="stretch"):
+            if st.button("➕ 去行情看板添加自选股", key="wl_go_add", width="stretch"):
                 safe_switch_page("pages/10_行情看板.py")
     else:
         xc_warn_box(f"获取自选股失败：HTTP {resp.status_code}")
 except Exception as e:
     xc_handle_error("获取自选股失败", e, hint="请稍后重试，或检查网络与数据源连接")
-
-# 加法式收藏/星标：自选股星标收藏（纯前端 session，不接后端）
-if "my_starred_stocks" not in st.session_state:
-    st.session_state["my_starred_stocks"] = []
-st.markdown("### ⭐ 我的收藏")
-_my_star = st.text_input("添加收藏（输入 6 位股票代码）", key="my_star_input",
-                         help="输入股票代码后点击收藏，仅本会话保存，不接后端。")
-if st.button("⭐ 收藏", key="my_star_btn", width="content"):
-    _code = (_my_star or "").strip()
-    if _code.isdigit() and len(_code) == 6:
-        if _code not in st.session_state["my_starred_stocks"]:
-            st.session_state["my_starred_stocks"].append(_code)
-            xc_success_box(f"✅ 已收藏 {_code}")
-        else:
-            info_banner(f"{_code} 已在收藏中")
-    else:
-        st.error("⚠️ 请输入正确的 6 位股票代码（仅数字）")
-if st.session_state["my_starred_stocks"]:
-    _scols = st.columns(min(len(st.session_state["my_starred_stocks"]), 6))
-    for _i, _c in enumerate(st.session_state["my_starred_stocks"][:6]):
-        if _scols[_i].button(f"⭐ {_c}", key=f"my_star_disp_{_i}", help="点击取消收藏"):
-            st.session_state["my_starred_stocks"].remove(_c)
-            st.rerun()
 
 st.markdown("---")
 
@@ -541,38 +427,42 @@ except Exception as e:
 
 st.markdown("---")
 
-# ── 账号绑定（邮箱 / 手机） ──
-sf_card("🔗 账号绑定", "")
-
-_col_mail, _col_phone = st.columns(2)
-with _col_mail:
-    st.markdown("**📧 邮箱绑定**")
-    if st.button("绑定邮箱", key="bind_mail", width="stretch"):
-        info_banner("邮箱绑定功能需在后端接入邮件服务后开放（当前为本地部署，暂未启用）。")
-with _col_phone:
-    st.markdown("**📱 手机号绑定**")
-    if st.button("绑定手机", key="bind_phone", width="stretch"):
-        info_banner("手机号绑定需接入短信网关，当前为本地部署，暂未启用。")
-
-st.caption("说明：邮箱 / 手机号绑定用于找回密码与异地登录提醒，本地演示环境暂未接入第三方服务。")
-
-st.markdown("---")
-
-# ── 系统消息 / 通知占位 ──
-sf_card("📢 系统通知", "")
-_empty_info("暂无新通知。")
-
-# 加法式输入内联校验：实时校验 6 位股票代码格式（错误时 st.error 提示）
-_my_quick = st.text_input("🔎 快速查看股票（6 位代码）", key="my_quick_code",
-                          help="输入 6 位数字代码，实时校验格式。")
-if _my_quick:
-    if not (_my_quick.isdigit() and len(_my_quick) == 6):
-        st.error("⚠️ 格式错误：请输入 6 位数字股票代码（如 600519）")
-    else:
-        xc_success_box(f"✅ 代码格式正确：{_my_quick}")
-        if st.button("前往个股研究", key="my_quick_go", width="content"):
-            st.session_state["pick_stock"] = _my_quick
-            safe_switch_page("pages/24_个股研究.py")
+# ── 「⚙️ 更多功能」：T-229 起把次要模块收进折叠区，突出个人中心主功能 ──
+with st.expander("⚙️ 更多功能（我的收藏 · 快速查看股票）", expanded=False):
+    # 加法式收藏/星标：自选股星标收藏（纯前端 session，不接后端）
+    if "my_starred_stocks" not in st.session_state:
+        st.session_state["my_starred_stocks"] = []
+    st.markdown("### ⭐ 我的收藏")
+    _my_star = st.text_input("添加收藏（输入 6 位股票代码）", key="my_star_input",
+                             help="输入股票代码后点击收藏，仅本会话保存，不接后端。")
+    if st.button("⭐ 收藏", key="my_star_btn", width="content"):
+        _code = (_my_star or "").strip()
+        if _code.isdigit() and len(_code) == 6:
+            if _code not in st.session_state["my_starred_stocks"]:
+                st.session_state["my_starred_stocks"].append(_code)
+                xc_success_box(f"✅ 已收藏 {_code}")
+            else:
+                info_banner(f"{_code} 已在收藏中")
+        else:
+            st.error("⚠️ 请输入正确的 6 位股票代码（仅数字）")
+    if st.session_state["my_starred_stocks"]:
+        _scols = st.columns(min(len(st.session_state["my_starred_stocks"]), 6))
+        for _i, _c in enumerate(st.session_state["my_starred_stocks"][:6]):
+            if _scols[_i].button(f"⭐ {_c}", key=f"my_star_disp_{_i}", help="点击取消收藏"):
+                st.session_state["my_starred_stocks"].remove(_c)
+                st.rerun()
+    st.markdown("---")
+    # 加法式输入内联校验：实时校验 6 位股票代码格式（错误时 st.error 提示）
+    _my_quick = st.text_input("🔎 快速查看股票（6 位代码）", key="my_quick_code",
+                              help="输入 6 位数字代码，实时校验格式。")
+    if _my_quick:
+        if not (_my_quick.isdigit() and len(_my_quick) == 6):
+            st.error("⚠️ 格式错误：请输入 6 位数字股票代码（如 600519）")
+        else:
+            xc_success_box(f"✅ 代码格式正确：{_my_quick}")
+            if st.button("前往个股研究", key="my_quick_go", width="content"):
+                st.session_state["pick_stock"] = _my_quick
+                safe_switch_page("pages/24_个股研究.py")
 
 # 加法式可折叠帮助/FAQ（与 Batch13 行内 help 不同，这是折叠面板）
 with st.expander("💡 使用说明 / 常见问题", expanded=False):
@@ -584,7 +474,7 @@ with st.expander("💡 使用说明 / 常见问题", expanded=False):
         "**常见问题**\n"
         "- Q：设置会保存吗？A：本页设置保存在会话内存，关闭浏览器后恢复默认；头像按账号云端保存。\n"
         "- Q：自选股从哪里来？A：在「行情看板」搜索股票后点击 ☆ 加入，这里实时同步。\n"
-        "- Q：为什么有的功能提示未启用？A：邮箱 / 手机绑定需接入第三方服务，本地演示环境暂未开放。"
+        "- Q：我的收藏在哪里？A：在下方「⚙️ 更多功能」折叠区内（仅本会话保存）。"
     )
 
 # ------------------------------------------------------------------
@@ -595,6 +485,6 @@ _pref_tab, = st.tabs(["⚙️ 偏好设置"])
 with _pref_tab:
     st.caption(
         "⚙️ 偏好设置分为「外观 / 行情看板默认参数 / 数据源优先级」三类，"
-        "所有改动即时生效；下方「当前全部设置一览」可随时微调，关闭浏览器后会恢复默认值。"
+        "所有改动即时生效；关闭浏览器后会恢复默认值。"
     )
     render_preferences()
