@@ -186,7 +186,7 @@ def _render_live_progress(task: dict):
             )
 
     # 实时日志流
-    with st.expander("🪵 实时协作日志", expanded=True):
+    with st.expander("🪵 实时协作日志", expanded=False):
         if logs:
             st.markdown(_safe_qa_log_html(logs[-40:]), unsafe_allow_html=True)
         else:
@@ -301,22 +301,23 @@ def _result_panel():
 
 def main():
     st.title("🤖 QuantAgent · 多智能体 A股投研")
-    st.caption("数据底座复用 StockSignal（StockFetcher/technical/signal/news/backtest）+ FinBrowser 采集外挂 + FinRAG 记忆/RAG + CrewAI 多首席辩论")
 
     ticker = st.text_input("股票代码", value="600519", help="6 位 A股代码，如 600519 / 000001")
 
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        mode = st.radio("运行模式", ["任务通道（推荐）", "本地直跑（调试）"], horizontal=True,
-                        help="任务通道：提交到后端 5050 异步执行并轮询实时进度，不阻塞 UI；直跑：前端进程内同步执行。")
-    with col2:
-        engine = st.selectbox("编排引擎", ["auto", "crewai", "langgraph", "simple"],
-                              help="auto=自动选最优；crewai=多首席辩论（牛/熊/风控派对抗+主持合成）；"
-                                   "langgraph=真实 LangGraph（条件路由+人工审批）；simple=零依赖图。")
-        use_browser = st.checkbox("启用 FinBrowser 采集外挂", value=True)
-        use_rag = st.checkbox("启用 FinRAG 记忆/RAG", value=True)
-        force_human = st.checkbox("强制人工复核（HITL 演示）", value=False,
-                                  help="高风险或勾选时，LangGraph 编排会在风控后插入人工审批节点。")
+    # ── T-230：调试/编排参数收进「高级选项」折叠区，主区留给代码输入与发起按钮 ──
+    with st.expander("⚙️ 高级选项（运行模式 · 编排引擎 · 采集/RAG 开关）", expanded=False):
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            mode = st.radio("运行模式", ["任务通道（推荐）", "本地直跑（调试）"], horizontal=True,
+                            help="任务通道：提交到后端 5050 异步执行并轮询实时进度，不阻塞 UI；直跑：前端进程内同步执行。")
+        with col2:
+            engine = st.selectbox("编排引擎", ["auto", "crewai", "langgraph", "simple"],
+                                  help="auto=自动选最优；crewai=多首席辩论（牛/熊/风控派对抗+主持合成）；"
+                                       "langgraph=真实 LangGraph（条件路由+人工审批）；simple=零依赖图。")
+            use_browser = st.checkbox("启用 FinBrowser 采集外挂", value=True)
+            use_rag = st.checkbox("启用 FinRAG 记忆/RAG", value=True)
+            force_human = st.checkbox("强制人工复核（HITL 演示）", value=False,
+                                      help="高风险或勾选时，LangGraph 编排会在风控后插入人工审批节点。")
 
     # UX：代码无效时禁用发起按钮并给出引导，避免点击后才报警告
     _ticker_ok = bool(ticker) and len(ticker) == 6 and ticker.isdigit()
