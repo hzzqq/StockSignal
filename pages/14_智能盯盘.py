@@ -38,16 +38,16 @@ except Exception as _prov_e:  # noqa: BLE001 - additive 区块失败只留痕
     import logging as _plog
     _plog.getLogger("pages.14_智能盯盘").debug("展示源溯源徽标渲染失败: %s", _prov_e)
 
-sf_card("👁️ 智能盯盘 · 实时聚合", "单屏聚合自选股三类异动：板块资金 TOP10、自选股涨跌榜、个股资金流异动与规则预警。交易时段每 60 秒自动刷新。", icon="📡")
 if '_wl_recent' not in st.session_state:
     st.session_state._wl_recent = []
 if '_wl_fav' not in st.session_state:
     st.session_state._wl_fav = []
-lk1, lk2 = st.columns([1, 1])
-with lk1:
-    st.page_link('pages/23_事件追踪.py', label='🔔 事件追踪')
-with lk2:
-    st.page_link('pages/24_个股研究.py', label='🔍 个股研究')
+with st.expander("🔗 相关页面", expanded=False):
+    lk1, lk2 = st.columns([1, 1])
+    with lk1:
+        st.page_link('pages/23_事件追踪.py', label='🔔 事件追踪')
+    with lk2:
+        st.page_link('pages/24_个股研究.py', label='🔍 个股研究')
 st_autorefresh = import_autorefresh()
 MAIN_NET_STRONG = 100000000.0
 st.caption('📡 聚合看板：板块资金异动 · 自选股涨跌榜 · 个股资金流异动 · 规则预警。交易时段内每 60 秒自动刷新；非交易时段数据刷新放缓。')
@@ -294,7 +294,6 @@ def fragment_sector():
 @safe_fragment('自选股涨跌榜')
 def fragment_watchlist():
     st.markdown('### 📈 自选股涨跌榜')
-    st.caption('涨跌% = (现价-昨收)/昨收×100%，红涨绿跌；并行抓取实时行情后按涨跌%排序，可逐只跳转行情看板。')
     _rv = st.session_state.get('_wl_recent', [])
     if _rv:
         st.caption('🕘 最近浏览（点击填入筛选）')
