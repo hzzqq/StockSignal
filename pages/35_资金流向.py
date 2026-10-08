@@ -37,16 +37,12 @@ st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
     "资金流向", icon="🌊",
-    caption="北向资金 · 行业板块资金流向 · 大盘主力净流入 · 个股主力资金动向。数据来源：东方财富/同花顺（经本地代理）。",
+    caption="北向资金 · 行业板块资金流向 · 大盘主力净流入 · 个股主力资金动向；红=净流入、绿=净流出（与红涨绿跌一致）。数据来源：东方财富/同花顺（经本地代理）。",
 )
 
 fetcher = get_fetcher()
 
-sf_card(
-    "资金流向导读",
-    "本页汇总北向资金、行业板块资金流向、大盘主力净流入与个股主力资金动向。红为净流入、绿为净流出，与红涨绿跌一致。",
-    icon="🌊",
-)
+# T-229：原「资金流向导读」卡删除，红绿语义并入页头 caption。
 
 
 # 加法式性能优化（第十四批）：个股资金流接口在 60s 自动刷新下每次都重新请求网络，
@@ -505,8 +501,6 @@ def fragment_index_trend():
     dr, ma, _s, _m, ma_type = _trend_controls("idx", days_default=180, preset_default="近180天")
     fig = plot_index_series(idx, dark_mode=dark, date_range=dr, ma_periods=ma, ma_type=ma_type)
     st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False})
-    st.caption("📈 三大指数走势对比（线性表达，归一化起点=100）：用于横向比较上证 / 深证成指 / 创业板指"
-               "的相对强弱，而非绝对点位。可用上方「区间 / 均线叠加」交互筛选。")
 
 
 # ───────────────────────── 行业板块指数价格趋势（线性表达） ─────────────────────────
@@ -555,9 +549,6 @@ def fragment_industry_trend():
     st.plotly_chart(plot_correlation_heatmap(ind, names_map=None, selected=sel,
                                              date_range=dr, dark_mode=dark),
                     width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="indt_corr")
-    st.caption("📈 行业板块指数走势（线性表达，归一化起点=100）：行业板块无逐日资金流时间序列 API，"
-               "故以**行业指数日线收盘价**做相对强弱对比。区间预设 / 均线（SMA·EMA）/ 序列多选 / 原始价格切换"
-               " / 金叉死叉 / 最大回撤 均可交互；下方数据表与相关性热力图随筛选联动。")
 
 
 # ───────────────────────── ETF 价格趋势（线性表达） ─────────────────────────
@@ -607,9 +598,6 @@ def fragment_etf_trend():
     st.plotly_chart(plot_correlation_heatmap(etf, names_map=ETF_NAMES_MAP, selected=sel,
                                              date_range=dr, dark_mode=dark),
                     width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="etf_corr")
-    st.caption("📈 ETF 价格走势（线性表达，归一化起点=100）：宽基（沪深300/中证500/创业板）+ 行业"
-               "（军工/医药/新能源）+ 跨境（纳指/恒生科技）。区间预设 / 均线（SMA·EMA）/ 序列多选 / 原始价格切换"
-               " / 金叉死叉 / 最大回撤 均可交互；下方数据表与相关性热力图随筛选联动。")
 
 
 # ───────────────────────── 页面主体 ─────────────────────────
@@ -623,8 +611,11 @@ fragment_margin_trading()
 st.markdown("---")
 fragment_individual()
 st.markdown("---")
-fragment_index_trend()
-st.markdown("---")
-fragment_industry_trend()
-st.markdown("---")
-fragment_etf_trend()
+# ── T-229：三个走势对比扩展块收进折叠区，主区留给资金流核心面板 ──
+with st.expander("📈 走势扩展对比（指数 · 行业指数 · ETF）", expanded=False):
+    st.caption("以**归一化价格**（起点=100）做相对强弱对比而非绝对点位：行业板块无逐日资金流时间序列 API，"
+               "故以行业指数日线收盘价对比。各图均支持区间预设 / 均线（SMA·EMA）/ 序列多选 / 原始价格切换 / "
+               "金叉死叉 / 最大回撤，数据表与相关性热力图随筛选联动。")
+    fragment_index_trend()
+    fragment_industry_trend()
+    fragment_etf_trend()
