@@ -33,7 +33,6 @@ dark = render_standard_page(
     title="消息 / 通知中心", icon="🔔",
     caption="聚合自选股异动、社区动态与系统状态；各模块独立取数，互不干扰。",
 )
-sf_card("🔔 消息 / 通知中心", "把分散在各模块的提醒汇成统一信息流：自选股异动、股吧社区动态、系统健康度。支持按类型筛选、标记已读、点击跳转对应模块。", icon="📬")
 trading_autorefresh(key="message_autorefresh")
 
 FETCHER = StockFetcher()
@@ -316,23 +315,27 @@ with c3:
 
 render_data_degradation_banner()
 
-# 加法式 UX：清空已读标记，重新将全部消息标为未读（仅清理本会话 session_state，不改后台数据）
-if st.button("🧹 清除已读标记", key="clear_read_marks", width="content",
-             help="将当前所有已读消息重新标记为未读（仅本会话生效，不影响后台数据）。"):
-    st.session_state["msg_read_ids"] = set()
-    st.session_state["_msg_cleared_toast"] = True
-    st.rerun()
-
-# 加法式失败重试：聚合取数经 safe_section 已降级，此处提供手动重新加载入口，
-# 清掉本页缓存后整页重跑重新向各数据源拉取最新消息。
-if st.button("🔄 重新加载", key="msg_reload", width="content"):
-    try:
-        _load_watchlist.clear()
-        _load_forum.clear()
-        _load_research_runs.clear()
-    except Exception:
-        pass
-    st.rerun()
+# ── T-230：清除已读标记 / 重新加载 两个低频操作收进折叠区（主区留给筛选与列表）──
+with st.expander("⚙️ 更多操作（清除已读标记 · 重新加载）", expanded=False):
+    _oc1, _oc2 = st.columns([1, 1])
+    with _oc1:
+        # 清空已读标记，重新将全部消息标为未读（仅清理本会话 session_state，不改后台数据）
+        if st.button("🧹 清除已读标记", key="clear_read_marks", width="stretch",
+                     help="将当前所有已读消息重新标记为未读（仅本会话生效，不影响后台数据）。"):
+            st.session_state["msg_read_ids"] = set()
+            st.session_state["_msg_cleared_toast"] = True
+            st.rerun()
+    with _oc2:
+        # 聚合取数经 safe_section 已降级，此处提供手动重新加载入口，
+        # 清掉本页缓存后整页重跑重新向各数据源拉取最新消息。
+        if st.button("🔄 重新加载", key="msg_reload", width="stretch"):
+            try:
+                _load_watchlist.clear()
+                _load_forum.clear()
+                _load_research_runs.clear()
+            except Exception:
+                pass
+            st.rerun()
 
 # ───────────────────────── 筛选 ─────────────────────────
 TYPES = ["全部", "异动", "社区", "系统", "研究"]
@@ -432,15 +435,14 @@ if _sel_ids:
                 st.session_state.pop(f"sel_{_id}", None)
             st.rerun()
 
-# 加法式收藏/星标：展示用户收藏的消息（纯前端 session，不接后端）
+# ── T-230：我的收藏收进折叠区（纯前端 session，不接后端）──
 _msg_starred_ids = st.session_state.get("msg_starred", set())
 if _msg_starred_ids:
-    st.markdown("---")
-    st.markdown("**⭐ 我的收藏**")
-    for _sm in [m for m in msgs if m["id"] in _msg_starred_ids]:
-        with st.container(border=True):
-            st.markdown(_safe_title_html(_sm["title"]), unsafe_allow_html=True)
-            st.caption(f"{_sm['type']}　·　{_sm['detail']}")
+    with st.expander(f"⭐ 我的收藏（{len(_msg_starred_ids)}）", expanded=False):
+        for _sm in [m for m in msgs if m["id"] in _msg_starred_ids]:
+            with st.container(border=True):
+                st.markdown(_safe_title_html(_sm["title"]), unsafe_allow_html=True)
+                st.caption(f"{_sm['type']}　·　{_sm['detail']}")
 
 # 加法式数据来源标注
 st.caption("📡 数据来源：自选股实时行情（东方财富 / 新浪财经）、股吧社区动态、系统数据源健康度监控")

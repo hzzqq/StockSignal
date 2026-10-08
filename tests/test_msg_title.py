@@ -50,12 +50,13 @@ def _build_streamlit_stub():
     st.container = lambda *a, **k: _CtxMgr()
     st.columns = lambda sizes, *a, **k: [_CtxMgr() for _ in sizes]
     st.spinner = lambda *a, **k: _CtxMgr()
+    st.expander = lambda *a, **k: _CtxMgr()
     for fn in (
         "markdown", "title", "caption", "metric", "success", "info", "warning",
         "error", "button", "checkbox", "radio", "text_input", "text_area",
         "selectbox", "slider", "set_page_config", "rerun", "write", "header",
         "subheader", "json", "dataframe", "table", "image", "plotly_chart",
-        "pyplot", "line_chart", "bar_chart", "sidebar", "expander", "tabs",
+        "pyplot", "line_chart", "bar_chart", "sidebar", "tabs",
         "balloons", "snow", "toast", "exception", "code", "divider", "stop",
     ):
         setattr(st, fn, lambda *a, **k: None)
