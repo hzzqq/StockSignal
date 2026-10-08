@@ -14,7 +14,6 @@ from modules.ui_theme import sf_card, sf_metric
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
 render_standard_page(title='仓位管理', icon='💰', caption='⚠️ 本页为模拟/历史持仓管理，仅供学习，不构成投资建议。', layout='wide')
 
-sf_card("仓位管理导读", "记录持仓、卖出交易、盈亏统计与 Excel 导出。本页为模拟/历史持仓管理，仅供学习，不构成投资建议。", icon="💰")
 
 _c1, _c2 = st.columns(2)
 with _c1:
@@ -24,8 +23,6 @@ with _c2:
 if st.button('🔄 刷新', key='pm_refresh_top', help='重新加载本页持仓与行情'):
     st.rerun()
 st.session_state.setdefault('_pm_recent', [])
-if st.session_state['_pm_recent']:
-    st.caption('🕘 最近浏览：' + '  '.join((f'`{c}`' for c in st.session_state['_pm_recent'][-6:][::-1])))
 _PM_PREF_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'pm_prefs.json')
 logger = logging.getLogger(__name__)
 
@@ -49,7 +46,6 @@ def _save_pm_pref(k, v):
         logger.warning('[pm] 仓位偏好写盘失败(%s): %s', _PM_PREF_PATH, e)
 from modules.portfolio import PortfolioManager
 from modules.search_ui import stock_search_input
-import modules.scroll_nav as sn
 from modules.fetcher import StockFetcher
 from modules.session import api_quote, api_kline
 from modules.page_widgets import _empty_info, _toast
@@ -284,21 +280,28 @@ if buy_submitted:
         st.rerun()
     except Exception as e:
         xc_handle_error("买入失败", e, hint="请稍后重试，或检查网络与数据源连接")
-if st.button('⭐ ＋自选（当前买入标的）', key='pm_add_watch', width="stretch"):
-    try:
-        from modules.admin_api import add_watchlist
-        add_watchlist(buy_ticker)
-        _toast(f'已加入自选：{buy_label} ({buy_ticker})')
-    except Exception as e:
-        xc_handle_error("加入自选失败", e, hint="请稍后重试，或检查网络与数据源连接")
-if st.button('⭐ 收藏（本地星标）', key='pm_fav_add', width="stretch"):
-    st.session_state.setdefault('_pm_fav', [])
-    _ft = (buy_ticker or '').strip()
-    if _ft and _ft not in st.session_state['_pm_fav']:
-        st.session_state['_pm_fav'].append(_ft)
-        _toast(f'已收藏（星标）：{_ft}')
-    else:
-        xc_warn_box('该标的已收藏或代码为空。')
+# ── T-230：自选/收藏等辅助操作收进折叠区（主区留给买入/卖出/盈亏）──
+with st.expander("⚙️ 更多操作（加入自选 · 本地收藏 · 最近浏览）", expanded=False):
+    _ma1, _ma2 = st.columns([1, 1])
+    with _ma1:
+        if st.button('⭐ ＋自选（当前买入标的）', key='pm_add_watch', width="stretch"):
+            try:
+                from modules.admin_api import add_watchlist
+                add_watchlist(buy_ticker)
+                _toast(f'已加入自选：{buy_label} ({buy_ticker})')
+            except Exception as e:
+                xc_handle_error("加入自选失败", e, hint="请稍后重试，或检查网络与数据源连接")
+    with _ma2:
+        if st.button('⭐ 收藏（本地星标）', key='pm_fav_add', width="stretch"):
+            st.session_state.setdefault('_pm_fav', [])
+            _ft = (buy_ticker or '').strip()
+            if _ft and _ft not in st.session_state['_pm_fav']:
+                st.session_state['_pm_fav'].append(_ft)
+                _toast(f'已收藏（星标）：{_ft}')
+            else:
+                xc_warn_box('该标的已收藏或代码为空。')
+    if st.session_state.get('_pm_recent'):
+        st.caption('🕘 最近浏览：' + '  '.join((f'`{c}`' for c in st.session_state['_pm_recent'][-6:][::-1])))
 sf_card('💸 卖出股票', '记录卖出成交，自动计算已实现盈亏并扣减剩余股数。')
 if not positions.empty:
     remaining = positions['remaining_shares'] if 'remaining_shares' in positions.columns else positions['shares']
@@ -488,7 +491,3 @@ if not positions.empty:
                 st.rerun()
 else:
     info_banner('请先添加持仓记录。')
-st.divider()
-if st.button('↑ 回到顶部', key='cang_mgr_top', width="stretch"):
-    sn.back_to_top_button()
-    st.session_state['_mgr_scroll_top'] = False
