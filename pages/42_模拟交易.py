@@ -27,7 +27,6 @@ from modules.page_widgets import _empty_info, _toast, UP, DOWN
 from modules.ui_kit import xc_error_box, xc_kpi_grid, xc_success_box, xc_warn_box
 dark = render_standard_page(title='模拟交易组合', icon='🎮', caption='虚拟资金练习；持仓持久化到本地，模块独立运行，不影响真实账户。')
 
-sf_card("🎮 模拟交易组合", "用虚拟资金买卖 A 股，跟踪持仓、盈亏与净值曲线；持仓持久化到本地，不接入真实券商，仅供策略演练。", icon="💡")
 st.caption('⚠️ 模拟交易，仅供学习，不构成任何投资建议。')
 
 def _fmt_rel(ts):
@@ -316,15 +315,8 @@ def fragment_paper():
             _empty_info('完成至少一笔交易后生成净值曲线。')
         st.caption('💡 在上方「💱 交易」买入或卖出后，这里会基于每笔成交后的总资产快照绘制净值曲线。')
         st.caption('数据来源：东方财富 / 新浪财经（实时行情，失败降级日线收盘价）。')
-    sf_card('🔗 相关标的推荐', "")
-    import random as _rnd
-    _cand = ['600519', '000858', '601318', '000333', '600036', '601012', '300750', '002594', '600276', '000001']
-    _rec = _rnd.sample(_cand, 5)
-    st.caption('📌 ' + '  '.join((f'`{c}`' for c in _rec)))
     with st.expander('💡 使用说明'):
         st.markdown('• 本页为模拟交易，使用虚拟资金，不影响真实账户。\n• 买入/卖出需输入 6 位代码，并设置 100 股整数倍的数量。\n• 持仓与成交持久化到本地文件，刷新不丢失。\n• 净值曲线基于每笔成交后的总资产快照绘制。\n• 点击「🔄 刷新」可手动刷新行情；可收藏标的、查看最近浏览。')
-    with st.expander('⌨️ 快捷键'):
-        st.markdown('• 当前页面以内联按钮/表单交互为主，无全局键盘快捷键。\n• 行情每 20 秒自动刷新（见账户概览上方提示）。\n• 可用「⭐ 收藏该标的」与「最近浏览」快速回到关注的股票。')
     with st.expander('⭐ 我的收藏'):
         _pt_favs = st.session_state.get('_pt_fav', [])
         if _pt_favs:
