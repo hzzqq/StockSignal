@@ -25,7 +25,6 @@ dark = render_standard_page(
     caption="基于「仓位管理」中的持仓，按剩余股数加权构建组合净值曲线，对比沪深300基准。",
     layout="wide",
 )
-sf_card("📊 自选股组合收益跟踪", "基于「仓位管理」中的持仓，按剩余股数加权构建组合净值曲线，对比沪深300基准，展示累计收益、个股贡献与最大回撤。", icon="📈")
 
 fetcher = get_fetcher()
 pm = PortfolioManager()
@@ -214,7 +213,10 @@ def fragment_portfolio():
     # 原代码无兜底会导致整个 fragment 崩溃、净值曲线也一同消失。这里隔离两个子视图，
     # 任一失败仅提示，净值曲线与另一子视图仍可正常展示。
     try:
-        _show_pnl_snapshot()
+        # ── T-231：盈亏快照与「仓位管理」页盈亏统计同源（同调 pm.summary()），收进折叠区；
+        #    主区留给净值对比与个股收益贡献。
+        with st.expander("💰 当前盈亏快照（与仓位管理页同源）", expanded=False):
+            _show_pnl_snapshot()
     except Exception as _e:
         xc_warn_box(f"盈亏快照加载失败：{_e}")
     try:
