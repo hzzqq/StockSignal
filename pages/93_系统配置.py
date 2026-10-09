@@ -53,22 +53,23 @@ with tab_overview:
     else:
         st.error(f"获取统计数据失败：{resp.get('message', '服务异常')}。请确认后端 Flask 已启动（:5050），稍后点右上角刷新重试。")
 
-    sf_card("系统信息", "")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.info("""
-        **后端服务**
-        - Flask API: `http://127.0.0.1:5050`
-        - 数据库: SQLite (`backend/data/app.db`)
-        - 鉴权: JWT (HS256)
-        """)
-    with col_b:
-        st.info("""
-        **前端服务**
-        - Streamlit: `http://127.0.0.1:8899`
-        - 行情缓存: `data/cache.db`
-        - 新闻库: `data/news.db`
-        """)
+    # ── T-231：静态「系统信息」卡收进折叠区（运维参数非日常查看项，数据源健康度保留主区）──
+    with st.expander("🖥️ 系统信息（服务地址 · 存储路径）", expanded=False):
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.info("""
+            **后端服务**
+            - Flask API: `http://127.0.0.1:5050`
+            - 数据库: SQLite (`backend/data/app.db`)
+            - 鉴权: JWT (HS256)
+            """)
+        with col_b:
+            st.info("""
+            **前端服务**
+            - Streamlit: `http://127.0.0.1:8899`
+            - 行情缓存: `data/cache.db`
+            - 新闻库: `data/news.db`
+            """)
 
     # ── 数据源健康度（#锐评整改：静默降级不可观测 → 显式呈现）──
     sf_card("数据源健康度", "")
