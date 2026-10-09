@@ -32,9 +32,7 @@ try:
     prov_badge(build_display_provenance(DISPLAY_PAGE_SOURCES.get("10_行情看板")), title="行情数据来源")
 except Exception as _prov_e:  # noqa: BLE001
     logger.debug("[10_行情看板] 展示源溯源徽标渲染失败: %s", _prov_e)
-sf_card("页面导读", "上方为市场指数迷你卡；下方输入代码 / 名称 / 拼音首字母搜索股票，点击结果即选中，可一键加入自选股，自选行情实时同步。K 线、技术面分析请前往「股票选取」。", icon="📈")
 sf_card('🔍 搜索股票 · 加入自选', "")
-st.caption('输入代码 / 名称 / 拼音首字母，匹配结果直接显示在输入框下方（含市场标签），点击结果即选中；选中后可一键加入自选股，下方「自选行情」会实时同步。')
 _wb_code = stock_search_input(label='输入代码 / 名称 / 拼音', key='wb_search', default='600519')
 _wb_c1, _wb_c2 = st.columns([1, 3])
 with _wb_c1:
@@ -346,7 +344,6 @@ def fragment_lhb():
             _empty_info('暂无龙虎榜数据（非交易日晚间或数据源暂不可用）。可先到「📡 股票选取」查看个股 K 线，交易时段会自动刷新。')
 fragment_lhb()
 sf_card('个股收益率相关性矩阵', "")
-st.caption('💡 解释：数值越接近 1（深红）表示两只股票走势高度同向；越接近 -1（深绿）表示反向；接近 0 表示关系不大。可用于判断持仓是否过于集中、分散风险。')
 with st.expander('📖 怎么看这张图？', expanded=False):
     st.markdown('- **颜色**：红=正相关（同涨同跌），绿=负相关（你涨我跌），白=无关。\n- **对角线**恒为 1（自己和自己完全相关）。\n- **用法**：如果组合里多只股票相关性都接近 1，说明风险没有分散；可适当加入低相关或负相关的标的平衡。\n- **注意**：仅基于近期（默认 180 天）日收益率计算，长期关系可能变化。')
 
