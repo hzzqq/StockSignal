@@ -219,3 +219,53 @@ def test_94_removed_and_wrapped():
     assert "msg_read_ids" in src and "mark_all" in src
     assert "数据来源：自选股实时行情" in src
 
+
+# ═══════════════════════ T-231 P3 批次 ═══════════════════════
+def test_41_pnl_snapshot_wrapped():
+    """组合收益：导读卡删除，盈亏快照（与仓位管理同源）在折叠区内。"""
+    src = _src("41_组合收益.py")
+    assert 'sf_card("📊 自选股组合收益跟踪"' not in src
+    assert 'st.expander("💰 当前盈亏快照（与仓位管理页同源）"' in src
+    assert "_show_attribution()" in src, "个股收益贡献保留主区"
+    assert "pnl_attribution" in src
+
+
+def test_10_removed_duplicates():
+    """行情看板：导读卡/重复解释/搜索说明 caption 删除，溯源徽标与教学折叠保留。"""
+    src = _src("10_行情看板.py")
+    assert "页面导读" not in src
+    assert "💡 解释：数值越接近 1" not in src, "与「怎么看这张图」expander 同义的 caption 不得回归"
+    assert "输入代码 / 名称 / 拼音首字母，匹配结果" not in src
+    assert 'st.expander(\'📖 怎么看这张图？\'' in src, "相关性教学折叠区保留"
+    assert "prov_badge" in src, "展示源溯源徽标（T-215）不得移除"
+    assert "wb_add_wl" in src, "加入自选交互保留"
+
+
+def test_93_sysinfo_wrapped():
+    """系统配置：静态系统信息卡在折叠区内，数据源健康度保留主区（不得被包进 expander）。"""
+    src = _src("93_系统配置.py")
+    assert 'st.expander("🖥️ 系统信息（服务地址 · 存储路径）"' in src
+    assert "Flask API: `http://127.0.0.1:5050`" in src, "系统信息内容保留（仅折叠）"
+    tree = _tree("93_系统配置.py")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.With):
+            for item in node.items:
+                call = item.context_expr
+                if isinstance(call, ast.Call) and getattr(call.func, "attr", "") == "expander":
+                    for sub in ast.walk(node):
+                        if isinstance(sub, ast.Call):
+                            # sf_card 为 from modules.ui_theme import 的裸 Name 调用
+                            fname = getattr(sub.func, "id", "") or getattr(sub.func, "attr", "")
+                            if fname == "sf_card" and any(
+                                a and isinstance(a, ast.Constant) and "健康度" in str(a.value)
+                                for a in sub.args
+                            ):
+                                raise AssertionError("数据源健康度 sf_card 不得被包进 expander（须保留主区）")
+
+
+def test_92_intro_card_removed():
+    """用户管理：导读卡删除，三 Tab 结构保留。"""
+    src = _src("92_用户管理.py")
+    assert "管理员视图" not in src
+    assert "tab_users" in src and "tab_create" in src and "tab_logs" in src
+
