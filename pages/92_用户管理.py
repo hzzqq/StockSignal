@@ -16,7 +16,6 @@ require_admin()
 
 dark = render_standard_page(title="用户管理", icon="👥", auth=False)
 
-sf_card("👥 用户管理 · 管理员视图", "查看与维护平台用户列表、创建 / 编辑 / 删除账号、查阅操作日志。仅管理员可见，操作请谨慎。", icon="🛡️")
 
 # 初始化分页 state
 if "user_mgmt_page" not in st.session_state:
