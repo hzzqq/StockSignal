@@ -21,6 +21,7 @@ from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.news import NewsFetcher, SentimentAnalyzer
 from modules.colors import RED, GREEN, AMBER
+from modules.format_helpers import to_float, clamp
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -358,9 +359,14 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
     quote_src = "新浪财经" if _rt else "本地 fetcher"
     rt = _rt
     if isinstance(rt, dict) and rt.get("current"):
-        current_price = float(rt["current"])
-        prev_close = float(rt.get("prev_close") or current_price)
-        change_pct = (current_price - prev_close) / prev_close * 100 if prev_close else 0.0
+        # NaN / None 安全：行情接口的 current / prev_close 可能是 NaN 或缺失，
+        # 裸 float() + 减法会把 NaN 泄漏进 change_pct（页面显示 "nan%"）。
+        current_price = to_float(rt["current"], default=None)
+        prev_close = to_float(rt.get("prev_close"), default=current_price)
+        if current_price is None or prev_close in (None, 0):
+            change_pct = 0.0
+        else:
+            change_pct = (current_price - prev_close) / prev_close * 100
     else:
         rt = None
         current_price = None
@@ -395,11 +401,11 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
     tech_profile = signal.get("technical_profile",
                                 {"short": 50, "mid": 50, "long": 50, "trend": 50, "composite": 50})
     # 五维加权：技术0.25 / 情绪0.22 / 量能0.18 / 宏观0.15 / 板块0.20
-    composite = int(round(
+    # NaN 安全：clamp 必须在 int(round) 之前——任一维度为 NaN 时旧写法
+    # `int(round(nan))` 会抛 "cannot convert float NaN to integer" 崩溃整页。
+    composite = int(round(clamp(
         tech_score * 0.25 + news_score * 0.22 + vol_score * 0.18
-        + macro_score * 0.15 + sector_score * 0.20
-    ))
-    composite = max(0, min(100, composite))
+        + macro_score * 0.15 + sector_score * 0.20, 0, 100)))
     verdict, verdict_color, verdict_cls = _verdict_color(composite)
 
     # 新闻 / 情绪
