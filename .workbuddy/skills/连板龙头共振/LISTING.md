@@ -83,7 +83,7 @@ Ladder Resonance is a Stock/A-share short-term relay analysis skill. It reads da
 打包命令（在 skill 目录内执行）：
 
 ```bash
-python -m zipfile -c build/连板龙头共振.zip SKILL.md scripts/ lib/ assets/ references/
+python -m zipfile -c build/limit-up-ladder-resonance.zip SKILL.md scripts/ lib/ assets/ references/
 ```
 
 或直接拖拽 skill 文件夹到 SkillHub 上传区。
