@@ -1,10 +1,10 @@
-# 牧羊人情绪 → 次日行情判断 · 技能简介（Marketplace Blurb）
+# 牧羊人指标 · 技能简介（Marketplace Blurb）
 
 ---
 
 ## 中文简介
 
-**名称**：牧羊人情绪 → 次日行情判断（shepherd-next-day-edge）
+**名称**：牧羊人指标（股票 / A股 类型情绪指标）
 
 **一句话**：输入当日 A 股涨跌停广度，基于全历史 walk-forward 校准，告诉你「明天该不该看涨」——但只在**极端恐慌**时才敢说话。
 
@@ -39,7 +39,7 @@ python <skill>/scripts/next_day_edge.py --summary
 
 ## English Blurb
 
-**Name**: Shepherd Sentiment → Next-Day Market Edge
+**Name**: Shepherd Indicator (Stock / A-share sentiment indicator)
 
 **In one line**: Feed it today's A-share breadth (advancers/decliners, limit-up/limit-down counts); based on a full-history walk-forward calibration it tells you whether to lean bullish tomorrow — but it only speaks up on **extreme panic**.
 
