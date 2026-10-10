@@ -90,7 +90,7 @@ Shepherd Indicator is a Stock/A-share sentiment skill. It reads today's A-share 
 | 4 | 填写基础信息：名称、描述、英文名、分类标签、版本、作者 | 本单已备齐 |
 | 5 | 上传图标 `icon_512.png` | 已生成 |
 | 6 | 粘贴权限声明与使用说明 | 本单已备齐 |
-| 7 | 上传技能包或填写仓库地址（按平台实际表单） | 发布包已备好：`build/牧羊人指标.skill.json` |
+| 7 | 上传技能包：拖拽 skill 文件夹或 `build/牧羊人指标.zip` 到 SkillHub 上传区 | 上传包已备好：`build/牧羊人指标.zip`（含 SKILL.md + scripts/ + lib/ + assets/ + references/） |
 | 8 | 提交审核，等待 SkillHub **三线安全审核**（内容合规 + 科恩实验室漏洞扫描 + 云鼎实验室 AI 模型安全评估） | 待你做；通过后自动上架 |
 
 **审核周期**：通常 1–3 个工作日（SkillHub 首页写「100% 强制安全准入」）。
@@ -106,7 +106,8 @@ Shepherd Indicator is a Stock/A-share sentiment skill. It reads today's A-share 
 | 兜底引擎 | `lib/edge_engine.py` | 无第三方依赖，可独立运行 |
 | 校准件 | `assets/sentiment_edge_calibration.json` | 冻结 walk-forward 校准结果 |
 | 图标 | `assets/icon_512.png` | 512×512 PNG |
-| 发布包 | `build/牧羊人指标.skill.json` | workbuddy-skill-package/1.0 格式，已验证 |
+| SkillHub 上传包 | `build/牧羊人指标.zip` | 参照 `python-ml-1.0.0.zip` 结构：SKILL.md + scripts/ + lib/ + assets/ + references/ |
+| WorkBuddy 本地包 | `build/牧羊人指标.skill.json` | workbuddy-skill-package/1.0 格式，本地安装/验证用 |
 | 市场简介 | `MARKETPLACE.md` | 中英双语市场文案 |
 | 上架物料单 | `LISTING.md` | 即本文件，可直接复制到平台表单 |
 
