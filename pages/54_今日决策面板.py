@@ -43,6 +43,7 @@ from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box
 from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GRU/融合）
 from modules.event_factor import get_event_factor  # 事件因子适配器（真实信号，无合成）
+from modules.next_day_edge_view import render_next_day_edge  # 次日情绪极值判断组件（复用 panic_reversal）
 
 st_autorefresh = import_autorefresh()
 
@@ -461,6 +462,18 @@ def fragment_signals():
             )
         idx += 1
     st.caption(f"数据日期：{_last_data_date(df)}　·　信号灯按《牧羊人·情绪温度计》阈值口径，红=热/风险，蓝=冷/安全，黄=中性。")
+
+
+# ───────────────────────── 次日情绪极值判断（恐慌反弹信号） ─────────────────────────
+@safe_fragment("次日情绪极值判断")
+def fragment_next_day_edge():
+    """把「牧羊人情绪极值 → 次日行情」接进决策面板：只有极端恐慌→次日反弹这一条有统计依据，
+    其余日子诚实弃权，不硬猜方向。复用 modules.sentiment_edge.panic_reversal。"""
+    _section_title("🔮 次日情绪极值判断（恐慌反弹信号）", accent="#ff5c8a")
+    try:
+        render_next_day_edge(dark=dark)
+    except Exception as e:  # noqa: BLE401 - 该组件失败不得拖垮整页
+        xc_handle_error("次日情绪极值判断渲染失败", e)
 
 
 # ───────────────────────── 连板梯队晋级率 ─────────────────────────
@@ -1027,6 +1040,7 @@ def fragment_calibration():
 fragment_calibration_ready_banner()
 fragment_decision()
 fragment_signals()
+fragment_next_day_edge()
 fragment_ladder()
 fragment_p1_ev()
 fragment_event_driven_pool()
