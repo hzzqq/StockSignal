@@ -1,3 +1,53 @@
+# ───────────────────────── 项目元数据与依赖（T-267 UV 接入） ─────────────────────────
+# 单一依赖真理源：此前 requirements.txt 只固化前端/数据层 15 项，backend 的
+# flask/pyjwt/sqlalchemy 等从未入库（环境不可复现）。UV lockfile（uv.lock）
+# 全量锁定解析结果，uv sync 一键还原可复现环境（项目内 .venv，独立于共享 venv）。
+[project]
+name = "stocksignal"
+version = "1.0.0"
+description = "StockSignal · A股事件驱动投资分析平台"
+requires-python = ">=3.11"
+dependencies = [
+    # ── 前端 / 数据层（原 requirements.txt）──
+    "akshare>=1.12.0",
+    "pandas>=2.0.0",
+    "numpy>=1.26.0",
+    "matplotlib>=3.8.0",
+    "mplfinance>=0.12.10b0",
+    "plotly>=5.20.0",
+    "streamlit>=1.35.0",
+    "streamlit-autorefresh>=0.3.0",
+    "openpyxl>=3.1.0",
+    "pyyaml>=6.0",
+    "tushare>=1.4.0",
+    "jieba>=0.42.1",
+    "snownlp>=0.12.3",
+    "baostock>=0.8.8",
+    "requests>=2.31.0",
+    # ── backend（AST 实测 import，此前从未固化）──
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "flask-sqlalchemy>=3.1.0",
+    "pyjwt>=2.8.0",
+    "sqlalchemy>=2.0.0",
+    "pypinyin>=0.51.0",
+    "werkzeug>=3.0.0",
+    # ── 测试 / 契约 ──
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+# 券商本地客户端依赖：仅在启用 QMT/easytrader 实盘的机器安装（普通环境装不上）。
+broker = ["easytrader>=0.6.0"]
+dev = ["ruff>=0.6.0", "mypy>=1.10.0"]
+# T-267 FastAPI 试点切片（backend_fastapi/，ASGI 新端点增量路线）
+api = ["fastapi>=0.115.0", "uvicorn>=0.30.0"]
+
+[tool.uv]
+# 项目内独立环境（.venv），与共享 venv 完全隔离
+package = false
+
 [tool.ruff]
 # 基线 lint 配置（渐进式引入，不强制全量通过）
 line-length = 120

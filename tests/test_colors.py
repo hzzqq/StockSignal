@@ -9,6 +9,7 @@
 
 import ast
 import os
+from pathlib import Path
 
 import pytest
 
@@ -100,10 +101,15 @@ def test_stock_analysis_helpers_imports_red_green_amber():
 
 @pytest.mark.parametrize("name", ["RED", "GREEN", "AMBER", "UP_COLOR", "DOWN_COLOR", "HOLD_COLOR"])
 def test_no_other_module_redefines_colors(name):
-    """全项目扫描：除 colors.py 外，任何 .py 都不得顶层定义这些常量名。"""
+    """全项目扫描：除 colors.py 外，任何 .py 都不得顶层定义这些常量名。
+
+    T-267：扫描范围限定为项目源码——.venv/venv（uv 环境的 site-packages 里有
+    pygments 色板定义 RED/GREEN，属第三方库非项目源码）必须按路径段排除。
+    """
     offenders = []
+    skip_parts = {".git", ".workbuddy", "__pycache__", ".venv", "venv", ".pytest_cache"}
     for dirpath, _, files in os.walk(ROOT):
-        if ".git" in dirpath or ".workbuddy" in dirpath or "__pycache__" in dirpath:
+        if skip_parts & set(Path(dirpath).parts):
             continue
         for fn in files:
             if not fn.endswith(".py"):

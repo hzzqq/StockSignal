@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import os
+from pathlib import Path
 
 from backend.utils.timeutil import (
     utc_now,
@@ -46,6 +47,14 @@ def test_utc_fromtimestamp_epoch():
     assert dt.hour == 0 and dt.minute == 0 and dt.second == 0
 
 
+def _source_excluded(dirpath: str) -> bool:
+    """T-267：源码扫描排除——按路径段匹配（Windows 反斜杠下子串 "/.venv/" 永不命中，
+    uv 项目内 .venv 会漏扫，故改 Path.parts 段级判断）。"""
+    parts = set(Path(dirpath).parts)
+    return bool(parts & {".git", ".venv", "venv", "__pycache__",
+                         ".pytest_cache", ".workbuddy", "tests"})
+
+
 def test_no_deprecated_utcnow_in_source():
     """回归：非测试源码不得再出现已弃用的 datetime.utcnow() / utcfromtimestamp() 调用。
 
@@ -55,10 +64,7 @@ def test_no_deprecated_utcnow_in_source():
     banned = {"utcnow", "utcfromtimestamp"}
     offenders = []
     for dirpath, _dirs, files in os.walk(root):
-        # 跳过测试目录、venv、缓存与仓库元数据
-        if any(seg in dirpath for seg in ("/tests/", "/.git/", "/__pycache__/", "/.pytest_cache/", "/venv", "/.venv/")):
-            continue
-        if dirpath.endswith("/tests"):
+        if _source_excluded(dirpath):
             continue
         for fn in files:
             if not fn.endswith(".py"):
@@ -81,9 +87,7 @@ def test_source_files_parse():
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     count = 0
     for dirpath, _dirs, files in os.walk(root):
-        if any(seg in dirpath for seg in ("/tests/", "/.git/", "/__pycache__/", "/.pytest_cache/", "/venv", "/.venv/")):
-            continue
-        if dirpath.endswith("/tests"):
+        if _source_excluded(dirpath):
             continue
         for fn in files:
             if not fn.endswith(".py"):

@@ -1,0 +1,100 @@
+{
+  "io_sleep_ms": 20,
+  "note": "同构最小 App 双场景；双方 dev server（werkzeug threaded / uvicorn 单进程），主口径=顺序请求（无客户端并发调度噪声，测框架单请求开销），并发口径仅参考",
+  "health_cpu_light": {
+    "flask_sequential": {
+      "requests": 500,
+      "concurrency": 1,
+      "errors": 0,
+      "wall_sec": 3.22,
+      "rps": 155.1,
+      "p50_ms": 4.5,
+      "p95_ms": 16.25,
+      "p99_ms": 30.26,
+      "mean_ms": 6.42
+    },
+    "fastapi_sequential": {
+      "requests": 500,
+      "concurrency": 1,
+      "errors": 0,
+      "wall_sec": 2.71,
+      "rps": 184.3,
+      "p50_ms": 4.25,
+      "p95_ms": 15.82,
+      "p99_ms": 27.6,
+      "mean_ms": 5.38
+    },
+    "flask_conc_ref": {
+      "requests": 1000,
+      "concurrency": 20,
+      "errors": 0,
+      "wall_sec": 4.22,
+      "rps": 237.0,
+      "p50_ms": 62.23,
+      "p95_ms": 152.67,
+      "p99_ms": 168.71,
+      "mean_ms": 77.05
+    },
+    "fastapi_conc_ref": {
+      "requests": 1000,
+      "concurrency": 20,
+      "errors": 0,
+      "wall_sec": 7.02,
+      "rps": 142.4,
+      "p50_ms": 113.69,
+      "p95_ms": 306.92,
+      "p99_ms": 416.18,
+      "mean_ms": 134.75
+    }
+  },
+  "io_wait_20ms": {
+    "flask_sequential": {
+      "requests": 500,
+      "concurrency": 1,
+      "errors": 0,
+      "wall_sec": 14.33,
+      "rps": 34.9,
+      "p50_ms": 26.32,
+      "p95_ms": 40.7,
+      "p99_ms": 50.73,
+      "mean_ms": 28.62
+    },
+    "fastapi_sequential": {
+      "requests": 500,
+      "concurrency": 1,
+      "errors": 0,
+      "wall_sec": 16.4,
+      "rps": 30.5,
+      "p50_ms": 31.21,
+      "p95_ms": 44.56,
+      "p99_ms": 50.65,
+      "mean_ms": 32.76
+    },
+    "flask_conc_ref": {
+      "requests": 1000,
+      "concurrency": 20,
+      "errors": 0,
+      "wall_sec": 4.86,
+      "rps": 205.7,
+      "p50_ms": 73.8,
+      "p95_ms": 161.69,
+      "p99_ms": 185.67,
+      "mean_ms": 89.99
+    },
+    "fastapi_conc_ref": {
+      "requests": 1000,
+      "concurrency": 20,
+      "errors": 0,
+      "wall_sec": 8.37,
+      "rps": 119.5,
+      "p50_ms": 114.57,
+      "p95_ms": 451.69,
+      "p99_ms": 709.6,
+      "mean_ms": 160.75
+    }
+  },
+  "conclusion": {
+    "health_seq_mean_ratio_fastapi_over_flask": 0.84,
+    "io_seq_mean_ratio_fastapi_over_flask": 1.14
+  }
+}
