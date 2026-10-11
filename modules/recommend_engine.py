@@ -14,6 +14,10 @@ modules/recommend_engine.py
 买入方案：入场=现价，目标/止损=ATR14 倍数（2×止损 / 3×目标），
 仓位提示 = derive_position 市场仓位 / 推荐只数（等权、单票上限 20%）。
 
+R1 六维排雷二道闸（T-245）：融合排序后对闸门段（max(enrich_top, top_k)）逐股跑
+stock_risk 六维扫描，overall_level=high（ST/商誉/质押/解禁/减持/诉讼任一高危）
+硬红旗踢出；排雷不可得如实降级 not_scanned，绝不阻塞主流程、绝不把没查到当安全。
+
 诚实语义：
 - 数据不可得的算法在该标的记 unavailable，不编造分数；
 - 行情不足 90 日的标的直接跳过；
@@ -30,6 +34,8 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
+
+from modules.stock_risk import DIMENSIONS, RISK_HIGH
 
 logger = logging.getLogger(__name__)
 
@@ -364,6 +370,18 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
                      "data_as_of": v["data_as_of"], "df": df})
 
     rows.sort(key=lambda r: -r["composite"])
+    # ── R1 六维排雷二道闸（T-245）：闸门段逐股六维扫描，硬红旗踢出；
+    #    排雷不可得如实降级（not_scanned），不阻塞主流程 ──
+    gate_n = max(enrich_top, top_k)
+    try:
+        scan_map = _safe_risk_scan([(r["code"], r.get("name") or r["code"])
+                                    for r in rows[:gate_n]])
+    except Exception as e:  # noqa: BLE001 - 双保险：闸源异常也按不可得降级
+        logger.info("[recommend_engine] 排雷闸异常（如实降级）: %s", e)
+        scan_map = {}
+    rows, gate_summary = apply_risk_gate(rows, scan_map, top_k, gate_n)
+    if progress:
+        progress(0.85, f"排雷完成：踢出 {len(gate_summary['kicked'])} 只，融合排序…")
     # 市场上下文（决策快照，取不到即标注）
     market_ctx = _safe_market_context()
     pos_base = (market_ctx.get("position") or {}).get("pct") if market_ctx.get("position") else None
@@ -389,6 +407,11 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
         "market_context": market_ctx,
         "picks": picks, "disclaimer": DISCLAIMER,
         "weights": ALGO_WEIGHTS,
+        # R1 六维排雷二道闸（T-245）：kicked=被踢明细；unscanned_picks=入选中未过闸数
+        "risk_gate": {**gate_summary,
+                      "unscanned_picks": sum(1 for p in picks
+                                             if p.get("risk_scan", {}).get("status")
+                                             != "scanned")},
         # T-235 数据时效护栏：行情整体滞后超阈值时 stale=True，36 页显著告警
         "data_staleness": assess_data_staleness([r.get("data_as_of") for r in rows]),
     }
@@ -396,6 +419,72 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
     if progress:
         progress(1.0, f"完成：{len(picks)} 只推荐已落盘")
     return rec
+
+
+def apply_risk_gate(rows: list, scan_map: dict, top_k: int, gate_n: int) -> tuple:
+    """R1 六维排雷二道闸（纯逻辑，可单测）。
+
+    rows：已按 composite 降序的候选列表（元素含 code/name，原列表顺位不变）；
+    scan_map：{code6: scan_stock 结果（含 report/components）}；空 dict = 排雷不可得。
+
+    规则（T-245 spec 冻结）：
+    - 闸门段 = rows[:max(gate_n, top_k)]，overall_level == high → 硬红旗踢出；
+    - unknown ≠ guilty：unknown/medium/low 一律保留，只如实携带 risk_scan 元数据；
+    - 被踢后不足 top_k → 从闸门段之外顺位补入，补入者标 not_scanned（不静默）；
+    - scan_map 为空 → 全部标 not_scanned，status=unavailable，主流程不阻塞。
+
+    返回 (gated_rows, gate_summary)；gated_rows 元素新增 ``risk_scan`` 字段。
+    """
+    gate_n = max(int(gate_n), int(top_k))
+    head, tail = rows[:gate_n], rows[gate_n:]
+    if not scan_map:
+        for r in rows:
+            r["risk_scan"] = {"status": "not_scanned"}
+        summary = {"status": "unavailable", "gate_size": len(head), "scanned": 0,
+                   "kicked": [],
+                   "reason": "六维排雷扫描不可用（网络或接口失败），如实降级不阻塞"}
+        return list(rows), summary
+
+    kept: list = []
+    kicked: list = []
+    for r in head:
+        scan = scan_map.get(str(r.get("code", "")).zfill(6))
+        report = (scan or {}).get("report") or {}
+        if report.get("overall_level") == RISK_HIGH:
+            reasons = []
+            for key, cn, _unit in DIMENSIONS:
+                comp = (scan.get("components") or {}).get(key) or {}
+                if comp.get("level") == RISK_HIGH:
+                    note = str(comp.get("note") or "").strip()
+                    reasons.append(f"{cn}·{note}"[:60] if note else cn)
+            kicked.append({"code": r.get("code"), "name": r.get("name"),
+                           "overall_level": RISK_HIGH,
+                           "n_high": report.get("n_high"), "reasons": reasons})
+            continue
+        r["risk_scan"] = {"status": "scanned",
+                          "overall_level": report.get("overall_level"),
+                          "risk_score": report.get("risk_score"),
+                          "reliable": report.get("reliable"),
+                          "n_high": report.get("n_high", 0)}
+        kept.append(r)
+    for r in tail:
+        r["risk_scan"] = {"status": "not_scanned"}
+    summary = {"status": "ok", "gate_size": len(head), "scanned": len(scan_map),
+               "kicked": kicked, "reason": ""}
+    return kept + tail, summary
+
+
+def _safe_risk_scan(codes_with_names) -> dict:
+    """六维排雷批量扫描（R1 二道闸数据源）。失败返回 {}（诚实降级，不阻塞荐股）。"""
+    try:
+        from modules.stock_risk import scan_many
+
+        results = scan_many(list(codes_with_names), max_workers=4) or []
+        return {str(r.get("code", "")).zfill(6): r
+                for r in results if isinstance(r, dict) and r.get("code")}
+    except Exception as e:  # noqa: BLE001 - 排雷不可得≠有罪，如实降级并留痕
+        logger.info("[recommend_engine] 六维排雷不可用（如实降级）: %s", e)
+        return {}
 
 
 def _safe_fund_flow(code):
