@@ -11,6 +11,9 @@ T-236 判活（long-running-task-healthcheck 范式）：assess_recommend_health
 最新日期判 ok/warn/dead——防「调度器静默停摆、页面照常等推荐」（决策闭环 09-10/09-15 事故同款）。
 T-237 推送：生成成功后可选微信推送摘要（STOCKSIGNAL_RECOMMEND_PUSH=1 开启，默认关；
 复用 modules/push_channel，失败留痕不阻断主流程，绝不谎报已推送）。
+T-250 缓存预热：生成前先跑 modules.cache_warmer.warm_universe（引擎同参拉候选池日线，
+cache.db 即检查点、TTL 内自动跳过＝幂等），把「生成时才发现取不到」变「闲时充分重试」；
+SS_CACHE_WARM=0 可关；预热失败不阻断生成（荐股侧有 T-248 诚实兜底标注）。
 """
 from __future__ import annotations
 
@@ -108,6 +111,19 @@ def _maybe_push(rec: dict) -> None:
         logger.warning("[recommend_scheduler] 微信推送异常: %s", e)
 
 
+def _warm_once() -> None:
+    """T-250：荐股生成前预热日线缓存（引擎同参；失败留痕不阻断生成）。"""
+    try:
+        from modules.cache_warmer import warm_universe
+
+        res = warm_universe()
+        logger.info("[recommend_scheduler] 缓存预热 warmed=%s failed=%s total=%s %ss%s",
+                    res.get("warmed"), res.get("failed"), res.get("total"),
+                    res.get("elapsed_s"), f" | {res['reason']}" if res.get("reason") else "")
+    except Exception as e:  # noqa: BLE001 — 预热失败绝不阻断荐股主流程，但必须留痕
+        logger.warning("[recommend_scheduler] 缓存预热异常（不阻断生成）: %s", e)
+
+
 def _generate_once() -> dict | None:
     """生成当日推荐（幂等：已有当日文件则跳过）。返回 rec 或 None。"""
     from modules.recommend_engine import generate_daily_recommendation, today_generated
@@ -146,6 +162,7 @@ def start_recommend_scheduler(app, *, interval_minutes: int = _SCAN_INTERVAL_MIN
         while True:
             try:
                 if _after_close_cst() and not os.environ.get("STOCKSIGNAL_RECOMMEND_FORCE_OFF"):
+                    _warm_once()
                     _generate_once()
             except Exception as e:  # noqa: BLE001 — 调度循环永不中断
                 logger.warning("[recommend_scheduler] 生成失败（下轮重试）: %s", e)
