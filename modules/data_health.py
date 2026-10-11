@@ -368,7 +368,10 @@ def record_health_observation(rows: list[dict] | None = None) -> int:
                     (r["key"], now, r.get("as_of"), r.get("status"), r.get("lag_days")),
                 )
                 n += 1
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001 — 不影响看板渲染（仍返 0），但必须留痕：
+        # 观测写失败连续发生会让 detect_stall 因无观测历史而失明（T-239 第一轮 R-H1）
+        logger.warning("[data_health] 健康观测落盘失败（本次 %d 行未记录）: %s: %s",
+                       len(rows), type(e).__name__, e)
         return 0
     return n
 
