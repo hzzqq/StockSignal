@@ -50,8 +50,8 @@ def get_today_breadth() -> dict | None:
     # ② 牧羊人活数据（最新一行）
     try:
         from modules.shepherd import get_shepherd_indicators
-        got = get_shepherd_indicators(days=1)
-        df = got[0] if isinstance(got, (tuple, list)) else got
+        # 必须规范解包 (df, meta)——该函数返回元组，单赋值属静默 footgun（守卫锁定）
+        df, _meta = get_shepherd_indicators(days=1)
         if df is not None and len(df):
             row = df.iloc[-1]
             b = {}
