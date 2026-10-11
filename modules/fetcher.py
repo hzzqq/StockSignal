@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 import time
 import warnings
 import logging as _logging
@@ -97,6 +98,16 @@ def _df_last_date(df):
     except Exception:  # noqa: BLE001 - 元数据尽力而为，绝不影响主数据路径
         pass
     return None
+
+
+# ── T-257：get_daily L0 进程级内存缓存（TTL-LRU）──────────────────────
+# 重复页面交互免 SQLite 重开连接 + 50KB JSON 重解析（实测命中路径 6.55ms → 亚毫秒）。
+# TTL 默认 300s（SS_L0_TTL=0 关闭）；容量 SS_L0_MAX（默认 600 条 ≈ 25MB 上限）；
+# clear_cache 全量失效；hit 返回 df.copy() 防调用方原地改写污染缓存。
+_L0_CACHE: dict = {}
+_L0_LOCK = threading.Lock()
+_L0_TTL = float(os.environ.get("SS_L0_TTL", "300"))
+_L0_MAX = int(os.environ.get("SS_L0_MAX", "600"))
 
 
 def _resolve_cache_db_path(explicit: str | None) -> str:
@@ -437,7 +448,16 @@ class StockFetcher:
             self._proc_cache_set(StockFetcher._biz_cache, code, biz)
         return biz
     def _get_conn(self):
-        return sqlite3.connect(self.db_path)
+        # T-257：WAL + busy_timeout——默认回滚日志模式下每次缓存写入全库排他锁，
+        # 页面读被写阻塞（15:30 预热窗口/实时刷新时段页面卡顿同源）。WAL 读写并行，
+        # busy_timeout 让偶发写锁由「抛错」变「短等待」。journal_mode 持久化，重复执行为 no-op。
+        conn = sqlite3.connect(self.db_path, timeout=10.0)
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+        except sqlite3.OperationalError as e:  # noqa: BLE001 - 只读/异常场景如实降级
+            logger.debug(f"[fetcher] PRAGMA 设置降级: {e}")
+        return conn
 
     # ══════════════════════════════════════════════════════
     # 股票库内存缓存（搜索性能核心优化）
@@ -588,6 +608,9 @@ class StockFetcher:
             else ["daily_cache", "index_cache", "macro_cache", "commodity_cache"]
         )
         tables = [self._safe_ident(t) for t in tables]
+        # T-257：清缓存必须同步失效 L0 内存层，否则「强制刷新」后页面还在吃内存旧数据
+        with _L0_LOCK:
+            _L0_CACHE.clear()
         conn = self._get_conn()
         deleted = 0
         try:
@@ -1947,6 +1970,39 @@ class StockFetcher:
                                  "as_of": _df_last_date(df)})
 
         cache_key = f"daily_{symbol}_{start}_{end}_{adjust}"
+        # L0 key 必须带库身份：多实例（测试 tmp 库 / 多 data dir）同 key 不得串库
+        l0_key = f"{getattr(self, 'db_path', id(self))}|{cache_key}"
+
+        # ── T-257 L0 内存缓存：重复交互免 SQLite 重读+JSON 重解析（SS_L0_TTL=0 关闭）──
+        if _L0_TTL > 0:
+            with _L0_LOCK:
+                ent = _L0_CACHE.get(l0_key)
+            if ent is not None and time.monotonic() - ent["ts"] <= _L0_TTL:
+                if ent["is_stale"]:
+                    # L0 回放缓存兜底数据时重放埋点：每次「用旧数据」都如实计数
+                    observe_cache_fallback("L5", True, f"{symbol} as_of={ent['as_of']}(L0)")
+                if isinstance(meta_out, dict):
+                    meta_out.clear()
+                    meta_out.update({"source": ent["source"],
+                                     "is_stale": ent["is_stale"],
+                                     "as_of": ent["as_of"]})
+                return ent["df"].copy()
+            elif ent is not None:
+                with _L0_LOCK:
+                    _L0_CACHE.pop(l0_key, None)
+
+        def _l0_put(df, source, is_stale):
+            """命中成功路径写 L0（存副本防调用方原地改写污染；容量满按最旧逐出）。"""
+            if _L0_TTL <= 0:
+                return
+            with _L0_LOCK:
+                _L0_CACHE[l0_key] = {"df": df.copy(), "source": source,
+                                     "is_stale": is_stale,
+                                     "as_of": _df_last_date(df),
+                                     "ts": time.monotonic()}
+                while len(_L0_CACHE) > _L0_MAX:
+                    _L0_CACHE.pop(min(_L0_CACHE, key=lambda k: _L0_CACHE[k]["ts"]), None)
+
         conn = self._get_conn()
         try:
             # 缓存优先
@@ -1955,6 +2011,7 @@ class StockFetcher:
             cached = self._read_cache(conn, "daily_cache", cache_key, max_age_hours=max_age_hours)
             if cached is not None:
                 _meta("cache", False, cached)
+                _l0_put(cached, "cache", False)
                 return cached
 
             df = None
@@ -2002,6 +2059,7 @@ class StockFetcher:
                     observe_cache_fallback("L5", True,
                                            f"{symbol} as_of={_df_last_date(stale)}")
                     _meta("cache_fallback", True, stale)
+                    _l0_put(stale, "cache_fallback", True)
                     return stale
                 observe_cache_fallback("L5", False, f"{symbol} 无可用兜底缓存")
                 errors.append("缓存: 无可用数据")
@@ -2022,6 +2080,7 @@ class StockFetcher:
             df = df.sort_values("date").reset_index(drop=True)
             self._write_cache(conn, "daily_cache", cache_key, df)
             _meta("live", False, df)
+            _l0_put(df, "live", False)
             return df
         finally:
             conn.close()

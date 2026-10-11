@@ -11,6 +11,8 @@
 """
 import sys
 
+import pytest
+
 
 def _install_streamlit():
     # 优先使用真实 streamlit
@@ -195,6 +197,25 @@ def _install_data_isolation():
 _install_sqlite_memory_journal()
 
 _install_data_isolation()
+
+
+@pytest.fixture(autouse=True)
+def _clean_fetcher_l0():
+    """T-257：每个用例前后清空 get_daily L0 内存缓存——进程级状态不得跨用例泄漏
+    （不同用例的 tmp 库共用相同 cache_key 形态，残留会让断言命中别库数据）。"""
+    try:
+        from modules import fetcher as _fetcher_mod
+
+        _fetcher_mod._L0_CACHE.clear()
+    except Exception:  # noqa: BLE001 - 隔离设施自身故障不挡测试
+        pass
+    yield
+    try:
+        from modules import fetcher as _fetcher_mod2
+
+        _fetcher_mod2._L0_CACHE.clear()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def pytest_sessionfinish(session, exitstatus):
