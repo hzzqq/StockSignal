@@ -94,8 +94,8 @@ def _json_max_date(path: str) -> str | None:
         norm = [str(d)[:10] for d in dates if d]
         if norm:
             return max(norm)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[data_health] %s 内容日期读取失败，回退文件 mtime（可能误报新鲜）: %s", path, exc)
     return _mtime_date(path)
 
 
@@ -118,8 +118,8 @@ def _sqlite_col_max_date(path: str, table: str, col: str = "date") -> str | None
             row = conn.execute(f"SELECT MAX({col}) FROM {table}").fetchone()
         if row and row[0]:
             return str(row[0])[:10]
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[data_health] %s 表 %s 内容日期读取失败，回退文件 mtime（可能误报新鲜）: %s", path, table, exc)
     return _mtime_date(path)
 
 
