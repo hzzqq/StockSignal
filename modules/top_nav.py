@@ -64,6 +64,32 @@ def _entry_html(path: str, label: str, icon: str, cur_base: str, q: str = "") ->
             f'<b>{icon} {label}</b>{badge}</a>')
 
 
+def _locate_current(cur_base: str, nav_groups: list, nav_hero: list) -> tuple:
+    """T-264 当前位置定位（纯函数）：返回 (所属一级类目名 or None, 当前页 label or None)。
+
+    匹配序：决策中枢 hero → 六大类目条目（basename 精确匹配）。
+    favorites 与类目条目同集合不重复判断；admin/我的 等非类目页返回 (None, None)
+    （顶栏不高亮、不显示面包屑——其入口本就在右侧图标/下拉）。
+    """
+    if not cur_base:
+        return (None, None)
+    for p, l, _i in (nav_hero or []):
+        if p.replace("\\", "/").split("/")[-1] == cur_base:
+            return ("🎯 决策中枢", l)
+    for top_label, clusters in (nav_groups or []):
+        for _sub, items in (clusters or []):
+            for p, l, _i in (items or []):
+                if p.replace("\\", "/").split("/")[-1] == cur_base:
+                    return (top_label, l)
+    return (None, None)
+
+
+def _crumb_html(label: str) -> str:
+    """T-264 类目后的「› 当前页名」面包屑片段（纯视觉）。"""
+    import html as _html
+    return f'<i class="ss-crumb">› {_html.escape(str(label))}</i>'
+
+
 def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
                   favorites: list, recents: list, current_style: str = "classic",
                   is_admin_user: bool = False, cur_base: str = "",
@@ -88,6 +114,9 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
     q = ("?" + nav_qs) if nav_qs else ""
     qa = ("&" + nav_qs) if nav_qs else ""
 
+    # ── T-264 当前位置定位：一级类目高亮 + 页名面包屑 ──
+    _cur_group, _cur_label = _locate_current(cur_base, nav_groups, nav_hero)
+
     # ── 组装类目菜单 ──
     menus = []
     # 首页（直链，无面板）
@@ -99,8 +128,10 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
             '<i class="ss-tag ss-tag-hot">HOT</i>' if "54_" in p else "")
         for p, l, i in nav_hero)
     intro_hero = _GROUP_INTROS.get("🎯 决策中枢", "")
+    hero_active = ' ss-menu-active' if _cur_group == "🎯 决策中枢" else ""
+    hero_crumb = _crumb_html(_cur_label) if (_cur_group == "🎯 决策中枢" and _cur_label) else ""
     menus.append(
-        '<div class="ss-menu has-mega">🎯 决策中枢'
+        f'<div class="ss-menu has-mega{hero_active}">🎯 决策中枢{hero_crumb}'
         '<div class="ss-mega"><div class="ss-mega-intro"><h4>决策中枢 ></h4>'
         f'<p>{intro_hero}</p></div>'
         f'<div class="ss-mega-grid">{hero_entries}'
@@ -115,8 +146,10 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
                 rows.append(f'<div class="ss-mega-sub">{sub}</div>')
             rows.append("".join(_entry_html(p, l, i, cur_base, q) for p, l, i in items))
         grid = "".join(rows)
+        grp_active = ' ss-menu-active' if _cur_group == top_label else ""
+        grp_crumb = _crumb_html(_cur_label) if (_cur_group == top_label and _cur_label) else ""
         menus.append(
-            f'<div class="ss-menu has-mega">{top_label}'
+            f'<div class="ss-menu has-mega{grp_active}">{top_label}{grp_crumb}'
             f'<div class="ss-mega"><div class="ss-mega-intro"><h4>{top_label} &gt;</h4>'
             f'<p>{intro}</p></div>'
             f'<div class="ss-mega-grid">{grid}</div></div></div>')
@@ -272,6 +305,9 @@ TOPNAV_CSS = """
 /* ── 字号层级：核心突出 / 次要收敛（阿里云简洁层级） ── */
 .stMarkdown p{line-height:1.55}
 [data-testid="stMetricLabel"]{font-size:.78rem!important}
+/* ── T-264 当前位置指示：类目后的「› 当前页名」面包屑（类目高亮复用 .ss-menu-active） ── */
+.ss-crumb{font-style:normal;font-weight:500;font-size:12px;color:var(--acc1);
+  opacity:.9;margin-left:2px;white-space:nowrap}
 /* ── 响应式 ── */
 @media(max-width:1100px){.ss-menu{padding:8px 9px;font-size:13px}}
 @media(max-width:860px){.ss-search{display:none}}

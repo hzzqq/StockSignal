@@ -784,18 +784,28 @@ def sidebar_target():
 def _current_page_basename() -> str:
     """返回当前运行脚本的文件名（如 'pages/54_今日决策面板.py' 的末段）。
 
-    在脚本运行时通过 Streamlit runtime context 取主脚本路径；
-    非运行上下文（如 AppTest / 探针）安全返回空串。
+    T-264 纠偏：旧实现取 ctx.session._main_script_path——Streamlit 1.58 实测恒空
+    （main_script_path 是 ctx 顶层属性，且 multipage 直开 pages 页时返回入口 app.py，
+    顶栏类目高亮 / mega 面板条目高亮自 T-195 起从未生效）。
+    权威源取值序：① st.session_state['_active_page']（render_standard_page / app.py
+    帧首写入，时序先于 inject_global_widgets→render_topnav，项目自维护、页面身份精确）；
+    ② ctx.main_script_path 仅作 _active_page 缺失时的兜底（注意其可能指向入口 app.py）。
+    非运行上下文安全返回空串。
     """
+    try:
+        import streamlit as _st
+        p = _st.session_state.get('_active_page')
+        if p:
+            return p.replace('\\', '/').split('/')[-1]
+    except Exception:
+        pass
     try:
         from streamlit.runtime.scriptrunner import get_script_run_ctx
         ctx = get_script_run_ctx()
         if ctx is not None:
-            ses = getattr(ctx, 'session', None)
-            if ses is not None:
-                p = getattr(ses, '_main_script_path', None)
-                if p:
-                    return p.replace('\\', '/').split('/')[-1]
+            p = getattr(ctx, 'main_script_path', None)
+            if p:
+                return p.replace('\\', '/').split('/')[-1]
     except Exception:
         pass
     return ''

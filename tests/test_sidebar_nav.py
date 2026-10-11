@@ -63,26 +63,39 @@ def test_nav_label_lookup():
 
 
 def test_current_basename_none_ctx():
-    """非运行上下文（AppTest/探针）安全返回 ''。"""
+    """T-264 契约更新：ctx 无效且无 _active_page 时安全返回 ''。"""
+    import streamlit
+    with patch('streamlit.runtime.scriptrunner.get_script_run_ctx', lambda: None), \
+         patch.object(streamlit, 'session_state', {}):
+        assert w._current_page_basename() == ''
+    # 有 ctx 但无 main_script_path 顶层属性 → 落 _active_page（空）→ 仍安全返回 ''
     class FakeCtx:
         session = None
-    with patch('streamlit.runtime.scriptrunner.get_script_run_ctx', lambda: None):
+    with patch('streamlit.runtime.scriptrunner.get_script_run_ctx', lambda: FakeCtx()), \
+         patch.object(streamlit, 'session_state', {}):
         assert w._current_page_basename() == ''
-    # 有 ctx 但 session 无路径 → 仍安全返回 ''
-    with patch('streamlit.runtime.scriptrunner.get_script_run_ctx', lambda: FakeCtx()):
-        assert w._current_page_basename() == ''
+
+
+def test_current_basename_active_page_priority():
+    """T-264 权威源：_active_page（帧首写入）优先于 ctx——1.58 实测 ctx.main_script_path
+    在 multipage 直开 pages 页时返回入口 app.py，不可作页面身份源。"""
+    import streamlit
+    class FakeCtx:
+        main_script_path = 'E:/project/ks/StockSignal/app.py'
+    with patch('streamlit.runtime.scriptrunner.get_script_run_ctx', lambda: FakeCtx()), \
+         patch.object(streamlit, 'session_state',
+                      {'_active_page': 'E:/project/ks/StockSignal/pages/54_今日决策面板.py'}):
+        assert w._current_page_basename() == '54_今日决策面板.py'
 
 
 def test_current_basename_parses_path():
-    """从 script run ctx 的主脚本路径正确取出文件名。"""
-
-    class FakeSess:
-        _main_script_path = 'E:/project/ks/StockSignal/pages/54_今日决策面板.py'
-
+    """ctx.main_script_path（1.58 顶层属性）兜底路径：_active_page 缺失时解析 basename。"""
+    import streamlit
     class FakeCtx:
-        session = FakeSess()
-
-    with patch('streamlit.runtime.scriptrunner.get_script_run_ctx', lambda: FakeCtx()):
+        main_script_path = 'E:/project/ks/StockSignal/pages/54_今日决策面板.py'
+        session = None
+    with patch('streamlit.runtime.scriptrunner.get_script_run_ctx', lambda: FakeCtx()), \
+         patch.object(streamlit, 'session_state', {}):
         assert w._current_page_basename() == '54_今日决策面板.py'
 
 
