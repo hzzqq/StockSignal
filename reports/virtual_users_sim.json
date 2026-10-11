@@ -1,0 +1,574 @@
+{
+ "meta": {
+  "n_users": 10000,
+  "seed": 20261011,
+  "universe_size": 300,
+  "pool_valid": 286,
+  "skipped_tickers": 14,
+  "start": "2024-01-01",
+  "end": "2026-09-30",
+  "window": 180,
+  "strategies": [
+   "multi_factor",
+   "dual_trend"
+  ],
+  "cost_model": "commission 0.001 / slippage 0.001 / stamp_tax 0.001",
+  "duration_s": 343.3,
+  "honesty_note": "蒙特卡洛回测模拟非实盘；股票池为现存上市代码存在幸存者偏差；方向预测≈随机（4092 日回测已证），本模拟验证筛选+风控+成本的分布表现，不承诺高成功率；结果不构成投资建议"
+ },
+ "aggregate": {
+  "n_effective": 10000,
+  "return_mean_pct": 1.12,
+  "return_median_pct": -3.17,
+  "return_p5_pct": -31.55,
+  "return_p25_pct": -14.55,
+  "return_p75_pct": 10.86,
+  "return_p95_pct": 44.86,
+  "pct_positive": 43.26,
+  "maxdd_avg_pct": -22.43,
+  "maxdd_worst_pct": -42.02,
+  "winrate_avg_pct": 41.39
+ },
+ "profiles": [
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.1,
+   "max_holding": 30,
+   "n": 193,
+   "return_median_pct": 0.57,
+   "return_p5_pct": -30.02,
+   "pct_positive": 51.3
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.03,
+   "max_holding": 30,
+   "n": 202,
+   "return_median_pct": 0.2,
+   "return_p5_pct": -26.21,
+   "pct_positive": 50.99
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.1,
+   "max_holding": 15,
+   "n": 174,
+   "return_median_pct": 0.16,
+   "return_p5_pct": -27.89,
+   "pct_positive": 51.15
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.05,
+   "max_holding": 15,
+   "n": 173,
+   "return_median_pct": 0.0,
+   "return_p5_pct": -26.23,
+   "pct_positive": 49.13
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.05,
+   "max_holding": 30,
+   "n": 202,
+   "return_median_pct": -0.1,
+   "return_p5_pct": -32.58,
+   "pct_positive": 49.5
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.1,
+   "max_holding": 15,
+   "n": 189,
+   "return_median_pct": -0.53,
+   "return_p5_pct": -30.25,
+   "pct_positive": 49.21
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.05,
+   "max_holding": 15,
+   "n": 183,
+   "return_median_pct": -1.18,
+   "return_p5_pct": -27.94,
+   "pct_positive": 45.36
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.1,
+   "max_holding": 30,
+   "n": 192,
+   "return_median_pct": -1.44,
+   "return_p5_pct": -34.51,
+   "pct_positive": 46.88
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.05,
+   "max_holding": 30,
+   "n": 167,
+   "return_median_pct": -1.45,
+   "return_p5_pct": -25.36,
+   "pct_positive": 47.31
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.03,
+   "max_holding": 15,
+   "n": 184,
+   "return_median_pct": -1.48,
+   "return_p5_pct": -33.5,
+   "pct_positive": 48.37
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.1,
+   "max_holding": 15,
+   "n": 145,
+   "return_median_pct": -1.5,
+   "return_p5_pct": -33.57,
+   "pct_positive": 44.83
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.1,
+   "max_holding": 10,
+   "n": 178,
+   "return_median_pct": -1.58,
+   "return_p5_pct": -33.47,
+   "pct_positive": 44.38
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.1,
+   "max_holding": 10,
+   "n": 190,
+   "return_median_pct": -1.61,
+   "return_p5_pct": -33.68,
+   "pct_positive": 45.79
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.03,
+   "max_holding": 30,
+   "n": 200,
+   "return_median_pct": -1.8,
+   "return_p5_pct": -33.59,
+   "pct_positive": 48.0
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.05,
+   "max_holding": 10,
+   "n": 187,
+   "return_median_pct": -1.81,
+   "return_p5_pct": -24.99,
+   "pct_positive": 43.32
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.03,
+   "max_holding": 15,
+   "n": 179,
+   "return_median_pct": -1.91,
+   "return_p5_pct": -24.5,
+   "pct_positive": 44.69
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.03,
+   "max_holding": 10,
+   "n": 182,
+   "return_median_pct": -2.08,
+   "return_p5_pct": -24.56,
+   "pct_positive": 43.96
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.05,
+   "max_holding": 15,
+   "n": 179,
+   "return_median_pct": -2.1,
+   "return_p5_pct": -34.89,
+   "pct_positive": 46.37
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.03,
+   "max_holding": 10,
+   "n": 200,
+   "return_median_pct": -2.13,
+   "return_p5_pct": -21.5,
+   "pct_positive": 44.5
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.05,
+   "max_holding": 30,
+   "n": 181,
+   "return_median_pct": -2.16,
+   "return_p5_pct": -32.31,
+   "pct_positive": 47.51
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.05,
+   "max_holding": 15,
+   "n": 197,
+   "return_median_pct": -2.29,
+   "return_p5_pct": -21.26,
+   "pct_positive": 43.65
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.05,
+   "max_holding": 10,
+   "n": 197,
+   "return_median_pct": -2.31,
+   "return_p5_pct": -26.43,
+   "pct_positive": 44.16
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.1,
+   "max_holding": 10,
+   "n": 178,
+   "return_median_pct": -2.34,
+   "return_p5_pct": -24.02,
+   "pct_positive": 44.38
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.1,
+   "max_holding": 30,
+   "n": 178,
+   "return_median_pct": -2.41,
+   "return_p5_pct": -31.14,
+   "pct_positive": 41.57
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.03,
+   "max_holding": 30,
+   "n": 167,
+   "return_median_pct": -2.71,
+   "return_p5_pct": -23.47,
+   "pct_positive": 41.92
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.03,
+   "max_holding": 10,
+   "n": 221,
+   "return_median_pct": -2.77,
+   "return_p5_pct": -29.32,
+   "pct_positive": 40.27
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.05,
+   "max_holding": 10,
+   "n": 189,
+   "return_median_pct": -2.85,
+   "return_p5_pct": -23.5,
+   "pct_positive": 42.33
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.05,
+   "max_holding": 30,
+   "n": 187,
+   "return_median_pct": -3.01,
+   "return_p5_pct": -24.83,
+   "pct_positive": 42.78
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.1,
+   "max_holding": 15,
+   "n": 174,
+   "return_median_pct": -3.04,
+   "return_p5_pct": -35.55,
+   "pct_positive": 46.55
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.1,
+   "max_holding": 30,
+   "n": 177,
+   "return_median_pct": -3.15,
+   "return_p5_pct": -29.03,
+   "pct_positive": 43.5
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.1,
+   "max_holding": 10,
+   "n": 195,
+   "return_median_pct": -3.22,
+   "return_p5_pct": -33.33,
+   "pct_positive": 46.15
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.1,
+   "max_holding": 30,
+   "n": 195,
+   "return_median_pct": -3.28,
+   "return_p5_pct": -26.71,
+   "pct_positive": 43.08
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.1,
+   "max_holding": 30,
+   "n": 177,
+   "return_median_pct": -3.29,
+   "return_p5_pct": -33.0,
+   "pct_positive": 45.76
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.03,
+   "max_holding": 30,
+   "n": 186,
+   "return_median_pct": -3.4,
+   "return_p5_pct": -20.58,
+   "pct_positive": 36.02
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.03,
+   "max_holding": 10,
+   "n": 178,
+   "return_median_pct": -3.7,
+   "return_p5_pct": -36.54,
+   "pct_positive": 44.38
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.03,
+   "max_holding": 15,
+   "n": 200,
+   "return_median_pct": -3.98,
+   "return_p5_pct": -23.24,
+   "pct_positive": 42.0
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.05,
+   "max_holding": 10,
+   "n": 177,
+   "return_median_pct": -4.14,
+   "return_p5_pct": -32.33,
+   "pct_positive": 38.42
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.03,
+   "max_holding": 10,
+   "n": 174,
+   "return_median_pct": -4.16,
+   "return_p5_pct": -33.14,
+   "pct_positive": 45.4
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.1,
+   "max_holding": 15,
+   "n": 191,
+   "return_median_pct": -4.38,
+   "return_p5_pct": -30.55,
+   "pct_positive": 35.6
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.05,
+   "max_holding": 10,
+   "n": 178,
+   "return_median_pct": -4.38,
+   "return_p5_pct": -31.87,
+   "pct_positive": 43.26
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.03,
+   "max_holding": 15,
+   "n": 182,
+   "return_median_pct": -4.46,
+   "return_p5_pct": -27.82,
+   "pct_positive": 42.31
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.03,
+   "max_holding": 30,
+   "n": 207,
+   "return_median_pct": -4.65,
+   "return_p5_pct": -35.5,
+   "pct_positive": 42.03
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.05,
+   "max_holding": 30,
+   "n": 189,
+   "return_median_pct": -5.2,
+   "return_p5_pct": -33.23,
+   "pct_positive": 38.1
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.05,
+   "max_holding": 10,
+   "n": 193,
+   "return_median_pct": -5.5,
+   "return_p5_pct": -31.48,
+   "pct_positive": 40.41
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.05,
+   "max_holding": 15,
+   "n": 188,
+   "return_median_pct": -5.55,
+   "return_p5_pct": -29.01,
+   "pct_positive": 36.17
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.08,
+   "take_profit_pct": 0.1,
+   "max_holding": 15,
+   "n": 197,
+   "return_median_pct": -5.77,
+   "return_p5_pct": -33.76,
+   "pct_positive": 43.65
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.05,
+   "max_holding": 30,
+   "n": 186,
+   "return_median_pct": -5.79,
+   "return_p5_pct": -34.41,
+   "pct_positive": 42.47
+  },
+  {
+   "strategy": "dual_trend",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.1,
+   "max_holding": 10,
+   "n": 179,
+   "return_median_pct": -5.98,
+   "return_p5_pct": -31.82,
+   "pct_positive": 32.96
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.03,
+   "max_holding": 15,
+   "n": 178,
+   "return_median_pct": -6.65,
+   "return_p5_pct": -34.46,
+   "pct_positive": 38.76
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.03,
+   "max_holding": 30,
+   "n": 199,
+   "return_median_pct": -6.68,
+   "return_p5_pct": -35.66,
+   "pct_positive": 38.19
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.1,
+   "max_holding": 10,
+   "n": 189,
+   "return_median_pct": -6.82,
+   "return_p5_pct": -35.9,
+   "pct_positive": 38.1
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.03,
+   "take_profit_pct": 0.03,
+   "max_holding": 10,
+   "n": 187,
+   "return_median_pct": -7.57,
+   "return_p5_pct": -39.66,
+   "pct_positive": 36.36
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.05,
+   "max_holding": 15,
+   "n": 173,
+   "return_median_pct": -8.55,
+   "return_p5_pct": -35.37,
+   "pct_positive": 33.53
+  },
+  {
+   "strategy": "multi_factor",
+   "stop_loss_pct": 0.05,
+   "take_profit_pct": 0.03,
+   "max_holding": 15,
+   "n": 157,
+   "return_median_pct": -8.61,
+   "return_p5_pct": -37.45,
+   "pct_positive": 38.85
+  }
+ ]
+}

@@ -66,7 +66,9 @@ def main(n_users: int = 10000, universe_size: int = UNIVERSE_SIZE, seed: int = 2
 
     fetcher = StockFetcher()
     bt = Backtester()
-    codes = fetcher.get_all_codes(limit=universe_size)
+    # 随机抽样（同 seed 可复现）：不传 random_seed 会按代码序取前 N——全是 600001/000071
+    # 这类已退市僵尸代码，全源取数失败致池过小诚实中止（T-233 冒烟实证）。
+    codes = fetcher.get_all_codes(limit=universe_size, random_seed=seed)
     codes = [c for c in codes if c] if codes else []
     if len(codes) < 20:
         print(f"[sim] 股票池过小（{len(codes)}），中止（诚实失败，不编造）")
@@ -111,6 +113,7 @@ def main(n_users: int = 10000, universe_size: int = UNIVERSE_SIZE, seed: int = 2
     # ── 阶段 2：虚拟用户循环（纯 _simulate，无网络）──
     codes_list = list(pool.keys())
     returns, maxdds, winrates = [], [], []
+    sim_failures = 0   # 模拟失败计数（留痕防静默）
     per_profile = {}   # (strategy, stop, tp, hold) -> [returns]
     for i in range(n_users):
         code = rng.choice(codes_list)
@@ -132,10 +135,15 @@ def main(n_users: int = 10000, universe_size: int = UNIVERSE_SIZE, seed: int = 2
         try:
             res_df, trades = bt._simulate(df_w, sig_w, initial_capital=100000, **params)
             br = BacktestResult(code, strat, res_df, 100000, trades)
-            ret = float(br.total_return_pct)
-            dd = float(br.max_drawdown_pct)
-            wr = float(br.win_rate_pct) if trades else 0.0
-        except Exception:  # noqa: BLE001
+            # BacktestResult 属性为 total_return / max_drawdown / win_rate
+            #（无 _pct 后缀；此前误用 dict 键名致 AttributeError 被吞、0 有效样本）
+            ret = float(br.total_return)
+            dd = float(br.max_drawdown)
+            wr = float(br.win_rate) if trades else 0.0
+        except Exception as e:  # noqa: BLE001 — 单用户失败不拖垮，但必须计数留痕（防静默 0 样本）
+            sim_failures += 1
+            if sim_failures == 1:
+                print(f"[sim] 首个模拟异常样例: {type(e).__name__}: {e}")
             continue
         returns.append(ret)
         maxdds.append(dd)
