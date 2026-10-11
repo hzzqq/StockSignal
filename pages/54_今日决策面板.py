@@ -540,23 +540,34 @@ def fragment_p1_ev():
     if not long_rows:
         _empty_info("该信号无看多条目。")
         return
+    # T-259：名称映射（同「事件驱动看多榜」范式，本地股票库零网络）
+    name_map = {}
+    try:
+        from modules.fetcher import StockFetcher
+        StockFetcher._warmup_stock_db()
+        name_map = getattr(StockFetcher, "_code_to_name", {}) or {}
+    except Exception:  # noqa: BLE401
+        name_map = {}
     rows_html = ""
     for i, r in enumerate(long_rows, 1):
         pred = float(r.get("pred", 0.0) or 0.0)
         sym = r.get("symbol", "")
+        nm = name_map.get(str(sym)[-6:].zfill(6), "—")
         pcolor = "#ff5c5c" if pred >= 0 else "#19c37d"
         rows_html += (
             f"<tr><td style='color:#888'>{i}</td>"
             f"<td style='font-family:monospace'>{sym}</td>"
+            f"<td>{nm}</td>"
             f"<td style='color:{pcolor};font-weight:600'>{pred*100:+.2f}%</td></tr>"
         )
-    st.markdown(
-        "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
-        "<thead><tr style='color:#ff5c5c;text-align:left'>"
-        "<th>#</th><th>代码</th><th>预测得分</th></tr></thead>"
-        f"<tbody>{rows_html}</tbody></table>",
-        unsafe_allow_html=True,
-    )
+    with st.expander("📋 看多榜明细（前 15 · 点击展开）", expanded=False):
+        st.markdown(
+            "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
+            "<thead><tr style='color:#ff5c5c;text-align:left'>"
+            "<th>#</th><th>代码</th><th>名称</th><th>预测得分</th></tr></thead>"
+            f"<tbody>{rows_html}</tbody></table>",
+            unsafe_allow_html=True,
+        )
 
     # 稳定性附注：EV 与 GRU/融合看多榜重叠越低越互补；此处仅提示，不做重负载 A/B
     with st.expander("ℹ️ 这是什么 / 怎么用", expanded=False):

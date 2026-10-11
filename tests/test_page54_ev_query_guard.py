@@ -123,3 +123,24 @@ def test_pool_table_in_expander_with_name_column():
     assert "<th>名称</th>" in src, "表头必须含「名称」列"
     assert "_code_to_name" in src and 'str(sym)[-6:].zfill(6)' in src, \
         "名称映射必须走本地股票库（零网络）"
+
+
+# ── T-259②：P1 量化信号参考（前 15）同款折叠 + 名称列 ──
+def _p1_signal_fragment():
+    src = open(PAGE, encoding="utf-8").read()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "fragment_p1_ev":
+            return node
+    raise AssertionError("fragment_p1_ev 函数不存在")
+
+
+def test_p1_signal_table_in_expander_with_name_column():
+    """P1 量化信号参考的 15 行明细必须折叠，且表头带「名称」列（同款范式）。"""
+    frag = _p1_signal_fragment()
+    src = ast.get_source_segment(open(PAGE, encoding="utf-8").read(), frag)
+    assert "st.expander" in src and "看多榜明细（前 15" in src, \
+        "P1 信号明细必须折叠（st.expander）"
+    assert "<th>名称</th>" in src, "表头必须含「名称」列"
+    assert "_code_to_name" in src and 'str(sym)[-6:].zfill(6)' in src, \
+        "名称映射必须走本地股票库（零网络）"
