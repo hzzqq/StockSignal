@@ -9,6 +9,12 @@ modules/recommend_engine.py
   A3 fund_flow     —— 个股主力净流入（东财，仅对候选 Top-N 富集，控制网络开销）
   A4 event_factor  —— P1 事件因子多头榜（EV 模型；无信号目录时如实 unavailable）
   A5 momentum      —— 20 日动量 + 量能放大（纯价量，本地计算）
+  A6 breakout      —— 放量新高突破（R2/T-246）：52 周新高闸 + 巨量 + 连站 MA5 +
+                      3 日成交额门槛；换手率数据链无字段 → 如实标注按可用子集打分
+
+R3 Value Trap（T-246）：value_trap_score 纯本地 4 分量（长期低位/跌势未止/深跌/
+持续阴跌），富集段 PE/PB 低位确认加分；陷阱分 ≥50 时 A1 分数 ×0.7 并注明——
+防「超跌接飞刀」，直击 A1 结构性弱点。
 
 融合：各算法在候选集内 min-max 归一化 → 加权求和 → Top-K。
 买入方案：入场=现价，目标/止损=ATR14 倍数（2×止损 / 3×目标），
@@ -29,6 +35,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 from datetime import datetime, timedelta
 
@@ -42,13 +49,15 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DEFAULT_DATA_DIR = os.path.join(_PROJECT_ROOT, "data")
 
-# 融合权重（和为 1；逐标的缺失某算法时按可用权重重归一化）
+# 融合权重（和为 1；逐标的缺失某算法时按可用权重重归一化）。
+# T-246：新增 A6 breakout=0.15，六路重分配（R2 右侧强势路与 A1 超跌路对冲）
 ALGO_WEIGHTS = {
-    "multi_factor": 0.30,
-    "dual_trend": 0.25,
-    "fund_flow": 0.20,
-    "event_factor": 0.15,
+    "multi_factor": 0.25,
+    "dual_trend": 0.20,
+    "fund_flow": 0.18,
+    "event_factor": 0.12,
     "momentum": 0.10,
+    "breakout": 0.15,
 }
 ALGO_LABELS = {
     "multi_factor": "多因子 V5（趋势+超跌反弹）",
@@ -56,6 +65,7 @@ ALGO_LABELS = {
     "fund_flow": "主力资金净流入",
     "event_factor": "P1 事件因子",
     "momentum": "20 日动量+量能",
+    "breakout": "放量新高突破（右侧强势）",
 }
 
 DISCLAIMER = (
@@ -253,6 +263,127 @@ def _momentum_score(df: pd.DataFrame) -> dict:
     return {"score": round(max(0.0, min(100.0, score)), 1), "reasons": reasons}
 
 
+def _breakout_score(df: pd.DataFrame) -> dict:
+    """A6 放量新高突破（R2/T-246，纯本地，qfq 日线含 volume/amount）。
+
+    - C1 52周新高闸：close > 前 min(250, n-1) 日最高收盘；未过闸 → 0 分（非右侧强势股）；
+    - C2 巨量：当日量 ≥ 前20日均量×2 或 近3日均量 ≥ 前60日均量×1.5；
+    - C3 连站 MA5：近 3 日 close 均高于当日 MA5；
+    - C4 成交额：近 3 日 amount 累计 > 24 亿（列缺失 → 该条件 unavailable 不计分母）；
+    - C5 换手 ≤50%：本引擎数据链无换手率字段 → 恒 unavailable，reasons 如实标注；
+    - score = 100×(0.4 + 0.6×命中数/可用数)，C1 是闸门不是加分项。
+    """
+    n = len(df)
+    close = df["close"].astype(float)
+    vol = df["volume"].astype(float)
+    w = min(250, n - 1)
+    prev_high = float(close.iloc[-(w + 1):-1].max())
+    if not (float(close.iloc[-1]) > prev_high):
+        return {"score": 0.0,
+                "reasons": [f"未创{w}日新高（非右侧强势）", "换手率不可得（数据链无字段）"]}
+    reasons = [f"创52周新高（{w}日窗口 {close.iloc[-1]:.2f}>{prev_high:.2f}）"]
+    hits, available = 0, 0
+    # C2 巨量
+    available += 1
+    ma20 = float(vol.iloc[-21:-1].mean()) if n > 21 else None
+    c2_today = ma20 is not None and float(vol.iloc[-1]) >= 2 * ma20
+    c2_3d = (n > 61 and
+             float(vol.iloc[-3:].mean()) >= 1.5 * float(vol.iloc[-61:-1].mean()))
+    if c2_today or c2_3d:
+        hits += 1
+        if ma20:
+            reasons.append(f"巨量 {float(vol.iloc[-1]) / max(ma20, 1e-9):.1f}x@20日均量")
+        else:
+            reasons.append("巨量（3日均量放大1.5x）")
+    else:
+        reasons.append("量能未达巨量阈值")
+    # C3 连站 MA5
+    available += 1
+    ma5 = close.rolling(5).mean()
+    if n >= 6 and bool((close.iloc[-3:] > ma5.iloc[-3:]).all()):
+        hits += 1
+        reasons.append("连续3日站上MA5")
+    else:
+        reasons.append("未连续3日站上MA5")
+    # C4 3日累计成交额
+    if "amount" in df.columns:
+        available += 1
+        amt3 = float(df["amount"].astype(float).iloc[-3:].sum())
+        if amt3 > 24e8:
+            hits += 1
+            reasons.append(f"3日成交额 {amt3 / 1e8:.1f} 亿")
+        else:
+            reasons.append(f"3日成交额 {amt3 / 1e8:.1f} 亿未达 24 亿门槛")
+    else:
+        reasons.append("成交额不可得（数据无 amount 列）")
+    reasons.append("换手率不可得（数据链无字段）")
+    score = round(100.0 * (0.4 + 0.6 * hits / max(available, 1)), 1)
+    return {"score": min(score, 100.0), "reasons": reasons}
+
+
+def value_trap_score(df: pd.DataFrame) -> dict:
+    """R3 Value Trap 轻量评分（T-246，纯本地价格分量）。
+
+    - V1 长期低位：250 日价格分位 ≤0.25；
+    - V2 跌势未止：20 日收益 <0 且 close < MA60；
+    - V3 深跌：120 日收益 < -30%（历史不足 121 日 → 该分量 unavailable）；
+    - V4 持续阴跌：近 20 日创 20 日新低次数 ≥5；
+    - score = 100×命中数/可用分量数（诚实归一，不把取不到当 0 或当命中）。
+
+    返回 ``{"score", "flags", "unavailable"}``；PE/PB 确认项由富集段叠加（pe_pb_low_pct_boost）。
+    """
+    close = df["close"].astype(float)
+    n = len(close)
+    flags: list = []
+    unavailable: list = []
+
+    w1 = min(250, n)
+    window1 = close.iloc[-w1:]
+    pct1 = float((window1 < float(close.iloc[-1])).mean())
+    v1 = pct1 <= 0.25
+    if v1:
+        flags.append(f"250日低位分位 {pct1:.0%}")
+
+    ret20 = float(close.iloc[-1] / close.iloc[-21] - 1) if n > 20 else 0.0
+    ma60 = float(close.rolling(60).mean().iloc[-1]) if n >= 60 else None
+    v2 = ret20 < 0 and ma60 is not None and float(close.iloc[-1]) < ma60
+    if v2:
+        flags.append(f"跌势未止（20日 {ret20:+.1%} 且低于MA60）")
+
+    if n >= 121:
+        ret120 = float(close.iloc[-1] / close.iloc[-121] - 1)
+        v3 = ret120 < -0.30
+        if v3:
+            flags.append(f"深跌（120日 {ret120:+.1%}）")
+    else:
+        v3 = None
+        unavailable.append("120日深跌分量不可得（历史不足121日）")
+
+    roll_min = close.rolling(20).min()
+    new_lows = int((close.iloc[-20:] <= roll_min.iloc[-20:]).sum())
+    v4 = new_lows >= 5
+    if v4:
+        flags.append(f"近20日 {new_lows} 次创20日新低")
+
+    checks = [c for c in (v1, v2, v3, v4) if c is not None]
+    hits = sum(1 for c in checks if c)
+    score = round(100.0 * hits / max(len(checks), 1), 1)
+    return {"score": score, "flags": flags, "unavailable": unavailable}
+
+
+def pe_pb_low_pct_boost(pe_pct, pb_pct) -> int:
+    """R3 富集段确认项：PE/PB 处于自身历史低位（≤30% 分位）→ 陷阱确认加分。
+
+    PE 低位 +6 / PB 低位 +4；任一取不到就不加对应分（绝不默认 0 分位）。
+    """
+    boost = 0
+    if pe_pct is not None and pe_pct <= 0.3:
+        boost += 6
+    if pb_pct is not None and pb_pct <= 0.3:
+        boost += 4
+    return boost
+
+
 def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 30,
                                   top_k: int = 5, data_dir: str = None,
                                   progress=None) -> dict:
@@ -310,7 +441,11 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
                 "dual_trend": ({"score": a2.get("score"), "reasons": a2.get("reasons", [])}
                                 if a2 else None),
                 "momentum": a5,
+                # R2/T-246：A6 放量新高突破（纯本地）
+                "breakout": _breakout_score(df),
             },
+            # R3/T-246：Value Trap 本地分量（PE/PB 确认在富集段叠加）
+            "value_trap": value_trap_score(df),
         }
 
     scored = {c: v for c, v in candidates.items()
@@ -345,6 +480,23 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
             candidates[c]["algo"]["event_factor"] = {
                 "score": ev.get("score"), "reasons": [f"P1 事件因子排名 {ev.get('raw_rank', '—')}"],
             }
+        # R3/T-246：Value Trap 富集段——PE/PB 低位确认加分，≥50 时 A1 分数 ×0.7
+        vt = candidates[c].get("value_trap")
+        if isinstance(vt, dict):
+            pb = _safe_pe_pb_series(c)
+            boost = pe_pb_low_pct_boost((pb or {}).get("pe_pct"),
+                                        (pb or {}).get("pb_pct"))
+            vt["pe_boost"] = boost
+            vt_total = min(100.0, float(vt.get("score", 0.0)) + boost)
+            vt["total"] = vt_total
+            if pb is None:
+                vt["flags"] = list(vt.get("flags") or []) + ["估值序列不可得（确认项未计）"]
+            a1 = candidates[c]["algo"].get("multi_factor")
+            if vt_total >= 50 and a1 and a1.get("score") is not None:
+                a1["score"] = round(float(a1["score"]) * 0.7, 1)
+                vt_note = "；".join(vt.get("flags") or []) or "陷阱特征命中过半"
+                a1["reasons"] = list(a1.get("reasons") or []) + [
+                    f"[ValueTrap] 陷阱分 {vt_total:.0f}（{vt_note}），A1 已×0.7"]
     if progress:
         progress(0.75, "富集完成，融合排序…")
 
@@ -485,6 +637,30 @@ def _safe_risk_scan(codes_with_names) -> dict:
     except Exception as e:  # noqa: BLE001 - 排雷不可得≠有罪，如实降级并留痕
         logger.info("[recommend_engine] 六维排雷不可用（如实降级）: %s", e)
         return {}
+
+
+def _safe_pe_pb_series(code: str):
+    """估值序列分位（R3 Value Trap 确认项数据源）。失败返回 None（诚实降级）。
+
+    返回 ``{"pe_pct": 0~1, "pb_pct": 0~1}``（当前值在自身历史中的分位，越低越便宜）。
+    """
+    try:
+        from modules.valuation import fetch_pe_pb_series
+
+        data = fetch_pe_pb_series(code)
+        if not isinstance(data, dict):
+            return None
+        out = {}
+        for key in ("pe", "pb"):
+            series = [float(v) for v in (data.get(key) or [])
+                      if isinstance(v, (int, float)) and math.isfinite(float(v))]
+            if series:
+                cur = series[-1]
+                out[f"{key}_pct"] = sum(1 for v in series if v <= cur) / len(series)
+        return out or None
+    except Exception as e:  # noqa: BLE001 - 估值不可得≠无陷阱，如实降级并留痕
+        logger.info("[recommend_engine] 估值序列不可用（%s）: %s", code, e)
+        return None
 
 
 def _safe_fund_flow(code):

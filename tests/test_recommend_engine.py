@@ -46,11 +46,11 @@ def test_fusion_missing_algo_renormalizes():
     """某算法缺失 → 其权重归零，其余按可用权重重归一化（和仍为 1）。"""
     composite, breakdown = fusion_score({"multi_factor": 100, "momentum": 0})
     assert composite is not None
-    # 可用权重 0.30+0.10=0.40 → 各自 effective = w/0.40
-    assert breakdown["multi_factor"]["effective_weight"] == pytest.approx(0.75)
-    assert breakdown["momentum"]["effective_weight"] == pytest.approx(0.25)
-    # 100 分 vs 0 分 → composite = 0.75*100 + 0.25*0 = 75
-    assert composite == pytest.approx(75.0)
+    # 可用权重 0.25+0.10=0.35 → 各自 effective = w/0.35（T-246 六路重分配后；3 位小数舍入）
+    assert breakdown["multi_factor"]["effective_weight"] == pytest.approx(0.25 / 0.35, abs=1e-3)
+    assert breakdown["momentum"]["effective_weight"] == pytest.approx(0.10 / 0.35, abs=1e-3)
+    # 100 分 vs 0 分 → composite ≈ (0.25/0.35)*100 = 71.4
+    assert composite == pytest.approx(100 * 0.25 / 0.35, abs=0.1)
     assert breakdown["fund_flow"]["effective_weight"] == 0.0
     assert breakdown["fund_flow"]["raw"] is None
 
@@ -61,9 +61,10 @@ def test_fusion_all_missing_returns_none():
 
 
 def test_fusion_breakdown_sum_effective_weights():
-    """全算法可用时 effective_weight 之和 = 1。"""
+    """全算法可用时 effective_weight 之和 = 1（T-246 起六路）。"""
     _, breakdown = fusion_score({k: 50 for k in ("multi_factor", "dual_trend",
-                                                 "fund_flow", "event_factor", "momentum")})
+                                                 "fund_flow", "event_factor",
+                                                 "momentum", "breakout")})
     assert sum(v["effective_weight"] for v in breakdown.values()) == pytest.approx(1.0)
 
 
