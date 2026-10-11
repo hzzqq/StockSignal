@@ -179,6 +179,12 @@ def load_latest_recommendation(data_dir: str = None) -> dict:
 
 
 def load_recommendation_by_date(date_str: str, data_dir: str = None) -> dict:
+    # 纵深防御（T-238）：date 直接拼进文件路径，非法格式（含 Windows 反斜杠穿越形态）
+    # 一律拒绝，绝不触碰文件系统。
+    import re as _re
+
+    if not (isinstance(date_str, str) and _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_str)):
+        return {"status": "unavailable", "reason": "日期格式非法（须为 YYYY-MM-DD）"}
     d = data_dir or _DEFAULT_DATA_DIR
     path = os.path.join(d, "recommendations", f"{date_str}.json")
     try:
