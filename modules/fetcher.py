@@ -68,20 +68,9 @@ except Exception as _pp_err:  # noqa: BLE001
     logger.warning("代理 IP 池初始化失败（已忽略，回退直连）: %s", _pp_err)
 
 
-def _safe_json_loads(s, default=None):
-    """安全解析 JSON：损坏/空/非字符串一律返回 default，绝不抛异常。
-
-    用于缓存读取路径的容错——缓存数据可能因磁盘写半截、版本变更而损坏，
-    直接 json.loads 会抛 JSONDecodeError 炸到调用方；此处降级为 default，
-    让上层走缓存未命中/空结果分支，而不是崩溃。
-    """
-    if not s or not isinstance(s, str):
-        return default
-    try:
-        return json.loads(s)
-    except (json.JSONDecodeError, ValueError, TypeError):
-        logger.warning(f"[fetcher] 缓存 JSON 解析失败，降级返回默认: {type(s).__name__}")
-        return default
+# Tier1.1 安全拆分 pilot：纯函数 _safe_json_loads 迁入 modules.fetcher_core，
+# 此处 re-export 保持行为零变化（fetcher.py 内部 509/519/547/1174 行调用不受影响）。
+from modules.fetcher_core import _safe_json_loads  # noqa: F401
 
 
 # ──────────────────────────────────────────────────────────
