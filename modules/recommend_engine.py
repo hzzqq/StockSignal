@@ -162,6 +162,31 @@ def save_recommendation(rec: dict, data_dir: str = None) -> tuple:
     return archive, latest
 
 
+def assess_data_staleness(data_as_of_list, today=None, max_lag_days: int = 5) -> dict:
+    """T-235：汇总各标的行情最新日，评估荐股依据的数据时效（data-source-staleness-guard 范式）。
+
+    :param data_as_of_list: 各标的 data_as_of（YYYY-MM-DD 或 None）
+    :param max_lag_days: 自然日滞后阈值（跨一个周末 ≈ 5 天；日线数据周五数据周一拉 lag=3 不算过期）
+    :return: {latest, lag_days, stale, note}；无任何日期 → stale=True（诚实：无数据可考即视为过时）
+    """
+    today = today or datetime.now().date()
+    if hasattr(today, "strftime"):
+        today = today.strftime("%Y-%m-%d")
+    dates = sorted({str(d)[:10] for d in (data_as_of_list or []) if d}, reverse=True)
+    if not dates:
+        return {"latest": None, "lag_days": None, "stale": True,
+                "note": "无任何行情日期可考（数据源全部不可用）"}
+    latest = dates[0]
+    try:
+        lag = (datetime.strptime(str(today), "%Y-%m-%d") - datetime.strptime(latest, "%Y-%m-%d")).days
+    except ValueError:
+        return {"latest": latest, "lag_days": None, "stale": True, "note": "行情日期解析失败"}
+    stale = lag > max_lag_days
+    note = (f"行情数据最新 {latest}，滞后 {lag} 天（>{max_lag_days} 天，荐股依据可能过时）"
+            if stale else f"行情数据最新 {latest}（滞后 {lag} 天，≤{max_lag_days} 天）")
+    return {"latest": latest, "lag_days": lag, "stale": stale, "note": note}
+
+
 def load_latest_recommendation(data_dir: str = None) -> dict:
     """读最新推荐；不存在/损坏 → {'status':'unavailable', reason}（诚实语义）。"""
     _, latest = rec_paths(data_dir)
@@ -364,6 +389,8 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
         "market_context": market_ctx,
         "picks": picks, "disclaimer": DISCLAIMER,
         "weights": ALGO_WEIGHTS,
+        # T-235 数据时效护栏：行情整体滞后超阈值时 stale=True，36 页显著告警
+        "data_staleness": assess_data_staleness([r.get("data_as_of") for r in rows]),
     }
     save_recommendation(rec, data_dir)
     if progress:

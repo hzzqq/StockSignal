@@ -287,6 +287,24 @@ def _build_recommendations():
         "target": "pages/36_每日荐股.py",
         "params": {},
     }]
+    # 调度健康告警（T-236）：停摆/滞后时置顶提示，防「页面照常等推荐」静默事故
+    try:
+        from backend.recommend_scheduler import assess_recommend_health
+        _health = assess_recommend_health()
+    except Exception as e:
+        logger.debug("[msg] 荐股健康检查失败: %s", e)
+        _health = None
+    if _health and _health.get("status") != "ok":
+        _icon = {"warn": "🟠", "dead": "🔴"}.get(_health.get("status"), "⚪")
+        msgs.insert(0, {
+            "id": f"rec_health_{_health.get('status')}",
+            "type": "荐股告警",
+            "title": f"{_icon} 荐股调度{_health.get('status') == 'dead' and '疑似停摆' or '滞后'}：{_health.get('message', '')}",
+            "detail": "荐股调度器可能在交易日 15:30 后自动补生成；连续多日未更新请检查后端服务。",
+            "time": "",
+            "target": "pages/36_每日荐股.py",
+            "params": {},
+        })
     for i, p in enumerate((rec.get("picks") or [])[:5], 1):
         msgs.append({
             "id": f"rec_{rec.get('date')}_{p.get('code')}",

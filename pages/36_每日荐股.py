@@ -44,6 +44,11 @@ if rec.get("status") != "ok":
                 "POST /api/recommendations/generate 手动触发。")
     st.stop()
 
+# ── 数据时效护栏（T-235）：行情整体滞后超阈值时显著告警，不悄悄用旧数据荐股 ──
+_st = rec.get("data_staleness") or {}
+if _st.get("stale"):
+    st.warning(f"⚠️ **数据时效告警**：{_st.get('note', '行情数据滞后')}——荐股依据可能过时，请谨慎参考。")
+
 # ── 市场上下文 ──
 ctx = rec.get("market_context") or {}
 mc1, mc2, mc3, mc4 = st.columns(4)
