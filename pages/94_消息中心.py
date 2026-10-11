@@ -258,6 +258,48 @@ if "msg_starred" not in st.session_state:
     st.session_state["msg_starred"] = set()
 
 
+def _build_recommendations():
+    """每日荐股（T-233 additive）：读本地最新推荐，用户设置可关（默认开启）。
+
+    荐股 JSON 由后端调度器每交易日收盘后生成；本函数只做展示映射，
+    取不到/已关闭 → 空列表（诚实，不编造）。
+    """
+    try:
+        from modules.session import get_user_setting
+        if not get_user_setting("daily_recommend", True):
+            return []
+    except Exception:
+        return []
+    try:
+        from modules.recommend_engine import load_latest_recommendation
+        rec = load_latest_recommendation()
+    except Exception as e:
+        logger.debug("[msg] 荐股读取失败: %s", e)
+        return []
+    if rec.get("status") != "ok":
+        return []
+    msgs = [{
+        "id": f"rec_{rec.get('date')}_summary",
+        "type": "荐股",
+        "title": f"📅 每日荐股 · {rec.get('date')}（{len(rec.get('picks') or [])} 只）",
+        "detail": "多算法融合选股+买入方案，详见「每日荐股」页",
+        "time": str(rec.get("generated_at", "")).replace("T", " "),
+        "target": "pages/36_每日荐股.py",
+        "params": {},
+    }]
+    for i, p in enumerate((rec.get("picks") or [])[:5], 1):
+        msgs.append({
+            "id": f"rec_{rec.get('date')}_{p.get('code')}",
+            "type": "荐股",
+            "title": f"{i}. {p.get('name', '')}（{p.get('code')}） 综合 {p.get('composite', '—')} 分",
+            "detail": f"入场 ¥{p.get('plan', {}).get('entry', '—')} / 止损 ¥{p.get('plan', {}).get('stop', '—')} / 目标 ¥{p.get('plan', {}).get('target', '—')}",
+            "time": str(rec.get("generated_at", "")).replace("T", " "),
+            "target": "pages/36_每日荐股.py",
+            "params": {},
+        })
+    return msgs
+
+
 def _all_messages():
     msgs = []
     with safe_section("自选股异动"):
@@ -268,6 +310,8 @@ def _all_messages():
         msgs += _build_system()
     with safe_section("自驱研究"):
         msgs += _build_research()
+    with safe_section("每日荐股"):
+        msgs += _build_recommendations()
     # 解析时间排序（能解析的排前）
     def _ts(m):
         try:
@@ -338,7 +382,7 @@ with st.expander("⚙️ 更多操作（清除已读标记 · 重新加载）", 
             st.rerun()
 
 # ───────────────────────── 筛选 ─────────────────────────
-TYPES = ["全部", "异动", "社区", "系统", "研究"]
+TYPES = ["全部", "异动", "社区", "系统", "研究", "荐股"]
 # 加法式偏好记忆：用 key 将上次选择的类型筛选项存入 session_state，
 # 下次进入本页自动套用（仅 session 级，不落库）。
 _filt = st.radio("类型筛选", TYPES, horizontal=True, label_visibility="collapsed",
