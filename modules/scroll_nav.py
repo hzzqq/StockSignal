@@ -48,6 +48,33 @@ logger = logging.getLogger(__name__)
 # 用户要求「第一次下滑就出现」：取 120px（约一次滚动/半屏内）而非 v2 的 300px。
 DEFAULT_TOP_THRESHOLD = 120
 
+# ── T-263 零高组件自隐藏 JS（共享片段）────────────────────────────────────
+# 背景：height=0 的 components.html 注入 iframe（本模块 / prefs_persist）虽自身不可见，
+# 其 stElementContainer 仍在 stVerticalBlock（flex+gap:1rem）中吃 ~16.5px gap。
+# 方案：脚本运行于组件 iframe 内，在父文档自识别「contentWindow === window」的本
+# iframe，向上找到 stElementContainer 置 display:none。仅命中自身（精确、无误伤），
+# 必须并入同一 <script> 块（见模块约束：多段 script 不保证执行）。
+ZERO_GAP_HIDE_SELF_JS = """
+try {
+  var ifrs = P.document.querySelectorAll('iframe');
+  for (var zi = 0; zi < ifrs.length; zi++) {
+    var zWin = null;
+    try { zWin = ifrs[zi].contentWindow; } catch (zE) { continue; }
+    if (zWin === window) {
+      var zAnc = ifrs[zi], zUp = 0;
+      while (zAnc && zUp < 8) {
+        if (zAnc.getAttribute && zAnc.getAttribute('data-testid') === 'stElementContainer') {
+          zAnc.style.display = 'none';
+          break;
+        }
+        zAnc = zAnc.parentElement; zUp++;
+      }
+      break;
+    }
+  }
+} catch (zE2) {}
+"""
+
 # 主内容区滚动容器的候选选择器（按优先级）。Streamlit 版本间会漂移，
 # 故提供多候选 + 运行期探测「实际可滚动」的那个；找不到时兜底 window。
 _SCROLL_SELECTORS = (
@@ -427,6 +454,9 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom,
     /* ── T-195 顶栏 JS（ssSetStyle 风格切换）经 extra_js 通道并入单次注入 ── */
     __EXTRA_JS__
 
+    /* ── T-263 零高组件自隐藏（本 iframe 的元素容器不占 flex gap）── */
+__ZERO_GAP_JS__
+
   } catch(e) {}
 })();
 </script>
@@ -447,7 +477,8 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom,
             .replace('__BOTTOM_MARKER_SEL__', marker_sel)
             .replace('__NAV_INDEX_JSON__', json.dumps(nav_index or []))
             .replace('__NAV_QS__', json.dumps(nav_qs or ''))
-            .replace('__EXTRA_JS__', extra_js or ''))
+            .replace('__EXTRA_JS__', extra_js or '')
+            .replace('__ZERO_GAP_JS__', ZERO_GAP_HIDE_SELF_JS))
     return body
 
 

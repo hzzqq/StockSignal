@@ -254,6 +254,17 @@ _KIT_CSS = _TOKEN_CSS + r"""
   border-radius:var(--ss-radius-pill);padding:1px 8px;font-size:11px;font-weight:700;flex:0 0 auto}
 
 </style>
+<style>
+/* ===== T-263 顶部空白收敛：纯注入容器不占 flex gap =====
+   stVerticalBlock 是 flex + gap:1rem；CSS 注入用 st.markdown(<style>) 产生的零高
+   stElementContainer 每个都吃 ~16.5px gap（页43实测 hero 前堆积 22 个 ≈ 363px 空白）。
+   收敛：仅当 markdown 容器子节点【全部】为 style/link（纯注入、零可见内容）时隐藏
+   其元素容器——<style> 在 display:none 容器内仍全局生效；混合可见内容的容器
+   （如顶栏 mega markdown = style,style,style,div）不受影响。
+   语法限定顶层 :has / :not 链（Edge155 实证不支持 :has 内嵌 :has）。 */
+[data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has([data-testid="stMarkdownContainer"] > style:first-child):has([data-testid="stMarkdownContainer"] > style:last-child):not(:has([data-testid="stMarkdownContainer"] > :not(style):not(link))){display:none}
+[data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has([data-testid="stMarkdownContainer"] > link:first-child):has([data-testid="stMarkdownContainer"] > style:last-child):not(:has([data-testid="stMarkdownContainer"] > :not(style):not(link))){display:none}
+</style>
 """
 
 # ★ 首帧兜底 CSS：page_hero 每次都注入，不走 session_state 去重。
@@ -281,6 +292,17 @@ _HERO_FALLBACK_CSS = _TOKEN_CSS + r"""
 .xc-hero-title{font-size:22px;font-weight:800;letter-spacing:.3px;color:var(--ss-text);line-height:1.2}
 .xc-hero-sub{font-size:13px;color:var(--ss-text-muted);margin-top:4px;font-weight:500}
 .xc-hero-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:relative;z-index:1}</style>
+<style>
+/* ===== T-263 顶部空白收敛：纯注入容器不占 flex gap =====
+   stVerticalBlock 是 flex + gap:1rem；CSS 注入用 st.markdown(<style>) 产生的零高
+   stElementContainer 每个都吃 ~16.5px gap（页43实测 hero 前堆积 22 个 ≈ 363px 空白）。
+   收敛：仅当 markdown 容器子节点【全部】为 style/link（纯注入、零可见内容）时隐藏
+   其元素容器——<style> 在 display:none 容器内仍全局生效；混合可见内容的容器
+   （如顶栏 mega markdown = style,style,style,div）不受影响。
+   语法限定顶层 :has / :not 链（Edge155 实证不支持 :has 内嵌 :has）。 */
+[data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has([data-testid="stMarkdownContainer"] > style:first-child):has([data-testid="stMarkdownContainer"] > style:last-child):not(:has([data-testid="stMarkdownContainer"] > :not(style):not(link))){display:none}
+[data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has([data-testid="stMarkdownContainer"] > link:first-child):has([data-testid="stMarkdownContainer"] > style:last-child):not(:has([data-testid="stMarkdownContainer"] > :not(style):not(link))){display:none}
+</style>
 """
 
 

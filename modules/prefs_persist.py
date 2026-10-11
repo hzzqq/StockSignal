@@ -21,15 +21,27 @@ import json
 import streamlit.components.v1 as components
 import streamlit as st
 import logging
+
+from modules.scroll_nav import ZERO_GAP_HIDE_SELF_JS
+
 logger = logging.getLogger(__name__)
 _LS_PREFS = 'ss_prefs'
 QP_PREFS = 'prefs'
 
 def save_prefs(prefs: dict) -> None:
-    """把偏好 dict（含 theme_mode / font_size 等）写入浏览器 localStorage。"""
+    """把偏好 dict（含 theme_mode / font_size 等）写入浏览器 localStorage。
+
+    T-263：ZERO_GAP_HIDE_SELF_JS 并入同一 <script>（多段 script 不保证执行），
+    本 height=0 注入 iframe 的元素容器自隐藏、不占父页 flex gap。
+    """
     try:
         js = json.dumps(json.dumps(prefs, ensure_ascii=False), ensure_ascii=False)
-        script = f'\n        <script>\n        (function() {{\n          try {{ localStorage.setItem({json.dumps(_LS_PREFS)}, {js}); }} catch (e) {{ /* 隐私模式/配额满 忽略 */ }}\n        }})();\n        </script>\n        '
+        script = (
+            "<script>\n(function() {\n"
+            + ZERO_GAP_HIDE_SELF_JS +
+            "\n  try { localStorage.setItem(" + json.dumps(_LS_PREFS) + ", " + js + "); } catch (e) { /* 隐私模式/配额满 忽略 */ }\n"
+            "})();\n</script>\n"
+        )
         components.html(script, height=0)
     except Exception as e:
         logger.warning(f'[prefs_persist] 处理异常: {e}')
@@ -40,9 +52,22 @@ def restore_prefs_from_local_storage() -> None:
     若 localStorage 有偏好但当前 URL 没有 prefs 参数，则把偏好补回 URL 并让父页面跳转。
     由 Streamlit 重新加载后，session.py 的 query_params 恢复逻辑会接管。
     仅当 URL 缺 prefs 时触发，避免死循环。
+    T-263：ZERO_GAP_HIDE_SELF_JS 并入同一 <script>，元素容器自隐藏不占 flex gap。
     """
     try:
-        script = f"\n        <script>\n        (function() {{\n          try {{\n            var raw = localStorage.getItem({json.dumps(_LS_PREFS)});\n            if (!raw) return;\n            var params = new URLSearchParams(window.parent.location.search);\n            if (params.get({json.dumps(QP_PREFS)})) return;  /* 已有则不打扰 */\n            params.set({json.dumps(QP_PREFS)}, raw);\n            window.parent.location.href = window.parent.location.pathname + '?' + params.toString();\n          }} catch (e) {{}}\n        }})();\n        </script>\n        "
+        script = (
+            "<script>\n(function() {\n"
+            + ZERO_GAP_HIDE_SELF_JS +
+            "\n  try {\n"
+            "    var raw = localStorage.getItem(" + json.dumps(_LS_PREFS) + ");\n"
+            "    if (!raw) return;\n"
+            "    var params = new URLSearchParams(window.parent.location.search);\n"
+            "    if (params.get(" + json.dumps(QP_PREFS) + ")) return;  /* 已有则不打扰 */\n"
+            "    params.set(" + json.dumps(QP_PREFS) + ", raw);\n"
+            "    window.parent.location.href = window.parent.location.pathname + '?' + params.toString();\n"
+            "  } catch (e) {}\n"
+            "})();\n</script>\n"
+        )
         components.html(script, height=0)
     except Exception as e:
         logger.warning(f'[prefs_persist] 处理异常: {e}')
