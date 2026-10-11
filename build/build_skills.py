@@ -22,6 +22,8 @@ BUILD_DIR = "E:/project/ks/StockSignal/build"
 TARGETS = [
     ("牧羊人指标", "shepherd-sentiment"),
     ("连板龙头共振", "limit-up-ladder-resonance"),
+    ("event_factor", "event-factor"),
+    ("macro_data", "macro-data"),
 ]
 
 BINARY_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".zip",
