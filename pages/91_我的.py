@@ -16,7 +16,8 @@ from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 
 # 安全解析字体档位在选项列表中的下标；legacy 值不在选项中时回退到默认档位，避免 .index() 抛 ValueError。
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import (xc_handle_error, xc_success_box, xc_warn_box,
+                            info_banner, ss_fold_useful, ss_hover_preview)
 from modules.widgets import render_entry_cards
 def _resolve_font_index(value, font_opts, default):
     keys = list(font_opts.keys())
@@ -373,7 +374,11 @@ with _col_cache:
         st.rerun()
 
 # ── 登录历史 ──
-sf_card("🕘 登录历史", "")
+sf_card("🕘 登录历史",
+        "")
+ss_hover_preview("ⓘ 口径说明",
+                 "<b>登录历史</b>：时间为人性化相对时间；详情含来源 IP；"
+                 "本页数据有 10 秒短缓存（上方刷新按钮可立即拉最新）。", mini=True)
 
 try:
     # 加法式加载态反馈：登录历史来自后台请求
@@ -402,9 +407,13 @@ try:
                 }
                 for r in logs
             ]
-            st.dataframe(pd.DataFrame(_hist), width="stretch", height=400)
-            # 加法式结果计数/摘要：登录历史总条数
-            st.caption(f"共 {len(logs)} 条登录记录")
+            # T-262 A 有用型折叠：标签即预览（最近一条 + 总量），展开看全量
+            with ss_fold_useful(
+                    "🕘 登录历史明细",
+                    f"最近：{_hist[0]['时间']}　{_hist[0]['账号']}　{_hist[0]['操作']}"
+                    f"　·　共 {len(logs)} 条", icon="🕘"):
+                st.dataframe(pd.DataFrame(_hist), width="stretch", height=400)
+                st.caption(f"共 {len(logs)} 条登录记录")
         else:
             _empty_info("暂无登录记录。")
             # 加法式示例数据预览：无记录时提供只读示例（不写库、不改逻辑）

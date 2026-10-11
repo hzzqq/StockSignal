@@ -26,6 +26,7 @@ loading_spinner / section_header）、``button_colors`` 互补，不重复实现
 """
 from __future__ import annotations
 
+import contextlib
 import html
 import logging
 import re
@@ -663,3 +664,63 @@ def table_wrap(table_html: str) -> None:
     """响应式表格容器：移动端横向滚动 + 粘性表头。"""
     inject_kit_css()
     st.markdown(_table_wrap_html(table_html), unsafe_allow_html=True)
+
+
+# ───────────────────── T-262 折叠方式多元化（三原语） ─────────────────────
+# 设计回应（用户 2026-10-12）：折叠方式太单一——
+#   A 有用型   ss_fold_useful    ：expander 标签自带一行摘要，展开看全量（内容多但有用）
+#   B 悬停预览 ss_hover_preview  ：细触发字 + 悬停浮出内容面板（学「搜索 Ctrl K」浮层范式）
+#   C 细小化   ss_mini           ：低价值内容的最小 footprint（弱色小字触发 + 悬停显示）
+# B/C 为纯 CSS 实现（无 JS，Streamlit 剥 <script> 也不受影响）。
+
+_FOLD_CSS = r"""<style>
+/* T-262 悬停预览（纯 CSS 浮层） */
+.ss-hint{position:relative;display:inline-block;cursor:help;vertical-align:middle}
+.ss-hint-t{color:var(--ss-text-muted,var(--txt2,#64748b));font-size:12px;
+  border-bottom:1px dashed var(--ss-line,var(--border,#e2e8f0))}
+.ss-hint-p{position:absolute;top:135%;left:0;z-index:99999;opacity:0;visibility:hidden;
+  transform:translateY(-4px);transition:opacity .15s ease,transform .15s ease;
+  background:var(--ss-surface,var(--card,#fff));color:var(--ss-text,var(--txt,#1e293b));
+  border:1px solid var(--ss-line,var(--border,#e2e8f0));border-radius:10px;
+  padding:10px 12px;box-shadow:0 10px 30px rgba(15,15,35,.18);
+  min-width:220px;max-width:360px;font-size:13px;line-height:1.65}
+.ss-hint:hover .ss-hint-p{opacity:1;visibility:visible;transform:translateY(0)}
+.ss-hint-p b{color:var(--ss-accent,var(--acc1,#667eea))}
+/* C 细小化触发（更弱的存在感） */
+.ss-hint.mini .ss-hint-t{font-size:11px;opacity:.72}
+</style>"""
+
+
+def _fold_hover_html(trigger: str, panel_html: str, mini: bool = False) -> str:
+    """悬停预览纯函数（可离线单测）：触发字 + 浮层面板。"""
+    cls = "ss-hint mini" if mini else "ss-hint"
+    return (f'<span class="{cls}"><span class="ss-hint-t">{trigger}</span>'
+            f'<span class="ss-hint-p">{panel_html}</span></span>')
+
+
+def ss_hover_preview(trigger: str, panel_html: str, mini: bool = False) -> None:
+    """B/C：悬停预览——鼠标放上才显示内容，页面默认只有一行细字。
+
+    Args:
+        trigger: 触发字（短，如「ⓘ 口径说明」）；
+        panel_html: 浮层内容（受信 HTML，调用方自行转义用户数据）；
+        mini: True 时用 C 细小化触发样式（更低存在感）。
+    """
+    inject_kit_css()
+    st.markdown(_FOLD_CSS + _fold_hover_html(trigger, panel_html, mini=mini),
+                unsafe_allow_html=True)
+
+
+@contextlib.contextmanager
+def ss_fold_useful(label: str, summary: str = "", expanded: bool = False,
+                   icon: str | None = None):
+    """A：有用型折叠——expander 标签自带一行摘要，展开看全量。
+
+    折叠后样式仍然「有用」：标签即预览（最近一条/总量等），不必展开也有信息量。
+    用法：``with ss_fold_useful("🕘 登录历史", "最近：8小时前 admin 登录 · 共16条"): ...``
+    """
+    lab = f"{label}　·　{summary}" if summary else label
+    with st.expander(lab, expanded=expanded, icon=icon):
+        if summary:
+            st.caption(summary)
+        yield
