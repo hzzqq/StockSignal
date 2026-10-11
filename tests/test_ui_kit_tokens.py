@@ -33,6 +33,7 @@ def test_token_layer_defined_and_wired():
         "--ss-space-1:4px", "--ss-space-3:12px", "--ss-space-5:20px",
         "--ss-shadow-card:", "--ss-shadow-lift:", "--ss-shadow-hero:",
         "--ss-font-num:",
+        "--ss-font-cjk:'Microsoft YaHei UI'", "'PingFang SC'",
         "--ss-accent:var(--acc1", "--ss-accent2:var(--acc2",
         "--ss-surface:var(--card", "--ss-surface-2:var(--card2",
         "--ss-text:var(--txt", "--ss-text-muted:var(--txt2", "--ss-line:var(--border",
@@ -95,3 +96,16 @@ def test_stmetric_skin_shares_token_vars(monkeypatch):
     assert "border-radius:var(--ss-radius-card)!important" in css
     assert "box-shadow:var(--ss-shadow-card)!important" in css
     assert "color-mix(in srgb,var(--ss-accent) 22%,var(--ss-line))!important" in css
+
+
+def test_typography_contract_cjk_and_base_font_size():
+    """T-261：全局排版契约——CJK 字体栈落 token、行高 1.65、等宽保护、
+    config.toml baseFontSize=17px（用户反馈默认字体小）。"""
+    kit = _kit()
+    css = kit._TOKEN_CSS + kit._KIT_CSS
+    assert "font-family: var(--ss-font-cjk)" in css, "CJK 字体栈未落地"
+    assert "Microsoft YaHei UI" in css and "PingFang SC" in css, "中文字体栈不完整"
+    assert "line-height: 1.65" in css, "阅读行高缺失"
+    assert "font-family: var(--ss-font-num) !important" in css,         "等宽保护缺失（code/pre 必须显式回落数字字体）"
+    cfg = (ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8")
+    assert 'baseFontSize = "17px"' in cfg, "config.toml 全局基础字号 17px 缺失"

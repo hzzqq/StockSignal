@@ -20,6 +20,9 @@ secondaryBackgroundColor = "#1a1a2e"
 textColor = "#E2E8F0"
 # 字体
 font = "sans serif"
+# T-261：全局基础字号 16→17px（数据密集仪表盘的舒适下限，全部 rem 尺寸随动放大；
+# 用户反馈「默认字体有点小」。回滚 = 删除本行。）
+baseFontSize = "17px"
 
 [server]
 # 前端端口固定 8899：避开元量软件（QMT/xt_trader 等）常占用的 8000-8300 段，

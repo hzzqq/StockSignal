@@ -53,8 +53,26 @@ _TOKEN_CSS = r"""
   --ss-shadow-lift:0 10px 30px rgba(102,126,234,.18);
   --ss-shadow-hero:0 0 0 1px rgba(102,126,234,.14),0 12px 32px rgba(102,126,234,.12);
   --ss-font-num:'Fira Code',ui-monospace,monospace;
+  /* T-261：全局中文排版字体栈（Windows 本机优先微软雅黑 UI，macOS 回退苹方） */
+  --ss-font-cjk:'Microsoft YaHei UI','PingFang SC','Microsoft YaHei','Source Han Sans SC',system-ui,sans-serif;
   /* v10 微动效令牌（T-176） */
   --ss-fade:.25s;
+}
+/* ===== T-261 全局排版：中文优化字体栈 + 阅读行高 =====
+   Streamlit 默认 Source Sans Pro 对中文回退随机（宋体/雅黑混杂），统一为
+   CJK 优先栈；等宽场景（code/pre/数字）由各组件显式字体保留，不受影响。 */
+body, .stApp, [data-testid="stMarkdownContainer"], .stMarkdown,
+[data-testid="stSidebar"], [data-testid="stSidebar"] * {
+  font-family: var(--ss-font-cjk);
+}
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li {
+  line-height: 1.65;
+  letter-spacing: .1px;
+}
+code, pre, [data-testid="stCodeBlock"], [data-testid="stCodeBlock"] code,
+.ss-stat .value, .xc-card .value {
+  font-family: var(--ss-font-num) !important;
 }
 @keyframes ss-fade-in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 /* hero 与统计卡：单次淡入 + stat 悬浮轻抬（克制微动效） */
