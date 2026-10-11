@@ -214,6 +214,10 @@ def dashboard_sf_css() -> str:
 .sf-card-title::before{{content:"";width:4px;height:18px;border-radius:3px;
   background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.40)}}
 .sf-card-subtitle{{font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:6px}}
+/* T-266 紧凑节标题：sf_card 空 body 时替代大卡片的轻量单行分组标题（约 24px，主题自适应） */
+.sf-section-title{{display:flex;align-items:center;gap:8px;margin:14px 0 6px;
+  font-size:14px;font-weight:700;color:var(--txt);line-height:1.4;
+  padding-left:10px;border-left:4px solid var(--acc1)}}
 /* ════════ 标题等级体系（父/子模块严格分级，避免“只看标题像内容很多”）════════ */
 .sf-card h2.sf-h1{{font-size:17px;font-weight:700;color:var(--txt);margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;letter-spacing:.3px}}
 .sf-card h2.sf-h1::before{{content:"";width:5px;height:18px;border-radius:3px;background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.45)}}
@@ -446,12 +450,22 @@ def sf_card(title: str, body: str, icon: str = "") -> None:
 
     用于把页面中的说明/控制区/结果区包装成统一卡片，提升视觉层次。
     纯视觉，不改动业务逻辑。
+
+    T-266 空间治理：body 为空时不再渲染大卡片（原每处占约 80px 纵向空间，
+    全站 30+ 处调用多为空说明的纯分组标题），改为轻量单行节标题
+    （.sf-section-title，约 24px）——调用点零改动、全站纵向空间显著收敛。
     """
     import html as _html
     title = _html.escape(str(title))
     body = _html.escape(str(body))
     icon = _html.escape(str(icon)) if icon else ""
     icon_html = f"{icon} " if icon else ""
+    if not str(body).strip():
+        st.markdown(
+            f'<div class="sf-section-title">{icon_html}{title}</div>',
+            unsafe_allow_html=True,
+        )
+        return
     st.markdown(
         f'<div class="sf-card">'
         f'<div class="sf-card-title">{icon_html}{title}</div>'

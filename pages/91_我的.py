@@ -108,17 +108,9 @@ def render_preferences():
             st.session_state[_key] = _default
 
     # ── 当前模式指示器 ──
+    # T-266 空间治理：原「h3 全宽标题 + st.progress 全宽进度条」仅表达当前主题，
+    # 与下方切换按钮的 primary 高亮完全重复，整块删除（信息零损失，省约 110px）。
     _current = get_current_mode()
-    _mode_icon = "🌙" if _current == "dark" else "☀️"
-    _mode_label = "暗夜模式" if _current == "dark" else "白天模式"
-
-    col_ind1, col_ind2 = st.columns([2, 8])
-    with col_ind1:
-        st.markdown(f"<h3 style='margin:0;'>{_mode_icon} {_mode_label}</h3>", unsafe_allow_html=True)
-    with col_ind2:
-        st.progress(100 if _current == "dark" else 33, text="当前主题")
-
-    st.markdown("---")
 
     # ════════════════════════════════════
     # 🎨 外观设置
@@ -146,7 +138,7 @@ def render_preferences():
             persist_prefs()
             st.rerun()
 
-    st.caption("提示：切换后整个界面会立即刷新，无需手动操作。")
+    # T-266：下方「切换按钮 primary 高亮」已表达当前模式，此说明与页首总说明重复，删除。
 
     # 字号档位：小 / 标准(原“中”) / 大 / 特大 / 巨大，至少 5 档。
     # 名称与 rem 数值均来自 ui_theme.FONT_SCALE 唯一数据源，保证与全局注入一致。
@@ -184,7 +176,7 @@ def render_preferences():
     )
     if _kline_count != st.session_state.get("kline_default_count", 120):
         st.session_state["kline_default_count"] = _kline_count
-    st.caption("K线默认根数：打开行情看板时默认展示的最近 N 根日K。数值越大覆盖的历史区间越长，但单根越密。")
+    # T-266：说明并入上方控件 help（悬停即显），不再占一行。
 
     _refresh_interval = st.slider(
         "行业板块自动刷新间隔（秒）",
@@ -195,7 +187,7 @@ def render_preferences():
     )
     if _refresh_interval != st.session_state.get("sector_refresh_interval", 60):
         st.session_state["sector_refresh_interval"] = _refresh_interval
-    st.caption("板块刷新间隔：交易时段内行业板块数据的自动刷新频率（秒）。间隔越短越及时，但请求越多、更占资源。")
+    # T-266：说明并入上方控件 help（悬停即显），不再占一行。
 
     st.markdown("")
 
@@ -204,15 +196,18 @@ def render_preferences():
     # ════════════════════════════════════
     sf_card("🔧 数据源偏好", "")
 
-    st.info("""
-    **StockSignal 数据源降级链**（按顺序尝试，第一个成功即用）：
-    1. **akshare** — 最全、最快（推荐首选）
-    2. **BaoStock** — 备选，稳定但较慢
-    3. **新浪财经** — 快速但数据有限
-    4. **东方财富** — 兜底源
-
-    当某个数据源超时/报错时会自动切换到下一个。
-    """)
+    # T-266 空间治理：6 行数据源降级链说明 → 悬停预览（ss_hover_preview mini，
+    # 鼠标放上去才显现；交互范式同顶栏用户下拉浮层）
+    ss_hover_preview(
+        "ℹ️ 数据源降级链说明",
+        "<b>StockSignal 数据源降级链</b>（按顺序尝试，第一个成功即用）：<br>"
+        "1. <b>akshare</b> — 最全、最快（推荐首选）<br>"
+        "2. <b>BaoStock</b> — 备选，稳定但较慢<br>"
+        "3. <b>新浪财经</b> — 快速但数据有限<br>"
+        "4. <b>东方财富</b> — 兜底源<br>"
+        "某数据源超时/报错时自动切换到下一个。",
+        mini=True,
+    )
 
     st.multiselect(
         "数据源优先级排序（拖动调整顺序）",
@@ -237,10 +232,8 @@ def render_preferences():
                     st.session_state[_key] = _default
                 st.rerun()
     with col_save:
-        st.caption(
-            "💡 所有设置已实时生效并保存在浏览器内存中。\n"
-            "关闭或刷新浏览器后会恢复为默认值。"
-        )
+        # T-266：持久化语义已由页首总说明一行覆盖，此处不再重复占行。
+        st.caption("💡 所有设置实时生效，关闭浏览器后恢复默认。")
 
 
 
@@ -487,13 +480,19 @@ with st.expander("💡 使用说明 / 常见问题", expanded=False):
     )
 
 # ------------------------------------------------------------------
-# 偏好设置（原「设置」页合并而来，作为独立页签）
+# 偏好设置（原「设置」页合并而来）
+# T-266 空间治理：原「分隔线 + 单元素 tabs + 说明 caption + 大卡片×4 + 全宽
+# progress 指示器」整体收敛为一个折叠区（点击才展开，标签自带当前主题/字体
+# 摘要——折叠后仍有信息量）；空说明 sf_card 已由 ui_theme 紧凑化为单行节标题。
 # ------------------------------------------------------------------
-st.markdown("---")
-_pref_tab, = st.tabs(["⚙️ 偏好设置"])
-with _pref_tab:
+_prefs_summary = (
+    f"主题：{'🌙 暗夜' if get_current_mode() == 'dark' else '☀️ 白天'}"
+    f" · 字体：{dict(small='小', medium='标准', large='大', xlarge='特大', xxlarge='巨大').get(st.session_state.get('font_size', FONT_DEFAULT), '标准')}"
+    " · K线根数："
+    f"{st.session_state.get('kline_default_count', 120)}"
+)
+with ss_fold_useful("⚙️ 偏好设置", _prefs_summary, expanded=False, icon="⚙️"):
     st.caption(
-        "⚙️ 偏好设置分为「外观 / 行情看板默认参数 / 数据源优先级」三类，"
-        "所有改动即时生效；关闭浏览器后会恢复默认值。"
+        "⚙️ 分「外观 / 行情看板默认参数 / 数据源优先级」三类，改动即时生效；关闭浏览器后恢复默认。"
     )
     render_preferences()
