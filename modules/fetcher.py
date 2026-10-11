@@ -86,6 +86,19 @@ def load_config(config_path="config.yaml"):
 # ══════════════════════════════════════════════════════════
 # 主数据采集器
 # ══════════════════════════════════════════════════════════
+def _df_last_date(df):
+    """取 DataFrame 的内容日期（date 列最大值，YYYY-MM-DD）；不可得返回 None。
+
+    T-248：as_of 必须用**内容日期**而非缓存写入时间（mtime），防止假新鲜。
+    """
+    try:
+        if isinstance(df, pd.DataFrame) and "date" in df.columns and len(df):
+            return str(pd.to_datetime(df["date"]).max())[:10]
+    except Exception:  # noqa: BLE001 - 元数据尽力而为，绝不影响主数据路径
+        pass
+    return None
+
+
 def _resolve_cache_db_path(explicit: str | None) -> str:
     """解析缓存库路径，落实「测试隔离但不破坏显式配置」语义。
 
@@ -508,36 +521,56 @@ class StockFetcher:
                 return _safe_json_loads(row[0])
         return None
 
-    def _read_stale_cache(self, conn, table_name, prefix, as_dataframe=True):
+    def _read_stale_cache(self, conn, table_name, prefix, as_dataframe=True,
+                          adjust=None, start=None, end=None, min_rows=1):
         """读取过期缓存（用于降级兜底）。排除 _source 等元数据键。
 
         as_dataframe=True（默认）：按 DataFrame 解析（daily/index/sector 等时序数据）；
         as_dataframe=False：按 JSON 原始 dict/list 解析（实时行情等）。
+
+        T-248 一致性过滤（诚实语义，验收基线 docs/data_cache_hardening.md 第1步）：
+        - adjust 一致：只考虑键以 ``_{adjust}`` 结尾的行——qfq/none 价格不可比，
+          修复前 qfq 请求会静默命中 none 旧行拿到不可比价格序列；
+        - 窗口裁剪：返回前裁剪到 [start, end]（旧行窗口可能与本次请求不同）；
+        - 行数下限：裁剪后不足 ``min_rows`` 视为无有效兜底（宁可诚实失败不喂碎片）；
+        - 不传 adjust/start/end 时维持旧语义（取最新一行），兼容既有调用方。
         """
         self._init_cache_table(conn, table_name)
-        rows = conn.execute(
-            f"SELECT data_json, updated_at FROM {table_name} "
-            f"WHERE cache_key LIKE ? AND cache_key NOT LIKE ? "
-            f"ORDER BY updated_at DESC LIMIT 1",
-            (f"{prefix}%", f"%_source"),
-        ).fetchall()
-        if not rows:
-            return None
-        data_json, updated_at_str = rows[0]
-        age_hours = (
-            now_cst_naive() - datetime.fromisoformat(updated_at_str)
-        ).total_seconds() / 3600
-        logger.debug(f"[StockFetcher] 使用过期缓存 (已过期 {age_hours:.1f} 小时)")
-        warnings.warn(
-            f"数据源不可用，正在使用 {age_hours:.1f} 小时前的缓存数据",
-            UserWarning, stacklevel=4,
-        )
-        if not as_dataframe:
-            return _safe_json_loads(data_json)
-        df = pd.read_json(io.StringIO(data_json))
-        if "date" in df.columns:
-            df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        return df
+        sql = (f"SELECT cache_key, data_json, updated_at FROM {table_name} "
+               f"WHERE cache_key LIKE ? AND cache_key NOT LIKE ? ")
+        params: list = [f"{prefix}%", f"%_source"]
+        if adjust:
+            sql += "AND cache_key LIKE ? "
+            params.append(f"%_{adjust}")
+        sql += "ORDER BY updated_at DESC LIMIT 8"
+        rows = conn.execute(sql, params).fetchall()
+        for cache_key, data_json, updated_at_str in rows:
+            if not as_dataframe:
+                return _safe_json_loads(data_json)
+            try:
+                df = pd.read_json(io.StringIO(data_json))
+            except Exception as e:  # noqa: BLE001 - 损坏行跳过试下一候选
+                logger.warning(f"[fetcher] 兜底缓存解析失败 key={cache_key}: {e}")
+                continue
+            if "date" in df.columns:
+                df["date"] = pd.to_datetime(df["date"], errors="coerce")
+            if start and end and "date" in df.columns:
+                df = df[(df["date"] >= pd.Timestamp(start))
+                        & (df["date"] <= pd.Timestamp(end))]
+            if len(df) < min_rows:
+                logger.debug(f"[fetcher] 兜底缓存窗口裁剪后仅 {len(df)} 行(<{min_rows})，"
+                             f"拒绝喂碎片 key={cache_key}")
+                continue
+            age_hours = (
+                now_cst_naive() - datetime.fromisoformat(updated_at_str)
+            ).total_seconds() / 3600
+            logger.debug(f"[StockFetcher] 使用过期缓存 {cache_key} (已过期 {age_hours:.1f} 小时)")
+            warnings.warn(
+                f"数据源不可用，正在使用 {age_hours:.1f} 小时前的缓存数据",
+                UserWarning, stacklevel=4,
+            )
+            return df
+        return None
 
     def clear_cache(self, table_name=None, cache_key=None):
         """清空指定缓存表（或表中某个 cache_key 的记录）。
@@ -1886,11 +1919,17 @@ class StockFetcher:
             return None, f"{level}: {type(e).__name__}"
         return None, f"{level}: 无数据"
 
-    def get_daily(self, symbol, start="2024-01-01", end=None, adjust="qfq"):
+    def get_daily(self, symbol, start="2024-01-01", end=None, adjust="qfq",
+                  meta_out=None):
         """
         获取个股日线行情。
         降级链（v3 并行竞速）：akshare / BaoStock / 新浪 / 东方财富 四源并发，
         先成功者胜出（耗时由「各源之和」降为「最慢单源」）；全部失败再走缓存兜底。
+
+        T-248 诚实元数据出口：``meta_out`` 传 dict 时回填
+        ``{source: live|cache|cache_fallback, is_stale: bool, as_of: 内容日期}``——
+        L5 旧缓存兜底命中时 ``source=cache_fallback / is_stale=True``，调用方据此
+        如实标注「数据截至 X 日」而非拿旧数据当新数据。不传（默认 None）行为零变化。
 
         性能优化（v2）：
         - BaoStock 走连接池（每次查询不复登），13s -> 3s
@@ -1901,6 +1940,12 @@ class StockFetcher:
         if end is None:
             end = now_cst_str("%Y-%m-%d")
 
+        def _meta(source, is_stale, df):
+            if isinstance(meta_out, dict):
+                meta_out.clear()
+                meta_out.update({"source": source, "is_stale": is_stale,
+                                 "as_of": _df_last_date(df)})
+
         cache_key = f"daily_{symbol}_{start}_{end}_{adjust}"
         conn = self._get_conn()
         try:
@@ -1909,6 +1954,7 @@ class StockFetcher:
             max_age_hours = 6 if end == today_str else None
             cached = self._read_cache(conn, "daily_cache", cache_key, max_age_hours=max_age_hours)
             if cached is not None:
+                _meta("cache", False, cached)
                 return cached
 
             df = None
@@ -1946,12 +1992,18 @@ class StockFetcher:
                 # 取消未完成（如被墙挂起的 akshare），不阻塞等待
                 ex.shutdown(wait=False, cancel_futures=True)
 
-            # ── L5: 缓存兜底（任何过期缓存都优先用）──
+            # ── L5: 缓存兜底（T-248：复权一致过滤 + 窗口裁剪 + 行数下限）──
             if df is None or df.empty:
-                stale = self._read_stale_cache(conn, "daily_cache", f"daily_{symbol}")
+                stale = self._read_stale_cache(conn, "daily_cache", f"daily_{symbol}",
+                                               adjust=adjust, start=start, end=end,
+                                               min_rows=60)
                 if stale is not None:
                     logger.debug(f"[StockFetcher] L5-缓存兜底 OK {symbol}")
+                    observe_cache_fallback("L5", True,
+                                           f"{symbol} as_of={_df_last_date(stale)}")
+                    _meta("cache_fallback", True, stale)
                     return stale
+                observe_cache_fallback("L5", False, f"{symbol} 无可用兜底缓存")
                 errors.append("缓存: 无可用数据")
 
             # ── 全部失败 -> 仍然抛出，但用更友好的中文错误 ──
@@ -1969,6 +2021,7 @@ class StockFetcher:
             df = df[available + [c for c in ["amount", "change_pct"] if c in df.columns]]
             df = df.sort_values("date").reset_index(drop=True)
             self._write_cache(conn, "daily_cache", cache_key, df)
+            _meta("live", False, df)
             return df
         finally:
             conn.close()

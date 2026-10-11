@@ -406,10 +406,18 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
         progress(0.1, f"拉取 {len(codes)} 只标的行情…")
 
     # ── 阶段 1：行情 → A1/A2/A5 打分（并行取数，评分本地）──
+    fetch_metas = {}
+
     def _fetch_one(code):
         start = (datetime.now() - timedelta(days=260)).strftime("%Y-%m-%d")
-        df = fetcher.get_daily(code, start=start,
-                               end=datetime.now().strftime("%Y-%m-%d"))
+        meta = {}
+        try:
+            df = fetcher.get_daily(code, start=start,
+                                   end=datetime.now().strftime("%Y-%m-%d"),
+                                   meta_out=meta)
+        finally:
+            # T-248：诚实元数据随行取回（L5 兜底命中 → is_stale=True）
+            fetch_metas[f"df_{code}"] = meta if isinstance(meta, dict) else {}
         return df
 
     tasks = [(f"df_{c}", lambda c=c: _fetch_one(c)) for c in codes]
@@ -559,6 +567,9 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
         "market_context": market_ctx,
         "picks": picks, "disclaimer": DISCLAIMER,
         "weights": ALGO_WEIGHTS,
+        # T-248：本次推荐有 N 只标的的行情来自 L5 旧缓存兜底（is_stale），如实落盘
+        "stale_count": sum(1 for m in fetch_metas.values()
+                           if isinstance(m, dict) and m.get("is_stale")),
         # R1 六维排雷二道闸（T-245）：kicked=被踢明细；unscanned_picks=入选中未过闸数
         "risk_gate": {**gate_summary,
                       "unscanned_picks": sum(1 for p in picks
