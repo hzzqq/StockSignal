@@ -1,0 +1,82 @@
+[
+  {
+    "file": "market_dash.svg",
+    "label": "10_行情看板",
+    "category": "gold"
+  },
+  {
+    "file": "decision.svg",
+    "label": "54_今日决策面板",
+    "category": "amber"
+  },
+  {
+    "file": "recommend.svg",
+    "label": "36_每日荐股",
+    "category": "fusion"
+  },
+  {
+    "file": "stock_research.svg",
+    "label": "24_个股研究",
+    "category": "blue"
+  },
+  {
+    "file": "fundamentals.svg",
+    "label": "22_基本面分析",
+    "category": "blue"
+  },
+  {
+    "file": "sentiment.svg",
+    "label": "50_市场情绪",
+    "category": "gauge"
+  },
+  {
+    "file": "event_factor.svg",
+    "label": "P1 事件因子",
+    "category": "violet"
+  },
+  {
+    "file": "shepherd.svg",
+    "label": "牧羊人市场广度",
+    "category": "teal"
+  },
+  {
+    "file": "backtest.svg",
+    "label": "回测中心",
+    "category": "gold"
+  },
+  {
+    "file": "valuation.svg",
+    "label": "估值分析",
+    "category": "amber"
+  },
+  {
+    "file": "risk_mine.svg",
+    "label": "风险排雷",
+    "category": "coral"
+  },
+  {
+    "file": "price_alert.svg",
+    "label": "47_价格预警",
+    "category": "coral"
+  },
+  {
+    "file": "watchlist.svg",
+    "label": "46_自选股监控",
+    "category": "teal"
+  },
+  {
+    "file": "health_scan.svg",
+    "label": "34_体检扫描",
+    "category": "teal"
+  },
+  {
+    "file": "star_ai.svg",
+    "label": "53_星辰AI",
+    "category": "violet"
+  },
+  {
+    "file": "data_center.svg",
+    "label": "数据中心/缓存",
+    "category": "blue"
+  }
+]

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="估值分析">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#FFC97A"/><stop offset="1" stop-color="#F57C00"/>
+    </linearGradient>
+    
+  </defs>
+  <rect x="6" y="6" width="84" height="84" rx="22" fill="url(#g)"/>
+  <rect x="6" y="6" width="84" height="84" rx="22" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="1.5"/>
+  <ellipse cx="48" cy="15" rx="30" ry="9" fill="rgba(255,255,255,.14)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+<path d="M48 24 L67 37 L58 70 H38 L29 37 Z" fill="rgba(255,255,255,.12)"/>
+<path d="M29 37 H67" stroke-opacity=".7"/>
+<path d="M48 24 L41 37 L48 70 M48 24 L55 37 L48 70" stroke-opacity=".55"/>
+<path d="M71,17 L72.54,22.46 L78,24 L72.54,25.54 L71,31 L69.46,25.54 L64,24 L69.46,22.46 Z" fill="#FFFFFF" stroke="none"/>
+
+  </g>
+</svg>

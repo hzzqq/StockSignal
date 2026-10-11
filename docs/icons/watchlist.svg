@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="46_自选股监控">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#6BE3D0"/><stop offset="1" stop-color="#0FA894"/>
+    </linearGradient>
+    
+  </defs>
+  <rect x="6" y="6" width="84" height="84" rx="22" fill="url(#g)"/>
+  <rect x="6" y="6" width="84" height="84" rx="22" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="1.5"/>
+  <ellipse cx="48" cy="15" rx="30" ry="9" fill="rgba(255,255,255,.14)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+<path d="M48.00,25.00 L50.94,32.95 L59.41,33.29 L52.76,38.55 L55.05,46.71 L48.00,42.00 L40.95,46.71 L43.24,38.55 L36.59,33.29 L45.06,32.95 Z" fill="rgba(255,255,255,.92)" stroke="none"/>
+<path d="M28 62 Q48 75 68 62" />
+<circle cx="48" cy="66" r="4" fill="#FFFFFF" stroke="none"/>
+
+  </g>
+</svg>
