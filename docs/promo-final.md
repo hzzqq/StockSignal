@@ -1,5 +1,7 @@
 # StockSignal v0.1.0 发帖素材（含截图 + 真实链接）
 
+![StockSignal 横幅（AI 生成插画：K线城市与牧羊人）](art/readme_banner.jpg)
+
 > **发布前确认**：所有链接已就绪，截图已落地。
 > - 仓库：https://github.com/hzzqq/StockSignal
 > - Release：https://github.com/hzzqq/StockSignal/releases/tag/v0.1.0

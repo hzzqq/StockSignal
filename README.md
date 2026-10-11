@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/art/readme_banner.jpg" width="100%" alt="StockSignal · A股事件驱动投资分析平台（插画：K线城市与牧羊人，AI 生成）">
+
 # 📈 StockSignal · A股事件驱动投资分析平台
 
 **开源 · 免费 · 多数据源自动降级 · 开箱即用**
@@ -20,6 +22,32 @@
 📄 **[项目作品集展示页](https://hzzqq.github.io/StockSignal/)** —— 一页看完亮点 / 规模数据 / 实证结果 / 工程护栏，
 全部由 [`scripts/gen_portfolio_page.py`](scripts/gen_portfolio_page.py) 从仓库真实数据实时生成；
 源文件 [`docs/index.html`](docs/index.html) 为单文件自包含（图片已内联），可直接离线打开或转发。
+
+
+
+<table align="center">
+<tr><td colspan="8" align="center"><b>🎨 功能版图 · 16 模块图标</b>（<a href="docs/icon-gallery/icon-gallery.html">图标系统画廊</a>）</td></tr>
+<tr>
+<td align="center">![](docs/icons/market_dash.svg)<br>行情看板</td>
+<td align="center">![](docs/icons/decision.svg)<br>今日决策</td>
+<td align="center">![](docs/icons/recommend.svg)<br>荐股引擎</td>
+<td align="center">![](docs/icons/stock_research.svg)<br>个股研究</td>
+<td align="center">![](docs/icons/fundamentals.svg)<br>基本面</td>
+<td align="center">![](docs/icons/sentiment.svg)<br>市场情绪</td>
+<td align="center">![](docs/icons/event_factor.svg)<br>事件因子</td>
+<td align="center">![](docs/icons/shepherd.svg)<br>牧羊人广度</td>
+</tr>
+<tr>
+<td align="center">![](docs/icons/backtest.svg)<br>回测中心</td>
+<td align="center">![](docs/icons/valuation.svg)<br>估值分析</td>
+<td align="center">![](docs/icons/risk_mine.svg)<br>风险排雷</td>
+<td align="center">![](docs/icons/price_alert.svg)<br>价格预警</td>
+<td align="center">![](docs/icons/watchlist.svg)<br>自选股</td>
+<td align="center">![](docs/icons/health_scan.svg)<br>体检扫描</td>
+<td align="center">![](docs/icons/star_ai.svg)<br>星辰AI</td>
+<td align="center">![](docs/icons/data_center.svg)<br>数据中心</td>
+</tr>
+</table>
 
 </div>
 
