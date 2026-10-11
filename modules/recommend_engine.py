@@ -547,16 +547,30 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
     pos_base = (market_ctx.get("position") or {}).get("pct") if market_ctx.get("position") else None
     per_stock_cap = 20.0
     picks = []
+    # T-256：信念×风险二维配仓（预算守恒、单票上下限）；pos_base 不可得 → None 走原降级
+    sizing = size_positions(rows[:top_k], pos_base, per_stock_cap=per_stock_cap)
     for r in rows[:top_k]:
         df = r.pop("df")
-        hint = None
-        if isinstance(pos_base, (int, float)) and pos_base > 0:
+        # fix（T-256 顺带）：levels 必须逐票重算——原写法引用 rows 循环泄漏的尾值，
+        # 导致所有推荐共享最后一只票的 ATR 价位（串票）。
+        levels = trade_levels(float(df["close"].iloc[-1]), atr14(df))
+        if sizing:
+            hint = sizing["hints"].get(r["code"])
+            b = sizing["basis"].get(r["code"], {})
+            note = (f"信念×风险二维配仓：信念倍数 {b.get('conviction_mult', 1.0)}×"
+                    f"风险因子 {b.get('risk_factor', 1.0)}，总敞口≈市场建议仓位 "
+                    f"{sizing['pos_base']:g}%、单票 [{sizing['floor']:g},{sizing['cap']:g}]%"
+                    + ("（单票上下限约束致略超预算，如实标注）" if sizing.get("budget_over") else ""))
+        elif isinstance(pos_base, (int, float)) and pos_base > 0:
             hint = round(min(pos_base / max(top_k, 1), per_stock_cap), 1)
+            note = f"按市场建议仓位 {pos_base}% 等权 {top_k} 只、单票上限 {per_stock_cap}% 估算"
+        else:
+            hint = None
+            note = "市场仓位快照不可用，请自行确定仓位"
         picks.append({**r, "plan": {
             **levels,
             "position_pct_hint": hint,
-            "position_note": (f"按市场建议仓位 {pos_base}% 等权 {top_k} 只、单票上限 {per_stock_cap}% 估算"
-                               if hint else "市场仓位快照不可用，请自行确定仓位"),
+            "position_note": note,
         }})
 
     rec = {
@@ -635,6 +649,63 @@ def apply_risk_gate(rows: list, scan_map: dict, top_k: int, gate_n: int) -> tupl
     summary = {"status": "ok", "gate_size": len(head), "scanned": len(scan_map),
                "kicked": kicked, "reason": ""}
     return kept + tail, summary
+
+
+def size_positions(picks: list, pos_base, per_stock_cap: float = 20.0,
+                   floor: float = 1.0):
+    """信念×风险二维配仓（T-256，benchmark stock-evaluator 采纳清单 R3 落地遗留）。
+
+    - 信念维：picks 内 composite min-max 归一 → 倍数 [0.6, 1.5]（全相同 = 1.0）；
+    - 风险维：risk_scan.medium ×0.8、reliable=False ×0.85、value_trap.total≥50 ×0.85
+      （乘积叠加；not_scanned/字段缺失 = 1.0，不惩罚也不假装扫过）；
+    - 预算守恒：Σhint ≈ pos_base（总敞口不放大市场建议仓位）；单票 clamp [floor, cap]，
+      下限为硬约束（再弱保留最小试探仓），届时可略超预算并如实标注 budget_over；
+    - pos_base 不可得/非正/无票 → None（引擎走「自行确定仓位」诚实降级）。
+
+    返回 ``{"hints": {code: pct}, "basis": {code: {...}}, "pos_base", "cap", "floor",
+    "budget_over"}`` 或 None。
+    """
+    if not picks or not isinstance(pos_base, (int, float)) or pos_base <= 0:
+        return None
+    comps = [float(p.get("composite") or 0.0) for p in picks]
+    lo, hi = min(comps), max(comps)
+    span = hi - lo
+    raw: dict = {}
+    basis: dict = {}
+    for p, c in zip(picks, comps):
+        mult = 1.0 if span == 0 else 0.6 + 0.9 * (c - lo) / span
+        risk = 1.0
+        rs = p.get("risk_scan") or {}
+        if rs.get("status") == "scanned":
+            if rs.get("overall_level") == "medium":
+                risk *= 0.8
+            if rs.get("reliable") is False:
+                risk *= 0.85
+        vt = (p.get("value_trap") or {}).get("total")
+        if isinstance(vt, (int, float)) and vt >= 50:
+            risk *= 0.85
+        raw[p["code"]] = mult * risk
+        basis[p["code"]] = {"conviction_mult": round(mult, 3),
+                            "risk_factor": round(risk, 3)}
+    total_raw = sum(raw.values())
+    budget = float(pos_base)
+    hints = {k: v / total_raw * budget for k, v in raw.items()}
+    hints = {k: min(max(v, floor), per_stock_cap) for k, v in hints.items()}
+    s = sum(hints.values())
+    if s > budget:
+        hints = {k: v * budget / s for k, v in hints.items()}
+        hints = {k: max(v, floor) for k, v in hints.items()}  # 下限硬约束
+    rounded = {k: round(v, 1) for k, v in hints.items()}
+    diff = round(budget - sum(rounded.values()), 1)
+    if abs(diff) >= 0.1 and rounded:
+        # 差额只补给未顶格的最大票（顶格票不得突破 cap；补不进去就留 ≤0.1 舍入 slack）
+        for k in sorted(rounded, key=lambda k: -rounded[k]):
+            if rounded[k] < per_stock_cap:
+                rounded[k] = round(max(rounded[k] + diff, floor), 1)
+                break
+    budget_over = sum(rounded.values()) > budget + 0.05
+    return {"hints": rounded, "basis": basis, "pos_base": budget,
+            "cap": per_stock_cap, "floor": floor, "budget_over": budget_over}
 
 
 def _safe_risk_scan(codes_with_names) -> dict:
