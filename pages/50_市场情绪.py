@@ -959,8 +959,8 @@ def fragment_shepherd_forecast():
     # 合并连板晋级率（来自每日梯队落盘的历史递推），作为更细的接力信号
     try:
         today.update(_sl.current_promo_as_indicators())
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[市场情绪] 连板晋级率信号合并失败，该维度将缺失: {e}")
     if not today:
         _empty_info("今日指标不足，无法预判。")
         return
@@ -1144,8 +1144,8 @@ def fragment_shepherd_note():
     # 合并连板晋级率（与预判片段保持一致，让快照里的预判也含晋级率信号）
     try:
         today.update(_sl.current_promo_as_indicators())
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[市场情绪] 连板晋级率信号合并失败，该维度将缺失: {e}")
     # 与梯队快照同口径：用数据日期，避免周末/盘后建出一条「非交易日」的空笔记
     dstr = _last_data_date(df)
     try:
