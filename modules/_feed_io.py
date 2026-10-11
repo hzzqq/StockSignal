@@ -17,7 +17,17 @@ import socket  # 捕获瞬时网络错误（超时/连接重置/DNS）做重试�
 import threading  # R77：BaoStock 首次登录锁（并行竞速串行化）
 from datetime import datetime, timedelta
 from modules.time_utils import now_cst_naive
+from modules.request_utils import _throttle  # T-249：per-host 节流延伸到 urllib 直连路径
 import concurrent.futures as _cf
+
+def _req_host(req):
+    """从 Request/URL 提取 host（T-249 节流用）；不可得返回 None。"""
+    try:
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        return urllib.parse.urlparse(str(url)).netloc or None
+    except Exception:  # noqa: BLE001 - 节流尽力而为，绝不影响取数主路径
+        return None
+
 
 def _safe_urlopen(req, timeout, retries=2, backoff=0.5):
     """带重试的 urllib 取数（瞬时故障兜底，加法式增强）。
@@ -26,9 +36,16 @@ def _safe_urlopen(req, timeout, retries=2, backoff=0.5):
     上层 fallback 链导致数据缺失；HTTP 业务响应（4xx/5xx）不重试，立即交给调用方
     的 except 兜底（返回 None 并由降级链处理）。返回可读的响应对象，调用约定与
     ``urllib.request.urlopen`` 完全一致，因此所有调用点只改函数名、行为不变。
+
+    T-249：每次尝试（含重试）前做 per-host 节流（request_utils._throttle 同源：
+    SS_HOST_MIN_INTERVAL，本机后端豁免）——新浪/东财 K 线直连 urllib 此前无节流，
+    荐股一轮 300+ 次请求等于自己打自己的限流诱因在此消灭。
     """
+    host = _req_host(req)
     last_exc = None
     for attempt in range(retries + 1):
+        if host:
+            _throttle(host)
         try:
             return urllib.request.urlopen(req, timeout=timeout)
         except urllib.error.HTTPError:
