@@ -599,8 +599,12 @@ def fragment_p1_ev():
                 f"<span style='color:{_col};font-weight:600'>{_sc_txt}</span>"
                 f"　信号：<b>{ef.get('signal')}</b>　来源：<code>{ef.get('source')}</code>",
                 unsafe_allow_html=True)
+        else:
+            # fix（T-258）：查询无结果分支——原 else 挂在 if _q 上，既造成空输入
+            # UnboundLocalError（ef 未绑定），又让「无信号」提示从未显示过。
+            xc_info_banner(f"该标的无事件因子信号：{ef.get('reason', '未知')}")
     else:
-        xc_info_banner(f"该标的无事件因子信号：{ef.get('reason', '未知')}")
+        xc_info_banner("输入代码（如 sh600000 / sz000001）查询个股事件因子")
 
 
 @safe_fragment("事件驱动看多榜")
