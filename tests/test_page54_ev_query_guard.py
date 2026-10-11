@@ -103,3 +103,23 @@ def test_banner_never_references_ef_outside_query_scope():
         if "ef" in _names_in(call):
             assert id(call) in in_body_ids, \
                 "发现 if _q 作用域之外引用 ef 的提示调用（回潮）"
+
+
+# ── T-259：事件驱动看多榜（折叠 + 名称列）守卫 ──
+def _pool_fragment():
+    src = open(PAGE, encoding="utf-8").read()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "fragment_event_driven_pool":
+            return node
+    raise AssertionError("fragment_event_driven_pool 函数不存在")
+
+
+def test_pool_table_in_expander_with_name_column():
+    """看多榜明细必须折叠在 st.expander 内，且表头带「名称」列。"""
+    frag = _pool_fragment()
+    src = ast.get_source_segment(open(PAGE, encoding="utf-8").read(), frag)
+    assert "st.expander" in src, "看多榜明细必须折叠（st.expander）"
+    assert "<th>名称</th>" in src, "表头必须含「名称」列"
+    assert "_code_to_name" in src and 'str(sym)[-6:].zfill(6)' in src, \
+        "名称映射必须走本地股票库（零网络）"

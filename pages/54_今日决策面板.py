@@ -672,9 +672,19 @@ def fragment_event_driven_pool():
             "建议仅取多头侧，并与本页牧羊人仓位建议配合使用。")
     sf_card("事件驱动 · EV 看多榜（前 20）", body, icon="📈")
 
+    # T-259：代码 → 名称映射（类级已预热股票库，本地查询零网络；取不到如实「—」）
+    name_map = {}
+    try:
+        from modules.fetcher import StockFetcher
+        StockFetcher._warmup_stock_db()
+        name_map = getattr(StockFetcher, "_code_to_name", {}) or {}
+    except Exception:  # noqa: BLE401 - 名称映射尽力而为，不影响榜单本体
+        name_map = {}
+
     rows_html = ""
     for i, r in enumerate(rows, 1):
         sym = r.get("symbol", "")
+        nm = name_map.get(str(sym)[-6:].zfill(6), "—")
         sc = r.get("score")
         sc_txt = f"{sc:.1f}" if isinstance(sc, (int, float)) else "—"
         # 百分位越高越红（A股涨色），但此处是「信号强度」而非涨跌，用橙红梯度更中性
@@ -682,18 +692,21 @@ def fragment_event_driven_pool():
         rows_html += (
             f"<tr><td style='color:#888'>{i}</td>"
             f"<td style='font-family:monospace'>{sym}</td>"
+            f"<td>{nm}</td>"
             f"<td style='color:{_col};font-weight:600'>{sc_txt}</td>"
             f"<td style='color:#888;font-size:12px'>{r.get('source','')}</td></tr>"
         )
-    st.markdown(
-        "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
-        "<thead><tr style='color:#ff8a3d;text-align:left'>"
-        "<th>#</th><th>代码</th><th>事件因子分</th><th>来源</th></tr></thead>"
-        f"<tbody>{rows_html}</tbody></table>",
-        unsafe_allow_html=True,
-    )
-    st.caption("口径：事件因子分 = P1 模型百分位排名 × 100（越高越看多）。"
-               "与牧羊人仓位建议**一致**时增强信心，分歧时提示人工复核。")
+    # T-259：明细折叠（默认收起），页面主体只留结论卡
+    with st.expander("📋 看多榜明细（前 20 · 点击展开）", expanded=False):
+        st.markdown(
+            "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
+            "<thead><tr style='color:#ff8a3d;text-align:left'>"
+            "<th>#</th><th>代码</th><th>名称</th><th>事件因子分</th><th>来源</th></tr></thead>"
+            f"<tbody>{rows_html}</tbody></table>",
+            unsafe_allow_html=True,
+        )
+        st.caption("口径：事件因子分 = P1 模型百分位排名 × 100（越高越看多）。"
+                   "与牧羊人仓位建议**一致**时增强信心，分歧时提示人工复核。")
 
 
 # ───────────────────────── 复盘归档（保存快照 + 历史回测） ─────────────────────────
