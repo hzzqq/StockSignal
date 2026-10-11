@@ -108,7 +108,35 @@ class _FakeAk:
             "卖报价": [7.13, 150.5, 1.09],
         })
 
+    def currency_boc_sina(self):
+        self._maybe("usd_cny_boc")
+        return pd.DataFrame({
+            "日期": ["2026-03-01", "2026-03-02"],
+            "中行汇买价": [710.20, 711.00],
+            "央行中间价": [712.00, 713.40],
+            "中行折算价": [712.00, 713.40],
+        })
+
+    def index_us_stock_sina(self, symbol=".INX"):
+        self._maybe(f"sina_us_{symbol}")
+        vals = [5200.0, 5250.0] if symbol == ".INX" else [16000.0, 16200.0]
+        return pd.DataFrame({
+            "date": ["2026-03-01", "2026-03-02"],
+            "open": vals, "high": [v + 10 for v in vals],
+            "low": [v - 10 for v in vals], "close": vals,
+            "volume": [1e9, 1e9], "amount": [1e11, 1e11],
+        })
+
+    def stock_hk_index_spot_sina(self):
+        self._maybe("hsi_sina")
+        return pd.DataFrame({
+            "代码": ["CES100", "HSI"], "名称": ["中华港股通精选100指数", "恒生指数"],
+            "最新价": [5079.7, 24211.35], "涨跌额": [117.1, 425.56],
+            "涨跌幅": [2.36, 1.79], "昨收": [4962.6, 23785.79],
+        })
+
     def index_global_hist_em(self, symbol="美元指数"):
+        self._maybe("index_global_hist_em")
         self._maybe("dxy")
         if symbol == "美元指数":
             vals = [102.5, 103.1]
@@ -257,13 +285,24 @@ def test_parse_us_treasury_10y_picks_us_column(fake_ak):
     assert got["unit"] == "%"
 
 
-def test_parse_usdcny_picks_usdcny_row(fake_ak):
-    """汇率必须筛出 USDCNY 这一行，而不是 USDJPY/EURUSD。"""
-    fake_ak()
+def test_parse_usdcny_falls_back_to_fx_pair_when_boc_down(fake_ak):
+    """主源（中行牌价）失败 → 回落 fx_pair_quote 备源，且必须筛出 USDCNY 行
+    而不是 USDJPY/EURUSD。"""
+    fake_ak(raise_on={"usd_cny_boc"})
     got = md.fetch_indicator("usd_cny")
     assert got is not None
     assert got["value"] == 7.12
     assert got["prev"] is None  # 实时报价无前期对照
+
+
+def test_usd_cny_primary_boc_mid_price(fake_ak):
+    """主源 = 中行央行中间价（每100美元口径 ÷100）。"""
+    fake_ak()
+    got = md.fetch_indicator("usd_cny")
+    assert got is not None
+    assert got["value"] == pytest.approx(7.134)
+    assert got["prev"] == pytest.approx(7.12)
+    assert got["date"] == "2026-03-02"
 
 
 def test_global_regime_score_computes(fake_ak):
@@ -279,8 +318,37 @@ def test_global_regime_score_computes(fake_ak):
 
 def test_global_regime_score_none_when_all_fail(fake_ak):
     """四分项全取不到时返回 None，绝不臆造一个评分。"""
-    fake_ak(raise_on={"dxy", "us_cpi", "us_treasury_10y", "usd_cny"})
+    fake_ak(raise_on={"dxy", "us_cpi", "us_treasury_10y", "usd_cny",
+                      "usd_cny_boc"})
     assert md.global_regime_score() is None
+
+
+# ── T-260：东财主源挂掉时新浪备源回退 ──
+def test_us_sp500_falls_back_to_sina_when_em_down(fake_ak):
+    fake_ak(raise_on={"index_global_hist_em"})
+    got = md.fetch_indicator("us_sp500")
+    assert got is not None
+    assert got["value"] == 5250.0 and got["prev"] == 5200.0
+    assert got["date"] == "2026-03-02"
+
+
+def test_hsi_falls_back_to_sina_spot(fake_ak):
+    fake_ak(raise_on={"index_global_hist_em"})
+    got = md.fetch_indicator("hsi")
+    assert got is not None
+    assert got["value"] == 24211.35
+    assert got["prev"] == pytest.approx(23785.79), "prev = 最新价 − 涨跌额"
+
+
+def test_interpret_covers_a_share_analysis(fake_ak):
+    """解读规则必须带对A股的分析（用户 2026-10-12 需求）。"""
+    fake_ak()
+    cases = [("pmi", 50.4, 49.8), ("us_treasury_10y", 4.25, 4.20),
+             ("dxy", 103.5, 103.0), ("us_sp500", 5250.0, 5200.0),
+             ("usd_cny", 7.13, 7.12), ("us_nasdaq", 16200.0, 16000.0),
+             ("hsi", 24211.35, 23785.79)]
+    for key, v, p in cases:
+        assert "对A股" in md.interpret(key, v, p), f"{key} 解读缺对A股分析"
 
 
 def test_fetch_all_includes_global_keys(fake_ak):

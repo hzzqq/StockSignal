@@ -65,6 +65,7 @@ def _parse_us_treasury_10y(df):
 
 
 def _parse_usdcny(df):
+    """T-260 备用保留：fx_pair_quote 路径（货币对/买报价宽表）。"""
     if df is None or getattr(df, "empty", True):
         return None
     pair_col = next((c for c in df.columns if "货币对" in str(c)), None)
@@ -82,6 +83,72 @@ def _parse_usdcny(df):
     if val_col is None:
         return None
     return {"value": _to_float(r[val_col]), "prev": None,
+            "date": str(pd.Timestamp.now())[:10]}
+
+
+def _parse_usd_cny_boc(df):
+    """T-260 主解析：中行外汇牌价（新浪）→ 央行中间价。
+
+    牌价按「每 100 美元」计价（如 689.51 = 6.8951），需 ÷100。
+    """
+    if df is None or getattr(df, "empty", True):
+        return None
+    date_col = next((c for c in df.columns if "日期" in str(c)), None)
+    mid_col = next((c for c in df.columns if "央行中间价" in str(c)), None)
+    if date_col is None or mid_col is None:
+        return None
+    d = df[[date_col, mid_col]].dropna()
+    if d.empty:
+        return None
+    last = d.iloc[-1]
+    prev = d.iloc[-2] if len(d) > 1 else None
+    v = _to_float(last[mid_col])
+    p = _to_float(prev[mid_col]) if prev is not None else None
+    if v is None or v > 100:  # 防上游改口径：中间价合理域 [1, 100)/100 后应 <10
+        v = v / 100 if v is not None else None
+        p = p / 100 if p is not None else None
+    if v is None:
+        return None
+    return {"value": round(v, 4), "prev": round(p, 4) if p is not None else None,
+            "date": str(last[date_col])[:10]}
+
+
+def _parse_sina_us_index(df):
+    """T-260 备源解析：新浪美股指数日线（date/open/.../close）→ 最新收盘 + 前值。"""
+    if df is None or getattr(df, "empty", True):
+        return None
+    if "date" not in df.columns or "close" not in df.columns:
+        return None
+    d = df[["date", "close"]].dropna()
+    if d.empty:
+        return None
+    last = d.iloc[-1]
+    prev = d.iloc[-2] if len(d) > 1 else None
+    return {"value": _to_float(last["close"]),
+            "prev": _to_float(prev["close"]) if prev is not None else None,
+            "date": str(last["date"])[:10]}
+
+
+def _parse_hk_spot_sina(df):
+    """T-260 备源解析：新浪港股现货 → 恒生指数行（最新价/涨跌额/涨跌幅）。"""
+    if df is None or getattr(df, "empty", True):
+        return None
+    name_col = next((c for c in df.columns if "名称" in str(c)), None)
+    if name_col is None:
+        return None
+    norm = df[name_col].astype(str)
+    row = df[norm == "恒生指数"]
+    if row.empty:
+        row = df[norm.str.contains("恒生指数")]
+    if row.empty:
+        return None
+    r = row.iloc[0]
+    px = _to_float(r.get("最新价"))
+    if px is None:
+        return None
+    chg = _to_float(r.get("涨跌额"))
+    prev = round(px - chg, 2) if chg is not None else None
+    return {"value": px, "prev": prev,
             "date": str(pd.Timestamp.now())[:10]}
 
 
@@ -152,9 +219,10 @@ MACRO_INDICATORS: list[dict] = [
      "unit": "%", "freq": "日", "source": "美国财政部 / 东方财富", "region": "全球",
      "parse": _parse_us_treasury_10y,
      "desc": "全球资产定价锚；>4% 流动性收紧，<3% 宽松"},
-    {"key": "usd_cny", "name": "美元兑人民币(USD/CNY)", "fn": "fx_pair_quote",
-     "unit": "", "freq": "实时", "source": "外汇交易中心", "region": "全球",
-     "parse": _parse_usdcny,
+    {"key": "usd_cny", "name": "美元兑人民币(USD/CNY)", "fn": "currency_boc_sina",
+     "unit": "", "freq": "日", "source": "中国银行(央行中间价)/新浪财经", "region": "全球",
+     "parse": _parse_usd_cny_boc,
+     "fallback": {"fn": "fx_pair_quote", "parse": _parse_usdcny},
      "desc": "人民币汇率；人民币升值利好人民币资产"},
     {"key": "dxy", "name": "美元指数 DXY", "fn": "index_global_hist_em",
      "unit": "点", "freq": "日", "source": "ICE / 东方财富", "region": "全球",
@@ -163,16 +231,21 @@ MACRO_INDICATORS: list[dict] = [
 
     # ----------------------------- 全球：股市情绪传导 -----------------------------
     {"key": "us_sp500", "name": "标普500指数", "fn": "index_global_hist_em",
-     "unit": "点", "freq": "日", "source": "东方财富", "region": "全球",
+     "unit": "点", "freq": "日", "source": "东方财富/新浪财经", "region": "全球",
      "args": ("标普500",), "value_hint": ["最新价", "收盘", "close"],
+     "fallback": {"fn": "index_us_stock_sina", "args": (".INX",),
+                  "parse": _parse_sina_us_index},
      "desc": "美股大盘基准，外部风险偏好风向标"},
     {"key": "us_nasdaq", "name": "纳斯达克指数", "fn": "index_global_hist_em",
-     "unit": "点", "freq": "日", "source": "东方财富", "region": "全球",
+     "unit": "点", "freq": "日", "source": "东方财富/新浪财经", "region": "全球",
      "args": ("纳斯达克",), "value_hint": ["最新价", "收盘", "close"],
+     "fallback": {"fn": "index_us_stock_sina", "args": (".NDX",),
+                  "parse": _parse_sina_us_index},
      "desc": "美股科技风向标，成长股估值锚"},
     {"key": "hsi", "name": "恒生指数", "fn": "index_global_hist_em",
-     "unit": "点", "freq": "日", "source": "东方财富", "region": "全球",
+     "unit": "点", "freq": "日", "source": "东方财富/新浪财经", "region": "全球",
      "args": ("恒生指数",), "value_hint": ["最新价", "收盘", "close"],
+     "fallback": {"fn": "stock_hk_index_spot_sina", "parse": _parse_hk_spot_sina},
      "desc": "港股情绪，A 股外部传导最直接的窗口"},
 ]
 
@@ -199,55 +272,21 @@ def _pick_value_col(df: pd.DataFrame, hints: list[str]):
     return None
 
 
-def fetch_indicator(key: str) -> dict | None:
-    """取单个宏观指标的最新值与前值。取不到返回 ``None``（不臆造）。"""
-    spec = _SPEC.get(key)
-    if not spec:
+def _fetch_via(spec: dict, key: str, fn_name: str, args: tuple, parse) -> dict | None:
+    """按单一源路径取数并组装标准返回；取不到返回 None。"""
+    import akshare as ak
+
+    fn = getattr(ak, fn_name, None)
+    if fn is None:
         return None
-    try:
-        import akshare as ak
+    df = fn(*args)
 
-        fn = getattr(ak, spec["fn"], None)
-        if fn is None:
+    if parse is not None:
+        parsed = parse(df)
+        if parsed is None:
             return None
-        args = tuple(spec.get("args", ()))
-        df = fn(*args)
-
-        # 特殊解析（美债 / 汇率）：返回 {"value","prev","date"}
-        if spec.get("parse") is not None:
-            parsed = spec["parse"](df)
-            if parsed is None:
-                return None
-            value = parsed["value"]
-            prev_v = parsed.get("prev")
-            return {
-                "key": key,
-                "name": spec["name"],
-                "unit": spec["unit"],
-                "freq": spec["freq"],
-                "source": spec["source"],
-                "region": spec.get("region", "国内"),
-                "desc": spec["desc"],
-                "value": value,
-                "prev": prev_v,
-                "change": (round(value - prev_v, 4)
-                           if (value is not None and prev_v is not None) else None),
-                "date": parsed["date"],
-            }
-
-        if df is None or getattr(df, "empty", True):
-            return None
-        date_col = _pick_date_col(df, spec.get("date_hint"))
-        val_col = _pick_value_col(df, spec["value_hint"])
-        if date_col is None or val_col is None:
-            return None
-        d = df[[date_col, val_col]].dropna()
-        if d.empty:
-            return None
-        last = d.iloc[-1]
-        prev = d.iloc[-2] if len(d) > 1 else None
-        value = _to_float(last[val_col])
-        prev_v = _to_float(prev[val_col]) if prev is not None else None
+        value = parsed["value"]
+        prev_v = parsed.get("prev")
         return {
             "key": key,
             "name": spec["name"],
@@ -260,11 +299,61 @@ def fetch_indicator(key: str) -> dict | None:
             "prev": prev_v,
             "change": (round(value - prev_v, 4)
                        if (value is not None and prev_v is not None) else None),
-            "date": str(last[date_col])[:10],
+            "date": parsed["date"],
         }
-    except Exception as e:  # noqa: BLE001
-        logger.info(f"[macro_data] 指标 {key} 取数失败: {e}")
+
+    if df is None or getattr(df, "empty", True):
         return None
+    date_col = _pick_date_col(df, spec.get("date_hint"))
+    val_col = _pick_value_col(df, spec.get("value_hint", ["close"]))
+    if date_col is None or val_col is None:
+        return None
+    d = df[[date_col, val_col]].dropna()
+    if d.empty:
+        return None
+    last = d.iloc[-1]
+    prev = d.iloc[-2] if len(d) > 1 else None
+    value = _to_float(last[val_col])
+    prev_v = _to_float(prev[val_col]) if prev is not None else None
+    return {
+        "key": key,
+        "name": spec["name"],
+        "unit": spec["unit"],
+        "freq": spec["freq"],
+        "source": spec["source"],
+        "region": spec.get("region", "国内"),
+        "desc": spec["desc"],
+        "value": value,
+        "prev": prev_v,
+        "change": (round(value - prev_v, 4)
+                   if (value is not None and prev_v is not None) else None),
+        "date": str(last[date_col])[:10],
+    }
+
+
+def fetch_indicator(key: str) -> dict | None:
+    """取单个宏观指标的最新值与前值。取不到返回 ``None``（不臆造）。
+
+    T-260：主源失败/取不到时自动回退 ``spec["fallback"]`` 备源（东财接口
+    RemoteDisconnected 频发，新浪系为互补源）。
+    """
+    spec = _SPEC.get(key)
+    if not spec:
+        return None
+    result = None
+    try:
+        result = _fetch_via(spec, key, spec["fn"], tuple(spec.get("args", ())),
+                            spec.get("parse"))
+    except Exception as e:  # noqa: BLE001 - 主源异常必须落到备源，而不是直接放弃
+        logger.info(f"[macro_data] 指标 {key} 主源失败: {e}")
+    fb = spec.get("fallback")
+    if result is None and fb:
+        try:
+            result = _fetch_via(spec, key, fb["fn"], tuple(fb.get("args", ())),
+                                fb.get("parse"))
+        except Exception as e:  # noqa: BLE001
+            logger.info(f"[macro_data] 指标 {key} 备源失败: {e}")
+    return result
 
 
 def fetch_all() -> dict:
@@ -347,54 +436,62 @@ def interpret(key: str, value, prev=None) -> str:
     if key == "pmi":
         state = "景气扩张" if v >= 50 else "景气收缩"
         level = "扩张动能较强" if v >= 51 else ("贴近荣枯线" if v >= 49.5 else "收缩压力较大")
-        return f"{chg}{v:.1f} 位于荣枯线{'上方' if v >= 50 else '下方'}（{state}），{level}。"
+        return f"{chg}{v:.1f} 位于荣枯线{'上方' if v >= 50 else '下方'}（{state}），{level}。对A股：制造业景气映射顺周期与出口链盈利预期，回升期相关板块赔率改善。"
     if key == "cpi":
         tone = "通胀压力抬头" if v >= 3 else ("温和通胀" if v >= 1 else "偏弱，关注通缩压力")
-        return f"{chg}{v:.2f}%，{tone}。CPI 走高通常压制货币宽松预期。"
+        return f"{chg}{v:.2f}%，{tone}。对A股：温和通胀+低CPI组合给货币政策留空间，利好利率敏感的成长与红利资产估值。"
     if key == "ppi":
         tone = "上游景气较好" if v >= 0 else "上游仍处通缩，工业品价格承压"
-        return f"{chg}{v:.2f}%，{tone}。PPI 回升通常对应周期股盈利改善。"
+        return f"{chg}{v:.2f}%，{tone}。对A股：PPI 回升通常对应周期股（资源/化工）盈利改善拐点。"
     if key == "gdp":
-        return f"{chg}{v:.2f}%，增速{'高于' if v >= 5 else '低于'} 5% 参考位。"
+        return f"{chg}{v:.2f}%，增速{'高于' if v >= 5 else '低于'} 5% 参考位。对A股：总量增速决定盈利中枢，结构亮点看新质生产力与出口韧性。"
     if key == "m2":
         faster = prev is not None and v > float(prev)
-        return f"{chg}{v:.2f}%，货币供应同比{'加快' if faster else '放缓或持平'}，影响流动性预期。"
+        return f"{chg}{v:.2f}%，货币供应同比{'加快' if faster else '放缓或持平'}，影响流动性预期。对A股：M2 走阔利好中小盘流动性行情，收敛期偏防御。"
     if key == "lpr":
-        return f"{chg}{v:.2f}%，1 年期 LPR；下调通常利好估值与风险偏好。"
+        return f"{chg}{v:.2f}%，1 年期 LPR；下调通常利好估值与风险偏好。对A股：降息直接压低贴现率，成长股弹性最大，红利资产受益于资产荒。"
 
     # ---- 全球指标 ----
     if key == "us_ism_pmi":
         state = "扩张" if v >= 50 else "收缩"
-        return f"{chg}美国 ISM 制造业 PMI {v:.1f}，位于荣枯线{'上方' if v >= 50 else '下方'}（{state}）。"
+        return f"{chg}美国 ISM 制造业 PMI {v:.1f}，位于荣枯线{'上方' if v >= 50 else '下方'}（{state}）。对A股：美国制造业景气决定出口链（电子/机械/家电）外需，扩张期A股出口板块基本面同步向上。"
     if key == "us_cpi":
         tone = "通胀偏高，美联储偏鹰" if v >= 3 else ("温和通胀" if v >= 1 else "通胀偏低，宽松空间较大")
-        return f"{chg}{v:.2f}%，{tone}。"
+        return f"{chg}{v:.2f}%，{tone}。对A股：美国通胀决定美联储路径，鹰派预期升温时北向流出+A股成长股估值承压，鸽派则反弹修复。"
     if key == "us_ppi":
-        return f"{chg}{v:.2f}%，美国工业品价格；PPI 走高抬升全球成本与通胀预期。"
+        return f"{chg}{v:.2f}%，美国工业品价格；PPI 走高抬升全球成本与通胀预期。对A股：输入性成本压力传导至中下游毛利，资源股受益、制造业承压。"
     if key == "us_nonfarm":
         healthy = v >= 150
-        return f"{chg}{v:.0f} 千人；{'就业稳健（>15万）' if healthy else '就业偏弱（<15万）'}。"
+        return f"{chg}{v:.0f} 千人；{'就业稳健（>15万）' if healthy else '就业偏弱（<15万）'}。对A股：就业过热→加息预期→全球风险资产波动；就业转弱→宽松交易→A股反弹窗口。"
     if key == "us_gdp":
-        return f"{chg}{v:.2f}%，美国 GDP 增速{'强于' if v >= 2 else '弱于'} 2% 参考位。"
+        return f"{chg}{v:.2f}%，美国 GDP 增速{'强于' if v >= 2 else '弱于'} 2% 参考位。对A股：美国增长强→全球需求与外需订单稳，弱增长则出口与科技硬件链承压。"
     if key == "us_unemployment":
         tone = "就业强劲" if v <= 4 else ("就业正常" if v <= 5 else "就业承压")
-        return f"{chg}{v:.2f}%，{tone}。"
+        return f"{chg}{v:.2f}%，{tone}。对A股：失业率拐点是美联储转向的领先信号，转向交易利好A股成长与港股弹性。"
     if key == "us_treasury_10y":
         tone = "收益率偏高，全球流动性收紧" if v >= 4 else ("中性区间" if v >= 3 else "收益率偏低，宽松环境")
-        return f"{chg}{v:.2f}%，美债 10Y 是全球资产定价锚；{tone}。"
+        return f"{chg}{v:.2f}%，美债 10Y 是全球资产定价锚；{tone}。对A股：收益率高位压制成长股估值与外资风险偏好，拐头回落是A股成长/港股修复的领先信号。"
     if key == "usd_cny":
         if prev is not None:
             d = v - float(prev)
             cheap = "人民币升值" if d < 0 else ("人民币贬值" if d > 0 else "汇率持平")
-            return f"{chg}1 美元兑 {v:.4f} 元人民币；{cheap}，影响人民币资产估值。"
-        return f"1 美元兑 {v:.4f} 元人民币（实时价，无前期对照）。"
+            return f"{chg}1 美元兑 {v:.4f} 元人民币；{cheap}。对A股：{'人民币升值利好外资流入与人民币资产重估，消费/金融/核心资产受益' if d < 0 else ('贬值期外资流出压力上升，出口占高的行业相对占优' if d > 0 else '汇率平稳，外资行为以基本面为主')}。"
+        return f"1 美元兑 {v:.4f} 元人民币（实时价，无前期对照）。对A股：汇率企稳是外资回流的前置条件，快速贬值期防御为主。"
     if key == "dxy":
         tone = "强美元，压制新兴市场与商品" if v >= 103 else ("弱美元，利好风险资产" if v <= 100 else "美元中性")
-        return f"{chg}{v:.2f} 点，{tone}。"
+        return f"{chg}{v:.2f} 点，{tone}。对A股：强美元期新兴市场资金回流美国，北向承压、资源与高股息防御占优；弱美元期A股成长与有色弹性最大。"
     if key in ("us_sp500", "us_nasdaq", "hsi"):
+        tag = {"us_sp500": "标普500", "us_nasdaq": "纳指", "hsi": "恒生"}[key]
         if prev is not None:
             d = v - float(prev)
             updown = "上行" if d > 0 else ("下行" if d < 0 else "持平")
-            return f"{chg}最新 {v:,.0f} 点，较前期{updown}（美股/港股外部情绪传导 A 股）。"
-        return f"最新 {v:,.0f} 点（暂无前期对照）。"
+            extra = ""
+            if key == "us_nasdaq":
+                extra = "纳指对A股科技/成长板块映射弹性最大。"
+            elif key == "hsi":
+                extra = "恒生与A50联动最直接，港股走强通常提升A股高开概率。"
+            else:
+                extra = "美股情绪经北向与风险偏好传导A股。"
+            return f"{chg}最新 {v:,.0f} 点，较前期{updown}。对A股：{tag}{'隔夜走强利好A股风险偏好、映射板块高开' if d > 0 else ('走弱压制当日A股风险偏好，防御与避险板块相对占优' if d < 0 else '持平，影响中性')}；{extra}"
+        return f"最新 {v:,.0f} 点（暂无前期对照）。对A股：{tag}是外部风险偏好风向标，隔夜方向直接影响当日A股开盘情绪。"
     return f"{chg}最新值 {v}。"
