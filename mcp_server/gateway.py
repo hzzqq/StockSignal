@@ -191,8 +191,13 @@ _INTENT_RULES: Dict[str, Dict[str, Any]] = {
 
 
 def _extract_codes(text: str) -> list[str]:
-    """抽取 6 位 A 股代码；也支持中文名（由工具内部解析）。"""
-    return re.findall(r"\b\d{6}\b", text)
+    """抽取 6 位 A 股代码；也支持中文名（由工具内部解析）。
+
+    T-268 Bad Case 修复：原 ``\\b\\d{6}\\b`` 在中文邻接下永不命中（\\b 基于 \\w，
+    中文字符属 \\w，"600667现在" 无词边界）——「600667现在多少钱」这类最常见的
+    提问抽不到代码，意图路由整个失效。改为前后非数字断言（允许中文邻接）。
+    """
+    return re.findall(r"(?<!\d)\d{6}(?!\d)", text)
 
 
 def detect_intent(question: str) -> Dict[str, Any]:

@@ -65,15 +65,18 @@ def test_kb_491_honest_caliber():
 
 
 def test_ai_engine_kb_wired_before_context():
-    """契约2：ai_answer 内知识库插桩必须存在，且位于 4d 页面上下文分支之前。"""
+    """契约2：ai_answer 内知识库插桩必须存在，且位于 4d 页面上下文分支之前。
+    （T-271 演进：answer→compose 多条目 RAG 合成，并追加专家分派。）"""
     src = AI_ENGINE.read_text(encoding="utf-8")
     assert "from modules import knowledge_base" in src or "knowledge_base" in src
-    i_kb = src.index("knowledge_base.answer(question)")
+    i_kb = src.index("knowledge_base.compose(question)")
     i_4d = src.index("4d) 没有解析到股票")
     assert i_kb < i_4d, "知识库插桩必须先于页面上下文分支（否则概念问题被组合分析答非所问）"
-    # 插桩必须带「无标的」守卫（有股票时走数据链路）
+    # 插桩必须带「无标的」守卫（有股票时走数据链路）+ 专家分派紧随其后
     seg = src[i_kb - 200: i_kb]
     assert "not resolved and not history_stock" in seg
+    i_sp = src.index("ai_specialists.dispatch(question)")
+    assert i_kb < i_sp < i_4d, "专家分派应在知识库之后、兜底之前"
     ast.parse(src)
 
 
@@ -94,10 +97,10 @@ def test_fastapi_knowledge_endpoints():
 
 
 def test_fastapi_chat_fast_mode():
-    """契约3b：POST /api/ai/chat（fast）——知识库命中与 fallback 双路径。"""
+    """契约3b：POST /api/ai/chat（fast）——RAG 命中与 fallback 双路径。"""
     c = _client()
     r1 = c.post("/api/ai/chat", json={"question": "什么是换手率", "mode": "fast"}).json()
-    assert r1["source"] == "knowledge_base" and "换手率" in r1["answer"]
+    assert r1["source"] == "knowledge_base_rag" and "换手率" in r1["answer"]
     r2 = c.post("/api/ai/chat", json={"question": " meaningless zzz ", "mode": "fast"}).json()
     assert r2["source"] == "fallback" and r2["status"] == "ok"
     # Pydantic 校验：空问题自动 422（声明式校验对照 Flask 手写分支）

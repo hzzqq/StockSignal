@@ -107,6 +107,7 @@ def list_orders(
 # 直调；完整对话（ai_answer，含实时行情抓取）经 asyncio.to_thread 走 full 模式。
 
 from modules import knowledge_base as kb  # noqa: E402
+from modules import ai_specialists  # noqa: E402
 from mcp_server.gateway import detect_intent  # noqa: E402
 
 
@@ -114,22 +115,29 @@ class ChatIn(BaseModel):
     """对话请求体（Pydantic 校验示范：长度/模式约束声明式）。"""
     question: str = Field(min_length=1, max_length=2000, description="用户问题")
     mode: str = Field("fast", pattern=r"^(fast|full)$",
-                      description="fast=知识库+意图路由（秒回）；full=完整 ai_answer（含实时取数，较慢）")
+                      description="fast=知识库+专家+意图路由（秒回）；full=完整 ai_answer（含实时取数，较慢）")
 
 
 @app.post("/api/ai/chat", tags=["ai"])
 async def ai_chat(body: ChatIn) -> dict:
     """星辰 AI 对话端点。
 
-    - fast（默认）：知识库检索 → 未命中走意图路由提示，纯本地零网络，毫秒级；
+    - fast（默认）：RAG 知识合成（compose 多条目）→ 专家分派 → 意图路由，
+      纯本地零网络，毫秒级；三路全未命中如实返回 fallback 引导；
     - full：完整 ai_answer 链路（股票解析/实时行情/LLM/规则引擎），耗时可达数十秒。
     诚实语义：取不到数据如实返回 unavailable，绝不编造。
     """
     q = body.question.strip()
     if body.mode == "fast":
-        kb_ans = kb.answer(q)
+        kb_ans = kb.compose(q)
         if kb_ans:
-            return {"status": "ok", "source": "knowledge_base", "answer": kb_ans}
+            return {"status": "ok", "source": "knowledge_base_rag", "answer": kb_ans}
+        sp = ai_specialists.dispatch(q)
+        if sp:
+            return {"status": "ok", "source": "specialist",
+                    "answer": sp["answer"],
+                    "specialist": {"id": sp["specialist_id"], "name": sp["name"],
+                                   "tools": sp["tools"]}}
         intent = detect_intent(q)
         if intent.get("tool") and intent.get("confidence", 0) >= 0.85:
             return {"status": "ok", "source": "intent",
@@ -137,7 +145,7 @@ async def ai_chat(body: ChatIn) -> dict:
                               f"该意图需要实时数据链路，请用 mode=full 或在星辰 AI 页面提问。",
                     "intent": intent}
         return {"status": "ok", "source": "fallback",
-                "answer": "未命中知识库与工具意图。请在星辰 AI 页面用完整模式提问，"
+                "answer": "未命中知识库、专家与工具意图。请在星辰 AI 页面用完整模式提问，"
                           "或换一种问法（例：「什么是市盈率」「仓位怎么定」「49.1% 是什么口径」）。"}
     import asyncio
     from modules.ai_engine import ai_answer
@@ -145,7 +153,8 @@ async def ai_chat(body: ChatIn) -> dict:
         asyncio.to_thread(ai_answer, q, None), timeout=90.0)
     return {"status": "ok", "source": "ai_engine",
             "answer": result.get("answer", ""),
-            "independent": result.get("independent", True)}
+            "independent": result.get("independent", True),
+            "specialist": result.get("specialist")}
 
 
 @app.get("/api/ai/knowledge/search", tags=["ai"])
@@ -175,3 +184,19 @@ def ai_intents() -> dict:
     rules = [{"tool": t, "keywords": r["keywords"], "needs_code": r.get("needs_code", False)}
              for t, r in _INTENT_RULES.items()]
     return {"status": "ok", "data": rules, "count": len(rules)}
+
+
+@app.get("/api/ai/agents", tags=["ai"])
+def ai_agents() -> dict:
+    """多 Agent 专家清单自省（T-271：专家 persona/触发词/依赖工具）。"""
+    return {"status": "ok", "data": ai_specialists.list_specialists(),
+            "count": len(ai_specialists.list_specialists())}
+
+
+@app.get("/api/ai/compose", tags=["ai"])
+def ai_compose(q: str = Query(min_length=1, max_length=200, description="复合问题")) -> dict:
+    """RAG 多条目合成（T-271）：跨类复合问题一次答全；未命中 404 语义走 found=False。"""
+    ans = kb.compose(q)
+    if not ans:
+        return {"status": "ok", "found": False}
+    return {"status": "ok", "found": True, "answer": ans}

@@ -56,7 +56,7 @@ _KB: List[Dict[str, Any]] = [
                 "- **KDJ**（随机指标）：K/D/J 在 0-100 间波动，>80 超买、<20 超卖；钝化是其最大缺陷（强趋势中长期钝化，信号失效）。\n"
                 "- 使用要点：趋势市信均线与 MACD，震荡市信 KDJ；单一指标不构成交易理由。\n\n"
                 "结合本平台：分析引擎的技术面模块（MACD/KDJ/均线系）输出会给综合评分贡献量价分路，星辰 AI 的「技术面」意图自动路由到该数据卡。"},
-    {"id": "concept_st", "cat": "concept", "kw": ["ST", "*ST", "退市风险", "戴帽"],
+    {"id": "concept_st", "cat": "concept", "kw": ["ST", "*ST", "退市风险", "戴帽", "st股票"],
      "title": "ST / *ST（风险警示）",
      "content": "**ST**=其他风险警示，***ST**=退市风险警示（触及财务类/规范类退市指标）。\n\n"
                 "- 日涨跌幅限制 5%（正常股票 10%，创业板/科创板 20%）。\n"
@@ -104,7 +104,7 @@ _KB: List[Dict[str, Any]] = [
                 "- **重要口径**：它是不同数据集/标签体系下的外部参考锚，不是本项目模型的实测命中率；本项目序列模型在同口径对照中实测命中 50.97%~51.30%（高于锚约 2pp，边缘但一致）。\n"
                 "- 为什么把它当卖点而非污点：诚实把「提升幅度有限」写进结论，是方法学贡献的一部分——不夸大、可复现。\n\n"
                 "结合本平台：所有对照实验（Transformer/GNN/RL）都以该锚为外部参考，内部对照以 GRU 基线为准。"},
-    {"id": "cal_backtest", "cat": "data_caliber", "kw": ["回测口径", "回测参数", "rf=15", "top0.1", "回测怎么算"],
+    {"id": "cal_backtest", "cat": "data_caliber", "kw": ["回测口径", "回测参数", "回测用的", "rf=15", "top0.1", "回测怎么算", "回测成本"],
      "title": "回测口径（rf=15 / top0.1 / buffer0.1）",
      "content": "本项目生产回测口径：**每 15 个交易日调仓（rf=15），按信号取前 10%（top0.1）构建多头、后 10% 空头，buffer 0.1 缓冲带避免边界换手**，含佣金/滑点/印花税成本（DEFAULT_COST）。\n\n"
                 "- buffer 的作用：排名在边界附近的股票若已持仓则不换，降低换手成本。\n"
@@ -199,6 +199,50 @@ def answer(question: str) -> Optional[str]:
     related = [x["title"] for x in _KB if x["cat"] == e["cat"] and x["id"] != e["id"]][:3]
     rel_line = f"\n\n---\n*📚 相关知识：{' · '.join(related)}*（直接问即可）" if related else ""
     return f"### 📘 {e['title']}\n\n{e['content']}{rel_line}"
+
+
+def _score_entry(entry: Dict[str, Any], q: str) -> int:
+    """条目打分（标题词 2 分 / 关键词 1 分）。"""
+    score = 0
+    for kw in entry["kw"]:
+        if kw.lower() in q:
+            score += 2 if kw in entry["title"] else 1
+    return score
+
+
+def compose(question: str, top_k: int = 3) -> Optional[str]:
+    """RAG 式多片段合成（T-271）：检索 top_k 相关条目，合并为一条结构化回答。
+
+    与 answer() 的区别：answer 只取 top-1；compose 把多个相关条目按
+    「主条目（最高分，全文）+ 次条目（要点行）」合成，覆盖跨类别的复合问题
+    （例：「MACD 金叉配合换手率怎么看」同时命中 concept_macd 与 concept_turnover）。
+    红线：只组合库内真实条目，绝不生成库外内容（无 LLM 时杜绝幻觉）。
+    """
+    q = _norm(question)
+    if not q:
+        return None
+    scored = []
+    for entry in _KB:
+        s = _score_entry(entry, q)
+        if s > 0:
+            scored.append((s, entry))
+    if not scored:
+        return None
+    scored.sort(key=lambda t: (-t[0], -len(t[1]["kw"])))
+    top = [e for _s, e in scored[:max(1, top_k)]]
+    if len(top) == 1:
+        return answer(question)
+    primary = top[0]
+    parts = [f"### 📘 {primary['title']}\n\n{primary['content']}"]
+    aux = top[1:]
+    if aux:
+        parts.append("**🔍 相关条目要点**")
+        for e in aux:
+            first_line = e["content"].split("\n")[0].lstrip("- ").strip()
+            parts.append(f"- **{e['title']}**（{e['cat']}）：{first_line}")
+    cats = " · ".join(sorted({e["cat"] for e in top}))
+    parts.append(f"*📚 知识库命中 {len(top)} 条（{cats}）——完整条目可直接问标题。*")
+    return "\n\n".join(parts)
 
 
 def stats() -> Dict[str, Any]:

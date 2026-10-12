@@ -25,6 +25,7 @@ from modules.fetcher import StockFetcher
 from modules.analysis_engine import run_analysis
 from modules import llm_client
 from modules import knowledge_base
+from modules import ai_specialists
 
 # 事件 / 新闻类提问关键词
 EVENT_KW = ["事件", "新闻", "公告", "消息", "舆情", "资讯", "报道", "利好", "利空", "最近发生", "近期"]
@@ -711,13 +712,20 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
         )
         return {"answer": answer, "independent": True}
 
-    # 4c-2) 金融知识库检索（T-268）：无标的的概念/指标/口径/机制/策略类提问，
-    # 优先于页面上下文——否则「什么是市盈率」会被 4d 的组合分析答非所问。
+    # 4c-2) 金融知识库 RAG 检索（T-268/271）：无标的的概念/指标/口径/机制/策略类
+    # 提问，优先于页面上下文——compose 为多条目合成（跨类复合问题一次答全）。
     # 命中知识条目直接返回（比 LLM 快且项目口径准确）；未命中继续原流程。
     if not resolved and not history_stock:
-        kb_answer = knowledge_base.answer(question)
+        kb_answer = knowledge_base.compose(question)
         if kb_answer:
             return {"answer": kb_answer, "independent": True}
+        # T-271 多 Agent 专家分工：知识库未命中时按问题性质分派专家
+        # （技术面/事件/风控/仓位/对比分析师——给专家视角的结构化分析框架，
+        # 不编造数据；个股诊断仍由上方数据链路承担）
+        sp = ai_specialists.dispatch(question)
+        if sp:
+            return {"answer": sp["answer"], "independent": True,
+                    "specialist": sp["specialist_id"]}
 
     # 4d) 没有解析到股票，才使用当前页面上下文
     parts = []
