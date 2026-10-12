@@ -18,7 +18,7 @@ import streamlit as st
 
 from modules.page_utils import render_standard_page, import_autorefresh
 from modules.ui_theme import sf_card, sf_metric
-from modules.ui_kit import xc_warn_box, xc_success_box
+from modules.ui_kit import xc_warn_box, xc_success_box, ss_fold_useful
 from modules.p1_signal import P1SignalLoader, format_rank
 
 dark = render_standard_page(
@@ -95,23 +95,33 @@ with c4:
 def _board_html(rows, head_color, empty="无数据", rank_as_percent=False):
     if not rows:
         return f"<div style='color:#888;padding:8px'>{empty}</div>"
+    # T-269：名称映射（同 54 页 T-259 范式——本地股票库零网络，P1 代码尾 6 位归一）
+    name_map = {}
+    try:
+        from modules.fetcher import StockFetcher
+        StockFetcher._warmup_stock_db()
+        name_map = getattr(StockFetcher, "_code_to_name", {}) or {}
+    except Exception:  # noqa: BLE001
+        name_map = {}
     body = ""
     for i, r in enumerate(rows, 1):
         pred = float(r.get("pred", 0.0) or 0.0)
         sym = r.get("symbol", "")
+        nm = name_map.get(str(sym)[-6:].zfill(6), "—")
         rank = float(r.get("rank", 0.0) or 0.0)
         pcolor = "#ff5c5c" if pred >= 0 else "#19c37d"  # A股：涨红跌绿
         rank_disp = format_rank(rank, rank_as_percent)  # 锐评 R8：序数不乘100，百分位才显示%
         body += (
             f"<tr><td style='color:#888'>{i}</td>"
             f"<td style='font-family:monospace'>{sym}</td>"
+            f"<td>{nm}</td>"
             f"<td style='color:{pcolor};font-weight:600'>{pred*100:+.2f}%</td>"
             f"<td style='color:#888'>{rank_disp}</td></tr>"
         )
     return (
         "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
         f"<thead><tr style='color:{head_color};text-align:left'>"
-        "<th>#</th><th>代码</th><th>预测得分</th><th>排名</th></tr></thead>"
+        "<th>#</th><th>代码</th><th>名称</th><th>预测得分</th><th>排名</th></tr></thead>"
         f"<tbody>{body}</tbody></table>"
     )
 
@@ -119,11 +129,21 @@ def _board_html(rows, head_color, empty="无数据", rank_as_percent=False):
 long_rows = loader.top_long(model, n)
 short_rows = loader.top_short(model, n)
 
-st.markdown("### 📈 看多榜（前 {n} 只，红=A股涨色）".format(n=n))
-st.markdown(_board_html(long_rows, "#ff5c5c", rank_as_percent=False), unsafe_allow_html=True)
 
-st.markdown("### 📉 看空榜（前 {n} 只，绿=A股跌色）".format(n=n))
-st.markdown(_board_html(short_rows, "#19c37d", rank_as_percent=True), unsafe_allow_html=True)
+def _top1_summary(rows: list) -> str:
+    """T-269：折叠标签摘要——Top1 代码与预测得分（折叠后仍有信息量）。"""
+    if not rows:
+        return "暂无数据"
+    r0 = rows[0]
+    pred = float(r0.get("pred", 0.0) or 0.0)
+    return f"Top1 {r0.get('symbol', '—')}（{pred*100:+.2f}%）· 共 {len(rows)} 只"
+
+
+with ss_fold_useful("📈 看多榜", _top1_summary(long_rows), expanded=False, icon="📈"):
+    st.markdown(_board_html(long_rows, "#ff5c5c", rank_as_percent=False), unsafe_allow_html=True)
+
+with ss_fold_useful("📉 看空榜", _top1_summary(short_rows), expanded=False, icon="📉"):
+    st.markdown(_board_html(short_rows, "#19c37d", rank_as_percent=True), unsafe_allow_html=True)
 
 # ───────────────────────── 三信号 A/B 对比 ─────────────────────────
 if len(models) >= 2:

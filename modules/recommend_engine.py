@@ -75,6 +75,52 @@ DISCLAIMER = (
 
 
 # ══════════════════════════════════════════════════════
+# R4/T-270：市况自适应权重（纯函数，温度档 → ALGO_WEIGHTS 微调）
+# 依据（ashare 市况搭配通识 + 本项目融合网格实测 T-265）：高温期趋势/动量延续性强
+# → 偏 momentum/breakout/dual_trend；低温期超跌反弹与资金抄底占优 → 偏
+# multi_factor（超跌反弹路）/fund_flow。幅度克制（±0.05 内），和恒为 1；
+# 中间档或快照不可得（None/非数值）→ None（调用方回落静态默认，诚实降级）。
+# ══════════════════════════════════════════════════════
+def market_regime_weights(temperature) -> Optional[dict]:
+    """温度档 → 自适应融合权重；不适用时返回 None（回落 ALGO_WEIGHTS 静态默认）。"""
+    try:
+        t = float(temperature)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(t):
+        return None
+    w = dict(ALGO_WEIGHTS)
+    if t >= 70:      # 高温：偏趋势/动量
+        w["momentum"] += 0.05
+        w["breakout"] += 0.05
+        w["dual_trend"] += 0.03
+        w["multi_factor"] -= 0.05
+        w["fund_flow"] -= 0.05
+        w["event_factor"] -= 0.03
+    elif t <= 30:    # 低温：偏超跌反弹/资金
+        w["multi_factor"] += 0.05
+        w["fund_flow"] += 0.05
+        w["momentum"] -= 0.04
+        w["breakout"] -= 0.04
+        w["dual_trend"] -= 0.02
+    else:            # 中间档：静态默认最优（无证据支持偏移）
+        return None
+    total = sum(w.values())
+    if abs(total - 1.0) > 1e-6:   # 守恒校验失败宁可不调（回静态）
+        return None
+    return {k: round(v, 4) for k, v in w.items()}
+
+
+def _safe_market_temperature():
+    """快照温度（R4 输入）；不可得返回 None（诚实降级）。"""
+    try:
+        return (_safe_market_context() or {}).get("temperature")
+    except Exception as e:  # noqa: BLE001
+        logger.info("[recommend_engine] 温度快照不可用（R4 如实降级）: %s", e)
+        return None
+
+
+# ══════════════════════════════════════════════════════
 # 纯函数（可单测）
 # ══════════════════════════════════════════════════════
 def minmax_normalize(values: dict) -> dict:
@@ -243,21 +289,51 @@ def today_generated(data_dir: str = None) -> bool:
 # ══════════════════════════════════════════════════════
 # 主流程：生成当日推荐
 # ══════════════════════════════════════════════════════
-def _momentum_score(df: pd.DataFrame) -> dict:
-    """A5：20 日动量 + 量能放大（0~100）。"""
+def _index_ret20_safe() -> Optional[float]:
+    """R5/T-270：上证指数 20 日收益（相对大盘强度基准，循环外一次性调用）；
+    不可得返回 None（_momentum_score 如实回落绝对动量并标注）。"""
+    try:
+        from datetime import date, timedelta
+        from modules.fetcher import StockFetcher
+        f = StockFetcher()
+        end = date.today()
+        start = end - timedelta(days=90)
+        df = f.get_index("000001", start=start.strftime("%Y-%m-%d"),
+                         end=end.strftime("%Y-%m-%d"))
+        close = df["close"].astype(float).reset_index(drop=True)
+        if len(close) < 21:
+            return None
+        return float(close.iloc[-1] / close.iloc[-21] - 1)
+    except Exception as e:  # noqa: BLE001 - 指数取数失败不影响整体推荐，但必须留痕
+        logger.info("[recommend_engine] 指数日线不可得（R5 如实降级为绝对动量）: %s", e)
+        return None
+
+
+def _momentum_score(df: pd.DataFrame, index_ret20: Optional[float] = None) -> dict:
+    """A5：20 日动量 + 量能放大（0~100）。
+
+    R5/T-270：传入 index_ret20（指数 20 日收益）时改用**相对大盘强度**
+    （个股 20 日收益 − 指数 20 日收益）打分——消除普涨/普跌日绝对动量的
+    区分度归零；index_ret20=None（指数不可得）时如实回落绝对动量并标注。
+    """
     close, vol = df["close"], df["volume"]
     if len(close) < 21:
         return None
     ret20 = close.iloc[-1] / close.iloc[-21] - 1
+    if index_ret20 is not None and np.isfinite(float(index_ret20)):
+        ret_eff = ret20 - float(index_ret20)
+        basis = f"20日相对大盘 {ret_eff:+.1%}（个股 {ret20:+.1%} − 指数 {float(index_ret20):+.1%}）"
+    else:
+        ret_eff = ret20
+        basis = "20日动量 {:+.1%}（大盘强度不可得，用绝对动量）".format(ret20)
     vol_ratio = vol.tail(5).mean() / max(vol.tail(60).mean(), 1)
     score = 50.0
-    if ret20 > 0:
-        score += min(ret20 * 250, 30)          # 20 日涨幅最多 +30
+    if ret_eff > 0:
+        score += min(ret_eff * 250, 30)          # 相对动量最多 +30
     else:
-        score += max(ret20 * 250, -30)
+        score += max(ret_eff * 250, -30)
     score += min((vol_ratio - 1) * 25, 20)      # 量能放大最多 +20
-    reasons = []
-    reasons.append(f"20日动量 {ret20:+.1%}")
+    reasons = [basis]
     if vol_ratio >= 1.2:
         reasons.append(f"量能放大 {vol_ratio:.2f}x")
     return {"score": round(max(0.0, min(100.0, score)), 1), "reasons": reasons}
@@ -425,6 +501,8 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
 
     candidates = {}
     unavailable_a1 = unavailable_a2 = 0
+    # R5/T-270：指数 20 日收益（循环外一次性取，全候选共用同一基准）
+    _idx_ret20 = _index_ret20_safe()
     for code in codes:
         df = dfs.get(f"df_{code}")
         if df is None or not isinstance(df, pd.DataFrame) or len(df) < 90:
@@ -435,7 +513,7 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
             unavailable_a1 += 1
         if a2 is None:
             unavailable_a2 += 1
-        a5 = _momentum_score(df)
+        a5 = _momentum_score(df, index_ret20=_idx_ret20)
         name = ""
         try:
             _, name = fetcher.get_stock_basic(code)
@@ -509,13 +587,21 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
         progress(0.75, "富集完成，融合排序…")
 
     # ── 阶段 3：融合 → Top-K ──
+    # R4/T-270：温度档 → 自适应权重（中间档/快照不可得 → None 回落静态默认，
+    # 来源与温度值如实写入 pick 元数据防「悄悄换权重」）
+    regime_temperature = _safe_market_temperature()
+    regime_weights = market_regime_weights(regime_temperature)
+    regime_meta = {
+        "weights_source": "regime" if regime_weights else "static_default",
+        "temperature": regime_temperature,
+    }
     rows = []
     for c, v in scored.items():
         algo_raw = {}
         for k in ALGO_WEIGHTS:
             item = v["algo"].get(k)
             algo_raw[k] = item.get("score") if item else None
-        composite, breakdown = fusion_score(algo_raw)
+        composite, breakdown = fusion_score(algo_raw, weights=regime_weights)
         if composite is None:
             continue
         df = dfs.get(f"df_{c}")
@@ -527,7 +613,9 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
                 reasons.extend(f"[{ALGO_LABELS[k]}] {r}" for r in item["reasons"][:2])
         rows.append({"code": c, "name": v["name"], "composite": composite,
                      "algorithms": breakdown, "reasons": reasons[:10],
-                     "data_as_of": v["data_as_of"], "df": df})
+                     "data_as_of": v["data_as_of"], "df": df,
+                     "regime": regime_meta,
+                     "index_ret20": _idx_ret20})
 
     rows.sort(key=lambda r: -r["composite"])
     # ── R1 六维排雷二道闸（T-245）：闸门段逐股六维扫描，硬红旗踢出；
