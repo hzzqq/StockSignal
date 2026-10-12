@@ -156,9 +156,10 @@ def test_col_returns_none_when_no_match():
 # ───────────────────────── 3. get_market_drivers ─────────────────────────
 def test_get_market_drivers_all_fail_graceful(monkeypatch):
     """所有源失败 → 返回空 df（仅 date 列）+ 全维度 unavailable，绝不抛红错。"""
-    # 绕过 _cached 缓存优先：降级逻辑必须在本次调用内真实执行，
+    # 绕过进程缓存优先：降级逻辑必须在本次调用内真实执行，
     # 否则会读到同进程其他用例（如 merge_and_meta）写入的缓存，使断言失真。
-    monkeypatch.setattr(m, "_cached", lambda ttl, key, fn: fn())
+    # T-272④：get_market_drivers 已换 _cached_swr（SWR 语义），patch 目标同步更新。
+    monkeypatch.setattr(m, "_cached_swr", lambda ttl, key, fn: (fn(), None))
     def fake_fetch(ind, days):
         return [], "mock 抓取失败"
     monkeypatch.setattr(m, "_fetch_src", fake_fetch)
@@ -177,6 +178,10 @@ def test_get_market_drivers_all_fail_graceful(monkeypatch):
 
 def test_get_market_drivers_merge_and_meta(monkeypatch):
     """合成各源成功 → 宽表含各 key + 参考线逻辑、meta 可用列表被填充。"""
+    # T-272④：绕过进程缓存（_cached_swr），确保 _build 本次真实执行——
+    # SWR 语义下过期旧值也会直接返回，不绕过会被同进程其他用例的缓存污染。
+    # 进程缓存/SWR 行为本体由 tests/test_market_drivers_swr.py 专项覆盖。
+    monkeypatch.setattr(m, "_cached_swr", lambda ttl, key, fn: (fn(), None))
     def fake_fetch(ind, days):
         key = ind["key"]
         if key in KNOWN_UNAVAILABLE:
@@ -204,8 +209,9 @@ def test_get_market_drivers_merge_and_meta(monkeypatch):
 
 def test_get_market_drivers_top_level_no_raise(monkeypatch):
     """即使 _build 抛异常，也应降级返回空 df + 全 unavailable。"""
-    # 绕过 _cached：确保 _build 本次真实执行并触发异常降级路径
-    monkeypatch.setattr(m, "_cached", lambda ttl, key, fn: fn())
+    # 绕过进程缓存：确保 _build 本次真实执行并触发异常降级路径
+    # （T-272④：patch 目标从 _cached 更新为 _cached_swr）
+    monkeypatch.setattr(m, "_cached_swr", lambda ttl, key, fn: (fn(), None))
     def boom(ind, days):
         raise RuntimeError("boom")
     monkeypatch.setattr(m, "_fetch_src", boom)

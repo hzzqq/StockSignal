@@ -120,6 +120,64 @@ def _cached(ttl, key, fn):
     return val
 
 
+# ── T-272④：stale-while-revalidate（慢档专用）────────────────────────
+# 痛点：21 指标网络取数 30-60s，进程缓存（600s）过期后页面同步转圈硬等。
+# 语义：过期但有旧值 → 立即返回旧值（meta 如实注入 _swr_* 标注，绝不冒充新鲜）
+#       + 后台单飞刷新（同一 key 同时最多一个刷新线程，防 Streamlit 并发风暴）；
+#       冷启动无旧值 → 同步执行，行为与原 _cached 完全一致。
+# 红线：仅慢档（drivers 指标）；实时行情类 fast 路径绝不走本函数。
+_SWR_INFLIGHT: set = set()   # 正在后台刷新的 key（单飞去重）
+_SWR_LOCK = threading.Lock()
+
+
+def _cached_swr(ttl, key, fn):
+    """TTL 缓存 + stale-while-revalidate。返回 (value, swr_info_or_None)。
+
+    swr_info = {"age_s": 旧值年龄秒数}；无 SWR 发生（新鲜命中/冷启动）时为 None。
+    后台刷新成功静默换新（下次调用生效）；失败 logger 留痕，下次调用重试。
+    """
+    now = time.time()
+    stale = None
+    stale_ts = None
+    with _CACHE_LOCK:
+        hit = _CACHE.get(key)
+        if hit and (now - hit[0]) < ttl:
+            return hit[1], None          # 新鲜命中：语义与原 _cached 一致
+        if hit is not None:
+            stale, stale_ts = hit[1], hit[0]
+
+    if stale is not None:
+        _kick_refresh(key, fn)
+        return stale, {"age_s": int(now - stale_ts)}
+
+    val = fn()                            # 冷启动：无旧值，同步取（行为不变）
+    with _CACHE_LOCK:
+        _CACHE[key] = (time.time(), val)
+    return val, None
+
+
+def _kick_refresh(key, fn):
+    """后台单飞刷新：inflight 去重后 daemon 线程执行，fn 在锁外跑（不阻塞读）。"""
+    with _SWR_LOCK:
+        if key in _SWR_INFLIGHT:
+            return
+        _SWR_INFLIGHT.add(key)
+
+    def _worker():
+        try:
+            val = fn()
+            with _CACHE_LOCK:
+                _CACHE[key] = (time.time(), val)
+            logger.info("[market_drivers] SWR 后台刷新完成: %s", key)
+        except Exception as e:  # noqa: BLE001 - 刷新失败如实留痕，绝不静默
+            logger.warning("[market_drivers] SWR 后台刷新失败 (%s): %s", key, e)
+        finally:
+            with _SWR_LOCK:
+                _SWR_INFLIGHT.discard(key)
+
+    threading.Thread(target=_worker, daemon=True, name=f"swr-{key}").start()
+
+
 def _retry(max_retries=3, base_delay=1.0):
     def deco(fn):
         def wrapper(*args, **kwargs):
@@ -938,7 +996,17 @@ def get_market_drivers(days=180):
         return df, meta
 
     try:
-        df, meta = _cached(_CACHE_TTL, f"drivers_{days}", _build)
+        # T-272④：_cached_swr 返回 (value, swr_info)，value = _build() 的 (df, meta) 元组
+        # ——必须先整体接收再解包，不能 df, meta, swr = _cached_swr(...)（元组解包会炸）
+        res, swr = _cached_swr(_CACHE_TTL, f"drivers_{days}", _build)
+        df, meta = res
+        if swr:
+            # T-272④诚实语义：SWR 旧值必须可辨——meta 注入标注（浅拷贝防污染缓存内 meta）
+            meta = dict(meta) if isinstance(meta, dict) else {}
+            meta["_swr_stale"] = True
+            meta["_swr_age_s"] = swr["age_s"]
+            meta["_swr_note"] = (f"进程缓存已过期 {swr['age_s']}s，本次先展示旧值，"
+                                 "后台刷新中（下次打开生效）")
 
         # 网络成功且有数据 → 异步写入持久化缓存（不阻塞返回）
         if df is not None and not df.empty:

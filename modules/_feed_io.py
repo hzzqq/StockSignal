@@ -279,6 +279,48 @@ def get_source_metrics():
 
 
 # ──────────────────────────────────────────────────────────
+# 缓存层命中率观测（T-272①）：L0 内存 / L1 SQLite / MCP 工具 / market_cache。
+# 与 SOURCE_METRICS（外部数据源）互补——缓存四道闸门此前完全不可见，
+# 「谁在干活」无数据。进程内计数，页面展示必须如实标注「仅统计本进程」。
+# ──────────────────────────────────────────────────────────
+CACHE_METRICS: dict = {}  # {layer: {"hits": int, "misses": int}}
+_CACHE_METRICS_LOCK = threading.Lock()
+
+
+def observe_cache_hit(layer: str, hit: bool) -> None:
+    """记录某缓存层一次命中/未命中（线程安全；观测埋点尽力而为，绝不影响主数据路径）。"""
+    try:
+        with _CACHE_METRICS_LOCK:
+            m = CACHE_METRICS.setdefault(layer, {"hits": 0, "misses": 0})
+            if hit:
+                m["hits"] += 1
+            else:
+                m["misses"] += 1
+    except Exception:  # noqa: BLE001 - 埋点失败吞掉不影响取数（纯计数无数据语义）
+        pass
+
+
+def get_cache_metrics() -> dict:
+    """返回各缓存层命中率快照；并合并 L5 缓存兜底命中（复用 SOURCE_METRICS.cache_fallback）。
+
+    :returns: {layer: {hits, misses, calls, hit_rate}}；hit_rate 在无调用时为 None（不臆造 0）。
+    """
+    out = {}
+    with _CACHE_METRICS_LOCK:
+        for layer, m in CACHE_METRICS.items():
+            calls = m["hits"] + m["misses"]
+            out[layer] = {"hits": m["hits"], "misses": m["misses"], "calls": calls,
+                          "hit_rate": round(m["hits"] / calls, 4) if calls else None}
+    fb = SOURCE_METRICS.get("cache_fallback")
+    if fb:
+        calls = fb.get("calls", 0)
+        succ = fb.get("success", 0)
+        out["L5_fallback"] = {"hits": succ, "misses": max(calls - succ, 0), "calls": calls,
+                              "hit_rate": round(succ / calls, 4) if calls else None}
+    return out
+
+
+# ──────────────────────────────────────────────────────────
 # 工具函数
 # ──────────────────────────────────────────────────────────
 def _is_market_open():

@@ -70,6 +70,45 @@ def _mtime_date(path: str) -> str | None:
         return None
 
 
+# ───────────────────────── 缓存库体积体检（T-272⑤） ─────────────────────────
+# clean_cache.py 有过 shepherd_cache 317M/5547 文件的膨胀前科；cache.db /
+# market_cache.db 均可再生（删除后首次取数自动重建），体积超限只软告警不判
+# fail——体积大≠数据错，属卫生问题。评估结论：market_cache **不并入** cache.db
+# （分档 TTL 语义独立、随 SS_DATA_DIR 隔离口径一致，合并增加主库耦合无实益）。
+CACHE_DB_LIMIT_MB = 200.0
+
+
+def cache_db_footprint(limit_mb: float = CACHE_DB_LIMIT_MB) -> list[dict]:
+    """两个可再生缓存 SQLite 的文件体积体检（T-272⑤，纯只读、离线可跑）。
+
+    :returns: [{name, path, size_mb, status, note}]；status ∈ ok|over|missing|unknown。
+    路径按 SS_DATA_DIR（测试隔离）或项目 data/ 推导；config 自定义库路径时按
+    默认位置估算（如实按估算口径理解，非精确审计）。
+    """
+    base = os.environ.get("SS_DATA_DIR") or _DATA_DIR
+    out = []
+    for name in ("cache.db", "market_cache.db"):
+        p = os.path.join(base, name)
+        entry = {"name": name, "path": p, "size_mb": None, "status": "missing",
+                 "note": "尚未生成（首次取数后自动创建，属正常）"}
+        try:
+            if os.path.exists(p):
+                size_mb = round(os.path.getsize(p) / 1048576, 1)
+                entry["size_mb"] = size_mb
+                if size_mb > limit_mb:
+                    entry["status"] = "over"
+                    entry["note"] = (f"超过 {limit_mb}MB 软阈值，可用 "
+                                     f"`python scripts/clean_cache.py --dry-run` 评估清理")
+                else:
+                    entry["status"] = "ok"
+                    entry["note"] = "体积正常（可再生，误删后自动重建）"
+        except OSError as e:
+            entry["status"] = "unknown"
+            entry["note"] = f"体积读取失败: {e}"
+        out.append(entry)
+    return out
+
+
 def _json_max_date(path: str) -> str | None:
     """JSON 内容最大日期（内容优先，取不到退回文件 mtime）。
 

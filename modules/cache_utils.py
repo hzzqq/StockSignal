@@ -47,3 +47,16 @@ def clear_cache() -> int:
         n = len(_CACHE)
         _CACHE.clear()
     return n
+
+
+# ── T-272③：页面层 TTL 分级常量（单一真理源）────────────────────────
+# 新增 st.cache_data / cached_ttl 调用请引用档位（如 TTL_TIERS["sentiment"]），
+# 不再手写裸数字。存量 ~80 处裸 TTL 维持现状（行为零变化），由
+# tests/test_cache_ttl_tiers.py 的快照守卫「增量守门」：新增未登记裸 TTL 即红。
+# 特殊交互语义 TTL（如 1s「强制重算」、nonce 击穿）不在档位内，走快照白名单。
+TTL_TIERS = {
+    "realtime": 15,       # 盘中快变：盯盘/排行（页面实测 15~30s 档短端）
+    "quote": 60,          # 行情类
+    "sentiment": 300,     # 情绪/资金/P1 信号（5 分钟，对齐 P1SignalLoader ttl）
+    "fundamental": 1800,  # 基本面/宏观（30 分钟，日频数据）
+}

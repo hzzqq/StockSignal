@@ -267,6 +267,7 @@ def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Op
             return None, {"cache_status": "error", "message": f"缓存不可读: {e}"}
 
     if df_raw.empty:
+        _observe_cache("market_cache", False)  # T-272①：无缓存可降级
         return None, {"cache_status": "empty", "message": "无缓存数据"}
 
     # pivot → 宽表
@@ -298,7 +299,18 @@ def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Op
         else:
             meta["cached_keys"].append(col)
 
+    # T-272①：降级读取命中/未命中计数（本函数仅在网络失败/异常时被调用，即「缓存兜底」语义）
+    _observe_cache("market_cache", df_pivot is not None and not df_pivot.empty)
     return df_pivot, meta
+
+
+def _observe_cache(layer: str, hit: bool) -> None:
+    """缓存层命中率观测转发（T-272①；失败不影响降级主路径）。"""
+    try:
+        from modules._feed_io import observe_cache_hit
+        observe_cache_hit(layer, hit)
+    except Exception as e:  # noqa: BLE001 - 埋点尽力而为
+        logger.debug("[market_cache] 命中计数失败: %s", e)
 
 
 def get_cache_status() -> Dict[str, Any]:

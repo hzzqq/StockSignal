@@ -119,6 +119,50 @@ def main():
                 st.code(cmd, language="python")
             st.caption(p["desc"])
 
+    # ── 缓存层命中率（T-272①，additive）──
+    st.markdown("### 🧱 缓存层命中率")
+    try:
+        from modules._feed_io import get_cache_metrics
+        cm = get_cache_metrics()
+    except Exception as e:  # noqa: BLE001 - 观测不可得如实说明，不臆造
+        logger.warning("[data-sla] 缓存命中率读取失败: %s", e)
+        cm = {}
+    if not cm:
+        st.caption("本进程暂无缓存层调用记录（打开行情/工具页后即开始累计）。")
+    else:
+        _layer_label = {"L0": "L0 进程内存", "L1": "L1 SQLite 落盘",
+                        "mcp_tool": "MCP 工具缓存", "market_cache": "market_cache 兜底",
+                        "L5_fallback": "L5 陈旧兜底"}
+        cards = []
+        for layer, m in cm.items():
+            rate = m.get("hit_rate")
+            cards.append({
+                "label": _layer_label.get(layer, layer),
+                "value": f"{rate*100:.1f}%" if rate is not None else "—",
+                "sub": f"命中 {m.get('hits', 0)} / 调用 {m.get('calls', 0)}",
+                "accent": "#667eea",
+            })
+        xc_kpi_grid(cards, min_col=200)
+    st.caption("口径：进程内计数，仅统计**本进程自启动以来**的调用（跨进程不汇总，重启清零）；"
+               "L5 兜底命中 = 网络全败时用陈旧缓存（必带 as_of 标注）。")
+
+    # ── 缓存库体积体检（T-272⑤，additive）──
+    st.markdown("### 💾 缓存库体积")
+    try:
+        fp = dh.cache_db_footprint()
+    except Exception as e:  # noqa: BLE001 - 体检失败不阻断看板
+        logger.warning("[data-sla] 缓存库体积读取失败: %s", e)
+        fp = []
+    for it in fp:
+        sz = f"{it['size_mb']} MB" if it.get("size_mb") is not None else "—"
+        icon = {"ok": "✅", "over": "🟠", "missing": "⏳", "unknown": "❓"}.get(it["status"], "❓")
+        st.markdown(f"- {icon} **{it['name']}**：{sz} —— {it['note']}")
+    if any(it["status"] == "over" for it in fp):
+        info_banner("检测到缓存库体积超软阈值（数据可再生，不影响正确性），建议评估清理。",
+                    kind="warning", icon="🧹")
+    st.caption("口径：按 SS_DATA_DIR/默认 data 目录估算（config 自定义库路径时非精确审计）；"
+               "两个库均可再生，market_cache 不并入 cache.db（分档 TTL 语义独立，评估见 T-272）。")
+
     # ── 口径说明 ──
     st.markdown("---")
     st.caption(

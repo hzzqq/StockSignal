@@ -40,6 +40,7 @@ from modules._feed_io import (  # noqa: F401
     _observe_log,
     observe_source,
     observe_cache_fallback,
+    observe_cache_hit,
     get_source_metrics,
     _is_market_open,
     _is_midday_break,
@@ -1978,6 +1979,7 @@ class StockFetcher:
             with _L0_LOCK:
                 ent = _L0_CACHE.get(l0_key)
             if ent is not None and time.monotonic() - ent["ts"] <= _L0_TTL:
+                observe_cache_hit("L0", True)  # T-272①：L0 命中计数
                 if ent["is_stale"]:
                     # L0 回放缓存兜底数据时重放埋点：每次「用旧数据」都如实计数
                     observe_cache_fallback("L5", True, f"{symbol} as_of={ent['as_of']}(L0)")
@@ -1987,7 +1989,9 @@ class StockFetcher:
                                      "is_stale": ent["is_stale"],
                                      "as_of": ent["as_of"]})
                 return ent["df"].copy()
-            elif ent is not None:
+            # T-272①：L0 未命中（含无记录与已过期两种）
+            observe_cache_hit("L0", False)
+            if ent is not None:
                 with _L0_LOCK:
                     _L0_CACHE.pop(l0_key, None)
 
@@ -2010,9 +2014,11 @@ class StockFetcher:
             max_age_hours = 6 if end == today_str else None
             cached = self._read_cache(conn, "daily_cache", cache_key, max_age_hours=max_age_hours)
             if cached is not None:
+                observe_cache_hit("L1", True)  # T-272①：L1 SQLite 命中计数
                 _meta("cache", False, cached)
                 _l0_put(cached, "cache", False)
                 return cached
+            observe_cache_hit("L1", False)  # T-272①：L1 未命中（进入四源竞速）
 
             df = None
             errors = []

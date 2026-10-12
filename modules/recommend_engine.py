@@ -75,6 +75,19 @@ DISCLAIMER = (
 
 
 # ══════════════════════════════════════════════════════
+# T-272②：引擎取数参数单一真理源
+# cache_warmer 预热与本模块 _fetch_one 必须逐字节同参（cache_key 由参数拼接，
+# 参数不同＝写引擎读不到的键＝预热白拉，T-250 铁律）。两侧共同引用本函数，
+# 键一致性从「文档约定」升级为「机器保证」，杜绝复刻漂移。
+# ══════════════════════════════════════════════════════
+def engine_fetch_params() -> tuple:
+    """荐股引擎日线取数参数 (start, end, adjust)：260 天窗口 + 今日 + 前复权。"""
+    now = datetime.now()
+    start = (now - timedelta(days=260)).strftime("%Y-%m-%d")
+    return start, now.strftime("%Y-%m-%d"), "qfq"
+
+
+# ══════════════════════════════════════════════════════
 # R4/T-270：市况自适应权重（纯函数，温度档 → ALGO_WEIGHTS 微调）
 # 依据（ashare 市况搭配通识 + 本项目融合网格实测 T-265）：高温期趋势/动量延续性强
 # → 偏 momentum/breakout/dual_trend；低温期超跌反弹与资金抄底占优 → 偏
@@ -485,11 +498,11 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
     fetch_metas = {}
 
     def _fetch_one(code):
-        start = (datetime.now() - timedelta(days=260)).strftime("%Y-%m-%d")
+        # T-272②：参数单源化（engine_fetch_params），与 cache_warmer 预热逐字节同键
+        start, end, adjust = engine_fetch_params()
         meta = {}
         try:
-            df = fetcher.get_daily(code, start=start,
-                                   end=datetime.now().strftime("%Y-%m-%d"),
+            df = fetcher.get_daily(code, start=start, end=end, adjust=adjust,
                                    meta_out=meta)
         finally:
             # T-248：诚实元数据随行取回（L5 兜底命中 → is_stale=True）

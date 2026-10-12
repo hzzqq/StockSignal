@@ -21,16 +21,17 @@ from __future__ import annotations
 import logging
 import os
 import time
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
 
 def _engine_params() -> tuple[str, str, str]:
-    """与 recommend_engine._fetch_one 逐字节一致的取数参数（键一致性铁律）。"""
-    now = datetime.now()
-    start = (now - timedelta(days=260)).strftime("%Y-%m-%d")
-    return start, now.strftime("%Y-%m-%d"), "qfq"
+    """引擎取数参数单源（T-272②）：直接复用 recommend_engine.engine_fetch_params。
+
+    预热与引擎逐字节同键由「单源引用」机器保证，不再靠人工对齐复刻
+    （键不一致＝写引擎读不到的键＝预热白拉，T-250 铁律）。"""
+    from modules.recommend_engine import engine_fetch_params
+    return engine_fetch_params()
 
 
 def warm_universe(limit: int = 400, max_workers: int = 6, timeout: float = 900.0,

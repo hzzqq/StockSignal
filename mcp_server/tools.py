@@ -65,10 +65,16 @@ _TOOL_CACHE_TTL_SENTIMENT = 300
 
 
 def _tool_cache_get(key: str, ttl: Optional[int] = None):
-    """读缓存。ttl=None 时用该条目 set 时登记的 TTL（向后兼容旧全局 30s 语义）。"""
+    """读缓存。ttl=None 时用该条目 set 时登记的 TTL（向后兼容旧全局 30s 语义）。
+
+    T-272①：命中/未命中接入缓存层观测（observe_cache_hit，进程内计数）。
+    """
+    from modules._feed_io import observe_cache_hit  # 惰性：避免 mcp_server 初始化期副作用
     item = _TOOL_CACHE.get(key)
     if item and (_time.time() - item[0]) < item[1]:
+        observe_cache_hit("mcp_tool", True)
         return item[2]
+    observe_cache_hit("mcp_tool", False)
     return None
 
 
