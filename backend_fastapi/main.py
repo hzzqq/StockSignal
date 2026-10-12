@@ -22,11 +22,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
 
 app = FastAPI(
     title="StockSignal FastAPI Slice",
-    version="0.1.0",
-    description="T-267 试点：ASGI 增量切片（health + 只读数据端点，Pydantic 校验 + 自动 OpenAPI）",
+    version="0.2.0",
+    description="T-267/268：ASGI 增量切片（health + 只读数据 + 星辰 AI 服务层：知识库/意图/对话）",
 )
 
 
@@ -99,3 +100,78 @@ def list_orders(
     except sqlite3.OperationalError as e:
         raise HTTPException(status_code=503, detail=f"table unavailable: {e}") from e
     return {"status": "ok", "data": rows, "count": len(rows)}
+
+
+# ══════════════ T-268 星辰 AI 服务层（知识库 / 意图 / 对话） ══════════════
+# AI 能力服务化：知识库检索与意图路由是无状态纯函数（零网络），FastAPI 进程内
+# 直调；完整对话（ai_answer，含实时行情抓取）经 asyncio.to_thread 走 full 模式。
+
+from modules import knowledge_base as kb  # noqa: E402
+from mcp_server.gateway import detect_intent  # noqa: E402
+
+
+class ChatIn(BaseModel):
+    """对话请求体（Pydantic 校验示范：长度/模式约束声明式）。"""
+    question: str = Field(min_length=1, max_length=2000, description="用户问题")
+    mode: str = Field("fast", pattern=r"^(fast|full)$",
+                      description="fast=知识库+意图路由（秒回）；full=完整 ai_answer（含实时取数，较慢）")
+
+
+@app.post("/api/ai/chat", tags=["ai"])
+async def ai_chat(body: ChatIn) -> dict:
+    """星辰 AI 对话端点。
+
+    - fast（默认）：知识库检索 → 未命中走意图路由提示，纯本地零网络，毫秒级；
+    - full：完整 ai_answer 链路（股票解析/实时行情/LLM/规则引擎），耗时可达数十秒。
+    诚实语义：取不到数据如实返回 unavailable，绝不编造。
+    """
+    q = body.question.strip()
+    if body.mode == "fast":
+        kb_ans = kb.answer(q)
+        if kb_ans:
+            return {"status": "ok", "source": "knowledge_base", "answer": kb_ans}
+        intent = detect_intent(q)
+        if intent.get("tool") and intent.get("confidence", 0) >= 0.85:
+            return {"status": "ok", "source": "intent",
+                    "answer": f"检测到「{intent['tool']}」意图（置信度 {intent['confidence']:.2f}）。"
+                              f"该意图需要实时数据链路，请用 mode=full 或在星辰 AI 页面提问。",
+                    "intent": intent}
+        return {"status": "ok", "source": "fallback",
+                "answer": "未命中知识库与工具意图。请在星辰 AI 页面用完整模式提问，"
+                          "或换一种问法（例：「什么是市盈率」「仓位怎么定」「49.1% 是什么口径」）。"}
+    import asyncio
+    from modules.ai_engine import ai_answer
+    result = await asyncio.wait_for(
+        asyncio.to_thread(ai_answer, q, None), timeout=90.0)
+    return {"status": "ok", "source": "ai_engine",
+            "answer": result.get("answer", ""),
+            "independent": result.get("independent", True)}
+
+
+@app.get("/api/ai/knowledge/search", tags=["ai"])
+def knowledge_search(
+    q: str = Query(min_length=1, max_length=200, description="检索问题"),
+) -> dict:
+    """金融知识库检索（含项目专属数据口径条目）。"""
+    hit = kb.search(q)
+    if not hit:
+        return {"status": "ok", "found": False, "stats": kb.stats()}
+    e = hit["entry"]
+    return {"status": "ok", "found": True, "score": hit["score"],
+            "data": {"id": e["id"], "category": e["cat"], "title": e["title"],
+                     "content": e["content"]}}
+
+
+@app.get("/api/ai/knowledge/stats", tags=["ai"])
+def knowledge_stats() -> dict:
+    """知识库自省：条目数与分类分布。"""
+    return {"status": "ok", "data": kb.stats()}
+
+
+@app.get("/api/ai/intents", tags=["ai"])
+def ai_intents() -> dict:
+    """意图路由规则自省（mcp_server.gateway 的工具触发词清单）。"""
+    from mcp_server.gateway import _INTENT_RULES
+    rules = [{"tool": t, "keywords": r["keywords"], "needs_code": r.get("needs_code", False)}
+             for t, r in _INTENT_RULES.items()]
+    return {"status": "ok", "data": rules, "count": len(rules)}

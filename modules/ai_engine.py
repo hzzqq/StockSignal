@@ -24,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from modules.fetcher import StockFetcher
 from modules.analysis_engine import run_analysis
 from modules import llm_client
+from modules import knowledge_base
 
 # 事件 / 新闻类提问关键词
 EVENT_KW = ["事件", "新闻", "公告", "消息", "舆情", "资讯", "报道", "利好", "利空", "最近发生", "近期"]
@@ -709,6 +710,14 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
             + _format_analysis(history_stock["name"], independent, news=news)
         )
         return {"answer": answer, "independent": True}
+
+    # 4c-2) 金融知识库检索（T-268）：无标的的概念/指标/口径/机制/策略类提问，
+    # 优先于页面上下文——否则「什么是市盈率」会被 4d 的组合分析答非所问。
+    # 命中知识条目直接返回（比 LLM 快且项目口径准确）；未命中继续原流程。
+    if not resolved and not history_stock:
+        kb_answer = knowledge_base.answer(question)
+        if kb_answer:
+            return {"answer": kb_answer, "independent": True}
 
     # 4d) 没有解析到股票，才使用当前页面上下文
     parts = []
