@@ -1,0 +1,66 @@
+{
+ "meta": {
+  "generated_at": "2026-10-13 02:29:30",
+  "scope": "research_agent.run_research 行为契约（规则合成器路径，离线 mock 工具零网络）",
+  "honesty_note": "不评测 LLM 措辞质量；LLM 路径不在离线评测范围"
+ },
+ "cases": [
+  {
+   "id": "E1",
+   "dim": "任务完成/序列",
+   "passed": true,
+   "detail": "工具序列 ['get_realtime_quote', 'analyze_technical', 'stock_news'] 全 ok"
+  },
+  {
+   "id": "E2",
+   "dim": "任务完成/序列",
+   "passed": true,
+   "detail": "顺序一致且全 ok"
+  },
+  {
+   "id": "E3",
+   "dim": "引用溯源",
+   "passed": true,
+   "detail": "citations 完整、answer 溯源标记齐全"
+  },
+  {
+   "id": "E4",
+   "dim": "诚实降级",
+   "passed": true,
+   "detail": "unavailable + 零编造"
+  },
+  {
+   "id": "E5",
+   "dim": "诚实降级",
+   "passed": true,
+   "detail": "partial + citations 与成功步一致"
+  },
+  {
+   "id": "E6",
+   "dim": "只读红线",
+   "passed": true,
+   "detail": "写操作拒绝 + 零调用 + partial"
+  },
+  {
+   "id": "E7",
+   "dim": "有界执行",
+   "passed": true,
+   "detail": "截断到 8 + limitations 留痕"
+  },
+  {
+   "id": "E8",
+   "dim": "有界执行",
+   "passed": true,
+   "detail": "clamp 到 8 步"
+  },
+  {
+   "id": "E9",
+   "dim": "有界执行",
+   "passed": true,
+   "detail": "预算中断（执行 1/4 步）+ 留痕"
+  }
+ ],
+ "passed": 9,
+ "total": 9,
+ "pass_rate": 1.0
+}

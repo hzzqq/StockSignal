@@ -163,6 +163,32 @@ def main():
     st.caption("口径：按 SS_DATA_DIR/默认 data 目录估算（config 自定义库路径时非精确审计）；"
                "两个库均可再生，market_cache 不并入 cache.db（分档 TTL 语义独立，评估见 T-272）。")
 
+    # ── 近 7 日指标趋势（T-273D，additive；逐日快照拼接口径）──
+    st.markdown("### 📈 近 7 日源可靠性趋势")
+    try:
+        from modules.source_metrics_persist import metrics_trend
+        tr = metrics_trend(days=7)
+    except Exception as e:  # noqa: BLE001 - 趋势不可得如实说明
+        logger.warning("[data-sla] 指标趋势读取失败: %s", e)
+        tr = {}
+    if tr.get("missing_days") and not tr.get("days_available"):
+        st.caption("尚无历史快照（每日荐股调度链会自动落盘，积累几天后此处出趋势）。")
+    else:
+        if tr.get("source_trend"):
+            for src, series in sorted(tr["source_trend"].items()):
+                pts = " → ".join(f"{p['date'][5:]} {int((p['success_rate'] or 0)*100)}%" for p in series)
+                st.markdown(f"- **{src}**：{pts}")
+        if tr.get("cache_trend"):
+            for layer, series in sorted(tr["cache_trend"].items()):
+                pts = " → ".join(
+                    f"{p['date'][5:]} {'—' if p['hit_rate'] is None else f'{p['hit_rate']*100:.0f}%'}"
+                    for p in series)
+                st.markdown(f"- 🧱 **{layer}**：{pts}")
+        if tr.get("missing_days"):
+            st.caption(f"缺失日（无快照，不插值）：{'、'.join(tr['missing_days'])}")
+        st.caption("口径：逐日 JSON 快照拼接（每日荐股调度链落盘），各源成功率=当日进程内累计；"
+                   "跨进程不汇总，缺失日如实标注。")
+
     # ── 口径说明 ──
     st.markdown("---")
     st.caption(

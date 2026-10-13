@@ -549,6 +549,13 @@ def run_research(
 
     # ── 3) 汇总状态（AC1/AC5）──
     ok_steps = [s for s in steps if s["status"] == "ok"]
+    # T-273B 评测驱动修复（诚实语义）：error/rejected 步**绝不能静默消失**——
+    # 失败原因必须进 limitations（→ 合成器 answer 的 ⚠️ 行），否则用户拿到的
+    # 部分结果看不出哪个数据源挂了、为什么缺一块（吞失败缺陷族）。
+    for s in steps:
+        if s["status"] in ("error", "rejected") and s.get("reason"):
+            limitations.append(
+                f"步骤 {s['idx']} {s['tool']} {s['status']}：{s['reason']}")
     citations = [
         {"step": s["idx"], "tool": s["tool"], "as_of": s.get("data_as_of")}
         for s in ok_steps

@@ -1,0 +1,105 @@
+{
+ "meta": {
+  "generated_at": "2026-10-13 02:39:20",
+  "seed": 20261013,
+  "n_requests": 200,
+  "data_dir": "E:\\tmp\\bench_cache_data",
+  "honesty_note": "模拟负载（固定 seed 生成请求序列），非生产流量；数据源 stub 零网络，离线可复现",
+  "code_version": "T-273A @ 7fe27f1+"
+ },
+ "scenarios": {
+  "l0_l1": {
+   "config": {
+    "n_requests": 200,
+    "seed": 20261013,
+    "mix": "repeat 60% / rotate 30% / cold 10%",
+    "pools": {
+     "hot": 5,
+     "mid": 20,
+     "cold": 50
+    }
+   },
+   "results": {
+    "source_calls": 164,
+    "source_calls_note": "stub 层计数 = L0 未命中数 × 四源并行竞速（每次 miss 4 个 level 调用）",
+    "elapsed_s": 0.46,
+    "layers": {
+     "L0": {
+      "hits": 159,
+      "misses": 41,
+      "calls": 200,
+      "hit_rate": 0.795
+     },
+     "L1": {
+      "hits": 0,
+      "misses": 41,
+      "calls": 41,
+      "hit_rate": 0.0
+     }
+    },
+    "source_request_count": 200,
+    "restart_sim": {
+     "note": "清空 L0（等价进程重启）后重放 25 个已落盘标的 → L1 命中率",
+     "layers": {
+      "L0": {
+       "hits": 0,
+       "misses": 25,
+       "calls": 25,
+       "hit_rate": 0.0
+      },
+      "L1": {
+       "hits": 24,
+       "misses": 1,
+       "calls": 25,
+       "hit_rate": 0.96
+      }
+     }
+    }
+   }
+  },
+  "l5_fallback": {
+   "config": {
+    "cached_syms": [
+     "600100",
+     "600200",
+     "600300"
+    ],
+    "uncached_syms": 3,
+    "source_mode": "all_fail"
+   },
+   "results": {
+    "fallback_hit": [
+     "600100",
+     "600200",
+     "600300"
+    ],
+    "fallback_miss": [
+     "999901",
+     "999902",
+     "999903"
+    ],
+    "hit_count": 3,
+    "miss_count": 3,
+    "note": "命中=拿陈旧数据（as_of 标注必带）；拒绝=宁可诚实失败不喂碎片"
+   }
+  },
+  "swr": {
+   "config": {
+    "concurrency": 16,
+    "fn_cost_s": 0.3,
+    "note": "fn 模拟耗时（生产同路径实测 30-60s），按比例外推阻塞节省"
+   },
+   "results": {
+    "users": 16,
+    "got_stale_immediately": 16,
+    "got_fresh": 0,
+    "build_executions": 1,
+    "singleflight_dedup_pct": 93.8,
+    "p50_elapsed_s": 0.0,
+    "max_elapsed_s": 0.001,
+    "sync_equivalent_max_s": 0.3,
+    "blocking_saved_note": "SWR 下全部用户亚秒返回旧值；同步语义下最后完成者需等完整 fn 耗时"
+   }
+  }
+ }
+}

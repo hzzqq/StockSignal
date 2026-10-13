@@ -122,6 +122,14 @@ def _warm_once() -> None:
                     res.get("elapsed_s"), f" | {res['reason']}" if res.get("reason") else "")
     except Exception as e:  # noqa: BLE001 — 预热失败绝不阻断荐股主流程，但必须留痕
         logger.warning("[recommend_scheduler] 缓存预热异常（不阻断生成）: %s", e)
+    # T-273D：每日快照落盘（数据源/缓存层指标长周期观测；失败留痕不阻断）
+    try:
+        from modules.source_metrics_persist import snapshot_metrics_to_disk
+
+        snap = snapshot_metrics_to_disk()
+        logger.info("[recommend_scheduler] 指标快照落盘 ok=%s %s", snap.get("ok"), snap.get("note"))
+    except Exception as e:  # noqa: BLE001 — 观测失败绝不阻断荐股主流程
+        logger.warning("[recommend_scheduler] 指标快照落盘异常: %s", e)
 
 
 def _generate_once() -> dict | None:
