@@ -252,11 +252,20 @@ def dashboard_sf_css() -> str:
 /* ===== 星辰主题·全局原生组件覆盖（自动应用到所有 render_standard_page 页面） ===== */
 /* 说明：以下样式只改颜色/圆角/边框/阴影，不改 DOM 结构与功能，不破坏业务逻辑。 */
 
-/* 1. caption 小卡片化 */
+/* 1. caption 小卡片化（T-279 #5：长文默认 2 行截断 + hover 展开，避免灰底卡占 3+ 行） */
 [data-testid="stCaption"],
 .stCaption{{font-size:12.5px!important;color:var(--txt2)!important;line-height:1.7!important;
   background:var(--card2)!important;border-left:3px solid var(--acc1)!important;
-  border-radius:0 10px 10px 0!important;padding:8px 12px!important;margin:10px 0 14px!important}}
+  border-radius:0 10px 10px 0!important;padding:8px 12px!important;margin:10px 0 14px!important;
+  display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden!important;
+  transition:box-shadow .2s ease}}
+[data-testid="stCaption"]:hover,
+.stCaption:hover{{-webkit-line-clamp:unset;overflow:visible!important;
+  box-shadow:0 2px 10px rgba(0,0,0,.06)}}
+/* 触屏无 hover → 不截断（保证移动端信息可达） */
+@media (hover:none){{
+  [data-testid="stCaption"],.stCaption{{-webkit-line-clamp:unset!important;overflow:visible!important}}
+}}
 
 /* 2. 按钮统一圆角+渐变 hover */
 [data-testid="stButton"] > button,
@@ -330,7 +339,14 @@ a[data-testid="stPageLink"]:hover{{background:rgba(102,126,234,.18)!important;bo
 [data-testid="stHorizontalBlock"] hr,
 hr{{border:none!important;border-top:1px dashed color-mix(in srgb,var(--border) 70%,transparent)!important;
    margin:14px 0!important;opacity:.75}}
-[data-testid="stExpander"]{{border:1px solid var(--border)!important;border-radius:12px!important;background:var(--card)!important}}
+[data-testid="stExpander"]{{border:1px solid var(--border)!important;border-radius:10px!important;background:var(--card)!important;overflow:hidden!important}}
+/* T-279 #7：expander 紧凑化——表头左侧强调条（透明→hover 变强调色）+ 内边距收紧，提升可点性与质感 */
+[data-testid="stExpander"] summary{{padding:8px 14px!important;border-left:3px solid transparent!important;
+  transition:border-color .2s ease,background .2s ease!important}}
+[data-testid="stExpander"] summary:hover{{border-left-color:var(--acc1)!important;background:var(--hover)!important}}
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span{{font-size:13px!important;font-weight:600!important}}
+[data-testid="stExpander"] [data-testid="stExpanderDetails"]{{padding:4px 14px 12px!important}}
 
 /* 8. 代码/标签页统一 */
 [data-testid="stTabs"] [role="tab"]{{color:var(--txt2)!important;border-radius:8px 8px 0 0!important}}
@@ -358,6 +374,9 @@ hr{{border:none!important;border-top:1px dashed color-mix(in srgb,var(--border) 
 [data-testid="stMetric"] label{{color:var(--txt2)!important;font-size:12px!important;font-weight:500!important}}
 [data-testid="stMetricValue"]{{color:var(--txt)!important;font-weight:800!important;font-size:22px!important;font-family:var(--ss-font-num)!important;letter-spacing:.2px!important}}
 [data-testid="stMetricDelta"]{{font-size:13px!important;font-weight:700!important}}
+/* T-279 #6：同排 metric 卡等高 + 边距收敛（Bento 网格对齐，避免参差不齐） */
+[data-testid="stMetric"]{{height:100%!important;box-sizing:border-box!important}}
+[data-testid="stHorizontalBlock"]{{align-items:stretch!important;gap:12px!important}}
 /* 4. 原生 info/warning/error/success 左条改用主题强调紫（与 xc 一致） */
 [data-testid="stAlert"][data-baseweb="notification"][data-kind="info"]{{border-left:4px solid var(--acc1)!important}}
 
