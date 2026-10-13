@@ -390,7 +390,7 @@ with st.expander("⚙️ 更多操作（清除已读标记 · 重新加载）", 
     with _oc2:
         # 聚合取数经 safe_section 已降级，此处提供手动重新加载入口，
         # 清掉本页缓存后整页重跑重新向各数据源拉取最新消息。
-        if st.button("🔄 重新加载", key="msg_reload", width="stretch"):
+        if st.button("🔄", key="msg_reload", help="重新加载：拉取最新消息"):
             try:
                 _load_watchlist.clear()
                 _load_forum.clear()

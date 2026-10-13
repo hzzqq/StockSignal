@@ -245,7 +245,7 @@ def fragment_list():
             st.session_state["forum_composer_open"] = not st.session_state.get(
                 "forum_composer_open", False)
     # 手动刷新（#Batch20-1）：fragment 内用 scope="fragment" 显式重跑本区块
-    if st.button("🔄 刷新帖子", key="forum_manual_refresh"):
+    if st.button("🔄", key="forum_manual_refresh", help="刷新帖子：重新拉取股吧最新帖子"):
         st.rerun(scope="fragment")
     # 偏好记忆（#Batch20-10）：session 内记住上次排序 / 筛选，下次自动套用
     if "forum_sort" not in st.session_state and st.session_state.get("forum_remembered_sort"):

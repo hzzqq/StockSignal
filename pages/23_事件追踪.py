@@ -328,7 +328,7 @@ def fragment_timeline():
     """事件时间轴（延迟导入 Visualizer）。"""
     from modules.visualizer import Visualizer
     sf_card('📅 事件时间轴', "")
-    if st.button('🔄 刷新', key='tl_manual_refresh', help='手动局部刷新事件时间轴模块'):
+    if st.button('🔄', key='tl_manual_refresh', help='刷新：手动局部刷新事件时间轴模块'):
         st.rerun(scope='fragment')
     try:
         with st.form('timeline_form_v2'):

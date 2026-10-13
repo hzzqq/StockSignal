@@ -271,7 +271,7 @@ def fragment_watchlist_monitor():
     st.divider()
     col_a, col_b = st.columns(2)
     with col_a:
-        if st.button('🔄 刷新行情', type='primary', width="stretch", key='wl_refresh'):
+        if st.button('🔄', type='primary', key='wl_refresh', help='刷新行情：重新拉取自选股最新行情'):
             pass
     with col_b:
         if st.button('🧭 用自选股做技术体检', width="stretch", key='wl_tech_check'):

@@ -116,7 +116,7 @@ def fragment_paper():
     user = (get_user() or {}).get('username', 'guest')
     book = _load_book(user)
     st.caption(f'🕒 最近刷新：{datetime.now():%Y-%m-%d %H:%M:%S}')
-    if st.button('🔄 刷新', key='pt_manual_refresh', help='手动刷新行情与持仓快照'):
+    if st.button('🔄', key='pt_manual_refresh', help='刷新：手动刷新行情与持仓快照'):
         st.rerun(scope='fragment')
     st.session_state.setdefault('_pt_recent', [])
     if st.session_state['_pt_recent']:

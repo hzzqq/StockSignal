@@ -104,7 +104,7 @@ with tab_stocks:
                                 key="stock_search_mgmt", placeholder="代码/名称/拼音",
                                 help="按代码、名称或拼音首字母搜索全部股票。")
     with col_refresh:
-        if st.button("🔄 刷新", width="stretch"):
+        if st.button("🔄", help="刷新：重新加载系统配置"):
             st.session_state["stock_keyword"] = keyword
             st.rerun()
         # 加法式 UX：一键清空搜索关键词并刷新，恢复完整股票列表（不改动现有刷新逻辑）。

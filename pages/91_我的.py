@@ -360,8 +360,8 @@ st.markdown("---")
 # 切换主题/字体后若仍看到旧快照，可一键清空缓存立即向后台重新拉取。
 _col_cache, _ = st.columns([1, 3])
 with _col_cache:
-    if st.button("🔄 刷新本页缓存", key="my_clear_cache", width="stretch",
-                 help="清空本页自选股/登录历史的 10 秒短缓存，立即重新向后台拉取最新数据。"):
+    if st.button("🔄", key="my_clear_cache",
+                 help="刷新本页缓存：清空本页自选股/登录历史的 10 秒短缓存，立即重新向后台拉取最新数据。"):
         st.session_state.pop("_my_cached_get", None)
         st.session_state["_my_cache_toast"] = True
         st.rerun()

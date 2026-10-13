@@ -64,7 +64,7 @@ render_entry_cards([
     {'path': 'pages/41_组合收益.py', 'label': '📈 收益归因', 'icon': '📈', 'desc': '净值曲线 / 基准对比 / 收益贡献'},
 ], columns=3, active_label=_view)
 st.caption(f"📍 当前：持仓中心 › **{_view}**")
-if st.button('🔄 刷新', key='hub_manual_refresh'):
+if st.button('🔄', key='hub_manual_refresh', help='刷新：重新加载持仓中心数据'):
     st.rerun()
 st.session_state.setdefault('hub_recent_viewed', [])
 _hrv_left, _hrv_right = st.columns([3, 1])

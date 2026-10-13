@@ -105,7 +105,7 @@ def _etf_filter_fragment():
             df, src = _load_etfs()
         xc_success_box(f"数据来源：{src}　·　共 {len(df)} 只", icon="📡")
         # 手动刷新（#Batch20-1）：清缓存并重跑本 fragment 重新拉取行情
-        if st.button("🔄 刷新行情", key="etf_manual_refresh"):
+        if st.button("🔄", key="etf_manual_refresh", help="刷新行情：重新拉取 ETF 最新行情"):
             _load_etfs.clear()
             st.rerun(scope="fragment")
         # 空态守卫：接口与降级样本均未返回记录时显式提示，避免「共 0 只」后

@@ -228,7 +228,7 @@ with sidebar_target():
     ma_windows = sorted(set(ma_select + custom_windows))
 
     st.markdown("---")
-    if st.button("🔄 强制刷新数据", help="清除本地缓存，重新拉取最新行情", width="stretch"):
+    if st.button("🔄", help="强制刷新数据：清除本地缓存，重新拉取最新行情", key="sel_force_refresh"):
         start_str = start_date.strftime("%Y-%m-%d")
         end_str = end_date.strftime("%Y-%m-%d")
         if kline_period == "daily":

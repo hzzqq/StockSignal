@@ -233,6 +233,19 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .xc-err-title{font-weight:700;font-size:14.5px}
 .xc-err-hint{margin-top:6px;font-size:12.5px;color:var(--ss-text-muted)}
 
+/* ---- T-277 提示长文折叠（基元收敛）：长 hint 默认收起，摘要 + 展开 ---- */
+.xc-hint-fold{margin-top:4px}
+.xc-hint-fold>summary{cursor:pointer;list-style:none;font-size:12.5px;color:var(--ss-text-muted);
+  display:inline-flex;align-items:center;gap:6px;padding:2px 0;line-height:1.6}
+.xc-hint-fold>summary::-webkit-details-marker{display:none}
+.xc-hint-fold>summary:hover{color:var(--ss-accent)}
+.xc-hint-more{font-size:11px;padding:1px 7px;border:1px solid var(--ss-line);border-radius:var(--ss-radius-pill);
+  color:var(--ss-text-muted);background:var(--ss-surface-2);flex-shrink:0}
+.xc-hint-fold[open]>summary .xc-hint-more::before{content:"收起"}
+.xc-hint-fold[open]>summary .xc-hint-more{font-size:0}
+.xc-hint-fold[open]>summary .xc-hint-more::before{font-size:11px}
+.xc-hint-fold[open] .xc-err-hint{margin-top:6px}
+
 /* ---- H1+ 数据来源底账徽标（additive，T-212；纯前端 <details>，零 rerun） ---- */
 .ss-prov{margin:8px 0;font-size:12.5px;color:var(--ss-text-muted)}
 .ss-prov>summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:6px;
@@ -359,10 +372,16 @@ def _info_banner_html(text: str, kind: str = "info", icon: str = "💡") -> str:
     text = "" if text is None else str(text)
     kind = _BANNER_KIND_CLASS.get(kind, "info")
     icon = "💡" if icon is None else str(icon)
+    # T-277：长文案折叠为摘要（同 _hint_html 语义，内容零删减）
+    body = html.escape(text)
+    if len(text) > 140:
+        body = ('<details class="xc-hint-fold"><summary>'
+                + html.escape(text[:64]) + '…<span class="xc-hint-more">展开</span>'
+                + '</summary><div class="xc-err-hint">' + html.escape(text) + '</div></details>')
     return (
         f'<div class="ss-info {kind}">'
         f'<span class="ss-ic">{html.escape(icon)}</span>'
-        f'<div>{html.escape(text)}</div>'
+        f'<div>{body}</div>'
         f'</div>'
     )
 
@@ -526,6 +545,29 @@ def xc_info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
     )
 
 
+_HINT_COLLAPSE_THRESHOLD = 140  # T-277：提示文案折叠阈值（字符数）
+
+
+def _hint_html(hint, icon: str = "💡") -> str:
+    """提示文案渲染基元（T-277 全站收敛）：短文案内联，长文案折叠为可展开摘要。
+
+    痛点：全站 260+ 处提示卡的长 hint 撑开半屏（占位大、不美观）。
+    收敛：超阈值内容默认收起，仅显示「图标 + 首句摘要…」，点击展开全文——
+    内容零删减（诚实语义完整保留），只是默认不铺满屏幕。
+    """
+    if hint is None:
+        return ""
+    text = str(hint)
+    if not text:
+        return ""
+    if len(text) <= _HINT_COLLAPSE_THRESHOLD:
+        return f'<div class="xc-err-hint">{html.escape(icon)} {html.escape(text)}</div>'
+    summary = html.escape(text[:56]) + "…"
+    return (f'<details class="xc-hint-fold"><summary>{html.escape(icon)} {summary}'
+            f'<span class="xc-hint-more">展开</span></summary>'
+            f'<div class="xc-err-hint">{html.escape(text)}</div></details>')
+
+
 def xc_error_box(title: str, hint: str = "", icon: str = "⚠️") -> None:
     """新城风格友好错误卡：不泄露内部异常细节，提供重试/降级引导。
 
@@ -534,7 +576,7 @@ def xc_error_box(title: str, hint: str = "", icon: str = "⚠️") -> None:
     inject_kit_css()
     title = "" if title is None else str(title)
     icon = "⚠️" if icon is None else str(icon)
-    hint_html = f'<div class="xc-err-hint">💡 {html.escape(str(hint))}</div>' if hint else ""
+    hint_html = _hint_html(hint, "💡")
     st.markdown(
         f'<div class="xc-error-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
         f'<div class="xc-err-body"><div class="xc-err-title">{html.escape(title)}</div>{hint_html}</div></div>',
@@ -547,7 +589,7 @@ def xc_empty_box(title: str, hint: str = "", icon: str = "📭") -> None:
     inject_kit_css()
     title = "" if title is None else str(title)
     icon = "📭" if icon is None else str(icon)
-    hint_html = f'<div class="xc-err-hint">{html.escape(str(hint))}</div>' if hint else ""
+    hint_html = _hint_html(hint)
     st.markdown(
         f'<div class="xc-empty-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
         f'<div class="xc-err-body"><div class="xc-err-title">{html.escape(title)}</div>{hint_html}</div></div>',
@@ -589,7 +631,7 @@ def xc_success_box(title: str, hint: str = "", icon: str = "✅") -> None:
     title = "" if title is None else str(title)
     title = title.replace("✅", "").replace("⚠️", "").strip()
     icon = "✅" if icon is None else str(icon)
-    hint_html = f'<div class="xc-err-hint">💡 {html.escape(str(hint))}</div>' if hint else ""
+    hint_html = _hint_html(hint, "💡")
     st.markdown(
         f'<div class="xc-success-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
         f'<div class="xc-err-body"><div class="xc-err-title">{_inline_md(title)}</div>{hint_html}</div></div>',
@@ -603,7 +645,7 @@ def xc_warn_box(title: str, hint: str = "", icon: str = "⚠️") -> None:
     title = "" if title is None else str(title)
     title = title.replace("✅", "").replace("⚠️", "").strip()
     icon = "⚠️" if icon is None else str(icon)
-    hint_html = f'<div class="xc-err-hint">💡 {html.escape(str(hint))}</div>' if hint else ""
+    hint_html = _hint_html(hint, "💡")
     st.markdown(
         f'<div class="xc-warn-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
         f'<div class="xc-err-body"><div class="xc-err-title">{_inline_md(title)}</div>{hint_html}</div></div>',

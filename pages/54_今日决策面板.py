@@ -40,7 +40,7 @@ from modules import calibration as _cal
 from modules.experiment_improvements import shap_style_attribution
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
-from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, ss_hover_preview
 from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GRU/融合）
 from modules.event_factor import get_event_factor  # 事件因子适配器（真实信号，无合成）
 from modules.next_day_edge_view import render_next_day_edge  # 次日情绪极值判断组件（复用 panic_reversal）
@@ -53,12 +53,12 @@ dark = render_standard_page(
             "→ 透明推导的仓位建议 → 盘后保存快照、回测验证。事件驱动 + 市场情绪，是 StockSignal 的差异化主线。",
 )
 st.page_link("pages/50_市场情绪.py", label="🌡️ 看《市场情绪》广度与温度计（互补视角 / 指标明细）", icon="🔗")
-sf_card(
-    "今日决策面板 · 怎么用",
+# T-277：「怎么用」说明收进 ℹ️ 悬浮标注（占地收敛，内容全保留）
+ss_hover_preview("ℹ️ 怎么用", (
+    "<div style='line-height:1.85'>"
     "① 顶部「情绪信号总览」给你今天市场冷热的三个读数；② 「仓位建议」由温度/周期/评分/晋级率透明推导，"
-    "可逐条核对理由；③ 盘后用「复盘归档」一键保存今日决策快照，并对历史情绪做回测，验证预判准不准。",
-    icon="🎯",
-)
+    "可逐条核对理由；③ 盘后用「复盘归档」一键保存今日决策快照，并对历史情绪做回测，验证预判准不准。"
+    "</div>"))
 
 # ── 决策闭环主动告警：调度是否还活着，一眼可见（根治 09-10/09-15 静默停摆）──
 render_decision_loop_alarm()
@@ -519,8 +519,8 @@ def fragment_p1_ev():
         st.caption(f"信号模型：**{ld.model_label(model)}**　·　数据日期：{ld.latest_date(model) or '未知'}"
                    f"　·　与牧羊人情绪信号独立互补（情绪定仓位 / P1 定个股）")
     with col_btn:
-        if st.button("🔄 刷新", key="p1_ev_refresh", width="stretch",
-                     help="P1 重新导出信号后点此立即生效"):
+        if st.button("🔄", key="p1_ev_refresh",
+                     help="刷新：P1 重新导出信号后点此立即生效"):
             ld.invalidate()
             st.rerun(scope="fragment")
 

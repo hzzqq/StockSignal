@@ -20,7 +20,7 @@ with _c1:
     st.page_link('pages/42_模拟交易.py', label='🎮 前往模拟交易', icon='🎮')
 with _c2:
     st.page_link('pages/41_组合收益.py', label='📈 前往组合收益', icon='📈')
-if st.button('🔄 刷新', key='pm_refresh_top', help='重新加载本页持仓与行情'):
+if st.button('🔄', key='pm_refresh_top', help='刷新：重新加载本页持仓与行情'):
     st.rerun()
 st.session_state.setdefault('_pm_recent', [])
 _PM_PREF_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'pm_prefs.json')

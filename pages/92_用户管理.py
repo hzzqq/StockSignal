@@ -35,7 +35,7 @@ with tab_users:
         keyword = st.text_input("搜索用户名", value=st.session_state["user_mgmt_keyword"],
                                 key="user_search_input", placeholder="输入用户名关键词")
     with col_refresh:
-        if st.button("🔄 刷新", width="stretch"):
+        if st.button("🔄", help="刷新：重新加载用户列表"):
             st.session_state["user_mgmt_keyword"] = keyword
             st.rerun()
         # 加法式 UX：一键清空搜索关键词并显示全部用户（不改动现有刷新逻辑）。

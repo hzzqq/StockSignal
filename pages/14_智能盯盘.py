@@ -311,7 +311,7 @@ def fragment_watchlist():
         st.session_state['wl_filter_q'] = ''
         st.session_state['wl_filter_rng'] = (-10.0, 10.0)
         st.session_state['wl_only_alert'] = False
-    if st.button('🔄 刷新', key='wl_manual_refresh', help='手动刷新本板块实时行情'):
+    if st.button('🔄', key='wl_manual_refresh', help='刷新：手动刷新本板块实时行情'):
         st.rerun(scope='fragment')
     if st_autorefresh is not None and is_trading_now():
         st_autorefresh(interval=60000, key='wl_auto')

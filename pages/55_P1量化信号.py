@@ -24,7 +24,7 @@ import streamlit as st
 
 from modules.page_utils import render_standard_page, import_autorefresh
 from modules.ui_theme import sf_card, sf_metric
-from modules.ui_kit import xc_warn_box, xc_success_box, ss_fold_useful
+from modules.ui_kit import xc_warn_box, xc_success_box, ss_fold_useful, ss_hover_preview
 from modules.p1_signal import P1SignalLoader, format_rank
 
 dark = render_standard_page(
@@ -62,28 +62,27 @@ with st.sidebar:
     sel_label = st.selectbox("信号模型", list(label_to_key.keys()), index=default_idx)
     model = label_to_key[sel_label]
     n = st.slider("榜单只数", 5, 30, 20, 5)
-    if st.button("🔄 刷新信号", key="p1_refresh", width="stretch",
-                 help="清除缓存并重新读取信号文件（P1 重新导出后点此立即生效）"):
+    if st.button("🔄", key="p1_refresh",
+                 help="刷新信号：清除缓存并重新读取信号文件（P1 重新导出后点此立即生效）"):
         loader.invalidate()
         st.rerun()
     st.caption(f"数据日期：{loader.latest_date(model) or '未知'}　·　每 5 分钟自动刷新")
 
-# ───────────────────────── 头部说明 + 口径警告 ─────────────────────────
-sf_card(
-    "P1 量化信号 · 接入说明",
-    "信号由 P1-QuantFactor 用 1427 只 A 股训练的 GRU 神经网络产出，EV 模型在 38 维量价特征上"
-    "额外并入「牧羊人市场广度情绪」9 维作为事件/regime 通道（共 47 维）。EV 为全量 1427 严格"
-    "hold-out 口径下的最优候选。",
-    icon="🧠",
+# ───────────────────────── 头部说明（T-277：收进 ❓ 悬浮标注，占地收敛） ─────────────────────────
+_info_html = (
+    "<div style='line-height:1.85'>"
+    "<b>接入说明</b>：信号由 P1-QuantFactor 用 1427 只 A 股训练的 GRU 神经网络产出，"
+    "EV 模型在 38 维量价特征上额外并入「牧羊人市场广度情绪」9 维作为事件/regime 通道（共 47 维）。"
+    "EV 为全量 1427 严格 hold-out 口径下的最优候选。"
+    "<br><br><b>⚠️ 口径必读</b>：这是「统计意义上的超额收益概率」，<b>不是</b>「明天必涨/必跌」的预测。"
+    "2026 单年口径订正：此前「仍为负」系 rf=15 错配桶（信号 10 日窗口在 15 日持有中衰减）所致；"
+    "rf=10（=horizon，非重叠桶）下 2026 转正（历史 pred 净：GRU +8.67%、EV 全量 +10.68%；"
+    "该 pred 已被 9/25 重训覆盖——现役 pred 重算见 sj report_cost_recalc.json：GRU 净 +3.55%、"
+    "EV(fusion) 净 +13.97%，均含 ks 成本口径 ≈0.30%）。"
+    "<br><br>信号为市场中性多空，A 股零售场景通常仅取多头侧。"
+    "</div>"
 )
-xc_warn_box(
-    "⚠️ 阅读前必读（口径）",
-    hint="这是「统计意义上的超额收益概率」，**不是**「明天必涨/必跌」的预测。2026 单年口径订正："
-         "此前「仍为负」系 rf=15 错配桶（信号 10 日窗口在 15 日持有中衰减）所致；rf=10（=horizon，非重叠桶）下"
-         "2026 转正（历史 pred 净：GRU +8.67%、EV 全量 +10.68%；⚠️ 该 pred 已被 9/25 重训覆盖——现役 pred 重算见"
-         " sj report_cost_recalc.json：GRU 净 +3.55%、EV(fusion) 净 +13.97%，均含 ks 成本口径 ≈0.30%）。"
-         "信号为市场中性多空，A 股零售场景通常仅取多头侧。",
-)
+ss_hover_preview("ℹ️ 口径与用法", _info_html)
 
 # ───────────────────────── 选中模型概览 ─────────────────────────
 s = loader.summary().get(model, {})
