@@ -904,6 +904,95 @@ section[data-testid="stSidebar"] .stMarkdown h3{color:#fcee0a!important;
 a{color:#00f0ff!important}
 a:hover{color:#fcee0a!important;text-shadow:0 0 8px rgba(252,238,10,.5)!important}
 '''},
+    'finpro': {'label': '🏛️ 金融终端 Pro（专业深蓝）', 'mode': 'dark',
+        'vars': ('--bg:#0a1020; --card:#0f1726; --card2:#0c1322; '
+                 '--acc1:#2f81f7; --acc2:#1f6feb; '
+                 '--txt:#e6edf3; --txt2:#8b949e; --border:#1f2937; '
+                 '--hover:#131c2e; '
+                 '--header-g1:#0d1424; --header-g2:#101a30; '
+                 '--icon-g1:#0d1424; --icon-g2:#101a30; '
+                 '--ss-accent:#2f81f7; --ss-accent2:#1f6feb; '
+                 '--ss-surface:#0f1726; --ss-surface-2:#0c1322; '
+                 '--ss-text:#e6edf3; --ss-text-muted:#8b949e; --ss-line:#1f2937; '
+                 '--ss-shadow-card:0 1px 3px rgba(0,0,0,.4); '
+                 '--ss-shadow-lift:0 4px 14px rgba(47,129,247,.14); '
+                 '--ss-shadow-hero:0 0 0 1px rgba(47,129,247,.18),0 8px 22px rgba(0,0,0,.35);'),
+        'extra': '''
+/* ===== 金融终端 Pro（T-276）：专业金融终端视觉 =====
+   设计观点：数据墨水优先——深海军蓝底 + 细线面板 + 等宽数字 + 克制青蓝 accent；
+   去紫蓝渐变光晕（SaaS 落地页感），语义色（红涨绿跌/买卖）不反转。 */
+
+/* 1) 全局底：极淡数据栅格纹理（金融终端空间坐标感，透明度 3% 极克制） */
+.stApp{background-color:#0a1020!important;
+  background-image:linear-gradient(rgba(148,163,184,.03) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(148,163,184,.03) 1px,transparent 1px)!important;
+  background-size:28px 28px,28px 28px!important}
+
+/* 2) 卡片：平面细线面板（去径向光晕/悬浮抬升——终端语言=细边框+平面） */
+.sf-card,.sf-cta-card,.sf-perspective-card,.sf-vsbox,.sf-metric-card{
+  border-radius:10px!important;box-shadow:0 1px 3px rgba(0,0,0,.35)!important;
+  border:1px solid var(--border)!important}
+.sf-card::before,.sf-cta-card::before{display:none!important}
+.sf-card:hover,.sf-cta-card:hover{transform:none!important;
+  border-color:color-mix(in srgb,var(--acc1) 45%,var(--border))!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.4)!important}
+.sf-card-title::before,.sf-card h2::before,.sf-card h2.sf-h1::before{
+  background:var(--acc1)!important;box-shadow:none!important;border-radius:2px!important}
+.sf-stat:hover,.ss-stat:hover{transform:none!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.4)!important}
+
+/* 3) 数字墨水：数值统一等宽 + 表格数字列（金融终端核心可读性） */
+.stMetric [data-testid="stMetricValue"],.sf-price-big,.ss-stat .value,.xc-card .value,
+.sf-metric-card .value{font-family:Consolas,'JetBrains Mono',ui-monospace,monospace!important;
+  font-variant-numeric:tabular-nums!important;letter-spacing:0!important}
+.stDataFrame tbody td,.stDataFrame thead th,.sf-table td{
+  font-variant-numeric:tabular-nums!important}
+
+/* 4) 表格密度：行距收紧 + 表头小型大写字距 */
+.stDataFrame thead th{text-transform:uppercase!important;letter-spacing:.8px!important;
+  font-size:11.5px!important;background:#0d1526!important}
+.stDataFrame tbody tr:nth-child(even) td{background:rgba(148,163,184,.04)}
+
+/* 5) 侧边栏：终端导航质感（深底细边） */
+section[data-testid="stSidebar"]{background:#0c1322!important;
+  border-right:1px solid var(--border)!important}
+
+/* 6) 按钮/输入：直角收敛 + 聚焦蓝边 */
+.stApp .stButton button{border-radius:8px!important;box-shadow:none!important;
+  background:#0f1726!important;border:1px solid var(--border)!important}
+.stApp .stButton button:hover{border-color:var(--acc1)!important;
+  background:#131c2e!important;box-shadow:none!important}
+.stApp .stButton button[kind="primary"]{background:var(--acc1)!important;
+  border-color:transparent!important;color:#fff!important}
+.stApp input,.stApp [data-baseweb="input"],.stApp [data-baseweb="select"]>div{
+  border-radius:8px!important;background:#0c1322!important;border-color:var(--border)!important}
+.stApp input:focus,.stApp [data-baseweb="input"]:focus{border-color:var(--acc1)!important;
+  box-shadow:0 0 0 1px var(--acc1)!important}
+
+/* 7) 涨跌/状态 pill：语义色纯色化 + 等宽（终端惯例） */
+.sf-pill,.sf-tag{border-radius:4px!important;font-family:Consolas,monospace!important}
+
+/* 8) 标题竖条收敛 + Tabs 终端下划线 */
+h2{border-left:3px solid var(--acc1)!important}
+.stTabs [data-baseweb="tab"]{color:var(--txt2)!important;font-weight:500!important}
+.stTabs [data-baseweb="tab"][aria-selected="true"]{color:#e6edf3!important;
+  border-bottom:2px solid var(--acc1)!important;font-weight:700!important}
+
+/* 9) 滚动条细窄深色 + 链接/selection */
+::-webkit-scrollbar{width:8px!important;height:8px!important}
+::-webkit-scrollbar-track{background:#0a1020!important}
+::-webkit-scrollbar-thumb{background:#1f2937!important;border-radius:4px!important}
+::-webkit-scrollbar-thumb:hover{background:var(--acc1)!important}
+a{color:#58a6ff!important}a:hover{color:#79b8ff!important}
+::selection{background:rgba(47,129,247,.35)!important}
+
+/* 10) 登录卡兼容（继承 finpro 深蓝语言） */
+:root{--ss-login-radius:10px;--ss-login-btn-text:#fff}
+
+/* 11) hero 光晕蓝化（ui_kit 硬编码紫 rgba(124,92,255) 的终端化覆盖） */
+.xc-hero::before{background:radial-gradient(circle at 12% -10%, rgba(47,129,247,.16), transparent 55%)!important}
+.xc-hero-icon{box-shadow:0 4px 14px rgba(47,129,247,.30)!important}
+'''},
 }
 
 def _sync_style_mode() -> None:
@@ -940,10 +1029,12 @@ def style_switcher() -> None:
         if cur not in labels:
             cur = 'classic'
         with st.sidebar:
+            # T-276：key 携带当前风格——prefs/代码切换 ui_style 后 widget state 随 key
+            # 重建，selectbox 显示值与实际风格同步（旧固定 key 会滞留旧显示）。
             choice = st.selectbox(
                 '🎨 界面风格', list(labels.keys()),
                 index=list(labels.keys()).index(cur),
-                format_func=lambda k: labels[k], key='ui_style_select')
+                format_func=lambda k: labels[k], key=f'ui_style_select_{cur}')
         st.session_state["_ui_style_switcher_ts"] = _time.time()
         if choice != cur:
             st.session_state['ui_style'] = choice

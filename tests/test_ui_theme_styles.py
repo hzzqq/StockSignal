@@ -13,9 +13,9 @@ from modules.ui_theme import STYLE_PRESETS
 
 
 def test_registry_complete():
-    """五套齐全：classic + 四新风格；字段完整。"""
+    """六套齐全：classic + 四新风格 + finpro（T-276 金融终端 Pro）；字段完整。"""
     assert set(STYLE_PRESETS) == {
-        "classic", "terminal", "swiss", "aurora", "ink", "cyber"}
+        "classic", "terminal", "swiss", "aurora", "ink", "cyber", "finpro"}
     for k, p in STYLE_PRESETS.items():
         assert set(p) == {"label", "mode", "vars", "extra"}, k
         assert isinstance(p["label"], str) and p["label"], k
