@@ -304,7 +304,8 @@ a[data-testid="stPageLink"]:hover{{background:rgba(102,126,234,.18)!important;bo
   background:var(--card2)!important;color:var(--txt)!important;padding:12px 14px!important}}
 [data-testid="stAlert"] [data-testid="stAlertContent"],
 .stAlert [data-testid="stAlertContent"]{{color:var(--txt)!important}}
-[data-testid="stAlert"]::before{{content:"";width:4px;height:100%;position:absolute;left:0;top:0;border-radius:12px 0 0 12px}}
+/* T-278：原 ::before 4px 绝对定位条与下方 border-left:4px 重复（双彩条观感粗糙）→ 只留 border-left 单源 */
+[data-testid="stAlert"]::before{{display:none!important}}
 [data-baseweb="notification"][data-kind="info"],
 [data-testid="stAlert"][data-baseweb="notification"][data-kind="info"]{{border-left:4px solid var(--acc1)!important}}
 [data-baseweb="notification"][data-kind="warning"],
@@ -313,6 +314,11 @@ a[data-testid="stPageLink"]:hover{{background:rgba(102,126,234,.18)!important;bo
 [data-testid="stAlert"][data-baseweb="notification"][data-kind="error"]{{border-left:4px solid var(--sell)!important}}
 [data-baseweb="notification"][data-kind="success"],
 [data-testid="stAlert"][data-baseweb="notification"][data-kind="success"]{{border-left:4px solid var(--buy)!important}}
+/* T-278：原生 alert 长文收敛（>420px 内容内滚动，避免整卡撑满屏；与 xc 基元折叠同设计意图） */
+[data-testid="stAlert"] [data-testid="stAlertContent"],
+.stAlert [data-testid="stAlertContent"]{{max-height:420px;overflow-y:auto}}
+[data-testid="stAlert"] .stMarkdown p,
+.stAlert .stMarkdown p{{margin-bottom:6px!important}}
 
 /* 6. 滑动条/进度条强调色 */
 [data-testid="stSlider"] [role="slider"]{{background:var(--acc1)!important}}
@@ -320,9 +326,10 @@ a[data-testid="stPageLink"]:hover{{background:rgba(102,126,234,.18)!important;bo
 [data-testid="stSlider"] [data-testid="stThumbValue"]{{color:var(--txt)!important;font-weight:500!important}}
 [data-testid="stProgress"] > div > div{{background:linear-gradient(90deg,var(--acc1),var(--acc2))!important}}
 
-/* 7. 分割线/展开面板统一 */
+/* 7. 分割线/展开面板统一（T-278：分隔线降噪——细虚线 + 更淡，减少 113 处「---」的视觉重量） */
 [data-testid="stHorizontalBlock"] hr,
-hr{{border-color:var(--border)!important}}
+hr{{border:none!important;border-top:1px dashed color-mix(in srgb,var(--border) 70%,transparent)!important;
+   margin:14px 0!important;opacity:.75}}
 [data-testid="stExpander"]{{border:1px solid var(--border)!important;border-radius:12px!important;background:var(--card)!important}}
 
 /* 8. 代码/标签页统一 */
@@ -336,7 +343,9 @@ hr{{border-color:var(--border)!important}}
 .stApp h1,.stApp h2,.stApp h3,.stApp h4{{position:relative;padding-left:14px;font-weight:700;color:var(--txt)!important}}
 .stApp h2::before,.stApp h3::before,.stApp h4::before{{content:"";position:absolute;left:0;top:.16em;width:4px;height:1em;min-height:14px;border-radius:3px;background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.35)}}
 /* 2. 原生表格（st.dataframe/st.table）统一 xc 表格观感：圆角容器 + 粘性表头 + 斑马纹 + hover */
-.stDataFrame,.stTable{{border:1px solid var(--border)!important;border-radius:12px!important;overflow:hidden!important;box-shadow:0 1px 6px rgba(15,15,35,.06)}}
+.stDataFrame,.stTable{{border:1px solid var(--border)!important;border-radius:12px!important;overflow:auto!important;box-shadow:0 1px 6px rgba(15,15,35,.06);max-height:560px}}
+/* T-278：窄屏/多列时表格容器内横向滚动（保留排序/下载交互，不做 HTML 替换） */
+[data-testid="stDataFrameResizable"],[data-testid="stDataFrame"]{{overflow-x:auto!important}}
 .stDataFrame table,.stTable table{{border-collapse:collapse!important;width:100%!important;font-size:12.5px}}
 .stDataFrame thead th,.stTable thead th{{background:var(--card2)!important;color:var(--txt2)!important;font-weight:600!important;padding:9px 10px!important;text-align:center!important;border-bottom:1px solid var(--border)!important;position:sticky;top:0;z-index:1}}
 .stDataFrame tbody td,.stTable tbody td{{padding:8px 10px!important;border-bottom:1px solid var(--border)!important;color:var(--txt)!important;text-align:center!important}}
