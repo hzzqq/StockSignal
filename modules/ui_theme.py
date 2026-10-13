@@ -431,6 +431,47 @@ hr{{border:none!important;border-top:1px dashed color-mix(in srgb,var(--border) 
 .xc-sector-pct{{font-size:18px;font-weight:700;margin-top:2px}}
 .xc-sector-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;margin-top:0}}
 .xc-note{{padding:12px 14px;border-radius:12px;background:color-mix(in srgb,var(--acc1) 10%,var(--card2));border:1px solid color-mix(in srgb,var(--acc1) 30%,var(--border));font-size:14px;line-height:1.7;color:var(--txt)}}
+
+/* ===== T-280：剩余原生组件统一收敛（承接 T-277 审计清单续批）=====
+   原则同前：仅 CSS 视觉收敛，additive-only，不动 DOM/交互/语义；
+   选择器经 Streamlit 1.58 前端产物实证（DownloadButton/FileUploader chunk 与 button[kind=...]
+   属性均取自官方打包 JS，非猜测），A 股红涨绿跌语义色零改动。 */
+
+/* 1. 下载按钮 st.download_button（全站 36 处）：纳入 stButton 视觉语言，消除与普通按钮的观感割裂 */
+[data-testid="stDownloadButton"] button{{border-radius:10px!important;font-weight:500!important;
+  border:1px solid var(--border)!important;background:var(--card2)!important;color:var(--txt)!important;
+  transition:border-color .18s ease,background .18s ease,color .18s ease!important}}
+[data-testid="stDownloadButton"] button:hover{{border-color:var(--acc1)!important;
+  background:color-mix(in srgb,var(--acc1) 12%,var(--card2))!important;color:var(--acc1)!important}}
+[data-testid="stDownloadButton"] button:active{{transform:translateY(1px)!important}}
+
+/* 2. 搜索匹配胶囊 st.pills（search_ui 全站复用）：主题化 chip（圆角胶囊 + 强调选中态） */
+button[kind="pills"]{{border-radius:999px!important;border:1px solid var(--border)!important;
+  background:var(--card2)!important;color:var(--txt)!important;font-size:12.5px!important;
+  font-weight:600!important;padding:4px 14px!important;margin:3px 4px!important;
+  transition:border-color .18s ease,background .18s ease,color .18s ease!important}}
+button[kind="pills"]:hover{{border-color:var(--acc1)!important;background:var(--hover)!important;color:var(--acc1)!important}}
+button[kind="pillsActive"]{{border-radius:999px!important;border:1px solid transparent!important;
+  background:linear-gradient(135deg,var(--acc1),var(--acc2))!important;color:#fff!important;
+  font-size:12.5px!important;font-weight:700!important;padding:4px 14px!important;margin:3px 4px!important;
+  box-shadow:0 0 12px rgba(102,126,234,.25)!important}}
+
+/* 3. 分段选择器 st.segmented_control：主题化（选中态强调色） */
+button[kind="segmented_control"]{{border:1px solid var(--border)!important;background:var(--card2)!important;
+  color:var(--txt2)!important;font-size:12.5px!important;font-weight:600!important;
+  transition:border-color .18s ease,background .18s ease,color .18s ease!important}}
+button[kind="segmented_control"]:hover{{border-color:var(--acc1)!important;color:var(--acc1)!important}}
+button[kind="segmented_controlActive"]{{border:1px solid transparent!important;
+  background:linear-gradient(135deg,var(--acc1),var(--acc2))!important;color:#fff!important;
+  font-size:12.5px!important;font-weight:700!important}}
+
+/* 4. 文件上传 dropzone（全站 2 处）：卡片化（虚线主题边 + hover 高亮） */
+[data-testid="stFileUploaderDropzone"]{{border:1.5px dashed color-mix(in srgb,var(--acc1) 35%,var(--border))!important;
+  border-radius:14px!important;background:color-mix(in srgb,var(--acc1) 4%,var(--card))!important;
+  padding:14px 16px!important;transition:border-color .18s ease,background .18s ease!important}}
+[data-testid="stFileUploaderDropzone"]:hover{{border-color:var(--acc1)!important;
+  background:color-mix(in srgb,var(--acc1) 8%,var(--card))!important}}
+[data-testid="stFileUploaderDropzoneInstructions"]{{color:var(--txt2)!important;font-size:13px!important}}
 </style>
 """
     _DASHBOARD_SF_CSS_CACHE[dark] = _css

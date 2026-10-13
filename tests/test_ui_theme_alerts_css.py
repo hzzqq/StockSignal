@@ -71,3 +71,36 @@ def test_expander_compact_and_accent():
     seg = _CSS[idx:idx + 400]
     assert "border-left:3px solid transparent" in seg, "expander 表头无强调条"
     assert "hover" in seg and "border-left-color:var(--acc1)" in seg, "expander hover 未高亮"
+
+
+# ──────────── T-280：剩余原生组件收敛（download_button / pills / segmented_control / file_uploader）────────────
+
+def test_download_button_unified_with_button_language():
+    """T-280#1：st.download_button 纳入 stButton 视觉语言（圆角/hover 强调）。"""
+    assert '[data-testid="stDownloadButton"] button' in _CSS, "下载按钮未纳入统一视觉"
+    idx = _CSS.index('[data-testid="stDownloadButton"] button')
+    seg = _CSS[idx:idx + 260]
+    assert "border-radius:10px" in seg, "下载按钮无统一圆角"
+    assert "hover" in _CSS[idx:idx + 700], "下载按钮缺 hover 态"
+
+
+def test_pills_themed_chip():
+    """T-280#2：st.pills 主题化胶囊（未选 kind=pills / 选中 kind=pillsActive）。"""
+    assert 'button[kind="pills"]' in _CSS, "pills 未主题化（未选态）"
+    assert 'button[kind="pillsActive"]' in _CSS, "pills 选中态未主题化"
+    idx = _CSS.index('button[kind="pillsActive"]')
+    assert "border-radius:999px" in _CSS[idx:idx + 200], "pills 选中态非胶囊圆角"
+
+
+def test_segmented_control_themed():
+    """T-280#3：st.segmented_control 主题化（未选 kind=segmented_control / 选中 ...Active）。"""
+    assert 'button[kind="segmented_control"]' in _CSS, "分段选择器未主题化（未选态）"
+    assert 'button[kind="segmented_controlActive"]' in _CSS, "分段选择器选中态未主题化"
+
+
+def test_file_uploader_dropzone_card():
+    """T-280#4：文件上传 dropzone 卡片化（虚线主题边 + hover 高亮）。"""
+    assert '[data-testid="stFileUploaderDropzone"]' in _CSS, "uploader dropzone 未卡片化"
+    idx = _CSS.index('[data-testid="stFileUploaderDropzone"]')
+    assert "1.5px dashed" in _CSS[idx:idx + 200], "dropzone 无虚线主题边"
+    assert "hover" in _CSS[idx:idx + 600], "dropzone 缺 hover 态"
