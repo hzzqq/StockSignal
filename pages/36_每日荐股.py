@@ -4,8 +4,8 @@
 多算法融合选股（multi_factor V5 / 双趋势共振 / 主力资金流 / P1 事件因子 / 动量量能），
 每交易日收盘后由后端调度器自动生成（data/daily_recommendation.json），本页直接读本地最新份。
 
-每只推荐附：五路算法得分归因（缺失算法如实标注 unavailable）+ 买入方案
-（入场/目标/止损 = ATR 倍数，仓位提示联动决策快照）+ 逐条理由 + 免责声明。
+每只推荐附：全路算法得分归因（路数以 ALGO_WEIGHTS 为准，缺失算法如实标注 unavailable）
++ 买入方案（入场/目标/止损 = ATR 倍数，仓位提示联动决策快照）+ 逐条理由 + 免责声明。
 用户可在本页关闭荐股推送（消息中心不再展示该类型；默认开启）。
 """
 import json
@@ -17,7 +17,7 @@ from modules.page_utils import render_standard_page
 from modules.session import get_user_setting, save_user_setting
 from modules.ui_kit import info_banner, xc_warn_box
 from modules.recommend_engine import (
-    ALGO_LABELS, DISCLAIMER, load_latest_recommendation,
+    ALGO_LABELS, ALGO_WEIGHTS, DISCLAIMER, load_latest_recommendation,
 )
 
 dark = render_standard_page(
@@ -99,7 +99,7 @@ for i, p in enumerate(picks, 1):
                       help=plan.get("position_note", ""))
 
         # 算法归因（缺失如实标注）
-        with st.expander("🔬 算法归因与理由（五路算法独立打分）", expanded=(i == 1)):
+        with st.expander(f"🔬 算法归因与理由（{len(ALGO_WEIGHTS)} 路算法独立打分）", expanded=(i == 1)):
             algos = p.get("algorithms") or {}
             for k, meta in algos.items():
                 label = ALGO_LABELS.get(k, k)

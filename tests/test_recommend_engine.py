@@ -19,8 +19,9 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from modules.recommend_engine import (  # noqa: E402
-    atr14, fusion_score, load_latest_recommendation, minmax_normalize,
-    rec_paths, save_recommendation, trade_levels, today_generated,
+    _normalize_reasons, atr14, fusion_score, load_latest_recommendation,
+    minmax_normalize, rec_paths, save_recommendation, trade_levels,
+    today_generated,
 )
 
 
@@ -126,3 +127,24 @@ def test_load_corrupt_is_unavailable(tmp_path, monkeypatch):
         lambda data_dir=None: (str(tmp_path / "a.json"), str(latest)))
     out = load_latest_recommendation()
     assert out["status"] == "unavailable"
+
+
+# ── _normalize_reasons（2026-10-13 浏览器实测发现的单字碎句缺陷收口）──
+def test_normalize_reasons_joined_string_split():
+    """_score_for_picker 返回逗号拼接字符串 → 必须拆成完整句列表，禁止逐字迭代。"""
+    out = _normalize_reasons("强趋势(持续),短期趋势,RSI14健康")
+    assert out == ["强趋势(持续)", "短期趋势", "RSI14健康"]
+
+
+def test_normalize_reasons_list_passthrough():
+    out = _normalize_reasons(["创52周新高（250日窗口）", "巨量 2.3x@20日均量"])
+    assert out == ["创52周新高（250日窗口）", "巨量 2.3x@20日均量"]
+
+
+def test_normalize_reasons_degenerate_inputs():
+    assert _normalize_reasons(None) == []
+    assert _normalize_reasons("") == []
+    assert _normalize_reasons(",,") == []
+    assert _normalize_reasons(12345) == []
+    # 混入空段的列表 → 剔除空段
+    assert _normalize_reasons(["有效", "", "  "]) == ["有效"]

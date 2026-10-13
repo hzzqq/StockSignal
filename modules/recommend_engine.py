@@ -74,6 +74,21 @@ DISCLAIMER = (
 )
 
 
+def _normalize_reasons(raw):
+    """reasons 归一为字符串列表。
+
+    缺陷背景（2026-10-13 浏览器实测发现）：`Backtester._score_for_picker` 返回的
+    reasons 是逗号拼接的**单个字符串**（backtest.py `"reasons": ",".join(reasons)`），
+    组装处若直接对其迭代 `[:2]` 只会取到前两个**字符**（「强」「趋」这类单字碎句）。
+    此处统一收口：str → 按逗号拆分；list/tuple → 原样；其余（None 等）→ 空列表。
+    """
+    if isinstance(raw, str):
+        return [seg.strip() for seg in raw.split(",") if seg.strip()]
+    if isinstance(raw, (list, tuple)):
+        return [str(r) for r in raw if str(r).strip()]
+    return []
+
+
 # ══════════════════════════════════════════════════════
 # T-272②：引擎取数参数单一真理源
 # cache_warmer 预热与本模块 _fetch_one 必须逐字节同参（cache_key 由参数拼接，
@@ -623,7 +638,9 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
         for k in ALGO_WEIGHTS:
             item = v["algo"].get(k)
             if item and item.get("reasons"):
-                reasons.extend(f"[{ALGO_LABELS[k]}] {r}" for r in item["reasons"][:2])
+                # _score_for_picker 的 reasons 是逗号拼接字符串，必须先归一（单字碎句缺陷）
+                norm = _normalize_reasons(item["reasons"])
+                reasons.extend(f"[{ALGO_LABELS[k]}] {r}" for r in norm[:2])
         rows.append({"code": c, "name": v["name"], "composite": composite,
                      "algorithms": breakdown, "reasons": reasons[:10],
                      "data_as_of": v["data_as_of"], "df": df,
