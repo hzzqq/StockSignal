@@ -41,6 +41,21 @@ def test_semantic_colors_not_overridden():
         assert banned not in extra, f"finpro extra 覆盖了语义色 {banned}"
 
 
+def test_finpro_native_expander_dark_override():
+    """T-282 防回潮：expander 必须 DOM 级深色覆盖（三层）。
+
+    Streamlit 1.58 的 expander 背景由 emotion 在 JS 侧按 config 主题计算
+    （darkenedBgMix15/25），不引用 CSS 变量——token 映射无效。不覆盖 DOM
+    则深蓝页面出现浅色「白横条」（2026-10-13 浏览器实测 finpro 每日荐股页）。
+    """
+    extra = STYLE_PRESETS["finpro"]["extra"]
+    for needed in ('[data-testid="stExpander"] details',
+                   '[data-testid="stExpander"] summary',
+                   '[data-testid="stExpanderDetails"]'):
+        assert needed in extra, \
+            f"finpro extra 缺少 {needed} 深色覆盖——expander 将回退浅色底（白横条缺陷）"
+
+
 def test_style_switcher_key_sync_fix():
     """style_switcher 的 key 携带当前风格（prefs 切换后显示同步，T-276 修复防回潮）。"""
     src = (_ROOT / "modules" / "ui_theme.py").read_text(encoding="utf-8")

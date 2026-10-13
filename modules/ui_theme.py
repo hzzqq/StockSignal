@@ -1061,6 +1061,17 @@ a{color:#58a6ff!important}a:hover{color:#79b8ff!important}
 /* 11) hero 光晕蓝化（ui_kit 硬编码紫 rgba(124,92,255) 的终端化覆盖） */
 .xc-hero::before{background:radial-gradient(circle at 12% -10%, rgba(47,129,247,.16), transparent 55%)!important}
 .xc-hero-icon{box-shadow:0 4px 14px rgba(47,129,247,.30)!important}
+
+/* 12) 原生组件深色覆盖（T-282 实测缺陷）：Streamlit 1.58 的 expander 背景
+      由 emotion 在 JS 侧按 config 主题计算（darkenedBgMix15/25），不引用
+      CSS 变量——token 映射无效，必须对 DOM 直接覆盖，否则浅色「白横条」
+      直插深蓝页面。details/summary/内容区三层都要盖。 */
+[data-testid="stExpander"]{background-color:var(--card)!important;
+  border:1px solid var(--border)!important}
+[data-testid="stExpander"] details,
+[data-testid="stExpander"] summary,
+[data-testid="stExpanderDetails"]{background-color:var(--card)!important}
+[data-testid="stExpander"] summary:hover{color:var(--txt)!important}
 '''},
 }
 
