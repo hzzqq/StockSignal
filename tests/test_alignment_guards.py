@@ -53,7 +53,7 @@ def test_alignment_matrix_documents_exist_and_complete():
     src = p.read_text(encoding="utf-8")
     for i in range(1, 10):
         assert f"### {i}." in src, f"矩阵缺少衔接点 #{i}"
-    for kw in ("跨仓核对", "R10 拍板", "horizon=10"):
+    for kw in ("跨仓核对", "R10 成本口径", "horizon=10", "trading_costs"):
         assert kw in src, f"行动项/备忘缺失：{kw}"
     assert "49.1" in src, "矩阵必须引用 49.1% 锚（双口径分列）"
 
