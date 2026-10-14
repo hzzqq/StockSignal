@@ -10,7 +10,7 @@ import urllib.error
 import requests
 import streamlit as st
 
-from modules.ui_theme import apply_page_config
+from modules.ui_theme import apply_page_config, dashboard_sf_css
 from modules import decision as _decision
 from modules import shepherd as _sh
 from modules import shepherd_ladder as _sl
@@ -19,6 +19,12 @@ apply_page_config(
     page_title="StockSignal · A股事件驱动投资分析平台",
     layout="wide"
 )
+# T-283：首页与其余 67 页对齐——注入全站组件收敛层（T-278 原生 alert 深色卡 /
+# T-279 caption 截断·metric 等高·expander 紧凑 / T-280 下载按钮·pills·分段选择器
+# ·dropzone）。此前首页从不调 render_standard_page，该层从未在首页生效：
+# 实测（2026-10-14）首页 st.warning 走原生 light 底白横条直插深色页面。
+# 注入顺序与 page_utils.render_standard_page 一致（apply_page_config 之后）。
+st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.session_state["_active_page"] = __file__
 
 # ── 鉴权门禁：未登录直接跳到 /登录 ──

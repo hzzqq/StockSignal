@@ -100,3 +100,35 @@ def test_ink_seal_below_topnav():
     extra = STYLE_PRESETS["ink"]["extra"]
     assert 'content:"量策"' in extra
     assert 'content:"量策";position:fixed;top:64px' in extra
+
+
+def test_apply_page_config_locks_mode_before_native_theme():
+    """T-283 防回潮：apply_page_config 必须在原生主题选型（theme = DARK/LIGHT →
+    set_option）之前 _sync_style_mode()，且 ui_style 随 URL prefs 提前就位。
+
+    此前风格锁定在 apply_theme() 内才执行（晚于本函数的 set_option），强制暗色
+    风格（finpro/terminal/aurora/cyber）冷加载首屏的原生组件（stAlert/下拉弹层
+    等 emotion 计算件）按默认 light 渲染——finpro 深蓝页直插白底横条
+    （2026-10-14 浏览器实测）。classic mode=None 不受影响。"""
+    src = inspect.getsource(ui_theme.apply_page_config)
+    assert "_sync_style_mode()" in src, \
+        "apply_page_config 缺少 _sync_style_mode()——强制暗/亮风格冷加载原生主题将回退 light"
+    assert src.index("_sync_style_mode()") < src.index("theme = STREAMLIT_THEME_DARK"), \
+        "_sync_style_mode() 必须在原生主题选型之前调用"
+    assert "setdefault('ui_style'" in src, \
+        "prefs 恢复块必须就位 ui_style，否则 _sync_style_mode() 读不到风格等于空转"
+
+
+def test_home_injects_dashboard_sf_css():
+    """T-283 防回潮：首页必须注入全站组件收敛层 dashboard_sf_css。
+
+    首页不走 render_standard_page（仅 apply_page_config），T-278/279/280 的
+    原生 alert 深色卡 / caption 截断 / metric 等高 / 下载按钮 / pills 层从未在
+    首页生效（st.warning 白横条，2026-10-14 浏览器实测 sfAlert=False）。
+    注入顺序必须与 render_standard_page 一致（apply_page_config 之后）。"""
+    import pathlib
+    root = pathlib.Path(ui_theme.__file__).resolve().parent.parent
+    src = (root / "app.py").read_text(encoding="utf-8")
+    assert "dashboard_sf_css()" in src, "首页缺少 dashboard_sf_css() 注入"
+    assert src.index("apply_page_config(") < src.index("dashboard_sf_css()"), \
+        "dashboard_sf_css() 必须在 apply_page_config 之后注入（与 render_standard_page 同序）"

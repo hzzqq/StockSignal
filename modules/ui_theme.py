@@ -97,9 +97,18 @@ def apply_page_config(page_title: str, page_icon: str=None, layout: str='wide') 
         if _p:
             st.session_state.setdefault('theme_mode', _p.get('theme_mode', 'light'))
             st.session_state.setdefault('font_size', _p.get('font_size', FONT_DEFAULT))
+            # T-283：ui_style 也要在原生主题选型前就位，否则下方 _sync_style_mode()
+            # 读不到风格、强制暗/亮风格冷加载首屏仍按默认 light 计算原生组件。
+            st.session_state.setdefault('ui_style', _p.get('ui_style', 'classic'))
     except Exception as e:
         logger.warning(f"[ui_theme] 处理异常: {e}")
         pass
+    # T-283：强制暗/亮风格（finpro/terminal/aurora/cyber→dark，swiss/ink→light）
+    # 必须在下方 set_option('theme.*') 之前锁定 theme_mode——此前锁定在
+    # apply_theme() 内才执行（晚于本函数的主题选型），冷加载首屏原生组件
+    # （stAlert/下拉弹层等 emotion 计算件）按默认 light 渲染，finpro 深蓝页
+    # 直插白底横条（浏览器实测 2026-10-14）。classic mode=None 不受影响。
+    _sync_style_mode()
     theme = STREAMLIT_THEME_DARK if _theme_is_dark() else STREAMLIT_THEME_LIGHT
     try:
         for key, value in theme.items():
