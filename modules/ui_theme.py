@@ -262,18 +262,20 @@ def dashboard_sf_css() -> str:
 /* 说明：以下样式只改颜色/圆角/边框/阴影，不改 DOM 结构与功能，不破坏业务逻辑。 */
 
 /* 1. caption 小卡片化（T-279 #5：长文默认 2 行截断 + hover 展开，避免灰底卡占 3+ 行） */
+[data-testid="stCaptionContainer"],
 [data-testid="stCaption"],
 .stCaption{{font-size:12.5px!important;color:var(--txt2)!important;line-height:1.7!important;
   background:var(--card2)!important;border-left:3px solid var(--acc1)!important;
   border-radius:0 10px 10px 0!important;padding:8px 12px!important;margin:10px 0 14px!important;
   display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden!important;
   transition:box-shadow .2s ease}}
+[data-testid="stCaptionContainer"]:hover,
 [data-testid="stCaption"]:hover,
 .stCaption:hover{{-webkit-line-clamp:unset;overflow:visible!important;
   box-shadow:0 2px 10px rgba(0,0,0,.06)}}
 /* 触屏无 hover → 不截断（保证移动端信息可达） */
 @media (hover:none){{
-  [data-testid="stCaption"],.stCaption{{-webkit-line-clamp:unset!important;overflow:visible!important}}
+  [data-testid="stCaptionContainer"],[data-testid="stCaption"],.stCaption{{-webkit-line-clamp:unset!important;overflow:visible!important}}
 }}
 
 /* 2. 按钮统一圆角+渐变 hover */

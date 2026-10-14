@@ -51,11 +51,27 @@ def test_semantic_colors_present_and_untouched():
 # ──────────── T-279：#5 caption 截断 / #6 metric 等高 / #7 expander 紧凑 ────────────
 
 def test_caption_line_clamp_and_hover_expand():
-    """#5：长 caption 默认 2 行截断 + hover 展开 + 触屏回退不截断。"""
+    """#5：长 caption 默认 2 行截断 + hover 展开 + 触屏回退不截断。
+
+    T-284 DOM 契约：Streamlit 1.58 实测 caption testid = stCaptionContainer
+    （首页 56 个容器，stCaption/.stCaption 均 0 命中，CDP 计算样式取证）——
+    三组规则（截断卡/hover/触屏回退）必须包含 stCaptionContainer，否则整层失效。
+    """
     assert "-webkit-line-clamp:2" in _CSS, "caption 未 2 行截断"
+    # 主规则必须以 stCaptionContainer 打头且与 clamp 同块（第一个 container 锚点
+    # 到 clamp 之间不得出现规则边界 }）
+    i_cont = _CSS.index('[data-testid="stCaptionContainer"]')
+    i_clamp = _CSS.index("-webkit-line-clamp:2")
+    assert i_cont < i_clamp and "}" not in _CSS[i_cont:i_clamp], \
+        "stCaptionContainer 未命中 2 行截断规则"
+    assert _CSS.count('[data-testid="stCaptionContainer"]') >= 3, \
+        "截断/hover/触屏回退三组规则须全部覆盖 stCaptionContainer"
     idx = _CSS.index(".stCaption:hover")
     assert "-webkit-line-clamp:unset" in _CSS[idx:idx + 120], "caption hover 未展开"
-    assert "@media (hover:none)" in _CSS, "缺少触屏回退（移动端信息可达性）"
+    assert '@media (hover:none)' in _CSS, "缺少触屏回退（移动端信息可达性）"
+    i_media = _CSS.index("@media (hover:none)")
+    assert "stCaptionContainer" in _CSS[i_media:i_media + 220], \
+        "触屏回退未覆盖 stCaptionContainer"
 
 
 def test_metric_equal_height():
