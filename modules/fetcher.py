@@ -58,6 +58,16 @@ from modules._feed_io import (  # noqa: F401
 # 市场数据 I/O 叶子模块（#锐评整改：从 StockFetcher 下沉，零循环依赖）
 import modules._market_data_io as _mdi
 
+# T-247 Tier1.1：纯函数真身迁 modules.fetcher_core，此处 re-export 同一对象
+# （调用点零改动；AST 守卫 tests/test_fetcher_core_tier11.py 锁死防本地定义回潮）
+from modules.fetcher_core import (  # noqa: F401
+    _df_last_date,
+    _proc_cache_get,
+    _proc_cache_set,
+    _safe_ident,
+    SAFE_IDENT_RE,
+)
+
 # 代理 IP 池（免费，best-effort 抗封禁）：仅当 SS_PROXY_POOL=1 时启用。
 # 通过进程级 HTTPS_PROXY/HTTP_PROXY 让 akshare / requests 继承轮换出口 IP。
 # 初始化失败绝不影响主流程（akshare 仍可直连）。baostock 是账号级限流，不受本池影响。
@@ -88,17 +98,7 @@ def load_config(config_path="config.yaml"):
 # ══════════════════════════════════════════════════════════
 # 主数据采集器
 # ══════════════════════════════════════════════════════════
-def _df_last_date(df):
-    """取 DataFrame 的内容日期（date 列最大值，YYYY-MM-DD）；不可得返回 None。
-
-    T-248：as_of 必须用**内容日期**而非缓存写入时间（mtime），防止假新鲜。
-    """
-    try:
-        if isinstance(df, pd.DataFrame) and "date" in df.columns and len(df):
-            return str(pd.to_datetime(df["date"]).max())[:10]
-    except Exception:  # noqa: BLE001 - 元数据尽力而为，绝不影响主数据路径
-        pass
-    return None
+# （_df_last_date 已迁 modules.fetcher_core，顶部 re-export 同一对象，T-247 Tier1.1）
 
 
 # ── T-257：get_daily L0 进程级内存缓存（TTL-LRU）──────────────────────
@@ -138,15 +138,11 @@ class StockFetcher:
     """
 
     # SQLite 参数绑定只支持「值」占位（?），不支持标识符占位，因此拼接表名不可避免。
-    # 用白名单正则兜底：任何含 ; 空格 引号 -- / 等字符的注入载荷一律拒绝。
-    _SAFE_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-    @classmethod
-    def _safe_ident(cls, name: str) -> str:
-        """校验 SQLite 标识符（表名），非法标识符直接抛 ValueError，绝不拼接进 SQL。"""
-        if not isinstance(name, str) or not cls._SAFE_IDENT_RE.match(name):
-            raise ValueError(f"非法的 SQLite 标识符: {name!r}")
-        return name
+    # 白名单正则真身在 modules.fetcher_core.SAFE_IDENT_RE（T-247 单源）；
+    # 类属性保留同一 re 对象（fetcher.py L2328 与 tests 直接引用）。
+    _SAFE_IDENT_RE = SAFE_IDENT_RE
+    # _safe_ident 真身迁 fetcher_core（staticmethod 绑定同一对象，调用点零变化）
+    _safe_ident = staticmethod(_safe_ident)
 
     @staticmethod
     @contextlib.contextmanager
@@ -186,20 +182,9 @@ class StockFetcher:
 
     # ── 进程内 TTL 缓存工具（#406：统一进程缓存过期策略）────────────
     # 存储结构：{key: (存入时刻 monotonic, value)}；读时超 ttl 判为 MISS。
-    @staticmethod
-    def _proc_cache_get(cache: dict, key, ttl_seconds):
-        item = cache.get(key)
-        if item is None:
-            return None
-        ts, value = item
-        if (time.monotonic() - ts) > ttl_seconds:
-            cache.pop(key, None)  # 过期清除
-            return None
-        return value
-
-    @staticmethod
-    def _proc_cache_set(cache: dict, key, value):
-        cache[key] = (time.monotonic(), value)
+    # 真身迁 modules.fetcher_core（T-247 Tier1.1），staticmethod 绑定同一对象。
+    _proc_cache_get = staticmethod(_proc_cache_get)
+    _proc_cache_set = staticmethod(_proc_cache_set)
 
     def get_all_codes(self, limit=None, random_seed=None):
         """
