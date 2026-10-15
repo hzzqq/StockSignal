@@ -7,13 +7,21 @@ _feed_io._safe_urlopen 直连 urllib，此前**无 per-host 节流也无熔断**
 同一 host 两次请求（含重试尝试）之间至少间隔 SS_HOST_MIN_INTERVAL 秒，本机后端不节流。
 
 mutation 基线：去掉 _throttle 接线 → test_same_host_second_call_delayed 变红。
+
+T-285 密封桩：fake urlopen 打在进程级 urllib.request 模块上，全量回归时其它测试
+泄漏的后台拉取线程会穿过补丁污染计数（曾实测 4 次≠2、时间戳簇状成对，负载态偶发）。
+桩只认本测试 URL：外来流量返回哑对象、不记录、不消耗失败预算。
 """
 from __future__ import annotations
 
 import os
 import sys
+import threading
 import time
 import urllib.error
+import urllib.request
+
+import pytest
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
@@ -32,14 +40,26 @@ def _reset_gov(monkeypatch, interval="0.25"):
     monkeypatch.setattr(ru, "_cooldown_until", {})
 
 
-def _install_fake_urlopen(monkeypatch, fail_first=0):
-    """打桩 urllib.request.urlopen：记录调用时刻；可选前 N 次抛 URLError。"""
+def _install_fake_urlopen(monkeypatch, fail_first=0, match="sina.example.com"):
+    """打桩 urllib.request.urlopen：**只认 match 命中的调用**（T-285 密封契约）。
+
+    补丁打在进程级 urllib.request 模块上，全量回归时其它测试泄漏的后台拉取线程
+    也会调进来——外来流量返回哑对象、不记录时刻、不消耗 fail_first 失败预算
+    （否则计数 4≠2 / 重试用例首调预算被抢，负载态偶发红）。
+    """
     calls = {"t": [], "n": 0}
+    lock = threading.Lock()
 
     def fake_urlopen(req, timeout=None):
-        calls["t"].append(time.monotonic())
-        calls["n"] += 1
-        if calls["n"] <= fail_first:
+        url = req if isinstance(req, str) else getattr(req, "full_url", "")
+        if match in str(url):
+            with lock:
+                calls["n"] += 1
+                n = calls["n"]
+                calls["t"].append(time.monotonic())
+        else:
+            n = fail_first + 1  # 外来流量：不触发失败预算
+        if n <= fail_first:
             raise urllib.error.URLError("simulated transient failure")
         return object()
 
@@ -69,19 +89,54 @@ def test_retry_attempts_also_throttled(monkeypatch):
 
 
 def test_local_host_not_throttled(monkeypatch):
-    """本机后端（127.0.0.1）不节流——给自家 Flask 加间隔属自我伤害。"""
-    _reset_gov(monkeypatch, interval="0.25")
-    calls = _install_fake_urlopen(monkeypatch)
+    """本机后端（127.0.0.1）不节流——给自家 Flask 加间隔属自我伤害。
+
+    T-285：interval 取 1.0、阈值 0.5——「未节流」上界断言留足负载余量
+    （全量回归时调度毛刺可到几十 ms），仍保留判别力（误节流则 delta≥1.0 必红）。
+    """
+    _reset_gov(monkeypatch, interval="1.0")
+    calls = _install_fake_urlopen(monkeypatch, match="127.0.0.1:5050")
     _safe_urlopen("http://127.0.0.1:5050/api/x", timeout=1, retries=0)
     _safe_urlopen("http://127.0.0.1:5050/api/x", timeout=1, retries=0)
     delta = calls["t"][1] - calls["t"][0]
-    assert delta < 0.2, f"本机后端不得节流（实测 {delta:.3f}s）"
+    assert delta < 0.5, f"本机后端不得节流（实测 {delta:.3f}s）"
 
 
 def test_different_hosts_independent(monkeypatch):
-    _reset_gov(monkeypatch, interval="0.25")
-    calls = _install_fake_urlopen(monkeypatch)
+    """不同 host 互不节流（T-285：interval 1.0 / 阈值 0.5 留负载余量，同上）。"""
+    _reset_gov(monkeypatch, interval="1.0")
+    calls = _install_fake_urlopen(monkeypatch, match="example.com")
     _safe_urlopen("http://a.example.com/x", timeout=1, retries=0)
     _safe_urlopen("http://b.example.com/x", timeout=1, retries=0)
     delta = calls["t"][1] - calls["t"][0]
-    assert delta < 0.2, f"不同 host 互不节流（实测 {delta:.3f}s）"
+    assert delta < 0.5, f"不同 host 互不节流（实测 {delta:.3f}s）"
+
+
+def test_fake_ignores_foreign_traffic(monkeypatch):
+    """T-285 密封契约钉子：外来流量（泄漏线程穿进程级补丁）不得进计数/预算。
+
+    直接以真实域名形态的异 URL 调 fake（与后台线程同路径同属性检查），确定性
+    复现「污染」场景：无过滤时外来调用会计入 calls——既撑爆 4≠2 类计数、又提前
+    耗尽 fail_first 失败预算。fail_first=2 结构让预算窃取可观测：若外来流量被计，
+    本域第 2 调 n=4>2 会误成功 → pytest.raises 落空 → 红。
+    """
+    _reset_gov(monkeypatch, interval="0.25")
+    calls = _install_fake_urlopen(monkeypatch, fail_first=2)
+    # 本域第 1 调：消耗失败预算 1（retries=0 不重试，URLError 直接冒泡）
+    with pytest.raises(urllib.error.URLError):
+        _safe_urlopen("http://sina.example.com/json_v2", timeout=1, retries=0)
+    assert calls["n"] == 1 and len(calls["t"]) == 1
+    # 模拟泄漏线程：真实域名形态异 URL（含 "sina" 但不含 "sina.example.com"）
+    r1 = urllib.request.urlopen("http://finance.sina.com.cn/real/leaked", timeout=1)
+    r2 = urllib.request.urlopen("http://hq.sinajs.cn/leaked", timeout=1)
+    assert r1 is not None and r2 is not None  # 外来流量拿哑对象、不抛错
+    assert calls["n"] == 1, f"外来流量不得计数（实测 {calls['n']}）"
+    assert len(calls["t"]) == 1
+    # 本域第 2 调：n=2 ≤ fail_first=2 → 仍失败，证明失败预算未被外来流量抢走
+    with pytest.raises(urllib.error.URLError):
+        _safe_urlopen("http://sina.example.com/json_v2", timeout=1, retries=0)
+    assert calls["n"] == 2 and len(calls["t"]) == 2
+    # 预算耗尽后 → 成功
+    assert _safe_urlopen("http://sina.example.com/json_v2", timeout=1, retries=0) \
+        is not None
+    assert calls["n"] == 3 and len(calls["t"]) == 3
