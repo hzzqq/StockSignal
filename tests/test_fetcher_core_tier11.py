@@ -8,6 +8,7 @@ staticmethod 绑定同一对象：
 - fetcher.py 不得再本地 def 这四个名字（防拆分回潮）。
 """
 import ast
+import os
 import pathlib
 import time
 
@@ -91,3 +92,66 @@ def test_fetcher_core_defines_all():
     assert "SAFE_IDENT_RE = re.compile" in src, "SAFE_IDENT_RE 真身缺失"
     fsrc = (ROOT / "modules/fetcher.py").read_text(encoding="utf-8")
     assert "from modules.fetcher_core import" in fsrc, "fetcher.py re-export 缺失"
+
+
+# ── 第三批（T-247 续）：_resolve_cache_db_path / _get_sina_prefix ──
+
+def test_resolve_cache_path_identity():
+    assert fetcher._resolve_cache_db_path is fetcher_core._resolve_cache_db_path
+
+
+def test_resolve_cache_path_no_env_falls_back(monkeypatch):
+    monkeypatch.delenv("SS_DATA_DIR", raising=False)
+    assert fetcher_core._resolve_cache_db_path(None) == "data/cache.db"
+    assert fetcher_core._resolve_cache_db_path("custom/db.sqlite") == "custom/db.sqlite"
+    assert fetcher_core._resolve_cache_db_path("D:/abs/db.sqlite") == "D:/abs/db.sqlite"
+
+
+def test_resolve_cache_path_redirects_real_data_dir(monkeypatch, tmp_path):
+    """核心语义：SS_DATA_DIR 下「相对 data/cache.db」必须重定向到临时目录。
+
+    同时钉住 __file__ 层级：fetcher_core/__init__.py 为 dirname×3 到项目根，
+    若迁移时层级写错（如 ×2 指到 modules/），真实 data/ 判定将基于错误根，
+    本测试必红（重定向失效）。
+    """
+    env_dir = str(tmp_path / "ss_data")
+    monkeypatch.setenv("SS_DATA_DIR", env_dir)
+    # 相对默认路径 → 落项目根 data/ → 必须重定向
+    assert fetcher_core._resolve_cache_db_path(None) == os.path.join(env_dir, "cache.db")
+    assert fetcher_core._resolve_cache_db_path("data/cache.db") == os.path.join(env_dir, "cache.db")
+    # 项目根绝对路径 data/ → 同样重定向
+    root_abs = os.path.join(ROOT, "data", "cache.db")
+    assert fetcher_core._resolve_cache_db_path(root_abs) == os.path.join(env_dir, "cache.db")
+
+
+def test_resolve_cache_path_keeps_explicit_non_data(monkeypatch, tmp_path):
+    """SS_DATA_DIR 下显式指向其他位置（tmp_path/绝对盘符）一律保留，不破坏测试控制。"""
+    monkeypatch.setenv("SS_DATA_DIR", str(tmp_path / "ss_data"))
+    keep = str(tmp_path / "my.db")
+    assert fetcher_core._resolve_cache_db_path(keep) == keep
+    assert fetcher_core._resolve_cache_db_path("other/sub.db") == "other/sub.db"
+
+
+def test_sina_prefix_identity_and_behaviour():
+    # 行为零变化：fetcher 薄壳与真身同参等价（表为参数注入，类常量留 fetcher）
+    f = StockFetcher.__new__(StockFetcher)  # 免 __init__（不触库）
+    for ticker in ("000001", "399001", "600000", "688001", "510300",
+                   "000751", "002594", "300750", "abc", ""):
+        assert f._get_sina_prefix(ticker) == fetcher_core._get_sina_prefix(
+            ticker, StockFetcher._INDEX_SINA_PREFIX), ticker
+    # 语义抽查：指数表命中 / 沪段 / 深段
+    assert fetcher_core._get_sina_prefix("000001", StockFetcher._INDEX_SINA_PREFIX) == "sh"
+    assert fetcher_core._get_sina_prefix("399001", StockFetcher._INDEX_SINA_PREFIX) == "sz"
+    assert fetcher_core._get_sina_prefix("600000", StockFetcher._INDEX_SINA_PREFIX) == "sh"
+    assert fetcher_core._get_sina_prefix("688001", StockFetcher._INDEX_SINA_PREFIX) == "sh"
+    assert fetcher_core._get_sina_prefix("510300", StockFetcher._INDEX_SINA_PREFIX) == "sh"
+    assert fetcher_core._get_sina_prefix("000751", StockFetcher._INDEX_SINA_PREFIX) == "sz"
+    assert fetcher_core._get_sina_prefix("300750", StockFetcher._INDEX_SINA_PREFIX) == "sz"
+    assert fetcher_core._get_sina_prefix("abc", StockFetcher._INDEX_SINA_PREFIX) == "sz"
+
+
+def test_fetcher_no_local_defs_of_batch3():
+    tree = ast.parse((ROOT / "modules/fetcher.py").read_text(encoding="utf-8"))
+    local = [n.name for n in ast.walk(tree)
+             if isinstance(n, ast.FunctionDef) and n.name == "_resolve_cache_db_path"]
+    assert not local, "fetcher.py 仍本地定义 _resolve_cache_db_path，应只 re-export"

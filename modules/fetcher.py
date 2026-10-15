@@ -62,8 +62,10 @@ import modules._market_data_io as _mdi
 # （调用点零改动；AST 守卫 tests/test_fetcher_core_tier11.py 锁死防本地定义回潮）
 from modules.fetcher_core import (  # noqa: F401
     _df_last_date,
+    _get_sina_prefix,
     _proc_cache_get,
     _proc_cache_set,
+    _resolve_cache_db_path,
     _safe_ident,
     SAFE_IDENT_RE,
 )
@@ -111,24 +113,8 @@ _L0_TTL = float(os.environ.get("SS_L0_TTL", "300"))
 _L0_MAX = int(os.environ.get("SS_L0_MAX", "600"))
 
 
-def _resolve_cache_db_path(explicit: str | None) -> str:
-    """解析缓存库路径，落实「测试隔离但不破坏显式配置」语义。
-
-    - 生产（不设 SS_DATA_DIR）：用显式 config 路径，缺省回落 "data/cache.db"（行为不变）。
-    - 测试（conftest 设 SS_DATA_DIR=临时目录）：仅当解析后的路径会落进**真实项目 data/**
-      时才重定向到 SS_DATA_DIR/cache.db，避免测试写穿真实 data/；
-      显式指向其他位置（如测试 tmp_path、生产自定义绝对路径）一律保留，不破坏测试对库位置的控制。
-    """
-    _env_db = os.environ.get("SS_DATA_DIR")
-    if not _env_db:
-        return explicit or "data/cache.db"
-    _candidate = explicit or "data/cache.db"
-    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    _abs = os.path.abspath(_candidate if os.path.isabs(_candidate) else os.path.join(_root, _candidate))
-    _real_data = os.path.abspath(os.path.join(_root, "data"))
-    if _abs == _real_data or _abs.startswith(_real_data + os.sep):
-        return os.path.join(_env_db, "cache.db")
-    return _candidate
+# （_resolve_cache_db_path 已迁 modules.fetcher_core，顶部 re-export 同一对象，T-247 Tier1.1
+#  ⚠️ __file__ 层级：fetcher_core/__init__.py 为 dirname×3 到项目根，行为与迁前逐字节一致）
 
 
 class StockFetcher:
@@ -749,13 +735,12 @@ class StockFetcher:
     }
 
     def _get_sina_prefix(self, ticker: str) -> str:
-        """根据 6 位代码返回新浪市场前缀 sh/sz，正确处理指数代码。"""
-        if ticker in self._INDEX_SINA_PREFIX:
-            return self._INDEX_SINA_PREFIX[ticker]
-        code_int = int(ticker) if ticker.isdigit() else 0
-        if 600000 <= code_int <= 609999 or 688000 <= code_int <= 689999 or 510000 <= code_int <= 589999:
-            return "sh"
-        return "sz"
+        """根据 6 位代码返回新浪市场前缀 sh/sz，正确处理指数代码。
+
+        真身迁 modules.fetcher_core（T-247 Tier1.1，index_map 作参数注入）；
+        领域常量 _INDEX_SINA_PREFIX 留本类（仅此消费）。
+        """
+        return _get_sina_prefix(ticker, self._INDEX_SINA_PREFIX)
 
     def get_realtime_quote(self, ticker):
         """

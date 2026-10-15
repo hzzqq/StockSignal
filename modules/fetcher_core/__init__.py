@@ -11,6 +11,7 @@
 """
 import json
 import logging
+import os
 import re
 import time
 
@@ -77,3 +78,42 @@ def _safe_ident(name: str) -> str:
     if not isinstance(name, str) or not SAFE_IDENT_RE.match(name):
         raise ValueError(f"非法的 SQLite 标识符: {name!r}")
     return name
+
+
+# ── Tier1.1 第三批（T-247 续）：缓存库路径解析 / 新浪市场前缀 ──
+# ⚠️ __file__ 层级语义：本文件位于 modules/fetcher_core/__init__.py，
+# 项目根 = dirname ×3（fetcher.py 在 modules/ 下是 dirname ×2）——迁移时必须校正，
+# 否则「真实 data/ 重定向」判定基于错误根目录，SS_DATA_DIR 测试隔离会静默失效。
+
+def _resolve_cache_db_path(explicit):
+    """解析缓存库路径，落实「测试隔离但不破坏显式配置」语义。
+
+    - 生产（不设 SS_DATA_DIR）：用显式 config 路径，缺省回落 "data/cache.db"（行为不变）。
+    - 测试（conftest 设 SS_DATA_DIR=临时目录）：仅当解析后的路径会落进**真实项目 data/**
+      时才重定向到 SS_DATA_DIR/cache.db，避免测试写穿真实 data/；
+      显式指向其他位置（如测试 tmp_path、生产自定义绝对路径）一律保留，不破坏测试对库位置的控制。
+    """
+    _env_db = os.environ.get("SS_DATA_DIR")
+    if not _env_db:
+        return explicit or "data/cache.db"
+    _candidate = explicit or "data/cache.db"
+    _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    _abs = os.path.abspath(_candidate if os.path.isabs(_candidate) else os.path.join(_root, _candidate))
+    _real_data = os.path.abspath(os.path.join(_root, "data"))
+    if _abs == _real_data or _abs.startswith(_real_data + os.sep):
+        return os.path.join(_env_db, "cache.db")
+    return _candidate
+
+
+def _get_sina_prefix(ticker: str, index_map: dict) -> str:
+    """根据 6 位代码返回新浪市场前缀 sh/sz，正确处理指数代码。
+
+    :param index_map: 指数代码 -> 前缀映射（fetcher.StockFetcher._INDEX_SINA_PREFIX，
+        领域常量留 fetcher.py，本函数只消费）。
+    """
+    if ticker in index_map:
+        return index_map[ticker]
+    code_int = int(ticker) if ticker.isdigit() else 0
+    if 600000 <= code_int <= 609999 or 688000 <= code_int <= 689999 or 510000 <= code_int <= 589999:
+        return "sh"
+    return "sz"
