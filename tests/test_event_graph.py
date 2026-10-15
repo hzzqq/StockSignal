@@ -5,11 +5,12 @@ import json
 from modules import event_graph as eg
 
 
-# ─────────────────────────── 方向判定 ───────────────────────────
+# ─────────────────────────── 方向判定（五档：方向 × 幅度，T-286） ───────────────────────────
 def test_direction_bullish_and_bearish():
     # 词取自项目真实词库 modules._news_io.POSITIVE_WORDS / NEGATIVE_WORDS
-    assert eg.event_direction("公司获得大单，产品涨价") == eg.BULLISH
-    assert eg.event_direction("公司因违规被立案调查") == eg.BEARISH
+    # T-286：净命中 ≥2 记「大」——获得大单+涨价两利好词 → 大利好；违规+调查 → 大利空
+    assert eg.event_direction("公司获得大单，产品涨价") == eg.BIG_BULLISH
+    assert eg.event_direction("公司因违规被立案调查") == eg.BIG_BEARISH
 
 
 def test_direction_neutral_on_tie_or_empty():
@@ -21,6 +22,19 @@ def test_direction_neutral_on_tie_or_empty():
 def test_direction_tie_is_neutral_not_guessed():
     """利好词与利空词各 1 个 → 中性（不硬猜方向）。"""
     assert eg.event_direction("产品涨价后被处罚") == eg.NEUTRAL
+
+
+def test_direction_strength_grades():
+    """T-286 幅度分档：单命中且无强词 → 「小」；一线强词 → 「大」；词表漏收（跌停）走强词保底。"""
+    assert eg.event_direction("公司业绩超预期") == eg.SMALL_BULLISH      # 利好词 ×1、无强词
+    assert eg.event_direction("公司业绩下降") == eg.SMALL_BEARISH        # 利空词 ×1、无强词
+    assert eg.event_direction("公司股价涨停") == eg.BIG_BULLISH          # 一线强词涨停
+    assert eg.event_direction("公司股票跌停") == eg.BIG_BEARISH          # 跌停不在 _news_io 负面表 → 强词保底路径
+
+
+def test_direction_tie_with_strong_words_stays_neutral():
+    """强词对撞成平局仍中性（五档口径下不硬猜语义保持）。"""
+    assert eg.event_direction("涨停之后又跌停") == eg.NEUTRAL
 
 
 # ─────────────────────────── 概念匹配 ───────────────────────────
@@ -67,7 +81,7 @@ def test_build_transmission_direct_hit_ranks_higher():
     assert top["code"] == "600001"
     assert top["score"] == 3              # 概念命中 + 个股点名
     assert top["direct"] is True
-    assert top["direction"] == eg.BULLISH
+    assert top["direction"] == eg.BIG_BULLISH   # 获得大单+景气回升净命中 2 → 大利好
     # 未点名的同概念股分数更低
     other = next(e for e in r["entries"] if e["code"] == "600002")
     assert other["score"] == 1 and other["direct"] is False
@@ -79,6 +93,18 @@ def test_build_transmission_accumulates_across_titles():
     a = next(e for e in r["entries"] if e["code"] == "600001")
     assert a["score"] == 2                # 两条标题各 +1
     assert len(a["evidence"]) == 2
+
+
+def test_build_transmission_weighted_strength():
+    """T-286 净强度加权合成：大利好 +2 / 小利空 -1，净 +1 → 小利好、净 -1 → 小利空。"""
+    idx = {"芯片": [{"code": "600001", "name": "中芯国际"}]}
+    r = eg.build_transmission([("芯片板块涨停", ""), ("芯片库存积压", "")], idx)
+    a = next(e for e in r["entries"] if e["code"] == "600001")
+    assert a["direction"] == eg.SMALL_BULLISH    # 涨停(强词+2) + 库存积压(-1) = +1
+    r2 = eg.build_transmission([("芯片库存积压", ""), ("芯片需求疲软", ""),
+                                ("芯片获得大单", "")], idx)
+    b = next(e for e in r2["entries"] if e["code"] == "600001")
+    assert b["direction"] == eg.SMALL_BEARISH    # -1 -1 +1 = -1
 
 
 def test_build_transmission_short_name_not_treated_as_direct_hit():
@@ -150,11 +176,24 @@ def test_word_lists_prefer_project_lexicon():
 
 # ─────────────────────────── 展示层（配色 / 截断，纯函数） ───────────────────────────
 def test_dir_color_follows_a_share_convention():
-    """A 股习惯：利好=红、利空=绿、中性=灰（写反即为配色回退，本断言锁死）。"""
-    assert eg.dir_color(eg.BULLISH) == "#dc2626"
-    assert eg.dir_color(eg.BEARISH) == "#16a34a"
+    """A 股习惯：利好=红、利空=绿、中性=灰；五档「大」用深一档（红-700/绿-700），旧三级键保留。"""
+    assert eg.dir_color(eg.BIG_BULLISH) == "#b91c1c"
+    assert eg.dir_color(eg.SMALL_BULLISH) == "#dc2626"
+    assert eg.dir_color(eg.SMALL_BEARISH) == "#16a34a"
+    assert eg.dir_color(eg.BIG_BEARISH) == "#15803d"
     assert eg.dir_color(eg.NEUTRAL) == "#94a3b8"
+    assert eg.dir_color(eg.BULLISH) == "#dc2626"      # 旧标签兼容映射
+    assert eg.dir_color(eg.BEARISH) == "#16a34a"
     assert eg.dir_color("未知方向") == "#94a3b8"
+
+
+def test_strength_weight_symmetry():
+    """五档权重表：±2/±1 对称零和，与 STRENGTH_ORDER 一一对应（聚合口径单一源）。"""
+    assert set(eg.STRENGTH_WEIGHT) == set(eg.STRENGTH_ORDER)
+    assert sum(eg.STRENGTH_WEIGHT.values()) == 0
+    assert eg.STRENGTH_WEIGHT[eg.BIG_BULLISH] == 2 and eg.STRENGTH_WEIGHT[eg.BIG_BEARISH] == -2
+    assert eg.STRENGTH_WEIGHT[eg.SMALL_BULLISH] == 1 and eg.STRENGTH_WEIGHT[eg.SMALL_BEARISH] == -1
+    assert len(eg.STRENGTH_ORDER) == 5 and eg.STRENGTH_ORDER[2] == eg.NEUTRAL
 
 
 def test_display_rows_maps_fields_and_color():
@@ -163,7 +202,8 @@ def test_display_rows_maps_fields_and_color():
     assert rows and rows[0]["code"] == "600001"
     assert rows[0]["name"] == "中芯国际"
     assert rows[0]["direct"] is True
-    assert rows[0]["dir_color"] == "#dc2626"          # 利好 → 红
+    assert rows[0]["direction"] == eg.SMALL_BULLISH   # 获得大单单命中 → 小利好
+    assert rows[0]["dir_color"] == "#dc2626"          # 小利好 → 红（保持原红值）
     assert "芯片" in rows[0]["concepts"]
     assert rows[0]["evidence"]
 

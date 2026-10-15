@@ -12,6 +12,10 @@
 所以「分高」只说明**这条消息在文本上更贴近它**，不代表它一定受益，更不代表会涨。
 页面必须显示 ``basis`` 与 ``disclaimer``。
 
+**方向为五档判定（T-286）**：大利好 / 小利好 / 中性 / 小利空 / 大利空——方向取情绪词
+净命中多数决（平局中性不硬猜），幅度看胜方一线强词（涨停/跌停/暴涨/暴跌/爆雷/退市等）
+或净命中是否 ≥2；多条标题按 +2/+1/-1/-2 加权合成标的级方向。同为文本启发式，非收益预测。
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━ 诚实红线 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - 纯计算函数不触网；概念名单与成分股是**真实数据**（东财概念板块），不手工编造产业链；
 - 概念名单取不到 → ``status="unavailable"``，**不退回内置的臆造题材表**；
@@ -24,6 +28,8 @@ import logging
 
 __all__ = [
     "NEUTRAL", "BULLISH", "BEARISH",
+    "BIG_BULLISH", "SMALL_BULLISH", "SMALL_BEARISH", "BIG_BEARISH",
+    "STRENGTH_ORDER", "STRENGTH_WEIGHT",
     "MIN_NAME_LEN", "DIR_COLOR", "EVIDENCE_LEN",
     "event_direction", "match_concepts", "build_transmission",
     "dir_color", "display_rows",
@@ -33,6 +39,21 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 NEUTRAL, BULLISH, BEARISH = "中性", "利好", "利空"
+
+# 五档强度（T-286）：方向 × 幅度；旧三级常量保留导出（兼容既有引用）
+BIG_BULLISH, SMALL_BULLISH = "大利好", "小利好"
+SMALL_BEARISH, BIG_BEARISH = "小利空", "大利空"
+
+# 展示序（强→弱）与净强度权重：多条标题按权重加合成标的级方向，±2 截断
+STRENGTH_ORDER = (BIG_BULLISH, SMALL_BULLISH, NEUTRAL, SMALL_BEARISH, BIG_BEARISH)
+STRENGTH_WEIGHT = {BIG_BULLISH: 2, SMALL_BULLISH: 1, NEUTRAL: 0,
+                   SMALL_BEARISH: -1, BIG_BEARISH: -2}
+_WEIGHT_TO_LABEL = {w: lab for lab, w in STRENGTH_WEIGHT.items()}
+
+# 一线强词（高冲击词，命中即倾向「大」）：全站情绪词库的高冲击子集，纯文本启发式；
+# 其中「跌停」「闪崩」不在 _news_io 负面表 → event_direction 里做保底计数
+_STRONG_BULLISH = ("暴涨", "涨停", "翻倍", "业绩大增", "供不应求")
+_STRONG_BEARISH = ("暴跌", "跌停", "爆雷", "退市", "闪崩", "业绩暴雷", "财务造假")
 
 # 个股名短于该长度时不参与「直接点名」判定（「东」「方」这类子串会制造大量假命中）
 MIN_NAME_LEN = 3
@@ -58,18 +79,34 @@ def _word_lists():
 
 
 def event_direction(text) -> str:
-    """标题情感方向：利好 / 利空 / 中性（词表命中数相同时按中性处理，不硬猜）。"""
+    """标题情感强度五档：大利好 / 小利好 / 中性 / 小利空 / 大利空（T-286）。
+
+    方向 = 情绪词净命中多数决（平局 → 中性，不硬猜）；
+    幅度 = 胜方命中一线强词（涨停/跌停/暴涨/暴跌/爆雷/退市等）或净命中 ≥ 2 → 「大」，
+          单命中且无强词 → 「小」。纯文本启发式，口径随 ``basis`` 对用户披露，非收益预测。
+    """
     s = str(text or "")
     if not s:
         return NEUTRAL
     pos, neg = _word_lists()
     n_pos = sum(1 for w in pos if w and w in s)
     n_neg = sum(1 for w in neg if w and w in s)
+    strong_pos = any(w and w in s for w in _STRONG_BULLISH)
+    strong_neg = any(w and w in s for w in _STRONG_BEARISH)
+    if strong_pos and n_pos == 0:
+        n_pos = 1  # 强词保底计 1：词表可能漏收该词（如「跌停」不在 _news_io 负面表）
+    if strong_neg and n_neg == 0:
+        n_neg = 1
     if n_pos > n_neg:
-        return BULLISH
+        return BIG_BULLISH if (strong_pos or n_pos - n_neg >= 2) else SMALL_BULLISH
     if n_neg > n_pos:
-        return BEARISH
+        return BIG_BEARISH if (strong_neg or n_neg - n_pos >= 2) else SMALL_BEARISH
     return NEUTRAL
+
+
+def _strength_label(total: int) -> str:
+    """净强度 → 五档标签（±2 截断：如两条「小利好」+2 合成「大利好」，反向同理）。"""
+    return _WEIGHT_TO_LABEL[max(-2, min(2, int(total)))]
 
 
 def match_concepts(text, concept_names) -> list:
@@ -142,12 +179,11 @@ def build_transmission(titles, concept_index) -> dict:
                 rec = acc.setdefault(code, {"code": code, "name": mname or code,
                                             "score": 0, "concepts": set(),
                                             "evidence": [], "direct": False,
-                                            "directions": {BULLISH: 0, BEARISH: 0}})
+                                            "strength_sum": 0})
                 rec["score"] += 3 if direct else 1
                 rec["direct"] = rec["direct"] or direct
                 rec["concepts"].add(c)
-                if direction != NEUTRAL:
-                    rec["directions"][direction] += 1
+                rec["strength_sum"] += STRENGTH_WEIGHT.get(direction, 0)
                 if title not in rec["evidence"]:
                     rec["evidence"].append(title[:80])
                 if date and date not in (rec.get("dates") or []):
@@ -155,13 +191,7 @@ def build_transmission(titles, concept_index) -> dict:
 
     entries = []
     for rec in acc.values():
-        d = rec.pop("directions")
-        if d[BULLISH] > d[BEARISH]:
-            rec["direction"] = BULLISH
-        elif d[BEARISH] > d[BULLISH]:
-            rec["direction"] = BEARISH
-        else:
-            rec["direction"] = NEUTRAL
+        rec["direction"] = _strength_label(rec.pop("strength_sum"))
         rec["concepts"] = sorted(rec["concepts"])
         rec["evidence"] = rec["evidence"][:3]
         entries.append(rec)
@@ -170,7 +200,9 @@ def build_transmission(titles, concept_index) -> dict:
     return {
         "status": "ok" if entries else "empty",
         "reason": "" if entries else "标题里没有命中任何已知概念",
-        "basis": "关联度 = 文本共现（概念命中 ×1；个股与概念同标题点名 ×3）",
+        "basis": "关联度 = 文本共现（概念命中 ×1；个股与概念同标题点名 ×3）；"
+                 "方向 = 情绪词净强度五档（大/小 × 利好/利空：一线强词或净命中 ≥2 记「大」，"
+                 "单命中记「小」，多条标题按 +2/+1/-1/-2 加权合成）",
         "disclaimer": "关联度仅为文本统计，不代表受益程度，更不是收益预测；请自行判断。",
         "n_titles": len(norm),
         "concepts_hit": sorted(hit_concepts),
@@ -181,7 +213,12 @@ def build_transmission(titles, concept_index) -> dict:
 
 # ───────────────────── 展示层（纯函数：配色/拼接/截断可单测） ─────────────────────
 # A 股习惯：利好偏红、利空偏绿、中性/未知灰（与全站口径一致，不要在这里反着写）
-DIR_COLOR = {BULLISH: "#dc2626", BEARISH: "#16a34a", NEUTRAL: "#94a3b8"}
+# 五档（T-286）：「大」用深一档（红-700 / 绿-700），「小」保持原值；旧三级键保留（additive 兼容）
+DIR_COLOR = {
+    BIG_BULLISH: "#b91c1c", SMALL_BULLISH: "#dc2626", NEUTRAL: "#94a3b8",
+    SMALL_BEARISH: "#16a34a", BIG_BEARISH: "#15803d",
+    BULLISH: "#dc2626", BEARISH: "#16a34a",
+}
 
 # 证据标题在界面上的截断长度
 EVIDENCE_LEN = 64
