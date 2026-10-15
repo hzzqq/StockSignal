@@ -151,7 +151,7 @@ em = EventMiner()   # config_path="config.yaml"
 ### 2.3 `SentimentAnalyzer`
 
 #### `analyze(self, text) -> dict`
-- 返回字段：`sentiment, score, is_major, intensity, pos_words, neg_words`。
+- 返回字段：`sentiment, level, score, is_major, intensity, pos_words, neg_words`（`level` 为 T-287 五档：大利好/小利好/中性/小利空/大利空，由 `level_from_score` 从 score 映射，阈值复用 ±0.15/±0.4）。
 - **失败时返回 `_default_result()` 安全 dict**（所有键存在，分数为 0，非空列表）。这是测试漂移用例的核心断言点。
 
 #### `analyze_news(self, title, content="") -> dict`（同 `analyze` 形状）
@@ -185,7 +185,7 @@ em = EventMiner()   # config_path="config.yaml"
   - `get_daily` 全源失败 → 抛 `RuntimeError`（**非**返回空 DataFrame）；`get_realtime_quote` → `None`；`get_sector_stocks` → 抛 `RuntimeError`；`get_sector_list` 全源失败 → 抛 `RuntimeError`。
   - `search_stocks`/`lookup_code`/`get_all_codes` → `[]` 或安全空。
   - `EventMiner.mine_events(...)` → 空 DataFrame（不抛）。
-  - `SentimentAnalyzer.analyze("任意")` → dict 且含全部 6 个键。
+  - `SentimentAnalyzer.analyze("任意")` → dict 且含全部 7 个键（T-287 起新增 `level`）。
 - **类名锁定**：所有测试引用 `EventMiner`（不是任何改名后的类）。
 - 改写后必须守住：`backend/tests/test_api_contracts.py` 16 passed + `backend/tests/test_security.py` 12/12。
 - 测试需自建轻量 stock DB fixture（避免依赖生产 `data/`），`StockFetcher(config_path=...)` 指向测试配置。

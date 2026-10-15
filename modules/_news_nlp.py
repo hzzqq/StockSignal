@@ -4,6 +4,9 @@ from modules._news_io import (                  # noqa: F401
     POSITIVE_WORDS, NEGATIVE_WORDS, STOP_WORDS,
 )
 
+# ── 五档事件强度标准（T-287 单一真理源：modules/event_levels.py）──
+from modules.event_levels import NEUTRAL, level_from_score
+
 # ── NLP 库（仅本文件内的分析类使用）──
 import hashlib
 import re
@@ -104,7 +107,8 @@ class SentimentAnalyzer:
     def analyze(self, text):
         """
         情感分析。
-        :return: dict {sentiment, score(-1~1), pos_words[], neg_words[], intensity}
+        :return: dict {sentiment, level(五档:大利好/小利好/中性/小利空/大利空), score(-1~1),
+                       pos_words[], neg_words[], intensity}
         """
         if not text:
             return self._default_result()
@@ -147,6 +151,7 @@ class SentimentAnalyzer:
 
         return {
             "sentiment": sentiment,
+            "level": level_from_score(score),
             "score": score,
             "pos_words": pos_hits,
             "neg_words": neg_hits,
@@ -171,7 +176,7 @@ class SentimentAnalyzer:
     @staticmethod
     def _default_result():
         return {
-            "sentiment": "中性", "score": 0.0,
+            "sentiment": "中性", "level": NEUTRAL, "score": 0.0,
             "pos_words": [], "neg_words": [],
             "is_major": False, "intensity": 1.0,
         }

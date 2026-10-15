@@ -45,6 +45,7 @@ def test_sentiment_analyze_empty():
     r = nlp.SentimentAnalyzer().analyze("")
     assert r["sentiment"] == "中性"
     assert r["score"] == 0.0
+    assert r["level"] == "中性"          # T-287：空文本五档归中性
 
 
 def test_sentiment_positive_negative():
@@ -52,6 +53,27 @@ def test_sentiment_positive_negative():
     assert pos["sentiment"] == "正面"
     neg = nlp.SentimentAnalyzer().analyze("业绩暴雷，股价暴跌，巨亏")
     assert neg["sentiment"] == "负面"
+    # T-287 五档：单边净差拉满 → 「大」
+    assert pos["level"] == "大利好"
+    assert neg["level"] == "大利空"
+
+
+def test_sentiment_level_grades():
+    """T-287 五档判定：混合情绪净差小 → 「小」档（score 落 ±0.15~±0.4 带）。"""
+    small_pos = nlp.SentimentAnalyzer().analyze("公司获得大单，产品涨价，但库存积压")
+    assert small_pos["sentiment"] == "正面"
+    assert small_pos["level"] == "小利好"     # 2 好 1 坏 → raw≈0.33
+    small_neg = nlp.SentimentAnalyzer().analyze("公司获得订单，但库存积压，需求疲软")
+    assert small_neg["sentiment"] == "负面"
+    assert small_neg["level"] == "小利空"     # 1 好 2 坏 → raw≈-0.33
+
+
+def test_batch_analyze_carries_level():
+    """batch_analyze DataFrame 自动携带 level 列（下游展示直接可用）。"""
+    df = pd.DataFrame({"title": ["业绩暴雷，股价暴跌"], "date": ["2026-10-15"]})
+    out = nlp.SentimentAnalyzer().batch_analyze(df)
+    assert "level" in out.columns
+    assert out.iloc[0]["level"] == "大利空"
 
 
 def test_sentiment_intensity():

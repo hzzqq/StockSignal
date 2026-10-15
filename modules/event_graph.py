@@ -26,6 +26,13 @@ from __future__ import annotations
 
 import logging
 
+# 五档标准单一真理源（T-287）：标签/权重/配色定义在 modules/event_levels.py，此处 re-export
+from modules.event_levels import (  # noqa: F401
+    BEARISH, BIG_BEARISH, BIG_BULLISH, BULLISH, DIR_COLOR, NEUTRAL,
+    SMALL_BEARISH, SMALL_BULLISH, STRENGTH_ORDER, STRENGTH_WEIGHT,
+    dir_color, strength_label as _strength_label,
+)
+
 __all__ = [
     "NEUTRAL", "BULLISH", "BEARISH",
     "BIG_BULLISH", "SMALL_BULLISH", "SMALL_BEARISH", "BIG_BEARISH",
@@ -38,19 +45,8 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-NEUTRAL, BULLISH, BEARISH = "中性", "利好", "利空"
-
-# 五档强度（T-286）：方向 × 幅度；旧三级常量保留导出（兼容既有引用）
-BIG_BULLISH, SMALL_BULLISH = "大利好", "小利好"
-SMALL_BEARISH, BIG_BEARISH = "小利空", "大利空"
-
-# 展示序（强→弱）与净强度权重：多条标题按权重加合成标的级方向，±2 截断
-STRENGTH_ORDER = (BIG_BULLISH, SMALL_BULLISH, NEUTRAL, SMALL_BEARISH, BIG_BEARISH)
-STRENGTH_WEIGHT = {BIG_BULLISH: 2, SMALL_BULLISH: 1, NEUTRAL: 0,
-                   SMALL_BEARISH: -1, BIG_BEARISH: -2}
-_WEIGHT_TO_LABEL = {w: lab for lab, w in STRENGTH_WEIGHT.items()}
-
-# 一线强词（高冲击词，命中即倾向「大」）：全站情绪词库的高冲击子集，纯文本启发式；
+# 五档标签/权重/配色为全站单一真理源（modules/event_levels.py，T-287），re-export 见文件头；
+# 一线强词（高冲击词，命中即倾向「大」）为本模块词表幅度口径，保持本地：
 # 其中「跌停」「闪崩」不在 _news_io 负面表 → event_direction 里做保底计数
 _STRONG_BULLISH = ("暴涨", "涨停", "翻倍", "业绩大增", "供不应求")
 _STRONG_BEARISH = ("暴跌", "跌停", "爆雷", "退市", "闪崩", "业绩暴雷", "财务造假")
@@ -102,11 +98,6 @@ def event_direction(text) -> str:
     if n_neg > n_pos:
         return BIG_BEARISH if (strong_neg or n_neg - n_pos >= 2) else SMALL_BEARISH
     return NEUTRAL
-
-
-def _strength_label(total: int) -> str:
-    """净强度 → 五档标签（±2 截断：如两条「小利好」+2 合成「大利好」，反向同理）。"""
-    return _WEIGHT_TO_LABEL[max(-2, min(2, int(total)))]
 
 
 def match_concepts(text, concept_names) -> list:
@@ -212,21 +203,10 @@ def build_transmission(titles, concept_index) -> dict:
 
 
 # ───────────────────── 展示层（纯函数：配色/拼接/截断可单测） ─────────────────────
-# A 股习惯：利好偏红、利空偏绿、中性/未知灰（与全站口径一致，不要在这里反着写）
-# 五档（T-286）：「大」用深一档（红-700 / 绿-700），「小」保持原值；旧三级键保留（additive 兼容）
-DIR_COLOR = {
-    BIG_BULLISH: "#b91c1c", SMALL_BULLISH: "#dc2626", NEUTRAL: "#94a3b8",
-    SMALL_BEARISH: "#16a34a", BIG_BEARISH: "#15803d",
-    BULLISH: "#dc2626", BEARISH: "#16a34a",
-}
+# A 股习惯配色 DIR_COLOR / dir_color 来自 event_levels 单一真理源（勿在此重定义）
 
 # 证据标题在界面上的截断长度
 EVIDENCE_LEN = 64
-
-
-def dir_color(direction) -> str:
-    """方向 → 颜色（利好=红、利空=绿，其余一律灰）。"""
-    return DIR_COLOR.get(str(direction), DIR_COLOR[NEUTRAL])
 
 
 def display_rows(res, limit: int = 30, evidence_len: int = EVIDENCE_LEN) -> list:

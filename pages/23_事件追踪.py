@@ -133,10 +133,13 @@ def _render_news_with_links(df, title_col='title', url_col='url', date_col='date
             fb = _news_fallback_url(title, source)
             link = f'<a href="{html.escape(fb)}" target="_blank" style="text-decoration:none;color:inherit;">{html.escape(title)}</a>'
         badges = []
-        if etype == '正面':
-            badges.append(f'<span style="color:{UP_COLOR};font-weight:600;">[利好]</span>')
-        elif etype == '负面':
-            badges.append(f'<span style="color:{DOWN_COLOR};font-weight:600;">[利空]</span>')
+        if '大利好' in etype or '小利好' in etype or etype == '正面':
+            # T-287：五档档位原样显示；旧值「正面」仍映射 [利好]（语义不变）
+            label = '利好' if etype == '正面' else etype
+            badges.append(f'<span style="color:{UP_COLOR};font-weight:600;">[{html.escape(label)}]</span>')
+        elif '大利空' in etype or '小利空' in etype or etype == '负面':
+            label = '利空' if etype == '负面' else etype
+            badges.append(f'<span style="color:{DOWN_COLOR};font-weight:600;">[{html.escape(label)}]</span>')
         elif etype in ('利好', '利空', '中性'):
             badges.append(f'<span style="color:#95a5a6;">[{html.escape(etype)}]</span>')
         if source:
@@ -419,7 +422,7 @@ def fragment_timeline():
                             events_realtime = engine.event_miner.news_fetcher.fetch_stock_events(stock_code=stock_code, stock_name=stock_name, keywords=keywords_list, limit=50)
                             if not events_realtime.empty:
                                 analyzed = engine.event_miner.sentiment_analyzer.batch_analyze(events_realtime)
-                                for col in ['sentiment', 'score']:
+                                for col in ['sentiment', 'score', 'level']:
                                     if col in analyzed.columns:
                                         events_realtime[col] = analyzed[col].values
                                 st.session_state.tl_realtime_events = events_realtime.copy()
@@ -460,7 +463,7 @@ def fragment_timeline():
                 if not events_realtime.empty:
                     xc_success_box(f'✅ 实时爬取到 {len(events_realtime)} 条事件（含公司公告 + 板块新闻）')
                     with st.expander('展开查看实时事件列表（点击标题可跳转原文）', expanded=False):
-                        _render_news_with_links(events_realtime, title_col='title', url_col='url', date_col='date', source_col='source', type_col='sentiment')
+                        _render_news_with_links(events_realtime, title_col='title', url_col='url', date_col='date', source_col='source', type_col='level' if 'level' in events_realtime.columns else 'sentiment')
                 else:
                     xc_warn_box('实时爬取未获取到事件。请检查股票代码是否正确、网络是否可用；也可在「事件管理」中手动添加关注的事件。')
             if 'tl_df' in st.session_state and st.session_state.tl_df is not None and (not st.session_state.tl_df.empty):
