@@ -326,9 +326,10 @@ class SignalEngine:
             for _, evt in matched.iterrows():
                 evt_type = str(evt.get("type", ""))
                 # 优先用已存储的情感标签
-                if "正面" in evt_type or evt_type == "利好":
+                # T-288：子串匹配兼容五档（大利好/小利好/大利空/小利空）与旧三档，精确匹配会把五档漏判成中性
+                if "正面" in evt_type or "利好" in evt_type:
                     pos_w += 1
-                elif "负面" in evt_type or evt_type == "利空":
+                elif "负面" in evt_type or "利空" in evt_type:
                     neg_w += 1
                 else:
                     score += 1  # 中性事件 +关注度

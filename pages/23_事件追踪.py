@@ -17,6 +17,7 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info
+from modules.event_levels import STRENGTH_ORDER  # T-288：五档单一真理源
 from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
 render_standard_page(title='事件追踪', icon='🔔', caption='⚠️ 数据仅供参考，不构成投资建议', layout='wide')
 
@@ -519,7 +520,7 @@ def fragment_event_manage():
                 evt_date = st.date_input('事件日期', value=datetime.now(), key='evt_date')
                 evt_ticker = stock_search_input(label='关联股票', key='evt_ticker', default='', placeholder='输入代码或名称搜索（可选），如：中国神华')
             with col2:
-                evt_type = st.selectbox('事件类型', options=['利好', '利空', '中性'])
+                evt_type = st.selectbox('事件类型', options=list(STRENGTH_ORDER), index=2, help='五档判定（与全站事件分析同一标准）：大利好 / 小利好 / 中性 / 小利空 / 大利空')
                 evt_title = st.text_input('事件标题', value='', key='evt_title', placeholder='如：煤炭价格大涨10%')
             add_submitted = st.form_submit_button('添加事件', disabled=not (evt_title or '').strip(), help='填写「事件标题」后方可添加；标题为空时按钮不可用。')
         if not (evt_title or '').strip():

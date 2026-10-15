@@ -96,3 +96,23 @@ def test_page23_renders_five_level_badges():
     assert "'大利空' in etype or '小利空' in etype or etype == '负面'" in src, \
         "徽章判定未兼容五档利空系"
     assert "elif etype in ('利好', '利空', '中性'):" in src, "旧值灰色分支不得改动（additive）"
+
+
+def test_page23_manual_event_form_five_levels():
+    """T-288：23 页手动事件 selectbox 五档接线（STRENGTH_ORDER 单一源 + 中性默认防误存强档）。"""
+    src = (Path(__file__).resolve().parents[1] / "pages" / "23_事件追踪.py").read_text(
+        encoding="utf-8")
+    assert "from modules.event_levels import STRENGTH_ORDER" in src, \
+        "23 页未从 event_levels 引入五档标准"
+    assert "options=list(STRENGTH_ORDER), index=2" in src, \
+        "手动事件 selectbox 未接五档单一源或未设中性默认"
+    assert "options=['利好', '利空', '中性']" not in src, \
+        "旧三档 selectbox 仍残留"
+
+
+def test_signal_event_score_substring_match():
+    """T-288：signal.event_score 判定必须子串兼容五档（精确匹配漏判=大利空被当中性计分）。"""
+    src = (Path(__file__).resolve().parents[1] / "modules" / "signal.py").read_text(
+        encoding="utf-8")
+    assert '"利好" in evt_type' in src, "event_score 利好判定未子串化"
+    assert '"利空" in evt_type' in src, "event_score 利空判定未子串化"

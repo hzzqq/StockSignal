@@ -211,6 +211,34 @@ class TestEventScore:
         score = engine.event_score("601088", ["煤炭"], date="2025-06-15")
         assert score <= 100
 
+    # ---- T-288：手动事件五档判定（大利好/小利好/小利空/大利空不得漏判成中性）----
+
+    def _score_for_type(self, tmp_path, evt_type):
+        """单事件辅助：独立事件库按给定档位添加一条事件并评分。"""
+        engine = SignalEngine()
+        engine.event_db_path = str(tmp_path / f"ev_{evt_type}.csv")
+        engine.add_event("2025-06-01", "601088", "煤炭价格事件", evt_type)
+        return engine.event_score("601088", ["煤炭"], date="2025-06-15")
+
+    def test_five_grade_bearish_not_neutral(self, tmp_path):
+        """大利空必须压分（旧精确匹配会把大利空漏判成中性 +1）。"""
+        s_big_bad = self._score_for_type(tmp_path, "大利空")
+        s_neutral = self._score_for_type(tmp_path, "中性")
+        assert s_big_bad < s_neutral
+        assert s_big_bad < 52
+
+    def test_five_grade_bullish_not_neutral(self, tmp_path):
+        """大利好必须抬分。"""
+        s_big_good = self._score_for_type(tmp_path, "大利好")
+        s_neutral = self._score_for_type(tmp_path, "中性")
+        assert s_big_good > s_neutral
+        assert s_big_good > 55
+
+    def test_small_grades_directional(self, tmp_path):
+        """小利好抬分、小利空压分（相对中性基准 52）。"""
+        assert self._score_for_type(tmp_path, "小利好") > 52
+        assert self._score_for_type(tmp_path, "小利空") < 52
+
 
 class TestMacroScore:
     """macro_score 白盒测试。"""
