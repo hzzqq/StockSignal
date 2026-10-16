@@ -63,10 +63,13 @@ import modules._market_data_io as _mdi
 from modules.fetcher_core import (  # noqa: F401
     _df_last_date,
     _get_sina_prefix,
+    _get_stock_industry_keywords,
     _proc_cache_get,
     _proc_cache_set,
+    _resample_kline,
     _resolve_cache_db_path,
     _safe_ident,
+    _safe_kline_df,
     SAFE_IDENT_RE,
 )
 
@@ -1554,21 +1557,12 @@ class StockFetcher:
 
     @staticmethod
     def _get_stock_industry_keywords(stock_name):
-        """
-        根据股票名称匹配行业，返回该行业的高频事件关键词。
-        :param stock_name: 股票名称（如"贵州茅台"、"宁德时代"）
-        :return: list[str] 关键词列表，或空列表
-        """
-        if not stock_name:
-            return []
+        """根据股票名称匹配行业，返回该行业的高频事件关键词。
 
-        matched = set()
-        for industry_terms, keywords in StockFetcher._INDUSTRY_KEYWORDS.items():
-            # 检查名称是否包含任一行业特征词
-            if any(term in stock_name for term in industry_terms):
-                matched.update(keywords)
-
-        return sorted(matched) if matched else []
+        真身迁 modules.fetcher_core（T-247 Tier2，industry_map 作参数注入）；
+        领域常量 _INDUSTRY_KEYWORDS 留本类（仅此消费）。
+        """
+        return _get_stock_industry_keywords(stock_name, StockFetcher._INDUSTRY_KEYWORDS)
 
     def get_stock_keywords(self, code_or_name, top_k=10):
         """
@@ -1804,28 +1798,8 @@ class StockFetcher:
             # 检查失败时不阻塞（允许后续降级链尝试）
             return True, f"无法验证({e})"
 
-    @staticmethod
-    def _safe_kline_df(df):
-        """将任一数据源返回的 K 线 df 统一标准化（防御式，杜绝单源 TypeError 拖垮整条链路）：
-
-        - 非 DataFrame / 空 / 缺失必备列（date/open/close/high/low/volume）→ 视为无效返回 None
-        - ``date`` 强制转为 datetime（解析失败 coerce 为 NaT 并丢弃该行），
-          避免「Timestamp 与字符串直接比较」在 L3 过滤时抛 ``TypeError``（即 #352 的 L1-L4 TypeError 根因之一）
-        - 其余列（amount / change_pct 等）原样保留
-        """
-        if df is None or not isinstance(df, pd.DataFrame) or df.empty:
-            return None
-        need = ["date", "open", "close", "high", "low", "volume"]
-        if not all(c in df.columns for c in need):
-            return None
-        try:
-            df = df.copy()
-            df["date"] = pd.to_datetime(df["date"], errors="coerce")
-            df = df.dropna(subset=["date"])
-            return df if not df.empty else None
-        except Exception as e:
-            logger.warning(f"[fetcher] 处理异常: {e}")
-            return None
+    # _safe_kline_df 真身迁 modules.fetcher_core（T-247 Tier2），staticmethod 绑定同一对象
+    _safe_kline_df = staticmethod(_safe_kline_df)
 
     def _fetch_level(self, level, symbol, start, end, adjust):
         """单数据源抓取 + 标准化：并行竞速用。
@@ -2064,30 +2038,8 @@ class StockFetcher:
     # ══════════════════════════════════════════════════════
     # 通用 K 线（日/周/月）
     # ══════════════════════════════════════════════════════
-    def _resample_kline(self, daily_df, period):
-        """
-        将日线数据聚合为周线或月线。
-        period: weekly 或 monthly
-        """
-        daily = daily_df.copy()
-        daily["date"] = pd.to_datetime(daily["date"])
-        daily = daily.set_index("date").sort_index()
-        rule = "W-FRI" if period == "weekly" else "ME"
-        agg = {
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-        }
-        if "amount" in daily.columns:
-            agg["amount"] = "sum"
-        resampled = daily.resample(rule).agg(agg).dropna()
-        resampled = resampled.reset_index()
-        # 计算周期涨跌幅（相对于上一周期）
-        if "close" in resampled.columns:
-            resampled["change_pct"] = resampled["close"].pct_change() * 100
-        return resampled
+    # _resample_kline 真身迁 modules.fetcher_core（T-247 Tier2），staticmethod 绑定同一对象
+    _resample_kline = staticmethod(_resample_kline)
 
     def get_kline(self, symbol, start="2024-01-01", end=None, period="daily", adjust="qfq"):
         """

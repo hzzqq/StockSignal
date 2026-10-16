@@ -117,3 +117,75 @@ def _get_sina_prefix(ticker: str, index_map: dict) -> str:
     if 600000 <= code_int <= 609999 or 688000 <= code_int <= 689999 or 510000 <= code_int <= 589999:
         return "sh"
     return "sz"
+
+
+# ── Tier2 第一批（T-247 续）：K线清洗 / 行业关键词 / 周期重采样 ──
+
+def _safe_kline_df(df):
+    """将任一数据源返回的 K 线 df 统一标准化（防御式，杜绝单源 TypeError 拖垮整条链路）：
+
+    - 非 DataFrame / 空 / 缺失必备列（date/open/close/high/low/volume）→ 视为无效返回 None
+    - ``date`` 强制转为 datetime（解析失败 coerce 为 NaT 并丢弃该行），
+      避免「Timestamp 与字符串直接比较」在 L3 过滤时抛 ``TypeError``（即 #352 的 L1-L4 TypeError 根因之一）
+    - 其余列（amount / change_pct 等）原样保留
+    """
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return None
+    need = ["date", "open", "close", "high", "low", "volume"]
+    if not all(c in df.columns for c in need):
+        return None
+    try:
+        df = df.copy()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.dropna(subset=["date"])
+        return df if not df.empty else None
+    except Exception as e:
+        logger.warning(f"[fetcher] 处理异常: {e}")
+        return None
+
+
+def _get_stock_industry_keywords(stock_name, industry_map):
+    """根据股票名称匹配行业，返回该行业的高频事件关键词。
+
+    :param stock_name: 股票名称（如"贵州茅台"、"宁德时代"）
+    :param industry_map: 行业特征词 -> 关键词列表 映射
+        （fetcher.StockFetcher._INDUSTRY_KEYWORDS，领域常量留 fetcher.py，本函数只消费）
+    :return: list[str] 关键词列表，或空列表
+    """
+    if not stock_name:
+        return []
+
+    matched = set()
+    for industry_terms, keywords in industry_map.items():
+        # 检查名称是否包含任一行业特征词
+        if any(term in stock_name for term in industry_terms):
+            matched.update(keywords)
+
+    return sorted(matched) if matched else []
+
+
+def _resample_kline(daily_df, period):
+    """将日线数据聚合为周线或月线。
+
+    :param daily_df: 日线 DataFrame（含 date/open/close/high/low/volume）
+    :param period: "weekly"（W-FRI 聚合）或 "monthly"（自然月 ME 聚合）
+    """
+    daily = daily_df.copy()
+    daily["date"] = pd.to_datetime(daily["date"])
+    daily = daily.set_index("date").sort_index()
+    rule = "W-FRI" if period == "weekly" else "ME"
+    agg = {
+        "open": "first",
+        "high": "max",
+        "low": "min",
+        "close": "last",
+        "volume": "sum",
+    }
+    if "amount" in daily.columns:
+        agg["amount"] = "sum"
+    resampled = daily.resample(rule).agg(agg).dropna()
+    resampled = resampled.reset_index()
+    # 计算周期涨跌幅（相对于上一周期）
+    if "close" in resampled.columns:
+        resampled["change_pct"] = resampled["close"].pct_change() * 100
+    return resampled

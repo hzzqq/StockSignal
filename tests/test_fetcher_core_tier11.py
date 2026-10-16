@@ -21,6 +21,8 @@ from modules.fetcher import StockFetcher
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 MIGRATED = ("_df_last_date", "_proc_cache_get", "_proc_cache_set", "_safe_ident")
+# Tier2 第一批：真身迁 fetcher_core（staticmethod 绑定 / industry_map 参数注入）
+MIGRATED_T2 = ("_safe_kline_df", "_resample_kline", "_get_stock_industry_keywords")
 
 
 # ── 身份一致（零行为变化的根基）──
@@ -155,3 +157,77 @@ def test_fetcher_no_local_defs_of_batch3():
     local = [n.name for n in ast.walk(tree)
              if isinstance(n, ast.FunctionDef) and n.name == "_resolve_cache_db_path"]
     assert not local, "fetcher.py 仍本地定义 _resolve_cache_db_path，应只 re-export"
+
+
+# ── Tier2 第一批（T-247 续）：_safe_kline_df / _resample_kline / _get_stock_industry_keywords ──
+
+def test_t2_identity():
+    assert StockFetcher._safe_kline_df is fetcher_core._safe_kline_df
+    assert StockFetcher._resample_kline is fetcher_core._resample_kline
+    # 薄壳（industry_map 参数注入）行为零变化：与真身同参等价
+    f = StockFetcher.__new__(StockFetcher)
+    for name in ("贵州茅台", "宁德时代", "工商银行", ""):
+        assert f._get_stock_industry_keywords(name) == fetcher_core._get_stock_industry_keywords(
+            name, StockFetcher._INDUSTRY_KEYWORDS), name
+
+
+def test_t2_safe_kline_df_behaviour():
+    import numpy as np
+    good = pd.DataFrame({"date": ["2026-10-01", "bad", "2026-10-13"],
+                         "open": [1.0, 1.0, 1.0], "close": [2.0, 2.0, 3.0],
+                         "high": [2.0, 2.0, 3.0], "low": [1.0, 1.0, 1.0],
+                         "volume": [100, 100, 100], "amount": [200, 200, 300]})
+    out = fetcher_core._safe_kline_df(good)
+    assert out is not None and len(out) == 2  # "bad" 行 date coerce → NaT → 丢弃
+    assert "amount" in out.columns  # 其余列原样保留
+    assert fetcher_core._safe_kline_df(None) is None
+    assert fetcher_core._safe_kline_df(pd.DataFrame()) is None
+    assert fetcher_core._safe_kline_df(pd.DataFrame({"date": []})) is None  # 缺必备列
+    broken = pd.DataFrame({"open": [np.inf]})  # 缺必备列 → None
+    assert fetcher_core._safe_kline_df(broken) is None
+
+
+def test_t2_resample_behaviour():
+    import numpy as np
+    daily = pd.DataFrame({
+        "date": pd.date_range("2026-09-01", periods=10, freq="D").strftime("%Y-%m-%d"),
+        "open": np.linspace(10, 15, 10), "high": np.linspace(11, 16, 10),
+        "low": np.linspace(9, 14, 10), "close": np.linspace(10.5, 15.5, 10),
+        "volume": [1000] * 10, "amount": [1e5] * 10,
+    })
+    wk = fetcher_core._resample_kline(daily, "weekly")
+    assert len(wk) >= 2 and "change_pct" in wk.columns
+    assert float(wk["volume"].sum()) == 10000
+    mo = fetcher_core._resample_kline(daily, "monthly")
+    assert len(mo) == 1  # 9 月单月
+    assert mo.iloc[0]["open"] == daily["open"].iloc[0]  # first
+    assert mo.iloc[0]["close"] == daily["close"].iloc[-1]  # last
+
+
+def test_t2_industry_keywords_behaviour():
+    imap = {frozenset(["银行", "金融"]): ["降息", "信贷"], frozenset(["白酒"]): ["消费", "提价"]}
+    out = fetcher_core._get_stock_industry_keywords("招商银行", imap)
+    assert out == ["信贷", "降息"]  # sorted
+    assert fetcher_core._get_stock_industry_keywords("", imap) == []
+    assert fetcher_core._get_stock_industry_keywords("无名股", imap) == []
+
+
+def test_fetcher_no_local_defs_of_t2():
+    tree = ast.parse((ROOT / "modules/fetcher.py").read_text(encoding="utf-8"))
+    # 绑定型（staticmethod 同一对象）不得本地 def；薄壳型（参数注入）允许 def
+    bound = [n.name for n in ast.walk(tree)
+             if isinstance(n, ast.FunctionDef) and n.name in ("_safe_kline_df", "_resample_kline")]
+    assert not bound, f"fetcher.py 仍本地定义绑定型已迁函数: {bound}"
+    shells = [n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "_get_stock_industry_keywords"]
+    assert len(shells) == 1, "_get_stock_industry_keywords 薄壳缺失或多定义"
+    body_src = ast.get_source_segment(
+        (ROOT / "modules/fetcher.py").read_text(encoding="utf-8"), shells[0]) or ""
+    assert "_get_stock_industry_keywords(stock_name, StockFetcher._INDUSTRY_KEYWORDS)" in body_src, \
+        "薄壳必须委托 fetcher_core 真身并注入领域表"
+
+
+def test_fetcher_core_defines_t2():
+    src = (ROOT / "modules/fetcher_core/__init__.py").read_text(encoding="utf-8")
+    for name in MIGRATED_T2:
+        assert f"def {name}" in src, f"fetcher_core 缺少 {name} 真身"
