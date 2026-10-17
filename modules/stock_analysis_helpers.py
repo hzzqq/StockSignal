@@ -329,8 +329,14 @@ def _build_plan_rows(verdict: str, current: float, support: float, resistance: f
         ]
 
 
-def _section_header(title: str, subtitle: str = "", icon: str = "📊") -> str:
-    """生成轻量化模块标题（图标 + 标题），与参考文档 .card h2 一致。subtitle 已废弃，仅保留兼容。"""
+def _section_header(title: str, subtitle: str = "", icon: str = "📊", level: int = 2) -> str:
+    """生成轻量化模块标题（图标 + 标题），与参考文档 .card h2 一致。
+
+    subtitle 已废弃，仅保留兼容。
+    level 为兼容参数：b1f57f9「标题等级体系」给 13 处调用点加了 level=1/2，但本函数
+    从未接收该形参 → TypeError，个股分析仪表盘与个股财报两个 fragment 自此渲染全断
+    （T-291 CDP traceback 实证）。渲染统一 <h2>（.card h2 样式单源），level 接受但不改视觉。
+    """
     return f"<h2>{icon} {title}</h2>"
 
 

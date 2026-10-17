@@ -23,6 +23,7 @@ from modules.stock_analysis_helpers import (
     _build_logic_lists,
     _logic_list_html,
     _calc_trade_levels,
+    _section_header,
 )
 
 
@@ -251,4 +252,29 @@ def test_calc_trade_levels_nan_current_price():
     res = _calc_trade_levels(float("nan"), None, None, None)
     assert isinstance(res, tuple)
     assert len(res) == 4
+
+
+# ── T-291：_section_header level 兼容参数契约 ─────────────────────────────
+# 缺陷实证（CDP traceback）：b1f57f9 给 13 处调用点加 level=1/2，但本函数无该形参
+# → TypeError，个股分析仪表盘（_render_analysis）与个股财报（_build_perf_history_section）
+# 两个 fragment 渲染全断。修复 = 接受 level 兼容参数；渲染统一 <h2>（.card h2 单源不变）。
+
+
+def test_section_header_accepts_level_kwarg():
+    # 20_个股分析.py L488 的实际调用形态（icon= + level= 关键字）
+    html = _section_header("顶部决策摘要", icon="🎯", level=1)
+    assert html == "<h2>🎯 顶部决策摘要</h2>"
+
+
+def test_section_header_accepts_level_positional_mix():
+    # L526 的实际调用形态（位置参数 + level=）
+    html = _section_header("核心结论", "AI 综合研判 · 多空信号", "💡", level=1)
+    assert html == "<h2>💡 核心结论</h2>"
+
+
+def test_section_header_level2_and_default_unchanged():
+    # 财报区调用形态（level=2）与无 level 旧形态输出必须一致（视觉单源 h2）
+    assert _section_header("业绩横向对比", "≥3 年主要指标 · 柱状规模 + 折线同比", "📈", level=2) == "<h2>📈 业绩横向对比</h2>"
+    assert _section_header("任意标题") == "<h2>📊 任意标题</h2>"
+    assert _section_header("任意标题", "副标题") == "<h2>📊 任意标题</h2>"
 
