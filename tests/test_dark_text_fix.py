@@ -52,3 +52,33 @@ def test_plain_text_passthrough():
     assert 'class="sf-text-title"' in out
     out2 = highlight_value(3.14, fmt=".2f", direction="up")
     assert "3.14" in out2
+
+
+# ───────────────────────── T-293：plotly title undefined 防回退 ─────────────────────────
+# 根因（CDP 取证）：template 仅设 title_font（=layout.title.font）时，plotly.js 仍渲染
+# title 分组且 text=JS undefined → 图上出现字面 "undefined"（20_个股分析 五维雷达实证
+# <tspan style="font-weight:bold">undefined</tspan>）。修复 = title.text 显式置 ""。
+
+def test_plotly_templates_title_text_explicit_empty():
+    """两套 template 的顶层 title 必须显式 text=""，禁止退回 title_font 形式。"""
+    from modules.dark_text_fix import PLOTLY_DARK_TEMPLATE, PLOTLY_LIGHT_TEMPLATE
+    for name, tpl in (("dark", PLOTLY_DARK_TEMPLATE), ("light", PLOTLY_LIGHT_TEMPLATE)):
+        assert "title" in tpl, f"{name} template 缺 title 配置"
+        assert tpl["title"].get("text") == "", (
+            f"{name} template title.text 必须显式为 ''（缺失/None 会让 plotly.js 渲染 'undefined'）"
+        )
+        assert "font" in tpl["title"], f"{name} template title.font 丢失（标题字体配色回退）"
+
+
+def test_apply_plotly_theme_fig_title_text_empty():
+    """端到端：apply_plotly_theme 处理后的 fig.layout.title.text 必须是 ''。"""
+    import plotly.graph_objects as go
+
+    from modules.dark_text_fix import apply_plotly_theme
+    for dark in (False, True):
+        fig = go.Figure()
+        out = apply_plotly_theme(fig, dark=dark)
+        assert out is fig, "apply_plotly_theme 必须返回 fig 本身"
+        assert fig.layout.title.text == "", (
+            f"dark={dark} fig.layout.title.text != ''（undefined 渲染回归）"
+        )

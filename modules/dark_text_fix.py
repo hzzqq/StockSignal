@@ -332,7 +332,11 @@ PLOTLY_DARK_TEMPLATE = dict(
     paper_bgcolor="#0f0f1a",
     plot_bgcolor="#0f0f1a",
     font=dict(color="#cbd5e1", family="system-ui, -apple-system, 'PingFang SC', sans-serif", size=13),
-    title_font=dict(color="#f1f5f9", size=18),
+    # T-293：title.text 必须显式置 ""。仅设 title_font（=layout.title.font）时
+    # plotly.js 仍会渲染 title 分组，而 title.text 为 JS undefined → 图上渲染出
+    # 字面 "undefined"（20_个股分析 五维雷达 CDP 取证 <tspan>undefined</tspan> 实证）。
+    # 需要图标题的调用方请在 apply_plotly_theme 之后设置 title（会覆盖此空串）。
+    title=dict(text="", font=dict(color="#f1f5f9", size=18)),
     xaxis=dict(tickfont=dict(color="#94a3b8", size=11), title_font=dict(color="#94a3b8", size=12),
                gridcolor="#1e293b", zerolinecolor="#334155", linecolor="#334155"),
     yaxis=dict(tickfont=dict(color="#94a3b8", size=11), title_font=dict(color="#94a3b8", size=12),
@@ -351,7 +355,8 @@ PLOTLY_LIGHT_TEMPLATE = dict(
     paper_bgcolor="#ffffff",
     plot_bgcolor="#fafafa",
     font=dict(color="#374151", family="system-ui, -apple-system, 'PingFang SC', sans-serif", size=13),
-    title_font=dict(color="#111827", size=18),
+    # 同 dark：text="" 防 plotly.js 渲染字面 "undefined"（T-293）
+    title=dict(text="", font=dict(color="#111827", size=18)),
     xaxis=dict(tickfont=dict(color="#4b5563", size=11), title_font=dict(color="#4b5563", size=12),
                gridcolor="#e5e7eb", zerolinecolor="#9ca3af", linecolor="#d1d5db"),
     yaxis=dict(tickfont=dict(color="#4b5563", size=11), title_font=dict(color="#4b5563", size=12),

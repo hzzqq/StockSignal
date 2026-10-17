@@ -17,6 +17,8 @@ import importlib
 import sys
 import types
 
+import pytest
+
 import modules.autorefresh as ar
 
 
@@ -63,3 +65,21 @@ def test_degrades_to_noop_when_missing():
     # no-op：接受任意参数、返回 None，绝不抛异常
     assert fn(limit=5, key="x") is None
     assert fn() is None
+
+
+def test_real_env_package_installed():
+    """T-293：真实运行环境必须实际安装 streamlit-autorefresh（pyproject 已声明）。
+
+    未安装的环境 skip（环境不具备，非数据退化）；已安装则适配层必须透传真实现，
+    防「pyproject 声明了但运行环境漏装 → 全站自动刷新静默失效」回潮。
+    """
+    try:
+        import streamlit_autorefresh  # noqa: F401
+    except ImportError:
+        pytest.skip("环境未安装 streamlit-autorefresh（环境不具备）")
+    from streamlit_autorefresh import st_autorefresh as real
+
+    import modules.autorefresh as ar_real
+    assert ar_real.st_autorefresh is real, (
+        "运行环境已装 streamlit_autorefresh 但适配层未透传真实现（no-op 仍在生效）"
+    )

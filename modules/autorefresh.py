@@ -11,7 +11,8 @@ pages/21_多股对比.py、pages/46_自选股监控.py）。
 - 包缺失 → 降级为 no-op，页面不再崩溃，只是失去自动刷新（可接受降级）。
 
 所有引用方改为 `from modules.autorefresh import st_autorefresh` 即可。
-同时建议在 requirements.txt 显式声明 `streamlit-autorefresh` 以恢复完整行为。
+该包已由 pyproject.toml 声明（T-267，uv.lock 锁定），并于 T-293 装入运行环境；
+no-op 分支仅用于未安装该包的裸机环境。
 """
 
 from __future__ import annotations
