@@ -70,6 +70,40 @@ def _local_list_literal(tree: ast.Module, func_name: str, var_name: str) -> list
     raise AssertionError(f"未在 {func_name} 内找到列表常量 {var_name}")
 
 
+# ───────────────────────── T-292：_build_perf_history_section 指标解析顺序守卫 ─────────────────────────
+# 缺陷实证（CDP traceback）：原实现把 `_cur = st.session_state.get(_mk, ...)` 排在使用它的
+# `if _cur in _pct_metrics` caption 分支之后 → UnboundLocalError，财报 fragment 首屏渲染全断。
+# 守卫：_cur 的首次赋值行号必须早于首个使用行号。
+
+def test_perf_history_cur_assigned_before_use(src, tree):
+    fn = _func(tree, "_build_perf_history_section")
+    assign_line = None
+    use_line = None
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Assign):
+            for t in node.targets:
+                if isinstance(t, ast.Name) and t.id == "_cur":
+                    if assign_line is None or node.lineno < assign_line:
+                        assign_line = node.lineno
+        if isinstance(node, ast.If):
+            test_src = ast.unparse(node.test)
+            if "_cur in _pct_metrics" in test_src:
+                use_line = node.lineno if use_line is None else use_line
+    assert assign_line is not None, "_build_perf_history_section 内缺少 _cur 赋值"
+    assert use_line is not None, "缺少 `if _cur in _pct_metrics` 分支（caption 语义丢失）"
+    assert assign_line < use_line, (
+        f"_cur 赋值（L{assign_line}）必须早于 `if _cur in _pct_metrics`（L{use_line}），"
+        "否则 UnboundLocalError 复发（T-292）"
+    )
+
+
+def test_perf_history_metric_default_from_session_not_hardcoded(src, tree):
+    """指标切换必须走 session_state 读取（fr_hist_metric_{code}），默认净利润。"""
+    body = _func_source(src, tree, "_build_perf_history_section")
+    assert "fr_hist_metric_" in body, "缺少 fr_hist_metric_{code} session key"
+    assert 'st.session_state.get(_mk, "净利润")' in body, "默认指标必须是净利润"
+
+
 # ───────────────────────── 需求 3：报告期选择区（折叠 + selectbox + 多期）─────────────────────────
 
 def test_period_selector_is_collapsible_selectbox(src, tree):

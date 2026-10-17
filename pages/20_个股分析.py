@@ -1085,6 +1085,12 @@ def _build_perf_history_section(code: str, dark: bool = False) -> None:
     """
     st.markdown('<div class="sf-card">' + _section_header("业绩横向对比", "≥3 年主要指标 · 柱状规模 + 折线同比", "📈", level=2), unsafe_allow_html=True)
     _pct_metrics = ("ROE%", "毛利率%", "净利率%")
+    # ── 当前指标解析（必须先于下方 caption：T-292 修复——原实现把该块排在 caption 之后，
+    #    `_cur` 未赋值先使用 → UnboundLocalError，财报 fragment 首屏渲染全断）──
+    _mk = f"fr_hist_metric_{code}"
+    _cur = st.session_state.get(_mk, "净利润")
+    if _cur not in _HISTORY_METRICS:
+        _cur = "净利润"
     if _cur in _pct_metrics:
         st.caption("📊 柱=该指标（%）；红=正值 / 绿=负值。数据来源：东方财富业绩报表（自该股上市年份起，最多近 10 年）。")
     else:
@@ -1098,11 +1104,7 @@ def _build_perf_history_section(code: str, dark: bool = False) -> None:
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    # ── 指标切换（pill）──
-    _mk = f"fr_hist_metric_{code}"
-    _cur = st.session_state.get(_mk, "净利润")
-    if _cur not in _HISTORY_METRICS:
-        _cur = "净利润"
+    # ── 指标切换（pill）──（_cur 已在上方 caption 前解析）
     _mcols = st.columns(len(_HISTORY_METRICS))
     for _i, (_key, _disp) in enumerate(_HISTORY_METRICS.items()):
         with _mcols[_i]:
