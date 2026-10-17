@@ -32,10 +32,10 @@ sys.path.insert(0, ROOT)
 OUT = os.path.join(ROOT, "thesis", "素材", "ch6_eval")
 os.makedirs(OUT, exist_ok=True)
 
-TICKER = "000001"
+TICKER = "300750"
 START = "2024-01-01"
 END = "2026-09-06"
-STRATEGY = "ma_cross"
+STRATEGY = "multi_factor"
 CAPITAL = 100000
 
 

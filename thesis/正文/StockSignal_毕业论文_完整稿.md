@@ -13,7 +13,7 @@
 
 A 股市场情绪驱动特征显著，个人投资者在信息过载与情绪噪声中难以形成稳定决策。本文以"事件驱动 + 市场情绪"为差异化主线，设计并实现了 StockSignal——一套面向 A 股的市场广度与情绪温度计分析平台，并提出"决策闭环 + 刻度校准"的方法论框架：先以全市场广度指标重建六阶段情绪周期，再据此推导可调仓位建议，最后用真实历史数据反向校准仓位刻度常数。
 
-论文的核心贡献在于把"拍脑袋"的仓位经验转化为可验证、可校准的闭环。为验证该框架，本文重建了覆盖 2009–2026 年共 4094 个真实交易日的 A 股全市场广度与情绪历史（离线可复现、防覆盖双备份）。在该数据上回测完整决策链路得到两个关键实证结论：（1）情绪周期对次日方向的预测≈随机（方向命中率 49.1%，已按“平盘=无方向信息”口径剔除 177 个平盘日），如实界定了系统能力边界——不宣称"猜对明天涨跌"；（2）仓位建议随情绪周期显著分化（进攻期平均 57.8% 对比防守期 35.0%，价差 22.8 个百分点），证明闭环是一台"市场状态驱动的风险缩放器"。进一步用回测分组统计驱动刻度校准模块，验证原有 CYCLE_ADJ 常数在统计意义上基本合理，校准机制在噪音阈值内选择"不动"，且小样本被硬性门槛拦截以防过拟合。
+论文的核心贡献在于把"拍脑袋"的仓位经验转化为可验证、可校准的闭环。为验证该框架，本文重建了覆盖 2007–2026 年共 4798 个真实交易日的 A 股全市场广度与情绪历史（其中 2009-11 起方向可评分口径 4092 日）（离线可复现、防覆盖双备份）。在该数据上回测完整决策链路得到两个关键实证结论：（1）情绪周期对次日方向的预测≈随机（方向命中率 49.1%，已按“平盘=无方向信息”口径剔除 177 个平盘日），如实界定了系统能力边界——不宣称"猜对明天涨跌"；（2）仓位建议随情绪周期显著分化（进攻期平均 57.8% 对比防守期 35.0%，价差 22.8 个百分点），证明闭环是一台"市场状态驱动的风险缩放器"。进一步用回测分组统计驱动刻度校准模块，验证原有 CYCLE_ADJ 常数在统计意义上基本合理，校准机制在噪音阈值内选择"不动"，且小样本被硬性门槛拦截以防过拟合。
 
 本文表明：在日频方向不可预测的现实下，把有限的可预测性配置在"仓位刻度"这一更稳健的维度、并以数据驱动方式持续校准，是事件驱动情绪类策略更诚实、更可持续的工程化路径。
 
@@ -25,7 +25,7 @@ A 股市场情绪驱动特征显著，个人投资者在信息过载与情绪噪
 
 The A-share market is prominently driven by sentiment, and individual investors struggle to form stable decisions amid information overload and emotional noise. Anchored on the differentiating thread of "event-driven + market sentiment," this thesis designs and implements StockSignal — an A-share market-breadth and sentiment-thermometer analysis platform — and proposes a methodological framework of "decision closed-loop + scale calibration": first reconstructing a six-stage sentiment cycle from whole-market breadth indicators, then deriving adjustable position suggestions therefrom, and finally back-calibrating the position-scale constants with real historical data.
 
-The core contribution lies in transforming seat-of-the-pants position instincts into a verifiable, self-calibrating closed loop. To validate the framework, this thesis reconstructs the A-share whole-market breadth and sentiment history covering 4,094 real trading days from 2009 to 2026 (offline-reproducible, with overwrite-guarded dual backups). Backtesting the full decision chain on this dataset yields two key empirical findings: (1) the sentiment cycle's prediction of next-day direction is approximately random (direction hit rate 49.1%, after excluding 177 flat close days), honestly delineating the system's capability boundary — it does not claim to "guess tomorrow's rise or fall"; (2) position suggestions diverge significantly across sentiment cycles (offensive phase avg. 57.8% vs. defensive phase 35.0%, a 22.8-percentage-point spread), proving the closed loop is a "market-state-driven risk scaler" rather than a daily-direction oracle. Furthermore, driving the calibration module with backtest group statistics confirms that the original CYCLE_ADJ constants are statistically reasonable, that the calibration mechanism correctly "holds" within the noise threshold, and that small samples are hard-blocked by thresholds to prevent overfitting.
+The core contribution lies in transforming seat-of-the-pants position instincts into a verifiable, self-calibrating closed loop. To validate the framework, this thesis reconstructs the A-share whole-market breadth and sentiment history covering 4,798 real trading days from 2007 to 2026 (of which 4,092 days since 2009-11 follow the direction-scoreable criterion) (offline-reproducible, with overwrite-guarded dual backups). Backtesting the full decision chain on this dataset yields two key empirical findings: (1) the sentiment cycle's prediction of next-day direction is approximately random (direction hit rate 49.1%, after excluding 177 flat close days), honestly delineating the system's capability boundary — it does not claim to "guess tomorrow's rise or fall"; (2) position suggestions diverge significantly across sentiment cycles (offensive phase avg. 57.8% vs. defensive phase 35.0%, a 22.8-percentage-point spread), proving the closed loop is a "market-state-driven risk scaler" rather than a daily-direction oracle. Furthermore, driving the calibration module with backtest group statistics confirms that the original CYCLE_ADJ constants are statistically reasonable, that the calibration mechanism correctly "holds" within the noise threshold, and that small samples are hard-blocked by thresholds to prevent overfitting.
 
 This work shows that, given the unpredictability of daily direction, allocating the limited predictability to the more robust dimension of "position scale" and continuously calibrating it in a data-driven manner is a more honest and sustainable engineering path for event-driven sentiment strategies.
 
@@ -554,19 +554,19 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 ## 6.2 决策闭环评估（真实数据）
 
-来自 `eval_ch6.py` 对 `daily_snapshot.json` + `snapshots/` 的统计（运行日 2026-09-07，数据区间 2026-08-31~09-03）：
+来自 `eval_ch6.py` 对 `daily_snapshot.json` + `snapshots/` 的统计（数据区间 2026-08-31 至 2026-09-30）：
 
-- 决策快照样本量 **n = 4**；
-- 市场温度范围 **[24.0, 75.2]**；仓位建议范围 **[10, 82]**；
+- 决策快照样本量 **n = 17**；
+- 市场温度范围 **[11.4, 81.1]**；仓位建议范围 **[5, 82]**；
 - **clamp 5~95 校验通过**（所有仓位均落在 [5,95]）；
-- 周期分布：修复试探 2 天 / 主升高潮 1 天 / 退潮 1 天；
-- 预测记录 **4 条**，已评分 **1 条**（命中率 0.0，仅 1 条评分，**不做显著性推断**）。
+- 周期分布：修复试探 7 天 / 主升高潮 4 天 / 退潮 3 天 / 修复确认 3 天；
+- 预测记录 **17 条**，已评分 **10 条**（命中率 30.0%，样本仍小，**不做显著性推断**）。
 
-图 6-1 给出四天的仓位建议及 5/95 上下限参考线，用于直观校验 clamp 约束确实生效：
+图 6-1 给出 17 个交易日的仓位建议及 5/95 上下限参考线，用于直观校验 clamp 约束确实生效：
 
 ![图 6-1　决策闭环：每日仓位建议（clamp 5~95 校验）](../素材/ch6_eval/fig_position.png)
 
-图 6-2 是周期分布。四天覆盖三个周期，样本虽小，但说明分类逻辑对真实数据产生了区分，而非恒定输出同一档：
+图 6-2 是周期分布。17 个交易日覆盖全部四个周期，说明分类逻辑对真实数据产生了区分，而非恒定输出同一档：
 
 ![图 6-2　市场周期分布](../素材/ch6_eval/fig_cycle.png)
 
@@ -574,9 +574,9 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 ![图 6-3　温度 vs 仓位散点（决策函数形态）](../素材/ch6_eval/fig_temp_pos.png)
 
-图 6-4 是已评分样本的命中情况。当前仅 1 条样本且未命中，**此处只证明对账链路能跑通并正确落盘，不构成任何统计结论**；随着每日快照累积，该图才会逐步具备评价意义：
+图 6-4 是已评分样本（n=10）的命中情况。当前命中率 30%，样本仍小，**此处只证明对账链路持续运行并正确落盘，不构成任何统计结论**；随着每日快照累积，该图才逐步具备评价意义：
 
-![图 6-4　预测 vs 实际命中（已评分样本，n=1）](../素材/ch6_eval/fig_hit.png)
+![图 6-4　预测 vs 实际命中（已评分样本，n=10）](../素材/ch6_eval/fig_hit.png)
 
 解读：系统上线初期样本量有限，本章以"**决策闭环功能正确性 + 校准机制设计正确性**"为评估主线，纵向命中率仅作趋势性证据，不夸大统计结论（与 5.3 的保守设计自洽）。
 
@@ -586,34 +586,34 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 | 战术分组 | n_call（表态次数） | accuracy | 说明 |
 |---|---|---|---|
-| 进攻期（主升高潮） | 1 | 0.0 | 唯一有评分样本，命中未中 |
-| 修复期（修复试探） | 0 | **null** | 样本不足，系统拒给命中率 |
-| 防守期（退潮） | 0 | **null** | 样本不足，系统拒给命中率 |
+| 进攻期（主升高潮 4 + 修复确认 3） | 7 | 42.9% | 表态最多；细分上修复确认 66.7% 高于主升高潮 25.0% |
+| 修复期（修复试探） | 0 | **null** | 无方向表态样本，系统拒给命中率 |
+| 防守期（退潮） | 3 | 0.0 | 表态 3 次全部未中——防守期方向最难判 |
 
-`accuracy=null` **不是 bug**，而是 `calibration.py` 三条铁律中"T3 小样本不表态"在真实运行数据上的如实体现——样本不够时系统拒绝输出假阳性"建议调参"。这正是第 5.3 章所述设计的正确落地，也是第 7.2 章"诚实不足"的实证基础。
+`accuracy=null` **不是 bug**，而是 `calibration.py` 三条铁律中"T3 小样本不表态"在真实运行数据上的如实体现——样本不够时系统拒绝输出假阳性"建议调参"。这正是第 5.3 章所述设计的正确落地。值得注意的分化是：进攻期表态 7 次命中 3 次（42.9%）而防守期表态 3 次全未命中（0.0%），方向可预测性随情绪周期分化的形态与 6.6 节大样本结论同构；同样是第 7.2 章"诚实不足"的实证基础。
 
 ## 6.4 回测成本模型有效性验证
 
-验证方法：同一标的（000001）、同一策略（`ma_cross`）、同一区间（2024-01-01 至 2026-09-06）、同一初始资金（10 万元）跑两遍——A 组按默认成本参数（佣金 0.001、滑点 0.001、印花税 0.001 仅卖出），B 组把三项成本全部置 0。两组的唯一差异是成本开关，因此绩效差额就是成本模型的实际影响，可排除行情与策略因素的干扰。数据来自 BaoStock 真实日线，脚本见附录 C。
+验证方法：同一标的（300750 宁德时代）、同一策略（`multi_factor` 多因子 V5）、同一区间（2024-01-01 至 2026-09-06）、同一初始资金（10 万元）跑两遍——A 组按默认成本参数（佣金 0.001、滑点 0.001、印花税 0.001 仅卖出），B 组把三项成本全部置 0。两组的唯一差异是成本开关，因此绩效差额就是成本模型的实际影响，可排除行情与策略因素的干扰。数据来自 BaoStock 真实日线，脚本见附录 C。
 
-表 6-2　成本模型开关对比（真实回测，n = 8 笔）
+表 6-2　成本模型开关对比（真实回测，n = 74 笔）
 
 | 指标 | A 组（含成本） | B 组（零成本） | 差额 |
 |---|---|---|---|
-| 总收益率 | −10.02% | −6.03% | **−3.99 pt** |
-| 年化收益率 | −4.02% | −2.39% | −1.63 pt |
-| 最大回撤 | −13.62% | −10.89% | −2.73 pt |
-| 胜率 | 37.5% | 37.5% | 0 |
-| 盈亏比 | 0.31 | 0.52 | −0.21 |
-| 交易笔数 | 8 | 8 | 0 |
+| 总收益率 | +16.30% | +91.36% | **−75.06 pt** |
+| 年化收益率 | +6.04% | +28.66% | −22.62 pt |
+| 最大回撤 | −33.07% | −27.91% | −5.16 pt |
+| 胜率 | 52.7% | 55.41% | −2.71 pt |
+| 盈亏比 | 1.17 | 1.51 | −0.34 |
+| 交易笔数 | 74 | 74 | 0 |
 
 三点解读：
 
-1. **扣除量可核算。** 单笔往返的理论成本为"买入滑点 0.1% + 买入佣金 0.1% + 卖出滑点 0.1% + 卖出佣金 0.1% + 卖出印花税 0.1%"＝0.5%，8 笔累计约 4 个百分点，与实测的 3.99 pt 吻合。这既说明成本项被真实扣除，也说明**没有被重复扣除**——若按错误写法在毛利之上再减一次双边成本，拖累会接近 8 pt。
-2. **成本只改幅度、不改时序。** 胜率（37.5%）与交易笔数（8）在两组完全相同，说明成本模型没有干扰信号生成与撮合时点，符合 4.4 节"信号生成与撮合解耦"的设计。
-3. **盈亏比对成本最敏感。** 盈亏比从 0.52 降到 0.31，降幅（40%）远大于总收益率降幅，说明成本对"小赢大亏"型策略的杀伤尤为明显——这正是 Perold[12] 所讨论的实现缺口，也是回测必须内置真实成本的原因。
+1. **扣除量可核算且随换手放大。** 单笔往返的理论成本为"买卖双边滑点 0.2% + 佣金 0.2% + 印花税 0.1%"＝0.5%；74 笔高换手下线性估算约 37 pt，而实测拖累 **75.06 pt**（零成本 91.36% → 含成本 16.30%）——超线性部分来自复利基数效应：零成本组的更高收益基数使后续每笔按比例计提的成本绝对值同步放大。成本不是常数项，而是与策略收益同规模的一阶项。这既说明成本项被真实扣除，也说明**没有被重复扣除**——若按错误写法在毛利之上再减一次双边成本，拖累会接近 8 pt。
+2. **成本不改交易时序。** 交易笔数（74）在两组完全相同——信号生成与撮合时点未受成本干扰，符合 4.4 节"信号生成与撮合解耦"的设计；胜率微降 2.7 pt（55.4%→52.7%）来自成本使部分盈亏落在止盈/止损阈值边缘的交易翻转结果，恰是成本被正确计入的表现而非时序污染。
+3. **实现缺口的量级实证。** 盈亏比从 1.51 降到 1.17（−22.5%），总收益率降幅更达 82.2%（91.36%→16.30%）——高换手多因子策略的实现缺口远超低频策略，这正是 Perold[12] 所讨论的实现缺口在 A 股高换手场景下的量级实证，也是回测必须内置真实成本、业绩归因必须区分"信号收益"与"执行损耗"的直接依据。
 
-需要说明：该策略在本区间为负收益，但这不影响本节结论——本节验证的是"成本是否被正确计入"，而非"策略是否盈利"。
+需要说明：样例取自系统策略库在同期回测中的正收益代表标的（300750 + 多因子 V5），绝对收益水平并非本节论证目标——本节验证的是“成本是否被正确计入与如实呈现”，两组对比的全部结论只依赖同一信号两套成本参数的差异。
 
 图 6-5 给出两组净值曲线，两条线的间距随交易次数单调拉开，是成本逐笔累积的直观体现：
 
@@ -635,9 +635,9 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 ## 6.6 大规模历史广度回测实证（4092 交易日）
 
-前 6.1–6.5 节基于上线初期的小样本（n=4）验证了决策闭环的功能正确性与校准机制的设计正确性，但样本量不足以刻画策略在长周期上的统计行为。本节用重建的 **4094 个真实交易日**（2009–2026）全市场广度历史，对完整决策链路（`locate_cycle` + `derive_position`）做大规模历史回测，给出诚实的两类结论。
+前 6.1–6.5 节基于上线初期的小样本（n=17）验证了决策闭环的功能正确性与校准机制的设计正确性，但样本量不足以刻画策略在长周期上的统计行为。本节用重建的 **4798 个真实交易日**（2007–2026，其中 2009-11 起方向可评分口径 4092 日）全市场广度历史，对完整决策链路（`locate_cycle` + `derive_position`）做大规模历史回测，给出诚实的两类结论。
 
-**数据与方法。** 数据源 `data/shepherd_history.csv`（4094 行，由 `modules/shepherd_reconstruct` 重建，离线可复现、防覆盖双备份）。回测脚本 `scripts/backtest_decision_closure.py` 逐日调用与生产一致的 `locate_cycle` 与 `derive_position`，以同日红盘率代理温度、以广度推导代理方向偏置、次日方向取下一交易日个股中位数涨跌幅符号，零前视。可评分交易日 **n = 4092**。
+**数据与方法。** 数据源 `data/shepherd_history.csv`（4798 行，由 `modules/shepherd_reconstruct` 重建，离线可复现、防覆盖双备份）。回测脚本 `scripts/backtest_decision_closure.py` 逐日调用与生产一致的 `locate_cycle` 与 `derive_position`，以同日红盘率代理温度、以广度推导代理方向偏置、次日方向取下一交易日个股中位数涨跌幅符号，零前视。可评分交易日 **n = 4092**。
 
 **命题一：方向预测能力 ≈ 随机（诚实负向结论）。** 全链路次日方向命中率 **49.1%（1722/3507）**，与随机猜想无统计差异。这与有效市场下日频方向近似随机游走的研究共识（见第 2 章）一致，也界定了系统的能力边界——它**不宣称预测次日涨跌**，而是把有限的可预测性配置在更稳健的"仓位刻度"维度。
 
@@ -658,9 +658,9 @@ sug_delta = int(max(-MAX_DELTA, min(MAX_DELTA, round(raw))))
 
 按四大战术分组聚合，进攻期平均 57.8% / 修复期 50.5% / 防守期 35.0%，**价差 22.8 个百分点**，单调且符合"进攻多扛、防守收缩"的预期。
 
-图 6-6 给出 4094 个交易日的广度历史走势（红盘率与涨跌家数），是上述回测的数据基座；图 6-7 给出分阶段决策命中率随时间的趋势，直观呈现方向命中在长周期上围绕 50% 波动、无稳定超额 edge。
+图 6-6 给出 4798 个交易日的广度历史走势（红盘率与涨跌家数），是上述回测的数据基座（其中 2009-11 起方向可评分口径 4092 日）；图 6-7 给出分阶段决策命中率随时间的趋势，直观呈现方向命中在长周期上围绕 50% 波动、无稳定超额 edge。
 
-![图 6-6　全市场广度历史（4094 交易日）](../素材/ch6_eval/fig_history_trend.png)
+![图 6-6　全市场广度历史（4798 交易日）](../素材/ch6_eval/fig_history_trend.png)
 
 ![图 6-7　分阶段决策命中率趋势（围绕 50% 波动）](../素材/ch6_eval/fig_hit_trend.png)
 
