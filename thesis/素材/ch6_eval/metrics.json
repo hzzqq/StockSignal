@@ -156,8 +156,8 @@
     ]
   ],
   "prediction_count": 17,
-  "prediction_scored": 9,
-  "prediction_hit_rate": 0.3333333333333333,
+  "prediction_scored": 10,
+  "prediction_hit_rate": 0.3,
   "note": "样本量小时如实标注，不推断统计显著性",
   "grouped_stats": {
     "by_cycle": [
@@ -165,11 +165,11 @@
         "cycle": "主升高潮",
         "group": "进攻期",
         "n": 4,
-        "n_call": 3,
+        "n_call": 4,
         "hits": 1,
-        "accuracy": 33.3,
+        "accuracy": 25.0,
         "avg_pct": 50.5,
-        "avg_realized": -0.39
+        "avg_realized": -0.49
       },
       {
         "cycle": "修复确认",
@@ -206,11 +206,11 @@
       {
         "group": "进攻期",
         "n": 7,
-        "n_call": 6,
+        "n_call": 7,
         "hits": 3,
-        "accuracy": 50.0,
+        "accuracy": 42.9,
         "avg_pct": 46.0,
-        "avg_realized": -0.3
+        "avg_realized": -0.37
       },
       {
         "group": "修复期",
@@ -233,10 +233,10 @@
     ],
     "summary": {
       "n": 17,
-      "scored": 9,
-      "n_call": 9,
+      "scored": 10,
+      "n_call": 10,
       "hits": 3,
-      "accuracy": 33.3,
+      "accuracy": 30.0,
       "start": "2026-08-31",
       "end": "2026-09-30"
     }

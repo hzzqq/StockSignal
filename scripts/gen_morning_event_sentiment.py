@@ -164,8 +164,10 @@ def main():
         resonance = "事件因子缺位"
     elif ev_stale:
         # 事件因子已陈旧（滞后≥陈旧阈值）：方向不可信、不参与当日共振。
-        # 诚实口径：仅当两者名义方向确为相反才标「背离」，否则标「陈旧失效」而非假称背离。
-        if shepherd_dir and ev_dir not in (None, "缺") and shepherd_dir != ev_dir:
+        # 诚实口径：仅当**双方都有明确相反方向**（偏多 vs 偏空）才标「背离」；
+        # 若任一方为「中性/缺位」则不算背离，标「陈旧失效」——避免把"中性 vs 偏多"
+        # 这种无方向信号误标成背离（那是另一种不诚实）。
+        if shepherd_dir in ("偏多", "偏空") and ev_dir in ("偏多", "偏空") and shepherd_dir != ev_dir:
             resonance = "背离 + 事件因子陈旧失效（陈旧信号不参与当日决策）"
         else:
             resonance = "事件因子陈旧失效（不参与当日共振）"
@@ -273,9 +275,38 @@ def main():
     lines.append("")
     _sh_asof = _hrow.get("牧羊人情绪", {}).get("as_of")
     _sh_lag = _hrow.get("牧羊人情绪", {}).get("lag_days")
-    lines.append(f"> 📌 **牧羊人真实数据截止（health 口径）**：`shepherd_history.csv` 末行 = **{fmt(_sh_asof)}**（滞后 {fmt(_sh_lag)} 天），"
-                 f"已标「已降权」。**注意**：本快照内部 `data_freshness` 曾把牧羊人标为 2026-09-15，"
-                 f"但 CSV 内容实际只到 {fmt(_sh_asof)}——本早报以 `health_rows_enriched()` 为准，不沿用快照的旧标注。")
+    _sh_st = _hrow.get("牧羊人情绪", {}).get("status")
+    _sh_down = (_sh_lag is not None and _sh_lag > 4)
+    _sh_down_tag = "已降权" if _sh_down else "新鲜（未降权）"
+    _snap_asof = _hrow.get("今日快照", {}).get("as_of")
+    _snap_lag = _hrow.get("今日快照", {}).get("lag_days")
+    _snap_st = _hrow.get("今日快照", {}).get("status")
+    _snap_stalled = _hrow.get("今日快照", {}).get("stalled")
+    if _snap_stalled:
+        _snap_tag = "已停更"
+    elif _snap_lag is not None and _snap_lag > 4:
+        _snap_tag = "已降权"
+    else:
+        _snap_tag = "新鲜（ok）"
+    # 本早报喂进 derive_position 的 score/bias/cycle/temp 取自最新每日快照（data/snapshots 最大日期），
+    # 而 health 口径的「牧羊人情绪 as_of」来自底层 shepherd_history.csv，两者日期可能不同。
+    # 如实标注，避免把「底层 CSV 已刷新」误当成「决策读数已刷新」（反之亦然）。
+    lines.append(f"> 📌 **牧羊人底层数据（health 口径）**：`shepherd_history.csv` 末行 = **{fmt(_sh_asof)}**（滞后 {fmt(_sh_lag)} 天，状态 {fmt(_sh_st)}，{_sh_down_tag}）。")
+    # 如实描述「快照 vs 底层 CSV」的关系：谁新谁旧取决于实际数据，不预置方向。
+    _snap_newer = (_sh_lag is not None and _snap_lag is not None and _sh_lag > _snap_lag)
+    if _snap_newer:
+        _gap = _sh_lag - _snap_lag
+        lines.append(f"> ⚠️ **注意（决策读数来源 vs 底层历史）**：本早报喂进 `derive_position` 的 score/bias/cycle/temp 取自"
+                     f"**最新每日快照 `{os.path.basename(snap_path)}`（快照数据日 {fmt(snap_date)}，当日实时抓取）**；"
+                     f"而 health 口径的「牧羊人情绪」源 `shepherd_history.csv` 末行仅到 **{fmt(_sh_asof)}**（滞后 {fmt(_sh_lag)} 天，{_sh_down_tag}）——"
+                     f"**快照的牧羊人读数（{fmt(snap_date)}）比底层广度历史 CSV（{fmt(_sh_asof)}）新 {_gap} 天**。这意味着 "
+                     f"`derive_position` 内由 `compute_dual_factor_inputs()` 计算的 regime/herd 拥挤因子基于落后的广度历史（{fmt(_sh_asof)}），"
+                     f"当日仓位已据此整体陈旧封顶，未误用过期广度抬高建议。")
+    else:
+        lines.append(f"> ⚠️ **注意（决策读数来源 vs 底层历史）**：本早报喂进 `derive_position` 的 score/bias/cycle/temp 取自"
+                     f"**最新每日快照 `{os.path.basename(snap_path)}`（快照数据日 {fmt(snap_date)}）**；"
+                     f"health 口径的「牧羊人情绪」源 `shepherd_history.csv` 末行 = **{fmt(_sh_asof)}**（滞后 {fmt(_sh_lag)} 天，{_sh_down_tag}）。"
+                     f"两者一致/底层更新时，决策读数已反映最新广度；不一致时以 health 口径为准逐源摊开滞后。")
     lines.append("")
 
     # 三、共振
@@ -295,9 +326,17 @@ def main():
     elif resonance == "事件因子缺位":
         lines.append("**可执行解读**：事件因子缺位，仓位完全由牧羊人情绪驱动；未施加任何事件催化（不臆造）。")
     elif resonance.startswith("事件因子陈旧失效"):
-        lines.append("**可执行解读**：事件因子滞后≥8天被判定陈旧/停更，方向信号当日不可信，**不参与当日共振**；"
-                     "今日决策以牧羊人情绪（有效信号）为准。仓位已据数据陈旧整体封顶，"
-                     "未因过期事件催化抬高建议。")
+        lines.append("**可执行解读**：事件因子滞后≥8天被判定陈旧（as_of "
+                     f"{fmt(ev_as_of)}，lag {fmt(ev_lag)}），方向信号当日不可信，**不参与当日共振**，"
+                     "其名义 +2pt 催化已显式剔除（见第一节诚实口径）。")
+        if _snap_lag is not None and _snap_lag > 4:
+            lines.append(f"今日牧羊人决策读数取自**已停更的快照**（数据日 {fmt(snap_date)}，滞后 {fmt(_snap_lag)} 天）；"
+                         f"底层 `shepherd_history.csv` 仅到 {fmt(_sh_asof)}，需重跑 `daily_snapshot.py` 刷新。")
+        else:
+            lines.append(f"今日牧羊人决策读数取自**{'当日新鲜' if _snap_lag == 0 else '较新'}快照**（数据日 {fmt(snap_date)}，"
+                         f"滞后 {fmt(_snap_lag)} 天，ok）；但 health 口径的底层广度历史 `shepherd_history.csv` 仅到 "
+                         f"{fmt(_sh_asof)}（滞后 {fmt(_sh_lag)} 天，{_sh_down_tag}），regime/herd 双因子可能基于落后 "
+                         f"{fmt(_sh_lag)} 天的广度历史。仓位已据整体陈旧封顶。")
     else:
         lines.append("**可执行解读**：一方缺位/中性，决策以有效信号为准，不强行合成共振。")
     lines.append("")
@@ -348,13 +387,20 @@ def main():
     # 五、核心结论
     lines.append("## 五、核心结论")
     lines.append("")
-    _sh_ev_note = "叠加事件因子停更" if (ev_available and ev_stale) else "叠加事件因子陈旧"
+    _p1_stalled = _hrow.get("P1 事件因子", {}).get("stalled")
+    _sh_ev_note = "叠加事件因子停更" if (ev_available and ev_stale and _p1_stalled) else "叠加事件因子陈旧"
+    _sh_down_tag5 = "已降权" if _sh_down else "新鲜"
+    _gap = (_sh_lag - _snap_lag) if (_sh_lag is not None and _snap_lag is not None) else None
     lines.append(f"1. **仓位**：{eff_pos['pct']}% / {eff_pos['band']}——"
-                 f"事件因子陈旧已剔除；牧羊人情绪虽读 {fmt(bias)}（bias={fmt(bias)}、cycle={fmt(cycle)}），"
-                 f"但其真实数据截至 {fmt(_sh_asof)}（滞后 {fmt(_sh_lag)} 天，已降权），{_sh_ev_note}，"
+                 f"事件因子陈旧已剔除；牧羊人情绪快照读数 bias={fmt(bias)}、cycle={fmt(cycle)}，"
+                 f"决策所用快照数据日 {fmt(snap_date)}（滞后 {fmt(_snap_lag)} 天，{_snap_tag}）；"
+                 f"底层牧羊人 CSV 截至 {fmt(_sh_asof)}（滞后 {fmt(_sh_lag)} 天，{_sh_down_tag5}），{_sh_ev_note}，"
                  f"**整体数据陈旧触发封顶 {eff_pos['pct']}%**，并非基于当日新鲜信号的高仓位。")
     lines.append(f"2. **牧羊人情绪**：score={fmt(score)}、bias={fmt(bias)}、cycle={fmt(cycle)}，{_cycle_st(cycle)}。"
-                 f"（注：该读数来自 `shepherd_history.csv` 末行 {fmt(_sh_asof)}，滞后 {fmt(_sh_lag)} 天，已降权，仅作参考）")
+                 f"（注：该 score/bias/cycle 取自最新快照 `{os.path.basename(snap_path)}` 数据日 {fmt(snap_date)}，"
+                 f"滞后 {fmt(_snap_lag)} 天、{_snap_tag}；health 口径的底层广度历史 `shepherd_history.csv` 仅到"
+                 f" {fmt(_sh_asof)}（滞后 {fmt(_sh_lag)} 天，{_sh_down_tag5}），"
+                 f"{('快照较 CSV 新 ' + str(_gap) + ' 天，regime/herd 双因子或基于落后广度' if _gap and _gap > 0 else '两者一致/CSV 更新')}）")
     if ev_available:
         lines.append(f"3. **事件因子**：latest_date={fmt(ev_as_of)}（滞后 {fmt(ev_lag)} 天），多头池 {fmt(ev_long_count)} 只、名义催化 +{fmt(ev_adj_nominal)}pt；"
                      f"**因陈旧已降权至≈失效，未计入当日共振，亦未抬高仓位**。")
