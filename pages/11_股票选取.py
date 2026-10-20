@@ -493,9 +493,9 @@ try:
             _chg_pct = 0.0 if _chg_pct is None else float(_chg_pct)
             st.metric("最新收盘价", f"¥{latest_close:.2f}", delta=f"{_chg_pct:.2f}%", delta_color="inverse")
         with col_info2:
-            st.metric("区间最高", f"¥{df['high'].max():.2f}")
+            st.metric("区间最高", f"¥{df['high'].max():.2f}", delta_color="off")
         with col_info3:
-            st.metric("区间最低", f"¥{df['low'].min():.2f}")
+            st.metric("区间最低", f"¥{df['low'].min():.2f}", delta_color="off")
         with col_info4:
             total_vol = df['volume'].sum()
             # 加法式数字格式化：成交量按 亿/万 本地化展示（数据不变，仅改显示单位）。
@@ -505,7 +505,7 @@ try:
                 _vol_disp = f"{total_vol/1e4:.0f}万股"
             else:
                 _vol_disp = f"{total_vol:.0f}股"
-            st.metric("区间总成交量", _vol_disp)
+            st.metric("区间总成交量", _vol_disp, delta_color="off")
 
         n = len(df)
         if n > 20:
@@ -653,19 +653,19 @@ if data_ok and df is not None:
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.markdown("**① 短期（5日）**")
-            st.metric(f"{'+' if r5 >= 0 else ''}{r5:.2f}%", f"{short}分")
+            st.metric(f"{'+' if r5 >= 0 else ''}{r5:.2f}%", f"{short}分", delta_color="inverse")
             st.caption("🟢 强势" if short >= 65 else ("🔴 偏弱" if short <= 40 else "⚪ 中性"))
         with c2:
             st.markdown("**② 中期（20日）**")
-            st.metric(f"{'+' if r20 >= 0 else ''}{r20:.2f}%", f"{mid}分")
+            st.metric(f"{'+' if r20 >= 0 else ''}{r20:.2f}%", f"{mid}分", delta_color="inverse")
             st.caption("🟢 强势" if mid >= 65 else ("🔴 偏弱" if mid <= 40 else "⚪ 中性"))
         with c3:
             st.markdown("**③ 长期（60日）**")
-            st.metric(f"{'+' if r60 >= 0 else ''}{r60:.2f}%", f"{long}分")
+            st.metric(f"{'+' if r60 >= 0 else ''}{r60:.2f}%", f"{long}分", delta_color="inverse")
             st.caption("🟢 强势" if long >= 65 else ("🔴 偏弱" if long <= 40 else "⚪ 中性"))
         with c4:
             st.markdown("**④ 综合评分**")
-            st.metric(f"{composite}/100", f"{'看多' if composite >= 65 else ('看空' if composite <= 40 else '观望')}")
+            st.metric(f"{composite}/100", f"{'看多' if composite >= 65 else ('看空' if composite <= 40 else '观望')}", delta_color="off")
             st.caption("短/中/长期加权")
 
         c1, c2, c3, c4 = st.columns(4)
@@ -780,7 +780,7 @@ if data_ok and df is not None:
                 rsi_tag = "超买" if rsi >= 70 else ("超卖" if rsi <= 30 else "中性")
                 st.metric("RSI(14)", f"{rsi:.1f}", delta=rsi_tag, delta_color="off")
             else:
-                st.metric("RSI(14)", "—")
+                st.metric("RSI(14)", "—", delta_color="off")
         with qc2:
             macd = qi.get("macd")
             if macd is not None:
@@ -788,21 +788,21 @@ if data_ok and df is not None:
                           delta="金叉/多头" if macd >= 0 else "死叉/空头", delta_color="off")
                 st.caption(f"DIF {qi['dif']:+.3f} / DEA {qi['dea']:+.3f}")
             else:
-                st.metric("MACD 柱", "—")
+                st.metric("MACD 柱", "—", delta_color="off")
         with qc3:
             k, d, j = qi.get("k"), qi.get("d"), qi.get("j")
             if k is not None:
                 kdj_tag = "超买" if j >= 100 else ("超卖" if j <= 0 else "中性")
                 st.metric("KDJ", f"K{k:.0f} D{d:.0f}", delta=f"J{j:.0f} · {kdj_tag}", delta_color="off")
             else:
-                st.metric("KDJ", "—")
+                st.metric("KDJ", "—", delta_color="off")
         with qc4:
             bp = qi.get("boll_pct")
             if bp is not None:
                 pos = "近上轨" if bp >= 80 else ("近下轨" if bp <= 20 else "轨道中部")
                 st.metric("BOLL 位置", f"{bp:.0f}%", delta=pos, delta_color="off")
             else:
-                st.metric("BOLL 位置", "—")
+                st.metric("BOLL 位置", "—", delta_color="off")
 
         # 用户打分（独立 fragment，交互只重跑本块，提升响应速度）
         _render_user_score(ticker, stock_label)

@@ -53,14 +53,14 @@ if _st.get("stale"):
 ctx = rec.get("market_context") or {}
 mc1, mc2, mc3, mc4 = st.columns(4)
 with mc1:
-    st.metric("市场温度", ctx.get("temperature", "—"))
+    st.metric("市场温度", ctx.get("temperature", "—"), delta_color="off")
 with mc2:
-    st.metric("情绪周期", ctx.get("cycle", "—"))
+    st.metric("情绪周期", ctx.get("cycle", "—"), delta_color="off")
 with mc3:
     pos = (ctx.get("position") or {}).get("pct", "—")
-    st.metric("建议总仓位", f"{pos}%")
+    st.metric("建议总仓位", f"{pos}%", delta_color="off")
 with mc4:
-    st.metric("候选池", f"{rec.get('scored_size', '—')} / {rec.get('universe_size', '—')}")
+    st.metric("候选池", f"{rec.get('scored_size', '—')} / {rec.get('universe_size', '—')}", delta_color="off")
 
 st.caption(f"生成时间：{rec.get('generated_at', '—')} · 行情截至各标的 data_as_of · "
            f"算法缺失标的：multi_factor {rec.get('algo_unavailable', {}).get('multi_factor', 0)} 只 / "
@@ -83,20 +83,20 @@ for i, p in enumerate(picks, 1):
                 unsafe_allow_html=True,
             )
         with head_r:
-            st.metric("综合评分", f"{p.get('composite', '—')}")
+            st.metric("综合评分", f"{p.get('composite', '—')}", delta_color="off")
 
         # 买入方案
         plan = p.get("plan") or {}
         pl1, pl2, pl3, pl4 = st.columns(4)
         with pl1:
-            st.metric("入场参考", f"¥{plan.get('entry', '—')}")
+            st.metric("入场参考", f"¥{plan.get('entry', '—')}", delta_color="off")
         with pl2:
-            st.metric("目标价（3×ATR）", f"¥{plan.get('target', '—')}")
+            st.metric("目标价（3×ATR）", f"¥{plan.get('target', '—')}", delta_color="off")
         with pl3:
-            st.metric("止损价（2×ATR）", f"¥{plan.get('stop', '—')}")
+            st.metric("止损价（2×ATR）", f"¥{plan.get('stop', '—')}", delta_color="off")
         with pl4:
             st.metric("仓位提示", f"{plan.get('position_pct_hint', '—')}%" if plan.get("position_pct_hint") else "—",
-                      help=plan.get("position_note", ""))
+                      delta_color="off", help=plan.get("position_note", ""))
 
         # 算法归因（缺失如实标注）
         with st.expander(f"🔬 算法归因与理由（{len(ALGO_WEIGHTS)} 路算法独立打分）", expanded=(i == 1)):

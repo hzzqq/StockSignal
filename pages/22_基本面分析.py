@@ -289,7 +289,7 @@ def fragment_valuation_band(code: str, name: str, industry: str, pe_ttm, dark: b
             b = band.get(_k) or {}
             with _c:
                 if b.get('status') != 'ok':
-                    st.metric(_label, '—', help=b.get('reason', ''))
+                    st.metric(_label, '—', delta_color='off', help=b.get('reason', ''))
                     st.caption(f'⛔ {b.get("reason", "不可用")}')
                     continue
                 _zone = b.get('zone', '不可用')
@@ -585,15 +585,15 @@ if code:
     st.markdown('---')
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        st.metric('股票', f'{name}')
+        st.metric('股票', f'{name}', delta_color='off')
     with c2:
-        st.metric('代码', code)
+        st.metric('代码', code, delta_color='off')
     with c3:
-        st.metric('所属行业', industry)
+        st.metric('所属行业', industry, delta_color='off')
     with c4:
-        st.metric('最新价', f'¥{price:.2f}' if price else '—', help='个股最新市场成交价（单位：元）；实时行情不可用时显示 —')
+        st.metric('最新价', f'¥{price:.2f}' if price else '—', delta_color='off', help='个股最新市场成交价（单位：元）；实时行情不可用时显示 —')
     with c5:
-        st.metric('总市值', f'¥{market_cap:.1f}亿' if market_cap else '—', help='公司总资产规模（单位：亿元人民币）；越大通常越稳健')
+        st.metric('总市值', f'¥{market_cap:.1f}亿' if market_cap else '—', delta_color='off', help='公司总资产规模（单位：亿元人民币）；越大通常越稳健')
     with st.expander('📋 复制股票代码', expanded=False):
         st.code(code, language='text')
         st.caption('点击代码块右上角复制按钮即可复制当前分析的股票代码。')
@@ -619,27 +619,27 @@ if code:
     pc1, pc2, pc3, pc4 = st.columns(4)
     with pc1:
         rev_yi = perf.get('revenue_yi')
-        st.metric('营业收入', f'{rev_yi} 亿' if rev_yi is not None else '—', delta=f'{rev_yoy:+.1f}%' if rev_yoy is not None else None, delta_color='normal', help='公司一定时期内的主营业务收入（单位：亿元）；同比>0 表示扩张')
+        st.metric('营业收入', f'{rev_yi} 亿' if rev_yi is not None else '—', delta=f'{rev_yoy:+.1f}%' if rev_yoy is not None else None, delta_color='inverse', help='公司一定时期内的主营业务收入（单位：亿元）；同比>0 表示扩张')
         if rev_yoy is not None:
             st.markdown(_tag('营收同比 ' + (f'+{rev_yoy:.1f}%' if rev_yoy >= 0 else f'{rev_yoy:.1f}%'), 'good' if rev_yoy >= 0 else 'bad'), unsafe_allow_html=True)
     with pc2:
         np_yi = perf.get('net_profit_yi')
-        st.metric('净利润', f'{np_yi} 亿' if np_yi is not None else '—', delta=f'{pr_yoy:+.1f}%' if pr_yoy is not None else None, delta_color='normal', help='归属母公司股东的净利润（单位：亿元）；衡量公司真正赚到的钱')
+        st.metric('净利润', f'{np_yi} 亿' if np_yi is not None else '—', delta=f'{pr_yoy:+.1f}%' if pr_yoy is not None else None, delta_color='inverse', help='归属母公司股东的净利润（单位：亿元）；衡量公司真正赚到的钱')
         if pr_yoy is not None:
             st.markdown(_tag('净利同比 ' + (f'+{pr_yoy:.1f}%' if pr_yoy >= 0 else f'{pr_yoy:.1f}%'), 'good' if pr_yoy >= 0 else 'bad'), unsafe_allow_html=True)
     with pc3:
-        st.metric('ROE（净资产收益率）', f'{roe:.2f}%' if roe is not None else '—', help='净利润 / 净资产 ×100；反映股东投入的回报率，通常 >15% 较优')
+        st.metric('ROE（净资产收益率）', f'{roe:.2f}%' if roe is not None else '—', delta_color='off', help='净利润 / 净资产 ×100；反映股东投入的回报率，通常 >15% 较优')
         if roe is not None:
             st.markdown(_tag('盈利能力 ' + ('强' if roe >= 15 else '中' if roe >= 8 else '弱'), 'good' if roe >= 15 else 'warn' if roe >= 8 else 'bad'), unsafe_allow_html=True)
     with pc4:
-        st.metric('毛利率', f'{gm:.2f}%' if gm is not None else '—', help='(营收-营业成本)/营收 ×100；越高说明产品溢价/成本控制越好')
+        st.metric('毛利率', f'{gm:.2f}%' if gm is not None else '—', delta_color='off', help='(营收-营业成本)/营收 ×100；越高说明产品溢价/成本控制越好')
     pc5, pc6 = st.columns(2)
     with pc5:
-        st.metric('资产负债率', f'{alr:.2f}%' if alr is not None else '—', help='总负债 / 总资产 ×100；越低偿债压力越小，但过低也可能杠杆利用不足')
+        st.metric('资产负债率', f'{alr:.2f}%' if alr is not None else '—', delta_color='off', help='总负债 / 总资产 ×100；越低偿债压力越小，但过低也可能杠杆利用不足')
         if alr is not None:
             st.markdown(_tag('偿债压力 ' + ('低' if alr < 40 else '中' if alr < 60 else '高'), 'good' if alr < 40 else 'warn' if alr < 60 else 'bad'), unsafe_allow_html=True)
     with pc6:
-        st.metric('流动比率', f'{cr:.2f}' if cr is not None else '—', help='流动资产 / 流动负债；≥1.5 短期偿债能力较稳健，<1 偏紧')
+        st.metric('流动比率', f'{cr:.2f}' if cr is not None else '—', delta_color='off', help='流动资产 / 流动负债；≥1.5 短期偿债能力较稳健，<1 偏紧')
     _perf_lines = []
     if rev_yoy is not None and pr_yoy is not None:
         if rev_yoy > 0 and pr_yoy > 0:
@@ -781,7 +781,7 @@ if code:
                 delta = sector_chg - avg_chg
                 sc1, sc2 = st.columns(2)
                 with sc1:
-                    st.metric(f'{industry} 今日涨跌', f'{sector_chg:+.2f}%')
+                    st.metric(f'{industry} 今日涨跌', f'{sector_chg:+.2f}%', delta_color='inverse')
                 with sc2:
                     st.metric('相对全市场平均', f'{delta:+.2f}%', delta=f'{delta:+.2f}%', help='当前行业涨跌幅减去全市场行业均值；>0 表示强于大盘', delta_color="inverse")
         if has_theme:
@@ -822,11 +822,11 @@ if code:
     sf_card('📊 估值摘要', "")
     v1, v2, v3 = st.columns(3)
     with v1:
-        st.metric('PE(TTM)', f'{pe_ttm:.2f}' if pe_ttm else '—', help='市盈率 = 股价 / 每股收益；越低通常代表估值越低（但需结合成长性）')
+        st.metric('PE(TTM)', f'{pe_ttm:.2f}' if pe_ttm else '—', delta_color='off', help='市盈率 = 股价 / 每股收益；越低通常代表估值越低（但需结合成长性）')
     with v2:
-        st.metric('PE 状态', _pe_status(pe_ttm), help='根据 PE 粗略划分低估/合理/偏高区间，仅供参考')
+        st.metric('PE 状态', _pe_status(pe_ttm), delta_color='off', help='根据 PE 粗略划分低估/合理/偏高区间，仅供参考')
     with v3:
-        st.metric('总市值', f'¥{market_cap:.1f}亿' if market_cap else '—', help='单位：亿元人民币')
+        st.metric('总市值', f'¥{market_cap:.1f}亿' if market_cap else '—', delta_color='off', help='单位：亿元人民币')
     if pe_ttm is None and market_cap is None:
         info_banner('📊 估值摘要暂无可展示数据（实时行情 / 估值接口未返回 PE 与总市值）。可稍后刷新重试，或检查数据源连接。')
     st.caption('数据来源：东方财富 估值数据（PE / 总市值）')

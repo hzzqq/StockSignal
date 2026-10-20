@@ -207,11 +207,11 @@ def fragment_signal_score():
             _safe_scores = {k: v if v is not None else 0 for k, v in scores.items()}
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric('价格信号', f'{_price}/100')
+                st.metric('价格信号', f'{_price}/100', delta_color='off')
             with col2:
-                st.metric('事件信号', f'{_event}/100')
+                st.metric('事件信号', f'{_event}/100', delta_color='off')
             with col3:
-                st.metric('宏观信号', f'{_macro}/100')
+                st.metric('宏观信号', f'{_macro}/100', delta_color='off')
             with col4:
                 total = _total
                 delta_text = '买入信号' if total >= 70 else '卖出信号' if total <= 40 else '观望'
@@ -613,11 +613,11 @@ def fragment_news_mine():
                         neg_count = len(mined[mined['type'] == '负面'])
                         neu_count = len(mined[mined['type'] == '中性'])
                     with col_s1:
-                        st.metric('正面事件', f'{pos_count} 条')
+                        st.metric('正面事件', f'{pos_count} 条', delta_color='off')
                     with col_s2:
-                        st.metric('负面事件', f'{neg_count} 条')
+                        st.metric('负面事件', f'{neg_count} 条', delta_color='off')
                     with col_s3:
-                        st.metric('中性事件', f'{neu_count} 条')
+                        st.metric('中性事件', f'{neu_count} 条', delta_color='off')
                     with st.expander('📰 挖掘结果（点击标题可跳转原文）', expanded=False):
                         _render_news_with_links(mined, title_col='title', url_col='url', date_col='date', source_col='source', type_col='type')
                     display_cols = [c for c in ['date', 'ticker', 'title', 'type', 'keywords', 'sentiment_score'] if c in mined.columns]
@@ -663,13 +663,13 @@ def fragment_sentiment_report():
                     else:
                         col_r1, col_r2, col_r3, col_r4 = st.columns(4)
                         with col_r1:
-                            st.metric('新闻总数', f'{_total} 条')
+                            st.metric('新闻总数', f'{_total} 条', delta_color='off')
                         with col_r2:
-                            st.metric('正面占比', f'{_pos}%')
+                            st.metric('正面占比', f'{_pos}%', delta_color='off')
                         with col_r3:
-                            st.metric('负面占比', f'{_neg}%')
+                            st.metric('负面占比', f'{_neg}%', delta_color='off')
                         with col_r4:
-                            st.metric('中性占比', f'{_neu}%')
+                            st.metric('中性占比', f'{_neu}%', delta_color='off')
                     import plotly.express as px
                     from modules.visualizer import _is_dark, SF_GRID, SF_BORDER, SF_TXT2
                     _dark = _is_dark()

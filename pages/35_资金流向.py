@@ -396,9 +396,9 @@ def fragment_margin_trading():
         st.metric("融资余额(最新)", f"{summary.get('total_rzye_yi'):.2f}亿" if summary.get('total_rzye_yi') is not None else "—",
                   delta=f"{summary.get('rzye_change_yi'):+.2f}亿" if summary.get('rzye_change_yi') is not None else None, delta_color="inverse")
     with cols[2]:
-        st.metric("沪市买入额", f"{summary.get('sh_rzmr_yi'):.2f}亿" if summary.get('sh_rzmr_yi') is not None else "—")
+        st.metric("沪市买入额", f"{summary.get('sh_rzmr_yi'):.2f}亿" if summary.get('sh_rzmr_yi') is not None else "—", delta_color="off")
     with cols[3]:
-        st.metric("深市买入额", f"{summary.get('sz_rzmr_yi'):.2f}亿" if summary.get('sz_rzmr_yi') is not None else "—")
+        st.metric("深市买入额", f"{summary.get('sz_rzmr_yi'):.2f}亿" if summary.get('sz_rzmr_yi') is not None else "—", delta_color="off")
 
     try:
         fig = plot_margin_trend(df, dark_mode=dark, metric=metric)
@@ -452,9 +452,9 @@ def fragment_individual():
         st.metric("主力净流入", _fmt_yi(r.get("main_net")),
                   delta=f"{r.get('main_net_pct')}% 净占比" if r.get("main_net_pct") is not None else None, delta_color="inverse")
     with cols[1]:
-        st.metric("超大单净流入" + ("(估算)" if is_estimate else ""), _fmt_yi(r.get("super_net")))
+        st.metric("超大单净流入" + ("(估算)" if is_estimate else ""), _fmt_yi(r.get("super_net")), delta_color="inverse")
     with cols[2]:
-        st.metric("大单净流入" + ("(估算)" if is_estimate else ""), _fmt_yi(r.get("big_net")))
+        st.metric("大单净流入" + ("(估算)" if is_estimate else ""), _fmt_yi(r.get("big_net")), delta_color="inverse")
     if is_estimate:
         st.caption("⚠️ 当前为量价模型估算值（Chaikin 风格主力净流入），超大单/大单按经验比例拆分，仅反映近期量价博弈方向，非交易所逐笔主力数据。")
     elif r.get("source") == "akshare":
