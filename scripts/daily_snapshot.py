@@ -209,6 +209,8 @@ def main() -> int:
     ap.add_argument("--backfill-date", metavar="DATE", nargs="+",
                     help="补算历史日期的决策快照+预测（时点诚实口径：只用截至该日已可见的"
                          "数据；仅写归档 snapshots/<date>.json，绝不覆盖今日 daily_snapshot）")
+    ap.add_argument("--maintain-cache", action="store_true",
+                    help="仅执行缓存保留期清理（不抓数据、不写快照）；委托 modules.cache_maintenance")
     args = ap.parse_args()
 
     def log(msg: str) -> None:
@@ -247,6 +249,23 @@ def main() -> int:
     if args.unmark_suspect:
         n = _sl.unmark_suspect(args.unmark_suspect)
         print(f"[unmark] 已撤销 {n} 条标记：{', '.join(args.unmark_suspect)}")
+        return 0
+
+    # ── 仅缓存维护模式（T-248）：不抓数据、不写快照，best-effort ──
+    if args.maintain_cache:
+        try:
+            from modules.cache_maintenance import run_cache_maintenance
+            rep = run_cache_maintenance(days=90, include_v2=True, dry_run=False)
+            _mdel = (
+                sum(s.get("deleted", 0) for s in rep["sqlite"])
+                + sum(s.get("removed", 0) for s in rep["shepherd"])
+            )
+            print(f"[maintain] 缓存维护清理 {_mdel} 项（保留 90 天）")
+            for e in rep["errors"]:
+                print(f"[maintain] ⚠ {e}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[FAIL] 缓存维护异常: {e}")
+            return 1
         return 0
 
     # ── 盘中高频模式：仅落盘连板梯队（不抓牧羊人、不写 daily_snapshot）──
@@ -414,6 +433,24 @@ def main() -> int:
         f"bias={snap.get('bias')} pos={pos.get('pct')}%({pos.get('band')})"
     )
     log(f"[done] 快照已写入 data/daily_snapshot.json 并归档 data/snapshots/{date}.json")
+
+    # ── 6. 缓存维护（T-248，best-effort，绝不阻塞快照落盘）──
+    # 每日落盘后顺手按保留期清理 cache.db/market_cache.db/news.db/shepherd(v1+v2)，
+    # 根治「只增不减」：cache.db 曾涨到 100MB 无 VACUUM、shepherd_cache_v2(202MB) 漏清。
+    # 单源失败仅 warning 留痕，不拖垮决策闭环。
+    try:
+        from modules.cache_maintenance import run_cache_maintenance
+        _mrep = run_cache_maintenance(days=90, include_v2=True)
+        _mdel = (
+            sum(s.get("deleted", 0) for s in _mrep["sqlite"])
+            + sum(s.get("removed", 0) for s in _mrep["shepherd"])
+        )
+        if _mdel:
+            log(f"[maintain] 缓存维护清理 {_mdel} 项（保留 90 天）")
+        _dec.append_log(f"MAINTAIN 缓存维护清理 {_mdel} 项")
+    except Exception as e:  # noqa: BLE001
+        log(f"[warn] 缓存维护失败（不影响快照）: {e}")
+
     return 0
 
 

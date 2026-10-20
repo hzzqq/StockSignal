@@ -457,8 +457,8 @@ def clear_stale_cache(days: int = 90) -> int:
                 "DELETE FROM market_indicator_cache WHERE date < ?", (cutoff,)
             )
             deleted = cur.rowcount
-            conn.execute("VACUUM")
             conn.commit()
+            conn.execute("VACUUM")  # 先提交再 VACUUM：VACUUM 不允许在活动事务内执行
             conn.close()
             logger.info("[market_cache] 清理了 %d 条超过 %d 天的旧数据", deleted, days)
             return deleted

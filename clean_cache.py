@@ -20,6 +20,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 DEFAULT_CACHE_DIR = HERE / "data" / "shepherd_cache"
 DB_FILES = ["cache.db", "market_cache.db", "news.db"]
+V2_CACHE_DIR = HERE / "data" / "shepherd_cache_v2"
+
+import sys  # noqa: E402
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+from modules.cache_maintenance import run_cache_maintenance  # noqa: E402
 
 
 def human(n: int) -> str:
@@ -66,11 +72,42 @@ def collect_stale(cache_dir: Path, days: int, include_db: bool = False, here: Pa
     return removed, freed
 
 
+def _report_maintenance(rep: dict, dry_run: bool) -> None:
+    """打印 run_cache_maintenance 的报告（诚实：真实删除数 / 释放字节 / 错误）。"""
+    tag = "[dry-run] " if dry_run else ""
+    total_del = (
+        sum(s.get("deleted", 0) for s in rep.get("sqlite", []))
+        + sum(s.get("removed", 0) for s in rep.get("shepherd", []))
+    )
+    total_freed = (
+        sum(s.get("freed_bytes", 0) for s in rep.get("sqlite", []))
+        + sum(s.get("freed_bytes", 0) for s in rep.get("shepherd", []))
+    )
+    if total_del == 0:
+        print(f"{tag}缓存均在保留期（{rep.get('days')} 天）内，无需清理")
+        return
+    print(f"{tag}将清理（保留 {rep.get('days')} 天）：")
+    for s in rep.get("sqlite", []):
+        if s.get("deleted"):
+            extra = f"  ⚠{s['error']}" if s.get("error") else ""
+            print(f"   [sqlite] {s['db']}: 删 {s['deleted']} 行，释放 {human(s['freed_bytes'])}{extra}")
+    for s in rep.get("shepherd", []):
+        if s.get("removed"):
+            print(f"   [csv] {s['dir']}: 删 {s['removed']} 文件，释放 {human(s['freed_bytes'])}")
+    for e in rep.get("errors", []):
+        print(f"   [error] {e}")
+    if dry_run:
+        print(f"[dry-run] 未执行删除（预计释放约 {human(total_freed)}）")
+    else:
+        print(f"已清理合计 {total_del} 项，释放约 {human(total_freed)}")
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description="清理 StockSignal 本地缓存")
     ap.add_argument("--days", type=int, default=30, help="删除修改时间早于 N 天的缓存文件（默认 30）")
     ap.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR, help="缓存目录（默认 data/shepherd_cache）")
-    ap.add_argument("--include-db", action="store_true", help="同时清理 cache.db / market_cache.db / news.db")
+    ap.add_argument("--include-db", action="store_true", help="按保留期清理 cache.db / market_cache.db / news.db（委托 cache_maintenance，非整库删除）")
+    ap.add_argument("--include-v2", action="store_true", help="同时清理 data/shepherd_cache_v2 目录（默认仅 v1；此前该 202MB 目录漏在默认清理范围外）")
     ap.add_argument("--dry-run", action="store_true", help="仅预览，不删除")
     ap.add_argument("--yes", action="store_true", help="确认执行删除（否则仅预览）")
     args = ap.parse_args(argv)
@@ -83,7 +120,18 @@ def main(argv=None) -> None:
         print(f"[skip] 缓存目录不存在: {cache_dir}")
         return
 
-    removed, freed = collect_stale(cache_dir, args.days, args.include_db)
+    # ── 路径 A：含 SQLite 库保留期清理（委托 cache_maintenance 单一真理源）──
+    if args.include_db:
+        rep = run_cache_maintenance(days=args.days, include_v2=args.include_v2, dry_run=not args.yes)
+        _report_maintenance(rep, args.dry_run)
+        return
+
+    # ── 路径 B：仅 CSV 目录（mtime 枚举，默认 v1，--include-v2 加 v2）──
+    removed, freed = collect_stale(cache_dir, args.days)
+    if args.include_v2:
+        r2, f2 = collect_stale(V2_CACHE_DIR, args.days)
+        removed += r2
+        freed += f2
 
     if not removed:
         print(f"无需清理（{cache_dir} 内无超过 {args.days} 天的文件）")
