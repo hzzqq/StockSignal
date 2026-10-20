@@ -247,13 +247,13 @@ def fragment_manual_backtest():
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     win_color = "🟢" if _wr >= 60 else ("🟡" if _wr >= 40 else "🔴")
-                    st.metric(f"{win_color} 胜率", f"{_wr:.1f}%")
+                    st.metric(f"{win_color} 胜率", f"{_wr:.1f}%", delta_color="off")
                 with col2:
-                    st.metric("累计收益", f"{_tr:+.2f}%")
+                    st.metric("累计收益", f"{_tr:+.2f}%", delta_color="inverse")
                 with col3:
-                    st.metric("最大回撤", f"{_md:.2f}%")
+                    st.metric("最大回撤", f"{_md:.2f}%", delta_color="inverse")
                 with col4:
-                    st.metric("夏普比率", _sh_disp)
+                    st.metric("夏普比率", _sh_disp, delta_color="off")
 
                 _tc = s.get('trade_count') or 0
                 _pf = s.get('profit_factor')
@@ -264,13 +264,13 @@ def fragment_manual_backtest():
                 _fv = s.get('final_value')
                 col5, col6, col7, col8 = st.columns(4)
                 with col5:
-                    st.metric("交易次数", f"{_tc}")
+                    st.metric("交易次数", f"{_tc}", delta_color="off")
                 with col6:
-                    st.metric("盈亏比", _pf_disp)
+                    st.metric("盈亏比", _pf_disp, delta_color="off")
                 with col7:
-                    st.metric("平均单笔", f"{_atr:+.2f}%")
+                    st.metric("平均单笔", f"{_atr:+.2f}%", delta_color="inverse")
                 with col8:
-                    st.metric("最终资产", f"¥{_fv:,.2f}" if _fv is not None else "¥—")
+                    st.metric("最终资产", f"¥{_fv:,.2f}" if _fv is not None else "¥—", delta_color="off")
 
                 st.code(result.summary_text().replace(f"[{bt_ticker}]", f"[{bt_label}]"), language="text")
 
@@ -314,16 +314,16 @@ def fragment_manual_backtest():
                     stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
                     with stat_col1:
                         avg_win = sum(t["profit_pct"] for t in wins) / len(wins) if wins else 0
-                        st.metric("平均盈利", f"+{avg_win:.2f}%")
+                        st.metric("平均盈利", f"+{avg_win:.2f}%", delta_color="inverse")
                     with stat_col2:
                         avg_loss = sum(t["profit_pct"] for t in losses) / len(losses) if losses else 0
-                        st.metric("平均亏损", f"{avg_loss:.2f}%")
+                        st.metric("平均亏损", f"{avg_loss:.2f}%", delta_color="inverse")
                     with stat_col3:
                         max_win = max(t["profit_pct"] for t in result.trades) if result.trades else 0
-                        st.metric("最大盈利", f"+{max_win:.2f}%")
+                        st.metric("最大盈利", f"+{max_win:.2f}%", delta_color="inverse")
                     with stat_col4:
                         max_loss = min(t["profit_pct"] for t in result.trades) if result.trades else 0
-                        st.metric("最大亏损", f"{max_loss:.2f}%")
+                        st.metric("最大亏损", f"{max_loss:.2f}%", delta_color="inverse")
                 else:
                     info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
@@ -560,22 +560,22 @@ def fragment_daily_picker():
             m1, m2, m3, m4 = st.columns(4)
             with m1:
                 win_color = "🟢" if s["win_pick_pct"] >= 60 else ("🟡" if s["win_pick_pct"] >= 40 else "🔴")
-                st.metric(f"{win_color} 个股胜率", f"{s['win_pick_pct']:.1f}%")
+                st.metric(f"{win_color} 个股胜率", f"{s['win_pick_pct']:.1f}%", delta_color="off")
             with m2:
                 day_color = "🟢" if s["win_day_pct"] >= 55 else ("🟡" if s["win_day_pct"] >= 45 else "🔴")
-                st.metric(f"{day_color} 上涨日占比", f"{s['win_day_pct']:.1f}%")
+                st.metric(f"{day_color} 上涨日占比", f"{s['win_day_pct']:.1f}%", delta_color="off")
             with m3:
                 # A股惯例：正收益=红、负收益=绿，与下方个股卡片(L731)保持一致
                 ret_color = "🔴" if s["total_return_pct"] >= 0 else "🟢"
-                st.metric(f"{ret_color} 累计收益", f"{s['total_return_pct']:+.2f}%")
+                st.metric(f"{ret_color} 累计收益", f"{s['total_return_pct']:+.2f}%", delta_color="inverse")
             with m4:
-                st.metric("日均收益", f"{s['avg_daily_return_pct']:+.2f}%")
+                st.metric("日均收益", f"{s['avg_daily_return_pct']:+.2f}%", delta_color="inverse")
 
             m5, m6 = st.columns(2)
             with m5:
-                st.metric("回测天数", f"{s['total_days']:,}")
+                st.metric("回测天数", f"{s['total_days']:,}", delta_color="off")
             with m6:
-                st.metric("总选股数", f"{s['total_picks']:,}")
+                st.metric("总选股数", f"{s['total_picks']:,}", delta_color="off")
 
             # ---- 今日推荐（prev_picks：昨日选股 → 今日买入）----
             sf_card("📌 今日推荐买入", "")
@@ -825,7 +825,7 @@ def fragment_strong_bull():
             with cards[i % len(cards)]:
                 ret_color = "🔴" if r["total_return"] >= 0 else "🟢"
                 st.markdown(f"**{r['name']}** `{r['code']}`")
-                st.metric(f"{ret_color} 累计收益", f"{r['total_return']:+.2f}%")
+                st.metric(f"{ret_color} 累计收益", f"{r['total_return']:+.2f}%", delta_color="inverse")
                 st.caption(f"胜率 {r['win_rate']:.1f}% · 回撤 {r['max_dd']:.2f}% · 交易 {r['trades']}")
 
     if failed:
