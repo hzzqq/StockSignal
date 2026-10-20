@@ -1,0 +1,112 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f0f23;--card:#1a1a2e;--card2:#15152a;--txt:#e2e8f0;--txt2:#94a3b8;
+--border:#2d2d44;--acc1:#4f46e5;--acc2:#7c3aed;--up:#ee2a2a;--down:#00d486;--gold:#d4a017;--warn:#f59e0b}
+body{width:1280px;background:var(--bg);color:var(--txt);
+font-family:'Segoe UI','Microsoft YaHei',sans-serif;font-size:14px}
+.num{font-family:Consolas,monospace}
+.topbar{height:44px;display:flex;align-items:center;justify-content:flex-end;gap:10px;
+padding:0 18px;background:linear-gradient(90deg,#1a1a2e,#241b3a);border-bottom:1px solid var(--border)}
+.pill{padding:4px 14px;border-radius:14px;font-size:12px;background:#241b3a;border:1px solid var(--border)}
+.pill.gold{background:var(--gold);color:#14142a;font-weight:600;border:none}
+.pagehead{display:flex;align-items:center;gap:14px;padding:16px 22px;
+background:linear-gradient(135deg,#1a1a2e 60%,#241b3a);border-bottom:1px solid var(--border)}
+.icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+font-size:22px;background:linear-gradient(135deg,#1a1a2e,#241b3a);border:1px solid var(--border)}
+.pagehead h1{font-size:19px;font-weight:700}
+.pagehead .sub{font-size:12px;color:var(--txt2);margin-top:2px}
+.badge{margin-left:auto;font-size:11px;color:#0f0f23;background:var(--gold);padding:3px 10px;
+border-radius:4px;font-weight:700;letter-spacing:1px}
+.wrap{padding:16px 22px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.card h3{font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.card h3::before{content:'';width:3px;height:14px;background:var(--acc2);border-radius:2px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.metric .k{font-size:12px;color:var(--txt2)}
+.metric .v{font-size:24px;font-weight:700;margin-top:4px}
+.metric .s{font-size:11px;color:var(--txt2);margin-top:2px}
+.up{color:var(--up)}.down{color:var(--down)}.gold{color:var(--gold)}.warn{color:var(--warn)}.muted{color:var(--txt2)}
+.bar{height:8px;border-radius:4px;background:#241b3a;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;border-radius:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--txt2);font-weight:600;text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px}
+td{padding:7px 10px;border-bottom:1px solid #22223a}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px}
+.tag.red{background:rgba(238,42,42,.15);color:#ff7b7b}
+.tag.green{background:rgba(0,212,134,.12);color:var(--down)}
+.tag.amber{background:rgba(245,158,11,.15);color:var(--warn)}
+.tag.gray{background:#241b3a;color:var(--txt2)}
+.btn{display:inline-block;padding:7px 22px;border-radius:8px;background:var(--gold);
+color:#14142a;font-weight:700;font-size:13px;text-align:center}
+.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--txt);font-weight:400}
+.foot{padding:10px 22px 16px;font-size:11px;color:#6b7280;line-height:1.6}
+.radar{width:230px;height:230px}
+.kline{width:100%;height:230px}
+input{background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--txt);
+padding:8px 12px;font-size:13px;width:100%}
+.seg{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;width:fit-content}
+.seg span{padding:7px 22px;font-size:13px;color:var(--txt2);background:var(--card2)}
+.seg span.on{background:var(--acc1);color:#fff;font-weight:600}
+</style></head><body><div class="topbar"><span class="pill">🔔 消息</span><span class="pill">⚙️ 设置</span><span class="pill gold">🚀 启动服务</span></div><div class="pagehead"><div class="icon">🔍</div><div><h1>个股分析 · 决策仪表盘</h1><div class="sub">搜索个股 → K 线 / 技术面 / 资金面 / 情绪与风险铁律 · 事件驱动 · 多维归因</div></div><span class="badge">界面布局示意图 · 非实机截图</span></div><div class="wrap">
+<div class="card"><h3>分析目标</h3>
+ <div style="display:flex;gap:12px;align-items:center">
+  <input value="宁德时代（300750）" style="max-width:340px">
+  <span class="btn">生成分析</span><span class="btn ghost">加入对比</span>
+  <span class="muted" style="font-size:12px;margin-left:8px">支持代码 / 中文名 / 拼音首字母</span>
+ </div></div>
+<div class="card"><h3>K 线主图（日频 · 前复权）</h3>
+ <svg class="kline" viewBox="0 0 1200 230" preserveAspectRatio="none">
+  <g stroke="#2d2d44"><line x1="0" y1="60" x2="1200" y2="60"/><line x1="0" y1="115" x2="1200" y2="115"/><line x1="0" y1="170" x2="1200" y2="170"/></g>
+  <g>
+   <line x1="60" y1="140" x2="60" y2="190" stroke="#00d486"/><rect x="54" y="150" width="12" height="28" fill="#00d486"/>
+   <line x1="110" y1="120" x2="110" y2="168" stroke="#ee2a2a"/><rect x="104" y="130" width="12" height="30" fill="#ee2a2a"/>
+   <line x1="160" y1="100" x2="160" y2="150" stroke="#ee2a2a"/><rect x="154" y="108" width="12" height="32" fill="#ee2a2a"/>
+   <line x1="210" y1="110" x2="210" y2="160" stroke="#00d486"/><rect x="204" y="118" width="12" height="30" fill="#00d486"/>
+   <line x1="260" y1="90" x2="260" y2="140" stroke="#ee2a2a"/><rect x="254" y="98" width="12" height="30" fill="#ee2a2a"/>
+   <line x1="310" y1="70" x2="310" y2="120" stroke="#ee2a2a"/><rect x="304" y="78" width="12" height="32" fill="#ee2a2a"/>
+   <line x1="360" y1="80" x2="360" y2="130" stroke="#00d486"/><rect x="354" y="88" width="12" height="30" fill="#00d486"/>
+   <line x1="410" y1="60" x2="410" y2="112" stroke="#ee2a2a"/><rect x="404" y="70" width="12" height="30" fill="#ee2a2a"/>
+   <line x1="460" y1="72" x2="460" y2="122" stroke="#00d486"/><rect x="454" y="82" width="12" height="28" fill="#00d486"/>
+   <line x1="510" y1="55" x2="510" y2="105" stroke="#ee2a2a"/><rect x="504" y="64" width="12" height="30" fill="#ee2a2a"/>
+   <line x1="560" y1="68" x2="560" y2="118" stroke="#00d486"/><rect x="554" y="78" width="12" height="28" fill="#00d486"/>
+   <line x1="610" y1="50" x2="610" y2="100" stroke="#ee2a2a"/><rect x="604" y="60" width="12" height="30" fill="#ee2a2a"/>
+   <line x1="660" y1="62" x2="660" y2="112" stroke="#00d486"/><rect x="654" y="72" width="12" height="28" fill="#00d486"/>
+   <line x1="710" y1="44" x2="710" y2="96" stroke="#ee2a2a"/><rect x="704" y="54" width="12" height="30" fill="#ee2a2a"/>
+   <line x1="760" y1="58" x2="760" y2="110" stroke="#00d486"/><rect x="754" y="68" width="12" height="30" fill="#00d486"/>
+   <line x1="810" y1="40" x2="810" y2="92" stroke="#ee2a2a"/><rect x="804" y="50" width="12" height="30" fill="#ee2a2a"/>
+   <line x1="860" y1="52" x2="860" y2="104" stroke="#00d486"/><rect x="854" y="62" width="12" height="30" fill="#00d486"/>
+   <line x1="910" y1="36" x2="910" y2="88" stroke="#ee2a2a"/><rect x="904" y="46" width="12" height="30" fill="#ee2a2a"/>
+   <line x1="960" y1="48" x2="960" y2="100" stroke="#00d486"/><rect x="954" y="58" width="12" height="28" fill="#00d486"/>
+   <line x1="1010" y1="34" x2="1010" y2="86" stroke="#ee2a2a"/><rect x="1004" y="44" width="12" height="30" fill="#ee2a2a"/>
+   <line x1="1060" y1="46" x2="1060" y2="98" stroke="#00d486"/><rect x="1054" y="56" width="12" height="30" fill="#00d486"/>
+   <line x1="1110" y1="30" x2="1110" y2="84" stroke="#ee2a2a"/><rect x="1104" y="40" width="12" height="30" fill="#ee2a2a"/>
+   <line x1="1160" y1="42" x2="1160" y2="94" stroke="#00d486"/><rect x="1154" y="52" width="12" height="30" fill="#00d486"/>
+  </g>
+  <polyline fill="none" stroke="#d4a017" stroke-width="2" opacity=".9"
+   points="60,120 160,110 260,95 360,100 460,80 560,72 660,60 760,55 860,48 960,40 1060,36 1160,30"/>
+ </svg>
+ <div class="muted" style="font-size:11px;margin-top:6px">MA5 <span class="gold">━</span>　红涨 / 绿跌 · 示意蜡烛（K 线形态示意，非行情数据）</div>
+</div>
+<div class="grid3">
+ <div class="card"><h3>📊 技术面</h3>
+  <table><tr><th>指标</th><th>读数</th><th>信号</th></tr>
+  <tr><td>MA5 / MA20</td><td class="num">— / —</td><td><span class="tag gray">金叉观察</span></td></tr>
+  <tr><td>MACD(12,26,9)</td><td class="num">—</td><td><span class="tag gray">—</span></td></tr>
+  <tr><td>RSI(14)</td><td class="num">—</td><td><span class="tag gray">—</span></td></tr></table>
+  <div class="muted" style="font-size:11px;margin-top:8px">数值待实机取数；布局与信号分档同真实页面</div></div>
+ <div class="card"><h3>💰 资金面</h3>
+  <div class="muted" style="font-size:12px;line-height:2">主力净流入 <span class="num">—</span><br>
+  五日资金雷达：<span class="down">▁▃▅</span><span class="up">▂▄</span>（板块轮动热力示意）<br>
+  龙虎榜 / 大宗 <span class="num">—</span></div></div>
+ <div class="card"><h3>📜 基本面 · 个股财报</h3>
+  <table><tr><th>报告期</th><th>营收 YoY</th><th>归母 YoY</th></tr>
+  <tr><td class="num">2026H1</td><td class="num">—</td><td class="num">—</td></tr>
+  <tr><td class="num">2026Q1</td><td class="num">—</td><td class="num">—</td></tr></table>
+  <div class="muted" style="font-size:11px;margin-top:8px">横向业绩对比 / 三表 / 披露日历（东方财富 / 新浪）</div></div>
+</div>
+<div class="card"><h3>量能分析 + 风险铁律</h3>
+ <div style="font-size:13px;line-height:1.9"><b>量能：</b>近 20 日均量约 — 万手；最新一日 — 万手，较前一日 —%（实时行情）<br>
+ <span class="warn">铁律：</span>情绪极端日禁追高 · 数据新鲜度不足自动降权 · 所有结论由程序基于公开数据自动计算，仅供研究参考</div></div>
+</div><div class="foot">界面布局示意图：模块结构与交互形态还原自 StockSignal 真实页面实现；标注数据取自系统真实落盘快照/回测产物，其余以「—」或打码形式示意，非实机运行截图。</div></body></html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f0f23;--card:#1a1a2e;--card2:#15152a;--txt:#e2e8f0;--txt2:#94a3b8;
+--border:#2d2d44;--acc1:#4f46e5;--acc2:#7c3aed;--up:#ee2a2a;--down:#00d486;--gold:#d4a017;--warn:#f59e0b}
+body{width:1280px;background:var(--bg);color:var(--txt);
+font-family:'Segoe UI','Microsoft YaHei',sans-serif;font-size:14px}
+.num{font-family:Consolas,monospace}
+.topbar{height:44px;display:flex;align-items:center;justify-content:flex-end;gap:10px;
+padding:0 18px;background:linear-gradient(90deg,#1a1a2e,#241b3a);border-bottom:1px solid var(--border)}
+.pill{padding:4px 14px;border-radius:14px;font-size:12px;background:#241b3a;border:1px solid var(--border)}
+.pill.gold{background:var(--gold);color:#14142a;font-weight:600;border:none}
+.pagehead{display:flex;align-items:center;gap:14px;padding:16px 22px;
+background:linear-gradient(135deg,#1a1a2e 60%,#241b3a);border-bottom:1px solid var(--border)}
+.icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+font-size:22px;background:linear-gradient(135deg,#1a1a2e,#241b3a);border:1px solid var(--border)}
+.pagehead h1{font-size:19px;font-weight:700}
+.pagehead .sub{font-size:12px;color:var(--txt2);margin-top:2px}
+.badge{margin-left:auto;font-size:11px;color:#0f0f23;background:var(--gold);padding:3px 10px;
+border-radius:4px;font-weight:700;letter-spacing:1px}
+.wrap{padding:16px 22px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.card h3{font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.card h3::before{content:'';width:3px;height:14px;background:var(--acc2);border-radius:2px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.metric .k{font-size:12px;color:var(--txt2)}
+.metric .v{font-size:24px;font-weight:700;margin-top:4px}
+.metric .s{font-size:11px;color:var(--txt2);margin-top:2px}
+.up{color:var(--up)}.down{color:var(--down)}.gold{color:var(--gold)}.warn{color:var(--warn)}.muted{color:var(--txt2)}
+.bar{height:8px;border-radius:4px;background:#241b3a;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;border-radius:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--txt2);font-weight:600;text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px}
+td{padding:7px 10px;border-bottom:1px solid #22223a}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px}
+.tag.red{background:rgba(238,42,42,.15);color:#ff7b7b}
+.tag.green{background:rgba(0,212,134,.12);color:var(--down)}
+.tag.amber{background:rgba(245,158,11,.15);color:var(--warn)}
+.tag.gray{background:#241b3a;color:var(--txt2)}
+.btn{display:inline-block;padding:7px 22px;border-radius:8px;background:var(--gold);
+color:#14142a;font-weight:700;font-size:13px;text-align:center}
+.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--txt);font-weight:400}
+.foot{padding:10px 22px 16px;font-size:11px;color:#6b7280;line-height:1.6}
+.radar{width:230px;height:230px}
+.kline{width:100%;height:230px}
+input{background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--txt);
+padding:8px 12px;font-size:13px;width:100%}
+.seg{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;width:fit-content}
+.seg span{padding:7px 22px;font-size:13px;color:var(--txt2);background:var(--card2)}
+.seg span.on{background:var(--acc1);color:#fff;font-weight:600}
+</style></head><body><div class="topbar"><span class="pill">🔔 消息</span><span class="pill">⚙️ 设置</span><span class="pill gold">🚀 启动服务</span></div><div class="pagehead"><div class="icon">🎯</div><div><h1>今日决策面板 · 情绪信号→仓位→复盘</h1><div class="sub">市场温度 / 情绪周期 → 仓位建议 → 预测对账 的每日决策闭环</div></div><span class="badge">界面布局示意图 · 非实机截图</span></div><div class="wrap">
+<div class="grid4">
+ <div class="metric"><div class="k">市场温度</div><div class="v num gold">30.2</div><div class="s">冷蓝→热红风险刻度 · 2026-10-19</div>
+   <div class="bar"><i style="width:30%;background:linear-gradient(90deg,#3b82f6,#22d3ee)"></i></div></div>
+ <div class="metric"><div class="k">情绪周期</div><div class="v down">退潮</div><div class="s">六段周期 · 六维广度重建</div></div>
+ <div class="metric"><div class="k">情绪评分 / 偏差</div><div class="v num">42.7 <span style="font-size:14px" class="muted">偏空</span></div><div class="s">置信度 82%</div></div>
+ <div class="metric"><div class="k">次日方向前瞻</div><div class="v num down">看空次日</div><div class="s">涨停/跌停比&lt;3 且跌停&gt;15 家</div></div>
+</div>
+<div class="card" style="border-color:#4f46e5">
+ <h3>⚖️ 今日仓位建议 <span class="tag green">防御</span></h3>
+ <div style="display:flex;gap:22px;align-items:center">
+  <div><div style="font-size:44px;font-weight:800" class="num">8<span style="font-size:22px">%</span></div>
+       <div class="muted" style="font-size:12px">clamp 5~95 · 温度±5 → 仓位∓2pt</div></div>
+  <div style="flex:1;font-size:13px;line-height:2.0">
+   <div>· 市场温度 30 作为基准仓位</div>
+   <div>· 次日方向「偏空」减仓 8%　<span class="muted">· 情绪周期「退潮」减仓 10%</span></div>
+   <div>· 梯队断档（晋级率&lt;20%）：减仓 6%　<span class="muted">· 事件驱动催化：加仓 2%</span></div>
+   <div>· 羊群拥挤(绿挤 36)：与超卖试探语义一致，不反向调节</div>
+   <div class="warn">⚠️ 数据陈旧：事件因子滞后 32 天、温度缓存滞后 4 天——仓位已据陈旧程度主动降仓</div>
+  </div>
+ </div>
+</div>
+<div class="grid3">
+ <div class="card"><h3>🎲 情景推演（次日）</h3>
+  <div style="font-size:13px;line-height:1.9">
+   <div><span class="tag green">50%</span>退潮 / 二次探底 —— 高度断崖、跌停回升、晋级率低迷</div>
+   <div><span class="tag amber">32%</span>震荡分化 / 高位分歧 —— 指数与情绪背离、题材轮动</div>
+   <div><span class="tag red">18%</span>修复升级 / 情绪转强 —— 最高板晋级打开空间</div>
+  </div></div>
+ <div class="card"><h3>🩺 决策数据健康面板</h3>
+  <table><tr><th>数据源</th><th>as_of</th><th>状态</th></tr>
+   <tr><td>牧羊人情绪</td><td class="num">2026-10-19</td><td><span class="tag green">ok</span></td></tr>
+   <tr><td>连板晋级率</td><td class="num">2026-10-19</td><td><span class="tag green">ok</span></td></tr>
+   <tr><td>市场温度缓存</td><td class="num">2026-10-15</td><td><span class="tag amber">warn · 滞后 4 天</span></td></tr>
+   <tr><td>事件因子</td><td class="num">2026-09-17</td><td><span class="tag amber">stale · 滞后 32 天</span></td></tr>
+  </table></div>
+ <div class="card"><h3>📈 事件驱动 · EV 看多榜</h3>
+  <table><tr><th>标的</th><th>事件</th><th>EV 调节</th></tr>
+   <tr><td class="num">6000XX</td><td>订单中标</td><td class="up">+2%</td></tr>
+   <tr><td class="num">0000XX</td><td>业绩预增</td><td class="up">+1%</td></tr>
+   <tr><td class="num">300XXX</td><td>回购公告</td><td class="muted">—</td></tr>
+  </table>
+  <div class="muted" style="font-size:11px;margin-top:8px">as_of 2026-09-17 · 陈旧因子仅作参考降权</div></div>
+</div>
+<div class="card"><h3>🔮 预测 vs 实际（17 个交易日 · 5/95 参考线）</h3>
+ <svg class="kline" viewBox="0 0 1200 210" preserveAspectRatio="none">
+  <line x1="0" y1="18" x2="1200" y2="18" stroke="#2d2d44" stroke-dasharray="6 4"/>
+  <line x1="0" y1="192" x2="1200" y2="192" stroke="#2d2d44" stroke-dasharray="6 4"/>
+  <text x="8" y="14" fill="#94a3b8" font-size="11">95</text><text x="8" y="206" fill="#94a3b8" font-size="11">5</text>
+  <polyline fill="none" stroke="#4f9cf9" stroke-width="2.5"
+   points="20,150 70,132 120,140 170,118 220,96 270,110 320,88 370,104 420,80 470,92 520,76 570,98 620,84 670,112 720,96 770,120 820,104 870,88 920,116 970,100 1020,124 1070,110 1120,128 1180,118"/>
+  <polyline fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5 4" opacity=".9"
+   points="20,156 70,140 120,148 170,126 220,104 270,118 320,96 370,112 420,88 470,100 520,84 570,106 620,92 670,120 720,104 770,128 820,112 870,96 920,124 970,108 1020,132 1070,118 1120,136 1180,126"/>
+ </svg>
+ <div style="display:flex;gap:22px;font-size:12px" class="muted">
+  <span><span style="color:#4f9cf9">━</span> 预测仓位(%)</span>
+  <span><span style="color:#f59e0b">┅</span> 实际执行参考</span>
+  <span>命中率 30.0%（n=10 已评分，样本小不做显著性推断）</span></div>
+</div>
+</div><div class="foot">界面布局示意图：模块结构与交互形态还原自 StockSignal 真实页面实现；标注数据取自系统真实落盘快照/回测产物，其余以「—」或打码形式示意，非实机运行截图。</div></body></html>

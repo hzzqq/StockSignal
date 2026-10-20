@@ -1,0 +1,86 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f0f23;--card:#1a1a2e;--card2:#15152a;--txt:#e2e8f0;--txt2:#94a3b8;
+--border:#2d2d44;--acc1:#4f46e5;--acc2:#7c3aed;--up:#ee2a2a;--down:#00d486;--gold:#d4a017;--warn:#f59e0b}
+body{width:1280px;background:var(--bg);color:var(--txt);
+font-family:'Segoe UI','Microsoft YaHei',sans-serif;font-size:14px}
+.num{font-family:Consolas,monospace}
+.topbar{height:44px;display:flex;align-items:center;justify-content:flex-end;gap:10px;
+padding:0 18px;background:linear-gradient(90deg,#1a1a2e,#241b3a);border-bottom:1px solid var(--border)}
+.pill{padding:4px 14px;border-radius:14px;font-size:12px;background:#241b3a;border:1px solid var(--border)}
+.pill.gold{background:var(--gold);color:#14142a;font-weight:600;border:none}
+.pagehead{display:flex;align-items:center;gap:14px;padding:16px 22px;
+background:linear-gradient(135deg,#1a1a2e 60%,#241b3a);border-bottom:1px solid var(--border)}
+.icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+font-size:22px;background:linear-gradient(135deg,#1a1a2e,#241b3a);border:1px solid var(--border)}
+.pagehead h1{font-size:19px;font-weight:700}
+.pagehead .sub{font-size:12px;color:var(--txt2);margin-top:2px}
+.badge{margin-left:auto;font-size:11px;color:#0f0f23;background:var(--gold);padding:3px 10px;
+border-radius:4px;font-weight:700;letter-spacing:1px}
+.wrap{padding:16px 22px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.card h3{font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.card h3::before{content:'';width:3px;height:14px;background:var(--acc2);border-radius:2px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.metric .k{font-size:12px;color:var(--txt2)}
+.metric .v{font-size:24px;font-weight:700;margin-top:4px}
+.metric .s{font-size:11px;color:var(--txt2);margin-top:2px}
+.up{color:var(--up)}.down{color:var(--down)}.gold{color:var(--gold)}.warn{color:var(--warn)}.muted{color:var(--txt2)}
+.bar{height:8px;border-radius:4px;background:#241b3a;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;border-radius:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--txt2);font-weight:600;text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px}
+td{padding:7px 10px;border-bottom:1px solid #22223a}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px}
+.tag.red{background:rgba(238,42,42,.15);color:#ff7b7b}
+.tag.green{background:rgba(0,212,134,.12);color:var(--down)}
+.tag.amber{background:rgba(245,158,11,.15);color:var(--warn)}
+.tag.gray{background:#241b3a;color:var(--txt2)}
+.btn{display:inline-block;padding:7px 22px;border-radius:8px;background:var(--gold);
+color:#14142a;font-weight:700;font-size:13px;text-align:center}
+.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--txt);font-weight:400}
+.foot{padding:10px 22px 16px;font-size:11px;color:#6b7280;line-height:1.6}
+.radar{width:230px;height:230px}
+.kline{width:100%;height:230px}
+input{background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--txt);
+padding:8px 12px;font-size:13px;width:100%}
+.seg{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;width:fit-content}
+.seg span{padding:7px 22px;font-size:13px;color:var(--txt2);background:var(--card2)}
+.seg span.on{background:var(--acc1);color:#fff;font-weight:600}
+</style></head><body><div class="topbar"><span class="pill">🔔 消息</span><span class="pill">⚙️ 设置</span><span class="pill gold">🚀 启动服务</span></div><div class="pagehead"><div class="icon">📊</div><div><h1>多股对比 · 决策仪表盘</h1><div class="sub">输入 2~8 只股票横向对比：五维雷达 / 成对卡片 / 作战计划</div></div><span class="badge">界面布局示意图 · 非实机截图</span></div><div class="wrap">
+<div class="card"><h3>对比设置</h3>
+ <div style="display:flex;gap:10px;align-items:center">
+  <input value="601088, 600519, 300750, 000001, 601318" style="max-width:430px">
+  <span class="btn">开始对比</span><span class="btn ghost">载入示例（5只）</span>
+  <span class="tag green">后台任务已完成</span></div></div>
+<div class="grid3" style="grid-template-columns:280px 1fr 1fr">
+ <div class="card"><h3>五维雷达</h3>
+  <svg class="radar" viewBox="0 0 230 230">
+   <g stroke="#2d2d44" fill="none">
+    <polygon points="115,20 203,75 170,180 60,180 27,75"/>
+    <polygon points="115,52 174,90 151,158 79,158 56,90" opacity=".6"/></g>
+   <polygon points="115,30 188,82 158,168 72,172 40,80" fill="rgba(124,58,237,.28)" stroke="#7c3aed" stroke-width="2"/>
+   <g fill="#94a3b8" font-size="11"><text x="100" y="14">成长</text><text x="205" y="72">估值</text>
+    <text x="172" y="196">质量</text><text x="42" y="196">动量</text><text x="4" y="72">情绪</text></g>
+  </svg><div class="muted" style="font-size:11px">维度权重可调 · 示意多边形（数值待实机）</div></div>
+ <div class="card"><h3>综合评分列</h3>
+  <table><tr><th>标的</th><th>综合</th><th>建议</th></tr>
+  <tr><td class="num">601088</td><td class="num gold">—</td><td><span class="tag gray">观察</span></td></tr>
+  <tr><td class="num">600519</td><td class="num gold">—</td><td><span class="tag gray">观察</span></td></tr>
+  <tr><td class="num">300750</td><td class="num gold">—</td><td><span class="tag gray">观察</span></td></tr>
+  <tr><td class="num">000001</td><td class="num gold">—</td><td><span class="tag gray">观察</span></td></tr>
+  <tr><td class="num">601318</td><td class="num gold">—</td><td><span class="tag gray">观察</span></td></tr></table>
+  <div class="muted" style="font-size:11px;margin-top:8px">评分由所选对比方法加权重排给出</div></div>
+ <div class="card"><h3>1:1 深度对比</h3>
+  <div style="font-size:13px;line-height:2">
+   <span class="tag gray">选择两两对比</span><br>
+   相对强弱曲线 <span class="muted">（区间累计超额）</span>
+   <svg viewBox="0 0 260 60" style="width:100%;height:60px"><polyline fill="none" stroke="#ee2a2a" stroke-width="2" points="5,48 50,40 95,44 140,30 185,34 230,20 255,24"/><polyline fill="none" stroke="#00d486" stroke-width="2" points="5,40 50,44 95,36 140,42 185,30 230,38 255,32"/></svg>
+   <div class="muted" style="font-size:11px">事件关联度对比：输入事件描述 → 各股利好/利空分档（共用 event_levels 单一真理源）</div>
+  </div></div>
+</div>
+<div class="card"><h3>作战计划</h3>
+ <div style="font-size:13px;line-height:1.9" class="muted">按综合评分给出介入优先级 / 放弃名单 / 事件触发观察点（示意区——数值待实机对比任务返回）</div></div>
+</div><div class="foot">界面布局示意图：模块结构与交互形态还原自 StockSignal 真实页面实现；标注数据取自系统真实落盘快照/回测产物，其余以「—」或打码形式示意，非实机运行截图。</div></body></html>

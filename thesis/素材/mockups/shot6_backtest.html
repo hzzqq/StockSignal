@@ -1,0 +1,97 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f0f23;--card:#1a1a2e;--card2:#15152a;--txt:#e2e8f0;--txt2:#94a3b8;
+--border:#2d2d44;--acc1:#4f46e5;--acc2:#7c3aed;--up:#ee2a2a;--down:#00d486;--gold:#d4a017;--warn:#f59e0b}
+body{width:1280px;background:var(--bg);color:var(--txt);
+font-family:'Segoe UI','Microsoft YaHei',sans-serif;font-size:14px}
+.num{font-family:Consolas,monospace}
+.topbar{height:44px;display:flex;align-items:center;justify-content:flex-end;gap:10px;
+padding:0 18px;background:linear-gradient(90deg,#1a1a2e,#241b3a);border-bottom:1px solid var(--border)}
+.pill{padding:4px 14px;border-radius:14px;font-size:12px;background:#241b3a;border:1px solid var(--border)}
+.pill.gold{background:var(--gold);color:#14142a;font-weight:600;border:none}
+.pagehead{display:flex;align-items:center;gap:14px;padding:16px 22px;
+background:linear-gradient(135deg,#1a1a2e 60%,#241b3a);border-bottom:1px solid var(--border)}
+.icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+font-size:22px;background:linear-gradient(135deg,#1a1a2e,#241b3a);border:1px solid var(--border)}
+.pagehead h1{font-size:19px;font-weight:700}
+.pagehead .sub{font-size:12px;color:var(--txt2);margin-top:2px}
+.badge{margin-left:auto;font-size:11px;color:#0f0f23;background:var(--gold);padding:3px 10px;
+border-radius:4px;font-weight:700;letter-spacing:1px}
+.wrap{padding:16px 22px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.card h3{font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.card h3::before{content:'';width:3px;height:14px;background:var(--acc2);border-radius:2px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.metric .k{font-size:12px;color:var(--txt2)}
+.metric .v{font-size:24px;font-weight:700;margin-top:4px}
+.metric .s{font-size:11px;color:var(--txt2);margin-top:2px}
+.up{color:var(--up)}.down{color:var(--down)}.gold{color:var(--gold)}.warn{color:var(--warn)}.muted{color:var(--txt2)}
+.bar{height:8px;border-radius:4px;background:#241b3a;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;border-radius:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--txt2);font-weight:600;text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px}
+td{padding:7px 10px;border-bottom:1px solid #22223a}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px}
+.tag.red{background:rgba(238,42,42,.15);color:#ff7b7b}
+.tag.green{background:rgba(0,212,134,.12);color:var(--down)}
+.tag.amber{background:rgba(245,158,11,.15);color:var(--warn)}
+.tag.gray{background:#241b3a;color:var(--txt2)}
+.btn{display:inline-block;padding:7px 22px;border-radius:8px;background:var(--gold);
+color:#14142a;font-weight:700;font-size:13px;text-align:center}
+.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--txt);font-weight:400}
+.foot{padding:10px 22px 16px;font-size:11px;color:#6b7280;line-height:1.6}
+.radar{width:230px;height:230px}
+.kline{width:100%;height:230px}
+input{background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--txt);
+padding:8px 12px;font-size:13px;width:100%}
+.seg{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;width:fit-content}
+.seg span{padding:7px 22px;font-size:13px;color:var(--txt2);background:var(--card2)}
+.seg span.on{background:var(--acc1);color:#fff;font-weight:600}
+</style></head><body><div class="topbar"><span class="pill">🔔 消息</span><span class="pill">⚙️ 设置</span><span class="pill gold">🚀 启动服务</span></div><div class="pagehead"><div class="icon">⚙️</div><div><h1>策略回测</h1><div class="sub">手动回测 / 每日选股回测 / 强势股批量回测 · 信号生成与撮合解耦</div></div><span class="badge">界面布局示意图 · 非实机截图</span></div><div class="wrap">
+<div class="card"><h3>回测参数</h3>
+ <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+  <input value="宁德时代（300750）" style="max-width:250px">
+  <input value="multi_factor 多因子 V5" style="max-width:210px">
+  <input value="2024-01-01" style="max-width:130px"><span class="muted">至</span><input value="2026-09-06" style="max-width:130px">
+  <input value="100000" style="max-width:120px"><span class="btn">开始回测</span>
+ </div>
+ <div class="muted" style="font-size:11px;margin-top:8px">佣金 0.1% · 滑点 0.1% · 印花税 0.1%（仅卖出）——成本模型内置，与「零成本对照」可一键切换</div></div>
+<div class="card" style="border-color:#4f46e5"><h3>回测结果（真实回测产物 · n = 74 笔）</h3>
+ <div class="grid4" style="grid-template-columns:repeat(6,1fr)">
+  <div class="metric"><div class="k">总收益率</div><div class="v num up">+16.30%</div></div>
+  <div class="metric"><div class="k">年化收益</div><div class="v num up">+6.04%</div></div>
+  <div class="metric"><div class="k">最大回撤</div><div class="v num down">-33.07%</div></div>
+  <div class="metric"><div class="k">胜率</div><div class="v num">52.7%</div></div>
+  <div class="metric"><div class="k">盈亏比</div><div class="v num">1.17</div></div>
+  <div class="metric"><div class="k">交易笔数</div><div class="v num">74</div></div>
+ </div>
+ <div class="muted" style="font-size:11px;margin-top:8px">期末权益 116,300 元（初始 100,000）· 同信号零成本对照 +91.36% → 成本拖累 75.06pt（与论文表 6-2 对账一致）</div></div>
+<div class="card"><h3>净值曲线（含成本 vs 零成本对照）</h3>
+ <svg class="kline" viewBox="0 0 1200 220" preserveAspectRatio="none">
+  <g stroke="#2d2d44"><line x1="0" y1="55" x2="1200" y2="55"/><line x1="0" y1="110" x2="1200" y2="110"/><line x1="0" y1="165" x2="1200" y2="165"/></g>
+  <polyline fill="none" stroke="#4f9cf9" stroke-width="2.5"
+   points="15,160 130,150 245,158 360,140 475,148 590,120 705,128 820,100 935,112 1050,84 1185,76"/>
+  <polyline fill="none" stroke="#d4a017" stroke-width="2" stroke-dasharray="6 4"
+   points="15,160 130,146 245,150 360,124 475,132 590,88 705,98 820,52 935,68 1050,24 1185,14"/>
+  <text x="1090" y="66" fill="#4f9cf9" font-size="12">含成本 +16.30%</text>
+  <text x="1040" y="12" fill="#d4a017" font-size="12">零成本 +91.36%</text>
+ </svg>
+ <div class="muted" style="font-size:11px;margin-top:6px">两线间距随交易次数单调拉开——成本逐笔累积（示意图，精确净值见图 6-5 实测产物）</div></div>
+<div class="grid3">
+ <div class="card"><h3>参数敏感性</h3>
+  <svg viewBox="0 0 300 90" style="width:100%;height:90px">
+   <g fill="#7c3aed"><rect x="20" y="50" width="26" height="30"/><rect x="80" y="38" width="26" height="42"/>
+   <rect x="140" y="30" width="26" height="50"/><rect x="200" y="44" width="26" height="36"/><rect x="260" y="55" width="26" height="25"/></g>
+   <text x="120" y="86" fill="#94a3b8" font-size="10">窗口参数取值 → 年化%</text></svg></div>
+ <div class="card"><h3>逐笔交易明细</h3>
+  <table><tr><th>开仓</th><th>平仓</th><th>盈亏</th></tr>
+  <tr><td class="num">2024-03-xx</td><td class="num">2024-04-xx</td><td class="up">+x.x%</td></tr>
+  <tr><td class="num">2024-05-xx</td><td class="num">2024-06-xx</td><td class="down">-x.x%</td></tr>
+  <tr><td colspan="3" class="muted">完整 74 笔见导出（打码示意）</td></tr></table></div>
+ <div class="card"><h3>信号生成与撮合解耦</h3>
+  <div style="font-size:12px;line-height:2" class="muted">策略预生成信号 → 撮合引擎按次日开盘执行 → 成本计入不影响时序（胜率/笔数两组一致）<br>
+  <span class="tag green">74 笔 = 74 笔</span> 时序零污染已对账</div></div>
+</div>
+</div><div class="foot">界面布局示意图：模块结构与交互形态还原自 StockSignal 真实页面实现；标注数据取自系统真实落盘快照/回测产物，其余以「—」或打码形式示意，非实机运行截图。</div></body></html>

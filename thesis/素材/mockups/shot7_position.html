@@ -1,0 +1,79 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f0f23;--card:#1a1a2e;--card2:#15152a;--txt:#e2e8f0;--txt2:#94a3b8;
+--border:#2d2d44;--acc1:#4f46e5;--acc2:#7c3aed;--up:#ee2a2a;--down:#00d486;--gold:#d4a017;--warn:#f59e0b}
+body{width:1280px;background:var(--bg);color:var(--txt);
+font-family:'Segoe UI','Microsoft YaHei',sans-serif;font-size:14px}
+.num{font-family:Consolas,monospace}
+.topbar{height:44px;display:flex;align-items:center;justify-content:flex-end;gap:10px;
+padding:0 18px;background:linear-gradient(90deg,#1a1a2e,#241b3a);border-bottom:1px solid var(--border)}
+.pill{padding:4px 14px;border-radius:14px;font-size:12px;background:#241b3a;border:1px solid var(--border)}
+.pill.gold{background:var(--gold);color:#14142a;font-weight:600;border:none}
+.pagehead{display:flex;align-items:center;gap:14px;padding:16px 22px;
+background:linear-gradient(135deg,#1a1a2e 60%,#241b3a);border-bottom:1px solid var(--border)}
+.icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+font-size:22px;background:linear-gradient(135deg,#1a1a2e,#241b3a);border:1px solid var(--border)}
+.pagehead h1{font-size:19px;font-weight:700}
+.pagehead .sub{font-size:12px;color:var(--txt2);margin-top:2px}
+.badge{margin-left:auto;font-size:11px;color:#0f0f23;background:var(--gold);padding:3px 10px;
+border-radius:4px;font-weight:700;letter-spacing:1px}
+.wrap{padding:16px 22px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.card h3{font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.card h3::before{content:'';width:3px;height:14px;background:var(--acc2);border-radius:2px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.metric .k{font-size:12px;color:var(--txt2)}
+.metric .v{font-size:24px;font-weight:700;margin-top:4px}
+.metric .s{font-size:11px;color:var(--txt2);margin-top:2px}
+.up{color:var(--up)}.down{color:var(--down)}.gold{color:var(--gold)}.warn{color:var(--warn)}.muted{color:var(--txt2)}
+.bar{height:8px;border-radius:4px;background:#241b3a;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;border-radius:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--txt2);font-weight:600;text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px}
+td{padding:7px 10px;border-bottom:1px solid #22223a}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px}
+.tag.red{background:rgba(238,42,42,.15);color:#ff7b7b}
+.tag.green{background:rgba(0,212,134,.12);color:var(--down)}
+.tag.amber{background:rgba(245,158,11,.15);color:var(--warn)}
+.tag.gray{background:#241b3a;color:var(--txt2)}
+.btn{display:inline-block;padding:7px 22px;border-radius:8px;background:var(--gold);
+color:#14142a;font-weight:700;font-size:13px;text-align:center}
+.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--txt);font-weight:400}
+.foot{padding:10px 22px 16px;font-size:11px;color:#6b7280;line-height:1.6}
+.radar{width:230px;height:230px}
+.kline{width:100%;height:230px}
+input{background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--txt);
+padding:8px 12px;font-size:13px;width:100%}
+.seg{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;width:fit-content}
+.seg span{padding:7px 22px;font-size:13px;color:var(--txt2);background:var(--card2)}
+.seg span.on{background:var(--acc1);color:#fff;font-weight:600}
+</style></head><body><div class="topbar"><span class="pill">🔔 消息</span><span class="pill">⚙️ 设置</span><span class="pill gold">🚀 启动服务</span></div><div class="pagehead"><div class="icon">💼</div><div><h1>持仓中心</h1><div class="sub">自选池 / 持仓 / 收益归因 三子视图 · 多源取数降级状态可视 · 脏数据软标记</div></div><span class="badge">界面布局示意图 · 非实机截图</span></div><div class="wrap">
+<div class="card"><div class="seg"><span>自选池</span><span class="on">持仓</span><span>收益归因</span></div></div>
+<div class="card"><h3>持仓列表</h3>
+ <table><tr><th>代码</th><th>名称</th><th>数量</th><th>成本</th><th>现价</th><th>盈亏</th><th>数据源状态</th><th>标记</th></tr>
+ <tr><td class="num">6000XX</td><td>XX银行</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="up">+x.xx%</td>
+     <td><span class="tag green">多源 ok</span></td><td><span class="tag gray">—</span></td></tr>
+ <tr><td class="num">0000XX</td><td>XX平安</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="down">-x.xx%</td>
+     <td><span class="tag amber">新浪降级</span></td><td><span class="tag gray">—</span></td></tr>
+ <tr><td class="num">300XXX</td><td>XX时代</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="up">+x.xx%</td>
+     <td><span class="tag green">多源 ok</span></td><td><span class="tag amber">mark_suspect</span></td></tr>
+ <tr><td class="num">601XXX</td><td>XX保险</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="muted">—</td>
+     <td><span class="tag amber">缓存兜底 · as_of 10-15</span></td><td><span class="tag gray">—</span></td></tr>
+ </table>
+ <div class="muted" style="font-size:11px;margin-top:8px">代码/名称打码示意；持仓与收益均为模拟或历史数据，仅供学习</div></div>
+<div class="grid3">
+ <div class="card"><h3>盈亏统计</h3>
+  <div class="grid4" style="grid-template-columns:1fr 1fr">
+   <div class="metric"><div class="k">总盈亏</div><div class="v num">—</div></div>
+   <div class="metric"><div class="k">当日盈亏</div><div class="v num">—</div></div></div>
+  <div class="muted" style="font-size:11px;margin-top:8px">逐卡渲染完成后再汇总（等待最后一张卡片）</div></div>
+ <div class="card"><h3>多源取数降级链</h3>
+  <div style="font-size:12px;line-height:2">新浪财经 → 腾讯 → 东方财富 → 本地缓存兜底<br>
+  <span class="tag green">ok</span> 直连　<span class="tag amber">warn</span> 降级+as_of 标注　<span class="tag gray">skip</span> 如实缺失不补</div></div>
+ <div class="card"><h3>脏数据软标记</h3>
+  <div style="font-size:12px;line-height:2"><span class="tag amber">mark_suspect</span> 对疑似拆分/除权错位行打软标记<br>
+  <span class="muted">不删数据、不静默修正——保留原值并提示复核（诚实数据语义）</span></div></div>
+</div>
+</div><div class="foot">界面布局示意图：模块结构与交互形态还原自 StockSignal 真实页面实现；标注数据取自系统真实落盘快照/回测产物，其余以「—」或打码形式示意，非实机运行截图。</div></body></html>
