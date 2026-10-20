@@ -43,14 +43,20 @@ def test_snapshot_writes_and_idempotent(tmp_path, monkeypatch):
 
 
 def test_trend_reads_series_and_marks_missing(tmp_path, monkeypatch):
-    """趋势汇总：逐日拼接 + 缺失日如实列入 missing_days（不插值）。"""
+    """趋势汇总：逐日拼接 + 缺失日如实列入 missing_days（不插值，时钟相对）。"""
+    from datetime import datetime, timedelta
     monkeypatch.setenv("SS_DATA_DIR", str(tmp_path))
-    _seed_obs(tmp_path, "2026-10-11", _sample("2026-10-11", 0.7))
-    _seed_obs(tmp_path, "2026-10-13", _sample("2026-10-13", 0.9))
+    # 时钟相对：用相对今天的日期种子，避免固定日期跨出 7 日窗口后变时间炸弹。
+    # 较早 d4=0.7、较晚 d2=0.9，均落在 days=7 窗口内，恒有数据。
+    d4 = (datetime.now() - timedelta(days=4)).strftime("%Y-%m-%d")
+    d2 = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    _seed_obs(tmp_path, d4, _sample(d4, 0.7))
+    _seed_obs(tmp_path, d2, _sample(d2, 0.9))
     tr = smp.metrics_trend(days=7)
-    assert "2026-10-11" in tr["days_available"] and "2026-10-13" in tr["days_available"]
+    assert d4 in tr["days_available"] and d2 in tr["days_available"]
     assert tr["missing_days"], "无快照日应如实列入 missing_days"
     series = tr["source_trend"]["sina"]
+    # dates 经 reverse 为 旧→新，故顺序为 [d4:0.7, d2:0.9]
     assert [p["success_rate"] for p in series] == [0.7, 0.9], "成功率时间序列按日拼接"
     assert tr["cache_trend"]["L0"][0]["hit_rate"] == 0.8
     # 缺失日绝不编造数据点：序列长度 == 有快照天数
