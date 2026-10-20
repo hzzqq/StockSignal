@@ -4,7 +4,7 @@
 > **论文类型**：本科毕业设计（论文）
 > **作者**：黄子洲
 > **指导教师**：陈丽琼
-> **培养单位**：「学校 · 学院 · 专业」
+> **培养单位**：上海应用技术大学 · 智能技术学部
 > **完成日期**：2026 年　月
 
 ---
@@ -18,6 +18,8 @@ A 股市场情绪驱动特征显著，个人投资者在信息过载与情绪噪
 本文表明：在日频方向不可预测的现实下，把有限的可预测性配置在"仓位刻度"这一更稳健的维度、并以数据驱动方式持续校准，是事件驱动情绪类策略更诚实、更可持续的工程化路径。
 
 **关键词**：A 股；市场广度；情绪周期；决策闭环；刻度校准；回测；StockSignal
+
+**Research on A-Share Position Decision Closed-Loop and Scale Calibration Based on Event-Driven and Market Sentiment: Design and Implementation of the StockSignal Platform**
 
 ---
 
