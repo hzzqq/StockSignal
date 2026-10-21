@@ -12,6 +12,7 @@ import logging
 import plotly.graph_objects as go
 import streamlit as st
 
+from modules.ui_kit import xc_handle_error
 from modules.page_utils import render_standard_page
 from modules import lead_lag_matrix as ll
 from modules.breadth_features import OFFLINE_MISSING, data_as_of
@@ -66,4 +67,4 @@ try:
     )
 except Exception as exc:  # noqa: BLE001
     logger.exception("维度领先滞后矩阵页渲染失败")
-    st.error(f"⚠️ 页面渲染异常：{exc}")
+    xc_handle_error("页面渲染异常", exc, hint="请稍后重试，或检查数据源连接；若持续出现请联系管理员排查系统日志")

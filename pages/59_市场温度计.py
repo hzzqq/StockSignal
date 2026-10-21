@@ -14,6 +14,7 @@ import logging
 import streamlit as st
 import plotly.graph_objects as go
 
+from modules.ui_kit import xc_handle_error
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
@@ -225,4 +226,4 @@ try:
 
 except Exception as e:  # noqa: BLE001
     logger.exception("[59_市场温度计] 渲染失败")
-    st.error(f"页面渲染失败：{e}")
+    xc_handle_error("页面渲染失败", e, hint="请稍后重试，或检查数据源连接；若持续出现请联系管理员排查系统日志")
