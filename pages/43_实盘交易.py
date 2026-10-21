@@ -49,18 +49,18 @@ live = bool(acc.get('live_mode'))
 bt = acc.get('broker_type', 'sim') or 'sim'
 c_broker, c_mode, c_cash, c_assets, c_loss = st.columns(5)
 with c_broker:
-    st.metric('券商通道', {'sim': '模拟账本', 'qmt': 'QMT', 'easytrader': '同花顺客户端'}.get(bt, bt))
+    st.metric('券商通道', {'sim': '模拟账本', 'qmt': 'QMT', 'easytrader': '同花顺客户端'}.get(bt, bt), delta_color="off")
 with c_mode:
-    st.metric('当前模式', '🟢 实盘' if live else '⚪ 模拟', help='实盘模式：触发真实资金下单')
+    st.metric('当前模式', '🟢 实盘' if live else '⚪ 模拟', delta_color="off", help='实盘模式：触发真实资金下单')
 with c_cash:
-    st.metric('可用资金', f"¥{float(acc.get('cash') or 0):,.0f}")
+    st.metric('可用资金', f"¥{float(acc.get('cash') or 0):,.0f}", delta_color="off")
 with c_assets:
-    st.metric('总资产', f"¥{float(acc.get('total_assets') or 0):,.0f}")
+    st.metric('总资产', f"¥{float(acc.get('total_assets') or 0):,.0f}", delta_color="off")
 with c_loss:
     paused = acc.get('risk_paused_date')
     today = datetime.now().strftime('%Y-%m-%d')
     label = '已停手' if paused == today else f"¥{float(acc.get('daily_loss_limit') or 0):,.0f}"
-    st.metric('当日亏损停手线', label, help='当日资金净流出异常时自动停手（可在配置区手动解除）')
+    st.metric('当日亏损停手线', label, delta_color="off", help='当日资金净流出异常时自动停手（可在配置区手动解除）')
 st.markdown('#### ⚙️ 账户配置')
 with st.container(border=True):
     col_cfg1, col_cfg2 = st.columns([1.4, 1])

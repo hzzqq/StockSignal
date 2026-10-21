@@ -274,7 +274,7 @@ with c4:
     fr_txt = f"{fail_ratio:.1f}%" if fail_ratio is not None else "—"
     sf_metric("炸板率", fr_txt, "炸板/(涨停+炸板)")
 with c5:
-    st.metric("池内曾开板", str(n_broken), help="涨停池内「炸板次数>0」的标的数（当日曾开板）")
+    st.metric("池内曾开板", str(n_broken), delta_color="off", help="涨停池内「炸板次数>0」的标的数（当日曾开板）")
 
 st.markdown("---")
 

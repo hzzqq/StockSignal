@@ -1206,7 +1206,7 @@ def fragment_shepherd_note():
         acc = analysis.get("accuracy", {})
         rate = acc.get("rate")
         if rate is not None:
-            st.metric("预判方向准确率", f"{rate:.1f}%",
+            st.metric("预判方向准确率", f"{rate:.1f}%", delta_color="off",
                       help=f"有效样本 {acc.get('valid')} 日，命中 {acc.get('hit')} 次")
         else:
             st.caption("暂无可判定的次日样本（所选区间缺 zt_prev_ret，需更长历史或跑 v2 重构补齐）。")

@@ -1280,19 +1280,19 @@ def fragment_financial_report(ticker):
         rev_col, rev_txt = _fr_color_yoy(_r.get("营收同比%"))
         mc1, mc2, mc3, mc4 = st.columns(4)
         with mc1:
-            st.metric("每股收益", _fr_fmt(_r.get("每股收益")))
+            st.metric("每股收益", _fr_fmt(_r.get("每股收益")), delta_color="off")
         with mc2:
-            st.metric("营业总收入", _fr_fmt(_r.get("营业总收入")), help="单位：元")
+            st.metric("营业总收入", _fr_fmt(_r.get("营业总收入")), delta_color="off", help="单位：元")
         with mc3:
-            st.metric("净利润", _fr_fmt(_r.get("净利润")), help="单位：元")
+            st.metric("净利润", _fr_fmt(_r.get("净利润")), delta_color="off", help="单位：元")
         with mc4:
-            st.metric("ROE%", _fr_fmt(_r.get("ROE%")))
+            st.metric("ROE%", _fr_fmt(_r.get("ROE%")), delta_color="off")
         _mg = fr_compute_margins(_r)
         mc5, mc6 = st.columns(2)
         with mc5:
-            st.metric("毛利率", fr_fmt_pct(_mg["毛利率%"]), help="毛利 / 营业总收入（东财业绩报表）")
+            st.metric("毛利率", fr_fmt_pct(_mg["毛利率%"]), delta_color="off", help="毛利 / 营业总收入（东财业绩报表）")
         with mc6:
-            st.metric("净利率", fr_fmt_pct(_mg["净利率%"]), help="净利润 / 营业总收入")
+            st.metric("净利率", fr_fmt_pct(_mg["净利率%"]), delta_color="off", help="净利润 / 营业总收入")
         st.markdown(
             f"<div style='font-size:13px;line-height:1.9;color:var(--txt2);margin:6px 0 10px;'>"
             f"净利润同比 <b style='color:{yoy_col};'>净利润 {yoy_txt}</b>　|　"

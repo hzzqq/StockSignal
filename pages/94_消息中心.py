@@ -364,9 +364,9 @@ if st.session_state.get("_msg_cleared_toast"):
 # ───────────────────────── 顶部操作栏 ─────────────────────────
 c1, c2, c3 = st.columns([1, 1, 2])
 with c1:
-    st.metric("未读", len(unread))
+    st.metric("未读", len(unread), delta_color="off")
 with c2:
-    st.metric("总消息", len(msgs))
+    st.metric("总消息", len(msgs), delta_color="off")
 with c3:
     if st.button("✅ 全部标为已读", width="stretch", key="mark_all",
                  disabled=len(unread) == 0,

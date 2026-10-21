@@ -324,7 +324,7 @@ else:
         sellable_shares = pm.get_sellable_shares(sell_ticker)
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric('可卖股数', f'{sellable_shares:,} 股')
+            st.metric('可卖股数', f'{sellable_shares:,} 股', delta_color="off")
             with st.spinner('获取实时行情中…'):
                 sell_quote = api_quote(sell_ticker)
                 if sell_quote is None:
@@ -435,14 +435,14 @@ if not positions.empty:
             summary = pm.summary()
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric('总成本', f"¥{summary.get('total_cost', 0):,.2f}")
+                st.metric('总成本', f"¥{summary.get('total_cost', 0):,.2f}", delta_color="off")
             with col2:
-                st.metric('总市值', f"¥{summary.get('total_market_value', 0):,.2f}")
+                st.metric('总市值', f"¥{summary.get('total_market_value', 0):,.2f}", delta_color="off")
             with col3:
                 delta_pnl = summary.get('delta_pnl', 0)
                 st.metric('总盈亏', f"¥{summary.get('total_pnl', 0):,.2f}", delta=f"{summary.get('delta_pnl', 0):+.2f}" if abs(delta_pnl or 0) > 0.01 else None, delta_color="inverse")
             with col4:
-                st.metric('总收益率', f"{summary.get('total_pnl_pct', 0):+.2f}%")
+                st.metric('总收益率', f"{summary.get('total_pnl_pct', 0):+.2f}%", delta_color="inverse")
             st.caption('数据来源：东方财富 / 新浪财经（实时行情 + 日线兜底）。')
             if not pnl_df.empty:
                 from modules.visualizer import Visualizer
