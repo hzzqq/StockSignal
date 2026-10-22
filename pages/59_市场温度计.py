@@ -164,7 +164,7 @@ try:
             f"""
             <div style="border-left:6px solid #dc2626;background:{_hex_to_rgba('#dc2626', 0.12)};
             border-radius:10px;padding:14px 18px;margin-bottom:10px;font-size:13px">
-              <div style="font-size:14px;font-weight:800;color:#dc2626">⚠️ 恐慌出清反弹信号触发</div>
+              <div style="font-size:14px;font-weight:800;color:#ff8080">⚠️ 恐慌出清反弹信号触发</div>
               <div style="margin-top:6px">{sig.get('statement', '')}</div>
               <div style="margin-top:6px;opacity:.8">样本 {hit.get('n')} 天 · z={hit.get('z')} · 边际 +{edge}pp</div>
             </div>
