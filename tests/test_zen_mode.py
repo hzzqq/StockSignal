@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import inspect
+from pathlib import Path
 
 import pytest
 
@@ -47,7 +48,15 @@ def _zen_app_off():
 
 def _run_and_collect(func):
     from streamlit.testing.v1 import AppTest
-    at = AppTest.from_function(func, default_timeout=60)
+    try:
+        at = AppTest.from_function(func, default_timeout=60)
+    except FileNotFoundError:
+        # 环境竞态自愈：全量跑下 AppTest 模块级 TMP_DIR 目录偶发被外部清理
+        # （Streamlit 在模块级 tempfile.TemporaryDirectory 中落脚本，GC/清理竞态致目录早失）。
+        # mkdir 重建后重试一次；仍失败则向上抛——真实缺陷不静默。
+        from streamlit.testing.v1.app_test import TMP_DIR
+        Path(TMP_DIR.name).mkdir(parents=True, exist_ok=True)
+        at = AppTest.from_function(func, default_timeout=60)
     at.run()
     assert not at.exception, f"Zen 注入抛出异常: {[str(e) for e in at.exception]}"
     return " ".join(str(getattr(m, "value", "")) for m in at.markdown)
@@ -60,3 +69,16 @@ def test_zen_runtime(func, expect_css):
     joined = _run_and_collect(func)
     has_css = 'stSidebar' in joined and 'display:none' in joined
     assert has_css is expect_css
+
+
+def test_tmpdir_self_heal_after_external_cleanup():
+    """mutation 自验：TMP_DIR 目录被外部清空后，自愈重试必须跑通（防自愈逻辑假绿）。
+
+    放文件末尾：自愈路径会重建目录，不影响同进程后续 AppTest 测试。"""
+    import shutil
+
+    from streamlit.testing.v1.app_test import TMP_DIR
+    shutil.rmtree(TMP_DIR.name, ignore_errors=True)
+    assert not Path(TMP_DIR.name).exists(), "mutation 前置失败：目录应已被删除"
+    joined = _run_and_collect(_zen_app_on)
+    assert "stSidebar" in joined, "自愈后 Zen CSS 未注入"
