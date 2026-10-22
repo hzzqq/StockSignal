@@ -37,6 +37,16 @@ class TechnicalAgent(BaseAgent):
 
     def run(self, state: ResearchState) -> str:
         df = resolve_df(state)
+
+        # 生产模式硬开关：数据底座不可用时，诚实跳过计算，不产出默认中性研判
+        if getattr(state, "data_unavailable", False):
+            state.technical_report = {
+                "text": "技术面：数据不可用（生产模式拒绝合成回退），无法计算趋势/动量/量能。",
+                "arrangement": "—", "trend_score": None, "volume_score": None,
+                "patterns": "—", "momentum_label": "—", "raw": {},
+            }
+            return f"[{self.role}] 数据不可用，跳过技术面计算"
+
         tech = None
         full = self._safe_import("modules.technical", "full_analysis", state)
         try:

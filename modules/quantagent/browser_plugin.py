@@ -21,8 +21,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from typing import Any, Dict, List, Optional
+
+from modules.quantagent.state import allow_synthetic_data
+
+logger = logging.getLogger(__name__)
 
 # 延迟导入 browser-use，保证模块在无依赖环境仍可 import
 try:
@@ -36,7 +41,9 @@ class BrowserCollector:
     """金融网页采集器（requests 轻量版 + 离线 mock）。"""
 
     def __init__(self, mock: bool = False):
-        self.mock = mock
+        # 生产模式硬开关：默认禁止 mock（合成）回退；仅 QUANT_ALLOW_SYNTHETIC=1 才允许
+        self.allow_mock = allow_synthetic_data()
+        self.mock = bool(mock) and self.allow_mock
         if os.environ.get("QUANT_BROWSER_REAL") == "1":
             self.mock = False
 
@@ -55,9 +62,13 @@ class BrowserCollector:
             data = resp.json()
             items = data.get("ggmx", {}).get("data", [])[:limit]
             return [{"date": i.get("DATE", ""), "title": i.get("TITLE", ""), "url": ""} for i in items]
-        except Exception:
-            self.mock = True
-            return self.fetch_announcements(ticker, limit)
+        except Exception as e:  # noqa: BLE001
+            if self.allow_mock:
+                self.mock = True
+                return self.fetch_announcements(ticker, limit)
+            # 生产模式：禁止 mock 回退，返回空公告并留痕（不伪造）
+            logger.warning("[browser_plugin] 公告抓取失败（生产模式禁止 mock 回退）: %s", e)
+            return []
 
     def fetch_web_sentiment(self, ticker: str) -> Dict[str, Any]:
         if self.mock:
@@ -67,9 +78,17 @@ class BrowserCollector:
 
             http_get("https://guba.eastmoney.com/", timeout=6)
             return {"signal": 0.1, "sample": "网页讨论略偏积极。"}
-        except Exception:
-            self.mock = True
-            return self.fetch_web_sentiment(ticker)
+        except Exception as e:  # noqa: BLE001
+            if self.allow_mock:
+                self.mock = True
+                return self.fetch_web_sentiment(ticker)
+            # 生产模式：禁止 mock 回退，返回中性不可用标记（不伪造舆情）
+            logger.warning("[browser_plugin] 网页舆情抓取失败（生产模式禁止 mock 回退）: %s", e)
+            return {
+                "signal": 0.0,
+                "sample": "（生产模式）网页舆情获取失败，未使用离线演示。",
+                "available": False,
+            }
 
     def collect(self, ticker: str) -> Dict[str, Any]:
         return {

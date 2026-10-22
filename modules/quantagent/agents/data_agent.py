@@ -24,7 +24,12 @@ import logging
 from modules.time_utils import now_cst_naive
 
 from modules.quantagent.agents.base import BaseAgent
-from modules.quantagent.state import ResearchState, store_df
+from modules.quantagent.state import (
+    ResearchState,
+    store_df,
+    allow_synthetic_data,
+    QUANT_SYNTHETIC_ENV,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -82,15 +87,47 @@ class DataAgent(BaseAgent):
             if fetcher is not None:
                 f = fetcher()
                 df = f.get_daily(ticker, start=start, end=end)
-                real = True
         except Exception as e:  # noqa: BLE001
-            state.add_error(f"真实行情获取失败（将使用合成数据演示）: {e}")
+            state.add_error(f"真实行情获取失败: {e}")
 
-        if df is None or (hasattr(df, "empty") and df.empty):
+        have_real = df is not None and not (hasattr(df, "empty") and df.empty)
+
+        if have_real:
+            # 真实行情到位：正常走清洗 / 指标流程
+            real = True
+            state.used_real_data = True
+        elif allow_synthetic_data():
+            # 离线演示模式（显式开启）：用确定性合成行情兜底，保证链路可跑
             df = _synthetic_df(ticker)
             state.used_real_data = False
+            state.add_trace(
+                "data",
+                "真实行情不可用，已使用离线合成演示行情"
+                f"（{QUANT_SYNTHETIC_ENV}=1）。",
+            )
         else:
-            state.used_real_data = True
+            # 生产模式硬开关：禁止 fallback 到合成数据，避免伪造行情被误当真实信号
+            state.used_real_data = False
+            state.data_unavailable = True
+            state.df = None
+            state.market_brief = {}
+            state.data_report = {
+                "text": (
+                    "数据底座：真实行情获取失败。已按生产模式硬开关（环境变量 "
+                    f"{QUANT_SYNTHETIC_ENV} 未开启）拒绝使用合成数据回退——"
+                    "本标的不会基于任何伪造行情产出分析信号。"
+                ),
+                "available": False,
+                "brief": {},
+            }
+            state.add_error(
+                "真实行情获取失败，生产模式禁止合成数据回退，已标记 data_unavailable=True；"
+                f"请检查 StockFetcher 数据源连接，或显式设置 {QUANT_SYNTHETIC_ENV}=1 进入演示模式。"
+            )
+            return (
+                f"[{self.role}] 真实行情不可用，已拒绝合成回退，"
+                "数据底座置空（data_unavailable=True）。"
+            )
 
         # 标准化：补均线/收益率，供技术面/信号/回测共用
         cleaner = self._safe_import("modules.cleaner", "DataCleaner", state)

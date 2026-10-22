@@ -82,6 +82,30 @@ class ChiefAgent(BaseAgent):
         return "\n".join(parts)
 
     def run(self, state: ResearchState) -> str:
+        # 生产模式硬开关：数据底座不可用时，拒绝产出任何正常看多/看空/持有结论，
+        # 防止缺少真实行情支撑的「伪信号」被下游或用户误当真实研判。
+        # 同时不写入 FinRAG 记忆，避免污染复盘决策库。
+        if getattr(state, "data_unavailable", False):
+            decision = {
+                "verdict": "数据不足",
+                "composite": None,
+                "target_price": 0.0,
+                "stop_price": 0.0,
+                "scores": {
+                    "tech": None, "fund": None, "flow": None,
+                    "sent": None, "risk": None,
+                },
+                "rationale": (
+                    "数据底座不可用（生产模式已拒绝合成数据回退），缺少真实行情支撑，"
+                    "无法给出任何看多/看空/持有结论。请恢复 StockFetcher 真实数据源后重试。"
+                ),
+            }
+            state.chief_report = decision
+            return (
+                f"[{self.role}] 数据不足：真实行情不可用，已拒绝合成回退，"
+                "不出研判结论。"
+            )
+
         rule = self._rule_decision(state)
 
         rationale = ""

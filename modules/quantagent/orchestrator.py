@@ -227,7 +227,12 @@ def format_report(state: ResearchState) -> str:
     lines.append(f"📊 QuantAgent 多智能体投研报告 · {state.display_name or state.ticker}")
     lines.append("=" * 64)
     env = []
-    env.append("真实数据" if state.used_real_data else "合成数据(离线演示)")
+    if state.data_unavailable:
+        env.append("数据不可用(生产模式拒绝合成)")
+    elif state.used_real_data:
+        env.append("真实数据")
+    else:
+        env.append("合成数据(离线演示)")
     env.append("LLM" if state.used_llm else "规则引擎")
     if state.used_browser:
         env.append("FinBrowser")
@@ -243,7 +248,7 @@ def format_report(state: ResearchState) -> str:
     if state.rag_context:
         lines.append(f"[复盘记忆]\n{state.rag_context}")
     lines.append("-" * 64)
-    lines.append(f"🏁 最终结论：{c.get('verdict','-')} | 综合 {c.get('composite','-')}/100")
+    lines.append(f"🏁 最终结论：{c.get('verdict','-')} | 综合 {c.get('composite') if c.get('composite') is not None else '—'}/100")
     if c.get("target_price"):
         lines.append(f"   目标价 ¥{c['target_price']}   止损 ¥{c['stop_price']}")
     lines.append(f"   论证：{c.get('rationale','')}")
@@ -299,6 +304,7 @@ def run_batch_research(
                 "target_price": c.get("target_price"),
                 "stop_price": c.get("stop_price"),
                 "used_real_data": st.used_real_data,
+                "data_unavailable": st.data_unavailable,
                 "backtest": {
                     "available": bt.get("available", False),
                     "total_return": bt.get("total_return"),

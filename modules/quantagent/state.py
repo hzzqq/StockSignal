@@ -12,6 +12,8 @@ modules/quantagent/state.py
 
 from __future__ import annotations
 
+import os
+
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
@@ -38,6 +40,19 @@ def resolve_df(state: "ResearchState") -> Any:
     return fetch_df(state.ticker)
 
 
+# ---- 生产模式硬开关：是否允许「合成 / 离线演示」数据 ----
+# 默认 False = 生产模式，禁止任何合成行情 / mock 数据回退到下游分析。
+# 仅当显式设置环境变量 QUANT_ALLOW_SYNTHETIC=1（或 "true"/"yes"/"on"）时才允许演示回退，
+# 用于离线 demo / 复试讲解 / 无网络沙箱等场景。
+QUANT_SYNTHETIC_ENV = "QUANT_ALLOW_SYNTHETIC"
+
+
+def allow_synthetic_data() -> bool:
+    """当前是否允许使用合成 / mock 数据（生产模式默认禁止，须显式开启）。"""
+    val = os.environ.get(QUANT_SYNTHETIC_ENV, "")
+    return val.strip().lower() in ("1", "true", "yes", "on")
+
+
 @dataclass
 class ResearchState:
     # ---- 任务输入 ----
@@ -46,6 +61,7 @@ class ResearchState:
 
     # ---- 环境与数据源标记（用于报告透明化）----
     used_real_data: bool = False     # 是否拿到真实行情（否则用合成数据演示）
+    data_unavailable: bool = False   # 生产模式硬开关触发：真实行情不可达且禁止合成回退
     used_llm: bool = False           # 首席 Agent 是否真的调用了 LLM
     used_browser: bool = False       # 是否启用 FinBrowser 采集外挂
     used_rag: bool = False           # 是否启用 FinRAG 记忆/RAG 模块

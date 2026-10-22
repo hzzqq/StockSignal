@@ -46,6 +46,16 @@ class RiskAgent(BaseAgent):
     def run(self, state: ResearchState) -> str:
         ticker = state.ticker
         df = resolve_df(state)
+
+        # 生产模式硬开关：数据底座不可用时，诚实跳过计算，不产出默认波动率/仓位建议
+        if getattr(state, "data_unavailable", False):
+            state.risk_report = {
+                "text": "风控：数据不可用（生产模式拒绝合成回退），无法计算波动率/回撤/仓位建议。",
+                "annual_vol": None, "max_drawdown": None, "sharpe": None,
+                "risk_score": None, "position_cap": None, "verdict": "数据不足",
+            }
+            return f"[{self.role}] 数据不可用，跳过电压率/仓位计算"
+
         metrics = None
         Backtester = self._safe_import("modules.backtest", "Backtester", state)
         try:
