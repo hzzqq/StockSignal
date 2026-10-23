@@ -297,9 +297,14 @@ def _plan_with_llm(
 
 def _synthesize_with_llm(
     question: str, steps: List[Dict[str, Any]], citations: List[Dict[str, Any]],
-    llm: Any, history: Any = None,
+    llm: Any, history: Any = None, style: str = "report",
 ) -> Optional[str]:
-    """LLM 合成：只许基于步骤摘要措辞，数据事实必须带 [S#] 引用。失败返回 None。"""
+    """LLM 合成：只许基于步骤摘要措辞，数据事实必须带 [S#] 引用。失败返回 None。
+
+    T-308 研报扩大：max_tokens 900→2000、timeout 30→75（llm_client 钳值已同步
+    上调至 90s，否则长研报必被掐断后静默回退）；prompt 增研报结构要求
+    （执行摘要/分维度解读/多情景/风险清单/观察清单），[S#] 溯源红线不变。
+    """
     if llm is None or not citations:
         return None
     try:
@@ -309,7 +314,7 @@ def _synthesize_with_llm(
                 continue
             digest_lines.append(
                 f"[S{s['idx']}] {s['tool']}（数据截至 {s.get('data_as_of') or '未知'}）："
-                f"{json.dumps(s.get('summary') or {}, ensure_ascii=False, default=str)[:400]}"
+                f"{json.dumps(s.get('summary') or {}, ensure_ascii=False, default=str)[:600]}"
             )
         norm_history = normalize_history(history)
         history_block = ""
@@ -319,14 +324,25 @@ def _synthesize_with_llm(
                 "\n\n最近对话（仅措辞参考；数据事实仍只来自上方工具返回，"
                 "不得从历史中取任何数字充当数据点）：\n" + lines
             )
+        _style = str(style or "report").strip().lower()
+        structure_req = (
+            "\n\n回答按完整研报结构组织：**执行摘要**（结论先行）→ **分维度解读**"
+            "（对每个工具数据维度展开，逐条带 [S#] 引用）→ **多情景推演**"
+            "（乐观/中性/悲观，各附触发条件；纯数据归纳可给倾向性，不给编造概率）"
+            "→ **风险清单**（数据可见的风险点，无则如实说明）→ **后续观察清单**"
+            "（3~5 条可验证的跟踪信号）。数据没覆盖的部分如实说明，禁止编造。"
+            if _style == "report" else
+            "\n\n回答简洁直接，每个数据点带 [S#] 引用，数据没覆盖的部分如实说明。"
+        )
         prompt = (
             "你是严谨的 A 股研究员。只依据下列工具返回的真实数据回答用户问题，"
             "每个数据点必须标注 [S#] 引用（S 编号见各条目前缀）；数据没覆盖的部分如实说明，"
-            "禁止编造或外推。\n\n"
-            f"用户问题：{question}\n\n工具数据：\n" + "\n".join(digest_lines) + history_block
+            "禁止编造或外推。"
+            + structure_req
+            + f"\n\n用户问题：{question}\n\n工具数据：\n" + "\n".join(digest_lines) + history_block
         )
         text = llm.chat_completion(
-            [{"role": "user", "content": prompt}], temperature=0.4, max_tokens=900, timeout=30
+            [{"role": "user", "content": prompt}], temperature=0.4, max_tokens=2000, timeout=75
         )
         return text or None
     except Exception as e:  # noqa: BLE001
@@ -429,11 +445,18 @@ def run_research(
     budget_s: float = 90.0,
     use_llm: Any = None,
     on_step: Optional[Callable[[str], None]] = None,
+    style: str = "report",
 ) -> Dict[str, Any]:
-    """执行一轮研究：规划 → 有界执行 → 带引用综合。契约见 spec AC1–AC8。"""
+    """执行一轮研究：规划 → 有界执行 → 带引用综合。契约见 spec AC1–AC8。
+
+    style（T-308）：仅作用于 LLM 合成 prompt 的结构要求（report=完整研报结构 /
+    其他=简洁版）；规划、执行、只读红线、引用溯源全部不变。非法值按非 report
+    处理（回落简洁结构）。
+    """
     t0 = time.time()
     question = str(question or "").strip()
     norm_history = normalize_history(history)
+    _style = str(style or "report")
     limitations: List[str] = []
 
     def _emit(msg: str) -> None:
@@ -592,7 +615,10 @@ def run_research(
             answer = _rule_synthesize(question, steps, citations, limitations)
     else:
         answer = (
-            _synthesize_with_llm(question, steps, citations, llm, history=norm_history)
+            _synthesize_with_llm(
+                question, steps, citations, llm,
+                history=norm_history, style=str(_style),
+            )
             or _rule_synthesize(question, steps, citations, limitations)
         )
     if status == "unavailable" and not limitations:

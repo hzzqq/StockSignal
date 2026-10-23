@@ -284,12 +284,13 @@ def _handle_compare(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def _handle_ai_consult(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """执行 AI 独立咨询。"""
+    """执行 AI 独立咨询（T-308：透传回应方式 style，非法值由 ai_engine 兜底回落 quick）。"""
     from modules.ai_engine import ai_answer
 
     question = payload.get("question", "")
     context = payload.get("context", {})
-    return ai_answer(question, context)
+    style = str(payload.get("style") or "quick")
+    return ai_answer(question, context, style=style)
 
 
 def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -297,8 +298,9 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     payload:
       - question: 用户问题（必填）
-      - max_steps: 最大工具调用步数（可选，默认 6，上限 8）
+      - max_steps: 最大工具调用步数（可选，默认 8，上限 8；T-308 研报扩大上调）
       - history: 最近对话（可选，[{role, content}]，≤8 条；非法整体忽略，降级单轮）
+      - style: 回应方式（可选，T-308：report=研报结构合成 / 其他=简洁；仅影响合成 prompt）
     每步经 progress_bus 上报（stage="research"），前端任务轮询可见过程。
     契约见 .workbuddy/specs/ai_research_agent_contract.md。
     """
@@ -310,9 +312,9 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("question 不能为空")
     task_id = payload.get("__task_id__")
     try:
-        max_steps = int(payload.get("max_steps") or 6)
+        max_steps = int(payload.get("max_steps") or 8)
     except (TypeError, ValueError):
-        max_steps = 6
+        max_steps = 8
 
     def _on_step(message: str) -> None:
         if not task_id:
@@ -330,7 +332,8 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
             and all(isinstance(h, dict) for h in history):
         extra["history"] = history
 
-    return ra.run_research(question, max_steps=max_steps, on_step=_on_step, **extra)
+    return ra.run_research(question, max_steps=max_steps, on_step=_on_step,
+                           style=str(payload.get("style") or "report"), **extra)
 
 
 def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:

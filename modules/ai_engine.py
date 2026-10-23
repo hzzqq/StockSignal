@@ -458,6 +458,53 @@ SYSTEM_PROMPT = """你是「星辰 AI」，一位专业的 A 股多市场智能�
 使用 markdown：标题、要点列表、引用块；关键结论用表格，便于用户快速抓取。"""
 
 
+# ── T-308 回应方式预设：style → system prompt 变体 ──
+# （additive：SYSTEM_PROMPT 本体不动，变体只做结构化补充，方法论完全继承）
+SYSTEM_PROMPT_REPORT = SYSTEM_PROMPT + """
+
+## 深度研报模式补充（当前为「深度研报」回应方式）
+回答必须是一份结构完整的研报，章节固定为：
+1. **核心结论**（方向 / 关键位 / 置信度 / 一句话逻辑）
+2. **基本面与消息面**（引用给定数据要点；新闻区分实质催化与情绪扰动）
+3. **技术面与量价**（趋势/动量/量能/关键位读数及含义）
+4. **多情景推演**（乐观/中性/悲观，各附触发条件与概率，概率合计 100%）
+5. **风险清单**（至少 3 条，含最大风险/止损思路/黑天鹅）
+6. **操作策略**（分短线/中线视角给入场/目标/止损参考）
+7. **后续观察清单**（3~5 条可验证的跟踪信号）
+给定数据未覆盖的章节如实写「数据未覆盖」，禁止编造。"""
+
+SYSTEM_PROMPT_DEBATE = SYSTEM_PROMPT + """
+
+## 多空辩论模式补充（当前为「多空辩论」回应方式）
+回答必须是同题多空对辩结构：
+1. **多方陈述**：看多理由 3 条（引用给定数据，或明确标注为观点/推测）
+2. **空方陈述**：看空理由 3 条（同样要求）
+3. **交叉质询**：各方最有力的 1 条反驳
+4. **裁判裁决**：综合给定数据判断当前证据更支持哪一方、置信度，
+   以及出现什么信号时应改变立场。
+双方理由都必须有数据依据或明确标注「观点/推测」，不得只讲一边。"""
+
+SYSTEM_PROMPT_TEACH = SYSTEM_PROMPT + """
+
+## 教学解释模式补充（当前为「教学解释」回应方式）
+面向投资新手讲解，要求：
+1. **先说人话**：用生活化比喻解释核心概念，避免术语堆砌；
+2. **再讲原理**：这个指标/事件为什么重要、通常怎么用、常见误读是什么；
+3. **结合数据**：如给定数据与本问题相关，用真实读数举例说明（带来源与日期）；
+4. **误区提醒**：结尾给 1 条新手常见误区。
+不编造数据；给定数据没覆盖的部分如实说明。"""
+
+# style → (system, max_tokens, timeout)；非法 style 由 ai_answer 回落 quick。
+# timeout 上限受 llm_client.chat_completion 钳制（≤90s），此处无需超 90。
+STYLE_PRESETS = {
+    "quick": {"system": SYSTEM_PROMPT, "max_tokens": 1600, "timeout": 45},
+    "report": {"system": SYSTEM_PROMPT_REPORT, "max_tokens": 2000, "timeout": 80},
+    "debate": {"system": SYSTEM_PROMPT_DEBATE, "max_tokens": 1400, "timeout": 50},
+    "teach": {"system": SYSTEM_PROMPT_TEACH, "max_tokens": 1400, "timeout": 45},
+}
+_DEFAULT_STYLE = "quick"
+
+
 def _compact_block(name: str, result: Dict[str, Any], news: Optional[List[Dict[str, str]]], is_event_q: bool) -> str:
     """给 LLM 的精简数据块：只给关键指标，避免把规则引擎散文塞进上下文（省 token、提速）。"""
     if not isinstance(result, dict):
@@ -478,6 +525,24 @@ def _compact_block(name: str, result: Dict[str, Any], news: Optional[List[Dict[s
     if news:
         for n in news[:3]:
             lines.append(f"  要闻（{n.get('date', '')}）{n.get('title', '')}（{n.get('source', '')}）")
+    # T-308 研报扩大：增补关键位/52周位置/乖离/板块/量能维度（全部取自
+    # analysis result 既有真实字段，缺失即省略该行，绝不编造）
+    extra = []
+    if result.get("support") is not None and result.get("resistance") is not None:
+        extra.append(f"支撑¥{result['support']:.2f}/压力¥{result['resistance']:.2f}")
+    if result.get("lo52") is not None and result.get("hi52") is not None:
+        pos52 = result.get("pos52")
+        pos_s = f"（当前位于区间 {pos52 * 100:.0f}% 分位）" if isinstance(pos52, (int, float)) else ""
+        extra.append(f"52周区间 ¥{result['lo52']:.2f}~¥{result['hi52']:.2f}{pos_s}")
+    if result.get("deviation") is not None:
+        extra.append(f"20日乖离率 {result['deviation']:+.2f}%")
+    sa = result.get("sector_analysis") or {}
+    if isinstance(sa, dict) and sa.get("label"):
+        extra.append(f"板块「{sa['label']}」")
+    if result.get("vol_chg") is not None:
+        extra.append(f"量能较前期 {result['vol_chg']:+.0%}")
+    if extra:
+        lines.append("  " + "；".join(extra))
     return "\n".join(lines)
 
 
@@ -627,7 +692,12 @@ def _fallback_general_answer(question: str) -> str:
     )
 
 
-def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def ai_answer(
+    question: str,
+    context: Optional[Dict[str, Any]] = None,
+    *,
+    style: str = "quick",
+) -> Dict[str, Any]:
     """
     回答用户投资问题。
 
@@ -635,6 +705,12 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
     - 先解析问题中的股票代码/名称，若命中则回答这些股票（单只给深度研判，多只给横向对比）。
     - 若问题没提到股票，再看当前页面（组合/个股）上下文。
     - 若都没有，给出简短可用的引导，避免模板化废话。
+
+    style（T-308 回应方式，keyword-only）：
+    - quick=快速问答（默认，兼容既有调用方）
+    - report=深度研报 / debate=多空辩论 / teach=教学解释
+      三者仅改变 LLM 的 system prompt 结构与 token/超时预算（STYLE_PRESETS），
+      数据取数与回退链路完全一致；非法值回落 quick。
     """
     context = context or {}
     rows = context.get("_cmp_rows")
@@ -670,16 +746,27 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
     is_event_q = any(k in question for k in EVENT_KW)
 
     # 3) LLM 路径（若配置）：把数据丢给 LLM，让它自然回答
+    preset = STYLE_PRESETS.get(str(style or "").strip(), STYLE_PRESETS[_DEFAULT_STYLE])
+    _llm_degraded = False
     if llm_client.is_configured():
         llm_prompt = _build_llm_prompt(question, resolved, history_stock, rows, analysis, is_event_q)
-        # 咨询场景专用超时：单模型 30s、整条链 ≤60s 即回退规则引擎（瞬时），
-        # 免费模型排队或异常慢时快速 fallback，避免用户干等。
+        # T-308 回应方式：按 style 预设取 system/max_tokens/timeout。
+        # 咨询场景超时：单模型上限由 llm_client 钳制（≤90s），LLM 失败/超时
+        # 快速回退规则模板（瞬时），回退回答头部如实标注降级（诚实语义）。
         answer = llm_client.answer_with_llm(
-            SYSTEM_PROMPT, llm_prompt, history=history, max_tokens=900, timeout=30
+            preset["system"], llm_prompt, history=history,
+            max_tokens=preset["max_tokens"], timeout=preset["timeout"],
         )
         if answer:
             return {"answer": answer, "independent": True}
-        # LLM 调用失败/超时则回退到规则模板
+        _llm_degraded = True  # LLM 调用失败/超时 → 规则模板路径须标注降级
+
+    def _rule_ret(answer: str, **extra) -> Dict[str, Any]:
+        """规则模板路径统一出口：LLM 配置过但调用失败时，头部如实标注降级来源，
+        防「看起来是研报其实是模板」的语义混淆（T-308 诚实语义）。"""
+        if _llm_degraded and not str(answer).startswith("（LLM"):
+            answer = "（LLM 暂不可用，以下为规则引擎精简版）\n\n" + str(answer)
+        return {"answer": answer, **extra}
 
     # 4) 规则模板路径
     # 4a) 用户明确提到了多只具体股票 → 横向对比
@@ -690,7 +777,7 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
             for it in items
         }
         answer = _continuity_prefix() + _format_compare(items, news_map=news_map)
-        return {"answer": answer, "independent": True}
+        return _rule_ret(answer, independent=True)
 
     # 4b) 用户明确提到了单只股票 → 直接独立分析（事件类提问走专项解读）
     if len(resolved) == 1:
@@ -700,7 +787,7 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
             answer = _continuity_prefix() + _format_events(resolved[0]["name"], news, independent)
         else:
             answer = _continuity_prefix() + _format_analysis(resolved[0]["name"], independent, news=news)
-        return {"answer": answer, "independent": True}
+        return _rule_ret(answer, independent=True)
 
     # 4c) 追问型问题（没有新股票）但历史里提到过股票 → 延续分析该股票
     if history_stock:
@@ -710,7 +797,7 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
             f"> 💬 你此前问过「{history_stock['name']}」，针对「{question}」继续分析：\n\n"
             + _format_analysis(history_stock["name"], independent, news=news)
         )
-        return {"answer": answer, "independent": True}
+        return _rule_ret(answer, independent=True)
 
     # 4c-2) 金融知识库 RAG 检索（T-268/271）：无标的的概念/指标/口径/机制/策略类
     # 提问，优先于页面上下文——compose 为多条目合成（跨类复合问题一次答全）。
@@ -718,14 +805,14 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
     if not resolved and not history_stock:
         kb_answer = knowledge_base.compose(question)
         if kb_answer:
-            return {"answer": kb_answer, "independent": True}
+            return _rule_ret(kb_answer, independent=True)
         # T-271 多 Agent 专家分工：知识库未命中时按问题性质分派专家
         # （技术面/事件/风控/仓位/对比分析师——给专家视角的结构化分析框架，
         # 不编造数据；个股诊断仍由上方数据链路承担）
         sp = ai_specialists.dispatch(question)
         if sp:
-            return {"answer": sp["answer"], "independent": True,
-                    "specialist": sp["specialist_id"]}
+            return _rule_ret(sp["answer"], independent=True,
+                             specialist=sp["specialist_id"])
 
     # 4d) 没有解析到股票，才使用当前页面上下文
     parts = []
@@ -753,10 +840,7 @@ def ai_answer(question: str, context: Optional[Dict[str, Any]] = None) -> Dict[s
 
     if parts:
         answer = _continuity_prefix() + "\n\n".join(parts)
-        return {"answer": answer, "independent": False}
+        return _rule_ret(answer, independent=False)
 
     # 4e) 什么都没有：简短直接引导
-    return {
-        "answer": _fallback_general_answer(question),
-        "independent": True,
-    }
+    return _rule_ret(_fallback_general_answer(question), independent=True)

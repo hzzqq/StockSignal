@@ -832,3 +832,62 @@ def test_t138_page53_deep_mode_submits_history():
     assert '!= WELCOME.get("content")' in src
     # ai_consult 既有 history 构建不得被移除（additive-only）
     assert 'ctx["history"]' in src
+
+
+# ---------------------------------------------------------------------------
+# T-308 深度研报扩大：合成 prompt 研报结构 + 预算上调（mutation 目标）
+# ---------------------------------------------------------------------------
+class _CapSynthOkLLM:
+    """捕获型 fake：记录合成调用 prompt 与预算，恒返回成功文本。"""
+    calls = []
+
+    @staticmethod
+    def is_configured():
+        return True
+
+    @staticmethod
+    def chat_completion_json(messages, **kw):
+        return None
+
+    @staticmethod
+    def chat_completion(messages, **kw):
+        _CapSynthOkLLM.calls.append({"prompt": messages[0]["content"], **kw})
+        return "OK 合成回答"
+
+
+def test_t308_synth_report_structure_and_budget():
+    _CapSynthOkLLM.calls = []
+    r = ra.run_research("测试", tools=FAKE_TOOLS,
+                        planner=lambda q, avail: _plan("always_ok"),
+                        use_llm=_CapSynthOkLLM)
+    assert r["answer"] == "OK 合成回答"
+    assert _CapSynthOkLLM.calls, "LLM 合成未被调用"
+    call = _CapSynthOkLLM.calls[0]
+    assert call["max_tokens"] == 2000  # mutation：还原 900 → 红（研报扩大核心保障）
+    assert call["timeout"] == 75
+    # 研报结构要求必须写入合成 prompt（[S#] 溯源红线之外的结构化扩容）
+    assert "执行摘要" in call["prompt"]
+    assert "风险清单" in call["prompt"]
+    assert "禁止编造" in call["prompt"]
+
+
+def test_t308_synth_style_quick_no_report_structure():
+    _CapSynthOkLLM.calls = []
+    ra.run_research("测试", tools=FAKE_TOOLS,
+                    planner=lambda q, avail: _plan("always_ok"),
+                    use_llm=_CapSynthOkLLM, style="quick")
+    assert _CapSynthOkLLM.calls
+    call = _CapSynthOkLLM.calls[0]
+    # 非 report style → 简洁结构（不带研报章节要求），预算不变（仍然扩大）
+    assert "执行摘要" not in call["prompt"]
+    assert call["max_tokens"] == 2000
+
+
+def test_t308_worker_research_default_style_report(monkeypatch):
+    import backend.tasks.worker as w
+    import modules.research_agent as ra_mod
+
+    seen = {}
+    monkeypatch.setattr(ra_mod, "run_research", _fake_run_research_capture(seen))
+    w._handle_ai_research({"question": "q", "__task_id__": "tid"})
+    assert seen.get("style") == "report"  # 缺省研报结构（mutation：删透传 → 红）

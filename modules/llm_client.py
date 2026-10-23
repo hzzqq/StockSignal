@@ -142,11 +142,11 @@ def chat_completion(
     base_url, _model, api_key = config()
     extra_headers = _extra_headers(base_url)
 
-    # 单模型尝试：默认 30s，避免整条链挂死；调用方可按场景传入更短超时
-    # 总预算也收紧，免费模型排队严重时快速失败，让调用方 fallback 规则引擎
-    per_timeout = min(timeout, 30)
-    # 整条链总预算：最多 2 个模型 × per_timeout，且不超过 60s，确保用户少等待
-    total_cap = min(per_timeout * 2, 60)
+    # 单模型尝试：钳值 90s（T-308 研报扩大：2000 tokens 输出实测 40~70s，
+    # 旧钳值 30s 会掐断长回答后静默回退规则模板）；调用方传更短超时不受影响
+    per_timeout = min(timeout, 90)
+    # 整条链总预算：最多 2 个模型 × per_timeout，且不超过 150s，确保用户少等待
+    total_cap = min(per_timeout * 2, 150)
     chain = _model_chain()
     last_err = ""
     _start = time.time()

@@ -12,6 +12,15 @@ v3 修正：
 - 对话历史通过后端按用户持久化（GET/POST /api/chat/history），刷新不丢失；
 - 输入框上方提供居中「回到底部」按钮；
 - 修复 WELCOME 未定义错误。
+
+v4（T-308，2026-10-23）：
+- 回应方式选择器（⚡快速问答 / 📋深度研报 / ⚔️多空辩论 / 🎓教学解释），
+  style 随任务下发，ai_engine.STYLE_PRESETS 决定 prompt 结构与 token 预算；
+- 问题分析卡：提交时规则引擎解析的意图（类型/置信度/深度模式计划工具）
+  在等待区先行展示——先分析问题、再给回答，零 LLM 成本；
+- 追问建议 chips：AI 回答后附 2~3 条按意图分类的可点击追问（静态模板）；
+- 顶部模型徽标如实显示当前 LLM（未配置时明示「规则引擎模式」）；
+- 占位文案按任务形态区分；清理过时的「免费模型」表述。
 """
 
 import json
@@ -27,6 +36,8 @@ from modules.background_tasks import submit_task_with_error, poll_task, get_chat
 from modules.widgets import _slim_context
 from modules.widgets import STAR_AI_LOGO
 from modules.page_guard import safe_fragment
+from modules import llm_client
+from modules.research_agent import plan_steps
 from mcp_server.gateway import detect_intent, call_tool
 
 from modules.ui_kit import xc_success_box, xc_warn_box
@@ -57,6 +68,43 @@ WELCOME = {
 }
 
 # 历史持久化键已迁移到后端（按用户维度），不再使用浏览器 localStorage
+
+# ══════════════════════════════════════════════════════
+# T-308 回应方式 / 追问建议（全 additive，零 LLM token 成本）
+# ══════════════════════════════════════════════════════
+# 回应方式选项 → ai_engine.STYLE_PRESETS 的 style 键（radio 显示顺序即此顺序）
+_XC_STYLE_OPTIONS = ["⚡ 快速问答", "📋 深度研报", "⚔️ 多空辩论", "🎓 教学解释"]
+_XC_STYLE_KEY_BY_LABEL = {
+    "⚡ 快速问答": "quick", "📋 深度研报": "report",
+    "⚔️ 多空辩论": "debate", "🎓 教学解释": "teach",
+}
+
+# 追问建议静态模板：按提交时意图分类给 2~3 条可点击追问（点击直接发送）
+_XC_SUGGESTION_TEMPLATES = {
+    "stock": ["这只股票的主要风险在哪？", "当前估值处于什么水平？", "最近有什么重要新闻或公告？"],
+    "compare": ["谁的风险更低？", "从估值角度看谁更值得买？", "两只近期资金流向如何？"],
+    "market": ["当前适合建仓还是观望？", "最近市场有哪些重要事件？", "我的持仓受影响吗？"],
+    "event": ["这些事件对股价影响多大？", "有没有相关的风险提示？"],
+    "general": ["当前市场情绪如何？", "帮我选几只值得关注的股票"],
+}
+
+
+def _xc_suggestion_kind(prompt: str, intent_tool: str) -> str:
+    """按提交问题 / 意图工具归类追问建议模板（纯规则，零成本）。"""
+    if intent_tool in ("stock_news",):
+        return "event"
+    if intent_tool in ("portfolio_query", "get_market_sentiment",
+                       "get_macro_indicators", "get_lhb", "smart_pick"):
+        return "market"
+    if intent_tool:  # 其余命中工具均为个股类（quote/tech/valuation/fund_flow/risk）
+        return "stock"
+    if any(k in prompt for k in ("对比", "谁更", "哪个更", "还是", "vs", "VS")):
+        return "compare"
+    if any(k in prompt for k in ("事件", "新闻", "消息", "公告", "利好", "利空")):
+        return "event"
+    if any(k in prompt for k in ("市场", "大盘", "情绪", "仓位", "建仓", "板块", "持仓")):
+        return "market"
+    return "general"
 
 
 # ══════════════════════════════════════════════════════
@@ -136,6 +184,15 @@ def _theme_css(dark: bool) -> str:
 .xc-divider::before,.xc-divider::after{{content:"";flex:1;height:1px;background:var(--border)}}
 .xc-banner{{font-size:12px;color:var(--txt2);background:rgba(102,126,234,.10);
   border:1px solid rgba(102,126,234,.30);border-radius:10px;padding:8px 12px;margin-bottom:14px}}
+
+/* T-308：模型徽标 / 问题分析卡 / 追问建议标签 */
+.xc-badge{{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;
+  color:var(--acc1);background:rgba(102,126,234,.12);border:1px solid rgba(102,126,234,.35);
+  border-radius:999px;padding:2px 10px;white-space:nowrap}}
+.xc-intent{{font-size:12.5px;color:var(--txt2);background:var(--card2);
+  border:1px dashed var(--border);border-radius:10px;padding:7px 12px;margin:2px 0 10px}}
+.xc-intent b{{color:var(--acc1)}}
+.xc-sug-label{{font-size:12px;color:var(--txt2);margin:10px 0 4px;font-weight:600}}
 
 /* 工具卡片：数据透视，区别于自然语言气泡 */
 .xc-role-tool{{color:#fff;background:linear-gradient(135deg,#0ea5e9,#22d3ee);
@@ -396,6 +453,24 @@ def render_research_card(result: dict) -> None:
                 )
 
 
+def _render_suggestions(m: dict, idx: int) -> None:
+    """T-308 追问建议 chips：AI 回答后的可点击追问（静态模板，零 LLM 成本）。
+
+    点击置 _xc_pending 并 fragment 内重跑，由 fragment_chat 读取并提交——
+    与 WELCOME chips / 教程示例同一机制，不新增任何提交通道。
+    """
+    _sugs = m.get("suggestions") or []
+    if not _sugs:
+        return
+    st.markdown('<div class="xc-sug-label">💬 你可以继续问</div>', unsafe_allow_html=True)
+    _scols = st.columns(min(3, len(_sugs)))
+    for _si, _sq in enumerate(_sugs[:3]):
+        if _scols[_si].button(str(_sq), key=f"xc_sug_{idx}_{_si}", width="stretch",
+                              help="点击直接把该问题发给星辰 AI"):
+            st.session_state["_xc_pending"] = str(_sq)
+            st.rerun(scope="fragment")
+
+
 def render_message(m: dict, idx: int, username: str) -> None:
     if m.get("role") == "user":
         st.markdown(
@@ -412,11 +487,13 @@ def render_message(m: dict, idx: int, username: str) -> None:
     # tool 卡片（MCP 工具返回的结构化数据透视）
     if m.get("role") == "tool":
         render_tool_card(m.get("tool", ""), m.get("payload") or {})
+        _render_suggestions(m, idx)  # T-308：工具数据回答后同样给追问建议
         return
 
     # H1 研究智能体卡片（多步工具调用 + 引用溯源，additive 2026-09-17）
     if m.get("role") == "research":
         render_research_card(m.get("payload") or {})
+        _render_suggestions(m, idx)  # T-308：研究结论后同样给追问建议
         return
 
     # assistant
@@ -438,6 +515,9 @@ def render_message(m: dict, idx: int, username: str) -> None:
     chips = m.get("chips") or []
     if chips and len(st.session_state.get("xc_messages", [])) <= 1:
         _render_chips(chips)
+    else:
+        # T-308：AI 回答后附追问建议（静态模板，suggestions 键由轮询成功分支写入）
+        _render_suggestions(m, idx)
 
 
 # ══════════════════════════════════════════════════════
@@ -719,6 +799,12 @@ st.markdown(_theme_css(dark), unsafe_allow_html=True)
 
 username = (get_user() or {}).get("username", "你")
 
+# T-308 模型可见性：顶部徽标如实显示当前 LLM（诚实语义：未配置 LLM 时明示
+# 「规则引擎模式」，不假装有模型；严禁展示 API key）
+_XC_LLM_READY = llm_client.is_configured()
+_XC_MODEL_NAME = str((llm_client.config() or ("", ""))[1] or "").strip() if _XC_LLM_READY else ""
+_XC_MODEL_HINT = f"当前模型 {_XC_MODEL_NAME}" if _XC_LLM_READY else "未配置 LLM · 规则引擎"
+
 # 尝试从后端拉取历史
 _restore_messages_from_storage()
 
@@ -739,13 +825,18 @@ _save_messages_to_storage(st.session_state.get("xc_messages", []))
 # 注意：同页再次调用 components.html 的脚本不会可靠执行，故 ▼ 由首次注入统一创建。
 
 # ── 标题栏 + 清空 ──
+_XC_BADGE_HTML = (
+    f'<span class="xc-badge">🤖 {esc(_XC_MODEL_NAME)}</span>' if _XC_LLM_READY
+    else '<span class="xc-badge">🤖 规则引擎模式</span>'
+)
 h_left, h_right = st.columns([6, 1])
 with h_left:
     st.markdown(
-        '<div style="display:flex;align-items:center;gap:10px">'
+        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
         f'{STAR_AI_LOGO(26)}'
         '<span style="font-size:22px;font-weight:800;color:var(--txt)">星辰 AI</span>'
         '<span style="font-size:13px;color:var(--txt2)">对话 + 分析一体 · A股分析搭档</span>'
+        f'{_XC_BADGE_HTML}'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -756,6 +847,7 @@ with h_right:
             st.session_state["xc_messages"] = [dict(WELCOME)]
             st.session_state["xc_task_id"] = None
             st.session_state["xc_task_started_at"] = None
+            st.session_state.pop("_xc_last_intent", None)  # T-308：问题分析卡一并清理
             st.session_state.pop(_ck, None)
             st.rerun()
         if st.button("取消", key="xc_clear_cancel", width="stretch"):
@@ -770,6 +862,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ── T-308 回应方式选择器（页面级控件，选择即整页重跑一次；状态存 session_state）──
+# 与折叠区里的「🔬 深度研究模式」正交：回应方式决定回答的组织形态（prompt 结构 +
+# token 预算），深度研究决定走 ai_research 多步工具链；两者可叠加。
+st.radio(
+    "回应方式",
+    options=_XC_STYLE_OPTIONS,
+    key="xc_reply_style",
+    horizontal=True,
+    help="⚡ 快速问答=日常提问；📋 深度研报=完整章节研报（较慢）；"
+         "⚔️ 多空辩论=看多/看空对辩+裁决；🎓 教学解释=新手友好讲解。"
+         "可与「⚙️ 更多功能」中的深度研究模式叠加。",
+)
+
 
 # ── 渲染历史 ──
 @safe_fragment("AI 对话")
@@ -777,17 +882,50 @@ def fragment_chat():
     for idx, m in enumerate(st.session_state["xc_messages"]):
         render_message(m, idx, username)
 
-    # ── 思考中占位（含已等待时长 + 免费模型延迟提示，管理预期、提升感知效率）──
+    # ── 思考中占位（T-308：按任务形态区分文案 + 问题分析卡，管理预期、提升感知效率）──
     if st.session_state.get("xc_task_id"):
         _started = st.session_state.get("xc_task_started_at") or time.time()
         _elapsed = int(time.time() - _started)
         _mm = _elapsed // 60
         _ss = _elapsed % 60
         _elapsed_str = f"{_mm}分{_ss:02d}秒" if _mm else f"{_ss}秒"
+        # 问题分析卡：提交时已由规则引擎解析好的意图（零 LLM 成本），
+        # 先亮出「我们理解你在问什么」，再等回答——分析先行、可核验
+        _intent_info = st.session_state.get("_xc_last_intent") or {}
+        _style_label = str(_intent_info.get("style_label") or "")
+        if _intent_info.get("deep"):
+            _phase = "星辰 AI 正在深度研究…（多步工具调用 · 引用溯源）"
+        elif "深度研报" in _style_label:
+            _phase = "正在生成深度研报…（章节更全、输出较长）"
+        elif "多空辩论" in _style_label:
+            _phase = "正在组织多空辩论…（多方 / 空方 / 裁决）"
+        elif "教学解释" in _style_label:
+            _phase = "正在准备教学讲解…"
+        else:
+            _phase = "星辰 AI 正在分析…"
+        _intent_html = ""
+        if _intent_info:
+            if _intent_info.get("deep"):
+                _plan = [str(t) for t in (_intent_info.get("plan") or []) if t]
+                _type_s = (
+                    "🔬 深度研究 · 计划调用 " + str(len(_plan)) + " 步："
+                    + (" → ".join(_plan) if _plan else "智能体自行规划")
+                )
+            else:
+                _tool = _intent_info.get("tool")
+                _type_s = _TOOL_TITLE.get(_tool, "开放式问答 · 交由 AI 综合研判") if _tool \
+                    else "开放式问答 · 交由 AI 综合研判"
+            _conf = _intent_info.get("confidence")
+            _conf_s = f" · 意图置信度 {_conf:.2f}" if isinstance(_conf, (int, float)) and _conf else ""
+            _intent_html = (
+                f'<div class="xc-intent">🧠 <b>问题分析</b>：{esc(_type_s)}{esc(_conf_s)}'
+                f' · 回应方式 {esc(_style_label or "⚡ 快速问答")}</div>'
+            )
         st.markdown(
+            f'{_intent_html}'
             f'<div class="xc-typing"><span class="dot"></span><span class="dot"></span>'
             f'<span class="dot"></span>'
-            f'<span>星辰 AI 正在分析…（已等待 {_elapsed_str} · 当前使用免费模型，响应较慢属正常，请稍候）</span></div>',
+            f'<span>{esc(_phase)}（已等待 {_elapsed_str} · {esc(_XC_MODEL_HINT)}）</span></div>',
             unsafe_allow_html=True,
         )
 
@@ -827,7 +965,11 @@ def fragment_chat():
         if not _deep and _intent["tool"] and _intent["confidence"] >= 0.85:
             _tool_res = call_tool(_intent["tool"], **_intent["params"])
             st.session_state["xc_messages"].append(
-                {"role": "tool", "tool": _intent["tool"], "payload": _tool_res}
+                {"role": "tool", "tool": _intent["tool"], "payload": _tool_res,
+                 # T-308：工具直达回答也附追问建议（与 AI 气泡同一机制，零成本）
+                 "suggestions": list(_XC_SUGGESTION_TEMPLATES.get(
+                     _xc_suggestion_kind(prompt, str(_intent["tool"])), [])
+                 )}
             )
         # 加法式最近浏览历史：从用户提问中抽取 6 位股票代码，记录最近查看的标的
         # （纯前端 session，不接后端；仅追加到 session_state，fragment 内禁裸 rerun）
@@ -855,16 +997,34 @@ def fragment_chat():
         ][-6:]
         # 加法式加载态反馈：提交后台 AI 任务属网络请求，用 spinner 提示等待
         with st.spinner("加载中…"):
+            _style_key = _XC_STYLE_KEY_BY_LABEL.get(
+                str(st.session_state.get("xc_reply_style") or _XC_STYLE_OPTIONS[0]), "quick"
+            )
             _task_type = "ai_research" if _deep else "ai_consult"
             _task_payload = (
-                {"question": prompt, "max_steps": 6, "history": _deep_history} if _deep
-                else {"question": prompt, "context": ctx}
+                {"question": prompt, "max_steps": 8, "history": _deep_history,
+                 "style": _style_key} if _deep
+                else {"question": prompt, "context": ctx, "style": _style_key}
             )
             task_id, err = submit_task_with_error(_task_type, _task_payload)
         if task_id:
             st.session_state["xc_task_id"] = task_id
             st.session_state["xc_task_started_at"] = time.time()
             st.session_state["xc_task_is_research"] = _deep
+            # T-308 问题分析卡：记录提交时的意图解析（占位区渲染、任务终态清除）；
+            # 深度模式叠加确定性规划器的工具计划（plan_steps 纯规则，零 LLM 成本）
+            _plan_tools = (
+                [str(p.get("tool") or "") for p in plan_steps(prompt, _deep_history)]
+                if _deep else []
+            )
+            st.session_state["_xc_last_intent"] = {
+                "tool": _intent.get("tool"),
+                "confidence": _intent.get("confidence"),
+                "plan": _plan_tools,
+                "deep": _deep,
+                "style_label": str(st.session_state.get("xc_reply_style") or _XC_STYLE_OPTIONS[0]),
+                "sug_key": _xc_suggestion_kind(prompt, str(_intent.get("tool") or "")),
+            }
             # 加法式操作成功反馈：已成功提交分析任务
             st.toast("✅ 已发送，星辰 AI 正在分析…")
             st.rerun(scope="fragment")
@@ -903,24 +1063,32 @@ def _poll_ai_task():
     except Exception as _e:
         st.session_state["xc_task_id"] = None
         st.session_state["xc_task_started_at"] = None
+        st.session_state.pop("_xc_last_intent", None)  # T-308：问题分析卡一并清理
         xc_warn_box(f"⚠️ 与后端通信异常，已取消本次分析：{_e}")
         st.rerun(scope="app")
         return
     if task and task.get("status") == "success":
         result = task.get("result") or {}
+        # T-308：取走提交时的意图解析（问题分析卡消费完毕即清除）
+        _intent_info = st.session_state.pop("_xc_last_intent", None) or {}
         # H1：研究智能体结果带步骤/引用 → 渲染为 research 卡片；否则走普通回答
         if st.session_state.pop("xc_task_is_research", None) and \
                 isinstance(result, dict) and result.get("steps"):
-            st.session_state["xc_messages"].append({"role": "research", "payload": result})
+            _msg = {"role": "research", "payload": result}
         else:
-            st.session_state.pop("xc_task_is_research", None)
             answer = result.get("answer") or "AI 暂未给出回答"
-            st.session_state["xc_messages"].append({"role": "assistant", "content": answer})
+            _msg = {"role": "assistant", "content": answer}
+        # T-308 追问建议：按提交时意图分类给 2~3 条可点击追问（静态模板，零成本）
+        _sug = _XC_SUGGESTION_TEMPLATES.get(str(_intent_info.get("sug_key") or "general"))
+        if _sug:
+            _msg["suggestions"] = list(_sug)
+        st.session_state["xc_messages"].append(_msg)
         st.session_state["xc_task_id"] = None
         st.session_state["xc_task_started_at"] = None
         st.rerun(scope="app")
     elif task and task.get("status") == "error":
         st.session_state.pop("xc_task_is_research", None)
+        st.session_state.pop("_xc_last_intent", None)  # T-308：问题分析卡一并清理
         st.session_state["xc_messages"].append(
             {"role": "assistant", "content": f"❌ AI 分析失败：{task.get('error') or '未知错误'}"}
         )
@@ -931,6 +1099,7 @@ def _poll_ai_task():
         started = st.session_state.get("xc_task_started_at") or time.time()
         if time.time() - started > 240:
             st.session_state.pop("xc_task_is_research", None)
+            st.session_state.pop("_xc_last_intent", None)  # T-308：问题分析卡一并清理
             st.session_state["xc_messages"].append(
                 {"role": "assistant", "content": "❌ AI 响应超时，请重新提问。"}
             )
@@ -1076,7 +1245,8 @@ with st.expander("⚙️ 更多功能与帮助（深度研究 · 研究记录 ·
         "- **Enter**：发送当前输入框内容；**Shift + Enter**：输入框内换行；\n"
         "- **R**：刷新页面重新加载对话（浏览器快捷键）。\n\n"
         "**常见问题**\n"
-        "- Q：回答需要多久？A：当前使用免费模型，首次响应可能较慢，请耐心等待。\n"
+        "- Q：回答需要多久？A：由大模型生成（当前模型见顶部徽标），快速问答约数秒，"
+        "深度研报 / 深度研究因输出更长、工具调用更多会慢一些，请耐心等待。\n"
         "- Q：数据从哪来？A：聚合东方财富 / 新浪财经等公开市场数据。\n"
         "- Q：回答可靠吗？A：均为模型推演，不构成投资建议，请独立判断。"
     )
