@@ -178,6 +178,17 @@ def _theme_css(dark: bool) -> str:
 .xc-bubble a{{color:var(--acc1)}}
 .xc-bubble b{{color:var(--txt)}}
 
+/* T-312：回答内 markdown 表格 / 行内代码 / [S#] 引用徽标 */
+.xc-bubble table.xc-tbl{{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}}
+.xc-bubble .xc-tbl th,.xc-bubble .xc-tbl td{{text-align:left;padding:5px 9px;
+  border-bottom:1px solid var(--border);color:var(--txt);vertical-align:top}}
+.xc-bubble .xc-tbl th{{color:var(--acc1);font-weight:650;background:rgba(102,126,234,.08)}}
+.xc-bubble code.xc-code{{background:rgba(102,126,234,.14);color:var(--txt);
+  padding:1px 6px;border-radius:5px;font-size:12.5px;font-family:ui-monospace,Consolas,monospace}}
+.xc-cite{{display:inline-block;font-size:10.5px;font-weight:700;color:var(--acc1);
+  background:rgba(102,126,234,.14);border:1px solid rgba(102,126,234,.4);border-radius:999px;
+  padding:0 7px;margin:0 2px;vertical-align:1px;cursor:help;white-space:nowrap}}
+
 /* 用户消息：头像在右侧，气泡靠右 */
 .xc-user{{justify-content:flex-end}}
 .xc-user .xc-col{{display:flex;flex-direction:column;align-items:flex-end}}
@@ -328,15 +339,31 @@ esc = lambda s: html.escape(str(s), quote=False)
 # ══════════════════════════════════════════════════════
 # markdown → HTML
 # ══════════════════════════════════════════════════════
-def _inline(t: str) -> str:
+def _inline(t: str, cite_badges: bool = False) -> str:
+    """行内 markdown → HTML。cite_badges=True 时把 [S#] 引用渲染为徽标（T-312，仅研究卡开启）。"""
     t = html.escape(t, quote=False)
+    # T-312：行内代码先摘出占位保护，避免后续粗/斜体正则吃到代码内容
+    _spans: list = []
+
+    def _stash(m: "re.Match") -> str:
+        _spans.append("<code class='xc-code'>" + m.group(1) + "</code>")
+        return f"\x00{len(_spans) - 1}\x00"
+
+    t = re.sub(r"`([^`]+)`", _stash, t)
     t = re.sub(r"\[(.*?)\]\((.*?)\)", r'<a href="\2" target="_blank" rel="noopener">\1</a>', t)
     t = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t)
     t = re.sub(r"\*(.+?)\*", r"<i>\1</i>", t)
+    if cite_badges:
+        t = re.sub(
+            r"\[S(\d+)\]",
+            r'<span class="xc-cite" title="研究步骤 S\1 · 详见下方引用溯源">S\1</span>',
+            t,
+        )
+    t = re.sub(r"\x00(\d+)\x00", lambda m: _spans[int(m.group(1))], t)
     return t
 
 
-def _md_to_html(md: str) -> str:
+def _md_to_html(md: str, cite_badges: bool = False) -> str:
     lines = (md or "").split("\n")
     out = []
     list_type = [None]
@@ -369,7 +396,7 @@ def _md_to_html(md: str) -> str:
                 close_list()
                 out.append("<ol>")
                 list_type[0] = "ol"
-            out.append("<li>" + _inline(m.group(2)) + "</li>")
+            out.append("<li>" + _inline(m.group(2), cite_badges) + "</li>")
             i += 1
             continue
         if s.startswith("- ") or s.startswith("* "):
@@ -377,21 +404,47 @@ def _md_to_html(md: str) -> str:
                 close_list()
                 out.append("<ul>")
                 list_type[0] = "ul"
-            out.append("<li>" + _inline(s[2:]) + "</li>")
+            out.append("<li>" + _inline(s[2:], cite_badges) + "</li>")
             i += 1
             continue
         if s.startswith(">"):
             close_list()
-            out.append("<blockquote class='xc-quote'>" + _inline(s[1:].strip()) + "</blockquote>")
+            out.append("<blockquote class='xc-quote'>" + _inline(s[1:].strip(), cite_badges) + "</blockquote>")
             i += 1
+            continue
+        if s.startswith("|") and "|" in s[1:]:
+            # T-312：markdown 表格渲染（表头/分隔行/数据行），LLM 研报常见表格不再裸文本
+            close_list()
+            tbl_rows = []
+            while i < len(lines):
+                _r = lines[i].strip()
+                if not (_r.startswith("|") and "|" in _r[1:]):
+                    break
+                tbl_rows.append([c.strip() for c in _r.strip("|").split("|")])
+                i += 1
+
+            def _is_sep(cells: list) -> bool:
+                # 分隔行 |---|:---:| 整行都是连字符占位，渲染时丢弃
+                return bool(cells) and all(re.match(r"^:?-{2,}:?$", c) for c in cells)
+
+            tbl_rows = [r for r in tbl_rows if not _is_sep(r)]
+            if tbl_rows:
+                head, body = tbl_rows[0], tbl_rows[1:]
+                thead = ("<thead><tr>"
+                         + "".join(f"<th>{_inline(c, cite_badges)}</th>" for c in head)
+                         + "</tr></thead>") if head else ""
+                trs = "".join(
+                    "<tr>" + "".join(f"<td>{_inline(c, cite_badges)}</td>" for c in r) + "</tr>"
+                    for r in body)
+                out.append(f"<table class='xc-tbl'>{thead}<tbody>{trs}</tbody></table>")
             continue
         if re.match(r"^【.+】$", s):
             close_list()
-            out.append("<div class='xc-h'>" + _inline(s) + "</div>")
+            out.append("<div class='xc-h'>" + _inline(s, cite_badges) + "</div>")
             i += 1
             continue
         close_list()
-        out.append("<p>" + _inline(s) + "</p>")
+        out.append("<p>" + _inline(s, cite_badges) + "</p>")
         i += 1
     close_list()
     return "\n".join(out)
@@ -414,8 +467,13 @@ _RESEARCH_STEP_ICON = {"ok": "✅", "error": "❌", "rejected": "🚫"}
 _RESEARCH_STATUS_ICON = {"ok": "✅", "partial": "🟡", "unavailable": "⛔"}
 
 
-def render_research_card(result: dict) -> None:
-    """渲染研究智能体结果：回答气泡（assistant 风格）+ 可展开的研究过程 + 引用。"""
+def render_research_card(result: dict, idx: int = 0) -> None:
+    """渲染研究智能体结果：回答气泡（assistant 风格）+ 可展开的研究过程 + 引用。
+
+    T-312：回答内 [S#] 渲染为徽标（cite_badges=True）；引用溯源从静态列表
+    升级为 st.popover 点击展开明细（数据时点 + 对应步骤说明）。
+    idx 用于 popover key 去重（同一页可能渲染多张研究卡）。
+    """
     status = str(result.get("status", "unknown"))
     st_icon = _RESEARCH_STATUS_ICON.get(status, "⚙️")
     answer = str(result.get("answer") or "（研究未产出回答）")
@@ -424,7 +482,7 @@ def render_research_card(result: dict) -> None:
         '<div class="xc-col"><div class="xc-who">'
         '<span class="xc-name">星辰研究</span><span class="xc-role">研究智能体</span>'
         '</div>'
-        f'<div class="xc-bubble">{_md_to_html(answer)}</div>'
+        f'<div class="xc-bubble">{_md_to_html(answer, cite_badges=True)}</div>'
         '</div></div>',
         unsafe_allow_html=True,
     )
@@ -452,14 +510,24 @@ def render_research_card(result: dict) -> None:
             if limitations:
                 st.warning("；".join(str(x) for x in limitations[:6]))
     if citations:
-        with st.expander(f"📎 引用溯源（{len(citations)} 项）", expanded=False):
-            for c in citations:
+        # T-312：点击展开明细——数据时点必显，步骤说明从研究过程按 S# 关联补全
+        _step_map = {str(s.get("idx")): s for s in steps if isinstance(s, dict)}
+        _ncol = min(4, len(citations))
+        with st.expander(f"📎 引用溯源（{len(citations)} 项 · 点编号看明细）", expanded=False):
+            _ccols = st.columns(_ncol)
+            for _ci, c in enumerate(citations):
                 if not isinstance(c, dict):
                     continue
-                st.markdown(
-                    f"- [S{esc(str(c.get('step', '?')))}] `{esc(str(c.get('tool', '?')))}` "
-                    f"— 数据时点 {esc(str(c.get('as_of') or '未知'))}"
+                _sno = str(c.get("step", "?"))
+                _sp = _ccols[_ci % _ncol].popover(
+                    f"S{_sno} · {esc(str(c.get('tool', '?')))}",
+                    key=f"xc_cite_{idx}_{_ci}",
+                    help="点击展开该引用的数据时点与步骤说明",
                 )
+                _sp.markdown(f"**数据时点**：{esc(str(c.get('as_of') or '未知'))}")
+                _step = _step_map.get(_sno)
+                if _step and _step.get("reason"):
+                    _sp.markdown(f"**该步说明**：{esc(str(_step['reason']))}")
 
 
 def _render_suggestions(m: dict, idx: int) -> None:
@@ -552,7 +620,7 @@ def render_message(m: dict, idx: int, username: str) -> None:
 
     # H1 研究智能体卡片（多步工具调用 + 引用溯源，additive 2026-09-17）
     if m.get("role") == "research":
-        render_research_card(m.get("payload") or {})
+        render_research_card(m.get("payload") or {}, idx=idx)
         _render_suggestions(m, idx)  # T-308：研究结论后同样给追问建议
         return
 
@@ -586,6 +654,15 @@ def render_message(m: dict, idx: int, username: str) -> None:
                           type="primary" if _fb == "down" else "secondary") and _fb != "down":
             m["feedback"] = "down"
             _persist_feedback()
+    # T-312：任务级失败一键重试——后端任务 error/超时终态的消息附带的原始提问，
+    # 复用 _xc_pending 提交通道（与 _xc_failed_prompt / 追问 chips 同一机制，无新通道）
+    _retry_q = str(m.get("retry_prompt") or "")
+    if _retry_q:
+        if st.button("🔄 重试本次提问", key=f"xc_retry_msg_{idx}", width="content",
+                     disabled=bool(st.session_state.get("xc_task_id")),
+                     help="重新提交这条提问"):
+            st.session_state["_xc_pending"] = _retry_q
+            st.rerun(scope="fragment")
     # 快捷追问 chips（仅欢迎语且尚无用户发言时展示）
     chips = m.get("chips") or []
     if chips and len(st.session_state.get("xc_messages", [])) <= 1:
@@ -1308,8 +1385,17 @@ def _poll_ai_task():
     elif task and task.get("status") == "error":
         st.session_state.pop("xc_task_is_research", None)
         st.session_state.pop("_xc_last_intent", None)  # T-308：问题分析卡一并清理
+        # T-312：任务级失败一键重试——回溯最近一条用户提问挂到错误消息上，
+        # 前端渲染「重试本次提问」按钮；找不到（理论不发生）则诚实不附带
+        _retry_q = next(
+            (str(mm.get("content") or "") for mm in reversed(st.session_state["xc_messages"])
+             if isinstance(mm, dict) and mm.get("role") == "user"
+             and str(mm.get("content") or "").strip()),
+            "",
+        )
         st.session_state["xc_messages"].append(
-            {"role": "assistant", "content": f"❌ AI 分析失败：{task.get('error') or '未知错误'}"}
+            {"role": "assistant", "content": f"❌ AI 分析失败：{task.get('error') or '未知错误'}",
+             **({"retry_prompt": _retry_q} if _retry_q else {})}
         )
         st.session_state["xc_task_id"] = None
         st.session_state["xc_task_started_at"] = None
@@ -1319,8 +1405,15 @@ def _poll_ai_task():
         if time.time() - started > 240:
             st.session_state.pop("xc_task_is_research", None)
             st.session_state.pop("_xc_last_intent", None)  # T-308：问题分析卡一并清理
+            _retry_q = next(
+                (str(mm.get("content") or "") for mm in reversed(st.session_state["xc_messages"])
+                 if isinstance(mm, dict) and mm.get("role") == "user"
+                 and str(mm.get("content") or "").strip()),
+                "",
+            )
             st.session_state["xc_messages"].append(
-                {"role": "assistant", "content": "❌ AI 响应超时，请重新提问。"}
+                {"role": "assistant", "content": "❌ AI 响应超时，请重新提问。",
+                 **({"retry_prompt": _retry_q} if _retry_q else {})}
             )
             st.session_state["xc_task_id"] = None
             st.session_state["xc_task_started_at"] = None
