@@ -251,6 +251,27 @@ class ChatHistory(db.Model):
     updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
 
+# ------------------------------------------------------------------ ChatConversation（星辰 AI 多会话，T-311）
+class ChatConversation(db.Model):
+    """星辰 AI 多会话（按用户维度，一用户多会话）。
+
+    与 ChatHistory（旧单记录）并存：
+    - 新读写走本表（/api/chat/conversations*），一用户多行；
+    - 旧端点 /api/chat/history 保留原语义，供旧前端 / 降级模式向后兼容；
+    - 旧单记录历史由 migrate_add_chat_conversations（或前端首次访问自愈导入）
+      一次性导入本表「历史对话」，旧记录此后保留不动、只读兼容。
+    """
+    __tablename__ = "chat_conversations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=False, index=True
+    )
+    title = db.Column(db.String(120), nullable=False, default="新对话")
+    messages = db.Column(db.Text, nullable=False, default="[]")  # JSON 数组
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+
 # ------------------------------------------------------------------ ForumPost（股吧帖子）
 class ForumPost(db.Model):
     """股吧帖子 / 文章：用户可发表言论和文章，其他用户可查看、评论。

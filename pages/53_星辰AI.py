@@ -37,7 +37,11 @@ import streamlit as st
 from modules.ui_theme import apply_page_config, _theme_is_dark
 from modules.session import require_auth, get_user, render_user_badge
 from modules.starfield_theme import inject_plotly_dark
-from modules.background_tasks import submit_task_with_error, poll_task, get_chat_history, save_chat_history
+from modules.background_tasks import (
+    submit_task_with_error, poll_task, get_chat_history, save_chat_history,
+    list_chat_conversations, create_chat_conversation, get_chat_conversation_messages,
+    save_chat_conversation_messages, delete_chat_conversation,
+)
 from modules.widgets import _slim_context
 from modules.widgets import STAR_AI_LOGO
 from modules.page_guard import safe_fragment
@@ -819,33 +823,52 @@ def render_ai_tutorial():
 # 持久化：后端对话历史（按用户维度）↔ session_state
 # ══════════════════════════════════════════════════════
 def _restore_messages_from_storage():
-    """若 session_state 还没有消息，从后端拉取当前用户的对话历史并恢复。
+    """若 session_state 还没有消息，从后端拉取当前用户的对话历史并恢复（T-311 多会话）。
 
-    对话历史持久化已改为后端存储，不再依赖浏览器 localStorage：
-    components.html 运行在 srcdoc sandbox iframe 中（origin 为 null），
-    既无法回读父窗口 localStorage，组件返回值路径在本 Streamlit 构建下也死掉
-    （components.html 返回 DeltaGenerator 而非组件值，且不支持 key= 参数）。
-    故每次会话首次加载时向后端 GET /api/chat/history 拉取，由 Python 写入
-    session_state。刷新后再次进入本页即重新拉取，实现「刷新不丢失」。
+    持久化必须走后端（localStorage 在 srcdoc sandbox iframe 中不可用，见
+    chat_routes.py 说明）。T-311 起优先 GET /api/chat/conversations 取会话列表：
+    - 有会话 → 载入最近更新的会话，xc_conv_id 记录当前会话；
+    - 无会话 → 读旧单记录 /api/chat/history 兼容展示；若旧记录有真实内容，
+      自愈式一次性导入为「历史对话」会话（与 migrate_add_chat_conversations
+      双保险，旧记录保留不动、只读兼容）；
+    - 后端无会话端点（旧版后端 404）→ xc_legacy_mode=True，整页回退单记录模式。
     """
     if "xc_messages" in st.session_state:
+        return
+    convs, _available = list_chat_conversations()
+    if not _available:
+        st.session_state["xc_legacy_mode"] = True  # 旧后端无会话端点 → 单记录模式
+    if _available and convs:
+        top = convs[0]  # 后端已按 updated_at 倒序返回
+        msgs = get_chat_conversation_messages(top.get("id"))
+        valid = [m for m in msgs if isinstance(m, dict) and m.get("role") in ("user", "assistant")]
+        st.session_state["xc_messages"] = valid if valid else [dict(WELCOME)]
+        st.session_state["xc_conv_id"] = top.get("id")
+        st.session_state["xc_conv_title"] = str(top.get("title") or "新对话")
         return
     try:
         msgs = get_chat_history()
     except Exception:
         msgs = []
-    if msgs:
-        # 深层守卫：后端历史偶发含结构损坏条目（非 dict / 缺 role），
-        # render_message 中 m.get 会抛 AttributeError；只保留合法会话条目
-        valid = [m for m in msgs if isinstance(m, dict) and m.get("role") in ("user", "assistant")]
-        st.session_state["xc_messages"] = valid if valid else [dict(WELCOME)]
+    # 深层守卫：后端历史偶发含结构损坏条目（非 dict / 缺 role），
+    # render_message 中 m.get 会抛 AttributeError；只保留合法会话条目
+    valid = [m for m in msgs if isinstance(m, dict) and m.get("role") in ("user", "assistant")]
+    if _available and valid:
+        # 自愈式一次性迁移：会话端点可用但尚无任何会话 → 旧历史导入为「历史对话」
+        conv = create_chat_conversation("历史对话")
+        if conv and conv.get("id"):
+            save_chat_conversation_messages(conv["id"], valid)
+            st.session_state["xc_conv_id"] = conv["id"]
+            st.session_state["xc_conv_title"] = "历史对话"
+    st.session_state["xc_messages"] = valid if valid else [dict(WELCOME)]
 
 
 def _save_messages_to_storage(messages: list):
-    """将当前消息保存到后端（按用户维度）。
+    """将当前消息保存到后端（T-311：有会话 ID → 会话端点；无 → 懒建；旧后端 → 单记录）。
 
     带签名去重：仅当消息内容相对上次保存发生变化时才打网络请求，
-    避免每次 rerun（含 AI 等待期的 5s 自动刷新）都重复 POST。
+    避免每次 rerun（含 AI 等待期的轮询片段）都重复 POST。
+    诚实语义：保存失败不记签名（下次 rerun 重试）+ toast 明示，绝不假装已保存。
     """
     try:
         sig = (len(messages), hash(json.dumps(messages, ensure_ascii=False)[:4000]))
@@ -853,8 +876,55 @@ def _save_messages_to_storage(messages: list):
         sig = (len(messages), 0)
     if st.session_state.get("xc_messages_sig") == sig:
         return
-    st.session_state["xc_messages_sig"] = sig
-    save_chat_history(messages)
+    # T-311 旧后端兼容：无会话端点时保持旧单记录行为不变（回退模式）
+    if st.session_state.get("xc_legacy_mode"):
+        st.session_state["xc_messages_sig"] = sig
+        save_chat_history(messages)
+        return
+    cid = st.session_state.get("xc_conv_id")
+    if cid:
+        if save_chat_conversation_messages(cid, messages):
+            st.session_state["xc_messages_sig"] = sig
+        else:
+            st.toast("⚠️ 对话保存失败，请检查后台服务", icon="⚠️")
+        return
+    # 尚无会话：仅当存在真实内容（非欢迎语 chips）时才懒建会话，
+    # 避免仅浏览页面就制造空会话（与导出禁用同一「真实内容」口径）
+    real = [m for m in messages if isinstance(m, dict) and not m.get("chips")]
+    if not real:
+        return
+    first_user = next(
+        (str(m.get("content", "")).strip() for m in real if m.get("role") == "user"), ""
+    )
+    conv = create_chat_conversation(first_user[:24] or "新对话")
+    if conv and conv.get("id"):
+        st.session_state["xc_conv_id"] = conv["id"]
+        st.session_state["xc_conv_title"] = str(conv.get("title") or first_user[:24] or "新对话")
+        if save_chat_conversation_messages(conv["id"], messages):
+            st.session_state["xc_messages_sig"] = sig
+        else:
+            st.toast("⚠️ 对话保存失败，请检查后台服务", icon="⚠️")
+    else:
+        st.toast("⚠️ 新会话创建失败，本次回答可能不会被保存", icon="⚠️")
+
+
+def _load_conversation_into_state(conv: dict) -> None:
+    """把指定会话载入页面状态（T-311：切换 / 删除后跳转共用），并同步签名防误回写。"""
+    msgs = get_chat_conversation_messages(conv.get("id"))
+    valid = [m for m in msgs if isinstance(m, dict) and m.get("role") in ("user", "assistant")]
+    st.session_state["xc_messages"] = valid if valid else [dict(WELCOME)]
+    st.session_state["xc_conv_id"] = conv.get("id")
+    st.session_state["xc_conv_title"] = str(conv.get("title") or "新对话")
+    st.session_state["xc_task_id"] = None
+    st.session_state["xc_task_started_at"] = None
+    st.session_state.pop("_xc_last_intent", None)
+    st.session_state.pop("_xc_failed_prompt", None)
+    try:
+        _lm = st.session_state["xc_messages"]
+        st.session_state["xc_messages_sig"] = (
+            len(_lm), hash(json.dumps(_lm, ensure_ascii=False)[:4000]))
+    except Exception:
+        st.session_state.pop("xc_messages_sig", None)
 
 
 # ══════════════════════════════════════════════════════
@@ -957,6 +1027,71 @@ st.radio(
          "可与「⚙️ 更多功能」中的深度研究模式叠加。",
 )
 
+
+# ── T-311 多会话管理（additive；任务进行中禁切换/新建/删除，防结果串会话）──
+if not st.session_state.get("xc_legacy_mode"):
+    with st.expander("🗂️ 会话管理", expanded=False):
+        _busy = bool(st.session_state.get("xc_task_id"))
+        _busy_help = "任务进行中，请等待当前回答完成" if _busy else None
+        st.caption(f"当前会话：{st.session_state.get('xc_conv_title') or '新对话'}")
+        _sc1, _sc2 = st.columns(2)
+        with _sc1:
+            if st.button("➕ 新建对话", key="xc_conv_new", width="stretch",
+                         disabled=_busy,
+                         help=_busy_help or "开始一段全新对话（发送首条消息时才真正创建）"):
+                st.session_state["xc_messages"] = [dict(WELCOME)]
+                st.session_state["xc_conv_id"] = None
+                st.session_state["xc_conv_title"] = "新对话"
+                st.session_state["xc_task_id"] = None
+                st.session_state["xc_task_started_at"] = None
+                st.session_state.pop("_xc_last_intent", None)
+                st.session_state.pop("_xc_failed_prompt", None)
+                st.session_state.pop("xc_messages_sig", None)
+                st.rerun()
+        with _sc2:
+            _dk = "xc_conv_del_confirm"
+            if st.session_state.get(_dk):
+                if st.button("确认删除", key="xc_conv_del_cfm", type="primary", width="stretch",
+                             help="删除当前会话及其全部消息"):
+                    _del_cid = st.session_state.get("xc_conv_id")
+                    if _del_cid and delete_chat_conversation(_del_cid):
+                        st.toast("🗑️ 会话已删除")
+                        _convs2, _ok2 = list_chat_conversations()
+                        if _ok2 and _convs2:
+                            _load_conversation_into_state(_convs2[0])
+                        else:
+                            st.session_state["xc_messages"] = [dict(WELCOME)]
+                            st.session_state["xc_conv_id"] = None
+                            st.session_state["xc_conv_title"] = "新对话"
+                            st.session_state["xc_task_id"] = None
+                            st.session_state["xc_task_started_at"] = None
+                            st.session_state.pop("_xc_last_intent", None)
+                            st.session_state.pop("xc_messages_sig", None)
+                    else:
+                        st.toast("⚠️ 会话删除失败（未建会话或后台异常）", icon="⚠️")
+                    st.session_state.pop(_dk, None)
+                    st.rerun()
+                if st.button("取消", key="xc_conv_del_cancel", width="stretch"):
+                    st.session_state.pop(_dk, None)
+            else:
+                if st.button("🗑️ 删除当前会话", key="xc_conv_del", width="stretch",
+                             disabled=_busy or not st.session_state.get("xc_conv_id"),
+                             help=_busy_help or "删除当前会话及其全部消息"):
+                    st.session_state[_dk] = True
+        # 会话列表（后端已按最近更新倒序；排除当前会话，点击即切换）
+        _convs, _convs_ok = list_chat_conversations()
+        _cur_cid = st.session_state.get("xc_conv_id")
+        _others = [c for c in _convs if isinstance(c, dict) and c.get("id") != _cur_cid]
+        if _others:
+            st.caption("点击切换到其他会话：")
+            for _c in _others[:20]:
+                _label = f"📄 {str(_c.get('title') or '新对话')[:20]} · {_c.get('count', 0)}条"
+                if st.button(_label, key=f"xc_conv_go_{_c.get('id')}", width="stretch",
+                             disabled=_busy, help=_busy_help or "切换到此会话"):
+                    _load_conversation_into_state(_c)
+                    st.rerun()
+        else:
+            st.caption("暂无其他历史会话。发送消息后自动保存，可随时新建对话。")
 
 # ── 渲染历史 ──
 @safe_fragment("AI 对话")

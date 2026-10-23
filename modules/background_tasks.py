@@ -191,3 +191,99 @@ def save_chat_history(messages: list) -> bool:
     except Exception as e:
         logger.warning(f"[background_tasks] 处理异常: {e}")
         return False
+
+# =====================================================================
+# 星辰 AI 多会话（T-311：/api/chat/conversations*，按用户多会话存储）
+# =====================================================================
+def list_chat_conversations() -> tuple[list, bool]:
+    """获取当前用户会话列表，返回 (conversations, endpoint_available)。
+
+    endpoint_available=False 仅表示后端无此端点（旧版后端 HTTP 404）→
+    前端应回退旧单记录模式（/api/chat/history），保证向后兼容不丢数据。
+    其余失败（网络/5xx）按「暂无会话但端点可用」返回，由调用方诚实降级。
+    """
+    try:
+        resp = http_get(
+            f"{API_BASE}/api/chat/conversations",
+            headers=_headers(),
+            timeout=_TIMEOUT,
+        )
+        if resp.status_code == 404:
+            return [], False  # 旧后端：端点不存在 → 前端回退单记录模式
+        if resp.status_code == 200:
+            body = resp.json()
+            if body.get("status") == "ok":
+                convs = body.get("data", {}).get("conversations")
+                if isinstance(convs, list):
+                    return convs, True
+    except Exception as e:
+        logger.warning(f"[background_tasks] 处理异常: {e}")
+    return [], True
+
+
+def create_chat_conversation(title: str = "") -> Optional[dict]:
+    """新建会话，返回 {"id","title",...}；失败返回 None。"""
+    try:
+        resp = http_post(
+            f"{API_BASE}/api/chat/conversations",
+            json={"title": str(title or "").strip() or "新对话"},
+            headers=_headers(),
+            timeout=_TIMEOUT,
+        )
+        if resp.status_code == 200:
+            body = resp.json()
+            if body.get("status") == "ok":
+                data = body.get("data")
+                if isinstance(data, dict) and data.get("id"):
+                    return data
+    except Exception as e:
+        logger.warning(f"[background_tasks] 处理异常: {e}")
+    return None
+
+
+def get_chat_conversation_messages(conv_id: int) -> list:
+    """获取指定会话的消息列表；失败/不存在返回空列表。"""
+    try:
+        resp = http_get(
+            f"{API_BASE}/api/chat/conversations/{int(conv_id)}",
+            headers=_headers(),
+            timeout=_TIMEOUT,
+        )
+        if resp.status_code == 200:
+            body = resp.json()
+            if body.get("status") == "ok":
+                msgs = body.get("data", {}).get("messages")
+                if isinstance(msgs, list):
+                    return msgs
+    except Exception as e:
+        logger.warning(f"[background_tasks] 处理异常: {e}")
+    return []
+
+
+def save_chat_conversation_messages(conv_id: int, messages: list) -> bool:
+    """覆盖保存指定会话的消息。成功返回 True，失败返回 False。"""
+    try:
+        resp = http_post(
+            f"{API_BASE}/api/chat/conversations/{int(conv_id)}",
+            json={"messages": messages},
+            headers=_headers(),
+            timeout=_TIMEOUT,
+        )
+        return resp.status_code == 200 and resp.json().get("status") == "ok"
+    except Exception as e:
+        logger.warning(f"[background_tasks] 处理异常: {e}")
+    return False
+
+
+def delete_chat_conversation(conv_id: int) -> bool:
+    """删除指定会话。成功返回 True，失败返回 False。"""
+    try:
+        resp = requests.delete(
+            f"{API_BASE}/api/chat/conversations/{int(conv_id)}",
+            headers=_headers(),
+            timeout=_TIMEOUT,
+        )
+        return resp.status_code == 200 and resp.json().get("status") == "ok"
+    except Exception as e:
+        logger.warning(f"[background_tasks] 处理异常: {e}")
+    return False

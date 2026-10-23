@@ -32,6 +32,7 @@ from backend.scripts.migrate_add_settings import migrate as migrate_settings  # 
 from backend.scripts.migrate_add_alert_type import migrate as migrate_alert_type  # noqa: E402
 from backend.scripts.migrate_add_trading import migrate as migrate_trading  # noqa: E402
 from backend.scripts.migrate_add_research_run import migrate as migrate_research_run  # noqa: E402
+from backend.scripts.migrate_add_chat_conversations import migrate as migrate_chat_conversations  # noqa: E402
 
 
 _DEFAULT_CONFIGS = [
@@ -59,6 +60,8 @@ def main() -> None:
         migrate_trading(app)
         # 自驱研究记录表（H1+ 幂等建表）
         migrate_research_run(app)
+        # 星辰 AI 多会话表（T-311 幂等建表 + 首建时一次性导入旧单记录）
+        migrate_chat_conversations(app)
 
         seeds = [
             {"username": "admin", "password": "Admin@123", "role": "admin"},
