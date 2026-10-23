@@ -476,6 +476,57 @@ def _render_suggestions(m: dict, idx: int) -> None:
             st.rerun(scope="fragment")
 
 
+def _persist_feedback() -> None:
+    """T-310：反馈落库。清签名去重标记后立即保存；失败时诚实提示
+    （签名已清，下次整页运行的常规保存会自动重试，不会丢）。"""
+    st.session_state.pop("xc_messages_sig", None)
+    if not save_chat_history(st.session_state.get("xc_messages", [])):
+        st.toast("反馈暂存本地，将在下次对话时自动重试保存。", icon="⚠️")
+
+
+def _export_markdown(messages: list) -> str:
+    """T-310：把当前对话导出为 Markdown。
+
+    诚实语义：只导出真实消息（不含欢迎语等引导内容）；工具/研究卡片的
+    JSON 载荷超长时截断并显式标注，绝不静默丢内容。
+    """
+    lines = [
+        "# 星辰 AI 对话记录",
+        "",
+        f"- 导出时间：{time.strftime('%Y-%m-%d %H:%M:%S')}",
+        f"- 消息条数：{len(messages)}",
+        "",
+        "---",
+        "",
+    ]
+    for m in messages:
+        role = m.get("role")
+        if role == "user":
+            lines += ["## 🙋 你问", "", str(m.get("content", "")), "", "---", ""]
+        elif role == "assistant":
+            fb = m.get("feedback")
+            mark = {"up": "（👍 用户反馈：有帮助）",
+                    "down": "（👎 用户反馈：没帮助）"}.get(fb, "")
+            lines += [f"## 🌟 星辰 AI {mark}".rstrip(), "",
+                      str(m.get("content", "")), "", "---", ""]
+        elif role == "tool":
+            title = _TOOL_TITLE.get(m.get("tool", ""), m.get("tool", "工具结果"))
+            try:
+                body = json.dumps(m.get("payload") or {}, ensure_ascii=False, default=str)
+            except Exception as e:
+                body = f"（载荷序列化失败：{e}）"
+            if len(body) > 2000:
+                body = body[:2000] + "…（载荷超长已截断，完整数据见应用内卡片）"
+            lines += [f"## 🛠️ 数据透视 · {title}", "", "```json", body, "```", "", "---", ""]
+        elif role == "research":
+            content = str(m.get("content") or "")
+            if not content.strip():
+                content = json.dumps(m.get("payload") or {}, ensure_ascii=False,
+                                     default=str)[:2000] + "…（载荷超长已截断）"
+            lines += ["## 🔬 深度研究", "", content, "", "---", ""]
+    return "\n".join(lines)
+
+
 def render_message(m: dict, idx: int, username: str) -> None:
     if m.get("role") == "user":
         st.markdown(
@@ -516,6 +567,21 @@ def render_message(m: dict, idx: int, username: str) -> None:
         '</div></div>',
         unsafe_allow_html=True,
     )
+    # T-310：满意度反馈（👍/👎）——欢迎语不展示；写入消息字典随历史持久化，
+    # 发给 AI 的上下文只取 role+content（不受影响），纯 additive
+    if not m.get("chips"):
+        _fb = m.get("feedback")
+        _fbc = st.columns([0.5, 0.5, 9], gap="small", vertical_alignment="center")
+        if _fbc[0].button("👍" if _fb != "up" else "👍 已赞", key=f"xc_fb_up_{idx}",
+                          help="这个回答有帮助", width="content",
+                          type="primary" if _fb == "up" else "secondary") and _fb != "up":
+            m["feedback"] = "up"
+            _persist_feedback()
+        if _fbc[1].button("👎" if _fb != "down" else "👎 已反馈", key=f"xc_fb_down_{idx}",
+                          help="这个回答没帮助或有错误", width="content",
+                          type="primary" if _fb == "down" else "secondary") and _fb != "down":
+            m["feedback"] = "down"
+            _persist_feedback()
     # 快捷追问 chips（仅欢迎语且尚无用户发言时展示）
     chips = m.get("chips") or []
     if chips and len(st.session_state.get("xc_messages", [])) <= 1:
@@ -834,7 +900,7 @@ _XC_BADGE_HTML = (
     f'<span class="xc-badge">🤖 {esc(_XC_MODEL_NAME)}</span>' if _XC_LLM_READY
     else '<span class="xc-badge">🤖 规则引擎模式</span>'
 )
-h_left, h_right = st.columns([6, 1])
+h_left, h_mid, h_right = st.columns([6, 0.55, 1])
 with h_left:
     st.markdown(
         '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
@@ -844,6 +910,17 @@ with h_left:
         f'{_XC_BADGE_HTML}'
         '</div>',
         unsafe_allow_html=True,
+    )
+with h_mid:
+    # T-310：对话一键导出 Markdown（空对话禁用 + 诚实提示）
+    _real_msgs = [m for m in st.session_state.get("xc_messages", [])
+                  if isinstance(m, dict) and not m.get("chips")]
+    st.download_button(
+        "⬇️ 导出", data=_export_markdown(_real_msgs).encode("utf-8"),
+        file_name=f"星辰AI对话_{time.strftime('%Y%m%d_%H%M')}.md",
+        mime="text/markdown", key="xc_export", width="stretch",
+        disabled=not _real_msgs,
+        help="导出当前对话为 Markdown" if _real_msgs else "暂无可导出的对话内容",
     )
 with h_right:
     _ck = "xc_clear_confirm"

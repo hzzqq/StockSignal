@@ -568,6 +568,43 @@ def chat_bottom_anchor():
     return '<div id="sf-chat-end" style="height:1px"></div>'
 
 
+def xc_autoscroll_js() -> str:
+    """星辰 AI 对话页「新消息自动滚底」观察器（T-310）。
+
+    经 inject_scroll_nav 的 extra_js 通道并入首次 components.html 单次注入
+    （约束：同页多次 components.html 仅首次脚本可靠执行）。自守卫设计：
+    - 仅当父文档存在 .xc-msg（星辰 AI 对话页）时观察器才实际动作，其他页零行为；
+    - 近底部（<=450px）才平滑滚底：用户上翻阅读历史时不劫持滚动位置；
+    - 每次脚本重装先 disconnect 旧观察器（父文档 __xcMO 句柄），防跨 rerun 叠加。
+    """
+    sels = json.dumps(list(_SCROLL_SELECTORS))
+    return (
+        "(function(){"
+        "var P=window.parent||window;"
+        "try{if(P.__xcMO){P.__xcMO.disconnect();}}catch(e){}"
+        "var s=" + sels + ";var tm=null;"
+        "function scrollEl(){"
+        "for(var i=0;i<s.length;i++){var el=P.document.querySelector(s[i]);"
+        "if(el&&el.scrollHeight>el.clientHeight+4)return el;}"
+        "return null;}"
+        "function nearBottom(el){return el.scrollHeight-el.scrollTop-el.clientHeight<450;}"
+        "function toBottom(){var el=scrollEl();"
+        "if(el&&nearBottom(el)){el.scrollTo({top:el.scrollHeight,behavior:'smooth'});}}"
+        "try{var mo=new MutationObserver(function(ms){"
+        "var hit=false;"
+        "for(var k=0;k<ms.length&&!hit;k++){var ns=ms[k].addedNodes;"
+        "for(var j=0;j<ns.length;j++){var n=ns[j];"
+        "if(n.nodeType===1){"
+        "if((n.classList&&n.classList.contains('xc-msg'))"
+        "||(n.querySelector&&n.querySelector('.xc-msg'))){hit=true;break;}}}}"
+        "if(!hit)return;if(tm)clearTimeout(tm);tm=setTimeout(toBottom,180);});"
+        "mo.observe(P.document.body,{childList:true,subtree:true});"
+        "P.__xcMO=mo;"
+        "}catch(e){}"
+        "})()"
+    )
+
+
 def back_to_top_button(label: str = "↑ 回到顶部", use_container_width: bool = True) -> None:
     """渲染一个【真实可点击】的「回到顶部」按钮（页内位置，非悬浮）。
 
