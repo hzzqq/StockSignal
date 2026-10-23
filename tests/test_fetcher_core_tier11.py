@@ -231,3 +231,39 @@ def test_fetcher_core_defines_t2():
     src = (ROOT / "modules/fetcher_core/__init__.py").read_text(encoding="utf-8")
     for name in MIGRATED_T2:
         assert f"def {name}" in src, f"fetcher_core 缺少 {name} 真身"
+
+# ── Tier2 第二批（T-247 续）：_synth_us_index_intraday ──
+MIGRATED_T2B = ("_synth_us_index_intraday",)
+
+
+def test_t2b_synth_identity_behaviour():
+    """薄壳与真身同参等价 + 曲线语义抽查（端点=真实 open/close、诚实降级）。"""
+    f = StockFetcher.__new__(StockFetcher)  # 免 __init__（不触库）
+    args = (100.0, 105.0, 98.0, 103.5, 101.0)
+    assert f.synth_us_index_intraday(*args) == fetcher_core._synth_us_index_intraday(*args)
+    xs, ys = fetcher_core._synth_us_index_intraday(*args)
+    assert xs == list(range(48)) and len(ys) == 48
+    assert ys[0] == 100.0 and ys[-1] == 103.5  # 端点强制等于真实 open / close
+    # 无效输入：缺值 / 昨收为 0 → (None, None)（诚实降级，不编数）
+    assert f.synth_us_index_intraday(None, 105, 98, 103.5, 101) == (None, None)
+    assert f.synth_us_index_intraday(100, 105, 98, 103.5, 0) == (None, None)
+
+
+def test_fetcher_no_local_defs_of_t2b():
+    tree = ast.parse((ROOT / "modules/fetcher.py").read_text(encoding="utf-8"))
+    fns = [n for n in ast.walk(tree)
+           if isinstance(n, ast.FunctionDef) and n.name == "_synth_us_index_intraday"]
+    assert not fns, "fetcher.py 仍本地定义 _synth_us_index_intraday 真身，应只 import 委托"
+    shells = [n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "synth_us_index_intraday"]
+    assert len(shells) == 1, "synth_us_index_intraday 薄壳缺失或多定义"
+    body_src = ast.get_source_segment(
+        (ROOT / "modules/fetcher.py").read_text(encoding="utf-8"), shells[0]) or ""
+    assert "return _synth_us_index_intraday(open_, high, low, close, prev_close)" in body_src, \
+        "薄壳必须委托 fetcher_core 真身（拆分回潮）"
+
+
+def test_fetcher_core_defines_t2b():
+    src = (ROOT / "modules/fetcher_core/__init__.py").read_text(encoding="utf-8")
+    for name in MIGRATED_T2B:
+        assert f"def {name}" in src, f"fetcher_core 缺少 {name} 真身"

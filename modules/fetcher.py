@@ -70,6 +70,7 @@ from modules.fetcher_core import (  # noqa: F401
     _resolve_cache_db_path,
     _safe_ident,
     _safe_kline_df,
+    _synth_us_index_intraday,
     SAFE_IDENT_RE,
 )
 
@@ -1140,36 +1141,10 @@ class StockFetcher:
     def synth_us_index_intraday(self, open_, high, low, close, prev_close):
         """当美股指数只有 O/H/L/C 快照时，合成一条有真实日内形态的近似分时曲线。
 
-        不做任何数据造假：open/high/low/close/prev_close 均来自实时快照。
-        用一条平滑路径在交易时段内穿过这些关键点（含昨收水平参考），
-        从而得到一条「有起伏、不像直线」的完整当日走势，而非 4 点折线。
-        返回 (spark_x, spark_y) 或 (None, None)。
+        真身迁 modules.fetcher_core._synth_us_index_intraday（T-247 Tier2 第二批），
+        本薄壳仅委托，签名与返回语义零变化。返回 (spark_x, spark_y) 或 (None, None)。
         """
-        try:
-            vals = [open_, high, low, close]
-            if None in vals or prev_close is None or prev_close == 0:
-                return None, None
-            import numpy as np
-            n = 48  # 近似每 5 分钟一个点的全天节奏
-            # 关键路径：开盘 -> 触底 -> 触顶 -> 收盘，平滑过渡
-            # 用自然指数加权混合，使高低点出现在合理位置而非端点
-            x = np.linspace(0, 1, n)
-            # 基准：从 open 到 close 的线性趋势
-            base = open_ + (close - open_) * x
-            # 叠加一个「先下后上」的日内波动轮廓（振幅来自真实 high/low）
-            amp_low = (low - min(open_, prev_close)) / prev_close
-            amp_high = (high - max(open_, prev_close)) / prev_close
-            # 波动包络：高斯波峰在 35% 处（探底），波谷在 65% 处（冲高）
-            wave = (amp_high * np.exp(-((x - 0.65) ** 2) / 0.04)
-                    - amp_low * np.exp(-((x - 0.35) ** 2) / 0.04))
-            curve = base + prev_close * wave
-            # 强制端点精确等于真实 open / close
-            curve[0] = open_
-            curve[-1] = close
-            return list(range(n)), [round(float(v), 3) for v in curve]
-        except Exception as e:
-            logger.warning(f"[fetcher] 处理异常: {e}")
-            return None, None
+        return _synth_us_index_intraday(open_, high, low, close, prev_close)
 
     # ══════════════════════════════════════════════════════
     # 全量股票数据库（永久缓存）
