@@ -22,7 +22,11 @@ textColor = "#E2E8F0"
 font = "sans serif"
 # T-261：全局基础字号 16→17px（数据密集仪表盘的舒适下限，全部 rem 尺寸随动放大；
 # 用户反馈「默认字体有点小」。回滚 = 删除本行。）
-baseFontSize = "17px"
+# T-312 勘测纠偏：必须为整型（Streamlit CustomTheme proto 的 base_font_size 是 int），
+# 写 "17px" 字符串会让每次 NewSession 消息创建抛 TypeError（'str' object cannot be
+# interpreted as an integer），消息（携带 fragment ids）永远发不到前端 → 全站 run_every
+# 轮询片段（星辰AI 等）失联、任务终态永不自动取回。守卫 tests/test_config_theme_types.py
+baseFontSize = 17
 
 [server]
 # 前端端口固定 8899：避开元量软件（QMT/xt_trader 等）常占用的 8000-8300 段，
