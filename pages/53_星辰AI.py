@@ -21,6 +21,11 @@ v4（T-308，2026-10-23）：
 - 追问建议 chips：AI 回答后附 2~3 条按意图分类的可点击追问（静态模板）；
 - 顶部模型徽标如实显示当前 LLM（未配置时明示「规则引擎模式」）；
 - 占位文案按任务形态区分；清理过时的「免费模型」表述。
+
+v5（T-309，2026-10-24）：
+- 修复任务终态不自动取回：本页提交全走 fragment 级 rerun，模块级条件挂载不再执行
+  （轮询片段从未渲染）；且第三方 st_autorefresh 组件在 fragment 内不触发重跑。
+  改为轮询片段常驻挂载 + safe_fragment(run_every=1.5) 服务端定时驱动，终态约 2s 内自动取回。
 """
 
 import json
@@ -1046,12 +1051,14 @@ def fragment_chat():
 
 fragment_chat()
 
-# ── 轮询后台任务（收进 fragment，#402）──
-# 等待期间 st_autorefresh 只让本片段每 1.5s 局部重跑，不再整页全量重跑
-# （否则页面顶部鉴权/历史渲染/上下文构建会被反复执行，造成卡顿）。
-# 任务终态（成功/失败/超时）才用 st.rerun(scope="app") 升级为一次整页重跑，
-# 以在页面级重新渲染聊天消息——这是 fragment 铁律允许的唯一整页重跑时机。
-@safe_fragment("AI 任务轮询")
+# ── 轮询后台任务（常驻 run_every 片段，T-309）──
+# 缺陷根因（T-309）：本页提交全走 fragment 级 rerun（chat_input/按钮均在 fragment 内），
+# 模块级「if xc_task_id: _poll_ai_task()」只在整页运行时执行 → 提交后轮询片段从未挂载，
+# 终态只能等下一次整页交互才取回；且第三方 st_autorefresh 组件在 fragment 内也不触发重跑。
+# 修复：片段常驻挂载 + run_every=1.5 服务端定时重跑（不依赖前端 JS 定时器，后台页签不节流）；
+# 无任务时函数体立即返回，开销可忽略。任务终态（成功/失败/超时）才 st.rerun(scope="app")
+# 升级为一次整页重跑，以在页面级重新渲染聊天消息——fragment 铁律允许的唯一整页重跑时机。
+@safe_fragment("AI 任务轮询", run_every=1.5)
 def _poll_ai_task():
     task_id = st.session_state.get("xc_task_id")
     if not task_id:
@@ -1107,16 +1114,13 @@ def _poll_ai_task():
             st.session_state["xc_task_started_at"] = None
             st.rerun(scope="app")
             return
-        try:
-            from modules.autorefresh import st_autorefresh
-
-            st_autorefresh(interval=1500, limit=300, key="xc_autorefresh")
-        except Exception:
-            pass
+        # 轮询节奏由 run_every=1.5 服务端定时驱动（T-309），无需组件定时器
 
 
-if st.session_state.get("xc_task_id"):
-    _poll_ai_task()
+# T-309：必须无条件常驻挂载——提交发生在 fragment 内、不会触发模块级代码重跑，
+# 条件挂载会导致轮询片段在提交后从未渲染（任务等待饥饿的根因）；
+# 无任务时 _poll_ai_task 首行即返回，开销可忽略。
+_poll_ai_task()
 
 
 # ── 「更多功能与帮助」：T-228 起把次要模块统一收进单个折叠区 ──
