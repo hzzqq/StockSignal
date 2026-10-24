@@ -16,7 +16,6 @@ info_banner("输入 2~8 只股票（代码 / 中文名 / 拼音首字母）即�
 
 from modules.search_ui import multi_stock_search_input
 from modules.background_tasks import submit_task_with_error, poll_task
-from modules.autorefresh import st_autorefresh
 from modules.compare import (
     compare_css, build_header, build_one_line,
     build_table, build_pairwise_card, build_radar, build_radar_right,
@@ -95,9 +94,14 @@ def _poll_compare_once(task_id: str) -> dict | None:
     return poll_task(task_id, max_wait=0.5)
 
 
-@safe_fragment
+@safe_fragment(run_every=2.5)
 def fragment_compare_result():
-    """对比结果区：轮询 + 加载反馈 + 自动渲染，fragment 隔离不阻塞整页。"""
+    """对比结果区：轮询 + 加载反馈 + 自动渲染，fragment 隔离不阻塞整页。
+
+    T-318：轮询改 run_every 服务端定时驱动（原 st_autorefresh 在 fragment 内
+    不触发重跑，且提交发生在另一个 fragment 内不产生整页重跑 → 对比结果永不
+    自动出现，需手动交互才取回，与 T-309/T-313 同族）。
+    """
     compare_task_id = st.session_state.get("compare_task_id")
     if compare_task_id:
         task = _poll_compare_once(compare_task_id)
@@ -123,7 +127,7 @@ def fragment_compare_result():
                 icon="⏳",
             )
             st.progress(0.0, text="等待对比结果...")
-            st_autorefresh(interval=2500, limit=30, key="compare_autorefresh")
+            # 轮询节奏由 run_every=2.5 服务端定时驱动（T-318），无需组件定时器
             return
 
     rows = st.session_state.get("_cmp_rows")
