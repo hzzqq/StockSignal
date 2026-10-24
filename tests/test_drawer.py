@@ -41,28 +41,36 @@ def test_js_escape_backslash_first():
 # ───────────── preview_button ─────────────
 
 def test_preview_button_structure():
-    """结构：ss-preview-btn 类 + onclick 调 __ssDrawer.show + 三参透传。"""
+    """结构：ss-preview-btn 类 + 三个 textarea 承载三参（T-315 事件委托范式）。
+
+    T-315：不再用内联 onclick（Streamlit markdown 会剥离 → 抽屉永不弹出），
+    改为 data 承载 + drawer_js 的 click 委托。
+    """
     btn = preview_button("标题T", "正文B", "元信息M")
     assert 'class="ss-preview-btn"' in btn
-    assert "__ssDrawer" in btn and ".show(" in btn
+    assert "onclick=" not in btn, "内联 onclick 会被 Streamlit 剥离（T-315 缺陷回潮）"
+    assert "__ssDrawer" not in btn, "触发逻辑不应内联在 HTML 里（应走事件委托）"
+    for kind in ("title", "body", "meta"):
+        assert f'data-k="{kind}"' in btn, f"缺少 {kind} 承载 textarea"
+    assert btn.count('class="ss-preview-src"') == 3
     assert "标题T" in btn and "正文B" in btn and "元信息M" in btn
 
 
 def test_preview_button_escapes_hostile_title():
-    """恶意标题（引号/尖括号/换行）不破坏 onclick 属性与 HTML 结构。"""
-    hostile = "x'); alert(1); ('</button>"
+    """恶意标题（引号/尖括号/换行）不得破坏 HTML 结构或注入标签。"""
+    hostile = "x'); alert(1); ('</button><script>bad()</script>"
     btn = preview_button(hostile, "body")
-    # 裸的 ') 闭合序列不得出现（已被转义）；</button> 注入被实体化
-    assert "alert(1)" not in btn.replace("\\'", "") or "\\'" in btn
-    assert "</button>" not in btn[btn.index("onclick="):btn.index("👁")]
-    assert btn.count("ss-preview-btn") == 1  # 按钮结构完整（未被注入劈开）
+    assert "</button>" not in btn.split('class="ss-preview-btn"')[0], "textarea 内出现了裸闭合标签"
+    assert "<script>" not in btn, "注入的 script 标签必须被实体化"
+    assert btn.count('class="ss-preview-btn"') == 1, "按钮结构被劈开"
+    assert btn.count("</textarea>") == 3
 
 
 def test_preview_button_label_and_multiline_body():
-    """自定义 label 透传；多行正文换行转义为 \\n 字面（抽屉内 pre-wrap 显示）。"""
+    """自定义 label 透传；多行正文原样留在 textarea（保留换行，不被压成空格）。"""
     btn = preview_button("T", "line1\nline2", label="👁 快速看")
     assert "👁 快速看" in btn
-    assert "\\n" in btn and "\n" not in btn.split('show(')[1].split("')")[0]
+    assert "line1\nline2" in btn, "多行正文换行必须保留（textarea 承载的意义所在）"
 
 
 # ───────────── drawer_js / drawer_css ─────────────
@@ -91,6 +99,23 @@ def test_drawer_css_variable_driven():
     assert "right:-460px" in css and "right:0" in css   # 滑出/展开两态
     assert "z-index:100004" in css                       # 高于 mega(100000)/cmd(100002)
     assert ".ss-preview-btn" in css
+
+
+def test_drawer_js_click_delegation():
+    """T-315 触发层：父文档 click 委托绑定 ss-preview-btn，读 textarea 调 show。
+
+    历史缺陷：预览按钮靠内联 onclick，被 Streamlit markdown 剥离（React #231），
+    抽屉容器虽正确注入却永不弹出——单测只查 HTML 字符串含 onclick，未能拦住。
+    """
+    js = drawer_js()
+    assert "ss-preview-btn" in js, "缺少预览按钮点击委托"
+    assert "ss-preview-src" in js, "委托未读取承载 textarea"
+    assert "data-k" in js, "未按 data-k 区分 title/body/meta"
+    assert "if (!P.__ssDrawerBound) {" in js, "缺少委托启用守卫（防止重复绑定 / 被禁用）"
+    assert "P.document.addEventListener('click'" in js, "委托必须绑在父文档"
+    assert "catch (eB)" in js, "触发段缺少自隔离 try（异常会阻断后续 extra_js）"
+    css = drawer_css()
+    assert ".ss-preview-wrap" in css, "缺少按钮包裹样式"
 
 
 def test_drawer_css_and_js_pair():

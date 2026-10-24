@@ -10,12 +10,18 @@ modules/drawer.py — 全局右侧滑出详情抽屉（T-198，交互方案 D）
   · Streamlit 同页多次 components.html 仅【首次】脚本可靠执行，故本组件 JS 不单独
     注入，而以 drawer_js() 字符串由 widgets.inject_global_widgets 经
     inject_scroll_nav(extra_js=...) 并入 scroll_nav 单次注入。
-  · 业务侧调用：window.parent.__ssDrawer.show(title, html, meta)——st.markdown
-    内联 onclick 即可触发（无 <script> 标签、不被 Streamlit 剥离）。
+  · 业务侧调用：window.parent.__ssDrawer.show(title, html, meta)。
+  · **触发方式（T-315 修复）**：按钮不再用内联 onclick —— Streamlit 的 markdown
+    渲染器会剥离该属性（实测 DOM 里 onclick 消失，React 报 #231「onClick 收到
+    string」），导致 show() 从未被调用、抽屉始终不弹出。改为 data 承载 + 事件委托：
+    preview_button 输出隐藏 <textarea class="ss-preview-src">（标题/正文/元信息，
+    用 textarea 而非 data-* 属性是因为 HTML 属性会把换行规范化成空格），
+    drawer_js 在父文档注册一次 click 委托（__ssDrawerBound 防重复绑定）。
   · 颜色全走 CSS 变量，六套风格自动适配。
 """
 from __future__ import annotations
 
+import html
 import logging
 
 logger = logging.getLogger(__name__)
@@ -73,6 +79,34 @@ if (!P.__ssDrawer) {
   };
 }
 } catch (eD) {}
+
+/* ── T-315 触发层：预览按钮事件委托（替代被 Streamlit 剥离的内联 onclick）── */
+try {
+if (!P.__ssDrawerBound) {
+  P.__ssDrawerBound = true;
+  P.document.addEventListener('click', function(ev){
+    var t = ev.target, btn = null;
+    while (t && t !== P.document) {
+      if (t.classList && t.classList.contains('ss-preview-btn')) { btn = t; break; }
+      t = t.parentElement;
+    }
+    if (!btn) return;
+    ev.preventDefault();
+    var wrap = btn.parentElement;
+    function pick(kind){
+      if (!wrap) return '';
+      var ns = wrap.querySelectorAll('.ss-preview-src');
+      for (var i = 0; i < ns.length; i++) {
+        if (ns[i].getAttribute('data-k') === kind) return ns[i].value || '';
+      }
+      return '';
+    }
+    if (P.__ssDrawer && P.__ssDrawer.show) {
+      P.__ssDrawer.show(pick('title'), pick('body'), pick('meta'));
+    }
+  }, true);
+}
+} catch (eB) {}
 """
 
 
@@ -103,6 +137,7 @@ def drawer_css() -> str:
 #ssDrawerRoot .ss-drawer-meta{font-size:12px;color:var(--txt2,#6b7280);margin-bottom:10px;line-height:1.6}
 #ssDrawerRoot .ss-drawer-body{flex:1;overflow-y:auto;font-size:13.5px;color:var(--txt,#1f2937);
   line-height:1.65;white-space:pre-wrap;word-break:break-word}
+.ss-preview-wrap{display:inline-block}
 .ss-preview-btn{border:1px solid var(--border,#e2e8f0);background:transparent;
   color:var(--txt2,#6b7280);border-radius:6px;padding:2px 8px;font-size:11.5px;cursor:pointer;
   transition:all .15s ease;margin-left:6px}
@@ -113,17 +148,27 @@ def drawer_css() -> str:
 
 def preview_button(title: str, body_html: str, meta_html: str = "",
                    label: str = "👁 预览") -> str:
-    """生成「👁 预览」按钮 HTML（st.markdown unsafe 渲染，onclick 调全局抽屉）。
+    """生成「👁 预览」按钮 HTML（st.markdown unsafe 渲染，点击触发全局抽屉）。
 
-    :param title: 抽屉标题（自动 JS 转义）
-    :param body_html: 抽屉正文（允许内嵌安全 HTML；调用方负责转义用户内容）
+    T-315：**不再使用内联 onclick**——Streamlit 的 markdown 渲染器会剥离该属性
+    （实测按钮 DOM 里没有 onclick，React 报 #231「onClick 收到 string」），导致
+    抽屉永不弹出。改为三个隐藏 textarea 承载标题/正文/元信息，由 drawer_js 的
+    父文档 click 委托读取并调用 __ssDrawer.show。
+
+    为什么用 textarea 而不是 data-*：HTML 属性会把换行规范化成空格，多行正文
+    复制/展示会粘连；textarea 的值保留原始换行。
+    安全：三个字段均经 html.escape（textarea 内的 HTML 源码必须转义，浏览器解析
+    后会还原为原文本/原 HTML 片段，与旧 js_escape + innerHTML 行为等价）。
+
+    :param title: 抽屉标题
+    :param body_html: 抽屉正文（调用方负责转义用户内容；允许安全 HTML）
     :param meta_html: 元信息行（作者/时间/数据等）
     """
-    t = js_escape(title)
-    b = js_escape(body_html)
-    m = js_escape(meta_html)
-    onclick = ("(window.parent.__ssDrawer||{show:function(){}}).show('"
-               + t + "','" + b + "','" + m + "')")
-    onclick_attr = onclick.replace('"', "&quot;")
-    return ('<button class="ss-preview-btn" type="button" onclick="'
-            + onclick_attr + '">' + label + "</button>")
+    def _ta(kind: str, val: str) -> str:
+        return (f'<textarea class="ss-preview-src" data-k="{kind}" readonly hidden>'
+                f'{html.escape(str(val), quote=False)}</textarea>')
+
+    return ('<div class="ss-preview-wrap">'
+            + _ta("title", title) + _ta("body", body_html) + _ta("meta", meta_html)
+            + '<button class="ss-preview-btn" type="button">' + label + "</button>"
+            + "</div>")
