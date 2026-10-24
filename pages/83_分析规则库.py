@@ -72,9 +72,24 @@ def main() -> None:
                     st.rerun()
             with st.expander("查看规则内容"):
                 st.code(s.get("instruction", ""), language="markdown")
-            if st.button("删除", key=f"del_{sid}"):
-                sk.delete_skill(sid)
-                st.rerun()
+            # T-316：删除不可恢复 → 二次确认（与星辰 AI「清空对话」同范式）。
+            # 此前单击即删，误触代价高（规则内容需重新撰写）。
+            _dc_key = f"_skill_del_cfm_{sid}"
+            if st.session_state.get(_dc_key):
+                _dc1, _dc2 = st.columns(2)
+                if _dc1.button("确认删除", key=f"del_cfm_{sid}", type="primary",
+                               width="stretch",
+                               help=f"确认删除规则「{s.get('name', '未命名')}」，不可恢复"):
+                    sk.delete_skill(sid)
+                    st.session_state.pop(_dc_key, None)
+                    st.rerun()
+                if _dc2.button("取消", key=f"del_cancel_{sid}", width="stretch"):
+                    st.session_state.pop(_dc_key, None)
+                    st.rerun()
+            else:
+                if st.button("删除", key=f"del_{sid}"):
+                    st.session_state[_dc_key] = True
+                    st.rerun()
 
     st.divider()
 
