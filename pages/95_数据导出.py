@@ -322,7 +322,6 @@ def _collect_all(period: str, code: str):
 # ───────────────────────── 行业板块资金流向 ─────────────────────────
 @safe_fragment("行业板块数据")
 def frag_industry():
-    sf_card("🏭 行业板块资金流向", "")
     st.caption("数据源：东方财富 stock_fund_flow_industry()")
     if st.button("生成并下载 CSV", key="exp_industry_btn"):
         try:
@@ -345,7 +344,6 @@ def frag_industry():
 # ───────────────────────── 北向资金 ─────────────────────────
 @safe_fragment("北向资金")
 def frag_northbound():
-    sf_card("🌐 北向资金", "")
     st.caption("数据源：东方财富 stock_hsgt_fund_flow_summary_em()（沪股通/深股通/北向）")
     if st.button("生成并下载 CSV", key="exp_north_btn"):
         try:
@@ -381,7 +379,6 @@ def frag_northbound():
 # ───────────────────────── 大盘主力净流入(近30日) ─────────────────────────
 @safe_fragment("市场资金概览")
 def frag_market():
-    sf_card("📊 大盘主力净流入（近30日）", "")
     st.caption("数据源：东方财富 stock_market_fund_flow()，取最近 30 日")
     if st.button("生成并下载 CSV", key="exp_market_btn"):
         try:
@@ -404,7 +401,6 @@ def frag_market():
 # ───────────────────────── 个股主力资金 ─────────────────────────
 @safe_fragment("个股资金流")
 def frag_individual():
-    sf_card("🎯 个股主力资金", "")
     st.caption("数据源：东方财富 stock_individual_fund_flow()（失败则量价模型估算兜底）")
     from modules.search_ui import stock_search_input
     code = stock_search_input(label="选择股票", key="exp_stock", default="600519")
@@ -442,7 +438,6 @@ def frag_individual():
 # ───────────────────────── 业绩报表(财报) ─────────────────────────
 @safe_fragment("业绩日历")
 def frag_earnings():
-    sf_card("📑 业绩报表（财报）", "")
     st.caption("数据源：东方财富 stock_yjbb_em()，报告期格式 YYYYMMDD（如 20260331=一季报）")
     period = st.text_input(
         "报告期 (YYYYMMDD)", value="20260331", key="exp_period",
@@ -475,7 +470,6 @@ def frag_earnings():
 # ───────────────────────── 组合持仓盈亏 ─────────────────────────
 @safe_fragment("持仓组合")
 def frag_portfolio():
-    sf_card("💼 组合持仓盈亏", "")
     st.caption("数据源：modules.portfolio.PortfolioManager（calc_pnl / summary）")
     if st.button("生成并下载 CSV", key="exp_port_btn"):
         try:
@@ -504,7 +498,6 @@ def frag_portfolio():
 # ───────────────────────── 自选股实时快照 ─────────────────────────
 @safe_fragment("自选股池")
 def frag_watchlist():
-    sf_card("⭐ 自选股实时快照", "")
     st.caption("数据源：/api/watchlist + StockFetcher.get_realtime_quote()")
     if st.button("生成并下载 CSV", key="exp_watch_btn"):
         try:
@@ -532,7 +525,6 @@ def frag_watchlist():
 # ───────────────────────── 一键导出 Excel（多Sheet） ─────────────────────────
 @safe_fragment("Excel 多Sheet 导出")
 def frag_excel():
-    sf_card("📊 一键导出 Excel（多 Sheet）", "")
     st.caption("将所有可用数据集汇总进单个 .xlsx，每个数据集一个 Sheet（自动列宽 + 冻结表头）。")
     from modules.search_ui import stock_search_input
     period = st.text_input("财报报告期 (YYYYMMDD)", value="20260331", key="expall_period")
@@ -555,7 +547,6 @@ def frag_excel():
 # ───────────────────────── 导出数据摘要 PDF ─────────────────────────
 @safe_fragment("PDF 摘要导出")
 def frag_pdf():
-    sf_card("📄 导出数据摘要 PDF", "")
     st.caption("生成中文数据摘要报告（每个数据集展示前 25 行）。完整数据请用 CSV / Excel / ZIP。")
     from modules.search_ui import stock_search_input
     period = st.text_input("财报报告期 (YYYYMMDD)", value="20260331", key="pdf_period")
@@ -582,7 +573,6 @@ def frag_pdf():
 # ───────────────────────── 一键打包导出全部 (ZIP) ─────────────────────────
 @safe_fragment("批量打包下载")
 def frag_zip():
-    sf_card("📦 一键打包导出全部 (ZIP)", "")
     st.caption("汇总上述所有数据集（成功返回的部分）打入内存 ZIP，内含 CSV + 多Sheet Excel + manifest。单个数据集失败不影响整体。")
     from modules.search_ui import stock_search_input
     period = st.text_input("财报报告期 (YYYYMMDD，用于打包)", value="20260331", key="zip_period")
