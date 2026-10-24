@@ -19,10 +19,6 @@ from __future__ import annotations
 import streamlit as st
 
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
-try:
-    from modules.autorefresh import st_autorefresh
-except Exception:  # pragma: no cover
-    st_autorefresh = None
 
 # 多智能体阶段定义（与后端进度总线共用语义）
 try:
@@ -268,9 +264,13 @@ def _render_report(result: dict):
                 xc_warn_box(e)
 
 
-@safe_fragment
+@safe_fragment(run_every=2.5)
 def _result_panel():
-    """结果区：轮询后台任务 / 渲染本地直跑结果，独立 fragment 不阻塞整页。"""
+    """结果区：轮询后台任务 / 渲染本地直跑结果，独立 fragment 不阻塞整页。
+
+    T-313：轮询改 run_every 服务端定时驱动（原 st_autorefresh 在 fragment 内
+    不触发重跑，任务进度不刷新、终态需手动交互才取回——T-309 同族缺陷）。
+    """
     task_id = st.session_state.get("quant_task_id")
     if task_id:
         task = _poll_once(task_id)
@@ -284,11 +284,6 @@ def _result_panel():
             return
         elif task and task.get("status") in ("pending", "running"):
             _render_live_progress(task)
-            if st_autorefresh is not None:
-                st_autorefresh(interval=2500, limit=240, key="quant_autorefresh")
-            else:
-                # fallback：不阻塞、不重跑整页；让用户手动刷新
-                st.caption("⏳ 任务运行中，请稍后刷新页面查看结果。")
             return
         else:
             # 未知/失效状态（任务丢失、超时、取消等）：避免静默无输出，给出友好提示
