@@ -285,22 +285,22 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
 
     # 数据新鲜度诚实降级：守卫不能只"提示"——陈旧输入必须真的让位。
     # 这是「诚实优先于好看」的硬约束：基于过期数据的仓位建议不得保持激进。
-    # stale（滞后≥8天）→ 封顶 40%；warn（滞后≥4天）→ 封顶 60%；仅封顶、不抬底。
+    # stale（滞后≥8天）→ 封顶 FRESHNESS_CAPS["stale"]；warn（滞后≥4天）→ 封顶 ["warn"]；仅封顶、不抬底。
     if freshness_status == "stale":
-        _cap = 40.0
+        _cap = FRESHNESS_CAPS["stale"]
         if pct > _cap:
             reasons.append(
                 f"⚠️ 数据陈旧：输入源滞后≥{FRESH_STALE_DAYS}天，仓位封顶 {_cap:.0f}%"
                 f"（原 {pct:.0f}%），避免基于过期数据重仓")
-            contrib.append({"factor": "数据陈旧封顶40%", "delta": round(_cap - pct, 1), "running": _cap})
+            contrib.append({"factor": f"数据陈旧封顶{_cap:.0f}%", "delta": round(_cap - pct, 1), "running": _cap})
             pct = _cap
     elif freshness_status == "warn":
-        _cap = 60.0
+        _cap = FRESHNESS_CAPS["warn"]
         if pct > _cap:
             reasons.append(
                 f"⚠️ 数据偏旧：输入源滞后≥{FRESH_WARN_DAYS}天，仓位封顶 {_cap:.0f}%"
                 f"（原 {pct:.0f}%）")
-            contrib.append({"factor": "数据偏旧封顶60%", "delta": round(_cap - pct, 1), "running": _cap})
+            contrib.append({"factor": f"数据偏旧封顶{_cap:.0f}%", "delta": round(_cap - pct, 1), "running": _cap})
             pct = _cap
 
     band, color = "中性", "#f59e0b"
@@ -541,6 +541,9 @@ def _age_days(date_str: str | None) -> int | None:
 # A 股日频数据：周五收盘 → 周一查看 = 3 个自然日，属正常周末间隔，仍算新鲜。
 FRESH_WARN_DAYS = 4     # 滞后 ≥4 天：提示
 FRESH_STALE_DAYS = 8    # 滞后 ≥8 天：判定陈旧，仓位建议旁必须显式告警
+# 陈旧/偏旧的仓位封顶（%）——单一真理源：derive_position 与晨报等消费端共用。
+# 消费端不得各自硬编码阈值，否则封顶口径变化时告警文案会静默漂移。
+FRESHNESS_CAPS = {"stale": 40.0, "warn": 60.0}
 
 
 def assess_freshness(sources: dict) -> dict:

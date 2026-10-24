@@ -30,6 +30,30 @@ def _age_days(d: str | None) -> int | None:
         return None
 
 
+def _freshness_cap_note(freshness_status, eff_pct: int, raw_pct: int, ctx: str) -> str:
+    """整体数据新鲜度对仓位的「实际约束」说明（诚实口径，三分支）。
+
+    必须区分「封顶真的压低了仓位」与「推导本身已低于阈值」：
+    - 封顶真实生效：原始推导 > 阈值且展示仓位恰为阈值 → 写「触发封顶」；
+    - 有封顶阈值但未约束：展示仓位本就低于阈值 → 明确「封顶未实际约束」，
+      防御来自推导本身，绝不能把低仓位误归因为「陈旧封顶」；
+    - 源本就新鲜（无封顶阈值）→ 不得出现「陈旧封顶」「None%」之类措辞。
+
+    封顶阈值取 modules.decision.FRESHNESS_CAPS（单一真理源，勿在此硬编码）。
+    """
+    from modules.decision import FRESHNESS_CAPS
+    cap = FRESHNESS_CAPS.get(freshness_status)
+    if cap is not None and raw_pct > cap and eff_pct == cap:
+        return (f"**整体数据陈旧（{freshness_status}）触发封顶 {eff_pct}%**"
+                f"（原始推导 {raw_pct}% 被压到封顶阈值），并非基于当日新鲜信号的高仓位")
+    if cap is not None:
+        return (f"**输入源整体{freshness_status}（封顶阈值 {cap:.0f}%）已显式告警，"
+                f"但当日推导仓位 {eff_pct}% 本就低于该阈值，封顶未实际约束**；"
+                f"仓位由当日推导本身决定（{ctx}），并非因陈旧封顶")
+    return (f"输入源整体{freshness_status}，未触发任何新鲜度降级；"
+            f"仓位由当日推导本身决定（{ctx}）")
+
+
 def latest_snapshot_file() -> str:
     """data/snapshots/ 下日期最大的 JSON；无则回退 daily_snapshot.json。"""
     arch = os.path.join(DATA_DIR, "snapshots")
@@ -153,6 +177,15 @@ def main():
     # 诚实口径：事件因子陈旧（滞后≥陈旧阈值）或缺失 → 当日不施加其催化，
     # 以「剔除陈旧/缺位催化」后的仓位作为对外展示的「建议仓位」。
     eff_pos = pos_no_event if (ev_stale or not ev_available) else pos_with_event
+
+    # ── 诚实口径精度修正（红线相关）──
+    # 必须区分「整体数据陈旧封顶」与「推导本身已极低仓位」：
+    #   · eff_pos 已带 freshness_status（stale/warn 封顶）。再算一次不带新鲜度封顶的
+    #     原始仓位 pos_raw，交由 _freshness_cap_note 判定「封顶是否真的约束了仓位」。
+    #   · 若推导本身已低于封顶阈值，绝不能写「整体数据陈旧触发封顶 X%」——那是把推导结果误归因为封顶。
+    _eff_adj = 0 if (ev_stale or not ev_available) else ev_adj_nominal
+    pos_raw = derive_position(temp, score, bias, cycle, promo_overall,
+                              event_adj=_eff_adj, freshness_status=None)
 
     # ── 5) 共振判断 ──
     # 牧羊人方向
@@ -391,11 +424,14 @@ def main():
     _sh_ev_note = "叠加事件因子停更" if (ev_available and ev_stale and _p1_stalled) else "叠加事件因子陈旧"
     _sh_down_tag5 = "已降权" if _sh_down else "新鲜"
     _gap = (_sh_lag - _snap_lag) if (_sh_lag is not None and _snap_lag is not None) else None
+    _cap_phrase = _freshness_cap_note(
+        freshness_status, eff_pos["pct"], pos_raw["pct"],
+        f"bias={fmt(bias)}、cycle={fmt(cycle)}、温度={fmt(temp)}、连板晋级率={fmt(promo_overall)}")
     lines.append(f"1. **仓位**：{eff_pos['pct']}% / {eff_pos['band']}——"
                  f"事件因子陈旧已剔除；牧羊人情绪快照读数 bias={fmt(bias)}、cycle={fmt(cycle)}，"
                  f"决策所用快照数据日 {fmt(snap_date)}（滞后 {fmt(_snap_lag)} 天，{_snap_tag}）；"
                  f"底层牧羊人 CSV 截至 {fmt(_sh_asof)}（滞后 {fmt(_sh_lag)} 天，{_sh_down_tag5}），{_sh_ev_note}，"
-                 f"**整体数据陈旧触发封顶 {eff_pos['pct']}%**，并非基于当日新鲜信号的高仓位。")
+                 f"{_cap_phrase}。")
     lines.append(f"2. **牧羊人情绪**：score={fmt(score)}、bias={fmt(bias)}、cycle={fmt(cycle)}，{_cycle_st(cycle)}。"
                  f"（注：该 score/bias/cycle 取自最新快照 `{os.path.basename(snap_path)}` 数据日 {fmt(snap_date)}，"
                  f"滞后 {fmt(_snap_lag)} 天、{_snap_tag}；health 口径的底层广度历史 `shepherd_history.csv` 仅到"

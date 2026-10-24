@@ -118,6 +118,52 @@ def test_morning_report_market_temp_disclosure_matches_source_kind():
             "晨报须如实披露 market_temp 的 as_of 现取内容日期"
 
 
+# ── 晨报「封顶」措辞的诚实口径（T-319 代收口 WorkBuddy 遗留改动）───────────
+def test_freshness_cap_note_three_branches():
+    """封顶措辞必须三分支：真实封顶 / 有阈值但未约束 / 源本就新鲜。
+
+    反例（遗留改动初稿）：else 分支无条件打印「整体数据陈旧（ok）… 封顶阈值 None%」，
+    把「推导本身仓位低」误归因为「陈旧封顶」，属诚实口径红线。
+    """
+    from modules import decision as D
+    import scripts.gen_morning_event_sentiment as M
+
+    stale = int(D.FRESHNESS_CAPS["stale"])
+    # 1) 封顶真实生效：原始推导高于阈值、展示仓位恰为阈值
+    s = M._freshness_cap_note("stale", stale, stale + 30, "bias=偏空")
+    assert "触发封顶" in s and f"{stale}%" in s and "并非基于当日新鲜信号" in s
+
+    # 2) 有封顶阈值但推导本身更低 → 不得谎称封顶，且须如实交代当日读数
+    s = M._freshness_cap_note("stale", 5, 5, "bias=偏空、cycle=退潮、温度=20")
+    assert "触发封顶" not in s and "未实际约束" in s and "5%" in s
+    assert f"封顶阈值 {stale}%" in s
+    assert "bias=偏空、cycle=退潮、温度=20" in s, "未约束时须交代真实的推导读数，不得写死某日特征"
+
+    # 3) 源本就新鲜（无封顶阈值）→ 不得出现陈旧/封顶/None 措辞
+    s = M._freshness_cap_note("ok", 70, 70, "bias=偏多")
+    assert "封顶" not in s and "None" not in s and "陈旧" not in s
+
+
+def test_freshness_cap_note_reads_decision_caps(monkeypatch):
+    """阈值必须取自 modules.decision.FRESHNESS_CAPS（单一真理源），不得本地硬编码。"""
+    from modules import decision as D
+    import scripts.gen_morning_event_sentiment as M
+
+    assert D.FRESHNESS_CAPS == {"stale": 40.0, "warn": 60.0}, \
+        "封顶阈值变更须同步晨报文案与论文口径（thesis 中引用了 40/60）"
+    monkeypatch.setitem(D.FRESHNESS_CAPS, "stale", 35.0)
+    s = M._freshness_cap_note("stale", 35, 80, "x")
+    assert "35%" in s, "晨报封顶文案未跟随 decision.FRESHNESS_CAPS（本地硬编码会静默漂移）"
+
+    import os as _os
+    src_path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "scripts", "gen_morning_event_sentiment.py")
+    text = open(src_path, encoding="utf-8").read()
+    assert "FRESHNESS_CAPS" in text
+    assert '"stale": 40' not in text and "'stale': 40" not in text, "脚本内出现本地封顶阈值副本"
+
+
 def test_p1_latest_date_fault_tolerant(monkeypatch):
     # P1SignalLoader 抛异常 → 返回 None（不崩）
     import modules.p1_signal as P1
