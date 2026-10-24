@@ -57,14 +57,16 @@ def _quote_one(code: str, token: str | None=None):
                 data = body.get('data')
                 if isinstance(data, dict) and data.get('current'):
                     return (code, data)
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001
+        # T-317：后端取价失败静默转本地回退——降级链本身良性（有 fallback），
+        # 但零留痕会让用户看到空态时无法判断「接口挂了」还是「真的没行情」。
+        logger.warning("[自选股监控] 后端 /api/quote 取价失败，回退本地 fetcher: %s", exc)
     try:
         q = fetcher.get_realtime_quote(code)
         if isinstance(q, dict) and q.get('current'):
             return (code, q)
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[自选股监控] 本地 fetcher 取价失败（%s）: %s", code, exc)
     return (code, None)
 
 def _quote_batch(codes, token):

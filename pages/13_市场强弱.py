@@ -9,6 +9,7 @@ UI-only；fragment 内无整页 st.rerun；A股红涨绿跌（信号灯语义：
 与 H_市场驱动力（五维子图）互链，互为简化/详细视图。
 """
 import html
+import logging
 from contextlib import contextmanager
 
 import requests
@@ -30,6 +31,9 @@ from modules.page_widgets import (
 from modules.page_guard import safe_fragment
 
 from modules.ui_kit import xc_success_box, xc_warn_box
+
+logger = logging.getLogger(__name__)
+
 st_autorefresh = import_autorefresh()
 
 
@@ -122,15 +126,22 @@ def _build_strength_df(days=180):
 
 @st.cache_data(ttl=600, show_spinner=False)
 def _watchlist_codes(token: str):
+    """取自选股代码，返回 ``(codes, ok)``（T-317）。
+
+    ok=False 表示**请求失败**（网络 / 鉴权 / 超时），必须与「确实没有自选股」区分：
+    原实现失败静默返回 []，页面显示「暂无自选股，先去加几只」——把加载失败谎报成
+    空数据，用户会误以为自己的自选被清空（违反诚实数据语义）。
+    """
     try:
         resp = requests.get(f"{API_BASE}/api/watchlist",
                              headers={"Authorization": f"Bearer {token}"}, timeout=5)
         if resp.status_code == 200:
             data = resp.json().get("data") or []
-            return [d.get("stock_code") for d in data if d.get("stock_code")]
-    except Exception:
-        pass
-    return []
+            return [d.get("stock_code") for d in data if d.get("stock_code")], True
+        logger.warning("[市场强弱] 自选股列表请求返回 %s，按加载失败处理", resp.status_code)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[市场强弱] 自选股列表请求异常: %s", exc)
+    return [], False
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -334,8 +345,13 @@ def fragment_strength():
     # 可选：叠加自选股均值
     with st.expander("➕ 叠加自选股均值（可选）", expanded=False):
         if st.checkbox("把我的自选股区间归一化均值叠到图里", key="str_wl_on", value=False):
-            codes = _watchlist_codes(get_token() or "")
-            if not codes:
+            # T-317：区分「加载失败」与「真的没有自选股」——原实现两者都提示
+            # 「暂无自选股」，用户会误以为自选被清空（诚实数据语义）。
+            codes, codes_ok = _watchlist_codes(get_token() or "")
+            if not codes_ok:
+                xc_warn_box("自选股列表加载失败（网络或登录状态异常），请稍后重试；"
+                            "这不代表你的自选股为空。")
+            elif not codes:
                 _empty_info("暂无自选股，先去《持仓中心》加几只再叠加。")
             else:
                 with st.spinner(f"计算 {len(codes[:15])} 只自选股均值…"):

@@ -17,11 +17,14 @@
 """
 from __future__ import annotations
 
+import logging
 import sqlite3
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
+
+logger = logging.getLogger(__name__)
 
 HERE = Path(__file__).resolve().parent.parent  # StockSignal 仓库根
 DATA = HERE / "data"
@@ -128,9 +131,10 @@ def prune_shepherd_dirs(
                             f.unlink()
                             removed += 1
                             freed += st.st_size
-                        except OSError:
-                            # 单文件失败不影响其余
-                            pass
+                        except OSError as exc:
+                            # 单文件失败不影响其余（控制流不变）；T-317：必须留痕，
+                            # 否则「清理了多少」与失败原因都无从诊断（权限/占用/只读）。
+                            logger.warning("[cache_maintenance] 删除失败 %s: %s", f, exc)
         out.append({"dir": str(d), "removed": removed, "freed_bytes": freed})
     return out
 
