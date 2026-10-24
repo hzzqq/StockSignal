@@ -100,7 +100,12 @@ def test_stmetric_skin_shares_token_vars(monkeypatch):
 
 def test_typography_contract_cjk_and_base_font_size():
     """T-261：全局排版契约——CJK 字体栈落 token、行高 1.65、等宽保护、
-    config.toml baseFontSize=17px（用户反馈默认字体小）。"""
+    config.toml baseFontSize=17（用户反馈默认字体小）。
+
+    T-312 勘测纠偏：baseFontSize 必须写整型 17（Streamlit CustomTheme proto 的
+    base_font_size 是 int 字段），旧写法 "17px" 字符串会让 NewSession 消息创建抛
+    TypeError → 全站 run_every 轮询片段失联。类型守卫见 test_config_theme_types.py。
+    """
     kit = _kit()
     css = kit._TOKEN_CSS + kit._KIT_CSS
     assert "font-family: var(--ss-font-cjk)" in css, "CJK 字体栈未落地"
@@ -108,4 +113,5 @@ def test_typography_contract_cjk_and_base_font_size():
     assert "line-height: 1.65" in css, "阅读行高缺失"
     assert "font-family: var(--ss-font-num) !important" in css,         "等宽保护缺失（code/pre 必须显式回落数字字体）"
     cfg = (ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8")
-    assert 'baseFontSize = "17px"' in cfg, "config.toml 全局基础字号 17px 缺失"
+    assert "baseFontSize = 17" in cfg, "config.toml 全局基础字号 17（整型）缺失"
+    assert 'baseFontSize = "17px"' not in cfg,         "baseFontSize 回潮为字符串（T-312：会绞杀全站轮询消息通道）"
