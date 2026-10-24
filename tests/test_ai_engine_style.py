@@ -25,12 +25,20 @@ class _FakeLLM:
     def is_configured(self):
         return True
 
-    def answer_with_llm(self, system, prompt, history=None, max_tokens=0, timeout=0):
+    def answer_with_llm(self, system, prompt, history=None, max_tokens=0, timeout=0, model=None):
         self.calls.append({
             "system": system, "prompt": prompt, "history": history,
-            "max_tokens": max_tokens, "timeout": timeout,
+            "max_tokens": max_tokens, "timeout": timeout, "model": model,
         })
         return self._answer
+
+    def resolve_model(self, choice=None, style=None):
+        """T-314：ai_answer 会经 resolve_model 做 provider 感知校验。
+
+        fake 环境不模拟真实 provider 目录，原样返回 choice，便于断言「用户选择
+        被透传到 answer_with_llm」；choice 为空时返回 None（走 env 主模型）。
+        """
+        return choice or None
 
 
 _Q = "A股当前整体方向怎么看"  # 无股票名/无事件词 → 直达 LLM 路径的通用问题
@@ -57,6 +65,15 @@ def test_style_routes_four_different_prompts(route_env):
     assert "深度研报" in systems[1] and "核心结论" in systems[1]
     assert "多空辩论" in systems[2] and "裁判裁决" in systems[2]
     assert "教学解释" in systems[3] and "先说人话" in systems[3]
+
+
+def test_explicit_model_forwarded(route_env):
+    """T-314：用户显式选择的模型必须透传到 LLM 层（否则前端选择形同虚设）。"""
+    fake = route_env
+    ai_engine.ai_answer(_Q, None, style="report", model="deepseek-v4-pro")
+    assert fake.calls[-1]["model"] == "deepseek-v4-pro"
+    ai_engine.ai_answer(_Q, None, style="quick")
+    assert fake.calls[-1]["model"] is None, "未选择时应交给 env 主模型，而非写死"
 
 
 def test_style_budgets_follow_presets(route_env):

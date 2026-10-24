@@ -494,15 +494,30 @@ SYSTEM_PROMPT_TEACH = SYSTEM_PROMPT + """
 4. **误区提醒**：结尾给 1 条新手常见误区。
 不编造数据；给定数据没覆盖的部分如实说明。"""
 
-# style → (system, max_tokens, timeout)；非法 style 由 ai_answer 回落 quick。
+# style → (system, max_tokens, timeout, model)；非法 style 由 ai_answer 回落 quick。
 # timeout 上限受 llm_client.chat_completion 钳制（≤90s），此处无需超 90。
+# model（T-314）：分层路由默认模型——快速/教学用低延迟档，研报/辩论用高质量档；
+# 用户在前端选择的模型会覆盖这里（经 llm_client.resolve_model 做 provider 感知校验）。
 STYLE_PRESETS = {
-    "quick": {"system": SYSTEM_PROMPT, "max_tokens": 1600, "timeout": 45},
-    "report": {"system": SYSTEM_PROMPT_REPORT, "max_tokens": 2000, "timeout": 80},
-    "debate": {"system": SYSTEM_PROMPT_DEBATE, "max_tokens": 1400, "timeout": 50},
-    "teach": {"system": SYSTEM_PROMPT_TEACH, "max_tokens": 1400, "timeout": 45},
+    "quick": {"system": SYSTEM_PROMPT, "max_tokens": 1600, "timeout": 45,
+              "model": llm_client.STYLE_MODEL_DEFAULTS["quick"]},
+    "report": {"system": SYSTEM_PROMPT_REPORT, "max_tokens": 2000, "timeout": 80,
+               "model": llm_client.STYLE_MODEL_DEFAULTS["report"]},
+    "debate": {"system": SYSTEM_PROMPT_DEBATE, "max_tokens": 1400, "timeout": 50,
+               "model": llm_client.STYLE_MODEL_DEFAULTS["debate"]},
+    "teach": {"system": SYSTEM_PROMPT_TEACH, "max_tokens": 1400, "timeout": 45,
+              "model": llm_client.STYLE_MODEL_DEFAULTS["teach"]},
 }
 _DEFAULT_STYLE = "quick"
+
+
+def model_for_style(style: Optional[str], choice: Optional[str] = None) -> Optional[str]:
+    """当前 style（+ 用户显式选择）实际会使用的模型名；无 LLM/非目录 provider 返回 None。
+
+    前端徽标与占位提示用：如实显示「这次会用哪个模型」，而不是笼统的主模型名。
+    """
+    preset = STYLE_PRESETS.get(str(style or "").strip(), STYLE_PRESETS[_DEFAULT_STYLE])
+    return llm_client.resolve_model(choice, preset.get("model"))
 
 
 def _compact_block(name: str, result: Dict[str, Any], news: Optional[List[Dict[str, str]]], is_event_q: bool) -> str:
@@ -697,6 +712,7 @@ def ai_answer(
     context: Optional[Dict[str, Any]] = None,
     *,
     style: str = "quick",
+    model: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     回答用户投资问题。
@@ -711,6 +727,10 @@ def ai_answer(
     - report=深度研报 / debate=多空辩论 / teach=教学解释
       三者仅改变 LLM 的 system prompt 结构与 token/超时预算（STYLE_PRESETS），
       数据取数与回退链路完全一致；非法值回落 quick。
+
+    model（T-314）：用户在前端显式选择的模型名（可空）。经 llm_client.resolve_model
+    做 provider 感知校验后下发；为空或不在当前 provider 目录内时用 style 默认
+    （分层路由），再不可用则回退 env 主模型。
     """
     context = context or {}
     rows = context.get("_cmp_rows")
@@ -751,11 +771,14 @@ def ai_answer(
     if llm_client.is_configured():
         llm_prompt = _build_llm_prompt(question, resolved, history_stock, rows, analysis, is_event_q)
         # T-308 回应方式：按 style 预设取 system/max_tokens/timeout。
+        # T-314 模型：用户选择优先 → style 分层默认，经 resolve_model 做 provider
+        # 感知校验（非 DeepSeek provider 下不写死模型名，回落 env 主模型）。
         # 咨询场景超时：单模型上限由 llm_client 钳制（≤90s），LLM 失败/超时
         # 快速回退规则模板（瞬时），回退回答头部如实标注降级（诚实语义）。
         answer = llm_client.answer_with_llm(
             preset["system"], llm_prompt, history=history,
             max_tokens=preset["max_tokens"], timeout=preset["timeout"],
+            model=llm_client.resolve_model(model, preset.get("model")),
         )
         if answer:
             return {"answer": answer, "independent": True}

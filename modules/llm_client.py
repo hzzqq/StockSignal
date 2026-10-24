@@ -99,11 +99,107 @@ def fallback_models() -> List[str]:
     return list(_DEFAULT_FALLBACK_MODELS)
 
 
-def _model_chain() -> List[str]:
-    """主模型 + 去重后的回退模型，按优先级排列。"""
+# =====================================================================
+# 模型目录（T-314：真实 AI 模型接入的单一真理源）
+# =====================================================================
+# 2026-10-24 实测 DeepSeek 服务端可用模型：deepseek-flash / deepseek-v4-pro
+# （旧 deepseek-chat 仍可调用，但已不在 /models 清单，随时可能下线）。
+# 三者均为推理模型（响应带 reasoning_content）：推理过程与正文共享 max_tokens
+# 预算，实测 max_tokens=400 时推理吃光预算、content 返回空串——因此必须给
+# 推理模型设置 token 下限，否则会被误判为「模型空答」并静默降级到规则引擎。
+MODEL_CATALOG: Dict[str, Dict[str, "object"]] = {
+    "deepseek-flash": {
+        "label": "DeepSeek Flash",
+        "desc": "低延迟，日常问答 / 教学解释",
+        "reasoning": True,
+        "min_tokens": 1500,   # 实测推理 ~300 tokens + 正文，1500 留足余量
+    },
+    "deepseek-v4-pro": {
+        "label": "DeepSeek V4 Pro",
+        "desc": "质量优先，深度研报 / 多空辩论",
+        "reasoning": True,
+        "min_tokens": 1500,
+    },
+    "deepseek-reasoner": {
+        "label": "DeepSeek Reasoner",
+        "desc": "强推理，复杂归因与多步分析",
+        "reasoning": True,
+        "min_tokens": 2000,   # R1 类推理链更长
+    },
+}
+
+# 回应方式 → 默认模型（分层路由；用户可在前端覆盖）
+STYLE_MODEL_DEFAULTS: Dict[str, str] = {
+    "quick": "deepseek-flash",
+    "teach": "deepseek-flash",
+    "report": "deepseek-v4-pro",
+    "debate": "deepseek-v4-pro",
+}
+
+# 推理模型的最小 token 预算（目录未声明时的兜底）
+REASONING_MIN_TOKENS = 1500
+
+
+def provider_catalog(base_url: Optional[str] = None) -> Dict[str, Dict[str, object]]:
+    """返回当前 provider 可用的模型目录。
+
+    仅当 base_url 指向 DeepSeek 时返回目录——其它 provider（OpenRouter / OpenAI
+    等）的模型名与这里完全不同，写死 deepseek 模型名会让所有调用 400 失败。
+    """
+    url = (base_url if base_url is not None else config()[0]) or ""
+    if "deepseek" in url.lower():
+        return dict(MODEL_CATALOG)
+    return {}
+
+
+def style_default_model(style: Optional[str]) -> Optional[str]:
+    """回应方式的默认模型（未收录的 style 返回 None，交给 env 主模型）。"""
+    return STYLE_MODEL_DEFAULTS.get(str(style or "").strip())
+
+
+def resolve_model(choice: Optional[str] = None, style: Optional[str] = None) -> Optional[str]:
+    """决定本次调用的模型：显式选择优先 → 回应方式默认 → None（用 env 主模型）。
+
+    只有在当前 provider 目录内匹配成功才返回模型名；否则返回 None，避免跨
+    provider 写死模型名。未知 choice 不原样下发，回落 style 默认。
+    """
+    cat = provider_catalog()
+    if not cat:
+        return None
+    for cand in (choice, style_default_model(style)):
+        name = str(cand or "").strip()
+        if name and name in cat:
+            return name
+    return None
+
+
+def effective_max_tokens(model: Optional[str], max_tokens: int) -> int:
+    """按模型类型修正输出预算：推理模型抬到下限，普通模型原样返回。
+
+    推理模型（如 deepseek-flash / v4-pro）先产出 reasoning_content 再产出正文，
+    预算不足时正文为空串。这里只抬不压，调用方给的更大预算保持不变。
+    """
+    spec = MODEL_CATALOG.get(str(model or "").strip()) or {}
+    try:
+        mt = int(max_tokens)
+    except (TypeError, ValueError):
+        mt = 1200
+    if spec.get("reasoning"):
+        floor = int(spec.get("min_tokens") or REASONING_MIN_TOKENS)
+        return max(mt, floor)
+    return mt
+
+
+def _model_chain(model: Optional[str] = None) -> List[str]:
+    """主模型 + 回退模型链，按优先级排列。
+
+    model 显式指定时置于链首（用户点名的模型优先尝试），其余按 env 主模型 +
+    回退链去重后追加——点名模型失败时仍有机会拿到回答，而不是直接降级规则引擎。
+    """
     primary = _env("STARFIELD_LLM_MODEL", "gpt-4o-mini")
-    chain = [primary]
-    for m in fallback_models():
+    head = str(model or "").strip()
+    chain: List[str] = [head] if head else []
+    for m in [primary] + fallback_models():
         if m and m not in chain:
             chain.append(m)
     return chain
@@ -124,11 +220,17 @@ def chat_completion(
     temperature: float = 0.5,
     max_tokens: int = 1200,
     timeout: int = 30,
+    model: Optional[str] = None,
 ) -> Optional[str]:
     """
     调用 OpenAI 兼容 Chat Completion。
     返回 assistant 内容，失败时（含主模型限流/超时）自动尝试回退模型链，
     全部失败则返回 None，由调用方回退到规则引擎。
+
+    model（T-314）：显式指定模型（用户在前端选择 / 回应方式分层路由解析结果）。
+    指定后置于链首，其后仍追加 env 主模型与回退链，避免点名模型偶发失败就直接降级。
+    推理模型的 max_tokens 会经 effective_max_tokens 抬到下限（否则推理吃光预算、
+    正文为空）。
 
     总预算守卫：免费模型（尤其 OpenRouter）常因限流排队，若放任整条回退链
     逐模型各等 100s，最坏可达 400s，超过调用方的前端超时。这里额外限制
@@ -147,7 +249,7 @@ def chat_completion(
     per_timeout = min(timeout, 90)
     # 整条链总预算：最多 2 个模型 × per_timeout，且不超过 150s，确保用户少等待
     total_cap = min(per_timeout * 2, 150)
-    chain = _model_chain()
+    chain = _model_chain(model)
     last_err = ""
     _start = time.time()
     _set_last_err("")
@@ -160,17 +262,19 @@ def chat_completion(
         logger.warning(f"[llm_client] LLM client init failed: {e}")
         return None
 
-    for model in chain:
+    for m in chain:
         # 总预算耗尽：停止尝试，交回调用方回退到规则引擎
         if time.time() - _start > total_cap:
-            last_err = f"{model}: 总预算 {total_cap:.0f}s 耗尽，放弃剩余模型"
+            last_err = f"{m}: 总预算 {total_cap:.0f}s 耗尽，放弃剩余模型"
             break
+        # T-314：推理模型预算下限（只抬不压）
+        _mt = effective_max_tokens(m, max_tokens)
         try:
             resp = client.chat.completions.create(
-                model=model,
+                model=m,
                 messages=messages,
                 temperature=temperature,
-                max_tokens=max_tokens,
+                max_tokens=_mt,
                 extra_headers=extra_headers,
                 timeout=per_timeout,
             )
@@ -178,12 +282,13 @@ def chat_completion(
             if content:
                 return content
             # 空内容通常是模型主动拒答/截断，换模型也大概率同样空，立即终止回退链
-            last_err = f"{model}: empty content"
+            _reason = getattr(resp.choices[0], "finish_reason", "") or ""
+            last_err = f"{m}: empty content (finish={_reason}, max_tokens={_mt})"
             _set_last_err(last_err)
             break
         except Exception as e:
             logger.warning(f"[llm_client] 处理异常: {e}")
-            last_err = f"{model}: {e}"
+            last_err = f"{m}: {e}"
             _set_last_err(last_err)
             # 限流/超时/端点错误 -> 尝试下一个回退模型
             continue
@@ -198,14 +303,20 @@ def answer_with_llm(
     temperature: float = 0.5,
     max_tokens: int = 1200,
     timeout: int = 30,
+    model: Optional[str] = None,
 ) -> Optional[str]:
-    """带历史记录的对话调用。history 元素为 {"role":"user"/"assistant", "content":...}。"""
+    """带历史记录的对话调用。history 元素为 {"role":"user"/"assistant", "content":...}。
+
+    model（T-314）：显式模型名，透传给 chat_completion（置于回退链首）。
+    """
     messages = [{"role": "system", "content": system_prompt}]
     if history:
         # 只保留最近 6 轮，避免超出上下文
         messages.extend(history[-6:])
     messages.append({"role": "user", "content": user_prompt})
-    return chat_completion(messages, temperature=temperature, max_tokens=max_tokens, timeout=timeout)
+    return chat_completion(
+        messages, temperature=temperature, max_tokens=max_tokens, timeout=timeout, model=model,
+    )
 
 
 # =====================================================================

@@ -68,9 +68,15 @@ def test_preview_button_label_and_multiline_body():
 # ───────────── drawer_js / drawer_css ─────────────
 
 def test_drawer_js_global_api():
-    """JS 挂载 window.__ssDrawer（show/hide）+ 关闭交互 + backdrop 一次性挂载。"""
+    """JS 挂载 __ssDrawer（show/hide）+ 关闭交互 + backdrop 一次性挂载。
+
+    T-315 修正：本段 JS 运行在 components.html 的组件 iframe 内，句柄必须挂到
+    父窗口 P（= window.parent），否则业务侧 window.parent.__ssDrawer 取不到；
+    历史断言 window.__ssDrawer 实为缺陷形态（抽屉建在 iframe 里，用户不可见）。
+    """
     js = drawer_js()
-    assert "window.__ssDrawer" in js
+    assert "P.__ssDrawer" in js, "抽屉句柄必须挂父窗口（P），否则业务调用取不到"
+    assert "window.__ssDrawer" not in js, "不得再挂到 iframe 自身 window（T-315 缺陷回潮）"
     assert "show: function(title, html, meta)" in js
     assert "hide: ssDrawerHide" in js
     assert "ss-drawer-close" in js and "ss-drawer-backdrop" in js

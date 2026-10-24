@@ -19,10 +19,11 @@ from backend.tasks import worker  # noqa: E402
 def test_ai_consult_passes_style(monkeypatch):
     captured = {}
 
-    def _fake_ai_answer(question, context, style="quick"):
+    def _fake_ai_answer(question, context, style="quick", model=None):
         captured["question"] = question
         captured["context"] = context
         captured["style"] = style
+        captured["model"] = model
         return {"answer": "ok", "independent": True}
 
     monkeypatch.setattr("modules.ai_engine.ai_answer", _fake_ai_answer)
@@ -33,9 +34,16 @@ def test_ai_consult_passes_style(monkeypatch):
     assert out["answer"] == "ok"
     assert captured["style"] == "report"  # mutation：删透传 → 恒 quick → 红
     assert captured["question"] == "茅台怎么样"
+    assert captured["model"] is None  # T-314：未传 model → None（走 style 分层默认）
 
     worker._handle_ai_consult({"question": "x"})
     assert captured["style"] == "quick"  # 缺省回落 quick（兼容既有调用方）
+
+    # T-314：显式模型透传（空白串归一为 None）
+    worker._handle_ai_consult({"question": "x", "model": "deepseek-v4-pro"})
+    assert captured["model"] == "deepseek-v4-pro"
+    worker._handle_ai_consult({"question": "x", "model": "   "})
+    assert captured["model"] is None
 
 
 def test_ai_research_passes_style_and_default_steps(monkeypatch):

@@ -34,25 +34,35 @@ def js_escape(text: str) -> str:
 
 
 def drawer_js() -> str:
-    """抽屉组件 JS（由 widgets 经 extra_js 通道并入 scroll_nav 单次注入）。"""
+    """抽屉组件 JS（由 widgets 经 extra_js 通道并入 scroll_nav 单次注入）。
+
+    T-315 缺陷修复（阻塞级）：本段 JS 运行在 components.html 的**组件 iframe** 内，
+    历史版本直接使用裸 ``window`` / ``document`` —— 抽屉 DOM 被建在 iframe 里（用户
+    看不到，功能实际失效），且 iframe 内 ``document.body`` 在时序上可能为 null，
+    appendChild 抛 TypeError 后被 _nav_script 外层 try 吞掉，**导致拼接在其后的
+    全部 extra_js（自动滚底、复制回答）永不执行**。
+    现统一改用 _nav_script 注入点提供的 ``P``（= window.parent），与 topnav 一致；
+    并自包 try，避免本段异常再次阻断后续脚本。
+    """
     return """
-/* ── T-198 全局右侧滑出详情抽屉 ── */
-if (!window.__ssDrawer) {
-  var ssd = document.createElement('div');
+/* ── T-198 全局右侧滑出详情抽屉（T-315：P 作用域修复 + 自隔离）── */
+try {
+if (!P.__ssDrawer) {
+  var ssd = P.document.createElement('div');
   ssd.id = 'ssDrawerRoot';
   ssd.innerHTML = '<div class="ss-drawer-backdrop"></div>'
     + '<div class="ss-drawer-panel"><div class="ss-drawer-head">'
     + '<b class="ss-drawer-title"></b><button class="ss-drawer-close" title="关闭">✕</button></div>'
     + '<div class="ss-drawer-meta"></div><div class="ss-drawer-body"></div></div>';
-  document.body.appendChild(ssd);
-  var root = document.getElementById('ssDrawerRoot');
+  P.document.body.appendChild(ssd);
+  var root = P.document.getElementById('ssDrawerRoot');
   var pTitle = root.querySelector('.ss-drawer-title');
   var pMeta = root.querySelector('.ss-drawer-meta');
   var pBody = root.querySelector('.ss-drawer-body');
   function ssDrawerHide(){ root.classList.remove('open'); }
   root.querySelector('.ss-drawer-close').addEventListener('click', ssDrawerHide);
   root.querySelector('.ss-drawer-backdrop').addEventListener('click', ssDrawerHide);
-  window.__ssDrawer = {
+  P.__ssDrawer = {
     show: function(title, html, meta){
       pTitle.textContent = title || '';
       pMeta.innerHTML = meta || '';
@@ -62,6 +72,7 @@ if (!window.__ssDrawer) {
     hide: ssDrawerHide
   };
 }
+} catch (eD) {}
 """
 
 

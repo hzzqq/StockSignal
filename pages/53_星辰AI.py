@@ -40,7 +40,7 @@ from modules.starfield_theme import inject_plotly_dark
 from modules.background_tasks import (
     submit_task_with_error, poll_task, get_chat_history, save_chat_history,
     list_chat_conversations, create_chat_conversation, get_chat_conversation_messages,
-    save_chat_conversation_messages, delete_chat_conversation,
+    save_chat_conversation_messages, delete_chat_conversation, cancel_task,
 )
 from modules.widgets import _slim_context
 from modules.widgets import STAR_AI_LOGO
@@ -161,6 +161,16 @@ def _theme_css(dark: bool) -> str:
   padding:1px 8px;border-radius:999px;font-weight:600}}
 .xc-role-user{{font-size:11px;color:#fff;background:linear-gradient(135deg,var(--buy),#ff7a45);
   padding:1px 8px;border-radius:999px;font-weight:600}}
+/* T-315：消息时间戳 + 复制回答按钮 */
+.xc-ts{{font-size:11px;color:var(--txt2);opacity:.75;font-variant-numeric:tabular-nums}}
+.xc-user .xc-ts{{margin-right:2px}}
+.xc-copy-wrap{{display:flex;justify-content:flex-start;margin-top:6px}}
+.xc-copy{{font-size:11.5px;color:var(--txt2);background:transparent;
+  border:1px solid var(--border);border-radius:999px;padding:2px 10px;cursor:pointer;
+  transition:all .16s ease;line-height:1.6}}
+.xc-copy:hover{{color:var(--txt);border-color:var(--acc1);
+  background:rgba(102,126,234,.10)}}
+.xc-copy:active{{transform:scale(.96)}}
 .xc-bubble{{background:var(--card);border:1px solid var(--border);
   border-radius:4px 14px 14px 14px;padding:13px 16px;font-size:14.5px;color:var(--txt);
   box-shadow:0 6px 20px rgba(0,0,0,.28);line-height:1.75;word-break:break-word}}
@@ -453,6 +463,35 @@ def _md_to_html(md: str, cite_badges: bool = False) -> str:
 # ══════════════════════════════════════════════════════
 # 消息渲染
 # ══════════════════════════════════════════════════════
+def _fmt_ts(ts) -> str:
+    """消息时间戳显示（T-315）：当天只显示 HH:MM，跨天显示 MM-DD HH:MM；非法/缺失返回空串。"""
+    try:
+        _t = float(ts)
+    except (TypeError, ValueError):
+        return ""
+    if _t <= 0:
+        return ""
+    _dt = time.localtime(_t)
+    if time.strftime("%Y-%m-%d", _dt) == time.strftime("%Y-%m-%d"):
+        return time.strftime("%H:%M", _dt)
+    return time.strftime("%m-%d %H:%M", _dt)
+
+
+def xc_copy_block(text: str) -> str:
+    """「复制回答」按钮 HTML（T-315）。
+
+    用隐藏 <textarea> 承载原文而不是 data-* 属性：HTML 属性会把换行规范化成空格，
+    多行 markdown 复制后会粘连成一行。点击由 scroll_nav.xc_interaction_js 的
+    事件委托处理（页面内联 <script> 会被 Streamlit 剥离，不可用）。
+    """
+    return (
+        '<div class="xc-copy-wrap">'
+        f'<textarea class="xc-copy-src" readonly hidden>{esc(text)}</textarea>'
+        '<button class="xc-copy" type="button" title="复制本条回答（Markdown 原文）">📋 复制</button>'
+        '</div>'
+    )
+
+
 def _avatar_text(username: str) -> str:
     """取用户名前 1-2 个字符作为头像文字（中文取 1 字，英文取 2 字母）。"""
     if not username:
@@ -600,12 +639,14 @@ def _export_markdown(messages: list) -> str:
 
 
 def render_message(m: dict, idx: int, username: str) -> None:
+    _ts_s = _fmt_ts(m.get("ts"))  # T-315：消息时间戳（缺失时为空串，不渲染）
+    _ts_html = f'<span class="xc-ts">{esc(_ts_s)}</span>' if _ts_s else ""
     if m.get("role") == "user":
         st.markdown(
             f'<div class="xc-msg xc-user">'
             f'<div class="xc-col"><div class="xc-who">'
             f'<span class="xc-name">{esc(username)}</span>'
-            f'<span class="xc-role xc-role-user">你问</span></div>'
+            f'<span class="xc-role xc-role-user">你问</span>{_ts_html}</div>'
             f'<div class="xc-bubble xc-user-bubble">{esc(m.get("content", ""))}</div>'
             f'</div><div class="xc-av xc-user-av">{_avatar_text(username)}</div></div>',
             unsafe_allow_html=True,
@@ -633,9 +674,10 @@ def render_message(m: dict, idx: int, username: str) -> None:
     st.markdown(
         '<div class="xc-msg"><div class="xc-av">🌟</div>'
         '<div class="xc-col"><div class="xc-who">'
-        '<span class="xc-name">星辰 AI</span><span class="xc-role">助手</span>'
+        f'<span class="xc-name">星辰 AI</span><span class="xc-role">助手</span>{_ts_html}'
         '</div>'
         f'<div class="xc-bubble">{_md_to_html(_content)}</div>'
+        f'{xc_copy_block(str(_content))}'
         '</div></div>',
         unsafe_allow_html=True,
     )
@@ -643,7 +685,7 @@ def render_message(m: dict, idx: int, username: str) -> None:
     # 发给 AI 的上下文只取 role+content（不受影响），纯 additive
     if not m.get("chips"):
         _fb = m.get("feedback")
-        _fbc = st.columns([0.5, 0.5, 9], gap="small", vertical_alignment="center")
+        _fbc = st.columns([0.5, 0.5, 1.2, 7.8], gap="small", vertical_alignment="center")
         if _fbc[0].button("👍" if _fb != "up" else "👍 已赞", key=f"xc_fb_up_{idx}",
                           help="这个回答有帮助", width="content",
                           type="primary" if _fb == "up" else "secondary") and _fb != "up":
@@ -654,6 +696,21 @@ def render_message(m: dict, idx: int, username: str) -> None:
                           type="primary" if _fb == "down" else "secondary") and _fb != "down":
             m["feedback"] = "down"
             _persist_feedback()
+        # T-315：重新生成——对该回答对应的上一轮提问重新提问（与失败重试区分：
+        # 这条回答本身是成功的，只是用户想要另一个版本）。复用 _xc_pending 通道。
+        _prev_q = next(
+            (str(mm.get("content") or "") for mm in reversed(st.session_state["xc_messages"][:idx])
+             if isinstance(mm, dict) and mm.get("role") == "user"
+             and str(mm.get("content") or "").strip()),
+            "",
+        )
+        if _prev_q and _fbc[2].button(
+            "🔁 重新生成", key=f"xc_regen_{idx}", width="content",
+            disabled=bool(st.session_state.get("xc_task_id")),
+            help="换一版回答（会重新提交这条提问）",
+        ):
+            st.session_state["_xc_pending"] = _prev_q
+            st.rerun(scope="fragment")
     # T-312：任务级失败一键重试——后端任务 error/超时终态的消息附带的原始提问，
     # 复用 _xc_pending 提交通道（与 _xc_failed_prompt / 追问 chips 同一机制，无新通道）
     _retry_q = str(m.get("retry_prompt") or "")
@@ -1018,9 +1075,27 @@ st.markdown(_theme_css(dark), unsafe_allow_html=True)
 username = (get_user() or {}).get("username", "你")
 
 # T-308 模型可见性：顶部徽标如实显示当前 LLM（诚实语义：未配置 LLM 时明示
-# 「规则引擎模式」，不假装有模型；严禁展示 API key）
+# 「规则引擎模式」，不假装有模型；严禁展示 API key）。
+# T-314：徽标显示「本次实际生效的模型」——用户选择优先，否则按当前回应方式的分层
+# 默认；非 DeepSeek provider（目录为空）时回落 env 主模型名。
 _XC_LLM_READY = llm_client.is_configured()
-_XC_MODEL_NAME = str((llm_client.config() or ("", ""))[1] or "").strip() if _XC_LLM_READY else ""
+_XC_ENV_MODEL = str((llm_client.config() or ("", ""))[1] or "").strip() if _XC_LLM_READY else ""
+_XC_CATALOG = llm_client.provider_catalog() if _XC_LLM_READY else {}
+# 选择器选项：空值代表「自动（按回应方式）」，其余为目录内模型的 label
+_XC_MODEL_AUTO = "自动（按回应方式）"
+_XC_MODEL_LABELS = [_XC_MODEL_AUTO] + [str(v.get("label") or k) for k, v in _XC_CATALOG.items()]
+_XC_MODEL_BY_LABEL = {str(v.get("label") or k): k for k, v in _XC_CATALOG.items()}
+_XC_STYLE_KEY_NOW = _XC_STYLE_KEY_BY_LABEL.get(
+    str(st.session_state.get("xc_reply_style") or _XC_STYLE_OPTIONS[0]), "quick"
+)
+_XC_CHOICE_LABEL = str(st.session_state.get("xc_model_choice") or _XC_MODEL_AUTO)
+_XC_MODEL_NAME = (
+    llm_client.resolve_model(
+        _XC_MODEL_BY_LABEL.get(_XC_CHOICE_LABEL),
+        llm_client.style_default_model(_XC_STYLE_KEY_NOW),
+    )
+    or _XC_ENV_MODEL
+) if _XC_LLM_READY else ""
 _XC_MODEL_HINT = f"当前模型 {_XC_MODEL_NAME}" if _XC_LLM_READY else "未配置 LLM · 规则引擎"
 
 # 尝试从后端拉取历史
@@ -1084,6 +1159,27 @@ with h_right:
     else:
         if st.button("🗑️ 清空", key="xc_clear", width="stretch", help="清空对话"):
             st.session_state[_ck] = True
+
+# ── T-314 模型选择器：用户可覆盖分层路由默认（仅 DeepSeek 目录可用时展示）──
+if _XC_LLM_READY and _XC_CATALOG:
+    _mc_l, _mc_r = st.columns([1.15, 4.85])
+    with _mc_l:
+        st.selectbox(
+            "🧠 模型",
+            _XC_MODEL_LABELS,
+            key="xc_model_choice",
+            help="自动＝按回应方式分层路由（快速问答 / 教学用低延迟档，深度研报 / 多空辩论用高质量档）；"
+                 "也可固定指定某一模型。选择只影响后续提问。",
+        )
+    with _mc_r:
+        _sel_key = _XC_MODEL_BY_LABEL.get(_XC_CHOICE_LABEL) or ""
+        _sel_desc = str((_XC_CATALOG.get(_sel_key) or {}).get("desc") or "")
+        st.caption(
+            f"本次生效：**{_XC_MODEL_NAME}**"
+            + (f" · {_sel_desc}" if _sel_desc else " · 按当前回应方式自动选择")
+        )
+elif _XC_LLM_READY:
+    st.caption(f"本次生效：**{_XC_MODEL_NAME}** · 当前服务未提供可选模型目录，使用环境主模型")
 
 st.markdown(
     '<div class="xc-banner">💡 我可独立拉取行情 / 基本面 / 事件数据并给出研判；'
@@ -1222,6 +1318,30 @@ def fragment_chat():
             f'<span>{esc(_phase)}（已等待 {_elapsed_str} · {esc(_XC_MODEL_HINT)}）</span></div>',
             unsafe_allow_html=True,
         )
+        # T-315 停止生成：仅标记后台任务 CANCELLED（线程无法强杀，结果不再发布）。
+        # 诚实文案：明确「已停止等待」，不谎称计算已中断。
+        if st.button("⏹ 停止生成", key="xc_stop_task", width="content",
+                     help="停止等待本次回答（后台计算可能仍在收尾，但结果不会再显示）"):
+            _ok, _err = cancel_task(str(st.session_state.get("xc_task_id") or ""))
+            st.session_state["xc_task_id"] = None
+            st.session_state["xc_task_started_at"] = None
+            st.session_state.pop("_xc_last_intent", None)
+            st.session_state.pop("xc_task_is_research", None)
+            _prev_q = next(
+                (str(mm.get("content") or "") for mm in reversed(st.session_state["xc_messages"])
+                 if isinstance(mm, dict) and mm.get("role") == "user"
+                 and str(mm.get("content") or "").strip()),
+                "",
+            )
+            st.session_state["xc_messages"].append({
+                "role": "assistant",
+                "content": ("⏹ 已停止等待本次回答。" if _ok
+                            else f"⏹ 已停止等待（后台未确认取消：{_err or '未知原因'}）。")
+                           + "后台计算可能仍在收尾，但结果不会再显示；可点「重新生成」再试。",
+                "ts": time.time(),
+                **({"retry_prompt": _prev_q} if _prev_q else {}),
+            })
+            st.rerun(scope="fragment")
 
     # ── 回到底部按钮：由 apply_theme() 注入的 inject_scroll_nav 在首次
     #    components.html 中创建视口级浮动 ▼（right:24px;bottom:110px），
@@ -1248,7 +1368,9 @@ def fragment_chat():
                 {"role": "assistant", "content": "⏳ 上一轮分析仍在进行中，请稍候它完成后再提问。"}
             )
             st.rerun(scope="fragment")
-        st.session_state["xc_messages"].append({"role": "user", "content": prompt})
+        st.session_state["xc_messages"].append(
+            {"role": "user", "content": prompt, "ts": time.time()}  # T-315：消息时间戳
+        )
         # H1 深度研究模式：开启时问题走 ai_research（多步工具调用 + 引用溯源），
         # 不做意图拦截（智能体自行规划工具），避免双重工具调用。
         _deep = bool(st.session_state.get("xc_deep_mode"))
@@ -1295,10 +1417,15 @@ def fragment_chat():
                 str(st.session_state.get("xc_reply_style") or _XC_STYLE_OPTIONS[0]), "quick"
             )
             _task_type = "ai_research" if _deep else "ai_consult"
+            # T-314：把用户选择的模型一并下发（空串=自动，后端 ai_engine 按 style 分层路由）
+            _sel_model = _XC_MODEL_BY_LABEL.get(
+                str(st.session_state.get("xc_model_choice") or _XC_MODEL_AUTO)
+            ) or ""
             _task_payload = (
                 {"question": prompt, "max_steps": 8, "history": _deep_history,
                  "style": _style_key} if _deep
-                else {"question": prompt, "context": ctx, "style": _style_key}
+                else {"question": prompt, "context": ctx, "style": _style_key,
+                      "model": _sel_model}
             )
             task_id, err = submit_task_with_error(_task_type, _task_payload)
         if task_id:
@@ -1370,10 +1497,10 @@ def _poll_ai_task():
         # H1：研究智能体结果带步骤/引用 → 渲染为 research 卡片；否则走普通回答
         if st.session_state.pop("xc_task_is_research", None) and \
                 isinstance(result, dict) and result.get("steps"):
-            _msg = {"role": "research", "payload": result}
+            _msg = {"role": "research", "payload": result, "ts": time.time()}
         else:
             answer = result.get("answer") or "AI 暂未给出回答"
-            _msg = {"role": "assistant", "content": answer}
+            _msg = {"role": "assistant", "content": answer, "ts": time.time()}  # T-315
         # T-308 追问建议：按提交时意图分类给 2~3 条可点击追问（静态模板，零成本）
         _sug = _XC_SUGGESTION_TEMPLATES.get(str(_intent_info.get("sug_key") or "general"))
         if _sug:
@@ -1395,7 +1522,19 @@ def _poll_ai_task():
         )
         st.session_state["xc_messages"].append(
             {"role": "assistant", "content": f"❌ AI 分析失败：{task.get('error') or '未知错误'}",
+             "ts": time.time(),
              **({"retry_prompt": _retry_q} if _retry_q else {})}
+        )
+        st.session_state["xc_task_id"] = None
+        st.session_state["xc_task_started_at"] = None
+        st.rerun(scope="app")
+    elif task and task.get("status") == "cancelled":
+        # T-315：任务已取消（本端停止按钮通常已清 task_id；这里兜底其他端/多标签取消）
+        st.session_state.pop("xc_task_is_research", None)
+        st.session_state.pop("_xc_last_intent", None)
+        st.session_state["xc_messages"].append(
+            {"role": "assistant", "content": "⏹ 本次回答已停止（后台任务被取消）。",
+             "ts": time.time()}
         )
         st.session_state["xc_task_id"] = None
         st.session_state["xc_task_started_at"] = None

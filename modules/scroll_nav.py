@@ -601,6 +601,62 @@ def xc_autoscroll_js() -> str:
         "mo.observe(P.document.body,{childList:true,subtree:true});"
         "P.__xcMO=mo;"
         "}catch(e){}"
+        "})();"   # T-315：结尾分号——多段 IIFE 直接拼接时缺分号会变成 })()(function(){…（误当函数调用）
+    )
+
+
+def xc_interaction_js() -> str:
+    """星辰 AI「复制回答」事件委托（T-315）。
+
+    经 inject_scroll_nav 的 extra_js 通道并入首次 components.html 单次注入
+    （项目铁律：页面内联 <script> 会被 Streamlit 剥离，多次 components.html 仅首次可靠）。
+
+    设计：
+    - 委托绑定在父文档 click 上（气泡按钮由 st.markdown 渲染在父文档），
+      `__xcCopyBound` 句柄防 rerun 重复绑定；
+    - 原文取自按钮同容器内隐藏 <textarea class="xc-copy-src">（HTML 属性会吃掉换行）；
+    - 优先 navigator.clipboard（需安全上下文），失败降级 textarea+execCommand；
+    - 自守卫：其他页面无 .xc-copy 元素时零行为。
+    """
+    return (
+        ";(function(){"   # T-315：前置分号——与上一段 extra_js 拼接时防 IIFE 连写误解析
+        "var P=window.parent||window;"
+        "try{"
+        "if(P.__xcCopyBound)return;"
+        "P.__xcCopyBound=true;"
+        "P.document.addEventListener('click',function(e){"
+        "  var t=e.target;var b=null;"
+        "  while(t&&t!==P.document){"
+        "    if(t.classList&&t.classList.contains('xc-copy')){b=t;break;}"
+        "    t=t.parentElement;"
+        "  }"
+        "  if(!b)return;"
+        "  e.preventDefault();"
+        "  var wrap=b.parentElement;var ta=wrap?wrap.querySelector('.xc-copy-src'):null;"
+        "  var txt=ta?ta.value:'';"
+        "  if(!txt){return;}"
+        "  var old=b.getAttribute('data-lbl')||b.textContent;"
+        "  b.setAttribute('data-lbl',old);"
+        "  function done(ok){"
+        "    b.textContent=ok?'✅ 已复制':'⚠️ 复制失败';"
+        "    setTimeout(function(){b.textContent=old;},1600);"
+        "  }"
+        "  function fallback(){"
+        "    try{"
+        "      var ta2=P.document.createElement('textarea');"
+        "      ta2.value=txt;ta2.style.position='fixed';ta2.style.opacity='0';"
+        "      P.document.body.appendChild(ta2);ta2.select();"
+        "      var ok=P.document.execCommand('copy');"
+        "      P.document.body.removeChild(ta2);done(ok);"
+        "    }catch(err){done(false);}"
+        "  }"
+        "  try{"
+        "    if(P.navigator&&P.navigator.clipboard&&P.navigator.clipboard.writeText){"
+        "      P.navigator.clipboard.writeText(txt).then(function(){done(true);},fallback);"
+        "    }else{fallback();}"
+        "  }catch(err){fallback();}"
+        "},true);"
+        "}catch(e){}"
         "})()"
     )
 

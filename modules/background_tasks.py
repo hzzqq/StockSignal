@@ -105,10 +105,38 @@ def poll_task(task_id: str, max_wait: float = 0.5) -> Optional[Dict[str, Any]]:
     t0 = time.time()
     while time.time() - t0 < max_wait:
         task = get_task(task_id)
-        if task and task.get("status") in ("success", "error"):
+        if task and task.get("status") in ("success", "error", "cancelled"):
             return task
         time.sleep(0.05)
     return get_task(task_id)
+
+
+def cancel_task(task_id: str) -> tuple[bool, Optional[str]]:
+    """停止后台任务（T-315 停止生成），返回 (是否已停止, 错误文案)。
+
+    后端仅标记 CANCELLED，执行线程无法强杀——文案如实说明「已停止等待」语义。
+    404（任务不存在）/409（已结束不可取消）都按失败返回，由调用方决定是否提示。
+    """
+    try:
+        resp = requests.delete(
+            f"{API_BASE}/api/tasks/{task_id}",
+            headers=_headers(),
+            timeout=_TIMEOUT,
+        )
+        if resp.status_code == 200 and resp.json().get("status") == "ok":
+            return True, None
+        if resp.status_code == 409:
+            return False, "任务已结束，无法停止"
+        if resp.status_code == 404:
+            return False, "任务不存在（可能已完成或已过期）"
+        if resp.status_code in (401, 403):
+            return False, "登录已过期，请重新登录"
+        return False, f"停止失败（HTTP {resp.status_code}）"
+    except requests.exceptions.ConnectionError as e:
+        return False, f"连接失败：{e}"
+    except Exception as e:
+        logger.warning(f"[background_tasks] cancel_task 异常: {e}")
+        return False, f"停止异常：{e}"
 
 
 def wait_for_task(task_id: str, timeout: float = 30.0, poll_interval: float = 0.3) -> Optional[Dict[str, Any]]:

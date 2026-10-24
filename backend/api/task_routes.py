@@ -75,6 +75,22 @@ def get_task(task_id: str):
     return ok(data=task, message="success")
 
 
+@bp.delete("/<task_id>")
+@jwt_required
+def cancel_task(task_id: str):
+    """DELETE /api/tasks/<task_id> 停止任务（T-315 停止生成）。
+
+    状态：已取消 / 已结束（终态不可取消，409）/ 不存在（404）。
+    诚实语义：仅标记取消，正在执行的 handler 线程无法强杀；结果不再发布给前端。
+    """
+    res = task_worker.cancel(task_id)
+    if res is None:
+        return fail(message="任务不存在", code="task_not_found", http_status=404)
+    if res is False:
+        return fail(message="任务已结束，无法取消", code="task_not_cancellable", http_status=409)
+    return ok(data={"task_id": task_id, "status": "cancelled"}, message="任务已停止")
+
+
 @bp.get("/")
 @jwt_required
 def list_tasks():

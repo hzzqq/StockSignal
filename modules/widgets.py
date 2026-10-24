@@ -565,10 +565,12 @@ def inject_global_widgets() -> None:
     _nav_index = build_nav_index(_NAV_GROUPS, _NAV_HERO, _NAV_ADMIN,
                                  load_nav_favorites(), nav_qs=_nav_qs)
     from modules.drawer import drawer_js
-    from modules.scroll_nav import xc_autoscroll_js
+    from modules.scroll_nav import xc_autoscroll_js, xc_interaction_js
     # T-310：星辰AI 对话页自动滚底观察器并入单次注入（JS 自守卫，其他页零行为）
+    # T-315：复制回答事件委托同一通道（自守卫：无 .xc-copy 元素时零行为）
     inject_scroll_nav(nav_index=_nav_index, nav_qs=_nav_qs,
-                      extra_js=topnav_extra_js() + drawer_js() + xc_autoscroll_js())
+                      extra_js=topnav_extra_js() + drawer_js()
+                      + xc_autoscroll_js() + xc_interaction_js())
 _NAV_HERO = [('pages/54_今日决策面板.py', '今日决策面板', '🎯')]
 # 常用（高频直达）：默认 Top5 高频页（不含 Hero 已常驻的 54），用户无需扫描分组即可一键进入。
 # 后续可升级为基于 session_state 访问频率的动态 Top5（需 hook 跳转计数，暂用静态推荐）。

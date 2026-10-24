@@ -132,6 +132,29 @@ class TaskWorker:
             return None
         return task.to_dict()
 
+    def cancel(self, task_id: str) -> Optional[bool]:
+        """取消任务（T-315 停止生成）。
+
+        返回：
+          - True  : 本次成功标记为 CANCELLED（pending/running 可取消）
+          - False : 任务已终态（success/error/cancelled），不重复取消、不回退状态
+          - None  : 任务不存在
+
+        诚实语义：Python 线程无法强杀，正在执行的 handler 仍会跑完；取消只保证
+        「状态不再被结果覆盖」（_run_task 写结果前检查取消态），前端不再展示结果。
+        """
+        task = self._tasks.get(task_id)
+        if not task:
+            return None
+        with task._lock:
+            if task.status in (TaskStatus.SUCCESS, TaskStatus.ERROR, TaskStatus.CANCELLED):
+                return False
+            task.status = TaskStatus.CANCELLED
+            task.error = "用户已停止生成"
+            task.updated_at = time.time()
+        self._persist()
+        return True
+
     def list_tasks(self, limit: int = 50) -> List[Dict[str, Any]]:
         with self._lock:
             tasks = sorted(self._tasks.values(), key=lambda t: t.created_at, reverse=True)[:limit]
@@ -147,6 +170,9 @@ class TaskWorker:
             return
 
         with task._lock:
+            if task.status is TaskStatus.CANCELLED:
+                # T-315：排队期间已被用户取消 → 不再执行 handler
+                return
             task.status = TaskStatus.RUNNING
             task.updated_at = time.time()
 
@@ -176,16 +202,22 @@ class TaskWorker:
         try:
             result = handler(payload)
             with task._lock:
-                task.status = TaskStatus.SUCCESS
-                task.progress = 100
-                task.result = _serialize_for_json(result)
-                task.updated_at = time.time()
+                if task.status is TaskStatus.CANCELLED:
+                    # T-315：用户已停止生成——不覆盖取消态、不发布结果（线程无法强杀，
+                    # 但结果对用户不可见，避免「点了停止还突然弹出回答」）
+                    task.updated_at = time.time()
+                else:
+                    task.status = TaskStatus.SUCCESS
+                    task.progress = 100
+                    task.result = _serialize_for_json(result)
+                    task.updated_at = time.time()
         except Exception as e:
             warnings.warn(f"Task {task.task_id} failed: {e}")
             with task._lock:
-                task.status = TaskStatus.ERROR
-                task.error = str(e)
-                task.updated_at = time.time()
+                if task.status is not TaskStatus.CANCELLED:
+                    task.status = TaskStatus.ERROR
+                    task.error = str(e)
+                    task.updated_at = time.time()
         finally:
             unregister(task.task_id)
             self._persist()
@@ -284,13 +316,22 @@ def _handle_compare(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def _handle_ai_consult(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """执行 AI 独立咨询（T-308：透传回应方式 style，非法值由 ai_engine 兜底回落 quick）。"""
+    """执行 AI 独立咨询（T-308 透传回应方式 style；T-314 透传用户选择的模型）。
+
+    payload:
+      - question: 用户问题
+      - context:  页面上下文（含 history）
+      - style:    回应方式 quick/report/debate/teach（非法值由 ai_engine 兜底 quick）
+      - model:    用户在前端选择的模型名（可空；ai_engine 经 resolve_model 做
+                  provider 感知校验，非法/跨 provider 时回落 style 分层默认）
+    """
     from modules.ai_engine import ai_answer
 
     question = payload.get("question", "")
     context = payload.get("context", {})
     style = str(payload.get("style") or "quick")
-    return ai_answer(question, context, style=style)
+    model = str(payload.get("model") or "").strip() or None
+    return ai_answer(question, context, style=style, model=model)
 
 
 def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
