@@ -143,6 +143,45 @@ def test_freshness_cap_note_three_branches():
     s = M._freshness_cap_note("ok", 70, 70, "bias=偏多")
     assert "封顶" not in s and "None" not in s and "陈旧" not in s
 
+    # 4) 新鲜度未知 → 不得冒充「新鲜」，须明说未施加封顶
+    s = M._freshness_cap_note("unknown", 70, 70, "bias=偏多")
+    assert "未知" in s and "不臆造" in s and "封顶" in s and "新鲜（ok）" not in s
+
+
+def test_morning_report_freshness_status_bound_before_use():
+    """freshness_status 必须在使用前显式绑定，且缺失 status 时不得 KeyError。
+
+    反例：删掉 `freshness_status = ...` 一行 → 首个引用处 NameError；
+    改用 `fresh["status"]` → assess_freshness 若契约漂移（缺 status）即 KeyError。
+    """
+    import ast
+    import os as _os
+    src_path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "scripts", "gen_morning_event_sentiment.py")
+    src = open(src_path, encoding="utf-8").read()
+    tree = ast.parse(src)
+    main = next(n for n in ast.walk(tree)
+                if isinstance(n, ast.FunctionDef) and n.name == "main")
+
+    assigns = [n for n in ast.walk(main)
+               if isinstance(n, ast.Assign) and len(n.targets) == 1
+               and isinstance(n.targets[0], ast.Name)
+               and n.targets[0].id == "freshness_status"]
+    assert assigns, "main() 内缺少 freshness_status 的显式绑定"
+    def_line = min(n.lineno for n in assigns)
+
+    uses = [n.lineno for n in ast.walk(main)
+            if isinstance(n, ast.Name) and n.id == "freshness_status"
+            and isinstance(n.ctx, ast.Load)]
+    assert uses, "未找到 freshness_status 的引用（守卫失效）"
+    assert def_line < min(uses), \
+        f"freshness_status 定义行 {def_line} 晚于首次引用行 {min(uses)}（会 NameError）"
+
+    # 绑定必须是容错取值：fresh.get("status") 而非 fresh["status"]
+    seg = ast.get_source_segment(src, assigns[0]) or ""
+    assert '.get("status")' in seg, f"未容错取 status（契约漂移即 KeyError）：{seg}"
+
 
 def test_freshness_cap_note_reads_decision_caps(monkeypatch):
     """阈值必须取自 modules.decision.FRESHNESS_CAPS（单一真理源），不得本地硬编码。"""

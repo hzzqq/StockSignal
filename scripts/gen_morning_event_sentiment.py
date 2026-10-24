@@ -50,7 +50,10 @@ def _freshness_cap_note(freshness_status, eff_pct: int, raw_pct: int, ctx: str) 
         return (f"**输入源整体{freshness_status}（封顶阈值 {cap:.0f}%）已显式告警，"
                 f"但当日推导仓位 {eff_pct}% 本就低于该阈值，封顶未实际约束**；"
                 f"仓位由当日推导本身决定（{ctx}），并非因陈旧封顶")
-    return (f"输入源整体{freshness_status}，未触发任何新鲜度降级；"
+    if freshness_status == "ok":
+        return (f"输入源整体新鲜（ok），未触发任何新鲜度降级；"
+                f"仓位由当日推导本身决定（{ctx}）")
+    return (f"输入源新鲜度未知（{freshness_status}），未施加封顶（不臆造新鲜度）；"
             f"仓位由当日推导本身决定（{ctx}）")
 
 
@@ -158,7 +161,10 @@ def main():
         "市场温度缓存": _hrow.get("市场温度缓存", {}).get("as_of"),
     }
     fresh = assess_freshness(_decision_sources)
-    freshness_status = fresh["status"]
+    # freshness_status：后续仓位封顶与晨报文案的唯一依据，必须在使用前显式绑定。
+    # 取值 ok / warn / stale / unknown；assess_freshness 契约上必返 status，缺失时按
+    # unknown 处理（不臆造新鲜度，也就不施加封顶）。
+    freshness_status = str(fresh.get("status") or "unknown")
 
     # ── 4) 仓位建议（走 derive_position 口径）──
     # 含事件因子名义催化(+2pt，来自陈旧信号)
