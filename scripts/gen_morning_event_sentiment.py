@@ -30,7 +30,7 @@ def _age_days(d: str | None) -> int | None:
         return None
 
 
-def _freshness_cap_note(freshness_status, eff_pct: int, raw_pct: int, ctx: str) -> str:
+def _freshness_cap_note(freshness_status: str, eff_pct: int, raw_pct: int, ctx: str) -> str:
     """整体数据新鲜度对仓位的「实际约束」说明（诚实口径，三分支）。
 
     必须区分「封顶真的压低了仓位」与「推导本身已低于阈值」：
@@ -55,6 +55,19 @@ def _freshness_cap_note(freshness_status, eff_pct: int, raw_pct: int, ctx: str) 
                 f"仓位由当日推导本身决定（{ctx}）")
     return (f"输入源新鲜度未知（{freshness_status}），未施加封顶（不臆造新鲜度）；"
             f"仓位由当日推导本身决定（{ctx}）")
+
+
+def _overall_freshness_status(sources: dict) -> tuple[str, dict]:
+    """整体新鲜度判定的唯一入口：返回 (freshness_status, fresh 明细)。
+
+    freshness_status 取值 ok / warn / stale / unknown；assess_freshness 契约上必返
+    status，此处仍容错取值——缺失时按 unknown 处理（不臆造新鲜度，也就不施加封顶）。
+    main() 经此 helper 绑定 freshness_status，「定义」是具名函数的输出而非内联
+    局部变量，AST 守卫 test_morning_report_freshness_status_bound_before_use 据此钉接线。
+    """
+    from modules.decision import assess_freshness
+    fresh = assess_freshness(sources)
+    return str(fresh.get("status") or "unknown"), fresh
 
 
 def latest_snapshot_file() -> str:
@@ -90,7 +103,7 @@ def read_signal_meta_cheap(path: str) -> dict:
 
 
 def main():
-    from modules.decision import derive_position, assess_freshness
+    from modules.decision import derive_position
     from modules.data_health import health_rows_enriched
 
     # ── 1) 最新每日快照 ──
@@ -160,11 +173,10 @@ def main():
         "连板晋级率": _hrow.get("连板晋级率", {}).get("as_of"),
         "市场温度缓存": _hrow.get("市场温度缓存", {}).get("as_of"),
     }
-    fresh = assess_freshness(_decision_sources)
-    # freshness_status：后续仓位封顶与晨报文案的唯一依据，必须在使用前显式绑定。
-    # 取值 ok / warn / stale / unknown；assess_freshness 契约上必返 status，缺失时按
-    # unknown 处理（不臆造新鲜度，也就不施加封顶）。
-    freshness_status = str(fresh.get("status") or "unknown")
+    # freshness_status：后续仓位封顶与晨报文案的唯一依据。经模块级 helper
+    # _overall_freshness_status 具名产出（容错取 status，缺失按 unknown 处理，
+    # 不臆造新鲜度）；main 内不内联实现，AST 守卫钉住该接线形态。
+    freshness_status, fresh = _overall_freshness_status(_decision_sources)
 
     # ── 4) 仓位建议（走 derive_position 口径）──
     # 含事件因子名义催化(+2pt，来自陈旧信号)

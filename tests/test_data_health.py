@@ -149,10 +149,10 @@ def test_freshness_cap_note_three_branches():
 
 
 def test_morning_report_freshness_status_bound_before_use():
-    """freshness_status 必须在使用前显式绑定，且缺失 status 时不得 KeyError。
+    """freshness_status 必须经模块级 helper _overall_freshness_status 具名产出（T-322）。
 
-    反例：删掉 `freshness_status = ...` 一行 → 首个引用处 NameError；
-    改用 `fresh["status"]` → assess_freshness 若契约漂移（缺 status）即 KeyError。
+    反例：删 helper（回退到内联绑定）；或 helper 改硬取 fresh["status"]
+    （assess_freshness 契约漂移即 KeyError）→ 本守卫红。
     """
     import ast
     import os as _os
@@ -161,26 +161,73 @@ def test_morning_report_freshness_status_bound_before_use():
         "scripts", "gen_morning_event_sentiment.py")
     src = open(src_path, encoding="utf-8").read()
     tree = ast.parse(src)
-    main = next(n for n in ast.walk(tree)
-                if isinstance(n, ast.FunctionDef) and n.name == "main")
+    funcs = {n.name: n for n in ast.walk(tree)
+             if isinstance(n, ast.FunctionDef)}
+    helper = funcs.get("_overall_freshness_status")
+    assert helper is not None, \
+        "缺少模块级 helper _overall_freshness_status（freshness_status 须经具名函数产出）"
+    main_fn = funcs["main"]
 
-    assigns = [n for n in ast.walk(main)
-               if isinstance(n, ast.Assign) and len(n.targets) == 1
-               and isinstance(n.targets[0], ast.Name)
-               and n.targets[0].id == "freshness_status"]
-    assert assigns, "main() 内缺少 freshness_status 的显式绑定"
-    def_line = min(n.lineno for n in assigns)
+    # main 内绑定必须是 tuple 解包自 helper
+    binds = [n for n in ast.walk(main_fn)
+             if isinstance(n, ast.Assign) and len(n.targets) == 1
+             and isinstance(n.targets[0], ast.Tuple)
+             and isinstance(n.value, ast.Call)
+             and isinstance(n.value.func, ast.Name)
+             and n.value.func.id == "_overall_freshness_status"
+             and [t.id for t in n.targets[0].elts
+                  if isinstance(t, ast.Name)] == ["freshness_status", "fresh"]]
+    assert binds, "main() 内 freshness_status 未通过 _overall_freshness_status(...) 绑定"
 
-    uses = [n.lineno for n in ast.walk(main)
-            if isinstance(n, ast.Name) and n.id == "freshness_status"
-            and isinstance(n.ctx, ast.Load)]
-    assert uses, "未找到 freshness_status 的引用（守卫失效）"
-    assert def_line < min(uses), \
-        f"freshness_status 定义行 {def_line} 晚于首次引用行 {min(uses)}（会 NameError）"
+    # helper 必须容错取 status，缺失按 unknown（不臆造新鲜度）
+    helper_src = ast.get_source_segment(src, helper) or ""
+    assert '.get("status")' in helper_src, "helper 未容错取 status（契约漂移即 KeyError）"
+    assert 'or "unknown"' in helper_src, "helper 缺失 status 时必须降级 unknown"
 
-    # 绑定必须是容错取值：fresh.get("status") 而非 fresh["status"]
-    seg = ast.get_source_segment(src, assigns[0]) or ""
-    assert '.get("status")' in seg, f"未容错取 status（契约漂移即 KeyError）：{seg}"
+    # main 内不得再内联绑定 freshness_status（唯一出口是 helper，防双轨漂移）
+    inline = [n for n in ast.walk(main_fn)
+              if isinstance(n, ast.Assign) and len(n.targets) == 1
+              and isinstance(n.targets[0], ast.Name)
+              and n.targets[0].id == "freshness_status"]
+    assert not inline, "main() 内不得再内联绑定 freshness_status（唯一出口是 helper）"
+
+
+def test_overall_freshness_status_helper_fault_tolerant(monkeypatch):
+    """_overall_freshness_status 行为契约：透传 fresh 明细；status 缺失/None → unknown。"""
+    from modules import decision as D
+    import scripts.gen_morning_event_sentiment as M
+
+    monkeypatch.setattr(D, "assess_freshness",
+                        lambda sources: {"status": "stale", "max_lag_days": 21})
+    status, fresh = M._overall_freshness_status({"牧羊人情绪": "2026-01-01"})
+    assert status == "stale" and fresh["max_lag_days"] == 21
+
+    # 契约漂移（缺 status）→ 不得 KeyError，按 unknown 处理（不臆造新鲜度）
+    monkeypatch.setattr(D, "assess_freshness", lambda sources: {})
+    status, fresh = M._overall_freshness_status({})
+    assert status == "unknown" and fresh == {}
+
+    monkeypatch.setattr(D, "assess_freshness", lambda sources: {"status": None})
+    assert M._overall_freshness_status({})[0] == "unknown", \
+        "status=None 必须降级 unknown（或值兜底）"
+
+
+def test_freshness_cap_note_param_annotated_str():
+    """_freshness_cap_note 的 freshness_status 形参必须显式标注 str（T-322 ②）。"""
+    import ast
+    import os as _os
+    src_path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "scripts", "gen_morning_event_sentiment.py")
+    src = open(src_path, encoding="utf-8").read()
+    tree = ast.parse(src)
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "_freshness_cap_note")
+    ann = {a.arg: a.annotation for a in fn.args.args}
+    a = ann.get("freshness_status")
+    assert a is not None, "freshness_status 形参缺类型标注"
+    assert isinstance(a, ast.Name) and a.id == "str", \
+        f"freshness_status 应标注为 str，实际 {ast.dump(a)}"
 
 
 def test_freshness_cap_note_reads_decision_caps(monkeypatch):
