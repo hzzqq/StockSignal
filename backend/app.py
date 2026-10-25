@@ -138,6 +138,14 @@ def create_app(config_object: type = Config) -> Flask:
     except Exception as e:
         app.logger.warning("启动荐股调度器失败（不影响主服务）：%s", e)
 
+    # ---- 每日数据刷新调度器（T-324 方向A，工作日 ≥17:35 增量刷新牧羊人历史 +
+    #      P1 停更告警；测试/禁用环境自动跳过）----
+    try:
+        from .data_refresh_engine import start_data_refresh_scheduler
+        start_data_refresh_scheduler(app)
+    except Exception as e:
+        app.logger.warning("启动数据刷新调度器失败（不影响主服务）：%s", e)
+
     # ---- 全局错误处理：把任何出口都锁回 JSON ----
     _register_error_handlers(app)
     _register_security_headers(app)
