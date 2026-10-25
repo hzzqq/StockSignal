@@ -320,6 +320,19 @@ def last_scored_date() -> str | None:
     return max(scored) if scored else None
 
 
+def find_prediction(date: str) -> dict | None:
+    """按日期取单条预测记录（T-325 决策回放用；复用 _load 平盘日纠正口径）。
+
+    :param date: ``YYYY-MM-DD``（超长截断到 10 位）
+    :return: 命中的记录 dict；未记录 → None（诚实，不编造）。
+    """
+    d = str(date)[:10]
+    for r in _load():
+        if str(r.get("date", ""))[:10] == d:
+            return r
+    return None
+
+
 def by_event(min_samples: int = 0) -> list[dict]:
     """按「事件驱动信号当日是否可用」拆分方向命中率，回答事件催化是否真有效。
 
