@@ -32,6 +32,19 @@ from modules.shepherd_reconstruct import build_shepherd_history  # noqa: E402
 
 logger = logging.getLogger("refresh_shepherd_recent")
 
+# 挂起兜底（T-324）：全量拉取路径偶发「工作完成后进程驻留不退出」（实测两批挂起，
+# 缓存命中/offline 路径不可复现，最小复现排除 bpo-39812；疑与大规模 akshare 拉取 +
+# zt 反推后的解释器退出阶段相关）。faulthandler 定时 dump 全线程栈并强退：
+# 既给根因调查留现场，又防止每日调度累积僵尸进程。正常路径远短于该上限（实测 <300s）。
+import faulthandler  # noqa: E402
+
+_HANG_DUMP = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "logs", "refresh_hang_dump.txt")
+os.makedirs(os.path.dirname(_HANG_DUMP), exist_ok=True)
+faulthandler.dump_traceback_later(900, exit=True,
+                                  file=open(_HANG_DUMP, "w", encoding="utf-8"))
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HISTORY_CSV = os.path.join(_ROOT, "data", "shepherd_history.csv")
 MIRROR_CSV = os.path.join(_ROOT, "backups", "shepherd_history_restored.csv")
@@ -188,7 +201,11 @@ def main():
         atomic_to_csv(merged, args.mirror, encoding="utf-8-sig")
         logger.info("[refresh] 耐久镜像已更新 %s", args.mirror)
     print(merged.tail(12).to_string(index=False))
-    return 0
+    # 挂起防护（T-324）：至此 CSV 与耐久镜像均已 atomic_to_csv 原子落盘且日志确认，
+    # 业务产出完整；直接 os._exit 绕过解释器退出阶段（atexit / executor-manager join）
+    # 实测偶发的驻留挂起。失败路径（return 1）不在此处，由头部 faulthandler 兜底。
+    sys.stdout.flush()
+    os._exit(0)
 
 
 if __name__ == "__main__":
