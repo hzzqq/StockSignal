@@ -42,7 +42,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from modules.stock_risk import DIMENSIONS, RISK_HIGH
+from modules.stock_risk import DIMENSIONS, RISK_HIGH, RISK_MEDIUM
 
 logger = logging.getLogger(__name__)
 
@@ -335,6 +335,108 @@ def _index_ret20_safe() -> Optional[float]:
     except Exception as e:  # noqa: BLE001 - 指数取数失败不影响整体推荐，但必须留痕
         logger.info("[recommend_engine] 指数日线不可得（R5 如实降级为绝对动量）: %s", e)
         return None
+
+
+def continuous_risk_penalty(df: pd.DataFrame) -> dict:
+    """R6/T-330：连续价量风险惩罚（0~14 分）——五路「只奖不罚」的结构性补位。
+
+    - 振幅分量 amp5 = 近 5 日 mean((high-low)/prev_close)；
+      penalty_amp = clamp((amp5 - 0.05) × 120, 0, 8)（5% 起罚，每 +1pp 罚 1.2 分，
+      封顶 8）——高振幅=博彩式波动特征反向项；
+    - 回撤分量 dd20 = 1 - close[-1] / max(close[-20:])；
+      penalty_dd = clamp((dd20 - 0.20) × 60, 0, 6)（20% 起罚，每 +10pp 罚 6 分，封顶 6）；
+      注：买入条件要求 close>MA20，故受罚候选=「站上 MA20 但近 20 日剧烈下摆」的
+      高波动股；处于 20 日新高的右侧强势股 dd20=0 不受罚；
+    - 换手率：本引擎数据链无字段 → components.turnover 恒 unavailable
+      （reasons 如实标注，绝不默认 0、绝不假装扫过）；
+    - 任一分量取不到（缺列/样本不足）→ 该分量 unavailable 不计分母（诚实降级）。
+
+    返回 ``{"penalty": float, "components": {...}, "reasons": [...]}``。
+    """
+    comps: dict = {}
+    reasons: list = []
+    total = 0.0
+
+    # 振幅分量
+    if all(c in df.columns for c in ("high", "low", "close")) and len(df) >= 6:
+        c = df["close"].astype(float)
+        prev = c.shift(1)
+        amp = ((df["high"].astype(float) - df["low"].astype(float)) / prev).tail(5)
+        amp = amp.dropna()
+        if len(amp) >= 3:
+            amp5 = float(amp.mean())
+            p_amp = min(max((amp5 - 0.05) * 120, 0.0), 8.0)
+            comps["amplitude"] = {"status": "ok", "value": round(amp5, 4),
+                                  "penalty": round(p_amp, 2)}
+            total += p_amp
+            if p_amp > 0:
+                reasons.append(f"近5日均振幅 {amp5:.1%} 过热（-{p_amp:.1f} 分）")
+        else:
+            comps["amplitude"] = {"status": "unavailable",
+                                  "reason": "有效振幅样本不足"}
+            reasons.append("振幅分量不可得（样本不足）")
+    else:
+        comps["amplitude"] = {"status": "unavailable", "reason": "行情缺 high/low 列"}
+        reasons.append("振幅分量不可得（缺 high/low 列）")
+
+    # 回撤分量
+    if "close" in df.columns and len(df) >= 21:
+        close = df["close"].astype(float)
+        dd20 = 1.0 - float(close.iloc[-1]) / float(close.tail(20).max())
+        p_dd = min(max((dd20 - 0.20) * 60, 0.0), 6.0)
+        comps["drawdown"] = {"status": "ok", "value": round(dd20, 4),
+                             "penalty": round(p_dd, 2)}
+        total += p_dd
+        if p_dd > 0:
+            reasons.append(f"20日回撤 {dd20:.1%} 过深（-{p_dd:.1f} 分）")
+    else:
+        comps["drawdown"] = {"status": "unavailable",
+                             "reason": "收盘样本不足 21 日"}
+        reasons.append("回撤分量不可得（样本不足）")
+
+    # 换手率分量：数据链无字段，恒 unavailable（诚实语义，绝不默认 0）
+    comps["turnover"] = {"status": "unavailable",
+                         "reason": "数据链无换手率字段（恒不可得）"}
+    reasons.append("换手率分量不可得（数据链无字段）")
+
+    return {"penalty": round(total, 2),
+            "components": comps, "reasons": reasons}
+
+
+def apply_unlock_penalty(rows: list, scan_map: dict) -> list:
+    """R6/T-330：解禁临近扣分（复用 R1 闸门 scan_many 已取数据，零额外网络成本）。
+
+    - 仅 ``risk_scan.status=="scanned"`` 的行取 ``scan_map[code].components.unlock``；
+    - ``unlock.value`` = 未来 90 日最大解禁占流通市值 %（stock_risk 口径），
+      level ∈ {medium, high} → penalty = clamp(value × 0.4, 0, 8)
+      （10%→4 分，20%→8 分封顶）；
+    - unknown / low / 组件或数值缺失 → 不罚（不编造、不假装查过）；
+    - composite 相应扣减（floor 0），reasons 追加 ``[风险]`` 条目，
+      ``risk_penalty.unlock`` 透明记录；
+    - 返回按 composite 降序重排的列表（R1 闸门成员资格已定，此处只改顺位）。
+    """
+    for r in rows:
+        rs = r.get("risk_scan") or {}
+        if rs.get("status") != "scanned":
+            continue
+        scan = scan_map.get(str(r.get("code", "")).zfill(6)) or {}
+        comp = (scan.get("components") or {}).get("unlock") or {}
+        lvl = comp.get("level")
+        val = comp.get("value")
+        if lvl not in (RISK_MEDIUM, RISK_HIGH) or not isinstance(val, (int, float)) \
+                or not math.isfinite(float(val)):
+            continue
+        p = min(max(float(val) * 0.4, 0.0), 8.0)
+        if p <= 0:
+            continue
+        r["composite"] = round(max(0.0, float(r.get("composite") or 0.0) - p), 1)
+        r["reasons"] = list(r.get("reasons") or []) + [
+            f"[风险] 未来90日解禁占流通市值 {float(val):g}%（-{p:.1f} 分）"]
+        rp = r.get("risk_penalty") or {}
+        rp["unlock"] = {"status": "ok", "value": float(val), "level": lvl,
+                        "penalty": round(p, 2)}
+        r["risk_penalty"] = rp
+    return sorted(rows, key=lambda r: -float(r.get("composite") or 0.0))
 
 
 def _momentum_score(df: pd.DataFrame, index_ret20: Optional[float] = None) -> dict:
@@ -633,6 +735,11 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
         if composite is None:
             continue
         df = dfs.get(f"df_{c}")
+        # R6/T-330：连续价量风险惩罚（振幅过热/20日深回撤），罚分如实入 reasons；
+        # risk_penalty 元数据恒落 row（0 分也存，防「悄悄不罚」）
+        rp = continuous_risk_penalty(df)
+        if rp["penalty"] > 0:
+            composite = round(max(0.0, composite - rp["penalty"]), 1)
         levels = trade_levels(float(df["close"].iloc[-1]), atr14(df))
         reasons = []
         for k in ALGO_WEIGHTS:
@@ -641,11 +748,14 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
                 # _score_for_picker 的 reasons 是逗号拼接字符串，必须先归一（单字碎句缺陷）
                 norm = _normalize_reasons(item["reasons"])
                 reasons.extend(f"[{ALGO_LABELS[k]}] {r}" for r in norm[:2])
+        if rp["penalty"] > 0:
+            reasons.extend(f"[风险] {x}" for x in rp["reasons"][:2])
         rows.append({"code": c, "name": v["name"], "composite": composite,
                      "algorithms": breakdown, "reasons": reasons[:10],
                      "data_as_of": v["data_as_of"], "df": df,
                      "regime": regime_meta,
-                     "index_ret20": _idx_ret20})
+                     "index_ret20": _idx_ret20,
+                     "risk_penalty": rp})
 
     rows.sort(key=lambda r: -r["composite"])
     # ── R1 六维排雷二道闸（T-245）：闸门段逐股六维扫描，硬红旗踢出；
@@ -658,6 +768,8 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
         logger.info("[recommend_engine] 排雷闸异常（如实降级）: %s", e)
         scan_map = {}
     rows, gate_summary = apply_risk_gate(rows, scan_map, top_k, gate_n)
+    # R6/T-330：解禁临近扣分（复用闸门已取数据），扣后按 composite 重排
+    rows = apply_unlock_penalty(rows, scan_map)
     if progress:
         progress(0.85, f"排雷完成：踢出 {len(gate_summary['kicked'])} 只，融合排序…")
     # 市场上下文（决策快照，取不到即标注）
