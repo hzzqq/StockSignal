@@ -184,3 +184,24 @@
 - 数字同步：荐股结构变化后同步 README / `docs/promo-*.md` / publish-kit / `docs/index.html`（守卫 `test_public_numbers_consistency.py` 会拦）。
 
 *评估完：本文件为只读评估产物，未改动任何代码。*
+
+---
+
+## 八、落地状态附注（2026-10-26 追加，ks 空间 T-329）
+
+> 本节为落地状态纠偏附注，**追加不篡改**上文评估快照原文（快照反映 2026-10-11 时点）。
+
+| # | 采纳项 | 状态 | 依据（代码级证据） |
+|---|---|---|---|
+| R1 | 六维排雷二道闸 | ✅ 已落地（T-245） | `recommend_engine._safe_risk_scan` 接 `stock_risk.scan_many` |
+| R2 | A6 放量新高突破路 | ✅ 已落地（T-246） | `recommend_engine._breakout_score` |
+| R3 | Value Trap 轻量评分 | ✅ 已落地（T-246） | `recommend_engine.value_trap_score` + `_safe_pe_pb_series` |
+| R4 | 市况自适应权重 | ✅ 已落地（T-270） | `recommend_engine.market_regime_weights` |
+| R5 | 相对大盘强度并入 A5 | ✅ 已落地（T-270） | `_momentum_score(df, index_ret20)`（`_index_ret20_safe`，指数不可得如实回落绝对动量并标注） |
+| R6 | 连续风险扣分 | ⏳ 未落地（T-330 待办） | — |
+| R7 | MACD 底背离确认 | ⏳ 未落地 | `technical.py` 无背离函数 |
+| R8 | F-Score / Altman Z | ⏳ 中期待办（需现金流取数） | — |
+| R9 | A4 标注层 | ⏳ 未落地（T-332 待办） | — |
+| R10 | 回测成本口径 | ✅ **已落地（且超原计划）** | `_simulate` 三成本拆分：`commission` 双边 + `slippage_pct` 买卖双侧 + `stamp_tax_pct` 仅卖出（默认各 0.1%）；并已修复成本重复扣除缺陷（净收益率取实际现金流 revenue/buy_cost；守卫 `tests/test_backtest_cost_double_count.py` 5 例含源码级防回退）；论文口径一致 |
+
+**纠偏**：上文 §〇「`_simulate(commission=0.001)` **无印花税/滑点拆分**」与 §一「项目 `_simulate(commission=0.001)` 只有一项，且未拆印花税」为 2026-10-11 时点快照，现已过时——R10 已按上表落地，且实际拆分粒度（滑点/印花税/佣金三参数独立可调）超出本评估当时的建议。
