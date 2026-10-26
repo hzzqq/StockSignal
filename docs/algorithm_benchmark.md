@@ -199,8 +199,8 @@
 | R4 | 市况自适应权重 | ✅ 已落地（T-270） | `recommend_engine.market_regime_weights` |
 | R5 | 相对大盘强度并入 A5 | ✅ 已落地（T-270） | `_momentum_score(df, index_ret20)`（`_index_ret20_safe`，指数不可得如实回落绝对动量并标注） |
 | R6 | 连续风险扣分 | ⏳ 未落地（T-330 待办） | — |
-| R7 | MACD 底背离确认 | ⏳ 未落地 | `technical.py` 无背离函数 |
-| R8 | F-Score / Altman Z | ⏳ 中期待办（需现金流取数） | — |
+| R7 | MACD 底背离确认 | ✅ 已落地（T-333） | `technical.detect_bullish_divergence`（价微破新低 ≤5% 磨底上限 + MACD 柱/DIF 不创新低 + 放量三条件 AND，口径同 `compute_macd`，数据不足→unavailable）→ `recommend_engine.apply_divergence_confirm`（A1 命中 +5 封顶 100、reasons 透明标注，candidates 组装循环接线，backtest._score_for_picker 本体零影响；守卫 tests/test_macd_divergence.py 13 例，mutation 4 注入真红复绿） |
+| R8 | F-Score / Altman Z | ⏳ 中期待办（**勘测 2026-10-26 完成，T-334**：现金流数据链现成——`_market_data_io.fetch_financial(cash)` 走 sina 现金流量表，实测 600519 返 8 期×71 列、「经营活动产生的现金流量净额」字段在位、最新报告期 2026-06-30 新鲜；净利润在 income 表、杠杆/流动比率在 balance 表（同为现役接口）；stock_screener 已有「经营现金流量净额→ocf」解析先例；F-Score 9 分量全部可由现役三表+股本字段覆盖，落地成本由本表原估「中」降级为「低-中」，建议与 R3 财务分量合并立项（§三 L91 原议），不单独立项） | — |
 | R9 | A4 标注层 | ⏳ 未落地（T-332 待办） | — |
 | R10 | 回测成本口径 | ✅ **已落地（且超原计划）** | `_simulate` 三成本拆分：`commission` 双边 + `slippage_pct` 买卖双侧 + `stamp_tax_pct` 仅卖出（默认各 0.1%）；并已修复成本重复扣除缺陷（净收益率取实际现金流 revenue/buy_cost；守卫 `tests/test_backtest_cost_double_count.py` 5 例含源码级防回退）；论文口径一致 |
 

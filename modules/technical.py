@@ -189,6 +189,86 @@ def compute_macd(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int =
     return out
 
 
+# R7/T-333：磨底微破位上限与确认加分的单一真理源（recommend_engine 引用同常量）
+_DIVERGENCE_MAX_BREAK = 0.05   # 价新低幅度 ≤5% 视为「磨底微破位」，崩盘暴破不作反弹确认
+_DIVERGENCE_LOOKBACK = 30      # 前低点回看窗口（prior 段 = 倒数 recent_n+1..lookback 根）
+_DIVERGENCE_RECENT_N = 5       # 当前低点段（最近 recent_n 根）
+
+
+def detect_bullish_divergence(df: pd.DataFrame, lookback: int = _DIVERGENCE_LOOKBACK,
+                              recent_n: int = _DIVERGENCE_RECENT_N) -> dict:
+    """MACD 底背离检测（纯函数，可单测；benchmark 采纳清单 R7）。
+
+    经典底背离三条件（AND，全中才 ``divergence=True``）：
+      A 价微破新低：min(close[recent 段]) < min(close[prior 段])，且破位幅度
+        (prior_min - recent_min) / prior_min ≤ 5%（磨底微破位语义——崩盘式暴破
+        属趋势加速，不作反弹确认，防止「短窗口暴杀 DIF 因 EMA 惯性来不及新低」
+        被误判为背离）；
+      B MACD 不创新低：柱背离（min(hist[recent]) > min(hist[prior])）或 DIF 背离
+        （min(dif[recent]) > min(dif[prior])），任一成立即算；MACD 口径与
+        compute_macd 完全一致（EMA dropna 后计算，dif=EMA12-EMA26、
+        dea=EMA(dif,9)、hist=(dif-dea)*2）；
+      C 放量确认：末根成交量 > 前 5 根均量（stock-selecter 原文「+ 放量」）。
+
+    数据不足 / 缺列 / 全 NaN → ``{"divergence": False, "status": "unavailable",
+    "reason": ...}``（不编造判定，诚实语义）。
+    返回：{"divergence", "kind": "hist"|"dif"|"hist+dif"|None,
+          "volume_confirm", "status": "ok"|"unavailable", "reason"}
+    """
+    no = {"divergence": False, "kind": None, "volume_confirm": None,
+          "status": "unavailable"}
+    if df is None or getattr(df, "empty", True) or "close" not in df.columns:
+        return {**no, "reason": "无 close 列或空数据"}
+    if "volume" not in df.columns:
+        return {**no, "reason": "缺 volume 列（放量条件无法判定）"}
+    close = pd.to_numeric(df["close"], errors="coerce")
+    if close.notna().sum() == 0:
+        return {**no, "reason": "close 全为 NaN"}
+    # 整表按 close dropna 对齐（与 compute_ema 口径一致），避免 close/volume 错位
+    d = df.loc[close.dropna().index]
+    c = pd.to_numeric(d["close"], errors="coerce")
+    if len(c) < lookback + 30:  # prior 段 + MACD 预热（slow26+signal9 的充分余量）
+        return {**no, "reason": f"样本不足（{len(c)} < {lookback + 30}）"}
+    vol = pd.to_numeric(d["volume"], errors="coerce")
+    recent_c, prior_c = c.iloc[-recent_n:], c.iloc[-lookback:-recent_n]
+    rec_min, pri_min = float(recent_c.min()), float(prior_c.min())
+    # MACD 序列（与 compute_macd 同口径）
+    ema_fast = c.ewm(span=12, adjust=False, min_periods=6).mean()
+    ema_slow = c.ewm(span=26, adjust=False, min_periods=13).mean()
+    dif = ema_fast - ema_slow
+    dea = dif.ewm(span=9, adjust=False, min_periods=4).mean()
+    hist = (dif - dea) * 2
+    recent_h, prior_h = hist.iloc[-recent_n:], hist.iloc[-lookback:-recent_n]
+    recent_d, prior_d = dif.iloc[-recent_n:], dif.iloc[-lookback:-recent_n]
+
+    # A：价微破新低（≤5% 上限）
+    if not (rec_min < pri_min):
+        return {"divergence": False, "kind": None, "volume_confirm": None,
+                "status": "ok", "reason": "近段未创新低"}
+    break_pct = (pri_min - rec_min) / abs(pri_min) if pri_min else 1.0
+    if break_pct > _DIVERGENCE_MAX_BREAK:
+        return {"divergence": False, "kind": None, "volume_confirm": None,
+                "status": "ok",
+                "reason": f"破位幅度 {break_pct:.1%} 超过磨底上限 {_DIVERGENCE_MAX_BREAK:.0%}（趋势加速非磨底）"}
+    # B：MACD 柱/DIF 不创新低
+    hist_div = float(recent_h.min()) > float(prior_h.min())
+    dif_div = float(recent_d.min()) > float(prior_d.min())
+    if not (hist_div or dif_div):
+        return {"divergence": False, "kind": None, "volume_confirm": None,
+                "status": "ok", "reason": "MACD 同步创新低（无背离）"}
+    # C：放量确认
+    prev5 = vol.iloc[-recent_n - 5:-recent_n]
+    if prev5.isna().any() or pd.isna(vol.iloc[-1]) or float(prev5.mean()) <= 0:
+        return {**no, "reason": "成交量数据缺失（放量条件无法判定）"}
+    vol_ok = float(vol.iloc[-1]) > float(prev5.mean())
+    if not vol_ok:
+        return {"divergence": False, "kind": None, "volume_confirm": False,
+                "status": "ok", "reason": "背离形态成立但未放量（确认不足）"}
+    kind = ("hist+dif" if (hist_div and dif_div) else ("hist" if hist_div else "dif"))
+    return {"divergence": True, "kind": kind, "volume_confirm": True,
+            "status": "ok", "reason": None}
+
+
 # ============================================================
 # 1) 均线 / 趋势状态
 # ============================================================

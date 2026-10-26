@@ -43,6 +43,7 @@ import numpy as np
 import pandas as pd
 
 from modules.stock_risk import DIMENSIONS, RISK_HIGH, RISK_MEDIUM
+from modules.technical import detect_bullish_divergence  # R7/T-333：MACD 底背离确认
 
 logger = logging.getLogger(__name__)
 
@@ -439,6 +440,41 @@ def apply_unlock_penalty(rows: list, scan_map: dict) -> list:
     return sorted(rows, key=lambda r: -float(r.get("composite") or 0.0))
 
 
+# R7/T-333：底背离确认加分幅度（克制：确认信号级别，封顶 100）
+_DIVERGENCE_BOOST = 5.0
+
+
+def apply_divergence_confirm(a1, dv: dict | None):
+    """R7/T-333：MACD 底背离确认加分（benchmark 采纳清单 L153，作 A1 加分确认）。
+
+    - a1 为 None（A1 不可得）→ None；
+    - dv 无效（None / 非 dict / status != "ok" / divergence 为 False）→
+      a1 **原样返回**（确认信号不存在＝维持原分，不编造、不加词）；
+    - 命中 → a1 的**副本**：score = min(100, score + 5)（``_DIVERGENCE_BOOST``，
+      确认加分封顶 100），reasons 归一化后追加「MACD底背离确认（放量）」并保持
+      逗号拼接 str 形态（与 _score_for_picker 输出形态一致，阶段 3
+      _normalize_reasons 兼容）。
+
+    只影响每日荐股的 A1 候选分；**不动 backtest._score_for_picker 本体**
+    （回测口径零影响）。
+    """
+    if a1 is None:
+        return None
+    if not isinstance(dv, dict) or dv.get("status") != "ok" \
+            or not dv.get("divergence"):
+        return a1
+    try:
+        base = float(a1.get("score"))
+    except (TypeError, ValueError):
+        return a1
+    out = dict(a1)
+    out["score"] = round(min(100.0, base + _DIVERGENCE_BOOST), 1)
+    rs = _normalize_reasons(out.get("reasons"))
+    rs.append("MACD底背离确认（放量）" if dv.get("volume_confirm") else "MACD底背离确认")
+    out["reasons"] = ",".join(rs)
+    return out
+
+
 def _momentum_score(df: pd.DataFrame, index_ret20: Optional[float] = None) -> dict:
     """A5：20 日动量 + 量能放大（0~100）。
 
@@ -638,6 +674,9 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
         if df is None or not isinstance(df, pd.DataFrame) or len(df) < 90:
             continue
         a1 = bt._score_for_picker(df.copy(), strategy="multi_factor")
+        # R7/T-333：MACD 底背离确认加分（benchmark L153）——命中 +5 且 reasons
+        # 透明标注；未命中/不可得原样返回，不动 backtest 本体（回测口径零影响）
+        a1 = apply_divergence_confirm(a1, detect_bullish_divergence(df))
         a2 = bt._score_for_picker(df.copy(), strategy="dual_trend")
         if a1 is None:
             unavailable_a1 += 1
