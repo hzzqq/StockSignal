@@ -516,7 +516,10 @@ def fragment_p1_ev():
 
     col_ref, col_btn = st.columns([4, 1])
     with col_ref:
-        st.caption(f"信号模型：**{ld.model_label(model)}**　·　数据日期：{ld.latest_date(model) or '未知'}"
+        _p1_age = ld.signal_age_days(model)
+        _p1_lag_note = f"　·　⚠️ 信号滞后 {_p1_age} 自然日，建议仅供参考" \
+            if (_p1_age or 0) >= 15 else ""
+        st.caption(f"信号模型：**{ld.model_label(model)}**　·　数据日期：{ld.latest_date(model) or '未知'}{_p1_lag_note}"
                    f"　·　与牧羊人情绪信号独立互补（情绪定仓位 / P1 定个股）")
     with col_btn:
         if st.button("🔄", key="p1_ev_refresh",

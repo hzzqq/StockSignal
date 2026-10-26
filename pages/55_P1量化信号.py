@@ -66,7 +66,10 @@ with st.sidebar:
                  help="刷新信号：清除缓存并重新读取信号文件（P1 重新导出后点此立即生效）"):
         loader.invalidate()
         st.rerun()
-    st.caption(f"数据日期：{loader.latest_date(model) or '未知'}　·　每 5 分钟自动刷新")
+    _age = loader.signal_age_days(model)
+    _lag_note = f"　·　⚠️ 信号滞后 {_age} 自然日，建议仅供参考" \
+        if (_age or 0) >= 15 else ""
+    st.caption(f"数据日期：{loader.latest_date(model) or '未知'}{_lag_note}　·　每 5 分钟自动刷新")
 
 # ───────────────────────── 头部说明（T-277：收进 ❓ 悬浮标注，占地收敛） ─────────────────────────
 _info_html = (

@@ -28,12 +28,32 @@ import json
 import os
 import re
 import time
+from datetime import date, datetime
 from pathlib import Path
 
 try:
     import pandas as pd
 except Exception:  # pragma: no cover - 页面已自带 pandas
     pd = None
+
+def age_days_from_latest(latest_date, today=None):
+    """P1 信号滞后自然日数（T-331 诚实披露，纯函数）。
+
+    - latest_date: "YYYY-MM-DD" 或带时间的 ISO 串（取前 10 位解析）；
+    - today 缺省取 date.today()；
+    - latest_date 为 None/空/解析失败 → 返回 None（unavailable，绝不编造 0）；
+    - 未来日期（时钟偏差）→ 钳 0，不返负数。
+    口径说明：自然日非交易日，用于「滞后披露」而非精确交易日计数。
+    """
+    if not latest_date or not isinstance(latest_date, str):
+        return None
+    try:
+        d = datetime.strptime(latest_date[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    base = today or date.today()
+    return max(0, (base - d).days)
+
 
 # 模型中文名映射（用于 UI 展示）
 MODEL_LABELS = {
@@ -193,6 +213,10 @@ class P1SignalLoader:
 
     def latest_date(self, model: str):
         return self.load(model).get("latest_date")
+
+    def signal_age_days(self, model: str):
+        """信号滞后自然日数（T-331 诚实披露）：latest 缺失 → None（不编造）。"""
+        return age_days_from_latest(self.latest_date(model))
 
     @staticmethod
     def model_label(model: str) -> str:
