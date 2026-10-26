@@ -18,6 +18,70 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+# ── R9/T-332：A4 标注层（hard_logic / horizon，benchmark 采纳清单 R9）────────
+# 词表为透明规则（命中词即证据可溯源），命中不足/平票一律 unavailable 不编造。
+_HARD_LOGIC_KEYWORDS = (
+    "订单", "中标", "合同", "签约", "业绩预增", "预增", "扭亏", "回购", "增持",
+    "扩产", "产能", "涨价", "提价", "政策", "补贴", "退税", "配额", "重组",
+    "并购", "获批", "专利", "认证", "出海", "国产替代", "供需", "紧缺",
+)
+_SPECULATION_KEYWORDS = (
+    "传闻", "据报道", "或拟", "市场消息", "概念股", "蹭", "炒作", "风口", "小作文",
+)
+_HORIZON_LABELS = {
+    1: "当天", 3: "1-3 天", 5: "1 周",
+    10: "1-2 周（10 交易日）", 20: "波段（20 交易日）",
+}
+_ANNOT_NO_TEXT = {"hard_logic": None, "status": "unavailable",
+                  "reason": "P1 信号路径无事件文本（标注需新闻/题材源）"}
+
+
+def annotate_hard_logic(texts) -> dict:
+    """R9：事件文本「硬逻辑 vs 题材炒作」透明词表分类。
+
+    硬逻辑=可验证的产业/政策/供需事件（订单/业绩/政策…）；题材炒作=传闻/概念追逐。
+    词表命中计数：硬>题 → "硬逻辑"，题>硬 → "题材炒作"，平票/双零/空 → unavailable
+    （不编造）；``evidence`` 返回命中词（≤5，可溯源）。
+    """
+    if not isinstance(texts, (list, tuple)):
+        texts = [texts]
+    joined = [t for t in texts if isinstance(t, str) and t.strip()]
+    hits_hard = [w for w in _HARD_LOGIC_KEYWORDS if any(w in t for t in joined)]
+    hits_spec = [w for w in _SPECULATION_KEYWORDS if any(w in t for t in joined)]
+    n_hard, n_spec = len(hits_hard), len(hits_spec)
+    if n_hard == n_spec:
+        return {"hard_logic": None, "status": "unavailable",
+                "reason": f"特征词平票或未命中（硬逻辑 {n_hard} vs 题材 {n_spec}）"}
+    label = "硬逻辑" if n_hard > n_spec else "题材炒作"
+    evidence = (hits_hard if n_hard > n_spec else hits_spec)[:5]
+    return {"hard_logic": label, "status": "ok", "evidence": evidence}
+
+
+def annotate_horizon(model_horizon) -> dict:
+    """R9：把 P1 信号 json 自带 ``horizon``（交易日数）如实映射兑现窗口。
+
+    非整数 / 词表外取值 → unavailable（不默认、不编造窗口）。
+    """
+    if isinstance(model_horizon, bool) or not isinstance(model_horizon, int):
+        return {"horizon": None, "status": "unavailable",
+                "model_horizon": None,
+                "reason": f"信号未提供 horizon（取到 {model_horizon!r}）"}
+    label = _HORIZON_LABELS.get(model_horizon)
+    if label is None:
+        return {"horizon": None, "status": "unavailable",
+                "model_horizon": model_horizon,
+                "reason": f"horizon={model_horizon} 无窗口映射"}
+    return {"horizon": label, "status": "ok", "model_horizon": model_horizon}
+
+
+def _loader_horizon(loader: Any, model: str):
+    """读信号 json 的 horizon 字段（loader 有缓存，不额外加载大文件）。"""
+    try:
+        return loader.load(model).get("horizon")
+    except Exception:  # noqa: BLE401 - 取不到按 unavailable 处理
+        return None
+
+
 def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) -> dict:
     """返回某标的的真实事件因子信号。
 
@@ -63,6 +127,8 @@ def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) 
                     "score": float(s_long.get("pred", 0.0) or 0.0),
                     "signal": "看多",
                     "rank": float(s_long.get("rank", 0.0) or 0.0),
+                    "horizon": annotate_horizon(_loader_horizon(loader, model)),
+                    "hard_logic": dict(_ANNOT_NO_TEXT),
                     "source": f"P1-{model}-top_long"}
         shorts = loader.top_short(model)
         s_short = next((r for r in shorts if r.get("symbol") == symbol), None)
@@ -71,6 +137,8 @@ def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) 
                     "score": float(s_short.get("pred", 0.0) or 0.0),
                     "signal": "看空",
                     "rank": float(s_short.get("rank", 0.0) or 0.0),
+                    "horizon": annotate_horizon(_loader_horizon(loader, model)),
+                    "hard_logic": dict(_ANNOT_NO_TEXT),
                     "source": f"P1-{model}-top_short"}
     except Exception:
         # 榜单读取异常不致命，继续走精确路径
@@ -92,6 +160,8 @@ def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) 
                     "score": float(row.get("score", 0.0) or 0.0),
                     "signal": row.get("signal"),
                     "date": str(row.get("date")),
+                    "horizon": annotate_horizon(_loader_horizon(loader, model)),
+                    "hard_logic": dict(_ANNOT_NO_TEXT),
                     "source": f"P1-{model}-daily"}
 
     # ── 第二真实源：真实东方财富新闻情感（P1 无信号时仍给出现实事件信号）──
@@ -136,6 +206,7 @@ def event_driven_long_list(top_n: int = 20, model: str = "ev",
         logger.warning(f"[event_factor] 读取 top_long 失败: {e}")
         return []
 
+    _hz = annotate_horizon(_loader_horizon(loader, model))  # R9/T-332：兑现窗口
     out: list[dict] = []
     for r in rows:
         rank = r.get("rank")
@@ -146,6 +217,8 @@ def event_driven_long_list(top_n: int = 20, model: str = "ev",
             "symbol": r.get("symbol"),
             "score": pct,
             "raw_rank": rank,
+            "horizon": dict(_hz),
+            "hard_logic": dict(_ANNOT_NO_TEXT),
             "raw_pred": r.get("pred"),
             "signal": "看多",
             "source": f"P1-{model}-top_long",
@@ -193,8 +266,13 @@ def news_event_signal(ticker: str, limit: int = 15) -> dict:
         sig = "看空"
     else:
         sig = "中性"
+    try:
+        _titles = [str(x) for x in news["title"].tolist()]
+    except Exception:  # noqa: BLE401 - 标题列缺失时按无文本处理
+        _titles = []
     return {
         "available": True, "symbol": sym,
         "score": float(score), "rank": float(score) / 100.0,
         "signal": sig, "source": "eastmoney-news",
+        "hard_logic": annotate_hard_logic(_titles),  # R9/T-332：新闻标题可分类
     }
