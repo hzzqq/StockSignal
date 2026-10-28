@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="560" viewBox="0 0 760 560" font-family="'Microsoft YaHei', 'SimHei', sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#455a64"/>
+    </marker>
+  </defs>
+  <style>
+    .box { fill: #ffffff; stroke: #455a64; stroke-width: 1.4; rx: 6; }
+    .base { fill: #eceff1; stroke: #455a64; stroke-width: 1.4; }
+    .gate { fill: #b71c1c; stroke: #7f0000; stroke-width: 1.4; }
+    .t1 { font-size: 15px; font-weight: bold; fill: #212121; }
+    .tg { font-size: 15px; font-weight: bold; fill: #ffffff; }
+    .t2 { font-size: 12px; fill: #37474f; }
+    .arrow { stroke: #455a64; stroke-width: 1.6; fill: none; marker-end: url(#arr); }
+  </style>
+
+  <!-- 顶：提交门禁 -->
+  <rect class="gate" x="230" y="18" width="300" height="46" rx="6"/>
+  <text class="tg" x="380" y="38" text-anchor="middle">提交门禁</text>
+  <text class="tg" x="380" y="55" text-anchor="middle" font-size="11">守卫/一致性检查不通过即拦截提交</text>
+
+  <!-- 四道防线 -->
+  <rect class="box" x="28"  y="110" width="160" height="120" rx="6"/>
+  <text class="t1" x="108" y="135" text-anchor="middle">AST 静态守卫</text>
+  <text class="t2" x="108" y="158" text-anchor="middle">77 个守卫文件（19%）</text>
+  <text class="t2" x="108" y="176" text-anchor="middle">单源 / 语义不变量 /</text>
+  <text class="t2" x="108" y="192" text-anchor="middle">API 卫生 / 一致性 …</text>
+  <text class="t2" x="108" y="212" text-anchor="middle" fill="#b71c1c">编译前拦截语义错误</text>
+
+  <rect class="box" x="218" y="110" width="160" height="120" rx="6"/>
+  <text class="t1" x="298" y="135" text-anchor="middle">五层测试体系</text>
+  <text class="t2" x="298" y="158" text-anchor="middle">4394 个测试函数</text>
+  <text class="t2" x="298" y="176" text-anchor="middle">冒烟 → 单元 → 契约</text>
+  <text class="t2" x="298" y="192" text-anchor="middle">→ 数据隔离 → 静态</text>
+  <text class="t2" x="298" y="212" text-anchor="middle" fill="#b71c1c">测试代码比 0.64 : 1</text>
+
+  <rect class="box" x="408" y="110" width="160" height="120" rx="6"/>
+  <text class="t1" x="488" y="135" text-anchor="middle">变异验证</text>
+  <text class="t2" x="488" y="158" text-anchor="middle">人工注入缺陷</text>
+  <text class="t2" x="488" y="176" text-anchor="middle">注入即红 → 还原即绿</text>
+  <text class="t2" x="488" y="194" text-anchor="middle">证明守卫非假绿</text>
+  <text class="t2" x="488" y="212" text-anchor="middle" fill="#b71c1c">测试自身的有效性检验</text>
+
+  <rect class="box" x="598" y="110" width="134" height="120" rx="6"/>
+  <text class="t1" x="665" y="135" text-anchor="middle">一致性守卫</text>
+  <text class="t2" x="665" y="158" text-anchor="middle">论文 / README</text>
+  <text class="t2" x="665" y="176" text-anchor="middle">与实时统计比对</text>
+  <text class="t2" x="665" y="194" text-anchor="middle">数字漂移即失败</text>
+  <text class="t2" x="665" y="212" text-anchor="middle" fill="#b71c1c">文档不腐烂</text>
+
+  <!-- 防线 → 门禁 -->
+  <path class="arrow" d="M 108 110 L 300 68"/>
+  <path class="arrow" d="M 298 110 L 340 68"/>
+  <path class="arrow" d="M 488 110 L 440 68"/>
+  <path class="arrow" d="M 665 110 L 480 68"/>
+
+  <!-- 底座：诚实数据语义 -->
+  <rect class="base" x="28" y="300" width="704" height="86" rx="6"/>
+  <text class="t1" x="380" y="326" text-anchor="middle">诚实数据语义（设计底座，见 3.5）</text>
+  <text class="t2" x="380" y="350" text-anchor="middle">数据不足即声明 unavailable · clear_cache 报真实删除行数 · 变更先 --dry-run · .bak 两级还原链</text>
+  <text class="t2" x="380" y="370" text-anchor="middle" fill="#b71c1c">skip 仅限环境不具备 —— 数据退化必须 fail，守卫不许自我静音</text>
+
+  <!-- 底座 → 防线（支撑） -->
+  <path class="arrow" d="M 108 300 L 108 234"/>
+  <path class="arrow" d="M 298 300 L 298 234"/>
+  <path class="arrow" d="M 488 300 L 488 234"/>
+  <path class="arrow" d="M 665 300 L 665 234"/>
+
+  <!-- 反馈环：门禁 → 研发流程 -->
+  <rect class="box" x="230" y="452" width="300" height="52" rx="6"/>
+  <text class="t1" x="380" y="474" text-anchor="middle">修复 → 补负向验证 → 独立提交</text>
+  <text class="t2" x="380" y="492" text-anchor="middle">一轮一缺陷 · 证据先行 · 禁止顺手重构</text>
+  <path class="arrow" d="M 530 64 C 720 90 720 460 534 470"/>
+  <text class="t2" x="700" y="290" text-anchor="middle" transform="rotate(90 700 290)">拦截 → 修复 → 再验证</text>
+</svg>
