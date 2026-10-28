@@ -21,7 +21,7 @@ from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
 
-from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box, info_banner, prov_badge
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box, info_banner, prov_badge, xc_kpi_grid
 logger = logging.getLogger(__name__)
 dark = render_standard_page(title='行情看板', icon='📈', layout='wide')
 render_index_compact(cols_per_row=5)
@@ -81,6 +81,12 @@ def _get_stock_concept(code: str) -> str:
     return '—'
 
 def _render_sector_cards(df, top_n=24):
+    """板块涨跌榜：收敛到 canonical xc_kpi_grid（A股红涨绿跌语义）。
+
+    组件优化（风格令牌不变）：原手搓的板块卡片 class（ui_kit.css 中无定义，仅旧
+    ui_theme 层有遗留 CSS）仅靠 inline style 上色，属反模式。现统一走 xc_kpi_grid
+    （.xc-card 视觉），value 用 tone=up/down 走 --ss-up/--ss-down 语义色。
+    """
     show = df.head(top_n) if top_n else df
     cards = []
     for _, row in show.iterrows():
@@ -90,16 +96,15 @@ def _render_sector_cards(df, top_n=24):
         except Exception:
             pct = 0.0
         up = pct >= 0
-        color = UP_COLOR if up else DOWN_COLOR
-        arrow = '▲' if up else '▼'
-        cards.append(f'<div class="xc-sector-card" style="border-left-color:{color};"><div class="xc-sector-name">{name}</div><div class="xc-sector-pct" style="color:{color};">{arrow} {pct:+.2f}%</div></div>')
-    grid = ''.join(cards)
-    st.markdown(
-        f'<div class="ss-chart" style="margin-top:0">'
-        f'<div class="xc-sector-grid">{grid}</div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+        cards.append({
+            "label": name,
+            "value": f"{pct:+.2f}%",
+            "tone": "up" if up else "down",        # A股 红涨绿跌（up=红）
+            "delta": "▲" if up else "▼",
+            "delta_dir": "up" if up else "down",
+        })
+    if cards:
+        xc_kpi_grid(cards, min_col=150)
     if top_n and len(df) > top_n:
         st.caption(f'仅显示涨幅前 {top_n} 名（共 {len(df)} 个行业）。')
 

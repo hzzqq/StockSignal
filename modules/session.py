@@ -108,7 +108,7 @@ def init_session_state() -> None:
     #    若 URL 无偏好但 localStorage 有（浏览器关闭后再打开），则从 localStorage 兜底恢复。
     _prefs = _restore_prefs_from_query_params()
     if _prefs:
-        st.session_state.setdefault("theme_mode", _prefs.get("theme_mode", "light"))
+        st.session_state.setdefault("theme_mode", _prefs.get("theme_mode", "dark"))
         st.session_state.setdefault("font_size", _prefs.get("font_size", FONT_DEFAULT))
         st.session_state.setdefault("ui_style", _prefs.get("ui_style", "classic"))
     else:
@@ -410,7 +410,7 @@ def nav_query_string() -> str:
 def _current_prefs() -> dict:
     """从 session_state 收集当前偏好。"""
     return {
-        "theme_mode": st.session_state.get("theme_mode", "light"),
+        "theme_mode": st.session_state.get("theme_mode", "dark"),
         "font_size": st.session_state.get("font_size", FONT_DEFAULT),
         "ui_style": st.session_state.get("ui_style", "classic"),
     }
@@ -767,6 +767,11 @@ def _api_request(method: str, path: str, *, payload=None, timeout: int = 5, **kw
     """
     import requests as _requests
     url = f"{API_BASE}{path}"
+    # 后端地址恒为内网/本地（默认 127.0.0.1:5050 或容器同网主机），必须绕过本机
+    # 正向代理（如 127.0.0.1:2945），否则请求被路由到代理导致连接被掐
+    # （RemoteDisconnected），误报网络错误。仅当调用方未显式指定代理时生效。
+    if "proxies" not in kwargs:
+        kwargs["proxies"] = {"http": None, "https": None}
     last_exc = None
     for attempt in range(3):
         try:

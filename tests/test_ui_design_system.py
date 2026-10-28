@@ -122,3 +122,27 @@ def test_metric_skin_matches_canonical_xc_card(monkeypatch):
     assert metric.get("box-shadow") == xc.get("box-shadow"), "两处卡阴影须一致"
     assert "var(--ss-shadow-card)" in metric.get("box-shadow", ""), "卡阴影应统一走 --ss-shadow-card token"
 
+
+def test_no_undefined_xc_sector_markup_in_pages():
+    """页面不得再手搓未定义的 .xc-sector-card / .xc-sector-grid（ui_kit.css 中并无此 class）。
+
+    收敛反模式（组件优化，风格令牌不变）：板块卡原靠 .xc-sector-card/.xc-sector-grid
+    这类**未在 CSS 中定义**的 class + inline style 上色，无圆角/阴影/悬浮，且视觉与
+    canonical .xc-card 割裂。现已统一收口到 xc_kpi_grid。本守卫把该反模式钉死，
+    防止后续页面再次手搓未定义 class（零误报：这些字面量在全站本就不该出现）。
+    """
+    bad = []
+    # 仅扫描 pages/：反模式是「页面输出未定义 class 的标记」；ui_theme 层遗留的
+    # .xc-sector-* CSS 定义属旧主题死代码（另议清理），不应被本守卫误伤。
+    for p in (ROOT / "pages").rglob("*.py"):
+        try:
+            src = p.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        if "xc-sector-card" in src or "xc-sector-grid" in src:
+            bad.append(str(p.relative_to(ROOT)))
+    assert not bad, (
+        "以下文件仍含未定义的 .xc-sector-card/.xc-sector-grid 反模式（应改走 xc_kpi_grid）：\n  "
+        + "\n  ".join(bad)
+    )
+

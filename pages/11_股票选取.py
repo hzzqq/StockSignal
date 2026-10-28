@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 from modules.ui_theme import _theme_is_dark, sf_card, sf_metric
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
+from modules.ui_kit import xc_kpi_grid
 from modules.cleaner import DataCleaner
 # K 线图统一交互配置（隐藏工具栏图标、十字光标），与全站规范一致
 from modules.starfield_theme import KLINE_CHART_CONFIG
@@ -484,28 +485,26 @@ try:
         data_ok = True
         st.caption(f"✅ 数据获取成功: {len(df)} 行 {_fmt_md(df['date'].iloc[0])}~{_fmt_md(df['date'].iloc[-1])}")
 
-        col_info1, col_info2, col_info3, col_info4 = st.columns(4)
         latest = df.iloc[-1]
-        with col_info1:
-            latest_close = float(latest.get('close') or 0.0)
-            # ⚠️ 兜底：change_pct 可能为 None（数据不足），f"{None:.2f}" 会抛 TypeError 致整块 K 线渲染失败
-            _chg_pct = latest.get('change_pct')
-            _chg_pct = 0.0 if _chg_pct is None else float(_chg_pct)
-            st.metric("最新收盘价", f"¥{latest_close:.2f}", delta=f"{_chg_pct:.2f}%", delta_color="inverse")
-        with col_info2:
-            st.metric("区间最高", f"¥{df['high'].max():.2f}", delta_color="off")
-        with col_info3:
-            st.metric("区间最低", f"¥{df['low'].min():.2f}", delta_color="off")
-        with col_info4:
-            total_vol = df['volume'].sum()
-            # 加法式数字格式化：成交量按 亿/万 本地化展示（数据不变，仅改显示单位）。
-            if total_vol >= 1e8:
-                _vol_disp = f"{total_vol/1e8:.2f}亿股"
-            elif total_vol >= 1e4:
-                _vol_disp = f"{total_vol/1e4:.0f}万股"
-            else:
-                _vol_disp = f"{total_vol:.0f}股"
-            st.metric("区间总成交量", _vol_disp, delta_color="off")
+        latest_close = float(latest.get('close') or 0.0)
+        # ⚠️ 兜底：change_pct 可能为 None（数据不足），f"{None:.2f}" 会抛 TypeError 致整块 K 线渲染失败
+        _chg_pct = latest.get('change_pct')
+        _chg_pct = 0.0 if _chg_pct is None else float(_chg_pct)
+        total_vol = df['volume'].sum()
+        # 加法式数字格式化：成交量按 亿/万 本地化展示（数据不变，仅改显示单位）。
+        if total_vol >= 1e8:
+            _vol_disp = f"{total_vol/1e8:.2f}亿股"
+        elif total_vol >= 1e4:
+            _vol_disp = f"{total_vol/1e4:.0f}万股"
+        else:
+            _vol_disp = f"{total_vol:.0f}股"
+        xc_kpi_grid([
+            {"label": "最新收盘价", "value": f"¥{latest_close:.2f}",
+             "delta": f"{_chg_pct:.2f}%", "delta_dir": "up" if _chg_pct >= 0 else "down"},
+            {"label": "区间最高", "value": f"¥{df['high'].max():.2f}"},
+            {"label": "区间最低", "value": f"¥{df['low'].min():.2f}"},
+            {"label": "区间总成交量", "value": _vol_disp},
+        ])
 
         n = len(df)
         if n > 20:
@@ -773,36 +772,30 @@ if data_ok and df is not None:
             return out
 
         qi = _calc_quant_indicators(df)
-        qc1, qc2, qc3, qc4 = st.columns(4)
-        with qc1:
-            rsi = qi.get("rsi")
-            if rsi is not None:
-                rsi_tag = "超买" if rsi >= 70 else ("超卖" if rsi <= 30 else "中性")
-                st.metric("RSI(14)", f"{rsi:.1f}", delta=rsi_tag, delta_color="off")
-            else:
-                st.metric("RSI(14)", "—", delta_color="off")
-        with qc2:
-            macd = qi.get("macd")
-            if macd is not None:
-                st.metric("MACD 柱", f"{macd:+.3f}",
-                          delta="金叉/多头" if macd >= 0 else "死叉/空头", delta_color="off")
-                st.caption(f"DIF {qi['dif']:+.3f} / DEA {qi['dea']:+.3f}")
-            else:
-                st.metric("MACD 柱", "—", delta_color="off")
-        with qc3:
-            k, d, j = qi.get("k"), qi.get("d"), qi.get("j")
-            if k is not None:
-                kdj_tag = "超买" if j >= 100 else ("超卖" if j <= 0 else "中性")
-                st.metric("KDJ", f"K{k:.0f} D{d:.0f}", delta=f"J{j:.0f} · {kdj_tag}", delta_color="off")
-            else:
-                st.metric("KDJ", "—", delta_color="off")
-        with qc4:
-            bp = qi.get("boll_pct")
-            if bp is not None:
-                pos = "近上轨" if bp >= 80 else ("近下轨" if bp <= 20 else "轨道中部")
-                st.metric("BOLL 位置", f"{bp:.0f}%", delta=pos, delta_color="off")
-            else:
-                st.metric("BOLL 位置", "—", delta_color="off")
+        _qcards = []
+        rsi = qi.get("rsi")
+        rsi_tag = "超买" if rsi >= 70 else ("超卖" if rsi <= 30 else "中性")
+        _qcards.append({"label": "RSI(14)",
+                        "value": f"{rsi:.1f}" if rsi is not None else "—",
+                        "delta": rsi_tag if rsi is not None else "", "delta_dir": "flat"})
+        macd = qi.get("macd")
+        _macd_meta = f"DIF {qi['dif']:+.3f} / DEA {qi['dea']:+.3f}" if macd is not None else ""
+        _qcards.append({"label": "MACD 柱",
+                        "value": f"{macd:+.3f}" if macd is not None else "—",
+                        "delta": ("金叉/多头" if macd >= 0 else "死叉/空头") if macd is not None else "",
+                        "delta_dir": "flat", "meta": _macd_meta})
+        k, d, j = qi.get("k"), qi.get("d"), qi.get("j")
+        kdj_tag = "超买" if j >= 100 else ("超卖" if j <= 0 else "中性")
+        _qcards.append({"label": "KDJ",
+                        "value": f"K{k:.0f} D{d:.0f}" if k is not None else "—",
+                        "delta": f"J{j:.0f} · {kdj_tag}" if k is not None else "",
+                        "delta_dir": "flat"})
+        bp = qi.get("boll_pct")
+        pos = "近上轨" if bp >= 80 else ("近下轨" if bp <= 20 else "轨道中部")
+        _qcards.append({"label": "BOLL 位置",
+                        "value": f"{bp:.0f}%" if bp is not None else "—",
+                        "delta": pos if bp is not None else "", "delta_dir": "flat"})
+        xc_kpi_grid(_qcards)
 
         # 用户打分（独立 fragment，交互只重跑本块，提升响应速度）
         _render_user_score(ticker, stock_label)

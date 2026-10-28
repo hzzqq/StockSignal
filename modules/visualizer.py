@@ -45,7 +45,7 @@ def _is_dark() -> bool:
     except Exception as e:
         logger.warning(f"[visualizer] 处理异常: {e}")
         try:
-            return st.session_state.get("theme_mode", "light") == "dark"
+            return st.session_state.get("theme_mode", "dark") == "dark"
         except Exception as e:
             logger.warning(f"[visualizer] 处理异常: {e}")
             return False

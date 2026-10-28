@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockSignal 前端方向样机 · 4 身份对比</title>
+<style>
+  /* ===== 全局基底 ===== */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Microsoft YaHei UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+    background: var(--bg); color: var(--txt);
+    transition: background .25s, color .25s; line-height: 1.6;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 22px 20px 60px; }
+
+  /* ============================================================
+     主题令牌：每个方向的 --acc1/--acc2 与底色就是"设计语言"的全部
+     （与 StockSignal ui_theme.py 中 --acc1/--acc2 驱动机制一致）
+     ============================================================ */
+  /* 0 · 现状：靛紫渐变 Bento（当前线上长相） */
+  body.t-current {
+    --bg:#f4f6fb; --card:#ffffff; --card2:#f4f6fb; --txt:#1e293b; --txt2:#64748b; --border:#e2e8f0;
+    --acc1:#4f46e5; --acc2:#7c3aed; --up:#ff4d4f; --down:#00d486; --radius:16px;
+    --btn-bg:linear-gradient(135deg,#4f46e5,#7c3aed); --btn-txt:#fff;
+  }
+  /* 1 · 暗色·琥珀橙终端风（对标 QuantDinger） */
+  body.t-amber-dark {
+    --bg:#0f0f23; --card:#1a1a2e; --card2:#15152a; --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44;
+    --acc1:#ffb000; --acc2:#ff8c00; --up:#ff5c5c; --down:#22d39a; --radius:14px;
+    --btn-bg:linear-gradient(135deg,#ffb000,#ff8c00); --btn-txt:#1a1206;
+  }
+  /* 2 · 浅色·极简黑胶囊（对标 QUBE / PandaAI） */
+  body.t-ink-light {
+    --bg:#ffffff; --card:#ffffff; --card2:#f7f8fa; --txt:#111827; --txt2:#6b7280; --border:#eceef1;
+    --acc1:#111827; --acc2:#374151; --up:#e02424; --down:#0a9d6f; --radius:999px;
+    --btn-bg:#111827; --btn-txt:#ffffff;
+  }
+  /* 3 · 双主题统一新身份（暗=琥珀 / 浅=墨黑，切换不割裂） */
+  body.t-dual-light {
+    --bg:#ffffff; --card:#ffffff; --card2:#f7f8fa; --txt:#111827; --txt2:#6b7280; --border:#eceef1;
+    --acc1:#111827; --acc2:#374151; --up:#e02424; --down:#0a9d6f; --radius:16px;
+    --btn-bg:#111827; --btn-txt:#ffffff;
+  }
+  body.t-dual-dark {
+    --bg:#0f0f23; --card:#1a1a2e; --card2:#15152a; --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44;
+    --acc1:#ffb000; --acc2:#ff8c00; --up:#ff5c5c; --down:#22d39a; --radius:16px;
+    --btn-bg:linear-gradient(135deg,#ffb000,#ff8c00); --btn-txt:#1a1206;
+  }
+
+  /* ===== 顶部切换条 ===== */
+  .switch { position:sticky; top:0; z-index:50; background:var(--card); border-bottom:1px solid var(--border);
+    padding:12px 20px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; box-shadow:0 2px 10px rgba(0,0,0,.04); }
+  .switch .lab { font-weight:700; font-size:13px; color:var(--txt2); margin-right:4px; }
+  .switch button { font:inherit; font-size:13px; font-weight:600; cursor:pointer;
+    padding:7px 14px; border-radius:var(--radius); border:1px solid var(--border);
+    background:var(--card2); color:var(--txt); transition:all .15s; }
+  .switch button:hover { border-color:var(--acc1); }
+  .switch button.on { background:var(--btn-bg); color:var(--btn-txt); border-color:transparent; }
+  .switch .theme-toggle { margin-left:auto; }
+
+  /* ===== 组件（所有方向共用同一套结构，只换令牌） ===== */
+  .hero { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;
+    margin:18px 0 22px; padding:18px 24px; border-radius:var(--radius);
+    background:linear-gradient(120deg, color-mix(in srgb,var(--acc1) 20%,var(--card)), color-mix(in srgb,var(--acc2) 16%,var(--card)));
+    border:1px solid color-mix(in srgb,var(--acc1) 30%,var(--border));
+    box-shadow:0 0 0 1px rgba(0,0,0,.03),0 10px 30px rgba(0,0,0,.08); }
+  .hero .main { display:flex; align-items:center; gap:14px; }
+  .hero .icon { width:48px; height:48px; border-radius:14px; display:flex; align-items:center; justify-content:center;
+    font-size:24px; background:linear-gradient(135deg,var(--acc1),var(--acc2)); color:#fff; box-shadow:0 6px 18px rgba(0,0,0,.25); }
+  .hero h1 { font-size:22px; font-weight:800; }
+  .hero p { font-size:13px; color:var(--txt2); margin-top:3px; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .pill { font-size:12px; font-weight:600; padding:5px 12px; border-radius:999px; border:1px solid var(--border);
+    background:var(--card2); color:var(--txt2); display:inline-flex; align-items:center; gap:6px; }
+  .pill .dot { width:7px; height:7px; border-radius:50%; background:var(--up); }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:14px; margin:8px 0 24px; }
+  .kpi { background:var(--card); border:1px solid color-mix(in srgb,var(--acc1) 22%,var(--border)); border-radius:var(--radius);
+    padding:14px 16px; display:flex; flex-direction:column; gap:6px; transition:transform .18s,box-shadow .18s; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+  .kpi:hover { transform:translateY(-4px); box-shadow:0 10px 28px rgba(0,0,0,.14); }
+  .kpi .name { font-size:12px; color:var(--txt2); }
+  .kpi .val { font-size:23px; font-weight:800; font-family:'Fira Code',ui-monospace,monospace; }
+  .kpi .delta { font-size:13px; font-weight:700; }
+  .delta.up { color:var(--up); } .delta.down { color:var(--down); }
+
+  .section-h { display:flex; align-items:center; gap:10px; margin:18px 0 12px; font-size:16px; font-weight:700; }
+  .section-h::before { content:""; width:4px; height:18px; border-radius:3px; background:linear-gradient(180deg,var(--acc1),var(--acc2)); }
+
+  .chart { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; margin:12px 0; }
+  .chart h3 { font-size:15px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  .chart h3::before { content:""; width:4px; height:16px; border-radius:3px; background:linear-gradient(180deg,var(--acc1),var(--acc2)); }
+  .area { height:140px; border-radius:10px;
+    background:linear-gradient(180deg, color-mix(in srgb,var(--acc1) 30%,transparent), color-mix(in srgb,var(--acc1) 2%,transparent));
+    position:relative; overflow:hidden; }
+  .area::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--acc1); }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+  th,td { padding:9px 10px; text-align:center; border-bottom:1px solid var(--border); white-space:nowrap; }
+  thead th { background:var(--card2); color:var(--txt2); font-weight:600; position:sticky; top:0; }
+  tbody tr:nth-child(even) { background:color-mix(in srgb,var(--card2) 55%,transparent); }
+  tbody tr:hover { background:color-mix(in srgb,var(--acc1) 10%,var(--card2)); }
+
+  .banner { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:var(--radius); margin:14px 0;
+    font-size:13.5px; border:1px solid color-mix(in srgb,var(--acc1) 30%,var(--border));
+    background:color-mix(in srgb,var(--acc1) 8%,var(--card2)); }
+  .banner .ic { font-size:16px; }
+
+  .cta { margin:16px 0 4px; padding:16px 18px; border-radius:var(--radius); background:var(--card2);
+    border:1px solid color-mix(in srgb,var(--acc1) 26%,var(--border)); }
+  .btn { font:inherit; font-weight:700; font-size:14px; padding:10px 20px; border-radius:var(--radius); border:none;
+    background:var(--btn-bg); color:var(--btn-txt); cursor:pointer; }
+  .btn:hover { filter:brightness(1.06); }
+  .note { font-size:12px; color:var(--txt2); margin-top:10px; }
+  .tag { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px;
+    background:color-mix(in srgb,var(--acc1) 16%,transparent); color:var(--acc1); margin-bottom:6px; }
+</style>
+</head>
+<body class="t-current">
+  <div class="switch">
+    <span class="lab">👀 设计方向：</span>
+    <button data-t="t-current" class="on">0 · 现状靛紫</button>
+    <button data-t="t-amber-dark">1 · 暗·琥珀橙</button>
+    <button data-t="t-ink-light">2 · 浅·墨黑胶囊</button>
+    <button data-t="t-dual-light" data-dual="1">3 · 双主题统一</button>
+    <button class="theme-toggle" id="dualToggle" style="display:none">🌗 切暗/亮</button>
+  </div>
+
+  <div class="wrap">
+    <div class="tag" id="dirName">现状 · 靛紫渐变 Bento</div>
+    <div class="hero">
+      <div class="main">
+        <span class="icon">📈</span>
+        <div><h1>行情看板</h1><p>A股事件驱动投资分析 · 实时行情</p></div>
+      </div>
+      <div class="chips">
+        <span class="pill"><span class="dot"></span>交易中</span>
+        <span class="pill">数据来源 · 实时</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="kpi"><div class="name">上证指数</div><div class="val">3210.55</div><div class="delta up">▲ +0.82%</div></div>
+      <div class="kpi"><div class="name">深证成指</div><div class="val">10145.2</div><div class="delta up">▲ +1.13%</div></div>
+      <div class="kpi"><div class="name">创业板指</div><div class="val">2033.8</div><div class="delta down">▼ -0.41%</div></div>
+      <div class="kpi"><div class="name">北向资金</div><div class="val">+38.6亿</div><div class="delta up">▲ 净流入</div></div>
+      <div class="kpi"><div class="name">涨停家数</div><div class="val">62</div><div class="delta up">▲ 情绪升温</div></div>
+      <div class="kpi"><div class="name">跌停家数</div><div class="val">7</div><div class="delta down">▼ 低位</div></div>
+    </div>
+
+    <div class="section-h">上证指数 · 近 30 日走势</div>
+    <div class="chart"><h3>📊 指数走势</h3><div class="area"></div></div>
+
+    <div class="section-h">行业板块涨幅榜</div>
+    <table>
+      <thead><tr><th>板块</th><th>涨跌幅</th><th>领涨股</th><th>成交额</th></tr></thead>
+      <tbody>
+        <tr><td>银行</td><td class="delta up">+2.31%</td><td>招商银行</td><td>286亿</td></tr>
+        <tr><td>白酒</td><td class="delta down">-1.18%</td><td>贵州茅台</td><td>154亿</td></tr>
+        <tr><td>半导体</td><td class="delta up">+1.92%</td><td>中芯国际</td><td>312亿</td></tr>
+        <tr><td>新能源</td><td class="delta up">+0.74%</td><td>宁德时代</td><td>241亿</td></tr>
+        <tr><td>地产</td><td class="delta down">-0.53%</td><td>保利发展</td><td>98亿</td></tr>
+      </tbody>
+    </table>
+
+    <div class="banner"><span class="ic">💡</span><div>数据来源：AKShare / BaoStock / 新浪 / 东财 四级自动降级；单点故障不崩。本页展示源均已登记，缺证据即显示「未知」。</div></div>
+
+    <div class="cta">
+      <button class="btn">🔍 搜索股票 · 加入自选</button>
+      <div class="note">统一组件结构（hero / KPI 网格 / 图表卡 / 表格 / 横幅 / 按钮）在四个方向里完全一致，仅令牌 --acc1/--acc2 与底色不同 → 换语言=换一处令牌。</div>
+    </div>
+  </div>
+
+<script>
+  var names = {
+    't-current':'现状 · 靛紫渐变 Bento',
+    't-amber-dark':'暗色 · 琥珀橙终端风（对标 QuantDinger）',
+    't-ink-light':'浅色 · 极简黑胶囊（对标 QUBE / PandaAI）',
+    't-dual-light':'双主题统一 · 浅墨黑',
+    't-dual-dark':'双主题统一 · 暗琥珀'
+  };
+  var btns = document.querySelectorAll('.switch button[data-t]');
+  var dualBtn = document.getElementById('dualToggle');
+  var dirName = document.getElementById('dirName');
+  btns.forEach(function(b){
+    b.addEventListener('click', function(){
+      var t = b.getAttribute('data-t');
+      var isDual = b.getAttribute('data-dual') === '1';
+      document.body.className = isDual ? 't-dual-light' : t;
+      dirName.textContent = names[document.body.className] || names[t];
+      btns.forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      dualBtn.style.display = isDual ? 'inline-block' : 'none';
+    });
+  });
+  dualBtn.addEventListener('click', function(){
+    var dark = document.body.className === 't-dual-dark';
+    document.body.className = dark ? 't-dual-light' : 't-dual-dark';
+    dirName.textContent = names[document.body.className];
+  });
+</script>
+</body>
+</html>

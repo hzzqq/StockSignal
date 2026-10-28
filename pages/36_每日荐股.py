@@ -15,7 +15,7 @@ import streamlit as st
 
 from modules.page_utils import render_standard_page
 from modules.session import get_user_setting, save_user_setting
-from modules.ui_kit import info_banner, xc_warn_box
+from modules.ui_kit import info_banner, xc_warn_box, xc_kpi_grid
 from modules.recommend_engine import (
     ALGO_LABELS, ALGO_WEIGHTS, DISCLAIMER, load_latest_recommendation,
 )
@@ -51,16 +51,12 @@ if _st.get("stale"):
 
 # ── 市场上下文 ──
 ctx = rec.get("market_context") or {}
-mc1, mc2, mc3, mc4 = st.columns(4)
-with mc1:
-    st.metric("市场温度", ctx.get("temperature", "—"), delta_color="off")
-with mc2:
-    st.metric("情绪周期", ctx.get("cycle", "—"), delta_color="off")
-with mc3:
-    pos = (ctx.get("position") or {}).get("pct", "—")
-    st.metric("建议总仓位", f"{pos}%", delta_color="off")
-with mc4:
-    st.metric("候选池", f"{rec.get('scored_size', '—')} / {rec.get('universe_size', '—')}", delta_color="off")
+xc_kpi_grid([
+    {"label": "市场温度", "value": str(ctx.get("temperature", "—"))},
+    {"label": "情绪周期", "value": str(ctx.get("cycle", "—"))},
+    {"label": "建议总仓位", "value": f"{(ctx.get('position') or {}).get('pct', '—')}%"},
+    {"label": "候选池", "value": f"{rec.get('scored_size', '—')} / {rec.get('universe_size', '—')}"},
+])
 
 st.caption(f"生成时间：{rec.get('generated_at', '—')} · 行情截至各标的 data_as_of · "
            f"算法缺失标的：multi_factor {rec.get('algo_unavailable', {}).get('multi_factor', 0)} 只 / "
@@ -83,20 +79,18 @@ for i, p in enumerate(picks, 1):
                 unsafe_allow_html=True,
             )
         with head_r:
-            st.metric("综合评分", f"{p.get('composite', '—')}", delta_color="off")
+            xc_kpi_grid([{"label": "综合评分", "value": f"{p.get('composite', '—')}"}])
 
         # 买入方案
         plan = p.get("plan") or {}
-        pl1, pl2, pl3, pl4 = st.columns(4)
-        with pl1:
-            st.metric("入场参考", f"¥{plan.get('entry', '—')}", delta_color="off")
-        with pl2:
-            st.metric("目标价（3×ATR）", f"¥{plan.get('target', '—')}", delta_color="off")
-        with pl3:
-            st.metric("止损价（2×ATR）", f"¥{plan.get('stop', '—')}", delta_color="off")
-        with pl4:
-            st.metric("仓位提示", f"{plan.get('position_pct_hint', '—')}%" if plan.get("position_pct_hint") else "—",
-                      delta_color="off", help=plan.get("position_note", ""))
+        xc_kpi_grid([
+            {"label": "入场参考", "value": f"¥{plan.get('entry', '—')}"},
+            {"label": "目标价（3×ATR）", "value": f"¥{plan.get('target', '—')}"},
+            {"label": "止损价（2×ATR）", "value": f"¥{plan.get('stop', '—')}"},
+            {"label": "仓位提示", "value": (f"{plan.get('position_pct_hint', '—')}%"
+                       if plan.get("position_pct_hint") else "—"),
+             "meta": plan.get("position_note", "")},
+        ])
 
         # 算法归因（缺失如实标注）
         with st.expander(f"🔬 算法归因与理由（{len(ALGO_WEIGHTS)} 路算法独立打分）", expanded=(i == 1)):
@@ -124,11 +118,12 @@ if os.path.exists(_sim_path):
             sim = json.load(f)
         s = sim.get("aggregate") or {}
         with st.expander("🧪 万级虚拟用户模拟统计（历史蒙特卡洛，非实盘）", expanded=False):
-            k1, k2, k3, k4 = st.columns(4)
-            k1.metric("模拟用户数", sim.get("meta", {}).get("n_users", "—"))
-            k2.metric("中位回报", f"{s.get('return_median_pct', '—')}%")
-            k3.metric("正收益占比", f"{s.get('pct_positive', '—')}%")
-            k4.metric("平均最大回撤", f"{s.get('maxdd_avg_pct', '—')}%")
+            xc_kpi_grid([
+                {"label": "模拟用户数", "value": str(sim.get("meta", {}).get("n_users", "—"))},
+                {"label": "中位回报", "value": f"{s.get('return_median_pct', '—')}%"},
+                {"label": "正收益占比", "value": f"{s.get('pct_positive', '—')}%"},
+                {"label": "平均最大回撤", "value": f"{s.get('maxdd_avg_pct', '—')}%"},
+            ])
             st.caption(f"p5 {s.get('return_p5_pct', '—')}% / p95 {s.get('return_p95_pct', '—')}% · "
                        f"{sim.get('meta', {}).get('honesty_note', '')}")
     except Exception:  # noqa: BLE001

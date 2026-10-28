@@ -40,7 +40,7 @@ from modules import calibration as _cal
 from modules.experiment_improvements import shap_style_attribution
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
-from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, ss_hover_preview
+from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, ss_hover_preview, xc_kpi_grid
 from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GRU/融合）
 from modules.event_factor import get_event_factor  # 事件因子适配器（真实信号，无合成）
 from modules.next_day_edge_view import render_next_day_edge  # 次日情绪极值判断组件（复用 panic_reversal）
@@ -853,17 +853,15 @@ def _render_cycle_breakdown(dark: bool):
 
     # ① 四大战术分组（样本更集中，结论更稳）
     if g_rows:
-        gcols = st.columns(len(g_rows) if len(g_rows) <= 4 else 4)
-        for i, g in enumerate(g_rows[:4]):
+        _cycle_cards = []
+        for g in g_rows[:4]:
             acc = g["accuracy"]
-            with gcols[i % 4]:
-                st.metric(
-                    f"{g['group']}命中率",
-                    f"{acc:.0f}%" if acc is not None else "—",
-                    f"{g['hits']}/{g['n_call']} 次表态",
-                    delta_color="off",
-                )
-                st.caption(_GROUP_TIP.get(g["group"], ""))
+            _cycle_cards.append({
+                "label": f"{g['group']}命中率",
+                "value": f"{acc:.0f}%" if acc is not None else "—",
+                "meta": f"{g['hits']}/{g['n_call']} 次表态 · {_GROUP_TIP.get(g['group'], '')}",
+            })
+        xc_kpi_grid(_cycle_cards)
         fig = go.Figure()
         fig.add_trace(go.Bar(
             x=[g["group"] for g in g_rows],
@@ -916,11 +914,12 @@ def fragment_backtest():
         _empty_info("尚无预测记录。每日收盘后《daily_snapshot》脚本会自动落盘一条预测，积累几天后即可看回测曲线。")
         return
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("已记录预测", f"{s['n']} 天")
-    c2.metric("已打分", f"{s['scored']} 天")
-    c3.metric("方向命中率", f"{s['accuracy']:.0f}%" if s["accuracy"] is not None else "—")
-    c4.metric("覆盖区间", f"{s['start']} ~ {s['end']}")
+    xc_kpi_grid([
+        {"label": "已记录预测", "value": f"{s['n']} 天"},
+        {"label": "已打分", "value": f"{s['scored']} 天"},
+        {"label": "方向命中率", "value": f"{s['accuracy']:.0f}%" if s["accuracy"] is not None else "—"},
+        {"label": "覆盖区间", "value": f"{s['start']} ~ {s['end']}"},
+    ])
 
     if st.button("🔗 联网计算次日实际走势（打分）", key="bt_score", width="stretch"):
         try:

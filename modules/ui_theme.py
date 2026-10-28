@@ -69,13 +69,13 @@ def inject_plotly_dark() -> None:
         pass
 
 def _theme_is_dark() -> bool:
-    """当前是否应呈现暗色：仅由用户全局主题 theme_mode 控制（默认亮色）。
+    """当前是否应呈现暗色：仅由用户全局主题 theme_mode 控制（默认暗色终端）。
 
     不再按页面强制暗色——之前「个股分析 / 多股对比」访问后所有页面被污染成暗色，
     用户投诉「切功能模块黑白切换」。现在所有页面统一跟随右上角主题开关，
     白天 / 暗夜两种模式都可手动切换，离开页面不残留。
     """
-    return st.session_state.get('theme_mode', 'light') == 'dark'
+    return st.session_state.get('theme_mode', 'dark') == 'dark'
 STREAMLIT_THEME_LIGHT = {'base': 'light', 'primaryColor': '#4f46e5', 'backgroundColor': '#ffffff', 'secondaryBackgroundColor': '#f4f6fb', 'textColor': '#1e293b', 'font': 'sans serif'}
 STREAMLIT_THEME_DARK = {'base': 'dark', 'primaryColor': '#667eea', 'backgroundColor': '#0f0f23', 'secondaryBackgroundColor': '#1a1a2e', 'textColor': '#e2e8f0', 'font': 'sans serif'}
 
@@ -88,14 +88,14 @@ def apply_page_config(page_title: str, page_icon: str=None, layout: str='wide') 
 
     当前环境（Streamlit 1.59.2）的 st.set_page_config 还不支持 theme 关键字参数，
     因此采用 config.set_option 方式在页面渲染前把原生主题写入配置。
-    theme_mode 在首次加载（未切换过）时回落到 light，符合「默认白天」约定；
+    theme_mode 在首次加载（未切换过）时回落到 dark，符合「默认暗色终端」约定；
     用户一旦在右上角切换暗夜，session_state 中 theme_mode=dark，切页后原生主题即跟随变暗。
     """
     try:
         from modules.session import _restore_prefs_from_query_params, FONT_DEFAULT
         _p = _restore_prefs_from_query_params()
         if _p:
-            st.session_state.setdefault('theme_mode', _p.get('theme_mode', 'light'))
+            st.session_state.setdefault('theme_mode', _p.get('theme_mode', 'dark'))
             st.session_state.setdefault('font_size', _p.get('font_size', FONT_DEFAULT))
             # T-283：ui_style 也要在原生主题选型前就位，否则下方 _sync_style_mode()
             # 读不到风格、强制暗/亮风格冷加载首屏仍按默认 light 计算原生组件。
@@ -186,7 +186,7 @@ def apply_theme() -> None:
     st.markdown('<style>[data-testid="stSidebarNav"],[data-testid="stSidebarNavItems"],[data-testid="stSidebarNavSeparator"],[data-testid="stSidebarNavLink"]{display:none!important;}</style>', unsafe_allow_html=True)
 
 def get_current_mode() -> str:
-    return st.session_state.get('theme_mode', 'light')
+    return st.session_state.get('theme_mode', 'dark')
 
 _DASHBOARD_SF_CSS_CACHE: dict = {}
 

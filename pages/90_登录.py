@@ -20,7 +20,7 @@ from modules.session import init_session_state, is_authenticated, set_auth, clea
 from modules.widgets import password_strength
 
 from modules.ui_theme import apply_page_config
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_error_box
 apply_page_config(page_title="登录", page_icon="🔐", layout="centered")
 st.session_state["_active_page"] = __file__
 init_session_state()
@@ -82,15 +82,31 @@ st.markdown(
 )
 
 # 后端健康检查：服务没起时给个明显提示（登录/注册都依赖后端，故置于标签之前）
+# Phase 0 修复（UI 重设计）：原生 st.error/st.code 长文本溢出且无复制按钮；改走
+# xc_error_box（自动换行、不泄露内部异常）+ st.code(language="bash")（自带复制按钮）；
+# 原始异常仅入日志（xc_handle_error 内部 logger.warning），不回显给用户。
+FLASK_CMD = "python -m flask --app backend.app:app run --host 127.0.0.1 --port 5050"
+# localhost 探活必须绕过本机代理（如 127.0.0.1:2945），否则请求被路由到代理
+# 导致 RemoteDisconnected，误报"无法连接后端"。仅对本次 localhost 调用关闭代理。
 try:
-    health = requests.get(f"{API_BASE}/api/health", timeout=2)
+    health = requests.get(
+        f"{API_BASE}/api/health", timeout=2,
+        proxies={"http": None, "https": None},
+    )
     if health.status_code != 200:
-        st.error(f"后端健康检查失败 (HTTP {health.status_code})。请确认 Flask 已启动：")
-        st.code("python -m flask --app backend.app:app run --host 127.0.0.1 --port 5050")
+        xc_error_box(
+            f"❌ 后端健康检查失败 (HTTP {health.status_code})",
+            hint="请确认 Flask 后端已启动，然后刷新本页。启动命令已附在下方，可一键复制。",
+        )
+        st.code(FLASK_CMD, language="bash")
         st.stop()
 except Exception as e:  # noqa: BLE001 - 任何连接/网络异常都降级为友好提示，不抛未捕获异常
-    st.error(f"❌ 无法连接后端服务 ({API_BASE})")
-    st.code(f"错误: {e}\n\n请先启动 Flask：\npython -m flask --app backend.app:app run --host 127.0.0.1 --port 5050")
+    xc_handle_error(
+        f"❌ 无法连接后端服务 ({API_BASE})",
+        exc=e,
+        hint="请先启动 Flask 后端，再刷新本页。启动命令已附在下方，可一键复制。",
+    )
+    st.code(FLASK_CMD, language="bash")
     st.stop()
 
 # ── 白色大卡：左品牌价值区 ｜ 右表单区（账号登录 / 注册）──

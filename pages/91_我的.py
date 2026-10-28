@@ -25,8 +25,8 @@ def _resolve_font_index(value, font_opts, default):
         return keys.index(value)
     return keys.index(default) if default in keys else 0
 from modules.page_widgets import _empty_info
-# 确保 theme_mode 在 apply_theme()/require_auth() 之前就有默认值，避免默认 light 与后面被改回 dark 造成闪烁/状态错位
-st.session_state.setdefault("theme_mode", "light")
+# 确保 theme_mode 在 apply_theme()/require_auth() 之前就有默认值，避免默认 dark 与后面被改回 light 造成闪烁/状态错位
+st.session_state.setdefault("theme_mode", "dark")
 
 # 加法式风险提示/免责声明作为副标题
 render_standard_page(
@@ -98,7 +98,7 @@ def render_preferences():
     """
     # ── 初始化设置项的 session_state 默认值 ──
     _SETTINGS_KEYS = {
-        "theme_mode": "light",          # dark / light（项目约定默认白天模式）
+        "theme_mode": "dark",          # dark / light（项目约定默认暗色终端模式）
         "font_size": FONT_DEFAULT,      # small / medium(标准) / large / xlarge / xxlarge
         "kline_default_count": 120,     # K线默认显示根数
         "sector_refresh_interval": 60,  # 行业板块刷新间隔(秒)
