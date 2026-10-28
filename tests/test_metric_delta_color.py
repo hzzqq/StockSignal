@@ -16,7 +16,7 @@ COMPLETED_FILES = [
     "11_股票选取.py",
     "22_基本面分析.py",
     "23_事件追踪.py",
-    "36_每日荐股.py",
+    # "36_每日荐股.py",  # 2026-10-28 已迁移至 xc_kpi_grid（delta_dir 统一保证 A股红涨绿跌，另由 test_ui_design_system 守卫）；不再直接调用 st.metric，故移出裸 st.metric 守卫清单
     "16_财报日历.py",
     "35_资金流向.py",
     "20_个股分析.py",

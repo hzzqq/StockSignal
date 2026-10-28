@@ -91,7 +91,7 @@ def test_get_current_mode_reads_session_state(monkeypatch):
     monkeypatch.setattr(st, "session_state", _FakeSS({"theme_mode": "dark"}))
     assert sf.get_current_mode() == "dark"
     monkeypatch.setattr(st, "session_state", _FakeSS({}))
-    assert sf.get_current_mode() == "light"  # 默认 light
+    assert sf.get_current_mode() == "dark"  # 默认暗色终端（2026-10-28 拍板翻 dark）
 
 
 def test_inject_plotly_dark_does_not_raise(monkeypatch):
