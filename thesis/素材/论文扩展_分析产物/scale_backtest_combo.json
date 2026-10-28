@@ -1,0 +1,64 @@
+{
+ "meta": {
+  "start": "2009-11-02",
+  "end": "2026-10-26",
+  "days": 4124,
+  "annual_days": 244,
+  "scale_rule": "pos(d)=clamp(50+CYCLE_ADJ[phase(d-1)],5,95)",
+  "benchmark": "fixed 50%",
+  "proxy": "median_chg (same source as 49.1%/22.8pp backtests)",
+  "caveats": [
+   "模拟组合非实盘，无交易成本与滑点",
+   "全市场中位涨幅为收益代理，不等于可投资指数",
+   "单变量隔离口径：仅启用周期刻度调节，温度/方向/晋级率/事件固定中性",
+   "周期判定 locate_cycle 与生产同口径；其派生指标依赖见 5.4 caveat"
+  ]
+ },
+ "scale": {
+  "total_ret": -98.5,
+  "ann_ret": -22.13,
+  "max_dd": -98.6,
+  "ann_vol": 16.9,
+  "sharpe": -1.397
+ },
+ "benchmark": {
+  "total_ret": -98.6,
+  "ann_ret": -22.21,
+  "max_dd": -98.6,
+  "ann_vol": 16.9,
+  "sharpe": -1.399
+ },
+ "delta": {
+  "total_ret": 0.1,
+  "ann_ret": 0.08,
+  "max_dd": 0.0,
+  "ann_vol": 0.0,
+  "sharpe": 0.0
+ },
+ "contrib_by_phase_pct": {
+  "主升高潮": {
+   "contrib_pct": -3.91,
+   "days": 292
+  },
+  "修复确认": {
+   "contrib_pct": -4.12,
+   "days": 424
+  },
+  "修复试探": {
+   "contrib_pct": 0.0,
+   "days": 3008
+  },
+  "冰点": {
+   "contrib_pct": 0.6,
+   "days": 7
+  },
+  "退潮": {
+   "contrib_pct": 8.16,
+   "days": 387
+  },
+  "高潮分化": {
+   "contrib_pct": 0.77,
+   "days": 5
+  }
+ }
+}
