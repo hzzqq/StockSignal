@@ -104,6 +104,6 @@ def test_malformed_html_no_crash():
 def test_source_level_regex_prefers_full_datetime():
     """源码级防回退：日期正则首选项必须含可选的时间部分，防止时间被丢弃。"""
     import pathlib
-    src = pathlib.Path("modules/_news_io.py").read_text(encoding="utf-8")
+    src = (pathlib.Path(__file__).resolve().parents[1] / "modules" / "_news_io.py").read_text(encoding="utf-8")
     # 断言首选项包含「完整日期 + 可选时间」的写法
     assert r"\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}" in src

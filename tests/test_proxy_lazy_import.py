@@ -11,14 +11,18 @@ _ensure_proxy_and_ssl 内部 _patch_done 幂等）。import 不再阻塞。
 （CALLED=0），证明导入期未跑阻塞探测。任何回归（重新在 import 期调用）都会让
 CALLED>0 而失败。
 """
+import os
 import subprocess
 import sys
+
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _run(code: str) -> str:
     return subprocess.run(
         [sys.executable, "-c", code],
-        capture_output=True, text=True, cwd=".",
+        capture_output=True, text=True, cwd=str(_PROJECT_ROOT),
     ).stdout.strip()
 
 

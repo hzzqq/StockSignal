@@ -15,7 +15,7 @@ class TestLoadConfig:
     """load_config 白盒测试。"""
 
     def test_load_existing_config(self):
-        config = load_config("config.yaml")
+        config = load_config(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.yaml"))
         assert isinstance(config, dict)
         assert "default" in config
         assert "signal" in config

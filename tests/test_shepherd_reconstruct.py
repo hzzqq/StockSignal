@@ -514,7 +514,7 @@ def test_worker_accepts_legacy_5_tuple(monkeypatch):
 def test_aggregate_cached_writes_merged_frame_not_raw_window():
     """AST 不变量守卫：写盘对象必须是 _merge_cache_frames(...) 的结果，绝不能是原始窗口。"""
     import ast
-    src = pathlib.Path("modules/shepherd_reconstruct.py").read_text(encoding="utf-8")
+    src = (pathlib.Path(__file__).resolve().parents[1] / "modules" / "shepherd_reconstruct.py").read_text(encoding="utf-8")
     fn = next(n for n in ast.parse(src).body
               if isinstance(n, ast.FunctionDef) and n.name == "_aggregate_cached")
 

@@ -452,7 +452,7 @@ class TestBlackBox_Architecture:
 
     def test_config_file_exists(self):
         """需求：config.yaml 全局配置。"""
-        config = load_config("config.yaml")
+        config = load_config(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.yaml"))
         assert isinstance(config, dict)
         assert "default" in config
 

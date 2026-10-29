@@ -11,14 +11,18 @@ import 不再阻塞。
 本测试用子进程验证：导入 fundflow 后 _patch_done 必须为 False（证明导入期未跑探测），
 且惰性函数仍可正常触发（_patch_done 变 True）。
 """
+import os
 import subprocess
 import sys
+
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _run(code: str) -> str:
     return subprocess.run(
         [sys.executable, "-c", code],
-        capture_output=True, text=True, cwd=".",
+        capture_output=True, text=True, cwd=str(_PROJECT_ROOT),
     ).stdout.strip()
 
 

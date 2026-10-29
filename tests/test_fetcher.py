@@ -1,5 +1,7 @@
 """test_fetcher.py — 数据采集模块测试"""
 
+import os
+
 import pytest
 import pandas as pd
 from modules.fetcher import StockFetcher, load_config
@@ -8,7 +10,7 @@ from modules.fetcher import StockFetcher, load_config
 class TestStockFetcher:
 
     def test_load_config(self):
-        config = load_config("config.yaml")
+        config = load_config(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.yaml"))
         assert isinstance(config, dict)
         assert "default" in config
 
