@@ -649,23 +649,22 @@ if data_ok and df is not None:
         volume_info = analysis.get("volume", {})
         patterns = analysis.get("patterns", []) or []
 
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.markdown("**① 短期（5日）**")
-            st.metric(f"{'+' if r5 >= 0 else ''}{r5:.2f}%", f"{short}分", delta_color="inverse")
-            st.caption("🟢 强势" if short >= 65 else ("🔴 偏弱" if short <= 40 else "⚪ 中性"))
-        with c2:
-            st.markdown("**② 中期（20日）**")
-            st.metric(f"{'+' if r20 >= 0 else ''}{r20:.2f}%", f"{mid}分", delta_color="inverse")
-            st.caption("🟢 强势" if mid >= 65 else ("🔴 偏弱" if mid <= 40 else "⚪ 中性"))
-        with c3:
-            st.markdown("**③ 长期（60日）**")
-            st.metric(f"{'+' if r60 >= 0 else ''}{r60:.2f}%", f"{long}分", delta_color="inverse")
-            st.caption("🟢 强势" if long >= 65 else ("🔴 偏弱" if long <= 40 else "⚪ 中性"))
-        with c4:
-            st.markdown("**④ 综合评分**")
-            st.metric(f"{composite}/100", f"{'看多' if composite >= 65 else ('看空' if composite <= 40 else '观望')}", delta_color="off")
-            st.caption("短/中/长期加权")
+        _score_cards = [
+            {"label": "① 短期（5日）", "value": f"{'+' if r5 >= 0 else ''}{r5:.2f}%",
+             "delta": f"{short}分", "delta_dir": "up" if r5 >= 0 else "down",
+             "meta": "🟢 强势" if short >= 65 else ("🔴 偏弱" if short <= 40 else "⚪ 中性")},
+            {"label": "② 中期（20日）", "value": f"{'+' if r20 >= 0 else ''}{r20:.2f}%",
+             "delta": f"{mid}分", "delta_dir": "up" if r20 >= 0 else "down",
+             "meta": "🟢 强势" if mid >= 65 else ("🔴 偏弱" if mid <= 40 else "⚪ 中性")},
+            {"label": "③ 长期（60日）", "value": f"{'+' if r60 >= 0 else ''}{r60:.2f}%",
+             "delta": f"{long}分", "delta_dir": "up" if r60 >= 0 else "down",
+             "meta": "🟢 强势" if long >= 65 else ("🔴 偏弱" if long <= 40 else "⚪ 中性")},
+            {"label": "④ 综合评分", "value": f"{composite}/100",
+             "delta": "看多" if composite >= 65 else ("看空" if composite <= 40 else "观望"),
+             "delta_dir": "up" if composite >= 65 else ("down" if composite <= 40 else "flat"),
+             "meta": "短/中/长期加权"},
+        ]
+        xc_kpi_grid(_score_cards)
 
         c1, c2, c3, c4 = st.columns(4)
         with c1:
