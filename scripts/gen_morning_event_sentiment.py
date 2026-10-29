@@ -322,7 +322,15 @@ def main():
     lines.append(f"| 事件因子 信号量级（top_long 均值 pred） | **{fmt(round(ev_mean_pred,5) if ev_mean_pred is not None else None)}** | 统计超额收益概率（非涨跌预测） |")
     lines.append(f"| 事件因子 空头池广度 | **{fmt(ev_short_count)}** 只 | 多空对称 |")
     lines.append("")
-    lines.append("> 事件因子方向判定：**偏多**（多头池 pred 均值为正）。但因其数据陈旧（见第四节），方向信号当日不可信，参与共振时按「失效」处理。")
+    if ev_stale:
+        ev_dir_note = (f"> 事件因子方向判定：**偏多**（多头池 pred 均值为正）。"
+                       f"但因其数据陈旧（见第四节，滞后 {fmt(ev_lag)} 天），方向信号当日不可信，"
+                       f"参与共振时按「失效」处理。")
+    else:
+        ev_dir_note = (f"> 事件因子方向判定：**偏多**（多头池 pred 均值为正），"
+                       f"数据截至 {fmt(ev_as_of)}（滞后 {fmt(ev_lag)} 天，新鲜），"
+                       f"方向信号可信、参与当日共振。")
+    lines.append(ev_dir_note)
     lines.append("")
     _sh_asof = _hrow.get("牧羊人情绪", {}).get("as_of")
     _sh_lag = _hrow.get("牧羊人情绪", {}).get("lag_days")
@@ -335,8 +343,10 @@ def main():
     _snap_stalled = _hrow.get("今日快照", {}).get("stalled")
     if _snap_stalled:
         _snap_tag = "已停更"
-    elif _snap_lag is not None and _snap_lag > 4:
-        _snap_tag = "已降权"
+    elif _snap_st == "stale":
+        _snap_tag = "已降权（陈旧）"
+    elif _snap_st == "warn":
+        _snap_tag = "偏旧（warn，未达降权阈值）"
     else:
         _snap_tag = "新鲜（ok）"
     # 本早报喂进 derive_position 的 score/bias/cycle/temp 取自最新每日快照（data/snapshots 最大日期），
@@ -369,11 +379,25 @@ def main():
     lines.append(f"- 事件因子方向：**{fmt(ev_dir)}**（名义偏多，但数据截至 {fmt(ev_as_of)}，滞后 {fmt(ev_lag)} 天）")
     lines.append("")
     if resonance.startswith("同向"):
-        lines.append("**可执行解读**：两信号同向偏多，可互为印证加仓；但需结合温度与周期风控上限。")
+        lines.append("**可执行解读**：两信号同向偏多，可互为印证；但需注意——当前推荐仓位 60% 是**被整体数据偏旧（warn）封顶压低**"
+                     "的结果（原始推导 86% 被压到 60%），并非基于当日全新鲜信号的满仓绿灯；"
+                     "在市场温度/快照/校准回测三源刷新至新鲜前，建议维持封顶仓位、不盲目加仓。")
     elif resonance.startswith("背离"):
-        lines.append("**可执行解读**：牧羊人情绪与事件因子方向相反（背离），且事件因子已陈旧失效（滞后≥8天），"
-                     "**今日决策以牧羊人情绪为唯一有效信号**。事件因子的陈旧信号不参与当日共振，"
-                     "避免用过期催化抬高仓位。")
+        if ev_stale:
+            # 事件因子陈旧（滞后≥8天）：背离由「新鲜牧羊人 vs 过期事件」构成，过期信号不可信
+            # → 当日决策以牧羊人单一有效信号为准，事件因子不参与共振。
+            lines.append("**可执行解读**：牧羊人情绪与事件因子方向相反（背离），且事件因子已陈旧失效（滞后≥8天），"
+                         "**今日决策以牧羊人情绪为唯一有效信号**。事件因子的陈旧信号不参与当日共振，"
+                         "避免用过期催化抬高仓位。")
+        else:
+            # 真实背离：双方信号均新鲜，方向相反——不是陈旧误判。牧羊人推导主导（-8/-5/-6），
+            # 事件因子 +1pt 仅小幅对冲，未改变中性偏防守方向；背离本身提示"消息面催化与盘面
+            # 情绪打架"，应降低对任一单一信号的置信度，不盲目跟随任一方。
+            lines.append("**可执行解读**：牧羊人情绪（偏空）与事件因子（偏多）方向相反，且**双方信号均新鲜**——"
+                         "这是**真实背离**，不是陈旧误判。当前仓位由牧羊人推导主导"
+                         "（方向-8 / 周期-5 / 梯队断档-6 共 -19pt），事件因子 +1pt 仅小幅对冲、未改变中性偏防守方向。"
+                         "背离提示「消息面催化与盘面情绪打架」，应降低对任一单一信号的置信度、不盲目跟随任一方；"
+                         "建议维持中性仓位、等待方向收敛。")
     elif resonance == "事件因子缺位":
         lines.append("**可执行解读**：事件因子缺位，仓位完全由牧羊人情绪驱动；未施加任何事件催化（不臆造）。")
     elif resonance.startswith("事件因子陈旧失效"):
@@ -439,14 +463,30 @@ def main():
     lines.append("## 五、核心结论")
     lines.append("")
     _p1_stalled = _hrow.get("P1 事件因子", {}).get("stalled")
-    _sh_ev_note = "叠加事件因子停更" if (ev_available and ev_stale and _p1_stalled) else "叠加事件因子陈旧"
+    if ev_available and ev_stale and _p1_stalled:
+        _sh_ev_note = "叠加事件因子停更"
+    elif ev_available and ev_stale:
+        _sh_ev_note = "叠加事件因子陈旧"
+    elif ev_available:
+        _sh_ev_note = f"事件因子新鲜（lag{fmt(ev_lag)}，+{fmt(ev_adj_nominal)}pt 催化已计入）"
+    else:
+        _sh_ev_note = "事件因子缺位"
     _sh_down_tag5 = "已降权" if _sh_down else "新鲜"
+    # 事件催化是否计入当日对外展示仓位的诚实表述（红线相关，必须随 ev_stale 动态）：
+    #   · 事件因子陈旧/缺位 → 显式写「已剔除/未计入」，差值 = 含催化口径与展示口径之差；
+    #   · 事件因子新鲜 → 写「已正常计入」，并说明 +Npt 已纳入。
+    if ev_available and not ev_stale:
+        _event_included_note = (f"事件因子（新鲜 lag{fmt(ev_lag)}）催化 +{fmt(ev_adj_nominal)}pt 已计入")
+    elif ev_stale:
+        _event_included_note = "事件因子陈旧已剔除"
+    else:
+        _event_included_note = "事件因子缺位未计入"
     _gap = (_sh_lag - _snap_lag) if (_sh_lag is not None and _snap_lag is not None) else None
     _cap_phrase = _freshness_cap_note(
         freshness_status, eff_pos["pct"], pos_raw["pct"],
         f"bias={fmt(bias)}、cycle={fmt(cycle)}、温度={fmt(temp)}、连板晋级率={fmt(promo_overall)}")
     lines.append(f"1. **仓位**：{eff_pos['pct']}% / {eff_pos['band']}——"
-                 f"事件因子陈旧已剔除；牧羊人情绪快照读数 bias={fmt(bias)}、cycle={fmt(cycle)}，"
+                 f"{_event_included_note}；牧羊人情绪快照读数 bias={fmt(bias)}、cycle={fmt(cycle)}，"
                  f"决策所用快照数据日 {fmt(snap_date)}（滞后 {fmt(_snap_lag)} 天，{_snap_tag}）；"
                  f"底层牧羊人 CSV 截至 {fmt(_sh_asof)}（滞后 {fmt(_sh_lag)} 天，{_sh_down_tag5}），{_sh_ev_note}，"
                  f"{_cap_phrase}。")
@@ -456,11 +496,33 @@ def main():
                  f" {fmt(_sh_asof)}（滞后 {fmt(_sh_lag)} 天，{_sh_down_tag5}），"
                  f"{('快照较 CSV 新 ' + str(_gap) + ' 天，regime/herd 双因子或基于落后广度' if _gap and _gap > 0 else '两者一致/CSV 更新')}）")
     if ev_available:
-        lines.append(f"3. **事件因子**：latest_date={fmt(ev_as_of)}（滞后 {fmt(ev_lag)} 天），多头池 {fmt(ev_long_count)} 只、名义催化 +{fmt(ev_adj_nominal)}pt；"
-                     f"**因陈旧已降权至≈失效，未计入当日共振，亦未抬高仓位**。")
+        if ev_stale:
+            _ev3 = (f"**因陈旧（滞后 {fmt(ev_lag)} 天）已降权至≈失效，未计入当日共振，亦未抬高仓位**"
+                    f"（注：fusion 模型仍停滞 2026-08-14，离群，已列于第四节跨模型清单）。")
+        else:
+            _ev3 = (f"**数据新鲜（滞后 {fmt(ev_lag)} 天），+{fmt(ev_adj_nominal)}pt 催化已正常计入当日仓位与共振**"
+                    f"（注：fusion 模型仍停滞 2026-08-14，离群，已列于第四节跨模型清单）。")
+        lines.append(f"3. **事件因子**：latest_date={fmt(ev_as_of)}（滞后 {fmt(ev_lag)} 天），多头池 {fmt(ev_long_count)} 只、名义催化 +{fmt(ev_adj_nominal)}pt；{_ev3}")
     else:
         lines.append(f"3. **事件因子**：缺（无可用信号），未施加催化。")
-    lines.append(f"4. **共振**：{resonance}——事件因子陈旧不参与当日决策，今日以牧羊人单一有效信号防守。")
+    if resonance.startswith("同向") or resonance.startswith("背离"):
+        if ev_stale:
+            _res4 = "事件因子陈旧不参与当日决策，今日以牧羊人单一有效信号防守。"
+        elif resonance.startswith("同向"):
+            _res4 = "事件因子新鲜催化已计入当日共振，与牧羊人互为印证。"
+        else:
+            # 真实背离（双方均新鲜）：事件因子新鲜但其方向与牧羊人相反，+1pt 已计入当日仓位，
+            # 未改变由牧羊人推导主导的中性偏防守方向；不强行合成共振。
+            _res4 = ("事件因子新鲜（lag%d）但其方向与牧羊人相反，构成**真实背离**；"
+                     "其 +%spt 催化已计入当日仓位，未改变由牧羊人推导主导的中性偏防守方向。"
+                     % (ev_lag, ev_adj_nominal))
+    elif resonance == "事件因子缺位":
+        _res4 = "事件因子缺位，仓位完全由牧羊人情绪驱动，未施加任何事件催化（不臆造）。"
+    elif resonance.startswith("事件因子陈旧失效"):
+        _res4 = "事件因子陈旧不参与当日决策，今日以牧羊人单一有效信号防守。"
+    else:
+        _res4 = "一方缺位/中性，决策以有效信号为准，不强行合成共振。"
+    lines.append(f"4. **共振**：{resonance}——{_res4}")
     lines.append(f"5. **诚实提示**：事件因子、各源时效已逐源摊开；陈旧源已显式降权，未用合成/示例数据填充。")
     lines.append("")
 
