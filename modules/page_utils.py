@@ -17,7 +17,6 @@ def latest_quote_time(quote_times):
 - ``render_standard_page(title, icon, caption, layout)``：
     统一执行 ``apply_page_config`` + 标记活跃页 + ``require_auth`` + 用户徽章 +
     主题判断 + 仪表盘 CSS + 标题 + 副标题；返回 ``dark(bool)`` 供后续图表使用。
-- ``import_autorefresh()``：安全导入 ``st_autorefresh``（无则返回 None）。
 - ``get_fetcher()``：模块级 ``@st.cache_resource`` 的 ``StockFetcher`` 单例。
 
 错误边界（safe_fragment / safe_section / page_error_boundary）已在 ``page_guard``
@@ -123,16 +122,6 @@ def _build_status_chips(dark: bool) -> list:
     except Exception as e:
         logger.warning(f"[page_utils] 处理异常: {e}")
     return chips
-
-
-def import_autorefresh():
-    """安全导入 st_autorefresh；模块缺失（老版 Streamlit）时返回 None。"""
-    try:
-        from modules.autorefresh import st_autorefresh
-        return st_autorefresh
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"[page_utils] 处理异常: {e}")
-        return None
 
 
 @cache_resource(show_spinner=False)
