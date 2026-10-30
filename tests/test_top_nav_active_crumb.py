@@ -77,17 +77,17 @@ def _menu_segment(html: str, keyword: str) -> str:
 
 def test_render_marks_active_group_with_crumb(monkeypatch):
     html = _render("43_实盘交易.py", monkeypatch)
-    seg = _menu_segment(html, "💰 持仓交易")
+    seg = _menu_segment(html, "持仓交易")
     assert 'ss-menu has-mega ss-menu-active' in seg, "当前类目未高亮"
     assert 'ss-crumb' in seg and "› 实盘交易" in seg, "面包屑缺失/页名不符"
     # 其他类目不得误亮
-    other = _menu_segment(html, "🌐 市场广度·温度")
+    other = _menu_segment(html, "市场广度·温度")
     assert "ss-menu-active" not in other and "ss-crumb" not in other, "非当前类目被误高亮"
 
 
 def test_render_marks_hero_group_with_crumb(monkeypatch):
     html = _render("54_今日决策面板.py", monkeypatch)
-    seg = _menu_segment(html, "🎯 决策中枢")
+    seg = _menu_segment(html, "决策中枢")
     assert 'ss-menu has-mega ss-menu-active' in seg
     assert "› 今日决策面板" in seg
 
@@ -103,7 +103,7 @@ def test_render_unknown_page_no_highlight(monkeypatch):
     html = _render("91_我的.py", monkeypatch)
     assert 'class="ss-crumb"' not in html
     # 仅允许 0 个 has-mega 类目高亮（首页 <a> 也不亮）
-    for kw in ("💰 持仓交易", "🌐 市场广度·温度", "🎯 决策中枢"):
+    for kw in ("持仓交易", "市场广度·温度", "决策中枢"):
         assert "ss-menu-active" not in _menu_segment(html, kw)
 
 

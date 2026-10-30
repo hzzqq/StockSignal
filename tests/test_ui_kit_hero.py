@@ -76,18 +76,17 @@ def test_status_chips_do_not_depend_on_css_class():
 
 def test_status_chips_light_vs_dark_colors():
     """light 模式=☀️ 浅色（浅紫底/深紫字）；dark 模式=🌙 深色（深紫底/淡紫字）。
-    标签加太阳/月亮图标，明确表示 app 主题（而非北京时间），避免与
-    「白天/交易中」时间状态词混淆（2026-09-07 老板反馈后改）。"""
+    P1a：emoji 已替换为 SVG 太阳/月亮图标，颜色改走 --ss-* 令牌（跨主题一致）。"""
     light = _build_status_chips(dark=False)
     dark = _build_status_chips(dark=True)
-    # light
-    assert "☀️ 浅色" in light[0]
-    assert "#eef2ff" in light[0], "light 主题背景应为 #eef2ff"
-    assert "#4338ca" in light[0], "light 主题文字应为 #4338ca"
+    # light：文案保留「浅色」，emoji 已移除，颜色走令牌
+    assert "浅色" in light[0]
+    assert "☀️" not in light[0] and "🌙" not in light[0], "主题胶囊不得再含 emoji 图标"
+    assert "var(--ss-surface-2)" in light[0], "light 背景应走 --ss-surface-2 令牌"
+    assert "var(--ss-accent)" in light[0], "文字/图标应走 --ss-accent 令牌"
     # dark
-    assert "🌙 深色" in dark[0]
-    assert "#1a1a2e" in dark[0], "dark 主题背景应为 #1a1a2e"
-    assert "#c7d2fe" in dark[0], "dark 主题文字应为 #c7d2fe"
+    assert "深色" in dark[0]
+    assert "var(--ss-accent)" in dark[0], "dark 文字/图标应走 --ss-accent 令牌"
 
 
 def test_status_chips_text_content_complete():

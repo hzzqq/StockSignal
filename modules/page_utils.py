@@ -30,6 +30,7 @@ from streamlit.runtime.caching import cache_resource
 from modules.ui_theme import apply_page_config, dashboard_sf_css, _theme_is_dark
 from modules.session import require_auth, render_user_badge
 from modules.fetcher import StockFetcher
+from modules.ui_icons import svg_icon  # 统一 SVG 图标，替代 emoji（📝 真人视角：emoji 不专业/不可缩放）
 
 
 def render_standard_page(title, icon="📊", caption=None, layout="wide", auth=True):
@@ -78,23 +79,29 @@ def _build_status_chips(dark: bool) -> list:
     """
     chips = []
     # 主题胶囊（☀️ 浅色 / 🌙 深色）—— 依据 dark 参数直接判定
-    # 用太阳/月亮图标避免与「白天/交易中」时间状态词混淆（语义明确：app 主题，非北京时间）
+    # 用太阳/月亮 SVG 图标避免与「白天/交易中」时间状态词混淆（语义明确：app 主题，非北京时间）。
+    # 颜色全走 --ss-* 令牌（暗/亮自动适配），废除硬编码 hex（P1a：跨主题不一致根因）。
     try:
+        _accent = "var(--ss-accent)"
+        _line = "color-mix(in srgb,var(--ss-accent) 30%,var(--ss-line))"
+        _dot = "var(--ss-text-muted)"
         if dark:
             theme_html = (
-                '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
-                'font-weight:600;padding:5px 12px;border-radius:999px;'
-                'border:1px solid #3b3b66;background:#1a1a2e;color:#c7d2fe">'
-                '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
-                'background:#94a3b8"></span>🌙 深色</span>'
+                f'<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
+                f'font-weight:600;padding:5px 12px;border-radius:999px;'
+                f'border:1px solid {_line};'
+                f'background:color-mix(in srgb,var(--ss-accent) 14%,var(--ss-surface));'
+                f'color:{_accent}">'
+                f'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
+                f'background:{_dot}"></span>{svg_icon("moon", size=12)} 深色</span>'
             )
         else:
             theme_html = (
-                '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
-                'font-weight:600;padding:5px 12px;border-radius:999px;'
-                'border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca">'
-                '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
-                'background:#94a3b8"></span>☀️ 浅色</span>'
+                f'<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
+                f'font-weight:600;padding:5px 12px;border-radius:999px;'
+                f'border:1px solid {_line};background:var(--ss-surface-2);color:{_accent}">'
+                f'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
+                f'background:{_dot}"></span>{svg_icon("sun", size=12)} 浅色</span>'
             )
         chips.append(theme_html)
     except Exception as e:

@@ -20,6 +20,8 @@ from __future__ import annotations
 import logging
 import re
 
+from modules.ui_icons import svg_icon, render_nav_icon, strip_emoji
+
 logger = logging.getLogger(__name__)
 
 # 精选标签（视觉设计元素）：仅标注确实高频/新增的入口，不虚构数据
@@ -30,14 +32,21 @@ _ENTRY_BADGES = {
     "52_股吧.py": ("NEW", "ss-tag-new"),
 }
 
-# 类目描述（mega 面板左侧 intro 文案，对应 _NAV_GROUPS 六类目）
+# 类目描述（mega 面板左侧 intro 文案，对应 _NAV_GROUPS 六类目；key 用干净文案，
+# 渲染时以 strip_emoji(top_label) 匹配，废除 emoji 前缀——真人视角：emoji 不专业/不可缩放）
 _GROUP_INTROS = {
-    "🏠 首页": "应用第一落点：全局看板与快速入口。",
-    "🎯 决策中枢": "事件因子 + 市场情绪的决策闭环核心：仓位推导、归因、健康度一目了然。",
-    "🌐 市场广度·温度": "自建 2007 年起全市场广度真值库：温度、情绪周期与历史回放。",
-    "📊 行情与个股": "行情看板、个股研究与基本面深钻。",
-    "💰 组合与交易": "持仓、模拟交易、实盘、条件单与价格预警。",
-    "⚙️ 策略与工具": "策略回测、智能选股与量化工具链。",
+    "首页": "应用第一落点：全局看板与快速入口。",
+    "决策中枢": "事件因子 + 市场情绪的决策闭环核心：仓位推导、归因、健康度一目了然。",
+    "市场广度·温度": "自建 2007 年起全市场广度真值库：温度、情绪周期与历史回放。",
+    "行情与个股": "行情看板、个股研究与基本面深钻。",
+    "组合与交易": "持仓、模拟交易、实盘、条件单与价格预警。",
+    "策略与工具": "策略回测、智能选股与量化工具链。",
+}
+
+# 一级类目 → SVG 图标名（统一图标系统，零 emoji）
+_GROUP_ICON = {
+    "首页": "home", "决策中枢": "target", "市场广度·温度": "globe",
+    "行情与个股": "chart-bar", "组合与交易": "wallet", "策略与工具": "gear",
 }
 
 
@@ -61,7 +70,7 @@ def _entry_html(path: str, label: str, icon: str, cur_base: str, q: str = "") ->
         badge = f'<i class="ss-tag {cls}">{txt}</i>'
     href = _slug(path) + q
     return (f'<a class="ss-entry{active}" href="{href}" title="{label}">'
-            f'<b>{icon} {label}</b>{badge}</a>')
+            f'<b>{render_nav_icon(icon, size=14)} {label}</b>{badge}</a>')
 
 
 def _locate_current(cur_base: str, nav_groups: list, nav_hero: list) -> tuple:
@@ -121,25 +130,27 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
     menus = []
     # 首页（直链，无面板）
     home_active = ' ss-menu-active' if cur_base == "app.py" else ""
-    menus.append(f'<a class="ss-menu ss-menu-link{home_active}" href="/{q}">🏠 首页</a>')
+    menus.append(f'<a class="ss-menu ss-menu-link{home_active}" href="/{q}">{svg_icon("home", size=14)} 首页</a>')
     # 决策中枢（Hero 常驻第一面板）
     hero_entries = "".join(
         _entry_html(p, l, i, cur_base, q) + (
             '<i class="ss-tag ss-tag-hot">HOT</i>' if "54_" in p else "")
         for p, l, i in nav_hero)
-    intro_hero = _GROUP_INTROS.get("🎯 决策中枢", "")
+    intro_hero = _GROUP_INTROS.get("决策中枢", "")
     hero_active = ' ss-menu-active' if _cur_group == "🎯 决策中枢" else ""
     hero_crumb = _crumb_html(_cur_label) if (_cur_group == "🎯 决策中枢" and _cur_label) else ""
     menus.append(
-        f'<div class="ss-menu has-mega{hero_active}">🎯 决策中枢{hero_crumb}'
+        f'<div class="ss-menu has-mega{hero_active}">{svg_icon("target", size=14)} 决策中枢{hero_crumb}'
         '<div class="ss-mega"><div class="ss-mega-intro"><h4>决策中枢 ></h4>'
         f'<p>{intro_hero}</p></div>'
         f'<div class="ss-mega-grid">{hero_entries}'
         + "".join(_entry_html(p, l, i, cur_base, q) for p, l, i in favorites)
         + "</div></div></div>")
-    # 六大类目
+    # 六大类目（剥 emoji + 前置 SVG 图标，干净统一）
     for top_label, clusters in nav_groups:
-        intro = _GROUP_INTROS.get(top_label, "")
+        clean = strip_emoji(top_label)
+        icon = svg_icon(_GROUP_ICON.get(clean, "chart-bar"), size=14)
+        intro = _GROUP_INTROS.get(clean, "")
         rows = []
         for sub, items in clusters:
             if sub:
@@ -149,8 +160,8 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
         grp_active = ' ss-menu-active' if _cur_group == top_label else ""
         grp_crumb = _crumb_html(_cur_label) if (_cur_group == top_label and _cur_label) else ""
         menus.append(
-            f'<div class="ss-menu has-mega{grp_active}">{top_label}{grp_crumb}'
-            f'<div class="ss-mega"><div class="ss-mega-intro"><h4>{top_label} &gt;</h4>'
+            f'<div class="ss-menu has-mega{grp_active}">{icon} {clean}{grp_crumb}'
+            f'<div class="ss-mega"><div class="ss-mega-intro"><h4>{clean} &gt;</h4>'
             f'<p>{intro}</p></div>'
             f'<div class="ss-mega-grid">{grid}</div></div></div>')
 
@@ -161,9 +172,9 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
         rn = r.get("name", "")
         if rc:
             recents_html += (f'<a class="ss-user-item" href="/个股分析?pick_stock={rc}{qa}">'
-                             f'🕘 {rn} {rc}</a>')
+                             f'{svg_icon("clock", size=12)} {rn} {rc}</a>')
     if recents_html:
-        recents_html = '<div class="ss-user-sec">🕘 最近浏览</div>' + recents_html
+        recents_html = f'<div class="ss-user-sec">{svg_icon("clock", size=13)} 最近浏览</div>' + recents_html
 
     # 风格切换（T-201：JS select → 纯锚点导航。用户手势导航不受 iframe sandbox
     # 限制；相对 ?href 保留当前路径，携带 token/u/prefs 落页原位恢复）
@@ -195,28 +206,29 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
 
     admin_html = ""
     if is_admin_user:
-        admin_html = '<div class="ss-user-sec">🛡 管理</div>' + "".join(
-            f'<a class="ss-user-item" href="{_slug(p)}{q}">{i} {l}</a>'
-            for p, l, i in nav_admin)
+        admin_html = (f'<div class="ss-user-sec">{svg_icon("shield", size=13)} 管理</div>'
+                      + "".join(
+                          f'<a class="ss-user-item" href="{_slug(p)}{q}">{render_nav_icon(i, size=13)} {l}</a>'
+                          for p, l, i in nav_admin))
 
     html = f"""
 <div class="ss-topnav">
-  <a class="ss-brand" href="/{q}">📈 <b>StockSignal</b></a>
+  <a class="ss-brand" href="/{q}">{svg_icon("brand", size=16)} <b>StockSignal</b></a>
   <nav class="ss-topnav-menus">{''.join(menus)}</nav>
   <div class="ss-topnav-right">
     <div class="ss-search" onclick="ssFocusSearch()" title="搜索（⌘K / Ctrl+K）">
-      🔍 搜索 <kbd>⌘K</kbd>
+      {svg_icon("search", size=13)} 搜索 <kbd>⌘K</kbd>
     </div>
-    <a class="ss-ico" href="/星辰AI{q}" title="星辰 AI">✦</a>
-    <a class="ss-ico" href="/我的{q}" title="设置与偏好">⚙️</a>
+    <a class="ss-ico" href="/星辰AI{q}" title="星辰 AI">{svg_icon("sparkles", size=14)}</a>
+    <a class="ss-ico" href="/我的{q}" title="设置与偏好">{svg_icon("gear", size=14)}</a>
     <div class="ss-user has-mega">
-      <div class="ss-avatar">👤</div>
+      <div class="ss-avatar">{svg_icon("user", size=15)}</div>
       <div class="ss-mega ss-user-menu">
-        <div class="ss-user-sec">🎨 界面风格（点击即切换）</div>
+        <div class="ss-user-sec">{svg_icon("palette", size=13)} 界面风格（点击即切换）</div>
         {style_html}
-        <div class="ss-user-sec">👤 账户</div>
-        <a class="ss-user-item" href="/我的{q}">👤 个人中心</a>
-        <a class="ss-user-item" href="/新手教程{q}">📘 新手教程</a>{admin_html}{recents_html}
+        <div class="ss-user-sec">{svg_icon("user", size=13)} 账户</div>
+        <a class="ss-user-item" href="/我的{q}">{svg_icon("user", size=13)} 个人中心</a>
+        <a class="ss-user-item" href="/新手教程{q}">{svg_icon("book", size=13)} 新手教程</a>{admin_html}{recents_html}
       </div>
     </div>
   </div>
@@ -251,7 +263,7 @@ TOPNAV_CSS = """
    position:relative（面板锚 .ss-topnav 全宽）并满栏高——菜单项曾只有内容高（约 37px），
    项底与面板顶（52px 栏底）之间存在约 8px hover 死区，鼠标移入面板即穿过死区导致展开即收 */
 .ss-topnav-menus{display:flex;align-items:stretch;gap:2px;flex:1;min-width:0;overflow:visible;align-self:stretch}
-.ss-menu{display:flex;align-items:center;height:100%;padding:0 13px;cursor:pointer;font-weight:600;font-size:14px;
+.ss-menu{display:flex;align-items:center;gap:6px;height:100%;padding:0 13px;cursor:pointer;font-weight:600;font-size:14px;
   color:var(--txt);white-space:nowrap;border-radius:6px;user-select:none}
 .ss-menu:hover{color:var(--acc1);background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .ss-menu-link{text-decoration:none}
@@ -329,15 +341,15 @@ def build_nav_index(nav_groups: list, nav_hero: list, nav_admin: list,
 
     idx: list[dict] = []
     for p, l, i in nav_hero:
-        idx.append({"label": l, "icon": i, "href": _h(p), "group": "决策中枢"})
+        idx.append({"label": l, "icon": render_nav_icon(i, size=14), "href": _h(p), "group": "决策中枢"})
     for top_label, clusters in nav_groups:
         for _sub, items in clusters:
             for p, l, i in items:
-                idx.append({"label": l, "icon": i, "href": _h(p), "group": top_label})
+                idx.append({"label": l, "icon": render_nav_icon(i, size=14), "href": _h(p), "group": top_label})
     for p, l, i in favorites:
-        idx.append({"label": l, "icon": i, "href": _h(p), "group": "常用"})
+        idx.append({"label": l, "icon": render_nav_icon(i, size=14), "href": _h(p), "group": "常用"})
     for p, l, i in nav_admin:
-        idx.append({"label": l, "icon": i, "href": _h(p), "group": "管理"})
+        idx.append({"label": l, "icon": render_nav_icon(i, size=14), "href": _h(p), "group": "管理"})
     return idx
 
 
