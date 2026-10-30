@@ -252,7 +252,7 @@ def _build_index_card(info, fetcher, start_str):
     fig.update_layout(margin={'l': 0, 'r': 0, 't': 0, 'b': 0}, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis={'visible': False}, yaxis={'visible': False, 'range': [y_min - padding, y_max + padding], 'fixedrange': True}, height=92, width=220)
     return {**info, 'name': name, 'current': current, 'change': change, 'change_pct': change_pct, 'open': open_, 'high': high, 'low': low, 'trend': _trend_label(open_, high, low, close, prev_close, spark_y), 'high_pct': high_pct, 'low_pct': low_pct, 'amplitude': amplitude, 'spark': fig, 'color': color}
 
-@st.fragment
+@st.fragment(run_every=60)
 def render_index_mini_cards(cols_per_row: int=3) -> None:
     """在页面顶部渲染上证/深证/创业板的实时指数迷你趋势卡片（1:1 列表式）。
 
@@ -264,13 +264,10 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
     from modules.fetcher import StockFetcher
     from modules.ui_theme import _theme_is_dark
     try:
-        from modules.autorefresh import st_autorefresh
-        is_open, _, refresh_ms = _index_market_status()
-        if refresh_ms > 0:
-            st_autorefresh(interval=refresh_ms, key='index_autorefresh')
+        is_open, _, _ = _index_market_status()
     except Exception as e:
         logger.warning(f"[widgets] 处理异常: {e}")
-        pass
+        is_open = False
     end_date = now_cst_naive().date()
     start_date = end_date - timedelta(days=30)
     start_str = start_date.strftime('%Y-%m-%d')
@@ -327,7 +324,7 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
                         st.caption('—')
             st.markdown('</div>', unsafe_allow_html=True)
 
-@st.fragment
+@st.fragment(run_every=60)
 def render_index_compact(cols_per_row: int=5) -> None:
     """在页面顶部渲染主要指数收盘行情：轻量数字卡 + 涨跌幅柱状图。
 
@@ -342,13 +339,10 @@ def render_index_compact(cols_per_row: int=5) -> None:
     from modules.ui_theme import _theme_is_dark
     from modules.visualizer import UP_COLOR, DOWN_COLOR
     try:
-        from modules.autorefresh import st_autorefresh
-        is_open, _, refresh_ms = _index_market_status()
-        if refresh_ms > 0:
-            st_autorefresh(interval=refresh_ms, key='index_compact_autorefresh')
+        is_open, _, _ = _index_market_status()
     except Exception as e:
         logger.warning(f"[widgets] 处理异常: {e}")
-        pass
+        is_open = False
     end_date = now_cst_naive().date()
     start_date = end_date - timedelta(days=30)
     start_str = start_date.strftime('%Y-%m-%d')

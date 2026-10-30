@@ -96,11 +96,11 @@ def _ai_scroll_to_bottom_component(dark: bool) -> None:
     js = f"""\n    <div id="ai-scroll-bottom-btn" style="width:100%;display:flex;justify-content:center;padding:6px 0;cursor:pointer;"\n         onclick="scrollAIChatToBottom()">\n      <div style="width:34px;height:34px;border-radius:50%;background:{bg};color:{color};display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.25);" onmouseover="this.style.background='{hover_bg}'" onmouseout="this.style.background='{bg}'">▼</div>\n    </div>\n    <script>\n      function scrollAIChatToBottom() {{\n        var doc = window.parent.document;\n        var box = doc.querySelector('.ai-chat-box');\n        if (box) box.scrollTop = box.scrollHeight;\n      }}\n      setTimeout(scrollAIChatToBottom, 60);\n      setTimeout(scrollAIChatToBottom, 300);\n    </script>\n    """
     st.markdown(js, unsafe_allow_html=True)
 
-@st.fragment
+@st.fragment(run_every=5)
 def _poll_ai_consult_task() -> None:
     """轮询全局 AI 咨询后台任务（#405）。
 
-    只让本片段随 st_autorefresh 每 5s 局部重跑；任务终态（成功/失败/超时）才用
+    只让本片段随 run_every=5 服务端定时重跑；任务终态（成功/失败/超时）才用
     st.rerun(scope="app") 升级为一次整页重跑，以在页面级重渲染聊天历史。
     这是 fragment 铁律允许的唯一整页重跑时机——等待期间绝不整页刷新。
     """
@@ -130,12 +130,6 @@ def _poll_ai_consult_task() -> None:
         st.session_state['ai_task_started_at'] = None
         st.rerun(scope='app')
         return
-    try:
-        from modules.autorefresh import st_autorefresh
-        st_autorefresh(interval=5000, limit=150, key='ai_chat_autorefresh')
-    except Exception as e:
-        logger.warning(f"[_widgets_ai] 处理异常: {e}")
-        pass
 
 def render_ai_consultant() -> None:
     """全局 AI 咨询模块（右上角弹层内）：任意页面可用，后台异步运行，对话可持续。

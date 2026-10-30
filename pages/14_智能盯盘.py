@@ -21,7 +21,7 @@ from modules.fundflow import get_industry_fund_flow, get_individual_fund_flow
 from modules.timeout_exec import run_with_timeout
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
 from modules.page_guard import safe_fragment
-from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
 from modules.chart_cache import cached_fig
 import plotly.graph_objects as go
@@ -48,7 +48,6 @@ with st.expander("🔗 相关页面", expanded=False):
         st.page_link('pages/23_事件追踪.py', label='🔔 事件追踪')
     with lk2:
         st.page_link('pages/24_个股研究.py', label='🔍 个股研究')
-st_autorefresh = import_autorefresh()
 MAIN_NET_STRONG = 100000000.0
 st.caption('📡 聚合看板：板块资金异动 · 自选股涨跌榜 · 个股资金流异动 · 规则预警。交易时段内每 60 秒自动刷新；非交易时段数据刷新放缓。')
 fetcher = get_fetcher()
@@ -250,11 +249,9 @@ def _build_sector_fig(top, dark, ctype):
     fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=20, t=30, b=20), height=380, title='净流入 TOP10 行业（亿元）', font=dict(color='#e6e6e6' if dark else '#1a1a1a'), xaxis=dict(gridcolor='#2a2a3a' if dark else '#ececec'), yaxis=dict(gridcolor='#2a2a3a' if dark else '#ececec', autorange='reversed'))
     return fig
 
-@safe_fragment('板块资金异动')
+@safe_fragment('板块资金异动', run_every=60)
 def fragment_sector():
     st.markdown('### 🏭 板块资金异动')
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, key='sector_auto')
     try:
         with st.spinner('⏳ 正在加载行业资金流向…'):
             _r = run_with_timeout(get_industry_fund_flow, 12)
@@ -291,7 +288,7 @@ def fragment_sector():
         return
     st.dataframe(top[show_cols], width="stretch", hide_index=True, column_config={'净额': st.column_config.NumberColumn('净额(亿)', format='%.2f'), '涨跌幅': st.column_config.NumberColumn('涨跌幅%', format='%.2f'), '流入资金': st.column_config.NumberColumn('流入(亿)', format='%.2f'), '流出资金': st.column_config.NumberColumn('流出(亿)', format='%.2f')}, height=400)
 
-@safe_fragment('自选股涨跌榜')
+@safe_fragment('自选股涨跌榜', run_every=60)
 def fragment_watchlist():
     st.markdown('### 📈 自选股涨跌榜')
     _rv = st.session_state.get('_wl_recent', [])
@@ -313,8 +310,6 @@ def fragment_watchlist():
         st.session_state['wl_only_alert'] = False
     if st.button('🔄', key='wl_manual_refresh', help='刷新：手动刷新本板块实时行情'):
         st.rerun(scope='fragment')
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, key='wl_auto')
     items, err = _fetch_watchlist()
     if err is not None:
         st.error(err)
@@ -411,7 +406,7 @@ def fragment_watchlist():
                         st.session_state['pick_stock_query'] = _fc
                         safe_switch_page('pages/24_个股研究.py')
 
-@safe_fragment('个股资金流异动')
+@safe_fragment('个股资金流异动', run_every=60)
 def fragment_individual_ff():
     st.markdown('### 💰 个股资金流异动')
     d1, d2 = st.columns([2, 1])
@@ -419,8 +414,6 @@ def fragment_individual_ff():
     st.session_state['pref_iff_dir'] = iff_dir
     iff_strong = d2.checkbox('仅看强异动(≥1亿)', value=False, key='iff_strong')
     iff_q = st.text_input('🔍 名称/代码筛选', value='', key='iff_filter_q', placeholder='留空=全部')
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, key='iff_auto')
     items, err = _fetch_watchlist()
     if err is not None:
         st.error(err)
@@ -490,11 +483,9 @@ def fragment_individual_ff():
     if any((r.get('source') == 'estimate' for r in ff_map.values())):
         st.caption('⚠️ 标注「估算」的数据为量价模型（Chaikin 风格）估算的主力净流入，仅反映近期量价博弈方向，非交易所逐笔主力数据。')
 
-@safe_fragment('预警触发扫描')
+@safe_fragment('预警触发扫描', run_every=60)
 def fragment_alerts():
     st.markdown('### 🚨 预警触发（规则扫描）')
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, key='alert_auto')
     threshold = st.slider('涨跌异动阈值 (%)', min_value=0.5, max_value=10.0, value=3.0, step=0.5, key='smart_alert_threshold', help='自选股当日涨跌%绝对值超过该阈值即触发「异动预警」。')
     st.caption('规则扫描：自选股当日|涨跌%|≥阈值 触发异动预警；主力净流入/流出绝对值≥1亿 触发资金异动，按强/中/弱分级。')
     items, err = _fetch_watchlist()

@@ -144,17 +144,14 @@ def _build_correlation_fig(daily_dict):
     return Visualizer.correlation_matrix(daily_dict)
 
 
-@safe_fragment('行业板块涨跌榜')
+@safe_fragment('行业板块涨跌榜', run_every=60)
 def fragment_sector_board():
     """行业板块涨跌榜（板块图构建已迁移至模块级 _build_sector_heatmap_fig，延迟导入 Visualizer 仅缓存未命中时触发）。"""
     sf_card('🏭 行业板块涨跌榜', "")
     try:
-        from modules.autorefresh import st_autorefresh
-        is_open, status_text, refresh_ms = _get_market_status()
-        if refresh_ms > 0:
-            st_autorefresh(interval=refresh_ms, key='sector_autorefresh')
-    except Exception:
         is_open, status_text, _ = _get_market_status()
+    except Exception:
+        is_open, status_text, _ = False, '⚪ 行情状态未知', 0
     st.caption(status_text)
     try:
         sector_df = fetcher.get_sector_list()
@@ -246,16 +243,13 @@ def _load_lhb(date_str: str):
         pass
     return None
 
-@safe_fragment('龙虎榜')
+@safe_fragment('龙虎榜', run_every=60)
 def fragment_lhb():
     st.markdown('---')
     try:
-        from modules.autorefresh import st_autorefresh
         is_open, _, _ = _get_market_status()
-        if is_open:
-            st_autorefresh(interval=60000, key='lhb_autorefresh')
     except Exception:
-        pass
+        is_open = False
     with st.expander('🐉 龙虎榜（点击展开/收起）', expanded=True):
         st.caption('当日机构/游资活跃个股（数据来源：东方财富龙虎榜）')
         lhb_date = (datetime.now().date() - timedelta(days=0 if datetime.now().weekday() < 5 else 1)).strftime('%Y%m%d')
@@ -507,16 +501,10 @@ def _wl_render_table_html(rows, dark: bool):
     html = css + f'<div style="max-height:520px;overflow:auto;"><table class="wl-table">' + f'<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>' + '<script>' + 'var ops=document.querySelectorAll(".wl-op");' + 'for(var i=0;i<ops.length;i++){ops[i].onclick=function(){' + 'var s=window.parent&&window.parent.Streamlit;' + 'if(s&&s.setComponentValue){s.setComponentValue(this.getAttribute("data-code"));}' + '};}' + '</script>'
     return html
 
-@safe_fragment('自选行情')
+@safe_fragment('自选行情', run_every=60)
 def fragment_watchlist_quotes():
     sf_card('📌 自选行情', "")
     st.caption('实时跟踪自选股现价与涨跌（A股红涨绿跌）；行情接口异常时自动回退本地源。点击操作列「📈 看K线」跳转个股 K 线；跳转后可在「股票选取」页调节 K 线显示数量与起始位置。')
-    try:
-        from modules.autorefresh import st_autorefresh
-        if is_trading_now():
-            st_autorefresh(interval=60 * 1000, key='wl_quotes_autorefresh')
-    except Exception:
-        pass
     sc, body = api_get('/api/watchlist', timeout=10)
     if sc != 200 or not isinstance(body, dict) or body.get('status') != 'ok':
         st.error('⚠️ 加载自选股失败，请稍后重试')

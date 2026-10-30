@@ -51,17 +51,36 @@ def trading_autorefresh(interval_ms: int = 60000, key: str = "auto_refresh"):
     """交易时段（工作日 09:30-11:30 / 13:00-15:00）自动刷新当前页面数据，避免数据陈旧。
 
     非交易时段（午休 / 收盘 / 周末）不刷新，避免无意义请求与界面闪烁。
-    统一替换各页散落的 `from modules.autorefresh import st_autorefresh` + 交易时段判断。
+
+    P0-2 迁移（T-350）：由第三方 st_autorefresh 改为 Streamlit 原生 fragment 驱动。
+    - 整页刷新语义：fragment(run_every=间隔秒) 触发后调用 st.rerun(scope="app")；
+    - 防首帧循环：session_state 标记「首帧只置位不 rerun」，仅 run_every 触发的
+      后续重跑才整页刷新（裸用 st.rerun(scope="app") 会在首帧即无限循环）；
+    - 保留 limit=400 限次与「非交易时段不刷新」语义（limit 无原生对应物，
+      用 session_state 计数器复刻）。
     """
-    try:
-        from modules.autorefresh import st_autorefresh
-    except Exception as e:
-        logger.warning(f"[session] 处理异常: {e}")
-        return
     from modules.page_widgets import is_trading_now
     if not is_trading_now():
         return
-    st_autorefresh(interval=interval_ms, limit=400, key=key)
+    _interval_s = max(1, int(interval_ms) // 1000)
+    _tick_key = f"_ta_tick_{key}"
+    _cnt_key = f"_ta_cnt_{key}"
+    _limit = 400
+
+    @st.fragment(run_every=_interval_s)
+    def _auto_tick():
+        # 首帧只置位不 rerun（防无限循环）；run_every 触发后的后续重跑才整页刷新。
+        if not st.session_state.get(_tick_key):
+            st.session_state[_tick_key] = True
+            return
+        _cnt = int(st.session_state.get(_cnt_key, 0))
+        if _cnt >= _limit:
+            return
+        st.session_state[_cnt_key] = _cnt + 1
+        st.session_state[_tick_key] = False
+        st.rerun(scope="app")
+
+    _auto_tick()
 
 KEY_TOKEN = "auth_token"
 KEY_USER = "auth_user"

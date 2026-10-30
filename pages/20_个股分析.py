@@ -21,7 +21,6 @@ from modules.session import api_kline, api_intraday
 from modules.search_ui import stock_search_input
 from modules.background_tasks import submit_task_with_error, poll_task
 from modules.page_widgets import _empty_info, is_trading_now
-from modules.autorefresh import st_autorefresh
 from modules.format_helpers import safe_html_text
 from modules.stock_analysis_helpers import RED, GREEN, AMBER, event_factor_color, _sentiment_tag, _tp_cls, _score_ring_html, _battle_plan_scale, _build_risk_iron_rules, _risk_iron_html, _build_plan_rows, _section_header, _build_rise_fall_factors, _factor_list_html, _build_logic_lists, _logic_list_html
 from modules.fundflow import get_earnings_report, get_earnings_forecast, get_disclosure_calendar
@@ -394,7 +393,6 @@ def _fragment_intraday(ticker: str, display_name: str) -> None:
     from modules.visualizer import Visualizer
 
     if is_trading_now():
-        st_autorefresh(interval=300000, key=f'intraday_auto_{ticker}')
         _refresh_hint = "<span style='color:#009e60'>● 交易时段，每5分钟自动刷新中</span>"
     else:
         _refresh_hint = "<span style='color:#94a3b8'>● 非交易时段，已暂停刷新</span>"
@@ -809,7 +807,7 @@ def _poll_analysis_once(task_id: str) -> dict | None:
     """缓存 1 秒：避免同一次 fragment 重跑中多次调用 poll_task 造成请求堆积。"""
     return poll_task(task_id, max_wait=0.5)
 
-@safe_fragment
+@safe_fragment(run_every=3)
 def fragment_analysis_result():
     """分析结果区：包含轮询、加载中反馈、完成后渲染，独立 fragment 不阻塞整页。"""
     analysis_task_id = st.session_state.get('analysis_task_id')
@@ -834,9 +832,7 @@ def fragment_analysis_result():
         elif task and task.get('status') in ('pending', 'running'):
             xc_warn_box('⏳ 分析正在后台并行运行：行情数据 → 新闻舆情 → 技术信号 → 综合评分。完成后会自动显示下方结果，无需切换页面。', icon='⏳')
             st.progress(0.0, text='等待分析结果...')
-            # 前端性能#B：轮询降频 1000ms→3000ms（仍秒级感知进度），limit 30→10（共 30s 窗口不变）。
-            # 减少 fragment 内重渲染约 67%，后台任务 10-30s 完成足够感知。
-            st_autorefresh(interval=3000, limit=10, key='analysis_autorefresh')
+            # P0-2：轮询改 run_every=3 服务端定时驱动（原 st_autorefresh 在 fragment 内不触发重跑）。
             return
     if st.session_state.get('analysis_result') is not None:
         _render_analysis(st.session_state['analysis_result'])

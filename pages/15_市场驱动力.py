@@ -11,11 +11,10 @@ from modules.market_drivers import get_market_drivers, plot_drivers_panel, DIMS
 from modules.linear_trends import to_trend_csv, plot_correlation_heatmap, _slice_date_range
 from modules.page_widgets import _section_title, _trend_controls, _in_trading_hours, _empty_info
 from modules.page_guard import safe_fragment
-from modules.page_utils import render_standard_page, import_autorefresh
+from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 
 from modules.ui_kit import xc_handle_error, info_banner
-st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
     title="市场驱动力（五维归一化子图）", icon="🧮",
@@ -50,11 +49,9 @@ def _render_drivers_meta(meta):
         st.caption("📌 维度接入状态：" + "　".join(lines))
 
 
-@safe_fragment
+@safe_fragment(run_every=60)
 def fragment_drivers_panel():
     _section_title("🧭 核心指标与大盘趋势关联性全景图（五维归一化子图）", accent="#2b8aef")
-    if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=60000, limit=200, key="drv_auto")
     try:
         with st.spinner("正在加载市场驱动力数据（约 180 天五维归一化）…"):
             df, meta = get_market_drivers(days=180)
