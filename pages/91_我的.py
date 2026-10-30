@@ -9,15 +9,14 @@ import time
 from datetime import datetime
 
 from modules.session import safe_switch_page, API_BASE, get_user, get_token, persist_prefs, get_avatar_path, save_avatar, get_avatar_data_url, set_avatar_data_url, save_avatar_to_backend, render_avatar
-from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT, sf_card, sf_metric
+from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT, sf_metric
 from modules.format_helpers import safe_int
 
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 
 # 安全解析字体档位在选项列表中的下标；legacy 值不在选项中时回退到默认档位，避免 .index() 抛 ValueError。
-from modules.ui_kit import (xc_handle_error, xc_success_box, xc_warn_box,
-                            info_banner, ss_fold_useful, ss_hover_preview)
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_content_card, info_banner, ss_fold_useful, ss_hover_preview
 from modules.widgets import render_entry_cards
 def _resolve_font_index(value, font_opts, default):
     keys = list(font_opts.keys())
@@ -115,7 +114,7 @@ def render_preferences():
     # ════════════════════════════════════
     # 🎨 外观设置
     # ════════════════════════════════════
-    sf_card("🎨 外观设置", "")
+    xc_content_card("🎨 外观设置", "")
 
     col_dark, col_light = st.columns(2)
     with col_dark:
@@ -165,7 +164,7 @@ def render_preferences():
     # ════════════════════════════════════
     # 📊 行情看板默认参数
     # ════════════════════════════════════
-    sf_card("📊 行情看板默认参数", "")
+    xc_content_card("📊 行情看板默认参数", "")
 
     _kline_count = st.slider(
         "K 线图默认显示数量",
@@ -194,7 +193,7 @@ def render_preferences():
     # ════════════════════════════════════
     # 🔧 数据源偏好
     # ════════════════════════════════════
-    sf_card("🔧 数据源偏好", "")
+    xc_content_card("🔧 数据源偏好", "")
 
     # T-266 空间治理：6 行数据源降级链说明 → 悬停预览（ss_hover_preview mini，
     # 鼠标放上去才显现；交互范式同顶栏用户下拉浮层）
@@ -222,7 +221,7 @@ def render_preferences():
     # ════════════════════════════════════
     # 💾 重置与保存
     # ════════════════════════════════════
-    sf_card("💾 重置与保存", "")
+    xc_content_card("💾 重置与保存", "")
 
     col_reset, col_save = st.columns([1, 3])
     with col_reset:
@@ -321,7 +320,7 @@ with col2:
 st.markdown("---")
 
 # ── 我的自选股 ──
-sf_card("⭐ 我的自选股", "")
+xc_content_card("⭐ 我的自选股", "")
 
 try:
     # 加法式加载态反馈：自选股列表来自后台请求
@@ -367,7 +366,7 @@ with _col_cache:
         st.rerun()
 
 # ── 登录历史 ──
-sf_card("🕘 登录历史",
+xc_content_card("🕘 登录历史",
         "")
 ss_hover_preview("ⓘ 口径说明",
                  "<b>登录历史</b>：时间为人性化相对时间；详情含来源 IP；"

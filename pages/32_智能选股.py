@@ -15,7 +15,7 @@ import streamlit as st
 from datetime import datetime
 
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.session import api_get, get_user_setting, save_user_setting
 from modules.fetcher import StockFetcher
 from modules.stock_screener import StockScreener, STRATEGY_NAMES_CN, ALL_STRATEGIES, DEFAULT_PARAMS

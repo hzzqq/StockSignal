@@ -14,9 +14,9 @@ import logging
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, section_header
+from modules.ui_theme import section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import breadth_divergence as bd
 
@@ -44,7 +44,7 @@ try:
     if div.get("available") and div.get("current"):
         cur = div["current"]
         if cur["is_divergent"]:
-            st.markdown(sf_card(
+            st.markdown(xc_content_card(
                 title=f"⚠️ 结构分化（{cur['date']}）",
                 body=f"红盘率 <b>{cur['red_ratio']}%</b>（表面不弱）但跌停 <b>{cur['limit_down']}</b> 家"
                      f"（跌停占比 <b>{cur['limit_down_ratio']}%</b>，处历史高位）→ "
@@ -52,7 +52,7 @@ try:
                 accent=DOWN_COLOR,
             ), unsafe_allow_html=True)
         else:
-            st.markdown(sf_card(
+            st.markdown(xc_content_card(
                 title=f"结构均衡（{cur['date']}）",
                 body=f"红盘率 <b>{cur['red_ratio']}%</b> ｜ 跌停 <b>{cur['limit_down']}</b> 家"
                      f"（跌停占比 <b>{cur['limit_down_ratio']}%</b>，未触历史高位）→ 广度内部结构未见明显分化。",

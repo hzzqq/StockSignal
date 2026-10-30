@@ -13,7 +13,8 @@ from modules.fundflow import get_individual_fund_flow
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
+from modules.ui_kit import xc_content_card
 from modules.page_widgets import _empty_info, UP, DOWN
 from modules import stock_risk as sr
 
@@ -604,7 +605,7 @@ result_board()
 # ─────────────────────── 风险排雷（H6：商誉 / 质押 / 解禁 / 减持 / 诉讼处罚 / ST） ───────────────────────
 _MAX_RISK_SCAN = 40  # 每只票要打 4 个外部接口，限流保护：单次最多扫 40 只
 
-sf_card("🧨 个股风险排雷", "体检分回答「这只票好不好」，排雷回答「这只票有没有雷」。"
+xc_content_card("🧨 个股风险排雷", "体检分回答「这只票好不好」，排雷回答「这只票有没有雷」。"
         "对同一股票池逐个拉取商誉 / 质押 / 解禁 / 减持 / 诉讼处罚 / ST 六类风险，"
         "按 高 / 中 / 低 / 未知 给出风险灯。", icon="⚠️")
 
@@ -769,4 +770,3 @@ def risk_board():
 
 
 risk_board()
-

@@ -21,7 +21,6 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card
 from modules.shepherd import (get_shepherd_indicators, shepherd_temperature, THRESHOLDS)
 from modules import shepherd_ladder as _sl
 from modules import shepherd_forecast as _sf
@@ -40,7 +39,7 @@ from modules import calibration as _cal
 from modules.experiment_improvements import shap_style_attribution
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
-from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, ss_hover_preview, xc_kpi_grid, xc_bento_kpi
+from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, ss_hover_preview, xc_kpi_grid, xc_bento_kpi, xc_content_card
 from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GRU/融合）
 from modules.event_factor import get_event_factor  # 事件因子适配器（真实信号，无合成）
 from modules.next_day_edge_view import render_next_day_edge  # 次日情绪极值判断组件（复用 panic_reversal）
@@ -535,7 +534,7 @@ def fragment_p1_ev():
         "P1 神经网络给出的多头候选（按预测得分排序）。**仅作参考，非买入指令**；"
         "A 股零售建议仅取多头侧，并与本页牧羊人仓位建议配合使用。"
     )
-    sf_card("多头侧灰度 · EV 看多榜（前 15）", body, icon="🧠")
+    xc_content_card("多头侧灰度 · EV 看多榜（前 15）", body, icon="🧠")
 
     if not long_rows:
         _empty_info("该信号无看多条目。")
@@ -681,7 +680,7 @@ def fragment_event_driven_pool():
     body = ("由 P1-QuantFactor 神经网络产出的**事件因子多头候选池**（EV 模型，已并入牧羊人情绪"
             "9 维事件/regime 通道）。这是统计意义上的超额收益概率排序，**非**买卖指令；"
             "建议仅取多头侧，并与本页牧羊人仓位建议配合使用。")
-    sf_card("事件驱动 · EV 看多榜（前 20）", body, icon="📈")
+    xc_content_card("事件驱动 · EV 看多榜（前 20）", body, icon="📈")
 
     # T-259：代码 → 名称映射（类级已预热股票库，本地查询零网络；取不到如实「—」）
     name_map = {}

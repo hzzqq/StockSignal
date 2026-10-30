@@ -12,7 +12,7 @@ from modules.linear_trends import to_trend_csv, plot_correlation_heatmap, _slice
 from modules.page_widgets import _section_title, _trend_controls, _in_trading_hours, _empty_info
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 
 from modules.ui_kit import xc_handle_error, info_banner
 

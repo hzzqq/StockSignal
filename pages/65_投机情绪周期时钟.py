@@ -13,9 +13,8 @@ import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card
 from modules import speculative_clock as sc
 from modules.breadth_features import OFFLINE_MISSING, labels as _flabels, data_as_of
 
@@ -45,7 +44,7 @@ try:
             _lu = cur.get("limit_up")
             _rr = cur.get("red_ratio")
             _lu_pct = cur.get("limit_up_pct")
-            st.markdown(sf_card(
+            st.markdown(xc_content_card(
                 title=f"当前（{cur['date']}）· {cur['phase']}",
                 body=f"红盘占比 <b>{_rr}</b>% ｜ 涨停家数 <b>{_lu}</b>（历史分位 "
                      f"{(_lu_pct*100):.0f}%）｜ 跌停家数 <b>{cur.get('limit_down')}</b><br>"

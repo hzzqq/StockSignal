@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.chart_cache import cached_fig
 from modules.fundflow import (
     get_industry_fund_flow, get_northbound_fund_flow,

@@ -16,12 +16,12 @@ from modules.session import (
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.format_helpers import safe_int, safe_html_text
 import modules.drawer
 import modules.scroll_nav as sn
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_content_card
 render_standard_page(
     title="股吧 · 社区讨论", icon="💬",
     caption="发表你的观点或文章，与其他投资者交流。可关联具体股票，点击帖子里的股票直达「股票选取」。⚠️ 社区内容由用户生成，数据仅供参考，不构成投资建议；请理性判断，风险自担。",
@@ -177,7 +177,7 @@ def fragment_detail():
     if not isinstance(comments, list):
         # 二级嵌套兜底：comments 字段偶发非 list（如 {} / null），避免迭代崩溃中断详情页
         comments = []
-    sf_card(f"💭 评论（{len(comments)}）", "")
+    xc_content_card(f"💭 评论（{len(comments)}）", "")
     for c in comments:
         if not isinstance(c, dict):
             # 列表元素兜底：单条评论 schema 漂移时跳过，不影响其余评论渲染
@@ -465,7 +465,7 @@ def fragment_list():
         _hot = sorted(posts, key=lambda p: safe_int(p.get("likes", 0), 0)
                       + safe_int(p.get("comment_count", 0), 0) * 2, reverse=True)[:10]
         if _hot:
-            sf_card("🔥 热榜 · 社区最热讨论", "")
+            xc_content_card("🔥 热榜 · 社区最热讨论", "")
             st.markdown(
                 '<style>.ss-hot-row{display:flex;align-items:center;gap:10px;padding:3px 0}'
                 '.ss-hot-rank{font-family:\'Fira Code\',Consolas,monospace;font-weight:800;'

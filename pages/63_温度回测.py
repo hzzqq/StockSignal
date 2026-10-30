@@ -13,9 +13,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card
 from modules import temperature_backtest as tb
 
 logger = logging.getLogger(__name__)
@@ -55,7 +54,7 @@ try:
     # ── 全样本基准卡 ──
     base = res["baseline"]
     st.markdown("### 📏 全样本基准")
-    st.markdown(sf_card(
+    st.markdown(xc_content_card(
         title="无条件下一日 / 5 日表现",
         body=f"样本 <b>{base['n']}</b> 交易日 ｜ "
              f"次日改善率 <b>{base['next_impr_rate']}%</b>（均变 {base['next_mean_delta']}）｜ "
@@ -110,7 +109,7 @@ try:
     st.markdown("### 🔎 结论解读")
     cold = next(b for b in res["bands"] if b["level"] == 0)
     hot = next(b for b in res["bands"] if b["level"] == 4)
-    st.markdown(sf_card(
+    st.markdown(xc_content_card(
         title="广度均值回归结构（诚实描述，非预测）",
         body=f"冰点档（n={cold['n']}）次日红盘率改善率高达 <b>{cold['next_impr_rate']}%</b>"
              f"（均变 +{cold['next_mean_delta']}），呈现极强**超跌反弹**特征；"

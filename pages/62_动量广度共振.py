@@ -13,9 +13,9 @@ import logging
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, section_header
+from modules.ui_theme import section_header
 from modules import momentum_breadth_resonance as mbr
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ try:
     # ── 共现强度卡 ──
     st.markdown("### 📊 共振强度（共现结构）")
     if stats.get("available"):
-        st.markdown(sf_card(
+        st.markdown(xc_content_card(
             title="广度–动量 共现概览",
             body=f"样本 <b>{stats['n_days']}</b> 交易日 ｜ "
                  f"「广度≥活跃 且 动量≥强」共现 <b>{stats['co_hot']}%</b> ｜ "
@@ -89,7 +89,7 @@ try:
     # ── 当前状态 ──
     st.markdown("### 📍 当前状态")
     if cur.get("available") and cur.get("rr_band") is not None:
-        st.markdown(sf_card(
+        st.markdown(xc_content_card(
             title=f"当前（{cur['date']}）",
             body=f"广度 <b>{cur['red_ratio']}%</b> → <b>{cur['rr_label']}</b> ｜ "
                  f"动量 <b>{cur['zt_prev_ret']}</b> → <b>{cur['mom_label']}</b>",

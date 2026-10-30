@@ -11,9 +11,9 @@ import logging
 import streamlit as st
 import pandas as pd
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric, section_header
+from modules.ui_theme import sf_metric, section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_regime as mr
 from modules.shepherd import get_shepherd_indicators, shepherd_temperature
@@ -131,7 +131,7 @@ try:
     st.page_link("pages/54_今日决策面板.py", label="🎯 今日决策面板", icon="📊")
     st.page_link("pages/56_市场状态机.py", label="🧭 市场状态机 · 历史情境类比", icon="📊")
 
-    sf_card(
+    xc_content_card(
         "诚实声明",
         "本页所有读数均来自已修复的牧羊人广度历史（4771 天真值）；温度由近期历史分位映射，"
         "状态机与类比见《市场状态机》页的方法学说明。历史相似 ≠ 预测。",

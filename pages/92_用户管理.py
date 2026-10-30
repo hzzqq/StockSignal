@@ -6,11 +6,11 @@ pages/92_用户管理.py
 import streamlit as st
 from modules.session import init_session_state, require_admin, get_user
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.admin_api import get_users, create_user, update_user, delete_user, get_logs
 from modules.page_widgets import _empty_info
 
-from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.ui_kit import xc_success_box, xc_warn_box, xc_content_card
 init_session_state()
 require_admin()
 
@@ -110,7 +110,7 @@ with tab_users:
 
 # ----------------------------------------------------------------- 创建用户
 with tab_create:
-    sf_card("创建新用户", "")
+    xc_content_card("创建新用户", "")
     st.caption("填写用户名与密码创建新账户；管理员可分配 user / admin 角色。")
     with st.form("create_user_form"):
         col1, col2 = st.columns(2)

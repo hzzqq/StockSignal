@@ -19,7 +19,7 @@ import math
 import concurrent.futures as _cf
 
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.session import safe_switch_page, api_get, trading_autorefresh
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, render_data_degradation_banner

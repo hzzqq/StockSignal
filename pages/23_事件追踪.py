@@ -15,10 +15,10 @@ import html
 from datetime import datetime, timedelta
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info
 from modules.event_levels import STRENGTH_ORDER  # T-288：五档单一真理源
-from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card
 render_standard_page(title='事件追踪', icon='🔔', caption='⚠️ 数据仅供参考，不构成投资建议', layout='wide')
 
 lk_p1, lk_p2 = st.columns([1, 1])
@@ -155,7 +155,7 @@ def _render_news_with_links(df, title_col='title', url_col='url', date_col='date
 def fragment_signal_score():
     """信号评分面板（延迟导入 Visualizer）。"""
     from modules.visualizer import Visualizer
-    sf_card('📊 信号评分', "")
+    xc_content_card('📊 信号评分', "")
     _rv = st.session_state.get('_recent_viewed', [])
     if _rv:
         st.caption('🕘 最近浏览（点击重新填入）')
@@ -249,7 +249,7 @@ def fragment_signal_score():
 
 @safe_fragment
 def fragment_live_keywords():
-    sf_card('📰 实时关键词提取', "")
+    xc_content_card('📰 实时关键词提取', "")
     try:
         col_live1, col_live2, col_live_btn = st.columns([3, 1, 1.2])
         with col_live1:
@@ -325,7 +325,7 @@ def fragment_live_keywords():
 def fragment_timeline():
     """事件时间轴（延迟导入 Visualizer）。"""
     from modules.visualizer import Visualizer
-    sf_card('📅 事件时间轴', "")
+    xc_content_card('📅 事件时间轴', "")
     if st.button('🔄', key='tl_manual_refresh', help='刷新：手动局部刷新事件时间轴模块'):
         st.rerun(scope='fragment')
     try:
@@ -506,7 +506,7 @@ def fragment_timeline():
 
 @safe_fragment
 def fragment_event_manage():
-    sf_card('📌 事件管理', "")
+    xc_content_card('📌 事件管理', "")
     try:
         with st.form('add_event_form'):
             col1, col2 = st.columns(2)
@@ -567,7 +567,7 @@ def fragment_event_manage():
 @safe_fragment
 def fragment_news_mine():
     try:
-        sf_card('⛏️ 新闻事件自动挖掘', "")
+        xc_content_card('⛏️ 新闻事件自动挖掘', "")
         st.caption('一键抓取最新新闻 → jieba 关键词提取 → 金融情感分析 → 自动入库')
         col_mine_input, col_mine_btn, col_mine_limit = st.columns([4, 2, 2])
         with col_mine_input:
@@ -625,7 +625,7 @@ def fragment_news_mine():
 
 @safe_fragment
 def fragment_sentiment_report():
-    sf_card('📊 新闻情感分析报告', "")
+    xc_content_card('📊 新闻情感分析报告', "")
     try:
         report_container = st.container()
         with report_container:

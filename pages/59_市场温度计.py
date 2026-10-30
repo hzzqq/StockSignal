@@ -14,9 +14,9 @@ import logging
 import streamlit as st
 import plotly.graph_objects as go
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, section_header
+from modules.ui_theme import section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_temperature as mt
 from modules import shepherd
@@ -144,7 +144,7 @@ try:
             _body += f" ｜ 综合分 <b>{_score}</b>"
         if _conf is not None:
             _body += f" ｜ 置信度 <b>{_conf}%</b>"
-        st.markdown(sf_card(
+        st.markdown(xc_content_card(
             title=f"📦 离线快照背景（{snap.get('date', '?')}）",
             body=_body, accent="#ca8a04",
         ), unsafe_allow_html=True)
@@ -214,7 +214,7 @@ try:
                     unsafe_allow_html=True,
                 )
 
-    sf_card(
+    xc_content_card(
         "方法学与诚实声明",
         "温度为**描述性**指标：把牧羊人指标按其在历史窗口中的经验分位合成 0-100 热度（跨年代可比），"
         "分五档（冰点/偏冷/中性/活跃/狂热）。**温度不预测涨跌**，仅刻画当前市场冷热。"

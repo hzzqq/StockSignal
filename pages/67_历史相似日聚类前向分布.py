@@ -12,9 +12,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card
 from modules import similar_day_cluster as sdc
 from modules.breadth_features import OFFLINE_MISSING, data_as_of
 
@@ -36,7 +35,7 @@ try:
         for i, off in enumerate([5, 10, 20]):
             s = fs.get(off, {})
             if s.get("n"):
-                cols[i].markdown(sf_card(
+                cols[i].markdown(xc_content_card(
                     title=f"后 {off} 日红盘占比",
                     body=f"均值 <b>{s['mean']}%</b> ｜ 中位 <b>{s['median']}%</b><br>"
                          f"红盘占比(≥50) <b>{s['up_ratio']}%</b> ｜ 样本 <b>{s['n']}</b> 日",

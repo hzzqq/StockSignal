@@ -30,14 +30,14 @@ from modules.page_widgets import (
 )
 from modules.page_guard import safe_fragment
 
-from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.ui_kit import xc_success_box, xc_warn_box, xc_content_card
 
 logger = logging.getLogger(__name__)
 
 
 
 @contextmanager
-def _sf_card(title=None, icon=""):
+def _xc_content_card(title=None, icon=""):
     """星辰主题卡片包装器（只注入视觉容器，不改内部业务逻辑）。"""
     if title:
         esc_title = html.escape(title)
@@ -60,7 +60,7 @@ dark = render_standard_page(
     caption="把指数与关键资金面统一归一化到起点=100 叠加，避免量纲差异；顶部信号灯把复杂多线压缩成一个直觉结论。"
             "想看更细的五维拆解，去《市场驱动力》。",
 )
-with _sf_card(title="页面说明", icon="💡"):
+with _xc_content_card(title="页面说明", icon="💡"):
     st.markdown(
         '<div class="sf-card-subtitle">把指数与关键资金面统一归一化到起点=100 叠加，避免量纲差异；'
         '顶部信号灯把复杂多线压缩成一个直觉结论。想看更细的五维拆解，去《市场驱动力》。</div>',
@@ -278,7 +278,7 @@ def fragment_strength():
     })
 
     # 交互控件：区间 + 均线 + 序列多选 + 数值模式（星辰卡片 + pills 分段选择器）
-    with _sf_card(title="市场强弱信号 + 归一化多线", icon="📈"):
+    with _xc_content_card(title="市场强弱信号 + 归一化多线", icon="📈"):
         series_options = [(k, names_map.get(k, k)) for k in present]
         dr, ma, sel, mode, ma_type = _trend_controls(
             "str", days_default=180, preset_default="近180天",
@@ -292,7 +292,7 @@ def fragment_strength():
     level, details, avg = _strength_signal(d_view, keys)
 
     # 顶部信号卡 + 各序列 chips（星辰卡片包装）
-    with _sf_card(title="综合信号灯", icon="🚦"):
+    with _xc_content_card(title="综合信号灯", icon="🚦"):
         if level:
             label, color = level
             pct = _strength_percentile(d_view, keys)

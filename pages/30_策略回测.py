@@ -15,8 +15,8 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
-from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
+from modules.ui_theme import sf_metric
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card
 render_standard_page(title="策略回测", icon="⚙️", layout="wide")
 
 from modules.backtest import Backtester
@@ -117,7 +117,7 @@ def fragment_manual_backtest():
     from modules.visualizer import Visualizer  # lazy
     from modules.colors import UP_COLOR, DOWN_COLOR  # lazy (lightweight)
     from modules.ui_theme import _theme_is_dark as _is_dark  # lazy (lightweight)
-    sf_card("回测参数", "")
+    xc_content_card("回测参数", "")
 
     # ── 强势上涨股快捷预设（T-229 收进折叠区，主区留给回测参数）──
     with st.expander("⚡ 强势上涨股快捷预设（一键填入标的）", expanded=False):
@@ -218,7 +218,7 @@ def fragment_manual_backtest():
                 )
 
                 # 摘要
-                sf_card("回测结果", "")
+                xc_content_card("回测结果", "")
 
                 s = result.summary()
                 # G12：记录本次回测（run ID 持久化 → 刷新/切页/重启可回溯；失败静默不影响主流程）
@@ -275,7 +275,7 @@ def fragment_manual_backtest():
                 st.code(result.summary_text().replace(f"[{bt_ticker}]", f"[{bt_label}]"), language="text")
 
                 # 收益曲线
-                sf_card("收益曲线", "")
+                xc_content_card("收益曲线", "")
 
                 benchmark = None
                 if show_benchmark and not result.df.empty:
@@ -293,12 +293,12 @@ def fragment_manual_backtest():
                 st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
 
                 # 回撤曲线
-                sf_card("回撤曲线", "")
+                xc_content_card("回撤曲线", "")
                 fig_dd = Visualizer.drawdown_curve(result.df)
                 st.plotly_chart(fig_dd, width="stretch", config={"displaylogo": False, "responsive": True})
 
                 # 交易明细
-                sf_card("交易明细", "")
+                xc_content_card("交易明细", "")
                 if result.trades:
                     trades_df = pd.DataFrame(result.trades)
                     trades_df["收益率"] = trades_df["profit_pct"].map(lambda x: f"{x:+.2f}%")
@@ -310,7 +310,7 @@ def fragment_manual_backtest():
                     # 交易统计
                     wins = [t for t in result.trades if t["profit_pct"] > 0]
                     losses = [t for t in result.trades if t["profit_pct"] <= 0]
-                    sf_card("交易统计", "")
+                    xc_content_card("交易统计", "")
                     stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
                     with stat_col1:
                         avg_win = sum(t["profit_pct"] for t in wins) / len(wins) if wins else 0
@@ -330,7 +330,7 @@ def fragment_manual_backtest():
                 # ── 逐笔交易收益分布（T-229 收进折叠区）──
                 with st.expander("📈 逐笔交易收益分布", expanded=False):
                     # ── 逐笔交易收益分布 ──
-                    sf_card("逐笔交易收益分布", "")
+                    xc_content_card("逐笔交易收益分布", "")
                     if result.trades:
                         _profits = [t.get("profit_pct", 0) for t in result.trades]
                         fig_tr = go.Figure(go.Bar(
@@ -351,7 +351,7 @@ def fragment_manual_backtest():
                         info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
                 # ── 参数敏感性分析 ──
-                sf_card("🎯 参数敏感性分析", "")
+                xc_content_card("🎯 参数敏感性分析", "")
                 st.caption("固定其余参数，扫描单一参数的不同取值，观察累计收益 / 胜率 / 最大回撤的变化，寻找参数拐点。")
                 sens_choice = st.selectbox(
                     "选择扫描参数",
@@ -448,7 +448,7 @@ def fragment_daily_picker():
     from modules.ui_theme import _theme_is_dark as _is_dark  # lazy
     global SF_TXT, SF_TXT2, SF_GRID, SF_BORDER  # noqa: F821
     SF_TXT = "#e2e8f0"; SF_TXT2 = "#94a3b8"; SF_GRID = "#23233c"; SF_BORDER = "#2d2d44"
-    sf_card("📊 每日选股回测", "")
+    xc_content_card("📊 每日选股回测", "")
     st.caption("从 A 股股票池中每日筛选评分最高的股票，模拟短线持有收益。"
                "「今日推荐」= 基于昨日收盘数据选股、今日买入；"
                "「明日推荐」= 基于今日收盘数据选股、明日买入。")
@@ -578,7 +578,7 @@ def fragment_daily_picker():
                 st.metric("总选股数", f"{s['total_picks']:,}", delta_color="off")
 
             # ---- 今日推荐（prev_picks：昨日选股 → 今日买入）----
-            sf_card("📌 今日推荐买入", "")
+            xc_content_card("📌 今日推荐买入", "")
             today_picks = picker_result.prev_picks(n=top_k)
             if today_picks.empty:
                 _empty_info("暂无今日推荐数据（可能昨日为非交易日或无股票满足选股条件）。")
@@ -594,7 +594,7 @@ def fragment_daily_picker():
                 st.caption("💡 以上为基于上一交易日收盘数据选出的股票，可在今日开盘/盘中择机买入。")
 
             # ---- 明日推荐（latest_picks：今日选股 → 明日买入）----
-            sf_card("📌 明日推荐买入", "")
+            xc_content_card("📌 明日推荐买入", "")
             tomorrow_picks = picker_result.latest_picks(n=top_k)
             if tomorrow_picks.empty:
                 _empty_info("暂无明日推荐数据。可尝试调大「每日选股数」或延长选股区间后重新运行选股。")
@@ -609,7 +609,7 @@ def fragment_daily_picker():
 
             # ---- 累计收益曲线 ----
             if not picker_result.returns_df.empty:
-                sf_card("累计收益曲线", "")
+                xc_content_card("累计收益曲线", "")
                 import plotly.graph_objects as go
                 _dark = _is_dark()
                 fig = go.Figure()
@@ -645,7 +645,7 @@ def fragment_daily_picker():
 
             # ---- 全部选股记录 ----
             if not picker_result.picks_df.empty:
-                sf_card("全部选股记录", "")
+                xc_content_card("全部选股记录", "")
                 all_picks = picker_result.picks_df.copy()
                 # 加法式健壮性：picks_df 上游 schema 漂移可能缺列，缺列时降级提示。
                 try:
@@ -671,7 +671,7 @@ def fragment_strong_bull():
     # SF_* 暗色主题常量（原定义在 visualizer.py，在此本地定义避免拖入 plotly）
     global SF_TXT, SF_TXT2, SF_GRID, SF_BORDER  # noqa: F821
     SF_TXT = "#e2e8f0"; SF_TXT2 = "#94a3b8"; SF_GRID = "#23233c"; SF_BORDER = "#2d2d44"
-    sf_card("🚀 强势上涨股批量回测 vs 全市场", "")
+    xc_content_card("🚀 强势上涨股批量回测 vs 全市场", "")
     st.caption("一键对「强势上涨股样本」跑多因子策略，聚合胜率/收益，并对比全市场基准，"
                "验证策略对强趋势股的覆盖度。**历史模拟，不构成投资建议。**")
 
@@ -771,7 +771,7 @@ def fragment_strong_bull():
             market_summary = None
 
     # ---- 对比表 ----
-    sf_card("📊 强势上涨股 vs 全市场 对比", "")
+    xc_content_card("📊 强势上涨股 vs 全市场 对比", "")
     cmp_rows = [{
         "样本": "强势上涨股样本(均值)",
         "胜率%": f"{avg_win:.1f}",
@@ -795,7 +795,7 @@ def fragment_strong_bull():
 
     # ---- 个股累计收益对比柱状图 ----
     if ok:
-        sf_card("📈 个股累计收益对比", "")
+        xc_content_card("📈 个股累计收益对比", "")
         fig = go.Figure()
         names = [r["name"] for r in ok]
         rets = [r["total_return"] for r in ok]
@@ -819,7 +819,7 @@ def fragment_strong_bull():
         st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True})
 
         # ---- 个股卡片 ----
-        sf_card("🧾 个股回测明细", "")
+        xc_content_card("🧾 个股回测明细", "")
         cards = st.columns(min(4, len(ok)))
         for i, r in enumerate(ok):
             with cards[i % len(cards)]:
@@ -841,7 +841,7 @@ def fragment_strong_bull():
 @safe_fragment("参数扫描")
 def fragment_param_scan():
     """对单一标的做参数网格扫描，挑最优止盈/止损/持仓组合。"""
-    sf_card("🎛️ 参数扫描（最优参数搜索）", "")
+    xc_content_card("🎛️ 参数扫描（最优参数搜索）", "")
     st.caption("在固定标的上网格遍历止盈/止损/最大持仓，按累计收益排序，"
                "帮你跳出「凭感觉设 3% 止盈」的坑。历史模拟，不构成投资建议。")
 
@@ -897,7 +897,7 @@ def fragment_param_scan():
 @safe_fragment("多标的批量回测")
 def fragment_batch_backtest():
     """任意多标的批量回测，聚合绩效归因（夏普/回撤/胜率/盈亏比）。"""
-    sf_card("📊 多标的批量回测（绩效归因）", "")
+    xc_content_card("📊 多标的批量回测（绩效归因）", "")
     st.caption("一次跑多只股票，自动聚合平均收益/夏普/回撤/胜率/盈亏比，并标出最佳/最差标的。"
                "可直接粘贴代码清单（逗号或换行分隔）。历史模拟，不构成投资建议。")
 
@@ -962,7 +962,7 @@ def fragment_walk_forward():
     """样本内选参数 → 样本外验证，回答「这套参数是真规律还是记住了历史」。"""
     from modules.colors import UP_COLOR  # lazy
     from modules.ui_theme import _theme_is_dark as _is_dark  # lazy
-    sf_card("🧪 回测稳健性（walk-forward 样本外验证）", "")
+    xc_content_card("🧪 回测稳健性（walk-forward 样本外验证）", "")
     st.caption("把区间切成多段：每段先用「训练段」网格选最优参数，再拿这套参数到「测试段」独立验证。"
                "训练段好看、测试段崩掉 = 过拟合。**历史模拟，不构成投资建议。**")
 

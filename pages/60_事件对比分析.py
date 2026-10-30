@@ -14,9 +14,9 @@ import logging
 import streamlit as st
 import plotly.graph_objects as go
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, section_header
+from modules.ui_theme import section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import event_compare as ec
 from modules import breadth_divergence as bd
@@ -40,7 +40,7 @@ try:
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("### 📡 事件信号池")
-        st.markdown(sf_card(
+        st.markdown(xc_content_card(
             title=f"P1 EV 信号池（{cmp['pool_date'] or '—'}）"
                    f"{' · 🔴 LIVE' if cmp['pool_live'] else (' · 📦 离线' if cmp['pool_available'] else ' · ⚠️ 不可用')}"
                    f"{' · 数据偏旧' if cmp['pool_stale'] else ''}",
@@ -53,7 +53,7 @@ try:
     with c2:
         st.markdown("### 🌐 当日市场广度")
         if cmp["breadth_available"]:
-            st.markdown(sf_card(
+            st.markdown(xc_content_card(
                 title=f"牧羊人广度（{cmp['breadth_date']}）",
                 body=f"红盘率 <b>{cmp['red_ratio']:.1f}%</b> ｜ 上涨 {cmp['up_count']} ／ 下跌 {cmp['down_count']}<br>"
                      f"涨停 {cmp['limit_up']} ／ 跌停 {cmp['limit_down']}",
@@ -67,7 +67,7 @@ try:
     color = {"momentum": UP_COLOR, "contrarian": "#36c5d8",
              "diverge_hot": DOWN_COLOR, "cautious": "#ca8a04",
              "unknown": "#94a3b8"}.get(kind, "#94a3b8")
-    st.markdown(sf_card(
+    st.markdown(xc_content_card(
         title="结构判定",
         body=f"<b style='color:{color}'>{cmp['alignment']}</b>",
         accent=color,

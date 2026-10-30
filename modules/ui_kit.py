@@ -228,6 +228,12 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .xc-info.warning{border-left:3px solid var(--ss-warn);background:color-mix(in srgb,var(--ss-warn) 10%,transparent)}
 .xc-info.danger{border-left:3px solid var(--ss-danger);background:color-mix(in srgb,var(--ss-danger) 8%,transparent)}
 
+/* 新城内容卡（1:1 替代 ui_theme.sf_card，统一组件词汇到 xc_*；令牌化、主题自适应） */
+.xc-content-card{background:var(--ss-surface);border:1px solid color-mix(in srgb,var(--ss-accent) 20%,var(--ss-line));
+  border-radius:var(--ss-radius-card);padding:14px 16px;margin:12px 0;box-shadow:var(--ss-shadow-card)}
+.xc-content-card .xc-cc-title{font-size:15px;font-weight:700;color:var(--ss-text);margin-bottom:6px;line-height:1.3}
+.xc-content-card .xc-cc-body{font-size:13.5px;color:var(--ss-text-muted);line-height:1.7}
+
 /* 新城友好错误卡 / 空态卡（不泄露内部异常，提供重试/降级引导） */
 .xc-error-box,.xc-empty-box{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border-radius:var(--ss-radius-card);
   margin:14px 0;font-size:14px;line-height:1.6;color:var(--ss-text);
@@ -565,6 +571,43 @@ def xc_info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
         f'<div>{html.escape(text)}</div></div>',
         unsafe_allow_html=True,
     )
+
+
+def xc_content_card(title: str, body: str = "", icon: str = "", *, compact_when_empty: bool = True) -> None:
+    """新城(xc)风格内容卡：标题 + 正文（1:1 替代 ui_theme.sf_card，统一组件词汇到 xc_*）。
+
+    文本一律 html.escape，防注入；纯视觉，不改动业务逻辑。
+
+    - ``body`` 为空且 ``compact_when_empty=True``：复用 .xc-section-h 紧凑节标题（对齐
+      sf_card 的 T-266 空间治理，不占大卡片纵向空间），不渲染大卡片。
+    - ``body`` 非空：渲染 .xc-content-card（标题 + 正文，令牌化、主题自适应）。
+
+    Args:
+        title: 卡片标题。
+        body: 卡片正文（纯文本，会被转义；传 HTML 不会被执行）。
+        icon: 可选前置图标（emoji 或字符）。
+        compact_when_empty: 空正文是否降级为紧凑节标题（默认 True，保持与 sf_card 一致）。
+    """
+    title = html.escape(str(title))
+    body = html.escape(str(body))
+    icon = html.escape(str(icon)) if icon else ""
+    icon_html = f"{icon} " if icon else ""
+    if compact_when_empty and not str(body).strip():
+        # 紧凑节标题：复用全站统一的 .xc-section-h（左 accent 条）
+        st.markdown(
+            f'<div class="xc-section-h" style="margin:10px 0 8px">{icon_html}{title}</div>',
+            unsafe_allow_html=True,
+        )
+        return
+    inject_kit_css()
+    st.markdown(
+        f'<div class="xc-content-card">'
+        f'<div class="xc-cc-title">{icon_html}{title}</div>'
+        f'<div class="xc-cc-body">{body}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
 
 
 _HINT_COLLAPSE_THRESHOLD = 140  # T-277：提示文案折叠阈值（字符数）

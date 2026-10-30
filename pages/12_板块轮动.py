@@ -17,14 +17,14 @@ import numpy as np
 from datetime import datetime
 
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.session import trading_autorefresh, safe_switch_page
 from modules.fundflow import get_industry_fund_flow
 from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, safe_fragment, render_data_degradation_banner
 from modules.page_widgets import _empty_info, UP, DOWN
 
-from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.ui_kit import xc_success_box, xc_warn_box, xc_content_card
 dark = render_standard_page(
     title="板块轮动热力图", icon="🔥",
     caption="红涨绿跌；热力图块大小代表资金净流入，颜色代表涨跌幅。各视图独立取数。",
@@ -279,7 +279,7 @@ fragment_sectors()
 # ───────────────────────── 国产替代研究（行业级总览） ─────────────────────────
 @safe_fragment("国产替代")
 def fragment_domestic_substitution():
-    sf_card(
+    xc_content_card(
         "🇨🇳 国产替代研究（行业总览）",
         "套用「半导体材料国产替代研究模板」的 10 维框架，下沉到行业级，盘点 A 股各主线的国产化率、龙头标的与投资逻辑。",
         icon="🇨🇳",

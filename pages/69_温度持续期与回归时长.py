@@ -11,9 +11,8 @@ import logging
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card
 from modules import regime_duration as rd
 from modules.breadth_features import data_as_of
 
@@ -59,7 +58,7 @@ try:
         rec = res["recovery"]
         st.markdown("### 🧊 冰点 → 回归中性 磨底时长")
         if rec.get("n"):
-            st.markdown(sf_card(
+            st.markdown(xc_content_card(
                 title="冰点后中位磨底时长",
                 body=f"中位 <b>{rec['median']}</b> 天 ｜ 均值 <b>{rec['mean']}</b> 天 ｜ 样本 <b>{rec['n']}</b> 段",
                 accent="#ea580c",

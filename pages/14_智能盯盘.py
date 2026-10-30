@@ -22,7 +22,7 @@ from modules.timeout_exec import run_with_timeout
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.chart_cache import cached_fig
 import plotly.graph_objects as go
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box

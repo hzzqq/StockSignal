@@ -15,9 +15,9 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, section_header
+from modules.ui_theme import section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_regime as mr
 
@@ -144,7 +144,7 @@ try:
                 unsafe_allow_html=True,
             )
 
-    sf_card(
+    xc_content_card(
         "方法学与诚实声明",
         "状态机为规则可解释的五档分类（阈值由全样本分位定），非黑箱模型；历史类比仅回看目标日之前的交易日"
         "（无前视泄漏），用欧氏距离在 z-score 标准化后的 [红盘率, 涨停, 跌停] 向量上检索最近邻。"

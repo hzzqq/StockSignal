@@ -22,11 +22,11 @@ from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules import fundflow as ff
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info
 from modules.perf import downsample
 from modules.chart_cache import cached_fig
-from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card
 dark = render_standard_page(title='基本面分析', icon='🏛️', caption='个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）', layout='wide')
 trading_autorefresh(key='fundamental_autorefresh')
 ACCENT = '#818cf8' if dark else '#6366f1'
@@ -254,7 +254,7 @@ def _collect_valuation(code: str, industry: str, pe_ttm) -> dict:
 @safe_fragment
 def fragment_valuation_band(code: str, name: str, industry: str, pe_ttm, dark: bool):
     """估值分位深钻（H2）：PE/PB Band 历史分位 · 行业相对分位 · 杜邦分解 · 同业矩阵。"""
-    sf_card('📐 估值分位深钻',
+    xc_content_card('📐 估值分位深钻',
             '「PE 18 倍」本身没有信息量——贵不贵要跟**自己的历史**比、跟**同行**比：'
             'PE/PB 历史分位带 · 行业相对分位 · ROE 杜邦分解 · 同业矩阵。')
     _key = f'val_drill_{code}'
@@ -601,7 +601,7 @@ if code:
         else:
             st.session_state[_fa_fav_key].append(code)
         st.rerun()
-    sf_card('💹 业绩分析（结合市值 / 市盈率 / 资产负债表）', "")
+    xc_content_card('💹 业绩分析（结合市值 / 市盈率 / 资产负债表）', "")
     st.caption('读懂指标：营收/净利润看公司「赚多少、增长快不快」；ROE 看「股东每投 1 元赚回多少」；毛利率看「产品赚钱能力」；资产负债率/流动比率看「会不会还不起钱」。')
     st.caption('📌 颜色遵循 A股 惯例：红涨绿跌；所有指标仅供参考，不构成投资建议。')
     rev_yoy = perf.get('revenue_yoy')
@@ -655,7 +655,7 @@ if code:
 
     @safe_fragment
     def fragment_financial_analysis(fa_code: str, fa_name: str):
-        sf_card('📊 财务分析', "")
+        xc_content_card('📊 财务分析', "")
         st.caption('多期财务指标趋势：柱状图看绝对值，折线看同比；数据来自利润表/资产负债表/现金流量表。')
         with st.spinner('正在解析财务报表…'):
             try:
@@ -733,7 +733,7 @@ if code:
             st.dataframe(display_table, width="stretch", hide_index=True, height=400)
             st.caption('数据来源：新浪财经 利润表 / 资产负债表 / 现金流量表')
     fragment_financial_analysis(code, name)
-    sf_card('📍 历史位置 · 纵向对比', "")
+    xc_content_card('📍 历史位置 · 纵向对比', "")
     st.caption('价格分位：当前价在对应周期内所有交易日收盘价中的相对高低。')
     with st.expander('📖 分位解读（数值越高代表当前价越贵）', expanded=False):
         xc_info_banner('📌 **分位解读**（数值越高代表当前价越贵）：\n\n- **0%**：历史最低（最便宜）\n- **0–20%**：历史低位（相对便宜，可能超跌）\n- **20–40%**：偏低区间\n- **40–75%**：合理中枢（不贵也不便宜）\n- **75–90%**：偏高区间\n- **90–100%**：历史高位（相对较贵，注意风险）\n- **100%**：历史最高（最贵）\n\n💡 **例子**：若 5 年分位为 7.9%，表示当前价只比过去 5 年里约 8% 的交易日收盘价高，处于历史较低位置。')
@@ -763,7 +763,7 @@ if code:
         info_banner('🏭 行业数据暂未就绪或未能匹配当前股票行业，「行业横向对比」与「大盘主线判断」暂时无法展示。可稍后刷新，或尝试切换一只行业分类更完整的个股。')
     else:
         if has_horizontal:
-            sf_card('🏭 行业横向对比', "")
+            xc_content_card('🏭 行业横向对比', "")
             top_n = 15
             top_sectors = sector_df.sort_values('change_pct', ascending=False).head(top_n).copy()
             fig_sector = _build_sector_fig(top_sectors, mapped_sector, industry, top_n, dark)
@@ -781,7 +781,7 @@ if code:
         if has_theme:
             if has_horizontal:
                 st.markdown('---')
-            sf_card('🚩 大盘主线判断', "")
+            xc_content_card('🚩 大盘主线判断', "")
             is_main = rank <= 5
             main_html = f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(16,185,129,0.12);border-left:4px solid {UP_COLOR};color:var(--txt);font-size:15px;">✅ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，处于市场主线前列，资金关注度较高。</div>""" if is_main else f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(245,158,11,0.12);border-left:4px solid #f59e0b;color={('#e2e8f0' if dark else '#78350f')};font-size:15px;">⚠️ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，暂未进入主线 Top5，建议结合题材与资金面综合判断。</div>"""
             st.markdown(main_html, unsafe_allow_html=True)
@@ -792,7 +792,7 @@ if code:
                 st.caption(f'🏭 全市场共 {len(sector_df)} 个行业，以下展示涨幅前 {len(top10)} 名')
                 st.dataframe(display, width="stretch", column_config={'涨跌幅': st.column_config.NumberColumn(format='%.2f%%')}, hide_index=True, height=400)
     st.caption('数据来源：东方财富 行业板块行情（涨跌幅 / 排名）')
-    sf_card('🎯 综合评估', "")
+    xc_content_card('🎯 综合评估', "")
     try:
         score, reasons_html = _composite_score(price, pe_ttm, p_5y if hist_df is not None else None, rank, sector_total, market_cap, perf)
     except Exception as e:
@@ -813,7 +813,7 @@ if code:
         st.plotly_chart(_ring, width="stretch", config={"displaylogo": False, "responsive": True})
     with sc2:
         st.markdown(f"""<div style="padding:14px 18px;border-radius:10px;background:var(--card2);border:1px solid var(--border);font-size:14px;line-height:1.8;">{reasons_html}</div>""", unsafe_allow_html=True)
-    sf_card('📊 估值摘要', "")
+    xc_content_card('📊 估值摘要', "")
     v1, v2, v3 = st.columns(3)
     with v1:
         st.metric('PE(TTM)', f'{pe_ttm:.2f}' if pe_ttm else '—', delta_color='off', help='市盈率 = 股价 / 每股收益；越低通常代表估值越低（但需结合成长性）')

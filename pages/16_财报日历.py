@@ -14,7 +14,7 @@ from modules.fundflow import (
 
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.page_widgets import UP, DOWN, _fig_layout, _section_title, _empty_info
 from modules.search_ui import stock_search_input
 from modules.chart_cache import cached_fig

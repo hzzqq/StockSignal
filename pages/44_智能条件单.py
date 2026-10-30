@@ -16,7 +16,7 @@ import json
 from datetime import datetime, timedelta
 import streamlit as st
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 import modules.scroll_nav as sn
 from modules.session import api_get, api_post, api_put, api_delete, trading_autorefresh
 from modules.search_ui import stock_search_input

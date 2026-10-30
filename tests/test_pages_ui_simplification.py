@@ -273,13 +273,13 @@ def test_93_sysinfo_wrapped():
                 if isinstance(call, ast.Call) and getattr(call.func, "attr", "") == "expander":
                     for sub in ast.walk(node):
                         if isinstance(sub, ast.Call):
-                            # sf_card 为 from modules.ui_theme import 的裸 Name 调用
+                            # sf_card / xc_content_card 为 from modules.* import 的裸 Name 调用
                             fname = getattr(sub.func, "id", "") or getattr(sub.func, "attr", "")
-                            if fname == "sf_card" and any(
+                            if fname in ("sf_card", "xc_content_card") and any(
                                 a and isinstance(a, ast.Constant) and "健康度" in str(a.value)
                                 for a in sub.args
                             ):
-                                raise AssertionError("数据源健康度 sf_card 不得被包进 expander（须保留主区）")
+                                raise AssertionError("数据源健康度 sf_card/xc_content_card 不得被包进 expander（须保留主区）")
 
 
 def test_92_intro_card_removed():

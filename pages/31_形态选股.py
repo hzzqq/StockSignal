@@ -22,7 +22,7 @@ from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.search_ui import multi_stock_search_input, stock_search_input
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info
 
 from modules.ui_kit import xc_success_box, xc_warn_box

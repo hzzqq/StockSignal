@@ -15,9 +15,9 @@ import logging
 
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric, section_header
+from modules.ui_theme import sf_metric, section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_regime as mr
 from modules import shepherd_ladder as sl
@@ -190,7 +190,7 @@ try:
     st.page_link("pages/50_市场情绪.py", label="🌡️ 市场情绪 · 广度与情绪温度", icon="📊")
     st.page_link("pages/54_今日决策面板.py", label="🎯 今日决策面板", icon="📊")
 
-    sf_card(
+    xc_content_card(
         "诚实声明",
         "① 龙头强度是**市场级**刻画（连板高度+高位集中度+接力意愿），梯队历史仅存逐日家数、"
         "无逐股名称，故本页不列个股龙头；② 晋级概率由最近1-2日推算、历史平均亦仅数个日对，"

@@ -20,14 +20,14 @@ from modules.fundflow import (
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN
 
 logger = logging.getLogger(__name__)
 # 注：openpyxl / reportlab 为「重型导出」依赖，改为惰性加载（见 _to_excel_bytes / _to_pdf_bytes），
 #     避免进入本页（仅查看 CSV 导出入口）时也强制 import 拖慢首屏。
 
-from modules.ui_kit import info_banner, xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import info_banner, xc_handle_error, xc_success_box, xc_warn_box, xc_content_card
 dark = render_standard_page(
     title="数据导出中心", icon="📤",
     caption="统一导出平台数据：行业板块资金流向、北向资金、大盘主力净流入、个股主力资金、业绩报表、组合持仓盈亏、自选股实时快照。"
@@ -687,7 +687,7 @@ def _collect_report_data(code: str):
 
 @safe_fragment("一键研报")
 def frag_report():
-    sf_card("📄 一键研报（个股）", "把风险排雷 / 技术面 / 资金面 / 公告装配成一份可下载的"
+    xc_content_card("📄 一键研报（个股）", "把风险排雷 / 技术面 / 资金面 / 公告装配成一份可下载的"
             "单文件研报（HTML 自包含 + Markdown）。缺数据的板块明确标注「数据不可用」，绝不编造。")
     from modules.search_ui import stock_search_input
     from modules import research_report as rrp

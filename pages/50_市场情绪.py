@@ -21,7 +21,7 @@ from plotly.subplots import make_subplots
 from datetime import datetime
 
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.session import get_token, fragment_market_alerts_panel
 from modules.ladder_view import render_ladder_block
 from modules.market_drivers import get_market_drivers, DIMS

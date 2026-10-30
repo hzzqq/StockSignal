@@ -23,7 +23,7 @@ import pandas as pd
 import streamlit as st
 
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.ui_kit import xc_warn_box, xc_success_box, ss_fold_useful, ss_hover_preview
 from modules.p1_signal import P1SignalLoader, format_rank
 from modules.session import trading_autorefresh

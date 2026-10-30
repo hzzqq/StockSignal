@@ -14,9 +14,9 @@ import modules.scroll_nav as sn
 from modules.news import NewsFetcher
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info, _section_title
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_content_card
 from modules.event_factor import event_driven_long_list  # 事件驱动看多榜（真实 P1 EV 信号选股池）
 today = date.today().strftime('%Y-%m-%d')
 dark = render_standard_page(title='每日晨报 / 复盘笔记', icon='🌅', caption=f'生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）', layout='wide')
@@ -259,7 +259,7 @@ def fragment_event_driven_pool():
     body = ("由 P1-QuantFactor 神经网络产出的**事件因子多头候选池**（EV 模型，已并入牧羊人情绪"
             "9 维事件/regime 通道）。这是统计意义上的超额收益概率排序，**非**买卖指令；"
             "建议仅取多头侧，并与本页板块/自选股信号配合使用。")
-    sf_card("事件驱动 · EV 看多榜（前 20）", body, icon="📈")
+    xc_content_card("事件驱动 · EV 看多榜（前 20）", body, icon="📈")
 
     rows_html = ""
     for i, r in enumerate(rows, 1):

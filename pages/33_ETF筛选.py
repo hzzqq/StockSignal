@@ -11,14 +11,14 @@ import streamlit as st
 import pandas as pd
 
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_card, sf_metric
+from modules.ui_theme import sf_metric
 import modules.scroll_nav as sn
 from modules.page_guard import safe_section
 
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _empty_info, UP, DOWN
 
-from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.ui_kit import xc_success_box, xc_warn_box, xc_content_card
 dark = render_standard_page(
     title="ETF / 基金筛选器", icon="🧰",
     caption="按类型、关键字、涨跌幅与成交额筛选；红涨绿跌。数据受限时自动降级到样本。",
@@ -267,7 +267,7 @@ def _etf_filter_fragment():
                 _rec["涨跌幅"] = pd.to_numeric(_rec["涨跌幅"], errors="coerce")
                 _rec = _rec.dropna(subset=["成交额"]).sort_values("成交额", ascending=False).head(3)
                 if not _rec.empty:
-                    sf_card("🧰 相关 ETF 推荐（按成交额）", "")
+                    xc_content_card("🧰 相关 ETF 推荐（按成交额）", "")
                     for _i, (_, rr) in enumerate(_rec.iterrows()):
                         st.markdown(
                             f"**{rr.get('名称', '?')}**  \n`{rr.get('代码', '?')}`  \n"
