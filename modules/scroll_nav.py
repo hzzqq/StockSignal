@@ -184,8 +184,11 @@ SCROLL_NAV_CSS = """
   border-bottom:1px solid var(--border,#e2e8f0)}
 .ss-cmd-list{max-height:46vh;overflow-y:auto;padding:6px}
 .ss-cmd-item{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:7px;
-  text-decoration:none;color:var(--txt,#1f2937);font-size:14px}
+  text-decoration:none;color:var(--txt,#1f2937);font-size:14px;cursor:pointer;
+  transition:background .12s ease}
 .ss-cmd-item:hover,.ss-cmd-item.active{background:color-mix(in srgb,var(--acc1,#4f46e5) 10%,transparent)}
+.ss-cmd-item:focus-visible{outline:2px solid var(--acc1,#4f46e5);outline-offset:-2px;
+  background:color-mix(in srgb,var(--acc1,#4f46e5) 10%,transparent)}
 .ss-cmd-group{margin-left:auto;font-size:11px;color:var(--txt2,#6b7280)}
 .ss-cmd-empty{padding:16px;text-align:center;color:var(--txt2,#6b7280);font-size:13px}
 .ss-cmd-hint{padding:8px 14px;border-top:1px solid var(--border,#e2e8f0);

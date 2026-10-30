@@ -234,3 +234,29 @@ def test_build_nav_index_carries_qs():
     assert idx, "索引不应为空"
     for it in idx:
         assert it["href"].startswith("/") and "token=tok123" in it["href"], it
+
+
+def test_build_nav_index_flattens_all_group_entries():
+    """命令面板索引必须扁平化 nav_groups 的每一个条目（不得漏页 → 全站跳转）。"""
+    groups = [
+        ("类A", [("", [("pages/1.py", "一", "📄"), ("pages/2.py", "二", "📄")])]),
+        ("类B", [("", [("pages/3.py", "三", "📄")])]),
+    ]
+    idx = top_nav.build_nav_index(groups, _NAV_HERO, [], [])
+    labels = {it["label"] for it in idx}
+    assert {"一", "二", "三"}.issubset(labels), f"索引漏页：{labels}"
+    # 每个分组条目都带可追溯 group 字段（且 hero 归入「决策中枢」）
+    assert any(it["label"] == "今日决策面板" and it["group"] == "决策中枢" for it in idx)
+
+
+def test_command_palette_focus_ring_and_cursor_in_css():
+    """命令面板条目 .ss-cmd-item 须可点击（cursor:pointer）且键盘可达（:focus-visible 环）。"""
+    from modules import scroll_nav
+    css = scroll_nav.SCROLL_NAV_CSS
+    # .ss-cmd-item 基础规则块内须含 cursor:pointer
+    block = css[css.index(".ss-cmd-item{"):css.index(".ss-cmd-item{") + 200]
+    assert "cursor:pointer" in block, ".ss-cmd-item 缺少 cursor:pointer"
+    assert ".ss-cmd-item:focus-visible" in css, "命令面板条目缺少键盘聚焦环"
+    # mega 条目聚焦环（交互可达性）
+    assert ".ss-entry:focus-visible" in TOPNAV_CSS
+    assert ".ss-user-item:focus-visible" in TOPNAV_CSS

@@ -285,8 +285,10 @@ TOPNAV_CSS = """
 .ss-mega-sub{grid-column:1 / -1;font-size:11.5px;color:var(--acc1);font-weight:700;
   margin:8px 0 2px;letter-spacing:.5px}
 .ss-entry{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:6px;
-  text-decoration:none;white-space:nowrap}
+  text-decoration:none;white-space:nowrap;cursor:pointer;transition:background .12s ease}
 .ss-entry:hover{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
+.ss-entry:focus-visible{outline:2px solid var(--acc1);outline-offset:-2px;
+  background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .ss-entry b{font-size:13.5px;font-weight:600;color:var(--txt)}
 .ss-entry-active b{color:var(--acc1)}
 .ss-entry-active{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
@@ -312,8 +314,11 @@ TOPNAV_CSS = """
 .ss-style-cur{color:var(--acc1)!important;font-weight:700}
 .ss-user-sec{font-size:11px;color:var(--acc1);font-weight:700;margin:8px 0 4px;letter-spacing:.5px}
 .ss-user-item{display:block;padding:6px 8px;border-radius:5px;text-decoration:none;
-  color:var(--txt);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  color:var(--txt);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  cursor:pointer;transition:background .12s ease}
 .ss-user-item:hover{background:color-mix(in srgb,var(--acc1) 8%,transparent);color:var(--acc1)}
+.ss-user-item:focus-visible{outline:2px solid var(--acc1);outline-offset:-2px;
+  background:color-mix(in srgb,var(--acc1) 8%,transparent);color:var(--acc1)}
 /* ── 字号层级：核心突出 / 次要收敛（阿里云简洁层级） ── */
 .stMarkdown p{line-height:1.55}
 [data-testid="stMetricLabel"]{font-size:.78rem!important}
