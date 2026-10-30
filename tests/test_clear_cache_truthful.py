@@ -33,6 +33,23 @@ from modules.fetcher import StockFetcher
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGE11 = os.path.join(ROOT, "pages", "11_股票选取.py")
+# P0-1b（2026-10-30）：11 页实现体迁至 modules/stock_research.py::render_stock_picker
+# （pages/11 为独立入口 shim）。守卫定位随之改到函数体级（断言本体零改动，spec §1.6 预授权）。
+_SR_MOD = os.path.join(ROOT, "modules", "stock_research.py")
+
+
+def _picker_node():
+    tree = ast.parse(open(_SR_MOD, encoding="utf-8").read())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "render_stock_picker":
+            return node
+    raise AssertionError("stock_research.py 缺 render_stock_picker（守卫定位失效）")
+
+
+def _picker_src() -> str:
+    lines = open(_SR_MOD, encoding="utf-8").read().splitlines()
+    node = _picker_node()
+    return "\n".join(lines[node.lineno - 1:node.end_lineno])
 
 
 def _make_db(tmp_path, rows=3):
@@ -136,7 +153,7 @@ def test_locked_db_logs_warning_instead_of_silent_pass(monkeypatch):
 
 def test_page_refresh_path_has_no_silent_except_pass():
     """AST 源码守卫：该页不得再有 ``except: pass`` 静默兜底。"""
-    tree = ast.parse(open(PAGE11, encoding="utf-8").read())
+    tree = _picker_node()  # P0-1b：实现体函数级扫描（防 shim 层空转假绿）
     silent = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.ExceptHandler):
@@ -149,6 +166,6 @@ def test_page_refresh_path_has_no_silent_except_pass():
 
 def test_page_reports_failure_to_user():
     """页面必须把缓存清除失败告知用户，而不是无条件报成功。"""
-    src = open(PAGE11, encoding="utf-8").read()
+    src = _picker_src()  # P0-1b：定位到实现体函数体（断言本体不变）
     assert "xc_warn_box" in src, "清除失败必须用警告卡告知用户"
     assert "batch_failed" in src, "页面需记录批量删除是否失败并据此反馈"

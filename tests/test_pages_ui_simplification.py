@@ -194,7 +194,12 @@ def test_14_removed_and_wrapped():
 
 def test_11_removed_and_merged():
     """股票选取：导读卡删除，图表/指标教学合并进折叠区。"""
-    src = _src("11_股票选取.py")
+    # P0-1b 定位修正：11 页实现体=modules/stock_research.py::render_stock_picker
+    # 函数体（只扫 picker 部分，不混入同模块 analysis 部分；断言本体不变，spec §1.6 预授权）
+    _sr = (REPO / "modules" / "stock_research.py").read_text(encoding="utf-8")
+    _tree = ast.parse(_sr)
+    _fn = next(n for n in _tree.body if isinstance(n, ast.FunctionDef) and n.name == "render_stock_picker")
+    src = "\n".join(_sr.splitlines()[_fn.lineno - 1:_fn.end_lineno])
     assert "股票选取导读" not in src
     assert 'st.expander("📘 图表与指标说明", expanded=False)' in src
     assert "双击K线柱" not in src, "K线教学 caption 应已合并进折叠区"

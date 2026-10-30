@@ -1,230 +1,220 @@
 {
- "note": "T-272③ 裸 TTL 快照（st.cache_data ttl=数字常量，pages/+modules/+app.py）。新增未登记裸 TTL 会使 test_cache_ttl_tiers 变红——请改用 cache_utils.TTL_TIERS 或在本快照登记并说明理由。",
- "entries": [
-  {
-   "file": "app.py",
-   "ttl": 15,
-   "count": 1
-  },
-  {
-   "file": "modules/session.py",
-   "ttl": 20,
-   "count": 1
-  },
-  {
-   "file": "modules/session.py",
-   "ttl": 30,
-   "count": 2
-  },
-  {
-   "file": "modules/spot_rank.py",
-   "ttl": 60,
-   "count": 1
-  },
-  {
-   "file": "modules/theme_heat.py",
-   "ttl": 120,
-   "count": 1
-  },
-  {
-   "file": "modules/widgets.py",
-   "ttl": 30,
-   "count": 1
-  },
-  {
-   "file": "modules/widgets.py",
-   "ttl": 60,
-   "count": 1
-  },
-  {
-   "file": "pages/10_行情看板.py",
-   "ttl": 3600,
-   "count": 3
-  },
-  {
-   "file": "pages/11_股票选取.py",
-   "ttl": 120,
-   "count": 1
-  },
-  {
-   "file": "pages/11_股票选取.py",
-   "ttl": 300,
-   "count": 3
-  },
-  {
-   "file": "pages/11_股票选取.py",
-   "ttl": 600,
-   "count": 1
-  },
-  {
-   "file": "pages/12_板块轮动.py",
-   "ttl": 300,
-   "count": 1
-  },
-  {
-   "file": "pages/13_市场强弱.py",
-   "ttl": 120,
-   "count": 1
-  },
-  {
-   "file": "pages/13_市场强弱.py",
-   "ttl": 600,
-   "count": 2
-  },
-  {
-   "file": "pages/14_智能盯盘.py",
-   "ttl": 15,
-   "count": 2
-  },
-  {
-   "file": "pages/16_财报日历.py",
-   "ttl": 1800,
-   "count": 4
-  },
-  {
-   "file": "pages/17_市场魔方.py",
-   "ttl": 300,
-   "count": 6
-  },
-  {
-   "file": "pages/17_市场魔方.py",
-   "ttl": 600,
-   "count": 3
-  },
-  {
-   "file": "pages/17_市场魔方.py",
-   "ttl": 1800,
-   "count": 1
-  },
-  {
-   "file": "pages/20_个股分析.py",
-   "ttl": 1,
-   "count": 1
-  },
-  {
-   "file": "pages/20_个股分析.py",
-   "ttl": 120,
-   "count": 1
-  },
-  {
-   "file": "pages/20_个股分析.py",
-   "ttl": 300,
-   "count": 3
-  },
-  {
-   "file": "pages/20_个股分析.py",
-   "ttl": 1800,
-   "count": 5
-  },
-  {
-   "file": "pages/21_多股对比.py",
-   "ttl": 1,
-   "count": 1
-  },
-  {
-   "file": "pages/22_基本面分析.py",
-   "ttl": 1800,
-   "count": 4
-  },
-  {
-   "file": "pages/22_基本面分析.py",
-   "ttl": 3600,
-   "count": 2
-  },
-  {
-   "file": "pages/23_事件追踪.py",
-   "ttl": 60,
-   "count": 1
-  },
-  {
-   "file": "pages/33_ETF筛选.py",
-   "ttl": 180,
-   "count": 1
-  },
-  {
-   "file": "pages/35_资金流向.py",
-   "ttl": 300,
-   "count": 3
-  },
-  {
-   "file": "pages/42_模拟交易.py",
-   "ttl": 20,
-   "count": 1
-  },
-  {
-   "file": "pages/46_自选股监控.py",
-   "ttl": 3600,
-   "count": 1
-  },
-  {
-   "file": "pages/50_市场情绪.py",
-   "ttl": 120,
-   "count": 1
-  },
-  {
-   "file": "pages/50_市场情绪.py",
-   "ttl": 600,
-   "count": 2
-  },
-  {
-   "file": "pages/51_每日晨报.py",
-   "ttl": 300,
-   "count": 1
-  },
-  {
-   "file": "pages/51_每日晨报.py",
-   "ttl": 600,
-   "count": 1
-  },
-  {
-   "file": "pages/53_星辰AI.py",
-   "ttl": 60,
-   "count": 1
-  },
-  {
-   "file": "pages/54_今日决策面板.py",
-   "ttl": 600,
-   "count": 1
-  },
-  {
-   "file": "pages/56_市场状态机.py",
-   "ttl": 3600,
-   "count": 1
-  },
-  {
-   "file": "pages/71_因子分析.py",
-   "ttl": 1800,
-   "count": 1
-  },
-  {
-   "file": "pages/72_六维评分.py",
-   "ttl": 120,
-   "count": 1
-  },
-  {
-   "file": "pages/72_六维评分.py",
-   "ttl": 600,
-   "count": 1
-  },
-  {
-   "file": "pages/72_六维评分.py",
-   "ttl": 3600,
-   "count": 1
-  },
-  {
-   "file": "pages/84_宏观数据.py",
-   "ttl": 3600,
-   "count": 2
-  },
-  {
-   "file": "pages/85_龙虎榜.py",
-   "ttl": 1800,
-   "count": 1
-  },
-  {
-   "file": "pages/94_消息中心.py",
-   "ttl": 30,
-   "count": 3
-  }
- ]
+  "note": "T-272③ 裸 TTL 快照（st.cache_data ttl=数字常量，pages/+modules/+app.py）。新增未登记裸 TTL 会使 test_cache_ttl_tiers 变红——请改用 cache_utils.TTL_TIERS 或在本快照登记并说明理由。 P0-1a/P0-1b（2026-10-30）：20/11 页渲染主体抽取至 modules/stock_research.py，原 pages/20_个股分析.py、pages/11_股票选取.py 共 15 条裸 TTL 快照按同值同数纯路径迁移至实现体（守恒 15==15，逐档一致）。",
+  "entries": [
+    {
+      "file": "app.py",
+      "ttl": 15,
+      "count": 1
+    },
+    {
+      "file": "modules/session.py",
+      "ttl": 20,
+      "count": 1
+    },
+    {
+      "file": "modules/session.py",
+      "ttl": 30,
+      "count": 2
+    },
+    {
+      "file": "modules/spot_rank.py",
+      "ttl": 60,
+      "count": 1
+    },
+    {
+      "file": "modules/theme_heat.py",
+      "ttl": 120,
+      "count": 1
+    },
+    {
+      "file": "modules/widgets.py",
+      "ttl": 30,
+      "count": 1
+    },
+    {
+      "file": "modules/widgets.py",
+      "ttl": 60,
+      "count": 1
+    },
+    {
+      "file": "pages/10_行情看板.py",
+      "ttl": 3600,
+      "count": 3
+    },
+    {
+      "file": "pages/12_板块轮动.py",
+      "ttl": 300,
+      "count": 1
+    },
+    {
+      "file": "pages/13_市场强弱.py",
+      "ttl": 120,
+      "count": 1
+    },
+    {
+      "file": "pages/13_市场强弱.py",
+      "ttl": 600,
+      "count": 2
+    },
+    {
+      "file": "pages/14_智能盯盘.py",
+      "ttl": 15,
+      "count": 2
+    },
+    {
+      "file": "pages/16_财报日历.py",
+      "ttl": 1800,
+      "count": 4
+    },
+    {
+      "file": "pages/17_市场魔方.py",
+      "ttl": 300,
+      "count": 6
+    },
+    {
+      "file": "pages/17_市场魔方.py",
+      "ttl": 600,
+      "count": 3
+    },
+    {
+      "file": "pages/17_市场魔方.py",
+      "ttl": 1800,
+      "count": 1
+    },
+    {
+      "file": "pages/21_多股对比.py",
+      "ttl": 1,
+      "count": 1
+    },
+    {
+      "file": "pages/22_基本面分析.py",
+      "ttl": 1800,
+      "count": 4
+    },
+    {
+      "file": "pages/22_基本面分析.py",
+      "ttl": 3600,
+      "count": 2
+    },
+    {
+      "file": "pages/23_事件追踪.py",
+      "ttl": 60,
+      "count": 1
+    },
+    {
+      "file": "pages/33_ETF筛选.py",
+      "ttl": 180,
+      "count": 1
+    },
+    {
+      "file": "pages/35_资金流向.py",
+      "ttl": 300,
+      "count": 3
+    },
+    {
+      "file": "pages/42_模拟交易.py",
+      "ttl": 20,
+      "count": 1
+    },
+    {
+      "file": "pages/46_自选股监控.py",
+      "ttl": 3600,
+      "count": 1
+    },
+    {
+      "file": "pages/50_市场情绪.py",
+      "ttl": 120,
+      "count": 1
+    },
+    {
+      "file": "pages/50_市场情绪.py",
+      "ttl": 600,
+      "count": 2
+    },
+    {
+      "file": "pages/51_每日晨报.py",
+      "ttl": 300,
+      "count": 1
+    },
+    {
+      "file": "pages/51_每日晨报.py",
+      "ttl": 600,
+      "count": 1
+    },
+    {
+      "file": "pages/53_星辰AI.py",
+      "ttl": 60,
+      "count": 1
+    },
+    {
+      "file": "pages/54_今日决策面板.py",
+      "ttl": 600,
+      "count": 1
+    },
+    {
+      "file": "pages/56_市场状态机.py",
+      "ttl": 3600,
+      "count": 1
+    },
+    {
+      "file": "pages/71_因子分析.py",
+      "ttl": 1800,
+      "count": 1
+    },
+    {
+      "file": "pages/72_六维评分.py",
+      "ttl": 120,
+      "count": 1
+    },
+    {
+      "file": "pages/72_六维评分.py",
+      "ttl": 600,
+      "count": 1
+    },
+    {
+      "file": "pages/72_六维评分.py",
+      "ttl": 3600,
+      "count": 1
+    },
+    {
+      "file": "pages/84_宏观数据.py",
+      "ttl": 3600,
+      "count": 2
+    },
+    {
+      "file": "pages/85_龙虎榜.py",
+      "ttl": 1800,
+      "count": 1
+    },
+    {
+      "file": "pages/94_消息中心.py",
+      "ttl": 30,
+      "count": 3
+    },
+    {
+      "file": "modules/stock_research.py",
+      "ttl": 1,
+      "count": 1
+    },
+    {
+      "file": "modules/stock_research.py",
+      "ttl": 120,
+      "count": 2
+    },
+    {
+      "file": "modules/stock_research.py",
+      "ttl": 300,
+      "count": 6
+    },
+    {
+      "file": "modules/stock_research.py",
+      "ttl": 600,
+      "count": 1
+    },
+    {
+      "file": "modules/stock_research.py",
+      "ttl": 1800,
+      "count": 5
+    }
+  ]
 }

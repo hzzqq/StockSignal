@@ -10,15 +10,27 @@ from pathlib import Path
 import pytest
 
 PAGES = Path(__file__).resolve().parent.parent / "pages"
-# P0-1a（2026-10-30）：20 页渲染主体抽取至 modules/stock_research.py（pages/20 为独立入口 shim）。
-# 守卫清单条目保留（覆盖面不弱化），定位改指实现体；断言本体零改动（spec §1.6 预授权）。
+# P0-1a/P0-1b（2026-10-30）：20/11 页渲染主体抽取至 modules/stock_research.py
+# （pages/20、pages/11 为独立入口 shim）。守卫清单条目保留（覆盖面不弱化），
+# 定位改指实现体内对应渲染函数（函数体级，防同模块跨子页内容互相污染）；
+# 断言本体零改动（spec §1.6 预授权）。
 MODULES = Path(__file__).resolve().parent.parent / "modules"
-_RELOCATED = {"20_个股分析.py": "stock_research.py"}
+_RELOCATED = {
+    "20_个股分析.py": "render_stock_analysis",
+    "11_股票选取.py": "render_stock_picker",
+}
 
 
-def _guard_path(fname: str) -> Path:
-    rel = _RELOCATED.get(fname)
-    return (MODULES / rel) if rel else (PAGES / fname)
+def _guard_tree(fname: str) -> ast.AST:
+    """守卫清单页名 → 实现体 AST 节点（函数体级）；未迁移页照常解析页面文件。"""
+    fnname = _RELOCATED.get(fname)
+    if fnname is None:
+        return ast.parse((PAGES / fname).read_text(encoding="utf-8"))
+    mod = ast.parse((MODULES / "stock_research.py").read_text(encoding="utf-8"))
+    for node in ast.walk(mod):
+        if isinstance(node, ast.FunctionDef) and node.name == fnname:
+            return node
+    raise AssertionError(f"守卫清单文件缺失实现体: stock_research.py::{fnname}（{fname}）")
 # 已完成 delta_color 全量补齐的页面（增量补齐时追加到此清单）
 COMPLETED_FILES = [
     "30_策略回测.py",
@@ -57,9 +69,7 @@ def _has_delta_color(call: ast.Call) -> bool:
 
 @pytest.mark.parametrize("fname", COMPLETED_FILES)
 def test_completed_pages_all_metrics_have_delta_color(fname):
-    path = _guard_path(fname)
-    assert path.exists(), f"守卫清单文件缺失: {fname}"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = _guard_tree(fname)
     calls = list(_metric_calls(tree))
     assert calls, f"{fname} 未扫描到 st.metric 调用（文件结构变化需更新守卫）"
     bad = [c.lineno for c in calls if not _has_delta_color(c)]
@@ -69,8 +79,7 @@ def test_completed_pages_all_metrics_have_delta_color(fname):
 @pytest.mark.parametrize("fname", COMPLETED_FILES)
 def test_completed_pages_no_us_semantics(fname):
     """禁止 normal（美股绿涨语义），A 股只允许 inverse/off"""
-    path = _guard_path(fname)
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = _guard_tree(fname)
     for c in _metric_calls(tree):
         for kw in c.keywords:
             if kw.arg == "delta_color" and isinstance(kw.value, ast.Constant):

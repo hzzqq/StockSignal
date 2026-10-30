@@ -1,32 +1,52 @@
 """PURE offline tests for `_safe_video_markdown` (stored-XSS fix, R1/R2/R5).
 
-The page module (pages/20_个股分析.py) executes heavy Streamlit/network top-level
-code, so we do NOT import it. We stub `streamlit` to keep things offline and load
-the pure helper in isolation via AST extraction, then exercise it directly.
+The implementation module (modules/stock_research.py) executes heavy Streamlit/
+network top-level code, so we do NOT import it. We stub `streamlit` to keep things
+offline and load the pure helper in isolation via AST extraction, then exercise it
+directly.
+
+P0-1a（2026-10-30）：20 页渲染主体（含这两个纯函数）已抽取至
+modules/stock_research.py::render_stock_analysis 函数体（嵌套 def）；
+守卫定位随之改指实现体（只放宽定位方式、断言本体零改动，spec §1.6 预授权）。
 """
 import sys
 import types
 import ast
 import os
+import textwrap
 
 # STUB streamlit before touching anything page-related (keeps tests offline).
 sys.modules.setdefault("streamlit", types.ModuleType("streamlit"))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PAGE = os.path.join(HERE, "..", "pages", "20_个股分析.py")
+_SR_MOD = os.path.join(HERE, "..", "modules", "stock_research.py")
+_HOST_FN = "render_stock_analysis"  # P0-1a 后 20 页实现体所在宿主函数
 
 
 def _load_pure_func(name):
-    """Extract a module-level function def from the page file and exec it alone."""
-    with open(PAGE, "r", encoding="utf-8") as fh:
+    """Extract a nested pure function def from the implementation body and exec it alone.
+
+    P0-1a 抽取后 _safe_video_markdown / _video_embed_url 是 render_stock_analysis
+    函数体内的嵌套 def（带缩进），定位走宿主函数 AST 子树，提取块 textwrap.dedent
+    去缩进后才能独立 exec（断言本体不变）。
+    """
+    with open(_SR_MOD, "r", encoding="utf-8") as fh:
         src = fh.read()
     tree = ast.parse(src)
-    for node in tree.body:
+    host = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == _HOST_FN:
+            host = node
+            break
+    if host is None:
+        raise AssertionError(f"stock_research.py 缺 {_HOST_FN}（守卫定位失效）")
+    for node in ast.walk(host):
         if isinstance(node, ast.FunctionDef) and node.name == name:
             lines = src.splitlines()
             block = "\n".join(lines[node.lineno - 1: node.end_lineno])
+            block = textwrap.dedent(block)  # 嵌套 def 去缩进后独立 exec
             ns = {}
-            exec(compile(block, PAGE, "exec"), ns)
+            exec(compile(block, _SR_MOD, "exec"), ns)
             return ns[name]
     raise AttributeError(name)
 
