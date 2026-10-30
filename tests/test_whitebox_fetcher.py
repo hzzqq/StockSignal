@@ -106,15 +106,12 @@ class TestCacheMechanism:
 class TestGetDaily:
     """get_daily 白盒测试。"""
 
+    @pytest.mark.live
     def test_end_defaults_to_today(self):
-        """end=None 时默认取今天。"""
+        """end=None 时默认取今天（真网集成测试，默认不收集）。"""
         fetcher = StockFetcher()
-        # 只验证不报错，缓存命中或网络不可用都行
-        try:
-            df = fetcher.get_daily("600519", start="2025-06-01")
-            assert isinstance(df, pd.DataFrame)
-        except RuntimeError:
-            pytest.skip("akshare 未安装")
+        df = fetcher.get_daily("600519", start="2025-06-01")
+        assert isinstance(df, pd.DataFrame)
 
     def test_akshare_not_installed_error(self, tmp_path, monkeypatch):
         """akshare 关闭后，fetcher 应跳过 akshare 并尝试完整降级链；
@@ -145,16 +142,14 @@ class TestGetDaily:
         with pytest.raises(RuntimeError):
             fetcher.get_daily("600519", start="2025-01-01", end="2025-06-01")
 
+    @pytest.mark.live
     def test_returns_expected_columns(self):
-        """返回的 DataFrame 应包含预期列。"""
+        """返回的 DataFrame 应包含预期列（真网集成测试，默认不收集）。"""
         fetcher = StockFetcher()
-        try:
-            df = fetcher.get_daily("600519", start="2025-06-01", end="2025-06-15")
-            if not df.empty:
-                expected_cols = {"date", "open", "close", "high", "low", "volume", "amount", "change_pct"}
-                assert expected_cols.issubset(set(df.columns))
-        except RuntimeError:
-            pytest.skip("akshare 未安装")
+        df = fetcher.get_daily("600519", start="2025-06-01", end="2025-06-15")
+        if not df.empty:
+            expected_cols = {"date", "open", "close", "high", "low", "volume", "amount", "change_pct"}
+            assert expected_cols.issubset(set(df.columns))
 
 
 class TestGetMacro:
@@ -166,17 +161,12 @@ class TestGetMacro:
         with pytest.raises(ValueError, match="不支持的指标"):
             fetcher.get_macro("invalid_indicator")
 
+    @pytest.mark.live
     def test_valid_indicators_listed(self):
-        """pmi_mfg / cpi / m2 应在 indicator_map 中。"""
-        import modules.fetcher as fm
-        # 验证 indicator_map 存在且包含三个指标
+        """pmi_mfg / cpi / m2 应在 indicator_map 中（真网集成测试，默认不收集）。"""
+        import modules.fetcher as fm  # noqa: F401  (契约：indicator_map 存在)
         fetcher = StockFetcher()
-        try:
-            fetcher.get_macro("pmi_mfg")
-        except RuntimeError:
-            pytest.skip("akshare 未安装")
-        except Exception:
-            pass  # 网络错误可接受
+        fetcher.get_macro("pmi_mfg")
 
 
 class TestGetSectorData:

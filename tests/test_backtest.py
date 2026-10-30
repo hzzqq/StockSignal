@@ -125,42 +125,38 @@ class TestBacktester:
         assert res["rsi14"] > 80, f"应构造为强涨股(RSI>80)，实际 {res['rsi14']}"
         assert res["rsi14"] <= 92, f"末端 RSI 不应极端泡沫(>92)，实际 {res['rsi14']}"
 
+    @pytest.mark.live
     def test_run_ma_cross(self):
-        """测试均线交叉策略回测（需要网络）。"""
+        """测试均线交叉策略回测（真网集成测试，默认不收集）。"""
         bt = Backtester()
-        try:
-            result = bt.run(
-                ticker="000858",
-                start="2024-06-01",
-                end="2025-06-01",
-                strategy="ma_cross",
-                initial_capital=100000
-            )
-            assert result.df is not None
-            s = result.summary()
-            assert "total_return_pct" in s
-            assert "sharpe_ratio" in s
-        except Exception:
-            pytest.skip("网络不可用，跳过")
+        result = bt.run(
+            ticker="000858",
+            start="2024-06-01",
+            end="2025-06-01",
+            strategy="ma_cross",
+            initial_capital=100000
+        )
+        assert result.df is not None
+        s = result.summary()
+        assert "total_return_pct" in s
+        assert "sharpe_ratio" in s
 
+    @pytest.mark.live
     def test_run_event_driven(self):
-        """测试事件驱动策略回测（需要网络）。"""
+        """测试事件驱动策略回测（真网集成测试，默认不收集）。"""
         bt = Backtester()
-        try:
-            result = bt.run(
-                ticker="000858",
-                start="2024-06-01",
-                end="2025-06-01",
-                strategy="event_driven",
-                keywords=["白酒", "提价", "旺季"],
-                initial_capital=100000
-            )
-            assert result.df is not None
-            s = result.summary()
-            assert "total_return_pct" in s
-            assert "sharpe_ratio" in s
-        except Exception:
-            pytest.skip("网络不可用，跳过")
+        result = bt.run(
+            ticker="000858",
+            start="2024-06-01",
+            end="2025-06-01",
+            strategy="event_driven",
+            keywords=["白酒", "提价", "旺季"],
+            initial_capital=100000
+        )
+        assert result.df is not None
+        s = result.summary()
+        assert "total_return_pct" in s
+        assert "sharpe_ratio" in s
 
     def test_invalid_strategy(self):
         bt = Backtester()

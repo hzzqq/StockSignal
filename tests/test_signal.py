@@ -72,13 +72,11 @@ class TestSignalEngine:
         assert 0 <= score <= 100
         assert score > 50  # 上涨趋势应该偏高
 
+    @pytest.mark.live
     def test_macro_score(self):
         engine = SignalEngine()
-        try:
-            score = engine.macro_score()
-            assert 0 <= score <= 100
-        except Exception:
-            pytest.skip("网络不可用，跳过")
+        score = engine.macro_score()
+        assert 0 <= score <= 100
 
     def test_add_and_load_event(self, tmp_path):
         """测试事件添加与加载。"""

@@ -344,20 +344,18 @@ class TestBacktesterWhite:
         assert result.iloc[1]["cumulative_return"] == pytest.approx(10, abs=0.1)
         assert result.iloc[2]["cumulative_return"] == pytest.approx(20, abs=0.1)
 
+    @pytest.mark.live
     def test_run_ma_cross_integration(self):
-        """MA交叉策略集成测试（需要网络）。"""
+        """MA交叉策略集成测试（真网集成测试，默认不收集）。"""
         bt = Backtester()
-        try:
-            result = bt.run(
-                ticker="000858",
-                start="2024-06-01",
-                end="2025-06-01",
-                strategy="ma_cross",
-                initial_capital=100000
-            )
-            assert result.df is not None
-            s = result.summary()
-            assert "total_return_pct" in s
-            assert "sharpe_ratio" in s
-        except Exception:
-            pytest.skip("网络不可用")
+        result = bt.run(
+            ticker="000858",
+            start="2024-06-01",
+            end="2025-06-01",
+            strategy="ma_cross",
+            initial_capital=100000
+        )
+        assert result.df is not None
+        s = result.summary()
+        assert "total_return_pct" in s
+        assert "sharpe_ratio" in s

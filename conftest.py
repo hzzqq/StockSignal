@@ -218,6 +218,32 @@ def _clean_fetcher_l0():
         pass
 
 
+def pytest_collection_modifyitems(config, items):
+    """默认不收集真网（live）用例——使配置声明的「真网用例默认不收集」真正生效。
+
+    P1-3 治理（T-350 任务 4）：真网集成测试（@pytest.mark.live）在离线冒烟里永远
+    跑不到，此前靠运行时 skipif 收集后又 skip，虚增 skip 率（评测集诊断 #3/#4）。
+    此处直接剔除收集，仅在显式 `pytest -m live` 且 `OFFLINE_TEST=0` 时才纳入。
+    不改变用例总数——live 用例仍在文件中，仅默认不被收集；CI 定时
+    `OFFLINE_TEST=0 pytest -m live` 跑真网契约。
+    """
+    import os
+
+    markexpr = (config.option.markexpr or "").strip()
+    offline = os.environ.get("OFFLINE_TEST", "1") != "0"
+    # 默认（未显式 -m live）或显式 -m live 但离线（OFFLINE_TEST!=0）时，剔除真网用例
+    if markexpr != "live" or offline:
+        kept = []
+        removed = 0
+        for it in items:
+            if "live" in it.keywords:
+                removed += 1
+            else:
+                kept.append(it)
+        if removed:
+            items[:] = kept
+
+
 def pytest_sessionfinish(session, exitstatus):
     """session 收尾：打印 skip 率与覆盖率红线提示。
 

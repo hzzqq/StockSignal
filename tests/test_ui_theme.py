@@ -79,7 +79,7 @@ def test_loading_spinner_dark_vs_light_color(monkeypatch):
     monkeypatch.setattr(sf, "_theme_is_dark", lambda: True)
     calls = _stub_st(monkeypatch)
     sf.loading_spinner("暗")
-    assert "#667eea" in calls["md"][-1]   # 暗夜 accent
+    assert "#4f46e5" in calls["md"][-1]   # 暗夜 accent（P0-3 已统一为品牌靛紫）
 
     monkeypatch.setattr(sf, "_theme_is_dark", lambda: False)
     calls2 = _stub_st(monkeypatch)

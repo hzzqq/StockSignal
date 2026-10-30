@@ -243,13 +243,11 @@ class TestEventScore:
 class TestMacroScore:
     """macro_score 白盒测试。"""
 
+    @pytest.mark.live
     def test_returns_value_in_range(self):
         engine = SignalEngine()
-        try:
-            score = engine.macro_score()
-            assert 0 <= score <= 100
-        except Exception:
-            pytest.skip("网络不可用")
+        score = engine.macro_score()
+        assert 0 <= score <= 100
 
     def test_exception_returns_50(self, monkeypatch):
         """异常时返回 50。"""
@@ -298,17 +296,15 @@ class TestMacroScore:
 class TestEvaluate:
     """evaluate 白盒测试。"""
 
+    @pytest.mark.live
     def test_returns_expected_keys(self):
         engine = SignalEngine()
-        try:
-            result = engine.evaluate("600519", ["白酒"], date="2025-06-01")
-            assert "price_score" in result
-            assert "event_score" in result
-            assert "macro_score" in result
-            assert "total" in result
-            assert 0 <= result["total"] <= 100
-        except Exception:
-            pytest.skip("网络不可用")
+        result = engine.evaluate("600519", ["白酒"], date="2025-06-01")
+        assert "price_score" in result
+        assert "event_score" in result
+        assert "macro_score" in result
+        assert "total" in result
+        assert 0 <= result["total"] <= 100
 
     def test_total_is_weighted_sum(self, monkeypatch):
         """total 应为加权求和。"""

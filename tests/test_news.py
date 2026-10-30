@@ -165,11 +165,9 @@ class TestEventMiner:
 
 class TestNewsFetcher:
 
+    @pytest.mark.live
     def test_fetch_offline(self):
-        """测试无网络时的容错。"""
+        """测试无网络时的容错（真网集成测试，默认不收集）。"""
         fetcher = NewsFetcher()
-        try:
-            df = fetcher.fetch(keyword="煤炭", source="eastmoney", limit=5)
-            assert isinstance(df, pd.DataFrame)
-        except Exception:
-            pytest.skip("网络不可用，跳过")
+        df = fetcher.fetch(keyword="煤炭", source="eastmoney", limit=5)
+        assert isinstance(df, pd.DataFrame)
