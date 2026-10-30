@@ -113,4 +113,8 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
+    # CLI 直跑时强制 UTF-8 输出管道：GBK 控制台/管道下 print emoji 会 UnicodeEncodeError（T-359）
+    for _s in (sys.stdout, sys.stderr):
+        if hasattr(_s, "reconfigure"):
+            _s.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())

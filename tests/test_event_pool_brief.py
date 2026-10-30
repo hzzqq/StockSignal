@@ -50,11 +50,11 @@ def test_build_json_shape():
 def test_cli_dry_run_exits_zero():
     """无真实信号时（离线），--dry-run 应返回 0 且不抛异常。"""
     r = subprocess.run([sys.executable, SCRIPT, "--dry-run"],
-                       cwd=ROOT, capture_output=True, text=True, timeout=120)
+                       cwd=ROOT, capture_output=True, encoding="utf-8", errors="replace", timeout=120)
     assert r.returncode == 0, r.stderr
 
 
 def test_cli_top_n_exits_zero():
     r = subprocess.run([sys.executable, SCRIPT, "--dry-run", "--top-n", "5"],
-                       cwd=ROOT, capture_output=True, text=True, timeout=120)
+                       cwd=ROOT, capture_output=True, encoding="utf-8", errors="replace", timeout=120)
     assert r.returncode == 0, r.stderr

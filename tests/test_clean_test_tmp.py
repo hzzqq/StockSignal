@@ -77,6 +77,6 @@ def test_cli_delete_via_subprocess(tmp_path):
     (base / "a.lock").write_text("x")
     r = __import__("subprocess").run(
         [sys.executable, SCRIPT, "--root", str(tmp_path), "--target", str(base)],
-        cwd=ROOT, capture_output=True, text=True, timeout=60)
+        cwd=ROOT, capture_output=True, encoding="utf-8", errors="replace", timeout=60)
     assert r.returncode == 0, r.stderr
     assert not base.exists()
