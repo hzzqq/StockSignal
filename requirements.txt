@@ -12,3 +12,6 @@ pytest>=8.0.0
 jieba>=0.42.1
 snownlp>=0.12.3
 baostock>=0.8.8
+openai>=1.0.0
+scipy>=1.10.0
+scikit-learn>=1.3.0
