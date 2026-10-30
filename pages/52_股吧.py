@@ -24,11 +24,9 @@ import modules.scroll_nav as sn
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 render_standard_page(
     title="股吧 · 社区讨论", icon="💬",
-    caption="发表你的观点或文章，与其他投资者交流。可关联具体股票，点击帖子里的股票直达「股票选取」。",
+    caption="发表你的观点或文章，与其他投资者交流。可关联具体股票，点击帖子里的股票直达「股票选取」。⚠️ 社区内容由用户生成，数据仅供参考，不构成投资建议；请理性判断，风险自担。",
     layout="wide",
 )
-sf_card("💬 股吧 · 社区讨论", "发表观点或文章，与其他投资者交流；可关联具体股票，点击帖子内股票直达「股票选取」。社区内容由用户生成，请理性判断、风险自担。", icon="💬")
-st.caption("⚠️ 社区内容由用户生成，数据仅供参考，不构成投资建议；请理性判断，风险自担。")
 trading_autorefresh(key="forum_autorefresh")
 
 user = get_user() or {}

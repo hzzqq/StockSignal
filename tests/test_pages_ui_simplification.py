@@ -288,3 +288,30 @@ def test_92_intro_card_removed():
     assert "管理员视图" not in src
     assert "tab_users" in src and "tab_create" in src and "tab_logs" in src
 
+
+# ═══════════════════════ 重复页头卡守卫（本次修复） ═══════════════════════
+# 系统性缺陷：render_standard_page 已渲染页头（标题 + 简介 caption），其下方又紧跟
+# 一张 sf_card，标题/正文与页头高度重复 → 视觉上「两个组件内容一样」。
+# 已删除下列页面顶部多余的 sf_card，此处锁死不得回归。
+_HEADER_DUP_CARDS = {
+    "52_股吧.py": 'sf_card("💬 股吧 · 社区讨论"',
+    "33_ETF筛选.py": 'sf_card("🧰 ETF / 基金筛选器"',
+    "34_体检扫描.py": 'sf_card("🩺 一键体检扫描台"',
+    "44_智能条件单.py": 'sf_card("🤖 智能条件单"',
+    "43_实盘交易.py": 'sf_card("💰 实盘交易 · 下单入口"',
+    "32_智能选股.py": 'sf_card("智能选股导读"',
+    "31_形态选股.py": 'sf_card("技术形态选股器导读"',
+    "15_市场驱动力.py": 'sf_card("五维驱动力导读"',
+    "50_市场情绪.py": 'sf_card("市场温度计导读"',
+    "23_事件追踪.py": 'sf_card("事件追踪导读"',
+    "12_板块轮动.py": 'sf_card("板块轮动导读"',
+    "22_基本面分析.py": 'sf_card("基本面分析导读"',
+}
+
+
+def test_no_duplicate_header_cards():
+    """页头（render_standard_page）之外不得再出现与其同题/同义的 sf_card 重复卡。"""
+    for page, forbidden in _HEADER_DUP_CARDS.items():
+        src = _src(page)
+        assert forbidden not in src, f"{page} 顶部重复页头卡不得回归：{forbidden}"
+

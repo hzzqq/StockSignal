@@ -32,8 +32,6 @@ dark = render_standard_page(
     layout="wide",
 )
 
-sf_card("技术形态选股器导读", "在自选股或手动股票池中扫描金叉、突破、背离等技术形态并给出多维评分，辅助盘前筛选。", icon="🧭")
-
 trading_autorefresh(key="pattern_autorefresh")
 
 

@@ -27,8 +27,6 @@ dark = render_standard_page(
     caption="移植自 stock-selecter 策略库：11 种量化策略，支持单策略与多策略 AND/OR/综合评分组合。结果仅供参考，非投资建议。",
 )
 
-sf_card("智能选股导读", "内置 11 种量化策略（ROE/高股息/低估值/费雪成长/MACD底背离等），支持单策略与多策略 AND/OR/综合评分组合筛选。", icon="🎯")
-
 STRATEGY_DESC = {
     "roe": "净资产收益率≥阈值且 ROA 健康、毛利率高、负债率低的优质盈利股",
     "macd": "周线下跌 + MACD 底背离 + 放量反转的抄底信号",

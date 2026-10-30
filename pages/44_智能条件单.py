@@ -25,7 +25,6 @@ from modules.page_guard import safe_fragment
 from modules.ui_kit import xc_success_box, xc_warn_box
 dark = render_standard_page(title='智能条件单', icon='🤖', caption='融资买入额阈值 / 5 日均线突破破位 → 自动下单（交易时段后台扫描 + 可手动触发）')
 
-sf_card("🤖 智能条件单", "设置触发条件（单股 / 全市场融资买入额阈值、5 日均线突破或破位），触发后由后端统一下单并写订单流水；交易时段后台扫描，也可手动触发一轮。", icon="⚡")
 st.caption('⚠️ 数据仅供参考，不构成投资建议；触发后按账户实盘/模拟模式真实下单')
 try:
     from modules.fundflow import _ensure_proxy_and_ssl
