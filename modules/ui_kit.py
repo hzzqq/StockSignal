@@ -278,6 +278,20 @@ _KIT_CSS = _TOKEN_CSS + r"""
 [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has([data-testid="stMarkdownContainer"] > style:first-child):has([data-testid="stMarkdownContainer"] > style:last-child):not(:has([data-testid="stMarkdownContainer"] > :not(style):not(link))){display:none}
 [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has([data-testid="stMarkdownContainer"] > link:first-child):has([data-testid="stMarkdownContainer"] > style:last-child):not(:has([data-testid="stMarkdownContainer"] > :not(style):not(link))){display:none}
 </style>
+<style>
+/* ===== 前端打磨层（additive：不改动任何已锁定的 .xc-card/.xc-hero 声明） ===== */
+/* 表格容器：主题化细滚动条（数据密集页高频出现，原生滚动条在暗色下刺眼） */
+.ss-table-wrap{scrollbar-width:thin;scrollbar-color:var(--ss-accent) var(--ss-line)}
+.ss-table-wrap::-webkit-scrollbar{height:8px;width:8px}
+.ss-table-wrap::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ss-accent) 55%,var(--ss-line));border-radius:999px}
+.ss-table-wrap::-webkit-scrollbar-track{background:var(--ss-surface-2)}
+/* 表单控件主题色（复选/单选/滑块跟随强调色，去除浏览器默认蓝，统一视觉记忆） */
+.stApp input[type="checkbox"],.stApp input[type="radio"],.stApp input[type="range"]{accent-color:var(--ss-accent)}
+/* 键盘可达性：聚焦环（不依赖外部 class，随主题切色） */
+.xc-card:focus-visible,.xc-card[tabindex]:focus{outline:2px solid var(--ss-accent);outline-offset:2px}
+/* KPI 卡片最小高度，避免单行/少字段时过矮、网格参差不齐 */
+.xc-card{min-height:96px}
+</style>
 """
 
 # ★ 首帧兜底 CSS：page_hero 每次都注入，不走 session_state 去重。
@@ -379,8 +393,8 @@ def _info_banner_html(text: str, kind: str = "info", icon: str = "💡") -> str:
                 + html.escape(text[:64]) + '…<span class="xc-hint-more">展开</span>'
                 + '</summary><div class="xc-err-hint">' + html.escape(text) + '</div></details>')
     return (
-        f'<div class="ss-info {kind}">'
-        f'<span class="ss-ic">{html.escape(icon)}</span>'
+        f'<div class="xc-info {kind}">'
+        f'<span class="xc-ic">{html.escape(icon)}</span>'
         f'<div>{body}</div>'
         f'</div>'
     )

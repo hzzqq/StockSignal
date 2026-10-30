@@ -43,10 +43,10 @@ def test_hero_defaults():
 def test_info_banner_kinds():
     for kind in ("info", "success", "warning", "danger"):
         out = kit._info_banner_html("提示", kind=kind)
-        assert f"ss-info {kind}" in out
+        assert f"xc-info {kind}" in out
         assert "提示" in out
     # 非法 kind 回落 info
-    assert "ss-info info" in kit._info_banner_html("x", kind="bogus")
+    assert "xc-info info" in kit._info_banner_html("x", kind="bogus")
 
 
 def test_info_banner_escapes():
