@@ -1,7 +1,7 @@
 {
   "meta": {
     "tool": "scripts/ui_audit.py",
-    "generated_at": "2026-10-30 19:05:27",
+    "generated_at": "2026-10-30 22:11:58",
     "doc_source": "docs/KS_改善执行提示词_交付版.md P0-4 + T-353 卫生五维",
     "note": "AST 级实测，幂等可重跑，重跑即刷新快照；作为 UI 改造前后对照基线。脚本只读不写代码。"
   },
@@ -9,15 +9,13 @@
     "scope": "pages/*.py",
     "page_count": 72,
     "unsafe_allow_html": {
-      "pages": 45,
-      "calls": 220,
+      "pages": 43,
+      "calls": 139,
       "page_files": [
         "pages/10_行情看板.py",
-        "pages/11_股票选取.py",
         "pages/13_市场强弱.py",
         "pages/14_智能盯盘.py",
         "pages/16_财报日历.py",
-        "pages/20_个股分析.py",
         "pages/21_多股对比.py",
         "pages/22_基本面分析.py",
         "pages/23_事件追踪.py",
@@ -60,20 +58,18 @@
       ]
     },
     "sf_legacy_components": {
-      "pages": 44,
-      "calls": 155,
+      "pages": 42,
+      "calls": 147,
       "by_component": {
-        "sf_card": 106,
+        "sf_card": 98,
         "sf_metric": 49
       },
-      "referenced_pages": 49,
+      "referenced_pages": 47,
       "note": "pages/calls=AST 调用口径；referenced_pages=调用∪import∪名称引用宽口径（母本『引用』口径）；函数族实际仅 modules/ui_theme.py 的 sf_card/sf_metric 在位",
       "page_files": [
         "pages/10_行情看板.py",
-        "pages/11_股票选取.py",
         "pages/12_板块轮动.py",
         "pages/15_市场驱动力.py",
-        "pages/20_个股分析.py",
         "pages/22_基本面分析.py",
         "pages/23_事件追踪.py",
         "pages/30_策略回测.py",
@@ -116,16 +112,18 @@
       ]
     },
     "st_metric": {
-      "pages": 15,
-      "calls": 94,
+      "pages": 13,
+      "calls": 86,
       "missing_delta_color_pages": 0,
       "missing_delta_color_calls": 0
     },
     "no_ui_kit_import": {
-      "pages": 16,
-      "pure_legacy_pages": 8,
+      "pages": 18,
+      "pure_legacy_pages": 10,
       "note": "pages=直接 import 口径（import modules.ui_kit / from modules.ui_kit import / from modules import ui_kit）；pure_legacy_pages=其中无 sf_*/xc_* 调用的纯旧页（母本『纯旧页』口径）",
       "page_files": [
+        "pages/11_股票选取.py",
+        "pages/20_个股分析.py",
         "pages/34_体检扫描.py",
         "pages/64_投研圆桌.py",
         "pages/70_涨停复盘.py",
@@ -145,17 +143,17 @@
       ]
     },
     "xc_new_components": {
-      "pages": 10,
-      "calls": 33,
+      "pages": 9,
+      "calls": 30,
       "by_component": {
-        "xc_kpi_grid": 27,
+        "xc_kpi_grid": 24,
         "xc_section_header": 6
       }
     }
   },
   "hygiene_baseline": {
     "scope": "仓库 .py（排除 tests/__pycache__/.venv/.git/.workbuddy/.trae 等）",
-    "file_count": 349,
+    "file_count": 350,
     "use_container_width": {
       "count": 0,
       "files": 0,
@@ -165,10 +163,10 @@
     "bare_st_rerun": {
       "all_calls": 155,
       "bare_calls": 104,
-      "pages_affected": 28,
+      "pages_affected": 27,
       "by_dir": {
-        "modules": 7,
-        "pages": 21
+        "modules": 8,
+        "pages": 19
       },
       "per_page_top10": [
         {
@@ -188,6 +186,10 @@
           "count": 8
         },
         {
+          "file": "modules/stock_research.py",
+          "count": 7
+        },
+        {
           "file": "pages/40_仓位管理.py",
           "count": 7
         },
@@ -198,10 +200,6 @@
         {
           "file": "pages/83_分析规则库.py",
           "count": 6
-        },
-        {
-          "file": "pages/11_股票选取.py",
-          "count": 5
         },
         {
           "file": "modules/widgets.py",
@@ -225,6 +223,17 @@
         "modules\\session.py:1142",
         "modules\\session.py:818",
         "modules\\session.py:1164",
+        "modules\\stock_research.py:198",
+        "modules\\stock_research.py:221",
+        "modules\\stock_research.py:1540",
+        "modules\\stock_research.py:1544",
+        "modules\\stock_research.py:1548",
+        "modules\\stock_research.py:1552",
+        "modules\\stock_research.py:1656",
+        "modules\\stock_research.py:388",
+        "modules\\stock_research.py:1112",
+        "modules\\stock_research.py:1814",
+        "modules\\stock_research.py:374",
         "modules\\ui_theme.py:1137",
         "modules\\widgets.py:488",
         "modules\\widgets.py:494",
@@ -233,17 +242,6 @@
         "modules\\zen_mode.py:54",
         "pages\\10_行情看板.py:44",
         "pages\\10_行情看板.py:596",
-        "pages\\11_股票选取.py:152",
-        "pages\\11_股票选取.py:156",
-        "pages\\11_股票选取.py:160",
-        "pages\\11_股票选取.py:164",
-        "pages\\11_股票选取.py:268",
-        "pages\\11_股票选取.py:426",
-        "pages\\20_个股分析.py:196",
-        "pages\\20_个股分析.py:219",
-        "pages\\20_个股分析.py:386",
-        "pages\\20_个股分析.py:1110",
-        "pages\\20_个股分析.py:372",
         "pages\\22_基本面分析.py:537",
         "pages\\22_基本面分析.py:609",
         "pages\\22_基本面分析.py:672",
@@ -362,8 +360,8 @@
         "app.py": 1,
         "conftest.py": 1,
         "mcp_server": 2,
-        "modules": 25,
-        "pages": 27,
+        "modules": 26,
+        "pages": 26,
         "scripts": 5,
         "start_background.py": 1,
         "startup_sim.py": 1
@@ -375,7 +373,7 @@
         "conftest.py:175",
         "conftest.py:210",
         "conftest.py:217",
-        "conftest.py:241",
+        "conftest.py:267",
         "mcp_server\\server.py:250",
         "mcp_server\\tools.py:39",
         "mcp_server\\tools.py:50",
@@ -410,6 +408,16 @@
         "modules\\shepherd_note.py:277",
         "modules\\shepherd_note.py:286",
         "modules\\source_metrics_persist.py:80",
+        "modules\\stock_research.py:242",
+        "modules\\stock_research.py:254",
+        "modules\\stock_research.py:266",
+        "modules\\stock_research.py:272",
+        "modules\\stock_research.py:1363",
+        "modules\\stock_research.py:305",
+        "modules\\stock_research.py:314",
+        "modules\\stock_research.py:1210",
+        "modules\\stock_research.py:1313",
+        "modules\\stock_research.py:1161",
         "modules\\stock_risk.py:698",
         "modules\\stock_screener.py:477",
         "modules\\widgets.py:801",
@@ -428,16 +436,6 @@
         "pages\\16_财报日历.py:259",
         "pages\\16_财报日历.py:392",
         "pages\\17_市场魔方.py:279",
-        "pages\\20_个股分析.py:240",
-        "pages\\20_个股分析.py:252",
-        "pages\\20_个股分析.py:264",
-        "pages\\20_个股分析.py:270",
-        "pages\\20_个股分析.py:1361",
-        "pages\\20_个股分析.py:303",
-        "pages\\20_个股分析.py:312",
-        "pages\\20_个股分析.py:1208",
-        "pages\\20_个股分析.py:1311",
-        "pages\\20_个股分析.py:1159",
         "pages\\22_基本面分析.py:435",
         "pages\\23_事件追踪.py:74",
         "pages\\23_事件追踪.py:80",
@@ -523,17 +521,17 @@
       "imports": {
         "count": 16,
         "by_dir": {
-          "modules": 1,
-          "pages": 15
+          "modules": 2,
+          "pages": 14
         },
         "locations": [
           "modules\\page_widgets.py:405 (modules.session.trading_autorefresh)",
-          "pages\\11_股票选取.py:27 (modules.session.trading_autorefresh)",
+          "modules\\stock_research.py:1415 (modules.session.trading_autorefresh)",
           "pages\\12_板块轮动.py:21 (modules.session.trading_autorefresh)",
           "pages\\17_市场魔方.py:35 (modules.session.trading_autorefresh)",
           "pages\\22_基本面分析.py:18 (modules.session.trading_autorefresh)",
           "pages\\23_事件追踪.py:40 (modules.session.trading_autorefresh)",
-          "pages\\24_个股研究.py:32 (modules.session.trading_autorefresh)",
+          "pages\\24_个股研究.py:33 (modules.session.trading_autorefresh)",
           "pages\\31_形态选股.py:19 (modules.session.trading_autorefresh)",
           "pages\\42_模拟交易.py:22 (modules.session.trading_autorefresh)",
           "pages\\43_实盘交易.py:21 (modules.session.trading_autorefresh)",
@@ -548,17 +546,17 @@
       "direct_calls": {
         "count": 17,
         "by_dir": {
-          "modules": 1,
-          "pages": 15
+          "modules": 2,
+          "pages": 14
         },
         "locations": [
           "modules\\page_widgets.py:406 (trading_autorefresh)",
-          "pages\\11_股票选取.py:58 (trading_autorefresh)",
+          "modules\\stock_research.py:1446 (trading_autorefresh)",
           "pages\\12_板块轮动.py:206 (trading_autorefresh)",
           "pages\\17_市场魔方.py:609 (trading_autorefresh)",
           "pages\\22_基本面分析.py:31 (trading_autorefresh)",
           "pages\\23_事件追踪.py:41 (trading_autorefresh)",
-          "pages\\24_个股研究.py:33 (trading_autorefresh)",
+          "pages\\24_个股研究.py:34 (trading_autorefresh)",
           "pages\\31_形态选股.py:37 (trading_autorefresh)",
           "pages\\42_模拟交易.py:115 (trading_autorefresh)",
           "pages\\43_实盘交易.py:174 (trading_autorefresh)",
