@@ -44,7 +44,9 @@ def test_latest_quote_time_is_max_not_min():
 
 def test_page_46_no_longer_uses_min_of_quote_times():
     """源码守卫：页面不得再出现 min(quote_times) 的"更新于"逻辑。"""
-    page = os.path.join(os.path.dirname(__file__), "..", "pages", "46_自选股监控.py")
+    # P0-1c 定位修正：46 页实现体=modules/portfolio_views.py::render_watchlist_monitor
+    # （断言本体零改动，同 P0-1a/b 先例）
+    page = os.path.join(os.path.dirname(__file__), "..", "modules", "portfolio_views.py")
     src = open(page, encoding="utf-8").read()
     assert "min(quote_times)" not in src, "page 46 仍存在 min(quote_times)（应改 latest_quote_time）"
     assert "latest_quote_time(quote_times)" in src, "page 46 未接入 latest_quote_time 单一真理源"

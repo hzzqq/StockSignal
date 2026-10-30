@@ -1,5 +1,5 @@
 {
-  "note": "T-272③ 裸 TTL 快照（st.cache_data ttl=数字常量，pages/+modules/+app.py）。新增未登记裸 TTL 会使 test_cache_ttl_tiers 变红——请改用 cache_utils.TTL_TIERS 或在本快照登记并说明理由。 P0-1a/P0-1b（2026-10-30）：20/11 页渲染主体抽取至 modules/stock_research.py，原 pages/20_个股分析.py、pages/11_股票选取.py 共 15 条裸 TTL 快照按同值同数纯路径迁移至实现体（守恒 15==15，逐档一致）。",
+  "note": "T-272③ 裸 TTL 快照（st.cache_data ttl=数字常量，pages/+modules/+app.py）。新增未登记裸 TTL 会使 test_cache_ttl_tiers 变红——请改用 cache_utils.TTL_TIERS 或在本快照登记并说明理由。 P0-1a/P0-1b（2026-10-30）：20/11 页渲染主体抽取至 modules/stock_research.py，原 pages/20_个股分析.py、pages/11_股票选取.py 共 15 条裸 TTL 快照按同值同数纯路径迁移至实现体（守恒 15==15，逐档一致）。 P0-1c（2026-10-30）：46/40/41 页渲染主体抽取至 modules/portfolio_views.py，原 pages/46_自选股监控.py 的 1 条裸 TTL 快照（ttl=3600×1）按同值同数纯路径迁移至实现体（守恒 1==1，40/41 页无裸 st.cache_data 数字 TTL，cached_fig 包装不属扫描口径）。",
   "entries": [
     {
       "file": "app.py",
@@ -117,7 +117,7 @@
       "count": 1
     },
     {
-      "file": "pages/46_自选股监控.py",
+      "file": "modules/portfolio_views.py",
       "ttl": 3600,
       "count": 1
     },

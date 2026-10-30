@@ -6,7 +6,8 @@
   💼 持仓      → pages/40_仓位管理.py（持仓盈亏 / 导入导出）
   📈 收益归因  → pages/41_组合收益.py（净值曲线 / 基准对比 / 收益贡献 / 回撤）
 
-实现方式（monkeypatch exec）：同「个股研究」，子页文件零改动、仅运行当前选中子视图。
+实现方式（monkeypatch + 直接调用）：同「个股研究」，子视图渲染主体已抽取至
+modules.portfolio_views（P0-1 契约，exec 动态加载已消除），仅运行当前选中子视图。
 """
 import os
 import streamlit as st
@@ -19,12 +20,20 @@ render_standard_page(title='持仓中心', icon='💼', caption='⚠️ 持仓�
 info_banner("本页合并「自选池 / 持仓 / 收益归因」三个子视图，用顶部分段切换；持仓与收益均为模拟或历史数据，仅供学习。", icon="💼")
 _HERE = os.path.dirname(__file__)
 _SUBPAGES = {'⭐ 自选池': os.path.join(_HERE, '46_自选股监控.py'), '💼 持仓': os.path.join(_HERE, '40_仓位管理.py'), '📈 收益归因': os.path.join(_HERE, '41_组合收益.py')}
+# P0-1 契约：path→callable 映射（键复用 _SUBPAGES 路径值），同「个股研究」24 页
+from modules.portfolio_views import render_watchlist_monitor, render_position_manager, render_portfolio_returns
+_SUBPAGE_FNS = {
+    _SUBPAGES['⭐ 自选池']: render_watchlist_monitor,  # P0-1c 已抽取
+    _SUBPAGES['💼 持仓']: render_position_manager,  # P0-1c 已抽取
+    _SUBPAGES['📈 收益归因']: render_portfolio_returns,  # P0-1c 已抽取
+}
 
 def _run_subpage(path: str) -> None:
-    """在合并页内安全运行子页源码（临时 no-op 子页样板函数，避免重复渲染）。
+    """在合并页内运行子视图渲染函数（临时 no-op 子页样板函数，避免重复渲染）。
 
-    子页多数已改用 ``modules.page_utils.render_standard_page``，该模块导入时已把这三个
-    函数绑进自己的命名空间，因此必须一并 patch，否则 no-op 不生效。
+    子视图渲染主体已抽取至 modules.portfolio_views（P0-1 契约，exec 动态加载已消除）；
+    样板函数仍需 patch：渲染函数内部会调用 render_standard_page 等页面级样板，
+    嵌入态必须 no-op，否则与合并页重复渲染。
     """
     import modules.ui_theme as _uit
     import modules.session as _sess
@@ -41,10 +50,7 @@ def _run_subpage(path: str) -> None:
     _pu.render_user_badge = _noop
     st.session_state['_embed_active'] = True
     try:
-        with open(path, encoding='utf-8') as f:
-            src = f.read()
-        g = {'__name__': '__main__', '__file__': path, '__builtins__': __builtins__}
-        exec(compile(src, path, 'exec'), g)
+        _SUBPAGE_FNS[path]()
     except Exception as exc:
         from modules.page_guard import render_error_card
         render_error_card(f'子模块 {os.path.basename(path)}', exc, hint='该子视图加载失败，已隔离。可切换上方视图或刷新页面重试。')

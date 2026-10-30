@@ -15,22 +15,26 @@ PAGES = Path(__file__).resolve().parent.parent / "pages"
 # 定位改指实现体内对应渲染函数（函数体级，防同模块跨子页内容互相污染）；
 # 断言本体零改动（spec §1.6 预授权）。
 MODULES = Path(__file__).resolve().parent.parent / "modules"
+# P0-1c（2026-10-30）：40 页渲染主体抽取至 modules/portfolio_views.py，
+# 同 P0-1a/b 机制：清单条目保留（覆盖面不弱化），定位改指实现体内对应渲染函数。
 _RELOCATED = {
-    "20_个股分析.py": "render_stock_analysis",
-    "11_股票选取.py": "render_stock_picker",
+    "20_个股分析.py": ("stock_research.py", "render_stock_analysis"),
+    "11_股票选取.py": ("stock_research.py", "render_stock_picker"),
+    "40_仓位管理.py": ("portfolio_views.py", "render_position_manager"),
 }
 
 
 def _guard_tree(fname: str) -> ast.AST:
     """守卫清单页名 → 实现体 AST 节点（函数体级）；未迁移页照常解析页面文件。"""
-    fnname = _RELOCATED.get(fname)
-    if fnname is None:
+    reloc = _RELOCATED.get(fname)
+    if reloc is None:
         return ast.parse((PAGES / fname).read_text(encoding="utf-8"))
-    mod = ast.parse((MODULES / "stock_research.py").read_text(encoding="utf-8"))
+    modname, fnname = reloc
+    mod = ast.parse((MODULES / modname).read_text(encoding="utf-8"))
     for node in ast.walk(mod):
         if isinstance(node, ast.FunctionDef) and node.name == fnname:
             return node
-    raise AssertionError(f"守卫清单文件缺失实现体: stock_research.py::{fnname}（{fname}）")
+    raise AssertionError(f"守卫清单文件缺失实现体: {modname}::{fnname}（{fname}）")
 # 已完成 delta_color 全量补齐的页面（增量补齐时追加到此清单）
 COMPLETED_FILES = [
     "30_策略回测.py",

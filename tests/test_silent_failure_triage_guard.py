@@ -19,7 +19,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 P_STRENGTH = ROOT / "pages" / "13_市场强弱.py"
-P_WATCH = ROOT / "pages" / "46_自选股监控.py"
+# P0-1c 定位修正：46 页实现体已抽取至 modules/portfolio_views.py（断言本体零改动）
+P_WATCH = ROOT / "modules" / "portfolio_views.py"
 M_CACHE = ROOT / "modules" / "cache_maintenance.py"
 
 

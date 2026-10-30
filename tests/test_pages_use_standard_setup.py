@@ -35,26 +35,30 @@ STANDARD_SETUP_EXCLUSIONS = {
     "pages/53_星辰AI.py",
 }
 
-# P0-1a/P0-1b（2026-10-30）：11/20 页渲染主体抽取至 modules/stock_research.py
-# （pages/11、pages/20 为独立入口 shim）。守卫定位随之改到实现体对应渲染函数
+# P0-1a/P0-1b（2026-10-30）：11/20 页渲染主体抽取至 modules/stock_research.py；
+# P0-1c（2026-10-30）：46/40/41 页渲染主体抽取至 modules/portfolio_views.py
+# （各页均为独立入口 shim）。守卫定位随之改到实现体对应渲染函数
 # （函数体级，防同模块跨子页内容互相污染）；断言本体零改动（spec §1.6 预授权）。
 _RELOCATED = {
-    "pages/11_股票选取.py": "render_stock_picker",
-    "pages/20_个股分析.py": "render_stock_analysis",
+    "pages/11_股票选取.py": ("modules/stock_research.py", "render_stock_picker"),
+    "pages/20_个股分析.py": ("modules/stock_research.py", "render_stock_analysis"),
+    "pages/46_自选股监控.py": ("modules/portfolio_views.py", "render_watchlist_monitor"),
+    "pages/40_仓位管理.py": ("modules/portfolio_views.py", "render_position_manager"),
+    "pages/41_组合收益.py": ("modules/portfolio_views.py", "render_portfolio_returns"),
 }
-_SR_REL = "modules/stock_research.py"
 
 
 def _tree_for(rel, path):
     """页面 → 守卫 AST：已迁移页返回实现体渲染函数节点，其余返回页面模块树。"""
-    fnname = _RELOCATED.get(rel)
-    if fnname is None:
+    reloc = _RELOCATED.get(rel)
+    if reloc is None:
         return ast.parse(open(path, encoding="utf-8").read())
-    sr = ast.parse(open(os.path.join(ROOT, _SR_REL), encoding="utf-8").read())
+    mod_rel, fnname = reloc
+    sr = ast.parse(open(os.path.join(ROOT, mod_rel), encoding="utf-8").read())
     for node in ast.walk(sr):
         if isinstance(node, ast.FunctionDef) and node.name == fnname:
             return node
-    raise AssertionError(f"守卫定位失效：{_SR_REL} 缺 {fnname}（{rel}）")
+    raise AssertionError(f"守卫定位失效：{mod_rel} 缺 {fnname}（{rel}）")
 
 
 def _page_files():

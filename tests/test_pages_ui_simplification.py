@@ -27,6 +27,18 @@ def _tree(page: str) -> ast.AST:
     return ast.parse(_src(page), filename=page)
 
 
+def _host_fn_src(module: str, fnname: str) -> str:
+    """P0-1c 定位修正：40/41 页实现体=modules/portfolio_views.py 对应渲染函数。
+
+    函数体级扫描（防同模块跨子页内容互相污染，如 46 页的「回到顶部」会误伤
+    test_40 的重复回顶断言）；断言本体不变，同 P0-1b test_11 先例。
+    """
+    _sr = (REPO / "modules" / module).read_text(encoding="utf-8")
+    _ast = ast.parse(_sr)
+    _fn = next(n for n in _ast.body if isinstance(n, ast.FunctionDef) and n.name == fnname)
+    return "\n".join(_sr.splitlines()[_fn.lineno - 1:_fn.end_lineno])
+
+
 def _expander_label(call: ast.Call) -> str | None:
     """安全提取 st.expander 第一个位置参数的静态文本（f-string 返回拼接的常量部分）。"""
     if not call.args:
@@ -174,7 +186,8 @@ def test_51_removed_hardcoded_and_wrapped():
 
 def test_40_removed_and_wrapped():
     """仓位管理：导读卡/重复回顶删除，辅助操作折叠，归因与卖出逻辑保留。"""
-    src = _src("40_仓位管理.py")
+    # P0-1c 定位修正：40 页实现体=render_position_manager（断言本体不变）
+    src = _host_fn_src("portfolio_views.py", "render_position_manager")
     assert "仓位管理导读" not in src
     assert "回到顶部" not in src, "与全局悬浮重复的回顶按钮不得回归"
     assert "scroll_nav" not in src, "回顶删除后不应残留 scroll_nav 死 import"
@@ -228,7 +241,8 @@ def test_94_removed_and_wrapped():
 # ═══════════════════════ T-231 P3 批次 ═══════════════════════
 def test_41_pnl_snapshot_wrapped():
     """组合收益：导读卡删除，盈亏快照（与仓位管理同源）在折叠区内。"""
-    src = _src("41_组合收益.py")
+    # P0-1c 定位修正：41 页实现体=render_portfolio_returns（断言本体不变）
+    src = _host_fn_src("portfolio_views.py", "render_portfolio_returns")
     assert 'sf_card("📊 自选股组合收益跟踪"' not in src
     assert 'st.expander("💰 当前盈亏快照（与仓位管理页同源）"' in src
     assert "_show_attribution()" in src, "个股收益贡献保留主区"
