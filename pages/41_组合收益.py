@@ -12,13 +12,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
-from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN, _fig_layout, _section_title
 from modules.chart_cache import cached_fig
 
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_kpi_grid
-st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
     title="自选股组合收益跟踪", icon="📊",
@@ -161,11 +160,9 @@ def _build_attribution_fig(top, dark):
 
 
 # ───────────────────────── 主体 ─────────────────────────
-@safe_fragment
+@safe_fragment(run_every=300)
 def fragment_portfolio():
     _section_title("💼 组合净值与基准对比")
-    if st_autorefresh is not None:
-        st_autorefresh(interval=300000, limit=100, key="pf_auto")
 
     positions = pm.get_positions()
     if positions is None or positions.empty:

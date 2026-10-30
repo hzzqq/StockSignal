@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 from modules.page_guard import safe_fragment
-from modules.page_utils import render_standard_page, import_autorefresh, get_fetcher
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_card, sf_metric
 from modules.chart_cache import cached_fig
 from modules.fundflow import (
@@ -33,7 +33,6 @@ from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fig_layout, _section_title, _fmt_yi, _trend_controls
 
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_kpi_grid
-st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
     "资金流向", icon="🌊",
@@ -163,11 +162,9 @@ def _flow_tone(v):
         return "flat"
 
 
-@safe_fragment("北向资金")
+@safe_fragment("北向资金", run_every=60 if is_trading_now() else None)
 def fragment_northbound():
     _section_title("🧭 北向资金（沪股通 / 深股通）")
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, limit=200, key="nb_auto")
     try:
         nb = _cached_northbound()
     except Exception as e:
@@ -251,11 +248,9 @@ def fragment_northbound():
 
 
 # ───────────────────────── 行业板块资金流向 ─────────────────────────
-@safe_fragment("行业板块资金流向")
+@safe_fragment("行业板块资金流向", run_every=60 if is_trading_now() else None)
 def fragment_industry():
     _section_title("🏭 行业板块资金流向")
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, limit=200, key="ind_auto")
     try:
         df = _cached_industry_flow()
     except Exception as e:
@@ -310,11 +305,9 @@ def fragment_industry():
 
 
 # ───────────────────────── 大盘主力资金净流入 ─────────────────────────
-@safe_fragment("大盘主力资金")
+@safe_fragment("大盘主力资金", run_every=60 if is_trading_now() else None)
 def fragment_market():
     _section_title("📈 大盘主力资金净流入（近 30 日）")
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, limit=200, key="mkt_auto")
     try:
         df = _cached_market_flow(30)
     except Exception as e:
@@ -362,11 +355,9 @@ def fragment_market():
 
 
 # ───────────────────────── 融资融券趋势（融资买入额 & 融资余额） ─────────────────────────
-@safe_fragment("融资融券趋势")
+@safe_fragment("融资融券趋势", run_every=60 if is_trading_now() else None)
 def fragment_margin_trading():
     _section_title("📊 融资融券趋势（融资买入额 & 三大指数）")
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, limit=200, key="margin_auto")
 
     metric = st.radio(
         "指标", ["rzmr", "rzye"],
@@ -414,7 +405,7 @@ def fragment_margin_trading():
 
 
 # ───────────────────────── 个股主力资金 ─────────────────────────
-@safe_fragment("个股主力资金")
+@safe_fragment("个股主力资金", run_every=60 if is_trading_now() else None)
 def fragment_individual():
     _section_title("🔍 个股主力资金动向")
     code = stock_search_input(
@@ -430,8 +421,6 @@ def fragment_individual():
             st.session_state["ff_stock_confirmed"] = "600519"
             st.session_state["ff_stock_query"] = "600519"
         return
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, limit=200, key="indv_auto")
     try:
         r = _cached_individual_fund_flow(code)
     except Exception as e:
@@ -485,11 +474,9 @@ def fragment_individual():
 
 
 # ───────────────────────── 三大指数走势对比（线性表达） ─────────────────────────
-@safe_fragment("指数走势对比")
+@safe_fragment("指数走势对比", run_every=60 if is_trading_now() else None)
 def fragment_index_trend():
     _section_title("📊 三大指数走势对比（归一化）")
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, limit=200, key="idx_auto")
     try:
         idx = _cached_index_series(180)
     except Exception as e:
@@ -504,11 +491,9 @@ def fragment_index_trend():
 
 
 # ───────────────────────── 行业板块指数价格趋势（线性表达） ─────────────────────────
-@safe_fragment("行业指数走势")
+@safe_fragment("行业指数走势", run_every=60 if is_trading_now() else None)
 def fragment_industry_trend():
     _section_title("🏭 行业板块指数走势对比（归一化）")
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, limit=200, key="indt_auto")
     try:
         ind = _cached_industry_index(8, 120)
     except Exception as e:
@@ -552,11 +537,9 @@ def fragment_industry_trend():
 
 
 # ───────────────────────── ETF 价格趋势（线性表达） ─────────────────────────
-@safe_fragment("ETF 价格走势")
+@safe_fragment("ETF 价格走势", run_every=60 if is_trading_now() else None)
 def fragment_etf_trend():
     _section_title("🧩 ETF 价格走势对比（归一化）")
-    if st_autorefresh is not None and is_trading_now():
-        st_autorefresh(interval=60000, limit=200, key="etf_auto")
     try:
         etf = _cached_etf_series(180)
     except Exception as e:

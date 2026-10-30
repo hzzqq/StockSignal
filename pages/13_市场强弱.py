@@ -17,7 +17,7 @@ import requests
 import pandas as pd
 import streamlit as st
 
-from modules.page_utils import render_standard_page, import_autorefresh
+from modules.page_utils import render_standard_page
 from modules.session import get_token, safe_switch_page, API_BASE
 from modules.linear_trends import (
     get_index_series, get_northbound_history_series,
@@ -34,7 +34,6 @@ from modules.ui_kit import xc_success_box, xc_warn_box
 
 logger = logging.getLogger(__name__)
 
-st_autorefresh = import_autorefresh()
 
 
 @contextmanager
@@ -254,10 +253,8 @@ def _strength_percentile(d, keys):
         return None
 
 
-@safe_fragment
+@safe_fragment(run_every=60 if _in_trading_hours() else None)
 def fragment_strength():
-    if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=60000, limit=200, key="str_auto")
 
     with st.spinner("加载市场强弱数据…"):
         df = _build_strength_df(days=180)

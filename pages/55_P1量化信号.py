@@ -22,10 +22,11 @@
 import pandas as pd
 import streamlit as st
 
-from modules.page_utils import render_standard_page, import_autorefresh
+from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 from modules.ui_kit import xc_warn_box, xc_success_box, ss_fold_useful, ss_hover_preview
 from modules.p1_signal import P1SignalLoader, format_rank
+from modules.session import trading_autorefresh
 
 dark = render_standard_page(
     title="P1 量化信号",
@@ -35,9 +36,9 @@ dark = render_standard_page(
 )
 
 # 自动刷新：P1 重新导出信号（文件 mtime 变化）或超 5min ttl 即重载；未变化则不重读大文件。
-st_autorefresh = import_autorefresh()
-if st_autorefresh is not None:
-    st_autorefresh(interval=300000, limit=200, key="p1_auto")
+# P0-2：整页刷新改原生 fragment 定时驱动。本页语义是「信号文件 mtime 变化即重载」，
+# 与开收盘无关（原 st_autorefresh 亦无时段判断）→ only_trading=False。
+trading_autorefresh(interval_ms=300000, key="p1_auto", limit=200, only_trading=False)
 
 # ───────────────────────── 加载器（会话级缓存 + 实时刷新） ─────────────────────────
 if "p1_loader" not in st.session_state:

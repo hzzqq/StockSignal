@@ -20,7 +20,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime
 
-from modules.page_utils import render_standard_page, import_autorefresh
+from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card, sf_metric
 from modules.session import get_token, fragment_market_alerts_panel
 from modules.ladder_view import render_ladder_block
@@ -41,7 +41,6 @@ from modules.colors import _hex_to_rgba
 from modules.chart_cache import cached_fig
 
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_kpi_grid
-st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
     title="市场情绪 · 广度与情绪温度计", icon="🌡️",
@@ -368,11 +367,9 @@ def _load_drivers(days: int = 180):
 
 
 # ───────────────────────── 各区块（@safe_fragment 错误边界） ─────────────────────────
-@safe_fragment("市场温度计")
+@safe_fragment("市场温度计", run_every=60 if _in_trading_hours() else None)
 def fragment_thermometer():
     _section_title("🌡️ 综合市场温度（广度+情绪+估值多空加权）")
-    if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=60000, limit=200, key="mt_auto")
     try:
         with st.spinner("加载市场驱动力数据…"):
             df, meta = _load_drivers(180)
@@ -400,11 +397,9 @@ def fragment_thermometer():
     _render_status(meta)
 
 
-@safe_fragment("市场广度")
+@safe_fragment("市场广度", run_every=60 if _in_trading_hours() else None)
 def fragment_breadth():
     _section_title("📏 市场广度（涨跌家数透视）")
-    if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=60000, limit=200, key="br_auto")
     try:
         with st.spinner("加载市场驱动力数据…"):
             df, meta = _load_drivers(180)
@@ -421,11 +416,9 @@ def fragment_breadth():
         _card(c, cfg, df, dark)
 
 
-@safe_fragment("市场情绪")
+@safe_fragment("市场情绪", run_every=60 if _in_trading_hours() else None)
 def fragment_sentiment():
     _section_title("🔥 市场情绪（恐慌/贪婪信号）")
-    if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=60000, limit=200, key="se_auto")
     try:
         with st.spinner("加载市场驱动力数据…"):
             df, meta = _load_drivers(180)
@@ -442,11 +435,9 @@ def fragment_sentiment():
         _card(c, cfg, df, dark)
 
 
-@safe_fragment("市场估值")
+@safe_fragment("市场估值", run_every=60 if _in_trading_hours() else None)
 def fragment_valuation():
     _section_title("💎 估值温度计（PE 百分位 / 股息率）")
-    if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=60000, limit=200, key="va_auto")
     try:
         with st.spinner("加载市场驱动力数据…"):
             df, meta = _load_drivers(180)
@@ -703,11 +694,9 @@ def _build_shepherd_chart(d, dark):
     return fig
 
 
-@safe_fragment("牧羊人指标卡")
+@safe_fragment("牧羊人指标卡", run_every=120 if _in_trading_hours() else None)
 def fragment_shepherd():
     _section_title("🐑 牧羊人指标（股海牧羊人·情绪温度计）")
-    if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=120000, limit=120, key="shep_auto")
     try:
         with st.spinner("加载牧羊人指标…"):
             df, meta = _load_shepherd(60)
@@ -734,11 +723,9 @@ def fragment_shepherd():
         _card(c, cfg, df, dark)
 
 
-@safe_fragment("牧羊人复盘方法论")
+@safe_fragment("牧羊人复盘方法论", run_every=120 if _in_trading_hours() else None)
 def fragment_shepherd_review():
     _section_title("📋 复盘方法论指标（视频《如何复盘非常重要》新增）")
-    if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=120000, limit=120, key="shep_rev_auto")
     try:
         with st.spinner("加载牧羊人指标…"):
             df, meta = _load_shepherd(60)
@@ -938,12 +925,10 @@ def _row_to_indicators(df, i=-1):
     return out
 
 
-@safe_fragment("次日走势预判")
+@safe_fragment("次日走势预判", run_every=180 if _in_trading_hours() else None)
 def fragment_shepherd_forecast():
     """「用今日指标判断明天大概怎么走」——周期定位 + 评分 + 方向 + 情景 + 联动信号。"""
     _section_title("🔮 次日走势预判（今日指标 → 明日大概率走向）")
-    if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=180000, limit=80, key="shep_fc_auto")
     try:
         with st.spinner("加载牧羊人指标…"):
             df, meta = _load_shepherd(60)

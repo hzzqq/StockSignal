@@ -17,7 +17,6 @@ import modules.scroll_nav as sn
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
-from modules.autorefresh import st_autorefresh
 from modules.page_widgets import UP as _UP, DOWN as _DOWN
 from modules.ssl_helper import ssl_bypass as _ssl_bypass
 from modules.page_widgets import _empty_info, _toast
@@ -129,10 +128,8 @@ def _fmt_amount(v):
         return f'{v / 10000.0:.2f}万'
     return f'{v:.0f}'
 
-@safe_fragment
+@safe_fragment(run_every=60 if _is_trading_now() else None)
 def fragment_watchlist_monitor():
-    if _is_trading_now():
-        st_autorefresh(interval=60 * 1000, key='watchlist_autorefresh')
     sc, body = api_get('/api/watchlist', timeout=10)
     if sc != 200 or not isinstance(body, dict) or body.get('status') != 'ok':
         st.error('⚠️ 加载失败，请稍后重试')

@@ -31,7 +31,7 @@ from modules.session import (
 )
 
 from modules.page_guard import safe_fragment
-from modules.page_widgets import UP
+from modules.page_widgets import UP, is_trading_now
 
 from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
 render_standard_page(title="股票选取", icon="🎯")
@@ -426,17 +426,13 @@ def fragment_kline_pick(ticker, stock_label, df, kline_period, period_label, sta
                 st.rerun(scope="fragment")
 
 
-@safe_fragment("分时图自动刷新")
+@safe_fragment("分时图自动刷新", run_every=300 if is_trading_now() else None)
 def _fragment_intraday(ticker: str, stock_label: str) -> None:
     """分时图区块：独立 fragment，仅在交易时段每 5 分钟自动刷新一次。
 
     与整页 trading_autorefresh（默认 1 分钟）解耦，避免分时图随整页无意义重算；
     数据走 _cached_intraday（ttl=300，与 5 分钟刷新节奏对齐）。
     """
-    from modules.autorefresh import st_autorefresh
-    from modules.page_widgets import is_trading_now
-    if is_trading_now():
-        st_autorefresh(interval=300000, limit=400, key="pick_intraday_auto")
     show_intraday = st.checkbox("📈 显示分时图", value=True, key="pick_show_intraday",
                                 help="展示该股票当日/最近交易日分时走势（价格线+均价+昨收基准，红涨绿跌）。交易时段每5分钟自动刷新。")
     if not show_intraday:

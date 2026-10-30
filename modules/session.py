@@ -47,25 +47,29 @@ from .page_guard import safe_fragment
 API_BASE = os.environ.get("STOCKSIGNAL_API_BASE", "http://127.0.0.1:5050")
 
 
-def trading_autorefresh(interval_ms: int = 60000, key: str = "auto_refresh"):
-    """交易时段（工作日 09:30-11:30 / 13:00-15:00）自动刷新当前页面数据，避免数据陈旧。
+def trading_autorefresh(interval_ms: int = 60000, key: str = "auto_refresh",
+                        limit: int = 400, only_trading: bool = True):
+    """自动刷新当前页面数据，避免数据陈旧（默认仅交易时段）。
 
-    非交易时段（午休 / 收盘 / 周末）不刷新，避免无意义请求与界面闪烁。
+    默认非交易时段（午休 / 收盘 / 周末）不刷新，避免无意义请求与界面闪烁。
+    `only_trading=False` 时不限交易时段——供「产物文件变化即重载」类页面复用
+    （如 P1 信号页：文件 mtime 变化就该重载，与开收盘无关）。
 
     P0-2 迁移（T-350）：由第三方 st_autorefresh 改为 Streamlit 原生 fragment 驱动。
     - 整页刷新语义：fragment(run_every=间隔秒) 触发后调用 st.rerun(scope="app")；
     - 防首帧循环：session_state 标记「首帧只置位不 rerun」，仅 run_every 触发的
       后续重跑才整页刷新（裸用 st.rerun(scope="app") 会在首帧即无限循环）；
-    - 保留 limit=400 限次与「非交易时段不刷新」语义（limit 无原生对应物，
+    - limit 限次与「非交易时段不刷新」语义保留（limit 无原生对应物，
       用 session_state 计数器复刻）。
     """
-    from modules.page_widgets import is_trading_now
-    if not is_trading_now():
-        return
+    if only_trading:
+        from modules.page_widgets import is_trading_now
+        if not is_trading_now():
+            return
     _interval_s = max(1, int(interval_ms) // 1000)
     _tick_key = f"_ta_tick_{key}"
     _cnt_key = f"_ta_cnt_{key}"
-    _limit = 400
+    _limit = max(1, int(limit))
 
     @st.fragment(run_every=_interval_s)
     def _auto_tick():

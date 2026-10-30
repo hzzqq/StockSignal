@@ -20,7 +20,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-from modules.page_utils import render_standard_page, import_autorefresh
+from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_card
 from modules.shepherd import (get_shepherd_indicators, shepherd_temperature, THRESHOLDS)
 from modules import shepherd_ladder as _sl
@@ -45,7 +45,6 @@ from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GR
 from modules.event_factor import get_event_factor  # 事件因子适配器（真实信号，无合成）
 from modules.next_day_edge_view import render_next_day_edge  # 次日情绪极值判断组件（复用 panic_reversal）
 
-st_autorefresh = import_autorefresh()
 
 dark = render_standard_page(
     title="今日决策面板 · 情绪信号→仓位→复盘", icon="🎯",
@@ -405,11 +404,9 @@ def _render_hero(df, today, prev, meta=None):
         logger.warning("事件提示渲染失败: %s", e)
 
 
-@safe_fragment("今日决策")
+@safe_fragment("今日决策", run_every=180 if _in_trading_hours() else None)
 def fragment_decision():
     """情绪信号总览 + 仓位建议（交易时段自动刷新，隔离渲染失败）。"""
-    if st_autorefresh is not None and _in_trading_hours():
-        st_autorefresh(interval=180000, limit=80, key="dec_auto")
     try:
         with st.spinner("加载牧羊人指标…"):
             df, meta = _load_shepherd(60)

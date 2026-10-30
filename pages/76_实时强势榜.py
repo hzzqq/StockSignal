@@ -6,7 +6,7 @@
 按 A 股习惯红涨绿跌呈现；奖项只给前 3，其余按分数降序。
 
 数据源与评分逻辑见 ``modules.spot_rank``（东财实时快照，缓存 60s）。
-盘中（09:30-15:00）每 60 秒自动刷新（Streamlit 无 SSE，用 st_autorefresh 轮询近似）。
+盘中（09:30-15:00）每 60 秒自动刷新（Streamlit 无 SSE，用原生 fragment 定时驱动近似）。
 
 诚实性红线：
   · 评分为启发式加权，非预测模型；高换手/高量比亦伴随高波动风险；
@@ -17,7 +17,8 @@ from __future__ import annotations
 import logging
 
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
-from modules.page_utils import render_standard_page, import_autorefresh
+from modules.page_utils import render_standard_page
+from modules.session import trading_autorefresh
 from modules.spot_rank import _col, _num, load_spot_with_source, strong_score
 import streamlit as st
 
@@ -63,16 +64,15 @@ name_c, code_c = _col(df, "name"), _col(df, "code")
 price_c, chg_c = _col(df, "price"), _col(df, "chg")
 
 # 盘中自动刷新（无 SSE，轮询近似）
-st_autorefresh = import_autorefresh()
 try:
     from modules.page_widgets import is_trading_now
     _trading = is_trading_now()
 except Exception:  # noqa: BLE001
     _trading = False
-if st_autorefresh is not None and _trading:
-    st_autorefresh(interval=60000, limit=240, key="strong_auto")
+# P0-2：整页刷新改原生 fragment 定时驱动（helper 内部已含交易时段早退）。
+trading_autorefresh(interval_ms=60000, key="strong_auto", limit=240)
 
-st.caption(f"共 {len(df)} 只（{'盘中 60s 自动刷新' if (_trading and st_autorefresh) else '静态'}）"
+st.caption(f"共 {len(df)} 只（{'盘中 60s 自动刷新' if _trading else '静态'}）"
            " · 评分为启发式加权，非预测")
 
 MEDALS = {0: "🥇", 1: "🥈", 2: "🥉"}
