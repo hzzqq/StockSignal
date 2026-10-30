@@ -159,3 +159,127 @@ DIRECTIONS = [
 def list_directions() -> list[dict]:
     """返回四个方向的清单（开题方向可直接序列化进论文/汇报）。"""
     return [d.as_dict() for d in DIRECTIONS]
+
+
+# ───────────────────────── 毕设三算法诚实证据桥（对齐新方向） ─────────────────────────
+# 新方向（2026-10 Trae 改稿）：创新主轴 = 决策闭环（derive_position 可解释 + 刻度校准），
+# 三算法（#1/#2/#3）定位为「诚实实验证据」——#1 边缘但一致的正向、#2/#3 诚实负向
+# （方法学反例 / 边界界定），而非生产信号。本桥把已验证的真实数字接入平台，并支持
+# 从 P1-QuantFactor 结果 JSON 实时覆盖；任何缺失一律返回 None（诚实红线：不编造、不臆造填充）。
+#
+# 来源：thesis/素材/毕设素材/毕设_导师沟通与算法改进清单.md（2026-09-25 同口径 head-to-head）。
+
+# 三算法已验证诚实证据（不可变事实，非模型实时输出）
+KNOWN_FINDINGS = {
+    "transformer_signal": {
+        "title": "#1 纯 Transformer 对照 GRUAttention",
+        "advisor": "陈丽琼",
+        "direction_hit": 0.5130, "direction_hit_baseline": 0.5097,
+        "ic": 0.0465, "ic_baseline": 0.0374,
+        "icir": 0.3796, "icir_baseline": 0.3462,
+        "verdict": "modest_positive",
+        "verdict_cn": "一致但小幅占优（方向命中 +0.33pp、IC +24%、ICIR +10%），如实标注幅度有限",
+        "provenance": "P1-QuantFactor head-to-head (n=1,583,338, walk-forward 2022–2026), 2026-09-25",
+    },
+    "gnn_factor": {
+        "title": "#2 GNN 板块-个股传导因子",
+        "advisor": "陈丽琼",
+        "direction_hit": 0.4948, "direction_hit_baseline": 0.5097,
+        "ic": 0.0076, "ic_baseline": 0.0374,
+        "icir": 0.1047, "icir_baseline": 0.3462,
+        "verdict": "negative",
+        "verdict_cn": "三项全落后 GRU；IC 仅为 GRU 约 1/5，因子交互更接近可加/时序主导，图结构偏置不成立",
+        "provenance": "P1-QuantFactor head-to-head (n=1,583,338), 2026-09-25",
+    },
+    "rl_position": {
+        "title": "#3 RL 仓位决策",
+        "advisor": "刘云翔",
+        "sharpe": -0.741, "sharpe_baseline_sign": 0.997, "sharpe_baseline_tanh": 1.145,
+        "turnover": 0.026,
+        "verdict": "negative",
+        "verdict_cn": "在已很强的 GRU 信号上叠加轻量 Actor-Critic 无正收益增量，动作被压缩低幅区丢失暴露；方法学反例 / 边界界定",
+        "provenance": "P1-QuantFactor RL 对照 (w_rl vs w_sign/w_tanh), 2026-09-25",
+    },
+}
+
+# 组合级刻度回测的非对称发现（新方向核心论据，来源完整稿 §5.4.3）
+ASYMMETRIC_FINDING = {
+    "defensive_total_pp": 9.5,
+    "offensive_total_pp": -8.0,
+    "annualized_offensive_cost_pp": -0.5,
+    "note": "闭环是风险缩放器而非收益放大器；有界修正与小步长使进攻侧误判代价可控",
+    "provenance": "StockSignal_毕业论文_完整稿.md §5.4.3 组合级刻度回测（n=4092 交易日, 2007–2026）",
+}
+
+# 论文钉死的决策闭环命中率锚（1722/3507）
+DECISION_CLOSURE_ANCHOR = {"accuracy": 0.491, "n": 3507, "n_hit": 1722}
+
+
+def get_known_findings() -> dict:
+    """返回三算法的已验证诚实证据（深拷贝，供论文/平台引用，防调用方误改常量）。"""
+    import copy
+    return copy.deepcopy(KNOWN_FINDINGS)
+
+
+def load_live_findings(results_dir: str | None = None) -> dict:
+    """尝试从 P1-QuantFactor 结果 JSON 实时覆盖已知证据；缺失/读不到→保留 KNOWN（live=False）。
+
+    诚实红线：绝不臆造——任何文件缺失或解析失败都回落到已验证的 KNOWN_FINDINGS，
+    绝不把「没查到」当「没效果」。返回结构额外携带 ``_meta.live`` 布尔（是否真的读到外部结果）。
+    约定目录结构：``<results_dir>/experiment_findings.json``（{key: {...}}）或
+    ``<results_dir>/<key>.json``（单条，需含 ``key`` 字段）。
+    """
+    import copy, json, os
+    out = copy.deepcopy(KNOWN_FINDINGS)
+    out["_meta"] = {"live": False, "sources": []}
+    base = results_dir or os.environ.get("P1_RESULTS_DIR")
+    if not base or not os.path.isdir(base):
+        return out
+    consolidated = os.path.join(base, "experiment_findings.json")
+    files = [consolidated] if os.path.isfile(consolidated) else [
+        os.path.join(base, f"{key}.json")
+        for key in KNOWN_FINDINGS
+        if os.path.isfile(os.path.join(base, f"{key}.json"))
+    ]
+    if not files:
+        return out
+    live = False
+    numeric = ("direction_hit", "direction_hit_baseline", "ic", "ic_baseline",
+               "icir", "icir_baseline", "sharpe", "sharpe_baseline_sign",
+               "sharpe_baseline_tanh", "turnover")
+    for fp in files:
+        try:
+            data = json.load(open(fp, encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(data, dict) and any(k in KNOWN_FINDINGS for k in data):
+            items = list(data.items())
+        elif isinstance(data, dict) and data.get("key") in KNOWN_FINDINGS:
+            items = [(data["key"], data)]
+        else:
+            items = []
+        for key, vals in items:
+            if key in out and isinstance(vals, dict):
+                for nf in numeric:
+                    if nf in vals and isinstance(vals[nf], (int, float)):
+                        out[key][nf] = float(vals[nf])
+                live = True
+                out["_meta"]["sources"].append(fp)
+    out["_meta"]["live"] = live
+    return out
+
+
+def summarize_findings() -> dict:
+    """新方向叙事（数据层，不渲染 UI）：创新主轴 = 决策闭环；三算法 = 诚实证据；组合级非对称发现。
+
+    返回结构供页面/论文方法章节直接消费。
+    """
+    return {
+        "core_innovation": "decision_closure",
+        "core_innovation_cn": "决策闭环（derive_position 可解释 + 刻度校准）为创新主轴，"
+                              "三算法为诚实实验证据而非生产信号",
+        "decision_closure_anchor": DECISION_CLOSURE_ANCHOR,
+        "findings": get_known_findings(),
+        "asymmetric_finding": ASYMMETRIC_FINDING,
+        "honest_redline": "缺失数据返回 None 不编造；modest/负向如实记录，不包装成碾压式领先",
+    }

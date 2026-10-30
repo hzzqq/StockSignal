@@ -8,6 +8,9 @@ from modules.experiment_improvements import (  # noqa: E402
     shap_style_attribution,
     strict_holdout_eval,
     list_directions,
+    get_known_findings,
+    load_live_findings,
+    summarize_findings,
 )
 
 
@@ -77,3 +80,52 @@ def test_four_directions_present():
     assert {"transformer_signal", "gnn_factor", "rl_position", "shap_attribution"} <= keys
     # #4 应排第一（最易出成果）
     assert d[0]["key"] == "shap_attribution"
+
+
+# ───────────────────────── 毕设新方向：三算法诚实证据桥（T-350 后续，对齐 2026-10 改稿） ─────────────────────────
+def test_known_findings_three_algorithms_honest_verdicts():
+    """三算法 verdict 必须如实：#1 modest_positive、#2/#3 negative（不包装成碾压）。"""
+    f = get_known_findings()
+    assert set(f) == {"transformer_signal", "gnn_factor", "rl_position"}
+    assert f["transformer_signal"]["verdict"] == "modest_positive"
+    assert f["gnn_factor"]["verdict"] == "negative"
+    assert f["rl_position"]["verdict"] == "negative"
+    # 数字与已验证清单逐位一致（防止回归篡改诚实口径）
+    assert f["transformer_signal"]["direction_hit"] == 0.5130
+    assert f["transformer_signal"]["direction_hit_baseline"] == 0.5097
+    assert f["gnn_factor"]["direction_hit"] == 0.4948
+    assert f["rl_position"]["sharpe"] == -0.741
+    assert f["rl_position"]["sharpe_baseline_tanh"] == 1.145
+
+
+def test_load_live_findings_missing_dir_no_fabrication():
+    """缺失目录/文件 → 回落 KNOWN，live=False，绝不把「没查到」当「没效果」。"""
+    out = load_live_findings(results_dir="E:/nonexistent_p1_results_xyz")
+    assert out["_meta"]["live"] is False
+    assert out["transformer_signal"]["direction_hit"] == 0.5130
+    assert out["gnn_factor"]["direction_hit"] == 0.4948
+    assert out["rl_position"]["sharpe"] == -0.741
+
+
+def test_load_live_findings_overrides_when_present(tmp_path):
+    """真有结果 JSON 时按字段覆盖（诚实替换），且只动存在的数值键。"""
+    payload = {"transformer_signal": {"direction_hit": 0.5200}, "gnn_factor": {"direction_hit": 0.5000}}
+    (tmp_path / "experiment_findings.json").write_text(
+        __import__("json").dumps(payload), encoding="utf-8")
+    out = load_live_findings(results_dir=str(tmp_path))
+    assert out["_meta"]["live"] is True
+    assert out["transformer_signal"]["direction_hit"] == 0.5200  # 被覆盖
+    assert out["gnn_factor"]["direction_hit"] == 0.5000          # 被覆盖
+    assert out["rl_position"]["sharpe"] == -0.741                # 未提供，保持 KNOWN
+
+
+def test_summarize_findings_new_direction_narrative():
+    """新方向叙事：创新主轴=决策闭环；三算法=诚实证据；非对称发现。"""
+    s = summarize_findings()
+    assert s["core_innovation"] == "decision_closure"
+    assert s["findings"]["transformer_signal"]["verdict"] == "modest_positive"
+    assert s["findings"]["gnn_factor"]["verdict"] == "negative"
+    assert s["findings"]["rl_position"]["verdict"] == "negative"
+    assert s["asymmetric_finding"]["defensive_total_pp"] == 9.5
+    assert s["asymmetric_finding"]["offensive_total_pp"] == -8.0
+    assert s["decision_closure_anchor"]["accuracy"] == 0.491
