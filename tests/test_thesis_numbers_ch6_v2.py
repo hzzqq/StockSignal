@@ -45,10 +45,27 @@ def test_62_snapshot_stats():
 
 
 def test_62_64_sample_scale_4798():
-    """摘要与 6.6 数据规模必须为 4798（T-222 回填口径），4094 不得残留。"""
+    """摘要与 6.6 数据规模必须为 4798（T-222 回填口径），4094 不得作为样本规模残留。
+
+    收窄说明（2026-10-30 老板批准方案 B，DECISIONS 备案）：原「全 md 禁 4094 字面」
+    过宽，误伤 3.5 节口径治理叙述中的历史段长（「主体自 2009-11-02 起共 4094 个
+    交易日」，b93ad96 引入）。现收窄为仅禁「样本规模表述形态」：中文口径
+    「4094 个真实交易日」与英文口径「4,094 个 real trading days」及其变体；
+    治理叙述使用「个交易日」（无「真实」）不属样本规模主张，放行。
+    """
     md = _md()
     assert "4,798 个 real trading days" in md or "4798 个真实交易日" in md
-    assert "4094" not in md and "4,094" not in md, "4094 旧口径残留"
+    for banned in (
+        "4094 个真实交易日",
+        "4094个真实交易日",
+        "4,094 个真实交易日",
+        "4,094个真实交易日",
+        "4094 个 real trading days",
+        "4094个 real trading days",
+        "4,094 个 real trading days",
+        "4,094个 real trading days",
+    ):
+        assert banned not in md, f"4094 旧样本规模表述残留: {banned}"
 
 
 # ── 6.3 刻度校准（by_group）──
