@@ -21,8 +21,6 @@ logger = logging.getLogger(__name__)
 
 dark = render_standard_page(title="一键体检扫描台", icon="🩺", layout="wide")
 
-sf_card("🩺 一键体检扫描台", "对自选股 / 持仓批量扫描技术面与资金面信号，按优先级（高 / 关注 / 警惕）给出信号灯，帮你快速定位异动个股。", icon="🔍")
-
 WATCH_COLOR = "#f5a623"  # 中性关注
 
 # 关键词（兼容未来引擎返回字符串形态名）
