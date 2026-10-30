@@ -24,8 +24,6 @@ _st.session_state = {}
 _st.fragment = lambda *a, **k: (lambda fn: fn)
 sys.modules.setdefault("streamlit", _st)
 
-_sa = types.ModuleType("streamlit_autorefresh")
-sys.modules.setdefault("streamlit_autorefresh", _sa)
 
 # colors 等页面依赖的模块桩成最小实现（page_guard 允许真实导入，streamlit 已桩）
 # R76 修复：先尝试真实导入 colors——若可用则让真实模块占位，桩不生效，
