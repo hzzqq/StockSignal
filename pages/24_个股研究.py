@@ -7,8 +7,8 @@
 
 实现方式（monkeypatch + 直接调用）：
   临时把子页顶部样板函数（apply_page_config / require_auth / render_user_badge）
-  替换为 no-op 后，已抽取的子页经 modules.stock_research 直接调用；未抽取子页
-  暂以 exec 兼容路径运行（P0-1b 完成后清零），仅运行「当前选中」的子视图。
+  替换为 no-op 后，经 modules.stock_research 直接调用对应渲染函数（P0-1 抽取契约，
+  exec 动态加载已消除），仅运行「当前选中」的子视图。
   → 子页文件保持零改动、仍可独立运行；避免了 st.tabs 预渲染所有子页导致的重复取数性能回退。
 """
 import os
@@ -40,7 +40,9 @@ _SUBPAGES = {
 }
 from modules.stock_research import render_stock_analysis
 # P0-1 契约：path→callable 映射（键复用 _SUBPAGES 路径值）；未注册子页暂走 exec 兼容
+from modules.stock_research import render_stock_picker
 _SUBPAGE_FNS = {
+    _SUBPAGES["⚡ 快速选取"]: render_stock_picker,  # P0-1b 已抽取
     _SUBPAGES["🔬 深度分析"]: render_stock_analysis,  # P0-1a 已抽取
 }
 
@@ -72,14 +74,7 @@ def _run_subpage(path: str) -> None:
     _pu.render_user_badge = _noop
     st.session_state["_embed_active"] = True
     try:
-        fn = _SUBPAGE_FNS.get(path)
-        if fn is not None:
-            fn()
-        else:
-            with open(path, encoding="utf-8") as f:
-                src = f.read()
-            g = {"__name__": "__main__", "__file__": path, "__builtins__": __builtins__}
-            exec(compile(src, path, "exec"), g)
+        _SUBPAGE_FNS[path]()
     except Exception as exc:  # noqa: BLE001
         # 子页异常隔离：单视图崩溃不影响合并页其它部分（错误边界）
         from modules.page_guard import render_error_card
