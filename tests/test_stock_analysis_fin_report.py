@@ -29,7 +29,10 @@ import pathlib
 
 import pytest
 
-_PAGE = pathlib.Path(__file__).resolve().parents[1] / "pages" / "20_个股分析.py"
+# P0-1a 后 20 页渲染主体已抽取至 modules/stock_research.py（pages/20 为独立入口 shim）；
+# 本守卫定位随之改到实现体（断言本体不变；spec §1.6 预授权的定位方式修正，2026-10-30）。
+_PAGE = pathlib.Path(__file__).resolve().parents[1] / "modules" / "stock_research.py"
+_PAGES_DIR = pathlib.Path(__file__).resolve().parents[1] / "pages"
 
 
 @pytest.fixture(scope="module")
@@ -231,8 +234,8 @@ def test_history_history_fetch_covers_at_least_three_years(src):
     assert "_HISTORY_YEARS" in src
     ns = {}
     for ln in src.splitlines():
-        if ln.startswith("_HISTORY_YEARS"):
-            exec(ln, ns)  # noqa: S102
+        if ln.strip().startswith("_HISTORY_YEARS"):
+            exec(ln.strip(), ns)  # noqa: S102
             break
     years = ns.get("_HISTORY_YEARS", ())
     assert len(years) >= 3, f"横向历史必须覆盖 ≥3 年，实际 {years}"
@@ -254,7 +257,7 @@ def test_page_no_longer_injects_own_back_to_top_button(src):
 
 def test_page_no_duplicate_inline_scroll_button_in_other_pages():
     """防止其它页面重新引入 st.markdown inline「回到顶部」（该写法会被 + 与悬浮按钮重叠）。"""
-    pages_dir = _PAGE.parent
+    pages_dir = _PAGES_DIR  # P0-1a：与 _PAGE 解耦（仍扫 pages/，非实现体所在 modules/）
     offenders = []
     for p in pages_dir.glob("*.py"):
         text = p.read_text(encoding="utf-8")

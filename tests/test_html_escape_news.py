@@ -69,13 +69,15 @@ class TestPagesUseEscaping:
         return (ROOT / rel).read_text(encoding="utf-8")
 
     def test_stock_page_imports_and_escapes_news_title(self):
-        src = self._src("pages/20_个股分析.py")
+        # P0-1a 定位修正：20 页实现体在 modules/stock_research.py（断言本体不变）
+        src = self._src("modules/stock_research.py")
         assert "safe_html_text" in src, "个股分析页应导入 safe_html_text"
         # 新闻表格行 / 风险 / 催化提示条：标题必须走转义（单引号写法，≥2 处）
         assert src.count("safe_html_text(r.get('title')") >= 2, "标题未走 safe_html_text 转义"
 
     def test_stock_page_has_no_raw_title_in_html(self):
-        src = self._src("pages/20_个股分析.py")
+        # P0-1a 定位修正：同上（断言本体不变）
+        src = self._src("modules/stock_research.py")
         # 裸 {r.get('title')} 直接插值到 f-string HTML 里应当已被消灭
         assert not re.search(r"\{r\.get\('title'\)\s*or\s*'—'\}", src)
 

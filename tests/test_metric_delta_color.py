@@ -10,6 +10,15 @@ from pathlib import Path
 import pytest
 
 PAGES = Path(__file__).resolve().parent.parent / "pages"
+# P0-1a（2026-10-30）：20 页渲染主体抽取至 modules/stock_research.py（pages/20 为独立入口 shim）。
+# 守卫清单条目保留（覆盖面不弱化），定位改指实现体；断言本体零改动（spec §1.6 预授权）。
+MODULES = Path(__file__).resolve().parent.parent / "modules"
+_RELOCATED = {"20_个股分析.py": "stock_research.py"}
+
+
+def _guard_path(fname: str) -> Path:
+    rel = _RELOCATED.get(fname)
+    return (MODULES / rel) if rel else (PAGES / fname)
 # 已完成 delta_color 全量补齐的页面（增量补齐时追加到此清单）
 COMPLETED_FILES = [
     "30_策略回测.py",
@@ -48,7 +57,7 @@ def _has_delta_color(call: ast.Call) -> bool:
 
 @pytest.mark.parametrize("fname", COMPLETED_FILES)
 def test_completed_pages_all_metrics_have_delta_color(fname):
-    path = PAGES / fname
+    path = _guard_path(fname)
     assert path.exists(), f"守卫清单文件缺失: {fname}"
     tree = ast.parse(path.read_text(encoding="utf-8"))
     calls = list(_metric_calls(tree))
@@ -60,7 +69,7 @@ def test_completed_pages_all_metrics_have_delta_color(fname):
 @pytest.mark.parametrize("fname", COMPLETED_FILES)
 def test_completed_pages_no_us_semantics(fname):
     """禁止 normal（美股绿涨语义），A 股只允许 inverse/off"""
-    path = PAGES / fname
+    path = _guard_path(fname)
     tree = ast.parse(path.read_text(encoding="utf-8"))
     for c in _metric_calls(tree):
         for kw in c.keywords:
