@@ -11,6 +11,7 @@ import requests
 import streamlit as st
 
 from modules.ui_theme import apply_page_config, dashboard_sf_css
+from modules.ui_kit import xc_bento_kpi
 from modules import decision as _decision
 from modules import shepherd as _sh
 from modules import shepherd_ladder as _sl
@@ -355,13 +356,12 @@ try:
 except Exception:
     wl_count = 0
 
-ce1, ce2, ce3 = st.columns(3)
-with ce1:
-    st.metric("自选股", f"{wl_count} 只", help="在行情看板添加到自选股")
-with ce2:
-    st.metric("最近浏览", f"{len(recent)} 只", help="本次会话查看过的股票（点击上方「最近浏览」可直达个股研究）")
-with ce3:
-    st.metric("数据更新", time.strftime("%H:%M"), help="界面数据刷新时间")
+# Bento 非对称网格：自选股 / 最近浏览 / 数据更新 三个读数错落成轻量信息块
+xc_bento_kpi([
+    {"label": "自选股", "value": f"{wl_count} 只", "meta": "在行情看板添加到自选股"},
+    {"label": "最近浏览", "value": f"{len(recent)} 只", "meta": "点击上方「最近浏览」可直达个股研究"},
+    {"label": "数据更新", "value": time.strftime("%H:%M"), "meta": "界面数据刷新时间"},
+], template="1.4fr 1fr 1fr")
 
 # ── 项目简介（可折叠） ──
 with st.expander("📖 项目简介", expanded=False):

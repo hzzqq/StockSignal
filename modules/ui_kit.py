@@ -210,6 +210,14 @@ _KIT_CSS = _TOKEN_CSS + r"""
   background:linear-gradient(180deg,var(--ss-accent),var(--ss-accent2))}
 .xc-section-h .xtra{margin-left:auto;font-size:12px;font-weight:500;color:var(--ss-text-muted)}
 
+/* Bento 非对称网格容器（2026 市面范式：错落大卡 + 小卡，轻量、零重渲染） */
+.xc-bento{display:grid;gap:16px;margin:14px 0 22px;grid-auto-rows:1fr;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.xc-bento-cell{background:var(--ss-surface);border:1px solid color-mix(in srgb,var(--ss-accent) 20%,var(--ss-line));
+  border-radius:var(--ss-radius-card);padding:14px 16px;position:relative;min-width:0;
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;box-shadow:var(--ss-shadow-card)}
+.xc-bento-cell:hover{transform:translateY(-4px);border-color:var(--ss-accent);box-shadow:var(--ss-shadow-lift)}
+
 /* 新城信息横幅（info/success/warning/danger，沿用 xc 紫强调） */
 .xc-info{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:var(--ss-radius);
   margin:10px 0;font-size:13.5px;line-height:1.6;color:var(--ss-text);
@@ -730,6 +738,61 @@ def stat_row(tiles: list) -> None:
     """一行多瓦片（自适应换行）。tiles: list of dict(label,value,delta,delta_dir,accent)。
     与 xc_kpi_grid 共用同一 .xc-card 视觉（全站统一 KPI 卡，消除 .ss-stat 重复视觉）。"""
     xc_kpi_grid(tiles)
+
+
+def _bento_html(cells, template: str, gap: int) -> str:
+    """纯函数：把若干 HTML 片段包进 .xc-bento 非对称网格。便于离线单测 / XSS 校验。"""
+    inner = "".join(f'<div class="xc-bento-cell">{c}</div>' for c in cells if c)
+    return (
+        f'<div class="xc-bento" '
+        f'style="grid-template-columns:{template};gap:{int(gap)}px">'
+        f'{inner}</div>'
+    )
+
+
+def xc_bento_grid(cells, template: str = "repeat(auto-fit,minmax(220px,1fr))", gap: int = 16) -> None:
+    """把一组 HTML 片段渲染成 Bento 非对称网格（错落大卡 + 小卡，2026 市面范式）。
+
+    适合承载任意内容块（KPI 卡、导航卡、信息块）的轻量错落布局；纯 HTML 渲染，
+    不引入额外 Streamlit 组件，零重渲染开销。所有视觉走设计令牌，主题自适应。
+
+    Args:
+        cells: list[str]，每个是已构建好的 HTML 片段（如 xc_bento_cell / _xc_card_html 输出）。
+               空片段会被跳过。
+        template: CSS ``grid-template-columns``，支持非对称，如 ``"1.6fr 1fr 1fr"``、
+                  ``"1fr 1fr 1fr 1fr"``。默认自适应等宽。
+        gap: 单元格间距（px），默认 16。
+    """
+    inject_kit_css()
+    if not cells:
+        return
+    st.markdown(_bento_html(cells, template, gap), unsafe_allow_html=True)
+
+
+def xc_bento_kpi(cards, template: str = "repeat(auto-fit,minmax(220px,1fr))", gap: int = 16) -> None:
+    """Bento 版 KPI 网格：把 xc_kpi_grid 的卡片放进非对称 Bento 网格（错落大卡 + 小卡）。
+
+    cards / template / gap 语义同 :func:`xc_kpi_grid` 与 :func:`xc_bento_grid`。
+    """
+    inject_kit_css()
+    if not cards:
+        return
+    if isinstance(cards, dict):
+        cards = [cards]
+    cells = []
+    for c in cards:
+        if not isinstance(c, dict):
+            continue
+        cells.append(_xc_card_html(
+            label=c.get("label"), value=c.get("value"),
+            delta=c.get("delta", ""), delta_dir=c.get("delta_dir", "flat"),
+            accent=c.get("accent"), icon=c.get("icon", ""),
+            sub=c.get("sub", ""), meta=c.get("meta", ""), tone=c.get("tone"),
+        ))
+    if not cells:
+        return
+    st.markdown(_bento_html(cells, template, gap), unsafe_allow_html=True)
+
 
 
 def chart_card(title: str, body_html: str) -> None:
