@@ -339,6 +339,24 @@ def _theme_css(dark: bool) -> str:
 }}
 
 /* 回到底部按钮已改为视口级浮动 ▼（见 modules/scroll_nav.py），此处不再内联 */
+
+/* T-367：研究流程三阶段勾选条 + 分析模块 2 列网格卡（仿参考图#3） */
+.xc-flow{{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 12px;
+  padding:8px 12px;background:var(--card2);border:1px solid var(--border);border-radius:12px}}
+.xc-flow-label{{font-size:12px;font-weight:700;color:var(--txt2);margin-right:4px}}
+.xc-flow-stage{{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;
+  padding:3px 11px;border-radius:999px;border:1px solid var(--border);
+  color:var(--txt2);background:var(--card)}}
+.xc-flow-stage.done{{color:var(--acc1);border-color:rgba(102,126,234,.45);
+  background:rgba(102,126,234,.12)}}
+.xc-flow-stage.todo{{opacity:.6}}
+.xc-mod-h{{font-size:13px;font-weight:700;color:var(--txt);margin:6px 0 8px}}
+.xc-mod-card{{margin-bottom:6px}}
+.xc-mod-top{{display:flex;align-items:center;gap:7px;margin-bottom:5px}}
+.xc-mod-top b{{font-size:13px;color:var(--acc1)}}
+.xc-mod-top span{{font-size:15px}}
+.xc-mod-reason{{font-size:12.5px;color:var(--txt2);line-height:1.55;
+  max-height:5.2em;overflow:hidden}}
 </style>
 """
 
@@ -528,26 +546,62 @@ def render_research_card(result: dict, idx: int = 0) -> None:
     steps = result.get("steps") or []
     citations = result.get("citations") or []
     limitations = result.get("limitations") or []
+
+    # ── T-367：研究流程三阶段勾选条（按真实 steps / answer 标记完成态）──
+    # 数据调研=有步骤；多维度论证=步骤≥2；结论裁定=产出有效回答。全部基于真实信号，不虚构。
+    _n_steps = len(steps)
+    _stage_done = {
+        "数据调研": _n_steps > 0,
+        "多维度论证": _n_steps >= 2,
+        "结论裁定": bool(answer and answer != "（研究未产出回答）"),
+    }
+    _flow = "".join(
+        f'<span class="xc-flow-stage {"done" if _ok else "todo"}">'
+        f'{"✅" if _ok else "⚪"} {_nm}</span>'
+        for _nm, _ok in _stage_done.items()
+    )
+    st.markdown(
+        f'<div class="xc-flow"><span class="xc-flow-label">研究流程</span>{_flow}</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── 分析模块卡片：2 列网格，每卡带结论 + 复制（仿参考图#3 模块卡网格）──
     if steps:
         elapsed = result.get("elapsed_s")
         elapsed_s = f" · 耗时 {elapsed}s" if isinstance(elapsed, (int, float)) else ""
-        with st.expander(
-            f"🔬 研究过程（{len(steps)} 步 · {st_icon} {status}{elapsed_s}）", expanded=False
-        ):
-            for s in steps:
+        st.markdown(
+            f'<div class="xc-mod-h">🔬 分析模块（{_n_steps} 步 · {st_icon} {status}{elapsed_s}）</div>',
+            unsafe_allow_html=True,
+        )
+        for _i in range(0, _n_steps, 2):
+            _cols = st.columns(2)
+            for _j in range(2):
+                _si = _i + _j
+                if _si >= _n_steps:
+                    break
+                s = steps[_si]
                 if not isinstance(s, dict):
                     continue
-                s_icon = _RESEARCH_STEP_ICON.get(str(s.get("status")), "⚙️")
-                as_of = f" · 数据截至 {esc(str(s['data_as_of']))}" if s.get("data_as_of") else ""
-                dur = s.get("duration_ms")
-                dur_s = f" · {dur}ms" if isinstance(dur, (int, float)) else ""
-                reason = f" — {esc(str(s['reason']))}" if s.get("reason") else ""
-                st.markdown(
-                    f"{s_icon} **S{esc(str(s.get('idx', '?')))}** "
-                    f"`{esc(str(s.get('tool', '?')))}`{dur_s}{as_of}{reason}"
+                _s_icon = _RESEARCH_STEP_ICON.get(str(s.get("status")), "⚙️")
+                _tool = esc(str(s.get("tool", "—")))
+                _reason = esc(str(s.get("reason") or "（无结论说明）"))
+                _asof = f" · 数据截至 {esc(str(s['data_as_of']))}" if s.get("data_as_of") else ""
+                _copy_txt = (
+                    f"[{s.get('tool', '?')}] {s.get('reason') or ''}"
+                    + (f" 数据截至 {s['data_as_of']}" if s.get("data_as_of") else "")
                 )
-            if limitations:
-                st.warning("；".join(str(x) for x in limitations[:6]))
+                with _cols[_j]:
+                    with st.container(border=True):
+                        st.markdown(
+                            f'<div class="xc-mod-card">'
+                            f'<div class="xc-mod-top"><span>{_s_icon}</span><b>{_tool}</b></div>'
+                            f'<div class="xc-mod-reason">{_reason}{_asof}</div>'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+                        st.markdown(xc_copy_block(_copy_txt), unsafe_allow_html=True)
+        if limitations:
+            st.warning("；".join(str(x) for x in limitations[:6]))
     if citations:
         # T-312：点击展开明细——数据时点必显，步骤说明从研究过程按 S# 关联补全
         _step_map = {str(s.get("idx")): s for s in steps if isinstance(s, dict)}
