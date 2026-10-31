@@ -53,12 +53,13 @@ _DEFAULT_DATA_DIR = os.path.join(_PROJECT_ROOT, "data")
 # 融合权重（和为 1；逐标的缺失某算法时按可用权重重归一化）。
 # T-246：新增 A6 breakout=0.15，六路重分配（R2 右侧强势路与 A1 超跌路对冲）
 ALGO_WEIGHTS = {
-    "multi_factor": 0.25,
-    "dual_trend": 0.20,
+    "multi_factor": 0.22,   # -0.03（给 financial_health 挪份额）
+    "dual_trend": 0.17,     # -0.03
     "fund_flow": 0.18,
     "event_factor": 0.12,
-    "momentum": 0.10,
-    "breakout": 0.15,
+    "momentum": 0.09,       # -0.01
+    "breakout": 0.12,       # -0.03
+    "financial_health": 0.10,  # R8/T-363：F-Score + Altman Z' + Beneish M
 }
 ALGO_LABELS = {
     "multi_factor": "多因子 V5（趋势+超跌反弹）",
@@ -67,6 +68,7 @@ ALGO_LABELS = {
     "event_factor": "P1 事件因子",
     "momentum": "20 日动量+量能",
     "breakout": "放量新高突破（右侧强势）",
+    "financial_health": "财务健康（F+Z+M 三合一）",
 }
 
 DISCLAIMER = (
@@ -720,6 +722,9 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
     ff_tasks = [(f"ff_{c}", lambda c=c: _safe_fund_flow(c)) for c in enrich_codes]
     ff_map = fetch_many(ff_tasks, max_workers=6, timeout=90)
     event_map = _safe_event_long_list()
+    # R8/T-363：财务健康三因子富集（与 fund_flow 并行取数，控制网络开销）
+    fh_tasks = [(f"fh_{c}", lambda c=c: _safe_financial_health(c, fetcher)) for c in enrich_codes]
+    fh_map = fetch_many(fh_tasks, max_workers=4, timeout=120)
 
     for c in enrich_codes:
         ff = ff_map.get(f"ff_{c}")
@@ -734,6 +739,14 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
             ev = event_map[c]
             candidates[c]["algo"]["event_factor"] = {
                 "score": ev.get("score"), "reasons": [f"P1 事件因子排名 {ev.get('raw_rank', '—')}"],
+            }
+        # R8/T-363：财务健康三合一（F+Z+M）进 algo → fusion 自动加权
+        fh = fh_map.get(f"fh_{c}")
+        if isinstance(fh, dict) and fh.get("score") is not None:
+            candidates[c]["algo"]["financial_health"] = {
+                "score": fh["score"],
+                "reasons": fh.get("reasons", []),
+                "meta": fh.get("meta", {}),
             }
         # R3/T-246：Value Trap 富集段——PE/PB 低位确认加分，≥50 时 A1 分数 ×0.7
         vt = candidates[c].get("value_trap")
@@ -1040,6 +1053,72 @@ def _safe_event_long_list() -> dict:
     except Exception as e:  # noqa: BLE001
         logger.info("[recommend_engine] 事件因子不可用（如实降级）: %s", e)
         return {}
+
+
+def _safe_financial_health(code: str, fetcher=None) -> dict:
+    """R8/T-363：财务健康三合一 → 0-100 融合分。
+
+    三模型独立评分后平均：F-Score(0-9→0-100) / Altman Z'(1.81危险→20, 3.0安全→90) /
+    Beneish M(-1.78正常→40, ≤-3→90, ≥0→10)；任一不可用按可用部分平均+warning；
+    全不可用 → status="unavailable" 不编造。
+    """
+    try:
+        from modules import financial_health as fh
+
+        f = fh.f_score(code, fetcher)
+        z = fh.altman_z(code, fetcher)
+        m = fh.beneish_m(code, fetcher)
+
+        scores: list[float] = []
+        reasons: list[str] = []
+        meta = {"f": f["status"], "z": z["status"], "m": m["status"]}
+
+        # F-Score: 0-9 → 0-100
+        if f["score"] is not None:
+            f_s = round(min(100.0, max(0.0, f["score"] / 9 * 100)), 1)
+            scores.append(f_s)
+            reasons.append(f"F-Score={f['score']}/9")
+
+        # Altman Z': 1.81→20, 3.0→90 线性
+        if z["score"] is not None:
+            zv = z["score"]
+            if zv <= 1.81:
+                z_s = 20.0
+            elif zv >= 3.0:
+                z_s = 90.0
+            else:
+                z_s = round(20.0 + (zv - 1.81) / 1.19 * 70.0, 1)
+            scores.append(z_s)
+            reasons.append(f"Altman Z'={zv:.2f}")
+
+        # Beneish M: ≤-3→90, -1.78→40, ≥0→10 线性
+        if m["score"] is not None:
+            mv = m["score"]
+            if mv <= -3.0:
+                m_s = 90.0
+            elif mv >= 0.0:
+                m_s = 10.0
+            elif mv <= -1.78:
+                m_s = round(40.0 + (-1.78 - mv) / 1.22 * 50.0, 1)
+            else:
+                m_s = round(20.0 * (1.0 + mv / -1.78), 1)
+            scores.append(m_s)
+            reasons.append(f"Beneish M={mv:.2f}")
+
+        if not scores:
+            return {"score": None, "reasons": [], "status": "unavailable", "meta": meta}
+
+        avg = round(sum(scores) / len(scores), 1)
+        ok_count = len(scores)
+        total = 3
+        status = "ok" if ok_count == total else "warning"
+        if ok_count < total:
+            reasons.append(f"（{ok_count}/{total} 因子可用，缺失按诚实降级处理）")
+        return {"score": avg, "reasons": reasons, "status": status, "meta": meta}
+
+    except Exception as e:  # noqa: BLE001
+        logger.info("[recommend_engine] %s financial_health 异常（如实降级）: %s", code, e)
+        return {"score": None, "reasons": [], "status": "unavailable", "meta": {}}
 
 
 def _safe_market_context() -> dict:

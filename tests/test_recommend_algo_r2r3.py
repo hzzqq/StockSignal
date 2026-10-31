@@ -160,8 +160,8 @@ def test_pe_pb_boost_rules():
 
 
 def test_weights_sum_and_breakout():
-    """六路权重和=1，breakout=0.15。"""
-    assert ALGO_WEIGHTS.get("breakout") == pytest.approx(0.15)
+    """七路权重和=1，breakout=0.12（T-363 为 financial_health 挪份额）。"""
+    assert ALGO_WEIGHTS.get("breakout") == pytest.approx(0.12)
     assert sum(ALGO_WEIGHTS.values()) == pytest.approx(1.0)
 
 
