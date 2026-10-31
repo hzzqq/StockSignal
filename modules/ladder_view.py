@@ -70,11 +70,11 @@ def render_ladder_block(dark: bool, top_per_level: int = 3) -> bool:
         st.markdown("**🪜 连板梯队全景**（最高板往下每一档的代表股，梯队厚度=赚钱效应能否扩散）")
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.metric("最高板", f"{mx} 板")
+            st.metric("最高板", f"{mx} 板", delta_color="off")
         with c2:
-            st.metric("连板总家数(≥2板)", f"{total} 家")
+            st.metric("连板总家数(≥2板)", f"{total} 家", delta_color="off")
         with c3:
-            st.metric("梯队档位", f"{len(lad['levels'])} 档")
+            st.metric("梯队档位", f"{len(lad['levels'])} 档", delta_color="off")
         st.markdown(
             f"<div style='border-left:3px solid {dcolor};padding-left:10px;"
             f"font-size:13px;color:{dcolor}'>{diag}</div>",

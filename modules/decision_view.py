@@ -100,11 +100,12 @@ def render_signal_cards(temp, cyc_name, cyc_emoji, score, bias, overall, latest_
                   help="牧羊人 17 项综合温度 0-100，越高越热；delta=较昨日")
         st.caption(_temp_label)
     with c2:
-        st.metric("🔄 情绪周期", cyc_name or "—")
+        st.metric("🔄 情绪周期", cyc_name or "—", delta_color="off")
         st.caption(cyc_emoji or "⚪")
     with c3:
         st.metric("🔮 情绪热度", f"{score:.0f}" if score is not None else "—",
-                  help="当日情绪热度 0-100（仅表征情绪强度，实测不预测次日方向）")
+                  help="当日情绪热度 0-100（仅表征情绪强度，实测不预测次日方向）",
+                  delta_color="off")
         st.caption(f"方向 {bias}")
     with c4:
         _od = None if overall_delta is None else round(float(overall_delta), 1)
@@ -141,9 +142,10 @@ def render_ladder_table(promo):
     overall = promo.get("overall")
     c1, c2 = st.columns(2)
     with c1:
-        st.metric("综合晋级率（首板→二板）", f"{overall:.1f}%" if overall is not None else "—")
+        st.metric("综合晋级率（首板→二板）", f"{overall:.1f}%" if overall is not None else "—",
+                  delta_color="off")
     with c2:
-        st.metric("历史天数", promo.get("days", 0))
+        st.metric("历史天数", promo.get("days", 0), delta_color="off")
     rates = promo.get("rates") or {}
     if rates:
         rows = []

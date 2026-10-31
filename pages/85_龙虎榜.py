@@ -69,9 +69,9 @@ def main() -> None:
         return
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("上榜家数", summary["count"])
-    c2.metric("净买额合计", _fmt_yi(summary["net_sum"]))
-    c3.metric("识别到的净买列", summary["net_col"])
+    c1.metric("上榜家数", summary["count"], delta_color="off")
+    c2.metric("净买额合计", _fmt_yi(summary["net_sum"]), delta_color="off")
+    c3.metric("识别到的净买列", summary["net_col"], delta_color="off")
 
     st.divider()
     left, right = st.columns(2)

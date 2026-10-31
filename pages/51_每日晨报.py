@@ -109,9 +109,9 @@ def fragment_sector_summary():
         down = int((sector_df['change_pct'] < 0).sum())
         flat = len(sector_df) - up - down
         c1, c2, c3 = st.columns(3)
-        c1.metric('上涨板块', up, delta=None, help='今日收盘涨幅大于 0 的板块数量')
-        c2.metric('下跌板块', down, delta=None, help='今日收盘跌幅小于 0 的板块数量')
-        c3.metric('平/无数据', flat, delta=None, help='涨跌幅为 0 或暂未获取到行情的板块数量')
+        c1.metric('上涨板块', up, delta=None, help='今日收盘涨幅大于 0 的板块数量', delta_color="off")
+        c2.metric('下跌板块', down, delta=None, help='今日收盘跌幅小于 0 的板块数量', delta_color="off")
+        c3.metric('平/无数据', flat, delta=None, help='涨跌幅为 0 或暂未获取到行情的板块数量', delta_color="off")
         st.caption('数据来源：东方财富板块行情')
         top_up = sector_df.sort_values('change_pct', ascending=False).head(5)
         top_dn = sector_df.sort_values('change_pct', ascending=True).head(5)

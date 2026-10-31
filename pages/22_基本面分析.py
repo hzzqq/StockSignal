@@ -325,10 +325,10 @@ def fragment_valuation_band(code: str, name: str, industry: str, pe_ttm, dark: b
                    + (f'（缺 {("、".join(du.get("missing") or []))}）' if du.get('missing') else ''))
     else:
         d1, d2, d3, d4 = st.columns(4)
-        d1.metric('净利率', f'{du["net_margin"]:.2f}%')
-        d2.metric('总资产周转率', f'{du["asset_turnover"]:.3f} 次')
-        d3.metric('权益乘数', f'{du["equity_multiplier"]:.2f}')
-        d4.metric('ROE（披露）', f'{du["roe"]:.2f}%')
+        d1.metric('净利率', f'{du["net_margin"]:.2f}%', delta_color="off")
+        d2.metric('总资产周转率', f'{du["asset_turnover"]:.3f} 次', delta_color="off")
+        d3.metric('权益乘数', f'{du["equity_multiplier"]:.2f}', delta_color="off")
+        d4.metric('ROE（披露）', f'{du["roe"]:.2f}%', delta_color="off")
         st.caption(f'三项乘积 = {du["implied_roe"]:.2f}%（容差 ±{du["tol"]:.2f}）'
                    + ('　✅ 与披露 ROE 自洽' if du.get('consistent') else '　⚠️ 不一致'))
         for _f in du.get('flags') or []:
@@ -743,10 +743,10 @@ if code:
         p_3y = _percentile(hist_df.tail(756)['close'], current) if len(hist_df) >= 400 else None
         p_5y = _percentile(hist_df['close'], current) if len(hist_df) >= 60 else None
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric('当前价', f'¥{current:.2f}')
-        m2.metric('1年价格分位', f'{p_1y:.1f}%' if p_1y is not None else '—')
-        m3.metric('3年价格分位', f'{p_3y:.1f}%' if p_3y is not None else '—')
-        m4.metric('5年价格分位', f'{p_5y:.1f}%' if p_5y is not None else '—')
+        m1.metric('当前价', f'¥{current:.2f}', delta_color="off")
+        m2.metric('1年价格分位', f'{p_1y:.1f}%' if p_1y is not None else '—', delta_color="off")
+        m3.metric('3年价格分位', f'{p_3y:.1f}%' if p_3y is not None else '—', delta_color="off")
+        m4.metric('5年价格分位', f'{p_5y:.1f}%' if p_5y is not None else '—', delta_color="off")
         hist_plot = downsample(hist_df, max_points=600)
         fig_hist = _build_hist_fig(hist_plot, current, name, dark)
         st.plotly_chart(fig_hist, width="stretch", config={"displaylogo": False, "responsive": True})

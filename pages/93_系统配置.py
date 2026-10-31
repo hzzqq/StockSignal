@@ -83,6 +83,7 @@ with tab_overview:
                 info.get("label", name),
                 "✅ 可用" if ok else "❌ 不可用",
                 help=info.get("detail", ""),
+                delta_color="off",
             )
         st.caption(
             f"总览 {report.get('summary')} · 探测于 {report.get('timestamp')} · "

@@ -928,10 +928,10 @@ def fragment_batch_backtest():
                     return
                 # 聚合摘要
                 col1, col2, col3, col4 = st.columns(4)
-                col1.metric("标的数", summary["stock_count"])
-                col2.metric("平均累计收益", f"{summary['avg_total_return']:+.2f}%")
-                col3.metric("平均夏普", f"{summary['avg_sharpe']:.2f}" if summary.get('avg_sharpe') else "-")
-                col4.metric("平均回撤", f"{summary['avg_max_drawdown']:.2f}%" if summary.get('avg_max_drawdown') is not None else "-")
+                col1.metric("标的数", summary["stock_count"], delta_color="off")
+                col2.metric("平均累计收益", f"{summary['avg_total_return']:+.2f}%", delta_color="off")
+                col3.metric("平均夏普", f"{summary['avg_sharpe']:.2f}" if summary.get('avg_sharpe') else "-", delta_color="off")
+                col4.metric("平均回撤", f"{summary['avg_max_drawdown']:.2f}%" if summary.get('avg_max_drawdown') is not None else "-", delta_color="off")
                 st.caption(f"平均胜率 {summary.get('avg_win_rate')} · 平均盈亏比 {summary.get('avg_profit_factor')} · "
                            f"🏆最佳 {summary['best_stock']} · 🔻最差 {summary['worst_stock']}")
 
@@ -1024,10 +1024,10 @@ def fragment_walk_forward():
                      "overfit_risk": ("🔴", "过拟合风险"), "no_edge": ("⚪", "无优势")}
             _icon, _label = _vmap.get(a.get("verdict"), ("⚪", "—"))
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("样本内均值", f"{s['mean_is']:+.2f}%")
-            c2.metric("样本外均值", f"{s['mean_oos']:+.2f}%")
-            c3.metric("样本外胜段率", f"{s['oos_win_rate']:.0f}%")
-            c4.metric(f"{_icon} 判定", _label)
+            c1.metric("样本内均值", f"{s['mean_is']:+.2f}%", delta_color="off")
+            c2.metric("样本外均值", f"{s['mean_oos']:+.2f}%", delta_color="off")
+            c3.metric("样本外胜段率", f"{s['oos_win_rate']:.0f}%", delta_color="off")
+            c4.metric(f"{_icon} 判定", _label, delta_color="off")
             if a.get("verdict") in ("robust", "acceptable"):
                 xc_success_box(a.get("note", ""))
             else:

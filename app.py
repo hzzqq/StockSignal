@@ -144,10 +144,12 @@ def _render_decision_card(payload, stale=False):
         c1, c2, c3, c4, c5 = st.columns([1, 1.4, 1, 1.1, 1.1])
         with c1:
             st.metric("🌡️ 市场温度", f"{temp:.0f}" if temp is not None else "—",
-                      help="牧羊人 17 项综合温度 0-100，越高越热")
+                      help="牧羊人 17 项综合温度 0-100，越高越热",
+                      delta_color="off")
         with c2:
             st.metric("🔄 情绪周期", payload.get("cycle") or "-",
-                      help="六阶段定位：冰点 / 修复试探 / 修复确认 / 主升高潮 / 高潮分化 / 退潮")
+                      help="六阶段定位：冰点 / 修复试探 / 修复确认 / 主升高潮 / 高潮分化 / 退潮",
+                      delta_color="off")
         with c3:
             st.metric("🧭 次日方向", payload.get("bias") or "-",
                       delta=f"置信 {payload.get('confidence') or '-'}", delta_color="off")

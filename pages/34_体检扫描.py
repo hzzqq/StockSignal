@@ -480,10 +480,10 @@ def result_board():
     n_watch = sum(1 for r in results if r.get("priority") == "WATCH")
     n_att = sum(1 for r in results if r.get("priority") == "ATTENTION")
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric(f"{_PRIORITY_EMOJI['HIGH']} 高优先级", n_high)
-    m2.metric(f"{_PRIORITY_EMOJI['WATCH']} 关注", n_watch)
-    m3.metric(f"{_PRIORITY_EMOJI['ATTENTION']} 警惕", n_att)
-    m4.metric("平均综合分", f"{avg_comp}" if avg_comp is not None else "—")
+    m1.metric(f"{_PRIORITY_EMOJI['HIGH']} 高优先级", n_high, delta_color="off")
+    m2.metric(f"{_PRIORITY_EMOJI['WATCH']} 关注", n_watch, delta_color="off")
+    m3.metric(f"{_PRIORITY_EMOJI['ATTENTION']} 警惕", n_att, delta_color="off")
+    m4.metric("平均综合分", f"{avg_comp}" if avg_comp is not None else "—", delta_color="off")
 
     def _fmt_score(v):
         return f"{v:.0f}" if isinstance(v, (int, float)) else "—"
@@ -682,10 +682,10 @@ def risk_board():
     lvl_emoji = {sr.RISK_HIGH: "🔴", sr.RISK_MEDIUM: "🟠",
                  sr.RISK_LOW: "🟢", sr.RISK_UNKNOWN: "⚪"}
     k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric(f"{lvl_emoji[sr.RISK_HIGH]} 高风险", _cnt(sr.RISK_HIGH))
-    k2.metric(f"{lvl_emoji[sr.RISK_MEDIUM]} 中风险", _cnt(sr.RISK_MEDIUM))
-    k3.metric(f"{lvl_emoji[sr.RISK_LOW]} 低风险", _cnt(sr.RISK_LOW))
-    k4.metric(f"{lvl_emoji[sr.RISK_UNKNOWN]} 未知", _cnt(sr.RISK_UNKNOWN))
+    k1.metric(f"{lvl_emoji[sr.RISK_HIGH]} 高风险", _cnt(sr.RISK_HIGH), delta_color="off")
+    k2.metric(f"{lvl_emoji[sr.RISK_MEDIUM]} 中风险", _cnt(sr.RISK_MEDIUM), delta_color="off")
+    k3.metric(f"{lvl_emoji[sr.RISK_LOW]} 低风险", _cnt(sr.RISK_LOW), delta_color="off")
+    k4.metric(f"{lvl_emoji[sr.RISK_UNKNOWN]} 未知", _cnt(sr.RISK_UNKNOWN), delta_color="off")
     k5.metric("平均风险分", f"{avg_score}" if avg_score is not None else "—",
               delta=f"覆盖 {avg_cov}%" if avg_cov is not None else None,
               delta_color="off")
