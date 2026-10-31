@@ -226,8 +226,8 @@ if is_authenticated():
     xc_success_box(f"✅ 已登录为 **{st.session_state['auth_user']['username']}**（{st.session_state['auth_user']['role']}）")
     col_a, col_b = st.columns(2)
     with col_a:
-        if st.button("📈 进入行情看板", width="stretch"):
-            safe_switch_page("pages/10_行情看板.py")
+        if st.button("🏠 进入首页", width="stretch"):
+            safe_switch_page("app.py")
     with col_b:
         if st.button("🚪 退出登录", width="stretch"):
             clear_auth()
@@ -321,7 +321,8 @@ with form_col:
                                 st.session_state["_remember_me"] = remember
                                 xc_success_box(f"✅ 登录成功！欢迎 {user.get('username', '用户')}")
                                 st.balloons()
-                                safe_switch_page("pages/10_行情看板.py")
+                                # T-367：登录后首屏改为首页（app.py），让 P1 改版（说明置顶+今日决策+合并快捷入口）成为第一印象
+                                safe_switch_page("app.py")
                         elif resp.status_code == 429:
                             st.error("⏳ 登录尝试过于频繁，请 60 秒后再试（防爆破保护已启用）")
                         else:
