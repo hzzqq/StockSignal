@@ -198,10 +198,10 @@
 | R3 | Value Trap 轻量评分 | ✅ 已落地（T-246） | `recommend_engine.value_trap_score` + `_safe_pe_pb_series` |
 | R4 | 市况自适应权重 | ✅ 已落地（T-270） | `recommend_engine.market_regime_weights` |
 | R5 | 相对大盘强度并入 A5 | ✅ 已落地（T-270） | `_momentum_score(df, index_ret20)`（`_index_ret20_safe`，指数不可得如实回落绝对动量并标注） |
-| R6 | 连续风险扣分 | ⏳ 未落地（T-330 待办） | — |
+| R6 | 连续风险扣分 | ✅ 已落地（T-330） | `recommend_engine.continuous_risk_penalty`（振幅分量 amp5>5% 起罚、每 +1pp 罚 1.2、封顶 8；回撤分量 dd20>20% 起罚、每 +10pp 罚 6、封顶 6；换手率数据链无字段→恒 unavailable 诚实降级；总罚分 0~14；L777 在 candidates 组装循环接线）；独立守卫 `tests/test_continuous_risk_penalty.py` 12 例（结构/数值/诚实语义三分量全覆盖） |
 | R7 | MACD 底背离确认 | ✅ 已落地（T-333） | `technical.detect_bullish_divergence`（价微破新低 ≤5% 磨底上限 + MACD 柱/DIF 不创新低 + 放量三条件 AND，口径同 `compute_macd`，数据不足→unavailable）→ `recommend_engine.apply_divergence_confirm`（A1 命中 +5 封顶 100、reasons 透明标注，candidates 组装循环接线，backtest._score_for_picker 本体零影响；守卫 tests/test_macd_divergence.py 13 例，mutation 4 注入真红复绿） |
 | R8 | F-Score / Altman Z | ⏳ 中期待办（**勘测 2026-10-26 完成，T-334**：现金流数据链现成——`_market_data_io.fetch_financial(cash)` 走 sina 现金流量表，实测 600519 返 8 期×71 列、「经营活动产生的现金流量净额」字段在位、最新报告期 2026-06-30 新鲜；净利润在 income 表、杠杆/流动比率在 balance 表（同为现役接口）；stock_screener 已有「经营现金流量净额→ocf」解析先例；F-Score 9 分量全部可由现役三表+股本字段覆盖，落地成本由本表原估「中」降级为「低-中」，建议与 R3 财务分量合并立项（§三 L91 原议），不单独立项） | — |
-| R9 | A4 标注层 | ⏳ 未落地（T-332 待办） | — |
+| R9 | A4 标注层 | ✅ 已落地（T-332） | `event_factor.annotate_hard_logic`（词表硬逻辑 vs 题材炒作二分 + 平票 unavailable） + `annotate_horizon`（信号 json 自带 horizon→兑现窗口映射）+ `_loader_horizon`（从 P1SignalLoader 读 horizon 字段）；`get_event_factor` 所有成功路径（top_long/top_short/daily/news）均已 merge `horizon` + `hard_logic` 字段；P1 榜单词表不可得时 hard_logic 如实 unavailable（`_ANNOT_NO_TEXT`），绝不编造分类 |
 | R10 | 回测成本口径 | ✅ **已落地（且超原计划）** | `_simulate` 三成本拆分：`commission` 双边 + `slippage_pct` 买卖双侧 + `stamp_tax_pct` 仅卖出（默认各 0.1%）；并已修复成本重复扣除缺陷（净收益率取实际现金流 revenue/buy_cost；守卫 `tests/test_backtest_cost_double_count.py` 5 例含源码级防回退）；论文口径一致 |
 
 **纠偏**：上文 §〇「`_simulate(commission=0.001)` **无印花税/滑点拆分**」与 §一「项目 `_simulate(commission=0.001)` 只有一项，且未拆印花税」为 2026-10-11 时点快照，现已过时——R10 已按上表落地，且实际拆分粒度（滑点/印花税/佣金三参数独立可调）超出本评估当时的建议。
