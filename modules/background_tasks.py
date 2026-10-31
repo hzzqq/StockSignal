@@ -315,3 +315,51 @@ def delete_chat_conversation(conv_id: int) -> bool:
     except Exception as e:
         logger.warning(f"[background_tasks] 处理异常: {e}")
     return False
+
+
+def export_chat_conversation(conv_id: int, fmt: str = "markdown") -> tuple[bool, bytes | dict | str]:
+    """Export a conversation. fmt: 'markdown' (raw bytes) | 'json' (dict, envelope parsed).
+
+    Backend returns markdown as text/markdown raw bytes (Content-Disposition attachment),
+    json as Flask envelope {status, code, message, data}. This function unifies to
+    (ok, content): markdown success -> bytes, json success -> dict (envelope peeled);
+    failure -> error message string.
+
+    Note: uses requests.get directly (not http_get) because markdown is raw bytes not JSON.
+    """
+    if fmt not in ("markdown", "json"):
+        return False, f"format must be markdown/json (got: {fmt})"
+    try:
+        resp = requests.get(
+            f"{API_BASE}/api/chat/conversations/{int(conv_id)}/export",
+            params={"format": fmt},
+            headers=_headers(),
+            timeout=_TIMEOUT,
+        )
+        if resp.status_code == 200:
+            if fmt == "markdown":
+                return True, resp.content
+            try:
+                body = resp.json()
+            except Exception:
+                return False, "response is not valid JSON"
+            if body.get("status") == "ok":
+                return True, body.get("data") or {}
+            return False, body.get("message") or "export failed"
+        if resp.status_code == 404:
+            return False, "conversation not found or deleted"
+        if resp.status_code == 400:
+            try:
+                body = resp.json()
+                return False, body.get("message") or "bad request"
+            except Exception:
+                return False, "bad request (invalid format)"
+        if resp.status_code in (401, 403):
+            return False, "login expired, please re-login"
+        return False, f"export failed (HTTP {resp.status_code})"
+    except requests.exceptions.ConnectionError as e:
+        return False, f"connection error: {e}"
+    except Exception as e:
+        logger.warning(f"[background_tasks] export_chat_conversation exception: {e}")
+        return False, f"export exception: {e}"
+

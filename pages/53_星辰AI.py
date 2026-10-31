@@ -40,7 +40,7 @@ from modules.starfield_theme import inject_plotly_dark
 from modules.background_tasks import (
     submit_task_with_error, poll_task, get_chat_history, save_chat_history,
     list_chat_conversations, create_chat_conversation, get_chat_conversation_messages,
-    save_chat_conversation_messages, delete_chat_conversation, cancel_task,
+    save_chat_conversation_messages, delete_chat_conversation, export_chat_conversation, cancel_task,
 )
 from modules.widgets import _slim_context
 from modules.widgets import STAR_AI_LOGO
@@ -1061,6 +1061,37 @@ def _load_conversation_into_state(conv: dict) -> None:
         st.session_state.pop("xc_messages_sig", None)
 
 
+# ── T-362 工具函数：时间格式化 + 导出缓存（additive）──
+@st.cache_data(ttl=300, show_spinner=False)
+def _xc_export_cached(conv_id: int, fmt: str):
+    """Cached wrapper for export_chat_conversation. TTL=300s avoids
+    re-fetching on every rerun while keeping exports reasonably fresh."""
+    return export_chat_conversation(conv_id, fmt)
+
+
+def _format_conv_time(updated_at) -> str:
+    """Format conversation updated_at to a readable short form.
+    Today -> HH:MM; earlier this year -> MM-DD; older -> YYYY-MM-DD.
+    Empty/invalid input -> empty string."""
+    import datetime as _dt
+    if not updated_at:
+        return ""
+    try:
+        ts = str(updated_at)[:19].replace("T", " ")
+        if "+" in ts:
+            ts = ts.split("+")[0]
+        dt = _dt.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+        now = _dt.datetime.now()
+        today = now.date()
+        if dt.date() == today:
+            return dt.strftime("%H:%M")
+        if dt.year == now.year:
+            return dt.strftime("%m-%d")
+        return dt.strftime("%Y-%m-%d")
+    except Exception:
+        return str(updated_at)[:16]
+
+
 # ══════════════════════════════════════════════════════
 # 主流程
 # ══════════════════════════════════════════════════════
@@ -1134,16 +1165,28 @@ with h_left:
         unsafe_allow_html=True,
     )
 with h_mid:
-    # T-310：对话一键导出 Markdown（空对话禁用 + 诚实提示）
+    # T-362 升级：popover 内两选项（markdown / json），本地零网络
     _real_msgs = [m for m in st.session_state.get("xc_messages", [])
                   if isinstance(m, dict) and not m.get("chips")]
-    st.download_button(
-        "⬇️ 导出", data=_export_markdown(_real_msgs).encode("utf-8"),
-        file_name=f"星辰AI对话_{time.strftime('%Y%m%d_%H%M')}.md",
-        mime="text/markdown", key="xc_export", width="stretch",
-        disabled=not _real_msgs,
-        help="导出当前对话为 Markdown" if _real_msgs else "暂无可导出的对话内容",
-    )
+    _has_real = bool(_real_msgs)
+    _ts = time.strftime("%Y%m%d_%H%M")
+    with st.popover("⬇️ 导出当前",
+                     disabled=not _has_real,
+                     help="导出当前会话为 Markdown 或 JSON" if _has_real else "暂无可导出的对话内容"):
+        st.download_button(
+            "📄 Markdown（.md）",
+            data=_export_markdown(_real_msgs).encode("utf-8"),
+            file_name=f"星辰AI对话_{_ts}.md",
+            mime="text/markdown; charset=utf-8", key="xc_export_md",
+            width="stretch",
+        )
+        st.download_button(
+            "📋 JSON（.json）",
+            data=json.dumps(_real_msgs, ensure_ascii=False, indent=2).encode("utf-8"),
+            file_name=f"星辰AI对话_{_ts}.json",
+            mime="application/json", key="xc_export_json",
+            width="stretch",
+        )
 with h_right:
     _ck = "xc_clear_confirm"
     if st.session_state.get(_ck):
@@ -1251,18 +1294,100 @@ if not st.session_state.get("xc_legacy_mode"):
                              disabled=_busy or not st.session_state.get("xc_conv_id"),
                              help=_busy_help or "删除当前会话及其全部消息"):
                     st.session_state[_dk] = True
-        # 会话列表（后端已按最近更新倒序；排除当前会话，点击即切换）
+        # T-362 归档面板：按"7天内/更早"时间分组 + 每条多列（切换 | md 导出 | json 导出 | 删除）
         _convs, _convs_ok = list_chat_conversations()
         _cur_cid = st.session_state.get("xc_conv_id")
         _others = [c for c in _convs if isinstance(c, dict) and c.get("id") != _cur_cid]
-        if _others:
-            st.caption("点击切换到其他会话：")
-            for _c in _others[:20]:
-                _label = f"📄 {str(_c.get('title') or '新对话')[:20]} · {_c.get('count', 0)}条"
-                if st.button(_label, key=f"xc_conv_go_{_c.get('id')}", width="stretch",
-                             disabled=_busy, help=_busy_help or "切换到此会话"):
+
+        # Time grouping: recent 7 days vs older (archive semantics)
+        import datetime as _dt
+        _now = _dt.datetime.now()
+        _recent_cutoff = _now - _dt.timedelta(days=7)
+
+        def _parse_conv_dt(conv):
+            try:
+                ts = str(conv.get("updated_at") or "")[:19].replace("T", " ")
+                if "+" in ts:
+                    ts = ts.split("+")[0]
+                return _dt.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                return _dt.datetime(2000, 1, 1)
+
+        _recent = [c for c in _others if _parse_conv_dt(c) >= _recent_cutoff]
+        _older = [c for c in _others if _parse_conv_dt(c) < _recent_cutoff]
+
+        def _render_conv_row(_c):
+            _cid = _c.get("id")
+            _title = str(_c.get("title") or "新对话")[:25]
+            _count = _c.get("count", 0)
+            _time_str = _format_conv_time(_c.get("updated_at"))
+            _c1, _c2, _c3, _c4 = st.columns([2.8, 0.5, 0.5, 0.7])
+            with _c1:
+                if st.button(
+                    f"📄 {_title} · {_count}条 · {_time_str}",
+                    key=f"xc_conv_go_{_cid}", width="stretch",
+                    disabled=_busy, help=_busy_help or "切换到此会话",
+                ):
                     _load_conversation_into_state(_c)
                     st.rerun()
+            with _c2:
+                _md_ok, _md_content = _xc_export_cached(_cid, "markdown")
+                st.download_button(
+                    "md",
+                    data=_md_content if _md_ok else b"",
+                    file_name=f"{_title}_{_cid}.md",
+                    mime="text/markdown; charset=utf-8",
+                    key=f"xc_conv_exp_md_{_cid}",
+                    width="stretch",
+                    disabled=not _md_ok,
+                    help=_md_content if isinstance(_md_content, str) and not _md_ok else "导出 Markdown",
+                )
+            with _c3:
+                _js_ok, _js_content = _xc_export_cached(_cid, "json")
+                _js_bytes = json.dumps(
+                    _js_content if _js_ok else {"error": str(_js_content)},
+                    ensure_ascii=False, indent=2, default=str,
+                ).encode("utf-8")
+                st.download_button(
+                    "js",
+                    data=_js_bytes,
+                    file_name=f"{_title}_{_cid}.json",
+                    mime="application/json",
+                    key=f"xc_conv_exp_json_{_cid}",
+                    width="stretch",
+                    help="导出 JSON",
+                )
+            with _c4:
+                _del_key = f"xc_conv_del_{_cid}"
+                if st.session_state.get(_del_key):
+                    if st.button("confirm", key=f"xc_conv_del_cfm_{_cid}",
+                                 type="primary", width="stretch",
+                                 help="Delete this conversation"):
+                        if delete_chat_conversation(_cid):
+                            st.toast("🗑️ 会话已删除")
+                            st.session_state.pop(_del_key, None)
+                            st.rerun()
+                        else:
+                            st.toast("⚠️ 删除失败", icon="⚠️")
+                            st.session_state.pop(_del_key, None)
+                    if st.button("cancel", key=f"xc_conv_del_cancel_{_cid}",
+                                 width="stretch"):
+                        st.session_state.pop(_del_key, None)
+                else:
+                    if st.button("🗑️", key=f"xc_conv_del_btn_{_cid}",
+                                 width="stretch",
+                                 help="Delete this conversation"):
+                        st.session_state[_del_key] = True
+
+        if _others:
+            if _recent:
+                st.caption(f"🟢 最近 7 天（{len(_recent)} 个）")
+                for _c in _recent[:12]:
+                    _render_conv_row(_c)
+            if _older:
+                with st.expander(f"📦 更早（{len(_older)} 个，归档）", expanded=False):
+                    for _c in _older[:20]:
+                        _render_conv_row(_c)
         else:
             st.caption("暂无其他历史会话。发送消息后自动保存，可随时新建对话。")
 
