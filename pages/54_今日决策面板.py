@@ -20,7 +20,10 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-from modules.page_utils import render_standard_page
+from modules.page_utils import (render_standard_page,
+    last_data_date as _last_data_date,
+    row_to_indicators as _row_to_indicators,
+    temp_gauge as _temp_gauge)
 from modules.shepherd import (get_shepherd_indicators, shepherd_temperature, THRESHOLDS)
 from modules import shepherd_ladder as _sl
 from modules import shepherd_forecast as _sf
@@ -70,35 +73,6 @@ def _load_shepherd(days: int = 60):
     return get_shepherd_indicators(days=days)
 
 
-def _row_to_indicators(df, i=-1):
-    """牧羊人 DataFrame 第 i 行 → 指标 dict（供温度/预判/笔记用）。"""
-    if df is None or getattr(df, "empty", True):
-        return {}
-    try:
-        row = df.iloc[i]
-    except Exception:  # noqa: BLE001
-        return {}
-    out = {}
-    for k in df.columns:
-        if k == "date":
-            continue
-        try:
-            v = float(row[k])
-            if v == v:
-                out[k] = v
-        except Exception:  # noqa: BLE901
-            continue
-    return out
-
-
-def _last_data_date(df) -> str:
-    """取牧羊人数据最后一行交易日；落盘类操作一律用它而非 now()，避免非交易日错位。"""
-    try:
-        return str(pd.to_datetime(df["date"].iloc[-1]).date())
-    except Exception:  # noqa: BLEUE
-        return pd.Timestamp.now().strftime("%Y-%m-%d")
-
-
 def _signal_light(key, value):
     """按 THRESHOLDS 给单一牧羊人指标打信号灯（高=热 / 高=冷 / dir=0 观察项）。"""
     th = THRESHOLDS.get(key)
@@ -118,40 +92,6 @@ def _signal_light(key, value):
         if value <= th["warm"]:
             return ("常温", "#f59e0b", f"{th['name']} {value:.0f}{th['unit']}，中性")
         return (th["cold_label"], "#ee2a2a", f"{th['name']} {value:.0f}{th['unit']}，风险")
-
-
-def _temp_gauge(t, dark, title, level, color):
-    """市场温度 0-100 仪表盘（风险语义：冷=蓝、热=红；与价格涨跌红绿无关）。"""
-    _steps = [
-        {"range": [0, 20], "color": "#1d4ed8"},
-        {"range": [20, 40], "color": "#0891b2"},
-        {"range": [40, 60], "color": "#ca8a04"},
-        {"range": [60, 80], "color": "#ea580c"},
-        {"range": [80, 100], "color": "#b91c1c"},
-    ]
-    _fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=round(float(t), 1),
-        number={"font": {"size": 42, "color": color}, "suffix": "°"},
-        gauge={
-            "axis": {"range": [0, 100], "tickwidth": 1,
-                     "tickcolor": "#94a3b8", "tickfont": {"color": "#94a3b8"}},
-            "bar": {"color": color, "thickness": 0.26},
-            "bgcolor": "rgba(0,0,0,0)",
-            "borderwidth": 1, "bordercolor": "#475569",
-            "steps": _steps,
-            "threshold": {"line": {"color": color, "width": 5},
-                         "thickness": 0.85, "value": round(float(t), 1)},
-        },
-        title={"text": title, "font": {"size": 16, "color": color}},
-    ))
-    _fig.update_layout(
-        template="plotly_dark" if dark else "plotly_white",
-        height=300, margin=dict(l=20, r=20, t=50, b=10),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e5e7eb" if dark else "#1f2937"),
-    )
-    return _fig
 
 
 # ───────────────────────── 顶部：情绪信号总览 + 仓位建议 ─────────────────────────

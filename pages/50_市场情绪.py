@@ -20,7 +20,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime
 
-from modules.page_utils import render_standard_page
+from modules.page_utils import (render_standard_page,
+    last_data_date as _last_data_date,
+    row_to_indicators as _row_to_indicators,
+    temp_gauge as _temp_gauge)
 from modules.ui_theme import sf_metric
 from modules.session import get_token, fragment_market_alerts_panel
 from modules.ladder_view import render_ladder_block
@@ -128,40 +131,6 @@ def _temp_bar(t, color):
         f'<div style="display:flex;justify-content:space-between;font-size:11px;'
         f'color:#999;margin-top:2px"><span>冰点 0</span><span>中性 50</span><span>过热 100</span></div>'
     )
-
-
-def _temp_gauge(t, dark, title, level, color):
-    """市场温度 0-100 仪表盘（风险语义：冷=蓝、热=红；与价格涨跌红绿无关）。"""
-    _steps = [
-        {"range": [0, 20], "color": "#1d4ed8"},
-        {"range": [20, 40], "color": "#0891b2"},
-        {"range": [40, 60], "color": "#ca8a04"},
-        {"range": [60, 80], "color": "#ea580c"},
-        {"range": [80, 100], "color": "#b91c1c"},
-    ]
-    _fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=round(float(t), 1),
-        number={"font": {"size": 42, "color": color}, "suffix": "°"},
-        gauge={
-            "axis": {"range": [0, 100], "tickwidth": 1,
-                     "tickcolor": "#94a3b8", "tickfont": {"color": "#94a3b8"}},
-            "bar": {"color": color, "thickness": 0.26},
-            "bgcolor": "rgba(0,0,0,0)",
-            "borderwidth": 1, "bordercolor": "#475569",
-            "steps": _steps,
-            "threshold": {"line": {"color": color, "width": 5},
-                         "thickness": 0.85, "value": round(float(t), 1)},
-        },
-        title={"text": title, "font": {"size": 16, "color": color}},
-    ))
-    _fig.update_layout(
-        template="plotly_dark" if dark else "plotly_white",
-        height=300, margin=dict(l=20, r=20, t=50, b=10),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e5e7eb" if dark else "#1f2937"),
-    )
-    return _fig
 
 
 # 各指标对「市场温度」的方向贡献：+1 越高越热，-1 越高越冷，0 不参与
@@ -888,40 +857,6 @@ def fragment_shepherd_chart():
         names = [THRESHOLDS.get(k, {}).get("name", k) for k in missing.keys()]
         caption += f" ⚠️ 以下指标在所选时段内缺失（未开始统计或数据源未覆盖）：{', '.join(names)}。"
     st.caption(caption)
-
-
-def _last_data_date(df) -> str:
-    """取牧羊人数据最后一行的交易日 'YYYY-MM-DD'；拿不到时退回今天。
-
-    落盘类操作（连板梯队快照 / 情绪笔记）一律用它而不是 now()：
-    周末、节假日、盘后打开页面时 now() 是个非交易日，会把「昨日」指到空档上，
-    导致跨日晋级率、笔记回填全部错位。
-    """
-    try:
-        return str(pd.to_datetime(df["date"].iloc[-1]).date())
-    except Exception:  # noqa: BLE001
-        return pd.Timestamp.now().strftime("%Y-%m-%d")
-
-
-def _row_to_indicators(df, i=-1):
-    """把牧羊人 DataFrame 的第 i 行转成指标 dict（供 forecast/note 用）。"""
-    if df is None or df.empty:
-        return {}
-    try:
-        row = df.iloc[i]
-    except Exception:  # noqa: BLE001
-        return {}
-    out = {}
-    for k in df.columns:
-        if k == "date":
-            continue
-        try:
-            v = float(row[k])
-            if v == v:  # 过滤 NaN
-                out[k] = v
-        except Exception:  # noqa: BLE001
-            continue
-    return out
 
 
 @safe_fragment("次日走势预判", run_every=180 if _in_trading_hours() else None)

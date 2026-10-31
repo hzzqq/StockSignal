@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
-from modules.page_utils import render_standard_page
+from modules.page_utils import (render_standard_page, score_bar as _score_bar)
 from modules.session import trading_autorefresh
 from modules.spot_rank import _col, _num, load_spot_with_source, strong_score
 from modules.risk_gate import scan_and_gate  # T-245 二道闸
@@ -37,19 +37,6 @@ def _gate_strong_summary(codes: tuple, names: tuple, top_k: int):
         logger.warning("[76] 二道闸异常，降级放行: %s", e)
         return None
     return summary
-
-
-def _score_bar(label, value, color):
-    pct = max(0.0, min(100.0, float(value or 0)))
-    return (
-        "<div style='margin:3px 0'>"
-        "<div style='display:flex;justify-content:space-between;font-size:11px;margin-bottom:1px'>"
-        f"<span style='opacity:.75'>{label}</span>"
-        f"<span style='color:{color};font-weight:700'>{pct:.0f}</span></div>"
-        f"<div style='height:6px;background:{_hex_to_rgba(color,0.16)};border-radius:4px'>"
-        f"<span style='display:block;height:100%;width:{pct:.1f}%;background:{color};border-radius:4px'></span>"
-        "</div></div>"
-    )
 
 
 dark = render_standard_page(

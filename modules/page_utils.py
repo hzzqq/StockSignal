@@ -206,3 +206,100 @@ def styler_color_chg(val, up_color: str = "#ef4444", down_color: str = "#22c55e"
     if v < 0:
         return f"color:{down_color};font-weight:600;"
     return ""
+
+
+# ──────────────────────────────────────────────────────────
+# R-02 批次3：跨页重复纯函数下沉（pages/50+54 / pages/70+76）
+# ──────────────────────────────────────────────────────────
+
+def last_data_date(df) -> str:
+    """R-02: 取 DataFrame 最后一行交易日 'YYYY-MM-DD'；拿不到时退回今天。
+
+    下沉自 pages/50 + pages/54 完全相同的 _last_data_date。
+    落盘类操作（连板梯队快照 / 情绪笔记）一律用它而不是 now()：
+    周末、节假日、盘后打开页面时 now() 是非交易日，会把「昨日」指到空档上。
+    """
+    import pandas as pd
+    try:
+        return str(pd.to_datetime(df["date"].iloc[-1]).date())
+    except Exception:  # noqa: BLE001
+        return pd.Timestamp.now().strftime("%Y-%m-%d")
+
+
+def row_to_indicators(df, i=-1) -> dict:
+    """R-02: 牧羊人 DataFrame 第 i 行 → 指标 dict（过滤 NaN / date 列）。
+
+    下沉自 pages/50 + pages/54 逻辑相同的 _row_to_indicators。
+    用 getattr(df, "empty", True) 兼容 duck-typed 对象。
+    """
+    if df is None or getattr(df, "empty", True):
+        return {}
+    try:
+        row = df.iloc[i]
+    except Exception:  # noqa: BLE001
+        return {}
+    out = {}
+    for k in df.columns:
+        if k == "date":
+            continue
+        try:
+            v = float(row[k])
+            if v == v:  # 过滤 NaN
+                out[k] = v
+        except Exception:  # noqa: BLE001
+            continue
+    return out
+
+
+def temp_gauge(t, dark, title, level, color):
+    """R-02: 市场温度 0-100 仪表盘（风险语义：冷=蓝、热=红；与涨跌红绿无关）。
+
+    下沉自 pages/50 + pages/54 完全相同的 _temp_gauge。
+    返回 plotly Figure，调用方 st.plotly_chart(fig) 即可。
+    """
+    import plotly.graph_objects as go
+    _steps = [
+        {"range": [0, 20], "color": "#1d4ed8"},
+        {"range": [20, 40], "color": "#0891b2"},
+        {"range": [40, 60], "color": "#ca8a04"},
+        {"range": [60, 80], "color": "#ea580c"},
+        {"range": [80, 100], "color": "#b91c1c"},
+    ]
+    _fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=round(float(t), 1),
+        number={"font": {"size": 42, "color": color}, "suffix": "°"},
+        gauge={
+            "axis": {"range": [0, 100], "tickwidth": 1,
+                     "tickcolor": "#94a3b8", "tickfont": {"color": "#94a3b8"}},
+            "bar": {"color": color, "thickness": 0.26},
+            "bgcolor": "rgba(0,0,0,0)",
+            "borderwidth": 1, "bordercolor": "#475569",
+            "steps": _steps,
+            "threshold": {"line": {"color": color, "width": 5},
+                         "thickness": 0.85, "value": round(float(t), 1)},
+        },
+        title={"text": title, "font": {"size": 16, "color": color}},
+    ))
+    _fig.update_layout(
+        template="plotly_dark" if dark else "plotly_white",
+        height=300, margin=dict(l=20, r=20, t=50, b=10),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e5e7eb" if dark else "#1f2937"),
+    )
+    return _fig
+
+
+def score_bar(label, value, color) -> str:
+    """R-02: HTML 评分进度条（0-100 clamp）。下沉自 pages/70 + pages/76 近似实现。"""
+    from modules.colors import _hex_to_rgba
+    pct = max(0.0, min(100.0, float(value or 0)))
+    return (
+        "<div style='margin:4px 0'>"
+        "<div style='display:flex;justify-content:space-between;font-size:11px;margin-bottom:1px'>"
+        f"<span style='opacity:.75'>{label}</span>"
+        f"<span style='color:{color};font-weight:700'>{pct:.0f}</span></div>"
+        f"<div style='height:6px;background:{_hex_to_rgba(color,0.16)};border-radius:4px'>"
+        f"<span style='display:block;height:100%;width:{pct:.1f}%;background:{color};border-radius:4px'></span>"
+        "</div></div>"
+    )

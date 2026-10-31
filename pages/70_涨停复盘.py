@@ -24,7 +24,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
-from modules.page_utils import render_standard_page
+from modules.page_utils import (render_standard_page, score_bar as _score_bar)
 from modules.shepherd import _trading_days, _zt_pool_detail_cached, get_zt_ladder
 from modules.ui_theme import section_header, sf_metric
 
@@ -135,19 +135,6 @@ def _leader_breakdown(df, ind_count):
     ).round(1)
     out["_ind_n"] = ind_n.astype(int)
     return out
-
-
-def _score_bar(label, value, color):
-    pct = max(0.0, min(100.0, float(value or 0)))
-    return (
-        "<div style='margin:4px 0'>"
-        "<div style='display:flex;justify-content:space-between;font-size:11px;margin-bottom:1px'>"
-        f"<span style='opacity:.75'>{label}</span>"
-        f"<span style='color:{color};font-weight:700'>{pct:.0f}</span></div>"
-        f"<div style='height:6px;background:{_hex_to_rgba(color,0.16)};border-radius:4px'>"
-        f"<span style='display:block;height:100%;width:{pct:.1f}%;background:{color};border-radius:4px'></span>"
-        "</div></div>"
-    )
 
 
 def _load_pool(date):
