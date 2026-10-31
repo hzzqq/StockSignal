@@ -49,7 +49,8 @@ def test_all_api_routes_use_envelope():
     violations = []
     for path in glob.glob(os.path.join(root, "**", "*.py"), recursive=True):
         try:
-            tree = ast.parse(open(path, encoding="utf-8").read())
+            src = open(path, encoding="utf-8").read()
+            tree = ast.parse(src)
         except Exception as e:  # pragma: no cover
             raise AssertionError(f"无法解析 {path}: {e}")
         for node in ast.walk(tree):
@@ -69,6 +70,12 @@ def test_all_api_routes_use_envelope():
                 if isinstance(v, ast.Call):
                     callee = _callee_name(v)
                     if callee in ("jsonify", "make_response", "Response"):
+                        # 文件下载型 Response（Content-Disposition: attachment）是合法的
+                        # 文件流，不属于 JSON/HTML 信封外泄，豁免（如会话导出 markdown 下载）。
+                        if callee == "Response":
+                            seg = ast.get_source_segment(src, v) or ""
+                            if "Content-Disposition" in seg:
+                                continue
                         violations.append((path, node.name, sub.lineno, f"raw {callee}"))
                         continue
                     # 允许的 callee（ok/fail/abort/redirect）通过

@@ -42,8 +42,8 @@ def test_export_wiring():
     src = _src(PAGE)
     assert "def _export_markdown" in src, "缺少导出渲染函数"
     assert "st.download_button" in src, "缺少导出按钮"
-    assert 'mime="text/markdown"' in src, "导出类型必须为 markdown"
-    assert "disabled=not _real_msgs" in src, "空对话导出缺少禁用守卫"
+    assert 'mime="text/markdown' in src, "导出类型必须为 markdown"
+    assert "disabled=not _has_real" in src, "空对话导出缺少禁用守卫"
     assert "暂无可导出的对话内容" in src, "空对话缺少诚实提示"
     assert "载荷超长已截断" in src, "超长载荷缺少显式截断标注（诚实语义）"
     assert "用户反馈" in src, "导出未携带满意度反馈标注"
