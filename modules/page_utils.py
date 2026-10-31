@@ -135,3 +135,36 @@ def _build_status_chips(dark: bool) -> list:
 def get_fetcher():
     """模块级 StockFetcher 单例（替代各页面重复的 ``@st.cache_resource`` 包装）。"""
     return StockFetcher()
+
+
+def fmt_rel(ts):
+    """R-02: 绝对时间 → 相对时间字符串（下沉自 6 个页面的重复 _fmt_rel）。
+
+    最健壮版本（pages/94 消息中心）：处理 ISO 毫秒/T 空格、fromisoformat fail 回退 strptime、
+    pandas Timestamp 的 to_pydatetime、负时间戳兜底。
+    """
+    from datetime import datetime
+    try:
+        if isinstance(ts, str):
+            s = ts.replace("Z", "")
+            if "." in s:
+                s = s[: s.index(".")]
+            s = s.replace("T", " ")
+            try:
+                ts = datetime.fromisoformat(s)
+            except Exception:
+                ts = datetime.strptime(s[:19], "%Y-%m-%d %H:%M:%S")
+        elif hasattr(ts, "to_pydatetime"):
+            ts = ts.to_pydatetime()
+        sec = (datetime.now() - ts).total_seconds()
+        if sec < 0:
+            return "刚刚"
+        if sec < 60:
+            return "刚刚"
+        if sec < 3600:
+            return f"{int(sec // 60)}分钟前"
+        if sec < 86400:
+            return f"{int(sec // 3600)}小时前"
+        return f"{int(sec // 86400)}天前"
+    except Exception:
+        return str(ts) if ts else ""
