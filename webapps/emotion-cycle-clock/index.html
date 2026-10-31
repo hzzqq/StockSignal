@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<!--
+  市场情绪周期时钟（StockSignal webapps 示例作品 #1）
+  ------------------------------------------------
+  · 单文件、零外部依赖：无 CDN / 无外链字体 / 无图片，纯 Canvas + 原生 JS，离线可跑。
+  · 主题：呼应 StockSignal 牧羊人情绪体系——市场情绪四象限周期
+    ❄️冰点 → 🌱回暖 → 🔥主升 → 🍂退潮（顺时针循环）。
+  · 交互：表盘指针可拖拽旋转，中心与底部信息卡实时联动显示当前阶段特征与应对。
+  · 诚实红线：所有数字均为静态示意值，页面显著标注「示意数据 · 非实时行情」。
+    （仅引用项目已知规律性结论做示意：极端恐慌 → 次日反弹概率偏高。）
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>市场情绪周期时钟 · 示意数据</title>
+<style>
+  /* 全部内联样式，不请求任何外部资源 */
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+  body {
+    background: radial-gradient(ellipse at 50% 30%, #1a1a2e 0%, #0f0f23 70%);
+    color: #e4e4f4;
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  }
+  /* 画布铺满窗口，自适应 */
+  #clock { position: absolute; inset: 0; display: block; cursor: grab; touch-action: none; }
+  #clock.dragging { cursor: grabbing; }
+  /* 「示意数据」诚实标注：常驻右上角，红色描边醒目 */
+  #badge {
+    position: absolute; top: 14px; right: 16px; z-index: 2;
+    padding: 6px 14px; border-radius: 999px;
+    border: 1px solid rgba(220,38,38,.55);
+    background: rgba(220,38,38,.12);
+    color: #f87171; font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    user-select: none;
+  }
+  /* 左上角作品标题 */
+  #title {
+    position: absolute; top: 14px; left: 18px; z-index: 2;
+    font-size: 15px; font-weight: 600; color: #a5b4fc; user-select: none;
+  }
+  /* 底部信息卡：拖拽指针时联动更新 */
+  #panel {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    width: min(640px, 92vw); z-index: 2;
+    background: rgba(26,26,46,.88); border: 1px solid rgba(79,70,229,.45);
+    border-radius: 14px; padding: 12px 18px;
+    box-shadow: 0 6px 30px rgba(0,0,0,.45); user-select: none;
+  }
+  #panel .ph { font-size: 17px; font-weight: 700; }
+  #panel .tip { font-size: 13px; line-height: 1.7; color: #c7c7e0; margin-top: 4px; }
+  /* 红涨绿跌（A股口径）：涨/热=红，跌/冷=绿 */
+  .up   { color: #ef6b6b; font-weight: 700; }
+  .down { color: #4ade80; font-weight: 700; }
+</style>
+</head>
+<body>
+<canvas id="clock"></canvas>
+<div id="title">🎨 市场情绪周期时钟</div>
+<div id="badge">示意数据 · 非实时行情</div>
+<div id="panel">
+  <div class="ph" id="phase-name">—</div>
+  <div class="tip" id="phase-tip">拖拽表盘指针到任意象限查看阶段特征。</div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+ * 数据层：四象限静态示意值（示意数据 · 非实时行情，绝不伪装实时）
+ * start/end：象限在表盘上的角度区间（0°=正上方，顺时针）
+ * ===================================================================== */
+var PHASES = [
+  {
+    key: "ice", name: "❄️ 冰点", start: 0, end: 90,
+    color: "#60a5fa",
+    feature: "跌停家数偏多、连板高度降至 1–2、炸板率高企，恐慌情绪见顶",
+    tip: "历史规律（示意）：极端恐慌 → 次日反弹概率显著偏高；冰点常是逆向观察窗口，勿在恐慌顶峰割肉。",
+    stats: [["跌停家数", 45, "down"], ["连板高度", 2, "down"], ["炸板率", "52%", "down"]]
+  },
+  {
+    key: "warm", name: "🌱 回暖", start: 90, end: 180,
+    color: "#4ade80",
+    feature: "涨停家数回升、首板晋级率修复、恐慌溢价回正，赚钱效应萌芽",
+    tip: "情绪修复初期：轻仓试错、跟随首板/二板梯队，反弹确认前不重仓。",
+    stats: [["涨停家数", 32, "up"], ["首板晋级率", "28%", "up"], ["涨停溢价", "回正", "up"]]
+  },
+  {
+    key: "hot", name: "🔥 主升", start: 180, end: 270,
+    color: "#ef6b6b",
+    feature: "连板梯队完整（高度 5–7）、普涨放量、赚钱效应峰值，情绪亢奋",
+    tip: "情绪高潮：持股吃鱼身，但高位分歧信号（大面/断板潮）出现时立即降仓——主升末端常是退潮前夜。",
+    stats: [["涨停家数", 86, "up"], ["连板高度", 6, "up"], ["涨停溢价", "高位", "up"]]
+  },
+  {
+    key: "ebb", name: "🍂 退潮", start: 270, end: 360,
+    color: "#fbbf24",
+    feature: "炸板率飙升、高位股批量补跌、断板率升高，亏钱效应扩散",
+    tip: "退潮期不接飞刀：空仓或只做超跌反抽，等待下一个冰点信号再进场。",
+    stats: [["炸板率", "61%", "down"], ["高位股跌幅", "-8.3%", "down"], ["连板高度", 3, "down"]]
+  }
+];
+
+/* 主题色：暗色底 + 主紫 accent + A股红涨绿跌 */
+var C_BG_PANEL = "#1a1a2e";
+var C_ACCENT   = "#4f46e5";
+var C_TEXT     = "#e4e4f4";
+var C_MUTED    = "#8a8ab0";
+var C_UP       = "#dc2626";   /* 红=涨（A股口径） */
+var C_DOWN     = "#16a34a";   /* 绿=跌 */
+
+var canvas = document.getElementById("clock");
+var ctx = canvas.getContext("2d");
+var pointerAngle = 135;          /* 指针当前角度（0°=正上，顺时针），默认落在回暖象限 */
+var dragging = false;
+var pulseT = 0;                  /* 呼吸动画计时 */
+
+/* ---------------- 自适应：devicePixelRatio + 窗口尺寸 ---------------- */
+function resize() {
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width  = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width  = window.innerWidth + "px";
+  canvas.style.height = window.innerHeight + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* ---------------- 角度工具 ---------------- */
+function norm(a) { a %= 360; return a < 0 ? a + 360 : a; }
+function phaseOf(a) {
+  a = norm(a);
+  for (var i = 0; i < PHASES.length; i++) {
+    if (a >= PHASES[i].start && a < PHASES[i].end) return PHASES[i];
+  }
+  return PHASES[0];
+}
+/* 数学角（弧度）：表盘角度 → canvas 坐标（0°=上，顺时针） */
+function rad(deg) { return (deg - 90) * Math.PI / 180; }
+
+/* ---------------- 拖拽交互（鼠标 + 触摸统一 pointer 事件） ---------------- */
+function angleFromEvent(e) {
+  var rect = canvas.getBoundingClientRect();
+  var cx = rect.left + rect.width / 2;
+  var cy = rect.top + rect.height * 0.44;   /* 表盘中心（与 draw 一致） */
+  var dx = e.clientX - cx, dy = e.clientY - cy;
+  return norm(Math.atan2(dx, -dy) * 180 / Math.PI);  /* 0°=上，顺时针 */
+}
+canvas.addEventListener("pointerdown", function (e) {
+  dragging = true;
+  canvas.classList.add("dragging");
+  canvas.setPointerCapture(e.pointerId);
+  pointerAngle = angleFromEvent(e);
+});
+canvas.addEventListener("pointermove", function (e) {
+  if (dragging) pointerAngle = angleFromEvent(e);
+});
+canvas.addEventListener("pointerup", function (e) {
+  dragging = false;
+  canvas.classList.remove("dragging");
+});
+
+/* ---------------- 底部信息卡联动 ---------------- */
+var elName = document.getElementById("phase-name");
+var elTip  = document.getElementById("phase-tip");
+function updatePanel() {
+  var p = phaseOf(pointerAngle);
+  elName.textContent = p.name + "（指针 " + Math.round(norm(pointerAngle)) + "°）";
+  elName.style.color = p.color;
+  elTip.textContent = "特征：" + p.feature + " ｜ 应对：" + p.tip;
+}
+
+/* ---------------- 绘制 ---------------- */
+function drawStatsBox(x, y, phase) {
+  /* 左侧示意指标小面板：数字按红涨绿跌着色 */
+  ctx.save();
+  ctx.fillStyle = "rgba(26,26,46,.85)";
+  ctx.strokeStyle = "rgba(79,70,229,.4)";
+  ctx.lineWidth = 1;
+  var w = 190, h = 30 + phase.stats.length * 26;
+  roundRect(x, y, w, h, 10); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = C_MUTED;
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("「" + phase.name + "」示意指标", x + 12, y + 20);
+  for (var i = 0; i < phase.stats.length; i++) {
+    var s = phase.stats[i];
+    var valColor = (s[2] === "up") ? C_UP : C_DOWN;   /* 红涨绿跌 */
+    ctx.fillStyle = C_TEXT;
+    ctx.fillText(String(s[0]), x + 12, y + 46 + i * 26);
+    ctx.fillStyle = valColor;
+    ctx.textAlign = "right";
+    ctx.fillText(String(s[1]), x + w - 12, y + 46 + i * 26);
+    ctx.textAlign = "left";
+  }
+  ctx.restore();
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function draw() {
+  var W = window.innerWidth, H = window.innerHeight;
+  ctx.clearRect(0, 0, W, H);
+
+  var cx = W / 2;
+  var cy = H * 0.44;                       /* 表盘中心略偏上，给底部信息卡留空间 */
+  var R = Math.min(W, H) * 0.30;           /* 表盘半径自适应窗口 */
+  var pulse = 0.5 + 0.5 * Math.sin(pulseT);/* 0~1 呼吸因子 */
+
+  /* ---- 四象限扇环 ---- */
+  for (var i = 0; i < PHASES.length; i++) {
+    var p = PHASES[i];
+    var cur = (p === phaseOf(pointerAngle));
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, rad(p.start), rad(p.end));
+    ctx.arc(cx, cy, R * 0.62, rad(p.end), rad(p.start), true);
+    ctx.closePath();
+    ctx.fillStyle = cur
+      ? hexA(p.color, 0.30)                 /* 当前象限高亮 */
+      : hexA(p.color, 0.10);
+    ctx.fill();
+    ctx.strokeStyle = hexA(p.color, cur ? 0.9 : 0.35);
+    ctx.lineWidth = cur ? 2 : 1;
+    ctx.stroke();
+
+    /* 象限标签：emoji + 阶段名，放在象限中线 */
+    var mid = (p.start + p.end) / 2;
+    var lr = R * 0.81;
+    ctx.save();
+    ctx.translate(cx + Math.cos(rad(mid)) * lr, cy + Math.sin(rad(mid)) * lr);
+    ctx.fillStyle = cur ? p.color : C_MUTED;
+    ctx.font = (cur ? "bold " : "") + Math.max(13, R * 0.085) + "px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(p.name, 0, 0);
+    ctx.restore();
+  }
+
+  /* ---- 表盘底盘与中心 ---- */
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.62, 0, Math.PI * 2);
+  ctx.fillStyle = C_BG_PANEL;
+  ctx.fill();
+  ctx.strokeStyle = hexA(C_ACCENT, 0.5);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  /* 中心文字：当前阶段名 + 一句话提示 */
+  var ph = phaseOf(pointerAngle);
+  ctx.textAlign = "center";
+  ctx.fillStyle = ph.color;
+  ctx.font = "bold " + Math.max(18, R * 0.14) + "px sans-serif";
+  ctx.fillText(ph.name.replace(/^[^\u4e00-\u9fa5]+/, ""), cx, cy - R * 0.10);
+  ctx.fillStyle = C_MUTED;
+  ctx.font = Math.max(11, R * 0.055) + "px sans-serif";
+  ctx.fillText("拖拽指针查看各阶段", cx, cy + R * 0.12);
+
+  /* ---- 指针：主紫发光，可拖拽 ---- */
+  ctx.save();
+  ctx.shadowColor = C_ACCENT;
+  ctx.shadowBlur = 12 + 14 * pulse;        /* 呼吸辉光 */
+  ctx.strokeStyle = C_ACCENT;
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(rad(pointerAngle)) * R * 0.58,
+             cy + Math.sin(rad(pointerAngle)) * R * 0.58);
+  ctx.stroke();
+  /* 指针头部圆点 */
+  ctx.beginPath();
+  ctx.fillStyle = "#a5b4fc";
+  ctx.arc(cx + Math.cos(rad(pointerAngle)) * R * 0.58,
+          cy + Math.sin(rad(pointerAngle)) * R * 0.58, 7 + 2 * pulse, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  /* 轴心 */
+  ctx.beginPath();
+  ctx.fillStyle = C_ACCENT;
+  ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  /* ---- 左侧示意指标面板（跟随当前象限） ---- */
+  if (W > 560) drawStatsBox(24, cy - 90, ph);
+
+  /* ---- 底部诚实声明 ---- */
+  ctx.fillStyle = C_MUTED;
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("所有数字均为静态示意值 · 引用规律仅作演示 · 非实时行情 · 非投资建议", cx, H - 8);
+
+  updatePanel();
+}
+
+/* hex → rgba（带透明度），象限底色需要半透明 */
+function hexA(hex, a) {
+  var r = parseInt(hex.slice(1, 3), 16);
+  var g = parseInt(hex.slice(3, 5), 16);
+  var b = parseInt(hex.slice(5, 7), 16);
+  return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+}
+
+/* 主循环：呼吸辉光动画（低开销，仅重绘指针辉光与高亮） */
+(function loop() {
+  pulseT += 0.03;
+  draw();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

@@ -196,6 +196,19 @@ def create_app(config_object: type = Config) -> Flask:
     def admin_ui():
         return render_admin_ui()
 
+    # ---- 网页作品集静态托管（webapps/，追加式收录，见 webapps/README.md）----
+    # send_from_directory 自带 safe_join 防目录穿越（../、..%2f 等）；
+    # 回归测试：backend/tests/test_webapps_static_route.py。
+    from pathlib import Path
+
+    from flask import send_from_directory
+
+    webapps_dir = Path(__file__).resolve().parent.parent / "webapps"
+
+    @app.get("/webapps/<path:filename>")
+    def webapps_static(filename: str):
+        return send_from_directory(webapps_dir, filename)
+
     # ---- OpenAPI 契约面（T-159）：机器可读 spec + Swagger UI 文档页 ----
     from .openapi import register_openapi
 
