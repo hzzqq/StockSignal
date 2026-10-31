@@ -737,9 +737,18 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
             }
         if event_map and c in event_map:
             ev = event_map[c]
-            candidates[c]["algo"]["event_factor"] = {
-                "score": ev.get("score"), "reasons": [f"P1 事件因子排名 {ev.get('raw_rank', '—')}"],
+            ev_item = {
+                "score": ev.get("score"),
+                "reasons": [f"P1 事件因子排名 {ev.get('raw_rank', '—')}"],
             }
+            # R9/T-332：A4 标注层透传（horizon 兑现窗口 + hard_logic 硬逻辑/题材分类）
+            # event_driven_long_list 已 enrich 这两字段；P1 路径 hard_logic 恒 unavailable
+            # （无事件文本），如实透传不编造
+            if "horizon" in ev:
+                ev_item["horizon"] = ev["horizon"]
+            if "hard_logic" in ev:
+                ev_item["hard_logic"] = ev["hard_logic"]
+            candidates[c]["algo"]["event_factor"] = ev_item
         # R8/T-363：财务健康三合一（F+Z+M）进 algo → fusion 自动加权
         fh = fh_map.get(f"fh_{c}")
         if isinstance(fh, dict) and fh.get("score") is not None:
