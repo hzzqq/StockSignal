@@ -81,7 +81,8 @@ def discover_source_dirs():
     try:
         root = Path(__file__).resolve().parent.parent
         dirs.append(str(root / "data" / "p1_signals"))
-    except Exception:
+    except Exception as e:
+        logger.debug(f"[R-01] p1_signal Path.resolve 失败: {e}")
         pass
     # P1-QuantFactor 默认产出目录（本地开发机直连，免复制 55MB 大文件）
     # 锐评修复（R3）：原为硬编码的机器专属绝对路径 `E:/project/sj/...`——
@@ -164,7 +165,8 @@ class P1SignalLoader:
                     try:
                         if fp.stat().st_size > Path(found[model]).stat().st_size:
                             found[model] = str(fp)
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"[R-01] p1_signal 文件体积比较失败 fp={fp}: {e}")
                         pass
                 else:
                     found[model] = str(fp)

@@ -1158,7 +1158,8 @@ def render_stock_analysis() -> None:
                         file_name=f"业绩历史_{code}_{_cur}.csv", mime="text/csv",
                         key=f"fr_hist_csv_{code}_{_cur}",
                     )
-                except Exception:
+                except Exception as e:
+                    print(f"[R-01] financial_report 历史明细 CSV 生成失败 code={code}: {e}")
                     pass
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1207,7 +1208,8 @@ def render_stock_analysis() -> None:
                     file_name=f"多期业绩对比_{code}.csv", mime="text/csv",
                     key=f"fr_multi_csv_{code}",
                 )
-            except Exception:
+            except Exception as e:
+                print(f"[R-01] 多期业绩对比 CSV 生成失败 code={code}: {e}")
                 pass
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1310,7 +1312,8 @@ def render_stock_analysis() -> None:
                     file_name=f"业绩报表_{code}_{period}.csv", mime="text/csv",
                     key=f"fr_csv_{ticker}_{period}",
                 )
-            except Exception:
+            except Exception as e:
+                print(f"[R-01] 业绩报表 CSV 生成失败 ticker={ticker} period={period}: {e}")
                 pass
         st.markdown('</div>', unsafe_allow_html=True)
 

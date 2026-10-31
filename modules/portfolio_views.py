@@ -93,7 +93,8 @@ def render_watchlist_monitor() -> None:
                         quotes[code] = q
                     elif isinstance(q, dict) and 'error' not in q and q.get('current'):
                         quotes[code] = q
-        except Exception:
+        except Exception as e:
+            print(f"[R-01] batch_quotes 批量取行情失败: {e}")
             pass
         missing = [c for c in codes if c not in quotes]
         if missing:
@@ -314,7 +315,8 @@ def render_watchlist_monitor() -> None:
                     data = body.get('data')
                     if isinstance(data, list) and data:
                         return data
-        except Exception:
+        except Exception as e:
+            print(f"[R-01] _analyze_one K线取数失败 code={code}: {e}")
             pass
         return None
 
@@ -533,7 +535,8 @@ def render_position_manager() -> None:
         try:
             if os.path.exists(_PM_PREF_PATH):
                 return json.load(open(_PM_PREF_PATH, encoding='utf-8')).get(k, d)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[R-01] _load_pm_pref 读取偏好失败: {e}")
             pass
         return d
 
@@ -1055,7 +1058,8 @@ def render_portfolio_returns() -> None:
                 for d, c in df["close"].dropna().items():
                     ds = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)[:10]
                     out[ds] = float(c) * remaining
-            except Exception:
+            except Exception as e:
+                print(f"[R-01] 组合收益净值计算 code={code}: {e}")
                 pass
             return out
 
@@ -1266,7 +1270,8 @@ def render_portfolio_returns() -> None:
             csv = attr.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
             st.download_button("⬇️ 导出收益贡献 CSV", data=csv,
                                file_name="组合收益贡献.csv", mime="text/csv")
-        except Exception:
+        except Exception as e:
+            print(f"[R-01] 导出收益贡献 CSV 生成失败: {e}")
             pass
 
 
