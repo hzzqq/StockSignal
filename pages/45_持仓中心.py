@@ -97,8 +97,3 @@ if st.button('↑ 回到顶部', key='hub_top', width="stretch"):
 if st.session_state.get('_hub_scroll_top'):
     sn.back_to_top_button()
     st.session_state['_hub_scroll_top'] = False
-with st.expander('⌨️ 快捷键'):
-    st.markdown('- `🔄 刷新`：点击顶部「🔄 刷新」按钮重载当前合并页全部子视图')
-    st.markdown('- `↑ 回到顶部`：点击底部「↑ 回到顶部」返回页首')
-    st.markdown('- `持仓视图`：使用上方分段选择器在 ⭐自选池 / 💼持仓 / 📈收益归因 间切换')
-    st.markdown('- `🕘 最近浏览`：在上方输入框记录想跟踪的标的代码，纯前端记忆')
