@@ -6,10 +6,10 @@ T-316 体检报告第三优先建议：交互密度高的页面（股吧 / 数�
 
 五条契约（mutation 目标）：
 1. 52_股吧 `fragment_list`：股票代码筛选 / 排序 / 清空筛选 / 标题关键字搜索
-   四个筛选类控件必须全部位于同一个 `st.expander` 内，且函数内其它位置不再有
-   这四个 key 的控件（避免「折叠了一套、平铺又留一套」）。
-2. 折叠区不得默认展开（`expanded=True` 会抵消减法效果），且折叠标签必须是
-   动态表达式、回显当前生效条件（否则筛选被隐藏后用户会忘记自己开着筛选）。
+   四个筛选类控件必须**常驻行内直出、不收进任何 st.expander**。
+   【T-319 折叠契约已于 96bd358 按用户要求撤销（「搜索框直接摆出、轻量化，不折叠」），
+   守卫随之反转为「不得再折叠」——防止把用户明确要求摆出的筛选又藏回去】。
+2. 生效中的筛选条件必须以轻量 caption（「当前筛选生效：…」）回显，不得静默。
 3. 主控件（视图 Tab / 发帖）不得被收进折叠区——减法是收次要控件，不是收入口。
 4. 95_数据导出：`sf_card` 首参不得与 expander 标签同名（expander 已显示标题，
    卡片再渲染一次同名标题属重复装饰）。
@@ -94,59 +94,53 @@ def _consts_with_locals(node, fn, depth: int = 3, seen=None) -> set:
     return out
 
 
-# ── 契约 1：四个筛选控件收进同一个折叠区 ──────────────────────────────
-def test_forum_filters_folded_into_one_expander():
+# ── 契约 1：四个筛选控件常驻行内直出，不收进折叠区（96bd358 反转 T-319）──
+def test_forum_filters_inline_not_folded():
     tree = ast.parse(_src(P_FORUM))
     fn = _fn(tree, "fragment_list")
     assert fn is not None, "未找到 fragment_list"
 
-    blocks = _expander_blocks(fn)
-    assert blocks, "fragment_list 内未找到任何 st.expander（筛选区未收进折叠区）"
+    # 四个筛选 key 必须仍然存在（减法不删功能）
+    present = _widget_keys(fn)
+    missing = FILTER_KEYS - present
+    assert not missing, f"筛选控件丢失（减法不得删功能入口）：{sorted(missing)}"
 
+    # 且任何一个都不得落在 st.expander 内（用户要求搜索框直接摆出，不得再折叠）
+    blocks = _expander_blocks(fn)
     folded_union = set()
     for _, with_node in blocks:
         folded_union |= _widget_keys(with_node)
+    refolded = FILTER_KEYS & folded_union
+    assert not refolded, (
+        f"筛选控件被重新收进折叠区（96bd358 已按用户要求撤销折叠，搜索框必须直接摆出）：{sorted(refolded)}"
+    )
 
-    missing = FILTER_KEYS - folded_union
-    assert not missing, f"仍有筛选控件平铺在折叠区外：{sorted(missing)}"
+    # 每个 key 在函数内只出现一次（防「行内一套 + 折叠一套」双份）
+    def _direct_key(node):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr in WIDGETS):
+            for kw in node.keywords:
+                if kw.arg == "key" and isinstance(kw.value, ast.Constant):
+                    return kw.value.value
+        return None
 
-    # 四个 key 必须落在同一个折叠区（分散多个 expander 不算减法）
-    holders = [w for _, w in blocks if FILTER_KEYS <= _widget_keys(w)]
-    assert holders, "四个筛选控件未收进同一个 st.expander"
-
-    # 折叠区外不得再出现同名 key（防「折叠 + 平铺」双份）
-    outside = _widget_keys(fn) - folded_union
-    dup = FILTER_KEYS & outside
-    assert not dup, f"筛选控件在折叠区外重复出现：{sorted(dup)}"
+    all_keys = [k for k in (_direct_key(n) for n in ast.walk(fn)) if k is not None]
+    for k in sorted(FILTER_KEYS):
+        n = all_keys.count(k)
+        assert n == 1, f"筛选控件 key={k} 出现 {n} 次（应为 1，防重复渲染）"
 
 
-# ── 契约 2：折叠区默认收起 + 标签回显生效条件 ────────────────────────
-def test_forum_filter_expander_collapsed_and_echoes_state():
+# ── 契约 2：生效筛选条件必须行内 caption 回显（不静默） ────────────────
+def test_forum_filter_state_echoed_inline():
     src = _src(P_FORUM)
     tree = ast.parse(src)
     fn = _fn(tree, "fragment_list")
-    holder = None
-    for call, with_node in _expander_blocks(fn):
-        if FILTER_KEYS <= _widget_keys(with_node):
-            holder = call
-            break
-    assert holder is not None, "未找到承载筛选控件的 expander"
+    assert fn is not None, "未找到 fragment_list"
 
-    for kw in holder.keywords:
-        if kw.arg == "expanded":
-            assert not (isinstance(kw.value, ast.Constant) and kw.value.value is True), \
-                "筛选折叠区不得默认展开（expanded=True 会抵消减法）"
-
-    assert holder.args, "expander 缺少标签"
-    label = holder.args[0]
-    assert not isinstance(label, ast.Constant), \
-        "折叠标签必须是动态表达式（回显当前生效筛选条件），不得为写死字符串"
-    # 允许标签引用函数内局部变量（如 _flt_on），沿赋值链解析其字符串常量
-    consts = _consts_with_locals(label, fn)
-    assert any(isinstance(c, str) and "筛选" in c for c in consts), \
-        "折叠标签缺少「筛选」语义文案"
-    assert "forum_filter_code" in consts, "折叠标签必须回显股票代码筛选状态"
-    assert "forum_kw_search" in consts, "折叠标签必须回显关键字搜索状态"
+    fn_src = ast.get_source_segment(src, fn) or ""
+    assert "当前筛选生效" in fn_src, "生效筛选条件的行内 caption 回显不得移除"
+    # 回显必须条件化（无筛选时不输出空回显）：if _flt_on 才渲染
+    assert "if _flt_on:" in fn_src, "回显 caption 必须挂在生效条件判断下（无筛选不空转）"
 
 
 # ── 契约 3：主控件不得被收进折叠区 ───────────────────────────────────
