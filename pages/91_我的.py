@@ -13,12 +13,12 @@ from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT, sf_metr
 from modules.format_helpers import safe_int
 
 from modules.page_utils import render_standard_page
+from modules.page_utils import fmt_rel as _fmt_rel
 from modules.ui_theme import sf_metric
 
 # 安全解析字体档位在选项列表中的下标；legacy 值不在选项中时回退到默认档位，避免 .index() 抛 ValueError。
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_content_card, info_banner, ss_fold_useful, ss_hover_preview
 from modules.widgets import render_entry_cards
-from modules.page_utils import fmt_rel as _fmt_rel
 def _resolve_font_index(value, font_opts, default):
     keys = list(font_opts.keys())
     if value in keys:
@@ -59,3 +59,425 @@ def _cached_get(url, headers, ttl=10):
         _oldest = min(_cache, key=lambda k: _cache[k][0])
         _cache.pop(_oldest, None)
     return _resp
+
+
+
+def render_preferences():
+    """偏好设置（由独立的设置页合并而来）。
+
+    提供暗夜/白天模式切换、K线默认参数、数据源优先级等个性化设置。
+    所有设置存储在 session_state 中，切换即时生效（st.rerun）。
+    """
+    # ── 初始化设置项的 session_state 默认值 ──
+    _SETTINGS_KEYS = {
+        "theme_mode": "dark",          # dark / light（项目约定默认暗色终端模式）
+        "font_size": FONT_DEFAULT,      # small / medium(标准) / large / xlarge / xxlarge
+        "kline_default_count": 120,     # K线默认显示根数
+        "sector_refresh_interval": 60,  # 行业板块刷新间隔(秒)
+    }
+    for _key, _default in _SETTINGS_KEYS.items():
+        if _key not in st.session_state:
+            st.session_state[_key] = _default
+
+    # ── 当前模式指示器 ──
+    # T-266 空间治理：原「h3 全宽标题 + st.progress 全宽进度条」仅表达当前主题，
+    # 与下方切换按钮的 primary 高亮完全重复，整块删除（信息零损失，省约 110px）。
+    _current = get_current_mode()
+
+    # ════════════════════════════════════
+    # 🎨 外观设置
+    # ════════════════════════════════════
+    xc_content_card("🎨 外观设置", "")
+
+    col_dark, col_light = st.columns(2)
+    with col_dark:
+        if st.button(
+            "🌙 暗夜模式",
+            type="primary",
+            width=("stretch" if st.session_state['theme_mode'] == 'dark' else "content"),
+            help="专业交易终端风格 · OLED暗色背景 + 金色点缀",
+        ):
+            st.session_state["theme_mode"] = "dark"
+            persist_prefs()
+            st.rerun()
+    with col_light:
+        if st.button(
+            "☀️ 白天模式",
+            width=("stretch" if st.session_state['theme_mode'] != 'dark' else "content"),
+            help="清爽金融仪表盘风格 · 浅灰白底 + 蓝金点缀",
+        ):
+            st.session_state["theme_mode"] = "light"
+            persist_prefs()
+            st.rerun()
+
+    # T-266：下方「切换按钮 primary 高亮」已表达当前模式，此说明与页首总说明重复，删除。
+
+    # 字号档位：小 / 标准(原“中”) / 大 / 特大 / 巨大，至少 5 档。
+    # 名称与 rem 数值均来自 ui_theme.FONT_SCALE 唯一数据源，保证与全局注入一致。
+    _font_cn = {"small": "小", "medium": "标准", "large": "大", "xlarge": "特大", "xxlarge": "巨大"}
+    _font_opts = {k: (v, FONT_SCALE[k]) for k, v in _font_cn.items()}
+    _font_labels = {k: f"{v[0]} ({v[1]})" for k, v in _font_opts.items()}
+    _font_current = st.selectbox(
+        "字体大小",
+        options=list(_font_opts.keys()),
+        format_func=lambda x: _font_labels[x],
+        index=_resolve_font_index(st.session_state.get("font_size", FONT_DEFAULT), _font_opts, FONT_DEFAULT),
+        key="setting_font_size",
+        help="调整全局文字大小（影响标题、正文、表格等）。默认「标准」比旧版更大。",
+    )
+    if _font_current != st.session_state.get("font_size"):
+        st.session_state["font_size"] = _font_current
+        # 实际 CSS 注入由 ui_theme.apply_theme() 全局统一处理（覆盖 html/body/.stApp），
+        # 这里仅更新设置并重跑，使全局字号立即生效。
+        persist_prefs()
+        st.rerun()
+
+    st.markdown("")
+
+    # ════════════════════════════════════
+    # 📊 行情看板默认参数
+    # ════════════════════════════════════
+    xc_content_card("📊 行情看板默认参数", "")
+
+    _kline_count = st.slider(
+        "K 线图默认显示数量",
+        min_value=20, max_value=500, step=10,
+        value=int(st.session_state.get("kline_default_count", 120)),
+        key="setting_kline_count",
+        help="打开行情看板时，K线图默认展示的最近 N 根 K 线（可随时在页面上拖动滑块调整）",
+    )
+    if _kline_count != st.session_state.get("kline_default_count", 120):
+        st.session_state["kline_default_count"] = _kline_count
+    # T-266：说明并入上方控件 help（悬停即显），不再占一行。
+
+    _refresh_interval = st.slider(
+        "行业板块自动刷新间隔（秒）",
+        min_value=15, max_value=300, step=15,
+        value=int(st.session_state.get("sector_refresh_interval", 60)),
+        key="setting_refresh_interval",
+        help="交易时间内行业板块数据的自动刷新频率。设为 300 秒则几乎不自动刷新",
+    )
+    if _refresh_interval != st.session_state.get("sector_refresh_interval", 60):
+        st.session_state["sector_refresh_interval"] = _refresh_interval
+    # T-266：说明并入上方控件 help（悬停即显），不再占一行。
+
+    st.markdown("")
+
+    # ════════════════════════════════════
+    # 🔧 数据源偏好
+    # ════════════════════════════════════
+    xc_content_card("🔧 数据源偏好", "")
+
+    # T-266 空间治理：6 行数据源降级链说明 → 悬停预览（ss_hover_preview mini，
+    # 鼠标放上去才显现；交互范式同顶栏用户下拉浮层）
+    ss_hover_preview(
+        "ℹ️ 数据源降级链说明",
+        "<b>StockSignal 数据源降级链</b>（按顺序尝试，第一个成功即用）：<br>"
+        "1. <b>akshare</b> — 最全、最快（推荐首选）<br>"
+        "2. <b>BaoStock</b> — 备选，稳定但较慢<br>"
+        "3. <b>新浪财经</b> — 快速但数据有限<br>"
+        "4. <b>东方财富</b> — 兜底源<br>"
+        "某数据源超时/报错时自动切换到下一个。",
+        mini=True,
+    )
+
+    st.multiselect(
+        "数据源优先级排序（拖动调整顺序）",
+        options=["akshare", "BaoStock", "新浪财经", "东方财富"],
+        default=["akshare", "BaoStock", "新浪财经", "东方财富"],
+        key="setting_ds_order",
+        help="数据获取时的尝试顺序（越靠前越优先使用）",
+    )
+
+    st.markdown("")
+
+    # ════════════════════════════════════
+    # ⌨️ 键盘快捷键
+    # ════════════════════════════════════
+    xc_content_card("⌨️ 键盘快捷键", "")
+
+    st.markdown(
+        "- **Ctrl / ⌘ + K**：打开命令面板，模糊搜索并跳转任意页面 / 功能，或输入 6 位股票代码直达个股。\n"
+        "- **F5 / Ctrl + R / ⌘ + R**：刷新整页（会重置未保存的会话状态）。\n"
+        "- **C 键**：拦截 Streamlit 的「清除缓存」弹窗，避免误清空本地缓存。"
+    )
+
+    st.markdown("")
+
+    # ════════════════════════════════════
+    # 💾 重置与保存
+    # ════════════════════════════════════
+    xc_content_card("💾 重置与保存", "")
+
+    col_reset, col_save = st.columns([1, 3])
+    with col_reset:
+        if st.button("🗑️ 恢复默认设置", type="secondary"):
+            if st.confirm("确定恢复默认设置？当前个性化设置将被覆盖，且关闭浏览器后无法找回。"):
+                for _key, _default in _SETTINGS_KEYS.items():
+                    st.session_state[_key] = _default
+                st.rerun()
+    with col_save:
+        # T-266：持久化语义已由页首总说明一行覆盖，此处不再重复占行。
+        st.caption("💡 所有设置实时生效，关闭浏览器后恢复默认。")
+
+
+
+# ── 个人信息卡片 ──
+col1, col2 = st.columns([1, 3])
+with col1:
+    st.markdown("### 🧑‍💼 当前用户")
+    _username = user.get("username", "-")
+    _cur_avatar = get_avatar_data_url() or get_avatar_path(_username)
+    if _cur_avatar:
+        render_avatar(st, _cur_avatar, width=96)
+        if get_avatar_data_url():
+            st.caption("✅ 云端头像（按账号保存）")
+    else:
+        st.markdown(
+            "<div style='width:96px;height:96px;border-radius:50%;background:#E5E7EB;"
+            "display:flex;align-items:center;justify-content:center;font-size:44px;'>👤</div>",
+            unsafe_allow_html=True,
+        )
+        st.caption("💡 还没有头像？点击上方「上传头像」选择图片，再点「保存头像」即可设置专属头像（按账号云端保存，换设备不丢失）。")
+    if "avatar_up_counter" not in st.session_state:
+        st.session_state["avatar_up_counter"] = 0
+    _up = st.file_uploader(
+        "上传头像（png/jpg/jpeg，建议方形，≤3MB）",
+        type=["png", "jpg", "jpeg"],
+        key=f"avatar_uploader_{st.session_state['avatar_up_counter']}",
+        help="上传后点击保存，头像会按账号保存到后端，刷新 / 换设备也不会丢失。",
+    )
+    if _up is not None:
+        if st.button("💾 保存头像", key="save_avatar_btn", width="stretch"):
+            try:
+                import base64
+                ext = (_up.name.rsplit(".", 1)[-1] or "png").lower()
+                if ext == "jpeg":
+                    ext = "jpg"
+                content = _up.getvalue()
+                if len(content) > 3_000_000:
+                    st.error("图片过大，请压缩到 3MB 以内再上传。")
+                else:
+                    data_url = f"data:image/{ext};base64," + base64.b64encode(content).decode("ascii")
+                    res = save_avatar_to_backend(data_url)
+                    if isinstance(res, dict) and res.get("status") == "ok":
+                        set_avatar_data_url(data_url)
+                        save_avatar(_username, content, ext=ext)  # 本地缓存兜底
+                        xc_success_box("✅ 头像已按账号保存到云端，刷新后依然在。")
+                        st.session_state["avatar_up_counter"] += 1
+                        st.rerun()
+                    else:
+                        # 后端不可用：退化为本地保存（仅本机本会话可靠）
+                        save_avatar(_username, content, ext=ext)
+                        set_avatar_data_url(data_url)
+                        _msg = (res or {}).get("message", "未知错误") if isinstance(res, dict) else "后端无响应"
+                        xc_warn_box(f"⚠️ 后端保存失败（{_msg}），已暂存本地；重启后端后可能丢失。")
+                        st.session_state["avatar_up_counter"] += 1
+                        st.rerun()
+            except Exception as e:
+                xc_handle_error("保存失败", e, hint="请稍后重试，或检查网络与数据源连接")
+    st.markdown(f"**用户名：** {_username}")
+    st.markdown(f"**角色：** {'管理员' if user.get('role') == 'admin' else '普通用户'}")
+    st.markdown(f"**登录时间：** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    if not _cur_avatar:
+        info_banner("💡 资料尚未完善：上传头像让投资体验更个性化。")
+
+with col2:
+    st.markdown("### 快捷入口")
+    # 打开方式开关：当前窗口（同标签跳转）/ 新窗口（浏览器新标签页，携带登录态不丢登录）
+    _open_mode = st.radio(
+        "打开方式",
+        options=["当前窗口", "新窗口"],
+        index=0,
+        horizontal=True,
+        key="my_open_mode",
+        help="新窗口：在浏览器新标签页打开目标页（URL 携带 token/user，登录态自动续接，不会掉登录）；当前窗口：同标签内跳转。",
+    )
+    _nav_mode = "new_window" if _open_mode == "新窗口" else "button"
+    render_entry_cards([
+        {'path': 'pages/10_行情看板.py', 'label': '行情看板', 'icon': '📈', 'desc': '大盘 / 板块 / 个股实时行情'},
+        {'path': 'pages/45_持仓中心.py', 'label': '持仓中心', 'icon': '💼', 'desc': '自选池 / 持仓 / 收益归因', 'state': {'hub_cang_view': '💼 持仓'}},
+        {'path': 'pages/23_事件追踪.py', 'label': '事件追踪', 'icon': '🔔', 'desc': '利好 / 利空事件信号'},
+        {'path': 'pages/54_今日决策面板.py', 'label': '今日决策面板', 'icon': '🎯', 'desc': '情绪 → 仓位 → 复盘闭环'},
+        {'path': 'pages/24_个股研究.py', 'label': '个股研究', 'icon': '🎯', 'desc': '快速选取 / 深度分析'},
+        {'path': 'pages/30_策略回测.py', 'label': '策略回测', 'icon': '⚙️', 'desc': '选股 / 强势股批量回测'},
+    ], columns=3, nav_mode=_nav_mode)
+
+st.markdown("---")
+
+# ── 我的自选股 ──
+xc_content_card("⭐ 我的自选股", "")
+
+try:
+    # 加法式加载态反馈：自选股列表来自后台请求
+    with st.spinner("加载中…"):
+        resp = _cached_get(
+            f"{API_BASE}/api/watchlist",
+            headers={"Authorization": f"Bearer {get_token()}"},
+        )
+    if resp.status_code == 200:
+        # 加法式健壮性：resp.json() 可能因返回非 JSON 抛异常；body 也需判定为 dict，
+        # 且 body.get("data") 可能是 dict 而非 list，统一兜底避免 DataFrame(Py) 异常。
+        try:
+            body = resp.json()
+        except Exception:
+            body = {}
+        body = body if isinstance(body, dict) else {}
+        if body.get("status") == "ok" and isinstance(body.get("data"), list) and body["data"]:
+            watchlist = body["data"]
+            import pandas as pd
+            df = pd.DataFrame(watchlist)
+            st.dataframe(df, width="stretch", height=400)
+            st.caption(f"共 {len(watchlist)} 只自选股 · 数据实时同步自行情看板 ☆")
+        else:
+            _empty_info("暂无自选股，请先添加你关注的股票。")
+            st.caption("💡 在「行情看板」中搜索股票后，点击右侧 ☆ 即可加入自选股，这里会实时同步。")
+            if st.button("➕ 去行情看板添加自选股", key="wl_go_add", width="stretch"):
+                safe_switch_page("pages/10_行情看板.py")
+    else:
+        xc_warn_box(f"获取自选股失败：HTTP {resp.status_code}")
+except Exception as e:
+    xc_handle_error("获取自选股失败", e, hint="请稍后重试，或检查网络与数据源连接")
+
+st.markdown("---")
+
+# 加法式 UX：提供本页短缓存（自选股/登录历史 10 秒）的手动刷新入口，
+# 切换主题/字体后若仍看到旧快照，可一键清空缓存立即向后台重新拉取。
+_col_cache, _ = st.columns([1, 3])
+with _col_cache:
+    if st.button("🔄", key="my_clear_cache",
+                 help="刷新本页缓存：清空本页自选股/登录历史的 10 秒短缓存，立即重新向后台拉取最新数据。"):
+        st.session_state.pop("_my_cached_get", None)
+        st.session_state["_my_cache_toast"] = True
+        st.rerun()
+
+# ── 登录历史 ──
+xc_content_card("🕘 登录历史",
+        "")
+ss_hover_preview("ⓘ 口径说明",
+                 "<b>登录历史</b>：时间为人性化相对时间；详情含来源 IP；"
+                 "本页数据有 10 秒短缓存（上方刷新按钮可立即拉最新）。", mini=True)
+
+try:
+    # 加法式加载态反馈：登录历史来自后台请求
+    with st.spinner("加载中…"):
+        resp = _cached_get(
+            f"{API_BASE}/api/auth/logins",
+            headers={"Authorization": f"Bearer {get_token()}"},
+        )
+    if resp.status_code == 200:
+        # 加法式健壮性：与上方自选股分支一致，resp.json() 可能因返回非 JSON 抛异常；
+        # 兜底为空 dict，避免整页被外层 except 报出难看的「获取登录历史失败」错误，
+        # 降级为更友好的「暂无登录记录」空态。
+        try:
+            body = resp.json()
+        except Exception:
+            body = {}
+        logs = (body.get("data") or []) if body.get("status") == "ok" else []
+        if logs:
+            import pandas as pd
+            _hist = [
+                {
+                    "时间": _fmt_rel(r.get("created_at", "")),
+                    "账号": r.get("username", "-"),
+                    "操作": r.get("action", "-"),
+                    "详情": r.get("detail", "") or "—",
+                }
+                for r in logs
+            ]
+            # T-262 A 有用型折叠：标签即预览（最近一条 + 总量），展开看全量
+            with ss_fold_useful(
+                    "🕘 登录历史明细",
+                    f"最近：{_hist[0]['时间']}　{_hist[0]['账号']}　{_hist[0]['操作']}"
+                    f"　·　共 {len(logs)} 条", icon="🕘"):
+                st.dataframe(pd.DataFrame(_hist), width="stretch", height=400)
+                st.caption(f"共 {len(logs)} 条登录记录")
+        else:
+            _empty_info("暂无登录记录。")
+            # 加法式示例数据预览：无记录时提供只读示例（不写库、不改逻辑）
+            with st.expander("👀 查看示例登录记录（只读）", expanded=False):
+                import pandas as pd
+                _sample_log = pd.DataFrame([
+                    {"时间": "刚刚", "账号": "demo", "操作": "登录", "详情": "本地登录"},
+                    {"时间": "1小时前", "账号": "demo", "操作": "修改设置", "详情": "切换暗夜模式"},
+                ])
+                st.dataframe(_sample_log, width="stretch", height=400)
+                st.caption("⚠️ 以上为示意数据，非真实记录。")
+    else:
+        xc_warn_box(f"获取登录历史失败：HTTP {resp.status_code}")
+except Exception as e:
+    xc_handle_error("获取登录历史失败", e, hint="请稍后重试，或检查网络与数据源连接")
+    # 加法式失败重试：请求异常时提供重试（清掉短缓存后重新拉取）
+    if st.button("🔄 重试", key="login_retry", width="stretch"):
+        st.session_state.pop("_my_cached_get", None)
+        st.rerun()
+
+st.markdown("---")
+
+# ── 「⚙️ 更多功能」：T-229 起把次要模块收进折叠区，突出个人中心主功能 ──
+with st.expander("⚙️ 更多功能（我的收藏 · 快速查看股票）", expanded=False):
+    # 加法式收藏/星标：自选股星标收藏（纯前端 session，不接后端）
+    if "my_starred_stocks" not in st.session_state:
+        st.session_state["my_starred_stocks"] = []
+    st.markdown("### ⭐ 我的收藏")
+    _my_star = st.text_input("添加收藏（输入 6 位股票代码）", key="my_star_input",
+                             help="输入股票代码后点击收藏，仅本会话保存，不接后端。")
+    if st.button("⭐ 收藏", key="my_star_btn", width="content"):
+        _code = (_my_star or "").strip()
+        if _code.isdigit() and len(_code) == 6:
+            if _code not in st.session_state["my_starred_stocks"]:
+                st.session_state["my_starred_stocks"].append(_code)
+                xc_success_box(f"✅ 已收藏 {_code}")
+            else:
+                info_banner(f"{_code} 已在收藏中")
+        else:
+            st.error("⚠️ 请输入正确的 6 位股票代码（仅数字）")
+    if st.session_state["my_starred_stocks"]:
+        _scols = st.columns(min(len(st.session_state["my_starred_stocks"]), 6))
+        for _i, _c in enumerate(st.session_state["my_starred_stocks"][:6]):
+            if _scols[_i].button(f"⭐ {_c}", key=f"my_star_disp_{_i}", help="点击取消收藏"):
+                st.session_state["my_starred_stocks"].remove(_c)
+                st.rerun()
+    st.markdown("---")
+    # 加法式输入内联校验：实时校验 6 位股票代码格式（错误时 st.error 提示）
+    _my_quick = st.text_input("🔎 快速查看股票（6 位代码）", key="my_quick_code",
+                              help="输入 6 位数字代码，实时校验格式。")
+    if _my_quick:
+        if not (_my_quick.isdigit() and len(_my_quick) == 6):
+            st.error("⚠️ 格式错误：请输入 6 位数字股票代码（如 600519）")
+        else:
+            xc_success_box(f"✅ 代码格式正确：{_my_quick}")
+            if st.button("前往个股研究", key="my_quick_go", width="content"):
+                st.session_state["pick_stock"] = _my_quick
+                safe_switch_page("pages/24_个股研究.py")
+
+# 加法式可折叠帮助/FAQ（与 Batch13 行内 help 不同，这是折叠面板）
+with st.expander("💡 使用说明 / 常见问题", expanded=False):
+    st.markdown(
+        "**本页能做什么？**\n"
+        "- 查看 / 修改个人资料与头像；\n"
+        "- 管理自选股、查看登录历史；\n"
+        "- 在「偏好设置」中调整主题、字体、K线默认根数等。\n\n"
+        "**常见问题**\n"
+        "- Q：设置会保存吗？A：本页设置保存在会话内存，关闭浏览器后恢复默认；头像按账号云端保存。\n"
+        "- Q：自选股从哪里来？A：在「行情看板」搜索股票后点击 ☆ 加入，这里实时同步。\n"
+        "- Q：我的收藏在哪里？A：在下方「⚙️ 更多功能」折叠区内（仅本会话保存）。"
+    )
+
+# ------------------------------------------------------------------
+# 偏好设置（原「设置」页合并而来）
+# T-266 空间治理：原「分隔线 + 单元素 tabs + 说明 caption + 大卡片×4 + 全宽
+# progress 指示器」整体收敛为一个折叠区（点击才展开，标签自带当前主题/字体
+# 摘要——折叠后仍有信息量）；空说明 sf_card 已由 ui_theme 紧凑化为单行节标题。
+# ------------------------------------------------------------------
+_prefs_summary = (
+    f"主题：{'🌙 暗夜' if get_current_mode() == 'dark' else '☀️ 白天'}"
+    f" · 字体：{dict(small='小', medium='标准', large='大', xlarge='特大', xxlarge='巨大').get(st.session_state.get('font_size', FONT_DEFAULT), '标准')}"
+    " · K线根数："
+    f"{st.session_state.get('kline_default_count', 120)}"
+)
+with ss_fold_useful("⚙️ 偏好设置", _prefs_summary, expanded=False, icon="⚙️"):
+    st.caption(
+        "⚙️ 分「外观 / 行情看板默认参数 / 数据源优先级」三类，改动即时生效；关闭浏览器后恢复默认。"
+    )
+    render_preferences()

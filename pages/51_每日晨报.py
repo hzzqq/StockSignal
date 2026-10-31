@@ -14,11 +14,11 @@ import modules.scroll_nav as sn
 from modules.news import NewsFetcher
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
+from modules.page_utils import fmt_rel as _fmt_rel
 from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info, _section_title
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_content_card
 from modules.event_factor import event_driven_long_list  # 事件驱动看多榜（真实 P1 EV 信号选股池）
-from modules.page_utils import fmt_rel as _fmt_rel
 today = date.today().strftime('%Y-%m-%d')
 dark = render_standard_page(title='每日晨报 / 复盘笔记', icon='🌅', caption=f'生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）', layout='wide')
 from modules.widgets import render_index_compact
@@ -70,3 +70,326 @@ def _fmt_pct(v):
         return f'{float(v):+.2f}%'
     except Exception:
         return '—'
+
+@safe_fragment
+def fragment_sector_summary():
+    with st.spinner('加载板块行情…'):
+        try:
+            sector_df = _cached_sector()
+        except Exception:
+            sector_df = None
+    if sector_df is not None and (not sector_df.empty) and ('change_pct' in sector_df.columns):
+        up = int((sector_df['change_pct'] > 0).sum())
+        down = int((sector_df['change_pct'] < 0).sum())
+        flat = len(sector_df) - up - down
+        c1, c2, c3 = st.columns(3)
+        c1.metric('上涨板块', up, delta=None, help='今日收盘涨幅大于 0 的板块数量')
+        c2.metric('下跌板块', down, delta=None, help='今日收盘跌幅小于 0 的板块数量')
+        c3.metric('平/无数据', flat, delta=None, help='涨跌幅为 0 或暂未获取到行情的板块数量')
+        st.caption('数据来源：东方财富板块行情')
+        top_up = sector_df.sort_values('change_pct', ascending=False).head(5)
+        top_dn = sector_df.sort_values('change_pct', ascending=True).head(5)
+        colu, cold = st.columns(2)
+        with colu:
+            st.markdown('**🟢 领涨板块**')
+            for _, r in top_up.iterrows():
+                st.markdown(f"- {str(r.get('sector') or '?')}  `{_fmt_pct(r.get('change_pct'))}`")
+        with cold:
+            st.markdown('**🔴 领跌板块**')
+            for _, r in top_dn.iterrows():
+                st.markdown(f"- {str(r.get('sector') or '?')}  `{_fmt_pct(r.get('change_pct'))}`")
+        st.caption(f"🕒 板块行情快照时间：{pd.Timestamp.now().strftime('%H:%M:%S')}（收盘后更新，盘中为实时快照）")
+    else:
+        xc_warn_box('⚠️ 暂未获取到板块行情（交易时间或网络恢复后自动可用）。')
+fragment_sector_summary()
+
+@safe_fragment
+def fragment_watchlist_and_news():
+    sc, body = api_get('/api/watchlist')
+    watchlist = []
+    if sc == 200 and isinstance(body, dict) and (body.get('status') == 'ok'):
+        watchlist = body.get('data', []) or []
+    else:
+        st.error('⚠️ 加载失败，请稍后重试')
+        if st.button('🔄 重试', key='morning_wl_retry'):
+            st.rerun(scope='fragment')
+        return
+    wl_codes = [w.get('stock_code') for w in watchlist[:30] if w.get('stock_code')]
+    fund_map = {}
+    if wl_codes:
+        from modules.fetch_parallel import fetch_many
+        try:
+            with st.spinner('并行获取自选股市盈率与资产负债率…'):
+                with _ssl_bypass():
+                    raw = fetch_many([(c, lambda code=c: _fund_one(code)) for c in wl_codes], max_workers=4, timeout=15)
+            for c in wl_codes:
+                r = raw.get(c)
+                fund_map[c] = (r[1], r[2]) if isinstance(r, (tuple, list)) and len(r) >= 3 else (None, None)
+        except Exception:
+            pass
+    quotes_map = {}
+    if wl_codes:
+        try:
+            with ThreadPoolExecutor(max_workers=6) as ex:
+                for c, q in ex.map(_quote_one, wl_codes):
+                    quotes_map[c] = q
+        except Exception:
+            quotes_map = {}
+    selected_code = None
+    selected_name = None
+    with st.expander('📌 自选股快照', expanded=True):
+        if not watchlist:
+            info_banner('📭 自选股为空，晨报暂无可展示的持仓快照。')
+            st.markdown("<div class='xc-note'>💡 <b>三步开启你的晨报快照</b><br>1. 进入「📡 自选股监控」添加关注的股票<br>2. 或到「👤 我的」维护自选股清单<br>3. 回到本页，快照与专属新闻会自动出现</div>", unsafe_allow_html=True)
+            if st.button('➕ 去添加自选股', type='primary', width="stretch", key='morning_goto_wl'):
+                safe_switch_page('pages/46_自选股监控.py')
+        else:
+            st.caption('👉 点击表格中某一行，可在下方「相关新闻速览」查看该股票的专属新闻。')
+            snap = []
+            st.text_input('🔍 搜索自选股（名称 / 代码）', key='filter_morning_wl', help='纯前端过滤快照列表，不影响行情获取。')
+            for w in watchlist[:30]:
+                code = w['stock_code']
+                rt = quotes_map.get(code)
+                name = w.get('stock_name') or fetcher.get_name_only(code) or code
+                pe, alr = fund_map.get(code, (None, None))
+                _pe_s = f'{pe:.2f}' if isinstance(pe, (int, float)) and (not pd.isna(pe)) else '—'
+                _alr_s = f'{alr:.2f}%' if isinstance(alr, (int, float)) and (not pd.isna(alr)) else '—'
+                if isinstance(rt, dict) and rt.get('current'):
+                    cur = float(rt['current'])
+                    prev = float(rt.get('prev_close') or cur)
+                    high = float(rt.get('high') or 0)
+                    low = float(rt.get('low') or 0)
+                    volume = int(rt.get('volume') or 0)
+                    amount = float(rt.get('amount') or 0)
+                    chg = (cur - prev) / prev * 100 if prev else 0.0
+                    change_amt = cur - prev if prev else 0.0
+                    amplitude = (high - low) / prev * 100 if prev else 0.0
+                    snap.append({'名称': name, '代码': code, '现价': cur, '涨跌额': change_amt, '涨跌%': chg, '振幅%': amplitude, '成交量': volume, '成交额': amount, '市盈率': _pe_s, '资产负债率': _alr_s})
+                else:
+                    snap.append({'名称': name, '代码': code, '现价': None, '涨跌额': None, '涨跌%': None, '振幅%': None, '成交量': None, '成交额': None, '市盈率': _pe_s, '资产负债率': _alr_s})
+            if snap:
+                _wl_filter = st.session_state.get('filter_morning_wl', '')
+                if _wl_filter:
+                    _ff = str(_wl_filter).strip().lower()
+                    snap = [s for s in snap if _ff in str(s.get('名称', '')).lower() or _ff in str(s.get('代码', '')).lower()]
+                snap_df = pd.DataFrame(snap)
+                event = st.dataframe(snap_df, width="stretch", height=320, on_select='rerun', selection_mode='single-row', key='morning_snap', column_config={'现价': st.column_config.NumberColumn(format='¥%.2f'), '涨跌额': st.column_config.NumberColumn(format='%.2f'), '涨跌%': st.column_config.NumberColumn(format='%.2f%%'), '振幅%': st.column_config.NumberColumn(format='%.2f%%'), '成交量': st.column_config.NumberColumn(format='%d'), '成交额': st.column_config.NumberColumn(format='%.0f'), '市盈率': st.column_config.NumberColumn(format='%.2f'), '资产负债率': st.column_config.NumberColumn(format='%.2f%%')})
+                st.caption(f'共 {len(watchlist)} 只自选股（展示前 {len(snap)} 只）')
+                try:
+                    sel_rows = event.selection.rows if event and event.selection else []
+                except Exception:
+                    sel_rows = []
+                if sel_rows:
+                    if sel_rows[0] < len(snap_df):
+                        r = snap_df.iloc[sel_rows[0]]
+                        selected_code = str(r['代码'])
+                        selected_name = str(r['名称'])
+                    else:
+                        sel_rows = []
+    _news_title = f'📰 相关新闻速览 — {selected_name}（{selected_code}）' if selected_code else '📰 相关新闻速览'
+    with st.expander(_news_title, expanded=bool(selected_code)):
+        if not watchlist:
+            info_banner('添加自选股后，此处展示相关新闻。')
+        elif not selected_code:
+            info_banner('👆 请在上方「自选股快照」中点击某一行，查看该股票的相关新闻。')
+        else:
+            with st.spinner(f'加载 {selected_name} 相关新闻…'):
+                news_df = _cached_news(selected_name, limit=15)
+            if news_df is not None and (not news_df.empty):
+                for _, r in news_df.head(12).iterrows():
+                    title = str(r.get('title') or '')
+                    url = r.get('url') or r.get('link') or ''
+                    date_s = str(r.get('date') or '')
+                    source_s = str(r.get('source') or '')
+                    if url:
+                        st.markdown(f'- {_fmt_rel(date_s)}  **[{title}]({url})**  _{source_s}_')
+                    else:
+                        st.markdown(f'- {_fmt_rel(date_s)}  **{title}**  _{source_s}_')
+                st.caption(f'共 {len(news_df)} 条相关新闻，展示前 {min(len(news_df), 12)} 条')
+            else:
+                info_banner(f'暂无与 {selected_name} 相关的新闻。可尝试切换其它自选股，或稍后重试（资讯源每日更新）。')
+fragment_watchlist_and_news()
+
+@safe_fragment
+def fragment_event_driven_pool():
+    """📈 事件驱动看多榜：把真实事件因子（P1 EV）直接落成「选股候选池」，接进每日晨报。
+
+    与决策面板 54 同源（都读 modules.event_factor.event_driven_long_list）。
+    晨报里作为开盘前「今日可重点观察的事件驱动候选」速览；并提供一键导出
+    Markdown，便于转发到自动推送 / 早报正文。
+    """
+    _section_title("📈 事件驱动看多榜（EV 事件因子 · 真实信号）", accent="#ff8a3d")
+    try:
+        rows = event_driven_long_list(top_n=20, model="ev")
+    except Exception as e:  # noqa: BLE401
+        xc_handle_error("事件驱动看多榜加载失败", e)
+        return
+
+    if not rows:
+        _empty_info("未找到 P1 EV 事件因子信号（data/p1_signals/ 或 P1 产出目录）。"
+                    "接入真实信号后此处自动出现候选池；当前事件维度回退本地事件库。")
+        return
+
+    body = ("由 P1-QuantFactor 神经网络产出的**事件因子多头候选池**（EV 模型，已并入牧羊人情绪"
+            "9 维事件/regime 通道）。这是统计意义上的超额收益概率排序，**非**买卖指令；"
+            "建议仅取多头侧，并与本页板块/自选股信号配合使用。")
+    xc_content_card("事件驱动 · EV 看多榜（前 20）", body, icon="📈")
+
+    rows_html = ""
+    for i, r in enumerate(rows, 1):
+        sym = r.get("symbol", "")
+        sc = r.get("score")
+        sc_txt = f"{sc:.1f}" if isinstance(sc, (int, float)) else "—"
+        _col = "#ff8a3d"
+        rows_html += (
+            f"<tr><td style='color:#888'>{i}</td>"
+            f"<td style='font-family:monospace'>{sym}</td>"
+            f"<td style='color:{_col};font-weight:600'>{sc_txt}</td>"
+            f"<td style='color:#888;font-size:12px'>{r.get('source','')}</td></tr>"
+        )
+    st.markdown(
+        "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
+        "<thead><tr style='color:#ff8a3d;text-align:left'>"
+        "<th>#</th><th>代码</th><th>事件因子分</th><th>来源</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table>",
+        unsafe_allow_html=True,
+    )
+    st.caption("口径：事件因子分 = P1 模型百分位排名 × 100（越高越看多）。"
+               "非买卖指令，建议结合本页板块/自选股信号综合判断。")
+
+    # 一键导出 Markdown：便于转发到自动推送 / 早报正文（与 scripts/gen_event_pool_brief.py 同源）
+    md_lines = [
+        f"# 📈 事件驱动看多榜（{today}）", "",
+        "> 由 P1-QuantFactor 产出的事件因子多头候选池（EV 模型）。统计意义排序，**非买卖指令**。", "",
+    ]
+    if rows:
+        md_lines.append("| # | 代码 | 事件因子分 | 来源 |")
+        md_lines.append("| -- | -- | -- | -- |")
+        for i, r in enumerate(rows, 1):
+            sc = r.get("score")
+            sc_txt = f"{sc:.1f}" if isinstance(sc, (int, float)) else "—"
+            md_lines.append(f"| {i} | `{r.get('symbol','')}` | {sc_txt} | {r.get('source','')} |")
+    md_text = "\n".join(md_lines) + "\n"
+    st.download_button("⬇️ 导出事件池 (.md)", data=md_text.encode("utf-8"),
+                       file_name=f"事件驱动看多榜_{today}.md", mime="text/markdown",
+                       key="morning_event_pool_dl",
+                       help="导出为 Markdown，可粘贴进早报正文或自动推送素材。")
+
+# ── T-230：事件驱动看多榜收进折叠区（真实 EV 信号保留，主区留核心速览）──
+with st.expander('📈 事件驱动看多榜（EV 事件因子 · 真实信号）', expanded=False):
+    fragment_event_driven_pool()
+
+@safe_fragment
+def fragment_review_notes():
+    st.markdown('#### 📝 复盘笔记')
+    import re as _re
+    NOTES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+    REVIEW_IMG_DIR = os.path.join(NOTES_DIR, 'review_images')
+    os.makedirs(NOTES_DIR, exist_ok=True)
+    os.makedirs(REVIEW_IMG_DIR, exist_ok=True)
+    if 'review_img_counter' not in st.session_state:
+        st.session_state['review_img_counter'] = 0
+
+    def _notes_path(d):
+        return os.path.join(NOTES_DIR, f'review_notes_{d}.md')
+
+    def _render_toolbar():
+        note_date = st.date_input('复盘日期', value=st.session_state.get('_morning_review_date_pref', date.today()), key='review_date')
+        note_date_s = note_date.strftime('%Y-%m-%d')
+        notes_path = _notes_path(note_date_s)
+        if 'review_note' not in st.session_state:
+            if os.path.exists(notes_path):
+                try:
+                    with open(notes_path, 'r', encoding='utf-8') as f:
+                        st.session_state['review_note'] = f.read()
+                except Exception:
+                    st.session_state['review_note'] = ''
+            else:
+                st.session_state['review_note'] = ''
+        c_q, c_img = st.columns([0.5, 0.5])
+        with c_q:
+            if st.button('🔍 查询', type='primary', width="stretch", key='review_query'):
+                if os.path.exists(notes_path):
+                    try:
+                        with open(notes_path, 'r', encoding='utf-8') as f:
+                            st.session_state['review_note'] = f.read()
+                    except Exception:
+                        st.session_state['review_note'] = ''
+                else:
+                    st.session_state['review_note'] = ''
+                    _empty_info(f'{note_date_s} 暂无复盘记录，可直接在下方新建（写一句今天的市场观察或操作笔记）。')
+                st.session_state['review_queried'] = note_date_s
+                st.session_state['_morning_review_date_pref'] = note_date
+        with c_img:
+            uploaded = st.file_uploader('📷 添加图片到复盘', type=['png', 'jpg', 'jpeg', 'gif', 'webp'], key=f"review_img_{st.session_state['review_img_counter']}", help='上传后自动把图片链接插入到复盘文本末尾')
+            if uploaded is not None:
+                safe_name = f'review_{note_date_s}_{uploaded.name}'
+                img_path = os.path.join(REVIEW_IMG_DIR, safe_name)
+                with open(img_path, 'wb') as f:
+                    f.write(uploaded.getbuffer())
+                rel = f'review_images/{safe_name}'
+                cur = st.session_state.get('review_note', '')
+                st.session_state['review_note'] = (cur + f'\n\n![{uploaded.name}]({rel})\n').strip() + '\n'
+                st.session_state['review_img_counter'] += 1
+                xc_success_box(f'✅ 已插入图片：{uploaded.name}')
+        return note_date_s
+
+    def _render_editor(note_date_s):
+
+        def _autosave():
+            try:
+                with open(_notes_path(note_date_s), 'w', encoding='utf-8') as f:
+                    f.write(st.session_state.get('review_note', ''))
+                st.session_state['review_autosaved'] = True
+            except Exception:
+                st.session_state['review_autosaved'] = False
+        note = st.text_area(f'复盘内容（{note_date_s}，支持 Markdown）', height=220, key='review_note', placeholder='记录今日盘面、操作与明日计划…', on_change=_autosave)
+        c_save, c_clear = st.columns([1, 1])
+        with c_save:
+            if st.button('💾 保存复盘', type='primary', width="stretch", key='review_save'):
+                try:
+                    with open(_notes_path(note_date_s), 'w', encoding='utf-8') as f:
+                        f.write(note)
+                    st.session_state['review_autosaved'] = True
+                    xc_success_box(f'✅ 已保存到 review_notes_{note_date_s}.md')
+                except Exception as e:
+                    st.session_state['review_autosaved'] = False
+                    xc_handle_error("保存失败", e, hint="请稍后重试，或检查网络与数据源连接")
+        with c_clear:
+            _ck = 'review_clear_confirm'
+            if st.session_state.get(_ck):
+                if st.button('确认清空', width="stretch", key='review_clear_cfm', type='primary'):
+                    st.session_state['review_note'] = ''
+                    st.session_state['review_autosaved'] = False
+                    st.session_state.pop(_ck, None)
+                if st.button('取消', width="stretch", key='review_clear_cancel'):
+                    st.session_state.pop(_ck, None)
+            elif st.button('🗑️ 清空', width="stretch", key='review_clear'):
+                st.session_state[_ck] = True
+        _note_now = st.session_state.get('review_note', '')
+        if _note_now.strip():
+            st.download_button('⬇️ 导出笔记 (.md)', data=_note_now.encode('utf-8'), file_name=f'复盘笔记_{note_date_s}.md', mime='text/markdown', key='review_download', help='将当前复盘内容导出为 Markdown 文件。')
+        if st.session_state.get('review_autosaved'):
+            st.caption(f'✅ 内容已自动保存到本地（review_notes_{note_date_s}.md），切换日期或刷新不丢失')
+        else:
+            st.caption('💡 内容会随编辑自动保存到本地；也可点「💾 保存复盘」手动确认')
+
+    def _render_preview():
+        if not st.session_state.get('review_queried'):
+            return
+        st.markdown('---')
+        st.markdown(f"#### 📄 复盘内容预览（{st.session_state['review_queried']}）")
+        _content = st.session_state.get('review_note', '')
+        _img_re = _re.compile('!\\[.*?\\]\\((review_images/[^)]+)\\)')
+        for _m in _img_re.finditer(_content):
+            _ip = os.path.join(NOTES_DIR, _m.group(1))
+            if os.path.exists(_ip):
+                st.image(_ip, width=420)
+        if _content.strip():
+            st.markdown(_content, unsafe_allow_html=True)
+        else:
+            info_banner('该日暂无复盘内容。可在上方文本框记录今日盘面、操作与明日计划，编辑即自动保存到本地；也可点「🔍 查询」切换其它日期查看历史复盘。')
+    note_date_s = _render_toolbar()
+    _render_editor(note_date_s)
+    _render_preview()
+fragment_review_notes()
