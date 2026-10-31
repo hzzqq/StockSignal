@@ -37,7 +37,7 @@ from modules import data_health as _dh
 from modules import decision_track as _track
 from modules import calibration as _cal
 from modules.experiment_improvements import shap_style_attribution
-from modules.page_guard import safe_fragment
+from modules.page_guard import safe_fragment, render_data_degradation_banner
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, ss_hover_preview, xc_kpi_grid, xc_bento_kpi, xc_content_card
 from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GRU/融合）
@@ -60,6 +60,8 @@ ss_hover_preview("ℹ️ 怎么用", (
 
 # ── 决策闭环主动告警：调度是否还活着，一眼可见（根治 09-10/09-15 静默停摆）──
 render_decision_loop_alarm()
+# T-239：数据源降级横幅（G1 缺口补齐）——取数源不稳/不可用时顶部红/橙提示，避免无感假新鲜
+render_data_degradation_banner()
 
 
 # ───────────────────────── 本地辅助 ─────────────────────────

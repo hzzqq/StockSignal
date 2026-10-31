@@ -25,11 +25,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import time
 from datetime import date, datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 try:
     import pandas as pd
@@ -146,7 +149,8 @@ class P1SignalLoader:
             for fp in sorted(p.glob("signal_*.json")):
                 try:
                     meta = _load_one(str(fp))
-                except Exception:
+                except Exception as e:
+                    logger.warning("P1 信号文件解析失败，跳过: %s: %s", fp, e)
                     continue
                 model = (meta.get("model")
                          or fp.stem.replace("signal_", "").replace("_h10", ""))
@@ -233,7 +237,8 @@ class P1SignalLoader:
         for m in self.available_models():
             try:
                 d = self.load(m)
-            except Exception:
+            except Exception as e:
+                logger.warning("P1 模型 %s 摘要加载失败，跳过: %s", m, e)
                 continue
             out[m] = {
                 "label": self.model_label(m),

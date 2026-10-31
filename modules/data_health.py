@@ -45,7 +45,8 @@ def _csv_last_date_col(path: str, col: int = 0) -> str | None:
             return None
         val = (rows[-1][col] or "").strip()
         return val[:10] if val else None
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[data_health] CSV 末行日期读取失败，回退 mtime: %s", e)
         return None
 
 
@@ -56,7 +57,8 @@ def _json_date_field(path: str, field: str) -> str | None:
             d = json.load(f)
         v = d.get(field)
         return str(v)[:10] if v else None
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[data_health] JSON 字段 %s 日期读取失败，回退 mtime: %s", field, e)
         return None
 
 
@@ -66,7 +68,8 @@ def _mtime_date(path: str) -> str | None:
         if not os.path.exists(path):
             return None
         return datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d")
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[data_health] 文件 mtime 读取失败: %s: %s", path, e)
         return None
 
 

@@ -117,7 +117,8 @@ def _int_keys(d) -> dict:
         for k, v in (d or {}).items():
             try:
                 out[int(k)] = int(v)
-            except Exception:
+            except Exception as e:
+                logger.warning("[shepherd_ladder] 坏档位 key 丢弃: k=%s v=%s: %s", k, v, e)
                 continue
     except Exception:
         return {}

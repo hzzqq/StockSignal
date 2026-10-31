@@ -140,14 +140,16 @@ def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) 
                     "horizon": annotate_horizon(_loader_horizon(loader, model)),
                     "hard_logic": dict(_ANNOT_NO_TEXT),
                     "source": f"P1-{model}-top_short"}
-    except Exception:
+    except Exception as e:
         # 榜单读取异常不致命，继续走精确路径
+        logger.warning("[event_factor] top_long/top_short 读取异常，降级到精确路径: %s", e)
         pass
 
     # ── 精确路径：daily 逐日得分（仅当不在榜单时加载大数组）──
     try:
         df = loader.daily_df(model)
-    except Exception:
+    except Exception as e:
+        logger.warning("[event_factor] daily_df 读取失败（将按无信号处理）: %s", e)
         df = None
     if df is not None and not getattr(df, "empty", True):
         try:
