@@ -113,11 +113,15 @@ class StockFetcher(BaseFetcher, StorageMixin, RealtimeMixin, KlineMixin,
     """股票行情与宏观数据采集器。领域方法见各 fetcher_* mixin，见 FETCHER_CONTRACT.md。
     以下两个为影子名薄壳（真身迁 fetcher_core，由 fetcher_core_tier11 守卫锁定必须留在本层）。
     """
+    @staticmethod
     def _get_stock_industry_keywords(stock_name):
         """根据股票名称匹配行业，返回该行业的高频事件关键词。
 
         真身迁 modules.fetcher_core（T-247 Tier2，industry_map 作参数注入）；
         领域常量 _INDUSTRY_KEYWORDS 留本类（仅此消费）。
+
+        原单文件定义无 self，作为实例方法调用会 TypeError；改为 staticmethod，
+        既兼容实例调用（test_t2_identity）也兼容原 unbound 调用，语义不变。
         """
         return _get_stock_industry_keywords(stock_name, StockFetcher._INDUSTRY_KEYWORDS)
 
