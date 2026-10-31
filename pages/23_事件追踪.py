@@ -414,7 +414,8 @@ def fragment_timeline():
                                         st.session_state.tl_df = df
                                         st.session_state.tl_start_idx = 0
                                         st.session_state.tl_n_show = min(60, len(df))
-                                except Exception:
+                                except Exception as e:
+                                    print(f'[R-01] 追踪列表 df 构建失败: {e}')
                                     pass
                             else:
                                 st.session_state.tl_realtime_events = pd.DataFrame()

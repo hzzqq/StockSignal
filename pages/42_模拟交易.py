@@ -75,7 +75,8 @@ def _price(code):
         d = FETCHER.get_daily(code, start='2024-01-01')
         if d is not None and (not d.empty):
             return (float(d.iloc[-1]['close']), FETCHER.get_name_only(code))
-    except Exception:
+    except Exception as e:
+        print(f'[R-01] _price 日线 fallback 失败 code={code}: {e}')
         pass
     return (None, code)
 
