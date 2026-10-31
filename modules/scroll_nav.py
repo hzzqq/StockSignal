@@ -318,6 +318,11 @@ def _nav_script(dark, threshold_px, bottom_threshold, show_top, show_bottom,
       if (P.__sfScrollNavObserver) { try { P.__sfScrollNavObserver.disconnect(); } catch(e){} }
       P.__sfScrollNavObserver = new MutationObserver(function(){ bindScrollTargets(); setTimeout(tupdate, 60); });
       P.__sfScrollNavObserver.observe(P.document.body, {childList:true, subtree:true});
+      // 轻量兜底：定时器轮询滚动位置，确保任意 Streamlit 动态滚动容器（含 2 栏布局下
+      // 的非常规滚动元素）下按钮都可靠显现 —— 根治「滚动了却看不到回顶按钮」的体验问题。
+      if (!P.__sfTopPoll) {
+        P.__sfTopPoll = setInterval(function(){ try{ tupdate(); }catch(e){} }, 250);
+      }
     }
     // ▼ 回到底部（由页面标记元素 __BOTTOM_MARKER_SEL__ 的存在性驱动）
     // 说明：Streamlit 1.58 为客户端路由，window.location.pathname 恒为 "/"，
