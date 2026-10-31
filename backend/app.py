@@ -294,8 +294,8 @@ def _register_security_headers(app: Flask) -> None:
     def _add_headers(resp):
         ct = resp.headers.get("Content-Type", "")
         # 安全网：把「意外」的非 JSON 响应强制为 JSON，避免 Flask 默认 HTML 错误页泄漏。
-        # 但有意的管理界面 HTML 页（text/html）必须保留，不能被误改成 JSON 头。
-        if "text/html" not in ct and not ct.startswith("application/json"):
+        # 有意的管理界面 HTML 页（text/html）与导出文件（text/markdown）必须保留，不能被误改成 JSON 头。
+        if "text/html" not in ct and "text/markdown" not in ct and not ct.startswith("application/json"):
             try:
                 resp.headers["Content-Type"] = "application/json; charset=utf-8"
             except Exception as e:

@@ -213,3 +213,85 @@ def delete_conversation(cid: int):
     db.session.delete(rec)
     db.session.commit()
     return ok(data={"deleted": True, "id": cid})
+
+
+# =====================================================================
+# T-311 扩展：会话导出（markdown / json）
+# =====================================================================
+_EXPORT_FORMATS = ("markdown", "json")
+
+_ROLE_LABEL = {
+    "user": "🧑 用户",
+    "assistant": "🤖 星辰AI",
+    "system": "⚙️ 系统",
+}
+
+
+def _render_markdown(rec: ChatConversation) -> str:
+    """把一个会话渲染成 Markdown 导出文本。
+
+    格式：# 标题 / 导出时间 / 逐轮对话（role→emoji 标签）。
+    sources 标签、as_of 等元信息如实保留在消息里；不编造内容。
+    """
+    ts = rec.updated_at.isoformat() if rec.updated_at else "—"
+    lines = [
+        f"# {rec.title or '未命名会话'}",
+        "",
+        f"**会话 ID**：#{rec.id}",
+        f"**更新时间**：{ts}",
+        f"**消息数**：{len(_load_messages_field(rec.messages))}",
+        "",
+        "---",
+        "",
+    ]
+    msgs = _load_messages_field(rec.messages)
+    if not msgs:
+        lines.append("_（空会话，尚无消息）_")
+    for i, m in enumerate(msgs, 1):
+        role = str(m.get("role", "")).strip() if isinstance(m, dict) else ""
+        label = _ROLE_LABEL.get(role, role or "?")
+        content = ""
+        if isinstance(m, dict):
+            content = str(m.get("content") or "")
+        lines.append(f"### {i}. {label}")
+        lines.append("")
+        lines.append(content or "_（空消息）_")
+        lines.append("")
+    return "\n".join(lines)
+
+
+@bp.get("/conversations/<int:cid>/export")
+@jwt_required
+def export_conversation(cid: int):
+    """GET /api/chat/conversations/<id>/export?format=markdown|json —— 导出会话。
+
+    - format=json  → Flask envelope 包装的结构化数据（与 GET /conversations/<id> 同形）
+    - format=markdown → 直接返回 text/markdown 纯文本（Content-Length 诚实标注）
+    - 越权/不存在 → 404（与其他端点一致）
+    - format 非法 → 400
+    """
+    rec = ChatConversation.query.filter_by(id=cid, user_id=g.current_user.id).first()
+    if rec is None:
+        return fail(message="会话不存在", code="not_found", http_status=404)
+
+    fmt = request.args.get("format", "json").lower()
+    if fmt not in _EXPORT_FORMATS:
+        return fail(
+            message=f"format 必须是 {' / '.join(_EXPORT_FORMATS)}",
+            code="bad_format", http_status=400,
+        )
+
+    if fmt == "json":
+        return ok(data=_serialize_conv(rec, with_messages=True))
+
+    # markdown
+    md = _render_markdown(rec)
+    from flask import Response
+    return Response(
+        md,
+        mimetype="text/markdown; charset=utf-8",
+        headers={
+            "Content-Disposition":
+                f"attachment; filename=\"conversation_{cid}_{rec.title[:20].replace(' ', '_')}.md\"",
+        },
+    )

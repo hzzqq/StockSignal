@@ -173,3 +173,96 @@ def test_migrate_import_and_idempotent(app):
         db.session.commit()
         assert migrate_convs(app) is False
         assert ChatConversation.query.count() == 0
+
+
+# ---------------------------------------------------------------- 导出端点
+def test_export_json(client):
+    """format=json → 返回结构化 envelope，与 GET /conversations/<id> 同形。"""
+    tok = _token(client, "alice")
+    cid = client.post(
+        "/api/chat/conversations",
+        json={"title": "导出测试"},
+        headers=_H(tok),
+    ).get_json()["data"]["id"]
+    msgs = [{"role": "user", "content": "问"}, {"role": "assistant", "content": "答"}]
+    client.post(f"/api/chat/conversations/{cid}",
+                json={"messages": msgs}, headers=_H(tok))
+
+    r = client.get(f"/api/chat/conversations/{cid}/export?format=json",
+                   headers=_H(tok))
+    assert r.status_code == 200
+    data = r.get_json()["data"]
+    assert data["id"] == cid
+    assert data["title"] == "导出测试"
+    assert data["messages"] == msgs
+
+
+def test_export_markdown(client):
+    """format=markdown → text/markdown 纯文本，Content-Disposition 带会话标题，逐轮对话渲染。"""
+    tok = _token(client, "alice")
+    cid = client.post(
+        "/api/chat/conversations",
+        json={"title": "星辰AI测试会话"},
+        headers=_H(tok),
+    ).get_json()["data"]["id"]
+    msgs = [
+        {"role": "user", "content": "茅台值得买吗？"},
+        {"role": "assistant", "content": "让我查一下最新数据…"},
+    ]
+    client.post(f"/api/chat/conversations/{cid}",
+                json={"messages": msgs}, headers=_H(tok))
+
+    r = client.get(f"/api/chat/conversations/{cid}/export?format=markdown",
+                   headers=_H(tok))
+    assert r.status_code == 200
+    assert r.mimetype.startswith("text/markdown")
+    body = r.get_data(as_text=True)
+    assert "# 星辰AI测试会话" in body
+    assert "🧑 用户" in body
+    assert "🤖 星辰AI" in body
+    assert "茅台值得买吗" in body
+    assert "让我查一下" in body
+    # Content-Disposition 带会话标题
+    cd = r.headers.get("Content-Disposition", "")
+    assert f"conversation_{cid}" in cd
+    assert "星辰AI测试会话" in cd or "星辰AI测试会话".replace(" ", "_") in cd
+
+
+def test_export_format_validation(client):
+    """format 非法值 → 400；缺省默认 json。"""
+    tok = _token(client, "alice")
+    cid = client.post("/api/chat/conversations", json={}, headers=_H(tok)).get_json()["data"]["id"]
+    assert client.get(
+        f"/api/chat/conversations/{cid}/export?format=xml", headers=_H(tok)
+    ).status_code == 400
+    # 缺省 → json（200 且 envelope 包装）
+    r = client.get(f"/api/chat/conversations/{cid}/export", headers=_H(tok))
+    assert r.status_code == 200
+    assert "data" in r.get_json()  # json envelope
+
+
+def test_export_ownership(client):
+    """越权隔离：他人会话 export 一律 404，不泄漏存在性。"""
+    ta, tb = _token(client, "alice"), _token(client, "bob")
+    cid = client.post("/api/chat/conversations", json={}, headers=_H(ta)).get_json()["data"]["id"]
+    for fmt in ("json", "markdown"):
+        assert client.get(
+            f"/api/chat/conversations/{cid}/export?format={fmt}", headers=_H(tb)
+        ).status_code == 404
+
+
+def test_export_empty_conversation(client):
+    """空会话 → markdown 如实标注空消息，不编造。"""
+    tok = _token(client, "alice")
+    cid = client.post(
+        "/api/chat/conversations",
+        json={"title": "空的"},
+        headers=_H(tok),
+    ).get_json()["data"]["id"]
+    r = client.get(
+        f"/api/chat/conversations/{cid}/export?format=markdown", headers=_H(tok)
+    )
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "# 空的" in body
+    assert "空会话" in body.lower()
