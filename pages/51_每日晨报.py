@@ -125,7 +125,8 @@ def fragment_watchlist_and_news():
             for c in wl_codes:
                 r = raw.get(c)
                 fund_map[c] = (r[1], r[2]) if isinstance(r, (tuple, list)) and len(r) >= 3 else (None, None)
-        except Exception:
+        except Exception as e:
+            print(f'[R-01] 市盈率/资产负债率 并行获取失败: {e}')
             pass
     quotes_map = {}
     if wl_codes:

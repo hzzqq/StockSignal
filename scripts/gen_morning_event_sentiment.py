@@ -97,7 +97,8 @@ def read_signal_meta_cheap(path: str) -> dict:
         m = re.search(r'"model"\s*:\s*"([^"]+)"', head)
         if m:
             out["model"] = m.group(1)
-    except Exception:
+    except Exception as e:
+        print(f'[R-01] 晨报 JSON latest_date/model 解析失败: {e}')
         pass
     return out
 

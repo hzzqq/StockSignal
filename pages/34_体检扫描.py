@@ -233,7 +233,8 @@ def scan_one(code: str, name):
         # PB 与 股息率 串行调用改并行，缩短单只扫描耗时
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as _vex:
             pb, dv = _vex.map(_fetch_val, ("市净率", "股息率TTM"))
-    except Exception:
+    except Exception as e:
+        print(f'[R-01] 估值维度 PB/股息率 并行取数失败 code={code}: {e}')
         pass
     vs = _valuation_score(pe, pb, dv)
     if vs is not None:

@@ -65,7 +65,8 @@ def _get_stock_concept(code: str) -> str:
                 if isinstance(res, (list, tuple, set)):
                     return '、'.join((str(x) for x in res)) if res else '—'
                 return str(res)
-    except Exception:
+    except Exception as e:
+        print(f'[R-01] get_stock_concept 失败 code={code}: {e}')
         pass
     try:
         import akshare as ak
@@ -382,7 +383,8 @@ if st.button('计算相关性', key='calc_corr', width="stretch", disabled=len(_
             for _item in _res.values():
                 if isinstance(_item, tuple) and len(_item) == 2 and (_item[0] is not None):
                     daily_dict[_item[0]] = _item[1]
-        except Exception:
+        except Exception as e:
+            print(f'[R-01] 相关性矩阵批量取数失败 tickers={_ticker_list}: {e}')
             pass
         if len(daily_dict) >= 2:
             try:

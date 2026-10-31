@@ -126,7 +126,8 @@ if os.path.exists(_sim_path):
             ])
             st.caption(f"p5 {s.get('return_p5_pct', '—')}% / p95 {s.get('return_p95_pct', '—')}% · "
                        f"{sim.get('meta', {}).get('honesty_note', '')}")
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        print(f'[R-01] 每日荐股渲染失败: {e}')
         pass
 
 # ── 免责声明 ──

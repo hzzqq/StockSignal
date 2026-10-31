@@ -43,7 +43,8 @@ def _load_book(user):
     if os.path.exists(p):
         try:
             return json.load(open(p, encoding='utf-8'))
-        except Exception:
+        except Exception as e:
+            print(f'[R-01] 账本加载失败 user={user}: {e}')
             pass
     return {'init_cash': INIT_CASH, 'cash': INIT_CASH, 'positions': {}, 'trades': [], 'equity': []}
 
@@ -67,7 +68,8 @@ def _price(code):
         q = FETCHER.get_realtime_quote(code)
         if q and q.get('current'):
             return (float(q['current']), q.get('name') or code)
-    except Exception:
+    except Exception as e:
+        print(f'[R-01] 实时行情获取失败 code={code}: {e}')
         pass
     try:
         d = FETCHER.get_daily(code, start='2024-01-01')

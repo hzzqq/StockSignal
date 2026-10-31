@@ -256,7 +256,8 @@ def fragment_report():
             csv = df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
             st.download_button("⬇️ 导出业绩报表 CSV", data=csv,
                                file_name=f"业绩报表_{period}.csv", mime="text/csv")
-        except Exception:
+        except Exception as e:
+            print(f'[R-01] 财报日历 CSV 导出失败 period={period}: {e}')
             pass
 
 
@@ -389,7 +390,8 @@ def fragment_stock_financials():
                 file_name=f"业绩报表_{code}_{period}.csv", mime="text/csv",
                 key=f"fsp_csv_{ticker}_{period}",
             )
-        except Exception:
+        except Exception as e:
+            print(f'[R-01] 财报单股 CSV 导出失败 code={code} period={period}: {e}')
             pass
 
     # ── 业绩预告（best-effort，按代码过滤）──
