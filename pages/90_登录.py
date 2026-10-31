@@ -1,57 +1,221 @@
 """
-页面0：登录 / 注册（T-196a 阿里云登录页改版）
+页面0：登录 / 注册（T-196a 改版 + T-367 登录页行情台）
+
 调 Flask 后端 /api/auth/login 拿 JWT，存到 st.session_state 供各业务页面共享。
 登录成功后跳到「行情看板」首页。
 
 注册：POST /api/auth/register，新用户角色固定为 user（后端强制，不可自提权）。
 
-T-196a 阿里云化（参考 account.aliyun.com/login）：
-  · 大标题区（卡上方居中：渐变强调 + 数据副标题）
-  · 白色大卡左右分栏：左品牌价值区 ｜ 右表单区（账号登录 / 注册 Tab）
-  · 「立即登录」通栏主色大按钮、忘记密码/演示账号入品牌区
-  · 页脚法律声明式链接行
-  · 全部配色走风格变量，六套主题自动适配
-  · 登录/注册逻辑与旧版逐行一致（仅重排版，不改任何请求/校验行为）
+T-196a：阿里云式分栏登录（左品牌价值区 ｜ 右表单区），六风格变量适配，逻辑逐行一致。
+T-367：登录前即可见「今日市场实时变化」——左栏升级为行情台（资金温度 / 今日市场广度 /
+      AI 信号 + 真实上证指数抓取），数据零网络优先用 daily_snapshot.json，真实上证指数
+      走内联 2.5s 超时抓取、失败优雅降级为快照广度（绝不编造数字）。
+
+诚实红线：验证码登录 Tab 在离线演示环境未接入短信网关，明确标注不可用，不做假功能。
 """
 
 import streamlit as st
 import requests
 from modules.session import init_session_state, is_authenticated, set_auth, clear_auth, safe_switch_page, API_BASE
 from modules.widgets import password_strength
+from modules import decision as _decision
 
 from modules.ui_theme import apply_page_config
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_error_box
-apply_page_config(page_title="登录", page_icon="🔐", layout="centered")
+apply_page_config(page_title="登录", page_icon="🔐", layout="wide")
 st.session_state["_active_page"] = __file__
 init_session_state()
 
-# ── 阿里云登录页样式（T-196a，变量驱动六风格适配）──
+
+# ── 登录页行情台数据（T-367）：零网络优先 + 真实上证指数短超时抓取 ──
+@st.cache_data(ttl=60, show_spinner=False)
+def _login_market_pulse() -> dict:
+    """登录页市场行情台数据。
+
+    - 主体来自本地 daily_snapshot.json（零网络、永远可用，是「今日」的单一真理源）。
+    - 真实上证指数走内联 urllib 抓取（新浪，2.5s 超时）；失败/离线返回 None，
+      此时左栏用快照广度兜底并显式标注「今日快照」，绝不回填伪造的指数数字。
+    """
+    snap = {}
+    try:
+        snap = _decision.load_snapshot() or {}
+    except Exception:  # noqa: BLE001
+        snap = {}
+    ind = snap.get("indicators") or {}
+    ef = snap.get("event_factor") or {}
+    return {
+        "date": snap.get("date") or "—",
+        "temperature": snap.get("temperature"),
+        "cycle": snap.get("cycle") or "—",
+        "bias": snap.get("bias") or "—",
+        "long_count": ef.get("long_count"),
+        "up": ind.get("up_count"),
+        "down": ind.get("down_count"),
+        "limit_up": ind.get("limit_up"),
+        "limit_down": ind.get("limit_down"),
+        "red_ratio": ind.get("red_ratio"),
+        "median_chg": ind.get("median_chg"),
+        "index": _fetch_sh_index(),
+    }
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _fetch_sh_index() -> dict | None:
+    """真实上证指数（sh000001）实时报价。2.5s 超时，任何失败返回 None。"""
+    try:
+        import urllib.request
+        url = "https://hq.sinajs.cn/list=sh000001"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Referer": "https://finance.sina.com.cn",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=2.5) as r:
+            text = r.read().decode("gbk", "replace")
+        s = text.find('"')
+        e = text.find('"', s + 1)
+        if s == -1 or e == -1:
+            return None
+        parts = text[s + 1:e].split(",")
+        if len(parts) < 32:
+            return None
+        current = float(parts[3])
+        prev = float(parts[2])
+        chg = current - prev
+        pct = chg / prev * 100 if prev else 0.0
+        return {
+            "name": parts[0],
+            "current": current,
+            "prev_close": prev,
+            "chg": chg,
+            "pct": pct,
+            "time": parts[30] if len(parts) > 30 else "",
+        }
+    except Exception:  # noqa: BLE001 - 离线/超时/解析失败一律降级
+        return None
+
+
+def _render_market_desk(m: dict) -> None:
+    """左侧行情台面板（T-367）：资金温度 + 今日市场 + AI 信号。"""
+    temp = m.get("temperature")
+    temp_val = f"{temp:.0f}" if isinstance(temp, (int, float)) else "—"
+    temp_w = max(0, min(100, temp)) if isinstance(temp, (int, float)) else 0
+    idx = m.get("index")
+    if isinstance(idx, dict):
+        _ic = "lg-up" if idx.get("chg", 0) >= 0 else "lg-down"
+        _iv = f"{idx.get('current', 0):.2f}"
+        _ichg = f"{idx.get('chg', 0):+.2f}　({idx.get('pct', 0):+.2f}%)"
+        _itag = f"实时 · {idx.get('time', '')[:5]}"
+    else:
+        _ic = ""
+        _iv = "—"
+        _ichg = "实时行情获取中"
+        _itag = "今日快照（离线）"
+    up = m.get("up"); down = m.get("down")
+    lu = m.get("limit_up"); ld = m.get("limit_down")
+    rr = m.get("red_ratio"); mc = m.get("median_chg")
+    lc = m.get("long_count")
+    _rr_s = f"{rr:.1f}" if isinstance(rr, (int, float)) else "—"
+    _mc_s = f"{mc:+.2f}" if isinstance(mc, (int, float)) else "—"
+    st.markdown(
+        f"""
+        <div class="lg-desk">
+          <div class="lg-desk-brand">
+            <div class="lg-logo">📊</div>
+            <div>
+              <div class="lg-brand-name">StockSignal</div>
+              <div class="lg-brand-sub">A股事件驱动投资分析平台</div>
+            </div>
+          </div>
+          <p class="lg-desk-desc">登录前先一览今日市场温度与信号，决策不盲从。</p>
+
+          <div class="lg-card">
+            <div class="lg-card-h">🔥 资金温度</div>
+            <div class="lg-gauge">
+              <div class="lg-gauge-val">{temp_val}</div>
+              <div class="lg-gauge-bar"><span style="width:{temp_w}%"></span></div>
+            </div>
+            <div class="lg-card-meta">情绪周期 · {m.get('cycle')}　|　次日方向 · {m.get('bias')}</div>
+          </div>
+
+          <div class="lg-card">
+            <div class="lg-card-h">📈 今日市场 <span class="lg-tag">{m.get('date')}</span></div>
+            <div class="lg-idx">
+              <div class="lg-idx-name">上证指数 <span class="lg-tag">{_itag}</span></div>
+              <div class="lg-idx-val {_ic}">{_iv}</div>
+              <div class="lg-idx-chg {_ic}">{_ichg}</div>
+            </div>
+            <div class="lg-breadth">
+              <div><span class="lg-up">▲ {up if up is not None else '—'}</span> 涨　/　<span class="lg-down">▼ {down if down is not None else '—'}</span> 跌</div>
+              <div>涨停 <b>{lu if lu is not None else '—'}</b>　跌停 <b>{ld if ld is not None else '—'}</b></div>
+              <div>红绿比 <b>{_rr_s}%</b>　中位 <b>{_mc_s}%</b></div>
+            </div>
+          </div>
+
+          <div class="lg-card">
+            <div class="lg-card-h">🤖 AI 信号</div>
+            <div class="lg-ai">情绪周期 <b>{m.get('cycle')}</b>　·　方向 <b>{m.get('bias')}</b></div>
+            <div class="lg-ai-clue">📡 {lc if lc is not None else '—'} 条事件线索在看板中生效</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ── 登录页样式（T-196a + T-367 行情台，变量驱动六风格适配）──
 st.markdown(
     """
     <style>
-    .al-hero{text-align:center;margin:6px 0 24px}
-    .al-hero h1{font-size:2.3rem;font-weight:900;color:var(--txt);margin:0 0 6px}
-    .al-hero h1 .al-grad{background:linear-gradient(90deg,var(--acc1),var(--acc2));
+    .lg-wrap{max-width:1160px;margin:0 auto;padding-top:1.2rem}
+    .lg-title{text-align:center;margin:0 0 22px}
+    .lg-title h1{font-size:2.1rem;font-weight:900;color:var(--txt);margin:0 0 6px}
+    .lg-title h1 .lg-grad{background:linear-gradient(90deg,var(--acc1),var(--acc2));
       -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-    .al-hero p{font-size:1.02rem;color:var(--txt2);margin:0}
-    .al-hero p b{color:var(--acc1);font-weight:800}
-    .al-brand-card{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 25%,var(--border));
-      border-radius:10px;padding:22px 20px;height:100%}
-    .al-brand-card .al-logo{font-size:2rem;margin-bottom:6px}
-    .al-brand-card h3{margin:0 0 14px;color:var(--txt);font-size:1.05rem}
-    .al-sell{display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:.9rem;
-      color:var(--txt);line-height:1.5}
-    .al-sell .al-check{color:var(--acc1);font-weight:800}
-    .al-sell small{display:block;color:var(--txt2);font-size:.78rem}
-    .al-badge{display:inline-block;background:color-mix(in srgb,var(--acc1) 12%,transparent);
-      color:var(--acc1);border:1px solid color-mix(in srgb,var(--acc1) 35%,transparent);
-      border-radius:999px;padding:.4rem .9rem;font-size:.78rem;font-weight:600;margin-top:14px}
-    .al-quick{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px}
-    .al-quick .stButton button{border-radius:6px;font-size:.8rem;padding:.3rem .6rem!important}
-    .al-footer{text-align:center;color:var(--txt2);font-size:.78rem;margin-top:26px;
+    .lg-title p{font-size:1rem;color:var(--txt2);margin:0}
+    .lg-title p b{color:var(--acc1);font-weight:800}
+    .lg-desk{background:linear-gradient(160deg,color-mix(in srgb,var(--acc1) 10%,var(--card)) 0%,var(--card) 100%);
+      border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));
+      border-radius:18px;padding:1.5rem 1.4rem;height:100%}
+    .lg-desk-brand{display:flex;align-items:center;gap:.7rem;margin-bottom:.6rem}
+    .lg-logo{font-size:2rem}
+    .lg-brand-name{font-size:1.25rem;font-weight:800;color:var(--txt)}
+    .lg-brand-sub{font-size:.82rem;color:var(--txt2)}
+    .lg-desk-desc{font-size:.86rem;color:var(--txt2);line-height:1.6;margin:0 0 1.1rem}
+    .lg-card{background:color-mix(in srgb,var(--acc1) 5%,var(--card));
+      border:1px solid var(--border);border-radius:14px;padding:.95rem 1rem;margin-bottom:.85rem}
+    .lg-card-h{font-size:.92rem;font-weight:700;color:var(--txt);margin-bottom:.6rem;
+      display:flex;align-items:center;gap:.4rem}
+    .lg-tag{font-size:.66rem;font-weight:600;color:var(--acc1);
+      background:color-mix(in srgb,var(--acc1) 12%,transparent);
+      border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent);
+      border-radius:999px;padding:.1rem .5rem;margin-left:.3rem}
+    .lg-gauge{display:flex;align-items:center;gap:.8rem}
+    .lg-gauge-val{font-size:2rem;font-weight:900;color:var(--acc1);min-width:62px;text-align:center}
+    .lg-gauge-bar{flex:1;height:10px;border-radius:999px;background:color-mix(in srgb,var(--acc1) 14%,var(--border));overflow:hidden}
+    .lg-gauge-bar span{display:block;height:100%;border-radius:999px;
+      background:linear-gradient(90deg,var(--acc1),var(--acc2))}
+    .lg-card-meta{font-size:.76rem;color:var(--txt2);margin-top:.6rem}
+    .lg-idx{display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:.6rem}
+    .lg-idx-name{font-size:.82rem;color:var(--txt2)}
+    .lg-idx-val{font-size:1.6rem;font-weight:900;color:var(--txt)}
+    .lg-idx-chg{font-size:.92rem;font-weight:700}
+    .lg-up{color:#ee2a2a!important}   /* A股惯例：涨红 */
+    .lg-down{color:#00b96b!important} /* A股惯例：跌绿 */
+    .lg-breadth{font-size:.8rem;color:var(--txt2);line-height:1.7}
+    .lg-breadth b{color:var(--txt)}
+    .lg-ai{font-size:.86rem;color:var(--txt);margin-bottom:.4rem}
+    .lg-ai b{color:var(--acc1)}
+    .lg-ai-clue{font-size:.78rem;color:var(--txt2)}
+    .lg-form{max-width:420px;margin:0 auto}
+    .lg-quick{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 2px}
+    .lg-quick .stButton button{border-radius:6px;font-size:.8rem;padding:.3rem .6rem!important}
+    .lg-footer{text-align:center;color:var(--txt2);font-size:.78rem;margin-top:26px;
       border-top:1px solid var(--border);padding-top:14px}
-    .al-footer a{color:var(--txt2);margin:0 10px;text-decoration:none}
-    .al-footer a:hover{color:var(--acc1)}
+    .lg-footer a{color:var(--txt2);margin:0 10px;text-decoration:none}
+    .lg-footer a:hover{color:var(--acc1)}
     </style>
     """,
     unsafe_allow_html=True,
@@ -73,8 +237,8 @@ if is_authenticated():
 # ── 大标题区（阿里云式：渐变强调 + 数据副标题）──
 st.markdown(
     """
-    <div class="al-hero">
-      <h1><span class="al-grad">📊 决策</span> 放心交给 StockSignal</h1>
+    <div class="lg-title">
+      <h1><span class="lg-grad">📊 决策</span> 放心交给 StockSignal</h1>
       <p>超过 <b>3,300+</b> 条自动化测试护航 · <b>4,091</b> 日真实回测实证 · 方向命中率 <b>49.1%</b> 严格锚定</p>
     </div>
     """,
@@ -82,12 +246,7 @@ st.markdown(
 )
 
 # 后端健康检查：服务没起时给个明显提示（登录/注册都依赖后端，故置于标签之前）
-# Phase 0 修复（UI 重设计）：原生 st.error/st.code 长文本溢出且无复制按钮；改走
-# xc_error_box（自动换行、不泄露内部异常）+ st.code(language="bash")（自带复制按钮）；
-# 原始异常仅入日志（xc_handle_error 内部 logger.warning），不回显给用户。
 FLASK_CMD = "python -m flask --app backend.app:app run --host 127.0.0.1 --port 5050"
-# localhost 探活必须绕过本机代理（如 127.0.0.1:2945），否则请求被路由到代理
-# 导致 RemoteDisconnected，误报"无法连接后端"。仅对本次 localhost 调用关闭代理。
 try:
     health = requests.get(
         f"{API_BASE}/api/health", timeout=2,
@@ -100,7 +259,7 @@ try:
         )
         st.code(FLASK_CMD, language="bash")
         st.stop()
-except Exception as e:  # noqa: BLE001 - 任何连接/网络异常都降级为友好提示，不抛未捕获异常
+except Exception as e:  # noqa: BLE001
     xc_handle_error(
         f"❌ 无法连接后端服务 ({API_BASE})",
         exc=e,
@@ -109,55 +268,25 @@ except Exception as e:  # noqa: BLE001 - 任何连接/网络异常都降级为�
     st.code(FLASK_CMD, language="bash")
     st.stop()
 
-# ── 白色大卡：左品牌价值区 ｜ 右表单区（账号登录 / 注册）──
-brand_col, form_col = st.columns([0.38, 0.62], gap="medium")
+# ── 分栏：左行情台 ｜ 右登录表单 ──
+_mkt = _login_market_pulse()
+desk_col, form_col = st.columns([0.46, 0.54], gap="large")
 
-with brand_col:
-    st.markdown(
-        """
-        <div class="al-brand-card">
-          <div class="al-logo">📈</div>
-          <h3>StockSignal · A股事件驱动投资分析平台</h3>
-          <div class="al-sell"><span class="al-check">✓</span><span><b>四级数据源自动降级</b>
-            <small>AKShare / BaoStock / 新浪 / 东财，单点故障不崩</small></span></div>
-          <div class="al-sell"><span class="al-check">✓</span><span><b>可解释决策闭环</b>
-            <small>每个仓位建议可分解到逐因子贡献，非黑箱</small></span></div>
-          <div class="al-sell"><span class="al-check">✓</span><span><b>严格留出评估</b>
-            <small>4,091 日真实回测，绝不用数据泄漏刷分</small></span></div>
-          <div class="al-badge">🔑 默认演示账号：demo / Demo@123</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    # 一键填账号（在品牌区底部，逻辑与旧版一致：点击后回填右侧表单）
-    st.markdown('<div class="al-quick">', unsafe_allow_html=True)
-    if st.button("🔧 管理员", key="fill_admin", help="自动填入 admin / Admin@123"):
-        st.session_state["_login_username"] = "admin"
-        st.session_state["_login_password"] = "Admin@123"
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-    if st.button("🧪 一键填演示账号", width="stretch", key="fill_demo",
-                 help="自动填入 demo / Demo@123"):
-        st.session_state["_login_username"] = "demo"
-        st.session_state["_login_password"] = "Demo@123"
-        st.rerun()
-    if st.button("🧹 清空输入", width="stretch", key="clear_login_input",
-                 help="清除一键填入的账号与密码，方便手动重新输入。"):
-        for _k in ("_login_username", "_login_password"):
-            st.session_state.pop(_k, None)
-        st.rerun()
+with desk_col:
+    _render_market_desk(_mkt)
 
 with form_col:
-    # ── 登录 / 注册 两个标签（阿里云式 Tab：账密登录 / 注册）──
-    login_tab, register_tab = st.tabs(["🔑 账号登录", "📝 注册"])
+    st.markdown('<div class="lg-form">', unsafe_allow_html=True)
+    # ── 登录方式 Tab：密码登录 / 验证码登录 / 注册 ──
+    # 验证码登录在离线演示环境未接入短信网关，Tab 内明确标注不可用（诚实红线，不做假功能）。
+    tab_pwd, tab_sms, tab_reg = st.tabs(["🔑 密码登录", "📲 验证码登录", "📝 注册"])
 
-    # ============================ 登录标签 ============================
-    with login_tab:
-        # 登录表单（逻辑与旧版逐行一致）
+    # ============================ 密码登录 ============================
+    with tab_pwd:
         with st.form("login_form", clear_on_submit=False):
             username = st.text_input("用户名", placeholder="请输入用户名", autocomplete="username",
                                      value=st.session_state.get("_login_username", ""),
-                                     help="输入已注册的用户名；可用左侧「一键填」按钮快速填入示例账号。")
+                                     help="输入已注册的用户名；可用下方「一键填」按钮快速填入示例账号。")
             password = st.text_input("密码", type="password", placeholder="请输入密码",
                                      autocomplete="current-password",
                                      value=st.session_state.get("_login_password", ""),
@@ -165,7 +294,7 @@ with form_col:
             remember = st.checkbox("记住我（关闭浏览器后仍可保持登录）", value=True,
                                    help="token 已保存在地址栏，刷新/重开浏览器无需重新登录")
             submit = st.form_submit_button("立即登录", width="stretch", type="primary",
-                                           help="使用左侧一键填入的账号或手动输入的用户名 / 密码登录 StockSignal。")
+                                           help="使用一键填入的账号或手动输入的用户名 / 密码登录 StockSignal。")
 
             if submit:
                 if not username or not password:
@@ -177,13 +306,11 @@ with form_col:
                             json={"username": username, "password": password},
                             timeout=5,
                         )
-                        # ⚠️ 兜底：content-type 声明 json 但响应体为空/损坏时 resp.json() 会抛 JSONDecodeError
                         try:
                             body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
                         except ValueError:
                             body = {}
                         if resp.status_code == 200 and body.get("status") == "ok":
-                            # ⚠️ 深层守卫：后端可能返回 status=ok 但 data 缺 token/user 字段
                             _data = body.get("data") or {}
                             token = _data.get("token")
                             user = _data.get("user")
@@ -194,13 +321,10 @@ with form_col:
                                 st.session_state["_remember_me"] = remember
                                 xc_success_box(f"✅ 登录成功！欢迎 {user.get('username', '用户')}")
                                 st.balloons()
-                                # 跳到第一个业务页
                                 safe_switch_page("pages/10_行情看板.py")
                         elif resp.status_code == 429:
-                            # 后端已做 60s/5 次限流
                             st.error("⏳ 登录尝试过于频繁，请 60 秒后再试（防爆破保护已启用）")
                         else:
-                            # 前端尝试计数提示
                             tries = st.session_state.get("_login_tries", 0) + 1
                             st.session_state["_login_tries"] = tries
                             remain = max(0, 5 - tries)
@@ -212,17 +336,14 @@ with form_col:
                     except requests.exceptions.RequestException as e:
                         xc_handle_error("网络错误", e, hint="请稍后重试，或检查网络与数据源连接")
 
-        # 忘记密码（离线环境无邮件服务，提供引导）
         with st.expander("❓ 忘记密码？", expanded=False):
             st.info(
                 "当前为离线演示环境，未接入邮件/短信服务，暂不支持在线重置密码。\n\n"
                 "**处理方式：**\n"
-                "1. 可使用左侧「演示账号」一键登录体验；\n"
+                "1. 可使用下方「演示账号」一键登录体验；\n"
                 "2. 管理员可在「用户管理」中为该账号重置密码；\n"
                 "3. 生产环境可接入邮件服务后开放自助重置。"
             )
-
-        # 演示账号提示
         with st.expander("💡 默认演示账号", expanded=False):
             st.markdown("""
             | 用户名 | 密码 | 角色 |
@@ -233,8 +354,19 @@ with form_col:
             后端在开发态会预置这两个账号；生产环境请删除并通过管理接口创建。
             """)
 
-    # ============================ 注册标签 ============================
-    with register_tab:
+    # ============================ 验证码登录（离线未接入） ============================
+    with tab_sms:
+        st.info("📲 **验证码登录**（演示环境说明）\n\n"
+                 "当前为离线演示环境，**未接入短信网关**，验证码登录暂不可用。\n\n"
+                 "请使用左侧「密码登录」Tab 输入账号密码，或一键填入下方演示账号登录体验。")
+        sms_phone = st.text_input("手机号", placeholder="请输入注册手机号", key="sms_phone",
+                                  help="离线演示环境不发送短信，此处仅作界面演示")
+        if st.button("获取验证码", width="stretch", key="sms_get", disabled=True,
+                     help="离线演示环境未接入短信网关，按钮已禁用"):
+            pass
+
+    # ============================ 注册 ============================
+    with tab_reg:
         st.markdown("创建一个新账户（角色自动为 **普通用户**）。")
         new_username = st.text_input(
             "用户名", key="reg_username", placeholder="2-32位，字母/数字/下划线/中文",
@@ -246,7 +378,6 @@ with form_col:
             autocomplete="new-password",
             help="密码至少 6 位；下方实时显示强度，建议包含大小写字母与数字。",
         )
-        # 实时密码强度
         if new_password:
             score, level = password_strength(new_password)
             st.progress(score / 4.0, text=f"密码强度：{level}")
@@ -260,7 +391,6 @@ with form_col:
             key="reg_agree",
             help="注册即表示你同意平台的服务条款与隐私声明",
         )
-
         if st.button("📝 注册", width="stretch", type="primary", key="reg_submit"):
             if not agree:
                 st.error("请先勾选同意《用户协议》与《隐私政策》")
@@ -279,18 +409,16 @@ with form_col:
                         },
                         timeout=5,
                     )
-                    # ⚠️ 兜底：同登录分支，content-type 为 json 但响应体损坏时 resp.json() 抛异常
                     try:
                         body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
                     except ValueError:
                         body = {}
                     if resp.status_code in (200, 201) and body.get("status") == "ok":
                         reg_name = (body.get("data") or {}).get("username", new_username)
-                        xc_success_box(f"✅ 注册成功！欢迎 {reg_name}，请切换到「登录」标签登录。")
-                        # 回填登录表单，方便直接登录
+                        xc_success_box(f"✅ 注册成功！欢迎 {reg_name}，请切换到「密码登录」标签登录。")
                         st.session_state["_login_username"] = reg_name
                         st.session_state["_login_password"] = new_password
-                        info_banner("已为你填入账号信息，可切回「登录」标签直接登录。")
+                        info_banner("已为你填入账号信息，可切回「密码登录」标签直接登录。")
                     else:
                         msg = body.get("message") or f"HTTP {resp.status_code}"
                         st.error(f"❌ 注册失败：{msg}")
@@ -298,13 +426,31 @@ with form_col:
                     st.error("❌ 注册请求超时，请检查后端服务")
                 except requests.exceptions.RequestException as e:
                     xc_handle_error("网络错误", e, hint="请稍后重试，或检查网络与数据源连接")
+        st.caption("注册遇到问题？可使用「密码登录」标签的演示账号直接体验。")
 
-        st.caption("注册遇到问题？可使用「账号登录」标签的演示账号直接体验。")
+    # 一键填账号（表单底部，逻辑与旧版一致：点击后回填表单并重跑）
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div class="lg-quick">', unsafe_allow_html=True)
+    if st.button("🔧 管理员", key="fill_admin", help="自动填入 admin / Admin@123"):
+        st.session_state["_login_username"] = "admin"
+        st.session_state["_login_password"] = "Admin@123"
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+    if st.button("🧪 一键填演示账号", width="stretch", key="fill_demo",
+                 help="自动填入 demo / Demo@123"):
+        st.session_state["_login_username"] = "demo"
+        st.session_state["_login_password"] = "Demo@123"
+        st.rerun()
+    if st.button("🧹 清空输入", width="stretch", key="clear_login_input",
+                 help="清除一键填入的账号与密码，方便手动重新输入。"):
+        for _k in ("_login_username", "_login_password"):
+            st.session_state.pop(_k, None)
+        st.rerun()
 
 # ── 页脚（阿里云式法律声明链接行）──
 st.markdown(
     """
-    <div class="al-footer">
+    <div class="lg-footer">
       <a href="https://github.com/hzzqq/StockSignal" target="_blank">开源仓库</a>
       <a href="/新手教程">使用教程</a>
       <span>仅供学习与研究所用 · 不构成任何投资建议</span>
