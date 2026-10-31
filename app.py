@@ -196,8 +196,6 @@ def _render_today_decision():
     _render_decision_card(snap, stale=_decision.is_stale())
 
 
-_render_today_decision()
-
 # ── 紧凑状态行：状态退到一行 caption，不再用 4 个指标卡抢占首屏视觉 ──
 _backend_ok = _check_backend()
 _role = "管理员" if user.get("role") == "admin" else "普通用户"
@@ -209,8 +207,58 @@ st.caption(
 
 st.markdown("---")
 
-# ── ⚡ 常用直达：首页＝「起点 + 结论」而非全量目录；全量收进下方折叠分组 ──
-st.header("⚡ 常用直达")
+# ── 项目说明（轻量化卡片，置于页面顶部，非折叠）──
+def _render_project_intro():
+    """首页顶部项目说明：轻量卡片，不折叠，让首次进入的用户一眼看懂平台定位。"""
+    st.markdown(
+        """
+        <style>
+        .ss-intro{max-width:100%;background:linear-gradient(135deg,
+            color-mix(in srgb,var(--acc1) 8%,var(--card)) 0%,var(--card) 100%);
+            border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));
+            border-radius:18px;padding:1.4rem 1.6rem;margin-bottom:.4rem}
+        .ss-intro-badge{display:inline-block;background:color-mix(in srgb,var(--acc1) 14%,transparent);
+            color:var(--acc1);border:1px solid color-mix(in srgb,var(--acc1) 35%,transparent);
+            border-radius:999px;padding:.3rem .9rem;font-size:.78rem;font-weight:700;margin-bottom:.7rem}
+        .ss-intro h2{margin:.1rem 0 .5rem;font-size:1.35rem;color:var(--txt)}
+        .ss-intro p{margin:0 0 .9rem;color:var(--txt2);line-height:1.65;font-size:.92rem}
+        .ss-intro p b{color:var(--txt)}
+        .ss-intro-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
+        .ss-intro-cell{background:color-mix(in srgb,var(--acc1) 6%,var(--card));
+            border:1px solid var(--border);border-radius:12px;padding:.8rem .9rem}
+        .ss-intro-cell .ss-intro-ic{font-size:1.3rem}
+        .ss-intro-cell b{display:block;margin:.25rem 0 .15rem;color:var(--txt);font-size:.95rem}
+        .ss-intro-cell small{color:var(--txt2);font-size:.76rem;line-height:1.4}
+        @media(max-width:640px){.ss-intro-grid{grid-template-columns:1fr}}
+        </style>
+        <div class="ss-intro">
+          <span class="ss-intro-badge">A股事件驱动 · 决策闭环</span>
+          <h2>把「事件催化」翻译成可执行的仓位决策</h2>
+          <p>StockSignal 是一款面向个人投资者的 <b>A股事件驱动分析工具</b>，整合三类核心催化信号，
+          帮你 <b>快速识别行情主线</b>、<b>可视化行业轮动</b>、<b>回测事件驱动策略</b>。</p>
+          <div class="ss-intro-grid">
+            <div class="ss-intro-cell"><span class="ss-intro-ic">🏛️</span><b>产业事件</b><small>政策发布 / 行业并购 / 产能变化</small></div>
+            <div class="ss-intro-cell"><span class="ss-intro-ic">📈</span><b>价格信号</b><small>大宗 / 上游原材料价格变动</small></div>
+            <div class="ss-intro-cell"><span class="ss-intro-ic">📊</span><b>宏观数据</b><small>PMI / CPI / 社融等关键指标</small></div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+_render_project_intro()
+
+st.markdown("---")
+
+# ── 今日决策（情绪信号 → 仓位建议）──
+# 项目说明卡片置于页面顶部后，今日决策紧随其下，形成「先懂平台 → 再看今日该怎么做」的叙事。
+_render_today_decision()
+
+st.markdown("---")
+
+# ── ⚡ 快捷入口：常用直达 + 快捷入口 合并为单一区块（轻量化，不折叠）──
+st.header("⚡ 快捷入口")
+
+# 常用直达：高频功能一键跳转
 _QUICK = [
     ("🎯", "今日决策面板", "pages/54_今日决策面板.py"),
     ("📈", "行情看板", "pages/10_行情看板.py"),
@@ -224,96 +272,6 @@ for _i, (_qic, _qnm, _qpg) in enumerate(_QUICK):
     with _qcols[_i]:
         if st.button(f"{_qic} {_qnm}", key=f"quick_{_qnm}", width="stretch"):
             safe_switch_page(_qpg)
-
-st.markdown("---")
-
-# ── 功能模块卡片（分组，与左侧边栏自定义导航保持一致） ──
-# 分组顺序对应日常操作流：看盘 → 选股 → 管仓 → 回测 → 交流 → 账户。
-# 合并页：🎯个股研究＝股票选取+个股分析；💼持仓中心＝自选股监控+仓位管理+组合收益。
-# 图标去重：📡事件追踪、🚨价格预警、🛠️系统配置。
-st.header("📦 全部功能模块")
-
-HOME_GROUPS = [
-    ("🎯 决策闭环", [
-        ("🎯", "今日决策面板", "pages/54_今日决策面板.py",
-         "情绪信号→仓位建议→复盘归档：温度+周期六阶段+连板晋级率透明推导今日该几成仓"),
-    ]),
-    ("📘 新手引导", [
-        ("📘", "新手教程", "pages/96_新手教程.py", "5 分钟上手：三步操作 + 模块导览 + 术语表 + 教学视频"),
-    ]),
-    ("📊 市场纵览", [
-        ("🌅", "每日晨报", "pages/51_每日晨报.py", "开盘前速览：隔夜要闻、自选股快照、复盘笔记"),
-        ("📈", "行情看板", "pages/10_行情看板.py", "指数迷你卡、行业板块涨跌榜、龙虎榜、相关性矩阵"),
-        ("👁️", "智能盯盘", "pages/14_智能盯盘.py", "板块异动+自选涨跌+资金流+预警聚合，盘中自动刷新"),
-        ("🌊", "资金流向", "pages/35_资金流向.py", "北向资金、板块资金流、大盘主力净流入、个股资金动向"),
-        ("🧮", "市场驱动力", "pages/15_市场驱动力.py", "21指标五维归一化子图：资金/情绪/估值/宏观/技术 vs 上证参考线"),
-        ("📊", "市场强弱", "pages/13_市场强弱.py", "指数+关键资金面归一化多线 + 强弱信号灯，一眼看懂当前市场"),
-        ("📡", "事件追踪", "pages/23_事件追踪.py", "产业事件、价格信号、宏观数据三类信号综合评分与时间轴"),
-        ("📅", "财报日历", "pages/16_财报日历.py", "业绩报表、业绩预告、披露日历，按报告期查看"),
-        ("🌈", "板块轮动", "pages/12_板块轮动.py", "行业板块热力图、涨跌排行与资金轮动视图"),
-        ("🌡️", "市场情绪", "pages/50_市场情绪.py", "市场广度与情绪温度计：ADL/ADR/新高新低/VIX/涨停/PCR/北向/融资/PE 综合冷热读数"),
-    ]),
-    ("🔎 选股研究", [
-        ("🎯", "个股研究", "pages/24_个股研究.py", "快速选取 + 深度分析二合一：K线/技术面/打分/决策仪表盘"),
-        ("🧭", "形态选股", "pages/31_形态选股.py", "K线形态 + 金叉死叉 + 背离扫描，手动/自选池双模式"),
-        ("🏛️", "基本面分析", "pages/22_基本面分析.py", "个股估值、历史分位、行业横向对比与大盘主线判断"),
-        ("📊", "多股对比", "pages/21_多股对比.py", "同屏横向对比 ≥5 只股票：雷达图、VS 卡、分层操作建议"),
-        ("🧰", "ETF筛选", "pages/33_ETF筛选.py", "按类型/涨跌/成交额筛选 ETF 与基金，支持排序"),
-    ]),
-    ("💼 我的持仓", [
-        ("💼", "持仓中心", "pages/45_持仓中心.py", "自选池 + 持仓盈亏 + 收益归因三合一"),
-        ("🩺", "体检扫描", "pages/34_体检扫描.py", "一键批量体检自选+持仓：技术形态、主力资金、预警清单"),
-        ("🚨", "价格预警", "pages/47_价格预警.py", "自选股多维预警：价格/涨跌幅/量能/技术信号触发提醒"),
-        ("📤", "数据导出", "pages/95_数据导出.py", "资金流/财报/组合/自选股统一 CSV 导出与一键打包"),
-        ("🎮", "模拟交易", "pages/42_模拟交易.py", "虚拟资金买卖 A 股，跟踪持仓盈亏与净值曲线"),
-    ]),
-    ("🧪 策略工具", [
-        ("⚙️", "策略回测", "pages/30_策略回测.py", "事件驱动 / 均线交叉策略回测，收益曲线与夏普比率"),
-    ]),
-    ("💬 社区与 AI", [
-        ("🌟", "星辰 AI", "pages/53_星辰AI.py", "对话 + 分析一体：个股诊断、横向对比、事件解读、持仓建议"),
-        ("💬", "股吧", "pages/52_股吧.py", "社区讨论：发表观点、评论点赞，可关联个股一键跳转"),
-        ("🔔", "消息中心", "pages/94_消息中心.py", "聚合自选股异动、社区动态与系统通知，统一已读"),
-    ]),
-]
-
-
-def _render_group(title, items):
-    """功能模块分组：折叠式。
-
-    首页定位是「起点 + 结论」，不是全量目录 —— 25+ 张卡片平铺会把首屏压成一堵墙、
-    层级全平。改为按组折叠，标题带条目数，需要时一键展开。
-    """
-    with st.expander(f"{title}　（{len(items)}）", expanded=False):
-        cols = st.columns(3)
-        for i, (icon, name, page, desc) in enumerate(items):
-            with cols[i % 3]:
-                with st.container(border=True):
-                    st.markdown(f"**{icon} {name}**")
-                    st.caption(desc)
-                    if st.button("进入 →", key=f"nav_{name}", width="stretch", help=desc):
-                        safe_switch_page(page)
-
-
-for _g, _items in HOME_GROUPS:
-    _render_group(_g, _items)
-
-# 账户组（所有用户可见「我的」，管理员额外可见后台）
-acct_items = [
-    ("👤", "我的", "pages/91_我的.py", "个人信息、自选股、偏好设置、外观与数据源配置"),
-]
-if is_admin():
-    acct_items += [
-        ("👥", "用户管理", "pages/92_用户管理.py", "用户 CRUD、角色分配与操作日志"),
-        ("🛠️", "系统配置", "pages/93_系统配置.py", "股票数据、缓存、系统参数与运行配置"),
-    ]
-st.markdown("---")
-_render_group("👤 账户" + ("　·　管理后台" if is_admin() else ""), acct_items)
-
-st.markdown("---")
-
-# ── 快捷入口 ──
-st.header("⚡ 快捷入口")
 
 # 最近浏览（session_state 维护）
 recent = get_recent_stocks()
@@ -334,7 +292,6 @@ try:
     with c1:
         if st.button("📔 情绪笔记", key="qe_mood_note", width="stretch",
                      help="记录今日情绪快照 + 次日走势预判，并可回填实际走势形成复盘闭环"):
-            # 置标记：目标页据此提示并把笔记区块高亮一次（一次性，刷新即消）
             st.session_state["shep_focus_note"] = True
             safe_switch_page("pages/50_市场情绪.py")
     with c2:
@@ -345,7 +302,7 @@ try:
 except Exception:  # noqa: BLE001
     pass
 
-# 自选股数量 + 未读提醒（调后端）
+# 自选股数量（调后端）
 try:
     wl_resp = requests.get(
         "http://127.0.0.1:5050/api/watchlist",
@@ -363,19 +320,28 @@ xc_bento_kpi([
     {"label": "数据更新", "value": time.strftime("%H:%M"), "meta": "界面数据刷新时间"},
 ], template="1.4fr 1fr 1fr")
 
-# ── 项目简介（可折叠） ──
-with st.expander("📖 项目简介", expanded=False):
-    st.markdown("""
-    StockSignal 是一款面向个人投资者的 **A股事件驱动分析工具**，通过整合三类核心催化信号：
+st.markdown("---")
 
-    | 类型 | 说明 | 示例 |
-    |------|------|------|
-    | **产业事件** | 政策发布、行业并购、产能变化 | 光伏装机补贴、半导体设备禁令 |
-    | **价格信号** | 大宗商品、上游原材料价格变动 | MLCC 涨价、煤炭港口价格 |
-    | **宏观数据** | PMI、CPI、社融等关键宏观指标 | PMI 超预期 → 顺周期主线 |
+# ── 账户（轻量化卡片行，替代原「全部功能模块」里的折叠分组）──
+st.header("👤 账户")
+_acct_items = [
+    ("👤", "我的", "pages/91_我的.py", "个人信息、自选股、偏好设置、外观与数据源配置"),
+]
+if is_admin():
+    _acct_items += [
+        ("👥", "用户管理", "pages/92_用户管理.py", "用户 CRUD、角色分配与操作日志"),
+        ("🛠️", "系统配置", "pages/93_系统配置.py", "股票数据、缓存、系统参数与运行配置"),
+    ]
+_acct_cols = st.columns(len(_acct_items))
+for _i, (_ic, _nm, _pg, _desc) in enumerate(_acct_items):
+    with _acct_cols[_i]:
+        with st.container(border=True):
+            st.markdown(f"**{_ic} {_nm}**")
+            st.caption(_desc)
+            if st.button("进入 →", key=f"acct_{_nm}", width="stretch"):
+                safe_switch_page(_pg)
 
-    帮助用户**快速识别行情主线**、**可视化行业轮动**、**回测事件驱动策略**。
-    """)
+st.markdown("---")
 
 # ── 侧边栏 ──
 # 注：分组导航由 require_auth()→render_sidebar_nav() 在顶部自动注入，此处仅补充
