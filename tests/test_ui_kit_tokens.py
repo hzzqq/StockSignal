@@ -98,6 +98,26 @@ def test_stmetric_skin_shares_token_vars(monkeypatch):
     assert "color-mix(in srgb,var(--ss-accent) 22%,var(--ss-line))!important" in css
 
 
+def test_xc_hero_block_identical_across_two_channels():
+    """G2（ui-ds Phase1 §2.2①痛4）：_KIT_CSS 与 _HERO_FALLBACK_CSS 的 .xc-hero{ 声明块
+    必须逐字符一致——两通道现已是复制粘贴双写（维护漂移源），锁死后只允许改一处再同步。
+
+    Phase3 评审已实测现状逐字符一致，故直接 hard 上线，无过渡期。
+    """
+    css_main = _kit()._KIT_CSS
+    css_fallback = _kit()._HERO_FALLBACK_CSS
+    m_main = re.search(r"\.xc-hero\{[^}]*\}", css_main)
+    m_fb = re.search(r"\.xc-hero\{[^}]*\}", css_fallback)
+    assert m_main, "_KIT_CSS 缺少 .xc-hero{ 规则"
+    assert m_fb, "_HERO_FALLBACK_CSS 缺少 .xc-hero{ 规则"
+    assert m_main.group(0) == m_fb.group(0), (
+        "两通道 .xc-hero{ 声明块漂移（双写不再一致）：\n"
+        f"  _KIT_CSS:          {m_main.group(0)}\n"
+        f"  _HERO_FALLBACK_CSS: {m_fb.group(0)}\n"
+        "同步两处后此测试才会绿——禁止只改一条通道"
+    )
+
+
 def test_typography_contract_cjk_and_base_font_size():
     """T-261：全局排版契约——CJK 字体栈落 token、行高 1.65、等宽保护、
     config.toml baseFontSize=17（用户反馈默认字体小）。

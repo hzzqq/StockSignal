@@ -58,6 +58,23 @@ _TOKEN_CSS = r"""
   --ss-font-cjk:'Microsoft YaHei UI','PingFang SC','Microsoft YaHei','Source Han Sans SC',system-ui,sans-serif;
   /* v10 微动效令牌（T-176） */
   --ss-fade:.25s;
+  /* ===== L3 组件语义层（ui-ds 设计系统 Phase1，P0 批次）=====
+     目标：消除组件层硬编码紫 rgba（rgba(102,126,234,*)/rgba(124,92,255,*)）——
+     terminal（琥珀）/cyber（黄青）风格下紫光穿帮的根因。
+     全部由 L2 语义别名 color-mix 派生（无新硬编码色相），七风格自动随
+     --ss-accent/--ss-accent2 换色相。P0 纯 additive：组件引用暂不切换，
+     P0.5 起 _KIT_CSS/dashboard_sf_css 逐处替换为 var() 引用（G1 守卫跟进）。 */
+  --ss-glow:color-mix(in srgb,var(--ss-accent) 35%,transparent);
+  --ss-glow-soft:color-mix(in srgb,var(--ss-accent) 18%,transparent);
+  --ss-hero-overlay:color-mix(in srgb,var(--ss-accent2) 22%,transparent);
+  --ss-card-border:color-mix(in srgb,var(--ss-accent) 22%,var(--ss-line));
+  --ss-card-border-strong:color-mix(in srgb,var(--ss-accent) 28%,var(--ss-line));
+  --ss-pill-dark-fg:color-mix(in srgb,var(--ss-accent) 78%,#ffffff);
+  --ss-pill-dark-bg:color-mix(in srgb,var(--ss-accent) 24%,#1a1a2e);
+  --ss-focus-ring:var(--ss-accent);
+  /* L3 字号阶梯（Phase1 §1.3：13/13.5/14/14.5/15/16/17/20/22 散布收敛 6 级） */
+  --ss-fs-display:22px; --ss-fs-hero:22px; --ss-fs-title:16px;
+  --ss-fs-body:13.5px; --ss-fs-label:12px; --ss-fs-caption:11px;
 }
 /* ===== T-261 全局排版：中文优化字体栈 + 阅读行高 =====
    Streamlit 默认 Source Sans Pro 对中文回退随机（宋体/雅黑混杂），统一为
