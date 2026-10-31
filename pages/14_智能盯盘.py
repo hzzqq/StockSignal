@@ -21,7 +21,7 @@ from modules.fundflow import get_industry_fund_flow, get_individual_fund_flow
 from modules.timeout_exec import run_with_timeout
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
 from modules.page_guard import safe_fragment
-from modules.page_utils import render_standard_page, get_fetcher
+from modules.page_utils import render_standard_page, get_fetcher, quote_one as _quote_one
 from modules.ui_theme import sf_metric
 from modules.chart_cache import cached_fig
 import plotly.graph_objects as go
@@ -52,14 +52,6 @@ with st.expander("🔗 相关页面", expanded=False):
 MAIN_NET_STRONG = 100000000.0
 st.caption('📡 聚合看板：板块资金异动 · 自选股涨跌榜 · 个股资金流异动 · 规则预警。交易时段内每 60 秒自动刷新；非交易时段数据刷新放缓。')
 fetcher = get_fetcher()
-
-def _quote_one(code):
-    """线程安全：抓取单只实时行情。返回 (code, quote_dict|None)。"""
-    try:
-        q = fetcher.get_realtime_quote(code)
-        return (code, q)
-    except Exception:
-        return (code, None)
 
 def _ff_one(code):
     """线程安全：抓取单只主力资金流。返回 (code, result_dict)。"""

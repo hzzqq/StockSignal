@@ -27,7 +27,7 @@ from modules.colors import UP_COLOR, DOWN_COLOR
 from modules.factor_analysis import (
     FACTORS, build_panels, cumulative, ic_series, ic_summary, layered_returns, long_short,
 )
-from modules.page_utils import render_standard_page
+from modules.page_utils import render_standard_page, hist_cached
 from modules.ui_theme import section_header, sf_metric
 
 logger = logging.getLogger(__name__)
@@ -42,9 +42,8 @@ _LAYER_COLORS = ["#1d4ed8", "#0ea5e9", "#22c55e", "#f59e0b", "#dc2626",
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def _hist_cached(code: str) -> pd.DataFrame:
-    """个股日线历史（前复权，缓存 30 分钟）。失败抛出，由 build_panels 逐股兜底。"""
-    import akshare as ak
-    return ak.stock_zh_a_hist(symbol=code, period="daily", adjust="qfq")
+    """薄包装：@st.cache_data(ttl=1800) 缓存层；实现下沉 page_utils.hist_cached。"""
+    return hist_cached(code)
 
 
 dark = render_standard_page(

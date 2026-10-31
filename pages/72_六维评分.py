@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from modules.colors import UP_COLOR
-from modules.page_utils import render_standard_page
+from modules.page_utils import render_standard_page, hist_cached
 from modules.six_dim import DIM_LABELS, compute_dims
 from modules.ui_theme import section_header, sf_metric
 
@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 @st.cache_data(ttl=600, show_spinner=False)
 def _hist_cached(code: str) -> pd.DataFrame:
-    import akshare as ak
-    return ak.stock_zh_a_hist(symbol=code, period="daily", adjust="qfq")
+    """薄包装：@st.cache_data(ttl=600) 缓存层；实现下沉 page_utils.hist_cached。"""
+    return hist_cached(code)
 
 
 @st.cache_data(ttl=120, show_spinner=False)

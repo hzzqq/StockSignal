@@ -303,3 +303,24 @@ def score_bar(label, value, color) -> str:
         f"<span style='display:block;height:100%;width:{pct:.1f}%;background:{color};border-radius:4px'></span>"
         "</div></div>"
     )
+
+
+def quote_one(code):
+    """R-02: 取单只实时行情（线程安全薄包装，失败返回 (code, None)）。
+
+    下沉自 pages/14 + pages/51 相同实现。内部调 get_fetcher() 单例。
+    """
+    fetcher = get_fetcher()
+    try:
+        return (code, fetcher.get_realtime_quote(code))
+    except Exception:  # noqa: BLE001
+        return (code, None)
+
+
+def hist_cached(code: str):
+    """R-02: 个股日线历史（前复权）。下沉自 pages/71 + pages/72 相同实现。
+
+    函数内 lazy import akshare；失败抛异常由调用方兜底。
+    """
+    import akshare as ak
+    return ak.stock_zh_a_hist(symbol=code, period="daily", adjust="qfq")

@@ -13,7 +13,7 @@ from modules.session import api_get, safe_switch_page
 import modules.scroll_nav as sn
 from modules.news import NewsFetcher
 from modules.page_guard import safe_fragment
-from modules.page_utils import render_standard_page, get_fetcher
+from modules.page_utils import render_standard_page, get_fetcher, quote_one as _quote_one
 from modules.page_utils import fmt_rel as _fmt_rel
 from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info, _section_title
@@ -46,13 +46,6 @@ def _calc_alr(code: str):
 def _fund_one(code: str):
     """委托 fundamental_helpers.fund_one（#545-16 消除重复）。"""
     return fund_one(code, fetcher)
-
-def _quote_one(code: str):
-    """线程内取实时行情（本地 fetcher，规避线程内后端 token 调用）。"""
-    try:
-        return (code, fetcher.get_realtime_quote(code))
-    except Exception:
-        return (code, None)
 
 @st.cache_data(show_spinner=False, ttl=300)
 def _cached_sector():
