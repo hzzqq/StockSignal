@@ -261,33 +261,32 @@ def fragment_list():
                              width="stretch", on_click=_open_post, args=(rpid,)):
                     pass
 
-    # T-319 交互密度减法：代码筛选 / 排序 / 清空 / 关键字搜索 4 个次要控件收进单个折叠区
-    #（expander 折叠只隐藏 DOM，控件照常渲染并保状态，筛选条件持续生效）。
-    # 折叠标签动态回显「当前生效条件」，避免筛选被收起后用户忘记自己还开着筛选。
+    # 筛选 / 排序 / 搜索：常驻轻量行内（T-319 折叠已撤销——用户要求搜索框直接摆出、轻量化，不折叠）
     _flt_code = str(st.session_state.get("forum_filter_code", "")).strip()
     _flt_kw = str(st.session_state.get("forum_kw_search", "")).strip()
     _flt_on = "，".join([_x for _x in (
         (f"代码 {_flt_code}" if _flt_code else ""),
         (f"关键字「{_flt_kw}」" if _flt_kw else ""),
     ) if _x])
-    _flt_label = (f"🔍 筛选 / 排序 / 搜索 · 生效中：{_flt_on}" if _flt_on
-                  else "🔍 筛选 / 排序 / 搜索（可选）")
-    with st.expander(_flt_label, expanded=False):
-        fc1, fc2 = st.columns([0.4, 0.6])
-        with fc1:
-            filter_code = st.text_input("🔍 按股票代码筛选（可选）", key="forum_filter_code", placeholder="如 600519，留空看全部")
-            # 输入内联校验（#Batch20-7）：股票代码筛选实时校验，错误时 st.warning
-            if filter_code.strip() and not (filter_code.strip().isdigit() and len(filter_code.strip()) == 6):
-                xc_warn_box("⚠️ 股票代码须为 6 位数字（如 600519），当前输入可能不完整。")
-        with fc2:
-            _sort = st.radio("排序", ["最新", "最热(点赞)", "最多评论"], horizontal=True, key="forum_sort")
-            # 记忆当前排序偏好（#Batch20-10）
-            st.session_state["forum_remembered_sort"] = _sort
-            st.session_state["forum_remembered_filter"] = filter_code.strip()
-        if st.button("🔄 清空筛选", key="forum_clear", help="清空股票代码筛选条件，查看全部帖子"):
+    # 轻量状态回显：生效中条件以 caption 呈现，不再折叠隐藏
+    if _flt_on:
+        st.caption(f"🔍 当前筛选生效：{_flt_on}")
+    sc1, sc2, sc3 = st.columns([0.42, 0.42, 0.16])
+    with sc1:
+        filter_code = st.text_input("按代码筛选", key="forum_filter_code", placeholder="股票代码，如 600519，留空看全部")
+        # 输入内联校验（#Batch20-7）：股票代码筛选实时校验，错误时 st.warning
+        if filter_code.strip() and not (filter_code.strip().isdigit() and len(filter_code.strip()) == 6):
+            xc_warn_box("⚠️ 股票代码须为 6 位数字（如 600519），当前输入可能不完整。")
+    with sc2:
+        _sort = st.radio("排序", ["最新", "最热(点赞)", "最多评论"], horizontal=True, key="forum_sort")
+        # 记忆当前排序偏好（#Batch20-10）
+        st.session_state["forum_remembered_sort"] = _sort
+        st.session_state["forum_remembered_filter"] = filter_code.strip()
+    with sc3:
+        if st.button("清空", key="forum_clear", help="清空股票代码筛选条件，查看全部帖子"):
             st.session_state["forum_filter_code"] = ""
-        # 列表内搜索/筛选框（#Batch19-3）：标题关键字，纯前端过滤，不动既有后端筛选
-        forum_kw = st.text_input("🔍 帖子标题关键字搜索（可选，纯前端过滤）", key="forum_kw_search")
+    # 列表内搜索/筛选框（#Batch19-3）：标题关键字实时过滤，不动既有后端筛选
+    forum_kw = st.text_input("标题关键字", key="forum_kw_search", placeholder="搜索帖子标题，实时过滤")
     st.markdown("---")
 
     path = "/api/forum/posts"
