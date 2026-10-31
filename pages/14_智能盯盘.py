@@ -26,6 +26,7 @@ from modules.ui_theme import sf_metric
 from modules.chart_cache import cached_fig
 import plotly.graph_objects as go
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
+from modules.page_utils import styler_color_chg as _color_chg
 dark = render_standard_page('智能盯盘', icon='👁️', caption='⚠️ 数据仅供参考，不构成投资建议')
 
 # 加法式展示源溯源（H1+ 方向 A 续·T-218）：自选股涨跌榜并行抓实时行情（get_realtime_quote
@@ -120,17 +121,7 @@ def _quote_fields(q):
         amplitude = None
     return (cur, chg, change_amt, amplitude)
 
-def _color_chg(val):
-    """Styler 回调：按涨跌%正负上色。"""
-    try:
-        v = float(val)
-    except Exception:
-        return ''
-    if v > 0:
-        return f'color:{UP};font-weight:600;'
-    if v < 0:
-        return f'color:{DOWN};font-weight:600;'
-    return ''
+
 
 def _color_net(val):
     """Styler 回调：按主力净流入正负上色。"""

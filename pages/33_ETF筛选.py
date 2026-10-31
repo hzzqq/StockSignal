@@ -10,7 +10,7 @@ ETF / 基金筛选器
 import streamlit as st
 import pandas as pd
 
-from modules.page_utils import render_standard_page
+from modules.page_utils import render_standard_page, styler_color_chg as _color_chg
 from modules.ui_theme import sf_metric
 import modules.scroll_nav as sn
 from modules.page_guard import safe_section
@@ -205,10 +205,7 @@ def _etf_filter_fragment():
                 # 着色时 v >= 0 对字符串会抛 TypeError；先强转数值再判定
                 disp["涨跌幅"] = pd.to_numeric(disp["涨跌幅"], errors="coerce")
 
-                def _color_chg(v):
-                    if pd.isna(v):
-                        return ""
-                    return f"color:{UP if v >= 0 else DOWN}"
+                # _color_chg 已下沉至 modules.page_utils
                 sty = disp.style.map(_color_chg, subset=["涨跌幅"])
             else:
                 sty = disp.style

@@ -168,3 +168,41 @@ def fmt_rel(ts):
         return f"{int(sec // 86400)}天前"
     except Exception:
         return str(ts) if ts else ""
+
+
+def fmt_safe(v, nd: int = 2, na: str = "N/A") -> str:
+    """R-02: 安全数值格式化（下沉自 pages/57 + pages/58 完全相同的 _safe）。
+
+    处理 None / NaN / float('nan')；nd=小数位，na=兜底字符串。
+    """
+    if v is None or (isinstance(v, float) and v != v):
+        return na
+    return f"{v:.{nd}f}"
+
+
+def section_title(text: str, accent: str = "var(--acc1)") -> None:
+    """R-02: 带强调色的分区标题胶囊（下沉自 pages/31 + pages/32 相同实现）。
+
+    统一走设计令牌 var(--acc1)（品牌色），随主题切换。accent 参数保留仅作兼容。
+    """
+    import streamlit as st
+    st.markdown(
+        f"<div style='display:inline-block;background:var(--acc1);color:#fff;"
+        f"padding:4px 12px;border-radius:8px;font-weight:600;font-size:14px;"
+        f"margin-bottom:2px;'>{text}</div>", unsafe_allow_html=True)
+
+
+def styler_color_chg(val, up_color: str = "#ef4444", down_color: str = "#22c55e") -> str:
+    """R-02: Styler 回调——按涨跌%正负上色（下沉自 pages/14 实现）。
+
+    健壮版本：float(val) 抛异常也不会炸；返回空串让 Styler 保持默认色。
+    """
+    try:
+        v = float(val)
+    except Exception:
+        return ""
+    if v > 0:
+        return f"color:{up_color};font-weight:600;"
+    if v < 0:
+        return f"color:{down_color};font-weight:600;"
+    return ""

@@ -24,6 +24,7 @@ from modules.page_widgets import _empty_info
 
 from modules.ui_kit import xc_success_box, xc_warn_box
 from modules.risk_gate import scan_and_gate  # T-245 二道闸
+from modules.page_utils import section_title as _section_title
 logger = logging.getLogger(__name__)
 
 dark = render_standard_page(
@@ -48,13 +49,7 @@ STRATEGY_DESC = {
 TECH = {"macd", "trend", "bollinger", "volume_surge", "low_position", "pattern"}
 
 
-def _section_title(text, accent="var(--acc1)"):
-    """渲染带强调色的分区标题胶囊。强调色统一走设计令牌 var(--acc1)（品牌色），
-    去彩虹、随主题切换；accent 参数保留仅作兼容，不再影响渲染。"""
-    st.markdown(
-        f"<div style='display:inline-block;background:var(--acc1);color:#fff;"
-        f"padding:4px 12px;border-radius:8px;font-weight:600;font-size:14px;'"
-        f">{text}</div>", unsafe_allow_html=True)
+
 
 
 st.markdown("""

@@ -17,6 +17,7 @@ from modules.ui_theme import sf_metric, section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_regime as mr
 from modules.shepherd import get_shepherd_indicators, shepherd_temperature
+from modules.page_utils import fmt_safe as _safe
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +32,7 @@ dark = render_standard_page(
 )
 
 
-def _safe(v, nd=2, na="N/A"):
-    if v is None or (isinstance(v, float) and v != v):
-        return na
-    return f"{v:.{nd}f}"
+
 
 
 try:

@@ -21,6 +21,7 @@ from modules.ui_theme import sf_metric, section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_regime as mr
 from modules import shepherd_ladder as sl
+from modules.page_utils import fmt_safe as _safe
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +55,7 @@ def _bar(label, value, color, maxv=100.0, suffix=""):
     )
 
 
-def _safe(v, nd=2, na="N/A"):
-    if v is None or (isinstance(v, float) and v != v):
-        return na
-    return f"{v:.{nd}f}"
+
 
 
 dark = render_standard_page(
