@@ -19,6 +19,7 @@
   （全成本率 ≈0.30%）；「多年度复合正期望」结论基于历史 pred，现役 pred 需多年度复核后维持/修订。
 - 信号为市场中性多空（看多/看空各 N 只）；A 股零售场景通常**仅取多头侧**或降权空头。
 """
+import logging
 import pandas as pd
 import streamlit as st
 
@@ -26,7 +27,10 @@ from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_metric
 from modules.ui_kit import xc_warn_box, xc_success_box, ss_fold_useful, ss_hover_preview
 from modules.p1_signal import P1SignalLoader, format_rank
+from modules.risk_gate import scan_and_gate  # T-245 二道闸
 from modules.session import trading_autorefresh
+
+logger = logging.getLogger(__name__)
 
 dark = render_standard_page(
     title="P1 量化信号",
@@ -136,8 +140,38 @@ def _board_html(rows, head_color, empty="无数据", rank_as_percent=False):
     )
 
 
-long_rows = loader.top_long(model, n)
-short_rows = loader.top_short(model, n)
+# T-245 二道闸：看多/看空榜渲染前统一排雷（高危标的拦截 + 明示原因）
+def _p1_name_map_local():
+    try:
+        from modules.fetcher import StockFetcher
+        StockFetcher._warmup_stock_db()
+        return getattr(StockFetcher, "_code_to_name", {}) or {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _gate_p1_board(rows, name_map):
+    if not rows:
+        return rows
+    try:
+        cands = [{"code": r.get("symbol", ""),
+                  "name": name_map.get(str(r.get("symbol", ""))[-6:].zfill(6), "—")}
+                 for r in rows]
+        gated, summary = scan_and_gate(cands, top_k=len(rows) or 1)
+        kicked = {str(k.get("code")) for k in summary.get("kicked", [])}
+        kept = [r for r in rows if str(r.get("symbol", "")) not in kicked]
+        for k in summary.get("kicked", []):
+            st.caption(f"🚫 {k.get('name')}（{k.get('code')}）："
+                       f"{'；'.join(k.get('reasons', []) or ['六维红旗'])}——已拦截，不进入榜单")
+        return kept
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[55] 二道闸异常，降级放行: %s", e)
+        return rows
+
+
+_nm = _p1_name_map_local()
+long_rows = _gate_p1_board(loader.top_long(model, n), _nm)
+short_rows = _gate_p1_board(loader.top_short(model, n), _nm)
 
 
 def _top1_summary(rows: list) -> str:

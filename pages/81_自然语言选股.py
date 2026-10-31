@@ -10,12 +10,16 @@
 """
 from __future__ import annotations
 
+import logging
 import streamlit as st
 import pandas as pd
 
 from modules.page_utils import render_standard_page
 from modules.ui_kit import xc_kpi_grid, info_banner
 from modules import nl_screen as ns
+from modules.risk_gate import scan_and_gate  # T-245 二道闸
+
+logger = logging.getLogger(__name__)
 
 
 _OP_LABEL = {"lt": "<", "lte": "≤", "gt": ">", "gte": "≥", "eq": "="}
@@ -126,6 +130,21 @@ def main():
             info_banner("候选池为空或无代码（自选股可能未配置 / 自定义未填）。", kind="warning", icon="🚫")
             return
         result = ns.apply_filters(recs, spec)
+        # T-245 二道闸：渲染前统一排雷
+        try:
+            _gated, _gsum = scan_and_gate(
+                [{"code": r.get("code", ""), "name": r.get("name", "")} for r in result],
+                top_k=len(result) or 1,
+            )
+            _kicked = {str(k.get("code")) for k in _gsum.get("kicked", [])}
+            result = [r for r in result if str(r.get("code", "")) not in _kicked]
+            if _gsum.get("kicked"):
+                with st.expander(f"🚫 二道闸已拦截 {len(_gsum['kicked'])} 只高危标的（不进入结果）", expanded=False):
+                    for k in _gsum["kicked"]:
+                        st.caption(f"🔴 {k.get('name')}（{k.get('code')}）："
+                                   f"{'；'.join(k.get('reasons', []) or ['六维红旗'])}")
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[81] 二道闸异常，降级放行: %s", e)
         if not result:
             st.warning("⚠️ 按当前条件无匹配（诚实结果：0 只）。可放宽阈值再试。")
             return

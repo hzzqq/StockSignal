@@ -20,9 +20,23 @@ from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules.page_utils import render_standard_page
 from modules.session import trading_autorefresh
 from modules.spot_rank import _col, _num, load_spot_with_source, strong_score
+from modules.risk_gate import scan_and_gate  # T-245 二道闸
 import streamlit as st
 
 logger = logging.getLogger(__name__)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _gate_strong_summary(codes: tuple, names: tuple, top_k: int):
+    """T-245 二道闸扫描结果缓存（10 分钟 TTL），避免 60s 自动刷新触发上百次网络调用。"""
+    try:
+        _, summary = scan_and_gate(
+            [{"code": c, "name": n} for c, n in zip(codes, names)], top_k=top_k
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[76] 二道闸异常，降级放行: %s", e)
+        return None
+    return summary
 
 
 def _score_bar(label, value, color):
@@ -62,6 +76,19 @@ df = df.sort_values("_score", ascending=False).head(int(_top_n))
 
 name_c, code_c = _col(df, "name"), _col(df, "code")
 price_c, chg_c = _col(df, "price"), _col(df, "chg")
+
+# T-245 二道闸：渲染前统一排雷（高危标的拦截 + 明示原因）；扫描结果缓存 10 分钟
+if code_c and len(df) > 0:
+    _codes = tuple(str(r.get(code_c, "")) for _, r in df.iterrows())
+    _names = tuple(str(r.get(name_c, "")) for _, r in df.iterrows())
+    _gsum = _gate_strong_summary(_codes, _names, len(_codes) or 1)
+    if _gsum and _gsum.get("kicked"):
+        _kicked = {str(k.get("code")) for k in _gsum["kicked"]}
+        df = df[~df[code_c].astype(str).isin(_kicked)]
+        with st.expander(f"🚫 二道闸已拦截 {len(_gsum['kicked'])} 只高危标的（不进入榜单）", expanded=False):
+            for k in _gsum["kicked"]:
+                st.caption(f"🔴 {k.get('name')}（{k.get('code')}）："
+                           f"{'；'.join(k.get('reasons', []) or ['六维红旗'])}")
 
 # 盘中自动刷新（无 SSE，轮询近似）
 try:

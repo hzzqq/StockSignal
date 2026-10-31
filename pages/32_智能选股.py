@@ -10,6 +10,7 @@
 - 基本面 5 策略（roe/dividend/valuation/growth/cashflow_quality/shareholder_concentration）
   依赖 akshare 财务接口，扫描需联网且较慢，建议用于「自选股 / 板块」小池。
 """
+import logging
 import pandas as pd
 import streamlit as st
 from datetime import datetime
@@ -22,6 +23,9 @@ from modules.stock_screener import StockScreener, STRATEGY_NAMES_CN, ALL_STRATEG
 from modules.page_widgets import _empty_info
 
 from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.risk_gate import scan_and_gate  # T-245 二道闸
+logger = logging.getLogger(__name__)
+
 dark = render_standard_page(
     title="智能选股", icon="🎯",
     caption="移植自 stock-selecter 策略库：11 种量化策略，支持单策略与多策略 AND/OR/综合评分组合。结果仅供参考，非投资建议。",
@@ -200,6 +204,21 @@ with st.container(border=True):
         else:
             xc_success_box(f"✅ {result['message']}")
             res = result["results"]
+            # T-245 二道闸：渲染前统一排雷（高危标的拦截 + 明示原因）
+            try:
+                _gated, _gsum = scan_and_gate(
+                    [{"code": r.get("code", ""), "name": r.get("name", "")} for r in res],
+                    top_k=len(res) or 1,
+                )
+                _kicked = {str(k.get("code")) for k in _gsum.get("kicked", [])}
+                res = [r for r in res if str(r.get("code", "")) not in _kicked]
+                if _gsum.get("kicked"):
+                    with st.expander(f"🚫 二道闸已拦截 {len(_gsum['kicked'])} 只高危标的（不进入结果）", expanded=False):
+                        for k in _gsum["kicked"]:
+                            st.caption(f"🔴 {k.get('name')}（{k.get('code')}）："
+                                       f"{'；'.join(k.get('reasons', []) or ['六维红旗'])}")
+            except Exception as e:  # noqa: BLE001
+                logger.warning("[32] 二道闸异常，降级放行: %s", e)
             # 展示 DataFrame
             if len(selected) == 1:
                 skey = selected[0]

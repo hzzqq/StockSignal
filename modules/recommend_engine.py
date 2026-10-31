@@ -43,6 +43,7 @@ import numpy as np
 import pandas as pd
 
 from modules.stock_risk import DIMENSIONS, RISK_HIGH, RISK_MEDIUM
+from modules.risk_gate import apply_risk_gate  # T-245：六维排雷二道闸上提为通用模块（行为一致）
 from modules.technical import detect_bullish_divergence  # R7/T-333：MACD 底背离确认
 
 logger = logging.getLogger(__name__)
@@ -889,57 +890,8 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
     return rec
 
 
-def apply_risk_gate(rows: list, scan_map: dict, top_k: int, gate_n: int) -> tuple:
-    """R1 六维排雷二道闸（纯逻辑，可单测）。
-
-    rows：已按 composite 降序的候选列表（元素含 code/name，原列表顺位不变）；
-    scan_map：{code6: scan_stock 结果（含 report/components）}；空 dict = 排雷不可得。
-
-    规则（T-245 spec 冻结）：
-    - 闸门段 = rows[:max(gate_n, top_k)]，overall_level == high → 硬红旗踢出；
-    - unknown ≠ guilty：unknown/medium/low 一律保留，只如实携带 risk_scan 元数据；
-    - 被踢后不足 top_k → 从闸门段之外顺位补入，补入者标 not_scanned（不静默）；
-    - scan_map 为空 → 全部标 not_scanned，status=unavailable，主流程不阻塞。
-
-    返回 (gated_rows, gate_summary)；gated_rows 元素新增 ``risk_scan`` 字段。
-    """
-    gate_n = max(int(gate_n), int(top_k))
-    head, tail = rows[:gate_n], rows[gate_n:]
-    if not scan_map:
-        for r in rows:
-            r["risk_scan"] = {"status": "not_scanned"}
-        summary = {"status": "unavailable", "gate_size": len(head), "scanned": 0,
-                   "kicked": [],
-                   "reason": "六维排雷扫描不可用（网络或接口失败），如实降级不阻塞"}
-        return list(rows), summary
-
-    kept: list = []
-    kicked: list = []
-    for r in head:
-        scan = scan_map.get(str(r.get("code", "")).zfill(6))
-        report = (scan or {}).get("report") or {}
-        if report.get("overall_level") == RISK_HIGH:
-            reasons = []
-            for key, cn, _unit in DIMENSIONS:
-                comp = (scan.get("components") or {}).get(key) or {}
-                if comp.get("level") == RISK_HIGH:
-                    note = str(comp.get("note") or "").strip()
-                    reasons.append(f"{cn}·{note}"[:60] if note else cn)
-            kicked.append({"code": r.get("code"), "name": r.get("name"),
-                           "overall_level": RISK_HIGH,
-                           "n_high": report.get("n_high"), "reasons": reasons})
-            continue
-        r["risk_scan"] = {"status": "scanned",
-                          "overall_level": report.get("overall_level"),
-                          "risk_score": report.get("risk_score"),
-                          "reliable": report.get("reliable"),
-                          "n_high": report.get("n_high", 0)}
-        kept.append(r)
-    for r in tail:
-        r["risk_scan"] = {"status": "not_scanned"}
-    summary = {"status": "ok", "gate_size": len(head), "scanned": len(scan_map),
-               "kicked": kicked, "reason": ""}
-    return kept + tail, summary
+# T-245：六维排雷二道闸逻辑已上提为通用模块 modules.risk_gate.apply_risk_gate
+# （本文件自上方 import 复用，行为一致；单测见 tests/test_risk_gate.py）。
 
 
 def size_positions(picks: list, pos_base, per_stock_cap: float = 20.0,
