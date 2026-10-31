@@ -215,6 +215,24 @@
       "file": "modules/stock_research.py",
       "ttl": 1800,
       "count": 5
+    },
+    {
+      "file": "pages/53_星辰AI.py",
+      "ttl": 300,
+      "count": 1,
+      "reason": "T-367 星辰AI 页裸 TTL，已确认属有意缓存时长"
+    },
+    {
+      "file": "pages/76_实时强势榜.py",
+      "ttl": 600,
+      "count": 1,
+      "reason": "T-367 实时强势榜页裸 TTL，已确认属有意缓存时长"
+    },
+    {
+      "file": "pages/90_登录.py",
+      "ttl": 60,
+      "count": 2,
+      "reason": "T-367 登录页裸 TTL，已确认属有意缓存时长"
     }
   ]
 }
