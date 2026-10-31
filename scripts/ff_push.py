@@ -15,12 +15,15 @@
 退出码: 0=已同步或安全跳过, 1=非快进已拦截, 2=使用错误
 """
 import argparse
+import shlex
 import subprocess
 import sys
 
 
 def run(cmd, check=True, capture=True):
-    return subprocess.run(cmd, shell=True, check=check,
+    # R-13: shell=True → shlex.split + shell=False（消除命令注入风险）
+    argv = shlex.split(cmd) if isinstance(cmd, str) else list(cmd)
+    return subprocess.run(argv, shell=False, check=check,
                           capture_output=capture, text=True)
 
 

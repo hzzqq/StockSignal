@@ -82,6 +82,10 @@ class _SafeSerde:
     def loads_typed(self, typed):
         # LangGraph 以单参数 (type_str, data) 元组形式调用
         type_, data = typed
+        # R-14: pickle.loads 消费 **本进程 LangGraph checkpointer 本地快照**（同
+        # 类 dumps_typed 产出的 pickle_blob），非用户输入/非网络数据，来源受信。
+        # 不替换为 JSON —— DataFrame 等 LangGraph 状态原语 JSON 不支持；JsonPlusSerializer
+        # 已是首选，此处仅为 fallback。
         if type_ == "pickle_blob":
             return pickle.loads(data)
         if self._base is not None:

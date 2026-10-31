@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import sys
 
@@ -70,7 +71,7 @@ def _exec_refresh(plan: list[dict]) -> bool:
             continue
         print(f"  ⏳ 执行: {p['cmd']}")
         try:
-            rc = subprocess.run(p["cmd"], shell=True, cwd=_ROOT,
+            rc = subprocess.run(shlex.split(p["cmd"]), shell=False, cwd=_ROOT,
                                 timeout=_REFRESH_TIMEOUT, capture_output=True, text=True)
         except subprocess.TimeoutExpired:
             print(f"      ❌ 超时（>{_REFRESH_TIMEOUT}s），刷新失败。")
