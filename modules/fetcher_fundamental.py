@@ -85,10 +85,7 @@ except Exception as _pp_err:  # noqa: BLE001
 # 此处 re-export 保持行为零变化（fetcher.py 内部 509/519/547/1174 行调用不受影响）。
 from modules.fetcher_core import _safe_json_loads  # noqa: F401
 
-_L0_CACHE: dict = {}
-_L0_LOCK = threading.Lock()
-_L0_TTL = float(os.environ.get("SS_L0_TTL", "300"))
-_L0_MAX = int(os.environ.get("SS_L0_MAX", "600"))
+
 
 # R75 锁：flag 必须延迟读 modules.fetcher 模块对象（与 _feed_io._is_bs_available 同模式），
 # 禁止 from _feed_io import _AK_OK（值拷贝会让 monkeypatch fetcher._AK_OK 失效）。
@@ -108,7 +105,7 @@ class FundamentalMixin:
         code = str(code).strip().zfill(6)
         if use_cache:
             _ttl = CONFIG["cache_ttl"]["fundamentals_seconds"]
-            _hit = self._proc_cache_get(self._fund_cache, code, _ttl)
+            _hit = self._proc_cache_get(_fetcher_mod.StockFetcher._fund_cache, code, _ttl)
             if _hit is not None:
                 return _hit
 
@@ -215,7 +212,7 @@ class FundamentalMixin:
                 logger.warning(f"[fetcher] 处理异常: {e}")
 
         if _has(res):
-            self._proc_cache_set(self._fund_cache, code, res)
+            self._proc_cache_set(_fetcher_mod.StockFetcher._fund_cache, code, res)
         return res
 
     def get_core_business(self, code, use_cache=True):
@@ -229,7 +226,7 @@ class FundamentalMixin:
         code = str(code).strip().zfill(6)
         if use_cache:
             _ttl = CONFIG["cache_ttl"]["biz_seconds"]
-            _hit = self._proc_cache_get(self._biz_cache, code, _ttl)
+            _hit = self._proc_cache_get(_fetcher_mod.StockFetcher._biz_cache, code, _ttl)
             if _hit is not None:
                 return _hit
         biz = ""
@@ -257,7 +254,7 @@ class FundamentalMixin:
         except Exception as e:  # noqa: BLE001
             logger.info(f"[StockFetcher] 核心业务获取失败 ({code}): {e}")
         if biz:
-            self._proc_cache_set(self._biz_cache, code, biz)
+            self._proc_cache_set(_fetcher_mod.StockFetcher._biz_cache, code, biz)
         return biz
 
     def get_macro(self, indicator="pmi_mfg"):

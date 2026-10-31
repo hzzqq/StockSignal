@@ -99,11 +99,34 @@ from modules.fetcher_sector import SectorMixin  # noqa: F401
 from modules.fetcher_fundamental import FundamentalMixin  # noqa: F401
 from modules.fetcher_health import HealthMixin  # noqa: F401
 
+# _L0_* 缓存基础设施：模块级单一真源（原 fetcher.py 顶部常量），
+# 各 mixin 方法体经 _fetcher_mod._L0_* 惰性引用，避免缓存/锁分片。
+_L0_CACHE: dict = {}
+_L0_LOCK = threading.Lock()
+_L0_TTL = float(os.environ.get("SS_L0_TTL", "300"))
+_L0_MAX = int(os.environ.get("SS_L0_MAX", "600"))
 
 # T-247：StockFetcher = 共享基类 + 7 个领域 mixin 多继承组合。
 # 所有公开方法签名/返回类型/降级语义由 FETCHER_CONTRACT.md 冻结，本文件仅做组合，零行为变更。
 class StockFetcher(BaseFetcher, StorageMixin, RealtimeMixin, KlineMixin,
                    SearchMixin, SectorMixin, FundamentalMixin, HealthMixin):
-    """股票行情与宏观数据采集器。领域方法见各 fetcher_* mixin，见 FETCHER_CONTRACT.md。"""
-    pass
+    """股票行情与宏观数据采集器。领域方法见各 fetcher_* mixin，见 FETCHER_CONTRACT.md。
+    以下两个为影子名薄壳（真身迁 fetcher_core，由 fetcher_core_tier11 守卫锁定必须留在本层）。
+    """
+    def _get_stock_industry_keywords(stock_name):
+        """根据股票名称匹配行业，返回该行业的高频事件关键词。
+
+        真身迁 modules.fetcher_core（T-247 Tier2，industry_map 作参数注入）；
+        领域常量 _INDUSTRY_KEYWORDS 留本类（仅此消费）。
+        """
+        return _get_stock_industry_keywords(stock_name, StockFetcher._INDUSTRY_KEYWORDS)
+
+    def synth_us_index_intraday(self, open_, high, low, close, prev_close):
+        """当美股指数只有 O/H/L/C 快照时，合成一条有真实日内形态的近似分时曲线。
+
+        真身迁 modules.fetcher_core._synth_us_index_intraday（T-247 Tier2 第二批），
+        本薄壳仅委托，签名与返回语义零变化。返回 (spark_x, spark_y) 或 (None, None)。
+        """
+        return _synth_us_index_intraday(open_, high, low, close, prev_close)
+
 

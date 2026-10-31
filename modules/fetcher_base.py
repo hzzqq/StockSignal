@@ -85,10 +85,7 @@ except Exception as _pp_err:  # noqa: BLE001
 # 此处 re-export 保持行为零变化（fetcher.py 内部 509/519/547/1174 行调用不受影响）。
 from modules.fetcher_core import _safe_json_loads  # noqa: F401
 
-_L0_CACHE: dict = {}
-_L0_LOCK = threading.Lock()
-_L0_TTL = float(os.environ.get("SS_L0_TTL", "300"))
-_L0_MAX = int(os.environ.get("SS_L0_MAX", "600"))
+
 
 # __init__ 直接调用本模块 load_config；_ensure_stock_db 用 flag，延迟读 fetcher 模块。
 import modules.fetcher as _fetcher_mod
@@ -531,10 +528,10 @@ class BaseFetcher:
         优先从类缓存读取（预热时已预计算），避免重复调用pypinyin。
         如 '招商银行' -> 'ZSYH'。
         """
-        cached = self._pinyin_initials_cache.get(name)
+        cached = _fetcher_mod.StockFetcher._pinyin_initials_cache.get(name)
         if cached is not None:
             return cached
-        return self._pinyin_static(name)
+        return _fetcher_mod.StockFetcher._pinyin_static(name)
 
     def _name_tokens(name):
         """
@@ -569,14 +566,6 @@ class BaseFetcher:
     def _lookup_name_for_code(self, code):
         """代码->名称（从内存缓存 O(1) 查找）。"""
         return self._code_to_name.get(code, "")
-
-    def _get_stock_industry_keywords(stock_name):
-        """根据股票名称匹配行业，返回该行业的高频事件关键词。
-
-        真身迁 modules.fetcher_core（T-247 Tier2，industry_map 作参数注入）；
-        领域常量 _INDUSTRY_KEYWORDS 留本类（仅此消费）。
-        """
-        return _get_stock_industry_keywords(stock_name, self._INDUSTRY_KEYWORDS)
 
     def __init__(self, config_path="config.yaml"):
         self.config = load_config(config_path)

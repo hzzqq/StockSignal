@@ -85,10 +85,7 @@ except Exception as _pp_err:  # noqa: BLE001
 # 此处 re-export 保持行为零变化（fetcher.py 内部 509/519/547/1174 行调用不受影响）。
 from modules.fetcher_core import _safe_json_loads  # noqa: F401
 
-_L0_CACHE: dict = {}
-_L0_LOCK = threading.Lock()
-_L0_TTL = float(os.environ.get("SS_L0_TTL", "300"))
-_L0_MAX = int(os.environ.get("SS_L0_MAX", "600"))
+
 
 # R75 锁：flag 必须延迟读 modules.fetcher 模块对象（与 _feed_io._is_bs_available 同模式），
 # 禁止 from _feed_io import _AK_OK（值拷贝会让 monkeypatch fetcher._AK_OK 失效）。

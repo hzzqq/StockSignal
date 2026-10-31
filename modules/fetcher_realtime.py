@@ -85,10 +85,7 @@ except Exception as _pp_err:  # noqa: BLE001
 # 此处 re-export 保持行为零变化（fetcher.py 内部 509/519/547/1174 行调用不受影响）。
 from modules.fetcher_core import _safe_json_loads  # noqa: F401
 
-_L0_CACHE: dict = {}
-_L0_LOCK = threading.Lock()
-_L0_TTL = float(os.environ.get("SS_L0_TTL", "300"))
-_L0_MAX = int(os.environ.get("SS_L0_MAX", "600"))
+
 
 # R75 锁：flag 必须延迟读 modules.fetcher 模块对象（与 _feed_io._is_bs_available 同模式），
 # 禁止 from _feed_io import _AK_OK（值拷贝会让 monkeypatch fetcher._AK_OK 失效）。
@@ -486,12 +483,4 @@ class RealtimeMixin:
         except Exception as e:
             logger.info(f"[StockFetcher] 新浪个股分时获取失败 ({symbol}): {e}")
             return None, None, None
-
-    def synth_us_index_intraday(self, open_, high, low, close, prev_close):
-        """当美股指数只有 O/H/L/C 快照时，合成一条有真实日内形态的近似分时曲线。
-
-        真身迁 modules.fetcher_core._synth_us_index_intraday（T-247 Tier2 第二批），
-        本薄壳仅委托，签名与返回语义零变化。返回 (spark_x, spark_y) 或 (None, None)。
-        """
-        return _synth_us_index_intraday(open_, high, low, close, prev_close)
 

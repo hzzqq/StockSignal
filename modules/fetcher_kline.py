@@ -85,10 +85,7 @@ except Exception as _pp_err:  # noqa: BLE001
 # 此处 re-export 保持行为零变化（fetcher.py 内部 509/519/547/1174 行调用不受影响）。
 from modules.fetcher_core import _safe_json_loads  # noqa: F401
 
-_L0_CACHE: dict = {}
-_L0_LOCK = threading.Lock()
-_L0_TTL = float(os.environ.get("SS_L0_TTL", "300"))
-_L0_MAX = int(os.environ.get("SS_L0_MAX", "600"))
+
 
 # R75 锁：flag 必须延迟读 modules.fetcher 模块对象（与 _feed_io._is_bs_available 同模式），
 # 禁止 from _feed_io import _AK_OK（值拷贝会让 monkeypatch fetcher._AK_OK 失效）。
@@ -216,14 +213,14 @@ class KlineMixin:
         l0_key = f"{getattr(self, 'db_path', id(self))}|{cache_key}"
 
         # ── T-257 L0 内存缓存：重复交互免 SQLite 重读+JSON 重解析（SS_L0_TTL=0 关闭）──
-        if _L0_TTL > 0:
-            with _L0_LOCK:
-                ent = _L0_CACHE.get(l0_key)
-            if ent is not None and time.monotonic() - ent["ts"] <= _L0_TTL:
+        if _fetcher_mod._L0_TTL > 0:
+            with _fetcher_mod._L0_LOCK:
+                ent = _fetcher_mod._L0_CACHE.get(l0_key)
+            if ent is not None and time.monotonic() - ent["ts"] <= _fetcher_mod._L0_TTL:
                 observe_cache_hit("L0", True)  # T-272①：L0 命中计数
                 if ent["is_stale"]:
                     # L0 回放缓存兜底数据时重放埋点：每次「用旧数据」都如实计数
-                    observe_cache_fallback("L5", True, f"{symbol} as_of={ent['as_of']}(L0)")
+                    _fetcher_mod.observe_cache_fallback("L5", True, f"{symbol} as_of={ent['as_of']}(L0)")
                 if isinstance(meta_out, dict):
                     meta_out.clear()
                     meta_out.update({"source": ent["source"],
@@ -233,20 +230,20 @@ class KlineMixin:
             # T-272①：L0 未命中（含无记录与已过期两种）
             observe_cache_hit("L0", False)
             if ent is not None:
-                with _L0_LOCK:
-                    _L0_CACHE.pop(l0_key, None)
+                with _fetcher_mod._L0_LOCK:
+                    _fetcher_mod._L0_CACHE.pop(l0_key, None)
 
         def _l0_put(df, source, is_stale):
             """命中成功路径写 L0（存副本防调用方原地改写污染；容量满按最旧逐出）。"""
-            if _L0_TTL <= 0:
+            if _fetcher_mod._L0_TTL <= 0:
                 return
-            with _L0_LOCK:
-                _L0_CACHE[l0_key] = {"df": df.copy(), "source": source,
+            with _fetcher_mod._L0_LOCK:
+                _fetcher_mod._L0_CACHE[l0_key] = {"df": df.copy(), "source": source,
                                      "is_stale": is_stale,
                                      "as_of": _df_last_date(df),
                                      "ts": time.monotonic()}
-                while len(_L0_CACHE) > _L0_MAX:
-                    _L0_CACHE.pop(min(_L0_CACHE, key=lambda k: _L0_CACHE[k]["ts"]), None)
+                while len(_fetcher_mod._L0_CACHE) > _fetcher_mod._L0_MAX:
+                    _fetcher_mod._L0_CACHE.pop(min(_fetcher_mod._L0_CACHE, key=lambda k: _fetcher_mod._L0_CACHE[k]["ts"]), None)
 
         conn = self._get_conn()
         try:
@@ -303,12 +300,12 @@ class KlineMixin:
                                                min_rows=60)
                 if stale is not None:
                     logger.debug(f"[StockFetcher] L5-缓存兜底 OK {symbol}")
-                    observe_cache_fallback("L5", True,
+                    _fetcher_mod.observe_cache_fallback("L5", True,
                                            f"{symbol} as_of={_df_last_date(stale)}")
                     _meta("cache_fallback", True, stale)
                     _l0_put(stale, "cache_fallback", True)
                     return stale
-                observe_cache_fallback("L5", False, f"{symbol} 无可用兜底缓存")
+                _fetcher_mod.observe_cache_fallback("L5", False, f"{symbol} 无可用兜底缓存")
                 errors.append("缓存: 无可用数据")
 
             # ── 全部失败 -> 仍然抛出，但用更友好的中文错误 ──

@@ -20,6 +20,7 @@ SQLite **标识符（表名）注入**防护回归。
 2026-08-28 新增（Cycle 64）。
 """
 import ast
+import glob
 import os
 import sqlite3
 import sys
@@ -106,25 +107,32 @@ def test_clear_cache_validates_table_name():
 
 
 def test_all_hardcoded_table_names_are_valid():
-    """源码中所有硬编码表名都必须通过校验（防将来新增表名被静默拦掉）。"""
-    path = os.path.join(ROOT, "modules", "fetcher.py")
-    tree = ast.parse(open(path, encoding="utf-8").read())
+    """源码中所有硬编码表名都必须通过校验（防将来新增表名被静默拦掉）。
+
+    T-247 拆分后缓存方法（``_init_cache_table``/``clear_cache``）分散在
+    ``fetcher_storage.py`` / ``fetcher_base.py`` 等多个模块，故扫描全部 ``fetcher*.py``，
+    而非仅 ``fetcher.py``。守卫意图（所有硬编码缓存表名合法）不变。
+    """
+    paths = sorted(glob.glob(os.path.join(ROOT, "modules", "fetcher*.py")))
+    assert paths, "未找到任何 fetcher*.py，疑似路径有误"
     found = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        fn = node.func
-        name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", None)
-        if name not in ("_init_cache_table", "clear_cache"):
-            continue
-        for arg in node.args:
-            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                found.append(arg.value)
-        for kw in node.keywords:
-            if kw.arg in ("table_name", "t") and isinstance(kw.value, ast.Constant):
-                if isinstance(kw.value.value, str):
-                    found.append(kw.value.value)
+    for path in paths:
+        tree = ast.parse(open(path, encoding="utf-8").read())
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", None)
+            if name not in ("_init_cache_table", "clear_cache"):
+                continue
+            for arg in node.args:
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    found.append(arg.value)
+            for kw in node.keywords:
+                if kw.arg in ("table_name", "t") and isinstance(kw.value, ast.Constant):
+                    if isinstance(kw.value.value, str):
+                        found.append(kw.value.value)
 
     assert found, "未扫描到任何硬编码表名，疑似解析/路径有误"
     bad = [t for t in set(found) if not StockFetcher._SAFE_IDENT_RE.match(t)]
-    assert not bad, f"fetcher.py 中存在不合法的表名字面量（会被校验拦掉）: {bad}"
+    assert not bad, f"fetcher*.py 中存在不合法的表名字面量（会被校验拦掉）: {bad}"
