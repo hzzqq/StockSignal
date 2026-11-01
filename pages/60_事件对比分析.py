@@ -185,7 +185,7 @@ try:
                     _kpi = st.columns(min(4, len(_bt)) or 1)
                     for _i, (_tn, _tc) in enumerate(_top_types):
                         with _kpi[_i]:
-                            st.metric(_tn, f"{_tc} 条")
+                            st.metric(_tn, f"{_tc} 条", delta_color="off")
                     st.caption(f"共 {notice['total']} 条公告（{notice_date} · {notice_type}）")
                     import pandas as _pd
                     _ndf = _pd.DataFrame(notice["rows"][:50]).rename(columns={
