@@ -94,7 +94,7 @@ def _current_price(code: str):
             if v is not None:
                 return v
     except Exception:
-        pass
+        logger.warning("[47_价格预警.py] try 体危险操作被吞")
     return None
 
 def _norm(s):

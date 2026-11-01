@@ -10,6 +10,8 @@
 数据优先取行业资金流（含涨跌幅+净额），失败时降级到板块涨跌列表。
 各取数区块独立隔离（safe_section）。
 """
+import logging
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -39,7 +41,7 @@ def _load_flow():
         if df is not None and not df.empty:
             return df, "行业资金流(akshare)"
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("[12_板块轮动.py] try 体危险操作被吞")
     # 降级：仅涨跌幅
     try:
         s = FETCHER.get_sector_list()

@@ -78,7 +78,7 @@ def _get_stock_concept(code: str) -> str:
                 if val:
                     return str(val)
     except Exception:
-        pass
+        logger.warning("[10_行情看板.py] try 体危险操作被吞")
     return '—'
 
 def _render_sector_cards(df, top_n=24):

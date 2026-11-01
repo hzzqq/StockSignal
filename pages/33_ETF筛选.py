@@ -7,6 +7,8 @@ ETF / 基金筛选器
   • 网络不可用时降级到内置常见 ETF 样本，保证筛选器始终可用
   • 各取数区块独立隔离（safe_section）
 """
+import logging
+
 import streamlit as st
 import pandas as pd
 
@@ -85,7 +87,7 @@ def _load_etfs():
             keep = [c for c in ["代码", "名称", "类型", "最新价", "涨跌幅", "成交额", "换手率", "跟踪指数", "管理费"] if c in df.columns]
             return df[keep].copy(), "akshare 实时ETF行情"
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("[33_ETF筛选.py] try 体危险操作被吞")
     # 降级：内置样本
     d = pd.DataFrame(SAMPLE, columns=["代码", "名称", "类型", "最新价", "涨跌幅", "成交额", "管理费", "跟踪指数"])
     return d, "内置样本（网络不可用）"

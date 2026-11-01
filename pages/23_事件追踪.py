@@ -9,6 +9,8 @@
 - 事件时间轴表单的日期/滑块控件 key 与 session_state 变量同名双向绑定，
   去掉 st.rerun()，避免整页重跑；区间快捷按钮只改 session_state，fragment 自动跟随刷新。
 """
+import logging
+
 import streamlit as st
 import pandas as pd
 import html
@@ -73,7 +75,7 @@ def _cached_intraday(ticker):
         if _df is not None and (not _df.empty):
             return (_df, _pc, _dt)
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("[23_事件追踪.py] try 体危险操作被吞")
     return None
 
 def _news_fallback_url(title: str, source: str='') -> str:

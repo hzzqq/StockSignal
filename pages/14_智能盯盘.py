@@ -214,7 +214,7 @@ def _resolve_name(code, *candidates):
         if n and str(n).strip() and (str(n).strip() != code_s):
             return str(n).strip()
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("[14_智能盯盘.py] try 体危险操作被吞")
     return code_s
 
 

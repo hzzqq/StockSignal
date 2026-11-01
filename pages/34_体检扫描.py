@@ -271,7 +271,7 @@ def scan_one(code: str, name):
             if fs is not None:
                 entry["dims"]["财务健康"] = fs
     except Exception:
-        pass
+        logger.warning("[34_体检扫描.py] try 体危险操作被吞")
 
     entry["composite"] = _composite(entry["dims"])
     return entry
