@@ -103,6 +103,36 @@ def discover_source_dirs():
     return out
 
 
+def discover_findings_dir() -> list[str]:
+    """返回候选「毕设三算法证据」目录列表（按优先级），供 experiment_findings.json 发现。
+
+    优先级：环境变量 ``P1_FINDINGS_DIR`` → P1-QuantFactor 默认 processed 目录
+    （本地开发直连，与 ``discover_source_dirs`` 同 pattern）。发现的目录里找
+    ``experiment_findings.json``（由 P1 ``scripts/20_export_findings.py`` 产出），
+    交由 ``experiment_improvements.load_live_findings(results_dir=...)`` 消费。
+
+    注意：与信号目录不同，这里**没有** StockSignal 自托管副本——证据 JSON 必须
+    是 P1 侧真实导出（live=True 的诚实语义），仓库内副本会被误读为离线快照。
+    """
+    dirs: list[str] = []
+    env = os.environ.get("P1_FINDINGS_DIR")
+    if env:
+        dirs.append(env)
+    # P1-QuantFactor 默认 processed 目录（abs 默认值仅允许出现在本单一真理源，
+    # 见 test_event_pool_bridge.test_no_module_hardcodes_p1_abs_path）
+    fallback = os.environ.get(
+        "P1_FINDINGS_FALLBACK_DIR", r"E:/project/sj/data/P1/processed"
+    )
+    dirs.append(fallback)
+    seen: set[str] = set()
+    out: list[str] = []
+    for d in dirs:
+        if d and d not in seen:
+            seen.add(d)
+            out.append(d)
+    return out
+
+
 def _load_one(path: str):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)

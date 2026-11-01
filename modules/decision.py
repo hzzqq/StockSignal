@@ -128,7 +128,15 @@ def _thesis_model_adj() -> dict:
     """
     try:
         from modules.experiment_improvements import load_live_findings
-        findings = load_live_findings()
+        from modules.p1_signal import discover_findings_dir
+        # 证据目录发现：P1_RESULTS_DIR（load_live_findings 内建）→ P1_FINDINGS_DIR
+        # → P1 默认 processed 目录（单一真理源 p1_signal.discover_findings_dir）。
+        # 取不到真实证据 → results_dir=None → live=False 离线锚定，绝不编造。
+        results_dir = None
+        if not os.environ.get("P1_RESULTS_DIR"):
+            results_dir = next(
+                (d for d in discover_findings_dir() if os.path.isdir(d)), None)
+        findings = load_live_findings(results_dir=results_dir)
     except Exception as e:  # 桥故障：降级不施加，不崩决策环
         logger.warning("[decision] 毕设证据桥故障 %s，按未接入处理", e)
         return {"adj": 0.0, "lines": ["毕设三算法证据桥故障，未施加（不臆造）"], "live": False}
