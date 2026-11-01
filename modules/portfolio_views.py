@@ -520,7 +520,7 @@ def render_position_manager() -> None:
     import streamlit.components.v1 as components
     import pandas as pd
     from datetime import datetime
-    from modules.page_utils import render_standard_page
+    from modules.page_utils import render_standard_page, fmt_rel as _fmt_rel
     from modules.ui_theme import sf_card, sf_metric
     from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
     render_standard_page(title='仓位管理', icon='💰', caption='⚠️ 本页为模拟/历史持仓管理，仅供学习，不构成投资建议。', layout='wide')
@@ -594,23 +594,6 @@ def render_position_manager() -> None:
             return '—'
         return f'{int(v):,}'
 
-    def _fmt_rel(ts):
-        from datetime import datetime
-        try:
-            if isinstance(ts, str):
-                ts = datetime.fromisoformat(ts.replace('Z', ''))
-            elif hasattr(ts, 'to_pydatetime'):
-                ts = ts.to_pydatetime()
-            sec = (datetime.now() - ts).total_seconds()
-            if sec < 60:
-                return '刚刚'
-            if sec < 3600:
-                return f'{int(sec // 60)}分钟前'
-            if sec < 86400:
-                return f'{int(sec // 3600)}小时前'
-            return f'{int(sec // 86400)}天前'
-        except Exception:
-            return str(ts) if ts is not None else ''
     pm = PortfolioManager()
     fetcher = StockFetcher()
     if 'default_shares' not in st.session_state:
