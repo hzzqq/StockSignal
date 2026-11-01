@@ -260,6 +260,7 @@ def main() -> int:
             _mdel = (
                 sum(s.get("deleted", 0) for s in rep["sqlite"])
                 + sum(s.get("removed", 0) for s in rep["shepherd"])
+                + int((rep.get("daily_dedupe") or {}).get("deleted", 0) or 0)
             )
             print(f"[maintain] 缓存维护清理 {_mdel} 项（保留 90 天）")
             for e in rep["errors"]:
@@ -445,6 +446,7 @@ def main() -> int:
         _mdel = (
             sum(s.get("deleted", 0) for s in _mrep["sqlite"])
             + sum(s.get("removed", 0) for s in _mrep["shepherd"])
+            + int((_mrep.get("daily_dedupe") or {}).get("deleted", 0) or 0)
         )
         if _mdel:
             log(f"[maintain] 缓存维护清理 {_mdel} 项（保留 90 天）")

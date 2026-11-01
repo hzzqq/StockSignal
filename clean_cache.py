@@ -75,13 +75,16 @@ def collect_stale(cache_dir: Path, days: int, include_db: bool = False, here: Pa
 def _report_maintenance(rep: dict, dry_run: bool) -> None:
     """打印 run_cache_maintenance 的报告（诚实：真实删除数 / 释放字节 / 错误）。"""
     tag = "[dry-run] " if dry_run else ""
+    _dedupe = rep.get("daily_dedupe") or {}
     total_del = (
         sum(s.get("deleted", 0) for s in rep.get("sqlite", []))
         + sum(s.get("removed", 0) for s in rep.get("shepherd", []))
+        + int(_dedupe.get("deleted", 0) or 0)
     )
     total_freed = (
         sum(s.get("freed_bytes", 0) for s in rep.get("sqlite", []))
         + sum(s.get("freed_bytes", 0) for s in rep.get("shepherd", []))
+        + int(_dedupe.get("freed_bytes", 0) or 0)
     )
     if total_del == 0:
         print(f"{tag}缓存均在保留期（{rep.get('days')} 天）内，无需清理")
@@ -91,6 +94,10 @@ def _report_maintenance(rep: dict, dry_run: bool) -> None:
         if s.get("deleted"):
             extra = f"  ⚠{s['error']}" if s.get("error") else ""
             print(f"   [sqlite] {s['db']}: 删 {s['deleted']} 行，释放 {human(s['freed_bytes'])}{extra}")
+    if _dedupe.get("deleted"):
+        print(f"   [dedupe] {_dedupe['db']} daily_cache 同股多窗口去重："
+              f"删 {_dedupe['deleted']} 行（{_dedupe.get('symbols', 0)} 只保留最新 2 份），"
+              f"释放 {human(_dedupe.get('freed_bytes', 0))}")
     for s in rep.get("shepherd", []):
         if s.get("removed"):
             print(f"   [csv] {s['dir']}: 删 {s['removed']} 文件，释放 {human(s['freed_bytes'])}")

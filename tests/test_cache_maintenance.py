@@ -150,3 +150,121 @@ def test_run_cache_maintenance_temp_root(tmp_path, monkeypatch):
     c = sqlite3.connect(str(tmp_path / "cache.db"))
     assert c.execute("SELECT COUNT(*) FROM daily_cache WHERE cache_key LIKE 'old_%'").fetchone()[0] == 0
     c.close()
+
+
+# ── R-08：daily_cache 同股票多区间 key 去重 ────────────────────────────────
+
+def _make_dup_db(path: Path, spec: dict):
+    """按 {symbol: [窗口日期对...]} 造 daily_cache 表；updated_at 随窗口递增。"""
+    conn = sqlite3.connect(str(path))
+    conn.execute(
+        "CREATE TABLE daily_cache (cache_key TEXT PRIMARY KEY, data_json TEXT, updated_at TEXT)"
+    )
+    for sym, spans in spec.items():
+        for i, (start, end) in enumerate(spans):
+            conn.execute(
+                "INSERT OR REPLACE INTO daily_cache VALUES (?,?,?)",
+                (f"daily_{sym}_{start}_{end}_qfq", "{}",
+                 f"2026-10-{i + 1:02d}T00:00:00"),  # 后写入者更新
+            )
+    conn.commit()
+    conn.close()
+
+
+def test_prune_daily_cache_duplicates_keeps_latest_n(tmp_path):
+    """R-08：同 symbol 多窗口 key，仅保留 updated_at 最新 2 份。"""
+    db = tmp_path / "cache.db"
+    _make_dup_db(db, {"600028": [("2026-01-01", "2026-10-01"),
+                                ("2026-01-02", "2026-10-02"),
+                                ("2026-01-03", "2026-10-03"),
+                                ("2026-01-04", "2026-10-04"),
+                                ("2026-01-05", "2026-10-05")]})
+    res = cm.prune_daily_cache_duplicates(db, keep_per_symbol=2)
+    assert res["error"] is None, res
+    assert res["deleted"] == 3, res
+    assert res["kept"] == 2, res
+    assert res["symbols"] == 1, res
+
+    conn = sqlite3.connect(str(db))
+    left = [r[0] for r in conn.execute(
+        "SELECT cache_key FROM daily_cache ORDER BY cache_key")]
+    conn.close()
+    # 保留的是最后两窗口（updated_at 最新）
+    assert left == ["daily_600028_2026-01-04_2026-10-04_qfq",
+                    "daily_600028_2026-01-05_2026-10-05_qfq"], left
+
+
+def test_prune_daily_cache_duplicates_dry_run_makes_no_change(tmp_path):
+    db = tmp_path / "cache.db"
+    _make_dup_db(db, {"000001": [("2026-01-01", "2026-10-01"),
+                                ("2026-01-02", "2026-10-02"),
+                                ("2026-01-03", "2026-10-03")]})
+    before = _count(db)
+    res = cm.prune_daily_cache_duplicates(db, keep_per_symbol=1, dry_run=True)
+    assert res["deleted"] == 2, res          # 如实报告「将要删」多少
+    assert _count(db) == before              # 但一行没动
+
+
+def test_prune_daily_cache_duplicates_skips_nonstandard_keys(tmp_path):
+    """非 5 段 daily_ key（他方脚本写入）必须原样保留，绝不误删。
+
+    构造：同一伪 symbol 既有 2 个**标准 5 段** key（应去重到 1 份），
+    又有 1 个**6 段** EXTRA key（必须完全豁免）。若实现放宽段数校验，
+    EXTRA 会被并入同组一起删除 —— 本用例即变红（mutation 已证）。
+    """
+    db = tmp_path / "cache.db"
+    conn = sqlite3.connect(str(db))
+    conn.execute(
+        "CREATE TABLE daily_cache (cache_key TEXT PRIMARY KEY, data_json TEXT, updated_at TEXT)"
+    )
+    for i, key in enumerate([
+        "daily_T272METRIC_2026-01-01_2026-10-01_qfq",
+        "daily_T272METRIC_2026-01-02_2026-10-02_qfq",
+        "daily_T272METRIC_2026-01-03_2026-10-03_qfq_EXTRA",   # 6 段：豁免
+        "sh600519_daily",                                      # 2 段：豁免
+    ]):
+        conn.execute("INSERT INTO daily_cache VALUES (?,?,?)",
+                     (key, "{}", f"2026-10-{i + 1:02d}T00:00:00"))
+    conn.commit()
+    conn.close()
+
+    res = cm.prune_daily_cache_duplicates(db, keep_per_symbol=1)
+    assert res["error"] is None, res
+    assert res["deleted"] == 1, res          # 只删同组标准 key 的旧 1 份
+    conn = sqlite3.connect(str(db))
+    keys = {r[0] for r in conn.execute("SELECT cache_key FROM daily_cache")}
+    conn.close()
+    assert "sh600519_daily" in keys
+    assert "daily_T272METRIC_2026-01-03_2026-10-03_qfq_EXTRA" in keys, keys
+    assert "daily_T272METRIC_2026-01-02_2026-10-02_qfq" in keys, keys
+    assert "daily_T272METRIC_2026-01-01_2026-10-01_qfq" not in keys, keys
+
+
+def test_prune_daily_cache_duplicates_missing_db(tmp_path):
+    res = cm.prune_daily_cache_duplicates(tmp_path / "nope.db")
+    assert res["error"] == "missing" and res["deleted"] == 0
+
+
+def test_run_cache_maintenance_dedupe_toggle(tmp_path, monkeypatch):
+    """dedupe_daily=True 产出 daily_dedupe 报告；False 时该键不出现（additive 开关）。"""
+    monkeypatch.setattr(cm, "DATA", tmp_path)
+    import modules.market_cache as _mc_mod
+    monkeypatch.setattr(_mc_mod, "clear_stale_cache", lambda days: 0, raising=True)
+    _make_dup_db(tmp_path / "cache.db",
+                 {"600000": [("2026-01-01", "2026-10-01"),
+                             ("2026-01-02", "2026-10-02"),
+                             ("2026-01-03", "2026-10-03")]})
+    (tmp_path / "shepherd_cache").mkdir()
+
+    rep_on = cm.run_cache_maintenance(days=90, dry_run=True, dedupe_daily=True)
+    assert rep_on["daily_dedupe"]["deleted"] == 1, rep_on
+
+    rep_off = cm.run_cache_maintenance(days=90, dry_run=True, dedupe_daily=False)
+    assert "daily_dedupe" not in rep_off, rep_off
+
+
+def _count(db: Path) -> int:
+    conn = sqlite3.connect(str(db))
+    n = conn.execute("SELECT COUNT(*) FROM daily_cache").fetchone()[0]
+    conn.close()
+    return n
