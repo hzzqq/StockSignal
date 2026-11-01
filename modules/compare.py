@@ -69,14 +69,13 @@ def fetch_compare(codes: List[str], period_days: int = 120) -> List[Dict[str, An
         # 抛 ValueError("max_workers must be greater than 0")，对比页清空列表会白屏。
         return []
     rows: List[Dict[str, Any]] = [None] * len(codes)
-    with ThreadPoolExecutor(max_workers=min(len(codes), 4)) as ex:
-        future_to_idx = {
-            ex.submit(_build_row, None, code, period_days): i
-            for i, code in enumerate(codes)
-        }
-        for future in as_completed(future_to_idx):
-            i = future_to_idx[future]
-            rows[i] = future.result()
+    # R-03：共享有界线程池 fetch_many（_build_row 内部已全段 try/except 永不抛）
+    from modules.fetch_parallel import fetch_many
+    _tasks = [(i, lambda i=i, code=codes[i]: _build_row(None, code, period_days))
+              for i in range(len(codes))]
+    _raw = fetch_many(_tasks, max_workers=min(len(codes), 4))
+    for i in range(len(codes)):
+        rows[i] = _raw.get(i)
     _fill_business_correlation(rows)
     return rows
 

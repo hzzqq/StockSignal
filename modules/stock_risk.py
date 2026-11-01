@@ -682,21 +682,26 @@ def scan_many(codes_with_names, max_workers: int = 4, progress=None) -> list:
     st_set = fetch_st_set()  # 市场级，只拉一次
     out = []
     done = 0
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futs = {ex.submit(scan_stock, code, name, st_set): code for code, name in items}
-        for fut in concurrent.futures.as_completed(futs):
+    # R-03：共享有界线程池 fetch_many（_safe 内部 catch → None；异常/超时重建 error dict 语义）
+    from modules.fetch_parallel import fetch_many
+    _tasks = [(idx, lambda c=code, n=name: scan_stock(c, n, st_set))
+              for idx, (code, name) in enumerate(items)]
+    _raw = fetch_many(_tasks, max_workers=max_workers)
+    for idx, (code, name) in enumerate(items):
+        result = _raw.get(idx)
+        done += 1
+        if result is not None:
+            out.append(result)
+        else:
+            # 等价旧 except Exception 分支：重建 error dict 保持输出结构一致
+            out.append({"code": code, "name": code, "components": {},
+                        "report": build_risk_report({}),
+                        "errors": ["fetch_many 超时或异常"]})
+        if callable(progress):
             try:
-                out.append(fut.result())
-            except Exception as e:  # noqa: BLE001
-                code = futs[fut]
-                out.append({"code": code, "name": code, "components": {},
-                            "report": build_risk_report({}), "errors": [str(e)]})
-            done += 1
-            if callable(progress):
-                try:
-                    progress(done, total)
-                except Exception:
-                    pass
+                progress(done, total)
+            except Exception:
+                pass
     out.sort(key=lambda r: (LEVEL_RANK.get(r["report"]["overall_level"], 0),
                             r["report"]["risk_score"]))
     return out
