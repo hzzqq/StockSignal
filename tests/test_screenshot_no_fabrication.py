@@ -24,6 +24,7 @@
   C. 公开文档里引用的图片必须真实存在，且引用的测试/页面规模数字必须与实际一致。
 """
 import ast
+import glob
 import os
 import re
 import sys
@@ -123,8 +124,20 @@ def test_backtest_shot_converts_timestamps_to_str():
 # ── B. visualizer 契约守卫 ──────────────────────────────────────────
 
 def _keys_read_by(func_name, dict_param):
-    """从 visualizer 函数体里抽出 ``<dict_param>.get("key", ...)`` 读取的键。"""
-    fn = _func(_tree(VISUALIZER), func_name)
+    """从 visualizer 函数体里抽出 ``<dict_param>.get("key", ...)`` 读取的键。
+
+    R-05 续（2026-11-02）：visualizer.py 已按职责拆为 visualizer_core/kline/charts/
+    curves/events 五个子模块，函数不再集中在单文件 —— 按 ``visualizer*.py`` 前缀
+    全量查找（主入口 visualizer.py 只有 re-export 与壳，不含函数体）。
+    """
+    fn = None
+    for path in sorted(glob.glob(os.path.join(ROOT, "modules", "visualizer*.py"))):
+        try:
+            fn = _func(_tree(path), func_name)
+            break
+        except AssertionError:
+            continue
+    assert fn is not None, f"未能在 modules/visualizer*.py 中找到函数 {func_name}"
     keys = set()
     for node in ast.walk(fn):
         if (isinstance(node, ast.Call)
