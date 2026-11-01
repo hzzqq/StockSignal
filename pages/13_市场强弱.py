@@ -30,7 +30,7 @@ from modules.page_widgets import (
 )
 from modules.page_guard import safe_fragment
 
-from modules.ui_kit import xc_success_box, xc_warn_box, xc_content_card
+from modules.ui_kit import xc_success_box, xc_warn_box, xc_content_card, xc_bento_kpi
 
 logger = logging.getLogger(__name__)
 
@@ -389,5 +389,48 @@ def fragment_strength():
                "帮你秒懂「现在市场强还是弱」。需要五维（资金/情绪/估值/宏观/技术）逐项拆解时再去那页。")
 
 
+# ── B 类页五段式：header → KPI 带（数据全部来自本页 _build_strength_df 既有缓存，不新拉数据）──
+# 诚实红线：宽表取不到（网络/代理受限）或字段缺失就少卡/整带不渲染，绝不编造。
+def _kpi_band():
+    """KPI 带：三大指数区间归一化偏离（起点=100，同 _strength_signal 口径）+ 融资余额最新值。"""
+    try:
+        df = _build_strength_df(days=180)
+        if df is None or df.empty:
+            return
+        cards = []
+        for key in _IDX_KEYS:
+            if key not in df.columns:
+                continue
+            s = to_numeric_clean(df[key]).dropna()
+            if len(s) < 2 or not s.iloc[0] or pd.isna(s.iloc[0]):
+                continue
+            dev = s.iloc[-1] / s.iloc[0] * 100.0 - 100.0
+            cards.append({
+                'label': _IDX_NAMES.get(key, key), 'value': f'{dev:+.1f}',
+                'meta': '区间归一化偏离（起点=100）',
+                'tone': 'up' if dev > 0 else ('down' if dev < 0 else 'flat'),
+            })
+        if '融资余额(亿)' in df.columns:
+            ms = to_numeric_clean(df['融资余额(亿)']).dropna()
+            if not ms.empty:
+                cards.append({'label': '融资余额', 'value': f'{ms.iloc[-1]:,.0f}亿',
+                              'meta': '最新值（全市场两融）'})
+        if cards:
+            xc_bento_kpi(cards, template="1fr 1fr 1fr 1fr")
+    except Exception:  # noqa: BLE001 — 取不到就整带不渲染，不臆造
+        return
+
+
+_kpi_band()
+
+
 # ───────────────────────── 页面主体 ─────────────────────────
 fragment_strength()
+
+# ── 方法学与来源注脚（B 类页五段式：收尾一段）──
+st.markdown("---")
+st.caption(
+    "口径与来源：三大指数/融资余额=公开日线与两融数据（东方财富等，modules/linear_trends + "
+    "modules/margin_trading，页面加载时点快照）；北向累计/大盘主力累计=同源公开数据。"
+    "强弱口径=区间归一化（起点=100）偏离，正=走强(红)/负=走弱(绿)。仅供参考，不构成投资建议。"
+)

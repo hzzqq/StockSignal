@@ -9,3 +9,11 @@
 from modules.portfolio_views import render_watchlist_monitor
 
 render_watchlist_monitor()
+
+# ── 方法学与来源注脚（B 类页五段式：收尾一段；页面主体由 modules.portfolio_views 渲染，页头无天然 KPI 带数据）──
+import streamlit as st
+st.markdown("---")
+st.caption(
+    "口径与来源：自选股实时行情=后端 API 并行拉取（东方财富/新浪，异常自动回退本地源）；"
+    "现价与涨跌幅为页面访问时点快照，A股红涨绿跌。仅供参考，不构成投资建议。"
+)

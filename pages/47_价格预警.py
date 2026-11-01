@@ -15,7 +15,7 @@ import time as _time
 from threading import Lock as _Lock
 from concurrent.futures import ThreadPoolExecutor
 import logging
-from modules.ui_kit import info_banner
+from modules.ui_kit import info_banner, xc_bento_kpi
 from modules.page_utils import fmt_rel as _fmt_rel, to_numeric_clean
 logger = logging.getLogger(__name__)
 from modules.page_utils import render_standard_page, get_fetcher
@@ -75,6 +75,25 @@ def validate_alert_condition(kind, value, value2=None):
 dark = render_standard_page(title='自选股多维预警', icon='🔔', caption='价格 / 技术形态 / 成交量异动 / 公告 四类预警；触发状态为页面访问时实时比价与扫描结果。')
 info_banner("数据仅供参考，不构成投资建议。预警在页面访问时于前端实时比价与扫描触发，保持本页打开并定期刷新可更快捕捉异动。", icon="🔔")
 st.caption('⚠️ 数据仅供参考，不构成投资建议')
+# ── B 类页五段式：header → KPI 带（数据 = 本页既有 /api/price-alerts 真实预警清单，不新拉数据）──
+# 诚实红线：接口非 200 / 异常时整带不渲染；计数全部来自真实清单，绝不编造。
+try:
+    _ba_sc, _ba_body = api_get('/api/price-alerts')
+    _ba_cards = []
+    if _ba_sc == 200 and isinstance(_ba_body, dict) and _ba_body.get('status') == 'ok':
+        _ba_list = _ba_body.get('data', []) or []
+        _ba_cards.append({'label': '预警总数', 'value': str(len(_ba_list)),
+                          'meta': '页面访问时实时检测'})
+        for _t, _lbl in (('price', '价格预警'), ('pattern', '技术形态预警'),
+                         ('volume', '成交量异动'), ('announcement', '公告预警')):
+            _ba_cards.append({'label': _lbl,
+                              'value': str(sum(1 for _a in _ba_list if _a.get('alert_type', 'price') == _t))})
+    if _ba_cards:
+        # 5 卡（总数+4 类型）走 xc_bento_kpi 默认自适应模板（G4 白名单预设），
+        # 窄屏自动折行，不锁死列数。
+        xc_bento_kpi(_ba_cards)
+except Exception:  # noqa: BLE001 — 后端不可达时整带不渲染，不臆造
+    pass
 with st.expander('💡 使用说明', expanded=False, key='alert_help_exp'):
     st.markdown('**四类预警怎么用？**\n- 💲 **价格预警**：设置目标价与「涨破/跌破」条件，页面访问时实时比价触发。\n- 📐 **技术形态预警**：选择形态后，页面扫描该股日线，命中即触发。\n- 📊 **成交量异动预警**：当日量比 ≥ 设定阈值时触发（放量信号）。\n- 📢 **公告预警**：近 20 条新闻/公告出现关键词时触发。\n\n**常见问题**\n- *触发是准实时的吗？* 触发在页面访问时于前端检测，保持本页打开并定期刷新可更快捕捉异动。\n- *为什么显示「待验证」？* 行情或日线数据不足时无法判定，稍后刷新重试。\n- *如何持续盯盘？* 关注右上角「🔔 市场异动」铃铛，并保持本页在浏览器中打开。')
 fetcher = get_fetcher()
@@ -449,3 +468,11 @@ if st.button('🧹 清空通知记录', key='alert_clear_notified', help='清除
 fragment_alerts()
 if st.button('↑ 回到顶部', key='alert_back_to_top'):
     sn.back_to_top_button()
+
+# ── 方法学与来源注脚（B 类页五段式：收尾一段）──
+st.markdown("---")
+st.caption(
+    "口径与来源：预警清单=后端 /api/price-alerts（账号级存储）；触发判定=页面访问时前端实时比价"
+    "（现价=新浪/东方财富实时行情）、日线形态与量比扫描（近30日日线，本地规则计算）、"
+    "公告关键词检索（东方财富近20条新闻）。触发为准实时检测，非后台持续盯盘。仅供参考，不构成投资建议。"
+)

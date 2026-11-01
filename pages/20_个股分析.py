@@ -10,3 +10,12 @@
 from modules.stock_research import render_stock_analysis
 
 render_stock_analysis()
+
+# ── 方法学与来源注脚（B 类页五段式：收尾一段；页面主体由 modules.stock_research 渲染，页头无天然 KPI 带数据）──
+import streamlit as st
+st.markdown("---")
+st.caption(
+    "口径与来源：决策仪表盘数据=实时行情（东方财富/新浪）+日线缓存+技术面本地计算；"
+    "五维雷达/作战计划=规则生成（modules/stock_research），非 AI 洞见。"
+    "所有结论仅供参考，不构成投资建议。"
+)

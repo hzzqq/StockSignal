@@ -15,7 +15,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-from modules.ui_kit import xc_handle_error, xc_content_card
+from modules.ui_kit import xc_bento_kpi, xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
 from modules.ui_theme import section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
@@ -65,19 +65,22 @@ try:
         f"（共 {rep['data']['rows']} 个交易日）；状态判定基于最新真值日 **{latest['date']}**。"
     )
 
-    # ── 当前状态卡 ──
-    st.markdown(
-        f"""
-        <div style="border-left:6px solid {sc};background:{_hex_to_rgba(sc, 0.12)};
-        border-radius:10px;padding:14px 18px;margin-bottom:10px">
-          <div style="font-size:13px;opacity:.7">最新市场状态</div>
-          <div style="font-size:30px;font-weight:800;color:{sc}">{latest['state']}</div>
-          <div style="font-size:12px;opacity:.75">状态置信度 {latest['confidence']*100:.0f}%
-          · 红盘率 {latest['metrics']['red_ratio']}% · 涨停 {latest['metrics']['limit_up']} · 跌停 {latest['metrics']['limit_down']}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    # ── 当前状态 KPI 带（B 类页五段式：原自绘状态卡换 xc_bento_kpi 骨架——同数据换骨架不换布局）──
+    _rr = latest['metrics'].get('red_ratio')
+    _rr_tone = 'flat'
+    try:
+        _rrv = float(_rr)
+        _rr_tone = 'up' if _rrv > 50 else ('down' if _rrv < 50 else 'flat')
+    except (TypeError, ValueError):
+        pass
+    xc_bento_kpi([
+        {'label': '最新市场状态', 'value': str(latest['state']), 'accent': sc,
+         'meta': f"状态置信度 {latest['confidence']*100:.0f}%"},
+        {'label': '红盘率', 'value': f"{_rr}%", 'tone': _rr_tone,
+         'meta': f"真值日 {latest['date']}"},
+        {'label': '涨停家数', 'value': str(latest['metrics'].get('limit_up', '—')), 'tone': 'up'},
+        {'label': '跌停家数', 'value': str(latest['metrics'].get('limit_down', '—')), 'tone': 'down'},
+    ], template="1fr 1fr 1fr 1fr")
 
     # ── 状态分布 + 转移矩阵 ──
     c1, c2 = st.columns([1, 1.4])
@@ -150,6 +153,14 @@ try:
         "（无前视泄漏），用欧氏距离在 z-score 标准化后的 [红盘率, 涨停, 跌停] 向量上检索最近邻。"
         "所有结论基于已修复的 4771 天广度真值，未使用任何缺失字段（zt_fail_ratio/zt_prev_ret 在历史上多为 NaN，已弃用）。",
         icon="📐",
+    )
+
+    # ── 方法学与来源注脚（B 类页五段式：收尾一段）──
+    st.markdown("---")
+    st.caption(
+        "口径与来源：市场状态五档=规则可解释分类（modules/market_regime，阈值由全样本分位定）；"
+        "广度真值=本地历史快照（data/shepherd_history.json，4771 个交易日，离线零网）；"
+        "历史情境类比=欧氏距离最近邻回看（仅回看过去，无前视泄漏）。历史相似≠预测，非投资建议。"
     )
 
 except Exception as e:  # noqa: BLE001

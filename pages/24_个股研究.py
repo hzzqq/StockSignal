@@ -105,3 +105,11 @@ _view = st.radio(
 st.caption(f"📍 当前：个股研究 › **{_view}**")
 st.divider()
 _run_subpage(_SUBPAGES[_view])
+
+# ── 方法学与来源注脚（B 类页五段式：收尾一段；本页为合并壳，主体由子视图渲染，页头无天然 KPI 带数据）──
+st.markdown("---")
+st.caption(
+    "口径与来源：K线=daily_cache 日线缓存（东方财富/新浪公开日线）；现价=后端 analysis 任务实时行情缓存；"
+    "技术面/打分/五维雷达=本地规则计算（modules/technical、modules/stock_research），"
+    "数据源溯源见页内「研究数据来源」徽标。所有指标仅供参考，不构成投资建议。"
+)

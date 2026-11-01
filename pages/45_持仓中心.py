@@ -92,7 +92,13 @@ if st.session_state['hub_recent_viewed']:
 st.divider()
 with st.spinner(f'正在加载「{_view}」...'):
     _run_subpage(_SUBPAGES[_view])
-st.caption('数据来源：东方财富 / 新浪财经。')
+# ── 方法学与来源注脚（B 类页五段式：收尾一段；本页为合并壳，主体由子视图渲染，页头无天然 KPI 带数据）──
+st.markdown('---')
+st.caption(
+    '口径与来源：自选池=自选股实时行情（东方财富/新浪，异常自动回退本地源）；'
+    '持仓=本地导入/手工记录（模拟数据）；收益归因=持仓按日线加权估值（modules/portfolio + '
+    'StockFetcher.get_daily），基准=沪深300公开日线。均为模拟或历史数据，仅供学习，不构成投资建议。'
+)
 st.divider()
 if st.button('↑ 回到顶部', key='hub_top', width="stretch"):
     st.session_state['_hub_scroll_top'] = True
