@@ -150,12 +150,12 @@ def _watchlist_avg_normalized(codes, start, end, days):
     最多 15 只股票的日线取数走共享线程池并发（原逐只串行，15×1~3s 可达 45s，
     自选股多的用户首屏几乎必然超时）。单只失败/超时 -> None，直接跳过。
     """
-    from modules.fetcher import StockFetcher
+    from modules.page_utils import get_fetcher
     from modules.fetch_parallel import fetch_many
     try:
         if not codes:
             return None
-        f = StockFetcher()
+        f = get_fetcher()
         s, e = start, end
         if s is None or e is None:
             import datetime

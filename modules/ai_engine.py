@@ -21,7 +21,8 @@ import pandas as pd
 from typing import Any, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from modules.fetcher import StockFetcher
+from modules.fetcher import StockFetcher  # noqa: F401  # 兼容可能的外部引用（实际本地无类型注解用）
+from modules.page_utils import get_fetcher
 from modules.analysis_engine import run_analysis
 from modules import llm_client
 from modules import knowledge_base
@@ -110,7 +111,7 @@ def _extract_codes_or_names(question: str) -> List[str]:
 
 def _resolve_stock(query: str) -> Optional[Dict[str, str]]:
     """把代码/名称/拼音解析成标准代码 + 名称。"""
-    fetcher = StockFetcher()
+    fetcher = get_fetcher()
     # 先尝试直接作为 6 位代码
     clean = str(query).strip().zfill(6)
     if len(clean) == 6 and clean.isdigit():
@@ -223,7 +224,7 @@ def _quick_answer(question: str) -> Optional[str]:
 
 def _raw_independent_analysis(code: str) -> Dict[str, Any]:
     """独立拉取数据并运行分析（无缓存原始版）。"""
-    fetcher = StockFetcher()
+    fetcher = get_fetcher()
     result = run_analysis(code, fetcher=fetcher)
     # 精简：后台返回时不需要完整 DataFrame，只留关键指标
     slim = {k: v for k, v in result.items() if k != "df"}

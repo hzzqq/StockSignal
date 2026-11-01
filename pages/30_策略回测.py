@@ -23,7 +23,7 @@ from modules.backtest import Backtester
 # Visualizer + 其常量全部延迟导入（节省 ~0.95s plotly+matplotlib 链）
 # SF_* / UP_COLOR / DOWN_COLOR / _is_dark 均在函数内按需导入
 from modules.search_ui import stock_search_input
-from modules.fetcher import StockFetcher
+from modules.page_utils import get_fetcher
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _empty_info
 # P0 可插拔：策略列表从注册表动态读取（新增策略无需改页面）
@@ -137,7 +137,7 @@ def fragment_manual_backtest():
                 default="601088",
                 placeholder="输入代码或名称搜索，如：601088 / 中国神华 / 煤炭",
             )
-            bt_fetcher = StockFetcher()
+            bt_fetcher = get_fetcher()
             bt_label = bt_fetcher.get_name_only(bt_ticker) or bt_fetcher.get_stock_name(bt_ticker)
         with col2:
             _strategies = list_strategies()

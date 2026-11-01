@@ -5,8 +5,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 import concurrent.futures
 from modules.session import safe_switch_page, api_get
-from modules.fetcher import StockFetcher
-fetcher = StockFetcher()
+from modules.page_utils import get_fetcher
+fetcher = get_fetcher()
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 from modules.fundflow import get_individual_fund_flow
@@ -186,7 +186,7 @@ def scan_one(code: str, name):
         today = datetime.now()
         start = (today - timedelta(days=180)).strftime("%Y-%m-%d")
         end = today.strftime("%Y-%m-%d")
-        fetcher = StockFetcher()
+        fetcher = get_fetcher()
         df = fetcher.get_daily(code, start=start, end=end)
         if df is None or (hasattr(df, "empty") and df.empty):
             entry["error"] = "无行情数据"
@@ -212,7 +212,7 @@ def scan_one(code: str, name):
     # 估值（PE 来自 fetcher；PB/股息率 best-effort 补充）
     pe = pb = dv = None
     try:
-        fd = StockFetcher().get_fundamentals(code)
+        fd = get_fetcher().get_fundamentals(code)
         if isinstance(fd, dict):
             pe = fd.get("pe_ttm")
             entry["pe"] = pe

@@ -122,18 +122,20 @@ class _FakeFetcher:
 
 
 def test_resolve_stock_by_code(monkeypatch):
-    monkeypatch.setattr(ai_engine, "StockFetcher", lambda: _FakeFetcher())
+    # R-05：ai_engine 已从 StockFetcher() 直接实例化改为 get_fetcher() 单例
+    # 同步 mock get_fetcher 而非 StockFetcher
+    monkeypatch.setattr(ai_engine, "get_fetcher", lambda: _FakeFetcher())
     r = ai_engine._resolve_stock("600519")
     assert r == {"code": "600519", "name": "贵州茅台"}
 
 
 def test_resolve_stock_by_name(monkeypatch):
-    monkeypatch.setattr(ai_engine, "StockFetcher", lambda: _FakeFetcher())
+    monkeypatch.setattr(ai_engine, "get_fetcher", lambda: _FakeFetcher())
     r = ai_engine._resolve_stock("茅台")
     assert r == {"code": "600519", "name": "贵州茅台"}
 
 
 def test_resolve_stock_unknown_returns_none(monkeypatch):
-    monkeypatch.setattr(ai_engine, "StockFetcher", lambda: _FakeFetcher())
+    monkeypatch.setattr(ai_engine, "get_fetcher", lambda: _FakeFetcher())
     # 既非代码也搜不到 → None
     assert ai_engine._resolve_stock("不存在的标的xyz") is None

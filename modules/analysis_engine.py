@@ -16,6 +16,7 @@ import pandas as pd
 
 from modules.time_utils import now_cst
 from modules.fetcher import StockFetcher
+from modules.page_utils import get_fetcher
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
@@ -276,7 +277,7 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
             return _hit[1]
 
     if fetcher is None:
-        fetcher = StockFetcher()
+        fetcher = get_fetcher()
 
     messages: List[str] = []
     ticker = str(ticker).strip().zfill(6)

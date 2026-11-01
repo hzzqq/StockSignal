@@ -16,12 +16,10 @@ import json
 import os
 from datetime import datetime
 import streamlit.components.v1 as components
-from modules.page_utils import render_standard_page
-from modules.page_utils import fmt_rel as _fmt_rel
+from modules.page_utils import render_standard_page, fmt_rel as _fmt_rel, get_fetcher
 from modules.ui_theme import sf_metric
 import modules.scroll_nav as sn
 from modules.session import get_user, trading_autorefresh
-from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, safe_fragment
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast, UP, DOWN
@@ -30,7 +28,7 @@ dark = render_standard_page(title='模拟交易组合', icon='🎮', caption='�
 
 st.caption('⚠️ 模拟交易，仅供学习，不构成任何投资建议。')
 
-FETCHER = StockFetcher()
+FETCHER = get_fetcher()
 INIT_CASH = 1000000.0
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 os.makedirs(DATA_DIR, exist_ok=True)

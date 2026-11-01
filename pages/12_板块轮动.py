@@ -16,11 +16,10 @@ import plotly.graph_objects as go
 import numpy as np
 from datetime import datetime
 
-from modules.page_utils import render_standard_page
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_metric
 from modules.session import trading_autorefresh, safe_switch_page
 from modules.fundflow import get_industry_fund_flow
-from modules.fetcher import StockFetcher
 from modules.page_guard import safe_section, safe_fragment, render_data_degradation_banner
 from modules.page_widgets import _empty_info, UP, DOWN
 
@@ -30,7 +29,7 @@ dark = render_standard_page(
     caption="红涨绿跌；热力图块大小代表资金净流入，颜色代表涨跌幅。各视图独立取数。",
 )
 
-FETCHER = StockFetcher()
+FETCHER = get_fetcher()
 
 
 @st.cache_data(ttl=300, show_spinner=False)

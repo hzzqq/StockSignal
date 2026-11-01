@@ -15,10 +15,9 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 
-from modules.page_utils import render_standard_page
+from modules.page_utils import render_standard_page, get_fetcher
 from modules.ui_theme import sf_metric
 from modules.session import api_get, get_user_setting, save_user_setting
-from modules.fetcher import StockFetcher
 from modules.stock_screener import StockScreener, STRATEGY_NAMES_CN, ALL_STRATEGIES, DEFAULT_PARAMS
 from modules.page_widgets import _empty_info
 
@@ -66,7 +65,7 @@ button[data-testid="stBaseButton-primary"]:hover {
 </style>
 """, unsafe_allow_html=True)
 
-fetcher = StockFetcher()
+fetcher = get_fetcher()
 screener = StockScreener()
 
 # ───────────────────────── 股票池来源 ─────────────────────────
