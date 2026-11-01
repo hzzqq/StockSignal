@@ -1011,133 +1011,13 @@ def _sidebar_nav_css(dark: bool) -> str:
 
 
 def render_sidebar_nav() -> None:
-    """在侧边栏顶部渲染自定义分组导航，并隐藏 Streamlit 原生平铺页面列表。
+    """【已退役】T-195：侧栏主导航 2026 年由顶栏 mega 面板取代。
 
-    仅注入视觉/导航，不改任何业务逻辑；所有 page_link 指向真实页面文件，
-    导航后由 init_session_state()/_sync_query_params() 自动补回登录态。
-
-    ⚠️ 无论是否嵌入都渲染（不再因 _embed_active 跳过），确保侧边栏导航常驻。
+    函数体保留占位（仅日志），避免模块 API 签名变更影响潜在外部调用。
+    如需回滚（极罕见），完整历史见 git log 2026-10-30 之前版本。
     """
-    from modules.ui_theme import _theme_is_dark
-    _dark = _theme_is_dark()
-    st.markdown(_sidebar_nav_css(_dark), unsafe_allow_html=True)
-    # T-194：3 列画廊胶囊紧凑化——防长标签截断破相（属性选择器值免引号）
-    _pill_css = ('<style>'
-                 'section[data-testid=stSidebar] [data-testid=stPageLink-NavLink]{'
-                 'font-size:.8rem!important;padding:3px 4px!important;white-space:nowrap;'
-                 'overflow:hidden;text-overflow:ellipsis;display:block;max-width:100%}'
-                 'section[data-testid=stSidebar] [data-testid=stPageLink]{min-width:0!important}'
-                 '</style>')
-    st.markdown(_pill_css, unsafe_allow_html=True)
+    logger.info("[widgets] render_sidebar_nav 已退役（顶栏 mega 面板为唯一主导航）")
 
-    _cur_base = _current_page_basename()
-
-    def _nav_link(path: str, label: str, icon: str, sub: bool = False) -> None:
-        """渲染单个导航项；page_link 在无浏览器 URL 上下文（如 AppTest headless）
-        会抛 KeyError('url_pathname')，降级为按钮，避免整页崩溃。当前页高亮。
-
-        sub 仅作为数据层级的语义标记（供 _current_nav_label / 测试识别父子关系），
-        渲染与常规项完全一致：均走 st.page_link 原生同标签页跳转，绝不弹新窗口、不破坏排版。
-        """
-        try:
-            is_active = bool(_cur_base) and _cur_base == path.replace('\\', '/').split('/')[-1]
-        except Exception:
-            is_active = False
-        if is_active:
-            st.markdown(f'<div class="ss-nav-active">▶ {icon} {label}</div>', unsafe_allow_html=True)
-            return
-        try:
-            st.page_link(path, label=label, icon=icon)
-        except Exception as e:
-            logger.warning(f"[widgets] 处理异常: {e}")
-            if st.button(f'{icon} {label}', key=f'navbtn_{label}', width="stretch"):
-                safe_switch_page(path)
-    try:
-        with st.sidebar:
-            st.markdown('### 🧭 导航')
-            # 版本指纹：用户刷新后能立即看到 SHA 变化，确认新代码已加载（避免『页面没变』误判）
-            st.caption(f'🏷️ v{_GIT_SHA}  ·  Ctrl+Shift+R 强刷看新效果')
-            # 🏠 首页常驻置顶：应用第一落点，任何页面都能一键回首页（原先埋在侧边栏最底部，等于不可见）
-            _home_active = bool(_cur_base) and _cur_base == 'app.py'
-            if _home_active:
-                st.markdown('<div class="ss-nav-active">▶ 🏠 首页</div>', unsafe_allow_html=True)
-            else:
-                try:
-                    st.page_link('app.py', label='🏠 首页', icon='🏠')
-                except Exception as e:
-                    logger.warning(f"[widgets] 处理异常: {e}")
-                    if st.button('🏠 首页', key='navbtn_home', width="stretch"):
-                        safe_switch_page('app.py')
-            # 搜索框实验：实时过滤分组；空关键字=显示全部；忽略大小写、子串匹配 label/path
-            _kw = st.text_input(
-                '🔍 命令面板',
-                key='_nav_filter',
-                placeholder='⌘K / Ctrl+K 聚焦 · 行情/选股/持仓/回测…',
-                label_visibility='visible',
-            ).strip().lower()
-            # 决策中枢 Hero：项目差异化主线（决策闭环 + 刻度校准），常驻顶部高亮入口，高于普通分组
-            with st.container(border=True):
-                st.caption('🎯 决策中枢')
-                for _h_path, _h_label, _h_icon in _NAV_HERO:
-                    _h_active = bool(_cur_base) and _cur_base == _h_path.replace('\\', '/').split('/')[-1]
-                    if _h_active:
-                        st.markdown(f'<div class="ss-nav-active">▶ {_h_icon} {_h_label}</div>', unsafe_allow_html=True)
-                    else:
-                        try:
-                            st.page_link(_h_path, label=f"{_h_icon} {_h_label}", icon=_h_icon, width="stretch")
-                        except Exception as e:
-                            logger.warning(f"[widgets] 处理异常: {e}")
-                            if st.button(f"{_h_icon} {_h_label}", key=f"hero_{_h_label}", width="stretch"):
-                                safe_switch_page(_h_path)
-            _cur_label = _current_nav_label(_cur_base)
-            if _cur_label:
-                st.caption(f'📍 当前位置：**{_cur_label}**')
-            # ⭐ 常用（高频直达区）：基于真实访问频率动态 Top5，无历史时回落静态兜底
-            st.caption('⭐ 常用')
-            for _f_path, _f_label, _f_icon in load_nav_favorites():
-                _nav_link(_f_path, _f_label, _f_icon)
-            if _kw:
-                # 搜索态：跨类目扁平直达（命令面板式）
-                for gname, items in _filter_nav_groups(_NAV_GROUPS, _kw):
-                    st.caption(gname)
-                    for _it in items:
-                        _nav_link(_it[0], _it[1], _it[2], sub=(len(_it) > 3 and _it[3] == 'sub'))
-            else:
-                # T-193 画廊式导航：类目 = 紧凑标题行，组内页面双列胶囊排列（纵向长度大幅压缩，
-                # 参考力扣顶部横向分类的密度思路）；搜索态仍走扁平直达，决策中枢/常用区不变
-                for top_label, clusters in _NAV_GROUPS:
-                    st.caption(f'▍{top_label}')
-                    _flat = [_it for _sub, _items in clusters for _it in _items]
-                    for _ci in range(0, len(_flat), 3):
-                        _pair = _flat[_ci:_ci + 3]
-                        _cols = st.columns(3)
-                        for _col, _it in zip(_cols, _pair):
-                            with _col:
-                                _nav_link(_it[0], _it[1], _it[2], sub=(len(_it) > 3 and _it[3] == 'sub'))
-            st.caption('👤 账户中心')
-            _nav_link('pages/91_我的.py', '个人中心', '👤')
-            _nav_link('pages/96_新手教程.py', '新手教程', '📘')
-            if is_admin():
-                for path, label, icon in _NAV_ADMIN:
-                    _nav_link(path, label, icon)
-            _recents = get_recent_stocks()
-            if _recents:
-                st.caption('🕘 最近浏览')
-                for _r in _recents[:5]:
-                    _rc = _r.get('code', '')
-                    _rn = _r.get('name', '')
-                    if not _rc:
-                        continue
-                    if st.button(f'{_rn} {_rc}', key=f'sb_recent_{_rc}', width="stretch"):
-                        try:
-                            st.query_params['pick_stock'] = _rc
-                        except Exception as e:
-                            logger.warning(f"[widgets] 处理异常: {e}")
-                            pass
-                        safe_switch_page('pages/20_个股分析.py')
-    except Exception as e:
-        with st.sidebar:
-            xc_handle_error("导航渲染失败", e, hint="请稍后重试")
 
 @st.cache_data(ttl=30, show_spinner=False)
 def _cached_watchlist_count(token: str) -> int:

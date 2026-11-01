@@ -306,17 +306,26 @@ def test_nav_active_css_obvious_and_theme_aware():
 
 
 def test_home_entry_pinned_above_groups():
-    """🏠 首页入口必须置顶（先于分组导航渲染）。
+    """🏠 首页入口必须置顶（主导航首项）。
 
     回归锁定：首页链接原先写在侧边栏**最底部**，等于不可见，用户进任一分页后
     找不到回首页的路（原生 stSidebarNav 已被 display:none 隐藏）。
+    T-195 后主导航迁顶栏 mega 面板（top_nav.render_topnav），sidebar render_sidebar_nav
+    已退役（函数体保留空壳）。本测试同时锁定：① 退役函数不会被误恢复 ② 顶栏首页入口存在。
     """
-    _src_path = os.path.join(
+    # ① render_sidebar_nav 已退役（锁定 2026-10-30 T-195 退役事实，防误恢复）
+    _wb_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'modules', 'widgets.py'
     )
-    with open(_src_path, encoding='utf-8') as _f:
-        _src = _f.read()
-    assert _src.count("label='🏠 首页'") == 1, "首页入口应恰好出现一次（不得重复登记）"
-    assert _src.index("label='🏠 首页'") < _src.index(
-        "for top_label, clusters in _NAV_GROUPS"
-    ), "首页入口必须渲染在分组导航之前（置顶）"
+    with open(_wb_path, encoding='utf-8') as _f:
+        _wb_src = _f.read()
+    assert '【已退役】T-195' in _wb_src, "render_sidebar_nav 应标记已退役"
+    assert "label='🏠 首页'" not in _wb_src, "退役函数体不应残留首页入口"
+
+    # ② 顶栏主导航 top_nav.py 的首页入口必须存在且置顶（锁定迁移后的新真相）
+    _tn_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'modules', 'top_nav.py'
+    )
+    with open(_tn_path, encoding='utf-8') as _f:
+        _tn_src = _f.read()
+    assert 'svg_icon("home"' in _tn_src and '首页' in _tn_src, "顶栏应有首页入口"
