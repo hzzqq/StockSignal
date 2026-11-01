@@ -3,6 +3,7 @@
 用法：
     python -m scripts.run_shepherd_reconstruct
     python -m scripts.run_shepherd_reconstruct --start 2007-01-01 --workers 10
+    python -m scripts.run_shepherd_reconstruct --dry-run
 
 结果写入 data/shepherd_history.csv（utf-8-sig），供报告脚本与页面读取。
 支持断点续跑：每只股票聚合结果已缓存在 data/shepherd_cache/，重跑只会补拉缺失标的。
@@ -29,6 +30,8 @@ def main():
     parser.add_argument("--force", action="store_true",
                         help="跳过防覆盖护栏：仅在联网机器重跑补全时、且已手动备份好表后使用；"
                              "会先把现有好表备份为 shepherd_history.csv.bak-before-rerun 再覆盖")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="只算不写：完成聚合后打印统计，跳过落盘（数据红线）")
     args = parser.parse_args()
 
     t0 = time.time()
@@ -38,9 +41,20 @@ def main():
         reconstruct=not args.no_reconstruct,
         refresh_days=args.refresh_days,
     )
-    path = save_history(df, force=args.force)
     elapsed = time.time() - t0
 
+    if args.dry_run:
+        logging.info("[run_shepherd_reconstruct] DRY-RUN 模式：%d 行已聚合，跳过落盘（耗时 %.1fs）",
+                     len(df), elapsed)
+        if not df.empty:
+            logging.info("[run_shepherd_reconstruct] 区间 %s ~ %s",
+                         df["date"].min(), df["date"].max())
+            logging.info("[run_shepherd_reconstruct] 末日快照: %s",
+                         df.iloc[-1][["up_count", "down_count", "limit_up", "limit_down", "red_ratio",
+                                      "connect_hl", "zt_fail_ratio", "zt_prev_ret"]].to_dict())
+        return
+
+    path = save_history(df, force=args.force)
     logging.info("[run_shepherd_reconstruct] 完成：%d 行 -> %s，耗时 %.1fs", len(df), path, elapsed)
     if not df.empty:
         logging.info("[run_shepherd_reconstruct] 区间 %s ~ %s",

@@ -241,6 +241,7 @@ def _loc(files: list[dict], key: str, with_name: bool = False) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description="P0-4 UI 审计基线（AST 级）")
     ap.add_argument("--out", default=str(OUT_DEFAULT), help="输出 JSON 路径")
+    ap.add_argument("--dry-run", action="store_true", help="只算不写：完成审计+打印摘要但跳过快照落盘")
     args = ap.parse_args()
 
     files = [analyze_file(p, str(p.relative_to(ROOT))) for p in iter_repo_py()]
@@ -369,10 +370,13 @@ def main() -> int:
     }
 
     out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    if args.dry_run:
+        print(f"[ui_audit] DRY-RUN：JSON 已组装（{len(json.dumps(report, ensure_ascii=False)):,} 字节），跳过写入 {out_path}")
+    else:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     # ---------- 控制台摘要 ----------
     try:

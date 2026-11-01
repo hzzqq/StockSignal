@@ -7,7 +7,12 @@
 不触发网络（直接读 data/cache.db 缓存表）；
 不依赖 Streamlit 登录/路由（绕开 headless 浏览器无法模拟 sidebar 的限制）。
 这些图 = 真实数据 + 真实 visualizer 代码，**与页面渲染等价**。
+
+用法：
+    python scripts/gen_screenshots.py                  # 生成 6 张截图
+    python scripts/gen_screenshots.py --dry-run        # 只算不写（构图+渲染但跳过 write_image）
 """
+import argparse
 import io
 import json
 import os
@@ -26,7 +31,6 @@ from modules.visualizer import Visualizer  # noqa: E402
 from modules.colors import UP_COLOR, DOWN_COLOR  # noqa: E402
 
 OUT_DIR = os.path.join(ROOT, "screenshots")
-os.makedirs(OUT_DIR, exist_ok=True)
 CACHE_DB = os.path.join(ROOT, "data", "cache.db")
 
 
@@ -87,15 +91,19 @@ def _read_index_from_cache(sym: str) -> pd.DataFrame:
     return df.sort_values("date").reset_index(drop=True)
 
 
-def _export(fig, name: str, width: int = 1400, height: int = 800) -> str:
+def _export(fig, name: str, dry_run: bool = False, width: int = 1400, height: int = 800) -> str:
     path = os.path.join(OUT_DIR, name)
     fig.update_layout(width=width, height=height, margin=dict(l=50, r=30, t=50, b=40))
+    if dry_run:
+        print(f"  [dry] {name}（已构图 {len(fig.data)} traces，跳过 write_image）")
+        return path
+    os.makedirs(OUT_DIR, exist_ok=True)
     fig.write_image(path, engine="kaleido")
     print(f"  ✓ {name} ({os.path.getsize(path) // 1024} KB)")
     return path
 
 
-def shot_kline_light():
+def shot_kline_light(dry_run: bool = False):
     """1. 行情看板 K 线（亮色主题，600519）"""
     print("[1/6] K 线 (亮色)")
     df = _read_kline_from_cache("600519")
@@ -105,10 +113,10 @@ def shot_kline_light():
     vz = Visualizer()
     fig = vz.candlestick(df, title="600519 贵州茅台 · 日K · 前复权",
                           show_volume=True, ma_windows=(5, 10, 20, 60))
-    _export(fig, "01-kline-light.png")
+    _export(fig, "01-kline-light.png", dry_run=dry_run)
 
 
-def shot_kline_dark():
+def shot_kline_dark(dry_run: bool = False):
     """2. 行情看板 K 线（暗夜主题，板块指数 000300）"""
     print("[2/6] K 线 (暗夜)")
     df = _read_index_from_cache("000300")
@@ -120,14 +128,15 @@ def shot_kline_dark():
     vz = Visualizer()
     fig = vz.candlestick(df, title="沪深300 · 日K · 暗夜主题",
                           show_volume=True, ma_windows=(5, 10, 20, 60))
-    # 暗夜主题：先写图，再覆写
-    path = _export(fig, "02-kline-dark.png")
+    path = _export(fig, "02-kline-dark.png", dry_run=dry_run)
+    if dry_run:
+        return
     fig.update_layout(template="plotly_dark", paper_bgcolor="#0f0f23", plot_bgcolor="#0f0f23")
     fig.write_image(path)
     print(f"  ✓ 02-kline-dark.png ({os.path.getsize(path) // 1024} KB) [dark applied]")
 
 
-def shot_sector_heatmap():
+def shot_sector_heatmap(dry_run: bool = False):
     """3. 板块涨跌热力图"""
     print("[3/6] 板块热力")
     df = _read_sector_from_cache()
@@ -136,10 +145,10 @@ def shot_sector_heatmap():
         return
     vz = Visualizer()
     fig = vz.sector_heatmap(df, title="行业板块涨跌幅 · 实时热力图")
-    _export(fig, "03-sector-heatmap.png")
+    _export(fig, "03-sector-heatmap.png", dry_run=dry_run)
 
 
-def shot_multi_stock_compare():
+def shot_multi_stock_compare(dry_run: bool = False):
     """4. 多股对比：5 只蓝筹归一化收益曲线（直接 plotly Scatter，绕开 correlation_matrix 与 kaleido 525 冲突）"""
     print("[4/6] 多股对比")
     import plotly.graph_objects as go
@@ -163,10 +172,10 @@ def shot_multi_stock_compare():
                       template="plotly_white", hovermode="x unified",
                       width=1400, height=700, margin=dict(l=50, r=30, t=60, b=40),
                       legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-    _export(fig, "04-multi-stock-compare.png")
+    _export(fig, "04-multi-stock-compare.png", dry_run=dry_run)
 
 
-def shot_backtest_curve():
+def shot_backtest_curve(dry_run: bool = False):
     """5. 回测净值曲线：成本模型 A/B 对照（真实数据 + 真实撮合）
 
     历史缺陷（已修，勿回退）：本函数曾用随机数发生器合成一条"策略跑赢基准、
@@ -217,11 +226,11 @@ def shot_backtest_curve():
         template="plotly_white", hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02,
                     xanchor="right", x=1))
-    _export(fig, "05-backtest-curve.png")
+    _export(fig, "05-backtest-curve.png", dry_run=dry_run)
 
 
 
-def shot_signal_radar():
+def shot_signal_radar(dry_run: bool = False):
     """6. 信号评分雷达图：价格 / 事件 / 宏观（真实 600519 缓存 K 线）
 
     历史缺陷（已修，勿回退）：本函数原先传的是 {"趋势","动量","量能","形态"}，
@@ -260,16 +269,28 @@ def shot_signal_radar():
 
     vz = Visualizer()
     fig = vz.signal_radar(scores, title="600519 信号评分雷达图（价格 / 事件 / 宏观）")
-    _export(fig, "06-signal-radar.png")
+    _export(fig, "06-signal-radar.png", dry_run=dry_run)
 
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="README 截图生成（#R98）")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="只算不写：构图+渲染但跳过 write_image（kaleido 最耗时步）")
+    args = ap.parse_args()
+
+    print(f"=== README 截图生成 · {datetime.now():%Y-%m-%d %H:%M} ===")
+    if args.dry_run:
+        print("[dry-run] 模式：构图+渲染但跳过 write_image")
+    shot_kline_light(dry_run=args.dry_run)
+    shot_kline_dark(dry_run=args.dry_run)
+    shot_sector_heatmap(dry_run=args.dry_run)
+    shot_multi_stock_compare(dry_run=args.dry_run)
+    shot_backtest_curve(dry_run=args.dry_run)
+    shot_signal_radar(dry_run=args.dry_run)
+    print("=== 完成 ===")
+    return 0
 
 
 if __name__ == "__main__":
-    print(f"=== README 截图生成 · {datetime.now():%Y-%m-%d %H:%M} ===")
-    shot_kline_light()
-    shot_kline_dark()
-    shot_sector_heatmap()
-    shot_multi_stock_compare()
-    shot_backtest_curve()
-    shot_signal_radar()
-    print("=== 完成 ===")
+    raise SystemExit(main())

@@ -155,6 +155,7 @@ def main() -> int:
     ap.add_argument("--csv", default=CSV_PATH, help="广度历史 CSV（默认 data/shepherd_history.csv）")
     ap.add_argument("--out", default=OUT_DEFAULT, help="输出 PNG 路径")
     ap.add_argument("--dark", action="store_true", help="暗色主题")
+    ap.add_argument("--dry-run", action="store_true", help="只算不写：读取 CSV+构建 fig 但跳过 write_image")
     args = ap.parse_args()
 
     if not os.path.exists(args.csv):
@@ -168,9 +169,12 @@ def main() -> int:
         print("[skip] 有效年度不足 2 个，跳过出图")
         return 0
 
-    os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    fig.write_image(args.out, scale=2)
-    print(f"[png] 已写出 {os.path.relpath(args.out, ROOT)}（{os.path.getsize(args.out)} B）")
+    if args.dry_run:
+        print(f"[fig] DRY-RUN：图表已构建（{len(fig.data)} traces），跳过写入 {args.out}")
+    else:
+        os.makedirs(os.path.dirname(args.out), exist_ok=True)
+        fig.write_image(args.out, scale=2)
+        print(f"[png] 已写出 {os.path.relpath(args.out, ROOT)}（{os.path.getsize(args.out)} B）")
     return 0
 
 

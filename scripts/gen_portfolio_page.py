@@ -636,6 +636,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="生成 StockSignal 作品集主页（单文件 HTML）")
     ap.add_argument("--fast", action="store_true", help="跳过 pytest 收集（用 AST 计数，秒出）")
     ap.add_argument("--out", default=OUT, help=f"输出路径（默认 {os.path.relpath(OUT, ROOT)}）")
+    ap.add_argument("--dry-run", action="store_true", help="只算不写：采集指标+渲染 HTML 但跳过写盘")
     args = ap.parse_args()
 
     fast = args.fast
@@ -644,12 +645,15 @@ def main() -> int:
         print("[warn] pytest 收集失败，退回 AST 计数")
     html = render(stats)
     out = args.out if os.path.isabs(args.out) else os.path.join(ROOT, args.out)
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    with open(out, "w", encoding="utf-8") as f:
-        f.write(html)
 
-    size = os.path.getsize(out) / 1024 / 1024
-    print(f"[portfolio] 已生成 {os.path.relpath(out, ROOT)}  （{size:.2f} MB，单文件自包含）")
+    if args.dry_run:
+        print(f"[portfolio] DRY-RUN：HTML 已渲染（{len(html):,} 字节），跳过写入 {os.path.relpath(out, ROOT)}")
+    else:
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(html)
+        size = os.path.getsize(out) / 1024 / 1024
+        print(f"[portfolio] 已生成 {os.path.relpath(out, ROOT)}  （{size:.2f} MB，单文件自包含）")
     print(f"[portfolio] 页面 {stats['pages']} · 端点 {stats['routes']} · 源码 {stats['src_loc']:,} 行 · "
           f"测试 {stats['tests']:,}{'' if stats['tests_exact'] else '(AST)'} · 护栏文件 {stats['guards']}")
     print(f"[portfolio] 广度 {stats['breadth_days']:,} 交易日 · 标的 {stats['stocks']:,} · "
