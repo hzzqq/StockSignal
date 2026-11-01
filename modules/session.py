@@ -27,6 +27,7 @@ from __future__ import annotations
 import os
 import logging
 
+from modules.site_config import API_BASE
 from modules.ui_kit import xc_success_box, xc_warn_box, info_banner
 logger = logging.getLogger(__name__)
 import json
@@ -41,10 +42,9 @@ from modules.time_utils import now_cst_naive
 from .ui_theme import FONT_DEFAULT
 from .page_guard import safe_fragment
 
-# 后端 API 基地址。
-# 本地开发默认 http://127.0.0.1:5050；容器化部署（docker-compose）下由
-# STOCKSIGNAL_API_BASE=http://backend:5050 注入，前端容器借此跨容器访问后端。
-API_BASE = os.environ.get("STOCKSIGNAL_API_BASE", "http://127.0.0.1:5050")
+# API_BASE 已收敛至 modules/site_config（R-06），从该模块导入单一真源。
+# 容器化部署（docker-compose）下由 STOCKSIGNAL_API_BASE=http://backend:5050 注入。
+# 本地开发默认 http://127.0.0.1:5050。
 
 
 def trading_autorefresh(interval_ms: int = 60000, key: str = "auto_refresh",

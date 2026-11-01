@@ -10,6 +10,7 @@ import urllib.error
 import requests
 import streamlit as st
 
+from modules.site_config import API_BASE
 from modules.ui_theme import apply_page_config, dashboard_sf_css
 from modules.ui_kit import xc_bento_kpi
 from modules import decision as _decision
@@ -43,7 +44,7 @@ user = get_user() or {}
 @st.cache_data(ttl=15, show_spinner=False)
 def _check_backend():
     try:
-        with urllib.request.urlopen("http://127.0.0.1:5050/api/health", timeout=2) as r:
+        with urllib.request.urlopen(f"{API_BASE}/api/health", timeout=2) as r:
             return r.status == 200
     except Exception:
         return False
@@ -307,7 +308,7 @@ except Exception:  # noqa: BLE001
 # 自选股数量（调后端）
 try:
     wl_resp = requests.get(
-        "http://127.0.0.1:5050/api/watchlist",
+        f"{API_BASE}/api/watchlist",
         headers={"Authorization": f"Bearer {get_token()}"},
         timeout=5,
     )

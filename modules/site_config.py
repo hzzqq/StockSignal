@@ -13,6 +13,11 @@ import os
 # 本机代理（akshare 经此访问东方财富 / 同花顺）。可用 STOCKSIGNAL_PROXY 覆盖。
 PROXY_DEFAULT = os.environ.get("STOCKSIGNAL_PROXY", "http://127.0.0.1:26561")
 
+# 后端 Flask API 基地址。本地开发默认 http://127.0.0.1:5050；
+# 容器化部署（docker-compose）下由 STOCKSIGNAL_API_BASE=http://backend:5050 注入，
+# 前端容器借此跨容器访问后端。R-06 从 session.py 收敛至此。
+API_BASE = os.environ.get("STOCKSIGNAL_API_BASE", "http://127.0.0.1:5050")
+
 # 网络请求 / 连接默认超时（秒）。requests 与 socket 双层均使用此值。
 # 必须 < CALL_TIMEOUT_CAP，否则仍会被硬边界丢弃线程（泄漏）。
 REQUEST_TIMEOUT = float(os.environ.get("STOCKSIGNAL_REQ_TIMEOUT", "10"))
