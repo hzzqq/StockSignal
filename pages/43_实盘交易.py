@@ -23,7 +23,7 @@ from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
 from modules.format_helpers import safe_int
-from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.ui_kit import xc_kpi_grid, xc_success_box, xc_warn_box
 dark = render_standard_page(title='实盘交易', icon='💰', caption='真实券商 / 模拟账本 下单入口 · 全量订单落库可审计')
 xc_warn_box('⚠️ **资金安全提示**：默认「模拟账本」模式仅做虚拟撮合、**不涉及真实资金**。\n只有当您在下方选择真实券商（QMT / 同花顺客户端）并显式开启「实盘模式」后，系统才会尝试真实下单——请务必确认券商配置与策略无误再开启。', icon='🔒')
 try:
@@ -46,20 +46,17 @@ if acc is None:
     st.stop()
 live = bool(acc.get('live_mode'))
 bt = acc.get('broker_type', 'sim') or 'sim'
-c_broker, c_mode, c_cash, c_assets, c_loss = st.columns(5)
-with c_broker:
-    st.metric('券商通道', {'sim': '模拟账本', 'qmt': 'QMT', 'easytrader': '同花顺客户端'}.get(bt, bt), delta_color="off")
-with c_mode:
-    st.metric('当前模式', '🟢 实盘' if live else '⚪ 模拟', delta_color="off", help='实盘模式：触发真实资金下单')
-with c_cash:
-    st.metric('可用资金', f"¥{float(acc.get('cash') or 0):,.0f}", delta_color="off")
-with c_assets:
-    st.metric('总资产', f"¥{float(acc.get('total_assets') or 0):,.0f}", delta_color="off")
-with c_loss:
-    paused = acc.get('risk_paused_date')
-    today = datetime.now().strftime('%Y-%m-%d')
-    label = '已停手' if paused == today else f"¥{float(acc.get('daily_loss_limit') or 0):,.0f}"
-    st.metric('当日亏损停手线', label, delta_color="off", help='当日资金净流出异常时自动停手（可在配置区手动解除）')
+_paused = acc.get('risk_paused_date')
+_today = datetime.now().strftime('%Y-%m-%d')
+xc_kpi_grid([
+    {'label': '券商通道', 'value': {'sim': '模拟账本', 'qmt': 'QMT', 'easytrader': '同花顺客户端'}.get(bt, bt)},
+    {'label': '当前模式', 'value': '🟢 实盘' if live else '⚪ 模拟', 'meta': '实盘模式：触发真实资金下单'},
+    {'label': '可用资金', 'value': f"¥{float(acc.get('cash') or 0):,.0f}"},
+    {'label': '总资产', 'value': f"¥{float(acc.get('total_assets') or 0):,.0f}"},
+    {'label': '当日亏损停手线',
+     'value': '已停手' if _paused == _today else f"¥{float(acc.get('daily_loss_limit') or 0):,.0f}",
+     'meta': '当日资金净流出异常时自动停手（可在配置区手动解除）'},
+])
 st.markdown('#### ⚙️ 账户配置')
 with st.container(border=True):
     col_cfg1, col_cfg2 = st.columns([1.4, 1])

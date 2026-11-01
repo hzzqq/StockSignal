@@ -22,7 +22,7 @@ from modules.financial_report_helpers import (
     fr_fmt, fr_filter_by_code, fr_color_yoy, fr_format_financial_df,
 )
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_kpi_grid
 dark = render_standard_page(
     title="财报与业绩日历", icon="📅",
     caption="按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。",
@@ -205,16 +205,13 @@ def fragment_report():
         beat_ratio = round(up_cnt / len(yoy) * 100, 1) if len(yoy) else 0.0
     else:
         info_banner("「净利润同比%」字段缺失，盈利改善占比暂不可计算（接口字段变更或网络异常）。")
-    cols = st.columns(4)
-    with cols[0]:
-        st.metric("披露家数", f"{len(df)}", delta_color="off")
-    with cols[1]:
-        st.metric("净利润同比↑", f"{up_cnt}", delta_color="off", help="净利润同比增长为正的公司数")
-    with cols[2]:
-        st.metric("净利润同比↓", f"{down_cnt}", delta_color="off", help="净利润同比下滑的公司数")
-    with cols[3]:
-        st.metric("盈利改善占比", f"{beat_ratio}%", delta_color="off",
-                  help="净利润同比增长为正的公司占已披露财报公司的比例")
+    xc_kpi_grid([
+        {"label": "披露家数", "value": f"{len(df)}"},
+        {"label": "净利润同比↑", "value": f"{up_cnt}", "meta": "净利润同比增长为正的公司数"},
+        {"label": "净利润同比↓", "value": f"{down_cnt}", "meta": "净利润同比下滑的公司数"},
+        {"label": "盈利改善占比", "value": f"{beat_ratio}%",
+         "meta": "净利润同比增长为正的公司占已披露财报公司的比例"},
+    ])
 
     # TOP 净利润柱状（红涨绿跌）
     if "净利润" in df.columns and "名称" in df.columns:
@@ -362,15 +359,12 @@ def fragment_stock_financials():
         _r = row.iloc[0]
         yoy_col, yoy_txt = fr_color_yoy(_r.get("净利润同比%"))
         rev_col, rev_txt = fr_color_yoy(_r.get("营收同比%"))
-        mc1, mc2, mc3, mc4 = st.columns(4)
-        with mc1:
-            st.metric("每股收益", fr_fmt(_r.get("每股收益")), delta_color="off")
-        with mc2:
-            st.metric("营业总收入", fr_fmt(_r.get("营业总收入")), delta_color="off", help="单位：元")
-        with mc3:
-            st.metric("净利润", fr_fmt(_r.get("净利润")), delta_color="off", help="单位：元")
-        with mc4:
-            st.metric("ROE%", fr_fmt(_r.get("ROE%")), delta_color="off")
+        xc_kpi_grid([
+            {"label": "每股收益", "value": fr_fmt(_r.get("每股收益"))},
+            {"label": "营业总收入", "value": fr_fmt(_r.get("营业总收入")), "meta": "单位：元"},
+            {"label": "净利润", "value": fr_fmt(_r.get("净利润")), "meta": "单位：元"},
+            {"label": "ROE%", "value": fr_fmt(_r.get("ROE%"))},
+        ])
         st.markdown(
             f"<div style='font-size:13px;line-height:1.9;color:var(--txt2);margin:6px 0 10px;'>"
             f"净利润同比 <b style='color:{yoy_col};'>净利润 {yoy_txt}</b>　|　"

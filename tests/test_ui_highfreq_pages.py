@@ -113,7 +113,14 @@ def test_highfreq_pages_no_var_metric_escape():
 
 
 def test_42_paper_trading_kpi_uses_xc_grid():
-    """C2：模拟交易页账户概览 KPI 走 canonical xc_kpi_grid（Bento 样板）。"""
+    """C2：模拟交易页账户概览 KPI 走 canonical Bento 卡家族（xc_kpi_grid / xc_bento_kpi，
+    二者同为 ui_kit._xc_card_html 渲染的 .xc-card 样板）。
+
+    2026 批2 裁定（先查后改）：42 页账户概览现状为 xc_bento_kpi([...])（L115 附近），
+    是 canonical 家族的 Bento 形态、非退化——守卫由锁单一函数名 xc_kpi_grid
+    放宽为锁 canonical 家族 {xc_kpi_grid, xc_bento_kpi}，意图（账户 KPI 收敛到
+    .xc-card 样板、禁散装 st.metric）不变。"""
     tree = _tree_of("42_模拟交易.py")
-    used = _names_used(tree, {"xc_kpi_grid"})
-    assert used, "42_模拟交易.py 未使用 xc_kpi_grid（账户概览 KPI 应收敛到 Bento 样板）"
+    used = _names_used(tree, {"xc_kpi_grid", "xc_bento_kpi"})
+    assert used, ("42_模拟交易.py 未使用 canonical Bento 卡家族 xc_kpi_grid/xc_bento_kpi"
+                  "（账户概览 KPI 应收敛到 .xc-card 样板）")

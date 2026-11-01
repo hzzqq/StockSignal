@@ -32,7 +32,7 @@ from modules.linear_trends import (
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fig_layout, _section_title, _fmt_yi, _trend_controls
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_bento_kpi
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_bento_kpi, xc_kpi_grid
 
 dark = render_standard_page(
     "资金流向", icon="🌊",
@@ -379,17 +379,27 @@ def fragment_margin_trading():
     except Exception as e:
         summary = {}
         xc_handle_error("融资融券摘要加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
-    cols = st.columns(4)
-    with cols[0]:
-        st.metric("融资买入额(最新)", f"{summary.get('total_rzmr_yi'):.2f}亿" if summary.get('total_rzmr_yi') is not None else "—",
-                  delta=f"{summary.get('rzmr_change_yi'):+.2f}亿" if summary.get('rzmr_change_yi') is not None else None, delta_color="normal")
-    with cols[1]:
-        st.metric("融资余额(最新)", f"{summary.get('total_rzye_yi'):.2f}亿" if summary.get('total_rzye_yi') is not None else "—",
-                  delta=f"{summary.get('rzye_change_yi'):+.2f}亿" if summary.get('rzye_change_yi') is not None else None, delta_color="normal")
-    with cols[2]:
-        st.metric("沪市买入额", f"{summary.get('sh_rzmr_yi'):.2f}亿" if summary.get('sh_rzmr_yi') is not None else "—", delta_color="off")
-    with cols[3]:
-        st.metric("深市买入额", f"{summary.get('sz_rzmr_yi'):.2f}亿" if summary.get('sz_rzmr_yi') is not None else "—", delta_color="off")
+    _rz_chg = summary.get('rzmr_change_yi')
+    _rze_chg = summary.get('rzye_change_yi')
+    _margin_cards = [
+        {"label": "融资买入额(最新)",
+         "value": f"{summary.get('total_rzmr_yi'):.2f}亿" if summary.get('total_rzmr_yi') is not None else "—"},
+        {"label": "融资余额(最新)",
+         "value": f"{summary.get('total_rzye_yi'):.2f}亿" if summary.get('total_rzye_yi') is not None else "—"},
+        {"label": "沪市买入额",
+         "value": f"{summary.get('sh_rzmr_yi'):.2f}亿" if summary.get('sh_rzmr_yi') is not None else "—"},
+        {"label": "深市买入额",
+         "value": f"{summary.get('sz_rzmr_yi'):.2f}亿" if summary.get('sz_rzmr_yi') is not None else "—"},
+    ]
+    # A 股惯例：涨红跌绿——两融变化为正（杠杆资金流入增加）= 红(up)。
+    # （原 st.metric delta_color="normal" 为美股语义「正绿」，本次迁移一并修正）
+    if _rz_chg is not None:
+        _margin_cards[0]["delta"] = f"{_rz_chg:+.2f}亿"
+        _margin_cards[0]["delta_dir"] = "up" if _rz_chg > 0 else ("down" if _rz_chg < 0 else "flat")
+    if _rze_chg is not None:
+        _margin_cards[1]["delta"] = f"{_rze_chg:+.2f}亿"
+        _margin_cards[1]["delta_dir"] = "up" if _rze_chg > 0 else ("down" if _rze_chg < 0 else "flat")
+    xc_kpi_grid(_margin_cards)
 
     try:
         fig = plot_margin_trend(df, dark_mode=dark, metric=metric)
@@ -435,15 +445,19 @@ def fragment_individual():
         name = code
     st.markdown(f"**{name}** `{code}` ｜ 数据日期：{r.get('latest_date') or '—'} ｜ "
                 f"来源：{'实时(东方财富)' if r.get('source')=='akshare' else '估算(量价模型)'}")
-    cols = st.columns(3)
     is_estimate = r.get("source") == "estimate"
-    with cols[0]:
-        st.metric("主力净流入", _fmt_yi(r.get("main_net")),
-                  delta=f"{r.get('main_net_pct')}% 净占比" if r.get("main_net_pct") is not None else None, delta_color="normal")
-    with cols[1]:
-        st.metric("超大单净流入" + ("(估算)" if is_estimate else ""), _fmt_yi(r.get("super_net")), delta_color="inverse")
-    with cols[2]:
-        st.metric("大单净流入" + ("(估算)" if is_estimate else ""), _fmt_yi(r.get("big_net")), delta_color="inverse")
+    _flow_cards = [
+        {"label": "主力净流入", "value": _fmt_yi(r.get("main_net"))},
+        {"label": "超大单净流入" + ("(估算)" if is_estimate else ""), "value": _fmt_yi(r.get("super_net"))},
+        {"label": "大单净流入" + ("(估算)" if is_estimate else ""), "value": _fmt_yi(r.get("big_net"))},
+    ]
+    _pct = r.get("main_net_pct")
+    # A 股惯例：净占比为正=主力流入占优=红(up)。
+    # （原 st.metric delta_color="normal" 为美股语义「正绿」，本次迁移一并修正）
+    if _pct is not None:
+        _flow_cards[0]["delta"] = f"{_pct}% 净占比"
+        _flow_cards[0]["delta_dir"] = "up" if _pct > 0 else ("down" if _pct < 0 else "flat")
+    xc_kpi_grid(_flow_cards)
     if is_estimate:
         st.caption("⚠️ 当前为量价模型估算值（Chaikin 风格主力净流入），超大单/大单按经验比例拆分，仅反映近期量价博弈方向，非交易所逐笔主力数据。")
     elif r.get("source") == "akshare":

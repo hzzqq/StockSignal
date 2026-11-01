@@ -232,7 +232,14 @@ def test_94_removed_and_wrapped():
     """消息中心：导读卡删除，低频操作/收藏折叠，已读逻辑与来源标注保留。"""
     src = _src("94_消息中心.py")
     assert 'sf_card("🔔 消息 / 通知中心"' not in src
-    assert 'st.expander("⚙️ 更多操作（清除已读标记 · 重新加载）"' in src
+    # 2026 批2 裁定（先查后改）：T-367 已把独立「更多操作」expander 有意合并进
+    # 「通知概览」同一张卡片（94 页「T-367 之后合并」注释记录该反转），旧断言锁的
+    # expander 字符串已不存在。守卫改锁合并后的新形态——概览卡片 + 三个低频操作
+    # 按钮齐全，并禁止独立 expander 回潮；「合并不能丢功能」意图不变。
+    assert "**🔔 通知概览**" in src, "94 通知概览卡片丢失"
+    assert ('key="mark_all"' in src and 'key="clear_read_marks"' in src
+            and 'key="msg_reload"' in src), "94 合并后丢失低频操作按钮（全部标为已读/清除已读标记/重新加载）"
+    assert 'st.expander("⚙️ 更多操作' not in src, "独立「更多操作」expander 不得回潮（T-367 已合并进通知概览卡片）"
     assert 'st.expander(f"⭐ 我的收藏（{len(_msg_starred_ids)}）"' in src
     assert "msg_read_ids" in src and "mark_all" in src
     assert "数据来源：自选股实时行情" in src

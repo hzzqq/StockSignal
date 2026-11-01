@@ -42,15 +42,15 @@ COMPLETED_FILES = [
     "22_基本面分析.py",
     "23_事件追踪.py",
     # "36_每日荐股.py",  # 2026-10-28 已迁移至 xc_kpi_grid（delta_dir 统一保证 A股红涨绿跌，另由 test_ui_design_system 守卫）；不再直接调用 st.metric，故移出裸 st.metric 守卫清单
-    "16_财报日历.py",
-    "35_资金流向.py",
+    # "16_财报日历.py",  # P1-5 批2：两组 KPI 行已迁 xc_kpi_grid（help→meta），页内零 st.metric，移出
+    # "35_资金流向.py",  # P1-5 批2：两融/主力净流入两组已迁 xc_kpi_grid（normal 美股语义一并修正为 delta_dir A股语义），移出
     "20_个股分析.py",
     "40_仓位管理.py",
-    "43_实盘交易.py",
+    # "43_实盘交易.py",  # P1-5 批2：账户概览 5 卡已迁 xc_kpi_grid（help→meta），页内零 st.metric，移出
     # "50_市场情绪.py",  # P1-5 批1：预判准确率卡已迁 xc_kpi_grid（meta 承载 help），页内零 st.metric，移出裸 st.metric 守卫清单
     # "70_涨停复盘.py",  # P1-5 批1：「池内曾开板」已迁 stat_tile（同 .xc-card 视觉，delta_dir=flat），页内零 st.metric，移出
     # "94_消息中心.py",  # P1-5 批1：未读/总消息已迁 stat_tile（同 .xc-card 视觉），页内零 st.metric，移出（渲染仍由 test_94_message_center_unified 守卫）
-    "98_仓位落地.py",
+    # "98_仓位落地.py",  # P1-5 批2：市场头部/分配两组已迁 xc_kpi_grid，页内零 st.metric，移出
 ]
 
 

@@ -21,6 +21,7 @@ import streamlit as st
 
 from modules import position_allocator as pa
 from modules.page_utils import render_standard_page
+from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
 
@@ -40,17 +41,13 @@ SOURCE_LABELS = {
 
 
 def _render_market_header(pct: float, pmeta: dict) -> None:
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric("市场仓位（快照）", f"{pct:g}%", delta_color="off")
-    with c2:
-        st.metric("仓位档", str(pmeta.get("band") or "—"), delta_color="off")
     temp = pmeta.get("temperature")
-    with c3:
-        st.metric("市场温度", f"{temp:g}" if isinstance(temp, (int, float)) else "—",
-                  delta_color="off")
-    with c4:
-        st.metric("快照数据日", str(pmeta.get("snapshot_date") or "—"), delta_color="off")
+    xc_kpi_grid([
+        {"label": "市场仓位（快照）", "value": f"{pct:g}%"},
+        {"label": "仓位档", "value": str(pmeta.get("band") or "—")},
+        {"label": "市场温度", "value": f"{temp:g}" if isinstance(temp, (int, float)) else "—"},
+        {"label": "快照数据日", "value": str(pmeta.get("snapshot_date") or "—")},
+    ])
 
 
 @st.fragment
@@ -61,15 +58,12 @@ def render_alloc(source: str) -> None:
         return
     meta = result["meta"]
 
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        st.metric("分配票数", meta["n_alloc"], delta_color="off")
-    with m2:
-        st.metric("Σ目标权重", f"{meta['sum_pct']:g}%", delta_color="off")
-    with m3:
-        st.metric("单票上限", f"{meta['cap_pct']:g}%", delta_color="off")
-    with m4:
-        st.metric("剔除票数（评分缺失）", meta["n_excluded"], delta_color="off")
+    xc_kpi_grid([
+        {"label": "分配票数", "value": str(meta["n_alloc"])},
+        {"label": "Σ目标权重", "value": f"{meta['sum_pct']:g}%"},
+        {"label": "单票上限", "value": f"{meta['cap_pct']:g}%"},
+        {"label": "剔除票数（评分缺失）", "value": str(meta["n_excluded"])},
+    ])
 
     if meta.get("degraded"):
         st.info(f"ℹ️ {meta.get('degraded_note', '等权明示降级：未使用任何评分信号')}")
