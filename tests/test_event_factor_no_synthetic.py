@@ -22,6 +22,16 @@ TARGETS = [
     os.path.join(ROOT, "modules", "signal.py"),
 ]
 
+# 事件因子链路相关的另外两个文件：信号×广度对照（modules/event_compare.py）
+# 与离线快照刷新脚本（scripts/refresh_event_pool.py）。它们同样不得引入合成/
+# 随机造数——前者直接复用 shepherd_ladder.load_event_pool 渲染事件池，后者负责
+# 把 P1 实时因子刷新进离线快照，任一环节重新引入 random/synthetic 都会污染事件真值。
+# 纳入同一不变量护栏（复用同一个 _scan 扫描辅助函数，不再造逻辑）。
+EXTENDED_TARGETS = [
+    os.path.join(ROOT, "modules", "event_compare.py"),
+    os.path.join(ROOT, "scripts", "refresh_event_pool.py"),
+]
+
 # 禁止在事件链路代码里出现的「造数」调用名（仅代码节点，非文档）
 FORBIDDEN_CALLS = {
     "randint", "random", "uniform", "rand", "gen_event", "fake_event",
@@ -64,6 +74,19 @@ def _scan(path):
 
 @pytest.mark.parametrize("path", TARGETS, ids=lambda p: os.path.basename(p))
 def test_no_synthetic_generation(path):
+    bad = _scan(path)
+    assert not bad, (
+        f"{os.path.basename(path)} 发现疑似合成/随机造数调用"
+        f"（违反「事件链路无合成演示依赖」不变量）：\n" + "\n".join(bad)
+    )
+
+
+@pytest.mark.parametrize("path", EXTENDED_TARGETS, ids=lambda p: os.path.basename(p))
+def test_no_synthetic_generation_extended(path):
+    """事件因子链路外延文件（对照 / 刷新脚本）同样禁止合成造数。
+
+    复用同一个 _scan 扫描辅助函数，仅扩展扫描目标，不重复造逻辑。
+    """
     bad = _scan(path)
     assert not bad, (
         f"{os.path.basename(path)} 发现疑似合成/随机造数调用"

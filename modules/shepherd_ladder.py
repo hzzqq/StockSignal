@@ -653,7 +653,11 @@ def load_event_pool(path: str | None = None) -> dict:
                         note="事件因子多头池快照为空或结构异常", source=None)
         pool = data.get("pool", [])
         date_str = str(data.get("date") or "")[:10]
-        live = bool(data.get("live", False))
+        # 硬化离线快照标注：已提交进 git 的默认离线快照不含 live 字段，必须显式
+        # 按非实时处理；仅当文件由 refresh_event_pool_from_p1 显式写下 live=true
+        # （真实实时刷新成功）时才视为实时，避免离线快照被静默误报为「实时」。
+        # 等价且更严格的写法：live 必须显式为 True 才算实时，其余一律 False。
+        live = data.get("live") is True
         stale = False
         try:
             from datetime import datetime as _dt
@@ -671,9 +675,9 @@ def load_event_pool(path: str | None = None) -> dict:
             stale = True
         src = data.get("source") or ("P1-QuantFactor 实时因子" if live else "P1-QuantFactor EV 事件因子")
         return dict(available=True, date=date_str, pool=pool, stale=stale, live=live,
-                    note=((src + " · ")
-                          + ("实时导出快照" if live else "离线快照")
-                          + f"，数据日期 {date_str or '未知'}"
+            note=((src + " · ")
+                  + ("实时导出快照" if live else "离线快照·非实时")
+                  + f"，数据日期 {date_str or '未知'}"
                           + ("（已超过7天，时效性存疑）" if stale else "")
                           + "；仅代表统计超额收益概率排序，非买卖指令。"),
                     source=src)
