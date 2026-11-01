@@ -324,3 +324,15 @@ def hist_cached(code: str):
     """
     import akshare as ak
     return ak.stock_zh_a_hist(symbol=code, period="daily", adjust="qfq")
+
+
+def to_numeric_clean(expr):
+    """R-09: 将 Series / array-like 安全转为数值并丢弃 NaN。
+
+    下沉自 5 页 16 处重复的 ``pd.to_numeric(x, errors='coerce').dropna()`` 模板：
+    pages/13 ×3 / pages/47 ×1 / pages/50 ×11 / pages/73 ×1。
+
+    函数内 lazy import pandas，保持 page_utils 顶层零重型依赖。
+    """
+    import pandas as pd
+    return pd.to_numeric(expr, errors="coerce").dropna()

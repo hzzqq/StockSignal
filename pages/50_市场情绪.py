@@ -23,7 +23,7 @@ from datetime import datetime
 from modules.page_utils import (render_standard_page,
     last_data_date as _last_data_date,
     row_to_indicators as _row_to_indicators,
-    temp_gauge as _temp_gauge)
+    temp_gauge as _temp_gauge, to_numeric_clean )
 from modules.ui_theme import sf_metric
 from modules.session import get_token, fragment_market_alerts_panel
 from modules.ladder_view import render_ladder_block
@@ -84,13 +84,13 @@ def _cache_banner(meta):
 
 
 def _last(s):
-    s = pd.to_numeric(s, errors="coerce").dropna()
+    s = to_numeric_clean(s)
     return float(s.iloc[-1]) if len(s) else None
 
 
 @cached_fig(ttl=120)
 def _spark(series, color, dark_mode):
-    s = pd.to_numeric(series, errors="coerce").dropna().tail(40)
+    s = to_numeric_clean(series).tail(40)
     if s.empty:
         return None
     # 统一走 colors._hex_to_rgba，杜绝 8 位 hex fillcolor bug
@@ -149,7 +149,7 @@ def _market_temp(df):
     for k, d in _DIR.items():
         if d == 0 or k not in df.columns:
             continue
-        s = pd.to_numeric(df[k], errors="coerce").dropna()
+        s = to_numeric_clean(df[k])
         if len(s) < 3:
             continue
         pct = s.rank(pct=True).iloc[-1]  # 最新值在历史分布中的分位 0-1
@@ -179,7 +179,7 @@ def _adl_sig(s):
     v = _last(s)
     if v is None:
         return ("—", "#888", "暂无数据")
-    s2 = pd.to_numeric(s, errors="coerce").dropna()
+    s2 = to_numeric_clean(s)
     if len(s2) >= 20:
         chg = s2.iloc[-1] - s2.iloc[-20]
         if chg > 0:
@@ -311,7 +311,7 @@ def _card(col, cfg, df, dark_mode):
                 if key not in df.columns or df[key].dropna().empty:
                     st.caption("⚠️ 数据源暂未接入（需联网代理）")
                     return
-                s = pd.to_numeric(df[key], errors="coerce").dropna()
+                s = to_numeric_clean(df[key])
                 v = float(s.iloc[-1])
                 st.markdown(f"<div style='font-size:26px;font-weight:700;color:{cfg['color']}'>"
                             f"{cfg['fmt'](v)}</div>", unsafe_allow_html=True)
@@ -577,7 +577,7 @@ def _build_shepherd_chart(d, dark):
                limit_up=("#f59e0b", "涨停家数"), limit_down=("#16c2c2", "跌停家数"))
     for k, (col, name) in fam.items():
         if k in d.columns:
-            s = pd.to_numeric(d[k], errors="coerce").dropna()
+            s = to_numeric_clean(d[k])
             if s.empty:
                 continue
             is_pt = len(s) < 2  # 仅末日快照点（涨跌/跌停）→ 菱形标记
@@ -591,7 +591,7 @@ def _build_shepherd_chart(d, dark):
     pct = dict(zt_prev_ret=("#7c5cff", "昨日涨停表现%"), red_ratio=("#ee2a2a", "红盘占比%"))
     for k, (col, name) in pct.items():
         if k in d.columns:
-            s = pd.to_numeric(d[k], errors="coerce").dropna()
+            s = to_numeric_clean(d[k])
             if s.empty:
                 continue
             is_pt = len(s) < 2
@@ -617,7 +617,7 @@ def _build_shepherd_chart(d, dark):
                                zt_fail_count=("#f59e0b", "炸板家数")).items():
         if k not in d.columns:
             continue
-        s = pd.to_numeric(d[k], errors="coerce").dropna()
+        s = to_numeric_clean(d[k])
         if s.empty:
             continue
         is_pt = len(s) < 2
@@ -707,7 +707,7 @@ def fragment_shepherd_review():
     # 中位数涨跌加速（杨哥：上涨加速/下跌加速，数据出来会简化）
     try:
         if "median_chg" in df.columns:
-            s = pd.to_numeric(df["median_chg"], errors="coerce").dropna()
+            s = to_numeric_clean(df["median_chg"])
             if len(s) >= 2:
                 acc = float(s.iloc[-1] - s.iloc[-2])
                 word = "上涨加速" if acc > 0.1 else ("下跌加速" if acc < -0.1 else "走平")
@@ -762,12 +762,12 @@ def fragment_shepherd_review():
         with st.spinner("检查两融与指数背离…"):
             ddf, _ = _load_drivers(180)
         if ddf is not None and not ddf.empty and "margin_balance" in ddf.columns:
-            mb = pd.to_numeric(ddf["margin_balance"], errors="coerce").dropna()
+            mb = to_numeric_clean(ddf["margin_balance"])
             if len(mb) >= 21:
                 mb_delta = float(mb.iloc[-1] - mb.iloc[-21])
                 idx_delta = None
                 if "idx_ma20" in ddf.columns:
-                    im = pd.to_numeric(ddf["idx_ma20"], errors="coerce").dropna()
+                    im = to_numeric_clean(ddf["idx_ma20"])
                     if len(im) >= 21:
                         idx_delta = float(im.iloc[-1] - im.iloc[-21])
                 txt = f"两融余额 {mb.iloc[-1]:,.0f} 亿，近20日 {mb_delta:+,.0f} 亿"

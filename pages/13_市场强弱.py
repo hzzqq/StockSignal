@@ -17,7 +17,7 @@ import requests
 import pandas as pd
 import streamlit as st
 
-from modules.page_utils import render_standard_page
+from modules.page_utils import render_standard_page, to_numeric_clean
 from modules.session import get_token, safe_switch_page, API_BASE
 from modules.linear_trends import (
     get_index_series, get_northbound_history_series,
@@ -178,7 +178,7 @@ def _watchlist_avg_normalized(codes, start, end, days):
                     break
             if col is None:
                 continue
-            ser = pd.to_numeric(d[col], errors="coerce").dropna()
+            ser = to_numeric_clean(d[col])
             if ser.empty:
                 continue
             first = ser.iloc[0]
@@ -200,7 +200,7 @@ def _strength_signal(d, keys):
     for k in keys:
         if k not in d.columns:
             continue
-        s = pd.to_numeric(d[k], errors="coerce").dropna()
+        s = to_numeric_clean(d[k])
         if len(s) < 2:
             continue
         first, last = s.iloc[0], s.iloc[-1]
@@ -234,7 +234,7 @@ def _strength_percentile(d, keys):
         for k in keys:
             if k not in d.columns:
                 continue
-            s = pd.to_numeric(d[k], errors="coerce").dropna()
+            s = to_numeric_clean(d[k])
             if len(s) < 2:
                 continue
             first = s.iloc[0]

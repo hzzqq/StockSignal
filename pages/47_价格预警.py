@@ -16,7 +16,7 @@ from threading import Lock as _Lock
 from concurrent.futures import ThreadPoolExecutor
 import logging
 from modules.ui_kit import info_banner
-from modules.page_utils import fmt_rel as _fmt_rel
+from modules.page_utils import fmt_rel as _fmt_rel, to_numeric_clean
 logger = logging.getLogger(__name__)
 from modules.page_utils import render_standard_page, get_fetcher
 import modules.scroll_nav as sn
@@ -160,7 +160,7 @@ def _eval_volume(code, threshold):
         if df is None or df.empty or 'volume' not in df.columns or (len(df) < 6):
             _trig, _detail = (False, '成交量数据不足')
         else:
-            vols = pd.to_numeric(df['volume'], errors='coerce').dropna()
+            vols = to_numeric_clean(df['volume'])
             if len(vols) < 6:
                 _trig, _detail = (False, '成交量数据不足')
             else:

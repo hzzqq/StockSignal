@@ -22,7 +22,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from modules.colors import UP_COLOR
-from modules.page_utils import render_standard_page
+from modules.page_utils import render_standard_page, to_numeric_clean
 from modules.ui_theme import section_header, sf_metric
 
 logger = logging.getLogger(__name__)
@@ -118,7 +118,7 @@ def _w_breadth(dark):
     if not col:
         st.info("📭 该数据源无中位涨跌字段。")
         return
-    s = pd.to_numeric(df[col], errors="coerce").dropna().tail(30)
+    s = to_numeric_clean(df[col]).tail(30)
     if s.empty:
         st.info("📭 无有效样本。")
         return
