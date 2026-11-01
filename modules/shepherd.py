@@ -609,15 +609,23 @@ def get_shepherd_history(days=60):
     """历史回测（TTL 缓存 1h）。
 
     - days >= 2000：读取持久 CSV 长历史（2007 起，由全 A 重构生成）；
-    - 否则：优先实时涨停池回测（近 90 日内真实连板/炸板/昨板），失败降级读 CSV 尾部 days 行。
+    - 否则（中段视图，如近1年/近60日）：2026-11-01 修复「近1年只有 ~90 行」——
+      此前中段全走实时涨停池回测，被 _MAX_HISTORY_DAYS=90 截断，preset 承诺
+      250 交易日实际只给约 4.5 个月；改为优先 CSV 尾部 days 行 + 实时缺口拼接
+      （近期以真实涨停池为准），CSV 不可用才走实时回测，再失败降级 CSV 尾部。
     """
     long_mode = days is not None and days >= 2000
     if long_mode:
         df = _read_history_csv(days)
         if df is not None and not df.empty:
-            return df
+            # 近期缺口拼接（2026-11-01）：CSV 末行可能滞后，用实时回测补全至今天
+            return _merge_recent_realtime(df, None, None)
         logger.warning("[shepherd] 长历史 CSV 不可用，返回空")
         return pd.DataFrame(columns=["date"])
+    df = _read_history_csv(days)
+    if df is not None and not df.empty:
+        # 中段视图同样补近期缺口（CSV 末行滞后时用实时回测接上）
+        return _merge_recent_realtime(df, None, None)
     try:
         df = _cached(_HISTORY_TTL, f"shep_hist_{days}", lambda: _fetch_shepherd_history(days))
         if df is not None and not df.empty:
@@ -645,6 +653,56 @@ def get_shepherd_indicators(days=60):
     meta["available"] = cols
     meta["unavailable"] = [(k, "该日数据源缺失") for k in THRESHOLDS if k not in df.columns]
     return df, meta
+
+
+def _merge_recent_realtime(df, start, end):
+    """长历史 CSV 与 akshare 实时涨停池回测的近期缺口拼接（真实值优先，绝不编造）。
+
+    2026-11-01 补全（老板指令「近期的数据都没有，补全」）：data/shepherd_history.csv
+    由定时任务追加，末行可能滞后于今天；这段缺口在「全部/自定义」视图断线。
+    实时回测（_fetch_shepherd_history，近 _MAX_HISTORY_DAYS 交易日真实涨停池）覆盖该段。
+    按日期去重拼接，重叠日以实时回测为准（真实值 > 重构值）；任何失败降级回原 df。
+    """
+    try:
+        if df is not None and not df.empty and "date" in df.columns:
+            out = df.copy()
+            out["date"] = pd.to_datetime(out["date"], errors="coerce")
+            out = out.dropna(subset=["date"])
+            cut = out["date"].max()
+        else:
+            out = pd.DataFrame(columns=list(df.columns) if df is not None and hasattr(df, "columns") else ["date"])
+            cut = None
+        today = pd.Timestamp(now_cst_naive()).normalize()
+        eff_end = min(pd.to_datetime(end), today) if end is not None else today
+        base = cut if cut is not None else eff_end - pd.Timedelta(days=200)
+        gap_days = (eff_end - base).days
+        if gap_days <= 0:
+            return out
+        want = int(min(_MAX_HISTORY_DAYS, max(30, gap_days + 15)))
+        recent = _cached(_HISTORY_TTL, f"shep_hist_{want}", lambda: _fetch_shepherd_history(want))
+        if recent is None or recent.empty or "date" not in recent.columns:
+            return out
+        recent = recent.copy()
+        recent["date"] = pd.to_datetime(recent["date"], errors="coerce")
+        recent = recent.dropna(subset=["date"])
+        if start is not None:
+            recent = recent[recent["date"] >= pd.to_datetime(start)]
+        recent = recent[recent["date"] <= eff_end]
+        if cut is not None:
+            recent = recent[recent["date"] > cut]
+        if recent.empty:
+            return out
+        merged = recent if out.empty else pd.concat([out, recent], ignore_index=True)
+        merged["date"] = pd.to_datetime(merged["date"], errors="coerce")
+        merged = (merged.sort_values("date")
+                  .drop_duplicates(subset=["date"], keep="last")
+                  .reset_index(drop=True))
+        logger.info("[shepherd] 近期缺口拼接 +%d 行（实时回测，截至 %s）",
+                    len(recent), merged["date"].max().date())
+        return merged
+    except Exception as e:  # noqa
+        logger.warning("[shepherd] 近期实时数据拼接失败，返回原序列: %s", e)
+        return df if df is not None else pd.DataFrame(columns=["date"])
 
 
 # ───────── 自定义日期范围回溯（带缺失提示与近期补算）─────────
@@ -719,6 +777,8 @@ def get_shepherd_indicators_range(start_date, end_date, backfill=False):
         unavailable: [(col, reason)] —— 数据源未覆盖的列
     """
     df = get_shepherd_history_range(start_date, end_date, backfill=backfill)
+    # 近期缺口拼接（2026-11-01）：同「全部」视图，CSV 滞后段由实时回测补全
+    df = _merge_recent_realtime(df, start_date, end_date)
     meta = {
         "available": [],
         "unavailable": [],
