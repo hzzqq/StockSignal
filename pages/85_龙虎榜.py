@@ -85,5 +85,9 @@ def main() -> None:
     with st.expander("查看原始明细"):
         st.dataframe(df, width="stretch")
 
+    # ── 方法学与来源注脚（B 类页五段式收尾）──
+    st.markdown("---")
+    st.caption("口径与来源：龙虎榜明细=东财接口（modules.lhb.fetch_lhb，30 分钟缓存，按交易日更新，非实时行情）；净买额口径以数据源列为准（列名识别不到时摘要整体降级为 None，不用错列编资金方向）。席位行为为历史事实披露，不构成投资建议。")
+
 
 main()

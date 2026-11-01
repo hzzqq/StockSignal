@@ -1015,3 +1015,7 @@ fragment_event_driven_pool()
 fragment_review()
 fragment_backtest()
 fragment_calibration()
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：情绪信号=牧羊人指标（modules.shepherd，日频收盘后更新，非实时行情）；仓位建议=决策环单一真理源 modules/decision.derive_position（温度/周期/晋级率/事件因子透明推导）；事件催化=P1 EV 离线信号（data/p1_signals/）；决策快照与预测回测=每日快照脚本落盘（本地 data/ + prediction_log）。预判为概率结论，非投资建议。')

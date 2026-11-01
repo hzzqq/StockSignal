@@ -146,3 +146,9 @@ if st.button("🔍 评分", key="six_dim_run", type="primary"):
                "不同行业估值中枢差异大，价值维参考性有限。不构成投资建议。")
 else:
     st.info("👆 输入 6 位代码后点「评分」。")
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown("---")
+st.caption("口径与来源：技术/资金维=历史行情 + 东财实时快照（akshare stock_zh_a_spot_em，2 分钟缓存）；"
+           "价值/成长/基本面维=财务摘要接口（akshare stock_financial_abstract，1 小时缓存）；周期维=市场状态机。"
+           "各维独立取数、缺失即明示剔除；启发式阈值映射非预测，不构成投资建议。")

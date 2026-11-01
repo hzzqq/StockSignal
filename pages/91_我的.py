@@ -472,3 +472,7 @@ with ss_fold_useful("⚙️ 偏好设置", _prefs_summary, expanded=False, icon=
         "⚙️ 分「外观 / 行情看板默认参数 / 数据源优先级」三类，改动即时生效；关闭浏览器后恢复默认。"
     )
     render_preferences()
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown("---")
+st.caption("口径与来源：账户资料/头像=按账号存后端（后端不可用时降级本地暂存）；自选股与登录历史=后端 API（/api/watchlist、/api/auth/logins，10 秒短缓存）；偏好设置=会话内存，关闭浏览器后恢复默认。本页为账户与偏好数据，无行情口径，不构成投资建议。")

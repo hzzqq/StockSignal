@@ -763,3 +763,7 @@ with st.expander("📦 一键打包导出全部 (ZIP)", expanded=False):
     frag_zip()
 with st.expander("📄 一键研报（个股 HTML / Markdown）", expanded=False):
     frag_report()
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown("---")
+st.caption("口径与来源：资金流向/业绩报表=东财接口（modules.fundflow）；组合持仓=本地 portfolio.csv（modules.portfolio，只读）；自选股快照=后端 API；导出格式=CSV（utf-8-sig）/ Excel 多 Sheet / PDF 摘要 / ZIP 打包，行情类数据为页面加载时点快照。导出为原始数据转存，不构成投资建议。")

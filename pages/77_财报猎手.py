@@ -109,5 +109,7 @@ else:
         )
     st.markdown(rows, unsafe_allow_html=True)
 
-st.caption("⚠️ 说明：业绩预告分级为启发式文本映射，非预测模型，不构成投资建议；"
-           "预告数据可能被后续修正，请以正式财报为准。数据源 best-effort，缺失即明示不编造。")
+st.markdown("---")
+st.caption("口径与来源：业绩预告=东财接口（modules.fundflow.get_earnings_forecast，best-effort，30 分钟缓存，"
+           "随报告期更新，非实时行情）；信号分级=modules.financial_hunter 启发式文本映射。"
+           "预告可能被后续修正，请以正式财报为准；不构成投资建议。")

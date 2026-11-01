@@ -370,3 +370,7 @@ with tab_alert:
                     _toast("市场异动扫描策略已更新")
                 else:
                     st.error(r.get("message", "保存失败"))
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown("---")
+st.caption("口径与来源：数据概览/股票库/系统配置/自选股=后端管理 API（modules.admin_api，仅管理员可见，存储于后端 SQLite backend/data/app.db）；数据源健康度=依赖与本地缓存探测（不触网）；异动扫描策略=运行时配置，重启后恢复环境变量默认值。本页为系统运维数据，不构成投资建议。")

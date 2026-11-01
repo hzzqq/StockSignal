@@ -242,3 +242,8 @@ with tab_logs:
             with col_next:
                 if st.button("➡️ 下一页", disabled=(page >= pages), key="log_next"):
                     st.session_state["log_page"] = page + 1
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown("---")
+st.caption("口径与来源：用户列表/创建/编辑/删除与操作日志=后端管理 API（modules.admin_api，仅管理员可见，"
+           "分页每页 20 条）；删除操作不可撤销。本页为账户管理数据，无行情口径，不构成投资建议。")

@@ -472,5 +472,6 @@ if _msg_starred_ids:
                 st.markdown(_safe_title_html(_sm["title"]), unsafe_allow_html=True)
                 st.caption(f"{_sm['type']}　·　{_sm['detail']}")
 
-# 加法式数据来源标注
-st.caption("📡 数据来源：自选股实时行情（东方财富 / 新浪财经）、股吧社区动态、系统数据源健康度监控")
+# 加法式数据来源标注（B 类页五段式收尾）
+st.markdown("---")
+st.caption("口径与来源：异动=自选股实时行情（StockFetcher 多源行情，30 秒缓存，盘中为实时快照）；社区=股吧 API（/api/forum/posts）；系统=数据源健康度监控；研究=自驱研究记录（/api/research-runs）；荐股=本地最新荐股 JSON（后端调度器每交易日收盘后生成）+ 调度健康检查。各区块独立取数，单源失败不影响其它模块；消息仅供关注提示，不构成投资建议。")

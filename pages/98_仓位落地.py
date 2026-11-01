@@ -117,5 +117,9 @@ def main() -> None:
              "单票上限默认 20%，Σ权重=市场仓位。")
     render_alloc(source)
 
+    # ── 方法学与来源注脚（B 类页五段式收尾）──
+    st.markdown("---")
+    st.caption("口径与来源：市场仓位=当日归档快照（data/daily_snapshot.json，无快照不实时臆算，非实时行情）；个股评分=荐股引擎综合分 / 用户 StockScore（缺失剔除，等权即明示降级）；分配规则=modules.position_allocator（单票上限默认 20%，权重∝评分）。纯建议层只读，建议≠交易，不构成投资建议。")
+
 
 main()

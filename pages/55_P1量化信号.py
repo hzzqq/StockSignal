@@ -243,5 +243,6 @@ if sym:
         st.info("无法加载 daily 明细（pandas 不可用或文件解析失败）。")
 
 st.markdown("---")
-st.caption("数据：P1-QuantFactor（1427 只 A 股，严格 2026 hold-out）。"
+st.caption("口径与来源：P1-QuantFactor 信号文件（data/p1_signals/ 的 signal_*.json 离线导出，"
+           "1427 只 A 股严格 2026 hold-out；以信号文件数据日期为准，非实时行情，每 5 分钟检测文件更新）。"
            "本页仅做信号可视化与对比，不构成任何投资建议。")
