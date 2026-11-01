@@ -334,36 +334,36 @@ if st.session_state.get("_msg_cleared_toast"):
     st.session_state.pop("_msg_cleared_toast", None)
     xc_success_box("✅ 已清除已读标记")
 
-# ───────────────────────── 顶部操作栏 ─────────────────────────
-c1, c2, c3 = st.columns([1, 1, 2])
-with c1:
-    st.metric("未读", len(unread), delta_color="off")
-with c2:
-    st.metric("总消息", len(msgs), delta_color="off")
-with c3:
-    if st.button("✅ 全部标为已读", width="stretch", key="mark_all",
-                 disabled=len(unread) == 0,
-                 help="一键将当前所有未读消息标记为已读（无未读时禁用）。"):
-        st.session_state["msg_read_ids"].update(m["id"] for m in msgs)
-        st.session_state["_msg_marked_toast"] = True
-        st.rerun()
-
-render_data_degradation_banner()
-
-# ── T-230：清除已读标记 / 重新加载 两个低频操作收进折叠区（主区留给筛选与列表）──
-with st.expander("⚙️ 更多操作（清除已读标记 · 重新加载）", expanded=False):
-    _oc1, _oc2 = st.columns([1, 1])
-    with _oc1:
+# ───────────────────────── 通知概览（统计 + 操作 合一组件） ─────────────────────────
+# T-367 之后合并：原散落的「未读 / 总消息」两张 stat 卡、「全部标为已读」按钮，
+# 以及独立的「更多操作」折叠区（清除已读标记 / 重新加载）现统一收进同一张卡片，
+# 不再用独立 expander 把低频操作藏起来（T-230 的折叠决策在此反转）。
+with st.container(border=True):
+    st.markdown("**🔔 通知概览**")
+    _ov1, _ov2, _ov3, _ov4, _ov5 = st.columns([1, 1, 1.4, 1.4, 1])
+    with _ov1:
+        st.metric("未读", len(unread), delta_color="off")
+    with _ov2:
+        st.metric("总消息", len(msgs), delta_color="off")
+    with _ov3:
+        # 一键将当前所有未读消息标记为已读（无未读时禁用）
+        if st.button("✅ 全部标为已读", width="stretch", key="mark_all",
+                     disabled=len(unread) == 0,
+                     help="一键将当前所有未读消息标记为已读（无未读时禁用）。"):
+            st.session_state["msg_read_ids"].update(m["id"] for m in msgs)
+            st.session_state["_msg_marked_toast"] = True
+            st.rerun()
+    with _ov4:
         # 清空已读标记，重新将全部消息标为未读（仅清理本会话 session_state，不改后台数据）
         if st.button("🧹 清除已读标记", key="clear_read_marks", width="stretch",
                      help="将当前所有已读消息重新标记为未读（仅本会话生效，不影响后台数据）。"):
             st.session_state["msg_read_ids"] = set()
             st.session_state["_msg_cleared_toast"] = True
             st.rerun()
-    with _oc2:
-        # 聚合取数经 safe_section 已降级，此处提供手动重新加载入口，
-        # 清掉本页缓存后整页重跑重新向各数据源拉取最新消息。
-        if st.button("🔄", key="msg_reload", help="重新加载：拉取最新消息"):
+    with _ov5:
+        # 清掉本页缓存后整页重跑重新向各数据源拉取最新消息
+        if st.button("🔄 重新加载", key="msg_reload", width="stretch",
+                     help="重新加载：拉取最新消息"):
             try:
                 _load_watchlist.clear()
                 _load_forum.clear()
@@ -371,6 +371,8 @@ with st.expander("⚙️ 更多操作（清除已读标记 · 重新加载）", 
             except Exception:
                 pass
             st.rerun()
+
+render_data_degradation_banner()
 
 # ───────────────────────── 筛选 ─────────────────────────
 TYPES = ["全部", "异动", "社区", "系统", "研究", "荐股"]
