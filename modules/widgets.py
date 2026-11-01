@@ -777,6 +777,48 @@ _NAV_GROUPS = [
 ]
 _NAV_ADMIN = [('pages/92_用户管理.py', '用户管理', '👥'), ('pages/93_系统配置.py', '系统配置', '🛠️')]
 
+# ── P2-3 内联 widget key 注册表 ──────────────────────────────────────────────
+# 意图：pages 页面里不经封装组件、直接内联的 widget key（st.button/text_input/
+#   st.form/trading_autorefresh…）集中登记在册，防「散装 key」无序流失——
+#   改名、碰撞、重复定义悄悄发生时无人知晓，registry 即唯一台账。
+# 红线：新增内联 key 必须先在此登记再使用；f-string 动态键（拼帖子 id 等）
+#   按前缀登记。守卫 tests/test_inline_widget_keys.py 用 AST 提取受管页面
+#   全部 key= 实参（含 st.form 首位置参数），断言全覆盖：未登记即 fail。
+# 注：仅登记「会注册成 widget key」的键；纯 session_state 标志位
+#   （如 forum_view_post / forum_show_n / forum_del_{pid} 确认标志）不产生
+#   widget key，不在本表范围。
+_INLINE_WIDGET_KEYS: frozenset = frozenset({
+    # pages/52_股吧.py（股吧：列表 / 详情 / 评论 / 发帖表单 / 热榜）
+    "forum_autorefresh", "forum_back", "forum_back2", "forum_retry_detail",
+    "forum_jump_stock", "forum_like", "forum_del", "forum_del_cfm",
+    "forum_del_cancel", "forum_new_comment", "forum_view_tab", "forum_new_btn",
+    "forum_manual_refresh", "forum_filter_code", "forum_sort", "forum_clear",
+    "forum_kw_search", "forum_retry_list", "forum_sample", "forum_more",
+    "forum_batch_fav", "forum_batch_clear", "forum_new_post", "forum_title",
+    "forum_content", "forum_code", "forum_name",
+})
+_INLINE_WIDGET_KEY_PREFIXES: tuple = (
+    "forum_emo_",    # 表情快捷按钮 f"forum_emo_{_start}_{_i}"
+    "forum_recent_",  # 最近浏览 chips f"forum_recent_{rpid}"
+    "forum_open_",    # 帖子打开按钮 f"forum_open_{pid}"
+    "forum_fav_",     # 收藏按钮 f"forum_fav_{pid}"
+    "forum_sel_",     # 批量选择勾选框 f"forum_sel_{pid}"
+    "forum_hot_",     # 热榜 Top10 按钮 f"forum_hot_{_hid}"
+)
+
+
+def is_inline_widget_key(key) -> bool:
+    """判断 key 是否为已登记的 pages 内联 widget key。
+
+    静态键精确命中 `_INLINE_WIDGET_KEYS`；动态键（f-string 拼接实体 id）
+    按 `_INLINE_WIDGET_KEY_PREFIXES` 前缀命中。非字符串一律 False。
+    供守卫测试与未来 key 冲突排查使用，不改变页面任何运行逻辑。
+    """
+    if not isinstance(key, str):
+        return False
+    return key in _INLINE_WIDGET_KEYS or key.startswith(_INLINE_WIDGET_KEY_PREFIXES)
+
+
 def sidebar_target():
     """返回子页「侧边栏内容」应写入的目标容器。
 
