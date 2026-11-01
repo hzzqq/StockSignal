@@ -98,8 +98,14 @@ def render_watchlist_monitor() -> None:
             pass
         missing = [c for c in codes if c not in quotes]
         if missing:
-            with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-                for code, q in ex.map(lambda c: _quote_one(c, token), missing):
+            # R-03：共享有界线程池 fetch_many（信号量限流 + 整批硬边界）
+            from modules.fetch_parallel import fetch_many
+            _tasks = [(c, lambda c=c: _quote_one(c, token)) for c in missing]
+            _raw = fetch_many(_tasks, max_workers=4)
+            for code in missing:
+                result = _raw.get(code)
+                if result is not None:
+                    _, q = result
                     if q is not None:
                         quotes[code] = q
         return (quotes, has_auth_error)
@@ -1075,11 +1081,15 @@ def render_portfolio_returns() -> None:
                 continue
             _tasks.append((ticker, remaining))
         if _tasks:
-            with ThreadPoolExecutor(max_workers=min(8, len(_tasks))) as _ex:
-                _futs = {_ex.submit(_fetch_position_series, t, r, start_str, end_str): t for t, r in _tasks}
-                for _fut in as_completed(_futs):
-                    for _d, _v in _fut.result().items():
-                        series[_d] = series.get(_d, 0.0) + _v
+            # R-03：共享有界线程池 fetch_many（信号量限流 + 整批硬边界）
+            from modules.fetch_parallel import fetch_many
+            _fm = [(idx, lambda t=t, r=r: _fetch_position_series(t, r, start_str, end_str))
+                   for idx, (t, r) in enumerate(_tasks)]
+            _fm_raw = fetch_many(_fm, max_workers=min(8, len(_tasks)))
+            for idx, (t, r) in enumerate(_tasks):
+                res = _fm_raw.get(idx) or {}
+                for _d, _v in res.items():
+                    series[_d] = series.get(_d, 0.0) + _v
 
         if not series:
             return None, None, start_str

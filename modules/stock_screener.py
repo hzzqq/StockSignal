@@ -875,15 +875,17 @@ class StockScreener:
             hits = []
             done = 0
             if workers and workers > 1:
-                with ThreadPoolExecutor(max_workers=workers) as pool:
-                    futs = {pool.submit(_one, s): s for s in universe}
-                    for fut in as_completed(futs):
-                        res = fut.result()
-                        done += 1
-                        if res:
-                            hits.append(res)
-                        if progress and done % 25 == 0:
-                            progress(name, done, total)
+                # R-03：共享有界线程池 fetch_many（信号量限流 + 整批硬边界）
+                from modules.fetch_parallel import fetch_many
+                _tasks = [(idx, lambda s=s: _one(s)) for idx, s in enumerate(universe)]
+                _raw = fetch_many(_tasks, max_workers=workers)
+                for idx in range(len(universe)):
+                    res = _raw.get(idx)
+                    done += 1
+                    if res:
+                        hits.append(res)
+                    if progress and done % 25 == 0:
+                        progress(name, done, total)
             else:
                 for s in universe:
                     res = _one(s)

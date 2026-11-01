@@ -617,16 +617,18 @@ def _build_llm_prompt(
     # 2) 并发拉取（分析/新闻内部各有 TTL 缓存）
     ctx_map: Dict[str, Any] = {}
     if uniq:
-        with ThreadPoolExecutor(max_workers=min(6, len(uniq))) as ex:
-            futs = {ex.submit(_gather_one_stock, c, n): (c, n) for c, n in uniq}
-            for fut in as_completed(futs):
-                c, _ = futs[fut]
-                try:
-                    code, name, res, news = fut.result()
-                    ctx_map[code] = (name, res, news)
-                except Exception as e:  # noqa: BLE001
-                    logger.warning(f"[ai_engine] 处理异常: {e}")
-                    pass
+        # R-03：共享有界线程池 fetch_many（_safe 内部已 catch 异常 → None，等价旧 except pass 语义）
+        from modules.fetch_parallel import fetch_many
+        _tasks = [(c, lambda c=c, n=n: _gather_one_stock(c, n)) for c, n in uniq]
+        _raw = fetch_many(_tasks, max_workers=min(6, len(uniq)))
+        for code, result in _raw.items():
+            if result is None:
+                continue
+            try:
+                _, name, res, news = result
+                ctx_map[code] = (name, res, news)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"[ai_engine] gather {code} 解包异常: {e}")
 
     blocks = []
 
