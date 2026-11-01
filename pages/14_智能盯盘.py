@@ -635,8 +635,6 @@ st.markdown('---')
 fragment_individual_ff()
 st.markdown('---')
 fragment_alerts()
-with st.expander('💡 使用说明', expanded=False):
-    st.markdown('\n    **智能盯盘使用指引**\n    - **板块资金异动**：行业主力净流入 TOP10（红=净流入 / 绿=净流出）。\n    - **自选股涨跌榜**：实时行情按涨跌%排序，可筛选 / 逐只跳转。\n    - **个股资金流异动**：主力净流入 TOP / 净流出 TOP。\n    - **预警触发**：按阈值扫描涨跌与资金异动。\n    - **我的关注列表**：添加 / 移除自选股。\n    - ⚠️ 数据仅供参考，不构成投资建议。\n    ')
 
 # ── 方法学与来源注脚（B 类页五段式收尾）──
 st.markdown('---')

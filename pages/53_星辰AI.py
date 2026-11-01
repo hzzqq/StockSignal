@@ -1887,16 +1887,6 @@ with st.expander("⚙️ 更多功能与帮助（深度研究 · 研究记录 ·
     render_ai_tutorial()
 
     st.divider()
-    # ── 相关页面 ──
-    st.markdown("#### 🔗 相关页面")
-    _pc1, _pc2, _pc3 = st.columns(3)
-    with _pc1:
-        st.page_link("pages/10_行情看板.py", label="→ 行情看板")
-    with _pc2:
-        st.page_link("pages/24_个股研究.py", label="→ 个股研究")
-    with _pc3:
-        st.page_link("pages/94_消息中心.py", label="→ 消息中心")
-
     # ── 你可能也关注（静态推荐，点击直接提问）──
     st.markdown("#### 🔗 你可能也关注")
     _recs = [
@@ -1910,23 +1900,6 @@ with st.expander("⚙️ 更多功能与帮助（深度研究 · 研究记录 ·
         if _rcols[_i].button(_r["label"], key=f"xc_rec_{_i}", width="stretch",
                              help="向星辰 AI 提问该推荐主题"):
             st.session_state["_xc_pending"] = _r["prompt"]
-
-    # ── 使用说明 / 常见问题（并入快捷键说明）──
-    st.markdown("#### 💡 使用说明 / 常见问题")
-    st.markdown(
-        "**如何使用星辰 AI？**\n"
-        "- 在底部输入框输入问题，按 Enter 发送（Shift+Enter 换行）；\n"
-        "- 可点击「使用指南」里的快捷示例直接提问；\n"
-        "- 对话历史按账号在后端持久化，刷新不丢失。\n\n"
-        "**键盘快捷**\n"
-        "- **Enter**：发送当前输入框内容；**Shift + Enter**：输入框内换行；\n"
-        "- **R**：刷新页面重新加载对话（浏览器快捷键）。\n\n"
-        "**常见问题**\n"
-        "- Q：回答需要多久？A：由大模型生成（当前模型见顶部徽标），快速问答约数秒，"
-        "深度研报 / 深度研究因输出更长、工具调用更多会慢一些，请耐心等待。\n"
-        "- Q：数据从哪来？A：聚合东方财富 / 新浪财经等公开市场数据。\n"
-        "- Q：回答可靠吗？A：均为模型推演，不构成投资建议，请独立判断。"
-    )
 
 # ── 方法学与来源注脚（B 类页五段式：收尾一段；本页为对话页，无天然 KPI 带数据，不强凑）──
 st.markdown("---")

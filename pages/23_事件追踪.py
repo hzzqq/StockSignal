@@ -701,8 +701,6 @@ fragment_timeline()
 fragment_event_manage()
 fragment_news_mine()
 fragment_sentiment_report()
-with st.expander('💡 使用说明', expanded=False):
-    st.markdown('\n    **事件追踪使用指引**\n    - **信号评分**：选股票 → 填关键词 → 开始评分，查看价格 / 事件 / 宏观三维度信号。\n    - **实时关键词**：一键提取所选股票的最新新闻关键词。\n    - **事件时间轴**：选标的 + 区间，生成 K 线与事件叠加图。\n    - **事件管理**：手动添加 / 查看事件库。\n    - **新闻挖掘 / 情感报告**：抓取新闻做情感分析与入库。\n    - ⚠️ 所有数据仅供参考，不构成投资建议。\n    ')
 with st.expander('🔗 相关事件 / 标的推荐', expanded=False):
     if '_rec_cache' not in st.session_state:
         try:
