@@ -32,7 +32,7 @@ from modules.linear_trends import (
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fig_layout, _section_title, _fmt_yi, _trend_controls
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_kpi_grid
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_bento_kpi
 
 dark = render_standard_page(
     "资金流向", icon="🌊",
@@ -178,7 +178,7 @@ def fragment_northbound():
     sz = nb.get("sz_inflow")
     avail = nb.get("northbound_net_available")
     if avail:
-        xc_kpi_grid([
+        xc_bento_kpi([
             {"label": "北向净流入(实时)", "value": _fmt_yi(total) if total is not None else "—",
              "icon": "🧭", "tone": _flow_tone(total), "meta": "沪股通 + 深股通 当日净流入合计"},
             {"label": "沪股通(实时)", "value": _fmt_yi(sh) if sh is not None else "—",
@@ -186,12 +186,12 @@ def fragment_northbound():
             {"label": "深股通(实时)", "value": _fmt_yi(sz) if sz is not None else "—",
              "icon": "🛰️", "tone": _flow_tone(sz)},
             {"label": "交易日", "value": nb.get("trade_date") or "—", "icon": "🗓️"},
-        ])
+        ], template="1.5fr 1fr 1fr 1fr")
     else:
         # 实时未披露：展示「最近一次真实披露」历史值与累计净买入，避免整块空白
         sh_board = next((b for b in nb["boards"] if str(b.get("板块")) == "沪股通"), None)
         sz_board = next((b for b in nb["boards"] if str(b.get("板块")) == "深股通"), None)
-        xc_kpi_grid([
+        xc_bento_kpi([
             {"label": "北向净流入(最近真实披露)", "value": _fmt_yi(nb.get("last_net_buy")),
              "icon": "🧭", "meta": f"停披露前最后真实值 · {nb.get('last_net_buy_date') or '—'}"},
             {"label": "历史累计净买入", "value": _fmt_yi(nb.get("cumulative")),
@@ -202,7 +202,7 @@ def fragment_northbound():
             {"label": "深股通 涨/跌家数",
              "value": (f"{sz_board.get('上涨数','—')}/{sz_board.get('下跌数','—')}" if sz_board else "—"),
              "icon": "📉", "meta": "成分股实时涨跌家数"},
-        ])
+        ], template="1.5fr 1fr 1fr 1fr")
     detail = []
     for b in nb["boards"]:
         detail.append({
@@ -272,7 +272,7 @@ def fragment_industry():
     d2 = df.dropna(subset=["净额"])
     if not d2.empty:
         top_in, top_out = d2.iloc[0], d2.iloc[-1]
-        xc_kpi_grid([
+        xc_bento_kpi([
             {"label": "最强净流入", "value": f"{top_in['行业']}", "icon": "📥",
              "delta": f"{top_in['净额']:+.2f} 亿", "delta_dir": "up", "meta": "红=主力净流入"},
             {"label": "最强净流出", "value": f"{top_out['行业']}", "icon": "📤",
@@ -281,7 +281,7 @@ def fragment_industry():
              "meta": "净额为正（红）的行业数"},
             {"label": "净流出行业", "value": f"{int((d2['净额'] < 0).sum())}", "icon": "📉",
              "meta": "净额为负（绿）的行业数"},
-        ])
+        ], template="1.5fr 1fr 1fr 1fr")
         st.caption("📌 概览：红=主力净流入行业，绿=净流出行业；逐日资金流以 industry_fund_flow 为准。")
     else:
         info_banner("行业净流入概览暂不可用：当前行业资金流净额数据为空（网络/代理受限或数据源暂未接入）。")

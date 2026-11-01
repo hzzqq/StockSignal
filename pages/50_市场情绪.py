@@ -43,7 +43,7 @@ from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.colors import _hex_to_rgba
 from modules.chart_cache import cached_fig
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_kpi_grid
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_bento_kpi
 
 dark = render_standard_page(
     title="市场情绪 · 广度与情绪温度计", icon="🌡️",
@@ -903,14 +903,14 @@ def fragment_shepherd_forecast():
         )
         if cyc.get("desc"):
             st.caption(cyc["desc"])
-        xc_kpi_grid([
+        xc_bento_kpi([
             # 口径诚实（2026-09-10 实证）：该评分与次日收益的秩相关 IC≈-0.03，
             # 1547 天检验无法超越基准率 —— 它只表征**当日情绪热度**，不预测方向。
             {"label": "情绪热度（不预测方向）", "value": f"{fc.get('score', 0):.0f} / 100", "icon": "🌡️"},
             {"label": "方向判断（规则）", "value": bias, "icon": "🧭"},
             {"label": "规则强度", "value": f"{fc.get('confidence', 0)}%", "icon": "📶",
              "meta": "启发式规则命中强度，非统计校准胜率"},
-        ])
+        ], template="1.5fr 1.2fr 1fr")
         for r in (cyc.get("reasons") or [])[:6]:
             st.markdown(f"- {r}")
 

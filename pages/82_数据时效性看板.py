@@ -18,7 +18,7 @@ import logging
 import streamlit as st
 
 from modules.page_utils import render_standard_page
-from modules.ui_kit import xc_kpi_grid, stat_tile, info_banner
+from modules.ui_kit import xc_bento_kpi, stat_tile, info_banner
 from modules import data_health as dh
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ _STALL_COLOR = "#a855f7"   # 停更用紫色，与 stale 红区分
 
 
 def _source_card(row: dict) -> dict:
-    """把 single source 行转成 xc_kpi_grid 卡片 dict。"""
+    """把 single source 行转成 xc_bento_kpi 卡片 dict。"""
     stt = row.get("status", "unknown")
     label, color, hint = STATUS_META.get(stt, STATUS_META["unknown"])
     as_of = row.get("as_of") or "—"
@@ -74,14 +74,14 @@ def main():
     n_stale = sum(1 for r in rows if r["status"] == "stale")
     n_unknown = sum(1 for r in rows if r["status"] == "unknown")
     n_stalled = sum(1 for r in rows if r.get("stalled"))
-    xc_kpi_grid([
-        {"label": "数据源总数", "value": str(len(rows)), "accent": "#667eea"},
+    xc_bento_kpi([
+        {"label": "数据源总数", "value": str(len(rows)), "accent": "var(--ss-accent)"},
         {"label": "新鲜", "value": str(n_ok), "accent": "#1aa260", "tone": "up"},
         {"label": "偏旧", "value": str(n_warn), "accent": "#f5a623", "tone": "flat"},
         {"label": "陈旧", "value": str(n_stale), "accent": "#ee2a2a", "tone": "down"},
         {"label": "停更", "value": str(n_stalled), "accent": _STALL_COLOR, "tone": "down"},
         {"label": "未知", "value": str(n_unknown), "accent": "#94a3b8", "tone": "flat"},
-    ])
+    ], template="1.3fr 1fr 1fr 1fr 1fr 1fr")
 
     if n_stalled:
         info_banner(
@@ -98,7 +98,7 @@ def main():
 
     # ── 逐源卡片 ──
     st.markdown("### 📡 逐源时效状态")
-    xc_kpi_grid([_source_card(r) for r in rows], min_col=240)
+    xc_bento_kpi([_source_card(r) for r in rows], template="repeat(auto-fit,minmax(240px,1fr))")
 
     # ── 刷新计划 ──
     st.markdown("### 🛠 一键刷新计划")
@@ -140,9 +140,9 @@ def main():
                 "label": _layer_label.get(layer, layer),
                 "value": f"{rate*100:.1f}%" if rate is not None else "—",
                 "sub": f"命中 {m.get('hits', 0)} / 调用 {m.get('calls', 0)}",
-                "accent": "#667eea",
+                "accent": "var(--ss-accent)",
             })
-        xc_kpi_grid(cards, min_col=200)
+        xc_bento_kpi(cards, template="repeat(auto-fit,minmax(200px,1fr))")
     st.caption("口径：进程内计数，仅统计**本进程自启动以来**的调用（跨进程不汇总，重启清零）；"
                "L5 兜底命中 = 网络全败时用陈旧缓存（必带 as_of 标注）。")
 
