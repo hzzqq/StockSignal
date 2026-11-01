@@ -70,7 +70,7 @@ with st.sidebar:
     if st.button("🔄", key="p1_refresh",
                  help="刷新信号：清除缓存并重新读取信号文件（P1 重新导出后点此立即生效）"):
         loader.invalidate()
-        st.rerun()
+        # streamlit button auto-reruns → 同一 loader 实例 _cache 已清空，下次页面执行会重载 JSON
     _age = loader.signal_age_days(model)
     _lag_note = f"　·　⚠️ 信号滞后 {_age} 自然日，建议仅供参考" \
         if (_age or 0) >= 15 else ""

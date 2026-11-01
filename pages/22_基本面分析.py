@@ -528,7 +528,7 @@ code = str(picked or '600519').zfill(6)
 
 def _fa_goto(c):
     st.session_state['fa_stock'] = c
-    st.rerun()
+    # streamlit button auto-reruns → 下一次页面执行时 code 会读到新 session_state 值
 _fa_hist_key = '_fa_recent_viewed'
 if _fa_hist_key not in st.session_state:
     st.session_state[_fa_hist_key] = []

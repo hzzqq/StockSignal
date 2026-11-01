@@ -352,14 +352,14 @@ with st.container(border=True):
                      help="一键将当前所有未读消息标记为已读（无未读时禁用）。"):
             st.session_state["msg_read_ids"].update(m["id"] for m in msgs)
             st.session_state["_msg_marked_toast"] = True
-            st.rerun()
+            # streamlit button auto-reruns
     with _ov4:
         # 清空已读标记，重新将全部消息标为未读（仅清理本会话 session_state，不改后台数据）
         if st.button("🧹 清除已读标记", key="clear_read_marks", width="stretch",
                      help="将当前所有已读消息重新标记为未读（仅本会话生效，不影响后台数据）。"):
             st.session_state["msg_read_ids"] = set()
             st.session_state["_msg_cleared_toast"] = True
-            st.rerun()
+            # streamlit button auto-reruns
     with _ov5:
         # 清掉本页缓存后整页重跑重新向各数据源拉取最新消息
         if st.button("🔄 重新加载", key="msg_reload", width="stretch",
