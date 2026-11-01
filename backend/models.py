@@ -600,3 +600,69 @@ class ConditionalOrder(db.Model):
             "last_checked_at": self.last_checked_at.isoformat() + "Z" if self.last_checked_at else None,
             "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
         }
+
+
+# ------------------------------------------------------------------ AiTimelineEvent（批次9：timeline 持久化）
+class AiTimelineEvent(db.Model):
+    """研究任务 timeline 事件持久化（批次9）。
+
+    与批次8内存 timeline 的关系：
+    - progress_bus.report() 每次收到 dict event 时，除写内存 _EVENTS（MAX 200），
+      同时异步写入本表——进程重启 / 多 worker 场景下 timeline 不丢
+    - GET /api/tasks/<id>/timeline 端点从本表拉全量（不受 MAX 200 限制）
+    - Flask 启动时 db.create_all() 自动建表（extensions.py 已有）
+    """
+
+    __tablename__ = "ai_timeline_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.String(64), nullable=False, index=True)
+    stage = db.Column(db.String(32), nullable=False, default="research")
+    event_type = db.Column(db.String(16), nullable=True)   # tool_start / tool_end / None（str消息）
+    tool_name = db.Column(db.String(64), nullable=True)    # get_market_sentiment / fund_flow / ...
+    message = db.Column(db.Text, nullable=False, default="")  # _fmt 可读字符串或原始 str
+    event_json = db.Column(db.Text, nullable=True)         # 原始 dict event JSON（批次8结构化 payload）
+    idx = db.Column(db.Integer, nullable=True)             # 步骤序号（批次8 event.idx）
+    elapsed_s = db.Column(db.Float, nullable=True)         # tool_end 耗时秒（批次8 event.elapsed_s）
+    status = db.Column(db.String(16), nullable=True)      # tool_end 状态 ok/error/rejected/partial
+    ts = db.Column(db.Float, nullable=False, default=0.0)  # time.time() 事件发生时刻
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False, index=True)
+
+    __table_args__ = (
+        db.Index("ix_timeline_task_id_ts", "task_id", "ts"),
+    )
+
+    @staticmethod
+    def dumps_json(obj) -> str | None:
+        """安全 JSON 序列化（event_json 列用）。None → None，脏数据 → None（不中断 report 主流程）。"""
+        if obj is None:
+            return None
+        import json as _json
+        try:
+            return _json.dumps(obj, ensure_ascii=False, default=str)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def to_dict(self) -> dict:
+        """对外字段——还原 event_json（如有）为 dict。"""
+        import json as _json
+        event = None
+        if self.event_json:
+            try:
+                event = _json.loads(self.event_json)
+            except Exception:  # noqa: BLE001
+                event = None
+        return {
+            "id": self.id,
+            "task_id": self.task_id,
+            "stage": self.stage,
+            "event_type": self.event_type,
+            "tool_name": self.tool_name,
+            "message": self.message,
+            "event": event,
+            "idx": self.idx,
+            "elapsed_s": self.elapsed_s,
+            "status": self.status,
+            "ts": self.ts,
+            "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+        }
