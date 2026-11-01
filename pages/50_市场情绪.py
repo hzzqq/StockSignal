@@ -768,41 +768,45 @@ def fragment_shepherd_review():
 @safe_fragment("牧羊人折线图")
 def fragment_shepherd_chart():
     _section_title("📈 牧羊人指标折线图（真实历史序列）")
-    range_opts = {
-        "全部（2007 起）": 999999,
-        "近 5 年（1250 交易日）": 1250,
-        "近 1 年（250 交易日）": 250,
-        "近 60 交易日": 60,
-        "自定义日期范围…": "custom",
-    }
-    key = "shep_range"
-    cur = st.session_state.get(key, "全部（2007 起）")
-    try:
-        sel = st.selectbox("历史范围", list(range_opts), index=list(range_opts).index(cur) if cur in range_opts else 0,
-                           key=key)
-    except Exception:  # noqa: BLE001
-        sel = "全部（2007 起）"
-    custom_mode = range_opts[sel] == "custom"
+    # 2026-11-01 轻量化（老板指令：自定义范围单独拎出来、占地小但显眼）：
+    # 全宽 selectbox（自定义藏在选项里）→ segmented_control 胶囊一行（项目先例
+    # page_widgets.radio_pills / search_ui st.pills）+ st.popover「📅 自定义」小按钮
+    # （项目先例 pages/53 导出）。点任一胶囊即退出自定义态。
+    _presets = {"全部": 999999, "近5年": 1250, "近1年": 250, "近60日": 60}
+    _c_pills, _c_custom = st.columns([6, 1])
+    with _c_pills:
+        try:
+            sel_label = st.segmented_control(
+                "历史范围", list(_presets), default="全部", key="shep_pills",
+                on_change=lambda: st.session_state.__setitem__("shep_custom_on", False))
+        except Exception:  # noqa: BLE001  旧版无 segmented_control → selectbox 兜底
+            sel_label = st.selectbox("历史范围", list(_presets), key="shep_pills")
+        if sel_label is None:
+            sel_label = "全部"
     start_date = end_date = None
     backfill = False
-    if custom_mode:
-        today = pd.Timestamp.now().date()
-        default_start = today - pd.Timedelta(days=365)
-        try:
-            start_date = st.date_input("开始日期", value=default_start, max_value=today, key="shep_start")
-            end_date = st.date_input("结束日期", value=today, max_value=today, key="shep_end")
-        except Exception:  # noqa: BLE001
-            start_date, end_date = default_start, today
-        if start_date > end_date:
-            start_date, end_date = end_date, start_date
-        backfill = st.checkbox("自动补算近期缺失数据（涨停/连板/炸板/昨板，东财仅支持最近约12个交易日）",
-                               value=False, key="shep_backfill")
+    _custom_active = bool(st.session_state.get("shep_custom_on", False))
+    with _c_custom:
+        with st.popover("📅 自定义 ✓生效中" if _custom_active else "📅 自定义",
+                        use_container_width=True):
+            today = pd.Timestamp.now().date()
+            _d_start = st.session_state.get("shep_start", today - pd.Timedelta(days=365))
+            _d_end = st.session_state.get("shep_end", today)
+            start_date = st.date_input("开始日期", value=_d_start, max_value=today, key="shep_start")
+            end_date = st.date_input("结束日期", value=_d_end, max_value=today, key="shep_end")
+            backfill = st.checkbox("自动补算近期缺失数据（东财涨停池限最近约12个交易日）",
+                                   value=False, key="shep_backfill")
+            if st.button("应用自定义范围", key="shep_custom_apply", use_container_width=True):
+                st.session_state["shep_custom_on"] = True
+    if start_date and end_date and start_date > end_date:
+        start_date, end_date = end_date, start_date
+    custom_mode = bool(st.session_state.get("shep_custom_on", False)) and start_date is not None
     try:
         with st.spinner("加载历史序列…"):
             if custom_mode:
                 df, meta = _load_shepherd_range(start_date, end_date, backfill)
             else:
-                df, meta = _load_shepherd(range_opts[sel])
+                df, meta = _load_shepherd(_presets[sel_label])
     except Exception as e:
         xc_handle_error("牧羊人历史加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
@@ -828,7 +832,7 @@ def fragment_shepherd_chart():
     st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key="shep_lines")
     caption = ("🐑 牧羊人指标源自抖音博主「股海牧羊人」《炒股绕不开的第一步》情绪温度计方法论："
                "不盯指数红绿，先看大盘脸色（涨跌家数/涨停跌停/昨日涨停表现）。"
-               "近 60 日为 akshare 实时回测；长区间读取 2007 起全 A 重构序列"
+               "近 60 日为 akshare 实时回测；长区间读取 2007 起全 A 重构序列，历史序列与实时回测的近期缺口已自动拼接补全（重叠日以实时真值优先）"
                "（新浪日线聚合，涨跌/红盘为真实重构，涨停/跌停为板块规则近似，近期为东财真实）。")
     if custom_mode:
         dr = meta.get("date_range", (str(start_date), str(end_date)))
