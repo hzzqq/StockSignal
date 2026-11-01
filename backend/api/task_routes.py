@@ -100,7 +100,8 @@ def get_task_timeline(task_id: str):
             .order_by(AiTimelineEvent.ts.asc())
         ).scalars().all()
         db_events = [r.to_dict() for r in rows]
-    except Exception:  # noqa: BLE001 — schema 未就绪等边缘场景静默跳过
+    # ui_audit_exempt: except-pass timeline SQLite 兜底读取尽力而为：schema 未就绪/查询失败按空列表返回，内存事件为主源不受影响
+    except Exception:
         pass
 
     # 内存 timeline 用批次8 dict/str 混合格式，SQLite timeline 用批次9 to_dict 统一格式

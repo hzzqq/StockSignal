@@ -36,6 +36,7 @@ def _log(msg: str) -> None:
         os.makedirs(LOGS_DIR, exist_ok=True)
         with open(STATUS_FILE, "a", encoding="utf-8") as f:
             f.write(line + "\n")
+    # ui_audit_exempt: except-pass _log 自身写状态日志失败不能再抛：避免启动器主流程被日志写盘拖垮
     except Exception:
         pass
 

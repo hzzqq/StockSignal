@@ -72,7 +72,8 @@ def _row_to_indicators(df, i=-1) -> dict:
         _d = str(row["date"])[:10]
         if _d and _d[4] == "-":
             out["date"] = _d
-    except Exception:  # noqa: BLE001
+    # ui_audit_exempt: except-pass row["date"] 缺失/不可切片时不带 date：新鲜度守卫按 unknown 安全降级，不阻断快照生成
+    except Exception:
         pass
     return out
 

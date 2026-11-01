@@ -74,6 +74,7 @@ def clean_pycache(root: str = HERE) -> int:
                 import shutil
                 shutil.rmtree(p, ignore_errors=True)
                 removed += 1
+            # ui_audit_exempt: except-pass 清理 __pycache__ 失败不阻断启动（rmtree 已 ignore_errors，双保险）
             except Exception:
                 pass
     return removed
@@ -180,7 +181,8 @@ def port_in_use(port, host="127.0.0.1"):
     finally:
         try:
             s.close()
-        except Exception:  # noqa
+        # ui_audit_exempt: except-pass finally 中 socket.close 失败不掩盖 connect_ex 主返回值
+        except Exception:
             pass
 
 
@@ -200,7 +202,8 @@ def find_free_port(preferred, host="127.0.0.1", max_tries=20, step=1):
         finally:
             try:
                 s.close()
-            except Exception:  # noqa
+            # ui_audit_exempt: except-pass finally 中 socket.close 失败不掩盖 _free 主返回值
+            except Exception:
                 pass
 
     cand = preferred
@@ -294,14 +297,16 @@ def cleanup(proc, port):
         return
     try:
         proc.terminate()
-    except Exception:  # noqa
+    # ui_audit_exempt: except-pass 模拟模式 cleanup 收尾：proc.terminate 失败（进程已退）不阻断后续 taskkill
+    except Exception:
         pass
     try:
         subprocess.run(
             ["taskkill", "/PID", str(proc.pid), "/F", "/T"],
             capture_output=True, timeout=10,
         )
-    except Exception:  # noqa
+    # ui_audit_exempt: except-pass 模拟模式 cleanup 收尾：taskkill 清理子进程失败不阻断启动流程结束
+    except Exception:
         pass
 
 
@@ -332,7 +337,8 @@ def refresh_streamlit_static_mtime():
                 try:
                     os.utime(p, (now, now))
                     cnt += 1
-                except Exception:  # noqa
+                # ui_audit_exempt: except-pass 单文件 mtime 刷新失败跳过该文件（防御性步骤，绝不影响启动）
+                except Exception:
                     pass
         log(f"  已刷新 streamlit 静态资源 mtime：{cnt} 个文件（规避前端陈旧缓存）")
     except Exception as e:  # noqa

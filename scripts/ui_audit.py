@@ -400,8 +400,8 @@ def main() -> int:
     # ---------- 控制台摘要 ----------
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[ui_audit] stdout reconfigure 失败: {e}", file=sys.stderr)
     print("== P0-4 UI 审计基线（AST 级）==")
     d = doc_baseline
     print(f"[doc_baseline] scope=pages/*.py, pages={d['page_count']}")

@@ -88,7 +88,8 @@ def _build_estimate_payload():
             cycle_name = _cyc.get("name", "")
             bias = (_fc or {}).get("bias", "中性")
             score = (_fc or {}).get("score")
-    except Exception:  # noqa: BLE001
+    # ui_audit_exempt: except-pass 首页兜底估算缓存回退：牧羊人指标缓存缺失/网络受限时 temp 留 None，derive_position 兜底 50
+    except Exception:
         pass  # 缓存缺失/网络受限：temp 留 None，derive_position 兜底 50
     # 事件驱动催化：首页兜底估算也接通事件因子（与 54_ / build_snapshot 同源），
     # 消除首页「实时估算」与归档快照的活/归档漂移（S6）。走模块级 300s TTL 缓存，
@@ -302,7 +303,8 @@ try:
                      help="牧羊人 18 项指标 → 情绪周期定位 + 次日方向与置信度 + 三情景推演"):
             st.session_state["shep_focus_note"] = True
             safe_switch_page("pages/50_市场情绪.py")
-except Exception:  # noqa: BLE001
+# ui_audit_exempt: except-pass 首页快捷入口按钮区渲染容错：该区异常不阻断主页其余内容渲染
+except Exception:
     pass
 
 # 自选股数量（调后端）
