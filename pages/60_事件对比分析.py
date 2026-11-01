@@ -11,10 +11,12 @@
 """
 import logging
 
+import html
+
 import streamlit as st
 import plotly.graph_objects as go
 
-from modules.ui_kit import xc_handle_error, xc_content_card
+from modules.ui_kit import xc_handle_error, inject_kit_css
 from modules.page_utils import render_standard_page
 from modules.ui_theme import section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
@@ -22,6 +24,44 @@ from modules import event_compare as ec
 from modules import breadth_divergence as bd
 
 logger = logging.getLogger(__name__)
+
+
+def _b(text, color: str | None = None) -> str:
+    """行内强调：动态值先转义再包 <b>（可选彩色），杜绝 XSS，也修掉裸标签被转义成纯文本。"""
+    safe = html.escape("" if text is None else str(text))
+    if color:
+        return f'<b style="color:{color}">{safe}</b>'
+    return f"<b>{safe}</b>"
+
+
+def _fmt(v, digits: int = 1, suffix: str = "") -> str:
+    """数值安全格式化：None 或非法 -> '—'，否则按位数带后缀（修掉 red_ratio 无守护崩溃）。"""
+    if v is None:
+        return "—"
+    try:
+        return f"{float(v):.{digits}f}{suffix}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _html_card(title: str, body: str, *, icon: str = "", accent: str | None = None) -> None:
+    """内容卡（正文支持 HTML）：复用 xc-content-card 视觉，正文走 unsafe_allow_html。
+
+    与 xc_content_card 的区别：xc_content_card 为防注入强制转义正文；本卡正文由调用方
+    用 _b() 等助手构造（动态值已转义），故不再二次转义。accent 用左边框保留颜色语义。
+    """
+    t = html.escape(str(title))
+    ic = f"{html.escape(str(icon))} " if icon else ""
+    style = f' style="border-left:3px solid {accent}"' if accent else ""
+    inject_kit_css()
+    st.markdown(
+        f'<div class="xc-content-card"{style}>'
+        f'<div class="xc-cc-title">{ic}{t}</div>'
+        f'<div class="xc-cc-body">{body}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
 
 dark = render_standard_page(
     title="事件对比分析 · 信号 × 广度 对照", icon="🔍",
@@ -40,24 +80,25 @@ try:
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("### 📡 事件信号池")
-        st.markdown(xc_content_card(
+        _html_card(
             title=f"P1 EV 信号池（{cmp['pool_date'] or '—'}）"
                    f"{' · 🔴 LIVE' if cmp['pool_live'] else (' · 📦 离线' if cmp['pool_available'] else ' · ⚠️ 不可用')}"
                    f"{' · 数据偏旧' if cmp['pool_stale'] else ''}",
-            body=f"共 <b>{cmp['n']}</b> 只信号 ｜ 看多 <b style='color:{UP_COLOR}'>{cmp['bull']}</b> "
-                 f"／ 看空 <b style='color:{DOWN_COLOR}'>{cmp['bear']}</b><br>"
-                 f"看多占比 <b>{('-' if cmp['bull_pct'] is None else f'{cmp['bull_pct']:.0f}%')}</b> ｜ "
-                 f"看多均分 {('-' if cmp['bull_score_avg'] is None else f'{cmp['bull_score_avg']:.1f}')} ／ "
-                 f"看空均分 {('-' if cmp['bear_score_avg'] is None else f'{cmp['bear_score_avg']:.1f}')}",
-        ), unsafe_allow_html=True)
+            body=f"共 {_b(cmp['n'])} 只信号 ｜ 看多 {_b(cmp['bull'], UP_COLOR)} "
+                 f"／ 看空 {_b(cmp['bear'], DOWN_COLOR)}<br>"
+                 f"看多占比 {_b(_fmt(cmp['bull_pct'], 0, '%'))} ｜ "
+                 f"看多均分 {_b(_fmt(cmp['bull_score_avg'], 1))} ／ "
+                 f"看空均分 {_b(_fmt(cmp['bear_score_avg'], 1))}",
+        )
     with c2:
         st.markdown("### 🌐 当日市场广度")
         if cmp["breadth_available"]:
-            st.markdown(xc_content_card(
-                title=f"牧羊人广度（{cmp['breadth_date']}）",
-                body=f"红盘率 <b>{cmp['red_ratio']:.1f}%</b> ｜ 上涨 {cmp['up_count']} ／ 下跌 {cmp['down_count']}<br>"
-                     f"涨停 {cmp['limit_up']} ／ 跌停 {cmp['limit_down']}",
-            ), unsafe_allow_html=True)
+            _html_card(
+                title=f"牧羊人广度（{cmp['breadth_date'] or '—'}）",
+                body=f"红盘率 {_b(_fmt(cmp['red_ratio'], 1, '%'))} ｜ "
+                     f"上涨 {_b(_fmt(breadth['up_count'], 0))} ／ 下跌 {_b(_fmt(breadth['down_count'], 0))}<br>"
+                     f"涨停 {_b(_fmt(breadth['limit_up'], 0))} ／ 跌停 {_b(_fmt(breadth['limit_down'], 0))}",
+            )
         else:
             st.warning(f"⚠️ 广度数据不可用：{cmp['breadth_note'] or '无数据'}")
 
@@ -67,11 +108,11 @@ try:
     color = {"momentum": UP_COLOR, "contrarian": "#36c5d8",
              "diverge_hot": DOWN_COLOR, "cautious": "#ca8a04",
              "unknown": "#94a3b8"}.get(kind, "#94a3b8")
-    st.markdown(xc_content_card(
+    _html_card(
         title="结构判定",
-        body=f"<b style='color:{color}'>{cmp['alignment']}</b>",
+        body=_b(cmp['alignment'], color),
         accent=color,
-    ), unsafe_allow_html=True)
+    )
     st.caption("判定仅基于「看多信号占比」与「当日红盘率」两个可观测量的关系，不含任何未来预测。")
 
     # ── 对照表 ──
@@ -86,8 +127,13 @@ try:
         # 信号着色（A股：看多=红 / 看空=绿）
         def _sig_color(v):
             return f"color:{UP_COLOR}" if str(v) == "看多" else f"color:{DOWN_COLOR}"
+        styler = df_disp.style
+        if hasattr(styler, "map"):
+            styler = styler.map(_sig_color, subset=["信号"])
+        else:  # 兼容 pandas < 2.1（applymap 已废弃/移除）
+            styler = styler.applymap(_sig_color, subset=["信号"])
         st.dataframe(
-            df_disp.style.applymap(_sig_color, subset=["信号"]),
+            styler,
             width="stretch", hide_index=True,
         )
     else:
