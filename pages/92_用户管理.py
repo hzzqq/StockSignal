@@ -37,12 +37,10 @@ with tab_users:
     with col_refresh:
         if st.button("🔄", help="刷新：重新加载用户列表"):
             st.session_state["user_mgmt_keyword"] = keyword
-            st.rerun()
         # 加法式 UX：一键清空搜索关键词并显示全部用户（不改动现有刷新逻辑）。
         if st.button("🧹 清空", width="stretch", key="user_clear_btn",
                      help="清空搜索关键词，显示全部用户。"):
             st.session_state["user_mgmt_keyword"] = ""
-            st.rerun()
 
     st.session_state["user_mgmt_keyword"] = keyword
     page = st.session_state["user_mgmt_page"]
@@ -83,7 +81,6 @@ with tab_users:
                         with col_edit:
                             if st.button("✏️ 编辑", key=f"edit_{u.get('id')}"):
                                 st.session_state["editing_user"] = u
-                                st.rerun()
                         with col_del:
                             current = get_user() or {}
                             if u.get("id") == current.get("id"):
@@ -93,20 +90,17 @@ with tab_users:
                             else:
                                 if st.button("🗑️ 删除", key=f"del_{u.get('id')}", type="secondary"):
                                     st.session_state["deleting_user"] = u
-                                    st.rerun()
 
             # 分页
             col_prev, col_info, col_next = st.columns([1, 2, 1])
             with col_prev:
                 if st.button("⬅️ 上一页", disabled=(page <= 1)):
                     st.session_state["user_mgmt_page"] = page - 1
-                    st.rerun()
             with col_info:
                 st.caption(f"第 {page} / {pages} 页")
             with col_next:
                 if st.button("➡️ 下一页", disabled=(page >= pages)):
                     st.session_state["user_mgmt_page"] = page + 1
-                    st.rerun()
 
 # ----------------------------------------------------------------- 创建用户
 with tab_create:
@@ -175,13 +169,11 @@ if "editing_user" in st.session_state:
                 if code == 200 and resp.get("status") == "ok":
                     xc_success_box("更新成功！")
                     del st.session_state["editing_user"]
-                    st.rerun()
                 else:
                     st.error(f"更新失败: {resp.get('message', '未知错误')}")
         with col_cancel:
             if st.button("取消", width="stretch"):
                 del st.session_state["editing_user"]
-                st.rerun()
 
 # ----------------------------------------------------------------- 删除确认
 if "deleting_user" in st.session_state:
@@ -197,20 +189,18 @@ if "deleting_user" in st.session_state:
                 if code == 200 and resp.get("status") == "ok":
                     xc_success_box("删除成功！")
                     del st.session_state["deleting_user"]
-                    st.rerun()
                 else:
                     st.error(f"删除失败: {resp.get('message', '未知错误')}")
         with col_cancel:
             if st.button("取消"):
                 del st.session_state["deleting_user"]
-                st.rerun()
 
 # ----------------------------------------------------------------- 操作日志
 with tab_logs:
     # 加法式便利：提供手动刷新按钮，便于后端产生新日志后立即拉取，而无需整页交互触发。
     if st.button("🔄 刷新日志", key="log_refresh_btn",
                  help="重新从后端拉取最新操作日志"):
-        st.rerun()
+        pass  # streamlit button auto-reruns, page re-executes and re-fetches logs
     page = st.session_state["log_page"]
     # 加法式健壮性：与用户列表同理，body 可能为 None，先兜底避免 AttributeError。
     code, resp = get_logs(page=page, per_page=20)
@@ -247,10 +237,8 @@ with tab_logs:
             with col_prev:
                 if st.button("⬅️ 上一页", disabled=(page <= 1), key="log_prev"):
                     st.session_state["log_page"] = page - 1
-                    st.rerun()
             with col_info:
                 st.caption(f"第 {page} / {pages} 页")
             with col_next:
                 if st.button("➡️ 下一页", disabled=(page >= pages), key="log_next"):
                     st.session_state["log_page"] = page + 1
-                    st.rerun()

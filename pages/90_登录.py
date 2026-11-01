@@ -231,7 +231,6 @@ if is_authenticated():
     with col_b:
         if st.button("🚪 退出登录", width="stretch"):
             clear_auth()
-            st.rerun()
     st.stop()
 
 # ── 大标题区（阿里云式：渐变强调 + 数据副标题）──
@@ -435,18 +434,15 @@ with form_col:
     if st.button("🔧 管理员", key="fill_admin", help="自动填入 admin / Admin@123"):
         st.session_state["_login_username"] = "admin"
         st.session_state["_login_password"] = "Admin@123"
-        st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
     if st.button("🧪 一键填演示账号", width="stretch", key="fill_demo",
                  help="自动填入 demo / Demo@123"):
         st.session_state["_login_username"] = "demo"
         st.session_state["_login_password"] = "Demo@123"
-        st.rerun()
     if st.button("🧹 清空输入", width="stretch", key="clear_login_input",
                  help="清除一键填入的账号与密码，方便手动重新输入。"):
         for _k in ("_login_username", "_login_password"):
             st.session_state.pop(_k, None)
-        st.rerun()
 
 # ── 页脚（阿里云式法律声明链接行）──
 st.markdown(

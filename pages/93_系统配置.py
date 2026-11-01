@@ -107,12 +107,10 @@ with tab_stocks:
     with col_refresh:
         if st.button("🔄", help="刷新：重新加载系统配置"):
             st.session_state["stock_keyword"] = keyword
-            st.rerun()
         # 加法式 UX：一键清空搜索关键词并刷新，恢复完整股票列表（不改动现有刷新逻辑）。
         if st.button("🧹 清空", width="stretch", key="stock_clear_btn",
                      help="清空搜索关键词，显示全部股票。"):
             st.session_state["stock_keyword"] = ""
-            st.rerun()
 
     st.session_state["stock_keyword"] = keyword
     page = st.session_state["stock_page"]
@@ -142,13 +140,11 @@ with tab_stocks:
             with col_prev:
                 if st.button("⬅️ 上一页", disabled=(page <= 1), key="stock_prev"):
                     st.session_state["stock_page"] = page - 1
-                    st.rerun()
             with col_info:
                 st.caption(f"第 {page} / {pages} 页")
             with col_next:
                 if st.button("➡️ 下一页", disabled=(page >= pages), key="stock_next"):
                     st.session_state["stock_page"] = page + 1
-                    st.rerun()
         else:
             # 加法式空态引导：搜索无匹配或全部为空时，给出可操作的排查提示，
             # 而非仅显示「共 0 只股票」一行，降低用户困惑。
@@ -190,7 +186,6 @@ with tab_config:
                                 c, r = update_config(cfg.get("key"), new_val)
                                 if c == 200 and r.get("status") == "ok":
                                     xc_success_box("已保存")
-                                    st.rerun()
                                 else:
                                     st.error(r.get("message", "保存失败"))
                             else:
@@ -204,7 +199,6 @@ with tab_config:
                                     if c == 200 and r.get("status") == "ok":
                                         xc_success_box("已删除")
                                         st.session_state.pop(_ck, None)
-                                        st.rerun()
                                     else:
                                         st.error(r.get("message", "删除失败"))
                                         st.session_state.pop(_ck, None)
@@ -235,7 +229,6 @@ with tab_config:
                 c, r = create_config(new_key, new_value, new_desc)
                 if c == 200 and r.get("status") == "ok":
                     xc_success_box("添加成功！")
-                    st.rerun()
                 else:
                     st.error(r.get("message", "添加失败"))
 
@@ -254,7 +247,6 @@ with tab_watch:
                     c, r = add_watchlist(add_code)
                     if c == 200 and r.get("status") == "ok":
                         xc_success_box("添加成功！")
-                        st.rerun()
                     else:
                         st.error(r.get("message", "添加失败"))
 
@@ -265,7 +257,6 @@ with tab_watch:
     if st.button("🧹 清空搜索", key="watch_search_clear",
                  help="清空辅助搜索框，隐藏搜索结果。"):
         st.session_state["watch_search"] = ""
-        st.rerun()
     if search_q and len(search_q) >= 1:
         c, r = search_stocks(search_q, limit=8)
         if c == 200 and r.get("status") == "ok":
@@ -280,7 +271,6 @@ with tab_watch:
                             c2, r2 = add_watchlist(s.get("code"))
                             if c2 == 200:
                                 xc_success_box(f"已添加 {s.get('name', s.get('code', '该股票'))}")
-                                st.rerun()
 
     st.markdown("---")
     code, resp = get_watchlist()
@@ -308,7 +298,6 @@ with tab_watch:
                         c, r = remove_watchlist(_wid)
                         if c == 200 and r.get("status") == "ok":
                             xc_success_box("已移除")
-                            st.rerun()
                         else:
                             st.error(r.get("message", "移除失败"))
 
@@ -382,6 +371,5 @@ with tab_alert:
                 if c == 200 and r.get("status") == "ok":
                     xc_success_box("已保存（运行时生效，重启后失效）")
                     _toast("市场异动扫描策略已更新")
-                    st.rerun()
                 else:
                     st.error(r.get("message", "保存失败"))

@@ -99,7 +99,6 @@ def render_preferences():
         ):
             st.session_state["theme_mode"] = "dark"
             persist_prefs()
-            st.rerun()
     with col_light:
         if st.button(
             "☀️ 白天模式",
@@ -108,7 +107,6 @@ def render_preferences():
         ):
             st.session_state["theme_mode"] = "light"
             persist_prefs()
-            st.rerun()
 
     # T-266：下方「切换按钮 primary 高亮」已表达当前模式，此说明与页首总说明重复，删除。
 
@@ -130,7 +128,6 @@ def render_preferences():
         # 实际 CSS 注入由 ui_theme.apply_theme() 全局统一处理（覆盖 html/body/.stApp），
         # 这里仅更新设置并重跑，使全局字号立即生效。
         persist_prefs()
-        st.rerun()
 
     st.markdown("")
 
@@ -215,7 +212,6 @@ def render_preferences():
             if st.confirm("确定恢复默认设置？当前个性化设置将被覆盖，且关闭浏览器后无法找回。"):
                 for _key, _default in _SETTINGS_KEYS.items():
                     st.session_state[_key] = _default
-                st.rerun()
     with col_save:
         # T-266：持久化语义已由页首总说明一行覆盖，此处不再重复占行。
         st.caption("💡 所有设置实时生效，关闭浏览器后恢复默认。")
@@ -265,7 +261,6 @@ with col1:
                         save_avatar(_username, content, ext=ext)  # 本地缓存兜底
                         xc_success_box("✅ 头像已按账号保存到云端，刷新后依然在。")
                         st.session_state["avatar_up_counter"] += 1
-                        st.rerun()
                     else:
                         # 后端不可用：退化为本地保存（仅本机本会话可靠）
                         save_avatar(_username, content, ext=ext)
@@ -273,7 +268,6 @@ with col1:
                         _msg = (res or {}).get("message", "未知错误") if isinstance(res, dict) else "后端无响应"
                         xc_warn_box(f"⚠️ 后端保存失败（{_msg}），已暂存本地；重启后端后可能丢失。")
                         st.session_state["avatar_up_counter"] += 1
-                        st.rerun()
             except Exception as e:
                 xc_handle_error("保存失败", e, hint="请稍后重试，或检查网络与数据源连接")
     st.markdown(f"**用户名：** {_username}")
@@ -349,7 +343,6 @@ with _col_cache:
                  help="刷新本页缓存：清空本页自选股/登录历史的 10 秒短缓存，立即重新向后台拉取最新数据。"):
         st.session_state.pop("_my_cached_get", None)
         st.session_state["_my_cache_toast"] = True
-        st.rerun()
 
 # ── 登录历史 ──
 xc_content_card("🕘 登录历史",
@@ -410,7 +403,6 @@ except Exception as e:
     # 加法式失败重试：请求异常时提供重试（清掉短缓存后重新拉取）
     if st.button("🔄 重试", key="login_retry", width="stretch"):
         st.session_state.pop("_my_cached_get", None)
-        st.rerun()
 
 st.markdown("---")
 
@@ -437,7 +429,6 @@ with st.expander("⚙️ 更多功能（我的收藏 · 快速查看股票）", 
         for _i, _c in enumerate(st.session_state["my_starred_stocks"][:6]):
             if _scols[_i].button(f"⭐ {_c}", key=f"my_star_disp_{_i}", help="点击取消收藏"):
                 st.session_state["my_starred_stocks"].remove(_c)
-                st.rerun()
     st.markdown("---")
     # 加法式输入内联校验：实时校验 6 位股票代码格式（错误时 st.error 提示）
     _my_quick = st.text_input("🔎 快速查看股票（6 位代码）", key="my_quick_code",
