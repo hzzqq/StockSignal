@@ -23,7 +23,7 @@ from modules.session import get_user, trading_autorefresh
 from modules.page_guard import safe_section, safe_fragment
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast, UP, DOWN
-from modules.ui_kit import xc_error_box, xc_kpi_grid, xc_success_box, xc_warn_box, xc_content_card
+from modules.ui_kit import xc_error_box, xc_bento_kpi, xc_success_box, xc_warn_box, xc_content_card
 dark = render_standard_page(title='模拟交易组合', icon='🎮', caption='虚拟资金练习；持仓持久化到本地，模块独立运行，不影响真实账户。')
 
 st.caption('⚠️ 模拟交易，仅供学习，不构成任何投资建议。')
@@ -112,14 +112,14 @@ def fragment_paper():
             rows, assets, mv = _recompute(book)
         pnl_total = assets - book['init_cash']
         pnl_pct = pnl_total / book['init_cash'] * 100
-        xc_kpi_grid([
+        xc_bento_kpi([
             {'label': '总资产', 'value': f'¥{assets:,.0f}'},
             {'label': '可用现金', 'value': f"¥{book['cash']:,.0f}"},
             {'label': '持仓市值', 'value': f'¥{mv:,.0f}'},
             {'label': '累计盈亏', 'value': f'¥{pnl_total:,.0f}',
              'delta': f'{pnl_pct:+.2f}%', 'delta_dir': 'up' if pnl_pct >= 0 else 'down',
              'tone': 'up' if pnl_pct >= 0 else 'down'},
-        ])
+        ], template="1.3fr 1fr 1fr 1.2fr")
         st.caption('ℹ️ 累计盈亏 = 总资产 − 初始资金；净值曲线基于每笔成交后的总资产快照绘制。')
     xc_content_card('💱 交易', "")
     col_b, col_s = st.columns(2)

@@ -15,7 +15,7 @@ import streamlit as st
 import pandas as pd
 
 from modules.page_utils import render_standard_page
-from modules.ui_kit import xc_kpi_grid, info_banner
+from modules.ui_kit import info_banner
 from modules import nl_screen as ns
 from modules.risk_gate import scan_and_gate  # T-245 二道闸
 

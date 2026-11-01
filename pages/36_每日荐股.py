@@ -15,7 +15,7 @@ import streamlit as st
 
 from modules.page_utils import render_standard_page
 from modules.session import get_user_setting, save_user_setting
-from modules.ui_kit import info_banner, xc_warn_box, xc_kpi_grid
+from modules.ui_kit import info_banner, xc_warn_box, xc_bento_kpi
 from modules.recommend_engine import (
     ALGO_LABELS, ALGO_WEIGHTS, DISCLAIMER, load_latest_recommendation,
 )
@@ -50,12 +50,12 @@ if _st.get("stale"):
 
 # ── 市场上下文 ──
 ctx = rec.get("market_context") or {}
-xc_kpi_grid([
+xc_bento_kpi([
     {"label": "市场温度", "value": str(ctx.get("temperature", "—"))},
     {"label": "情绪周期", "value": str(ctx.get("cycle", "—"))},
     {"label": "建议总仓位", "value": f"{(ctx.get('position') or {}).get('pct', '—')}%"},
     {"label": "候选池", "value": f"{rec.get('scored_size', '—')} / {rec.get('universe_size', '—')}"},
-])
+], template="1fr 1.2fr 1.4fr 1fr")
 
 st.caption(f"生成时间：{rec.get('generated_at', '—')} · 行情截至各标的 data_as_of · "
            f"算法缺失标的：multi_factor {rec.get('algo_unavailable', {}).get('multi_factor', 0)} 只 / "
@@ -78,11 +78,11 @@ for i, p in enumerate(picks, 1):
                 unsafe_allow_html=True,
             )
         with head_r:
-            xc_kpi_grid([{"label": "综合评分", "value": f"{p.get('composite', '—')}"}])
+            xc_bento_kpi([{"label": "综合评分", "value": f"{p.get('composite', '—')}"}])
 
         # 买入方案
         plan = p.get("plan") or {}
-        xc_kpi_grid([
+        xc_bento_kpi([
             {"label": "入场参考", "value": f"¥{plan.get('entry', '—')}"},
             {"label": "目标价（3×ATR）", "value": f"¥{plan.get('target', '—')}"},
             {"label": "止损价（2×ATR）", "value": f"¥{plan.get('stop', '—')}"},
@@ -117,7 +117,7 @@ if os.path.exists(_sim_path):
             sim = json.load(f)
         s = sim.get("aggregate") or {}
         with st.expander("🧪 万级虚拟用户模拟统计（历史蒙特卡洛，非实盘）", expanded=False):
-            xc_kpi_grid([
+            xc_bento_kpi([
                 {"label": "模拟用户数", "value": str(sim.get("meta", {}).get("n_users", "—"))},
                 {"label": "中位回报", "value": f"{s.get('return_median_pct', '—')}%"},
                 {"label": "正收益占比", "value": f"{s.get('pct_positive', '—')}%"},

@@ -21,7 +21,7 @@ from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
 
-from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box, info_banner, prov_badge, xc_kpi_grid, xc_content_card
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box, info_banner, prov_badge, xc_bento_kpi, xc_content_card
 logger = logging.getLogger(__name__)
 dark = render_standard_page(title='行情看板', icon='📈', layout='wide')
 render_index_compact(cols_per_row=5)
@@ -81,10 +81,10 @@ def _get_stock_concept(code: str) -> str:
     return '—'
 
 def _render_sector_cards(df, top_n=24):
-    """板块涨跌榜：收敛到 canonical xc_kpi_grid（A股红涨绿跌语义）。
+    """板块涨跌榜：收敛到 canonical xc_bento_kpi（A股红涨绿跌语义）。
 
     组件优化（风格令牌不变）：原手搓的板块卡片 class（ui_kit.css 中无定义，仅旧
-    ui_theme 层有遗留 CSS）仅靠 inline style 上色，属反模式。现统一走 xc_kpi_grid
+    ui_theme 层有遗留 CSS）仅靠 inline style 上色，属反模式。现统一走 xc_bento_kpi
     （.xc-card 视觉），value 用 tone=up/down 走 --ss-up/--ss-down 语义色。
     """
     show = df.head(top_n) if top_n else df
@@ -104,7 +104,7 @@ def _render_sector_cards(df, top_n=24):
             "delta_dir": "up" if up else "down",
         })
     if cards:
-        xc_kpi_grid(cards, min_col=150)
+        xc_bento_kpi(cards, template="repeat(auto-fit,minmax(150px,1fr))")
     if top_n and len(df) > top_n:
         st.caption(f'仅显示涨幅前 {top_n} 名（共 {len(df)} 个行业）。')
 

@@ -27,7 +27,7 @@ from modules.ui_kit import (
     xc_empty_box,
     xc_error_box,
     xc_info_banner,
-    xc_kpi_grid,
+    xc_bento_kpi,
     xc_section_header,
     xc_warn_box,
 )
@@ -594,13 +594,13 @@ def _summary_strip(cards: list) -> None:
     down = sum(1 for c in ok if c.get("delta_dir") == "down")
     flat = len(ok) - up - down
     na = len(cards) - len(ok)
-    xc_kpi_grid([
+    xc_bento_kpi([
         {"label": "上涨", "value": str(up), "delta": "▲", "delta_dir": "up", "tone": "up"},
         {"label": "下跌", "value": str(down), "delta": "▼", "delta_dir": "down", "tone": "down"},
         {"label": "平盘", "value": str(flat), "delta": "—", "delta_dir": "flat"},
         {"label": "数据缺失", "value": str(na), "delta": "诚实降级", "delta_dir": "flat",
          "meta": "unavailable 不计入涨跌"},
-    ], min_col=120)
+    ], template="1.2fr 1.2fr 1fr 1fr")
 
 
 # ───────────────────── 主渲染 ─────────────────────
@@ -622,7 +622,7 @@ def fragment_market_cube():
             xc_error_box("全球经济数据加载异常", hint="请稍后刷新重试；单源抖动不影响其余模块。")
             econ = []
         if econ:
-            xc_kpi_grid(econ, min_col=170)
+            xc_bento_kpi(econ, template="repeat(auto-fit,minmax(170px,1fr))")
         else:
             xc_warn_box("经济卡全部不可用", hint="检查网络后刷新重试。")
 
@@ -639,7 +639,7 @@ def fragment_market_cube():
         st.divider()
         xc_section_header("全球产业数据")
         if industry:
-            xc_kpi_grid(industry, min_col=170)
+            xc_bento_kpi(industry, template="repeat(auto-fit,minmax(170px,1fr))")
             st.caption("产业卡 = 概念/行业池涨跌幅名称匹配；「未命中」为诚实降级，不代表涨跌为 0。")
         else:
             xc_empty_box("产业数据暂不可用", hint="板块接口暂不可达，稍后刷新。")
@@ -652,7 +652,7 @@ def fragment_market_cube():
             for title, cards in _build_kr_sections():
                 xc_section_header(title)
                 if cards:
-                    xc_kpi_grid(cards, min_col=170)
+                    xc_bento_kpi(cards, template="repeat(auto-fit,minmax(170px,1fr))")
         except Exception as e:  # noqa: BLE001
             import logging
             logging.getLogger(__name__).warning("市场魔方日韩 tab 异常: %s", e)
@@ -664,7 +664,7 @@ def fragment_market_cube():
             for title, cards in _build_metals_sections():
                 xc_section_header(title)
                 if cards:
-                    xc_kpi_grid(cards, min_col=170)
+                    xc_bento_kpi(cards, template="repeat(auto-fit,minmax(170px,1fr))")
             st.caption("工业金属为 LME 3 个月期货（东财外盘实时）；钨/钼/锗/铟/锑等战略小金属"
                        "暂无免费实时源，如实降级。")
         except Exception as e:  # noqa: BLE001
@@ -678,7 +678,7 @@ def fragment_market_cube():
             for title, cards in _build_ai_sections():
                 xc_section_header(title)
                 if cards:
-                    xc_kpi_grid(cards, min_col=170)
+                    xc_bento_kpi(cards, template="repeat(auto-fit,minmax(170px,1fr))")
             st.caption("AI 卡 = 产业链概念/行业池涨跌幅名称匹配，口径为 A 股映射板块而非硬件现货报价。")
         except Exception as e:  # noqa: BLE001
             import logging
