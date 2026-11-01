@@ -77,7 +77,7 @@ def _load_day(p: Path) -> dict | None:
         d = json.loads(p.read_text(encoding="utf-8"))
         if isinstance(d, dict) and d.get("date"):
             return d
-    except Exception:  # noqa: BLE001
+    except Exception:  # ui_audit_exempt: except-pass 单日快照损坏/缺字段时容错跳过返回 None，趋势拼接不编造缺失日
         pass
     return None
 

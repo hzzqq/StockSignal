@@ -75,7 +75,7 @@ class _SafeSerde:
         if self._base is not None:
             try:
                 return self._base.dumps_typed(obj)
-            except Exception:
+            except Exception:  # ui_audit_exempt: except-pass JsonPlusSerializer 序列化失败即回退 pickle_blob，checkpoint 永不中断的设计兜底
                 pass
         return "pickle_blob", pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
 

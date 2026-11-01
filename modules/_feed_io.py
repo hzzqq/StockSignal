@@ -296,7 +296,7 @@ def observe_cache_hit(layer: str, hit: bool) -> None:
                 m["hits"] += 1
             else:
                 m["misses"] += 1
-    except Exception:  # noqa: BLE001 - 埋点失败吞掉不影响取数（纯计数无数据语义）
+    except Exception:  # ui_audit_exempt: except-pass 缓存命中率埋点为尽力而为的纯计数，失败不影响主取数路径
         pass
 
 

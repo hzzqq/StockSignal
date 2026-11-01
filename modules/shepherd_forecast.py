@@ -449,7 +449,7 @@ def with_derived(d: dict) -> dict:
     denom = ld if (ld is not None and ld > 0) else 0.5
     try:
         out["zt_ld_ratio"] = round(min(lu / denom, 999.0), 2)
-    except Exception:  # noqa: BLE001
+    except Exception:  # ui_audit_exempt: except-pass 涨跌停比派生失败时保持缺失语义（out 不含该键），后续规则不误触发
         pass
     return out
 

@@ -490,13 +490,13 @@ def render_theme_toggle() -> None:
             st.session_state['theme_mode'] = 'dark'
             apply_theme()
             persist_prefs()
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 侧栏主题切换按钮，apply_theme 后重跑使全站 CSS 变量立即翻转
     with col_light:
         if st.button('☀️ 白天', width="stretch", type='primary' if mode == 'light' else 'secondary', key='theme_toggle_light'):
             st.session_state['theme_mode'] = 'light'
             apply_theme()
             persist_prefs()
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 侧栏主题切换按钮，apply_theme 后重跑使全站 CSS 变量立即翻转
 
 def render_topright_bar() -> None:
     """主区右上角通用栏：[★ 星辰 AI 弹层] [🌙 暗夜] [☀️ 白天]。
@@ -528,13 +528,13 @@ def render_topright_bar() -> None:
                 st.session_state['theme_mode'] = 'dark'
                 apply_theme()
                 persist_prefs()
-                st.rerun()
+                st.rerun()  # ui_audit_exempt: bare-rerun 右上角主题按钮，apply_theme 后重跑使全站 CSS 变量立即翻转
         with c_l:
             if st.button('☀️', key='top_theme_light', width="stretch", type='primary' if mode == 'light' else 'secondary', help='白天模式'):
                 st.session_state['theme_mode'] = 'light'
                 apply_theme()
                 persist_prefs()
-                st.rerun()
+                st.rerun()  # ui_audit_exempt: bare-rerun 右上角主题按钮，apply_theme 后重跑使全站 CSS 变量立即翻转
 
 def render_theme_toggle_topright() -> None:
     render_topright_bar()
@@ -846,7 +846,7 @@ def _current_page_basename() -> str:
         p = _st.session_state.get('_active_page')
         if p:
             return p.replace('\\', '/').split('/')[-1]
-    except Exception:
+    except Exception:  # ui_audit_exempt: except-pass 非 streamlit 运行上下文无 session_state 时安全返回空串
         pass
     try:
         from streamlit.runtime.scriptrunner import get_script_run_ctx
@@ -855,7 +855,7 @@ def _current_page_basename() -> str:
             p = getattr(ctx, 'main_script_path', None)
             if p:
                 return p.replace('\\', '/').split('/')[-1]
-    except Exception:
+    except Exception:  # ui_audit_exempt: except-pass 取 script run ctx 失败时返回空串，顶栏高亮静默降级
         pass
     return ''
 

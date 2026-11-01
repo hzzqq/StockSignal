@@ -326,7 +326,7 @@ def multi_stock_search_input(label='输入多只股票', key='multi_stock_search
                 seen.add(v)
                 deduped.append({'id': len(deduped), 'value': v, 'code': None, 'name': None})
         st.session_state[items_key] = deduped[:max_rows]
-        st.rerun()
+        st.rerun()  # ui_audit_exempt: bare-rerun 输入框列表去重写回 session 后必须重跑，组件才能按去重后列表重建
     if len(items) < max_rows:
         st.button('➕ 添加股票', key=f'{key}_add', on_click=_add_item, args=(key, max_rows), width="stretch")
     resolved_codes = []

@@ -763,7 +763,7 @@ def require_auth() -> None:
     from modules.widgets import record_nav_visit, _current_page_basename
     try:
         record_nav_visit(_current_page_basename())
-    except Exception:
+    except Exception:  # ui_audit_exempt: except-pass 页面访问计数为侧边栏『常用』埋点，fail-safe 吞掉不得阻断登录门禁
         pass
 
     if is_authenticated():
@@ -1139,7 +1139,7 @@ def render_user_badge(sidebar: bool = True) -> None:
         _confirm_logout_dialog()
     if target.button("🚪 退出登录", key="logout_btn", width="stretch"):
         st.session_state["_show_logout_dialog"] = True
-        st.rerun()
+        st.rerun()  # ui_audit_exempt: bare-rerun 置位退出确认对话框标记后必须重跑，@st.dialog 才能弹出
 
     # 市场异动铃铛（全局，挂用户区下方）
     try:
@@ -1161,7 +1161,7 @@ def _confirm_logout_dialog() -> None:
     with c2:
         if st.button("取消", key="dlg_logout_no", width="stretch"):
             st.session_state["_show_logout_dialog"] = False
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 关闭退出确认对话框，重跑以收尾 dialog 交互
 
 
 def _parse_alert_summary(code: int, body) -> dict:

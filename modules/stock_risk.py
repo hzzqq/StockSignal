@@ -792,7 +792,7 @@ def scan_many(codes_with_names, max_workers: int = 4, progress=None) -> list:
             try:
                 progress(done, total)
             except Exception:
-                pass
+                logger.debug("[stock_risk] 批量风险进度回调失败: ", exc_info=True)
     out.sort(key=lambda r: (LEVEL_RANK.get(r["report"]["overall_level"], 0),
                             r["report"]["risk_score"]))
     return out

@@ -532,7 +532,7 @@ def render_position_manager() -> None:
     with _c2:
         st.page_link('pages/41_组合收益.py', label='📈 前往组合收益', icon='📈')
     if st.button('🔄', key='pm_refresh_top', help='刷新：重新加载本页持仓与行情'):
-        st.rerun()
+        st.rerun()  # ui_audit_exempt: bare-rerun 顶部刷新按钮，整页重载持仓与行情是其唯一语义
     st.session_state.setdefault('_pm_recent', [])
     _PM_PREF_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'pm_prefs.json')
     logger = logging.getLogger(__name__)
@@ -714,7 +714,7 @@ def render_position_manager() -> None:
                             if _ss and _ss > 0:
                                 pm.sell_position(ticker=_t, sell_date=datetime.now().strftime('%Y-%m-%d'), sell_price=float(_p), sell_shares=int(_ss), note='批量平仓')
                         _toast(f"已批量平仓：{', '.join(_pm_sel)}")
-                        st.rerun()
+                        st.rerun()  # ui_audit_exempt: bare-rerun 批量平仓写库后整页重跑以刷新持仓列表
                     except Exception as e:
                         xc_handle_error("批量平仓失败", e, hint="请稍后重试，或检查网络与数据源连接")
     sf_card('➕ 买入股票', '录入代码、价格与股数添加持仓；支持 100 / 500 / 1000 等快捷股数按钮。')
@@ -724,7 +724,7 @@ def render_position_manager() -> None:
         if col.button(f'{qv:,} 股', width="stretch", key=f'buy_quick_{qv}'):
             st.session_state.default_shares = qv
             _save_pm_pref('default_shares', qv)
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 快捷股数按钮写入偏好后重跑，使买入表单股数立即生效
     buy_quote = None
     with st.form('buy_position_form'):
         col1, col2, col3 = st.columns(3)
@@ -789,7 +789,7 @@ def render_position_manager() -> None:
             pm.add_position(ticker=buy_ticker, buy_date=buy_date.strftime('%Y-%m-%d'), buy_price=buy_price, shares=int(buy_shares), note=buy_note)
             _toast(f'买入成功: {buy_label} ({buy_ticker}) {int(buy_shares):,}股 @¥{buy_price:.2f}')
             st.session_state['_pm_recent'] = ([buy_ticker] + [x for x in st.session_state['_pm_recent'] if x != buy_ticker])[:10]
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 买入成功写库+toast 后重跑，刷新持仓与最近浏览
         except Exception as e:
             xc_handle_error("买入失败", e, hint="请稍后重试，或检查网络与数据源连接")
     # ── T-230：自选/收藏等辅助操作收进折叠区（主区留给买入/卖出/盈亏）──
@@ -895,7 +895,7 @@ def render_position_manager() -> None:
                 sell_label = fetcher.get_stock_name(sell_ticker) or sell_ticker
                 xc_success_box(f"卖出成功: {sell_label} ({sell_ticker}) {int(sell_shares):,}股 @¥{sell_price:.2f}，成交金额 ¥{result['proceeds']:,.2f}")
                 st.session_state['_pm_recent'] = ([sell_ticker] + [x for x in st.session_state['_pm_recent'] if x != sell_ticker])[:10]
-                st.rerun()
+                st.rerun()  # ui_audit_exempt: bare-rerun 卖出成功写库+提示后重跑，刷新持仓与卖出记录
             except Exception as e:
                 xc_handle_error("卖出失败", e, hint="请稍后重试，或检查网络与数据源连接")
     st.markdown('---')
@@ -916,7 +916,7 @@ def render_position_manager() -> None:
                     st.session_state.pop(_ck, None)
                     if removed is not None:
                         _toast(f"已删除: {removed.get('ticker', '')}")
-                        st.rerun()
+                        st.rerun()  # ui_audit_exempt: bare-rerun 删除持仓确认后重跑，刷新持仓列表与确认对话框态
                 if st.button('取消', key='pm_del_cancel'):
                     st.session_state.pop(_ck, None)
             elif c_del.button('🗑️ 删除持仓', type='secondary'):
@@ -1000,7 +1000,7 @@ def render_position_manager() -> None:
             except Exception as e:
                 xc_handle_error("加载失败", e, hint="请稍后重试")
                 if st.button('🔄 重试', key='pnl_retry'):
-                    st.rerun()
+                    st.rerun()  # ui_audit_exempt: bare-rerun 盈亏区块加载失败后的「重试」按钮，整页重跑是其唯一语义
     else:
         info_banner('请先添加持仓记录。')
 

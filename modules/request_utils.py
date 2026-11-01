@@ -233,7 +233,7 @@ def _request(method: str, url: str, **kwargs):
             logger.debug("代理出口失败，准备轮换: %s", e)
             try:
                 pool.rotate_on_failure()
-            except Exception:  # noqa: BLE001
+            except Exception:  # ui_audit_exempt: except-pass 代理池轮换为尽力而为，轮换失败直接 continue 用现有出口重试
                 pass
             continue
         code = getattr(resp, "status_code", 200)
@@ -242,7 +242,7 @@ def _request(method: str, url: str, **kwargs):
             logger.debug("代理出口返回 %s，准备轮换", code)
             try:
                 pool.rotate_on_failure()
-            except Exception:  # noqa: BLE001
+            except Exception:  # ui_audit_exempt: except-pass 限流/错误出口后的代理池轮换同上，失败不阻断重试循环
                 pass
             continue
         _account(resp, host)

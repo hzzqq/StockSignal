@@ -82,7 +82,7 @@ def render_error_card(name: str, exc: Exception, *, retry: bool | str = False, h
         else:
             # 页面级重试（整页 st.rerun()）
             if st.button("🔄 重试本页", key=f"pg_retry_{name}_{_uid}", help="重新运行整个页面"):
-                st.rerun()
+                st.rerun()  # ui_audit_exempt: bare-rerun 页面级错误边界的「重试本页」按钮，整页重跑是其唯一语义
 
 
 # ──────────────────────────────────────────────────────────
