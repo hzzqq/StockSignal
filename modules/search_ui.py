@@ -19,11 +19,11 @@ v6 改进：
 """
 import streamlit as st
 import streamlit.components.v1 as components
-import time
 import re
 import html as _html
 from modules.fetcher import StockFetcher
 from modules.ui_theme import _theme_is_dark
+from modules.cache_utils import cached_ttl  # R-07：委托共享 TTL 缓存
 try:
     from modules.session import is_authenticated, api_get
     _HAS_SESSION = True
@@ -154,34 +154,31 @@ def resolve_stock_codes(raw_text: str, max_rows: int=8):
             else:
                 unresolved.append(f'{raw}（未识别）')
     return (codes, labels, unresolved)
-_search_cache = {}
-_CACHE_TTL = 30
+_SEARCH_CACHE_TTL = 30  # R-07：业务语义常量（原 _CACHE_TTL）
 
 def _cached_search(query: str, limit: int=10):
-    """带缓存的搜索，后端 + 本地合并，确保拼音首字母等匹配更全面。"""
-    cache_key = f'{query}:{limit}'
-    now = time.time()
-    if cache_key in _search_cache:
-        ts, results = _search_cache[cache_key]
-        if now - ts < _CACHE_TTL:
-            return results
-    seen = set()
-    merged = []
-    backend_results = _search_via_backend(query, limit)
-    if backend_results:
-        for code, name, market in backend_results:
-            if code not in seen:
-                merged.append((code, name, market))
-                seen.add(code)
-    local_results = _search_via_local(query, limit * 2)
-    if local_results:
-        for code, name, market in local_results:
-            if code not in seen:
-                merged.append((code, name, market))
-                seen.add(code)
-    results = merged[:limit]
-    _search_cache[cache_key] = (now, results)
-    return results
+    """带缓存的搜索，后端 + 本地合并，确保拼音首字母等匹配更全面。
+
+    R-07：委托 cache_utils.cached_ttl（线程安全 + fn 在锁外执行）。
+    """
+    cache_key = f'search:{query}:{limit}'  # search: 前缀防与其他模块 key 撞
+    def _do_search():
+        seen = set()
+        merged = []
+        backend_results = _search_via_backend(query, limit)
+        if backend_results:
+            for code, name, market in backend_results:
+                if code not in seen:
+                    merged.append((code, name, market))
+                    seen.add(code)
+        local_results = _search_via_local(query, limit * 2)
+        if local_results:
+            for code, name, market in local_results:
+                if code not in seen:
+                    merged.append((code, name, market))
+                    seen.add(code)
+        return merged[:limit]
+    return cached_ttl(_SEARCH_CACHE_TTL, cache_key, _do_search)
 
 def _derive_tag(code: str) -> str:
     """由代码前缀推导市场/板块标签（用于匹配结果下拉的「标签」列）。
