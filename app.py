@@ -211,40 +211,85 @@ st.caption(
 
 st.markdown("---")
 
-# ── 项目说明（轻量化卡片，置于页面顶部，非折叠）──
+# ── 项目说明（营销式首页 Hero：痛点大标题 + 编号卡 + 金句行 + 三色能力卡）──
 def _render_project_intro():
-    """首页顶部项目说明：轻量卡片，不折叠，让首次进入的用户一眼看懂平台定位。"""
+    """首页顶部项目说明：居中痛点叙事 + 01/02/03 编号卡 + 金句行 + 三色能力卡。
+
+    设计参照轻量营销页（大留白、少文字、关键词高亮、编号卡片）；
+    配色用令牌（--txt/--txt2/--card/--acc1）+ 三枚固定点缀色（琥珀/青/紫罗兰），
+    深浅主题下均以令牌底色兜底，保证七风格可读。"""
     st.markdown(
         """
         <style>
-        .ss-intro{max-width:100%;background:linear-gradient(135deg,
-            color-mix(in srgb,var(--acc1) 8%,var(--card)) 0%,var(--card) 100%);
-            border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));
-            border-radius:18px;padding:1.4rem 1.6rem;margin-bottom:.4rem}
-        .ss-intro-badge{display:inline-block;background:color-mix(in srgb,var(--acc1) 14%,transparent);
-            color:var(--acc1);border:1px solid color-mix(in srgb,var(--acc1) 35%,transparent);
-            border-radius:999px;padding:.3rem .9rem;font-size:.78rem;font-weight:700;margin-bottom:.7rem}
-        .ss-intro h2{margin:.1rem 0 .5rem;font-size:1.35rem;color:var(--txt)}
-        .ss-intro p{margin:0 0 .9rem;color:var(--txt2);line-height:1.65;font-size:.92rem}
-        .ss-intro p b{color:var(--txt)}
-        .ss-intro-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
-        .ss-intro-cell{background:color-mix(in srgb,var(--acc1) 6%,var(--card));
-            border:1px solid var(--border);border-radius:12px;padding:.8rem .9rem}
-        .ss-intro-cell .ss-intro-ic{font-size:1.3rem}
-        .ss-intro-cell b{display:block;margin:.25rem 0 .15rem;color:var(--txt);font-size:.95rem}
-        .ss-intro-cell small{color:var(--txt2);font-size:.76rem;line-height:1.4}
-        @media(max-width:640px){.ss-intro-grid{grid-template-columns:1fr}}
+        .ss-hero{max-width:1060px;margin:0 auto .4rem;text-align:center}
+        .ss-hero-eyebrow{display:inline-block;color:var(--acc1);
+            background:color-mix(in srgb,var(--acc1) 10%,transparent);
+            border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent);
+            border-radius:999px;padding:.28rem 1rem;font-size:.78rem;font-weight:700;
+            letter-spacing:.06em;margin:.4rem 0 1rem}
+        .ss-hero h1{margin:.1rem 0 .6rem;font-size:2.05rem;line-height:1.3;
+            font-weight:800;color:var(--txt)}
+        .ss-hero h1 .hl{color:var(--acc1)}
+        .ss-hero .sub{margin:0 auto 1.4rem;max-width:620px;color:var(--txt2);
+            font-size:.95rem;line-height:1.7}
+        .ss-pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;
+            margin:0 0 1.3rem;text-align:left}
+        .ss-pain-card{position:relative;background:var(--card);
+            border:1px solid var(--border);border-radius:16px;padding:1.15rem 1.2rem .95rem;
+            transition:transform .18s ease,border-color .18s ease}
+        .ss-pain-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--acc1) 45%,var(--border))}
+        .ss-pain-card .ic{display:inline-flex;align-items:center;justify-content:center;
+            width:38px;height:38px;border-radius:10px;font-size:1.15rem;
+            background:color-mix(in srgb,var(--acc1) 10%,transparent)}
+        .ss-pain-card .num{position:absolute;top:.7rem;right:1rem;font-size:1.5rem;
+            font-weight:800;color:color-mix(in srgb,var(--acc1) 38%,transparent)}
+        .ss-pain-card b{display:block;margin:.65rem 0 .3rem;color:var(--txt);font-size:1.02rem}
+        .ss-pain-card small{display:block;color:var(--txt2);font-size:.8rem;line-height:1.6}
+        .ss-quote{margin:0 auto 1.5rem;max-width:820px;font-size:1.02rem;
+            color:var(--txt);line-height:1.8}
+        .ss-quote .hl{color:var(--acc1);font-weight:700}
+        .ss-cap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;
+            max-width:1060px;margin:0 auto;text-align:left}
+        .ss-cap{border-radius:16px;padding:1.05rem 1.15rem;
+            background:color-mix(in srgb,var(--cap-c) 7%,var(--card));
+            border:1px solid color-mix(in srgb,var(--cap-c) 30%,var(--border))}
+        .ss-cap .cap-ic{font-size:1.35rem}
+        .ss-cap b{display:block;margin:.4rem 0 .25rem;color:var(--txt);font-size:.98rem}
+        .ss-cap .cap-tag{display:inline-block;font-size:.7rem;font-weight:700;
+            color:var(--cap-c);background:color-mix(in srgb,var(--cap-c) 12%,transparent);
+            border-radius:999px;padding:.12rem .55rem;margin-left:.35rem;vertical-align:middle}
+        .ss-cap small{display:block;color:var(--txt2);font-size:.78rem;line-height:1.6}
+        @media(max-width:720px){.ss-pain-grid,.ss-cap-grid{grid-template-columns:1fr}
+            .ss-hero h1{font-size:1.55rem}}
         </style>
-        <div class="ss-intro">
-          <span class="ss-intro-badge">A股事件驱动 · 决策闭环</span>
-          <h2>把「事件催化」翻译成可执行的仓位决策</h2>
-          <p>StockSignal 是一款面向个人投资者的 <b>A股事件驱动分析工具</b>，整合三类核心催化信号，
-          帮你 <b>快速识别行情主线</b>、<b>可视化行业轮动</b>、<b>回测事件驱动策略</b>。</p>
-          <div class="ss-intro-grid">
-            <div class="ss-intro-cell"><span class="ss-intro-ic">🏛️</span><b>产业事件</b><small>政策发布 / 行业并购 / 产能变化</small></div>
-            <div class="ss-intro-cell"><span class="ss-intro-ic">📈</span><b>价格信号</b><small>大宗 / 上游原材料价格变动</small></div>
-            <div class="ss-intro-cell"><span class="ss-intro-ic">📊</span><b>宏观数据</b><small>PMI / CPI / 社融等关键指标</small></div>
+        <div class="ss-hero">
+          <div class="ss-hero-eyebrow">✨ A股事件驱动 · 决策闭环</div>
+          <h1>看了一堆分析，最后还是<span class="hl">凭感觉</span>下单</h1>
+          <p class="sub">赚了说不清为什么，亏了重复踩同一个坑 —— 几年下来，投资经验始终没真正积累。</p>
+          <div class="ss-pain-grid">
+            <div class="ss-pain-card"><span class="num">01</span><span class="ic">❓</span>
+              <b>当初为什么买？</b>
+              <small>三个月前看好的逻辑，是基本面、技术形态，还是一时冲动？现在你还说得清吗？</small></div>
+            <div class="ss-pain-card"><span class="num">02</span><span class="ic">🎲</span>
+              <b>赚了，是判断对还是运气？</b>
+              <small>赚到的钱，究竟是判断准，还是恰好赶上普涨？分不清，就无法复制。</small></div>
+            <div class="ss-pain-card"><span class="num">03</span><span class="ic">🔍</span>
+              <b>亏了，错在哪一步？</b>
+              <small>前提失效？推导偏差？还是被噪音带偏？说不出来，下次还会再踩。</small></div>
           </div>
+          <div class="ss-quote">✨ 问题不在信息不够，而在你的<span class="hl">判断从没被记录、验证</span>过。
+          StockSignal 把<b>情绪 → 事件 → 仓位 → 复盘</b>每一步都记录下来，用回测验证，让经验真正复利。</div>
+        </div>
+        <div class="ss-cap-grid">
+          <div class="ss-cap" style="--cap-c:#d29922"><span class="cap-ic">🌡️</span>
+            <b>情绪温度计<span class="cap-tag">每日盘后</span></b>
+            <small>牧羊人 17 项市场指标 → 情绪周期定位 + 次日方向与建议仓位，透明推导可解释。</small></div>
+          <div class="ss-cap" style="--cap-c:#14b8a6"><span class="cap-ic">📰</span>
+            <b>事件驱动信号<span class="cap-tag">三源聚合</span></b>
+            <small>产业事件 / 价格信号 / 宏观数据三类催化，自动追踪评分，快速识别行情主线。</small></div>
+          <div class="ss-cap" style="--cap-c:#8b5cf6"><span class="cap-ic">🧪</span>
+            <b>决策闭环回测<span class="cap-tag">历史验证</span></b>
+            <small>决策建议逐日归档，与次日真实走势对照回填，命中率与偏差全部如实呈现。</small></div>
         </div>
         """,
         unsafe_allow_html=True,
