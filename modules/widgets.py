@@ -275,7 +275,7 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
     if cache_key in st.session_state:
         cards = st.session_state[cache_key]
     else:
-        from concurrent.futures import ThreadPoolExecutor
+        from modules.fetch_parallel import fetch_many
 
         def _worker(info):
             try:
@@ -283,8 +283,10 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
             except Exception as e:
                 logger.warning(f"[widgets] 处理异常: {e}")
                 return {**info, 'current': None, 'change': None, 'change_pct': None, 'spark': None}
-        with ThreadPoolExecutor(max_workers=min(len(_INDEX_INFOS), 8)) as _ex:
-            cards = list(_ex.map(_worker, _INDEX_INFOS))
+        # R-03：共享有界线程池 fetch_many（信号量限流 + 整批硬边界 12s，杜绝线程泄漏）
+        _tasks = [(i, lambda info=info: _worker(info)) for i, info in enumerate(_INDEX_INFOS)]
+        _raw = fetch_many(_tasks, max_workers=min(len(_INDEX_INFOS), 8))
+        cards = [_raw[i] or _worker(info) for i, info in enumerate(_INDEX_INFOS)]
         st.session_state[cache_key] = cards
         for k in list(st.session_state.keys()):
             if k.startswith('index_cards_') and k != cache_key:
@@ -334,7 +336,7 @@ def render_index_compact(cols_per_row: int=5) -> None:
       - 下方统一展示涨跌幅柱状图，便于一眼比较强弱。
     """
     from datetime import datetime, timedelta
-    from concurrent.futures import ThreadPoolExecutor
+    from modules.fetch_parallel import fetch_many
     from modules.fetcher import StockFetcher
     from modules.ui_theme import _theme_is_dark
     from modules.visualizer import UP_COLOR, DOWN_COLOR
@@ -357,8 +359,10 @@ def render_index_compact(cols_per_row: int=5) -> None:
             except Exception as e:
                 logger.warning(f"[widgets] 处理异常: {e}")
                 return {**info, 'current': None, 'change': None, 'change_pct': None, 'spark': None}
-        with ThreadPoolExecutor(max_workers=min(len(_INDEX_INFOS), 8)) as _ex:
-            cards = list(_ex.map(_worker, _INDEX_INFOS))
+        # R-03：共享有界线程池 fetch_many（信号量限流 + 整批硬边界 12s，杜绝线程泄漏）
+        _tasks = [(i, lambda info=info: _worker(info)) for i, info in enumerate(_INDEX_INFOS)]
+        _raw = fetch_many(_tasks, max_workers=min(len(_INDEX_INFOS), 8))
+        cards = [_raw[i] or _worker(info) for i, info in enumerate(_INDEX_INFOS)]
         st.session_state[cache_key] = cards
         for k in list(st.session_state.keys()):
             if k.startswith('index_compact_') and k != cache_key:
