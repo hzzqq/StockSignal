@@ -563,101 +563,82 @@ def _load_shepherd_range(start_date, end_date, backfill: bool = False):
 def _build_shepherd_chart(d, dark):
     """构建牧羊人指标三行折线图（重计算，按数据+主题缓存）。
 
-    第三行为复盘方法论新指标：中位数涨跌幅%（左轴）+ 回头波>10%家数 / 炸板家数（次轴）。
+    2026-11-01 重组（老板指令：把最相关和有用的放一起，便于判断行情）——
+    按尺度纯净 + 单一决策目的分三行，杜绝混轴挤线：
+      行1 市场宽度：上涨 vs 下跌家数（千级同轴，多空对决一眼可见）；
+      行2 涨停生态：涨停/跌停/炸板/回头波>10% 家数（同百级轴；
+          杨哥规律参考线——涨停50 亢奋 / 回头波50 家易V反——集中于此行）；
+      行3 赚钱效应：红盘占比%（左轴温度计）｜ 中位数涨跌幅% / 昨日涨停表现%
+          （右轴 0 基线，昨板 3% 炸裂线）。
     """
     fig = make_subplots(
-        rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+        rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.07,
         specs=[[{}], [{}], [{"secondary_y": True}]],
-        subplot_titles=("涨跌 / 涨停 / 跌停家数",
-                        "昨日涨停表现(%) / 红盘占比(%)",
-                        "中位数涨跌幅(%) ｜ 回头波>10%家数 / 炸板家数"),
+        subplot_titles=("市场宽度：上涨 vs 下跌家数",
+                        "涨停生态：涨停 / 跌停 / 炸板 / 回头波>10% 家数",
+                        "赚钱效应：红盘占比%(左) ｜ 中位数涨跌幅% / 昨板表现%(右)"),
         row_heights=[1, 1, 1],
     )
-    fam = dict(up_count=("#ee2a2a", "上涨家数"), down_count=("#3b82f6", "下跌家数"),
-               limit_up=("#f59e0b", "涨停家数"), limit_down=("#16c2c2", "跌停家数"))
-    for k, (col, name) in fam.items():
-        if k in d.columns:
-            s = to_numeric_clean(d[k])
-            if s.empty:
-                continue
-            is_pt = len(s) < 2  # 仅末日快照点（涨跌/跌停）→ 菱形标记
-            tr = dict(x=d["date"], y=s.values, name=name + ("" if not is_pt else " (今)"),
-                      mode="markers" if is_pt else "lines",
-                      line=dict(width=1.8, color=col),
-                      hovertemplate=f"%{{x|%Y-%m-%d}}<br>{name}：%{{y:.0f}}<extra></extra>")
-            if is_pt:
-                tr["marker"] = dict(size=11, symbol="diamond", color=col)
-            fig.add_trace(go.Scatter(**tr), row=1, col=1)
-    pct = dict(zt_prev_ret=("#7c5cff", "昨日涨停表现%"), red_ratio=("#ee2a2a", "红盘占比%"))
-    for k, (col, name) in pct.items():
-        if k in d.columns:
-            s = to_numeric_clean(d[k])
-            if s.empty:
-                continue
-            is_pt = len(s) < 2
-            tr = dict(x=d["date"], y=s.values, name=name + ("" if not is_pt else " (今)"),
-                      mode="markers" if is_pt else "lines",
-                      line=dict(width=1.8, color=col),
-                      hovertemplate=f"%{{x|%Y-%m-%d}}<br>{name}：%{{y:.2f}}%<extra></extra>")
-            if is_pt:
-                tr["marker"] = dict(size=11, symbol="diamond", color=col)
-            fig.add_trace(go.Scatter(**tr), row=2, col=1)
-    # ── 第三行：复盘方法论新指标（中位数% 左轴；回头波/炸板 次轴）──
-    med = pd.to_numeric(d["median_chg"], errors="coerce") if "median_chg" in d.columns else None
-    if med is not None and med.notna().any():
-        is_pt = med.notna().sum() < 2
-        tr = dict(x=d["date"], y=med.values, name="中位数涨跌幅%" + (" (今)" if is_pt else ""),
-                  mode="markers" if is_pt else "lines",
-                  line=dict(width=1.8, color="#ee2a2a"),
-                  hovertemplate="%{x|%Y-%m-%d}<br>中位数涨跌幅：%{y:.2f}%<extra></extra>")
-        if is_pt:
-            tr["marker"] = dict(size=11, symbol="diamond", color="#ee2a2a")
-        fig.add_trace(go.Scatter(**tr), row=3, col=1, secondary_y=False)
-    for k, (col, name) in dict(hb_wave10=("#7c5cff", "回头波>10%家数"),
-                               zt_fail_count=("#f59e0b", "炸板家数")).items():
+
+    def _add_line(k, col, name, row, secondary=None, fmt="%{y:.0f}", dash=None):
         if k not in d.columns:
-            continue
+            return
         s = to_numeric_clean(d[k])
         if s.empty:
-            continue
-        is_pt = len(s) < 2
+            return
+        is_pt = len(s) < 2  # 仅末日快照点 → 菱形标记
         tr = dict(x=d["date"], y=s.values, name=name + (" (今)" if is_pt else ""),
                   mode="markers" if is_pt else "lines",
-                  line=dict(width=1.6, color=col, dash="dot" if k == "zt_fail_count" else None),
-                  hovertemplate=f"%{{x|%Y-%m-%d}}<br>{name}：%{{y:.0f}} 家<extra></extra>")
+                  line=dict(width=1.8, color=col, dash=dash) if dash else dict(width=1.8, color=col),
+                  hovertemplate=f"%{{x|%Y-%m-%d}}<br>{name}：{fmt}<extra></extra>")
         if is_pt:
             tr["marker"] = dict(size=11, symbol="diamond", color=col)
-        fig.add_trace(go.Scatter(**tr), row=3, col=1, secondary_y=True)
+        if secondary is None:
+            fig.add_trace(go.Scatter(**tr), row=row, col=1)
+        else:
+            fig.add_trace(go.Scatter(**tr), row=row, col=1, secondary_y=secondary)
+
+    # ── 行1 市场宽度：千级同轴红蓝对决 ──
+    _add_line("up_count", "#ee2a2a", "上涨家数", 1)
+    _add_line("down_count", "#3b82f6", "下跌家数", 1)
+
+    # ── 行2 涨停生态：百级家数同轴（极端资金行为计数）──
+    _add_line("limit_up", "#f59e0b", "涨停家数", 2)
+    _add_line("limit_down", "#16c2c2", "跌停家数", 2)
+    _add_line("zt_fail_count", "#94a3b8", "炸板家数", 2, dash="dot")
+    _add_line("hb_wave10", "#7c5cff", "回头波>10%家数", 2)
+
+    # ── 行3 赚钱效应：左轴红盘占比温度计，右轴 % 收益（0 基线）──
+    _add_line("red_ratio", "#ee2a2a", "红盘占比%", 3, secondary=False, fmt="%{y:.1f}%")
+    _add_line("median_chg", "#f59e0b", "中位数涨跌幅%", 3, secondary=True, fmt="%{y:+.2f}%")
+    _add_line("zt_prev_ret", "#7c5cff", "昨日涨停表现%", 3, secondary=True, fmt="%{y:+.2f}%")
+
+    # ── 参考线（按决策语义集中放置）──
     if "limit_up" in d.columns:
-        fig.add_hline(y=50, line_dash="dot", line_color="#888", row=1, col=1,
+        fig.add_hline(y=50, line_dash="dot", line_color="#f59e0b", row=2, col=1,
                       annotation_text="涨停50(亢奋)", annotation_font_size=9)
-    if "zt_prev_ret" in d.columns:
-        fig.add_hline(y=0, line_dash="dot", line_color="#888", row=2, col=1)
-        fig.add_hline(y=3, line_dash="dot", line_color="#888", row=2, col=1,
-                      annotation_text="昨板3%(炸裂)", annotation_font_size=9)
-    # 第三行参考线：中位数 0 轴 + 回头波 50 家 V反参考（次轴）
-    if med is not None and med.notna().any():
-        fig.add_hline(y=0, line_dash="dot", line_color="#888", row=3, col=1)
     if "hb_wave10" in d.columns:
-        try:
-            fig.add_hline(y=50, line_dash="dot", line_color="#7c5cff", row=3, col=1,
-                          secondary_y=True, annotation_text="回头波50家(易V反)",
-                          annotation_font_size=9)
-        except Exception:  # noqa: BLE001  # 旧版 plotly 无 secondary_y 参数
-            fig.add_hline(y=50, line_dash="dot", line_color="#7c5cff", row=3, col=1,
-                          annotation_text="回头波50家(易V反)", annotation_font_size=9)
+        fig.add_hline(y=50, line_dash="dot", line_color="#7c5cff", row=2, col=1,
+                      annotation_text="回头波50家(易V反)", annotation_font_size=9)
+    if "median_chg" in d.columns:
+        med = pd.to_numeric(d["median_chg"], errors="coerce")
+        if med.notna().any():
+            fig.add_hline(y=0, line_dash="dot", line_color="#888", row=3, col=1,
+                          secondary_y=True, annotation_text="0 基线", annotation_font_size=9)
+    if "zt_prev_ret" in d.columns:
+        fig.add_hline(y=3, line_dash="dot", line_color="#7c5cff", row=3, col=1,
+                      secondary_y=True, annotation_text="昨板3%(炸裂)", annotation_font_size=9)
     theme = dict(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e6e6e6" if dark else "#1a1a1a"),
+        font=dict(color="#e6e6e6" if dark else "#1a1a2a"),
         xaxis=dict(gridcolor="#2a2a3a" if dark else "#ececec"),
         yaxis=dict(gridcolor="#2a2a3a" if dark else "#ececec"),
     )
     fig.update_layout(
-        height=760, showlegend=True,
+        height=780, showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.5, xanchor="center", font=dict(size=10)),
-        margin=dict(l=55, r=25, t=60, b=40), hovermode="x unified", **theme)
+        margin=dict(l=55, r=55, t=60, b=40), hovermode="x unified", **theme)
     fig.update_xaxes(tickangle=-30)
-    # 三行子图统一主题网格（yaxis/yaxis2 原有 + 第三行 yaxis5/yaxis6）
     fig.update_yaxes(gridcolor="#2a2a3a" if dark else "#ececec")
     return fig
 
