@@ -148,3 +148,60 @@ def test_concurrent_publish_no_corruption():
     events = get_events("t_conc")
     assert len(events) == 80
     assert get_status("t_conc")["event_count"] == 80
+
+
+# ---------------------------------------------------------------------------
+# 批次8：dict event（结构化 timeline event）支持
+# ---------------------------------------------------------------------------
+
+def test_batch8_dict_event_preserves_original_in_reporter():
+    """progress_bus.report 接受 dict message，reporter 应收到完整 dict（不丢字段）。"""
+    calls = []
+    register("t_dict", lambda s, m: calls.append((s, m)))
+    dict_event = {
+        "type": "tool_end", "tool": "get_price", "idx": 1, "total": 3,
+        "elapsed_s": 2.345, "status": "ok", "summary": "价格 12.34元",
+        "_fmt": "⚡ [1/3] get_price → ok · 2.3s: 价格 12.34",
+    }
+    report("t_dict", "research", dict_event)
+    assert len(calls) == 1
+    stage, msg = calls[0]
+    assert stage == "research"
+    # reporter 收到的是原始 dict（不丢字段）
+    assert isinstance(msg, dict)
+    assert msg["tool"] == "get_price"
+    assert msg["elapsed_s"] == 2.345
+
+
+def test_batch8_dict_event_get_events_has_event_field():
+    """get_events() 对 dict message 应同时保留可读 message 字段 + 原始 event 字段。"""
+    clear("t_dict2")
+    register("t_dict2", lambda s, m: None)
+    dict_event = {
+        "type": "tool_start", "tool": "get_price", "idx": 1, "total": 3,
+        "_fmt": "▶ [1/3] 调 get_price…",
+    }
+    report("t_dict2", "research", dict_event)
+    events = get_events("t_dict2")
+    assert len(events) == 1
+    ev = events[0]
+    # 可读 message 用 _fmt
+    assert ev["message"] == "▶ [1/3] 调 get_price…"
+    # 原始 event 完整保留
+    assert "event" in ev
+    assert ev["event"]["type"] == "tool_start"
+    assert ev["event"]["tool"] == "get_price"
+
+
+def test_batch8_str_event_backward_compatible():
+    """progress_bus.report 对 str message 行为保持不变（向后兼容，老代码零感知）。"""
+    calls = []
+    register("t_str", lambda s, m: calls.append((s, m)))
+    report("t_str", "analysis", "老的字符串进度消息")
+    events = get_events("t_str")
+    assert len(calls) == 1
+    assert calls[0][1] == "老的字符串进度消息"
+    assert events[0]["message"] == "老的字符串进度消息"
+    # str event 不应出现 event 键（节省空间）
+    assert "event" not in events[0]
+

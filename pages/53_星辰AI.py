@@ -1734,6 +1734,48 @@ def _poll_ai_task():
             return
         # 轮询节奏由 run_every=1.5 服务端定时驱动（T-309），无需组件定时器
 
+        # ── 批次8：结构化 timeline 渲染（task.logs 中带 "event" 字段的条目）──
+        if st.session_state.get("xc_task_is_research") and task:
+            _logs = task.get("logs") or []
+            _tl_events = [lg.get("event") for lg in _logs if isinstance(lg, dict) and lg.get("event")]
+            if _tl_events:
+                # 按 idx 分组：start → end 配对
+                _tl_by_idx: dict[int, dict] = {}
+                for _ev in _tl_events:
+                    _idx = _ev.get("idx")
+                    if _idx is not None:
+                        _tl_by_idx.setdefault(_idx, {})[_ev.get("type")] = _ev
+                _total = max((e.get("total", 0) for e in _tl_by_idx.values() for e in e.values()), default=0)
+                _done = sum(1 for v in _tl_by_idx.values() if "tool_end" in v)
+                _pct = int(_done / _total * 100) if _total else 0
+                st.progress(_pct / 100.0)
+                with st.container():
+                    for _idx in sorted(_tl_by_idx):
+                        _pair = _tl_by_idx[_idx]
+                        _start = _pair.get("tool_start", {})
+                        _end = _pair.get("tool_end", {})
+                        _tool = _start.get("tool") or _end.get("tool") or "?"
+                        if _end:
+                            _elapsed = _end.get("elapsed_s", 0)
+                            _status = _end.get("status", "?")
+                            _icon = {"ok": "✅", "partial": "⚠️", "error": "❌", "rejected": "⛔"}.get(_status, "🔄")
+                            st.markdown(f"<div style='font-size:13px;color:#64748b'>"
+                                        f"<span style='color:#94a3b8'>{_idx:>2}</span> · "
+                                        f"<code style='background:#f1f5f9;padding:1px 6px;border-radius:4px;color:#1e40af'>{_tool}</code> "
+                                        f"→ <span style='color:#059669'>{_icon} {_elapsed:.1f}s</span>"
+                                        f"</div>", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"<div style='font-size:13px;color:#64748b'>"
+                                        f"<span style='color:#94a3b8'>{_idx:>2}</span> · "
+                                        f"<code style='background:#fef3c7;padding:1px 6px;border-radius:4px;color:#92400e'>{_tool}</code> "
+                                        f"<span style='color:#d97706'>⏳ 执行中…</span>"
+                                        f"</div>", unsafe_allow_html=True)
+            elif _logs:
+                # 无结构化 event → 回退显示最后 3 条消息（向后兼容老格式）
+                _last_msgs = [lg.get("message") for lg in _logs if isinstance(lg, dict)]
+                for _m in _last_msgs[-3:]:
+                    st.caption(f"⋯ {_m}")
+
 
 # T-309：必须无条件常驻挂载——提交发生在 fragment 内、不会触发模块级代码重跑，
 # 条件挂载会导致轮询片段在提交后从未渲染（任务等待饥饿的根因）；

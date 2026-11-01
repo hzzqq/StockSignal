@@ -95,9 +95,11 @@ def get_status(task_id: str) -> Dict[str, object]:
         }
 
 
-def report(task_id: str, stage: str, message: str) -> None:
+def report(task_id: str, stage: str, message) -> None:
     """由编排器侧调用：把某个 stage 的进度/日志透传给对应 Task。
 
+    批次8：message 接受 Union[str, dict]。dict 用于结构化 timeline event
+    （tool_start/tool_end），内部会同时保留原始 dict 副本 + 提取格式化字符串。
     隐性缺陷修复：旧实现用 ``except Exception: pass`` 静默吞掉 reporter 异常，
     进度总线对外永远「正常」，定位进度丢失/卡住时无从下手。现改为记录日志并存下
     最近一次错误（``last_error``），既不打断编排器主流程，又保留可观测性。
@@ -114,7 +116,11 @@ def report(task_id: str, stage: str, message: str) -> None:
                 _LAST_ERROR[task_id] = err
             _LOGGER.warning("progress_bus reporter for %s failed at stage=%s: %s", task_id, stage, err)
     # 记录进度事件（有界：仅保留最近 MAX_EVENTS 条，防止无上限内存增长 —— R1）
-    event = {"stage": stage, "message": message}
+    if isinstance(message, dict):
+        # 批次8：dict event 保留原始副本 + 提取可读字符串（_fmt 存在则优先用）
+        event = {"stage": stage, "message": message.get("_fmt", str(message)), "event": message}
+    else:
+        event = {"stage": stage, "message": message}
     with _LOCK:
         buf = _EVENTS.get(task_id)
         if buf is None:

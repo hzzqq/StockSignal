@@ -180,11 +180,17 @@ class TaskWorker:
         from backend.tasks.progress_bus import register, unregister
         from modules.quantagent.progress import percent_for
 
-        def _reporter(stage_key: str, message: str) -> None:
+        def _reporter(stage_key: str, message) -> None:
+            """批次8：message 接受 Union[str, dict]。dict 时 logs 条目加 event 字段
+            （原始结构化 timeline event），message 字段存可读字符串（_fmt 优先）。"""
             with task._lock:
                 task.stage = stage_key
                 task.progress = max(task.progress, percent_for(stage_key))
-                task.logs.append({"stage": stage_key, "message": message, "ts": time.time()})
+                if isinstance(message, dict):
+                    _msg = message.get("_fmt", str(message))
+                    task.logs.append({"stage": stage_key, "message": _msg, "event": message, "ts": time.time()})
+                else:
+                    task.logs.append({"stage": stage_key, "message": message, "ts": time.time()})
                 task.updated_at = time.time()
                 now = time.time()
                 thrift = now - task._last_persist > 1.0  # 进度更新最多 1s 落盘一次
@@ -359,12 +365,13 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     def _on_step(message):
         """批次8：同时接受 str（旧）和 dict（新结构化 timeline event）——
-        dict 序列化为字符串再 report，保持 progress_bus 接口签名不变。"""
+        dict event 只加 _fmt 格式化字符串后直接 report（progress_bus 现在接受 dict）。
+        这样 task.logs 条目同时含可读 message 字段 + 原始 event 字段，前端可按需取用。"""
         if not task_id:
             return
         try:
             if isinstance(message, dict):
-                # 结构化事件 → 压缩成可读一行：⚡ {tool} · {elapsed_s}s: {summary[:80]}
+                # 批次8：格式化字符串（▶ tool_start / ⚡ tool_end），挂 _fmt 字段
                 _type = message.get("type", "event")
                 _tool = message.get("tool", "?")
                 _idx = message.get("idx", "?")
@@ -378,7 +385,9 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
                     _fmt = f"⚡ [{_idx}/{_total}] {_tool} → {_status} · {_elapsed:.1f}s{(': ' + _summary) if _summary else ''}"
                 else:
                     _fmt = f"[{_type}] {message}"
-                report(task_id, "research", _fmt)
+                enriched = dict(message)
+                enriched["_fmt"] = _fmt
+                report(task_id, "research", enriched)
             else:
                 report(task_id, "research", message)
         except Exception as e:  # noqa: BLE001 - 进度上报失败不影响研究主流程
