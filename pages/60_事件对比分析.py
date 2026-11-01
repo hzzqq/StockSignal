@@ -165,6 +165,45 @@ try:
         logger.warning("事件对比页红盘率趋势渲染失败: %s", exc)
         st.info("红盘率趋势暂不可用。")
 
+    # ── 公告速览（第三真实事件源·东方财富，经 akshare）──
+    st.markdown("### 📰 公告速览（东方财富·公告大全）")
+    st.caption("交易所公告流原始密度对照：类型分布为当日真实公告统计，非预测信号；拉取失败时诚实降级、绝不编造。")
+    try:
+        from modules.event_announcements import NOTICE_TYPES, fetch_notice_events
+        _c1, _c2 = st.columns([1, 2])
+        with _c1:
+            notice_date = st.date_input("公告日期", value=None, key="evt_notice_date")
+        with _c2:
+            notice_type = st.select_slider("报告类型", options=list(NOTICE_TYPES), value="重大事项")
+        if notice_date is not None:
+            _d = notice_date.strftime("%Y%m%d")
+            notice = fetch_notice_events(_d, notice_type)
+            if notice["available"]:
+                if notice["total"]:
+                    _bt = notice["by_type"]
+                    _top_types = sorted(_bt.items(), key=lambda kv: -kv[1])[:4]
+                    _kpi = st.columns(min(4, len(_bt)) or 1)
+                    for _i, (_tn, _tc) in enumerate(_top_types):
+                        with _kpi[_i]:
+                            st.metric(_tn, f"{_tc} 条")
+                    st.caption(f"共 {notice['total']} 条公告（{notice_date} · {notice_type}）")
+                    import pandas as _pd
+                    _ndf = _pd.DataFrame(notice["rows"][:50]).rename(columns={
+                        "code": "代码", "name": "名称", "title": "公告标题",
+                        "type": "类型", "date": "日期", "url": "网址"})
+                    st.dataframe(_ndf, width="stretch", hide_index=True)
+                    if notice["total"] > 50:
+                        st.caption(f"仅展示前 50 条（共 {notice['total']} 条）。")
+                else:
+                    st.info("该日期/类型下无公告（空属真实数据，非错误）。")
+            else:
+                st.warning(f"⚠️ 公告源不可用：{notice['note'] or '未知原因'}（不编造数据）")
+        else:
+            st.caption("选择日期后拉取当日真实公告流。")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("公告速览段渲染失败: %s", exc)
+        st.info("公告速览暂不可用。")
+
     # ── 方法学声明 ──
     st.markdown("---")
     st.caption(

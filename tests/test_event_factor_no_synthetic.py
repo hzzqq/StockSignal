@@ -30,6 +30,7 @@ TARGETS = [
 EXTENDED_TARGETS = [
     os.path.join(ROOT, "modules", "event_compare.py"),
     os.path.join(ROOT, "scripts", "refresh_event_pool.py"),
+    os.path.join(ROOT, "modules", "event_announcements.py"),
 ]
 
 # 禁止在事件链路代码里出现的「造数」调用名（仅代码节点，非文档）
