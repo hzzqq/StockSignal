@@ -51,7 +51,7 @@ def _render_exit() -> None:
         try:
             if st.button("✕ 退出专注", key="_zen_exit", help="退出 Zen 专注模式，恢复侧栏导航"):
                 st.session_state[ZEN_KEY] = False
-                st.rerun()
+                st.rerun()  # ui_audit_exempt: bare-rerun 退出 Zen 按钮写 session 后重跑，隐藏侧栏的 CSS 注入才会撤除
         except Exception as e:  # noqa: BLE001
             logger.warning(f"[zen_mode] 退出按钮渲染失败: {e}")
 

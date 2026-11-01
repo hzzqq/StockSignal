@@ -17,7 +17,6 @@ import os
 from datetime import datetime
 import streamlit.components.v1 as components
 from modules.page_utils import render_standard_page, fmt_rel as _fmt_rel, get_fetcher
-from modules.ui_theme import sf_metric
 import modules.scroll_nav as sn
 from modules.session import get_user, trading_autorefresh
 from modules.page_guard import safe_section, safe_fragment

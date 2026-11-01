@@ -61,7 +61,8 @@ def _collect(target: str) -> list:
                         p = os.path.abspath(e.path)
                         if p != ap_abs:
                             candidates.append(p)
-        except Exception:  # noqa: BLE001
+        # ui_audit_exempt: except-pass 清理脚本扫描兄弟目录失败时退化为只删 target 本体，不中断清理
+        except Exception:
             pass
     return candidates
 

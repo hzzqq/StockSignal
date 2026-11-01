@@ -6,7 +6,6 @@ pages/92_用户管理.py
 import streamlit as st
 from modules.session import init_session_state, require_admin, get_user
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_metric
 from modules.admin_api import get_users, create_user, update_user, delete_user, get_logs
 from modules.page_widgets import _empty_info
 

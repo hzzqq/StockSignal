@@ -5,9 +5,13 @@
 """
 from __future__ import annotations
 
+import logging
+
 import pandas as pd
 
 from modules.colors import UP_COLOR, DOWN_COLOR, HOLD_COLOR
+
+logger = logging.getLogger(__name__)
 
 # 业绩同比着色：红=同比增长为正（改善）/ 绿=为负（下滑），
 # 与 16页 财报日历、A股红涨绿跌语义一致（业绩改善=红）。
@@ -144,7 +148,7 @@ def fr_format_financial_df(df):
             out[c] = num.apply(_fmt)
         except Exception:
             # 转换失败（罕见）保持原列
-            pass
+            logger.debug("[financial_report_helpers] 列 %s 数值格式化失败，保持原列: ", c, exc_info=True)
     return out
 
 

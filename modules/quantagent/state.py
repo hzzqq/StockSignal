@@ -107,7 +107,7 @@ class ResearchState:
         if self.reporter is not None:
             try:
                 self.reporter(node, log)
-            except Exception:  # noqa: BLE001 - 回调失败绝不能影响主流程
+            except Exception:  # ui_audit_exempt: except-pass 实时进度回调为内存透传通道，失败绝不能中断 Agent 主流程
                 pass
 
     def add_error(self, msg: str) -> None:
@@ -158,12 +158,12 @@ def _json_safe(o: Any) -> Any:
 
         if isinstance(o, (pd.Timestamp,)):
             return o.isoformat()
-    except Exception:  # pragma: no cover
+    except Exception:  # ui_audit_exempt: except-pass pandas 可选依赖守卫，未安装时跳过 Timestamp 归一化（pragma: no cover）
         pass
     if hasattr(o, "isoformat"):
         try:
             return o.isoformat()
-        except Exception:
+        except Exception:  # ui_audit_exempt: except-pass isoformat() 不可用时回退 str(o) 兜底序列化
             pass
     try:
         import numpy as np
@@ -174,7 +174,7 @@ def _json_safe(o: Any) -> Any:
             return float(o)
         if isinstance(o, np.ndarray):
             return [_json_safe(x) for x in o.tolist()]
-    except Exception:  # pragma: no cover
+    except Exception:  # ui_audit_exempt: except-pass numpy 可选依赖守卫，未安装时跳过 ndarray 归一化（pragma: no cover）
         pass
     if isinstance(o, (str, int, float, bool)) or o is None:
         return o

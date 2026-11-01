@@ -12,9 +12,10 @@ render_stock_picker()
 
 # ── 方法学与来源注脚（B 类页五段式：收尾一段；页面主体由 modules.stock_research 渲染，页头无天然 KPI 带数据）──
 import streamlit as st
-st.markdown("---")
+from modules.ui_kit import xc_subheader
+xc_subheader("口径与来源", icon="📌")
 st.caption(
-    "口径与来源：行情/K线=东方财富、新浪公开日线（modules/fetcher，daily_cache 缓存）；"
+    "行情/K线=东方财富、新浪公开日线（modules/fetcher，daily_cache 缓存）；"
     "技术指标与选股打分=本地规则计算（modules/technical），非 AI 洞见。"
     "打分仅供参考，不构成投资建议。"
 )

@@ -28,7 +28,8 @@ from modules.factor_analysis import (
     FACTORS, build_panels, cumulative, ic_series, ic_summary, layered_returns, long_short,
 )
 from modules.page_utils import render_standard_page, hist_cached
-from modules.ui_theme import section_header, sf_metric
+from modules.ui_theme import section_header
+from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
 
@@ -89,17 +90,13 @@ if st.button("🚀 运行分析", key="fa_run", type="primary"):
 
     st.markdown("---")
     section_header("IC / IR 汇总", f"因子「{FACTORS.get(factor, factor)}」· 截面 Spearman", icon="📐")
-    k1, k2, k3, k4, k5 = st.columns(5)
-    with k1:
-        sf_metric("IC 均值", f"{summ['ic_mean']:.3f}" if summ["n"] else "—", "越靠近 ±1 越强")
-    with k2:
-        sf_metric("IR", f"{summ['ir']:.2f}" if summ["n"] else "—", "IC均值/标准差")
-    with k3:
-        sf_metric("IC 胜率", f"{summ['positive_ratio'] * 100:.0f}%" if summ["n"] else "—", "IC>0 占比")
-    with k4:
-        sf_metric("t 值", f"{summ['t_stat']:.2f}" if summ["n"] else "—", "|t|>2 方具统计意义")
-    with k5:
-        sf_metric("样本期数", str(summ["n"]), "越小越不可信")
+    xc_kpi_grid([
+        {"label": "IC 均值", "value": f"{summ['ic_mean']:.3f}" if summ["n"] else "—", "delta": "越靠近 ±1 越强"},
+        {"label": "IR", "value": f"{summ['ir']:.2f}" if summ["n"] else "—", "delta": "IC均值/标准差"},
+        {"label": "IC 胜率", "value": f"{summ['positive_ratio'] * 100:.0f}%" if summ["n"] else "—", "delta": "IC>0 占比"},
+        {"label": "t 值", "value": f"{summ['t_stat']:.2f}" if summ["n"] else "—", "delta": "|t|>2 方具统计意义"},
+        {"label": "样本期数", "value": str(summ["n"]), "delta": "越小越不可信"},
+    ])
     if summ["n"] and summ["n"] < 20:
         st.warning(f"⚠️ 仅 {summ['n']} 期样本，**统计意义不足**；结论仅供参考，勿据此下注。")
 

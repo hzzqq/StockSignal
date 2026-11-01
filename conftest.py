@@ -19,6 +19,7 @@ def _install_streamlit():
     try:
         import streamlit  # noqa: F401  (真实，API 完整)
         return
+    # ui_audit_exempt: except-pass 真实 streamlit import 失败后的预期分支：继续走下方完整桩兜底
     except Exception:
         pass
 
@@ -172,6 +173,7 @@ def _install_sqlite_memory_journal():
     try:
         import sqlite3.dbapi2 as _dbapi2
         _dbapi2.connect = _patched_connect
+    # ui_audit_exempt: except-pass dbapi2 二次 patch 失败不阻断主 patch（sqlite3.connect 已覆盖）
     except Exception:  # pragma: no cover
         pass
 
@@ -207,14 +209,16 @@ def _clean_fetcher_l0():
         from modules import fetcher as _fetcher_mod
 
         _fetcher_mod._L0_CACHE.clear()
-    except Exception:  # noqa: BLE001 - 隔离设施自身故障不挡测试
+    # ui_audit_exempt: except-pass 隔离设施自身故障（L0 缓存清理）不挡测试用例
+    except Exception:
         pass
     yield
     try:
         from modules import fetcher as _fetcher_mod2
 
         _fetcher_mod2._L0_CACHE.clear()
-    except Exception:  # noqa: BLE001
+    # ui_audit_exempt: except-pass fixture yield 后清理 L0 缓存失败不挡测试用例
+    except Exception:
         pass
 
 
@@ -264,5 +268,6 @@ def pytest_sessionfinish(session, exitstatus):
                 msg += "\n  ⚠️ skip 率 >30%：黑盒/集成用例大量跳过，覆盖率存在虚高风险，"
                 msg += "建议补真网集成测试或区分『真 skip』与『应跑未跑』。"
             print(msg, flush=True)
+    # ui_audit_exempt: except-pass session 收尾 skip 率观测打印失败不影响 pytest 退出状态
     except Exception:
         pass

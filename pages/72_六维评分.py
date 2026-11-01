@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import html
 import logging
 
 import pandas as pd
@@ -18,7 +19,8 @@ import streamlit as st
 from modules.colors import UP_COLOR
 from modules.page_utils import render_standard_page, hist_cached
 from modules.six_dim import DIM_LABELS, compute_dims
-from modules.ui_theme import section_header, sf_metric
+from modules.ui_theme import section_header
+from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
 
@@ -78,15 +80,13 @@ if st.button("🔍 评分", key="six_dim_run", type="primary"):
 
     st.markdown("---")
     section_header("综合评分", f"有效 {coverage}/6 维等权平均（缺失维不参与，避免被 0 拉低）", icon="🎯")
-    c1, c2, c3 = st.columns([1, 1, 2])
-    with c1:
-        sf_metric("综合分", f"{overall:.1f}" if overall is not None else "—", "0–100")
-    with c2:
-        sf_metric("数据覆盖", f"{coverage}/6", "维度可用性")
-    with c3:
-        st.caption(f"代码 **{code}**"
-                   + (f" · 市场状态 **{raw['state']}**" if raw.get("state") else "")
-                   + (f" · 60 日位置 {raw['pos60']:+.1f}%" if raw.get("pos60") is not None else ""))
+    xc_kpi_grid([
+        {"label": "综合分", "value": f"{overall:.1f}" if overall is not None else "—", "delta": "0–100"},
+        {"label": "数据覆盖", "value": f"{coverage}/6", "delta": "维度可用性"},
+    ])
+    st.caption(f"代码 **{code}**"
+               + (f" · 市场状态 **{raw['state']}**" if raw.get("state") else "")
+               + (f" · 60 日位置 {raw['pos60']:+.1f}%" if raw.get("pos60") is not None else ""))
 
     avail = [(k, v) for k, v in dims.items() if v is not None]
     if len(avail) >= 3:
@@ -131,7 +131,8 @@ if st.button("🔍 评分", key="six_dim_run", type="primary"):
         rows += (
             "<div style='padding:7px 0;border-bottom:1px solid rgba(148,163,184,.15);font-size:13px'>"
             "<div style='display:flex;justify-content:space-between'>"
-            f"<span><b>{DIM_LABELS[k]}</b> <span style='opacity:.6;font-size:11px'>{_raw_hint[k]}</span></span>"
+            # _raw_hint 内嵌 raw 行情/估值字段（DB 输入）流向 HTML：动态串统一转义
+            f"<span><b>{html.escape(DIM_LABELS[k])}</b> <span style='opacity:.6;font-size:11px'>{html.escape(_raw_hint[k])}</span></span>"
             f"<span style='font-weight:700;color:{color}'>{val_txt}</span></div>"
             f"{bar}</div>"
         )

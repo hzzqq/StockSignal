@@ -81,11 +81,13 @@ try:
         st.markdown("### 📊 持续期明细")
         for b in range(5):
             s = res["durations"][b]
+            # ui_audit_exempt: unsafe-allow-html bands[b] 为内部档位常量 + 统计数值，无用户/DB 输入流向
             st.markdown(f"- **{bands[b]}**：run 数 <b>{s['n']}</b> ｜ 均值 <b>{s['mean']}</b> 天 ｜ 中位 <b>{s['median']}</b> 天", unsafe_allow_html=True)
 
         rec = res["recovery"]
         st.markdown("### 🧊 冰点 → 回归中性 磨底时长")
         if rec.get("n"):
+            # ui_audit_exempt: unsafe-allow-html 内容已过 ui_kit xc_content_card（内部 html.escape title/body/icon）
             st.markdown(xc_content_card(
                 title="冰点后中位磨底时长",
                 body=f"中位 <b>{rec['median']}</b> 天 ｜ 均值 <b>{rec['mean']}</b> 天 ｜ 样本 <b>{rec['n']}</b> 段",

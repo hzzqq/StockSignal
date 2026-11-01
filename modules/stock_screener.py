@@ -474,7 +474,7 @@ class StockScreener:
                         profit_gr = float(v)
                     else:
                         revenue_gr = float(v)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError):  # ui_audit_exempt: except-pass 同比增速非数值时置 None，下方有 5 年数据兜底重算链路
                     pass
         if "netprofit" in fina.columns and (profit_gr is None) and len(fina) >= 5:
             cur = pd.to_numeric(fina["netprofit"], errors="coerce").iloc[0]

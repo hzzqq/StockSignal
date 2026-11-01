@@ -9,8 +9,12 @@ modules/quantagent/agents/fundamental_agent.py
 
 from __future__ import annotations
 
+import logging
+
 from modules.quantagent.agents.base import BaseAgent
 from modules.quantagent.state import ResearchState
+
+logger = logging.getLogger(__name__)
 
 
 class FundamentalAgent(BaseAgent):
@@ -56,7 +60,7 @@ class FundamentalAgent(BaseAgent):
                 elif pe_f > 60:
                     score -= 10
         except Exception:
-            pass
+            logger.debug("[fundamental_agent] 质地评分数值折算失败，沿用默认分 50: ", exc_info=True)
         score = max(0.0, min(100.0, score))
         summary = "质地优良" if score >= 65 else "质地中性" if score >= 45 else "质地偏弱"
         report = {

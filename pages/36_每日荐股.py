@@ -8,6 +8,7 @@
 + 买入方案（入场/目标/止损 = ATR 倍数，仓位提示联动决策快照）+ 逐条理由 + 免责声明。
 用户可在本页关闭荐股推送（消息中心不再展示该类型；默认开启）。
 """
+import html
 import json
 import os
 
@@ -71,10 +72,12 @@ for i, p in enumerate(picks, 1):
     with st.container(border=True):
         head_l, head_r = st.columns([3, 1])
         with head_l:
+            # 荐股名称/代码来自推荐引擎，按防御性规范 html.escape
             st.markdown(
-                f"### {i}. {p.get('name', '')} `{p.get('code', '')}`"
+                f"### {i}. {html.escape(str(p.get('name', '')))} `{html.escape(str(p.get('code', '')))}`"
                 f"<span style='font-size:14px;color:var(--txt2)'>　综合 <b style='color:var(--acc1)'>"
                 f"{p.get('composite', '—')}</b>/100</span>",
+                # ui_audit_exempt: unsafe-allow_html 荐股标题行，name/code 已 html.escape，综合分为数值
                 unsafe_allow_html=True,
             )
         with head_r:

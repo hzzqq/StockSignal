@@ -69,7 +69,7 @@ def _word_lists():
         neg = tuple(str(w) for w in NEGATIVE_WORDS) if NEGATIVE_WORDS else ()
         if pos and neg:
             return pos, neg
-    except Exception:  # noqa: BLE001
+    except Exception:  # ui_audit_exempt: except-pass 项目词库导入失败时回退内置兜底词表，函数设计即容忍
         pass
     return _FALLBACK_BULLISH, _FALLBACK_BEARISH
 

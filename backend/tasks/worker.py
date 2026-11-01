@@ -201,8 +201,8 @@ class TaskWorker:
             if isinstance(message, dict):
                 try:
                     _persist_timeline_event(task.task_id, stage_key, message)
-                except Exception:  # noqa: BLE001 — 持久化尽力而为，不中断主流程
-                    pass
+                except Exception:
+                    logger.debug("timeline 事件持久化失败（不中断主流程）", exc_info=True)
 
         register(task.task_id, _reporter)
         # 把 task_id 注入 payload 副本，供 handler 取用

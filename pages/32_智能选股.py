@@ -16,7 +16,6 @@ import streamlit as st
 from datetime import datetime
 
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_metric
 from modules.session import api_get, get_user_setting, save_user_setting
 from modules.stock_screener import StockScreener, STRATEGY_NAMES_CN, ALL_STRATEGIES, DEFAULT_PARAMS
 from modules.page_widgets import _empty_info
@@ -51,6 +50,7 @@ TECH = {"macd", "trend", "bollinger", "volume_surge", "low_position", "pattern"}
 
 
 
+# ui_audit_exempt: unsafe-allow_html 主按钮 hover 动效的内部 CSS 样式注入（设计系统）
 st.markdown("""
 <style>
 button[data-testid="stBaseButton-primary"] {

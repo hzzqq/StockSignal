@@ -12,11 +12,11 @@
 触发后由后端统一下单（经 broker.execute_order，含风控 + live 护栏），
 并写 real_orders 流水。调度器在交易时段后台扫描；也可手动触发一轮扫描。
 """
+import html
 import json
 from datetime import datetime, timedelta
 import streamlit as st
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_metric
 import modules.scroll_nav as sn
 from modules.session import api_get, api_post, api_put, api_delete, trading_autorefresh
 from modules.search_ui import stock_search_input
@@ -30,6 +30,7 @@ try:
     from modules.fundflow import _ensure_proxy_and_ssl
     _ensure_proxy_and_ssl()
 except Exception:
+    # ui_audit_exempt: except-pass 代理/SSL 预热为可选增强，条件单触发走后端扫描，失败不影响主流程
     pass
 TRIGGER_LABELS = {'margin_stock': '💰 单股融资买入额 ≥ 阈值（万元）', 'margin_market': '🌐 全市场融资买入额 ≥ 阈值（亿元）', 'ma5_break_up': '📈 沿 5 日均线上涨突破（上穿 MA5）', 'ma5_break_down': '📉 沿 5 日均线下跌破位（跌破 MA5）'}
 STATUS_LABELS = {'pending': '⏳ 待触发', 'triggered': '⚡ 已触发待成交', 'filled': '✅ 已成交', 'failed': '❌ 触发失败', 'cancelled': '🚫 已撤销', 'expired': '⌛ 已过期'}
@@ -70,6 +71,7 @@ with st.expander('➕ 新建条件单', expanded=True, key='new_cond_exp'):
                 from modules.fetcher import StockFetcher
                 name = StockFetcher().get_name_only(cond_code) or ''
             except Exception:
+                # ui_audit_exempt: except-pass 股票名称仅为条件单备注装饰，取不到时 payload 用空名
                 pass
             payload = {'stock_code': cond_code, 'stock_name': name, 'trigger_type': trigger_type, 'action': action, 'trigger_params': params, 'quantity': int(quantity), 'expire_date': expire_str}
             sc, body = api_post('/api/cond-orders', payload)
@@ -134,7 +136,8 @@ def fragment_cond_list():
                 st.markdown(f'{desc}')
                 st.caption(f"触发后：{('买入▲' if action == 'buy' else '卖出▼')} {int(c.get('quantity') or 0)} 股" + (f" · 到期 {c.get('expire_date')}" if c.get('expire_date') else ''))
             with cm3:
-                st.markdown(f"<span class='{status_cls}'>{status_txt}</span>", unsafe_allow_html=True)
+                # 状态文案为 STATUS_LABELS 白名单映射（兜底为后端枚举原文，已 html.escape）；status_cls 经 .get 白名单映射
+                st.markdown(f"<span class='{status_cls}'>{html.escape(str(status_txt))}</span>", unsafe_allow_html=True)
                 if c.get('triggered_info'):
                     st.caption(f"ℹ️ {c.get('triggered_info')}")
             with cm4:

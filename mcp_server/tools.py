@@ -36,6 +36,7 @@ def _resolve_code(user_input: str) -> Optional[str]:
         r = _resolve_stock(s)
         if r and r.get("code"):
             return r["code"]
+    # ui_audit_exempt: except-pass 代码解析器（ai_engine）不可用（import/解析异常）时返回原样输入，设计内回退
     except Exception:
         pass
     return s
@@ -47,6 +48,7 @@ def _jsonable(obj: Any) -> Any:
     if hasattr(obj, "to_dict"):
         try:
             return obj.to_dict()
+        # ui_audit_exempt: except-pass to_dict() 不可用时退化为 str() 序列化，设计内兜底
         except Exception:
             pass
     return str(obj)

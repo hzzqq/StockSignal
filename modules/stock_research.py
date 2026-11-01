@@ -11,9 +11,12 @@ from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docst
 
 
 def render_stock_analysis() -> None:
+    import logging
     import streamlit as st
     import pandas as pd
     from datetime import datetime
+
+    logger = logging.getLogger(__name__)
     from modules.page_guard import safe_fragment
     from modules.page_utils import render_standard_page, get_fetcher
     from modules.ui_theme import sf_card, sf_metric
@@ -198,7 +201,7 @@ def render_stock_analysis() -> None:
 
     def _analysis_goto(c):
         st.session_state['analysis_stock'] = c
-        st.rerun()
+        st.rerun()  # ui_audit_exempt: bare-rerun 最近浏览/收藏按钮跳转分析标的，写 session 后重跑以加载新标的
     _hist_key2 = '_analysis_recent'
     if _hist_key2 not in st.session_state:
         st.session_state[_hist_key2] = []
@@ -221,7 +224,7 @@ def render_stock_analysis() -> None:
                 st.session_state[_fav_key2].remove(ticker)
             else:
                 st.session_state[_fav_key2].append(ticker)
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 收藏/取消收藏切换后重跑，按钮文案（已收藏/收藏当前标的）立即翻转
 
     @st.cache_data(show_spinner=False, ttl=TTL_TIERS["sentiment"])
     def _cached_period_kline(ticker: str, start: str, end: str, period: str):
@@ -242,7 +245,7 @@ def render_stock_analysis() -> None:
                 return str(period_date)[:10]
             dts = pd.to_datetime(dd['date']).dt.strftime('%Y-%m-%d').tolist()
             return nearest_trading_day(period_date, dts)
-        except Exception:
+        except Exception:  # ui_audit_exempt: except-pass 周期末日→交易日映射失败时回退原日期字符串（双击弹分时的尽力兜底）
             pass
         return str(period_date)[:10]
 
@@ -255,7 +258,7 @@ def render_stock_analysis() -> None:
             if _df is not None and (not _df.empty):
                 return (_df, _pc, _dt)
         except Exception:
-            pass
+            logger.debug("[stock_research] 历史分时按日拉取失败 %s@%s: ", ticker, target_date, exc_info=True)
         return None
 
     @st.cache_data(show_spinner=False, ttl=TTL_TIERS["sentiment"])
@@ -267,13 +270,13 @@ def render_stock_analysis() -> None:
             if rec and isinstance(rec.get('records'), list) and rec['records']:
                 return (pd.DataFrame(rec['records']), rec.get('prev_close'), rec.get('trade_date'))
         except Exception:
-            pass
+            logger.debug("[stock_research] 后端 /api/intraday 不可用，回退本地 fetcher: ", exc_info=True)
         try:
             _df, _pc, _dt = fetcher.get_stock_intraday_sina(ticker)
             if _df is not None and (not _df.empty):
                 return (_df, _pc, _dt)
         except Exception:
-            pass
+            logger.debug("[stock_research] 本地分时回退亦失败 %s: ", ticker, exc_info=True)
         return None
 
 
@@ -306,7 +309,7 @@ def render_stock_analysis() -> None:
                 _kstart = _dr[0].strftime('%Y-%m-%d')
                 _kend = _dr[1].strftime('%Y-%m-%d')
             except Exception:
-                pass
+                logger.debug("[stock_research] K线日期区间解析失败，沿用默认区间: ", exc_info=True)
         if kline_period == 'daily':
             period_df = df
             try:
@@ -315,7 +318,7 @@ def render_stock_analysis() -> None:
                 if not _filtered.empty:
                     period_df = _filtered
             except Exception:
-                pass
+                logger.debug("[stock_research] K线日期过滤失败，使用未过滤全量: ", exc_info=True)
         else:
             _period_name = {'weekly': '周线', 'monthly': '月线'}.get(kline_period, '')
             with st.spinner(f'正在加载{_period_name} K 线数据…'):
@@ -1367,7 +1370,7 @@ def render_stock_analysis() -> None:
             if _tf is not None:
                 st.plotly_chart(_tf, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False})
         except Exception:
-            pass
+            logger.debug("[stock_research] 财务三表趋势图构建失败，跳过该图: ", exc_info=True)
         for _rt, _lbl in (("income", "利润表"), ("balance", "资产负债表"), ("cash", "现金流量表")):
             with st.expander(f"📄 {_lbl}", expanded=False, key=f"fr_tbl_{_rt}_{ticker}"):
                 try:
@@ -1543,19 +1546,19 @@ def render_stock_picker() -> None:
         if _qc1.button("近30天", key="pick_q_30", width="stretch"):
             st.session_state["pick_start"] = today - timedelta(days=30)
             st.session_state["pick_end"] = today
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 快捷区间按钮写 session 后重跑，date_input 与回测区间立即联动
         if _qc2.button("近90天", key="pick_q_90", width="stretch"):
             st.session_state["pick_start"] = today - timedelta(days=90)
             st.session_state["pick_end"] = today
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 快捷区间按钮写 session 后重跑，date_input 与回测区间立即联动
         if _qc3.button("近半年", key="pick_q_180", width="stretch"):
             st.session_state["pick_start"] = today - timedelta(days=180)
             st.session_state["pick_end"] = today
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 快捷区间按钮写 session 后重跑，date_input 与回测区间立即联动
         if _qc4.button("近1年", key="pick_q_365", width="stretch"):
             st.session_state["pick_start"] = today - timedelta(days=365)
             st.session_state["pick_end"] = today
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 快捷区间按钮写 session 后重跑，date_input 与回测区间立即联动
 
         col_d1, col_d2 = st.columns(2)
         with col_d1:
@@ -1659,7 +1662,7 @@ def render_stock_picker() -> None:
                 xc_success_box("本地无对应缓存，正在从数据源拉取...")
             # 击穿 @st.cache_data 内的 _cached_kline（参数变化强制重算并重新取数）
             st.session_state["_pick_kline_nonce"] = int(st.session_state.get("_pick_kline_nonce", 0)) + 1
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 清缓存按钮自增 nonce 后必须重跑，才能以新参数击穿缓存重算
 
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")

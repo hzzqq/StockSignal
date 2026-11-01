@@ -42,16 +42,19 @@ def _xc_content_card(title=None, icon=""):
     if title:
         esc_title = html.escape(title)
         esc_icon = html.escape(icon)
+        # ui_audit_exempt: unsafe-allow_html 星辰卡片容器设计系统注入，title/icon 已 html.escape
         st.markdown(
             f'<div class="sf-card"><div class="sf-card-title">'
             f'<span>{esc_icon} {esc_title}</span></div>',
             unsafe_allow_html=True,
         )
     else:
+        # ui_audit_exempt: unsafe-allow_html 星辰卡片容器起始标签（无动态内容）
         st.markdown('<div class="sf-card">', unsafe_allow_html=True)
     try:
         yield
     finally:
+        # ui_audit_exempt: unsafe-allow_html 星辰卡片容器闭合标签（无动态内容）
         st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -61,11 +64,13 @@ dark = render_standard_page(
             "想看更细的五维拆解，去《市场驱动力》。",
 )
 with _xc_content_card(title="页面说明", icon="💡"):
+    # ui_audit_exempt: unsafe-allow_html 纯内置文案与样式类名，无外部输入
     st.markdown(
         '<div class="sf-card-subtitle">把指数与关键资金面统一归一化到起点=100 叠加，避免量纲差异；'
         '顶部信号灯把复杂多线压缩成一个直觉结论。想看更细的五维拆解，去《市场驱动力》。</div>',
         unsafe_allow_html=True,
     )
+    # ui_audit_exempt: unsafe-allow_html 纯内置跳转链接常量，无外部输入
     st.markdown(
         '<a href="pages/15_市场驱动力.py" target="_self" class="sf-page-link">'
         '🔗 看《市场驱动力》五维归一化子图（详细版）</a>',
@@ -311,6 +316,7 @@ def fragment_strength():
             _lvl_txt = html.escape(_lvl_parts[1]) if len(_lvl_parts) > 1 else ""
             c1, c2 = st.columns([0.32, 0.68])
             with c1:
+                # ui_audit_exempt: unsafe-allow_html 信号灯卡动态色值/文本均已 html.escape（quote=True）
                 st.markdown(
                     f'<div class="sf-metric-card" style="border-color:{html.escape(color, quote=True)}66;">'
                     f'<div style="font-size:30px;line-height:1.1;">{html.escape(_lvl_icon)}</div>'
@@ -332,6 +338,7 @@ def fragment_strength():
                         f'{name}：<b style="color:{html.escape(c, quote=True)}">{norm:.1f}</b>'
                         f'{" ▲" if dev >= 0 else " ▼"}</span>'
                     )
+                # ui_audit_exempt: unsafe-allow_html 分维度 chips，名称与色值均已 html.escape
                 st.markdown("".join(chips), unsafe_allow_html=True)
                 st.caption("数值=区间归一化（起点100）。>100 走强(红) / <100 走弱(绿)；信号灯语义与价格色一致：强=红、弱=绿。")
         else:

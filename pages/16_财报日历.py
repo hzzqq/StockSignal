@@ -5,6 +5,7 @@
 A股配色：业绩改善(净利润同比>0)=红，下滑=绿。
 """
 import streamlit as st
+import html
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -14,7 +15,6 @@ from modules.fundflow import (
 
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_metric
 from modules.page_widgets import UP, DOWN, _fig_layout, _section_title, _empty_info
 from modules.search_ui import stock_search_input
 from modules.chart_cache import cached_fig
@@ -365,11 +365,12 @@ def fragment_stock_financials():
             {"label": "净利润", "value": fr_fmt(_r.get("净利润")), "meta": "单位：元"},
             {"label": "ROE%", "value": fr_fmt(_r.get("ROE%"))},
         ])
+        # ui_audit_exempt: unsafe-allow_html 同比配色来自内部 fr_color_yoy 调色板；披露时间为 DB 字段已 html.escape
         st.markdown(
             f"<div style='font-size:13px;line-height:1.9;color:var(--txt2);margin:6px 0 10px;'>"
             f"净利润同比 <b style='color:{yoy_col};'>净利润 {yoy_txt}</b>　|　"
             f"营收同比 <b style='color:{rev_col};'>营收 {rev_txt}</b>　|　"
-            f"披露时间：<b style='color:var(--txt);'>{_r.get('披露时间', '—')}</b></div>",
+            f"披露时间：<b style='color:var(--txt);'>{html.escape(str(_r.get('披露时间', '—')))}</b></div>",
             unsafe_allow_html=True,
         )
         st.caption("💡 业绩配色：红=同比增长为正（改善），绿=为负（下滑）；与价格「绿涨红跌」不同，仅针对业绩增速。")
@@ -432,6 +433,7 @@ def fragment_stock_financials():
         if _tf is not None:
             st.plotly_chart(_tf, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     except Exception:
+        # ui_audit_exempt: except-pass 多期趋势图为附加视图，失败不阻塞下方三表 expander 逐表展示
         pass
     for _rt, _lbl in (("income", "利润表"), ("balance", "资产负债表"), ("cash", "现金流量表")):
         with st.expander(f"📄 {_lbl}", expanded=False, key=f"fsp_tbl_{_rt}_{ticker}"):

@@ -46,7 +46,7 @@ def _df_last_date(df):
     try:
         if isinstance(df, pd.DataFrame) and "date" in df.columns and len(df):
             return str(pd.to_datetime(df["date"]).max())[:10]
-    except Exception:  # noqa: BLE001 - 元数据尽力而为，绝不影响主数据路径
+    except Exception:  # ui_audit_exempt: except-pass K线内容日期元数据尽力而为，取不到返回 None 不影响主取数
         pass
     return None
 

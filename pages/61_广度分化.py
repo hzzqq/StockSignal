@@ -68,6 +68,7 @@ try:
     if div.get("available") and div.get("current"):
         cur = div["current"]
         if cur["is_divergent"]:
+            # ui_audit_exempt: unsafe-allow-html 内容已过 ui_kit xc_content_card（内部 html.escape title/body/icon）
             st.markdown(xc_content_card(
                 title=f"⚠️ 结构分化（{cur['date']}）",
                 body=f"红盘率 <b>{cur['red_ratio']}%</b>（表面不弱）但跌停 <b>{cur['limit_down']}</b> 家"
@@ -76,6 +77,7 @@ try:
                 accent=DOWN_COLOR,
             ), unsafe_allow_html=True)
         else:
+            # ui_audit_exempt: unsafe-allow-html 内容已过 ui_kit xc_content_card（内部 html.escape title/body/icon）
             st.markdown(xc_content_card(
                 title=f"结构均衡（{cur['date']}）",
                 body=f"红盘率 <b>{cur['red_ratio']}%</b> ｜ 跌停 <b>{cur['limit_down']}</b> 家"

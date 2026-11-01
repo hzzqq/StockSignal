@@ -179,7 +179,7 @@ def _group_by_sector(weights: dict, returns: dict, sectors: dict | None) -> dict
         if r is not None:
             try:
                 d["wr"] += w * float(r)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError):  # ui_audit_exempt: except-pass 非数值行业收益按 0 参与加权聚合（数据质量容忍）
                 pass
     for d in agg.values():
         d["r"] = (d["wr"] / d["w"]) if d["w"] else None
@@ -212,7 +212,7 @@ def brinson(port_weights: dict | None, bench_weights: dict | None,
         if r is not None:
             try:
                 rb_total += w * float(r)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError):  # ui_audit_exempt: except-pass 非数值基准收益按 0 计入 rb_total（数据质量容忍）
                 pass
 
     rows: list = []

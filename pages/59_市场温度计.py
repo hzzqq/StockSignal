@@ -126,6 +126,7 @@ try:
         f'{b["label"]}（{b["lo"]}–{b["hi"]-1 if b["hi"]<=100 else 100}°）</span>'
         for b in mt.BANDS
     )
+    # ui_audit_exempt: unsafe-allow-html 分档图例全量来自 mt.BANDS 内部常量（label/lo/hi/color），无用户/DB 输入流向
     st.markdown(
         f'<div style="margin:2px 0 14px">{legend_html}</div>',
         unsafe_allow_html=True,
@@ -164,6 +165,7 @@ try:
             _body += f" ｜ 综合分 <b>{_score}</b>"
         if _conf is not None:
             _body += f" ｜ 置信度 <b>{_conf}%</b>"
+        # ui_audit_exempt: unsafe-allow-html 内容已过 ui_kit xc_content_card（内部 html.escape title/body/icon）
         st.markdown(xc_content_card(
             title=f"📦 离线快照背景（{snap.get('date', '?')}）",
             body=_body, accent="#ca8a04",
@@ -180,6 +182,7 @@ try:
         base = sig.get("base_rate")
         edge = sig.get("edge_pp")
         hit = sig["hits"][0] if sig.get("hits") else {}
+        # ui_audit_exempt: unsafe-allow-html statement 为 mt.extreme_zone_signal 模块内部模板文案 + 数值，无用户输入流向
         st.markdown(
             f"""
             <div style="border-left:6px solid #dc2626;background:{_hex_to_rgba('#dc2626', 0.12)};
@@ -220,6 +223,7 @@ try:
                 f20 = a["forward"].get("d20", {})
                 up5 = f5.get("up_frac")
                 up5_color = UP_COLOR if (up5 is not None and up5 > 0.5) else DOWN_COLOR
+                # ui_audit_exempt: unsafe-allow-html 类比卡数据全来自 mt.historical_analogs 内部计算，无用户输入流向
                 st.markdown(
                     f"""
                     <div style="border:1px solid {_hex_to_rgba(ac,0.5)};border-left:4px solid {ac};

@@ -287,7 +287,7 @@ def run_batch_research(
         if progress_callback:
             try:
                 progress_callback("batch", f"[批量投研] ({i}/{total}) 正在分析 {tk} …")
-            except Exception:  # noqa: BLE001
+            except Exception:  # ui_audit_exempt: except-pass 批量投研进度回调为 UI 可选注入，失败不阻断逐只分析
                 pass
         try:
             st = run_research(
@@ -326,6 +326,6 @@ def run_batch_research(
     if progress_callback:
         try:
             progress_callback("batch", f"[批量投研] 完成，共 {total} 只，已按综合分排名。")
-        except Exception:  # noqa: BLE001
+        except Exception:  # ui_audit_exempt: except-pass 完成提示进度回调同上，失败不影响榜单结果返回
             pass
     return {"ranking": ranking, "count": total, "engine": engine}

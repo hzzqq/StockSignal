@@ -19,13 +19,13 @@
   （全成本率 ≈0.30%）；「多年度复合正期望」结论基于历史 pred，现役 pred 需多年度复核后维持/修订。
 - 信号为市场中性多空（看多/看空各 N 只）；A 股零售场景通常**仅取多头侧**或降权空头。
 """
+import html
 import logging
 import pandas as pd
 import streamlit as st
 
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_metric
-from modules.ui_kit import xc_warn_box, xc_success_box, ss_fold_useful, ss_hover_preview
+from modules.ui_kit import xc_warn_box, xc_success_box, ss_fold_useful, ss_hover_preview, xc_kpi_grid
 from modules.p1_signal import P1SignalLoader, format_rank
 from modules.risk_gate import scan_and_gate  # T-245 二道闸
 from modules.session import trading_autorefresh
@@ -94,15 +94,12 @@ ss_hover_preview("ℹ️ 口径与用法", _info_html)
 
 # ───────────────────────── 选中模型概览 ─────────────────────────
 s = loader.summary().get(model, {})
-c1, c2, c3, c4 = st.columns(4)
-with c1:
-    sf_metric("数据日期", s.get("latest_date", "—"))
-with c2:
-    sf_metric("预测周期", f"h{s.get('horizon', '?')}")
-with c3:
-    sf_metric("看多/看空", f"{s.get('n_top_long', 0)}/{s.get('n_top_short', 0)}")
-with c4:
-    sf_metric("逐日样本", f"{s.get('n_daily', 0):,}")
+xc_kpi_grid([
+    {"label": "数据日期", "value": str(s.get("latest_date", "—"))},
+    {"label": "预测周期", "value": f"h{s.get('horizon', '?')}"},
+    {"label": "看多/看空", "value": f"{s.get('n_top_long', 0)}/{s.get('n_top_short', 0)}"},
+    {"label": "逐日样本", "value": f"{s.get('n_daily', 0):,}"},
+])
 
 
 # ───────────────────────── 榜单渲染 ─────────────────────────
@@ -120,14 +117,15 @@ def _board_html(rows, head_color, empty="无数据", rank_as_percent=False):
     body = ""
     for i, r in enumerate(rows, 1):
         pred = float(r.get("pred", 0.0) or 0.0)
-        sym = r.get("symbol", "")
-        nm = name_map.get(str(sym)[-6:].zfill(6), "—")
+        sym = str(r.get("symbol", ""))
+        sym_html = html.escape(sym)  # DB 名称映射流向 HTML：动态串统一转义
+        nm = html.escape(name_map.get(str(sym)[-6:].zfill(6), "—"))
         rank = float(r.get("rank", 0.0) or 0.0)
         pcolor = "#ff5c5c" if pred >= 0 else "#19c37d"  # A股：涨红跌绿
         rank_disp = format_rank(rank, rank_as_percent)  # 锐评 R8：序数不乘100，百分位才显示%
         body += (
             f"<tr><td style='color:#888'>{i}</td>"
-            f"<td style='font-family:monospace'>{sym}</td>"
+            f"<td style='font-family:monospace'>{sym_html}</td>"
             f"<td>{nm}</td>"
             f"<td style='color:{pcolor};font-weight:600'>{pred*100:+.2f}%</td>"
             f"<td style='color:#888'>{rank_disp}</td></tr>"
@@ -208,6 +206,7 @@ if len(models) >= 2:
                 f"<td style='text-align:center'>{inter}/{n}</td>"
                 f"<td style='text-align:center;color:#9ec5fe'>{jac:.2f}</td></tr>"
             )
+    # ui_audit_exempt: unsafe-allow-html 内部模型标签（loader 注册表常量）+ 数值 Jaccard 表，无用户/DB 输入流向
     st.markdown(
         "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
         "<thead><tr style='color:#9ec5fe;text-align:left'>"

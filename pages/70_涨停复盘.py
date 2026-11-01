@@ -17,6 +17,7 @@
   · 龙头评分为**启发式加权**，不是预测模型；不承诺次日涨跌。
   · 该接口只覆盖当日涨停池，历史复盘需逐日切换日期（不编造跨日序列）。
 """
+import html
 import logging
 
 import pandas as pd
@@ -26,8 +27,8 @@ import streamlit as st
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules.page_utils import (render_standard_page, score_bar as _score_bar)
 from modules.shepherd import _trading_days, _zt_pool_detail_cached, get_zt_ladder
-from modules.ui_kit import stat_tile
-from modules.ui_theme import section_header, sf_metric
+from modules.ui_kit import stat_tile, xc_kpi_grid
+from modules.ui_theme import section_header
 
 logger = logging.getLogger(__name__)
 
@@ -251,19 +252,14 @@ st.caption(
 )
 
 # ── ① 顶层 KPI ─────────────────────────────────────────────────────────
-c1, c2, c3, c4, c5 = st.columns(5)
-with c1:
-    sf_metric("涨停家数", str(limit_up_cnt), f"池内 {n_total}")
-with c2:
-    sf_metric("连板家数", str(n_connect), f"最高 {max_boards} 板")
-with c3:
-    sf_metric("首板家数", str(n_first), "接力基础盘")
-with c4:
-    fr_txt = f"{fail_ratio:.1f}%" if fail_ratio is not None else "—"
-    sf_metric("炸板率", fr_txt, "炸板/(涨停+炸板)")
-with c5:
-    stat_tile("池内曾开板", str(n_broken),
-              delta="炸板次数>0 的标的（当日曾开板）", delta_dir="flat")
+fr_txt = f"{fail_ratio:.1f}%" if fail_ratio is not None else "—"
+xc_kpi_grid([
+    {"label": "涨停家数", "value": str(limit_up_cnt), "delta": f"池内 {n_total}"},
+    {"label": "连板家数", "value": str(n_connect), "delta": f"最高 {max_boards} 板"},
+    {"label": "首板家数", "value": str(n_first), "delta": "接力基础盘"},
+    {"label": "炸板率", "value": fr_txt, "delta": "炸板/(涨停+炸板)"},
+    {"label": "池内曾开板", "value": str(n_broken), "delta": "炸板次数>0 的标的（当日曾开板）"},
+])
 
 st.markdown("---")
 
@@ -363,10 +359,11 @@ top = ld.head(10)
 if name_c and len(top) > 0:
     rows_html = ""
     for _, r in top.iterrows():
-        nm = str(r.get(name_c, ""))
-        cd = str(r.get(code_c, "")) if code_c else ""
+        # 东财涨停池字段流向 HTML：名称/代码/行业动态串统一转义
+        nm = html.escape(str(r.get(name_c, "")))
+        cd = html.escape(str(r.get(code_c, ""))) if code_c else ""
         bd = int(r["_boards_i"])
-        ind = str(r.get(ind_col_name, "")) if ind_col_name else ""
+        ind = html.escape(str(r.get(ind_col_name, ""))) if ind_col_name else ""
         sc = float(r["_score"])
         sc_color = UP_COLOR if sc >= 70 else ("#f59e0b" if sc >= 45 else "#94a3b8")
         bars = (
@@ -458,8 +455,8 @@ with cc2:
         bad = df[broken_s > 0].sort_values("_boards_i", ascending=False).head(15)
         rows = ""
         for _, r in bad.iterrows():
-            nm = str(r.get(name_c, ""))
-            cd = str(r.get(code_c, "")) if code_c else ""
+            nm = html.escape(str(r.get(name_c, "")))
+            cd = html.escape(str(r.get(code_c, ""))) if code_c else ""
             bc = int(_num(pd.DataFrame([r]), "broken", 0.0).iloc[0])
             rows += (
                 "<div style='display:flex;justify-content:space-between;padding:5px 0;"
@@ -483,14 +480,12 @@ except Exception as e:  # noqa: BLE001
     logger.warning(f"[zt-review] 状态机不可用: {e}")
     regime, state = None, None
 
-v1, v2, v3 = st.columns(3)
-with v1:
-    sf_metric("市场状态", state or "—",
-              f"置信度 {regime['latest']['confidence']*100:.0f}%" if regime and regime.get("available") else "—")
-with v2:
-    sf_metric("情绪周期", cycle or "—", "来自每日决策快照")
-with v3:
-    sf_metric("市场温度", f"{temp:.1f}" if isinstance(temp, (int, float)) else "—", "0-100")
+xc_kpi_grid([
+    {"label": "市场状态", "value": state or "—",
+     "delta": f"置信度 {regime['latest']['confidence']*100:.0f}%" if regime and regime.get("available") else "—"},
+    {"label": "情绪周期", "value": cycle or "—", "delta": "来自每日决策快照"},
+    {"label": "市场温度", "value": f"{temp:.1f}" if isinstance(temp, (int, float)) else "—", "delta": "0-100"},
+])
 
 notes = []
 if state and max_boards >= 4 and n_connect >= 10:

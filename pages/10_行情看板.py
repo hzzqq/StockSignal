@@ -3,6 +3,7 @@
 指数迷你卡、行业板块涨跌榜（含涨跌排行/分布折叠区）、龙虎榜、个股相关性矩阵。
 K 线、参数设置、技术面分析已迁移至「股票选取」模块。
 """
+import html
 import logging
 import streamlit as st
 import streamlit.components.v1 as components
@@ -18,7 +19,6 @@ from modules.widgets import render_index_compact
 from modules.page_guard import safe_fragment
 from modules.chart_cache import cached_fig
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
 
@@ -241,7 +241,7 @@ def _load_lhb(date_str: str):
             except Exception:
                 continue
     except Exception:
-        pass
+        logger.warning("[10_行情看板.py] 龙虎榜近 4 日逐日拉取整体失败，按无数据返回", exc_info=True)
     return None
 
 @safe_fragment('龙虎榜', run_every=60)
@@ -501,7 +501,7 @@ def _wl_render_table_html(rows, dark: bool):
         turn_s = r.get('turnover') if r.get('turnover') is not None else '—'
         pe_s = r.get('pe') if r.get('pe') is not None else '—'
         mv_s = r.get('mv_yi') if r.get('mv_yi') is not None else '—'
-        body += f'''<tr style="color:{row_color};"><td style="padding:6px 8px;white-space:nowrap;">{r['name']}</td><td style="padding:6px 8px;color:{code_color};font-variant-numeric:tabular-nums;">{r['code']}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{cur_s}</td><td style="padding:6px 8px;color:{col};font-weight:600;font-variant-numeric:tabular-nums;">{chg_s}</td><td style="padding:6px 8px;color:{col};font-variant-numeric:tabular-nums;">{camt_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{open_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{high_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{low_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{turn_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{pe_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{mv_s}</td><td style="padding:6px 8px;"><span class="wl-op" data-code="{r['code']}" style="cursor:pointer;background:{op_bg};color:{op_color};font-size:12px;padding:2px 8px;border-radius:10px;white-space:nowrap;">📈 看K线</span></td></tr>'''
+        body += f'''<tr style="color:{row_color};"><td style="padding:6px 8px;white-space:nowrap;">{html.escape(str(r['name']))}</td><td style="padding:6px 8px;color:{code_color};font-variant-numeric:tabular-nums;">{html.escape(str(r['code']))}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{cur_s}</td><td style="padding:6px 8px;color:{col};font-weight:600;font-variant-numeric:tabular-nums;">{chg_s}</td><td style="padding:6px 8px;color:{col};font-variant-numeric:tabular-nums;">{camt_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{open_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{high_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{low_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{turn_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{pe_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{mv_s}</td><td style="padding:6px 8px;"><span class="wl-op" data-code="{html.escape(str(r['code']))}" style="cursor:pointer;background:{op_bg};color:{op_color};font-size:12px;padding:2px 8px;border-radius:10px;white-space:nowrap;">📈 看K线</span></td></tr>'''
     css = f'\n    <style>\n    .wl-table{{width:100%;border-collapse:collapse;background:{bg};\n      border:1px solid {border};border-radius:8px;font-size:13px;font-family:inherit;}}\n    .wl-table th{{background:{head_bg};color:{head_color};text-align:right;font-weight:600;\n      border-bottom:1px solid {border};position:sticky;top:0;}}\n    .wl-table th:nth-child(1),.wl-table th:nth-child(2){{text-align:left;}}\n    .wl-table td{{text-align:right;border-bottom:1px solid {border};}}\n    .wl-table td:nth-child(1),.wl-table td:nth-child(2){{text-align:left;}}\n    .wl-table tr:hover td{{background:{hover};}}\n    </style>\n    '
     html = css + f'<div style="max-height:520px;overflow:auto;"><table class="wl-table">' + f'<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>' + '<script>' + 'var ops=document.querySelectorAll(".wl-op");' + 'for(var i=0;i<ops.length;i++){ops[i].onclick=function(){' + 'var s=window.parent&&window.parent.Streamlit;' + 'if(s&&s.setComponentValue){s.setComponentValue(this.getAttribute("data-code"));}' + '};}' + '</script>'
     return html
@@ -570,8 +570,10 @@ def fragment_watchlist_quotes():
         rows.append({'code': code, 'name': name, 'cur': cur, 'chg': chg, 'change_amt': change_amt, 'open': open_, 'high': high, 'low': low, 'turnover': turnover, 'pe': f'{pe:.2f}' if isinstance(pe, (int, float)) and (not pd.isna(pe)) else None, 'mv_yi': f'{mv_yi:.2f}' if mv_yi is not None else None})
     up_n = sum((1 for r in rows if r['chg'] is not None and r['chg'] >= 0))
     down_n = sum((1 for r in rows if r['chg'] is not None and r['chg'] < 0))
+    # ui_audit_exempt: unsafe-allow_html 仅拼内置色板常量与整数计数，无外部文本输入
     st.markdown(f"#### 共 {len(rows)} 只自选股 ｜ <span style='color:{UP_COLOR};font-weight:600;'>▲ {up_n}</span> ／ <span style='color:{DOWN_COLOR};font-weight:600;'>▼ {down_n}</span>", unsafe_allow_html=True)
     picks = _wl_render_table_html(rows, dark)
+    # ui_audit_exempt: unsafe-allow_html 自选行情表为内部组件渲染，名称/代码已在 _wl_render_table_html 内 html.escape
     picked = st.markdown(picks, unsafe_allow_html=True)
     if picked and picked in codes:
         st.query_params['pick_stock'] = picked

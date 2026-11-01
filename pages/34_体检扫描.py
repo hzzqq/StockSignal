@@ -1,3 +1,4 @@
+import html
 import logging
 
 import streamlit as st
@@ -14,7 +15,6 @@ from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: 简单 HTT
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_metric
 from modules.ui_kit import xc_content_card, xc_kpi_grid
 from modules.page_widgets import _empty_info, UP, DOWN
 from modules import stock_risk as sr
@@ -299,6 +299,7 @@ def classify(patterns, main_net, composite=None):
             if b == "看跌" or any(k in n for k in BEARISH_KW):
                 has_bear = True
     except Exception:
+        # ui_audit_exempt: except-pass 形态命中项字典解析为 best-effort，单项异常跳过不影响整体排雷结果
         pass
 
     mn = None
@@ -564,7 +565,7 @@ def result_board():
         pat_html = ""
         names = r.get("names") or []
         if names:
-            pat_html = "形态：" + " / ".join(names)
+            pat_html = "形态：" + " / ".join(html.escape(str(n)) for n in names)
         comp = r.get("composite")
         comp_html = ""
         if isinstance(comp, (int, float)):
@@ -574,8 +575,8 @@ def result_board():
                          f'综合 {comp:.0f}</span>')
         dims = r.get("dims", {}) or {}
         bars = "".join(_dim_bar(k, dims.get(k)) for k in ("技术面", "资金面", "财务健康", "估值"))
-        code_s = r.get("code", "—")
-        name_s = r.get("name", "—")
+        code_s = html.escape(str(r.get("code", "—")))
+        name_s = html.escape(str(r.get("name", "—")))
         card = f"""
         <div style="border-left:5px solid {color};border-radius:8px;
                     padding:10px 14px;margin:8px 0;background:rgba(128,128,128,0.08);">
@@ -589,6 +590,7 @@ def result_board():
           </div>
         </div>
         """
+        # ui_audit_exempt: unsafe-allow_html 排雷结果卡，code/name/形态名已在上方 html.escape，色板取内部常量
         st.markdown(card, unsafe_allow_html=True)
 
         b1, b2, b3 = st.columns([1, 1, 1])
@@ -630,12 +632,14 @@ def run_risk_scan(scope: str):
             prog.progress(min(1.0, done / max(1, total)),
                           text=f"正在逐只排雷… {done}/{total}")
         except Exception:
+            # ui_audit_exempt: except-pass 进度条在 fragment 销毁后回调会抛异常，属正常收尾噪声
             pass
 
     res = sr.scan_many(items, max_workers=4, progress=_cb)
     try:
         prog.empty()
     except Exception:
+        # ui_audit_exempt: except-pass 进度条已随 fragment 卸载，empty() 二次调用失败可忽略
         pass
     st.session_state["risk_results"] = res
     st.session_state["risk_count"] = len(res)
@@ -741,15 +745,17 @@ def risk_board():
         if target:
             rep = target["report"]
             oc = sr.LEVEL_COLOR.get(rep["overall_level"], "#8c8c8c")
+            # code/name 来自排雷引擎结果，按防御性规范 html.escape
             st.markdown(
                 f'<div style="border-left:6px solid {oc};border-radius:8px;padding:10px 14px;'
                 f'background:rgba(128,128,128,0.08);">'
-                f'<b style="font-size:15px;">{target["code"]} {target["name"]}</b>'
+                f'<b style="font-size:15px;">{html.escape(str(target["code"]))} {html.escape(str(target["name"]))}</b>'
                 f'　<span style="background:{oc};color:#fff;padding:2px 10px;border-radius:12px;'
                 f'font-size:12px;">整体 {sr.LEVEL_CN[rep["overall_level"]]}风险</span>'
                 f'　<span style="font-size:12px;color:#888;">风险分 {rep["risk_score"]}'
                 f' ｜ 覆盖率 {rep["coverage_pct"]}%'
                 f'{"（覆盖不足，结论仅供参考）" if not rep["reliable"] else ""}</span></div>',
+                # ui_audit_exempt: unsafe-allow_html 单只风险钻取卡，code/name 已 html.escape，分数为数值、等级词取内部字典
                 unsafe_allow_html=True)
             if rep["notes"]:
                 st.caption("⚠️ 以下维度**未取到数据**（按未知处理，不代表安全）："

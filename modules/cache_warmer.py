@@ -83,7 +83,7 @@ def warm_universe(limit: int = 400, max_workers: int = 6, timeout: float = 900.0
         if callable(progress):
             try:
                 progress(i, len(codes))
-            except Exception:  # noqa: BLE001
+            except Exception:  # ui_audit_exempt: except-pass 进度回调为用户可选注入，失败不阻断预热循环
                 pass
     out["ok"] = (not out["stopped_early"]) or out["warmed"] > 0
     out["elapsed_s"] = round(time.time() - t0, 1)

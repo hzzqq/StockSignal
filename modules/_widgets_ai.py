@@ -170,7 +170,7 @@ def render_ai_consultant() -> None:
                 st.session_state['ai_chat'] = []
                 st.session_state['ai_task_id'] = None
                 st.session_state['ai_task_started_at'] = None
-                st.rerun()
+                st.rerun()  # ui_audit_exempt: bare-rerun 按钮回调清空对话状态后立即重跑刷新聊天气泡
     rows = st.session_state.get('_cmp_rows')
     name, verdict, score = _current_stock_context()
     if rows:
@@ -193,7 +193,7 @@ def render_ai_consultant() -> None:
         if task_id:
             st.session_state['ai_task_id'] = task_id
             st.session_state['ai_task_started_at'] = time.time()
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 提交后台任务后立即重跑以进入 busy 轮询态（fragment run_every 接管后续）
         else:
             st.session_state['ai_chat'].pop()
             err = err or '未知错误'

@@ -277,6 +277,7 @@ def _load_concept_board() -> tuple:
         if df is not None and not df.empty and "板块名称" in df.columns and "涨跌幅" in df.columns:
             return df[["板块名称", "涨跌幅"]], None
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: except-pass 东财概念实时源对运行环境间歇断连（见 docstring），回退同花顺概念资金流
         pass
     try:
         df = ak.stock_fund_flow_concept()

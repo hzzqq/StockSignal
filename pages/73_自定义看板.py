@@ -23,7 +23,8 @@ import streamlit as st
 
 from modules.colors import UP_COLOR
 from modules.page_utils import render_standard_page, to_numeric_clean
-from modules.ui_theme import section_header, sf_metric
+from modules.ui_theme import section_header
+from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +41,11 @@ def _w_market_state(dark):
         st.info("📭 市场状态机数据未就绪。")
         return
     latest = rep["latest"]
-    c1, c2 = st.columns(2)
-    with c1:
-        sf_metric("市场状态", latest.get("state") or "—", "五档状态机")
-    with c2:
-        conf = latest.get("confidence")
-        sf_metric("置信度", f"{conf * 100:.0f}%" if isinstance(conf, (int, float)) else "—", "规则强度")
+    conf = latest.get("confidence")
+    xc_kpi_grid([
+        {"label": "市场状态", "value": latest.get("state") or "—", "delta": "五档状态机"},
+        {"label": "置信度", "value": f"{conf * 100:.0f}%" if isinstance(conf, (int, float)) else "—", "delta": "规则强度"},
+    ])
 
 
 def _w_temperature(dark):
@@ -53,11 +53,10 @@ def _w_temperature(dark):
     snap = load_latest_snapshot() or {}
     temp = snap.get("temperature")
     cycle = snap.get("cycle")
-    c1, c2 = st.columns(2)
-    with c1:
-        sf_metric("市场温度", f"{temp:.1f}" if isinstance(temp, (int, float)) else "—", "0-100")
-    with c2:
-        sf_metric("情绪周期", cycle or "—", "来自每日决策快照")
+    xc_kpi_grid([
+        {"label": "市场温度", "value": f"{temp:.1f}" if isinstance(temp, (int, float)) else "—", "delta": "0-100"},
+        {"label": "情绪周期", "value": cycle or "—", "delta": "来自每日决策快照"},
+    ])
 
 
 def _w_decision(dark):
@@ -65,11 +64,10 @@ def _w_decision(dark):
     snap = load_latest_snapshot() or {}
     pos = snap.get("position")
     date = snap.get("date") or snap.get("as_of") or "—"
-    c1, c2 = st.columns(2)
-    with c1:
-        sf_metric("建议仓位", f"{pos:.0f}%" if isinstance(pos, (int, float)) else "—", "决策闭环")
-    with c2:
-        sf_metric("快照日期", str(date), "数据新鲜度以日期为准")
+    xc_kpi_grid([
+        {"label": "建议仓位", "value": f"{pos:.0f}%" if isinstance(pos, (int, float)) else "—", "delta": "决策闭环"},
+        {"label": "快照日期", "value": str(date), "delta": "数据新鲜度以日期为准"},
+    ])
 
 
 def _w_zt_ladder(dark):
@@ -100,12 +98,11 @@ def _w_limit_stats(dark):
     row = df.iloc[-1]
     fr = row.get("zt_fail_ratio")
     lu = row.get("limit_up")
-    c1, c2 = st.columns(2)
-    with c1:
-        sf_metric("涨停家数", str(int(lu)) if lu == lu and lu is not None else "—", "全市场")
-    with c2:
-        sf_metric("炸板率", f"{float(fr):.1f}%" if fr == fr and fr is not None else "—",
-                  "炸板/(涨停+炸板)")
+    xc_kpi_grid([
+        {"label": "涨停家数", "value": str(int(lu)) if lu == lu and lu is not None else "—", "delta": "全市场"},
+        {"label": "炸板率", "value": f"{float(fr):.1f}%" if fr == fr and fr is not None else "—",
+         "delta": "炸板/(涨停+炸板)"},
+    ])
 
 
 def _w_breadth(dark):

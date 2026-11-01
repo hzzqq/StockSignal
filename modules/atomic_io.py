@@ -58,7 +58,7 @@ def _safe_remove(path: str) -> None:
     try:
         if os.path.exists(path):
             os.remove(path)
-    except OSError:
+    except OSError:  # ui_audit_exempt: except-pass 临时文件清理兜底，删除失败不得掩盖写入主异常
         pass
 
 

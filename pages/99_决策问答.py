@@ -15,6 +15,7 @@ import streamlit as st
 
 from modules import decision_qa as qa
 from modules.page_utils import render_standard_page
+from modules.ui_kit import xc_section_header
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ def render_answer(question: str) -> None:
         st.warning(f"⚠️ {result.get('reason', '该问题暂不可答')}")
         st.caption("决策问答只引用已归档数据，无数据不臆算——生成当日快照后即可作答。")
         return
+    xc_section_header("📋 决策回答", "本地引擎确定性路由 · 每条回答附数据溯源")
     st.markdown(result.get("answer") or "")
     sources = result.get("sources") or []
     if sources:

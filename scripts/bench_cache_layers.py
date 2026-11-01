@@ -126,6 +126,7 @@ def scenario_l0_l1(n_requests: int, seed: int) -> dict:
                 sym = rng.choice(cold_pool)
             try:
                 fetcher.get_daily(sym, start="2026-07-01", end="2026-10-12")
+            # ui_audit_exempt: except-pass 压测循环内单次请求 RuntimeError 跳过继续压测（失败率由场景 2 专门度量）
             except RuntimeError:
                 pass                           # 失败如实计入场景 2，本场景 stub 全成功
         elapsed = round(time.time() - t0, 2)

@@ -247,6 +247,7 @@ def main() -> None:
 
     try:
         asyncio.run(run_stdio())
+    # ui_audit_exempt: except-pass KeyboardInterrupt 为 stdio 服务正常停止信号（Ctrl+C 退出），静默收尾
     except KeyboardInterrupt:
         pass
 

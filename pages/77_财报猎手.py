@@ -12,13 +12,15 @@
 """
 from __future__ import annotations
 
+import html
 import logging
 
 import streamlit as st
 
 from modules.financial_hunter import SIGNAL_ORDER, annotate, col_of, scan
 from modules.page_utils import render_standard_page
-from modules.ui_theme import section_header, sf_metric
+from modules.ui_theme import section_header
+from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
 
@@ -56,19 +58,17 @@ if raw is None or len(raw) == 0:
 anno = annotate(raw)
 # 顶部统计用全量（未过滤）
 _vc = anno["_signal"].value_counts()
-c1, c2, c3, c4 = st.columns(4)
-with c1:
-    sf_metric("预告总数", str(len(anno)), _fmt_period(period))
-with c2:
-    sf_metric("利好（预增/扭亏）", str(int(_vc.get("利好", 0))), "最强信号")
-with c3:
-    sf_metric("偏多（略增/续盈）", str(int(_vc.get("偏多", 0))), "")
-with c4:
-    sf_metric("利空（首亏/预减）", str(int(_vc.get("利空", 0))), "风险提示")
+xc_kpi_grid([
+    {"label": "预告总数", "value": str(len(anno)), "delta": _fmt_period(period)},
+    {"label": "利好（预增/扭亏）", "value": str(int(_vc.get("利好", 0))), "delta": "最强信号"},
+    {"label": "偏多（略增/续盈）", "value": str(int(_vc.get("偏多", 0)))},
+    {"label": "利空（首亏/预减）", "value": str(int(_vc.get("利空", 0))), "delta": "风险提示"},
+])
 
 st.markdown("---")
 section_header("信号分布", "按预告类型文本启发式分级", icon="📊")
 _order = [s for s in SIGNAL_ORDER if _vc.get(s, 0) > 0]
+# ui_audit_exempt: unsafe-allow-html 信号名取自 SIGNAL_ORDER 内部常量 + 计数数值，配色内部映射，无用户/DB 输入流向
 st.markdown(
     "　".join(f"<span style='color:{SIGNAL_COLOR.get(s, '#94a3b8')};font-weight:700'>"
               f"{s} {int(_vc.get(s, 0))}</span>" for s in _order),
@@ -85,14 +85,15 @@ else:
     date_c, reason_c, metric_c = col_of(hits, "date"), col_of(hits, "reason"), col_of(hits, "metric")
     rows = ""
     for _, r in hits.head(60).iterrows():
-        nm = str(r.get(name_c, "")) if name_c else ""
-        cd = str(r.get(code_c, "")) if code_c else ""
-        ty = str(r.get(type_c, "")) if type_c else ""
-        sig = str(r.get("_signal", ""))
+        # 预告记录（名称/代码/预告事由等 DB 输入，含自由文本 reason）流向 HTML：动态串统一转义
+        nm = html.escape(str(r.get(name_c, ""))) if name_c else ""
+        cd = html.escape(str(r.get(code_c, ""))) if code_c else ""
+        ty = html.escape(str(r.get(type_c, ""))) if type_c else ""
+        sig = html.escape(str(r.get("_signal", "")))
         pct = r.get("_pct")
         pct_txt = f"{float(pct):+.1f}%" if pct == pct and pct is not None else "—"
-        dt = str(r.get(date_c, "")) if date_c else ""
-        reason = str(r.get(reason_c, ""))[:60] if reason_c else ""
+        dt = html.escape(str(r.get(date_c, ""))) if date_c else ""
+        reason = html.escape(str(r.get(reason_c, ""))[:60]) if reason_c else ""
         rows += (
             "<div style='border:1px solid rgba(148,163,184,.2);border-radius:10px;"
             "padding:8px 12px;margin:6px 0'>"

@@ -534,6 +534,7 @@ def render_research_card(result: dict, idx: int = 0) -> None:
     status = str(result.get("status", "unknown"))
     st_icon = _RESEARCH_STATUS_ICON.get(status, "⚙️")
     answer = str(result.get("answer") or "（研究未产出回答）")
+    # ui_audit_exempt: unsafe-allow_html 研究回答气泡，answer 经本页 _md_to_html 转义渲染（code/inline 统一 escape）
     st.markdown(
         '<div class="xc-msg"><div class="xc-av">🔬</div>'
         '<div class="xc-col"><div class="xc-who">'
@@ -560,6 +561,7 @@ def render_research_card(result: dict, idx: int = 0) -> None:
         f'{"✅" if _ok else "⚪"} {_nm}</span>'
         for _nm, _ok in _stage_done.items()
     )
+    # ui_audit_exempt: unsafe-allow_html 研究流程勾选条，阶段名/完成态均为内部常量派生
     st.markdown(
         f'<div class="xc-flow"><span class="xc-flow-label">研究流程</span>{_flow}</div>',
         unsafe_allow_html=True,
@@ -569,6 +571,7 @@ def render_research_card(result: dict, idx: int = 0) -> None:
     if steps:
         elapsed = result.get("elapsed_s")
         elapsed_s = f" · 耗时 {elapsed}s" if isinstance(elapsed, (int, float)) else ""
+        # ui_audit_exempt: unsafe-allow_html 分析模块标题，步数为整数、status 经内部图标映射
         st.markdown(
             f'<div class="xc-mod-h">🔬 分析模块（{_n_steps} 步 · {st_icon} {status}{elapsed_s}）</div>',
             unsafe_allow_html=True,
@@ -592,6 +595,7 @@ def render_research_card(result: dict, idx: int = 0) -> None:
                 )
                 with _cols[_j]:
                     with st.container(border=True):
+                        # ui_audit_exempt: unsafe-allow_html 分析模块卡，tool/reason/asof 均经本页 esc() 转义
                         st.markdown(
                             f'<div class="xc-mod-card">'
                             f'<div class="xc-mod-top"><span>{_s_icon}</span><b>{_tool}</b></div>'
@@ -599,6 +603,7 @@ def render_research_card(result: dict, idx: int = 0) -> None:
                             f'</div>',
                             unsafe_allow_html=True,
                         )
+                        # ui_audit_exempt: unsafe-allow_html 复制块，xc_copy_block 内部 textarea 承载并 esc() 原文
                         st.markdown(xc_copy_block(_copy_txt), unsafe_allow_html=True)
         if limitations:
             st.warning("；".join(str(x) for x in limitations[:6]))
@@ -632,6 +637,7 @@ def _render_suggestions(m: dict, idx: int) -> None:
     _sugs = m.get("suggestions") or []
     if not _sugs:
         return
+    # ui_audit_exempt: unsafe-allow_html 建议追问区标签，纯内置文案常量
     st.markdown('<div class="xc-sug-label">💬 你可以继续问</div>', unsafe_allow_html=True)
     _scols = st.columns(min(3, len(_sugs)))
     for _si, _sq in enumerate(_sugs[:3]):
@@ -696,6 +702,7 @@ def render_message(m: dict, idx: int, username: str) -> None:
     _ts_s = _fmt_ts(m.get("ts"))  # T-315：消息时间戳（缺失时为空串，不渲染）
     _ts_html = f'<span class="xc-ts">{esc(_ts_s)}</span>' if _ts_s else ""
     if m.get("role") == "user":
+        # ui_audit_exempt: unsafe-allow_html 用户消息气泡，username/content/ts 均经本页 esc() 转义
         st.markdown(
             f'<div class="xc-msg xc-user">'
             f'<div class="xc-col"><div class="xc-who">'
@@ -725,6 +732,7 @@ def render_message(m: dict, idx: int, username: str) -> None:
     _content = m.get("content") or ""
     if not str(_content).strip():
         _content = "（星辰 AI 暂未返回内容，请稍后重试或换个问法）"
+    # ui_audit_exempt: unsafe-allow_html 助手消息气泡，content 经本页 _md_to_html 转义渲染，复制块 esc() 承载
     st.markdown(
         '<div class="xc-msg"><div class="xc-av">🌟</div>'
         '<div class="xc-col"><div class="xc-who">'
@@ -818,6 +826,7 @@ def render_tool_card(tool: str, payload: dict) -> None:
     else:
         body = _tool_payload_to_html(tool, data or {})
 
+    # ui_audit_exempt: unsafe-allow_html 工具调用消息卡，title/err 经 esc()，body 为内部 _tool_payload_to_html 受控渲染
     st.markdown(
         '<div class="xc-msg"><div class="xc-av">🛠️</div>'
         '<div class="xc-col"><div class="xc-who">'
@@ -978,7 +987,7 @@ def _tutorial_example_buttons():
         if cols[i % 2].button(label, key=f"xc_tut_ex_{i}", width="stretch",
                               help=f"点击直接问：{prompt}"):
             st.session_state["_xc_pending"] = prompt
-            st.rerun()  # 顶层 rerun：整页重跑让 fragment_chat 读取 _xc_pending 并提交
+            st.rerun()  # ui_audit_exempt: bare-rerun 教程示例按钮顶层回调，置位 _xc_pending 后必须整页重跑，fragment_chat 才能读取并提交
 
 
 def render_ai_tutorial():
@@ -1155,6 +1164,7 @@ render_user_badge(sidebar=True)  # 在左侧边栏底部显示用户头像 / 退
 # 本页跟随全局主题，而不是强制暗色；根据当前主题注入对应 CSS
 dark = _theme_is_dark()
 inject_plotly_dark()
+# ui_audit_exempt: unsafe-allow_html 主题 CSS 由内部 _theme_css() 生成（设计系统样式注入）
 st.markdown(_theme_css(dark), unsafe_allow_html=True)
 
 username = (get_user() or {}).get("username", "你")
@@ -1209,6 +1219,7 @@ _XC_BADGE_HTML = (
 )
 h_left, h_mid, h_right = st.columns([6, 0.55, 1])
 with h_left:
+    # ui_audit_exempt: unsafe-allow_html 页头组合，LOGO/标题为内部常量，模型名经 esc()
     st.markdown(
         '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
         f'{STAR_AI_LOGO(26)}'
@@ -1277,6 +1288,7 @@ if _XC_LLM_READY and _XC_CATALOG:
 elif _XC_LLM_READY:
     st.caption(f"本次生效：**{_XC_MODEL_NAME}** · 当前服务未提供可选模型目录，使用环境主模型")
 
+# ui_audit_exempt: unsafe-allow_html 能力说明横幅，纯内置文案常量
 st.markdown(
     '<div class="xc-banner">💡 我可独立拉取行情 / 基本面 / 事件数据并给出研判；'
     '当前页面的对比组合或个股会自动作为上下文。回复为模型推演，不构成投资建议。</div>',
@@ -1485,6 +1497,7 @@ def fragment_chat():
                 f'<div class="xc-intent">🧠 <b>问题分析</b>：{esc(_type_s)}{esc(_conf_s)}'
                 f' · 回应方式 {esc(_style_label or "⚡ 快速问答")}</div>'
             )
+        # ui_audit_exempt: unsafe-allow_html 等待态意图分析行，type/style/phase/model_hint 均经 esc()
         st.markdown(
             f'{_intent_html}'
             f'<div class="xc-typing"><span class="dot"></span><span class="dot"></span>'
@@ -1759,15 +1772,17 @@ def _poll_ai_task():
                             _elapsed = _end.get("elapsed_s", 0)
                             _status = _end.get("status", "?")
                             _icon = {"ok": "✅", "partial": "⚠️", "error": "❌", "rejected": "⛔"}.get(_status, "🔄")
+                            # ui_audit_exempt: unsafe-allow_html 工具追踪行，_tool 已在下方 esc()，icon 经白名单映射、耗时为数值
                             st.markdown(f"<div style='font-size:13px;color:#64748b'>"
                                         f"<span style='color:#94a3b8'>{_idx:>2}</span> · "
-                                        f"<code style='background:#f1f5f9;padding:1px 6px;border-radius:4px;color:#1e40af'>{_tool}</code> "
+                                        f"<code style='background:#f1f5f9;padding:1px 6px;border-radius:4px;color:#1e40af'>{esc(_tool)}</code> "
                                         f"→ <span style='color:#059669'>{_icon} {_elapsed:.1f}s</span>"
                                         f"</div>", unsafe_allow_html=True)
                         else:
+                            # ui_audit_exempt: unsafe-allow_html 工具追踪行（进行中分支），_tool 已 esc()
                             st.markdown(f"<div style='font-size:13px;color:#64748b'>"
                                         f"<span style='color:#94a3b8'>{_idx:>2}</span> · "
-                                        f"<code style='background:#fef3c7;padding:1px 6px;border-radius:4px;color:#92400e'>{_tool}</code> "
+                                        f"<code style='background:#fef3c7;padding:1px 6px;border-radius:4px;color:#92400e'>{esc(_tool)}</code> "
                                         f"<span style='color:#d97706'>⏳ 执行中…</span>"
                                         f"</div>", unsafe_allow_html=True)
             elif _logs:

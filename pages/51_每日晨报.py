@@ -3,6 +3,7 @@
 - 每日晨报：聚合板块涨跌概览、自选股快照、相关新闻，生成开盘前速览。
 - 复盘笔记：当日复盘记录，本地按日期持久化（data/review_notes_<date>.md）。
 """
+import html
 import os
 import streamlit as st
 import streamlit.components.v1 as components
@@ -16,7 +17,6 @@ from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: HTTP 抓�
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher, quote_one as _quote_one
 from modules.page_utils import fmt_rel as _fmt_rel
-from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info, _section_title
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_bento_kpi, xc_kpi_grid
 from modules.event_factor import event_driven_long_list  # 事件驱动看多榜（真实 P1 EV 信号选股池）
@@ -117,6 +117,7 @@ def _kpi_band():
             cards.append({'label': '平/无数据板块', 'value': str(flat),
                           'meta': f'板块总数 {len(sector_df)}'})
     except Exception:  # noqa: BLE001 — 取不到就少一张卡，不臆造
+        # ui_audit_exempt: except-pass 板块涨跌统计卡依赖 sector 数据，取不到时少渲染一张卡，不臆造数字
         pass
     try:
         sc, body = api_get('/api/watchlist')
@@ -125,6 +126,7 @@ def _kpi_band():
             cards.append({'label': '自选股', 'value': str(n_wl),
                           'meta': '快照与新闻按自选股生成'})
     except Exception:  # noqa: BLE001 — 后端不可达时跳过该卡
+        # ui_audit_exempt: except-pass 自选股计数卡依赖后端 /api/watchlist，不可达时跳过该卡
         pass
     if cards:
         xc_bento_kpi(cards, template="1fr 1fr 1fr 1fr")
@@ -173,6 +175,7 @@ def fragment_watchlist_and_news():
     with st.expander('📌 自选股快照', expanded=True):
         if not watchlist:
             info_banner('📭 自选股为空，晨报暂无可展示的持仓快照。')
+            # ui_audit_exempt: unsafe-allow_html 纯内置引导文案常量（三步开启说明），无外部输入
             st.markdown("<div class='xc-note'>💡 <b>三步开启你的晨报快照</b><br>1. 进入「📡 自选股监控」添加关注的股票<br>2. 或到「👤 我的」维护自选股清单<br>3. 回到本页，快照与专属新闻会自动出现</div>", unsafe_allow_html=True)
             if st.button('➕ 去添加自选股', type='primary', width="stretch", key='morning_goto_wl'):
                 safe_switch_page('pages/46_自选股监控.py')
@@ -276,10 +279,11 @@ def fragment_event_driven_pool():
         _col = "#ff8a3d"
         rows_html += (
             f"<tr><td style='color:#888'>{i}</td>"
-            f"<td style='font-family:monospace'>{sym}</td>"
+            f"<td style='font-family:monospace'>{html.escape(str(sym))}</td>"
             f"<td style='color:{_col};font-weight:600'>{sc_txt}</td>"
-            f"<td style='color:#888;font-size:12px'>{r.get('source','')}</td></tr>"
+            f"<td style='color:#888;font-size:12px'>{html.escape(str(r.get('source','')))}</td></tr>"
         )
+    # ui_audit_exempt: unsafe-allow_html EV 看多榜表格，表头为内置常量，symbol/source 已在上方逐格 html.escape
     st.markdown(
         "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
         "<thead><tr style='color:#ff8a3d;text-align:left'>"
@@ -425,6 +429,7 @@ def fragment_review_notes():
             if os.path.exists(_ip):
                 st.image(_ip, width=420)
         if _content.strip():
+            # ui_audit_exempt: unsafe-allow_html 用户本人在本页编辑器录入的复盘笔记（markdown→HTML 渲染的标准行为），仅本机可见
             st.markdown(_content, unsafe_allow_html=True)
         else:
             info_banner('该日暂无复盘内容。可在上方文本框记录今日盘面、操作与明日计划，编辑即自动保存到本地；也可点「🔍 查询」切换其它日期查看历史复盘。')

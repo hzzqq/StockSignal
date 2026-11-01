@@ -66,6 +66,7 @@ try:
     # ── 共现强度卡 ──
     st.markdown("### 📊 共振强度（共现结构）")
     if stats.get("available"):
+        # ui_audit_exempt: unsafe-allow-html 内容已过 ui_kit xc_content_card（内部 html.escape title/body/icon）
         st.markdown(xc_content_card(
             title="广度–动量 共现概览",
             body=f"样本 <b>{stats['n_days']}</b> 交易日 ｜ "
@@ -114,6 +115,7 @@ try:
     # ── 当前状态 ──
     st.markdown("### 📍 当前状态")
     if cur.get("available") and cur.get("rr_band") is not None:
+        # ui_audit_exempt: unsafe-allow-html 内容已过 ui_kit xc_content_card（内部 html.escape title/body/icon）
         st.markdown(xc_content_card(
             title=f"当前（{cur['date']}）",
             body=f"广度 <b>{cur['red_ratio']}%</b> → <b>{cur['rr_label']}</b> ｜ "

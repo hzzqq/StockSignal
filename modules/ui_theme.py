@@ -1134,7 +1134,7 @@ def style_switcher() -> None:
                 persist_prefs()  # URL prefs + localStorage + 后端 settings 三路持久化
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"[ui_theme] 风格持久化失败: {e}")
-            st.rerun()
+            st.rerun()  # ui_audit_exempt: bare-rerun 风格切换下拉选择变更后重跑，CSS 变量与组件特征层立即生效
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[ui_theme] style_switcher 处理异常: {e}")
 

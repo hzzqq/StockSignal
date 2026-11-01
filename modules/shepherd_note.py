@@ -274,7 +274,7 @@ def analyze_history(df) -> dict:
                     v = float(cur[k])
                     if v == v:
                         today[k] = v
-                except Exception:
+                except Exception:  # ui_audit_exempt: except-pass 历史回测逐列转 float，非数值/NaN 列跳过（已由 v==v 过滤 NaN）
                     pass
             prev = {}
             if i > 0:
@@ -283,7 +283,7 @@ def analyze_history(df) -> dict:
                         v = float(work.iloc[i - 1][k])
                         if v == v:
                             prev[k] = v
-                    except Exception:
+                    except Exception:  # ui_audit_exempt: except-pass 上一期值转 float 同上，非数值列跳过参与周期定位
                         pass
             try:
                 cyc = locate_cycle(today, prev or None)

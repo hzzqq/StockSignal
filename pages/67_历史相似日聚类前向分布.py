@@ -52,6 +52,7 @@ try:
         for i, off in enumerate([5, 10, 20]):
             s = fs.get(off, {})
             if s.get("n"):
+                # ui_audit_exempt: unsafe-allow-html 内容已过 ui_kit xc_content_card（内部 html.escape title/body/icon）
                 cols[i].markdown(xc_content_card(
                     title=f"后 {off} 日红盘占比",
                     body=f"均值 <b>{s['mean']}%</b> ｜ 中位 <b>{s['median']}%</b><br>"

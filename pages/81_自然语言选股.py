@@ -67,8 +67,8 @@ def _fetch_universe(scope: str, custom_codes: str) -> list[dict]:
             if isinstance(body, dict) and body.get("status") == "ok":
                 for it in (body.get("data") or []):
                     codes.append(str(it.get("code", "")))
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[81] 自选股池取数失败，按空池降级: %s", e, exc_info=True)
     elif scope == "自定义":
         codes = [c.strip().zfill(6) for c in custom_codes.replace("，", ",").split(",") if c.strip()]
     # 全市场：走 akshare（联网、慢）

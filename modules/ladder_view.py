@@ -98,7 +98,7 @@ def render_ladder_block(dark: bool, top_per_level: int = 3) -> bool:
                     unsafe_allow_html=True,
                 )
         except Exception:  # noqa: BLE001
-            pass
+            logger.debug("[ladder_view] 连板晋级率 widget 渲染失败已跳过: ", exc_info=True)
 
         # 逐档代表股（封单大的优先）
         for lv in lad["levels"]:

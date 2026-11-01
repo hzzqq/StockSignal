@@ -19,7 +19,6 @@ import numpy as np
 from datetime import datetime
 
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_metric
 from modules.session import trading_autorefresh, safe_switch_page
 from modules.fundflow import get_industry_fund_flow
 from modules.page_guard import safe_section, safe_fragment, render_data_degradation_banner
@@ -50,6 +49,7 @@ def _load_flow():
             s["净额"] = np.nan
             return s, "板块涨跌列表"
     except Exception:
+        # ui_audit_exempt: except-pass 第二回退源（板块涨跌列表）也失败，双源降级链穷尽后返回空表，上层展示"无数据"
         pass
     return pd.DataFrame(), "无数据"
 

@@ -15,7 +15,6 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_metric
 from modules.ui_kit import stat_tile, xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_kpi_grid
 render_standard_page(title="策略回测", icon="⚙️", layout="wide")
 
@@ -232,6 +231,7 @@ def fragment_manual_backtest():
                         summary=s,
                     )
                 except Exception:  # noqa: BLE001
+                    # ui_audit_exempt: except-pass 回测记录写入为旁路遥测（可回溯用），失败不阻塞结果展示
                     pass
                 # 加法式健壮性：summary() 字典字段若因上游 schema 漂移缺失（如 'win_rate_pct'），
                 # 直接 s['win_rate_pct'] 会抛 KeyError 让整个回测结果 fragment 崩溃。

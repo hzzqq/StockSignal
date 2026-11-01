@@ -465,7 +465,7 @@ def run_research(
             return
         try:
             on_step(msg)
-        except Exception:  # noqa: BLE001
+        except Exception:  # ui_audit_exempt: except-pass on_step 字符串回调为 UI 可选注入，失败不中断研究主流程
             pass
 
     def _emit_event(event: Dict[str, Any]) -> None:
@@ -474,7 +474,7 @@ def run_research(
             return
         try:
             on_step(event)
-        except Exception:  # noqa: BLE001
+        except Exception:  # ui_audit_exempt: except-pass on_step 结构化事件回调同上，失败不中断研究主流程
             pass
 
     def _envelope(status: str, steps: List[Dict[str, Any]],

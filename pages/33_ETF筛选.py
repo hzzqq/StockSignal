@@ -13,7 +13,6 @@ import streamlit as st
 import pandas as pd
 
 from modules.page_utils import render_standard_page, styler_color_chg as _color_chg
-from modules.ui_theme import sf_metric
 import modules.scroll_nav as sn
 from modules.page_guard import safe_section
 

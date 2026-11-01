@@ -93,6 +93,7 @@ try:
         # 窄屏自动折行，不锁死列数。
         xc_bento_kpi(_ba_cards)
 except Exception:  # noqa: BLE001 — 后端不可达时整带不渲染，不臆造
+    # ui_audit_exempt: except-pass 预警 KPI 带依赖后端 /api/alerts，不可达时整带跳过渲染，不臆造数字
     pass
 with st.expander('💡 使用说明', expanded=False, key='alert_help_exp'):
     st.markdown('**四类预警怎么用？**\n- 💲 **价格预警**：设置目标价与「涨破/跌破」条件，页面访问时实时比价触发。\n- 📐 **技术形态预警**：选择形态后，页面扫描该股日线，命中即触发。\n- 📊 **成交量异动预警**：当日量比 ≥ 设定阈值时触发（放量信号）。\n- 📢 **公告预警**：近 20 条新闻/公告出现关键词时触发。\n\n**常见问题**\n- *触发是准实时的吗？* 触发在页面访问时于前端检测，保持本页打开并定期刷新可更快捕捉异动。\n- *为什么显示「待验证」？* 行情或日线数据不足时无法判定，稍后刷新重试。\n- *如何持续盯盘？* 关注右上角「🔔 市场异动」铃铛，并保持本页在浏览器中打开。')
@@ -232,6 +233,7 @@ def _eval_alert(a):
         try:
             pname = json.loads(a.get('params') or '{}').get('pattern_name', '')
         except Exception:
+            # ui_audit_exempt: except-pass 历史条件单 params JSON 损坏，按 pname 为空走"未配置形态"提示分支
             pass
         if not pname:
             return (None, '未配置形态')
@@ -241,6 +243,7 @@ def _eval_alert(a):
         try:
             vr = float(json.loads(a.get('params') or '{}').get('volume_ratio', 2.0))
         except Exception:
+            # ui_audit_exempt: except-pass 历史条件单 params JSON 损坏，量比回退默认 2.0×
             pass
         return _eval_volume(code, vr)
     elif atype == 'announcement':
@@ -248,6 +251,7 @@ def _eval_alert(a):
         try:
             kw = json.loads(a.get('params') or '{}').get('keyword', '')
         except Exception:
+            # ui_audit_exempt: except-pass 历史条件单 params JSON 损坏，按 kw 为空走"未配置关键词"提示分支
             pass
         if not kw:
             return (None, '未配置关键词')
@@ -389,6 +393,7 @@ def fragment_alerts():
             try:
                 pname = json.loads(a.get('params') or '{}').get('pattern_name', '')
             except Exception:
+                # ui_audit_exempt: except-pass 历史条件单 params JSON 损坏，描述按空形态名展示
                 pass
             desc = f'出现形态 **{pname}**'
         elif atype == 'volume':
@@ -396,6 +401,7 @@ def fragment_alerts():
             try:
                 vr = float(json.loads(a.get('params') or '{}').get('volume_ratio', 2.0))
             except Exception:
+                # ui_audit_exempt: except-pass 历史条件单 params JSON 损坏，量比描述回退默认 2.0×
                 pass
             desc = f'量比 ≥ **{vr:.2f}×**'
         elif atype == 'announcement':
@@ -403,6 +409,7 @@ def fragment_alerts():
             try:
                 kw = json.loads(a.get('params') or '{}').get('keyword', '')
             except Exception:
+                # ui_audit_exempt: except-pass 历史条件单 params JSON 损坏，公告关键词描述按空展示
                 pass
             desc = f'新闻含「**{kw}**」'
         else:
@@ -436,6 +443,7 @@ def fragment_alerts():
         with col_info:
             st.markdown(f'{ALERT_TYPE_LABEL.get(atype, atype)} **{display_name}** `{code}` ｜ {desc}', help=f"创建于 {_fmt_rel(a.get('created_at'))}\n检测：{detail}")
         with col_status:
+            # ui_audit_exempt: unsafe-allow_html 预警状态 pill，status_txt 为内部三态文案、status_cls 经白名单映射
             st.markdown(f'<span class="{status_cls}">{status_txt}</span>', unsafe_allow_html=True)
             st.caption(detail)
         with col_toggle:
@@ -457,6 +465,7 @@ def fragment_alerts():
             try:
                 _noti_body = '\n'.join(_notify_msgs)
                 _js = "<script>(function(){if(!('Notification' in window))return;function fire(){if(Notification.permission==='granted'){new Notification('🔔 StockSignal 预警触发',{body:MSG});}}if(Notification.permission==='default'){Notification.requestPermission().then(function(p){if(p==='granted')fire();});}else{fire();}})();</script>".replace('MSG', json.dumps(_noti_body))
+                # ui_audit_exempt: unsafe-allow_html 浏览器桌面通知脚本，模板固定，通知体经 json.dumps 序列化为 JS 字符串字面量
                 st.markdown(_js, unsafe_allow_html=True)
             except Exception as _e:
                 logger.warning(f'[alerts] 浏览器通知注入失败: {_e}')

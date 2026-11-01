@@ -90,7 +90,7 @@ def prune_sqlite_cache(
         if conn is not None:
             try:
                 conn.close()
-            except Exception:  # noqa: BLE001
+            except Exception:  # ui_audit_exempt: except-pass finally 内关闭连接兜底，关闭失败不应掩盖 VACUUM 主流程异常
                 pass
     size_after = db_path.stat().st_size if db_path.exists() else 0
     res["freed_bytes"] = max(size_before - size_after, 0)

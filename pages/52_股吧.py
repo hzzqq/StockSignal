@@ -16,7 +16,6 @@ from modules.session import (
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_metric
 from modules.format_helpers import safe_int, safe_html_text
 import modules.drawer
 import modules.scroll_nav as sn
@@ -123,6 +122,7 @@ def fragment_detail():
         st.session_state["forum_recent"] = _recent[:6]
     _op_name = post.get("username", "")
     st.markdown(f"## {post.get('title', '（无标题）')}")
+    # ui_audit_exempt: unsafe-allow_html 楼主信息行，用户名经 safe_html_text 转义，头像为内部渲染组件
     st.markdown(
         f"<div style='display:flex;align-items:center;gap:8px;'>"
         f"{render_forum_avatar(post.get('avatar', ''), _op_name, size=32)}"
@@ -185,6 +185,7 @@ def fragment_detail():
         _is_cop = (c.get("username") == _op_name)
         _cop_badge = (" <span style='font-size:11px;padding:1px 6px;border-radius:8px;"
                       "background:#2b8aef;color:#fff;'>楼主</span>") if _is_cop else ""
+        # ui_audit_exempt: unsafe-allow_html 评论列表，用户名/正文经 safe_html_text 转义（上方注释已声明安全口径）
         st.markdown(
             f"<div style='display:flex;gap:8px;padding:8px 12px;margin-bottom:6px;"
             f"border-left:3px solid #B8860B;'>"
@@ -369,6 +370,7 @@ def fragment_list():
                                 f"💬 {p.get('comment_count') or 0} · 👍 {p.get('likes') or 0} · "
                                 f"👀 {p.get('views') or 0}")
                     _pv_body = safe_html_text(excerpt or p.get("title", ""))
+                    # ui_audit_exempt: unsafe-allow_html 详情抽屉预览按钮，title/body/meta 三字段在 modules.drawer.preview_button 内部统一 html.escape（textarea 承载）
                     st.markdown(
                         modules.drawer.preview_button(
                             str(p.get("title", "（无标题）")), _pv_body, _pv_meta),
@@ -377,6 +379,7 @@ def fragment_list():
                     tag = ""
                     if p.get("stock_code"):
                         tag = f"📈 {safe_html_text(p.get('stock_name') or p['stock_code'])}"
+                    # ui_audit_exempt: unsafe-allow_html 帖子列表行，stock_name/username 经 safe_html_text 转义，计数为数值
                     st.markdown(
                         f"<div style='text-align:right;font-size:12px;opacity:.75;'>"
                         f"{tag}<br>"
@@ -465,6 +468,7 @@ def fragment_list():
                       + safe_int(p.get("comment_count", 0), 0) * 2, reverse=True)[:10]
         if _hot:
             xc_content_card("🔥 热榜 · 社区最热讨论", "")
+            # ui_audit_exempt: unsafe-allow_html 热榜行样式的内部 CSS 设计系统注入（.ss-hot-* 类）
             st.markdown(
                 '<style>.ss-hot-row{display:flex;align-items:center;gap:10px;padding:3px 0}'
                 '.ss-hot-rank{font-family:\'Fira Code\',Consolas,monospace;font-weight:800;'
@@ -481,6 +485,7 @@ def fragment_list():
                 _rk = "ss-hot-rank top3" if _hi <= 3 else "ss-hot-rank"
                 _hr1, _hr2 = st.columns([0.08, 0.92])
                 with _hr1:
+                    # ui_audit_exempt: unsafe-allow_html 热榜排名序号，_rk 为内部 CSS 类、_hi 为整数序号
                     st.markdown(f'<div class="{_rk}">{_hi}</div>', unsafe_allow_html=True)
                 with _hr2:
                     if _hid is None:

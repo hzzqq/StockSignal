@@ -137,6 +137,7 @@ def _agent_status(agent_key: str, current_stage: str, status: str) -> str:
 
 def _render_live_progress(task: dict):
     """渲染实时协作进度（进度条 + 每 Agent 状态 + 日志流 + 辩论面板）。"""
+    # ui_audit_exempt: unsafe-allow_html 内部终端/CSS 设计系统样式常量注入（_TERM_CSS/_VERDICT_CSS）
     st.markdown(_TERM_CSS, unsafe_allow_html=True)
     st.markdown(_VERDICT_CSS, unsafe_allow_html=True)
     try:
@@ -162,6 +163,7 @@ def _render_live_progress(task: dict):
           </div>
           <div class="qa-bar"><div style="width:{pct}%;background:{color}"></div></div>
         </div>"""
+        # ui_audit_exempt: unsafe-allow_html Agent 状态卡，icon/name 为 AGENT_FLOW 内置常量，色板取内部状态色
         (cols[0] if i % 2 == 0 else cols[1]).markdown(card, unsafe_allow_html=True)
 
     # CrewAI 辩论面板
@@ -175,6 +177,7 @@ def _render_live_progress(task: dict):
         for j, l in enumerate(debate_logs):
             icon, name, _ = label_for(l.get("stage", ""))
             dcols[j % 2].markdown(
+                # ui_audit_exempt: unsafe-allow_html 辩论实况，icon/name 为 label_for 内部映射，message 经 safe_html_text 转义
                 f"<div class='qa-card'><div class='qa-row'><div class='qa-icon'>{icon}</div>"
                 f"<div class='qa-name'>{name}</div></div>"
                 f"<div style='color:#c9d4e0;font-size:13px'>{safe_html_text(l.get('message'))}</div></div>",
@@ -184,6 +187,7 @@ def _render_live_progress(task: dict):
     # 实时日志流
     with st.expander("🪵 实时协作日志", expanded=False):
         if logs:
+            # ui_audit_exempt: unsafe-allow_html 实时日志流，_safe_qa_log_html 内部已逐行 html.escape（docstring 明确防存储型 XSS）
             st.markdown(_safe_qa_log_html(logs[-40:]), unsafe_allow_html=True)
         else:
             st.caption("等待首个 Agent 启动…")
@@ -198,6 +202,7 @@ def _render_report(result: dict):
     c = result.get("chief_report", {}) or {}
 
     vc = _verdict_color(c.get("verdict", ""))
+    # ui_audit_exempt: unsafe-allow_html 最终结论条，verdict/rationale 经 safe_html_text 转义，vc 取内部调色板
     st.markdown(
         f"<div style='padding:14px 18px;border-left:6px solid {vc};background:#11161d;border-radius:8px'>"
         f"<b style='font-size:20px;color:{vc}'>🏁 最终结论：{safe_html_text(c.get('verdict'), '-')}</b> "
@@ -230,6 +235,7 @@ def _render_report(result: dict):
             lean = st_.get("lean", "")
             lean_cls = {"看多": "qa-lean-bull", "看空": "qa-lean-bear", "持有": "qa-lean-hold"}.get(lean, "")
             dcols[j % 2].markdown(
+                # ui_audit_exempt: unsafe-allow_html 辩论全程卡，name/text 经 safe_html_text 转义，lean 经 CSS class 白名单映射
                 f"<div class='qa-card'><div class='qa-row'><div class='qa-icon'>{st_.get('icon','')}</div>"
                 f"<div class='qa-name'>{safe_html_text(st_.get('name'))} <span class='{lean_cls}'>[{lean}]</span></div></div>"
                 f"<div style='color:#c9d4e0;font-size:13px'>{safe_html_text(st_.get('text'))}</div></div>",
