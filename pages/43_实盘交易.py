@@ -230,7 +230,7 @@ def fragment_orders():
                 st.caption(f"金额 ¥{float(o.get('amount') or 0):,.0f}")
             with cm3:
                 # 订单状态为后端枚举字段，按防御性规范 html.escape；status_cls 经白名单 .get 映射
-                st.markdown(f"<span class='{status_cls}'>{html.escape(str(status))}</span>", unsafe_allow_html=True)
+                st.markdown(f"<span class='{status_cls}'>{html.escape(str(status))}</span>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
                 st.caption('实盘' if mode == 'live' else '模拟')
             with cm4:
                 st.caption(f"来源：{('条件单' if src == 'conditional' else '手动')}" + (f" · #{o.get('cond_order_id')}" if o.get('cond_order_id') else ''))

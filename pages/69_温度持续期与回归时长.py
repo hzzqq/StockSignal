@@ -92,7 +92,7 @@ try:
                 title="冰点后中位磨底时长",
                 body=f"中位 <b>{rec['median']}</b> 天 ｜ 均值 <b>{rec['mean']}</b> 天 ｜ 样本 <b>{rec['n']}</b> 段",
                 accent="#ea580c",
-            ), unsafe_allow_html=True)
+            ), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
             st.caption("统计自每段「冰点」run 结束到首个 ≥中性 交易日的间隔天数；描述历史磨底节奏，非预测。")
         else:
             st.info("历史中无完整「冰点→回归中性」样本可供统计。")

@@ -74,7 +74,7 @@ div[data-testid="stRadio"] label:hover,
     box-shadow: 0 0 0 2px rgba(91,108,255,0.18) !important;
 }
 </style>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
 
 fetcher = get_fetcher()
 

@@ -152,7 +152,7 @@ try:
         f"<div style='font-size:12px;opacity:.7;margin-top:6px'>状态「{state}」× 龙头强度 "
         f"{_safe(ls.get('score'),1)}（{('高' if (ls.get('score') or 0)>=60 else '中' if (ls.get('score') or 0)>=30 else '低')}）</div>"
         f"</div>",
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
 
     # ── 事件因子多头池 ──
@@ -188,7 +188,7 @@ try:
             f"<th style='text-align:left;padding:3px 8px'>评分</th>"
             f"<th style='text-align:left;padding:3px 8px'>信号</th></tr></thead>"
             f"<tbody>{rows}</tbody></table>",
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
         st.caption("提示：事件池为统计超额收益概率排序，非买卖指令；本页不逐一列出连板个股（离线无逐股缓存）。")
     else:

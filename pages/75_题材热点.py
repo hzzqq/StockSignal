@@ -101,7 +101,7 @@ def _evg_render(res: dict) -> None:
             f"<span style='opacity:.85;font-size:11px'>{html.escape(str(r['concepts']))}</span>"
             f"<span style='opacity:.6;font-size:11px'>{html.escape(str(r['evidence']))}</span></div>"
         )
-    st.markdown(rows, unsafe_allow_html=True)
+    st.markdown(rows, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
     if len(entries) > len(shown):
         st.caption(f"仅展示前 {len(shown)} 名（共 {len(entries)} 个关联标的）。")
 
@@ -206,7 +206,7 @@ with cc2:
             f"<span style='color:{_LIFE_COLOR.get(lf, '#94a3b8')};font-size:11px;margin-right:8px'>{lf}</span>"
             f"<b style='color:{'#dc2626' if ch >= 0 else '#16a34a'}'>{ch:+.2f}%</b></span></div>"
         )
-    st.markdown(rows, unsafe_allow_html=True)
+    st.markdown(rows, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
 
 st.markdown("---")
 

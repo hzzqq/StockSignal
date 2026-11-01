@@ -14,7 +14,7 @@ from modules.page_utils import render_standard_page, get_fetcher
 from modules.chart_cache import cached_fig
 from modules.fundflow import (
     get_industry_fund_flow, get_northbound_fund_flow,
-    get_market_fund_flow, get_individual_fund_flow,
+    get_market_fund_flow, get_individual_fund_flow, fundflow_health_state,
 )
 from modules.margin_trading import (
     get_margin_trading_data, plot_margin_trend, get_latest_margin_summary,
@@ -313,6 +313,10 @@ def fragment_market():
         xc_handle_error("大盘资金流向加载失败", e, hint="请稍后重试，或检查网络与数据源连接")
         return
     if df is None or df.empty:
+        # 降级标注：大盘资金流为空时，若数据层有取数失败记录则显式提示来源
+        _fail = fundflow_health_state().get("last_fetch_failures", {}).get("market_fund_flow")
+        if _fail:
+            info_banner(f"大盘资金流向数据源暂不可达（{_fail.get('ts')}：{_fail.get('error')}），当前展示兜底而非实时数据。")
         _empty_info("暂无大盘资金流向数据。")
         return
     _need = ["日期", "主力净流入-净额", "上证-涨跌幅"]

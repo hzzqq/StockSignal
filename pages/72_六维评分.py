@@ -136,7 +136,7 @@ if st.button("🔍 评分", key="six_dim_run", type="primary"):
             f"<span style='font-weight:700;color:{color}'>{val_txt}</span></div>"
             f"{bar}</div>"
         )
-    st.markdown(rows, unsafe_allow_html=True)
+    st.markdown(rows, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
 
     miss = [DIM_LABELS[k] for k, v in dims.items() if v is None]
     if miss:

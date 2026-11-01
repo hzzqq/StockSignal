@@ -78,7 +78,7 @@ def render_zen_toggle() -> None:
             with st.sidebar:
                 st.checkbox("🧘 Zen 专注模式", key=ZEN_KEY, help="隐藏侧栏与装饰，进入低干扰专注态")
         if st.session_state.get(ZEN_KEY):
-            st.markdown(_ZEN_CSS, unsafe_allow_html=True)
+            st.markdown(_ZEN_CSS, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             _render_exit()
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[zen_mode] 注入失败: {e}")

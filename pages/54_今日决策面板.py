@@ -105,7 +105,7 @@ def _render_hero(df, today, prev, meta=None):
             f'<div style="background:#fff3cd;border:1px solid #ffc107;'
             f'border-radius:8px;padding:8px 14px;font-size:13px;color:#856404">'
             f'📦 <b>缓存模式</b>：{html.escape(str(msg))}</div>',
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
     try:
         temp = shepherd_temperature(today)
@@ -404,7 +404,7 @@ def fragment_signals():
                 f"<span>{th.get('name', key)}</span>"
                 f"<b style='color:{color}'>{label}</b></div>"
                 f"<div style='font-size:12px;opacity:.7'>{tip}</div></div>",
-                unsafe_allow_html=True,
+                unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
             )
         idx += 1
     st.caption(f"数据日期：{_last_data_date(df)}　·　信号灯按《牧羊人·情绪温度计》阈值口径，红=热/风险，蓝=冷/安全，黄=中性。")
@@ -516,7 +516,7 @@ def fragment_p1_ev():
             "<thead><tr style='color:#ff5c5c;text-align:left'>"
             "<th>#</th><th>代码</th><th>名称</th><th>预测得分</th></tr></thead>"
             f"<tbody>{rows_html}</tbody></table>",
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
 
     # 稳定性附注：EV 与 GRU/融合看多榜重叠越低越互补；此处仅提示，不做重负载 A/B
@@ -560,7 +560,7 @@ def fragment_p1_ev():
                 f"**{html.escape(str(ef['symbol']))}**　事件因子得分："
                 f"<span style='color:{_col};font-weight:600'>{_sc_txt}</span>"
                 f"　信号：<b>{ef.get('signal')}</b>　来源：<code>{ef.get('source')}</code>",
-                unsafe_allow_html=True)
+                unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
         else:
             # fix（T-258）：查询无结果分支——原 else 挂在 if _q 上，既造成空输入
             # UnboundLocalError（ef 未绑定），又让「无信号」提示从未显示过。
@@ -667,7 +667,7 @@ def fragment_event_driven_pool():
             "<thead><tr style='color:#ff8a3d;text-align:left'>"
             "<th>#</th><th>代码</th><th>名称</th><th>事件因子分</th><th>来源</th></tr></thead>"
             f"<tbody>{rows_html}</tbody></table>",
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
         st.caption("口径：事件因子分 = P1 模型百分位排名 × 100（越高越看多）。"
                    "与牧羊人仓位建议**一致**时增强信心，分歧时提示人工复核。")

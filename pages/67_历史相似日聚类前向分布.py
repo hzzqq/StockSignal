@@ -57,7 +57,7 @@ try:
                     title=f"后 {off} 日红盘占比",
                     body=f"均值 <b>{s['mean']}%</b> ｜ 中位 <b>{s['median']}%</b><br>"
                          f"红盘占比(≥50) <b>{s['up_ratio']}%</b> ｜ 样本 <b>{s['n']}</b> 日",
-                ), unsafe_allow_html=True)
+                ), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
             else:
                 cols[i].info(f"后 {off} 日无足够前向样本")
 

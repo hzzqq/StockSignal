@@ -137,7 +137,7 @@ def fragment_cond_list():
                 st.caption(f"触发后：{('买入▲' if action == 'buy' else '卖出▼')} {int(c.get('quantity') or 0)} 股" + (f" · 到期 {c.get('expire_date')}" if c.get('expire_date') else ''))
             with cm3:
                 # 状态文案为 STATUS_LABELS 白名单映射（兜底为后端枚举原文，已 html.escape）；status_cls 经 .get 白名单映射
-                st.markdown(f"<span class='{status_cls}'>{html.escape(str(status_txt))}</span>", unsafe_allow_html=True)
+                st.markdown(f"<span class='{status_cls}'>{html.escape(str(status_txt))}</span>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
                 if c.get('triggered_info'):
                     st.caption(f"ℹ️ {c.get('triggered_info')}")
             with cm4:

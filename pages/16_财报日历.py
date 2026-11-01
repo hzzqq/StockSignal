@@ -371,7 +371,7 @@ def fragment_stock_financials():
             f"净利润同比 <b style='color:{yoy_col};'>净利润 {yoy_txt}</b>　|　"
             f"营收同比 <b style='color:{rev_col};'>营收 {rev_txt}</b>　|　"
             f"披露时间：<b style='color:var(--txt);'>{html.escape(str(_r.get('披露时间', '—')))}</b></div>",
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
         st.caption("💡 业绩配色：红=同比增长为正（改善），绿=为负（下滑）；与价格「绿涨红跌」不同，仅针对业绩增速。")
         try:

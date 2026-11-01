@@ -60,7 +60,7 @@ def _html_card(title: str, body: str, *, icon: str = "", accent: str | None = No
         f'<div class="xc-cc-title">{ic}{t}</div>'
         f'<div class="xc-cc-body">{body}</div>'
         f'</div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
 
 

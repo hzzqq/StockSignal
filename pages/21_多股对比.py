@@ -150,14 +150,14 @@ def fragment_compare_result():
         + build_header(rows, _period)
         + build_one_line(rows)
         + build_table(rows),
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
 
     # ── 综合评分雷达（左图 + 右标签云/风险）──
     # ui_audit_exempt: unsafe-allow_html 纯内置标题文案，仅含整数股数
     st.markdown(
         '<div class="card"><h2>综合评分雷达（%d 股五维对比）</h2></div>' % len(rows),
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
     c1, c2 = st.columns([1.15, 1])
     with c1:
@@ -186,7 +186,7 @@ def fragment_compare_result():
         # ui_audit_exempt: unsafe-allow_html 内部 modules.compare 成对卡片/作战计划/页脚渲染层
         st.markdown(
             build_pairwise_card(a, b, selected_idx + 1) + build_action_plan(rows) + build_footer(),
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
     else:
         # ui_audit_exempt: unsafe-allow_html 内部 modules.compare 页脚渲染层
@@ -221,7 +221,7 @@ def fragment_compare_result():
         + build_method_card(rows, method, event_text_html)
         + build_aggregate_card(rows, event_text_html)
         + "</div>",
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
 
 

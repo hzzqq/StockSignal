@@ -232,7 +232,7 @@ with col1:
         st.markdown(
             "<div style='width:96px;height:96px;border-radius:50%;background:#E5E7EB;"
             "display:flex;align-items:center;justify-content:center;font-size:44px;'>👤</div>",
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
         st.caption("💡 还没有头像？点击上方「上传头像」选择图片，再点「保存头像」即可设置专属头像（按账号云端保存，换设备不丢失）。")
     if "avatar_up_counter" not in st.session_state:

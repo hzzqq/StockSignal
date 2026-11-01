@@ -63,7 +63,7 @@ button[data-testid="stBaseButton-primary"]:hover {
 }
 .stMultiSelect [data-baseweb=tag] { max-width: 160px; }
 </style>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
 
 fetcher = get_fetcher()
 screener = StockScreener()

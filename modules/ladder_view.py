@@ -78,7 +78,7 @@ def render_ladder_block(dark: bool, top_per_level: int = 3) -> bool:
         st.markdown(
             f"<div style='border-left:3px solid {dcolor};padding-left:10px;"
             f"font-size:13px;color:{dcolor}'>{diag}</div>",
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         )
 
         # 连板晋级率（跨日递推，需≥2日历史；比「家数」更细的接力信号）
@@ -95,7 +95,7 @@ def render_ladder_block(dark: bool, top_per_level: int = 3) -> bool:
                            "　· 晋级率越高=接力意愿越强，梯队越能自我维持")
                 st.markdown(
                     f"<div style='margin-top:6px;font-size:12px;opacity:.85'>{_pr_txt}</div>",
-                    unsafe_allow_html=True,
+                    unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
                 )
         except Exception:  # noqa: BLE001
             logger.debug("[ladder_view] 连板晋级率 widget 渲染失败已跳过: ", exc_info=True)

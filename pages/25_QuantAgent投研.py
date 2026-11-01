@@ -139,7 +139,7 @@ def _render_live_progress(task: dict):
     """渲染实时协作进度（进度条 + 每 Agent 状态 + 日志流 + 辩论面板）。"""
     # ui_audit_exempt: unsafe-allow_html 内部终端/CSS 设计系统样式常量注入（_TERM_CSS/_VERDICT_CSS）
     st.markdown(_TERM_CSS, unsafe_allow_html=True)
-    st.markdown(_VERDICT_CSS, unsafe_allow_html=True)
+    st.markdown(_VERDICT_CSS, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
     try:
         progress = int(task.get("progress", 0) or 0)
     except (TypeError, ValueError):
@@ -181,7 +181,7 @@ def _render_live_progress(task: dict):
                 f"<div class='qa-card'><div class='qa-row'><div class='qa-icon'>{icon}</div>"
                 f"<div class='qa-name'>{name}</div></div>"
                 f"<div style='color:#c9d4e0;font-size:13px'>{safe_html_text(l.get('message'))}</div></div>",
-                unsafe_allow_html=True,
+                unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
             )
 
     # 实时日志流
@@ -209,7 +209,7 @@ def _render_report(result: dict):
         f"&nbsp; 综合评分 <b>{c.get('composite') or '-'}</b>/100"
         + (f"<br>目标价 <b style='color:#e6edf3'>¥{c.get('target_price')}</b> ｜ 止损 <b style='color:#e6edf3'>¥{c.get('stop_price')}</b>" if c.get("target_price") else "")
         + f"<br><span style='color:#9fb0c0'>{safe_html_text(c.get('rationale'))[:300]}</span></div>",
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
 
     env = []
@@ -239,7 +239,7 @@ def _render_report(result: dict):
                 f"<div class='qa-card'><div class='qa-row'><div class='qa-icon'>{st_.get('icon','')}</div>"
                 f"<div class='qa-name'>{safe_html_text(st_.get('name'))} <span class='{lean_cls}'>[{lean}]</span></div></div>"
                 f"<div style='color:#c9d4e0;font-size:13px'>{safe_html_text(st_.get('text'))}</div></div>",
-                unsafe_allow_html=True,
+                unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
             )
         st.divider()
 

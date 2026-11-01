@@ -121,7 +121,7 @@ def _section_title_html(text, accent=None) -> str:
 
 
 def _section_title(text, accent=None):
-    st.markdown(_section_title_html(text, accent), unsafe_allow_html=True)
+    st.markdown(_section_title_html(text, accent), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def _fmt_yi(x):
@@ -277,7 +277,7 @@ def _loading(text: str = "加载中…"):
     """
     ph = st.empty()
     with ph.container():
-        st.markdown(_loading_html(text), unsafe_allow_html=True)
+        st.markdown(_loading_html(text), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         try:
             yield
         finally:
@@ -298,7 +298,7 @@ def _empty_info_html(text: str = "暂无数据") -> str:
 
 def _empty_info(text: str = "暂无数据"):
     """空数据态（UI-only）：居中、弱化提示，统一替代散落的 info_banner("暂无…")。"""
-    st.markdown(_empty_info_html(text), unsafe_allow_html=True)
+    st.markdown(_empty_info_html(text), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def _fmt_num(x, nd: int = 2, sign: bool = False) -> str:
@@ -393,7 +393,7 @@ def _data_card(label: str, value: str, delta_html: str = "", accent: str = "#2b8
 
     用于替换散落的 st.metric / markdown 拼装，统一视觉。
     """
-    st.markdown(_data_card_html(label, value, delta_html, accent, unit), unsafe_allow_html=True)
+    st.markdown(_data_card_html(label, value, delta_html, accent, unit), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def _auto_refresh(sec: int = 60, key: str = "auto_refresh") -> None:

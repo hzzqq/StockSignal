@@ -40,6 +40,26 @@ from modules.fetch_parallel import fetch_many  # R78：共享有界线程池并�
 # 别名：保持下方 _patch_requests_timeout 与下游模块的引用不变
 _REQUEST_TIMEOUT = REQUEST_TIMEOUT
 
+# 取数失败状态（供页面/体检标注降级）：{接口名: {ts, error}}
+# 仅记录「最终失败」（重试耗尽/超时兜底），成功取数不写、不清空（保留最后失败痕迹）。
+_LAST_FETCH_FAILURES: dict[str, dict] = {}
+
+
+def _record_fetch_failure(name: str, error: Exception) -> None:
+    """记录接口最终失败（ts=本地时间 ISO，error=异常摘要）。线程安全（GIL 原子赋值）。"""
+    _LAST_FETCH_FAILURES[name] = {
+        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "error": f"{type(error).__name__}: {error}",
+    }
+
+
+def fundflow_health_state() -> dict:
+    """返回数据层取数健康状态（降级标注用）：最近失败记录 + 当前进程内是否发生过失败。
+
+    页面可在展示兜底数据时引用；体检/巡检可据此解释红灯来源。
+    """
+    return {"last_fetch_failures": dict(_LAST_FETCH_FAILURES)}
+
 
 def _patch_requests_timeout():
     """给 requests 注入默认超时，避免 akshare 等库的网络调用无限挂起。幂等。
@@ -440,7 +460,8 @@ def get_market_fund_flow(days=30):
         try:
             return _fetch()
         except Exception as e:
-            # 网络最终失败：记录日志并返回空 DataFrame，避免页面红错
+            # 网络最终失败：记录失败状态（供页面/体检标注降级）并返回空 DataFrame
+            _record_fetch_failure("market_fund_flow", e)
             import logging
             logging.getLogger(__name__).warning(f"get_market_fund_flow 最终失败：{e}")
             return pd.DataFrame()
@@ -448,7 +469,10 @@ def get_market_fund_flow(days=30):
     # 强边界：东方财富 urllib 路径可能无限挂起，12s 硬超时后返回空 DF，由 UI 兜底
     def _safe():
         res = _run_with_timeout(_fn, 12)
-        return res if res is not None else pd.DataFrame()
+        if res is not None:
+            return res
+        _record_fetch_failure("market_fund_flow", TimeoutError("12s 硬超时"))
+        return pd.DataFrame()
     return _cached(600, f"market_ff_{days}", _safe)
 
 

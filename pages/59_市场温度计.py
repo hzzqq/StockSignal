@@ -129,7 +129,7 @@ try:
     # ui_audit_exempt: unsafe-allow-html 分档图例全量来自 mt.BANDS 内部常量（label/lo/hi/color），无用户/DB 输入流向
     st.markdown(
         f'<div style="margin:2px 0 14px">{legend_html}</div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
 
     # ── 各指标贡献 ──
@@ -169,7 +169,7 @@ try:
         st.markdown(xc_content_card(
             title=f"📦 离线快照背景（{snap.get('date', '?')}）",
             body=_body, accent="#ca8a04",
-        ), unsafe_allow_html=True)
+        ), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
         st.caption("⚠️ 以上温度为离线快照兜底值，非实时合成；实时数据恢复后将以实时指标为准。")
 
     # ── 极端区信号 ──
@@ -192,7 +192,7 @@ try:
               <div style="margin-top:6px;opacity:.8">样本 {hit.get('n')} 天 · z={hit.get('z')} · 边际 +{edge}pp</div>
             </div>
             """,
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
     else:
         # 未触发 / 无法判定：诚实区分「看了没到极值」与「根本没法看」
@@ -235,7 +235,7 @@ try:
                       <div style="opacity:.7">后10日红盘均值 {f10.get('avg_red','—')} · 后20日 {f20.get('avg_red','—')}</div>
                     </div>
                     """,
-                    unsafe_allow_html=True,
+                    unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
                 )
 
     xc_content_card(

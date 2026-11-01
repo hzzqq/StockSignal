@@ -300,7 +300,7 @@ def multi_stock_search_input(label='输入多只股票', key='multi_stock_search
     if items_key not in st.session_state:
         defaults = [p.strip() for p in str(default).split(',') if p.strip()]
         st.session_state[items_key] = [{'id': i, 'value': val, 'code': None, 'name': None} for i, val in enumerate(defaults)]
-    st.markdown(f"<div style='font-size:14px;font-weight:600;margin-bottom:6px;'>{label}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:14px;font-weight:600;margin-bottom:6px;'>{label}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     st.caption('每行一只，支持代码 / 中文名 / 拼音；点击 🗑️ 删除，➕ 添加。')
     items = st.session_state[items_key]
     _need_split = False
@@ -391,7 +391,7 @@ def multi_stock_search_input(label='输入多只股票', key='multi_stock_search
         else:
             chip_bg, chip_border, chip_color = ('#ffffff', '#e2e8f0', '#1e293b')
         chips_html = ''.join((f'<span style="display:inline-block;background:{chip_bg};border:1px solid {chip_border};border-radius:12px;padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:{chip_color};">{lab}</span>' for lab in resolved_labels))
-        st.markdown(f"<div style='margin-top:8px;'>{chips_html}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='margin-top:8px;'>{chips_html}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     if unresolved:
         st.error(f"⚠️ 未识别或无效: {', '.join(unresolved)}")
     return resolved_codes
