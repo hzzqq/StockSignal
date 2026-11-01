@@ -12,7 +12,6 @@ from modules.linear_trends import to_trend_csv, plot_correlation_heatmap, _slice
 from modules.page_widgets import _section_title, _trend_controls, _in_trading_hours, _empty_info
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_metric
 
 from modules.ui_kit import xc_handle_error, info_banner
 
@@ -113,6 +112,7 @@ def fragment_drivers_panel():
                 + "　↓ " + "，".join(f"{k} {v:.1f}" for k, v in _dn)
             )
     except Exception:
+        # ui_audit_exempt: except-pass 图表文字版概览为装饰性辅助摘要，失败不阻塞主表渲染
         pass
 
     # 数据表联动（随区间 / 序列筛选）

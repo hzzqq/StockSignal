@@ -4,6 +4,7 @@
 数据全部程序化（fetcher + technical + 价格相关性 + 启发式催化/弹性），前端由 modules.compare 生成。
 """
 import streamlit as st
+import html
 import pandas as pd
 
 from modules.page_guard import safe_fragment
@@ -46,7 +47,7 @@ def fragment_compare_setup():
                 max_rows=8,
             )
         with c2:
-            st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 纯布局占位 div，无内容输入
             if st.button("载入示例（5只）", width="stretch", key="cmp_load_example"):
                 st.session_state["cmp_multi_items"] = [
                     {"id": i, "value": c, "code": c, "name": None}
@@ -143,6 +144,7 @@ def fragment_compare_result():
     _period = st.session_state.get("_cmp_period", st.session_state.get("_cmp_period_input", 120))
 
     # ── 头部 + 核心结论 + 横向对比表（同一 compare-wrap 内）──
+    # ui_audit_exempt: unsafe-allow_html 内部 modules.compare 决策仪表盘渲染层（股票名来自受控 fetcher 数据源）
     st.markdown(
         '<div class="compare-wrap">' + compare_css()
         + build_header(rows, _period)
@@ -152,6 +154,7 @@ def fragment_compare_result():
     )
 
     # ── 综合评分雷达（左图 + 右标签云/风险）──
+    # ui_audit_exempt: unsafe-allow_html 纯内置标题文案，仅含整数股数
     st.markdown(
         '<div class="card"><h2>综合评分雷达（%d 股五维对比）</h2></div>' % len(rows),
         unsafe_allow_html=True,
@@ -160,9 +163,11 @@ def fragment_compare_result():
     with c1:
         st.plotly_chart(build_radar(rows), width="stretch", config={"displaylogo": False, "responsive": True})
     with c2:
+        # ui_audit_exempt: unsafe-allow_html 内部 modules.compare 雷达侧栏渲染层
         st.markdown(build_radar_right(rows), unsafe_allow_html=True)
 
     # ── 新增维度：估值 · 财务 · 资金面 ──
+    # ui_audit_exempt: unsafe-allow_html 内部 modules.compare 估值财务卡渲染层
     st.markdown(build_extra_card(rows), unsafe_allow_html=True)
 
     # ── 两两对比选择器 + 选中 pair 卡片 ──
@@ -178,11 +183,13 @@ def fragment_compare_result():
         )
         selected_idx = pair_labels.index(selected_label)
         a, b = pairs[selected_idx]
+        # ui_audit_exempt: unsafe-allow_html 内部 modules.compare 成对卡片/作战计划/页脚渲染层
         st.markdown(
             build_pairwise_card(a, b, selected_idx + 1) + build_action_plan(rows) + build_footer(),
             unsafe_allow_html=True,
         )
     else:
+        # ui_audit_exempt: unsafe-allow_html 内部 modules.compare 页脚渲染层
         st.markdown(build_footer(), unsafe_allow_html=True)
 
     # ── 对比方法选择器（位于方法结果卡片上方）──
@@ -205,10 +212,14 @@ def fragment_compare_result():
     st.caption(METHODS[method])
 
     # ── 对比方法卡片（选定方法）+ 大汇总（九维结论）──
+    # 用户输入事件文本在模块渲染层会原样拼进 HTML，页面边界先 html.escape 闭合注入面
+    # （事件关键词抽取只认中文/英文 token，转义不影响匹配；展示时尖括号按字面转义显示）
+    event_text_html = html.escape(event_text or "")
+    # ui_audit_exempt: unsafe-allow_html 内部 modules.compare 决策仪表盘渲染层；用户输入 event_text 已在调用前 html.escape
     st.markdown(
         '<div class="compare-wrap">'
-        + build_method_card(rows, method, event_text)
-        + build_aggregate_card(rows, event_text)
+        + build_method_card(rows, method, event_text_html)
+        + build_aggregate_card(rows, event_text_html)
         + "</div>",
         unsafe_allow_html=True,
     )

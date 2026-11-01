@@ -13,6 +13,8 @@
   - 所有区块优雅降级：空数据→st.info，异常→st.error，不崩溃整页
 """
 import streamlit as st
+import logging
+import html
 import pandas as pd
 import concurrent.futures as cf  # kept for potential other uses
 from datetime import datetime
@@ -23,7 +25,6 @@ from modules.timeout_exec import run_with_timeout
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher, quote_one as _quote_one
-from modules.ui_theme import sf_metric
 from modules.chart_cache import cached_fig
 import plotly.graph_objects as go
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
@@ -256,7 +257,7 @@ def fragment_sector():
         if '涨跌幅' in df.columns:
             df['涨跌幅'] = pd.to_numeric(df['涨跌幅'], errors='coerce')
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("[14_智能盯盘.py] 行业净额/涨跌幅数值化失败，按原值继续渲染", exc_info=True)
     top = df.dropna(subset=['净额']).sort_values('净额', ascending=False).head(10).copy()
     if top.empty:
         _empty_info('暂无有效的行业净额数据')
@@ -360,6 +361,7 @@ def fragment_watchlist():
             c1.write(f"`{r['代码']}`")
             c2.write(r['名称'])
             cc = UP if (r['涨跌%'] or 0) > 0 else DOWN if (r['涨跌%'] or 0) < 0 else '#888'
+            # ui_audit_exempt: unsafe-allow_html 仅拼内置色板常量与数值百分比，无外部文本
             c3.markdown(f"<span style='color:{cc};font-weight:600;'>{(r['涨跌%'] if r['涨跌%'] is not None else '—')}%</span>", unsafe_allow_html=True)
             with c4:
                 _fav = st.session_state.get('_wl_fav', [])
@@ -521,7 +523,8 @@ def fragment_alerts():
     for a in alerts:
         color = a['color']
         icon = {'strong': '🔴', 'mid': '🟡', 'weak': '🟢'}[a['tier']]
-        st.markdown(f"""<div style="border-left:4px solid {color};background:color-mix(in srgb,var(--acc1) 8%,var(--card2));padding:8px 12px;margin:6px 0;border-radius:6px;">{icon} <b>[{a['类型']}]</b> `{a['代码']}` {a['名称']} ｜ {a['说明']}</div>""", unsafe_allow_html=True)
+        # 告警文案来自后端/引擎字段（类型/代码/名称/说明），统一 html.escape 后再走 unsafe 渲染
+        st.markdown(f"""<div style="border-left:4px solid {color};background:color-mix(in srgb,var(--acc1) 8%,var(--card2));padding:8px 12px;margin:6px 0;border-radius:6px;">{icon} <b>[{html.escape(str(a['类型']))}]</b> `{html.escape(str(a['代码']))}` {html.escape(str(a['名称']))} ｜ {html.escape(str(a['说明']))}</div>""", unsafe_allow_html=True)
 
 @safe_fragment('关注列表')
 def fragment_watch_manage():
@@ -588,6 +591,7 @@ def fragment_watch_manage():
         c1.write(f'`{code}`')
         c2.write(_resolve_name(code, it.get('name')))
         cc = UP if (chg or 0) > 0 else DOWN if (chg or 0) < 0 else '#888888'
+        # ui_audit_exempt: unsafe-allow_html 仅拼内置色板常量与格式化数值，无外部文本
         c3.markdown(f"<span style='color:{cc};font-weight:600;'>{chg:+.2f}%</span>" if chg is not None else '—', unsafe_allow_html=True)
         if c4.button('跳转', key=f'wm_go_{code}'):
             st.session_state['pick_stock_confirmed'] = code

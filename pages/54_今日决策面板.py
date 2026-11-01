@@ -12,6 +12,7 @@
 数据层全部复用 modules.shepherd / shepherd_ladder / shepherd_forecast / shepherd_note，单源失败优雅降级。
 """
 import streamlit as st
+import html
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -99,10 +100,11 @@ def _render_hero(df, today, prev, meta=None):
     # 数据来自 SQLite 缓存降级时，显示提示横幅（与 50_市场情绪 同口径）
     if meta and isinstance(meta, dict) and meta.get("_cache_fallback"):
         msg = meta.get("_cache_message", "当前展示为最近一次成功缓存的数据（网络暂时不可用）")
+        # 缓存提示文案来自数据层 meta，按防御性规范 html.escape
         st.markdown(
             f'<div style="background:#fff3cd;border:1px solid #ffc107;'
             f'border-radius:8px;padding:8px 14px;font-size:13px;color:#856404">'
-            f'📦 <b>缓存模式</b>：{msg}</div>',
+            f'📦 <b>缓存模式</b>：{html.escape(str(msg))}</div>',
             unsafe_allow_html=True,
         )
     try:
@@ -155,6 +157,7 @@ def _render_hero(df, today, prev, meta=None):
         st.plotly_chart(_temp_gauge(temp, dark, "市场温度 · 牧羊人 17 项综合", _tg_level, _tg_color),
                         width="stretch")
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: except-pass 市场温度仪表盘为附加视图，失败不阻塞信号卡与仓位卡主体渲染
         pass
 
     # 数据新鲜度守卫 + 事件因子接入（S1/S2/S5 收敛为单一来源）
@@ -175,6 +178,7 @@ def _render_hero(df, today, prev, meta=None):
     try:
         st.session_state["decision_event_adj"] = event_adj_val
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: except-pass session_state 纯透传供冒烟测试断言，不渲染，写入失败可忽略
         pass
 
     # 新鲜度徽标：与「决策快照」快照片段同源（替代 S2 手算 _age，改用统一守卫）
@@ -247,6 +251,7 @@ def _render_hero(df, today, prev, meta=None):
     try:
         st.session_state["decision_pos_pct"] = pos["pct"]
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: except-pass session_state 纯透传供冒烟测试断言，渲染走下方仓位卡，写入失败可忽略
         pass
     render_position_card(pos, bias=bias, confidence=(fc or {}).get("confidence", 0),
                          cyc_name=cyc.get("name", ""))
@@ -311,8 +316,10 @@ def _render_hero(df, today, prev, meta=None):
                     st.caption("归因基于决策闭环单一真理源 derive_position 的 contributions，"
                                "标准化为 SHAP 式因子贡献表——对应开题改进清单 #4 可解释 AI(XAI)。")
             except Exception:  # noqa: BLE401
+                # ui_audit_exempt: except-pass SHAP 式归因表为可解释性附加视图，失败不阻塞仓位主卡
                 pass
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: except-pass 归因块整体 best-effort，失败仅不展示归因表，不拖崩决策面板
         pass
 
     # S4 事件驱动多头池下钻：实时卡可见具体标的，透明可解释（与事件催化同源）。
@@ -389,6 +396,7 @@ def fragment_signals():
         v = today.get(key)
         label, color, tip = _signal_light(key, v)
         with cols[idx % 3]:
+            # ui_audit_exempt: unsafe-allow_html 信号灯卡，指标名来自 THRESHOLDS 内置常量，label/tip/色板来自内部 _signal_light 判定
             st.markdown(
                 f"<div style='border-left:3px solid {color};padding:6px 10px;margin:5px 0;"
                 f"background:rgba(255,255,255,.03);border-radius:0 8px 8px 0'>"
@@ -497,11 +505,12 @@ def fragment_p1_ev():
         pcolor = "#ff5c5c" if pred >= 0 else "#19c37d"
         rows_html += (
             f"<tr><td style='color:#888'>{i}</td>"
-            f"<td style='font-family:monospace'>{sym}</td>"
-            f"<td>{nm}</td>"
+            f"<td style='font-family:monospace'>{html.escape(str(sym))}</td>"
+            f"<td>{html.escape(str(nm))}</td>"
             f"<td style='color:{pcolor};font-weight:600'>{pred*100:+.2f}%</td></tr>"
         )
     with st.expander("📋 看多榜明细（前 15 · 点击展开）", expanded=False):
+        # ui_audit_exempt: unsafe-allow_html 看多榜明细表，表头内置常量，symbol/name 已在 rows_html 逐格 html.escape
         st.markdown(
             "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
             "<thead><tr style='color:#ff5c5c;text-align:left'>"
@@ -527,6 +536,7 @@ def fragment_p1_ev():
             st.caption(f"稳定性：与纯 GRU 看多榜重叠 {inter}/15（Jaccard={jac:.2f}）——"
                        f"同源 GRU 的高重叠属正常，差异主要在湍流期 regime 收缩。")
         except Exception:  # noqa: BLE401
+            # ui_audit_exempt: except-pass 与 GRU 看多榜重叠为附加 caption，未加载时跳过避免拉 55MB 模型
             pass
 
     # ── 个股事件因子查询（事件因子适配器端到端可用）──
@@ -547,7 +557,7 @@ def fragment_p1_ev():
                 _sc_txt = "—"
                 _col = "#888"
             st.markdown(
-                f"**{ef['symbol']}**　事件因子得分："
+                f"**{html.escape(str(ef['symbol']))}**　事件因子得分："
                 f"<span style='color:{_col};font-weight:600'>{_sc_txt}</span>"
                 f"　信号：<b>{ef.get('signal')}</b>　来源：<code>{ef.get('source')}</code>",
                 unsafe_allow_html=True)
@@ -574,6 +584,7 @@ def fragment_calibration_ready_banner():
     try:
         st.session_state["_cal_verdict"] = v
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: except-pass verdict 缓存进 session_state 仅供 fragment_calibration 复用，写入失败可忽略
         pass
     if not v.get("ready"):
         return
@@ -643,13 +654,14 @@ def fragment_event_driven_pool():
         _col = "#ff8a3d"
         rows_html += (
             f"<tr><td style='color:#888'>{i}</td>"
-            f"<td style='font-family:monospace'>{sym}</td>"
-            f"<td>{nm}</td>"
+            f"<td style='font-family:monospace'>{html.escape(str(sym))}</td>"
+            f"<td>{html.escape(str(nm))}</td>"
             f"<td style='color:{_col};font-weight:600'>{sc_txt}</td>"
-            f"<td style='color:#888;font-size:12px'>{r.get('source','')}</td></tr>"
+            f"<td style='color:#888;font-size:12px'>{html.escape(str(r.get('source','')))}</td></tr>"
         )
     # T-259：明细折叠（默认收起），页面主体只留结论卡
     with st.expander("📋 看多榜明细（前 20 · 点击展开）", expanded=False):
+        # ui_audit_exempt: unsafe-allow_html EV 看多榜明细表，表头内置常量，symbol/name/source 已逐格 html.escape
         st.markdown(
             "<table style='width:100%;border-collapse:collapse;font-size:14px'>"
             "<thead><tr style='color:#ff8a3d;text-align:left'>"

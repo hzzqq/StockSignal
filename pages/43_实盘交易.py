@@ -12,11 +12,11 @@
 
 本页只调用 Flask 后端 /api/trade/*，绝不直连任何券商或 MCP 连接器。
 """
+import html
 import json
 from datetime import datetime, timedelta
 import streamlit as st
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_metric
 import modules.scroll_nav as sn
 from modules.session import api_get, api_post, api_put, trading_autorefresh
 from modules.search_ui import stock_search_input
@@ -30,6 +30,7 @@ try:
     from modules.fundflow import _ensure_proxy_and_ssl
     _ensure_proxy_and_ssl()
 except Exception:
+    # ui_audit_exempt: except-pass 代理/SSL 预热为可选增强，交易接口走后端直连，失败不影响下单主流程
     pass
 
 def _load_account() -> dict | None:
@@ -146,6 +147,7 @@ with st.container(border=True):
                 from modules.fetcher import StockFetcher
                 name = StockFetcher().get_name_only(order_code) or ''
             except Exception:
+                # ui_audit_exempt: except-pass 股票名称仅为订单备注装饰，取不到时 payload 用空名，后端按代码下单
                 pass
             payload = {'stock_code': order_code, 'stock_name': name, 'side': side, 'quantity': int(quantity), 'price': price if price > 0 else None}
             sc, body = api_post('/api/trade/orders', payload)
@@ -193,6 +195,7 @@ def fragment_positions():
             with cc3:
                 st.markdown(f'市值 ¥{mv:,.0f}')
             with cc4:
+                # ui_audit_exempt: unsafe-allow_html 持仓盈亏行，色板为内部常量、盈亏为数值格式化
                 st.markdown(f"<span style='color:{color};font-weight:700;'>{('+' if pnl >= 0 else '')}{pnl:,.0f} ({pnl_pct:+.2f}%)</span>", unsafe_allow_html=True)
 
 @st.fragment
@@ -222,10 +225,12 @@ def fragment_orders():
                 st.markdown(f'**{name}** `{code}`')
                 st.caption(f"{('买入' if side == 'buy' else '卖出')} {int(o.get('quantity') or 0)} 股 @ {float(o.get('price') or 0):.3f}")
             with cm2:
+                # ui_audit_exempt: unsafe-allow_html 买卖方向标签，文案为内置常量映射
                 st.markdown(f"<span style='color:{st_color};font-weight:700;'>{('买入▲' if side == 'buy' else '卖出▼')}</span>", unsafe_allow_html=True)
                 st.caption(f"金额 ¥{float(o.get('amount') or 0):,.0f}")
             with cm3:
-                st.markdown(f"<span class='{status_cls}'>{status}</span>", unsafe_allow_html=True)
+                # 订单状态为后端枚举字段，按防御性规范 html.escape；status_cls 经白名单 .get 映射
+                st.markdown(f"<span class='{status_cls}'>{html.escape(str(status))}</span>", unsafe_allow_html=True)
                 st.caption('实盘' if mode == 'live' else '模拟')
             with cm4:
                 st.caption(f"来源：{('条件单' if src == 'conditional' else '手动')}" + (f" · #{o.get('cond_order_id')}" if o.get('cond_order_id') else ''))

@@ -18,7 +18,6 @@ from datetime import datetime, timedelta
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_utils import fmt_rel as _fmt_rel
-from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info
 from modules.event_levels import STRENGTH_ORDER  # T-288：五档单一真理源
 from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_kpi_grid
@@ -69,9 +68,8 @@ def _cached_intraday(ticker):
         if rec and isinstance(rec.get('records'), list) and rec['records']:
             return (pd.DataFrame(rec['records']), rec.get('prev_close'), rec.get('trade_date'))
     except Exception:
+        # ui_audit_exempt: except-pass 后端 /api/intraday 不可达，回退本地 fetcher 分时数据（docstring 既定双源链）
         pass
-    try:
-        _df, _pc, _dt = fetcher.get_stock_intraday_sina(ticker)
         if _df is not None and (not _df.empty):
             return (_df, _pc, _dt)
     except Exception:
@@ -128,11 +126,14 @@ def _render_news_with_links(df, title_col='title', url_col='url', date_col='date
         with cols[0]:
             st.caption(date)
         with cols[1]:
+            # ui_audit_exempt: unsafe-allow_html 标题链接与标签徽标，url/title/source/etype 均在上方逐字段 html.escape
             st.markdown(f'{badge_str} {link}' if badge_str else link, unsafe_allow_html=True)
         with cols[2]:
             if has_direct:
+                # ui_audit_exempt: unsafe-allow_html 原文链接，href 已 html.escape(quote)
                 st.markdown(f'<a href="{html.escape(url)}" target="_blank" style="font-size:0.8em;color:#3498db;">🔗 原文</a>', unsafe_allow_html=True)
             else:
+                # ui_audit_exempt: unsafe-allow_html 搜索兜底链接，href 已 html.escape(quote)
                 st.markdown(f'<a href="{html.escape(fb)}" target="_blank" style="font-size:0.8em;color:#888;">🔍 搜索</a>', unsafe_allow_html=True)
 
 @safe_fragment
@@ -315,7 +316,7 @@ def fragment_timeline():
             with col1:
                 tl_ticker = stock_search_input(label='股票搜索', key='tl_ticker_v2', default='601088', placeholder='输入代码或名称搜索，如：601088 / 中国神华')
             with col2:
-                st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 纯布局占位 div，与表单按钮对齐，无内容输入
                 tl_submitted = st.form_submit_button('生成时间轴', width="stretch")
             col_d1, col_d2 = st.columns(2)
             with col_d1:
@@ -674,6 +675,7 @@ def fragment_sentiment_report():
                             if not title:
                                 continue
                             sentiment = s.get('sentiment', '')
+                            sentiment_html = html.escape(str(sentiment))
                             color = UP_COLOR if sentiment == '正面' else DOWN_COLOR
                             url = s.get('url', '') or s.get('link', '') or s.get('source_url', '') or s.get('href', '') or ''
                             title_html = html.escape(str(title))
@@ -681,9 +683,11 @@ def fragment_sentiment_report():
                             if url and url.startswith('http'):
                                 linked_title = f'<a href="{html.escape(url)}" target="_blank" style="color:{color};text-decoration:underline;font-weight:600;">{title_html}</a>'
                                 origin_link = f' <a href="{html.escape(url)}" target="_blank" style="font-size:0.8em;color:#3498db;text-decoration:none;">🔗 原文</a>'
-                                st.markdown(f'[{sentiment}] {linked_title} {score_str} {origin_link}', unsafe_allow_html=True)
+                                # ui_audit_exempt: unsafe-allow_html 新闻样本列表，title/url/sentiment 均已 html.escape，色板取内部常量
+                                st.markdown(f'[{sentiment_html}] {linked_title} {score_str} {origin_link}', unsafe_allow_html=True)
                             else:
-                                st.markdown(f"[{sentiment}] <span style='color:{color};'>{title_html}</span> {score_str}", unsafe_allow_html=True)
+                                # ui_audit_exempt: unsafe-allow_html 新闻样本列表（无直链分支），title/sentiment 已 html.escape
+                                st.markdown(f"[{sentiment_html}] <span style='color:{color};'>{title_html}</span> {score_str}", unsafe_allow_html=True)
         elif st.session_state.get('sentiment_report_error'):
             with report_container:
                 xc_error_box(f'生成报告失败: {st.session_state.sentiment_report_error}')

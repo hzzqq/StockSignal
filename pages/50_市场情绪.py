@@ -11,6 +11,7 @@
 数据层复用 modules.market_drivers.get_market_drivers —— 该层照同一份 21 指标表
 （table_20260721.csv）实现，单源失败优雅降级（绝不抛红错）。
 """
+import html
 import logging
 
 import streamlit as st
@@ -24,7 +25,6 @@ from modules.page_utils import (render_standard_page,
     last_data_date as _last_data_date,
     row_to_indicators as _row_to_indicators,
     temp_gauge as _temp_gauge, to_numeric_clean )
-from modules.ui_theme import sf_metric
 from modules.session import get_token, fragment_market_alerts_panel
 from modules.ladder_view import render_ladder_block
 from modules.market_drivers import get_market_drivers, DIMS
@@ -55,6 +55,7 @@ st.page_link("pages/15_市场驱动力.py", label="📊 看《市场驱动力》
 # ── 首页快捷入口跳转聚焦（一次性：pop 掉标记，刷新即恢复常态）──
 _FOCUS_NOTE = bool(st.session_state.pop("shep_focus_note", False))
 if _FOCUS_NOTE:
+    # ui_audit_exempt: unsafe-allow_html 首页跳转高亮提示为纯内置文案常量，无外部输入
     st.markdown(
         "<div style='border-left:4px solid #7c5cff;background:rgba(124,92,255,.10);"
         "border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:6px'>"
@@ -70,10 +71,11 @@ def _cache_banner(meta):
         return
     if meta.get("_cache_fallback"):
         msg = meta.get("_cache_message", "当前展示为最近一次成功缓存的数据（网络暂时不可用）")
+        # 缓存提示文案来自数据层 meta，按防御性规范 html.escape
         st.markdown(
             f'<div style="background:#fff3cd;border:1px solid #ffc107;'
             f'border-radius:8px;padding:8px 14px;font-size:13px;color:#856404">'
-            f'📦 <b>缓存模式</b>：{msg}</div>',
+            f'📦 <b>缓存模式</b>：{html.escape(str(msg))}</div>',
             unsafe_allow_html=True,
         )
     # 显示缓存时间戳（如果有）
@@ -313,6 +315,7 @@ def _card(col, cfg, df, dark_mode):
                     return
                 s = to_numeric_clean(df[key])
                 v = float(s.iloc[-1])
+                # ui_audit_exempt: unsafe-allow_html 指标大数字，色板与 fmt 均来自内部 _DIR 配置
                 st.markdown(f"<div style='font-size:26px;font-weight:700;color:{cfg['color']}'>"
                             f"{cfg['fmt'](v)}</div>", unsafe_allow_html=True)
                 fig = _spark(s, cfg["color"], dark_mode)
@@ -320,6 +323,7 @@ def _card(col, cfg, df, dark_mode):
                     st.plotly_chart(fig, width="stretch",
                                     config={"displaylogo": False, "responsive": True, "displayModeBar": False}, key=f"spark_{key}")
                 badge, bcolor, text = cfg["signal"](s)
+                # ui_audit_exempt: unsafe-allow_html 信号 badge，badge/text/色板均来自内部 cfg['signal'] 判定函数
                 st.markdown(
                     f"<span style='background:{bcolor}22;color:{bcolor};padding:2px 8px;"
                     f"border-radius:8px;font-size:12px;font-weight:600'>{badge}</span>"
@@ -355,6 +359,7 @@ def fragment_thermometer():
         _render_status(meta)
         return
     level, emoji, color = _temp_level(t)
+    # ui_audit_exempt: unsafe-allow_html 综合市场温度标题，emoji/level/color 均来自内部 _temp_level 判定
     st.markdown(f"### {emoji} 综合市场温度　"
                 f"<span style='color:{color};font-size:20px'>{level}</span>",
                 unsafe_allow_html=True)
@@ -661,6 +666,7 @@ def fragment_shepherd():
     if latest:
         t = shepherd_temperature(latest)
         level, emoji, color = _temp_level(t)
+        # ui_audit_exempt: unsafe-allow_html 牧羊人温度标题，emoji/level/color 均来自内部 _temp_level 判定
         st.markdown(f"### {emoji} 牧羊人温度　"
                     f"<span style='color:{color};font-size:20px'>{level}</span>",
                     unsafe_allow_html=True)
@@ -694,6 +700,7 @@ def fragment_shepherd_review():
                 word = "上涨加速" if acc > 0.1 else ("下跌加速" if acc < -0.1 else "走平")
                 st.caption(f"⚡ 中位数涨跌加速：{word}（今日 {s.iloc[-1]:+.2f}% vs 昨日 {s.iloc[-2]:+.2f}%，Δ {acc:+.2f}pct）")
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: except-pass 中位数涨跌加速为附加 caption，指标卡主体渲染不依赖该推导
         pass
 
     # 新增指标卡（两行 × 4 列）
@@ -880,6 +887,7 @@ def fragment_shepherd_forecast():
 
     # ① 情绪周期定位 + 方向总览
     with st.container(border=True):
+        # ui_audit_exempt: unsafe-allow_html 情绪周期标题，cyc 为内部预报引擎周期分类（受控词表），bcolor 经白名单映射
         st.markdown(
             f"### {cyc.get('emoji', '⚪')} 情绪周期：**{cyc.get('name', '—')}**　"
             f"<span style='color:{bcolor};font-size:22px'>{bias}</span>　"
@@ -957,6 +965,7 @@ def fragment_shepherd_forecast():
         st.caption("今日未命中任何联动规则（信号较平淡，以单指标档位为准）。")
     else:
         for s in sigs:
+            # ui_audit_exempt: unsafe-allow_html 指标联动命中条，name/logic/effect/color 均为内部预报引擎受控输出
             st.markdown(
                 f"<div style='border-left:3px solid {s.get('color', '#888')};padding:6px 10px;"
                 f"margin:6px 0;background:rgba(255,255,255,.03)'>"
@@ -969,6 +978,7 @@ def fragment_shepherd_forecast():
     st.markdown("**🎲 次日三情景推演**")
     for sc in fc.get("scenario") or []:
         p = int(sc.get("prob", 0))
+        # ui_audit_exempt: unsafe-allow_html 三情景推演条，name/color 为内部预报引擎受控输出，prob 为数值
         st.markdown(
             f"<div style='margin:6px 0'>"
             f"<div style='display:flex;justify-content:space-between;font-size:13px'>"
@@ -1027,6 +1037,7 @@ def fragment_shepherd_note():
     """每天记录一次情绪 + 回填次日实际 + 对过去的情绪做回测分析。"""
     _section_title("📔 情绪笔记（每日情绪快照 + 历史情绪回测）")
     if _FOCUS_NOTE:   # 首页跳转过来时高亮一次，帮助定位
+        # ui_audit_exempt: unsafe-allow_html 情绪笔记定位高亮为纯内置文案常量，无外部输入
         st.markdown(
             "<div style='border:2px solid #7c5cff;border-radius:10px;padding:8px 12px;"
             "font-size:13px;margin-bottom:8px'>🎯 <b>就是这里</b> —— "

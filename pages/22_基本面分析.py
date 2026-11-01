@@ -12,6 +12,7 @@
 数据以现有 StockFetcher 为主，缺失时降级展示，避免页面崩溃。
 """
 import streamlit as st
+import html
 import pandas as pd
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
@@ -22,7 +23,6 @@ from modules.visualizer import UP_COLOR, DOWN_COLOR
 from modules import fundflow as ff
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info
 from modules.perf import downsample
 from modules.chart_cache import cached_fig
@@ -206,6 +206,7 @@ def fragment_industry_pe(industry: str, pe_ttm, dark: bool):
             _verdict, _vcolor = ('偏高', DOWN_COLOR)
         else:
             _verdict, _vcolor = ('合理', '#f59e0b')
+        # ui_audit_exempt: unsafe-allow_html 同行业 PE 中位数结论条，数字与内部判定文案，无外部文本
         st.markdown(f"""<div style="padding:12px 16px;border-radius:10px;margin-top:10px;background:var(--card2);border:1px solid var(--border);font-size:14px;line-height:1.7;">🏭 <b>同行业 PE 中位数</b>：<b>{_med:.1f}</b>（基于 {_n} 只样本）<br>当前 PE(TTM) <b>{pe_ttm:.1f}</b> → <span style="color:{_vcolor};font-weight:700;">{_verdict}</span>（约为行业中位数的 {_ratio:.2f} 倍）</div>""", unsafe_allow_html=True)
     else:
         st.caption('🏭 同行业 PE 中位数暂不可用（行业成分或估值数据未就绪）。')
@@ -288,6 +289,7 @@ def fragment_valuation_band(code: str, name: str, industry: str, pe_ttm, dark: b
                     continue
                 _zone = b.get('zone', '不可用')
                 _color = _val.ZONE_COLOR.get(_zone, '#8c8c8c')
+                # ui_audit_exempt: unsafe-allow_html 估值分位带卡，label 为内置文案、zone 为估值模块受控分类词、色板取内部 ZONE_COLOR
                 st.markdown(
                     f'<div style="padding:10px 14px;border-radius:10px;border:1px solid var(--border);'
                     f'background:var(--card2);">'
@@ -428,6 +430,7 @@ def _calc_perf(code: str) -> dict:
             if isinstance(out[_k], float) and pd.isna(out[_k]):
                 out[_k] = None
         except Exception:
+            # ui_audit_exempt: except-pass 指标字典 NaN 清洗为防御性兜底，pd.isna 对非标值异常时保留原值继续
             pass
     for _k in [k for k, v in out.items() if v is None]:
         out.pop(_k, None)
@@ -622,15 +625,18 @@ if code:
         rev_yi = perf.get('revenue_yi')
         stat_tile('营业收入', f'{rev_yi} 亿' if rev_yi is not None else '—', delta=_rev_delta, delta_dir=_rev_dir)
         if rev_yoy is not None:
+            # ui_audit_exempt: unsafe-allow_html _tag 为内部标签组件，文案为内置字符串+格式化数值
             st.markdown(_tag('营收同比 ' + (f'+{rev_yoy:.1f}%' if rev_yoy >= 0 else f'{rev_yoy:.1f}%'), 'good' if rev_yoy >= 0 else 'bad'), unsafe_allow_html=True)
     with pc2:
         np_yi = perf.get('net_profit_yi')
         stat_tile('净利润', f'{np_yi} 亿' if np_yi is not None else '—', delta=_pr_delta, delta_dir=_pr_dir)
         if pr_yoy is not None:
+            # ui_audit_exempt: unsafe-allow_html _tag 为内部标签组件，文案为内置字符串+格式化数值
             st.markdown(_tag('净利同比 ' + (f'+{pr_yoy:.1f}%' if pr_yoy >= 0 else f'{pr_yoy:.1f}%'), 'good' if pr_yoy >= 0 else 'bad'), unsafe_allow_html=True)
     with pc3:
         stat_tile('ROE（净资产收益率）', f'{roe:.2f}%' if roe is not None else '—')
         if roe is not None:
+            # ui_audit_exempt: unsafe-allow_html _tag 为内部标签组件，文案为内置判定词
             st.markdown(_tag('盈利能力 ' + ('强' if roe >= 15 else '中' if roe >= 8 else '弱'), 'good' if roe >= 15 else 'warn' if roe >= 8 else 'bad'), unsafe_allow_html=True)
     with pc4:
         stat_tile('毛利率', f'{gm:.2f}%' if gm is not None else '—')
@@ -638,6 +644,7 @@ if code:
     with pc5:
         stat_tile('资产负债率', f'{alr:.2f}%' if alr is not None else '—')
         if alr is not None:
+            # ui_audit_exempt: unsafe-allow_html _tag 为内部标签组件，文案为内置判定词
             st.markdown(_tag('偿债压力 ' + ('低' if alr < 40 else '中' if alr < 60 else '高'), 'good' if alr < 40 else 'warn' if alr < 60 else 'bad'), unsafe_allow_html=True)
     with pc6:
         stat_tile('流动比率', f'{cr:.2f}' if cr is not None else '—')
@@ -706,7 +713,7 @@ if code:
                 if st.button('季度', key='fa_mode_quarter', width="stretch", type='primary' if mode == '季度' else 'secondary'):
                     st.session_state['fa_mode'] = '季度'
         with c_sort:
-            st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 纯布局占位 div，无内容输入
             st.caption('最新数据优先显示')
         plot_df = fa_df.copy()
         plot_df['period_dt'] = pd.to_datetime(plot_df['报告期'], errors='coerce')
@@ -795,7 +802,10 @@ if code:
                 st.markdown('---')
             xc_content_card('🚩 大盘主线判断', "")
             is_main = rank <= 5
-            main_html = f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(16,185,129,0.12);border-left:4px solid {UP_COLOR};color:var(--txt);font-size:15px;">✅ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，处于市场主线前列，资金关注度较高。</div>""" if is_main else f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(245,158,11,0.12);border-left:4px solid #f59e0b;color={('#e2e8f0' if dark else '#78350f')};font-size:15px;">⚠️ <b>{industry}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，暂未进入主线 Top5，建议结合题材与资金面综合判断。</div>"""
+            # 行业名来自数据源板块分类，按防御性规范 html.escape 后渲染
+            _ind_html = html.escape(str(industry))
+            main_html = f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(16,185,129,0.12);border-left:4px solid {UP_COLOR};color:var(--txt);font-size:15px;">✅ <b>{_ind_html}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，处于市场主线前列，资金关注度较高。</div>""" if is_main else f"""<div style="padding:14px 18px;border-radius:10px;background:rgba(245,158,11,0.12);border-left:4px solid #f59e0b;color={('#e2e8f0' if dark else '#78350f')};font-size:15px;">⚠️ <b>{_ind_html}</b> 今日行业排名 <b>#{rank} / {sector_total}</b>，暂未进入主线 Top5，建议结合题材与资金面综合判断。</div>"""
+            # ui_audit_exempt: unsafe-allow_html 大盘主线判断条，行业名已 html.escape，其余为内置文案+排名数字
             st.markdown(main_html, unsafe_allow_html=True)
             with st.expander('查看行业排名 Top10', expanded=False):
                 top10 = sector_df.sort_values('change_pct', ascending=False).head(10).reset_index(drop=True)
@@ -824,6 +834,7 @@ if code:
         _ring = _build_score_ring(score, score_color, score_label, dark)
         st.plotly_chart(_ring, width="stretch", config={"displaylogo": False, "responsive": True})
     with sc2:
+        # ui_audit_exempt: unsafe-allow_html reasons_html 为 _composite_score 内部构造的结论 HTML（受控渲染产物）
         st.markdown(f"""<div style="padding:14px 18px;border-radius:10px;background:var(--card2);border:1px solid var(--border);font-size:14px;line-height:1.8;">{reasons_html}</div>""", unsafe_allow_html=True)
     xc_content_card('📊 估值摘要', "")
     xc_kpi_grid([
@@ -837,6 +848,7 @@ if code:
         info_banner('📊 估值摘要暂无可展示数据（实时行情 / 估值接口未返回 PE 与总市值）。可稍后刷新重试，或检查数据源连接。')
     st.caption('数据来源：东方财富 估值数据（PE / 总市值）')
     with st.expander('📖 估值 / 盈利指标说明', expanded=False):
+        # ui_audit_exempt: unsafe-allow_html 纯内置说明文案常量（加粗/换行排版），无外部输入
         st.markdown('• <b>PE(TTM)</b>：市盈率 = 股价 ÷ 每股收益；越低通常估值越低，但需结合成长性。<br>• <b>PE 状态</b>：按 PE 粗略划分低估/合理/偏高，仅供参考。<br>• <b>总市值</b>：总股本 × 股价（亿元）；越大通常越稳健。<br>• <b>ROE</b>：净资产收益率 = 净利润 ÷ 净资产，反映股东回报率（>15% 较优）。<br>• <b>毛利率</b>：(营收−营业成本) ÷ 营收，越高说明产品溢价/成本控制越好。', unsafe_allow_html=True)
     fragment_industry_pe(industry, pe_ttm, dark)
     fragment_valuation_band(code, name, industry, pe_ttm, dark)

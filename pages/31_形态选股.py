@@ -22,7 +22,6 @@ from modules.technical import full_analysis as technical_full_analysis
 from modules.signal import SignalEngine
 from modules.search_ui import multi_stock_search_input, stock_search_input
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info
 
 from modules.ui_kit import xc_success_box, xc_warn_box
@@ -37,6 +36,7 @@ trading_autorefresh(key="pattern_autorefresh")
 
 
 
+# ui_audit_exempt: unsafe-allow_html 按钮 hover 动效的内部 CSS 样式注入（设计系统）
 st.markdown("""
 <style>
 /* 按钮：阴影 + hover 上浮，明确「可点击」 */
@@ -148,6 +148,7 @@ else:
             )
         with c_add:
             # 让「加入」按钮与搜索输入框纵向对齐
+            # ui_audit_exempt: unsafe-allow_html 纯布局占位 div，无内容输入
             st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
             if st.button("➕ 加入扫描池", key="screener_add", type="secondary", width="stretch"):
                 if picked and picked not in st.session_state["screener_pool"]:
@@ -339,6 +340,7 @@ def _detect_advanced_patterns(df: pd.DataFrame) -> list:
                     pats.append({"date": df["date"].iloc[-1], "name": "顶背离", "bias": "看跌",
                                  "desc": "价格新高而 MACD 未新高，上涨动能衰竭"})
     except Exception:
+        # ui_audit_exempt: except-pass 顶底背离等高级形态为 best-effort 增补检测，异常时返回已命中的基础形态
         pass
     return pats
 
