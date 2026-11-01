@@ -9,6 +9,7 @@ _ast_add_logger.py 在向 `except Exception as exc:`（变量非 e）的块插�
 
 用法：python scripts/_fix_logger_var.py
 """
+import argparse
 import ast
 import glob
 import sys
@@ -59,13 +60,19 @@ def _fix_src(src: str):
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
+    args = ap.parse_args()
     total = 0
     for f in sorted(glob.glob("modules/*.py")):
         src = open(f, encoding="utf-8").read()
         new_src, n = _fix_src(src)
         if n:
-            open(f, "w", encoding="utf-8").write(new_src)
-            print(f"{f}: {n} 处 {{{{e}}}} -> {{{{'exc/err'}}}}")
+            if args.dry_run:
+                print(f"[dry-run] 将 patch {f} ({n} 处)")
+            else:
+                open(f, "w", encoding="utf-8").write(new_src)
+                print(f"{f}: {n} 处 {{{{e}}}} -> {{{{'exc/err'}}}}")
             total += n
     print(f"=== 共修复 {total} 处变量名不匹配 ===")
 

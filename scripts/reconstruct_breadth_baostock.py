@@ -200,7 +200,11 @@ def main():
     p.add_argument("--out", default="data/shepherd_history_baostock.csv")
     p.add_argument("--max-codes", type=int, default=None, help="限制股票数（冒烟用）")
     p.add_argument("--sleep", type=float, default=0.05, help="每请求间隔秒（限速）")
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
     args = p.parse_args()
+    if args.dry_run:
+        print(f"[dry-run] 将重建 {args.start} ~ {args.end} → {args.out}")
+        return 0
     n = reconstruct(args.start, args.end, args.out, args.sleep, args.max_codes)
     logger.info("[bs_breadth] 共写出 %d 行", n)
 

@@ -10,6 +10,7 @@
   约 12 个交易日为东财涨停池/跌停池真实数据；
 - 连板高度 / 炸板率 / 昨日涨停表现：仅东财涨停池可得，近期真实、历史缺失（NaN）。
 """
+import argparse
 import os
 import sys
 import json
@@ -213,6 +214,11 @@ def latest_snapshot(df):
 
 
 def main():
+    ap = argparse.ArgumentParser(description="牧羊人指标独立 HTML 报告")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="只生成内容预览（打印行数 / 日期范围），不落盘到 docs/")
+    args = ap.parse_args()
+
     if not os.path.exists(CSV):
         print("ERROR: 未找到回测数据", CSV, "——请先运行 `python -m scripts.run_shepherd_reconstruct`")
         return 1
@@ -319,6 +325,11 @@ def main():
   Plotly.newPlot('chart2', fig2.data, fig2.layout, {{displayModeBar:false, responsive:true}});
 </script>
 </body></html>"""
+    if args.dry_run:
+        print(f"[dry-run] 将生成 {OUT}（{n} 交易日, {rng}, {ny} 年）")
+        print(f"[dry-run] HTML 长度: {len(html):,} 字符")
+        return 0
+
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(html)
     print("OK ->", OUT, f"({n} 交易日, {rng}, {ny} 年)")

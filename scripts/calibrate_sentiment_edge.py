@@ -37,6 +37,7 @@
 """
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import os
@@ -82,6 +83,10 @@ def _p2(z: float) -> float:
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
+    args = ap.parse_args()
+
     df = pd.read_csv(HIST)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
@@ -211,6 +216,9 @@ def main():
         out["strength_note"] = ("强度 IC 暂不计算：除 limit_down_ratio 外，其余占比特征历史覆盖不足，"
                                "无法在全历史形成稳定的秩相关估计。")
 
+    if args.dry_run:
+        print(f"[dry-run] 将写出 {OUT} + 镜像 {MIRROR}")
+        return 0
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as fh:
         json.dump(out, fh, ensure_ascii=False, indent=2)

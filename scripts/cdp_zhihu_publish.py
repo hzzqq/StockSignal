@@ -7,6 +7,7 @@
   python scripts/cdp_zhihu_publish.py publish              # 点击"发布"按钮
   python scripts/cdp_zhihu_publish.py shot <out.png>       # 截图当前 tab 验证
 """
+import argparse
 import asyncio
 import json
 import sys
@@ -15,6 +16,7 @@ import urllib.request
 import websockets
 
 CDP_HTTP = "http://127.0.0.1:9222"
+_DRY_RUN = False
 
 
 def _tabs():
@@ -133,9 +135,12 @@ async def cmd_shot(out):
     r = await _rpc(ws, "Page.captureScreenshot", {"format": "png"})
     data = r.get("result", {}).get("data")
     if data:
-        import base64
-        open(out, "wb").write(base64.b64decode(data))
-        print(f"  ✓ 截图: {out}")
+        if _DRY_RUN:
+            print(f"[dry-run] 将截图保存到 {out}")
+        else:
+            import base64
+            open(out, "wb").write(base64.b64decode(data))
+            print(f"  ✓ 截图: {out}")
     else:
         print("  ⚠️ 截图失败")
     await ws.close()
@@ -162,4 +167,9 @@ async def main():
 
 
 if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
+    args, remaining = ap.parse_known_args()
+    _DRY_RUN = args.dry_run
+    sys.argv = [sys.argv[0]] + remaining
     sys.exit(asyncio.run(main()))

@@ -18,6 +18,7 @@ scripts/herd_factor_eval.py — 羊群拥挤度「预测因子化」留出验证
 """
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import math
@@ -155,8 +156,15 @@ def run(breadth_file: str | None = None) -> dict:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
+    args = ap.parse_args()
+
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     report = run()
+    if args.dry_run:
+        print(f"[dry-run] 将写出 {OUT_PATH}")
+        return 0
     os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)

@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -104,6 +105,10 @@ def read_signal_meta_cheap(path: str) -> dict:
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
+    args = ap.parse_args()
+
     from modules.decision import derive_position
     from modules.data_health import health_rows_enriched
 
@@ -530,6 +535,9 @@ def main():
     md = "\n".join(lines)
 
     out_path = os.path.join(DATA_DIR, "reports", f"morning_event_sentiment_{TODAY}.md")
+    if args.dry_run:
+        print(f"[dry-run] 将写出 {out_path}")
+        return 0
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(md)

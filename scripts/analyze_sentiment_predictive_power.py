@@ -363,6 +363,9 @@ def run(min_sample: int, train_frac: float):
         "跨日不可比。历史基座 connect_2b/fc_ratio 缺失率极高。"
     )
 
+    if args.dry_run:
+        print(f"[dry-run] 将写出 {OUT}")
+        return rep
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as fh:
         json.dump(rep, fh, ensure_ascii=False, indent=2)
@@ -370,6 +373,9 @@ def run(min_sample: int, train_frac: float):
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
+    args = ap.parse_args()
     ap = argparse.ArgumentParser()
     ap.add_argument("--min-sample", type=int, default=1000,
                     help="当日有效个股数下限（早期样本仅数十只，噪声大）")

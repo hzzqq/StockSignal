@@ -306,10 +306,14 @@ def main() -> dict:
     p.add_argument("--breadth", default=None,
                    help="广度历史 CSV（默认 data/shepherd_history.csv）；可指向补充的 2007-2014 文件")
     p.add_argument("--out", default=None, help="输出 JSON 路径（默认 reports/backtest_decision_closure.json）")
+    p.add_argument("--dry-run", action="store_true", help="预览不落盘")
     args = p.parse_args()
 
     result = run(breadth_file=args.breadth)
     out_path = args.out or OUT_PATH
+    if args.dry_run:
+        print(f"[dry-run] 将写出 {out_path}")
+        return result
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)

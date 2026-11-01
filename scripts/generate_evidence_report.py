@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 
@@ -32,6 +33,10 @@ def _row(df: pd.DataFrame, i: int) -> dict:
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
+    args = ap.parse_args()
+
     if not os.path.exists(_BREADTH_FILE):
         raise SystemExit("真实 shepherd_history.csv 缺失（被 .gitignore 忽略），无法生成报告")
     df = pd.read_csv(_BREADTH_FILE, encoding="utf-8-sig")
@@ -141,6 +146,9 @@ def _render_html(d: dict, path: str):
             .replace("__META__",
                      f"数据区间 <b>{d['date_min']}</b> ~ <b>{d['date_max']}</b> ｜ "
                      f"真实交易日 <b>{d['n_days']}</b> 天 ｜ 跨度 <b>{d['years']}</b> 年"))
+    if args.dry_run:
+        print(f"[dry-run] 将写出 {path}（{len(html):,} 字符）")
+        return 0
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
 

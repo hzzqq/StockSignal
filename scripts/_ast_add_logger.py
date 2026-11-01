@@ -8,6 +8,7 @@
 - 不删原有 `pass`（若块内只剩 pass，保留，避免结构破坏）。
 仅做 AST 文本变换，不运行被改模块。
 """
+import argparse
 import ast
 import re
 import sys
@@ -89,11 +90,18 @@ def transform(path, tag):
         else:
             new_src = inject + new_src
 
+    if args.dry_run:
+        print(f"[dry-run] 将 patch {path} ({len(inserts)} 处)")
+        return True, "dry-run skipped"
     open(path, "w", encoding="utf-8").write(new_src)
     return True, f"patched {len(inserts)} blocks"
 
 
 if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
+    global args
+    args = ap.parse_args()
     p = sys.argv[1]
     tag = sys.argv[2] if len(sys.argv) > 2 else p.split("/")[-1].replace(".py", "")
     ok, msg = transform(p, tag)

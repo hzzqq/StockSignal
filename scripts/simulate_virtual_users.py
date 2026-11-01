@@ -196,6 +196,9 @@ def main(n_users: int = 10000, universe_size: int = UNIVERSE_SIZE, seed: int = 2
             "不承诺高成功率；结果不构成投资建议"),
     }
     report = {"meta": meta, "aggregate": aggregate, "profiles": profiles}
+    if args.dry_run:
+        print(f"[dry-run] 将写出 {REPORT_PATH}")
+        return 0
     os.makedirs(os.path.dirname(REPORT_PATH), exist_ok=True)
     with open(REPORT_PATH, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=1)
@@ -225,5 +228,6 @@ if __name__ == "__main__":
     ap.add_argument("--users", type=int, default=10000)
     ap.add_argument("--universe", type=int, default=UNIVERSE_SIZE)
     ap.add_argument("--seed", type=int, default=20261011)
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
     args = ap.parse_args()
     sys.exit(main(n_users=args.users, universe_size=args.universe, seed=args.seed))

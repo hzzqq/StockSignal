@@ -8,6 +8,7 @@ fragment-scoped rerun there would raise at runtime.
 Byte/char offset handling mirrors _perf_table_height.py (ast end_col_offset is byte-based;
 the source str is char-indexed).
 """
+import argparse
 import ast
 import os
 
@@ -112,12 +113,23 @@ def process_file(path):
     except SyntaxError:
         print(f"  SKIP (would break syntax): {path}")
         return 0
+    if _DRY_RUN:
+        print(f"[dry-run] 将 patch {path}")
+        return 0
     with open(path, "w", encoding="utf-8", newline="") as f:
         f.write(new_src)
     return len(ops)
 
 
+_DRY_RUN = False
+
+
 def main():
+    global _DRY_RUN
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
+    args = ap.parse_args()
+    _DRY_RUN = args.dry_run
     files = []
     for d in TARGET_DIRS:
         base = os.path.join(ROOT, d)

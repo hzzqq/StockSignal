@@ -28,6 +28,7 @@ scripts/backtest_dual_factor.py — T-182 双因子决策增强 大样本回测
 """
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import math
@@ -233,8 +234,15 @@ def run(breadth_file: str | None = None) -> dict:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description="双因子决策增强回测")
+    ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
+    args = ap.parse_args()
+
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     report = run()
+    if args.dry_run:
+        print(f"[dry-run] 将写出 {OUT_PATH}（groups={len(report.get('groups', {}))}）")
+        return 0
     os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
