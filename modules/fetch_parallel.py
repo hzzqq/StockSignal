@@ -19,6 +19,8 @@ from modules.cache_utils import TTL_TIERS  # R-14
     data = _prefetch_all()          # 并发跑完，最坏 ~14s（而非各路串行之和）
     nb = data.get("northbound")
 """
+
+from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
 import concurrent.futures as cf
 import logging
 import threading

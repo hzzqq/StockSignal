@@ -1,5 +1,4 @@
 """实时强势榜数据与评分（G8 纯逻辑层）。
-from modules.cache_utils import TTL_TIERS  # R-14
 
 抽取到模块层的目的：① 评分是纯函数，可单测；② 取数入口可被测试 monkeypatch，
 页面只做编排（与 ``modules/shepherd`` 的测试模式一致）。
@@ -16,6 +15,7 @@ import time
 import pandas as pd
 import streamlit as st
 
+from modules.cache_utils import TTL_TIERS  # R-14（修复：此前误写进模块 docstring 内未执行，NameError）
 # 东财快照列名候选（字段偶有增删，按候选表匹配而非硬编码）
 COL = {
     "code": ["代码"],

@@ -15,7 +15,9 @@ modules/decision.py — 今日决策闭环的**单一真理源**（纯 Python，
 红涨绿跌：偏多/激进=红(#ee2a2a)，偏空/防御=绿(#00d486)，中性=黄(#f59e0b)。
 """
 
+
 from __future__ import annotations
+from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
 
 import json
 import logging

@@ -1,5 +1,4 @@
 """
-from modules.cache_utils import TTL_TIERS  # R-14
 modules/widgets.py
 ------------------
 跨页面复用的 Streamlit 小组件：
@@ -14,6 +13,8 @@ import logging
 import os
 import json
 import subprocess
+
+from modules.cache_utils import TTL_TIERS  # R-14（修复：此前误写进模块 docstring 内未执行，NameError）
 from modules.ui_kit import inject_kit_css, xc_handle_error
 logger = logging.getLogger(__name__)
 from typing import Any, Dict, List, Tuple
@@ -99,8 +100,8 @@ def _trend_label(open_: float, high: float, low: float, close: float, prev_close
                 fv = float(v)
                 if fv == fv:
                     y.append(fv)
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as e:
+                logger.debug("widgets sparkline: 跳过非数值 %r: %s", v, e)
         if len(y) >= 4:
             hi_i = max(range(len(y)), key=lambda i: y[i])
             lo_i = min(range(len(y)), key=lambda i: y[i])

@@ -11,7 +11,9 @@ from modules.cache_utils import TTL_TIERS  # R-14
 - 快路径先看多/看空榜（不加载 daily 大数组），精确路径再回退 daily 逐日得分。
 - ``P1SignalLoader`` 懒导入，模块与具体数据源解耦，未来可挂别的真实事件源。
 """
+
 from __future__ import annotations
+from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
 
 import logging
 from typing import Any

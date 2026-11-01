@@ -1,5 +1,4 @@
 """
-from modules.cache_utils import TTL_TIERS  # R-14
 资金流向 / 财报日历 数据层。
 
 代理策略（#407 / #659）：akshare 走 requests，只认 HTTP_PROXY/HTTPS_PROXY 环境变量。
@@ -26,6 +25,7 @@ from urllib.parse import urlparse
 import threading
 
 from modules.time_utils import now_cst, now_cst_str
+from modules.cache_utils import TTL_TIERS  # R-14（修复：此前误写进模块 docstring 内未执行，NameError）
 
 import logging
 

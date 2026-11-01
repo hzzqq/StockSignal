@@ -7,6 +7,8 @@ rerun 重新执行语义一致）。子页文件保留为独立入口 shim，saf
 page_link 直跳不受影响。勿在模块级新增其它逻辑。
 """
 
+from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
+
 
 def render_stock_analysis() -> None:
     import streamlit as st
