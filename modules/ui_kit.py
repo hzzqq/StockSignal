@@ -128,7 +128,12 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .ss-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--ss-text-muted)}
 .ss-pill.open .dot{background:var(--ss-up);box-shadow:0 0 0 3px rgba(255,77,79,.25)}
 .ss-pill.closed .dot{background:var(--ss-down)}
-.ss-pill.theme-dark{color:#c7d2fe;border-color:#3b3b66;background:#1a1a2e}
+/* P1-2 pill 令牌化（ui-ds Phase1 §2.2①痛3）：indigo 硬编码改读 L3 --ss-pill-dark-*，
+   七风格下自动随 --ss-accent 换色相（terminal 琥珀/cyber 黄青不再残留经典星辰紫）；
+   border 由 bg/fg 派生（color-mix，无新硬编码色相）。theme-light 无对应令牌，暂保留（零引用死规则，见回报）。 */
+.ss-pill.theme-dark{color:var(--ss-pill-dark-fg);
+  border-color:color-mix(in srgb,var(--ss-pill-dark-bg) 85%,var(--ss-pill-dark-fg));
+  background:var(--ss-pill-dark-bg)}
 .ss-pill.theme-light{color:#4338ca;border-color:#c7d2fe;background:#eef2ff}
 
 /* ---- 信息横幅 ---- */
@@ -186,7 +191,7 @@ _KIT_CSS = _TOKEN_CSS + r"""
   box-shadow:var(--ss-shadow-hero);
   position:relative;overflow:hidden}
 .xc-hero::before{content:"";position:absolute;inset:0;
-  background:radial-gradient(circle at 12% -10%, var(--ss-glow-soft), transparent 55%);
+  background:radial-gradient(circle at 12% -10%, var(--ss-hero-overlay), transparent 55%);
   pointer-events:none}
 .xc-hero-main{display:flex;align-items:center;gap:14px;min-width:0;position:relative;z-index:1}
 .xc-hero-icon{font-size:26px;line-height:1;flex-shrink:0;
@@ -340,7 +345,7 @@ _HERO_FALLBACK_CSS = _TOKEN_CSS + r"""
   box-shadow:var(--ss-shadow-hero);
   position:relative;overflow:hidden}
 .xc-hero::before{content:"";position:absolute;inset:0;
-  background:radial-gradient(circle at 12% -10%, var(--ss-glow-soft), transparent 55%);
+  background:radial-gradient(circle at 12% -10%, var(--ss-hero-overlay), transparent 55%);
   pointer-events:none}
 .xc-hero-main{display:flex;align-items:center;gap:14px;min-width:0;position:relative;z-index:1}
 .xc-hero-icon{font-size:26px;line-height:1;flex-shrink:0;
@@ -494,6 +499,17 @@ def prov_badge(rows=None, *, slug: str = None, title: str = "数据来源",
         logger.warning(f"[ui_kit] prov_badge 处理异常: {e}")
 
 
+# P1-2b（ui-ds Phase1 §2.2②a）：accent 语义档 → 令牌映射（防彩虹卡收敛入口）。
+#   传档位名走 var() 令牌（七风格自动换色相）；传 hex 走兼容直传（test_ui_kit 锁定）。
+#   存量调用全量核查：现网 accent= 实参全部是 hex 字面量，与档位名零撞车。
+_XC_ACCENT_TIERS = {
+    "up": "var(--ss-up)",        # A股红（涨语义强调）
+    "down": "var(--ss-down)",    # A股绿（跌语义强调）
+    "neutral": "var(--ss-line)", # 中性分隔线色
+    "accent": "var(--ss-accent)",# 主题强调色
+}
+
+
 def _xc_card_html(label: str = "", value: str = "", delta: str = "", delta_dir: str = "flat",
                   accent: str = None, icon: str = "", sub: str = "", meta: str = "",
                   tone: str = None) -> str:
@@ -501,7 +517,9 @@ def _xc_card_html(label: str = "", value: str = "", delta: str = "", delta_dir: 
 
     - ``delta_dir``：up/down/flat —— A 股红涨绿跌（up=红）。非法值回落 flat。
     - ``tone``：可选，给主数值着 A 股语义色（up=红 / down=绿 / flat=主文本色）。
-    - ``accent``：可选，卡片顶部强调边颜色（向后兼容旧 stat_tile 的 accent 参数）。
+    - ``accent``：可选，卡片顶部强调边颜色。P1-2b 起支持语义档位 ``"up"|``"down"|
+      ``"neutral"|"accent"``（映射 --ss-up/--ss-down/--ss-line/--ss-accent，随七风格
+      换色相）；传 hex 直传保持兼容（旧调用零改动）。
     - 文本一律 html.escape，None/空安全，绝不抛异常。
     """
     label = "" if label is None else str(label)
@@ -512,7 +530,12 @@ def _xc_card_html(label: str = "", value: str = "", delta: str = "", delta_dir: 
     sub = "" if sub is None else str(sub)
     meta = "" if meta is None else str(meta)
     tone_cls = f" {tone}" if tone in ("up", "down", "flat") else ""
-    style = f' style="border-top:3px solid {html.escape(accent, quote=True)}"' if accent else ""
+    if accent:
+        _tier = _XC_ACCENT_TIERS.get(str(accent))
+        _color = _tier if _tier else html.escape(str(accent), quote=True)
+        style = f' style="border-top:3px solid {_color}"'
+    else:
+        style = ""
     top = ""
     if icon or sub or label:
         ico = f'<div class="ico">{html.escape(icon)}</div>' if icon else ""

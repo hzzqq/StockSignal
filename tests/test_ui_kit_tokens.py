@@ -99,23 +99,51 @@ def test_stmetric_skin_shares_token_vars(monkeypatch):
 
 
 def test_xc_hero_block_identical_across_two_channels():
-    """G2（ui-ds Phase1 §2.2①痛4）：_KIT_CSS 与 _HERO_FALLBACK_CSS 的 .xc-hero{ 声明块
+    """G2（ui-ds Phase1 §2.2①痛4）：_KIT_CSS 与 _HERO_FALLBACK_CSS 的 .xc-hero 家族块
     必须逐字符一致——两通道现已是复制粘贴双写（维护漂移源），锁死后只允许改一处再同步。
+
+    P1 增强版：比对范围从 `.xc-hero{` 主块扩到整个家族（主块 + ::before + -main/-icon/
+    -title/-sub/-chips，即到 `.xc-hero-chips{…}` 为止）——P1-2 改 ::before 为
+    --ss-hero-overlay 时若只改一条通道，此处立即红。
 
     Phase3 评审已实测现状逐字符一致，故直接 hard 上线，无过渡期。
     """
     css_main = _kit()._KIT_CSS
     css_fallback = _kit()._HERO_FALLBACK_CSS
-    m_main = re.search(r"\.xc-hero\{[^}]*\}", css_main)
-    m_fb = re.search(r"\.xc-hero\{[^}]*\}", css_fallback)
-    assert m_main, "_KIT_CSS 缺少 .xc-hero{ 规则"
-    assert m_fb, "_HERO_FALLBACK_CSS 缺少 .xc-hero{ 规则"
+    pat = re.compile(r"\.xc-hero\{.*?\.xc-hero-chips\{[^}]*\}", re.S)
+    m_main = pat.search(css_main)
+    m_fb = pat.search(css_fallback)
+    assert m_main, "_KIT_CSS 缺少 .xc-hero 家族块"
+    assert m_fb, "_HERO_FALLBACK_CSS 缺少 .xc-hero 家族块"
     assert m_main.group(0) == m_fb.group(0), (
-        "两通道 .xc-hero{ 声明块漂移（双写不再一致）：\n"
+        "两通道 .xc-hero 家族块漂移（双写不再一致）：\n"
         f"  _KIT_CSS:          {m_main.group(0)}\n"
         f"  _HERO_FALLBACK_CSS: {m_fb.group(0)}\n"
         "同步两处后此测试才会绿——禁止只改一条通道"
     )
+
+
+def test_hero_overlay_and_pill_tokens_wired():
+    """P1-2（ui-ds Phase1 §2.2①）：page_hero 升级的令牌接线断言。
+
+    ① .xc-hero::before 雷达光层必须读 --ss-hero-overlay（accent2 派生），
+       不得回退为 --ss-glow-soft（accent 派生）或硬编码 rgba(124,92,255,*)；
+    ② .ss-pill.theme-dark 不得再硬编码 indigo（#c7d2fe/#3b3b66/#1a1a2e），
+       必须读 L3 --ss-pill-dark-fg/--ss-pill-dark-bg（P0 已落 _TOKEN_CSS）。
+    """
+    css = _kit()._KIT_CSS
+    m = re.search(r"\.xc-hero::before\{([^}]*)\}", css)
+    assert m, "缺少 .xc-hero::before 规则"
+    assert "var(--ss-hero-overlay)" in m.group(1), (
+        ".xc-hero::before 未读 --ss-hero-overlay（terminal/cyber 下紫光穿帮回归风险）")
+    assert "--ss-glow-soft" not in m.group(1)
+    m2 = re.search(r"\.ss-pill\.theme-dark\{([^}]*)\}", css)
+    assert m2, "缺少 .ss-pill.theme-dark 规则"
+    pill = m2.group(1)
+    for frag in ("var(--ss-pill-dark-fg)", "var(--ss-pill-dark-bg)"):
+        assert frag in pill, f".ss-pill.theme-dark 未读 L3 pill 令牌 {frag}"
+    for banned in ("#c7d2fe", "#3b3b66", "#1a1a2e{"):
+        assert banned not in pill, f".ss-pill.theme-dark 仍有 indigo 硬编码：{banned}"
 
 
 def test_no_hardcoded_purple_rgba_in_kit_and_theme():
