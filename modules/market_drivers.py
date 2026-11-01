@@ -33,6 +33,10 @@ from modules.fundflow import _ensure_proxy_and_ssl
 from modules.margin_trading import get_margin_trading_data
 from modules.linear_trends import get_index_series, get_northbound_history_series
 from modules.time_utils import now_cst_naive
+# R-07：委托共享 TTL 缓存（cache_utils._CACHE / _CACHE_LOCK / cached_ttl）
+# 注意：_cached_swr / _kick_refresh 是本模块专属 stale-while-revalidate 层，
+# 直接操作 _CACHE / _CACHE_LOCK（不是共享的 cached_ttl），保留不动。
+from modules.cache_utils import _CACHE, _CACHE_LOCK, cached_ttl
 
 logger = logging.getLogger(__name__)
 
@@ -100,24 +104,13 @@ KNOWN_UNAVAILABLE = {
     "margin_balance_ratio": "需流通市值数据，暂未接入",
 }
 
-# 简易 TTL 缓存
-_CACHE = {}
-_CACHE_TTL = 600
-# 并发保护：Streamlit 多线程 + 后台调度器可能同时读写 _CACHE，
-# 加锁避免脏读/竞态写（与 fundflow / margin_trading 同款修复）
-_CACHE_LOCK = threading.Lock()
+# R-07：委托共享 TTL 缓存层（cache_utils._CACHE / _CACHE_LOCK / cached_ttl），
+# _cached_swr / _kick_refresh 仍直接操作 _CACHE / _CACHE_LOCK（SWR 专属语义保留）。
+_CACHE_TTL = 600  # 业务语义常量，暂不进 site_config（批次 4 可选）
 
 
 def _cached(ttl, key, fn):
-    now = time.time()
-    with _CACHE_LOCK:
-        hit = _CACHE.get(key)
-        if hit and (now - hit[0]) < ttl:
-            return hit[1]
-    val = fn()
-    with _CACHE_LOCK:
-        _CACHE[key] = (now, val)
-    return val
+    return cached_ttl(ttl, key, fn)
 
 
 # ── T-272④：stale-while-revalidate（慢档专用）────────────────────────
