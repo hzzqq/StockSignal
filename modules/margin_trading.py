@@ -17,7 +17,6 @@ from datetime import datetime
 from modules.time_utils import now_cst
 import logging
 import math
-import threading
 import time
 
 import pandas as pd
@@ -31,34 +30,19 @@ logger = logging.getLogger(__name__)
 from modules.fundflow import _ensure_proxy_and_ssl, _run_with_timeout
 from modules.fetch_parallel import fetch_many  # R78：共享有界线程池并行取数
 from modules.linear_trends import get_northbound_history_series
-
-# 简易 TTL 缓存
-_MARGIN_CACHE = {}
-_MARGIN_CACHE_LOCK = threading.Lock()
+from modules.cache_utils import _CACHE, _CACHE_LOCK, cached_ttl  # R-07：委托共享 TTL 缓存（含 skip_empty 语义）
+# 向后兼容：历史测试引用 margin_trading._MARGIN_CACHE.pop() / clear()
+_MARGIN_CACHE = _CACHE
+_MARGIN_CACHE_LOCK = _CACHE_LOCK
 
 
 def _cached(ttl, key, fn, skip_empty=False):
-    """TTL 缓存。
+    """TTL 缓存（R-07 委托 cache_utils.cached_ttl）。
 
     skip_empty=True 时不缓存空结果（None / 空 DataFrame），避免把网络瞬时
     失败的结果缓存一整个 TTL，导致页面长时间空白。
-
-    R86 double-check：fn() 在锁**外**执行——此前 fn() 在 _MARGIN_CACHE_LOCK 内，
-    一路慢速网络调用会串行化所有键的缓存访问；改为锁内快速读（miss 即释放）、
-    锁外执行 fn、锁内写回（与 fundflow._cached 的 R85 改造一致）。
     """
-    now = time.time()
-    with _MARGIN_CACHE_LOCK:
-        hit = _MARGIN_CACHE.get(key)
-        if hit and (now - hit[0]) < ttl:
-            return hit[1]
-    # 锁外执行昂贵取数：不阻塞其他键的缓存访问
-    val = fn()
-    empty = val is None or (isinstance(val, pd.DataFrame) and val.empty)
-    if not (skip_empty and empty):
-        with _MARGIN_CACHE_LOCK:
-            _MARGIN_CACHE[key] = (time.time(), val)
-    return val
+    return cached_ttl(ttl, key, fn, skip_empty=skip_empty)
 
 
 def _retry(max_retries=3, base_delay=1.0):

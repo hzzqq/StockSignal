@@ -21,13 +21,16 @@ _CACHE: Dict[str, Tuple[float, Any]] = {}
 _CACHE_LOCK = threading.Lock()
 
 
-def cached_ttl(ttl: float, key: str, fn: Callable[[], Any]) -> Any:
+def cached_ttl(ttl: float, key: str, fn: Callable[[], Any],
+               skip_empty: bool = False) -> Any:
     """基于时间戳的轻量 TTL 缓存。
 
     - 线程安全（锁内快速读 / 锁内快速写）。
-    - fn() 在锁**外**执行，避免慢速取数串行化所有键的缓存访问。
+    - fn() 在锁**外**执行，避免慢速取数串行化所有键的缓存访问（R85）。
     - 同一 key 的并发 miss 会重复计算（可接受权衡，fn 自身应有超时边界）。
     - ttl<=0 视作「永不过期」由调用方控制；本函数不做特判，过期判定即 ``(now-hit[0])<ttl``。
+    - skip_empty=True 时，fn 返回 None 或 ``hasattr(val,'empty') and val.empty``
+      （空 DataFrame / 空集合）则不缓存——避免把网络瞬时失败的空结果锁一整个 TTL。
     """
     now = time.time()
     with _CACHE_LOCK:
@@ -36,6 +39,10 @@ def cached_ttl(ttl: float, key: str, fn: Callable[[], Any]) -> Any:
             return hit[1]
     # 锁外执行昂贵取数：不阻塞其他键的缓存访问
     val = fn()
+    if skip_empty:
+        _is_empty = (val is None) or (hasattr(val, "empty") and bool(val.empty))
+        if _is_empty:
+            return val
     with _CACHE_LOCK:
         _CACHE[key] = (time.time(), val)
     return val
