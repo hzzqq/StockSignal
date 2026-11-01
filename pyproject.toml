@@ -34,6 +34,8 @@ dependencies = [
     # ── 测试 / 契约 ──
     "pytest>=8.0.0",
     "httpx>=0.27.0",
+    # P1-3 毕设三算法（scripts/tree_factor_eval.py 等 import sklearn，2026-11-01 补齐声明）
+    "scikit-learn>=1.4.0",
 ]
 
 [project.optional-dependencies]
