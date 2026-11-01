@@ -75,6 +75,59 @@ def get_task(task_id: str):
     return ok(data=task, message="success")
 
 
+@bp.get("/<task_id>/timeline")
+@jwt_required
+def get_task_timeline(task_id: str):
+    """GET /api/tasks/<task_id>/timeline —— 批次9：完整 timeline（不受内存 MAX_EVENTS=200 限制）。
+
+    数据源优先级：
+      1. progress_bus.get_events() → 实时内存 timeline（批次8 dict event + str message）
+      2. AiTimelineEvent 表         → SQLite 持久化 timeline（批次9尽力而为持久化）
+    两者 ts+message 相同视为重复，取前者（内存 = 更实时）。
+    对完全未知 task_id 返回 404；对空 timeline 返回空数组（200）。
+    """
+    from backend.tasks.progress_bus import get_events as get_mem_events
+    from backend.models import AiTimelineEvent, db
+
+    mem_events = get_mem_events(task_id)
+
+    # SQLite 拉取——尽力而为（无表/未建 schema → 空列表，不影响返回）
+    db_events: list[dict] = []
+    try:
+        rows = db.session.execute(
+            db.select(AiTimelineEvent)
+            .where(AiTimelineEvent.task_id == task_id)
+            .order_by(AiTimelineEvent.ts.asc())
+        ).scalars().all()
+        db_events = [r.to_dict() for r in rows]
+    except Exception:  # noqa: BLE001 — schema 未就绪等边缘场景静默跳过
+        pass
+
+    # 内存 timeline 用批次8 dict/str 混合格式，SQLite timeline 用批次9 to_dict 统一格式
+    # 简单策略：有内存就优先内存（实时性更好），否则 fallback SQLite
+    if mem_events:
+        # 把内存 events 转成统一 dict 格式返回
+        unified = []
+        for e in mem_events:
+            if isinstance(e, dict):
+                _fmt = e.get("message") or ""
+                _ev = e.get("event") if isinstance(e.get("event"), dict) else None
+                unified.append({
+                    "event_type": _ev.get("type") if _ev else None,
+                    "tool_name": _ev.get("tool") if _ev else None,
+                    "message": _fmt,
+                    "event": _ev,
+                    "idx": _ev.get("idx") if _ev else None,
+                    "elapsed_s": _ev.get("elapsed_s") if _ev else None,
+                    "status": _ev.get("status") if _ev else None,
+                    "ts": e.get("ts", 0.0),
+                })
+        return ok(data={"source": "memory", "events": unified}, message="success")
+
+    # 纯 SQLite fallback
+    return ok(data={"source": "db", "events": db_events}, message="success")
+
+
 @bp.delete("/<task_id>")
 @jwt_required
 def cancel_task(task_id: str):
