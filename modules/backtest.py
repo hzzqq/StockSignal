@@ -2,6 +2,9 @@
 策略回测引擎 V2
 支持多策略回测：事件驱动、均线交叉、趋势动量多因子。
 新增指标：RSI / MACD / ATR / 布林带；模拟交易支持止损、止盈、移动止损、最大持仓周期。
+
+R-05 拆分（Plan A，2026-11-01）：纯函数 + 数据类已提取到子模块，
+本文件保留 Backtester 主类 + re-export。对外 API 零变化。
 """
 
 import numpy as np
@@ -17,83 +20,23 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
-# 选股排除阈值：RSI14 超过该值视为极端泡沫，踢出候选池。
-# V5 多因子对齐：仅极端泡沫(>92)排除，80-92 强涨股允许参与选股
-# （避免长电科技类「长期 RSI>85 强势上涨股」连候选池都进不了）。
-# 两处调用（_score_for_picker 入场过滤 / daily_picker_backtest 候选过滤）必须引用同一常量，
-# 否则会出现「一处改 92、另一处仍是 80」的阈值漂移（曾发生）。
-RSI_EXCLUDE_THRESHOLD = 92
-
-
-def _clamp100(v: float) -> float:
-    """把任意评分收束到 [0,100]。
-
-    多因子分段上限（趋势50+超跌40+健康20+量能15）合计 125，历史债导致
-    原始评分可溢出到 ~125，违反「0-100 评分契约」（UI 进度条/配色/排序均按 0-100
-    假设）。统一在此封顶，避免「评分 125/100」这类展示与排序失真。
-    """
-    try:
-        return max(0.0, min(100.0, float(v)))
-    except (TypeError, ValueError):
-        return 50.0
+from .backtest_core import (  # noqa: F401
+    RSI_EXCLUDE_THRESHOLD,
+    _clamp100, _final_picker_score, _trend_persistence_ratio,
+    _rsi14_health_score, _rsi14_overbought,
+    _rsi, _atr, _macd, _bollinger, _adx,
+)
+from .backtest_result import (  # noqa: F401
+    DailyPickerResult, BacktestResult,
+)
 
 
-def _final_picker_score(score: float, smoothed: float, enough_days: bool) -> float:
-    """混合当前详细评分与多日平滑评分，归一到 [0,100]。
-
-    :param enough_days: 是否已有 >=3 天日评分用于加权平均（否则只用当前详细评分）。
-    """
-    raw = (score * 0.7 + smoothed * 0.3) if enough_days else score
-    return round(_clamp100(raw), 1)
-
-
-
-
-def _trend_persistence_ratio(recent):
-    """最近窗口内 close>MA20 的占比（∈[0,1]）。
-
-    锐评 R5：原代码用 min(len(recent),5) 作分母，但 recent 实为最近 10 天，
-    导致占比被放大 2 倍、区间 [0,2]，把仅一半交易日站上 MA20 的股票误标为
-    '强趋势(持续)'。改为除以窗口实际长度，与 daily_picker_backtest 同源一致。
-    """
-    if recent is None or len(recent) == 0:
-        return 0.0
-    above = int((recent["close"] > recent["ma20"]).sum())
-    return above / len(recent)
-
-
-def _rsi14_health_score(rsi14):
-    """RSI14 健康分（两条选股打分路径统一调用的单一真理源）。
-
-    锐评 R6：原 _score_for_picker 与 daily_picker_backtest 各自写一套 RSI14 分档，
-    且超买阈值不一致（75 vs 80），导致同一 RSI14 在两路径给不同分（如 75→主10/批0），
-    批量选股回测与单股诊断结论自相矛盾。统一到此函数后分支无法再漂移。
-    """
-    try:
-        r = float(rsi14)
-    except (TypeError, ValueError):
-        return 0
-    if 40 <= r <= 60:
-        return 20
-    elif 30 <= r < 40:
-        return 15
-    elif 60 < r <= 70:
-        return 12
-    elif 70 < r <= 92:
-        return 10
-    elif 25 <= r < 30:
-        return 8
-    return 0
-
-
-def _rsi14_overbought(recent):
-    """最近窗口内 RSI14>75 的交易日数（与主路径一致，阈值 75）。"""
-    if recent is None or len(recent) == 0:
-        return 0
-    return int((recent["rsi14"] > 75).sum())
+# ===================================================================
+# Backtester class — 策略回测主引擎（原样保留，只移除已提取的静态指标方法）
+# ===================================================================
 
 class Backtester:
+
     """策略回测器。"""
 
     def __init__(self, config_path="config.yaml"):
@@ -154,9 +97,6 @@ class Backtester:
         )
         return BacktestResult(ticker, strategy, result_df, initial_capital, trades)
 
-    # ------------------------------------------------------------------
-    # P0 可插拔增强：参数扫描 + 多标的批量回测（绩效归因）
-    # ------------------------------------------------------------------
     def run_param_scan(self, ticker, start, end, strategy="multi_factor",
                        param_grid=None, keywords=None, initial_capital=100000):
         """
@@ -256,59 +196,13 @@ class Backtester:
         }
         return {"per_stock": per_stock, "summary": summary}
 
-    # ------------------------------------------------------------------
-    # 技术指标计算
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _rsi(series, window=14):
-        if series is None or len(series) < 2:
-            return pd.Series(dtype=float)
-        delta = series.diff()
-        gain = delta.where(delta > 0, 0).rolling(window=window).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
-        rs = gain / loss
-        return 100 - (100 / (1 + rs))
-
-    @staticmethod
-    def _atr(df, window=14):
-        if df is None or df.empty or not all(c in df.columns for c in ("high", "low", "close")):
-            return pd.Series(dtype=float)
-        high_low = df["high"] - df["low"]
-        high_close = (df["high"] - df["close"].shift()).abs()
-        low_close = (df["low"] - df["close"].shift()).abs()
-        tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-        return tr.rolling(window=window).mean()
-
-    @staticmethod
-    def _macd(df):
-        if df is None or df.empty or "close" not in df.columns:
-            empty = pd.Series(dtype=float)
-            return empty, empty, empty
-        ema12 = df["close"].ewm(span=12, adjust=False).mean()
-        ema26 = df["close"].ewm(span=26, adjust=False).mean()
-        dif = ema12 - ema26
-        dea = dif.ewm(span=9, adjust=False).mean()
-        hist = dif - dea
-        return dif, dea, hist
-
-    @staticmethod
-    def _bollinger(df, window=20, std=2):
-        if df is None or df.empty or "close" not in df.columns:
-            empty = pd.Series(dtype=float)
-            return empty, empty, empty
-        ma = df["close"].rolling(window=window).mean()
-        std_dev = df["close"].rolling(window=window).std()
-        upper = ma + std_dev * std
-        lower = ma - std_dev * std
-        return upper, lower, ma
-
     def _add_indicators(self, df):
         df = df.copy()
-        df["rsi14"] = self._rsi(df["close"])
-        df["rsi2"] = self._rsi(df["close"], window=2)
-        df["atr14"] = self._atr(df)
-        df["macd_dif"], df["macd_dea"], df["macd_hist"] = self._macd(df)
-        df["bb_upper"], df["bb_lower"], df["bb_ma"] = self._bollinger(df)
+        df["rsi14"] = _rsi(df["close"])
+        df["rsi2"] = _rsi(df["close"], window=2)
+        df["atr14"] = _atr(df)
+        df["macd_dif"], df["macd_dea"], df["macd_hist"] = _macd(df)
+        df["bb_upper"], df["bb_lower"], df["bb_ma"] = _bollinger(df)
         df["trend_up"] = (df["close"] > df["ma20"]) & (df["ma20"] > df["ma60"])
         df["ma20_rising"] = df["ma20"] > df["ma20"].shift(5)
         df["ma60_rising"] = df["ma60"] > df["ma60"].shift(20)
@@ -317,9 +211,6 @@ class Backtester:
         df["hh60"] = df["close"].rolling(window=60).max()
         return df
 
-    # ------------------------------------------------------------------
-    # 策略信号生成
-    # ------------------------------------------------------------------
     def _event_driven_signals(self, df, ticker, keywords):
         """
         事件驱动策略：综合价格、事件、宏观评分。
@@ -510,35 +401,6 @@ class Backtester:
                 signals.append(0)
         return signals
 
-    # ------------------------------------------------------------------
-    # 双趋势共振策略（GMMA + 一目均衡 + ADX）
-    # 移植自 stockanalysispro 双趋势量化选股系统，适配回测信号格式。
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _adx(df, period=14):
-        """Wilder ADX：衡量趋势强度（>20 有趋势，>40 强趋势）。"""
-        if df is None or df.empty or not all(c in df.columns for c in ("high", "low", "close")):
-            return pd.Series(dtype=float)
-        tr1 = df["high"] - df["low"]
-        tr2 = (df["high"] - df["close"].shift(1)).abs()
-        tr3 = (df["low"] - df["close"].shift(1)).abs()
-        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-        atr = tr.ewm(alpha=1 / period).mean()
-
-        plus_dm = df["high"].diff()
-        minus_dm = -df["low"].diff()
-        plus_dm = plus_dm.where(plus_dm > 0, 0.0)
-        minus_dm = minus_dm.where(minus_dm > 0, 0.0)
-        cond = plus_dm > minus_dm
-        plus_dm = plus_dm.where(cond, 0.0)
-        minus_dm = minus_dm.where(~cond, 0.0)
-
-        plus_di = 100 * (plus_dm.ewm(alpha=1 / period).mean() / atr)
-        minus_di = 100 * (minus_dm.ewm(alpha=1 / period).mean() / atr)
-        denom = (plus_di + minus_di).replace(0, np.nan)
-        dx = 100 * (plus_di - minus_di).abs() / denom
-        return dx.ewm(alpha=1 / period).mean()
-
     def _dual_trend_signals(self, df):
         """
         双趋势共振策略（GMMA + 一目均衡表 + ADX 趋势过滤）。
@@ -574,7 +436,7 @@ class Backtester:
         d["tk_bull"] = d["tenkan"] > d["kijun"]
 
         # ── ADX 趋势强度 ──
-        d["adx"] = self._adx(d)
+        d["adx"] = _adx(d)
 
         signals = []
         in_bull = False
@@ -605,9 +467,6 @@ class Backtester:
                 signals.append(0)
         return signals
 
-    # ------------------------------------------------------------------
-    # 模拟交易
-    # ------------------------------------------------------------------
     def _simulate(self, df, signals, initial_capital=100000, commission=0.001,
                   stop_loss_pct=0.05, take_profit_pct=0.03, trailing_stop_pct=0.0,
                   max_holding=15, min_holding=2, slippage_pct=0.001, stamp_tax_pct=0.001):
@@ -719,9 +578,6 @@ class Backtester:
 
         return pd.DataFrame(records), trades
 
-    # ------------------------------------------------------------------
-    # 每日选股回测（从 A 股中挑选今天/明天推荐购买的股票）
-    # ------------------------------------------------------------------
     def _score_for_picker(self, df, strategy="multi_factor"):
         """
         为每日选股计算单只股票的买入评分（V2 — 多日趋势确认版）。
@@ -1428,181 +1284,20 @@ class Backtester:
         return DailyPickerResult(picks_df, returns_df)
 
 
-class DailyPickerResult:
-    """每日选股回测结果封装。"""
-
-    def __init__(self, picks_df, returns_df):
-        self.picks_df = picks_df
-        self.returns_df = returns_df
-
-    def summary(self):
-        if self.returns_df.empty:
-            return {
-                "total_days": 0,
-                "avg_daily_return_pct": 0,
-                "total_return_pct": 0,
-                "win_day_pct": 0,
-                "total_picks": 0,
-                "win_pick_pct": 0,
-            }
-        total_return = self.returns_df["cumulative_return_pct"].iloc[-1]
-        avg_daily = self.returns_df["avg_return_pct"].mean()
-        win_days = (self.returns_df["avg_return_pct"] > 0).sum()
-        win_day_pct = win_days / len(self.returns_df) * 100
-
-        total_picks = len(self.picks_df)
-        win_picks = (self.picks_df["hold_return_pct"] > 0).sum() if not self.picks_df.empty else 0
-        win_pick_pct = win_picks / total_picks * 100 if total_picks > 0 else 0
-
-        return {
-            "total_days": len(self.returns_df),
-            "avg_daily_return_pct": round(avg_daily, 2),
-            "total_return_pct": round(total_return, 2),
-            "win_day_pct": round(win_day_pct, 2),
-            "total_picks": total_picks,
-            "win_pick_pct": round(win_pick_pct, 2),
-        }
-
-    def latest_picks(self, n=10):
-        """返回最近一个交易日的推荐股票。"""
-        if self.picks_df.empty:
-            return pd.DataFrame()
-        latest_date = self.picks_df["date"].max()
-        return self.picks_df[self.picks_df["date"] == latest_date].sort_values("score", ascending=False).head(n)
-
-    def prev_picks(self, n=10):
-        """返回前一个交易日的推荐股票（用于观察明日表现）。"""
-        if self.picks_df.empty:
-            return pd.DataFrame()
-        dates = sorted(self.picks_df["date"].unique())
-        if len(dates) < 2:
-            return pd.DataFrame()
-        prev_date = dates[-2]
-        return self.picks_df[self.picks_df["date"] == prev_date].sort_values("score", ascending=False).head(n)
+# ── 向后兼容：让 Backtester._rsi(series) 等静态调用仍然有效 ──
+Backtester._rsi = staticmethod(_rsi)
+Backtester._atr = staticmethod(_atr)
+Backtester._macd = staticmethod(_macd)
+Backtester._bollinger = staticmethod(_bollinger)
+Backtester._adx = staticmethod(_adx)
 
 
-class BacktestResult:
-    """回测结果封装。"""
-
-    def __init__(self, ticker, strategy, result_df, initial_capital, trades=None):
-        self.ticker = ticker
-        self.strategy = strategy
-        self.df = result_df
-        self.trades = trades or []
-        self.initial_capital = initial_capital
-
-    @property
-    def final_value(self):
-        return self.df["total_asset"].iloc[-1] if not self.df.empty else self.initial_capital
-
-    @property
-    def total_return(self):
-        return round(self.df["cumulative_return"].iloc[-1], 2) if not self.df.empty else 0
-
-    @property
-    def max_drawdown(self):
-        return round(self.df["drawdown"].min(), 2) if not self.df.empty else 0
-
-    @property
-    def sharpe_ratio(self):
-        """年化夏普比率（无风险利率取3%）。"""
-        if self.df.empty:
-            return 0
-        daily_returns = self.df["daily_return"] / 100
-        if daily_returns.std() == 0:
-            return 0
-        annual_return = daily_returns.mean() * 252
-        annual_std = daily_returns.std() * np.sqrt(252)
-        risk_free = 0.03 / 252
-        return round((annual_return - risk_free) / annual_std, 2) if annual_std > 0 else 0
-
-    @property
-    def win_rate(self):
-        """交易胜率：以每笔完整交易净盈亏为正为准。"""
-        if not self.trades:
-            return 0
-        wins = sum(1 for t in self.trades if t["profit_pct"] > 0)
-        return round(wins / len(self.trades) * 100, 2)
-
-    @property
-    def profit_factor(self):
-        """盈亏比：总盈利 / |总亏损|。无亏损交易（全胜）或无交易时分母为 0，盈亏比无定义，返回 None（而非误导性的 0）。"""
-        if not self.trades:
-            return None
-        gross_profit = sum(t["profit_pct"] for t in self.trades if t["profit_pct"] > 0)
-        gross_loss = abs(sum(t["profit_pct"] for t in self.trades if t["profit_pct"] < 0))
-        # 无亏损交易（全胜）时分母为 0，盈亏比无定义：返回 None 而非误导性的 0
-        # （与 run_batch 的 is not None 过滤、页面的「—」展示口径一致，见锐评 R4）。
-        return round(gross_profit / gross_loss, 2) if gross_loss > 0 else None
-
-    @property
-    def avg_trade_return(self):
-        """单笔交易平均收益率。"""
-        if not self.trades:
-            return 0
-        return round(sum(t["profit_pct"] for t in self.trades) / len(self.trades), 2)
-
-    @property
-    def trade_count(self):
-        return len(self.trades)
-
-    @property
-    def exposure_pct(self):
-        """持仓时间占比（%）：持有头寸的交易日数 / 总交易日数。"""
-        if self.df.empty or "position" not in self.df.columns:
-            return 0.0
-        bars = len(self.df)
-        if bars == 0:
-            return 0.0
-        held = int((self.df["position"] > 0).sum())
-        return round(held / bars * 100, 2)
-
-    @property
-    def annualized_return_pct(self):
-        """年化收益率（%）：以总交易日近似 252 交易日/年做几何年化。"""
-        if self.df.empty:
-            return 0.0
-        total = self.total_return
-        bars = len(self.df)
-        if bars <= 1 or total <= -100:
-            return 0.0
-        growth = 1 + total / 100
-        if growth <= 0:
-            return 0.0
-        years = bars / 252
-        return round((growth ** (1 / years) - 1) * 100, 2)
-
-    def summary(self):
-        """返回回测摘要字典。"""
-        return {
-            "ticker": self.ticker,
-            "strategy": self.strategy,
-            "initial_capital": self.initial_capital,
-            "final_value": self.final_value,
-            "total_return_pct": self.total_return,
-            "max_drawdown_pct": self.max_drawdown,
-            "sharpe_ratio": self.sharpe_ratio,
-            "win_rate_pct": self.win_rate,
-            "profit_factor": self.profit_factor,
-            "avg_trade_return_pct": self.avg_trade_return,
-            "trade_count": self.trade_count,
-            "start_date": self.df["date"].iloc[0].strftime("%Y-%m-%d") if not self.df.empty else "",
-            "end_date": self.df["date"].iloc[-1].strftime("%Y-%m-%d") if not self.df.empty else "",
-        }
-
-    def summary_text(self):
-        """返回文本摘要。"""
-        s = self.summary()
-        return (
-            f"=== 回测结果 [{s['ticker']}] [{s['strategy']}] ===\n"
-            f"  回测区间:   {s['start_date']} ~ {s['end_date']}\n"
-            f"  初始资金:   ¥{s['initial_capital']:,.0f}\n"
-            f"  最终资产:   ¥{s['final_value']:,.2f}\n"
-            f"  累计收益:   {s['total_return_pct']:+.2f}%\n"
-            f"  最大回撤:   {s['max_drawdown_pct']:.2f}%\n"
-            f"  夏普比率:   {s['sharpe_ratio']}\n"
-            f"  胜率:       {s['win_rate_pct']:.2f}%\n"
-            f"  盈亏比:     {s['profit_factor']}\n"
-            f"  平均单笔:   {s['avg_trade_return_pct']:+.2f}%\n"
-            f"  交易次数:   {s['trade_count']}"
-        )
+__all__ = [
+    "Backtester",
+    "DailyPickerResult",
+    "BacktestResult",
+    "RSI_EXCLUDE_THRESHOLD",
+    "_clamp100", "_final_picker_score", "_trend_persistence_ratio",
+    "_rsi14_health_score", "_rsi14_overbought",
+    "_rsi", "_atr", "_macd", "_bollinger", "_adx",
+]
