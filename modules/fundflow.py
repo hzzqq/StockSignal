@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 # 集中配置（代理 / 超时 / 测试密钥）统一从 modules.site_config 读取，避免散落硬编码
 from modules.site_config import REQUEST_TIMEOUT, PROXY_DEFAULT
+import modules.site_config as site_config  # R-08：SSL_BYPASS 在函数体内动态访问（支持测试 monkeypatch）
 from modules.timeout_exec import run_with_timeout
 from modules.fetch_parallel import fetch_many  # R78：共享有界线程池并发取数
 
@@ -129,7 +130,8 @@ def _ensure_proxy_and_ssl():
 
     # 证书校验：默认恢复（安全红线）。
     # 仅当 STOCKSIGNAL_SSL_BYPASS=1（本机代理做 TLS 拦截的开发环境）才临时关闭。
-    if os.environ.get("STOCKSIGNAL_SSL_BYPASS") == "1":
+    # R-08：配置从 site_config.SSL_BYPASS 读取（函数体内动态访问，支持测试 monkeypatch）。
+    if site_config.SSL_BYPASS:
         import urllib3
         import requests
         urllib3.disable_warnings()

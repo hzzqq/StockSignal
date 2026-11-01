@@ -31,6 +31,11 @@ FETCH_MAX_WORKERS = int(os.environ.get("STOCKSIGNAL_FETCH_WORKERS", "6"))
 # 冒烟测试用的弱密钥（仅测试桩，非生产）。生产由 STOCKSIGNAL_SECRET 控制。
 TEST_SMOKE_SECRET = os.environ.get("STOCKSIGNAL_TEST_SECRET", "stocksignal-smoke")
 
+# TLS 校验绕过（仅开发环境用）。本机代理做 TLS 拦截时 akshare 直连会抛 SSLCertVerificationError，
+# 设 STOCKSIGNAL_SSL_BYPASS=1 可临时关闭 requests 的证书校验。**默认关闭（安全红线）**：
+# 空值 / "0" / 非 "1" 均视为不绕过。R-08 从 fundflow / ssl_helper 收敛至此。
+SSL_BYPASS = os.environ.get("STOCKSIGNAL_SSL_BYPASS", "") == "1"
+
 
 # ── 不变量校验（防线程泄漏的关键闸门）──────────────────────────────────
 # CALL_TIMEOUT_CAP 必须大于 REQUEST_TIMEOUT，否则底层网络不会先被传输层超时唤醒、

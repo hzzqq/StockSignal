@@ -11,6 +11,7 @@ import pytest
 import requests
 
 from modules import fundflow as ff
+from modules import site_config  # R-08：SSL_BYPASS 单一真理源
 
 
 PROXY_KEYS = ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy")
@@ -22,6 +23,8 @@ def _isolate(monkeypatch):
     monkeypatch.setattr(ff, "_patch_done", False)
     for k in PROXY_KEYS + ("STOCKSIGNAL_PROXY", "STOCKSIGNAL_SSL_BYPASS"):
         monkeypatch.delenv(k, raising=False)
+    # R-08：SSL_BYPASS 单一真理源从 site_config 读，fixture 先重置默认 False
+    monkeypatch.setattr(site_config, "SSL_BYPASS", False)
     # 还原 requests.Session.request（_ensure_proxy_and_ssl 可能 patch 它）
     monkeypatch.setattr(requests.Session, "request", requests.Session.request)
     yield
@@ -92,9 +95,13 @@ def test_ac5_ssl_verify_kept_by_default(monkeypatch):
 
 # ───────────────────────── AC6 SSL 绕过(仅开发) ─────────────────────────
 def test_ac6_ssl_bypass_only_when_explicit(monkeypatch):
-    """STOCKSIGNAL_SSL_BYPASS=1 才临时关闭 verify；且 pop 遗留代理逻辑不受影响。"""
+    """STOCKSIGNAL_SSL_BYPASS=1 才临时关闭 verify；且 pop 遗留代理逻辑不受影响。
+
+    R-08：fundflow 从 site_config.SSL_BYPASS 读（不再直接 os.environ.get），
+    所以测试 monkeypatch site_config 而非 env（单一真理源）。
+    """
     _patch_proxy_reachable(monkeypatch, False)
-    monkeypatch.setenv("STOCKSIGNAL_SSL_BYPASS", "1")
+    monkeypatch.setattr(site_config, "SSL_BYPASS", True)
 
     disable_calls = []
     import urllib3
