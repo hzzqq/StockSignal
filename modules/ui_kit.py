@@ -143,6 +143,9 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .ss-pill.theme-dark{color:var(--ss-pill-dark-fg);
   border-color:color-mix(in srgb,var(--ss-pill-dark-bg) 85%,var(--ss-pill-dark-fg));
   background:var(--ss-pill-dark-bg)}
+/* [deprecated 2026-11-01] .ss-pill.theme-light 零引用死规则（全仓 grep 0 处），
+   且 phase1 未批 --ss-pill-light-* 令牌——保留规则本体待浅色风格需要时再激活，
+   禁止新增调用（G5 精神：先登记令牌再使用）。 */
 .ss-pill.theme-light{color:#4338ca;border-color:#c7d2fe;background:#eef2ff}
 
 /* ---- 信息横幅 ----
