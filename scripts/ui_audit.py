@@ -23,7 +23,10 @@ B. hygiene_baseline —— T-353 卫生五维，scope=仓库全部 .py（排除 
    4) st.metric 缺 delta_color（守卫 test_metric_delta_color 为渐进白名单制，
       非白名单页的缺口在此如实计数，二者口径不矛盾）
    5) st_autorefresh / streamlit_autorefresh / trading_autorefresh 残留
-      （imports / 直调 calls / 其他引用分开计；Call 的 func 节点不重复计入 refs）
+      （imports / 直调 calls / helper calls / 其他引用分开计；Call 的 func 节点不重复计入 refs。
+       P1-9 口径修正（2026-11-01）：trading_autorefresh 为合法 helper 消费（适配层已删，
+       页面消费属 T-350 后存续用法）单列 helper_calls，direct_calls 仅计 st_autorefresh/
+       streamlit_autorefresh 真残留直调）
 
 诚实口径：SyntaxError / 解码失败文件如实记入 report["errors"]，不静默跳过。
 脚本本身只审计不修改，退出码恒 0（它是尺子，不是守卫；守卫另行由 tests/ 承担）。
@@ -52,8 +55,12 @@ SF_COMPONENTS = (
 )
 XC_COMPONENTS = (
     "xc_kpi_grid", "chart_card", "table_wrap", "page_hero", "xc_section_header",
+    "xc_bento_kpi",  # 2026-11-01 P1-9 口径修正：补 Bento 批次核心组件
 )
 AUTOREFRESH_NAMES = ("st_autorefresh", "streamlit_autorefresh", "trading_autorefresh")
+# 合法 helper：已 fragment 化且适配层已删（commit 2873938），页面消费此 helper 属 T-350 验收
+# 后的存续用法，不算残留直调（P1-9 口径修正）
+HELPER_AUTOREFRESH_NAMES = ("trading_autorefresh",)
 
 
 def _is_skip(path: Path) -> bool:
@@ -132,7 +139,8 @@ def analyze_file(path: Path, rel: str) -> dict:
         "st_rerun_all": [],               # [(lineno, bare_bool)]
         "pure_except_pass": [],           # [lineno]
         "autorefresh_imports": [],        # [(lineno, full)]
-        "autorefresh_calls": [],          # [(lineno, name)]
+        "autorefresh_direct_calls": [],   # [(lineno, name)] 真残留：st_autorefresh/streamlit_autorefresh 直调
+        "autorefresh_helper_calls": [],   # [(lineno, name)] trading_autorefresh helper 消费（合法，非残留）
         "autorefresh_refs": [],           # [(lineno, name)]  非调用非 import 引用
     }
     tree, err = parse_tree(path)
@@ -192,7 +200,10 @@ def analyze_file(path: Path, rel: str) -> dict:
             ):
                 out["st_rerun_all"].append((node.lineno, not _has_kw(node, "scope")))
             if attr in AUTOREFRESH_NAMES:
-                out["autorefresh_calls"].append((node.lineno, attr))
+                if attr in HELPER_AUTOREFRESH_NAMES:
+                    out["autorefresh_helper_calls"].append((node.lineno, attr))
+                else:
+                    out["autorefresh_direct_calls"].append((node.lineno, attr))
             continue
 
         # ---- 非调用引用（排除 Call 的 func 节点，防重复计数） ----
@@ -319,7 +330,8 @@ def main() -> int:
         for _, b in f["st_rerun_all"] if b
     )
     ar_import_hit = [f for f in files if f["autorefresh_imports"]]
-    ar_call_hit = [f for f in files if f["autorefresh_calls"]]
+    ar_call_hit = [f for f in files if f["autorefresh_direct_calls"]]
+    ar_helper_hit = [f for f in files if f["autorefresh_helper_calls"]]
     ar_ref_hit = [f for f in files if f["autorefresh_refs"]]
 
     hygiene_baseline = {
@@ -346,9 +358,16 @@ def main() -> int:
                 "locations": _loc(ar_import_hit, "autorefresh_imports", with_name=True),
             },
             "direct_calls": {
-                "count": sum(len(f["autorefresh_calls"]) for f in ar_call_hit),
+                "count": sum(len(f["autorefresh_direct_calls"]) for f in ar_call_hit),
                 "by_dir": dict(sorted(_group_dir(ar_call_hit).items())),
-                "locations": _loc(ar_call_hit, "autorefresh_calls", with_name=True),
+                "locations": _loc(ar_call_hit, "autorefresh_direct_calls", with_name=True),
+                "note": "仅 st_autorefresh/streamlit_autorefresh 直调（真残留）；trading_autorefresh 为合法 helper 消费另计",
+            },
+            "helper_calls": {
+                "count": sum(len(f["autorefresh_helper_calls"]) for f in ar_helper_hit),
+                "by_dir": dict(sorted(_group_dir(ar_helper_hit).items())),
+                "locations": _loc(ar_helper_hit, "autorefresh_helper_calls", with_name=True),
+                "note": "trading_autorefresh helper 消费（T-350 后存续的合法调用，非残留）",
             },
             "other_refs": {
                 "count": sum(len(f["autorefresh_refs"]) for f in ar_ref_hit),
@@ -400,7 +419,7 @@ def main() -> int:
     print(f"  3) 纯 except-pass           count={h['pure_except_pass']['count']}  by_dir={h['pure_except_pass']['by_dir']}")
     print(f"  4) st.metric 缺 delta_color calls={h['st_metric_missing_delta_color']['count']}")
     ar = h["autorefresh_residue"]
-    print(f"  5) autorefresh 残留         imports={ar['imports']['count']}  direct_calls={ar['direct_calls']['count']}  other_refs={ar['other_refs']['count']}  by_dir={ar['imports']['by_dir']}|{ar['direct_calls']['by_dir']}")
+    print(f"  5) autorefresh 残留         imports={ar['imports']['count']}  direct_calls={ar['direct_calls']['count']}  helper_calls={ar['helper_calls']['count']}  other_refs={ar['other_refs']['count']}  by_dir={ar['imports']['by_dir']}|{ar['direct_calls']['by_dir']}")
     if errors:
         print(f"[errors] {len(errors)} 个文件解析失败（已记入 JSON，未静默）:")
         for e in errors:
