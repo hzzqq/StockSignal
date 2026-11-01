@@ -30,7 +30,7 @@ WEBAPPS_DIR = Path(__file__).resolve().parent.parent / "webapps"
 
 
 def _scan_webapps() -> list[dict]:
-    """扫描 webapps/*/meta.json，返回合法作品元数据列表（按目录名排序）。
+    """扫描 webapps/*/meta.json，返回合法作品元数据列表（按 added 升序、目录名兜底排序）。
 
     防御性约束：meta.json 由仓库内文件提供，但仍按不可信输入处理——
     entry 必须是相对路径且不含 ``..``（防索引页拼出穿越 URL）；字段缺失/
@@ -63,7 +63,8 @@ def _scan_webapps() -> list[dict]:
                 "added": str(meta.get("added", "—")),
             }
         )
-    return works
+    # 按收录日期 added 升序排列（末位追加的新作品自然落在最后），目录名作兜底排序
+    return sorted(works, key=lambda w: (w["added"], w["dir"]))
 
 
 def _work_url(work: dict) -> str:
