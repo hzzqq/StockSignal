@@ -14,10 +14,11 @@
 """
 import streamlit as st
 import pandas as pd
-import concurrent.futures as cf
+import concurrent.futures as cf  # kept for potential other uses
 from datetime import datetime
 from modules.session import safe_switch_page, api_get, api_post, api_delete
 from modules.fundflow import get_industry_fund_flow, get_individual_fund_flow
+from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: 收敛到共享并发基元
 from modules.timeout_exec import run_with_timeout
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
 from modules.page_guard import safe_fragment
@@ -310,9 +311,10 @@ def fragment_watchlist():
     with st.spinner(f'并行获取 {len(codes)} 只自选股实时行情…'):
         quotes = {}
         try:
-            with cf.ThreadPoolExecutor(max_workers=4) as ex:
-                for code, q in ex.map(_quote_one, codes):
-                    quotes[code] = q
+            # R-03: fetch_parallel 共享池（限流 + 异常返回 None）
+            tasks = [(c, lambda c=c: _quote_one(c)) for c in codes]
+            quotes_raw = _fetch_many(tasks, max_workers=4)
+            quotes = {c: quotes_raw.get(c) for c in codes}
         except Exception as e:
             xc_handle_error("行情并行抓取失败", e, hint="请稍后重试，或检查网络与数据源连接")
             if st.button('🔄 重试', key='btn_wl_retry'):
@@ -411,9 +413,10 @@ def fragment_individual_ff():
     with st.spinner(f'并行获取 {len(codes)} 只自选股主力资金流…'):
         ff_map = {}
         try:
-            with cf.ThreadPoolExecutor(max_workers=4) as ex:
-                for code, r in ex.map(_ff_one, codes):
-                    ff_map[code] = r
+            # R-03: fetch_parallel 共享池
+            tasks = [(c, lambda c=c: _ff_one(c)) for c in codes]
+            ff_raw = _fetch_many(tasks, max_workers=4)
+            ff_map = {c: ff_raw.get(c) for c in codes}
         except Exception as e:
             xc_handle_error("资金流并行抓取失败", e, hint="请稍后重试，或检查网络与数据源连接")
             if st.button('🔄 重试', key='btn_iff_retry'):
@@ -484,15 +487,13 @@ def fragment_alerts():
         quotes = {}
         ff_map = {}
         try:
-            with cf.ThreadPoolExecutor(max_workers=6) as ex:
-                futs_q = {ex.submit(_quote_one, c): 'q' for c in codes}
-                futs_f = {ex.submit(_ff_one, c): 'f' for c in codes}
-                for fut in cf.as_completed(list(futs_q) + list(futs_f)):
-                    res = fut.result()
-                    if futs_q.get(fut) == 'q':
-                        quotes[res[0]] = res[1]
-                    else:
-                        ff_map[res[0]] = res[1]
+            # R-03: 拆成两批 fetch_many（同共享池，等价原混合 submit 路由但更清晰）
+            q_tasks = [(c, lambda c=c: _quote_one(c)) for c in codes]
+            f_tasks = [(c, lambda c=c: _ff_one(c)) for c in codes]
+            q_raw = _fetch_many(q_tasks, max_workers=6)
+            f_raw = _fetch_many(f_tasks, max_workers=6)
+            quotes = {c: q_raw.get(c) for c in codes}
+            ff_map = {c: f_raw.get(c) for c in codes}
         except Exception as e:
             xc_handle_error("预警扫描失败", e, hint="请稍后重试，或检查网络与数据源连接")
             if st.button('🔄 重试', key='btn_alert_retry'):
@@ -573,9 +574,10 @@ def fragment_watch_manage():
     with st.spinner(f'获取 {len(codes)} 只实时行情…'):
         quotes = {}
         try:
-            with cf.ThreadPoolExecutor(max_workers=4) as ex:
-                for code, q in ex.map(_quote_one, codes):
-                    quotes[code] = q
+            # R-03: fetch_parallel 共享池
+            tasks = [(c, lambda c=c: _quote_one(c)) for c in codes]
+            quotes_raw = _fetch_many(tasks, max_workers=4)
+            quotes = {c: quotes_raw.get(c) for c in codes}
         except Exception:
             quotes = {}
     for it in items:

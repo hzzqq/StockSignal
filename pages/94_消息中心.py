@@ -16,13 +16,14 @@ import logging
 import streamlit as st
 from datetime import datetime
 import math
-import concurrent.futures as _cf
+import concurrent.futures as _cf  # kept for potential other uses; main fetch uses fetch_parallel
 
 from modules.page_utils import render_standard_page
 from modules.page_utils import fmt_rel as _fmt_rel
 from modules.ui_theme import sf_metric
 from modules.session import safe_switch_page, api_get, trading_autorefresh
 from modules.fetcher import StockFetcher
+from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: 收敛到共享并发基元
 from modules.page_guard import safe_section, render_data_degradation_banner
 
 logger = logging.getLogger(__name__)
@@ -97,44 +98,40 @@ def _build_movers():
         return []
     codes = [it.get("stock_code") for it in items if it.get("stock_code")]
     msgs = []
-    with _cf.ThreadPoolExecutor(max_workers=6) as ex:
-        fut = {ex.submit(FETCHER.get_realtime_quote, c): c for c in codes}
-        for f in _cf.as_completed(fut):
-            code = fut[f]
+    # R-03: 收敛到 fetch_parallel.fetch_many（共享池 + 信号量限流 + 异常返回 None）
+    tasks = [(c, lambda c=c: FETCHER.get_realtime_quote(c)) for c in codes]
+    quotes_map = _fetch_many(tasks, max_workers=6)
+    for code, q in quotes_map.items():
+        if not q or not isinstance(q, dict):
+            continue
+        pct = _pct(q)
+        if abs(pct) >= 3.0:
             try:
-                q = f.result()
-            except Exception:
-                q = None
-            if not q or not isinstance(q, dict):
-                continue
-            pct = _pct(q)
-            if abs(pct) >= 3.0:
+                name = q.get("name") or code
                 try:
-                    name = q.get("name") or code
-                    try:
-                        cur_s = f"¥{float(q.get('current') or 0):.2f}"
-                    except Exception:
-                        cur_s = "—"
-                    try:
-                        high_s = f"¥{float(q.get('high') or 0):.2f}"
-                    except Exception:
-                        high_s = "—"
-                    try:
-                        low_s = f"¥{float(q.get('low') or 0):.2f}"
-                    except Exception:
-                        low_s = "—"
-                    msgs.append({
-                        "id": f"mv_{code}",
-                        "type": "异动",
-                        "title": f"{name}({code}) {'大涨' if pct >= 0 else '大跌'} {pct:+.2f}%",
-                        "detail": f"现价 {cur_s}　高 {high_s}　低 {low_s}",
-                        "time": q.get("datetime", ""),
-                        "target": "pages/24_个股研究.py",
-                        "params": {"pick_stock": code},
-                    })
+                    cur_s = f"¥{float(q.get('current') or 0):.2f}"
                 except Exception:
-                    # 单只行情异常不应拖垮整个异动区块（safe_section 会整体降级）
-                    continue
+                    cur_s = "—"
+                try:
+                    high_s = f"¥{float(q.get('high') or 0):.2f}"
+                except Exception:
+                    high_s = "—"
+                try:
+                    low_s = f"¥{float(q.get('low') or 0):.2f}"
+                except Exception:
+                    low_s = "—"
+                msgs.append({
+                    "id": f"mv_{code}",
+                    "type": "异动",
+                    "title": f"{name}({code}) {'大涨' if pct >= 0 else '大跌'} {pct:+.2f}%",
+                    "detail": f"现价 {cur_s}　高 {high_s}　低 {low_s}",
+                    "time": q.get("datetime", ""),
+                    "target": "pages/24_个股研究.py",
+                    "params": {"pick_stock": code},
+                })
+            except Exception:
+                # 单只行情异常不应拖垮整个异动区块（safe_section 会整体降级）
+                continue
     try:
         # extract_pct 永不抛异常：无 "%" 的标题返回 -inf，abs 后沉底，
         # 不再因任意一条非数字标题就让整个排序静默失效

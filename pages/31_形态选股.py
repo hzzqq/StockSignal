@@ -78,7 +78,9 @@ div[data-testid="stRadio"] label:hover,
 
 fetcher = get_fetcher()
 
-import concurrent.futures as _cf
+from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: 收敛到共享并发基元
+
+import concurrent.futures as _cf  # kept for potential other uses
 
 
 def _norm_code(c: str) -> str:
@@ -110,10 +112,11 @@ if source == "我的自选股":
             def _name_code(c):
                 n = fetcher.get_name_only(c)
                 return f"{n}({c})" if n else c
-            # 并行解析名称（本地 fetcher，线程安全），避免逐只串行拖慢页面加载
+            # R-03: fetch_parallel 共享池（限流 + 异常返回 None）
             with st.spinner("解析自选股名称…"):
-                with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-                    labels = list(ex.map(_name_code, universe))
+                tasks = [(c, lambda c=c: _name_code(c)) for c in universe]
+                labels_map = _fetch_many(tasks, max_workers=4)
+                labels = [labels_map.get(c) or c for c in universe]  # 保持顺序，None 回退到代码
             display = ", ".join(labels[:12])
             st.caption(
                 f"✅ 已从自选股加载 **{len(universe)}** 只："
@@ -386,10 +389,10 @@ with st.container(border=True):
         start = (today - timedelta(days=365)).strftime("%Y-%m-%d")
         end = today.strftime("%Y-%m-%d")
 
-        # 并行抓取 K 线（网络 I/O 是瓶颈），再逐只做技术分析
+        # R-03: fetch_parallel 共享池（网络 I/O 是瓶颈），再逐只做技术分析
         with st.spinner(f"并行抓取 {len(universe)} 只股票日线…"):
-            with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-                fetched = list(ex.map(lambda c: _scan_fetch_one(c, start, end), universe))
+            tasks = [(c, lambda c=c: _scan_fetch_one(c, start, end)) for c in universe]
+            fetched = list(_fetch_many(tasks, max_workers=4).values())
 
         results = []
         prog = st.progress(0, text="分析形态中…")

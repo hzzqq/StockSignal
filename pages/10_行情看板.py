@@ -7,7 +7,8 @@ import logging
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
-import concurrent.futures as _cf
+import concurrent.futures as _cf  # kept; remaining use cases reviewed
+from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: HTTP 抓取收敛到共享基元
 from datetime import datetime, timedelta, time
 from modules.colors import UP_COLOR, DOWN_COLOR
 from modules.search_ui import multi_stock_search_input, stock_search_input
@@ -422,10 +423,13 @@ def _wl_quote_batch(codes, token):
         logger.warning(f"[行情看板] 批量行情接口失败，回退本地逐只取数: {e}")
     missing = [c for c in codes if c not in quotes]
     if missing:
-        with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-            for code, q in ex.map(lambda c: (c, _wl_quote_local(c)), missing):
-                if q is not None:
-                    quotes[code] = q
+        # R-03: fetch_parallel 共享池（本地逐只行情回退）
+        tasks = [(c, lambda c=c: _wl_quote_local(c)) for c in missing]
+        missing_raw = _fetch_many(tasks, max_workers=4)
+        for code in missing:
+            q = missing_raw.get(code)
+            if q is not None:
+                quotes[code] = q
     return (quotes, has_auth_error)
 
 def _wl_extra_uncached(code: str):
@@ -518,14 +522,10 @@ def fragment_watchlist_quotes():
     name_by_code = {it.get('stock_code'): it.get('stock_name') for it in items}
     id_by_code = {it.get('stock_code'): it.get('id') for it in items}
     names = {}
-    with _cf.ThreadPoolExecutor(max_workers=4) as ex:
-        _fut_map = {ex.submit(fetcher.get_name_only, c): c for c in codes}
-        for _fut in _cf.as_completed(_fut_map):
-            _c = _fut_map[_fut]
-            try:
-                names[_c] = _fut.result() or _c
-            except Exception:
-                names[_c] = _c
+    # R-03: fetch_parallel 共享池（名字查询，None 回退到 code）
+    name_tasks = [(c, lambda c=c: fetcher.get_name_only(c)) for c in codes]
+    name_raw = _fetch_many(name_tasks, max_workers=4)
+    names = {c: name_raw.get(c) or c for c in codes}
     _tok = get_token()
     with st.spinner(f'并行获取 {len(codes)} 只自选股实时行情…'):
         quotes, _has_auth_err = _wl_quote_batch(codes, _tok)

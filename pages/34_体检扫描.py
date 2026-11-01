@@ -3,13 +3,14 @@ import logging
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-import concurrent.futures
+import concurrent.futures  # kept for scan_one per-code error logging; simple fetches use fetch_parallel
 from modules.session import safe_switch_page, api_get
 from modules.page_utils import get_fetcher
 fetcher = get_fetcher()
 from modules.cleaner import DataCleaner
 from modules.technical import full_analysis
 from modules.fundflow import get_individual_fund_flow
+from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: 简单 HTTP 抓取收敛
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
@@ -230,9 +231,11 @@ def scan_one(code: str, name):
             except Exception:
                 return None
             return None
-        # PB 与 股息率 串行调用改并行，缩短单只扫描耗时
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as _vex:
-            pb, dv = _vex.map(_fetch_val, ("市净率", "股息率TTM"))
+        # R-03: fetch_parallel 共享池（PB + 股息率 两简单 HTTP 抓取并行）
+        tasks = [("pb", lambda: _fetch_val("市净率")),
+                 ("dv", lambda: _fetch_val("股息率TTM"))]
+        vals = _fetch_many(tasks, max_workers=2)
+        pb, dv = vals.get("pb"), vals.get("dv")
     except Exception as e:
         print(f'[R-01] 估值维度 PB/股息率 并行取数失败 code={code}: {e}')
         pass

@@ -8,10 +8,11 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 from datetime import date
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed  # kept; reviewed
 from modules.session import api_get, safe_switch_page
 import modules.scroll_nav as sn
 from modules.news import NewsFetcher
+from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: HTTP 抓取收敛
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher, quote_one as _quote_one
 from modules.page_utils import fmt_rel as _fmt_rel
@@ -161,9 +162,10 @@ def fragment_watchlist_and_news():
     quotes_map = {}
     if wl_codes:
         try:
-            with ThreadPoolExecutor(max_workers=6) as ex:
-                for c, q in ex.map(_quote_one, wl_codes):
-                    quotes_map[c] = q
+            # R-03: fetch_parallel 共享池（自选股实时行情）
+            tasks = [(c, lambda c=c: _quote_one(c)) for c in wl_codes]
+            quotes_raw = _fetch_many(tasks, max_workers=6)
+            quotes_map = {c: quotes_raw.get(c) for c in wl_codes}
         except Exception:
             quotes_map = {}
     selected_code = None
