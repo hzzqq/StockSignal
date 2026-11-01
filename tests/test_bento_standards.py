@@ -117,6 +117,8 @@ _KNOWN_PAGE_CLASSES = frozenset({
     "card", "compare-wrap", "dot", "label", "value",
     # ui_kit 内容卡家族（xc_content_card 的 .xc-content-card + 内部结构，60 页复用）
     "xc-content-card", "xc-cc-title", "xc-cc-body",
+    # 图表卡标题条（xc_chart_cell 工厂产物，P1-4b；两段式：标题条 + 紧随 st.plotly_chart）
+    "xc-chart-cell",
     # 登录/落地页族（lg-*，与 ui_theme --ss-login-* 配套）
     "lg-ai", "lg-ai-clue", "lg-brand-name", "lg-brand-sub", "lg-breadth",
     "lg-card", "lg-card-h", "lg-card-meta", "lg-desk", "lg-desk-brand",

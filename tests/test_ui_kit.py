@@ -106,6 +106,50 @@ def test_xc_card_html_contract():
     assert 'class="xc-card"' in kit._stat_tile_html("涨家数", "1200", "+3.2%", "up")
 
 
+def test_xc_card_accent_semantic_tiers():
+    """P1-2b（ui-ds Phase1 §2.2②a）：accent 语义档映射 L3 令牌，hex 直传兼容不破坏。
+
+    - 传档位名 up/down/neutral/accent → border-top 读 var(--ss-up/--ss-down/
+      --ss-line/--ss-accent)，七风格自动换色相（防彩虹卡收敛入口）；
+    - 传 hex（#ff0000）→ 直传原样保留（test_stat_tile_escapes_and_accent 与
+      test_xc_card_html_contract 已锁，此处复验）；
+    - 语义档值不经 html.escape 路径（映射表是封闭集合），档位外字符串仍走转义。
+    """
+    for tier, var in (("up", "var(--ss-up)"), ("down", "var(--ss-down)"),
+                      ("neutral", "var(--ss-line)"), ("accent", "var(--ss-accent)")):
+        out = kit._xc_card_html(label="x", value="1", accent=tier)
+        assert f"border-top:3px solid {var}" in out, f"accent={tier!r} 未映射到 {var}"
+    # hex 兼容路径复验（存量 37 处调用全为 hex 字面量）
+    assert "border-top:3px solid #ff0000" in kit._xc_card_html(label="x", value="1", accent="#ff0000")
+    # 语义档走令牌，不经转义；非档位字符串仍走转义路径
+    assert "var(--ss-up)" in kit._xc_card_html(label="x", value="1", accent="up")
+    weird = kit._xc_card_html(label="x", value="1", accent='"><script>')
+    assert "<script>" not in weird and "&quot;&gt;&lt;script&gt;" in weird
+
+
+def test_xc_chart_cell_title_bar(monkeypatch):
+    """P1-4b：xc_chart_cell 只渲染标题条 HTML（复用 .xc-section-h 结构 + .xc-chart-cell
+    类，G5 白名单已登记），不承诺包裹 st.plotly_chart（phase3 §1.4 裁定：
+    Streamlit 元素独立容器，HTML 包图不可行）。"""
+    import streamlit as st
+    captured = []
+    monkeypatch.setattr(st, "markdown", lambda html, *a, **k: captured.append(html))
+    kit.xc_chart_cell("涨跌幅分布", xtra="近 20 日")
+    out = captured[-1]
+    assert 'class="xc-section-h xc-chart-cell"' in out
+    assert "涨跌幅分布" in out and "近 20 日" in out
+    # XSS：标题/xtra 一律转义
+    captured.clear()
+    kit.xc_chart_cell("<b>x</b>", xtra="<i>y</i>")
+    out = captured[-1]
+    assert "<b>" not in out and "<i>" not in out
+    assert "&lt;b&gt;x&lt;/b&gt;" in out and "&lt;i&gt;y&lt;/i&gt;" in out
+    # None 安全
+    captured.clear()
+    kit.xc_chart_cell(None)
+    assert 'class="xc-section-h xc-chart-cell"' in captured[-1]
+
+
 def test_xc_error_box_renders_friendly_and_no_leak(monkeypatch):
     import streamlit as st
     captured = []

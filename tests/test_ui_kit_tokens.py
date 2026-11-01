@@ -123,6 +123,52 @@ def test_xc_hero_block_identical_across_two_channels():
     )
 
 
+def test_deprecated_ss_vocab_not_used_in_pages():
+    """废弃标记配套禁令（ui-ds Phase1 §2.3）：.ss-stat/.ss-info/.ss-chart 旧词汇
+    规则本体保留（兜底 + 存在性锁），但 pages/modules（ui_kit 自身除外）不得新增
+    class="ss-stat"/"ss-info"/"ss-chart" 字面量——HTML 构建器已全部路由 xc_*。"""
+    banned = ('class="ss-stat"', 'class="ss-info"', 'class="ss-chart"',
+              "class='ss-stat'", "class='ss-info'", "class='ss-chart'")
+    offenders = []
+    targets = sorted((ROOT / "pages").rglob("*.py")) + [
+        p for p in sorted((ROOT / "modules").rglob("*.py")) if p.name != "ui_kit.py"]
+    for p in targets:
+        src = p.read_text(encoding="utf-8", errors="replace")
+        hit = [b for b in banned if b in src]
+        if hit:
+            offenders.append(f"{p.name}: {hit}")
+    assert not offenders, f"出现废弃 ss-* 词汇字面量（应改走 xc_* 构建器）：{offenders}"
+
+
+def test_info_box_success_decoupled_from_down():
+    """P1-2d（ui-ds Phase1 §2.2④）：信息盒族 success 语义必须走 --ss-box-success
+    （=var(--ss-ok) 功能绿），不得再引用 --ss-down（A 股跌价绿）——
+    「信息盒绿色 ≠ 跌价」认知解耦；--ss-box-* 四别名必须在 _TOKEN_CSS 定义。"""
+    css = _kit()._TOKEN_CSS
+    for tok in ("--ss-box-info:var(--ss-accent)", "--ss-box-success:var(--ss-ok)",
+                "--ss-box-warn:var(--ss-warn-strong)", "--ss-box-danger:var(--ss-danger)"):
+        assert tok in css, f"信息盒语义别名缺失：{tok}"
+    kit_css = _kit()._KIT_CSS
+    m = re.search(r"\.xc-success-box\{([^}]*)\}", kit_css)
+    assert m, "缺少 .xc-success-box 规则"
+    assert "var(--ss-down)" not in m.group(1), (
+        ".xc-success-box 仍引用 --ss-down（跌价绿兼任 success 的认知风险回归）")
+    assert "var(--ss-box-success)" in m.group(1)
+    m2 = re.search(r"\.xc-info\.success\{([^}]*)\}", kit_css)
+    assert m2 and "var(--ss-box-success)" in m2.group(1)
+
+
+def test_content_card_title_reads_fs_title_token():
+    """P1-2c（ui-ds Phase1 §2.2③）：.xc-content-card 标题 15px → var(--ss-fs-title)，
+    与 xc-section-h 16px / sf-card-title 16px 统一到 title 级字号阶梯。"""
+    css = _kit()._KIT_CSS
+    m = re.search(r"\.xc-content-card \.xc-cc-title\{([^}]*)\}", css)
+    assert m, "缺少 .xc-content-card .xc-cc-title 规则"
+    assert "font-size:var(--ss-fs-title)" in m.group(1), (
+        ".xc-cc-title 未读 --ss-fs-title（字号阶梯收敛回潮）")
+    assert "15px" not in m.group(1), ".xc-cc-title 仍有 15px 硬编码"
+
+
 def test_hero_overlay_and_pill_tokens_wired():
     """P1-2（ui-ds Phase1 §2.2①）：page_hero 升级的令牌接线断言。
 

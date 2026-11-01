@@ -20,7 +20,7 @@ loading_spinner / section_header）、``button_colors`` 互补，不重复实现
   - page_hero(...)              签名页头（图标 + 标题 + 副标题 + 状态胶囊）
   - info_banner(...)            彩色提示横幅（info/success/warning/danger）
   - stat_tile(...)              指标瓦片（标签 + 大值 + 涨跌 delta）
-  - chart_card(...)             图表容器卡片（标题栏 + 圆角卡片）
+  - chart_card(...)             图表容器卡片 ⚠️deprecated（零生产调用，新代码用 xc_chart_cell）
   - table_wrap(...)             响应式表格容器（移动端横向滚动）
   - 以及对应的 _xxx_html 纯函数（便于离线单测与复用）
 """
@@ -72,6 +72,13 @@ _TOKEN_CSS = r"""
   --ss-pill-dark-fg:color-mix(in srgb,var(--ss-accent) 78%,#ffffff);
   --ss-pill-dark-bg:color-mix(in srgb,var(--ss-accent) 24%,#1a1a2e);
   --ss-focus-ring:var(--ss-accent);
+  /* P1-2d 信息盒族独立语义四色（ui-ds Phase1 §2.2④）：success 从 --ss-down（跌价绿）
+     解耦到 --ss-ok（恒绿系功能色），消除「信息盒绿色 ≠ 跌价」认知风险；
+     info/warn/danger 为同值别名，为浅色风格对比度预留独立调节点。 */
+  --ss-box-info:var(--ss-accent);
+  --ss-box-success:var(--ss-ok);
+  --ss-box-warn:var(--ss-warn-strong);
+  --ss-box-danger:var(--ss-danger);
   /* L3 字号阶梯（Phase1 §1.3：13/13.5/14/14.5/15/16/17/20/22 散布收敛 6 级） */
   --ss-fs-display:22px; --ss-fs-hero:22px; --ss-fs-title:16px;
   --ss-fs-body:13.5px; --ss-fs-label:12px; --ss-fs-caption:11px;
@@ -106,7 +113,9 @@ _KIT_CSS = _TOKEN_CSS + r"""
 <style>
 /* ===== ui_kit v1 组件层（沿用 ui_theme 主题变量 --acc1/--txt/--card/--border，随 theme_mode 自适应） ===== */
 
-/* ---- 签名页头 hero ---- */
+/* ---- 签名页头 hero ----
+   ⚠️ deprecated（ui-ds Phase1 §2.3）：.ss-hero 旧星辰词汇，HTML 构建器默认路由 .xc-hero；
+   本块仍被 _hero_html(style='sf') 兜底分支引用，【必须保留】，禁删。 */
 .ss-hero{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--ss-space-3);
   margin:var(--ss-space-1) 0 var(--ss-space-5);padding:var(--ss-space-4) var(--ss-space-5);border-radius:var(--ss-radius-card);
   background:linear-gradient(120deg,
@@ -136,7 +145,10 @@ _KIT_CSS = _TOKEN_CSS + r"""
   background:var(--ss-pill-dark-bg)}
 .ss-pill.theme-light{color:#4338ca;border-color:#c7d2fe;background:#eef2ff}
 
-/* ---- 信息横幅 ---- */
+/* ---- 信息横幅 ----
+   ⚠️ deprecated（ui-ds Phase1 §2.3）：.ss-info 旧词汇，信息横幅已收敛到 .xc-info
+   （xc_info_banner / info_banner 双入口同构）。规则仅剩兜底价值，保留不删
+   （test_ui_kit_tokens 锁 .ss-stat 存在性同族约束）；pages 禁新增 class="ss-info" 字面量。 */
 .ss-info{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:var(--ss-radius);
   margin:10px 0;font-size:13.5px;line-height:1.6;color:var(--ss-text);
   border:1px solid var(--ss-line);background:var(--ss-surface-2)}
@@ -146,7 +158,11 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .ss-info.warning{border-left:3px solid var(--ss-warn);background:color-mix(in srgb,var(--ss-warn) 10%,transparent)}
 .ss-info.danger{border-left:3px solid var(--ss-danger);background:color-mix(in srgb,var(--ss-danger) 8%,transparent)}
 
-/* ---- 指标瓦片 ---- */
+/* ---- 指标瓦片 ----
+   ⚠️ deprecated（ui-ds Phase1 §2.3）：.ss-stat 旧词汇，指标瓦片已收敛到 .xc-card
+   （stat_tile/_stat_tile_html → _xc_card_html 单一 canonical）。规则本体保留不删
+   ——test_ui_kit_tokens::test_primitives_read_tokens_no_stray_hex L72-74 锁 .ss-stat{
+   存在性；pages 禁新增 class="ss-stat" 字面量。 */
 .ss-stat{background:var(--ss-surface);border:1px solid var(--ss-line);border-radius:var(--ss-radius-card);
   padding:14px 16px;box-shadow:var(--ss-shadow-card);min-width:0}
 .ss-stat .label{font-size:12px;color:var(--ss-text-muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -155,7 +171,11 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .ss-stat .delta.up{color:var(--ss-up)} .ss-stat .delta.down{color:var(--ss-down)} .ss-stat .delta.flat{color:var(--ss-text-muted)}
 .ss-stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0}
 
-/* ---- 图表卡片 ---- */
+/* ---- 图表卡片 ----
+   ⚠️ deprecated（ui-ds Phase1 §2.3 + phase3 §1.4 裁定）：.ss-chart HTML 包图路线已被
+   实践淘汰（chart_card 生产调用为零——Streamlit 元素独立容器，无法跨容器包裹
+   st.plotly_chart）。规则保留不删（test_ui_kit 锁 _chart_card_html 契约）；
+   图表卡新入口是 xc_chart_cell（标题条）+ 页面紧随 st.plotly_chart。 */
 .ss-chart{background:var(--ss-surface);border:1px solid var(--ss-line);border-radius:var(--ss-radius-card);
   padding:16px 18px;margin:12px 0;box-shadow:0 1px 6px rgba(15,15,35,.06)}
 .ss-chart h3{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:15px;font-weight:700;color:var(--ss-text)}
@@ -246,14 +266,14 @@ _KIT_CSS = _TOKEN_CSS + r"""
   border:1px solid color-mix(in srgb,var(--ss-accent) 30%,var(--ss-line));
   background:color-mix(in srgb,var(--ss-accent) 8%,var(--ss-surface-2))}
 .xc-info .xc-ic{font-size:16px;line-height:1.4;flex-shrink:0}
-.xc-info.success{border-left:3px solid var(--ss-ok);background:color-mix(in srgb,var(--ss-ok) 8%,transparent)}
+.xc-info.success{border-left:3px solid var(--ss-box-success);background:color-mix(in srgb,var(--ss-box-success) 8%,transparent)}
 .xc-info.warning{border-left:3px solid var(--ss-warn);background:color-mix(in srgb,var(--ss-warn) 10%,transparent)}
 .xc-info.danger{border-left:3px solid var(--ss-danger);background:color-mix(in srgb,var(--ss-danger) 8%,transparent)}
 
 /* 新城内容卡（1:1 替代 ui_theme.sf_card，统一组件词汇到 xc_*；令牌化、主题自适应） */
 .xc-content-card{background:var(--ss-surface);border:1px solid color-mix(in srgb,var(--ss-accent) 20%,var(--ss-line));
   border-radius:var(--ss-radius-card);padding:14px 16px;margin:12px 0;box-shadow:var(--ss-shadow-card)}
-.xc-content-card .xc-cc-title{font-size:15px;font-weight:700;color:var(--ss-text);margin-bottom:6px;line-height:1.3}
+.xc-content-card .xc-cc-title{font-size:var(--ss-fs-title);font-weight:700;color:var(--ss-text);margin-bottom:6px;line-height:1.3}
 .xc-content-card .xc-cc-body{font-size:13.5px;color:var(--ss-text-muted);line-height:1.7}
 
 /* 新城友好错误卡 / 空态卡（不泄露内部异常，提供重试/降级引导） */
@@ -262,7 +282,9 @@ _KIT_CSS = _TOKEN_CSS + r"""
   border:1px solid var(--ss-line);background:var(--ss-surface-2)}
 .xc-error-box{border-left:4px solid var(--ss-danger);background:color-mix(in srgb,var(--ss-danger) 7%,var(--ss-surface-2))}
 .xc-empty-box{border-left:4px solid var(--ss-accent);background:color-mix(in srgb,var(--ss-accent) 6%,var(--ss-surface-2))}
-.xc-success-box{border-left:4px solid var(--ss-down);background:color-mix(in srgb,var(--ss-down) 9%,var(--ss-surface-2))}
+/* P1-2d：success 左条/底色从 --ss-down 解耦到 --ss-box-success（=var(--ss-ok)，同为绿系；
+   原 --ss-down 兼任 A 股跌价绿有认知风险）。info/warn/danger 同理走 --ss-box-* 单源。 */
+.xc-success-box{border-left:4px solid var(--ss-box-success);background:color-mix(in srgb,var(--ss-box-success) 9%,var(--ss-surface-2))}
 .xc-warn-box{border-left:4px solid var(--ss-warn-strong);background:color-mix(in srgb,var(--ss-warn-strong) 10%,var(--ss-surface-2))}
 .xc-err-ic{font-size:22px;line-height:1.3;flex-shrink:0}
 .xc-err-body{min-width:0}
@@ -597,6 +619,25 @@ def xc_subheader(title: str, icon: str = "", xtra: str = "") -> None:
     st.markdown(xc_section_header(f"{prefix}{title}", xtra=xtra), unsafe_allow_html=True)
 
 
+def xc_chart_cell(title: str, xtra: str = "") -> None:
+    """图表卡标题条（两段式图表卡·第一段）：渲染标题条后，页面**紧随其后**调用
+    ``st.plotly_chart(...)``，视觉上构成一张图表卡。
+
+    ⚠️ **不承诺包裹**（phase3 §1.4 裁定）：Streamlit 每个元素是独立的
+    stElementContainer，st.markdown 的 HTML 无法跨容器包裹原生 st.plotly_chart
+    ——chart_card() 的 HTML 包图路线因此被实践淘汰（零生产调用）。本工厂只渲染
+    标题条 HTML（复用全站统一的 .xc-section-h 结构：渐变竖条 + 右侧 xtra 标注），
+    并附加 ``.xc-chart-cell`` 类供 G5 白名单登记与图表皮肤定位。
+    """
+    inject_kit_css()
+    title = "" if title is None else str(title)
+    xtra_html = f'<span class="xtra">{html.escape(str(xtra))}</span>' if xtra else ""
+    st.markdown(
+        f'<div class="xc-section-h xc-chart-cell">{html.escape(title)}{xtra_html}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 _BANNER_KIND_XC = {"info": "info", "success": "success", "warning": "warning", "danger": "danger"}
 
 
@@ -731,7 +772,8 @@ def _inline_md(text: str) -> str:
 
 
 def xc_success_box(title: str, hint: str = "", icon: str = "✅") -> None:
-    """新城风格成功卡（绿，A股涨色 #00d486）。title 支持 ``**粗体**`` 行内强调。"""
+    """新城风格成功卡（绿，P1-2d 起走 --ss-box-success=var(--ss-ok) 功能绿，
+    与 A 股跌价绿 --ss-down 解耦）。title 支持 ``**粗体**`` 行内强调。"""
     inject_kit_css()
     title = "" if title is None else str(title)
     title = title.replace("✅", "").replace("⚠️", "").strip()
@@ -879,7 +921,13 @@ def xc_bento_kpi(cards, template: str = "repeat(auto-fit,minmax(220px,1fr))", ga
 
 
 def chart_card(title: str, body_html: str) -> None:
-    """图表容器卡片：标题栏 + 圆角卡片包裹 Plotly/HTML 图表。"""
+    """图表容器卡片：标题栏 + 圆角卡片包裹 Plotly/HTML 图表。
+
+    ⚠️ deprecated（ui-ds P1-4b）：生产调用为零（pages 全量 grep 证实），HTML 包图
+    路线已被 phase3 §1.4 裁定淘汰——Streamlit 元素独立容器，无法跨容器包裹原生
+    st.plotly_chart。保留仅为 test_module_imports_and_has_public_api 兼容锁；
+    新代码请用 ``xc_chart_cell(title)`` + 紧随其后的 ``st.plotly_chart(...)``。
+    """
     inject_kit_css()
     st.markdown(_chart_card_html(title, body_html), unsafe_allow_html=True)
 
