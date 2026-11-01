@@ -26,6 +26,13 @@ class _FakeAk:
             raise self._exc
         return self._df
 
+    def stock_individual_notice_report(self, security, symbol="全部",
+                                       begin_date=None, end_date=None):
+        self.calls.append((security, symbol, begin_date, end_date))
+        if self._exc:
+            raise self._exc
+        return self._df
+
 
 def test_normalize_columns_and_type_distribution(monkeypatch):
     df = pd.DataFrame({
@@ -91,3 +98,45 @@ def test_no_synthetic_guard_covers_adapter():
     assert any(p.endswith("event_announcements.py") for p in EXTENDED_TARGETS), (
         "新事件源模块必须纳入 no_synthetic AST 护栏"
     )
+
+
+# ───────────────────────── 个股公告（T-245 荐股排雷二道闸预置能力） ─────────────────────────
+
+def test_individual_notices_requires_security():
+    """未提供股票代码 → available=False + 中文 note，绝不编造。"""
+    out = ea.fetch_individual_notices("", "全部", days=30)
+    assert out["available"] is False and out["rows"] == []
+    assert "未提供股票代码" in out["note"]
+
+
+def test_individual_notices_happy_path(monkeypatch):
+    """正常路径：归一化 + (security, symbol, days) 进缓存 key + 日期参数 "YYYY-MM-DD" 直传。"""
+    df = pd.DataFrame({"代码": ["600519"], "名称": ["贵州茅台"],
+                       "公告标题": ["2026 年第三季度报告"], "公告类型": ["财务报告"],
+                       "公告日期": ["2026-10-31"], "网址": ["http://x"]})
+    fake = _FakeAk(df=df)
+    monkeypatch.setattr(ea, "_ak", lambda: fake)
+    out = ea.fetch_individual_notices("600519", "财务报告", days=30)
+    assert out["available"] is True and out["total"] == 1
+    assert out["by_type"] == {"财务报告": 1}
+    assert out["rows"][0]["code"] == "600519"
+    # 调用参数：(security, symbol, begin_date, end_date)，symbol 已透传、日期 "YYYY-MM-DD" 直传
+    assert fake.calls and len(fake.calls[0]) == 4
+    assert fake.calls[0][0] == "600519" and fake.calls[0][1] == "财务报告"
+    assert out["begin"] < out["end"] and len(out["begin"]) == 10
+
+
+def test_individual_notices_illegal_symbol_falls_back(monkeypatch):
+    fake = _FakeAk(df=pd.DataFrame())
+    monkeypatch.setattr(ea, "_ak", lambda: fake)
+    out = ea.fetch_individual_notices("600519", "不存在的类型xyz", days=30)
+    assert out["symbol"] == "全部"
+
+
+def test_individual_notices_failure_degrades_honestly(monkeypatch):
+    """源异常 → available=False + 中文 note（days=31 避开同 key 缓存撞车）。"""
+    fake = _FakeAk(exc=TimeoutError("stub timeout"))
+    monkeypatch.setattr(ea, "_ak", lambda: fake)
+    out = ea.fetch_individual_notices("600519", "全部", days=31)
+    assert out["available"] is False and out["rows"] == []
+    assert "不可用" in out["note"]

@@ -40,9 +40,33 @@ def _ak():
     return akshare
 
 
+def _normalize_df(df) -> list[dict]:
+    """akshare 公告帧 → 归一化 rows（缺列优雅降级为空串，不 KeyError）。"""
+    rows: list[dict] = []
+    if df is None or len(df) == 0:
+        return rows
+    for _, r in df.iterrows():
+        item = {}
+        for cn, en in _COL_MAP.items():
+            v = r.get(cn)
+            item[en] = "" if v is None else str(v)
+        rows.append(item)
+    return rows
+
+
+def _summarize(rows: list[dict], **meta) -> dict:
+    by_type: dict[str, int] = {}
+    for it in rows:
+        t = it.get("type") or "未知"
+        by_type[t] = by_type.get(t, 0) + 1
+    out = {"available": True, "total": len(rows), "by_type": by_type, "rows": rows, "note": ""}
+    out.update(meta)
+    return out
+
+
 def fetch_notice_events(date_yyyymmdd: str, symbol: str = "重大事项",
                         ttl: float = 600.0) -> dict:
-    """拉取指定日期的公告流并归一化。
+    """拉取指定日期的全市场公告流并归一化。
 
     :param date_yyyymmdd: 交易日 "YYYYMMDD"（非交易日东方财富通常返回空表，属真数据）
     :param symbol: 报告类型，见 NOTICE_TYPES；非法值回落 "重大事项" 并告警
@@ -70,17 +94,48 @@ def fetch_notice_events(date_yyyymmdd: str, symbol: str = "重大事项",
 def _fetch_impl(date_yyyymmdd: str, symbol: str) -> dict:
     ak = _ak()
     df = ak.stock_notice_report(symbol=symbol, date=date_yyyymmdd)
-    rows: list[dict] = []
-    if df is not None and len(df) > 0:
-        for _, r in df.iterrows():
-            item = {}
-            for cn, en in _COL_MAP.items():
-                v = r.get(cn)
-                item[en] = "" if v is None else str(v)
-            rows.append(item)
-    by_type: dict[str, int] = {}
-    for it in rows:
-        t = it.get("type") or "未知"
-        by_type[t] = by_type.get(t, 0) + 1
-    return {"available": True, "date": date_yyyymmdd, "symbol": symbol,
-            "total": len(rows), "by_type": by_type, "rows": rows, "note": ""}
+    return _summarize(_normalize_df(df), date=date_yyyymmdd, symbol=symbol)
+
+
+def fetch_individual_notices(security: str, symbol: str = "全部", days: int = 30,
+                             ttl: float = 900.0) -> dict:
+    """个股公告流（第三真实事件源的个股级能力，为荐股排雷二道闸 T-245 预置）。
+
+    :param security: 股票代码（如 "300237"，akshare 源码 :param security: 股票代码）
+    :param symbol: 报告类型，见 NOTICE_TYPES；非法值回落 "全部"
+    :param days: 向前回看自然日数（begin=今天-days, end=今天，"YYYY-MM-DD" 直传）
+    :param ttl: 缓存秒数
+    :return: dict(available, security, symbol, begin, end, total, by_type, rows, note)
+    """
+    from datetime import date as _date, timedelta as _td
+    if symbol not in NOTICE_TYPES:
+        logger.warning("[event_announcements] 非法公告类型 %r，回落「全部」", symbol)
+        symbol = "全部"
+    security = (security or "").strip()
+    if not security:
+        return {"available": False, "security": security, "symbol": symbol,
+                "begin": None, "end": None, "total": 0, "by_type": {}, "rows": [],
+                "note": "未提供股票代码，不编造公告"}
+    end = _date.today()
+    begin = end - _td(days=days)
+    key = f"evt_notice_ind_{security}_{symbol}_{days}"
+    meta = dict(security=security, symbol=symbol,
+                begin=begin.isoformat(), end=end.isoformat())
+
+    def _impl():
+        ak = _ak()
+        df = ak.stock_individual_notice_report(
+            security=security, symbol=symbol,
+            begin_date=begin.isoformat(), end_date=end.isoformat())
+        return _summarize(_normalize_df(df), **meta)
+
+    try:
+        return cached_ttl(ttl, key, _impl)
+    except Exception as e:
+        logger.warning("[event_announcements] 缓存层异常 %s，直连重试", e)
+        try:
+            return _impl()
+        except Exception as e2:
+            logger.warning("[event_announcements] 个股公告拉取失败: %s", e2)
+            return {"available": False, **meta, "total": 0, "by_type": {},
+                    "rows": [], "note": f"公告源不可用（{type(e2).__name__}），不编造数据"}
