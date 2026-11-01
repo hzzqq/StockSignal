@@ -11,9 +11,9 @@ import logging
 import streamlit as st
 import pandas as pd
 
-from modules.ui_kit import xc_handle_error, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_content_card, xc_kpi_grid
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_metric, section_header
+from modules.ui_theme import section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_regime as mr
 from modules.shepherd import get_shepherd_indicators, shepherd_temperature
@@ -55,20 +55,16 @@ try:
             f" · 状态判定最新真值日 **{regime['latest']['date']}**（数据区间 {regime['data']['start']}~{regime['data']['end']}）")
 
     # ── 顶部指标卡 ──
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        sf_metric("市场温度", f"{temp:.0f}", "0-100")
-    with c2:
-        sc = STATE_COLORS.get(regime["latest"]["state"], "#94a3b8")
-        sf_metric("市场状态", regime["latest"]["state"], f"置信度 {regime['latest']['confidence']*100:.0f}%")
-    with c3:
-        rr = float(latest.get("red_ratio", float("nan")))
-        rr_color = UP_COLOR if rr >= 50 else DOWN_COLOR
-        sf_metric("红盘率", _safe(rr, 1) + "%", "涨/跌家数比")
-    with c4:
-        lu = int(latest.get("limit_up", 0) or 0)
-        ld = int(latest.get("limit_down", 0) or 0)
-        sf_metric("涨停 / 跌停", f"{lu} / {ld}", "家数")
+    rr = float(latest.get("red_ratio", float("nan")))
+    lu = int(latest.get("limit_up", 0) or 0)
+    ld = int(latest.get("limit_down", 0) or 0)
+    xc_kpi_grid([
+        {"label": "市场温度", "value": f"{temp:.0f}", "delta": "0-100"},
+        {"label": "市场状态", "value": regime["latest"]["state"],
+         "delta": f"置信度 {regime['latest']['confidence']*100:.0f}%"},
+        {"label": "红盘率", "value": _safe(rr, 1) + "%", "delta": "涨/跌家数比"},
+        {"label": "涨停 / 跌停", "value": f"{lu} / {ld}", "delta": "家数"},
+    ])
 
     # ── 广度快照 + 状态机速览 ──
     st.markdown("---")
@@ -89,6 +85,7 @@ try:
             n = dist[s]
             pct = n / regime["data"]["rows"] * 100
             col = STATE_COLORS.get(s, "#94a3b8")
+            # ui_audit_exempt: unsafe-allow-html 状态名取自 mr.STATE_ORDER 内部常量 + 配色/天数数值，无用户/DB 输入流向
             st.markdown(
                 f"<div style='display:flex;align-items:center;gap:8px;margin:3px 0'>"
                 f"<span style='width:54px;color:{col};font-weight:700'>{s}</span>"
@@ -108,6 +105,7 @@ try:
         col = cols[idx % 4]
         with col:
             ac = STATE_COLORS.get(a["state"], "#94a3b8")
+            # ui_audit_exempt: unsafe-allow-html 类比卡全量数据来自 regime_report 内部计算（日期/状态/数值），无用户输入流向
             f5 = a["forward"].get("d5", {})
             up5 = f5.get("up_frac")
             upc = UP_COLOR if (up5 is not None and up5 > 0.5) else DOWN_COLOR

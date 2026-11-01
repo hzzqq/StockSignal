@@ -11,13 +11,14 @@ shepherd），离线零网，单源失败优雅降级。
   · 历史样本极小（生产仅 ~8 日）→ 晋级概率明确标注「即时观测、小样本」。
   · 事件池为离线快照 → 展示数据日期与时效性，非实时事件。
 """
+import html
 import logging
 
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
+from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi, xc_kpi_grid
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_metric, section_header
+from modules.ui_theme import section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_regime as mr
 from modules import shepherd_ladder as sl
@@ -120,6 +121,7 @@ try:
     html += _bar("连板高度（最高板映射）", comp.get("height"), _leader_color(comp.get("height")), suffix="")
     html += _bar("高位集中度（≥4板/总连板）", comp.get("density"), _leader_color(comp.get("density")), suffix="")
     html += _bar("接力意愿（2板晋级率）", comp.get("promo"), _leader_color(comp.get("promo")), suffix="%")
+    # ui_audit_exempt: unsafe-allow-html _bar 标签全为内部常量文案，数值/配色来自模块计算，无用户输入流向
     st.markdown(html, unsafe_allow_html=True)
     if ls.get("distribution"):
         dist_str = " · ".join(f"{k}板 {v}家" for k, v in sorted(ls["distribution"].items()))
@@ -129,19 +131,19 @@ try:
     # ── 次日晋级概率 ──
     st.markdown("---")
     section_header("次日晋级概率（诚实标注）", "即时观测值，非稳定历史概率", icon="🔭")
-    pcol1, pcol2, pcol3 = st.columns(3)
-    with pcol1:
-        sf_metric("即时 2板晋级率", _safe(ndp.get("live_rate"), 1) + "%", "最近一对快照")
-    with pcol2:
-        sf_metric("历史平均晋级率", _safe(ndp.get("hist_rate"), 1) + "%", f"基于 {ndp.get('n_pairs')} 个日对")
-    with pcol3:
-        sf_metric("连板高度趋势", ndp.get("height_trend", "—"), "近5日均线比较")
+    xc_kpi_grid([
+        {"label": "即时 2板晋级率", "value": _safe(ndp.get("live_rate"), 1) + "%", "delta": "最近一对快照"},
+        {"label": "历史平均晋级率", "value": _safe(ndp.get("hist_rate"), 1) + "%",
+         "delta": f"基于 {ndp.get('n_pairs')} 个日对"},
+        {"label": "连板高度趋势", "value": ndp.get("height_trend", "—"), "delta": "近5日均线比较"},
+    ])
     st.caption(ndp.get("note", ""))
 
     # ── 事件 × 广度共振 ──
     st.markdown("---")
     section_header("连板强度 × 市场状态 共振", "两路独立信号交叉验证", icon="🧲")
     rcol = reso.get("color", "#94a3b8")
+    # ui_audit_exempt: unsafe-allow-html 共振卡 label/detail 为 market_regime 模块内部模板文案，数值内部计算，无用户输入流向
     st.markdown(
         f"<div style='border-left:5px solid {rcol};border-radius:10px;padding:12px 16px;"
         f"background:{_hex_to_rgba(rcol,0.12)}'>"
@@ -172,11 +174,12 @@ try:
         pool = ep.get("pool", [])[:10]
         rows = ""
         for it in pool:
+            # 快照字段流向 HTML：动态串统一转义（signal JSON 快照视为 DB 输入）
             rows += (
                 f"<tr><td style='padding:3px 8px'>{it.get('rank')}</td>"
-                f"<td style='padding:3px 8px;font-family:monospace'>{it.get('symbol')}</td>"
+                f"<td style='padding:3px 8px;font-family:monospace'>{html.escape(str(it.get('symbol') or ''))}</td>"
                 f"<td style='padding:3px 8px;color:{UP_COLOR}'>{_safe(it.get('score'),1)}</td>"
-                f"<td style='padding:3px 8px'>{it.get('signal','—')}</td></tr>"
+                f"<td style='padding:3px 8px'>{html.escape(str(it.get('signal') or '—'))}</td></tr>"
             )
         st.markdown(
             f"<table style='width:100%;font-size:12px;border-collapse:collapse'>"

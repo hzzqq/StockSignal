@@ -27,7 +27,8 @@ from modules.alert_rules import (
 )
 from modules import push_channel
 from modules.page_utils import render_standard_page
-from modules.ui_theme import section_header, sf_metric
+from modules.ui_theme import section_header
+from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +73,10 @@ snapshot = _build_snapshot()
 section_header("当前指标快照", "规则据此求值；缺失指标会让 AND 规则不触发（宁漏勿误）", icon="📸")
 if snapshot:
     keys = [k for k in ("limit_up", "zt_fail_ratio", "temperature", "limit_down", "median_chg") if k in snapshot]
-    cols = st.columns(max(len(keys), 1))
-    for c, k in zip(cols, keys):
-        with c:
-            sf_metric(k, f"{snapshot[k]:.1f}", "")
+    xc_kpi_grid([
+        {"label": k, "value": f"{snapshot[k]:.1f}"}
+        for k in keys
+    ])
     if snapshot.get("state") or snapshot.get("cycle"):
         st.caption(f"市场状态 **{snapshot.get('state', '—')}** · 情绪周期 **{snapshot.get('cycle', '—')}**")
 else:

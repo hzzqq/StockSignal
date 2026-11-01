@@ -14,6 +14,7 @@ A 股红涨绿跌）+ 题材**生命周期**（发酵 / 高潮 / 退潮 / 平淡
 """
 from __future__ import annotations
 
+import html
 import logging
 from datetime import datetime
 
@@ -23,7 +24,8 @@ import streamlit as st
 from modules import event_graph as evg
 from modules.page_utils import render_standard_page
 from modules.theme_heat import LIFECYCLE_ORDER, col_of, load_concepts
-from modules.ui_theme import section_header, sf_metric
+from modules.ui_theme import section_header
+from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
 
@@ -61,14 +63,12 @@ def _evg_render(res: dict) -> None:
     这里只负责拼 HTML 与 Streamlit 组件。
     """
     entries = res.get("entries") or []
-    k1, k2, k3 = st.columns(3)
-    with k1:
-        sf_metric("关联标的", str(len(entries)), "文本共现命中")
-    with k2:
-        sf_metric("命中概念", str(len(res.get("concepts_hit") or [])), "东财真实概念板块")
-    with k3:
-        top = entries[0] if entries else {}
-        sf_metric("最贴近标的", str(top.get("name") or "—"), f"关联度 {top.get('score', 0)}")
+    top = entries[0] if entries else {}
+    xc_kpi_grid([
+        {"label": "关联标的", "value": str(len(entries)), "delta": "文本共现命中"},
+        {"label": "命中概念", "value": str(len(res.get("concepts_hit") or [])), "delta": "东财真实概念板块"},
+        {"label": "最贴近标的", "value": str(top.get("name") or "—"), "delta": f"关联度 {top.get('score', 0)}"},
+    ])
 
     st.caption(f"口径：{res.get('basis', '')}")
 
@@ -88,17 +88,18 @@ def _evg_render(res: dict) -> None:
         badge = ("<span style='color:#f59e0b;font-size:10px;margin-left:5px;"
                  "border:1px solid rgba(245,158,11,.5);border-radius:3px;padding:0 3px'>点名</span>"
                  if r["direct"] else "")
+        # display_rows 输出（新闻标题/概念/名称等 DB 输入）流向 HTML：动态串统一转义
         rows += (
             "<div style='display:grid;grid-template-columns:30px 1.3fr 62px 52px 1.5fr 2.2fr;"
             "gap:8px;padding:5px 0;font-size:12px;align-items:center;"
             "border-bottom:1px solid rgba(148,163,184,.12)'>"
             f"<span style='opacity:.5'>{i}</span>"
-            f"<span><b>{r['name']}</b>{badge}"
-            f"<span style='opacity:.5;font-size:11px'> {r['code']}</span></span>"
+            f"<span><b>{html.escape(str(r['name']))}</b>{badge}"
+            f"<span style='opacity:.5;font-size:11px'> {html.escape(str(r['code']))}</span></span>"
             f"<span><b>{r['score']}</b></span>"
-            f"<span style='color:{r['dir_color']}'>{r['direction']}</span>"
-            f"<span style='opacity:.85;font-size:11px'>{r['concepts']}</span>"
-            f"<span style='opacity:.6;font-size:11px'>{r['evidence']}</span></div>"
+            f"<span style='color:{r['dir_color']}'>{html.escape(str(r['direction']))}</span>"
+            f"<span style='opacity:.85;font-size:11px'>{html.escape(str(r['concepts']))}</span>"
+            f"<span style='opacity:.6;font-size:11px'>{html.escape(str(r['evidence']))}</span></div>"
         )
     st.markdown(rows, unsafe_allow_html=True)
     if len(entries) > len(shown):
@@ -136,15 +137,13 @@ top_name = str(df.loc[chg.idxmax(), name_c]) if len(df) else "—"
 top_chg = float(chg.max()) if len(df) else 0.0
 
 # ── ① KPI ──────────────────────────────────────────────────────────────
-c1, c2, c3, c4 = st.columns(4)
-with c1:
-    sf_metric("概念板块数", str(len(df)), "东财概念")
-with c2:
-    sf_metric("上涨板块", str(n_up), "红盘")
-with c3:
-    sf_metric("下跌板块", str(n_down), "绿盘")
-with c4:
-    sf_metric("领涨题材", top_name, f"{top_chg:+.2f}%")
+xc_kpi_grid([
+    {"label": "概念板块数", "value": str(len(df)), "delta": "东财概念"},
+    {"label": "上涨板块", "value": str(n_up), "delta": "红盘"},
+    {"label": "下跌板块", "value": str(n_down), "delta": "绿盘"},
+    {"label": "领涨题材", "value": top_name, "delta": f"{top_chg:+.2f}%",
+     "delta_dir": "up" if top_chg > 0 else "down"},
+])
 
 st.markdown("---")
 
@@ -194,10 +193,11 @@ with cc2:
     top = df.sort_values("_chg", ascending=False).head(20)
     rows = ""
     for _, r in top.iterrows():
-        nm = str(r.get(name_c, ""))
+        # 概念名/领涨股来自东财快照（DB 输入）流向 HTML：动态串统一转义
+        nm = html.escape(str(r.get(name_c, "")))
         ch = float(r["_chg"])
         lf = str(r.get("_life", ""))
-        lead = str(r.get(leader_c, "")) if leader_c else ""
+        lead = html.escape(str(r.get(leader_c, ""))) if leader_c else ""
         rows += (
             "<div style='display:flex;justify-content:space-between;padding:5px 0;"
             "border-bottom:1px solid rgba(148,163,184,.15);font-size:13px'>"
