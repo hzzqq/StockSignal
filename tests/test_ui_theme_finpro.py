@@ -23,9 +23,12 @@ def test_finpro_registered():
 
 
 def test_finpro_core_vars_present():
-    """七变量齐备：底/卡/主色/文字/边框（金融终端深蓝体系）。"""
+    """七变量齐备：底/卡/主色/文字/边框（金融终端深蓝体系）。
+
+    acc1 为 P2-2 无障碍修值：#2f81f7→#2170ec（登录 CTA 白字对比 3.75→4.57）。
+    """
     v = STYLE_PRESETS["finpro"]["vars"]
-    for var in ("--bg:#0a1020", "--card:#0f1726", "--acc1:#2f81f7",
+    for var in ("--bg:#0a1020", "--card:#0f1726", "--acc1:#2170ec",
                 "--txt:#e6edf3", "--border:#1f2937"):
         assert var in v, f"核心变量缺失: {var}"
 
