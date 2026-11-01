@@ -135,6 +135,8 @@ _KNOWN_PAGE_CLASSES = frozenset({
     "xc-copy", "xc-copy-src", "xc-copy-wrap", "xc-flow", "xc-flow-label",
     "xc-flow-stage", "xc-intent", "xc-kv", "xc-kv-grid", "xc-mod-card",
     "xc-mod-h", "xc-mod-reason", "xc-mod-top", "xc-msg", "xc-name",
+    # 深度研究分析模块卡（批5 轻量化网格：标题元信息/网格容器/状态徽章/卡底元信息行）
+    "xc-mod-hmeta", "xc-mod-grid", "xc-mod-badge", "xc-mod-meta",
     "xc-role", "xc-role-tool", "xc-role-user", "xc-sug-label",
     "xc-tool-card", "xc-tool-err", "xc-tool-tbl", "xc-ts", "xc-typing",
     "xc-user", "xc-user-av", "xc-user-bubble", "xc-who",

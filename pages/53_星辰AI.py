@@ -126,7 +126,7 @@ def _theme_css(dark: bool) -> str:
   --bg:#0f0f23; --card:#1a1a2e; --card2:#15152a; --buy:#ff4d4f; --sell:#00d486;
   --hold:#ffa502; --acc1:#667eea; --acc2:#764ba2;
   --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44; --grid:#23233c;
-  --user-bubble-bg:rgba(102,126,234,.18); --user-bubble-border:rgba(102,126,234,.35);
+  --user-bubble-bg:color-mix(in srgb,var(--acc1) 18%,transparent); --user-bubble-border:color-mix(in srgb,var(--acc1) 35%,transparent);
   --input-bg:#15152a; --input-txt:#e2e8f0; --input-border:#2d2d44; --input-placeholder:#64748b;
   --send-btn-bg:linear-gradient(135deg,#667eea,#764ba2); --send-btn-txt:#0f0f23;
 """
@@ -152,12 +152,12 @@ def _theme_css(dark: bool) -> str:
 .xc-msg{{display:flex;gap:12px;align-items:flex-start;margin:18px 0}}
 .xc-av{{width:34px;height:34px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
   font-size:16px;background:linear-gradient(135deg,var(--acc1),var(--acc2));
-  box-shadow:0 0 0 1px rgba(102,126,234,.4); color:#fff}}
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--acc1) 40%,transparent); color:#fff}}
 .xc-user-av{{background:linear-gradient(135deg,#60a5fa,#3b82f6)}}
 .xc-col{{flex:1;min-width:0}}
 .xc-who{{display:flex;align-items:center;gap:8px;margin-bottom:6px}}
 .xc-name{{font-size:13px;font-weight:650;color:var(--txt)}}
-.xc-role{{font-size:11px;color:var(--acc1);background:rgba(102,126,234,.16);
+.xc-role{{font-size:11px;color:var(--acc1);background:color-mix(in srgb,var(--acc1) 16%,transparent);
   padding:1px 8px;border-radius:999px;font-weight:600}}
 .xc-role-user{{font-size:11px;color:#fff;background:linear-gradient(135deg,var(--buy),#ff7a45);
   padding:1px 8px;border-radius:999px;font-weight:600}}
@@ -169,7 +169,7 @@ def _theme_css(dark: bool) -> str:
   border:1px solid var(--border);border-radius:999px;padding:2px 10px;cursor:pointer;
   transition:all .16s ease;line-height:1.6}}
 .xc-copy:hover{{color:var(--txt);border-color:var(--acc1);
-  background:rgba(102,126,234,.10)}}
+  background:color-mix(in srgb,var(--acc1) 10%,transparent)}}
 .xc-copy:active{{transform:scale(.96)}}
 .xc-bubble{{background:var(--card);border:1px solid var(--border);
   border-radius:4px 14px 14px 14px;padding:13px 16px;font-size:14.5px;color:var(--txt);
@@ -192,11 +192,11 @@ def _theme_css(dark: bool) -> str:
 .xc-bubble table.xc-tbl{{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}}
 .xc-bubble .xc-tbl th,.xc-bubble .xc-tbl td{{text-align:left;padding:5px 9px;
   border-bottom:1px solid var(--border);color:var(--txt);vertical-align:top}}
-.xc-bubble .xc-tbl th{{color:var(--acc1);font-weight:650;background:rgba(102,126,234,.08)}}
-.xc-bubble code.xc-code{{background:rgba(102,126,234,.14);color:var(--txt);
+.xc-bubble .xc-tbl th{{color:var(--acc1);font-weight:650;background:color-mix(in srgb,var(--acc1) 8%,transparent)}}
+.xc-bubble code.xc-code{{background:color-mix(in srgb,var(--acc1) 14%,transparent);color:var(--txt);
   padding:1px 6px;border-radius:5px;font-size:12.5px;font-family:ui-monospace,Consolas,monospace}}
 .xc-cite{{display:inline-block;font-size:10.5px;font-weight:700;color:var(--acc1);
-  background:rgba(102,126,234,.14);border:1px solid rgba(102,126,234,.4);border-radius:999px;
+  background:color-mix(in srgb,var(--acc1) 14%,transparent);border:1px solid color-mix(in srgb,var(--acc1) 40%,transparent);border-radius:999px;
   padding:0 7px;margin:0 2px;vertical-align:1px;cursor:help;white-space:nowrap}}
 
 /* 用户消息：头像在右侧，气泡靠右 */
@@ -212,12 +212,12 @@ def _theme_css(dark: bool) -> str:
   padding:7px 15px;font-size:13px;color:var(--txt)}}
 .xc-divider{{display:flex;align-items:center;gap:12px;color:var(--txt2);font-size:12px;margin:14px 0}}
 .xc-divider::before,.xc-divider::after{{content:"";flex:1;height:1px;background:var(--border)}}
-.xc-banner{{font-size:12px;color:var(--txt2);background:rgba(102,126,234,.10);
-  border:1px solid rgba(102,126,234,.30);border-radius:10px;padding:8px 12px;margin-bottom:14px}}
+.xc-banner{{font-size:12px;color:var(--txt2);background:color-mix(in srgb,var(--acc1) 10%,transparent);
+  border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent);border-radius:10px;padding:8px 12px;margin-bottom:14px}}
 
 /* T-308：模型徽标 / 问题分析卡 / 追问建议标签 */
 .xc-badge{{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;
-  color:var(--acc1);background:rgba(102,126,234,.12);border:1px solid rgba(102,126,234,.35);
+  color:var(--acc1);background:color-mix(in srgb,var(--acc1) 12%,transparent);border:1px solid color-mix(in srgb,var(--acc1) 35%,transparent);
   border-radius:999px;padding:2px 10px;white-space:nowrap}}
 .xc-intent{{font-size:12.5px;color:var(--txt2);background:var(--card2);
   border:1px dashed var(--border);border-radius:10px;padding:7px 12px;margin:2px 0 10px}}
@@ -233,7 +233,7 @@ def _theme_css(dark: bool) -> str:
 .xc-tool-tbl{{width:100%;border-collapse:collapse;font-size:13px;margin-top:2px}}
 .xc-tool-tbl th,.xc-tool-tbl td{{text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);
   color:var(--txt);vertical-align:top}}
-.xc-tool-tbl th{{color:var(--acc1);font-weight:650;background:rgba(102,126,234,.08)}}
+.xc-tool-tbl th{{color:var(--acc1);font-weight:650;background:color-mix(in srgb,var(--acc1) 8%,transparent)}}
 /* 实时盘口 / 市场情绪卡片的 KV 键值网格 */
 .xc-kv-grid{{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;margin-top:6px}}
 .xc-kv{{display:flex;justify-content:space-between;align-items:baseline;
@@ -370,16 +370,39 @@ def _theme_css(dark: bool) -> str:
 .xc-flow-stage{{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;
   padding:3px 11px;border-radius:999px;border:1px solid var(--border);
   color:var(--txt2);background:var(--card)}}
-.xc-flow-stage.done{{color:var(--acc1);border-color:rgba(102,126,234,.45);
-  background:rgba(102,126,234,.12)}}
+.xc-flow-stage.done{{color:var(--acc1);border-color:color-mix(in srgb,var(--acc1) 45%,transparent);
+  background:color-mix(in srgb,var(--acc1) 12%,transparent)}}
 .xc-flow-stage.todo{{opacity:.6}}
-.xc-mod-h{{font-size:13px;font-weight:700;color:var(--txt);margin:6px 0 8px}}
-.xc-mod-card{{margin-bottom:6px}}
-.xc-mod-top{{display:flex;align-items:center;gap:7px;margin-bottom:5px}}
-.xc-mod-top b{{font-size:13px;color:var(--acc1)}}
-.xc-mod-top span{{font-size:15px}}
-.xc-mod-reason{{font-size:12.5px;color:var(--txt2);line-height:1.55;
-  max-height:5.2em;overflow:hidden}}
+/* 分析模块卡（批5 轻量化）：单 HTML 网格（ARTi 观点卡式：小标签行/正文/元信息行），
+   替代原 st.columns(2)+container(border) 重排版 */
+.xc-mod-h{{font-size:13px;font-weight:700;color:var(--txt);margin:6px 0 8px;
+  display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}}
+.xc-mod-hmeta{{font-size:11.5px;font-weight:400;color:var(--txt2)}}
+.xc-mod-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:12px;margin:4px 0 6px}}
+.xc-mod-card{{background:var(--card);border:1px solid var(--border);
+  border-radius:var(--ss-radius-card,14px);padding:13px 15px 9px;
+  display:flex;flex-direction:column;gap:7px;
+  transition:border-color .18s ease,transform .18s ease}}
+.xc-mod-card:hover{{border-color:color-mix(in srgb,var(--acc1) 40%,var(--border));
+  transform:translateY(-1px)}}
+.xc-mod-top{{display:flex;align-items:center;gap:7px;min-width:0}}
+.xc-mod-top .ic{{font-size:15px;flex-shrink:0}}
+.xc-mod-top b{{font-size:13.5px;color:var(--txt);flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.xc-mod-badge{{flex-shrink:0;font-size:10.5px;font-weight:700;padding:2px 8px;
+  border-radius:999px;color:var(--acc1);
+  background:color-mix(in srgb,var(--acc1) 10%,transparent);
+  border:1px solid color-mix(in srgb,var(--acc1) 28%,transparent)}}
+.xc-mod-badge.warn{{color:#b45309;background:color-mix(in srgb,#d97706 12%,transparent);
+  border-color:color-mix(in srgb,#d97706 35%,transparent)}}
+.xc-mod-badge.err{{color:#dc2626;background:color-mix(in srgb,#dc2626 10%,transparent);
+  border-color:color-mix(in srgb,#dc2626 35%,transparent)}}
+.xc-mod-reason{{font-size:12.5px;color:var(--txt2);line-height:1.6;
+  max-height:7.8em;overflow:hidden}}
+.xc-mod-meta{{margin-top:auto;display:flex;align-items:center;gap:10px;
+  font-size:11px;color:var(--txt2);opacity:.9;flex-wrap:wrap}}
+.xc-mod-meta .xc-copy-wrap{{margin-top:0}}
 </style>
 """
 
@@ -590,44 +613,50 @@ def render_research_card(result: dict, idx: int = 0) -> None:
         unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
 
-    # ── 分析模块卡片：2 列网格，每卡带结论 + 复制（仿参考图#3 模块卡网格）──
+    # ── 分析模块卡片（批5 轻量化）：单 HTML 网格（auto-fit 240px，ARTi 观点卡式——
+    #    小标签行：状态图标+工具名+状态徽章；正文：结论说明；元信息行：数据时点+复制）。
+    #    替代原 st.columns(2)+st.container(border=True) 重排版；数据仍只取 steps 真实字段。──
     if steps:
         elapsed = result.get("elapsed_s")
         elapsed_s = f" · 耗时 {elapsed}s" if isinstance(elapsed, (int, float)) else ""
         # ui_audit_exempt: unsafe-allow_html 分析模块标题，步数为整数、status 经内部图标映射
         st.markdown(
-            f'<div class="xc-mod-h">🔬 分析模块（{_n_steps} 步 · {st_icon} {status}{elapsed_s}）</div>',
+            f'<div class="xc-mod-h"><span>🔬 分析模块 · {_n_steps} 步</span>'
+            f'<span class="xc-mod-hmeta">{st_icon} {esc(status)}{esc(elapsed_s)}</span></div>',
             unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
-        for _i in range(0, _n_steps, 2):
-            _cols = st.columns(2)
-            for _j in range(2):
-                _si = _i + _j
-                if _si >= _n_steps:
-                    break
-                s = steps[_si]
-                if not isinstance(s, dict):
-                    continue
-                _s_icon = _RESEARCH_STEP_ICON.get(str(s.get("status")), "⚙️")
-                _tool = esc(str(s.get("tool", "—")))
-                _reason = esc(str(s.get("reason") or "（无结论说明）"))
-                _asof = f" · 数据截至 {esc(str(s['data_as_of']))}" if s.get("data_as_of") else ""
-                _copy_txt = (
-                    f"[{s.get('tool', '?')}] {s.get('reason') or ''}"
-                    + (f" 数据截至 {s['data_as_of']}" if s.get("data_as_of") else "")
-                )
-                with _cols[_j]:
-                    with st.container(border=True):
-                        # ui_audit_exempt: unsafe-allow_html 分析模块卡，tool/reason/asof 均经本页 esc() 转义
-                        st.markdown(
-                            f'<div class="xc-mod-card">'
-                            f'<div class="xc-mod-top"><span>{_s_icon}</span><b>{_tool}</b></div>'
-                            f'<div class="xc-mod-reason">{_reason}{_asof}</div>'
-                            f'</div>',
-                            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
-                        )
-                        # ui_audit_exempt: unsafe-allow_html 复制块，xc_copy_block 内部 textarea 承载并 esc() 原文
-                        st.markdown(xc_copy_block(_copy_txt), unsafe_allow_html=True)
+        _badge_map = {"ok": ("已返回", ""), "partial": ("部分", "warn"),
+                      "error": ("出错", "err"), "rejected": ("已跳过", "err")}
+        _cards = []
+        for s in steps:
+            if not isinstance(s, dict):
+                continue
+            _st_key = str(s.get("status") or "?")
+            _s_icon = _RESEARCH_STEP_ICON.get(_st_key, "⚙️")
+            _badge_s, _badge_cls = _badge_map.get(_st_key, ("未知", "warn"))
+            _tool = esc(str(s.get("tool", "—")))
+            _reason = esc(str(s.get("reason") or "（无结论说明）"))
+            _asof = (f'<span>数据截至 {esc(str(s["data_as_of"]))}</span>'
+                     if s.get("data_as_of") else "")
+            _copy_txt = (
+                f"[{s.get('tool', '?')}] {s.get('reason') or ''}"
+                + (f" 数据截至 {s['data_as_of']}" if s.get("data_as_of") else "")
+            )
+            _cards.append(
+                f'<div class="xc-mod-card">'
+                f'<div class="xc-mod-top"><span class="ic">{_s_icon}</span>'
+                f'<b>{_tool}</b>'
+                f'<span class="xc-mod-badge {_badge_cls}">{_badge_s}</span></div>'
+                f'<div class="xc-mod-reason">{_reason}</div>'
+                f'<div class="xc-mod-meta">{_asof}{xc_copy_block(_copy_txt)}</div>'
+                f'</div>'
+            )
+        if _cards:
+            # ui_audit_exempt: unsafe-allow_html 模块卡网格，tool/reason/asof 均经 esc()，badge 走白名单映射
+            st.markdown(
+                f'<div class="xc-mod-grid">{"".join(_cards)}</div>',
+                unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
+            )
         if limitations:
             st.warning("；".join(str(x) for x in limitations[:6]))
     if citations:
