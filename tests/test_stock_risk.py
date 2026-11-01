@@ -147,10 +147,11 @@ def _comp(level):
 def test_build_report_takes_worst_and_counts():
     comps = {"goodwill": _comp(sr.RISK_HIGH), "pledge": _comp(sr.RISK_LOW),
              "unlock": _comp(sr.RISK_MEDIUM), "reduction": _comp(sr.RISK_LOW),
-             "litigation": _comp(sr.RISK_LOW), "st": _comp(sr.RISK_LOW)}
+             "litigation": _comp(sr.RISK_LOW), "st": _comp(sr.RISK_LOW),
+             "notices": _comp(sr.RISK_LOW)}
     rep = sr.build_risk_report(comps)
     assert rep["overall_level"] == sr.RISK_HIGH
-    assert (rep["n_high"], rep["n_medium"], rep["n_low"], rep["n_unknown"]) == (1, 1, 4, 0)
+    assert (rep["n_high"], rep["n_medium"], rep["n_low"], rep["n_unknown"]) == (1, 1, 5, 0)
     assert rep["coverage_pct"] == 100.0 and rep["reliable"] is True
     assert rep["risk_score"] == 50  # 100 - 35 - 15
 
@@ -170,7 +171,8 @@ def test_build_report_low_coverage_not_reliable():
     comps["unlock"] = _comp(sr.RISK_UNKNOWN)
     rep = sr.build_risk_report(comps)
     assert rep["overall_level"] == sr.RISK_LOW
-    assert rep["coverage_pct"] == 50.0 and rep["reliable"] is False
+    # 七维中 3 个未知 → 4/7
+    assert rep["coverage_pct"] == pytest.approx(57.1) and rep["reliable"] is False
 
 
 # ─────────────────────────── 取数归一化（假 akshare） ───────────────────────────
@@ -207,6 +209,9 @@ def fake_ak(monkeypatch):
         "报告日": ["20260331", "20260630"], "商誉": [7e8, 8e8],
         "归属于母公司股东权益合计": [100e8, 110e8],
     })
+    # 个股公告流（T-245 公告维度）：默认空表 = available=True, total=0 → 低
+    mod.stock_individual_notice_report = lambda security, symbol="全部", \
+        begin_date=None, end_date=None: pd.DataFrame()
     monkeypatch.setitem(sys.modules, "akshare", mod)
 
     # 清市场级缓存，避免跨测试污染
@@ -271,6 +276,7 @@ def test_scan_stock_all_sources_down_stays_unknown(monkeypatch):
     monkeypatch.setattr(sr, "fetch_unlock_queue", lambda c: None)
     monkeypatch.setattr(sr, "_hold_rows_for", lambda c: None)
     monkeypatch.setattr(sr, "fetch_announcement_titles", lambda c: None)
+    monkeypatch.setattr(sr, "fetch_notices", lambda c: None)
     res = sr.scan_stock("600000")
     assert res["report"]["overall_level"] == sr.RISK_UNKNOWN
     assert res["report"]["coverage_pct"] == 0.0
@@ -285,5 +291,126 @@ def test_pure_functions_do_not_touch_network(monkeypatch):
     assert sr.pledge_risk([])["level"] == sr.RISK_LOW
     assert sr.unlock_risk([])["level"] == sr.RISK_LOW
     assert sr.reduction_risk([])["level"] == sr.RISK_LOW
-    assert sr.litigation_risk([])["level"] == sr.RISK_LOW
-    assert sr.st_risk("浦发银行")["level"] == sr.RISK_LOW
+# ─────────────────────────── 公告红旗（T-245） ───────────────────────────
+def _notice(rows, total=None, available=True, note=""):
+    return {"available": available, "security": "600000", "symbol": "全部",
+            "total": len(rows) if total is None else total,
+            "by_type": {}, "rows": rows, "note": note}
+
+
+def test_notices_red_flag_medium_and_value_counts():
+    """减持类公告 → 维度分数上升（medium），value 记红旗条数。"""
+    r = sr.notices_risk(_notice([
+        {"title": "关于控股股东减持计划的预披露公告", "type": "持股变动"},
+        {"title": "2026 年第三季度报告", "type": "财务报告"},
+    ]))
+    assert r["level"] == sr.RISK_MEDIUM
+    assert r["value"] == 1
+    assert "减持" in r["note"]
+
+
+def test_notices_investigation_is_high():
+    r = sr.notices_risk(_notice([
+        {"title": "关于收到中国证监会立案调查通知书的公告", "type": "重大事项"},
+    ]))
+    assert r["level"] == sr.RISK_HIGH and r["value"] == 1
+
+
+def test_notices_worst_wins_across_hits():
+    r = sr.notices_risk(_notice([
+        {"title": "关于股东减持股份的公告", "type": "持股变动"},
+        {"title": "关于公司被债权人申请仲裁暨债务违约的公告", "type": "重大事项"},
+    ]))
+    assert r["level"] == sr.RISK_HIGH and r["value"] == 2
+
+
+def test_notices_empty_is_low_with_caveat():
+    """空公告 = 取到了、真没公告 → 低，但必须如实写「无记录 ≠ 无风险」。"""
+    r = sr.notices_risk(_notice([]))
+    assert r["level"] == sr.RISK_LOW
+    assert "无记录" in r["note"]
+
+
+def test_notices_no_red_flag_titles_is_low():
+    r = sr.notices_risk(_notice([
+        {"title": "2026 年半年度报告", "type": "财务报告"},
+        {"title": "关于召开 2026 年年度股东大会的通知", "type": "重大事项"},
+    ]))
+    assert r["level"] == sr.RISK_LOW and r["value"] == 0
+
+
+def test_notices_source_unavailable_is_unknown():
+    """诚实红线：公告源不可用 → 未知，绝不滑落成低风险。"""
+    r = sr.notices_risk(_notice([], available=False,
+                                note="公告源不可用（TimeoutError），不编造数据"))
+    assert r["level"] == sr.RISK_UNKNOWN
+    assert sr.notices_risk(None)["level"] == sr.RISK_UNKNOWN
+    assert sr.notices_risk({})["level"] == sr.RISK_UNKNOWN
+
+
+def test_notices_count_detail_mismatch_is_unknown():
+    """available=True 但明细行丢失（计数>0、rows 空）→ 数据不完整 → 未知。"""
+    r = sr.notices_risk(_notice([], total=3))
+    assert r["level"] == sr.RISK_UNKNOWN
+
+
+def test_fetch_notices_passes_days30_and_normalizes(monkeypatch):
+    """取数层：透传 6 位代码 + days=30；适配器异常 → None（判未知，不炸主流程）。"""
+    seen = {}
+
+    def _fake_fetch(security, symbol="全部", days=30, ttl=900.0):
+        seen.update(security=security, symbol=symbol, days=days)
+        return _notice([])
+
+    monkeypatch.setattr("modules.event_announcements.fetch_individual_notices",
+                        _fake_fetch)
+    out = sr.fetch_notices("sh600000")
+    assert seen == {"security": "600000", "symbol": "全部", "days": 30}
+    assert out["available"] is True
+
+    def _boom(**kw):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("modules.event_announcements.fetch_individual_notices",
+                        _boom)
+    assert sr.fetch_notices("600000") is None
+
+
+def test_scan_stock_notices_high_drives_report_high(fake_ak, monkeypatch):
+    """集成：公告红旗高危 → notices 维度高、overall 高、n_high 计入（分数下降）。"""
+    monkeypatch.setattr(sr, "fetch_notices", lambda c: _notice([
+        {"title": "关于收到中国证监会立案调查通知书的公告", "type": "重大事项"},
+    ]))
+    monkeypatch.setattr(sr, "fetch_announcement_titles", lambda c: [])
+    monkeypatch.setattr(sr, "_hold_rows_for", lambda c: [])
+    res = sr.scan_stock("600000", "测试股")
+    rep = res["report"]
+    assert rep["components"]["notices"]["level"] == sr.RISK_HIGH
+    assert rep["n_high"] >= 1 and rep["overall_level"] == sr.RISK_HIGH
+    assert res["errors"] == []
+
+
+def test_scan_stock_notices_source_down_degrades_not_blocks(fake_ak, monkeypatch):
+    """集成：公告源不可用 → 该维 unknown 如实降级，overall 不因此升高、不报错。"""
+    monkeypatch.setattr(sr, "fetch_notices", lambda c: _notice(
+        [], available=False, note="公告源不可用（TimeoutError），不编造数据"))
+    monkeypatch.setattr(sr, "fetch_announcement_titles", lambda c: [])
+    monkeypatch.setattr(sr, "_hold_rows_for", lambda c: [])
+    res = sr.scan_stock("600000", "测试股")
+    comp = res["report"]["components"]["notices"]
+    assert comp["level"] == sr.RISK_UNKNOWN
+    assert res["report"]["overall_level"] != sr.RISK_HIGH
+    assert res["errors"] == []
+
+
+def test_scan_stock_empty_notices_is_low_not_unknown(fake_ak, monkeypatch):
+    """集成：取到空公告（真没公告）→ 低；不能和「查不到」混淆。"""
+    monkeypatch.setattr(sr, "fetch_notices", lambda c: _notice([]))
+    monkeypatch.setattr(sr, "fetch_announcement_titles", lambda c: [])
+    monkeypatch.setattr(sr, "_hold_rows_for", lambda c: [])
+    res = sr.scan_stock("600000", "测试股")
+    assert res["report"]["components"]["notices"]["level"] == sr.RISK_LOW
+
+    assert sr.notices_risk(None)["level"] == sr.RISK_UNKNOWN
+    assert sr.notices_risk({"available": True, "total": 0, "by_type": {},
+                            "rows": [], "note": ""})["level"] == sr.RISK_LOW

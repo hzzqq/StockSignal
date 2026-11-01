@@ -1,8 +1,8 @@
 """modules/stock_risk.py — 个股风险扫描（H6）。
 
 一键体检（``pages/34_体检扫描.py``）回答的是「这只票好不好」；本模块回答的是
-**「这只票有没有雷」**——商誉 / 质押 / 解禁 / 减持 / 诉讼处罚 / ST，六个维度各自
-给出 高 / 中 / 低 / 未知 风险等级，并可汇总成一张「排雷体检表」。
+**「这只票有没有雷」**——商誉 / 质押 / 解禁 / 减持 / 诉讼处罚 / ST / 公告红旗，
+七个维度各自给出 高 / 中 / 低 / 未知 风险等级，并可汇总成一张「排雷体检表」。
 
 对标：芝麻 AI 的年报红绿标注、同花顺 i问财 的风险项、理杏仁 的商誉占比提醒。
 此前 StockSignal 只有零星的关键词命中（``_news_io.NEGATIVE_WORDS``）与选股标签
@@ -35,10 +35,12 @@ __all__ = [
     "DIMENSIONS",
     "goodwill_risk", "pledge_risk", "unlock_risk",
     "reduction_risk", "litigation_risk", "st_risk",
+    "notices_risk",
     "build_risk_report",
     "fetch_st_set", "fetch_hold_management",
     "fetch_pledge", "fetch_unlock_queue", "fetch_balance_sheet",
-    "fetch_announcement_titles", "scan_stock", "scan_many",
+    "fetch_announcement_titles", "fetch_notices",
+    "scan_stock", "scan_many",
 ]
 
 # ─────────────────────────── 风险等级 ───────────────────────────
@@ -58,7 +60,7 @@ LEVEL_COLOR = {
 # 越大越危险（用于取最坏等级）
 LEVEL_RANK = {RISK_UNKNOWN: 0, RISK_LOW: 1, RISK_MEDIUM: 2, RISK_HIGH: 3}
 
-# 六个风险维度：(key, 中文名, 单位说明)
+# 七个风险维度：(key, 中文名, 单位说明)
 DIMENSIONS = [
     ("goodwill", "商誉", "商誉 / 净资产"),
     ("pledge", "质押", "未解押占总股本"),
@@ -66,6 +68,7 @@ DIMENSIONS = [
     ("reduction", "减持", "近 90 日董监高净变动占总股本"),
     ("litigation", "诉讼处罚", "近 1 年公告关键词"),
     ("st", "ST/退市", "证券简称"),
+    ("notices", "公告红旗", "近 30 日红旗类公告数"),
 ]
 
 # 各维度阈值（越大越危险）
@@ -330,6 +333,68 @@ def st_risk(name: str | None, is_st: bool | None = None) -> dict:
     return _comp(RISK_LOW, None, f"证券简称无 ST/退市标识（{name}）")
 
 
+# ─────────────────────────── 7. 公告红旗（T-245） ───────────────────────────
+_NOTICE_LOOKBACK_DAYS = 30
+# 近 30 日个股公告标题红旗关键词 → 风险等级（命中多条取最坏，与诉讼维度同模式）。
+# 归类口径：减持 / 质押 / 立案调查·监管 / 业绩预警 / 债务·冻结等；标题比「公告类型」
+# 类目（NOTICE_TYPES 的 财务报告/持股变动 等）粒度更细，是可靠的红旗信号载体。
+_NOTICE_KW = {
+    "立案": RISK_HIGH, "行政处罚": RISK_HIGH, "涉嫌犯罪": RISK_HIGH,
+    "强制退市": RISK_HIGH, "退市风险": RISK_HIGH, "冻结": RISK_HIGH,
+    "债务违约": RISK_HIGH, "纪律处分": RISK_HIGH, "留置": RISK_HIGH,
+    "减持": RISK_MEDIUM, "质押": RISK_MEDIUM, "平仓": RISK_MEDIUM,
+    "警示函": RISK_MEDIUM, "监管函": RISK_MEDIUM, "公开谴责": RISK_MEDIUM,
+    "预亏": RISK_MEDIUM, "预减": RISK_MEDIUM, "首亏": RISK_MEDIUM,
+    "诉讼": RISK_MEDIUM, "仲裁": RISK_MEDIUM,
+    "问询函": RISK_LOW, "关注函": RISK_LOW,
+}
+
+
+def notices_risk(notice: dict | None) -> dict:
+    """近 30 日个股公告红旗扫描（T-245 公告维度，纯计算、可单测）。
+
+    ``notice`` 为 ``modules.event_announcements.fetch_individual_notices`` 的返回：
+    ``dict(available, total, by_type, rows, note)``。
+
+    诚实红线：``notice is None`` 或 ``available=False``（源不可用/超时/未提供代码）
+    → **未知**，绝不把查不到当安全；``available=True, total=0``（取到了、确实无公告）
+    → 低，但 note 如实写明「无记录 ≠ 无风险」。
+    """
+    if not isinstance(notice, dict) or not notice.get("available"):
+        if isinstance(notice, dict):
+            reason = str(notice.get("note") or "源不可用").strip()[:50]
+        else:
+            reason = "个股公告流取数失败"
+        return _comp(RISK_UNKNOWN, None, reason)
+    rows = [r for r in (notice.get("rows") or []) if isinstance(r, dict)]
+    if not rows:
+        if _num(notice.get("total")):
+            # 计数与明细不符：数据不完整，不能当「无公告」也不能猜内容
+            return _comp(RISK_UNKNOWN, None, "公告流返回计数与明细不符，数据不完整")
+        return _comp(RISK_LOW, 0.0,
+                     f"近 {_NOTICE_LOOKBACK_DAYS} 日未取到公告（无记录 ≠ 无风险）")
+    hits = []
+    worst = RISK_LOW
+    for r in rows:
+        s = str(r.get("title") or "")
+        best_kw, best_lv = None, None
+        for kw, lv in _NOTICE_KW.items():
+            if kw in s and (best_lv is None or LEVEL_RANK[lv] > LEVEL_RANK[best_lv]):
+                best_kw, best_lv = kw, lv
+        if best_lv is not None:
+            if LEVEL_RANK[best_lv] > LEVEL_RANK[worst]:
+                worst = best_lv
+            hits.append({"关键词": best_kw, "类型": r.get("type") or "", "标题": s})
+    if not hits:
+        return _comp(RISK_LOW, 0.0,
+                     f"近 {_NOTICE_LOOKBACK_DAYS} 日 {len(rows)} 条公告未见红旗类标题")
+    kws = sorted({h["关键词"] for h in hits})
+    return _comp(worst, len(hits),
+                 f"近 {_NOTICE_LOOKBACK_DAYS} 日 {len(hits)}/{len(rows)} 条公告命中红旗"
+                 f"关键词：{'、'.join(kws)}",
+                 detail=hits[:10])
+
+
 # ─────────────────────── 汇总：风险体检报告 ───────────────────────
 def _score_from_levels(levels: list) -> int:
     """已知等级 → 0-100 风险分（100 = 无风险）。高 -35、中 -15、低 -0。"""
@@ -573,6 +638,26 @@ def fetch_announcement_titles(code: str):
     return None
 
 
+def fetch_notices(code: str, days: int = _NOTICE_LOOKBACK_DAYS):
+    """近 ``days`` 日个股公告流（T-245 公告维度取数，走 event_announcements 适配）。
+
+    返回原样透传 ``fetch_individual_notices`` 的结果字典——失败/不可用是
+    ``available=False`` 而非 ``None``（语义由 ``notices_risk`` 判读）；仅在本模块
+    无法调起适配器时返回 ``None``（同样判「未知」）。适配器自带 ttl=900 进程内
+    缓存，逐股批量扫描不引入新的裸调用。
+    """
+    try:
+        from modules.event_announcements import fetch_individual_notices
+        s = str(code).strip()
+        digits = "".join(ch for ch in s if ch.isdigit())
+        if len(digits) >= 6:  # "sh600000" / "600000.SH" → 6 位（同 risk_gate.to_6digit 口径）
+            s = digits[-6:]
+        return fetch_individual_notices(security=s.zfill(6), symbol="全部", days=days)
+    except Exception as e:  # noqa: BLE001
+        logger.info("[stock_risk] 个股公告流取数失败(%s): %s", code, e)
+        return None
+
+
 def _hold_rows_for(code: str):
     """从市场级董监高明细里抽出该股近 90 日记录（归一化）；数据不可用返回 ``None``。"""
     df = fetch_hold_management()
@@ -613,7 +698,7 @@ def _hold_rows_for(code: str):
 
 
 def scan_stock(code: str, name: str | None = None, st_set=None) -> dict:
-    """对单只股票做六维风险扫描，返回 ``{"code","name","components","report","errors"}``。
+    """对单只股票做七维风险扫描（含公告红旗），返回 ``{"code","name","components","report","errors"}``。
 
     ``st_set`` 可外部注入（批量扫描时避免每只都重拉 ST 名单）。
     """
@@ -657,6 +742,12 @@ def scan_stock(code: str, name: str | None = None, st_set=None) -> dict:
     except Exception as e:  # noqa: BLE001
         comps["litigation"] = _comp(RISK_UNKNOWN, None, f"诉讼扫描异常: {e}")
         errors.append(f"litigation: {e}")
+
+    try:
+        comps["notices"] = notices_risk(fetch_notices(c))
+    except Exception as e:  # noqa: BLE001
+        comps["notices"] = _comp(RISK_UNKNOWN, None, f"公告红旗扫描异常: {e}")
+        errors.append(f"notices: {e}")
 
     return {
         "code": c,
