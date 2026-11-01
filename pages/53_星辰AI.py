@@ -247,6 +247,19 @@ def _theme_css(dark: bool) -> str:
 .xc-typing .dot:nth-child(3){{animation-delay:.4s}}
 @keyframes xcblink{{0%,80%,100%{{opacity:.25}}40%{{opacity:1}}}}
 
+/* 深度研究步骤状态卡网格（批3）：每步一卡，✅已返回/⏳执行中/❌出错 一眼看清进度 */
+.xc-steps{{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0 4px}}
+.xc-step{{background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:13px 8px 10px;text-align:center;transition:border-color .18s ease,box-shadow .18s ease}}
+.xc-step .ic{{font-size:20px;line-height:1}}
+.xc-step b{{display:block;margin:8px 0 4px;color:var(--txt);font-size:12.5px;line-height:1.4}}
+.xc-step small{{color:var(--txt2);font-size:11px}}
+.xc-step.done{{border-color:color-mix(in srgb,var(--acc1) 30%,var(--border))}}
+.xc-step.run{{border-color:color-mix(in srgb,var(--acc1) 55%,var(--border));
+  box-shadow:0 0 10px color-mix(in srgb,var(--acc1) 18%,transparent)}}
+.xc-step.warn{{border-color:color-mix(in srgb,#d97706 45%,var(--border))}}
+.xc-step.err{{border-color:color-mix(in srgb,#dc2626 45%,var(--border))}}
+
 /* 聊天输入框（st.chat_input）主题适配：干掉白底/黑底错乱 */
 /* 外层容器及所有 div/span 强制背景色，避免 Streamlit 某层 wrapper 白底 */
 [data-testid="stChatInput"],
@@ -275,10 +288,20 @@ def _theme_css(dark: bool) -> str:
   border-color: var(--input-border) !important;
 }}
 [data-testid="stChatInput"] {{
-  border: 1px solid var(--input-border) !important;
-  border-radius: 14px !important;
-  box-shadow: 0 4px 16px rgba(0,0,0,.12) !important;
-  padding: 0 !important;
+  border: 1.5px solid color-mix(in srgb,var(--acc1) 40%,var(--input-border)) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb,var(--acc1) 14%,transparent),0 8px 28px rgba(0,0,0,.16) !important;
+  padding: 2px 4px 0 !important;
+}}
+[data-testid="stChatInput"]:focus-within {{
+  border-color: var(--acc1) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb,var(--acc1) 26%,transparent),0 10px 32px rgba(0,0,0,.2) !important;
+}}
+[data-testid="stChatInput"] textarea {{
+  min-height: 50px !important;
+  padding: 14px 16px !important;
+  font-size: 15px !important;
+  line-height: 1.5 !important;
 }}
 [data-testid="stChatInput"] textarea,
 [data-testid="stChatInput"] textarea:focus,
@@ -974,48 +997,6 @@ def _render_chips(options):
             st.rerun(scope="fragment")
 
 
-def _tutorial_example_buttons():
-    """使用指南里的可点击示例：点击直接把问题塞给星辰 AI（顶层 rerun 触发提交）。"""
-    examples = [
-        ("🔍 个股诊断", "太极实业 600667 怎么样？"),
-        ("📊 横向对比", "对比 贵州茅台 和 五粮液 谁更值得买"),
-        ("⚡ 实时盘口", "600519 现在实时价格和盘口怎么样"),
-        ("🌡️ 市场情绪", "现在市场情绪如何，温度计到冰点了吗"),
-    ]
-    cols = st.columns(2)
-    for i, (label, prompt) in enumerate(examples):
-        if cols[i % 2].button(label, key=f"xc_tut_ex_{i}", width="stretch",
-                              help=f"点击直接问：{prompt}"):
-            st.session_state["_xc_pending"] = prompt
-            st.rerun()  # ui_audit_exempt: bare-rerun 教程示例按钮顶层回调，置位 _xc_pending 后必须整页重跑，fragment_chat 才能读取并提交
-
-
-def render_ai_tutorial():
-    """星辰 AI 新手教程模块：首次使用引导（纯展示层，不改动任何业务逻辑）。"""
-    with st.container():
-        st.markdown("#### 📘 使用指南 · 第一次用星辰 AI 看这里")
-        st.markdown(
-            "**🎯 你能问什么**\n"
-            "- **个股诊断**：*太极实业 600667 怎么样？*\n"
-            "- **横向对比**：*对比贵州茅台和五粮液谁更值得买*\n"
-            "- **实时盘口**：*600519 现在实时价格和盘口怎么样*\n"
-            "- **市场情绪**：*现在市场情绪如何，温度计到冰点了吗*\n"
-            "- **事件解读**：*最近半导体有哪些重要事件？*\n"
-            "- **持仓 / 仓位建议**：*当前市场环境下适合建仓吗？*\n\n"
-            "**📦 怎么区分问答**\n"
-            "- 你的提问会显示在 **右侧蓝色方框** 里、带「**你问**」标签；\n"
-            "- 星辰 AI 的回复在 **左侧 🌟 气泡** 里，一眼分清谁说的。\n\n"
-            "**🧹 常用按钮**\n"
-            "- 顶部「🗑️ 清空」：重开一轮干净对话；\n"
-            "- 右下角「▼ 回到底部」：快速跳到最新消息。\n\n"
-            "**💾 其它**\n"
-            "- 对话按你的账号保存，**刷新页面不丢失**；\n"
-            "- 回复为模型推演，**不构成投资建议**，请独立判断。\n\n"
-            "下面 4 个示例点一下就能直接问 👇"
-        )
-        _tutorial_example_buttons()
-
-
 # ══════════════════════════════════════════════════════
 # 持久化：后端对话历史（按用户维度）↔ session_state
 # ══════════════════════════════════════════════════════
@@ -1296,7 +1277,7 @@ st.markdown(
 )
 
 # ── T-308 回应方式选择器（页面级控件，选择即整页重跑一次；状态存 session_state）──
-# 与折叠区里的「🔬 深度研究模式」正交：回应方式决定回答的组织形态（prompt 结构 +
+# 与输入框上方的「🔬 深度研究」开关正交：回应方式决定回答的组织形态（prompt 结构 +
 # token 预算），深度研究决定走 ai_research 多步工具链；两者可叠加。
 st.radio(
     "回应方式",
@@ -1305,7 +1286,7 @@ st.radio(
     horizontal=True,
     help="⚡ 快速问答=日常提问；📋 深度研报=完整章节研报（较慢）；"
          "⚔️ 多空辩论=看多/看空对辩+裁决；🎓 教学解释=新手友好讲解。"
-         "可与「⚙️ 更多功能」中的深度研究模式叠加。",
+         "可与输入框上方的「🔬 深度研究」开关叠加。",
 )
 
 
@@ -1538,8 +1519,18 @@ def fragment_chat():
     prompt = None
     if "_xc_pending" in st.session_state:
         prompt = st.session_state.pop("_xc_pending")
+    # ── 输入工具行（批3）：深度研究开关常驻输入框上方，不再折叠进「更多功能」──
+    _tb1, _tb2 = st.columns([1.1, 2.9], vertical_alignment="center")
+    with _tb1:
+        st.toggle(
+            "🔬 深度研究", key="xc_deep_mode",
+            help="开启后问题交给研究智能体：自动调用行情 / 技术面 / 新闻 / 市场情绪等真实数据工具，"
+                 "每一步留痕可溯源，回答附 [S#] 引用。比普通问答慢（约 1 分钟），全程只读、不会下单。",
+        )
+    with _tb2:
+        st.caption("⚡ Enter 发送 · Shift+Enter 换行　·　深度研究会多步调用工具，请稍候")
     user_text = st.chat_input(
-        placeholder="问星辰 AI…（Enter 发送 / Shift+Enter 换行）｜例如：太极实业 600667 怎么样？",
+        placeholder="问星辰 AI… ｜例如：太极实业 600667 怎么样？",
     )
     if user_text:
         prompt = user_text
@@ -1762,29 +1753,43 @@ def _poll_ai_task():
                 _done = sum(1 for v in _tl_by_idx.values() if "tool_end" in v)
                 _pct = int(_done / _total * 100) if _total else 0
                 st.progress(_pct / 100.0)
-                with st.container():
-                    for _idx in sorted(_tl_by_idx):
-                        _pair = _tl_by_idx[_idx]
-                        _start = _pair.get("tool_start", {})
-                        _end = _pair.get("tool_end", {})
-                        _tool = _start.get("tool") or _end.get("tool") or "?"
-                        if _end:
-                            _elapsed = _end.get("elapsed_s", 0)
-                            _status = _end.get("status", "?")
-                            _icon = {"ok": "✅", "partial": "⚠️", "error": "❌", "rejected": "⛔"}.get(_status, "🔄")
-                            # ui_audit_exempt: unsafe-allow_html 工具追踪行，_tool 已在下方 esc()，icon 经白名单映射、耗时为数值
-                            st.markdown(f"<div style='font-size:13px;color:#64748b'>"
-                                        f"<span style='color:#94a3b8'>{_idx:>2}</span> · "
-                                        f"<code style='background:#f1f5f9;padding:1px 6px;border-radius:4px;color:#1e40af'>{esc(_tool)}</code> "
-                                        f"→ <span style='color:#059669'>{_icon} {_elapsed:.1f}s</span>"
-                                        f"</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
+                st.caption(f"🔬 深度研究 · 已返回 {_done}/{_total} 步")
+                # 批3（2026-11-02）：把步骤文本行升级为状态卡网格——每步一张卡
+                # （✅已返回 / ⏳执行中 / ⚠️部分 / ❌出错），标题优先用研究计划里的步骤名
+                _plan = [str(t) for t in ((st.session_state.get("_xc_last_intent") or {}).get("plan") or []) if t]
+                _cards = []
+                for _idx in sorted(_tl_by_idx):
+                    _pair = _tl_by_idx[_idx]
+                    _start = _pair.get("tool_start", {})
+                    _end = _pair.get("tool_end", {})
+                    _tool = _start.get("tool") or _end.get("tool") or "?"
+                    _label = _plan[_idx] if _idx < len(_plan) else _tool
+                    if _end:
+                        _status = str(_end.get("status") or "?")
+                        _elapsed = float(_end.get("elapsed_s") or 0)
+                        if _status == "error":
+                            _ic, _st_s, _cls = "❌", "出错", "err"
+                        elif _status == "rejected":
+                            _ic, _st_s, _cls = "⛔", "已跳过", "err"
+                        elif _status == "partial":
+                            _ic, _st_s, _cls = "⚠️", "部分返回", "warn"
                         else:
-                            # ui_audit_exempt: unsafe-allow_html 工具追踪行（进行中分支），_tool 已 esc()
-                            st.markdown(f"<div style='font-size:13px;color:#64748b'>"
-                                        f"<span style='color:#94a3b8'>{_idx:>2}</span> · "
-                                        f"<code style='background:#fef3c7;padding:1px 6px;border-radius:4px;color:#92400e'>{esc(_tool)}</code> "
-                                        f"<span style='color:#d97706'>⏳ 执行中…</span>"
-                                        f"</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
+                            _ic, _st_s, _cls = "✅", "已返回", "done"
+                        _cards.append(
+                            f'<div class="xc-step {_cls}"><div class="ic">{_ic}</div>'
+                            f'<b>{esc(_label)}</b><small>{_st_s} · {_elapsed:.1f}s</small></div>'
+                        )
+                    else:
+                        _cards.append(
+                            f'<div class="xc-step run"><div class="ic">⏳</div>'
+                            f'<b>{esc(_label)}</b><small>执行中…</small></div>'
+                        )
+                if _cards:
+                    # ui_audit_exempt: 步骤状态卡网格，label/tool 均经 esc()，状态图标白名单映射
+                    st.markdown(
+                        f'<div class="xc-steps">{"".join(_cards)}</div>',
+                        unsafe_allow_html=True,
+                    )
             elif _logs:
                 # 无结构化 event → 回退显示最后 3 条消息（向后兼容老格式）
                 _last_msgs = [lg.get("message") for lg in _logs if isinstance(lg, dict)]
@@ -1798,108 +1803,27 @@ def _poll_ai_task():
 _poll_ai_task()
 
 
-# ── 「更多功能与帮助」：T-228 起把次要模块统一收进单个折叠区 ──
-# 目的：突出主对话区（老板 2026-10-07 指示「除正常对话区外，其他功能模块做适当隐藏/简化」）。
-# 说明：Streamlit 不支持 expander 嵌套，故组内各模块改用四级标题分区；
-#       深度研究开关移入组内——其值仍写入 session_state，fragment 提交时照常读取。
-with st.expander("⚙️ 更多功能与帮助（深度研究 · 研究记录 · 最近浏览 · 帮助）", expanded=False):
-    # ── 深度研究模式（H1 开关）──
-    st.checkbox(
-        "🔬 深度研究模式（多步工具调用 · 引用溯源 · 较慢）",
-        value=bool(st.session_state.get("xc_deep_mode", False)),
-        key="xc_deep_mode",
-        help="开启后问题交给研究智能体：自动调用行情 / 技术面 / 新闻 / 市场情绪等真实数据工具，"
-             "每一步与数据时点（as_of）全程留痕，回答附 [S#] 引用可溯源。"
-             "比普通问答慢（约 1 分钟），全程只读、不会下单。",
-    )
-
-    # ── H1+ 自驱盯盘研究记录（T-216）：定时自驱产出的研究记录 + 引用溯源 ──
-    st.markdown("#### 🛰️ 自驱盯盘研究记录")
-    try:
-        import logging as _xlog
-        from modules.session import api_get as _xc_api_get
-
-        _xc_logger = _xlog.getLogger("pages.53_星辰AI")
-
-        @st.cache_data(ttl=60, show_spinner=False)
-        def _xc_load_research_runs(limit=8):
-            try:
-                _sc, _body = _xc_api_get(f"/api/research-runs?limit={limit}", timeout=5)
-                if _sc == 200 and isinstance(_body, dict) and _body.get("status") == "ok":
-                    return (_body.get("data") or {}).get("items") or []
-                _xc_logger.debug("自驱研究记录取数异常: status=%s", _sc)
-            except Exception as _e:  # noqa: BLE001
-                _xc_logger.debug("自驱研究记录取数失败: %s", _e)
-            return []  # 取不到即空（诚实，不编造）
-
-        _xc_runs = _xc_load_research_runs()
-        _st_icon = {"ok": "✅", "partial": "⚠️", "unavailable": "⛔"}
-        if not _xc_runs:
-            st.caption("暂无记录：交易时段盯到异动告警后会自动产生研究（只读，不下单）。")
-        else:
-            for _r in _xc_runs:
-                _status = str(_r.get("status") or "unavailable")
-                _name = _r.get("trigger_metric_name") or _r.get("trigger_metric_key") or "市场异动"
-                _cits = _r.get("citations") or []
-                _lims = _r.get("limitations") or []
-                st.markdown(
-                    f"**{_st_icon.get(_status, 'ℹ️')} {_name}**　·　"
-                    f"{str(_r.get('created_at') or '')[:19].replace('T', ' ')}"
-                    f"　·　`{_status}`　·　引用 {len(_cits)} 条"
-                )
-                if _r.get("question"):
-                    st.caption(f"❓ {str(_r['question'])[:120]}")
-                if _r.get("answer"):
-                    st.markdown(str(_r["answer"])[:800])
-                if _cits:
-                    st.caption("📎 " + "；".join(
-                        f"[{c.get('id', '?')}] {c.get('title', '')}" for c in _cits[:6]))
-                if _lims:
-                    st.caption("⚠️ 局限：" + "；".join(str(x) for x in _lims[:4]))
-                st.divider()
-    except Exception as _rw_e:  # noqa: BLE001 - additive 区块失败只留痕，不影响对话主流程
-        import logging as _xlog
-        _xlog.getLogger("pages.53_星辰AI").debug("自驱研究记录展示失败: %s", _rw_e)
-
-    st.divider()
-    # ── 最近浏览：展示最近在对话中提及的股票代码（纯前端 session，不接后端）──
-    _xc_recent = st.session_state.get("xc_recent_stocks", [])
-    if _xc_recent:
-        st.markdown("#### 🕘 最近浏览")
-        _rc = st.columns(min(len(_xc_recent), 6))
-        for _i, _code in enumerate(_xc_recent[:6]):
-            if _rc[_i].button(f"📈 {_code}", key=f"xc_recent_{_i}", help="向星辰 AI 追问该股票"):
-                st.session_state["_xc_pending"] = f"{_code} 怎么样？"
-
-    # ── 复制最近一次 AI 回答（便于摘录 / 分享）──
-    _xc_msgs = st.session_state.get("xc_messages", [])
-    _xc_last_ai = next(
-        (m.get("content", "") for m in reversed(_xc_msgs)
-         if m.get("role") == "assistant" and m.get("content")),
-        "",
-    )
-    if _xc_last_ai and _xc_last_ai != WELCOME["content"]:
-        st.markdown("#### 📋 复制最近回答")
-        st.code(_xc_last_ai, language="text")
-
-    st.divider()
-    # ── 使用指南（新手教程 + 可点击示例）──
-    render_ai_tutorial()
-
-    st.divider()
-    # ── 你可能也关注（静态推荐，点击直接提问）──
-    st.markdown("#### 🔗 你可能也关注")
-    _recs = [
-        {"label": "📈 贵州茅台 600519", "prompt": "贵州茅台 600519 当前估值怎么样？"},
-        {"label": "🔋 宁德时代 300750", "prompt": "宁德时代 300750 近期走势如何？"},
-        {"label": "🏦 招商银行 600036", "prompt": "招商银行 600036 值得长期持有吗？"},
-        {"label": "💡 当前市场情绪", "prompt": "当前 A股 市场情绪和风格偏向如何？"},
-    ]
-    _rcols = st.columns(len(_recs))
-    for _i, _r in enumerate(_recs):
-        if _rcols[_i].button(_r["label"], key=f"xc_rec_{_i}", width="stretch",
-                             help="向星辰 AI 提问该推荐主题"):
-            st.session_state["_xc_pending"] = _r["prompt"]
+# ── 试着这样问（批3 2026-11-02：原「更多功能与帮助」折叠区整体拆除——
+#    深度研究开关常驻输入框上方；自驱研究记录由「94_消息中心」承接（/api/research-runs 同源，
+#    53 页该区块本就重复）；最近浏览聊天股票 / 复制最近回答 / 使用指南长文删除，
+#    有价值的示例问题并入下方推荐行）──
+st.markdown("#### 💡 试着这样问")
+_recs = [
+    {"label": "📈 贵州茅台 600519", "prompt": "贵州茅台 600519 当前估值怎么样？"},
+    {"label": "🔋 宁德时代 300750", "prompt": "宁德时代 300750 近期走势如何？"},
+    {"label": "🏦 招商银行 600036", "prompt": "招商银行 600036 值得长期持有吗？"},
+    {"label": "⚡ 实时盘口", "prompt": "600519 现在实时价格和盘口怎么样"},
+    {"label": "🌡️ 市场情绪", "prompt": "现在市场情绪如何，温度计到冰点了吗"},
+    {"label": "🌐 市场风格", "prompt": "当前 A股 市场情绪和风格偏向如何？"},
+]
+for _row in range(2):
+    _rcols = st.columns(3)
+    for _j in range(3):
+        _i = _row * 3 + _j
+        if _rcols[_j].button(_recs[_i]["label"], key=f"xc_rec_{_i}", width="stretch",
+                             help="点击直接向星辰 AI 提问"):
+            st.session_state["_xc_pending"] = _recs[_i]["prompt"]
+            st.rerun()  # ui_audit_exempt: bare-rerun 推荐按钮置位 _xc_pending 后整页重跑，fragment_chat 才能读取并提交
 
 # ── 方法学与来源注脚（B 类页五段式：收尾一段；本页为对话页，无天然 KPI 带数据，不强凑）──
 st.markdown("---")

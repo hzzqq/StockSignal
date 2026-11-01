@@ -138,6 +138,9 @@ _KNOWN_PAGE_CLASSES = frozenset({
     "xc-role", "xc-role-tool", "xc-role-user", "xc-sug-label",
     "xc-tool-card", "xc-tool-err", "xc-tool-tbl", "xc-ts", "xc-typing",
     "xc-user", "xc-user-av", "xc-user-bubble", "xc-who",
+    # 深度研究步骤状态卡网格（53 页批3，2026-11-02 人审登记：
+    # xc-steps 容器 + xc-step 步骤卡 + ic 图标位 + run/done/warn/err 状态档）
+    "xc-steps", "xc-step", "ic", "run", "done", "warn", "err",
 })
 
 _TOKEN_HAS_EXPR = re.compile(r"[{}]")
