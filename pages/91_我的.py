@@ -9,12 +9,11 @@ import time
 from datetime import datetime
 
 from modules.session import safe_switch_page, API_BASE, get_user, get_token, persist_prefs, get_avatar_path, save_avatar, get_avatar_data_url, set_avatar_data_url, save_avatar_to_backend, render_avatar
-from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT, sf_metric
+from modules.ui_theme import get_current_mode, FONT_SCALE, FONT_DEFAULT
 from modules.format_helpers import safe_int
 
 from modules.page_utils import render_standard_page
 from modules.page_utils import fmt_rel as _fmt_rel
-from modules.ui_theme import sf_metric
 
 # 安全解析字体档位在选项列表中的下标；legacy 值不在选项中时回退到默认档位，避免 .index() 抛 ValueError。
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_content_card, info_banner, ss_fold_useful, ss_hover_preview

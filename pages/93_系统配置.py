@@ -7,7 +7,6 @@ import streamlit as st
 import json
 from modules.session import init_session_state, require_admin, api_get, api_post
 from modules.page_utils import render_standard_page
-from modules.ui_theme import sf_metric
 from modules.admin_api import (
     get_stock_stats, get_stock_list, get_config, update_config,
     create_config, delete_config, get_watchlist, add_watchlist, remove_watchlist,

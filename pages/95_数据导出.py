@@ -20,7 +20,6 @@ from modules.fundflow import (
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info, UP, DOWN
 
 logger = logging.getLogger(__name__)

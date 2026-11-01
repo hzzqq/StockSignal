@@ -20,7 +20,6 @@ import concurrent.futures as _cf  # kept for potential other uses; main fetch us
 
 from modules.page_utils import render_standard_page
 from modules.page_utils import fmt_rel as _fmt_rel
-from modules.ui_theme import sf_metric
 from modules.session import safe_switch_page, api_get, trading_autorefresh
 from modules.fetcher import StockFetcher
 from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: 收敛到共享并发基元
