@@ -213,15 +213,15 @@ def dashboard_sf_css() -> str:
 /* 通用星辰卡片 → 2026-08-28 重渲染为「新城(xc)」视觉语言：深紫渐变描边 + 大圆角 + 抬升光晕 */
 .sf-card{{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));
   border-radius:18px;padding:18px 20px;margin-top:18px;position:relative;overflow:hidden;
-  box-shadow:0 0 0 1px rgba(102,126,234,.10),0 10px 28px rgba(102,126,234,.10);
+  box-shadow:0 0 0 1px var(--ss-glow-soft),0 10px 28px var(--ss-glow-soft);
   transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}}
 .sf-card::before{{content:"";position:absolute;inset:0;
-  background:radial-gradient(circle at 10% -12%, rgba(124,92,255,.12), transparent 52%);pointer-events:none}}
+  background:radial-gradient(circle at 10% -12%, var(--ss-glow-soft), transparent 52%);pointer-events:none}}
 .sf-card:hover{{transform:translateY(-3px);border-color:var(--acc1);
-  box-shadow:0 0 0 1px rgba(102,126,234,.18),0 14px 34px rgba(102,126,234,.18)}}
+  box-shadow:0 0 0 1px var(--ss-glow-soft),0 14px 34px var(--ss-glow-soft)}}
 .sf-card-title{{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:700;margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--border);color:var(--txt)}}
 .sf-card-title::before{{content:"";width:4px;height:18px;border-radius:3px;
-  background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.40)}}
+  background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px var(--ss-glow)}}
 .sf-card-subtitle{{font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:6px}}
 /* T-266 紧凑节标题：sf_card 空 body 时替代大卡片的轻量单行分组标题（约 24px，主题自适应） */
 .sf-section-title{{display:flex;align-items:center;gap:8px;margin:14px 0 6px;
@@ -229,17 +229,17 @@ def dashboard_sf_css() -> str:
   padding-left:10px;border-left:4px solid var(--acc1)}}
 /* ════════ 标题等级体系（父/子模块严格分级，避免“只看标题像内容很多”）════════ */
 .sf-card h2.sf-h1{{font-size:17px;font-weight:700;color:var(--txt);margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;letter-spacing:.3px}}
-.sf-card h2.sf-h1::before{{content:"";width:5px;height:18px;border-radius:3px;background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.45)}}
+.sf-card h2.sf-h1::before{{content:"";width:5px;height:18px;border-radius:3px;background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px var(--ss-glow)}}
 .sf-card h2.sf-h2{{font-size:14.5px;font-weight:600;color:var(--txt2);margin:0 0 12px;padding-bottom:8px;border-bottom:1px dashed var(--border);display:flex;align-items:center;gap:7px}}
 .sf-card h2.sf-h2::before{{content:"";width:3px;height:14px;border-radius:2px;background:var(--acc1);opacity:.85}}
 /* CTA 生成分析调用区（去丑渐变卡，统一组件视觉语言） */
-.sf-cta-card{{margin:14px 0 4px;padding:16px 18px;border-radius:14px;background:var(--card2);border:1px solid color-mix(in srgb,var(--acc1) 26%,var(--border));box-shadow:0 0 0 1px rgba(102,126,234,.08),0 8px 22px rgba(102,126,234,.10);position:relative;overflow:hidden}}
-.sf-cta-card::before{{content:"";position:absolute;inset:0;background:radial-gradient(circle at 12% -20%, rgba(124,92,255,.12), transparent 55%);pointer-events:none}}
+.sf-cta-card{{margin:14px 0 4px;padding:16px 18px;border-radius:14px;background:var(--card2);border:1px solid color-mix(in srgb,var(--acc1) 26%,var(--border));box-shadow:0 0 0 1px var(--ss-glow-soft),0 8px 22px var(--ss-glow-soft);position:relative;overflow:hidden}}
+.sf-cta-card::before{{content:"";position:absolute;inset:0;background:radial-gradient(circle at 12% -20%, var(--ss-glow-soft), transparent 55%);pointer-events:none}}
 .sf-cta-title{{font-size:15px;font-weight:700;color:var(--txt);margin:0 0 4px;display:flex;align-items:center;gap:8px}}
 .sf-cta-sub{{font-size:12.5px;color:var(--txt2);line-height:1.7;margin:0 0 12px}}
 
-.sf-page-link{{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--acc1);background:rgba(102,126,234,.10);border:1px solid rgba(102,126,234,.30);border-radius:10px;padding:8px 12px;margin:10px 0 4px;transition:all .2s ease}}
-.sf-page-link:hover{{background:rgba(102,126,234,.18);border-color:rgba(102,126,234,.50)}}
+.sf-page-link{{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--acc1);background:var(--ss-glow-soft);border:1px solid var(--ss-card-border);border-radius:10px;padding:8px 12px;margin:10px 0 4px;transition:all .2s ease}}
+.sf-page-link:hover{{background:var(--ss-glow-soft);border-color:var(--ss-card-border-strong)}}
 .sf-page-link a{{color:var(--acc1)!important;text-decoration:none!important}}
 
 /* 按钮式分段选择器：把 data-radio-pills 包裹下的 st.radio 渲染为 pills */
@@ -253,10 +253,10 @@ def dashboard_sf_css() -> str:
 [data-radio-pills="true"] [data-testid="stRadio"] input[type="radio"]:checked + div,
 [data-radio-pills="true"] [data-testid="stRadio"] input[type="radio"]:checked + span,
 [data-radio-pills="true"] [data-testid="stRadio"] label:has(input[type="radio"]:checked),
-[data-radio-pills="true"] [data-testid="stRadio"] div:has(> input[type="radio"]:checked){{background:linear-gradient(135deg,var(--acc1),var(--acc2))!important;color:#fff!important;border-color:transparent!important;box-shadow:0 0 12px rgba(102,126,234,.25)}}
+[data-radio-pills="true"] [data-testid="stRadio"] div:has(> input[type="radio"]:checked){{background:linear-gradient(135deg,var(--acc1),var(--acc2))!important;color:#fff!important;border-color:transparent!important;box-shadow:0 0 12px var(--ss-glow-soft)}}
 [data-radio-pills="true"] [data-testid="stRadio"] [data-testid="stWidgetLabel"]{{display:none!important}}
 
-/* 文档风格：绿涨红跌（参考 002947，本页统一采用） */\n.sf-doc-up{{color:var(--buy)!important}}\n.sf-doc-down{{color:var(--sell)!important}}\n.sf-doc-neu{{color:var(--hold)!important}}\n.sf-buy-badge{{display:inline-block;font-size:22px;font-weight:800;letter-spacing:2px;\n  padding:10px 28px;border-radius:14px;color:#fff;background:linear-gradient(135deg,#009e60,#047857);\n  box-shadow:0 0 20px rgba(0,158,96,.22)}}\n.sf-sell-badge{{background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;box-shadow:0 0 20px rgba(220,38,38,.22)}}\n.sf-hold-badge{{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;box-shadow:0 0 20px rgba(217,119,6,.22)}}\n.sf-price-big{{font-size:42px;font-weight:800;letter-spacing:-1px;font-family:'Fira Code',monospace;color:var(--buy)}}\n.sf-triangle{{font-size:22px;margin-right:4px}}\n.sf-metric-card{{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}}\n.sf-metric-card .label{{font-size:12px;color:var(--txt2);margin-bottom:6px}}\n.sf-metric-card .value{{font-size:22px;font-weight:700;font-family:'Fira Code',monospace;color:var(--txt)}}\n.sf-insight-box{{background:rgba(0,158,96,.10);border:1px solid rgba(0,158,96,.35);\n  border-radius:12px;padding:14px 16px;line-height:1.8;font-size:14px;color:var(--txt)}}\n.sf-insight-box.hold{{background:rgba(217,119,6,.10);border-color:rgba(217,119,6,.35);color:var(--txt)}}\n.sf-grid-4{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}}\n@media(max-width:900px){{.sf-grid-4{{grid-template-columns:repeat(2,1fr)}}}}\n@media(max-width:540px){{.sf-grid-4{{grid-template-columns:1fr}}}}\n.sf-perspective-card{{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}}\n.sf-perspective-card .title{{font-size:12px;color:var(--txt2);margin-bottom:10px}}\n.sf-perspective-card .body{{font-size:14px;color:var(--txt);line-height:1.6}}\n.sf-pill{{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin:2px 2px 2px 0}}\n.sf-pill.up{{background:rgba(0,158,96,.12);color:var(--buy);border:1px solid rgba(0,158,96,.35)}}\n.sf-pill.down{{background:rgba(220,38,38,.12);color:var(--sell);border:1px solid rgba(220,38,38,.35)}}\n.sf-pill.mid{{background:rgba(217,119,6,.12);color:var(--hold);border:1px solid rgba(217,119,6,.35)}}\n.sf-intel-header{{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px}}\n.sf-intel-header h2{{margin:0;padding:0;border:0}}\n.sf-intel-bar{{height:6px;border-radius:3px;overflow:hidden;display:flex;margin:10px 0 18px;background:var(--border)}}\n.sf-intel-bar .bar-pos{{height:100%;background:var(--buy)}}\n.sf-intel-bar .bar-neu{{height:100%;background:var(--hold)}}\n.sf-intel-bar .bar-neg{{height:100%;background:var(--sell)}}\n.sf-card h2{{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px;color:var(--txt);border-left:none;padding-left:0;border-bottom:none;padding-bottom:0;position:static}}\n.sf-card h2::before{{content:"";width:4px;height:16px;background:linear-gradient(180deg,var(--acc1),var(--acc2));border-radius:3px;flex-shrink:0}}\n.sf-card h2::after{{content:none}}\n.sf-scale{{margin-top:10px;background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative;height:64px}}\n.sf-scale-bar{{position:absolute;top:28px;left:14px;right:14px;height:8px;border-radius:4px}}\n.sf-scale-mk{{position:absolute;top:13px;transform:translateX(-50%);font-size:11px;color:var(--txt);text-align:center;white-space:nowrap}}\n.sf-scale-mk b{{display:block;font-size:13px;font-weight:700}}\n.sf-scale-lab{{position:absolute;bottom:5px;font-size:10px;color:var(--txt2)}}\n.sf-risk-iron{{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.30);border-radius:10px;padding:14px;margin-top:10px}}\n.sf-risk-iron h3{{color:var(--sell);font-size:14px;margin-bottom:8px}}\n.sf-risk-iron li{{font-size:12.5px;color:var(--txt);margin-left:18px;margin-bottom:4px}}\n.sf-header{{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px;padding:14px 18px;background:linear-gradient(90deg,var(--header-g1),var(--header-g2));border:1px solid var(--border);border-radius:14px}}\n.sf-brand{{font-size:15px;color:var(--txt2);letter-spacing:1px}}\n.sf-brand b{{color:var(--acc1)}}\n.sf-tag{{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin:2px 2px 2px 0}}\n.sf-tag.up{{background:rgba(0,158,96,.14);color:var(--buy);border:1px solid rgba(0,158,96,.38)}}\n.sf-tag.down{{background:rgba(220,38,38,.14);color:var(--sell);border:1px solid rgba(220,38,38,.38)}}\n.sf-tag.mid{{background:rgba(217,119,6,.14);color:var(--hold);border:1px solid rgba(217,119,6,.38)}}\n.sf-tag.neu{{background:rgba(148,163,184,.12);color:var(--txt2);border:1px solid var(--border)}}\n.sf-alert{{border-radius:12px;padding:13px 15px;margin-top:14px;font-size:13.5px;color:var(--txt);line-height:1.7}}\n.sf-alert.risk{{background:rgba(220,38,38,.10);border:1px solid rgba(220,38,38,.30);color:var(--alert-risk)}}\n.sf-alert.cat{{background:rgba(0,158,96,.10);border:1px solid rgba(0,158,96,.30);color:var(--alert-cat)}}\n.sf-alert b{{display:block;margin-bottom:5px;font-size:14px}}\n.sf-table{{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}}\n.sf-table th,.sf-table td{{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)}}\n.sf-table th{{color:var(--txt2);font-weight:600;font-size:12px}}\n.sf-table tr:hover td{{background:var(--hover)}}\n.sf-disclaimer{{margin-top:14px;font-size:11.5px;color:var(--disclaimer);border-top:1px dashed var(--border);padding-top:10px}}\n.sf-vs{{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}}\n@media(max-width:780px){{.sf-vs{{grid-template-columns:1fr}}}}\n.sf-vsbox{{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.08)}}\n.sf-vsbox h3{{font-size:14px;margin-bottom:8px;color:var(--txt);border:none!important;padding-left:0!important}}\n.sf-card{{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}}\n.sf-card h2:first-child{{margin-top:0!important}}\n/* 全局表格美化：Streamlit 原生 dataframe/table 斑马纹 + 表头吸顶（金融专业观感） */\n.stDataFrame table{{border-collapse:separate;border-spacing:0;width:100%!important;font-size:13px}}\n.stDataFrame thead th{{position:sticky;top:0;z-index:2;background:var(--card2)!important;\n  color:var(--txt2)!important;font-weight:700;border-bottom:2px solid var(--border)!important}}\n.stDataFrame tbody tr:nth-child(even) td{{background:rgba(127,127,127,.06)}}\n.stDataFrame tbody tr:hover td{{background:rgba(102,126,234,.10)!important}}\n.stDataFrame td{{border-bottom:1px solid var(--border)!important;color:var(--txt)}}\n/* 折叠面板标题强化金融质感：左侧渐变竖条 + 悬停高亮 */\n.streamlit-expanderHeader{{border-left:3px solid transparent!important}}\n.streamlit-expanderHeader:hover{{border-left:3px solid var(--acc1, #4f46e5)!important}}
+/* 文档风格：绿涨红跌（参考 002947，本页统一采用） */\n.sf-doc-up{{color:var(--buy)!important}}\n.sf-doc-down{{color:var(--sell)!important}}\n.sf-doc-neu{{color:var(--hold)!important}}\n.sf-buy-badge{{display:inline-block;font-size:22px;font-weight:800;letter-spacing:2px;\n  padding:10px 28px;border-radius:14px;color:#fff;background:linear-gradient(135deg,#009e60,#047857);\n  box-shadow:0 0 20px rgba(0,158,96,.22)}}\n.sf-sell-badge{{background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;box-shadow:0 0 20px rgba(220,38,38,.22)}}\n.sf-hold-badge{{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;box-shadow:0 0 20px rgba(217,119,6,.22)}}\n.sf-price-big{{font-size:42px;font-weight:800;letter-spacing:-1px;font-family:'Fira Code',monospace;color:var(--buy)}}\n.sf-triangle{{font-size:22px;margin-right:4px}}\n.sf-metric-card{{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}}\n.sf-metric-card .label{{font-size:12px;color:var(--txt2);margin-bottom:6px}}\n.sf-metric-card .value{{font-size:22px;font-weight:700;font-family:'Fira Code',monospace;color:var(--txt)}}\n.sf-insight-box{{background:rgba(0,158,96,.10);border:1px solid rgba(0,158,96,.35);\n  border-radius:12px;padding:14px 16px;line-height:1.8;font-size:14px;color:var(--txt)}}\n.sf-insight-box.hold{{background:rgba(217,119,6,.10);border-color:rgba(217,119,6,.35);color:var(--txt)}}\n.sf-grid-4{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}}\n@media(max-width:900px){{.sf-grid-4{{grid-template-columns:repeat(2,1fr)}}}}\n@media(max-width:540px){{.sf-grid-4{{grid-template-columns:1fr}}}}\n.sf-perspective-card{{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}}\n.sf-perspective-card .title{{font-size:12px;color:var(--txt2);margin-bottom:10px}}\n.sf-perspective-card .body{{font-size:14px;color:var(--txt);line-height:1.6}}\n.sf-pill{{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin:2px 2px 2px 0}}\n.sf-pill.up{{background:rgba(0,158,96,.12);color:var(--buy);border:1px solid rgba(0,158,96,.35)}}\n.sf-pill.down{{background:rgba(220,38,38,.12);color:var(--sell);border:1px solid rgba(220,38,38,.35)}}\n.sf-pill.mid{{background:rgba(217,119,6,.12);color:var(--hold);border:1px solid rgba(217,119,6,.35)}}\n.sf-intel-header{{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px}}\n.sf-intel-header h2{{margin:0;padding:0;border:0}}\n.sf-intel-bar{{height:6px;border-radius:3px;overflow:hidden;display:flex;margin:10px 0 18px;background:var(--border)}}\n.sf-intel-bar .bar-pos{{height:100%;background:var(--buy)}}\n.sf-intel-bar .bar-neu{{height:100%;background:var(--hold)}}\n.sf-intel-bar .bar-neg{{height:100%;background:var(--sell)}}\n.sf-card h2{{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px;color:var(--txt);border-left:none;padding-left:0;border-bottom:none;padding-bottom:0;position:static}}\n.sf-card h2::before{{content:"";width:4px;height:16px;background:linear-gradient(180deg,var(--acc1),var(--acc2));border-radius:3px;flex-shrink:0}}\n.sf-card h2::after{{content:none}}\n.sf-scale{{margin-top:10px;background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative;height:64px}}\n.sf-scale-bar{{position:absolute;top:28px;left:14px;right:14px;height:8px;border-radius:4px}}\n.sf-scale-mk{{position:absolute;top:13px;transform:translateX(-50%);font-size:11px;color:var(--txt);text-align:center;white-space:nowrap}}\n.sf-scale-mk b{{display:block;font-size:13px;font-weight:700}}\n.sf-scale-lab{{position:absolute;bottom:5px;font-size:10px;color:var(--txt2)}}\n.sf-risk-iron{{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.30);border-radius:10px;padding:14px;margin-top:10px}}\n.sf-risk-iron h3{{color:var(--sell);font-size:14px;margin-bottom:8px}}\n.sf-risk-iron li{{font-size:12.5px;color:var(--txt);margin-left:18px;margin-bottom:4px}}\n.sf-header{{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px;padding:14px 18px;background:linear-gradient(90deg,var(--header-g1),var(--header-g2));border:1px solid var(--border);border-radius:14px}}\n.sf-brand{{font-size:15px;color:var(--txt2);letter-spacing:1px}}\n.sf-brand b{{color:var(--acc1)}}\n.sf-tag{{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin:2px 2px 2px 0}}\n.sf-tag.up{{background:rgba(0,158,96,.14);color:var(--buy);border:1px solid rgba(0,158,96,.38)}}\n.sf-tag.down{{background:rgba(220,38,38,.14);color:var(--sell);border:1px solid rgba(220,38,38,.38)}}\n.sf-tag.mid{{background:rgba(217,119,6,.14);color:var(--hold);border:1px solid rgba(217,119,6,.38)}}\n.sf-tag.neu{{background:rgba(148,163,184,.12);color:var(--txt2);border:1px solid var(--border)}}\n.sf-alert{{border-radius:12px;padding:13px 15px;margin-top:14px;font-size:13.5px;color:var(--txt);line-height:1.7}}\n.sf-alert.risk{{background:rgba(220,38,38,.10);border:1px solid rgba(220,38,38,.30);color:var(--alert-risk)}}\n.sf-alert.cat{{background:rgba(0,158,96,.10);border:1px solid rgba(0,158,96,.30);color:var(--alert-cat)}}\n.sf-alert b{{display:block;margin-bottom:5px;font-size:14px}}\n.sf-table{{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}}\n.sf-table th,.sf-table td{{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)}}\n.sf-table th{{color:var(--txt2);font-weight:600;font-size:12px}}\n.sf-table tr:hover td{{background:var(--hover)}}\n.sf-disclaimer{{margin-top:14px;font-size:11.5px;color:var(--disclaimer);border-top:1px dashed var(--border);padding-top:10px}}\n.sf-vs{{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}}\n@media(max-width:780px){{.sf-vs{{grid-template-columns:1fr}}}}\n.sf-vsbox{{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.08)}}\n.sf-vsbox h3{{font-size:14px;margin-bottom:8px;color:var(--txt);border:none!important;padding-left:0!important}}\n.sf-card{{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}}\n.sf-card h2:first-child{{margin-top:0!important}}\n/* 全局表格美化：Streamlit 原生 dataframe/table 斑马纹 + 表头吸顶（金融专业观感） */\n.stDataFrame table{{border-collapse:separate;border-spacing:0;width:100%!important;font-size:13px}}\n.stDataFrame thead th{{position:sticky;top:0;z-index:2;background:var(--card2)!important;\n  color:var(--txt2)!important;font-weight:700;border-bottom:2px solid var(--border)!important}}\n.stDataFrame tbody tr:nth-child(even) td{{background:rgba(127,127,127,.06)}}\n.stDataFrame tbody tr:hover td{{background:var(--ss-glow-soft)!important}}\n.stDataFrame td{{border-bottom:1px solid var(--border)!important;color:var(--txt)}}\n/* 折叠面板标题强化金融质感：左侧渐变竖条 + 悬停高亮 */\n.streamlit-expanderHeader{{border-left:3px solid transparent!important}}\n.streamlit-expanderHeader:hover{{border-left:3px solid var(--acc1, #4f46e5)!important}}
 
 /* ===== 星辰主题·全局原生组件覆盖（自动应用到所有 render_standard_page 页面） ===== */
 /* 说明：以下样式只改颜色/圆角/边框/阴影，不改 DOM 结构与功能，不破坏业务逻辑。 */
@@ -284,8 +284,8 @@ def dashboard_sf_css() -> str:
   border:1px solid var(--border)!important;background:var(--card2)!important;color:var(--txt)!important;
   transition:all .2s ease!important}}
 [data-testid="stButton"] > button:hover,
-[data-testid="stButton"] button:hover{{border-color:var(--acc1)!important;background:rgba(102,126,234,.12)!important;
-  box-shadow:0 0 12px rgba(102,126,234,.15)!important}}
+[data-testid="stButton"] button:hover{{border-color:var(--acc1)!important;background:var(--ss-glow-soft)!important;
+  box-shadow:0 0 12px var(--ss-glow-soft)!important}}
 [data-testid="stButton"] > button:active,
 [data-testid="stButton"] button:active{{transform:translateY(1px)!important}}
 /* 主按钮（primary）保持主题色填充 */
@@ -303,7 +303,7 @@ def dashboard_sf_css() -> str:
 [data-testid="stRadio"] > div > div > div > label:hover{{background:var(--hover)!important;border-color:var(--acc1)!important}}
 [data-testid="stRadio"] [role="radiogroup"][aria-orientation="horizontal"] > label:has(input:checked),
 [data-testid="stRadio"] > div > div > div > label:has(input:checked){{background:linear-gradient(135deg,var(--acc1),var(--acc2))!important;
-  color:#fff!important;border-color:transparent!important;box-shadow:0 0 10px rgba(102,126,234,.22)!important}}
+  color:#fff!important;border-color:transparent!important;box-shadow:0 0 10px var(--ss-glow-soft)!important}}
 [data-testid="stRadio"] [role="radiogroup"][aria-orientation="horizontal"] input,
 [data-testid="stRadio"] > div > div > div > label input{{position:absolute!important;opacity:0!important;width:0!important;height:0!important}}
 [data-testid="stRadio"] [data-testid="stWidgetLabel"]{{font-weight:600!important;color:var(--txt)!important}}
@@ -311,12 +311,12 @@ def dashboard_sf_css() -> str:
 /* 4. page_link 胶囊链接 */
 [data-testid="stPageLink"] a,
 a[data-testid="stPageLink"]{{display:inline-flex!important;align-items:center!important;gap:6px!important;
-  font-size:13px!important;color:var(--acc1)!important;background:rgba(102,126,234,.10)!important;
-  border:1px solid rgba(102,126,234,.30)!important;border-radius:10px!important;
+  font-size:13px!important;color:var(--acc1)!important;background:var(--ss-glow-soft)!important;
+  border:1px solid var(--ss-card-border)!important;border-radius:10px!important;
   padding:8px 12px!important;margin:4px 0!important;transition:all .2s ease!important;
   text-decoration:none!important}}
 [data-testid="stPageLink"] a:hover,
-a[data-testid="stPageLink"]:hover{{background:rgba(102,126,234,.18)!important;border-color:rgba(102,126,234,.50)!important}}
+a[data-testid="stPageLink"]:hover{{background:var(--ss-glow-soft)!important;border-color:var(--ss-card-border-strong)!important}}
 
 /* 5. info/warning/error/success 卡片化 */
 [data-testid="stAlert"],
@@ -368,7 +368,7 @@ hr{{border:none!important;border-top:1px dashed color-mix(in srgb,var(--border) 
    只改颜色/圆角/边框/阴影/表格观感，不改 DOM 结构与业务逻辑。 */
 /* 1. 原生标题（st.header→h2 / st.subheader→h3 / st.title→h1）统一渐变竖条 */
 .stApp h1,.stApp h2,.stApp h3,.stApp h4{{position:relative;padding-left:14px;font-weight:700;color:var(--txt)!important}}
-.stApp h2::before,.stApp h3::before,.stApp h4::before{{content:"";position:absolute;left:0;top:.16em;width:4px;height:1em;min-height:14px;border-radius:3px;background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.35)}}
+.stApp h2::before,.stApp h3::before,.stApp h4::before{{content:"";position:absolute;left:0;top:.16em;width:4px;height:1em;min-height:14px;border-radius:3px;background:linear-gradient(180deg,var(--acc1),var(--acc2));box-shadow:0 0 8px var(--ss-glow)}}
 /* 2. 原生表格（st.dataframe/st.table）统一 xc 表格观感：圆角容器 + 粘性表头 + 斑马纹 + hover */
 .stDataFrame,.stTable{{border:1px solid var(--border)!important;border-radius:12px!important;overflow:auto!important;box-shadow:0 1px 6px rgba(15,15,35,.06);max-height:560px}}
 /* T-278：窄屏/多列时表格容器内横向滚动（保留排序/下载交互，不做 HTML 替换） */
@@ -392,11 +392,11 @@ hr{{border:none!important;border-top:1px dashed color-mix(in srgb,var(--border) 
 [data-testid="stAlert"][data-baseweb="notification"][data-kind="info"]{{border-left:4px solid var(--acc1)!important}}
 
 /* ===== xc 统一覆盖：旧 .sf-* 子类继承「新城(xc)」视觉（后定义优先，零调用点改动） ===== */
-.sf-metric-card{{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));border-radius:14px;padding:14px;text-align:center;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(102,126,234,.08),0 6px 18px rgba(102,126,234,.08);transition:transform .18s ease,border-color .18s ease}}
+.sf-metric-card{{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));border-radius:14px;padding:14px;text-align:center;position:relative;overflow:hidden;box-shadow:0 0 0 1px var(--ss-glow-soft),0 6px 18px var(--ss-glow-soft);transition:transform .18s ease,border-color .18s ease}}
 .sf-metric-card:hover{{transform:translateY(-3px);border-color:var(--acc1)}}
 .sf-metric-card .label{{font-size:12px;color:var(--txt2);margin-bottom:6px}}
 .sf-metric-card .value{{font-size:22px;font-weight:700;font-family:'Fira Code',monospace;color:var(--txt)}}
-.sf-perspective-card{{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));border-radius:16px;padding:16px;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(102,126,234,.08),0 8px 22px rgba(102,126,234,.10);transition:transform .18s ease,border-color .18s ease}}
+.sf-perspective-card{{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));border-radius:16px;padding:16px;position:relative;overflow:hidden;box-shadow:0 0 0 1px var(--ss-glow-soft),0 8px 22px var(--ss-glow-soft);transition:transform .18s ease,border-color .18s ease}}
 .sf-perspective-card:hover{{transform:translateY(-3px);border-color:var(--acc1)}}
 .sf-perspective-card .title{{font-size:12px;color:var(--txt2);margin-bottom:10px}}
 .sf-perspective-card .body{{font-size:14px;color:var(--txt);line-height:1.6}}
@@ -405,15 +405,15 @@ hr{{border:none!important;border-top:1px dashed color-mix(in srgb,var(--border) 
 .sf-grid-4{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}}
 @media(max-width:900px){{.sf-grid-4{{grid-template-columns:repeat(2,1fr)}}}}
 @media(max-width:540px){{.sf-grid-4{{grid-template-columns:1fr}}}}
-.sf-pill,.sf-tag{{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;background:rgba(102,126,234,.12);border:1px solid color-mix(in srgb,var(--acc1) 35%,var(--border));color:var(--acc1)}}
+.sf-pill,.sf-tag{{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--ss-glow-soft);border:1px solid color-mix(in srgb,var(--acc1) 35%,var(--border));color:var(--acc1)}}
 .sf-vsbox{{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:600;padding:6px 12px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt)}}
-.sf-intel-bar{{height:4px;border-radius:3px;background:linear-gradient(90deg,var(--acc1),var(--acc2));box-shadow:0 0 8px rgba(102,126,234,.25)}}
+.sf-intel-bar{{height:4px;border-radius:3px;background:linear-gradient(90deg,var(--acc1),var(--acc2));box-shadow:0 0 8px var(--ss-glow-soft)}}
 .sf-intel-header{{font-size:13px;font-weight:700;color:var(--acc1);margin-bottom:8px;display:flex;align-items:center;gap:6px}}
 .sf-scale{{display:flex;flex-direction:column;gap:4px}}
 .sf-scale-bar{{height:6px;border-radius:3px;background:color-mix(in srgb,var(--acc1) 30%,var(--border));overflow:hidden}}
 .sf-scale-mk{{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--acc1),var(--acc2))}}
 .sf-scale-lab{{font-size:11px;color:var(--txt2)}}
-.sf-header{{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px;padding:16px 20px;background:linear-gradient(120deg,color-mix(in srgb,var(--acc1) 16%,var(--card)),color-mix(in srgb,var(--acc2) 14%,var(--card)));border:1px solid var(--border);border-radius:16px;box-shadow:0 0 0 1px rgba(102,126,234,.10),0 8px 24px rgba(102,126,234,.10)}}
+.sf-header{{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px;padding:16px 20px;background:linear-gradient(120deg,color-mix(in srgb,var(--acc1) 16%,var(--card)),color-mix(in srgb,var(--acc2) 14%,var(--card)));border:1px solid var(--border);border-radius:16px;box-shadow:0 0 0 1px var(--ss-glow-soft),0 8px 24px var(--ss-glow-soft)}}
 .sf-brand{{font-size:15px;color:var(--txt2);letter-spacing:1px}}
 .sf-brand b{{color:var(--acc1)}}
 .sf-note{{font-size:13px;color:var(--txt2);line-height:1.7}}
@@ -423,7 +423,7 @@ hr{{border:none!important;border-top:1px dashed color-mix(in srgb,var(--border) 
 .sf-disclaimer{{font-size:12px;color:var(--txt2);line-height:1.7;opacity:.9}}
 .sf-price-big{{font-size:40px;font-weight:800;letter-spacing:-1px;font-family:'Fira Code',monospace;color:var(--buy)}}
 .sf-triangle{{font-size:22px;margin-right:4px}}
-.sf-buy-badge,.sf-sell-badge,.sf-hold-badge{{display:inline-block;font-size:20px;font-weight:800;letter-spacing:1px;padding:10px 26px;border-radius:14px;color:#fff;box-shadow:0 0 20px rgba(102,126,234,.20)}}
+.sf-buy-badge,.sf-sell-badge,.sf-hold-badge{{display:inline-block;font-size:20px;font-weight:800;letter-spacing:1px;padding:10px 26px;border-radius:14px;color:#fff;box-shadow:0 0 20px var(--ss-glow-soft)}}
 .sf-buy-badge{{background:linear-gradient(135deg,#009e60,#047857)}}
 .sf-sell-badge{{background:linear-gradient(135deg,#dc2626,#b91c1c)}}
 .sf-hold-badge{{background:linear-gradient(135deg,#d97706,#b45309)}}
@@ -436,7 +436,7 @@ hr{{border:none!important;border-top:1px dashed color-mix(in srgb,var(--border) 
 .sf-table th{{color:var(--txt2);font-weight:600;font-size:12px;background:var(--card2)}}
 
 /* 行情看板·行业板块涨跌卡（xc 风，动态涨跌色经 inline 传入） */
-.xc-sector-card{{background:color-mix(in srgb,var(--acc1) 8%,var(--card));border:1px solid color-mix(in srgb,var(--acc1) 22%,var(--border));border-left:3px solid var(--acc1);border-radius:14px;padding:12px 14px;min-height:64px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;box-shadow:0 0 0 1px rgba(102,126,234,.06),0 4px 14px rgba(102,126,234,.08);transition:transform .18s ease,border-color .18s ease}}
+.xc-sector-card{{background:color-mix(in srgb,var(--acc1) 8%,var(--card));border:1px solid color-mix(in srgb,var(--acc1) 22%,var(--border));border-left:3px solid var(--acc1);border-radius:14px;padding:12px 14px;min-height:64px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;box-shadow:0 0 0 1px var(--ss-glow-soft),0 4px 14px var(--ss-glow-soft);transition:transform .18s ease,border-color .18s ease}}
 .xc-sector-card:hover{{transform:translateY(-3px);border-color:var(--acc1)}}
 .xc-sector-name{{color:var(--txt);font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 .xc-sector-pct{{font-size:18px;font-weight:700;margin-top:2px}}
@@ -465,7 +465,7 @@ button[kind="pills"]:hover{{border-color:var(--acc1)!important;background:var(--
 button[kind="pillsActive"]{{border-radius:999px!important;border:1px solid transparent!important;
   background:linear-gradient(135deg,var(--acc1),var(--acc2))!important;color:#fff!important;
   font-size:12.5px!important;font-weight:700!important;padding:4px 14px!important;margin:3px 4px!important;
-  box-shadow:0 0 12px rgba(102,126,234,.25)!important}}
+  box-shadow:0 0 12px var(--ss-glow-soft)!important}}
 
 /* 3. 分段选择器 st.segmented_control：主题化（选中态强调色） */
 button[kind="segmented_control"]{{border:1px solid var(--border)!important;background:var(--card2)!important;
@@ -505,7 +505,7 @@ def card(body_html: str) -> None:
     else:
         _bg = 'rgba(26, 26, 46, 0.65)'
         _bd = 'rgba(102, 126, 234, 0.10)'
-        _sh = '0 8px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 24px rgba(102,126,234,0.06)'
+        _sh = '0 8px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 24px var(--ss-glow-soft)'
     st.markdown("<div style='background:" + _bg + ';border:1px solid ' + _bd + ';border-radius:16px;padding:18px 20px;box-shadow:' + _sh + ";backdrop-filter:blur(10px);'>" + body_html + '</div>', unsafe_allow_html=True)
 
 def loading_spinner(text: str='加载中...', variant: str='default') -> None:
@@ -1069,7 +1069,7 @@ a{color:#58a6ff!important}a:hover{color:#79b8ff!important}
 /* 10) 登录卡兼容（继承 finpro 深蓝语言） */
 :root{--ss-login-radius:10px;--ss-login-btn-text:#fff}
 
-/* 11) hero 光晕蓝化（ui_kit 硬编码紫 rgba(124,92,255) 的终端化覆盖） */
+/* 11) hero 光晕蓝化（ui_kit 硬编码紫的终端化覆盖） */
 .xc-hero::before{background:radial-gradient(circle at 12% -10%, rgba(47,129,247,.16), transparent 55%)!important}
 .xc-hero-icon{box-shadow:0 4px 14px rgba(47,129,247,.30)!important}
 

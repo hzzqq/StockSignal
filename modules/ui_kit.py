@@ -51,15 +51,15 @@ _TOKEN_CSS = r"""
   --ss-radius:12px; --ss-radius-card:16px; --ss-radius-pill:999px;
   --ss-space-1:4px; --ss-space-2:8px; --ss-space-3:12px; --ss-space-4:16px; --ss-space-5:20px; --ss-space-6:24px;
   --ss-shadow-card:0 1px 4px rgba(15,15,35,.06);
-  --ss-shadow-lift:0 10px 30px rgba(102,126,234,.18);
-  --ss-shadow-hero:0 0 0 1px rgba(102,126,234,.14),0 12px 32px rgba(102,126,234,.12);
+  --ss-shadow-lift:0 10px 30px var(--ss-glow-soft);
+  --ss-shadow-hero:0 0 0 1px var(--ss-glow-soft),0 12px 32px var(--ss-glow-soft);
   --ss-font-num:'Fira Code',ui-monospace,monospace;
   /* T-261：全局中文排版字体栈（Windows 本机优先微软雅黑 UI，macOS 回退苹方） */
   --ss-font-cjk:'Microsoft YaHei UI','PingFang SC','Microsoft YaHei','Source Han Sans SC',system-ui,sans-serif;
   /* v10 微动效令牌（T-176） */
   --ss-fade:.25s;
   /* ===== L3 组件语义层（ui-ds 设计系统 Phase1，P0 批次）=====
-     目标：消除组件层硬编码紫 rgba（rgba(102,126,234,*)/rgba(124,92,255,*)）——
+     目标：消除组件层硬编码紫 rgba（经典紫 #667eea / 深紫 #7c5cff）——
      terminal（琥珀）/cyber（黄青）风格下紫光穿帮的根因。
      全部由 L2 语义别名 color-mix 派生（无新硬编码色相），七风格自动随
      --ss-accent/--ss-accent2 换色相。P0 纯 additive：组件引用暂不切换，
@@ -113,12 +113,12 @@ _KIT_CSS = _TOKEN_CSS + r"""
     color-mix(in srgb, var(--ss-accent) 16%, var(--ss-surface)) 0%,
     color-mix(in srgb, var(--ss-accent2) 14%, var(--ss-surface)) 100%);
   border:1px solid var(--ss-line);
-  box-shadow:0 0 0 1px rgba(102,126,234,.10), 0 8px 24px rgba(15,15,35,.10);}
+  box-shadow:0 0 0 1px var(--ss-glow-soft), 0 8px 24px rgba(15,15,35,.10);}
 .ss-hero-main{display:flex;align-items:center;gap:14px;min-width:0}
 .ss-hero-icon{font-size:26px;line-height:1;flex-shrink:0;
   width:46px;height:46px;display:flex;align-items:center;justify-content:center;
   border-radius:12px;background:linear-gradient(135deg,var(--ss-accent),var(--ss-accent2));
-  box-shadow:0 4px 14px rgba(102,126,234,.35)}
+  box-shadow:0 4px 14px var(--ss-glow)}
 .ss-hero-title{font-size:20px;font-weight:800;letter-spacing:.3px;color:var(--ss-text);line-height:1.2}
 .ss-hero-sub{font-size:13px;color:var(--ss-text-muted);margin-top:3px}
 .ss-hero-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -186,13 +186,13 @@ _KIT_CSS = _TOKEN_CSS + r"""
   box-shadow:var(--ss-shadow-hero);
   position:relative;overflow:hidden}
 .xc-hero::before{content:"";position:absolute;inset:0;
-  background:radial-gradient(circle at 12% -10%, rgba(124,92,255,.22), transparent 55%);
+  background:radial-gradient(circle at 12% -10%, var(--ss-glow-soft), transparent 55%);
   pointer-events:none}
 .xc-hero-main{display:flex;align-items:center;gap:14px;min-width:0;position:relative;z-index:1}
 .xc-hero-icon{font-size:26px;line-height:1;flex-shrink:0;
   width:48px;height:48px;display:flex;align-items:center;justify-content:center;
   border-radius:14px;background:linear-gradient(135deg,var(--ss-accent),var(--ss-accent2));
-  box-shadow:0 6px 18px rgba(102,126,234,.42)}
+  box-shadow:0 6px 18px var(--ss-glow)}
 .xc-hero-title{font-size:22px;font-weight:800;letter-spacing:.3px;color:var(--ss-text);line-height:1.2}
 .xc-hero-sub{font-size:13px;color:var(--ss-text-muted);margin-top:4px;font-weight:500}
 .xc-hero-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:relative;z-index:1}
@@ -340,13 +340,13 @@ _HERO_FALLBACK_CSS = _TOKEN_CSS + r"""
   box-shadow:var(--ss-shadow-hero);
   position:relative;overflow:hidden}
 .xc-hero::before{content:"";position:absolute;inset:0;
-  background:radial-gradient(circle at 12% -10%, rgba(124,92,255,.22), transparent 55%);
+  background:radial-gradient(circle at 12% -10%, var(--ss-glow-soft), transparent 55%);
   pointer-events:none}
 .xc-hero-main{display:flex;align-items:center;gap:14px;min-width:0;position:relative;z-index:1}
 .xc-hero-icon{font-size:26px;line-height:1;flex-shrink:0;
   width:48px;height:48px;display:flex;align-items:center;justify-content:center;
   border-radius:14px;background:linear-gradient(135deg,var(--ss-accent),var(--ss-accent2));
-  box-shadow:0 6px 18px rgba(102,126,234,.42)}
+  box-shadow:0 6px 18px var(--ss-glow)}
 .xc-hero-title{font-size:22px;font-weight:800;letter-spacing:.3px;color:var(--ss-text);line-height:1.2}
 .xc-hero-sub{font-size:13px;color:var(--ss-text-muted);margin-top:4px;font-weight:500}
 .xc-hero-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:relative;z-index:1}</style>
