@@ -12,7 +12,7 @@ import logging
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_bento_kpi
 from modules.page_utils import render_standard_page
 from modules import lead_lag_matrix as ll
 from modules.breadth_features import OFFLINE_MISSING, data_as_of
@@ -28,6 +28,29 @@ st.caption(f"📅 数据截至 **{data_as_of()}**（离线健康镜像快照，*
 
 try:
     res = ll.lead_lag_matrix()
+
+    # ── B 类页五段式：header → KPI 带（数据 = 本页矩阵结果的元信息，全为真实计算事实）──
+    if res.get("available") and res.get("matrix"):
+        _dropped = res.get("dropped", {}) or {}
+        xc_bento_kpi([
+            {
+                "label": "参与维度", "value": str(len(res["dims"])),
+                "meta": "离线可靠广度字段（数据闸门放行）",
+            },
+            {
+                "label": "互相关窗口", "value": "0~20 日",
+                "meta": "逐对最优领先滞后扫描",
+            },
+            {
+                "label": "被剔除维度", "value": str(len(_dropped)),
+                "meta": "非空率过低或近乎常数，不参与计算",
+            },
+            {
+                "label": "数据截至", "value": str(data_as_of()),
+                "meta": "离线健康镜像快照",
+            },
+        ], template="1fr 1fr 1fr 1fr")
+
     st.markdown("### 🔗 领先-滞后矩阵（行领先列，单位：交易日）")
     if res.get("available") and res.get("matrix"):
         dims = res["dims"]

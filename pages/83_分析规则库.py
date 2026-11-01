@@ -14,6 +14,7 @@ import streamlit as st
 
 from modules.page_utils import render_standard_page
 from modules import ai_skills as sk
+from modules.ui_kit import xc_bento_kpi
 
 _SCOPE_LABEL = dict(sk.SCOPES)
 
@@ -51,6 +52,30 @@ def main() -> None:
     # ── ② 规则列表 ──
     st.markdown("#### 📜 规则列表")
     skills = sk.load_skills()
+
+    # ── B 类页五段式：header → KPI 带（数据 = 规则库真实元信息）──
+    if skills:
+        _enabled_n = sum(1 for s in skills if s.get("enabled"))
+        _builtin_n = sum(1 for s in skills if s.get("builtin"))
+        xc_bento_kpi([
+            {
+                "label": "规则总数", "value": str(len(skills)),
+                "meta": "人维护，不由模型自动改写",
+            },
+            {
+                "label": "启用中", "value": str(_enabled_n),
+                "meta": "命中场景即注入 AI 分析",
+            },
+            {
+                "label": "内置规则", "value": str(_builtin_n),
+                "meta": "可一键恢复默认",
+            },
+            {
+                "label": "生效场景", "value": str(len(sk.SCOPE_KEYS)),
+                "meta": "复盘 / 盘前 / 个股观察 / 研报 / 决策解释等",
+            },
+        ], template="1fr 1fr 1fr 1fr")
+
     if not skills:
         st.warning("还没有任何规则，可在下方新增。")
     for s in skills:
@@ -117,6 +142,14 @@ def main() -> None:
 
     if st.button("恢复内置默认规则"):
         sk.reset_to_defaults()
+
+    # ── 方法学与来源注脚（B 类页五段式：收尾一段）──
+    st.markdown("---")
+    st.caption(
+        "口径与来源：规则存本地（modules/ai_skills 读写，人维护、改动即时生效、模型不得静默改写）；"
+        "注入场景=AI 当日复盘 / 盘前计划 / 个股观察 / 研报摘要 / 决策解释等（页内可预览注入内容）。"
+        "规则只约束 AI 的分析方式、不代替输入数据，不含写死的行情数字。非投资建议。"
+    )
 
 
 main()

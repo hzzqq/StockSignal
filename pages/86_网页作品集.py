@@ -136,5 +136,13 @@ def main() -> None:
         for col, work in zip(cols, row):
             _render_work_card(work, col)
 
+    # ── 方法学与来源注脚（B 类页五段式：收尾一段）──
+    st.markdown("---")
+    st.caption(
+        "口径与来源：作品目录=webapps/*/meta.json 本地扫描（收录规则=追加式，见 webapps/README.md）；"
+        "托管=本地 Flask 静态路由 /webapps/<目录>/<入口>（API_BASE 单源复用 modules.session）。"
+        "作品均为本地静态交互页面，示意/演示数据，非实时行情，不构成投资建议。"
+    )
+
 
 main()

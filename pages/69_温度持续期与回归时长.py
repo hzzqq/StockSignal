@@ -11,7 +11,7 @@ import logging
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
 from modules import regime_duration as rd
 from modules.breadth_features import data_as_of
@@ -28,6 +28,34 @@ st.caption(f"📅 数据截至 **{data_as_of()}**（离线健康镜像快照，*
 try:
     res = rd.regime_duration()
     if res.get("available"):
+        # ── B 类页五段式：header → KPI 带（数据 = 本页持续期/磨底统计的真实结果）──
+        # 诚实红线：某档/磨底无样本（median 为 None）就不渲染对应卡，绝不编造。
+        bands0 = res["band_labels"]
+        _d0 = res["durations"][0]   # 冰点
+        _d4 = res["durations"][4]   # 狂热
+        _rec = res["recovery"]
+        _kpi_cards = []
+        if _d0.get("median") is not None:
+            _kpi_cards.append({
+                "label": "冰点档持续中位", "value": f"{_d0['median']} 天",
+                "meta": f"run 数 n={_d0['n']}",
+            })
+        if _d4.get("median") is not None:
+            _kpi_cards.append({
+                "label": "狂热档持续中位", "value": f"{_d4['median']} 天",
+                "meta": f"run 数 n={_d4['n']}",
+            })
+        if _rec.get("n"):
+            _kpi_cards.append({
+                "label": "冰点→回归中性磨底", "value": f"{_rec['median']} 天",
+                "meta": f"中位时长 · 均值 {_rec['mean']} 天 · n={_rec['n']} 段",
+            })
+        _kpi_cards.append({
+            "label": "数据截至", "value": str(data_as_of()),
+            "meta": "shepherd_history 离线红盘占比序列",
+        })
+        xc_bento_kpi(_kpi_cards, template="1fr 1fr 1fr 1fr")
+
         st.markdown("### ⏳ 各温度档持续期（中位天数）")
         bands = res["band_labels"]
         meds = [res["durations"][b]["median"] for b in range(5)]

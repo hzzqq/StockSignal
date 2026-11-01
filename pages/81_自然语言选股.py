@@ -15,7 +15,7 @@ import streamlit as st
 import pandas as pd
 
 from modules.page_utils import render_standard_page
-from modules.ui_kit import info_banner
+from modules.ui_kit import info_banner, xc_bento_kpi
 from modules import nl_screen as ns
 from modules.risk_gate import scan_and_gate  # T-245 二道闸
 
@@ -131,6 +131,7 @@ def main():
             return
         result = ns.apply_filters(recs, spec)
         # T-245 二道闸：渲染前统一排雷
+        _gsum = None  # KPI 带引用：闸异常/未执行时为 None（对应卡跳过，不编造）
         try:
             _gated, _gsum = scan_and_gate(
                 [{"code": r.get("code", ""), "name": r.get("name", "")} for r in result],
@@ -154,8 +155,35 @@ def main():
             "营收增长(%)": r.get("rev_growth"), "净利增长(%)": r.get("profit_growth"),
             "ROE(%)": r.get("roe"),
         } for r in result])
+        # ── B 类页五段式：KPI 带（数据 = 本次筛选的真实链路计数，仅在执行筛选后出现）──
+        _kpi_cards = [{
+            "label": "候选池", "value": str(len(recs)),
+            "meta": f"范围：{scope}（真实取数）",
+        }, {
+            "label": "条件命中", "value": str(len(df)),
+            "meta": "解析条件筛选后 · 排雷前",
+        }]
+        if _gsum is not None:
+            _kpi_cards.append({
+                "label": "二道闸拦截", "value": str(len(_gsum.get("kicked", []) or [])),
+                "meta": "六维红旗排雷，拦截标的不进结果",
+            })
+        _n_parsed = len(spec.boards) + len(spec.filters) + (1 if spec.sort else 0) + len(spec.concepts)
+        _kpi_cards.append({
+            "label": "已理解条件", "value": str(_n_parsed),
+            "meta": (f"未理解 {len(spec.unparsed)} 项已如实标注" if spec.unparsed else "全部口语已解析"),
+        })
+        xc_bento_kpi(_kpi_cards, template="1fr 1fr 1fr 1fr")
         st.success(f"✅ 命中 {len(df)} 只（诚实结果，来自真实取数）")
         st.dataframe(df, width="stretch", hide_index=True)
+
+    # ── 方法学与来源注脚（B 类页五段式：收尾一段）──
+    st.markdown("---")
+    st.caption(
+        "口径与来源：解析=modules/nl_screen 规则解析（听懂什么原样摊开，未理解词如实标注）；"
+        "取数=fetcher/akshare 真实基本面接口（取不到如实提示，绝不伪造候选池）；"
+        "二道闸=scan_and_gate 六维红旗排雷。结果为真实筛选，非投资建议。"
+    )
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
 from modules import temperature_backtest as tb
 
@@ -38,6 +38,32 @@ try:
     if not res.get("available"):
         st.warning(f"⚠️ 温度回测不可用：{res.get('reason', '未知')}")
         st.stop()
+
+    # ── B 类页五段式：header → KPI 带（数据 = 本页回测结果的基准与极端档）──
+    # 诚实红线：档位数据不可用就不渲染对应卡；低置信档如实计数。
+    base = res["baseline"]
+    _bands = {b["level"]: b for b in res["bands"] if b.get("available")}
+    _kpi_cards = [{"label": "回测样本", "value": f"{base['n']} 日",
+                   "meta": "全样本基准（不看档位随机一日）"}]
+    _cold = _bands.get(0)
+    _hot = _bands.get(4)
+    if _cold:
+        _kpi_cards.append({
+            "label": "冰点次日改善率", "value": f"{_cold['next_impr_rate']}%",
+            "meta": f"n={_cold['n']}（超跌反弹特征）", "tone": "up",
+        })
+    if _hot:
+        _kpi_cards.append({
+            "label": "狂热次日改善率", "value": f"{_hot['next_impr_rate']}%",
+            "meta": f"n={_hot['n']}（过热回落特征）", "tone": "down",
+        })
+    _low_conf_n = sum(1 for b in res["bands"] if b.get("available") and b.get("n", 0) < 50)
+    if _low_conf_n:
+        _kpi_cards.append({
+            "label": "低置信档位", "value": str(_low_conf_n),
+            "meta": "样本 <50，仅供结构参考",
+        })
+    xc_bento_kpi(_kpi_cards, template="1fr 1fr 1fr 1fr")
 
     # ── 方法学声明 ──
     st.caption(
@@ -121,6 +147,14 @@ try:
     ), unsafe_allow_html=True)
     st.caption("注意：这是历史广度结构统计，描述的是「群体情绪的均值回归」，不构成买卖点预测；"
                "极端档样本虽大，仍可能受特定政策/外生冲击扰动。")
+
+    # ── 方法学与来源注脚（B 类页五段式：收尾一段）──
+    st.markdown("---")
+    st.caption(
+        "口径与来源：温度档=当日红盘率(red_ratio)经市场温度计五档阈值映射（shepherd_history 离线广度序列）；"
+        "回测=各档其后 1 日 / 5 日红盘率均值回归结构，全样本基准对照。全程离线、零编造指数收益；"
+        "样本 <50 的档位已标注低置信。历史统计描述，非实时行情，非投资建议。"
+    )
 
 except Exception as exc:  # noqa: BLE001
     logger.exception("温度回测页渲染失败")

@@ -14,7 +14,7 @@ import logging
 import streamlit as st
 import plotly.graph_objects as go
 
-from modules.ui_kit import xc_handle_error, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
 from modules.ui_theme import section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
@@ -51,6 +51,26 @@ try:
     temp = detail["temp"]
     band = mt.temperature_band(temp)
     contributions = detail["contributions"]
+
+    # ── B 类页五段式：header → KPI 带（数据 = 本页已算出的温度/档位/指标可用性）──
+    # 诚实红线：温度合成失败（非数值）就不渲染温度卡，绝不编造。
+    _kpi_cards = []
+    if isinstance(temp, (int, float)):
+        _kpi_cards.append({
+            "label": "当前市场温度", "value": f"{temp:.1f}°",
+            "meta": f"档位：{band['label']}（0-100 经验分位合成）",
+        })
+        _kpi_cards.append({
+            "label": "温度档位", "value": str(band["label"]),
+            "meta": str(band.get("advice", ""))[:40] or "描述性分档，不预测",
+        })
+    _kpi_cards.append({
+        "label": "实时指标可用性",
+        "value": f"{len(avail)}/{len(avail) + len(unavail)}",
+        "meta": f"缺失 {len(unavail)} 项不计入打分（实时全缺时离线快照兜底）",
+    })
+    if _kpi_cards:
+        xc_bento_kpi(_kpi_cards, template="1.1fr 1fr 1fr")
 
     # ── 离线快照兜底（实时指标全缺时）──
     snapshot_fallback = False
@@ -222,6 +242,14 @@ try:
         "其余时刻本模块明确弃权。历史情境类比复用市场状态机的无前视泄漏检索（只回看目标日之前），"
         "相似≠预测。所有结论基于已修复的 4771 天广度真值，未使用任何缺失字段。",
         icon="📐",
+    )
+
+    # ── 方法学与来源注脚（B 类页五段式：收尾一段，与上方方法卡互补不重复）──
+    st.markdown("---")
+    st.caption(
+        "口径与来源：温度=牧羊人实时指标（get_shepherd_today，缺失项不计入、离线快照兜底）"
+        "按所选基准窗口经验分位合成；极端区信号=sentiment_edge 全历史校准件；"
+        "历史相似日=market_regime 无前视检索。描述性指标，非实时行情，非投资建议。"
     )
 
 except Exception as e:  # noqa: BLE001

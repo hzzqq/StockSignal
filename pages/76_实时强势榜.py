@@ -21,6 +21,7 @@ from modules.page_utils import (render_standard_page, score_bar as _score_bar)
 from modules.session import trading_autorefresh
 from modules.spot_rank import _col, _num, load_spot_with_source, strong_score
 from modules.risk_gate import scan_and_gate  # T-245 二道闸
+from modules.ui_kit import xc_bento_kpi
 import streamlit as st
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ name_c, code_c = _col(df, "name"), _col(df, "code")
 price_c, chg_c = _col(df, "price"), _col(df, "chg")
 
 # T-245 二道闸：渲染前统一排雷（高危标的拦截 + 明示原因）；扫描结果缓存 10 分钟
+_gsum = None  # B 组铺量：KPI 带需在闸后引用扫描摘要，未执行/异常时为 None（对应卡跳过）
 if code_c and len(df) > 0:
     _codes = tuple(str(r.get(code_c, "")) for _, r in df.iterrows())
     _names = tuple(str(r.get(name_c, "")) for _, r in df.iterrows())
@@ -85,6 +87,32 @@ except Exception:  # noqa: BLE001
     _trading = False
 # P0-2：整页刷新改原生 fragment 定时驱动（helper 内部已含交易时段早退）。
 trading_autorefresh(interval_ms=60000, key="strong_auto", limit=240)
+
+# ── B 类页五段式：header → KPI 带（数据 = 本页榜单与二道闸的真实结果）──
+# 诚实红线：二道闸未执行/异常时该卡不渲染；空榜不渲染榜首卡。
+_kpi_cards = [{
+    "label": "榜单标的", "value": str(len(df)),
+    "meta": f"Top {_top_n} · {'仅上涨' if _only_up else '全样本'}",
+}]
+if len(df) > 0:
+    try:
+        _top_score = float(df.iloc[0]["_score"])
+        _kpi_cards.append({
+            "label": "榜首强势评分", "value": f"{_top_score:.1f}",
+            "meta": "启发式加权（涨幅/量比/换手/成交额），非预测",
+        })
+    except Exception:  # noqa: BLE001
+        pass
+_kpi_cards.append({
+    "label": "行情数据源", "value": str(_src_label),
+    "meta": "东财直连 → akshare → 腾讯应急（60s 缓存）",
+})
+if _gsum is not None:
+    _kpi_cards.append({
+        "label": "二道闸拦截", "value": str(len(_gsum.get("kicked", []) or [])),
+        "meta": "六维红旗排雷，拦截标的不进榜",
+    })
+xc_bento_kpi(_kpi_cards, template="1fr 1fr 1fr 1fr")
 
 st.caption(f"共 {len(df)} 只（{'盘中 60s 自动刷新' if _trading else '静态'}）"
            " · 评分为启发式加权，非预测")
@@ -128,3 +156,11 @@ else:
 
 st.caption("⚠️ 说明：本榜为启发式强势评分排序，非预测模型，不构成投资建议；"
            "高换手/高量比亦伴随高波动风险。实时快照经 60 秒缓存，盘中读数可能有延迟。")
+
+# ── 方法学与来源注脚（B 类页五段式：收尾一段）──
+st.markdown("---")
+st.caption(
+    "口径与来源：行情快照=东财直连 → akshare → 腾讯应急三层降级（modules/spot_rank，60 秒缓存，"
+    "取不到明示未就绪、不用陈旧数据冒充实时）；强势评分=涨幅 0.40 + 量比 0.30 + 换手 0.20 + 成交额 0.10 "
+    "启发式加权；二道闸=scan_and_gate 六维红旗排雷。启发式排序非预测，非实时投资建议。"
+)

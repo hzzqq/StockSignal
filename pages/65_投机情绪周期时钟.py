@@ -13,7 +13,7 @@ import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
 from modules import speculative_clock as sc
 from modules.breadth_features import OFFLINE_MISSING, labels as _flabels, data_as_of
@@ -34,6 +34,33 @@ try:
     )
     res = sc.speculative_sentiment_series(window=_win)
     cur = sc.current_phase()
+
+    # ── B 类页五段式：header → KPI 带（数据 = 本页已算出的当前相位与广度字段）──
+    # 诚实红线：相位「数据不足」时不渲染相位/广度卡，绝不编造。
+    if cur.get("available") and cur.get("phase") not in (None, "", "数据不足"):
+        _kpi_cards = [{
+            "label": "当前投机情绪相位", "value": str(cur["phase"]),
+            "meta": f"广度快照 {cur['date']}",
+        }]
+        if cur.get("red_ratio") is not None:
+            _kpi_cards.append({
+                "label": "红盘占比", "value": f"{cur['red_ratio']}%",
+                "meta": "离线健康镜像可靠字段",
+            })
+        if cur.get("limit_up") is not None:
+            _lu_pct = cur.get("limit_up_pct")
+            _meta = "离线健康镜像可靠字段"
+            if isinstance(_lu_pct, (int, float)):
+                _meta = f"历史分位 {_lu_pct * 100:.0f}%"
+            _kpi_cards.append({
+                "label": "涨停家数", "value": str(cur["limit_up"]), "meta": _meta,
+            })
+        if cur.get("limit_down") is not None:
+            _kpi_cards.append({
+                "label": "跌停家数", "value": str(cur["limit_down"]),
+                "meta": "离线健康镜像可靠字段",
+            })
+        xc_bento_kpi(_kpi_cards, template="1fr 1fr 1fr 1fr")
 
     # ── 当前相位 ──
     st.markdown("### 🧭 当前投机情绪相位")

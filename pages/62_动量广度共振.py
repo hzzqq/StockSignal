@@ -13,7 +13,7 @@ import logging
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
 from modules.ui_theme import section_header
 from modules import momentum_breadth_resonance as mbr
@@ -37,6 +37,31 @@ try:
     mat = mbr.resonance_matrix()
     cur = mbr.current_cell()
     stats = mbr.resonance_stats(mat)
+
+    # ── B 类页五段式：header → KPI 带（数据 = 本页已有的矩阵/当前格/统计结果）──
+    # 诚实红线：各卡独立守卫，对应数据不可用就少一张卡。
+    _kpi_cards = []
+    if cur.get("available") and cur.get("rr_band") is not None:
+        _kpi_cards.append({
+            "label": "当前广度档", "value": str(cur["rr_label"]),
+            "meta": f"红盘率 {cur['red_ratio']}% · {cur['date']}",
+        })
+        _kpi_cards.append({
+            "label": "当前动量档", "value": str(cur["mom_label"]),
+            "meta": f"涨停前日收益 {cur['zt_prev_ret']}（代理变量）",
+        })
+    if stats.get("available"):
+        _kpi_cards.append({
+            "label": "同热共现占比", "value": f"{stats['co_hot']}%",
+            "meta": f"同冷共现 {stats['co_cold']}% · 样本 {stats['n_days']} 日",
+        })
+        _dom = stats.get("dominant_cell") or ("—", "—", 0)
+        _kpi_cards.append({
+            "label": "最常见组合", "value": f"{_dom[0]}×{_dom[1]}",
+            "meta": f"共 {_dom[2]} 天",
+        })
+    if _kpi_cards:
+        xc_bento_kpi(_kpi_cards, template="1fr 1fr 1fr 1fr")
 
     # ── 共现强度卡 ──
     st.markdown("### 📊 共振强度（共现结构）")

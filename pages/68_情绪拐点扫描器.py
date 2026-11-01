@@ -11,7 +11,7 @@ import logging
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error
+from modules.ui_kit import xc_handle_error, xc_bento_kpi
 from modules.page_utils import render_standard_page
 from modules import inflection_scanner as ins
 from modules.breadth_features import OFFLINE_MISSING, labels as _flabels, data_as_of
@@ -28,6 +28,29 @@ try:
     ev = ins.list_events()
     _fl = _flabels()
     usable = ev.get("dims", [])
+
+    # ── B 类页五段式：header → KPI 带（数据 = 本页扫描结果的元信息，全为真实计算事实）──
+    if usable:
+        xc_bento_kpi([
+            {
+                "label": "扫描维度", "value": str(len(usable)),
+                "meta": "离线可靠广度字段（数据闸门放行）",
+            },
+            {
+                "label": "近 20 日拐点事件",
+                "value": str(len(ev["events"])) if ev.get("available") and ev.get("events") is not None else "0",
+                "meta": "触底反转 / 触顶回落累计",
+            },
+            {
+                "label": "z-score 窗口", "value": "60 日",
+                "meta": "极端阈值 ±2，确认阈值 ∓1",
+            },
+            {
+                "label": "数据截至", "value": str(data_as_of()),
+                "meta": "离线健康镜像快照",
+            },
+        ], template="1fr 1fr 1fr 1fr")
+
     if not usable:
         st.warning("⚠️ 无可用广度维度生成拐点扫描（数据不足或维度被剔除）。")
     else:

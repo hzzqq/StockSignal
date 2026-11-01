@@ -12,7 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
 from modules import similar_day_cluster as sdc
 from modules.breadth_features import OFFLINE_MISSING, data_as_of
@@ -29,6 +29,23 @@ st.caption(f"📅 数据截至 **{data_as_of()}**（离线健康镜像快照，*
 try:
     res = sdc.similar_day_cluster()
     if res.get("available"):
+        # ── B 类页五段式：header → KPI 带（数据 = 本页聚类结果的真实统计）──
+        # 诚实红线：前向窗口无样本就不渲染对应卡，绝不编造。
+        fs0 = res["forward_stats"]
+        _kpi_cards = [{
+            "label": "相似日样本", "value": str(len(res["similar"])),
+            "meta": f"目标日 {res['target_date']} · 排除末 ±{res['exclude_window']} 日防泄漏",
+        }]
+        for off in (5, 10, 20):
+            s = fs0.get(off, {})
+            if s.get("n"):
+                _kpi_cards.append({
+                    "label": f"后 {off} 日红盘占比", "value": f"{s['up_ratio']}%",
+                    "meta": f"均值 {s['mean']}% · 中位 {s['median']}% · n={s['n']}",
+                })
+        if len(_kpi_cards) > 1:
+            xc_bento_kpi(_kpi_cards, template="1fr 1fr 1fr 1fr")
+
         st.markdown(f"### 🎯 历史相似日（目标日 {res['target_date']}，排除末 ±{res['exclude_window']} 日防前视泄漏）")
         fs = res["forward_stats"]
         cols = st.columns(3)

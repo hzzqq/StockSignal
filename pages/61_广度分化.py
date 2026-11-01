@@ -14,7 +14,7 @@ import logging
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
 from modules.ui_theme import section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
@@ -38,6 +38,30 @@ try:
     trend_window = _trend_sel[1]
     cal = bd.breadth_calendar()
     div = bd.divergence_episodes()
+
+    # ── B 类页五段式：header → KPI 带（数据 = 本页已有的分化检测与日历结果）──
+    # 诚实红线：div 不可用就不渲染带，绝不编造。
+    if div.get("available") and div.get("current"):
+        cur = div["current"]
+        xc_bento_kpi([
+            {
+                "label": "最新红盘率", "value": f"{cur['red_ratio']}%",
+                "meta": f"广度快照 {cur['date']}",
+            },
+            {
+                "label": "最新跌停家数", "value": str(cur["limit_down"]),
+                "meta": f"跌停占比 {cur['limit_down_ratio']}%",
+            },
+            {
+                "label": "结构状态",
+                "value": "分化" if cur["is_divergent"] else "均衡",
+                "meta": "红盘率偏高且跌停占比处历史高位 → 分化" if cur["is_divergent"] else "未触分化阈值",
+            },
+            {
+                "label": "历史分化日", "value": str(div["n_episodes"]),
+                "meta": "「涨多但杀跌」全历史累计",
+            },
+        ], template="1fr 1fr 1fr 1fr")
 
     # ── 当前分化状态卡 ──
     st.markdown("### 🔎 当前广度结构")

@@ -76,5 +76,14 @@ def main() -> None:
     elif st.session_state["qa_history"]:
         st.caption("最近问过：" + " / ".join(reversed(st.session_state["qa_history"][-3:])))
 
+    # ── 方法学与来源注脚（B 类页五段式：收尾一段）──
+    st.markdown("---")
+    st.caption(
+        "口径与来源：回答由本地决策问答引擎（modules/decision_qa）确定性意图路由生成，"
+        "只引用已归档数据（当日快照 / 荐股 / 归档链），每条回答附数据溯源；"
+        "无数据如实 unavailable、不实时臆算，意图不明给引导不编造；纯本地模板、不依赖 LLM。"
+        "建议 ≠ 交易，非实时行情，非投资建议。"
+    )
+
 
 main()
