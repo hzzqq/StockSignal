@@ -173,7 +173,7 @@ def _compare_css_body() -> str:
   font-size:18px;color:{_sf()['acc1']};padding:0 16px;letter-spacing:2px}}
 .compare-wrap .pw-vs span{{background:{_sf()['card']};border:1px solid {_sf()['border']};
   border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;
-  box-shadow:0 0 14px rgba(102,126,234,.15)}}
+  box-shadow:0 0 14px var(--ss-glow-soft)}}
 @media(max-width:780px){{.compare-wrap .pw-grid{{grid-template-columns:1fr}}.compare-wrap .pw-vs{{padding:8px 0}}.compare-wrap .pw-vs span{{width:30px;height:30px;font-size:15px}}}}
 .compare-wrap .vsbox h3{{font-size:14px;margin-bottom:8px}}
 .compare-wrap .vsbox .verdict{{font-size:13px;font-weight:700;margin:8px 0;padding:6px 10px;border-radius:8px}}

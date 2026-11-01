@@ -122,12 +122,17 @@ def test_no_hardcoded_purple_rgba_in_kit_and_theme():
     """P0.5 紫光清零（G1 硬守卫）：ui_kit.py / ui_theme.py 源码不得再出现
     经典紫 rgba(102,126,234,*) / rgba(124,92,255,*) 硬编码——紫光穿帮根因。
 
+    G1 扩展（2026-11-01）：覆盖面从 ui_kit/ui_theme 扩到共享组件 chrome 层
+    （button_colors/widgets/_compare_render）。不锁 hex #667eea——它是
+    --ss-accent 的合法回退默认值（starfield --acc1 同理）；Plotly/echarts
+    数据可视化序列色不属 chrome，不在本锁内。
+
     本守卫读取两文件原始文本，断言子串 ``rgba(102,126,234`` 与 ``rgba(124,92,255``
     各出现 0 次（含注释），证明紫 rgba 已全量清零为 L3 令牌引用。
     注：ui_theme.card() 内带空格的 ``rgba(102, 126, 234, 0.10)`` 不匹配本无空格子串，
     且属 _KIT_CSS / dashboard_sf_css 命名范围之外，留待后续专项，不在此锁。"""
     banned = ("rgba(102,126,234", "rgba(124,92,255")
-    for mod in ("ui_kit", "ui_theme"):
+    for mod in ("ui_kit", "ui_theme", "button_colors", "widgets", "_compare_render"):
         src = (ROOT / "modules" / f"{mod}.py").read_text(encoding="utf-8")
         for b in banned:
             assert src.count(b) == 0, f"{mod}.py 仍存在紫 rgba 硬编码：{b!r}"

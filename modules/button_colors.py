@@ -77,7 +77,7 @@ BUTTON_CSS = """
 }
 .sf-btn:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.08)}
 .sf-btn:active{transform:translateY(1px);box-shadow:0 1px 3px rgba(0,0,0,.18)}
-.sf-btn:focus-visible{outline:2px solid #667eea;outline-offset:2px;box-shadow:0 0 0 4px rgba(102,126,234,.28)}
+.sf-btn:focus-visible{outline:2px solid var(--ss-focus-ring);outline-offset:2px;box-shadow:0 0 0 4px var(--ss-glow-soft)}
 .sf-btn:disabled,.sf-btn.disabled{opacity:.45;cursor:not-allowed;transform:none!important;box-shadow:none!important}
 .sf-btn-primary{background:linear-gradient(135deg,#6d6ff8,#4f46e5);color:%(p_txt)s;box-shadow:0 2px 10px rgba(79,70,229,.28)}.sf-btn-primary:hover{background:linear-gradient(135deg,#5b5ef7,#4338ca)}
 .sf-btn-success{background:%(s_bg)s;color:%(s_txt)s}.sf-btn-success:hover{background:%(s_hv)s}

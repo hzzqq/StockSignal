@@ -371,7 +371,6 @@ def render_index_compact(cols_per_row: int=5) -> None:
     txt = '#e2e8f0' if dark else '#1e293b'
     txt2 = '#94a3b8' if dark else '#64748b'
     card_bg = 'rgba(26,26,46,0.55)' if dark else '#ffffff'
-    border = 'rgba(102,126,234,0.12)' if dark else '#E5E7EB'
     grid = 'rgba(148,163,184,0.15)' if dark else 'rgba(148,163,184,0.25)'
     # 2026-08-28 接入"新城"风格（E:\project\app_dist\微应用大厅 视觉）
     # 用 ui_kit.xc_section_header 替代裸 h2；指数卡用 .xc-grid + .xc-card 一次性渲染。
@@ -976,13 +975,13 @@ def _nav_active_css(dark: bool) -> str:
     """
     if dark:
         return (".ss-nav-active{padding:5px 9px!important;margin:2px 0!important;border-radius:8px!important;"
-                "background:linear-gradient(90deg,#667eea,#764ba2)!important;"
+                "background:linear-gradient(90deg,var(--ss-accent),var(--ss-accent2))!important;"
                 "border-left:4px solid #FFD166!important;font-weight:800!important;color:#FFFFFF!important;"
-                "box-shadow:0 0 0 1px rgba(255,255,255,.18),0 2px 10px rgba(102,126,234,.5)!important;}")
+                "box-shadow:0 0 0 1px rgba(255,255,255,.18),0 2px 10px var(--ss-glow)!important;}")
     return (".ss-nav-active{padding:5px 9px!important;margin:2px 0!important;border-radius:8px!important;"
-            "background:linear-gradient(90deg,#667eea,#764ba2)!important;"
+            "background:linear-gradient(90deg,var(--ss-accent),var(--ss-accent2))!important;"
             "border-left:4px solid #FF8C00!important;font-weight:800!important;color:#FFFFFF!important;"
-                "box-shadow:0 1px 6px rgba(102,126,234,.35)!important;}")
+                "box-shadow:0 1px 6px var(--ss-glow)!important;}")
 
 
 # 侧边栏导航 CSS：仅随主题(dark/light)变化，按主题缓存整段（R88），避免每页重搭。

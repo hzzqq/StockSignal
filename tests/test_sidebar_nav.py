@@ -291,8 +291,10 @@ def test_nav_active_css_obvious_and_theme_aware():
     light = w._nav_active_css(False)
     for css in (dark, light):
         assert ".ss-nav-active" in css
-        # 实色填充（不再用 20% 透明度的淡背景）
-        assert "background:linear-gradient(90deg,#667eea,#764ba2)" in css
+        # 实色填充（不再用 20% 透明度的淡背景）——G1 令牌化后渐变走 --ss-accent/--ss-accent2
+        assert "background:linear-gradient(90deg,var(--ss-accent),var(--ss-accent2))" in css
+        # hex 字面不得回流（G1 紫光清零扩展，2026-11-01）
+        assert "#667eea" not in css and "#764ba2" not in css
         # 白字：在紫蓝实底上亮/暗主题均清晰可辨
         assert "color:#FFFFFF" in css
         # 明显加粗，区别于普通项
