@@ -659,14 +659,34 @@ def plot_market_cumulative(df, dark_mode=False, date_range=None, ma_periods=(),
 # ───────────────────────── 5. 行业板块指数价格趋势（线性表达） ─────────────────────────
 # 行业板块无「逐日资金流」时间序列 API，改用行业指数日线收盘价做归一化多线对比，
 # 更能反映板块相对强弱走势。数据：ak.stock_board_industry_hist_em(period="日k")。
+# 多源降级（2026-11-02 实测）：东财 hist_em 端点 RemoteDisconnected 时，
+# 降级到同花顺行业指数日线 ak.stock_board_industry_index_ths（实测可用）。
 _FALLBACK_INDUSTRIES = [
     "半导体", "软件开发", "银行", "证券", "白酒", "医药", "新能源",
     "汽车", "煤炭", "房地产", "有色金属", "电力",
 ]
 
+# 行情取数降级记录（供体检/巡检标注备源使用）：{接口名: {ts, fallback_to, detail}}
+_LAST_QUOTES_FALLBACK: dict[str, dict] = {}
 
-@_retry_with_backoff(max_retries=2, base_delay=1.0)
+
+def _record_quotes_fallback(name: str, fallback_to: str, detail: str = "") -> None:
+    _LAST_QUOTES_FALLBACK[name] = {
+        "ts": now_cst_str("%Y-%m-%d %H:%M:%S"),
+        "fallback_to": fallback_to,
+        "detail": detail,
+    }
+
+
+def quotes_fetch_state() -> dict:
+    """返回行情取数层降级状态（供 quotes_health 巡检/页面标注）。"""
+    return {"last_fallbacks": dict(_LAST_QUOTES_FALLBACK)}
+
+
+@_retry_with_backoff(max_retries=1, base_delay=1.0)
 def _fetch_industry_names():
+    """东财行业名列表（主源）。max_retries=1：失败立即回退硬编 _FALLBACK_INDUSTRIES，
+    避免持续故障下重试烧掉 12s 硬超时预算。"""
     import akshare as ak
     df = ak.stock_board_industry_name_em()
     if df is None or df.empty:
@@ -679,8 +699,10 @@ def _fetch_industry_names():
     return []
 
 
-@_retry_with_backoff(max_retries=2, base_delay=1.0)
+@_retry_with_backoff(max_retries=1, base_delay=1.0)
 def _fetch_industry_hist(symbol, start_date, end_date):
+    """东财行业板块日线（主源）。max_retries=1：单次失败立即切同花顺备源，
+    避免持续故障下重试烧掉 12s 硬超时预算（2026-11-02 实测优化）。"""
     import akshare as ak
     df = ak.stock_board_industry_hist_em(
         symbol=symbol, period="日k", start_date=start_date, end_date=end_date, adjust="")
@@ -693,6 +715,28 @@ def _fetch_industry_hist(symbol, start_date, end_date):
         symbol: close,
     })
     return out.dropna(subset=["date"]).reset_index(drop=True)
+
+
+@_retry_with_backoff(max_retries=1, base_delay=1.0)
+def _fetch_industry_hist_ths(symbol, start_date, end_date):
+    """同花顺行业指数日线备源（东财 hist_em 不可达时降级）。
+
+    实测 2026-11-02：东财行业板块端点 RemoteDisconnected，同花顺
+    stock_board_industry_index_ths 正常（列：日期/开盘价/最高价/最低价/收盘价/成交量）。
+    max_retries=1：备源单次尝试，失败由上层行业级容错跳过，不烧 12s 超时预算。
+    """
+    import akshare as ak
+    df = ak.stock_board_industry_index_ths(
+        symbol=symbol, start_date=start_date, end_date=end_date)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df = df.copy()
+    close = pd.to_numeric(df["收盘价"], errors="coerce") if "收盘价" in df.columns else pd.Series([None] * len(df))
+    out = pd.DataFrame({
+        "date": df["日期"].apply(_parse_date) if "日期" in df.columns else pd.Series([None] * len(df)),
+        symbol: close,
+    })
+    return out.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
 
 
 def get_industry_index_series(top_n=8, days=120):
@@ -719,16 +763,35 @@ def get_industry_index_series(top_n=8, days=120):
         selected = selected[:top_n]
         end = now_cst_str("%Y%m%d")
         start = (now_cst() - timedelta(days=int(days * 1.6))).strftime("%Y%m%d")
-        frames = {}
-        for nm in selected:
+
+        def _fetch_one(nm: str):
+            """单个行业：东财主源 → 同花顺备源，返回该行业日线 df（空 = 双源失败）。"""
+            h = None
             try:
                 h = _fetch_industry_hist(nm, start, end)
             except Exception as e:
-                _logger.warning(f"行业指数 {nm} 获取失败：{e}")
-                h = None
+                _logger.warning(f"行业指数 {nm} 东财获取失败：{e}")
             if h is None or h.empty:
-                continue
-            frames[nm] = h
+                # 东财不可达 → 同花顺行业指数备源（2026-11-02 实测可用）
+                try:
+                    h = _fetch_industry_hist_ths(nm, start, end)
+                    if h is not None and not h.empty:
+                        _record_quotes_fallback("industry_board", "ths", f"{nm}: 东财→同花顺")
+                except Exception as e:
+                    _logger.warning(f"行业指数 {nm} 同花顺备源失败：{e}")
+            return h if (h is not None and not h.empty) else pd.DataFrame()
+
+        # 并行抓取行业（东财持续故障时，每行业单次东财失败 + 同花顺备源，
+        # 串行 3×(2-5s) 会吃掉 12s 硬超时预算；并行后总耗时 ≈ 单行业）。
+        res = fetch_many(
+            [(nm, (lambda x: lambda: _fetch_one(x))(nm)) for nm in selected],
+            max_workers=min(len(selected) or 1, 4),
+        )
+        frames = {}
+        for nm in selected:
+            h = res.get(nm)
+            if h is not None and not h.empty:
+                frames[nm] = h
         if not frames:
             return pd.DataFrame()
         base = None
@@ -758,8 +821,9 @@ _ETF_LIST = [
 ETF_NAMES_MAP = {code: nm for code, nm in _ETF_LIST}
 
 
-@_retry_with_backoff(max_retries=2, base_delay=1.0)
+@_retry_with_backoff(max_retries=1, base_delay=1.0)
 def _fetch_etf_hist(symbol, start_date, end_date):
+    """东财 ETF 日线（主源）。max_retries=1：单次失败立即切新浪备源。"""
     import akshare as ak
     df = ak.fund_etf_hist_em(
         symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="")
@@ -774,6 +838,33 @@ def _fetch_etf_hist(symbol, start_date, end_date):
     return out.dropna(subset=["date"]).reset_index(drop=True)
 
 
+@_retry_with_backoff(max_retries=1, base_delay=1.0)
+def _fetch_etf_hist_sina(symbol, start_date, end_date):
+    """新浪 ETF 日线备源（东财 fund_etf_hist_em 不可达时降级）。
+
+    实测 2026-11-02：fund_etf_hist_sina 正常（列：date/open/high/low/close/volume，
+    全量历史升序，需按窗口过滤；代码需 sh/sz 前缀）。
+    max_retries=1：备源单次尝试，失败由上层容错跳过。
+    """
+    import akshare as ak
+    prefix = "sh" if str(symbol).startswith(("5", "6")) else "sz"
+    df = ak.fund_etf_hist_sina(symbol=f"{prefix}{symbol}")
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df = df.copy()
+    df["date"] = df["date"].apply(_parse_date)
+    close = pd.to_numeric(df["close"], errors="coerce")
+    out = pd.DataFrame({"date": df["date"], symbol: close})
+    try:
+        d0 = pd.to_datetime(start_date)
+        d1 = pd.to_datetime(end_date)
+        mask = (pd.to_datetime(out["date"]) >= d0) & (pd.to_datetime(out["date"]) <= d1)
+        out = out[mask]
+    except Exception:
+        pass
+    return out.dropna(subset=["date", symbol]).sort_values("date").reset_index(drop=True)
+
+
 def get_etf_series(days=180):
     """ETF 日线收盘价（多只），合并为宽表。
 
@@ -785,11 +876,19 @@ def get_etf_series(days=180):
         start = (now_cst() - timedelta(days=int(days * 1.6))).strftime("%Y%m%d")
         frames = {}
         for code, _nm in _ETF_LIST:
+            h = None
             try:
                 h = _fetch_etf_hist(code, start, end)
             except Exception as e:
-                _logger.warning(f"ETF {code} 获取失败：{e}")
-                h = None
+                _logger.warning(f"ETF {code} 东财获取失败：{e}")
+            if h is None or h.empty:
+                # 东财 fund 端点不可达 → 新浪 ETF 备源（2026-11-02 实测可用）
+                try:
+                    h = _fetch_etf_hist_sina(code, start, end)
+                    if h is not None and not h.empty:
+                        _record_quotes_fallback("etf", "sina", f"{code}: 东财→新浪")
+                except Exception as e:
+                    _logger.warning(f"ETF {code} 新浪备源失败：{e}")
             if h is None or h.empty:
                 continue
             frames[code] = h

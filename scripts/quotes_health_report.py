@@ -15,7 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from modules.linear_trends import get_index_series, get_industry_index_series, get_etf_series  # noqa: E402
+from modules.linear_trends import get_index_series, get_industry_index_series, get_etf_series, quotes_fetch_state  # noqa: E402
 from modules import quotes_health as h  # noqa: E402
 
 
@@ -36,8 +36,16 @@ def main():
     summary = h.summarize(_providers())
     if args.json:
         print(json.dumps(summary, ensure_ascii=False, indent=2))
+        print(json.dumps({"quotes_fetch_state": quotes_fetch_state()}, ensure_ascii=False, indent=2))
     else:
         print(h.render_report(summary))
+        fb = quotes_fetch_state()["last_fallbacks"]
+        if fb:
+            print("\n## 数据层降级记录（备源启用）")
+            for name, ev in fb.items():
+                print(f"- {name}: {ev['ts']} 降级到 {ev['fallback_to']}（{ev['detail']}）")
+        else:
+            print("\n## 数据层降级记录\n- 无（主源直连成功）")
     return 0 if summary["ok_all"] else 1
 
 
