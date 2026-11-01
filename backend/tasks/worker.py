@@ -181,8 +181,7 @@ class TaskWorker:
         from modules.quantagent.progress import percent_for
 
         def _reporter(stage_key: str, message) -> None:
-            """批次8：message 接受 Union[str, dict]。dict 时 logs 条目加 event 字段
-            （原始结构化 timeline event），message 字段存可读字符串（_fmt 优先）。"""
+            """批次9：内存 logs + SQLite  timeline 持久化（尽力而为，失败静默跳过）。"""
             with task._lock:
                 task.stage = stage_key
                 task.progress = max(task.progress, percent_for(stage_key))
@@ -193,11 +192,17 @@ class TaskWorker:
                     task.logs.append({"stage": stage_key, "message": message, "ts": time.time()})
                 task.updated_at = time.time()
                 now = time.time()
-                thrift = now - task._last_persist > 1.0  # 进度更新最多 1s 落盘一次
+                thrift = now - task._last_persist > 1.0
                 if thrift:
                     task._last_persist = now
             if thrift:
                 self._persist()
+            # 批次9：dict event 同时写 SQLite timeline（在 Flask app context 下自然生效）
+            if isinstance(message, dict):
+                try:
+                    _persist_timeline_event(task.task_id, stage_key, message)
+                except Exception:  # noqa: BLE001 — 持久化尽力而为，不中断主流程
+                    pass
 
         register(task.task_id, _reporter)
         # 把 task_id 注入 payload 副本，供 handler 取用
@@ -441,6 +446,49 @@ def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:
         progress_callback=_cb,
     )
     return state.to_dict()
+
+
+# ------------------------------------------------------------------ 批次9：timeline SQLite 持久化
+
+def _persist_timeline_event(task_id: str, stage: str, event: Dict[str, Any]) -> None:
+    """尽力而为：把批次8的 dict timeline event 持久化到 SQLite。
+
+    仅在 Flask app context 下生效（backend/extensions.py 提供 db 实例）。
+    无 context / db schema 未就绪 → 静默跳过，绝不中断主流程。
+    这是批次9的持久化端点——report() 本身不碰 db（保持纯内存职责单一）。
+
+    Args:
+        task_id: 唯一任务标识
+        stage:   progress_bus.report() 的 stage_key
+        event:   批次8结构化 dict payload（含 type/tool/idx/elapsed_s/status/...）
+    """
+    from backend.models import AiTimelineEvent
+
+    # 从批次8 event dict 提取各字段
+    _type = event.get("type")            # tool_start / tool_end / None
+    _tool = event.get("tool")            # get_market_sentiment / fund_flow / ...
+    _idx = event.get("idx")              # 步骤序号
+    _elapsed = event.get("elapsed_s")    # tool_end 耗时秒
+    _status = event.get("status")        # tool_end 状态
+    _fmt = event.get("_fmt", "")         # 批次8 worker 层挂载的可读字符串
+
+    row = AiTimelineEvent(
+        task_id=task_id,
+        stage=stage,
+        event_type=_type,
+        tool_name=_tool,
+        message=_fmt,
+        event_json=AiTimelineEvent.dumps_json(event),
+        idx=_idx,
+        elapsed_s=_elapsed,
+        status=_status,
+        ts=event.get("__ts", time.time()),  # 批次8未显式注入则 fallback
+    )
+
+    # Flask app context 下 session 可用；否则 RuntimeError/AttributeError 被 try 在外层兜住
+    from backend.extensions import db  # noqa: PLC0415 — 延迟导入避免顶层循环依赖
+    db.session.add(row)
+    db.session.commit()
 
 
 # 全局单例
