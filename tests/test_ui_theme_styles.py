@@ -101,6 +101,37 @@ def test_l3_tokens_present_all_styles():
         assert not missing, f"{k} 缺 L3 token: {missing}"
 
 
+def test_form_tokens_pinned_all_styles():
+    """批4：六非 classic 风格形态令牌（圆角档位）钉住——切风格不只换色。
+
+    档位即设计规范：terminal 方角 2px / swiss 极简 4px / aurora 大圆角 18px /
+    ink 温润 8px / cyber 锐角 4px / finpro 商务 10px。"""
+    radius_card = {"terminal": "2px", "swiss": "4px", "aurora": "18px",
+                   "ink": "8px", "cyber": "4px", "finpro": "10px"}
+    for k, px in radius_card.items():
+        v = STYLE_PRESETS[k]["vars"]
+        assert f"--ss-radius-card:{px}" in v, k
+        assert "--ss-radius:" in v, k
+
+
+def test_style_form_layer_complete():
+    """批4：_STYLE_FORM 形态层六风格齐套、classic 零影响、注入器接线。
+
+    每风格形态 CSS 必须落到原生组件容器（stMetric/stPlotlyChart 至少其一），
+    且互不相同（真差异化，不是复制粘贴同一份）。"""
+    styles = ("terminal", "swiss", "aurora", "ink", "cyber", "finpro")
+    for k in styles:
+        css = ui_theme._STYLE_FORM.get(k)
+        assert css and css.strip(), f"{k} 形态层缺失"
+        assert "stMetric" in css or "stPlotlyChart" in css, k
+    assert "classic" not in ui_theme._STYLE_FORM, "classic 必须零形态注入"
+    assert len({ui_theme._STYLE_FORM[k].strip() for k in styles}) == len(styles), \
+        "各风格形态层雷同——差异化失效"
+    # 注入器接线：inject_style_css 必须消费 _STYLE_FORM
+    inj = inspect.getsource(ui_theme.inject_style_css)
+    assert "_STYLE_FORM" in inj, "inject_style_css 未接线形态层"
+
+
 def test_st_toolbar_hidden_both_modes():
     """T-200：stToolbar（Deploy 按钮+状态控件的容器）必须整体隐藏——其悬浮在
     自绘顶栏右上角图标（搜索/✦/⚙️/👤）之上造成重叠并拦截点击；曾只清 padding

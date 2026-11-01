@@ -590,6 +590,7 @@ STYLE_PRESETS = {
                  '--ss-shadow-card:0 1px 4px rgba(0,0,0,.5); '
                  '--ss-shadow-lift:0 10px 30px var(--ss-glow-soft); '
                  '--ss-shadow-hero:0 0 0 1px var(--ss-glow-soft),0 12px 32px var(--ss-glow-soft); '
+                 '--ss-radius:2px; --ss-radius-card:2px; '
                  '--ss-glass-bg:linear-gradient(145deg,#141414,#101010);'),
         'extra': '''
 :root{--ss-login-radius:6px;--ss-login-btn-text:#050505}.ss-login-card{border-radius:6px!important;backdrop-filter:none!important}.ss-login-title{background:none!important;-webkit-text-fill-color:#e8a33d!important;color:#e8a33d!important;font-family:Consolas,monospace!important;letter-spacing:1px!important}.ss-login-btn{border-radius:0!important;font-family:Consolas,monospace!important;text-transform:uppercase!important}.ss-login-badge{font-family:Consolas,monospace!important;border-radius:0!important}
@@ -684,7 +685,8 @@ a{color:#e8a33d!important}a:hover{color:#ffc76b!important}
                  '--ss-hero-overlay:color-mix(in srgb,var(--ss-accent2) 10%,transparent); '
                  '--ss-shadow-card:0 1px 4px rgba(0,0,0,.06); '
                  '--ss-shadow-lift:0 4px 14px rgba(0,0,0,.08); '
-                 '--ss-shadow-hero:0 0 0 1px rgba(0,0,0,.08),0 12px 32px rgba(0,0,0,.08);'),
+                 '--ss-shadow-hero:0 0 0 1px rgba(0,0,0,.08),0 12px 32px rgba(0,0,0,.08); '
+                 '--ss-radius:2px; --ss-radius-card:4px;'),
         'extra': '''
 :root{--ss-login-radius:4px;--ss-login-btn-text:#ffffff}.ss-login-card{border-radius:4px!important;border:2px solid #111111!important;backdrop-filter:none!important}.ss-login-title{background:none!important;-webkit-text-fill-color:#111111!important;color:#111111!important;font-weight:900!important;letter-spacing:-.02em!important}.ss-login-btn{border-radius:0!important;background:#111111!important;color:#ffffff!important;font-weight:700!important}.ss-login-btn:hover{background:#ffffff!important;color:#111111!important;box-shadow:4px 4px 0 #111111!important}
 .stApp{background-color:#ffffff
@@ -763,6 +765,7 @@ a:hover{color:#1a56db!important}
                  '--ss-shadow-card:0 1px 4px rgba(8,8,32,.45); '
                  '--ss-shadow-lift:0 10px 30px var(--ss-glow-soft); '
                  '--ss-shadow-hero:0 0 0 1px var(--ss-glow-soft),0 12px 32px var(--ss-glow-soft); '
+                 '--ss-radius:14px; --ss-radius-card:18px; '
                  '--ss-glass-bg:linear-gradient(145deg,rgba(40,42,100,.66),rgba(28,29,80,.78));'),
         'extra': '''
 :root{--ss-login-radius:26px;--ss-login-btn-text:#ffffff}.ss-login-card{border-radius:26px!important;box-shadow:0 0 0 1px rgba(139,124,255,.22),0 24px 70px rgba(8,8,32,.55),0 0 44px rgba(139,124,255,.16)!important;animation:ss-glow-breathe 3.5s ease-in-out infinite!important}.ss-login-btn{background:linear-gradient(90deg,#6c5ce7,#5d5fef,#0c74b3,#6c5ce7)!important;background-size:250% 100%!important;animation:ss-btn-flow 4s linear infinite!important}
@@ -843,7 +846,8 @@ a{color:#b9c0ff!important}a:hover{color:#8b7cff!important}
                  '--ss-hero-overlay:color-mix(in srgb,var(--ss-accent2) 12%,transparent); '
                  '--ss-shadow-card:0 1px 4px rgba(43,43,43,.05); '
                  '--ss-shadow-lift:0 10px 30px color-mix(in srgb,var(--ss-accent) 6%,transparent); '
-                 '--ss-shadow-hero:0 0 0 1px color-mix(in srgb,var(--ss-accent) 6%,transparent),0 12px 32px color-mix(in srgb,var(--ss-accent) 6%,transparent);'),
+                 '--ss-shadow-hero:0 0 0 1px color-mix(in srgb,var(--ss-accent) 6%,transparent),0 12px 32px color-mix(in srgb,var(--ss-accent) 6%,transparent); '
+                 '--ss-radius:4px; --ss-radius-card:8px;'),
         'extra': '''
 :root{--ss-login-radius:8px;--ss-login-btn-text:#f5f0e4}.ss-login-card{border-radius:8px!important;outline:1px solid #ddd3bd!important;outline-offset:4px!important;backdrop-filter:none!important;animation:none!important}.ss-login-title{font-family:serif!important;letter-spacing:3px!important;font-weight:800!important}.ss-login-subtitle{font-family:serif!important;letter-spacing:2px!important}.ss-login-btn{font-family:serif!important;letter-spacing:2px!important;border-radius:2px!important}.ss-login-badge{font-family:serif!important;border-radius:2px!important}
 .stApp{background-color:#f5f0e4
@@ -940,7 +944,8 @@ a{color:#8a2f24!important}a:hover{color:#b03a2e!important}
                  '--ss-hero-overlay:color-mix(in srgb,var(--ss-accent2) 22%,transparent); '
                  '--ss-shadow-card:0 1px 4px rgba(0,0,0,.55); '
                  '--ss-shadow-lift:0 10px 30px var(--ss-glow-soft); '
-                 '--ss-shadow-hero:0 0 0 1px var(--ss-glow-soft),0 12px 32px var(--ss-glow-soft);'),
+                 '--ss-shadow-hero:0 0 0 1px var(--ss-glow-soft),0 12px 32px var(--ss-glow-soft); '
+                 '--ss-radius:2px; --ss-radius-card:4px;'),
         'extra': '''
 :root{--ss-login-radius:0px;--ss-login-btn-text:#0a0e17}.ss-login-card{border-radius:0!important;clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px))!important;box-shadow:0 0 26px rgba(0,240,255,.14),inset 0 0 30px rgba(0,240,255,.05)!important}.ss-login-title{text-shadow:2px 0 rgba(255,42,109,.75),-2px 0 rgba(0,240,255,.75)!important;animation:ss-glitch 3.2s infinite steps(1)!important;font-family:Consolas,monospace!important;letter-spacing:2px!important}.ss-login-btn{clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))!important;border-radius:0!important;font-family:Consolas,monospace!important;text-transform:uppercase!important;font-weight:800!important}.ss-login-badge{font-family:Consolas,monospace!important;border-radius:0!important;text-transform:uppercase!important}
 .stApp{background-color:#0a0e17
@@ -1032,7 +1037,8 @@ a:hover{color:#fcee0a!important;text-shadow:0 0 8px rgba(252,238,10,.5)!importan
                  '--ss-hero-overlay:color-mix(in srgb,var(--ss-accent2) 22%,transparent); '
                  '--ss-shadow-card:0 1px 3px rgba(0,0,0,.4); '
                  '--ss-shadow-lift:0 4px 14px rgba(33,112,236,.14); '
-                 '--ss-shadow-hero:0 0 0 1px rgba(33,112,236,.18),0 8px 22px rgba(0,0,0,.35);'),
+                 '--ss-shadow-hero:0 0 0 1px rgba(33,112,236,.18),0 8px 22px rgba(0,0,0,.35); '
+                 '--ss-radius:6px; --ss-radius-card:10px;'),
         'extra': '''
 /* ===== 金融终端 Pro（T-276）：专业金融终端视觉 =====
    设计观点：数据墨水优先——深海军蓝底 + 细线面板 + 等宽数字 + 克制青蓝 accent；
@@ -1175,6 +1181,40 @@ def style_switcher() -> None:
         logger.warning(f"[ui_theme] style_switcher 处理异常: {e}")
 
 
+# ── 风格形态层（批4 2026-11-02）：每风格一组组件特征 CSS，与色相层（vars）+
+#    特征层（extra）正交。目标：切风格不只换色——组件形态（圆角/边框/光晕/投影）
+#    随风格走：terminal 方角硬边 / swiss 极简细线 / aurora 大圆角玻璃 / ink 温润扁平 /
+#    cyber 霓虹发光 / finpro 商务顶条。classic 不在表内 = 默认形态零影响。
+#    radius 变量已随各风格 vars 注入（--ss-radius/--ss-radius-card）。
+_STYLE_FORM = {
+    'terminal': '''
+/* 终端形态：方角 + 左侧琥珀硬边 + 数据等宽标题 */
+[data-testid="stMetric"],[data-testid="stPlotlyChart"]{border-left:3px solid var(--acc1)!important}
+[data-testid="stMetric"]>div:first-child label,[data-testid="stMetric"] label{font-family:var(--ss-font-num),monospace!important;letter-spacing:.04em}
+''',
+    'swiss': '''
+/* 瑞士极简形态：细黑线硬边 + 去投影（留白即装饰） */
+[data-testid="stMetric"],[data-testid="stPlotlyChart"]{border:1px solid color-mix(in srgb,var(--txt) 40%,transparent)!important;box-shadow:none!important}
+''',
+    'aurora': '''
+/* 极光玻璃形态：大圆角 + 玻璃渐变底 + 光晕悬浮投影 */
+[data-testid="stMetric"],[data-testid="stPlotlyChart"]{background:var(--ss-glass-bg)!important;border-color:color-mix(in srgb,var(--acc1) 30%,transparent)!important;box-shadow:0 10px 30px var(--ss-glow-soft)!important}
+''',
+    'ink': '''
+/* 墨韵形态：扁平去投影 + 细墨线（宣纸质感靠留白与朱砂点缀） */
+[data-testid="stMetric"],[data-testid="stPlotlyChart"]{box-shadow:none!important;border:1px solid color-mix(in srgb,var(--txt) 18%,transparent)!important}
+''',
+    'cyber': '''
+/* 赛博形态：锐角 + 霓虹描边 + 内外双光 */
+[data-testid="stMetric"],[data-testid="stPlotlyChart"]{border:1px solid color-mix(in srgb,var(--acc1) 55%,transparent)!important;box-shadow:0 0 12px var(--ss-glow),inset 0 0 14px color-mix(in srgb,var(--acc1) 7%,transparent)!important}
+''',
+    'finpro': '''
+/* 金融终端 Pro 形态：商务顶条 + 规整细边 */
+[data-testid="stMetric"],[data-testid="stPlotlyChart"]{border-top:2px solid var(--acc1)!important;border-radius:var(--ss-radius-card)!important}
+''',
+}
+
+
 def inject_style_css() -> None:
     """非 classic 风格注入 :root 变量覆盖 + 组件特征层（后到者胜）。"""
     style = st.session_state.get('ui_style', 'classic')
@@ -1186,5 +1226,8 @@ def inject_style_css() -> None:
             st.markdown(f'<style>:root{{{preset["vars"]}}}</style>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         if preset.get('extra'):
             st.markdown(f'<style>{preset["extra"]}</style>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        _form = _STYLE_FORM.get(style)
+        if _form:
+            st.markdown(f'<style>{_form}</style>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[ui_theme] inject_style_css 处理异常: {e}")
