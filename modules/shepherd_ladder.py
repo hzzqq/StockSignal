@@ -753,7 +753,8 @@ def _pick_latest_valid_signal(cands: list):
 
 def refresh_event_pool_from_p1(p1_signals_dir: str | None = None,
                                out_path: str | None = None,
-                               max_age_days: int = 30) -> dict:
+                               max_age_days: int = 30,
+                               dry_run: bool = False) -> dict:
     """从 P1-QuantFactor 信号导出刷新事件因子多头池。
 
     **只在存在有效的 P1 信号导出（非空 top_long + 可解析 latest_date）时才写入
@@ -839,7 +840,11 @@ def refresh_event_pool_from_p1(p1_signals_dir: str | None = None,
         "pool": pool,
     }
     try:
-        atomic_json_dump(brief, out)
+        if dry_run:
+            logger.info("[shepherd_ladder] refresh_event_pool_from_p1 dry-run: "
+                        "skip write to %s (date=%s count=%d)", out, latest_date[:10], len(pool))
+        else:
+            atomic_json_dump(brief, out)
     except Exception as e:
         status["reason"] = "write_failed"
         status["note"] = f"写入事件池失败：{e}"
@@ -855,4 +860,7 @@ def refresh_event_pool_from_p1(p1_signals_dir: str | None = None,
                   skipped_invalid=n_invalid,
                   note=f"已从 P1 信号刷新（{os.path.basename(src_path)}，模型 {model}）"
                        + skipped_note)
+    if dry_run:
+        status["dry_run"] = True
+        status["note"] = "dry-run 未落盘；" + status["note"]
     return status
