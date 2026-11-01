@@ -46,10 +46,17 @@ def main() -> int:
             market=h.DEFAULT_DISCLOSURE_MARKET, period=h.DEFAULT_DISCLOSURE_PERIOD)
 
     summary = h.summarize(providers, earnings_period=args.period)
+    # 数据层降级标注：附上 fundflow 进程内最近失败记录（红灯时解释来源）
+    state = f.fundflow_health_state()
+    summary["last_fetch_failures"] = state["last_fetch_failures"]
     if args.json:
         print(json.dumps(summary, ensure_ascii=False, indent=2))
     else:
         print(h.render_report(summary))
+        if summary["last_fetch_failures"]:
+            print("\n**数据层降级记录**（进程内最后失败）：")
+            for name, rec in summary["last_fetch_failures"].items():
+                print(f"- {name}: {rec['ts']} {rec['error']}")
     return 0 if summary["ok_all"] else 1
 
 

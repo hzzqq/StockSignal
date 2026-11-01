@@ -9,8 +9,9 @@ fundflow.py 是实时取数层（akshare → 东方财富，TTL 缓存 + 失败�
   1. 接口可用性：provider 返回非空（df 非空 / dict 非空）即认为可取数；
      返回空 = 降级触发（红灯：页面展示的是兜底而非真数据）。
   2. 结构体检：必需列/键齐全（与 modules/fundflow.py 的输出契约对齐）。
-  3. 新鲜度 SLA：日频序列（北向历史、大盘资金流）的最新日期距最近交易日
-     超标即红灯；非交易日/节假日用「最近非周末交易日 + 宽容带」折算。
+  - 新鲜度 SLA：日频序列（北向历史、大盘资金流）的最新日期距参考交易日
+     超标即红灯；参考交易日用 modules.trading_calendar 的交易所官方休市表
+     （2026 内置），长假/春节不再误报；无表年份回退非周末近似。
   4. 汇总：summarize() 综合成 ok_all（红灯阻断，黄灯登记不阻断）。
 
 设计约束
@@ -24,7 +25,7 @@ fundflow.py 是实时取数层（akshare → 东方财富，TTL 缓存 + 失败�
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 from typing import Callable
 
 # ───────────────────────── 常量与默认阈值 ─────────────────────────
@@ -55,16 +56,13 @@ DEFAULT_DISCLOSURE_PERIOD = "2026年报"
 
 # ───────────────────────── 交易日工具 ─────────────────────────
 def last_trading_day(today: date | None = None) -> date:
-    """参考交易日（简化口径）：今天的前一个非周末日。
+    """参考交易日：今天的前一个交易日（盘前语义，当日数据尚未产出）。
 
-    盘前体检语义：今天的数据尚未产出，参考日应为最近已完成的交易日；
-    周一盘前参考上周五，age=0 不误报。不含 A 股法定节假日修正，
-    长假造成的跨日由 FRESHNESS_WARN/RED 宽容带部分吸收（见模块注释）。
+    用 modules.trading_calendar 的官方休市表（2026 内置）消除长假误报；
+    无表年份（其他年份）回退非周末近似。
     """
-    d = (today or date.today()) - timedelta(days=1)
-    while d.weekday() >= 5:  # 5=周六, 6=周日
-        d -= timedelta(days=1)
-    return d
+    from modules.trading_calendar import prev_trading_day
+    return prev_trading_day(today or date.today())
 
 
 def age_in_days(latest_date: str | None, today: date | None = None) -> int | None:
@@ -232,6 +230,10 @@ def summarize(providers: dict, today: date | None = None,
     def _add(name, checker):
         try:
             raw = providers[name]()
+        except KeyError:
+            rows.append({"model": name, "status": "skipped", "errors": [],
+                         "note": "本次未探测（调用方跳过）"})
+            return
         except Exception as e:  # provider 本身抛异常 = 红灯
             rows.append({"model": name, "status": "red",
                          "errors": [f"接口调用异常: {type(e).__name__}: {e}"],
@@ -271,7 +273,7 @@ def render_report(summary: dict) -> str:
     lines.append("| 接口 | 状态 | 问题 |")
     lines.append("|---|---|---|")
     for r in summary["rows"]:
-        icon = {"red": "❌", "yellow": "🟡", "ok": "✅"}.get(r["status"], "❌")
+        icon = {"red": "❌", "yellow": "🟡", "ok": "✅", "skipped": "⏭"}.get(r["status"], "❌")
         err = "; ".join(r["errors"]) or r["note"] or "—"
         lines.append(f"| {r['model']} | {icon} {r['status']} | {err} |")
     lines.append("")
