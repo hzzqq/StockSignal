@@ -26,6 +26,7 @@ import streamlit as st
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules.page_utils import (render_standard_page, score_bar as _score_bar)
 from modules.shepherd import _trading_days, _zt_pool_detail_cached, get_zt_ladder
+from modules.ui_kit import stat_tile
 from modules.ui_theme import section_header, sf_metric
 
 logger = logging.getLogger(__name__)
@@ -261,7 +262,8 @@ with c4:
     fr_txt = f"{fail_ratio:.1f}%" if fail_ratio is not None else "—"
     sf_metric("炸板率", fr_txt, "炸板/(涨停+炸板)")
 with c5:
-    st.metric("池内曾开板", str(n_broken), delta_color="off", help="涨停池内「炸板次数>0」的标的数（当日曾开板）")
+    stat_tile("池内曾开板", str(n_broken),
+              delta="炸板次数>0 的标的（当日曾开板）", delta_dir="flat")
 
 st.markdown("---")
 

@@ -18,6 +18,7 @@ import streamlit as st
 
 from modules.page_utils import render_standard_page
 from modules import macro_data as md
+from modules.ui_kit import xc_kpi_grid
 
 
 @st.cache_data(ttl=3600, show_spinner="正在拉取宏观数据…")
@@ -37,15 +38,15 @@ def _render_card(spec: dict, item):
             st.warning("取不到（不臆造）")
             st.caption("口径：" + spec["desc"])
             return
-        delta = (f"{item['change']:+.2f}"
-                 if item.get("change") is not None else None)
-        st.metric(
-            "最新值",
-            f"{item['value']}{item['unit']}",
-            delta=delta,
-            # A 股惯例：涨红跌绿 → inverse（正红负绿）
-            delta_color="inverse",
-        )
+        _chg = item.get("change")
+        _delta, _dir = "", "flat"
+        if _chg is not None:
+            _delta = f"{_chg:+.2f}"
+            # A 股惯例：涨红跌绿（原 st.metric delta_color="inverse"：正红负绿）
+            _dir = "up" if _chg > 0 else ("down" if _chg < 0 else "flat")
+        xc_kpi_grid([{
+            "label": "最新值", "value": f"{item['value']}{item['unit']}",
+            "delta": _delta, "delta_dir": _dir}])
         st.caption(
             f"数据日期 {item['date']}　"
             f"前值 {item['prev'] if item['prev'] is not None else '—'}"

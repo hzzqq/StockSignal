@@ -43,7 +43,7 @@ from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.colors import _hex_to_rgba
 from modules.chart_cache import cached_fig
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_bento_kpi
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_bento_kpi, xc_kpi_grid
 
 dark = render_standard_page(
     title="市场情绪 · 广度与情绪温度计", icon="🌡️",
@@ -788,7 +788,7 @@ def fragment_shepherd_chart():
     _custom_active = bool(st.session_state.get("shep_custom_on", False))
     with _c_custom:
         with st.popover("📅 自定义 ✓生效中" if _custom_active else "📅 自定义",
-                        use_container_width=True):
+                        width="stretch"):
             today = pd.Timestamp.now().date()
             _d_start = st.session_state.get("shep_start", today - pd.Timedelta(days=365))
             _d_end = st.session_state.get("shep_end", today)
@@ -796,7 +796,7 @@ def fragment_shepherd_chart():
             end_date = st.date_input("结束日期", value=_d_end, max_value=today, key="shep_end")
             backfill = st.checkbox("自动补算近期缺失数据（东财涨停池限最近约12个交易日）",
                                    value=False, key="shep_backfill")
-            if st.button("应用自定义范围", key="shep_custom_apply", use_container_width=True):
+            if st.button("应用自定义范围", key="shep_custom_apply", width="stretch"):
                 st.session_state["shep_custom_on"] = True
     if start_date and end_date and start_date > end_date:
         start_date, end_date = end_date, start_date
@@ -1110,8 +1110,9 @@ def fragment_shepherd_note():
         acc = analysis.get("accuracy", {})
         rate = acc.get("rate")
         if rate is not None:
-            st.metric("预判方向准确率", f"{rate:.1f}%", delta_color="off",
-                      help=f"有效样本 {acc.get('valid')} 日，命中 {acc.get('hit')} 次")
+            xc_kpi_grid([{
+                "label": "预判方向准确率", "value": f"{rate:.1f}%",
+                "meta": f"有效样本 {acc.get('valid')} 日，命中 {acc.get('hit')} 次"}])
         else:
             st.caption("暂无可判定的次日样本（所选区间缺 zt_prev_ret，需更长历史或跑 v2 重构补齐）。")
         byc = analysis.get("by_cycle") or []

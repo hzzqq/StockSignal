@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 from modules.page_widgets import UP, DOWN
 from modules.format_helpers import extract_pct
 
-from modules.ui_kit import xc_success_box, xc_warn_box, info_banner
+from modules.ui_kit import stat_tile, xc_success_box, xc_warn_box, info_banner
 dark = render_standard_page(
     title="消息 / 通知中心", icon="🔔",
     caption="聚合自选股异动、社区动态与系统状态；各模块独立取数，互不干扰。",
@@ -342,9 +342,9 @@ with st.container(border=True):
     st.markdown("**🔔 通知概览**")
     _ov1, _ov2, _ov3, _ov4, _ov5 = st.columns([1, 1, 1.4, 1.4, 1])
     with _ov1:
-        st.metric("未读", len(unread), delta_color="off")
+        stat_tile("未读", str(len(unread)))
     with _ov2:
-        st.metric("总消息", len(msgs), delta_color="off")
+        stat_tile("总消息", str(len(msgs)))
     with _ov3:
         # 一键将当前所有未读消息标记为已读（无未读时禁用）
         if st.button("✅ 全部标为已读", width="stretch", key="mark_all",

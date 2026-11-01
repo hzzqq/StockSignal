@@ -47,9 +47,9 @@ COMPLETED_FILES = [
     "20_个股分析.py",
     "40_仓位管理.py",
     "43_实盘交易.py",
-    "50_市场情绪.py",
-    "70_涨停复盘.py",
-    "94_消息中心.py",
+    # "50_市场情绪.py",  # P1-5 批1：预判准确率卡已迁 xc_kpi_grid（meta 承载 help），页内零 st.metric，移出裸 st.metric 守卫清单
+    # "70_涨停复盘.py",  # P1-5 批1：「池内曾开板」已迁 stat_tile（同 .xc-card 视觉，delta_dir=flat），页内零 st.metric，移出
+    # "94_消息中心.py",  # P1-5 批1：未读/总消息已迁 stat_tile（同 .xc-card 视觉），页内零 st.metric，移出（渲染仍由 test_94_message_center_unified 守卫）
     "98_仓位落地.py",
 ]
 

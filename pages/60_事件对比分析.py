@@ -16,7 +16,7 @@ import html
 import streamlit as st
 import plotly.graph_objects as go
 
-from modules.ui_kit import xc_handle_error, inject_kit_css
+from modules.ui_kit import xc_handle_error, inject_kit_css, xc_kpi_grid
 from modules.page_utils import render_standard_page
 from modules.ui_theme import section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
@@ -182,10 +182,8 @@ try:
                 if notice["total"]:
                     _bt = notice["by_type"]
                     _top_types = sorted(_bt.items(), key=lambda kv: -kv[1])[:4]
-                    _kpi = st.columns(min(4, len(_bt)) or 1)
-                    for _i, (_tn, _tc) in enumerate(_top_types):
-                        with _kpi[_i]:
-                            st.metric(_tn, f"{_tc} 条", delta_color="off")
+                    xc_kpi_grid([{"label": _tn, "value": f"{_tc} 条"}
+                                 for _tn, _tc in _top_types])
                     st.caption(f"共 {notice['total']} 条公告（{notice_date} · {notice_type}）")
                     import pandas as _pd
                     _ndf = _pd.DataFrame(notice["rows"][:50]).rename(columns={

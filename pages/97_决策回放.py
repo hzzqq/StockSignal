@@ -22,6 +22,7 @@ from modules.decision_replay import (
     list_replayable_dates,
 )
 from modules.page_utils import render_standard_page
+from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +61,9 @@ def render_replay(date: str) -> None:
 
     # ── ② 连板晋级率 ──
     st.subheader("🪜 连板晋级率")
-    st.metric("综合晋级率", f"{snap.get('promo_overall') if snap.get('promo_overall') is not None else '—'}",
-              delta_color="normal")
+    _promo = snap.get("promo_overall")
+    xc_kpi_grid([{"label": "综合晋级率",
+                  "value": "—" if _promo is None else str(_promo)}])
     ladder = snap.get("ladder") or {}
     if ladder:
         cols = st.columns(min(len(ladder), 6))

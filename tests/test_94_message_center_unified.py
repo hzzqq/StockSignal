@@ -34,5 +34,6 @@ def test_unified_card_wrapper_present():
 
 def test_stats_still_rendered():
     """未读 / 总消息 两个统计仍须渲染（合并不能丢数据）。"""
-    assert 'st.metric("未读"' in SRC, "94 合并后丢失『未读』统计"
-    assert 'st.metric("总消息"' in SRC, "94 合并后丢失『总消息』统计"
+    # P1-5 批1（2026）：st.metric → stat_tile（ui_kit canonical .xc-card 视觉），统计仍须渲染
+    assert 'stat_tile("未读"' in SRC, "94 合并后丢失『未读』统计"
+    assert 'stat_tile("总消息"' in SRC, "94 合并后丢失『总消息』统计"
