@@ -157,8 +157,9 @@ def prune_daily_cache_duplicates(
         if conn is not None:
             try:
                 conn.close()
-            except Exception:  # ui_audit_exempt: except-pass finally 关闭连接兜底，不掩盖主流程异常
-                pass
+            except Exception as exc:  # noqa: BLE001
+                # 关闭失败不得掩盖主流程异常，但必须留痕（守卫禁 pure-pass 静默）
+                logger.debug("[cache_maintenance] daily 去重关闭连接失败: %s", exc)
     size_after = db_path.stat().st_size if db_path.exists() else 0
     res["freed_bytes"] = max(size_before - size_after, 0)
     return res
