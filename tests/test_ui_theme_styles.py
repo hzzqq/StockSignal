@@ -86,6 +86,21 @@ def test_non_classic_styles_have_visual_layers():
         assert STYLE_PRESETS[k]["extra"], k
 
 
+def test_l3_tokens_present_all_styles():
+    """P1-3：七风格 L3 组件语义层 6 token 齐套（finpro 模板 + 五风格补齐）。
+
+    classic 无自带 vars（test_classic_default_noop 锁空），其 6 token 走
+    ui_kit._TOKEN_CSS :root 默认值（test_ui_kit_tokens 已锁），不在此断言。
+    硬约束：token 只能追加进 vars 分号字符串，禁止给 preset dict 加新 key。
+    """
+    l3 = ("--ss-glow:", "--ss-glow-soft:", "--ss-hero-overlay:",
+          "--ss-shadow-card:", "--ss-shadow-lift:", "--ss-shadow-hero:")
+    for k in ("terminal", "swiss", "aurora", "ink", "cyber", "finpro"):
+        v = STYLE_PRESETS[k]["vars"]
+        missing = [t for t in l3 if t not in v]
+        assert not missing, f"{k} 缺 L3 token: {missing}"
+
+
 def test_st_toolbar_hidden_both_modes():
     """T-200：stToolbar（Deploy 按钮+状态控件的容器）必须整体隐藏——其悬浮在
     自绘顶栏右上角图标（搜索/✦/⚙️/👤）之上造成重叠并拦截点击；曾只清 padding
