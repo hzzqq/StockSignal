@@ -317,8 +317,12 @@ def test_stub_result_matches_backtestresult_contract():
     import pathlib
 
     root = pathlib.Path(__file__).resolve().parent.parent
-    prod_src = (root / "modules" / "backtest.py").read_text(encoding="utf-8")
-    prod = ast.parse(prod_src)
+    # Plan A 拆分后 BacktestResult 可能在 backtest_result.py 子模块
+    prod_files = [root / "modules" / "backtest.py"]
+    result_py = root / "modules" / "backtest_result.py"
+    if result_py.exists():
+        prod_files.append(result_py)
+    trees = [ast.parse(p.read_text(encoding="utf-8")) for p in prod_files]
     tree = ast.parse(pathlib.Path(__file__).read_text(encoding="utf-8"))
 
     def _is_property(item):
@@ -328,18 +332,19 @@ def test_stub_result_matches_backtestresult_contract():
             for d in getattr(item, "decorator_list", [])
         )
 
-    # 1) 生产侧：BacktestResult 上的 @property 名单
+    # 1) 生产侧：BacktestResult 上的 @property 名单（可能在 backtest.py 或 backtest_result.py）
     prod_props = set()
-    for node in ast.walk(prod):
-        if isinstance(node, ast.ClassDef) and node.name == "BacktestResult":
-            for item in node.body:
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and _is_property(item):
-                    prod_props.add(item.name)
+    for t in trees:
+        for node in ast.walk(t):
+            if isinstance(node, ast.ClassDef) and node.name == "BacktestResult":
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and _is_property(item):
+                        prod_props.add(item.name)
     assert prod_props, "未在 BacktestResult 上解析出任何 @property，解析逻辑已失效"
 
-    # 2) 生产侧：run_batch 实际按属性读到的绩效字段
+    # 2) 生产侧：run_batch 实际按属性读到的绩效字段（run_batch 在 backtest.py 的 Backtester 类）
     used = set()
-    for node in ast.walk(prod):
+    for node in ast.walk(trees[0]):
         if isinstance(node, ast.FunctionDef) and node.name == "run_batch":
             for sub in ast.walk(node):
                 if isinstance(sub, ast.Attribute) and sub.attr in prod_props:
