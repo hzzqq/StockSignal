@@ -35,6 +35,17 @@ BENTO_TEMPLATE_WHITELIST = {
     "1.3fr 1fr 1fr 1fr",            # 54 决策面板现网（预测记录 KPI 带，L855 多行调用）
     "2fr 1fr",                      # 图表 + 侧栏
     "repeat(auto-fit,minmax(220px,1fr))",  # 默认自适应（ui_kit 签名默认值）
+    "repeat(auto-fit,minmax(150px,1fr))",  # 10 行情看板 24 卡行业网格（Trae 批次3 5205baa 引入，2026-11-01 人审登记）
+    "repeat(auto-fit,minmax(170px,1fr))",  # 17 市场魔方面板族（2026-11-01 人审登记）
+    "repeat(auto-fit,minmax(200px,1fr))",  # 82 数据时效性看板（2026-11-01 人审登记）
+    "repeat(auto-fit,minmax(240px,1fr))",  # 82 数据时效性看板（2026-11-01 人审登记）
+    "1.2fr 1.2fr 1fr 1fr",                 # 17 市场魔方（2026-11-01 人审登记）
+    "1.5fr 1fr 1fr 1fr",                   # 35 资金流向（批2 人审登记）
+    "1fr 1.2fr 1.4fr 1fr",                 # 36 每日荐股（2026-11-01 人审登记）
+    "1.3fr 1fr 1fr 1.2fr",                 # 42 模拟交易（2026-11-01 人审登记）
+    "1.5fr 1.2fr 1fr",                     # 50 市场情绪（2026-11-01 人审登记）
+    "1.1fr 1fr 1fr 1fr",                   # 58 连板龙头共振（B 类 pilot，2026-11-01 人审登记）
+    "1.3fr 1fr 1fr 1fr 1fr 1fr",           # 82 数据时效性看板六卡（2026-11-01 人审登记）
 }
 
 _BENTO_FACTORIES = {"xc_bento_grid", "xc_bento_kpi"}
@@ -103,6 +114,8 @@ def test_pages_no_deprecated_card_literals():
 _KNOWN_PAGE_CLASSES = frozenset({
     # 通用/旧组件残留（存量极少，渐进收敛不强删）
     "card", "compare-wrap", "dot", "label", "value",
+    # ui_kit 内容卡家族（xc_content_card 的 .xc-content-card + 内部结构，60 页复用）
+    "xc-content-card", "xc-cc-title", "xc-cc-body",
     # 登录/落地页族（lg-*，与 ui_theme --ss-login-* 配套）
     "lg-ai", "lg-ai-clue", "lg-brand-name", "lg-brand-sub", "lg-breadth",
     "lg-card", "lg-card-h", "lg-card-meta", "lg-desk", "lg-desk-brand",
