@@ -1,11 +1,12 @@
 """并发取数助手：把页面里串行发起的多个独立网络调用并行化，显著缩短首屏等待。
+from modules.cache_utils import TTL_TIERS  # R-14
 
 与 timeout_exec 共用共享线程池，每个任务都有硬边界（不会无限阻塞），且底层
 网络超时 < 任务边界，不泄漏线程。
 
 典型用法（页面首屏一次性并发预取多路数据）：::
 
-    @st.cache_data(show_spinner=False, ttl=300)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["sentiment"])
     def _prefetch_all():
         tasks = [
             ("northbound", get_northbound_fund_flow),

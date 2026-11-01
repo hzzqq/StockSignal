@@ -1,4 +1,5 @@
 """
+from modules.cache_utils import TTL_TIERS  # R-14
 modules/decision.py — 今日决策闭环的**单一真理源**（纯 Python，不依赖 streamlit）
 
 为什么单独成模块：
@@ -531,7 +532,7 @@ def _compute_event_adj(top_n: int = 50) -> dict | None:
         from modules.event_factor import event_driven_long_list
         # 复用同一个 loader 实例：top_long 已把 11MB 信号载入内存缓存，
         # 再取 latest_date 走缓存几乎零成本（否则会重复读盘）。
-        loader = P1SignalLoader(ttl=300)
+        loader = P1SignalLoader(ttl=TTL_TIERS["sentiment"])
         longs = event_driven_long_list(top_n=top_n, loader=loader)
         try:
             as_of = loader.latest_date("ev")

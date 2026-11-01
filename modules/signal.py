@@ -1,4 +1,5 @@
 """
+from modules.cache_utils import TTL_TIERS  # R-14
 事件信号分析模块
 综合价格信号、事件信号、宏观信号三类因子，输出 0-100 的主线强度得分。
 """
@@ -235,7 +236,7 @@ class SignalEngine:
         if _ld is None:
             try:
                 from modules.p1_signal import P1SignalLoader
-                self._p1l = P1SignalLoader(ttl=300)
+                self._p1l = P1SignalLoader(ttl=TTL_TIERS["sentiment"])
             except Exception as _e:  # noqa: BLE401
                 logger.warning(f"[signal] P1 加载器不可用，事件维度回退本地: {_e}")
                 self._p1l = False

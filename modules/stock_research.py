@@ -1,4 +1,5 @@
 """个股研究渲染主体（P0-1 抽取契约产物，2026-10-30 冻结稿执行）。
+from modules.cache_utils import TTL_TIERS  # R-14
 
 承载原 pages/20_个股分析.py 与 pages/11_股票选取.py 的页面语句（docstring 后全部
 顶层语句原序搬入，imports 留在函数体内原位；装饰器随调用重建，与原 exec 每次
@@ -220,7 +221,7 @@ def render_stock_analysis() -> None:
                 st.session_state[_fav_key2].append(ticker)
             st.rerun()
 
-    @st.cache_data(show_spinner=False, ttl=300)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["sentiment"])
     def _cached_period_kline(ticker: str, start: str, end: str, period: str):
         """#78 周/月 K 线数据（复用 11_股票选取.py 已验证的取数模式）。"""
         recs = api_kline(ticker, start=start, end=end, period=period)
@@ -228,7 +229,7 @@ def render_stock_analysis() -> None:
             return StockFetcher().get_kline(ticker, start=start, end=end, period=period)
         return pd.DataFrame(recs)
 
-    @st.cache_data(show_spinner=False, ttl=300)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["sentiment"])
     def _period_end_to_trading_day(ticker, start, end, period_date):
         """周/月线视图下，点击柱子的日期是周期末(可能落在周末/节假日)，
     映射到最近的一个实际交易日，确保双击弹分时能取到数据。"""
@@ -255,10 +256,10 @@ def render_stock_analysis() -> None:
             pass
         return None
 
-    @st.cache_data(show_spinner=False, ttl=300)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["sentiment"])
     def _cached_intraday(ticker):
         """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。
-    ttl=300 与交易时段 5 分钟刷新节奏对齐：每 5 分钟重新拉一次真实数据，中间命中缓存。"""
+    ttl=TTL_TIERS["sentiment"] 与交易时段 5 分钟刷新节奏对齐：每 5 分钟重新拉一次真实数据，中间命中缓存。"""
         try:
             rec = api_intraday(ticker)
             if rec and isinstance(rec.get('records'), list) and rec['records']:
@@ -1022,7 +1023,7 @@ def render_stock_analysis() -> None:
     }
 
 
-    @st.cache_data(show_spinner=False, ttl=1800)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["fundamental"])
     def _fr_cached_history(code: str):
         """从该股上市年份（或近 10 年）逐期拉取业绩报表，合并为横向历史对比表。
 
@@ -1047,22 +1048,22 @@ def render_stock_analysis() -> None:
         return fr_build_history(rows)
 
 
-    @st.cache_data(show_spinner=False, ttl=1800)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["fundamental"])
     def _fr_cached_report(period: str):
         return get_earnings_report(period)
 
 
-    @st.cache_data(show_spinner=False, ttl=1800)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["fundamental"])
     def _fr_cached_forecast(period: str):
         return get_earnings_forecast(period)
 
 
-    @st.cache_data(show_spinner=False, ttl=1800)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["fundamental"])
     def _fr_cached_disclosure(market: str, period_str: str):
         return get_disclosure_calendar(market=market, period=period_str)
 
 
-    @st.cache_data(show_spinner=False, ttl=1800)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["fundamental"])
     def _fr_cached_financial(code: str, report_type: str):
         """财务三表（利润表/资产负债表/现金流量表），best-effort，失败返回 None。"""
         try:
@@ -1696,7 +1697,7 @@ def render_stock_picker() -> None:
     # K 线图
     # ═══════════════════════════════════════════════════════════════
     st.markdown("---")
-    @st.cache_data(show_spinner=False, ttl=300)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["sentiment"])
     def _cached_kline(ticker, start, end, period, nonce: int = 0):
         # nonce 仅用于「强制刷新」时击穿 @st.cache_data 缓存（参数变化即重算重取数）
         # 1) 优先后端聚合接口（含复权）
@@ -1715,7 +1716,7 @@ def render_stock_picker() -> None:
         return df if df is not None else pd.DataFrame()
 
 
-    @st.cache_data(show_spinner=False, ttl=300)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["sentiment"])
     def _period_end_to_trading_day(ticker, start, end, period_date):
         """周/月线视图下，点击柱子的日期是周期末(可能落在周末/节假日)，
     映射到最近的一个实际交易日，确保双击弹分时能取到数据。"""
@@ -1743,7 +1744,7 @@ def render_stock_picker() -> None:
         return None
 
 
-    @st.cache_data(show_spinner=False, ttl=300)
+    @st.cache_data(show_spinner=False, ttl=TTL_TIERS["sentiment"])
     def _cached_intraday(ticker):
         """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。"""
         try:
@@ -1822,7 +1823,7 @@ def render_stock_picker() -> None:
         """分时图区块：独立 fragment，仅在交易时段每 5 分钟自动刷新一次。
 
     与整页 trading_autorefresh（默认 1 分钟）解耦，避免分时图随整页无意义重算；
-    数据走 _cached_intraday（ttl=300，与 5 分钟刷新节奏对齐）。
+    数据走 _cached_intraday（ttl=TTL_TIERS["sentiment"]，与 5 分钟刷新节奏对齐）。
     """
         show_intraday = st.checkbox("📈 显示分时图", value=True, key="pick_show_intraday",
                                     help="展示该股票当日/最近交易日分时走势（价格线+均价+昨收基准，红涨绿跌）。交易时段每5分钟自动刷新。")

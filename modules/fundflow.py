@@ -1,4 +1,5 @@
 """
+from modules.cache_utils import TTL_TIERS  # R-14
 资金流向 / 财报日历 数据层。
 
 代理策略（#407 / #659）：akshare 走 requests，只认 HTTP_PROXY/HTTPS_PROXY 环境变量。
@@ -149,7 +150,7 @@ def _ensure_proxy_and_ssl():
     _patch_done = True
 
 
-def _cache(ttl=300):
+def _cache(ttl=TTL_TIERS["sentiment"]):
     def deco(fn):
         @functools.lru_cache(maxsize=32)
         def wrapper(*args, **kwargs):

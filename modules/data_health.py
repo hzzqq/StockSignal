@@ -26,6 +26,7 @@ import logging
 import os
 from datetime import datetime
 
+from modules.cache_utils import TTL_TIERS  # R-14
 from modules.decision import assess_freshness
 
 logger = logging.getLogger(__name__)
@@ -169,7 +170,7 @@ def _p1_event_latest_date() -> str | None:
     """P1 事件信号真实数据截止日（内容 latest_date，与决策同源）。"""
     try:
         from modules.p1_signal import P1SignalLoader
-        return P1SignalLoader(ttl=300).latest_date("ev")
+        return P1SignalLoader(ttl=TTL_TIERS["sentiment"]).latest_date("ev")
     except Exception:  # noqa: BLE001
         return None
 

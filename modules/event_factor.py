@@ -1,4 +1,5 @@
 """事件因子适配器（StockSignal 特征系统入口）。
+from modules.cache_utils import TTL_TIERS  # R-14
 
 把「事件因子」这一量化特征对接到**真实信号源**，而非合成演示数据。
 
@@ -198,7 +199,7 @@ def event_driven_long_list(top_n: int = 20, model: str = "ev",
     if loader is None:
         try:
             from modules.p1_signal import P1SignalLoader
-            loader = P1SignalLoader(ttl=300)
+            loader = P1SignalLoader(ttl=TTL_TIERS["sentiment"])
         except Exception as e:  # pragma: no cover - 模块级依赖异常
             logger.warning(f"[event_factor] 事件驱动看多榜加载器不可用: {e}")
             return []

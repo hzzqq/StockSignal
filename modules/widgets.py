@@ -1,4 +1,5 @@
 """
+from modules.cache_utils import TTL_TIERS  # R-14
 modules/widgets.py
 ------------------
 跨页面复用的 Streamlit 小组件：
@@ -1031,7 +1032,7 @@ def _cached_watchlist_count(token: str) -> int:
     return 0
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=TTL_TIERS["quote"], show_spinner=False)
 def _cached_recent_login(token: str) -> str:
     """缓存『最近登录时间』请求，避免每个页面加载都打一次后端（性能提速）。"""
     try:

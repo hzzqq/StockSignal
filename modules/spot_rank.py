@@ -1,4 +1,5 @@
 """实时强势榜数据与评分（G8 纯逻辑层）。
+from modules.cache_utils import TTL_TIERS  # R-14
 
 抽取到模块层的目的：① 评分是纯函数，可单测；② 取数入口可被测试 monkeypatch，
 页面只做编排（与 ``modules/shepherd`` 的测试模式一致）。
@@ -207,7 +208,7 @@ def _spot_impl():
     raise ConnectionError("东财直连/akshare/腾讯应急三源均不可用")
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=TTL_TIERS["quote"], show_spinner=False)
 def _spot_cached_with_source():
     """全市场实时快照（缓存 60s，含数据源标注）。失败抛出，由调用方诚实降级。"""
     return _spot_impl()
