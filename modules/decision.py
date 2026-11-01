@@ -108,6 +108,64 @@ REGIME_CONF_MIN = 0.5  # 置信度门槛：低于此（或缺失）不启用门�
 REGIME_KNOWN_STATES = {"暴跌", "恐慌", "震荡", "结构牛", "普涨"}
 
 
+# ───────────────────────── 毕设三算法诚实证据桥（model_adj） ─────────────────────────
+# 毕设三算法（#1 Transformer / #2 GNN / #3 RL）定位是「诚实实验证据」而非生产信号：
+#   · #1 是 modest 胜（0.5130 vs 0.5097，+0.33pp）→ 仅在实时证据（live=True）下给
+#     有界小修正 MODEL_ADJ_CAP_PP 封顶；
+#   · #2 GNN（0.4948）/ #3 RL（Sharpe -0.741 vs tanh +1.145）负向 → **只记录不施加**，
+#     绝不把负向发现包装成仓位动作；
+#   · 任何缺失 / 桥故障 → 贡献 0（诚实红线：不编造、不臆造填充）。
+# 证据来源：modules/experiment_improvements.load_live_findings（P1_RESULTS_DIR 实时
+# 覆盖，缺失回落 KNOWN 离线锚定并显式标 live=False）。
+MODEL_ADJ_CAP_PP = 3.0  # 毕设#1 可施加的最大仓位修正（百分点），有界小步长
+
+
+def _thesis_model_adj() -> dict:
+    """毕设三算法诚实证据 → 仓位修正量（有界）+ 决策留痕文案。
+
+    返回 dict(adj=float, lines=list[str], live=bool)。adj 仅 #1 且仅 live=True 可为正；
+    #2/#3 永远只产留痕行。桥故障降级为未接入，不崩决策环。
+    """
+    try:
+        from modules.experiment_improvements import load_live_findings
+        findings = load_live_findings()
+    except Exception as e:  # 桥故障：降级不施加，不崩决策环
+        logger.warning("[decision] 毕设证据桥故障 %s，按未接入处理", e)
+        return {"adj": 0.0, "lines": ["毕设三算法证据桥故障，未施加（不臆造）"], "live": False}
+    live = bool(findings.get("_meta", {}).get("live"))
+    lines: list[str] = []
+    adj = 0.0
+
+    t1 = findings.get("transformer_signal") or {}
+    dh, dhb = t1.get("direction_hit"), t1.get("direction_hit_baseline")
+    if live and isinstance(dh, (int, float)) and isinstance(dhb, (int, float)):
+        edge = (float(dh) - float(dhb)) * 100.0
+        if edge > 0:
+            adj = min(edge, MODEL_ADJ_CAP_PP)
+            lines.append(f"毕设#1 Transformer 方向命中 {dh:.4f} vs 基线 {dhb:.4f}"
+                         f"（modest +{edge:.2f}pp）：有界加仓 {adj:.2f}%")
+        else:
+            lines.append(f"毕设#1 Transformer 方向命中 {dh:.4f} vs 基线 {dhb:.4f}：无正向边沿，不施加")
+    else:
+        lines.append("毕设#1 Transformer 证据为离线锚定（live=False），不施加仓位修正")
+
+    t2 = findings.get("gnn_factor") or {}
+    dh2 = t2.get("direction_hit")
+    if isinstance(dh2, (int, float)):
+        lines.append(f"毕设#2 GNN 方向命中 {dh2:.4f}（{'负向' if dh2 < 0.5 else '需复核'}）：仅记录不施加")
+    else:
+        lines.append("毕设#2 GNN 证据缺失：仅记录不施加")
+
+    t3 = findings.get("rl_position") or {}
+    sh3, sb = t3.get("sharpe"), t3.get("sharpe_baseline_tanh")
+    if isinstance(sh3, (int, float)):
+        base_txt = f" vs tanh {sb:+.3f}" if isinstance(sb, (int, float)) else ""
+        lines.append(f"毕设#3 RL Sharpe {sh3:+.3f}{base_txt}（负向）：仅记录不施加")
+    else:
+        lines.append("毕设#3 RL 证据缺失：仅记录不施加")
+    return {"adj": adj, "lines": lines, "live": live}
+
+
 # ───────────────────────── 仓位推导（唯一实现） ─────────────────────────
 def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=None,
                    event_adj: int | None = None,
@@ -238,6 +296,20 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
             reasons.append(f"羊群拥挤(绿挤 {herd_score:.0f})：与超卖试探语义一致，不反向调节")
         else:
             logger.warning("[decision] 未知羊群方向 %r，按不调节处理", herd_side)
+
+    # 毕设三算法诚实证据（model_adj）：置于常规推导内、clamp 与极端风控**之前**
+    # ——修正仍受 5~95 硬约束 / 极端风控 / 状态门控 / 新鲜度封顶逐级管辖，不绕过。
+    # #1 仅 live=True 给有界小修正；#2/#3 负向只记录不施加（诚实红线）。
+    _thesis = _thesis_model_adj()
+    if _thesis["adj"]:
+        pct += _thesis["adj"]
+        for _ln in _thesis["lines"]:
+            reasons.append(_ln)
+        contrib.append({"factor": "毕设#1 模型边沿(model_adj)", "delta": round(_thesis["adj"], 2),
+                        "running": round(pct, 1)})
+    else:
+        for _ln in _thesis["lines"]:
+            reasons.append(_ln)
 
     pct_before_clamp = pct
     pct = max(5.0, min(95.0, pct))
