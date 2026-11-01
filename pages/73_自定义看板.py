@@ -185,7 +185,6 @@ with _btn1:
 with _btn2:
     if st.button("♻️ 恢复默认", key="dash_reset", width="stretch"):
         st.session_state["dash_widgets"] = list(DEFAULT_SELECTION)
-        st.rerun()
 
 st.markdown("---")
 

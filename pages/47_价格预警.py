@@ -296,7 +296,6 @@ with st.expander('➕ 新建预警', expanded=False, key='new_alert_exp'):
                 if code not in _rec:
                     _rec.insert(0, code)
                 st.session_state['_alert_recent_codes'] = _rec[:8]
-                st.rerun()
             else:
                 msg = body.get('message', '创建失败') if isinstance(body, dict) else '创建失败'
                 st.error(f'❌ {msg}')
@@ -447,7 +446,6 @@ def fragment_alerts():
 st.checkbox('🔔 启用浏览器桌面通知', value=st.session_state.get('alert_browser_notify', False), key='alert_browser_notify', help='开启后，本页预警触发时会向操作系统弹出桌面通知（需浏览器授予通知权限）。')
 if st.button('🧹 清空通知记录', key='alert_clear_notified', help='清除已触发通知的去重记录，下次触发将再次弹出桌面通知。'):
     st.session_state['_alert_notified_ids'] = set()
-    st.rerun()
 fragment_alerts()
 if st.button('↑ 回到顶部', key='alert_back_to_top'):
     sn.back_to_top_button()

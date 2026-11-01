@@ -725,6 +725,5 @@ with st.expander('🔗 相关事件 / 标的推荐', expanded=False):
                 with _cc[_j]:
                     if st.button(f'{_code}\n{_cnt}条', key=f'rec_{_code}'):
                         st.session_state['sig_ticker'] = str(_code)
-                        st.rerun()
     else:
         st.caption('暂无推荐数据。')

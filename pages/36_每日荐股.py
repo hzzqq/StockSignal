@@ -34,7 +34,6 @@ with c_toggle:
                         key="rec_toggle")
     if new_val != bool(_enabled):
         save_user_setting("daily_recommend", bool(new_val))
-        st.rerun()
 
 rec = load_latest_recommendation()
 

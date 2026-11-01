@@ -1250,7 +1250,6 @@ with h_right:
             st.session_state["xc_task_started_at"] = None
             st.session_state.pop("_xc_last_intent", None)  # T-308：问题分析卡一并清理
             st.session_state.pop(_ck, None)
-            st.rerun()
         if st.button("取消", key="xc_clear_cancel", width="stretch"):
             st.session_state.pop(_ck, None)
     else:
@@ -1317,7 +1316,6 @@ if not st.session_state.get("xc_legacy_mode"):
                 st.session_state.pop("_xc_last_intent", None)
                 st.session_state.pop("_xc_failed_prompt", None)
                 st.session_state.pop("xc_messages_sig", None)
-                st.rerun()
         with _sc2:
             _dk = "xc_conv_del_confirm"
             if st.session_state.get(_dk):
@@ -1340,7 +1338,6 @@ if not st.session_state.get("xc_legacy_mode"):
                     else:
                         st.toast("⚠️ 会话删除失败（未建会话或后台异常）", icon="⚠️")
                     st.session_state.pop(_dk, None)
-                    st.rerun()
                 if st.button("取消", key="xc_conv_del_cancel", width="stretch"):
                     st.session_state.pop(_dk, None)
             else:
@@ -1383,7 +1380,6 @@ if not st.session_state.get("xc_legacy_mode"):
                     disabled=_busy, help=_busy_help or "切换到此会话",
                 ):
                     _load_conversation_into_state(_c)
-                    st.rerun()
             with _c2:
                 _md_ok, _md_content = _xc_export_cached(_cid, "markdown")
                 st.download_button(
@@ -1420,7 +1416,6 @@ if not st.session_state.get("xc_legacy_mode"):
                         if delete_chat_conversation(_cid):
                             st.toast("🗑️ 会话已删除")
                             st.session_state.pop(_del_key, None)
-                            st.rerun()
                         else:
                             st.toast("⚠️ 删除失败", icon="⚠️")
                             st.session_state.pop(_del_key, None)
@@ -1818,7 +1813,6 @@ with st.expander("⚙️ 更多功能与帮助（深度研究 · 研究记录 ·
         for _i, _code in enumerate(_xc_recent[:6]):
             if _rc[_i].button(f"📈 {_code}", key=f"xc_recent_{_i}", help="向星辰 AI 追问该股票"):
                 st.session_state["_xc_pending"] = f"{_code} 怎么样？"
-                st.rerun()
 
     # ── 复制最近一次 AI 回答（便于摘录 / 分享）──
     _xc_msgs = st.session_state.get("xc_messages", [])
@@ -1859,7 +1853,6 @@ with st.expander("⚙️ 更多功能与帮助（深度研究 · 研究记录 ·
         if _rcols[_i].button(_r["label"], key=f"xc_rec_{_i}", width="stretch",
                              help="向星辰 AI 提问该推荐主题"):
             st.session_state["_xc_pending"] = _r["prompt"]
-            st.rerun()
 
     # ── 使用说明 / 常见问题（并入快捷键说明）──
     st.markdown("#### 💡 使用说明 / 常见问题")

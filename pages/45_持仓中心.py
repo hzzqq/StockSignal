@@ -55,7 +55,8 @@ def _run_subpage(path: str) -> None:
         from modules.page_guard import render_error_card
         render_error_card(f'子模块 {os.path.basename(path)}', exc, hint='该子视图加载失败，已隔离。可切换上方视图或刷新页面重试。')
         if st.button('🔄 重试', key='hub_subpage_retry'):
-            st.rerun()
+            pass  # streamlit widget auto-reruns
+
     finally:
         _uit.apply_page_config, _sess.require_auth, _sess.render_user_badge, _pu.apply_page_config, _pu.require_auth, _pu.render_user_badge = _saved
         st.session_state['_embed_active'] = False
@@ -71,7 +72,8 @@ render_entry_cards([
 ], columns=3, active_label=_view)
 st.caption(f"📍 当前：持仓中心 › **{_view}**")
 if st.button('🔄', key='hub_manual_refresh', help='刷新：重新加载持仓中心数据'):
-    st.rerun()
+    pass  # streamlit widget auto-reruns
+
 st.session_state.setdefault('hub_recent_viewed', [])
 _hrv_left, _hrv_right = st.columns([3, 1])
 with _hrv_left:

@@ -370,7 +370,6 @@ with st.container(border=True):
                 _load_research_runs.clear()
             except Exception:
                 pass
-            st.rerun()
 
 render_data_degradation_banner()
 
@@ -428,7 +427,6 @@ else:
                 st.caption(f"{m['type']}　·　{m['detail']}" + (f"　·　{_fmt_rel(m['time'])}" if m["time"] else ""))
                 if not read and st.button("标为已读", key=f"rd_{m['id']}", help="标记为已读"):
                     st.session_state["msg_read_ids"].add(m["id"])
-                    st.rerun()
             with hc2:
                 if st.button("跳转", key=f"go_{m['id']}", help="前往对应模块"):
                     if m.get("params"):
@@ -444,13 +442,11 @@ else:
                         st.session_state["msg_starred"].discard(m["id"])
                     else:
                         st.session_state["msg_starred"].add(m["id"])
-                    st.rerun()
     # 加法式加载更多：仅前端分页，不删原数据
     if st.session_state["msg_show_n"] < len(shown):
         if st.button("显示更多 ▼", key="msg_more", width="content",
                      help="每次多显示 10 条消息（仅前端分页）。"):
             st.session_state["msg_show_n"] += _MSG_STEP
-            st.rerun()
 
 # 加法式批量选择+操作：对勾选的消息执行批量标为已读 / 批量取消收藏
 _sel_ids = [m["id"] for m in shown if st.session_state.get(f"sel_{m['id']}", False)]
@@ -463,14 +459,12 @@ if _sel_ids:
             st.session_state["msg_read_ids"].update(_sel_ids)
             for _id in _sel_ids:
                 st.session_state.pop(f"sel_{_id}", None)
-            st.rerun()
     with _bc2:
         if st.button("🗑️ 批量取消收藏", key="msg_batch_unstar", width="stretch",
                      help="取消勾选消息的收藏标记（仅本会话生效）。"):
             st.session_state["msg_starred"] -= set(_sel_ids)
             for _id in _sel_ids:
                 st.session_state.pop(f"sel_{_id}", None)
-            st.rerun()
 
 # ── T-230：我的收藏收进折叠区（纯前端 session，不接后端）──
 _msg_starred_ids = st.session_state.get("msg_starred", set())

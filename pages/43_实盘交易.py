@@ -41,7 +41,8 @@ acc = _load_account()
 if acc is None:
     _empty_info('账户加载失败，请稍后重试或刷新页面。')
     if st.button('🔄 重试加载账户', key='acc_retry'):
-        st.rerun()
+        pass  # streamlit widget auto-reruns
+
     st.stop()
 live = bool(acc.get('live_mode'))
 bt = acc.get('broker_type', 'sim') or 'sim'
@@ -102,7 +103,6 @@ with st.container(border=True):
             if sc == 200 and isinstance(body, dict) and (body.get('status') == 'ok'):
                 _toast('配置已保存')
                 st.session_state['_trade_acc_cache'] = None
-                st.rerun()
             else:
                 msg = body.get('message', '保存失败') if isinstance(body, dict) else '保存失败'
                 save_msg = f'❌ {msg}'
@@ -122,7 +122,6 @@ with st.container(border=True):
             sc, body = api_put('/api/trade/account', {'clear_risk_pause': True})
             if sc == 200 and isinstance(body, dict) and (body.get('status') == 'ok'):
                 _toast('已解除停手')
-                st.rerun()
             else:
                 st.error('操作失败')
     if save_msg:
@@ -161,7 +160,6 @@ with st.container(border=True):
                     st.error(f"❌ 下单失败：{od.get('message', '')}")
                 else:
                     _toast(f"委托已受理（{od.get('status')}）")
-                st.rerun()
             else:
                 msg = body.get('message', '下单失败') if isinstance(body, dict) else '下单失败'
                 st.error(f'❌ {msg}')

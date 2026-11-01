@@ -150,7 +150,6 @@ else:
                 if picked and picked not in st.session_state["screener_pool"]:
                     st.session_state["screener_pool"].append(picked)
                     save_user_setting("screener_pool", st.session_state["screener_pool"])
-                    st.rerun()
 
         pool = st.session_state["screener_pool"]
         if pool:
@@ -167,7 +166,6 @@ else:
                             st.session_state["screener_pool"].remove(code)
                             save_user_setting("screener_pool", st.session_state["screener_pool"])
                             st.session_state.pop(_ck, None)
-                            st.rerun()
                         if st.button("取消", key=f"del_cancel_{code}", width="stretch"):
                             st.session_state.pop(_ck, None)
                     else:
@@ -191,7 +189,6 @@ else:
                     st.session_state["screener_pool"] = []
                     save_user_setting("screener_pool", [])
                     st.session_state.pop(_ck, None)
-                    st.rerun()
                 if st.button("取消", key="screener_clear_cancel", width="stretch"):
                     st.session_state.pop(_ck, None)
             else:

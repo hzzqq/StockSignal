@@ -41,7 +41,6 @@ with _wb_c1:
             _sc, _body = api_post('/api/watchlist', {'stock_code': _wb_code}, timeout=5)
             if _sc == 200 and isinstance(_body, dict) and (_body.get('status') == 'ok'):
                 _toast(f'✅ 已加入自选股 {_wb_code}')
-                st.rerun()
             else:
                 _msg = _body.get('message', '添加失败') if isinstance(_body, dict) else '添加失败'
                 xc_warn_box(f'⚠️ {_msg}')

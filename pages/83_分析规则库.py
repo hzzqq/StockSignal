@@ -69,7 +69,6 @@ def main() -> None:
                 if enabled != bool(s.get("enabled")):
                     s["enabled"] = enabled
                     sk.save_skills(skills)
-                    st.rerun()
             with st.expander("查看规则内容"):
                 st.code(s.get("instruction", ""), language="markdown")
             # T-316：删除不可恢复 → 二次确认（与星辰 AI「清空对话」同范式）。
@@ -82,14 +81,11 @@ def main() -> None:
                                help=f"确认删除规则「{s.get('name', '未命名')}」，不可恢复"):
                     sk.delete_skill(sid)
                     st.session_state.pop(_dc_key, None)
-                    st.rerun()
                 if _dc2.button("取消", key=f"del_cancel_{sid}", width="stretch"):
                     st.session_state.pop(_dc_key, None)
-                    st.rerun()
             else:
                 if st.button("删除", key=f"del_{sid}"):
                     st.session_state[_dc_key] = True
-                    st.rerun()
 
     st.divider()
 
@@ -118,11 +114,9 @@ def main() -> None:
                     "enabled": True,
                 })
                 st.success(f"已保存规则「{name.strip()}」")
-                st.rerun()
 
     if st.button("恢复内置默认规则"):
         sk.reset_to_defaults()
-        st.rerun()
 
 
 main()

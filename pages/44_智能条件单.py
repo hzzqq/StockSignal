@@ -75,7 +75,6 @@ with st.expander('➕ 新建条件单', expanded=True, key='new_cond_exp'):
             sc, body = api_post('/api/cond-orders', payload)
             if sc == 200 and isinstance(body, dict) and (body.get('status') == 'ok'):
                 _toast('条件单已创建')
-                st.rerun()
             else:
                 msg = body.get('message', '创建失败') if isinstance(body, dict) else '创建失败'
                 st.error(f'❌ {msg}')
