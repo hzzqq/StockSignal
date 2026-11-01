@@ -14,7 +14,7 @@ from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_metric
-from modules.ui_kit import xc_content_card
+from modules.ui_kit import xc_content_card, xc_kpi_grid
 from modules.page_widgets import _empty_info, UP, DOWN
 from modules import stock_risk as sr
 
@@ -480,11 +480,12 @@ def result_board():
     n_high = sum(1 for r in results if r.get("priority") == "HIGH")
     n_watch = sum(1 for r in results if r.get("priority") == "WATCH")
     n_att = sum(1 for r in results if r.get("priority") == "ATTENTION")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric(f"{_PRIORITY_EMOJI['HIGH']} 高优先级", n_high, delta_color="off")
-    m2.metric(f"{_PRIORITY_EMOJI['WATCH']} 关注", n_watch, delta_color="off")
-    m3.metric(f"{_PRIORITY_EMOJI['ATTENTION']} 警惕", n_att, delta_color="off")
-    m4.metric("平均综合分", f"{avg_comp}" if avg_comp is not None else "—", delta_color="off")
+    xc_kpi_grid([
+        {'label': f"{_PRIORITY_EMOJI['HIGH']} 高优先级", 'value': str(n_high)},
+        {'label': f"{_PRIORITY_EMOJI['WATCH']} 关注", 'value': str(n_watch)},
+        {'label': f"{_PRIORITY_EMOJI['ATTENTION']} 警惕", 'value': str(n_att)},
+        {'label': '平均综合分', 'value': f"{avg_comp}" if avg_comp is not None else "—"},
+    ])
 
     def _fmt_score(v):
         return f"{v:.0f}" if isinstance(v, (int, float)) else "—"
@@ -682,14 +683,17 @@ def risk_board():
     avg_cov = round(sum(covs) / len(covs), 1) if covs else None
     lvl_emoji = {sr.RISK_HIGH: "🔴", sr.RISK_MEDIUM: "🟠",
                  sr.RISK_LOW: "🟢", sr.RISK_UNKNOWN: "⚪"}
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric(f"{lvl_emoji[sr.RISK_HIGH]} 高风险", _cnt(sr.RISK_HIGH), delta_color="off")
-    k2.metric(f"{lvl_emoji[sr.RISK_MEDIUM]} 中风险", _cnt(sr.RISK_MEDIUM), delta_color="off")
-    k3.metric(f"{lvl_emoji[sr.RISK_LOW]} 低风险", _cnt(sr.RISK_LOW), delta_color="off")
-    k4.metric(f"{lvl_emoji[sr.RISK_UNKNOWN]} 未知", _cnt(sr.RISK_UNKNOWN), delta_color="off")
-    k5.metric("平均风险分", f"{avg_score}" if avg_score is not None else "—",
-              delta=f"覆盖 {avg_cov}%" if avg_cov is not None else None,
-              delta_color="off")
+    _risk_cards = [
+        {'label': f"{lvl_emoji[sr.RISK_HIGH]} 高风险", 'value': str(_cnt(sr.RISK_HIGH))},
+        {'label': f"{lvl_emoji[sr.RISK_MEDIUM]} 中风险", 'value': str(_cnt(sr.RISK_MEDIUM))},
+        {'label': f"{lvl_emoji[sr.RISK_LOW]} 低风险", 'value': str(_cnt(sr.RISK_LOW))},
+        {'label': f"{lvl_emoji[sr.RISK_UNKNOWN]} 未知", 'value': str(_cnt(sr.RISK_UNKNOWN))},
+        {'label': '平均风险分', 'value': f"{avg_score}" if avg_score is not None else "—"},
+    ]
+    if avg_cov is not None:
+        _risk_cards[4]['delta'] = f"覆盖 {avg_cov}%"
+        _risk_cards[4]['delta_dir'] = 'flat'
+    xc_kpi_grid(_risk_cards)
 
     # 明细表：一行一只票，六维等级
     def _cell(rep, key):

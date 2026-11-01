@@ -37,10 +37,10 @@ def _guard_tree(fname: str) -> ast.AST:
     raise AssertionError(f"守卫清单文件缺失实现体: {modname}::{fnname}（{fname}）")
 # 已完成 delta_color 全量补齐的页面（增量补齐时追加到此清单）
 COMPLETED_FILES = [
-    "30_策略回测.py",
+    # "30_策略回测.py",  # P1-5 批3：7 组 27 处已迁 xc_kpi_grid/stat_tile（收益类补 tone 正红负绿），页内零 metric，移出
     "11_股票选取.py",
-    "22_基本面分析.py",
-    "23_事件追踪.py",
+    # "22_基本面分析.py",  # P1-5 批3：全部 25 处已迁 xc_kpi_grid/stat_tile，页内零 metric，移出
+    # "23_事件追踪.py",  # P1-5 批3：3 组 11 处已迁 xc_kpi_grid，页内零 metric，移出
     # "36_每日荐股.py",  # 2026-10-28 已迁移至 xc_kpi_grid（delta_dir 统一保证 A股红涨绿跌，另由 test_ui_design_system 守卫）；不再直接调用 st.metric，故移出裸 st.metric 守卫清单
     # "16_财报日历.py",  # P1-5 批2：两组 KPI 行已迁 xc_kpi_grid（help→meta），页内零 st.metric，移出
     # "35_资金流向.py",  # P1-5 批2：两融/主力净流入两组已迁 xc_kpi_grid（normal 美股语义一并修正为 delta_dir A股语义），移出
@@ -92,11 +92,20 @@ def test_completed_pages_no_us_semantics(fname):
 
 
 def test_mutation_guard_catches_missing_delta_color():
-    """mutation 自验：把已完成文件的 delta_color 全部剥离后，守卫逻辑必须能检出（防假绿）"""
-    target = PAGES / COMPLETED_FILES[0]
-    src = target.read_text(encoding="utf-8")
-    mutated = re.sub(r',?\s*delta_color="(?:inverse|off)"', "", src)
-    assert mutated != src, "mutation 种子失效"
-    tree = ast.parse(mutated)
-    bad = [c.lineno for c in _metric_calls(tree) if not _has_delta_color(c)]
+    """mutation 自验：构造携带 delta_color 的 st.metric 片段，剥离后守卫逻辑必须能检出（防假绿）。
+
+    批3 收官（2026）后 pages/ 已零 metric 调用（G6 封禁），文件级 mutation 种子
+    （COMPLETED_FILES[0]）随之失效——改用合成片段做种子，守卫逻辑验证意图不变，
+    且不再与任何页面文件的存量耦合。"""
+    snippet = (
+        "import streamlit as st\n"
+        'st.metric("甲", "1", delta="+1.2%", delta_color="inverse")\n'
+        'st.metric("乙", "2", delta_color="off")\n'
+    )
+    tree = ast.parse(snippet)
+    seeds = list(_metric_calls(tree))
+    assert seeds and all(_has_delta_color(c) for c in seeds), "合成种子本身不合法"
+    mutated = re.sub(r',?\s*delta_color="(?:inverse|off)"', "", snippet)
+    assert mutated != snippet, "mutation 种子失效"
+    bad = [c.lineno for c in _metric_calls(ast.parse(mutated)) if not _has_delta_color(c)]
     assert bad, "mutation 未被检出——守卫逻辑假绿"

@@ -76,15 +76,12 @@ with tab_overview:
     try:
         from modules.page_utils import get_fetcher
         report = get_fetcher().data_source_health()
-        src_cols = st.columns(len(report["sources"]))
-        for col, (name, info) in zip(src_cols, report["sources"].items()):
-            ok = bool(info.get("ok"))
-            col.metric(
-                info.get("label", name),
-                "✅ 可用" if ok else "❌ 不可用",
-                help=info.get("detail", ""),
-                delta_color="off",
-            )
+        stat_row([
+            {'label': info.get("label", name),
+             'value': "✅ 可用" if bool(info.get("ok")) else "❌ 不可用",
+             'meta': str(info.get("detail", ""))}
+            for name, info in report["sources"].items()
+        ])
         st.caption(
             f"总览 {report.get('summary')} · 探测于 {report.get('timestamp')} · "
             "仅检查依赖与本地缓存（不触网）；网络可达性由各页面取数时实时降级。"

@@ -17,7 +17,7 @@ from modules.page_utils import render_standard_page, get_fetcher, quote_one as _
 from modules.page_utils import fmt_rel as _fmt_rel
 from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info, _section_title
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_bento_kpi
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_bento_kpi, xc_kpi_grid
 from modules.event_factor import event_driven_long_list  # 事件驱动看多榜（真实 P1 EV 信号选股池）
 today = date.today().strftime('%Y-%m-%d')
 dark = render_standard_page(title='每日晨报 / 复盘笔记', icon='🌅', caption=f'生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）', layout='wide')
@@ -75,10 +75,11 @@ def fragment_sector_summary():
         up = int((sector_df['change_pct'] > 0).sum())
         down = int((sector_df['change_pct'] < 0).sum())
         flat = len(sector_df) - up - down
-        c1, c2, c3 = st.columns(3)
-        c1.metric('上涨板块', up, delta=None, help='今日收盘涨幅大于 0 的板块数量')
-        c2.metric('下跌板块', down, delta=None, help='今日收盘跌幅小于 0 的板块数量')
-        c3.metric('平/无数据', flat, delta=None, help='涨跌幅为 0 或暂未获取到行情的板块数量')
+        xc_kpi_grid([
+            {'label': '上涨板块', 'value': str(up), 'meta': '今日收盘涨幅大于 0 的板块数量'},
+            {'label': '下跌板块', 'value': str(down), 'meta': '今日收盘跌幅小于 0 的板块数量'},
+            {'label': '平/无数据', 'value': str(flat), 'meta': '涨跌幅为 0 或暂未获取到行情的板块数量'},
+        ])
         st.caption('数据来源：东方财富板块行情')
         top_up = sector_df.sort_values('change_pct', ascending=False).head(5)
         top_dn = sector_df.sort_values('change_pct', ascending=True).head(5)

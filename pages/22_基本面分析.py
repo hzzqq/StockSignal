@@ -26,7 +26,7 @@ from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info
 from modules.perf import downsample
 from modules.chart_cache import cached_fig
-from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card
+from modules.ui_kit import stat_tile, xc_kpi_grid, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card
 dark = render_standard_page(title='基本面分析', icon='🏛️', caption='个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）', layout='wide')
 trading_autorefresh(key='fundamental_autorefresh')
 ACCENT = '#818cf8' if dark else '#6366f1'
@@ -283,7 +283,7 @@ def fragment_valuation_band(code: str, name: str, industry: str, pe_ttm, dark: b
             b = band.get(_k) or {}
             with _c:
                 if b.get('status') != 'ok':
-                    st.metric(_label, '—', delta_color='off', help=b.get('reason', ''))
+                    stat_tile(_label, '—')
                     st.caption(f'⛔ {b.get("reason", "不可用")}')
                     continue
                 _zone = b.get('zone', '不可用')
@@ -324,11 +324,12 @@ def fragment_valuation_band(code: str, name: str, industry: str, pe_ttm, dark: b
         st.caption('⛔ 杜邦分解不可用：' + str(du.get('reason', '缺关键因子'))
                    + (f'（缺 {("、".join(du.get("missing") or []))}）' if du.get('missing') else ''))
     else:
-        d1, d2, d3, d4 = st.columns(4)
-        d1.metric('净利率', f'{du["net_margin"]:.2f}%', delta_color="off")
-        d2.metric('总资产周转率', f'{du["asset_turnover"]:.3f} 次', delta_color="off")
-        d3.metric('权益乘数', f'{du["equity_multiplier"]:.2f}', delta_color="off")
-        d4.metric('ROE（披露）', f'{du["roe"]:.2f}%', delta_color="off")
+        xc_kpi_grid([
+            {'label': '净利率', 'value': f'{du["net_margin"]:.2f}%'},
+            {'label': '总资产周转率', 'value': f'{du["asset_turnover"]:.3f} 次'},
+            {'label': '权益乘数', 'value': f'{du["equity_multiplier"]:.2f}'},
+            {'label': 'ROE（披露）', 'value': f'{du["roe"]:.2f}%'},
+        ])
         st.caption(f'三项乘积 = {du["implied_roe"]:.2f}%（容差 ±{du["tol"]:.2f}）'
                    + ('　✅ 与披露 ROE 自洽' if du.get('consistent') else '　⚠️ 不一致'))
         for _f in du.get('flags') or []:
@@ -577,17 +578,15 @@ if code:
     if not fund:
         info_banner('🔍 未找到该代码对应的标的（可能是代码拼写有误、该市场无此股票，或行情接口暂时不可用）。请核对代码 / 名称后重试，或前往「📡 股票选取」页重新搜索选取一只个股。')
     st.markdown('---')
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1:
-        st.metric('股票', f'{name}', delta_color='off')
-    with c2:
-        st.metric('代码', code, delta_color='off')
-    with c3:
-        st.metric('所属行业', industry, delta_color='off')
-    with c4:
-        st.metric('最新价', f'¥{price:.2f}' if price else '—', delta_color='off', help='个股最新市场成交价（单位：元）；实时行情不可用时显示 —')
-    with c5:
-        st.metric('总市值', f'¥{market_cap:.1f}亿' if market_cap else '—', delta_color='off', help='公司总资产规模（单位：亿元人民币）；越大通常越稳健')
+    xc_kpi_grid([
+        {'label': '股票', 'value': f'{name}'},
+        {'label': '代码', 'value': code},
+        {'label': '所属行业', 'value': industry},
+        {'label': '最新价', 'value': f'¥{price:.2f}' if price else '—',
+         'meta': '个股最新市场成交价（单位：元）；实时行情不可用时显示 —'},
+        {'label': '总市值', 'value': f'¥{market_cap:.1f}亿' if market_cap else '—',
+         'meta': '公司总资产规模（单位：亿元人民币）；越大通常越稳健'},
+    ])
     with st.expander('📋 复制股票代码', expanded=False):
         st.code(code, language='text')
         st.caption('点击代码块右上角复制按钮即可复制当前分析的股票代码。')
@@ -609,30 +608,39 @@ if code:
     gm = perf.get('gross_margin')
     alr = perf.get('alr')
     cr = perf.get('current_ratio')
+    # A 股语义：营收/净利润同比正=扩张=红(up)。科普 tooltip 由上方「读懂指标」caption 统一承载。
+    _rev_delta, _pr_delta = '', ''
+    _rev_dir, _pr_dir = 'flat', 'flat'
+    if rev_yoy is not None:
+        _rev_delta = f'{rev_yoy:+.1f}%'
+        _rev_dir = 'up' if rev_yoy > 0 else ('down' if rev_yoy < 0 else 'flat')
+    if pr_yoy is not None:
+        _pr_delta = f'{pr_yoy:+.1f}%'
+        _pr_dir = 'up' if pr_yoy > 0 else ('down' if pr_yoy < 0 else 'flat')
     pc1, pc2, pc3, pc4 = st.columns(4)
     with pc1:
         rev_yi = perf.get('revenue_yi')
-        st.metric('营业收入', f'{rev_yi} 亿' if rev_yi is not None else '—', delta=f'{rev_yoy:+.1f}%' if rev_yoy is not None else None, delta_color='inverse', help='公司一定时期内的主营业务收入（单位：亿元）；同比>0 表示扩张')
+        stat_tile('营业收入', f'{rev_yi} 亿' if rev_yi is not None else '—', delta=_rev_delta, delta_dir=_rev_dir)
         if rev_yoy is not None:
             st.markdown(_tag('营收同比 ' + (f'+{rev_yoy:.1f}%' if rev_yoy >= 0 else f'{rev_yoy:.1f}%'), 'good' if rev_yoy >= 0 else 'bad'), unsafe_allow_html=True)
     with pc2:
         np_yi = perf.get('net_profit_yi')
-        st.metric('净利润', f'{np_yi} 亿' if np_yi is not None else '—', delta=f'{pr_yoy:+.1f}%' if pr_yoy is not None else None, delta_color='inverse', help='归属母公司股东的净利润（单位：亿元）；衡量公司真正赚到的钱')
+        stat_tile('净利润', f'{np_yi} 亿' if np_yi is not None else '—', delta=_pr_delta, delta_dir=_pr_dir)
         if pr_yoy is not None:
             st.markdown(_tag('净利同比 ' + (f'+{pr_yoy:.1f}%' if pr_yoy >= 0 else f'{pr_yoy:.1f}%'), 'good' if pr_yoy >= 0 else 'bad'), unsafe_allow_html=True)
     with pc3:
-        st.metric('ROE（净资产收益率）', f'{roe:.2f}%' if roe is not None else '—', delta_color='off', help='净利润 / 净资产 ×100；反映股东投入的回报率，通常 >15% 较优')
+        stat_tile('ROE（净资产收益率）', f'{roe:.2f}%' if roe is not None else '—')
         if roe is not None:
             st.markdown(_tag('盈利能力 ' + ('强' if roe >= 15 else '中' if roe >= 8 else '弱'), 'good' if roe >= 15 else 'warn' if roe >= 8 else 'bad'), unsafe_allow_html=True)
     with pc4:
-        st.metric('毛利率', f'{gm:.2f}%' if gm is not None else '—', delta_color='off', help='(营收-营业成本)/营收 ×100；越高说明产品溢价/成本控制越好')
+        stat_tile('毛利率', f'{gm:.2f}%' if gm is not None else '—')
     pc5, pc6 = st.columns(2)
     with pc5:
-        st.metric('资产负债率', f'{alr:.2f}%' if alr is not None else '—', delta_color='off', help='总负债 / 总资产 ×100；越低偿债压力越小，但过低也可能杠杆利用不足')
+        stat_tile('资产负债率', f'{alr:.2f}%' if alr is not None else '—')
         if alr is not None:
             st.markdown(_tag('偿债压力 ' + ('低' if alr < 40 else '中' if alr < 60 else '高'), 'good' if alr < 40 else 'warn' if alr < 60 else 'bad'), unsafe_allow_html=True)
     with pc6:
-        st.metric('流动比率', f'{cr:.2f}' if cr is not None else '—', delta_color='off', help='流动资产 / 流动负债；≥1.5 短期偿债能力较稳健，<1 偏紧')
+        stat_tile('流动比率', f'{cr:.2f}' if cr is not None else '—')
     _perf_lines = []
     if rev_yoy is not None and pr_yoy is not None:
         if rev_yoy > 0 and pr_yoy > 0:
@@ -741,11 +749,12 @@ if code:
         p_1y = _percentile(hist_df.tail(252)['close'], current) if len(hist_df) >= 60 else None
         p_3y = _percentile(hist_df.tail(756)['close'], current) if len(hist_df) >= 400 else None
         p_5y = _percentile(hist_df['close'], current) if len(hist_df) >= 60 else None
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric('当前价', f'¥{current:.2f}', delta_color="off")
-        m2.metric('1年价格分位', f'{p_1y:.1f}%' if p_1y is not None else '—', delta_color="off")
-        m3.metric('3年价格分位', f'{p_3y:.1f}%' if p_3y is not None else '—', delta_color="off")
-        m4.metric('5年价格分位', f'{p_5y:.1f}%' if p_5y is not None else '—', delta_color="off")
+        xc_kpi_grid([
+            {'label': '当前价', 'value': f'¥{current:.2f}'},
+            {'label': '1年价格分位', 'value': f'{p_1y:.1f}%' if p_1y is not None else '—'},
+            {'label': '3年价格分位', 'value': f'{p_3y:.1f}%' if p_3y is not None else '—'},
+            {'label': '5年价格分位', 'value': f'{p_5y:.1f}%' if p_5y is not None else '—'},
+        ])
         hist_plot = downsample(hist_df, max_points=600)
         fig_hist = _build_hist_fig(hist_plot, current, name, dark)
         st.plotly_chart(fig_hist, width="stretch", config={"displaylogo": False, "responsive": True})
@@ -772,11 +781,15 @@ if code:
                 sector_chg = float(sector_row.iloc[0]['change_pct'])
                 avg_chg = float(sector_df['change_pct'].mean())
                 delta = sector_chg - avg_chg
-                sc1, sc2 = st.columns(2)
-                with sc1:
-                    st.metric(f'{industry} 今日涨跌', f'{sector_chg:+.2f}%', delta_color='inverse')
-                with sc2:
-                    st.metric('相对全市场平均', f'{delta:+.2f}%', delta=f'{delta:+.2f}%', help='当前行业涨跌幅减去全市场行业均值；>0 表示强于大盘', delta_color="inverse")
+                # A 股语义：涨红跌绿——今日涨跌/相对超额为正=红(up)
+                _sec_dir = 'up' if sector_chg > 0 else ('down' if sector_chg < 0 else 'flat')
+                _rel_dir = 'up' if delta > 0 else ('down' if delta < 0 else 'flat')
+                xc_kpi_grid([
+                    {'label': f'{industry} 今日涨跌', 'value': f'{sector_chg:+.2f}%', 'tone': _sec_dir},
+                    {'label': '相对全市场平均', 'value': f'{delta:+.2f}%',
+                     'delta': f'{delta:+.2f}%', 'delta_dir': _rel_dir,
+                     'meta': '当前行业涨跌幅减去全市场行业均值；>0 表示强于大盘'},
+                ])
         if has_theme:
             if has_horizontal:
                 st.markdown('---')
@@ -813,13 +826,13 @@ if code:
     with sc2:
         st.markdown(f"""<div style="padding:14px 18px;border-radius:10px;background:var(--card2);border:1px solid var(--border);font-size:14px;line-height:1.8;">{reasons_html}</div>""", unsafe_allow_html=True)
     xc_content_card('📊 估值摘要', "")
-    v1, v2, v3 = st.columns(3)
-    with v1:
-        st.metric('PE(TTM)', f'{pe_ttm:.2f}' if pe_ttm else '—', delta_color='off', help='市盈率 = 股价 / 每股收益；越低通常代表估值越低（但需结合成长性）')
-    with v2:
-        st.metric('PE 状态', _pe_status(pe_ttm), delta_color='off', help='根据 PE 粗略划分低估/合理/偏高区间，仅供参考')
-    with v3:
-        st.metric('总市值', f'¥{market_cap:.1f}亿' if market_cap else '—', delta_color='off', help='单位：亿元人民币')
+    xc_kpi_grid([
+        {'label': 'PE(TTM)', 'value': f'{pe_ttm:.2f}' if pe_ttm else '—',
+         'meta': '市盈率 = 股价 / 每股收益；越低通常代表估值越低（但需结合成长性）'},
+        {'label': 'PE 状态', 'value': _pe_status(pe_ttm),
+         'meta': '根据 PE 粗略划分低估/合理/偏高区间，仅供参考'},
+        {'label': '总市值', 'value': f'¥{market_cap:.1f}亿' if market_cap else '—', 'meta': '单位：亿元人民币'},
+    ])
     if pe_ttm is None and market_cap is None:
         info_banner('📊 估值摘要暂无可展示数据（实时行情 / 估值接口未返回 PE 与总市值）。可稍后刷新重试，或检查数据源连接。')
     st.caption('数据来源：东方财富 估值数据（PE / 总市值）')

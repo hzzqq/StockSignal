@@ -21,7 +21,7 @@ from modules.page_utils import fmt_rel as _fmt_rel
 from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info
 from modules.event_levels import STRENGTH_ORDER  # T-288：五档单一真理源
-from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_kpi_grid
 render_standard_page(title='事件追踪', icon='🔔', caption='⚠️ 数据仅供参考，不构成投资建议', layout='wide')
 
 lk_p1, lk_p2 = st.columns([1, 1])
@@ -183,17 +183,14 @@ def fragment_signal_score():
             _macro = scores.get('macro_score', 0) or 0
             _total = scores.get('total', 0) or 0
             _safe_scores = {k: v if v is not None else 0 for k, v in scores.items()}
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric('价格信号', f'{_price}/100', delta_color='off')
-            with col2:
-                st.metric('事件信号', f'{_event}/100', delta_color='off')
-            with col3:
-                st.metric('宏观信号', f'{_macro}/100', delta_color='off')
-            with col4:
-                total = _total
-                delta_text = '买入信号' if total >= 70 else '卖出信号' if total <= 40 else '观望'
-                st.metric('综合评分', f'{total}/100', delta=delta_text, delta_color="off")
+            total = _total
+            delta_text = '买入信号' if total >= 70 else '卖出信号' if total <= 40 else '观望'
+            xc_kpi_grid([
+                {'label': '价格信号', 'value': f'{_price}/100'},
+                {'label': '事件信号', 'value': f'{_event}/100'},
+                {'label': '宏观信号', 'value': f'{_macro}/100'},
+                {'label': '综合评分', 'value': f'{total}/100', 'meta': delta_text},
+            ])
             col_radar, col_detail = st.columns([1, 1])
             with col_radar:
                 fig = Visualizer.signal_radar(_safe_scores)
@@ -583,7 +580,6 @@ def fragment_news_mine():
                 else:
                     mined = mr['mined']
                     xc_success_box(f'成功挖掘 {len(mined)} 条事件并入库！')
-                    col_s1, col_s2, col_s3 = st.columns(3)
                     if 'type' not in mined.columns:
                         xc_warn_box('⚠️ 挖掘结果缺少「type」字段，无法统计情感分布。')
                         pos_count = neg_count = neu_count = 0
@@ -591,12 +587,11 @@ def fragment_news_mine():
                         pos_count = len(mined[mined['type'] == '正面'])
                         neg_count = len(mined[mined['type'] == '负面'])
                         neu_count = len(mined[mined['type'] == '中性'])
-                    with col_s1:
-                        st.metric('正面事件', f'{pos_count} 条', delta_color='off')
-                    with col_s2:
-                        st.metric('负面事件', f'{neg_count} 条', delta_color='off')
-                    with col_s3:
-                        st.metric('中性事件', f'{neu_count} 条', delta_color='off')
+                    xc_kpi_grid([
+                        {'label': '正面事件', 'value': f'{pos_count} 条'},
+                        {'label': '负面事件', 'value': f'{neg_count} 条'},
+                        {'label': '中性事件', 'value': f'{neu_count} 条'},
+                    ])
                     with st.expander('📰 挖掘结果（点击标题可跳转原文）', expanded=False):
                         _render_news_with_links(mined, title_col='title', url_col='url', date_col='date', source_col='source', type_col='type')
                     display_cols = [c for c in ['date', 'ticker', 'title', 'type', 'keywords', 'sentiment_score'] if c in mined.columns]
@@ -640,15 +635,12 @@ def fragment_sentiment_report():
                     if _total == 0:
                         xc_warn_box('未抓取到新闻。')
                     else:
-                        col_r1, col_r2, col_r3, col_r4 = st.columns(4)
-                        with col_r1:
-                            st.metric('新闻总数', f'{_total} 条', delta_color='off')
-                        with col_r2:
-                            st.metric('正面占比', f'{_pos}%', delta_color='off')
-                        with col_r3:
-                            st.metric('负面占比', f'{_neg}%', delta_color='off')
-                        with col_r4:
-                            st.metric('中性占比', f'{_neu}%', delta_color='off')
+                        xc_kpi_grid([
+                            {'label': '新闻总数', 'value': f'{_total} 条'},
+                            {'label': '正面占比', 'value': f'{_pos}%'},
+                            {'label': '负面占比', 'value': f'{_neg}%'},
+                            {'label': '中性占比', 'value': f'{_neu}%'},
+                        ])
                     import plotly.express as px
                     from modules.visualizer import _is_dark, SF_GRID, SF_BORDER, SF_TXT2
                     _dark = _is_dark()

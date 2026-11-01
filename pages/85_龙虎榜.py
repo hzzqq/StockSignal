@@ -15,6 +15,7 @@ import streamlit as st
 
 from modules.page_utils import render_standard_page
 from modules import lhb
+from modules.ui_kit import xc_kpi_grid
 
 
 def _fmt_yi(v) -> str:
@@ -68,10 +69,11 @@ def main() -> None:
             st.dataframe(df.head(50), width="stretch")
         return
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("上榜家数", summary["count"], delta_color="off")
-    c2.metric("净买额合计", _fmt_yi(summary["net_sum"]), delta_color="off")
-    c3.metric("识别到的净买列", summary["net_col"], delta_color="off")
+    xc_kpi_grid([
+        {'label': '上榜家数', 'value': str(summary["count"])},
+        {'label': '净买额合计', 'value': _fmt_yi(summary["net_sum"])},
+        {'label': '识别到的净买列', 'value': str(summary["net_col"])},
+    ])
 
     st.divider()
     left, right = st.columns(2)

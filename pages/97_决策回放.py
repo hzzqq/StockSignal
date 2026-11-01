@@ -8,7 +8,7 @@
 诚实边界：
 - 只回放已归档日期（data/snapshots/，稀疏归档自 2026-08-31 起）；无归档不编造；
 - 次日对照取 CSV 严格后一交易日，缺失如实标注「无数据」，不默认 0；
-- A 股红涨绿跌全局语义（delta_color="normal"）。
+- A 股红涨绿跌全局语义（KPI 卡经 ui_kit xc_kpi_grid 渲染，收益类按 delta_dir/tone 正红负绿）。
 """
 from __future__ import annotations
 
@@ -42,12 +42,12 @@ def render_replay(date: str) -> None:
     # ── ① 当日当时快照 ──
     st.subheader("🎯 当日当时快照")
     pos = snap.get("position") or {}
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("市场温度", f"{snap.get('temperature', '—')}", delta_color="normal")
-    c2.metric("情绪周期", str(snap.get("cycle") or "—"), delta_color="normal")
-    c3.metric("建议仓位", f"{pos.get('pct', snap.get('position_pct', '—'))}%",
-              delta_color="normal")
-    c4.metric("置信度", str(snap.get("confidence") or "—"), delta_color="normal")
+    xc_kpi_grid([
+        {"label": "市场温度", "value": f"{snap.get('temperature', '—')}"},
+        {"label": "情绪周期", "value": str(snap.get("cycle") or "—")},
+        {"label": "建议仓位", "value": f"{pos.get('pct', snap.get('position_pct', '—'))}%"},
+        {"label": "置信度", "value": str(snap.get("confidence") or "—")},
+    ])
     cap = (f"快照生成 {snap.get('generated_at') or '—'} · 数据截至 "
            f"{snap.get('as_of') or snap.get('date') or '—'}"
            f" · 数据龄 {snap.get('data_age_days', '—')} 天 · "
@@ -66,9 +66,8 @@ def render_replay(date: str) -> None:
                   "value": "—" if _promo is None else str(_promo)}])
     ladder = snap.get("ladder") or {}
     if ladder:
-        cols = st.columns(min(len(ladder), 6))
-        for col, (k, v) in zip(cols, ladder.items()):
-            col.metric(str(k), f"{v if v is not None else '—'}", delta_color="normal")
+        xc_kpi_grid([{"label": str(k), "value": f"{v if v is not None else '—'}"}
+                     for k, v in ladder.items()])
     else:
         st.caption("归档快照未含梯队明细")
 
@@ -76,10 +75,11 @@ def render_replay(date: str) -> None:
     st.subheader("📡 事件因子")
     ev = snap.get("event_factor") or {}
     if ev:
-        e1, e2, e3 = st.columns(3)
-        e1.metric("可用性", "可用" if ev.get("available") else "不可用", delta_color="normal")
-        e2.metric("信号", str(ev.get("signal") or "—"), delta_color="normal")
-        e3.metric("数据日", str(ev.get("date") or "—"), delta_color="normal")
+        xc_kpi_grid([
+            {"label": "可用性", "value": "可用" if ev.get("available") else "不可用"},
+            {"label": "信号", "value": str(ev.get("signal") or "—")},
+            {"label": "数据日", "value": str(ev.get("date") or "—")},
+        ])
     st.info(f"ℹ️ {P1_REPLAY_NOTE}")
 
     # ── ④ 次日实际对照 + 预测对账 ──
@@ -89,12 +89,11 @@ def render_replay(date: str) -> None:
         diff = None
         if nxt.get("up_count") is not None and nxt.get("down_count") is not None:
             diff = nxt["up_count"] - nxt["down_count"]
-        m1, m2, m3 = st.columns(3)
-        m1.metric("次日交易日", str(nxt.get("date") or "—"), delta_color="normal")
-        m2.metric("上涨家数", nxt.get("up_count") if nxt.get("up_count") is not None else "无数据",
-                  delta_color="normal")
-        m3.metric("下跌家数", nxt.get("down_count") if nxt.get("down_count") is not None else "无数据",
-                  delta_color="normal")
+        xc_kpi_grid([
+            {"label": "次日交易日", "value": str(nxt.get("date") or "—")},
+            {"label": "上涨家数", "value": str(nxt.get("up_count") if nxt.get("up_count") is not None else "无数据")},
+            {"label": "下跌家数", "value": str(nxt.get("down_count") if nxt.get("down_count") is not None else "无数据")},
+        ])
         if diff is not None:
             tone = "#e64545" if diff > 0 else ("#2e9e5b" if diff < 0 else "#8a8f98")
             label = "普涨" if diff > 0 else ("普跌" if diff < 0 else "均衡")
@@ -108,15 +107,18 @@ def render_replay(date: str) -> None:
 
     pred = rec.get("prediction")
     if pred:
-        p1, p2, p3, p4 = st.columns(4)
-        p1.metric("当日预测方向", str(pred.get("bias") or "—"), delta_color="normal")
-        realized = pred.get("realized")
-        p2.metric("次日实际涨跌", "—" if realized is None else f"{float(realized):+.2f}%",
-                  delta_color="normal")
-        hit = pred.get("hit")
-        hit_label = {True: "命中", False: "未命中", None: "无方向信息（平盘/未打分）"}.get(hit, str(hit))
-        p3.metric("打分结果", hit_label, delta_color="normal")
-        p4.metric("预测仓位", f"{pred.get('pct', '—')}%", delta_color="normal")
+        _realized = pred.get("realized")
+        # A 股红涨绿跌：次日实际涨跌为带符号收益，正红负绿
+        _rl_tone = ('up' if _realized > 0 else ('down' if _realized < 0 else 'flat')
+                    if isinstance(_realized, (int, float)) else 'flat')
+        xc_kpi_grid([
+            {"label": "当日预测方向", "value": str(pred.get("bias") or "—")},
+            {"label": "次日实际涨跌", "value": "—" if _realized is None else f"{float(_realized):+.2f}%",
+             "tone": _rl_tone},
+            {"label": "打分结果",
+             "value": {True: "命中", False: "未命中", None: "无方向信息（平盘/未打分）"}.get(pred.get("hit"), str(pred.get("hit")))},
+            {"label": "预测仓位", "value": f"{pred.get('pct', '—')}%"},
+        ])
     else:
         st.caption("该日无预测打分记录（prediction_log 未覆盖），如实不补")
 

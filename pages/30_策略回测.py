@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_metric
-from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card
+from modules.ui_kit import stat_tile, xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_kpi_grid
 render_standard_page(title="策略回测", icon="⚙️", layout="wide")
 
 from modules.backtest import Backtester
@@ -244,16 +244,15 @@ def fragment_manual_backtest():
                 # 直接格式化会显示 "inf"/"nan"，统一降级为 "—"。
                 _sh_disp = (f"{_sh:.2f}" if isinstance(_sh, (int, float)) and _sh == _sh
                             and _sh not in (float('inf'), float('-inf')) else "—")
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    win_color = "🟢" if _wr >= 60 else ("🟡" if _wr >= 40 else "🔴")
-                    st.metric(f"{win_color} 胜率", f"{_wr:.1f}%", delta_color="off")
-                with col2:
-                    st.metric("累计收益", f"{_tr:+.2f}%", delta_color="inverse")
-                with col3:
-                    st.metric("最大回撤", f"{_md:.2f}%", delta_color="inverse")
-                with col4:
-                    st.metric("夏普比率", _sh_disp, delta_color="off")
+                # A 股红涨绿跌：收益类主数值按正负着色（tone），胜率/夏普等无方向指标不着色
+                win_color = "🟢" if _wr >= 60 else ("🟡" if _wr >= 40 else "🔴")
+                _tr_dir = 'up' if _tr > 0 else ('down' if _tr < 0 else 'flat')
+                xc_kpi_grid([
+                    {'label': f"{win_color} 胜率", 'value': f"{_wr:.1f}%"},
+                    {'label': '累计收益', 'value': f"{_tr:+.2f}%", 'tone': _tr_dir},
+                    {'label': '最大回撤', 'value': f"{_md:.2f}%"},
+                    {'label': '夏普比率', 'value': _sh_disp},
+                ])
 
                 _tc = s.get('trade_count') or 0
                 _pf = s.get('profit_factor')
@@ -262,15 +261,13 @@ def fragment_manual_backtest():
                             and _pf not in (float('inf'), float('-inf')) else "—")
                 _atr = s.get('avg_trade_return_pct') or 0
                 _fv = s.get('final_value')
-                col5, col6, col7, col8 = st.columns(4)
-                with col5:
-                    st.metric("交易次数", f"{_tc}", delta_color="off")
-                with col6:
-                    st.metric("盈亏比", _pf_disp, delta_color="off")
-                with col7:
-                    st.metric("平均单笔", f"{_atr:+.2f}%", delta_color="inverse")
-                with col8:
-                    st.metric("最终资产", f"¥{_fv:,.2f}" if _fv is not None else "¥—", delta_color="off")
+                _atr_dir = 'up' if _atr > 0 else ('down' if _atr < 0 else 'flat')
+                xc_kpi_grid([
+                    {'label': '交易次数', 'value': f"{_tc}"},
+                    {'label': '盈亏比', 'value': _pf_disp},
+                    {'label': '平均单笔', 'value': f"{_atr:+.2f}%", 'tone': _atr_dir},
+                    {'label': '最终资产', 'value': f"¥{_fv:,.2f}" if _fv is not None else "¥—"},
+                ])
 
                 st.code(result.summary_text().replace(f"[{bt_ticker}]", f"[{bt_label}]"), language="text")
 
@@ -311,19 +308,21 @@ def fragment_manual_backtest():
                     wins = [t for t in result.trades if t["profit_pct"] > 0]
                     losses = [t for t in result.trades if t["profit_pct"] <= 0]
                     xc_content_card("交易统计", "")
-                    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
-                    with stat_col1:
-                        avg_win = sum(t["profit_pct"] for t in wins) / len(wins) if wins else 0
-                        st.metric("平均盈利", f"+{avg_win:.2f}%", delta_color="inverse")
-                    with stat_col2:
-                        avg_loss = sum(t["profit_pct"] for t in losses) / len(losses) if losses else 0
-                        st.metric("平均亏损", f"{avg_loss:.2f}%", delta_color="inverse")
-                    with stat_col3:
-                        max_win = max(t["profit_pct"] for t in result.trades) if result.trades else 0
-                        st.metric("最大盈利", f"+{max_win:.2f}%", delta_color="inverse")
-                    with stat_col4:
-                        max_loss = min(t["profit_pct"] for t in result.trades) if result.trades else 0
-                        st.metric("最大亏损", f"{max_loss:.2f}%", delta_color="inverse")
+                    avg_win = sum(t["profit_pct"] for t in wins) / len(wins) if wins else 0
+                    avg_loss = sum(t["profit_pct"] for t in losses) / len(losses) if losses else 0
+                    max_win = max(t["profit_pct"] for t in result.trades) if result.trades else 0
+                    max_loss = min(t["profit_pct"] for t in result.trades) if result.trades else 0
+                    # A 股红涨绿跌：盈利=红(up)、亏损=绿(down)；无盈亏时 0 不着色
+                    xc_kpi_grid([
+                        {'label': '平均盈利', 'value': f"+{avg_win:.2f}%",
+                         'tone': 'up' if avg_win > 0 else 'flat'},
+                        {'label': '平均亏损', 'value': f"{avg_loss:.2f}%",
+                         'tone': 'down' if avg_loss < 0 else 'flat'},
+                        {'label': '最大盈利', 'value': f"+{max_win:.2f}%",
+                         'tone': 'up' if max_win > 0 else 'flat'},
+                        {'label': '最大亏损', 'value': f"{max_loss:.2f}%",
+                         'tone': 'down' if max_loss < 0 else 'flat'},
+                    ])
                 else:
                     info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
@@ -557,25 +556,22 @@ def fragment_daily_picker():
         else:
             # ---- 汇总指标 ----
             st.markdown("---")
-            m1, m2, m3, m4 = st.columns(4)
-            with m1:
-                win_color = "🟢" if s["win_pick_pct"] >= 60 else ("🟡" if s["win_pick_pct"] >= 40 else "🔴")
-                st.metric(f"{win_color} 个股胜率", f"{s['win_pick_pct']:.1f}%", delta_color="off")
-            with m2:
-                day_color = "🟢" if s["win_day_pct"] >= 55 else ("🟡" if s["win_day_pct"] >= 45 else "🔴")
-                st.metric(f"{day_color} 上涨日占比", f"{s['win_day_pct']:.1f}%", delta_color="off")
-            with m3:
-                # A股惯例：正收益=红、负收益=绿，与下方个股卡片(L731)保持一致
-                ret_color = "🔴" if s["total_return_pct"] >= 0 else "🟢"
-                st.metric(f"{ret_color} 累计收益", f"{s['total_return_pct']:+.2f}%", delta_color="inverse")
-            with m4:
-                st.metric("日均收益", f"{s['avg_daily_return_pct']:+.2f}%", delta_color="inverse")
-
-            m5, m6 = st.columns(2)
-            with m5:
-                st.metric("回测天数", f"{s['total_days']:,}", delta_color="off")
-            with m6:
-                st.metric("总选股数", f"{s['total_picks']:,}", delta_color="off")
+            # A 股红涨绿跌：正收益=红、负收益=绿（原注释约定，与下方个股卡片一致）
+            win_color = "🟢" if s["win_pick_pct"] >= 60 else ("🟡" if s["win_pick_pct"] >= 40 else "🔴")
+            day_color = "🟢" if s["win_day_pct"] >= 55 else ("🟡" if s["win_day_pct"] >= 45 else "🔴")
+            ret_color = "🔴" if s["total_return_pct"] >= 0 else "🟢"
+            xc_kpi_grid([
+                {'label': f"{win_color} 个股胜率", 'value': f"{s['win_pick_pct']:.1f}%"},
+                {'label': f"{day_color} 上涨日占比", 'value': f"{s['win_day_pct']:.1f}%"},
+                {'label': f"{ret_color} 累计收益", 'value': f"{s['total_return_pct']:+.2f}%",
+                 'tone': 'up' if s["total_return_pct"] > 0 else ('down' if s["total_return_pct"] < 0 else 'flat')},
+                {'label': '日均收益', 'value': f"{s['avg_daily_return_pct']:+.2f}%",
+                 'tone': 'up' if s["avg_daily_return_pct"] > 0 else ('down' if s["avg_daily_return_pct"] < 0 else 'flat')},
+            ])
+            xc_kpi_grid([
+                {'label': '回测天数', 'value': f"{s['total_days']:,}"},
+                {'label': '总选股数', 'value': f"{s['total_picks']:,}"},
+            ])
 
             # ---- 今日推荐（prev_picks：昨日选股 → 今日买入）----
             xc_content_card("📌 今日推荐买入", "")
@@ -825,7 +821,7 @@ def fragment_strong_bull():
             with cards[i % len(cards)]:
                 ret_color = "🔴" if r["total_return"] >= 0 else "🟢"
                 st.markdown(f"**{r['name']}** `{r['code']}`")
-                st.metric(f"{ret_color} 累计收益", f"{r['total_return']:+.2f}%", delta_color="inverse")
+                stat_tile(f"{ret_color} 累计收益", f"{r['total_return']:+.2f}%")
                 st.caption(f"胜率 {r['win_rate']:.1f}% · 回撤 {r['max_dd']:.2f}% · 交易 {r['trades']}")
 
     if failed:
@@ -927,11 +923,14 @@ def fragment_batch_backtest():
                     xc_warn_box("批量回测无有效结果，请检查代码或区间。")
                     return
                 # 聚合摘要
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("标的数", summary["stock_count"], delta_color="off")
-                col2.metric("平均累计收益", f"{summary['avg_total_return']:+.2f}%", delta_color="off")
-                col3.metric("平均夏普", f"{summary['avg_sharpe']:.2f}" if summary.get('avg_sharpe') else "-", delta_color="off")
-                col4.metric("平均回撤", f"{summary['avg_max_drawdown']:.2f}%" if summary.get('avg_max_drawdown') is not None else "-", delta_color="off")
+                _avg_ret = summary['avg_total_return']
+                xc_kpi_grid([
+                    {'label': '标的数', 'value': str(summary["stock_count"])},
+                    {'label': '平均累计收益', 'value': f"{_avg_ret:+.2f}%",
+                     'tone': 'up' if _avg_ret > 0 else ('down' if _avg_ret < 0 else 'flat')},
+                    {'label': '平均夏普', 'value': f"{summary['avg_sharpe']:.2f}" if summary.get('avg_sharpe') else "-"},
+                    {'label': '平均回撤', 'value': f"{summary['avg_max_drawdown']:.2f}%" if summary.get('avg_max_drawdown') is not None else "-"},
+                ])
                 st.caption(f"平均胜率 {summary.get('avg_win_rate')} · 平均盈亏比 {summary.get('avg_profit_factor')} · "
                            f"🏆最佳 {summary['best_stock']} · 🔻最差 {summary['worst_stock']}")
 
@@ -1023,11 +1022,15 @@ def fragment_walk_forward():
             _vmap = {"robust": ("🟢", "稳健"), "acceptable": ("🟡", "可接受"),
                      "overfit_risk": ("🔴", "过拟合风险"), "no_edge": ("⚪", "无优势")}
             _icon, _label = _vmap.get(a.get("verdict"), ("⚪", "—"))
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("样本内均值", f"{s['mean_is']:+.2f}%", delta_color="off")
-            c2.metric("样本外均值", f"{s['mean_oos']:+.2f}%", delta_color="off")
-            c3.metric("样本外胜段率", f"{s['oos_win_rate']:.0f}%", delta_color="off")
-            c4.metric(f"{_icon} 判定", _label, delta_color="off")
+            # A 股红涨绿跌：样本内/外均值为带符号收益，按正负着色
+            xc_kpi_grid([
+                {'label': '样本内均值', 'value': f"{s['mean_is']:+.2f}%",
+                 'tone': 'up' if s['mean_is'] > 0 else ('down' if s['mean_is'] < 0 else 'flat')},
+                {'label': '样本外均值', 'value': f"{s['mean_oos']:+.2f}%",
+                 'tone': 'up' if s['mean_oos'] > 0 else ('down' if s['mean_oos'] < 0 else 'flat')},
+                {'label': '样本外胜段率', 'value': f"{s['oos_win_rate']:.0f}%"},
+                {'label': f"{_icon} 判定", 'value': _label},
+            ])
             if a.get("verdict") in ("robust", "acceptable"):
                 xc_success_box(a.get("note", ""))
             else:
