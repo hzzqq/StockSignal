@@ -72,6 +72,7 @@ def _to_excel_bytes(sheets: dict) -> bytes:
                 vals = [str(col)]
                 try:
                     vals += [str(v) for v in df[col].head(200).tolist()]
+                # ui_audit_exempt: except-pass 列宽自动估算为 cosmetic  best-effort，失败退回默认宽度不影响导出内容
                 except Exception:
                     pass
                 maxlen = max((len(v) for v in vals), default=8)

@@ -136,6 +136,7 @@ def _build_movers():
         # extract_pct 永不抛异常：无 "%" 的标题返回 -inf，abs 后沉底，
         # 不再因任意一条非数字标题就让整个排序静默失效
         msgs.sort(key=lambda m: abs(extract_pct(m["title"])), reverse=True)
+    # ui_audit_exempt: except-pass 排序失败=个别消息字段畸形，按原序展示即可（不拖垮整个消息列表）
     except Exception:
         pass
     return msgs
@@ -365,6 +366,7 @@ with st.container(border=True):
                 _load_watchlist.clear()
                 _load_forum.clear()
                 _load_research_runs.clear()
+            # ui_audit_exempt: except-pass 缓存句柄清理为 best-effort，失败仍整页重跑，无实际副作用
             except Exception:
                 pass
 
@@ -420,6 +422,7 @@ else:
                     _p = extract_pct(m["title"])
                     if math.isfinite(_p):
                         title_md = f"<span style='color:{_color(_p)}'>{_safe_title_html(m['title'], read=read)}</span>"
+                # ui_audit_exempt: unsafe-allow-html 标题已经 _safe_title_html（内部 html.escape 防存储型 XSS）
                 st.markdown(title_md, unsafe_allow_html=True)
                 st.caption(f"{m['type']}　·　{m['detail']}" + (f"　·　{_fmt_rel(m['time'])}" if m["time"] else ""))
                 if not read and st.button("标为已读", key=f"rd_{m['id']}", help="标记为已读"):
@@ -469,6 +472,7 @@ if _msg_starred_ids:
     with st.expander(f"⭐ 我的收藏（{len(_msg_starred_ids)}）", expanded=False):
         for _sm in [m for m in msgs if m["id"] in _msg_starred_ids]:
             with st.container(border=True):
+                # ui_audit_exempt: unsafe-allow-html 标题已经 _safe_title_html（内部 html.escape 防存储型 XSS）
                 st.markdown(_safe_title_html(_sm["title"]), unsafe_allow_html=True)
                 st.caption(f"{_sm['type']}　·　{_sm['detail']}")
 

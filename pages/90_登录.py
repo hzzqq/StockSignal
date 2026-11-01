@@ -119,6 +119,7 @@ def _render_market_desk(m: dict) -> None:
     lc = m.get("long_count")
     _rr_s = f"{rr:.1f}" if isinstance(rr, (int, float)) else "—"
     _mc_s = f"{mc:+.2f}" if isinstance(mc, (int, float)) else "—"
+    # ui_audit_exempt: unsafe-allow-html 行情台面板渲染后端内部快照（数值经 isinstance 守卫，标签为状态机内部常量），无用户输入流向
     st.markdown(
         f"""
         <div class="lg-desk">
@@ -166,6 +167,7 @@ def _render_market_desk(m: dict) -> None:
 
 
 # ── 登录页样式（T-196a + T-367 行情台，变量驱动六风格适配）──
+# ui_audit_exempt: unsafe-allow-html 纯 CSS 注入块（内部常量样式，无任何数据插值）
 st.markdown(
     """
     <style>
@@ -234,6 +236,7 @@ if is_authenticated():
     st.stop()
 
 # ── 大标题区（阿里云式：渐变强调 + 数据副标题）──
+# ui_audit_exempt: unsafe-allow-html 大标题为内部常量文案模板，无任何数据插值
 st.markdown(
     """
     <div class="lg-title">
@@ -275,6 +278,7 @@ with desk_col:
     _render_market_desk(_mkt)
 
 with form_col:
+    # ui_audit_exempt: unsafe-allow-html 纯静态布局骨架 div 开合（内部常量，无数据插值）
     st.markdown('<div class="lg-form">', unsafe_allow_html=True)
     # ── 登录方式 Tab：密码登录 / 验证码登录 / 注册 ──
     # 验证码登录在离线演示环境未接入短信网关，Tab 内明确标注不可用（诚实红线，不做假功能）。
@@ -429,11 +433,13 @@ with form_col:
         st.caption("注册遇到问题？可使用「密码登录」标签的演示账号直接体验。")
 
     # 一键填账号（表单底部，逻辑与旧版一致：点击后回填表单并重跑）
+    # ui_audit_exempt: unsafe-allow-html 纯静态布局骨架 div 开合（内部常量，无数据插值）
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('<div class="lg-quick">', unsafe_allow_html=True)
     if st.button("🔧 管理员", key="fill_admin", help="自动填入 admin / Admin@123"):
         st.session_state["_login_username"] = "admin"
         st.session_state["_login_password"] = "Admin@123"
+    # ui_audit_exempt: unsafe-allow-html 纯静态布局骨架 div 闭合（内部常量，无数据插值）
     st.markdown("</div>", unsafe_allow_html=True)
     if st.button("🧪 一键填演示账号", width="stretch", key="fill_demo",
                  help="自动填入 demo / Demo@123"):
@@ -445,6 +451,7 @@ with form_col:
             st.session_state.pop(_k, None)
 
 # ── 页脚（阿里云式法律声明链接行）──
+# ui_audit_exempt: unsafe-allow-html 页脚为内部常量文案/链接模板，无任何数据插值
 st.markdown(
     """
     <div class="lg-footer">

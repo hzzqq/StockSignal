@@ -71,6 +71,7 @@ try:
             _lu = cur.get("limit_up")
             _rr = cur.get("red_ratio")
             _lu_pct = cur.get("limit_up_pct")
+            # ui_audit_exempt: unsafe-allow-html 内容已过 ui_kit xc_content_card（内部 html.escape title/body/icon）
             st.markdown(xc_content_card(
                 title=f"当前（{cur['date']}）· {cur['phase']}",
                 body=f"红盘占比 <b>{_rr}</b>% ｜ 涨停家数 <b>{_lu}</b>（历史分位 "

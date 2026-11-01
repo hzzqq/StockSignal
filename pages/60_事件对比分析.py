@@ -54,6 +54,7 @@ def _html_card(title: str, body: str, *, icon: str = "", accent: str | None = No
     ic = f"{html.escape(str(icon))} " if icon else ""
     style = f' style="border-left:3px solid {accent}"' if accent else ""
     inject_kit_css()
+    # ui_audit_exempt: unsafe-allow-html title/icon 已 html.escape，body 由调用方 _b() 助手转义后传入
     st.markdown(
         f'<div class="xc-content-card"{style}>'
         f'<div class="xc-cc-title">{ic}{t}</div>'

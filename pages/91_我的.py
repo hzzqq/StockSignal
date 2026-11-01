@@ -229,6 +229,7 @@ with col1:
         if get_avatar_data_url():
             st.caption("✅ 云端头像（按账号保存）")
     else:
+        # ui_audit_exempt: unsafe-allow-html 默认头像占位为纯静态常量骨架（emoji 占位，无数据插值）
         st.markdown(
             "<div style='width:96px;height:96px;border-radius:50%;background:#E5E7EB;"
             "display:flex;align-items:center;justify-content:center;font-size:44px;'>👤</div>",

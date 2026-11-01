@@ -80,6 +80,7 @@ try:
     # ── 全样本基准卡 ──
     base = res["baseline"]
     st.markdown("### 📏 全样本基准")
+    # ui_audit_exempt: unsafe-allow-html 内容已过 ui_kit xc_content_card（内部 html.escape title/body/icon）
     st.markdown(xc_content_card(
         title="无条件下一日 / 5 日表现",
         body=f"样本 <b>{base['n']}</b> 交易日 ｜ "
@@ -135,6 +136,7 @@ try:
     st.markdown("### 🔎 结论解读")
     cold = next(b for b in res["bands"] if b["level"] == 0)
     hot = next(b for b in res["bands"] if b["level"] == 4)
+    # ui_audit_exempt: unsafe-allow-html 内容已过 ui_kit xc_content_card（内部 html.escape title/body/icon）
     st.markdown(xc_content_card(
         title="广度均值回归结构（诚实描述，非预测）",
         body=f"冰点档（n={cold['n']}）次日红盘率改善率高达 <b>{cold['next_impr_rate']}%</b>"

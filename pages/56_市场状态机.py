@@ -71,6 +71,7 @@ try:
     try:
         _rrv = float(_rr)
         _rr_tone = 'up' if _rrv > 50 else ('down' if _rrv < 50 else 'flat')
+    # ui_audit_exempt: except-pass 红盘率非数值（None/脏串）属预期降级，tone 保持 flat，无需日志
     except (TypeError, ValueError):
         pass
     xc_bento_kpi([
@@ -133,6 +134,7 @@ try:
             f20 = a["forward"].get("d20", {})
             up5 = f5.get("up_frac")
             up5_color = UP_COLOR if (up5 is not None and up5 > 0.5) else DOWN_COLOR
+            # ui_audit_exempt: unsafe-allow-html 类比卡数据全来自 regime_report 内部计算（日期/状态/数值），无用户输入流向
             st.markdown(
                 f"""
                 <div style="border:1px solid {_hex_to_rgba(ac,0.5)};border-left:4px solid {ac};

@@ -73,6 +73,7 @@ def _kpi_band() -> None:
                 "value": m.group(1).strip(),
                 "meta": "westock-mcp 实时行情快照（收盘）",
             })
+    # ui_audit_exempt: except-pass 卡1 正则提取失败=报告缺字段，按设计跳过该卡（诚实留空，非真实错误）
     except Exception:  # noqa: BLE001
         pass
 
@@ -85,6 +86,7 @@ def _kpi_band() -> None:
                 "value": f"{m.group(1)}%",
                 "meta": "广度温度官口径（报告快照值）",
             })
+    # ui_audit_exempt: except-pass 卡2 正则提取失败=报告缺字段，按设计跳过该卡（诚实留空，非真实错误）
     except Exception:  # noqa: BLE001
         pass
 
@@ -99,6 +101,7 @@ def _kpi_band() -> None:
                 "value": str(n_views),
                 "meta": "广度 / 结构 / 主线 / 资金 / 仓位 / 逆向",
             })
+    # ui_audit_exempt: except-pass 卡3 正则提取失败=报告结构缺视角标题，按设计跳过该卡（诚实留空，非真实错误）
     except Exception:  # noqa: BLE001
         pass
 
@@ -111,6 +114,7 @@ def _kpi_band() -> None:
                 "value": str(len(missing)),
                 "meta": "、".join(missing) + "（凡缺均显式标注）",
             })
+    # ui_audit_exempt: except-pass 卡4 正则提取失败=报告缺缺席声明，按设计跳过该卡（诚实留空，非真实错误）
     except Exception:  # noqa: BLE001
         pass
 
@@ -149,6 +153,7 @@ try:
         else:
             try:
                 fragment = _extract_html_fragment(html)
+                # ui_audit_exempt: unsafe-allow-html 静态交付物 HTML（deliverables/ 本地报告文件，非用户输入）原样嵌入
                 st.markdown(fragment, unsafe_allow_html=True)
             except Exception as _e:  # noqa: BLE001
                 logger.warning("[64] HTML 嵌入失败，回退 MD: %s", _e)

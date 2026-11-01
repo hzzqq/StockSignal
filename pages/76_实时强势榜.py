@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 
+import html
 import logging
 
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
@@ -101,6 +102,7 @@ if len(df) > 0:
             "label": "榜首强势评分", "value": f"{_top_score:.1f}",
             "meta": "启发式加权（涨幅/量比/换手/成交额），非预测",
         })
+    # ui_audit_exempt: except-pass 榜首评分缺失/NaN 属预期降级，按诚实红线跳过该卡不渲染
     except Exception:  # noqa: BLE001
         pass
 _kpi_cards.append({
@@ -121,8 +123,9 @@ MEDALS = {0: "🥇", 1: "🥈", 2: "🥉"}
 if name_c and len(df) > 0:
     rows_html = ""
     for i, (_, r) in enumerate(df.reset_index(drop=True).iterrows()):
-        nm = str(r.get(name_c, ""))
-        cd = str(r.get(code_c, "")) if code_c else ""
+        # 东财实时快照字段（DB 输入）流向 HTML：名称/代码动态串统一转义
+        nm = html.escape(str(r.get(name_c, "")))
+        cd = html.escape(str(r.get(code_c, ""))) if code_c else ""
         price = r.get(price_c) if price_c else None
         chg = r.get(chg_c) if chg_c else None
         chg_f = float(chg) if chg == chg and chg is not None else 0.0

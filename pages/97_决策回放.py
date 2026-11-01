@@ -97,6 +97,7 @@ def render_replay(date: str) -> None:
         if diff is not None:
             tone = "#e64545" if diff > 0 else ("#2e9e5b" if diff < 0 else "#8a8f98")
             label = "普涨" if diff > 0 else ("普跌" if diff < 0 else "均衡")
+            # ui_audit_exempt: unsafe-allow-html 广度差徽标：tone/label 为内部常量 + diff 数值，无用户/DB 输入流向
             st.markdown(
                 f"<span style='color:{tone};font-weight:600'>广度差 {diff:+d}（{label}）"
                 f"</span>", unsafe_allow_html=True)
