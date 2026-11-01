@@ -7,7 +7,7 @@
   1. 结构体检：文件存在 / JSON 可解析 / 必备字段齐全 / top 榜数量 / symbol 格式 / rank 单调
   2. 新鲜度 SLA：latest_date 距今自然日 ≤ max_age_days（按模型可配）
   3. 跨模型对齐守望：ens 降权语义（w=0 应为纯 v39 序）——登记 ens vs baseline
-     top 榜 Jaccard 重叠度，低于阈值亮黄灯（提示排查 gru 权重回归 / 命名漂移）
+     top 榜 Jaccard 重叠度，低于阈值亮黄灯（提示排查数据源版本错位 / gru 权重回归）
   4. 汇总：summarize() 扫目录出报告，全绿 ok_all=True
 
 设计约束
@@ -15,10 +15,13 @@
   - 纯函数 + 显式传路径/日期，零网络零 IO 依赖（测试用 tmp 目录构造，不断言真实数据）。
   - 不读 modules.p1_signal，避免与加载器缓存/目录发现耦合，独立可测。
   - 阈值可配置：
-      · DEFAULT_MAX_AGE_BY_MODEL（自然日，覆盖周末）——baseline/ev/gru/ens 8 天、fusion 8 天。
-        2026-11-01 实测：fusion latest=2026-10-12（滞后 20 天）→ 会亮红灯，正是要暴露的缺口。
+      · DEFAULT_MAX_AGE_BY_MODEL（自然日，覆盖周末）——baseline/ev/gru/ens 8 天；
+        fusion 30 天（2026-11-01 深挖：fusion 依赖 y_excess 前瞻标签，latest_date 设计性
+        滞后约一个 h10 窗口+标签确认期，sj 推送链 S11 注释 T-352 为证——非事故，勿误报）。
       · ENS_MIN_JACCARD = 0.75：ens vs baseline top20 Jaccard 低于此值亮黄灯。
-        2026-11-01 实测：0.652 → 亮黄灯，提示排查 ens 是否仍含 gru 权重残留 / 跨日 z 序口径。
+        2026-11-01 实测：0.652 → 亮黄灯；深挖结论：ens(w=0) 与 baseline v39 在 parquet 级
+        同日 top20 Jaccard=1.0（无 gru 残留），黄灯根因是 baseline json 生成源
+        pred_baseline_h10.parquet 与 ens 源 pred_baseline_h10_v39.parquet 模型版本不一致。
   - 三档语义：红灯 = 结构/新鲜度不达标（阻断）；黄灯 = 对齐异常（登记待核，不阻断）；
     绿灯 = 全达标。summarize().ok_all 仅被红灯影响。
 
@@ -26,8 +29,11 @@
 ================================
   · signal_ens_v39gru_w025_h10.json generated 11-01 17:17（model=ens_v39gru_w025，latest=10-26）
     vs signal_baseline_h10.json（generated 10-27，latest=10-26）：top20 Jaccard=0.652，同名位 3/20。
-    —— 若 ens 真为 w=0 纯 v39，z 序与概率序在单日截面单调等价，榜应高重叠；0.652 需 sj 侧核对。
-  · signal_fusion_h10.json latest=2026-10-12（滞后 20 自然日）→ fusion 数据源停更。
+    —— 深挖后根因：baseline json 生成源 pred_baseline_h10.parquet 与 ens 源
+       pred_baseline_h10_v39.parquet 的同日 pred 值不一致（600212：0.0199 vs 0.0392；
+       top20 Jaccard=0.667）→ baseline json 用的是非 v39 口径文件，需 sj 侧统一生产源。
+  · signal_fusion_h10.json latest=2026-10-12（滞后 20 自然日）→ 设计性滞后（y_excess 前瞻标签），
+    SLA 已单独放宽至 30 天；若未来停更超 30 天才视为异常。
   · logs/p1_push_heartbeat.log 最后心跳 2026-10-31 00:00:50 → 完整推送链未每日跑（另有推送链 SLA 治理项）。
 """
 from __future__ import annotations
@@ -41,15 +47,21 @@ from datetime import date
 HEALTHY_KEYS = ("model", "latest_date", "horizon", "top_long", "top_short", "daily")
 
 # 模型 key（短名，来自文件名前缀 signal_{prefix}_*.json）
+# 注：fusion 依赖 y_excess 前瞻标签（sj 推送链 S11 注释，T-352），latest_date 设计性
+#     滞后于四路（约一个 h10 窗口+标签确认期），故 SLA 单独放宽，勿与四路同口径。
 DEFAULT_MAX_AGE_BY_MODEL = {
     "baseline": 8,
     "ev": 8,
     "gru": 8,
     "ens": 8,
-    "fusion": 8,
+    "fusion": 30,
 }
 
 # ens 降权语义守望阈值：ens vs baseline top20 Jaccard 低于此值 → 黄灯
+# 注（2026-11-01 深挖结论）：ens(w=0) 的 pred=当日截面 z_v39，与 baseline v39 pred
+#   在单日截面单调等价——parquet 级同日 top20 Jaccard=1.0（无 gru 残留）。黄灯若出现，
+#   优先怀疑 baseline json 生成源文件（pred_baseline_h10.parquet）与 ens 源
+#   （pred_baseline_h10_v39.parquet）模型版本不一致，而非 gru 权重回归。
 ENS_MIN_JACCARD = 0.75
 
 # 推送链心跳 SLA：完整推送链（S01~S13）应周期性运行，心跳文件最后 OK 行距今不超过该自然日数
@@ -242,7 +254,8 @@ def check_ens_baseline_alignment(ens_path: str, baseline_path: str, n: int = 20,
     if not rec["aligned"]:
         rec["ok"] = True  # 黄灯不阻断
         rec["note"] = (f"黄灯：ens vs baseline top{n} Jaccard={rec['jaccard']:.3f} "
-                       f"< {min_jaccard}——需 sj 侧核对 gru 权重是否回归 / z 序口径")
+                       f"< {min_jaccard}——疑似 baseline json 源(pred_baseline_h10.parquet)与 "
+                       f"ens 源(pred_baseline_h10_v39.parquet)模型版本不一致，需 sj 侧核对生产口径")
     return rec
 
 
