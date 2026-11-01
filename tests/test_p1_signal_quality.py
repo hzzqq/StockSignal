@@ -208,6 +208,64 @@ class TestSummarize:
         assert s["ok_all"] is False, "覆盖阈值后 6 天应红灯"
 
 
+# ───────────────────────── 推送链心跳体检 ─────────────────────────
+def _ts_days_ago(days_ago: int) -> float:
+    from datetime import datetime, timedelta
+    return (datetime.combine(TODAY, datetime.min.time()) - timedelta(days=days_ago)).timestamp()
+
+
+class TestHeartbeat:
+    def _hb(self, tmp_path, body: str, mtime_days_ago: int = 0) -> str:
+        p = tmp_path / "heartbeat.log"
+        p.write_text(body, encoding="utf-8")
+        if mtime_days_ago:
+            import os as _os
+            t = _ts_days_ago(mtime_days_ago)
+            _os.utime(str(p), (t, t))
+        return str(p)
+
+    def test_healthy(self, tmp_path):
+        p = self._hb(tmp_path, "2026-11-01 08:00:00 OK S13\n")
+        rec = q.check_heartbeat(p, today=TODAY, max_idle_days=3)
+        assert rec["ok"] is True and rec["last_ok"] is True and rec["idle_ok"] is True
+
+    def test_missing_file(self, tmp_path):
+        rec = q.check_heartbeat(str(tmp_path / "nope.log"), today=TODAY)
+        assert rec["ok"] is False and "不存在" in rec["errors"][0]
+
+    def test_last_line_no_ok(self, tmp_path):
+        p = self._hb(tmp_path, "2026-10-31 00:00:50 FAIL S09\n")
+        rec = q.check_heartbeat(p, today=TODAY, max_idle_days=3)
+        assert rec["ok"] is False and "无 OK 标记" in rec["errors"][0]
+
+    def test_stale_idle_exceeds(self, tmp_path):
+        p = self._hb(tmp_path, "2026-10-26 00:00:00 OK S13\n", mtime_days_ago=6)
+        rec = q.check_heartbeat(p, today=TODAY, max_idle_days=3)
+        assert rec["idle_days"] == 6 and rec["idle_ok"] is False and rec["ok"] is False
+
+    def test_idle_within(self, tmp_path):
+        p = self._hb(tmp_path, "2026-10-31 00:00:50 OK S13\n", mtime_days_ago=1)
+        rec = q.check_heartbeat(p, today=TODAY, max_idle_days=3)
+        assert rec["idle_days"] == 1 and rec["idle_ok"] is True and rec["ok"] is True
+
+    def test_summarize_includes_heartbeat(self, tmp_path):
+        _write_signal(tmp_path, "signal_ev_h10.json", _healthy_payload())
+        hb = tmp_path / "heartbeat.log"
+        hb.write_text("2026-11-01 08:00:00 OK S13\n", encoding="utf-8")
+        s = q.summarize(str(tmp_path), today=TODAY, heartbeat_path=str(hb))
+        assert s["heartbeat"] is not None and s["heartbeat"]["ok"] is True and s["ok_all"] is True
+
+    def test_summarize_heartbeat_stale_red(self, tmp_path):
+        hb = tmp_path / "heartbeat.log"
+        hb.write_text("2026-10-20 00:00:00 OK S13\n", encoding="utf-8")
+        t = _ts_days_ago(12)
+        import os as _os
+        _os.utime(str(hb), (t, t))
+        _write_signal(tmp_path, "signal_ev_h10.json", _healthy_payload())
+        s = q.summarize(str(tmp_path), today=TODAY, heartbeat_path=str(hb))
+        assert s["ok_all"] is False and "心跳" in q.render_report(s)
+
+
 # ───────────────────────── 报告渲染 ─────────────────────────
 class TestRender:
     def test_render_contains_rows_and_conclusion(self, tmp_path):

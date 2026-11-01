@@ -52,6 +52,9 @@ DEFAULT_MAX_AGE_BY_MODEL = {
 # ens 降权语义守望阈值：ens vs baseline top20 Jaccard 低于此值 → 黄灯
 ENS_MIN_JACCARD = 0.75
 
+# 推送链心跳 SLA：完整推送链（S01~S13）应周期性运行，心跳文件最后 OK 行距今不超过该自然日数
+DEFAULT_HEARTBEAT_MAX_IDLE_DAYS = 3
+
 # 与 p1_signal.loader 对齐的模型显示名（仅用于报告可读性）
 MODEL_LABELS = {
     "baseline": "基线 LightGBM",
@@ -243,11 +246,57 @@ def check_ens_baseline_alignment(ens_path: str, baseline_path: str, n: int = 20,
     return rec
 
 
+# ───────────────────────── 推送链心跳体检 ─────────────────────────
+def check_heartbeat(path: str, today: date | None = None,
+                    max_idle_days: int | None = None) -> dict:
+    """推送链心跳体检：文件存在、最后一行含 OK 标记、mtime 新鲜度。
+
+    语义：完整推送链（S01~S13）每步会写心跳日志；若心跳文件停止更新，
+    说明推送链断供——页面数据可能停留在旧版本。红灯 = 结构或新鲜度不达标。
+    """
+    rec = {"ok": False, "exists": False, "last_ok": False, "last_line": None,
+           "idle_days": None, "idle_ok": False, "errors": []}
+    if not os.path.exists(path):
+        rec["errors"].append("心跳文件不存在")
+        return rec
+    rec["exists"] = True
+
+    last_line = ""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.strip():
+                    last_line = line.strip()
+    except OSError as e:
+        rec["errors"].append(f"心跳文件读取失败: {type(e).__name__}")
+        return rec
+    rec["last_line"] = last_line
+    rec["last_ok"] = "OK" in last_line
+    if not rec["last_ok"]:
+        rec["errors"].append(f"心跳最后一行无 OK 标记: {last_line!r}")
+
+    mtime = os.path.getmtime(path)
+    idle = max((today or date.today()).toordinal() - date.fromtimestamp(mtime).toordinal(), 0)
+    rec["idle_days"] = idle
+    limit = max_idle_days if max_idle_days is not None else DEFAULT_HEARTBEAT_MAX_IDLE_DAYS
+    rec["idle_ok"] = idle <= limit
+    if not rec["idle_ok"]:
+        rec["errors"].append(f"推送链心跳停更 {idle} 天（SLA ≤ {limit}）")
+
+    rec["ok"] = not rec["errors"]
+    return rec
+
+
 # ───────────────────────── 目录汇总 ─────────────────────────
 def summarize(signal_dir: str, today: date | None = None,
               max_age_by_model: dict | None = None,
-              ens_min_jaccard: float = ENS_MIN_JACCARD) -> dict:
-    """扫描信号目录，输出全量体检报告。ok_all = 所有红灯项为零（黄灯不阻断）。"""
+              ens_min_jaccard: float = ENS_MIN_JACCARD,
+              heartbeat_path: str | None = None,
+              heartbeat_max_idle_days: int | None = None) -> dict:
+    """扫描信号目录，输出全量体检报告。ok_all = 所有红灯项为零（黄灯不阻断）。
+
+    heartbeat_path 传入时额外体检推送链心跳；缺省 None 跳过（不阻断目录扫描）。
+    """
     max_ages = {**DEFAULT_MAX_AGE_BY_MODEL, **(max_age_by_model or {})}
     rows = []
     ok_all = True
@@ -275,10 +324,18 @@ def summarize(signal_dir: str, today: date | None = None,
     if ens_file and base_file:
         alignment = check_ens_baseline_alignment(ens_file, base_file, min_jaccard=ens_min_jaccard)
 
+    heartbeat = None
+    if heartbeat_path:
+        heartbeat = check_heartbeat(heartbeat_path, today=today,
+                                    max_idle_days=heartbeat_max_idle_days)
+        if not heartbeat["ok"]:
+            ok_all = False
+
     return {
         "ok_all": ok_all,
         "rows": rows,
         "alignment": alignment,
+        "heartbeat": heartbeat,
         "models_found": sorted(set(models_found)),
         "signal_dir": signal_dir,
         "today": (today or date.today()).isoformat(),
@@ -306,6 +363,16 @@ def render_report(summary: dict) -> str:
             f"{r['n_top_long']} | {r['n_top_short']} | {problems} |"
         )
     lines.append("")
+    if summary["heartbeat"] is not None:
+        hb = summary["heartbeat"]
+        if hb["exists"]:
+            state = "✅" if hb["ok"] else "❌"
+            lines.append(f"**推送链心跳**：{state} 最后 OK 行距今 {hb['idle_days']} 天")
+            if hb["errors"]:
+                lines.append(f"  - 问题: {'; '.join(hb['errors'])}")
+        else:
+            lines.append(f"**推送链心跳**：❌ {hb['errors'][0] if hb['errors'] else '文件缺失'}")
+        lines.append("")
     if summary["alignment"] is not None:
         al = summary["alignment"]
         if al["status"] == "unavailable":
