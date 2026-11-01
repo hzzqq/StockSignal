@@ -127,6 +127,7 @@ def _load_safe_title_html():
         "modules.page_utils": _make_module(
             "modules.page_utils",
             render_standard_page=lambda *a, **k: False,
+            fmt_rel=lambda *a, **k: "",
         ),
         "modules.format_helpers": _make_module(
             "modules.format_helpers", extract_pct=lambda *a, **k: 0.0
