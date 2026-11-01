@@ -17,7 +17,7 @@ from modules.page_utils import render_standard_page, get_fetcher, quote_one as _
 from modules.page_utils import fmt_rel as _fmt_rel
 from modules.ui_theme import sf_metric
 from modules.page_widgets import _empty_info, _section_title
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_bento_kpi
 from modules.event_factor import event_driven_long_list  # 事件驱动看多榜（真实 P1 EV 信号选股池）
 today = date.today().strftime('%Y-%m-%d')
 dark = render_standard_page(title='每日晨报 / 复盘笔记', icon='🌅', caption=f'生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）', layout='wide')
@@ -94,6 +94,42 @@ def fragment_sector_summary():
         st.caption(f"🕒 板块行情快照时间：{pd.Timestamp.now().strftime('%H:%M:%S')}（收盘后更新，盘中为实时快照）")
     else:
         xc_warn_box('⚠️ 暂未获取到板块行情（交易时间或网络恢复后自动可用）。')
+
+
+# ── B 类页五段式 pilot：header → KPI 带（数据全部来自本页既有真实数据源）──
+# 诚实红线：板块统计取不到（缓存失败/无列）就不渲染对应卡，绝不编造；
+# 自选股 API 非 200 时跳过该卡。缺数据的卡不渲染或整带不渲染。
+def _kpi_band():
+    """KPI 带：上涨/下跌/平盘板块数（来源 = 本页 _cached_sector 缓存）+ 自选股数量。"""
+    cards = []
+    try:
+        sector_df = _cached_sector()
+        if sector_df is not None and (not sector_df.empty) and ('change_pct' in sector_df.columns):
+            up = int((sector_df['change_pct'] > 0).sum())
+            down = int((sector_df['change_pct'] < 0).sum())
+            flat = len(sector_df) - up - down
+            cards.append({'label': '上涨板块', 'value': str(up),
+                          'meta': '今日收盘涨幅 > 0', 'tone': 'up'})
+            cards.append({'label': '下跌板块', 'value': str(down),
+                          'meta': '今日收盘跌幅 < 0', 'tone': 'down'})
+            cards.append({'label': '平/无数据板块', 'value': str(flat),
+                          'meta': f'板块总数 {len(sector_df)}'})
+    except Exception:  # noqa: BLE001 — 取不到就少一张卡，不臆造
+        pass
+    try:
+        sc, body = api_get('/api/watchlist')
+        if sc == 200 and isinstance(body, dict) and (body.get('status') == 'ok'):
+            n_wl = len(body.get('data', []) or [])
+            cards.append({'label': '自选股', 'value': str(n_wl),
+                          'meta': '快照与新闻按自选股生成'})
+    except Exception:  # noqa: BLE001 — 后端不可达时跳过该卡
+        pass
+    if cards:
+        xc_bento_kpi(cards, template="1fr 1fr 1fr 1fr")
+
+
+_kpi_band()
+
 fragment_sector_summary()
 
 @safe_fragment
@@ -367,6 +403,12 @@ def fragment_review_notes():
             st.caption(f'✅ 内容已自动保存到本地（review_notes_{note_date_s}.md），切换日期或刷新不丢失')
         else:
             st.caption('💡 内容会随编辑自动保存到本地；也可点「💾 保存复盘」手动确认')
+
+    # ── 方法学与来源注脚（B 类页五段式 pilot：收尾一段）──
+    st.markdown('---')
+    st.caption('口径与来源：板块行情=东方财富（页面加载时点快照，收盘后更新）；自选股快照/市盈率/资产负债率=后端 API + 基本面接口并行拉取；'
+               '新闻=资讯源自动聚合（每源每日更新，取不到如实提示）；事件驱动看多榜=P1 EV 离线信号；复盘笔记=本地 data/ 按日期持久化。'
+               '本页为开盘前速览，非实时行情，非投资建议。')
 
     def _render_preview():
         if not st.session_state.get('review_queried'):

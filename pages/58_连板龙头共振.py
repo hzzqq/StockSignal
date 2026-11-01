@@ -15,7 +15,7 @@ import logging
 
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
 from modules.ui_theme import sf_metric, section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
@@ -84,22 +84,33 @@ try:
         + ("（历史样本极小，概率类读数仅供参考）" if (ndp.get("n_pairs") or 0) < 10 else "")
     )
 
-    # ── 顶部指标卡 ──
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        lcol = _leader_color(ls.get("score"))
-        sf_metric("连板龙头强度", _safe(ls.get("score"), 1), "0-100 · 市场级")
-    with c2:
-        sc = STATE_COLORS.get(state, "#94a3b8")
-        sf_metric("市场状态", state or "—", f"置信度 {regime['latest']['confidence']*100:.0f}%")
-    with c3:
-        ht = ndp.get("height_trend", "—")
-        htc = {"高度扩张": "#16a34a", "高度退潮": "#dc2626", "高度持平": "#f59e0b", "无数据": "#94a3b8"}.get(ht, "#94a3b8")
-        sf_metric("连板高度趋势", ht, f"最新 {ndp.get('max_boards')} 板")
-    with c4:
-        sup = reso.get("support")
-        sup_label = {"bullish": "多头共振", "neutral": "中性", "bearish": "退潮风险", "none": "无信号"}.get(sup, "—")
-        sf_metric("共振结论", sup_label, reso.get("label", ""))
+    # ── 顶部 KPI 带（B 类页五段式 pilot：原 sf_metric 四卡迁移为 xc_bento_kpi，同数据换骨架不换布局）──
+    sup = reso.get("support")
+    sup_label = {"bullish": "多头共振", "neutral": "中性", "bearish": "退潮风险", "none": "无信号"}.get(sup, "—")
+    ht = ndp.get("height_trend", "—")
+    xc_bento_kpi([
+        {
+            "label": "连板龙头强度",
+            "value": _safe(ls.get("score"), 1),
+            "meta": "0-100 · 市场级（高度+高位集中度+接力意愿）",
+            "tone": "up" if (ls.get("score") or 0) >= 60 else ("flat" if ls.get("score") is not None else None),
+        },
+        {
+            "label": "市场状态",
+            "value": state or "—",
+            "meta": f"置信度 {regime['latest']['confidence']*100:.0f}%",
+        },
+        {
+            "label": "连板高度趋势",
+            "value": ht,
+            "meta": f"最新 {ndp.get('max_boards')} 板",
+        },
+        {
+            "label": "共振结论",
+            "value": sup_label,
+            "meta": reso.get("label", ""),
+        },
+    ], template="1.1fr 1fr 1fr 1fr")
 
     # ── 龙头强度分解 ──
     st.markdown("---")
@@ -195,6 +206,15 @@ try:
         "属**即时观测、小样本**，绝非稳定历史概率；③ 事件池为离线快照，数据日期见上，"
         "非实时事件；④ 共振判定是「两路独立信号是否同向」的交叉验证，历史相似 ≠ 预测。",
         icon="📐",
+    )
+
+    # ── 方法学与来源注脚（B 类页五段式 pilot：收尾一段）──
+    st.markdown("---")
+    st.caption(
+        "口径与来源：连板梯队/龙头强度/晋级概率=本地梯队逐日家数快照（modules/shepherd_ladder，离线零网）；"
+        "市场状态=市场状态机五档（modules/market_regime）；红盘比=牧羊人指标近5日；"
+        "事件多头池=P1-QuantFactor 因子离线快照（时效见页内标注）。晋级概率为即时观测小样本，"
+        "非实时行情，非投资建议。"
     )
 
 except Exception as e:  # noqa: BLE001
