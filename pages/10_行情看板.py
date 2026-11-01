@@ -599,3 +599,9 @@ def fragment_watchlist_quotes():
                         xc_warn_box('⚠️ 移除失败，请重试')
 fragment_watchlist_quotes()
 fragment_market_alerts_panel()
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：指数/个股行情=平台行情缓存（实时接口，交易时段自动刷新）；自选股=后端 API + 并行实时行情'
+           '（市盈率/股本来自基本面接口）；龙虎榜=akshare 东方财富龙虎榜接口（新浪兜底，按交易日查询）。'
+           '行情为页面加载时点快照，非实时，非投资建议。')

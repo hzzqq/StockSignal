@@ -273,6 +273,12 @@ def _etf_filter_fragment():
 
 _etf_filter_fragment()
 
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：ETF 行情=akshare fund_etf_spot_em 实时接口（180 秒缓存，页面加载时点快照）；'
+           '网络不可用时自动降级为内置常见 ETF 样本（页内已实时标注当前来源）。'
+           '信息聚合筛选工具，非实时行情，非投资建议。')
+
 # 快捷回到顶部（#Batch18-6）：长表格滚动后一键回顶，由 session_state 触发 JS 滚动
 if st.button("↑ 回到顶部", key="etf_back_to_top"):
     st.session_state["_etf_scroll_top"] = True

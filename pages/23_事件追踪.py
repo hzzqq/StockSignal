@@ -719,3 +719,9 @@ with st.expander('🔗 相关事件 / 标的推荐', expanded=False):
                         st.session_state['sig_ticker'] = str(_code)
     else:
         st.caption('暂无推荐数据。')
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：信号评分=本地 SignalEngine（价格/事件/宏观三维度规则打分）；K 线与事件时间轴=平台行情接口'
+           '（api_kline / api_intraday）；事件库=本地事件数据（可手动维护）；新闻挖掘与情感报告=资讯源聚合 + 情感分析'
+           '（抓取失败如实报错）。数据仅供参考，非实时行情，非投资建议。')

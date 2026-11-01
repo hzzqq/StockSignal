@@ -465,3 +465,9 @@ fragment_disclosure()
 #    独有的新浪财务三表能力保留；主区留给报告期维度的三个核心面板。
 with st.expander("🔍 个股财报查询（按代码过滤 · 含财务三表）", expanded=False):
     fragment_stock_financials()
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown("---")
+st.caption('口径与来源：业绩报表/业绩预告/披露日历=东方财富（fundflow 接口，1800 秒缓存，按报告期查询）；'
+           '个股财务三表=新浪财经（最新 8 期，best-effort，接口不稳定时如实提示）。'
+           '披露计划可能变动，数据为页面加载时点快照，非投资建议。')

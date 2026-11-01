@@ -1116,3 +1116,9 @@ with st.expander("🧰 更多回测工具（批量回测 · 参数扫描 · 稳�
     fragment_batch_backtest()
     fragment_walk_forward()
     fragment_run_history()
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：回测引擎=modules.backtest 本地计算（策略注册表：趋势动量多因子 V5 / 双趋势共振 / 均线交叉 / '
+           '事件驱动等），行情数据=平台日线接口；历史回测记录=本地 run ID 持久化（跨刷新可回溯）。'
+           '回测为历史模拟（含样本内外检验），不代表未来收益，非投资建议。')

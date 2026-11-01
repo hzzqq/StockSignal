@@ -131,3 +131,10 @@ if os.path.exists(_sim_path):
 
 # ── 免责声明 ──
 info_banner(f"⚠️ {DISCLAIMER}")
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：荐股=后端调度器每交易日收盘后生成的 data/daily_recommendation.json'
+           '（multi_factor V5/双趋势共振/主力资金流/P1 事件因子/动量/放量突破多算法融合，缺失算法如实标注 unavailable，'
+           '每推荐带 data_as_of 时点）；模拟统计=reports/virtual_users_sim.json 历史蒙特卡洛（存在才展示）。'
+           '非实时行情，非投资建议。')

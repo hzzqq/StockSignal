@@ -325,3 +325,9 @@ def fragment_paper():
         sn.back_to_top_button()
         st.session_state['_pt_scroll_top'] = False
 fragment_paper()
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：账本=本地 data/paper_{user}.json 按用户持久化（虚拟资金，不接真实券商）；'
+           '现价=平台实时行情（20 秒缓存，失败降级日线收盘价）；净值曲线=每笔成交后的总资产快照。'
+           '仅供策略演练学习，非投资建议。')

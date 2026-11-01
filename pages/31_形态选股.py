@@ -439,3 +439,9 @@ with st.container(border=True):
             )
     elif not universe:
         _empty_info("请选择股票池（或先搜索加入扫描池）后点击「开始扫描」；也可在上方「📥 载入示例股票池」一键体验。")
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：日线数据=平台行情接口（api_kline）；形态识别（金叉/突破/背离等）与技术评分=modules.technical + '
+           'SignalEngine 本地规则计算（纯前端，无第三方数据源）；股票池=自选股 API / 手动输入 / 示例池。'
+           '扫描时点快照，非实时行情，非投资建议。')

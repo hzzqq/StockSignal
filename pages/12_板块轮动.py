@@ -423,3 +423,9 @@ def fragment_domestic_substitution():
 
 
 fragment_domestic_substitution()
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：热力图/排行榜/资金轮动=akshare 行业资金流接口（300 秒缓存，含涨跌幅与资金净额，'
+           '失败降级为平台板块涨跌列表并如实标注）；国产替代栏目=公开研报与机构口径的静态研究框架（区间估计，非实时数据）。'
+           '行情为页面加载时点快照，非实时，非投资建议。')

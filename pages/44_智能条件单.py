@@ -151,5 +151,10 @@ def fragment_cond_list():
                     _toast('已删除')
                     st.rerun(scope='fragment')
 fragment_cond_list()
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：条件单列表/扫描/下单=后端 API（调度器交易时段自动扫描，触发经账户风控与券商通道真实下单并写订单流水）；'
+           '融资买入额=融资融券最近披露日数据；行情为扫描时点快照，非实时。数据仅供参考，非投资建议。')
 if st.button('↑ 回到顶部', key='cond_back_to_top'):
     sn.back_to_top_button()

@@ -616,3 +616,9 @@ with st.expander("📈 走势扩展对比（指数 · 行业指数 · ETF）", e
     fragment_index_trend()
     fragment_industry_trend()
     fragment_etf_trend()
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：北向/行业/大盘主力/个股资金流=东方财富·同花顺接口（fundflow 数据层，个股缓存 300 秒）；'
+           '融资数据=融资融券接口；走势对比=指数/行业指数/ETF 日线（归一化起点=100）。'
+           '资金净流入=红、净流出=绿；行情为页面加载时点快照，非实时，非投资建议。')

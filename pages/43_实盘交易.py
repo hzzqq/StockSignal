@@ -235,5 +235,10 @@ def fragment_orders():
 fragment_positions()
 st.divider()
 fragment_orders()
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：账户/持仓/订单流水=后端 /api/trade/* API（默认模拟账本虚拟撮合；实盘模式经 QMT / 同花顺客户端真实下单）；'
+           '每笔订单先过风控（交易时段/单笔上限/当日亏损停手线）再写 real_orders 流水。数据仅供参考，非投资建议。')
 if st.button('↑ 回到顶部', key='trade_back_to_top'):
     sn.back_to_top_button()

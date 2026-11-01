@@ -260,3 +260,9 @@ with st.container(border=True):
         else:
             _empty_info("勾选策略后点击「开始选股」。技术面策略可全市场快速扫描；"
                         "基本面策略建议用于自选股 / 板块小池。")
+
+# ── 方法学与来源注脚（B 类页五段式收尾）──
+st.markdown('---')
+st.caption('口径与来源：选股引擎=modules.stock_screener 11 策略（技术面策略用平台自带行情 StockFetcher；'
+           '基本面策略用 akshare 财务接口，单只失败自动跳过）；股票池=自选股 API / 板块列表 / 本地股票库前 N；'
+           '结果经六维排雷二道闸过滤。扫描时点快照，非实时行情，非投资建议。')
