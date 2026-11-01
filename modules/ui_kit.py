@@ -885,7 +885,10 @@ _FOLD_CSS = r"""<style>
   border:1px solid var(--ss-line,var(--border,#e2e8f0));border-radius:10px;
   padding:10px 12px;box-shadow:0 10px 30px rgba(15,15,35,.18);
   min-width:220px;max-width:360px;font-size:13px;line-height:1.65}
-.ss-hint:hover .ss-hint-p{opacity:1;visibility:visible;transform:translateY(0)}
+.ss-hint:hover .ss-hint-p,.ss-hint:focus-within .ss-hint-p{opacity:1;visibility:visible;transform:translateY(0)}
+/* P2-1 键盘可达：Tab 聚焦触发器时与 hover 同参展开浮层（:focus-within 与 hover 同参）；
+   DOMPurify 默认 allowlist 放行 tabindex（Phase3 实测），外层 .ss-hint 带 tabindex="0" 可聚焦 */
+.ss-hint:focus-visible{outline:2px solid var(--ss-focus-ring,var(--ss-accent,var(--acc1,#667eea)));outline-offset:2px;border-radius:4px}
 .ss-hint-p b{color:var(--ss-accent,var(--acc1,#667eea))}
 /* C 细小化触发（更弱的存在感） */
 .ss-hint.mini .ss-hint-t{font-size:11px;opacity:.72}
@@ -893,9 +896,14 @@ _FOLD_CSS = r"""<style>
 
 
 def _fold_hover_html(trigger: str, panel_html: str, mini: bool = False) -> str:
-    """悬停预览纯函数（可离线单测）：触发字 + 浮层面板。"""
+    """悬停预览纯函数（可离线单测）：触发字 + 浮层面板。
+
+    P2-1 键盘可达：外层 .ss-hint 带 tabindex="0"，键盘 Tab 聚焦后经
+    .ss-hint:focus-within 与 hover 同参展开浮层（DOMPurify 默认放行 tabindex，
+    Phase3 已实测；静态属性不经过转义路径，不会被剥离）。
+    """
     cls = "ss-hint mini" if mini else "ss-hint"
-    return (f'<span class="{cls}"><span class="ss-hint-t">{trigger}</span>'
+    return (f'<span class="{cls}" tabindex="0"><span class="ss-hint-t">{trigger}</span>'
             f'<span class="ss-hint-p">{panel_html}</span></span>')
 
 
