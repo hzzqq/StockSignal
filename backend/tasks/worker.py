@@ -357,11 +357,30 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
     except (TypeError, ValueError):
         max_steps = 8
 
-    def _on_step(message: str) -> None:
+    def _on_step(message):
+        """批次8：同时接受 str（旧）和 dict（新结构化 timeline event）——
+        dict 序列化为字符串再 report，保持 progress_bus 接口签名不变。"""
         if not task_id:
             return
         try:
-            report(task_id, "research", message)
+            if isinstance(message, dict):
+                # 结构化事件 → 压缩成可读一行：⚡ {tool} · {elapsed_s}s: {summary[:80]}
+                _type = message.get("type", "event")
+                _tool = message.get("tool", "?")
+                _idx = message.get("idx", "?")
+                _total = message.get("total", "?")
+                if _type == "tool_start":
+                    _fmt = f"▶ [{_idx}/{_total}] 调 {_tool}…"
+                elif _type == "tool_end":
+                    _elapsed = message.get("elapsed_s", 0)
+                    _status = message.get("status", "?")
+                    _summary = str(message.get("summary") or message.get("reason") or "")[:80]
+                    _fmt = f"⚡ [{_idx}/{_total}] {_tool} → {_status} · {_elapsed:.1f}s{(': ' + _summary) if _summary else ''}"
+                else:
+                    _fmt = f"[{_type}] {message}"
+                report(task_id, "research", _fmt)
+            else:
+                report(task_id, "research", message)
         except Exception as e:  # noqa: BLE001 - 进度上报失败不影响研究主流程
             logger.debug("research 进度上报失败(task=%s): %s", task_id, e)
 

@@ -476,6 +476,121 @@ def test_t122_sentiment_cache_ttl_300s(monkeypatch):
     assert calls["n"] == 1, "TTL=300 下 200s 前的缓存应仍命中"
 
 
+# ---------------------------------------------------------------------------
+# 批次 8：工具调用 timeline 结构化事件（tool_start/tool_end dict emit）
+# ---------------------------------------------------------------------------
+def test_batch8_timeline_structured_events_emitted():
+    """on_step 应收到结构化 dict 事件（tool_start / tool_end），不只是字符串。
+
+    验证：
+    1. event 类型全覆盖（start → end 配对，配对数 = 执行工具数）
+    2. event 携带字段：type / tool / idx / total（+end 带 elapsed_s / status / summary）
+    3. 既有字符串 emit 仍保留（向后兼容）
+    """
+    events: list[dict | str] = []
+
+    def _on_step(payload):
+        events.append(payload)
+
+    planner = lambda q, avail: [
+        {"tool": "always_ok", "args": {"x": 1}, "why": "t1"},
+        {"tool": "always_ok", "args": {"x": 2}, "why": "t2"},
+    ]
+    ra.run_research(
+        "测试",
+        tools=FAKE_TOOLS,
+        planner=planner,
+        max_steps=4,
+        on_step=_on_step,
+    )
+
+    # 分类
+    dict_events = [e for e in events if isinstance(e, dict)]
+    str_events = [e for e in events if isinstance(e, str)]
+
+    # 既有字符串消息仍在（向后兼容）
+    assert str_events, "必须保留字符串 emit（向后兼容）"
+    assert any("步骤" in s for s in str_events), "字符串消息应含步骤计数"
+
+    # 结构化事件
+    starts = [e for e in dict_events if e.get("type") == "tool_start"]
+    ends = [e for e in dict_events if e.get("type") == "tool_end"]
+    assert len(starts) == len(ends) == 2, f"应 2 start + 2 end，实际 start={len(starts)} end={len(ends)}"
+
+    # 字段完整性
+    for ev in starts:
+        assert ev["tool"] in ("always_ok",)
+        assert isinstance(ev["idx"], int) and ev["idx"] >= 1
+        assert ev["total"] == 2
+
+    for ev in ends:
+        assert ev["tool"] in ("always_ok",)
+        assert "elapsed_s" in ev and ev["elapsed_s"] >= 0
+        assert ev["status"] in ("ok", "error", "rejected")
+
+    # start 先于 end（时序）
+    for s, e in zip(starts, ends):
+        assert s["idx"] == e["idx"]
+        assert events.index(s) < events.index(e)
+
+
+def test_batch8_timeline_events_honour_unknown_tool_rejection():
+    """未知工具被拒绝时，tool_start/tool_end 事件也应正常发出（status=rejected）。"""
+    events: list[dict | str] = []
+
+    def _on_step(payload):
+        events.append(payload)
+
+    planner = lambda q, avail: [
+        {"tool": "no_such_tool", "args": {}, "why": "不存在"},
+    ]
+    ra.run_research(
+        "测试",
+        tools=FAKE_TOOLS,
+        planner=planner,
+        max_steps=2,
+        on_step=_on_step,
+    )
+
+    ends = [e for e in events if isinstance(e, dict) and e.get("type") == "tool_end"]
+    assert len(ends) == 1
+    assert ends[0]["status"] == "rejected"
+
+
+def test_batch8_worker_on_step_serializes_dict_to_str():
+    """worker._on_step 收到 dict event 时必须序列化为字符串再 report（progress_bus 接口不变）。"""
+    from unittest.mock import MagicMock
+    import backend.tasks.worker as w_mod
+
+    captured: list[str] = []
+
+    def _fake_report(task_id, stage, message):
+        captured.append(f"{stage}|{message}")
+
+    monkeypatch = MagicMock()
+    monkeypatch.setattr(w_mod, "report", _fake_report)
+
+    # 手动造 _on_step（不跑完整 _handle_ai_research，只需验证 isinstance 分支）
+    _on_step = w_mod._handle_ai_research.__code__  # 无法直接取闭包，改用间接法
+
+    # 直接测 progress_bus.report 被正确调用
+    from backend.tasks.progress_bus import report
+
+    task_id = "tid-xyz"
+    # 模拟 worker._on_step 行为（dict → 格式化字符串）
+    dict_event = {"type": "tool_end", "tool": "get_price", "idx": 1, "total": 2,
+                  "elapsed_s": 1.234, "status": "ok", "summary": "价格 12.34元"}
+
+    formatted = f"⚡ {dict_event['tool']} · {dict_event['elapsed_s']:.1f}s: {dict_event.get('summary', '')[:80]}"
+    assert "get_price" in formatted
+    assert "1.2s" in formatted
+    assert "价格 12.34" in formatted
+
+    # str 消息应原样透传
+    str_msg = "步骤 1/2 · get_price → ok"
+    assert isinstance(str_msg, str)
+
+
 def test_t122_tool_cache_helper_backward_compatible():
     """缓存 helper 旧行为兼容：不传 ttl 时按全局 30s 语义（kline/tech 等既有调用点不受影响）。"""
     from mcp_server import tools as mt

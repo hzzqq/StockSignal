@@ -460,10 +460,20 @@ def run_research(
     limitations: List[str] = []
 
     def _emit(msg: str) -> None:
+        """字符串 emit（向后兼容，步骤完成摘要）。"""
         if on_step is None:
             return
         try:
             on_step(msg)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _emit_event(event: Dict[str, Any]) -> None:
+        """结构化 dict emit（批次8 timeline：tool_start / tool_end）。"""
+        if on_step is None:
+            return
+        try:
+            on_step(event)
         except Exception:  # noqa: BLE001
             pass
 
@@ -544,6 +554,14 @@ def run_research(
             "data_as_of": None,
             "reason": "",
         }
+        # 批次8：结构化 timeline 事件 —— tool_start（预算检查后、实际执行前）
+        _emit_event({
+            "type": "tool_start",
+            "tool": tool,
+            "idx": i,
+            "total": len(norm),
+            "args": _safe_args(args),
+        })
         s0 = time.time()
         # 只读红线（AC3）：写操作禁入，不执行
         if tool == "conditional_orders" and \
@@ -567,6 +585,17 @@ def run_research(
                 step["status"] = "error"
                 step["reason"] = str(res.get("error"))[:200]
         step["duration_ms"] = int((time.time() - s0) * 1000)
+        # 批次8：结构化 timeline 事件 —— tool_end（含耗时/状态/摘要）
+        _emit_event({
+            "type": "tool_end",
+            "tool": tool,
+            "idx": i,
+            "total": len(norm),
+            "elapsed_s": round(step["duration_ms"] / 1000, 3),
+            "status": step["status"],
+            "summary": step.get("summary"),
+            "reason": step.get("reason", ""),
+        })
         steps.append(step)
         _emit(f"步骤 {i}/{len(norm)} · {tool} → {step['status']}")
 
