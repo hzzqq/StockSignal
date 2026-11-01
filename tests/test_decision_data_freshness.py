@@ -91,7 +91,7 @@ def test_compute_event_adj_carries_as_of(monkeypatch):
 # ──────────────────────────────────────────────
 def _snap(event_as_of, temp_as_of, monkeypatch):
     monkeypatch.setattr(
-        D, "_event_position_adj",
+        D, "event_position_adj",
         lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": event_as_of})
     return D.build_snapshot(
         date="2026-09-04",
@@ -136,7 +136,7 @@ def test_snapshot_event_factor_carries_as_of(monkeypatch):
 
 def test_snapshot_temp_as_of_param_overrides_indicators(monkeypatch):
     """显式 temp_as_of 优先于 indicators['date']（温度来自非当日历史行时）。"""
-    monkeypatch.setattr(D, "_event_position_adj",
+    monkeypatch.setattr(D, "event_position_adj",
                         lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": None})
     snap = D.build_snapshot(
         date="2026-09-04", indicators={"date": "2026-09-04"}, temp=33.0,
@@ -190,7 +190,7 @@ def test_derive_position_low_position_untouched_when_stale():
 def test_snapshot_caps_position_when_stale(monkeypatch):
     """集成：build_snapshot 把新鲜度透传后，陈旧场景下仓位被真正封顶。"""
     monkeypatch.setattr(
-        D, "_event_position_adj",
+        D, "event_position_adj",
         lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": _iso(21)})
     snap = D.build_snapshot(
         date="2026-09-04",
@@ -210,7 +210,7 @@ def test_snapshot_caps_position_when_stale(monkeypatch):
 def test_snapshot_full_coverage_caps_when_ladder_stale(monkeypatch):
     """连板晋级率陈旧(即便牧羊人/事件/温度都新鲜)→ 整体 stale 且仓位封顶（守卫须覆盖全部输入源）。"""
     monkeypatch.setattr(
-        D, "_event_position_adj",
+        D, "event_position_adj",
         lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": _iso(1)})
     snap = D.build_snapshot(
         date="2026-09-04",
@@ -230,7 +230,7 @@ def test_snapshot_full_coverage_caps_when_ladder_stale(monkeypatch):
 def test_snapshot_full_coverage_ok_when_all_fresh(monkeypatch):
     """全部输入源新鲜（含连板晋级率/市场温度透传）→ 不误报、不封顶。"""
     monkeypatch.setattr(
-        D, "_event_position_adj",
+        D, "event_position_adj",
         lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": _iso(1)})
     snap = D.build_snapshot(
         date="2026-09-04",
@@ -248,7 +248,7 @@ def test_snapshot_full_coverage_ok_when_all_fresh(monkeypatch):
 def test_snapshot_legacy_call_excludes_unpassed_sources(monkeypatch):
     """不传 ladder/market_temp as_of（旧调用约定）→ 守卫只覆盖牧羊人+事件，行为向后兼容。"""
     monkeypatch.setattr(
-        D, "_event_position_adj",
+        D, "event_position_adj",
         lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": _iso(1)})
     snap = D.build_snapshot(
         date="2026-09-04",
@@ -269,7 +269,7 @@ def test_snapshot_legacy_call_excludes_unpassed_sources(monkeypatch):
 def test_shepherd_as_of_not_unknown_when_indicators_carry_date(monkeypatch):
     """indicators 带 date 时，牧羊人源必须拿到真实 as_of，不得显示 unknown。"""
     monkeypatch.setattr(
-        D, "_event_position_adj",
+        D, "event_position_adj",
         lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": _iso(1)})
     snap = D.build_snapshot(
         date=_iso(1), indicators={"date": _iso(1)}, temp=50.0,
@@ -289,7 +289,7 @@ def test_shepherd_as_of_absent_stays_unknown_no_fabrication(monkeypatch):
     又可能假新鲜，违背「日期必须是真实数据日」的口径。
     """
     monkeypatch.setattr(
-        D, "_event_position_adj",
+        D, "event_position_adj",
         lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": _iso(1)})
     snap = D.build_snapshot(
         date=_iso(2), indicators={"limit_up": 35.0}, temp=50.0,  # 无 date 键
@@ -302,7 +302,7 @@ def test_shepherd_as_of_absent_stays_unknown_no_fabrication(monkeypatch):
 def test_shepherd_stale_is_caught_and_caps_position(monkeypatch):
     """牧羊人指标本身陈旧时，必须被判 stale 并参与降仓（修复前恒定 unknown → 漏报）。"""
     monkeypatch.setattr(
-        D, "_event_position_adj",
+        D, "event_position_adj",
         lambda *a, **k: {"adj": 2, "long_count": 20, "as_of": _iso(1)})
     snap = D.build_snapshot(
         date="2026-09-04", indicators={"date": _iso(21)}, temp=85.0,

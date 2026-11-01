@@ -31,7 +31,7 @@ from modules import shepherd_note as _sn
 # 仓位推导收敛到 modules.decision 单一实现：决策面板 / 每日快照脚本 / 首页 banner 三处共用，
 # 避免各写一份漂移成互相矛盾的建议。改规则只需改 decision.derive_position 一处。
 from modules.decision import (derive_position, load_snapshot, is_stale,
-                             _event_position_adj, _event_long_symbols,
+                             event_position_adj, event_long_symbols,
                              event_edge, format_event_edge,
                              compute_dual_factor_inputs)
 from modules.data_health import health_rows, assess_freshness
@@ -164,7 +164,7 @@ def _render_hero(df, today, prev, meta=None):
     event_adj_val = None
     event_as_of = None
     try:
-        _evd = _event_position_adj()
+        _evd = event_position_adj()
         if isinstance(_evd, dict):
             event_adj_val = _evd.get("adj")
             event_as_of = _evd.get("as_of")
@@ -222,7 +222,7 @@ def _render_hero(df, today, prev, meta=None):
 
     # ② 仓位建议大卡（闭环的输出端）
     # 事件驱动催化：实时接通事件因子，消除「活/归档漂移」（S1 自找缺口）。
-    # 与 build_snapshot 同源（都走 _event_position_adj），保证实时卡与归档快照一致；
+    # 与 build_snapshot 同源（都走 event_position_adj），保证实时卡与归档快照一致；
     # 底层读 11MB 信号文件，靠模块级 300s 缓存避免每次刷新重读。失败则降级为 None（不臆造）。
 
     # 方向 #7：信号陈旧→决策显式降权（可读化徽标）。在仓位卡之前先把"诚实边界"摊开：
@@ -318,7 +318,7 @@ def _render_hero(df, today, prev, meta=None):
     # S4 事件驱动多头池下钻：实时卡可见具体标的，透明可解释（与事件催化同源）。
     # 信号可用（多头池非空）才展示；读不到/异常则静默降级，不拖崩卡片。
     try:
-        ev_syms = _event_long_symbols(top_n=20)
+        ev_syms = event_long_symbols(top_n=20)
     except Exception:  # noqa: BLE001
         ev_syms = None
     if ev_syms:

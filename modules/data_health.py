@@ -14,7 +14,7 @@
 - 内容优先：能直接从数据里拿到真实截止日（如 CSV 末行日期、信号 latest_date、
   快照 date 字段）就用它；拿不到才退到文件 mtime（mtime 只代表「文件更新过」，
   不代表「数据日期」，故标 unknown 风险更低时仍按 mtime 提示而非静默）。
-- P1 事件因子复用 ``P1SignalLoader`` 的内容 latest_date（与 _event_position_adj 同源，
+- P1 事件因子复用 ``P1SignalLoader`` 的内容 latest_date（与 event_position_adj 同源，
   其内置 ttl 缓存，重复调用不重读 11MB）。
 - 本模块不触网、只读本地文件，离线可跑；CI / 用户均可 `python scripts/check_data_health.py`。
 """

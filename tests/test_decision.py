@@ -110,7 +110,7 @@ def test_event_adj_subject_to_extreme_risk_cap():
 
 def test_build_snapshot_includes_event_factor(monkeypatch):
     """决策快照应纳入真实事件因子（多头池广度 → 仓位调节）。"""
-    monkeypatch.setattr("modules.decision._event_position_adj",
+    monkeypatch.setattr("modules.decision.event_position_adj",
                         lambda top_n=50: {"adj": 3, "long_count": 30})
     snap = build_snapshot("2026-08-21", {}, 50.0,
                           {"bias": "偏多", "score": 0.5}, None, None)
@@ -124,7 +124,7 @@ def test_build_snapshot_includes_event_factor(monkeypatch):
 
 def test_build_snapshot_event_unavailable_graceful(monkeypatch):
     """取不到真实事件信号时平静降级：标记不可用、不臆造催化 reason。"""
-    monkeypatch.setattr("modules.decision._event_position_adj", lambda top_n=50: None)
+    monkeypatch.setattr("modules.decision.event_position_adj", lambda top_n=50: None)
     snap = build_snapshot("2026-08-21", {}, 50.0, {"bias": "中性"}, None, None)
     assert snap["event_factor"]["available"] is False
     assert snap["event_factor"]["adj"] is None

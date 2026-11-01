@@ -96,7 +96,7 @@ def _build_estimate_payload():
     event_adj_val = None
     event_as_of = None
     try:
-        _evd = _decision._event_position_adj()
+        _evd = _decision.event_position_adj()
         if isinstance(_evd, dict):
             event_adj_val = _evd.get("adj")
             event_as_of = _evd.get("as_of")

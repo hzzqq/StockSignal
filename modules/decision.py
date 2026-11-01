@@ -87,7 +87,6 @@ CYCLE_ADJ = {
     "主升高潮": 5, "修复确认": 3, "修复试探": 0,
     "高潮分化": -5, "退潮": -10, "冰点": 5,
 }
-BIAS_COLOR = {"偏多": "#ee2a2a", "偏空": "#00d486", "中性": "#f59e0b"}
 
 # 仓位档位阈值（从高到低，pct 命中第一个 >= threshold 的档）
 # 阈值刻度为「经验分档」，与红涨绿跌配色绑定（见 I9）：
@@ -105,10 +104,10 @@ _BANDS = [
 # 依据：market_regime 全样本（4771 日）中暴跌(130日)/恐慌(379日)是唯二
 # 系统性左尾状态，历史相似日前瞻分布显著差于基准（T-182 回测复核）。
 REGIME_CAPS = {"暴跌": 50.0, "恐慌": 60.0}
-REGIME_CONF_MIN = 0.5  # 置信度门槛：低于此（或缺失）不启用门控——不臆造门控
+_REGIME_CONF_MIN = 0.5  # 置信度门槛：低于此（或缺失）不启用门控——不臆造门控（私有常量，无外部引用）
 # market_regime 合法五状态全集：其中震荡/结构牛/普涨不在门控目录（无调节、
 # 不告警不留痕——正常状态刷 reasons 是噪声）；不在全集的状态才算未知（告警）。
-REGIME_KNOWN_STATES = {"暴跌", "恐慌", "震荡", "结构牛", "普涨"}
+_REGIME_KNOWN_STATES = {"暴跌", "恐慌", "震荡", "结构牛", "普涨"}  # 私有常量，无外部引用
 
 
 # ───────────────────────── 毕设三算法诚实证据桥（model_adj） ─────────────────────────
@@ -193,7 +192,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
         + 方向调节（偏多 +8 / 偏空 -8）
         + 周期调节（主升 +5 / 修复确认 +3 / 高潮分化 -5 / 退潮 -10 / 冰点 +5 超卖试探）
         + 梯队晋级率调节（≥60% +5 / 40-60% 0 / 20-40% -3 / <20% -6）
-        + 事件驱动催化调节（真实事件因子多头池广度映射，见 _event_position_adj）
+        + 事件驱动催化调节（真实事件因子多头池广度映射，见 event_position_adj）
         + 羊群拥挤反向调节（T-182 因子 B：红挤 ≥85 -8pt / 70~85 -4pt；绿挤不调节）
         最终 clamp 到 5~95%；随后极端风控 / 状态门控 / 新鲜度逐级封顶（仅封顶不抬底）。
 
@@ -203,7 +202,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     :param cycle_name: 情绪周期六阶段名，可能带括号后缀（如「主升高潮（加速）」）
     :param overall_promo: 连板梯队整体晋级率(%)，None 表示数据缺失（不加不减）
     :param event_adj: 事件驱动仓位调节(绝对百分点)；None/0 表示不调节。
-                       来源为真实 P1 EV 事件因子多头池广度（见 _event_position_adj），
+                       来源为真实 P1 EV 事件因子多头池广度（见 event_position_adj），
                        取不到真实信号时为 None —— 决策者不臆造事件催化。
     :param freshness_status: 输入源整体新鲜度（"ok"/"warn"/"stale"/"unknown"）。
                        陈旧数据必须让位——守卫不能只"提示"，否则"半个月前的情绪"
@@ -215,7 +214,7 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
                       「冰点+5 超卖试探」既有语义自洽）。未知值告警按不调节。
     :param regime_state: 市场状态机五状态（T-182 因子 A，modules/market_regime）。
                          暴跌/恐慌且置信度足够 → 仓位上限收缩（仅封顶不抬底）。
-    :param regime_confidence: 状态置信度 0-1；<REGIME_CONF_MIN 或 None → 门控
+    :param regime_confidence: 状态置信度 0-1；<_REGIME_CONF_MIN 或 None → 门控
                               不启用（低置信度/无置信度都不臆造硬约束）。
     :return: dict(pct=int, band=str, color=str, reasons=list[str])
     """
@@ -351,14 +350,14 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
     if regime_state is not None:
         rcap = REGIME_CAPS.get(regime_state)
         if rcap is None:
-            if regime_state in REGIME_KNOWN_STATES:
+            if regime_state in _REGIME_KNOWN_STATES:
                 pass  # 合法非门控状态（震荡/结构牛/普涨）：无调节，不告警不留痕
             else:
                 logger.warning("[decision] 未知市场状态 %r，门控不启用", regime_state)
                 reasons.append(f"状态「{regime_state}」不在门控目录，未启用")
-        elif regime_confidence is None or regime_confidence < REGIME_CONF_MIN:
+        elif regime_confidence is None or regime_confidence < _REGIME_CONF_MIN:
             _c = "无" if regime_confidence is None else f"{regime_confidence:.2f}"
-            reasons.append(f"状态「{regime_state}」置信度不足（{_c} < {REGIME_CONF_MIN}），门控未启用")
+            reasons.append(f"状态「{regime_state}」置信度不足（{_c} < {_REGIME_CONF_MIN}），门控未启用")
         elif pct > rcap:
             reasons.append(f"⚠️ 状态门控：市场处「{regime_state}」（置信度 {regime_confidence:.0%}），"
                            f"仓位封顶 {rcap:.0f}%（原 {pct:.0f}%）")
@@ -562,7 +561,7 @@ def _compute_event_adj(top_n: int = 50) -> dict | None:
 _event_adj_cache: dict = {"value": None, "ts": 0.0}
 
 
-def _event_position_adj(top_n: int = 50, ttl: int = 300) -> dict | None:
+def event_position_adj(top_n: int = 50, ttl: int = 300) -> dict | None:
     """见 ``_compute_event_adj``。``ttl`` 秒内复用上一次成功结果（仅缓存成功值）。"""
     now = time.time()
     cached = _event_adj_cache
@@ -579,10 +578,10 @@ def _event_position_adj(top_n: int = 50, ttl: int = 300) -> dict | None:
 _event_symbols_cache: dict = {"value": None, "ts": 0.0}
 
 
-def _event_long_symbols(top_n: int = 20, ttl: int = 300) -> list[dict] | None:
+def event_long_symbols(top_n: int = 20, ttl: int = 300) -> list[dict] | None:
     """真实事件因子多头池个股列表（[{symbol, score}], score=模型百分位 0-100），供下钻展示。
 
-    与 ``_event_position_adj`` 同源自 ``event_driven_long_list``，但返回**明细**而非聚合 adj。
+    与 ``event_position_adj`` 同源自 ``event_driven_long_list``，但返回**明细**而非聚合 adj。
     模块级 TTL 缓存（成功才缓存、失败不缓存），避免实时卡每次刷新重读 11MB 信号文件。
     取不到真实信号返回 ``None``（不臆造）。
     """
@@ -761,7 +760,7 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
     ld = ladder if isinstance(ladder, dict) else {}
 
     # 事件驱动催化：默认用真实事件因子多头池广度自动算；取不到则标记不可用（不臆造）
-    ev = _event_position_adj() if event_adj is None else (
+    ev = event_position_adj() if event_adj is None else (
         {"adj": event_adj, "long_count": None, "as_of": None} if event_adj else None)
     ev_info = {
         "available": bool(ev),
@@ -927,8 +926,8 @@ def is_stale(max_age_hours: float = 20.0) -> bool:
 # 旧逻辑只被动封顶仓位、不主动告警，老板无从得知调度已死。
 # 这里把「文件是否还在更新 + 数据是否陈旧」升级为结构化分级告警，
 # 供决策面板显式横幅展示——看见 > 被悄悄降权。
-DECISION_LOOP_DEAD_HOURS = 48.0      # 快照 >48h 未更新：判定调度死/停摆（硬红线）
-DECISION_LOOP_STALE_HOURS = 26.0    # 快照 >26h 未更新：超过一个交易日，疑似延迟
+_DECISION_LOOP_DEAD_HOURS = 48.0      # 快照 >48h 未更新：判定调度死/停摆（硬红线，私有常量，无外部引用）
+_DECISION_LOOP_STALE_HOURS = 26.0    # 快照 >26h 未更新：超过一个交易日，疑似延迟（私有常量，无外部引用）
 
 
 def assess_decision_loop_health() -> dict:
@@ -962,7 +961,7 @@ def assess_decision_loop_health() -> dict:
                 logger.debug("[decision] generated_at 解析失败(%r)，回退 mtime 口径: %s", generated_at, e)
         data_lag_days = _age_days(as_of)
 
-        if gen_lag_hours >= DECISION_LOOP_DEAD_HOURS:
+        if gen_lag_hours >= _DECISION_LOOP_DEAD_HOURS:
             return {
                 "status": "dead", "rank": 3, "generated_at": generated_at, "as_of": as_of,
                 "gen_lag_hours": round(gen_lag_hours, 1), "data_lag_days": data_lag_days,
@@ -970,7 +969,7 @@ def assess_decision_loop_health() -> dict:
                            f"已 {gen_lag_hours:.0f} 小时未更新。调度可能已死，"
                            f"当前仓位建议仅基于陈旧数据，请以最新数据为准。",
             }
-        if gen_lag_hours >= DECISION_LOOP_STALE_HOURS:
+        if gen_lag_hours >= _DECISION_LOOP_STALE_HOURS:
             return {
                 "status": "stale", "rank": 2, "generated_at": generated_at, "as_of": as_of,
                 "gen_lag_hours": round(gen_lag_hours, 1), "data_lag_days": data_lag_days,

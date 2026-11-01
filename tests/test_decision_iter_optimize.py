@@ -160,7 +160,7 @@ def test_verdict_freshness_keys(tmp_path, monkeypatch):
 
 
 # ───────── S1 实时仓位卡片接通事件因子（消除活/归档漂移）─────────
-def test_event_position_adj_ttl_cache_hits(monkeypatch):
+def testevent_position_adj_ttl_cache_hits(monkeypatch):
     """成功结果应被 300s 缓存，ttl 内二次调用返回同一对象（不重读 11MB 文件）。"""
     calls = {"n": 0}
 
@@ -173,15 +173,15 @@ def test_event_position_adj_ttl_cache_hits(monkeypatch):
     _dec._event_adj_cache["value"] = None
     _dec._event_adj_cache["ts"] = 0.0
 
-    a = _dec._event_position_adj(ttl=300)
-    b = _dec._event_position_adj(ttl=300)
+    a = _dec.event_position_adj(ttl=300)
+    b = _dec.event_position_adj(ttl=300)
     assert a == b  # 缓存命中，返回同一对象（含新增的 as_of 字段）
     assert a["adj"] == 3 and a["long_count"] == 30
     assert "as_of" in a and a["as_of"]  # 真理源新增：事件信号真实截止日必须摊开
     assert calls["n"] == 1  # 只算了一次，第二次命中缓存
 
 
-def test_event_position_adj_failure_not_cached(monkeypatch):
+def testevent_position_adj_failure_not_cached(monkeypatch):
     """失败（返回 None）不写入缓存，下次调用会重试。"""
     calls = {"n": 0}
 
@@ -193,12 +193,12 @@ def test_event_position_adj_failure_not_cached(monkeypatch):
     _dec._event_adj_cache["value"] = None
     _dec._event_adj_cache["ts"] = 0.0
 
-    assert _dec._event_position_adj(ttl=300) is None
-    assert _dec._event_position_adj(ttl=300) is None
+    assert _dec.event_position_adj(ttl=300) is None
+    assert _dec.event_position_adj(ttl=300) is None
     assert calls["n"] == 2  # 两次都重试（失败不缓存）
 
 
-def test_event_position_adj_ttl_zero_forces_recompute(monkeypatch):
+def testevent_position_adj_ttl_zero_forces_recompute(monkeypatch):
     """ttl=0 强制每次重算（绕过缓存）。"""
     calls = {"n": 0}
 
@@ -210,16 +210,16 @@ def test_event_position_adj_ttl_zero_forces_recompute(monkeypatch):
     _dec._event_adj_cache["value"] = None
     _dec._event_adj_cache["ts"] = 0.0
 
-    _dec._event_position_adj(ttl=0)
-    _dec._event_position_adj(ttl=0)
+    _dec.event_position_adj(ttl=0)
+    _dec.event_position_adj(ttl=0)
     assert calls["n"] == 2
 
 
 def test_live_hero_wires_event_into_position():
     """实时路径等价：derive_position 收到 event_adj 时，仓位含事件催化、理由含「事件驱动催化」。
 
-    这是 S1 的核心不变量——实时大卡与归档快照必须同源（都经 _event_position_adj）。
-    直接验证「文档级」闭环：build_snapshot 走 _event_position_adj → derive_position(event_adj=…)；
+    这是 S1 的核心不变量——实时大卡与归档快照必须同源（都经 event_position_adj）。
+    直接验证「文档级」闭环：build_snapshot 走 event_position_adj → derive_position(event_adj=…)；
     实时 hero 现在也走同一条路。
     """
     # 模拟真实事件因子可用（多头池宽 → adj=3），两段路径都应产出一致的含催化仓位
@@ -234,7 +234,7 @@ def test_live_hero_wires_event_into_position():
 
 
 class EventAdjStub:
-    """上下文管理器：用固定返回值 stub _event_position_adj，退出即恢复。"""
+    """上下文管理器：用固定返回值 stub event_position_adj，退出即恢复。"""
 
     def __init__(self, adj):
         self._adj = {"adj": adj, "long_count": 10 * adj}
@@ -242,17 +242,17 @@ class EventAdjStub:
 
     def __enter__(self):
         import modules.decision as d
-        self._orig = d._event_position_adj
-        d._event_position_adj = lambda top_n=50, ttl=300: self._adj
+        self._orig = d.event_position_adj
+        d.event_position_adj = lambda top_n=50, ttl=300: self._adj
         return self
 
     def __exit__(self, *exc):
         import modules.decision as d
-        d._event_position_adj = self._orig
+        d.event_position_adj = self._orig
 
 
 # ───────── S4 事件因子长列表下钻（多头池个股缓存）─────────
-def test_event_long_symbols_shape_and_cache(monkeypatch):
+def testevent_long_symbols_shape_and_cache(monkeypatch):
     """返回 [{symbol, score}] 列表；ttl 内二次调用命中缓存（不重读 11MB）。"""
     calls = {"n": 0}
 
@@ -264,14 +264,14 @@ def test_event_long_symbols_shape_and_cache(monkeypatch):
     _dec._event_symbols_cache["value"] = None
     _dec._event_symbols_cache["ts"] = 0.0
 
-    a = _dec._event_long_symbols(ttl=300)
-    b = _dec._event_long_symbols(ttl=300)
+    a = _dec.event_long_symbols(ttl=300)
+    b = _dec.event_long_symbols(ttl=300)
     assert a == b
     assert all("symbol" in d and "score" in d for d in a)
     assert calls["n"] == 1  # 命中缓存
 
 
-def test_event_long_symbols_failure_returns_none(monkeypatch):
+def testevent_long_symbols_failure_returns_none(monkeypatch):
     """读取失败返回 None（不臆造），且不缓存以便下次重试。"""
     calls = {"n": 0}
 
@@ -283,14 +283,14 @@ def test_event_long_symbols_failure_returns_none(monkeypatch):
     _dec._event_symbols_cache["value"] = None
     _dec._event_symbols_cache["ts"] = 0.0
 
-    assert _dec._event_long_symbols(ttl=300) is None
-    assert _dec._event_long_symbols(ttl=300) is None
+    assert _dec.event_long_symbols(ttl=300) is None
+    assert _dec.event_long_symbols(ttl=300) is None
     assert calls["n"] == 2
 
 
 # ───────── S5 实时 hero 共用 assess_freshness 守卫（事件因子日期必须一并摊开）─────────
-def test_event_position_adj_returns_as_of(monkeypatch):
-    """事件因子可用时，_event_position_adj 必须带真实数据截止日 as_of（P1 latest_date）。"""
+def testevent_position_adj_returns_as_of(monkeypatch):
+    """事件因子可用时，event_position_adj 必须带真实数据截止日 as_of（P1 latest_date）。"""
     def fake_long_list(top_n=50, model="ev", loader=None):
         return [{"symbol": f"S{i}"} for i in range(30)]
     def fake_latest_date(self, model="ev"):
@@ -299,7 +299,7 @@ def test_event_position_adj_returns_as_of(monkeypatch):
     monkeypatch.setattr(_p1.P1SignalLoader, "latest_date", fake_latest_date)
     _dec._event_adj_cache["value"] = None
     _dec._event_adj_cache["ts"] = 0.0
-    ev = _dec._event_position_adj(ttl=0)
+    ev = _dec.event_position_adj(ttl=0)
     assert ev is not None and ev["as_of"] == "2026-08-13"
 
 
