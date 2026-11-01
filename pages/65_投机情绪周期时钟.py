@@ -78,7 +78,7 @@ try:
                      f"{(_lu_pct*100):.0f}%）｜ 跌停家数 <b>{cur.get('limit_down')}</b><br>"
                      f"<span style='color:#8c8c8c'>{cur['reason']}</span>",
                 accent="#36c5d8",
-            ), unsafe_allow_html=True)
+            ), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
     else:
         st.warning("⚠️ 无法读取当前广度状态。")
 

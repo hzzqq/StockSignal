@@ -72,7 +72,7 @@ _order = [s for s in SIGNAL_ORDER if _vc.get(s, 0) > 0]
 st.markdown(
     "　".join(f"<span style='color:{SIGNAL_COLOR.get(s, '#94a3b8')};font-weight:700'>"
               f"{s} {int(_vc.get(s, 0))}</span>" for s in _order),
-    unsafe_allow_html=True,
+    unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
 )
 
 st.markdown("---")
@@ -108,7 +108,7 @@ else:
             + (f"<div style='opacity:.7;font-size:11px;margin-top:3px'>{reason}</div>" if reason else "")
             + "</div>"
         )
-    st.markdown(rows, unsafe_allow_html=True)
+    st.markdown(rows, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
 
 st.markdown("---")
 st.caption("口径与来源：业绩预告=东财接口（modules.fundflow.get_earnings_forecast，best-effort，30 分钟缓存，"

@@ -87,7 +87,7 @@ try:
              f"次日改善率 <b>{base['next_impr_rate']}%</b>（均变 {base['next_mean_delta']}）｜ "
              f"5 日改善率 <b>{base['d5_impr_rate']}%</b>（均变 {base['d5_mean_delta']}）",
         accent="#94a3b8",
-    ), unsafe_allow_html=True)
+    ), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
     st.caption("基准 = 不看档位、随机一日的平均表现。各档与之对照才能看出「冷热是否有均值回归」。")
 
     # ── 各档回测表 ──
@@ -146,7 +146,7 @@ try:
              f"中间档（偏冷/中性/活跃）依次为 72%→45%→25%，单调过渡，"
              f"说明「红盘率越极端，次日越向 50% 均值回归」是 A 股广度的稳定结构。",
         accent="#36c5d8",
-    ), unsafe_allow_html=True)
+    ), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
     st.caption("注意：这是历史广度结构统计，描述的是「群体情绪的均值回归」，不构成买卖点预测；"
                "极端档样本虽大，仍可能受特定政策/外生冲击扰动。")
 

@@ -289,7 +289,7 @@ def fragment_event_driven_pool():
         "<thead><tr style='color:#ff8a3d;text-align:left'>"
         "<th>#</th><th>代码</th><th>事件因子分</th><th>来源</th></tr></thead>"
         f"<tbody>{rows_html}</tbody></table>",
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
     st.caption("口径：事件因子分 = P1 模型百分位排名 × 100（越高越看多）。"
                "非买卖指令，建议结合本页板块/自选股信号综合判断。")

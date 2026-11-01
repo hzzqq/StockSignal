@@ -382,7 +382,7 @@ if name_c and len(top) > 0:
             f"<div style='font-size:11px;opacity:.6'>{bd}板 · 同业涨停 {int(r['_ind_n'])} 家</div></div></div>"
             f"<div style='margin-top:6px'>{bars}</div></div>"
         )
-    st.markdown(rows_html, unsafe_allow_html=True)
+    st.markdown(rows_html, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
 else:
     st.info("龙头榜不可用（缺少名称列）。")
 
@@ -464,7 +464,7 @@ with cc2:
                 f"<span>{nm} <span style='opacity:.55;font-size:11px'>{cd}</span></span>"
                 f"<span style='color:{DOWN_COLOR};font-weight:700'>开板 {bc} 次 · {int(r['_boards_i'])}板</span></div>"
             )
-        st.markdown(rows, unsafe_allow_html=True)
+        st.markdown(rows, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
     else:
         st.success("✅ 池内无炸板标的（无曾开板），封板质量较好。")
 

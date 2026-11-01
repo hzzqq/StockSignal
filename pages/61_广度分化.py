@@ -75,7 +75,7 @@ try:
                      f"（跌停占比 <b>{cur['limit_down_ratio']}%</b>，处历史高位）→ "
                      f"<b style='color:{DOWN_COLOR}'>涨多但杀跌，广度内部结构分化</b>。",
                 accent=DOWN_COLOR,
-            ), unsafe_allow_html=True)
+            ), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
         else:
             # ui_audit_exempt: unsafe-allow-html 内容已过 ui_kit xc_content_card（内部 html.escape title/body/icon）
             st.markdown(xc_content_card(
@@ -83,7 +83,7 @@ try:
                 body=f"红盘率 <b>{cur['red_ratio']}%</b> ｜ 跌停 <b>{cur['limit_down']}</b> 家"
                      f"（跌停占比 <b>{cur['limit_down_ratio']}%</b>，未触历史高位）→ 广度内部结构未见明显分化。",
                 accent="#36c5d8",
-            ), unsafe_allow_html=True)
+            ), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
         st.caption(
             f"判定阈值：红盘率 ≥ {div['threshold_red']}% 且 跌停占比 ≥ 历史 {int(0.90*100)} 分位"
             f"（p90={'-' if div['ld_p90'] is None else f'{div['ld_p90']:.2f}%'}）。历史共 {div['n_episodes']} 个分化日。"

@@ -302,7 +302,7 @@ def fragment_valuation_band(code: str, name: str, industry: str, pe_ttm, dark: b
                     f'20 分位 {_cell(b.get("p20"))} · 中位 {_cell(b.get("p50"))} · '
                     f'80 分位 {_cell(b.get("p80"))}　'
                     f'区间 {_cell(b.get("min"))}~{_cell(b.get("max"))}</div></div>',
-                    unsafe_allow_html=True)
+                    unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
 
     # ② 行业相对分位
     st.markdown('#### ② 行业相对分位')

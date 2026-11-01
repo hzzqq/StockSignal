@@ -46,7 +46,7 @@ def _xc_content_card(title=None, icon=""):
         st.markdown(
             f'<div class="sf-card"><div class="sf-card-title">'
             f'<span>{esc_icon} {esc_title}</span></div>',
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
     else:
         # ui_audit_exempt: unsafe-allow_html 星辰卡片容器起始标签（无动态内容）
@@ -68,13 +68,13 @@ with _xc_content_card(title="页面说明", icon="💡"):
     st.markdown(
         '<div class="sf-card-subtitle">把指数与关键资金面统一归一化到起点=100 叠加，避免量纲差异；'
         '顶部信号灯把复杂多线压缩成一个直觉结论。想看更细的五维拆解，去《市场驱动力》。</div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
     # ui_audit_exempt: unsafe-allow_html 纯内置跳转链接常量，无外部输入
     st.markdown(
         '<a href="pages/15_市场驱动力.py" target="_self" class="sf-page-link">'
         '🔗 看《市场驱动力》五维归一化子图（详细版）</a>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
 
 
@@ -324,7 +324,7 @@ def fragment_strength():
                     f'<div class="label">综合偏离 {avg:+.1f}</div>'
                     f'{pct_line}'
                     f'</div>',
-                    unsafe_allow_html=True,
+                    unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
                 )
             with c2:
                 chips = []

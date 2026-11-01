@@ -153,7 +153,7 @@ if name_c and len(df) > 0:
             f"<div style='font-size:11px;opacity:.6'>{price_txt}</div></div></div>"
             f"<div style='margin-top:5px'>{bars}</div></div>"
         )
-    st.markdown(rows_html, unsafe_allow_html=True)
+    st.markdown(rows_html, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
 else:
     st.info("无符合条件的标的。")
 

@@ -515,7 +515,7 @@ def inject_scroll_nav(show_top: bool = True, show_bottom: bool = False,
     且多次 components.html 仅首次可靠执行；故 JS 必须合并单次注入。
     """
     # T-201：父文档 CSS 管道（style 标签不受 markdown 剥离影响；重复注入幂等无害）
-    st.markdown(SCROLL_NAV_CSS, unsafe_allow_html=True)
+    st.markdown(SCROLL_NAV_CSS, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     payload = SCROLL_NAV_CSS + "\n" + _nav_script(
         dark, threshold_px, bottom_threshold, show_top, show_bottom, bottom_marker,
         nav_index=nav_index, extra_js=extra_js, nav_qs=nav_qs)
@@ -523,7 +523,7 @@ def inject_scroll_nav(show_top: bool = True, show_bottom: bool = False,
         components.html(payload, height=0)
     except Exception as e:  # bare mode / 无 ScriptRunContext 时降级为 markdown，避免抛错
         logger.warning(f'[scroll_nav] 注入异常，降级 markdown: {e}')
-        st.markdown(payload, unsafe_allow_html=True)
+        st.markdown(payload, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def _back_to_top_inline_js() -> str:

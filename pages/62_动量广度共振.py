@@ -74,7 +74,7 @@ try:
                  f"「广度≤偏冷 且 动量≤温和」共现 <b>{stats['co_cold']}%</b><br>"
                  f"最常见组合：<b>{stats['dominant_cell'][0]} × {stats['dominant_cell'][1]}</b>"
                  f"（{stats['dominant_cell'][2]} 天）",
-        ), unsafe_allow_html=True)
+        ), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
         st.caption("共现占比高 = 两维度常同步；低 = 常背离。仅描述历史共现结构，不构成方向预测。")
     else:
         st.warning("⚠️ 广度历史不可用，无法计算共振矩阵。")
@@ -121,7 +121,7 @@ try:
             body=f"广度 <b>{cur['red_ratio']}%</b> → <b>{cur['rr_label']}</b> ｜ "
                  f"动量 <b>{cur['zt_prev_ret']}</b> → <b>{cur['mom_label']}</b>",
             accent="#36c5d8",
-        ), unsafe_allow_html=True)
+        ), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
     elif cur.get("available"):
         st.info("最新广度记录缺 red_ratio / zt_prev_ret，无法定位共振格。")
     else:

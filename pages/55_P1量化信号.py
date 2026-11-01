@@ -182,10 +182,10 @@ def _top1_summary(rows: list) -> str:
 
 
 with ss_fold_useful("📈 看多榜", _top1_summary(long_rows), expanded=False, icon="📈"):
-    st.markdown(_board_html(long_rows, "#ff5c5c", rank_as_percent=False), unsafe_allow_html=True)
+    st.markdown(_board_html(long_rows, "#ff5c5c", rank_as_percent=False), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
 
 with ss_fold_useful("📉 看空榜", _top1_summary(short_rows), expanded=False, icon="📉"):
-    st.markdown(_board_html(short_rows, "#19c37d", rank_as_percent=True), unsafe_allow_html=True)
+    st.markdown(_board_html(short_rows, "#19c37d", rank_as_percent=True), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
 
 # ───────────────────────── 三信号 A/B 对比 ─────────────────────────
 if len(models) >= 2:
@@ -213,7 +213,7 @@ if len(models) >= 2:
         "<th>信号 A</th><th>信号 B</th><th style='text-align:center'>看多榜重叠(前{n})</th>"
         "<th style='text-align:center'>Jaccard</th></tr></thead>"
         f"<tbody>{body}</tbody></table>".format(n=n),
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
     xc_success_box(
         "如何解读",

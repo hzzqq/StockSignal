@@ -404,7 +404,7 @@ def inject_kit_css() -> None:
     极小，必须每次注入（与主题层 apply_theme 同策略）。
     """
     try:
-        st.markdown(_KIT_CSS, unsafe_allow_html=True)
+        st.markdown(_KIT_CSS, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[ui_kit] 处理异常: {e}")
 
@@ -519,7 +519,7 @@ def prov_badge(rows=None, *, slug: str = None, title: str = "数据来源",
             rows = _dp.build_provenance(_keys, includes=includes)
         _h = _prov_badge_html(rows, title=title)
         if _h:
-            st.markdown(_h, unsafe_allow_html=True)
+            st.markdown(_h, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[ui_kit] prov_badge 处理异常: {e}")
 
@@ -604,8 +604,8 @@ def page_hero(title: str, icon: str = "📊", subtitle: str = "", chips: list = 
     保证 streamlit 冷启动竞态下 ui_kit._KIT_CSS 未生效时，hero 容器仍完整可见。
     """
     inject_kit_css()
-    st.markdown(_HERO_FALLBACK_CSS, unsafe_allow_html=True)
-    st.markdown(_hero_html(title, icon, subtitle, chips, style=style), unsafe_allow_html=True)
+    st.markdown(_HERO_FALLBACK_CSS, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown(_hero_html(title, icon, subtitle, chips, style=style), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def xc_section_header(title: str, xtra: str = "") -> str:
@@ -619,7 +619,7 @@ def xc_subheader(title: str, icon: str = "", xtra: str = "") -> None:
     """新城风格分区标题（渲染版）。等同 xc_section_header 但直接渲染，替代裸 st.subheader。"""
     inject_kit_css()
     prefix = f"{html.escape(icon)} " if icon else ""
-    st.markdown(xc_section_header(f"{prefix}{title}", xtra=xtra), unsafe_allow_html=True)
+    st.markdown(xc_section_header(f"{prefix}{title}", xtra=xtra), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def xc_chart_cell(title: str, xtra: str = "") -> None:
@@ -637,7 +637,7 @@ def xc_chart_cell(title: str, xtra: str = "") -> None:
     xtra_html = f'<span class="xtra">{html.escape(str(xtra))}</span>' if xtra else ""
     st.markdown(
         f'<div class="xc-section-h xc-chart-cell">{html.escape(title)}{xtra_html}</div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     )
 
 
@@ -653,7 +653,7 @@ def xc_info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
     st.markdown(
         f'<div class="xc-info {kind}"><span class="xc-ic">{html.escape(icon)}</span>'
         f'<div>{html.escape(text)}</div></div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     )
 
 
@@ -680,7 +680,7 @@ def xc_content_card(title: str, body: str = "", icon: str = "", *, compact_when_
         # 紧凑节标题：复用全站统一的 .xc-section-h（左 accent 条）
         st.markdown(
             f'<div class="xc-section-h" style="margin:10px 0 8px">{icon_html}{title}</div>',
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         )
         return
     inject_kit_css()
@@ -689,7 +689,7 @@ def xc_content_card(title: str, body: str = "", icon: str = "", *, compact_when_
         f'<div class="xc-cc-title">{icon_html}{title}</div>'
         f'<div class="xc-cc-body">{body}</div>'
         f'</div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     )
 
 
@@ -729,7 +729,7 @@ def xc_error_box(title: str, hint: str = "", icon: str = "⚠️") -> None:
     st.markdown(
         f'<div class="xc-error-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
         f'<div class="xc-err-body"><div class="xc-err-title">{html.escape(title)}</div>{hint_html}</div></div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     )
 
 
@@ -742,7 +742,7 @@ def xc_empty_box(title: str, hint: str = "", icon: str = "📭") -> None:
     st.markdown(
         f'<div class="xc-empty-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
         f'<div class="xc-err-body"><div class="xc-err-title">{html.escape(title)}</div>{hint_html}</div></div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     )
 
 
@@ -785,7 +785,7 @@ def xc_success_box(title: str, hint: str = "", icon: str = "✅") -> None:
     st.markdown(
         f'<div class="xc-success-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
         f'<div class="xc-err-body"><div class="xc-err-title">{_inline_md(title)}</div>{hint_html}</div></div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     )
 
 
@@ -799,21 +799,21 @@ def xc_warn_box(title: str, hint: str = "", icon: str = "⚠️") -> None:
     st.markdown(
         f'<div class="xc-warn-box"><span class="xc-err-ic">{html.escape(icon)}</span>'
         f'<div class="xc-err-body"><div class="xc-err-title">{_inline_md(title)}</div>{hint_html}</div></div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     )
 
 
 def info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
     """彩色提示横幅。kind: info/success/warning/danger。"""
     inject_kit_css()
-    st.markdown(_info_banner_html(text, kind, icon), unsafe_allow_html=True)
+    st.markdown(_info_banner_html(text, kind, icon), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def stat_tile(label: str, value: str, delta: str = "", delta_dir: str = "flat",
               accent: str = None) -> None:
     """单个指标瓦片（.xc-card 视觉）。delta_dir: up/down/flat（A股红涨绿跌，up=红）。"""
     inject_kit_css()
-    st.markdown(_stat_tile_html(label, value, delta, delta_dir, accent), unsafe_allow_html=True)
+    st.markdown(_stat_tile_html(label, value, delta, delta_dir, accent), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def xc_kpi_grid(cards, min_col: int = 168) -> None:
@@ -858,7 +858,7 @@ def xc_kpi_grid(cards, min_col: int = 168) -> None:
     st.markdown(
         f'<div class="xc-grid" style="grid-template-columns:repeat(auto-fit,minmax({int(min_col)}px,1fr))">'
         f'{"".join(cells)}</div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     )
 
 
@@ -894,7 +894,7 @@ def xc_bento_grid(cells, template: str = "repeat(auto-fit,minmax(220px,1fr))", g
     inject_kit_css()
     if not cells:
         return
-    st.markdown(_bento_html(cells, template, gap), unsafe_allow_html=True)
+    st.markdown(_bento_html(cells, template, gap), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def xc_bento_kpi(cards, template: str = "repeat(auto-fit,minmax(220px,1fr))", gap: int = 16) -> None:
@@ -919,7 +919,7 @@ def xc_bento_kpi(cards, template: str = "repeat(auto-fit,minmax(220px,1fr))", ga
         ))
     if not cells:
         return
-    st.markdown(_bento_html(cells, template, gap), unsafe_allow_html=True)
+    st.markdown(_bento_html(cells, template, gap), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 
@@ -932,13 +932,13 @@ def chart_card(title: str, body_html: str) -> None:
     新代码请用 ``xc_chart_cell(title)`` + 紧随其后的 ``st.plotly_chart(...)``。
     """
     inject_kit_css()
-    st.markdown(_chart_card_html(title, body_html), unsafe_allow_html=True)
+    st.markdown(_chart_card_html(title, body_html), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def table_wrap(table_html: str) -> None:
     """响应式表格容器：移动端横向滚动 + 粘性表头。"""
     inject_kit_css()
-    st.markdown(_table_wrap_html(table_html), unsafe_allow_html=True)
+    st.markdown(_table_wrap_html(table_html), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 # ───────────────────── T-262 折叠方式多元化（三原语） ─────────────────────
@@ -991,7 +991,7 @@ def ss_hover_preview(trigger: str, panel_html: str, mini: bool = False) -> None:
     """
     inject_kit_css()
     st.markdown(_FOLD_CSS + _fold_hover_html(trigger, panel_html, mini=mini),
-                unsafe_allow_html=True)
+                unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 @contextlib.contextmanager

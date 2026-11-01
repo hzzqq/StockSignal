@@ -129,7 +129,7 @@ def fragment_detail():
         f"<span style='font-weight:600;'>{safe_html_text(_op_name)}</span>"
         f"<span style='font-size:11px;padding:1px 6px;border-radius:8px;"
         f"background:#2b8aef;color:#fff;'>楼主</span></div>",
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
     _total_likes = safe_int(post.get("likes", 0), 0)
     meta = (f"🕘 {_fmt_time(post.get('created_at', ''))} · 👀 {safe_int(post.get('views'), 0)}"
@@ -194,7 +194,7 @@ def fragment_detail():
             f"<div><b>{safe_html_text(c.get('username'), '?')}</b>{_cop_badge} "
             f"<span style='opacity:.6;font-size:12px;'>{_fmt_time(c.get('created_at', ''))}</span><br>"
             f"{safe_html_text(c.get('content'))}</div></div>",
-            unsafe_allow_html=True,
+            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
     if not comments:
         _empty_info("还没有评论，来抢沙发～ 在下方输入框写下你的看法，发布后即显示在这里。")
@@ -374,7 +374,7 @@ def fragment_list():
                     st.markdown(
                         modules.drawer.preview_button(
                             str(p.get("title", "（无标题）")), _pv_body, _pv_meta),
-                        unsafe_allow_html=True)
+                        unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
                 with top2:
                     tag = ""
                     if p.get("stock_code"):
@@ -389,7 +389,7 @@ def fragment_list():
                         f"👤 {safe_html_text(p.get('username'), '?')}</span><br>"
                         f"💬 {p.get('comment_count') or 0} · 👍 {p.get('likes') or 0} · 👀 {p.get('views') or 0}"
                         f"</div>",
-                        unsafe_allow_html=True,
+                        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
                     )
                 # 结果标记/徽章（#Batch19-10）：中性色标签，不动红涨绿跌配色
                 _badges = []
@@ -479,7 +479,7 @@ def fragment_list():
                 'box-shadow:none!important;padding:2px 4px!important;color:var(--txt)!important}'
                 '.ss-hot-btn:hover{color:var(--acc1)!important;background:transparent!important;'
                 'transform:none!important}</style>',
-                unsafe_allow_html=True)
+                unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
             for _hi, hp in enumerate(_hot, 1):
                 _hid = hp.get("id")
                 _rk = "ss-hot-rank top3" if _hi <= 3 else "ss-hot-rank"

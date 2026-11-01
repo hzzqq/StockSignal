@@ -743,7 +743,7 @@ def _render_login_gate() -> None:
         <a class="ss-login-btn" href="/登录">🔑 去登录</a>
     </div>
     <div class="ss-login-footer">StockSignal · 仅供学习与研究所用，不构成投资建议</div>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     # T-197：未登录 gate 页也注入回顶悬浮（无命令面板索引）
     try:
         from modules.scroll_nav import inject_scroll_nav

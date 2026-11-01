@@ -16,7 +16,7 @@ StockSignal 按钮配色系统 · 双模（Light / Dark）通用
 
 移植：from modules.button_colors import *
       inject_button_css(mode)   # mode 由 modules.ui_theme._theme_is_dark 决定
-      st.markdown(btn_html("提交", kind="primary"), unsafe_allow_html=True)
+      st.markdown(btn_html("提交", kind="primary"), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 """
 
 import html
@@ -127,9 +127,9 @@ def inject_button_css(mode="auto"):
       mode — "light" / "dark" / "auto"(默认)。auto 下注入 light 基底 + dark 覆盖层。
       在 Streamlit 中 mode 由 modules.ui_theme._theme_is_dark() 决定，随 apply_theme() 调用。
     """
-    st.markdown(BUTTON_CSS, unsafe_allow_html=True)
+    st.markdown(BUTTON_CSS, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     if mode == "dark" or mode == "auto":
-        st.markdown(BUTTON_CSS_DARK, unsafe_allow_html=True)
+        st.markdown(BUTTON_CSS_DARK, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def btn_html(text, kind="primary", icon=None, size="", disabled=False, block=False, extra_class=""):

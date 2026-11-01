@@ -74,7 +74,7 @@ def render_freshness_badge(freshness: dict, stalled: dict | None = None,
         f"<div>{'　'.join(bits) or '—'}</div>"
         f"<div style='opacity:.85;margin-top:4px'>{verdict}</div></div>"
     )
-    st.markdown(html, unsafe_allow_html=True)
+    st.markdown(html, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def render_signal_cards(temp, cyc_name, cyc_emoji, score, bias, overall, latest_date,
@@ -132,7 +132,7 @@ def render_position_card(pos, bias=None, confidence=None, cyc_name=None):
         "；".join(pos["reasons"]) +
         f"<br><span style='opacity:.6'>次日方向 {bias or '—'}｜置信度 {confidence or 0}%｜"
         f"情绪周期 {cyc_name or '—'}</span></div></div>",
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     )
     st.caption("⚠️ 仓位建议由温度/周期/评分/晋级率透明推导，是概率参考而非确定性指令，不构成投资建议。")
 

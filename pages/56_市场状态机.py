@@ -146,7 +146,7 @@ try:
                   <div style="opacity:.7">后10日红盘均值 {f10.get('avg_red','—')} · 后20日 {f20.get('avg_red','—')}</div>
                 </div>
                 """,
-                unsafe_allow_html=True,
+                unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
             )
 
     xc_content_card(

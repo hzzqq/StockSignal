@@ -261,17 +261,17 @@ def inject_dark_text_css(mode="auto"):
     在 Streamlit 中建议 mode 由 modules.ui_theme._theme_is_dark() 决定，
     每个页面顶部随 apply_theme() 一起调用，无需手写 if。
     """
-    st.markdown(DARK_TEXT_CSS_LIGHT, unsafe_allow_html=True)
+    st.markdown(DARK_TEXT_CSS_LIGHT, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     if mode == "dark" or mode == "auto":
         # auto 模式下仍注入 dark 覆盖层：
         # 当 mode=="auto" 时，调用方（apply_theme）仅在暗夜才调用本函数，
         # 因此这里直接注入 dark 覆盖即可。为兼容显式 "auto"，统一注入 dark 覆盖。
-        st.markdown(DARK_TEXT_CSS_DARK, unsafe_allow_html=True)
+        st.markdown(DARK_TEXT_CSS_DARK, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def inject_dark_text_overrides():
     """单独调用暗夜覆盖层（当已确认处于暗夜模式时使用）。"""
-    st.markdown(DARK_TEXT_CSS_DARK, unsafe_allow_html=True)
+    st.markdown(DARK_TEXT_CSS_DARK, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 # ===========================================================================

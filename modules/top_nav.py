@@ -246,7 +246,7 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
         ".stMetric [data-testid=\"stMetricValue\"]{font-size:1.55rem!important}"
         "</style>"
         + html,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     )
 
 

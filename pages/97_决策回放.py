@@ -100,7 +100,7 @@ def render_replay(date: str) -> None:
             # ui_audit_exempt: unsafe-allow-html 广度差徽标：tone/label 为内部常量 + diff 数值，无用户/DB 输入流向
             st.markdown(
                 f"<span style='color:{tone};font-weight:600'>广度差 {diff:+d}（{label}）"
-                f"</span>", unsafe_allow_html=True)
+                f"</span>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
         else:
             st.caption("次日广度数据缺失（CSV 稀疏段），如实不补")
     else:

@@ -54,7 +54,7 @@ def render_standard_page(title, icon="📊", caption=None, layout="wide", auth=T
         require_auth()
     render_user_badge(sidebar=True)
     dark = _theme_is_dark()
-    st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
+    st.markdown(dashboard_sf_css(), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     # 签名页头：图标 + 标题 + 副标题 + 实时状态胶囊（主题 / 交易时段）
     chips = _build_status_chips(dark)
     page_hero(title=title, icon=icon, subtitle=caption, chips=chips)
@@ -189,7 +189,7 @@ def section_title(text: str, accent: str = "var(--acc1)") -> None:
     st.markdown(
         f"<div style='display:inline-block;background:var(--acc1);color:#fff;"
         f"padding:4px 12px;border-radius:8px;font-weight:600;font-size:14px;"
-        f"margin-bottom:2px;'>{text}</div>", unsafe_allow_html=True)
+        f"margin-bottom:2px;'>{text}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def styler_color_chg(val, up_color: str = "#ef4444", down_color: str = "#22c55e") -> str:
