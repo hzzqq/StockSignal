@@ -117,15 +117,15 @@ def _board_html(rows, head_color, empty="无数据", rank_as_percent=False):
     body = ""
     for i, r in enumerate(rows, 1):
         pred = float(r.get("pred", 0.0) or 0.0)
-        raw_sym = str(r.get("symbol", ""))
-        sym = html.escape(raw_sym)  # DB 名称映射流向 HTML：动态串统一转义
-        nm = html.escape(name_map.get(raw_sym[-6:].zfill(6), "—"))
+        sym = str(r.get("symbol", ""))
+        sym_html = html.escape(sym)  # DB 名称映射流向 HTML：动态串统一转义
+        nm = html.escape(name_map.get(str(sym)[-6:].zfill(6), "—"))
         rank = float(r.get("rank", 0.0) or 0.0)
         pcolor = "#ff5c5c" if pred >= 0 else "#19c37d"  # A股：涨红跌绿
         rank_disp = format_rank(rank, rank_as_percent)  # 锐评 R8：序数不乘100，百分位才显示%
         body += (
             f"<tr><td style='color:#888'>{i}</td>"
-            f"<td style='font-family:monospace'>{sym}</td>"
+            f"<td style='font-family:monospace'>{sym_html}</td>"
             f"<td>{nm}</td>"
             f"<td style='color:{pcolor};font-weight:600'>{pred*100:+.2f}%</td>"
             f"<td style='color:#888'>{rank_disp}</td></tr>"
