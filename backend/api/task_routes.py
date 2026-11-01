@@ -104,9 +104,7 @@ def get_task_timeline(task_id: str):
         pass
 
     # 内存 timeline 用批次8 dict/str 混合格式，SQLite timeline 用批次9 to_dict 统一格式
-    # 简单策略：有内存就优先内存（实时性更好），否则 fallback SQLite
     if mem_events:
-        # 把内存 events 转成统一 dict 格式返回
         unified = []
         for e in mem_events:
             if isinstance(e, dict):
@@ -120,6 +118,7 @@ def get_task_timeline(task_id: str):
                     "idx": _ev.get("idx") if _ev else None,
                     "elapsed_s": _ev.get("elapsed_s") if _ev else None,
                     "status": _ev.get("status") if _ev else None,
+                    "data_as_of": _ev.get("data_as_of") if _ev else None,  # 批次10
                     "ts": e.get("ts", 0.0),
                 })
         return ok(data={"source": "memory", "events": unified}, message="success")

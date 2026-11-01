@@ -602,15 +602,16 @@ class ConditionalOrder(db.Model):
         }
 
 
-# ------------------------------------------------------------------ AiTimelineEvent（批次9：timeline 持久化）
+# ------------------------------------------------------------------ AiTimelineEvent（批次9 + 批次10）
 class AiTimelineEvent(db.Model):
-    """研究任务 timeline 事件持久化（批次9）。
+    """研究任务 timeline 事件持久化。
 
-    与批次8内存 timeline 的关系：
-    - progress_bus.report() 每次收到 dict event 时，除写内存 _EVENTS（MAX 200），
-      同时异步写入本表——进程重启 / 多 worker 场景下 timeline 不丢
-    - GET /api/tasks/<id>/timeline 端点从本表拉全量（不受 MAX 200 限制）
-    - Flask 启动时 db.create_all() 自动建表（extensions.py 已有）
+    批次9：timeline 事件写入 SQLite（Flask 重启/多 worker 不丢）
+    批次10：追加 data_as_of / citation 列，支撑 LLM 引用溯源审计
+
+    - progress_bus.report() dict event → 本表
+    - GET /api/tasks/<id>/timeline 拉全量
+    - Flask 启动 db.create_all() 自动建表
     """
 
     __tablename__ = "ai_timeline_events"
@@ -618,14 +619,16 @@ class AiTimelineEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     task_id = db.Column(db.String(64), nullable=False, index=True)
     stage = db.Column(db.String(32), nullable=False, default="research")
-    event_type = db.Column(db.String(16), nullable=True)   # tool_start / tool_end / None（str消息）
+    event_type = db.Column(db.String(16), nullable=True)   # tool_start / tool_end / None
     tool_name = db.Column(db.String(64), nullable=True)    # get_market_sentiment / fund_flow / ...
-    message = db.Column(db.Text, nullable=False, default="")  # _fmt 可读字符串或原始 str
-    event_json = db.Column(db.Text, nullable=True)         # 原始 dict event JSON（批次8结构化 payload）
-    idx = db.Column(db.Integer, nullable=True)             # 步骤序号（批次8 event.idx）
-    elapsed_s = db.Column(db.Float, nullable=True)         # tool_end 耗时秒（批次8 event.elapsed_s）
-    status = db.Column(db.String(16), nullable=True)      # tool_end 状态 ok/error/rejected/partial
-    ts = db.Column(db.Float, nullable=False, default=0.0)  # time.time() 事件发生时刻
+    message = db.Column(db.Text, nullable=False, default="")  # _fmt 可读字符串
+    event_json = db.Column(db.Text, nullable=True)         # 原始 dict event JSON
+    idx = db.Column(db.Integer, nullable=True)             # 步骤序号
+    elapsed_s = db.Column(db.Float, nullable=True)         # tool_end 耗时秒
+    status = db.Column(db.String(16), nullable=True)       # tool_end ok/error/rejected/partial
+    data_as_of = db.Column(db.String(24), nullable=True)   # 批次10：真实数据日 YYYY-MM-DD（批次10 tool_end.emit 追加）
+    citation = db.Column(db.String(128), nullable=True)    # 批次10：[S#] 紧凑引用串，如 "[S1] get_market_sentiment @ 2026-10-30"
+    ts = db.Column(db.Float, nullable=False, default=0.0)  # 事件发生时刻
     created_at = db.Column(db.DateTime, default=_utcnow, nullable=False, index=True)
 
     __table_args__ = (
@@ -634,22 +637,17 @@ class AiTimelineEvent(db.Model):
 
     @staticmethod
     def dumps_json(obj) -> str | None:
-        """安全 JSON 序列化（event_json 列用）。None → None，不可序列化 → None（绝不中断 report）。
-
-        批次9设计决策：**不**用 default=str 静默字符串化——那样会把 lambda/DataFrame 等
-        不可序列化对象塞进 JSON，污染 timeline 持久化数据。宁可返回 None，后续
-        重查内存 timeline（批次8 仍保留完整 dict event）。
-        """
+        """安全 JSON 序列化。None → None，不可序列化 → None（不中断 report）。"""
         if obj is None:
             return None
         import json as _json
         try:
             return _json.dumps(obj, ensure_ascii=False)
-        except Exception:  # noqa: BLE001 — lambda/DataFrame 等不可序列化对象 → None
+        except Exception:  # noqa: BLE001
             return None
 
     def to_dict(self) -> dict:
-        """对外字段——还原 event_json（如有）为 dict。"""
+        """对外字段——还原 event_json。批次10 返回 data_as_of + citation。"""
         import json as _json
         event = None
         if self.event_json:
@@ -668,6 +666,8 @@ class AiTimelineEvent(db.Model):
             "idx": self.idx,
             "elapsed_s": self.elapsed_s,
             "status": self.status,
+            "data_as_of": self.data_as_of,         # 批次10：真实数据日
+            "citation": self.citation,             # 批次10：[S#] 紧凑引用
             "ts": self.ts,
             "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
         }

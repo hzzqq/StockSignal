@@ -451,26 +451,26 @@ def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ------------------------------------------------------------------ 批次9：timeline SQLite 持久化
 
 def _persist_timeline_event(task_id: str, stage: str, event: Dict[str, Any]) -> None:
-    """尽力而为：把批次8的 dict timeline event 持久化到 SQLite。
+    """尽力而为：把批次8 dict timeline event 持久化到 SQLite。
 
-    仅在 Flask app context 下生效（backend/extensions.py 提供 db 实例）。
-    无 context / db schema 未就绪 → 静默跳过，绝不中断主流程。
-    这是批次9的持久化端点——report() 本身不碰 db（保持纯内存职责单一）。
-
-    Args:
-        task_id: 唯一任务标识
-        stage:   progress_bus.report() 的 stage_key
-        event:   批次8结构化 dict payload（含 type/tool/idx/elapsed_s/status/...）
+    批次10：追加 data_as_of + citation 列。citation 紧凑格式 "[S{idx}] {tool} @ {data_as_of}"。
     """
     from backend.models import AiTimelineEvent
 
-    # 从批次8 event dict 提取各字段
-    _type = event.get("type")            # tool_start / tool_end / None
-    _tool = event.get("tool")            # get_market_sentiment / fund_flow / ...
-    _idx = event.get("idx")              # 步骤序号
-    _elapsed = event.get("elapsed_s")    # tool_end 耗时秒
-    _status = event.get("status")        # tool_end 状态
-    _fmt = event.get("_fmt", "")         # 批次8 worker 层挂载的可读字符串
+    _type = event.get("type")
+    _tool = event.get("tool")
+    _idx = event.get("idx")
+    _elapsed = event.get("elapsed_s")
+    _status = event.get("status")
+    _fmt = event.get("_fmt", "")
+    _as_of = event.get("data_as_of")       # 批次10：research_agent tool_end.emit 追加
+    # 批次10：紧凑 citation 串
+    _citation = None
+    if _idx and _tool:
+        if _as_of:
+            _citation = f"[S{_idx}] {_tool} @ {_as_of}"
+        else:
+            _citation = f"[S{_idx}] {_tool}"
 
     row = AiTimelineEvent(
         task_id=task_id,
@@ -482,11 +482,12 @@ def _persist_timeline_event(task_id: str, stage: str, event: Dict[str, Any]) -> 
         idx=_idx,
         elapsed_s=_elapsed,
         status=_status,
-        ts=event.get("__ts", time.time()),  # 批次8未显式注入则 fallback
+        data_as_of=_as_of,
+        citation=_citation,
+        ts=event.get("__ts", time.time()),
     )
 
-    # Flask app context 下 session 可用；否则 RuntimeError/AttributeError 被 try 在外层兜住
-    from backend.extensions import db  # noqa: PLC0415 — 延迟导入避免顶层循环依赖
+    from backend.extensions import db  # noqa: PLC0415
     db.session.add(row)
     db.session.commit()
 

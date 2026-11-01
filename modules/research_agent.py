@@ -585,7 +585,8 @@ def run_research(
                 step["status"] = "error"
                 step["reason"] = str(res.get("error"))[:200]
         step["duration_ms"] = int((time.time() - s0) * 1000)
-        # 批次8：结构化 timeline 事件 —— tool_end（含耗时/状态/摘要）
+        # 批次8：结构化 timeline 事件 —— tool_end（含耗时/状态/摘要/数据时点）
+        # 批次10：追加 data_as_of（每个 tool 结果的真实数据截止日）
         _emit_event({
             "type": "tool_end",
             "tool": tool,
@@ -595,6 +596,7 @@ def run_research(
             "status": step["status"],
             "summary": step.get("summary"),
             "reason": step.get("reason", ""),
+            "data_as_of": step.get("data_as_of"),     # 批次10：真实数据日
         })
         steps.append(step)
         _emit(f"步骤 {i}/{len(norm)} · {tool} → {step['status']}")

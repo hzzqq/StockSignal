@@ -527,6 +527,8 @@ def test_batch8_timeline_structured_events_emitted():
         assert ev["tool"] in ("always_ok",)
         assert "elapsed_s" in ev and ev["elapsed_s"] >= 0
         assert ev["status"] in ("ok", "error", "rejected")
+        # 批次10：tool_end 事件必须携带 data_as_of（即使为 None）
+        assert "data_as_of" in ev, "批次10：tool_end emit 必须透传 data_as_of 键"
 
     # start 先于 end（时序）
     for s, e in zip(starts, ends):

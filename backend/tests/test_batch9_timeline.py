@@ -60,12 +60,13 @@ def token(client):
 # --- 1. Schema 完整性守卫 ---
 
 def test_ai_timeline_event_model_has_expected_fields():
-    """AiTimelineEvent 模型应覆盖批次8 dict event 的所有关键字段。"""
+    """AiTimelineEvent 模型应覆盖批次8 dict event + 批次10 引用溯源字段。"""
     from backend.models import AiTimelineEvent
 
     cols = {c.name for c in AiTimelineEvent.__table__.columns}
     required = {"id", "task_id", "stage", "event_type", "tool_name",
-                "message", "event_json", "idx", "elapsed_s", "status", "ts", "created_at"}
+                "message", "event_json", "idx", "elapsed_s", "status",
+                "data_as_of", "citation", "ts", "created_at"}  # 批次10: +data_as_of +citation
     missing = required - cols
     assert not missing, f"AiTimelineEvent 缺失列: {missing}"
 
@@ -110,7 +111,7 @@ def test_ai_timeline_event_dumps_json_safe_on_malformed():
 # --- 2. 持久化链路守卫 ---
 
 def test_persist_timeline_event_writes_to_db(app):
-    """Flask app context 下，_persist_timeline_event 应写入 AiTimelineEvent 表。"""
+    """Flask app context 下，_persist_timeline_event 应写入 AiTimelineEvent 表（批次10: data_as_of/citation）。"""
     from backend.models import AiTimelineEvent, db
     from backend.tasks.worker import _persist_timeline_event
 
@@ -120,6 +121,7 @@ def test_persist_timeline_event_writes_to_db(app):
         "idx": 1, "total": 3, "elapsed_s": 39.2,
         "status": "ok", "summary": "temperature 24.7",
         "_fmt": "⚡ [1/3] get_market_sentiment → ok · 39.2s: temperature 24.7",
+        "data_as_of": "2026-10-30",           # 批次10: research_agent 追加
     }
 
     with app.app_context():
@@ -140,6 +142,9 @@ def test_persist_timeline_event_writes_to_db(app):
     assert r.elapsed_s == pytest.approx(39.2, abs=0.1)
     assert "temperature 24.7" in r.message
     assert r.event_json is not None
+    # 批次10 新字段
+    assert r.data_as_of == "2026-10-30", f"data_as_of 应为 2026-10-30，实际 {r.data_as_of}"
+    assert r.citation == "[S1] get_market_sentiment @ 2026-10-30", f"citation 应为 '[S1] get_market_sentiment @ 2026-10-30'，实际 {r.citation}"
 
 
 # --- 3. 端点守卫 ---
