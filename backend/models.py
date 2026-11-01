@@ -634,13 +634,18 @@ class AiTimelineEvent(db.Model):
 
     @staticmethod
     def dumps_json(obj) -> str | None:
-        """安全 JSON 序列化（event_json 列用）。None → None，脏数据 → None（不中断 report 主流程）。"""
+        """安全 JSON 序列化（event_json 列用）。None → None，不可序列化 → None（绝不中断 report）。
+
+        批次9设计决策：**不**用 default=str 静默字符串化——那样会把 lambda/DataFrame 等
+        不可序列化对象塞进 JSON，污染 timeline 持久化数据。宁可返回 None，后续
+        重查内存 timeline（批次8 仍保留完整 dict event）。
+        """
         if obj is None:
             return None
         import json as _json
         try:
-            return _json.dumps(obj, ensure_ascii=False, default=str)
-        except Exception:  # noqa: BLE001
+            return _json.dumps(obj, ensure_ascii=False)
+        except Exception:  # noqa: BLE001 — lambda/DataFrame 等不可序列化对象 → None
             return None
 
     def to_dict(self) -> dict:
