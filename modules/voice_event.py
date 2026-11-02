@@ -189,3 +189,76 @@ def build_voice_event_card(text: str) -> Dict[str, object]:
         "urgency": urgency,
         "sentiment": sentiment,
     }
+
+
+def render_voice_event_block() -> None:
+    """语音事件因子可复用渲染块（2026-11-02 从 23_事件追踪.py 抽离，供独立页 87 共用）。
+
+    录音/上传 → ASR 转写 → 结构化因子卡（事件性质 / 时间敏感度 / 情绪倾向）。
+    会话内「最近语音事件」复核（ve_history），跨页共享同一 session_state。
+    诚实降级：未配置 key / 端点不支持 audio / 转写失败 → 精确文案，绝不编造。
+    """
+    import streamlit as st
+    from datetime import datetime
+    from modules.ui_kit import xc_content_card, xc_warn_box
+    from modules.voice_event import transcribe_audio_result, build_voice_event_card
+
+    if "ve_history" not in st.session_state:
+        st.session_state.ve_history = []  # 最近语音事件标注（会话内复核，非持久化）
+
+    st.divider()
+    st.subheader("🎙️ 语音事件因子")
+    st.caption(
+        "说一段市场事件（如「XX 公司中标大合同」「美联储加息利空成长股」「某行业突发停产」），"
+        "自动转写并标注「硬逻辑 / 题材炒作 / 时间敏感度 / 情绪倾向」。"
+        "需配置 STARFIELD_LLM_API_KEY 且 base_url 为支持 whisper 的端点；"
+        "否则按具体原因诚实降级，绝不编造转写文本或事件结论。"
+    )
+    # 可发现性增强：会话内「最近语音事件」复核（让语音标注可回看，而非一次性渲染）
+    _ve_hist = st.session_state.get("ve_history") or []
+    if _ve_hist:
+        with st.expander(f"🕘 最近语音事件（本会话 {len(_ve_hist)} 条，可复核）", expanded=False):
+            for _h in reversed(_ve_hist):
+                st.caption(f"· {_h['ts']} ｜ {_h['text']}")
+                st.markdown(_h["body"].replace("\n", "  "))
+    _ve_audio = st.audio_input("🎙️ 录音或上传音频", key="ve_audio", help="支持浏览器录音或上传音频文件")
+    if _ve_audio is not None:
+        _ve_bytes = _ve_audio.getbuffer().tobytes()
+        with st.spinner("转写中…"):
+            _ve_res = transcribe_audio_result(_ve_bytes, filename=getattr(_ve_audio, "name", "audio.webm"))
+        if not _ve_res["ok"]:
+            # 诚实降级：按结构化 status 给出精确文案，不编造
+            xc_warn_box(f"⚠️ {_ve_res.get('message') or '语音转写不可用'}（转写文本与事件结论均不编造）")
+        else:
+            _ve_card = build_voice_event_card(_ve_res["text"])
+            st.success(f"转写：{_ve_card['text']}")
+            _ve_hl = _ve_card["factors"].get("hard_logic", {})
+            _ve_ur = _ve_card["urgency"]
+            _ve_se = _ve_card["sentiment"]
+            # 自包含因子卡：事件性质 + 时间敏感度 + 情绪倾向（全部确定性规则，如实标注）
+            _ve_lines: list = []
+            if _ve_hl.get("status") == "ok":
+                _ve_lines.append(f"**事件性质**：{_ve_hl.get('hard_logic')}（透明规则，非 AI 洞见）")
+                _ve_evd = "、".join(_ve_hl.get("evidence", []))
+                if _ve_evd:
+                    _ve_lines.append(f"命中证据：{_ve_evd}")
+            else:
+                _ve_lines.append(f"**事件性质**：{_ve_hl.get('reason', '无法判定（无明确硬逻辑/题材关键词）')}")
+            if _ve_ur["level"] != "neutral":
+                _ve_lines.append(f"**时间敏感度**：{_ve_ur['label']}（{ '、'.join(_ve_ur['keywords']) }）")
+            if _ve_se["lean"] != "neutral":
+                _ve_se_kw = "、".join(_ve_se.get("keywords", []))
+                _ve_lines.append(f"**情绪倾向**：{_ve_se['label']}（{ _ve_se_kw }）")
+            _ve_body = "  \n".join(_ve_lines) or "（无明确因子命中，转写文本已保留于上方）"
+            xc_content_card(
+                "🏷️ 语音事件标注",
+                body=_ve_body,
+                icon="🎙️",
+            )
+            # 独立化：本次标注写入会话历史，供上方「最近语音事件」复核（跨页共享）
+            st.session_state.ve_history.append({
+                "ts": datetime.now().strftime("%H:%M:%S"),
+                "text": _ve_res["text"],
+                "body": _ve_body,
+            })
+            st.session_state.ve_history = st.session_state.ve_history[-5:]

@@ -213,6 +213,17 @@ def test_tool_group_contains_expected_low_freq_items():
         assert _p in _tool_paths, f"{_p} 应归入工具子簇"
 
 
+def test_voice_event_page_registered_in_community_cluster():
+    """语音事件独立页（87）必须注册在『社区与AI』子簇，确保从导航可达（独立化增强）。"""
+    _found = False
+    for _top, _clusters in w._NAV_GROUPS:
+        if '工具与社区' in _top:
+            for _sub, _items in _clusters:
+                if _sub == '社区与AI':
+                    _found = any(it[0].endswith('87_语音事件.py') for it in _items)
+    assert _found, "87_语音事件.py 应注册在社区与AI子簇"
+
+
 def test_favorites_present_and_reachable():
     """⭐ 常用区默认 Top5 高频页，且每个都在 hero/分组中真实可达（不是悬空链接）。"""
     _all_paths = {p.replace('\\', '/').split('/')[-1] for p in _all_nav_paths()}
