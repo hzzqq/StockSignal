@@ -143,6 +143,9 @@ _KNOWN_PAGE_CLASSES = frozenset({
     # 深度研究步骤状态卡网格（53 页批3，2026-11-02 人审登记：
     # xc-steps 容器 + xc-step 步骤卡 + ic 图标位 + run/done/warn/err 状态档）
     "xc-steps", "xc-step", "ic", "run", "done", "warn", "err",
+    # 宏观数据页 84 评分卡可视化（2026-11-02 人审登记：xcm-* 令牌化，随七风格联动）
+    "xcm-card", "xcm-head", "xcm-score", "xcm-max", "xcm-band", "xcm-bar",
+    "xcm-fill", "xcm-subs", "xcm-sub", "xcm-pv", "xcm-ps", "xcm-note",
 })
 
 _TOKEN_HAS_EXPR = re.compile(r"[{}]")
