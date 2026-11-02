@@ -1,945 +1,83 @@
+"""市场驱动力面板数据（re-export 主入口 + get_market_drivers；拆分后对外 API 零变化）。
+
+原始 1272 行单文件按职责拆为：
+- ``market_drivers_core``   ：常量登记 / TTL 缓存与 SWR / 重试 / 列名与数值归一工具
+- ``market_drivers_sources``：21 指标取数（_src_*）/ 调度表 _SRC_DISPATCH
+- ``market_drivers_view``   ：plot_drivers_panel / 市场温度评分
+
+**get_market_drivers 保留在本入口**：它依赖 `_cached_swr` / `_fetch_src` /
+`_get_index_close`，而这些在测试与调用方处均通过 `monkeypatch.setattr(m, ...)` 打补丁；
+若下沉到子模块，函数体内的模块全局查找会绕过补丁（原同模块语义会退化）。
+既有调用零改动：``from modules.market_drivers import get_market_drivers, DIMS``。
 """
-市场驱动力多因子面板（资金 / 情绪 / 估值 / 宏观 / 技术 五维）
+from __future__ import annotations
 
-背景：用户给了一份 21 指标表（table_20260721.csv），要求
-  1) 先给「融资买入额」线型图右侧 y 轴加几个新指标；
-  2) 高阶方案（推荐）：分维度子图面板，按 资金/情绪/估值/宏观/技术 分 5 个子图，
-     每个子图含大盘指数作参考线，因量纲差异严禁原始数值裸叠同一轴 → 统一归一化到起点=100。
-
-数据层设计：
-- 21 个指标注册表（INDICATORS），每个含 维度/单位/数据源/计算逻辑。
-- 每个数据源用防御式列解析（按关键字找列，不依赖精确列名），单源失败优雅降级（列缺/标"暂未接入"），绝不抛红错。
-- 数据源：复用 margin_trading / linear_trends 已有取数；新增 akshare 直接抓取
-  （涨跌家数 stock_market_activity_legu、新高新低 stock_a_high_low_statistics、VIX index_option_50etf_qvix、
-   涨停池 stock_zt_pool_em、市场 PE stock_market_pe_lg、M2 macro_china_m2_yearly、
-   社融 macro_china_bank_financing、国债利差 bond_china_yield、PMI macro_china_pmi）。
-- 技术类（MA/RSI/布林带/乖离率）由上证日线本地计算，无需外部源。
-
-注意：本环境（沙箱）本地代理 127.0.0.1:26561 未起，akshare 网络抓取会失败；
-真实用户环境（代理在线）上述源可正常返回。代码对失败做优雅降级，
-并在 meta 中标注每个指标"可用 / 暂未接入(原因)"，便于页面提示。
-"""
-import time
 import logging
-import threading
-import os
 
-import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
-from modules.fundflow import _ensure_proxy_and_ssl
-from modules.margin_trading import get_margin_trading_data
-from modules.linear_trends import get_index_series, get_northbound_history_series
-from modules.time_utils import now_cst_naive
-# R-07：委托共享 TTL 缓存（cache_utils._CACHE / _CACHE_LOCK / cached_ttl）
-# 注意：_cached_swr / _kick_refresh 是本模块专属 stale-while-revalidate 层，
-# 直接操作 _CACHE / _CACHE_LOCK（不是共享的 cached_ttl），保留不动。
-from modules.cache_utils import _CACHE, _CACHE_LOCK, cached_ttl
-
-logger = logging.getLogger(__name__)
-
-DIMS = ["资金", "情绪", "估值", "宏观", "技术"]
-
-# 21 个指标注册表（MA 含 5/20 双周期，故实际 22 条线，对应 CSV 21 指标口径）
-# src 取值：
-#   margin_rzye / margin_net / north_hist / activity / high_low / qvvix /
-#   zt / pe / div / m2 / financing / yield / pmi / idx_*（技术，本地计算）
-INDICATORS = [
-    # ── 资金 ──
-    dict(key="margin_balance", dim="资金", name="融资余额", unit="亿元", src="margin_rzye",
-         note="两市融资存量，正相关助推上涨"),
-    dict(key="margin_net", dim="资金", name="融资净买入额", unit="亿元", src="margin_net",
-         note="买入额-偿还额，连续净流入是上涨直接推力"),
-    dict(key="margin_buy_ratio", dim="资金", name="融资买入额/成交额", unit="%", src="margin_buy_ratio",
-         note="杠杆资金参与占比，>9%警惕过热，<6%偏冷清"),
-    dict(key="margin_balance_ratio", dim="资金", name="融资余额/流通市值", unit="%", src="margin_balance_ratio",
-         note="杠杆相对规模，过高预示卸杠杆风险"),
-    dict(key="north_net", dim="资金", name="北向资金净流入", unit="亿元", src="north_hist",
-         note="沪/深股通净额，风向标；2024-08 起停披露实时值，仅历史段真实"),
-    dict(key="adl", dim="资金", name="腾落指数(ADL)", unit="累积", src="activity", derive="adl",
-         note="上涨家数-下跌家数累积，同步确认指数健康度"),
-    dict(key="adr", dim="资金", name="涨跌比率(ADR)", unit="比值", src="activity", derive="adr",
-         note="上涨/下跌家数，>1.2偏强，<0.8偏弱"),
-    dict(key="nhnl", dim="资金", name="新高新低指标", unit="差值", src="high_low",
-         note="创52周新高-新低家数，正值扩大支持上行"),
-    # ── 情绪 ──
-    dict(key="vix", dim="情绪", name="VIX恐慌指数", unit="指数", src="qvvix",
-         note="期权隐含波动率，飙升常对应指数短期底部"),
-    dict(key="pcr", dim="情绪", name="PCR(认沽/认购比)", unit="比值", src="pcr",
-         note="认沽量/认购量，异常高位往往对应指数底部"),
-    dict(key="zt_ratio", dim="情绪", name="涨停家数占比", unit="%", src="zt",
-         note="涨停数/交易总数，赚钱效应温度计"),
-    # ── 估值 ──
-    dict(key="pe_pct", dim="估值", name="PE历史百分位", unit="%", src="pe", derive="pct",
-         note="当前PE在历史中位置，>80%高估，<20%低估"),
-    dict(key="div_yield", dim="估值", name="股息率", unit="%", src="div",
-         note="股息/股价，指数跌则股息率升（配置价值凸显）"),
-    # ── 宏观 ──
-    dict(key="m2_yoy", dim="宏观", name="M2同比增速", unit="%", src="m2",
-         note="广义货币供应，增速上行利好股市"),
-    dict(key="shr_zgm", dim="宏观", name="社会融资规模", unit="亿元", src="financing",
-         note="实体融资总量，领先指标，连续多增指数滞后走强"),
-    dict(key="yield_spread", dim="宏观", name="长短期利差", unit="%", src="yield", derive="spread",
-         note="10Y-2Y国债，倒挂预示衰退风险（压制指数）"),
-    dict(key="pmi", dim="宏观", name="PMI(采购经理指数)", unit="指数", src="pmi",
-         note="制造业景气，连续>50扩张区间支撑上行"),
-    # ── 技术 ──（以下均基于上证日线本地计算，无需外部源）
-    dict(key="idx_ma5", dim="技术", name="MA5", unit="点位", src="idx_ma", period=5,
-         note="5日均价线，方向锚点"),
-    dict(key="idx_ma20", dim="技术", name="MA20", unit="点位", src="idx_ma", period=20,
-         note="20日均价线，方向锚点"),
-    dict(key="rsi", dim="技术", name="RSI", unit="0-100", src="idx_rsi",
-         note=">70超买易回调，<30超卖易反弹"),
-    dict(key="boll", dim="技术", name="布林带(BB)", unit="点位", src="idx_boll",
-         note="MA±2倍标准差，触碰上轨抛压重"),
-    dict(key="bias", dim="技术", name="价格乖离率", unit="%", src="idx_bias",
-         note="(收盘价-MA20)/MA20，偏离过大有拉回动力"),
-]
-
-# 已知无可行数据源的指标（避免无谓网络重试，直接标注）
-KNOWN_UNAVAILABLE = {
-    "margin_buy_ratio": "需两市成交额数据，暂未接入",
-    "margin_balance_ratio": "需流通市值数据，暂未接入",
-}
-
-# R-07：委托共享 TTL 缓存层（cache_utils._CACHE / _CACHE_LOCK / cached_ttl），
-# _cached_swr / _kick_refresh 仍直接操作 _CACHE / _CACHE_LOCK（SWR 专属语义保留）。
-_CACHE_TTL = 600  # 业务语义常量，暂不进 site_config（批次 4 可选）
-
-
-def _cached(ttl, key, fn):
-    return cached_ttl(ttl, key, fn)
-
-
-# ── T-272④：stale-while-revalidate（慢档专用）────────────────────────
-# 痛点：21 指标网络取数 30-60s，进程缓存（600s）过期后页面同步转圈硬等。
-# 语义：过期但有旧值 → 立即返回旧值（meta 如实注入 _swr_* 标注，绝不冒充新鲜）
-#       + 后台单飞刷新（同一 key 同时最多一个刷新线程，防 Streamlit 并发风暴）；
-#       冷启动无旧值 → 同步执行，行为与原 _cached 完全一致。
-# 红线：仅慢档（drivers 指标）；实时行情类 fast 路径绝不走本函数。
-_SWR_INFLIGHT: set = set()   # 正在后台刷新的 key（单飞去重）
-_SWR_LOCK = threading.Lock()
-
-
-def _cached_swr(ttl, key, fn):
-    """TTL 缓存 + stale-while-revalidate。返回 (value, swr_info_or_None)。
-
-    swr_info = {"age_s": 旧值年龄秒数}；无 SWR 发生（新鲜命中/冷启动）时为 None。
-    后台刷新成功静默换新（下次调用生效）；失败 logger 留痕，下次调用重试。
-    """
-    now = time.time()
-    stale = None
-    stale_ts = None
-    with _CACHE_LOCK:
-        hit = _CACHE.get(key)
-        if hit and (now - hit[0]) < ttl:
-            return hit[1], None          # 新鲜命中：语义与原 _cached 一致
-        if hit is not None:
-            stale, stale_ts = hit[1], hit[0]
-
-    if stale is not None:
-        _kick_refresh(key, fn)
-        return stale, {"age_s": int(now - stale_ts)}
-
-    val = fn()                            # 冷启动：无旧值，同步取（行为不变）
-    with _CACHE_LOCK:
-        _CACHE[key] = (time.time(), val)
-    return val, None
-
-
-def _kick_refresh(key, fn):
-    """后台单飞刷新：inflight 去重后 daemon 线程执行，fn 在锁外跑（不阻塞读）。"""
-    with _SWR_LOCK:
-        if key in _SWR_INFLIGHT:
-            return
-        _SWR_INFLIGHT.add(key)
-
-    def _worker():
-        try:
-            val = fn()
-            with _CACHE_LOCK:
-                _CACHE[key] = (time.time(), val)
-            logger.info("[market_drivers] SWR 后台刷新完成: %s", key)
-        except Exception as e:  # noqa: BLE001 - 刷新失败如实留痕，绝不静默
-            logger.warning("[market_drivers] SWR 后台刷新失败 (%s): %s", key, e)
-        finally:
-            with _SWR_LOCK:
-                _SWR_INFLIGHT.discard(key)
-
-    threading.Thread(target=_worker, daemon=True, name=f"swr-{key}").start()
-
-
-def _retry(max_retries=3, base_delay=1.0):
-    def deco(fn):
-        def wrapper(*args, **kwargs):
-            # 惰性、幂等：首次网络请求前确保代理/SSL 补丁就绪（不在导入期阻塞）
-            _ensure_proxy_and_ssl()
-            last = None
-            for i in range(max_retries):
-                try:
-                    return fn(*args, **kwargs)
-                except Exception as e:  # noqa
-                    last = e
-                    err = str(e).lower()
-                    if any(k in err for k in ("connection aborted", "remotedisconnected",
-                                               "connection reset", "timeout", "timed out",
-                                               "proxyerror")):
-                        if i < max_retries - 1:
-                            time.sleep(base_delay * (2 ** i))
-                            continue
-                    raise
-            raise last
-        return wrapper
-    return deco
-
-
-def _col(df, *keys):
-    """按关键字（不区分大小写）在 DataFrame 列中找第一个匹配列名。"""
-    if df is None or not hasattr(df, "columns"):
-        return None
-    low = {str(c).lower(): c for c in df.columns}
-    for k in keys:
-        lk = str(k).lower()
-        for lcol, col in low.items():
-            if lk in lcol:
-                return col
-    return None
-
-
-def _pdate(x):
-    try:
-        return pd.to_datetime(x, errors="coerce")
-    except Exception as e:
-        logger.warning(f"[market_drivers] 处理异常: {e}")
-        return pd.NaT
-
-
-def _read_last_cached_value(key: str):
-    """从 SQLite 持久缓存读取某指标最近一个日期的数值（用于 ADL 等累积指标的跨日拼接）。
-
-    直接读 market_cache 的 DB 文件，避免与 market_cache 形成循环导入。
-    读不到返回 None。
-    """
-    import sqlite3 as _sq
-    try:
-        _here = os.path.dirname(os.path.abspath(__file__))
-        # 跟随 SS_DATA_DIR 隔离，与 market_cache._DB_PATH 指向同一目录（测试不读穿真实 data/）
-        _db = os.path.join(
-            os.environ.get("SS_DATA_DIR") or os.path.join(_here, "..", "data"),
-            "market_cache.db")
-        if not os.path.exists(_db):
-            return None
-        conn = _sq.connect(_db, timeout=10)
-        cur = conn.execute(
-            "SELECT value FROM market_indicator_cache WHERE key=? "
-            "ORDER BY date DESC LIMIT 1",
-            (key,),
-        )
-        row = cur.fetchone()
-        conn.close()
-        return float(row[0]) if row else None
-    except Exception as e:  # noqa
-        logger.warning(f"[market_drivers] 处理异常: {e}")
-        return None
-
-
-def _pdate_cn(x):
-    """解析中文月度 '2026年06月份' -> datetime 序列；其余走 _pdate。"""
-    s = pd.Series(list(x)) if not isinstance(x, pd.Series) else x
-    out = []
-    for v in s.astype(str):
-        v = v.replace("月份", "").replace("年", "-").replace("月", "-01").strip()
-        out.append(pd.to_datetime(v, errors="coerce"))
-    return pd.Series(out)
-
-
-def _norm100(s: pd.Series):
-    """归一化到起点=100（首个有效值）。"""
-    s = pd.to_numeric(s, errors="coerce")
-    s = s.dropna()
-    if s.empty:
-        return s
-    base = s.iloc[0]
-    if base == 0 or pd.isna(base):
-        return s
-    return s / base * 100.0
-
-
-def _norm100_aligned(dates, values):
-    """归一化到起点=100，并与 dates 对齐返回 (date_arr, norm_arr)。
-
-    关键点：plot_drivers_panel 列 Series 的 index 是行位置而非日期，
-    若直接用 s.index 作 x 轴会得到整数位置（被 Plotly 当成 epoch 纳秒）。
-    这里显式用传入的 dates 对齐，确保时间轴正确。
-    自动剔除 values/日期为 NaN 的位置。
-    """
-    vals = pd.to_numeric(values, errors="coerce")
-    dts = pd.to_datetime(pd.Series(list(dates)), errors="coerce")
-    keep = vals.notna() & dts.notna()
-    if not keep.any():
-        return np.array([], dtype="datetime64[ns]"), np.array([])
-    vals = vals[keep]
-    dts = dts[keep]
-    base = vals.iloc[0]
-    if base == 0 or pd.isna(base):
-        y = vals.values.astype(float)
-    else:
-        y = (vals / base * 100.0).values.astype(float)
-    return dts.values, y
-
-
-# ────────────────────────────────────────────────────────────
-# 各数据源抓取（每个返回 [(ind_key, display_name, pd.Series), ...]，失败返回 []）
-# Series 以 datetime 为索引，数值为 float。
-# ────────────────────────────────────────────────────────────
-@_retry()
-def _fetch_margin_raw(days=180):
-    """取融资融券原始宽表（含融资买入额/余额，若源含偿还额则一并保留）。"""
-    return get_margin_trading_data(days=days)
-
-
-def _src_margin_rzye(days):
-    df = _fetch_margin_raw(days)
-    if df is None or df.empty or "total_rzye" not in df.columns:
-        return []
-    s = pd.to_numeric(df["total_rzye"], errors="coerce") / 1e8  # 元→亿元
-    s.index = _pdate(df["日期"])
-    s = s.dropna()
-    return [("margin_balance", "融资余额", s)] if not s.empty else []
-
-
-def _src_margin_net(days):
-    df = _fetch_margin_raw(days)
-    if df is None or df.empty:
-        return []
-    # 源数据无「偿还额」列，用「融资买入额 total_rzmr」作为净买入代理指标
-    # （绝对值即当日杠杆资金净买入量级，方向一致）
-    buy = pd.to_numeric(df.get("total_rzmr"), errors="coerce")
-    if buy.dropna().empty:
-        return []
-    net = buy / 1e8  # 元→亿元
-    net.index = _pdate(df["日期"])
-    net = net.dropna()
-    return [("margin_net", "融资买入额(代理净买入)", net)] if not net.empty else []
-
-
-def _src_north_hist(days):
-    try:
-        df = get_northbound_history_series()
-    except Exception as e:  # noqa
-        logger.warning("north_hist 失败：%s", e)
-        return []
-    if df is None or df.empty:
-        return []
-    col = _col(df, "net_buy", "当日成交净买额", "净买额", "north", "net")
-    if col is None:
-        return []
-    dt = df["date"] if "date" in df.columns else df.index
-    # net_buy_yi 已是亿元（见 linear_trends.get_northbound_history_series），不再 ÷1e8
-    s = pd.to_numeric(df[col], errors="coerce")
-    s.index = _pdate(dt)
-    s = s.dropna()
-    # 非交易日可能产生尾部 NaN，用最近有效值前填充
-    if not s.empty and s.isna().any():
-        s = s.ffill()
-    if days and len(s) > days:
-        s = s.tail(days)
-    return [("north_net", "北向资金净流入", s)] if not s.empty else []
-
-
-@_retry()
-def _src_activity(days):
-    """涨跌家数（ADL 腾落指数 / ADR 涨跌比率）。
-
-    主源：akshare legu 单日快照（返回 item/value 两列，含「上涨/下跌/涨停」家数）。
-    将当日「上涨-下跌」作为增量，叠加到缓存中上一交易日的 ADL 末值，
-    实现跨日累积（腾落指数本质为累积和）。ADR 为当日点状比值。
-    主源失败 → 尝试东方财富全 A 列表计算（需联网，可能失败）→ 返回空优雅降级。
-
-    注意：adl / adr 两个指标共用此源，get_market_drivers 会调用两次；
-    用模块级短缓存避免重复联网抓取（legu 偶发失败会污染 meta 统计）。
-    """
-    def _compute():
-        import akshare as ak
-        # 主源：legu 单日快照
-        try:
-            df = ak.stock_market_activity_legu()
-            if df is not None and not df.empty and "item" in df.columns:
-                def _val(name):
-                    sub = df[df["item"] == name]["value"]
-                    if sub.empty:
-                        return None
-                    return pd.to_numeric(sub.iloc[0], errors="coerce")
-                up = _val("上涨")
-                dn = _val("下跌")
-                if up is not None and dn is not None and pd.notna(up) and pd.notna(dn):
-                    # 统计日期
-                    stat = _val("统计日期")
-                    if stat is not None and pd.notna(stat):
-                        dt = _pdate(str(stat).split(" ")[0])
-                    else:
-                        dt = pd.Timestamp(now_cst_naive()).normalize()
-                    if dt is None or pd.isna(dt):
-                        dt = pd.Timestamp(now_cst_naive()).normalize()
-                    dt = pd.to_datetime(dt)
-
-                    # ADL 累积：上一交易日末值 + 今日增量
-                    prev = _read_last_cached_value("adl")
-                    if prev is None:
-                        prev = 0.0
-                    delta = float(up - dn)
-                    adl_today = prev + delta
-                    adl_s = pd.Series([adl_today], index=[dt])
-
-                    # ADR 点状比值
-                    adr_today = float(up / max(dn, 1))
-                    adr_s = pd.Series([adr_today], index=[dt])
-
-                    return [
-                        ("adl", "腾落指数(ADL·累计)", adl_s),
-                        ("adr", "涨跌比率(ADR)", adr_s),
-                    ]
-        except Exception as e:  # noqa
-            logger.debug("[market_drivers] activity legu 失败: %s", e)
-
-        # 降级：东方财富全 A 列表（计算涨跌统计），若也不行则空
-        # （T-177：直连薄层优先——akshare 的 82.push2 子域在本机恒断连）
-        try:
-            from modules.em_snapshot import fetch_a_spot_em
-            df = fetch_a_spot_em()
-            if df is None or df.empty:
-                df = ak.stock_zh_a_spot_em()
-            if df is not None and not df.empty:
-                chg_col = _col(df, "涨跌幅", "change_percent")
-                if chg_col:
-                    chg = pd.to_numeric(df[chg_col], errors="coerce")
-                    up = int((chg > 0).sum())
-                    dn = int((chg < 0).sum())
-                    if up + dn > 0:
-                        now = pd.Timestamp(now_cst_naive()).normalize()
-                        prev = _read_last_cached_value("adl")
-                        if prev is None:
-                            prev = 0.0
-                        adl_today = prev + float(up - dn)
-                        adl_s = pd.Series([adl_today], index=[now])
-                        adr_s = pd.Series([float(up / max(dn, 1))], index=[now])
-                        return [
-                            ("adl", "腾落指数(ADL·累计)", adl_s),
-                            ("adr", "涨跌比率(ADR)", adr_s),
-                        ]
-        except Exception as e:  # noqa
-            logger.warning(f"[market_drivers] 处理异常: {e}")
-
-        return []
-
-    return _cached(300, "activity_rows", _compute)
-
-
-@_retry()
-def _src_high_low(days):
-    import akshare as ak
-    df = ak.stock_a_high_low_statistics()
-    if df is None or df.empty:
-        return []
-    # 新结构字段：high20/low20/high60/low60/high120/low120（20/60/120 日新高新低家数）
-    nh = pd.to_numeric(df[_col(df, "high20", "high120", "新高", "new_high", "52周新高")], errors="coerce")
-    nl = pd.to_numeric(df[_col(df, "low20", "low120", "新低", "new_low", "52周新低")], errors="coerce")
-    dt = _pdate(df[_col(df, "日期", "date", "时间")])
-    nh.index = nl.index = dt
-    s = (nh - nl).dropna()
-    return [("nhnl", "新高新低指标", s)] if not s.empty else []
-
-
-@_retry()
-def _src_qvvix(days):
-    import akshare as ak
-    df = ak.index_option_50etf_qvix()
-    if df is None or df.empty:
-        return []
-    # qvix 数据列：date/open/high/low/close，恐慌值落在 close 列
-    col = _col(df, "close", "vix", "qvix", "恐慌")
-    if col is None:
-        return []
-    s = pd.to_numeric(df[col], errors="coerce")
-    s.index = _pdate(df[_col(df, "日期", "date", "时间")])
-    s = s.dropna()
-    return [("vix", "VIX恐慌指数", s)] if not s.empty else []
-
-
-@_retry()
-def _src_zt(days):
-    """涨停家数占比（主源东财涨停池，需传交易日期；降级到 legu 涨停计数）。
-
-    说明：stock_zt_pool_em() 不带日期返回空，必须传最近交易日 date=YYYYMMDD。
-    我们向前回溯最多 10 个交易日找到最近一个有数据的日期。
-    """
-    import akshare as ak
-
-    # 主源：东财涨停池（带日期）
-    try:
-        today = pd.Timestamp(now_cst_naive())
-        for back in range(0, 12):
-            d = (today - pd.Timedelta(days=back)).strftime("%Y%m%d")
-            try:
-                df = ak.stock_zt_pool_em(date=d)
-            except Exception as e:  # noqa
-                logger.warning(f"[market_drivers] 处理异常: {e}")
-                df = None
-            if df is not None and not (hasattr(df, "empty") and df.empty):
-                dt = pd.to_datetime(d)
-                s = pd.Series([len(df) / 5000.0 * 100.0], index=[dt])
-                s.index = pd.to_datetime(s.index, errors="coerce")
-                s = s.dropna()
-                if not s.empty:
-                    return [("zt_ratio", "涨停家数占比", s)]
-    except Exception as e:  # noqa
-        logger.warning(f"[market_drivers] 处理异常: {e}")
-
-    # 降级：legu 单日快照里的「涨停」家数
-    try:
-        df = ak.stock_market_activity_legu()
-        if df is not None and not df.empty and "item" in df.columns:
-            sub = df[df["item"] == "涨停"]["value"]
-            if not sub.empty:
-                zt = pd.to_numeric(sub.iloc[0], errors="coerce")
-                if pd.notna(zt):
-                    stat = df[df["item"] == "统计日期"]["value"]
-                    dt = _pdate(str(stat.iloc[0]).split(" ")[0]) if not stat.empty else pd.Timestamp(now_cst_naive()).normalize()
-                    dt = pd.to_datetime(dt)
-                    s = pd.Series([float(zt) / 5000.0 * 100.0], index=[dt])
-                    s = s.dropna()
-                    if not s.empty:
-                        return [("zt_ratio", "涨停家数占比", s)]
-    except Exception as e:  # noqa
-        logger.warning(f"[market_drivers] 处理异常: {e}")
-
-    return []
-
-
-@_retry()
-def _src_pe(days):
-    """市场 PE（主源 legu，降级到东方财富指数估值）。"""
-    import akshare as ak
-    # 主源：legu
-    try:
-        df = ak.stock_market_pe_lg()
-        if df is not None and not df.empty:
-            col = _col(df, "pe", "市盈率")
-            if col is not None:
-                s = pd.to_numeric(df[col], errors="coerce")
-                s.index = _pdate(df[_col(df, "日期", "date", "时间")])
-                s = s.dropna()
-                if not s.empty:
-                    pct = s.rank(pct=True) * 100.0
-                    return [("pe_pct", "PE历史百分位", pct.dropna())]
-    except Exception as e:  # noqa
-        logger.warning(f"[market_drivers] 处理异常: {e}")
-
-    # 降级：用上证指数 PE（akshare stock_index_pe_lg 或类似接口）
-    try:
-        df = ak.stock_index_pe_lg(symbol="上证指数")
-        if df is not None and not df.empty:
-            col = _col(df, "pe", "pe_ttm", "市盈率")
-            if col:
-                s = pd.to_numeric(df[col], errors="coerce")
-                dt_col = _col(df, "日期", "date", "时间")
-                if dt_col:
-                    s.index = _pdate(df[dt_col])
-                    s = s.dropna()
-                    if not s.empty:
-                        pct = s.rank(pct=True) * 100.0
-                        return [("pe_pct", "PE历史百分位(上证)", pct.dropna())]
-    except Exception as e:  # noqa
-        logger.warning(f"[market_drivers] 处理异常: {e}")
-
-    # 最终降级：用指数价格/MA20 比值作为「估值温度」代理
-    # （价格相对 MA 越高 → 估值百分位越高，与真实 PE 高度正相关）
-    # 注意：get_index_series 返回列为 sh000001/sz399001/sz399006（非 "close"），
-    # 须用指数代码列取收盘价。
-    try:
-        idx_df = get_index_series(days=min(days, 500))
-        if idx_df is not None and not idx_df.empty and "date" in idx_df.columns:
-            idx_cols = [c for c in ("sh000001", "sz399001", "sz399006") if c in idx_df.columns]
-            if idx_cols:
-                s = pd.to_numeric(idx_df[idx_cols[0]], errors="coerce")
-                s.index = _pdate(idx_df["date"])
-                s = s.dropna()
-                if len(s) >= 60:
-                    ma = s.rolling(20).mean()
-                    ratio = (s / ma - 1) * 100  # 偏离MA的百分比
-                    ratio = ratio.dropna()
-                    if not ratio.empty:
-                        pct = ratio.rank(pct=True) * 100.0
-                        return [("pe_pct", "估值温度(上证/MA代理)", pct.dropna())]
-    except Exception as e:  # noqa
-        logger.warning(f"[market_drivers] 处理异常: {e}")
-
-    return []
-
-
-@_retry()
-def _src_div(days):
-    """股息率（主源 legu，降级到沪深 300 / 东方财富全 A / 申万行业聚合）。
-
-    用模块级短缓存（600s）避免每次刷新都重拉全 A 快照
-    （spot_em 全量拉取较慢，沙箱 / 弱网下尤甚），与 _src_activity 一致。
-
-    R89：原第 2 路用 symbol="上证指数" 触发 KeyError（legu 不支持该中文名，
-    仅接受其映射表内的 12 个指数名：沪深300/上证50/中证500/创业板50 等），
-    现改用 "沪深300"；并新增第 4 路申万行业静态股息率聚合（sw_index_third_info
-    国内可达，335 个三级行业静态股息率中位数 ~1.67% 与全市场量级一致）。
-    R93：根因修复——`stock_market_pe_lg()` 实际只返回【日期/总市值/市盈率】，
-    不含股息率列（之前 R89 第 1 路 _col("股息","dividend","yield") 全部不匹配，
-    静默失败）。新增第 5 路「PE 反推股息率」纯本地兜底：用 legu PE_TTM 通过
-    A 股经验公式（股息率 ≈ 0.5×100/PE_TTM，标普 500 比值约 0.6，A 股约 0.5
-    因增长较高）反推股息率时间序列，0 网络依赖——只要主源 PE 能通就有数据。
-    """
-    import akshare as ak
-
-    def _compute():
-        # 主源：legu
-        try:
-            df = ak.stock_market_pe_lg()
-            if df is not None and not df.empty:
-                col = _col(df, "股息", "dividend", "yield")
-                if col is not None:
-                    s = pd.to_numeric(df[col], errors="coerce")
-                    s.index = _pdate(df[_col(df, "日期", "date", "时间")])
-                    s = s.dropna()
-                    if not s.empty:
-                        return [("div_yield", "股息率", s)]
-        except Exception as e:  # noqa
-            logger.warning(f"[market_drivers] 处理异常: {e}")
-
-        # 降级：legu 沪深 300 股息率（legu 不接受"上证指数"作为 symbol，
-        # 仅支持其映射表内的 12 个中文指数名，必须用其一）
-        try:
-            df = ak.stock_index_pe_lg(symbol="沪深300")
-            if df is not None and not df.empty:
-                col = _col(df, "股息率", "dividend_yield", "股息", "yield")
-                if col:
-                    s = pd.to_numeric(df[col], errors="coerce")
-                    dt_col = _col(df, "日期", "date", "时间")
-                    if dt_col:
-                        s.index = _pdate(df[dt_col])
-                        s = s.dropna()
-                        if not s.empty:
-                            return [("div_yield", "股息率(沪深300)", s)]
-        except Exception as e:  # noqa
-            logger.warning(f"[market_drivers] 处理异常: {e}")
-
-        # 最终降级：东方财富全 A 股息率列（市场整体股息率中位数，当日值）。
-        # 用硬超时包住，避免沙箱/弱网下 spot_em 全 A 拉取卡死 UI；超时则优雅降级。
-        # （T-177：直连薄层优先——akshare 的 82.push2 子域在本机恒断连）
-        try:
-            from modules.em_snapshot import fetch_a_spot_em
-
-            def _spot_all():
-                return fetch_a_spot_em() or ak.stock_zh_a_spot_em()
-
-            df = _run_with_timeout(_spot_all, 10)
-            if df is not None and not df.empty:
-                col = _col(df, "股息率", "股息率TTM", "yield")
-                if col:
-                    vals = pd.to_numeric(df[col], errors="coerce").dropna()
-                    vals = vals[vals > 0]
-                    if not vals.empty:
-                        med = float(vals.median())
-                        now = pd.Timestamp(now_cst_naive()).normalize()
-                        s = pd.Series([med], index=[now])
-                        return [("div_yield", "股息率(全A中位%)", s)]
-        except Exception as e:  # noqa
-            logger.warning(f"[market_drivers] 处理异常: {e}")
-
-        # R89 新增第 4 路：申万三级行业静态股息率聚合（国内可达，无 legu 依赖）。
-        # 335 个三级行业的「静态股息率」中位数 ≈ 1.67%，与全市场股息率量级一致，
-        # 作为全 legu 主路/spot_em 都不可用时的兜底。仅当前快照值（无历史时间序列），
-        # 用单点 + 当前日期构造 Series，使页面能渲染卡片（sparkline 自然空）。
-        try:
-            df = ak.sw_index_third_info()
-            if df is not None and not df.empty and "静态股息率" in df.columns:
-                raw = df["静态股息率"].astype(str).str.replace("%", "", regex=False)
-                vals = pd.to_numeric(raw, errors="coerce").dropna()
-                vals = vals[vals > 0]
-                if not vals.empty:
-                    med = float(vals.median())
-                    now = pd.Timestamp(now_cst_naive()).normalize()
-                    s = pd.Series([med], index=[now])
-                    return [("div_yield", "股息率(申万行业中位%)", s)]
-        except Exception as e:  # noqa
-            logger.warning(f"[market_drivers] 处理异常: {e}")
-
-        # R93 第 5 路：PE 反推股息率（纯本地，0 网络依赖）。
-        # 根因：legu stock_market_pe_lg 只返回【日期/总市值/市盈率】，
-        # 不含股息率列；前面 4 路全部依赖外部接口或 legu 海外域名，沙箱/弱网下
-        # 易连环失败。本路只用腿到 PE 历史 + 经验公式，0 网络依赖——保证
-        # div_yield 字段在沙箱/弱网下也有数据。系列性时间序列，能填 sparkline。
-        try:
-            df = ak.stock_market_pe_lg()
-            if df is not None and not df.empty:
-                pe_col = _col(df, "pe", "市盈率")
-                dt_col = _col(df, "日期", "date", "时间")
-                if pe_col and dt_col:
-                    pe = pd.to_numeric(df[pe_col], errors="coerce")
-                    pe = pe[pe > 0].dropna()
-                    if not pe.empty:
-                        # A 股经验公式：股息率 = payout_ratio / PE × 100%
-                        # payout_ratio：A 股全市场 ~0.30，标普 500 ~0.40
-                        # 用 0.35 作为综合加权（A 股大权重行业偏分红但大盘股偏低）
-                        # PE=13 → 2.69%，与沪深 300 当前 ~2.5% 历史均值吻合
-                        div = (0.35 * 100.0 / pe).dropna()
-                        div.index = _pdate(df[dt_col])
-                        div = div[div > 0].dropna()
-                        if not div.empty:
-                            return [("div_yield", "股息率(PE反推)", div)]
-        except Exception as e:  # noqa
-            logger.warning(f"[market_drivers] 处理异常: {e}")
-
-        return []
-
-    return _cached(600, "div_rows", _compute)
-
-
-@_retry()
-def _src_m2(days):
-    import akshare as ak
-    df = ak.macro_china_m2_yearly()
-    if df is None or df.empty:
-        return []
-    col = _col(df, "今值", "m2", "货币", "同比")
-    if col is None:
-        return []
-    s = pd.to_numeric(df[col], errors="coerce")
-    s.index = _pdate(df[_col(df, "日期", "date", "时间")])
-    s = s.dropna()
-    return [("m2_yoy", "M2同比增速", s)] if not s.empty else []
-
-
-@_retry()
-def _src_financing(days):
-    import akshare as ak
-    df = ak.macro_china_bank_financing()
-    if df is None or df.empty:
-        return []
-    col = _col(df, "最新值", "社融", "融资规模", "增量")
-    if col is None:
-        return []
-    s = pd.to_numeric(df[col], errors="coerce") / 1e8  # 元→亿元
-    s.index = _pdate(df[_col(df, "日期", "date", "时间")])
-    s = s.dropna()
-    return [("shr_zgm", "社会融资规模", s)] if not s.empty else []
-
-
-@_retry()
-def _src_yield(days):
-    import akshare as ak
-    df = ak.bond_china_yield()
-    if df is None or df.empty:
-        return []
-    dcol = _col(df, "日期", "date", "时间")
-    # 新结构：曲线名称 / 日期 / 3月..30年 列
-    name_col = _col(df, "曲线名称", "期限", "name", "类型")
-    if dcol is None or name_col is None:
-        return []
-    sub = df[df[name_col].astype(str).str.contains("国债")]
-    if sub.empty:
-        sub = df
-    long_col = _col(sub, "10年", "10y", "ten")
-    # 新接口无 2年 列，退而取 1年 作为短端（曲线含 1年/3年/5年/7年/10年/30年）
-    short_col = _col(sub, "1年", "2年", "1y", "2y", "one", "two")
-    if long_col is None or short_col is None:
-        return []
-    long = pd.to_numeric(sub[long_col], errors="coerce")
-    short = pd.to_numeric(sub[short_col], errors="coerce")
-    long.index = short.index = _pdate(sub[dcol])
-    spread = (long - short).dropna()
-    return [("yield_spread", "长短期利差", spread)] if not spread.empty else []
-
-
-@_retry()
-def _src_pmi(days):
-    import akshare as ak
-    df = ak.macro_china_pmi()
-    if df is None or df.empty:
-        return []
-    col = _col(df, "pmi", "制造业", "指数")
-    if col is None:
-        return []
-    s = pd.to_numeric(df[col], errors="coerce")
-    dt_col = _col(df, "月份", "日期", "date", "时间")
-    if dt_col is None:
-        return []
-    s.index = _pdate_cn(df[dt_col]) if "月份" in dt_col else _pdate(df[dt_col])
-    s = s.dropna()
-    return [("pmi", "PMI(采购经理指数)", s)] if not s.empty else []
-
-
-# PCR：认沽/认购成交量比（上交所+深交所股票期权每日统计聚合）
-# 受限于 akshare 按日接口，仅取近 ~_PCR_DAYS 交易日，用于信号灯+近期分位；结果随 get_market_drivers 缓存。
-_PCR_DAYS = 10
-
-
-def _opt_vol_sum(df, kind):
-    """在期权每日统计 df 中按关键字定位认沽/认购成交量列并求和（跨多标的）。找不到返回 0。"""
-    if df is None or getattr(df, "empty", True):
-        return 0.0
-    keys = ("认购", "成交量") if kind == "call" else ("认沽", "成交量")
-    col = None
-    for c in df.columns:
-        s = str(c)
-        if keys[0] in s and ("成交" in s or "量" in s):
-            col = c
-            break
-    if col is None:
-        for c in df.columns:
-            if keys[0] in str(c):
-                col = c
-                break
-    if col is None:
-        return 0.0
-    return float(pd.to_numeric(df[col], errors="coerce").fillna(0).sum())
-
-
-@_retry()
-def _src_pcr(days=180):
-    import akshare as ak
-    n = min(int(days), _PCR_DAYS)
-    end = pd.Timestamp(now_cst_naive()).normalize()
-    # 取最近约 2.5*n 个自然日内的工作日，截尾 n 个，控制请求量
-    cal = pd.bdate_range(end - pd.Timedelta(days=int(n * 2.5)), end)
-    dates = cal[-n:]
-    call_v, put_v, idx = [], [], []
-    for dt in dates:
-        ds = dt.strftime("%Y%m%d")
-        try:
-            sse = ak.option_daily_stats_sse(date=ds)
-        except Exception as e:  # noqa
-            logger.warning(f"[market_drivers] 处理异常: {e}")
-            sse = None
-        try:
-            szse = ak.option_daily_stats_szse(date=ds)
-        except Exception as e:  # noqa
-            logger.warning(f"[market_drivers] 处理异常: {e}")
-            szse = None
-        cv = _opt_vol_sum(sse, "call") + _opt_vol_sum(szse, "call")
-        pv = _opt_vol_sum(sse, "put") + _opt_vol_sum(szse, "put")
-        if cv > 0 and pv > 0:
-            call_v.append(cv)
-            put_v.append(pv)
-            idx.append(dt)
-    if not idx:
-        return []
-    s_call = pd.Series(call_v, index=pd.to_datetime(idx))
-    s_put = pd.Series(put_v, index=pd.to_datetime(idx))
-    pcr = (s_put / s_call.replace(0, np.nan)).dropna()
-    return [("pcr", "PCR(认沽/认购比)", pcr)] if not pcr.empty else []
-
-
-# 技术类：基于上证日线本地计算，返回 (close_series, )
-def _get_index_close(days):
-    idx = get_index_series(days=days)
-    if idx is None or idx.empty or "sh000001" not in idx.columns:
-        return None
-    s = pd.to_numeric(idx["sh000001"], errors="coerce")
-    s.index = _pdate(idx["date"])
-    return s.dropna()
-
-
-def _src_idx_ma(days, period=20):
-    close = _get_index_close(days)
-    if close is None or close.empty:
-        return []
-    ma = close.rolling(period, min_periods=max(2, period // 2)).mean()
-    ma = ma.dropna()
-    return [(f"idx_ma{period}", f"MA{period}", ma)] if not ma.empty else []
-
-
-def _src_idx_rsi(days, period=14):
-    close = _get_index_close(days)
-    if close is None or len(close) < period + 1:
-        return []
-    delta = close.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    ag = gain.rolling(period, min_periods=period).mean()
-    al = loss.rolling(period, min_periods=period).mean()
-    rs = ag / al.replace(0, np.nan)
-    rsi = 100 - 100 / (1 + rs)
-    rsi = rsi.dropna()
-    return [("rsi", "RSI", rsi)] if not rsi.empty else []
-
-
-def _src_idx_boll(days, period=20, k=2):
-    close = _get_index_close(days)
-    if close is None or len(close) < period:
-        return []
-    mid = close.rolling(period, min_periods=period // 2).mean()
-    std = close.rolling(period, min_periods=period // 2).std()
-    up = (mid + k * std).dropna()
-    return [("boll", "布林带(BB)", up)] if not up.empty else []
-
-
-def _src_idx_bias(days, period=20):
-    close = _get_index_close(days)
-    if close is None or len(close) < period:
-        return []
-    ma = close.rolling(period, min_periods=period // 2).mean()
-    bias = (close - ma) / ma.replace(0, np.nan) * 100.0
-    bias = bias.dropna()
-    return [("bias", "价格乖离率", bias)] if not bias.empty else []
-
-
-_SRC_DISPATCH = {
-    "margin_rzye": _src_margin_rzye,
-    "margin_net": _src_margin_net,
-    "north_hist": _src_north_hist,
-    "activity": _src_activity,
-    "high_low": _src_high_low,
-    "qvvix": _src_qvvix,
-    "zt": _src_zt,
-    "pe": _src_pe,
-    "div": _src_div,
-    "m2": _src_m2,
-    "financing": _src_financing,
-    "yield": _src_yield,
-    "pmi": _src_pmi,
-    "pcr": _src_pcr,
-}
-
-
-def _fetch_src(ind, days):
-    """返回 (rows, reason_or_None)。rows=[(ind_key, name, series)]。"""
-    src = ind["src"]
-    reason = KNOWN_UNAVAILABLE.get(ind["key"])
-    if reason:
-        return [], reason
-    if src == "margin_buy_ratio":
-        return [], KNOWN_UNAVAILABLE["margin_buy_ratio"]
-    if src == "margin_balance_ratio":
-        return [], KNOWN_UNAVAILABLE["margin_balance_ratio"]
-    if src.startswith("idx_"):
-        try:
-            if src == "idx_ma":
-                return _src_idx_ma(days, ind.get("period", 20)), None
-            if src == "idx_rsi":
-                return _src_idx_rsi(days), None
-            if src == "idx_boll":
-                return _src_idx_boll(days), None
-            if src == "idx_bias":
-                return _src_idx_bias(days), None
-        except Exception as e:  # noqa
-            logger.warning("技术指标 %s 失败：%s", src, e)
-            return [], "本地计算失败"
-    fn = _SRC_DISPATCH.get(src)
-    if fn is None:
-        return [], "数据源未实现"
-    try:
-        return fn(days), None
-    except Exception as e:  # noqa
-        logger.warning("src %s 失败：%s", src, e)
-        return [], "抓取失败（网络/代理受限）"
+from modules.market_drivers_core import (  # noqa: F401
+    DIMS,
+    INDICATORS,
+    KNOWN_UNAVAILABLE,
+    _CACHE_TTL,
+    _SWR_INFLIGHT,
+    _SWR_LOCK,
+    _cached,
+    _cached_swr,
+    _kick_refresh,
+    _retry,
+    _col,
+    _pdate,
+    _read_last_cached_value,
+    _pdate_cn,
+    _norm100,
+    _norm100_aligned,
+)
+from modules.market_drivers_sources import (  # noqa: F401
+    _PCR_DAYS,
+    _fetch_margin_raw,
+    _src_margin_rzye,
+    _src_margin_net,
+    _src_north_hist,
+    _src_activity,
+    _src_high_low,
+    _src_qvvix,
+    _src_zt,
+    _src_pe,
+    _src_div,
+    _src_m2,
+    _src_financing,
+    _src_yield,
+    _src_pmi,
+    _opt_vol_sum,
+    _src_pcr,
+    _get_index_close,
+    _src_idx_ma,
+    _src_idx_rsi,
+    _src_idx_boll,
+    _src_idx_bias,
+    _fetch_src,
+    _SRC_DISPATCH,
+)
+from modules.market_drivers_view import (  # noqa: F401
+    _DIM_COLORS,
+    _REF_COLOR,
+    _MARKET_TEMP_DEFAULT,
+    _DIR,
+    _fig_theme,
+    plot_drivers_panel,
+    _score_one_dim,
+    _market_temp,
+    _temp_level,
+)
+
+# 转发：测试与调用方通过本模块访问共享缓存层（原模块直接 import 的同一对象）
+from modules.cache_utils import _CACHE, _CACHE_LOCK, cached_ttl  # noqa: F401
+
+# 与子模块共用同一 logger 实例（同名即同一对象），确保既有按名字打补丁/过滤的
+# 观测与守卫继续生效（如 tests/test_exception_logging.py 对 logger.warning 的注入）。
+logger = logging.getLogger("modules.market_drivers")
 
 
 def get_market_drivers(days=180):
@@ -1046,227 +184,56 @@ def get_market_drivers(days=180):
         return pd.DataFrame(columns=["date"]), meta
 
 
-# ────────────────────────────────────────────────────────────
-# 绘图：5 维归一化子图面板
-# ────────────────────────────────────────────────────────────
-_DIM_COLORS = {
-    "资金": "#ee2a2a", "情绪": "#7c5cff", "估值": "#2b8aef",
-    "宏观": "#f59e0b", "技术": "#10b981",
-}
-_REF_COLOR = "#8a8a8a"
-
-
-def _fig_theme(dark_mode):
-    if dark_mode:
-        return dict(
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#e6e6e6"),
-            xaxis=dict(gridcolor="#2a2a3a"),
-        )
-    return dict(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#1a1a1a"),
-        xaxis=dict(gridcolor="#ececec"),
-    )
-
-
-def plot_drivers_panel(df, meta=None, dark_mode=False, dims=None,
-                       date_range=None, selected=None, title="核心指标与大盘趋势关联性全景图"):
-    """5 维归一化子图面板。
-
-    - 每个维度一子图；子图内所有指标与大盘指数(上证)均归一化到起点=100 叠加，
-      彻底规避量纲差异（融资余额万亿级 vs RSI 0-100）造成的失真。
-    - 上证作为虚线参考线，置于每个子图，直观看指标与大盘的领先/背离。
-    - dims：显示的维度列表（默认全部 5 维）。
-    - selected：跨维度勾选的 key 列表（None=显示各维全部可用）。
-    - date_range：(start, end) 或 None。
-    """
-    if dims is None:
-        dims = list(DIMS)
-    dims = [d for d in dims if d in DIMS]
-    if df is None or df.empty:
-        fig = go.Figure()
-        fig.update_layout(title="暂无市场驱动力数据（网络/代理受限或数据源暂未接入）",
-                         **_fig_theme(dark_mode), height=360)
-        return fig
-
-    # 区间切片
-    work = df.copy()
-    if date_range is not None:
-        s, e = date_range
-        work["date"] = pd.to_datetime(work["date"], errors="coerce")
-        mask = (work["date"] >= pd.to_datetime(s, errors="coerce")) & \
-               (work["date"] <= pd.to_datetime(e, errors="coerce"))
-        work = work[mask]
-    if work.empty:
-        fig = go.Figure()
-        fig.update_layout(title="所选区间无数据", **_fig_theme(dark_mode), height=360)
-        return fig
-
-    # 各维度可用 key
-    dim_keys = {}
-    for d in dims:
-        if meta and d in meta:
-            av = meta[d]["available"]
-        else:
-            av = [c for c in work.columns if c not in ("date", "ref")]
-        if selected is not None:
-            av = [k for k in av if k in selected]
-        dim_keys[d] = av
-
-    n = len(dims)
-    if n == 0:
-        fig = go.Figure()
-        fig.update_layout(title="暂无可显示的指标（数据源未接入）", **_fig_theme(dark_mode), height=360)
-        return fig
-
-    fig = make_subplots(
-        rows=n, cols=1, shared_xaxes=True, vertical_spacing=0.06,
-        subplot_titles=[f"{d}（{len(dim_keys[d])} 项）" for d in dims],
-        row_heights=[1] * n,
-    )
-
-    ref_pair = None
-    if "ref" in work.columns:
-        ref_pair = _norm100_aligned(work["date"], work["ref"])
-
-    for i, d in enumerate(dims, start=1):
-        keys = dim_keys[d]
-        base_color = _DIM_COLORS.get(d, "#2b8aef")
-        has_any = False
-        for k in keys:
-            if k not in work.columns:
-                continue
-            xs, ys = _norm100_aligned(work["date"], work[k])
-            if len(xs) == 0:
-                continue
-            has_any = True
-            fig.add_trace(go.Scatter(
-                x=xs, y=ys, name=k, mode="lines",
-                line=dict(width=1.8, color=base_color),
-                hovertemplate=f"%{{x}}<br>{k}（归一化）：%{{y:.1f}}<extra></extra>",
-                legendgroup=d,
-            ), row=i, col=1)
-        # 参考线：上证
-        if ref_pair is not None and len(ref_pair[0]) > 0:
-            has_any = True
-            rx, ry = ref_pair
-            fig.add_trace(go.Scatter(
-                x=rx, y=ry, name="上证(参考)",
-                mode="lines", line=dict(width=1.6, color=_REF_COLOR, dash="dash"),
-                hovertemplate="%{x}<br>上证(归一化)：%{y:.1f}<extra></extra>",
-                legendgroup="ref",
-            ), row=i, col=1)
-        if not has_any:
-            fig.add_annotation(text="（本环境该维度数据源暂未接入）", showarrow=False,
-                              xref=f"x{i} domain", yref=f"y{i} domain",
-                              x=0.5, y=0.5, font=dict(size=12, color="#999999"),
-                              row=i, col=1)
-
-    # 布局
-    layout = _fig_theme(dark_mode)
-    layout.update(
-        title=title,
-        height=max(320, 230 * n + 90),
-        showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.5, xanchor="center", font=dict(size=10)),
-        margin=dict(l=55, r=25, t=70, b=40),
-        hovermode="x unified",
-    )
-    # 每个子图 y 轴标题（归一化）
-    for i in range(1, n + 1):
-        fig.update_yaxes(title_text="归一化(起点=100)", row=i, col=1, showgrid=True)
-        fig.update_xaxes(tickangle=-30, row=i, col=1)
-    fig.update_layout(**layout)
-    return fig
-
-
-# ────────────────────────────────────────────────────────────
-# 市场温度（market-temperature / driver score）纯评分逻辑
-#
-# 注意：这些纯函数原定义于 pages/50_市场情绪.py，现作为「市场驱动力」
-# 模块的规范化、可测试实现集中于此。所有函数在退化输入（空 DataFrame /
-# 全 NaN / 缺列 / 短序列 / 非有限值）下均不抛错，并返回安全默认。
-# 对合法输入的行为与原实现保持一致。
-# ────────────────────────────────────────────────────────────
-
-# 市场温度无数据时的安全默认（中性 50，0-100 区间中点）
-_MARKET_TEMP_DEFAULT = 50.0
-
-# 各指标对「市场温度」的方向贡献：+1 越高越热，-1 越高越冷，0 不参与
-_DIR = {
-    "adl": 1, "adr": 1, "nhnl": 1,
-    "margin_balance": 1, "margin_net": 1, "north_net": 1,
-    "vix": -1, "pcr": -1, "zt_ratio": 1,
-    "pe_pct": 1, "div_yield": -1,
-    "m2_yoy": 1, "shr_zgm": 1, "yield_spread": 1, "pmi": 1,
-    "rsi": 1, "bias": 1, "boll": 0, "idx_ma5": 0, "idx_ma20": 0,
-}
-
-
-def _score_one_dim(series, direction):
-    """单指标方向得分（隔离出的纯 helper，便于单测）。
-
-    取最新值在自身历史分布中的分位（0-100）：方向为正时越高越热，
-    方向为负时越高越冷。样本不足(<3)或非有限返回 None。
-    """
-    try:
-        s = pd.to_numeric(series, errors="coerce").dropna()
-    except Exception as e:  # noqa
-        logger.warning(f"[market_drivers] 处理异常: {e}")
-        return None
-    if len(s) < 3:
-        return None
-    try:
-        pct = float(s.rank(pct=True).iloc[-1])
-    except Exception as e:  # noqa
-        logger.warning(f"[market_drivers] 处理异常: {e}")
-        return None
-    if not np.isfinite(pct):
-        return None
-    return float(pct * 100.0) if direction > 0 else float((1.0 - pct) * 100.0)
-
-
-def _market_temp(df):
-    """综合「市场温度」0-100。
-
-    对 _DIR 中每个有数据且方向非零的指标，取其在历史分布中的分位并加权，
-    返回各指标得分的均值。退化输入（df 为 None/非 DataFrame/空、所有指标
-    缺列或样本不足、出现非有限均值）一律返回安全默认 _MARKET_TEMP_DEFAULT，
-    绝不抛错。
-    """
-    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
-        return _MARKET_TEMP_DEFAULT
-    subs = []
-    for k, d in _DIR.items():
-        if d == 0 or k not in df.columns:
-            continue
-        sc = _score_one_dim(df[k], d)
-        if sc is not None:
-            subs.append(sc)
-    if not subs:
-        return _MARKET_TEMP_DEFAULT
-    try:
-        m = float(np.mean(subs))
-    except Exception as e:  # noqa
-        logger.warning(f"[market_drivers] 处理异常: {e}")
-        return _MARKET_TEMP_DEFAULT
-    return m if np.isfinite(m) else _MARKET_TEMP_DEFAULT
-
-
-def _temp_level(t):
-    """将温度值(0-100)映射为 (等级, emoji, 颜色)。
-
-    输入非有限或 None 时返回安全中性默认，不抛错。
-    """
-    if t is None or not isinstance(t, (int, float)) or not np.isfinite(t):
-        return ("未知", "—", "#888888")
-    if t >= 75:
-        return ("过热", "🚨", "#ee2a2a")
-    if t >= 60:
-        return ("偏热", "🔥", "#f59e0b")
-    if t >= 40:
-        return ("中性", "⚖️", "#2b8aef")
-    if t >= 20:
-        return ("偏冷", "🌡️", "#16c2c2")
-    return ("冰点", "🥶", "#3b82f6")
+__all__ = [
+    "DIMS",
+    "INDICATORS",
+    "KNOWN_UNAVAILABLE",
+    "_CACHE_TTL",
+    "_SWR_INFLIGHT",
+    "_SWR_LOCK",
+    "_cached",
+    "_cached_swr",
+    "_kick_refresh",
+    "_retry",
+    "_col",
+    "_pdate",
+    "_read_last_cached_value",
+    "_pdate_cn",
+    "_norm100",
+    "_norm100_aligned",
+    "_PCR_DAYS",
+    "_fetch_margin_raw",
+    "_src_margin_rzye",
+    "_src_margin_net",
+    "_src_north_hist",
+    "_src_activity",
+    "_src_high_low",
+    "_src_qvvix",
+    "_src_zt",
+    "_src_pe",
+    "_src_div",
+    "_src_m2",
+    "_src_financing",
+    "_src_yield",
+    "_src_pmi",
+    "_opt_vol_sum",
+    "_src_pcr",
+    "_get_index_close",
+    "_src_idx_ma",
+    "_src_idx_rsi",
+    "_src_idx_boll",
+    "_src_idx_bias",
+    "_fetch_src",
+    "_SRC_DISPATCH",
+    "_DIM_COLORS",
+    "_REF_COLOR",
+    "_MARKET_TEMP_DEFAULT",
+    "_DIR",
+    "_fig_theme",
+    "plot_drivers_panel",
+    "_score_one_dim",
+    "_market_temp",
+    "_temp_level",
+    "get_market_drivers",
+    "_CACHE", "_CACHE_LOCK", "cached_ttl", "logger",
+]
