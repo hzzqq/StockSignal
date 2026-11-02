@@ -315,8 +315,11 @@ def derive_position(temp, score=None, bias=None, cycle_name=None, overall_promo=
         pct += _thesis["adj"]
         for _ln in _thesis["lines"]:
             reasons.append(_ln)
+        # running 精度必须与 delta 一致（2 位小数）：model_adj 是唯一的小数步长因子，
+        # 若 running 仍按 1 位四舍五入，则 Σdelta != 末项 running − 基准，
+        # 归因链自相矛盾（test_decision_attribution 内部一致性守卫会红）。
         contrib.append({"factor": "毕设#1 模型边沿(model_adj)", "delta": round(_thesis["adj"], 2),
-                        "running": round(pct, 1)})
+                        "running": round(pct, 2)})
     else:
         for _ln in _thesis["lines"]:
             reasons.append(_ln)

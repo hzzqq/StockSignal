@@ -28,10 +28,14 @@ def test_contrib_sum_consistent():
     r = derive_position(temp=temp, bias="偏多", cycle_name="修复确认",
                         overall_promo=50, event_adj=None, explain=True)
     total_delta = sum(c["delta"] for c in r["contributions"])
-    # 末项 running 应等于最终 pct；各 delta 之和 = 末项 running − 基准
     last = r["contributions"][-1]["running"]
-    assert abs(last - r["pct"]) < 1e-6
+    # 2026-11-02 守卫纠偏：毕设#1 model_adj 引入 0.01pp 小数步长（有界修正），
+    # 返回的 pct 仍是整数展示值 int(round())（见 test_decision_model_adj 不变量2），
+    # 旧断言「末项 running == pct」只在全整数调节时代成立。
+    # 链内一致性（真值层）：Σdelta == 末项 running − 基准，精度由 delta 决定；
+    # 展示层：整数 pct 必须是链末真值的四舍五入（差 ≤ 0.5）。
     assert abs(total_delta - (last - temp)) < 1e-6
+    assert abs(last - r["pct"]) <= 0.5 + 1e-9
 
 
 def test_default_explain_backward_compatible():
