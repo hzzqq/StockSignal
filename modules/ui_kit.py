@@ -201,7 +201,7 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .sf-table tbody tr:nth-child(even){background:color-mix(in srgb,var(--ss-surface-2) 55%,transparent)}
 .sf-table tbody tr:hover{background:color-mix(in srgb,var(--ss-accent) 12%,var(--ss-surface-2))}
 
-/* ===== 新城风格视觉层（参照 E:\project\app_dist\微应用大厅\index.html 2026-08-28 接入） =====
+/* ===== 新城风格视觉层（参照 app_dist/微应用大厅/index.html 2026-08-28 接入） =====
    命名空间 .xc-* 以避免污染既有 .sf-* / .ss-* 主题。深紫渐变 + 大圆角 + 抬升光晕。
    颜色走 var(--acc1)/(--acc2) 主题变量，自动跟 theme_mode 切亮/暗。
 */
