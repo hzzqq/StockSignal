@@ -860,7 +860,7 @@ def _fetch_etf_hist_sina(symbol, start_date, end_date):
         d1 = pd.to_datetime(end_date)
         mask = (pd.to_datetime(out["date"]) >= d0) & (pd.to_datetime(out["date"]) <= d1)
         out = out[mask]
-    except Exception:
+    except Exception:  # ui_audit_exempt: except-pass 日期过滤参数非法时退回全量区间（防御性兜底，不阻塞趋势线渲染）
         pass
     return out.dropna(subset=["date", symbol]).sort_values("date").reset_index(drop=True)
 

@@ -325,7 +325,7 @@ def load_latest_snapshot() -> 'dict | None':
         main = os.path.join(_resolve('_SHEPHERD_DATA_DIR'), 'daily_snapshot.json')
         if os.path.exists(main):
             candidates.append(main)
-    except Exception:
+    except Exception:  # ui_audit_exempt: except-pass 主快照路径探测失败则跳过，继续探测 snapshots 目录（调用方整体降级）
         pass
     try:
         snap_dir = os.path.join(_resolve('_SHEPHERD_DATA_DIR'), 'snapshots')
@@ -333,7 +333,7 @@ def load_latest_snapshot() -> 'dict | None':
             files = [os.path.join(snap_dir, f) for f in os.listdir(snap_dir) if f.endswith('.json') and os.path.isfile(os.path.join(snap_dir, f))]
             files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
             candidates.extend(files)
-    except Exception:
+    except Exception:  # ui_audit_exempt: except-pass snapshots 目录探测失败则返回已收集候选（可空），由调用方降级
         pass
     for path in candidates:
         try:
