@@ -135,3 +135,27 @@ def test_apply_filters_technical_field():
     spec = ns.parse_query("涨跌幅大于5%")
     res = ns.apply_filters(uni, spec)
     assert [r["code"] for r in res] == ["300750"], "技术面维度应正确过滤"
+
+
+def test_parse_exclude_named_industry():
+    """非 + 命名行业板块（如"非白酒板块"）→ 落到 exclude_concepts，且不得污染正向 concepts。
+
+    修复前：命名行业不是 BOARD_ALIASES 别名，"非白酒板块" 不进排除，反而掉进 concepts 变成正向筛选。
+    """
+    spec = ns.parse_query("非白酒板块 流通市值大于50亿")
+    assert "白酒" in spec.exclude_concepts, f"命名行业应被排除，实际：{spec.exclude_concepts}"
+    assert spec.exclude_boards == [], "命名行业不应进 exclude_boards"
+    assert spec.concepts == [], f"排除短语不得残留为正向概念，实际：{spec.concepts}"
+    assert any(f["field"] == "float_mktcap" for f in spec.filters), "其余筛选条件不受影响"
+
+
+def test_apply_filters_exclude_named_industry():
+    """非白酒板块 → 白酒概念个股被排除（端到端，与"剔除白酒"等价）。"""
+    uni = [
+        {"code": "600519", "name": "贵州茅台", "pe": 18, "concepts": ["白酒"]},
+        {"code": "000858", "name": "五粮液", "pe": 18, "concepts": ["白酒"]},
+        {"code": "300750", "name": "宁德时代", "pe": 18, "concepts": ["新能源"]},
+    ]
+    spec = ns.parse_query("市盈率<30 非白酒板块")
+    res = ns.apply_filters(uni, spec)
+    assert {r["code"] for r in res} == {"300750"}, f"白酒概念应被排除，实际：{[r['code'] for r in res]}"

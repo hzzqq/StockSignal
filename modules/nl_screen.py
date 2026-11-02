@@ -139,15 +139,29 @@ def parse_query(text: str) -> QuerySpec:
     raw = str(text)
     working = raw
 
-    # 0) 排除/否定：剔除/排除/不要/去掉/不含/别选 + 板块或概念；"非<板块>" 单独处理
-    #    排除板块走 BOARD_ALIASES 归一；其余按概念/名字片段排除（如 "剔除ST"）。
+    # 0) 排除/否定：
+    #    - 剔除/排除/不要/去掉/不含/别选 + 板块或概念 → 板块走 BOARD_ALIASES 归一，否则概念/名字片段排除。
+    #    - "非<板块>" 单独处理（规范交易所板块 → exclude_boards），并可带 板块/行业/概念/产业/股 后缀。
+    #    - "非<命名行业/概念词>(板块/行业/概念/产业/股)" → 排除概念（如"非白酒板块"）：
+    #      补足原逻辑只认交易所板块、把命名行业当正向概念的缺口；核心词剥后缀入 exclude_concepts。
+    #      限制行业词 1~5 字 + 后缀锚定，避免"非常看好半导体板块"类日常句被误拆为排除（误排 > 漏排）。
+    _BOARD_NEG_SUFFIX = r"(?:板块|行业|概念|产业|股)"
     for alias in sorted(BOARD_ALIASES, key=len, reverse=True):
-        _m = re.search(rf"非\s*{re.escape(alias)}", working)
+        _m = re.search(rf"非\s*{re.escape(alias)}{_BOARD_NEG_SUFFIX}?", working)
         if _m:
             b = BOARD_ALIASES[alias]
             if b not in spec.exclude_boards:
                 spec.exclude_boards.append(b)
-            working = re.sub(rf"非\s*{re.escape(alias)}", " ", working)
+            working = re.sub(rf"非\s*{re.escape(alias)}{_BOARD_NEG_SUFFIX}?", " ", working, count=1)
+
+    def _neg_named_repl(_mm):
+        _term = _mm.group(1)
+        if _term and _term not in spec.exclude_concepts:
+            spec.exclude_concepts.append(_term)
+        return " "
+    # 注意：此处用普通 raw 字符串 + 拼接，不能用 f-string——f-string 会把 {1,5} 当成
+    # 元组表达式静默改成 "(1, 5)"，导致正则失效且不报错（已踩坑）。
+    working = re.sub(r"非\s*([\u4e00-\u9fa5A-Za-z0-9]{1,5}?)" + _BOARD_NEG_SUFFIX, _neg_named_repl, working)
     _neg_pat = re.compile(r"(剔除|排除|不要|去掉|不含|别选)\s*([\u4e00-\u9fa5A-Za-z0-9]{1,6})", re.UNICODE)
     for _nm in _neg_pat.finditer(working):
         _target = _nm.group(2)
