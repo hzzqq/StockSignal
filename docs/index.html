@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>StockSignal · A股事件驱动投资分析平台 | 项目作品集</title>
-<meta name="description" content="73 页 Streamlit + Flask 全栈平台，4,481 个自动化测试，基于 2007–2026 共 4,815 个交易日的真实广度数据做全链路回测，并如实披露方向命中率≈随机。">
+<meta name="description" content="74 页 Streamlit + Flask 全栈平台，4,481 个自动化测试，基于 2007–2026 共 4,815 个交易日的真实广度数据做全链路回测，并如实披露方向命中率≈随机。">
 <style>
 :root{
   --bg:#0f0f23; --bg2:#141428; --card:#1a1a2e; --card2:#20203a;
@@ -84,7 +84,7 @@ footer{padding:44px 0 60px;border-top:1px solid var(--line);color:var(--dim2);fo
     <h1>StockSignal<br><span class="g">把「市场情绪」做成可回测、可自校准的仓位决策闭环</span></h1>
     <p class="sub">
       不是又一个「选股器」。这是一个把 <b>情绪周期定位 → 仓位推导 → 每日落盘预测 → 次日回填打分 → 分组刻度校准</b>
-      串成闭环的 A 股分析平台：73 个功能页面、91 个后端 REST 端点、91,412 行自研源码、
+      串成闭环的 A 股分析平台：74 个功能页面、91 个后端 REST 端点、91,412 行自研源码、
       <b>4,481 个自动化测试</b>，并重建了覆盖 <b>2007–2026 共 4,815 个交易日</b>的全市场广度数据基座。
     </p>
     <div class="hero-tags">
@@ -133,7 +133,7 @@ footer{padding:44px 0 60px;border-top:1px solid var(--line);color:var(--dim2);fo
     <h2>📊 项目规模（全部从仓库实时统计）</h2>
     <p class="lead">下面的数字由 <code>scripts/gen_portfolio_page.py</code> 从代码库直接算出，随代码更新自动刷新。</p>
     <div class="grid g4">
-      <div class="stat"><div class="n">73</div><div class="l">功能页面（Streamlit 多页）</div><div class="x">行情/事件/资金/情绪/策略/交易/AI</div></div>
+      <div class="stat"><div class="n">74</div><div class="l">功能页面（Streamlit 多页）</div><div class="x">行情/事件/资金/情绪/策略/交易/AI</div></div>
       <div class="stat"><div class="n">91</div><div class="l">后端 REST 端点</div><div class="x">Flask + JWT 鉴权</div></div>
       <div class="stat"><div class="n">91,412</div><div class="l">行自研源码</div><div class="x">8431 个 Python 文件</div></div>
       <div class="stat"><div class="n">4,481</div><div class="l">自动化测试用例</div><div class="x">439 个测试文件</div></div>
@@ -220,7 +220,7 @@ footer{padding:44px 0 60px;border-top:1px solid var(--line);color:var(--dim2);fo
     <h2>🏗 系统架构</h2>
     <div class="arch">┌──────────────────────────────┐        ┌─────────────────────────────────────┐
 │  Streamlit 多页前端 :8899     │  HTTP  │  Flask 后端 :5050                    │
-│  73 个功能页面 + 143 业务模块    │ ─────▶ │  91 个 REST 端点 · JWT 鉴权 · 限流   │
+│  74 个功能页面 + 143 业务模块    │ ─────▶ │  91 个 REST 端点 · JWT 鉴权 · 限流   │
 │  双主题 · A股红涨绿跌         │  JWT   └──────────────┬──────────────────────┘
 └───────────────┬──────────────┘                       │ SQLAlchemy
                 │                                      ▼
