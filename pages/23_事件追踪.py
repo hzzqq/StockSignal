@@ -12,7 +12,6 @@
 import logging
 
 import streamlit as st
-import pandas as pd
 import html
 from datetime import datetime, timedelta
 from modules.page_guard import safe_fragment
@@ -21,6 +20,7 @@ from modules.page_utils import fmt_rel as _fmt_rel
 from modules.page_widgets import _empty_info
 from modules.event_levels import STRENGTH_ORDER  # T-288：五档单一真理源
 from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_kpi_grid
+from modules.voice_event import transcribe_audio, extract_event_factors  # 语音转写事件因子（真空白补全）
 render_standard_page(title='事件追踪', icon='🔔', caption='⚠️ 数据仅供参考，不构成投资建议', layout='wide')
 
 lk_p1, lk_p2 = st.columns([1, 1])
@@ -61,6 +61,7 @@ fetcher = get_fetcher()
 @st.cache_data(show_spinner=False, ttl=60)
 def _cached_intraday(ticker):
     """个股分时数据：优先后端 /api/intraday，回退本地 fetcher。返回 (df, prev_close, trade_date) 或 None。"""
+    import pandas as pd
     if not ticker:
         return None
     try:
@@ -306,6 +307,7 @@ def fragment_live_keywords():
 @safe_fragment
 def fragment_timeline():
     """事件时间轴（延迟导入 Visualizer）。"""
+    import pandas as pd
     from modules.visualizer import Visualizer
     xc_content_card('📅 事件时间轴', "")
     if st.button('🔄', key='tl_manual_refresh', help='刷新：手动局部刷新事件时间轴模块'):
@@ -489,6 +491,7 @@ def fragment_timeline():
 
 @safe_fragment
 def fragment_event_manage():
+    import pandas as pd
     xc_content_card('📌 事件管理', "")
     try:
         with st.form('add_event_form'):
@@ -518,6 +521,7 @@ def fragment_event_manage():
             events_display['股票'] = events_display['ticker'].apply(lambda x: fetcher._lookup_name_for_code(x) if x else '')
 
             def _is_new_evt(d):
+                import pandas as pd
                 try:
                     dd = pd.to_datetime(d, errors='coerce')
                     if dd is None or pd.isna(dd):
@@ -606,6 +610,7 @@ def fragment_news_mine():
 
 @safe_fragment
 def fragment_sentiment_report():
+    import pandas as pd
     xc_content_card('📊 新闻情感分析报告', "")
     try:
         report_container = st.container()
@@ -721,6 +726,34 @@ with st.expander('🔗 相关事件 / 标的推荐', expanded=False):
                         st.session_state['sig_ticker'] = str(_code)
     else:
         st.caption('暂无推荐数据。')
+
+# ── 语音事件因子（真空白补全 2026-11-02）：录音/上传 → ASR 转写 → 事件因子提取 ──
+st.divider()
+st.subheader("🎙️ 语音事件因子")
+st.caption(
+    "说一段市场事件（如「XX 公司中标大合同」），自动转写并标注「硬逻辑 / 题材炒作」。"
+    "需配置 STARFIELD_LLM_API_KEY 且 base_url 为 OpenAI 官方端点（支持 whisper）；"
+    "否则诚实降级，绝不编造转写文本或事件结论。"
+)
+_ve_audio = st.audio_input("🎙️ 录音或上传音频", key="ve_audio", help="支持浏览器录音或上传音频文件")
+if _ve_audio is not None:
+    _ve_bytes = _ve_audio.getbuffer().tobytes()
+    with st.spinner("转写中…"):
+        _ve_text = transcribe_audio(_ve_bytes, filename=getattr(_ve_audio, "name", "audio.webm"))
+    if not _ve_text:
+        xc_warn_box("语音转写不可用：未配置 OpenAI key / 当前 base_url 不支持 whisper / 网络异常——不编造转写文本。")
+    else:
+        st.success(f"转写：{_ve_text}")
+        _ve_fac = extract_event_factors(_ve_text)
+        if _ve_fac.get("available"):
+            _ve_hl = _ve_fac["hard_logic"]
+            if _ve_hl.get("status") == "ok":
+                _ve_lab = _ve_hl["hard_logic"]
+                _ve_evd = "、".join(_ve_hl.get("evidence", []))
+                xc_content_card(f"事件因子标注：{_ve_lab}",
+                                body=f"命中证据：{_ve_evd}（透明规则，非 AI 洞见）", icon="🏷️")
+            else:
+                st.caption(f"事件因子：{_ve_hl.get('reason', '无法判定')}")
 
 # ── 方法学与来源注脚（B 类页五段式收尾）──
 st.markdown('---')
