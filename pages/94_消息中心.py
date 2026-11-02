@@ -359,7 +359,7 @@ with st.container(border=True):
             # streamlit button auto-reruns
     with _ov5:
         # 清掉本页缓存后整页重跑重新向各数据源拉取最新消息
-        if st.button("🔄 重新加载", key="msg_reload", width="stretch",
+        if st.button("🔄", key="msg_reload", width="stretch",
                      help="重新加载：拉取最新消息"):
             try:
                 _load_watchlist.clear()
