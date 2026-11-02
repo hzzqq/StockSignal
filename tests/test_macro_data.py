@@ -135,6 +135,11 @@ class _FakeAk:
             "涨跌幅": [2.36, 1.79], "昨收": [4962.6, 23785.79],
         })
 
+    def macro_bank_usa_interest_rate(self):
+        self._maybe("fed_funds_rate")
+        # 返回 Series（索引=日期，值=利率%），与 akshare 真实 rtype 一致
+        return pd.Series([4.50, 4.75], index=["2026-02-01", "2026-03-01"])
+
     def index_global_hist_em(self, symbol="美元指数"):
         self._maybe("index_global_hist_em")
         self._maybe("dxy")
@@ -306,12 +311,14 @@ def test_usd_cny_primary_boc_mid_price(fake_ak):
 
 
 def test_global_regime_score_computes(fake_ak):
-    """四分项都在时，应给出 0-100 的评分与各分项。"""
+    """五分项都在时（含收益率曲线），应给出 0-100 的评分与各分项。"""
     fake_ak()
     reg = md.global_regime_score()
     assert reg is not None
     assert 0 <= reg["score"] <= 100
-    assert set(reg["sub"].keys()) == {"dxy", "us_treasury_10y", "us_cpi", "usd_cny"}
+    assert set(reg["sub"].keys()) == {"dxy", "us_treasury_10y", "us_cpi", "usd_cny", "yield_curve"}
+    assert reg["yield_curve"] is not None
+    assert reg["yield_curve"] > 0  # 10Y-2Y 为正（未倒挂）
     # DXY=103.1 → 50+(100-103.1)*3 = 40.7；其余偏高也压低评分，整体 < 50
     assert reg["score"] < 50
 
@@ -352,10 +359,84 @@ def test_interpret_covers_a_share_analysis(fake_ak):
 
 
 def test_fetch_all_includes_global_keys(fake_ak):
-    """fetch_all 的 key 集合应覆盖全部 18 个指标（6 国内 + 12 全球）。"""
+    """fetch_all 的 key 集合应覆盖全部指标（6 国内 + 14 全球：含美联储利率/美债2Y）。"""
     fake_ak()
     data = md.fetch_all()
     global_keys = [m["key"] for m in md.MACRO_INDICATORS if m["region"] == "全球"]
-    assert len(global_keys) == 12
+    assert len(global_keys) == 14
     for k in global_keys:
         assert k in data
+
+
+def test_fetch_indicator_fed_funds_rate(fake_ak):
+    """美联储利率来自 Series（index=日期, value=利率%），需正确解析最新/前值/日期。"""
+    fake_ak()
+    got = md.fetch_indicator("fed_funds_rate")
+    assert got is not None
+    assert got["value"] == 4.75
+    assert got["prev"] == 4.5
+    assert got["date"] == "2026-03-01"
+    assert got["region"] == "全球"
+    assert got["unit"] == "%"
+
+
+def test_fetch_indicator_us_treasury_2y(fake_ak):
+    """美债 2Y 必须从混合表里挑出「美国国债收益率2年」。"""
+    fake_ak()
+    got = md.fetch_indicator("us_treasury_2y")
+    assert got is not None
+    assert got["value"] == 4.02
+    assert got["prev"] == 4.00
+
+
+def test_parse_fed_funds_series():
+    s = pd.Series([4.50, 4.75], index=["2026-02-01", "2026-03-01"])
+    out = md._parse_fed_funds_series(s)
+    assert out["value"] == 4.75 and out["prev"] == 4.5 and out["date"] == "2026-03-01"
+    assert md._parse_fed_funds_series(pd.Series([], dtype=float)) is None
+    assert md._parse_fed_funds_series(None) is None
+
+
+def test_parse_us_treasury_2y_from_df():
+    df = pd.DataFrame({
+        "SOLAR_DATE": ["2026-03-01", "2026-03-02"],
+        "美国国债收益率2年": [4.00, 4.02],
+        "美国国债收益率10年": [4.20, 4.25],
+    })
+    out = md._parse_us_treasury_2y(df)
+    assert out["value"] == 4.02 and out["prev"] == 4.00
+    assert md._parse_us_treasury_2y(None) is None
+
+
+def test_yield_curve_slope_normal_and_inverted(fake_ak, monkeypatch):
+    """10Y-2Y 正常为正；任一缺失→None；倒挂（10Y<2Y）→ inverted=True。"""
+    fake_ak()
+    s = md.yield_curve_slope()
+    assert s is not None
+    assert s["value"] == pytest.approx(0.23, abs=1e-6)
+    assert s["inverted"] is False
+
+    def _fake_fetch(key):
+        if key == "us_treasury_10y":
+            return {"value": 4.0, "date": "2026-03-02"}
+        if key == "us_treasury_2y":
+            return {"value": 4.5, "date": "2026-03-02"}
+        return None
+
+    monkeypatch.setattr(md, "fetch_indicator", _fake_fetch)
+    s2 = md.yield_curve_slope()
+    assert s2 is not None
+    assert s2["value"] == pytest.approx(-0.5)
+    assert s2["inverted"] is True
+
+
+def test_yield_curve_slope_missing_returns_none(fake_ak, monkeypatch):
+    monkeypatch.setattr(md, "fetch_indicator", lambda k: None)
+    assert md.yield_curve_slope() is None
+
+
+def test_interpret_fed_funds_and_2y():
+    assert "对A股" in md.interpret("fed_funds_rate", 5.25, 5.0)
+    assert "对A股" in md.interpret("us_treasury_2y", 4.02, 4.0)
+    # 无数据不编造
+    assert "不臆造" in md.interpret("fed_funds_rate", None)

@@ -152,6 +152,58 @@ def _parse_hk_spot_sina(df):
             "date": str(pd.Timestamp.now())[:10]}
 
 
+def _parse_fed_funds_series(series):
+    """美联储利率决议 Series（index=日期, value=今值%）→ {value, prev, date}。
+
+    ``macro_bank_usa_interest_rate`` 返回 pandas.Series（索引为日期、值为利率%），
+    非 DataFrame。取不到 / 空 / 非序列一律返回 ``None``。
+    """
+    if series is None:
+        return None
+    try:
+        if isinstance(series, pd.DataFrame):
+            # 极少数版本返回单列 DataFrame：取唯一数值列降为 Series
+            s = series.iloc[:, 0]
+        else:
+            s = series
+        if getattr(s, "empty", False):
+            return None
+        items = list(s.items()) if hasattr(s, "items") else None
+        if not items:
+            return None
+        last_idx, last_val = items[-1]
+        prev_idx, prev_val = (items[-2] if len(items) > 1 else (None, None))
+        return {
+            "value": _to_float(last_val),
+            "prev": _to_float(prev_val) if prev_val is not None else None,
+            "date": str(last_idx)[:10],
+        }
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _parse_us_treasury_2y(df):
+    """美债 2Y 收益率：从 ``bond_zh_us_rate`` 宽表挑「美国国债收益率2年」列。
+
+    与 ``_parse_us_treasury_10y`` 同源但取 2 年列；取不到返回 ``None``。
+    """
+    if df is None or getattr(df, "empty", True):
+        return None
+    date_col = next((c for c in df.columns
+                    if "SOLAR_DATE" in str(c) or "日期" in str(c)), df.columns[0])
+    val_col = next((c for c in df.columns if "美国国债收益率2年" in str(c)), None)
+    if date_col is None or val_col is None:
+        return None
+    d = df[[date_col, val_col]].dropna()
+    if d.empty:
+        return None
+    last = d.iloc[-1]
+    prev = d.iloc[-2] if len(d) > 1 else None
+    return {"value": _to_float(last[val_col]),
+            "prev": _to_float(prev[val_col]) if prev is not None else None,
+            "date": str(last[date_col])[:10]}
+
+
 # ----------------------------------------------------------------------------
 # 指标清单
 # ----------------------------------------------------------------------------
@@ -247,6 +299,16 @@ MACRO_INDICATORS: list[dict] = [
      "args": ("恒生指数",), "value_hint": ["最新价", "收盘", "close"],
      "fallback": {"fn": "stock_hk_index_spot_sina", "parse": _parse_hk_spot_sina},
      "desc": "港股情绪，A 股外部传导最直接的窗口"},
+
+    # ----------------------------- 全球：美联储政策利率 / 美债短端 -----------------------------
+    {"key": "fed_funds_rate", "name": "美联储联邦基金利率", "fn": "macro_bank_usa_interest_rate",
+     "unit": "%", "freq": "议息", "source": "美联储 / 金十数据", "region": "全球",
+     "parse": _parse_fed_funds_series,
+     "desc": "联邦基金目标利率；加息周期利空成长/黄金，降息周期利好风险资产与估值"},
+    {"key": "us_treasury_2y", "name": "美债 2Y 收益率", "fn": "bond_zh_us_rate",
+     "unit": "%", "freq": "日", "source": "美国财政部 / 东方财富", "region": "全球",
+     "parse": _parse_us_treasury_2y,
+     "desc": "美债短端；与 10Y 倒挂（10Y-2Y<0）是经典衰退前瞻信号"},
 ]
 
 _SPEC = {m["key"]: m for m in MACRO_INDICATORS}
@@ -401,6 +463,11 @@ def global_regime_score() -> dict | None:
         v = parts["usd_cny"]["value"]
         sub["usd_cny"] = max(0, min(100, 50 + (7.1 - v) * 50))
 
+    # 美债收益率曲线斜率（10Y-2Y）：倒挂(<0)减分，陡峭加分；中枢 0，每 1pct ±25 分
+    curve = yield_curve_slope()
+    if curve and curve.get("value") is not None:
+        sub["yield_curve"] = max(0, min(100, 50 + curve["value"] * 25))
+
     if not sub:
         return None
     score = round(sum(sub.values()) / len(sub))
@@ -408,7 +475,26 @@ def global_regime_score() -> dict | None:
         "score": score,
         "sub": {k: round(v, 1) for k, v in sub.items()},
         "parts": {k: (vv["value"] if vv else None) for k, vv in parts.items()},
+        "yield_curve": (curve["value"] if curve else None),
     }
+
+
+def yield_curve_slope() -> dict | None:
+    """美债收益率曲线斜率 = 10Y - 2Y（真实数据；任一缺失返回 ``None``，不臆造）。
+
+    倒挂（``value < 0``）是历史上最可靠的衰退前瞻之一；陡峭化（``value`` 走阔）通常
+    对应宽松预期或复苏早期。返回 ``{"value", "date", "inverted": bool}``。
+    """
+    t10 = fetch_indicator("us_treasury_10y")
+    t2 = fetch_indicator("us_treasury_2y")
+    if not t10 or not t2:
+        return None
+    v10, v2 = t10.get("value"), t2.get("value")
+    if v10 is None or v2 is None:
+        return None
+    slope = round(float(v10) - float(v2), 4)
+    date = t10.get("date") or t2.get("date")
+    return {"value": slope, "date": date, "inverted": slope < 0}
 
 
 def interpret(key: str, value, prev=None) -> str:
@@ -480,6 +566,11 @@ def interpret(key: str, value, prev=None) -> str:
     if key == "dxy":
         tone = "强美元，压制新兴市场与商品" if v >= 103 else ("弱美元，利好风险资产" if v <= 100 else "美元中性")
         return f"{chg}{v:.2f} 点，{tone}。对A股：强美元期新兴市场资金回流美国，北向承压、资源与高股息防御占优；弱美元期A股成长与有色弹性最大。"
+    if key == "fed_funds_rate":
+        tone = "高位，货币紧缩" if v >= 4.5 else ("中性偏紧" if v >= 3 else "低位，宽松周期")
+        return f"{chg}{v:.2f}%，美联储联邦基金目标利率；{tone}。对A股：高利率压制全球流动性与外资风险偏好、抬升贴现率利空成长估值；降息周期开启则利好A股成长与港股弹性。"
+    if key == "us_treasury_2y":
+        return f"{chg}{v:.2f}%，美债短端收益率；与 10Y 利差是衰退前瞻。对A股：短端高企反映政策收紧预期，曲线倒挂期防御与红利占优、风险偏好回落。"
     if key in ("us_sp500", "us_nasdaq", "hsi"):
         tag = {"us_sp500": "标普500", "us_nasdaq": "纳指", "hsi": "恒生"}[key]
         if prev is not None:
