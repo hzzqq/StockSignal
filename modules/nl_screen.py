@@ -42,6 +42,8 @@ FIELD_ALIASES = {
     "净利润增长": "profit_growth", "利润增长": "profit_growth", "净利增速": "profit_growth",
     "roe": "roe", "净资产收益率": "roe", "毛利率": "gross_margin", "毛利": "gross_margin",
     "营收复合增长": "rev_cagr", "利润复合增长": "profit_cagr",
+    # 技术面/动量维度（扩维：涨跌幅/换手率/量比/振幅，真实行情口径）
+    "涨跌幅": "chg_pct", "换手率": "turnover", "量比": "volume_ratio", "振幅": "amplitude",
 }
 # 各字段单位约定（执行层把记录值归一化到这些单位再比较）：
 #   pe/pb/roe(%)/gross_margin(%)：纯数；rev_growth/profit_growth/rev_cagr/profit_cagr：百分数(如20=20%)
@@ -50,6 +52,7 @@ FIELD_UNIT = {
     "pe": "ratio", "pb": "ratio", "mktcap": "yi", "float_mktcap": "yi",
     "rev_growth": "pct", "profit_growth": "pct", "roe": "pct",
     "gross_margin": "pct", "rev_cagr": "pct", "profit_cagr": "pct",
+    "chg_pct": "pct", "turnover": "pct", "volume_ratio": "ratio", "amplitude": "pct",
 }
 
 # ── 比较符别名 ──
@@ -82,6 +85,8 @@ class QuerySpec:
     sort_dir: str = "desc"                                  # desc/asc
     limit: Optional[int] = None                            # 取前 N
     concepts: list[str] = field(default_factory=list)       # 概念/行业关键词（自由词）
+    exclude_boards: list[str] = field(default_factory=list)   # 排除板块语义（剔除/非/排除）
+    exclude_concepts: list[str] = field(default_factory=list) # 排除概念/名字片段（剔除ST等）
     unparsed: list[str] = field(default_factory=list)       # 没听懂的词（透明展示）
     errors: list[str] = field(default_factory=list)         # 解析异常说明（如无法识别的量词）
 
@@ -133,6 +138,31 @@ def parse_query(text: str) -> QuerySpec:
         return spec
     raw = str(text)
     working = raw
+
+    # 0) 排除/否定：剔除/排除/不要/去掉/不含/别选 + 板块或概念；"非<板块>" 单独处理
+    #    排除板块走 BOARD_ALIASES 归一；其余按概念/名字片段排除（如 "剔除ST"）。
+    for alias in sorted(BOARD_ALIASES, key=len, reverse=True):
+        _m = re.search(rf"非\s*{re.escape(alias)}", working)
+        if _m:
+            b = BOARD_ALIASES[alias]
+            if b not in spec.exclude_boards:
+                spec.exclude_boards.append(b)
+            working = re.sub(rf"非\s*{re.escape(alias)}", " ", working)
+    _neg_pat = re.compile(r"(剔除|排除|不要|去掉|不含|别选)\s*([\u4e00-\u9fa5A-Za-z0-9]{1,6})", re.UNICODE)
+    for _nm in _neg_pat.finditer(working):
+        _target = _nm.group(2)
+        _board = None
+        for alias in sorted(BOARD_ALIASES, key=len, reverse=True):
+            if _target.startswith(alias) or alias in _target:
+                _board = BOARD_ALIASES[alias]
+                break
+        if _board is not None:
+            if _board not in spec.exclude_boards:
+                spec.exclude_boards.append(_board)
+        else:
+            if _target not in spec.exclude_concepts:
+                spec.exclude_concepts.append(_target)
+        working = working.replace(_nm.group(0), " ")
 
     # 1) 板块（最长匹配优先，避免"科创"先吃"科创板"）
     for alias in sorted(BOARD_ALIASES, key=len, reverse=True):
@@ -202,8 +232,9 @@ def parse_query(text: str) -> QuerySpec:
             spec.concepts.append(frag)
     # 去重
     spec.concepts = list(dict.fromkeys(spec.concepts))
-    # unparsed：与 concepts 同源，但 concepts 已是"未结构化词"；这里把真正空的概念清空提示
-    if not spec.boards and not spec.filters and not spec.sort and not spec.concepts:
+    # unparsed：仅当完全没有任何结构化理解（含排除）时才标记未理解
+    if not (spec.boards or spec.filters or spec.sort or spec.concepts
+            or spec.exclude_boards or spec.exclude_concepts):
         spec.unparsed.append(raw)
     return spec
 
@@ -243,13 +274,24 @@ def apply_filters(universe: list[dict], spec: QuerySpec) -> list[dict]:
     out = []
     for rec in universe:
         ok = True
-        # 板块
+        # 板块（正向）
         for b in spec.boards:
             prefixes = BOARD_CODE_PREFIX.get(b)
             if prefixes is None:
                 continue  # 指数成分需在 universe 里预标 is_hs300 等，页面执行层处理
             code = str(rec.get("code", ""))
             if not code.startswith(prefixes):
+                ok = False
+                break
+        if not ok:
+            continue
+        # 板块（排除）：命中排除板块 → 跳过（如"剔除创业板"）
+        for b in spec.exclude_boards:
+            prefixes = BOARD_CODE_PREFIX.get(b)
+            if prefixes is None:
+                continue
+            code = str(rec.get("code", ""))
+            if code.startswith(prefixes):
                 ok = False
                 break
         if not ok:
@@ -261,12 +303,19 @@ def apply_filters(universe: list[dict], spec: QuerySpec) -> list[dict]:
                 break
         if not ok:
             continue
-        # 概念
+        # 概念（正向）
         if spec.concepts:
             rec_concepts = [str(c) for c in (rec.get("concepts") or [])]
             rec_name = str(rec.get("name", ""))
             hay = " ".join(rec_concepts) + " " + rec_name
             if not any(c in hay for c in spec.concepts):
+                continue
+        # 概念/名字（排除）：命中排除概念或名字片段 → 跳过（如"剔除ST"）
+        if spec.exclude_concepts:
+            rec_concepts = [str(c) for c in (rec.get("concepts") or [])]
+            rec_name = str(rec.get("name", ""))
+            hay = " ".join(rec_concepts) + " " + rec_name
+            if any(c in hay for c in spec.exclude_concepts):
                 continue
         out.append(rec)
     # 排序：有值者参与排序，None 恒排末尾（不丢记录）；desc 用取负 trick 保持升序语义

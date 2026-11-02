@@ -26,6 +26,7 @@ _FIELD_CN = {
     "pe": "市盈率", "pb": "市净率", "mktcap": "总市值(亿)", "float_mktcap": "流通市值(亿)",
     "rev_growth": "营收增长(%)", "profit_growth": "净利润增长(%)", "roe": "ROE(%)",
     "gross_margin": "毛利率(%)", "rev_cagr": "营收复合增长(%)", "profit_cagr": "利润复合增长(%)",
+    "chg_pct": "涨跌幅(%)", "turnover": "换手率(%)", "volume_ratio": "量比", "amplitude": "振幅(%)",
 }
 _BOARD_CN = {
     "cyb": "创业板", "kcb": "科创板", "main": "主板", "bse": "北交所",
@@ -46,6 +47,10 @@ def _show_spec(spec: ns.QuerySpec) -> None:
         chips.append(f"数量=前{spec.limit}")
     for c in spec.concepts:
         chips.append(f"概念≈{c}")
+    for b in spec.exclude_boards:
+        chips.append(f"剔除板块={_BOARD_CN.get(b, b)}")
+    for c in spec.exclude_concepts:
+        chips.append(f"剔除≈{c}")
     if chips:
         st.markdown("**🧠 已理解：** " + "　".join(f"`{c}`" for c in chips))
     else:
@@ -78,21 +83,49 @@ def _fetch_universe(scope: str, custom_codes: str) -> list[dict]:
 
     if not codes:
         return []
+    # 技术面/规模维度：东方财富全市场行情快照（一次调用，覆盖全候选池场景）
+    # 仅取真实字段：涨跌幅/换手率/量比/振幅 + 流通市值（补足基本面缺的 float_mktcap）。
+    # 取数失败→spot_map 空，技术面维度诚实降级为 None（过滤条件不会假通过）。
+    spot_map: dict = {}
+    try:
+        import akshare as ak
+        _spot = ak.stock_zh_a_spot_em()
+        for _, _row in _spot.iterrows():
+            spot_map[str(_row.get("代码"))] = _row
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[81] 行情快照取数失败，技术面维度降级: %s", e)
+
+    def _num(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
     from modules.fetcher import StockFetcher
     fetcher = StockFetcher()
     recs: list[dict] = []
     for code in codes:
         try:
             fb = fetcher.get_fundamentals(code, use_cache=True) or {}
-            recs.append({
+            rec = {
                 "code": code,
                 "name": fb.get("name") or fetcher.get_name_only(code) or code,
                 "pe": fb.get("pe_ttm"), "pb": fb.get("pb"),
                 "mktcap": fb.get("total_mv"),  # 亿元
+                "float_mktcap": fb.get("float_mv"),
                 "rev_growth": fb.get("rev_growth"), "profit_growth": fb.get("profit_growth"),
                 "roe": fb.get("roe"), "gross_margin": fb.get("gross_margin"),
                 "concepts": fb.get("concepts") or [],
-            })
+            }
+            sp = spot_map.get(code)
+            if sp is not None:
+                rec["chg_pct"] = _num(sp.get("涨跌幅"))
+                rec["turnover"] = _num(sp.get("换手率"))
+                rec["volume_ratio"] = _num(sp.get("量比"))
+                rec["amplitude"] = _num(sp.get("振幅"))
+                if rec["float_mktcap"] is None:
+                    rec["float_mktcap"] = _num(sp.get("流通市值"))
+            recs.append(rec)
         except Exception:  # noqa: BLE001
             continue
     return recs
@@ -152,8 +185,11 @@ def main():
         df = pd.DataFrame([{
             "代码": r["code"], "名称": r["name"],
             "市盈率": r.get("pe"), "市净率": r.get("pb"), "总市值(亿)": r.get("mktcap"),
+            "流通市值(亿)": r.get("float_mktcap"),
             "营收增长(%)": r.get("rev_growth"), "净利增长(%)": r.get("profit_growth"),
             "ROE(%)": r.get("roe"),
+            "涨跌幅(%)": r.get("chg_pct"), "换手率(%)": r.get("turnover"),
+            "量比": r.get("volume_ratio"), "振幅(%)": r.get("amplitude"),
         } for r in result])
         # ── B 类页五段式：KPI 带（数据 = 本次筛选的真实链路计数，仅在执行筛选后出现）──
         _kpi_cards = [{

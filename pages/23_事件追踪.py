@@ -43,6 +43,8 @@ for _k in _FOR_ALL_KEYS:
         st.session_state[_k] = None
 if st.session_state.get('tl_start_idx') is None:
     st.session_state.tl_start_idx = 0
+if "ve_history" not in st.session_state:
+    st.session_state.ve_history = []  # 最近语音事件标注（会话内复核，非持久化）
 if st.session_state.get('tl_n_show') is None:
     st.session_state.tl_n_show = 60
 if st.session_state.get('tl_start_date') is None:
@@ -731,10 +733,18 @@ with st.expander('🔗 相关事件 / 标的推荐', expanded=False):
 st.divider()
 st.subheader("🎙️ 语音事件因子")
 st.caption(
-    "说一段市场事件（如「XX 公司中标大合同」），自动转写并标注「硬逻辑 / 题材炒作 / 时间敏感度 / 情绪倾向」。"
+    "说一段市场事件（如「XX 公司中标大合同」「美联储加息利空成长股」「某行业突发停产」），"
+    "自动转写并标注「硬逻辑 / 题材炒作 / 时间敏感度 / 情绪倾向」。"
     "需配置 STARFIELD_LLM_API_KEY 且 base_url 为支持 whisper 的端点；"
     "否则按具体原因诚实降级，绝不编造转写文本或事件结论。"
 )
+# 可发现性增强：会话内「最近语音事件」复核（让语音标注可回看，而非一次性渲染）
+_ve_hist = st.session_state.get("ve_history") or []
+if _ve_hist:
+    with st.expander(f"🕘 最近语音事件（本会话 {len(_ve_hist)} 条，可复核）", expanded=False):
+        for _h in reversed(_ve_hist):
+            st.caption(f"· {_h['ts']} ｜ {_h['text']}")
+            st.markdown(_h["body"].replace("\n", "  "))
 _ve_audio = st.audio_input("🎙️ 录音或上传音频", key="ve_audio", help="支持浏览器录音或上传音频文件")
 if _ve_audio is not None:
     _ve_bytes = _ve_audio.getbuffer().tobytes()
@@ -763,11 +773,19 @@ if _ve_audio is not None:
         if _ve_se["lean"] != "neutral":
             _ve_se_kw = "、".join(_ve_se.get("keywords", []))
             _ve_lines.append(f"**情绪倾向**：{_ve_se['label']}（{ _ve_se_kw }）")
+        _ve_body = "  \n".join(_ve_lines) or "（无明确因子命中，转写文本已保留于上方）"
         xc_content_card(
             "🏷️ 语音事件标注",
-            body="  \n".join(_ve_lines) or "（无明确因子命中，转写文本已保留于上方）",
+            body=_ve_body,
             icon="🎙️",
         )
+        # 独立化：本次标注写入会话历史，供上方「最近语音事件」复核
+        st.session_state.ve_history.append({
+            "ts": datetime.now().strftime("%H:%M:%S"),
+            "text": _ve_res["text"],
+            "body": _ve_body,
+        })
+        st.session_state.ve_history = st.session_state.ve_history[-5:]
 
 # ── 方法学与来源注脚（B 类页五段式收尾）──
 st.markdown('---')
