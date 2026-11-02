@@ -28,7 +28,9 @@ ASR 实现：复用 modules.llm_client 的 STARFIELD_LLM_API_KEY / base_url
 """
 from __future__ import annotations
 
+import json
 import logging
+import os
 from typing import Dict, List, Optional
 
 from modules.event_factor import annotate_hard_logic
@@ -192,19 +194,16 @@ def build_voice_event_card(text: str) -> Dict[str, object]:
 
 
 def render_voice_event_block() -> None:
-    """语音事件因子可复用渲染块（2026-11-02 从 23_事件追踪.py 抽离，供独立页 87 共用）。
+    """语音事件因子可复用渲染块（2026-11-02 抽离；2026-11-03 历史升级为持久化）。
 
-    录音/上传 → ASR 转写 → 结构化因子卡（事件性质 / 时间敏感度 / 情绪倾向）。
-    会话内「最近语音事件」复核（ve_history），跨页共享同一 session_state。
-    诚实降级：未配置 key / 端点不支持 audio / 转写失败 → 精确文案，绝不编造。
+    录音/上传 → ASR 转写 → 结构化因子卡（事件性质 / 时间敏感度 / 情绪倾向）→ 落盘存档。
+    历史真理源 = data/voice_events.json（跨会话、跨页共享）；会话内存不再另存一份。
+    诚实降级：未配置 key / 端点不支持 audio / 转写失败 → 精确文案，绝不编造、不落盘。
     """
     import streamlit as st
     from datetime import datetime
     from modules.ui_kit import xc_content_card, xc_warn_box
     from modules.voice_event import transcribe_audio_result, build_voice_event_card
-
-    if "ve_history" not in st.session_state:
-        st.session_state.ve_history = []  # 最近语音事件标注（会话内复核，非持久化）
 
     st.divider()
     st.subheader("🎙️ 语音事件因子")
@@ -214,13 +213,31 @@ def render_voice_event_block() -> None:
         "需配置 STARFIELD_LLM_API_KEY 且 base_url 为支持 whisper 的端点；"
         "否则按具体原因诚实降级，绝不编造转写文本或事件结论。"
     )
-    # 可发现性增强：会话内「最近语音事件」复核（让语音标注可回看，而非一次性渲染）
-    _ve_hist = st.session_state.get("ve_history") or []
+    # 持久化历史（跨会话可复核）：真理源 = data/voice_events.json
+    _ve_hist = load_voice_events(20)
     if _ve_hist:
-        with st.expander(f"🕘 最近语音事件（本会话 {len(_ve_hist)} 条，可复核）", expanded=False):
-            for _h in reversed(_ve_hist):
-                st.caption(f"· {_h['ts']} ｜ {_h['text']}")
-                st.markdown(_h["body"].replace("\n", "  "))
+        with st.expander(f"🕘 历史语音事件（已存档 {len(_ve_hist)} 条，跨会话可复核）", expanded=False):
+            for _h in _ve_hist:
+                st.caption(f"· {_h.get('ts', '')} ｜ {_h.get('text', '')}")
+                _ve_meta = " ｜ ".join(str(_h.get(k)) for k in ("event", "urgency", "sentiment") if _h.get(k))
+                if _ve_meta:
+                    st.markdown(f"🏷️ {_ve_meta}")
+            if st.button("🗑️ 清空历史语音事件", key="ve_clear_hist"):
+                st.session_state["ve_clear_confirm"] = True
+            if st.session_state.get("ve_clear_confirm"):
+                st.warning("确认清空全部已存档语音事件？此操作不可恢复。")
+                _c1, _c2 = st.columns(2)
+                if _c1.button("确认清空", key="ve_clear_cfm"):
+                    _n = clear_voice_events()
+                    if _n < 0:
+                        st.error("清空失败，请检查文件权限（未删除任何数据）。")
+                    else:
+                        st.session_state.pop("ve_clear_confirm", None)
+                        st.rerun()
+                if _c2.button("取消", key="ve_clear_cancel"):
+                    st.session_state.pop("ve_clear_confirm", None)
+                    st.rerun()
+        st.caption("💾 语音事件存档于本机 data/voice_events.json（应用级共享，非按用户隔离）")
     _ve_audio = st.audio_input("🎙️ 录音或上传音频", key="ve_audio", help="支持浏览器录音或上传音频文件")
     if _ve_audio is not None:
         _ve_bytes = _ve_audio.getbuffer().tobytes()
@@ -255,10 +272,98 @@ def render_voice_event_block() -> None:
                 body=_ve_body,
                 icon="🎙️",
             )
-            # 独立化：本次标注写入会话历史，供上方「最近语音事件」复核（跨页共享）
-            st.session_state.ve_history.append({
-                "ts": datetime.now().strftime("%H:%M:%S"),
-                "text": _ve_res["text"],
-                "body": _ve_body,
-            })
-            st.session_state.ve_history = st.session_state.ve_history[-5:]
+            # 持久化：标注成功才落盘（转写失败绝不写占位）；历史区即上方「历史语音事件」
+            _ve_entry = {
+                "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "text": _ve_card["text"],
+                "event": str(_ve_hl.get("hard_logic") or _ve_hl.get("reason") or ""),
+                "urgency": str(_ve_ur.get("label") or ""),
+                "sentiment": str(_ve_se.get("label") or ""),
+            }
+            if save_voice_event(_ve_entry):
+                st.caption("💾 已存档（data/voice_events.json，跨会话可复核）")
+            else:
+                st.caption("⚠️ 本机存档失败，本次标注仅当前会话可见")
+
+
+# ── 持久化（2026-11-03 新方向：语音事件跨会话沉淀，数据链闭环）────────────────
+# 为什么补：语音→ASR→因子标注这条链此前走到「标注卡」就断了——ve_history 只存
+# session_state，刷新即丢，语音事件无法沉淀为可复核的事件数据。
+# 存储：data/voice_events.json（SS_DATA_DIR 隔离，与 nav_freq.json 同模式），
+#       atomic_json_dump 原子写防并发损坏；本机共享存储（非按用户隔离），UI 已如实标注。
+# 诚实红线：转写失败/空文本绝不落盘；读损坏文件→[] 不臆造；清空返回真实条数。
+_VOICE_EVENTS_MAX = 200
+
+
+def _voice_events_path() -> str:
+    """语音事件持久化文件路径（SS_DATA_DIR 隔离）。"""
+    _data_dir = os.environ.get("SS_DATA_DIR") or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"
+    )
+    return os.path.join(_data_dir, "voice_events.json")
+
+
+def load_voice_events(limit: int = 20) -> list:
+    """读取持久化语音事件（新的在前）。文件缺失/损坏 → []（不臆造）。"""
+    try:
+        _path = _voice_events_path()
+        if not os.path.exists(_path):
+            return []
+        with open(_path, "r", encoding="utf-8") as _f:
+            _data = json.load(_f)
+        if not isinstance(_data, list):
+            return []
+        _items = [it for it in _data if isinstance(it, dict)]
+        return _items[:limit] if isinstance(limit, int) and limit > 0 else _items
+    except Exception as _e:
+        logger.warning("[voice_event] 读取持久化语音事件失败: %s", _e)
+        return []
+
+
+def save_voice_event(entry: dict) -> bool:
+    """追加一条语音事件到持久层（新的在前，截断至上限）。fail-safe：失败返回 False。
+
+    诚实红线：entry 无有效 text 一律拒绝写入（转写失败绝不落占位数据）。
+    旧文件损坏时重建而非中断（旧数据已不可靠，保留只会持续污染读取）。
+    """
+    try:
+        if not isinstance(entry, dict) or not str(entry.get("text", "")).strip():
+            return False
+        _path = _voice_events_path()
+        os.makedirs(os.path.dirname(_path), exist_ok=True)
+        _items: list = []
+        if os.path.exists(_path):
+            try:
+                with open(_path, "r", encoding="utf-8") as _f:
+                    _old = json.load(_f)
+                if isinstance(_old, list):
+                    _items = [it for it in _old if isinstance(it, dict)]
+            except Exception:
+                _items = []
+        _items.insert(0, entry)
+        _items = _items[:_VOICE_EVENTS_MAX]
+        from modules.atomic_io import atomic_json_dump
+        atomic_json_dump(_items, _path)
+        return True
+    except Exception as _e:
+        logger.warning("[voice_event] 保存语音事件失败: %s", _e)
+        return False
+
+
+def clear_voice_events() -> int:
+    """清空持久化语音事件，返回真实清除条数；文件缺失返回 0；失败返回 -1（诚实语义）。"""
+    try:
+        _path = _voice_events_path()
+        if not os.path.exists(_path):
+            return 0
+        try:
+            with open(_path, "r", encoding="utf-8") as _f:
+                _old = json.load(_f)
+            _n = len(_old) if isinstance(_old, list) else 0
+        except Exception:
+            _n = 0
+        os.remove(_path)
+        return _n
+    except Exception as _e:
+        logger.warning("[voice_event] 清空语音事件失败: %s", _e)
+        return -1

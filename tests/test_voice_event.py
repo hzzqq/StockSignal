@@ -219,3 +219,57 @@ def test_build_voice_event_card():
     # 空文本也不应抛异常
     c0 = ve.build_voice_event_card("")
     assert c0["factors"]["available"] is False
+
+
+# ── 持久化（2026-11-03 新方向）：roundtrip / 损坏容错 / 上限 / 拒空 / 诚实清空 ──
+def test_voice_events_roundtrip(monkeypatch, tmp_path):
+    """写入→读出一致，新的在前；文件缺失读 []。"""
+    ve = _mod()
+    monkeypatch.setattr(ve, "_voice_events_path", lambda: str(tmp_path / "voice_events.json"))
+    assert ve.load_voice_events() == []
+    assert ve.save_voice_event({"ts": "2026-11-03 01:00:00", "text": "公司中标大合同", "event": "硬逻辑"}) is True
+    assert ve.save_voice_event({"ts": "2026-11-03 02:00:00", "text": "某行业突发停产", "event": "硬逻辑"}) is True
+    items = ve.load_voice_events()
+    assert [it["text"] for it in items] == ["某行业突发停产", "公司中标大合同"], "新的应排在前"
+
+
+def test_voice_events_corrupt_file_tolerated(monkeypatch, tmp_path):
+    """损坏文件：读 → [] 不臆造；写 → 重建成功（旧数据已不可靠，保留只会持续污染）。"""
+    ve = _mod()
+    p = tmp_path / "voice_events.json"
+    p.write_text("{not-json", encoding="utf-8")
+    monkeypatch.setattr(ve, "_voice_events_path", lambda: str(p))
+    assert ve.load_voice_events() == []
+    assert ve.save_voice_event({"ts": "t", "text": "损坏后重建"}) is True
+    assert ve.load_voice_events()[0]["text"] == "损坏后重建"
+
+
+def test_voice_events_cap_truncates(monkeypatch, tmp_path):
+    """超过上限截断到 _VOICE_EVENTS_MAX，保留最新的。"""
+    ve = _mod()
+    monkeypatch.setattr(ve, "_voice_events_path", lambda: str(tmp_path / "v.json"))
+    for i in range(ve._VOICE_EVENTS_MAX + 10):
+        assert ve.save_voice_event({"ts": str(i), "text": f"事件{i}"}) is True
+    items = ve.load_voice_events(limit=0)  # limit=0 = 不限量
+    assert len(items) == ve._VOICE_EVENTS_MAX
+    assert items[0]["text"] == f"事件{ve._VOICE_EVENTS_MAX + 9}", "截断应保留最新"
+
+
+def test_voice_events_save_rejects_empty_text(monkeypatch, tmp_path):
+    """诚实红线：空文本/None 绝不落盘（转写失败不留占位数据）。"""
+    ve = _mod()
+    monkeypatch.setattr(ve, "_voice_events_path", lambda: str(tmp_path / "v.json"))
+    assert ve.save_voice_event({"ts": "t", "text": "   "}) is False
+    assert ve.save_voice_event({"ts": "t"}) is False
+    assert ve.save_voice_event(None) is False
+    assert ve.load_voice_events() == []
+
+
+def test_voice_events_clear_honest(monkeypatch, tmp_path):
+    """清空返回真实条数：缺失 0、有 1 清 1、清后读 []。"""
+    ve = _mod()
+    monkeypatch.setattr(ve, "_voice_events_path", lambda: str(tmp_path / "v.json"))
+    assert ve.clear_voice_events() == 0
+    assert ve.save_voice_event({"ts": "t", "text": "x"}) is True
+    assert ve.clear_voice_events() == 1
+    assert ve.load_voice_events() == []
