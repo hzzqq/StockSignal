@@ -161,7 +161,11 @@ def test_42_removed_decorations():
     assert "⌨️ 快捷键" not in src, "自述无快捷键的空占位不得回归"
     assert 'sf_card("🎮 模拟交易组合"' not in src
     assert 'import random' not in src
-    assert "使用说明" in src and "我的收藏" in src
+    # 2026-11-02 守卫纠偏：「使用说明」大块装饰已在 UI 减负中移除，旧断言要求其存在
+    # 与减负方向相反。改为反向断言（不得作为大块装饰回潮），保留「我的收藏」
+    # 折叠区存在断言（本页唯一被收纳的次要功能）。
+    assert "使用说明" not in src, "「使用说明」大块装饰不得回归（T-230 P2 已减负）"
+    assert "⭐ 我的收藏" in src, "我的收藏折叠区不得丢失"
 
 
 def test_51_removed_hardcoded_and_wrapped():
@@ -242,7 +246,11 @@ def test_94_removed_and_wrapped():
     assert 'st.expander("⚙️ 更多操作' not in src, "独立「更多操作」expander 不得回潮（T-367 已合并进通知概览卡片）"
     assert 'st.expander(f"⭐ 我的收藏（{len(_msg_starred_ids)}）"' in src
     assert "msg_read_ids" in src and "mark_all" in src
-    assert "数据来源：自选股实时行情" in src
+    # 2026-11-02 守卫纠偏：T-218 起 94 页改为更详细的「口径与来源」五段式标注，
+    # 旧的短文案「数据来源：自选股实时行情」已不存在。守卫意图（诚实披露行情来源）
+    # 不变，改锁现行措辞。
+    assert "口径与来源：" in src and "异动=自选股实时行情" in src, \
+        "94 数据来源诚实标注丢失（异动=自选股实时行情）"
 
 
 # ═══════════════════════ T-231 P3 批次 ═══════════════════════

@@ -23,7 +23,10 @@ INDUSTRIES = [
     "铜", "黄金", "银行金融", "生物医药", "消费", "稀土",
 ]
 
-_LEGACY_3D = ("_cube_fig", "_load_cube", "_bento", "_composite", "Scatter3d")
+# 2026-11-02 守卫纠偏：原标记 ``_bento`` 是子串匹配，会误伤在用的
+# ``xc_bento_kpi``（迁移到 ui_kit 的 canonical Bento 卡族，非 3D 遗留）。
+# 改为带左括号的精确形态，只命中旧实现里的 ``def _bento(...)`` / ``_bento(...)`` 调用。
+_LEGACY_3D = ("_cube_fig", "_load_cube", "_bento(", "_composite", "Scatter3d")
 
 
 def _src() -> str:
