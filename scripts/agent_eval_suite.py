@@ -17,9 +17,11 @@ scripts/agent_eval_suite.py — 研究智能体评测套件（T-273B，AgentBenc
   守卫绿 ⇔ 报告可复现。
 
 用法：python scripts/agent_eval_suite.py  → reports/research_agent_eval.json
+      python scripts/agent_eval_suite.py --dry-run  # 只评测打印，不落盘（R-15 安全预览）
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import threading
@@ -253,10 +255,18 @@ def run_eval() -> dict:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description="研究智能体评测套件（T-273B）")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="只评测并打印，不落盘 reports/research_agent_eval.json（R-15）")
+    args = ap.parse_args()
+
     result = run_eval()
-    REPORT.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"[agent_eval] {result['passed']}/{result['total']} 通过 "
-          f"(pass_rate={result['pass_rate']}) → {REPORT}")
+    if args.dry_run:
+        print(f"[agent_eval][dry-run] 将写出 {REPORT}（未落盘）")
+    else:
+        REPORT.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"[agent_eval] {result['passed']}/{result['total']} 通过 "
+              f"(pass_rate={result['pass_rate']}) → {REPORT}")
     for c in result["cases"]:
         mark = "PASS" if c["passed"] else "FAIL"
         print(f"  [{mark}] {c['id']} {c['dim']}: {c['detail']}")
