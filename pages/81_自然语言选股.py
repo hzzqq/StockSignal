@@ -164,9 +164,23 @@ def main():
             else:
                 st.warning("方案保存失败（检查 data 目录权限）")
     with _p2:
-        if _presets and st.button("🗑️ 清空全部方案", key="nl_preset_clear"):
-            _n = ns.clear_query_presets()
-            st.toast(f"已清空 {_n} 条方案" if _n >= 0 else "清空失败（检查文件权限）")
+        if _presets:
+            _cfm = st.session_state.get("nl_preset_clear_cfm", False)
+            if not _cfm:
+                st.button("🗑️ 清空全部方案", key="nl_preset_clear",
+                          on_click=lambda: st.session_state.__setitem__("nl_preset_clear_cfm", True),
+                          help="⚠️ 点击后进入确认态（不可恢复的操作）")
+            else:
+                st.warning("⚠️ 即将清空全部方案（不可恢复）：", icon="⚠️")
+                _c1, _c2 = st.columns(2)
+                if _c1.button("确认清空", key="nl_preset_clear_yes", type="primary"):
+                    _n = ns.clear_query_presets()
+                    st.session_state.nl_preset_clear_cfm = False
+                    st.toast(f"已清空 {_n} 条方案" if _n >= 0 else "清空失败（检查文件权限）")
+                    st.rerun()
+                if _c2.button("取消", key="nl_preset_clear_no"):
+                    st.session_state.nl_preset_clear_cfm = False
+                    st.rerun()
 
     spec = ns.parse_query(q)
     _show_spec(spec)
