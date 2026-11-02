@@ -16,6 +16,11 @@
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # 仅类型检查期导入：注解在 future-annotations 下运行期不求值
+    import pandas as pd
+
 import logging
 import re
 

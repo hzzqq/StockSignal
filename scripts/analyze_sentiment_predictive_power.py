@@ -127,7 +127,7 @@ def build_frame(min_sample: int):
     return df, d, scale
 
 
-def run(min_sample: int, train_frac: float):
+def run(min_sample: int, train_frac: float, dry_run: bool = False):
     df_all, d, scale = build_frame(min_sample)
 
     # ── 逐日调用生产引擎 ──
@@ -363,7 +363,7 @@ def run(min_sample: int, train_frac: float):
         "跨日不可比。历史基座 connect_2b/fc_ratio 缺失率极高。"
     )
 
-    if args.dry_run:
+    if dry_run:
         print(f"[dry-run] 将写出 {OUT}")
         return rep
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
@@ -381,7 +381,7 @@ def main():
                     help="当日有效个股数下限（早期样本仅数十只，噪声大）")
     ap.add_argument("--train-frac", type=float, default=0.6)
     a = ap.parse_args()
-    r = run(a.min_sample, a.train_frac)
+    r = run(a.min_sample, a.train_frac, dry_run=a.dry_run)
 
     print(f"=== 情绪预测力实证 {r['date_range'][0]} ~ {r['date_range'][1]} ===")
     print(f"全日数 {r['rows_all']} → 有效 {r['rows_used']}（引擎异常 {r['engine_errors']}）")

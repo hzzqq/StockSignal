@@ -228,15 +228,6 @@ def _render_hero(df, today, prev, meta=None):
     # 与 build_snapshot 同源（都走 event_position_adj），保证实时卡与归档快照一致；
     # 底层读 11MB 信号文件，靠模块级 300s 缓存避免每次刷新重读。失败则降级为 None（不臆造）。
 
-    # 方向 #7：信号陈旧→决策显式降权（可读化徽标）。在仓位卡之前先把"诚实边界"摊开：
-    # 不仅说"数据滞后"，还明确"仓位已因此降权到 X%"，并把"停更(stalled)源"标注出来。
-    try:
-        _all_fresh = assess_freshness({r["name"]: r["as_of"] for r in _dh.health_rows()})
-        _stalled = _dh.detect_stall()
-        render_freshness_badge(_all_fresh, stalled=_stalled, position_pct=pos["pct"])
-    except Exception as e:  # noqa: BLE001 - T-217：新鲜度徽标是诚实语义载体，失败留痕不静默
-        logger.warning("新鲜度徽标渲染失败: %s", e)
-
     # T-183 双因子接线：与 build_snapshot 同源（compute_dual_factor_inputs），
     # 保证实时卡与归档快照一致；数据缺失诚实降级 None（不臆造）。
     _dfi = compute_dual_factor_inputs()
@@ -246,6 +237,17 @@ def _render_hero(df, today, prev, meta=None):
                           herd_side=_dfi.get("herd_side"),
                           regime_state=_dfi.get("regime_state"),
                           regime_confidence=_dfi.get("regime_confidence"))
+    # 方向 #7：信号陈旧→决策显式降权（可读化徽标）。在仓位卡之前先把"诚实边界"摊开：
+    # 不仅说"数据滞后"，还明确"仓位已因此降权到 X%"，并把"停更(stalled)源"标注出来。
+    # F821 修复（2026-11-02）：原实现位于 pos 定义之前，position_pct=pos["pct"] 恒抛
+    # NameError 被外层 except 吞掉 → 徽标永不渲染。移至 derive_position 之后。
+    try:
+        _all_fresh = assess_freshness({r["name"]: r["as_of"] for r in _dh.health_rows()})
+        _stalled = _dh.detect_stall()
+        render_freshness_badge(_all_fresh, stalled=_stalled, position_pct=pos["pct"])
+    except Exception as e:  # noqa: BLE001 - T-217：新鲜度徽标是诚实语义载体，失败留痕不静默
+        logger.warning("新鲜度徽标渲染失败: %s", e)
+
     # 暴露最终仓位到 session_state，供冒烟测试做「数据正确性」断言（不渲染、纯透传）
     try:
         st.session_state["decision_pos_pct"] = pos["pct"]

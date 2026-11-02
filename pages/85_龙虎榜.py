@@ -8,6 +8,11 @@ StockSignal 此前只有板块/个股层面的资金流向，没有这一层。
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # 仅类型检查期导入：注解在 future-annotations 下运行期不求值
+    import pandas as pd
+
 from datetime import datetime
 
 import streamlit as st

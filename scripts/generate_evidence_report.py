@@ -104,13 +104,13 @@ def main():
         "early_dist": early_dist,
         "breadth": breadth,
     }
-    _render_html(data, OUT_PATH)
+    _render_html(data, OUT_PATH, dry_run=args.dry_run)
     print(f"[evidence] 报告已生成: {OUT_PATH}")
     print(f"[evidence] 覆盖 {date_min}~{date_max}（{n_days} 交易日 / {years} 年）")
     print(f"[evidence] 六阶段分布: {cycle_dist}")
 
 
-def _render_html(d: dict, path: str):
+def _render_html(d: dict, path: str, dry_run: bool = False):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     js = json.dumps(d, ensure_ascii=False)
     # 静态表格在服务端预渲染：即使完全离线（Plotly CDN 失败）也能看到全部数字
@@ -146,7 +146,7 @@ def _render_html(d: dict, path: str):
             .replace("__META__",
                      f"数据区间 <b>{d['date_min']}</b> ~ <b>{d['date_max']}</b> ｜ "
                      f"真实交易日 <b>{d['n_days']}</b> 天 ｜ 跨度 <b>{d['years']}</b> 年"))
-    if args.dry_run:
+    if dry_run:
         print(f"[dry-run] 将写出 {path}（{len(html):,} 字符）")
         return 0
     with open(path, "w", encoding="utf-8") as f:

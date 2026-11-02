@@ -397,6 +397,20 @@ if st.button('计算相关性', key='calc_corr', width="stretch", disabled=len(_
         else:
             xc_warn_box('需要至少 2 只有效股票代码。请检查输入或网络后重试。')
 
+def _wl_quote_local(code: str):
+    """本地单只实时行情回退（批量接口不可用/缺票时逐只补齐）。
+
+    R-03 收敛到 fetch_many 时该函数名被引用但从未实现——lambda 内的 NameError
+    被 fetch_many 逐任务吞掉，导致「本地逐只回退」长期静默失效。此处补真实实现：
+    复用 fetcher.get_realtime_quote（新浪五档，失败返 None），供线程池并发调用。
+    """
+    try:
+        return fetcher.get_realtime_quote(code)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[行情看板] 本地行情回退失败 {code}: {e}")
+        return None
+
+
 def _wl_quote_batch(codes, token):
     """R90：优先批量接口（1 次网络往返替代 N 次 /api/quote）。
 

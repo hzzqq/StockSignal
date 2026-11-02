@@ -104,6 +104,7 @@ def _poll_ai_consult_task() -> None:
     st.rerun(scope="app") 升级为一次整页重跑，以在页面级重渲染聊天历史。
     这是 fragment 铁律允许的唯一整页重跑时机——等待期间绝不整页刷新。
     """
+    from modules.background_tasks import poll_task  # 函数内导入：避 background_tasks ↔ 本模块循环
     task_id = st.session_state.get('ai_task_id')
     if not task_id:
         return
@@ -189,6 +190,7 @@ def render_ai_consultant() -> None:
         st.session_state['ai_chat'].append({'role': 'user', 'content': q})
         ctx = _slim_context()
         ctx['history'] = _chat_history_for_context()
+        from modules.background_tasks import submit_task_with_error  # 函数内导入：避循环
         task_id, err = submit_task_with_error('ai_consult', {'question': q, 'context': ctx})
         if task_id:
             st.session_state['ai_task_id'] = task_id

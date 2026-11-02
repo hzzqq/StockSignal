@@ -111,6 +111,7 @@ def data_as_of(df: pd.DataFrame | None = None) -> str:
     """返回离线健康镜像的最新数据日期（用于页面诚实声明『非实时』）。"""
     if df is None:
         try:
+            import modules.market_regime as mr  # 函数内导入：避 market_regime ↔ breadth_features 循环
             df = mr.load_breadth_history()
         except Exception:  # pragma: no cover
             return "未知"

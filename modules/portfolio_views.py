@@ -1048,7 +1048,7 @@ def render_portfolio_returns() -> None:
                     ds = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)[:10]
                     out[ds] = float(c) * remaining
             except Exception as e:
-                print(f"[R-01] 组合收益净值计算 code={code}: {e}")
+                print(f"[R-01] 组合收益净值计算 ticker={ticker}: {e}")
                 pass
             return out
 

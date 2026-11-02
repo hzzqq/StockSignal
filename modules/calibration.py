@@ -245,7 +245,7 @@ def apply_patch(strong_samples: int = DEFAULT_STRONG_SAMPLES,
         # 备份 + 写回
         shutil.copy(src_path, src_path.with_suffix(src_path.suffix + ".bak"))
         src_path.write_text(src[:i] + new_block + src[j + 1:], encoding="utf-8")
-        log_path = Path(DATA_DIR) / "calibration_apply.log"
+        log_path = Path(_track.DATA_DIR) / "calibration_apply.log"  # 单一真理源：跟随 decision_track 的 SS_DATA_DIR 隔离
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"[{_dt.now().isoformat(timespec='seconds')}] apply CYCLE_ADJ {changed}\n")
         logger.info("[calibration] 已落地 CYCLE_ADJ 补丁: %s", changed)

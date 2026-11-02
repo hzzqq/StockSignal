@@ -265,6 +265,7 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
     from datetime import datetime, timedelta
     from modules.fetcher import StockFetcher
     from modules.ui_theme import _theme_is_dark
+    from modules.visualizer import DOWN_COLOR, UP_COLOR  # 涨跌配色（A股红涨绿跌）
     try:
         is_open, _, _ = _index_market_status()
     except Exception as e:

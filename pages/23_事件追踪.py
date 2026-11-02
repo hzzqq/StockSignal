@@ -68,13 +68,11 @@ def _cached_intraday(ticker):
         rec = api_intraday(ticker)
         if rec and isinstance(rec.get('records'), list) and rec['records']:
             return (pd.DataFrame(rec['records']), rec.get('prev_close'), rec.get('trade_date'))
-    except Exception:
-        # ui_audit_exempt: except-pass 后端 /api/intraday 不可达，回退本地 fetcher 分时数据（docstring 既定双源链）
-        pass
-        if _df is not None and (not _df.empty):
-            return (_df, _pc, _dt)
-    except Exception:
-        logging.getLogger(__name__).warning("[23_事件追踪.py] try 体危险操作被吞")
+    except Exception as e:
+        # 本地 fetcher 分时回退未实现（历史遗留：死代码 + 未定义名 _df/_pc/_dt）。
+        # 诚实降级：留痕并返回 None，由调用方渲染空态，不编造、不假装回退。
+        logging.getLogger(__name__).warning(
+            "[23_事件追踪.py] 后端 /api/intraday 不可达，本地回退未实现: %s", e)
     return None
 
 def _news_fallback_url(title: str, source: str='') -> str:
