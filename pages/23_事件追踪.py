@@ -20,7 +20,7 @@ from modules.page_utils import fmt_rel as _fmt_rel
 from modules.page_widgets import _empty_info
 from modules.event_levels import STRENGTH_ORDER  # T-288：五档单一真理源
 from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_kpi_grid
-from modules.voice_event import transcribe_audio, extract_event_factors  # 语音转写事件因子（真空白补全）
+from modules.voice_event import transcribe_audio_result, build_voice_event_card  # 语音转写事件因子（真空白补全 + 独立化增强）
 render_standard_page(title='事件追踪', icon='🔔', caption='⚠️ 数据仅供参考，不构成投资建议', layout='wide')
 
 lk_p1, lk_p2 = st.columns([1, 1])
@@ -30,6 +30,8 @@ with lk_p1:
 with lk_p2:
     if st.button('🔍 个股研究', key='lk_go_rs', width="stretch"):
         st.switch_page('pages/24_个股研究.py')
+# 语音事件因子（真空白补全）：顶部可发现性提示——指向页面底部语音录入卡（非导航新增，不碰导航守卫）
+st.caption('💡 页面底部支持 🎙️ 语音录入市场事件：录音 / 上传音频，自动转写并标注因子（需配置支持 whisper 的 LLM 端点）。')
 from modules.signal import SignalEngine
 from modules.colors import UP_COLOR, DOWN_COLOR
 from modules.search_ui import stock_search_input
@@ -725,33 +727,47 @@ with st.expander('🔗 相关事件 / 标的推荐', expanded=False):
     else:
         st.caption('暂无推荐数据。')
 
-# ── 语音事件因子（真空白补全 2026-11-02）：录音/上传 → ASR 转写 → 事件因子提取 ──
+# ── 语音事件因子（真空白补全 + 独立化增强 2026-11-02）：录音/上传 → ASR 转写 → 结构化卡片 ──
 st.divider()
 st.subheader("🎙️ 语音事件因子")
 st.caption(
-    "说一段市场事件（如「XX 公司中标大合同」），自动转写并标注「硬逻辑 / 题材炒作」。"
-    "需配置 STARFIELD_LLM_API_KEY 且 base_url 为 OpenAI 官方端点（支持 whisper）；"
-    "否则诚实降级，绝不编造转写文本或事件结论。"
+    "说一段市场事件（如「XX 公司中标大合同」），自动转写并标注「硬逻辑 / 题材炒作 / 时间敏感度 / 情绪倾向」。"
+    "需配置 STARFIELD_LLM_API_KEY 且 base_url 为支持 whisper 的端点；"
+    "否则按具体原因诚实降级，绝不编造转写文本或事件结论。"
 )
 _ve_audio = st.audio_input("🎙️ 录音或上传音频", key="ve_audio", help="支持浏览器录音或上传音频文件")
 if _ve_audio is not None:
     _ve_bytes = _ve_audio.getbuffer().tobytes()
     with st.spinner("转写中…"):
-        _ve_text = transcribe_audio(_ve_bytes, filename=getattr(_ve_audio, "name", "audio.webm"))
-    if not _ve_text:
-        xc_warn_box("语音转写不可用：未配置 OpenAI key / 当前 base_url 不支持 whisper / 网络异常——不编造转写文本。")
+        _ve_res = transcribe_audio_result(_ve_bytes, filename=getattr(_ve_audio, "name", "audio.webm"))
+    if not _ve_res["ok"]:
+        # 诚实降级：按结构化 status 给出精确文案，不编造
+        xc_warn_box(f"⚠️ {_ve_res.get('message') or '语音转写不可用'}（转写文本与事件结论均不编造）")
     else:
-        st.success(f"转写：{_ve_text}")
-        _ve_fac = extract_event_factors(_ve_text)
-        if _ve_fac.get("available"):
-            _ve_hl = _ve_fac["hard_logic"]
-            if _ve_hl.get("status") == "ok":
-                _ve_lab = _ve_hl["hard_logic"]
-                _ve_evd = "、".join(_ve_hl.get("evidence", []))
-                xc_content_card(f"事件因子标注：{_ve_lab}",
-                                body=f"命中证据：{_ve_evd}（透明规则，非 AI 洞见）", icon="🏷️")
-            else:
-                st.caption(f"事件因子：{_ve_hl.get('reason', '无法判定')}")
+        _ve_card = build_voice_event_card(_ve_res["text"])
+        st.success(f"转写：{_ve_card['text']}")
+        _ve_hl = _ve_card["factors"].get("hard_logic", {})
+        _ve_ur = _ve_card["urgency"]
+        _ve_se = _ve_card["sentiment"]
+        # 自包含因子卡：事件性质 + 时间敏感度 + 情绪倾向（全部确定性规则，如实标注）
+        _ve_lines: list = []
+        if _ve_hl.get("status") == "ok":
+            _ve_lines.append(f"**事件性质**：{_ve_hl.get('hard_logic')}（透明规则，非 AI 洞见）")
+            _ve_evd = "、".join(_ve_hl.get("evidence", []))
+            if _ve_evd:
+                _ve_lines.append(f"命中证据：{_ve_evd}")
+        else:
+            _ve_lines.append(f"**事件性质**：{_ve_hl.get('reason', '无法判定（无明确硬逻辑/题材关键词）')}")
+        if _ve_ur["level"] != "neutral":
+            _ve_lines.append(f"**时间敏感度**：{_ve_ur['label']}（{ '、'.join(_ve_ur['keywords']) }）")
+        if _ve_se["lean"] != "neutral":
+            _ve_se_kw = "、".join(_ve_se.get("keywords", []))
+            _ve_lines.append(f"**情绪倾向**：{_ve_se['label']}（{ _ve_se_kw }）")
+        xc_content_card(
+            "🏷️ 语音事件标注",
+            body="  \n".join(_ve_lines) or "（无明确因子命中，转写文本已保留于上方）",
+            icon="🎙️",
+        )
 
 # ── 方法学与来源注脚（B 类页五段式收尾）──
 st.markdown('---')

@@ -112,3 +112,110 @@ def test_extract_neutral_unavailable():
     r = ve.extract_event_factors("今天天气不错")
     assert r["available"] is True
     assert r["hard_logic"]["status"] == "unavailable"
+
+
+# ── 2026-11-02 增强：结构化诊断 + 词表分类 + 卡片构造 ──
+def test_transcribe_result_no_key(monkeypatch):
+    ve = _mod()
+    monkeypatch.setattr(ve, "is_configured", lambda: False)
+    r = ve.transcribe_audio_result(b"x")
+    assert r["ok"] is False and r["status"] == "no_key" and r["text"] is None
+
+
+def test_transcribe_result_empty():
+    ve = _mod()
+    r = ve.transcribe_audio_result(b"")
+    assert r["ok"] is False and r["status"] == "empty"
+    assert ve.transcribe_audio_result(None)["status"] == "empty"
+
+
+def test_transcribe_result_success(monkeypatch):
+    ve = _mod()
+
+    class _Resp:
+        text = "  公司中标大合同，产能扩张  "
+
+    class _Audio:
+        class transcriptions:
+            @staticmethod
+            def create(*a, **k):
+                return _Resp()
+
+    class _Client:
+        audio = _Audio()
+
+    _patch_openai(monkeypatch, lambda *a, **k: _Client())
+    monkeypatch.setattr(ve, "is_configured", lambda: True)
+    monkeypatch.setattr(ve, "config", lambda: ("https://api.openai.com/v1", "gpt-4o-mini", "sk-x"))
+    r = ve.transcribe_audio_result(b"fake", filename="a.webm")
+    assert r["ok"] is True and r["status"] == "ok"
+    assert r["text"] == "公司中标大合同，产能扩张"
+    # 旧契约 transcribe_audio 仍返回文本（兼容）
+    assert ve.transcribe_audio(b"fake") == "公司中标大合同，产能扩张"
+
+
+def test_transcribe_result_unsupported_audio(monkeypatch):
+    ve = _mod()
+
+    def _boom(*a, **k):
+        raise RuntimeError("POST /audio/transcriptions 404 not supported")
+
+    class _Audio:
+        class transcriptions:
+            create = staticmethod(_boom)
+
+    class _Client:
+        audio = _Audio()
+
+    _patch_openai(monkeypatch, lambda *a, **k: _Client())
+    monkeypatch.setattr(ve, "is_configured", lambda: True)
+    monkeypatch.setattr(ve, "config", lambda: ("https://compat.example/v1", "x", "sk-x"))
+    r = ve.transcribe_audio_result(b"fake")
+    assert r["ok"] is False and r["status"] == "unsupported"
+    assert "whisper" in r["message"].lower() or "audio" in r["message"].lower()
+
+
+def test_transcribe_result_network_error(monkeypatch):
+    ve = _mod()
+
+    def _boom(*a, **k):
+        raise RuntimeError("connection reset by peer")
+
+    class _Audio:
+        class transcriptions:
+            create = staticmethod(_boom)
+
+    class _Client:
+        audio = _Audio()
+
+    _patch_openai(monkeypatch, lambda *a, **k: _Client())
+    monkeypatch.setattr(ve, "is_configured", lambda: True)
+    monkeypatch.setattr(ve, "config", lambda: ("https://api.openai.com/v1", "x", "sk-x"))
+    r = ve.transcribe_audio_result(b"fake")
+    assert r["ok"] is False and r["status"] == "error"
+
+
+def test_classify_urgency():
+    ve = _mod()
+    assert ve.classify_urgency("公司昨日已中标大合同")["level"] == "urgent"
+    assert ve.classify_urgency("公司下月拟扩产")["level"] == "soon"
+    assert ve.classify_urgency("公司长期经营稳健")["level"] == "neutral"
+
+
+def test_classify_sentiment_lean():
+    ve = _mod()
+    assert ve.classify_sentiment_lean("公司中标大合同，业绩预增")["lean"] == "positive"
+    assert ve.classify_sentiment_lean("公司预减并遭减持")["lean"] == "negative"
+    assert ve.classify_sentiment_lean("公司中标但同日公告减持")["lean"] == "mixed"
+    assert ve.classify_sentiment_lean("今天天气不错")["lean"] == "neutral"
+
+
+def test_build_voice_event_card():
+    ve = _mod()
+    c = ve.build_voice_event_card("公司刚刚中标大合同，业绩预增，产能扩张")
+    assert c["factors"]["available"] is True
+    assert c["urgency"]["level"] == "urgent"
+    assert c["sentiment"]["lean"] == "positive"
+    # 空文本也不应抛异常
+    c0 = ve.build_voice_event_card("")
+    assert c0["factors"]["available"] is False
