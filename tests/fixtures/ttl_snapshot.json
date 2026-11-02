@@ -1,5 +1,5 @@
 {
-  "note": "T-272③ 裸 TTL 快照（st.cache_data ttl=数字常量，pages/+modules/+app.py）。新增未登记裸 TTL 会使 test_cache_ttl_tiers 变红——请改用 cache_utils.TTL_TIERS 或在本快照登记并说明理由。 P0-1a/P0-1b（2026-10-30）：20/11 页渲染主体抽取至 modules/stock_research.py，原 pages/20_个股分析.py、pages/11_股票选取.py 共 15 条裸 TTL 快照按同值同数纯路径迁移至实现体（守恒 15==15，逐档一致）。 P0-1c（2026-10-30）：46/40/41 页渲染主体抽取至 modules/portfolio_views.py，原 pages/46_自选股监控.py 的 1 条裸 TTL 快照（ttl=3600×1）按同值同数纯路径迁移至实现体（守恒 1==1，40/41 页无裸 st.cache_data 数字 TTL，cached_fig 包装不属扫描口径）。",
+  "note": "T-272③ 裸 TTL 快照（st.cache_data ttl=数字常量，pages/+modules/+app.py）。新增未登记裸 TTL 会使 test_cache_ttl_tiers 变红——请改用 cache_utils.TTL_TIERS 或在本快照登记并说明理由。 P0-1a/P0-1b（2026-10-30）：20/11 页渲染主体抽取至 modules/stock_research.py，原 pages/20_个股分析.py、pages/11_股票选取.py 共 15 条裸 TTL 快照按同值同数纯路径迁移至实现体（守恒 15==15，逐档一致）。 P0-1c（2026-10-30）：46/40/41 页渲染主体抽取至 modules/portfolio_views.py，原 pages/46_自选股监控.py 的 1 条裸 TTL 快照（ttl=3600×1）按同值同数纯路径迁移至实现体（守恒 1==1，40/41 页无裸 st.cache_data 数字 TTL，cached_fig 包装不属扫描口径）。 R-07（2026-11-01）：modules/session.py 拆为 session_api/session_user，原 ttl=20×1 + ttl=30×2 共 3 条裸 TTL 按同值同数迁移至新文件（守恒 3==3，逐档一致）。",
   "entries": [
     {
       "file": "app.py",
@@ -7,14 +7,22 @@
       "count": 1
     },
     {
-      "file": "modules/session.py",
-      "ttl": 20,
-      "count": 1
+      "file": "modules/session_api.py",
+      "ttl": 30,
+      "count": 1,
+      "reason": "R-07 会话模块拆分（2026-11-01）：原 modules/session.py 的 3 条裸 TTL 按同值同数迁移至 session_api/session_user，合计守恒 3==3"
     },
     {
-      "file": "modules/session.py",
+      "file": "modules/session_user.py",
+      "ttl": 20,
+      "count": 1,
+      "reason": "R-07 会话模块拆分：原 modules/session.py ttl=20×1 纯路径迁移"
+    },
+    {
+      "file": "modules/session_user.py",
       "ttl": 30,
-      "count": 2
+      "count": 1,
+      "reason": "R-07 会话模块拆分：原 modules/session.py ttl=30×2 拆为 session_api×1 + session_user×1"
     },
     {
       "file": "modules/spot_rank.py",
