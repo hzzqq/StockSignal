@@ -14,7 +14,7 @@ import json
 import os
 from datetime import datetime
 import streamlit.components.v1 as components
-from modules.page_utils import render_standard_page, fmt_rel as _fmt_rel, get_fetcher
+from modules.page_utils import render_standard_page, fmt_rel as _fmt_rel, quote_with_fallback
 import modules.scroll_nav as sn
 from modules.session import get_user, trading_autorefresh
 from modules.page_guard import safe_section, safe_fragment
@@ -25,7 +25,6 @@ dark = render_standard_page(title='模拟交易组合', icon='🎮', caption='�
 
 st.caption('⚠️ 模拟交易，仅供学习，不构成任何投资建议。')
 
-FETCHER = get_fetcher()
 INIT_CASH = 1000000.0
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -59,21 +58,8 @@ def _snapshot(book, assets):
 
 @st.cache_data(ttl=20, show_spinner=False)
 def _price(code):
-    try:
-        q = FETCHER.get_realtime_quote(code)
-        if q and q.get('current'):
-            return (float(q['current']), q.get('name') or code)
-    except Exception as e:
-        print(f'[R-01] 实时行情获取失败 code={code}: {e}')
-        pass
-    try:
-        d = FETCHER.get_daily(code, start='2024-01-01')
-        if d is not None and (not d.empty):
-            return (float(d.iloc[-1]['close']), FETCHER.get_name_only(code))
-    except Exception as e:
-        print(f'[R-01] _price 日线 fallback 失败 code={code}: {e}')
-        pass
-    return (None, code)
+    """薄包装：@st.cache_data(ttl=20) 缓存层；实现下沉 page_utils.quote_with_fallback。"""
+    return quote_with_fallback(code)
 
 def _recompute(book):
     total_mv = 0.0

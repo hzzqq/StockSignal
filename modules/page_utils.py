@@ -317,6 +317,28 @@ def quote_one(code):
         return (code, None)
 
 
+def quote_with_fallback(code: str):
+    """R-09: 取个股当前价+名称（实时行情 → 日线 fallback → (None, code)）。
+
+    下沉自 pages/42 原 _price 三层实现；调用方保留 @st.cache_data 薄缓存包装。
+    内部 get_fetcher() 为 @st.cache_resource 单例；失败逐层降级，绝不抛红错。
+    """
+    fetcher = get_fetcher()
+    try:
+        q = fetcher.get_realtime_quote(code)
+        if q and q.get('current'):
+            return (float(q['current']), q.get('name') or code)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("实时行情获取失败 code=%s: %s", code, e)
+    try:
+        d = fetcher.get_daily(code, start='2024-01-01')
+        if d is not None and (not d.empty):
+            return (float(d.iloc[-1]['close']), fetcher.get_name_only(code))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("日线 fallback 失败 code=%s: %s", code, e)
+    return (None, code)
+
+
 def hist_cached(code: str):
     """R-02: 个股日线历史（前复权）。下沉自 pages/71 + pages/72 相同实现。
 
