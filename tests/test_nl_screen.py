@@ -159,3 +159,39 @@ def test_apply_filters_exclude_named_industry():
     spec = ns.parse_query("市盈率<30 非白酒板块")
     res = ns.apply_filters(uni, spec)
     assert {r["code"] for r in res} == {"300750"}, f"白酒概念应被排除，实际：{[r['code'] for r in res]}"
+
+
+def test_industry_whitelist_long_name_exclude():
+    """5 字以上行业名走白名单：整词排除，带/不带后缀均可，不再受通用规则 {1,5} 限制。"""
+    spec = ns.parse_query("非电力设备新能源 市盈率<20")
+    assert "电力设备新能源" in spec.exclude_concepts, f"7字行业应整词排除：{spec.exclude_concepts}"
+    assert spec.exclude_boards == []
+    assert "电力设备新能源" not in spec.concepts, "排除短语不得污染正向概念"
+    assert any(f["field"] == "pe" and f["op"] == "lt" for f in spec.filters)
+    # 带后缀写法等价
+    spec2 = ns.parse_query("非电力设备新能源板块 市盈率<20")
+    assert "电力设备新能源" in spec2.exclude_concepts
+    assert "电力设备新能源" not in spec2.concepts
+
+
+def test_industry_whitelist_positive_long_name():
+    """7 字行业名正向筛选：白名单整词入 concepts（此前被 step5 的 2~6 字窗口漏掉）。"""
+    spec = ns.parse_query("电力设备新能源 市盈率<20")
+    assert "电力设备新能源" in spec.concepts, f"7字行业应整词入正向概念：{spec.concepts}"
+    assert any(f["field"] == "pe" and f["op"] == "lt" for f in spec.filters)
+
+
+def test_industry_whitelist_no_suffix_exclude():
+    """白名单词省后缀：非白酒 → 排除白酒（此前必须写 非白酒板块）。"""
+    spec = ns.parse_query("非白酒 市盈率<30")
+    assert "白酒" in spec.exclude_concepts, f"省后缀排除应生效：{spec.exclude_concepts}"
+    assert "白酒" not in spec.concepts
+    assert any(f["field"] == "pe" and f["op"] == "lt" for f in spec.filters)
+
+
+def test_industry_whitelist_prose_guard():
+    """防误拆守卫：日常句「非常看好半导体板块」不得被拆成排除；半导体作为正向概念命中。"""
+    spec = ns.parse_query("非常看好半导体板块 市盈率<20")
+    assert spec.exclude_concepts == [], f"日常句不得误拆为排除：{spec.exclude_concepts}"
+    assert "半导体" in spec.concepts, f"半导体应作为正向概念命中：{spec.concepts}"
+    assert any(f["field"] == "pe" for f in spec.filters)

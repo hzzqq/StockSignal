@@ -34,6 +34,38 @@ BOARD_CODE_PREFIX = {
     "hs300": None, "zz500": None, "sz50": None,
 }
 
+# ── 行业/题材显式白名单（2026-11-03 扩充，承接「非白酒板块」修复的下一缺口）────
+# 目的：
+#   1) 排除通道：5 字以上行业名（如「电力设备新能源」）此前被通用规则 {1,5} 长度卡住；
+#      白名单词整词精确匹配且后缀可省（「非白酒」「剔除白酒板块」均可）。
+#   2) 正向通道：7 字以上行业名此前被 step5 的 2~6 字片段窗口漏掉，白名单词整词入 concepts。
+#   3) 整词匹配无通配（最长优先）→「非常看好半导体板块」类日常句不会被误拆
+#      （"看"在 STOPWORDS 亦兜底）。
+# 已知边界：复合词冲突（电子 vs 电子烟）按最长优先收录化解；未收录行业仍走
+#   {1,5}+后缀 通用规则；未收录复合词可能被拆到父词（_show_spec 透明可见，可换说法）。
+# 注：刻意不收「综合」（申万一级但口语高频歧义，"综合来看"会误命中）；
+#   交易所板块别名（创业板/科创板等）走 BOARD_ALIASES，不在此表。
+INDUSTRY_ALIASES = frozenset({
+    # 申万一级行业（30，除"综合"）
+    "农林牧渔", "基础化工", "钢铁", "有色金属", "电子", "家用电器", "食品饮料",
+    "纺织服饰", "轻工制造", "医药生物", "公用事业", "交通运输", "房地产",
+    "商贸零售", "社会服务", "建筑装饰", "建筑材料", "电力设备", "国防军工",
+    "计算机", "传媒", "通信", "银行", "非银金融", "汽车", "机械设备", "环保",
+    "美容护理", "煤炭", "石油石化",
+    # 高频长行业/题材（重点覆盖 5 字以上）
+    "新能源汽车", "电力设备新能源", "电子化学品", "第三代半导体", "新质生产力",
+    "可控核聚变", "新型工业化", "汽车零部件", "房地产开发", "炼化及贸易",
+    "半导体材料", "消费电子", "电子元件", "航空航天", "船舶制造", "化学制药",
+    "医疗器械", "生物医药", "白色家电", "煤炭开采", "油服工程", "电网设备",
+    "光伏设备", "风电设备", "能源金属", "工业金属", "黄金珠宝",
+    # 高频短行业/题材（省后缀排除 + 复合词最长优先）
+    "白酒", "光伏", "风电", "锂电池", "储能", "券商", "保险", "半导体", "创新药",
+    "中药", "黄金", "白银", "稀土", "猪肉", "养殖", "种业", "游戏", "影视",
+    "教育", "氢能", "核电", "充电桩", "军工", "低空经济", "固态电池", "数字经济",
+    "人工智能", "专精特新", "数据要素", "算力", "芯片", "碳中和", "元宇宙",
+    "机器人", "中特估", "电子烟", "新能源", "医药",
+})
+
 # ── 字段别名 → 内部字段名（执行层按此字段从基本面取数）──
 FIELD_ALIASES = {
     "市盈率": "pe", "pe": "pe", "ttm": "pe", "市净率": "pb", "pb": "pb",
@@ -146,6 +178,17 @@ def parse_query(text: str) -> QuerySpec:
     #      补足原逻辑只认交易所板块、把命名行业当正向概念的缺口；核心词剥后缀入 exclude_concepts。
     #      限制行业词 1~5 字 + 后缀锚定，避免"非常看好半导体板块"类日常句被误拆为排除（误排 > 漏排）。
     _BOARD_NEG_SUFFIX = r"(?:板块|行业|概念|产业|股)"
+    # 0a) 行业/题材白名单排除通道（整词精确匹配，最长优先；后缀可省）：
+    #     5 字以上行业名（如「非电力设备新能源」）不再受通用规则 {1,5} 限制，
+    #     「非白酒」「剔除白酒板块」等省后缀/带后缀写法均可。整词无通配，
+    #     「非常看好半导体板块」类日常句不会被误拆（"看"在 STOPWORDS 亦兜底）。
+    _NEG_PREFIX = r"(?:非|剔除|排除|不要|去掉|不含|别选)"
+    for _term in sorted(INDUSTRY_ALIASES, key=len, reverse=True):
+        _pat = rf"{_NEG_PREFIX}\s*{re.escape(_term)}{_BOARD_NEG_SUFFIX}?"
+        if re.search(_pat, working):
+            if _term not in spec.exclude_concepts:
+                spec.exclude_concepts.append(_term)
+            working = re.sub(_pat, " ", working, count=1)
     for alias in sorted(BOARD_ALIASES, key=len, reverse=True):
         _m = re.search(rf"非\s*{re.escape(alias)}{_BOARD_NEG_SUFFIX}?", working)
         if _m:
@@ -164,7 +207,9 @@ def parse_query(text: str) -> QuerySpec:
     working = re.sub(r"非\s*([\u4e00-\u9fa5A-Za-z0-9]{1,5}?)" + _BOARD_NEG_SUFFIX, _neg_named_repl, working)
     _neg_pat = re.compile(r"(剔除|排除|不要|去掉|不含|别选)\s*([\u4e00-\u9fa5A-Za-z0-9]{1,6})", re.UNICODE)
     for _nm in _neg_pat.finditer(working):
-        _target = _nm.group(2)
+        # 兜底通道同样剥掉尾部板块/行业等后缀：「剔除白酒板块」→ 排除"白酒"而非"白酒板块"
+        # （白名单词已在 0a 处理，此处兜底非白名单词）；剥空（如「剔除板块」）只清文本不入排除。
+        _target = re.sub(r"(?:板块|行业|概念|产业|股)$", "", _nm.group(2))
         _board = None
         for alias in sorted(BOARD_ALIASES, key=len, reverse=True):
             if _target.startswith(alias) or alias in _target:
@@ -173,9 +218,8 @@ def parse_query(text: str) -> QuerySpec:
         if _board is not None:
             if _board not in spec.exclude_boards:
                 spec.exclude_boards.append(_board)
-        else:
-            if _target not in spec.exclude_concepts:
-                spec.exclude_concepts.append(_target)
+        elif _target and _target not in spec.exclude_concepts:
+            spec.exclude_concepts.append(_target)
         working = working.replace(_nm.group(0), " ")
 
     # 1) 板块（最长匹配优先，避免"科创"先吃"科创板"）
@@ -229,6 +273,16 @@ def parse_query(text: str) -> QuerySpec:
         if n:
             spec.limit = int(n)
             working = working.replace(lim.group(0), " ")
+
+    # 4b) 行业/题材白名单正向通道：整词入 concepts 并剥离（含可选后缀），最长优先。
+    #     修复 7 字以上行业名（如「电力设备新能源」）被 step5 的 2~6 字窗口漏掉的问题；
+    #     剥离时连后缀一起吃掉，避免残留「板块」碎片污染 concepts；step5 末尾已有去重。
+    for _term in sorted(INDUSTRY_ALIASES, key=len, reverse=True):
+        _pat = rf"{re.escape(_term)}{_BOARD_NEG_SUFFIX}?"
+        if re.search(_pat, working):
+            if _term not in spec.concepts:
+                spec.concepts.append(_term)
+            working = re.sub(_pat, " ", working, count=1)
 
     # 5) 概念/行业自由词：剔除已识别的结构化 token 后，保留有意义的名词片段
     #    保守策略：仅保留 2~6 字、且非纯标点/数字/填充词 的剩余片段作为概念候选；
