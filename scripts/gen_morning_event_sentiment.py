@@ -157,6 +157,20 @@ def main():
             m = read_signal_meta_cheap(p)
             cross_models.append({"file": fn, "model": m.get("model") or fn.replace("signal_", "").replace("_h10.json", ""),
                                  "latest_date": m.get("latest_date"), "lag": _age_days(m.get("latest_date"))})
+    # fusion 模型离群检测（动态，替代硬编码「仍停滞 2026-08-14」——该脚注曾长期失真）：
+    # 取跨模型清单中 fusion 的真实 latest_date/lag，若明显落后于其它模型则标注离群，否则标注已同步。
+    _fusion_cm = next((c for c in cross_models if c["file"] == "signal_fusion_h10.json"), None)
+    if _fusion_cm and _fusion_cm.get("latest_date"):
+        _f_lag = _fusion_cm.get("lag")
+        _others_lag = [c["lag"] for c in cross_models
+                       if c["file"] != "signal_fusion_h10.json" and c.get("lag") is not None]
+        # 离群 = fusion 比其它模型**显著更旧**（滞后更大）。注意方向：fusion 滞后 - 其它最小滞后 ≥ 7 才判离群。
+        _outlier = bool(_f_lag is not None and _others_lag and (_f_lag - min(_others_lag)) >= 7)
+        _fusion_note = (f"（注：fusion 模型滞后 {_f_lag} 天、明显落后于其它模型，已列于第四节跨模型清单）"
+                        if _outlier
+                        else f"（注：fusion 模型已刷新至 {_fusion_cm['latest_date']}，与其它模型同步）")
+    else:
+        _fusion_note = "（注：无 fusion 信号文件）"
 
     # ── 3) 数据源时效（data_health.health_rows_enriched，唯一权威口径）──
     # 必须先落盘一次「当前真实观测」，否则 detect_stall 会拿过期的观测历史（本仓上次
@@ -196,18 +210,24 @@ def main():
     if not ev_available:
         pos_with_event = pos_no_event
 
-    from modules.decision import FRESH_STALE_DAYS
+    from modules.decision import FRESH_STALE_DAYS, FRESH_WARN_DAYS
     ev_stale = bool(ev_available and ev_lag is not None and ev_lag >= FRESH_STALE_DAYS)
-    # 诚实口径：事件因子陈旧（滞后≥陈旧阈值）或缺失 → 当日不施加其催化，
+    # 红线强化：事件因子「已降权(lag>4)」或「被 detect_stall 判停更」→ 同样视为不可信、
+    # 不参与当日共振，不得据此宣称「真实背离/新鲜」。这与第四节 data_health 的
+    # 已降权/停更 标注必须一致（否则同一源既标「停更」又在第三节称「新鲜」自相矛盾）。
+    _ev_down = bool(ev_available and ev_lag is not None and ev_lag > FRESH_WARN_DAYS)
+    _p1_stalled = bool(_hrow.get("P1 事件因子", {}).get("stalled"))
+    ev_failed = bool(ev_stale or _ev_down or _p1_stalled)
+    # 诚实口径：事件因子陈旧（滞后≥陈旧阈值）或已降权(lag>4)或停更或缺失 → 当日不施加其催化，
     # 以「剔除陈旧/缺位催化」后的仓位作为对外展示的「建议仓位」。
-    eff_pos = pos_no_event if (ev_stale or not ev_available) else pos_with_event
+    eff_pos = pos_no_event if (ev_failed or not ev_available) else pos_with_event
 
     # ── 诚实口径精度修正（红线相关）──
     # 必须区分「整体数据陈旧封顶」与「推导本身已极低仓位」：
     #   · eff_pos 已带 freshness_status（stale/warn 封顶）。再算一次不带新鲜度封顶的
     #     原始仓位 pos_raw，交由 _freshness_cap_note 判定「封顶是否真的约束了仓位」。
     #   · 若推导本身已低于封顶阈值，绝不能写「整体数据陈旧触发封顶 X%」——那是把推导结果误归因为封顶。
-    _eff_adj = 0 if (ev_stale or not ev_available) else ev_adj_nominal
+    _eff_adj = 0 if (ev_failed or not ev_available) else ev_adj_nominal
     pos_raw = derive_position(temp, score, bias, cycle, promo_overall,
                               event_adj=_eff_adj, freshness_status=None)
 
@@ -219,7 +239,7 @@ def main():
 
     if not ev_available:
         resonance = "事件因子缺位"
-    elif ev_stale:
+    elif ev_failed:
         # 事件因子已陈旧（滞后≥陈旧阈值）：方向不可信、不参与当日共振。
         # 诚实口径：仅当**双方都有明确相反方向**（偏多 vs 偏空）才标「背离」；
         # 若任一方为「中性/缺位」则不算背离，标「陈旧失效」——避免把"中性 vs 偏多"
@@ -262,15 +282,30 @@ def main():
     if not ev_available:
         lines.append("> ⚠️ **诚实口径**：事件因子信号缺失（无可用 P1 信号文件/多头池为空），`derive_position` 走 `event_adj=None` 路径——**未施加任何事件催化，不臆造**。")
     else:
-        if ev_lag is not None and ev_lag >= 8:
+        if ev_stale:
             down_pct = (pos_with_event["pct"] - pos_no_event["pct"])
             lines.append(f"> ⚠️ **诚实口径（事件因子降权）**：事件因子截至 **{ev_as_of}**（滞后 **{ev_lag}** 天，远超 8 天陈旧阈值），"
                          f"其名义 +{ev_adj_nominal}pt 催化基于过期数据。本早报将其**视为降权至≈失效（贡献≈0）**。"
                          f"对照：施加陈旧催化仓位={pos_with_event['pct']}%，剔除后={pos_no_event['pct']}%，"
                          f"差值 {down_pct}pt——**防御结论（{pos_no_event['band']} {pos_no_event['pct']}%）不变**，"
                          f"说明今日防御完全由牧羊人情绪驱动，未因陈旧事件因子给出激进/满仓建议。")
+        elif ev_failed:
+            # 事件因子已降权(lag>4) 或 被 detect_stall 判停更，但 lag 尚未达 8 天陈旧阈值：
+            # 仍属「不可信/已降权」区间，按失效处理，不计入共振、不施加其催化（红线一致口径）。
+            down_pct = (pos_with_event["pct"] - pos_no_event["pct"])
+            _down_tags = []
+            if _ev_down:
+                _down_tags.append(f"滞后 {ev_lag} 天（>4，已降权）")
+            if _p1_stalled:
+                _down_tags.append("被 detect_stall 判停更")
+            lines.append(f"> ⚠️ **诚实口径（事件因子降权）**：事件因子截至 **{ev_as_of}**（{('、'.join(_down_tags))}），"
+                         f"虽滞后未达 8 天陈旧阈值，但已落入「已降权/停更」区间，方向信号当日不可信。"
+                         f"本早报将其**视为降权至≈失效（贡献≈0）**，不计入共振、亦不施加其名义 +{ev_adj_nominal}pt 催化。"
+                         f"对照：施加催化仓位={pos_with_event['pct']}%，剔除后={pos_no_event['pct']}%，"
+                         f"差值 {down_pct}pt——**防御结论（{pos_no_event['band']} {pos_no_event['pct']}%）不变**。"
+                         f"与第四节 data_health 的「已降权/停更」标注口径一致。")
         else:
-            lines.append(f"> 事件因子滞后 {ev_lag} 天（<8），名义 +{ev_adj_nominal}pt 催化按正常口径计入。")
+            lines.append(f"> 事件因子滞后 {ev_lag} 天（未达降权阈值且未判停更），名义 +{ev_adj_nominal}pt 催化按正常口径计入。")
     lines.append("")
 
     # 二、牧羊人情绪 & 事件因子
@@ -328,9 +363,17 @@ def main():
     lines.append(f"| 事件因子 信号量级（top_long 均值 pred） | **{fmt(round(ev_mean_pred,5) if ev_mean_pred is not None else None)}** | 统计超额收益概率（非涨跌预测） |")
     lines.append(f"| 事件因子 空头池广度 | **{fmt(ev_short_count)}** 只 | 多空对称 |")
     lines.append("")
-    if ev_stale:
+    if ev_failed:
+        # 陈旧 / 已降权 / 停更 → 方向不可信，按失效处理（与第四节标注一致）
+        _why = []
+        if ev_stale:
+            _why.append(f"滞后 {fmt(ev_lag)} 天（≥8，陈旧）")
+        if _ev_down:
+            _why.append(f"滞后 {fmt(ev_lag)} 天（>4，已降权）")
+        if _p1_stalled:
+            _why.append("被 detect_stall 判停更")
         ev_dir_note = (f"> 事件因子方向判定：**偏多**（多头池 pred 均值为正）。"
-                       f"但因其数据陈旧（见第四节，滞后 {fmt(ev_lag)} 天），方向信号当日不可信，"
+                       f"但因其数据{fmt('、'.join(_why))}（见第四节），方向信号当日不可信，"
                        f"参与共振时按「失效」处理。")
     else:
         ev_dir_note = (f"> 事件因子方向判定：**偏多**（多头池 pred 均值为正），"
@@ -389,10 +432,10 @@ def main():
                      "的结果（原始推导 86% 被压到 60%），并非基于当日全新鲜信号的满仓绿灯；"
                      "在市场温度/快照/校准回测三源刷新至新鲜前，建议维持封顶仓位、不盲目加仓。")
     elif resonance.startswith("背离"):
-        if ev_stale:
-            # 事件因子陈旧（滞后≥8天）：背离由「新鲜牧羊人 vs 过期事件」构成，过期信号不可信
+        if ev_failed:
+            # 事件因子陈旧/降权/停更（滞后≥8天或 lag>4 或 被 detect_stall 判停更）：背离由「新鲜牧羊人 vs 过期事件」构成，过期信号不可信
             # → 当日决策以牧羊人单一有效信号为准，事件因子不参与共振。
-            lines.append("**可执行解读**：牧羊人情绪与事件因子方向相反（背离），且事件因子已陈旧失效（滞后≥8天），"
+            lines.append("**可执行解读**：牧羊人情绪与事件因子方向相反（背离），且事件因子已陈旧失效（滞后≥8天或已降权/停更），"
                          "**今日决策以牧羊人情绪为唯一有效信号**。事件因子的陈旧信号不参与当日共振，"
                          "避免用过期催化抬高仓位。")
         else:
@@ -469,22 +512,20 @@ def main():
     lines.append("## 五、核心结论")
     lines.append("")
     _p1_stalled = _hrow.get("P1 事件因子", {}).get("stalled")
-    if ev_available and ev_stale and _p1_stalled:
-        _sh_ev_note = "叠加事件因子停更"
-    elif ev_available and ev_stale:
-        _sh_ev_note = "叠加事件因子陈旧"
+    if ev_available and ev_failed:
+        _sh_ev_note = "叠加事件因子已降权" + ("+停更" if _p1_stalled else "")
     elif ev_available:
         _sh_ev_note = f"事件因子新鲜（lag{fmt(ev_lag)}，+{fmt(ev_adj_nominal)}pt 催化已计入）"
     else:
         _sh_ev_note = "事件因子缺位"
     _sh_down_tag5 = "已降权" if _sh_down else "新鲜"
-    # 事件催化是否计入当日对外展示仓位的诚实表述（红线相关，必须随 ev_stale 动态）：
-    #   · 事件因子陈旧/缺位 → 显式写「已剔除/未计入」，差值 = 含催化口径与展示口径之差；
+    # 事件催化是否计入当日对外展示仓位的诚实表述（红线相关，必须随 ev_failed 动态）：
+    #   · 事件因子陈旧/降权/停更/缺位 → 显式写「已剔除/未计入」；
     #   · 事件因子新鲜 → 写「已正常计入」，并说明 +Npt 已纳入。
-    if ev_available and not ev_stale:
+    if ev_available and not ev_failed:
         _event_included_note = (f"事件因子（新鲜 lag{fmt(ev_lag)}）催化 +{fmt(ev_adj_nominal)}pt 已计入")
-    elif ev_stale:
-        _event_included_note = "事件因子陈旧已剔除"
+    elif ev_failed:
+        _event_included_note = "事件因子已降权/停更，催化已剔除"
     else:
         _event_included_note = "事件因子缺位未计入"
     _gap = (_sh_lag - _snap_lag) if (_sh_lag is not None and _snap_lag is not None) else None
@@ -502,18 +543,18 @@ def main():
                  f" {fmt(_sh_asof)}（滞后 {fmt(_sh_lag)} 天，{_sh_down_tag5}），"
                  f"{('快照较 CSV 新 ' + str(_gap) + ' 天，regime/herd 双因子或基于落后广度' if _gap and _gap > 0 else '两者一致/CSV 更新')}）")
     if ev_available:
-        if ev_stale:
-            _ev3 = (f"**因陈旧（滞后 {fmt(ev_lag)} 天）已降权至≈失效，未计入当日共振，亦未抬高仓位**"
-                    f"（注：fusion 模型仍停滞 2026-08-14，离群，已列于第四节跨模型清单）。")
+        if ev_failed:
+            _ev3 = (f"**因已降权/停更（滞后 {fmt(ev_lag)} 天）已降权至≈失效，未计入当日共振，亦未抬高仓位**"
+                    f"{_fusion_note}。")
         else:
             _ev3 = (f"**数据新鲜（滞后 {fmt(ev_lag)} 天），+{fmt(ev_adj_nominal)}pt 催化已正常计入当日仓位与共振**"
-                    f"（注：fusion 模型仍停滞 2026-08-14，离群，已列于第四节跨模型清单）。")
+                    f"{_fusion_note}。")
         lines.append(f"3. **事件因子**：latest_date={fmt(ev_as_of)}（滞后 {fmt(ev_lag)} 天），多头池 {fmt(ev_long_count)} 只、名义催化 +{fmt(ev_adj_nominal)}pt；{_ev3}")
     else:
         lines.append(f"3. **事件因子**：缺（无可用信号），未施加催化。")
     if resonance.startswith("同向") or resonance.startswith("背离"):
-        if ev_stale:
-            _res4 = "事件因子陈旧不参与当日决策，今日以牧羊人单一有效信号防守。"
+        if ev_failed:
+            _res4 = "事件因子已降权/停更，不参与当日决策，今日以牧羊人单一有效信号防守。"
         elif resonance.startswith("同向"):
             _res4 = "事件因子新鲜催化已计入当日共振，与牧羊人互为印证。"
         else:
@@ -546,8 +587,8 @@ def main():
     print("=" * 60)
     print(f"早报已生成：{out_path}")
     print(f"快照数据日：{snap_date} ｜ 今日：{TODAY}")
-    print(f"建议仓位（对外展示，已剔除陈旧事件催化）：{eff_pos['pct']}% / {eff_pos['band']}")
-    if ev_available and not ev_stale:
+    print(f"建议仓位（对外展示，{'已剔除陈旧/降权事件催化' if (ev_failed or not ev_available) else '含事件催化'}）：{eff_pos['pct']}% / {eff_pos['band']}")
+    if ev_available and not ev_failed:
         print(f"   → 含事件催化口径：{pos_with_event['pct']}% / {pos_with_event['band']}")
     print(f"牧羊人：score={score} bias={bias} cycle={cycle} temp={temp}")
     print(f"事件因子：as_of={ev_as_of} lag={ev_lag} 多头池={ev_long_count} 名义催化=+{ev_adj_nominal}pt")
