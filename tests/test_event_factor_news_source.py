@@ -125,6 +125,9 @@ def test_get_event_factor_no_p1_no_news(monkeypatch):
                         lambda: FakeNewsFetcher(pd.DataFrame(columns=["title"])))
     monkeypatch.setattr(news_mod, "SentimentAnalyzer",
                         lambda: FakeSentiment({"正面": 0, "负面": 0, "中性": 0}))
+    # P1+新闻双 miss 后会兜底到龙虎榜（触网），注入 unavailable 保持离线确定性
+    monkeypatch.setattr(ef, "lhb_event_signal",
+                        lambda t, lookback_days=10: {"available": False, "symbol": t, "reason": "近 10 日未上龙虎榜"})
     out = ef.get_event_factor("sh600519")
     assert out["available"] is False
     assert "无 P1 事件因子信号" in out["reason"]

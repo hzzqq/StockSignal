@@ -3,8 +3,10 @@ from modules.cache_utils import TTL_TIERS  # R-14
 
 把「事件因子」这一量化特征对接到**真实信号源**，而非合成演示数据。
 
-当前真实源：P1-QuantFactor 的 EV 模型信号（在 38 维量价特征上并入「牧羊人市场广度
-情绪」9 维作为事件/regime 通道，共 47 维）——即一个已落地的真实事件因子。
+当前三个真实源（get_event_factor 兜底序，互不替代、绝不造数）：
+  1) P1-QuantFactor 的 EV 模型信号（38 维量价 + 牧羊人市场广度情绪 9 维 = 47 维）
+  2) 东方财富个股新闻情感（news_event_signal，逐标的真实事件面）
+  3) 东方财富龙虎榜上榜信号（lhb_event_signal，游资/机构关注度）
 
 设计要点：
 - 纯只读、无网络、无合成/假数据；取不到即 ``available=False`` 优雅降级。
@@ -16,6 +18,7 @@ from __future__ import annotations
 from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
 
 import logging
+import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -179,8 +182,16 @@ def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) 
     except Exception as e:  # noqa: BLE401
         logger.warning(f"[event_factor] 新闻事件信号兜底失败: {e}")
 
+    # ── 第三真实源：龙虎榜上榜信号（游资/机构关注度，与 P1/新闻独立互不替代）──
+    try:
+        lhb = lhb_event_signal(symbol)
+        if lhb.get("available"):
+            return lhb
+    except Exception as e:  # noqa: BLE401
+        logger.warning(f"[event_factor] 龙虎榜事件信号兜底失败: {e}")
+
     return {"available": False, "symbol": symbol,
-            "reason": "该标的无 P1 事件因子信号（不在池内或近期无预测）"}
+            "reason": "该标的无 P1 事件因子信号（不在池内/近期无预测，且近 10 日无新闻信号、未上龙虎榜）"}
 
 
 def event_driven_long_list(top_n: int = 20, model: str = "ev",
@@ -281,3 +292,74 @@ def news_event_signal(ticker: str, limit: int = 15) -> dict:
         "signal": sig, "source": "eastmoney-news",
         "hard_logic": annotate_hard_logic(_titles),  # R9/T-332：新闻标题可分类
     }
+
+
+def lhb_event_signal(ticker: str, lookback_days: int = 10) -> dict:
+    """第三真实源：龙虎榜上榜信号（东方财富 stock_lhb_detail_em）。
+
+    akshare 函数名与返回列名均已**核实源码**（akshare 1.18.64，`stock_lhb_detail_em`
+    返回「代码 / 上榜日 / 龙虎榜净买额 / 上榜原因」等中文列）。规则透明：
+      - 最近 ``lookback_days`` 个自然日窗口内上榜 → 事件存在；**未上榜是正常状态**
+        （``available=False``，非错误）。
+      - 方向取窗口内最近一次上榜的「龙虎榜净买额」：>0 看多(62) / <0 看空(38) /
+        缺失或 0 中性(50)；上榜次数与最近原因如实附带。绝不造数。
+    返回结构（成功）：
+        {"available": True, "symbol", "score", "rank", "signal",
+         "source": "eastmoney-lhb", "hard_logic": annotate_hard_logic(上榜原因),
+         "lhb": {"count", "last_date", "net_amt", "reason"}}
+    返回结构（未上榜/异常）：
+        {"available": False, "symbol", "reason"}
+    """
+    sym = str(ticker or "").strip()
+    if not sym:
+        return {"available": False, "symbol": ticker, "reason": "未提供标的代码"}
+    try:
+        import akshare as ak
+        from datetime import datetime, timedelta
+        end = datetime.now()
+        start = end - timedelta(days=int(lookback_days))
+        df = ak.stock_lhb_detail_em(start_date=start.strftime("%Y%m%d"),
+                                    end_date=end.strftime("%Y%m%d"))
+    except Exception as e:  # noqa: BLE001 - 网络/接口异常诚实降级
+        logger.warning(f"[event_factor] 龙虎榜抓取失败({ticker}): {e}")
+        return {"available": False, "symbol": ticker, "reason": f"龙虎榜抓取失败: {e}"}
+    if df is None or getattr(df, "empty", True):
+        return {"available": False, "symbol": ticker, "reason": "龙虎榜窗口内无数据"}
+    try:
+        if "代码" not in df.columns:
+            return {"available": False, "symbol": ticker, "reason": "龙虎榜返回缺「代码」列"}
+        # 归一化：兼容 "600077" / "600077.SH" / "sh600077"（P1 侧带交易所前缀）
+        want = re.sub(r"^(sh|sz|bj)", "", sym.split(".")[0], flags=re.IGNORECASE).zfill(6)
+        sub = df[df["代码"].astype(str).str.strip().str.zfill(6) == want]
+        if getattr(sub, "empty", True):
+            return {"available": False, "symbol": ticker,
+                    "reason": f"近 {lookback_days} 日未上龙虎榜（正常状态，非错误）"}
+        sub = sub.sort_values("上榜日")
+        last = sub.iloc[-1]
+        try:
+            net = float(last.get("龙虎榜净买额"))
+        except (TypeError, ValueError):
+            net = None
+        if net is not None and net > 0:
+            score, sig = 62.0, "看多"
+        elif net is not None and net < 0:
+            score, sig = 38.0, "看空"
+        else:
+            score, sig = 50.0, "中性"
+        reasons = [str(x) for x in (sub["上榜原因"].tolist() if "上榜原因" in sub.columns else [])
+                   if str(x).strip()]
+        return {
+            "available": True, "symbol": sym,
+            "score": score, "rank": score / 100.0,
+            "signal": sig, "source": "eastmoney-lhb",
+            "hard_logic": annotate_hard_logic(reasons),  # 上榜原因可做硬逻辑/题材分类
+            "lhb": {
+                "count": int(len(sub)),
+                "last_date": str(last.get("上榜日")),
+                "net_amt": net,
+                "reason": (reasons[-1] if reasons else None),
+            },
+        }
+    except Exception as e:  # noqa: BLE001 - 解析异常诚实降级
+        logger.warning(f"[event_factor] 龙虎榜解析失败({ticker}): {e}")
+        return {"available": False, "symbol": ticker, "reason": f"龙虎榜解析失败: {e}"}

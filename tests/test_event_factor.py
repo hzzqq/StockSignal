@@ -62,7 +62,12 @@ def test_daily_precise_fallback(loader):
     assert r["source"] == "P1-ev-daily"
 
 
-def test_absent_symbol_unavailable(loader):
+def test_absent_symbol_unavailable(loader, monkeypatch):
+    # P1 miss 后会依次兜底到新闻/龙虎榜（均触网），注入 unavailable 保持离线确定性
+    monkeypatch.setattr(_ef, "news_event_signal",
+                        lambda t, lookback_days=10: {"available": False, "symbol": t, "reason": "offline"})
+    monkeypatch.setattr(_ef, "lhb_event_signal",
+                        lambda t, lookback_days=10: {"available": False, "symbol": t, "reason": "近 10 日未上龙虎榜"})
     r = _ef.get_event_factor("sh999999", loader=loader)
     assert r["available"] is False
     assert "reason" in r
