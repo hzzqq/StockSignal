@@ -16,13 +16,29 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_PATH = os.path.join(_ROOT, "modules", "session.py")
 
 
-def _panel_source() -> str:
-    with open(SRC_PATH, "r", encoding="utf-8") as f:
-        tree = ast.parse(f.read())
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == "fragment_market_alerts_panel":
-            return ast.get_source_segment(open(SRC_PATH, encoding="utf-8").read(), node)
+def _session_modules():
+    """R-05 拆分（2026-11-02）后会话函数分散在 modules/session*.py。
+
+    session.py 仅保留认证链/初始化/偏好与 re-export，用户区（提醒铃与面板）在
+    session_user.py、接口封装在 session_api.py。守卫按前缀全量查找，函数缺失即 fail。
+    """
+    import glob
+    return sorted(glob.glob(os.path.join(_ROOT, "modules", "session*.py")))
+
+
+def _find_panel_fn():
+    """返回 (源码文本, 函数 AST 节点)；跨 session*.py 查找。"""
+    for path in _session_modules():
+        text = open(path, encoding="utf-8").read()
+        for node in ast.walk(ast.parse(text)):
+            if isinstance(node, ast.FunctionDef) and node.name == "fragment_market_alerts_panel":
+                return text, node
     raise AssertionError("fragment_market_alerts_panel 函数不存在（面板被移除？）")
+
+
+def _panel_source() -> str:
+    text, node = _find_panel_fn()
+    return ast.get_source_segment(text, node)
 
 
 def test_panel_wrapped_in_collapsed_expander():
@@ -39,9 +55,7 @@ def test_unread_count_in_expander_label():
 
 
 def test_still_safe_fragment_not_full_rerun():
-    tree = ast.parse(open(SRC_PATH, encoding="utf-8").read())
-    fn = next(n for n in ast.walk(tree)
-              if isinstance(n, ast.FunctionDef) and n.name == "fragment_market_alerts_panel")
+    _text, fn = _find_panel_fn()
     decs = [ast.unparse(d) for d in fn.decorator_list]
     assert any('safe_fragment' in d and "市场异动提醒面板" in d for d in decs), \
         f"面板必须保持 safe_fragment 局部刷新（禁整页 rerun，铁律 §一-3）；实际装饰器: {decs}"
