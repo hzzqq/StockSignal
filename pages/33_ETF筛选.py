@@ -10,7 +10,6 @@ ETF / 基金筛选器
 import logging
 
 import streamlit as st
-import pandas as pd
 
 from modules.page_utils import render_standard_page, styler_color_chg as _color_chg
 import modules.scroll_nav as sn
@@ -55,6 +54,7 @@ SAMPLE = [
 
 @st.cache_data(ttl=180, show_spinner=False)
 def _load_etfs():
+    import pandas as pd
     try:
         import akshare as ak
         df = ak.fund_etf_spot_em()
@@ -77,6 +77,7 @@ def _load_etfs():
 
 @safe_fragment
 def _etf_filter_fragment():
+    import pandas as pd
     with safe_section("ETF 行情", hint="实时行情接口可能受网络限制，已自动降级到样本数据。"):
         with st.spinner("⏳ 正在加载 ETF 行情…"):
             df, src = _load_etfs()

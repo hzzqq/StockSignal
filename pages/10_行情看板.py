@@ -7,7 +7,6 @@ import html
 import logging
 import streamlit as st
 import streamlit.components.v1 as components
-import pandas as pd
 import concurrent.futures as _cf  # kept; remaining use cases reviewed
 from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: HTTP 抓取收敛到共享基元
 from datetime import datetime, timedelta, time
@@ -148,6 +147,7 @@ def _build_correlation_fig(daily_dict):
 @safe_fragment('行业板块涨跌榜', run_every=60)
 def fragment_sector_board():
     """行业板块涨跌榜（板块图构建已迁移至模块级 _build_sector_heatmap_fig，延迟导入 Visualizer 仅缓存未命中时触发）。"""
+    import pandas as pd
     xc_content_card('🏭 行业板块涨跌榜', "")
     try:
         is_open, status_text, _ = _get_market_status()
@@ -246,6 +246,7 @@ def _load_lhb(date_str: str):
 
 @safe_fragment('龙虎榜', run_every=60)
 def fragment_lhb():
+    import pandas as pd
     st.markdown('---')
     try:
         is_open, _, _ = _get_market_status()
@@ -358,6 +359,7 @@ if not _ticker_list:
 
 def _fetch_one_corr(t, start, end):
     """单只股票取数（带超时兜底），返回 (label, df)。"""
+    import pandas as pd
     try:
         _records = api_kline(t, start=start, end=end)
         if _records is None:
@@ -508,6 +510,7 @@ def _wl_render_table_html(rows, dark: bool):
 
 @safe_fragment('自选行情', run_every=60)
 def fragment_watchlist_quotes():
+    import pandas as pd
     xc_content_card('📌 自选行情', "")
     st.caption('实时跟踪自选股现价与涨跌（A股红涨绿跌）；行情接口异常时自动回退本地源。点击操作列「📈 看K线」跳转个股 K 线；跳转后可在「股票选取」页调节 K 线显示数量与起始位置。')
     sc, body = api_get('/api/watchlist', timeout=10)

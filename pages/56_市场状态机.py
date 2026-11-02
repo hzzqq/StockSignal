@@ -12,7 +12,6 @@
 import logging
 
 import streamlit as st
-import pandas as pd
 import plotly.graph_objects as go
 
 from modules.ui_kit import xc_bento_kpi, xc_handle_error, xc_content_card

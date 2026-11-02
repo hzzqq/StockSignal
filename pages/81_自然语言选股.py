@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import streamlit as st
-import pandas as pd
 
 from modules.page_utils import render_standard_page
 from modules.ui_kit import info_banner, xc_bento_kpi
@@ -100,6 +99,7 @@ def _fetch_universe(scope: str, custom_codes: str) -> list[dict]:
 
 
 def main():
+    import pandas as pd
     dark = render_standard_page(title="自然语言选股", icon="💬", layout="wide")
     info_banner("用大白话描述选股意图，系统解析为结构化条件并执行（仿 i问财零门槛选股）。"
                 "解析结果完全透明展示；取数需联网，取不到会如实说明。", kind="info", icon="💬")

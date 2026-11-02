@@ -12,7 +12,6 @@ from __future__ import annotations
 import html
 import logging
 
-import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -28,6 +27,7 @@ logger = logging.getLogger(__name__)
 @st.cache_data(ttl=600, show_spinner=False)
 def _hist_cached(code: str) -> pd.DataFrame:
     """薄包装：@st.cache_data(ttl=600) 缓存层；实现下沉 page_utils.hist_cached。"""
+    import pandas as pd
     return hist_cached(code)
 
 
@@ -43,6 +43,7 @@ def _spot_row(code: str) -> dict:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def _fin_cached(code: str) -> pd.DataFrame:
+    import pandas as pd
     import akshare as ak
     return ak.stock_financial_abstract(symbol=code)
 

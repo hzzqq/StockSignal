@@ -17,8 +17,6 @@ import json
 import logging
 import os
 
-import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
 from modules.colors import UP_COLOR
@@ -71,6 +69,7 @@ def _w_decision(dark):
 
 
 def _w_zt_ladder(dark):
+    import plotly.graph_objects as go
     from modules.shepherd import _trading_days, get_zt_ladder
     days = _trading_days(3)
     ladder = get_zt_ladder(days[-1]) if days else {}
@@ -106,6 +105,7 @@ def _w_limit_stats(dark):
 
 
 def _w_breadth(dark):
+    import plotly.graph_objects as go
     from modules.shepherd import get_shepherd_indicators
     df, _meta = get_shepherd_indicators(days=30)
     if df is None or df.empty:

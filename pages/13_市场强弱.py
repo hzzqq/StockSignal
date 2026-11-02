@@ -14,7 +14,6 @@ from contextlib import contextmanager
 
 import requests
 
-import pandas as pd
 import streamlit as st
 
 from modules.page_utils import render_standard_page, to_numeric_clean
@@ -33,7 +32,6 @@ from modules.page_guard import safe_fragment
 from modules.ui_kit import xc_success_box, xc_warn_box, xc_content_card, xc_bento_kpi
 
 logger = logging.getLogger(__name__)
-
 
 
 @contextmanager
@@ -95,6 +93,7 @@ def _build_strength_df(days=180):
     最坏 4×12s；并发后收敛到最慢一路）。单路失败/超时 -> None，退化为空表，
     不影响其余维度渲染。
     """
+    import pandas as pd
     from modules.fetch_parallel import fetch_many
 
     res = fetch_many([
@@ -155,6 +154,7 @@ def _watchlist_avg_normalized(codes, start, end, days):
     最多 15 只股票的日线取数走共享线程池并发（原逐只串行，15×1~3s 可达 45s，
     自选股多的用户首屏几乎必然超时）。单只失败/超时 -> None，直接跳过。
     """
+    import pandas as pd
     from modules.page_utils import get_fetcher
     from modules.fetch_parallel import fetch_many
     try:
@@ -200,6 +200,7 @@ def _watchlist_avg_normalized(codes, start, end, days):
 
 def _strength_signal(d, keys):
     """计算各序列归一化最新值（区间内起点=100）与综合强弱评级。"""
+    import pandas as pd
     devs = []
     details = []
     for k in keys:
@@ -234,6 +235,7 @@ def _strength_percentile(d, keys):
     逐日取均值得到综合偏离时间序列，再求最新值在历史中的相对位置。
     数值越高代表比区间内多数时候更强。
     """
+    import pandas as pd
     try:
         comp = []
         for k in keys:
@@ -400,6 +402,7 @@ def fragment_strength():
 # 诚实红线：宽表取不到（网络/代理受限）或字段缺失就少卡/整带不渲染，绝不编造。
 def _kpi_band():
     """KPI 带：三大指数区间归一化偏离（起点=100，同 _strength_signal 口径）+ 融资余额最新值。"""
+    import pandas as pd
     try:
         df = _build_strength_df(days=180)
         if df is None or df.empty:

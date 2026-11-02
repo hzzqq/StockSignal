@@ -5,8 +5,6 @@
 A股配色：资金净流入=红，净流出=绿（与红涨绿跌一致）。
 """
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 from modules.page_guard import safe_fragment
@@ -109,6 +107,7 @@ def _cached_etf_series(days: int = 180):
 # ── 图表 figure 构建缓存（性能优化：避免每次脚本重跑/60s 自动刷新时重复 rebuild）──
 @cached_fig(ttl=120)
 def _build_industry_top15_fig(top, dark):
+    import plotly.graph_objects as go
     colors = [UP if v >= 0 else DOWN for v in top["净额"]]
     fig = go.Figure(go.Bar(
         x=top["行业"], y=top["净额"], marker_color=colors,
@@ -121,6 +120,7 @@ def _build_industry_top15_fig(top, dark):
 
 @cached_fig(ttl=120)
 def _build_market_main_fig(df, dark):
+    import plotly.graph_objects as go
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=df["日期"], y=df["主力净流入-净额"], name="主力净流入(亿)",
@@ -144,14 +144,6 @@ def _build_market_main_fig(df, dark):
     return fig
 
 
-
-
-
-
-
-
-
-
 # ───────────────────────── 北向资金 ─────────────────────────
 def _flow_tone(v):
     """资金净额 → A 股语义色方向（正=红 up / 负=绿 down / 无=flat）。"""
@@ -163,6 +155,7 @@ def _flow_tone(v):
 
 @safe_fragment("北向资金", run_every=60 if is_trading_now() else None)
 def fragment_northbound():
+    import pandas as pd
     _section_title("🧭 北向资金（沪股通 / 深股通）")
     try:
         nb = _cached_northbound()
@@ -249,6 +242,7 @@ def fragment_northbound():
 # ───────────────────────── 行业板块资金流向 ─────────────────────────
 @safe_fragment("行业板块资金流向", run_every=60 if is_trading_now() else None)
 def fragment_industry():
+    import pandas as pd
     _section_title("🏭 行业板块资金流向")
     try:
         df = _cached_industry_flow()
@@ -306,6 +300,7 @@ def fragment_industry():
 # ───────────────────────── 大盘主力资金净流入 ─────────────────────────
 @safe_fragment("大盘主力资金", run_every=60 if is_trading_now() else None)
 def fragment_market():
+    import pandas as pd
     _section_title("📈 大盘主力资金净流入（近 30 日）")
     try:
         df = _cached_market_flow(30)
@@ -411,7 +406,6 @@ def fragment_margin_trading():
         xc_handle_error("融资融券趋势图渲染失败", e, hint="请稍后重试，或检查网络与数据源连接")
     st.caption("数据来源：东方财富融资融券（沪+深），指数叠加辅助判断杠杆资金与大盘节奏关系。"
                "北交所暂无公开宏观融资融券序列，故合计未包含 BJ。")
-
 
 
 # （五维归一化子图面板已迁至独立模块 pages/15_市场驱动力.py）

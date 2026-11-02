@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 
-import pandas as pd
 import streamlit as st
 
 from modules import position_allocator as pa
@@ -52,6 +51,7 @@ def _render_market_header(pct: float, pmeta: dict) -> None:
 
 @st.fragment
 def render_alloc(source: str) -> None:
+    import pandas as pd
     result = pa.build_allocation(source)
     if result.get("status") != "ok":
         st.warning(f"⚠️ {result.get('reason', '分配不可用')}")

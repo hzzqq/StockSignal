@@ -10,8 +10,6 @@
 """
 
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 from modules.page_utils import render_standard_page
@@ -113,6 +111,8 @@ with st.expander("📖 策略方法论说明", expanded=False):
 @safe_fragment("手动回测")
 def fragment_manual_backtest():
     """手动回测面板（延迟导入 Visualizer 及其常量）。"""
+    import pandas as pd
+    import plotly.graph_objects as go
     from modules.visualizer import Visualizer  # lazy
     from modules.colors import UP_COLOR, DOWN_COLOR  # lazy (lightweight)
     from modules.ui_theme import _theme_is_dark as _is_dark  # lazy (lightweight)
@@ -443,6 +443,7 @@ def fragment_manual_backtest():
 @safe_fragment("每日选股回测")
 def fragment_daily_picker():
     # SF_* 暗色主题常量（原定义在 visualizer.py，在此本地定义避免拖入 plotly）
+    import plotly.graph_objects as go
     from modules.colors import UP_COLOR  # lazy
     from modules.ui_theme import _theme_is_dark as _is_dark  # lazy
     global SF_TXT, SF_TXT2, SF_GRID, SF_BORDER  # noqa: F821
@@ -662,6 +663,8 @@ def fragment_daily_picker():
 @safe_fragment("强势上涨股批量回测")
 def fragment_strong_bull():
     """强势上涨股批量回测（延迟导入 Visualizer 常量）。"""
+    import pandas as pd
+    import plotly.graph_objects as go
     from modules.colors import UP_COLOR, DOWN_COLOR  # lazy
     from modules.ui_theme import _theme_is_dark as _is_dark  # lazy
     # SF_* 暗色主题常量（原定义在 visualizer.py，在此本地定义避免拖入 plotly）
@@ -837,6 +840,7 @@ def fragment_strong_bull():
 @safe_fragment("参数扫描")
 def fragment_param_scan():
     """对单一标的做参数网格扫描，挑最优止盈/止损/持仓组合。"""
+    import pandas as pd
     xc_content_card("🎛️ 参数扫描（最优参数搜索）", "")
     st.caption("在固定标的上网格遍历止盈/止损/最大持仓，按累计收益排序，"
                "帮你跳出「凭感觉设 3% 止盈」的坑。历史模拟，不构成投资建议。")
@@ -893,6 +897,7 @@ def fragment_param_scan():
 @safe_fragment("多标的批量回测")
 def fragment_batch_backtest():
     """任意多标的批量回测，聚合绩效归因（夏普/回撤/胜率/盈亏比）。"""
+    import pandas as pd
     xc_content_card("📊 多标的批量回测（绩效归因）", "")
     st.caption("一次跑多只股票，自动聚合平均收益/夏普/回撤/胜率/盈亏比，并标出最佳/最差标的。"
                "可直接粘贴代码清单（逗号或换行分隔）。历史模拟，不构成投资建议。")
@@ -959,6 +964,8 @@ def fragment_batch_backtest():
 @safe_fragment("回测稳健性")
 def fragment_walk_forward():
     """样本内选参数 → 样本外验证，回答「这套参数是真规律还是记住了历史」。"""
+    import pandas as pd
+    import plotly.graph_objects as go
     from modules.colors import UP_COLOR  # lazy
     from modules.ui_theme import _theme_is_dark as _is_dark  # lazy
     xc_content_card("🧪 回测稳健性（walk-forward 样本外验证）", "")
@@ -1077,6 +1084,7 @@ def fragment_walk_forward():
 
 def fragment_run_history():
     """G12：历史回测运行记录（run ID 持久化，跨刷新/切页/重启可回溯）。"""
+    import pandas as pd
     try:
         from modules.backtest_runs import list_runs
         runs = list_runs(limit=30)

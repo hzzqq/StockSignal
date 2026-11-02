@@ -15,7 +15,6 @@ import streamlit as st
 import html
 import pandas as pd
 from datetime import datetime, timedelta
-import plotly.graph_objects as go
 from modules.session import safe_switch_page, trading_autorefresh
 import modules.scroll_nav as sn
 from modules.search_ui import stock_search_input
@@ -43,6 +42,7 @@ import concurrent.futures as _cf
 # ── 图表 figure 构建缓存（性能优化：避免长周期图在交互重跑/刷新时重复 rebuild）──
 @cached_fig(ttl=120)
 def _build_fin_trend_fig(plot_df, metric, mode, fa_chart, fa_name, fa_code, unit, dark: bool = False):
+    import plotly.graph_objects as go
     fig = go.Figure()
     x_labels = plot_df['标签'].tolist()
     yoy_col = f'{metric}_同比'
@@ -80,6 +80,7 @@ def _build_fin_trend_fig(plot_df, metric, mode, fa_chart, fa_name, fa_code, unit
 
 @cached_fig(ttl=120)
 def _build_hist_fig(hist_plot, current, name, dark: bool = False):
+    import plotly.graph_objects as go
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=hist_plot['date'], y=hist_plot['close'], mode='lines', name='收盘价',
                             line=dict(color=ACCENT, width=1.4), fill='tozeroy', fillcolor=ACCENT_FILL))
@@ -94,6 +95,7 @@ def _build_hist_fig(hist_plot, current, name, dark: bool = False):
 
 @cached_fig(ttl=120)
 def _build_sector_fig(top_sectors, mapped_sector, industry, top_n, dark: bool = False):
+    import plotly.graph_objects as go
     bar_colors = [UP_COLOR if mapped_sector and str(row['sector']) == mapped_sector
                   else DOWN_COLOR if row['change_pct'] < 0 else '#94a3b8'
                   for _, row in top_sectors.iterrows()]
@@ -109,6 +111,7 @@ def _build_sector_fig(top_sectors, mapped_sector, industry, top_n, dark: bool = 
 
 @cached_fig(ttl=120)
 def _build_score_ring(score, score_color, score_label, dark: bool = False):
+    import plotly.graph_objects as go
     fig = go.Figure(go.Pie(values=[max(score, 0.01), max(100 - score, 0.01)], hole=0.78,
                           marker=dict(colors=[score_color, 'rgba(148,163,184,0.20)']),
                           showlegend=False, hoverinfo='skip', textinfo='none'))

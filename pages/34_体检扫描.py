@@ -2,7 +2,6 @@ import html
 import logging
 
 import streamlit as st
-import pandas as pd
 from datetime import datetime, timedelta
 import concurrent.futures  # kept for scan_one per-code error logging; simple fetches use fetch_parallel
 from modules.session import safe_switch_page, api_get
@@ -180,6 +179,7 @@ def _composite(dims: dict) -> float:
 
 def scan_one(code: str, name):
     """单只股票体检，返回 entry dict（含多维打分）。"""
+    import pandas as pd
     entry = {"code": str(code), "name": name, "patterns": [], "main_net": None,
              "dims": {}, "composite": None, "pe": None, "roe": None,
              "rev_yoy": None, "error": None}
@@ -252,6 +252,7 @@ def scan_one(code: str, name):
             last = fdf.iloc[-1]
 
             def _pick(*names):
+                import pandas as pd
                 for n in names:
                     for col in fdf.columns:
                         if n.replace(" ", "") in col.replace(" ", ""):
@@ -441,6 +442,7 @@ with st.expander("ℹ️ 怎么看体检结果？", expanded=False):
 # ─────────────────────────── 结果板（fragment，独立刷新） ───────────────────────────
 @safe_fragment("体检结果")
 def result_board():
+    import pandas as pd
     results = st.session_state.get("scan_results")
 
     # 重新扫描：仅清空 session，fragment 自然重跑，不调用 st.rerun
@@ -649,6 +651,7 @@ def run_risk_scan(scope: str):
 
 @safe_fragment("风险排雷")
 def risk_board():
+    import pandas as pd
     results = st.session_state.get("risk_results")
 
     rc1, rc2 = st.columns([1, 3])

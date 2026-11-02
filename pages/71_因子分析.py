@@ -19,7 +19,6 @@ from __future__ import annotations
 import logging
 import re
 
-import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -44,6 +43,7 @@ _LAYER_COLORS = ["#1d4ed8", "#0ea5e9", "#22c55e", "#f59e0b", "#dc2626",
 @st.cache_data(ttl=1800, show_spinner=False)
 def _hist_cached(code: str) -> pd.DataFrame:
     """薄包装：@st.cache_data(ttl=1800) 缓存层；实现下沉 page_utils.hist_cached。"""
+    import pandas as pd
     return hist_cached(code)
 
 

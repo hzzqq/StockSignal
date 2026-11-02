@@ -5,7 +5,6 @@
 """
 import streamlit as st
 import html
-import pandas as pd
 
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
@@ -86,7 +85,6 @@ def fragment_compare_setup():
                     xc_handle_error("后台任务提交失败", err, hint="请刷新重试")
 
 
-
 fragment_compare_setup()
 
 @st.cache_data(ttl=1)
@@ -103,6 +101,7 @@ def fragment_compare_result():
     不触发重跑，且提交发生在另一个 fragment 内不产生整页重跑 → 对比结果永不
     自动出现，需手动交互才取回，与 T-309/T-313 同族）。
     """
+    import pandas as pd
     compare_task_id = st.session_state.get("compare_task_id")
     if compare_task_id:
         task = _poll_compare_once(compare_task_id)

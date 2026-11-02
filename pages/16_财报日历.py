@@ -6,8 +6,6 @@ A股配色：业绩改善(净利润同比>0)=红，下滑=绿。
 """
 import streamlit as st
 import html
-import pandas as pd
-import plotly.graph_objects as go
 
 from modules.fundflow import (
     get_earnings_report, get_earnings_forecast, get_disclosure_calendar,
@@ -62,6 +60,8 @@ def _build_financial_trend_fig(code: str, dark: bool = False):
 
     best-effort：取数失败或字段缺失返回 None，调用方跳过渲染。
     """
+    import pandas as pd
+    import plotly.graph_objects as go
     import plotly.graph_objects as go
     try:
         inc = _cached_financial(code, "income")
@@ -106,6 +106,8 @@ def _build_financial_bar_fig(code: str, dark: bool = False):
     净利润按环比增减着色（红=改善、绿=下滑），与页面「业绩配色」约定一致。
     best-effort：取数失败或字段缺失返回 None，调用方跳过渲染。
     """
+    import pandas as pd
+    import plotly.graph_objects as go
     try:
         inc = _cached_financial(code, "income")
     except Exception:
@@ -167,13 +169,11 @@ PERIODS = {
 }
 
 
-
-
-
-
 # ───────────────────────── 业绩报表 ─────────────────────────
 @safe_fragment
 def fragment_report():
+    import pandas as pd
+    import plotly.graph_objects as go
     _section_title("📊 业绩报表（按报告期）", accent="#2b8aef")
     period_label = st.selectbox(
         "报告期", options=list(PERIODS.keys()), index=0,
@@ -261,6 +261,7 @@ def fragment_report():
 # ───────────────────────── 业绩预告（best-effort） ─────────────────────────
 @safe_fragment
 def fragment_forecast():
+    import pandas as pd
     _section_title("🔮 业绩预告（best-effort）", accent="#7c5cff")
     st.caption("业绩预告接口稳定性较低，加载失败时将自动跳过。")
     period_label = st.selectbox(
@@ -289,6 +290,7 @@ def fragment_forecast():
 # ───────────────────────── 披露日历（best-effort） ─────────────────────────
 @safe_fragment
 def fragment_disclosure():
+    import pandas as pd
     _section_title("🗓️ 披露日历（best-effort）", accent="#10b981")
     st.caption("披露日期接口稳定性较低，加载失败时将自动跳过。")
     mcol1, mcol2 = st.columns(2)

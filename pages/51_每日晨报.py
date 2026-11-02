@@ -7,7 +7,6 @@ import html
 import os
 import streamlit as st
 import streamlit.components.v1 as components
-import pandas as pd
 from datetime import date
 from concurrent.futures import ThreadPoolExecutor, as_completed  # kept; reviewed
 from modules.session import api_get, safe_switch_page
@@ -58,6 +57,7 @@ def _cached_sector():
 
 def _fmt_pct(v):
     """安全格式化涨跌幅：None/NaN 返回 —，避免 f-string 数值格式化崩溃。"""
+    import pandas as pd
     try:
         if v is None or (isinstance(v, float) and pd.isna(v)):
             return '—'
@@ -67,6 +67,7 @@ def _fmt_pct(v):
 
 @safe_fragment
 def fragment_sector_summary():
+    import pandas as pd
     with st.spinner('加载板块行情…'):
         try:
             sector_df = _cached_sector()
@@ -138,6 +139,7 @@ fragment_sector_summary()
 
 @safe_fragment
 def fragment_watchlist_and_news():
+    import pandas as pd
     sc, body = api_get('/api/watchlist')
     watchlist = []
     if sc == 200 and isinstance(body, dict) and (body.get('status') == 'ok'):

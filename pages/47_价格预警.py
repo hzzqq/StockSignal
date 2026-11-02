@@ -9,7 +9,6 @@
 """
 import json
 import streamlit as st
-import pandas as pd
 from datetime import datetime, timedelta
 import time as _time
 from threading import Lock as _Lock
@@ -124,6 +123,7 @@ _eval_cache_lock = _Lock()
 def _eval_pattern(code, pattern_name):
     """扫描个股日线，判断是否出现指定形态。返回 (triggered, detail)。
     结果按 (code, pattern_name) 记忆体缓存 2 分钟（跨自动刷新复用），降低重复网络请求。"""
+    import pandas as pd
     _key = ('pat', code, pattern_name)
     _now = _time.time()
     with _eval_cache_lock:
@@ -160,6 +160,7 @@ def _eval_pattern(code, pattern_name):
 def _eval_volume(code, threshold):
     """当日量比 ≥ 阈值触发。返回 (triggered, detail)。
     结果按 (code, threshold) 记忆体缓存 2 分钟（跨自动刷新复用），避免重复计算。"""
+    import pandas as pd
     _key = ('vol', code, threshold)
     _now = _time.time()
     with _eval_cache_lock:

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pandas as pd
 import streamlit as st
 
 from modules.page_utils import render_standard_page
@@ -32,6 +31,7 @@ def _load(date: str):
 
 
 def _show_table(df: pd.DataFrame, title: str) -> None:
+    import pandas as pd
     st.markdown(f"**{title}**")
     show = df.copy()
     if "净买额" in show.columns:
