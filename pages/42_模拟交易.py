@@ -10,8 +10,6 @@
 不接入真实券商，仅用于策略演练与学习。
 """
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
 import json
 import os
 from datetime import datetime
@@ -96,6 +94,8 @@ def _recompute(book):
 
 @safe_fragment('模拟交易')
 def fragment_paper():
+    import pandas as pd
+    import plotly.graph_objects as go
     trading_autorefresh(key='paper_autorefresh')
     user = (get_user() or {}).get('username', 'guest')
     book = _load_book(user)

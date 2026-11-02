@@ -13,9 +13,6 @@
 import logging
 
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
-import numpy as np
 from datetime import datetime
 
 from modules.page_utils import render_standard_page, get_fetcher
@@ -35,6 +32,8 @@ FETCHER = get_fetcher()
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _load_flow():
+    import numpy as np
+    import pandas as pd
     try:
         df = get_industry_fund_flow()
         if df is not None and not df.empty:
@@ -55,10 +54,13 @@ def _load_flow():
 
 
 def _norm_num(series):
+    import pandas as pd
     return pd.to_numeric(series, errors="coerce")
 
 
 def _heatmap(df):
+    import pandas as pd
+    import plotly.graph_objects as go
     d = df.copy()
     if "行业" not in d.columns or "涨跌幅" not in d.columns:
         _empty_info("板块数据字段不完整（缺少「行业」或「涨跌幅」），暂无法渲染（接口字段变更或网络异常）。")
@@ -98,6 +100,7 @@ def _heatmap(df):
 
 
 def _ranking(df):
+    import plotly.graph_objects as go
     d = df.copy()
     if "行业" not in d.columns or "涨跌幅" not in d.columns:
         _empty_info("板块数据字段不完整（缺少「行业」或「涨跌幅」），暂无法渲染（接口字段变更或网络异常）。")
@@ -134,6 +137,7 @@ def _ranking(df):
 
 
 def _rotation(df):
+    import plotly.graph_objects as go
     d = df.copy()
     if "行业" not in d.columns or "涨跌幅" not in d.columns:
         _empty_info("板块数据字段不完整（缺少「行业」或「涨跌幅」），暂无法渲染（接口字段变更或网络异常）。")
@@ -198,6 +202,7 @@ def _rotation(df):
 # ───────────────────────── 主渲染 ─────────────────────────
 @safe_fragment("板块轮动")
 def fragment_sectors():
+    import pandas as pd
     trading_autorefresh(key="sector_autorefresh")
     # ───────────────────────── 主渲染 ─────────────────────────
     with safe_section("板块数据", hint="行业资金流接口可能受网络限制；可稍后重试。"):
@@ -280,6 +285,7 @@ fragment_sectors()
 # ───────────────────────── 国产替代研究（行业级总览） ─────────────────────────
 @safe_fragment("国产替代")
 def fragment_domestic_substitution():
+    import pandas as pd
     xc_content_card(
         "🇨🇳 国产替代研究（行业总览）",
         "套用「半导体材料国产替代研究模板」的 10 维框架，下沉到行业级，盘点 A 股各主线的国产化率、龙头标的与投资逻辑。",

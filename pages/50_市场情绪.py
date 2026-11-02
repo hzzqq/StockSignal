@@ -15,10 +15,6 @@ import html
 import logging
 
 import streamlit as st
-import numpy as np
-import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 from datetime import datetime
 
 from modules.page_utils import (render_standard_page,
@@ -92,6 +88,7 @@ def _last(s):
 
 @cached_fig(ttl=120)
 def _spark(series, color, dark_mode):
+    import plotly.graph_objects as go
     s = to_numeric_clean(series).tail(40)
     if s.empty:
         return None
@@ -147,6 +144,7 @@ _DIR = {
 
 
 def _market_temp(df):
+    import numpy as np
     subs = []
     for k, d in _DIR.items():
         if d == 0 or k not in df.columns:
@@ -576,6 +574,9 @@ def _build_shepherd_chart(d, dark):
       行3 赚钱效应：红盘占比%（左轴温度计）｜ 中位数涨跌幅% / 昨日涨停表现%
           （右轴 0 基线，昨板 3% 炸裂线）。
     """
+    import pandas as pd
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
     fig = make_subplots(
         rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.07,
         specs=[[{}], [{}], [{"secondary_y": True}]],
@@ -586,6 +587,7 @@ def _build_shepherd_chart(d, dark):
     )
 
     def _add_line(k, col, name, row, secondary=None, fmt="%{y:.0f}", dash=None):
+        import plotly.graph_objects as go
         if k not in d.columns:
             return
         s = to_numeric_clean(d[k])
@@ -650,6 +652,7 @@ def _build_shepherd_chart(d, dark):
 
 @safe_fragment("牧羊人指标卡", run_every=120 if _in_trading_hours() else None)
 def fragment_shepherd():
+    import pandas as pd
     _section_title("🐑 牧羊人指标（股海牧羊人·情绪温度计）")
     try:
         with st.spinner("加载牧羊人指标…"):
@@ -680,6 +683,7 @@ def fragment_shepherd():
 
 @safe_fragment("牧羊人复盘方法论", run_every=120 if _in_trading_hours() else None)
 def fragment_shepherd_review():
+    import plotly.graph_objects as go
     _section_title("📋 复盘方法论指标（视频《如何复盘非常重要》新增）")
     try:
         with st.spinner("加载牧羊人指标…"):
@@ -774,6 +778,7 @@ def fragment_shepherd_review():
 
 @safe_fragment("牧羊人折线图")
 def fragment_shepherd_chart():
+    import pandas as pd
     _section_title("📈 牧羊人指标折线图（真实历史序列）")
     # 2026-11-01 轻量化（老板指令：自定义范围单独拎出来、占地小但显眼）：
     # 全宽 selectbox（自定义藏在选项里）→ segmented_control 胶囊一行（项目先例
@@ -854,6 +859,7 @@ def fragment_shepherd_chart():
 @safe_fragment("次日走势预判", run_every=180 if _in_trading_hours() else None)
 def fragment_shepherd_forecast():
     """「用今日指标判断明天大概怎么走」——周期定位 + 评分 + 方向 + 情景 + 联动信号。"""
+    import pandas as pd
     _section_title("🔮 次日走势预判（今日指标 → 明日大概率走向）")
     try:
         with st.spinner("加载牧羊人指标…"):
@@ -1035,6 +1041,8 @@ def fragment_shepherd_forecast():
 @safe_fragment("情绪笔记")
 def fragment_shepherd_note():
     """每天记录一次情绪 + 回填次日实际 + 对过去的情绪做回测分析。"""
+    import pandas as pd
+    import plotly.graph_objects as go
     _section_title("📔 情绪笔记（每日情绪快照 + 历史情绪回测）")
     if _FOCUS_NOTE:   # 首页跳转过来时高亮一次，帮助定位
         # ui_audit_exempt: unsafe-allow_html 情绪笔记定位高亮为纯内置文案常量，无外部输入

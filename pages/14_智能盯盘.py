@@ -15,7 +15,6 @@
 import streamlit as st
 import logging
 import html
-import pandas as pd
 import concurrent.futures as cf  # kept for potential other uses
 from datetime import datetime
 from modules.session import safe_switch_page, api_get, api_post, api_delete
@@ -26,7 +25,6 @@ from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher, quote_one as _quote_one
 from modules.chart_cache import cached_fig
-import plotly.graph_objects as go
 from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box
 from modules.page_utils import styler_color_chg as _color_chg
 dark = render_standard_page('智能盯盘', icon='👁️', caption='⚠️ 数据仅供参考，不构成投资建议')
@@ -114,7 +112,6 @@ def _quote_fields(q):
     except Exception:
         amplitude = None
     return (cur, chg, change_amt, amplitude)
-
 
 
 def _color_net(val):
@@ -223,6 +220,7 @@ def _resolve_name(code, *candidates):
 # ── 图表 figure 构建缓存（性能优化：避免每次脚本重跑/60s 自动刷新时重复 rebuild）──
 @cached_fig(ttl=120)
 def _build_sector_fig(top, dark, ctype):
+    import plotly.graph_objects as go
     colors = [UP if v >= 0 else DOWN for v in top['净额']]
     if ctype == '折线':
         fig = go.Figure(go.Scatter(x=top['净额'], y=top['行业'], mode='markers+lines', marker=dict(color=colors, size=10), line=dict(color='#3498db', width=2), hovertemplate='%{y}<br>净额：%{x:.2f}亿<extra></extra>'))
@@ -236,6 +234,7 @@ def _build_sector_fig(top, dark, ctype):
 
 @safe_fragment('板块资金异动', run_every=60)
 def fragment_sector():
+    import pandas as pd
     st.markdown('### 🏭 板块资金异动')
     try:
         with st.spinner('⏳ 正在加载行业资金流向…'):
@@ -275,6 +274,7 @@ def fragment_sector():
 
 @safe_fragment('自选股涨跌榜', run_every=60)
 def fragment_watchlist():
+    import pandas as pd
     st.markdown('### 📈 自选股涨跌榜')
     _rv = st.session_state.get('_wl_recent', [])
     if _rv:
@@ -395,6 +395,7 @@ def fragment_watchlist():
 
 @safe_fragment('个股资金流异动', run_every=60)
 def fragment_individual_ff():
+    import pandas as pd
     st.markdown('### 💰 个股资金流异动')
     d1, d2 = st.columns([2, 1])
     iff_dir = d1.selectbox('资金方向', ['全部', '仅净流入', '仅净流出'], index=['全部', '仅净流入', '仅净流出'].index(st.session_state.get('pref_iff_dir', '全部')), key='iff_dir')

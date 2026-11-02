@@ -13,9 +13,6 @@
 """
 import streamlit as st
 import html
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
 import logging
 from datetime import datetime
 
@@ -98,6 +95,8 @@ def _signal_light(key, value):
 # ───────────────────────── 顶部：情绪信号总览 + 仓位建议 ─────────────────────────
 def _render_hero(df, today, prev, meta=None):
     # 数据来自 SQLite 缓存降级时，显示提示横幅（与 50_市场情绪 同口径）
+    import pandas as pd
+    import plotly.graph_objects as go
     if meta and isinstance(meta, dict) and meta.get("_cache_fallback"):
         msg = meta.get("_cache_message", "当前展示为最近一次成功缓存的数据（网络暂时不可用）")
         # 缓存提示文案来自数据层 meta，按防御性规范 html.escape
@@ -788,6 +787,8 @@ def _acc_color(acc):
 
 def _render_cycle_breakdown(dark: bool):
     """按情绪周期拆解命中率 —— 回答「这套决策在哪些周期可信、哪些周期该打折」。"""
+    import pandas as pd
+    import plotly.graph_objects as go
     st.markdown("#### 🎭 分情绪周期命中率（哪些周期该信、哪些该打折）")
     st.caption("总体命中率是个「平均数的谎言」—— 主升高潮期人人看对，退潮期看对才值钱。"
                "按周期拆开，才知道建议该打几折。")
@@ -851,6 +852,7 @@ def _render_cycle_breakdown(dark: bool):
 
 @safe_fragment("预测回测")
 def fragment_backtest():
+    import plotly.graph_objects as go
     _section_title("📈 预测 vs 实际 · 仓位预判准确率回测", accent="#7c5cff")
     st.caption("每天收盘后系统落盘一条「偏多/偏空 + 几成仓」预测；联网拉取次日上证指数真实涨跌，"
                "判定方向是否命中，积累出命中率与回测曲线。这是差异化主线「事件驱动 + 市场情绪」的能力验证。")
@@ -932,6 +934,7 @@ def fragment_backtest():
 # ──────────────────────────────────────────────────────────────
 @safe_fragment("刻度校准")
 def fragment_calibration():
+    import pandas as pd
     _section_title("⚖️ 仓位刻度校准（用回测数据反推周期调节常数）", accent="#7c5cff")
     st.caption("decision.py 里的「情绪周期 → 仓位调节」常数（如退潮 −10、主升高潮 +5）当初是拍出来的。"
                "这里按四大战术分组对照「平均建议仓位 vs 次日真实涨跌」，算出**应该**调多少点。")
