@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 
 import pytest
 
@@ -44,6 +45,10 @@ def test_evidence_report_generates_valid_html(tmp_path, monkeypatch):
     import scripts.generate_evidence_report as gen
     if not os.path.exists(_BREADTH_FILE):
         pytest.skip("真实 shepherd_history.csv 缺失，跳过报告生成测试")
+    # 2026-11-02 测试缺陷修复：gen.main() 内部 argparse.parse_args() 会解析
+    # pytest 自己的 argv（-q/--tb/文件路径）→ 报 unrecognized arguments 并 SystemExit 2。
+    # 这里把 argv 收敛到脚本名（脚本 CLI 契约不变，仅隔离测试运行器参数）。
+    monkeypatch.setattr(sys, "argv", ["generate_evidence_report.py"])
     gen.main()
 
     html = out.read_text(encoding="utf-8")
