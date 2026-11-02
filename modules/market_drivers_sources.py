@@ -14,6 +14,7 @@ import pandas as pd
 from modules.linear_trends import get_index_series, get_northbound_history_series
 from modules.margin_trading import get_margin_trading_data
 from modules.time_utils import now_cst_naive
+from modules.timeout_exec import run_with_timeout as _run_with_timeout
 from modules.market_drivers_core import (
     DIMS,
     INDICATORS,

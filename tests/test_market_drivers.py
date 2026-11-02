@@ -594,3 +594,20 @@ class TestSrcDiv:
         rows = m._src_div(days=180)
         # 5 路全失败 → 空列表（页面展示「数据源暂未接入」提示）
         assert rows == []
+
+
+def test_market_drivers_sources_run_with_timeout_imported():
+    """守卫：_src_div 股息率分支调用 _run_with_timeout，缺导入会 NameError 被吞。
+
+    历史缺陷（R-05 拆分期发现）：原 market_drivers 只调用不导入，股息率第 5 路
+    恒抛 NameError 并被 except 降级为空——数据永远拿不到却无任何测试变红。
+    """
+    import modules.market_drivers_sources as s
+
+    fn = getattr(s, "_run_with_timeout", None)
+    assert callable(fn), (
+        "market_drivers_sources 必须导入 _run_with_timeout"
+        "（modules.timeout_exec.run_with_timeout）—— 否则股息率分支静默降级"
+    )
+    import modules.timeout_exec as te
+    assert fn is te.run_with_timeout, "_run_with_timeout 必须是 timeout_exec.run_with_timeout 的别名"
