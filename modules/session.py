@@ -1,51 +1,78 @@
 """
-modules/session.py
------------------
-Streamlit 跨页面 / 跨刷新持久化登录态。
-
-核心机制：token 始终存于 URL query_params（浏览器地址栏）
-- 登录成功 → token 写入 session_state + URL query_params
-- 每次页面加载 → init_session_state() 先从 session_state 取；没有则从 URL query_params 恢复
-  （F5 刷新时浏览器保留 URL，token 仍在 query_params 中 → 直接恢复，无需网络）
-- 加载后立即把 token「回写」到 URL query_params，保证刷新瞬间 URL 一定带 token
-- 退出登录 → 清除 query_params + session_state
-
-为什么用 query_params 而不是 cookie / session_state / localStorage？
-- session_state 在浏览器「完全刷新(F5)」且服务端 session 被 GC 时会丢，不可靠
-- localStorage 兜底方案依赖 component iframe 注入 JS 跳转，但 Streamlit component iframe
-  是 sandboxed 的（无 allow-top-navigation），window.parent.location 跳转会静默失败，不可靠
-- query_params 随 URL 永远存在，刷新后仍然保留，是唯一可靠的「刷新保持登录」方案
-- 注意：st.switch_page 默认会清空 query 参数！所以所有跳转必须用 safe_switch_page()
-  带上 token，且每次页面加载都要 _sync_query_params() 重新补回
-
-注意：
-- init_session_state() 必须在每个页面最开头调用（除 st.set_page_config 外的第一个 st 调用）
-- 写入 query_params 仅在值变化时触发 rerun，幂等，不会死循环
 """
-
 from __future__ import annotations
-import os
-import logging
 
-from modules.site_config import API_BASE
-from modules.ui_kit import xc_success_box, xc_warn_box, info_banner
-logger = logging.getLogger(__name__)
 import json
+import logging
+import os
 import time
+
 import jwt
 import streamlit as st
-import requests
 from datetime import datetime
+
 from modules.request_utils import http_get, http_post
+from modules.site_config import API_BASE
 from modules.time_utils import now_cst_naive
+from modules.ui_kit import info_banner, xc_success_box, xc_warn_box
 
-from .ui_theme import FONT_DEFAULT
 from .page_guard import safe_fragment
+from .ui_theme import FONT_DEFAULT
 
-# API_BASE 已收敛至 modules/site_config（R-06），从该模块导入单一真源。
-# 容器化部署（docker-compose）下由 STOCKSIGNAL_API_BASE=http://backend:5050 注入。
-# 本地开发默认 http://127.0.0.1:5050。
+# 子模块 re-export：对外 ``from modules.session import ...`` 全部保持可用
+from modules.session_api import (  # noqa: F401
+    _api_request,
+    _safe_json,
+    api_add_junk_stock,
+    api_delete,
+    api_get,
+    api_intraday,
+    api_junk_stocks,
+    api_kline,
+    api_mark_alert_read,
+    api_mark_all_alerts_read,
+    api_market_alerts,
+    api_post,
+    api_put,
+    api_quote,
+    api_remove_junk_stock,
+    api_save_user_score,
+    api_user_score,
+    get_watchlist,
+    save_avatar_to_backend,
+)
+from modules.session_user import (  # noqa: F401
+    _avatar_dir,
+    _cached_alert_summary,
+    _cached_alerts_panel,
+    _confirm_logout_dialog,
+    _parse_alert_summary,
+    _parse_iso,
+    _parse_ts,
+    _refresh_user_from_backend,
+    _rel_time,
+    fragment_market_alerts_panel,
+    get_avatar_data_url,
+    get_avatar_path,
+    render_avatar,
+    render_market_alert_bell,
+    render_user_badge,
+    save_avatar,
+    set_avatar_data_url,
+)
 
+# 与子模块共用同名 logger（同一实例）：test_exception_logging 等按名注入继续生效
+logger = logging.getLogger("modules.session")
+
+
+KEY_TOKEN = "auth_token"
+KEY_USER = "auth_user"
+QP_TOKEN = "token"
+QP_USER = "u"
+QP_PREFS = "prefs"  # 用户偏好（主题/字体）持久化参数
+_TOKEN_INVALID = "___token_invalid_sentinel___"
+_TOKEN_EXPIRED = "___token_expired_sentinel___"
+_REFRESH_REJECTED = "___refresh_rejected_sentinel___"
 
 def trading_autorefresh(interval_ms: int = 60000, key: str = "auto_refresh",
                         limit: int = 400, only_trading: bool = True):
@@ -86,11 +113,6 @@ def trading_autorefresh(interval_ms: int = 60000, key: str = "auto_refresh",
 
     _auto_tick()
 
-KEY_TOKEN = "auth_token"
-KEY_USER = "auth_user"
-QP_TOKEN = "token"
-QP_USER = "u"
-QP_PREFS = "prefs"  # 用户偏好（主题/字体）持久化参数
 
 
 def init_session_state() -> None:
@@ -158,6 +180,7 @@ def init_session_state() -> None:
     apply_theme()
 
 
+
 def _restore_from_query_params() -> None:
     """从 URL query_params 读取 token，恢复到 session_state。
 
@@ -207,6 +230,7 @@ def _restore_from_query_params() -> None:
         logger.warning(f"[session] _restore_from_query_params error: {e}")
 
 
+
 def _sync_query_params() -> None:
     """
     把当前 session 里的 token/user 回写到 URL query_params。
@@ -231,6 +255,7 @@ def _sync_query_params() -> None:
                 qp[QP_USER] = u_str
     except Exception as e:
         logger.warning(f"[session] _sync_query_params error: {e}")
+
 
 
 def safe_switch_page(page: str, **kwargs) -> None:
@@ -258,12 +283,6 @@ def safe_switch_page(page: str, **kwargs) -> None:
         st.switch_page(page, **kwargs)
 
 
-# token 校验哨兵：后端明确判定为无效（401/403/伪造），与 None（网络瞬态）区分
-_TOKEN_INVALID = "___token_invalid_sentinel___"
-# token 过期但签名有效（T-158）：可在滑动刷新窗口内静默续期，区别于伪造/无效
-_TOKEN_EXPIRED = "___token_expired_sentinel___"
-# 续期请求被后端明确拒绝（超窗/用户禁用/伪造）——区别于 None（网络瞬态不可判定）
-_REFRESH_REJECTED = "___refresh_rejected_sentinel___"
 
 def _me_response_valid(data) -> bool:
     """纯函数：判断 /api/auth/me 的 `data`（user 对象）是否构成已登录的有效证明。
@@ -284,6 +303,7 @@ def _me_response_valid(data) -> bool:
     if isinstance(nested, dict) and nested.get("username"):
         return True
     return False
+
 
 
 def _verify_token(token: str):
@@ -331,6 +351,7 @@ def _verify_token(token: str):
         return None
 
 
+
 def _try_refresh():
     """静默续期（T-158）：用现有 token 换新 access token。
 
@@ -369,6 +390,7 @@ def _try_refresh():
         return None
 
 
+
 def set_auth(token: str, user: dict) -> None:
     """登录 / 注册成功时调用：写入 session_state + URL query_params + 浏览器 localStorage。"""
     st.session_state[KEY_TOKEN] = token
@@ -382,11 +404,13 @@ def set_auth(token: str, user: dict) -> None:
         logger.warning(f"[session] set_auth query_params error: {e}")
 
 
+
 def clear_auth() -> None:
     """退出登录时调用：清除 session_state + URL query_params。"""
     st.session_state[KEY_TOKEN] = None
     st.session_state[KEY_USER] = None
     _clear_query_params()
+
 
 
 def _clear_query_params() -> None:
@@ -397,6 +421,7 @@ def _clear_query_params() -> None:
                 del qp[k]
     except Exception as e:
         logger.warning(f"[session] _clear_query_params error: {e}")
+
 
 
 def nav_query_string() -> str:
@@ -427,9 +452,7 @@ def nav_query_string() -> str:
         return ""
 
 
-# ══════════════════════════════════════════════════════════════
-# 用户偏好（主题 / 字体大小）持久化：与登录态同源机制，保证刷新 / 跨页 / 关闭浏览器后恢复
-# ══════════════════════════════════════════════════════════════
+
 def _current_prefs() -> dict:
     """从 session_state 收集当前偏好。"""
     return {
@@ -437,6 +460,7 @@ def _current_prefs() -> dict:
         "font_size": st.session_state.get("font_size", FONT_DEFAULT),
         "ui_style": st.session_state.get("ui_style", "classic"),
     }
+
 
 
 def _restore_prefs_from_query_params() -> dict:
@@ -450,6 +474,7 @@ def _restore_prefs_from_query_params() -> dict:
     return {}
 
 
+
 def _sync_prefs_query_params() -> None:
     """把当前偏好回写到 URL query_params，保证刷新 / 导航后偏好不丢（仅在变化时写，避免重跑死循环）。"""
     try:
@@ -460,6 +485,7 @@ def _sync_prefs_query_params() -> None:
             st.query_params[QP_PREFS] = new
     except Exception as e:
         logger.warning(f"[session] _sync_prefs_query_params error: {e}")
+
 
 
 def _apply_user_settings(user: dict | None) -> None:
@@ -481,6 +507,7 @@ def _apply_user_settings(user: dict | None) -> None:
             logger.warning(f"[session] ui_style 应用失败: {e}")
 
 
+
 def push_settings_to_backend() -> None:
     """把当前偏好（主题/字号）按账号推到后端。失败静默忽略（用裸 requests，不触发自动登出）。"""
     token = get_token()
@@ -498,6 +525,7 @@ def push_settings_to_backend() -> None:
         logger.warning(f"[session] set_user_setting 同步后端失败: {e}")
 
 
+
 def get_user_setting(key, default=None):
     """读取当前登录用户的自定义设置项（后端 settings JSON 中的任意 key）。"""
     user = get_user()
@@ -505,6 +533,7 @@ def get_user_setting(key, default=None):
     if isinstance(settings, dict) and key in settings:
         return settings[key]
     return default
+
 
 
 def save_user_setting(key, value) -> None:
@@ -528,6 +557,7 @@ def save_user_setting(key, value) -> None:
         logger.warning(f"[session] push_settings_to_backend 失败: {e}")
 
 
+
 def persist_prefs() -> None:
     """偏好变更后调用：写入浏览器 localStorage（关闭浏览器兜底）+ 回写 URL query_params + 同步后端。"""
     try:
@@ -544,8 +574,10 @@ def persist_prefs() -> None:
             logger.warning(f"[session] persist_prefs 同步后端失败: {e}")
 
 
+
 def get_token() -> str | None:
     return st.session_state.get(KEY_TOKEN)
+
 
 
 def mask_token(token, keep_head: int = 4, keep_tail: int = 4) -> str:
@@ -562,8 +594,10 @@ def mask_token(token, keep_head: int = 4, keep_tail: int = 4) -> str:
     return f"{t[:keep_head]}{'*' * (len(t) - keep_head - keep_tail)}{t[-keep_tail:]}"
 
 
+
 def get_user() -> dict | None:
     return st.session_state.get(KEY_USER)
+
 
 
 def is_authenticated() -> bool:
@@ -596,12 +630,14 @@ def is_authenticated() -> bool:
         return False
 
 
+
 def auth_headers() -> dict:
     """返回带 Authorization 的 requests headers dict。"""
     token = get_token()
     if token:
         return {"Authorization": f"Bearer {token}"}
     return {}
+
 
 
 def _logo_base64() -> str:
@@ -614,6 +650,7 @@ def _logo_base64() -> str:
     except Exception as e:
         logger.warning(f"[session] 处理异常: {e}")
         return ""
+
 
 
 def _render_login_gate() -> None:
@@ -752,6 +789,7 @@ def _render_login_gate() -> None:
         logger.warning(f'[session] gate scroll_nav 注入失败: {e}')
 
 
+
 def require_auth() -> None:
     """
     业务页面门禁：未登录 → 显示品牌登录引导 + 跳转按钮 + st.stop()
@@ -778,501 +816,11 @@ def require_auth() -> None:
     st.stop()
 
 
-def _api_request(method: str, path: str, *, payload=None, timeout: int = 5, **kwargs):
-    """统一的带重试后端请求（瞬态网络错误兜底），api_get/post/put/delete 的公共实现。
-
-    行为契约与旧实现完全一致：
-      - 成功：返回 (status_code, 响应 dict)
-      - 网络异常（连接重置/超时/DNS 等瞬态错误）：重试 2 次（0.4s / 0.8s 退避），
-        仍失败返回 (-1, {"message": ...})
-      - 401：清登录态并 st.rerun(scope="app")（fragment 与顶层均安全），不在此重试
-    仅对瞬态网络错误重试；401/4xx/5xx 属有效响应，立即交给调用方。
-    """
-    import requests as _requests
-    url = f"{API_BASE}{path}"
-    # 后端地址恒为内网/本地（默认 127.0.0.1:5050 或容器同网主机），必须绕过本机
-    # 正向代理（如 127.0.0.1:2945），否则请求被路由到代理导致连接被掐
-    # （RemoteDisconnected），误报网络错误。仅当调用方未显式指定代理时生效。
-    if "proxies" not in kwargs:
-        kwargs["proxies"] = {"http": None, "https": None}
-    last_exc = None
-    for attempt in range(3):
-        try:
-            if method == "GET":
-                resp = _requests.get(url, headers=auth_headers(), timeout=timeout, **kwargs)
-            else:
-                resp = _requests.request(
-                    method, url, json=(payload or {}), headers=auth_headers(),
-                    timeout=timeout, **kwargs
-                )
-        except _requests.exceptions.RequestException as e:
-            logger.warning(f"[session] 处理异常: {e}")
-            last_exc = e
-            if attempt < 2:
-                time.sleep(0.4 * (attempt + 1))
-                continue
-            return -1, {"message": f"网络错误: {e}"}
-        if resp.status_code == 401:
-            clear_auth()
-            # token 失效：清登录态并强制整页重跑（st.rerun 在 fragment 与顶层均安全）。
-            st.rerun(scope="app")
-        return resp.status_code, _safe_json(resp)
-    return -1, {"message": f"网络错误: {last_exc}"}
-
-
-def api_get(path: str, timeout: int = 5, **kwargs):
-    return _api_request("GET", path, timeout=timeout, **kwargs)
-
-
-def api_post(path: str, payload: dict | None = None, timeout: int = 5, **kwargs):
-    return _api_request("POST", path, payload=payload, timeout=timeout, **kwargs)
-
-
-def api_put(path: str, payload: dict | None = None, timeout: int = 5, **kwargs):
-    return _api_request("PUT", path, payload=payload, timeout=timeout, **kwargs)
-
-
-def api_delete(path: str, timeout: int = 5, **kwargs):
-    return _api_request("DELETE", path, timeout=timeout, **kwargs)
-
-
-# ──────────────────────────────────────────────────────────────
-# 市场指标异动提醒（后端 /api/market-alerts）
-# ──────────────────────────────────────────────────────────────
-def api_market_alerts(limit: int = 50, offset: int = 0) -> dict:
-    """返回 {items, unread_count, total, last_seen}；失败返回空 dict。"""
-    code, body = api_get(f"/api/market-alerts?limit={limit}&offset={offset}", timeout=8)
-    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        data = body.get("data")
-        if isinstance(data, dict):
-            return data
-    return {}
-
-
-def api_mark_alert_read(alert_id: int) -> tuple:
-    return api_post(f"/api/market-alerts/{int(alert_id)}/read", timeout=8)
-
-
-def api_mark_all_alerts_read() -> tuple:
-    return api_post("/api/market-alerts/read-all", timeout=8)
-
-
-def api_quote(ticker: str, timeout: int = 5) -> dict | None:
-    """
-    实时五档行情（后端 GET /api/quote?ticker=）。
-
-    优先走后端；失败（网络错误 / 非 200 / 响应非 ok / data 非 dict）时返回 None，
-    由调用方回退到本地 fetcher.get_realtime_quote。
-    成功判定键为响应信封的 status=="ok"（见 backend/utils/response.py）。
-    """
-    if not ticker:
-        return None
-    code, body = api_get(f"/api/quote?ticker={ticker}", timeout=timeout)
-    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        data = body.get("data")
-        if isinstance(data, dict):
-            return data
-    return None
-
-
-def api_kline(symbol: str, start: str | None = None, end: str | None = None,
-              period: str = "daily", adjust: str = "qfq", timeout: int = 5) -> list | None:
-    """
-    历史 K 线（后端 GET /api/kline?symbol=...）。支持 daily/weekly/monthly。
-
-    返回 records 列表（与 StockFetcher.get_kline 的 df.to_dict("records") 一致），
-    调用方需用 pd.DataFrame(records) 还原 DataFrame 用法。
-    失败（网络错误 / 非 200 / 响应非 ok / data 非 list）时返回 None，
-    由调用方回退到本地 fetcher.get_kline。
-    """
-    if not symbol:
-        return None
-    params = f"symbol={symbol}&start={start or '2024-01-01'}&period={period}&adjust={adjust}"
-    if end:
-        params += f"&end={end}"
-    code, body = api_get(f"/api/kline?{params}", timeout=timeout)
-    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        data = body.get("data")
-        if isinstance(data, list):
-            return data
-    return None
-
-
-def api_intraday(symbol: str, trade_date: str | None = None, timeout: int = 5) -> dict | None:
-    """
-    个股分时数据（后端 GET /api/intraday?symbol=...）。
-
-    返回 dict（含 records / prev_close / trade_date），或 None（失败/无数据）。
-    失败由调用方回退到本地 fetcher.get_stock_intraday_sina。
-    """
-    if not symbol:
-        return None
-    params = f"symbol={symbol}"
-    if trade_date:
-        params += f"&date={trade_date}"
-    code, body = api_get(f"/api/intraday?{params}", timeout=timeout)
-    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        data = body.get("data")
-        if isinstance(data, dict):
-            return data
-    return None
-
-
-def _safe_json(resp) -> dict:
-    try:
-        return resp.json()
-    except Exception as e:
-        logger.warning(f"[session] 处理异常: {e}")
-        return {"message": f"非 JSON 响应 (HTTP {resp.status_code})"}
-
-
-def api_junk_stocks() -> list:
-    """GET /api/junk-stocks，返回当前用户的垃圾股列表。"""
-    code, body = api_get("/api/junk-stocks", timeout=5)
-    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        data = body.get("data")
-        if isinstance(data, list):
-            return data
-    return []
-
-
-def api_add_junk_stock(code: str, note: str = "") -> dict:
-    """POST /api/junk-stocks"""
-    code, body = api_post("/api/junk-stocks", {"stock_code": code, "note": note}, timeout=5)
-    return body if isinstance(body, dict) else {}
-
-
-def api_remove_junk_stock(item_id: int) -> dict:
-    """DELETE /api/junk-stocks/{id}"""
-    code, body = api_delete(f"/api/junk-stocks/{item_id}", timeout=5)
-    return body if isinstance(body, dict) else {}
-
-
-def api_user_score(code: str) -> int | None:
-    """GET /api/user-scores/{code}，返回用户打分或 None。"""
-    code, body = api_get(f"/api/user-scores/{code}", timeout=5)
-    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        data = body.get("data")
-        if isinstance(data, dict):
-            return int(data.get("score", 0))
-    return None
-
-
-@st.cache_data(ttl=30, show_spinner=False)
-def get_watchlist() -> list:
-    """获取当前用户自选股列表（缓存 30s，避免每页重复请求）。返回 data 列表，失败返回 []。"""
-    code, body = api_get("/api/watchlist", timeout=5)
-    if code == 200 and isinstance(body, dict):
-        data = body.get("data")
-        if isinstance(data, list):
-            return data
-    return []
-
-
-def api_save_user_score(code: str, score: int, name: str = "") -> dict:
-    """POST /api/user-scores"""
-    code, body = api_post("/api/user-scores", {"stock_code": code, "stock_name": name, "score": score}, timeout=5)
-    return body if isinstance(body, dict) else {}
-
-
-def _avatar_dir() -> str:
-    """头像本地存储目录：<项目根>/data/avatars（测试期跟随 SS_DATA_DIR 隔离）。"""
-    d = os.path.join(os.environ.get("SS_DATA_DIR") or os.path.dirname(os.path.dirname(__file__)), "data", "avatars")
-    os.makedirs(d, exist_ok=True)
-    return d
-
-
-def get_avatar_path(username: str | None = None) -> str | None:
-    """返回当前用户的头像文件路径（存在则返回，否则 None）。"""
-    if username is None:
-        username = (get_user() or {}).get("username")
-    if not username:
-        return None
-    import glob
-    safe = "".join(c for c in str(username) if c.isalnum() or c in "_-")
-    matches = glob.glob(os.path.join(_avatar_dir(), f"{safe}.*"))
-    return matches[0] if matches else None
-
-
-def save_avatar(username: str, file_bytes: bytes, ext: str = "png") -> str:
-    """保存用户头像到本地，返回路径。会先清除旧头像。
-
-    注：自 Batch（头像持久化）起，头像的权威存储是后端 users.avatar 列；
-    本地文件仅作为「后端不可用时」的离线兜底。
-    """
-    import glob
-    safe = "".join(c for c in str(username) if c.isalnum() or c in "_-")
-    for old in glob.glob(os.path.join(_avatar_dir(), f"{safe}.*")):
-        try:
-            os.remove(old)
-        except Exception as e:
-            logger.warning(f"[session] 删除旧头像失败: {e}")
-    path = os.path.join(_avatar_dir(), f"{safe}.{ext.lstrip('.')}")
-    with open(path, "wb") as f:
-        f.write(file_bytes)
-    return path
-
-
-def render_avatar(target, avatar_value, width: int = 64) -> None:
-    """
-    渲染头像：优先 base64 data URL（后端按账号存储），回退本地文件路径。
-    target 为 st.sidebar / st。失败静默跳过，避免一个坏图炸掉整页。
-    """
-    try:
-        if isinstance(avatar_value, str) and avatar_value.startswith("data:image/"):
-            import base64
-            import io
-            _, b64 = avatar_value.split(",", 1)
-            target.image(io.BytesIO(base64.b64decode(b64)), width=width)
-        elif avatar_value:
-            target.image(avatar_value, width=width)
-    except Exception as e:
-        logger.warning(f"[session] 渲染头像失败: {e}")
-
-
-def get_avatar_data_url() -> str | None:
-    """返回当前用户头像的 base64 data URL（来自后端，按账号持久化）。
-
-    会话内若暂无头像（如刷新后 URL 未带 avatar 字段），则向后端 /api/auth/me
-    补拉一次并缓存，保证「刷新 / 跨页」后头像不丢失。无头像返回 None。
-    """
-    user = get_user() or {}
-    avatar = user.get("avatar")
-    if avatar:
-        return avatar
-    # 本次会话已确认过无头像 / 已拉取过，避免每帧重复请求后端
-    if st.session_state.get("_avatar_checked"):
-        return None
-    if is_authenticated():
-        refreshed = _refresh_user_from_backend()
-        st.session_state["_avatar_checked"] = True
-        if refreshed and refreshed.get("avatar"):
-            return refreshed["avatar"]
-    return None
-
-
-def set_avatar_data_url(data_url: str) -> None:
-    """把后端返回的头像 data URL 写回当前会话（含 URL 回写，但不写 avatar 进 URL）。"""
-    user = st.session_state.get(KEY_USER)
-    if isinstance(user, dict):
-        user["avatar"] = data_url
-    st.session_state["_avatar_checked"] = True
-    _sync_query_params()
-
-
-def save_avatar_to_backend(data_url: str, timeout: int = 5) -> dict:
-    """把头像 base64 data URL 保存到后端（按账号持久化）。返回后端响应 dict。"""
-    return api_post("/api/auth/avatar", {"avatar": data_url}, timeout=timeout)
-
-
-def _refresh_user_from_backend() -> dict | None:
-    """调 /api/auth/me 重新拉取最新 user（含 avatar）。"""
-    res = _verify_token(get_token())
-    # 只返回有效 user dict；无效哨兵/网络异常统一转 None，避免调用方 .get 崩
-    return res if isinstance(res, dict) else None
-
-
-def _parse_iso(ts):
-    """把 ISO 时间戳解析为 datetime（统一来源；丢弃时区信息以与 datetime.now() 一致比较）。
-
-    隐式修复（R2）：原先 _rel_time / _parse_ts 各自内联同一段 `replace("Z","").replace("+08:00","")`
-    解析逻辑；且未丢弃 tzinfo，若时间戳带时区会与朴素 datetime.now() 混合比较抛 TypeError。
-    这里归一为朴素 datetime，作为全模块唯一的 ISO 解析入口。
-    """
-    if not ts:
-        return None
-    s = str(ts).replace("Z", "").replace("+08:00", "").replace("+00:00", "")
-    try:
-        dt = datetime.fromisoformat(s)
-    except Exception as e:
-        logger.warning(f"[session] parse_ts 失败: {e}")
-        try:
-            dt = datetime.fromisoformat(str(ts).replace("Z", ""))
-        except Exception as e:
-            logger.warning(f"[session] 处理异常: {e}")
-            return None
-    # 丢弃时区，统一按朴素时间比较
-    return dt.replace(tzinfo=None)
-
-
-def _rel_time(ts) -> str:
-    """把 ISO 时间戳转成友好相对时间（UI-only）：刚刚 / N分钟前 / N小时前 / 昨天 / N天前 / MM-DD。"""
-    if not ts:
-        return ""
-    dt = _parse_iso(ts)
-    if dt is None:
-        return str(ts)[:16].replace("T", " ")
-    diff = (now_cst_naive() - dt).total_seconds()
-    if diff < 0:
-        return "刚刚"
-    if diff < 60:
-        return "刚刚"
-    if diff < 3600:
-        return f"{int(diff // 60)}分钟前"
-    if diff < 86400:
-        return f"{int(diff // 3600)}小时前"
-    if diff < 86400 * 2:
-        return "昨天"
-    if diff < 86400 * 7:
-        return f"{int(diff // 86400)}天前"
-    return dt.strftime("%m-%d")
-
-
-def _parse_ts(ts):
-    """把 ISO 时间戳解析为 datetime（失败返回 None），供「仅看未读」客户端过滤。"""
-    return _parse_iso(ts)
-
-
-def render_user_badge(sidebar: bool = True) -> None:
-    """在侧边栏/顶栏渲染当前用户头像 + 用户名 + 退出登录按钮 + 市场异动铃铛。"""
-    user = get_user() or {}
-    username = user.get("username", "?")
-    role_cn = "管理员" if user.get("role") == "admin" else "普通用户"
-    target = st.sidebar if sidebar else st
-    _avatar = get_avatar_data_url() or get_avatar_path(username)
-    if _avatar:
-        render_avatar(target, _avatar, width=64)
-    target.markdown(f"**👤 {username} · {role_cn}**")
-
-    # 退出登录：先弹确认对话框，避免误触（对话框内 st.rerun 为页面级，安全）
-    if st.session_state.get("_show_logout_dialog"):
-        _confirm_logout_dialog()
-    if target.button("🚪 退出登录", key="logout_btn", width="stretch"):
-        st.session_state["_show_logout_dialog"] = True
-        st.rerun()  # ui_audit_exempt: bare-rerun 置位退出确认对话框标记后必须重跑，@st.dialog 才能弹出
-
-    # 市场异动铃铛（全局，挂用户区下方）
-    try:
-        render_market_alert_bell(target)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"[session] 处理异常: {e}")
-        target.caption(f"提醒加载失败：{str(e)[:40]}")
-
-
-@st.dialog("确认退出登录？")
-def _confirm_logout_dialog() -> None:
-    """退出登录确认对话框：防误触。确认 → 清登录态并跳登录页；取消 → 关闭。"""
-    xc_warn_box("退出后需要重新登录才能继续使用全部功能。")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("确认退出", key="dlg_logout_yes", width="stretch", type="primary"):
-            clear_auth()
-            safe_switch_page("pages/90_登录.py")
-    with c2:
-        if st.button("取消", key="dlg_logout_no", width="stretch"):
-            st.session_state["_show_logout_dialog"] = False
-            st.rerun()  # ui_audit_exempt: bare-rerun 关闭退出确认对话框，重跑以收尾 dialog 交互
-
-
-def _parse_alert_summary(code: int, body) -> dict:
-    """纯函数：把 /api/market-alerts 的 (code, body) 解析为摘要 dict。
-
-    仅当 HTTP 200 + 响应信封 status=="ok" + data 为 dict 时返回 data；
-    其余情况（非 200 / 信封非 ok / data 非 dict / body 非 dict）一律返回 {}。
-
-    抽离动机（隐式修复）：原 `_cached_alert_summary` 在 `if code==200…` 块内才赋值
-    `data`，但随后「无条件」`if isinstance(data, dict)` 引用它——一旦 API 返回非 200，
-    `data` 根本未绑定，会抛 NameError。该异常被外层 broad except 静默吞掉、恰好返回 {}，
-    行为「看似正确」实则极脆弱（一旦收窄 except 立即崩）。此处归一为纯函数，彻底消除
-    悬空引用，并便于单测覆盖各分支。
-    """
-    if code == 200 and isinstance(body, dict) and body.get("status") == "ok":
-        data = body.get("data")
-        if isinstance(data, dict):
-            return data
-    return {}
-
-
-@st.cache_data(ttl=30, show_spinner=False)
-def _cached_alert_summary(token: str, nonce: int) -> dict:
-    """缓存市场异动摘要（未读数 + 最近 5 条），nonce 变化即击穿重取。"""
-    try:
-        code, body = api_get("/api/market-alerts?limit=5", timeout=8)
-        return _parse_alert_summary(code, body)
-    except Exception as e:
-        logger.warning(f"[session] 获取异动摘要失败: {e}")
-    return {}
-
-
-def render_market_alert_bell(target=st.sidebar) -> None:
-    """侧边栏市场异动铃铛：常驻侧边栏，点击展开 popover 显示未读摘要 + 最近异动 + 全部已读。"""
-    nonce = int(st.session_state.get("_alert_nonce", 0))
-    data = _cached_alert_summary(get_token() or "", nonce)
-    unread = int(data.get("unread_count", 0) or 0)
-    items = data.get("items", []) or []
-
-    badge = f" 🔴{unread}" if unread else ""
-    with target.popover(f"🔔 市场异动{badge}", width="stretch"):
-        _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}
-        if items:
-            for it in items[:5]:
-                sev = it.get("severity", "info")
-                icon = _sev_icon.get(sev, "ℹ️")
-                ts = _rel_time(it.get("created_at"))
-                st.caption(f"{icon} {it.get('metric_name')}：{it.get('message')}")
-                st.caption(f"　└ {ts}")
-        else:
-            st.caption("暂无异动提醒")
-
-        if st.button("✅ 全部标为已读", key="alert_mark_all_btn"):
-            code, _ = api_mark_all_alerts_read()
-            if code == 200:
-                st.session_state["_alert_nonce"] = nonce + 1
-
-
-@st.cache_data(ttl=20, show_spinner=False)
-def _cached_alerts_panel(token: str, nonce: int) -> dict:
-    """缓存市场异动列表（共享面板用，nonce 变化即击穿重取）。"""
-    return api_market_alerts(limit=20, offset=0)
-
-
-@safe_fragment("市场异动提醒面板")
-def fragment_market_alerts_panel() -> None:
-    """共享市场异动面板：可在任意页面末尾挂载；T-224 起整体可折叠（默认收起，未读数进标签）。"""
-    nonce = int(st.session_state.get("_alert_panel_nonce", 0))
-    data = _cached_alerts_panel(get_token() or "", nonce)
-    items = data.get("items", []) or []
-    unread = int(data.get("unread_count", 0) or 0)
-
-    label = "🔔 近期异动提醒（自动扫描 · 后台调度）"
-    if unread:
-        label += f" · 未读 {unread} 条"
-    with st.expander(label, expanded=False):
-        # 「仅看未读」客户端过滤（依据后端 last_seen，无需改后端 / 重启服务）
-        last_seen = _parse_ts(data.get("last_seen")) if data.get("last_seen") else None
-        if st.checkbox("仅看未读", key="panel_unread_only", value=False):
-            if last_seen is not None:
-                items = [it for it in items if (_parse_ts(it.get("created_at")) or datetime.min) > last_seen]
-            else:
-                items = []  # 从未查看过 → 全部视为已读
-        if st.button("✅ 全部标为已读", key="panel_mark_all"):
-            code, _ = api_mark_all_alerts_read()
-            if code == 200:
-                st.session_state["_alert_panel_nonce"] = nonce + 1
-
-        if not items:
-            info_banner("暂无异动提醒。后台调度器会在交易时段扫描广度/情绪/估值指标越界并推送。")
-            return
-
-        _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}
-        for it in items:
-            sev = it.get("severity", "info")
-            icon = _sev_icon.get(sev, "ℹ️")
-            ts = _rel_time(it.get("created_at"))
-            c1, c2 = st.columns([0.88, 0.12])
-            with c1:
-                st.markdown(f"{icon} **{it.get('metric_name')}**：{it.get('message')}")
-                st.caption(f"　└ {ts}　值 {it.get('value')}　阈值 {it.get('threshold')}")
-            with c2:
-                if st.button("✓", key=f"panel_read_{it.get('id')}", help="标为已读"):
-                    code, _ = api_mark_alert_read(it.get("id"))
-                    if code == 200:
-                        st.session_state["_alert_panel_nonce"] = nonce + 1
-
 
 def is_admin() -> bool:
     user = get_user() or {}
     return user.get("role") == "admin"
+
 
 
 def require_admin() -> None:
@@ -1281,3 +829,84 @@ def require_admin() -> None:
         st.error("⛔ 该页面仅管理员可访问")
         st.caption("请联系管理员提升权限")
         st.stop()
+
+
+__all__ = [
+    "logger",
+    "KEY_TOKEN",
+    "KEY_USER",
+    "QP_TOKEN",
+    "QP_USER",
+    "QP_PREFS",
+    "_TOKEN_INVALID",
+    "_TOKEN_EXPIRED",
+    "_REFRESH_REJECTED",
+    "trading_autorefresh",
+    "init_session_state",
+    "_restore_from_query_params",
+    "_sync_query_params",
+    "safe_switch_page",
+    "_me_response_valid",
+    "_verify_token",
+    "_try_refresh",
+    "set_auth",
+    "clear_auth",
+    "_clear_query_params",
+    "nav_query_string",
+    "_current_prefs",
+    "_restore_prefs_from_query_params",
+    "_sync_prefs_query_params",
+    "_apply_user_settings",
+    "push_settings_to_backend",
+    "get_user_setting",
+    "save_user_setting",
+    "persist_prefs",
+    "get_token",
+    "mask_token",
+    "get_user",
+    "is_authenticated",
+    "auth_headers",
+    "_logo_base64",
+    "_render_login_gate",
+    "require_auth",
+    "is_admin",
+    "require_admin",
+    "_safe_json",
+    "_api_request",
+    "api_get",
+    "api_post",
+    "api_put",
+    "api_delete",
+    "api_market_alerts",
+    "api_mark_alert_read",
+    "api_mark_all_alerts_read",
+    "api_quote",
+    "api_kline",
+    "api_intraday",
+    "api_junk_stocks",
+    "api_add_junk_stock",
+    "api_remove_junk_stock",
+    "api_user_score",
+    "get_watchlist",
+    "api_save_user_score",
+    "save_avatar_to_backend",
+    "_avatar_dir",
+    "get_avatar_path",
+    "save_avatar",
+    "render_avatar",
+    "get_avatar_data_url",
+    "set_avatar_data_url",
+    "_refresh_user_from_backend",
+    "_parse_iso",
+    "_rel_time",
+    "_parse_ts",
+    "render_user_badge",
+    "_confirm_logout_dialog",
+    "_parse_alert_summary",
+    "_cached_alert_summary",
+    "render_market_alert_bell",
+    "_cached_alerts_panel",
+    "fragment_market_alerts_panel",
+    "API_BASE",
+    "FONT_DEFAULT",
+]
