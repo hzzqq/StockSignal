@@ -311,16 +311,52 @@ def test_usd_cny_primary_boc_mid_price(fake_ak):
 
 
 def test_global_regime_score_computes(fake_ak):
-    """五分项都在时（含收益率曲线），应给出 0-100 的评分与各分项。"""
+    """六分项都在时（含收益率曲线 + 中美利差），应给出 0-100 的评分与各分项。"""
     fake_ak()
     reg = md.global_regime_score()
     assert reg is not None
     assert 0 <= reg["score"] <= 100
-    assert set(reg["sub"].keys()) == {"dxy", "us_treasury_10y", "us_cpi", "usd_cny", "yield_curve"}
+    assert set(reg["sub"].keys()) == {"dxy", "us_treasury_10y", "us_cpi", "usd_cny",
+                                      "yield_curve", "cn_us_spread"}
     assert reg["yield_curve"] is not None
     assert reg["yield_curve"] > 0  # 10Y-2Y 为正（未倒挂）
-    # DXY=103.1 → 50+(100-103.1)*3 = 40.7；其余偏高也压低评分，整体 < 50
+    # 中美10Y利差 = 中债10Y(2.31) − 美债10Y(4.25) = -1.94（倒挂，减分）
+    assert reg["cn_us_spread"] == pytest.approx(-1.94)
+    # DXY=103.1 → 50+(100-103.1)*3 = 40.7；其余偏高+利差倒挂也压低评分，整体 < 50
     assert reg["score"] < 50
+
+
+def test_fetch_indicator_cn_treasury_10y(fake_ak):
+    """中债 10Y：同一 bond_zh_us_rate 宽表取「中国国债收益率10年」列。"""
+    fake_ak()
+    got = md.fetch_indicator("cn_treasury_10y")
+    assert got is not None
+    assert got["value"] == pytest.approx(2.31)
+    assert got["prev"] == pytest.approx(2.30)
+    assert got["date"] == "2026-03-02"
+
+
+def test_cn_us_yield_spread_normal_and_inverted(fake_ak):
+    """中美利差 = 中债10Y − 美债10Y；fake 数据为倒挂（负值）。"""
+    fake_ak()
+    sp = md.cn_us_yield_spread()
+    assert sp is not None
+    assert sp["value"] == pytest.approx(-1.94)
+    assert sp["inverted"] is True
+    assert sp["date"] == "2026-03-02"
+
+
+def test_cn_us_yield_spread_missing_returns_none(fake_ak):
+    """任一腿取不到 → None，不臆造。"""
+    fake_ak({"us_treasury_10y"})
+    assert md.cn_us_yield_spread() is None
+    assert md.yield_curve_slope() is None
+
+
+def test_interpret_cn_treasury_10y(fake_ak):
+    """中债 10Y 解读必须带对A股分析（规则解读，非 AI 洞见）。"""
+    fake_ak()
+    assert "对A股" in md.interpret("cn_treasury_10y", 2.31, 2.30)
 
 
 def test_global_regime_score_none_when_all_fail(fake_ak):

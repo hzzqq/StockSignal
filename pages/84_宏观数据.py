@@ -117,9 +117,13 @@ def _render_regime_card(regime: dict) -> None:
     else:
         col = "var(--ss-down)"    # 红（收紧）
     sub = regime.get("sub", {})
-    parts = regime.get("parts", {})
+    # 派生分项（曲线斜率 / 中美利差）不在 parts 里，从 regime 顶层回填真实值再展示
+    parts = {**regime.get("parts", {}),
+             "yield_curve": regime.get("yield_curve"),
+             "cn_us_spread": regime.get("cn_us_spread")}
     _labels = {"dxy": "美元指数", "us_treasury_10y": "美债10Y",
-               "us_cpi": "美国CPI", "usd_cny": "美元兑人民币"}
+               "us_cpi": "美国CPI", "usd_cny": "美元兑人民币",
+               "yield_curve": "美债10Y-2Y", "cn_us_spread": "中美10Y利差"}
     _rows = "".join(
         f'<div class="xcm-sub"><span>{_labels.get(k, k)}</span>'
         f'<span class="xcm-pv">{parts.get(k) if parts.get(k) is not None else "—"}</span>'

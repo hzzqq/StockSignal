@@ -195,3 +195,57 @@ def test_industry_whitelist_prose_guard():
     assert spec.exclude_concepts == [], f"日常句不得误拆为排除：{spec.exclude_concepts}"
     assert "半导体" in spec.concepts, f"半导体应作为正向概念命中：{spec.concepts}"
     assert any(f["field"] == "pe" for f in spec.filters)
+
+
+# ── 选股方案存档（2026-11-03）：roundtrip / 去重置顶 / 上限 / 损坏容错 / 诚实清空 ──
+def test_query_presets_roundtrip(monkeypatch, tmp_path):
+    """保存→读取一致，新的在前；文件缺失读 []。"""
+    monkeypatch.setattr(ns, "_query_presets_path", lambda: str(tmp_path / "nl_presets.json"))
+    assert ns.load_query_presets() == []
+    assert ns.save_query_preset("创业板 市盈率<30") is True
+    assert ns.save_query_preset("主板 换手率>5%") is True
+    items = ns.load_query_presets()
+    assert [it["query"] for it in items] == ["主板 换手率>5%", "创业板 市盈率<30"]
+    assert all(it.get("ts") for it in items), "每条方案应带保存时间"
+
+
+def test_query_presets_dedupe_moves_to_front(monkeypatch, tmp_path):
+    """同文本去重且移到最前（复用 = 升温），不产生重复条目。"""
+    monkeypatch.setattr(ns, "_query_presets_path", lambda: str(tmp_path / "nl_presets.json"))
+    ns.save_query_preset("查询A")
+    ns.save_query_preset("查询B")
+    ns.save_query_preset("查询A")
+    items = ns.load_query_presets()
+    assert [it["query"] for it in items] == ["查询A", "查询B"], "去重并置顶"
+
+
+def test_query_presets_cap_truncates(monkeypatch, tmp_path):
+    """超过上限截断到 _QUERY_PRESETS_MAX，保留最新。"""
+    monkeypatch.setattr(ns, "_query_presets_path", lambda: str(tmp_path / "nl_presets.json"))
+    for i in range(ns._QUERY_PRESETS_MAX + 5):
+        assert ns.save_query_preset(f"查询{i}") is True
+    items = ns.load_query_presets(limit=0)
+    assert len(items) == ns._QUERY_PRESETS_MAX
+    assert items[0]["query"] == f"查询{ns._QUERY_PRESETS_MAX + 4}"
+
+
+def test_query_presets_corrupt_and_empty_rejected(monkeypatch, tmp_path):
+    """损坏文件读 [] 且可重建；空/空白查询拒绝写入（不臆造）。"""
+    p = tmp_path / "nl_presets.json"
+    p.write_text("{bad-json", encoding="utf-8")
+    monkeypatch.setattr(ns, "_query_presets_path", lambda: str(p))
+    assert ns.load_query_presets() == []
+    assert ns.save_query_preset("重建后可写") is True
+    assert ns.load_query_presets()[0]["query"] == "重建后可写"
+    assert ns.save_query_preset("   ") is False
+    assert ns.save_query_preset("") is False
+
+
+def test_query_presets_clear_honest(monkeypatch, tmp_path):
+    """清空返回真实条数：缺失 0、有 2 清 2、清后读 []。"""
+    monkeypatch.setattr(ns, "_query_presets_path", lambda: str(tmp_path / "nl_presets.json"))
+    assert ns.clear_query_presets() == 0
+    ns.save_query_preset("A")
+    ns.save_query_preset("B")
+    assert ns.clear_query_presets() == 2
+    assert ns.load_query_presets() == []

@@ -273,3 +273,57 @@ def test_voice_events_clear_honest(monkeypatch, tmp_path):
     assert ve.save_voice_event({"ts": "t", "text": "x"}) is True
     assert ve.clear_voice_events() == 1
     assert ve.load_voice_events() == []
+
+
+# ── 事件主表入库（2026-11-03）：映射 / 拒空 / 成功路径 / 失败诚实降级 ──
+def test_map_sentiment_to_strength():
+    """情绪倾向 → 五档：只落「小」档或中性，绝不冒充大档（语音规则无法判定强度）。"""
+    ve = _mod()
+    assert ve.map_sentiment_to_strength("positive") == "小利好"
+    assert ve.map_sentiment_to_strength("negative") == "小利空"
+    assert ve.map_sentiment_to_strength("mixed") == "中性"
+    assert ve.map_sentiment_to_strength("neutral") == "中性"
+    assert ve.map_sentiment_to_strength("bogus") == "中性"
+
+
+def test_save_voice_event_to_db_rejects_empty():
+    """无有效转写文本不入主表（不臆造），且不触发引擎构造。"""
+    ve = _mod()
+    assert ve.save_voice_event_to_db({"text": "   "})["ok"] is False
+    assert ve.save_voice_event_to_db(None)["ok"] is False
+
+
+def test_save_voice_event_to_db_success(monkeypatch):
+    """成功路径：日期取标注时间前 10 位、标题>50 字截断、类型按倾向映射。"""
+    ve = _mod()
+    calls = []
+
+    class _FakeEngine:
+        def add_event(self, date, ticker, title, event_type="中性"):
+            calls.append((date, ticker, title, event_type))
+
+    monkeypatch.setattr(ve, "_get_signal_engine", lambda: _FakeEngine())
+    r = ve.save_voice_event_to_db({
+        "ts": "2026-11-03 01:00:00",
+        "text": "某公司公告中标大合同，产能扩张超预期，" * 10,
+        "sentiment_lean": "positive",
+        "ticker": "601088",
+    })
+    assert r["ok"] is True
+    assert calls[0][0] == "2026-11-03"
+    assert calls[0][1] == "601088"
+    assert calls[0][2].endswith("…") and len(calls[0][2]) <= 51
+    assert calls[0][3] == "小利好"
+
+
+def test_save_voice_event_to_db_failure_honest(monkeypatch):
+    """引擎抛错 → ok=False 且明示 JSON 存档仍在（两存储独立，谁成功如实说谁）。"""
+    ve = _mod()
+
+    def _boom():
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(ve, "_get_signal_engine", _boom)
+    r = ve.save_voice_event_to_db({"ts": "t", "text": "x"})
+    assert r["ok"] is False
+    assert "JSON 存档" in r["message"]

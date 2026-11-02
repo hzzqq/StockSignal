@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from modules.event_factor import annotate_hard_logic
@@ -284,6 +285,35 @@ def render_voice_event_block() -> None:
                 st.caption("💾 已存档（data/voice_events.json，跨会话可复核）")
             else:
                 st.caption("⚠️ 本机存档失败，本次标注仅当前会话可见")
+            # 记录最近一次标注（含情绪倾向原始值），供下方「存入事件追踪主表」使用
+            _ve_entry["sentiment_lean"] = str(_ve_se.get("lean") or "")
+            st.session_state["ve_last"] = _ve_entry
+            st.session_state.pop("ve_last_saved", None)
+
+    # 存入事件追踪主表（复用 23 页 SignalEngine.add_event → data/events.csv，零后端改动）
+    _ve_last = st.session_state.get("ve_last")
+    if _ve_last:
+        _ve_strength = map_sentiment_to_strength(_ve_last.get("sentiment_lean"))
+        with st.expander("📥 存入事件追踪主表（23 页事件时间轴 / 信号评分可用）", expanded=False):
+            st.caption(
+                f"标题取转写文本（>50 字截断）；事件类型由情绪倾向映射："
+                f"{_ve_last.get('sentiment', '')} → {_ve_strength}"
+                f"（语音规则无法判定强度，一律用「小」档，不冒充大档）。"
+            )
+            _ve_ticker = st.text_input(
+                "关联股票代码（可空）", value=st.session_state.get("ve_db_ticker", ""),
+                key="ve_db_ticker", placeholder="如 601088；留空 = 市场级事件",
+            )
+            if st.button("📥 确认写入主表", key="ve_db_write",
+                          disabled=bool(st.session_state.get("ve_last_saved"))):
+                _r = save_voice_event_to_db({**_ve_last, "ticker": _ve_ticker})
+                if _r.get("ok"):
+                    st.session_state["ve_last_saved"] = True
+                    st.success(_r["message"])
+                else:
+                    st.warning(_r["message"])
+            if st.session_state.get("ve_last_saved"):
+                st.caption("✅ 本条语音事件已写入主表（下次新标注后可再次入库）")
 
 
 # ── 持久化（2026-11-03 新方向：语音事件跨会话沉淀，数据链闭环）────────────────
@@ -367,3 +397,59 @@ def clear_voice_events() -> int:
     except Exception as _e:
         logger.warning("[voice_event] 清空语音事件失败: %s", _e)
         return -1
+
+
+# ── 事件主表入库（2026-11-03：语音→事件库闭环，复用 23 页 SignalEngine.add_event）──
+# 23 页事件管理走本地 SignalEngine（CSV data/events.csv，原子写），不是 backend REST——
+# 直接复用同一引擎即零后端改动；构造较重（StockFetcher/EventMiner…），惰性单例仅在
+# 用户点击入库时创建。
+_VE_ENGINE = None
+
+
+def _get_signal_engine():
+    """SignalEngine 惰性单例（与 23 页 get_engine 同源同款）。"""
+    global _VE_ENGINE
+    if _VE_ENGINE is None:
+        from modules.signal import SignalEngine
+        _VE_ENGINE = SignalEngine()
+    return _VE_ENGINE
+
+
+def map_sentiment_to_strength(lean) -> str:
+    """语音情绪倾向 → 事件库五档（modules.event_levels.STRENGTH_ORDER 单一真理源）。
+
+    诚实映射：语音规则标注只有「利好/利空/中性/多空交织」的倾向，**无法判定强度**，
+    一律落「小」档（小利好/小利空），多空交织与未知 → 中性。绝不冒充「大」档判定。
+    """
+    from modules.event_levels import STRENGTH_ORDER
+    _m = {"positive": "小利好", "negative": "小利空", "mixed": "中性", "neutral": "中性"}
+    out = _m.get(str(lean), "中性")
+    return out if out in STRENGTH_ORDER else "中性"
+
+
+def save_voice_event_to_db(entry: dict) -> dict:
+    """把已标注语音事件写入事件追踪主表（SignalEngine.add_event → data/events.csv）。
+
+    标题取转写文本（>50 字截断加 …）；日期取标注时间（仅日期部分）；类型由情绪倾向
+    映射（见 ``map_sentiment_to_strength``）。返回 ``{"ok": bool, "message": str}``；
+    失败诚实降级——主表写入失败不影响 JSON 存档（两者独立，谁成功如实说谁）。
+    """
+    try:
+        if not isinstance(entry, dict) or not str(entry.get("text", "")).strip():
+            return {"ok": False, "message": "无有效转写文本，不入主表（不臆造）"}
+        engine = _get_signal_engine()
+        title = str(entry["text"]).strip()
+        if len(title) > 50:
+            title = title[:50] + "…"
+        _ts = str(entry.get("ts") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        engine.add_event(
+            _ts[:10],
+            str(entry.get("ticker") or "").strip(),
+            title,
+            map_sentiment_to_strength(entry.get("sentiment_lean")),
+        )
+        return {"ok": True, "message": "已写入事件追踪主表（data/events.csv），可在 23 页事件时间轴查看"}
+    except Exception as e:  # noqa: BLE001 - 入库失败诚实降级，不抛不臆造
+        logger.warning("[voice_event] 写入事件主表失败: %s", e)
+        return {"ok": False,
+                "message": f"写入主表失败（{type(e).__name__}）；语音事件仍保留在 JSON 存档中"}

@@ -137,11 +137,36 @@ def main():
     info_banner("用大白话描述选股意图，系统解析为结构化条件并执行（仿 i问财零门槛选股）。"
                 "解析结果完全透明展示；取数需联网，取不到会如实说明。", kind="info", icon="💬")
 
+    # 历史方案（保存/复用）：只存原始查询文本，复用时重新 parse——spec 永远来自真实解析
+    _presets = ns.load_query_presets(20)
+    _pick = st.selectbox(
+        "📂 历史方案（选择即填充）", ["（不使用）"] + [p["query"] for p in _presets],
+        key="nl_preset_pick", index=0, disabled=not _presets,
+        help="「💾 保存为方案」把当前查询存到本机 data/nl_presets.json（跨会话、按文本去重、上限 50）",
+    )
+    if _pick != "（不使用）" and st.session_state.get("nl_preset_applied") != _pick:
+        st.session_state["nl_query"] = _pick
+        st.session_state["nl_preset_applied"] = _pick
+
     q = st.text_area(
         "输入选股意图（口语即可）",
         value="创业板 市盈率小于30 且 营收增长大于20% 的票，按营收增长排序，取前10",
         height=80, placeholder="例如：主板 市盈率<25 净资产收益率>15% 且 总市值小于100亿 的票",
+        key="nl_query",
     )
+
+    _p1, _p2 = st.columns([1, 4])
+    with _p1:
+        if st.button("💾 保存为方案", key="nl_preset_save", disabled=not q.strip(),
+                     help="把当前查询文本存为方案（按文本去重，同文换位置不重复）"):
+            if ns.save_query_preset(q):
+                st.toast("方案已保存")
+            else:
+                st.warning("方案保存失败（检查 data 目录权限）")
+    with _p2:
+        if _presets and st.button("🗑️ 清空全部方案", key="nl_preset_clear"):
+            _n = ns.clear_query_presets()
+            st.toast(f"已清空 {_n} 条方案" if _n >= 0 else "清空失败（检查文件权限）")
 
     spec = ns.parse_query(q)
     _show_spec(spec)

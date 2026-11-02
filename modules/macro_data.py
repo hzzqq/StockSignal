@@ -64,6 +64,25 @@ def _parse_us_treasury_10y(df):
             "date": str(last[date_col])[:10]}
 
 
+def _parse_cn_treasury_10y(df):
+    """中债 10Y 收益率：bond_zh_us_rate 同一宽表里的「中国国债收益率10年」列。"""
+    if df is None or getattr(df, "empty", True):
+        return None
+    date_col = next((c for c in df.columns
+                    if "SOLAR_DATE" in str(c) or "日期" in str(c)), df.columns[0])
+    val_col = next((c for c in df.columns if "中国国债收益率10年" in str(c)), None)
+    if date_col is None or val_col is None:
+        return None
+    d = df[[date_col, val_col]].dropna()
+    if d.empty:
+        return None
+    last = d.iloc[-1]
+    prev = d.iloc[-2] if len(d) > 1 else None
+    return {"value": _to_float(last[val_col]),
+            "prev": _to_float(prev[val_col]) if prev is not None else None,
+            "date": str(last[date_col])[:10]}
+
+
 def _parse_usdcny(df):
     """T-260 备用保留：fx_pair_quote 路径（货币对/买报价宽表）。"""
     if df is None or getattr(df, "empty", True):
@@ -309,6 +328,12 @@ MACRO_INDICATORS: list[dict] = [
      "unit": "%", "freq": "日", "source": "美国财政部 / 东方财富", "region": "全球",
      "parse": _parse_us_treasury_2y,
      "desc": "美债短端；与 10Y 倒挂（10Y-2Y<0）是经典衰退前瞻信号"},
+
+    # ----------------------------- 国内：国债收益率（中美利差的境内腿） -----------------------------
+    {"key": "cn_treasury_10y", "name": "中债 10Y 收益率", "fn": "bond_zh_us_rate",
+     "unit": "%", "freq": "日", "source": "中债 / 东方财富", "region": "国内",
+     "parse": _parse_cn_treasury_10y,
+     "desc": "中国 10Y 国债收益率；与美债 10Y 之差（中美利差）是跨境资金流向的经典锚"},
 ]
 
 _SPEC = {m["key"]: m for m in MACRO_INDICATORS}
@@ -438,6 +463,8 @@ def global_regime_score() -> dict | None:
       - 美债 10Y：中枢 4.0%，每偏离 1pct ±25 分
       - 美国 CPI：中枢 3.0%，每偏离 1pct ±20 分
       - 美元兑人民币：中枢 7.1，每偏离 0.1 ±5 分（即 ±50 分/pct）
+      - 美债 10Y-2Y 曲线斜率：中枢 0，每 1pct ±25 分
+      - 中美 10Y 利差（中债10Y−美债10Y）：中枢 0，每 1pct ±20 分
     任一分项取不到则不计入；全部取不到返回 ``None``。
     """
     parts = {
@@ -468,6 +495,12 @@ def global_regime_score() -> dict | None:
     if curve and curve.get("value") is not None:
         sub["yield_curve"] = max(0, min(100, 50 + curve["value"] * 25))
 
+    # 中美 10Y 利差（中债10Y − 美债10Y）：为正且走阔加分，收窄/倒挂减分；
+    # 中枢 0，每 1pct ±20 分（利差极端值比曲线斜率温和，权重略低）
+    spread = cn_us_yield_spread()
+    if spread and spread.get("value") is not None:
+        sub["cn_us_spread"] = max(0, min(100, 50 + spread["value"] * 20))
+
     if not sub:
         return None
     score = round(sum(sub.values()) / len(sub))
@@ -476,6 +509,7 @@ def global_regime_score() -> dict | None:
         "sub": {k: round(v, 1) for k, v in sub.items()},
         "parts": {k: (vv["value"] if vv else None) for k, vv in parts.items()},
         "yield_curve": (curve["value"] if curve else None),
+        "cn_us_spread": (spread["value"] if spread else None),
     }
 
 
@@ -495,6 +529,25 @@ def yield_curve_slope() -> dict | None:
     slope = round(float(v10) - float(v2), 4)
     date = t10.get("date") or t2.get("date")
     return {"value": slope, "date": date, "inverted": slope < 0}
+
+
+def cn_us_yield_spread() -> dict | None:
+    """中美 10Y 国债利差 = 中债10Y − 美债10Y（真实数据；任一缺失返回 ``None``，不臆造）。
+
+    口径（单位 pct）：利差为正且走阔 → 境内资产利差优势，利于跨境资金留在
+    新兴市场 / A 股；利差收窄甚至倒挂（``value < 0``）→ 美元回流压力，风险偏好承压。
+    返回 ``{"value", "date", "inverted": bool}``。
+    """
+    cn = fetch_indicator("cn_treasury_10y")
+    us = fetch_indicator("us_treasury_10y")
+    if not cn or not us:
+        return None
+    v_cn, v_us = cn.get("value"), us.get("value")
+    if v_cn is None or v_us is None:
+        return None
+    spread = round(float(v_cn) - float(v_us), 4)
+    date = cn.get("date") or us.get("date")
+    return {"value": spread, "date": date, "inverted": spread < 0}
 
 
 def interpret(key: str, value, prev=None) -> str:
@@ -571,6 +624,8 @@ def interpret(key: str, value, prev=None) -> str:
         return f"{chg}{v:.2f}%，美联储联邦基金目标利率；{tone}。对A股：高利率压制全球流动性与外资风险偏好、抬升贴现率利空成长估值；降息周期开启则利好A股成长与港股弹性。"
     if key == "us_treasury_2y":
         return f"{chg}{v:.2f}%，美债短端收益率；与 10Y 利差是衰退前瞻。对A股：短端高企反映政策收紧预期，曲线倒挂期防御与红利占优、风险偏好回落。"
+    if key == "cn_treasury_10y":
+        return f"{chg}{v:.2f}%，中国 10Y 国债收益率。对A股：债市收益率快速上行反映流动性收紧/风险偏好抬升的争夺，压制高估值成长；下行则宽松预期升温、红利与成长受益。与美债10Y之差（中美利差）为正且走阔利于跨境资金留在境内。"
     if key in ("us_sp500", "us_nasdaq", "hsi"):
         tag = {"us_sp500": "标普500", "us_nasdaq": "纳指", "hsi": "恒生"}[key]
         if prev is not None:

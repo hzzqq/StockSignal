@@ -14,8 +14,11 @@
 """
 from __future__ import annotations
 
+import json
+import os
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional
 
 
@@ -403,3 +406,70 @@ def apply_filters(universe: list[dict], spec: QuerySpec) -> list[dict]:
     if spec.limit:
         out = out[: spec.limit]
     return out
+
+
+# ── 选股方案存档（2026-11-03：i问财方案保存/复用）────────────────────────────
+# 边界说明：本模块红线是「只理解、不取数」；方案存档既非理解也非取数，是页面执行层
+# 的轻量辅助（纯 JSON 读写、不触网）。**只存原始查询文本**——复用时重新 parse，
+# spec 永远来自真实解析，绝不存旧解析结构（防 schema 漂移与陈旧条件）。
+_QUERY_PRESETS_MAX = 50
+
+
+def _query_presets_path() -> str:
+    """选股方案存档路径（SS_DATA_DIR 隔离，与 nav_freq.json 同模式）。"""
+    _data_dir = os.environ.get("SS_DATA_DIR") or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"
+    )
+    return os.path.join(_data_dir, "nl_presets.json")
+
+
+def load_query_presets(limit: int = 20) -> list:
+    """读取已保存的选股方案（新的在前）。文件缺失/损坏 → []（不臆造）。"""
+    try:
+        _path = _query_presets_path()
+        if not os.path.exists(_path):
+            return []
+        with open(_path, "r", encoding="utf-8") as _f:
+            _data = json.load(_f)
+        if not isinstance(_data, list):
+            return []
+        _items = [it for it in _data
+                  if isinstance(it, dict) and str(it.get("query", "")).strip()]
+        return _items[:limit] if isinstance(limit, int) and limit > 0 else _items
+    except Exception:  # noqa: BLE001 - 读取失败降级为空，不阻断选股主流程
+        return []
+
+
+def save_query_preset(query: str) -> bool:
+    """保存一条选股方案（按查询文本去重，命中则移到最前；上限截断）。fail-safe。"""
+    try:
+        q = str(query or "").strip()
+        if not q:
+            return False
+        _path = _query_presets_path()
+        os.makedirs(os.path.dirname(_path), exist_ok=True)
+        _items = [it for it in load_query_presets(limit=0) if it.get("query") != q]
+        _items.insert(0, {"query": q, "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+        from modules.atomic_io import atomic_json_dump
+        atomic_json_dump(_items[:_QUERY_PRESETS_MAX], _path)
+        return True
+    except Exception:  # noqa: BLE001 - 保存失败如实返回 False，不臆造成功
+        return False
+
+
+def clear_query_presets() -> int:
+    """清空全部选股方案，返回真实清除条数；文件缺失 0；失败 -1（诚实语义）。"""
+    try:
+        _path = _query_presets_path()
+        if not os.path.exists(_path):
+            return 0
+        try:
+            with open(_path, "r", encoding="utf-8") as _f:
+                _old = json.load(_f)
+            _n = len(_old) if isinstance(_old, list) else 0
+        except Exception:  # noqa: BLE001
+            _n = 0
+        os.remove(_path)
+        return _n
+    except Exception:  # noqa: BLE001
+        return -1
