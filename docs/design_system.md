@@ -2,7 +2,7 @@
 
 > UI 全栈专家团交付。目标：对齐 ui-ux-pro-max 67 风格 / Bento Grids，产出全局 design tokens + 组件规范，作为后续 68 页改造的单一真理源。
 > 应用形态：**Streamlit（Python + 内联 CSS）**，非 React；组件规范须 Streamlit 化。
-> 边界：本文档为规范，落地动作归入后续迭代 PR（见 §5）。
+> 边界：本文档为规范。**§5 落地路线已于 2026-11-03 全部兑现**（A/B/C/D 四阶段 + section_header 迁移 + 圆角全量归一，commit 315fbac / f5c60bf / 616f01d / 46f1bde / 4ae7880，均 FF 推送）。
 
 > ## ⚠️ 勘误（2026-11-03 复核）：原 P0「语义色双轨=合规事故、删 `--buy/--sell`」为**误报，已撤回**。
 > 交易屏（54/57/58）用 `--ss-up`(红涨)/`--ss-down`(绿跌) 正确，未用 `.sf-` 类，A 股铁律未被违反；`.sf-doc-up`(绿)/`.sf-doc-down`(红) 仅用于 `stock_research.py` 报告体与 `pages/13`，属有意的报告绿涨红跌双轨。因此落地方案 **A 由「删除」改为「改名」**：将 docs 域的 `--buy/--sell` 改名为 `--doc-up/--doc-down`（非语义、限报告体），消除同 token 跨域语义相反的命名隐患，**绝不删除**（删除会破坏报告渲染）。下文的 P0 已重分类为 P1/P2。
@@ -51,8 +51,10 @@
 ### 2.3 间距（4px 基准 7 档）
 `--sp-1 4` `--sp-2 8` `--sp-3 12` `--sp-4 16` `--sp-5 24` `--sp-6 32` `--sp-7 48`
 
-### 2.4 圆角
-卡片 `--radius-card 12`｜按钮 `--radius-btn 6`｜输入 `--radius-input 4`｜胶囊 `--radius-pill 999`
+### 2.4 圆角（已落地五档，真相源 `_TOKEN_CSS`）
+极小 `--ss-radius-xs 3`｜小 `--ss-radius-sm 8`｜中 `--ss-radius 12`｜大 `--ss-radius-lg 14`｜卡 `--ss-radius-card 16`｜胶囊 `--ss-radius-pill 999`
+- 2026-11-03 全量归一：299 处裸单值 px 跨 44 文件就近吸附五档（漂移 <=3px），守卫 `test_design_tokens_present.test_no_bare_border_radius_px` 锁回潮；多值角/0/50% 语义豁免。
+- 草案期 `--radius-card 12` 等值以落地为准（card 实为 16，由既有组件样式勘定）。
 
 ### 2.5 阴影 / 描边（深浅双规）
 - 浅色：`--shadow-card 0 1px 3px rgba(15,15,35,.08)`；`--shadow-lift 0 6px 20px rgba(79,70,229,.14)`
@@ -145,7 +147,7 @@ st.dataframe(df, width="stretch", hide_index=True, height=420, key="result_tbl")
 - 加载：`st.spinner`（默认）或 `ui_theme.loading_spinner(text, variant)`(ui_theme.py:514)。
 - 空：`kit.xc_empty_box(title, hint)`(ui_kit.py:736)。
 - 错：`kit.xc_handle_error(title, exc, hint)`(ui_kit.py:749) → 内部 `logger.warning` 记异常、只渲染友好文案，取代 `st.error(f"...{e}")`。
-- **建议新增 `xc_error_boundary` 上下文管理器**（消除散落 try/except）：
+- **`xc_error_boundary` 上下文管理器已建成**（ui_kit.py，commit 616f01d；异常只进 logger + xc_handle_error，零行为变更）：
 ```python
 from contextlib import contextmanager
 @contextmanager
@@ -167,6 +169,16 @@ def xc_error_boundary(title, hint="", log=None):
 | **C · P2 令牌单一源 + 三态闭环** | `ui_kit.py`(`_build_token_css()` 由 `colors` 生成+`--c-*` 别名)；`ui_theme.py`(`_build_theme_root(dark)`) | `test_ui_kit_tokens` 加别名同值断言；扩 `test_sterror_leak_guard` 禁 `st.stop`/异常进 `st.error` | `test_ui_kit_tokens` 全绿；切暗/亮配色不变 | 中 |
 | **D · P3 圆角/字体/对比度收口** | 圆角 16/18 统一；等宽数字全量化；`--c-*` 替换残留 `--acc1` | `test_a11y_contrast` 强化；圆角/等宽用量断言 | `test_a11y_contrast`；目检对比度与等宽对齐 | 低-中 |
 
+### 5.0 落地状态（2026-11-03 收官，全 FF 推送）
+
+| 阶段 | 状态 | commit | 实际落地与计划的差异（诚实记录） |
+|---|---|---|---|
+| A | ✅ 完成 | 315fbac | docs 域改名 `--doc-up/--doc-down`（非删除）；7 页面 hex→`colors.*`；**preset 串未改名**（独立作用域红涨绿跌正确，改名无收益增风险，见 5.1 纠偏） |
+| B | ✅ 完成 | f5c60bf | 68 处 `info_banner` 全量迁移 + xc 版补回 T-277 折叠；**`section_header` 当时未动**（签名/返回语义不同），后于 Phase 6 单独迁移 |
+| C | ✅ 完成 | 616f01d | `_build_token_css()` + `--brand-*/--c-*` 别名绑定既有值；`_build_theme_root(dark)` 字节级等价；`xc_error_boundary` 建成 |
+| D | ✅ 完成 | 46f1bde + 4ae7880 | 收口守卫先行；圆角由「16/18 统一」扩大为**299 处全量归一五档**；等宽量化已锁；**`--acc1` 残留替换未做**（194 处，别名已绑定等价值，替换纯机械改写收益低 → 唯一遗留，可另开 PR） |
+| 收尾 | ✅ 完成 | 4ae7880 | `section_header` 全量迁移（legacy 转 Deprecated 薄委托，xc 版扩 subtitle/icon/xtra/render 双模）+ 圆角全量归一 |
+
 ### 5.1 P1 页面 hex→colors.* + P2 语义色改名（核实自源码，禁止误删）
 
 **P1 — 页面硬编码 hex（仅交易屏语义色，不改报告体）**：
@@ -181,7 +193,7 @@ grep -rEn '#(ff4d4f|00d486)' pages/
 
 **P2 — 语义色命名隐患（改名非删除）**：
 - `ui_theme.py` docs 域(:209,:211) 与 `starfield_theme.py:28` 的 `--buy/--sell` 语义相反；将 docs 域相关键改名为 `--doc-up`/`--doc-down`，并把 `.sf-doc-up{color:var(--buy)}`(ui_theme.py:433) 等引用同步改为 `var(--doc-up)`。
-- preset 键(:585/681/760/842/940) 的 `--buy/--sell` 为红涨绿跌（正确），保留但统一改名为 `--doc-up/--doc-down` 以消歧义；`.sf-*` 引用(:423/:427/:433/:259)、stAlert(:334/:336) 同步。
+- **纠偏（2026-11-03 落地核实）**：preset 键(:585/681/760/842/940) 的 `--buy/--sell` 为红涨绿跌（正确语义）且与 docs 域互为独立作用域，**实际保留原名未改名**——改名无收益且扩大回归面；docs 域(:209,:211,:259,:334,:336,:423,:427,:433,:434) 已全部改名 `--doc-up/--doc-down` 并同步 `.sf-*`/stAlert 引用。
 - **绝不删除** `--buy/--sell` 相关规则——删除会令报告体 `.sf-*` 失色。
 
 ## 6. 已知事实校正（避免规范建立在错误假设上）
@@ -189,3 +201,6 @@ grep -rEn '#(ff4d4f|00d486)' pages/
 - **无 `xc_hero` 函数**，新城 hero 入口是 `page_hero(...)`(ui_kit.py:597)，`.ss-hero` 仅 `style='sf'` 兜底。
 - 现有令牌命名是 `--ss-*`/`--acc1`，与本文 draft 的 `--c-*`/`--brand-1` 不一致——§2 草案中的 `--c-*` 是**新增别名**，须 `var(--ss-*)` 等价绑定，不得臆造独立值。
 - 令牌真相源以 `modules/ui_kit.py::_TOKEN_CSS` 为准（已由 `test_ui_kit_tokens.py` 锁定义/接线/语义）。
+- **圆角吸附点目检结论（2026-11-03）**：`.xc-hero`/`.sf-card`/`.lg-desk` 18→16、登录卡 26→16 均为装饰性漂移，令牌链路全程可用（ui_kit 自身 / dashboard_sf_css 前置 `_TOKEN_CSS` / 90_登录走 `apply_page_config→inject_kit_css`）。
+- **清理候选**：登录 preset 的 `--ss-login-radius`（:609/:704/:784/:865 等）是历史死变量——旧代码 `border-radius` 用字面量从未引用它，归一后更无引用；删除属零风险清理，未纳入本次改动。
+- `--acc1/--acc2` 仍有 194 处（`--brand-1/--brand-2` 别名已等价绑定），全量替换为纯机械改写，留待独立 PR。
