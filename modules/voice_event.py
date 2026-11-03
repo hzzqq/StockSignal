@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -198,13 +199,19 @@ def render_voice_event_block() -> None:
     """语音事件因子可复用渲染块（2026-11-02 抽离；2026-11-03 历史升级为持久化）。
 
     录音/上传 → ASR 转写 → 结构化因子卡（事件性质 / 时间敏感度 / 情绪倾向）→ 落盘存档。
-    历史真理源 = data/voice_events.json（跨会话、跨页共享）；会话内存不再另存一份。
+    历史真理源 = data/voice_events/<username>.json（按登录用户隔离，未登录 _guest.json）；
+    会话内存不再另存一份。
     诚实降级：未配置 key / 端点不支持 audio / 转写失败 → 精确文案，绝不编造、不落盘。
     """
     import streamlit as st
     from datetime import datetime
+    from modules.session import get_user
     from modules.ui_kit import xc_content_card, xc_warn_box
     from modules.voice_event import transcribe_audio_result, build_voice_event_card
+
+    # 按登录用户隔离存档：未登录 = 访客桶（_guest.json）
+    _ve_user = (get_user() or {}).get("username") or None
+    _ve_bucket_label = f"用户「{_ve_user}」" if _ve_user else "访客（未登录）"
 
     st.divider()
     st.subheader("🎙️ 语音事件因子")
@@ -214,8 +221,8 @@ def render_voice_event_block() -> None:
         "需配置 STARFIELD_LLM_API_KEY 且 base_url 为支持 whisper 的端点；"
         "否则按具体原因诚实降级，绝不编造转写文本或事件结论。"
     )
-    # 持久化历史（跨会话可复核）：真理源 = data/voice_events.json
-    _ve_hist = load_voice_events(20)
+    # 持久化历史（跨会话可复核）：真理源 = data/voice_events/<username>.json（按用户隔离）
+    _ve_hist = load_voice_events(20, username=_ve_user)
     if _ve_hist:
         with st.expander(f"🕘 历史语音事件（已存档 {len(_ve_hist)} 条，跨会话可复核）", expanded=False):
             for _h in _ve_hist:
@@ -229,7 +236,7 @@ def render_voice_event_block() -> None:
                 st.warning("确认清空全部已存档语音事件？此操作不可恢复。")
                 _c1, _c2 = st.columns(2)
                 if _c1.button("确认清空", key="ve_clear_cfm"):
-                    _n = clear_voice_events()
+                    _n = clear_voice_events(username=_ve_user)
                     if _n < 0:
                         st.error("清空失败，请检查文件权限（未删除任何数据）。")
                     else:
@@ -238,7 +245,7 @@ def render_voice_event_block() -> None:
                 if _c2.button("取消", key="ve_clear_cancel"):
                     st.session_state.pop("ve_clear_confirm", None)
                     st.rerun()
-        st.caption("💾 语音事件存档于本机 data/voice_events.json（应用级共享，非按用户隔离）")
+        st.caption(f"💾 语音事件按登录用户隔离存档（当前：{_ve_bucket_label}）")
     _ve_audio = st.audio_input("🎙️ 录音或上传音频", key="ve_audio", help="支持浏览器录音或上传音频文件")
     if _ve_audio is not None:
         _ve_bytes = _ve_audio.getbuffer().tobytes()
@@ -281,8 +288,8 @@ def render_voice_event_block() -> None:
                 "urgency": str(_ve_ur.get("label") or ""),
                 "sentiment": str(_ve_se.get("label") or ""),
             }
-            if save_voice_event(_ve_entry):
-                st.caption("💾 已存档（data/voice_events.json，跨会话可复核）")
+            if save_voice_event(_ve_entry, username=_ve_user):
+                st.caption(f"💾 已存档（{_ve_bucket_label}专属，跨会话可复核）")
             else:
                 st.caption("⚠️ 本机存档失败，本次标注仅当前会话可见")
             # 记录最近一次标注（含情绪倾向原始值），供下方「存入事件追踪主表」使用
@@ -319,24 +326,40 @@ def render_voice_event_block() -> None:
 # ── 持久化（2026-11-03 新方向：语音事件跨会话沉淀，数据链闭环）────────────────
 # 为什么补：语音→ASR→因子标注这条链此前走到「标注卡」就断了——ve_history 只存
 # session_state，刷新即丢，语音事件无法沉淀为可复核的事件数据。
-# 存储：data/voice_events.json（SS_DATA_DIR 隔离，与 nav_freq.json 同模式），
-#       atomic_json_dump 原子写防并发损坏；本机共享存储（非按用户隔离），UI 已如实标注。
+# 存储：data/voice_events/<username>.json（SS_DATA_DIR 隔离，与 nav_freq.json 同模式），
+#       atomic_json_dump 原子写防并发损坏；按登录用户隔离，未登录落 _guest.json。
+#       2026-11-03 隔离化：旧全局 voice_events.json 不迁移不混桶（不把 A 用户的数据
+#       分给 B），保留原地不再读取。
 # 诚实红线：转写失败/空文本绝不落盘；读损坏文件→[] 不臆造；清空返回真实条数。
 _VOICE_EVENTS_MAX = 200
+_USERNAME_SAFE = re.compile(r"[^A-Za-z0-9_.\-]")
 
 
-def _voice_events_path() -> str:
-    """语音事件持久化文件路径（SS_DATA_DIR 隔离）。"""
+def _safe_username(username) -> str:
+    """用户名白名单清洗（防路径穿越）：非法字符→下划线，再剥前导点（防 .. 残留）。"""
+    u = _USERNAME_SAFE.sub("_", str(username or "").strip()).lstrip(".")
+    return u[:64] or "_guest"
+
+
+def _voice_events_dir() -> str:
+    """语音事件持久化目录（SS_DATA_DIR 隔离）。"""
     _data_dir = os.environ.get("SS_DATA_DIR") or os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"
     )
-    return os.path.join(_data_dir, "voice_events.json")
+    return os.path.join(_data_dir, "voice_events")
 
 
-def load_voice_events(limit: int = 20) -> list:
-    """读取持久化语音事件（新的在前）。文件缺失/损坏 → []（不臆造）。"""
+def _voice_events_path(username=None) -> str:
+    """语音事件持久化文件路径：已登录 data/voice_events/<username>.json，
+    未登录 _guest.json（按用户隔离，跨会话、跨页共享）。"""
+    _u = _safe_username(username)
+    return os.path.join(_voice_events_dir(), f"{_u}.json")
+
+
+def load_voice_events(limit: int = 20, username=None) -> list:
+    """读取当前用户的持久化语音事件（新的在前）。文件缺失/损坏 → []（不臆造）。"""
     try:
-        _path = _voice_events_path()
+        _path = _voice_events_path(username)
         if not os.path.exists(_path):
             return []
         with open(_path, "r", encoding="utf-8") as _f:
@@ -350,8 +373,8 @@ def load_voice_events(limit: int = 20) -> list:
         return []
 
 
-def save_voice_event(entry: dict) -> bool:
-    """追加一条语音事件到持久层（新的在前，截断至上限）。fail-safe：失败返回 False。
+def save_voice_event(entry: dict, username=None) -> bool:
+    """追加一条语音事件到当前用户持久层（新的在前，截断至上限）。fail-safe：失败返回 False。
 
     诚实红线：entry 无有效 text 一律拒绝写入（转写失败绝不落占位数据）。
     旧文件损坏时重建而非中断（旧数据已不可靠，保留只会持续污染读取）。
@@ -359,7 +382,7 @@ def save_voice_event(entry: dict) -> bool:
     try:
         if not isinstance(entry, dict) or not str(entry.get("text", "")).strip():
             return False
-        _path = _voice_events_path()
+        _path = _voice_events_path(username)
         os.makedirs(os.path.dirname(_path), exist_ok=True)
         _items: list = []
         if os.path.exists(_path):
@@ -380,10 +403,10 @@ def save_voice_event(entry: dict) -> bool:
         return False
 
 
-def clear_voice_events() -> int:
-    """清空持久化语音事件，返回真实清除条数；文件缺失返回 0；失败返回 -1（诚实语义）。"""
+def clear_voice_events(username=None) -> int:
+    """清空当前用户持久化语音事件，返回真实清除条数；文件缺失返回 0；失败返回 -1（诚实语义）。"""
     try:
-        _path = _voice_events_path()
+        _path = _voice_events_path(username)
         if not os.path.exists(_path):
             return 0
         try:

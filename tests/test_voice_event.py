@@ -225,7 +225,7 @@ def test_build_voice_event_card():
 def test_voice_events_roundtrip(monkeypatch, tmp_path):
     """写入→读出一致，新的在前；文件缺失读 []。"""
     ve = _mod()
-    monkeypatch.setattr(ve, "_voice_events_path", lambda: str(tmp_path / "voice_events.json"))
+    monkeypatch.setattr(ve, "_voice_events_path", lambda *a, **k: str(tmp_path / "voice_events.json"))
     assert ve.load_voice_events() == []
     assert ve.save_voice_event({"ts": "2026-11-03 01:00:00", "text": "公司中标大合同", "event": "硬逻辑"}) is True
     assert ve.save_voice_event({"ts": "2026-11-03 02:00:00", "text": "某行业突发停产", "event": "硬逻辑"}) is True
@@ -238,7 +238,7 @@ def test_voice_events_corrupt_file_tolerated(monkeypatch, tmp_path):
     ve = _mod()
     p = tmp_path / "voice_events.json"
     p.write_text("{not-json", encoding="utf-8")
-    monkeypatch.setattr(ve, "_voice_events_path", lambda: str(p))
+    monkeypatch.setattr(ve, "_voice_events_path", lambda *a, **k: str(p))
     assert ve.load_voice_events() == []
     assert ve.save_voice_event({"ts": "t", "text": "损坏后重建"}) is True
     assert ve.load_voice_events()[0]["text"] == "损坏后重建"
@@ -247,7 +247,7 @@ def test_voice_events_corrupt_file_tolerated(monkeypatch, tmp_path):
 def test_voice_events_cap_truncates(monkeypatch, tmp_path):
     """超过上限截断到 _VOICE_EVENTS_MAX，保留最新的。"""
     ve = _mod()
-    monkeypatch.setattr(ve, "_voice_events_path", lambda: str(tmp_path / "v.json"))
+    monkeypatch.setattr(ve, "_voice_events_path", lambda *a, **k: str(tmp_path / "v.json"))
     for i in range(ve._VOICE_EVENTS_MAX + 10):
         assert ve.save_voice_event({"ts": str(i), "text": f"事件{i}"}) is True
     items = ve.load_voice_events(limit=0)  # limit=0 = 不限量
@@ -258,7 +258,7 @@ def test_voice_events_cap_truncates(monkeypatch, tmp_path):
 def test_voice_events_save_rejects_empty_text(monkeypatch, tmp_path):
     """诚实红线：空文本/None 绝不落盘（转写失败不留占位数据）。"""
     ve = _mod()
-    monkeypatch.setattr(ve, "_voice_events_path", lambda: str(tmp_path / "v.json"))
+    monkeypatch.setattr(ve, "_voice_events_path", lambda *a, **k: str(tmp_path / "v.json"))
     assert ve.save_voice_event({"ts": "t", "text": "   "}) is False
     assert ve.save_voice_event({"ts": "t"}) is False
     assert ve.save_voice_event(None) is False
@@ -268,7 +268,7 @@ def test_voice_events_save_rejects_empty_text(monkeypatch, tmp_path):
 def test_voice_events_clear_honest(monkeypatch, tmp_path):
     """清空返回真实条数：缺失 0、有 1 清 1、清后读 []。"""
     ve = _mod()
-    monkeypatch.setattr(ve, "_voice_events_path", lambda: str(tmp_path / "v.json"))
+    monkeypatch.setattr(ve, "_voice_events_path", lambda *a, **k: str(tmp_path / "v.json"))
     assert ve.clear_voice_events() == 0
     assert ve.save_voice_event({"ts": "t", "text": "x"}) is True
     assert ve.clear_voice_events() == 1
@@ -327,3 +327,48 @@ def test_save_voice_event_to_db_failure_honest(monkeypatch):
     r = ve.save_voice_event_to_db({"ts": "t", "text": "x"})
     assert r["ok"] is False
     assert "JSON 存档" in r["message"]
+
+
+# ── 按用户隔离（2026-11-03）：分桶 / 互不可见 / 路径穿越清洗 / 访客桶 ──
+def test_voice_events_per_user_isolation(monkeypatch, tmp_path):
+    """admin 与 demo 各自独立桶：互不可见、互不覆盖（按登录用户隔离）。"""
+    ve = _mod()
+    monkeypatch.setattr(ve, "_voice_events_dir", lambda: str(tmp_path))
+    assert ve.save_voice_event({"ts": "t1", "text": "管理员的事件"}, username="admin") is True
+    assert ve.save_voice_event({"ts": "t2", "text": "演示用户的事件"}, username="demo") is True
+    a = ve.load_voice_events(username="admin")
+    d = ve.load_voice_events(username="demo")
+    assert [it["text"] for it in a] == ["管理员的事件"]
+    assert [it["text"] for it in d] == ["演示用户的事件"]
+    assert (tmp_path / "admin.json").exists() and (tmp_path / "demo.json").exists()
+    # 清空只清自己的桶
+    assert ve.clear_voice_events(username="admin") == 1
+    assert ve.load_voice_events(username="admin") == []
+    assert len(ve.load_voice_events(username="demo")) == 1
+
+
+def test_voice_events_guest_bucket_when_no_user(monkeypatch, tmp_path):
+    """未登录（username=None）落访客桶 _guest.json，与登录用户互不混。"""
+    ve = _mod()
+    monkeypatch.setattr(ve, "_voice_events_dir", lambda: str(tmp_path))
+    assert ve.save_voice_event({"ts": "t", "text": "访客事件"}) is True
+    assert (tmp_path / "_guest.json").exists()
+    assert ve.load_voice_events()[0]["text"] == "访客事件"
+    assert ve.load_voice_events(username="admin") == []
+
+
+def test_safe_username_strips_traversal_and_unsafe():
+    """用户名清洗：路径穿越/非法字符 → 下划线替换+剥前导点；目录恒不变（真不变量）。"""
+    import os
+    ve = _mod()
+    assert ve._safe_username("admin") == "admin"
+    assert "/" not in ve._safe_username("../../etc/passwd")
+    assert "\\" not in ve._safe_username("a\\b\\c")
+    assert "/" not in ve._safe_username("a/b/c")
+    assert ve._safe_username("..") == "_guest"
+    assert ve._safe_username("") == "_guest"
+    assert ve._safe_username(None) == "_guest"
+    # 真不变量：无论传什么用户名，落盘目录永远是同一个 voice_events 目录
+    _d = os.path.dirname(ve._voice_events_path("x"))
+    assert os.path.dirname(ve._voice_events_path("../../etc/passwd")) == _d
+    assert os.path.basename(ve._voice_events_path("../..")) != ".."
