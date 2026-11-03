@@ -189,7 +189,7 @@ def prune_shepherd_dirs(
                 try:
                     st = f.stat()
                 except OSError:
-                    continue
+                    continue  # ui_audit_exempt: except-pass 缓存文件 stat 竞态（文件被并发清理）跳过该文件，不影响其余清理
                 if st.st_mtime < cutoff:
                     if dry_run:
                         removed += 1

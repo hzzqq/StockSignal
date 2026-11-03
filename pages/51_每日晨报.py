@@ -34,7 +34,7 @@ def _cached_news(keyword: str, limit: int=15):
             if df is not None:
                 return df
         except Exception:
-            continue
+            continue  # ui_audit_exempt: except-pass 新闻抓取重试循环：失败重试至多 3 次，最终返回 None 不编造
     return None
 from modules.ssl_helper import ssl_bypass as _ssl_bypass
 from modules.fundamental_helpers import calc_alr, fund_one

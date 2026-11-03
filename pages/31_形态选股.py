@@ -419,7 +419,7 @@ with st.container(border=True):
                     "形态概述": pat_overview,
                 })
             except Exception:
-                continue
+                continue  # ui_audit_exempt: except-pass 逐股形态分析单股异常跳过该股，进度条继续（不拖垮整批）
             prog.progress((i + 1) / len(fetched), text=f"分析形态中… {i+1}/{len(fetched)}")
         prog.empty()
 

@@ -193,7 +193,7 @@ def fr_build_history(period_rows) -> "pd.DataFrame":
         try:
             r = row.iloc[0]
         except Exception:
-            continue
+            continue  # ui_audit_exempt: except-pass 财报 period 行取 iloc[0] 失败跳过该报告期，其余期间继续
         rec = {"报告期": str(period), "报告期标签": fr_period_label(period)}
         for c in ("每股收益", "营业总收入", "营收同比%", "净利润", "净利润同比%", "ROE%"):
             try:

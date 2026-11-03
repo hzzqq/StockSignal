@@ -190,7 +190,7 @@ def unlock_risk(queue: list | None, today=None, horizon_days: int = _UNLOCK_HORI
         try:
             dd = datetime.strptime(str(d)[:10], "%Y-%m-%d")
         except ValueError:
-            continue
+            continue  # ui_audit_exempt: except-pass 季报日期解析失败跳过该条，其余继续计算最近披露间隔
         delta = (dd - base).days
         if 0 <= delta <= horizon_days:
             upcoming.append({**q, "_days": delta})
@@ -236,7 +236,7 @@ def reduction_risk(rows: list | None, today=None,
         try:
             dd = datetime.strptime(str(d)[:10], "%Y-%m-%d")
         except ValueError:
-            continue
+            continue  # ui_audit_exempt: except-pass 评级日期解析失败跳过该条，其余继续计算评级时间窗
         if dd >= cutoff:
             win.append(r)
     if not win:

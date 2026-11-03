@@ -130,7 +130,7 @@ def _build_movers():
                 })
             except Exception:
                 # 单只行情异常不应拖垮整个异动区块（safe_section 会整体降级）
-                continue
+                continue  # ui_audit_exempt: except-pass 单只行情异常不拖垮异动区块（safe_section 整体降级）
     try:
         # extract_pct 永不抛异常：无 "%" 的标题返回 -inf，abs 后沉底，
         # 不再因任意一条非数字标题就让整个排序静默失效

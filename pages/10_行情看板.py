@@ -239,7 +239,7 @@ def _load_lhb(date_str: str):
                     df = df.rename(columns=lambda x: str(x).strip())
                     return df
             except Exception:
-                continue
+                continue  # ui_audit_exempt: except-pass 龙虎榜近 3 日逐日尝试抓取，单日失败试下一日（外层整体降级）
     except Exception:
         logger.warning("[10_行情看板.py] 龙虎榜近 4 日逐日拉取整体失败，按无数据返回", exc_info=True)
     return None

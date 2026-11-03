@@ -166,7 +166,7 @@ def param_sensitivity_matrix(runs: Iterable[dict] | None, x_key: str, y_key: str
         try:
             v = float(v)
         except (TypeError, ValueError):
-            continue
+            continue  # ui_audit_exempt: except-pass 网格回测参数值转 float 失败跳过该格，None 格不参与网格（不编造）
         grid[(x, y)] = v
         if best is None or v > best[0]:
             best = (v, x, y)

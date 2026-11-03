@@ -668,7 +668,7 @@ class _SinaFetcher:
                     "amount": 0.0,  # 新浪日K线不含成交额
                 })
             except (KeyError, ValueError, TypeError):
-                continue
+                continue  # ui_audit_exempt: except-pass 新浪日K线逐条解析，坏行（缺列/非数值）跳过不编造，整批兜底在调用方
 
         if not rows:
             return None
@@ -732,7 +732,7 @@ class _UrllibFetcher:
                     "change_pct": float(parts[8]) if len(parts) > 8 else 0.0,
                 })
             except (ValueError, IndexError):
-                continue
+                continue  # ui_audit_exempt: except-pass 腾讯日K线 CSV 逐行解析，坏行跳过不编造，整批兜底在调用方
 
         df = pd.DataFrame(rows)
         df["date"] = pd.to_datetime(df["date"])

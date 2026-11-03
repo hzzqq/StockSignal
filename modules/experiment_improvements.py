@@ -251,7 +251,7 @@ def load_live_findings(results_dir: str | None = None) -> dict:
         try:
             data = json.load(open(fp, encoding="utf-8"))
         except Exception:
-            continue
+            continue  # ui_audit_exempt: except-pass 实验报告 JSON 损坏跳过该文件，其余报告继续扫描（诚实降级）
         if isinstance(data, dict) and any(k in KNOWN_FINDINGS for k in data):
             items = list(data.items())
         elif isinstance(data, dict) and data.get("key") in KNOWN_FINDINGS:

@@ -399,7 +399,7 @@ class RealtimeMixin:
                         "close": float(d["close"]),
                     })
                 except (TypeError, ValueError, KeyError):
-                    continue
+                    continue  # ui_audit_exempt: except-pass 新浪分时逐条解析，坏行（缺列/非数值）跳过不编造
             if not rows:
                 return None
             df = pd.DataFrame(rows)
@@ -457,7 +457,7 @@ class RealtimeMixin:
                         "amount": float(d.get("amount", 0) or 0),
                     })
                 except (TypeError, ValueError, KeyError):
-                    continue
+                    continue  # ui_audit_exempt: except-pass 腾讯分时逐条解析，坏行（缺列/非数值）跳过不编造
             if not rows:
                 return None, None, None
             df = pd.DataFrame(rows).sort_values("time").reset_index(drop=True)

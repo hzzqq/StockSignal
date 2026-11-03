@@ -1007,7 +1007,7 @@ def render_stock_analysis() -> None:
                         if _m:
                             return int(_m.group(1))
             except Exception:
-                continue
+                continue  # ui_audit_exempt: except-pass 上市时间解析失败继续尝试其他源，全失败返回默认 2010（已有语义）
         return 2010
 
     # 报告期后缀 → 中文标签（pill 按钮回填 session_state 用，与 fr_period_label 同源）
@@ -1201,7 +1201,7 @@ def render_stock_analysis() -> None:
                     "披露时间": _r.get("披露时间", "—"),
                 })
             except Exception:
-                continue
+                continue  # ui_audit_exempt: except-pass 财务快照逐条组装，坏行跳过不编造（空则走 unavailable 分支）
         if not _recs:
             _empty_info("所选报告期暂无该股业绩数据（尚未披露或接口受限）。")
         else:

@@ -39,7 +39,7 @@ def _clean_weights(weights: dict | None) -> dict:
         try:
             fv = float(v)
         except (TypeError, ValueError):
-            continue
+            continue  # ui_audit_exempt: except-pass 权重清洗：非数值权重丢弃（docstring 明示语义），非静默错误
         if math.isfinite(fv) and fv > 0:
             out[k] = fv
     return out
@@ -118,7 +118,7 @@ def correlation_matrix(returns: dict | None) -> dict:
         try:
             series = [float(x) for x in (v or []) if x is not None and math.isfinite(float(x))]
         except (TypeError, ValueError):
-            continue
+            continue  # ui_audit_exempt: except-pass 收益序列清洗：不可转 float 的标的跳过（<2 条则 unavailable，不编造）
         if len(series) >= 2:
             data[k] = series
     codes = sorted(data)

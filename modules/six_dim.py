@@ -133,7 +133,7 @@ def _num_from_row(row, cols):
             if f == f:
                 return f
         except (TypeError, ValueError):
-            continue
+            continue  # ui_audit_exempt: except-pass 六维候选列逐列尝试转数值，非数值列尝试下一列（全失败返回 None）
     return None
 
 

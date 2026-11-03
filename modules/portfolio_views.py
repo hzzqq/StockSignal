@@ -619,7 +619,7 @@ def render_position_manager() -> None:
                 a = ask[i]
                 rows.append({'买盘': f'买{i + 1}', '买价': f"¥{float(b['price']):.2f}", '买量': f"{int(b['volume']):,}", '卖盘': f'卖{i + 1}', '卖价': f"¥{float(a['price']):.2f}", '卖量': f"{int(a['volume']):,}"})
             except (KeyError, TypeError, ValueError):
-                continue
+                continue  # ui_audit_exempt: except-pass 五档买卖盘逐档格式化，坏档跳过不编造（rows 空则返回 None）
         return pd.DataFrame(rows) if rows else None
     sf_card('📊 当前持仓概览', '跟踪所有持仓的买入成本、剩余股数与实时市值；支持搜索与批量加自选 / 平仓。')
     positions = pm.get_positions()
