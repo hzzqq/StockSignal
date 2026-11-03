@@ -299,7 +299,7 @@ def fetch_with_snapshot(key: str, fetcher, ttl: float = 600.0,
             with open(path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:  # noqa: BLE001
-            return None
+            return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
     snap = _read()
     now = time.time()

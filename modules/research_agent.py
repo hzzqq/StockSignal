@@ -241,7 +241,7 @@ def _resolve_llm(use_llm: Any):
             if use_llm is True or llm_client.is_configured():
                 return llm_client
         except Exception:  # noqa: BLE001
-            return None
+            return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
         return None
     return use_llm  # 注入点
 

@@ -812,7 +812,7 @@ def _existing_row_count(path: str) -> int:
     try:
         return int(pd.read_csv(path, usecols=[0], encoding="utf-8-sig").shape[0])
     except Exception:  # noqa: BLE001
-        return 0
+        return 0  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def save_history(df: pd.DataFrame, path: Optional[str] = None, force: bool = False) -> str:

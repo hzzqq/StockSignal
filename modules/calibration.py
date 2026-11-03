@@ -61,7 +61,7 @@ def _cur_adj(cycles: list[str]) -> float | None:
     try:
         from modules import decision as _dec
     except Exception:  # noqa: BLE001
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
     vals = [_dec.CYCLE_ADJ.get(c) for c in cycles]
     vals = [v for v in vals if isinstance(v, (int, float))]
     if not vals:

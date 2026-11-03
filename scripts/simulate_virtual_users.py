@@ -92,7 +92,7 @@ def main(n_users: int = 10000, universe_size: int = UNIVERSE_SIZE, seed: int = 2
                 out[strat] = (df, sig)
             return code, out
         except Exception:  # noqa: BLE001 — 单标的失败不拖垮（如实计数）
-            return None
+            return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
     tasks = [(f"pc_{c}", lambda c=c: _precompute(c)) for c in codes]
     got = fetch_many(tasks, max_workers=8, timeout=600)

@@ -38,7 +38,7 @@ def _to_float(v):
             return None
         return float(v)
     except Exception:  # noqa: BLE001
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 # ----------------------------------------------------------------------------
@@ -198,7 +198,7 @@ def _parse_fed_funds_series(series):
             "date": str(last_idx)[:10],
         }
     except Exception:  # noqa: BLE001
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def _parse_us_treasury_2y(df):

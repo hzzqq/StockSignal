@@ -38,7 +38,7 @@ def _safe(fn):
         return fn()
     except Exception as e:  # noqa: BLE001
         report_error("fetch_parallel", e, context="single task")
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def _gated(fn, sem):

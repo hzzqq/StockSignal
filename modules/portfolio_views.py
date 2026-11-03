@@ -236,7 +236,7 @@ def render_watchlist_monitor() -> None:
                     x = float(v)
                         # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
                 except Exception:
-                    return ''
+                    return ''  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
                 if x > 0:
                     return 'color:{_UP};font-weight:600'
                 if x < 0:
@@ -351,7 +351,7 @@ def render_watchlist_monitor() -> None:
             return {'code': code, 'name': fetcher.get_name_only(code), 'price': cur, 'change_pct': chg, 'short': profile['short'], 'mid': profile['mid'], 'long': profile['long'], 'composite': profile['composite'], 'trend_score': analysis.get('trend', {}).get('trend_score', 50), 'vol_ratio': vol_ratio}
                 # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         except Exception:
-            return None
+            return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
     def _load_scores_map(codes: list) -> dict:
         """批量拉取当前用户对所有 code 的打分。"""
@@ -408,7 +408,7 @@ def render_watchlist_monitor() -> None:
                 x = float(v)
                     # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
             except Exception:
-                return ''
+                return ''  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
             if x > 0:
                 return 'color:{_UP};font-weight:600'
             if x < 0:

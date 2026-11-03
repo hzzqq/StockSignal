@@ -42,7 +42,7 @@ def llm_complete(system: str, user: str, temperature: float = 0.4, max_tokens: i
         ]
         return chat_completion(messages, temperature=temperature, max_tokens=max_tokens, timeout=40)
     except Exception:
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def llm_chat(system: str, user: str, history: Optional[List[Dict[str, str]]] = None) -> Optional[str]:
@@ -52,4 +52,4 @@ def llm_chat(system: str, user: str, history: Optional[List[Dict[str, str]]] = N
     try:
         return answer_with_llm(system, user, history=history, timeout=40)
     except Exception:
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审

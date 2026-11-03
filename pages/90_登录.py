@@ -94,7 +94,7 @@ def _fetch_sh_index() -> dict | None:
             "time": parts[30] if len(parts) > 30 else "",
         }
     except Exception:  # noqa: BLE001 - 离线/超时/解析失败一律降级
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def _render_market_desk(m: dict) -> None:

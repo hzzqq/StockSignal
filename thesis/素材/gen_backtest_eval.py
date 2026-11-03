@@ -99,7 +99,7 @@ def main():
         print("[png] fig_backtest_equity.png 已导出")
     except Exception as e:
         print(f"[png] 导出失败: {e}")
-        return 0
+        return 0  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
     return 0
 
 

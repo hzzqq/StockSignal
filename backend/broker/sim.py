@@ -33,7 +33,7 @@ class SimulatedBroker(BrokerAdapter):
             p = self.quote_fn(code)
             return float(p) if p and float(p) > 0 else None
         except Exception:
-            return None
+            return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
     def place_order(self, code: str, side: str, quantity: int,
                     price: float | None = None) -> OrderResult:

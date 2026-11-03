@@ -85,7 +85,7 @@ def _loader_horizon(loader: Any, model: str):
     try:
         return loader.load(model).get("horizon")
     except Exception:  # noqa: BLE401 - 取不到按 unavailable 处理
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) -> dict:

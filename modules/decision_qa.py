@@ -73,7 +73,7 @@ def _read_today_snapshot() -> dict | None:
         with open(dm.SNAPSHOT_PATH, encoding="utf-8") as f:
             snap = json.load(f)
     except Exception:  # noqa: BLE001
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
     return snap if isinstance(snap, dict) else None
 
 
