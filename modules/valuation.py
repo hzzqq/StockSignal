@@ -49,6 +49,7 @@ def _num(v):
     try:
         f = float(v)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
     return f if math.isfinite(f) else None
 

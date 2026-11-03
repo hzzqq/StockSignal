@@ -60,6 +60,7 @@ def load_archive(date: str) -> dict | None:
         with open(archive_path(date), "r", encoding="utf-8") as f:
             snap = json.load(f)
     except FileNotFoundError:
+        # ui_audit_exempt: 文件缺失即无数据，返回空是预期契约（调用方按缺失处理）
         return None
     except Exception as e:  # noqa: BLE001
         logger.warning("[decision] 归档读取失败 %s: %s", date, e)
@@ -72,6 +73,7 @@ def list_archive_dates() -> list[str]:
     try:
         names = os.listdir(ARCHIVE_DIR)
     except OSError:
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return []
     return sorted(n[:10] for n in names if n.endswith(".json") and len(n) >= 10)
 
@@ -893,6 +895,7 @@ def load_snapshot(date: str | None = None) -> dict | None:
         with open(SNAPSHOT_PATH, "r", encoding="utf-8") as f:
             snap = json.load(f)
     except FileNotFoundError:
+        # ui_audit_exempt: 文件缺失即无数据，返回空是预期契约（调用方按缺失处理）
         return None
     except Exception as e:  # noqa: BLE001
         logger.warning("[decision] 快照读取失败: %s", e)

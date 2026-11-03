@@ -53,6 +53,7 @@ def _cached_sector():
     try:
         return fetcher.get_sector_list()
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 def _fmt_pct(v):

@@ -532,6 +532,7 @@ def _fmt_ts(ts) -> str:
     try:
         _t = float(ts)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return ""
     if _t <= 0:
         return ""

@@ -31,6 +31,7 @@ def _safe_ratio(numer, denom):
     try:
         n, d = float(numer), float(denom)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
     if d <= 0 or n != n:
         return None

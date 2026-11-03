@@ -109,6 +109,7 @@ def _load() -> list[dict]:
         with open(PRED_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
+        # ui_audit_exempt: 文件缺失即无数据，返回空是预期契约（调用方按缺失处理）
         return []
     except Exception as e:  # noqa: BLE001
         logger.warning("[track] 预测记录读取失败: %s", e)

@@ -124,7 +124,9 @@ def render_stock_analysis() -> None:
             )
             _apply_plotly_theme(fig, dark=dark)
             return fig
-        except Exception:
+        except Exception as e:
+            # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
+            logger.warning("[stock_research] 图形构建失败: %s", e)
             return None
 
 
@@ -168,7 +170,9 @@ def render_stock_analysis() -> None:
                 title=f"{code} 利润表多期趋势（亿元）",
             )
             return fig
-        except Exception:
+                # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
+        except Exception as e:
+            logger.warning("[stock_research] 图形构建失败: %s", e)
             return None
 
     with sidebar_target():
@@ -1073,8 +1077,10 @@ def render_stock_analysis() -> None:
         """财务三表（利润表/资产负债表/现金流量表），best-effort，失败返回 None。"""
         try:
             df = fetcher.get_financial(code, report_type)
+                # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
             return df if (df is not None and not getattr(df, "empty", True)) else None
-        except Exception:
+        except Exception as e:
+            logger.warning("[stock_research] 图形构建失败: %s", e)
             return None
 
 

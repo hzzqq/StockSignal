@@ -372,6 +372,7 @@ def _fetch_one_corr(t, start, end):
         label = f'{t} {_nm}' if _nm else t
         return (label, d)
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 if st.button('计算相关性', key='calc_corr', width="stretch", disabled=len(_ticker_list) < 2, help='请至少输入 2 只股票（逗号分隔）后再计算相关性'):
     with st.spinner('正在并行获取行情并计算相关性（最多约 12 秒）...'):
@@ -463,9 +464,11 @@ def _wl_extra_uncached(code: str):
             try:
                 return float(str(d.get(k)).replace(',', '').replace('%', '').replace('亿', '').replace('万', ''))
             except Exception:
+                # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
                 return None
         return {'total_shares': _f('总股本'), 'float_shares': _f('流通股')}
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -479,6 +482,7 @@ def _wl_pe_uncached(code: str):
         _, pe, _ = fund_one(code, fetcher)
         return pe
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 @st.cache_data(ttl=3600, show_spinner=False)

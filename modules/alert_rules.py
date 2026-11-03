@@ -83,6 +83,7 @@ def evaluate_condition(cond: dict, snapshot: dict):
     try:
         return bool(op(float(snapshot[m]), float(cond.get("value"))))
     except (TypeError, ValueError):
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
 
 

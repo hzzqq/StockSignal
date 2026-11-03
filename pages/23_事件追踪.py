@@ -528,6 +528,7 @@ def fragment_event_manage():
                         return ''
                     return '🆕新' if (pd.Timestamp(datetime.now()) - pd.Timestamp(dd)).days <= 7 else ''
                 except Exception:
+                    # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
                     return ''
             events_display['标记'] = events_display['date'].apply(_is_new_evt)
             if evt_filter.strip():

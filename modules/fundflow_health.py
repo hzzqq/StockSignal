@@ -72,6 +72,7 @@ def age_in_days(latest_date: str | None, today: date | None = None) -> int | Non
     try:
         latest = date.fromisoformat(latest_date)
     except ValueError:
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
     ref = last_trading_day(today)
     return max((ref - latest).days, 0)

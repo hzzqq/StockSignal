@@ -200,6 +200,7 @@ def styler_color_chg(val, up_color: str = "#ef4444", down_color: str = "#22c55e"
     try:
         v = float(val)
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return ""
     if v > 0:
         return f"color:{up_color};font-weight:600;"

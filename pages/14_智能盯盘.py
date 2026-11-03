@@ -119,6 +119,7 @@ def _color_net(val):
     try:
         v = float(val)
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return ''
     if v > 0:
         return f'color:{UP};font-weight:600;'

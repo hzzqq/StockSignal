@@ -162,6 +162,7 @@ def _safe_eval(expr: str) -> Optional[float]:
     try:
         tree = ast.parse(expr, mode="eval")
     except SyntaxError:
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
 
     _BINOPS = {

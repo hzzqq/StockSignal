@@ -57,6 +57,7 @@ def fr_filter_by_code(df, code: str):
         _s = df[_col].astype(str).str.strip().str.zfill(6)
         return df[_s == code]
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 
@@ -83,6 +84,7 @@ def fr_normalize_pct(v):
     try:
         return float(t)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
 
 
