@@ -82,6 +82,13 @@ _TOKEN_CSS = r"""
   /* L3 字号阶梯（Phase1 §1.3：13/13.5/14/14.5/15/16/17/20/22 散布收敛 6 级） */
   --ss-fs-display:22px; --ss-fs-hero:22px; --ss-fs-title:16px;
   --ss-fs-body:13.5px; --ss-fs-label:12px; --ss-fs-caption:11px;
+  /* design_system.md §2 新增语义别名（绑定 --ss-*/--acc* 等价变量或 colors.* 既有值，
+     绝不臆造独立色相；供未来 page 迁移复用，对现有 --acc1/--ss-* 消费者零影响） */
+  --brand-1:var(--acc1,#4f46e5); --brand-2:var(--acc2,#7c3aed);
+  --c-up:var(--ss-up,#ff4d4f); --c-down:var(--ss-down,#00d486); --c-hold:#ffa502;
+  --c-warn:#f59e0b; --c-danger:#ef4444; --c-info:#3b82f6; --c-ok:var(--ss-ok,#16a34a);
+  --radius-card:var(--ss-radius-card,16px); --radius-btn:6px; --radius-input:4px; --radius-pill:var(--ss-radius-pill,999px);
+  --font-num:var(--ss-font-num); --font-cjk:var(--ss-font-cjk);
 }
 /* ===== T-261 全局排版：中文优化字体栈 + 阅读行高 =====
    Streamlit 默认 Source Sans Pro 对中文回退随机（宋体/雅黑混杂），统一为
@@ -108,6 +115,23 @@ code, pre, [data-testid="stCodeBlock"], [data-testid="stCodeBlock"] code,
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 </style>
 """
+
+
+def _build_token_css() -> str:
+    """design_system.md 第5章C阶段：令牌单一来源生成器——语义别名由 ``modules.colors`` 派生。
+
+    返回的别名串等同于 ``_TOKEN_CSS`` 内「design_system.md 新增语义别名」段，
+    是 CSS 侧别名与 Python 侧单一来源 ``colors.*`` 之间的一致性交接点。
+    守卫 ``test_ui_kit_tokens`` 用本函数断言「CSS 别名 == colors.* 值」。
+    """
+    from modules import colors
+    return (
+        "--brand-1:var(--acc1,#4f46e5); --brand-2:var(--acc2,#7c3aed);"
+        f"--c-up:{colors.UP_COLOR}; --c-down:{colors.DOWN_COLOR}; --c-hold:{colors.HOLD_COLOR};"
+        f"--c-warn:{colors.SIG_WARNING}; --c-danger:{colors.SIG_DANGER};"
+        f"--c-info:{colors.SIG_INFO}; --c-ok:var(--ss-ok,#16a34a);"
+    )
+
 
 _KIT_CSS = _TOKEN_CSS + r"""
 <style>
@@ -757,6 +781,25 @@ def xc_handle_error(title: str, exc: Exception | str | None = None, hint: str = 
     if exc is not None:
         logger.warning("%s: %s", title, exc)
     xc_error_box(title, hint=hint, icon=icon)
+
+
+@contextlib.contextmanager
+def xc_error_boundary(title: str, hint: str = "", log=None):
+    """三态闭环（design_system.md §4）：把散落的 ``try/except`` 收敛为一处。
+
+    用法::
+
+        with xc_error_boundary("持仓快照加载失败", hint="检查交易接口连接。"):
+            rows = api_get(...)
+
+    异常只进 logger（绝不拼进可见文案），并渲染友好错误卡；正常路径零副作用。
+    与 ``xc_handle_error`` 同契约：失败给错误卡不谎报、异常不泄露。
+    """
+    try:
+        yield
+    except Exception as exc:  # noqa: BLE001
+        (log or logger).warning("%s: %s", title, exc)
+        xc_handle_error(title, exc=exc, hint=hint)
 
 
 def _inline_md(text: str) -> str:

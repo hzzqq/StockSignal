@@ -52,3 +52,67 @@ def test_mutation_leak_guard_detects_injected_sample():
     # 合规形态不得误伤：xc_handle_error 与普通消息
     assert not _find_leaks("import streamlit as st\nst.error('请先选择股票')\n")
     assert not _find_leaks("import streamlit as st\nxc_handle_error('渲染失败', e)\n")
+
+
+def _find_leaks_v2(src: str, filename: str = "<src>"):
+    """扩展泄漏检测：f-string（已有）+ ``"...".format(exc)`` + ``"..." + str(exc)`` 拼接。"""
+    out = []
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "error"):
+            continue
+        base = node.func.value
+        if not ((isinstance(base, ast.Attribute) and base.attr == "st")
+                or (isinstance(base, ast.Name) and base.id == "st")):
+            continue
+        if not node.args:
+            continue
+        arg = node.args[0]
+        if isinstance(arg, ast.JoinedStr):
+            for v in arg.values:
+                if isinstance(v, ast.FormattedValue) and isinstance(v.value, ast.Name) \
+                        and v.value.id in RISKY_NAMES:
+                    out.append((filename, node.lineno, ast.get_source_segment(src, node) or ""))
+                    break
+            continue
+        if isinstance(arg, ast.Call) and isinstance(arg.func, ast.Attribute) \
+                and arg.func.attr == "format":
+            for a in arg.args:
+                if (isinstance(a, ast.Name) and a.id in RISKY_NAMES) or \
+                   (isinstance(a, ast.Call) and isinstance(a.func, ast.Name) and a.func.id == "str"
+                    and a.args and isinstance(a.args[0], ast.Name) and a.args[0].id in RISKY_NAMES):
+                    out.append((filename, node.lineno, ast.get_source_segment(src, node) or ""))
+                    break
+            continue
+        if isinstance(arg, ast.BinOp) and isinstance(arg.op, ast.Add):
+            parts, cur = [], arg
+            while isinstance(cur, ast.BinOp) and isinstance(cur.op, ast.Add):
+                parts.append(cur.right)
+                cur = cur.left
+            parts.append(cur)
+            for p in parts:
+                if (isinstance(p, ast.Name) and p.id in RISKY_NAMES) or \
+                   (isinstance(p, ast.Call) and isinstance(p.func, ast.Name) and p.func.id == "str"
+                    and p.args and isinstance(p.args[0], ast.Name) and p.args[0].id in RISKY_NAMES):
+                    out.append((filename, node.lineno, ast.get_source_segment(src, node) or ""))
+                    break
+    return out
+
+
+def test_no_format_or_concat_leaky_st_error_in_pages():
+    leaks = []
+    for f in sorted(PAGES.glob("*.py")):
+        leaks += _find_leaks_v2(f.read_text(encoding="utf-8"), f.name)
+    assert not leaks, \
+        f"发现 {len(leaks)} 处泄露型 st.error（.format/拼接异常变量，禁止异常细节直出用户）：" \
+        + "; ".join(f"{fn}:L{ln}" for fn, ln, _ in leaks[:5])
+
+
+def test_mutation_format_and_concat_guard_detects_samples():
+    """mutation 自验：注入 .format/拼接样本必须被检出（防假绿）"""
+    assert _find_leaks_v2("import streamlit as st\nst.error('fail: {}'.format(e))\n")
+    assert _find_leaks_v2("import streamlit as st\nst.error('fail: ' + str(e))\n")
+    # 合规形态不得误伤
+    assert not _find_leaks_v2("import streamlit as st\nst.error('请先选择股票')\n")
+    assert not _find_leaks_v2("import streamlit as st\nxc_handle_error('渲染失败', e)\n")

@@ -191,6 +191,20 @@ def get_current_mode() -> str:
 _DASHBOARD_SF_CSS_CACHE: dict = {}
 
 
+_THEME_ROOT_VARS = {
+    "dark": "\n  --bg:#0f0f23; --card:#1a1a2e; --card2:#15152a; --doc-up:#009e60; --doc-down:#dc2626; --hold:#d97706;\n  --acc1:#5b53f0; --acc2:#7f3df0; --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44;\n  --hover:#15152a; --alert-risk:#ffb3bb; --alert-cat:#9af0dd; --disclaimer:#96a0b5;\n  --header-g1:#1a1a2e; --header-g2:#241b3a; --icon-g1:#1a1a2e; --icon-g2:#241b3a;\n",
+    "light": "\n  --bg:#ffffff; --card:#ffffff; --card2:#f4f6fb; --doc-up:#009e60; --doc-down:#dc2626; --hold:#d97706;\n  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#1e293b; --txt2:#64748b; --border:#e2e8f0;\n  --hover:#f1f5f9; --alert-risk:#991b1b; --alert-cat:#166534; --disclaimer:#94a3b8;\n  --header-g1:#eef2ff; --header-g2:#ede9fe; --icon-g1:#eef2ff; --icon-g2:#ede9fe;\n",
+}
+
+
+def _build_theme_root(dark: bool) -> str:
+    """构建 :root 变量块（design_system.md 第5章C阶段单一来源）。
+
+    供 dashboard_sf_css 与未来主题系统复用；令牌值字节级等价于历史内联 root。
+    """
+    return ":root{" + _THEME_ROOT_VARS["dark" if dark else "light"] + "}"
+
+
 def dashboard_sf_css() -> str:
     """个股分析「决策仪表盘」的 .sf-* 组件样式（白天 / 暗夜双主题自适应）。
 
@@ -205,10 +219,7 @@ def dashboard_sf_css() -> str:
     _cached = _DASHBOARD_SF_CSS_CACHE.get(dark)
     if _cached is not None:
         return _cached
-    if dark:
-        root = '\n  --bg:#0f0f23; --card:#1a1a2e; --card2:#15152a; --doc-up:#009e60; --doc-down:#dc2626; --hold:#d97706;\n  --acc1:#5b53f0; --acc2:#7f3df0; --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44;\n  --hover:#15152a; --alert-risk:#ffb3bb; --alert-cat:#9af0dd; --disclaimer:#96a0b5;\n  --header-g1:#1a1a2e; --header-g2:#241b3a; --icon-g1:#1a1a2e; --icon-g2:#241b3a;\n'
-    else:
-        root = '\n  --bg:#ffffff; --card:#ffffff; --card2:#f4f6fb; --doc-up:#009e60; --doc-down:#dc2626; --hold:#d97706;\n  --acc1:#4f46e5; --acc2:#7c3aed; --txt:#1e293b; --txt2:#64748b; --border:#e2e8f0;\n  --hover:#f1f5f9; --alert-risk:#991b1b; --alert-cat:#166534; --disclaimer:#94a3b8;\n  --header-g1:#eef2ff; --header-g2:#ede9fe; --icon-g1:#eef2ff; --icon-g2:#ede9fe;\n'
+    root = _THEME_ROOT_VARS["dark" if dark else "light"]
     _css = _TOKEN_CSS + f"""\n<style>\n:root{{{root}}}\n/* 通用星辰卡片（供任意页面在 dashboard_sf_css 内使用） */
 /* 通用星辰卡片 → 2026-08-28 重渲染为「新城(xc)」视觉语言：深紫渐变描边 + 大圆角 + 抬升光晕 */
 .sf-card{{background:var(--card);border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));
