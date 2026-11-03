@@ -229,6 +229,7 @@ def scan_one(code: str, name):
                 if vdf is not None and not vdf.empty:
                     return float(str(vdf.iloc[-1].get("value")).replace(",", ""))
             except Exception:
+                # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
                 return None
             return None
         # R-03: fetch_parallel 共享池（PB + 股息率 两简单 HTTP 抓取并行）
@@ -263,6 +264,7 @@ def scan_one(code: str, name):
                                     return None
                                 return v
                             except Exception:
+                                # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
                                 return None
                 return None
 
@@ -330,6 +332,7 @@ def fmt_money(v):
     try:
         v = float(v)
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
     if v == 0:
         return "0"

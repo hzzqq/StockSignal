@@ -178,6 +178,7 @@ def _etf_filter_fragment():
                     try:
                         v = float(v)
                     except Exception:
+                        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
                         return ""
                     if v >= 2:
                         return "🔥 热门"

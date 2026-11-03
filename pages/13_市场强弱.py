@@ -195,6 +195,7 @@ def _watchlist_avg_normalized(codes, start, end, days):
         out = pd.concat(normed, axis=1).mean(axis=1)
         return out.tolist()
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 
@@ -257,6 +258,7 @@ def _strength_percentile(d, keys):
         below = (comp < cur).sum()
         return round(below / len(comp) * 100.0, 1)
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 

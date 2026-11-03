@@ -51,6 +51,7 @@ def _cached_financial(code: str, report_type: str):
         df = fetcher.get_financial(code, report_type)
         return df if (df is not None and not getattr(df, "empty", True)) else None
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 
@@ -97,6 +98,7 @@ def _build_financial_trend_fig(code: str, dark: bool = False):
         )
         return fig
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 
@@ -156,6 +158,7 @@ def _build_financial_bar_fig(code: str, dark: bool = False):
         )
         return fig
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 

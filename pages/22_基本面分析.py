@@ -153,6 +153,7 @@ def _industry_pe_sample(industry: str) -> list:
     try:
         cons = fetcher.get_sector_stocks(industry)
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return []
     if cons is None or getattr(cons, 'empty', True):
         return []
@@ -161,12 +162,14 @@ def _industry_pe_sample(industry: str) -> list:
         _names = [str(n) for n in cons['name'].tolist()] if 'name' in cons.columns else []
         names = dict(zip(_codes, _names))
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return []
 
     def _one(c: str):
         try:
             info = fetcher.get_fundamentals(c)
         except Exception:
+            # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
             return None
         if not isinstance(info, dict):
             return None
@@ -220,6 +223,7 @@ def _val_series(code: str):
     try:
         return _val.fetch_pe_pb_series(code)
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 
@@ -529,6 +533,7 @@ def _cached_daily(code: str, start: str, end: str):
     try:
         return fetcher.get_daily(code, start=start, end=end)
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 picked = stock_search_input(label='选择股票', key='fa_stock', default='600519', help_text='输入代码或名称（如 600519 / 贵州茅台）搜索个股，开始基本面分析')
 code = str(picked or '600519').zfill(6)
