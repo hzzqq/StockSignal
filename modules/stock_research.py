@@ -1,5 +1,4 @@
 """个股研究渲染主体（P0-1 抽取契约产物，2026-10-30 冻结稿执行）。
-from modules.cache_utils import TTL_TIERS  # R-14
 
 承载原 pages/20_个股分析.py 与 pages/11_股票选取.py 的页面语句（docstring 后全部
 顶层语句原序搬入，imports 留在函数体内原位；装饰器随调用重建，与原 exec 每次
@@ -8,6 +7,7 @@ page_link 直跳不受影响。勿在模块级新增其它逻辑。
 """
 
 from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
+from modules.fetcher_core import _build_cache_key  # T-247 Tier3：缓存键单一真源
 
 
 def render_stock_analysis() -> None:
@@ -1630,10 +1630,10 @@ def render_stock_picker() -> None:
             start_str = start_date.strftime("%Y-%m-%d")
             end_str = end_date.strftime("%Y-%m-%d")
             if kline_period == "daily":
-                cache_key = f"daily_{ticker}_{start_str}_{end_str}_qfq"
+                cache_key = _build_cache_key("daily", symbol=ticker, start=start_str, end=end_str, adjust="qfq")
                 pattern = f"daily_{ticker}_%"
             else:
-                cache_key = f"kline_{kline_period}_{ticker}_{start_str}_{end_str}_qfq"
+                cache_key = _build_cache_key("kline", period=kline_period, symbol=ticker, start=start_str, end=end_str, adjust="qfq")
                 pattern = f"kline_{kline_period}_{ticker}_%"
             # clear_cache 返回实际删除行数；此处只清精确匹配的那条
             deleted = fetcher.clear_cache(table_name="daily_cache", cache_key=cache_key)

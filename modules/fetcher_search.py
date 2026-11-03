@@ -21,6 +21,7 @@ import pandas as pd  # 原在抽离块内，StockFetcher 大量使用 DataFrame
 import numpy as np  # 原在抽离块内，StockFetcher 用到 np.
 
 from modules.time_utils import now_cst_str, now_cst_naive
+from modules.fetcher_core import _build_cache_key
 
 
 # 底层 I/O 层已抽到 modules._feed_io（P2-1 降耦），此处 re-export 保持全站 import 兼容
@@ -142,7 +143,7 @@ class SearchMixin:
             return name
 
         # 2) 实例级缓存（避免同一进程内反复查网络）
-        cache_key = f"_name_only_cache_{code}"
+        cache_key = _build_cache_key("name_only", code=code)
         cached = getattr(self, cache_key, None)
         if cached and cached != code:
             return cached
@@ -597,4 +598,3 @@ class SearchMixin:
             logger.warning(f"[fetcher] 处理异常: {e}")
             # 检查失败时不阻塞（允许后续降级链尝试）
             return True, f"无法验证({e})"
-

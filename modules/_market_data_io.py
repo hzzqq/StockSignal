@@ -25,6 +25,7 @@ from datetime import datetime
 import pandas as pd
 
 from modules.time_utils import now_cst_str
+from modules.fetcher_core import _build_cache_key
 
 from modules._feed_io import (
     logger,
@@ -58,7 +59,7 @@ def fetch_index(fetcher, symbol="000001", start="2024-01-01", end=None):
     if end is None:
         end = now_cst_str("%Y-%m-%d")
 
-    cache_key = f"index_{symbol}_{start}_{end}"
+    cache_key = _build_cache_key("index", symbol=symbol, start=start, end=end)
     conn = fetcher._get_conn()
     try:
         cached = fetcher._read_cache(conn, "index_cache", cache_key)
@@ -394,7 +395,7 @@ def fetch_macro(fetcher, indicator="pmi_mfg"):
         raise ValueError(f"不支持的指标: {indicator}")
 
     func_name, kwargs = indicator_map[indicator]
-    cache_key = f"macro_{indicator}"
+    cache_key = _build_cache_key("macro", indicator=indicator)
     conn = fetcher._get_conn()
     try:
         cached = fetcher._read_cache(conn, "macro_cache", cache_key)
@@ -420,7 +421,7 @@ def fetch_macro(fetcher, indicator="pmi_mfg"):
 
 
 def fetch_commodity_price(fetcher, name="煤炭"):
-    cache_key = f"commodity_{name}"
+    cache_key = _build_cache_key("commodity", name=name)
     conn = fetcher._get_conn()
     try:
         cached = fetcher._read_cache(conn, "commodity_cache", cache_key)

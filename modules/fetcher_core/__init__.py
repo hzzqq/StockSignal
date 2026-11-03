@@ -225,3 +225,68 @@ def _synth_us_index_intraday(open_, high, low, close, prev_close):
     except Exception as e:
         logger.warning(f"[fetcher] 处理异常: {e}")
         return None, None
+
+
+# ── Tier3（T-247 续 · T-250 批注遗留项）：缓存键单一真源 ──
+
+_KEY_REQUIRED = {
+    "daily":        ("symbol", "start", "end", "adjust"),
+    "daily_prefix": ("symbol",),
+    "kline":        ("period", "symbol", "start", "end", "adjust"),
+    "rt_quote":     ("ticker",),
+    "index":        ("symbol", "start", "end"),
+    "macro":        ("indicator",),
+    "commodity":    ("name",),
+    "name_only":    ("code",),
+    "static":       ("value",),
+}
+
+
+def _build_cache_key(key_type: str, **params) -> str:
+    """fetcher 缓存键生成单一真源。纯函数、零 IO，可直接单测。
+
+    全部 cache_key 字面量（fetcher_kline / fetcher_realtime / fetcher_search /
+    _market_data_io / stock_research）统一经此生成，输出与迁移前逐字节等价，
+    因此既有 SQLite 缓存全部继续命中（行为零变化）。
+
+    类型与必需参数：
+
+    - ``daily``        : symbol, start, end, adjust → ``daily_{s}_{st}_{e}_{a}``
+    - ``daily_prefix`` : symbol                     → ``daily_{s}``（stale 兜底 LIKE 前缀）
+    - ``kline``        : period, symbol, start, end, adjust → ``kline_{p}_{s}_{st}_{e}_{a}``
+    - ``rt_quote``     : ticker                     → ``rt_quote_{t}``
+    - ``index``        : symbol, start, end         → ``index_{s}_{st}_{e}``
+    - ``macro``        : indicator                  → ``macro_{i}``
+    - ``commodity``    : name                       → ``commodity_{n}``
+    - ``name_only``    : code                       → ``_name_only_cache_{c}``
+    - ``static``       : value                      → 原样返回（sector_list_v3 等）
+
+    :raises ValueError: key_type 未知，或缺少该类型的必需参数。
+    """
+    if key_type not in _KEY_REQUIRED:
+        raise ValueError(
+            f"_build_cache_key: 未知 key_type={key_type!r}，允许 {sorted(_KEY_REQUIRED)}"
+        )
+    missing = [k for k in _KEY_REQUIRED[key_type] if k not in params]
+    if missing:
+        raise ValueError(f"_build_cache_key({key_type!r}) 缺必需参数: {missing}")
+
+    if key_type == "daily":
+        return f"daily_{params['symbol']}_{params['start']}_{params['end']}_{params['adjust']}"
+    if key_type == "daily_prefix":
+        return f"daily_{params['symbol']}"
+    if key_type == "kline":
+        return (f"kline_{params['period']}_{params['symbol']}_"
+                f"{params['start']}_{params['end']}_{params['adjust']}")
+    if key_type == "rt_quote":
+        return f"rt_quote_{params['ticker']}"
+    if key_type == "index":
+        return f"index_{params['symbol']}_{params['start']}_{params['end']}"
+    if key_type == "macro":
+        return f"macro_{params['indicator']}"
+    if key_type == "commodity":
+        return f"commodity_{params['name']}"
+    if key_type == "name_only":
+        return f"_name_only_cache_{params['code']}"
+    # static：值语义即键本身，不拼接前缀
+    return str(params["value"])

@@ -21,6 +21,7 @@ import pandas as pd  # 原在抽离块内，StockFetcher 大量使用 DataFrame
 import numpy as np  # 原在抽离块内，StockFetcher 用到 np.
 
 from modules.time_utils import now_cst_str, now_cst_naive
+from modules.fetcher_core import _build_cache_key
 
 
 # 底层 I/O 层已抽到 modules._feed_io（P2-1 降耦），此处 re-export 保持全站 import 兼容
@@ -208,7 +209,7 @@ class KlineMixin:
                 meta_out.update({"source": source, "is_stale": is_stale,
                                  "as_of": _df_last_date(df)})
 
-        cache_key = f"daily_{symbol}_{start}_{end}_{adjust}"
+        cache_key = _build_cache_key("daily", symbol=symbol, start=start, end=end, adjust=adjust)
         # L0 key 必须带库身份：多实例（测试 tmp 库 / 多 data dir）同 key 不得串库
         l0_key = f"{getattr(self, 'db_path', id(self))}|{cache_key}"
 
@@ -295,7 +296,7 @@ class KlineMixin:
 
             # ── L5: 缓存兜底（T-248：复权一致过滤 + 窗口裁剪 + 行数下限）──
             if df is None or df.empty:
-                stale = self._read_stale_cache(conn, "daily_cache", f"daily_{symbol}",
+                stale = self._read_stale_cache(conn, "daily_cache", _build_cache_key("daily_prefix", symbol=symbol),
                                                adjust=adjust, start=start, end=end,
                                                min_rows=60)
                 if stale is not None:
@@ -343,7 +344,7 @@ class KlineMixin:
         if period == "daily":
             return self.get_daily(symbol, start, end, adjust)
 
-        cache_key = f"kline_{period}_{symbol}_{start}_{end}_{adjust}"
+        cache_key = _build_cache_key("kline", period=period, symbol=symbol, start=start, end=end, adjust=adjust)
         conn = self._get_conn()
         try:
             today_str = now_cst_str("%Y-%m-%d")
@@ -422,4 +423,3 @@ class KlineMixin:
     def get_index_minute(self, symbol="000001", trade_date=None):
         """指数当日 1 分钟 K 线（实现见 modules._market_data_io.fetch_index_minute）。"""
         return _mdi.fetch_index_minute(self, symbol, trade_date)
-

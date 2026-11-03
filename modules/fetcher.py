@@ -71,6 +71,7 @@ from modules.fetcher_core import (  # noqa: F401
     _safe_ident,
     _safe_kline_df,
     _synth_us_index_intraday,
+    _build_cache_key,  # T-247 Tier3：缓存键单一真源（T-250 批注遗留项）
     SAFE_IDENT_RE,
 )
 

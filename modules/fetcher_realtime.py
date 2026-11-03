@@ -21,6 +21,7 @@ import pandas as pd  # 原在抽离块内，StockFetcher 大量使用 DataFrame
 import numpy as np  # 原在抽离块内，StockFetcher 用到 np.
 
 from modules.time_utils import now_cst_str, now_cst_naive
+from modules.fetcher_core import _build_cache_key
 
 
 # 底层 I/O 层已抽到 modules._feed_io（P2-1 降耦），此处 re-export 保持全站 import 兼容
@@ -113,7 +114,7 @@ class RealtimeMixin:
         ticker = str(ticker).strip().zfill(6)
 
         # 短缓存：交易时间 30 秒，非交易时间 5 分钟
-        cache_key = f"rt_quote_{ticker}"
+        cache_key = _build_cache_key("rt_quote", ticker=ticker)
         conn = self._get_conn()
         try:
             max_age_seconds = 30 if _is_market_open() else 300
@@ -483,4 +484,3 @@ class RealtimeMixin:
         except Exception as e:
             logger.info(f"[StockFetcher] 新浪个股分时获取失败 ({symbol}): {e}")
             return None, None, None
-
