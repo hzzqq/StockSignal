@@ -23,6 +23,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def events_db_path(config_path="config.yaml") -> str:
+    """事件追踪主表（events.csv）路径的单一真理源。
+
+    SignalEngine 与 event_factor.tracked_event_signal 共用：仓库根 + config
+    ``events.file``（默认 data/events.csv）。抽为模块级函数，避免两处各抄一份
+    路径默认值（多机 AST 护栏教训：路径默认值只许有一处真相源）。
+    """
+    cfg = load_config(config_path)
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        cfg.get("events", {}).get("file", "data/events.csv"),
+    )
+
+
 class SignalEngine:
     """事件驱动信号引擎（集成新闻挖掘 + 情感分析）。"""
 
@@ -32,10 +46,7 @@ class SignalEngine:
         self.weights = self.config.get("signal", {}).get("weights", {
             "price": 0.4, "event": 0.4, "macro": 0.2
         })
-        self.event_db_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            self.config.get("events", {}).get("file", "data/events.csv")
-        )
+        self.event_db_path = events_db_path(config_path)
         # 新闻挖掘与情感分析组件
         self.event_miner = EventMiner(config_path)
         self.sentiment_analyzer = SentimentAnalyzer()
