@@ -103,7 +103,7 @@ def _render_hero(df, today, prev, meta=None):
         # 缓存提示文案来自数据层 meta，按防御性规范 html.escape
         st.markdown(
             f'<div style="background:#fff3cd;border:1px solid #ffc107;'
-            f'border-radius:8px;padding:8px 14px;font-size:13px;color:#856404">'
+            f'border-radius:var(--ss-radius-sm);padding:8px 14px;font-size:13px;color:#856404">'
             f'📦 <b>缓存模式</b>：{html.escape(str(msg))}</div>',
             unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )

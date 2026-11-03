@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 
 from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_temperature as mt
 from modules import shepherd
@@ -122,7 +122,7 @@ try:
     # ── 分档图例 ──
     legend_html = "".join(
         f'<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:12px">'
-        f'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{b["color"]}"></span>'
+        f'<span style="display:inline-block;width:10px;height:10px;border-radius:var(--ss-radius-xs);background:{b["color"]}"></span>'
         f'{b["label"]}（{b["lo"]}–{b["hi"]-1 if b["hi"]<=100 else 100}°）</span>'
         for b in mt.BANDS
     )
@@ -134,7 +134,7 @@ try:
 
     # ── 各指标贡献 ──
     if contributions:
-        section_header("各指标热度贡献", "单个牧羊人指标在所选历史窗口中的经验分位热度（0=最冷，100=最热）", icon="🔥")
+        xc_section_header("各指标热度贡献", "单个牧羊人指标在所选历史窗口中的经验分位热度（0=最冷，100=最热）", icon="🔥")
         names = [f'{c["name"]} {c["value"]:.0f}{c["unit"]}' for c in contributions]
         heats = [c["heat"] for c in contributions]
         colors = [mt.temperature_band(h)["color"] for h in heats]
@@ -173,7 +173,7 @@ try:
         st.caption("⚠️ 以上温度为离线快照兜底值，非实时合成；实时数据恢复后将以实时指标为准。")
 
     # ── 极端区信号 ──
-    section_header("极端区信号", "极端恐慌 → 次日反弹（唯一经全历史实证的统计边际）", icon="⚠️")
+    xc_section_header("极端区信号", "极端恐慌 → 次日反弹（唯一经全历史实证的统计边际）", icon="⚠️")
     sig = mt.extreme_zone_signal(today)
     if not sig.get("available"):
         st.warning(f"极端区信号校准件不可用：{sig.get('reason', '未知')}。本次不做方向表态。")
@@ -186,7 +186,7 @@ try:
         st.markdown(
             f"""
             <div style="border-left:6px solid #dc2626;background:{_hex_to_rgba('#dc2626', 0.12)};
-            border-radius:10px;padding:14px 18px;margin-bottom:10px;font-size:13px">
+            border-radius:var(--ss-radius);padding:14px 18px;margin-bottom:10px;font-size:13px">
               <div style="font-size:14px;font-weight:800;color:#ff8080">⚠️ 恐慌出清反弹信号触发</div>
               <div style="margin-top:6px">{sig.get('statement', '')}</div>
               <div style="margin-top:6px;opacity:.8">样本 {hit.get('n')} 天 · z={hit.get('z')} · 边际 +{edge}pp</div>
@@ -199,7 +199,7 @@ try:
         st.info(sig.get("statement", "当前未进入历史极值区间，不做方向表态。"))
 
     # ── 历史情境类比 ──
-    section_header("历史情境类比", "与今日广度向量最相似的交易日，及其后 5/10/20 日真实表现", icon="🕰️")
+    xc_section_header("历史情境类比", "与今日广度向量最相似的交易日，及其后 5/10/20 日真实表现", icon="🕰️")
     st.caption("⚠️ 历史相似 ≠ 预测。下表为相似日之后真实市场表现统计，仅供情境参照（无前视泄漏）。")
     ana = mt.historical_analogs(today, k=8)
     if not ana.get("available"):
@@ -227,7 +227,7 @@ try:
                 st.markdown(
                     f"""
                     <div style="border:1px solid {_hex_to_rgba(ac,0.5)};border-left:4px solid {ac};
-                    border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12px">
+                    border-radius:var(--ss-radius-sm);padding:10px 12px;margin-bottom:8px;font-size:12px">
                       <div style="font-weight:700;color:{ac}">{a['date']}</div>
                       <div style="opacity:.7">相似距离 {a['distance']:.3f} · 状态 {a['state']}</div>
                       <div style="margin-top:4px">后5日 红盘率均值 <b>{f5.get('avg_red','—')}</b></div>

@@ -141,7 +141,7 @@ if name_c and len(df) > 0:
             + _score_bar("成交额", r["_s_amt"], "#0ea5e9")
         )
         rows_html += (
-            "<div style='border:1px solid rgba(148,163,184,.25);border-radius:12px;"
+            "<div style='border:1px solid rgba(148,163,184,.25);border-radius:var(--ss-radius);"
             "padding:9px 12px;margin:7px 0;'>"
             "<div style='display:flex;justify-content:space-between;align-items:center'>"
             f"<div><span style='font-size:14px'>{medal}</span> "

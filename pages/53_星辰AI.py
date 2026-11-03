@@ -159,15 +159,15 @@ def _theme_css(dark: bool) -> str:
 .xc-who{{display:flex;align-items:center;gap:8px;margin-bottom:6px}}
 .xc-name{{font-size:13px;font-weight:650;color:var(--txt)}}
 .xc-role{{font-size:11px;color:var(--acc1);background:color-mix(in srgb,var(--acc1) 16%,transparent);
-  padding:1px 8px;border-radius:999px;font-weight:600}}
+  padding:1px 8px;border-radius:var(--ss-radius-pill);font-weight:600}}
 .xc-role-user{{font-size:11px;color:#fff;background:linear-gradient(135deg,var(--buy),#ff7a45);
-  padding:1px 8px;border-radius:999px;font-weight:600}}
+  padding:1px 8px;border-radius:var(--ss-radius-pill);font-weight:600}}
 /* T-315：消息时间戳 + 复制回答按钮 */
 .xc-ts{{font-size:11px;color:var(--txt2);opacity:.75;font-variant-numeric:tabular-nums}}
 .xc-user .xc-ts{{margin-right:2px}}
 .xc-copy-wrap{{display:flex;justify-content:flex-start;margin-top:6px}}
 .xc-copy{{font-size:11.5px;color:var(--txt2);background:transparent;
-  border:1px solid var(--border);border-radius:999px;padding:2px 10px;cursor:pointer;
+  border:1px solid var(--border);border-radius:var(--ss-radius-pill);padding:2px 10px;cursor:pointer;
   transition:all .16s ease;line-height:1.6}}
 .xc-copy:hover{{color:var(--txt);border-color:var(--acc1);
   background:color-mix(in srgb,var(--acc1) 10%,transparent)}}
@@ -184,7 +184,7 @@ def _theme_css(dark: bool) -> str:
   border-left:3px solid var(--acc1);padding-left:8px}}
 .xc-bubble blockquote.xc-quote{{margin:8px 0;padding:6px 12px;border-left:3px solid var(--hold);
   background:rgba(255,165,2,.08);color:var(--txt2)}}
-.xc-bubble pre.xc-pre{{background:#0c0c1a;color:#e2e8f0;padding:10px 12px;border-radius:8px;
+.xc-bubble pre.xc-pre{{background:#0c0c1a;color:#e2e8f0;padding:10px 12px;border-radius:var(--ss-radius-sm);
   overflow-x:auto;font-size:12.5px;white-space:pre}}
 .xc-bubble a{{color:var(--acc1)}}
 .xc-bubble b{{color:var(--txt)}}
@@ -195,9 +195,9 @@ def _theme_css(dark: bool) -> str:
   border-bottom:1px solid var(--border);color:var(--txt);vertical-align:top}}
 .xc-bubble .xc-tbl th{{color:var(--acc1);font-weight:650;background:color-mix(in srgb,var(--acc1) 8%,transparent)}}
 .xc-bubble code.xc-code{{background:color-mix(in srgb,var(--acc1) 14%,transparent);color:var(--txt);
-  padding:1px 6px;border-radius:5px;font-size:12.5px;font-family:ui-monospace,Consolas,monospace}}
+  padding:1px 6px;border-radius:var(--ss-radius-sm);font-size:12.5px;font-family:ui-monospace,Consolas,monospace}}
 .xc-cite{{display:inline-block;font-size:10.5px;font-weight:700;color:var(--acc1);
-  background:color-mix(in srgb,var(--acc1) 14%,transparent);border:1px solid color-mix(in srgb,var(--acc1) 40%,transparent);border-radius:999px;
+  background:color-mix(in srgb,var(--acc1) 14%,transparent);border:1px solid color-mix(in srgb,var(--acc1) 40%,transparent);border-radius:var(--ss-radius-pill);
   padding:0 7px;margin:0 2px;vertical-align:1px;cursor:help;white-space:nowrap}}
 
 /* 用户消息：头像在右侧，气泡靠右 */
@@ -209,19 +209,19 @@ def _theme_css(dark: bool) -> str:
 .xc-user .xc-name{{font-weight:700}}
 
 .xc-chips{{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0 4px}}
-.xc-chip{{border:1px solid var(--border);background:var(--card);border-radius:999px;
+.xc-chip{{border:1px solid var(--border);background:var(--card);border-radius:var(--ss-radius-pill);
   padding:7px 15px;font-size:13px;color:var(--txt)}}
 .xc-divider{{display:flex;align-items:center;gap:12px;color:var(--txt2);font-size:12px;margin:14px 0}}
 .xc-divider::before,.xc-divider::after{{content:"";flex:1;height:1px;background:var(--border)}}
 .xc-banner{{font-size:12px;color:var(--txt2);background:color-mix(in srgb,var(--acc1) 10%,transparent);
-  border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent);border-radius:10px;padding:8px 12px;margin-bottom:14px}}
+  border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent);border-radius:var(--ss-radius);padding:8px 12px;margin-bottom:14px}}
 
 /* T-308：模型徽标 / 问题分析卡 / 追问建议标签 */
 .xc-badge{{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;
   color:var(--acc1);background:color-mix(in srgb,var(--acc1) 12%,transparent);border:1px solid color-mix(in srgb,var(--acc1) 35%,transparent);
-  border-radius:999px;padding:2px 10px;white-space:nowrap}}
+  border-radius:var(--ss-radius-pill);padding:2px 10px;white-space:nowrap}}
 .xc-intent{{font-size:12.5px;color:var(--txt2);background:var(--card2);
-  border:1px dashed var(--border);border-radius:10px;padding:7px 12px;margin:2px 0 10px}}
+  border:1px dashed var(--border);border-radius:var(--ss-radius);padding:7px 12px;margin:2px 0 10px}}
 .xc-intent b{{color:var(--acc1)}}
 .xc-sug-label{{font-size:12px;color:var(--txt2);margin:10px 0 4px;font-weight:600}}
 
@@ -250,7 +250,7 @@ def _theme_css(dark: bool) -> str:
 
 /* 深度研究步骤状态卡网格（批3）：每步一卡，✅已返回/⏳执行中/❌出错 一眼看清进度 */
 .xc-steps{{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0 4px}}
-.xc-step{{background:var(--card);border:1px solid var(--border);border-radius:12px;
+.xc-step{{background:var(--card);border:1px solid var(--border);border-radius:var(--ss-radius);
   padding:13px 8px 10px;text-align:center;transition:border-color .18s ease,box-shadow .18s ease}}
 .xc-step .ic{{font-size:20px;line-height:1}}
 .xc-step b{{display:block;margin:8px 0 4px;color:var(--txt);font-size:12.5px;line-height:1.4}}
@@ -290,7 +290,7 @@ def _theme_css(dark: bool) -> str:
 }}
 [data-testid="stChatInput"] {{
   border: 1.5px solid color-mix(in srgb,var(--acc1) 40%,var(--input-border)) !important;
-  border-radius: 20px !important;
+  border-radius: var(--ss-radius-card) !important;
   box-shadow: 0 0 0 1px color-mix(in srgb,var(--acc1) 14%,transparent),0 8px 28px rgba(0,0,0,.16) !important;
   padding: 2px 4px 0 !important;
 }}
@@ -366,10 +366,10 @@ def _theme_css(dark: bool) -> str:
 
 /* T-367：研究流程三阶段勾选条 + 分析模块 2 列网格卡（仿参考图#3） */
 .xc-flow{{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 12px;
-  padding:8px 12px;background:var(--card2);border:1px solid var(--border);border-radius:12px}}
+  padding:8px 12px;background:var(--card2);border:1px solid var(--border);border-radius:var(--ss-radius)}}
 .xc-flow-label{{font-size:12px;font-weight:700;color:var(--txt2);margin-right:4px}}
 .xc-flow-stage{{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;
-  padding:3px 11px;border-radius:999px;border:1px solid var(--border);
+  padding:3px 11px;border-radius:var(--ss-radius-pill);border:1px solid var(--border);
   color:var(--txt2);background:var(--card)}}
 .xc-flow-stage.done{{color:var(--acc1);border-color:color-mix(in srgb,var(--acc1) 45%,transparent);
   background:color-mix(in srgb,var(--acc1) 12%,transparent)}}
@@ -392,7 +392,7 @@ def _theme_css(dark: bool) -> str:
 .xc-mod-top b{{font-size:13.5px;color:var(--txt);flex:1;min-width:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 .xc-mod-badge{{flex-shrink:0;font-size:10.5px;font-weight:700;padding:2px 8px;
-  border-radius:999px;color:var(--acc1);
+  border-radius:var(--ss-radius-pill);color:var(--acc1);
   background:color-mix(in srgb,var(--acc1) 10%,transparent);
   border:1px solid color-mix(in srgb,var(--acc1) 28%,transparent)}}
 .xc-mod-badge.warn{{color:#b45309;background:color-mix(in srgb,#d97706 12%,transparent);
@@ -968,7 +968,7 @@ def _tool_payload_to_html(tool: str, data: dict) -> str:
             _ms_cold = any(k in ms for k in ("收盘", "周末", "休市", "盘前"))
             _ms_color = "#f59e0b" if _ms_cold else colors.DOWN_COLOR
             meta += (f'<div style="display:inline-block;margin-top:2px;padding:1px 8px;'
-                     f'border-radius:10px;font-size:11px;color:{_ms_color};'
+                     f'border-radius:var(--ss-radius);font-size:11px;color:{_ms_color};'
                      f'border:1px solid {_ms_color}55">{esc(str(ms))}</div>')
         kv = [
             ("今开", data.get("open")), ("昨收", data.get("prev_close")),
@@ -990,9 +990,9 @@ def _tool_payload_to_html(tool: str, data: dict) -> str:
             head = (
                 f'<div style="font-size:22px;font-weight:700;color:{bar_color}">'
                 f'温度计 {temp:.0f} <span style="font-size:13px;color:#aaa">{esc(str(label))}</span></div>'
-                f'<div style="height:8px;border-radius:6px;background:rgba(125,140,180,.2);'
+                f'<div style="height:8px;border-radius:var(--ss-radius-sm);background:rgba(125,140,180,.2);'
                 f'margin:6px 0 2px;overflow:hidden">'
-                f'<div style="height:100%;width:{pct:.0f}%;border-radius:6px;'
+                f'<div style="height:100%;width:{pct:.0f}%;border-radius:var(--ss-radius-sm);'
                 f'background:{bar_color};transition:width .4s"></div></div>'
                 f'<div style="font-size:11px;color:#888">冰点 0 ───── 中性 50 ───── 亢奋 100</div>'
             )

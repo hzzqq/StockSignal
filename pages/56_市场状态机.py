@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 
 from modules.ui_kit import xc_bento_kpi, xc_handle_error, xc_content_card
 from modules.page_utils import render_standard_page
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_regime as mr
 
@@ -85,7 +85,7 @@ try:
     # ── 状态分布 + 转移矩阵 ──
     c1, c2 = st.columns([1, 1.4])
     with c1:
-        section_header("全历史状态分布", "2007 年至今各状态出现天数", icon="📊")
+        xc_section_header("全历史状态分布", "2007 年至今各状态出现天数", icon="📊")
         dist = rep["state_distribution"]
         fig_d = go.Figure(go.Bar(
             x=[s for s in mr.STATE_ORDER],
@@ -101,7 +101,7 @@ try:
         st.plotly_chart(fig_d, width="stretch")
 
     with c2:
-        section_header("状态转移矩阵", "行=今日状态，列=次日状态（概率）", icon="🔀")
+        xc_section_header("状态转移矩阵", "行=今日状态，列=次日状态（概率）", icon="🔀")
         mat = rep["transition_matrix"]
         z = [[mat[a][b] for b in mr.STATE_ORDER] for a in mr.STATE_ORDER]
         fig_m = go.Figure(go.Heatmap(
@@ -120,7 +120,7 @@ try:
         st.plotly_chart(fig_m, width="stretch")
 
     # ── 历史情境类比 ──
-    section_header("历史情境类比", f"与 {latest['date']} 广度最相似的 {len(rep['analogs'])} 个交易日，及其后表现", icon="🕰️")
+    xc_section_header("历史情境类比", f"与 {latest['date']} 广度最相似的 {len(rep['analogs'])} 个交易日，及其后表现", icon="🕰️")
     st.caption("⚠️ 历史相似 ≠ 预测。下表为相似日之后 5/10/20 个交易日的真实市场表现统计，仅供情境参照。")
 
     cols = st.columns(min(len(rep["analogs"]), 4))
@@ -137,7 +137,7 @@ try:
             st.markdown(
                 f"""
                 <div style="border:1px solid {_hex_to_rgba(ac,0.5)};border-left:4px solid {ac};
-                border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12px">
+                border-radius:var(--ss-radius-sm);padding:10px 12px;margin-bottom:8px;font-size:12px">
                   <div style="font-weight:700;color:{ac}">{a['date']}</div>
                   <div style="opacity:.7">相似度距离 {a['distance']:.3f} · 状态 {a['state']}</div>
                   <div style="margin-top:4px">后5日 红盘率均值 <b>{f5.get('avg_red','—')}</b></div>

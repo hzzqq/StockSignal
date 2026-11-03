@@ -706,7 +706,7 @@ def _render_login_gate() -> None:
     .ss-login-logo {{
         width: 96px;
         height: 96px;
-        border-radius: 22px;
+        border-radius: var(--ss-radius-card);
         box-shadow: 0 10px 32px color-mix(in srgb, var(--acc2) 30%, transparent);
         margin-bottom: 1.5rem;
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -737,7 +737,7 @@ def _render_login_gate() -> None:
         background: color-mix(in srgb, var(--acc1) 12%, transparent);
         color: var(--acc1);
         border: 1px solid color-mix(in srgb, var(--acc1) 35%, transparent);
-        border-radius: 999px;
+        border-radius: var(--ss-radius-pill);
         padding: 0.45rem 1rem;
         font-size: 0.82rem;
         font-weight: 600;
@@ -753,7 +753,7 @@ def _render_login_gate() -> None:
         font-weight: 700;
         text-align: center;
         text-decoration: none;
-        border-radius: 12px;
+        border-radius: var(--ss-radius);
         border: none;
         box-shadow: 0 8px 24px color-mix(in srgb, var(--acc1) 35%, transparent);
         transition: transform 0.15s ease, box-shadow 0.15s ease;

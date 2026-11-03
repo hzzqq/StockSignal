@@ -115,7 +115,7 @@ def _section_title_html(text, accent=None) -> str:
     return (
         f'<div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;">'
         f'<span style="width:4px;height:18px;background:{_SECTION_BAR_COLOR};'
-        f'border-radius:2px;display:inline-block;"></span>'
+        f'border-radius:var(--ss-radius-xs);display:inline-block;"></span>'
         f'<span style="font-size:16px;font-weight:600;">{html.escape(text)}</span></div>'
     )
 
@@ -379,7 +379,7 @@ def _data_card_html(label: str, value: str, delta_html: str = "", accent: str = 
     delta_block = f'<div style="margin-top:2px;font-size:13px;">{delta_html}</div>' if delta_html else ""
     return (
         f'<div style="border:1px solid rgba(128,128,128,0.22);border-left:3px solid {html.escape(accent, quote=True)};'
-        f'border-radius:10px;padding:10px 12px;background:rgba(128,128,128,0.04);">'
+        f'border-radius:var(--ss-radius);padding:10px 12px;background:rgba(128,128,128,0.04);">'
         f'<div style="font-size:12px;color:#8a8a8a;margin-bottom:2px;">{html.escape(label)}</div>'
         f'<div style="font-size:20px;font-weight:700;line-height:1.2;">{html.escape(value)}'
         f'<span style="font-size:12px;color:#8a8a8a;font-weight:400;margin-left:3px;">{html.escape(unit)}</span></div>'

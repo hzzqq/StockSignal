@@ -264,7 +264,7 @@ TOPNAV_CSS = """
    项底与面板顶（52px 栏底）之间存在约 8px hover 死区，鼠标移入面板即穿过死区导致展开即收 */
 .ss-topnav-menus{display:flex;align-items:stretch;gap:2px;flex:1;min-width:0;overflow:visible;align-self:stretch}
 .ss-menu{display:flex;align-items:center;gap:6px;height:100%;padding:0 13px;cursor:pointer;font-weight:600;font-size:14px;
-  color:var(--txt);white-space:nowrap;border-radius:6px;user-select:none}
+  color:var(--txt);white-space:nowrap;border-radius:var(--ss-radius-sm);user-select:none}
 .ss-menu:hover{color:var(--acc1);background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .ss-menu-link{text-decoration:none}
 .ss-menu-active{color:var(--acc1)!important;background:color-mix(in srgb,var(--acc1) 10%,transparent)}
@@ -284,7 +284,7 @@ TOPNAV_CSS = """
   max-height:56vh;overflow-y:auto;overflow-x:auto;padding-right:6px}
 .ss-mega-sub{grid-column:1 / -1;font-size:11.5px;color:var(--acc1);font-weight:700;
   margin:8px 0 2px;letter-spacing:.5px}
-.ss-entry{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:6px;
+.ss-entry{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:var(--ss-radius-sm);
   text-decoration:none;white-space:nowrap;cursor:pointer;transition:background .12s ease}
 .ss-entry:hover{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .ss-entry:focus-visible{outline:2px solid var(--acc1);outline-offset:-2px;
@@ -292,17 +292,17 @@ TOPNAV_CSS = """
 .ss-entry b{font-size:13.5px;font-weight:600;color:var(--txt)}
 .ss-entry-active b{color:var(--acc1)}
 .ss-entry-active{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
-.ss-tag{font-size:10px;padding:1px 6px;border-radius:3px;font-style:normal;font-weight:700;flex-shrink:0}
+.ss-tag{font-size:10px;padding:1px 6px;border-radius:var(--ss-radius-xs);font-style:normal;font-weight:700;flex-shrink:0}
 .ss-tag-hot{background:rgba(255,42,109,.12);color:#ff2a6d}
 .ss-tag-new{background:rgba(0,168,204,.14);color:#0090b8}
 /* ── 右侧：搜索 / 小图标 / 用户下拉（图标缩小——阿里云密度） ── */
 .ss-topnav-right{display:flex;align-items:center;gap:8px;margin-left:auto}
-.ss-search{padding:5px 14px;border:1px solid var(--border,#e2e8f0);border-radius:6px;
+.ss-search{padding:5px 14px;border:1px solid var(--border,#e2e8f0);border-radius:var(--ss-radius-sm);
   color:var(--txt2);font-size:12.5px;cursor:pointer;white-space:nowrap;user-select:none}
 .ss-search:hover{border-color:var(--acc1);color:var(--acc1)}
-.ss-search kbd{font-size:10px;border:1px solid var(--border);border-radius:3px;padding:0 4px;margin-left:4px}
+.ss-search kbd{font-size:10px;border:1px solid var(--border);border-radius:var(--ss-radius-xs);padding:0 4px;margin-left:4px}
 .ss-ico{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
-  font-size:13px;border-radius:5px;text-decoration:none;color:var(--txt2)}
+  font-size:13px;border-radius:var(--ss-radius-sm);text-decoration:none;color:var(--txt2)}
 .ss-ico:hover{background:color-mix(in srgb,var(--acc1) 10%,transparent);color:var(--acc1)}
 .ss-user{position:relative;cursor:pointer}
 .ss-avatar{width:30px;height:30px;border-radius:50%;background:color-mix(in srgb,var(--acc1) 14%,transparent);
@@ -313,7 +313,7 @@ TOPNAV_CSS = """
 .ss-style-opt{display:flex;align-items:center;gap:6px}
 .ss-style-cur{color:var(--acc1)!important;font-weight:700}
 .ss-user-sec{font-size:11px;color:var(--acc1);font-weight:700;margin:8px 0 4px;letter-spacing:.5px}
-.ss-user-item{display:block;padding:6px 8px;border-radius:5px;text-decoration:none;
+.ss-user-item{display:block;padding:6px 8px;border-radius:var(--ss-radius-sm);text-decoration:none;
   color:var(--txt);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   cursor:pointer;transition:background .12s ease}
 .ss-user-item:hover{background:color-mix(in srgb,var(--acc1) 8%,transparent);color:var(--acc1)}

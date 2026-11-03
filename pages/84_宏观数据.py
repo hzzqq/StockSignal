@@ -38,8 +38,8 @@ _REGIME_CSS = """
 .xcm-max{font-size:1rem;color:var(--txt2);font-weight:600;margin-left:.15rem}
 .xcm-band{font-size:.85rem;font-weight:700;margin:.15rem 0 .6rem}
 .xcm-bar{height:8px;background:color-mix(in srgb,var(--txt) 10%,transparent);
-  border-radius:999px;overflow:hidden;margin-bottom:.7rem}
-.xcm-fill{height:100%;border-radius:999px;transition:width .4s ease}
+  border-radius:var(--ss-radius-pill);overflow:hidden;margin-bottom:.7rem}
+.xcm-fill{height:100%;border-radius:var(--ss-radius-pill);transition:width .4s ease}
 .xcm-subs{display:grid;grid-template-columns:repeat(2,1fr);gap:.35rem .9rem}
 .xcm-sub{display:flex;justify-content:space-between;align-items:baseline;
   font-size:.78rem;color:var(--txt2)}

@@ -128,7 +128,7 @@ def fragment_detail():
         f"<div style='display:flex;align-items:center;gap:8px;'>"
         f"{render_forum_avatar(post.get('avatar', ''), _op_name, size=32)}"
         f"<span style='font-weight:600;'>{safe_html_text(_op_name)}</span>"
-        f"<span style='font-size:11px;padding:1px 6px;border-radius:8px;"
+        f"<span style='font-size:11px;padding:1px 6px;border-radius:var(--ss-radius-sm);"
         f"background:#2b8aef;color:#fff;'>楼主</span></div>",
         unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
@@ -184,7 +184,7 @@ def fragment_detail():
             # 列表元素兜底：单条评论 schema 漂移时跳过，不影响其余评论渲染
             continue
         _is_cop = (c.get("username") == _op_name)
-        _cop_badge = (" <span style='font-size:11px;padding:1px 6px;border-radius:8px;"
+        _cop_badge = (" <span style='font-size:11px;padding:1px 6px;border-radius:var(--ss-radius-sm);"
                       "background:#2b8aef;color:#fff;'>楼主</span>") if _is_cop else ""
         # ui_audit_exempt: unsafe-allow_html 评论列表，用户名/正文经 safe_html_text 转义（上方注释已声明安全口径）
         st.markdown(

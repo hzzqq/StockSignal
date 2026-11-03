@@ -18,7 +18,7 @@ import plotly.graph_objects as go
 
 from modules.ui_kit import xc_handle_error, inject_kit_css, xc_kpi_grid
 from modules.page_utils import render_standard_page
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import event_compare as ec
 from modules import breadth_divergence as bd

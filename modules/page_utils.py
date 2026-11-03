@@ -88,7 +88,7 @@ def _build_status_chips(dark: bool) -> list:
         if dark:
             theme_html = (
                 f'<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
-                f'font-weight:600;padding:5px 12px;border-radius:999px;'
+                f'font-weight:600;padding:5px 12px;border-radius:var(--ss-radius-pill);'
                 f'border:1px solid {_line};'
                 f'background:color-mix(in srgb,var(--ss-accent) 14%,var(--ss-surface));'
                 f'color:{_accent}">'
@@ -98,7 +98,7 @@ def _build_status_chips(dark: bool) -> list:
         else:
             theme_html = (
                 f'<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
-                f'font-weight:600;padding:5px 12px;border-radius:999px;'
+                f'font-weight:600;padding:5px 12px;border-radius:var(--ss-radius-pill);'
                 f'border:1px solid {_line};background:var(--ss-surface-2);color:{_accent}">'
                 f'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
                 f'background:{_dot}"></span>{svg_icon("sun", size=12)} 浅色</span>'
@@ -112,7 +112,7 @@ def _build_status_chips(dark: bool) -> list:
         if is_trading_now():
             session_html = (
                 '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
-                'font-weight:600;padding:5px 12px;border-radius:999px;'
+                'font-weight:600;padding:5px 12px;border-radius:var(--ss-radius-pill);'
                 'border:1px solid #ff4d4f;background:rgba(255,77,79,.10);color:#dc2626">'
                 '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
                 'background:#ff4d4f;box-shadow:0 0 0 3px rgba(255,77,79,.25)"></span>交易中</span>'
@@ -120,7 +120,7 @@ def _build_status_chips(dark: bool) -> list:
         else:
             session_html = (
                 '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
-                'font-weight:600;padding:5px 12px;border-radius:999px;'
+                'font-weight:600;padding:5px 12px;border-radius:var(--ss-radius-pill);'
                 'border:1px solid #00d486;background:rgba(0,212,134,.10);color:#166534">'
                 '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
                 'background:#00d486"></span>已休市</span>'
@@ -188,7 +188,7 @@ def section_title(text: str, accent: str = "var(--acc1)") -> None:
     import streamlit as st
     st.markdown(
         f"<div style='display:inline-block;background:var(--acc1);color:#fff;"
-        f"padding:4px 12px;border-radius:8px;font-weight:600;font-size:14px;"
+        f"padding:4px 12px;border-radius:var(--ss-radius-sm);font-weight:600;font-size:14px;"
         f"margin-bottom:2px;'>{text}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
@@ -300,8 +300,8 @@ def score_bar(label, value, color) -> str:
         "<div style='display:flex;justify-content:space-between;font-size:11px;margin-bottom:1px'>"
         f"<span style='opacity:.75'>{label}</span>"
         f"<span style='color:{color};font-weight:700'>{pct:.0f}</span></div>"
-        f"<div style='height:6px;background:{_hex_to_rgba(color,0.16)};border-radius:4px'>"
-        f"<span style='display:block;height:100%;width:{pct:.1f}%;background:{color};border-radius:4px'></span>"
+        f"<div style='height:6px;background:{_hex_to_rgba(color,0.16)};border-radius:var(--ss-radius-xs)'>"
+        f"<span style='display:block;height:100%;width:{pct:.1f}%;background:{color};border-radius:var(--ss-radius-xs)'></span>"
         "</div></div>"
     )
 

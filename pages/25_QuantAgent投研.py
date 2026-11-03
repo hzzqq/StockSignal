@@ -69,14 +69,14 @@ dark = render_standard_page(title="QuantAgent 多智能体投研", icon="🤖", 
 _VERDICT_COLOR = {"看多": UP_COLOR, "看空": DOWN_COLOR, "持有": AMBER}
 _TERM_CSS = """
 <style>
-.qa-card{border:1px solid #2a3340;border-radius:10px;padding:10px 12px;margin:6px 0;background:#11161d;}
+.qa-card{border:1px solid #2a3340;border-radius:var(--ss-radius);padding:10px 12px;margin:6px 0;background:#11161d;}
 .qa-row{display:flex;align-items:center;gap:10px;}
 .qa-icon{font-size:20px;width:30px;text-align:center;}
 .qa-name{font-weight:600;color:#e6edf3;min-width:120px;}
-.qa-badge{font-size:12px;padding:2px 8px;border-radius:10px;margin-left:auto;}
-.qa-bar{height:6px;border-radius:4px;background:#1f2730;margin-top:8px;overflow:hidden;}
+.qa-badge{font-size:12px;padding:2px 8px;border-radius:var(--ss-radius);margin-left:auto;}
+.qa-bar{height:6px;border-radius:var(--ss-radius-xs);background:#1f2730;margin-top:8px;overflow:hidden;}
 .qa-bar > div{height:100%;transition:width .4s ease;}
-.qa-log{max-height:240px;overflow-y:auto;background:#0b0f14;border:1px solid #1c2430;border-radius:8px;padding:8px 10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:#9fb0c0;}
+.qa-log{max-height:240px;overflow-y:auto;background:#0b0f14;border:1px solid #1c2430;border-radius:var(--ss-radius-sm);padding:8px 10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:#9fb0c0;}
 .qa-log div{padding:2px 0;border-bottom:1px solid #141b24;}
 </style>
 """
@@ -204,7 +204,7 @@ def _render_report(result: dict):
     vc = _verdict_color(c.get("verdict", ""))
     # ui_audit_exempt: unsafe-allow_html 最终结论条，verdict/rationale 经 safe_html_text 转义，vc 取内部调色板
     st.markdown(
-        f"<div style='padding:14px 18px;border-left:6px solid {vc};background:#11161d;border-radius:8px'>"
+        f"<div style='padding:14px 18px;border-left:6px solid {vc};background:#11161d;border-radius:var(--ss-radius-sm)'>"
         f"<b style='font-size:20px;color:{vc}'>🏁 最终结论：{safe_html_text(c.get('verdict'), '-')}</b> "
         f"&nbsp; 综合评分 <b>{c.get('composite') or '-'}</b>/100"
         + (f"<br>目标价 <b style='color:#e6edf3'>¥{c.get('target_price')}</b> ｜ 止损 <b style='color:#e6edf3'>¥{c.get('stop_price')}</b>" if c.get("target_price") else "")

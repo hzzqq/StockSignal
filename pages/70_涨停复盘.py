@@ -28,8 +28,7 @@ from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules.page_utils import (render_standard_page, score_bar as _score_bar)
 from modules.shepherd import _trading_days, _zt_pool_detail_cached, get_zt_ladder
 from modules.ui_kit import stat_tile, xc_kpi_grid
-from modules.ui_theme import section_header
-
+from modules.ui_kit import xc_section_header
 logger = logging.getLogger(__name__)
 
 # ── 列名候选（东财字段偶有增删，按候选表匹配而非硬编码）──────────────────
@@ -264,7 +263,7 @@ xc_kpi_grid([
 st.markdown("---")
 
 # ── ② 首次封板时间线（本页差异化维度）──────────────────────────────────
-section_header(
+xc_section_header(
     "首次封板时间线", "早板（09:30-10:00）资金决心最强；尾板（14:00 后）多为跟风/偷袭", icon="⏱️"
 )
 band_counts = df["_band"].value_counts()
@@ -300,7 +299,7 @@ else:
 st.markdown("---")
 
 # ── ③ 连板梯队分布 + 断层提示 ─────────────────────────────────────────
-section_header("连板梯队分布", "梯队厚＝赚钱效应扩散；断层（如 4 板 1 家、3 板 0 家）＝接力资金缺席", icon="🪜")
+xc_section_header("连板梯队分布", "梯队厚＝赚钱效应扩散；断层（如 4 板 1 家、3 板 0 家）＝接力资金缺席", icon="🪜")
 try:
     ladder = get_zt_ladder(src_date)
 except Exception as e:  # noqa: BLE001
@@ -345,7 +344,7 @@ else:
 st.markdown("---")
 
 # ── ④ 龙头识别榜（多维可解释评分）─────────────────────────────────────
-section_header(
+xc_section_header(
     "龙头识别榜", "综合分 = 0.35×连板高度 + 0.25×封单强度 + 0.20×板块地位 + 0.20×成交额（启发式，非预测）",
     icon="👑",
 )
@@ -373,7 +372,7 @@ if name_c and len(top) > 0:
             + _score_bar("成交额", r["_s_amt"], "#0ea5e9")
         )
         rows_html += (
-            "<div style='border:1px solid rgba(148,163,184,.25);border-radius:12px;"
+            "<div style='border:1px solid rgba(148,163,184,.25);border-radius:var(--ss-radius);"
             "padding:10px 12px;margin:8px 0;'>"
             "<div style='display:flex;justify-content:space-between;align-items:center'>"
             f"<div><span style='font-weight:700;font-size:15px'>{nm}</span> "
@@ -389,7 +388,7 @@ else:
 st.markdown("---")
 
 # ── ⑤ 分档明细（首板/二板/三板/高位板）────────────────────────────────
-section_header("分档明细", "按连板高度分组；含封单资金、炸板次数、首封时间", icon="🗂️")
+xc_section_header("分档明细", "按连板高度分组；含封单资金、炸板次数、首封时间", icon="🗂️")
 
 
 def _detail_table(sub):
@@ -433,7 +432,7 @@ st.markdown("---")
 # ── ⑥ 题材分布 + 炸板追踪 ─────────────────────────────────────────────
 cc1, cc2 = st.columns([3, 2])
 with cc1:
-    section_header("题材分布", "涨停家数 Top10 行业（板块效应强度）", icon="🎨")
+    xc_section_header("题材分布", "涨停家数 Top10 行业（板块效应强度）", icon="🎨")
     if ind_col_name:
         ic = df[ind_col_name].astype(str).value_counts().head(10)
         fig_ind = go.Figure(
@@ -450,7 +449,7 @@ with cc1:
         st.info("无行业字段。")
 
 with cc2:
-    section_header("炸板追踪", "当日曾开板（炸板次数>0）——烂板/反复板，接力风险高", icon="💥")
+    xc_section_header("炸板追踪", "当日曾开板（炸板次数>0）——烂板/反复板，接力风险高", icon="💥")
     if int(n_broken) > 0 and name_c:
         bad = df[broken_s > 0].sort_values("_boards_i", ascending=False).head(15)
         rows = ""
@@ -471,7 +470,7 @@ with cc2:
 st.markdown("---")
 
 # ── ⑦ 情绪周期交叉验证（本页差异化）───────────────────────────────────
-section_header("情绪周期交叉验证", "把涨停结构与市场状态机/温度对接——纯打板工具没有这一层", icon="🔄")
+xc_section_header("情绪周期交叉验证", "把涨停结构与市场状态机/温度对接——纯打板工具没有这一层", icon="🔄")
 try:
     from modules import market_regime as mr
     regime = mr.regime_report(k=8)

@@ -337,7 +337,7 @@ def fragment_strength():
                     name = html.escape(names_map.get(k, k))
                     chips.append(
                         f'<span style="display:inline-block;margin:3px 4px;padding:4px 10px;'
-                        f'border-radius:999px;background:rgba(255,255,255,0.04);'
+                        f'border-radius:var(--ss-radius-pill);background:rgba(255,255,255,0.04);'
                         f'border:1px solid {html.escape(c, quote=True)}55;font-size:12px;">'
                         f'{name}：<b style="color:{html.escape(c, quote=True)}">{norm:.1f}</b>'
                         f'{" ▲" if dev >= 0 else " ▼"}</span>'

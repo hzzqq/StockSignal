@@ -99,7 +99,7 @@ def _render_work_card(work: dict, col) -> None:
             # iframe，允许完整 JS 运行，故作品嵌入必须走它。
             iframe_html = (
                 f'<iframe src="{url}" '
-                'style="width:100%;height:720px;border:0;border-radius:12px"></iframe>'
+                'style="width:100%;height:720px;border:0;border-radius:var(--ss-radius)"></iframe>'
             )
             components.html(iframe_html, height=740)
 

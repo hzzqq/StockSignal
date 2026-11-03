@@ -5,9 +5,10 @@
 断言数字等宽已落到 KPI 组件、圆角令牌派生正确。对比度 WCAG 下限由
 test_a11y_contrast 负责，本文件只锁「别名层」不漂移。
 
-诚实范围说明：圆角「全量归一（10/8/12/14/3/2px 散点共 200+ 行跨 15 文件）」
-属高风险动作（批量改 CSS 易引发暗/亮主题视觉回潮），本阶段只建别名令牌 +
-守卫，为未来专项归一铺路；不作为本 commit 的改动范围。
+圆角全量归一（Phase 6-2，2026-11-03）：299 处裸单值 px 已吸附到 --ss-radius* 五档
+（xs=3 / sm=8 / --ss-radius=12 / lg=14 / card=16 / pill=999，就近映射漂移<=3px），
+本文件同时锁死「裸单值 px 不回潮」；多值角形态（Npx Mpx ...）、0（直角）、50%（圆）
+语义特殊，明确豁免。
 """
 import re
 from pathlib import Path
@@ -71,3 +72,39 @@ def test_alias_semantics_match_locked_tokens():
     css = _kit()._KIT_CSS
     assert "--c-up:var(--ss-up,#ff4d4f)" in css, "--c-up 未绑定 --ss-up/#ff4d4f（红涨）"
     assert "--c-down:var(--ss-down,#00d486)" in css, "--c-down 未绑定 --ss-down/#00d486（绿跌）"
+
+
+_RADIUS_SCALE = (
+    "--ss-radius-xs:3px", "--ss-radius-sm:8px", "--ss-radius:12px",
+    "--ss-radius-lg:14px", "--ss-radius-card:16px", "--ss-radius-pill:999px",
+)
+
+
+def test_radius_scale_tokens_complete():
+    """圆角五档令牌齐备（Phase 6-2 归一的吸附目标，缺一档则归一映射落空）。"""
+    css = _kit()._TOKEN_CSS
+    for tok in _RADIUS_SCALE:
+        assert tok in css, f"缺失圆角档位令牌：{tok.split(':')[0]}"
+
+
+def test_no_bare_border_radius_px():
+    """圆角归一守卫：modules/pages/backend 禁止裸单值 px（须走 var(--ss-radius*)）。
+
+    豁免：多值角形态（如 border-radius:14px 4px 14px 14px）、0（直角）、50%（圆）、
+    var(...) 引用、token 定义行本身（--ss-radius:12px 等，无 border-radius: 前缀）。
+    """
+    bare = re.compile(r"border-radius:\s*\d+px(?!\s*[\d.])")
+    roots = [ROOT / "modules", ROOT / "pages", ROOT / "backend"]
+    offenders = []
+    for root in roots:
+        for f in sorted(root.rglob("*.py")):
+            if "__pycache__" in str(f):
+                continue
+            for i, ln in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+                if ln.strip().startswith("#"):
+                    continue
+                if bare.search(ln):
+                    offenders.append(f"{f.relative_to(ROOT)}:{i}")
+    assert offenders == [], (
+        f"border-radius 裸单值 px 回潮（应改 var(--ss-radius-xs/sm//lg/card/pill)）：{offenders}"
+    )

@@ -390,7 +390,7 @@ def multi_stock_search_input(label='输入多只股票', key='multi_stock_search
             chip_bg, chip_border, chip_color = ('#1a1a2e', '#2d2d44', '#e2e8f0')
         else:
             chip_bg, chip_border, chip_color = ('#ffffff', '#e2e8f0', '#1e293b')
-        chips_html = ''.join((f'<span style="display:inline-block;background:{chip_bg};border:1px solid {chip_border};border-radius:12px;padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:{chip_color};">{lab}</span>' for lab in resolved_labels))
+        chips_html = ''.join((f'<span style="display:inline-block;background:{chip_bg};border:1px solid {chip_border};border-radius:var(--ss-radius);padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:{chip_color};">{lab}</span>' for lab in resolved_labels))
         st.markdown(f"<div style='margin-top:8px;'>{chips_html}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     if unresolved:
         st.error(f"⚠️ 未识别或无效: {', '.join(unresolved)}")

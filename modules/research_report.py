@@ -302,10 +302,10 @@ def render_html(report: dict) -> str:
   td {{ padding: 5px 8px; border-bottom: 1px solid rgba(255,255,255,.08);
         word-break: break-all; }}
   .note {{ color: #9aa0a6; font-size: 12.5px; margin: 6px 0 0; }}
-  .badge {{ font-size: 12px; padding: 1px 8px; border-radius: 10px;
+  .badge {{ font-size: 12px; padding: 1px 8px; border-radius: var(--ss-radius);
             vertical-align: middle; }}
   .badge-off {{ background: #4a4a4a; color: #d8d8d8; }}
-  .alert {{ padding: 10px 14px; border-radius: 8px; margin: 12px 0; font-size: 14px; }}
+  .alert {{ padding: 10px 14px; border-radius: var(--ss-radius-sm); margin: 12px 0; font-size: 14px; }}
   .alert-warn {{ background: rgba(245,166,35,.14); border-left: 4px solid #f5a623; }}
   .alert-bad {{ background: rgba(238,42,42,.14); border-left: 4px solid #ee2a2a; }}
   footer {{ margin-top: 34px; padding-top: 12px; font-size: 12.5px; color: #9aa0a6;

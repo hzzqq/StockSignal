@@ -546,14 +546,14 @@ def result_board():
         if not isinstance(v, (int, float)):
             return (f'<div style="flex:1 1 0;min-width:110px;">'
                     f'<div style="font-size:11px;color:#999;">{label} —</div>'
-                    f'<div style="height:6px;border-radius:3px;background:rgba(128,128,128,0.18);"></div></div>')
+                    f'<div style="height:6px;border-radius:var(--ss-radius-xs);background:rgba(128,128,128,0.18);"></div></div>')
         c = _PRIORITY_COLOR["HIGH"] if v >= 65 else WATCH_COLOR if v >= 45 else _PRIORITY_COLOR["ATTENTION"]
         pct = max(0, min(100, v))
         return (f'<div style="flex:1 1 0;min-width:110px;">'
                 f'<div style="font-size:11px;color:#888;">{label} '
                 f'<b style="color:{c};">{v:.0f}</b></div>'
-                f'<div style="height:6px;border-radius:3px;background:rgba(128,128,128,0.18);">'
-                f'<div style="width:{pct}%;height:6px;border-radius:3px;background:{c};"></div></div></div>')
+                f'<div style="height:6px;border-radius:var(--ss-radius-xs);background:rgba(128,128,128,0.18);">'
+                f'<div style="width:{pct}%;height:6px;border-radius:var(--ss-radius-xs);background:{c};"></div></div></div>')
 
     for r in results:
         prio = r.get("priority", "WATCH")
@@ -576,18 +576,18 @@ def result_board():
         if isinstance(comp, (int, float)):
             cc = _PRIORITY_COLOR["HIGH"] if comp >= 65 else WATCH_COLOR if comp >= 45 else _PRIORITY_COLOR["ATTENTION"]
             comp_html = (f'<span style="background:{cc};color:#fff;padding:2px 10px;'
-                         f'border-radius:12px;font-size:12px;font-weight:700;margin-right:6px;">'
+                         f'border-radius:var(--ss-radius);font-size:12px;font-weight:700;margin-right:6px;">'
                          f'综合 {comp:.0f}</span>')
         dims = r.get("dims", {}) or {}
         bars = "".join(_dim_bar(k, dims.get(k)) for k in ("技术面", "资金面", "财务健康", "估值"))
         code_s = html.escape(str(r.get("code", "—")))
         name_s = html.escape(str(r.get("name", "—")))
         card = f"""
-        <div style="border-left:5px solid {color};border-radius:8px;
+        <div style="border-left:5px solid {color};border-radius:var(--ss-radius-sm);
                     padding:10px 14px;margin:8px 0;background:rgba(128,128,128,0.08);">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="font-weight:700;font-size:15px;">{code_s} {name_s}</span>
-            <span>{comp_html}<span style="background:{color};color:#fff;padding:2px 10px;border-radius:12px;font-size:12px;">{PRIORITY_LABEL.get(prio, '关注')}</span></span>
+            <span>{comp_html}<span style="background:{color};color:#fff;padding:2px 10px;border-radius:var(--ss-radius);font-size:12px;">{PRIORITY_LABEL.get(prio, '关注')}</span></span>
           </div>
           <div style="display:flex;gap:12px;margin-top:10px;flex-wrap:wrap;">{bars}</div>
           <div style="margin-top:8px;font-size:13px;color:#888;">
@@ -753,10 +753,10 @@ def risk_board():
             oc = sr.LEVEL_COLOR.get(rep["overall_level"], "#8c8c8c")
             # code/name 来自排雷引擎结果，按防御性规范 html.escape
             st.markdown(
-                f'<div style="border-left:6px solid {oc};border-radius:8px;padding:10px 14px;'
+                f'<div style="border-left:6px solid {oc};border-radius:var(--ss-radius-sm);padding:10px 14px;'
                 f'background:rgba(128,128,128,0.08);">'
                 f'<b style="font-size:15px;">{html.escape(str(target["code"]))} {html.escape(str(target["name"]))}</b>'
-                f'　<span style="background:{oc};color:#fff;padding:2px 10px;border-radius:12px;'
+                f'　<span style="background:{oc};color:#fff;padding:2px 10px;border-radius:var(--ss-radius);'
                 f'font-size:12px;">整体 {sr.LEVEL_CN[rep["overall_level"]]}风险</span>'
                 f'　<span style="font-size:12px;color:#888;">风险分 {rep["risk_score"]}'
                 f' ｜ 覆盖率 {rep["coverage_pct"]}%'

@@ -115,3 +115,63 @@ def test_info_banner_deprecated_delegate_and_xc_canonical():
     legacy_body = kit_src[legacy_start:legacy_start + 400]
     assert "Deprecated" in legacy_body, "info_banner 未标 Deprecated"
     assert "xc_info_banner(text, kind, icon)" in legacy_body, "info_banner 应薄委托 xc_info_banner"
+
+
+def test_no_legacy_section_header_calls():
+    """C 收官守卫：legacy section_header( 调用全仓清零（统一为 xc_section_header）。
+
+    modules/ui_theme.py 例外（deprecated 定义 + 兼容委托本体所在）。
+    同时锁「调用了 xc_section_header 的文件必须从 modules.ui_kit 导入它」，
+    防迁移后出现 NameError。
+    """
+    import re
+    legacy = re.compile(r"(?<![\w.])section_header\(")
+    xc_call = re.compile(r"(?<![\w.])xc_section_header\(")
+    xc_import = re.compile(
+        r"from modules\.ui_kit import\s*(?:\([^)]*\)|[^\n]*)", re.S
+    )  # 兼容单行与括号多行 import 块
+    roots = [ROOT / "pages", ROOT / "modules", ROOT / "backend", ROOT / "scripts"]
+    offenders = []
+    undefined = []
+    for root in roots:
+        for f in sorted(root.rglob("*.py")):
+            if "__pycache__" in str(f) or f == UI_THEME:
+                continue
+            src = _src(f)
+            if "def xc_section_header(" in src or "def section_header(" in src:
+                continue  # 定义文件（ui_kit）自洽
+            for i, ln in enumerate(src.splitlines(), 1):
+                if ln.strip().startswith("#"):
+                    continue
+                if legacy.search(ln):
+                    offenders.append(f"{f.relative_to(ROOT)}:{i}")
+            if xc_call.search(src) and not xc_import.search(src):
+                undefined.append(str(f.relative_to(ROOT)))
+    assert offenders == [], f"仍调用 legacy section_header（应改 xc_section_header）：{offenders}"
+    assert undefined == [], f"调用 xc_section_header 但未从 modules.ui_kit 导入：{undefined}"
+
+
+def test_section_header_deprecated_delegate_and_xc_contract():
+    """ui_theme.section_header 已标 Deprecated 薄委托（惰性导入防循环）；
+    xc_section_header 为 canonical：render=True 默认直接渲染（兼容 legacy 即渲染契约）、
+    render=False 返回 HTML 片段（供 _hero / widgets 嵌入），支持 subtitle/icon/xtra。"""
+    theme_src = _src(UI_THEME)
+    assert "def section_header(" in theme_src
+    legacy_start = theme_src.index("def section_header(")
+    legacy_body = theme_src[legacy_start:legacy_start + 900]
+    assert "deprecated" in legacy_body.lower(), "section_header 未标 deprecated"
+    assert "xc_section_header(title, subtitle=subtitle, icon=icon)" in legacy_body, (
+        "section_header 应薄委托 xc_section_header"
+    )
+    assert "#4f46e5" not in legacy_body, "legacy 本体不应再含硬编码 hex（已收敛到 token）"
+
+    kit_src = _src(UI_KIT)
+    assert "def xc_section_header(" in kit_src
+    xc_start = kit_src.index("def xc_section_header(")
+    nxt = kit_src.find("\ndef ", xc_start + 1)
+    xc_body = kit_src[xc_start:nxt if nxt > 0 else len(kit_src)]
+    assert "render: bool = True" in xc_body, "xc_section_header 默认必须渲染（legacy 契约）"
+    assert "subtitle" in xc_body and "icon" in xc_body and "xtra" in xc_body, (
+        "xc_section_header 须支持 subtitle/icon/xtra 三要素"
+    )
+    assert "return html_out" in xc_body, "render=False 路径须返回 HTML 片段"

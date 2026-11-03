@@ -110,16 +110,16 @@ def _compare_css_body() -> str:
   font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.55}}
 .compare-wrap .header{{display:flex;align-items:center;justify-content:space-between;
   flex-wrap:wrap;gap:10px;margin-bottom:18px;padding:14px 18px;
-  background:linear-gradient(90deg,{_sf()['header_bg']},{_sf()['header_bg2']});border:1px solid {_sf()['border']};border-radius:14px}}
+  background:linear-gradient(90deg,{_sf()['header_bg']},{_sf()['header_bg2']});border:1px solid {_sf()['border']};border-radius:var(--ss-radius-lg)}}
 .compare-wrap .header .brand{{font-size:15px;color:{_sf()['txt2']};letter-spacing:1px}}
 .compare-wrap .header .brand b{{color:{_sf()['acc1']}}}
 .compare-wrap .card{{background:{_sf()['card']};border:1px solid {_sf()['border']};
-  border-radius:14px;padding:18px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}}
+  border-radius:var(--ss-radius-lg);padding:18px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}}
 .compare-wrap .card h2{{font-size:16px;margin-bottom:14px;display:flex;align-items:center;gap:8px}}
 .compare-wrap .card h2::before{{content:"";width:4px;height:16px;
-  background:linear-gradient(180deg,{_sf()['acc1']},{_sf()['acc2']});border-radius:3px}}
+  background:linear-gradient(180deg,{_sf()['acc1']},{_sf()['acc2']});border-radius:var(--ss-radius-xs)}}
 .compare-wrap .one-line{{font-size:14.5px;font-weight:700;color:{_sf()['up']};
-  background:{_sf()['one_line_bg']};border-left:3px solid {_sf()['up']};padding:10px 14px;border-radius:8px;margin-bottom:14px}}
+  background:{_sf()['one_line_bg']};border-left:3px solid {_sf()['up']};padding:10px 14px;border-radius:var(--ss-radius-sm);margin-bottom:14px}}
 .compare-wrap .one-line.hold{{color:{_sf()['hold']};background:{_sf()['one_line_bg_hold']};border-left-color:{_sf()['hold']}}}
 .compare-wrap table{{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}}
 .compare-wrap th,.compare-wrap td{{padding:9px 8px;text-align:center;border-bottom:1px solid {_sf()['border']}}}
@@ -127,16 +127,16 @@ def _compare_css_body() -> str:
 .compare-wrap td.l{{text-align:left}}
 .compare-wrap .up{{color:{_sf()['up']};font-weight:700}}
 .compare-wrap .down{{color:{_sf()['down']};font-weight:700}}
-.compare-wrap .tag{{display:inline-block;font-size:11px;padding:2px 8px;border-radius:14px;font-weight:600}}
+.compare-wrap .tag{{display:inline-block;font-size:11px;padding:2px 8px;border-radius:var(--ss-radius-lg);font-weight:600}}
 .compare-wrap .tag.win{{background:{_sf()['tag_win_bg']};color:{_sf()['up']};border:1px solid {_sf()['tag_win_border']}}}
 .compare-wrap .tag.mid{{background:{_sf()['tag_mid_bg']};color:{_sf()['hold']};border:1px solid {_sf()['tag_mid_border']}}}
 .compare-wrap .tag.weak{{background:{_sf()['tag_weak_bg']};color:{_sf()['down']};border:1px solid {_sf()['tag_weak_border']}}}
 .compare-wrap .tag.neu{{background:{_sf()['tag_neu_bg']};color:{_sf()['txt2']};border:1px solid {_sf()['tag_neu_border']}}}
 .compare-wrap .vs{{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px}}
-.compare-wrap .vsbox{{flex:1 1 0;min-width:300px;background:{_sf()['vsbox_bg']};border:1px solid {_sf()['border']};border-radius:10px;padding:14px}}
+.compare-wrap .vsbox{{flex:1 1 0;min-width:300px;background:{_sf()['vsbox_bg']};border:1px solid {_sf()['border']};border-radius:var(--ss-radius);padding:14px}}
 /* 1:1 横向两两对比：左卡 | VS | 右卡，严格等宽，绝不纵向堆叠 */
 .compare-wrap .pw-grid{{display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:0;margin-top:8px}}
-.compare-wrap .pw-box{{background:{_sf()['vsbox_bg']};border:1px solid {_sf()['border']};border-radius:10px;padding:14px}}
+.compare-wrap .pw-box{{background:{_sf()['vsbox_bg']};border:1px solid {_sf()['border']};border-radius:var(--ss-radius);padding:14px}}
 .compare-wrap .pw-vs{{display:flex;align-items:center;justify-content:center;font-weight:800;
   font-size:18px;color:{_sf()['acc1']};padding:0 16px;letter-spacing:2px}}
 .compare-wrap .pw-vs span{{background:{_sf()['card']};border:1px solid {_sf()['border']};
@@ -144,12 +144,12 @@ def _compare_css_body() -> str:
   box-shadow:0 0 14px var(--ss-glow-soft)}}
 @media(max-width:780px){{.compare-wrap .pw-grid{{grid-template-columns:1fr}}.compare-wrap .pw-vs{{padding:8px 0}}.compare-wrap .pw-vs span{{width:30px;height:30px;font-size:15px}}}}
 .compare-wrap .vsbox h3{{font-size:14px;margin-bottom:8px}}
-.compare-wrap .vsbox .verdict{{font-size:13px;font-weight:700;margin:8px 0;padding:6px 10px;border-radius:8px}}
+.compare-wrap .vsbox .verdict{{font-size:13px;font-weight:700;margin:8px 0;padding:6px 10px;border-radius:var(--ss-radius-sm)}}
 .compare-wrap .verdict.b{{background:{_sf()['verdict_b_bg']};color:{_sf()['up']}}}
 .compare-wrap .verdict.o{{background:{_sf()['verdict_o_bg']};color:{_sf()['hold']}}}
 .compare-wrap .vsbox .type{{font-size:12px;color:{_sf()['txt2']};margin-left:6px}}
 .compare-wrap .vsbox .score-row{{display:flex;align-items:center;gap:10px;margin:8px 0}}
-.compare-wrap .vsbox .score-badge{{font-size:13px;font-weight:700;padding:3px 10px;border-radius:14px}}
+.compare-wrap .vsbox .score-badge{{font-size:13px;font-weight:700;padding:3px 10px;border-radius:var(--ss-radius-lg)}}
 .compare-wrap .vsbox .score-badge.win{{background:{_sf()['tag_win_bg']};color:{_sf()['up']};border:1px solid {_sf()['tag_win_border']}}}
 .compare-wrap .vsbox .score-badge.mid{{background:{_sf()['tag_mid_bg']};color:{_sf()['hold']};border:1px solid {_sf()['tag_mid_border']}}}
 .compare-wrap .vsbox .score-badge.weak{{background:{_sf()['tag_weak_bg']};color:{_sf()['down']};border:1px solid {_sf()['tag_weak_border']}}}
@@ -158,7 +158,7 @@ def _compare_css_body() -> str:
 .compare-wrap .vsbox ul li:last-child{{border-bottom:none}}
 .compare-wrap .two-col{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
 .compare-wrap .note{{font-size:12.5px;color:{_sf()['txt2']};margin-top:10px;line-height:1.7}}
-.compare-wrap .alert{{border-radius:10px;padding:12px 14px;margin-top:12px;font-size:13px}}
+.compare-wrap .alert{{border-radius:var(--ss-radius);padding:12px 14px;margin-top:12px;font-size:13px}}
 .compare-wrap .alert.risk{{background:{_sf()['alert_risk_bg']};border:1px solid {_sf()['alert_risk_border']};color:{_sf()['alert_risk_color']}}}
 .compare-wrap .alert.cat{{background:{_sf()['alert_cat_bg']};border:1px solid {_sf()['alert_cat_border']};color:{_sf()['alert_cat_color']}}}
 .compare-wrap .alert b{{display:block;margin-bottom:4px;font-size:13.5px}}
@@ -172,7 +172,7 @@ def _compare_css_body() -> str:
 .compare-wrap .aggregate-table td{{vertical-align:top}}
 .compare-wrap .score-cloud{{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}}
 .compare-wrap .score-cloud .chip{{display:inline-flex;align-items:center;gap:6px;font-size:13px;
-  padding:5px 12px;border-radius:16px;border:1px solid {_sf()['border']};
+  padding:5px 12px;border-radius:var(--ss-radius-card);border:1px solid {_sf()['border']};
   background:{_sf()['vsbox_bg']};color:{_sf()['txt']}}}
 @media(max-width:780px){{.compare-wrap .two-col{{grid-template-columns:1fr}}}}
 </style>

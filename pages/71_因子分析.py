@@ -32,7 +32,7 @@ from modules.factor_analysis import (
     FACTORS, build_panels, cumulative, ic_series, ic_summary, layered_returns, long_short,
 )
 from modules.page_utils import render_standard_page, hist_cached
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ dark = render_standard_page(
             "纯统计描述，非预测；历史有效≠未来有效，请注意样本量。",
 )
 
-section_header("参数设置", "标的池越小越快；首次拉取历史行情需数十秒（之后缓存 30 分钟）", icon="⚙️")
+xc_section_header("参数设置", "标的池越小越快；首次拉取历史行情需数十秒（之后缓存 30 分钟）", icon="⚙️")
 codes_txt = st.text_area(
     "标的池（逗号/空格分隔的 6 位代码）",
     value=", ".join(DEFAULT_CODES), key="fa_codes", height=80,
@@ -94,7 +94,7 @@ if st.button("🚀 运行分析", key="fa_run", type="primary"):
     ls = long_short(lay)
 
     st.markdown("---")
-    section_header("IC / IR 汇总", f"因子「{FACTORS.get(factor, factor)}」· 截面 Spearman", icon="📐")
+    xc_section_header("IC / IR 汇总", f"因子「{FACTORS.get(factor, factor)}」· 截面 Spearman", icon="📐")
     xc_kpi_grid([
         {"label": "IC 均值", "value": f"{summ['ic_mean']:.3f}" if summ["n"] else "—", "delta": "越靠近 ±1 越强"},
         {"label": "IR", "value": f"{summ['ir']:.2f}" if summ["n"] else "—", "delta": "IC均值/标准差"},
@@ -116,7 +116,7 @@ if st.button("🚀 运行分析", key="fa_run", type="primary"):
         st.plotly_chart(fig_ic, width="stretch")
 
     st.markdown("---")
-    section_header("分层收益", f"按因子分 {n_layers} 层，看未来收益是否单调（0=因子最小层）", icon="📊")
+    xc_section_header("分层收益", f"按因子分 {n_layers} 层，看未来收益是否单调（0=因子最小层）", icon="📊")
     if lay is not None and not lay.empty:
         cum = cumulative(lay)
         fig_lay = go.Figure()
@@ -140,7 +140,7 @@ if st.button("🚀 运行分析", key="fa_run", type="primary"):
         st.info("分层收益样本不足，无法绘图。")
 
     st.markdown("---")
-    section_header("多空组合", "最高层 − 最低层；看因子多空价差是否稳定为正", icon="↕️")
+    xc_section_header("多空组合", "最高层 − 最低层；看因子多空价差是否稳定为正", icon="↕️")
     if not ls.empty:
         ls_cum = (1.0 + ls.fillna(0.0)).cumprod() - 1.0
         fig_ls = go.Figure(go.Scatter(
