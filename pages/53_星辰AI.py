@@ -33,6 +33,7 @@ import html
 import re
 import time
 import streamlit as st
+from modules import colors
 
 from modules.ui_theme import apply_page_config, _theme_is_dark
 from modules.session import require_auth, get_user, render_user_badge
@@ -122,8 +123,8 @@ def _xc_suggestion_kind(prompt: str, intent_tool: str) -> str:
 def _theme_css(dark: bool) -> str:
     """根据当前全局主题返回对应的 CSS 变量与聊天样式。"""
     if dark:
-        root = """
-  --bg:#0f0f23; --card:#1a1a2e; --card2:#15152a; --buy:#ff4d4f; --sell:#00d486;
+        root = f"""
+  --bg:#0f0f23; --card:#1a1a2e; --card2:#15152a; --buy:{colors.UP_COLOR}; --sell:{colors.DOWN_COLOR};
   --hold:#ffa502; --acc1:#667eea; --acc2:#764ba2;
   --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44; --grid:#23233c;
   --user-bubble-bg:color-mix(in srgb,var(--acc1) 18%,transparent); --user-bubble-border:color-mix(in srgb,var(--acc1) 35%,transparent);
@@ -132,8 +133,8 @@ def _theme_css(dark: bool) -> str:
 """
         app_bg = "#0f0f23"
     else:
-        root = """
-  --bg:#ffffff; --card:#ffffff; --card2:#f4f6fb; --buy:#ff4d4f; --sell:#00d486;
+        root = f"""
+  --bg:#ffffff; --card:#ffffff; --card2:#f4f6fb; --buy:{colors.UP_COLOR}; --sell:{colors.DOWN_COLOR};
   --hold:#d97706; --acc1:#4f46e5; --acc2:#7c3aed;
   --txt:#1e293b; --txt2:#64748b; --border:#e2e8f0; --grid:#f1f5f9;
   --user-bubble-bg:#eef2ff; --user-bubble-border:#c7d2fe;
@@ -950,7 +951,7 @@ def _tool_payload_to_html(tool: str, data: dict) -> str:
         # 实时盘口：A 股红涨绿跌语义着色（change_pct>0 红，<0 绿）
         cp = data.get("change_pct")
         cur = data.get("current")
-        color = "#ff4d4f" if (cp is not None and cp > 0) else ("#00d486" if (cp is not None and cp < 0) else "#999")
+        color = colors.UP_COLOR if (cp is not None and cp > 0) else (colors.DOWN_COLOR if (cp is not None and cp < 0) else "#999")
         head = ""
         if cur is not None:
             sign = "+" if (cp is not None and cp > 0) else ""
@@ -965,7 +966,7 @@ def _tool_payload_to_html(tool: str, data: dict) -> str:
         ms = data.get("market_status_hint")
         if ms:
             _ms_cold = any(k in ms for k in ("收盘", "周末", "休市", "盘前"))
-            _ms_color = "#f59e0b" if _ms_cold else "#00d486"
+            _ms_color = "#f59e0b" if _ms_cold else colors.DOWN_COLOR
             meta += (f'<div style="display:inline-block;margin-top:2px;padding:1px 8px;'
                      f'border-radius:10px;font-size:11px;color:{_ms_color};'
                      f'border:1px solid {_ms_color}55">{esc(str(ms))}</div>')
@@ -983,7 +984,7 @@ def _tool_payload_to_html(tool: str, data: dict) -> str:
         # 市场情绪温度计：0-100 大数字 + 视觉温度条 + 8 项指标（中文名）
         temp = data.get("temperature")
         label = data.get("temperature_label", "")
-        bar_color = "#ff4d4f" if temp is not None and temp >= 55 else ("#00d486" if temp is not None and temp < 45 else "#f59e0b")
+        bar_color = colors.UP_COLOR if temp is not None and temp >= 55 else (colors.DOWN_COLOR if temp is not None and temp < 45 else "#f59e0b")
         if temp is not None:
             pct = max(0, min(100, float(temp)))
             head = (

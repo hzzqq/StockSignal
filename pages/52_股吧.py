@@ -7,6 +7,7 @@
 - 详情 / 列表拆为独立 @safe_fragment，交互只重跑本区块，避免整页 st.rerun（#543-8）。
 """
 import streamlit as st
+from modules import colors
 from datetime import date
 
 from modules.session import (
@@ -473,7 +474,7 @@ def fragment_list():
                 '<style>.ss-hot-row{display:flex;align-items:center;gap:10px;padding:3px 0}'
                 '.ss-hot-rank{font-family:\'Fira Code\',Consolas,monospace;font-weight:800;'
                 'font-size:15px;color:var(--txt2);min-width:22px;text-align:center}'
-                '.ss-hot-rank.top3{color:#ff4d4f;font-size:17px}'
+                f'.ss-hot-rank.top3{{color:{colors.UP_COLOR};font-size:17px}}'
                 '.ss-hot-btn{width:100%!important;text-align:left!important;'
                 'background:transparent!important;border:none!important;'
                 'box-shadow:none!important;padding:2px 4px!important;color:var(--txt)!important}'

@@ -5,6 +5,7 @@
 A股配色：业绩改善(净利润同比>0)=红，下滑=绿。
 """
 import streamlit as st
+from modules import colors
 import html
 
 from modules.fundflow import (
@@ -140,9 +141,9 @@ def _build_financial_bar_fig(code: str, dark: bool = False):
                 if prev is None or pd.isna(prev):
                     net_colors.append("#8a8f98")  # 首期无环比，中性灰
                 elif v >= prev:
-                    net_colors.append("#ff4d4f")  # 改善=红
+                    net_colors.append(colors.UP_COLOR)  # 改善=红
                 else:
-                    net_colors.append("#00d486")  # 下滑=绿
+                    net_colors.append(colors.DOWN_COLOR)  # 下滑=绿
                 prev = v
             fig.add_trace(go.Bar(
                 x=d["报告日"].astype(str), y=net,

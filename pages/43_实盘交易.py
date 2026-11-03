@@ -16,6 +16,7 @@ import html
 import json
 from datetime import datetime, timedelta
 import streamlit as st
+from modules import colors
 from modules.page_utils import render_standard_page
 import modules.scroll_nav as sn
 from modules.session import api_get, api_post, api_put, trading_autorefresh
@@ -183,7 +184,7 @@ def fragment_positions():
         mv = float(p.get('market_value') or 0)
         pnl = float(p.get('pnl') or 0)
         pnl_pct = float(p.get('pnl_pct') or 0)
-        color = '#ff4d4f' if pnl >= 0 else '#00d486'
+        color = colors.UP_COLOR if pnl >= 0 else colors.DOWN_COLOR
         with st.container(border=True):
             cc1, cc2, cc3, cc4 = st.columns([1.4, 1, 1, 1])
             with cc1:
@@ -217,7 +218,7 @@ def fragment_orders():
         status = o.get('status')
         mode = o.get('mode')
         src = o.get('source')
-        st_color = '#ff4d4f' if side == 'buy' else '#00d486'
+        st_color = colors.UP_COLOR if side == 'buy' else colors.DOWN_COLOR
         status_cls = {'filled': 'sf-pill up', 'rejected': 'sf-pill down', 'failed': 'sf-pill down', 'submitted': 'sf-pill mid'}.get(status, 'sf-pill mid')
         with st.container(border=True):
             cm1, cm2, cm3, cm4 = st.columns([1.4, 1, 1, 1.4])

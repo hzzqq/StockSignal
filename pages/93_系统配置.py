@@ -4,6 +4,7 @@ pages/93_系统配置.py
 管理员系统配置页面：股票数据统计 / 股票列表管理 / 系统配置键值表 / 自选股管理。
 """
 import streamlit as st
+from modules import colors
 import json
 from modules.session import init_session_state, require_admin, api_get, api_post
 from modules.page_utils import render_standard_page
@@ -46,8 +47,8 @@ with tab_overview:
         stats = resp.get("data") or {}
         stat_row([
             {"label": "股票总数", "value": stats.get("total", 0), "accent": "var(--acc1)"},
-            {"label": "沪市 (SH)", "value": stats.get("sh", 0), "accent": "#ff4d4f"},
-            {"label": "深市 (SZ)", "value": stats.get("sz", 0), "accent": "#00d486"},
+            {"label": "沪市 (SH)", "value": stats.get("sh", 0), "accent": colors.UP_COLOR},
+            {"label": "深市 (SZ)", "value": stats.get("sz", 0), "accent": colors.DOWN_COLOR},
         ])
     else:
         st.error(f"获取统计数据失败：{resp.get('message', '服务异常')}。请确认后端 Flask 已启动（:5050），稍后点右上角刷新重试。")

@@ -15,6 +15,7 @@ import html
 import logging
 
 import streamlit as st
+from modules import colors
 from datetime import datetime
 
 from modules.page_utils import (render_standard_page,
@@ -889,7 +890,7 @@ def fragment_shepherd_forecast():
 
     cyc = fc.get("cycle") or {}
     bias = fc.get("bias", "中性")
-    bcolor = {"偏多": "#ee2a2a", "偏空": "#00d486", "中性": "#f59e0b"}.get(bias, "#f59e0b")
+    bcolor = {"偏多": "#ee2a2a", "偏空": colors.DOWN_COLOR, "中性": "#f59e0b"}.get(bias, "#f59e0b")
 
     # ① 情绪周期定位 + 方向总览
     with st.container(border=True):

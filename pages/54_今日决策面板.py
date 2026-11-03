@@ -12,6 +12,7 @@
 数据层全部复用 modules.shepherd / shepherd_ladder / shepherd_forecast / shepherd_note，单源失败优雅降级。
 """
 import streamlit as st
+from modules import colors
 import html
 import logging
 from datetime import datetime
@@ -278,7 +279,7 @@ def _render_hero(df, today, prev, meta=None):
         _sens = pos.get("sensitivity") or {}
         if _contrib:
             st.markdown("**🧩 仓位归因（可解释）** —— 每个因子对最终仓位的边际贡献（百分点）")
-            _UP, _DOWN = "#ff4d4f", "#00d486"  # 红涨绿跌：加仓=红，减仓=绿
+            _UP, _DOWN = colors.UP_COLOR, colors.DOWN_COLOR  # 红涨绿跌：加仓=红，减仓=绿
             _fac = [c["factor"] for c in _contrib]
             _d = [float(c["delta"]) for c in _contrib]
             _run = [float(c["running"]) for c in _contrib]
@@ -781,7 +782,7 @@ def _acc_color(acc):
     if acc is None:
         return "#888"
     if acc >= 60:
-        return "#00d486"   # 可信
+        return colors.DOWN_COLOR   # 可信
     if acc < 40:
         return "#ee2a2a"   # 不可信
     return "#f59e0b"       # 中性
@@ -912,7 +913,7 @@ def fragment_backtest():
     if any(r is not None for r in cd["realized"]):
         fig.add_trace(go.Bar(
             x=cd["dates"], y=cd["realized"], name="次日上证涨跌(%)",
-            marker_color=["#ee2a2a" if r and r > 0 else "#00d486" for r in cd["realized"]],
+            marker_color=["#ee2a2a" if r and r > 0 else colors.DOWN_COLOR for r in cd["realized"]],
             yaxis="y2", opacity=0.45,
         ))
     fig.update_layout(
