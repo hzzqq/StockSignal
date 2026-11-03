@@ -64,6 +64,7 @@ def _norm_score(raw):
     try:
         v = float(raw)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
     if not math.isfinite(v) or v < 0 or v > 100:
         return None

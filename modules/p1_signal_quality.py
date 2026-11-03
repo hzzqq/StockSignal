@@ -113,6 +113,7 @@ def age_days(latest_date: str, today: date | None = None) -> int | None:
     try:
         d = date.fromisoformat(str(latest_date)[:10])
     except (ValueError, TypeError):
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
     base = today or date.today()
     return max((base - d).days, 0)

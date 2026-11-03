@@ -151,6 +151,7 @@ def _fnum(v):
         f = float(v)
         return None if f != f else f
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 

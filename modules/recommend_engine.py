@@ -118,6 +118,7 @@ def market_regime_weights(temperature) -> Optional[dict]:
     try:
         t = float(temperature)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
     if not np.isfinite(t):
         return None

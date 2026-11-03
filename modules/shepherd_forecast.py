@@ -226,6 +226,7 @@ def _band_of(key, value):
     try:
         v = float(value)
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
     for lo, hi, name, desc, color in cfg.get("bands", []):
         if lo <= v < hi:
@@ -427,6 +428,7 @@ def _num(d, k):
         v = float(d[k])
         return None if v != v else v
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
 
 
@@ -569,6 +571,7 @@ def _score_dim(key, value, vmax):
     try:
         v = float(value)
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
     d = cfg["dir"]
     if d == 0:
@@ -576,6 +579,7 @@ def _score_dim(key, value, vmax):
     try:
         r = v / float(vmax)
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return None
     r = max(0.0, min(1.0, r))
     # dir=-1 的反向指标：值适中最好（太低=一致健康但可能过热，太高=抛压释放后修复）

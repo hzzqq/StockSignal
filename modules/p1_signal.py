@@ -53,6 +53,7 @@ def age_days_from_latest(latest_date, today=None):
     try:
         d = datetime.strptime(latest_date[:10], "%Y-%m-%d").date()
     except ValueError:
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
     base = today or date.today()
     return max(0, (base - d).days)

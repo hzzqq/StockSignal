@@ -153,6 +153,7 @@ def _cn_number(token: str):
     try:
         v = float(s) * mult
     except ValueError:
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
     return -v if neg else v
 

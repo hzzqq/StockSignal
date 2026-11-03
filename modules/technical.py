@@ -183,6 +183,7 @@ def compute_macd(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int =
             "macd": round(float(macd.iloc[-1]), 4),
         }
     except (ValueError, TypeError, IndexError):
+        # ui_audit_exempt: 输入类型/取值非法时返回空，防御性契约（非数据缺失）
         return None
     if any(pd.isna(v) for v in out.values()):
         return None

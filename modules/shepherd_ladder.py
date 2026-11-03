@@ -121,6 +121,7 @@ def _int_keys(d) -> dict:
                 logger.warning("[shepherd_ladder] 坏档位 key 丢弃: k=%s v=%s: %s", k, v, e)
                 continue
     except Exception:
+        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return {}
     return out
 

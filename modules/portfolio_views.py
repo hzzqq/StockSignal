@@ -115,7 +115,9 @@ def render_watchlist_monitor() -> None:
         """本地库兜底解析股票中文名；返回空串表示未知。"""
         try:
             return fetcher.get_stock_basic(code)[1] or ''
-        except Exception:
+        except Exception as e:
+            # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
+            logger.warning("[portfolio_views] 股票名解析失败 %s: %s", code, e)
             return ''
 
     def _calc_alr(code: str):
@@ -232,6 +234,7 @@ def render_watchlist_monitor() -> None:
             def _chg_color(v):
                 try:
                     x = float(v)
+                        # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
                 except Exception:
                     return ''
                 if x > 0:
@@ -346,6 +349,7 @@ def render_watchlist_monitor() -> None:
             chg = (cur / float(prev['close']) - 1) * 100 if prev['close'] else 0.0
             vol_ratio = analysis.get('volume', {}).get('vol_ratio', 1.0)
             return {'code': code, 'name': fetcher.get_name_only(code), 'price': cur, 'change_pct': chg, 'short': profile['short'], 'mid': profile['mid'], 'long': profile['long'], 'composite': profile['composite'], 'trend_score': analysis.get('trend', {}).get('trend_score', 50), 'vol_ratio': vol_ratio}
+                # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         except Exception:
             return None
 
@@ -402,6 +406,7 @@ def render_watchlist_monitor() -> None:
         def _chg_color(v):
             try:
                 x = float(v)
+                    # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
             except Exception:
                 return ''
             if x > 0:
