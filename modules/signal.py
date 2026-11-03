@@ -295,10 +295,12 @@ class SignalEngine:
         """
         基于「真实事件因子」+ 本地事件库 + 实时新闻情感的事件信号得分（0-100）。
 
-        优先级：
-          1. 真实事件因子（P1 EV 信号，适配器接入，rank 百分位的 0-100 映射）——
-             这是去除旧「P4 合成演示依赖」后的主线数据源；
-          2. 取不到（标的不在 P1 池 / 无信号文件）优雅回退本地事件库 + 实时新闻情感。
+        优先级（PR-2 融合版）：
+          1. 真实事件因子（P1 EV / 新闻 / 龙虎榜，适配器接入，rank 百分位的 0-100
+             映射）——去除旧「P4 合成演示依赖」后的主线数据源；
+          2. 命中时与本地事件主表（含语音入库事件）按 0.7/0.3 融合，不再短路
+             无视用户沉淀事件；无关联事件时 100% 因子分（与旧行为一致）；
+          3. 取不到（标的无任何真实事件源）优雅回退本地事件库 + 实时新闻情感。
 
         关键修复（长电科技无利空却得 42 分）：
           - 中性基准从 50 提到 52，且无利空事件时绝不打低分（下限 45）。
@@ -306,14 +308,29 @@ class SignalEngine:
             无法定性时才小幅微调，不再让中性/偏多新闻把分数拖到 40 出头。
         """
         # ── 真实事件因子优先（P1 EV 信号，取代旧本地事件库合成路径）──
-        # 取不到（标的不在 P1 池 / 无信号文件）优雅回退到下方本地事件库逻辑。
+        # PR-2 融合（2026-11-03 事件数据链闭环）：此前 P1/新闻/龙虎榜命中时直接
+        # 短路返回，本地事件主表（含 23 页人工录入与 87 页语音入库事件）被整体
+        # 忽略。现改为融合：ef 0.7 + tracked 0.3（tracked 无关联事件时 100% ef，
+        # 行为与旧短路一致）；ef 本身就是 tracked 源时直接用，避免自我融合。
         try:
-            from modules.event_factor import get_event_factor
+            from modules.event_factor import get_event_factor, tracked_event_signal
             _ld = self._p1_loader()
             if _ld is not None:
                 _ef = get_event_factor(ticker, model="ev", loader=_ld)
                 if _ef.get("available"):
-                    return self._event_factor_to_score(_ef)
+                    ef_score = self._event_factor_to_score(_ef)
+                    if _ef.get("source") == "tracked-events":
+                        return ef_score
+                    try:
+                        _tk = tracked_event_signal(ticker, keywords=keywords)
+                    except Exception as _te:  # noqa: BLE401
+                        logger.warning(f"[signal] tracked 事件信号获取失败，按无事件处理: {_te}")
+                        _tk = None
+                    if _tk is not None and _tk.get("available"):
+                        _tk_score = float(_tk.get("score") or 52.0)
+                        fused = 0.7 * ef_score + 0.3 * _tk_score
+                        return self._clamp(int(round(fused)), 5, 95)
+                    return ef_score
         except Exception as _e:  # noqa: BLE401
             logger.warning(f"[signal] 事件因子真实信号获取失败，回退本地: {_e}")
 
