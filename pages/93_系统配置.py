@@ -16,7 +16,7 @@ from modules.admin_api import (
 from modules.page_widgets import _empty_info, _toast
 
 # 系统配置项：key → 中文可读名称
-from modules.ui_kit import info_banner, stat_row, xc_handle_error, xc_success_box, xc_warn_box, xc_content_card
+from modules.ui_kit import xc_info_banner, stat_row, xc_handle_error, xc_success_box, xc_warn_box, xc_content_card
 CONFIG_LABELS = {
     "cache_days": "行情缓存天数",
     "cache_hours_today": "当日数据缓存小时数",
@@ -30,7 +30,7 @@ require_admin()
 
 dark = render_standard_page(title="系统配置", icon="⚙️", auth=False)
 
-info_banner("管理员配置页：修改系统配置键值后需点击「保存」并刷新缓存方可生效；任何异常改动都可随时改回，不影响其它功能。", icon="⚙️")
+xc_info_banner("管理员配置页：修改系统配置键值后需点击「保存」并刷新缓存方可生效；任何异常改动都可随时改回，不影响其它功能。", icon="⚙️")
 
 # ================================================================ Tab 布局
 tab_overview, tab_stocks, tab_config, tab_watch, tab_alert = st.tabs([

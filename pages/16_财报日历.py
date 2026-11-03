@@ -21,7 +21,7 @@ from modules.financial_report_helpers import (
     fr_fmt, fr_filter_by_code, fr_color_yoy, fr_format_financial_df,
 )
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_kpi_grid
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, xc_kpi_grid
 dark = render_standard_page(
     title="财报与业绩日历", icon="📅",
     caption="按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。",
@@ -208,7 +208,7 @@ def fragment_report():
         down_cnt = int((yoy < 0).sum())
         beat_ratio = round(up_cnt / len(yoy) * 100, 1) if len(yoy) else 0.0
     else:
-        info_banner("「净利润同比%」字段缺失，盈利改善占比暂不可计算（接口字段变更或网络异常）。")
+        xc_info_banner("「净利润同比%」字段缺失，盈利改善占比暂不可计算（接口字段变更或网络异常）。")
     xc_kpi_grid([
         {"label": "披露家数", "value": f"{len(df)}"},
         {"label": "净利润同比↑", "value": f"{up_cnt}", "meta": "净利润同比增长为正的公司数"},
@@ -234,7 +234,7 @@ def fragment_report():
             fig.update_xaxes(tickangle=-45)
             st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     else:
-        info_banner("「净利润 / 名称」字段缺失，TOP 净利润柱状图暂不可绘制（接口字段变更或网络异常）。")
+        xc_info_banner("「净利润 / 名称」字段缺失，TOP 净利润柱状图暂不可绘制（接口字段变更或网络异常）。")
 
     try:
         st.dataframe(

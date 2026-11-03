@@ -76,3 +76,42 @@ def test_xc_content_card_compact_when_empty():
         assert "说明文字" in body_out
     finally:
         st.markdown = orig
+
+
+def test_no_legacy_info_banner_calls():
+    """B 阶段守卫：legacy info_banner( 调用全仓清零（统一为 xc_info_banner）。
+
+    modules/ui_kit.py 例外（deprecated 定义 + 兼容委托本体所在）。
+    """
+    import re
+    legacy = re.compile(r"(?<![\w.])info_banner\(")
+    roots = [ROOT / "pages", ROOT / "modules", ROOT / "backend", ROOT / "scripts"]
+    offenders = []
+    for root in roots:
+        for f in sorted(root.rglob("*.py")):
+            if "__pycache__" in str(f) or f == UI_KIT:
+                continue
+            for i, ln in enumerate(_src(f).splitlines(), 1):
+                if ln.strip().startswith("#"):
+                    continue
+                if legacy.search(ln):
+                    offenders.append(f"{f.relative_to(ROOT)}:{i}")
+    assert offenders == [], f"仍调用 legacy info_banner（应改 xc_info_banner）：{offenders}"
+
+
+def test_info_banner_deprecated_delegate_and_xc_canonical():
+    """info_banner 已标 Deprecated 薄委托；xc_info_banner 为 canonical 且走
+    _info_banner_html 渲染（T-277 长文案折叠语义保留）。"""
+    kit_src = _src(UI_KIT)
+    assert "def xc_info_banner(" in kit_src
+    assert "def info_banner(" in kit_src
+    # xc 版渲染走 canonical _info_banner_html（含 T-277 折叠），不允许另起炉灶
+    xc_start = kit_src.index("def xc_info_banner(")
+    nxt = kit_src.find("\ndef ", xc_start + 1)
+    xc_body = kit_src[xc_start:nxt if nxt > 0 else len(kit_src)]
+    assert "_info_banner_html" in xc_body, "xc_info_banner 必须复用 _info_banner_html（T-277 折叠）"
+    # legacy 名标 Deprecated 且为薄委托
+    legacy_start = kit_src.index("def info_banner(")
+    legacy_body = kit_src[legacy_start:legacy_start + 400]
+    assert "Deprecated" in legacy_body, "info_banner 未标 Deprecated"
+    assert "xc_info_banner(text, kind, icon)" in legacy_body, "info_banner 应薄委托 xc_info_banner"

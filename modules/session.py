@@ -14,7 +14,7 @@ from datetime import datetime
 from modules.request_utils import http_get, http_post
 from modules.site_config import API_BASE
 from modules.time_utils import now_cst_naive
-from modules.ui_kit import info_banner, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_info_banner, xc_success_box, xc_warn_box
 
 from .page_guard import safe_fragment
 from .ui_theme import FONT_DEFAULT

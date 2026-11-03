@@ -25,7 +25,7 @@ from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info
 from modules.perf import downsample
 from modules.chart_cache import cached_fig
-from modules.ui_kit import stat_tile, xc_kpi_grid, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card
+from modules.ui_kit import stat_tile, xc_kpi_grid, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, xc_content_card
 dark = render_standard_page(title='基本面分析', icon='🏛️', caption='个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）', layout='wide')
 trading_autorefresh(key='fundamental_autorefresh')
 ACCENT = '#818cf8' if dark else '#6366f1'
@@ -587,7 +587,7 @@ if code:
         except Exception:
             sector_df = pd.DataFrame()
     if not fund:
-        info_banner('🔍 未找到该代码对应的标的（可能是代码拼写有误、该市场无此股票，或行情接口暂时不可用）。请核对代码 / 名称后重试，或前往「📡 股票选取」页重新搜索选取一只个股。')
+        xc_info_banner('🔍 未找到该代码对应的标的（可能是代码拼写有误、该市场无此股票，或行情接口暂时不可用）。请核对代码 / 名称后重试，或前往「📡 股票选取」页重新搜索选取一只个股。')
     st.markdown('---')
     xc_kpi_grid([
         {'label': '股票', 'value': f'{name}'},
@@ -673,7 +673,7 @@ if code:
     if _perf_lines:
         xc_info_banner('📌 **一句话业绩解读**：' + ' '.join(_perf_lines))
     else:
-        info_banner('ℹ️ 暂未获取到财报数据，业绩解读不可用（可检查网络或切换数据源）。')
+        xc_info_banner('ℹ️ 暂未获取到财报数据，业绩解读不可用（可检查网络或切换数据源）。')
 
     @safe_fragment
     def fragment_financial_analysis(fa_code: str, fa_name: str):
@@ -733,7 +733,7 @@ if code:
         if len(plot_df) > 12:
             plot_df = plot_df.tail(12)
         if plot_df.empty:
-            info_banner(f'ℹ️ 暂无「{mode}」数据可供展示。')
+            xc_info_banner(f'ℹ️ 暂无「{mode}」数据可供展示。')
             return
         val_col = metric
         yoy_col = f'{metric}_同比'
@@ -783,7 +783,7 @@ if code:
     has_horizontal = mapped_sector is not None
     has_theme = rank is not None and sector_total > 0
     if sector_df.empty or industry == '—' or (not has_horizontal and (not has_theme)):
-        info_banner('🏭 行业数据暂未就绪或未能匹配当前股票行业，「行业横向对比」与「大盘主线判断」暂时无法展示。可稍后刷新，或尝试切换一只行业分类更完整的个股。')
+        xc_info_banner('🏭 行业数据暂未就绪或未能匹配当前股票行业，「行业横向对比」与「大盘主线判断」暂时无法展示。可稍后刷新，或尝试切换一只行业分类更完整的个股。')
     else:
         if has_horizontal:
             xc_content_card('🏭 行业横向对比', "")
@@ -853,7 +853,7 @@ if code:
         {'label': '总市值', 'value': f'¥{market_cap:.1f}亿' if market_cap else '—', 'meta': '单位：亿元人民币'},
     ])
     if pe_ttm is None and market_cap is None:
-        info_banner('📊 估值摘要暂无可展示数据（实时行情 / 估值接口未返回 PE 与总市值）。可稍后刷新重试，或检查数据源连接。')
+        xc_info_banner('📊 估值摘要暂无可展示数据（实时行情 / 估值接口未返回 PE 与总市值）。可稍后刷新重试，或检查数据源连接。')
     st.caption('数据来源：东方财富 估值数据（PE / 总市值）')
     with st.expander('📖 估值 / 盈利指标说明', expanded=False):
         # ui_audit_exempt: unsafe-allow_html 纯内置说明文案常量（加粗/换行排版），无外部输入
@@ -874,7 +874,7 @@ if code:
     if st.button('↑ 回到顶部', key='fa_back_to_top', width="stretch"):
         sn.back_to_top_button()
 else:
-    info_banner('请在上方输入代码或名称选择一只股票开始分析（也可从「🎯 个股研究 / 📡 股票选取」跳转过来）。数据仅供参考，非投资建议。')
+    xc_info_banner('请在上方输入代码或名称选择一只股票开始分析（也可从「🎯 个股研究 / 📡 股票选取」跳转过来）。数据仅供参考，非投资建议。')
 
 # ── 方法学与来源注脚（B 类页五段式收尾）──
 st.markdown('---')

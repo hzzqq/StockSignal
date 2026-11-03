@@ -20,7 +20,7 @@ def render_stock_analysis() -> None:
     from modules.page_guard import safe_fragment
     from modules.page_utils import render_standard_page, get_fetcher
     from modules.ui_theme import sf_card, sf_metric
-    from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+    from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner
     dark = render_standard_page(title='个股深度分析 · 决策仪表盘', icon='🔍', layout='wide')
     sf_card("个股分析导读", "输入代码/名称/拼音搜索个股，查看暗色决策仪表盘：K 线、技术面、资金面、情绪与风险铁律。严格遵循绿涨红跌配色；所有外部数据获取失败均友好提示，不抛红错。", icon="🔍")
     from modules.fetcher import StockFetcher
@@ -191,7 +191,7 @@ def render_stock_analysis() -> None:
         if task_id:
             st.session_state['analysis_task_id'] = task_id
             st.session_state['analysis_result'] = None
-            info_banner('📡 分析任务已提交到后台运行，你可以切到其他页面，完成后会在下方仪表盘自动显示结果。')
+            xc_info_banner('📡 分析任务已提交到后台运行，你可以切到其他页面，完成后会在下方仪表盘自动显示结果。')
         else:
             err = err or '未知错误'
             if '登录' in err or '过期' in err or '凭证' in err:
@@ -376,7 +376,7 @@ def render_stock_analysis() -> None:
                             _dfig = _build_intraday_fig(_didf, _dipc, ticker, display_name, _didt)
                             st.plotly_chart(_dfig, width="stretch", key=f'dbl_intra_{ticker}_{_target_dt}', config={'displaylogo': False, 'responsive': True})
                         else:
-                            info_banner(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
+                            xc_info_banner(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
                     except Exception as _die:
                         xc_handle_error("分时图加载失败", str(_die)[:80], hint="请稍后重试，或检查网络与数据源连接")
                     if st.button('✕ 关闭分时图', key=f'close_intra_{ticker}'):
@@ -430,7 +430,7 @@ def render_stock_analysis() -> None:
                     unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
                 )
             else:
-                info_banner('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
+                xc_info_banner('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
         except Exception as _ie:
             xc_handle_error("分时图加载失败", str(_ie)[:60], hint="请稍后重试，或检查网络与数据源连接")
 
@@ -1436,7 +1436,7 @@ def render_stock_picker() -> None:
     from modules.page_guard import safe_fragment
     from modules.page_widgets import UP, is_trading_now
 
-    from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
+    from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box
     render_standard_page(title="股票选取", icon="🎯")
 
     # ── T-230：图表/指标教学说明统一收进折叠区（主区留给参数与图表）──
@@ -1821,7 +1821,7 @@ def render_stock_picker() -> None:
                                                      title=f"{stock_label} 分时（{_pdt}）")
                         st.plotly_chart(_pdfig, width="stretch", key=f"pick_dbl_intra_{_ptgt}", config={"displaylogo": False, "responsive": True})
                     else:
-                        info_banner(f"📭 {_ptgt} 暂无分时数据。")
+                        xc_info_banner(f"📭 {_ptgt} 暂无分时数据。")
                 except Exception as _pde:
                     xc_handle_error("分时加载失败", str(_pde)[:80], hint="请稍后重试，或检查网络与数据源连接")
                 if st.button("✕ 关闭", key="pick_close_intra"):
@@ -1850,7 +1850,7 @@ def render_stock_picker() -> None:
             _status = "（每5分钟自动刷新中）" if is_trading_now() else "（非交易时段，已暂停刷新）"
             st.caption("📈 分时图：白线为当日价格走势，橙点为均价；基准虚线为昨收。红涨绿跌（A股惯例）。" + _status)
         else:
-            info_banner("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
+            xc_info_banner("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
 
 
     @st.cache_data(show_spinner=False, ttl=600)
@@ -2020,9 +2020,9 @@ def render_stock_picker() -> None:
                         st.plotly_chart(bfig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False},
                                         key="pick_bench")
                     else:
-                        info_banner("区间内与上证基准无重合交易日，跳过对比。")
+                        xc_info_banner("区间内与上证基准无重合交易日，跳过对比。")
                 else:
-                    info_banner("上证基准数据获取失败，跳过对比。")
+                    xc_info_banner("上证基准数据获取失败，跳过对比。")
     except Exception as e:
         xc_handle_error("K 线加载异常", str(e)[:80], hint="请稍后刷新页面重试，或切换其它周期 / 区间")
 

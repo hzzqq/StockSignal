@@ -14,7 +14,7 @@ import time as _time
 from threading import Lock as _Lock
 from concurrent.futures import ThreadPoolExecutor
 import logging
-from modules.ui_kit import info_banner, xc_bento_kpi
+from modules.ui_kit import xc_info_banner, xc_bento_kpi
 from modules.page_utils import fmt_rel as _fmt_rel, to_numeric_clean
 logger = logging.getLogger(__name__)
 from modules.page_utils import render_standard_page, get_fetcher
@@ -72,7 +72,7 @@ def validate_alert_condition(kind, value, value2=None):
         return (True, None)
     return (False, f'不支持的预警类型：{kind}')
 dark = render_standard_page(title='自选股多维预警', icon='🔔', caption='价格 / 技术形态 / 成交量异动 / 公告 四类预警；触发状态为页面访问时实时比价与扫描结果。')
-info_banner("数据仅供参考，不构成投资建议。预警在页面访问时于前端实时比价与扫描触发，保持本页打开并定期刷新可更快捕捉异动。", icon="🔔")
+xc_info_banner("数据仅供参考，不构成投资建议。预警在页面访问时于前端实时比价与扫描触发，保持本页打开并定期刷新可更快捕捉异动。", icon="🔔")
 st.caption('⚠️ 数据仅供参考，不构成投资建议')
 # ── B 类页五段式：header → KPI 带（数据 = 本页既有 /api/price-alerts 真实预警清单，不新拉数据）──
 # 诚实红线：接口非 200 / 异常时整带不渲染；计数全部来自真实清单，绝不编造。

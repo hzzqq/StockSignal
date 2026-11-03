@@ -14,7 +14,7 @@ import logging
 import streamlit as st
 
 from modules.page_utils import render_standard_page
-from modules.ui_kit import info_banner, xc_bento_kpi
+from modules.ui_kit import xc_info_banner, xc_bento_kpi
 from modules import nl_screen as ns
 from modules.risk_gate import scan_and_gate  # T-245 二道闸
 
@@ -135,7 +135,7 @@ def _fetch_universe(scope: str, custom_codes: str) -> list[dict]:
 def main():
     import pandas as pd
     dark = render_standard_page(title="自然语言选股", icon="💬", layout="wide")
-    info_banner("用大白话描述选股意图，系统解析为结构化条件并执行（仿 i问财零门槛选股）。"
+    xc_info_banner("用大白话描述选股意图，系统解析为结构化条件并执行（仿 i问财零门槛选股）。"
                 "解析结果完全透明展示；取数需联网，取不到会如实说明。", kind="info", icon="💬")
 
     # 历史方案（保存/复用）：只存原始查询文本，复用时重新 parse——spec 永远来自真实解析
@@ -196,11 +196,11 @@ def main():
         try:
             recs = _fetch_universe(scope, custom_codes)
         except Exception as e:  # noqa: BLE001
-            info_banner(f"取数失败（需联网获取基本面/行情）：{type(e).__name__} {e}。"
+            xc_info_banner(f"取数失败（需联网获取基本面/行情）：{type(e).__name__} {e}。"
                         "解析结果如上，联网后重试。", kind="warning", icon="🚫")
             return
         if not recs:
-            info_banner("候选池为空或无代码（自选股可能未配置 / 自定义未填）。", kind="warning", icon="🚫")
+            xc_info_banner("候选池为空或无代码（自选股可能未配置 / 自定义未填）。", kind="warning", icon="🚫")
             return
         result = ns.apply_filters(recs, spec)
         # T-245 二道闸：渲染前统一排雷

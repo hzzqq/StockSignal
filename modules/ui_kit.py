@@ -18,7 +18,7 @@ loading_spinner / section_header）、``button_colors`` 互补，不重复实现
 提供：
   - inject_kit_css()            每次注入组件 CSS（幂等，不做去重）
   - page_hero(...)              签名页头（图标 + 标题 + 副标题 + 状态胶囊）
-  - info_banner(...)            彩色提示横幅（info/success/warning/danger）
+  - xc_info_banner(...)         彩色提示横幅（info/success/warning/danger；旧名 info_banner 已 deprecated）
   - stat_tile(...)              指标瓦片（标签 + 大值 + 涨跌 delta）
   - chart_card(...)             图表容器卡片 ⚠️deprecated（零生产调用，新代码用 xc_chart_cell）
   - table_wrap(...)             响应式表格容器（移动端横向滚动）
@@ -641,20 +641,14 @@ def xc_chart_cell(title: str, xtra: str = "") -> None:
     )
 
 
-_BANNER_KIND_XC = {"info": "info", "success": "success", "warning": "warning", "danger": "danger"}
-
-
 def xc_info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
-    """新城风格彩色提示横幅（info/success/warning/danger）。"""
+    """新城风格彩色提示横幅（info/success/warning/danger）。
+
+    B 阶段词汇统一后的 canonical 横幅：与 legacy info_banner 共用
+    _info_banner_html 渲染（含 T-277 长文案折叠），仅保留旧名做兼容委托。
+    """
     inject_kit_css()
-    text = "" if text is None else str(text)
-    kind = _BANNER_KIND_XC.get(kind, "info")
-    icon = "💡" if icon is None else str(icon)
-    st.markdown(
-        f'<div class="xc-info {kind}"><span class="xc-ic">{html.escape(icon)}</span>'
-        f'<div>{html.escape(text)}</div></div>',
-        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-    )
+    st.markdown(_info_banner_html(text, kind, icon), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def xc_content_card(title: str, body: str = "", icon: str = "", *, compact_when_empty: bool = True) -> None:
@@ -804,9 +798,11 @@ def xc_warn_box(title: str, hint: str = "", icon: str = "⚠️") -> None:
 
 
 def info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
-    """彩色提示横幅。kind: info/success/warning/danger。"""
-    inject_kit_css()
-    st.markdown(_info_banner_html(text, kind, icon), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    """Deprecated：请改用 xc_info_banner（B 阶段组件词汇统一）。
+
+    仅作兼容薄委托保留，勿新增调用；守卫 test_component_vocabulary 禁止新调用点。
+    """
+    xc_info_banner(text, kind, icon)
 
 
 def stat_tile(label: str, value: str, delta: str = "", delta_dir: str = "flat",

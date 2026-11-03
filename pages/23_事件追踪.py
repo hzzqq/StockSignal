@@ -19,7 +19,7 @@ from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_utils import fmt_rel as _fmt_rel
 from modules.page_widgets import _empty_info
 from modules.event_levels import STRENGTH_ORDER  # T-288：五档单一真理源
-from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_kpi_grid
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, xc_content_card, xc_kpi_grid
 from modules.voice_event import render_voice_event_block  # 语音事件因子（抽离为可复用渲染块，独立页 87 与本页共用）
 render_standard_page(title='事件追踪', icon='🔔', caption='⚠️ 数据仅供参考，不构成投资建议', layout='wide')
 
@@ -209,7 +209,7 @@ def fragment_signal_score():
                     if sc == 200 and isinstance(body, dict) and (body.get('status') == 'ok'):
                         st.toast(f'已加入自选：{sig_ticker}')
                     else:
-                        info_banner(f'自选操作返回：{sc}')
+                        xc_info_banner(f'自选操作返回：{sc}')
                 except Exception as e:
                     xc_handle_error("加入自选失败", e, hint="请稍后重试，或检查网络与数据源连接")
             _fav = st.session_state.get('_fav_set', [])
@@ -224,7 +224,7 @@ def fragment_signal_score():
             err_msg = st.session_state.sig_scores_error
             if '无法获取' in err_msg or '数据源' in err_msg or '不存在' in err_msg or ('退市' in err_msg):
                 xc_warn_box(f'⚠️ {err_msg}')
-                info_banner('💡 价格信号暂时不可用，事件信号和宏观信号仍可正常评分。建议换用 600519、000858 等活跃股票测试。')
+                xc_info_banner('💡 价格信号暂时不可用，事件信号和宏观信号仍可正常评分。建议换用 600519、000858 等活跃股票测试。')
             else:
                 xc_error_box(f'评分失败: {err_msg}')
     except Exception as module_err:
@@ -300,7 +300,7 @@ def fragment_live_keywords():
                             is_industry = kw in r['industry_set']
                             st.caption(f"""**{kw}** {('🏭行业' if is_industry else f"📰×{r['news_counter'].get(kw, 0)}")}""")
                     st.code(r['result_str'], language=None)
-                    info_banner('💡 点击上方代码框右侧的复制按钮，可将关键词粘贴到「事件关键词」输入框中。')
+                    xc_info_banner('💡 点击上方代码框右侧的复制按钮，可将关键词粘贴到「事件关键词」输入框中。')
     except Exception as module_err:
         xc_error_box(f'⚠️ 实时关键词模块异常: {module_err}')
 
@@ -436,7 +436,7 @@ def fragment_timeline():
                         st.dataframe(events_display, width="stretch", height=400)
                     st.caption(f'共 {len(events)} 条事件')
                 else:
-                    info_banner('当前筛选条件下事件库为空。可先在上方「股票搜索」选择关注标的并点击「生成时间轴」，或在下方「事件管理」中手动添加事件。')
+                    xc_info_banner('当前筛选条件下事件库为空。可先在上方「股票搜索」选择关注标的并点击「生成时间轴」，或在下方「事件管理」中手动添加事件。')
             if st.session_state.get('tl_realtime_events') is not None:
                 st.markdown('#### 🌐 实时爬取最新事件')
                 events_realtime = st.session_state.tl_realtime_events
@@ -462,7 +462,7 @@ def fragment_timeline():
                                 st.plotly_chart(_ifig, width="stretch", key='tl_intraday_chart', config={"displaylogo": False, "responsive": True})
                                 st.caption('📈 分时图：白线为当日价格走势，橙点为均价；虚线为昨收。红涨绿跌（A股惯例）。')
                             else:
-                                info_banner('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
+                                xc_info_banner('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
                     st.markdown('#### 📈 K 线事件时间轴')
                     n_show = max(10, min(int(st.session_state.get('tl_n_show', 60)), n_total))
                     start_idx = max(0, min(int(st.session_state.get('tl_start_idx', 0)), n_total - n_show))
@@ -483,7 +483,7 @@ def fragment_timeline():
                     st.plotly_chart(fig, width="stretch", key='tl_chart', config={"displaylogo": False, "responsive": True})
                 except Exception as chart_err:
                     xc_error_box(f'K 线事件时间轴渲染失败: {chart_err}')
-                    info_banner('💡 请尝试缩短日期区间或切换股票后重试。')
+                    xc_info_banner('💡 请尝试缩短日期区间或切换股票后重试。')
             if not show_existing and (not show_realtime) and (not tl_submitted):
                 xc_warn_box('请至少选择一个子模块（现有事件库 / 实时爬取）。')
     except Exception as module_err:
@@ -580,7 +580,7 @@ def fragment_news_mine():
             with mine_output:
                 if mr.get('error') == 'empty':
                     xc_warn_box(f"未抓取到与「{mr.get('keyword') or '全部'}」相关的新闻。")
-                    info_banner('💡 提示：尝试换一个更通用的关键词，或留空关键词抓取全部财经要闻。')
+                    xc_info_banner('💡 提示：尝试换一个更通用的关键词，或留空关键词抓取全部财经要闻。')
                 elif mr.get('error'):
                     xc_error_box(f"挖掘失败: {mr['error']}")
                 else:

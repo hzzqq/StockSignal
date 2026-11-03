@@ -29,7 +29,7 @@ from modules.linear_trends import (
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fig_layout, _section_title, _fmt_yi, _trend_controls
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_bento_kpi, xc_kpi_grid
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, xc_bento_kpi, xc_kpi_grid
 
 dark = render_standard_page(
     "资金流向", icon="🌊",
@@ -255,7 +255,7 @@ def fragment_industry():
     # 字段完整性兜底：数据源字段名变更 / 网络异常时避免 KeyError 拖垮整块
     _need = ["行业", "净额", "涨跌幅"]
     if not all(c in df.columns for c in _need):
-        info_banner("行业资金流向数据字段不完整，暂无法展示（接口字段变更或网络异常）。")
+        xc_info_banner("行业资金流向数据字段不完整，暂无法展示（接口字段变更或网络异常）。")
         return
     df["净额"] = pd.to_numeric(df["净额"], errors="coerce")
     df["涨跌幅"] = pd.to_numeric(df["涨跌幅"], errors="coerce")
@@ -277,7 +277,7 @@ def fragment_industry():
         ], template="1.5fr 1fr 1fr 1fr")
         st.caption("📌 概览：红=主力净流入行业，绿=净流出行业；逐日资金流以 industry_fund_flow 为准。")
     else:
-        info_banner("行业净流入概览暂不可用：当前行业资金流净额数据为空（网络/代理受限或数据源暂未接入）。")
+        xc_info_banner("行业净流入概览暂不可用：当前行业资金流净额数据为空（网络/代理受限或数据源暂未接入）。")
 
     top = df.head(15).copy()
     try:
@@ -311,13 +311,13 @@ def fragment_market():
         # 降级标注：大盘资金流为空时，若数据层有取数失败记录则显式提示来源
         _fail = fundflow_health_state().get("last_fetch_failures", {}).get("market_fund_flow")
         if _fail:
-            info_banner(f"大盘资金流向数据源暂不可达（{_fail.get('ts')}：{_fail.get('error')}），当前展示兜底而非实时数据。")
+            xc_info_banner(f"大盘资金流向数据源暂不可达（{_fail.get('ts')}：{_fail.get('error')}），当前展示兜底而非实时数据。")
         _empty_info("暂无大盘资金流向数据。")
         return
     _need = ["日期", "主力净流入-净额", "上证-涨跌幅"]
     if not all(c in df.columns for c in _need):
         _miss = [c for c in _need if c not in df.columns]
-        info_banner(f"大盘资金流向数据字段不完整（缺少：{', '.join(_miss)}），暂无法展示（接口字段变更或网络异常）。")
+        xc_info_banner(f"大盘资金流向数据字段不完整（缺少：{', '.join(_miss)}），暂无法展示（接口字段变更或网络异常）。")
         return
     try:
         df["主力净流入-净额"] = pd.to_numeric(df["主力净流入-净额"], errors="coerce")
@@ -422,7 +422,7 @@ def fragment_individual():
         help="输入代码或名称（如 600519 / 贵州茅台）搜索个股，查看其主力资金动向",
     )
     if not code:
-        info_banner("请选择一只股票查看主力资金。")
+        xc_info_banner("请选择一只股票查看主力资金。")
         st.caption("💡 在上方输入框输入代码或名称（如 `600519` / `贵州茅台`），支持模糊搜索与拼音首字母。")
         if st.button("🔍 使用示例股（贵州茅台 600519）", key="ff_use_example"):
             st.session_state["ff_stock_confirmed"] = "600519"
