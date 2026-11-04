@@ -1140,3 +1140,84 @@ grep -qE 'STYLE_PRESETS\.get\(.*\)\.get\(.vars.\)' modules/ui_theme.py   # ★�
 | （前置） | — | **tinycss2 进项目 .venv**，否则解析层守卫永远进不了 CI |
 
 **C0 完成后 8 组全部令牌有定义（无 UNDEF）、红涨绿跌 + 绿涨红跌双语义成立、preset 声明全部生效。**
+### 13.14 Phase 1 最终定稿 + 主理人两条核实（D5 方案已验算通过 / 7 页面缺陷推翻）
+
+#### 13.14.1 三方最终一致
+
+**Phase 1 / Phase 2 / 主理人** 对 **fixG 六步 + 守卫 G + 8 组期望值表 + AC-0.2 ①~⑧ + 32 文件回归集** 完全一致。
+D5（对比度）双档派生方案已验算通过并采纳；tinycss2 处置已裁定。
+
+#### 13.14.2 🔴 主理人核实 1：session 风格键名就是 `ui_style`（Phase 1 伪代码正确）
+
+`modules/ui_theme.py:102` `st.session_state.setdefault('ui_style', _p.get('ui_style', 'classic'))`、
+`:1159` `return st.session_state.get('ui_style', 'classic')`、`:1186` `st.session_state['ui_style'] = choice`
+⇒ **Phase 1 的 `st.session_state.get('ui_style', 'classic')` 正确，可照用**。
+（另有 `theme_mode` = 暗/亮模式、`_ui_style_switcher_ts` = 切换节流 0.5s。）
+
+**fixG 步 4/5 的具体形态（Phase 1 给，已核实键名）**：
+```python
+_style = st.session_state.get('ui_style', 'classic')
+_cached = _DASHBOARD_SF_CSS_CACHE.get((dark, _style))
+if _cached is not None:
+    return _cached
+root = (_THEME_ROOT_VARS["dark" if dark else "light"]
+        + (STYLE_PRESETS.get(_style, {}).get('vars') or ''))
+# ... _DASHBOARD_SF_CSS_CACHE[(dark, _style)] = _css
+```
+
+#### 13.14.3 ⚠️ 主理人核实 2：Phase 1 新登记的「7 个页面亮色基座缺失」**不成立**
+
+Phase 1 说「`_LIGHT_CSS` 无 classic 基座 `:root` ⇒ 这 7 页在 classic 亮色下 `--bg`/`--card`/`--txt` 未定义」。
+**前半句成立**（主理人实测：`_LIGHT_CSS` 内确实**找不到 `:root` 块**），**但推论不成立**：
+
+`dashboard_sf_css()` 的**全部调用方只有 2 处**：
+```
+app.py:29                  st.markdown(dashboard_sf_css(), unsafe_allow_html=True)   ← ★全局注入
+modules/page_utils.py:57   st.markdown(dashboard_sf_css(), unsafe_allow_html=True)   （render_standard_page 内）
+```
+⇒ **`app.py:29` 是全局注入** ⇒ 所有页面（含那 7 页）**都拿得到** `_THEME_ROOT_VARS` 的 `:root`。
+且 `11_股票选取.py` / `20_个股分析.py` / `40_仓位管理.py` / `41_组合收益.py` / `46_自选股监控.py`
+**既不调 `render_standard_page` 也不调 `apply_page_config`** —— 但它们是 **12 行 shim**
+（委托 `modules/stock_research` / `modules/portfolio_views`），**真实渲染体由 24 页（走 `render_standard_page`）调用**
+⇒ 内容渲染时同样有基座。
+
+⇒ **该缺陷在本项目实际入口下不成立** ⇒ **不进 C0，也不单独立项**（避免虚假缺陷登记）。
+⚠️ **唯一遗留待答项**：`app.py:29` 与 `page_utils.py:57` 两处调用的 `dark` / 风格入参**是否一致**
+（若 app.py 那次拿不到 preset vars，则 app 级注入的 `:root` 仍只有基座值 ⇒ 影响「preset vars 在哪一层生效」）。
+
+#### 13.14.4 D5 双档派生方案（已验算通过，32 项全部 ≥4.5，最差 4.80）
+
+**决定性发现：不能只做「亮色加深」**。第一版方案（暗色=原值 / 亮色加深）**验算失败** ——
+`--doc-down` 在 **5 个暗色组**（3.91~4.36）也不达标，**需要变亮**。
+
+| 令牌 | 暗色基座 | 亮色基座 |
+|---|---|---|
+| `--doc-up-text` | `var(--doc-up)`（不变） | `color-mix(in srgb, var(--doc-up) 78%, black)` |
+| `--doc-down-text` | `color-mix(in srgb, var(--doc-down) 79%, white)` ← **变亮** | `color-mix(in srgb, var(--doc-down) 94%, black)` |
+| `--ss-up-text` | `var(--ss-up)`（不变） | `color-mix(in srgb, var(--ss-up) 80%, black)` |
+| `--ss-down-text` | `var(--ss-down)`（不变） | `color-mix(in srgb, var(--ss-down) 62%, black)` |
+
+⇒ **8 组 × 4 令牌 = 32 项全部 ≥ 4.5，最差 4.80**。
+⇒ **色相保持已实测**：`--doc-up` 156.5°→156.6°（Δ+0.1）、`--doc-down` 0.0°→0.0°（Δ0.0）
+⇒ **绿仍是绿、红仍是红，「绿涨红跌」语义不受影响**（反驳「加深会变褐」的担心）。
+⇒ **落点**：4 个新令牌**分暗/亮两套** ⇒ **必须放 `_THEME_ROOT_VARS['dark']` 与 `['light']`**，
+**不能放不分主题的 `_TOKEN_CSS`**。
+⇒ 用 `color-mix(…, var(--X) P%, …)` 而非写死 hex ⇒ 随 `var(--X)` 自动跟随各风格
+（swiss 的 `#d93025`、ink 的 `#c0392b` 各自派生）⇒ 无需逐风格维护。
+
+**D5 不并入 C0 的三条理由**：① 会把 C0 回归面从 6 处扩到 14 处，且改变 3 个亮色组实际文字色
+⇒ **截图基线无法区分是 C0 的锅还是 D5 的锅**；② D5 需「哪些场景用 text 令牌」的产品决策
+（`sf-tag`/`sf-pill` 迁移后还会新增消费点）；③ D5 验证依赖浏览器截图，而 C0 可纯静态 + tinycss2 验证
+⇒ 混批会让「C0 已验证可上线」失效。
+
+#### 13.14.5 裁定：tinycss2 **装进 venv 但不进 C0 commit**
+
+采纳 Phase 1 建议：**环境准备动作**（C0 期间一次性装进项目 venv，**不进 commit**，
+避免 `requirements.txt` 变更让 C0 从 5 文件变 6 文件 + 双机并发下 pip 装包不可控）；
+**C0 的主要防线 = 零依赖静态断言**（AC-0.2 ①~⑧）⇒ 可进 CI；
+**解析层守卫** `tests/test_style_token_cascade.py` 随 C0 或下轮落地。
+
+#### 13.14.6 数据残留已统一（勿引用旧数字）
+
+#41 真实缺口 = **导航条目 63 条 / 未收录 47 个 / `_EMOJI_MAP` 实际 53 条 / 需新增约 43 个 path**
+（Phase 1 表格里的「16/65」为旧数字，作废）。
