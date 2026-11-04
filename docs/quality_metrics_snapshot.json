@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "generated_at": "2026-11-04 17:30",
+    "git_head": "cc4adb4"
+  },
+  "stats": {
+    "py_files_total": 876,
+    "py_files_tests": 481,
+    "src_files": 340,
+    "src_loc": 98502,
+    "test_files": 477,
+    "test_loc": 64961,
+    "pages": 74,
+    "modules": 201,
+    "test_defs_static": 4318,
+    "tests_collected": 5096,
+    "guard_files": 94,
+    "flask_routes": 92,
+    "fastapi_routes": 9,
+    "rest_routes_total": 101,
+    "exclude_dirs": [
+      ".git",
+      ".mypy_cache",
+      ".pytest_cache",
+      ".ruff_cache",
+      ".trae",
+      ".venv",
+      "__pycache__",
+      "backups",
+      "build",
+      "data",
+      "dist",
+      "node_modules",
+      "screenshots",
+      "venv"
+    ]
+  }
+}
