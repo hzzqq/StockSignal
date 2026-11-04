@@ -22,6 +22,7 @@ import numpy as np  # 原在抽离块内，StockFetcher 用到 np.
 
 from modules.time_utils import now_cst_str, now_cst_naive
 from modules.fetcher_core import _build_cache_key
+from modules.timeout_exec import _pool as _shared_pool  # T-383：四源竞速复用进程级共享池
 
 
 # 底层 I/O 层已抽到 modules._feed_io（P2-1 降耦），此处 re-export 保持全站 import 兼容
@@ -263,10 +264,12 @@ class KlineMixin:
             errors = []
 
             # ── 并行竞速：四源（akshare / BaoStock / 新浪 / 东方财富）并发，先成功者胜出 ──
+            # T-383：改用进程级共享池（timeout_exec._pool），不再每次调用自建 4 线程池；
+            # 竞速语义（FIRST_COMPLETED + 两轮各 10s 硬边界）与取消策略完全保留。
             levels = ["L1", "L2", "L3", "L4"]
-            ex = _cf.ThreadPoolExecutor(max_workers=4)
+            futs = {_shared_pool().submit(self._fetch_level, lv, symbol, start, end, adjust): lv
+                    for lv in levels}
             try:
-                futs = {ex.submit(self._fetch_level, lv, symbol, start, end, adjust): lv for lv in levels}
                 # 第一轮：任一源完成即检查（成功立即采用，不再等慢源）
                 done, not_done = _cf.wait(futs, timeout=10, return_when=_cf.FIRST_COMPLETED)
                 for fut in done:
@@ -280,7 +283,7 @@ class KlineMixin:
                             errors.append(res_err)
                 # 若第一轮未命中（先完成的是失败源），再等剩余源（最多再 10s）
                 if df is None and not_done:
-                    done2, _ = _cf.wait(not_done, timeout=10)
+                    done2, still_pending = _cf.wait(not_done, timeout=10)
                     for fut in done2:
                         res_df, res_err = fut.result()
                         if res_df is not None and not res_df.empty:
@@ -290,9 +293,19 @@ class KlineMixin:
                         else:
                             if res_err:
                                 errors.append(res_err)
+                    if df is None and still_pending:
+                        # 共享池被其他页面批量取数占满时，竞速任务可能仍在排队；
+                        # 如实留痕（否则会把「排队没轮到」误判成「四源全挂」）。
+                        logger.warning(
+                            "[StockFetcher] %s 竞速两轮未返回，%d 个源仍待执行（共享池排队？）",
+                            symbol, len(still_pending),
+                        )
             finally:
-                # 取消未完成（如被墙挂起的 akshare），不阻塞等待
-                ex.shutdown(wait=False, cancel_futures=True)
+                # 共享池是进程级单例，**不可** shutdown（会让其他页面的取数一起失效）；
+                # 只取消尚未开始的任务；已在跑的靠传输层超时（10s）自然结束、线程回池复用。
+                for _f in futs:
+                    if not _f.done():
+                        _f.cancel()
 
             # ── L5: 缓存兜底（T-248：复权一致过滤 + 窗口裁剪 + 行数下限）──
             if df is None or df.empty:
