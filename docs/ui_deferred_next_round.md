@@ -1221,3 +1221,67 @@ modules/page_utils.py:57   st.markdown(dashboard_sf_css(), unsafe_allow_html=Tru
 
 #41 真实缺口 = **导航条目 63 条 / 未收录 47 个 / `_EMOJI_MAP` 实际 53 条 / 需新增约 43 个 path**
 （Phase 1 表格里的「16/65」为旧数字，作废）。
+### 13.15 最终定案：C0~C4 五批 + 三条收口修正（Phase 2 收官版）
+
+> **Phase 1 / Phase 2 / 主理人 三方完全一致**：C0 = fixE+ 六步 + 守卫 G（**5 文件原子 commit**）、
+> 8 组期望值表、AC-0.2 ①~⑧、32 文件回归集、D5 双档派生表。
+
+#### 13.15.1 ⚠️ 修正：亮色基座缺失的页面是 **2 页**（不是 7 页）
+
+主理人上一条裁定「7 页全不成立」（理由 `app.py:29` 是全局注入）——**Phase 2 逐个追了装配路径，
+主理人的推翻过于绝对**。修正后的准确结论：
+
+| 页面 | 实际装配路径 | 结果 |
+|---|---|---|
+| `pages/11_股票选取.py` | → `stock_research.render_stock_picker`(`:1406`) → 内部 `render_standard_page` | ✅ 间接拿到 |
+| `pages/20_个股分析.py` | → `render_stock_analysis`(`:13`) → `:24` `render_standard_page(...)` | ✅ 间接拿到 |
+| `pages/40_仓位管理.py` | → `portfolio_views.render_position_manager`(`:520`) → `:531` `render_standard_page(...)` | ✅ 间接拿到 |
+| `pages/41_组合收益.py` | → `render_portfolio_returns`(`:996`) → `:1012` `render_standard_page(...)` | ✅ 间接拿到 |
+| `pages/46_自选股监控.py` | → `render_watchlist_monitor`(`:10`) → `:28` import `render_standard_page` | ✅ 间接拿到 |
+| **`pages/53_星辰AI.py`** | 仅 `apply_page_config`(`:54`) | ❌ **真不拿** |
+| **`pages/90_登录.py`** | 仅 `apply_page_config`(`:25`) | ❌ **真不拿** |
+
+⇒ **真正不经 `dashboard_sf_css` 的只有 2 页** ⇒ 缺陷成立 ⇒ **登记为 C4（独立立项，不进 C0~C3）**。
+⚠️ **登记表必须写 2 页**，写 7 页会误伤 5 个正常页面。
+⚠️ **未验证**：这 2 页在 classic 亮色下的**实际渲染**（静态推导：未定义 ⇒ 回落继承/初始值）
+⇒ **需目检确认后再登记**。
+
+#### 13.15.2 ⚠️ 修正：C0 第 6 步的**理由**（主理人此前的表述有错，落点不变）
+
+主理人此前说「基座的 **dark** 块本来就有 `--buy/--sell`」⇒ **错**。实测：
+```
+_THEME_ROOT_VARS['dark']  含 --buy=False  含 --sell=False  含 --doc-up=True
+_THEME_ROOT_VARS['light'] 含 --buy=False  含 --sell=False  含 --doc-up=True
+_DARK_CSS   含 --buy:#ff4d4f : True      ← dark 的真实来源是这里
+_LIGHT_CSS  含 --buy        : False
+_LIGHT_CSS 的 :root 声明数   : 1  → ['--ss-saas-shadow ×2','--ss-up:#ff4d4f','--ss-down:#00d486']
+```
+⇒ **`_THEME_ROOT_VARS` 两块都没有 `--buy/--sell`**；`_LIGHT_CSS` 完全没有 classic 基座（只有 4 条声明）。
+⇒ **但落点结论不变**：classic 亮色下唯一可补处就是 `_THEME_ROOT_VARS['light']`(`:196`)
+⇒ **C0 第 6 步位置正确**，理由改为「两块都缺 `--buy/--sell`，而 `_LIGHT_CSS` 不含基座」。
+⇒ **连带事实（成立）**：classic 亮色下 `--bg`/`--card`/`--txt` 的**唯一来源**就是
+`dashboard_sf_css()` 注入的 `:root{_THEME_ROOT_VARS['light']}`。
+
+#### 13.15.3 C3 验收标准加一条（`color-mix` 插值模型未验证项）
+
+**tinycss2 不计算 `color-mix`**（实测 `parse_component_value_list` 返回
+`<FunctionBlock color-mix( … )>`），且**两种插值模型给出不同 hex**
+（gamma 编码 `#007b4b` vs 线性光 `#008d55`）。
+⇒ **C3 验收标准加一条**：「DevTools 读 `--doc-up-text` 计算值，与期望 hex 偏差 ≤ 1/通道」
+⇒ 插值模型若有偏差会被守卫拦住，**而非静默失色**。
+
+#### 13.15.4 最终五批
+
+| # | 内容 | 状态 |
+|---|---|---|
+| **C0**（最先） | fixE+ 六步 + 守卫 G = **5 文件原子 commit** | ✅ 定稿 |
+| **C1** | B4 死代码清理（10 真死）+ B5 | 不变 |
+| **C2** | 仪表盘族全量迁移 + 6 守卫同步 + 保留「绿涨红跌」注释 | 不变 |
+| **C3** | R3 语义修复 + D4（`page_utils.py:124` ≈2.2:1）+ **D5（4 新令牌 + 32 项验算 + color-mix 插值验收）** | ✅ D5 独立 C3 |
+| **C4** | **`pages/53_星辰AI.py` / `pages/90_登录.py` classic 亮色缺基座** | 独立立项，需目检确认 |
+
+#### 13.15.5 唯一遗留待答项（三方都没查的一环）
+
+**`app.py:29` 与 `page_utils.py:57` 两处 `dashboard_sf_css()` 调用的 `dark` / 风格入参是否一致？**
+⇒ 若 `app.py` 那次拿不到 preset vars，则 app 级注入的 `:root` 仍只有基座值
+⇒ 影响「preset vars 到底在哪一层生效」，也影响 C4 的影响面判断。
