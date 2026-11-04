@@ -1510,3 +1510,92 @@ awk '/^_THEME_ROOT_VARS = \{/,/^\}/' modules/ui_theme.py \
 
 采纳 Phase 1 建议：**落 `docs/` 的 Markdown 表格**（**不放脚本** ——
 tinycss2 不在项目 `.venv`，进 CI 会依赖未声明包）⇒ 已落 §13.17 的人工验收对照表。
+### 13.19 C0 验收标准终版（Phase 2 终版）+ 两处补正
+
+> Phase 2 终版确认了 §13.18 的边界警示，并**精确化了 Phase 1 对「awk 假绿」的描述**。
+> **C0 口径最终冻结。**
+
+#### 13.19.1 补正 1：真正的假绿触发条件是「**起始锚不再匹配**」，不是收尾锚
+
+Phase 1 模拟的是「收尾锚 `"""` → `x"""`」⇒ **Phase 2 实测该场景并不假绿**：
+
+| 模拟的改动 | awk 提取行数 | 旧断言（无自检） | 带自检 |
+|---|---|---|---|
+| 收尾 `"""` → `x"""`（Phase 1 的模拟） | 348（范围延伸到下一个 `^"""`） | 红（命中）⇒ **不假绿** | 自检通过（漏报但无害） |
+| **起始 `_TOKEN_CSS = r"""` → `_TOKEN_CSS: str = r"""`** | **0** | **★★假绿**：提取为空 ⇒ 判为「已修复」，而实际硬写还在 | **★自检正确报出「提取失败」** |
+
+⇒ **最可能的真实诱因是有人给变量加类型注解**（`_TOKEN_CSS: str = r"""`）——现代 Python 代码里很常见。
+⇒ **自检必须带，且用「内容锚点 + 数量下限」双保险**（两者正交，任一锚点失配都能拦下）：
+```bash
+# 内容锚点（--ss-radius-card 在 _TOKEN_CSS 内出现 3 次，稳定存在）
+awk '/^_TOKEN_CSS = r"""/,/^"""/' modules/ui_kit.py | grep -q '\-\-ss-radius-card' \
+  || { echo "★_TOKEN_CSS 提取失败（锚点失配）—— 守卫假绿，断言无效"; exit 1; }
+# 数量下限（当前 81 行；C0 删 2 行后 79 行，余量充足）
+awk '/^_TOKEN_CSS = r"""/,/^"""/' modules/ui_kit.py | grep -c . | grep -qE '^[5-9][0-9]$|^[1-9][0-9]{2,}$' \
+  || { echo "★_TOKEN_CSS 提取内容异常短—— 守卫假绿，断言无效"; exit 1; }
+```
+
+#### 13.19.2 补正 2：⑨-i 的范围边界**必须写成注释**（否则下轮极可能被「顺手扩范围」误杀 C0）
+
+C0-e（`ui_theme.py:196`）**合法地**把 `--buy:#ff4d4f; --sell:#00d486;` 加进 `_THEME_ROOT_VARS['light']`，
+而 `--buy/--sell` **也是交易域令牌** ⇒ 若断言含 `--buy:|--sell:`，**C0 完成后必然命中 ⇒ 守卫恒红（自我否定）**。
+实测（正确范围，仅 `--ss-up:#|--ss-down:#`）：dark 0 处 ✔ / light 0 处 ✔ ⇒ 绿。
+⇒ **本断言只管「`--ss-up/--ss-down` 误入报告体基座」这一个情形**；范围边界必须落成注释。
+
+#### 13.19.3 C3 新增观察项：基座对称性（**可机器判**）
+
+C0-e 完成后，classic 的 `--buy/--sell` 来源**不对称**：
+- classic/dark：仅来自 `_DARK_CSS:54`（`_THEME_ROOT_VARS['dark']` 里**没有**）
+- classic/light：仅来自 `_THEME_ROOT_VARS['light']`（`_LIGHT_CSS:55` 里**没有**）
+
+⇒ **值相同 ⇒ 视觉无差异**，但**各自是单点依赖**（删了那一侧就静默失色）。
+⇒ **可机器判的落地形式**：断言 `_THEME_ROOT_VARS['dark']` 与 `['light']` 的**令牌键集合对称**
+（值可不同，dark `#5b53f0` vs light `#4f46e5` 仍允许）。
+⇒ **C0 不动它**（彻底修法属 C3，避免混入 C0 回归面）。
+
+#### 13.19.4 C0 终版验收标准（冻结）
+
+```bash
+# ① 注释提前闭合不得回潮
+! grep -rnE '\-\-[a-zA-Z0-9_-]+-\*/' --include="*.py" modules/ pages/ app.py
+
+# ② _TOKEN_CSS 不得硬写主题层令牌（内容锚定，不受行号漂移）
+awk '/^_TOKEN_CSS = r"""/,/^"""/' modules/ui_kit.py \
+  | grep -qE '\-\-brand-1:#|--brand-2:#|--ss-up:#|--ss-down:#' && echo "★组件层仍硬写主题层令牌"
+# ②-self 双保险（内容锚点 + 数量下限）—— 缺一即假绿风险
+awk '/^_TOKEN_CSS = r"""/,/^"""/' modules/ui_kit.py | grep -q '\-\-ss-radius-card' \
+  || { echo "★_TOKEN_CSS 提取失败（锚点失配）—— 守卫假绿，断言无效"; exit 1; }
+awk '/^_TOKEN_CSS = r"""/,/^"""/' modules/ui_kit.py | grep -c . | grep -qE '^[5-9][0-9]$|^[1-9][0-9]{2,}$' \
+  || { echo "★_TOKEN_CSS 提取内容异常短—— 守卫假绿，断言无效"; exit 1; }
+
+# ③ :root 必须【合并】preset vars（第二条是唯一区分合并/替换的判据）
+grep -q 'STYLE_PRESETS' modules/ui_theme.py
+grep -qE 'STYLE_PRESETS\.get\(.*\)\.get\(.vars.\)' modules/ui_theme.py
+
+# ④ classic 亮色 --buy/--sell 必须有定义
+grep -q -- '--buy:#ff4d4f' modules/ui_theme.py && grep -q -- '--sell:#00d486' modules/ui_theme.py
+
+# ⑤ 缓存键必须含 style
+grep -qE '_DASHBOARD_SF_CSS_CACHE\.get\(\(dark' modules/ui_theme.py
+
+# ⑥ 交易语义真值源（colors.py 是【常量形态】，不是 --ss-up: 形态）
+grep -q 'UP_COLOR = "#ff4d4f"' modules/colors.py && grep -q 'DOWN_COLOR = "#00d486"' modules/colors.py
+
+# ⑦ 价格域红线（8 组恒成立）
+grep -q -- '--doc-up:#009e60' modules/ui_theme.py && grep -q -- '--doc-down:#dc2626' modules/ui_theme.py
+
+# ⑧ classic zero-op 与「绿涨红跌」注释不破
+grep -q "STYLE_PRESETS\[.classic.\]\[.vars.\] == " tests/test_ui_theme_styles.py
+grep -q '绿涨红跌' modules/ui_theme.py
+
+# ⑨ 双向互串守卫（★否定断言）
+! grep -q -- '--doc-up:' modules/colors.py \
+  || { echo "★价格域令牌串进交易域常量模块"; exit 1; }
+# ⚠️ 范围必须严格限定 --ss-up:#|--ss-down:#，【不可加入 --buy:|--sell:】
+#    （C0-e 合法地把 --buy/--sell 加进 _THEME_ROOT_VARS['light']，扩范围会让守卫恒红）
+awk '/^_THEME_ROOT_VARS = \{/,/^\}/' modules/ui_theme.py \
+  | grep -qE '\-\-ss-up:#|\-\-ss-down:#' \
+  && { echo "★交易域令牌串进经典基座"; exit 1; }
+```
+⚠️ **⑨-b 必须限定 `_THEME_ROOT_VARS` 块** —— 实测整文件扫命中 **7 处**
+（`_DARK_CSS:54` / `_LIGHT_CSS:55` / 6 套 preset vars `:599/695/774/856/954`），那些**合法**（不同层）。
