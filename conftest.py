@@ -241,6 +241,7 @@ def _disable_backend_schedulers():
         "STOCKSIGNAL_ENABLE_RESEARCH_WATCH",
         "STOCKSIGNAL_ENABLE_RECOMMEND_SCHEDULER",
         "STOCKSIGNAL_ENABLE_DATA_REFRESH",
+        "STOCKSIGNAL_ENABLE_P1_SYNC_SCHEDULER",
     ):
         os.environ.setdefault(_k, "0")
 

@@ -291,11 +291,13 @@ REFRESH_COMMANDS: dict[str, dict] = {
         "desc": "重算市场温度/驱动指标缓存（底层走 akshare，需联网）",
     },
     "p1_event": {
-        "cmd": ("# 事件因子信号由独立仓库 P1-QuantFactor 生成 signal_ev_h10.json；\n"
-                "# 在该仓库重新生成后，复制/软链回本仓 data/p1_signals/ 即可。"),
+        "cmd": ("# 生成仍在独立仓库 P1-QuantFactor（sj 空间）；本仓负责拉取并体检自托管副本：\n"
+                "python scripts/p1_sync_daily.py --once      # 同步 + 体检 + 状态快照 data/p1_sync_status.json\n"
+                "python scripts/p1_sync_daily.py --status    # 只看健康，不跑同步\n"
+                "# 守护线程默认随后端启动；STOCKSIGNAL_ENABLE_P1_SYNC_SCHEDULER=0 可关"),
         "mode": "external",
         "covers": ["p1_event"],
-        "desc": "事件因子信号来自独立仓库 P1-QuantFactor；本仓无刷新入口，需跨仓流水线触发",
+        "desc": "事件因子信号由独立仓库 P1-QuantFactor 生成；本仓经 p1_sync 日常同步拉取副本，并做结构与新鲜度体检",
     },
     "calibration_evidence": {
         "cmd": "python scripts/daily_snapshot.py --score-only",

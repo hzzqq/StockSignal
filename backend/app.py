@@ -146,6 +146,14 @@ def create_app(config_object: type = Config) -> Flask:
     except Exception as e:
         app.logger.warning("启动数据刷新调度器失败（不影响主服务）：%s", e)
 
+    # ---- P1 信号同步调度器（守护线程：单向同步 + 体检 + 状态快照，幂等；
+    #      与 data_refresh 的「跨仓停更告警」分工，测试/禁用环境自动跳过）----
+    try:
+        from .p1_sync_scheduler import start_p1_sync_scheduler
+        start_p1_sync_scheduler(app)
+    except Exception as e:
+        app.logger.warning("启动 P1 同步调度器失败（不影响主服务）：%s", e)
+
     # ---- 全局错误处理：把任何出口都锁回 JSON ----
     _register_error_handlers(app)
     _register_security_headers(app)
