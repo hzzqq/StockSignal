@@ -1,0 +1,36 @@
+{
+  "format": "workbuddy-skill-package/1.0",
+  "name": "macro_data",
+  "source_path": "E:\\project\\ks\\StockSignal\\.workbuddy\\skills\\macro_data",
+  "packaged_at": "2026-11-04T22:06:11.667220+08:00",
+  "file_count": 3,
+  "manifest_sha256": "ff6528025d4b2d97e9b97135d4b501571027d567058690392fd5e8e8f557baf4",
+  "frontmatter": {
+    "slug": "macro-data",
+    "version": "1.1.0",
+    "description": "宏观指标取数：调用 StockSignal modules.macro_data，覆盖国内 PMI/CPI/PPI/GDP/M2/LPR 与全球 12 项指标，合成 0-100 全球宏观评分。取不到返回 None 绝不填合成值；规则解读非 AI 洞见，失败即诚实降级。"
+  },
+  "files": [
+    {
+      "path": "SKILL.md",
+      "size": 4266,
+      "sha256": "a8b75ab7bf807826928a44f67ec8c562bcbcc93798f7cb64abf932dd3ddfaabc",
+      "encoding": "text",
+      "content": "---\r\nname: 宏观数据\r\ndisplayName: 宏观数据·全球风险评分\r\nslug: macro-data\r\nversion: 1.1.0\r\ndescription: \"宏观指标取数：调用 StockSignal modules.macro_data，覆盖国内 PMI/CPI/PPI/GDP/M2/LPR 与全球 12 项指标，合成 0-100 全球宏观评分。取不到返回 None 绝不填合成值；规则解读非 AI 洞见，失败即诚实降级。\"\r\nagent_created: true\r\n---\r\n\r\n# 宏观指标（国内 + 全球 · 取数与规则化解读）\r\n\r\n## 这个 skill 解决什么\r\nStockSignal 的功能表早就写了「宏观数据 | PMI、CPI、社融等关键宏观指标」，但长期没有对应实现——\r\n属于**说了却没做**的空白。`modules/macro_data.py` 把这块补上了，并额外补齐了老板要求的**全球维度**：\r\n\r\n- **国内 6 项**：PMI / CPI / PPI / GDP / M2 / LPR（国家统计局、央行）。\r\n- **全球 12 项**：美国 ISM PMI / 非农 / 失业率 / CPI / PPI / GDP、美债 10Y、美元兑人民币、美元指数 DXY、标普500 / 纳斯达克 / 恒生。\r\n- **`global_regime_score()`**：把全球分项规则化合成一个 0-100 的「全球流动性 / 风险偏好」评分，\r\n  作为 A 股外部环境的量化输入。\r\n\r\n## 何时用\r\n- 用户问\"现在宏观怎么样\"\"PMI 多少\"\"美债收益率\"\"美元指数\"\"全球流动性对 A 股友好吗\"。\r\n- 用户要写晨报 / 策略，需要把宏观景气与政策变量作为背景输入。\r\n\r\n## 用法（让 AI 执行命令，不要自己编数字）\r\n通过命令行调用自带脚本（需 `akshare` 且联网取数）：\r\n\r\n```bash\r\n# 1) 单个指标\r\npython <skill目录>/scripts/query_macro.py indicator pmi\r\npython <skill目录>/scripts/query_macro.py indicator us_treasury_10y\r\n\r\n# 2) 按区域取（国内 / 全球）\r\npython <skill目录>/scripts/query_macro.py region 国内\r\npython <skill目录>/scripts/query_macro.py region 全球\r\n\r\n# 3) 全部指标\r\npython <skill目录>/scripts/query_macro.py all\r\n\r\n# 4) 全球宏观风险偏好评分（0-100）\r\npython <skill目录>/scripts/query_macro.py regime\r\n```\r\n\r\n- 脚本通过 `STOCKSIGNAL_ROOT` 环境变量（默认 `E:/project/ks/StockSignal`）定位仓库，\r\n  动态导入 `modules.macro_data`（**单一真理源**）。\r\n- 取数走 `akshare`，需联网；**取不到即返回 `None`**，脚本如实打印 `null`，绝不填合成值。\r\n\r\n## 输出与诚实口径（务必照实呈现给用户）\r\n- `fetch_indicator(key)` 成功返回 `{\"key\",\"name\",\"value\",\"prev\",\"change\",\"date\",\"source\",\"region\",...}`；\r\n  失败返回 `None`。\r\n- `global_regime_score()` 返回 `{\"score\": 0-100, \"sub\": {...各分项分}, \"parts\": {...原始值}}`；\r\n  全部分项取不到返回 `None`。\r\n- `interpret(key, value, prev)` 是**确定性规则**（一行 if/else），**不是大模型生成**——\r\n  展示时必须如实标注\"规则解读\"，**严禁把它包装成 AI 洞见**（那也是一种造假）。\r\n\r\n## 能力边界（写进产品/回答，不藏）\r\n- ✅ 可信：18 项指标的**真实最新值 + 环比 + 数据日期**；全球风险评分的分项折算逻辑完全透明。\r\n- ❌ 不可信：网络不通 / akshare 接口变更 / 某指标缺失时，对应项返回 `None`，请勿脑补。\r\n- ⚠️ 评分是**规则化合成**（DXY 中枢 100、美债 10Y 中枢 4.0%、美国 CPI 中枢 3.0%、USD/CNY 中枢 7.1），\r\n  是粗粒度宏观环境温度计，不是预测模型。\r\n\r\n## 红线\r\n- **取不到就返 None，绝不填合成数据、绝不默认 0**。\r\n- 规则解读与全球评分必须标注\"规则生成 / 非 AI\"，不得伪装成智能洞察。\r\n- 每次数值必须带真实数据日期；陈旧数据须如实标注，不装作实时。\r\n- 不读密钥、不写用户文件、不删文件。\r\n\r\n---\r\n\r\n## 适用场景 / 常见疑问 / 反模式 / 快速示例\r\n- **适用场景**：见上方 SKILL.md 正文（受众 + 触发词 + 能力边界）。\r\n- **常见疑问**：数据取不到怎么办？→ 严守诚实口径，取不到即返回 None / 不可用状态，绝不填合成值或编造信号。\r\n- **反模式**：不要期望它在样本不足时给 actionable 信号；超出能力边界时它会诚实降级，而非编造。\r\n- **快速示例**：见 SKILL.md 中的命令 / 脚本用法与模板。\r\n"
+    },
+    {
+      "path": "assets/icon_512.png",
+      "size": 150244,
+      "sha256": "a29889df3ded00bceb4d68c9e030fb3a39a111e13a420605c6f63ea0314d654d",
+      "encoding": "binary",
+      "content": ""
+    },
+    {
+      "path": "scripts/query_macro.py",
+      "size": 1735,
+      "sha256": "e84a232f38fdff6d4b740f3e4ad304b8a56cefb9aeb0d79f53d3b2cc40d9f2a2",
+      "encoding": "text",
+      "content": "#!/usr/bin/env python3\n# -*- coding: utf-8 -*-\n\"\"\"CLI for the macro_data skill.\n\nInvokes StockSignal's ``modules.macro_data`` with honest semantics:\nunavailable indicators return None, never fabricated.\n\"\"\"\nimport argparse\nimport json\nimport os\nimport sys\n\nDEFAULT_ROOT = os.environ.get(\"STOCKSIGNAL_ROOT\", r\"E:/project/ks/StockSignal\")\n\n\ndef _load():\n    root = DEFAULT_ROOT\n    if root not in sys.path:\n        sys.path.insert(0, root)\n    try:\n        import modules.macro_data as md  # noqa: F401\n        return md\n    except Exception as e:  # noqa: BLE001\n        print(json.dumps({\n            \"available\": False,\n            \"error\": f\"无法加载 StockSignal 仓库: {e}\",\n            \"hint\": \"设置环境变量 STOCKSIGNAL_ROOT 指向 StockSignal 仓库根目录\",\n        }, ensure_ascii=False))\n        sys.exit(0)\n\n\ndef main():\n    ap = argparse.ArgumentParser(description=\"宏观指标查询（诚实口径）\")\n    sub = ap.add_subparsers(dest=\"cmd\", required=True)\n\n    p1 = sub.add_parser(\"indicator\", help=\"单个指标\")\n    p1.add_argument(\"key\")\n\n    p2 = sub.add_parser(\"region\", help=\"按区域取（国内/全球）\")\n    p2.add_argument(\"region\", choices=[\"国内\", \"全球\"])\n\n    sub.add_parser(\"all\", help=\"全部指标\")\n    sub.add_parser(\"regime\", help=\"全球宏观风险偏好评分\")\n\n    args = ap.parse_args()\n    md = _load()\n\n    if args.cmd == \"indicator\":\n        out = md.fetch_indicator(args.key)\n    elif args.cmd == \"region\":\n        out = md.fetch_by_region(args.region)\n    elif args.cmd == \"all\":\n        out = md.fetch_all()\n    else:\n        out = md.global_regime_score()\n\n    print(json.dumps(out, ensure_ascii=False, indent=2, default=str))\n\n\nif __name__ == \"__main__\":\n    main()\n"
+    }
+  ]
+}
