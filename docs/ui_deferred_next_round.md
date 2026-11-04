@@ -939,3 +939,124 @@ grep -q '绿涨红跌' modules/ui_theme.py
   ⇒ **D5 独立留在 C3**（需新增 `--doc-up-text` / `--doc-down-text` 别名派生令牌，
   **不得改被 3 守卫锁定的 `--doc-up:#009e60` 字面值**）。
 - ⚠️ `tinycss2` 不在项目 `.venv` ⇒ 解析层守卫（AC-0.2.c）本轮不做，探针固化推下一轮。
+### 13.12 Phase 1 / Phase 2 定稿：三方共识 + 主理人 3 条修正与 2 处裁定
+
+> Phase 1 与 Phase 2 的 **10 条分歧全部收敛** ⇒ **fixG 六步 + R8 守卫升级是三方共识**。
+> 本章记录定稿增量、**3 条修正**（含一条「验收项假红」）与**2 处主理人裁定**。
+
+#### 13.12.1 Phase 1 找到自己探针的盲区（这正是 fixG 第 6 步的来源）
+
+Phase 1 的探针循环写成 `theme = p.get('mode') or 'dark'`，而 **classic 的 `mode` 是 `None`**
+⇒ **classic/light 这一格从未被测过** ⇒ 正是这一格命中 `--buy/--sell` UNDEF
+⇒ **Phase 1 独立补上了自己漏的那一步**（classic 亮色补 `--buy/--sell`）。
+
+#### 13.12.2 ⚠️ 修正 1：验收项 ⑥ 的原写法是**假红**
+
+`grep -- '--ss-up:#ff4d4f' modules/colors.py` **永远不命中** —— `modules/colors.py` 是
+**【常量形态】**（`UP_COLOR = "#ff4d4f"` / `DOWN_COLOR = "#00d486"`），**不是** `--ss-up:` 形态。
+⇒ **正确写法**：
+```bash
+grep -q 'UP_COLOR = "#ff4d4f"' modules/colors.py && grep -q 'DOWN_COLOR = "#00d486"' modules/colors.py
+```
+⇒ 交易语义真值源在 **`modules/colors.py` 的常量**，不在 `--ss-*` 形态的 CSS 里。
+
+#### 13.12.3 ⚠️ 修正 2：`--brand-2` 必须一起删（理由更新 —— Phase 1 证伪了我的原理由）
+
+我上一条裁定的理由是「`#7c3aed` 是通用紫、非任何风格品牌色」——**Phase 1 实测证伪了这个理由**
+（**结论不变，理由要换**）：
+- **6 套 preset 全都声明了不同值的 `--brand-2`**：terminal `#b8860b` / swiss `#1a56db` /
+  aurora `#5d5fef` / ink `#1e7762` / cyber `#00f0ff` / finpro `#1f6feb`
+  ⇒ **它就是风格色**，不是通用紫。
+- **机制**（与 D4 的解析错误无关）：
+  ```
+  page_utils.py:57 → dashboard_sf_css()            → :root{基座 ∪ preset vars}   ← preset 的 --brand-2
+  page_utils.py:60 → page_hero() → inject_kit_css() → _KIT_CSS = _TOKEN_CSS + …    (ui_kit.py:137)
+  page_utils.py:60 → page_hero() → _HERO_FALLBACK_CSS = _TOKEN_CSS + …            (ui_kit.py:390) ← 最后注入者胜
+  ```
+  `_TOKEN_CSS` 在 `page_hero` 时**最后注入** ⇒ 它的 `--brand-2:#7c3aed` **覆盖** preset 的值。
+- **保留 = 引入「preset 声明了但没生效」的静默缺陷**（与 D4 / D6 同类）。
+- **消费者很实**：`modules/session.py:687/696/703/710/717/750`（登录页渐变）、
+  `modules/ui_kit.py:47`（`--ss-accent2`）、`modules/ui_theme.py:235/243`（卡片竖条渐变）
+  ⇒ **6 套风格的渐变会全部同质化成经典紫**（可见但不报错，最难发现的那类）。
+
+#### 13.12.4 裁定 A：**一并清 `modules/ui_kit.py:130`**（推翻 Phase 1 的「C0 不动」建议）
+
+Phase 1 建议「`_build_token_css()` 生产零调用，C0 不动、留作独立清理项（避免扩大改动面）」。
+⇒ **主理人裁定：一并清。** 理由：① **验收项 ② 要求四个 token 全 0 命中** ⇒ 留 `:130`（它同样产
+`--brand-1:#4f46e5` / `--brand-2:#7c3aed`）则该验收项**必红**，要么开特例（脆弱）要么违背其目的；
+② 它是**同源死代码**（同一常量族、同样被注释 bug 污染的写法），留着会让下一个人再踩；
+③ 改动是**删两行死代码**、`_build_token_css` 生产零调用 ⇒ **回归面几乎为零**，不构成「扩大改动面」。
+
+⇒ **C0 范围 = 5 文件**：`modules/ui_kit.py`（`86`/`88`/`45`/`130`）+
+`modules/ui_theme.py`（`196`/`223`/`219+502`）+ `tests/test_ui_kit_tokens.py`（1 处）+
+`tests/test_a11y_contrast.py`（改级联口径）。
+
+#### 13.12.5 裁定 B：守卫升级写法（采纳 Phase 1，**注意 dark/light 值不同**）
+
+```python
+assert "--brand-1:#4f46e5" not in kit._KIT_CSS, "组件层不得硬写主题层 --brand-1"
+assert "--brand-2:#7c3aed" not in kit._KIT_CSS, "组件层不得硬写主题层 --brand-2"
+assert "--brand-1:#4f46e5" in ut._THEME_ROOT_VARS["light"]   # light 基座
+assert "--brand-1:#5b53f0" in ut._THEME_ROOT_VARS["dark"]    # dark 基座
+```
+⇒ 这是「**锁归属 + 锁不越权**」：组件层不得硬写主题层令牌；主题层基座必须自带。
+
+#### 13.12.6 修正 3：D5 范围要扩到**两组**
+
+`--ss-up` 在 **classic/light 仅 3.27（<4.5）** —— 交易屏涨跌色用于 13px 正文同样不合格。
+⇒ **D5 = `--doc-up-text` / `--doc-down-text` ＋ `--ss-up-text` / `--ss-down-text`**，
+明确留 **C3**（fixG 不解决对比度）。
+
+#### 13.12.7 fixG 后的 8 组期望值表（定稿，含 `--brand-2` 与 `--buy/--sell`）
+
+```
+preset/theme  --brand-1  --brand-2  --card   --bg      --txt      --ss-up   --ss-down  --buy      --sell     --doc-up  --doc-down
+classic/dark  #5b53f0   #7f3df0    #1a1a2e  #0f0f23  #e2e8f0   #ff4d4f   #00d486   #ff4d4f   #00d486   #009e60   #dc2626
+classic/light #4f46e5   #7c3aed    #ffffff  #ffffff  #1e293b   #ff4d4f   #00d486   #ff4d4f   #00d486   #009e60   #dc2626
+terminal/dark #e8a33d   #b8860b    #141414  #0a0a0a  #d4d4d4   #ff5c5c   #3ddc97   #ff5c5c   #3ddc97   #009e60   #dc2626
+swiss/light   #111111   #1a56db    #ffffff  #ffffff  #111111   #d93025   #0f9d58   #d93025   #0f9d58   #009e60   #dc2626
+aurora/dark   #6c5ce7   #5d5fef    #181a44  #101334  #e9ecff   #ff5c7a   #2fe0a8   #ff5c7a   #2fe0a8   #009e60   #dc2626
+ink/light     #b03a2e   #1e7762    #fbf8f1  #f7f3ea  #2b2b2b   #c0392b   #1e7f6b   #c0392b   #1e7f6b   #009e60   #dc2626
+cyber/dark    #fcee0a   #00f0ff    #101624  #0a0e17  #e8f6ff   #ff2a6d   #00ff9f   #ff2a6d   #00ff9f   #009e60   #dc2626
+finpro/dark   #2170ec   #1f6feb    #0f1726  #0a1020  #e6edf3   #ff4d4f   #00d486   #ff4d4f   #00d486   #009e60   #dc2626
+```
+⇒ **红涨绿跌（`--ss-up` R>G / `--ss-down` G>R）+ 绿涨红跌（`--doc-*`）双语义 8 组全部成立，
+且全部令牌有定义（无 UNDEF）。**
+
+#### 13.12.8 C0 验收项定稿（Phase 1 版 + 主理人修正）
+
+```bash
+# ① D4 注释提前闭合不得回潮
+! grep -rnE '\-\-[a-z0-9-]+-\*/' --include="*.py" modules/ pages/ app.py
+# ② _TOKEN_CSS 不得硬写主题层令牌（--brand-2 也要删）
+! grep -nE '\-\-brand-1:#|--brand-2:#|--ss-up:#|--ss-down:#' modules/ui_kit.py
+# ③ :root 必须合并 preset vars（★「合并 vs 替换」的唯一静态判据；_THEME_ROOT_VARS 一直存在，不能证明合并）
+grep -q 'STYLE_PRESETS' modules/ui_theme.py
+# ④ classic 亮色 --buy/--sell 必须有定义
+grep -q -- '--buy:#ff4d4f' modules/ui_theme.py && grep -q -- '--sell:#00d486' modules/ui_theme.py
+# ⑤ 缓存键必须含 style
+grep -qE '_DASHBOARD_SF_CSS_CACHE\.get\(\(dark' modules/ui_theme.py
+# ⑥ 交易语义真值源（★ colors.py 是【常量形态】，上一版写法永远红）
+grep -q 'UP_COLOR = "#ff4d4f"' modules/colors.py && grep -q 'DOWN_COLOR = "#00d486"' modules/colors.py
+# ⑦ 价格域红线
+grep -q -- '--doc-up:#009e60' modules/ui_theme.py && grep -q -- '--doc-down:#dc2626' modules/ui_theme.py
+# ⑧ classic zero-op + 「绿涨红跌」注释不破
+grep -q "STYLE_PRESETS\[.classic.\]\[.vars.\] == " tests/test_ui_theme_styles.py
+grep -q '绿涨红跌' modules/ui_theme.py
+```
+
+#### 13.12.9 一处数据残留不一致（已统一）
+
+Phase 1 最终态表格里「#41 真实缺口 = `_EMOJI_MAP` 覆盖 **16/65**」是**旧数字**。
+ux-designer 的 AST 实测：**导航条目 63 条 / 未收录 47 个 / `_EMOJI_MAP` 实际 53 条 / 需新增约 43 个 path**。
+⇒ **以 63 / 47 / 53 / 约 43 为准**。
+
+#### 13.12.10 探针与依赖的处置
+
+- Phase 1 的探针在 `$TEMP/probe*.py`，**未落仓库** ⇒ 整理为**人工验收脚本**给 Phase 3，
+  但**不放进仓库**（`tinycss2` 不在项目 `.venv`）。
+- ⇒ **「tinycss2 进项目 .venv」列为 C0 的显式前置动作**：否则解析层守卫（AC-0.2.c + 8 组探针）
+  永远进不了 CI。
+- ⚠️ `sf-chart` / `sf-kline` 实锤（`starfield_theme.py:103-107`）：
+  `var el = document.getElementById('{div_id}'); var chart = echarts.init(el);`
+  ⇒ **改名会直接打断 ECharts 初始化** ⇒ 确认为第 4 个「保留名字」族。
