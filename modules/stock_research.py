@@ -19,7 +19,7 @@ def render_stock_analysis() -> None:
     logger = logging.getLogger(__name__)
     from modules.page_guard import safe_fragment  # noqa: I001
     from modules.page_utils import render_standard_page, get_fetcher
-    from modules.ui_kit import (xc_handle_error, xc_success_box, xc_warn_box,
+    from modules.ui_kit import (xc_handle_error, xc_warn_box,
                                 xc_info_banner, xc_section_header, xc_kpi_grid)  # noqa: F401
     dark = render_standard_page(title='个股深度分析 · 决策仪表盘', icon='🔍', layout='wide')
     xc_section_header("个股分析导读", subtitle="输入代码/名称/拼音搜索个股，查看暗色决策仪表盘：K 线、技术面、资金面、情绪与风险铁律。严格遵循绿涨红跌配色；所有外部数据获取失败均友好提示，不抛红错。", icon="🔍")
