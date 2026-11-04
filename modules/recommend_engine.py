@@ -844,7 +844,7 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
     sizing = size_positions(rows[:top_k], pos_base, per_stock_cap=per_stock_cap)
     for r in rows[:top_k]:
         df = r.pop("df")
-        # fix（T-256 顺带）：levels 必须逐票重算——原写法引用 rows 循环泄漏的尾值，
+        # fix（T-256 已修复）：levels 必须逐票重算——原写法引用 rows 循环泄漏的尾值，
         # 导致所有推荐共享最后一只票的 ATR 价位（串票）。
         levels = trade_levels(float(df["close"].iloc[-1]), atr14(df))
         if sizing:
@@ -897,7 +897,7 @@ def generate_daily_recommendation(universe_limit: int = 200, enrich_top: int = 3
 
 def size_positions(picks: list, pos_base, per_stock_cap: float = 20.0,
                    floor: float = 1.0):
-    """信念×风险二维配仓（T-256，benchmark stock-evaluator 采纳清单 R3 落地遗留）。
+    """信念×风险二维配仓（T-256 已落地，benchmark stock-evaluator 采纳清单 R3）。
 
     - 信念维：picks 内 composite min-max 归一 → 倍数 [0.6, 1.5]（全相同 = 1.0）；
     - 风险维：risk_scan.medium ×0.8、reliable=False ×0.85、value_trap.total≥50 ×0.85

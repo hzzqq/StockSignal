@@ -227,7 +227,7 @@ def _synth_us_index_intraday(open_, high, low, close, prev_close):
         return None, None
 
 
-# ── Tier3（T-247 续 · T-250 批注遗留项）：缓存键单一真源 ──
+# ── Tier3（T-247 续 · T-250 已收口）：缓存键单一真源 ──
 
 _KEY_REQUIRED = {
     "daily":        ("symbol", "start", "end", "adjust"),
