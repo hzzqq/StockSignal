@@ -1285,3 +1285,70 @@ _LIGHT_CSS 的 :root 声明数   : 1  → ['--ss-saas-shadow ×2','--ss-up:#ff4d
 **`app.py:29` 与 `page_utils.py:57` 两处 `dashboard_sf_css()` 调用的 `dark` / 风格入参是否一致？**
 ⇒ 若 `app.py` 那次拿不到 preset vars，则 app 级注入的 `:root` 仍只有基座值
 ⇒ 影响「preset vars 到底在哪一层生效」，也影响 C4 的影响面判断。
+### 13.16 验收方式定稿 + 主理人裁定 A 修订（Phase 1 收官版）
+
+> **三方技术分歧已全部清零**；C0 实施所需信息齐备：六步（位置 + 动作 + 后果 + 具体代码形态）、
+> 守卫 G 写法、10 条验收项、8 组期望值表、D5 派生表与字号口径、32 文件回归集、C0~C4 分批。
+
+#### 13.16.1 守卫验收以 **Python 断言为主体**（grep 仅作人工核对）
+
+`_TOKEN_CSS` 字面量现为 `modules/ui_kit.py:38..118`（81 行），而 C0 的**步 2、步 3 各删一行**
+⇒ `_TOKEN_CSS` 变 79 行、`_build_token_css()` 移到 `:119`
+⇒ **写死行号的区间断言实施后会扫错范围**（ux 的「区间扫描」方案有此坑）。
+
+⇒ **定稿：两种形态都用**
+
+**（a）Python 断言（主体，进 CI；无行号、无漂移）**：
+```python
+# tests/test_ui_kit_tokens.py —— 读运行时对象
+def test_token_css_does_not_hardcode_theme_tokens():
+    css = _kit()._KIT_CSS          # = _TOKEN_CSS + …
+    for tok in ("--brand-1:#", "--brand-2:#", "--ss-up:#", "--ss-down:#"):
+        assert tok not in css, f"_TOKEN_CSS 不得硬写主题层令牌 {tok}（应归 _THEME_ROOT_VARS / preset vars）"
+
+def test_brand_tokens_owned_by_theme_layer():
+    assert "--brand-1:#4f46e5" in ut._THEME_ROOT_VARS["light"]
+    assert "--brand-1:#5b53f0" in ut._THEME_ROOT_VARS["dark"]   # ★ 值不同，别用单一字面值
+```
+⇒ `_KIT_CSS` 天然含 `_TOKEN_CSS` 全部内容、且**不含** `_build_token_css()` ⇒ **不会误报 `:130`**。
+
+**（b）awk 内容锚定（人工核对；不受行号漂移影响）**：
+```bash
+awk '/^_TOKEN_CSS = r"""/,/^"""/' modules/ui_kit.py \
+  | grep -nE '\-\-brand-1:#|--brand-2:#|--ss-up:#|--ss-down:#'
+# 当前 2 处（相对行 8/51）⇒ 红；C0 完成后 0 处 ⇒ 绿
+```
+
+#### 13.16.2 ⚠️ 主理人裁定 A 修订：`modules/ui_kit.py:130` **保留不动**
+
+主理人此前裁定「一并清 `_build_token_css():130`」，理由是「验收项②要求四 token 全 0 命中，留着必红」
+⇒ **该理由已被 13.16.1 消解**（Python 断言查 `_KIT_CSS`，天然不含 `_build_token_css()`）。
+⇒ **裁定更新：`:130` 保留不动** —— **不为迁就断言而扩大 C0 改动面**
+（`_build_token_css` 生产零调用，留着零风险；删它反而多一处改动点）。
+`_build_token_css` 列为**独立清理项**（不进 C0~C4）。
+⇒ 验收项②的**整文件 grep 版作废**，改用 13.16.1 的 (a)/(b)。
+
+#### 13.16.3 验收项 ⑨⑩（新增）
+
+```
+# ⑨ _DARK_CSS/_LIGHT_CSS 的 --ss-up 不必删（preset 覆盖它们 ⇒ 无害，允许存在）
+! grep -qE 'assert.*_DARK_CSS.*--ss-up' tests/ ; echo "（无需断言，允许存在）"
+# ⑩ 价格域与交易域不得互串（colors.py 里 RED/GREEN 名实相反，是既定设计，防有人"纠正"）
+grep -q 'RED = "#009e60"' modules/colors.py && grep -q 'GREEN = "#dc2626"' modules/colors.py
+```
+⇒ 完整验收项 = ①~⑧（②按 13.16.1 改写）+ ⑨⑩。
+
+#### 13.16.4 两处残留纠正
+
+- **「7 个页面」清单是旧的，正确是 2 页**（`pages/53_星辰AI.py` 仅 `apply_page_config:54`；
+  `pages/90_登录.py` 仅 `apply_page_config:25`）⇒ C4 登记**必须写 2 页**，写 7 页会误伤 5 个正常页面。
+- **#41 数字统一为**：63 条导航 / 47 未收录 / `_EMOJI_MAP` 实际 53 条 / 需新增约 43 个 path
+  （Phase 1 收官版 §7 的「16/65」为旧数字，作废）。
+
+#### 13.16.5 D5 字号口径（双方逐点核对一致的完整版）
+
+- **大字档（3:1 全过，无需新令牌）**：`sf-price-big`(40px/800)、`sf-metric-card .value`(22px/700)、
+  `.ss-stat .value`(24px/800)、`.xc-card .value`(22px/800)
+- **正文档（4.5，需新令牌）**：`sf-perspective-card .body` 内 14px/400 与 14px/700、
+  `.ss-stat .delta`(13px/600)、`.xc-card .delta`(13px/700)、`.xc-card .meta`(11px)
+- **★ 加粗到 700 仍不足 18.66px ⇒ 不能靠加粗豁免**
