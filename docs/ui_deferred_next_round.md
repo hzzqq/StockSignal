@@ -684,3 +684,150 @@ grep -q -- '--doc-up:#009e60' modules/ui_theme.py && grep -q -- '--doc-down:#dc2
 | 原验收项 O（「--doc-up 在 6 套风格下有定义」→ 缺失） | **删除**（前提不成立），替换为 §13.9.5 的 D4/D5 验收项 |
 | §1c「`.sf-pill.up` 绿底红字」 | **不变**，但影响面收窄：因 `--buy` 在 6 套下被覆盖为 preset 值 ⇒ 串色只在 **classic 暗色**出现；classic 亮色 `--buy` 仍未定义。**结论与修法均不变** |
 | 其余 42 个 token 映射表、11 个死代码清单、#40/#41 裁定、风险分级 | **不变** |
+### 13.10 C0 批次定稿：fixF（合并路线）+ 🔴 D6 缓存键（Phase 1 最终态）
+
+> Phase 1 收到 Phase 2 修订后做了独立复核（tinycss2 规范解析 + 复刻 `render_standard_page` 真实注入序列）。
+> **本条为 C0 的定稿方案。**
+
+#### 13.10.1 ⚠️ 缺陷编号第三次统一（务必以本条为准）
+
+| 现编号 | 缺陷 | 提出者 | 级别 |
+|---|---|---|---|
+| D3 | `:root` 级联倒挂（`dashboard_sf_css` 的经典 `:root` 注入晚于 preset vars） | Phase 2 | 🔴 |
+| **D4** | `modules/ui_kit.py:86` CSS 注释提前闭合 ⇒ `--brand-1` 声明被浏览器丢弃 | Phase 1 | 🔴 |
+| **D5** | 6 套非 classic 风格的 `vars` 全未生效（**D3 + D4 的合并结果**，与 D3 同根因） | Phase 1 | 🔴 |
+| **D6** | **`dashboard_sf_css()` 缓存键只有 `dark` ⇒ 切风格后仪表盘层静默不更新** | Phase 1 | 🔴 |
+| **D7** | `modules/page_utils.py:124` 休市胶囊对比度 ≈ 2.2:1 | Phase 2 | 🟡 |
+| **D8** | `--doc-up`/`--doc-down` 小号场景对比度不达标 | Phase 2 | 🟡 |
+| ~~D2~~ | ~~6 套风格价格域回落继承色~~ | — | **已撤回** |
+
+> ⚠️ §13.8 的「D4/D5」= 现 **D7/D8**；§13.9 的「D6/D7」= 现 **D7/D8**，且现 **D6** 是缓存键。
+
+#### 13.10.2 🔴 D6（此前无人发现的第 5 阻塞点）：缓存键只有 `dark`
+
+`modules/ui_theme.py:191 / 219 / 502`：
+```python
+_DASHBOARD_SF_CSS_CACHE: dict = {}
+_cached = _DASHBOARD_SF_CSS_CACHE.get(dark)      # ← 键只有 dark 布尔
+_DASHBOARD_SF_CSS_CACHE[dark] = _css
+```
+**实测**：同 mode 下先 classic 再 terminal → `dashboard_sf_css()` **返回同一个对象（`is` 判定 True）**。
+⇒ 一旦 `:root` 引入 preset vars，**缓存键必须改成 `(dark, style)`**，否则用户切风格后仪表盘层仍返回
+**上一个风格**的 CSS ⇒ **风格切换对仪表盘层无效，且不报错**。
+⇒ **与 D4 同类病：「看起来生效、实际没生效」。**
+
+#### 13.10.3 修法 fixF（合并路线）取代 fixE（替换路线）
+
+- **fixE（替换）**：`:root` 只取 preset vars ⇒ 基座的 `--doc-up/--doc-down` 消失 ⇒ 6 套 preset 必须补
+  （Phase 2 实测：替换下 7 套全丢）
+- **fixF（合并）**：`:root{基座 ∪ preset vars（preset 优先）}` ⇒ **基座永远提供 `--doc-up/--doc-down`**，
+  preset 只覆盖自己声明的键 ⇒ **`--doc-up` 8 组全部存活，且 6 套 preset 零改动**
+
+⇒ **Phase 1 修正了 Phase 2 的一个推论**：「D3 修好后 D2 显形」**仅当修法是「替换」才成立**；
+合并语义下 8 组全存活。⇒ 「fixF 后 7 套风格价格域全丢」**不成立**；
+但 **AC-0.4（8 组都有 `--doc-up/--doc-down`）仍要保留为防回归护栏**。
+
+**fixF 五步（缺一不可；Phase 1 实测三个半成品变体全部证明必须整批）**：
+| 步 | 位置 | 动作 | 不做会怎样 |
+|---|---|---|---|
+| 1 | `ui_kit.py:86` | 修 CSS 注释提前闭合（`--ss-*/` → `--ss-* /`） | **`--brand-1` 继续被浏览器丢弃**（D4 不修，后续都是假修） |
+| 2 | `ui_kit.py:88` | 删 `--brand-1:#4f46e5; --brand-2:#7c3aed;` 硬覆盖 | 步 1 会让它复活 ⇒ 8 组统一经典紫，**比现状更糟** |
+| 3 | `ui_kit.py:45` | 删 `--ss-up:#ff4d4f; --ss-down:#00d486;` 硬覆盖 | `--ss-up` 仍 8 组统一 `#ff4d4f`（语义方向对但风格色不生效） |
+| 4 | `ui_theme.py:223` | `:root` 改为 **`基座 ∪ preset vars`（合并，非替换）** | **preset vars 永不生效**（D5 的真覆盖者） |
+| 5 | `ui_theme.py:219/502` | 缓存键 `(dark)` → `(dark, style)` | **切风格后仪表盘层不更新（静默）** |
+
+实测三个半成品变体：只做步 1 ⇒ `--brand-1` 8 组全变 `#4f46e5`（**更糟**）；只做步 1+2 ⇒ `--brand-1`
+**完全不变**（覆盖者是步 4）；只做步 4 但用「替换」⇒ `--doc-up` 7 套全丢。
+
+**fixF 实测 8 组矩阵（全绿）**：
+```
+preset     --brand-1  --brand-2  --card     --bg      --txt      --ss-up   --ss-down  --doc-up  --doc-down
+classic    #5b53f0    #7f3df0    #1a1a2e   #0f0f23   #e2e8f0   #ff4d4f   #00d486    #009e60   #dc2626
+terminal   #e8a33d ★  #b8860b ★  #141414 ★ #0a0a0a ★ #d4d4d4 ★ #ff5c5c   #3ddc97    #009e60   #dc2626
+swiss      #111111 ★  #1a56db ★  #ffffff   #ffffff   #111111 ★ #d93025   #0f9d58    #009e60   #dc2626
+aurora     #6c5ce7 ★  #5d5fef ★  #181a44 ★ #101334 ★ #e9ecff ★ #ff5c7a   #2fe0a8    #009e60   #dc2626
+ink        #b03a2e ★  #1e7762 ★  #fbf8f1 ★ #f7f3ea ★ #2b2b2b ★ #c0392b   #1e7f6b    #009e60   #dc2626
+cyber      #fcee0a ★  #00f0ff ★  #101624 ★ #0a0e17 ★ #e8f6ff ★ #ff2a6d   #00ff9f    #009e60   #dc2626
+finpro     #2170ec ★  #1f6feb ★  #0f1726 ★ #0a1020 ★ #e6edf3 ★ #ff4d4f   #00d486    #009e60   #dc2626
+```
+⇒ **8 组「红涨绿跌（`--ss-*`）」+「绿涨红跌（`--doc-*`）」双语义全部成立**；
+**缓存键实测：换风格返回不同对象 ✓**；**4 条守卫文本实测仍在**（`绿涨红跌` / `--doc-up:#009e60` /
+`--doc-down:#dc2626` / `--bg:#0f0f23` 全 True）。
+
+**C0 范围**：`modules/ui_kit.py`（3 处）+ `modules/ui_theme.py`（2 处）+
+`tests/test_ui_kit_tokens.py`（守卫升级 1 处）= **5 文件，单一原子 commit**。
+**R8 守卫升级**：`test_ui_kit_tokens.py:247` 的 `"--brand-1:#4f46e5"` 文本断言
+⇒ 必须改为断言「**浏览器生效值**」而非「文本存在」（**它锁文本不锁生效值，正是它没发现 D4 的原因**）。
+
+#### 13.10.4 D8：对比度（Phase 1 独立复算，比 Phase 2 多报了一半）
+
+| 组 | `--doc-up` 4.5 | `--doc-down` 4.5 | 3:1 |
+|---|---|---|---|
+| classic/dark | 5.44 ✓ | **3.91 ✗** | 全过 |
+| classic/light | **3.47 ✗** | 4.83 ✓ | 全过 |
+| terminal/dark | 5.71 ✓ | **4.10 ✗** | 全过 |
+| swiss/light | **3.47 ✗** | 4.83 ✓ | 全过 |
+| aurora/dark | 5.20 ✓ | **3.73 ✗** | 全过 |
+| ink/light | **3.13 ✗** | **4.36 ✗** | 全过 |
+| cyber/dark | 5.57 ✓ | **4.00 ✗** | 全过 |
+| finpro/dark | 5.47 ✓ | **3.92 ✗** | 全过 |
+
+⇒ **`--doc-up` 3/8 组不达标；`--doc-down` 6/8 组不达标**（Phase 2 只报了 `--doc-up` 3 组，
+**`--doc-down` 这一半此前无人报**）。3:1 大字阈值 8 组全过。
+
+**判定关键 = 实际渲染字号（比数值本身更重要）**：
+| 使用点 | 实际字号 | WCAG 判定 | 阈值 | 结论 |
+|---|---|---|---|---|
+| `stock_research.py:529/531/533` `sf-metric-card .value`（`ui_theme.py:412` 22px/700） | 22px/700 | **大字** | 3:1 | ✓ 全过 |
+| `:562` `sf-doc-down`「压制」（`sf-perspective-card .body`，`ui_theme.py:416` 14px） | **14px/400** | **正文** | 4.5 | ✗ |
+| `:567` `sf-doc-up` MA5/MA10（body 内 `<b>`） | **14px/700** | **正文**（14px < 18.66px，**加粗也救不了**） | 4.5 | ✗ |
+
+⇒ **「大小字二分」不足以解决**（`--doc-down` 6/8 组仍不达标）⇒ **必须新增别名派生令牌**
+`--doc-up-text` / `--doc-down-text`（如 `color-mix(in srgb,var(--doc-up) 80%,black)`），
+**不得改 `--doc-up:#009e60` 字面值**（3 守卫硬锁：`test_no_hardcoded_semantic_hex.py:54`、
+`test_ui_theme.py:60,69`、`test_stock_research_semantics.py:98`）。
+⚠️ **`--doc-up-text` 的具体加深比例未测算**（Phase 1 只给派生方向）⇒ 需实测测算。
+
+#### 13.10.5 保留原名的族最终为 4 族 + `sf-chart`/`sf-kline`
+
+| 族 | 位置 | 理由 |
+|---|---|---|
+| `sf-btn-*` | `button_colors.py` | `test_whitebox_button_colors.py:23-55` 硬锁 |
+| `sf-text-*` + `sf-chip*` | `dark_text_fix.py` | `test_dark_text_fix.py:52` 硬锁 |
+| `sf-scroll-*` | `scroll_nav.py` | `test_scroll_nav.py:56-130` 硬锁 |
+| **`sf-chart` + `sf-kline`** | `starfield_theme.py:103/109` | **是 `div_id` 不是 class** ⇒ 改名会破坏 JS/echarts DOM 定位 |
+
+⇒ 仪表盘族 9 个有外部 class 引用者（alert/brand/card/disclaimer/header/table/tag/vs/vsbox）
+随规则一起迁 `xc-*`；`STARFIELD_CSS` 整体可删（生产不注入）。
+
+#### 13.10.6 C0 的可 grep 验收项（定稿版）
+
+```bash
+# D4 注释提前闭合不得回潮
+! grep -nE '\-\-[a-z0-9-]+-\*/' modules/ui_kit.py
+# _TOKEN_CSS 不得硬写主题层令牌
+! grep -nE '\-\-brand-1:#|--brand-2:#|--ss-up:#|--ss-down:#' modules/ui_kit.py
+# :root 必须合并（基座 + preset vars），不能只用 preset
+grep -q '_THEME_ROOT_VARS' modules/ui_theme.py
+grep -qE 'STYLE_PRESETS\.get\(.*\)\.get\(.vars.\)' modules/ui_theme.py
+# 缓存键必须含 style
+grep -qE '_DASHBOARD_SF_CSS_CACHE\.get\(\(dark' modules/ui_theme.py
+# 价格域红线（8 组恒成立）
+grep -q -- '--doc-up:#009e60' modules/ui_theme.py && grep -q -- '--doc-down:#dc2626' modules/ui_theme.py
+grep -q -- '--ss-up:#ff4d4f' modules/colors.py && grep -q -- '--ss-down:#00d486' modules/colors.py
+# classic zero-op 守卫不破
+grep -q "STYLE_PRESETS\[.classic.\]\[.vars.\] == " tests/test_ui_theme_styles.py
+# 绿涨红跌注释仍在
+grep -q '绿涨红跌' modules/ui_theme.py
+```
+
+#### 13.10.7 诚实边界
+
+- **fixF 会改变 6 套风格的可见外观**（terminal 此前一直是经典紫，修后终于是琥珀）
+  ⇒ **必须做截图基线对比 + 逐风格目检**（不能只看 classic）。
+- **未做完整 WCAG 全量对比**（只算了 `--doc-up`/`--doc-down` 对 `--bg`，未覆盖 `--txt`/`--border`/`--hold`）
+  ⇒ 验证矩阵里的对比度重算**必须覆盖全部令牌对**。
+- ⚠️ **`tinycss2` 只在 `E:\python\lib\site-packages`，不在项目 `.venv`**
+  ⇒ `tests/test_style_token_cascade.py` 本轮只做静态文本断言 + 8 组矩阵人工验收表；探针固化推下一轮。
+- **D4 未在真实浏览器确认**（tinycss2 与浏览器同源实现，CSS 注释终止规则是规范硬定义，风险低，
+  但建议 Phase 3 补一次 DevTools 确认）。
