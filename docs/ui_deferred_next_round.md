@@ -488,3 +488,73 @@ terminal 风格 `--brand-1` 的级联序列：
    模拟级联——**基于行为惯例，未在真实 DOM 验证** ⇒ 建议 Phase 3 用探针固化成交互守卫。
 4. `ui_kit.py:368-369` 用了 `:has`，注释自承「Edge155 实证不支持」（既有问题，非本批引入）。
 5. 触控目标 ≥44px（AC-6.5）现状**未验证**。
+### 13.8 Phase 2 修订版裁定（推翻主理人原裁定一条，2026-11-04）
+
+Phase 2 修订版用**运行时探针实测**推翻了我 §13.2 的 D2 表述，并补出 3 条实施约束。
+
+#### 13.8.1 ⚠️ 推翻：D2 的「当前症状」不成立，但**必须与 D3 同批**（我原裁定的执行顺序错了）
+
+- **当前症状实测不成立**：8 组风格 `--doc-up`/`--doc-down` **全部有定义、值全部正确**
+  （`#009e60`/`#dc2626`），来源是 `dashboard_sf_css()`(`ui_theme.py:222-223`) 注入的经典 `:root{root}` 块。
+  ⇒ §13.2 表里「6 套风格价格域回落继承色」**是错的**，在此更正。
+- **但 D2 是被 D3 掩盖的潜伏缺陷**：模拟「D3 修复后」（移除经典 `:root`，让 preset vars 真正生效）——
+  **7 套风格 `--doc-up` 全丢**（`None`），**连 classic 也一起丢**（classic 的定义源就是 `_THEME_ROOT_VARS`，
+  正是被移除的那块）。
+- ⇒ **D3 一修，D2 立刻显形**；若 D3 单独上线，报告会立刻失色（价格数字掉回继承色）。
+- ⇒ **主理人裁定更新**：D2 **仍应独立立项**（判定依据不变：与 sf-* 命名无关），
+  **但执行顺序必须与 D3 绑定** ⇒ 合并为 **C0（D3+D2 联动）**，不得后置。
+- ⇒ 新增机器可拦截项 **AC-0.4**：断言 8 组矩阵下 `--doc-up/--doc-down` 均有定义且 `== #009e60/#dc2626`。
+- ⇒ D3 修法可**复用 `modules/ui_theme.py:200` 的 `_build_theme_root()`**（实测生产零调用，只有
+  `_THEME_ROOT_VARS` 在 `:222` 被 `dashboard_sf_css` 使用）⇒ 不必新造机制。
+
+#### 13.8.2 starfield 清理：准则 + 排期约束
+
+Phase 2 逐 token 实测：`starfield_theme.py` 内 16 个 `sf-*` 字面量 = **14 个 CSS token + 2 个 div_id**
+（`sf-chart`/`:103`、`sf-kline`/`:109`，**非 class、不在命名空间**）。
+外部引用要区分「CSS 规则引用」与「**class 字面量**引用」：
+- **9 个有外部 class 字面量引用**：`sf-alert` `sf-brand` `sf-card` `sf-disclaimer` `sf-header`
+  `sf-table` `sf-tag` `sf-vs` `sf-vsbox`（引用方 = `modules/stock_research.py` / `modules/ui_theme.py` /
+  `pages/13_市场强弱.py`）⇒ **类名不可随文件清理**
+- **5 个只有外部 CSS 规则同名、无 class 字面量引用**：`sf-down` `sf-note` `sf-one-line` `sf-up` `sf-verdict`
+  ⇒ `sf-verdict` 另被 `tests/test_starfield_theme.py:71,76` 硬锁 ⇒ 一律不动
+
+⇒ **准则：清理「规则」，保留「名字」。** `STARFIELD_CSS` 常量可整体删除
+（`inject_theme()` 仅在 `modules/starfield_theme.py:141` 的 `__main__` 块调用 ⇒ 生产不注入），
+但类名必须继续存在于 `ui_theme` 的 `dashboard_sf_css`，否则 `stock_research.py` / `pages/13` 失配。
+⇒ **排期：starfield 清理必须排在 C2 之后或与 C2 同批。**
+
+#### 13.8.3 #40 续项必须拆开（我原 brief 未拆）
+
+- **`modules/page_utils.py:116,118,124,126`**（交易时段胶囊 4 行硬编码 hex）→ **本轮独立做**，归 C3。
+  ⚠️ `:124`「已休市」`#166534` on 合成底 ≈ **2.2:1 ❌**（新增 **D4**）。
+- **`modules/ui_kit.py:462`**（页头主图标原样输出 emoji）→ **必须随 #41 入 P2**。
+  理由：页头 52 个去重 emoji 中 `_EMOJI_MAP` **仅收录 17 个、35 个未收录** ⇒ 现在改 `render_nav_icon(icon)`
+  会让 35 个**安全回退成原 emoji** ⇒ 造出「半 SVG 半 emoji」的页头，视觉更不一致。
+
+#### 13.8.4 一条会静默咬人的隐含守卫（Phase 2 发现，我与 Phase 1 均漏）
+
+`tests/test_ui_theme.py:62` 断言 **`"绿涨红跌" in css`** ⇒
+**`dashboard_sf_css` 的 CSS 模板里必须保留「绿涨红跌」这四个字的中文注释**。
+C2 大改 `ui_theme.py:223-270` 的 f-string 模板时若顺手删掉它 ⇒ **守卫会红且报错信息完全指不到原因**。
+
+#### 13.8.5 修正后的四批方案（Phase 2 修订版，主理人采纳）
+
+| # | 内容 | 依赖 |
+|---|---|---|
+| **C0**（最高优先） | **D3 + D2 联动**：`ui_kit.py:88` 的 `--brand-1/--brand-2` 处理 + `dashboard_sf_css` 的 `:root` 按风格取值（可复用 `_build_theme_root()`）+ 6 套 preset vars 补齐 `--doc-up/--doc-down`（**字面量必须仍出现在 `ui_theme.py` 源码里**，否则 `test_no_hardcoded_semantic_hex.py:54-55` 会红）+ `tests/test_a11y_contrast.py` 改级联口径 + 新建 `tests/test_style_token_cascade.py`（含 AC-0.4） | 无 |
+| **C1** | B4 死代码清理（10 个真死，含 `ui_theme.py:942`/`:1076` 成对覆写同步删）+ B5 | C0 后 |
+| **C2**（原子大头） | 仪表盘族 sf-* → xc-* 全量迁移 383 处 + 6 个守卫同步 + **保留「绿涨红跌」注释** | C0、C1 |
+| **C3**（独立） | R3 语义修复 + D4 + D5 + `page_utils.py` 胶囊令牌化 | C2（类名已稳定） |
+
+#### 13.8.6 C0 的最大风险（Phase 2 指出，必须逐风格目检）
+
+D3 修好后，6 套风格会从「`extra` 里大量 `!important` 硬编码色撑起来的**假象**」变成「**真正按 vars 生效**」
+⇒ **视觉会明显变化**（可能是这些风格首次真正呈现）⇒ **目检必须逐风格，不能只看 classic**。
+
+#### 13.8.7 数字更正（Phase 2 AST 实测）
+
+`#41`：导航 **63** 条（非 65）、未收录 **47**（非 49）、需新增 **约 43** 个 path、`_ICONS` 空闲恰 4
+（`brand`/`chart`/`moon`/`sun`）、**`_EMOJI_MAP` 实际 53 条**（16 是「导航中命中数」）；
+`modules/ui_icons.py` 中 `_EMOJI_MAP` 在 **L73**、`_ICONS` L19、`svg_icon` L99；
+`modules/top_nav.py` **410** 行；`#40` emoji **67 调用 / 52 个不同**（页头 52 中仅 17 被收录）；
+最小回归集 **32 个文件**（原 28）。
