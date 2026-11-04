@@ -68,6 +68,7 @@ def _read(path: str) -> str:
         with open(path, encoding="utf-8", errors="ignore") as f:
             return f.read()
     except OSError:
+        # ui_audit_exempt: 读不出的文件按空源码处理（该文件即不贡献 import 边）
         return ""
 
 

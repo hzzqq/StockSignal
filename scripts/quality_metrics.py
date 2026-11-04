@@ -83,6 +83,7 @@ def _count_lines(paths) -> int:
         try:
             with open(p, encoding="utf-8", errors="ignore") as f:
                 total += sum(1 for _ in f)
+        # ui_audit_exempt: 行数统计遇到不可读文件直接跳过——缺失即不计入，宁可少算也不猜
         except OSError:
             continue
     return total
@@ -94,6 +95,7 @@ def _ast_test_defs(paths) -> int:
     for p in paths:
         try:
             tree = ast.parse(open(p, encoding="utf-8", errors="ignore").read())
+        # ui_audit_exempt: 解析不了的测试文件不计入静态口径（语法错误本身由 CI 其它环节负责）
         except (SyntaxError, OSError):
             continue
         for node in ast.walk(tree):
@@ -108,6 +110,7 @@ def _guard_files(paths) -> int:
     for p in paths:
         try:
             src = open(p, encoding="utf-8", errors="ignore").read()
+        # ui_audit_exempt: 读不出的测试文件不计入守卫文件数，缺失即不计
         except OSError:
             continue
         if "ast.parse" in src and "assert" in src:
@@ -127,12 +130,14 @@ def _count_routes() -> tuple[int, int]:
             continue
         try:
             flask_n += len(_ROUTE_RE.findall(open(p, encoding="utf-8", errors="ignore").read()))
+        # ui_audit_exempt: 读不出的后端文件不计入 Flask 路由数，缺失即不计
         except OSError:
             continue
     fastapi_n = 0
     for p in _iter_files("backend_fastapi", ".py"):
         try:
             fastapi_n += len(_FASTAPI_RE.findall(open(p, encoding="utf-8", errors="ignore").read()))
+        # ui_audit_exempt: 读不出的 FastAPI 文件不计入端点数，缺失即不计
         except OSError:
             continue
     return flask_n, fastapi_n
@@ -147,6 +152,7 @@ def _pytest_collected() -> int | None:
             cwd=ROOT, capture_output=True, text=True, timeout=900,
         )
     except (subprocess.TimeoutExpired, OSError):
+        # ui_audit_exempt: 收集超时/收集失败返回 None（不猜数），对外只暴露静态口径并注明
         return None
     total = 0
     for line in r.stdout.splitlines():

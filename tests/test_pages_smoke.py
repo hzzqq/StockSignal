@@ -106,11 +106,13 @@ def _run_page(page_path: str, authed: bool) -> dict:
     import concurrent.futures as _cf
 
     def _do():
+        t0 = time.perf_counter()
         at = AppTest.from_file(page_path, default_timeout=120)
         if authed:
             at.session_state["auth_token"] = _FAKE_TOKEN
             at.session_state["auth_user"] = dict(_FAKE_USER)
         at.run()
+        elapsed_ms = int((time.perf_counter() - t0) * 1000)
         pos_pct = None
         try:
             pos_pct = at.session_state.get("decision_pos_pct")
@@ -121,6 +123,8 @@ def _run_page(page_path: str, authed: bool) -> dict:
             "exceptions": [str(e) for e in at.exception[:3]],
             "errors": _collect_errors(at),
             "pos_pct": pos_pct,
+            # 页面渲染耗时（离线打桩下的降级路径），供 P2-8 性能基线统计 P50/P95
+            "elapsed_ms": elapsed_ms,
         }
 
     with _cf.ThreadPoolExecutor(max_workers=1) as ex:
@@ -132,6 +136,7 @@ def _run_page(page_path: str, authed: bool) -> dict:
                 "exception_count": 1,
                 "exceptions": [f"页面渲染超时(>150s)被强制隔离，疑似卡死: {os.path.basename(page_path)}"],
                 "errors": [],
+                "elapsed_ms": None,
             }
 
 
@@ -252,8 +257,10 @@ def _write_report(page_path: str, guest: dict, authd: dict):
     report[os.path.basename(page_path)] = {
         "guest_exception": guest["exception_count"],
         "guest_errors": guest["errors"],
+        "guest_ms": guest.get("elapsed_ms"),
         "auth_exception": authd["exception_count"],
         "auth_errors": authd["errors"],
+        "auth_ms": authd.get("elapsed_ms"),
     }
     try:
         with open(REPORT_PATH, "w", encoding="utf-8") as f:
