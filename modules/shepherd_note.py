@@ -14,7 +14,7 @@ modules/shepherd_note.py — 情绪笔记（每日情绪快照 + 历史情绪回
   ✅ 文件损坏/缺失优雅降级，绝不抛异常到页面
   ✅ 只做统计复盘，不构成投资建议
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import logging
@@ -22,7 +22,7 @@ import os
 import threading
 
 from modules.atomic_io import atomic_json_dump
-from datetime import datetime
+from datetime import datetime  # noqa: F401
 from modules.time_utils import now_cst_naive
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ def load_notes() -> dict:
     try:
         if not os.path.exists(NOTE_FILE):
             return {}
-        with open(NOTE_FILE, "r", encoding="utf-8") as f:
+        with open(NOTE_FILE, "r", encoding="utf-8") as f:  # noqa: UP015
             data = json.load(f)
         return data if isinstance(data, dict) else {}
     except Exception as e:  # noqa: BLE001
@@ -254,7 +254,7 @@ def analyze_history(df) -> dict:
         return empty
 
     try:
-        import pandas as pd
+        import pandas as pd  # noqa: I001
         from modules.shepherd_forecast import locate_cycle, score_next_day, forecast_next_day
 
         work = df.copy()
@@ -381,7 +381,7 @@ def backtest_real(days: int = 60) -> tuple:
     """
     empty = dict(rows=[], by_cycle=[], accuracy=dict(total=0, hit=0, rate=None), verdict_dist={})
     try:
-        from datetime import timedelta
+        from datetime import timedelta  # noqa: I001
         from modules.shepherd import get_shepherd_indicators_range
         end = now_cst_naive()
         start = end - timedelta(days=int(days * 1.6))   # 日历日放宽覆盖，取交易日子集

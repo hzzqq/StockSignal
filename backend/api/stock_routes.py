@@ -3,8 +3,8 @@ backend/api/stock_routes.py
 ---------------------------
 股票搜索 + 股票管理 API。
 """
-from __future__ import annotations
-from flask import Blueprint, request
+from __future__ import annotations  # noqa: I001
+from flask import Blueprint, request  # noqa: F401
 from sqlalchemy import select, func
 from ..extensions import db
 from ..models import Stock

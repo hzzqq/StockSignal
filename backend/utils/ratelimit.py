@@ -13,17 +13,17 @@ backend/utils/ratelimit.py
 注意：进程内内存方案在多 worker / 多进程部署下不共享计数；生产如需全局限流
 应换 Redis 等共享存储，本模块接口（is_allowed/reset/get_hit_count）保持不变即可替换实现。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import threading
 import time
 from collections import deque
-from typing import Dict, Deque
+from typing import Dict, Deque  # noqa: UP035
 
 from flask import current_app
 
 # 进程内存储：key -> 时间戳双端队列（单调递增时钟）
-_store: Dict[str, Deque[float]] = {}
+_store: Dict[str, Deque[float]] = {}  # noqa: UP006
 # 多用户并发登录时，多个线程会同时读写 _store；用锁保护避免竞态（丢计数 / RuntimeError）
 _lock = threading.Lock()
 

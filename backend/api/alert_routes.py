@@ -3,9 +3,9 @@ backend/api/alert_routes.py
 ----------------------------
 自选股预警 API（按当前登录用户隔离）。支持价格 / 技术形态 / 成交量异动 / 公告 四类预警。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import json
-from flask import Blueprint, g, request
+from flask import Blueprint, g, request  # noqa: F401
 from sqlalchemy import select
 from ..auth.decorators import jwt_required
 from ..extensions import db
@@ -61,7 +61,7 @@ def create_alert():
         try:
             target = float(data.get("target_price"))
         except (TypeError, ValueError):
-            raise ValidationError("目标价格必须是数字")
+            raise ValidationError("目标价格必须是数字")  # noqa: B904
         if condition not in ("above", "below"):
             raise ValidationError("condition 只能是 above 或 below")
         if target <= 0:
@@ -75,7 +75,7 @@ def create_alert():
         try:
             vr = float(raw_params.get("volume_ratio"))
         except (TypeError, ValueError, AttributeError):
-            raise ValidationError("成交量异动预警需指定 volume_ratio（数字）")
+            raise ValidationError("成交量异动预警需指定 volume_ratio（数字）")  # noqa: B904
         if vr <= 0:
             raise ValidationError("volume_ratio 必须大于 0")
         params_json = json.dumps({"volume_ratio": vr}, ensure_ascii=False)

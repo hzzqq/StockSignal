@@ -18,18 +18,18 @@
 
 铁律：UI-only；fragment 内无整页 st.rerun；A股红涨绿跌；信号灯语义独立。
 """
-import os
+import os  # noqa: F401, I001
 from pathlib import Path
 
 import streamlit as st
 
 from modules.page_utils import render_standard_page
-from modules.session import safe_switch_page, _rel_time, get_token
+from modules.session import safe_switch_page, _rel_time, get_token  # noqa: F401
 from modules.widgets import _NAV_GROUPS
 from modules.page_widgets import _section_title, _empty_info
 from modules.page_guard import safe_fragment
 
-from modules.ui_kit import xc_info_banner, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_info_banner, xc_success_box, xc_warn_box  # noqa: F401
 dark = render_standard_page(
     title="新手教程 · 5 分钟玩转 StockSignal", icon="📘",
     caption="本页帮你快速上手：三步完成首次操作、认识各模块、看懂术语与常见疑问。看完即可独立使用本平台。",
@@ -199,7 +199,7 @@ def fragment_faq():
     _section_title("❓ 常见问题", accent="#2b8aef")
     faqs = [
         ("数据为什么有时加载不出来？", "部分数据来自外部接口，需要联网/代理。加载失败页面会优雅提示，不影响其他功能；可稍后重试或刷新。"),
-        ("红涨绿跌能改吗？", "A股惯例已全局固定为红涨绿跌，个股分析页也遵循此约定，无需也不建议修改。"),
+        ("红涨绿跌能改吗？", "A股惯例已全局固定为红涨绿跌。注：个股分析页（报告体）的「价格域」为文档体绿涨红跌例外，由 tests/test_colors.py 锁定 --doc-up:#009e60，属设计既定行为，无需也不建议修改。"),
         ("回测结果能当真吗？", "回测基于历史数据，含手续费与止损等假设，仅作策略参考，不等于未来收益，实盘需谨慎。"),
         ("自选股在哪里管理？", "《持仓中心》里包含自选股监控、持仓盈亏与组合收益；也可在任意个股页一键加入自选。"),
         ("忘记密码怎么办？", "在登录页点击「忘记密码」按提示重置；管理员可在《用户管理》中重置普通用户密码。"),
@@ -237,7 +237,7 @@ def fragment_faq():
 def fragment_mistakes():
     _section_title("⚠️ 常见误区（新手最容易踩的坑）", accent="#ef4444")
     mistakes = [
-        ("红=跌、绿=涨？", "错。A股惯例是**红涨绿跌**，红色代表上涨、绿色代表下跌，与欧美相反。本平台全局统一此配色。"),
+        ("红=跌、绿=涨？", "错。A股惯例是**红涨绿跌**，红色代表上涨、绿色代表下跌，与欧美相反。本平台全局统一此配色；唯一例外是个股分析页「价格域」采用文档体绿涨红跌（tests/test_colors.py 锁定 --doc-up:#009e60），属设计既定行为。"),
         ("回测收益 = 未来收益？", "错。回测基于历史数据并含手续费 / 止损等假设，可能过拟合或含未来函数，仅作策略参考，不等于实盘表现。"),
         ("一根金叉就满仓？", "错。单一技术信号胜率有限，应等多因子共振（资金 + 估值 + 基本面）并配合仓位管理，避免一把梭。"),
         ("跌多了就能抄底？", "错。弱势股可能继续下行，抄底需结合基本面企稳与信号反转，别把「便宜」当「安全」。"),
@@ -295,7 +295,7 @@ def fragment_video():
                 "你可先阅读下面的「文字版分步漫游」，或在终端运行视频生成后刷新本页。")
 
     with st.expander("🗺️ 文字版分步漫游（配合 HTML 漫游 artifact 食用更佳）", expanded=False):
-        for i, (t, d) in enumerate([
+        for i, (t, d) in enumerate([  # noqa: B007
             ("第 1 步 · 认识首页", "登录后进入首页，看到「功能模块」分组卡片与「最近浏览」。点任意卡片进入对应模块。"),
             ("第 2 步 · 看盘", "《行情看板》顶部是指数迷你卡（上证/深证/创业等），下方是行业板块涨跌榜与龙虎榜，点板块可展开明细。"),
             ("第 3 步 · 选股与研究", "《个股研究》搜股票代码/名称 → 看 K 线（可拖动缩放）、技术面分析、给股票打分，并加入自选或垃圾股。"),

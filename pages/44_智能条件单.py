@@ -12,8 +12,8 @@
 触发后由后端统一下单（经 broker.execute_order，含风控 + live 护栏），
 并写 real_orders 流水。调度器在交易时段后台扫描；也可手动触发一轮扫描。
 """
-import html
-import json
+import html  # noqa: I001
+import json  # noqa: F401
 from datetime import datetime, timedelta
 import streamlit as st
 from modules.page_utils import render_standard_page
@@ -21,8 +21,8 @@ import modules.scroll_nav as sn
 from modules.session import api_get, api_post, api_put, api_delete, trading_autorefresh
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
-from modules.page_guard import safe_fragment
-from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.page_guard import safe_fragment  # noqa: F401
+from modules.ui_kit import xc_success_box, xc_warn_box  # noqa: F401
 dark = render_standard_page(title='智能条件单', icon='🤖', caption='融资买入额阈值 / 5 日均线突破破位 → 自动下单（交易时段后台扫描 + 可手动触发）')
 
 st.caption('⚠️ 数据仅供参考，不构成投资建议；触发后按账户实盘/模拟模式真实下单')

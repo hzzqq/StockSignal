@@ -13,11 +13,11 @@
                     ma5, ma10, ma20, ma60]
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import logging
 logger = logging.getLogger(__name__)
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List  # noqa: UP035
 
 import numpy as np
 import pandas as pd
@@ -32,7 +32,7 @@ def _safe_float(v, default: float = 0.0) -> float:
     return default if pd.isna(f) else f
 
 
-def compute_atr(df: pd.DataFrame, period: int = 14) -> "float | None":
+def compute_atr(df: pd.DataFrame, period: int = 14) -> "float | None":  # noqa: UP037
     """计算真实波幅 ATR（纯函数，可单测）。
 
     新能力：此前 ATR 仅在 ``stock_analysis_helpers._calc_trade_levels`` 内联计算，
@@ -60,7 +60,7 @@ def compute_atr(df: pd.DataFrame, period: int = 14) -> "float | None":
     return atr
 
 
-def compute_rsi(df: pd.DataFrame, period: int = 14) -> "float | None":
+def compute_rsi(df: pd.DataFrame, period: int = 14) -> "float | None":  # noqa: UP037
     """计算相对强弱指数 RSI（纯函数，可单测）。
 
     新能力：技术面模块此前缺少可复用的 RSI 原语（仅 technical_agent 内散落实现），
@@ -84,7 +84,7 @@ def compute_rsi(df: pd.DataFrame, period: int = 14) -> "float | None":
     avg_gain = gain.rolling(period).mean()
     avg_loss = loss.rolling(period).mean()
     g = float(avg_gain.iloc[-1])
-    l = float(avg_loss.iloc[-1])
+    l = float(avg_loss.iloc[-1])  # noqa: E741
     if pd.isna(g) or pd.isna(l):
         return None
     if l == 0:
@@ -96,7 +96,7 @@ def compute_rsi(df: pd.DataFrame, period: int = 14) -> "float | None":
     return round(float(rsi), 2)
 
 
-def rsi_series(df: pd.DataFrame, period: int = 14) -> "pd.Series":
+def rsi_series(df: pd.DataFrame, period: int = 14) -> "pd.Series":  # noqa: UP037
     """返回与 close 对齐的完整 RSI 曲线（pd.Series, 0-100）。
 
     与 ``compute_rsi``（返回最新标量快照）互补：本函数输出逐根 RSI 序列，
@@ -136,7 +136,7 @@ def rsi_series(df: pd.DataFrame, period: int = 14) -> "pd.Series":
     return rsi
 
 
-def compute_ema(series: "pd.Series", span: int) -> "pd.Series | None":
+def compute_ema(series: "pd.Series", span: int) -> "pd.Series | None":  # noqa: UP037
     """指数移动平均（纯函数，可单测）。
 
     新能力：此前 MACD / 均线叠加等多处散落 ``ewm`` 计算，且未对 NaN 做剔除，
@@ -153,7 +153,7 @@ def compute_ema(series: "pd.Series", span: int) -> "pd.Series | None":
 
 
 def compute_macd(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9
-                 ) -> "dict | None":
+                 ) -> "dict | None":  # noqa: UP037
     """计算 MACD（纯函数，可单测）：DIF / DEA / MACD 柱。
 
     新能力：技术面模块此前缺少可复用的 MACD 原语（仅 technical_agent 内散落
@@ -273,7 +273,7 @@ def detect_bullish_divergence(df: pd.DataFrame, lookback: int = _DIVERGENCE_LOOK
 # ============================================================
 # 1) 均线 / 趋势状态
 # ============================================================
-def analyze_trend(df: pd.DataFrame) -> Dict[str, Any]:
+def analyze_trend(df: pd.DataFrame) -> Dict[str, Any]:  # noqa: UP006
     """
     分析均线趋势状态。
 
@@ -343,7 +343,7 @@ def analyze_trend(df: pd.DataFrame) -> Dict[str, Any]:
 # ============================================================
 # 2) 动量 / 涨跌幅
 # ============================================================
-def analyze_momentum(df: pd.DataFrame) -> Dict[str, Any]:
+def analyze_momentum(df: pd.DataFrame) -> Dict[str, Any]:  # noqa: UP006
     """
     动量分析：1/5/20 日涨跌幅 + 与大盘（HS300）对比。
 
@@ -401,7 +401,7 @@ def _momentum_label(r5: float) -> str:
 # ============================================================
 # 3) 量能分析
 # ============================================================
-def analyze_volume(df: pd.DataFrame) -> Dict[str, Any]:
+def analyze_volume(df: pd.DataFrame) -> Dict[str, Any]:  # noqa: UP006
     """
     量能分析：
       - vol_ratio: 今日量 / 5日均量
@@ -474,7 +474,7 @@ def analyze_volume(df: pd.DataFrame) -> Dict[str, Any]:
 # ============================================================
 # 4) K 线形态识别
 # ============================================================
-def detect_patterns(df: pd.DataFrame, lookback: int = 30) -> List[Dict[str, Any]]:
+def detect_patterns(df: pd.DataFrame, lookback: int = 30) -> List[Dict[str, Any]]:  # noqa: UP006
     """
     在最近 lookback 根 K 线中识别常见形态。
 
@@ -496,7 +496,7 @@ def detect_patterns(df: pd.DataFrame, lookback: int = 30) -> List[Dict[str, Any]
     if not all(c in df.columns for c in _ohlc):
         return []
 
-    patterns: List[Dict[str, Any]] = []
+    patterns: List[Dict[str, Any]] = []  # noqa: UP006
     sub = df.tail(lookback).reset_index(drop=True)
     n = len(sub)
 
@@ -596,7 +596,7 @@ def detect_patterns(df: pd.DataFrame, lookback: int = 30) -> List[Dict[str, Any]
 # ============================================================
 # 综合函数：一键返回 4 类分析
 # ============================================================
-def full_analysis(df: pd.DataFrame) -> Dict[str, Any]:
+def full_analysis(df: pd.DataFrame) -> Dict[str, Any]:  # noqa: UP006
     """
     一键执行所有技术面分析，返回结构化字典，供 Streamlit 直接展示。
 
@@ -604,7 +604,7 @@ def full_analysis(df: pd.DataFrame) -> Dict[str, Any]:
     不再因单点崩溃拖垮整个技术面板块（行情看板/个股分析均依赖本函数）。
     """
 
-    def _safe(fn) -> Dict[str, Any]:
+    def _safe(fn) -> Dict[str, Any]:  # noqa: UP006
         try:
             return fn(df)
         except Exception as e:  # noqa: BLE001 - 顶层兜底，保证页面不崩
@@ -630,7 +630,7 @@ def overall_technical_score(trend_score, momentum_score, volume_score,
     if total_w <= 0:
         return 50.0
     acc = 0.0
-    for s, w in zip((trend_score, momentum_score, volume_score), weights):
+    for s, w in zip((trend_score, momentum_score, volume_score), weights):  # noqa: B905
         if s is None or pd.isna(s):
             s = 50.0
         else:

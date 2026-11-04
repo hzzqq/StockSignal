@@ -28,7 +28,7 @@ qualname，从而在相同入参下发生「跨函数命中」的灾难性错位
 
 from __future__ import annotations
 
-import functools
+import functools  # noqa: F401
 
 import streamlit as st
 

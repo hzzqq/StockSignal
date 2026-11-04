@@ -7,7 +7,7 @@
 - unknown ≠ guilty：扫描不可得（网络/接口失败）按 not_scanned 如实降级，不阻塞主流程、不误判安全；
 - overall_level == high 才硬踢出；medium/low 一律保留并携带 risk_scan 元数据。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 

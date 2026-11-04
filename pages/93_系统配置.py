@@ -3,7 +3,7 @@ pages/93_系统配置.py
 ------------------
 管理员系统配置页面：股票数据统计 / 股票列表管理 / 系统配置键值表 / 自选股管理。
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 from modules import colors
 import json
 from modules.session import init_session_state, require_admin, api_get, api_post

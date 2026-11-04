@@ -196,7 +196,7 @@ def panic_reversal(today: dict, sample=None) -> dict:
     if sic is not None and td is not None and td > 0:
         # 仅作「次日波动偏大」的风险提示：IC≈0.13~0.16 是弱信号，不作方向依据
         strength = dict(ic=sic, value=td,
-                        hint="次日波动可能偏大（弱信号 IC≈%.2f，仅风险提示）" % sic)
+                        hint="次日波动可能偏大（弱信号 IC≈%.2f，仅风险提示）" % sic)  # noqa: UP031
 
     if not hits:
         if not evaluable:

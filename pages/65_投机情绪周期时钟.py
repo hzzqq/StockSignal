@@ -7,7 +7,7 @@
 
 数据边界：连板梯队类维度（连板高度/连板家数/炸板率/封成比/昨日涨停表现/倒跌停）离线缺真值，本页不引用、不编造。
 """
-import logging
+import logging  # noqa: I001
 
 import numpy as np
 import plotly.graph_objects as go

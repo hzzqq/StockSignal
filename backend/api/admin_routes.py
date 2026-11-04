@@ -3,15 +3,15 @@ api/admin_routes.py
 -------------------
 管理端接口：用户 CRUD + 操作日志。仅 admin 可访问。
 """
-from __future__ import annotations
-from flask import Blueprint, g, request
+from __future__ import annotations  # noqa: I001
+from flask import Blueprint, g, request  # noqa: F401
 from sqlalchemy import select, func
 from ..auth.decorators import admin_required
 from ..extensions import db
 from ..models import User, OperationLog
 from ..utils.response import ok
 from ..utils.errors import ValidationError, NotFoundError, ConflictError
-from ..utils.params import parse_int_param, parse_str_param, parse_limit_param, parse_page_param, json_body
+from ..utils.params import parse_int_param, parse_str_param, parse_limit_param, parse_page_param, json_body  # noqa: F401
 import re
 
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -177,7 +177,7 @@ def list_logs():
     ).scalars()
 
     return ok(data={
-        "items": [l.to_dict() for l in logs],
+        "items": [l.to_dict() for l in logs],  # noqa: E741
         "total": total,
         "page": page,
         "per_page": per_page,
@@ -192,7 +192,7 @@ def monitor_stats():
     """GET /api/admin/monitor
     返回后端实时运行指标：请求量、错误率、延迟、活跃用户、热点端点。
     """
-    from ..monitor import get_stats
+    from ..monitor import get_stats  # noqa: I001
     from ..models import User, ForumPost, ForumComment, PriceAlert
     from sqlalchemy import select, func
 

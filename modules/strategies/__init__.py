@@ -12,7 +12,7 @@
 - generate_signals 返回与 df 等长的信号列表：1=买入, -1=卖出, 0=持有。
 """
 
-from .base import BaseStrategy
+from .base import BaseStrategy  # noqa: I001
 from .registry import (
     STRATEGY_REGISTRY,
     register,

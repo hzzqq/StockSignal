@@ -11,7 +11,7 @@
   单个模块取数失败只在该卡片内提示，不影响整页与其它模块——对齐「诚实降级」红线。
 - 纯前端编排，无新业务逻辑；不编造数据，取不到就明说。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import logging
@@ -69,7 +69,7 @@ def _w_decision(dark):
 
 
 def _w_zt_ladder(dark):
-    import plotly.graph_objects as go
+    import plotly.graph_objects as go  # noqa: I001
     from modules.shepherd import _trading_days, get_zt_ladder
     days = _trading_days(3)
     ladder = get_zt_ladder(days[-1]) if days else {}
@@ -105,7 +105,7 @@ def _w_limit_stats(dark):
 
 
 def _w_breadth(dark):
-    import plotly.graph_objects as go
+    import plotly.graph_objects as go  # noqa: I001
     from modules.shepherd import get_shepherd_indicators
     df, _meta = get_shepherd_indicators(days=30)
     if df is None or df.empty:

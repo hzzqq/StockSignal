@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """
 StockSignal 启动器（原启动模拟器）
 ================================
@@ -19,7 +19,7 @@ StockSignal 启动器（原启动模拟器）
   python startup_sim.py --keep          # 正式启动：保留进程，打开浏览器
   python startup_sim.py --keep --pause  # 正式启动：保留进程，探测成功后暂停
 """
-import argparse
+import argparse  # noqa: I001
 import concurrent.futures
 import os
 import sqlite3
@@ -155,7 +155,7 @@ def check_db(python):
         )
         if r.returncode == 0:
             out = _decode(r.stdout)
-            last = [l for l in out.splitlines() if l.strip()][-1:]
+            last = [l for l in out.splitlines() if l.strip()][-1:]  # noqa: E741
             log(f"[OK] 数据库检查/初始化成功 ({last if last else 'done'})")
             return True
         else:
@@ -499,10 +499,10 @@ def main():
     # 8) 保持窗口，方便用户查看结果
     if args.pause:
         if be_ok and fe_ok:
-            print(f"\n启动完成。关闭此窗口不影响项目运行。")
+            print(f"\n启动完成。关闭此窗口不影响项目运行。")  # noqa: F541
             print(f"前端地址: http://localhost:{args.fe}")
             print(f"后端地址: http://127.0.0.1:{args.be}")
-            print(f"停止方法: 双击运行 _stop_services.bat")
+            print(f"停止方法: 双击运行 _stop_services.bat")  # noqa: F541
         else:
             print("\n启动未完成。请查看上方日志，按任意键关闭...")
         try:

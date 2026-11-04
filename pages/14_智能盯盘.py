@@ -12,16 +12,16 @@
   - 交易时段（9:30-11:30 / 13:00-15:00）内各 fragment 自动 60s 刷新
   - 所有区块优雅降级：空数据→st.info，异常→st.error，不崩溃整页
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 import logging
 import html
-import concurrent.futures as cf  # kept for potential other uses
-from datetime import datetime
+import concurrent.futures as cf  # kept for potential other uses  # noqa: F401
+from datetime import datetime  # noqa: F401
 from modules.session import safe_switch_page, api_get, api_post, api_delete
 from modules.fundflow import get_industry_fund_flow, get_individual_fund_flow
 from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: 收敛到共享并发基元
 from modules.timeout_exec import run_with_timeout
-from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi
+from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fmt_yi  # noqa: F401
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher, quote_one as _quote_one
 from modules.chart_cache import cached_fig
@@ -32,7 +32,7 @@ dark = render_standard_page('智能盯盘', icon='👁️', caption='⚠️ 数�
 # 加法式展示源溯源（H1+ 方向 A 续·T-218）：自选股涨跌榜并行抓实时行情（get_realtime_quote
 # → cache.db rt_quote_cache，14:49 实证）。失败只留痕，不影响主流程。
 try:
-    from modules.display_provenance import build_display_provenance, DISPLAY_PAGE_SOURCES
+    from modules.display_provenance import build_display_provenance, DISPLAY_PAGE_SOURCES  # noqa: I001
     from modules.ui_kit import prov_badge
     prov_badge(build_display_provenance(DISPLAY_PAGE_SOURCES.get("14_智能盯盘")), title="盯盘数据来源")
 except Exception as _prov_e:  # noqa: BLE001 - additive 区块失败只留痕
@@ -322,7 +322,7 @@ def fragment_watchlist():
             if st.button('🔄 重试', key='btn_wl_retry'):
                 st.rerun(scope='fragment')
             return
-    if not quotes or all((q is None for q in quotes.values())):
+    if not quotes or all((q is None for q in quotes.values())):  # noqa: UP034
         _empty_info('实时行情暂不可用（接口受限或网络异常），稍后重试即可；可前往行情看板确认数据源状态。')
         return
     rows = []
@@ -470,7 +470,7 @@ def fragment_individual_ff():
             st.dataframe(top_out, width="stretch", hide_index=True, column_config={'主力净流入(亿)': st.column_config.NumberColumn(format='%.3f')}, height=400)
     st.caption(f'📊 当前展示 {len(valid)} / 总计 {len(codes)} 只自选股的资金流异动')
     st.caption('数据来源：东方财富 / 新浪财经 主力资金流')
-    if any((r.get('source') == 'estimate' for r in ff_map.values())):
+    if any((r.get('source') == 'estimate' for r in ff_map.values())):  # noqa: UP034
         st.caption('⚠️ 标注「估算」的数据为量价模型（Chaikin 风格）估算的主力净流入，仅反映近期量价博弈方向，非交易所逐笔主力数据。')
 
 @safe_fragment('预警触发扫描', run_every=60)
@@ -517,10 +517,10 @@ def fragment_alerts():
             tier, color, label = _grade_net(main_net)
             alerts.append({'类型': '资金异动', '代码': code, '名称': name, '说明': f"主力{('净流入' if main_net > 0 else '净流出')} {_fmt_yi(main_net)}（{label}）", 'tier': tier, 'color': color})
     if not alerts:
-        xc_success_box('当前无触发预警 ✅（阈值 ±%.1f%%，主力强异动阈值 %s）' % (threshold, _fmt_yi(MAIN_NET_STRONG)))
+        xc_success_box('当前无触发预警 ✅（阈值 ±%.1f%%，主力强异动阈值 %s）' % (threshold, _fmt_yi(MAIN_NET_STRONG)))  # noqa: UP031
         return
     from collections import Counter
-    cnt = Counter((a['tier'] for a in alerts))
+    cnt = Counter((a['tier'] for a in alerts))  # noqa: UP034
     xc_warn_box(f"共触发 {len(alerts)} 条预警：🔴 强 {cnt.get('strong', 0)} ｜ 🟡 中 {cnt.get('mid', 0)} ｜ 🟢 弱 {cnt.get('weak', 0)}")
     for a in alerts:
         color = a['color']

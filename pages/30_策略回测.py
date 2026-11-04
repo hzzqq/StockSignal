@@ -9,14 +9,14 @@
   不会重渲染/重算上方的手动回测；反之亦然。符合「一个模块运行不影响同页其他模块」。
 """
 
-import streamlit as st
+import streamlit as st  # noqa: I001
 from datetime import datetime, timedelta
 
 from modules.page_utils import render_standard_page
 from modules.ui_kit import stat_tile, xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, xc_content_card, xc_kpi_grid
 render_standard_page(title="策略回测", icon="⚙️", layout="wide")
 
-from modules.backtest import Backtester
+from modules.backtest import Backtester  # noqa: I001
 # Visualizer + 其常量全部延迟导入（节省 ~0.95s plotly+matplotlib 链）
 # SF_* / UP_COLOR / DOWN_COLOR / _is_dark 均在函数内按需导入
 from modules.search_ui import stock_search_input
@@ -111,7 +111,7 @@ with st.expander("📖 策略方法论说明", expanded=False):
 @safe_fragment("手动回测")
 def fragment_manual_backtest():
     """手动回测面板（延迟导入 Visualizer 及其常量）。"""
-    import pandas as pd
+    import pandas as pd  # noqa: I001
     import plotly.graph_objects as go
     from modules.visualizer import Visualizer  # lazy
     from modules.colors import UP_COLOR, DOWN_COLOR  # lazy (lightweight)
@@ -443,11 +443,11 @@ def fragment_manual_backtest():
 @safe_fragment("每日选股回测")
 def fragment_daily_picker():
     # SF_* 暗色主题常量（原定义在 visualizer.py，在此本地定义避免拖入 plotly）
-    import plotly.graph_objects as go
+    import plotly.graph_objects as go  # noqa: I001
     from modules.colors import UP_COLOR  # lazy
     from modules.ui_theme import _theme_is_dark as _is_dark  # lazy
     global SF_TXT, SF_TXT2, SF_GRID, SF_BORDER  # noqa: F821
-    SF_TXT = "#e2e8f0"; SF_TXT2 = "#94a3b8"; SF_GRID = "#23233c"; SF_BORDER = "#2d2d44"
+    SF_TXT = "#e2e8f0"; SF_TXT2 = "#94a3b8"; SF_GRID = "#23233c"; SF_BORDER = "#2d2d44"  # noqa: E702
     xc_content_card("📊 每日选股回测", "")
     st.caption("从 A 股股票池中每日筛选评分最高的股票，模拟短线持有收益。"
                "「今日推荐」= 基于昨日收盘数据选股、今日买入；"
@@ -663,13 +663,13 @@ def fragment_daily_picker():
 @safe_fragment("强势上涨股批量回测")
 def fragment_strong_bull():
     """强势上涨股批量回测（延迟导入 Visualizer 常量）。"""
-    import pandas as pd
+    import pandas as pd  # noqa: I001
     import plotly.graph_objects as go
     from modules.colors import UP_COLOR, DOWN_COLOR  # lazy
     from modules.ui_theme import _theme_is_dark as _is_dark  # lazy
     # SF_* 暗色主题常量（原定义在 visualizer.py，在此本地定义避免拖入 plotly）
     global SF_TXT, SF_TXT2, SF_GRID, SF_BORDER  # noqa: F821
-    SF_TXT = "#e2e8f0"; SF_TXT2 = "#94a3b8"; SF_GRID = "#23233c"; SF_BORDER = "#2d2d44"
+    SF_TXT = "#e2e8f0"; SF_TXT2 = "#94a3b8"; SF_GRID = "#23233c"; SF_BORDER = "#2d2d44"  # noqa: E702
     xc_content_card("🚀 强势上涨股批量回测 vs 全市场", "")
     st.caption("一键对「强势上涨股样本」跑多因子策略，聚合胜率/收益，并对比全市场基准，"
                "验证策略对强趋势股的覆盖度。**历史模拟，不构成投资建议。**")
@@ -964,9 +964,9 @@ def fragment_batch_backtest():
 @safe_fragment("回测稳健性")
 def fragment_walk_forward():
     """样本内选参数 → 样本外验证，回答「这套参数是真规律还是记住了历史」。"""
-    import pandas as pd
+    import pandas as pd  # noqa: I001
     import plotly.graph_objects as go
-    from modules.colors import UP_COLOR  # lazy
+    from modules.colors import UP_COLOR  # lazy  # noqa: F401
     from modules.ui_theme import _theme_is_dark as _is_dark  # lazy
     xc_content_card("🧪 回测稳健性（walk-forward 样本外验证）", "")
     st.caption("把区间切成多段：每段先用「训练段」网格选最优参数，再拿这套参数到「测试段」独立验证。"
@@ -992,7 +992,7 @@ def fragment_walk_forward():
         if not wf_ticker.strip():
             xc_warn_box("请输入股票代码")
             return
-        from modules.backtest_robustness import walk_forward_windows, summarize_walk_forward
+        from modules.backtest_robustness import walk_forward_windows, summarize_walk_forward  # noqa: I001
         windows = walk_forward_windows(wf_start.strftime("%Y-%m-%d"), wf_end.strftime("%Y-%m-%d"),
                                        n_splits=wf_splits)
         if not windows:

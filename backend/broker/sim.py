@@ -4,7 +4,7 @@ backend/broker/sim.py
 模拟账本券商（默认）。用 RealAccount / RealPosition 的 DB 记录撮合，
 以传入的最新价立即全额成交。与前端 N_模拟交易 完全独立。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from ..utils.timeutil import utc_now
 

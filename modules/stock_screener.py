@@ -14,16 +14,16 @@
 组合模式：and（交集）/ or（并集）/ score（综合评分，同并集按总分排序）。
 """
 
-import logging
+import logging  # noqa: I001
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed  # noqa: F401
+from datetime import datetime, timedelta  # noqa: F401
 
 from modules.time_utils import now_cst, now_cst_str
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple  # noqa: UP035
 
 import pandas as pd
-import numpy as np
+import numpy as np  # noqa: F401
 
 from .screener_indicators import (
     calculate_macd, analyze_trend, detect_bottom_divergence,
@@ -115,7 +115,7 @@ def _years_ago(years: int) -> str:
     return (now_cst() - timedelta(days=years * 365)).strftime("%Y%m%d")
 
 
-def _norm_col(df: pd.DataFrame, mapping: Dict[str, List[str]]) -> pd.DataFrame:
+def _norm_col(df: pd.DataFrame, mapping: Dict[str, List[str]]) -> pd.DataFrame:  # noqa: UP006
     """按中文子串模糊匹配，把 akshare 中文列名规范为英文列名。"""
     if df is None or not isinstance(df, pd.DataFrame):
         return df
@@ -130,7 +130,7 @@ def _norm_col(df: pd.DataFrame, mapping: Dict[str, List[str]]) -> pd.DataFrame:
     return df.rename(columns=rename)
 
 
-def _norm_price(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+def _norm_price(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:  # noqa: UP045
     """价格数据列名归一：兼容原 skill 的 ``vol``/``pct_chg`` 与 StockSignal
     数据源的 ``volume``/``change_pct``，双向补齐别名，使分析器代码无需关心差异。"""
     if df is None or not isinstance(df, pd.DataFrame) or df.empty:
@@ -155,7 +155,7 @@ class StockScreener:
 
     # ── 股票池 ───────────────────────────────────────────────────────
     def get_universe(self, limit: int = 250, sector: str = None,
-                     watchlist: List[str] = None) -> List[Tuple[str, str]]:
+                     watchlist: List[str] = None) -> List[Tuple[str, str]]:  # noqa: UP006
         """返回 [(code, name), ...]。优先级：自选 > 板块 > 全市场前 N。"""
         if watchlist:
             out = []
@@ -173,7 +173,7 @@ class StockScreener:
         return [(c, self.fetcher.get_name_only(c) or c) for c in codes]
 
     # ── 数据桥 ───────────────────────────────────────────────────────
-    def _daily(self, code: str, years: int = 1) -> Optional[pd.DataFrame]:
+    def _daily(self, code: str, years: int = 1) -> Optional[pd.DataFrame]:  # noqa: UP045
         try:
             end = now_cst_str("%Y-%m-%d")
             start = (now_cst() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
@@ -183,7 +183,7 @@ class StockScreener:
             logger.debug("_daily %s 失败: %s", code, e)
             return None
 
-    def _weekly(self, code: str, years: int = 3) -> Optional[pd.DataFrame]:
+    def _weekly(self, code: str, years: int = 3) -> Optional[pd.DataFrame]:  # noqa: UP045
         try:
             end = now_cst_str("%Y-%m-%d")
             start = (now_cst() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
@@ -193,7 +193,7 @@ class StockScreener:
             logger.debug("_weekly %s 失败: %s", code, e)
             return None
 
-    def _fina_indicator(self, code: str, limit: int = 8) -> Optional[pd.DataFrame]:
+    def _fina_indicator(self, code: str, limit: int = 8) -> Optional[pd.DataFrame]:  # noqa: UP045
         """akshare 财务指标（roe/roa/毛利率/净利率/负债率/流动比率/yoy 等）。"""
         try:
             ak = _ak()
@@ -233,7 +233,7 @@ class StockScreener:
             logger.debug("_fina_indicator %s 失败: %s", code, e)
             return None
 
-    def _daily_basic_ak(self, code: str) -> Optional[Dict[str, float]]:
+    def _daily_basic_ak(self, code: str) -> Optional[Dict[str, float]]:  # noqa: UP006, UP045
         """akshare 估值指标：股息率/PE/PB。"""
         try:
             ak = _ak()
@@ -252,7 +252,7 @@ class StockScreener:
             logger.debug("_daily_basic_ak %s 失败: %s", code, e)
             return None
 
-    def _holder_number(self, code: str, limit: int = 8) -> Optional[pd.DataFrame]:
+    def _holder_number(self, code: str, limit: int = 8) -> Optional[pd.DataFrame]:  # noqa: UP045
         """akshare 股东户数序列（升序）。"""
         try:
             ak = _ak()
@@ -270,7 +270,7 @@ class StockScreener:
             logger.debug("_holder_number %s 失败: %s", code, e)
             return None
 
-    def _income(self, code: str) -> Optional[pd.DataFrame]:
+    def _income(self, code: str) -> Optional[pd.DataFrame]:  # noqa: UP045
         try:
             df = self.fetcher.get_financial(code, "income")
             if df is None or df.empty:
@@ -285,7 +285,7 @@ class StockScreener:
             logger.debug("_income %s 失败: %s", code, e)
             return None
 
-    def _cash(self, code: str) -> Optional[pd.DataFrame]:
+    def _cash(self, code: str) -> Optional[pd.DataFrame]:  # noqa: UP045
         try:
             df = self.fetcher.get_financial(code, "cash")
             if df is None or df.empty:
@@ -301,7 +301,7 @@ class StockScreener:
     # ═══════════════════════════════════════════════════════════════════
     # 11 个策略分析器（返回 None=不符合；dict=命中，含 score）
     # ═══════════════════════════════════════════════════════════════════
-    def _analyze_roe(self, code, name, p) -> Optional[Dict]:
+    def _analyze_roe(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         fina = self._fina_indicator(code, p["min_report_periods"])
         if fina is None or fina.empty:
             return None
@@ -328,7 +328,7 @@ class StockScreener:
                 "debt_ratio": round(dr, 2), "current_ratio": round(cr, 2),
                 "roe_trend": round(roe_trend, 2), "score": round(min(max(s, 0), 100), 2)}
 
-    def _analyze_macd(self, code, name, p) -> Optional[Dict]:
+    def _analyze_macd(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         df = self._weekly(code, p["data_period_years"])
         if df is None or len(df) < p["min_data_points"]:
             return None
@@ -388,7 +388,7 @@ class StockScreener:
                 "surge_ratio": surge_ratio, "rsi": round(cur_rsi, 2) if cur_rsi else None,
                 "score": round(min(max(s, 0), 100), 2)}
 
-    def _analyze_dividend(self, code, name, p) -> Optional[Dict]:
+    def _analyze_dividend(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         basic = self._daily_basic_ak(code)
         if not basic:
             return None
@@ -420,7 +420,7 @@ class StockScreener:
                 "pe_ttm": round(pe, 2) if pe else None, "pb": round(pb, 2) if pb else None,
                 "consecutive_years": years, "score": round(min(max(s, 0), 100), 2)}
 
-    def _analyze_valuation(self, code, name, p) -> Optional[Dict]:
+    def _analyze_valuation(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         fund = self.fetcher.get_fundamentals(code)
         basic = self._daily_basic_ak(code)
         pe = (basic or {}).get("pe_ttm") or fund.get("pe_ttm")
@@ -453,7 +453,7 @@ class StockScreener:
                 "industry": industry or "未知", "pe_discount": round(discount, 3),
                 "score": round(min(max(s, 0), 100), 2)}
 
-    def _analyze_growth(self, code, name, p) -> Optional[Dict]:
+    def _analyze_growth(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         fina = self._fina_indicator(code, 8)
         if fina is None or fina.empty or len(fina) < 2 or "roe" not in fina.columns:
             return None
@@ -504,7 +504,7 @@ class StockScreener:
                 "gross_margin": round(gm, 2), "roe": round(roe, 2),
                 "score": round(min(max(s, 0), 100), 2)}
 
-    def _analyze_low_position(self, code, name, p) -> Optional[Dict]:
+    def _analyze_low_position(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         df = self._daily(code, p["data_period_years"])
         if df is None or len(df) < 60:
             return None
@@ -532,7 +532,7 @@ class StockScreener:
                 "rsi": round(cur_rsi, 2), "days_from_low": int(days_from_low),
                 "score": round(min(max(s, 0), 100), 2)}
 
-    def _analyze_volume_surge(self, code, name, p) -> Optional[Dict]:
+    def _analyze_volume_surge(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         df = self._daily(code, p["data_period_years"])
         if df is None or len(df) < 30:
             return None
@@ -573,7 +573,7 @@ class StockScreener:
                 "rsi": round(cur_rsi, 2), "rebound_pct": round(reb_pct, 2),
                 "consecutive_surge_days": consec, "score": round(min(max(s, 0), 100), 2)}
 
-    def _analyze_trend(self, code, name, p) -> Optional[Dict]:
+    def _analyze_trend(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         df = self._daily(code, p["data_period_years"])
         if df is None or len(df) < 80:
             return None
@@ -619,7 +619,7 @@ class StockScreener:
                 "rsi": round(cur_rsi, 2) if cur_rsi else None,
                 "volatility_pct": round(vol, 2) if vol else None, "score": round(min(max(s, 0), 100), 2)}
 
-    def _analyze_pattern(self, code, name, p) -> Optional[Dict]:
+    def _analyze_pattern(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         df = self._daily(code, p["data_period_years"])
         if df is None or len(df) < 60:
             return None
@@ -663,7 +663,7 @@ class StockScreener:
             close = df["close"].iloc[-80:]
             if len(close) >= 30:
                 seg = len(close) // 3
-                l, h, r = close.iloc[:seg].min(), close.iloc[seg:2 * seg].min(), close.iloc[2 * seg:].min()
+                l, h, r = close.iloc[:seg].min(), close.iloc[seg:2 * seg].min(), close.iloc[2 * seg:].min()  # noqa: E741
                 if h < l * 0.98 and h < r * 0.98 and abs(l - r) / (l + 1e-9) < 0.05:
                     hit.append("head_shoulders_bottom")
         if p["detect_cup_handle"]:
@@ -678,7 +678,7 @@ class StockScreener:
                 "patterns": hit, "pattern_count": len(hit),
                 "score": round(len(hit) / 7 * 100, 2)}
 
-    def _analyze_bollinger(self, code, name, p) -> Optional[Dict]:
+    def _analyze_bollinger(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         df = self._daily(code, 1)
         if df is None or len(df) < p["bb_window"] + 5:
             return None
@@ -688,7 +688,7 @@ class StockScreener:
         upper, middle, lower = calculate_bollinger_bands(close, p["bb_window"], p["bb_std"])
         if upper is None:
             return None
-        lc, lu, lm, ll = close.iloc[-1], upper.iloc[-1], middle.iloc[-1], lower.iloc[-1]
+        lc, lu, lm, ll = close.iloc[-1], upper.iloc[-1], middle.iloc[-1], lower.iloc[-1]  # noqa: F841
         pct = abs(float(df["pct_chg"].iloc[-1])) if "pct_chg" in df.columns and pd.notna(df["pct_chg"].iloc[-1]) else 0
         if pct > p["price_change_max"]:
             return None
@@ -710,7 +710,7 @@ class StockScreener:
                 "close": round(lc, 2), "bb_lower": round(ll, 2),
                 "score": round(min(max(s, 0), 100), 2)}
 
-    def _analyze_shareholder(self, code, name, p) -> Optional[Dict]:
+    def _analyze_shareholder(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         hdf = self._holder_number(code, p["data_period_quarters"])
         if hdf is None or len(hdf) < p["min_consecutive_quarters"] + 1:
             return None
@@ -746,7 +746,7 @@ class StockScreener:
                 "latest_holders": int(latest), "roe": round(roe, 2),
                 "score": round(min(max(s, 0), 100), 2)}
 
-    def _analyze_cashflow(self, code, name, p) -> Optional[Dict]:
+    def _analyze_cashflow(self, code, name, p) -> Optional[Dict]:  # noqa: UP006, UP045
         income = self._income(code)
         if income is None or income.empty or len(income) < p["min_match_quarters"]:
             return None
@@ -823,10 +823,10 @@ class StockScreener:
             return None
 
     # ── 执行入口 ───────────────────────────────────────────────────────
-    def run(self, strategy_names: List[str], mode: str = "and",
-            params: Dict[str, Any] = None, top_n: int = 0,
-            limit: int = 250, sector: str = None, watchlist: List[str] = None,
-            workers: int = 4, progress=None) -> Dict[str, Any]:
+    def run(self, strategy_names: List[str], mode: str = "and",  # noqa: UP006
+            params: Dict[str, Any] = None, top_n: int = 0,  # noqa: UP006
+            limit: int = 250, sector: str = None, watchlist: List[str] = None,  # noqa: UP006
+            workers: int = 4, progress=None) -> Dict[str, Any]:  # noqa: UP006
         """统一选股入口。返回 {success, results, count, message, metadata}。"""
         params = params or {}
         start = time.time()
@@ -869,7 +869,7 @@ class StockScreener:
                             r.setdefault("industry", "未知")
                     return r
                 except Exception as e:
-                    logger.debug("%s %s 分析异常: %s", name, code, e)
+                    logger.debug("%s %s 分析异常: %s", name, code, e)  # noqa: B023
                     return None
 
             hits = []

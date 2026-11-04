@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from modules import market_regime as mr
-from modules.market_temperature import temperature_band
+from modules.market_temperature import temperature_band  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ def resonance_matrix(df: pd.DataFrame | None = None) -> dict:
     d["mb"] = d["mb"].astype(int)
 
     matrix = np.zeros((5, 5), dtype=int)
-    for rb, mb in zip(d["rb"], d["mb"]):
+    for rb, mb in zip(d["rb"], d["mb"]):  # noqa: B905
         matrix[rb, mb] += 1
 
     totals_row = matrix.sum(axis=1).tolist()      # 各广度档总天数
@@ -125,7 +125,7 @@ def current_cell(df: pd.DataFrame | None = None) -> dict:
     if rb is None or mb is None:
         return dict(available=True, date=str(last.get("date")), rr_band=None, mom_band=None,
                     rr_label=None, mom_label=None)
-    rb = int(rb); mb = int(mb)
+    rb = int(rb); mb = int(mb)  # noqa: E702
     return dict(
         available=True, date=str(last.get("date")),
         rr_band=int(rb), mom_band=int(mb),

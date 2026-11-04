@@ -1,5 +1,5 @@
 # ── 依赖 _news_io 中定义的标志/常量/日志器 ──
-from modules._news_io import (                  # noqa: F401
+from modules._news_io import (  # noqa: F401, I001
     logger, _JIEBA_OK, _SNOW_OK,
     POSITIVE_WORDS, NEGATIVE_WORDS, STOP_WORDS,
 )
@@ -23,6 +23,9 @@ except ImportError:
 try:
     from snownlp import SnowNLP
 except ImportError:
+    SnowNLP = None  # type: ignore[assignment]
+except Exception:  # 同 _news_io：snownlp 的 marshal 数据加载失败（ValueError/EOFError）
+    # 不是 ImportError，漏兜会把整页拖崩；这里同样降级为 None。
     SnowNLP = None  # type: ignore[assignment]
 
 class KeywordExtractor:
@@ -246,7 +249,7 @@ class NewsDeduplicator:
 
             # 慢速路径：相似标题
             is_dup = False
-            for prev_fp, prev_title in seen_titles_similar:
+            for prev_fp, prev_title in seen_titles_similar:  # noqa: B007
                 sim = self._jaccard_similarity(title, prev_title)
                 if sim >= self.threshold:
                     is_dup = True

@@ -45,7 +45,7 @@ def _orig_sidebar_css(dark: bool) -> str:
         '[data-testid="stSidebarCollapseButton"]{display:none!important;}'
         '/* 紧凑侧边栏导航：减少分组标题与链接间距，降低长导航的视觉负担 */'
         '[data-testid="stSidebar"] .stMarkdown [data-testid="stCaptionContainer"] {margin-top:4px!important;margin-bottom:2px!important;font-size:12px!important;}'
-        '[data-testid="stSidebar"] [data-testid="stPageLink"] a {padding:4px 8px!important;margin:1px 0!important;border-radius:8px!important;}'
+        '[data-testid="stSidebar"] [data-testid="stPageLink"] a {padding:4px 8px!important;margin:1px 0!important;border-radius:var(--ss-radius-sm)!important;}'
         '[data-testid="stSidebar"] [data-testid="stButton"] button {padding:4px 8px!important;min-height:28px!important;}'
         + _nav_active_css(dark) +
         '</style>'

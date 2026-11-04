@@ -8,7 +8,7 @@ stdio 模式：从 stdin 读 JSON-RPC 2.0 行，向 stdout 写回。由 Claude/C
 等 MCP 客户端作为子进程拉起。
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import argparse
 import sys
@@ -36,7 +36,7 @@ def main() -> None:
             print(f"  - {name}: {meta['description'][:50]}")
         # 跑一个不依赖远端数据的工具
         try:
-            import asyncio
+            import asyncio  # noqa: I001
             from mcp_server.tools import risk_assess
 
             r = risk_assess("不存在的代码XYZ")

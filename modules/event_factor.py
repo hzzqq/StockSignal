@@ -3,12 +3,15 @@ from modules.cache_utils import TTL_TIERS  # R-14
 
 把「事件因子」这一量化特征对接到**真实信号源**，而非合成演示数据。
 
-当前四个真实源（get_event_factor 兜底序，互不替代、绝不造数）：
+当前五个真实源（get_event_factor 兜底序，互不替代、绝不造数）：
   1) P1-QuantFactor 的 EV 模型信号（38 维量价 + 牧羊人市场广度情绪 9 维 = 47 维）
   2) 东方财富个股新闻情感（news_event_signal，逐标的真实事件面）
   3) 东方财富龙虎榜上榜信号（lhb_event_signal，游资/机构关注度）
   4) 本地事件追踪主表（tracked_event_signal，data/events.csv：23 页人工录入 +
      87 页语音事件入库的用户沉淀真实事件，与 signal.event_score 同口径）
+  5) 用户语音转写事件（voice_event_signal，data/voice_events/<username>.json：
+     用户自己 ASR 转写→标注→持久化的语音事件；仅当调用方显式传入 voice_user
+     （登录用户上下文）时启用，绝不通用户读桶，隐私闸门在 source 层强制）
 
 设计要点：
 - 纯只读、无网络、无合成/假数据；取不到即 ``available=False`` 优雅降级。
@@ -16,7 +19,7 @@ from modules.cache_utils import TTL_TIERS  # R-14
 - ``P1SignalLoader`` 懒导入，模块与具体数据源解耦，未来可挂别的真实事件源。
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
 
 import logging
@@ -93,8 +96,27 @@ def _loader_horizon(loader: Any, model: str):
         return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
-def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) -> dict:
-    """返回某标的的真实事件因子信号。
+def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None,
+                     voice_user: str | None = None,
+                     include_macro: bool = False) -> dict:
+    """返回某标的的真实事件因子信号（可附加全球宏观上下文）。
+
+    ``include_macro``：默认 False —— 完全不触发宏观网络取数，行为与旧版逐字节一致；
+    True 时附加 ``macro`` 字段（见 :func:`macro_event_context`），取不到即 None，
+    绝不填充合成值。**宏观上下文不参与 score 计算**（避免未回测口径耦合）。
+    本层为薄包装，五源兜底核心逻辑在 :func:`_get_event_factor_core`。
+    """
+    r = _get_event_factor_core(symbol, model=model, loader=loader,
+                               voice_user=voice_user)
+    if include_macro:
+        r["macro"] = macro_event_context()
+    return r
+
+
+def _get_event_factor_core(symbol: str, model: str = "ev",
+                           loader: Any | None = None,
+                           voice_user: str | None = None) -> dict:
+    """返回某标的的真实事件因子信号（五源兜底核心，无宏观上下文）。
 
     返回结构（成功）：
         {"available": True, "symbol": ..., "score": float|None,
@@ -103,6 +125,8 @@ def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) 
     返回结构（无数据）：
         {"available": False, "symbol": ..., "reason": ...}
 
+    ``voice_user``：可选，登录用户名。仅当非空时启用第五源（该用户语音转写事件），
+    默认 None → 完全不读取语音桶（隐私闸门 + 向后兼容，行为与旧版一致）。
     绝不返回合成/随机值——取不到就明说取不到。
     """
     if not symbol:
@@ -204,9 +228,20 @@ def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) 
     except Exception as e:  # noqa: BLE401
         logger.warning(f"[event_factor] 本地事件主表信号兜底失败: {e}")
 
+    # ── 第五真实源：用户语音转写事件（仅当显式传入 voice_user 时启用）──
+    # 隐私闸门在 voice_event_signal 内强制：空 username 不读任何桶。默认 None
+    # 时本源完全跳过，get_event_factor 行为与旧版一致（既有测试不受影响）。
+    if voice_user:
+        try:
+            ve = voice_event_signal(symbol, username=voice_user)
+            if ve.get("available"):
+                return ve
+        except Exception as e:  # noqa: BLE401
+            logger.warning(f"[event_factor] 语音事件信号兜底失败: {e}")
+
     return {"available": False, "symbol": symbol,
             "reason": "该标的无 P1 事件因子信号（不在池内/近期无预测，且近 10 日无新闻信号、"
-                      "未上龙虎榜、本地事件主表近 30 日无关联事件）"}
+                      "未上龙虎榜、本地事件主表近 30 日无关联事件、近 7 日无语音转写事件）"}
 
 
 def event_driven_long_list(top_n: int = 20, model: str = "ev",
@@ -329,7 +364,7 @@ def lhb_event_signal(ticker: str, lookback_days: int = 10) -> dict:
     if not sym:
         return {"available": False, "symbol": ticker, "reason": "未提供标的代码"}
     try:
-        import akshare as ak
+        import akshare as ak  # noqa: I001
         from datetime import datetime, timedelta
         end = datetime.now()
         start = end - timedelta(days=int(lookback_days))
@@ -507,3 +542,167 @@ def fusion_source_note(ticker: str, keywords=None) -> str:
     if n <= 0:
         return "事件融合来源：本地事件库无关联事件"
     return f"事件融合来源：本地事件库命中 {n} 条（与 P1 事件因子加权融合）"
+
+
+# ── 第五真实源：用户语音转写事件（2026-11-04 事件因子适配器增强 ①）────────────
+# 数据来源：data/voice_events/<username>.json（voice_event.py ASR 转写→标注→
+# 按登录用户隔离持久化）。此前语音事件必须用户手动点「存入主表」才经 events.csv
+# 进第四源；本源让刚转写、尚未入库的语音事件也能作为兜底事件因子被查询到。
+#
+# 隐私闸门（强制）：username 为空/None 一律不读任何桶、返回 unavailable；
+# get_event_factor 仅在调用方显式传入 voice_user 时启用本源，默认行为完全不变。
+# 语音事件无 ticker 字段（转写时尚未关联个股）→ 一律按「市场级事件」对所有标的
+# 生效，与 tracked_event_signal 的市场级占位语义一致。
+#
+# 诚实口径：聚合与 tracked 源同为 T-288 五档（基准 52、净权 x8、clamp(5,95)），
+# 语音只有「小档」倾向（利好/利空），绝不冒充大档；urgency 仅作元数据透传，
+# **不参与评分**（避免引入未回测的耦合口径）。无文件/无事件/窗口外/损坏 →
+# available=False，绝不造数。
+def voice_event_signal(ticker: str, username: str | None = None,
+                       lookback_days: int = 7) -> dict:
+    """第五真实源：用户语音转写事件（data/voice_events/<username>.json）。
+
+    仅当 ``username`` 非空时读取该用户专属桶；空 username 一律 unavailable
+    （隐私闸门，绝不跨用户读桶）。语音事件无 ticker → 市场级，对所有标的生效。
+
+    返回（成功）：
+        {"available": True, "symbol", "score", "rank", "signal",
+         "source": "voice-event", "hard_logic",
+         "voice": {"n_events", "window_days", "titles", "urgency_breakdown"}}
+    返回（无数据／隐私闸门）：
+        {"available": False, "symbol", "reason"}
+    """
+    sym = str(ticker or "").strip()
+    if not sym:
+        return {"available": False, "symbol": ticker, "reason": "未提供标的代码"}
+    if not username or not str(username).strip():
+        return {"available": False, "symbol": sym,
+                "reason": "未提供语音事件归属用户（隐私闸门，未读取任何语音桶）"}
+    try:
+        from modules.voice_event import load_voice_events
+    except Exception as e:  # pragma: no cover - 模块级依赖异常
+        return {"available": False, "symbol": sym,
+                "reason": f"语音事件模块不可用: {e}"}
+    try:
+        items = load_voice_events(200, username=str(username).strip())
+    except Exception as e:  # noqa: BLE401 - 取数异常诚实降级
+        logger.warning(f"[event_factor] 语音事件读取失败({sym}): {e}")
+        return {"available": False, "symbol": sym, "reason": f"语音事件读取失败: {e}"}
+    if not items:
+        return {"available": False, "symbol": sym,
+                "reason": "该用户暂无语音转写事件（未读取其他用户数据）"}
+
+    cutoff = pd.Timestamp.now() - pd.Timedelta(days=int(lookback_days))
+    matched = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        try:
+            ts = pd.to_datetime(it.get("ts"), errors="coerce")
+        except Exception:  # noqa: BLE401 - 损坏 ts 跳过该条，不臆造
+            ts = None
+        if ts is None or pd.isna(ts) or ts < cutoff:
+            continue
+        # 语音事件无 ticker 字段（转写时尚未关联个股）→ 市场级，对所有标的生效；
+        # 未来若 entry 带 ticker，则按包含式匹配（与 tracked 源同语义）。
+        _vt = str(it.get("ticker") or "").strip()
+        if _vt and _vt.lower() not in ("nan", "none", "<na>"):
+            if sym not in _vt:
+                continue
+        matched.append(it)
+    if not matched:
+        return {"available": False, "symbol": sym,
+                "reason": f"该用户近 {lookback_days} 日无语音转写事件"}
+
+    net = 0
+    titles = []
+    urgency_breakdown = {"urgent": 0, "soon": 0, "neutral": 0}
+    for it in matched:
+        # 语音持久化字段是 sentiment label（利好/利空/中性/多空交织），无
+        # sentiment_lean（后者仅存于 session_state 用于入库）。按小档 ±1 聚合。
+        label = str(it.get("sentiment") or "")
+        lean = str(it.get("sentiment_lean") or "")
+        if "利好" in label or lean == "positive":
+            net += 1
+        elif "利空" in label or lean == "negative":
+            net -= 1
+        # 中性 / 多空交织 / 未知 → 0（关注度不冒充方向）
+        _u = str(it.get("urgency") or "")
+        if "已发生" in _u or "突发" in _u:
+            urgency_breakdown["urgent"] += 1
+        elif "临近" in _u or "预告" in _u:
+            urgency_breakdown["soon"] += 1
+        else:
+            urgency_breakdown["neutral"] += 1
+        _tx = str(it.get("text") or "").strip()
+        if _tx:
+            titles.append(_tx)
+    score = float(max(5, min(95, _TRACKED_NEUTRAL_BASE + 8 * net)))
+    if score >= 55:
+        sig = "看多"
+    elif score <= 45:
+        sig = "看空"
+    else:
+        sig = "中性"
+    return {
+        "available": True, "symbol": sym,
+        "score": score, "rank": score / 100.0,
+        "signal": sig, "source": "voice-event",
+        "hard_logic": annotate_hard_logic(titles),
+        "voice": {
+            "n_events": int(len(matched)),
+            "window_days": int(lookback_days),
+            "titles": titles[:5],
+            "urgency_breakdown": dict(urgency_breakdown),
+        },
+    }
+
+
+# ── ② 全球宏观上下文（2026-11-04 事件因子适配器增强）─────────────────────────
+# 只加「上下文」，绝不改事件因子 score：宏观分项是全局背景，不是标的方向判定，
+# 任何把宏观分掺进个股事件分的做法都属未回测耦合，本层明确不做。
+# 数据来自 modules.macro_data 的真实 akshare 指标（美股/美债/美元/汇率/美联储利率
+# 等），每个数值带真实数据日期；取不到一律 None，绝不用合成值或 now() 兜底。
+def macro_event_context() -> dict:
+    """全球宏观风险偏好 / 流动性上下文（确定性规则，非模型生成）。
+
+    返回（有数据）：
+        {"available": True, "regime_score": 0-100,
+         "liquidity": "宽松"|"中性"|"收紧", "components": {...},
+         "sub_scores": {...}, "dates": {...}, "date": str|None, "source", "note"}
+    返回（取不到）：
+        {"available": False, "reason": ...}
+    ``date`` 取各分项**最旧**的真实数据日（整体时效上限，保守口径），
+    绝不用当前时间冒充数据日；全部分项无日期则为 None。
+    """
+    try:
+        from modules.macro_data import global_regime_score
+    except Exception as e:  # pragma: no cover - 模块级依赖异常
+        return {"available": False, "reason": f"宏观数据模块不可用: {e}"}
+    try:
+        reg = global_regime_score()
+    except Exception as e:  # noqa: BLE001 - 取数异常诚实降级
+        logger.warning(f"[event_factor] 宏观上下文取数失败: {e}")
+        return {"available": False, "reason": f"宏观数据取数失败: {e}"}
+    if not reg or reg.get("score") is None:
+        return {"available": False, "reason": "宏观分项全部取不到（不做合成填充）"}
+
+    score = reg["score"]
+    # 透明阈值（确定性规则，展示时必须如实标注，不包装成 AI 洞见）
+    liquidity = "宽松" if score >= 60 else ("收紧" if score <= 40 else "中性")
+    dates = {k: v for k, v in (reg.get("dates") or {}).items() if isinstance(v, str) and v}
+    # 保守口径：整体时效由最旧分项决定（升序取首），不用 now() 兜底
+    date = min(dates.values()) if dates else None
+    return {
+        "available": True,
+        "regime_score": score,
+        "liquidity": liquidity,
+        "components": dict(reg.get("parts") or {}),
+        "sub_scores": dict(reg.get("sub") or {}),
+        "yield_curve": reg.get("yield_curve"),
+        "cn_us_spread": reg.get("cn_us_spread"),
+        "dates": dates,
+        "date": date,
+        "source": "akshare-macro_data",
+        "note": "确定性规则合成（非模型生成）；date 取各分项最旧真实数据日，非当前时间",
+    }

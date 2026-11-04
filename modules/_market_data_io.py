@@ -17,10 +17,10 @@
     fetcher.get_commodity_price(...) -> fetch_commodity_price(fetcher, ...)
     fetcher.get_financial(...)    -> fetch_financial(fetcher, ...)
 """
-import contextlib
+import contextlib  # noqa: I001
 import io
 import json
-from datetime import datetime
+from datetime import datetime  # noqa: F401
 
 import pandas as pd
 

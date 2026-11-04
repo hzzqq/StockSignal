@@ -14,7 +14,7 @@ backend/conditional_engine.py
 - 调度器为守护线程，pytest / TESTING / STOCKSIGNAL_ENABLE_COND_SCHEDULER=0 时跳过；
 - 仅在 A 股交易时段扫描。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 import os
@@ -179,7 +179,7 @@ def evaluate_order(order) -> tuple[bool, str]:
 # ================================================================== 扫描 + 执行
 def scan_and_execute(app) -> dict:
     """扫描全部待触发条件单；触发者经 broker 统一下单。返回统计 dict。"""
-    from .extensions import db
+    from .extensions import db  # noqa: I001
     from .models import ConditionalOrder, RealAccount
     from .broker import execute_order
 

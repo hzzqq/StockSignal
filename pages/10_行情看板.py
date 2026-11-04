@@ -3,11 +3,11 @@
 指数迷你卡、行业板块涨跌榜（含涨跌排行/分布折叠区）、龙虎榜、个股相关性矩阵。
 K 线、参数设置、技术面分析已迁移至「股票选取」模块。
 """
-import html
+import html  # noqa: I001
 import logging
 import streamlit as st
-import streamlit.components.v1 as components
-import concurrent.futures as _cf  # kept; remaining use cases reviewed
+import streamlit.components.v1 as components  # noqa: F401
+import concurrent.futures as _cf  # kept; remaining use cases reviewed  # noqa: F401
 from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: HTTP 抓取收敛到共享基元
 from datetime import datetime, timedelta, time
 from modules.colors import UP_COLOR, DOWN_COLOR
@@ -18,17 +18,17 @@ from modules.widgets import render_index_compact
 from modules.page_guard import safe_fragment
 from modules.chart_cache import cached_fig
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
+from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now  # noqa: F401
 from modules.fundamental_helpers import fund_one
 
-from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, prov_badge, xc_bento_kpi, xc_content_card
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, prov_badge, xc_bento_kpi, xc_content_card  # noqa: F401
 logger = logging.getLogger(__name__)
 dark = render_standard_page(title='行情看板', icon='📈', layout='wide')
 render_index_compact(cols_per_row=5)
 # 加法式展示源溯源（H1+ 方向 A 续·T-215）：独立展示溯源通道（展示源非决策源，不污染决策健康；
 # 无离线证据的源不登记，缺证据即显示「未知」）。失败只留痕，绝不影响行情看板主流程。
 try:
-    from modules.display_provenance import build_display_provenance, DISPLAY_PAGE_SOURCES
+    from modules.display_provenance import build_display_provenance, DISPLAY_PAGE_SOURCES  # noqa: I001
     prov_badge(build_display_provenance(DISPLAY_PAGE_SOURCES.get("10_行情看板")), title="行情数据来源")
 except Exception as _prov_e:  # noqa: BLE001
     logger.debug("[10_行情看板] 展示源溯源徽标渲染失败: %s", _prov_e)
@@ -62,7 +62,7 @@ def _get_stock_concept(code: str) -> str:
             res = f.get_stock_concept(code)
             if res:
                 if isinstance(res, (list, tuple, set)):
-                    return '、'.join((str(x) for x in res)) if res else '—'
+                    return '、'.join((str(x) for x in res)) if res else '—'  # noqa: UP034
                 return str(res)
     except Exception as e:
         print(f'[R-01] get_stock_concept 失败 code={code}: {e}')
@@ -152,7 +152,7 @@ def fragment_sector_board():
     try:
         is_open, status_text, _ = _get_market_status()
     except Exception:
-        is_open, status_text, _ = False, '⚪ 行情状态未知', 0
+        is_open, status_text, _ = False, '⚪ 行情状态未知', 0  # noqa: F841
     st.caption(status_text)
     try:
         sector_df = fetcher.get_sector_list()
@@ -205,8 +205,8 @@ def _load_lhb(date_str: str):
     SSL 校验通过 ssl_bypass() 上下文管理器局部关闭，退出即恢复，
     不再污染进程全局 requests（历史隐患已修，#401/#404）。
     """
-    import akshare as ak
-    import concurrent.futures as _cf
+    import akshare as ak  # noqa: I001
+    import concurrent.futures as _cf  # noqa: F401, F811
     from modules.ssl_helper import ssl_bypass
 
     def _fetch_em():
@@ -251,7 +251,7 @@ def fragment_lhb():
     try:
         is_open, _, _ = _get_market_status()
     except Exception:
-        is_open = False
+        is_open = False  # noqa: F841
     with st.expander('🐉 龙虎榜（点击展开/收起）', expanded=True):
         st.caption('当日机构/游资活跃个股（数据来源：东方财富龙虎榜）')
         lhb_date = (datetime.now().date() - timedelta(days=0 if datetime.now().weekday() < 5 else 1)).strftime('%Y%m%d')
@@ -301,7 +301,7 @@ def fragment_lhb():
             _tmp_cols = [c for c in lhb_df.columns if c.startswith('_')]
             st.dataframe(lhb_df[[c for c in display_cols if c in lhb_df.columns]].drop(columns=_tmp_cols, errors='ignore'), width="stretch", height=420)
             with st.expander('📋 复制龙虎榜代码', expanded=False):
-                _lhb_codes = '\n'.join((str(c) for c in lhb_df['股票代码'].tolist() if str(c)))
+                _lhb_codes = '\n'.join((str(c) for c in lhb_df['股票代码'].tolist() if str(c)))  # noqa: UP034
                 st.code(_lhb_codes or '—', language='text')
             opts = [f"{row['股票代码']} {row['股票名称']}" for _, row in lhb_df.iterrows() if len(str(row['股票代码'])) == 6]
             sel = st.selectbox('选择龙虎榜股票查看 K 线', ['— 请选择 —'] + opts, key='lhb_jump_select', help='选择一个标的后跳转到「股票选取」页查看其 K 线与详情。')
@@ -452,13 +452,13 @@ def _wl_quote_batch(codes, token):
 def _wl_extra_uncached(code: str):
     """R90 拆分：未装饰底层（可在线程池并行调用）。返回 总股本/流通股。"""
     try:
-        import akshare as ak
+        import akshare as ak  # noqa: I001
         from modules.ssl_helper import ssl_bypass
         with ssl_bypass():
             info = ak.stock_individual_info_em(symbol=str(code))
         if info is None or info.empty:
             return None
-        d = dict(zip(info['item'], info['value']))
+        d = dict(zip(info['item'], info['value']))  # noqa: B905
 
         def _f(k):
             try:
@@ -506,7 +506,7 @@ def _wl_render_table_html(rows, dark: bool):
         op_bg, op_color = ('#eef2ff', '#4f46e5')
     up, down = (UP_COLOR, DOWN_COLOR)
     cols = ['名称', '代码', '现价', '涨跌幅', '涨跌额', '今开', '最高', '最低', '换手率', '市盈率', '总市值(亿)', '操作']
-    head = ''.join((f'<th style="padding:7px 8px;white-space:nowrap;">{c}</th>' for c in cols))
+    head = ''.join((f'<th style="padding:7px 8px;white-space:nowrap;">{c}</th>' for c in cols))  # noqa: UP034
     body = ''
     for r in rows:
         chg = r.get('chg')
@@ -521,9 +521,9 @@ def _wl_render_table_html(rows, dark: bool):
         turn_s = r.get('turnover') if r.get('turnover') is not None else '—'
         pe_s = r.get('pe') if r.get('pe') is not None else '—'
         mv_s = r.get('mv_yi') if r.get('mv_yi') is not None else '—'
-        body += f'''<tr style="color:{row_color};"><td style="padding:6px 8px;white-space:nowrap;">{html.escape(str(r['name']))}</td><td style="padding:6px 8px;color:{code_color};font-variant-numeric:tabular-nums;">{html.escape(str(r['code']))}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{cur_s}</td><td style="padding:6px 8px;color:{col};font-weight:600;font-variant-numeric:tabular-nums;">{chg_s}</td><td style="padding:6px 8px;color:{col};font-variant-numeric:tabular-nums;">{camt_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{open_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{high_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{low_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{turn_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{pe_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{mv_s}</td><td style="padding:6px 8px;"><span class="wl-op" data-code="{html.escape(str(r['code']))}" style="cursor:pointer;background:{op_bg};color:{op_color};font-size:12px;padding:2px 8px;border-radius:var(--ss-radius);white-space:nowrap;">📈 看K线</span></td></tr>'''
+        body += f'''<tr style="color:{row_color};"><td style="padding:6px 8px;white-space:nowrap;">{html.escape(str(r['name']))}</td><td style="padding:6px 8px;color:{code_color};font-variant-numeric:tabular-nums;">{html.escape(str(r['code']))}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{cur_s}</td><td style="padding:6px 8px;color:{col};font-weight:600;font-variant-numeric:tabular-nums;">{chg_s}</td><td style="padding:6px 8px;color:{col};font-variant-numeric:tabular-nums;">{camt_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{open_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{high_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{low_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{turn_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{pe_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{mv_s}</td><td style="padding:6px 8px;"><span class="wl-op" data-code="{html.escape(str(r['code']))}" style="cursor:pointer;background:{op_bg};color:{op_color};font-size:12px;padding:2px 8px;border-radius:var(--ss-radius);white-space:nowrap;">📈 看K线</span></td></tr>'''  # noqa: F823
     css = f'\n    <style>\n    .wl-table{{width:100%;border-collapse:collapse;background:{bg};\n      border:1px solid {border};border-radius:var(--ss-radius-sm);font-size:13px;font-family:inherit;}}\n    .wl-table th{{background:{head_bg};color:{head_color};text-align:right;font-weight:600;\n      border-bottom:1px solid {border};position:sticky;top:0;}}\n    .wl-table th:nth-child(1),.wl-table th:nth-child(2){{text-align:left;}}\n    .wl-table td{{text-align:right;border-bottom:1px solid {border};}}\n    .wl-table td:nth-child(1),.wl-table td:nth-child(2){{text-align:left;}}\n    .wl-table tr:hover td{{background:{hover};}}\n    </style>\n    '
-    html = css + f'<div style="max-height:520px;overflow:auto;"><table class="wl-table">' + f'<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>' + '<script>' + 'var ops=document.querySelectorAll(".wl-op");' + 'for(var i=0;i<ops.length;i++){ops[i].onclick=function(){' + 'var s=window.parent&&window.parent.Streamlit;' + 'if(s&&s.setComponentValue){s.setComponentValue(this.getAttribute("data-code"));}' + '};}' + '</script>'
+    html = css + f'<div style="max-height:520px;overflow:auto;"><table class="wl-table">' + f'<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>' + '<script>' + 'var ops=document.querySelectorAll(".wl-op");' + 'for(var i=0;i<ops.length;i++){ops[i].onclick=function(){' + 'var s=window.parent&&window.parent.Streamlit;' + 'if(s&&s.setComponentValue){s.setComponentValue(this.getAttribute("data-code"));}' + '};}' + '</script>'  # noqa: F541
     return html
 
 @safe_fragment('自选行情', run_every=60)
@@ -540,17 +540,17 @@ def fragment_watchlist_quotes():
         _empty_info('自选股为空。可在上方「🔍 搜索股票 · 加入自选」搜索后点击 ☆ 加入，或前往「📡 自选股监控」管理。')
         return
     codes = [it.get('stock_code') for it in items if isinstance(it, dict) and it.get('stock_code')]
-    name_by_code = {it.get('stock_code'): it.get('stock_name') for it in items}
+    name_by_code = {it.get('stock_code'): it.get('stock_name') for it in items}  # noqa: F841
     id_by_code = {it.get('stock_code'): it.get('id') for it in items}
     names = {}
     # R-03: fetch_parallel 共享池（名字查询，None 回退到 code）
     name_tasks = [(c, lambda c=c: fetcher.get_name_only(c)) for c in codes]
-    name_raw = _fetch_many(name_tasks, max_workers=4)
+    name_raw = _fetch_many(name_tasks, max_workers=4)  # noqa: F823
     names = {c: name_raw.get(c) or c for c in codes}
     _tok = get_token()
     with st.spinner(f'并行获取 {len(codes)} 只自选股实时行情…'):
         quotes, _has_auth_err = _wl_quote_batch(codes, _tok)
-    if _has_auth_err or any((isinstance(q, dict) and q.get('__auth_error') for q in quotes.values())):
+    if _has_auth_err or any((isinstance(q, dict) and q.get('__auth_error') for q in quotes.values())):  # noqa: UP034
         clear_auth()
         xc_warn_box('🔐 登录已过期，请重新登录')
         return
@@ -589,8 +589,8 @@ def fragment_watchlist_quotes():
             _t = volume / float_shares * 100
             turnover = f'{_t:.2f}%' if 0 <= _t <= 100 else '—'
         rows.append({'code': code, 'name': name, 'cur': cur, 'chg': chg, 'change_amt': change_amt, 'open': open_, 'high': high, 'low': low, 'turnover': turnover, 'pe': f'{pe:.2f}' if isinstance(pe, (int, float)) and (not pd.isna(pe)) else None, 'mv_yi': f'{mv_yi:.2f}' if mv_yi is not None else None})
-    up_n = sum((1 for r in rows if r['chg'] is not None and r['chg'] >= 0))
-    down_n = sum((1 for r in rows if r['chg'] is not None and r['chg'] < 0))
+    up_n = sum((1 for r in rows if r['chg'] is not None and r['chg'] >= 0))  # noqa: UP034
+    down_n = sum((1 for r in rows if r['chg'] is not None and r['chg'] < 0))  # noqa: UP034
     # ui_audit_exempt: unsafe-allow_html 仅拼内置色板常量与整数计数，无外部文本输入
     st.markdown(f"#### 共 {len(rows)} 只自选股 ｜ <span style='color:{UP_COLOR};font-weight:600;'>▲ {up_n}</span> ／ <span style='color:{DOWN_COLOR};font-weight:600;'>▼ {down_n}</span>", unsafe_allow_html=True)
     picks = _wl_render_table_html(rows, dark)

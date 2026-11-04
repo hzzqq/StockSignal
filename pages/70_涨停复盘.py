@@ -17,17 +17,17 @@
   · 龙头评分为**启发式加权**，不是预测模型；不承诺次日涨跌。
   · 该接口只覆盖当日涨停池，历史复盘需逐日切换日期（不编造跨日序列）。
 """
-import html
+import html  # noqa: I001
 import logging
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
+from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba  # noqa: F401
 from modules.page_utils import (render_standard_page, score_bar as _score_bar)
 from modules.shepherd import _trading_days, _zt_pool_detail_cached, get_zt_ladder
-from modules.ui_kit import stat_tile, xc_kpi_grid
+from modules.ui_kit import stat_tile, xc_kpi_grid  # noqa: F401
 from modules.ui_kit import xc_section_header
 logger = logging.getLogger(__name__)
 
@@ -413,7 +413,7 @@ def _detail_table(sub):
     return show
 
 
-tab_first, tab_2, tab_3, tab_high = st.tabs(["首板", "二板", "三板", f"高位板（≥4板）"])
+tab_first, tab_2, tab_3, tab_high = st.tabs(["首板", "二板", "三板", f"高位板（≥4板）"])  # noqa: F541
 with tab_first:
     t = _detail_table(df[df["_boards_i"] <= 1])
     st.dataframe(t, width="stretch", hide_index=True) if len(t) else st.info("无首板。")

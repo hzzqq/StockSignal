@@ -6,7 +6,7 @@ _sync_query_params / _verify_token 属主入口认证链，在各函数内**函�
 （模块级导入会形成 session ↔ session_user 循环）。
 零业务逻辑改动：源码自 ``modules/session.py`` 原样搬运。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 import os
@@ -22,7 +22,7 @@ from modules.session_api import (
     api_mark_alert_read,
     api_mark_all_alerts_read,
     api_market_alerts,
-    api_post,
+    api_post,  # noqa: F401
 )
 
 # 与主入口共用同名 logger（getLogger 单例），既有按名打补丁/过滤继续生效

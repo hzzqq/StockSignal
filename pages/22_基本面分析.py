@@ -11,7 +11,7 @@
 
 数据以现有 StockFetcher 为主，缺失时降级展示，避免页面崩溃。
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 import html
 import pandas as pd
 from datetime import datetime, timedelta
@@ -25,7 +25,7 @@ from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info
 from modules.perf import downsample
 from modules.chart_cache import cached_fig
-from modules.ui_kit import stat_tile, xc_kpi_grid, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, xc_content_card
+from modules.ui_kit import stat_tile, xc_kpi_grid, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, xc_content_card  # noqa: F401
 dark = render_standard_page(title='基本面分析', icon='🏛️', caption='个股估值、业绩、历史位置、行业横向对比与大盘主线判断（仅供参考，非投资建议）', layout='wide')
 trading_autorefresh(key='fundamental_autorefresh')
 ACCENT = '#818cf8' if dark else '#6366f1'
@@ -33,10 +33,10 @@ ACCENT2 = '#fbbf24' if dark else '#f59e0b'
 ACCENT_FILL = 'rgba(129,140,248,0.14)' if dark else 'rgba(99,102,241,0.10)'
 fetcher = get_fetcher()
 
-from modules.ssl_helper import ssl_bypass as _ssl_bypass
+from modules.ssl_helper import ssl_bypass as _ssl_bypass  # noqa: I001
 from modules.fundamental_helpers import _to_num, _find_col, _extract_metric_series, _period_label, _compute_yoy, _compute_qoq, _FINANCIAL_METRICS, _fmt_fin_value, _fmt_fin_yoy, _fmt_fin_qoq, _to_float, _percentile, _pe_status, _tag, _find_sector_name, _sector_rank, _composite_score, resolve_sector_df
 from modules import valuation as _val
-import concurrent.futures as _cf
+import concurrent.futures as _cf  # noqa: F401
 
 
 # ── 图表 figure 构建缓存（性能优化：避免长周期图在交互重跑/刷新时重复 rebuild）──
@@ -160,7 +160,7 @@ def _industry_pe_sample(industry: str) -> list:
     try:
         _codes = [str(c) for c in cons['code'].tolist()][:20]
         _names = [str(n) for n in cons['name'].tolist()] if 'name' in cons.columns else []
-        names = dict(zip(_codes, _names))
+        names = dict(zip(_codes, _names))  # noqa: B905
     except Exception:
         # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         return []
@@ -287,7 +287,7 @@ def fragment_valuation_band(code: str, name: str, industry: str, pe_ttm, dark: b
         if band.get('span'):
             st.caption(f'样本区间：{band["span"]}')
         cols = st.columns(2)
-        for _c, _k, _label in zip(cols, ('pe', 'pb'), ('市盈率(TTM)', '市净率')):
+        for _c, _k, _label in zip(cols, ('pe', 'pb'), ('市盈率(TTM)', '市净率')):  # noqa: B905
             b = band.get(_k) or {}
             with _c:
                 if b.get('status') != 'ok':
@@ -867,9 +867,15 @@ if code:
     st.markdown('---')
     col_jump1, col_jump2 = st.columns(2)
     with col_jump1:
-        st.page_link('pages/20_个股分析.py', label='→ 去 个股深度分析（决策仪表盘）', icon='🔍')
+        if st.button('→ 去 个股深度分析（决策仪表盘）', key='jump_20_analysis', width="stretch"):
+            st.query_params['pick_stock'] = code
+            safe_switch_page('pages/20_个股分析.py')
     with col_jump2:
-        st.page_link('pages/24_个股研究.py', label='→ 去 个股研究（K线与技术面）', icon='📈')
+        if st.button('→ 去 个股研究（K线与技术面）', key='jump_24_research', width="stretch"):
+            # 深链契约：预选「🔬 深度分析」并回填 code（消费端见 pages/24_个股研究.py）
+            st.query_params['hub_gyj_view'] = '🔬 深度分析'
+            st.query_params['pick_stock'] = code
+            safe_switch_page('pages/24_个股研究.py')
     st.caption('⚠️ 风险提示：本页所有数据及分析均由程序基于公开数据自动计算，仅供参考，不构成任何投资建议。市场有风险，投资需谨慎。')
     if st.button('↑ 回到顶部', key='fa_back_to_top', width="stretch"):
         sn.back_to_top_button()

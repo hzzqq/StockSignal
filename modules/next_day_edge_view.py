@@ -70,7 +70,7 @@ def get_today_breadth() -> dict | None:
 
 def render_next_day_edge(breadth: dict | None = None, dark: bool = False):
     """渲染「次日情绪极值判断」卡片。breadth 缺省时自动取当日广度。"""
-    import streamlit as st
+    import streamlit as st  # noqa: I001
     from modules.sentiment_edge import panic_reversal
     from modules.ui_kit import xc_warn_box, xc_info_banner
 

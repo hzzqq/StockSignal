@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """
 modules/em_snapshot.py — 东方财富全市场 A 股快照直连薄层（T-177）。
 

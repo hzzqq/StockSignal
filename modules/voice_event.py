@@ -33,7 +33,7 @@ import logging
 import os
 import re
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional  # noqa: F401, UP035
 
 from modules.event_factor import annotate_hard_logic
 from modules.llm_client import config, is_configured
@@ -66,7 +66,7 @@ def transcribe_audio_result(
     audio_bytes: bytes,
     filename: str = "audio.webm",
     model: str = "whisper-1",
-) -> Dict[str, Optional[str]]:
+) -> Dict[str, Optional[str]]:  # noqa: UP006, UP045
     """语音转写（结构化诊断版）。
 
     返回：
@@ -119,7 +119,7 @@ def transcribe_audio(
     audio_bytes: bytes,
     filename: str = "audio.webm",
     model: str = "whisper-1",
-) -> Optional[str]:
+) -> Optional[str]:  # noqa: UP045
     """语音转写（兼容旧契约：成功返回文本、其余返回 None）。
 
     旧接口保留：原调用方与测试仍按 str | None 使用；新调用方请用
@@ -142,7 +142,7 @@ def extract_event_factors(text: str) -> dict:
     return {"available": True, "text": str(text), "hard_logic": hard}
 
 
-def classify_urgency(text: str) -> Dict[str, object]:
+def classify_urgency(text: str) -> Dict[str, object]:  # noqa: UP006
     """时间敏感度分类（确定性词表，与硬逻辑/题材炒作正交）。
 
     返回 {"level": "urgent"|"soon"|"neutral", "keywords": [...], "label": "已发生/临近/笼统"}。
@@ -158,7 +158,7 @@ def classify_urgency(text: str) -> Dict[str, object]:
     return {"level": "neutral", "keywords": [], "label": "笼统"}
 
 
-def classify_sentiment_lean(text: str) -> Dict[str, object]:
+def classify_sentiment_lean(text: str) -> Dict[str, object]:  # noqa: UP006
     """情绪倾向分类（确定性词表：利好 / 利空 / 中性）。
 
     返回 {"lean": "positive"|"negative"|"neutral", "keywords": [...],
@@ -178,7 +178,7 @@ def classify_sentiment_lean(text: str) -> Dict[str, object]:
     return {"label": "中性", "lean": "neutral", "keywords": []}
 
 
-def build_voice_event_card(text: str) -> Dict[str, object]:
+def build_voice_event_card(text: str) -> Dict[str, object]:  # noqa: UP006
     """把转写文本汇总为一张结构化卡片数据（因子 + 紧急度 + 情绪倾向）。
 
     供前端统一渲染为「独立、自包含」的语音事件卡。所有字段均来自确定性规则，
@@ -203,7 +203,7 @@ def render_voice_event_block() -> None:
     会话内存不再另存一份。
     诚实降级：未配置 key / 端点不支持 audio / 转写失败 → 精确文案，绝不编造、不落盘。
     """
-    import streamlit as st
+    import streamlit as st  # noqa: I001
     from datetime import datetime
     from modules.session import get_user
     from modules.ui_kit import xc_content_card, xc_warn_box
@@ -362,7 +362,7 @@ def load_voice_events(limit: int = 20, username=None) -> list:
         _path = _voice_events_path(username)
         if not os.path.exists(_path):
             return []
-        with open(_path, "r", encoding="utf-8") as _f:
+        with open(_path, "r", encoding="utf-8") as _f:  # noqa: UP015
             _data = json.load(_f)
         if not isinstance(_data, list):
             return []
@@ -387,7 +387,7 @@ def save_voice_event(entry: dict, username=None) -> bool:
         _items: list = []
         if os.path.exists(_path):
             try:
-                with open(_path, "r", encoding="utf-8") as _f:
+                with open(_path, "r", encoding="utf-8") as _f:  # noqa: UP015
                     _old = json.load(_f)
                 if isinstance(_old, list):
                     _items = [it for it in _old if isinstance(it, dict)]
@@ -410,7 +410,7 @@ def clear_voice_events(username=None) -> int:
         if not os.path.exists(_path):
             return 0
         try:
-            with open(_path, "r", encoding="utf-8") as _f:
+            with open(_path, "r", encoding="utf-8") as _f:  # noqa: UP015
                 _old = json.load(_f)
             _n = len(_old) if isinstance(_old, list) else 0
         except Exception:

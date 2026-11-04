@@ -11,7 +11,7 @@
   exec 动态加载已消除），仅运行「当前选中」的子视图。
   → 子页文件保持零改动、仍可独立运行；避免了 st.tabs 预渲染所有子页导致的重复取数性能回退。
 """
-import os
+import os  # noqa: I001
 import streamlit as st
 
 from modules.page_utils import render_standard_page
@@ -23,14 +23,14 @@ xc_info_banner("本页合并「快速选取」与「深度分析」两个子视�
 # 现价经后端 analysis 任务走 rt_quote_cache（modules/analysis_engine.py 实证）。
 # 失败只留痕，绝不影响页面主流程；无证据源不展示（诚实语义）。
 try:
-    from modules.display_provenance import build_display_provenance, DISPLAY_PAGE_SOURCES
+    from modules.display_provenance import build_display_provenance, DISPLAY_PAGE_SOURCES  # noqa: I001
     from modules.ui_kit import prov_badge
     prov_badge(build_display_provenance(DISPLAY_PAGE_SOURCES.get("24_个股研究")), title="研究数据来源")
 except Exception as _prov_e:  # noqa: BLE001
     import logging as _logging
     _logging.getLogger("pages.24_个股研究").debug("展示源溯源徽标渲染失败: %s", _prov_e)
 
-from modules.session import trading_autorefresh
+from modules.session import trading_autorefresh, safe_switch_page  # noqa: I001
 trading_autorefresh(key="hub_autorefresh")
 
 _HERE = os.path.dirname(__file__)
@@ -38,7 +38,7 @@ _SUBPAGES = {
     "⚡ 快速选取": os.path.join(_HERE, "11_股票选取.py"),
     "🔬 深度分析": os.path.join(_HERE, "20_个股分析.py"),
 }
-from modules.stock_research import render_stock_analysis
+from modules.stock_research import render_stock_analysis  # noqa: I001
 # P0-1 契约：path→callable 映射（键复用 _SUBPAGES 路径值）；未注册子页暂走 exec 兼容
 from modules.stock_research import render_stock_picker
 _SUBPAGE_FNS = {
@@ -57,7 +57,7 @@ def _run_subpage(path: str) -> None:
     注意：子页多数已改用 ``modules.page_utils.render_standard_page``，该模块在导入时
     已把这三个函数绑进自己的命名空间，因此必须一并 patch，否则 no-op 不生效。
     """
-    import modules.ui_theme as _uit
+    import modules.ui_theme as _uit  # noqa: I001
     import modules.session as _sess
     import modules.page_utils as _pu
 
@@ -92,6 +92,14 @@ def _run_subpage(path: str) -> None:
 _options = list(_SUBPAGES.keys())
 # 支持从搜索 / 龙虎榜 / 其它页跳转时预选子视图（默认「快速选取」）
 st.session_state.setdefault("hub_gyj_view", _options[0])
+# 深链契约消费端：22 页 / 顶部导航带 hub_gyj_view + pick_stock 跳转时预选子视图并回填 code
+_deeplink_view = st.query_params.get("hub_gyj_view")
+if _deeplink_view in _options:
+    st.session_state["hub_gyj_view"] = _deeplink_view
+_deeplink_code = st.query_params.get("pick_stock")
+if _deeplink_code:
+    st.session_state["pick_stock_confirmed"] = str(_deeplink_code)
+    st.session_state["pick_stock_query"] = str(_deeplink_code)
 if st.session_state.get("hub_gyj_view") not in _options:
     st.session_state["hub_gyj_view"] = _options[0]
 
@@ -103,6 +111,11 @@ _view = st.radio(
     key="hub_gyj_view",
 )
 st.caption(f"📍 当前：个股研究 › **{_view}**")
+if st.session_state.get("pick_stock_confirmed"):
+    if st.button("← 返回基本面分析", key="hub_back_to_fund",
+                 help="回到基本面分析页（沿用当前标的）", width="stretch"):
+        st.query_params["pick_stock"] = st.session_state["pick_stock_confirmed"]
+        safe_switch_page("pages/22_基本面分析.py")
 st.divider()
 _run_subpage(_SUBPAGES[_view])
 

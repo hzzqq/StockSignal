@@ -26,7 +26,7 @@ fundflow.py 是实时取数层（akshare → 东方财富，TTL 缓存 + 失败�
 from __future__ import annotations
 
 from datetime import date
-from typing import Callable
+from typing import Callable  # noqa: F401, UP035
 
 # ───────────────────────── 常量与默认阈值 ─────────────────────────
 
@@ -269,7 +269,7 @@ def summarize(providers: dict, today: date | None = None,
 # ───────────────────────── 报告渲染 ─────────────────────────
 def render_report(summary: dict) -> str:
     """Markdown 报告（供 CLI 与文档使用）。"""
-    lines = ["# fundflow 数据层健康体检 — %s" % summary["today"]]
+    lines = ["# fundflow 数据层健康体检 — %s" % summary["today"]]  # noqa: UP031
     lines.append("")
     lines.append("| 接口 | 状态 | 问题 |")
     lines.append("|---|---|---|")

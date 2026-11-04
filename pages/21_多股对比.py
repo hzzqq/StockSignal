@@ -3,18 +3,18 @@
 模仿 compare-analysis-20260710.html 的暗色 .sf-* 决策仪表盘风格，支持同屏对比 ≥5 只股票。
 数据全部程序化（fetcher + technical + 价格相关性 + 启发式催化/弹性），前端由 modules.compare 生成。
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 import html
 
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
 
 # 本页「星辰决策仪表盘」跟随全局主题（右上角开关可切暗夜 / 白天）
-from modules.ui_kit import xc_info_banner, xc_handle_error, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_info_banner, xc_handle_error, xc_success_box, xc_warn_box  # noqa: F401
 render_standard_page(title="多股对比 · 决策仪表盘", icon="📊", layout="wide")
 xc_info_banner("输入 2~8 只股票（代码 / 中文名 / 拼音首字母）即可横向对比；对比结果含五维雷达、成对卡片与作战计划，所有数据仅供参考。", icon="📊")
 
-from modules.search_ui import multi_stock_search_input
+from modules.search_ui import multi_stock_search_input  # noqa: I001
 from modules.background_tasks import submit_task_with_error, poll_task
 from modules.compare import (
     compare_css, build_header, build_one_line,
@@ -155,7 +155,7 @@ def fragment_compare_result():
     # ── 综合评分雷达（左图 + 右标签云/风险）──
     # ui_audit_exempt: unsafe-allow_html 纯内置标题文案，仅含整数股数
     st.markdown(
-        '<div class="card"><h2>综合评分雷达（%d 股五维对比）</h2></div>' % len(rows),
+        '<div class="card"><h2>综合评分雷达（%d 股五维对比）</h2></div>' % len(rows),  # noqa: UP031
         unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
     c1, c2 = st.columns([1.15, 1])

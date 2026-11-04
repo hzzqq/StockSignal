@@ -7,7 +7,7 @@ backend/services/pinyin_util.py
 from __future__ import annotations
 
 try:
-    from pypinyin import lazy_pinyin, Style
+    from pypinyin import lazy_pinyin, Style  # noqa: I001
     _HAS_PYPINYIN = True
 except ImportError:
     _HAS_PYPINYIN = False

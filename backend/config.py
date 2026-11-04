@@ -3,7 +3,7 @@ backend/config.py
 -----------------
 集中管理配置。生产环境请通过环境变量覆盖 SECRET_KEY。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import logging
 import os
 from pathlib import Path

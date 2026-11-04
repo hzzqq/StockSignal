@@ -12,12 +12,12 @@
   · 评分为启发式加权，非预测模型；高换手/高量比亦伴随高波动风险；
   · 取不到快照时明示「未就绪」，绝不用陈旧数据假装「实时」。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import html
 import logging
 
-from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
+from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba  # noqa: F401
 from modules.page_utils import (render_standard_page, score_bar as _score_bar)
 from modules.session import trading_autorefresh
 from modules.spot_rank import _col, _num, load_spot_with_source, strong_score
@@ -33,7 +33,7 @@ def _gate_strong_summary(codes: tuple, names: tuple, top_k: int):
     """T-245 二道闸扫描结果缓存（10 分钟 TTL），避免 60s 自动刷新触发上百次网络调用。"""
     try:
         _, summary = scan_and_gate(
-            [{"code": c, "name": n} for c, n in zip(codes, names)], top_k=top_k
+            [{"code": c, "name": n} for c, n in zip(codes, names)], top_k=top_k  # noqa: B905
         )
     except Exception as e:  # noqa: BLE001
         logger.warning("[76] 二道闸异常，降级放行: %s", e)

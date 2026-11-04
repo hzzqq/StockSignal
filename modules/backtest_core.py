@@ -9,7 +9,7 @@
 原始 AST 精确切分，零业务逻辑修改。
 """
 
-import numpy as np
+import numpy as np  # noqa: I001
 import pandas as pd
 
 import logging

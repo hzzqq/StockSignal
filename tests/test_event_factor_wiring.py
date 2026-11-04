@@ -105,3 +105,63 @@ def test_evaluate_fallback_source(loader):
     assert r["event_source"] == "本地事件库"
     assert r["event_signal"] is None
     assert 0 <= r["event_score"] <= 100
+
+
+# ───────────── 4. 第五源（语音转写事件）接线守卫（2026-11-04 ③）────────────
+class _NoSignalLoader:
+    """前四源全空：P1 无榜单/无 daily，新闻/龙虎榜/主表均打空。"""
+    source_dirs = ["<wiring-test>"]
+
+    def available_models(self):
+        return ["ev"]
+
+    def top_long(self, *a, **k):
+        return []
+
+    def top_short(self, *a, **k):
+        return []
+
+    def daily_df(self, *a, **k):
+        return None
+
+    def load(self, *a, **k):
+        return {}
+
+
+def _patch_lower_sources(monkeypatch):
+    monkeypatch.setattr(_ef, "news_event_signal", lambda *a, **k: {"available": False})
+    monkeypatch.setattr(_ef, "lhb_event_signal", lambda *a, **k: {"available": False})
+    monkeypatch.setattr(_ef, "tracked_event_signal", lambda *a, **k: {"available": False})
+
+
+def _patch_voice_items(monkeypatch, items):
+    monkeypatch.setattr("modules.voice_event.load_voice_events",
+                        lambda *a, **k: items)
+
+
+def test_fifth_source_wired_only_with_voice_user(monkeypatch):
+    """第五源已接入兜底链：默认跳过，显式 voice_user 才命中（隐私闸门）。"""
+    from datetime import datetime, timedelta
+    _patch_lower_sources(monkeypatch)
+    _patch_voice_items(monkeypatch, [{
+        "ts": (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S"),
+        "text": "公司中标大额合同", "sentiment": "利好", "urgency": "已发生/突发",
+    }])
+    # 默认：不读语音桶，诚实降级
+    r0 = _ef.get_event_factor("601088", loader=_NoSignalLoader())
+    assert r0["available"] is False
+    # 显式：第五源命中
+    r1 = _ef.get_event_factor("601088", loader=_NoSignalLoader(), voice_user="alice")
+    assert r1["available"] is True
+    assert r1["source"] == "voice-event"
+    assert r1["score"] == pytest.approx(60.0)
+
+
+def test_include_macro_does_not_leak_into_default_path(monkeypatch):
+    """宏观上下文默认不触发、不污染既有返回结构（向后兼容）。"""
+    seen = []
+    monkeypatch.setattr("modules.macro_data.global_regime_score",
+                        lambda: seen.append(1))
+    r = _ef.get_event_factor("601088", loader=_NoSignalLoader())
+    assert "macro" not in r
+    assert seen == []

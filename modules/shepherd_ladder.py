@@ -13,16 +13,16 @@ modules/shepherd_ladder.py — 连板梯队晋级率（每日落盘 + 跨日晋�
   ✅ 文件损坏/缺失优雅降级，绝不抛异常到页面
   ✅ 历史不足 2 日时 ready=False，不误报晋级率
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import logging
 import os
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta  # noqa: F401
 
 from modules.atomic_io import atomic_json_dump
-from modules.time_utils import now_cst, now_cst_str, now_cst_naive
+from modules.time_utils import now_cst, now_cst_str, now_cst_naive  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +134,7 @@ def load_history() -> dict:
     try:
         if not os.path.exists(LADDER_FILE):
             return {}
-        with open(LADDER_FILE, "r", encoding="utf-8") as f:
+        with open(LADDER_FILE, "r", encoding="utf-8") as f:  # noqa: UP015
             data = json.load(f)
         if not isinstance(data, dict):
             return {}
@@ -647,7 +647,7 @@ def load_event_pool(path: str | None = None) -> dict:
         if not os.path.exists(p):
             return dict(available=False, date=None, pool=[], stale=False, live=False,
                         note="事件因子多头池快照缺失（data/event_pool_brief.json）", source=None)
-        with open(p, "r", encoding="utf-8") as f:
+        with open(p, "r", encoding="utf-8") as f:  # noqa: UP015
             data = json.load(f)
         if not isinstance(data, dict) or not data.get("pool"):
             return dict(available=False, date=None, pool=[], stale=False, live=False,
@@ -732,7 +732,7 @@ def _pick_latest_valid_signal(cands: list):
     scanned, bad, n_invalid = [], [], 0
     for p in cands:
         try:
-            with open(p, "r", encoding="utf-8") as f:
+            with open(p, "r", encoding="utf-8") as f:  # noqa: UP015
                 sig = json.load(f)
         except Exception:  # noqa: BLE001  损坏文件跳过，不阻断其他候选
             bad.append(p)

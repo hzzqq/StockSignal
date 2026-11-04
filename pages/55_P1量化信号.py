@@ -19,7 +19,7 @@
   （全成本率 ≈0.30%）；「多年度复合正期望」结论基于历史 pred，现役 pred 需多年度复核后维持/修订。
 - 信号为市场中性多空（看多/看空各 N 只）；A 股零售场景通常**仅取多头侧**或降权空头。
 """
-import html
+import html  # noqa: I001
 import logging
 import pandas as pd
 import streamlit as st

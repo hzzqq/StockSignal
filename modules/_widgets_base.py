@@ -1,7 +1,7 @@
 """modules/_widgets_base.py
 跨页面组件共享的纯函数（无依赖，避免 widgets 拆分产生环引用）。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import html
 

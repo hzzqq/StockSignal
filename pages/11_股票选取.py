@@ -11,7 +11,7 @@ from modules.stock_research import render_stock_picker
 render_stock_picker()
 
 # ── 方法学与来源注脚（B 类页五段式：收尾一段；页面主体由 modules.stock_research 渲染，页头无天然 KPI 带数据）──
-import streamlit as st
+import streamlit as st  # noqa: I001
 from modules.ui_kit import xc_subheader
 xc_subheader("口径与来源", icon="📌")
 st.caption(

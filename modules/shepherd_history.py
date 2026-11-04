@@ -1,5 +1,5 @@
 """modules/shepherd_history.py.py —— 从 shepherd.py 精确切出（零修改）。"""
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import os
 import time
 import logging
@@ -10,7 +10,7 @@ from modules.time_utils import now_cst_str, now_cst_naive
 import numpy as np
 import pandas as pd
 from modules.cache_utils import _CACHE, _CACHE_LOCK, cached_ttl
-from .shepherd_helper import *
+from .shepherd_helper import *  # noqa: F403
 from .shepherd_fetch import _fetch_legu, _fetch_zt_pool, _fetch_zbgc_pool, _fetch_prev_pool, _fetch_dt_pool, _get_spot_cached
 
 def _resolve(_name):
@@ -309,7 +309,7 @@ def get_shepherd_indicators_range(start_date, end_date, backfill=False):
             meta['missing_columns'][c] = f'所选时段内该指标缺失 {len(df) - non_na} 个交易日'
     return (df, meta)
 
-def load_latest_snapshot() -> 'dict | None':
+def load_latest_snapshot() -> 'dict | None':  # noqa: UP037
     """读取每日市场快照（离线兜底源），无实时数据时供页面降级使用。
 
     优先级：
@@ -337,7 +337,7 @@ def load_latest_snapshot() -> 'dict | None':
         pass
     for path in candidates:
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, 'r', encoding='utf-8') as f:  # noqa: UP015
                 data = json.load(f)
             if isinstance(data, dict) and 'temperature' in data:
                 return data

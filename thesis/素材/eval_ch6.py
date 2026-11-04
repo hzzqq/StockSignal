@@ -15,7 +15,7 @@ StockSignal 毕业论文 · 第6章 评估脚本（只读真实数据，不伪�
       绝不编造命中率。校准机制（calibration.py）在小样本下本就「只出建议不自动改规则」，
       这一设计在真实数据上得到验证。
 """
-import json
+import json  # noqa: I001
 import os
 import glob
 import sys
@@ -172,7 +172,7 @@ def main():
             y=[1 if p["hit"] else 0 for p in scored],
             text=[f"pct={p.get('pct')},real={p.get('realized')}" for p in scored],
         ))
-        fig4.update_layout(title="预测 vs 实际命中（已评分样本，n=%d）" % len(scored),
+        fig4.update_layout(title="预测 vs 实际命中（已评分样本，n=%d）" % len(scored),  # noqa: UP031
                            xaxis_title="日期", yaxis_title="命中(1)/未中(0)")
     _emit("fig_hit", fig4)
 

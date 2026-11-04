@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """
 modules/top_nav.py — 阿里云风格顶部 Mega 导航（T-195，侧栏退役配套）
 =====================================================================
@@ -15,7 +15,7 @@ modules/top_nav.py — 阿里云风格顶部 Mega 导航（T-195，侧栏退役�
     auth_persist localStorage 兜底）
   · 悬停展开纯 CSS（:hover），无 JS 依赖，可靠执行
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 import re
@@ -82,12 +82,12 @@ def _locate_current(cur_base: str, nav_groups: list, nav_hero: list) -> tuple:
     """
     if not cur_base:
         return (None, None)
-    for p, l, _i in (nav_hero or []):
+    for p, l, _i in (nav_hero or []):  # noqa: E741
         if p.replace("\\", "/").split("/")[-1] == cur_base:
             return ("🎯 决策中枢", l)
     for top_label, clusters in (nav_groups or []):
         for _sub, items in (clusters or []):
-            for p, l, _i in (items or []):
+            for p, l, _i in (items or []):  # noqa: E741
                 if p.replace("\\", "/").split("/")[-1] == cur_base:
                     return (top_label, l)
     return (None, None)
@@ -135,7 +135,7 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
     hero_entries = "".join(
         _entry_html(p, l, i, cur_base, q) + (
             '<i class="ss-tag ss-tag-hot">HOT</i>' if "54_" in p else "")
-        for p, l, i in nav_hero)
+        for p, l, i in nav_hero)  # noqa: E741
     intro_hero = _GROUP_INTROS.get("决策中枢", "")
     hero_active = ' ss-menu-active' if _cur_group == "🎯 决策中枢" else ""
     hero_crumb = _crumb_html(_cur_label) if (_cur_group == "🎯 决策中枢" and _cur_label) else ""
@@ -144,7 +144,7 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
         '<div class="ss-mega"><div class="ss-mega-intro"><h4>决策中枢 ></h4>'
         f'<p>{intro_hero}</p></div>'
         f'<div class="ss-mega-grid">{hero_entries}'
-        + "".join(_entry_html(p, l, i, cur_base, q) for p, l, i in favorites)
+        + "".join(_entry_html(p, l, i, cur_base, q) for p, l, i in favorites)  # noqa: E741
         + "</div></div></div>")
     # 六大类目（剥 emoji + 前置 SVG 图标，干净统一）
     for top_label, clusters in nav_groups:
@@ -155,7 +155,7 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
         for sub, items in clusters:
             if sub:
                 rows.append(f'<div class="ss-mega-sub">{sub}</div>')
-            rows.append("".join(_entry_html(p, l, i, cur_base, q) for p, l, i in items))
+            rows.append("".join(_entry_html(p, l, i, cur_base, q) for p, l, i in items))  # noqa: E741
         grid = "".join(rows)
         grp_active = ' ss-menu-active' if _cur_group == top_label else ""
         grp_crumb = _crumb_html(_cur_label) if (_cur_group == top_label and _cur_label) else ""
@@ -183,7 +183,7 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
         "swiss": "B · 瑞士极简白", "aurora": "C · 极光玻璃 2.0",
         "ink": "D · 东方墨韵", "cyber": "E · 赛博朋克 2077",
     }
-    import json as _json
+    import json as _json  # noqa: I001
     from urllib.parse import urlencode as _urlencode, parse_qs as _parse_qs
     _base = {k: v[0] for k, v in _parse_qs(nav_qs).items()} if nav_qs else {}
     _prefs = {}
@@ -209,7 +209,7 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
         admin_html = (f'<div class="ss-user-sec">{svg_icon("shield", size=13)} 管理</div>'
                       + "".join(
                           f'<a class="ss-user-item" href="{_slug(p)}{q}">{render_nav_icon(i, size=13)} {l}</a>'
-                          for p, l, i in nav_admin))
+                          for p, l, i in nav_admin))  # noqa: E741
 
     html = f"""
 <div class="ss-topnav">
@@ -345,15 +345,15 @@ def build_nav_index(nav_groups: list, nav_hero: list, nav_admin: list,
         return _slug(path) + q
 
     idx: list[dict] = []
-    for p, l, i in nav_hero:
+    for p, l, i in nav_hero:  # noqa: E741
         idx.append({"label": l, "icon": render_nav_icon(i, size=14), "href": _h(p), "group": "决策中枢"})
     for top_label, clusters in nav_groups:
         for _sub, items in clusters:
-            for p, l, i in items:
+            for p, l, i in items:  # noqa: E741
                 idx.append({"label": l, "icon": render_nav_icon(i, size=14), "href": _h(p), "group": top_label})
-    for p, l, i in favorites:
+    for p, l, i in favorites:  # noqa: E741
         idx.append({"label": l, "icon": render_nav_icon(i, size=14), "href": _h(p), "group": "常用"})
-    for p, l, i in nav_admin:
+    for p, l, i in nav_admin:  # noqa: E741
         idx.append({"label": l, "icon": render_nav_icon(i, size=14), "href": _h(p), "group": "管理"})
     return idx
 

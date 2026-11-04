@@ -3,8 +3,8 @@ backend/api/config_routes.py
 ----------------------------
 系统配置 + 自选股 API。
 """
-from __future__ import annotations
-from flask import Blueprint, g, request
+from __future__ import annotations  # noqa: I001
+from flask import Blueprint, g, request  # noqa: F401
 from sqlalchemy import select
 from ..auth.decorators import jwt_required, admin_required
 from ..extensions import db

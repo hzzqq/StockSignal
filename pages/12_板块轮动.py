@@ -10,7 +10,7 @@
 数据优先取行业资金流（含涨跌幅+净额），失败时降级到板块涨跌列表。
 各取数区块独立隔离（safe_section）。
 """
-import logging
+import logging  # noqa: I001
 
 import streamlit as st
 from datetime import datetime

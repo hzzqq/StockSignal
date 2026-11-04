@@ -6,7 +6,7 @@
 - 列表 / 详情两态切换（session_state），纯前端聚合，走后端 /api/forum。
 - 详情 / 列表拆为独立 @safe_fragment，交互只重跑本区块，避免整页 st.rerun（#543-8）。
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 from modules import colors
 from datetime import date
 
@@ -19,9 +19,9 @@ from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
 from modules.format_helpers import safe_int, safe_html_text
 import modules.drawer
-import modules.scroll_nav as sn
+import modules.scroll_nav as sn  # noqa: F401
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_content_card  # noqa: F401
 render_standard_page(
     title="股吧 · 社区讨论", icon="💬",
     caption="发表你的观点或文章，与其他投资者交流。可关联具体股票，点击帖子里的股票直达「股票选取」。⚠️ 社区内容由用户生成，数据仅供参考，不构成投资建议；请理性判断，风险自担。",

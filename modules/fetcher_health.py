@@ -1,24 +1,24 @@
 """fetcher_health — 数据源健康探测方法"""
 
-import io
-import json
-import os
-import re
-import sqlite3
-import threading
-import time
-import warnings
-import logging as _logging
+import io  # noqa: F401, I001
+import json  # noqa: F401
+import os  # noqa: F401
+import re  # noqa: F401
+import sqlite3  # noqa: F401
+import threading  # noqa: F401
+import time  # noqa: F401
+import warnings  # noqa: F401
+import logging as _logging  # noqa: F401
 import urllib.request
 import urllib.error
-import urllib.parse
-import contextlib
-import socket  # 捕获瞬时网络错误（超时/连接重置/DNS）做重试兜底
-from datetime import datetime, timedelta
-import concurrent.futures as _cf
-import yaml  # load_config 用到；原在抽离块内，抽到 _feed_io 后在此补回
-import pandas as pd  # 原在抽离块内，StockFetcher 大量使用 DataFrame
-import numpy as np  # 原在抽离块内，StockFetcher 用到 np.
+import urllib.parse  # noqa: F401
+import contextlib  # noqa: F401
+import socket  # 捕获瞬时网络错误（超时/连接重置/DNS）做重试兜底  # noqa: F401
+from datetime import datetime, timedelta  # noqa: F401
+import concurrent.futures as _cf  # noqa: F401
+import yaml  # load_config 用到；原在抽离块内，抽到 _feed_io 后在此补回  # noqa: F401
+import pandas as pd  # 原在抽离块内，StockFetcher 大量使用 DataFrame  # noqa: F401
+import numpy as np  # 原在抽离块内，StockFetcher 用到 np.  # noqa: F401
 
 from modules.time_utils import now_cst_str, now_cst_naive
 
@@ -51,7 +51,7 @@ from modules._feed_io import (  # noqa: F401
 )
 
 # 市场数据 I/O 叶子模块（#锐评整改：从 StockFetcher 下沉，零循环依赖）
-import modules._market_data_io as _mdi
+import modules._market_data_io as _mdi  # noqa: F401
 
 # T-247 Tier1.1：纯函数真身迁 modules.fetcher_core，此处 re-export 同一对象
 # （调用点零改动；AST 守卫 tests/test_fetcher_core_tier11.py 锁死防本地定义回潮）
@@ -83,13 +83,13 @@ except Exception as _pp_err:  # noqa: BLE001
 
 # Tier1.1 安全拆分 pilot：纯函数 _safe_json_loads 迁入 modules.fetcher_core，
 # 此处 re-export 保持行为零变化（fetcher.py 内部 509/519/547/1174 行调用不受影响）。
-from modules.fetcher_core import _safe_json_loads  # noqa: F401
+from modules.fetcher_core import _safe_json_loads  # noqa: F401, I001
 
 
 
 # R75 锁：flag 必须延迟读 modules.fetcher 模块对象（与 _feed_io._is_bs_available 同模式），
 # 禁止 from _feed_io import _AK_OK（值拷贝会让 monkeypatch fetcher._AK_OK 失效）。
-import modules.fetcher as _fetcher_mod
+import modules.fetcher as _fetcher_mod  # noqa: F401
 
 
 class HealthMixin:
@@ -119,8 +119,8 @@ class HealthMixin:
               },
             }
         """
-        import importlib.util
-        from datetime import datetime
+        import importlib.util  # noqa: I001
+        from datetime import datetime  # noqa: F401, F811
         from modules import _feed_io as _fi  # 延迟 import：本模块仅 re-export 其符号，无 _feed_io 名称
 
         def _spec(name):

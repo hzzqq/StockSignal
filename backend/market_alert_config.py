@@ -91,7 +91,7 @@ def set_runtime_overrides(overrides: dict[str, Any]) -> dict:
             if isinstance(typ, tuple):
                 if not isinstance(val, typ):
                     continue
-            elif not isinstance(val, typ):
+            elif isinstance(typ, type) and not isinstance(val, typ):
                 # 容忍字符串型的数字
                 if typ is int and isinstance(val, str) and val.isdigit():
                     val = int(val)

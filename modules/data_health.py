@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """决策依赖的「全数据源健康」注册表与统一新鲜度判定。
 
 背景（承接「数据新鲜度守卫」capstone，自找缺口 S9）：
@@ -40,7 +40,7 @@ _DATA_DIR = os.path.join(_PROJECT_ROOT, "data")
 def _csv_last_date_col(path: str, col: int = 0) -> str | None:
     """CSV 末行第 ``col`` 列的日期（兼容 ``YYYY-MM-DD`` 与 ``YYYY-MM-DD HH:MM:SS``）。"""
     try:
-        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:  # noqa: UP015
             rows = list(csv.reader(f))
         if len(rows) < 2:
             return None
@@ -54,7 +54,7 @@ def _csv_last_date_col(path: str, col: int = 0) -> str | None:
 def _json_date_field(path: str, field: str) -> str | None:
     """JSON 文件的某个日期字段（取前 10 位）。"""
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:  # noqa: UP015
             d = json.load(f)
         v = d.get(field)
         return str(v)[:10] if v else None
@@ -121,7 +121,7 @@ def _json_max_date(path: str) -> str | None:
     「文件被改写」——同目录/同文件被无关写入触碰时会虚报「新鲜」。
     """
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:  # noqa: UP015
             data = json.load(f)
         dates: list[str] = []
         if isinstance(data, dict):
@@ -291,11 +291,13 @@ REFRESH_COMMANDS: dict[str, dict] = {
         "desc": "重算市场温度/驱动指标缓存（底层走 akshare，需联网）",
     },
     "p1_event": {
-        "cmd": ("# 事件因子信号由独立仓库 P1-QuantFactor 生成 signal_ev_h10.json；\n"
-                "# 在该仓库重新生成后，复制/软链回本仓 data/p1_signals/ 即可。"),
+        "cmd": ("# 生成仍在独立仓库 P1-QuantFactor（sj 空间）；本仓负责拉取并体检自托管副本：\n"
+                "python scripts/p1_sync_daily.py --once      # 同步 + 体检 + 状态快照 data/p1_sync_status.json\n"
+                "python scripts/p1_sync_daily.py --status    # 只看健康，不跑同步\n"
+                "# 守护线程默认随后端启动；STOCKSIGNAL_ENABLE_P1_SYNC_SCHEDULER=0 可关"),
         "mode": "external",
         "covers": ["p1_event"],
-        "desc": "事件因子信号来自独立仓库 P1-QuantFactor；本仓无刷新入口，需跨仓流水线触发",
+        "desc": "事件因子信号由独立仓库 P1-QuantFactor 生成；本仓经 p1_sync 日常同步拉取副本，并做结构与新鲜度体检",
     },
     "calibration_evidence": {
         "cmd": "python scripts/daily_snapshot.py --score-only",
@@ -333,7 +335,7 @@ def build_refresh_plan(stale_only: bool = True) -> list[dict]:
             b = by_key.get(k, {})
             return bool(b.get("status") == "stale" or b.get("stalled"))
 
-        stale_names = [n for k, n in zip(c["covers"], covers_names) if _is_actionable(k)]
+        stale_names = [n for k, n in zip(c["covers"], covers_names) if _is_actionable(k)]  # noqa: B905
         if stale_only and not stale_names:
             continue
         if cid in seen:

@@ -1,4 +1,4 @@
-import logging
+import logging  # noqa: I001
 logger = logging.getLogger(__name__)
 """
 星辰决策仪表盘 · Streamlit 风格复刻（v2 · 暗夜修正版）
@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
     fig = kline_plotly(...)        # 画K线
     st.plotly_chart(fig, width="stretch")
 """
-from modules.colors import UP_COLOR, DOWN_COLOR
+from modules.colors import UP_COLOR, DOWN_COLOR  # noqa: I001
 import json
 import streamlit as st
-import streamlit.components.v1 as components
+import streamlit.components.v1 as components  # noqa: F401
 STARFIELD_CSS = '\n<style>\n:root{\n  --bg:#0f0f23; --card:#1a1a2e; --buy:#ff4d4f; --sell:#00d486;\n  --hold:#ffa502; --brand-1:#667eea; --brand-2:#764ba2;\n  --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44; --grid:#23233c;\n}\n/* 整页强制暗色底（覆盖 Streamlit 默认浅色） */\n.stApp{background:var(--bg)!important}\n.block-container{padding-top:1.1rem;max-width:1180px;padding-left:1.4rem;padding-right:1.4rem}\n\n.sf-header{display:flex;align-items:center;justify-content:space-between;\n  flex-wrap:wrap;gap:10px;margin-bottom:20px;padding:16px 20px;\n  background:linear-gradient(90deg,#1a1a2e,#241b3a);\n  border:1px solid var(--border);border-radius:var(--ss-radius-card);\n  box-shadow:0 0 0 1px color-mix(in srgb,var(--brand-1) 8%,transparent),0 8px 24px rgba(0,0,0,.35)}\n.sf-brand{font-size:15px;color:var(--txt2);letter-spacing:1px}\n.sf-brand b{color:var(--brand-1)}\n\n.sf-card{background:var(--card);border:1px solid var(--border);\n  border-radius:var(--ss-radius-card);padding:20px;margin-top:18px;\n  box-shadow:0 0 0 1px color-mix(in srgb,var(--brand-1) 6%,transparent),0 6px 20px rgba(0,0,0,.28)}\n.sf-card h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px;\n  padding-bottom:10px;border-bottom:1px solid var(--border)}\n.sf-card h2::before{content:"";width:4px;height:16px;\n  background:linear-gradient(180deg,var(--brand-1),var(--brand-2));border-radius:var(--ss-radius-xs)}\n\n.sf-one-line{font-size:14.5px;font-weight:700;color:var(--buy);\n  background:rgba(255,77,79,.08);border-left:3px solid var(--buy);\n  padding:10px 14px;border-radius:var(--ss-radius-sm);margin-bottom:14px;line-height:1.7}\n.sf-one-line.hold{color:var(--hold);border-left-color:var(--hold);\n  background:rgba(255,165,2,.08)}\n\n.sf-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}\n.sf-table th,.sf-table td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--border)}\n.sf-table th{color:var(--txt2);font-weight:600;font-size:12px;background:#15152a}\n.sf-table tr:hover td{background:color-mix(in srgb,var(--brand-1) 5%,transparent)}\n.sf-table td.l{text-align:left}\n.sf-up{color:var(--buy);font-weight:700}\n.sf-down{color:var(--sell);font-weight:700}\n\n.sf-tag{display:inline-block;font-size:11px;padding:2px 9px;border-radius:var(--ss-radius-lg);\n  font-weight:600;margin:2px}\n.sf-tag.win{background:rgba(0,212,170,.16);color:#00d4aa;border:1px solid rgba(0,212,170,.4)}\n.sf-tag.mid{background:rgba(255,165,2,.16);color:var(--hold);border:1px solid rgba(255,165,2,.4)}\n.sf-tag.weak{background:rgba(255,77,79,.14);color:var(--buy);border:1px solid rgba(255,77,79,.4)}\n.sf-tag.neu{background:rgba(148,163,184,.12);color:var(--txt2);border:1px solid var(--border)}\n\n.sf-vs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}\n@media(max-width:780px){.sf-vs{grid-template-columns:1fr}}\n.sf-vsbox{background:#15152a;border:1px solid var(--border);border-radius:var(--ss-radius);padding:14px}\n.sf-vsbox h3{font-size:14px;margin-bottom:8px}\n.sf-verdict{font-size:13px;font-weight:700;margin:8px 0;padding:6px 10px;border-radius:var(--ss-radius-sm)}\n.sf-verdict.b{background:rgba(0,212,170,.12);color:#00d4aa}\n.sf-verdict.o{background:rgba(255,165,2,.12);color:var(--hold)}\n.sf-vsbox ul{margin:6px 0 0 16px;font-size:12.5px;color:var(--txt2)}\n.sf-vsbox ul li{margin:3px 0}\n\n.sf-alert{border-radius:var(--ss-radius);padding:12px 14px;margin-top:14px;font-size:13px;line-height:1.7}\n.sf-alert.risk{background:rgba(255,77,79,.10);border:1px solid rgba(255,77,79,.45);color:#ffb3bb}\n.sf-alert.cat{background:rgba(0,212,170,.10);border:1px solid rgba(0,212,170,.45);color:#9af0dd}\n.sf-alert b{display:block;margin-bottom:4px;font-size:13.5px}\n\n.sf-note{font-size:12.5px;color:var(--txt2);margin-top:10px;line-height:1.7}\n.sf-disclaimer{margin-top:14px;font-size:11.5px;color:#6b7280;\n  border-top:1px dashed var(--border);padding-top:10px}\n</style>\n'
 PLOTLY_DARK = {'paper_bgcolor': 'rgba(0,0,0,0)', 'plot_bgcolor': 'rgba(0,0,0,0)', 'font': {'color': '#94a3b8', 'family': "system-ui, -apple-system, 'PingFang SC', sans-serif"}, 'xaxis': {'gridcolor': '#23233c', 'zerolinecolor': '#2d2d44', 'linecolor': '#2d2d44', 'tickcolor': '#2d2d44', 'title': {'font': {'color': '#94a3b8'}}}, 'yaxis': {'gridcolor': '#23233c', 'zerolinecolor': '#2d2d44', 'linecolor': '#2d2d44', 'tickcolor': '#2d2d44', 'title': {'font': {'color': '#94a3b8'}}}, 'legend': {'bgcolor': 'rgba(0,0,0,0)', 'font': {'color': '#94a3b8'}}}
 
@@ -42,7 +42,7 @@ def inject_plotly_dark():
     抛错被静默吞掉，导致暗色模板从未注册成功）。重复注册前先检查，避免无谓开销。
     """
     try:
-        import plotly.io as pio
+        import plotly.io as pio  # noqa: I001
         import plotly.graph_objects as go
         if 'starfield_dark' not in pio.templates:
             pio.templates['starfield_dark'] = go.layout.Template(layout=PLOTLY_DARK)
@@ -80,7 +80,7 @@ def compare_table(headers, rows, first_col_left=True):
             cls = cls_map.get(tone, '')
             return f'<td class="{cls}">{text}</td>' if cls else f'<td>{text}</td>'
         return f'<td class="l">{c}</td>' if left else f'<td>{c}</td>'
-    head = ''.join((f'<th>{h}</th>' for h in headers))
+    head = ''.join((f'<th>{h}</th>' for h in headers))  # noqa: UP034
     body = ''
     for r in rows:
         cells = [cell(c, left=i == 0 and first_col_left) for i, c in enumerate(r)]
@@ -89,7 +89,7 @@ def compare_table(headers, rows, first_col_left=True):
 
 def vs_box(title, verdict, verdict_kind, bullets):
     vk = 'b' if verdict_kind == 'b' else 'o'
-    lis = ''.join((f'<li>{b}</li>' for b in bullets))
+    lis = ''.join((f'<li>{b}</li>' for b in bullets))  # noqa: UP034
     return f'<div class="sf-vsbox">\n      <h3>{title}</h3>\n      <div class="sf-verdict {vk}">{verdict}</div>\n      <ul>{lis}</ul>\n    </div>'
 
 def vs(box1_html, box2_html):

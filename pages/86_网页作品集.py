@@ -133,7 +133,7 @@ def main() -> None:
     for i in range(0, len(works), 2):
         row = works[i : i + 2]
         cols = st.columns(2)
-        for col, work in zip(cols, row):
+        for col, work in zip(cols, row):  # noqa: B905
             _render_work_card(work, col)
 
     # ── 方法学与来源注脚（B 类页五段式：收尾一段）──

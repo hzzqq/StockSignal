@@ -14,11 +14,11 @@ QuantAgent 多智能体投研 · StockSignal 新页面（精致版）
 运行：streamlit run app.py  →  侧边栏「Q_QuantAgent投研」
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import streamlit as st
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner  # noqa: F401
 
 # 多智能体阶段定义（与后端进度总线共用语义）
 try:
@@ -56,7 +56,7 @@ except Exception:  # pragma: no cover - fallback
         return -1
 
 
-from modules.page_guard import safe_fragment
+from modules.page_guard import safe_fragment  # noqa: I001
 from modules.colors import UP_COLOR, DOWN_COLOR, AMBER
 from modules.format_helpers import safe_html_text
 from modules.page_utils import render_standard_page
@@ -149,7 +149,7 @@ def _render_live_progress(task: dict):
     st.progress(progress / 100.0, text=f"多智能体协作中… {progress}% ｜ 当前：{label_for(stage)[1] if stage else '排队中'}")
 
     cols = st.columns(2)
-    for i, (key, icon, name, cls) in enumerate(AGENT_FLOW):
+    for i, (key, icon, name, cls) in enumerate(AGENT_FLOW):  # noqa: B007
         stt = _agent_status(key, stage, status)
         color = {"done": "#009e60", "running": "#d97706", "waiting": "#3a4452"}[stt]
         badge = {"done": "✅ 完成", "running": "🔄 进行中", "waiting": "⏳ 等待"}[stt]
@@ -169,12 +169,12 @@ def _render_live_progress(task: dict):
     # CrewAI 辩论面板
     # 深层守卫：后端任务负载偶发混入非 dict 条目（异常字符串/None），
     # 直接 l.get 会抛 AttributeError 拖垮整个进度卡片，先筛出 dict 条目
-    logs = [l for l in (task.get("logs", []) or []) if isinstance(l, dict)]
-    debate_logs = [l for l in logs if str(l.get("stage", "")).startswith("debate_")]
+    logs = [l for l in (task.get("logs", []) or []) if isinstance(l, dict)]  # noqa: E741
+    debate_logs = [l for l in logs if str(l.get("stage", "")).startswith("debate_")]  # noqa: E741
     if debate_logs:
         st.markdown("#### ⚖️ 多首席辩论实况")
         dcols = st.columns(2)
-        for j, l in enumerate(debate_logs):
+        for j, l in enumerate(debate_logs):  # noqa: E741
             icon, name, _ = label_for(l.get("stage", ""))
             dcols[j % 2].markdown(
                 # ui_audit_exempt: unsafe-allow_html 辩论实况，icon/name 为 label_for 内部映射，message 经 safe_html_text 转义

@@ -1,4 +1,4 @@
-import logging
+import logging  # noqa: I001
 logger = logging.getLogger(__name__)
 """
 个股分析页纯函数簇（从 pages/20_个股分析.py 抽出，#408 拆分超大文件）。
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 配色常量与原页面保持一致（参考文档 002947：绿涨 / 红跌 / 琥珀中性）。
 """
 
-import pandas as pd
+import pandas as pd  # noqa: I001
 import numpy as np
 
 from modules.colors import RED, GREEN, AMBER

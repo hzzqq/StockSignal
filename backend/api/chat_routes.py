@@ -8,7 +8,7 @@ backend/api/chat_routes.py
 
 所有响应走 utils.response.ok/fail 包装；鉴权走 jwt_required（设置 g.current_user）。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 

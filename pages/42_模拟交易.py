@@ -9,18 +9,18 @@
 
 不接入真实券商，仅用于策略演练与学习。
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 import json
 import os
 from datetime import datetime
-import streamlit.components.v1 as components
+import streamlit.components.v1 as components  # noqa: F401
 from modules.page_utils import render_standard_page, fmt_rel as _fmt_rel, quote_with_fallback
 import modules.scroll_nav as sn
 from modules.session import get_user, trading_autorefresh
 from modules.page_guard import safe_section, safe_fragment
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast, UP, DOWN
-from modules.ui_kit import xc_error_box, xc_bento_kpi, xc_success_box, xc_warn_box, xc_content_card
+from modules.ui_kit import xc_error_box, xc_bento_kpi, xc_success_box, xc_warn_box, xc_content_card  # noqa: F401
 dark = render_standard_page(title='模拟交易组合', icon='🎮', caption='虚拟资金练习；持仓持久化到本地，模块独立运行，不影响真实账户。')
 
 st.caption('⚠️ 模拟交易，仅供学习，不构成任何投资建议。')
@@ -90,7 +90,7 @@ def fragment_paper():
         st.rerun(scope='fragment')
     st.session_state.setdefault('_pt_recent', [])
     if st.session_state['_pt_recent']:
-        st.caption('🕘 最近浏览：' + '  '.join((f'`{c}`' for c in st.session_state['_pt_recent'][-6:][::-1])))
+        st.caption('🕘 最近浏览：' + '  '.join((f'`{c}`' for c in st.session_state['_pt_recent'][-6:][::-1])))  # noqa: UP034
     st.session_state.setdefault('_pt_fav', [])
     with safe_section('账户概览'):
         with st.spinner('加载持仓行情中…'):

@@ -11,19 +11,19 @@ from modules.fetcher_core import _build_cache_key  # T-247 Tier3：缓存键单�
 
 
 def render_stock_analysis() -> None:
-    import logging
+    import logging  # noqa: I001
     import streamlit as st
     import pandas as pd
     from datetime import datetime
 
     logger = logging.getLogger(__name__)
-    from modules.page_guard import safe_fragment
+    from modules.page_guard import safe_fragment  # noqa: I001
     from modules.page_utils import render_standard_page, get_fetcher
-    from modules.ui_theme import sf_card, sf_metric
-    from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner
+    from modules.ui_kit import (xc_handle_error, xc_warn_box,
+                                xc_info_banner, xc_section_header, xc_kpi_grid)  # noqa: F401
     dark = render_standard_page(title='个股深度分析 · 决策仪表盘', icon='🔍', layout='wide')
-    sf_card("个股分析导读", "输入代码/名称/拼音搜索个股，查看暗色决策仪表盘：K 线、技术面、资金面、情绪与风险铁律。严格遵循绿涨红跌配色；所有外部数据获取失败均友好提示，不抛红错。", icon="🔍")
-    from modules.fetcher import StockFetcher
+    xc_section_header("个股分析导读", subtitle="输入代码/名称/拼音搜索个股，查看暗色决策仪表盘：K 线、技术面、资金面、情绪与风险铁律。严格遵循绿涨红跌配色；所有外部数据获取失败均友好提示，不抛红错。", icon="🔍")
+    from modules.fetcher import StockFetcher  # noqa: I001
     from modules.cleaner import DataCleaner
     from modules.session import api_kline, api_intraday
     from modules.search_ui import stock_search_input
@@ -46,12 +46,12 @@ def render_stock_analysis() -> None:
         fr_fmt_pct,
         _PERF_UP,
         _PERF_DOWN,
-        _PERF_FLAT,
+        _PERF_FLAT,  # noqa: F401
     )
     from modules.dark_text_fix import apply_plotly_theme as _apply_plotly_theme
     fetcher = get_fetcher()
-    from modules.widgets import sidebar_target
-    import modules.scroll_nav as sn
+    from modules.widgets import sidebar_target  # noqa: I001
+    import modules.scroll_nav as sn  # noqa: F401
     from modules.chart_cache import cached_fig
 
 
@@ -340,7 +340,7 @@ def render_stock_analysis() -> None:
             fig = _build_kline_fig(period_df, kline_title, kline_annotations)
             _kline_key = f'kline_chart_{ticker}'
             _kline_event = st.plotly_chart(fig, width="stretch", key=_kline_key, on_select='rerun',
-                                           config={"displaylogo": False, "responsive": True, 'displayModeBar': 'hover', 'displaylogo': False, 'scrollZoom': True,
+                                           config={"displaylogo": False, "responsive": True, 'displayModeBar': 'hover', 'displaylogo': False, 'scrollZoom': True,  # noqa: F601
                                                    'modeBarButtonsToRemove': ['lasso2d', 'select2d']})
             _dbl_key = f'kline_dbl_{ticker}'
             _now_ms = datetime.now().timestamp()
@@ -402,7 +402,7 @@ def render_stock_analysis() -> None:
     @safe_fragment(run_every=300)
     def _fragment_intraday(ticker: str, display_name: str) -> None:
         """分时图独立片段：交易时段每 5 分钟自刷新，与整页 1 分钟节奏解耦。"""
-        from modules.visualizer import Visualizer
+        from modules.visualizer import Visualizer  # noqa: F401
 
         if is_trading_now():
             _refresh_hint = "<span style='color:#009e60'>● 交易时段，每5分钟自动刷新中</span>"
@@ -436,7 +436,7 @@ def render_stock_analysis() -> None:
 
     def _render_analysis(R: dict):
         """渲染个股分析决策仪表盘（延迟导入 Visualizer，避免每页加载 0.95s）。"""
-        from modules.visualizer import Visualizer
+        from modules.visualizer import Visualizer  # noqa: F401
         _NUM_FIELDS = ('current_price', 'prev_close', 'change_pct', 'entry_price', 'target_price', 'stop_price', 'atr14', 'support', 'resistance', 'lo52', 'hi52', 'ma5v', 'ma10v', 'ma20v', 'trapped', 'vol_now', 'vol_avg', 'vol_chg', 'q_open', 'q_high', 'q_low', 'q_prev', 'tech_score', 'news_score', 'macro_score', 'vol_score', 'sector_score', 'composite', 'pos_pct', 'neg_pct', 'pos52')
         for _nf in _NUM_FIELDS:
             _v = R.get(_nf)
@@ -518,7 +518,7 @@ def render_stock_analysis() -> None:
         if q_amount is not None:
             today_bits.append(f'成交额 {q_amount / 100000000.0:.2f}亿')
         today_bits.append(f"成交量 {df['volume'].iloc[-1] / 10000.0:.1f}万手")
-        today_pills = ''.join((f"<span style='display:inline-block;font-size:12px;color:var(--txt2);background:var(--card2);border:1px solid var(--border);border-radius:var(--ss-radius-sm);padding:3px 9px;margin:0 6px 6px 0;'>{b}</span>" for b in today_bits)) if today_bits else '—'
+        today_pills = ''.join((f"<span style='display:inline-block;font-size:12px;color:var(--txt2);background:var(--card2);border:1px solid var(--border);border-radius:var(--ss-radius-sm);padding:3px 9px;margin:0 6px 6px 0;'>{b}</span>" for b in today_bits)) if today_bits else '—'  # noqa: UP034
         hdr_left, hdr_right = st.columns([3, 1])
         with hdr_left:
             st.markdown(f"<div style='font-size:23px;font-weight:700;color:var(--txt);'>{display_name}</div><div style='font-size:12.5px;color:var(--txt2);margin-top:3px;'>{ticker} · {board} · {industry}</div><div style='margin-top:10px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;'><span class='sf-price-big' style='color:{price_color}!important;'>{price_disp}</span><span style='font-size:16px;font-weight:600;color:{price_color};'><span class='sf-triangle'>{triangle}</span>{chg_txt} ({change_amt:+.2f})</span></div><div style='margin-top:8px;'>{today_pills}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
@@ -585,7 +585,7 @@ def render_stock_analysis() -> None:
             _show_n = min(st.session_state[_news_limit_key], len(_filtered_news))
             _disp_news = _filtered_news[:_show_n]
             st.caption(f'📰 共获取 {len(news_rows)} 条新闻' + (f'，筛选命中 {len(_filtered_news)} 条' if _news_q else '') + f'，当前显示前 {_show_n} 条（按情绪权重排序）')
-            rows_html = ''.join((f"<tr><td class='l'>{safe_html_text(r.get('title'), '—')}</td><td><span class='sf-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{safe_html_text(r.get('sentiment'), '中性')}</span></td></tr>" for r in _disp_news))
+            rows_html = ''.join((f"<tr><td class='l'>{safe_html_text(r.get('title'), '—')}</td><td><span class='sf-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{safe_html_text(r.get('sentiment'), '中性')}</span></td></tr>" for r in _disp_news))  # noqa: UP034
             st.markdown(f"<table class='sf-table'><thead><tr><th class='l'>新闻标题</th><th>情绪</th></tr></thead><tbody>{rows_html}</tbody></table>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             if _show_n < len(_filtered_news):
                 if st.button('显示更多 ▼', key=f'news_more_{ticker}', width="stretch"):
@@ -768,8 +768,8 @@ def render_stock_analysis() -> None:
         elif verdict == '看空':
             bear.append('综合信号看空')
         st.markdown("<div class='sf-vs'>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown(f"<div class='sf-vsbox'><h3 style='color:{RED};'>最强看多信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bull)) if bull else '<ul><li>暂无显著看多信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown(f"<div class='sf-vsbox'><h3 style='color:{GREEN};'>最强看空信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bear)) if bear else '<ul><li>暂无显著看空信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<div class='sf-vsbox'><h3 style='color:{RED};'>最强看多信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bull)) if bull else '<ul><li>暂无显著看多信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层  # noqa: UP034
+        st.markdown(f"<div class='sf-vsbox'><h3 style='color:{GREEN};'>最强看空信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bear)) if bear else '<ul><li>暂无显著看空信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层  # noqa: UP034
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('<div class="sf-card">' + _section_header('作战计划', icon='⚔️', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
@@ -783,7 +783,7 @@ def render_stock_analysis() -> None:
         col_risk, col_iron = st.columns(2)
         with col_risk:
             risk_items = [f'止损价：¥{stop_price:.2f}（破位无条件离场）', f'止盈价：¥{target_price:.2f}（到达分批兑现）', '失效条件：突发利空 / 放量跌穿支撑 / 宏观转弱（PMI<50）', '仓位纪律：单标的 ≤ 总仓位 30%，亏损单不补仓摊平']
-            st.markdown("<ul style='color:var(--txt2);font-size:13px;line-height:1.9;'>" + ''.join((f'<li>{x}</li>' for x in risk_items)) + '</ul>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            st.markdown("<ul style='color:var(--txt2);font-size:13px;line-height:1.9;'>" + ''.join((f'<li>{x}</li>' for x in risk_items)) + '</ul>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层  # noqa: UP034
         with col_iron:
             st.markdown(_risk_iron_html('风险铁律', _build_risk_iron_rules(R)), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
@@ -798,7 +798,7 @@ def render_stock_analysis() -> None:
         if _recs:
             st.markdown('<div class="sf-card">' + _section_header('相关标的推荐', '同板块领涨 / 更强个股', '🔗', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             st.markdown(f"<div style='font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:10px;'>基于「{_sa_name}」板块内实时表现，为你推荐以下关联标的（涨跌遵循本页绿涨红跌配色）：</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-            _rec_rows = ''.join((_peer_row(p) for p in _recs[:6]))
+            _rec_rows = ''.join((_peer_row(p) for p in _recs[:6]))  # noqa: UP034
             st.markdown(f"<table style='width:100%;border-collapse:collapse;'><thead><tr style='border-bottom:1px solid var(--border);'><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>代码</th><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>名称</th><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>涨跌幅</th><th style='padding:6px 8px;text-align:right;font-size:12px;color:var(--txt2);font-weight:600;'>总市值</th></tr></thead><tbody>{_rec_rows}</tbody></table>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
@@ -984,7 +984,7 @@ def render_stock_analysis() -> None:
         """动态生成常用报告期选项（当前年 + 前 5 年 × 4 个法定报告期），避免硬编码过时。"""
         from datetime import datetime
         cur = datetime.now().year
-        suffix = {"0331": "一季报", "0630": "中报", "0930": "三季报", "1231": "年报"}
+        suffix = {"0331": "一季报", "0630": "中报", "0930": "三季报", "1231": "年报"}  # noqa: F841
         out = {}
         for y in range(cur, cur - 6, -1):
             for mm, lbl in (("0331", "一季报"), ("0630", "中报"), ("0930", "三季报"), ("1231", "年报")):
@@ -1239,7 +1239,7 @@ def render_stock_analysis() -> None:
         if not ticker:
             return
         code = str(ticker).zfill(6)
-        sf_card("📑 个股财报", "搜索个股后即时展示其横向业绩对比、业绩报表、业绩预告、披露日历与财务三表（利润表/资产负债表/现金流量表）。数据来源：东方财富 / 新浪财经。", icon="📑")
+        xc_section_header("📑 个股财报", subtitle="搜索个股后即时展示其横向业绩对比、业绩报表、业绩预告、披露日历与财务三表（利润表/资产负债表/现金流量表）。数据来源：东方财富 / 新浪财经。", icon="📑")
 
         # ── 📈 业绩横向对比（放在首位：≥3 年主要指标柱状+折线 + 展开分析）──────────
         _build_perf_history_section(code, dark)
@@ -1290,21 +1290,17 @@ def render_stock_analysis() -> None:
             _r = row.iloc[0]
             yoy_col, yoy_txt = _fr_color_yoy(_r.get("净利润同比%"))
             rev_col, rev_txt = _fr_color_yoy(_r.get("营收同比%"))
-            mc1, mc2, mc3, mc4 = st.columns(4)
-            with mc1:
-                st.metric("每股收益", _fr_fmt(_r.get("每股收益")), delta_color="off")
-            with mc2:
-                st.metric("营业总收入", _fr_fmt(_r.get("营业总收入")), delta_color="off", help="单位：元")
-            with mc3:
-                st.metric("净利润", _fr_fmt(_r.get("净利润")), delta_color="off", help="单位：元")
-            with mc4:
-                st.metric("ROE%", _fr_fmt(_r.get("ROE%")), delta_color="off")
             _mg = fr_compute_margins(_r)
-            mc5, mc6 = st.columns(2)
-            with mc5:
-                st.metric("毛利率", fr_fmt_pct(_mg["毛利率%"]), delta_color="off", help="毛利 / 营业总收入（东财业绩报表）")
-            with mc6:
-                st.metric("净利率", fr_fmt_pct(_mg["净利率%"]), delta_color="off", help="净利润 / 营业总收入")
+            # 6 项财报指标都是「无方向的中性数值」：delta_dir 一律显式 flat，
+            # 不得被 A 股涨跌语义色染色；原 metric 的 help=... 由 meta 承载单位/口径。
+            xc_kpi_grid([
+                {"label": "每股收益", "value": _fr_fmt(_r.get("每股收益")), "delta_dir": "flat"},
+                {"label": "营业总收入", "value": _fr_fmt(_r.get("营业总收入")), "delta_dir": "flat", "meta": "单位：元"},
+                {"label": "净利润", "value": _fr_fmt(_r.get("净利润")), "delta_dir": "flat", "meta": "单位：元"},
+                {"label": "ROE%", "value": _fr_fmt(_r.get("ROE%")), "delta_dir": "flat"},
+                {"label": "毛利率", "value": fr_fmt_pct(_mg["毛利率%"]), "delta_dir": "flat", "meta": "毛利 / 营业总收入（东财业绩报表）"},
+                {"label": "净利率", "value": fr_fmt_pct(_mg["净利率%"]), "delta_dir": "flat", "meta": "净利润 / 营业总收入"},
+            ])
             st.markdown(
                 f"<div style='font-size:13px;line-height:1.9;color:var(--txt2);margin:6px 0 10px;'>"
                 f"净利润同比 <b style='color:{yoy_col};'>净利润 {yoy_txt}</b>　|　"
@@ -1408,17 +1404,16 @@ def render_stock_analysis() -> None:
 
 
 def render_stock_picker() -> None:
-    import logging
+    import logging  # noqa: I001
     import streamlit as st
     import pandas as pd
     from datetime import datetime, timedelta
 
     logger = logging.getLogger(__name__)
 
-    from modules.ui_theme import _theme_is_dark, sf_card, sf_metric
+    from modules.ui_theme import _theme_is_dark  # noqa: I001
     from modules.page_utils import render_standard_page, get_fetcher
-    from modules.ui_theme import sf_card, sf_metric
-    from modules.ui_kit import xc_kpi_grid
+    from modules.ui_kit import xc_kpi_grid, xc_section_header, stat_tile
     from modules.cleaner import DataCleaner
     # K 线图统一交互配置（隐藏工具栏图标、十字光标），与全站规范一致
     from modules.starfield_theme import KLINE_CHART_CONFIG
@@ -1461,7 +1456,7 @@ def render_stock_picker() -> None:
     trading_autorefresh(key="pick_autorefresh")
 
     fetcher = get_fetcher()
-    user = get_user() or {}
+    user = get_user() or {}  # noqa: F841
 
 
     def _fmt_md(d) -> str:
@@ -1487,7 +1482,7 @@ def render_stock_picker() -> None:
     # ── 用户打分组件（Batch8 #271：独立 fragment，交互只重跑本块，提升响应速度）──
     @safe_fragment
     def _render_user_score(ticker: str, stock_label: str) -> None:
-        sf_card("⭐ 用户打分", "")
+        xc_section_header("⭐ 用户打分", icon="")
         # 已有分数缓存到 session_state，避免每次交互都回源后端
         _ss_key = f"_score_{ticker}"
         if _ss_key not in st.session_state:
@@ -1532,7 +1527,7 @@ def render_stock_picker() -> None:
     # ═══════════════════════════════════════════════════════════════
     from modules.widgets import sidebar_target
     with sidebar_target():
-        sf_card("参数设置", "")
+        xc_section_header("参数设置", icon="")
         ticker = stock_search_input(
             label="股票搜索",
             key="pick_stock",
@@ -1680,7 +1675,7 @@ def render_stock_picker() -> None:
     # ═══════════════════════════════════════════════════════════════
     hc1, hc2, hc3 = st.columns([0.4, 0.3, 0.3])
     with hc1:
-        sf_card("🎯 股票选取", "")
+        xc_section_header("🎯 股票选取", icon="")
     with hc2:
         _ticker_ok = bool(ticker and str(ticker).strip())
         if st.button("➕ 加入自选股", width="stretch", key="pick_add_watch",
@@ -1870,7 +1865,7 @@ def render_stock_picker() -> None:
             return pd.DataFrame()
 
 
-    sf_card(f"{stock_label} {period_label}", "")
+    xc_section_header(f"{stock_label} {period_label}", icon="")
     df = None
     data_ok = False
 
@@ -1900,9 +1895,9 @@ def render_stock_picker() -> None:
             xc_kpi_grid([
                 {"label": "最新收盘价", "value": f"¥{latest_close:.2f}",
                  "delta": f"{_chg_pct:.2f}%", "delta_dir": "up" if _chg_pct >= 0 else "down"},
-                {"label": "区间最高", "value": f"¥{df['high'].max():.2f}"},
-                {"label": "区间最低", "value": f"¥{df['low'].min():.2f}"},
-                {"label": "区间总成交量", "value": _vol_disp},
+                {"label": "区间最高", "value": f"¥{df['high'].max():.2f}", "delta_dir": "flat"},
+                {"label": "区间最低", "value": f"¥{df['low'].min():.2f}", "delta_dir": "flat"},
+                {"label": "区间总成交量", "value": _vol_disp, "delta_dir": "flat"},
             ])
 
             n = len(df)
@@ -1974,7 +1969,7 @@ def render_stock_picker() -> None:
             )
 
             # ── 图表渲染区（Visualizer 延迟导入：仅用户选股后执行）──
-            from modules.visualizer import Visualizer  # lazy: ~0.95s saved on pages without chart action
+            from modules.visualizer import Visualizer  # lazy: ~0.95s saved on pages without chart action  # noqa: F401
 
             # ── 分时图（独立 fragment，交易时段每 5 分钟自动刷新）──
             _fragment_intraday(ticker, stock_label)
@@ -2031,7 +2026,7 @@ def render_stock_picker() -> None:
     # 技术面分析 + 用户打分
     # ═══════════════════════════════════════════════════════════════
     if data_ok and df is not None:
-        sf_card("🧭 技术面分析", "")
+        xc_section_header("🧭 技术面分析", icon="")
         try:
             profile = SignalEngine().technical_profile(df)
             short, mid, long, composite = profile["short"], profile["mid"], profile["long"], profile["composite"]
@@ -2051,13 +2046,13 @@ def render_stock_picker() -> None:
             _score_cards = [
                 {"label": "① 短期（5日）", "value": f"{'+' if r5 >= 0 else ''}{r5:.2f}%",
                  "delta": f"{short}分", "delta_dir": "up" if r5 >= 0 else "down",
-                 "meta": "🟢 强势" if short >= 65 else ("🔴 偏弱" if short <= 40 else "⚪ 中性")},
+                 "meta": "▲ 强势" if short >= 65 else ("▼ 偏弱" if short <= 40 else "— 中性")},
                 {"label": "② 中期（20日）", "value": f"{'+' if r20 >= 0 else ''}{r20:.2f}%",
                  "delta": f"{mid}分", "delta_dir": "up" if r20 >= 0 else "down",
-                 "meta": "🟢 强势" if mid >= 65 else ("🔴 偏弱" if mid <= 40 else "⚪ 中性")},
+                 "meta": "▲ 强势" if mid >= 65 else ("▼ 偏弱" if mid <= 40 else "— 中性")},
                 {"label": "③ 长期（60日）", "value": f"{'+' if r60 >= 0 else ''}{r60:.2f}%",
                  "delta": f"{long}分", "delta_dir": "up" if r60 >= 0 else "down",
-                 "meta": "🟢 强势" if long >= 65 else ("🔴 偏弱" if long <= 40 else "⚪ 中性")},
+                 "meta": "▲ 强势" if long >= 65 else ("▼ 偏弱" if long <= 40 else "— 中性")},
                 {"label": "④ 综合评分", "value": f"{composite}/100",
                  "delta": "看多" if composite >= 65 else ("看空" if composite <= 40 else "观望"),
                  "delta_dir": "up" if composite >= 65 else ("down" if composite <= 40 else "flat"),
@@ -2069,7 +2064,7 @@ def render_stock_picker() -> None:
             with c1:
                 st.markdown("**均线 / 趋势**")
                 if "error" not in trend:
-                    st.markdown(f"{'🟢' if trend.get('trend_score', 50) >= 60 else ('🔴' if trend.get('trend_score', 50) <= 40 else '⚪')} **{trend.get('arrangement', '—')}**")
+                    st.markdown(f"{'▲' if trend.get('trend_score', 50) >= 60 else ('▼' if trend.get('trend_score', 50) <= 40 else '—')} **{trend.get('arrangement', '—')}**")
                     st.caption(trend.get("trend_label", ""))
                 else:
                     st.caption(trend.get("error", "数据不足"))
@@ -2081,7 +2076,7 @@ def render_stock_picker() -> None:
                     _r5 = rets.get("5日") or 0
                     _r20 = rets.get("20日") or 0
                     st.markdown(f"**{momentum.get('momentum_label', '—')}**")
-                    st.metric("5日涨幅", f"{_r5:+.2f}%", delta=f"20日 {_r20:+.2f}%", delta_color="inverse")
+                    stat_tile("5日涨幅", f"{_r5:+.2f}%", delta=f"20日 {_r20:+.2f}%", delta_dir="up" if _r20 > 0 else ("down" if _r20 < 0 else "flat"))
                 else:
                     st.caption(momentum.get("error", "数据不足"))
             with c3:
@@ -2091,14 +2086,14 @@ def render_stock_picker() -> None:
                     ratio = volume_info.get("vol_ratio") or 1.0
                     _vol_chg_pct = volume_info.get("vol_change_pct") or 0
                     st.markdown(f"**{volume_info.get('volume_price_label', '—')}**")
-                    st.metric("量比(今/5日均)", f"{ratio:.2f}x", delta=f"{_vol_chg_pct:+.1f}%", delta_color="inverse")
+                    stat_tile("量比(今/5日均)", f"{ratio:.2f}x", delta=f"{_vol_chg_pct:+.1f}%", delta_dir="up" if _vol_chg_pct > 0 else ("down" if _vol_chg_pct < 0 else "flat"))
                 else:
                     st.caption(volume_info.get("error", "数据不足"))
             with c4:
                 st.markdown("**K线形态（近10日）**")
                 if patterns:
                     for p in patterns[:5]:
-                        icon = "🟢" if p.get("bias") == "看涨" else ("🔴" if p.get("bias") == "看跌" else "⚪")
+                        icon = "▲" if p.get("bias") == "看涨" else ("▼" if p.get("bias") == "看跌" else "—")
                         # ⚠️ 兜底：pattern 的 date 可能为 None / 坏串，pd.Timestamp(None) 会抛 TypeError
                         _pdate = p.get("date")
                         try:
@@ -2110,16 +2105,15 @@ def render_stock_picker() -> None:
                     st.caption("未识别到明显形态")
 
             if composite >= 65:
-                verdict = "🟢 整体偏多，可关注"
+                verdict = "▲ 整体偏多，可关注"
             elif composite >= 40:
-                verdict = "⚪ 多空平衡，观望为主"
+                verdict = "— 多空平衡，观望为主"
             else:
-                verdict = "🔴 整体偏空，谨慎参与"
+                verdict = "▼ 整体偏空，谨慎参与"
             xc_info_banner(f"**综合评分 {composite}/100** · 短期 {short} / 中期 {mid} / 长期 {long} · {verdict}")
 
             # ── 📊 量化指标（RSI / MACD / KDJ / BOLL） ──
-            sf_card("📊 量化指标", "")
-
+            xc_section_header("📊 量化指标", icon="")
             def _calc_quant_indicators(d: pd.DataFrame) -> dict:
                 close = pd.to_numeric(d["close"], errors="coerce")
                 high = pd.to_numeric(d["high"], errors="coerce")

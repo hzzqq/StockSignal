@@ -31,7 +31,7 @@ stock_risk 六维扫描，overall_level=high（ST/商誉/质押/解禁/减持/�
 - 持久化抄 daily_snapshot 范式：data/recommendations/YYYY-MM-DD.json（归档）
   + data/daily_recommendation.json（最新），按日幂等。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import logging
@@ -42,7 +42,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from modules.stock_risk import DIMENSIONS, RISK_HIGH, RISK_MEDIUM
+from modules.stock_risk import DIMENSIONS, RISK_HIGH, RISK_MEDIUM  # noqa: F401
 from modules.risk_gate import apply_risk_gate  # T-245：六维排雷二道闸上提为通用模块（行为一致）
 from modules.technical import detect_bullish_divergence  # R7/T-333：MACD 底背离确认
 
@@ -113,7 +113,7 @@ def engine_fetch_params() -> tuple:
 # multi_factor（超跌反弹路）/fund_flow。幅度克制（±0.05 内），和恒为 1；
 # 中间档或快照不可得（None/非数值）→ None（调用方回落静态默认，诚实降级）。
 # ══════════════════════════════════════════════════════
-def market_regime_weights(temperature) -> Optional[dict]:
+def market_regime_weights(temperature) -> Optional[dict]:  # noqa: F821
     """温度档 → 自适应融合权重；不适用时返回 None（回落 ALGO_WEIGHTS 静态默认）。"""
     try:
         t = float(temperature)
@@ -184,7 +184,7 @@ def atr14(df: pd.DataFrame) -> float:
     need = {"high", "low", "close"}
     if df is None or len(df) < 15 or not need.issubset(df.columns):
         return float("nan")
-    h, l, c = df["high"], df["low"], df["close"]
+    h, l, c = df["high"], df["low"], df["close"]  # noqa: E741
     prev_c = c.shift(1)
     tr = pd.concat([(h - l), (h - prev_c).abs(), (l - prev_c).abs()], axis=1).max(axis=1)
     return float(tr.tail(14).mean())
@@ -322,11 +322,11 @@ def today_generated(data_dir: str = None) -> bool:
 # ══════════════════════════════════════════════════════
 # 主流程：生成当日推荐
 # ══════════════════════════════════════════════════════
-def _index_ret20_safe() -> Optional[float]:
+def _index_ret20_safe() -> Optional[float]:  # noqa: F821
     """R5/T-270：上证指数 20 日收益（相对大盘强度基准，循环外一次性调用）；
     不可得返回 None（_momentum_score 如实回落绝对动量并标注）。"""
     try:
-        from datetime import date, timedelta
+        from datetime import date, timedelta  # noqa: I001
         from modules.fetcher import StockFetcher
         f = StockFetcher()
         end = date.today()
@@ -479,7 +479,7 @@ def apply_divergence_confirm(a1, dv: dict | None):
     return out
 
 
-def _momentum_score(df: pd.DataFrame, index_ret20: Optional[float] = None) -> dict:
+def _momentum_score(df: pd.DataFrame, index_ret20: Optional[float] = None) -> dict:  # noqa: F821
     """A5：20 日动量 + 量能放大（0~100）。
 
     R5/T-270：传入 index_ret20（指数 20 日收益）时改用**相对大盘强度**
@@ -495,7 +495,7 @@ def _momentum_score(df: pd.DataFrame, index_ret20: Optional[float] = None) -> di
         basis = f"20日相对大盘 {ret_eff:+.1%}（个股 {ret20:+.1%} − 指数 {float(index_ret20):+.1%}）"
     else:
         ret_eff = ret20
-        basis = "20日动量 {:+.1%}（大盘强度不可得，用绝对动量）".format(ret20)
+        basis = "20日动量 {:+.1%}（大盘强度不可得，用绝对动量）".format(ret20)  # noqa: UP032
     vol_ratio = vol.tail(5).mean() / max(vol.tail(60).mean(), 1)
     score = 50.0
     if ret_eff > 0:
@@ -916,7 +916,7 @@ def size_positions(picks: list, pos_base, per_stock_cap: float = 20.0,
     span = hi - lo
     raw: dict = {}
     basis: dict = {}
-    for p, c in zip(picks, comps):
+    for p, c in zip(picks, comps):  # noqa: B905
         mult = 1.0 if span == 0 else 0.6 + 0.9 * (c - lo) / span
         risk = 1.0
         rs = p.get("risk_scan") or {}

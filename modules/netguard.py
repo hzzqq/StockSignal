@@ -15,7 +15,7 @@ spinner 一直转、「资金流向模块卡住」这类现象。此前的修复
 import modules.* 时即生效，覆盖全部 40+ 页面与所有取数模块，无需逐处手动加补丁。
 幂等，重复调用无副作用。
 """
-import os
+import os  # noqa: F401, I001
 import socket
 import logging
 

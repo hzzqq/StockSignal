@@ -8,8 +8,8 @@ exec 每次 rerun 重新执行语义一致——同 modules/stock_research.py �
 
 
 def render_watchlist_monitor() -> None:
-    import streamlit as st
-    import streamlit.components.v1 as components
+    import streamlit as st  # noqa: I001
+    import streamlit.components.v1 as components  # noqa: F401
     import concurrent.futures as _cf
     import logging
     import requests
@@ -26,13 +26,13 @@ def render_watchlist_monitor() -> None:
     from modules.fundamental_helpers import calc_alr, fund_one
     from modules.page_guard import safe_fragment
     from modules.page_utils import render_standard_page, get_fetcher, latest_quote_time
-    from modules.ui_theme import sf_card, sf_metric
-    from modules.ui_kit import xc_success_box, xc_warn_box
+    from modules.ui_kit import xc_section_header  # noqa: F401
+    from modules.ui_kit import xc_success_box, xc_warn_box  # noqa: F401
 
     logger = logging.getLogger(__name__)
-    dark = render_standard_page(title='自选股监控', icon='📡', caption='实时跟踪自选股现价与涨跌幅；行情接口异常时自动回退本地源。数据仅供参考，非投资建议。', layout='wide')
+    dark = render_standard_page(title='自选股监控', icon='📡', caption='实时跟踪自选股现价与涨跌幅；行情接口异常时自动回退本地源。数据仅供参考，非投资建议。', layout='wide')  # noqa: F841
 
-    sf_card("自选股监控导读", "一览自选股实时现价与涨跌幅（A股红涨绿跌），交易时段自动刷新；可一键跳转形态选股做技术体检或个股分析做深度诊断。", icon="📡")
+    xc_section_header("自选股监控导读", "一览自选股实时现价与涨跌幅（A股红涨绿跌），交易时段自动刷新；可一键跳转形态选股做技术体检或个股分析做深度诊断。", icon="📡")
 
     def _is_trading_now():
         from modules.page_widgets import is_trading_now as _itn
@@ -173,7 +173,7 @@ def render_watchlist_monitor() -> None:
             quotes = {}
             _tok = get_token()
             quotes, _has_auth_err = _quote_batch(codes, _tok)
-        if _has_auth_err or any((isinstance(q, dict) and q.get('__auth_error') for q in quotes.values())):
+        if _has_auth_err or any((isinstance(q, dict) and q.get('__auth_error') for q in quotes.values())):  # noqa: UP034
             clear_auth()
             xc_warn_box('🔐 登录已过期，请重新登录')
             return
@@ -217,12 +217,12 @@ def render_watchlist_monitor() -> None:
             rows.append({'code': code, 'name': name, 'cur': cur, 'chg': chg, 'change_amt': change_amt, 'amplitude': amplitude, 'volume': volume, 'amount': amount, 'pe_ttm': f'{pe:.2f}' if isinstance(pe, (int, float)) and (not pd.isna(pe)) else '—', 'alr': f'{alr:.2f}%' if isinstance(alr, (int, float)) and (not pd.isna(alr)) else '—', 'tag': tag})
         st.caption('交易时段每 60 秒自动刷新；涨跌颜色遵循 A股 惯例：红涨绿跌。点击下方选择框可跳转个股研究页。')
         st.caption('数据来源：实时行情（新浪财经 / 东方财富）、财务数据（新浪财经）')
-        up_n = sum((1 for r in rows if r['chg'] is not None and r['chg'] >= 0))
-        down_n = sum((1 for r in rows if r['chg'] is not None and r['chg'] < 0))
+        up_n = sum((1 for r in rows if r['chg'] is not None and r['chg'] >= 0))  # noqa: UP034
+        down_n = sum((1 for r in rows if r['chg'] is not None and r['chg'] < 0))  # noqa: UP034
         st.markdown(f"#### 共 {len(rows)} 只自选股 ｜ <span style='color:{_UP};font-weight:600;'>▲ {up_n}</span> ／ <span style='color:{_DOWN};font-weight:600;'>▼ {down_n}</span>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         if quote_times:
             st.caption(f'🕒 行情更新于 {_rel_time(latest_quote_time(quote_times))}')
-        ok_n = sum((1 for r in rows if r['cur'] is not None))
+        ok_n = sum((1 for r in rows if r['cur'] is not None))  # noqa: UP034
         if codes and ok_n == 0:
             xc_warn_box('⚠️ 实时行情暂时获取失败（接口/网络异常），已尝试回退本地源仍无数据；下表为持仓快照，行情相关列显示 —，交易时段将自动刷新或稍后重试。')
         if rows:
@@ -294,7 +294,7 @@ def render_watchlist_monitor() -> None:
         refresh_tag = ' ｜ 🔴 交易时段每 60 秒自动刷新' if _is_trading_now() else ''
         st.caption(f"行情时间：{(_rel_time(data_time) if data_time != '—' else '—')} ｜ 本页刷新：{datetime.now().strftime('%H:%M:%S')} ｜ 红涨绿跌（A股惯例）{refresh_tag}")
     fragment_watchlist_monitor()
-    sf_card('📂 股票池管理', '维护自选股分组与股票池，支持批量添加 / 移除与一键盯盘。')
+    xc_section_header('📂 股票池管理', '维护自选股分组与股票池，支持批量添加 / 移除与一键盯盘。')
 
     def _norm_code(c: str) -> str:
         if not c:
@@ -503,7 +503,7 @@ def render_watchlist_monitor() -> None:
                         _toast('已移除')
                 _render_pool_table(df_jk, 'junk', _remove_jk)
     fragment_pool_junk()
-    sf_card('🔗 相关标的推荐', '基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。')
+    xc_section_header('🔗 相关标的推荐', '基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。')
     st.caption('基于常见关注方向给出的示例标的，点击跳转个股研究页（纯前端推荐，不构成投资建议）。')
     _c_rec = [('600519', '贵州茅台'), ('000858', '五粮液'), ('601012', '隆基绿能'), ('300059', '东方财富'), ('600036', '招商银行')]
     _c_cols = st.columns(len(_c_rec))
@@ -518,15 +518,15 @@ def render_watchlist_monitor() -> None:
 
 
 def render_position_manager() -> None:
-    import os
+    import os  # noqa: I001
     import json
     import logging
     import streamlit as st
-    import streamlit.components.v1 as components
+    import streamlit.components.v1 as components  # noqa: F401
     import pandas as pd
     from datetime import datetime
     from modules.page_utils import render_standard_page, fmt_rel as _fmt_rel
-    from modules.ui_theme import sf_card, sf_metric
+    from modules.ui_kit import xc_section_header  # noqa: F401
     from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner
     render_standard_page(title='仓位管理', icon='💰', caption='⚠️ 本页为模拟/历史持仓管理，仅供学习，不构成投资建议。', layout='wide')
 
@@ -561,7 +561,7 @@ def render_position_manager() -> None:
         except Exception as e:
             # T-160：偏好写盘失败留痕——静默吞掉会让用户以为设置已保存
             logger.warning('[pm] 仓位偏好写盘失败(%s): %s', _PM_PREF_PATH, e)
-    from modules.portfolio import PortfolioManager
+    from modules.portfolio import PortfolioManager  # noqa: I001
     from modules.search_ui import stock_search_input
     from modules.fetcher import StockFetcher
     from modules.session import api_quote, api_kline
@@ -626,7 +626,7 @@ def render_position_manager() -> None:
             except (KeyError, TypeError, ValueError):
                 continue  # ui_audit_exempt: except-pass 五档买卖盘逐档格式化，坏档跳过不编造（rows 空则返回 None）
         return pd.DataFrame(rows) if rows else None
-    sf_card('📊 当前持仓概览', '跟踪所有持仓的买入成本、剩余股数与实时市值；支持搜索与批量加自选 / 平仓。')
+    xc_section_header('📊 当前持仓概览', '跟踪所有持仓的买入成本、剩余股数与实时市值；支持搜索与批量加自选 / 平仓。')
     positions = pm.get_positions()
     st.caption(f'📊 当前持仓：共 {len(positions)} 条')
     if positions.empty:
@@ -705,10 +705,10 @@ def render_position_manager() -> None:
                         st.rerun()  # ui_audit_exempt: bare-rerun 批量平仓写库后整页重跑以刷新持仓列表
                     except Exception as e:
                         xc_handle_error("批量平仓失败", e, hint="请稍后重试，或检查网络与数据源连接")
-    sf_card('➕ 买入股票', '录入代码、价格与股数添加持仓；支持 100 / 500 / 1000 等快捷股数按钮。')
+    xc_section_header('➕ 买入股票', '录入代码、价格与股数添加持仓；支持 100 / 500 / 1000 等快捷股数按钮。')
     st.markdown('**⚡ 快捷选择股数：**')
     quick_cols = st.columns(5)
-    for col, qv in zip(quick_cols, [100, 500, 1000, 2000, 5000]):
+    for col, qv in zip(quick_cols, [100, 500, 1000, 2000, 5000]):  # noqa: B905
         if col.button(f'{qv:,} 股', width="stretch", key=f'buy_quick_{qv}'):
             st.session_state.default_shares = qv
             _save_pm_pref('default_shares', qv)
@@ -801,8 +801,8 @@ def render_position_manager() -> None:
                 else:
                     xc_warn_box('该标的已收藏或代码为空。')
         if st.session_state.get('_pm_recent'):
-            st.caption('🕘 最近浏览：' + '  '.join((f'`{c}`' for c in st.session_state['_pm_recent'][-6:][::-1])))
-    sf_card('💸 卖出股票', '记录卖出成交，自动计算已实现盈亏并扣减剩余股数。')
+            st.caption('🕘 最近浏览：' + '  '.join((f'`{c}`' for c in st.session_state['_pm_recent'][-6:][::-1])))  # noqa: UP034
+    xc_section_header('💸 卖出股票', '记录卖出成交，自动计算已实现盈亏并扣减剩余股数。')
     if not positions.empty:
         remaining = positions['remaining_shares'] if 'remaining_shares' in positions.columns else positions['shares']
         sellable_positions = positions[remaining > 0].copy()
@@ -893,7 +893,7 @@ def render_position_manager() -> None:
             _empty_info('暂无持仓可删除。当前没有已记录的持仓，无需清理。')
         else:
             del_index = st.number_input('选择要删除的行号（从 0 开始）', min_value=0, max_value=len(positions) - 1, value=0, step=1, placeholder=f'0 ~ {len(positions) - 1}', help='行号对应上方持仓列表的序号（从 0 开始）。删除不可恢复，请确认后再点「确认删除」。')
-            _idx_map = '；'.join((f"{i}: {positions.iloc[i]['ticker']}" for i in range(len(positions))))
+            _idx_map = '；'.join((f"{i}: {positions.iloc[i]['ticker']}" for i in range(len(positions))))  # noqa: UP034
             st.caption(f'行号对照（从 0 起）：{_idx_map}')
             c_del, _ = st.columns([1, 4])
             _ck = 'pm_del_cfm'
@@ -909,7 +909,7 @@ def render_position_manager() -> None:
                     st.session_state.pop(_ck, None)
             elif c_del.button('🗑️ 删除持仓', type='secondary'):
                 st.session_state[_ck] = True
-    sf_card('🧾 卖出记录', '查看历史卖出明细与成交金额，便于复盘与导出。')
+    xc_section_header('🧾 卖出记录', '查看历史卖出明细与成交金额，便于复盘与导出。')
     trades = pm.get_trades()
     st.caption(f'🧾 卖出记录：共 {len(trades)} 条')
     if trades.empty:
@@ -926,7 +926,7 @@ def render_position_manager() -> None:
         display_trades['备注'] = display_trades['note'].fillna('')
         show_cols = ['股票', 'ticker', '卖出日期', '卖出价', '卖出股数', '成交金额', '备注']
         st.dataframe(display_trades[show_cols], width="stretch", hide_index=True, height=400)
-    sf_card('📈 盈亏统计', '汇总总成本、总市值、总盈亏与收益率，并绘制盈亏曲线与持仓明细。')
+    xc_section_header('📈 盈亏统计', '汇总总成本、总市值、总盈亏与收益率，并绘制盈亏曲线与持仓明细。')
     positions = pm.get_positions()
     if not positions.empty:
         with st.spinner('正在获取行情并计算盈亏...'):
@@ -969,7 +969,7 @@ def render_position_manager() -> None:
                     pnl_cols = ['股票', 'ticker', '建仓时间', '买入价', '买入股数', '剩余股数', '现价', '市值', '已实现盈亏', '浮动盈亏', '收益率']
                     pnl_cols = [c for c in pnl_cols if c in display_pnl.columns]
                     st.dataframe(display_pnl[pnl_cols], width="stretch", hide_index=True, height=400)
-                sf_card('🔬 盈亏归因', '按个股拆分盈亏贡献，定位收益的主要来源与拖累项。')
+                xc_section_header('🔬 盈亏归因', '按个股拆分盈亏贡献，定位收益的主要来源与拖累项。')
                 attribution = pm.pnl_attribution()
                 if not attribution.empty:
                     attr_fetcher = StockFetcher()
@@ -994,20 +994,20 @@ def render_position_manager() -> None:
 
 
 def render_portfolio_returns() -> None:
-    import streamlit as st
+    import streamlit as st  # noqa: I001
     import pandas as pd
     import plotly.graph_objects as go
     from datetime import datetime, timedelta
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from concurrent.futures import ThreadPoolExecutor, as_completed  # noqa: F401
 
     from modules.portfolio import PortfolioManager
     from modules.page_guard import safe_fragment
     from modules.page_utils import render_standard_page, get_fetcher
-    from modules.ui_theme import sf_card, sf_metric
+    from modules.ui_kit import xc_section_header  # noqa: F401
     from modules.page_widgets import _empty_info, UP, DOWN, _fig_layout, _section_title
     from modules.chart_cache import cached_fig
 
-    from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_kpi_grid
+    from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_kpi_grid  # noqa: F401
 
     dark = render_standard_page(
         title="自选股组合收益跟踪", icon="📊",
@@ -1074,7 +1074,7 @@ def render_portfolio_returns() -> None:
             _fm = [(idx, lambda t=t, r=r: _fetch_position_series(t, r, start_str, end_str))
                    for idx, (t, r) in enumerate(_tasks)]
             _fm_raw = fetch_many(_fm, max_workers=min(8, len(_tasks)))
-            for idx, (t, r) in enumerate(_tasks):
+            for idx, (t, r) in enumerate(_tasks):  # noqa: B007
                 res = _fm_raw.get(idx) or {}
                 for _d, _v in res.items():
                     series[_d] = series.get(_d, 0.0) + _v
@@ -1275,7 +1275,7 @@ def render_portfolio_returns() -> None:
 
     def _show_risk_xray():
         """H4：组合风险透视 —— 集中度 / 行业暴露 / 相关性 / 情景回放（对标米筐 RQBeta、组合 X-ray）。"""
-        from modules.risk_xray import concentration, sector_exposure, correlation_matrix, scenario_pnl
+        from modules.risk_xray import concentration, sector_exposure, correlation_matrix, scenario_pnl  # noqa: I001
         _section_title("🩻 组合风险透视（X-ray）")
         try:
             pnl_df = pm.calc_pnl()

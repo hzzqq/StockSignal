@@ -135,7 +135,7 @@ def discover_findings_dir() -> list[str]:
 
 
 def _load_one(path: str):
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8") as f:  # noqa: UP015
         return json.load(f)
 
 

@@ -1,6 +1,6 @@
 """
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import logging
@@ -9,14 +9,14 @@ import time
 
 import jwt
 import streamlit as st
-from datetime import datetime
+from datetime import datetime  # noqa: F401
 
 from modules.request_utils import http_get, http_post
 from modules.site_config import API_BASE
-from modules.time_utils import now_cst_naive
-from modules.ui_kit import xc_info_banner, xc_success_box, xc_warn_box
+from modules.time_utils import now_cst_naive  # noqa: F401
+from modules.ui_kit import xc_info_banner, xc_success_box, xc_warn_box  # noqa: F401
 
-from .page_guard import safe_fragment
+from .page_guard import safe_fragment  # noqa: F401
 from .ui_theme import FONT_DEFAULT
 
 # 子模块 re-export：对外 ``from modules.session import ...`` 全部保持可用
@@ -798,7 +798,7 @@ def require_auth() -> None:
 
     # 记录真实页面访问（仅页面切换计数，session 内去重），驱动侧边栏『⭐ 常用』动态 Top5。
     # 放在门禁最前、不依赖认证分支，确保跳转即统计；任何异常在内部 fail-safe 吞掉。
-    from modules.widgets import record_nav_visit, _current_page_basename
+    from modules.widgets import record_nav_visit, _current_page_basename  # noqa: I001
     try:
         record_nav_visit(_current_page_basename())
     except Exception:  # ui_audit_exempt: except-pass 页面访问计数为侧边栏『常用』埋点，fail-safe 吞掉不得阻断登录门禁

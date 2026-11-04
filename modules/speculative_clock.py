@@ -12,13 +12,13 @@
 
 取数失败优雅降级（available=False / 相位=数据不足）。
 """
-import logging
+import logging  # noqa: I001
 
-import numpy as np
+import numpy as np  # noqa: F401
 import pandas as pd
 
 from modules import market_regime as mr
-from modules.breadth_features import REAL_FEATURES, labels as _labels
+from modules.breadth_features import REAL_FEATURES, labels as _labels  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

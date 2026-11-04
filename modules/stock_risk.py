@@ -764,7 +764,7 @@ def scan_many(codes_with_names, max_workers: int = 4, progress=None) -> list:
 
     ``progress`` 可选回调 ``progress(done, total)``，便于页面显示进度。
     """
-    import concurrent.futures
+    import concurrent.futures  # noqa: F401
 
     items = list(codes_with_names.items()) if isinstance(codes_with_names, dict) \
         else list(codes_with_names)
@@ -779,7 +779,7 @@ def scan_many(codes_with_names, max_workers: int = 4, progress=None) -> list:
     _tasks = [(idx, lambda c=code, n=name: scan_stock(c, n, st_set))
               for idx, (code, name) in enumerate(items)]
     _raw = fetch_many(_tasks, max_workers=max_workers)
-    for idx, (code, name) in enumerate(items):
+    for idx, (code, name) in enumerate(items):  # noqa: B007
         result = _raw.get(idx)
         done += 1
         if result is not None:

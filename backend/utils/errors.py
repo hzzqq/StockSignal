@@ -6,7 +6,7 @@ utils/errors.py
 """
 from __future__ import annotations
 
-from flask import jsonify
+from flask import jsonify  # noqa: F401
 
 from .response import _json_safe
 

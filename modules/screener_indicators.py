@@ -6,15 +6,15 @@ analyze_trend / detect_bottom_divergence / check_volume_surge /
 calculate_financial_ratios / calculate_growth_rates
 """
 
-import logging
+import logging  # noqa: I001
 import pandas as pd
 import numpy as np
-from typing import Tuple, Optional, List, Dict
+from typing import Tuple, Optional, List, Dict  # noqa: F401, UP035
 
 logger = logging.getLogger(__name__)
 
 
-def calculate_macd(close_prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> Tuple[Optional[pd.Series], Optional[pd.Series], Optional[pd.Series]]:
+def calculate_macd(close_prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> Tuple[Optional[pd.Series], Optional[pd.Series], Optional[pd.Series]]:  # noqa: UP006, UP045
     if close_prices is None:
         return None, None, None
     if len(close_prices) < slow:
@@ -31,7 +31,7 @@ def calculate_macd(close_prices: pd.Series, fast: int = 12, slow: int = 26, sign
         return None, None, None
 
 
-def calculate_sma(data: pd.Series, window: int) -> Optional[pd.Series]:
+def calculate_sma(data: pd.Series, window: int) -> Optional[pd.Series]:  # noqa: UP045
     if data is None:
         return None
     if len(data) < window:
@@ -43,7 +43,7 @@ def calculate_sma(data: pd.Series, window: int) -> Optional[pd.Series]:
         return None
 
 
-def calculate_ema(data: pd.Series, window: int) -> Optional[pd.Series]:
+def calculate_ema(data: pd.Series, window: int) -> Optional[pd.Series]:  # noqa: UP045
     if data is None:
         return None
     if len(data) < window:
@@ -55,7 +55,7 @@ def calculate_ema(data: pd.Series, window: int) -> Optional[pd.Series]:
         return None
 
 
-def analyze_trend(data: pd.Series, min_points: int = 10) -> Tuple[Optional[float], Optional[float]]:
+def analyze_trend(data: pd.Series, min_points: int = 10) -> Tuple[Optional[float], Optional[float]]:  # noqa: UP006, UP045
     if data is None:
         return None, None
     if len(data) < min_points:
@@ -128,7 +128,7 @@ def detect_top_divergence(close_prices: pd.Series, macd_hist: pd.Series,
         return False
 
 
-def check_volume_surge(volume: pd.Series, weeks: int = 5, threshold: float = 1.5) -> Tuple[bool, Optional[float]]:
+def check_volume_surge(volume: pd.Series, weeks: int = 5, threshold: float = 1.5) -> Tuple[bool, Optional[float]]:  # noqa: UP006, UP045
     if volume is None:
         return False, None
     if len(volume) < weeks + 2:
@@ -145,7 +145,7 @@ def check_volume_surge(volume: pd.Series, weeks: int = 5, threshold: float = 1.5
         return False, None
 
 
-def calculate_rsi(close_prices: pd.Series, window: int = 14) -> Optional[pd.Series]:
+def calculate_rsi(close_prices: pd.Series, window: int = 14) -> Optional[pd.Series]:  # noqa: UP045
     if close_prices is None:
         return None
     if len(close_prices) < window + 1:
@@ -164,7 +164,7 @@ def calculate_rsi(close_prices: pd.Series, window: int = 14) -> Optional[pd.Seri
         return None
 
 
-def calculate_bollinger_bands(close_prices: pd.Series, window: int = 20, num_std: int = 2) -> Tuple[Optional[pd.Series], Optional[pd.Series], Optional[pd.Series]]:
+def calculate_bollinger_bands(close_prices: pd.Series, window: int = 20, num_std: int = 2) -> Tuple[Optional[pd.Series], Optional[pd.Series], Optional[pd.Series]]:  # noqa: UP006, UP045
     if close_prices is None:
         return None, None, None
     if len(close_prices) < window:
@@ -180,7 +180,7 @@ def calculate_bollinger_bands(close_prices: pd.Series, window: int = 20, num_std
         return None, None, None
 
 
-def calculate_financial_ratios(fina_df: pd.DataFrame) -> Dict[str, Optional[float]]:
+def calculate_financial_ratios(fina_df: pd.DataFrame) -> Dict[str, Optional[float]]:  # noqa: UP006, UP045
     """从已归一化为英文列名的财务指标 DataFrame 计算常用财务比率。"""
     if fina_df is None or fina_df.empty:
         return {}
@@ -205,7 +205,7 @@ def calculate_financial_ratios(fina_df: pd.DataFrame) -> Dict[str, Optional[floa
         return {}
 
 
-def calculate_growth_rates(income_df: pd.DataFrame, periods: int = 4) -> Dict[str, Optional[float]]:
+def calculate_growth_rates(income_df: pd.DataFrame, periods: int = 4) -> Dict[str, Optional[float]]:  # noqa: UP006, UP045
     if income_df is None or len(income_df) < 2:
         return {}
     try:

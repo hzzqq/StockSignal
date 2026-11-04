@@ -77,32 +77,29 @@ def _clean_l0():
 
 
 def test_wal_applied(tmp_path):
-    """_get_conn 必须发送 journal_mode=WAL PRAGMA（生产语义守卫）。
+    """_get_conn 必须执行 journal_mode=WAL PRAGMA（生产并发读能力不退化）。
 
-    2026-11-04 修复：测试会话的 conftest sqlite shim 会拦下生产代码发出的
-    `PRAGMA journal_mode=WAL`（改写为 MEMORY，或直接跳过以规避连接池多连接
-    切换 journal_mode 时的 database is locked），因此运行时读回的 journal_mode
-    已不能反映生产意图——shim 跳过时就是默认的 delete。原断言只认 wal/memory，
-    shim 一改实现就误红，且无法区分「PRAGMA 根本没发」与「发了但被 shim 拦了」。
+    测试会话的 conftest shim 会**跳过** WAL PRAGMA（不再是旧版的「改写为 MEMORY」）：
+    默认 DELETE journal 既不生成 -wal/-shm 兄弟文件，也避开连接池多连接切换
+    journal_mode 时的 database is locked。因此 journal_mode 落到默认的 delete。
 
-    改为：静态守住源码里 WAL PRAGMA 发送语句仍在（丢了就退回全库排他锁、
-    页面读被写阻塞），运行时只断言连接可用。shim 无论重写还是跳过，守卫都不失效。
+    旧断言靠 ``mode ∈ {wal, memory}`` 反推 PRAGMA 是否发出，在 shim 换成「跳过」
+    后必然假红；且它无法区分「shim 跳过」与「生产代码压根没发 PRAGMA」。
+    现改为断言 conftest 留在连接上的拦截标记，并对 mode 做兜底：
+      - 标记缺失 → WAL PRAGMA 被删/被改 → 真回归，红；
+      - mode 仍是 wal → shim 失效，测试库会刷 -wal/-shm → 红。
     """
-    import inspect
-
-    from modules.fetcher_base import BaseFetcher
-
-    src = inspect.getsource(BaseFetcher._get_conn)
-    assert "PRAGMA journal_mode=WAL" in src, \
-        "_get_conn 丢失 WAL PRAGMA：缓存写入将退回全库排他锁，页面读被写阻塞"
-
     db = _make_db(tmp_path)
     f = StockFetcher.__new__(StockFetcher)
     f.db_path = db
     conn = f._get_conn()
+    intercepted = getattr(conn, "_ss_wal_intercepted", False)
     mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
     conn.close()
-    assert mode is not None, "_get_conn 返回的连接不可用"
+    assert intercepted, \
+        "_get_conn 未发出 journal_mode=WAL PRAGMA（shim 无拦截记录）：生产 WAL 并发读能力可能已退化"
+    assert str(mode).lower() != "wal", \
+        f"测试期 shim 未中和 WAL（journal_mode={mode}），测试库会刷出 -wal/-shm 文件"
 
 
 def test_l0_hit_skips_sqlite(tmp_path):

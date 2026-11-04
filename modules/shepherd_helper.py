@@ -1,5 +1,5 @@
 """modules/shepherd_helper.py.py —— 从 shepherd.py 精确切出（零修改）。"""
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import os
 import time
 import logging
