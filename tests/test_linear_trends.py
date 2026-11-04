@@ -259,7 +259,17 @@ def test_get_industry_index_series_ok():
     assert len(df) == 3  # 3 个交易日
 
 
+@pytest.mark.live
 def test_get_industry_index_series_empty_on_fail():
+    """东财两源失败 → 返回空表。
+
+    live 标记（2026-11-04）：本用例只 mock 了东财两源（name_em / hist_em），
+    东财失败后代码会走同花顺备源 _fetch_industry_hist_ths —— 该路径未被 mock，
+    会真连 akshare 的 stock_board_industry_index_ths（其 py_mini_racer 加密链路
+    在 Windows 上偶发 C 层崩溃 0x80000003，全量回归曾因此整组中断）。
+    标 live 后默认不收集；同路径的离线覆盖由 tests/test_quotes_fallback.py
+    ::TestIndustryBoardFallback::test_both_fail_returns_empty（三源全 mock）承担。
+    """
     with mock.patch("akshare.stock_board_industry_name_em", side_effect=RuntimeError("x")):
         with mock.patch("akshare.stock_board_industry_hist_em", side_effect=RuntimeError("y")):
             df = lt.get_industry_index_series(top_n=8, days=120)
