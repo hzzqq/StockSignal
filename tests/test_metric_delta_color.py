@@ -54,6 +54,66 @@ COMPLETED_FILES = [
 ]
 
 
+# ────────── M1 修订版（2026-11-04）：11/20 实现体已全量迁到 KPI 网格 ──────────
+# 渐进清单混合态：11/20 两条走「零 metric + 显式 delta_dir」终态断言；
+# 40_仓位管理.py → portfolio_views 仍合法用 st.metric，保持原 delta_color 断言。
+# COMPLETED_FILES 里 11/20 条目保留不删（删条目 = 弱化守卫覆盖面）。
+MIGRATED_TO_GRID = {"20_个股分析.py", "11_股票选取.py"}
+_KPI_RENDERERS = {"xc_kpi_grid", "stat_tile"}
+_VALID_DELTA_DIR = {"up", "down", "flat"}
+
+
+def _kpi_card_nodes(tree: ast.AST):
+    """yield 实现体内所有 KPI 卡 dict（口径已真扫：stock_research.py 内仅此类 dict 含 label+value）。"""
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Dict):
+            ks = {k.value for k in n.keys
+                  if isinstance(k, ast.Constant) and isinstance(k.value, str)}
+            if "label" in ks and "value" in ks:
+                yield n
+
+
+def _cards_missing_delta_dir(tree: ast.AST) -> list[int]:
+    return [
+        n.lineno for n in _kpi_card_nodes(tree)
+        if "delta_dir" not in {k.value for k in n.keys
+                               if isinstance(k, ast.Constant) and isinstance(k.value, str)}
+    ]
+
+
+def _stat_tile_nodes(tree: ast.AST):
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "stat_tile":
+            yield n
+
+
+def _tiles_missing_delta_dir(tree: ast.AST) -> list[int]:
+    return [n.lineno for n in _stat_tile_nodes(tree)
+            if not any(k.arg == "delta_dir" for k in n.keywords)]
+
+
+def _kpi_render_calls(tree: ast.AST):
+    return [n for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            and n.func.id in _KPI_RENDERERS]
+
+
+def _bad_delta_dir_values(tree: ast.AST) -> list[int]:
+    """仅检查字面量 delta_dir；动态表达式（按涨跌符号三元式）由运行期契约保证，不误判。"""
+    bad = []
+    for n in _kpi_card_nodes(tree):
+        for k, v in zip(n.keys, n.values):
+            if (isinstance(k, ast.Constant) and k.value == "delta_dir"
+                    and isinstance(v, ast.Constant) and v.value not in _VALID_DELTA_DIR):
+                bad.append(n.lineno)
+    for n in _stat_tile_nodes(tree):
+        for kw in n.keywords:
+            if (kw.arg == "delta_dir" and isinstance(kw.value, ast.Constant)
+                    and kw.value.value not in _VALID_DELTA_DIR):
+                bad.append(n.lineno)
+    return bad
+
+
 def _metric_calls(tree: ast.AST):
     """yield 每个 st.metric(...) 调用节点"""
     for node in ast.walk(tree):
@@ -74,6 +134,15 @@ def _has_delta_color(call: ast.Call) -> bool:
 @pytest.mark.parametrize("fname", COMPLETED_FILES)
 def test_completed_pages_all_metrics_have_delta_color(fname):
     tree = _guard_tree(fname)
+    if fname in MIGRATED_TO_GRID:
+        # 终态：零 metric，且每张 KPI 卡/瓦片显式声明 delta_dir（禁靠默认 flat 蒙混）。
+        assert not list(_metric_calls(tree)), \
+            f"{fname} 实现体仍有 st.metric（应迁 xc_kpi_grid/stat_tile）"
+        assert _kpi_render_calls(tree), \
+            f"{fname} 未扫到 KPI 渲染调用（渲染被删或改名需更新守卫，禁止空转）"
+        bad = _cards_missing_delta_dir(tree) + _tiles_missing_delta_dir(tree)
+        assert not bad, f"{fname} 第 {bad} 行 KPI 卡/瓦片缺显式 delta_dir（红涨绿跌铁律）"
+        return
     calls = list(_metric_calls(tree))
     assert calls, f"{fname} 未扫描到 st.metric 调用（文件结构变化需更新守卫）"
     bad = [c.lineno for c in calls if not _has_delta_color(c)]
@@ -82,8 +151,12 @@ def test_completed_pages_all_metrics_have_delta_color(fname):
 
 @pytest.mark.parametrize("fname", COMPLETED_FILES)
 def test_completed_pages_no_us_semantics(fname):
-    """禁止 normal（美股绿涨语义），A 股只允许 inverse/off"""
+    """禁止 normal（美股绿涨语义）；已迁网格的页改锁 delta_dir 合法取值。"""
     tree = _guard_tree(fname)
+    if fname in MIGRATED_TO_GRID:
+        bad = _bad_delta_dir_values(tree)
+        assert not bad, f"{fname} 第 {bad} 行 delta_dir 非法（只允许 up/down/flat）"
+        return
     for c in _metric_calls(tree):
         for kw in c.keywords:
             if kw.arg == "delta_color" and isinstance(kw.value, ast.Constant):
@@ -109,3 +182,32 @@ def test_mutation_guard_catches_missing_delta_color():
     assert mutated != snippet, "mutation 种子失效"
     bad = [c.lineno for c in _metric_calls(ast.parse(mutated)) if not _has_delta_color(c)]
     assert bad, "mutation 未被检出——守卫逻辑假绿"
+
+
+def test_mutation_grid_guard_catches_missing_delta_dir():
+    """mutation 自验：网格守卫不得空转（防「零违规样本恒真」假绿）。"""
+    good = (
+        "xc_kpi_grid([\n"
+        '  {"label": "甲", "value": "1", "delta_dir": "flat"},\n'
+        '  {"label": "乙", "value": "2", "delta_dir": "up"},\n'
+        '])\n'
+        'stat_tile("丙", "3", delta_dir="flat")\n'
+    )
+    tree = ast.parse(good)
+    assert _kpi_render_calls(tree), "合法种子未被识别"
+    assert not _cards_missing_delta_dir(tree) and not _tiles_missing_delta_dir(tree)
+    assert not _bad_delta_dir_values(tree)
+    mutated = (good.replace(', "delta_dir": "flat"', '')
+                   .replace(', "delta_dir": "up"', '')
+                   .replace(', delta_dir="flat"', ''))
+    assert mutated != good, "mutation 种子失效"
+    t2 = ast.parse(mutated)
+    assert _cards_missing_delta_dir(t2), "card 剥离 delta_dir 未被检出——守卫假绿"
+    assert _tiles_missing_delta_dir(t2), "tile 剥离 delta_dir 未被检出——守卫假绿"
+
+
+def test_mutation_grid_guard_catches_bad_delta_dir():
+    good = 'xc_kpi_grid([{"label": "甲", "value": "1", "delta_dir": "up"}])\n'
+    bad_src = good.replace('"up"', '"normal"')
+    assert not _bad_delta_dir_values(ast.parse(good))
+    assert _bad_delta_dir_values(ast.parse(bad_src)), "delta_dir=normal 未被检出——守卫假绿"
