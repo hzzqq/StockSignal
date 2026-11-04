@@ -5,6 +5,7 @@ backend/api/task_routes.py
 """
 from __future__ import annotations  # noqa: I001
 
+import logging
 from typing import Any
 
 from flask import Blueprint, request  # noqa: F401
@@ -15,6 +16,8 @@ from ..utils.params import parse_int_param, parse_limit_param, json_body  # noqa
 from ..tasks.worker import task_worker
 
 bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
+
+logger = logging.getLogger(__name__)
 
 # 允许的后台任务类型（单一来源：create_task 校验与文档都引用这里）
 _ALLOWED_TASK_TYPES = ("analysis", "compare", "ai_consult", "quant_research", "ai_research")
@@ -103,7 +106,8 @@ def get_task_timeline(task_id: str):
         db_events = [r.to_dict() for r in rows]
     # ui_audit_exempt: except-pass timeline SQLite 兜底读取尽力而为：schema 未就绪/查询失败按空列表返回，内存事件为主源不受影响
     except Exception:
-        pass
+        # 不静默：留痕后再按空列表返回（内存事件为主源，容量不受影响）
+        logger.debug("task timeline SQLite 兜底读取失败，按空列表返回（内存事件为主源）", exc_info=True)
 
     # 内存 timeline 用批次8 dict/str 混合格式，SQLite timeline 用批次9 to_dict 统一格式
     if mem_events:
