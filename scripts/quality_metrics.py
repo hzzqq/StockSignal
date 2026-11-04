@@ -151,8 +151,8 @@ def _pytest_collected() -> int | None:
              "-p", "no:cacheprovider"],
             cwd=ROOT, capture_output=True, text=True, timeout=900,
         )
-    # ui_audit_exempt: 收集超时/收集失败返回 None（不猜数），对外只暴露静态口径并注明
     except (subprocess.TimeoutExpired, OSError):
+        # ui_audit_exempt: 收集超时/收集失败返回 None（不猜数），对外只暴露静态口径并注明
         return None
     total = 0
     for line in r.stdout.splitlines():
