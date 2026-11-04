@@ -362,3 +362,129 @@
   被多批次共触时是否必须合成单一原子 commit）、改动后最小回归测试集（只列真实存在的文件）
 - ⏳ **Phase 3（前端工程）待启动** → 产出：逐批次实施步骤 + 守卫同步点 + 原子 commit 边界 + 验证矩阵
 - ⏳ **实施待 Phase 2/3 完成后进行**（本轮零改码；不做半迁移）
+## 13. ① sf-* 令牌层收敛 · Phase 2 体验规范 + 主理人裁定（2026-11-04）
+
+> 产出方式：专家团 Phase 2（`ux-ui-designer`，体验方向，零改码）+ 主理人综合裁定。
+> **Phase 3（前端工程实施计划）待启动 ⇒ 本章只定「做什么 / 分几批 / 怎么验」，不定最终类名表。**
+> 诚实边界：本轮**零改码**；Phase 2 **未跑任何 pytest**、**无浏览器实测**（项目无 Playwright/Selenium）。
+
+### 13.1 🔴 D3（新发现，最高优先级）：`:root` 级联倒挂 ⇒ 6 套非 classic 风格的 vars 被静默覆盖
+
+**Phase 2 用运行时探针实测**（拦截 `st.markdown` 捕获真实注入序列 + 按 CSS「同特异性后到者胜」求最终值），
+terminal 风格 `--brand-1` 的级联序列：
+
+```
+#01 _DARK_CSS :root              #5b53f0
+#02 _TOKEN_CSS :root             (未定义)
+#03 inject_kit_css → _TOKEN_CSS  #4f46e5
+#04 preset[terminal].vars        #e8a33d   ★预设值在此出现
+#06 dashboard_sf_css 前置 _TOKEN_CSS  #4f46e5
+#07 dashboard_sf_css 的 :root{root}   #5b53f0
+#09 page_hero → _HERO_FALLBACK_CSS    #4f46e5   ★最后注入者
+```
+
+⇒ 最终 `--brand-1` = `#4f46e5`（经典紫），**不是** terminal 预设的 `#e8a33d`（琥珀）。
+**8 组矩阵中 6 组的 `--brand-1/--brand-2/--card/--card2/--txt/--txt2/--bg/--border/--hold/--hover/--ss-up/--ss-down/--doc-up/--doc-down` 全被经典值覆盖**
+⇒ terminal 琥珀 / cyber 霓虹黄青 / aurora 紫 / swiss 纯黑 / ink 朱砂 / finpro 商务蓝
+**在 `:root` 令牌层全部失效**；「风格仍能用」是**假象**（全靠 `STYLE_PRESETS[*]['extra']` 里大量
+`!important` 硬编码色撑着）。
+
+**三重根因**：
+1. `modules/ui_kit.py:88` —— `_TOKEN_CSS` 的 `:root` **硬写** `--brand-1:#4f46e5; --brand-2:#7c3aed;`
+   （注释自称「对现有 --brand-1/--ss-* 消费者零影响」，**实为全局覆盖**）。被 `inject_kit_css()`(`ui_kit.py:436`)、
+   `dashboard_sf_css()`(`ui_theme.py:223`)、`_HERO_FALLBACK_CSS`(`ui_kit.py:390`) 各注入一次，
+   **最后一次在 `page_hero()`(`page_utils.py:60`)**。
+2. `modules/ui_theme.py:223` —— `dashboard_sf_css()` 自带 `:root{_THEME_ROOT_VARS}`，
+   而 `_THEME_ROOT_VARS`(`:195/:196`) 是**经典基座**（`--card:#1a1a2e` `--txt:#e2e8f0` `--brand-1:#5b53f0`），
+   非 classic 风格下覆盖预设值。
+3. `modules/ui_theme.py:185` `inject_style_css()` 在 `apply_theme` **尾部**，比
+   `dashboard_sf_css()`(`page_utils.py:57`)、`_HERO_FALLBACK_CSS`(`page_utils.py:60`) **更早**。
+
+⇒ **主理人裁定：D3 独立立项，且必须先于 C2 落地**——否则「8 组风格矩阵验收」整批不可信
+（Phase 1 的 AC-4 全部建立在错误的前提上）。`docs/ui_audit_report.md:20` 曾记录
+「令牌定义散列三处、cascade 脆弱」，D3 是那行记录的**可执行根因**。
+
+### 13.2 五个缺陷汇总（🔴 三个 / 🟡 两个）
+
+| 编号 | 缺陷 | 级别 | 处置 |
+|---|---|---|---|
+| **D3** | `:root` 级联倒挂，6 套非 classic 风格 vars 被覆盖 | 🔴 | **独立立项 + 前置**（13.1） |
+| **D1** | `.sf-pill/.sf-tag` 跨域串色：底色走文档域绿 × 字色走 `var(--buy)` 交易域红 ⇒ classic 暗色「绿底红字」；且 `_LIGHT_CSS`(`ui_theme.py:55` 起) **全字面不含 `--buy`/`--sell`** ⇒ 亮色下 `color:var(--buy)` invalid at computed-value time ⇒ 回落 `inherit` | 🔴 | C3 |
+| **D1-b** | classic 亮色 `--buy/--sell` 未定义（影响面不止 pill） | 🔴 | **C1**（先于 C3） |
+| **D2** | `--doc-up/--doc-down` 只在 classic 暗/亮定义 ⇒ 6 套风格下报告体价格域回落继承色 | 🔴 | **独立立项**（不改 sf-*） |
+| **D4** | `page_utils.py:124` 「已休市」胶囊 `#166534` on 合成底 ≈ **2.2:1 ❌** | 🟡 | C3 |
+| **D5** | `--doc-up` 在 classic-light / swiss-light / ink-light 三组对比度 3.13~3.47（< 正文 4.5），但字面值被 3 个守卫硬锁不可改 | 🟡 | C3（提字号/字重 或 新增小号令牌） |
+
+### 13.3 D1 修复的期望渲染（Phase 2 已算对比度）
+
+| 语义 | 底色 | 字色 | 边框/左条 |
+|---|---|---|---|
+| `up`（订单成功/舆情正面/技术强） | `color-mix(in srgb, var(--ss-box-success) 8%, var(--card2))` | **`var(--ss-text)`** | `3px solid var(--ss-box-success)` |
+| `down`（订单失败/舆情负面/技术弱） | `color-mix(in srgb, var(--ss-box-danger) 8%, var(--card2))` | **`var(--ss-text)`** | `3px solid var(--ss-box-danger)` |
+| `mid`（中性/等待） | `color-mix(in srgb, var(--ss-box-warn) 8%, var(--card2))` | **`var(--ss-text)`** | `3px solid var(--ss-box-warn)` |
+| `neu`（`sf-tag.neu`） | `var(--card2)` | `var(--ss-text-muted)` | `var(--ss-line)` |
+
+**为什么字色不用 `--ss-box-*` 本身**：classic 亮色实测 `success #16a34a` vs 合成底 **2.68:1 ❌**、
+`danger #ef4444` **2.99:1 ❌**、`warn #f59e0b` **1.82:1 ❌**；
+改字色为 `--ss-text #1e293b` vs 合成底 `#e2efed` = **12.40:1 ✅**（正文 ≥4.5）。
+
+⚠️ **语义先裁定再改色**：`pages/47_价格预警.py:421` 把「🔥 已触发」映射为 `down`，
+而 `pages/44_智能条件单.py:129` 把 `triggered→up` ⇒ **同一事件异色**。
+不先裁定就直接改色，只会把「绿底红字」换成「红底绿字」。
+⚠️ 这 6 态的 up/down/mid **都不是价格涨跌**（订单成败 / 舆情极性 / 技术强弱）
+⇒ **不得**把 `--doc-up/down` 拉进来；**也不得**连带改 `stock_research.py:551` 的舆情热度条
+（那处走 `color:var(--buy)`，属交易域，与 pill 独立）。
+
+### 13.4 Phase 1 ↔ Phase 2 分歧汇总（10 条）+ 主理人裁定
+
+| # | Phase 1 | Phase 2 | 主理人裁定 |
+|---|---|---|---|
+| 1 | 未覆盖 `:root` 级联 | **D3 新增，最高优先级** | **采纳 Phase 2**，D3 前置独立立项 |
+| 2 | R4（价格域 3 类 + `sf-up/sf-down` 零改动）🔴 | 降级 🟡（`sf-up/sf-down` 是死代码属 B4；价格域一行不改） | **采纳 Phase 2**：R4 降级，**价格域一行不动** |
+| 3 | #40 残留「仅 2 处」 | **应为 3 处**（`page_utils.py:116,118,124,126` 4 行硬编码 + `ui_kit.py:462`） | **采纳 Phase 2** |
+| 4 | #40 emoji「52 调用 / 51 个不同」 | **67 调用 / 52 个不同** | **采纳 Phase 2**（AST 实测） |
+| 5 | #41 覆盖 16/65 | **16/63** | 采纳 Phase 2 |
+| 6 | #41 需新增 30~40 个 path | **约 43 个**（`_ICONS` 50，空闲仅 brand/chart/moon/sun） | 采纳 Phase 2 |
+| 7 | 44 个选择器 | 44 有效 + 1 个正则残渣 = grep 计 45 | 采纳 Phase 2（表述修正） |
+| 8 | 未提及 | `pages/47:421` 「已触发」映射为 `down`，与 `pages/44` 同事件异色 | **采纳 Phase 2**，C3 前必须裁定 |
+| 9 | 未提及 | `--doc-up` 三组亮色 < 4.5 | 采纳（D5，C3） |
+| 10 | 「starfield_theme 生产零调用」 | 模块**不可删**（`stock_research.py:1419` + `pages/53:40` 真实 import），但 `inject_theme()`（唯一注入 `STARFIELD_CSS` 的入口）**仅在 `__main__` 块调用** ⇒ **CSS 确实生产不生效** | **采纳**：准确表述 =「CSS 规则生产不生效，模块不可删」 |
+
+### 13.5 三批原子方案（Phase 2 裁定，主理人采纳方向；Phase 3 定最终类名表）
+
+**结论：不能拆成多个独立上线批次**——`ui_theme.py` / `ui_kit.py` / `stock_research.py`
+被多批次共同触碰，且共享**单个 f-string CSS 模板**（`ui_theme.py:223-270`）与**单个全局 `:root` 作用域**；
+分开提交的中间态必然出现「新 CSS 已注入、调用点未改」⇒ **无样式卡 / 白屏**。
+
+| 批次 | 内容 | 落点 | 上线独立性 |
+|---|---|---|---|
+| **C1** | D3 修复 + D1-b（classic 亮色补 `--buy/--sell`）+ B4 死代码清理（10 个真死，含成对覆写同步删）+ 新建 `tests/test_style_token_cascade.py` + `tests/test_a11y_contrast.py` 改级联口径 | `ui_theme.py:195-196` / `ui_kit.py:88` / `ui_theme.py:942,1076` / `ui_theme.py` 死选择器 | ✅ 独立可上线，**必须先行** |
+| **C2** | R1+R2+B1+B2+B3+R5+R6 合并：仪表盘族 sf-* → xc-* 全量迁移（383 处） | `ui_theme.py:225-270,419-421,544-572` / `ui_kit.py:224-227` / `stock_research.py`(7处) / `stock_analysis_helpers.py`(6处) / `pages/13`(5处) / `pages/43,44,47`(仅 pill 类名) | ⚠️ 大头但**必须原子** |
+| **C3** | R3 语义修复（D1）+ D4 + D5 + `pages/47` triggered 语义裁定 | `ui_theme.py:270` / `pages/47:421` / `page_utils.py:116-126` | ✅ 独立（唯一改变用户认知的批次，须独立目检/回滚） |
+
+### 13.6 改动后最小回归集（28 个文件，Phase 2 实测存在）
+
+- **必跑硬锁 14**：`test_bento_standards.py` `test_page91_prefs_slim.py` `test_static_css_cache.py`
+  `test_component_vocabulary.py` `test_ui_kit_tokens.py` `test_a11y_contrast.py` `test_ui_theme_styles.py`
+  `test_ui_theme.py` `test_no_hardcoded_semantic_hex.py` `test_stock_research_semantics.py`
+  `test_colors.py` `test_style_presets_structure.py` `test_ui_theme_finpro.py` `test_ui_kit.py`
+- **必跑不动族 5**：`test_dark_text_fix.py` `test_starfield_theme.py` `test_scroll_nav.py`
+  `test_whitebox_button_colors.py` `test_sidebar_nav.py`
+- **必跑受影响页面 9+**：`test_ui_kit_hero.py` `test_ui_theme_alerts_css.py` `test_ui_theme_v10.py`
+  `test_ui_theme_no_aurora.py` `test_ui_design_system.py` `test_design_tokens_present.py` `test_ui_bento.py`
+  `test_ui_highfreq_pages.py` `test_pages_ui_simplification.py` `test_stock_analysis_fin_report.py`
+  `test_market_cube_page.py` `test_no_st_metric_in_pages.py` `test_pages_use_standard_setup.py`
+- ⚠️ 涉及 `ui_theme`/`ui_kit`/`stock_research` 的测试共 **41** 个，建议 CI 跑全 41。
+- ⚠️ **pytest 汇总行纪律**：仓库默认 `addopts=["-q"]`，命令行再传 `-q` 双重 `-q` 会**吞掉汇总行**
+  ⇒ 统一 `-o addopts= -q`；**无汇总行不得判通过**。
+- ⚠️ 页面冒烟必须 `SMOKE_BATCH=i/n` 分批（整批撞 10 分钟墙，**被中断不计通过**）。
+
+### 13.7 Phase 2 未验证项（诚实登记）
+
+1. **未跑任何 pytest**（本阶段零改码）⇒ 守卫清单是**静态核对存在性 + 行号**，非执行结果。
+2. **无浏览器实测**：项目无 Playwright/Selenium（`import playwright` 失败）⇒ 对比度结论基于 WCAG 公式 +
+   CSS 规格推算；`color-mix()` 实际合成依赖浏览器色彩空间，**落地前建议抽验 3 组**。
+3. **D3 的浏览器侧未确认**：探针按「Streamlit 把多次 `st.markdown` 的 `<style>` 按调用顺序渲染进同一容器」
+   模拟级联——**基于行为惯例，未在真实 DOM 验证** ⇒ 建议 Phase 3 用探针固化成交互守卫。
+4. `ui_kit.py:368-369` 用了 `:has`，注释自承「Edge155 实证不支持」（既有问题，非本批引入）。
+5. 触控目标 ≥44px（AC-6.5）现状**未验证**。
