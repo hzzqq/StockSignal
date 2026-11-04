@@ -45,6 +45,7 @@ def _lines(paths: list[str]) -> int:
         try:
             with open(p, encoding="utf-8", errors="ignore") as f:
                 total += sum(1 for _ in f)
+        # ui_audit_exempt(T-239R3): 遍历源码统计行数，个别文件无读权限/缺失跳过，不影响总量估算
         except OSError:
             continue
     return total
@@ -77,6 +78,7 @@ def _count_routes() -> int:
         try:
             with open(p, encoding="utf-8", errors="ignore") as f:
                 n += len(pat.findall(f.read()))
+        # ui_audit_exempt(T-239R3): 遍历源码统计模式匹配数，个别文件不可读跳过，不影响总量估算
         except OSError:
             continue
     return n
@@ -88,6 +90,7 @@ def _ast_test_count() -> int:
     for p in _walk("tests") + _walk("backend/tests"):
         try:
             tree = ast.parse(open(p, encoding="utf-8", errors="ignore").read())
+        # ui_audit_exempt(T-239R3): 统计测试函数数，单个测试文件语法损坏/不可读跳过，不影响总数
         except (SyntaxError, OSError):
             continue
         for node in ast.walk(tree):
@@ -200,6 +203,7 @@ def _guard_test_files() -> int:
     for p in _walk("tests"):
         try:
             src = open(p, encoding="utf-8", errors="ignore").read()
+        # ui_audit_exempt(T-239R3): 统计含 ast.parse 的测试文件数，个别文件不可读跳过，不影响总数
         except OSError:
             continue
         if "ast.parse" in src and "assert" in src:

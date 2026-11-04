@@ -50,6 +50,7 @@ def _to_date(value) -> Optional[date]:
         for fmt in _DATE_FORMATS:
             try:
                 return datetime.strptime(s, fmt).date()
+            # ui_audit_exempt(T-239R3): 多日期格式依次试解析，单格式失败属预期，continue 试下一格式
             except ValueError:
                 continue
         return None
@@ -157,6 +158,7 @@ def build_date_range(start, end, fmt: str = "%Y-%m-%d"):
             break
         try:
             cur = date.fromordinal(cur.toordinal() + 1)
+        # ui_audit_exempt(T-239R3): 日期序数累加溢出（极端边界）直接 break 终止，无副作用
         except (ValueError, OverflowError):
             break
     return out
