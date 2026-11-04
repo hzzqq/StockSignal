@@ -95,12 +95,15 @@ import modules.fetcher as _fetcher_mod
 class HealthMixin:
     """Health 领域方法 mixin（机械搬移自 fetcher.py，签名/降级语义不变）。"""
 
-    def data_source_health(self):
+    def data_source_health(self, realtime_probe=False):
         """数据源健康度探测（#锐评整改：数据源单点+静默降级不可观测）。
 
         返回结构化健康报告：各路数据源的「依赖可用性 + 本地缓存状态」。
         仅做静态/本地探测（import 能力、缓存表行数），**不发任何网络请求**，
         保证秒回、离线可用；网络实时可达性由调用方按需另做（避免探测本身卡死）。
+
+        :param realtime_probe: 显式置 True 时，额外真实探网（见 ``_probe_sources_network``），
+            结果放在附加字段 ``probe``。默认 False ⇒ 与改造前**完全一致**（零网络、零行为变化）。
 
         返回形如::
 
@@ -201,9 +204,63 @@ class HealthMixin:
 
         ok_n = sum(1 for v in sources.values() if v.get("ok"))
         total_n = len(sources)
-        return {
+        report = {
             "timestamp": now_cst_str("%Y-%m-%d %H:%M:%S"),
             "summary": f"{ok_n}/{total_n} 可用",
             "sources": sources,
         }
+        if realtime_probe:
+            # T-384：additive 扩展。默认路径（不传参）零网络、零行为变化；
+            # 显式要求时才真实探网，结果独立放在 probe 字段，不改动上面的 ok/summary 语义。
+            report["probe"] = self._probe_sources_network()
+        return report
+
+    def _probe_sources_network(self, symbol="600519", days=30):
+        """真实网络可达性探测：四源各自独立抓一次 K 线，如实报告哪路通。
+
+        与 ``data_source_health`` 的「静态依赖探测」互补：后者只查 import 与本地缓存，
+        本方法真的发请求。因此**只在调用方显式触发时执行**（系统配置页的主动按钮）。
+
+        复用 ``_fetch_level``（四源竞速的单源抓取）：不重复实现网络逻辑，也不改其语义。
+
+        :returns: ``{level: {ok, detail, latency_ms}}``；``_fetch_level`` 不存在时
+            整体诚实降级为 ``{"status": "unavailable", "reason": "..."}``，绝不编造。
+        """
+        import time as _t
+
+        levels = ["L1", "L2", "L3", "L4"]
+        fetch_level = getattr(self, "_fetch_level", None)
+        if not callable(fetch_level):
+            return {
+                "status": "unavailable",
+                "reason": "当前实例未装配 Kline 抓取能力（_fetch_level 缺失），无法探网",
+            }
+
+        end = now_cst_str("%Y-%m-%d")
+        start = (now_cst_naive() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+        def _one(lv):
+            t0 = _t.monotonic()
+            try:
+                df, err = fetch_level(lv, symbol, start, end, "qfq")
+            except Exception as e:  # noqa: BLE001 - 探针自身异常也必须如实变成失败态
+                logger.warning("[fetcher] 源探测异常 %s: %s", lv, e)
+                return {"ok": False, "detail": f"{type(e).__name__}: {e}",
+                        "latency_ms": int((_t.monotonic() - t0) * 1000)}
+            ms = int((_t.monotonic() - t0) * 1000)
+            ok = df is not None and not getattr(df, "empty", True)
+            return {
+                "ok": bool(ok),
+                "detail": f"{len(df)} 行 / {symbol} {start}~{end}" if ok else (err or "无数据"),
+                "latency_ms": ms,
+            }
+
+        try:
+            from modules.fetch_parallel import fetch_many
+            out = fetch_many([(lv, (lambda lv=lv: _one(lv))) for lv in levels], max_workers=4)
+            return {lv: out.get(lv) or {"ok": False, "detail": "未返回", "latency_ms": -1}
+                    for lv in levels}
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[fetcher] 源探测编排失败: %s", e)
+            return {"status": "unavailable", "reason": f"{type(e).__name__}: {e}"}
 

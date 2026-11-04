@@ -86,6 +86,28 @@ with tab_overview:
             f"总览 {report.get('summary')} · 探测于 {report.get('timestamp')} · "
             "仅检查依赖与本地缓存（不触网）；网络可达性由各页面取数时实时降级。"
         )
+
+        # ── T-384：真实网络探测（显式触发，默认不触网）──
+        _do_probe = st.button(
+            "🌐 真实网络探测",
+            key="health_realtime_probe",
+            help="对 akshare / BaoStock / 新浪 / 东方财富各发一次真实日线请求（约数秒）。"
+                 "上方健康度只查依赖与本地缓存，本按钮才验证网络是否真的通。",
+        )
+        if _do_probe:
+            with st.spinner("正在探测四源真实可达性…"):
+                _probe = get_fetcher().data_source_health(realtime_probe=True).get("probe") or {}
+            if _probe.get("status") == "unavailable":
+                xc_warn_box(f"探测不可用：{_probe.get('reason')}", hint="该实例未装配 K 线抓取能力")
+            else:
+                _lv_label = {"L1": "akshare", "L2": "BaoStock", "L3": "新浪财经", "L4": "东方财富"}
+                stat_row([
+                    {"label": _lv_label.get(lv, lv),
+                     "value": "✅ 通" if info.get("ok") else "❌ 不通",
+                     "meta": f"{info.get('latency_ms', -1)} ms · {str(info.get('detail', ''))[:40]}"}
+                    for lv, info in _probe.items()
+                ])
+                st.caption("真实探测口径：各源独立抓取一次 600519 近 30 天日线，耗时即该源一次往返。")
     except Exception as e:
         xc_handle_error(f"数据源健康度探测失败：{type(e).__name__}", e, hint="请稍后重试，或检查网络与数据源连接")
 
