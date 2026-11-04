@@ -19,7 +19,7 @@ StockSignal 在**标准化入口、导航守卫、诚实降级、回到顶部、
 |---|---|---|---|
 | A1 | 令牌定义散落三处、cascade 脆弱 | `ui_theme._DARK_CSS`(ui_theme.py:54)、`ui_kit._TOKEN_CSS`(ui_kit.py:44)、`dashboard_sf_css`(ui_theme.py:208) 各写一套 `:root` | 改色未必全站生效，易回归 |
 | A2 | 语义色命名不一致（非反向显示） | `--buy/--sell` 在 `starfield_theme.py:28`(红涨) 与 `ui_theme.py:209,211` docs 域(绿涨) 语义相反；`.sf-doc-up{color:var(--buy)}`(ui_theme.py:433) 仅用于报告体 | 命名隐患：同 token 不同语义易误用；交易屏未反向，非合规事故 |
-| A3 | 品牌色常量漂移 | `colors.py BRAND_ACCENT=#4f46e5`(colors.py:32)、`ui_theme --acc1=#5b53f0`、`.ss-accent fallback=#667eea` 三处不一致 | 换色需改 3+ 处且易漏 |
+| A3 | 品牌色常量漂移 | `colors.py BRAND_ACCENT=#4f46e5`(colors.py:32)、`ui_theme --brand-1=#5b53f0`、`.ss-accent fallback=#667eea` 三处不一致 | 换色需改 3+ 处且易漏 |
 | A4 | 页面内联硬编码色（dark/light 双份） | `widgets.py:298` `name_color='#e2e8f0' if dark else '#111827'`；`widgets.py:327` 字面量 `#ff4d4f/#00d486`；`pages/57:24`、`pages/58:29` 各自硬编码 STATE_COLORS/LEADER_BAND_COLOR | 主题切换断色、维护灾难 |
 | A5 | 圆角 16/18 并存 | `--ss-radius-card:16`(ui_kit.py:51) vs `.sf-card:18`(ui_theme.py:215)、`.xc-hero:18`(ui_kit.py:209) | 卡片观感不齐，弱 Bento 感 |
 | A6 | 间距未落在 4px 阶梯 | 令牌含非标 20px(ui_kit.py:52)；页面大量 10/14/18/22px 散值(`ui_kit.py:229` gap14、`ui_theme.py:215` margin18) | 栅格不齐 |

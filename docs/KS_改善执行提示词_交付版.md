@@ -19,7 +19,7 @@
 
 1. **A 股涨跌语义色不可反转**：涨 `#ff4d4f`（红）/ 跌 `#00d486`（绿），由 `modules/ui_kit.py` 的 `--ss-up/--ss-down` 管理；`tests/test_ui_design_system.py::test_st_metric_with_delta_must_set_delta_color` 必须保持绿色。
 
-2. **品牌身份色不动**：`--acc1:#4f46e5 / --acc2:#7c3aed`（`modules/colors.py`、`modules/ui_theme.py` 的 `:root`）保持冻结，不换色。
+2. **品牌身份色不动**：`--brand-1:#4f46e5 / --brand-2:#7c3aed`（`modules/colors.py`、`modules/ui_theme.py` 的 `:root`）保持冻结，不换色。
 
 3. **现有守卫不得回退**：`tests/test_ui_design_system.py`（5 项）、`tests/test_pages_smoke.py`、`tests/test_config_theme_types.py`、`tests/test_ui_kit_hero.py` 必须全绿；新增代码不得删除或弱化既有断言。
 
@@ -75,7 +75,7 @@
 
 1. `theme_mode` 默认值统一为 `'dark'`（`ui_theme.py` 三处 `'light'` 默认同步核对）；
 
-2. `_DARK_CSS` 的 `--acc1/--acc2` 由 `#667eea/#764ba2` 改为品牌令牌 `#4f46e5/#7c3aed`（或改为引用 `var(--acc1)` 单一来源），消除两套暗色强调并存；
+2. `_DARK_CSS` 的 `--brand-1/--brand-2` 由 `#667eea/#764ba2` 改为品牌令牌 `#4f46e5/#7c3aed`（或改为引用 `var(--brand-1)` 单一来源），消除两套暗色强调并存；
 
 3. 保留用户手动切换浅色的能力（`style_switcher` 与主题预设不动）；
 
