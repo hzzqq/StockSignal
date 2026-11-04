@@ -1060,3 +1060,83 @@ ux-designer 的 AST 实测：**导航条目 63 条 / 未收录 47 个 / `_EMOJI_
 - ⚠️ `sf-chart` / `sf-kline` 实锤（`starfield_theme.py:103-107`）：
   `var el = document.getElementById('{div_id}'); var chart = echarts.init(el);`
   ⇒ **改名会直接打断 ECharts 初始化** ⇒ 确认为第 4 个「保留名字」族。
+### 13.13 Phase 2 最终定稿：三方完全一致（Phase 2 撤回自己的两条错误）
+
+> Phase 2 最终版**主动撤回**两条错误：①「`--brand-2` 允许保留」②「`colors.py` 里 grep `--ss-up:` 形态」。
+> ⇒ **Phase 1 / Phase 2 / 主理人 三方对 fixG 六步 + 守卫 G + 8 组期望值表 + AC-0.2 ①~⑧ + 32 文件回归集完全一致。**
+
+#### 13.13.1 变体对比实测：证明「一起删」是唯一正确解
+
+| 组 | preset 声明 | A：只删 brand-1 | B：一起删 | 判定 |
+|---|---|---|---|---|
+| classic/dark | （基座） | `#7c3aed` | `#7f3df0` | A=✓ B=✓ |
+| classic/light | （基座） | `#7c3aed` | `#7c3aed` | A=✓ B=✓ |
+| terminal/dark | `#b8860b` | `#7c3aed` ★不符 | `#b8860b` | A=✗ B=✓ |
+| swiss/light | `#1a56db` | `#7c3aed` ★不符 | `#1a56db` | A=✗ B=✓ |
+| aurora/dark | `#5d5fef` | `#7c3aed` ★不符 | `#5d5fef` | A=✗ B=✓ |
+| ink/light | `#1e7762` | `#7c3aed` ★不符 | `#1e7762` | A=✗ B=✓ |
+| cyber/dark | `#00f0ff` | `#7c3aed` ★不符 | `#00f0ff` | A=✗ B=✓ |
+| finpro/dark | `#1f6feb` | `#7c3aed` ★不符 | `#1f6feb` | A=✗ B=✓ |
+
+⇒ **变体 A 会让 6 套风格的次品牌色全部退化成经典紫 `#7c3aed`，preset 声明全部失效** ⇒ **必须一起删**。
+**机制确认**：`_KIT_CSS = _TOKEN_CSS + …`（`ui_kit.py:137`）、`_HERO_FALLBACK_CSS = _TOKEN_CSS + …`（`:390`）
+⇒ **`page_hero()`（`page_utils.py:60`）会让 `_TOKEN_CSS` 最后注入** ⇒ 其 `--brand-2` 覆盖 preset 值。
+⚠️ Phase 2 的注入序模拟**漏了「`page_hero` 重复注入 `_TOKEN_CSS`」这一环** ⇒
+**实施时的注入序建模必须包含这一环**，否则会低估 `_TOKEN_CSS` 的覆盖力。
+
+#### 13.13.2 D5 的 `--ss-up/--ss-down` 字号实测（一次覆盖两组）
+
+```
+ui_kit.py:199  .ss-stat .delta{font-size:13px;font-weight:600}  → 正文 ✗
+ui_kit.py:268  .xc-card .delta{font-size:13px;font-weight:700}   → 正文 ✗（13px<18.66px，加粗救不了）
+ui_kit.py:272  .xc-card .value.up                               → 继承 22px/800 → 大字 ✓
+ui_kit.py:276  .xc-card .meta .up                               → 继承 11px → 正文 ✗
+ui_kit.py:163  .ss-pill.open .dot                              → 非文本圆点 ≥3.0 ✓
+```
+⇒ **classic/light 的 `--ss-up` = 3.27 不达标** ⇒ **D5 一次性覆盖四组令牌**：
+`--doc-up-text` / `--doc-down-text` **＋** `--ss-up-text` / `--ss-down-text`。
+
+⚠️ **实现约束**：`--ss-up-text` 与 `--doc-up-text` **不能共用同一派生规则** ——
+`--doc-up` 是**绿**（绿涨）、`--ss-up` 是**红**（红涨），加深方式虽同但**色相不同 ⇒ 目检要分开做**。
+
+#### 13.13.3 守卫 G 的写法（按 dark/light 分别写，**不能用单一字面值断言**）
+
+```python
+assert "--brand-1:#4f46e5" not in kit._KIT_CSS, "组件层不得硬写主题层 --brand-1"
+assert "--brand-2:#7c3aed" not in kit._KIT_CSS, "组件层不得硬写主题层 --brand-2"
+assert "--brand-1:#4f46e5" in ut._THEME_ROOT_VARS["light"], "--brand-1 须由主题层提供(light)"
+assert "--brand-1:#5b53f0" in ut._THEME_ROOT_VARS["dark"],  "--brand-1 须由主题层提供(dark)"
+```
+
+#### 13.13.4 AC-0.2 ② 的区间问题（裁定 A 已消解）
+
+若 C0 不动 `_build_token_css():130`（生产零调用），② 的断言**必须限定扫描 `_TOKEN_CSS` 区间**
+（`ui_kit.py:38-118`），否则误报 `:130`。
+⇒ **裁定 A 是「一并清 `:130`」** ⇒ **该断言无需限定区间**（全文件扫描、四个 token 全 0 命中）。
+
+#### 13.13.5 AC-0.2 ③ 两条都要进矩阵（唯一区分合并/替换的判据是第二条）
+
+```bash
+grep -q 'STYLE_PRESETS' modules/ui_theme.py
+grep -qE 'STYLE_PRESETS\.get\(.*\)\.get\(.vars.\)' modules/ui_theme.py   # ★这条才区分合并/替换
+```
+⇒ `_THEME_ROOT_VARS` 一直存在，**第一条不能证明用了合并**。
+
+#### 13.13.6 Phase 2 撤回的两条错误（勿再引用旧说法）
+
+1. **「`--brand-2` 允许保留」** ⇒ 已撤回（§13.13.1）。
+2. **`grep -q -- '--ss-up:#ff4d4f' modules/colors.py`** ⇒ 已撤回（**目标形态不存在**），
+   正确写法：`grep -q 'UP_COLOR = "#ff4d4f"' modules/colors.py && grep -q 'DOWN_COLOR = "#00d486"' modules/colors.py`。
+
+#### 13.13.7 C0 最终范围
+
+**5 文件单一原子 commit**：
+| 文件 | 处数 | 内容 |
+|---|---|---|
+| `modules/ui_kit.py` | 4 | `86` 修注释 / `88` 删 brand 硬覆盖 / `45` 删 ss-up-down 硬覆盖 / `130` 同源死代码一并清 |
+| `modules/ui_theme.py` | 3 | `196` 补 classic 亮色 `--buy/--sell` / `223` `:root` 合并 preset vars / `219`+`502` 缓存键加 style |
+| `tests/test_ui_kit_tokens.py` | 1 | 守卫 G 升级（§13.13.3） |
+| `tests/test_a11y_contrast.py` | — | 改级联口径 |
+| （前置） | — | **tinycss2 进项目 .venv**，否则解析层守卫永远进不了 CI |
+
+**C0 完成后 8 组全部令牌有定义（无 UNDEF）、红涨绿跌 + 绿涨红跌双语义成立、preset 声明全部生效。**
