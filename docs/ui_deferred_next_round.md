@@ -831,3 +831,111 @@ grep -q '绿涨红跌' modules/ui_theme.py
   ⇒ `tests/test_style_token_cascade.py` 本轮只做静态文本断言 + 8 组矩阵人工验收表；探针固化推下一轮。
 - **D4 未在真实浏览器确认**（tinycss2 与浏览器同源实现，CSS 注释终止规则是规范硬定义，风险低，
   但建议 Phase 3 补一次 DevTools 确认）。
+### 13.11 C0 最终定稿：fixG（fixF ∪ fixE+ 第④步 = 6 步）+ 编号第四次统一
+
+> Phase 1 与 Phase 2 各自用 tinycss2 独立复现了对方的结论，分歧全部收敛。
+> **Phase 2 主动认错**：其上一版探针**用正则提取 `:root{}` 文本、不做 CSS 词法解析**
+> ⇒ 把「文本存在但浏览器丢弃」的声明误算成生效 ⇒ 矩阵数值全错（已更正，见 §13.11.4）。
+> **主理人综合判定：两位成员的方案互补而非冲突 ⇒ 合并为 fixG（6 步）。**
+
+#### 13.11.1 fixG 六步（缺一不可）
+
+| 步 | 位置 | 动作 | 不做会怎样 | 来源 |
+|---|---|---|---|---|
+| 1 | `modules/ui_kit.py:86` | 修 CSS 注释提前闭合（`--ss-*/` → `--ss-* /`） | **`--brand-1` 继续被浏览器丢弃**（D4 不修，后续都是假修） | 两人一致 |
+| 2 | `modules/ui_kit.py:88` | 删 `--brand-1:#4f46e5; --brand-2:#7c3aed;` 硬覆盖 | 步 1 会让它复活 ⇒ 8 组统一经典紫，**比现状更糟** | 两人一致 |
+| 3 | `modules/ui_kit.py:45` | 删 `--ss-up:#ff4d4f; --ss-down:#00d486;` 硬覆盖 | `--ss-up` 仍 8 组统一 `#ff4d4f`（语义方向对但风格色不生效） | 两人一致 |
+| 4 | `modules/ui_theme.py:219/502` | 缓存键 `(dark)` → `(dark, style)` | **切风格后仪表盘层静默不更新**（D6） | **Phase 1 独有** |
+| 5 | `modules/ui_theme.py:223` | `:root` 改为 **`基座 ∪ preset vars`（合并，非替换）** | **preset vars 永不生效**（D5 的真覆盖者） | 两人一致 |
+| 6 | `modules/ui_theme.py:196` `_THEME_ROOT_VARS['light']` | **补 `--buy:#ff4d4f; --sell:#00d486;`** | **classic 亮色 `var(--buy)` 未定义 ⇒ `.sf-pill.up{color:var(--buy)}` 整条声明 invalid at computed-value time ⇒ 回落 inherit ⇒ D1 亮色侧仍红** | **Phase 2 独有（两人原本都漏）** |
+
+⇒ **步 4 与步 6 是两位成员各自的独家发现，缺任一步都留下一个静默失效点。**
+
+#### 13.11.2 一处真冲突 + 主理人裁定
+
+Phase 2 的 AC-0.2.b 注释「`--brand-2:#7c3aed` 允许保留（浏览器里生效，且非风格色）」
+vs Phase 1 的步 2「一并删」。
+
+⇒ **主理人裁定：一并删。** 理由：① `#7c3aed` 是**通用紫**，不属于任何风格的品牌色，留着会让
+**未声明 `--brand-2` 的风格拿到错色**；② Phase 1 实测删掉后 classic 的 `--brand-2` 反而变成
+**`#7f3df0`**（classic 自己的定义）⇒ 删掉更准确。
+⇒ 验收项相应改为 **四个 token 全 0 命中**（含 `--brand-2`）。
+
+#### 13.11.3 根因归属（两层，缺一不可）
+
+| 层 | 位置 | 作用 |
+|---|---|---|
+| 层 1 | `ui_kit.py:86` 注释提前闭合 ⇒ `:88` 的 `--brand-1:#4f46e5` **被解析错误丢弃** | **当前被意外屏蔽**；⚠️ **只修注释会复活它** ⇒ 修注释必须同时删这行 |
+| 层 2 | `ui_theme.py:223` `dashboard_sf_css()` 自带 `:root{_THEME_ROOT_VARS}`（classic 基座），注入晚于 `ui_theme.py:185` 的 `inject_style_css()` | **真正的覆盖者** |
+
+⇒ 修法**必须用「合并」语义**（`:root{基座 ∪ preset vars，preset 优先}`），**不得用「替换」**。
+
+#### 13.11.4 矩阵数值更正（Phase 2 认错后）
+
+```
+风格/主题            --brand-1  --card   --txt    --ss-up  --ss-down --doc-up  preset 声明
+[classic/dark ]      #5b53f0   #1a1a2e  #e2e8f0  #ff4d4f  #00d486  #009e60  (classic 无)
+[classic/light]      #4f46e5   #ffffff  #1e293b  #ff4d4f  #00d486  #009e60  (classic 无)
+[terminal/dark ]     #5b53f0   #1a1a2e  #e2e8f0  #ff4d4f  #00d486  #009e60  #e8a33d ⚠被覆盖
+[swiss/light  ]      #4f46e5   #ffffff  #1e293b  #ff4d4f  #00d486  #009e60  #111111 ⚠
+[aurora/dark  ]      #5b53f0   #1a1a2e  #e2e8f0  #ff4d4f  #00d486  #009e60  #6c5ce7 ⚠
+[ink/light    ]      #4f46e5   #ffffff  #1e293b  #ff4d4f  #00d486  #009e60  #b03a2e ⚠
+[cyber/dark   ]      #5b53f0   #1a1a2e  #e2e8f0  #ff4d4f  #00d486  #009e60  #fcee0a ⚠
+[finpro/dark  ]      #5b53f0   #1a1a2e  #e2e8f0  #ff4d4f  #00d486  #009e60  #2170ec ⚠
+```
+⇒ 暗色 6 组是 `#5b53f0`（classic dark 基座），亮色 3 组是 `#4f46e5`（classic light 基座）。
+⇒ fixG 后应全部变成 preset 自己的值。
+⚠️ **`finpro` 的 `--ss-up` 修完仍 `#ff4d4f`** —— 因为 **finpro 的 vars 本身就没有 `--ss-up/--ss-down`**
+（实测）⇒ 属**既有状态，非 fixG 缺口**，不得写进验收失败项。
+
+#### 13.11.5 D2 的最终口径（两人一致）
+
+- **D2 当前症状实测不成立**（8 组 `--doc-up`/`--doc-down` 全对）
+- 在 **fixG 的合并语义下不会显形**（基座 `:root` 仍在）⇒ §13.10 提到的「fixF 后 7 套价格域全丢」**不成立**
+- 但「D2 依赖基座存活」这个**结构性脆弱点依然成立** ⇒ **AC-0.4 必须保留**
+  （8 组 `--doc-up` 有定义且 `== #009e60`），把「将来有人把基座 `:root` 整个删掉」变成可拦截项。
+
+#### 13.11.6 AC-0.2 定稿（a~f 六条，.b 已按裁定改）
+
+```bash
+# .a 注释提前闭合不得回潮
+! grep -rnE '\-\-[a-zA-Z0-9_-]+-\*/' --include="*.py" modules/ pages/ app.py
+# .b _TOKEN_CSS 不得硬写主题层令牌（★四个 token 全 0 命中，含 --brand-2）
+! grep -nE '\-\-brand-1:#|--brand-2:#|--ss-up:#|--ss-down:#' modules/ui_kit.py
+# .c 解析层：_TOKEN_CSS 的 :root 不得有解析错误（需 tinycss2，本轮不做）
+# .d :root 必须合并 preset vars
+grep -q 'STYLE_PRESETS' modules/ui_theme.py
+# .e 价格域 + 交易语义红线
+grep -q -- '--doc-up:#009e60' modules/ui_theme.py && grep -q -- '--doc-down:#dc2626' modules/ui_theme.py
+grep -q -- '--ss-up:#ff4d4f' modules/colors.py && grep -q -- '--ss-down:#00d486' modules/colors.py
+# .f ★新增：classic 亮色 --buy/--sell 必须有定义（fixG 步 6）
+grep -q -- '--buy:#ff4d4f' modules/ui_theme.py && grep -q -- '--sell:#00d486' modules/ui_theme.py
+# 缓存键必须含 style（fixG 步 4）
+grep -qE '_DASHBOARD_SF_CSS_CACHE\.get\(\(dark' modules/ui_theme.py
+# classic zero-op 守卫不破
+grep -q "STYLE_PRESETS\[.classic.\]\[.vars.\] == " tests/test_ui_theme_styles.py
+# 绿涨红跌注释仍在
+grep -q '绿涨红跌' modules/ui_theme.py
+```
+
+#### 13.11.7 守卫升级（R8）
+
+`tests/test_ui_kit_tokens.py:243-256`（`test_token_aliases_bound_to_existing`）断言 `_KIT_CSS` 的
+**原始文本**含 `--brand-1:#4f46e5` ⇒ **它一直在「绿」而浏览器丢弃了这条声明** ⇒ 这正是它没拦住
+注释 bug 的原因。⇒ fixG 后该断言会红，属**「守卫需同步升级」而非弱化**：应改为断言令牌在
+**其生效位置**存在（如 `ui_theme._THEME_ROOT_VARS['light']` 的 `--brand-1:#4f46e5`）。
+📌 `modules/ui_kit.py:121-134` 的 `_build_token_css()`（`:130` 也返回 `--brand-1:#4f46e5`）
+**生产零调用** ⇒ 不影响运行时，但需标注为「同源死代码，可留可清（清则须同步 `:130`）」。
+
+#### 13.11.8 C0 定稿范围与风险
+
+**C0 = fixG 6 步 + 守卫升级** = `modules/ui_kit.py`(3 处) + `modules/ui_theme.py`(3 处)
++ `tests/test_ui_kit_tokens.py`(1 处) + `tests/test_a11y_contrast.py`（改级联口径）
+= **5 文件，单一原子 commit**。
+
+- **最大风险**：fixG 后 6 套风格从「`extra` 硬编码撑起来的假象」变成「**真正按 vars 生效**」
+  ⇒ **视觉会明显变化，可能是这 6 套风格第一次真正呈现其设计意图** ⇒ **必须逐风格目检，不能只看 classic**。
+- **对比度**：fixG **不解决** D5（`--doc-up` 在 classic-light / swiss-light / ink-light 三组仍 < 4.5）
+  ⇒ **D5 独立留在 C3**（需新增 `--doc-up-text` / `--doc-down-text` 别名派生令牌，
+  **不得改被 3 守卫锁定的 `--doc-up:#009e60` 字面值**）。
+- ⚠️ `tinycss2` 不在项目 `.venv` ⇒ 解析层守卫（AC-0.2.c）本轮不做，探针固化推下一轮。
