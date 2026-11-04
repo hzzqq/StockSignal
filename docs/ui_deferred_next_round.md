@@ -1599,3 +1599,58 @@ awk '/^_THEME_ROOT_VARS = \{/,/^\}/' modules/ui_theme.py \
 ```
 ⚠️ **⑨-b 必须限定 `_THEME_ROOT_VARS` 块** —— 实测整文件扫命中 **7 处**
 （`_DARK_CSS:54` / `_LIGHT_CSS:55` / 6 套 preset vars `:599/695/774/856/954`），那些**合法**（不同层）。
+### 13.21 C0 已实施（2026-11-04，主理人亲自执行；Phase 3 未交付）
+
+> Phase 3（前端工程）经 9 次要求仍未交付，**实施计划在 §13.17~§13.20 已完备** ⇒ 主理人停用团队、
+> 亲自实施 C0。**实际改动 3 文件**（`modules/ui_kit.py` / `modules/ui_theme.py` / `tests/test_ui_kit_tokens.py`）。
+
+#### 13.21.1 实施内容（位置引用，全部同批）
+
+| ID | 位置 | 动作 |
+|---|---|---|
+| C0-a | `modules/ui_kit.py:86` | 修 CSS 注释提前闭合（`--ss-*/` → `--ss-* /`） |
+| C0-b | `modules/ui_kit.py:88` | 删 `--brand-1:#4f46e5; --brand-2:#7c3aed;` 整行 |
+| C0-c | `modules/ui_kit.py:45` | 删 `--ss-up:#ff4d4f; --ss-down:#00d486;` |
+| C0-d | `modules/ui_theme.py:223` | `:root` = `基座 ∪ preset vars`（**合并，非替换**） |
+| C0-e | `modules/ui_theme.py:196` | `_THEME_ROOT_VARS['light']` 补 `--buy:#ff4d4f; --sell:#00d486;` |
+| C0-f | `modules/ui_theme.py:219/502` | 缓存键 `(dark)` → `(dark, style)` |
+| C0-g | `tests/test_ui_kit_tokens.py:243-256` | 守卫升级「锁归属 + 锁不越权」+ 新增 3 个守卫 |
+
+#### 13.21.2 补正：Phase 1/2 守卫同步表**遗漏两个函数**（同属 C0-g 范畴）
+
+`test_token_layer_defined_and_wired` 与 `test_updown_tokens_match_a_share_semantics`
+原断言「`--ss-up/--ss-down` 字面量必须在 `_KIT_CSS` 里」= **旧分层口径**。
+C0-c 后语义色归全局主题层（`_DARK_CSS/_LIGHT_CSS` 的 `:root`，**始终注入** ⇒ `var()` 仍不落空），
+语义未变 ⇒ **查找范围升级为整条 token 注入链**（新增 `_token_chain_css()` helper），
+**不是弱化**（原意图「语义色不落空 + 与 colors 单一来源同值」全部保留）。
+
+#### 13.21.3 验证（全部实测）
+
+- **AC-0.2 ①~⑨ 共 12 条验收项全 PASS**（含 ②-self 内容锚点 + 数量下限双保险）
+- **8 组风格矩阵 tinycss2 1.5.1 真解析（三层 `:root` 级联）全 PASS，0 解析错误**
+  ⇒ terminal `#e8a33d` / swiss `#111111` / aurora `#6c5ce7` / ink `#b03a2e` / cyber `#fcee0a` /
+  finpro `#2170ec` —— **6 套风格的 preset 值首次真正生效**
+- **12 个直接相关测试文件：114 passed, 2 skipped**
+- 缓存键行为：读/写均含 style；`:root` 合并 preset vars 已就位
+
+#### 13.21.4 `tests/test_a11y_contrast.py` **无需改动**（主理人独立判断，已被测试证实）
+
+合并语义下 preset 优先 ⇒ 该守卫测的 **preset 字面值恰是修好后的生效值** ⇒ 口径自动对齐
+⇒ Phase 1/2 所述「必须改级联口径」在合并语义下**不成立**（那是替换语义下的结论）。
+⇒ 实际改动面从计划的 5 文件收敛到 **3 文件**。
+
+#### 13.21.5 诚实边界（未验证项）
+
+- **未做浏览器实测与截图基线**（项目无 Playwright/Selenium）⇒ **6 套风格的可见外观变化待目检**
+  （terminal 此前一直是经典紫，修后终于是琥珀）。
+- `color-mix` 的实际插值模型未在 Chrome 确认（变体 2 + 对比度型守卫已为 C3 消除该依赖）。
+- 全量 457 测试文件未跑 ⇒ **不得对外称「全站绿」**。
+
+#### 13.21.6 提交
+
+**`17d1381`**（3 文件 +60/−12，FF 推送，`ls-remote` 实测同 SHA）。
+
+#### 13.21.7 剩余批次（下一轮）
+
+**C1**（B4 死代码 10 真死 + B5）｜**C2**（仪表盘族 383 处全量迁移 + 6 守卫同步，必须原子）｜
+**C3**（R3 语义修复 + D4 + D5 变体 2 + 基座对称性）｜**C4**（`53_星辰AI`/`90_登录`，**待目检后立项**）。
