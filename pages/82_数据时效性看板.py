@@ -119,6 +119,55 @@ def main():
                 st.code(cmd, language="python")
             st.caption(p["desc"])
 
+    # ── P1 自托管副本同步闭环（2026-11-04，p1_sync 日常化的健康面）──
+    st.markdown("### 🔁 P1 自托管副本同步")
+    try:
+        from modules.p1_sync_health import assess_p1_sync_health
+        _p1h = assess_p1_sync_health()
+    except Exception as e:  # noqa: BLE001 - 体检不可得如实说明，不臆造
+        logger.warning("[data-sla] P1 同步健康读取失败: %s", e)
+        _p1h = None
+    if _p1h is None:
+        st.caption("P1 同步健康暂不可读（modules.p1_sync_health 加载失败，详见日志）。")
+    else:
+        _p1_label, _p1_color = {
+            "ok": ("✅ 同步正常", "#1aa260"),
+            "warn": ("⚠️ 需关注", "#f5a623"),
+            "dead": ("🔴 同步失效", "#ee2a2a"),
+        }.get(_p1h["status"], ("❓ 未知", "#94a3b8"))
+        _p1_age = _p1h.get("age_days")
+        _p1_age_txt = f"{_p1_age} 天" if _p1_age is not None else "未知"
+        _p1_run = _p1h.get("last_run_at") or "—"
+        xc_bento_kpi([
+            {"label": "P1 副本健康", "value": _p1_label,
+             "sub": _p1h.get("message") or "—",
+             "meta": f"最新 {_p1h.get('latest') or '—'} · 滞后 {_p1_age_txt}",
+             "accent": _p1_color,
+             "tone": "up" if _p1h["status"] == "ok" else ("flat" if _p1h["status"] == "warn" else "down")},
+            {"label": "副本模型", "value": str(len(_p1h.get("models") or [])),
+             "sub": "、".join(_p1h.get("models") or []) or "（无）",
+             "accent": "var(--ss-accent)"},
+            {"label": "上次同步", "value": _p1_run[5:16] if _p1_run != "—" else "—",
+             "sub": f"结果 ok={_p1h.get('last_run_ok')}" if _p1_run != "—"
+             else "尚无落档（跑一次 CLI 即生成）",
+             "accent": "var(--ss-accent)"},
+        ], template="repeat(auto-fit,minmax(240px,1fr))")
+        for _p1r in _p1h.get("rows") or []:
+            if _p1r.get("structural_ok") and _p1r.get("freshness_ok"):
+                continue
+            _p1_flag = "结构❌" if not _p1r.get("structural_ok") else "新鲜⚠️"
+            _p1_errs = "；".join(_p1r.get("errors") or []) or "—"
+            st.markdown(f"- {_p1_flag} **{_p1r.get('file')}**（{_p1r.get('model_key')}）"
+                        f"latest={_p1r.get('latest_date') or '—'} —— {_p1_errs}")
+        if _p1h.get("liveness"):
+            xc_info_banner(_p1h["liveness"], kind="warning", icon="⏱")
+        st.code("python scripts/p1_sync_daily.py --status   # 只读体检\n"
+                "python scripts/p1_sync_daily.py            # 同步 + 体检 + 落档", language="python")
+        st.caption("口径：同步走 modules.p1_sync（单向、幂等、绝不降级覆盖更新副本）；结构判定用 "
+                   "p1_signal_quality.structural_ok（**不含新鲜度**），新鲜度按模型 SLA；"
+                   "守护线程每 60 分钟一轮（STOCKSIGNAL_ENABLE_P1_SYNC_SCHEDULER=0 可关）；"
+                   "本页只读，不触发同步。")
+
     # ── 缓存层命中率（T-272①，additive）──
     st.markdown("### 🧱 缓存层命中率")
     try:
