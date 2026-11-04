@@ -5,11 +5,11 @@
 归一化子图面板，每维含上证(参考线)统一归一化到起点=100 叠加，规避量纲差异失真。
 数据层见 modules/market_drivers.py。
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 
 from modules.market_drivers import get_market_drivers, plot_drivers_panel, DIMS
 from modules.linear_trends import to_trend_csv, plot_correlation_heatmap, _slice_date_range
-from modules.page_widgets import _section_title, _trend_controls, _in_trading_hours, _empty_info
+from modules.page_widgets import _section_title, _trend_controls, _in_trading_hours, _empty_info  # noqa: F401
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
 

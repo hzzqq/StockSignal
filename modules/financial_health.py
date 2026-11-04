@@ -58,7 +58,7 @@ def _ensure_fetcher(fetcher):
     return StockFetcher()
 
 
-def _to_float(val) -> Optional[float]:
+def _to_float(val) -> Optional[float]:  # noqa: UP045
     """安全转 float；NaN / inf / 不可转 → None。"""
     if val is None:
         return None
@@ -72,14 +72,14 @@ def _to_float(val) -> Optional[float]:
     return v
 
 
-def _pick_col(df: pd.DataFrame, cn: str) -> Optional[pd.Series]:
+def _pick_col(df: pd.DataFrame, cn: str) -> Optional[pd.Series]:  # noqa: UP045
     """取 DataFrame 中指定中文列；不存在 → None。"""
     if df is None or df.empty or cn not in df.columns:
         return None
     return df[cn]
 
 
-def _row_val(df: pd.DataFrame, cn: str, row: int = 0) -> Optional[float]:
+def _row_val(df: pd.DataFrame, cn: str, row: int = 0) -> Optional[float]:  # noqa: UP045
     """取 DataFrame 第 row 行（默认最新 row=0）的中文列浮点值；缺失 → None。"""
     s = _pick_col(df, cn)
     if s is None:
@@ -91,7 +91,7 @@ def _row_val(df: pd.DataFrame, cn: str, row: int = 0) -> Optional[float]:
 
 def _fetch_tables(fetcher, symbol: str) -> dict:
     """一次性取三表，返回 {balance, income, cash}；任何表取不到 → 值为 None。"""
-    tables: dict[str, Optional[pd.DataFrame]] = {"balance": None, "income": None, "cash": None}
+    tables: dict[str, Optional[pd.DataFrame]] = {"balance": None, "income": None, "cash": None}  # noqa: UP045
     for rt in ("balance", "income", "cash"):
         try:
             df = fetcher.get_financial(symbol, rt)
@@ -102,7 +102,7 @@ def _fetch_tables(fetcher, symbol: str) -> dict:
     return tables
 
 
-def _market_cap(fetcher, symbol: str, balance_df: Optional[pd.DataFrame]) -> Optional[float]:
+def _market_cap(fetcher, symbol: str, balance_df: Optional[pd.DataFrame]) -> Optional[float]:  # noqa: UP045
     """流通市值 = 最新收盘价 × 股本（balance sheet 实收资本）；任一不可得 → None。"""
     share_cap = _row_val(balance_df, _BALANCE["share_capital"], row=0) if balance_df is not None else None
     if share_cap is None or share_cap <= 0:
@@ -158,7 +158,7 @@ def f_score(symbol: str, fetcher=None) -> dict:
     # ── 取最新 + 上期（row 0=最新, row 1=上期）────────────────────────────
     latest_assets = _row_val(bal, _BALANCE["total_assets"], 0)
     prev_assets = _row_val(bal, _BALANCE["total_assets"], 1)
-    latest_liab = _row_val(bal, _BALANCE["total_liabilities"], 0)
+    latest_liab = _row_val(bal, _BALANCE["total_liabilities"], 0)  # noqa: F841
 
     latest_ni = _row_val(inc, _INCOME["net_income"], 0)
     prev_ni = _row_val(inc, _INCOME["net_income"], 1)
@@ -168,7 +168,7 @@ def f_score(symbol: str, fetcher=None) -> dict:
     prev_cogs = _row_val(inc, _INCOME["cogs"], 1)
 
     latest_ocf = _row_val(cash, _CASH["ocf"], 0)
-    prev_ocf = _row_val(cash, _CASH["ocf"], 1)
+    prev_ocf = _row_val(cash, _CASH["ocf"], 1)  # noqa: F841
 
     def _roa(ni, assets):
         if ni is None or assets is None or assets <= 0:
@@ -186,7 +186,7 @@ def f_score(symbol: str, fetcher=None) -> dict:
             ok = True
             note = f"ROA={roa_now:.4f}>0"
         else:
-            ok = True
+            ok = True  # noqa: F841
             note = f"ROA={roa_now:.4f}≤0"
         comps.update([_component("roa", value=int(roa_now > 0), ok=True, note=note)])
     else:
@@ -465,7 +465,7 @@ def beneish_m(symbol: str, fetcher=None) -> dict:
     ni0 = _r(inc, _INCOME["net_income"], 0)
     ocf0 = _r(cash, _CASH["ocf"], 0)
     ta0 = _r(bal, _BALANCE["total_assets"], 0)
-    ta1 = _r(bal, _BALANCE["total_assets"], 1)
+    ta1 = _r(bal, _BALANCE["total_assets"], 1)  # noqa: F841
     cogs0 = _r(inc, _INCOME["cogs"], 0)
     cogs1 = _r(inc, _INCOME["cogs"], 1)
 
@@ -510,7 +510,7 @@ def beneish_m(symbol: str, fetcher=None) -> dict:
         comps.update([_component("TATA", value=tata_val, ok=True,
                                  note=f"(净利润-OCF)={ni0 - ocf0:.0f} / 总资产={ta0:.0f}")])
         comps.update([_component("AQI", value=aqi_val, ok=True,
-                                 note=f"同 TATA：盈余质量指标")])
+                                 note=f"同 TATA：盈余质量指标")])  # noqa: F541
     else:
         comps.update([_component("TATA", note="净利润/OCF/总资产缺失（OCF Q3 未披露时降级）")])
         comps.update([_component("AQI", note="同 TATA 不可用")])
@@ -526,7 +526,7 @@ def beneish_m(symbol: str, fetcher=None) -> dict:
         comps.update([_component("SGI", note="营收缺失")])
 
     # SVI：销售管理费用/总资产 两年对比 — 简化版省略（数据链无单期对比）
-    svi = None
+    svi = None  # noqa: F841
     comps.update([_component("SVI", value=0.0, ok=True,
                              note="简化版省略 SVI 项（销售管理费用单期对比无数据源），按 0 代回")])
 

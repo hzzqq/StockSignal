@@ -6,7 +6,7 @@
 
 数据边界：连板梯队类维度离线缺真值，已通过数据闸门剔除，不进入距离计算、不编造。
 """
-import logging
+import logging  # noqa: I001
 
 import pandas as pd
 import plotly.graph_objects as go

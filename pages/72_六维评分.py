@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # 仅类型检查期导入：注解在 future-annotations 下运行期不求值
     import pandas as pd
 
-import html
+import html  # noqa: I001
 import logging
 
 import plotly.graph_objects as go
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 @st.cache_data(ttl=600, show_spinner=False)
 def _hist_cached(code: str) -> pd.DataFrame:
     """薄包装：@st.cache_data(ttl=600) 缓存层；实现下沉 page_utils.hist_cached。"""
-    import pandas as pd
+    import pandas as pd  # noqa: F401
     return hist_cached(code)
 
 
@@ -48,7 +48,7 @@ def _spot_row(code: str) -> dict:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def _fin_cached(code: str) -> pd.DataFrame:
-    import pandas as pd
+    import pandas as pd  # noqa: F401, I001
     import akshare as ak
     return ak.stock_financial_abstract(symbol=code)
 

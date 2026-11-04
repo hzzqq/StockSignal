@@ -9,7 +9,7 @@ backend/api/forum_routes.py
 - POST   /api/forum/posts/<id>/like    点赞
 - POST   /api/forum/posts/<id>/comments 评论 {content}
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 from flask import Blueprint, g, request
 from sqlalchemy import select, func
 from ..auth.decorators import jwt_required

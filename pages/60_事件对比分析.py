@@ -9,7 +9,7 @@
   · 事件因子池是离线快照，无历史事件日期、无逐股后续涨跌 → 本页**不**做事件→股价因果回测；
   · 仅做「信号强弱 vs 当下广度」对照，供快速识别「共振 / 背离 / 逆向」结构。
 """
-import logging
+import logging  # noqa: I001
 
 import html
 
@@ -18,8 +18,8 @@ import plotly.graph_objects as go
 
 from modules.ui_kit import xc_handle_error, inject_kit_css, xc_kpi_grid
 from modules.page_utils import render_standard_page
-from modules.ui_kit import xc_section_header
-from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
+from modules.ui_kit import xc_section_header  # noqa: F401
+from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba  # noqa: F401
 from modules import event_compare as ec
 from modules import breadth_divergence as bd
 

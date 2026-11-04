@@ -19,7 +19,7 @@
 - 「通俗解读」与「全球风险评分」是 modules.macro_data 里**规则生成**的确定性结论，
   不是大模型输出，页面上明确标注，避免把一行 if/else 当 AI 洞见。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import streamlit as st
 

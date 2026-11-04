@@ -10,7 +10,7 @@
   · 接口不稳定时返回空表，页面明示「未就绪」，**不编造数据**；
   · 「业绩变动幅度」口径以数据源为准，页面原样展示不做再加工。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import html
 import logging

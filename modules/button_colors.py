@@ -19,7 +19,7 @@ StockSignal 按钮配色系统 · 双模（Light / Dark）通用
       st.markdown(btn_html("提交", kind="primary"), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 """
 
-import html
+import html  # noqa: I001
 
 import logging
 
@@ -91,7 +91,7 @@ BUTTON_CSS = """
 .sf-btn-icon{width:38px;height:38px;border-radius:50%%;padding:0;font-size:16px;flex-shrink:0}
 .sf-btn-icon.sm{width:30px;height:30px;font-size:13px}
 </style>
-""" % {
+""" % {  # noqa: F504, UP031
     "fs": BTN_FONT_SIZE, "rad": BTN_RADIUS, "pad": BTN_PADDING,
     "p_bg": BUTTON_PALETTE["primary"]["light"]["bg"], "p_txt": BUTTON_PALETTE["primary"]["light"]["text"], "p_hv": "#4338ca",
     "s_bg": BUTTON_PALETTE["success"]["light"]["bg"], "s_txt": BUTTON_PALETTE["success"]["light"]["text"], "s_hv": "#15803d",
@@ -110,7 +110,7 @@ BUTTON_CSS_DARK = """
 .sf-btn-danger{background:%(d_bg)s!important;color:%(d_txt)s!important}.sf-btn-danger:hover{background:%(d_hv)s!important}
 .sf-btn-ghost{background:%(g_bg)s!important;color:%(g_txt)s!important;border-color:%(g_bd)s!important}.sf-btn-ghost:hover{background:%(g_hv)s!important}
 .sf-btn-info{background:%(i_bg)s!important;color:%(i_txt)s!important}.sf-btn-info:hover{background:%(i_hv)s!important}
-</style>""" % {
+</style>""" % {  # noqa: UP031
     "p_bg": BUTTON_PALETTE["primary"]["dark"]["bg"], "p_txt": BUTTON_PALETTE["primary"]["dark"]["text"], "p_hv": "#4f46e5",
     "s_bg": BUTTON_PALETTE["success"]["dark"]["bg"], "s_txt": BUTTON_PALETTE["success"]["dark"]["text"], "s_hv": "#16a34a",
     "w_bg": BUTTON_PALETTE["warning"]["dark"]["bg"], "w_txt": BUTTON_PALETTE["warning"]["dark"]["text"], "w_hv": "#d97706",

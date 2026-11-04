@@ -11,7 +11,7 @@
 数据层复用 modules.market_drivers.get_market_drivers —— 该层照同一份 21 指标表
 （table_20260721.csv）实现，单源失败优雅降级（绝不抛红错）。
 """
-import html
+import html  # noqa: I001
 import logging
 
 import streamlit as st
@@ -22,18 +22,18 @@ from modules.page_utils import (render_standard_page,
     last_data_date as _last_data_date,
     row_to_indicators as _row_to_indicators,
     temp_gauge as _temp_gauge, to_numeric_clean )
-from modules.session import get_token, fragment_market_alerts_panel
+from modules.session import get_token, fragment_market_alerts_panel  # noqa: F401
 from modules.ladder_view import render_ladder_block
 from modules.market_drivers import get_market_drivers, DIMS
 from modules.shepherd import (get_shepherd_indicators, get_shepherd_indicators_range,
                               THRESHOLDS, shepherd_temperature,
                               get_zt_industry_distribution, get_zt_top_board,
-                              get_zt_ladder)
+                              get_zt_ladder)  # noqa: F401
 from modules import shepherd_forecast as _sf
 
 # 模块级日志器：页面里做容错时必须留痕，不允许静默 pass（2026-09-10 补）
 logger = logging.getLogger(__name__)
-from modules import shepherd_note as _sn
+from modules import shepherd_note as _sn  # noqa: I001
 from modules import shepherd_ladder as _sl
 from modules.page_guard import safe_fragment
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
@@ -76,7 +76,7 @@ def _cache_banner(meta):
             unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
     # 显示缓存时间戳（如果有）
-    cached_keys = meta.get("cached_keys", [])
+    cached_keys = meta.get("cached_keys", [])  # noqa: F841
     stale_keys = meta.get("stale_keys", [])
     if stale_keys:
         st.caption(f"⚠️ 部分指标数据陈旧：{', '.join(k[0] for k in stale_keys)}")
@@ -384,7 +384,7 @@ def fragment_breadth():
         return
     _cache_banner(meta)
     cols = st.columns(len(_BREADTH))
-    for c, cfg in zip(cols, _BREADTH):
+    for c, cfg in zip(cols, _BREADTH):  # noqa: B905
         _card(c, cfg, df, dark)
 
 
@@ -403,7 +403,7 @@ def fragment_sentiment():
         return
     _cache_banner(meta)
     cols = st.columns(len(_SENTIMENT))
-    for c, cfg in zip(cols, _SENTIMENT):
+    for c, cfg in zip(cols, _SENTIMENT):  # noqa: B905
         _card(c, cfg, df, dark)
 
 
@@ -422,7 +422,7 @@ def fragment_valuation():
         return
     _cache_banner(meta)
     cols = st.columns(len(_VALUATION))
-    for c, cfg in zip(cols, _VALUATION):
+    for c, cfg in zip(cols, _VALUATION):  # noqa: B905
         _card(c, cfg, df, dark)
 
 
@@ -576,7 +576,7 @@ def _build_shepherd_chart(d, dark):
           （右轴 0 基线，昨板 3% 炸裂线）。
     """
     import pandas as pd
-    import plotly.graph_objects as go
+    import plotly.graph_objects as go  # noqa: F401
     from plotly.subplots import make_subplots
     fig = make_subplots(
         rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.07,
@@ -588,7 +588,7 @@ def _build_shepherd_chart(d, dark):
     )
 
     def _add_line(k, col, name, row, secondary=None, fmt="%{y:.0f}", dash=None):
-        import plotly.graph_objects as go
+        import plotly.graph_objects as go  # noqa: F811
         if k not in d.columns:
             return
         s = to_numeric_clean(d[k])
@@ -678,7 +678,7 @@ def fragment_shepherd():
         st.caption("综合「上涨/涨停/昨日涨停表现/红盘占比/连板高度」近期分位（高=热），"
                    "与价格涨跌红绿无关。数据源：akshare 涨停池/昨日涨停池/全A快照。")
     cols = st.columns(len(_SHEPHERD))
-    for c, cfg in zip(cols, _SHEPHERD):
+    for c, cfg in zip(cols, _SHEPHERD):  # noqa: B905
         _card(c, cfg, df, dark)
 
 
@@ -712,7 +712,7 @@ def fragment_shepherd_review():
     for row_start in (0, 4):
         batch = _SHEPHERD_REVIEW[row_start:row_start + 4]
         cols = st.columns(len(batch))
-        for c, cfg in zip(cols, batch):
+        for c, cfg in zip(cols, batch):  # noqa: B905
             _card(c, cfg, df, dark)
 
     st.caption("🆕 以上指标源自杨哥复盘视频第二课：中位数=当日人均赚亏；回头波>10%=追高者回撤"

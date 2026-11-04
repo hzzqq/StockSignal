@@ -5,11 +5,11 @@
 数据层见 modules.fundflow / modules.portfolio / modules.fetcher / modules.session。
 A股配色：红=涨/流入，绿=跌/流出。
 """
-import logging
+import logging  # noqa: I001
 
 import streamlit as st
 import pandas as pd
-import io, zipfile
+import io, zipfile  # noqa: E401
 from datetime import datetime
 from modules.session import api_get
 from modules.fundflow import (
@@ -20,13 +20,13 @@ from modules.fundflow import (
 from modules.portfolio import PortfolioManager
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.page_widgets import _empty_info, UP, DOWN
+from modules.page_widgets import _empty_info, UP, DOWN  # noqa: F401
 
 logger = logging.getLogger(__name__)
 # 注：openpyxl / reportlab 为「重型导出」依赖，改为惰性加载（见 _to_excel_bytes / _to_pdf_bytes），
 #     避免进入本页（仅查看 CSV 导出入口）时也强制 import 拖慢首屏。
 
-from modules.ui_kit import xc_info_banner, xc_handle_error, xc_success_box, xc_warn_box, xc_content_card
+from modules.ui_kit import xc_info_banner, xc_handle_error, xc_success_box, xc_warn_box, xc_content_card  # noqa: I001
 dark = render_standard_page(
     title="数据导出中心", icon="📤",
     caption="统一导出平台数据：行业板块资金流向、北向资金、大盘主力净流入、个股主力资金、业绩报表、组合持仓盈亏、自选股实时快照。"
@@ -88,7 +88,7 @@ def _to_excel_bytes(sheets: dict) -> bytes:
 def _to_pdf_bytes(datasets: dict, skipped: list, period: str, code: str) -> bytes:
     """生成中文数据摘要 PDF：标题 + 各数据集表格（前 25 行）。"""
     # 惰性加载 reportlab 全家桶 + 注册中文字体：仅真正导出 PDF 时才 import，避免拖慢首屏
-    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.pagesizes import A4  # noqa: I001
     from reportlab.lib import colors
     from reportlab.lib.units import mm
     from reportlab.lib.styles import ParagraphStyle
@@ -689,7 +689,7 @@ def _collect_report_data(code: str):
 def frag_report():
     xc_content_card("📄 一键研报（个股）", "把风险排雷 / 技术面 / 资金面 / 公告装配成一份可下载的"
             "单文件研报（HTML 自包含 + Markdown）。缺数据的板块明确标注「数据不可用」，绝不编造。")
-    from modules.search_ui import stock_search_input
+    from modules.search_ui import stock_search_input  # noqa: I001
     from modules import research_report as rrp
     code = stock_search_input(label="选择股票", key="report_stock", default="600519")
 

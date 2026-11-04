@@ -17,7 +17,7 @@
   失败允许当日重试，上限 ``MAX_ATTEMPTS_PER_DAY`` 次（防反复撞网）。
 - **测试隔离**：PYTEST / TESTING / ``STOCKSIGNAL_ENABLE_DATA_REFRESH=0`` 三闸门不启动。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import logging
@@ -106,7 +106,7 @@ def p1_message(as_of, lag_days: int, stale_days: int) -> str:
 def load_state(path: str | None = None) -> dict:
     p = path or STATE_PATH
     try:
-        with open(p, "r", encoding="utf-8") as f:
+        with open(p, "r", encoding="utf-8") as f:  # noqa: UP015
             data = json.load(f)
         return data if isinstance(data, dict) else {}
     except FileNotFoundError:
@@ -193,7 +193,7 @@ def alert_p1_stale(app, *, exists_fn=None, add_fn=None) -> bool:
     if exists_fn is None:
         def exists_fn() -> bool:
             from .models import MarketAlert
-            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC（与列口径一致）
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC（与列口径一致）  # noqa: UP017
             cutoff = now_utc - timedelta(hours=P1_ALERT_COOLDOWN_HOURS)
             hit = MarketAlert.query.filter(MarketAlert.metric_key == "p1_event",
                                            MarketAlert.created_at >= cutoff).first()

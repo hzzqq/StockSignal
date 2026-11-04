@@ -21,7 +21,7 @@ StockSignal 暗夜模式 · 全量文本可见性修复
       fig.update_layout(**get_plotly_template(dark=...))   # 每个 Plotly 图表
 """
 
-import streamlit as st
+import streamlit as st  # noqa: I001
 
 import logging
 
@@ -162,7 +162,7 @@ DARK_TEXT_CSS_LIGHT = """
 .stMultiselect [data-baseweb="tag"] span, .stMultiValue span { color:%(body_color)s !important; }
 .stCheckbox [role="group"] label, .stRadio [role="radiogroup"] label { color:%(label_color)s !important; }
 </style>
-""" % {
+""" % {  # noqa: UP031
     "title_color": TEXT_PALETTE["title"]["light"]["color"],
     "title_weight": TEXT_PALETTE["title"]["light"]["weight"],
     "body_color":  TEXT_PALETTE["body"]["light"]["color"],
@@ -228,7 +228,7 @@ svg .tick text, svg .axis text, svg label { fill: %(label_color)s !important; co
 .stCheckbox [role="group"] label, .stRadio [role="radiogroup"] label { color:%(label_color)s !important; }
 button:not(.sf-btn):not([data-testid="stFormSubmitButton"]) { color:%(body_color)s !important; border-color:%(chip_def_bd)s !important; }
 </style>
-""" % {
+""" % {  # noqa: UP031
     "title_color": TEXT_PALETTE["title"]["dark"]["color"],
     "title_weight": TEXT_PALETTE["title"]["dark"]["weight"],
     "body_color":  TEXT_PALETTE["body"]["dark"]["color"],

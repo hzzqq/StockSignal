@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # 仅类型检查期导入：注解在 future-annotations 下运行期不求值
     import pandas as pd
 
-import logging
+import logging  # noqa: I001
 import re
 
 import plotly.graph_objects as go
@@ -48,7 +48,7 @@ _LAYER_COLORS = ["#1d4ed8", "#0ea5e9", "#22c55e", "#f59e0b", "#dc2626",
 @st.cache_data(ttl=1800, show_spinner=False)
 def _hist_cached(code: str) -> pd.DataFrame:
     """薄包装：@st.cache_data(ttl=1800) 缓存层；实现下沉 page_utils.hist_cached。"""
-    import pandas as pd
+    import pandas as pd  # noqa: F401
     return hist_cached(code)
 
 

@@ -7,7 +7,7 @@ ETF / 基金筛选器
   • 网络不可用时降级到内置常见 ETF 样本，保证筛选器始终可用
   • 各取数区块独立隔离（safe_section）
 """
-import logging
+import logging  # noqa: I001
 
 import streamlit as st
 
@@ -16,7 +16,7 @@ import modules.scroll_nav as sn
 from modules.page_guard import safe_section
 
 from modules.page_guard import safe_fragment
-from modules.page_widgets import _empty_info, UP, DOWN
+from modules.page_widgets import _empty_info, UP, DOWN  # noqa: F401
 
 from modules.ui_kit import xc_success_box, xc_warn_box, xc_content_card
 dark = render_standard_page(

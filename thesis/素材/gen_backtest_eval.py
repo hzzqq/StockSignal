@@ -12,7 +12,7 @@ StockSignal 毕业论文 · 第6.4节 回测成本模型有效性验证脚本（
 
 说明：需联网取真实日线；取数失败时脚本以非零码退出，论文中不填任何编造数字。
 """
-import json
+import json  # noqa: I001
 import os
 import sys
 

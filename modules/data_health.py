@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """决策依赖的「全数据源健康」注册表与统一新鲜度判定。
 
 背景（承接「数据新鲜度守卫」capstone，自找缺口 S9）：
@@ -40,7 +40,7 @@ _DATA_DIR = os.path.join(_PROJECT_ROOT, "data")
 def _csv_last_date_col(path: str, col: int = 0) -> str | None:
     """CSV 末行第 ``col`` 列的日期（兼容 ``YYYY-MM-DD`` 与 ``YYYY-MM-DD HH:MM:SS``）。"""
     try:
-        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:  # noqa: UP015
             rows = list(csv.reader(f))
         if len(rows) < 2:
             return None
@@ -54,7 +54,7 @@ def _csv_last_date_col(path: str, col: int = 0) -> str | None:
 def _json_date_field(path: str, field: str) -> str | None:
     """JSON 文件的某个日期字段（取前 10 位）。"""
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:  # noqa: UP015
             d = json.load(f)
         v = d.get(field)
         return str(v)[:10] if v else None
@@ -121,7 +121,7 @@ def _json_max_date(path: str) -> str | None:
     「文件被改写」——同目录/同文件被无关写入触碰时会虚报「新鲜」。
     """
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:  # noqa: UP015
             data = json.load(f)
         dates: list[str] = []
         if isinstance(data, dict):
@@ -333,7 +333,7 @@ def build_refresh_plan(stale_only: bool = True) -> list[dict]:
             b = by_key.get(k, {})
             return bool(b.get("status") == "stale" or b.get("stalled"))
 
-        stale_names = [n for k, n in zip(c["covers"], covers_names) if _is_actionable(k)]
+        stale_names = [n for k, n in zip(c["covers"], covers_names) if _is_actionable(k)]  # noqa: B905
         if stale_only and not stale_names:
             continue
         if cid in seen:

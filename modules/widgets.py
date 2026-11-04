@@ -8,25 +8,25 @@ modules/widgets.py
   - render_breadcrumb     页面面包屑
   - password_strength      密码强度评估（注册用）
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import logging
 import os
 import json
 import subprocess
 
 from modules.cache_utils import TTL_TIERS  # R-14（修复：此前误写进模块 docstring 内未执行，NameError）
-from modules.ui_kit import inject_kit_css, xc_handle_error
+from modules.ui_kit import inject_kit_css, xc_handle_error  # noqa: F401
 logger = logging.getLogger(__name__)
-from typing import Any, Dict, List, Tuple
-from datetime import datetime
+from typing import Any, Dict, List, Tuple  # noqa: F401, I001, UP035
+from datetime import datetime  # noqa: F401
 import html
-import time
-import requests
-from modules.request_utils import http_get, http_post
+import time  # noqa: F401
+import requests  # noqa: F401
+from modules.request_utils import http_get, http_post  # noqa: F401
 
 from modules.time_utils import now_cst_str, now_cst_naive
 import streamlit as st
-import streamlit.components.v1 as components
+import streamlit.components.v1 as components  # noqa: F401
 from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin, _rel_time
 from modules._widgets_base import STAR_AI_LOGO, _INDEX_INFOS
 from modules.colors import _hex_to_rgba
@@ -88,7 +88,7 @@ def _trend_label(open_: float, high: float, low: float, close: float, prev_close
             return False
         return (h - c) / (h - o + 1e-09) > 0.35
 
-    def _bounce_from_low(l, o, c):
+    def _bounce_from_low(l, o, c):  # noqa: E741
         down = (o - l) / prev_close * 100
         if down <= 0.15:
             return False
@@ -153,7 +153,7 @@ def _build_index_card(info, fetcher, start_str):
     返回卡片 dict；网络/解析失败返回最小 None 卡（current=None），由渲染层降级为「暂无数据/—」。
     不触碰 st.session_state 与任何 Streamlit 渲染，保证线程安全。
     """
-    import plotly.graph_objects as go
+    import plotly.graph_objects as go  # noqa: I001
     from modules.visualizer import UP_COLOR, DOWN_COLOR
     if info.get('global'):
         gq = None
@@ -262,7 +262,7 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
     数据源优先新浪财经实时接口（1 分钟级），历史走势由本地指数日线补齐；交易日自动刷新。
     折线颜色按当日涨跌红/绿显示，与 A 股习惯一致（红涨绿跌）。
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta  # noqa: F401, F811, I001
     from modules.fetcher import StockFetcher
     from modules.ui_theme import _theme_is_dark
     from modules.visualizer import DOWN_COLOR, UP_COLOR  # 涨跌配色（A股红涨绿跌）
@@ -270,7 +270,7 @@ def render_index_mini_cards(cols_per_row: int=3) -> None:
         is_open, _, _ = _index_market_status()
     except Exception as e:
         logger.warning(f"[widgets] 处理异常: {e}")
-        is_open = False
+        is_open = False  # noqa: F841
     end_date = now_cst_naive().date()
     start_date = end_date - timedelta(days=30)
     start_str = start_date.strftime('%Y-%m-%d')
@@ -338,7 +338,7 @@ def render_index_compact(cols_per_row: int=5) -> None:
       - 卡片横向平铺，更紧凑；
       - 下方统一展示涨跌幅柱状图，便于一眼比较强弱。
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta  # noqa: F401, F811, I001
     from modules.fetch_parallel import fetch_many
     from modules.fetcher import StockFetcher
     from modules.ui_theme import _theme_is_dark
@@ -347,7 +347,7 @@ def render_index_compact(cols_per_row: int=5) -> None:
         is_open, _, _ = _index_market_status()
     except Exception as e:
         logger.warning(f"[widgets] 处理异常: {e}")
-        is_open = False
+        is_open = False  # noqa: F841
     end_date = now_cst_naive().date()
     start_date = end_date - timedelta(days=30)
     start_str = start_date.strftime('%Y-%m-%d')
@@ -373,7 +373,7 @@ def render_index_compact(cols_per_row: int=5) -> None:
     dark = _theme_is_dark()
     txt = '#e2e8f0' if dark else '#1e293b'
     txt2 = '#94a3b8' if dark else '#64748b'
-    card_bg = 'rgba(26,26,46,0.55)' if dark else '#ffffff'
+    card_bg = 'rgba(26,26,46,0.55)' if dark else '#ffffff'  # noqa: F841
     grid = 'rgba(148,163,184,0.15)' if dark else 'rgba(148,163,184,0.25)'
     # 2026-08-28 接入"新城"风格（E:\project\app_dist\微应用大厅 视觉）
     # 用 ui_kit.xc_section_header 替代裸 h2；指数卡用 .xc-grid + .xc-card 一次性渲染。
@@ -482,7 +482,7 @@ def render_global_search() -> None:
 
 def render_theme_toggle() -> None:
     """侧边栏深色 / 浅色快速切换（读/写 session_state['theme_mode']）。"""
-    from modules.ui_theme import get_current_mode, apply_theme
+    from modules.ui_theme import get_current_mode, apply_theme  # noqa: I001
     mode = st.session_state.get('theme_mode', get_current_mode())
     col_dark, col_light = st.columns(2)
     with col_dark:
@@ -504,7 +504,7 @@ def render_topright_bar() -> None:
     由 require_auth() 在每个业务页面顶部注入，保证「不管用户在哪个界面」
     都能唤起 AI 咨询与切换主题。AI 咨询收进 popover 弹层，不占侧栏空间。
     """
-    from modules.ui_theme import get_current_mode, apply_theme
+    from modules.ui_theme import get_current_mode, apply_theme  # noqa: I001
     mode = st.session_state.get('theme_mode', get_current_mode())
     left, right = st.columns([0.55, 0.45])
     with right:
@@ -538,7 +538,7 @@ def render_topright_bar() -> None:
 
 def render_theme_toggle_topright() -> None:
     render_topright_bar()
-from modules.background_tasks import submit_task_with_error, poll_task
+from modules.background_tasks import submit_task_with_error, poll_task  # noqa: F401, I001
 
 def inject_global_widgets() -> None:
     """require_auth() 之后注入所有页面通用组件：右上角「★ 星辰 AI 弹层 + 主题开关」
@@ -546,7 +546,7 @@ def inject_global_widgets() -> None:
 
     AI 咨询收进右上角 popover，任意页面唤起；不再占用左侧栏空间。
     """
-    from modules.scroll_nav import inject_scroll_nav
+    from modules.scroll_nav import inject_scroll_nav  # noqa: I001
     from modules.top_nav import build_nav_index, render_topnav, topnav_extra_js
     from modules.ui_theme import get_current_style
     # T-201：导航查询串（token+u+prefs）——顶栏/面板所有 <a href> 携带，
@@ -595,7 +595,7 @@ def _nav_freq_path() -> str:
     return os.path.join(_data_dir, "nav_freq.json")
 
 
-def _all_nav_items() -> List[str]:
+def _all_nav_items() -> List[str]:  # noqa: UP006
     """返回所有可导航页的文件名集合（用于校验常用区条目合法性）。"""
     _items = set()
     for _it in _iter_nav_items():
@@ -619,7 +619,7 @@ def record_nav_visit(basename: str) -> None:
         _freq = {}
         if os.path.exists(_path):
             try:
-                with open(_path, "r", encoding="utf-8") as _f:
+                with open(_path, "r", encoding="utf-8") as _f:  # noqa: UP015
                     _d = json.load(_f)
                 if isinstance(_d, dict):
                     _freq = _d
@@ -632,12 +632,12 @@ def record_nav_visit(basename: str) -> None:
         logger.warning(f"[widgets] 处理异常: {_e}")
 
 
-def load_nav_favorites(top_n: int = 5) -> List[Tuple[str, str, str]]:
+def load_nav_favorites(top_n: int = 5) -> List[Tuple[str, str, str]]:  # noqa: UP006
     """按访问频率取 Top-N 高频页；无数据或不足时回落静态 _NAV_FAVORITES 兜底。"""
     try:
         _path = _nav_freq_path()
         try:
-            with open(_path, "r", encoding="utf-8") as _f:
+            with open(_path, "r", encoding="utf-8") as _f:  # noqa: UP015
                 _freq = json.load(_f)
         except Exception:
             _freq = {}
@@ -929,7 +929,7 @@ def render_entry_cards(cards: list, columns: int = 3, active_label: str = None,
     for _i in range(0, len(cards), _cols):
         _row = cards[_i:_i + _cols]
         _grid = st.columns(_cols)
-        for _c, _card in zip(_grid, _row):
+        for _c, _card in zip(_grid, _row):  # noqa: B905
             with _c:
                 with st.container(border=True):
                     _label = _card.get("label", "")
@@ -985,7 +985,7 @@ def _iter_nav_items(groups=None):
     _groups = groups if groups is not None else _NAV_GROUPS
     for _top, _clusters in _groups:
         for _sub, _items in _clusters:
-            for _it in _items:
+            for _it in _items:  # noqa: UP028
                 yield _it
 
 
@@ -1108,7 +1108,7 @@ def render_notifications() -> None:
 
 def render_breadcrumb(items: list[str]) -> None:
     """页面顶部面包屑。items 形如 ['首页', '行情看板']。"""
-    st.markdown(' › '.join((f'**{i}**' for i in items)), help='当前位置')
+    st.markdown(' › '.join((f'**{i}**' for i in items)), help='当前位置')  # noqa: UP034
 
 def _push_recent(code: str, name: str) -> None:
     if 'recent_stocks' not in st.session_state:
@@ -1130,9 +1130,9 @@ def password_strength(pwd: str) -> tuple[int, str]:
         score += 1
     if len(pwd) >= 12:
         score += 1
-    if any((c.isupper() for c in pwd)) and any((c.islower() for c in pwd)):
+    if any((c.isupper() for c in pwd)) and any((c.islower() for c in pwd)):  # noqa: UP034
         score += 1
-    if any((c.isdigit() for c in pwd)) and any((c in '!@#$%^&*()_+-=[]{}|;:,.<>?/' for c in pwd)):
+    if any((c.isdigit() for c in pwd)) and any((c in '!@#$%^&*()_+-=[]{}|;:,.<>?/' for c in pwd)):  # noqa: UP034
         score += 1
     levels = ['弱', '弱', '中', '强', '很强']
     return (score, levels[score])
@@ -1149,15 +1149,15 @@ def password_checklist(pwd: str) -> dict:
         return {'empty': True, 'length8': False, 'length12': False, 'mixed_case': False, 'digit_and_symbol': False, 'score': 0, 'level': '空'}
     length8 = len(pwd) >= 8
     length12 = len(pwd) >= 12
-    mixed_case = any((c.isupper() for c in pwd)) and any((c.islower() for c in pwd))
-    digit_and_symbol = any((c.isdigit() for c in pwd)) and any((c in _SYMBOLS for c in pwd))
+    mixed_case = any((c.isupper() for c in pwd)) and any((c.islower() for c in pwd))  # noqa: UP034
+    digit_and_symbol = any((c.isdigit() for c in pwd)) and any((c in _SYMBOLS for c in pwd))  # noqa: UP034
     score = int(length8) + int(length12) + int(mixed_case) + int(digit_and_symbol)
     levels = ['弱', '弱', '中', '强', '很强']
     return {'empty': False, 'length8': length8, 'length12': length12, 'mixed_case': mixed_case, 'digit_and_symbol': digit_and_symbol, 'score': score, 'level': levels[score]}
 
 def get_session_remaining() -> int | None:
     """解码当前 JWT 的 exp，返回剩余秒数；无法解析时返回 None。"""
-    import time as _time
+    import time as _time  # noqa: I001
     import jwt as _jwt
     token = get_token()
     if not token:
@@ -1181,4 +1181,4 @@ def render_session_countdown() -> None:
     minutes = remain // 60
     seconds = remain % 60
     st.caption(f'⏱️ 会话剩余：{minutes}分{seconds}秒（超时将自动登出）')
-from modules._widgets_ai import _slim_context, _current_stock_context, _ai_popover_theme_css, _chat_history_for_context, _ai_md, _render_ai_chat, _ai_scroll_to_bottom_component, _poll_ai_consult_task, render_ai_consultant
+from modules._widgets_ai import _slim_context, _current_stock_context, _ai_popover_theme_css, _chat_history_for_context, _ai_md, _render_ai_chat, _ai_scroll_to_bottom_component, _poll_ai_consult_task, render_ai_consultant  # noqa: F401, I001

@@ -4,8 +4,8 @@
 数据层见 modules/fundflow.py（已确保经本地代理 + 关闭证书校验访问东方财富/同花顺源）。
 A股配色：资金净流入=红，净流出=绿（与红涨绿跌一致）。
 """
-import streamlit as st
-from datetime import datetime, timedelta
+import streamlit as st  # noqa: I001
+from datetime import datetime, timedelta  # noqa: F401
 
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page, get_fetcher
@@ -29,7 +29,7 @@ from modules.linear_trends import (
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, UP, DOWN, is_trading_now, _fig_layout, _section_title, _fmt_yi, _trend_controls
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, xc_bento_kpi, xc_kpi_grid
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, xc_bento_kpi, xc_kpi_grid  # noqa: F401
 
 dark = render_standard_page(
     "资金流向", icon="🌊",

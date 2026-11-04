@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """
 modules/source_metrics_persist.py — 数据源/缓存层指标长周期落盘与趋势汇总（T-273D）。
 

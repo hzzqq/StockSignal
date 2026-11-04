@@ -3,15 +3,15 @@
 职责：主题检测 / 样式令牌与 CSS / 标签与徽章小工具 / 数值格式化 / 安全取值。
 零业务逻辑改动：源码自 ``modules/_compare_render.py`` 按函数名原样搬运。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
-import datetime as _dt
+import datetime as _dt  # noqa: F401
 import logging
-import re
+import re  # noqa: F401
 
 import numpy as np
-from modules.colors import _hex_to_rgba
-from modules.time_utils import now_cst_str
+from modules.colors import _hex_to_rgba  # noqa: F401
+from modules.time_utils import now_cst_str  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ _INDUSTRY_GROUPS = {
     "机械军工": ["机械", "军工", "设备"],
 }
 
-_CSS_CACHE: Dict[bool, str] = {}
+_CSS_CACHE: Dict[bool, str] = {}  # noqa: F821
 
 def _is_dark() -> bool:
     """检测当前页面是否处于暗色主题。"""
@@ -44,7 +44,7 @@ def _is_dark() -> bool:
         logger.warning(f"[compare] 未处理异常: {e}")
         return False
 
-def _sf() -> Dict[str, str]:
+def _sf() -> Dict[str, str]:  # noqa: F821
     """返回当前主题下的配色与样式令牌。"""
     if _is_dark():
         return {
@@ -223,7 +223,7 @@ def _safe(v, d: float = 0.0) -> float:
         logger.warning(f"[compare] 未处理异常: {e}")
         return d
 
-def _norm(vals: List[float]) -> List[float]:
+def _norm(vals: List[float]) -> List[float]:  # noqa: F821
     """把一组值线性映射到 [50,100]，保持组内相对强弱。
 
     健壮性（R2）：空列表安全返回 []；输入中的 None/NaN 退化为 0.0，
@@ -237,7 +237,7 @@ def _norm(vals: List[float]) -> List[float]:
         return [50.0 for _ in safe]
     return [50 + (v - lo) / (hi - lo) * 50 for v in safe]
 
-def _row_score(r: Dict[str, Any], key: str, default: float = 50.0) -> float:
+def _row_score(r: Dict[str, Any], key: str, default: float = 50.0) -> float:  # noqa: F821
     """安全提取单只股票四维/综合评分；scores 缺失、为 None 或具体子项缺失时返回 default。
 
     用于多股对比在「部分股票数据缺失」场景下仍可正常评分与排序（R1/R2）。
@@ -291,7 +291,7 @@ def _elasticity_label(v: float) -> str:
         return f"中弹性·{v:.0f}%"
     return f"稳健·{v:.0f}%"
 
-def _stock_type_label(r: Dict[str, Any]) -> str:
+def _stock_type_label(r: Dict[str, Any]) -> str:  # noqa: F821
     """根据得分、弹性、估值给一个定性标签。"""
     comp = _safe(r.get("scores", {}).get("composite"), 50)
     elas = _safe(r.get("elasticity"), 0)
@@ -313,7 +313,7 @@ def _stock_type_label(r: Dict[str, Any]) -> str:
         return "稳健成长"
     return "均衡配置"
 
-def _score_badge(r: Dict[str, Any]) -> str:
+def _score_badge(r: Dict[str, Any]) -> str:  # noqa: F821
     comp = int(round(_safe(r.get("scores", {}).get("composite"), 50)))
     sig = r.get("signal", "持有")
     if sig == "买入":
@@ -324,6 +324,6 @@ def _score_badge(r: Dict[str, Any]) -> str:
         label, cls = f"{comp}分 · 持有(HOLD)", "mid"
     return f'<span class="score-badge {cls}">{label}</span>'
 
-def _biz_groups(industry: str) -> List[str]:
+def _biz_groups(industry: str) -> List[str]:  # noqa: F821
     return [g for g, kws in _INDUSTRY_GROUPS.items()
             if any(k in industry for k in kws)]

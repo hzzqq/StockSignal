@@ -9,15 +9,15 @@
 数据边界（诚实声明，页面内可见）：离线基座只有全市场广度聚合序列，无行业分类、无指数序列，
 故不做「行业广度热力」或「广度 vs 指数背离」，改为可落地的广度内部结构分化刻画。
 """
-import logging
+import logging  # noqa: I001
 
 import plotly.graph_objects as go
 import streamlit as st
 
 from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
-from modules.ui_kit import xc_section_header
-from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
+from modules.ui_kit import xc_section_header  # noqa: F401
+from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba  # noqa: F401
 from modules import breadth_divergence as bd
 
 logger = logging.getLogger(__name__)

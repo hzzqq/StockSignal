@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """个股/全市场公告事件适配器（第三真实事件源·东方财富）。
 
 定位：事件因子体系现有两路真实数据——P1 EV 信号池（``load_event_pool``）与
@@ -107,7 +107,7 @@ def fetch_individual_notices(security: str, symbol: str = "全部", days: int = 
     :param ttl: 缓存秒数
     :return: dict(available, security, symbol, begin, end, total, by_type, rows, note)
     """
-    from datetime import date as _date, timedelta as _td
+    from datetime import date as _date, timedelta as _td  # noqa: I001
     if symbol not in NOTICE_TYPES:
         logger.warning("[event_announcements] 非法公告类型 %r，回落「全部」", symbol)
         symbol = "全部"

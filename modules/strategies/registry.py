@@ -4,16 +4,16 @@
 模块导入即注册，Backtester 与页面只通过这里取策略，不再硬编码。
 """
 
-from typing import Dict, List, Type
+from typing import Dict, List, Type  # noqa: I001, UP035
 
 from .base import BaseStrategy
 
 
 # 全局注册表：策略 name -> 策略类
-STRATEGY_REGISTRY: Dict[str, Type[BaseStrategy]] = {}
+STRATEGY_REGISTRY: Dict[str, Type[BaseStrategy]] = {}  # noqa: UP006
 
 
-def register(strategy_cls: Type[BaseStrategy]) -> Type[BaseStrategy]:
+def register(strategy_cls: Type[BaseStrategy]) -> Type[BaseStrategy]:  # noqa: UP006
     """装饰器 / 函数式注册一个策略类。
 
     用法：
@@ -37,7 +37,7 @@ def register(strategy_cls: Type[BaseStrategy]) -> Type[BaseStrategy]:
     return strategy_cls
 
 
-def get_strategy(name: str) -> Type[BaseStrategy]:
+def get_strategy(name: str) -> Type[BaseStrategy]:  # noqa: UP006
     """按 name 取策略类；不存在抛清晰错误。"""
     if name not in STRATEGY_REGISTRY:
         available = ", ".join(sorted(STRATEGY_REGISTRY.keys()))
@@ -45,7 +45,7 @@ def get_strategy(name: str) -> Type[BaseStrategy]:
     return STRATEGY_REGISTRY[name]
 
 
-def list_strategies() -> List[dict]:
+def list_strategies() -> List[dict]:  # noqa: UP006
     """返回所有策略的元信息列表（name/display_name/description）。"""
     out = []
     for name, cls in STRATEGY_REGISTRY.items():
@@ -57,6 +57,6 @@ def list_strategies() -> List[dict]:
     return out
 
 
-def list_strategy_names() -> List[str]:
+def list_strategy_names() -> List[str]:  # noqa: UP006
     """返回所有已注册策略 name（供页面 selectbox options）。"""
     return sorted(STRATEGY_REGISTRY.keys())

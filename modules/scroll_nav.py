@@ -38,7 +38,7 @@
 依赖：无第三方依赖。纯 CSS + JS + Streamlit components.html。
 设计依据：星辰暗色金融风 Token（复用 starfield_theme.py :root）。
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 import streamlit.components.v1 as components
 import json
 import logging

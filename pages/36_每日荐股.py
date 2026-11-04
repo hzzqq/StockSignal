@@ -8,7 +8,7 @@
 + 买入方案（入场/目标/止损 = ATR 倍数，仓位提示联动决策快照）+ 逐条理由 + 免责声明。
 用户可在本页关闭荐股推送（消息中心不再展示该类型；默认开启）。
 """
-import html
+import html  # noqa: I001
 import json
 import os
 

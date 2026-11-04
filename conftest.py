@@ -88,7 +88,7 @@ def _install_offline_guard():
     import os
     if os.environ.get("OFFLINE_TEST", "1") == "0":
         return
-    import urllib.request as _urllib_req
+    import urllib.request as _urllib_req  # noqa: I001
     import socket as _sock
 
     try:
@@ -131,10 +131,13 @@ def _install_sqlite_memory_journal():
 
     本补丁仅在**测试会话**生效（conftest 注入，不碰任何生产源码）：
       - 同时 patch sqlite3.connect 与 SQLAlchemy 实际使用的 sqlite3.dbapi2.connect；
-      - 通过自定义连接/游标子类把 `PRAGMA journal_mode=WAL` 重写为 MEMORY，
-        中和生产代码与 SQLAlchemy connect 事件里的 WAL PRAGMA（不依赖执行顺序）。
+      - 通过自定义连接/游标子类把 `PRAGMA journal_mode=WAL` 重写为 DELETE
+        （默认 journal），中和生产代码与 SQLAlchemy connect 事件里的 WAL PRAGMA
+        （不依赖执行顺序）。
         （注：Python 3.12+ 的 sqlite3.Connection.execute 是只读属性，不能实例赋值，
-         故用子类重写而非运行时 wrap。）
+         故用子类重写而非运行时 wrap。改写为 DELETE 而非 MEMORY：MEMORY 切换需
+         独占锁，SQLAlchemy 连接池多连接时第二个连接的 PRAGMA 会 database is
+         locked（backend 多路由测试实测）；DELETE 无此约束，同样不生成 -wal/-shm。）
     效果：测试库不再生成 -wal/-shm 兄弟文件 → 回收站少 ~96% 刷屏文件，对产品零影响。
 
     红线：生产代码（market_cache.py / news.py / backend/app.py）的 WAL PRAGMA 原样保留，
@@ -148,13 +151,21 @@ def _install_sqlite_memory_journal():
     class _MemoryCursor(sqlite3.Cursor):
         def execute(self, sql, *args, **kwargs):
             if isinstance(sql, str) and _WAL_RE.search(sql):
-                sql = _WAL_RE.sub("journal_mode=MEMORY", sql)
+                # 跳过 PRAGMA journal_mode 语句：测试库保持默认 DELETE journal。
+                # 不执行可避免「切换 journal_mode 需独占锁」在连接池多连接时序下的
+                # database is locked（backend 多路由测试实测），且不生成 -wal/-shm。
+                # 同时留下「PRAGMA 已送达并被拦截」的运行时证据，供 T-257 守卫断言
+                # （tests/test_fetcher_speedups.py::test_wal_applied）——否则「跳过」
+                # 与「生产代码根本没发 WAL PRAGMA」在结果 mode 上不可区分。
+                self.connection._ss_wal_intercepted = True
+                return self
             return super().execute(sql, *args, **kwargs)
 
     class _MemoryConn(sqlite3.Connection):
         def execute(self, sql, *args, **kwargs):
             if isinstance(sql, str) and _WAL_RE.search(sql):
-                sql = _WAL_RE.sub("journal_mode=MEMORY", sql)
+                self._ss_wal_intercepted = True
+                return self
             return super().execute(sql, *args, **kwargs)
 
         def cursor(self, *args, **kwargs):
@@ -186,19 +197,59 @@ def _install_data_isolation():
     而非污染真实 data/shepherd_ladder_history.json —— 后者是 15:30 自动化读取、
     晋级率/回测依赖的真实数据源，绝不能被测试 stub 假数据覆盖。
 
-    仅当环境变量未显式设置时启用（本地调试可 SS_DATA_DIR=真实路径 覆盖回真实目录）。
+    同时把 backend 的 DATABASE_URL 指向同一临时目录下的独立测试库：
+    backend 测试（create_app + db.create_all）此前直接读写真实
+    backend/data/app.db —— 该库会被常驻 flask 服务（--app backend.app:app）
+    以 WAL 模式长期持有，测试进程与其争用同一文件即随机出现
+    database is locked / unable to open database file（P1-4 实测：单独跑绿、
+    全量跑红，取决于服务当时是否持锁）。隔离后测试引擎全部落在 tmp 库，
+    与生产/服务库零冲突，且每次会话从干净文件开始。
+
+    仅当环境变量未显式设置时启用（本地调试可 SS_DATA_DIR / DATABASE_URL
+    显式赋值覆盖回真实路径）。
     """
     import os
     import tempfile
 
-    if os.environ.get("SS_DATA_DIR"):
-        return
-    os.environ["SS_DATA_DIR"] = tempfile.mkdtemp(prefix="ss_test_data_")
+    if not os.environ.get("SS_DATA_DIR"):
+        os.environ["SS_DATA_DIR"] = tempfile.mkdtemp(prefix="ss_test_data_")
+    if not os.environ.get("DATABASE_URL"):
+        os.environ["DATABASE_URL"] = (
+            "sqlite:///" + tempfile.mkdtemp(prefix="ss_backend_db_").replace("\\", "/")
+            + "/backend_test.db"
+        )
+
+
+def _disable_backend_schedulers():
+    """测试期禁用 backend 后台调度线程（官方环境开关，与生产源码解耦）。
+
+    backend/app.py create_app 会启动 5 个守护调度线程（市场异动/条件单/自驱研究/
+    荐股/数据刷新）。它们在 pytest 内本应被 PYTEST_CURRENT_TEST 闸门跳过，
+    但依赖 create_app 调用时机（module fixture 实例化早于首用例，且部分测试
+    直接 import create_app 后手动 create_app），为稳妥起见在 session 启动即
+    显式置 0。用户可 STOCKSIGNAL_ENABLE_*=1 覆盖（setdefault 不覆盖已有值）。
+
+    根因：这些线程会访问 backend/data/app.db（SQLite 文件库）；conftest 已把
+    WAL 改写为 MEMORY journal（单写排他），线程持有写锁会让测试连接 5s 超时
+    报 database is locked / unable to open database file。
+    """
+    import os
+
+    for _k in (
+        "STOCKSIGNAL_ENABLE_ALERT_SCHEDULER",
+        "STOCKSIGNAL_ENABLE_COND_SCHEDULER",
+        "STOCKSIGNAL_ENABLE_RESEARCH_WATCH",
+        "STOCKSIGNAL_ENABLE_RECOMMEND_SCHEDULER",
+        "STOCKSIGNAL_ENABLE_DATA_REFRESH",
+    ):
+        os.environ.setdefault(_k, "0")
 
 
 _install_sqlite_memory_journal()
 
 _install_data_isolation()
+
+_disable_backend_schedulers()
 
 
 @pytest.fixture(autouse=True)

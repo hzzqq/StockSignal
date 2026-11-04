@@ -9,10 +9,10 @@
 
 from __future__ import annotations
 
-import json
+import json  # noqa: F401
 import sys
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: UP035
 
 # 让 mcp_server 包可被独立运行（python -m mcp_server.tools）
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]))
@@ -23,7 +23,7 @@ from .server import register_tool  # noqa: E402
 # ---------------------------------------------------------------------------
 # 内部辅助
 # ---------------------------------------------------------------------------
-def _resolve_code(user_input: str) -> Optional[str]:
+def _resolve_code(user_input: str) -> Optional[str]:  # noqa: UP045
     """尽力把用户输入解析成 akshare 风格 6 位代码；解析不到返回原样。"""
     s = user_input.strip()
     # 已像代码
@@ -58,7 +58,7 @@ def _jsonable(obj: Any) -> Any:
 # 仅缓存只读行情/技术面结果；条件单/持仓等含实时账户状态的工具不缓存。
 import time as _time
 
-_TOOL_CACHE: Dict[str, Any] = {}
+_TOOL_CACHE: Dict[str, Any] = {}  # noqa: UP006
 _TOOL_CACHE_TTL = 30  # 秒（行情类短缓存，适配盘中变化）
 # 分档 TTL（T-122，2026-09-17）：sentiment 数据按交易日粒度变化（盘中涨停/炸板池
 # 才有分钟级变化），且冷启动实测 47.5s——5 分钟缓存让 agent 会话内重复提问近零成本，
@@ -66,7 +66,7 @@ _TOOL_CACHE_TTL = 30  # 秒（行情类短缓存，适配盘中变化）
 _TOOL_CACHE_TTL_SENTIMENT = 300
 
 
-def _tool_cache_get(key: str, ttl: Optional[int] = None):
+def _tool_cache_get(key: str, ttl: Optional[int] = None):  # noqa: UP045
     """读缓存。ttl=None 时用该条目 set 时登记的 TTL（向后兼容旧全局 30s 语义）。
 
     T-272①：命中/未命中接入缓存层观测（observe_cache_hit，进程内计数）。
@@ -80,14 +80,14 @@ def _tool_cache_get(key: str, ttl: Optional[int] = None):
     return None
 
 
-def _tool_cache_set(key: str, val: Any, ttl: Optional[int] = None) -> None:
+def _tool_cache_set(key: str, val: Any, ttl: Optional[int] = None) -> None:  # noqa: UP045
     _TOOL_CACHE[key] = (_time.time(), ttl if ttl is not None else _TOOL_CACHE_TTL, val)
 
 
 # ---------------------------------------------------------------------------
 # 工具 1：行情 K 线
 # ---------------------------------------------------------------------------
-def get_kline(code: str, start: str = "", end: str = "", days: int = 120) -> Dict[str, Any]:
+def get_kline(code: str, start: str = "", end: str = "", days: int = 120) -> Dict[str, Any]:  # noqa: UP006
     """获取个股/指数历史 K 线（开高低收 + 成交量）。
 
     Args:
@@ -99,7 +99,7 @@ def get_kline(code: str, start: str = "", end: str = "", days: int = 120) -> Dic
     Returns:
         {code, name, count, data:[{date,open,high,low,close,volume}], source}
     """
-    from modules.fetcher import StockFetcher
+    from modules.fetcher import StockFetcher  # noqa: I001
     from modules.cleaner import DataCleaner
 
     real_code = _resolve_code(code)
@@ -144,7 +144,7 @@ def get_kline(code: str, start: str = "", end: str = "", days: int = 120) -> Dic
 # ---------------------------------------------------------------------------
 # 工具 2：技术面分析
 # ---------------------------------------------------------------------------
-def analyze_technical(code: str, days: int = 180) -> Dict[str, Any]:
+def analyze_technical(code: str, days: int = 180) -> Dict[str, Any]:  # noqa: UP006
     """对标的做四维技术面分析（趋势/动量/量能/形态）+ 综合评分。
 
     Args:
@@ -154,7 +154,7 @@ def analyze_technical(code: str, days: int = 180) -> Dict[str, Any]:
     Returns:
         full_analysis 的结构化结果（含均线、RSI、MACD、量能、形态、评分）
     """
-    from modules.fetcher import StockFetcher
+    from modules.fetcher import StockFetcher  # noqa: I001
     from modules.cleaner import DataCleaner
     from modules.technical import full_analysis
 
@@ -185,7 +185,7 @@ def smart_pick(
     start: str = "",
     end: str = "",
     pool_size: int = 200,
-) -> Dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """按策略跑一遍「每日选股 + 回测验证」，返回 top_k 候选标的。
 
     Args:
@@ -238,7 +238,7 @@ def run_backtest(
     end: str,
     strategy: str = "multi_factor",
     initial_capital: float = 100000.0,
-) -> Dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """对单只标的做策略回测，返回绩效指标。
 
     Args:
@@ -294,7 +294,7 @@ def run_backtest(
 # ---------------------------------------------------------------------------
 # 工具 5：资金流向
 # ---------------------------------------------------------------------------
-def fund_flow(code: str = "", scope: str = "individual") -> Dict[str, Any]:
+def fund_flow(code: str = "", scope: str = "individual") -> Dict[str, Any]:  # noqa: UP006
     """查询资金流向。
 
     Args:
@@ -326,7 +326,7 @@ def fund_flow(code: str = "", scope: str = "individual") -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 工具 6：个股新闻 / 事件
 # ---------------------------------------------------------------------------
-def stock_news(code: str, limit: int = 5) -> Dict[str, Any]:
+def stock_news(code: str, limit: int = 5) -> Dict[str, Any]:  # noqa: UP006
     """获取个股近期新闻与事件（已做基础清洗）。
 
     Args:
@@ -336,7 +336,7 @@ def stock_news(code: str, limit: int = 5) -> Dict[str, Any]:
     Returns:
         {code, name, news:[{title, date, summary}]}
     """
-    from modules.ai_engine import _resolve_stock, _fetch_news
+    from modules.ai_engine import _resolve_stock, _fetch_news  # noqa: I001
 
     real_code = _resolve_code(code)
     info = _resolve_stock(code)
@@ -348,7 +348,7 @@ def stock_news(code: str, limit: int = 5) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 工具 7：风险评估
 # ---------------------------------------------------------------------------
-def risk_assess(code: str) -> Dict[str, Any]:
+def risk_assess(code: str) -> Dict[str, Any]:  # noqa: UP006
     """对标的做综合风险评估（技术面 + 估值 + 事件），返回风险等级与要点。
 
     Args:
@@ -364,7 +364,7 @@ def risk_assess(code: str) -> Dict[str, Any]:
     # 简易风险打分：基于技术面综合评分反向 + 量能异常
     score_block = analysis.get("score", {}) if isinstance(analysis, dict) else {}
     tech_score = score_block.get("total") if isinstance(score_block, dict) else None
-    points: List[str] = []
+    points: List[str] = []  # noqa: UP006
     level = "中"
     if isinstance(tech_score, (int, float)):
         if tech_score >= 70:
@@ -397,14 +397,14 @@ def risk_assess(code: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 def conditional_orders(
     action: str = "list",
-    order_id: Optional[int] = None,
+    order_id: Optional[int] = None,  # noqa: UP045
     code: str = "",
     side: str = "",
     trigger_type: str = "",
     threshold: float = 0.0,
     quantity: int = 0,
     dry_run: bool = True,
-) -> Dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """条件单查询 / 创建（默认只模拟，不下真实单）。
 
     Args:
@@ -419,7 +419,7 @@ def conditional_orders(
         查询结果列表 或 创建/校验结果
     """
     try:
-        from backend.app import create_app
+        from backend.app import create_app  # noqa: I001
         from backend.models import db, ConditionalOrder
         from backend.conditional_engine import evaluate_order
         app = create_app()
@@ -497,7 +497,7 @@ def conditional_orders(
 # ---------------------------------------------------------------------------
 # 工具 9：持仓 / 模拟实盘查询（只读）
 # ---------------------------------------------------------------------------
-def portfolio_query(account_id: int = 1, mode: str = "sim") -> Dict[str, Any]:
+def portfolio_query(account_id: int = 1, mode: str = "sim") -> Dict[str, Any]:  # noqa: UP006
     """查询模拟/实盘账户持仓与资金（只读）。
 
     Args:
@@ -508,7 +508,7 @@ def portfolio_query(account_id: int = 1, mode: str = "sim") -> Dict[str, Any]:
         {mode, account_id, cash, positions:[{code,name,volume,avg_cost,...}], pnl}
     """
     try:
-        from backend.app import create_app
+        from backend.app import create_app  # noqa: I001
         from backend.models import db, Account, Position
         app = create_app()
     except Exception as e:  # noqa: BLE001
@@ -540,7 +540,7 @@ def portfolio_query(account_id: int = 1, mode: str = "sim") -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 工具 10：实时盘口
 # ---------------------------------------------------------------------------
-def get_realtime_quote(code: str) -> Dict[str, Any]:
+def get_realtime_quote(code: str) -> Dict[str, Any]:  # noqa: UP006
     """获取个股/指数实时五档行情（新浪财经，含涨跌/量能/买卖五档）。
 
     Args:
@@ -551,7 +551,7 @@ def get_realtime_quote(code: str) -> Dict[str, Any]:
          bid:[{price,volume}...], ask:[{price,volume}...], datetime, change_pct}
         获取失败返回 {error}
     """
-    from modules.fetcher import StockFetcher
+    from modules.fetcher import StockFetcher  # noqa: I001
     from modules import page_widgets
 
     real_code = _resolve_code(code)
@@ -604,7 +604,7 @@ def get_realtime_quote(code: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 工具 11：市场情绪（牧羊人温度计）
 # ---------------------------------------------------------------------------
-def get_market_sentiment(days: int = 30) -> Dict[str, Any]:
+def get_market_sentiment(days: int = 30) -> Dict[str, Any]:  # noqa: UP006
     """获取全市场情绪快照：17 项牧羊人指标 + 综合温度计（0-100）。
 
     指标含经典情绪温度计（上涨/下跌/涨停/跌停/昨日涨停表现/红盘占比/连板高度/炸板率）
@@ -668,7 +668,7 @@ def _temp_label(temp: float) -> str:
 # 全部只读；全部在内部 try/except，单个工具失败不拖垮整个 MCP 服务进程。
 
 
-def get_data_health() -> Dict[str, Any]:
+def get_data_health() -> Dict[str, Any]:  # noqa: UP006
     """各数据源时效：真实数据截止日(as_of)、滞后天数、状态(ok/warn/stale)、是否停更(stalled)。"""
     try:
         from modules import data_health as dh
@@ -678,7 +678,7 @@ def get_data_health() -> Dict[str, Any]:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-def get_macro_indicators() -> Dict[str, Any]:
+def get_macro_indicators() -> Dict[str, Any]:  # noqa: UP006
     """宏观指标：国内(PMI/CPI/PPI/GDP/M2/LPR) + 全球(美股/美债/美元/汇率/美国宏观)的最新值+前值+真实数据日期。取不到如实返回 None。
 
     另附 ``global_regime``：规则化合成的全球风险偏好/流动性评分(0-100)，分项取不到时不臆造。
@@ -695,7 +695,7 @@ def get_macro_indicators() -> Dict[str, Any]:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-def get_lhb(date: str = "") -> Dict[str, Any]:
+def get_lhb(date: str = "") -> Dict[str, Any]:  # noqa: UP006
     """龙虎榜席位动向：上榜家数、净买入 Top / 净卖出 Top。取不到或非交易日如实说明。"""
     try:
         from modules import lhb as _lhb
@@ -717,7 +717,7 @@ def get_lhb(date: str = "") -> Dict[str, Any]:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-def get_ai_skills(scope: str = "review") -> Dict[str, Any]:
+def get_ai_skills(scope: str = "review") -> Dict[str, Any]:  # noqa: UP006
     """取指定场景生效的 AI 分析规则（用户自定义口径）。"""
     try:
         from modules import ai_skills as sk
@@ -729,7 +729,7 @@ def get_ai_skills(scope: str = "review") -> Dict[str, Any]:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-def get_p1_signal() -> Dict[str, Any]:
+def get_p1_signal() -> Dict[str, Any]:  # noqa: UP006
     """P1 事件因子信号文件的 latest_date（判断事件因子是否陈旧 / 已被降权）。"""
     try:
         import json as _json
@@ -737,7 +737,7 @@ def get_p1_signal() -> Dict[str, Any]:
 
         from modules import p1_signal as p1
 
-        files: Dict[str, Any] = {}
+        files: Dict[str, Any] = {}  # noqa: UP006
         for d in (p1.discover_source_dirs() or []):
             if not _os.path.isdir(d):
                 continue
@@ -757,7 +757,7 @@ def get_p1_signal() -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 工具 17/18：估值深钻 / 风险排雷（T-138，H2/H6 能力薄转发，2026-09-18）
 # ---------------------------------------------------------------------------
-def get_valuation(code: str, period: str = "近十年") -> Dict[str, Any]:
+def get_valuation(code: str, period: str = "近十年") -> Dict[str, Any]:  # noqa: UP006
     """个股估值深钻：PE(TTM)/PB 历史序列与分位带。
 
     Args:
@@ -779,7 +779,7 @@ def get_valuation(code: str, period: str = "近十年") -> Dict[str, Any]:
     return _jsonable(res)
 
 
-def list_risk_alerts(code: str) -> Dict[str, Any]:
+def list_risk_alerts(code: str) -> Dict[str, Any]:  # noqa: UP006
     """个股风险排雷：商誉/质押/解禁/减持/诉讼/ST 等六维风险点扫描（只读）。
 
     Args:

@@ -28,7 +28,7 @@ v5（T-309，2026-10-24）：
   改为轮询片段常驻挂载 + safe_fragment(run_every=1.5) 服务端定时驱动，终态约 2s 内自动取回。
 """
 
-import json
+import json  # noqa: I001
 import html
 import re
 import time
@@ -50,7 +50,7 @@ from modules import llm_client
 from modules.research_agent import plan_steps
 from mcp_server.gateway import detect_intent, call_tool
 
-from modules.ui_kit import xc_success_box, xc_warn_box
+from modules.ui_kit import xc_success_box, xc_warn_box  # noqa: F401
 apply_page_config(page_title="🌟 星辰 AI", page_icon="🌟", layout="wide")
 st.session_state["_active_page"] = __file__
 
@@ -408,7 +408,7 @@ def _theme_css(dark: bool) -> str:
 """
 
 
-esc = lambda s: html.escape(str(s), quote=False)
+esc = lambda s: html.escape(str(s), quote=False)  # noqa: E731
 
 
 # ══════════════════════════════════════════════════════

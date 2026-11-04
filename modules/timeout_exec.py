@@ -13,11 +13,11 @@
 对「非网络阻塞」（纯 CPU / time.sleep）的 fn，硬边界仍会触发并返回 None（线程在后台
 被传输层无关地等待 join 直到池回收），但这类场景在取数路径上不存在，不影响正确性。
 """
-import concurrent.futures as cf
+import concurrent.futures as cf  # noqa: I001
 import threading
 import logging
 
-from modules.site_config import REQUEST_TIMEOUT, CALL_TIMEOUT_CAP
+from modules.site_config import REQUEST_TIMEOUT, CALL_TIMEOUT_CAP  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

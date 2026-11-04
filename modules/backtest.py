@@ -7,7 +7,7 @@ R-05 拆分（Plan A，2026-11-01）：纯函数 + 数据类已提取到子模�
 本文件保留 Backtester 主类 + re-export。对外 API 零变化。
 """
 
-import numpy as np
+import numpy as np  # noqa: F401, I001
 import pandas as pd
 
 from .fetcher import StockFetcher
@@ -20,7 +20,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .backtest_core import (  # noqa: F401
+from .backtest_core import (  # noqa: F401, I001
     RSI_EXCLUDE_THRESHOLD,
     _clamp100, _final_picker_score, _trend_persistence_ratio,
     _rsi14_health_score, _rsi14_overbought,
@@ -116,7 +116,7 @@ class Backtester:
         # 笛卡尔积展开
         import itertools
         keys = list(param_grid.keys())
-        combos = [dict(zip(keys, vals)) for vals in itertools.product(*param_grid.values())]
+        combos = [dict(zip(keys, vals)) for vals in itertools.product(*param_grid.values())]  # noqa: B905
 
         rows = []
         for combo in combos:
@@ -638,7 +638,7 @@ class Backtester:
         trend_score = min(trend_score, 50)
 
         # 趋势持续性：最近 5 天中 close > MA20 的天数比例
-        recent_above_ma20 = (recent["close"] > recent["ma20"]).sum()
+        recent_above_ma20 = (recent["close"] > recent["ma20"]).sum()  # noqa: F841
         trend_persistence = _trend_persistence_ratio(recent)
 
         if trend_score >= 35:
@@ -704,11 +704,11 @@ class Backtester:
         rsi14 = latest["rsi14"]
         # 健康分（统一走 _rsi14_health_score 单一真理源，避免与批量路径分档漂移；锐评 R6）
         health_score = _rsi14_health_score(rsi14)
-        if 40 <= rsi14 <= 60: reasons.append("RSI14健康")
-        elif 30 <= rsi14 < 40: reasons.append("RSI14回踩")
-        elif 60 < rsi14 <= 70: reasons.append("RSI14强势")
-        elif 70 < rsi14 <= 92: reasons.append("RSI14强趋势")
-        elif 25 <= rsi14 < 30: reasons.append("RSI14偏低")
+        if 40 <= rsi14 <= 60: reasons.append("RSI14健康")  # noqa: E701
+        elif 30 <= rsi14 < 40: reasons.append("RSI14回踩")  # noqa: E701
+        elif 60 < rsi14 <= 70: reasons.append("RSI14强势")  # noqa: E701
+        elif 70 < rsi14 <= 92: reasons.append("RSI14强趋势")  # noqa: E701
+        elif 25 <= rsi14 < 30: reasons.append("RSI14偏低")  # noqa: E701
 
         # 近 5 天是否有过 RSI14 > 75（严重超买则扣分）
         recent_overbought = _rsi14_overbought(recent)
@@ -772,25 +772,25 @@ class Backtester:
             ds += min(ds_trend, 50)
             # 动量分（快照）
             d_rsi2 = day.get("rsi2", 50)
-            if d_rsi2 < 5: ds += 35
-            elif d_rsi2 < 10: ds += 30
-            elif d_rsi2 < 15: ds += 20
-            elif d_rsi2 < 25: ds += 10
+            if d_rsi2 < 5: ds += 35  # noqa: E701
+            elif d_rsi2 < 10: ds += 30  # noqa: E701
+            elif d_rsi2 < 15: ds += 20  # noqa: E701
+            elif d_rsi2 < 25: ds += 10  # noqa: E701
             d_rsi14 = day.get("rsi14", 50)
-            if 40 <= d_rsi14 <= 70: ds += 20
-            elif 30 <= d_rsi14 < 40: ds += 15
-            elif 60 < d_rsi14 <= 92: ds += 12
+            if 40 <= d_rsi14 <= 70: ds += 20  # noqa: E701
+            elif 30 <= d_rsi14 < 40: ds += 15  # noqa: E701
+            elif 60 < d_rsi14 <= 92: ds += 12  # noqa: E701
             # 量能分（快照）
-            if day.get("volume", 0) > day.get("vol_ma20", 1) * 1.5: ds += 15
-            elif day.get("volume", 0) > day.get("vol_ma20", 1) * 1.2: ds += 10
-            elif day.get("volume", 0) > day.get("vol_ma20", 1) * 0.8: ds += 6
+            if day.get("volume", 0) > day.get("vol_ma20", 1) * 1.5: ds += 15  # noqa: E701
+            elif day.get("volume", 0) > day.get("vol_ma20", 1) * 1.2: ds += 10  # noqa: E701
+            elif day.get("volume", 0) > day.get("vol_ma20", 1) * 0.8: ds += 6  # noqa: E701
             daily_scores.append(ds)
 
         if len(daily_scores) >= 3:
             # 加权平均：最近一天权重最高 (0.4, 0.25, 0.15, 0.12, 0.08)
             weights = [0.4, 0.25, 0.15, 0.12, 0.08][:len(daily_scores)]
             weights = [w / sum(weights) for w in weights]
-            smoothed = sum(s * w for s, w in zip(reversed(daily_scores), reversed(weights)))
+            smoothed = sum(s * w for s, w in zip(reversed(daily_scores), reversed(weights)))  # noqa: B905
             # 混合：70% 当前详细评分 + 30% 平滑评分（封顶 [0,100]，分段上限合计 125 的历史债）
             final_score = _final_picker_score(score, smoothed, True)
         else:
@@ -1078,7 +1078,7 @@ class Backtester:
         daily_picks = []      # 每日推荐列表
         daily_returns = []    # 每日组合收益
 
-        for i, trade_date in enumerate(trade_dates):
+        for i, trade_date in enumerate(trade_dates):  # noqa: B007
             # 汇总当天所有股票在该交易日的评分
             candidates = []
             for s in all_scores:
@@ -1129,7 +1129,7 @@ class Backtester:
                         trend_score += 5
                     trend_score = min(trend_score, 50)
                     # 趋势持续性（与 _score_for_picker 对齐）：最近 5 天 close>MA20 占比
-                    recent_above_ma20 = (recent_10["close"] > recent_10["ma20"]).sum()
+                    recent_above_ma20 = (recent_10["close"] > recent_10["ma20"]).sum()  # noqa: F841
                     trend_persist = min(_trend_persistence_ratio(recent_10), 1.0)
                     if trend_score >= 35:
                         if trend_persist >= 0.9:
@@ -1147,23 +1147,23 @@ class Backtester:
                     rsi2_arr = recent_10["rsi2"].dropna().values[::-1]
                     cons_low = 0
                     for v in rsi2_arr:
-                        if v < 15: cons_low += 1
-                        else: break
+                        if v < 15: cons_low += 1  # noqa: E701
+                        else: break  # noqa: E701
 
-                    if rsi2 < 5: score += 35; reasons.append("RSI2极弱")
-                    elif rsi2 < 10: score += 30; reasons.append("RSI2超卖")
-                    elif rsi2 < 15: score += 20; reasons.append("RSI2偏弱")
-                    elif rsi2 < 25: score += 10; reasons.append("RSI2偏低")
+                    if rsi2 < 5: score += 35; reasons.append("RSI2极弱")  # noqa: E701, E702
+                    elif rsi2 < 10: score += 30; reasons.append("RSI2超卖")  # noqa: E701, E702
+                    elif rsi2 < 15: score += 20; reasons.append("RSI2偏弱")  # noqa: E701, E702
+                    elif rsi2 < 25: score += 10; reasons.append("RSI2偏低")  # noqa: E701, E702
                     score += max(0, min(cons_low - 1, 5)) * 1.0
 
                     # 3) 健康分（与 _score_for_picker 统一走 _rsi14_health_score 单一真理源；锐评 R6）
                     rsi14 = latest["rsi14"]
                     h_score = _rsi14_health_score(rsi14)
-                    if 40 <= rsi14 <= 60: reasons.append("RSI14健康")
-                    elif 30 <= rsi14 < 40: reasons.append("RSI14回踩")
-                    elif 60 < rsi14 <= 70: reasons.append("RSI14强势")
-                    elif 70 < rsi14 <= 92: reasons.append("RSI14强趋势")
-                    elif 25 <= rsi14 < 30: reasons.append("RSI14偏低")
+                    if 40 <= rsi14 <= 60: reasons.append("RSI14健康")  # noqa: E701
+                    elif 30 <= rsi14 < 40: reasons.append("RSI14回踩")  # noqa: E701
+                    elif 60 < rsi14 <= 70: reasons.append("RSI14强势")  # noqa: E701
+                    elif 70 < rsi14 <= 92: reasons.append("RSI14强趋势")  # noqa: E701
+                    elif 25 <= rsi14 < 30: reasons.append("RSI14偏低")  # noqa: E701
                     # 近 5 天是否有过 RSI14 > 75（严重超买则扣分，与主路径一致）
                     recent_overbought = _rsi14_overbought(recent_10)
                     if recent_overbought >= 2:
@@ -1172,9 +1172,9 @@ class Backtester:
 
                     # 4) 量能分
                     vol_r = latest["volume"] / latest["vol_ma20"] if latest.get("vol_ma20", 0) > 0 else 1.0
-                    if vol_r >= 1.5: score += 15; reasons.append("显著放量")
-                    elif vol_r >= 1.2: score += 10; reasons.append("放量")
-                    elif vol_r >= 0.8: score += 6; reasons.append("量能温和")
+                    if vol_r >= 1.5: score += 15; reasons.append("显著放量")  # noqa: E701, E702
+                    elif vol_r >= 1.2: score += 10; reasons.append("放量")  # noqa: E701, E702
+                    elif vol_r >= 0.8: score += 6; reasons.append("量能温和")  # noqa: E701, E702
 
                     # 分段上限合计 125（趋势50+超跌40+健康20+量能15），封顶 [0,100]，
                     # 避免 candidate["score"] 出现「评分 125/100」并污染排序/展示。

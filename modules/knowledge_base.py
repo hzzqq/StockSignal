@@ -21,10 +21,10 @@
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: UP035
 
 # ── 知识条目库（8 大类，随迭代扩充；内容为通识金融知识 + 项目真实口径） ──────
-_KB: List[Dict[str, Any]] = [
+_KB: List[Dict[str, Any]] = [  # noqa: UP006
     # ── concept：金融概念 ──
     {"id": "concept_pe", "cat": "concept", "kw": ["市盈率", "PE", "pe", "估值"],
      "title": "市盈率（PE）",
@@ -170,12 +170,12 @@ def _norm(q: str) -> str:
     return (q or "").strip().lower()
 
 
-def search(question: str) -> Optional[Dict[str, Any]]:
+def search(question: str) -> Optional[Dict[str, Any]]:  # noqa: UP006, UP045
     """知识库检索：返回 {'entry': 条目, 'score': 得分} 或 None（未命中）。"""
     q = _norm(question)
     if not q:
         return None
-    best: Optional[Dict[str, Any]] = None
+    best: Optional[Dict[str, Any]] = None  # noqa: UP006, UP045
     for entry in _KB:
         score = 0
         for kw in entry["kw"]:
@@ -190,7 +190,7 @@ def search(question: str) -> Optional[Dict[str, Any]]:
     return best
 
 
-def answer(question: str) -> Optional[str]:
+def answer(question: str) -> Optional[str]:  # noqa: UP045
     """知识库问答：命中返回渲染后的 Markdown 解释；未命中返回 None。"""
     hit = search(question)
     if not hit:
@@ -201,7 +201,7 @@ def answer(question: str) -> Optional[str]:
     return f"### 📘 {e['title']}\n\n{e['content']}{rel_line}"
 
 
-def _score_entry(entry: Dict[str, Any], q: str) -> int:
+def _score_entry(entry: Dict[str, Any], q: str) -> int:  # noqa: UP006
     """条目打分（标题词 2 分 / 关键词 1 分）。"""
     score = 0
     for kw in entry["kw"]:
@@ -210,7 +210,7 @@ def _score_entry(entry: Dict[str, Any], q: str) -> int:
     return score
 
 
-def compose(question: str, top_k: int = 3) -> Optional[str]:
+def compose(question: str, top_k: int = 3) -> Optional[str]:  # noqa: UP045
     """RAG 式多片段合成（T-271）：检索 top_k 相关条目，合并为一条结构化回答。
 
     与 answer() 的区别：answer 只取 top-1；compose 把多个相关条目按
@@ -245,9 +245,9 @@ def compose(question: str, top_k: int = 3) -> Optional[str]:
     return "\n\n".join(parts)
 
 
-def stats() -> Dict[str, Any]:
+def stats() -> Dict[str, Any]:  # noqa: UP006
     """知识库自省（供 FastAPI /api/ai/knowledge/stats 与测试）。"""
-    cats: Dict[str, int] = {}
+    cats: Dict[str, int] = {}  # noqa: UP006
     for e in _KB:
         cats[e["cat"]] = cats.get(e["cat"], 0) + 1
     return {"entries": len(_KB), "categories": cats}

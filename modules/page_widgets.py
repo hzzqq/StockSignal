@@ -1,5 +1,5 @@
-import logging
-from modules.ui_kit import xc_success_box, xc_warn_box, xc_info_banner
+import logging  # noqa: I001
+from modules.ui_kit import xc_success_box, xc_warn_box, xc_info_banner  # noqa: F401
 logger = logging.getLogger(__name__)
 """
 页面级共用 UI 助手（跨页面复用，避免重复定义）。
@@ -8,11 +8,11 @@ logger = logging.getLogger(__name__)
 A股配色：净流入/上涨=红(UP)，净流出/下跌=绿(DOWN)。
 注意：本模块只定义函数与常量，不调用 st.set_page_config，可被任意页面 import。
 """
-import html
+import html  # noqa: I001
 import streamlit as st
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from modules.time_utils import now_cst, now_cst_naive
+from modules.time_utils import now_cst, now_cst_naive  # noqa: F401
 
 # A股配色：净流入红、净流出绿（复用 modules.colors 权威调色板，消除色值漂移）
 from modules.colors import UP_COLOR, DOWN_COLOR

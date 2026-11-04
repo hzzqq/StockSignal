@@ -16,7 +16,7 @@ TTL 缓存、网络失败兜底空 DataFrame，避免页面红错。
 适配项目亮/暗主题（自包含 _fig_base，与 F_资金流向 / margin_trading 配色一致）。
 A股配色：净流入 / 涨 = 红，净流出 / 跌 = 绿。
 """
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone  # noqa: I001
 import logging
 import numpy as np
 
@@ -63,7 +63,7 @@ def now_cst_str(fmt: str = "%Y-%m-%d") -> str:
     return now_cst().strftime(fmt)
 
 # A股配色：净流入/涨=红、净流出/跌=绿（复用 modules.colors 权威调色板，消除色值漂移）
-from modules.colors import UP_COLOR, DOWN_COLOR
+from modules.colors import UP_COLOR, DOWN_COLOR  # noqa: I001
 UP = UP_COLOR      # 红（流入 / 涨）
 DOWN = DOWN_COLOR  # 绿（流出 / 跌）
 
@@ -795,7 +795,7 @@ def get_industry_index_series(top_n=8, days=120):
         if not frames:
             return pd.DataFrame()
         base = None
-        for nm, s in frames.items():
+        for nm, s in frames.items():  # noqa: B007
             base = s if base is None else base.merge(s, on="date", how="outer")
         base = base.sort_values("date").reset_index(drop=True)
         if len(base) > days:
@@ -895,7 +895,7 @@ def get_etf_series(days=180):
         if not frames:
             return pd.DataFrame()
         base = None
-        for code, s in frames.items():
+        for code, s in frames.items():  # noqa: B007
             base = s if base is None else base.merge(s, on="date", how="outer")
         base = base.sort_values("date").reset_index(drop=True)
         if len(base) > days:

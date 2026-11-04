@@ -11,14 +11,14 @@
 - 看板只读本地文件、不触网；陈旧源的「刷新命令」由 modules.data_health.build_refresh_plan
   生成（联网/跨仓命令在真机/CI 才会真正跑通，本页只展示，不伪造执行结果）。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 
 import streamlit as st
 
 from modules.page_utils import render_standard_page
-from modules.ui_kit import xc_bento_kpi, stat_tile, xc_info_banner
+from modules.ui_kit import xc_bento_kpi, stat_tile, xc_info_banner  # noqa: F401
 from modules import data_health as dh
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def _source_card(row: dict) -> dict:
 
 
 def main():
-    dark = render_standard_page(title="数据时效性 SLA 看板", icon="🔭", layout="wide")
+    dark = render_standard_page(title="数据时效性 SLA 看板", icon="🔭", layout="wide")  # noqa: F841
 
     # 落一条观测，积累"最后推进日"历史（停更检测依赖历史）
     try:

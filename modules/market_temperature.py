@@ -12,11 +12,11 @@
 温度是**描述性**指标（市场当前冷热），不声称预测能力；极端区信号仅「恐慌出清后反弹」
 这一条有统计依据，其余时刻明确弃权。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 
-import numpy as np
+import numpy as np  # noqa: F401
 import pandas as pd
 
 from modules import shepherd

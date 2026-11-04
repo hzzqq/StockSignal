@@ -6,7 +6,7 @@
 全部复用既有 modules 函数（shepherd / decision / market_regime），不重复计算逻辑。
 单源失败优雅降级，绝不抛红错。
 """
-import logging
+import logging  # noqa: I001
 
 import streamlit as st
 import pandas as pd

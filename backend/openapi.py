@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """
 backend/openapi.py — OpenAPI 3.0 规范生成器（T-159 骨架）
 
@@ -17,12 +17,12 @@ backend/openapi.py — OpenAPI 3.0 规范生成器（T-159 骨架）
 from __future__ import annotations
 
 import re
-from typing import Any, Dict
+from typing import Any, Dict  # noqa: UP035
 
 from flask import Flask, jsonify
 
 # bp 名 → tag 分组（endpoint 前缀）。查不到的 bp 用通用名兜底，绝不丢端点。
-TAGS: Dict[str, Dict[str, str]] = {
+TAGS: Dict[str, Dict[str, str]] = {  # noqa: UP006
     "auth": {"name": "Auth", "description": "登录 / 注册 / token 续期 / 会话"},
     "dashboard": {"name": "Dashboard", "description": "看板聚合数据"},
     "admin": {"name": "Admin", "description": "后台管理（admin_required）"},
@@ -68,9 +68,9 @@ def _param_schema(flask_rule: str) -> list:
     return params
 
 
-def build_spec(app: Flask) -> Dict[str, Any]:
+def build_spec(app: Flask) -> Dict[str, Any]:  # noqa: UP006
     """从 app.url_map 动态生成 OpenAPI 3.0.3 spec。输出键序稳定（便于 diff）。"""
-    paths: Dict[str, Any] = {}
+    paths: Dict[str, Any] = {}  # noqa: UP006
     for rule in app.url_map.iter_rules():
         if rule.rule in ("/api/openapi.json", "/api/docs"):
             continue  # 文档自举端点不进 paths
@@ -80,12 +80,12 @@ def build_spec(app: Flask) -> Dict[str, Any]:
         bp = endpoint.split(".", 1)[0] if "." in endpoint else ""
         tag_meta = TAGS.get(bp)
         tag_name = tag_meta["name"] if tag_meta else (bp.capitalize() or "Root")
-        methods = sorted(rule.methods - {"HEAD", "OPTIONS"})
+        methods = sorted((rule.methods or set()) - {"HEAD", "OPTIONS"})
         if not methods:
             continue
         node = paths.setdefault(_openapi_path(rule.rule), {})
         for m in methods:
-            op: Dict[str, Any] = {
+            op: Dict[str, Any] = {  # noqa: UP006
                 "tags": [tag_name],
                 "summary": f"{m.upper()} {rule.endpoint}",
                 "responses": {

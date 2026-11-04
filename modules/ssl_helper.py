@@ -10,7 +10,7 @@ patch `requests`，其中行情看板 `_load_lhb` 曾把模块级 `requests.get`
 `requests.Session.request`（覆盖 requests.get / Session.get / akshare 内部所有走
 Session 的请求），避免全局污染。所有需要临时关闭 SSL 校验的地方都应改用它。
 """
-import contextlib
+import contextlib  # noqa: I001
 import os
 import logging
 
@@ -30,7 +30,7 @@ def ssl_bypass():
     patch 的是 `requests.Session.request`（而非 `requests.get`），因为 akshare
     内部大量调用走 Session.request；只 patch requests.get 覆盖不全。
     """
-    import urllib3
+    import urllib3  # noqa: I001
     import requests
 
     if os.environ.get("STOCKSIGNAL_SSL_BYPASS") != "1":

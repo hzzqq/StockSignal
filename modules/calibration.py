@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """
 modules/calibration.py — 用回测数据反向校准「情绪周期 → 仓位调节」刻度
 
@@ -35,7 +35,7 @@ modules/calibration.py — 用回测数据反向校准「情绪周期 → 仓位
 from __future__ import annotations
 
 import logging
-import os
+import os  # noqa: F401
 
 from modules import decision_track as _track
 
@@ -210,7 +210,7 @@ def apply_patch(strong_samples: int = DEFAULT_STRONG_SAMPLES,
 
     # 真正写：只替换 CYCLE_ADJ 字面量中各键的值，保留其余文件与注释（不 ast.unparse 整文件）
     try:
-        import re
+        import re  # noqa: I001
         import shutil
         from datetime import datetime as _dt
         from modules import decision as _dec

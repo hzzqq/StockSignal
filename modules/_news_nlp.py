@@ -1,5 +1,5 @@
 # ── 依赖 _news_io 中定义的标志/常量/日志器 ──
-from modules._news_io import (                  # noqa: F401
+from modules._news_io import (  # noqa: F401, I001
     logger, _JIEBA_OK, _SNOW_OK,
     POSITIVE_WORDS, NEGATIVE_WORDS, STOP_WORDS,
 )
@@ -246,7 +246,7 @@ class NewsDeduplicator:
 
             # 慢速路径：相似标题
             is_dup = False
-            for prev_fp, prev_title in seen_titles_similar:
+            for prev_fp, prev_title in seen_titles_similar:  # noqa: B007
                 sim = self._jaccard_similarity(title, prev_title)
                 if sim >= self.threshold:
                     is_dup = True

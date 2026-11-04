@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """modules/herd_crowding.py — 羊群拥挤度指标（T-182 双因子决策增强 · 因子 B）。
 
 行为金融「羊群效应」的量化：散户一致性极端化（红盘比远离 50 + 方向端

@@ -11,12 +11,12 @@
 每个区块独立取数（safe_section 隔离），单源失败不影响其它模块。
 支持按类型筛选、标记已读、点击跳转到对应模块。
 """
-import logging
+import logging  # noqa: I001
 
 import streamlit as st
 from datetime import datetime
 import math
-import concurrent.futures as _cf  # kept for potential other uses; main fetch uses fetch_parallel
+import concurrent.futures as _cf  # kept for potential other uses; main fetch uses fetch_parallel  # noqa: F401
 
 from modules.page_utils import render_standard_page
 from modules.page_utils import fmt_rel as _fmt_rel
@@ -26,10 +26,10 @@ from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: 收敛到�
 from modules.page_guard import safe_section, render_data_degradation_banner
 
 logger = logging.getLogger(__name__)
-from modules.page_widgets import UP, DOWN
+from modules.page_widgets import UP, DOWN  # noqa: I001
 from modules.format_helpers import extract_pct
 
-from modules.ui_kit import stat_tile, xc_success_box, xc_warn_box, xc_info_banner
+from modules.ui_kit import stat_tile, xc_success_box, xc_warn_box, xc_info_banner  # noqa: F401
 dark = render_standard_page(
     title="消息 / 通知中心", icon="🔔",
     caption="聚合自选股异动、社区动态与系统状态；各模块独立取数，互不干扰。",

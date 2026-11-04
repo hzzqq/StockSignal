@@ -3,7 +3,7 @@
 抽离自 pages/20_个股分析.py 的 _fr_* 函数，独立成模块以便单元测试覆盖，
 避免"仅凭 import 不崩"的伪绿测试。本模块零业务依赖，只引用 modules.colors。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 
@@ -176,7 +176,7 @@ def fr_period_label(period: str) -> str:
     return f"{year}{suffix}" if suffix else p
 
 
-def fr_build_history(period_rows) -> "pd.DataFrame":
+def fr_build_history(period_rows) -> "pd.DataFrame":  # noqa: UP037
     """把「多个报告期 → 各期该股单行」的结果合并为横向历史对比表。
 
     参数 period_rows：可迭代的 (period, row) —— period 形如 '20251231'，
@@ -259,5 +259,5 @@ def fr_expand_rows(df, metric: str = "净利润"):
     与 ``fr_history_metrics`` 同源，仅排序方向相反（用户视角先看最新）。
     """
     x, y, yoy = fr_history_metrics(df, metric)
-    rows = list(zip(x, y, yoy))
+    rows = list(zip(x, y, yoy))  # noqa: B905
     return rows[::-1]

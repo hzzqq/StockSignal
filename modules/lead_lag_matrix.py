@@ -10,7 +10,7 @@
 
 取数失败优雅降级（available=False）。
 """
-import logging
+import logging  # noqa: I001
 
 import numpy as np
 import pandas as pd

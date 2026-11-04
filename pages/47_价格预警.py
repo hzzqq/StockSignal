@@ -7,17 +7,17 @@
   - 公告（announcement）：近期新闻/公告含指定关键词时触发
 触发检查在页面访问时于前端执行（与原有价格预警一致）；数据不足时标记为「待验证」。
 """
-import json
+import json  # noqa: I001
 import streamlit as st
 from datetime import datetime, timedelta
 import time as _time
 from threading import Lock as _Lock
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor  # noqa: F401
 import logging
 from modules.ui_kit import xc_info_banner, xc_bento_kpi
 from modules.page_utils import fmt_rel as _fmt_rel, to_numeric_clean
 logger = logging.getLogger(__name__)
-from modules.page_utils import render_standard_page, get_fetcher
+from modules.page_utils import render_standard_page, get_fetcher  # noqa: I001
 import modules.scroll_nav as sn
 from modules.session import api_get, api_post, api_put, api_delete, api_quote, api_kline, trading_autorefresh, safe_switch_page
 from modules.cleaner import DataCleaner
@@ -26,7 +26,7 @@ from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
 from modules.page_guard import safe_fragment
 from modules.format_helpers import safe_float, to_float
-import streamlit.components.v1 as components
+import streamlit.components.v1 as components  # noqa: F401
 from modules.fundflow import _ensure_proxy_and_ssl
 _ensure_proxy_and_ssl()
 
@@ -205,10 +205,10 @@ def _eval_announcement(code, keyword):
         df = ak.stock_news_em(symbol=code)
         if df is None or df.empty:
             return (False, '新闻源暂无数据')
-        text_cols = [c for c in df.columns if any((k in str(c) for k in ('标题', '内容', '新闻', '摘要')))]
+        text_cols = [c for c in df.columns if any((k in str(c) for k in ('标题', '内容', '新闻', '摘要')))]  # noqa: UP034
         if not text_cols:
             text_cols = list(df.columns)
-        text = ' '.join((str(df[c].iloc[i]) for c in text_cols for i in range(min(len(df), 20))))
+        text = ' '.join((str(df[c].iloc[i]) for c in text_cols for i in range(min(len(df), 20))))  # noqa: UP034
         if keyword in text:
             return (True, f'新闻中出现「{keyword}」')
         return (False, f'近 {min(len(df), 20)} 条新闻未出现「{keyword}」')

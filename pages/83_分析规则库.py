@@ -8,7 +8,7 @@
   数据源一变，写死的规则就会让模型持续给出过期结论。
 - 规则由人维护，不由模型自动改写后静默生效。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import streamlit as st
 

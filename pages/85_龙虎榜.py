@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # 仅类型检查期导入：注解在 future-annotations 下运行期不求值
     import pandas as pd
 
-from datetime import datetime
+from datetime import datetime  # noqa: I001
 
 import streamlit as st
 

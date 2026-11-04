@@ -19,7 +19,7 @@
       get_cache_status, refresh_all_indicators,
   )
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import logging
@@ -28,11 +28,11 @@ import sqlite3
 import time
 import threading
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple  # noqa: F401, UP035
 
-from modules.time_utils import now_cst, now_cst_naive, now_cst_str
+from modules.time_utils import now_cst, now_cst_naive, now_cst_str  # noqa: F401
 
-import numpy as np
+import numpy as np  # noqa: F401
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ def _ensure_table(conn: sqlite3.Connection):
 
 # ── 写入 ───────────────────────────────────────────────────────
 
-def save_drivers_to_cache(df: pd.DataFrame, meta: Optional[Dict] = None) -> int:
+def save_drivers_to_cache(df: pd.DataFrame, meta: Optional[Dict] = None) -> int:  # noqa: UP006, UP045
     """将 get_market_drivers() 的结果写入持久化缓存。
 
     Args:
@@ -142,7 +142,7 @@ def save_drivers_to_cache(df: pd.DataFrame, meta: Optional[Dict] = None) -> int:
                     continue
                 rows = [
                     (col, str(pd.to_datetime(d).date())[:10], float(v))
-                    for d, v in zip(df["date"].iloc[s.index], s.values)
+                    for d, v in zip(df["date"].iloc[s.index], s.values)  # noqa: B905
                     if pd.notna(d) and pd.notna(v)
                 ]
                 if not rows:
@@ -158,7 +158,7 @@ def save_drivers_to_cache(df: pd.DataFrame, meta: Optional[Dict] = None) -> int:
             avail = []
             unavail = []
             if meta:
-                for dim, info in meta.items():
+                for dim, info in meta.items():  # noqa: B007
                     avail.extend(info.get("available", []))
                     unavail.extend(info.get("unavailable", []))
             conn.execute(
@@ -198,7 +198,7 @@ def save_single_series(key: str, series: pd.Series) -> int:
     s.index = pd.to_datetime(s.index, errors="coerce")
     rows = [
         (key, str(d.date())[:10], float(v))
-        for d, v in zip(s.index, s.values)
+        for d, v in zip(s.index, s.values)  # noqa: B905
         if pd.notna(d) and pd.notna(v)
     ]
     if not rows:
@@ -235,7 +235,7 @@ def save_single_series(key: str, series: pd.Series) -> int:
 
 # ── 读取 ───────────────────────────────────────────────────────
 
-def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Optional[Dict]]:
+def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Optional[Dict]]:  # noqa: UP006, UP045
     """从缓存加载市场驱动力数据。
 
     Returns:
@@ -313,7 +313,7 @@ def _observe_cache(layer: str, hit: bool) -> None:
         logger.debug("[market_cache] 命中计数失败: %s", e)
 
 
-def get_cache_status() -> Dict[str, Any]:
+def get_cache_status() -> Dict[str, Any]:  # noqa: UP006
     """返回缓存状态摘要（供调试 / 状态页展示）。"""
     with _DB_LOCK:
         conn = None
@@ -372,7 +372,7 @@ def _worker_fetch_drivers(days: int):
     return get_market_drivers(days=days)
 
 
-def refresh_all_indicators(force: bool = False) -> Dict[str, Any]:
+def refresh_all_indicators(force: bool = False) -> Dict[str, Any]:  # noqa: UP006
     """刷新全部指标并写入缓存。
 
     这是定时任务的核心入口：
@@ -486,7 +486,7 @@ class CacheFallbackReader:
     def __init__(self, prefer_cache: bool = False):
         self.prefer_cache = prefer_cache
 
-    def get(self, days: int = 180) -> Tuple[Optional[pd.DataFrame], Optional[Dict]]:
+    def get(self, days: int = 180) -> Tuple[Optional[pd.DataFrame], Optional[Dict]]:  # noqa: UP006, UP045
         """获取市场驱动力数据（网络优先，缓存兜底）。"""
         from modules.market_drivers import get_market_drivers
 

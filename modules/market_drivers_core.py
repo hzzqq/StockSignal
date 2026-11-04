@@ -5,7 +5,7 @@ R-07 委托共享 TTL 缓存层（cache_utils._CACHE / _CACHE_LOCK / cached_ttl�
 _cached_swr / _kick_refresh 仍直接操作 _CACHE / _CACHE_LOCK（SWR 专属语义保留）。
 零业务逻辑改动：源码自 ``modules/market_drivers.py`` 原样搬运。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 import os

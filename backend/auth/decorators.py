@@ -3,7 +3,7 @@ auth/decorators.py
 ------------------
 JWT 校验 + 角色校验装饰器。失败抛 ApiError，由全局 handler 转 JSON。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 from functools import wraps
 from flask import request, g
 from jwt import PyJWTError
@@ -31,7 +31,7 @@ def jwt_required(fn):
             payload = decode_token(token)
         except PyJWTError:
             # 防御性：service 层已经处理过，这里再兜一次
-            raise AuthError("无效的登录凭证", code="invalid_token")
+            raise AuthError("无效的登录凭证", code="invalid_token")  # noqa: B904
 
         user = User.query.filter_by(username=payload.get("sub")).first()
         if user is None or not user.is_active:

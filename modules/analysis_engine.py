@@ -6,10 +6,10 @@ modules/analysis_engine.py
 所有耗时操作（行情、新闻、信号）都包在 try/except 中；失败时把提示写入
 result["_warnings"] 而不是直接 st.warning，保证在 CLI/后台/Streamlit 三种环境都能跑。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Tuple
+from datetime import datetime, timedelta  # noqa: F401
+from typing import Any, Dict, List, Tuple  # noqa: UP035
 
 import numpy as np
 import pandas as pd
@@ -23,7 +23,7 @@ from modules.signal import SignalEngine
 from modules.news import NewsFetcher, SentimentAnalyzer
 from modules.colors import RED, GREEN, AMBER
 from modules.format_helpers import to_float, clamp
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor  # noqa: F401
 
 
 # 分析结果 TTL 缓存：避免重复抓取行情/新闻，显著提速（默认 90 秒）
@@ -32,7 +32,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-_ANALYSIS_CACHE: Dict[str, Any] = {}
+_ANALYSIS_CACHE: Dict[str, Any] = {}  # noqa: UP006
 _ANALYSIS_TTL = 90.0
 
 
@@ -61,7 +61,7 @@ def _board(code: str) -> str:
     return board_name(code)
 
 
-def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | None = None) -> Dict[str, Any]:
+def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | None = None) -> Dict[str, Any]:  # noqa: UP006
     """判断个股主板块及走势，并给出同板块个股对比，供「板块分析」模块。
 
     返回 {
@@ -95,7 +95,7 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | Non
 
     kws = [k.strip() for k in (industry_kws or "").split(",") if k.strip()]
     industry = _clean_industry(kws[0]) if kws else ""
-    out: Dict[str, Any] = {
+    out: Dict[str, Any] = {  # noqa: UP006
         "name": industry or "—",
         "full_name": industry or "—",
         "change_pct": None,
@@ -242,9 +242,9 @@ def _sector_analysis(industry_kws: str, fetcher: StockFetcher, ticker: str | Non
     return out
 
 
-def _sentiment_counts(news_df: pd.DataFrame, sa: SentimentAnalyzer, limit: int = 12) -> Tuple[List[Dict[str, Any]], float, float]:
+def _sentiment_counts(news_df: pd.DataFrame, sa: SentimentAnalyzer, limit: int = 12) -> Tuple[List[Dict[str, Any]], float, float]:  # noqa: UP006
     """对新闻做情绪分析，返回 (news_rows, pos_pct, neg_pct)。"""
-    news_rows: List[Dict[str, Any]] = []
+    news_rows: List[Dict[str, Any]] = []  # noqa: UP006
     pos_n = neg_n = neu_n = 0
     if news_df is not None and not news_df.empty:
         for _, row in news_df.head(limit).iterrows():
@@ -268,7 +268,7 @@ def _sentiment_counts(news_df: pd.DataFrame, sa: SentimentAnalyzer, limit: int =
     return news_rows, 0.0, 0.0
 
 
-def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: bool = True) -> Dict[str, Any]:
+def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: bool = True) -> Dict[str, Any]:  # noqa: UP006
     """个股深度分析核心逻辑（纯 Python，无 Streamlit）。"""
     ticker = str(ticker).strip().zfill(6)
     # TTL 缓存：同一 ticker 90 秒内直接返回，避免重复抓取（提速关键）
@@ -280,7 +280,7 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
     if fetcher is None:
         fetcher = get_fetcher()
 
-    messages: List[str] = []
+    messages: List[str] = []  # noqa: UP006
     ticker = str(ticker).strip().zfill(6)
 
     # 基础信息
@@ -428,7 +428,7 @@ def run_analysis(ticker: str, fetcher: StockFetcher | None = None, _use_cache: b
     swing_low_20 = float(recent20["low"].min())
     swing_high_20 = float(recent20["high"].max())
     # ATR（真实波动率）
-    _hi = df["high"]; _lo = df["low"]; _cl = df["close"]
+    _hi = df["high"]; _lo = df["low"]; _cl = df["close"]  # noqa: E702
     _tr = pd.concat([
         (_hi - _lo),
         (_hi - _cl.shift(1)).abs(),

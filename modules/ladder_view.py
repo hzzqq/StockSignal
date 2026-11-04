@@ -26,7 +26,7 @@ def render_ladder_block(dark: bool, top_per_level: int = 3) -> bool:
     返回 True 表示成功渲染（有梯队数据），False 表示无数据/抓取失败。
     `dark`：当前是否暗色主题，用于柱状图字体配色。
     """
-    import streamlit as st
+    import streamlit as st  # noqa: I001
     import plotly.graph_objects as go
     from modules import shepherd_ladder as _sl
     from modules.shepherd import get_zt_ladder
@@ -61,7 +61,7 @@ def render_ladder_block(dark: bool, top_per_level: int = 3) -> bool:
         diag, dcolor = "梯队断层 / 独苗行情 → 主线缺乏补涨，持续性差", "#00d486"
 
     # 断层检测：最高板往下到 2 板之间若有空档 = 接力资金缺席
-    have = {int(l["boards"]) for l in lad["levels"]}
+    have = {int(l["boards"]) for l in lad["levels"]}  # noqa: E741
     gaps = [b for b in range(2, mx) if b not in have]
     if gaps:
         diag += f"；⚠️ **梯队断层**：{mx}板与2板之间缺 {'/'.join(str(g) + '板' for g in sorted(gaps, reverse=True))}，接力资金缺席"

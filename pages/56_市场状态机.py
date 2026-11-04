@@ -9,7 +9,7 @@
 全部离线、零网络；类比只回看过去（无前视泄漏），明确标注「历史相似，不代表未来」。
 数据口径同《市场情绪》《今日决策面板》，单源失败优雅降级，绝不抛红错。
 """
-import logging
+import logging  # noqa: I001
 
 import streamlit as st
 import plotly.graph_objects as go

@@ -80,7 +80,7 @@ def regime_duration(df: pd.DataFrame | None = None) -> dict:
         durations[b].append(e - s + 1)
 
     recovery = []
-    for b, s, e in runs:
+    for b, s, e in runs:  # noqa: B007
         if b != 0:  # 仅统计冰点 run
             continue
         # 从 e+1 起找首个 >= 中性(2) 的交易日

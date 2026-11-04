@@ -18,18 +18,18 @@
 
 铁律：UI-only；fragment 内无整页 st.rerun；A股红涨绿跌；信号灯语义独立。
 """
-import os
+import os  # noqa: F401, I001
 from pathlib import Path
 
 import streamlit as st
 
 from modules.page_utils import render_standard_page
-from modules.session import safe_switch_page, _rel_time, get_token
+from modules.session import safe_switch_page, _rel_time, get_token  # noqa: F401
 from modules.widgets import _NAV_GROUPS
 from modules.page_widgets import _section_title, _empty_info
 from modules.page_guard import safe_fragment
 
-from modules.ui_kit import xc_info_banner, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_info_banner, xc_success_box, xc_warn_box  # noqa: F401
 dark = render_standard_page(
     title="新手教程 · 5 分钟玩转 StockSignal", icon="📘",
     caption="本页帮你快速上手：三步完成首次操作、认识各模块、看懂术语与常见疑问。看完即可独立使用本平台。",
@@ -295,7 +295,7 @@ def fragment_video():
                 "你可先阅读下面的「文字版分步漫游」，或在终端运行视频生成后刷新本页。")
 
     with st.expander("🗺️ 文字版分步漫游（配合 HTML 漫游 artifact 食用更佳）", expanded=False):
-        for i, (t, d) in enumerate([
+        for i, (t, d) in enumerate([  # noqa: B007
             ("第 1 步 · 认识首页", "登录后进入首页，看到「功能模块」分组卡片与「最近浏览」。点任意卡片进入对应模块。"),
             ("第 2 步 · 看盘", "《行情看板》顶部是指数迷你卡（上证/深证/创业等），下方是行业板块涨跌榜与龙虎榜，点板块可展开明细。"),
             ("第 3 步 · 选股与研究", "《个股研究》搜股票代码/名称 → 看 K 线（可拖动缩放）、技术面分析、给股票打分，并加入自选或垃圾股。"),

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """
 清理 StockSignal 本地缓存，避免 data/ 无限膨胀（shepherd_cache 曾占 317M / 5547 个文件）。
 
@@ -22,7 +22,7 @@ DEFAULT_CACHE_DIR = HERE / "data" / "shepherd_cache"
 DB_FILES = ["cache.db", "market_cache.db", "news.db"]
 V2_CACHE_DIR = HERE / "data" / "shepherd_cache_v2"
 
-import sys  # noqa: E402
+import sys  # noqa: E402, I001
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 from modules.cache_maintenance import run_cache_maintenance  # noqa: E402

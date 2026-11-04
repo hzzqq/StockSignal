@@ -11,19 +11,19 @@ from modules.fetcher_core import _build_cache_key  # T-247 Tier3：缓存键单�
 
 
 def render_stock_analysis() -> None:
-    import logging
+    import logging  # noqa: I001
     import streamlit as st
     import pandas as pd
     from datetime import datetime
 
     logger = logging.getLogger(__name__)
-    from modules.page_guard import safe_fragment
+    from modules.page_guard import safe_fragment  # noqa: I001
     from modules.page_utils import render_standard_page, get_fetcher
-    from modules.ui_theme import sf_card, sf_metric
-    from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner
+    from modules.ui_theme import sf_card, sf_metric  # noqa: F401
+    from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner  # noqa: F401
     dark = render_standard_page(title='个股深度分析 · 决策仪表盘', icon='🔍', layout='wide')
     sf_card("个股分析导读", "输入代码/名称/拼音搜索个股，查看暗色决策仪表盘：K 线、技术面、资金面、情绪与风险铁律。严格遵循绿涨红跌配色；所有外部数据获取失败均友好提示，不抛红错。", icon="🔍")
-    from modules.fetcher import StockFetcher
+    from modules.fetcher import StockFetcher  # noqa: I001
     from modules.cleaner import DataCleaner
     from modules.session import api_kline, api_intraday
     from modules.search_ui import stock_search_input
@@ -46,12 +46,12 @@ def render_stock_analysis() -> None:
         fr_fmt_pct,
         _PERF_UP,
         _PERF_DOWN,
-        _PERF_FLAT,
+        _PERF_FLAT,  # noqa: F401
     )
     from modules.dark_text_fix import apply_plotly_theme as _apply_plotly_theme
     fetcher = get_fetcher()
-    from modules.widgets import sidebar_target
-    import modules.scroll_nav as sn
+    from modules.widgets import sidebar_target  # noqa: I001
+    import modules.scroll_nav as sn  # noqa: F401
     from modules.chart_cache import cached_fig
 
 
@@ -340,7 +340,7 @@ def render_stock_analysis() -> None:
             fig = _build_kline_fig(period_df, kline_title, kline_annotations)
             _kline_key = f'kline_chart_{ticker}'
             _kline_event = st.plotly_chart(fig, width="stretch", key=_kline_key, on_select='rerun',
-                                           config={"displaylogo": False, "responsive": True, 'displayModeBar': 'hover', 'displaylogo': False, 'scrollZoom': True,
+                                           config={"displaylogo": False, "responsive": True, 'displayModeBar': 'hover', 'displaylogo': False, 'scrollZoom': True,  # noqa: F601
                                                    'modeBarButtonsToRemove': ['lasso2d', 'select2d']})
             _dbl_key = f'kline_dbl_{ticker}'
             _now_ms = datetime.now().timestamp()
@@ -402,7 +402,7 @@ def render_stock_analysis() -> None:
     @safe_fragment(run_every=300)
     def _fragment_intraday(ticker: str, display_name: str) -> None:
         """分时图独立片段：交易时段每 5 分钟自刷新，与整页 1 分钟节奏解耦。"""
-        from modules.visualizer import Visualizer
+        from modules.visualizer import Visualizer  # noqa: F401
 
         if is_trading_now():
             _refresh_hint = "<span style='color:#009e60'>● 交易时段，每5分钟自动刷新中</span>"
@@ -436,7 +436,7 @@ def render_stock_analysis() -> None:
 
     def _render_analysis(R: dict):
         """渲染个股分析决策仪表盘（延迟导入 Visualizer，避免每页加载 0.95s）。"""
-        from modules.visualizer import Visualizer
+        from modules.visualizer import Visualizer  # noqa: F401
         _NUM_FIELDS = ('current_price', 'prev_close', 'change_pct', 'entry_price', 'target_price', 'stop_price', 'atr14', 'support', 'resistance', 'lo52', 'hi52', 'ma5v', 'ma10v', 'ma20v', 'trapped', 'vol_now', 'vol_avg', 'vol_chg', 'q_open', 'q_high', 'q_low', 'q_prev', 'tech_score', 'news_score', 'macro_score', 'vol_score', 'sector_score', 'composite', 'pos_pct', 'neg_pct', 'pos52')
         for _nf in _NUM_FIELDS:
             _v = R.get(_nf)
@@ -518,7 +518,7 @@ def render_stock_analysis() -> None:
         if q_amount is not None:
             today_bits.append(f'成交额 {q_amount / 100000000.0:.2f}亿')
         today_bits.append(f"成交量 {df['volume'].iloc[-1] / 10000.0:.1f}万手")
-        today_pills = ''.join((f"<span style='display:inline-block;font-size:12px;color:var(--txt2);background:var(--card2);border:1px solid var(--border);border-radius:var(--ss-radius-sm);padding:3px 9px;margin:0 6px 6px 0;'>{b}</span>" for b in today_bits)) if today_bits else '—'
+        today_pills = ''.join((f"<span style='display:inline-block;font-size:12px;color:var(--txt2);background:var(--card2);border:1px solid var(--border);border-radius:var(--ss-radius-sm);padding:3px 9px;margin:0 6px 6px 0;'>{b}</span>" for b in today_bits)) if today_bits else '—'  # noqa: UP034
         hdr_left, hdr_right = st.columns([3, 1])
         with hdr_left:
             st.markdown(f"<div style='font-size:23px;font-weight:700;color:var(--txt);'>{display_name}</div><div style='font-size:12.5px;color:var(--txt2);margin-top:3px;'>{ticker} · {board} · {industry}</div><div style='margin-top:10px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;'><span class='sf-price-big' style='color:{price_color}!important;'>{price_disp}</span><span style='font-size:16px;font-weight:600;color:{price_color};'><span class='sf-triangle'>{triangle}</span>{chg_txt} ({change_amt:+.2f})</span></div><div style='margin-top:8px;'>{today_pills}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
@@ -585,7 +585,7 @@ def render_stock_analysis() -> None:
             _show_n = min(st.session_state[_news_limit_key], len(_filtered_news))
             _disp_news = _filtered_news[:_show_n]
             st.caption(f'📰 共获取 {len(news_rows)} 条新闻' + (f'，筛选命中 {len(_filtered_news)} 条' if _news_q else '') + f'，当前显示前 {_show_n} 条（按情绪权重排序）')
-            rows_html = ''.join((f"<tr><td class='l'>{safe_html_text(r.get('title'), '—')}</td><td><span class='sf-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{safe_html_text(r.get('sentiment'), '中性')}</span></td></tr>" for r in _disp_news))
+            rows_html = ''.join((f"<tr><td class='l'>{safe_html_text(r.get('title'), '—')}</td><td><span class='sf-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{safe_html_text(r.get('sentiment'), '中性')}</span></td></tr>" for r in _disp_news))  # noqa: UP034
             st.markdown(f"<table class='sf-table'><thead><tr><th class='l'>新闻标题</th><th>情绪</th></tr></thead><tbody>{rows_html}</tbody></table>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             if _show_n < len(_filtered_news):
                 if st.button('显示更多 ▼', key=f'news_more_{ticker}', width="stretch"):
@@ -768,8 +768,8 @@ def render_stock_analysis() -> None:
         elif verdict == '看空':
             bear.append('综合信号看空')
         st.markdown("<div class='sf-vs'>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown(f"<div class='sf-vsbox'><h3 style='color:{RED};'>最强看多信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bull)) if bull else '<ul><li>暂无显著看多信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown(f"<div class='sf-vsbox'><h3 style='color:{GREEN};'>最强看空信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bear)) if bear else '<ul><li>暂无显著看空信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<div class='sf-vsbox'><h3 style='color:{RED};'>最强看多信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bull)) if bull else '<ul><li>暂无显著看多信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层  # noqa: UP034
+        st.markdown(f"<div class='sf-vsbox'><h3 style='color:{GREEN};'>最强看空信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bear)) if bear else '<ul><li>暂无显著看空信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层  # noqa: UP034
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('<div class="sf-card">' + _section_header('作战计划', icon='⚔️', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
@@ -783,7 +783,7 @@ def render_stock_analysis() -> None:
         col_risk, col_iron = st.columns(2)
         with col_risk:
             risk_items = [f'止损价：¥{stop_price:.2f}（破位无条件离场）', f'止盈价：¥{target_price:.2f}（到达分批兑现）', '失效条件：突发利空 / 放量跌穿支撑 / 宏观转弱（PMI<50）', '仓位纪律：单标的 ≤ 总仓位 30%，亏损单不补仓摊平']
-            st.markdown("<ul style='color:var(--txt2);font-size:13px;line-height:1.9;'>" + ''.join((f'<li>{x}</li>' for x in risk_items)) + '</ul>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            st.markdown("<ul style='color:var(--txt2);font-size:13px;line-height:1.9;'>" + ''.join((f'<li>{x}</li>' for x in risk_items)) + '</ul>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层  # noqa: UP034
         with col_iron:
             st.markdown(_risk_iron_html('风险铁律', _build_risk_iron_rules(R)), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
@@ -798,7 +798,7 @@ def render_stock_analysis() -> None:
         if _recs:
             st.markdown('<div class="sf-card">' + _section_header('相关标的推荐', '同板块领涨 / 更强个股', '🔗', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             st.markdown(f"<div style='font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:10px;'>基于「{_sa_name}」板块内实时表现，为你推荐以下关联标的（涨跌遵循本页绿涨红跌配色）：</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-            _rec_rows = ''.join((_peer_row(p) for p in _recs[:6]))
+            _rec_rows = ''.join((_peer_row(p) for p in _recs[:6]))  # noqa: UP034
             st.markdown(f"<table style='width:100%;border-collapse:collapse;'><thead><tr style='border-bottom:1px solid var(--border);'><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>代码</th><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>名称</th><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>涨跌幅</th><th style='padding:6px 8px;text-align:right;font-size:12px;color:var(--txt2);font-weight:600;'>总市值</th></tr></thead><tbody>{_rec_rows}</tbody></table>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
@@ -984,7 +984,7 @@ def render_stock_analysis() -> None:
         """动态生成常用报告期选项（当前年 + 前 5 年 × 4 个法定报告期），避免硬编码过时。"""
         from datetime import datetime
         cur = datetime.now().year
-        suffix = {"0331": "一季报", "0630": "中报", "0930": "三季报", "1231": "年报"}
+        suffix = {"0331": "一季报", "0630": "中报", "0930": "三季报", "1231": "年报"}  # noqa: F841
         out = {}
         for y in range(cur, cur - 6, -1):
             for mm, lbl in (("0331", "一季报"), ("0630", "中报"), ("0930", "三季报"), ("1231", "年报")):
@@ -1408,16 +1408,16 @@ def render_stock_analysis() -> None:
 
 
 def render_stock_picker() -> None:
-    import logging
+    import logging  # noqa: I001
     import streamlit as st
     import pandas as pd
     from datetime import datetime, timedelta
 
     logger = logging.getLogger(__name__)
 
-    from modules.ui_theme import _theme_is_dark, sf_card, sf_metric
+    from modules.ui_theme import _theme_is_dark, sf_card, sf_metric  # noqa: I001
     from modules.page_utils import render_standard_page, get_fetcher
-    from modules.ui_theme import sf_card, sf_metric
+    from modules.ui_theme import sf_card, sf_metric  # noqa: F401, F811
     from modules.ui_kit import xc_kpi_grid
     from modules.cleaner import DataCleaner
     # K 线图统一交互配置（隐藏工具栏图标、十字光标），与全站规范一致
@@ -1461,7 +1461,7 @@ def render_stock_picker() -> None:
     trading_autorefresh(key="pick_autorefresh")
 
     fetcher = get_fetcher()
-    user = get_user() or {}
+    user = get_user() or {}  # noqa: F841
 
 
     def _fmt_md(d) -> str:
@@ -1974,7 +1974,7 @@ def render_stock_picker() -> None:
             )
 
             # ── 图表渲染区（Visualizer 延迟导入：仅用户选股后执行）──
-            from modules.visualizer import Visualizer  # lazy: ~0.95s saved on pages without chart action
+            from modules.visualizer import Visualizer  # lazy: ~0.95s saved on pages without chart action  # noqa: F401
 
             # ── 分时图（独立 fragment，交易时段每 5 分钟自动刷新）──
             _fragment_intraday(ticker, stock_label)

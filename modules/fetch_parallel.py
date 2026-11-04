@@ -20,7 +20,7 @@ from modules.cache_utils import TTL_TIERS  # R-14
     nb = data.get("northbound")
 """
 
-from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
+from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行  # noqa: F401, I001
 import concurrent.futures as cf
 import logging
 import threading

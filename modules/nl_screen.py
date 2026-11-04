@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """modules/nl_screen.py — 自然语言选股解析器（仿 i问财「零门槛口语选股」，取长补短）。
 
 把用户的口语化查询（"创业板 市盈率小于30 且 营收增长>20% 的票"）解析成**结构化筛选
@@ -12,7 +12,7 @@
 - 这是"取长补短"：i问财把 2.5 万原子指标做成口语可查；我们取其"零门槛"精神，
   先覆盖最高频的板块/估值/成长/质量维度，留出扩展点（FIELD_ALIASES / BOARD_ALIASES）。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import os
@@ -116,9 +116,9 @@ class QuerySpec:
     """解析结果。all fields 可被 JSON 序列化（页面把它透明展示给用户）。"""
     boards: list[str] = field(default_factory=list)        # 归一化板块语义
     filters: list[dict] = field(default_factory=list)       # [{field, op, value, unit, raw}]
-    sort: Optional[str] = None                              # 排序字段（内部字段名）
+    sort: Optional[str] = None                              # 排序字段（内部字段名）  # noqa: UP045
     sort_dir: str = "desc"                                  # desc/asc
-    limit: Optional[int] = None                            # 取前 N
+    limit: Optional[int] = None                            # 取前 N  # noqa: UP045
     concepts: list[str] = field(default_factory=list)       # 概念/行业关键词（自由词）
     exclude_boards: list[str] = field(default_factory=list)   # 排除板块语义（剔除/非/排除）
     exclude_concepts: list[str] = field(default_factory=list) # 排除概念/名字片段（剔除ST等）
@@ -430,7 +430,7 @@ def load_query_presets(limit: int = 20) -> list:
         _path = _query_presets_path()
         if not os.path.exists(_path):
             return []
-        with open(_path, "r", encoding="utf-8") as _f:
+        with open(_path, "r", encoding="utf-8") as _f:  # noqa: UP015
             _data = json.load(_f)
         if not isinstance(_data, list):
             return []
@@ -465,7 +465,7 @@ def clear_query_presets() -> int:
         if not os.path.exists(_path):
             return 0
         try:
-            with open(_path, "r", encoding="utf-8") as _f:
+            with open(_path, "r", encoding="utf-8") as _f:  # noqa: UP015
                 _old = json.load(_f)
             _n = len(_old) if isinstance(_old, list) else 0
         except Exception:  # noqa: BLE001

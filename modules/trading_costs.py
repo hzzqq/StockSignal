@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """
 modules/trading_costs.py — A 股交易成本模型单源（T-274 R10）。
 

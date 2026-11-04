@@ -3,7 +3,7 @@ pages/92_用户管理.py
 ------------------
 管理员用户管理页面：用户列表 / 创建 / 编辑 / 删除 / 操作日志。
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 from modules.session import init_session_state, require_admin, get_user
 from modules.page_utils import render_standard_page
 from modules.admin_api import get_users, create_user, update_user, delete_user, get_logs

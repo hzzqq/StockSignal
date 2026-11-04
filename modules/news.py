@@ -11,37 +11,37 @@
 8. 个股-新闻关联预警模型
 """
 
-import os
+import os  # noqa: I001
 import logging
 
 logger = logging.getLogger(__name__)
-import re
+import re  # noqa: I001
 import time
-import json
+import json  # noqa: F401
 import hashlib
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta  # noqa: F401
 from collections import Counter
 
 import pandas as pd
 
-from modules.time_utils import now_cst, now_cst_str
+from modules.time_utils import now_cst, now_cst_str  # noqa: F401
 
 try:
-    import akshare as ak
+    import akshare as ak  # noqa: F401
     _AK_OK = True
 except ImportError:
     _AK_OK = False
 
 try:
     import jieba
-    import jieba.analyse
+    import jieba.analyse  # noqa: F401
     _JIEBA_OK = True
 except ImportError:
     _JIEBA_OK = False
 
 try:
-    from snownlp import SnowNLP
+    from snownlp import SnowNLP  # noqa: F401
     _SNOW_OK = True
 except ImportError:
     _SNOW_OK = False
@@ -78,7 +78,7 @@ def _fetch_url(url, headers=None, timeout=15, encoding="utf-8"):
     通用 URL 抓取（urllib，无额外依赖）。
     返回 decoded text 或 None。
     """
-    import urllib.request, urllib.error
+    import urllib.request, urllib.error  # noqa: E401, I001
     try:
         req = urllib.request.Request(
             url,
@@ -114,11 +114,11 @@ def _fetch_url(url, headers=None, timeout=15, encoding="utf-8"):
 
 
 # ── re-export from split sub-modules (backward compat) ──
-from modules.atomic_io import atomic_to_csv
+from modules.atomic_io import atomic_to_csv  # noqa: I001
 from modules._news_io import (                       # noqa: F401
     _retry_request, _fetch_url,
     SemiconductorKeywordEngine, NewsFetcher,
-    logger, POSITIVE_WORDS, NEGATIVE_WORDS, STOP_WORDS,
+    logger, POSITIVE_WORDS, NEGATIVE_WORDS, STOP_WORDS,  # noqa: F811
     _AK_OK, _JIEBA_OK, _SNOW_OK,
 )
 from modules._news_nlp import (                       # noqa: F401

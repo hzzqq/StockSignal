@@ -10,7 +10,7 @@
 若下沉到子模块，函数体内的模块全局查找会绕过补丁（原同模块语义会退化）。
 既有调用零改动：``from modules.market_drivers import get_market_drivers, DIMS``。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 

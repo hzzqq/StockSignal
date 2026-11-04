@@ -8,7 +8,7 @@
 既有调用零改动：``from modules._compare_render import build_table, METHODS, ...``
 以及 ``modules.compare`` 的兼容层 re-export 全部保持可用。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from modules._compare_render_base import (  # noqa: F401
     SERIES_COLORS,

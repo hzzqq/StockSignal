@@ -3,15 +3,15 @@ backend/api/task_routes.py
 --------------------------
 后台任务 REST API：提交 / 查询 / 获取结果。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from typing import Any
 
-from flask import Blueprint, request
+from flask import Blueprint, request  # noqa: F401
 
 from ..auth.decorators import jwt_required
 from ..utils.response import ok, fail
-from ..utils.params import parse_int_param, parse_limit_param, json_body
+from ..utils.params import parse_int_param, parse_limit_param, json_body  # noqa: F401
 from ..tasks.worker import task_worker
 
 bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
@@ -86,10 +86,11 @@ def get_task_timeline(task_id: str):
     两者 ts+message 相同视为重复，取前者（内存 = 更实时）。
     对完全未知 task_id 返回 404；对空 timeline 返回空数组（200）。
     """
-    from backend.tasks.progress_bus import get_events as get_mem_events
+    from backend.tasks.progress_bus import get_events as get_mem_events  # noqa: I001
     from backend.models import AiTimelineEvent, db
+    from typing import Any as _Any, cast as _cast
 
-    mem_events = get_mem_events(task_id)
+    mem_events = _cast(list[dict[str, _Any]], get_mem_events(task_id))
 
     # SQLite 拉取——尽力而为（无表/未建 schema → 空列表，不影响返回）
     db_events: list[dict] = []

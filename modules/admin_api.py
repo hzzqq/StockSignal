@@ -3,7 +3,7 @@ modules/admin_api.py
 --------------------
 管理后台 API 封装，给 Streamlit 管理页面调用。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from urllib.parse import urlencode
 

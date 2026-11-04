@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """Build SkillHub-compliant zip packages from the repo-level skill dirs.
 
 SkillHub rules enforced here:
@@ -8,11 +8,11 @@ SkillHub rules enforced here:
   * zip MUST NOT contain binary files (icons are uploaded separately in the form),
     so we strip png/jpg/etc at packaging time.
 """
-import os
+import os  # noqa: I001
 import re
 import shutil
 import zipfile
-import sys
+import sys  # noqa: F401
 
 REPO_SKILLS = "E:/project/ks/StockSignal/.workbuddy/skills"
 USER_SKILLS = "C:/Users/Administrator/.workbuddy/skills"

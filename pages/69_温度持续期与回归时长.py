@@ -6,7 +6,7 @@
 
 数据边界：仅用 shepherd_history 内部可观测的 red_ratio，无指数/行业/资金流/逐股，不编造。
 """
-import logging
+import logging  # noqa: I001
 
 import plotly.graph_objects as go
 import streamlit as st
@@ -63,7 +63,7 @@ try:
 
         fig = go.Figure(go.Bar(
             x=bands, y=[m if m is not None else 0 for m in meds],
-            text=[f"{m}天 (n={n})" if m is not None else "n=0" for m, n in zip(meds, ns)],
+            text=[f"{m}天 (n={n})" if m is not None else "n=0" for m, n in zip(meds, ns)],  # noqa: B905
             textposition="auto",
             marker_color=["#3b82f6", "#06b6d4", "#22c55e", "#f59e0b", "#ef4444"],
         ))

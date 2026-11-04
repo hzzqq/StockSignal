@@ -19,7 +19,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any  # noqa: F401
 
 __all__ = [
     "concentration",
@@ -53,7 +53,7 @@ def _pearson(a: list, b: list) -> float | None:
     xs, ys = [float(x) for x in a[:n]], [float(y) for y in b[:n]]
     mx = sum(xs) / n
     my = sum(ys) / n
-    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))  # noqa: B905
     sxx = sum((x - mx) ** 2 for x in xs)
     syy = sum((y - my) ** 2 for y in ys)
     if sxx <= 0 or syy <= 0:

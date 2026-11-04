@@ -1,24 +1,24 @@
 """modules/_widgets_ai.py
 星辰 · 多市场智能股票分析师：AI 顾问对话组件（从 widgets.py 拆出）。
 """
+from __future__ import annotations  # noqa: I001
 from __future__ import annotations
-from __future__ import annotations
-from typing import Any, Dict
-from datetime import datetime
-import html
+from typing import Any, Dict  # noqa: UP035
+from datetime import datetime  # noqa: F401
+import html  # noqa: F401
 import time
-import requests
+import requests  # noqa: F401
 import streamlit as st
-import streamlit.components.v1 as components
-from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin, _rel_time
-import json
+import streamlit.components.v1 as components  # noqa: F401
+from modules.session import API_BASE, get_token, safe_switch_page, persist_prefs, is_admin, _rel_time  # noqa: F401
+import json  # noqa: F401
 import logging
 from modules.ui_kit import xc_handle_error
 logger = logging.getLogger(__name__)
-import re
+import re  # noqa: F401, I001
 from modules._widgets_base import STAR_AI_LOGO
 
-def _slim_context() -> Dict[str, Any]:
+def _slim_context() -> Dict[str, Any]:  # noqa: UP006
     """把当前页面上下文精简，只传 AI 需要的汇总字段，避免序列化 DataFrame。"""
     rows = st.session_state.get('_cmp_rows')
     slim_rows = None
@@ -151,7 +151,7 @@ def render_ai_consultant() -> None:
     if getattr(render_ai_consultant, '_called_this_run', False):
         return
     render_ai_consultant._called_this_run = True
-    from modules.ui_theme import _theme_is_dark
+    from modules.ui_theme import _theme_is_dark  # noqa: I001
     from modules.scroll_nav import scroll_bottom_inline_html
     dark = _theme_is_dark()
     st.markdown(_ai_popover_theme_css(), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层

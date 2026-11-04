@@ -4,7 +4,7 @@
 业绩预告（best-effort）与披露日历（best-effort）。数据层见 modules/fundflow.py。
 A股配色：业绩改善(净利润同比>0)=红，下滑=绿。
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 from modules import colors
 import html
 
@@ -21,7 +21,7 @@ from modules.financial_report_helpers import (
     fr_fmt, fr_filter_by_code, fr_color_yoy, fr_format_financial_df,
 )
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, xc_kpi_grid
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, xc_kpi_grid  # noqa: F401
 dark = render_standard_page(
     title="财报与业绩日历", icon="📅",
     caption="按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。",
@@ -62,9 +62,9 @@ def _build_financial_trend_fig(code: str, dark: bool = False):
 
     best-effort：取数失败或字段缺失返回 None，调用方跳过渲染。
     """
-    import pandas as pd
+    import pandas as pd  # noqa: I001
     import plotly.graph_objects as go
-    import plotly.graph_objects as go
+    import plotly.graph_objects as go  # noqa: F811
     try:
         inc = _cached_financial(code, "income")
     except Exception:

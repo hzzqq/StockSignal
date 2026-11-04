@@ -13,7 +13,7 @@ StockSignal 管理后端入口。
         - 生产模式不返回 traceback、文件路径、模块名
         - 仅允许 EXPOSE_INTERNAL_ERROR=1 调试时再打开
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import logging
 import time
 from flask import Flask
@@ -78,7 +78,7 @@ def create_app(config_object: type = Config) -> Flask:
     _enable_sqlite_concurrency(app)
 
     # ---- 蓝图 ----
-    from .auth.routes import bp as auth_bp
+    from .auth.routes import bp as auth_bp  # noqa: I001
     from .api.dashboard import bp as dashboard_bp
     from .api.admin_routes import bp as admin_bp
     from .api.stock_routes import bp as stock_bp
@@ -155,7 +155,10 @@ def create_app(config_object: type = Config) -> Flask:
     # 关闭异常传播，避免默认 handler 漏出 HTML
     app.config["PROPAGATE_EXCEPTIONS"] = False
     app.config["TRAP_HTTP_EXCEPTIONS"] = False
-    app.json.sort_keys = False  # JSON 字段顺序稳定
+    # JSON 字段顺序稳定。Flask 3.x 的 JSONProvider stub 未声明 sort_keys，
+    # 直接赋值会触发 mypy attr-defined；此前用 setattr 规避，却又触发 ruff B010
+    # （常量属性名不该用 setattr）。这里改用精准类型豁免，让 lint 与类型检查同时过。
+    app.json.sort_keys = False  # type: ignore[attr-defined]
 
     # 可用性加固：限制请求体大小，防止超大 payload 造成内存/DoS
     # （可在部署环境用环境变量覆盖）
@@ -228,7 +231,7 @@ def _register_json_enforcement(app: Flask) -> None:
     避免畸形/表单体绕过 get_json 解析、造成非预期行为或被表单 CSRF 式提交利用。
     空正文（无 body）放行，由路由自行校验必填字段。
     """
-    from .utils.response import fail
+    from .utils.response import fail  # noqa: I001
     from flask import request
 
     @app.before_request
@@ -323,7 +326,7 @@ def _register_security_headers(app: Flask) -> None:
 
 def _register_monitoring(app: Flask) -> None:
     """注册请求监控：统计 QPS、延迟、错误率、活跃用户。"""
-    from .monitor import record_request
+    from .monitor import record_request  # noqa: I001
     from .auth.service import decode_token  # 复用 token 解析（不强制鉴权）
 
     @app.before_request

@@ -78,7 +78,7 @@ def _norm_alert(alert) -> dict:
 
 
 def gate_allows(now_ts: float, metric_key: str | None, *,
-                last_global_ts: float = None, last_trigger_ts: dict | None = None,
+                last_global_ts: float | None = None, last_trigger_ts: dict[str, float] | None = None,
                 min_interval: int = MIN_INTERVAL_SECONDS,
                 cooldown: int = PER_TRIGGER_COOLDOWN_SECONDS) -> tuple[bool, str]:
     """配额 + 冷却双闸（纯函数）。返回 ``(是否放行, 原因)``。"""
@@ -86,8 +86,10 @@ def gate_allows(now_ts: float, metric_key: str | None, *,
     lt = _last_trigger_ts if last_trigger_ts is None else last_trigger_ts
     if lg and (now_ts - lg) < min_interval:
         return False, f"全局配额冷却中（距上次 {int(now_ts - lg)}s < {min_interval}s）"
-    if metric_key and lt.get(metric_key) and (now_ts - lt.get(metric_key)) < cooldown:
-        return False, f"同触发源 {metric_key} 冷却中（< {cooldown}s）"
+    if metric_key:
+        _ltk = lt.get(metric_key)
+        if _ltk and (now_ts - _ltk) < cooldown:
+            return False, f"同触发源 {metric_key} 冷却中（< {cooldown}s）"
     return True, "ok"
 
 
@@ -111,7 +113,7 @@ def run_watch_once(*, alert, research_fn=None, persist_fn=None, now=None,
         "citations": res.get("citations", []),
         "limitations": res.get("limitations", []),
         "steps": res.get("steps", []),
-        "created_at": (now or datetime.now(timezone.utc)).isoformat(),
+        "created_at": (now or datetime.now(timezone.utc)).isoformat(),  # noqa: UP017
     }
     if persist_fn is not None:
         try:
@@ -174,7 +176,7 @@ def latest_unprocessed_alert(app):
     避免冷却期过后的同一告警被反复研究（AC-B6 去重）。
     """
     try:
-        from sqlalchemy import select
+        from sqlalchemy import select  # noqa: I001
         from .models import MarketAlert, ResearchRun
         from .extensions import db
         researched = select(ResearchRun.alert_id).where(ResearchRun.alert_id.isnot(None))

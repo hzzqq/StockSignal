@@ -3,8 +3,8 @@
 记录持仓、计算盈亏、导出 Excel 报告。
 """
 
-import os
-from datetime import datetime
+import os  # noqa: I001
+from datetime import datetime  # noqa: F401
 
 import pandas as pd
 

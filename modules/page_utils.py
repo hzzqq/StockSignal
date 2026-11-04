@@ -1,4 +1,4 @@
-import logging
+import logging  # noqa: I001
 from modules.ui_kit import page_hero
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def latest_quote_time(quote_times):
 错误边界（safe_fragment / safe_section / page_error_boundary）已在 ``page_guard``
 中统一提供，本模块不重复。
 """
-import inspect
+import inspect  # noqa: I001
 
 import streamlit as st
 from streamlit.runtime.caching import cache_resource

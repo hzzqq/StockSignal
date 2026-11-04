@@ -77,16 +77,29 @@ def test_empty_input_branch_has_guidance():
 
 def test_unavailable_banner_inside_available_check():
     """「无事件因子信号」提示必须在 `if ef.get("available")` 的 orelse 内
-    （修复前该提示从未显示过——else 错挂在 if _q 上）。"""
+    （修复前该提示从未显示过——else 错挂在 if _q 上）。
+
+    选择器必须锁定 ``ef``，不能笼统匹配任意 ``.get()``：页面新增的全球宏观上下文
+    ``if _mc.get("available")`` 结构完全相同，旧版「取最后一个匹配」会误选它，
+    把守卫变成假红（2026-11-04）。守卫本身没错，错的是选择器。
+    """
     if_q = _find_if_q(_fragment_tree())
     inner = None
     for n in if_q.body:
         for sub in ast.walk(n):
-            if isinstance(sub, ast.If) and isinstance(sub.test, ast.Call) \
-                    and isinstance(sub.test.func, ast.Attribute) \
-                    and sub.test.func.attr == "get":
-                inner = sub
-    assert inner is not None, "找不到 `if ef.get(...)` 成功/无结果分支"
+            if not isinstance(sub, ast.If) or not isinstance(sub.test, ast.Call):
+                continue
+            func = sub.test.func
+            if not isinstance(func, ast.Attribute) or func.attr != "get":
+                continue
+            if not isinstance(func.value, ast.Name) or func.value.id != "ef":
+                continue
+            args = sub.test.args
+            if not args or not isinstance(args[0], ast.Constant) \
+                    or args[0].value != "available":
+                continue
+            inner = sub
+    assert inner is not None, '找不到 `if ef.get("available")` 成功/无结果分支'
     seg = ast.unparse(inner.orelse) if inner.orelse else ""
     assert "无事件因子信号" in seg, "无结果提示必须位于 available 检查的 else 内"
 

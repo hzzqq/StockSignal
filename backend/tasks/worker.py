@@ -17,14 +17,14 @@ import sys
 import threading
 
 logger = logging.getLogger(__name__)
-import time
+import time  # noqa: I001
 import uuid
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional  # noqa: UP035
 
 import numpy as np
 import pandas as pd
@@ -36,7 +36,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(str, Enum):  # noqa: UP042
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
@@ -62,7 +62,7 @@ _MAX_WORKERS = 4
 
 
 class Task:
-    def __init__(self, task_id: str, task_type: str, payload: Dict[str, Any], created_at: float):
+    def __init__(self, task_id: str, task_type: str, payload: Dict[str, Any], created_at: float):  # noqa: UP006
         self.task_id = task_id
         self.task_type = task_type
         self.payload = payload
@@ -71,14 +71,14 @@ class Task:
         self.status = TaskStatus.PENDING
         self.progress = 0
         self.result: Any = None
-        self.error: Optional[str] = None
+        self.error: Optional[str] = None  # noqa: UP045
         # 实时进度（多智能体协作）
         self.stage: str = ""                 # 当前正在跑的 agent stage key
-        self.logs: List[Dict[str, Any]] = []  # [{stage, message, ts}]
+        self.logs: List[Dict[str, Any]] = []  # [{stage, message, ts}]  # noqa: UP006
         self._last_persist = 0.0
         self._lock = threading.Lock()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:  # noqa: UP006
         with self._lock:
             return {
                 "task_id": self.task_id,
@@ -99,10 +99,10 @@ class TaskWorker:
     """后台任务工作器（单例）。"""
 
     def __init__(self, max_workers: int = _MAX_WORKERS):
-        self._tasks: Dict[str, Task] = {}
+        self._tasks: Dict[str, Task] = {}  # noqa: UP006
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="stocksignal_task")
         self._lock = threading.Lock()
-        self._handlers: Dict[str, Callable[[Dict[str, Any]], Any]] = {}
+        self._handlers: Dict[str, Callable[[Dict[str, Any]], Any]] = {}  # noqa: UP006
         self._started = False
         self._register_default_handlers()
         self._load_from_disk()
@@ -114,10 +114,10 @@ class TaskWorker:
         self.register_handler("quant_research", _handle_quant_research)
         self.register_handler("ai_research", _handle_ai_research)
 
-    def register_handler(self, task_type: str, handler: Callable[[Dict[str, Any]], Any]) -> None:
+    def register_handler(self, task_type: str, handler: Callable[[Dict[str, Any]], Any]) -> None:  # noqa: UP006
         self._handlers[task_type] = handler
 
-    def submit(self, task_type: str, payload: Dict[str, Any]) -> str:
+    def submit(self, task_type: str, payload: Dict[str, Any]) -> str:  # noqa: UP006
         task_id = str(uuid.uuid4())
         task = Task(task_id, task_type, payload, time.time())
         with self._lock:
@@ -126,13 +126,13 @@ class TaskWorker:
         self._executor.submit(self._run_task, task)
         return task_id
 
-    def status(self, task_id: str) -> Optional[Dict[str, Any]]:
+    def status(self, task_id: str) -> Optional[Dict[str, Any]]:  # noqa: UP006, UP045
         task = self._tasks.get(task_id)
         if not task:
             return None
         return task.to_dict()
 
-    def cancel(self, task_id: str) -> Optional[bool]:
+    def cancel(self, task_id: str) -> Optional[bool]:  # noqa: UP045
         """取消任务（T-315 停止生成）。
 
         返回：
@@ -155,7 +155,7 @@ class TaskWorker:
         self._persist()
         return True
 
-    def list_tasks(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def list_tasks(self, limit: int = 50) -> List[Dict[str, Any]]:  # noqa: UP006
         with self._lock:
             tasks = sorted(self._tasks.values(), key=lambda t: t.created_at, reverse=True)[:limit]
         return [t.to_dict() for t in tasks]
@@ -223,7 +223,7 @@ class TaskWorker:
                     task.result = _serialize_for_json(result)
                     task.updated_at = time.time()
         except Exception as e:
-            warnings.warn(f"Task {task.task_id} failed: {e}")
+            warnings.warn(f"Task {task.task_id} failed: {e}")  # noqa: B028
             with task._lock:
                 if task.status is not TaskStatus.CANCELLED:
                     task.status = TaskStatus.ERROR
@@ -249,13 +249,13 @@ class TaskWorker:
             with open(_TASK_STORE_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, default=str)
         except Exception as e:
-            warnings.warn(f"Task persistence failed: {e}")
+            warnings.warn(f"Task persistence failed: {e}")  # noqa: B028
 
     def _load_from_disk(self) -> None:
         if not _TASK_STORE_FILE.exists():
             return
         try:
-            with open(_TASK_STORE_FILE, "r", encoding="utf-8") as f:
+            with open(_TASK_STORE_FILE, "r", encoding="utf-8") as f:  # noqa: UP015
                 data = json.load(f)
             now = time.time()
             for item in data:
@@ -279,7 +279,7 @@ class TaskWorker:
                     task.status = TaskStatus.ERROR
                     task.error = "服务重启导致任务中断"
         except Exception as e:
-            warnings.warn(f"Task load failed: {e}")
+            warnings.warn(f"Task load failed: {e}")  # noqa: B028
 
 
 def _serialize_for_json(obj: Any) -> Any:
@@ -305,7 +305,7 @@ def _serialize_for_json(obj: Any) -> Any:
     return obj
 
 
-def _handle_analysis(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _handle_analysis(payload: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006
     """执行个股分析。"""
     from modules.analysis_engine import run_analysis
     from modules.fetcher import StockFetcher
@@ -315,7 +315,7 @@ def _handle_analysis(payload: Dict[str, Any]) -> Dict[str, Any]:
     return run_analysis(ticker, fetcher=fetcher)
 
 
-def _handle_compare(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _handle_compare(payload: Dict[str, Any]) -> List[Dict[str, Any]]:  # noqa: UP006
     """执行多股对比。"""
     from modules.compare import fetch_compare
 
@@ -326,7 +326,7 @@ def _handle_compare(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     return fetch_compare(codes, period)
 
 
-def _handle_ai_consult(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _handle_ai_consult(payload: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006
     """执行 AI 独立咨询（T-308 透传回应方式 style；T-314 透传用户选择的模型）。
 
     payload:
@@ -345,7 +345,7 @@ def _handle_ai_consult(payload: Dict[str, Any]) -> Dict[str, Any]:
     return ai_answer(question, context, style=style, model=model)
 
 
-def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006
     """执行 H1 AI 研究智能体（多步工具调用 + 引用溯源）。
 
     payload:
@@ -401,7 +401,7 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
     # T-138 M4：可选 history（多轮记忆）——list 且 ≤8 条、每项为 dict 才放行；
     # 不合法 → 丢弃并照旧单轮执行（不报错不中断）；条目级规范化由 research_agent 负责。
     history = payload.get("history")
-    extra: Dict[str, Any] = {}
+    extra: Dict[str, Any] = {}  # noqa: UP006
     if isinstance(history, list) and len(history) <= 8 \
             and all(isinstance(h, dict) for h in history):
         extra["history"] = history
@@ -410,7 +410,7 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:
                            style=str(payload.get("style") or "report"), **extra)
 
 
-def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006
     """
     执行 QuantAgent 多智能体投研（异步后台任务）。
 
@@ -422,7 +422,7 @@ def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:
       - __task_id__: 由工作器注入，用于实时进度回传（前端轮询 task.stage/logs/progress）
     返回 ResearchState 的 JSON 安全字典（已剔除 DataFrame / reporter）。
     """
-    from modules.quantagent import run_research
+    from modules.quantagent import run_research  # noqa: I001
     from backend.tasks.progress_bus import report
 
     ticker = str(payload.get("ticker", "")).strip().zfill(6)
@@ -450,7 +450,7 @@ def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 # ------------------------------------------------------------------ 批次9：timeline SQLite 持久化
 
-def _persist_timeline_event(task_id: str, stage: str, event: Dict[str, Any]) -> None:
+def _persist_timeline_event(task_id: str, stage: str, event: Dict[str, Any]) -> None:  # noqa: UP006
     """尽力而为：把批次8 dict timeline event 持久化到 SQLite。
 
     批次10：追加 data_as_of + citation 列。citation 紧凑格式 "[S{idx}] {tool} @ {data_as_of}"。

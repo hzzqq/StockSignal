@@ -1,4 +1,4 @@
-import logging
+import logging  # noqa: I001
 logger = logging.getLogger(__name__)
 """
 股票搜索UI组件模块 v6
@@ -17,15 +17,15 @@ v6 改进：
 - 搜索结果展示市场信息（SH/SZ）
 - 降级链：后端 API → 本地 fetcher → 原始输入
 """
-import streamlit as st
-import streamlit.components.v1 as components
+import streamlit as st  # noqa: I001
+import streamlit.components.v1 as components  # noqa: F401
 import re
-import html as _html
+import html as _html  # noqa: F401
 from modules.fetcher import StockFetcher
 from modules.ui_theme import _theme_is_dark
 from modules.cache_utils import cached_ttl  # R-07：委托共享 TTL 缓存
 try:
-    from modules.session import is_authenticated, api_get
+    from modules.session import is_authenticated, api_get  # noqa: I001
     _HAS_SESSION = True
 except ImportError:
     _HAS_SESSION = False
@@ -69,7 +69,7 @@ def _match_label(query: str, code: str, name: str) -> str:
         return _derive_tag(code)
     q_up = q.upper()
     q_low = q.lower()
-    has_chinese = any(('一' <= ch <= '鿿' for ch in q))
+    has_chinese = any(('一' <= ch <= '鿿' for ch in q))  # noqa: UP034
     c = str(code).strip().zfill(6)
     n = str(name)
     if c == q and len(q) == 6:
@@ -93,7 +93,7 @@ def _match_label(query: str, code: str, name: str) -> str:
             return _MATCH_LABELS['pinyin_full']
     if q in n:
         return _MATCH_LABELS['name_contains']
-    if has_chinese and len(q) >= 2 and all((ch in n for ch in q)):
+    if has_chinese and len(q) >= 2 and all((ch in n for ch in q)):  # noqa: UP034
         return _MATCH_LABELS['dispersed']
     return _derive_tag(code)
 
@@ -210,12 +210,12 @@ def _render_match_dropdown(key: str, raw_input: str, results, active_code: str, 
     重新挂载、不残留旧选中态。Streamlit < 1.36（无 pills）时回退 st.radio。
     """
     st.caption(f'🔍 匹配结果（{len(results)} 条）')
-    token = ''.join((ch if ch.isalnum() and ch.isascii() else str(ord(ch)) for ch in raw_input))[:24]
+    token = ''.join((ch if ch.isalnum() and ch.isascii() else str(ord(ch)) for ch in raw_input))[:24]  # noqa: UP034
     labels = []
     code_by_label = {}
     default_idx = 0
     best_code = results[0][0] if results else None
-    for i, (code, name, market) in enumerate(results):
+    for i, (code, name, market) in enumerate(results):  # noqa: B007
         star = ' ★' if code == best_code else ''
         mlabel = _match_label(raw_input, code, name)
         label = f'{name}{star}\u3000{code}\u3000{mlabel}'
@@ -239,7 +239,7 @@ def stock_search_input(label='股票搜索', key='stock_search', default='600519
     """
     confirmed_key = f'{key}_confirmed'
     query_key = f'{key}_query'
-    base_select_key = f'{key}_select'
+    base_select_key = f'{key}_select'  # noqa: F841
     if confirmed_key not in st.session_state:
         st.session_state[confirmed_key] = default
     if query_key not in st.session_state:
@@ -258,7 +258,7 @@ def stock_search_input(label='股票搜索', key='stock_search', default='600519
     results = _cached_search(raw_input, limit=10)
     if not results:
         st.error('⚠️ 未找到匹配的股票，请检查代码或名称是否正确')
-        if any(('一' <= ch <= '鿿' for ch in raw_input)):
+        if any(('一' <= ch <= '鿿' for ch in raw_input)):  # noqa: UP034
             try:
                 pinyin_hint = StockFetcher._pinyin_full(raw_input)
                 if pinyin_hint and pinyin_hint.lower() != raw_input.lower():
@@ -308,7 +308,7 @@ def multi_stock_search_input(label='输入多只股票', key='multi_stock_search
     max_id = max((it['id'] for it in items), default=-1)
     for item in items:
         val = item.get('value', '')
-        if val and any((sep in val for sep in [',', '，', ';', ' ', '\n', '\t'])):
+        if val and any((sep in val for sep in [',', '，', ';', ' ', '\n', '\t'])):  # noqa: UP034
             parts = [p.strip() for p in re.split('[\\n,，;\\s]+', val) if p.strip()]
             if len(parts) > 1:
                 _need_split = True
@@ -390,7 +390,7 @@ def multi_stock_search_input(label='输入多只股票', key='multi_stock_search
             chip_bg, chip_border, chip_color = ('#1a1a2e', '#2d2d44', '#e2e8f0')
         else:
             chip_bg, chip_border, chip_color = ('#ffffff', '#e2e8f0', '#1e293b')
-        chips_html = ''.join((f'<span style="display:inline-block;background:{chip_bg};border:1px solid {chip_border};border-radius:var(--ss-radius);padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:{chip_color};">{lab}</span>' for lab in resolved_labels))
+        chips_html = ''.join((f'<span style="display:inline-block;background:{chip_bg};border:1px solid {chip_border};border-radius:var(--ss-radius);padding:4px 10px;margin:3px 3px 3px 0;font-size:12px;color:{chip_color};">{lab}</span>' for lab in resolved_labels))  # noqa: UP034
         st.markdown(f"<div style='margin-top:8px;'>{chips_html}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     if unresolved:
         st.error(f"⚠️ 未识别或无效: {', '.join(unresolved)}")

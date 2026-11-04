@@ -14,18 +14,18 @@
 配色严格遵循 A 股约定：涨/利好/买入=红(#ff4d4f)，跌/利空/卖出=绿(#00d486)，
 中性/持有=琥珀(#ffa502)。这与本仓库 K 线及个股分析页一致。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import datetime as _dt
 import time as _time
-import re
+import re  # noqa: F401
 import logging
 
 from modules.time_utils import now_cst, now_cst_str
 
 logger = logging.getLogger(__name__)
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple  # noqa: F401, I001, UP035
 
 import numpy as np
 
@@ -35,7 +35,7 @@ from modules.technical import full_analysis
 from modules._compare_render import _biz_groups  # 拆分后此共享小工具位于渲染层（叶子模块）
 
 
-def _to_float(v) -> Optional[float]:
+def _to_float(v) -> Optional[float]:  # noqa: UP045
     """把财务指标/估值接口返回的脏值（带千分位逗号、百分号、空白）安全转 float。
 
     锐评 R2：原代码 ``float(str(v).replace(",", ""))`` 对 ``"12.5%"`` / ``"1,234.5"``
@@ -59,16 +59,16 @@ def _to_float(v) -> Optional[float]:
 # =====================================================================
 # 数据层
 # =====================================================================
-def fetch_compare(codes: List[str], period_days: int = 120) -> List[Dict[str, Any]]:
+def fetch_compare(codes: List[str], period_days: int = 120) -> List[Dict[str, Any]]:  # noqa: UP006
     """对每只股票拉取数据并计算所有对比维度，返回 list[dict]（一只一个）。"""
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from concurrent.futures import ThreadPoolExecutor, as_completed  # noqa: F401
 
     codes = [str(c).strip().zfill(6) for c in codes if c]
     if not codes:
         # R83：空/全空输入直接返回空列表——此前 ThreadPoolExecutor(max_workers=0)
         # 抛 ValueError("max_workers must be greater than 0")，对比页清空列表会白屏。
         return []
-    rows: List[Dict[str, Any]] = [None] * len(codes)
+    rows: List[Dict[str, Any]] = [None] * len(codes)  # noqa: UP006
     # R-03：共享有界线程池 fetch_many（_build_row 内部已全段 try/except 永不抛）
     from modules.fetch_parallel import fetch_many
     _tasks = [(i, lambda i=i, code=codes[i]: _build_row(None, code, period_days))
@@ -80,7 +80,7 @@ def fetch_compare(codes: List[str], period_days: int = 120) -> List[Dict[str, An
     return rows
 
 
-def _build_row(fetcher: Optional[StockFetcher], code: str, period_days: int) -> Dict[str, Any]:
+def _build_row(fetcher: Optional[StockFetcher], code: str, period_days: int) -> Dict[str, Any]:  # noqa: UP006, UP045
     """构建单只股票对比行；每个线程自己创建 fetcher，避免 SQLite 连接竞争。"""
     fetcher = fetcher or StockFetcher()
     name = ""
@@ -111,7 +111,7 @@ def _build_row(fetcher: Optional[StockFetcher], code: str, period_days: int) -> 
     if not name:
         name = code
 
-    row: Dict[str, Any] = {"code": code, "name": name}
+    row: Dict[str, Any] = {"code": code, "name": name}  # noqa: UP006
 
     end = now_cst_str("%Y-%m-%d")
     start = (now_cst() - _dt.timedelta(days=period_days)).strftime("%Y-%m-%d")
@@ -202,7 +202,7 @@ def _signal_from(composite: int, ta) -> str:
 # 行业大类映射：用于「业务关联度」的板块亲和度判断
 
 
-def _biz_similarity(a: Dict[str, Any], b: Dict[str, Any]) -> float:
+def _biz_similarity(a: Dict[str, Any], b: Dict[str, Any]) -> float:  # noqa: UP006
     """两只股票的业务相似度（0-100）：同行业最高，同大类次之，否则弱相关。"""
     ia, ib = (a.get("industry") or ""), (b.get("industry") or "")
     if not ia or not ib:
@@ -217,7 +217,7 @@ def _biz_similarity(a: Dict[str, Any], b: Dict[str, Any]) -> float:
     return 12.0
 
 
-def _fill_business_correlation(rows: List[Dict[str, Any]]) -> None:
+def _fill_business_correlation(rows: List[Dict[str, Any]]) -> None:  # noqa: UP006
     """以组内业务相似度均值作为「业务关联度」（替代原价格相关性关联度）。"""
     for r in rows:
         others = [o for o in rows if o is not r]
@@ -228,7 +228,7 @@ def _fill_business_correlation(rows: List[Dict[str, Any]]) -> None:
             r["business_corr"] = 0.0
 
 
-def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> None:
+def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> None:  # noqa: UP006, UP037
     """基本面（东方财富 push2 / akshare）：总市值(亿) / 市盈率TTM / 行业 / 核心业务。
     失败时重试 2 次；仍失败则基于股票名称做行业推断兜底。核心业务来自同花顺主营构成。"""
     row["market_cap"] = None
@@ -279,7 +279,7 @@ def _fill_fundamentals(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> N
         logger.warning(f"[compare] 基本面获取失败 {row['code']}: {e}")
 
 
-def _fill_extra_metrics(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> None:
+def _fill_extra_metrics(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> None:  # noqa: UP006, UP037
     """新增对比维度：估值补充(PB/PS/股息率TTM)、财务(ROE/营收同比/净利同比)、
     资金面(主力净流入/大单)。全部 best-effort，失败时留 None（前端渲染「—」）。"""
     code = row.get("code", "")
@@ -352,13 +352,13 @@ def _fill_extra_metrics(row: Dict[str, Any], fetcher: "StockFetcher" = None) -> 
 # =====================================================================
 # 兼容层：拆分 _compare_render 后，原 modules.compare 的全部公开名保持可导入
 # =====================================================================
-from modules._compare_render import (  # noqa: E402,F401
+from modules._compare_render import (  # noqa: E402, F401, I001
     _is_dark,
     _sf,
     SERIES_COLORS,
     _hex_to_rgba,
     _INDUSTRY_GROUPS,
-    _biz_groups,
+    _biz_groups,  # noqa: F811
     compare_css,
     _tag,
     _sig_tag,

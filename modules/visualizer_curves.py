@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """visualizer_curves — 回测曲线 / 回撤曲线 / 组合盈亏（visualizer 拆分·绩效域）。
 
 零业务逻辑改动：源码自 modules/visualizer.py 机械提取（dedent + 去 @staticmethod）。

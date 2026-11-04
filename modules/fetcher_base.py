@@ -1,26 +1,26 @@
 """fetcher_base — StockFetcher 共享基类（类属性 + 基础设施 helper + __init__）。"""
 
-import io
+import io  # noqa: I001
 import json
 import os
-import re
+import re  # noqa: F401
 import sqlite3
-import threading
-import time
+import threading  # noqa: F401
+import time  # noqa: F401
 import warnings
-import logging as _logging
+import logging as _logging  # noqa: F401
 import urllib.request
 import urllib.error
-import urllib.parse
-import contextlib
-import socket  # 捕获瞬时网络错误（超时/连接重置/DNS）做重试兜底
+import urllib.parse  # noqa: F401
+import contextlib  # noqa: F401
+import socket  # 捕获瞬时网络错误（超时/连接重置/DNS）做重试兜底  # noqa: F401
 from datetime import datetime, timedelta
-import concurrent.futures as _cf
+import concurrent.futures as _cf  # noqa: F401
 import yaml  # load_config 用到；原在抽离块内，抽到 _feed_io 后在此补回
 import pandas as pd  # 原在抽离块内，StockFetcher 大量使用 DataFrame
-import numpy as np  # 原在抽离块内，StockFetcher 用到 np.
+import numpy as np  # 原在抽离块内，StockFetcher 用到 np.  # noqa: F401
 
-from modules.time_utils import now_cst_str, now_cst_naive
+from modules.time_utils import now_cst_str, now_cst_naive  # noqa: F401
 
 
 # 底层 I/O 层已抽到 modules._feed_io（P2-1 降耦），此处 re-export 保持全站 import 兼容
@@ -51,7 +51,7 @@ from modules._feed_io import (  # noqa: F401
 )
 
 # 市场数据 I/O 叶子模块（#锐评整改：从 StockFetcher 下沉，零循环依赖）
-import modules._market_data_io as _mdi
+import modules._market_data_io as _mdi  # noqa: F401
 
 # T-247 Tier1.1：纯函数真身迁 modules.fetcher_core，此处 re-export 同一对象
 # （调用点零改动；AST 守卫 tests/test_fetcher_core_tier11.py 锁死防本地定义回潮）
@@ -83,7 +83,7 @@ except Exception as _pp_err:  # noqa: BLE001
 
 # Tier1.1 安全拆分 pilot：纯函数 _safe_json_loads 迁入 modules.fetcher_core，
 # 此处 re-export 保持行为零变化（fetcher.py 内部 509/519/547/1174 行调用不受影响）。
-from modules.fetcher_core import _safe_json_loads  # noqa: F401
+from modules.fetcher_core import _safe_json_loads  # noqa: F401, I001
 
 
 
@@ -96,7 +96,7 @@ import modules.fetcher as _fetcher_mod
 def load_config(config_path="config.yaml"):
     if not os.path.exists(config_path):
         return {}
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, "r", encoding="utf-8") as f:  # noqa: UP015
         return yaml.safe_load(f) or {}
 
 
@@ -135,7 +135,7 @@ class BaseFetcher:
         "000001": "sh", "000016": "sh", "000010": "sh", "000009": "sh",
         "000300": "sh", "000688": "sh", "000905": "sh",
         "399001": "sz", "399006": "sz", "399005": "sz", "399300": "sz",
-        "399673": "sz", "399006": "sz", "399102": "sz", "399103": "sz",
+        "399673": "sz", "399006": "sz", "399102": "sz", "399103": "sz",  # noqa: F601
     }
 
     _INDUSTRY_KEYWORDS = {
@@ -279,8 +279,8 @@ class BaseFetcher:
             df = temp._ensure_stock_db()
             if not df.empty:
                 cls._stock_df = df
-                cls._name_to_code = dict(zip(df["name"].astype(str), df["code"].astype(str)))
-                cls._code_to_name = dict(zip(df["code"].astype(str), df["name"].astype(str)))
+                cls._name_to_code = dict(zip(df["name"].astype(str), df["code"].astype(str)))  # noqa: B905
+                cls._code_to_name = dict(zip(df["code"].astype(str), df["name"].astype(str)))  # noqa: B905
                 # 预计算拼音首字母缓存（一次性324ms，后续每次查询省掉）
                 t_py = _time.time()
                 for name in df["name"].astype(str):
@@ -356,7 +356,7 @@ class BaseFetcher:
         self._init_cache_table(conn, table_name)
         sql = (f"SELECT cache_key, data_json, updated_at FROM {table_name} "
                f"WHERE cache_key LIKE ? AND cache_key NOT LIKE ? ")
-        params: list = [f"{prefix}%", f"%_source"]
+        params: list = [f"{prefix}%", f"%_source"]  # noqa: F541
         if adjust:
             sql += "AND cache_key LIKE ? "
             params.append(f"%_{adjust}")

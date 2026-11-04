@@ -26,19 +26,19 @@ from __future__ import annotations
 import json
 import sys
 import traceback
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional  # noqa: UP035
 
 # ---------------------------------------------------------------------------
 # 工具注册表：name -> {description, input_schema, handler}
 # handler 必须是 async 或 sync 均可，server 统一 await/调用。
 # ---------------------------------------------------------------------------
-TOOLS: Dict[str, Dict[str, Any]] = {}
+TOOLS: Dict[str, Dict[str, Any]] = {}  # noqa: UP006
 
 
 def register_tool(
     name: str,
     description: str,
-    input_schema: Dict[str, Any],
+    input_schema: Dict[str, Any],  # noqa: UP006
     handler: Callable[..., Any],
 ) -> None:
     """注册一个 MCP 工具。"""
@@ -71,12 +71,12 @@ INVALID_PARAMS = -32602
 INTERNAL_ERROR = -32603
 
 
-def _ok(result: Any, req_id: Any) -> Dict[str, Any]:
+def _ok(result: Any, req_id: Any) -> Dict[str, Any]:  # noqa: UP006
     return {"jsonrpc": "2.0", "id": req_id, "result": result}
 
 
-def _err(code: int, message: str, req_id: Any, data: Any = None) -> Dict[str, Any]:
-    err_obj: Dict[str, Any] = {"code": code, "message": message}
+def _err(code: int, message: str, req_id: Any, data: Any = None) -> Dict[str, Any]:  # noqa: UP006
+    err_obj: Dict[str, Any] = {"code": code, "message": message}  # noqa: UP006
     if data is not None:
         err_obj["data"] = data
     return {"jsonrpc": "2.0", "id": req_id, "error": err_obj}
@@ -85,7 +85,7 @@ def _err(code: int, message: str, req_id: Any, data: Any = None) -> Dict[str, An
 # ---------------------------------------------------------------------------
 # 协议方法实现
 # ---------------------------------------------------------------------------
-def _handle_initialize(req_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+def _handle_initialize(req_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006
     """MCP handshake。"""
     return _ok(
         {
@@ -100,7 +100,7 @@ def _handle_initialize(req_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
-def _handle_tools_list(req_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+def _handle_tools_list(req_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006
     tools = []
     for meta in TOOLS.values():
         tools.append(
@@ -113,7 +113,7 @@ def _handle_tools_list(req_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     return _ok({"tools": tools}, req_id)
 
 
-async def _handle_tools_call(req_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+async def _handle_tools_call(req_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006
     name = params.get("name")
     arguments = params.get("arguments") or {}
     if name is None:
@@ -163,7 +163,7 @@ _METHODS = {
 # ---------------------------------------------------------------------------
 # stdio 传输循环
 # ---------------------------------------------------------------------------
-async def _dispatch(req_id: Any, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
+async def _dispatch(req_id: Any, method: str, params: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006
     if method == "tools/call":
         return await _handle_tools_call(req_id, params)
     handler = _METHODS.get(method)
@@ -175,7 +175,7 @@ async def _dispatch(req_id: Any, method: str, params: Dict[str, Any]) -> Dict[st
         return _err(INTERNAL_ERROR, str(e), req_id)
 
 
-async def _process_message(raw: str) -> Optional[List[Dict[str, Any]]]:
+async def _process_message(raw: str) -> Optional[List[Dict[str, Any]]]:  # noqa: UP006, UP045
     """解析一条 JSON-RPC 消息（可能批量），返回需要写回的响应列表。
 
     通知（无 id）不回包，返回空列表。
@@ -197,7 +197,7 @@ async def _process_message(raw: str) -> Optional[List[Dict[str, Any]]]:
     return [r] if r is not None else []
 
 
-async def _process_one(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+async def _process_one(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:  # noqa: UP006, UP045
     if not isinstance(item, dict) or "method" not in item:
         return _err(INVALID_REQUEST, "invalid request", item.get("id") if isinstance(item, dict) else None)
     method = item["method"]
@@ -219,7 +219,7 @@ async def run_stdio() -> None:
 
     loop = asyncio.get_event_loop()
 
-    async def _readline() -> Optional[str]:
+    async def _readline() -> Optional[str]:  # noqa: UP045
         return await loop.run_in_executor(None, reader.readline)
 
     while True:
