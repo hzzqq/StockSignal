@@ -1352,3 +1352,119 @@ grep -q 'RED = "#009e60"' modules/colors.py && grep -q 'GREEN = "#dc2626"' modul
 - **正文档（4.5，需新令牌）**：`sf-perspective-card .body` 内 14px/400 与 14px/700、
   `.ss-stat .delta`(13px/600)、`.xc-card .delta`(13px/700)、`.xc-card .meta`(11px)
 - **★ 加粗到 700 仍不足 18.66px ⇒ 不能靠加粗豁免**
+### 13.17 终局裁决：AC-0.2 ①~⑨ 定稿 + 两层防假绿 + D5 变体 2
+
+> Phase 1 / Phase 2 终版提请的裁决，**主理人全部采纳**并含 2 条实质更正。
+> **三方技术分歧全部清零；C0 实施所需信息齐备且无分歧。**
+
+#### 13.17.1 裁决 ①：C0 = **C0-a~C0-g（7 处改动 / 5 文件原子 commit）** —— 认可
+
+**采用位置引用**（Phase 2 提议，消除两位成员表格里步 5/6 编号相反的歧义）：
+
+| 引用 | 位置 | 动作 | 不做的后果 |
+|---|---|---|---|
+| **C0-a** | `modules/ui_kit.py:86` | 修 CSS 注释提前闭合（`--ss-*/` → `--ss-* /`） | `--brand-1` 继续被浏览器丢弃（D4） |
+| **C0-b** | `modules/ui_kit.py:88` | 删 `--brand-1:#4f46e5; --brand-2:#7c3aed;` **整行** | C0-a 会让它复活 ⇒ 8 组统一经典紫（更糟）；留 `--brand-2` ⇒ 6 套 preset 次品牌色全失效 |
+| **C0-c** | `modules/ui_kit.py:45` | 删 `--ss-up:#ff4d4f; --ss-down:#00d486;` | `--ss-up` 仍 8 组统一 `#ff4d4f` |
+| **C0-d** | `modules/ui_theme.py:223` | `:root` = `基座 ∪ preset vars`（**合并，非替换**） | preset vars 永不生效（D5 的真覆盖者） |
+| **C0-e** | `modules/ui_theme.py:196` | `_THEME_ROOT_VARS['light']` 补 `--buy:#ff4d4f; --sell:#00d486;` | classic 亮色 `.sf-pill.up` 字色回落 inherit（语义+对比度双失控） |
+| **C0-f** | `modules/ui_theme.py:219/502` | 缓存键 `(dark)` → `(dark, style)` | 切风格后仪表盘层静默不更新（D6） |
+| **C0-g** | `tests/test_ui_kit_tokens.py:243-256` | 守卫升级：锁归属 + 锁不越权 | 守卫继续给死声明背书（一直假绿） |
+
+⇒ **C0-a~C0-g 全部必须同批，缺一即失效或更糟**。C0 = **7 处改动 / 5 文件** 单一原子 commit。
+
+#### 13.17.2 🔴 裁决 ② 补充：验收项 ② **必须配「提取自检」**（防假绿）
+
+内容锚定方案（awk）**自身的失效模式是假绿** —— 锚点一旦失配，awk 提取到 0 行 ⇒ grep 无命中
+⇒ 断言「通过」⇒ **守卫在失效时反而放行**（最危险的一类）。
+```bash
+awk '/^_TOKEN_CSS = r"""/,/^"""/' modules/ui_kit.py | grep -q '\-\-ss-radius-card' \
+  || { echo "★_TOKEN_CSS 提取失败（锚点失配）—— 守卫假绿，断言无效"; exit 1; }
+```
+⇒ **Python 侧需等价自检**（断言 `_kit()._KIT_CSS` 非空且长度合理，否则 `tok not in css`
+在空串上恒真 ⇒ 又是假绿）。
+
+#### 13.17.3 裁决 ② 之 ⑨：采用 Phase 2 的**否定断言**（Phase 1 的 OR 版逻辑是反的）
+
+Phase 1 写的 `grep -q -- '--doc-up:#009e60' modules/colors.py || grep -q -- 'RED = "#009e60"' modules/colors.py`
+是 **OR** ⇒ 任一命中即通过 ⇒ **若有人把 `--doc-up:#009e60` 误写进 `colors.py`，这条断言仍会通过**
+⇒ **测不出它想防的「互串」**。
+```bash
+# ⑨-a 价格域令牌不得出现在交易域常量模块
+! grep -q -- '--doc-up:' modules/colors.py \
+  || { echo "★价格域令牌串进交易域常量模块"; exit 1; }
+# ⑨-b 交易域令牌不得出现在报告体基座（必须限定 _THEME_ROOT_VARS 块）
+awk '/^_THEME_ROOT_VARS = \{/,/^\}/' modules/ui_theme.py \
+  | grep -qE '\-\-ss-up:#|\-\-ss-down:#' \
+  && { echo "★交易域令牌串进经典基座"; exit 1; }
+```
+⚠️ **⑨-b 不能扫整个 `ui_theme.py`** —— 实测 `'--ss-up:#'` 在该文件命中 **7 处**
+（`_DARK_CSS:54` / `_LIGHT_CSS:55` 的 `:root` 里**合法地**定义了 `--ss-up:#ff4d4f`，
+属**全局主题层**，与 C0-c 要删的**组件层** `_TOKEN_CSS:45` **不同层**）。
+
+#### 13.17.4 三层归属表（「互串」守卫能成立的基础）
+
+| 层 | 位置 | `--ss-up:#ff4d4f` | C0 处置 |
+|---|---|---|---|
+| 全局主题层 | `_DARK_CSS:54` :root#2、`_LIGHT_CSS:55` :root#1 | ✅ 有 | **保留**（classic 真值源） |
+| 组件层 | `_TOKEN_CSS:45` | ✅ 有 | **删除**（C0-c，最后注入者会盖住 preset） |
+| 经典基座 | `_THEME_ROOT_VARS` 两块 | ❌ 无 | **保持无**（`--doc-up`/`--doc-down` 归此层） |
+
+#### 13.17.5 裁决 ③：C0~C3 + C4 —— 采纳
+
+**C0 额外触碰 6 个测试文件**：`test_ui_kit_tokens.py`（`:243-256` 升级 + 2 新守卫）、
+`test_a11y_contrast.py`（改级联口径）、`test_ui_theme.py`（`:58-69`，⚠️ **`:62` 的「绿涨红跌」注释不能删**）、
+`test_no_hardcoded_semantic_hex.py`（`:51-55`）、`test_stock_research_semantics.py`（`:98`）、
+`test_ui_theme_styles.py`（`:50` classic zero-op 不破）。
+
+#### 13.17.6 🔴 更正：D5 采用**变体 2（双插值模型鲁棒）**，取代变体 1
+
+主理人上一条裁决 ④ 采纳的是**变体 1** ⇒ **实测推翻**：变体 1 在 **linear 插值模型下
+会静默失败 5 项**（`classic/light --ss-down` 仅 **2.98**）—— **那正是 D5 要防的失败模式**
+（浏览器若用 linear 插值，颜色静默变浅）。
+
+| 令牌 | 暗色基座 | 亮色基座（变体 2） |
+|---|---|---|
+| `--doc-up-text` | `var(--doc-up)` | `color-mix(in srgb, var(--doc-up) 58%, black)` |
+| `--doc-down-text` | `color-mix(in srgb, var(--doc-down) 79%, white)` | `color-mix(in srgb, var(--doc-down) 88%, black)` |
+| `--ss-up-text` | `var(--ss-up)` | `color-mix(in srgb, var(--ss-up) 62%, black)` |
+| `--ss-down-text` | `var(--ss-down)` | `color-mix(in srgb, var(--ss-down) 34%, black)` |
+
+⇒ **32 项 × 2 模型 = 64 次验算全部 ≥4.5**（srgb 最差 4.86 / linear 最差 4.80）。
+⇒ **色相漂移口径统一**（两成员实测差 0.2° vs 1.0°，取保守值）：**≤ 1.0°**
+（出现在 linear 模型下 `--ss-down-text` `#008250` vs 基准 `#00d486`）⇒ 仍在同色系可读范围。
+⇒ **语义可读性已实测**（Phase 2 补验，Phase 1 未做）：两模型下
+`--doc-up-text` 色相 156.5°/156.1°（绿系）｜`--doc-down-text` 0.0°（红系）｜
+`--ss-up-text` 359.5°/359.6°（红系）｜`--ss-down-text` 158.3°/156.9°（绿系）⇒ **无撞色**。
+⇒ **「新绿 vs 新绿」碰撞登记**（Phase 2 补验）：`--doc-up-text` 与 `--ss-down-text` 同为绿系，
+区分度偏低（1.10:1 ~ 1.87:1），但**两者永不同屏出现**（一在报告体、一在交易屏）
+⇒ **不构成实际风险**，但 C3 目检时留意。
+⇒ **代价**：亮色主题下颜色比变体 1 更深 ⇒ **对比度更高 = 更安全**，且色相不变。
+
+#### 13.17.7 🔴 验收判据升级：C3 **不断言 hex，断言对比度 + 色相族**
+
+hex 依赖插值模型（两种模型给出不同 hex 且都「正确」），而 **WCAG 对比度是模型无关的最终目标**。
+⇒ **C3 验收 4 条**（模型无关版）：
+```
+① DevTools 读 4 个新令牌的计算值（3 组亮色 × 4 令牌 = 12 项）
+② 计算值 → 转 hex → 对该风格 --bg 算 WCAG 对比度
+③ 断言 ≥4.5（目标 ≥4.8 留余量）
+④ 断言色相仍属原语义色系
+   （--doc-up-text 绿 60~180° / --doc-down-text 红 ≤20 或 ≥340°
+    / --ss-up-text 红 / --ss-down-text 绿）
+   —— 这条是「语义不串」的机器化，比肉眼目检更可靠
+```
+⇒ **无论浏览器用哪种插值模型都恒绿**；若某浏览器用第三种模型（CSS Color 5 还有
+premultiplied-alpha 等变体）导致对比度不足，**守卫会红**（发现问题）而非静默失色。
+
+#### 13.17.8 Python 守卫的两个坑（Phase 2 实测）
+
+⚠️ **必须用带冒号的精确形态**：`'--ss-up'`（不带冒号）在 `_KIT_CSS` 出现 **8 次**（含 `var(--ss-up)`）⇒ 会误报
+⇒ 统一用 `"--ss-up:#"` 这类带冒号形态。
+⚠️ **dark/light 必须分写**（`--brand-1:#5b53f0` in dark ≠ `#4f46e5` in light）。
+
+#### 13.17.9 C4 登记口径：**待目检后决定是否立项**
+
+两页（`pages/53_星辰AI.py` 仅 `apply_page_config:54`、`pages/90_登录.py` 仅 `:25`）的
+**classic 亮色实际渲染未目检** ⇒ **建议先目检再立项**，避免把未验证的静态推导写成既成事实。
+⚠️ **登记表必须写 2 页**，写 7 页会误伤 5 个正常页面。
