@@ -237,3 +237,128 @@
 | M3 公开数字 + metric 组 | 105 | 105 passed |
 
 合计 **862 例零失败**（跨 M1/M2/M3 三批，含 2 次页面冒烟全量分批）。
+## 12. ① sf-* 令牌层收敛 · 实施计划 v1（2026-11-04，专家团 Phase 1 + 主理人复核）
+
+> 本章是 **#35 规划 v4 §11.2 登记的「CSS 令牌层未清零」项**的实施前置。
+> 产出方式：UI 设计全栈专家团 Phase 1（视觉方向，`frontend-design-architect`）真扫 +
+> 主理人独立复核纠偏。**Phase 2（体验）/ Phase 3（前端工程）尚未完成 ⇒ 本章不含最终分批定案。**
+> 诚实边界：本轮**零改码**（只读审计 + 清单生成）。
+
+### 12.1 规模实测（Phase 1 真扫；主理人已抽查复核）
+
+| 范围 | 实测 |
+|---|---|
+| 全仓 `sf-*` 出现总数 | **495 处 / 13 文件**（主理人清单口径：待改 383 + 保留 94 + 未映射 18） |
+| `modules/ui_theme.py` | 231 处（44 个不同选择器） |
+| `modules/stock_research.py` | 76 处（25 token） |
+| `modules/starfield_theme.py` | 58 处（14 token）—— **CSS 规则为死代码，但同名 token 他处在用**（见 12.3） |
+| `modules/button_colors.py` | 39 处（`sf-btn-*` 族，保留） |
+| `modules/scroll_nav.py` | 29 处（`sf-scroll-*` 族，保留） |
+| `modules/dark_text_fix.py` | 29 处（`sf-text-*`/`sf-chip*` 族，保留） |
+| 其余 | `stock_analysis_helpers.py` 6、`ui_kit.py` 4、`pages/13` 6、`pages/43` 5、`pages/44` 7、`pages/47` 3、`_widgets_ai.py` 2（仅注释） |
+
+### 12.2 决定性发现：`sf-` 是 **5 个互不相干 CSS 栈**共用的命名空间（同名不同义）
+
+⇒ **禁止整体重命名 / 禁止全局 sed**。必须按族拆分：
+
+| 族 | 代表 token | 语义归属 | 本轮处置 |
+|---|---|---|---|
+| **A 仪表盘层** | `sf-card` `sf-card-title` `sf-card-subtitle` `sf-metric-card` `sf-page-link` `sf-section-title` `sf-header` `sf-brand` `sf-tag` `sf-pill` `sf-table` `sf-alert` `sf-vs` `sf-vsbox` `sf-disclaimer` `sf-note` `sf-one-line` `sf-verdict` `sf-grid-4` `sf-cta-*` `sf-perspective-card` `sf-intel-*` `sf-scale*` `sf-risk-iron` `sf-insight-box` `sf-doc-*` `sf-up` `sf-down` `sf-price-big` `sf-triangle` `sf-h1` `sf-h2` `sf-stat` | 个股报告卡 / 决策仪表盘（生产在用，`ui_theme` 每页注入） | **本轮目标** |
+| B 按钮层 | `sf-btn` `sf-btn-primary` | 白盒按钮配色（`button_colors.py` 自成体系） | **保留** |
+| C 文本层 | `sf-text-*` `sf-chip*` `sf-emph-*` | 暗色文本修正（`dark_text_fix.py`） | **保留** |
+| D 滚动层 | `sf-scroll-*` `sf-slide` `sf-chat-end` | 回到顶部 / 浮动按钮（`scroll_nav.py`） | **保留** |
+| E 星辰层 | `sf-chart` `sf-kline` + 同名 token | 星辰暗色金融风（`starfield_theme.py`） | **CSS 规则可清**（P2 候选），但**同名 token 他处在用**，不可按文件整块处理 |
+
+### 12.3 主理人复核纠偏（3 条推翻/修正 Phase 1 结论）
+
+1. **`starfield_theme.py` 不是「生产零调用」** —— `modules/stock_research.py:1419`（`KLINE_CHART_CONFIG`）、
+   `pages/53_星辰AI.py:40`（`inject_plotly_dark`）都是真实生产引用 ⇒ **该模块不可删**。
+   且其内 16 个 sf-* token **逐个查得全部有外部引用**（`ui_theme` 最多，其次 `stock_research` / `pages/13` / `ui_kit`）。
+   ⇒ 准确表述：**它自己的 CSS 规则不生效**（生产注入的是 `ui_theme` 的 dashboard_sf_css），
+   **但同名 token 在别处被实际使用**。清理判据必须是「该 token 在本文件外零引用」，**不能按文件名整块处理**。
+2. **`--doc-up/--doc-down` 的定义位置与字面量写法被守卫硬锁**（Phase 1 未提）：
+   `tests/test_no_hardcoded_semantic_hex.py:51-55` 断言 `ui_theme.py` **源码字符串**含
+   `--doc-up:#009e60` / `--doc-down:#dc2626`；`tests/test_ui_theme.py:60-61,69` 断言运行时 CSS 同值；
+   `tests/test_stock_research_semantics.py:98` 断言两者同在 theme 源码。
+   ⇒ 「把 --doc-* 收敛进 --ss-*」「把定义搬到别处」「改字面量格式」三类方案**都会直接红**。
+3. **`--doc-up/--doc-down` 的真实形态** = `_THEME_ROOT_VARS` 的 classic 两块
+   （`ui_theme.py:195` dark / `:196` light），**其余 6 套非 classic 风格块确实没有** ⇒
+   **D2 缺陷成立**（6 套风格下报告体价格域回落继承色）。
+
+### 12.4 两个 🔴 级既有缺陷（与 sf-* 收敛解耦）
+
+- **D1 跨域串色**：`ui_theme.py:270` 附近 `.sf-pill.up` 底色走**文档域绿**（`rgba(0,158,96,.12)`）
+  × 字色走 `var(--buy)`（`#ff4d4f`，**交易域红**）⇒ classic 暗色下渲染「绿底红字」；
+  `.sf-pill.down` 反之。**且 `_LIGHT_CSS`（`ui_theme.py:55` 起）全字面不含 `--buy`/`--sell`**
+  ⇒ 亮色主题 `var(--buy)` 未定义 → 回退继承色。
+  生产影响点：`pages/43:222`、`pages/44:129`、`pages/47:418/421/424`、
+  `stock_research.py:578`（情绪面）、`:588`（`sf-tag` 舆情极性）。
+  ⚠️ 这三处的 up/down/mid 语义是**订单状态成功/失败、舆情极性、技术强弱**，**都不是价格涨跌**。
+- **D2 价格域缺定义**：见 12.3 纠偏 3。**独立立项，不混进 sf-* 收敛批次**（主理人裁定）。
+
+### 12.5 ③ #40 / #41 的真实缺口（Phase 1 裁定 + 主理人复核）
+
+- **#40「页头状态胶囊去 emoji + 令牌化」已在 `9255fc1`（2026-10-31）完成**：
+  `page_utils.py:71-130 _build_status_chips()` 已用 `svg_icon("moon"/"sun")` + `--ss-*` 令牌；
+  `tests/test_ui_kit_hero.py:86` 硬断言无 `☀️/🌙`。
+  **真实残留仅 2 处**：① `page_utils.py:113-127` 交易时段胶囊仍硬编码 hex
+  （`#ff4d4f`/`rgba(255,77,79,.10)`/`#dc2626`/`#00d486`/`rgba(0,212,134,.10)`/`#166534`）；
+  ② `modules/ui_kit.py:462` 页头主图标 `f'<span class="{icon_cls}">{html.escape(icon)}</span>'`
+  仍原样输出 emoji（`render_standard_page(icon=...)` 实测 52 处调用 / 51 个不同 emoji）。
+- **#41「顶栏 SVG 替换 emoji」真实缺口 = `_EMOJI_MAP` 覆盖不全**：
+  65 个导航条目中 49 个 emoji 未收录 → 回退原始 emoji；`_ICONS`（`modules/ui_icons.py:19`）
+  仅约 4 个空闲图标名，需新增约 30~40 个 24×24 SVG path。
+  ⚠️ 主理人复核修正：SVG 在 **`modules/ui_icons.py`**（`_EMOJI_MAP` L5、`_ICONS` L19、`svg_icon` L99），
+  `modules/top_nav.py` 411 行内 **`<svg>` 标签 0 个**（只是 import 并调用 `svg_icon`）。
+  ⇒ **#41 降级 P2 后置，不进本轮**（数据层 `_NAV_GROUPS` 零改动，
+  由 `tests/test_sidebar_nav.py:145-159 test_icon_global_uniqueness` 硬锁保护）。
+
+### 12.6 可执行替换清单（已生成，`_n1_replace_plan.json`）
+
+- **待改 383 处**（仪表盘族）｜**保留 94 处**（按钮 39 / 文本 27 / 滚动 26 / 仅注释 2）
+  ｜**未映射 18 处**（需补映射：`sf-up`/`sf-down` 价格域、`sf-stat`、`sf-emph-*`、`sf-slide`、`sf-chat-end`、`sf-chart`、`sf-kline`）
+- **实施核心陷阱**：替换必须**长 token 优先**（`sf-card-title` 先于 `sf-card`），
+  否则前缀包含关系会被破坏（如 `sf-card` 先替换会把 `sf-card-title` 打成 `xc-card-title` 前缀错乱）。
+- **必改守卫 12 个**（改名后不同步更新即红）：
+
+| 守卫文件 | 断言内容 |
+|---|---|
+| `tests/test_bento_standards.py:131-132` | `_KNOWN_PAGE_CLASSES` **未知类登记制白名单**含 `sf-card`/`sf-card-subtitle`/`sf-card-title`/`sf-metric-card`/`sf-page-link` → 改名后**必须登记新名**（白名单是「已人审快照」非禁止项；`_BANNED_CLASS_TOKENS` 实测**不含**任何 `sf-*`） |
+| `tests/test_page91_prefs_slim.py:36-43` | `.sf-section-title` 必须存在 + `<div class="sf-card">` 位置比较 + `dashboard_sf_css` 携带该样式（顺序敏感） |
+| `tests/test_static_css_cache.py:31` | 断言 `.sf-card` 出现在注入 CSS 中 |
+| `tests/test_component_vocabulary.py:46` | 注释提及 `.sf-section-title` |
+| `tests/test_ui_kit_tokens.py:172` | docstring 提及 `sf-card-title` |
+| `tests/test_no_hardcoded_semantic_hex.py:51-55` | 断言 `ui_theme.py` 源码含 `--doc-up:#009e60` / `--doc-down:#dc2626` |
+| `tests/test_ui_theme.py:60-61,69` | 断言运行时 CSS 含 `--doc-up:#009e60` / `--doc-down:#dc2626` |
+| `tests/test_stock_research_semantics.py:98` | 断言 `--doc-up:#009e60` 与 `--doc-down:#dc2626` 同在 theme 源码 |
+| `tests/test_dark_text_fix.py:52` | `class="sf-text-title"`（保留族，不动则无需改） |
+| `tests/test_starfield_theme.py:71,76` | `class="sf-verdict b"` / `"sf-verdict o"`（保留族，不动则无需改） |
+| `tests/test_scroll_nav.py`（12 处） | `sf-scroll-top` / `sf-scroll-bottom-float`（保留族，不动则无需改） |
+| `tests/test_whitebox_button_colors.py`（6 处） | `sf-btn sf-btn-primary`（保留族，不动则无需改） |
+
+### 12.7 语义红线（不可越）
+
+1. **双套配色**：报告体/个股页价格域 `--doc-up:#009e60`（**绿涨**）/ `--doc-down:#dc2626`（红跌）；
+   交易屏/全站 `--ss-up:#ff4d4f` / `--ss-down:#00d486`（**红涨绿跌**）。
+   `modules/colors.py` 的 `RED` 实为绿色、`GREEN` 实为红色；`tests/test_colors.py:41-45` 硬断言。
+   ⇒ `sf-doc-up`/`sf-doc-down`/`sf-doc-neu` **必须保留 doc 域**，不得并入 `--ss-*`。
+2. **强弱信号灯**：`🟢强势/🔴偏弱` 已改 ▲/▼/— 形状；`sf-verdict`（红=多/绿=空）**不得改色**。
+3. **暗/浅双风格 × 7 套 `STYLE_PRESETS`**（classic 暗/亮 + 其余 6 套各 1 = 8 组矩阵）：
+   改类名须**逐套同步**，不能只改 `:root`。
+4. **双响应式并存**：`.sf-grid-4` 视口断点（900/540）与 `xc_kpi_grid` 的 auto-fit 容器
+   （`ui_kit.py:921`）冲突 → 收敛时统一到一套。
+5. **G6 零扩权**：`tests/test_no_st_metric_in_pages.py` 只扫 `pages/*.py`，**不得**扩到 `modules/`。
+6. **零改动清单**：`modules/widgets.py::_NAV_GROUPS`、`modules/top_nav.py`、`tests/test_sidebar_nav.py`、
+   `tests/test_colors.py`、24 页 `_SUBPAGES` 字符串。
+7. **D1 的 up/down 语义 ≠ 价格涨跌**（订单状态 / 舆情极性 / 技术强弱），修 D1 时不得误染涨跌色。
+
+### 12.8 本章状态与下一步
+
+- ✅ **Phase 1（视觉方向）已完成**（映射表 + 5 族分类 + 风险分级 + 分批建议 B1–B6 / R1–R6）
+- ✅ **主理人复核纠偏已完成**（12.3 三条 + 12.6 守卫清单 + 12.5 一处数据修正）
+- ✅ **可执行替换清单已生成**（383/94/18 + 12 守卫 + 实施陷阱）
+- ⏳ **Phase 2（体验规范）进行中** → 产出：8 组风格矩阵的视觉回归验收标准、对比度**可执行**计算方法、
+  D1 修复后的期望渲染、风险独立复核、最终分批定案（`ui_theme.py`+`ui_kit.py`+`stock_research.py`
+  被多批次共触时是否必须合成单一原子 commit）、改动后最小回归测试集（只列真实存在的文件）
+- ⏳ **Phase 3（前端工程）待启动** → 产出：逐批次实施步骤 + 守卫同步点 + 原子 commit 边界 + 验证矩阵
+- ⏳ **实施待 Phase 2/3 完成后进行**（本轮零改码；不做半迁移）
