@@ -1654,3 +1654,50 @@ C0-c 后语义色归全局主题层（`_DARK_CSS/_LIGHT_CSS` 的 `:root`，**始
 
 **C1**（B4 死代码 10 真死 + B5）｜**C2**（仪表盘族 383 处全量迁移 + 6 守卫同步，必须原子）｜
 **C3**（R3 语义修复 + D4 + D5 变体 2 + 基座对称性）｜**C4**（`53_星辰AI`/`90_登录`，**待目检后立项**）。
+### 13.22 C1 已实施（2026-11-04，主理人执行；提交 `c92d531`）
+
+#### 13.22.1 ⚠️ 真扫修正了 Phase 1 的死代码清单
+
+Phase 1 列的「10 个真死」**不准确**——主理人真扫发现其中 5 个在 `modules/starfield_theme.py`
+里有 **class 字面量引用**（starfield 的渲染函数在用）：
+
+| token | 外部 class 引用 | 处置 |
+|---|---|---|
+| `sf-note` | `starfield_theme.py:147` | **保留** |
+| `sf-one-line` | `starfield_theme.py:66,144` | **保留** |
+| `sf-verdict` | `starfield_theme.py:93` + `tests/test_starfield_theme.py:71,76` 硬锁 | **保留** |
+| `sf-section-title` | 契约锁（`test_page91_prefs_slim.py:36,43` + `:40` 顺序断言） | **保留** |
+| `sf-up` / `sf-down` | `_DARK_CSS:54` **全局主题层有定义** ⇒ 类名仍生效 | 收窄重复定义，**行为零变化** |
+
+⇒ 真死并可删的只有 **5 个 token**：`sf-doc-neu` / `sf-h1` / `sf-h2` / `sf-insight-box` / `sf-stat`。
+
+#### 13.22.2 实施内容（10 条死规则 + 4 处选择器收窄）
+
+**删除**（10 条规则，均无 class 字面量引用；注意同一规则在 `dashboard_sf_css` 模板内的
+字面 `\n` 块与独立规则行**各有一份** ⇒ 实测 `sf-insight-box`/`sf-doc-neu` 各 2 处）：
+`.sf-insight-box` ×2、`.sf-insight-box.hold` ×2、`.sf-card h2.sf-h1` ×1、
+`.sf-card h2.sf-h1::before` ×1、`.sf-card h2.sf-h2` ×1、`.sf-card h2.sf-h2::before` ×1、
+`.sf-doc-neu` ×2。
+
+**选择器收窄**（保留在用的另一半）：
+- `.sf-doc-up,.sf-up{` → `.sf-doc-up{`；`.sf-doc-down,.sf-down{` → `.sf-doc-down{`
+  ⇒ ⚠️ `_DARK_CSS:54` 全局主题层仍有 `.sf-up`/`.sf-down` 定义 ⇒ **类名仍生效 ⇒ 行为零变化**
+- `.sf-card-title::before,.sf-card h2::before,.sf-card h2.sf-h1::before{` → 去掉死的那一支
+- `.sf-stat:hover,.ss-stat:hover{` → `.ss-stat:hover{`（`.ss-stat` 在 `ui_kit` 有 16 处使用）
+
+#### 13.22.3 验证
+
+**14 个 UI/设计系统守卫测试文件：118 passed, 2 skipped**；编译通过；`__pycache__` 已清。
+残留核查：`sf-doc-neu`/`sf-h1`/`sf-h2`/`sf-insight-box`/`sf-stat` 均已清零；
+`sf-note`(3) / `sf-one-line`(4) / `sf-verdict`(4) / `sf-section-title`(3) 保留。
+
+#### 13.22.4 诚实边界
+
+零改码语义（仅删零引用规则 + 收窄重复选择器）；**未做浏览器实测与截图基线**；
+全量 457 测试文件未跑 ⇒ **不得对外称「全站绿」**。
+
+#### 13.22.5 实施期新踩的坑（记录）
+
+- 同一 CSS 规则在 `dashboard_sf_css` 的**字面 `\n` 块**与**独立规则行**各有一份 ⇒
+  按行定位会漏；必须**正则跨行删整条声明**（f-string 里规则以 `}}` 收尾）。
+- 预设期望次数会因「两份定义」误判 ⇒ 改为「先扫描实际次数 → 全删 → 残留必须清零」。
