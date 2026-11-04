@@ -195,3 +195,45 @@
 
 专家团结论必须由主理人在**执行前**按当前 HEAD 真扫复核；「看起来合理的一致性整改」可能改成与真实
 渲染相反。「颜色名」不等于「颜色语义」——本仓 `colors.RED` 是绿色。改文案前先读单一真理源与守卫断言。
+
+## 11. v4 实施回执（2026-11-04，M1 之后的下一轮）
+
+> 本章登记**已实际落地**的项与**仍未清零**的项。执行基线 `85e1168` → `1440509` → `bca96ad` → `4c99b26`。
+
+### 11.1 已实施
+
+| 项 | 落点 | 提交 |
+|---|---|---|
+| **P2 深链契约** | `pages/22_基本面分析.py` 出边改 `safe_switch_page`（跳转前写 `hub_gyj_view='🔬 深度分析'` + `pick_stock`）；`pages/24_个股研究.py` 消费端读 `query_params` 预选分段、回填 `pick_stock_confirmed/pick_stock_query`、补「← 返回基本面分析」控件 | `bca96ad` |
+| **P3 配色例外注记** | `pages/96_新手教程.py` FAQ 与误区各补一条：「个股分析页（报告体）价格域为**文档体绿涨红跌例外**（`tests/test_colors.py` 锁 `--doc-up:#009e60`）」 | `bca96ad` |
+| **P1 组件词汇补漏** | `modules/portfolio_views.py` 9 处 `sf_card` → `xc_section_header`（位置兼容），3 处 `ui_theme` 导入改 `ui_kit`，清 `sf_metric` 死导入 | `bca96ad` |
+| **深链契约守卫** | 新增 `tests/test_deep_link_contract.py`（5 例：跳转方写参 / 消费方读参 / 返回控件 / `_SUBPAGES` 字符串零改动） | `bca96ad` |
+| **P1 信号同步自动化缺口** | 新增 `modules/p1_sync.py` + `scripts/refresh_p1_signals.py` + `tests/test_p1_sync.py`（14 例）；既有 automation `aed3ad1a` prompt 升级为调用该工具 | `4c99b26` |
+
+**P1 同步工具口径**（可复现、不臆造）：按**数据日 `latest_date` 降序**选最新，`mtime` 仅并列次键（不用 mtime 当数据新旧）；结构校验**复用** `p1_signal_quality.check_file`（新鲜度不作同步闸，fusion 有设计性滞后）；md5 相同 → 幂等跳过；目标已是更新数据日 → **绝不降级覆盖**；全部候选结构无效 → **拒绝写入**并如实带出缺字段明细；源目录发现走 `p1_signal.discover_source_dirs()`，**零硬编码路径**（AST 守卫锁）。
+
+实测：P1 产出 5 个模型信号（baseline/ens/ev/fusion/gru，`latest_date=2026-10-16`）与自托管副本 md5 一致 → 幂等 `unchanged`；`signal_rotation.json` 为**非模型信号 schema**（`as_of/all_ranked/method`，缺 `model/latest_date/horizon/top_short/daily`）→ 按结构闸拒绝写入并报出缺字段。
+
+### 11.2 仍未清零（如实登记，不得包装成「全仓收敛」）
+
+- **CSS 令牌层未重命名**：`modules/stock_research.py` 仍有 76 处 `sf-*` class 字符串，`modules/ui_theme.py` 有 99 处 `.sf-*` 定义。台账 #43「P2 组件词汇统一 sf_card→xc_card」虽已标 completed，但其覆盖的是**组件调用点**；本轮补齐了 `portfolio_views.py` 的漏网 9 处，**CSS 类名层仍是后置深改**（全量重命名需整套视觉回归，超出单批次风险预算）。
+- `modules/ui_theme.py::sf_card` / `sf_metric` 函数本体**保留未删**（无调用方亦不删，避免连带破坏）。
+- **P3 登录页中性化未实施**（`pages/90_登录.py` 的 `lg-*` 紫渐变 / 裸 `st.error` 仍在；▲/▼ 与「涨/跌」文字是黑白化显式例外，DOM 保留）。
+- **shim 直连三处未清**（§5 已登记）：`10_行情看板.py:311/343/601/609 → 11 页`、`51_每日晨报.py:184 → 46 页`、`scroll_nav.py:411 → /个股分析?pick_stock=`。
+- **P2 导航折叠未实施**（本就后置；不得以折叠为名在 `_NAV_GROUPS` 数据层删项）。
+- 全量 457 测试文件**未跑**；本轮为定向抽样（见 §11.3），**不得对外称「全站绿」**。
+
+### 11.3 验证矩阵（真实汇总行）
+
+| 批次 | 用例 | 结果 |
+|---|---|---|
+| M1 核心守卫 | 154 | 154 passed |
+| M1 设计系统族 | 106 | 106 passed |
+| M1 页面冒烟（26×3 分批） | 78 | 78 passed |
+| M2 守卫（深链+导航+颜色+metric+语义+设计） | 161 | 161 passed |
+| M2 公开数字 + 截图防造假 | 22 | 22 passed |
+| M2 页面冒烟（26×3 分批） | 78 | 78 passed |
+| M3 P1 族（含新 14 例） | 158 | 158 passed |
+| M3 公开数字 + metric 组 | 105 | 105 passed |
+
+合计 **862 例零失败**（跨 M1/M2/M3 三批，含 2 次页面冒烟全量分批）。
