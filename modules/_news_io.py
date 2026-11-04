@@ -45,6 +45,11 @@ try:
     _SNOW_OK = True
 except ImportError:
     _SNOW_OK = False
+except Exception:  # 兜底：snownlp 的分词数据用 marshal 反序列化，
+    # 数据文件损坏/与解释器版本不匹配时抛 ValueError/EOFError（不是 ImportError），
+    # 实测 2026-11-04 让《23_事件追踪》整页白屏。情感分析有词典法降级路径，
+    # 第三方包加载失败只该降级，不该升级成页面崩溃。
+    _SNOW_OK = False
 
 # ──────────────────────────────────────────────
 # 网络请求工具

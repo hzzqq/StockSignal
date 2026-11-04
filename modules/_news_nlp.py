@@ -24,6 +24,9 @@ try:
     from snownlp import SnowNLP
 except ImportError:
     SnowNLP = None  # type: ignore[assignment]
+except Exception:  # 同 _news_io：snownlp 的 marshal 数据加载失败（ValueError/EOFError）
+    # 不是 ImportError，漏兜会把整页拖崩；这里同样降级为 None。
+    SnowNLP = None  # type: ignore[assignment]
 
 class KeywordExtractor:
     """关键词提取器（jieba TF-IDF + TextRank 融合）。"""
