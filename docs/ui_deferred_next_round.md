@@ -558,3 +558,129 @@ D3 修好后，6 套风格会从「`extra` 里大量 `!important` 硬编码色�
 `modules/ui_icons.py` 中 `_EMOJI_MAP` 在 **L73**、`_ICONS` L19、`svg_icon` L99；
 `modules/top_nav.py` **410** 行；`#40` emoji **67 调用 / 52 个不同**（页头 52 中仅 17 被收录）；
 最小回归集 **32 个文件**（原 28）。
+### 13.9 Phase 1 更正版 + 缺陷编号统一（2026-11-04，Phase 3 开工前的最后修正）
+
+> Phase 1 收到 ux-designer 的 D3 后做了独立复核（tinycss2 规范解析 + 复刻 `render_standard_page`
+> 真实注入序列），**撤回了自己的 D2**、**新增 2 条更底层缺陷**、**给出实测通过的修法 fixE**。
+> **两名成员独立收敛到「D2 当前症状不成立」这一结论 ⇒ 置信度高。**
+
+#### 13.9.1 ⚠️ 缺陷编号统一（避免后人踩坑）
+
+Phase 1 与 Phase 2 各自用了 D4/D5，**撞号**。本仓库统一为：
+
+| 编号 | 缺陷 | 提出者 | 级别 |
+|---|---|---|---|
+| **D3** | `:root` 级联倒挂（`dashboard_sf_css` 的经典 `:root` 注入晚于 preset vars） | Phase 2 | 🔴 |
+| **D4** | **`modules/ui_kit.py:86` CSS 注释提前闭合 ⇒ `--brand-1` 声明被浏览器丢弃** | Phase 1 | 🔴 |
+| **D5** | 6 套非 classic 风格的 `vars` 全未生效（**D3 + D4 的合并结果**，与 D3 同根因） | Phase 1 | 🔴 |
+| **D6** | `modules/page_utils.py:124` 休市胶囊对比度 ≈ 2.2:1 | Phase 2 | 🟡 |
+| **D7** | `--doc-up` 在 swiss/ink/classic-light 三组 < 4.5（字面值被 3 守卫硬锁不可改） | Phase 2 | 🟡 |
+| ~~D2~~ | ~~6 套风格价格域回落继承色~~ | — | **已撤回**（当前症状不成立；降级为 D3/D4 的潜伏缺陷） |
+
+> ⚠️ §13.8 表格里的「D4」= 现 **D6**、「D5」= 现 **D7**（§13.8 写于 Phase 1 更正版到达之前）。
+
+#### 13.9.2 🔴 D4：`ui_kit.py:86` CSS 注释提前闭合 ⇒ `--brand-1` 声明被浏览器丢弃
+
+```
+  /* design_system.md §2 新增语义别名（绑定 --ss-*/--acc* 等价变量或 colors.* 既有值，
+     绝不臆造独立色相；供未来 page 迁移复用，对现有 --brand-1/--ss-* 消费者零影响） */
+  --brand-1:#4f46e5; --brand-2:#7c3aed;
+```
+注释体内含 `--ss-*/` ⇒ **CSS 注释在第一个 `*/` 处结束**（提前闭合）⇒ 剩余文本成非法 CSS ⇒
+浏览器解析到 `--brand-1:#4f46e5` 时报 *"Expected ':' after declaration name"* 并**丢弃该声明**。
+
+**tinycss2 实测**（`_TOKEN_CSS` 的 `:root` 内部，`parse_declaration_list`）：
+```
+文本声明数: 64 | 解析成功: 63 | 错误数: 1
+★★ 真正丢失的声明: ['--brand-1']      ← 精确 1 条
+--brand-1 浏览器生效? 否    --brand-2 生效? 是    --ss-up 生效? 是
+```
+全仓扫描同一 bug 形态（`--xx-*/` 提前闭合）**只命中这 1 处**。
+
+**三点后果**：
+1. 注释自称「对现有 `--brand-1`/`--ss-*` 消费者零影响」——**实际它连 `--brand-1` 自己都吞了**。
+2. **伪装成"注释"的静默失效**：任何「只修好注释让 `--brand-1` 复活」的单边修复，
+   都会让 `#4f46e5` 硬覆盖全站复活，**比现在更糟**（实测 fixA：8 组 `--brand-1` 全变 `#4f46e5`）。
+3. `tests/test_ui_kit_tokens.py:247` 硬断言 `"--brand-1:#4f46e5" in _KIT_CSS`
+   —— **它锁的是文本存在，不是浏览器生效** ⇒ 这条守卫一直在给一个**死声明**背书，**所以从没发现 D4**。
+
+#### 13.9.3 🔴 D5 的两层根因（与 D3 同源，Phase 1 独立复现）
+
+| preset | 声明 `--brand-1` | 实测生效 | | preset | 声明 `--brand-2` | 实测生效 |
+|---|---|---|---|---|---|---|
+| terminal | `#e8a33d` | `#5b53f0` ★ | | terminal | `#b8860b` | `#7c3aed` ★ |
+| swiss | `#111111` | `#4f46e5` ★ | | swiss | `#1a56db` | `#7c3aed` ★ |
+| aurora | `#6c5ce7` | `#5b53f0` ★ | | aurora | `#5d5fef` | `#7c3aed` ★ |
+| ink | `#b03a2e` | `#4f46e5` ★ | | ink | `#1e7762` | `#7c3aed` ★ |
+| cyber | `#fcee0a` | `#5b53f0` ★ | | cyber | `#00f0ff` | `#7c3aed` ★ |
+| finpro | `#2170ec` | `#5b53f0` ★ | | finpro | `#1f6feb` | `#7c3aed` ★ |
+
+`--card`/`--bg`/`--txt`/`--txt2`/`--border`/`--hold`/`--hover` 同样退化为 classic 基座，
+**只有 `--buy`/`--sell` 幸存**。**两层根因**：
+1. `ui_kit.py:88` 的 `--brand-1:#4f46e5` 硬覆盖 —— **当前被 D4 意外屏蔽**；修注释会复活它 ⇒ **必须同时删**。
+2. `ui_theme.py:223` `dashboard_sf_css()` 自带 `:root{_THEME_ROOT_VARS}`（classic 基座）
+   注入晚于 `ui_theme.py:185` 的 `inject_style_css()` ⇒ **这才是真覆盖者**。
+
+⇒ **D4 + D5 必须一起修，只修一个都无效或更糟。**
+
+#### 13.9.4 修法 fixE（Phase 1 已实测，8 组全绿；**取代三选一**）
+
+```
+fixE = fixD + 删 _TOKEN_CSS 的 --ss-up/--ss-down 硬覆盖
+fixD = fixB + dashboard_sf_css() 的 :root 改为「基座 ∪ preset vars（preset 优先）」
+fixB = 修 D4 注释闭合 + 删 _TOKEN_CSS 的 --brand-1/--brand-2 硬覆盖
+```
+**四步落点（R7：缺一不可）**：`modules/ui_kit.py:86`（修注释）+ `modules/ui_kit.py:88`（删 brand 硬覆盖）
++ `modules/ui_kit.py:45`（删 ss-up/down 硬覆盖）+ `modules/ui_theme.py:223`（`:root` 合并 preset vars）。
+
+**fixE 实测（8 组）**：
+```
+preset     --brand-1  --card     --txt      --ss-up   --ss-down  --doc-up  --doc-down
+classic    #5b53f0    #1a1a2e   #e2e8f0   #ff4d4f   #00d486    #009e60   #dc2626
+terminal   #e8a33d ★  #141414 ★ #d4d4d4 ★ #ff5c5c   #3ddc97    #009e60   #dc2626
+swiss      #111111 ★  #ffffff   #111111 ★ #d93025   #0f9d58    #009e60   #dc2626
+aurora     #6c5ce7 ★  #181a44 ★ #e9ecff ★ #ff5c7a   #2fe0a8    #009e60   #dc2626
+ink        #b03a2e ★  #fbf8f1 ★ #2b2b2b ★ #c0392b   #1e7f6b    #009e60   #dc2626
+cyber      #fcee0a ★  #101624 ★ #e8f6ff ★ #ff2a6d   #00ff9f    #009e60   #dc2626
+finpro     #2170ec ★  #0f1726 ★ #e6edf3 ★ #ff4d4f   #00d486    #009e60   #dc2626
+```
+⇒ **8 组「红涨绿跌（--ss-*）」+「绿涨红跌（--doc-*）」双语义全部成立**。
+**为什么必须删 `_TOKEN_CSS` 的 `--ss-up/--ss-down`**：只做 fixD 时 `--ss-up` 仍全 8 组 = `#ff4d4f`
+（preset 的 `#ff5c5c` 等被盖）—— 语义方向仍对，但**风格色仍不生效**。
+
+**R8（守卫升级，非弱化）**：`tests/test_ui_kit_tokens.py:247` 的 `"--brand-1:#4f46e5"` 文本断言
+在 fixE 后理应消失 ⇒ **必须改为断言「浏览器生效值」而非「文本存在」**，否则下次还会漏 D4。
+
+#### 13.9.5 新增可 grep 验收项
+
+```bash
+# D4：CSS 注释提前闭合不得回潮
+! grep -nE '\-\-[a-z0-9-]+-\*/' modules/ui_kit.py
+# D5-a：_TOKEN_CSS 不得硬写主题层令牌
+! grep -nE '\-\-brand-1:#|--brand-2:#|--ss-up:#|--ss-down:#' modules/ui_kit.py
+# D5-b：dashboard_sf_css 的 :root 必须合并 preset vars
+grep -n 'STYLE_PRESETS' modules/ui_theme.py
+# 价格域红线（8 组恒成立）
+grep -q -- '--doc-up:#009e60' modules/ui_theme.py && grep -q -- '--doc-down:#dc2626' modules/ui_theme.py
+```
+
+#### 13.9.6 依赖约束与两条新增诚实边界
+
+- ⚠️ **`tinycss2` 只在 `E:\python\lib\site-packages`，不在项目 `.venv`**
+  ⇒ `tests/test_style_token_cascade.py` **本轮只做静态文本断言**（上节 grep 类），
+  **探针固化（tinycss2 解析 + 复刻注入序列 + 按序求最终值）推到下一轮**；是否把 tinycss2 加入项目依赖需另行决策。
+- ⚠️ **fixE 后 6 套风格视觉外观会变**（terminal 琥珀 → 现在终于是琥珀，此前一直是经典紫）
+  ⇒ **可见变更**，需截图基线对比 + **逐风格目检**。
+- ⚠️ **fixE 后 terminal/aurora/cyber 的 `--card`/`--txt` 变为 preset 值 ⇒ 对比度必须重算**
+  （8 组矩阵对比度项从「未算」升级为「必须算」）。
+
+#### 13.9.7 Phase 1 其余交付项的修订（以本条为准）
+
+| Phase 1 原文 | 修订 |
+|---|---|
+| 「暗/浅 × 4 套主题 = 12 组矩阵」 | **7 套 `STYLE_PRESETS`**（classic/terminal/swiss/aurora/ink/cyber/**finpro**），**可达 8 组** |
+| D2「6 套风格价格域回落继承色」 | **撤回**（8 组实测全部成立） |
+| 「`starfield_theme.py` 整文件列 P2 删除候选」 | **收窄** —— 模块不可删（`stock_research.py:1419` + `pages/53:40` 真实引用）；仅 `STARFIELD_CSS` + 11 个渲染函数是死代码 |
+| 原验收项 O（「--doc-up 在 6 套风格下有定义」→ 缺失） | **删除**（前提不成立），替换为 §13.9.5 的 D4/D5 验收项 |
+| §1c「`.sf-pill.up` 绿底红字」 | **不变**，但影响面收窄：因 `--buy` 在 6 套下被覆盖为 preset 值 ⇒ 串色只在 **classic 暗色**出现；classic 亮色 `--buy` 仍未定义。**结论与修法均不变** |
+| 其余 42 个 token 映射表、11 个死代码清单、#40/#41 裁定、风险分级 | **不变** |
