@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """
 页面 54：今日决策面板（StockSignal 差异化核心 —— 事件驱动 + 市场情绪闭环）
 
@@ -15,7 +15,7 @@ import streamlit as st
 from modules import colors
 import html
 import logging
-from datetime import datetime
+from datetime import datetime  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ from modules import shepherd_forecast as _sf
 from modules import shepherd_note as _sn
 # 仓位推导收敛到 modules.decision 单一实现：决策面板 / 每日快照脚本 / 首页 banner 三处共用，
 # 避免各写一份漂移成互相矛盾的建议。改规则只需改 decision.derive_position 一处。
-from modules.decision import (derive_position, load_snapshot, is_stale,
+from modules.decision import (derive_position, load_snapshot, is_stale,  # noqa: F401
                              event_position_adj, event_long_symbols,
                              event_edge, format_event_edge,
                              compute_dual_factor_inputs)
@@ -41,7 +41,7 @@ from modules import calibration as _cal
 from modules.experiment_improvements import shap_style_attribution
 from modules.page_guard import safe_fragment, render_data_degradation_banner
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
-from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, ss_hover_preview, xc_kpi_grid, xc_bento_kpi, xc_content_card
+from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, ss_hover_preview, xc_kpi_grid, xc_bento_kpi, xc_content_card  # noqa: F401
 from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GRU/融合）
 from modules.event_factor import get_event_factor, fusion_source_note  # 事件因子适配器（真实信号，无合成）；B：融合来源旁注
 from modules.next_day_edge_view import render_next_day_edge  # 次日情绪极值判断组件（复用 panic_reversal）
@@ -287,7 +287,7 @@ def _render_hero(df, today, prev, meta=None):
             _fig = go.Figure(go.Bar(
                 x=_d, y=_fac, orientation="h",
                 marker_color=_colors,
-                text=[f"{x:+.1f} → {r:.0f}" for x, r in zip(_d, _run)],
+                text=[f"{x:+.1f} → {r:.0f}" for x, r in zip(_d, _run)],  # noqa: B905
                 textposition="auto",
             ))
             _fig.update_layout(
@@ -436,7 +436,7 @@ def fragment_ladder():
     if not promo.get("ready"):
         _empty_info("连板梯队历史不足 2 日，暂无晋级率（每日收盘后本页会自动落盘快照，积累后即可算）。")
         return
-    overall = promo.get("overall")
+    overall = promo.get("overall")  # noqa: F841
     render_ladder_table(promo)
 
 
@@ -545,16 +545,37 @@ def fragment_p1_ev():
     st.divider()
     _q = st.text_input("🔍 查个股事件因子（P1 EV）",
                        placeholder="如 sh600000 / sz000001", key="p1_ev_symbol_q")
+    # 宏观上下文需联网取 akshare 指标：默认关闭，用户显式勾选才取数（不无声联网）。
+    _show_macro = st.checkbox("🌐 显示全球宏观上下文（联网取数，不参与评分）",
+                              value=False, key="p54_show_macro")
     if _q:
         try:
-            ef = get_event_factor(_q.strip(), model=model, loader=ld)
+            # 第五源（语音转写事件）仅对当前登录用户启用：隐私闸门在 source 层强制，
+            # 未登录 / 会话不可用时传 None，get_event_factor 行为与旧版完全一致。
+            try:
+                from modules.session import get_user
+                _ve_user = (get_user() or {}).get("username") or None
+            except Exception:  # noqa: BLE001 - 会话不可用时跳过第五源（诚实降级）
+                _ve_user = None
+            ef = get_event_factor(_q.strip(), model=model, loader=ld,
+                                  voice_user=_ve_user,
+                                  include_macro=_show_macro)
         except Exception as e:  # noqa: BLE401
             ef = {"available": False, "reason": str(e)}
         if ef.get("available"):
             _sc = ef.get("score")
+            # 量纲：P1 源 score 是小数比率（+.2%），新闻/龙虎榜/主表/语音源是 0-100 分。
+            # 旧版对所有源统一用百分比，会把 52 分显示成 +5200.00% —— 此处按源分流。
+            _is_ratio = str(ef.get("source") or "").startswith("P1-")
             if isinstance(_sc, (int, float)):
-                _sc_txt = f"{_sc:+.2%}"
-                _col = "#ff5c5c" if _sc >= 0 else "#19c37d"  # A股：涨红跌绿
+                if _is_ratio:
+                    _sc_txt = f"{_sc:+.2%}"
+                    _col = "#ff5c5c" if _sc >= 0 else "#19c37d"  # A股：涨红跌绿
+                else:
+                    _sc_txt = f"{_sc:.1f} 分"
+                    _sig = ef.get("signal")
+                    _col = ("#ff5c5c" if _sig == "看多" else
+                            "#19c37d" if _sig == "看空" else "#888")
             else:
                 _sc_txt = "—"
                 _col = "#888"
@@ -564,6 +585,18 @@ def fragment_p1_ev():
                 f"　信号：<b>{ef.get('signal')}</b>　来源：<code>{ef.get('source')}</code>",
                 unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
             st.caption(fusion_source_note(_q.strip()))  # B：事件融合来源旁注（纯展示，零逻辑分支）
+            if _show_macro:
+                _mc = ef.get("macro") or {}
+                if _mc.get("available"):
+                    st.caption(
+                        f"🌐 全球宏观上下文：风险偏好 {_mc.get('regime_score')}/100"
+                        f"（{_mc.get('liquidity')}）｜数据日 {_mc.get('date') or '未提供'}"
+                        f"｜{_mc.get('source')} 确定性规则合成（非 AI 洞见），不参与事件因子评分"
+                    )
+                else:
+                    st.caption(
+                        f"🌐 全球宏观上下文暂不可用：{_mc.get('reason', '未知')}（不编造、不填充）"
+                    )
         else:
             # fix（T-258）：查询无结果分支——原 else 挂在 if _q 上，既造成空输入
             # UnboundLocalError（ef 未绑定），又让「无信号」提示从未显示过。
