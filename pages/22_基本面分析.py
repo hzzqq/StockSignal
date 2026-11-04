@@ -867,9 +867,15 @@ if code:
     st.markdown('---')
     col_jump1, col_jump2 = st.columns(2)
     with col_jump1:
-        st.page_link('pages/20_个股分析.py', label='→ 去 个股深度分析（决策仪表盘）', icon='🔍')
+        if st.button('→ 去 个股深度分析（决策仪表盘）', key='jump_20_analysis', width="stretch"):
+            st.query_params['pick_stock'] = code
+            safe_switch_page('pages/20_个股分析.py')
     with col_jump2:
-        st.page_link('pages/24_个股研究.py', label='→ 去 个股研究（K线与技术面）', icon='📈')
+        if st.button('→ 去 个股研究（K线与技术面）', key='jump_24_research', width="stretch"):
+            # 深链契约：预选「🔬 深度分析」并回填 code（消费端见 pages/24_个股研究.py）
+            st.query_params['hub_gyj_view'] = '🔬 深度分析'
+            st.query_params['pick_stock'] = code
+            safe_switch_page('pages/24_个股研究.py')
     st.caption('⚠️ 风险提示：本页所有数据及分析均由程序基于公开数据自动计算，仅供参考，不构成任何投资建议。市场有风险，投资需谨慎。')
     if st.button('↑ 回到顶部', key='fa_back_to_top', width="stretch"):
         sn.back_to_top_button()

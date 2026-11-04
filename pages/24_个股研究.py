@@ -30,7 +30,7 @@ except Exception as _prov_e:  # noqa: BLE001
     import logging as _logging
     _logging.getLogger("pages.24_个股研究").debug("展示源溯源徽标渲染失败: %s", _prov_e)
 
-from modules.session import trading_autorefresh  # noqa: I001
+from modules.session import trading_autorefresh, safe_switch_page  # noqa: I001
 trading_autorefresh(key="hub_autorefresh")
 
 _HERE = os.path.dirname(__file__)
@@ -92,6 +92,14 @@ def _run_subpage(path: str) -> None:
 _options = list(_SUBPAGES.keys())
 # 支持从搜索 / 龙虎榜 / 其它页跳转时预选子视图（默认「快速选取」）
 st.session_state.setdefault("hub_gyj_view", _options[0])
+# 深链契约消费端：22 页 / 顶部导航带 hub_gyj_view + pick_stock 跳转时预选子视图并回填 code
+_deeplink_view = st.query_params.get("hub_gyj_view")
+if _deeplink_view in _options:
+    st.session_state["hub_gyj_view"] = _deeplink_view
+_deeplink_code = st.query_params.get("pick_stock")
+if _deeplink_code:
+    st.session_state["pick_stock_confirmed"] = str(_deeplink_code)
+    st.session_state["pick_stock_query"] = str(_deeplink_code)
 if st.session_state.get("hub_gyj_view") not in _options:
     st.session_state["hub_gyj_view"] = _options[0]
 
@@ -103,6 +111,11 @@ _view = st.radio(
     key="hub_gyj_view",
 )
 st.caption(f"📍 当前：个股研究 › **{_view}**")
+if st.session_state.get("pick_stock_confirmed"):
+    if st.button("← 返回基本面分析", key="hub_back_to_fund",
+                 help="回到基本面分析页（沿用当前标的）", width="stretch"):
+        st.query_params["pick_stock"] = st.session_state["pick_stock_confirmed"]
+        safe_switch_page("pages/22_基本面分析.py")
 st.divider()
 _run_subpage(_SUBPAGES[_view])
 
