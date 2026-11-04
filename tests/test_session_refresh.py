@@ -80,8 +80,9 @@ def test_expired_token_refreshes_silently(monkeypatch):
     at.session_state[sess.KEY_TOKEN] = _expired_token()
     at.run()
     # 真断言：token 已被换新（三层中的两层：session_state 与 URL）
+    # AppTest.query_params 的值是列表形态（venv streamlit 1.58.0 实测 list）
     assert at.session_state[sess.KEY_TOKEN] == NEW_TOKEN
-    assert at.query_params.get("token") == NEW_TOKEN
+    assert at.query_params.get("token") == [NEW_TOKEN]
 
 
 def test_expired_token_rejected_then_cleared(monkeypatch):

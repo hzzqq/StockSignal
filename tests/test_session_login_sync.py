@@ -20,8 +20,8 @@ def test_init_session_state_resyncs_token_to_url():
     # 模拟 token 已存在于 session_state（如 localStorage 兜底已恢复），但 URL 无 token
     at.session_state["auth_token"] = "tok-abc-123"
     at.run()
-    # Streamlit AppTest.query_params 的 get 返回标量（1.59.2 实测 str）
-    assert at.query_params.get("token") == "tok-abc-123"
+    # Streamlit AppTest.query_params 将值以列表形式存储（venv streamlit 1.58.0 实测 list）
+    assert at.query_params.get("token") == ["tok-abc-123"]
 
 
 def test_init_session_state_no_token_no_url_write():
