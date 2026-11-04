@@ -82,7 +82,7 @@ def _md5(path: Path) -> str:
 def _mtime(path: Path) -> float:
     try:
         return os.path.getmtime(path)
-    except OSError:
+    except OSError:  # ui_audit_exempt: 读不到 mtime 时返回哨兵 0.0（最新日期判定按缺失处理，不编造）
         return 0.0
 
 
@@ -107,7 +107,7 @@ def collect_candidates(source_dirs: list[str] | None = None,
         try:
             if p.resolve() == tgt_resolved:
                 continue  # 目标目录自身不是源
-        except OSError:
+        except OSError:  # ui_audit_exempt: except-pass resolve 失败（权限/断链）时无法判定是否为目标目录，按候选源继续（不排除、不删改）
             pass
         if not p.is_dir():
             continue
