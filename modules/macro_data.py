@@ -504,12 +504,20 @@ def global_regime_score() -> dict | None:
     if not sub:
         return None
     score = round(sum(sub.values()) / len(sub))
+    # 真实数据日期（2026-11-04 ② 宏观维度耦合）：各分项 date 取自 fetch_indicator
+    # 的真实最新数据日，绝不用 now() 兜底。供上层如实标注时效；取不到即 None。
+    dates = {k: (vv.get("date") if vv else None) for k, vv in parts.items()}
+    if curve:
+        dates["yield_curve"] = curve.get("date")
+    if spread:
+        dates["cn_us_spread"] = spread.get("date")
     return {
         "score": score,
         "sub": {k: round(v, 1) for k, v in sub.items()},
         "parts": {k: (vv["value"] if vv else None) for k, vv in parts.items()},
         "yield_curve": (curve["value"] if curve else None),
         "cn_us_spread": (spread["value"] if spread else None),
+        "dates": dates,
     }
 
 

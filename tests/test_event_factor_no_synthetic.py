@@ -31,6 +31,10 @@ EXTENDED_TARGETS = [
     os.path.join(ROOT, "modules", "event_compare.py"),
     os.path.join(ROOT, "scripts", "refresh_event_pool.py"),
     os.path.join(ROOT, "modules", "event_announcements.py"),
+    # 2026-11-04 ③：第五源（语音转写事件）与宏观上下文源，同属事件因子真实数据链，
+    # 任一环节重新引入 random/synthetic 都会污染事件真值 → 纳入同一不变量护栏。
+    os.path.join(ROOT, "modules", "voice_event.py"),
+    os.path.join(ROOT, "modules", "macro_data.py"),
 ]
 
 # 禁止在事件链路代码里出现的「造数」调用名（仅代码节点，非文档）
