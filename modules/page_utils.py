@@ -180,14 +180,14 @@ def fmt_safe(v, nd: int = 2, na: str = "N/A") -> str:
     return f"{v:.{nd}f}"
 
 
-def section_title(text: str, accent: str = "var(--acc1)") -> None:
+def section_title(text: str, accent: str = "var(--brand-1)") -> None:
     """R-02: 带强调色的分区标题胶囊（下沉自 pages/31 + pages/32 相同实现）。
 
-    统一走设计令牌 var(--acc1)（品牌色），随主题切换。accent 参数保留仅作兼容。
+    统一走设计令牌 var(--brand-1)（品牌色），随主题切换。accent 参数保留仅作兼容。
     """
     import streamlit as st
     st.markdown(
-        f"<div style='display:inline-block;background:var(--acc1);color:#fff;"
+        f"<div style='display:inline-block;background:var(--brand-1);color:#fff;"
         f"padding:4px 12px;border-radius:var(--ss-radius-sm);font-weight:600;font-size:14px;"
         f"margin-bottom:2px;'>{text}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 

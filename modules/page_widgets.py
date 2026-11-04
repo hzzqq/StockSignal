@@ -97,15 +97,15 @@ def _fig_layout(dark_mode):
     return base
 
 
-# 设计令牌：section 竖条统一走 ui_theme 注入的 --acc1（品牌强调色），
+# 设计令牌：section 竖条统一走 ui_theme 注入的 --brand-1（品牌强调色），
 # 由 :root 在暗/亮主题下同值 (#4f46e5) 自动适配，全站一次性去彩虹。
-_SECTION_BAR_COLOR = "var(--acc1)"
+_SECTION_BAR_COLOR = "var(--brand-1)"
 
 
 def _section_title_html(text, accent=None) -> str:
     """PURE: 返回章节标题 HTML 字符串（调用方自行 markdown 渲染）。
 
-    竖条颜色统一使用设计令牌 ``var(--acc1)``（由 modules.ui_theme.dashboard_sf_css
+    竖条颜色统一使用设计令牌 ``var(--brand-1)``（由 modules.ui_theme.dashboard_sf_css
     注入的 :root 变量），全站 section 标题共享同一品牌强调色并自动适配暗/亮主题。
     ``accent`` 参数保留仅为向后兼容旧调用点，已不再影响渲染（去彩虹）。
 

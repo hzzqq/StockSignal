@@ -46,7 +46,7 @@ with tab_overview:
     if code == 200 and resp.get("status") == "ok":
         stats = resp.get("data") or {}
         stat_row([
-            {"label": "股票总数", "value": stats.get("total", 0), "accent": "var(--acc1)"},
+            {"label": "股票总数", "value": stats.get("total", 0), "accent": "var(--brand-1)"},
             {"label": "沪市 (SH)", "value": stats.get("sh", 0), "accent": colors.UP_COLOR},
             {"label": "深市 (SZ)", "value": stats.get("sz", 0), "accent": colors.DOWN_COLOR},
         ])

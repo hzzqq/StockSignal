@@ -174,31 +174,31 @@ st.markdown(
     .lg-wrap{max-width:1160px;margin:0 auto;padding-top:1.2rem}
     .lg-title{text-align:center;margin:0 0 22px}
     .lg-title h1{font-size:2.1rem;font-weight:900;color:var(--txt);margin:0 0 6px}
-    .lg-title h1 .lg-grad{background:linear-gradient(90deg,var(--acc1),var(--acc2));
+    .lg-title h1 .lg-grad{background:linear-gradient(90deg,var(--brand-1),var(--brand-2));
       -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
     .lg-title p{font-size:1rem;color:var(--txt2);margin:0}
-    .lg-title p b{color:var(--acc1);font-weight:800}
-    .lg-desk{background:linear-gradient(160deg,color-mix(in srgb,var(--acc1) 10%,var(--card)) 0%,var(--card) 100%);
-      border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));
+    .lg-title p b{color:var(--brand-1);font-weight:800}
+    .lg-desk{background:linear-gradient(160deg,color-mix(in srgb,var(--brand-1) 10%,var(--card)) 0%,var(--card) 100%);
+      border:1px solid color-mix(in srgb,var(--brand-1) 28%,var(--border));
       border-radius:var(--ss-radius-card);padding:1.5rem 1.4rem;height:100%}
     .lg-desk-brand{display:flex;align-items:center;gap:.7rem;margin-bottom:.6rem}
     .lg-logo{font-size:2rem}
     .lg-brand-name{font-size:1.25rem;font-weight:800;color:var(--txt)}
     .lg-brand-sub{font-size:.82rem;color:var(--txt2)}
     .lg-desk-desc{font-size:.86rem;color:var(--txt2);line-height:1.6;margin:0 0 1.1rem}
-    .lg-card{background:color-mix(in srgb,var(--acc1) 5%,var(--card));
+    .lg-card{background:color-mix(in srgb,var(--brand-1) 5%,var(--card));
       border:1px solid var(--border);border-radius:var(--ss-radius-lg);padding:.95rem 1rem;margin-bottom:.85rem}
     .lg-card-h{font-size:.92rem;font-weight:700;color:var(--txt);margin-bottom:.6rem;
       display:flex;align-items:center;gap:.4rem}
-    .lg-tag{font-size:.66rem;font-weight:600;color:var(--acc1);
-      background:color-mix(in srgb,var(--acc1) 12%,transparent);
-      border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent);
+    .lg-tag{font-size:.66rem;font-weight:600;color:var(--brand-1);
+      background:color-mix(in srgb,var(--brand-1) 12%,transparent);
+      border:1px solid color-mix(in srgb,var(--brand-1) 30%,transparent);
       border-radius:var(--ss-radius-pill);padding:.1rem .5rem;margin-left:.3rem}
     .lg-gauge{display:flex;align-items:center;gap:.8rem}
-    .lg-gauge-val{font-size:2rem;font-weight:900;color:var(--acc1);min-width:62px;text-align:center}
-    .lg-gauge-bar{flex:1;height:10px;border-radius:var(--ss-radius-pill);background:color-mix(in srgb,var(--acc1) 14%,var(--border));overflow:hidden}
+    .lg-gauge-val{font-size:2rem;font-weight:900;color:var(--brand-1);min-width:62px;text-align:center}
+    .lg-gauge-bar{flex:1;height:10px;border-radius:var(--ss-radius-pill);background:color-mix(in srgb,var(--brand-1) 14%,var(--border));overflow:hidden}
     .lg-gauge-bar span{display:block;height:100%;border-radius:var(--ss-radius-pill);
-      background:linear-gradient(90deg,var(--acc1),var(--acc2))}
+      background:linear-gradient(90deg,var(--brand-1),var(--brand-2))}
     .lg-card-meta{font-size:.76rem;color:var(--txt2);margin-top:.6rem}
     .lg-idx{display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:.6rem}
     .lg-idx-name{font-size:.82rem;color:var(--txt2)}
@@ -209,7 +209,7 @@ st.markdown(
     .lg-breadth{font-size:.8rem;color:var(--txt2);line-height:1.7}
     .lg-breadth b{color:var(--txt)}
     .lg-ai{font-size:.86rem;color:var(--txt);margin-bottom:.4rem}
-    .lg-ai b{color:var(--acc1)}
+    .lg-ai b{color:var(--brand-1)}
     .lg-ai-clue{font-size:.78rem;color:var(--txt2)}
     .lg-form{max-width:420px;margin:0 auto}
     .lg-quick{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 2px}
@@ -217,7 +217,7 @@ st.markdown(
     .lg-footer{text-align:center;color:var(--txt2);font-size:.78rem;margin-top:26px;
       border-top:1px solid var(--border);padding-top:14px}
     .lg-footer a{color:var(--txt2);margin:0 10px;text-decoration:none}
-    .lg-footer a:hover{color:var(--acc1)}
+    .lg-footer a:hover{color:var(--brand-1)}
     </style>
     """,
     unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html

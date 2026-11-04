@@ -125,12 +125,12 @@ def test_a11y_contrast_report_mode():
         if base is None:
             v = _parse_vars(p.get("vars", ""))
             # finpro 不覆盖语义色（守卫钉死）→ 回落全局 :root 值（ui_kit _TOKEN_CSS）
-            required = ("--card", "--card2", "--txt", "--txt2", "--acc1")
+            required = ("--card", "--card2", "--txt", "--txt2", "--brand-1")
             miss = [r for r in required if r not in v]
             assert not miss, f"{k} vars 缺报告所需变量 {miss}（格式漂移？报告将空转）"
             base = {
                 "card": v["--card"], "card2": v["--card2"], "txt": v["--txt"],
-                "txt2": v["--txt2"], "acc1": v["--acc1"],
+                "txt2": v["--txt2"], "acc1": v["--brand-1"],
                 "up": v.get("--ss-up", UP), "down": v.get("--ss-down", DOWN),
             }
         row = (

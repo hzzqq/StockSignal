@@ -176,7 +176,7 @@ def xc_error_boundary(title, hint="", log=None):
 | A | ✅ 完成 | 315fbac | docs 域改名 `--doc-up/--doc-down`（非删除）；7 页面 hex→`colors.*`；**preset 串未改名**（独立作用域红涨绿跌正确，改名无收益增风险，见 5.1 纠偏） |
 | B | ✅ 完成 | f5c60bf | 68 处 `info_banner` 全量迁移 + xc 版补回 T-277 折叠；**`section_header` 当时未动**（签名/返回语义不同），后于 Phase 6 单独迁移 |
 | C | ✅ 完成 | 616f01d | `_build_token_css()` + `--brand-*/--c-*` 别名绑定既有值；`_build_theme_root(dark)` 字节级等价；`xc_error_boundary` 建成 |
-| D | ✅ 完成 | 46f1bde + 4ae7880 | 收口守卫先行；圆角由「16/18 统一」扩大为**299 处全量归一五档**；等宽量化已锁；**`--acc1` 残留替换未做**（194 处，别名已绑定等价值，替换纯机械改写收益低 → 唯一遗留，可另开 PR） |
+| D | ✅ 完成 | 46f1bde + 4ae7880 | 收口守卫先行；圆角由「16/18 统一」扩大为**299 处全量归一五档**；等宽量化已锁；**`--acc1/--acc2` 残留替换已于 2026-11-04 收口**（全量改名为 `--brand-1/--brand-2`，312 处代码，守卫锁回潮） |
 | 收尾 | ✅ 完成 | 4ae7880 | `section_header` 全量迁移（legacy 转 Deprecated 薄委托，xc 版扩 subtitle/icon/xtra/render 双模）+ 圆角全量归一 |
 
 ### 5.1 P1 页面 hex→colors.* + P2 语义色改名（核实自源码，禁止误删）
@@ -199,8 +199,8 @@ grep -rEn '#(ff4d4f|00d486)' pages/
 ## 6. 已知事实校正（避免规范建立在错误假设上）
 - `apply_theme` **定义在 `modules/ui_theme.py:153`**（非 widgets.py）；widgets.py 仅调用。
 - **无 `xc_hero` 函数**，新城 hero 入口是 `page_hero(...)`(ui_kit.py:597)，`.ss-hero` 仅 `style='sf'` 兜底。
-- 现有令牌命名是 `--ss-*`/`--acc1`，与本文 draft 的 `--c-*`/`--brand-1` 不一致——§2 草案中的 `--c-*` 是**新增别名**，须 `var(--ss-*)` 等价绑定，不得臆造独立值。
+- 现有令牌命名是 `--ss-*`/`--brand-1`，与本文 draft 的 `--c-*`/`--brand-1` 一致——`--brand-1/--brand-2` 为品牌令牌具体 hex 单源（非 `--acc` 别名），`--c-*` 为语义别名须 `var(--ss-*)` 等价绑定，不得臆造独立值。
 - 令牌真相源以 `modules/ui_kit.py::_TOKEN_CSS` 为准（已由 `test_ui_kit_tokens.py` 锁定义/接线/语义）。
 - **圆角吸附点目检结论（2026-11-03）**：`.xc-hero`/`.sf-card`/`.lg-desk` 18→16、登录卡 26→16 均为装饰性漂移，令牌链路全程可用（ui_kit 自身 / dashboard_sf_css 前置 `_TOKEN_CSS` / 90_登录走 `apply_page_config→inject_kit_css`）。
-- **清理候选**：登录 preset 的 `--ss-login-radius`（:609/:704/:784/:865 等）是历史死变量——旧代码 `border-radius` 用字面量从未引用它，归一后更无引用；删除属零风险清理，未纳入本次改动。
-- `--acc1/--acc2` 仍有 194 处（`--brand-1/--brand-2` 别名已等价绑定），全量替换为纯机械改写，留待独立 PR。
+- **纠偏（2026-11-04）**：`--ss-login-radius` **并非死变量**——`modules/session.py:675` 实时消费 `var(--ss-login-radius, 28px)`（登录区圆角），旧文档「死变量」为误判，已推翻；保留不删。
+- `--acc1/--acc2` 已于 2026-11-04 全量收口：代码 312 处（modules/pages/tests/app）改名为 `--brand-1/--brand-2`，`--brand-1/--brand-2` 由别名升级为带具体 hex 的真实品牌令牌（单源 `ui_theme`/`ui_kit`），`--acc1/--acc2` 正式退役；守卫 `test_design_tokens_present.test_legacy_acc_tokens_retired` 锁回潮。

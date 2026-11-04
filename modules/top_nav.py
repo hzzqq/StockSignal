@@ -9,7 +9,7 @@ modules/top_nav.py — 阿里云风格顶部 Mega 导航（T-195，侧栏退役�
 
 设计铁律：
   · 纯视觉/导航，不改任何业务逻辑（additive-only）
-  · 颜色全部走 CSS 变量（--acc1/--acc2/--card/--txt/--txt2/--border），六套风格自动适配
+  · 颜色全部走 CSS 变量（--brand-1/--brand-2/--card/--txt/--txt2/--border），六套风格自动适配
   · 页面跳转用 <a href="/{slug}?token=…&u=…&prefs=…">（T-201：token 随 href 走，
     落页由 URL query_params 原位恢复登录态与界面风格；T-206 已删除从未生效的
     auth_persist localStorage 兜底）
@@ -258,16 +258,16 @@ TOPNAV_CSS = """
   display:flex;align-items:center;padding:0 18px;gap:2px;
   font-family:'Inter','PingFang SC','Microsoft YaHei',sans-serif}
 .ss-brand{text-decoration:none;font-size:15px;color:var(--txt);margin-right:14px;white-space:nowrap}
-.ss-brand b{color:var(--acc1)}
+.ss-brand b{color:var(--brand-1)}
 /* T-199/T-201：menus 容器不裁剪（overflow:hidden 曾裁掉 mega 面板）；.ss-menu 去
    position:relative（面板锚 .ss-topnav 全宽）并满栏高——菜单项曾只有内容高（约 37px），
    项底与面板顶（52px 栏底）之间存在约 8px hover 死区，鼠标移入面板即穿过死区导致展开即收 */
 .ss-topnav-menus{display:flex;align-items:stretch;gap:2px;flex:1;min-width:0;overflow:visible;align-self:stretch}
 .ss-menu{display:flex;align-items:center;gap:6px;height:100%;padding:0 13px;cursor:pointer;font-weight:600;font-size:14px;
   color:var(--txt);white-space:nowrap;border-radius:var(--ss-radius-sm);user-select:none}
-.ss-menu:hover{color:var(--acc1);background:color-mix(in srgb,var(--acc1) 8%,transparent)}
+.ss-menu:hover{color:var(--brand-1);background:color-mix(in srgb,var(--brand-1) 8%,transparent)}
 .ss-menu-link{text-decoration:none}
-.ss-menu-active{color:var(--acc1)!important;background:color-mix(in srgb,var(--acc1) 10%,transparent)}
+.ss-menu-active{color:var(--brand-1)!important;background:color-mix(in srgb,var(--brand-1) 10%,transparent)}
 /* ── Mega 面板：全宽白面板，悬停展开 ── */
 .ss-mega{display:none;position:absolute;top:100%;left:0;right:0;
   background:var(--card,#fff);border-bottom:1px solid var(--border,#e2e8f0);
@@ -278,20 +278,20 @@ TOPNAV_CSS = """
    点击面板外其他区域或再点一次类目才收起 */
 .ss-menu.ss-menu-pinned .ss-mega{display:block}
 .ss-mega-intro{max-width:520px;margin-bottom:12px}
-.ss-mega-intro h4{margin:0 0 4px;font-size:15px;color:var(--acc1)}
+.ss-mega-intro h4{margin:0 0 4px;font-size:15px;color:var(--brand-1)}
 .ss-mega-intro p{margin:0;font-size:12.5px;color:var(--txt2);line-height:1.5}
 .ss-mega-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 18px;
   max-height:56vh;overflow-y:auto;overflow-x:auto;padding-right:6px}
-.ss-mega-sub{grid-column:1 / -1;font-size:11.5px;color:var(--acc1);font-weight:700;
+.ss-mega-sub{grid-column:1 / -1;font-size:11.5px;color:var(--brand-1);font-weight:700;
   margin:8px 0 2px;letter-spacing:.5px}
 .ss-entry{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:var(--ss-radius-sm);
   text-decoration:none;white-space:nowrap;cursor:pointer;transition:background .12s ease}
-.ss-entry:hover{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
-.ss-entry:focus-visible{outline:2px solid var(--acc1);outline-offset:-2px;
-  background:color-mix(in srgb,var(--acc1) 8%,transparent)}
+.ss-entry:hover{background:color-mix(in srgb,var(--brand-1) 8%,transparent)}
+.ss-entry:focus-visible{outline:2px solid var(--brand-1);outline-offset:-2px;
+  background:color-mix(in srgb,var(--brand-1) 8%,transparent)}
 .ss-entry b{font-size:13.5px;font-weight:600;color:var(--txt)}
-.ss-entry-active b{color:var(--acc1)}
-.ss-entry-active{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
+.ss-entry-active b{color:var(--brand-1)}
+.ss-entry-active{background:color-mix(in srgb,var(--brand-1) 8%,transparent)}
 .ss-tag{font-size:10px;padding:1px 6px;border-radius:var(--ss-radius-xs);font-style:normal;font-weight:700;flex-shrink:0}
 .ss-tag-hot{background:rgba(255,42,109,.12);color:#ff2a6d}
 .ss-tag-new{background:rgba(0,168,204,.14);color:#0090b8}
@@ -299,31 +299,31 @@ TOPNAV_CSS = """
 .ss-topnav-right{display:flex;align-items:center;gap:8px;margin-left:auto}
 .ss-search{padding:5px 14px;border:1px solid var(--border,#e2e8f0);border-radius:var(--ss-radius-sm);
   color:var(--txt2);font-size:12.5px;cursor:pointer;white-space:nowrap;user-select:none}
-.ss-search:hover{border-color:var(--acc1);color:var(--acc1)}
+.ss-search:hover{border-color:var(--brand-1);color:var(--brand-1)}
 .ss-search kbd{font-size:10px;border:1px solid var(--border);border-radius:var(--ss-radius-xs);padding:0 4px;margin-left:4px}
 .ss-ico{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
   font-size:13px;border-radius:var(--ss-radius-sm);text-decoration:none;color:var(--txt2)}
-.ss-ico:hover{background:color-mix(in srgb,var(--acc1) 10%,transparent);color:var(--acc1)}
+.ss-ico:hover{background:color-mix(in srgb,var(--brand-1) 10%,transparent);color:var(--brand-1)}
 .ss-user{position:relative;cursor:pointer}
-.ss-avatar{width:30px;height:30px;border-radius:50%;background:color-mix(in srgb,var(--acc1) 14%,transparent);
+.ss-avatar{width:30px;height:30px;border-radius:50%;background:color-mix(in srgb,var(--brand-1) 14%,transparent);
   display:flex;align-items:center;justify-content:center;font-size:14px}
 .ss-user-menu{right:0;left:auto!important;width:250px;padding:14px}
 .ss-user:hover .ss-mega{display:block}
 /* T-201 风格切换=锚点导航（用户手势导航不受 iframe sandbox 限制；JS select 路径废除） */
 .ss-style-opt{display:flex;align-items:center;gap:6px}
-.ss-style-cur{color:var(--acc1)!important;font-weight:700}
-.ss-user-sec{font-size:11px;color:var(--acc1);font-weight:700;margin:8px 0 4px;letter-spacing:.5px}
+.ss-style-cur{color:var(--brand-1)!important;font-weight:700}
+.ss-user-sec{font-size:11px;color:var(--brand-1);font-weight:700;margin:8px 0 4px;letter-spacing:.5px}
 .ss-user-item{display:block;padding:6px 8px;border-radius:var(--ss-radius-sm);text-decoration:none;
   color:var(--txt);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   cursor:pointer;transition:background .12s ease}
-.ss-user-item:hover{background:color-mix(in srgb,var(--acc1) 8%,transparent);color:var(--acc1)}
-.ss-user-item:focus-visible{outline:2px solid var(--acc1);outline-offset:-2px;
-  background:color-mix(in srgb,var(--acc1) 8%,transparent);color:var(--acc1)}
+.ss-user-item:hover{background:color-mix(in srgb,var(--brand-1) 8%,transparent);color:var(--brand-1)}
+.ss-user-item:focus-visible{outline:2px solid var(--brand-1);outline-offset:-2px;
+  background:color-mix(in srgb,var(--brand-1) 8%,transparent);color:var(--brand-1)}
 /* ── 字号层级：核心突出 / 次要收敛（阿里云简洁层级） ── */
 .stMarkdown p{line-height:1.55}
 [data-testid="stMetricLabel"]{font-size:.78rem!important}
 /* ── T-264 当前位置指示：类目后的「› 当前页名」面包屑（类目高亮复用 .ss-menu-active） ── */
-.ss-crumb{font-style:normal;font-weight:500;font-size:12px;color:var(--acc1);
+.ss-crumb{font-style:normal;font-weight:500;font-size:12px;color:var(--brand-1);
   opacity:.9;margin-left:2px;white-space:nowrap}
 /* ── 响应式 ── */
 @media(max-width:1100px){.ss-menu{padding:8px 9px;font-size:13px}}

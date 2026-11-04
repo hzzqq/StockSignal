@@ -110,7 +110,7 @@ SCROLL_NAV_CSS = """
   box-shadow:0 8px 22px rgba(15,23,42,.2),0 2px 6px rgba(15,23,42,.1);
 }
 .sf-scroll-top:active{transform:translateY(0) scale(.96)}
-.sf-scroll-top:focus-visible{outline:2px solid var(--acc1,#4f46e5);outline-offset:2px}
+.sf-scroll-top:focus-visible{outline:2px solid var(--brand-1,#4f46e5);outline-offset:2px}
 
 /* 暗色主题：深底 + 浅箭头 */
 .sf-scroll-top.dark{
@@ -186,9 +186,9 @@ SCROLL_NAV_CSS = """
 .ss-cmd-item{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--ss-radius-sm);
   text-decoration:none;color:var(--txt,#1f2937);font-size:14px;cursor:pointer;
   transition:background .12s ease}
-.ss-cmd-item:hover,.ss-cmd-item.active{background:color-mix(in srgb,var(--acc1,#4f46e5) 10%,transparent)}
-.ss-cmd-item:focus-visible{outline:2px solid var(--acc1,#4f46e5);outline-offset:-2px;
-  background:color-mix(in srgb,var(--acc1,#4f46e5) 10%,transparent)}
+.ss-cmd-item:hover,.ss-cmd-item.active{background:color-mix(in srgb,var(--brand-1,#4f46e5) 10%,transparent)}
+.ss-cmd-item:focus-visible{outline:2px solid var(--brand-1,#4f46e5);outline-offset:-2px;
+  background:color-mix(in srgb,var(--brand-1,#4f46e5) 10%,transparent)}
 .ss-cmd-group{margin-left:auto;font-size:11px;color:var(--txt2,#6b7280)}
 .ss-cmd-empty{padding:16px;text-align:center;color:var(--txt2,#6b7280);font-size:13px}
 .ss-cmd-hint{padding:8px 14px;border-top:1px solid var(--border,#e2e8f0);

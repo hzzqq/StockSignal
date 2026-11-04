@@ -21,6 +21,7 @@ from modules.page_widgets import _empty_info
 from modules.event_levels import STRENGTH_ORDER  # T-288：五档单一真理源
 from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, xc_content_card, xc_kpi_grid
 from modules.voice_event import render_voice_event_block  # 语音事件因子（抽离为可复用渲染块，独立页 87 与本页共用）
+from modules.event_factor import fusion_source_note  # B：事件融合来源旁注（纯展示）
 render_standard_page(title='事件追踪', icon='🔔', caption='⚠️ 数据仅供参考，不构成投资建议', layout='wide')
 
 lk_p1, lk_p2 = st.columns([1, 1])
@@ -193,6 +194,7 @@ def fragment_signal_score():
                 {'label': '宏观信号', 'value': f'{_macro}/100'},
                 {'label': '综合评分', 'value': f'{total}/100', 'meta': delta_text},
             ])
+            st.caption(fusion_source_note(sig_ticker))  # B：事件融合来源旁注（纯展示，零逻辑分支）
             col_radar, col_detail = st.columns([1, 1])
             with col_radar:
                 fig = Visualizer.signal_radar(_safe_scores)

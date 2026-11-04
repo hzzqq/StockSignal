@@ -482,3 +482,28 @@ def tracked_event_signal(ticker: str, lookback_days: int = 30,
             "titles": titles[:5],  # 旁注只带前 5 条，防超长
         },
     }
+
+
+def fusion_source_note(ticker: str, keywords=None) -> str:
+    """事件融合来源旁注（纯展示，零逻辑分支）。
+
+    供 23 事件追踪 / 54 决策面板在事件评分处展示「融合自本地 N 条事件」，
+    让用户与审计感知真实事件贡献。复用 :func:`tracked_event_signal` 取本地命中条数。
+    异常 / 无关联事件一律优雅降级，绝不编造或臆造条数。
+    """
+    try:
+        tk = tracked_event_signal(ticker, keywords=keywords)
+    except Exception:  # noqa: BLE401 - 取数失败按无事件处理，不静默崩
+        return "事件融合来源：本地事件库暂不可用"
+    if not tk.get("available"):
+        return "事件融合来源：本地事件库无关联事件"
+    _tr = tk.get("tracked") or {}
+    n = 0
+    if isinstance(_tr, dict):
+        try:
+            n = int(_tr.get("n_events", 0) or 0)
+        except (TypeError, ValueError):
+            n = 0
+    if n <= 0:
+        return "事件融合来源：本地事件库无关联事件"
+    return f"事件融合来源：本地事件库命中 {n} 条（与 P1 事件因子加权融合）"

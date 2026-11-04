@@ -478,7 +478,7 @@ def fragment_list():
                 '.ss-hot-btn{width:100%!important;text-align:left!important;'
                 'background:transparent!important;border:none!important;'
                 'box-shadow:none!important;padding:2px 4px!important;color:var(--txt)!important}'
-                '.ss-hot-btn:hover{color:var(--acc1)!important;background:transparent!important;'
+                '.ss-hot-btn:hover{color:var(--brand-1)!important;background:transparent!important;'
                 'transform:none!important}</style>',
                 unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
             for _hi, hp in enumerate(_hot, 1):

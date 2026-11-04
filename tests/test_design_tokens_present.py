@@ -40,6 +40,19 @@ def test_semantic_aliases_present():
         assert f"{tok}:" in css, f"缺失语义别名令牌：{tok}"
 
 
+def test_legacy_acc_tokens_retired():
+    """A 收口（2026-11-04）：旧品牌令牌 --acc* 已全量改名为 --brand-1/--brand-2，禁止回潮。"""
+    pat = re.compile(r"--acc[12]\b")
+    for d in ("modules", "pages", "tests"):
+        for p in (ROOT / d).rglob("*.py"):
+            txt = p.read_text(encoding="utf-8", errors="ignore")
+            assert not pat.search(txt), f"遗留 --acc* 令牌未退役：{p}"
+    root_app = ROOT / "app.py"
+    if root_app.exists():
+        assert not pat.search(root_app.read_text(encoding="utf-8", errors="ignore")), \
+            "遗留 --acc* 令牌未退役：app.py"
+
+
 def test_aliases_bind_to_existing_tokens():
     """别名不得臆造独立色相：值须绑定 --ss-*/--acc* 或等价 colors.* 既有 hex。"""
     css = _kit()._KIT_CSS

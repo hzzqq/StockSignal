@@ -382,7 +382,7 @@ def render_stock_analysis() -> None:
                     if st.button('✕ 关闭分时图', key=f'close_intra_{ticker}'):
                         del st.session_state[f'intraday_target_{ticker}']
                         st.rerun(scope='fragment')
-            st.markdown("<div style='font-size:12px;color:var(--txt2);margin:8px 0 6px;display:flex;align-items:center;gap:8px;'><span>💡</span><span>按住鼠标拖拽可平移；点击工具栏 🔍 后框选区域可放大；点击 🏠 可还原视图（部分浏览器需双击）。</span><span style='margin-left:auto;background:color-mix(in srgb,var(--acc1) 12%,var(--card2));padding:2px 8px;border-radius:var(--ss-radius-xs);font-size:11px;color:var(--acc1);'>🖱️ <b>双击K线柱</b> → 弹出当日分时图</span></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            st.markdown("<div style='font-size:12px;color:var(--txt2);margin:8px 0 6px;display:flex;align-items:center;gap:8px;'><span>💡</span><span>按住鼠标拖拽可平移；点击工具栏 🔍 后框选区域可放大；点击 🏠 可还原视图（部分浏览器需双击）。</span><span style='margin-left:auto;background:color-mix(in srgb,var(--brand-1) 12%,var(--card2));padding:2px 8px;border-radius:var(--ss-radius-xs);font-size:11px;color:var(--brand-1);'>🖱️ <b>双击K线柱</b> → 弹出当日分时图</span></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             _date_min = pd.to_datetime(period_df['date']).min().strftime('%Y-%m-%d')
             _date_max = pd.to_datetime(period_df['date']).max().strftime('%Y-%m-%d')
             _cap = "<div style='font-size:12px;color:var(--txt2);margin-top:4px;'>绿柱为上涨、红柱为下跌（参考文档配色）。均线 MA5(橙)/MA10(靛)/MA20(绿)；"
@@ -531,7 +531,7 @@ def render_stock_analysis() -> None:
             st.markdown(f"<div class='sf-metric-card'><div class='label'>目标价（一目标 / 压力）</div><div class='value sf-doc-up'>¥{target_price:.1f} / ¥{resistance:.1f}</div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         with c3:
             st.markdown(f"<div class='sf-metric-card'><div class='label'>止损价（ATR14 风险位）</div><div class='value sf-doc-down'>¥{stop_price:.1f}</div><div style='font-size:11px;color:var(--txt2);margin-top:4px;'>ATR14=¥{atr14:.2f}</div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown(f"<div style='margin-top:14px;border-left:4px solid var(--acc1);background:var(--card2);border-radius:0 12px 12px 0;padding:12px 16px;font-size:13.5px;color:var(--txt2);line-height:1.7;'><b style='color:var(--txt);'>📌 仓位建议：</b>{position_advice}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<div style='margin-top:14px;border-left:4px solid var(--brand-1);background:var(--card2);border-radius:0 12px 12px 0;padding:12px 16px;font-size:13.5px;color:var(--txt2);line-height:1.7;'><b style='color:var(--txt);'>📌 仓位建议：</b>{position_advice}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('<div class="sf-card">' + _section_header('核心结论', 'AI 综合研判 · 多空信号', '💡', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         trend_label = trend.get('trend_label', '—') if 'error' not in trend else '数据不足'

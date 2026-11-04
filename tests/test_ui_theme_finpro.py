@@ -28,7 +28,7 @@ def test_finpro_core_vars_present():
     acc1 为 P2-2 无障碍修值：#2f81f7→#2170ec（登录 CTA 白字对比 3.75→4.57）。
     """
     v = STYLE_PRESETS["finpro"]["vars"]
-    for var in ("--bg:#0a1020", "--card:#0f1726", "--acc1:#2170ec",
+    for var in ("--bg:#0a1020", "--card:#0f1726", "--brand-1:#2170ec",
                 "--txt:#e6edf3", "--border:#1f2937"):
         assert var in v, f"核心变量缺失: {var}"
 
