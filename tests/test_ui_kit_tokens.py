@@ -23,12 +23,24 @@ def _kit():
     return kit
 
 
+def _token_chain_css() -> str:
+    """整条 token 注入链：组件层(_KIT_CSS + _HERO_FALLBACK_CSS) + 全局主题层(_DARK_CSS/_LIGHT_CSS)。
+
+    C0-c 起 --ss-up/--ss-down 归**全局主题层**（_DARK_CSS/_LIGHT_CSS 的 :root，始终注入），
+    组件层不再硬写——否则 _TOKEN_CSS 在 page_hero() 里最后注入会盖住 preset vars
+    （6 套风格的次品牌色会全部退化成经典紫）。语义色因此仍不落空，只是换了层。
+    """
+    import modules.ui_kit as kit
+    from modules import ui_theme as ut
+    return (kit._KIT_CSS + kit._HERO_FALLBACK_CSS
+            + getattr(ut, "_DARK_CSS", "") + getattr(ut, "_LIGHT_CSS", ""))
+
+
 def test_token_layer_defined_and_wired():
     """A1：token 表存在，且两条 CSS 注入通道（主样式 + 首帧兜底）都带 token 层。"""
     kit = _kit()
     css = kit._KIT_CSS
-    required = (
-        "--ss-up:#ff4d4f", "--ss-down:#00d486",
+    required = (   # 组件层专有 token（语义色不在组件层，见 _token_chain_css）
         "--ss-radius:12px", "--ss-radius-card:16px", "--ss-radius-pill:999px",
         "--ss-space-1:4px", "--ss-space-3:12px", "--ss-space-5:20px",
         "--ss-shadow-card:", "--ss-shadow-lift:", "--ss-shadow-hero:",
@@ -42,13 +54,16 @@ def test_token_layer_defined_and_wired():
     assert not missing, f"ui_kit token 层缺失: {missing}"
     # 首帧兜底通道也必须带 token（page_hero 每帧注入，var() 不落空）
     assert "--ss-radius-card:16px" in kit._HERO_FALLBACK_CSS
-    assert "--ss-up:#ff4d4f" in kit._HERO_FALLBACK_CSS
+    # 语义色：整条注入链上必须存在（var() 不落空）——C0-c 起归全局主题层
+    chain = _token_chain_css()
+    assert "--ss-up:#ff4d4f" in chain, "语义色 --ss-up 在整条注入链上缺失（var() 会落空）"
+    assert "--ss-down:#00d486" in chain, "语义色 --ss-down 在整条注入链上缺失（var() 会落空）"
 
 
 def test_updown_tokens_match_a_share_semantics():
     """红涨绿跌语义 token 必须与 colors.py 单一来源同值，语义不可反转。"""
     from modules.colors import UP_COLOR, DOWN_COLOR
-    css = _kit()._KIT_CSS
+    css = _token_chain_css()   # C0-c 起语义色归全局主题层（见 _token_chain_css 注释）
     assert UP_COLOR == "#ff4d4f" and DOWN_COLOR == "#00d486", (
         "colors.py A 股基线漂移？先复核单一来源再谈 token"
     )
@@ -244,7 +259,6 @@ def test_token_aliases_bound_to_existing():
     """design_system.md 第2章：--brand-1/--brand-2 为品牌令牌（具体 hex 单源，非 --acc 别名），不得臆造独立色相。"""
     css = _kit()._KIT_CSS
     required_aliases = (
-        "--brand-1:#4f46e5", "--brand-2:#7c3aed",
         "--c-up:var(--ss-up,#ff4d4f)", "--c-down:var(--ss-down,#00d486)",
         "--c-ok:var(--ss-ok,#16a34a)",
         "--c-hold:#ffa502", "--c-warn:#f59e0b", "--c-danger:#ef4444", "--c-info:#3b82f6",
@@ -265,3 +279,37 @@ def test_build_token_css_from_colors_single_source():
     # 与 _TOKEN_CSS 内联别名一致（解析 --c-up 取值为 #ff4d4f 等价）
     m = re.search(r"--c-up:(var\(--ss-up,#ff4d4f\)|#ff4d4f)", kit._KIT_CSS)
     assert m, "内联 --c-up 别名未绑定 #ff4d4f 等价"
+
+
+def test_token_css_does_not_hardcode_theme_tokens():
+    """C0-g 锁不越权：组件层(_TOKEN_CSS)不得硬写主题层令牌。
+
+    背景（D4）：_TOKEN_CSS 的 :root 硬写 --brand-1/--brand-2 会盖住 preset vars，
+    且它在 page_hero() 里【最后注入】⇒ 6 套风格的次品牌色全部退化成经典紫。
+    此守卫用带冒号的精确形态（'--ss-up' 不带冒号会命中 var(--ss-up) 等用法而误报）。
+    """
+    css = _kit()._KIT_CSS
+    for tok in ("--brand-1:#", "--brand-2:#", "--ss-up:#", "--ss-down:#"):
+        assert tok not in css, (
+            f"_TOKEN_CSS 不得硬写主题层令牌 {tok}（应归 _THEME_ROOT_VARS / preset vars）")
+
+
+def test_theme_tokens_owned_by_theme_layer():
+    """C0-g 锁归属：主题层令牌须由 _THEME_ROOT_VARS 提供（dark/light 值不同，必须分别断言）。"""
+    from modules import ui_theme as ut
+    assert "--brand-1:#4f46e5" in ut._THEME_ROOT_VARS["light"], "--brand-1 须由主题层提供(light)"
+    assert "--brand-1:#5b53f0" in ut._THEME_ROOT_VARS["dark"], "--brand-1 须由主题层提供(dark)"
+    assert "--doc-up:#009e60" in ut._THEME_ROOT_VARS["dark"], "价格域须由主题层提供(dark)"
+    assert "--doc-up:#009e60" in ut._THEME_ROOT_VARS["light"], "价格域须由主题层提供(light)"
+    assert "--buy:#ff4d4f" in ut._THEME_ROOT_VARS["light"], "classic 亮色须自带 --buy（C0-e）"
+    assert "--sell:#00d486" in ut._THEME_ROOT_VARS["light"], "classic 亮色须自带 --sell（C0-e）"
+
+
+def test_theme_cache_key_includes_style():
+    """C0-f：缓存键必须含 style，否则切风格后仪表盘层静默返回上一个风格的 CSS（D6）。"""
+    import inspect
+    from modules import ui_theme as ut
+    src = inspect.getsource(ut.dashboard_sf_css)
+    assert "_DASHBOARD_SF_CSS_CACHE.get((dark, _style))" in src, "缓存读键未含 style"
+    assert "_DASHBOARD_SF_CSS_CACHE[(dark, _style)] = _css" in src, "缓存写键未含 style"
+    assert "STYLE_PRESETS.get(_style" in src, ":root 未合并 preset vars（C0-d 缺失）"

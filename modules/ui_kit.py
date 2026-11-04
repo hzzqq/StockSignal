@@ -42,7 +42,6 @@ _TOKEN_CSS = r"""
    主题色 token 是 ui_theme :root 七变量的语义化别名（权威色值仍在 ui_theme.dashboard_sf_css）；
    空间/圆角/阴影/字体 token 先接入共享值，非标值（10/14/18px 等）渐进收敛不强改。 */
 :root{
-  --ss-up:#ff4d4f; --ss-down:#00d486;
   --ss-ok:#16a34a; --ss-warn:#ffa502; --ss-warn-strong:#f59e0b; --ss-danger:#ef4444;
   --ss-accent:var(--brand-1,#667eea); --ss-accent2:var(--brand-2,#764ba2);
   --ss-surface:var(--card,#fff); --ss-surface-2:var(--card2,#f4f6fb);
@@ -83,9 +82,8 @@ _TOKEN_CSS = r"""
   /* L3 字号阶梯（Phase1 §1.3：13/13.5/14/14.5/15/16/17/20/22 散布收敛 6 级） */
   --ss-fs-display:22px; --ss-fs-hero:22px; --ss-fs-title:16px;
   --ss-fs-body:13.5px; --ss-fs-label:12px; --ss-fs-caption:11px;
-  /* design_system.md §2 新增语义别名（绑定 --ss-*/--acc* 等价变量或 colors.* 既有值，
+  /* design_system.md §2 新增语义别名（绑定 --ss-* / --acc* 等价变量或 colors.* 既有值，
      绝不臆造独立色相；供未来 page 迁移复用，对现有 --brand-1/--ss-* 消费者零影响） */
-  --brand-1:#4f46e5; --brand-2:#7c3aed;
   --c-up:var(--ss-up,#ff4d4f); --c-down:var(--ss-down,#00d486); --c-hold:#ffa502;
   --c-warn:#f59e0b; --c-danger:#ef4444; --c-info:#3b82f6; --c-ok:var(--ss-ok,#16a34a);
   --radius-card:var(--ss-radius-card,16px); --radius-btn:6px; --radius-input:4px; --radius-pill:var(--ss-radius-pill,999px);
