@@ -36,7 +36,12 @@ def test_light_saas_layer_present():
     """亮色精致 SaaS 层：分层柔和阴影 + 大圆角。"""
     assert "v10" in _LIGHT_CSS, "亮色主题缺 v10 增强层标记"
     assert "--ss-saas-shadow:0 1px 2px" in _LIGHT_CSS, "亮色分层阴影定义被掏空（引用仍在也不算）"
-    assert "border-radius:16px" in _LIGHT_CSS or "border-radius: 16px" in _LIGHT_CSS
+    # 2026-11-04 断言刷新（先查后改）：4ae7880 把 299 处裸单值 px 就近吸附五档令牌，
+    # 原 `border-radius:16px` 裸值形态已不存在，无法再从字面量判断"大圆角"。
+    # 改锁真正的不变量：亮色层多处圆角仍走 --ss-radius* 令牌（被抹平成裸 px 即红）。
+    _radius_refs = _LIGHT_CSS.count("border-radius: var(--ss-radius")
+    assert _radius_refs >= 3, \
+        f"亮色层圆角令牌引用过少（{_radius_refs} 处），大圆角视觉被抹平"
     assert "tabular-nums" in _LIGHT_CSS
 
 

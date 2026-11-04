@@ -42,8 +42,11 @@ def test_dashboard_sf_css_dark_uses_deep_space_tokens(monkeypatch):
     css = sf.dashboard_sf_css()
     assert ":root" in css
     assert "--bg:#0f0f23" in css          # 暗夜深空黑底
-    assert "--buy:#009e60" in css          # 个股分析页：绿涨
-    assert "--sell:#dc2626" in css         # 红跌
+    # 2026-11-04 断言刷新（先查后改）：315fbac 把 docs 域 --buy/--sell 更名为
+    # --doc-up/--doc-down（改名非删除，色值 #009e60/#dc2626 原样保留）。
+    # 守卫意图（个股分析页文档体「绿涨红跌」、与全局 A 股红涨绿跌相反）不变。
+    assert "--doc-up:#009e60" in css       # 个股分析页：绿涨
+    assert "--doc-down:#dc2626" in css     # 红跌
     assert "绿涨红跌" in css               # 文档约定注释
 
 
@@ -51,7 +54,7 @@ def test_dashboard_sf_css_light_uses_white_tokens(monkeypatch):
     monkeypatch.setattr(sf, "_theme_is_dark", lambda: False)
     css = sf.dashboard_sf_css()
     assert "--bg:#ffffff" in css          # 白天白卡
-    assert "--buy:#009e60" in css
+    assert "--doc-up:#009e60" in css
 
 
 def test_loading_spinner_variants_and_fallback(monkeypatch):
