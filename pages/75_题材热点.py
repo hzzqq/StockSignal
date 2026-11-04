@@ -12,7 +12,7 @@ A 股红涨绿跌）+ 题材**生命周期**（发酵 / 高潮 / 退潮 / 平淡
   · 生命周期为**启发式分类**（涨跌幅 + 换手率分位），非预测；退潮/高潮为事后描述；
   · 取不到快照时明示「未就绪」，不用陈旧数据假装实时。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import html
 import logging

@@ -11,7 +11,7 @@ shepherd），离线零网，单源失败优雅降级。
   · 历史样本极小（生产仅 ~8 日）→ 晋级概率明确标注「即时观测、小样本」。
   · 事件池为离线快照 → 展示数据日期与时效性，非实时事件。
 """
-import html
+import html  # noqa: I001
 import logging
 
 import streamlit as st
@@ -19,7 +19,7 @@ import streamlit as st
 from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi, xc_kpi_grid
 from modules.page_utils import render_standard_page
 from modules.ui_kit import xc_section_header
-from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
+from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba  # noqa: F401
 from modules import market_regime as mr
 from modules import shepherd_ladder as sl
 from modules.page_utils import fmt_safe as _safe

@@ -4,7 +4,7 @@ api/dashboard.py
 演示用：返回市场全景看板的概要数据。
 任何用户登录后即可访问——对应截图中"市场全景看板"模块。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 from flask import Blueprint, g
 from ..auth.decorators import jwt_required
 from ..utils.response import ok

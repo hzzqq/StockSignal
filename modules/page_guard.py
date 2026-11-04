@@ -1,4 +1,4 @@
-import logging
+import logging  # noqa: I001
 from modules.ui_kit import xc_warn_box
 logger = logging.getLogger(__name__)
 """
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
      让用户知道某些模块显示的是缓存 / 估算数据。
 """
 
-import itertools
+import itertools  # noqa: I001
 import traceback
 
 import streamlit as st

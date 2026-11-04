@@ -14,7 +14,7 @@
 
 ⚠️ 规则为启发式阈值，非预测；告警只是提示「值得看一眼」，不构成投资建议。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import logging
@@ -150,7 +150,7 @@ else:
 # ── ④ 通道状态（真实探测） ─────────────────────────────────────────────
 st.markdown("---")
 xc_section_header("通知通道状态", "未配置凭证的通道标为不可用；不伪造发送", icon="📡")
-for key, (label, ok) in channel_status().items():
+for key, (label, ok) in channel_status().items():  # noqa: B007
     if ok:
         st.markdown(f"- ✅ **{label}** —— 可用")
     else:

@@ -11,7 +11,7 @@
   「今天我该几成仓、为什么、盘后怎么验。」
 数据层全部复用 modules.shepherd / shepherd_ladder / shepherd_forecast / shepherd_note，单源失败优雅降级。
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 from modules import colors
 import html
 import logging
@@ -19,7 +19,7 @@ from datetime import datetime  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-from modules.page_utils import (render_standard_page,
+from modules.page_utils import (render_standard_page,  # noqa: I001
     last_data_date as _last_data_date,
     row_to_indicators as _row_to_indicators,
     temp_gauge as _temp_gauge)

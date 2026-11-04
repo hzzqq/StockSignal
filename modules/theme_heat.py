@@ -81,5 +81,5 @@ def load_concepts():
     tp = turnover_pct(d)
     d["_chg"] = chg
     d["_turnover_p"] = tp
-    d["_life"] = [lifecycle_label(c, t) for c, t in zip(chg, tp)]
+    d["_life"] = [lifecycle_label(c, t) for c, t in zip(chg, tp)]  # noqa: B905
     return d

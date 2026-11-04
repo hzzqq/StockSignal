@@ -10,7 +10,7 @@ R-05 拆分（2026-11-01）：本文件已变为 re-export 层，实际实现分
 monkeypatch 目标（如 "modules.shepherd._fetch_legu"）仍有效。
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from .shepherd_helper import *       # noqa: F401,F403
 from .shepherd_fetch import *        # noqa: F401,F403

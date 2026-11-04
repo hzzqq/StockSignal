@@ -8,7 +8,7 @@
   2. akshare ``stock_zh_a_spot_em`` 兜底（82 子域在本机恒断，仅应急）；
   3. 腾讯 qt 批量应急层（东财 clist 全封期间撑榜，覆盖与字段较少，如实标注）。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import time
 

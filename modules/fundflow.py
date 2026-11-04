@@ -16,13 +16,13 @@
 - stock_market_fund_flow         大盘主力/超大单/大单净流入（历史序列）
 - stock_yjbb_em                  业绩报表（每股收益/营收/净利润/同比）
 """
-import os
+import os  # noqa: I001
 import socket
 import time
 import functools
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
-import threading
+import threading  # noqa: F401
 
 from modules.time_utils import now_cst, now_cst_str
 from modules.cache_utils import TTL_TIERS  # R-14（修复：此前误写进模块 docstring 内未执行，NameError）
@@ -32,7 +32,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # 集中配置（代理 / 超时 / 测试密钥）统一从 modules.site_config 读取，避免散落硬编码
-from modules.site_config import REQUEST_TIMEOUT, PROXY_DEFAULT
+from modules.site_config import REQUEST_TIMEOUT, PROXY_DEFAULT  # noqa: I001
 import modules.site_config as site_config  # R-08：SSL_BYPASS 在函数体内动态访问（支持测试 monkeypatch）
 from modules.timeout_exec import run_with_timeout
 from modules.fetch_parallel import fetch_many  # R78：共享有界线程池并发取数
@@ -153,7 +153,7 @@ def _ensure_proxy_and_ssl():
     # 仅当 STOCKSIGNAL_SSL_BYPASS=1（本机代理做 TLS 拦截的开发环境）才临时关闭。
     # R-08：配置从 site_config.SSL_BYPASS 读取（函数体内动态访问，支持测试 monkeypatch）。
     if site_config.SSL_BYPASS:
-        import urllib3
+        import urllib3  # noqa: I001
         import requests
         urllib3.disable_warnings()
         _orig = requests.Session.request
@@ -755,7 +755,7 @@ def warm_fundflow_caches():
     if _warm_started:
         return
     _warm_started = True
-    import threading
+    import threading  # noqa: F811
 
     def _job():
         try:

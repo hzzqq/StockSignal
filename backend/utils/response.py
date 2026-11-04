@@ -19,14 +19,16 @@ from __future__ import annotations
 import datetime
 import decimal
 import math
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence  # noqa: UP035
 
 from flask import jsonify
 
 try:  # numpy 在运行环境里通常可用，但允许缺省
     import numpy as np
 except Exception:  # pragma: no cover - numpy 缺失时退化为纯 Python
-    np = None
+    # 不能写成 `np: Any = None`：带注解的重新声明会让 mypy 报 no-redef
+    # （np 已由上面的 import 定义）。普通赋值 + 精准豁免 assignment 即可。
+    np = None  # type: ignore[assignment]
 
 
 def _json_safe(obj: Any) -> Any:
@@ -109,7 +111,7 @@ def fail(message: str = "error", code: str = "error", http_status: int = 400, da
     return resp
 
 
-def paginate(items: Sequence[Any], page: Any = 1, per_page: Any = 20, total: Optional[int] = None) -> dict:
+def paginate(items: Sequence[Any], page: Any = 1, per_page: Any = 20, total: Optional[int] = None) -> dict:  # noqa: UP045
     """把序列标准化为分页信封。
 
     入参 page / per_page 可能来自请求参数（字符串、缺失、0、负数、NaN），

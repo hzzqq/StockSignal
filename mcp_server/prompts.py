@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List  # noqa: UP035
 
 # ---------------------------------------------------------------------------
 # 1) System Prompt —— 直接粘到 MCP 客户端的 system 指令
@@ -65,7 +65,7 @@ StockSignal 是一套本地优先的 A 股事件驱动分析平台，已通过 M
 # ---------------------------------------------------------------------------
 # 2) 场景模板
 # ---------------------------------------------------------------------------
-SCENARIO_TEMPLATES: Dict[str, str] = {
+SCENARIO_TEMPLATES: Dict[str, str] = {  # noqa: UP006
     "诊股": (
         "请对 {code} 做一次全面诊断：\n"
         "1) 调 analyze_technical 看趋势/动量/量能/形态与综合评分；\n"
@@ -132,7 +132,7 @@ def render_scenario(name: str, **kwargs) -> str:
         return f"[模板缺参数 {e}] {tpl}"
 
 
-def list_scenarios() -> List[str]:
+def list_scenarios() -> List[str]:  # noqa: UP006
     return list(SCENARIO_TEMPLATES)
 
 

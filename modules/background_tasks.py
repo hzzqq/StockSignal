@@ -4,12 +4,12 @@ modules/background_tasks.py
 前端调用后台任务 API 的客户端封装。
 个股分析、多股对比、AI 咨询统一走这里提交后台任务，避免阻塞 Streamlit 主线程。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import logging
 logger = logging.getLogger(__name__)
 
-import time
-from typing import Any, Dict, Optional
+import time  # noqa: I001
+from typing import Any, Dict, Optional  # noqa: UP035
 
 import requests
 from modules.request_utils import http_get, http_post
@@ -24,7 +24,7 @@ _TIMEOUT = 8
 _CONNECTION_ERROR = {"status": "error", "code": 0, "error": "后台服务连接失败，请确认服务已启动"}
 
 
-def _headers() -> Dict[str, str]:
+def _headers() -> Dict[str, str]:  # noqa: UP006
     token = get_token()
     h = {"Content-Type": "application/json"}
     if token:
@@ -32,7 +32,7 @@ def _headers() -> Dict[str, str]:
     return h
 
 
-def submit_task_with_error(task_type: str, payload: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+def submit_task_with_error(task_type: str, payload: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:  # noqa: UP006, UP045
     """提交任务，返回 (task_id, error_message)。成功时 error_message 为 None。"""
     try:
         resp = http_post(
@@ -60,13 +60,13 @@ def submit_task_with_error(task_type: str, payload: Dict[str, Any]) -> tuple[Opt
         return None, f"提交异常：{e}"
 
 
-def submit_task(task_type: str, payload: Dict[str, Any]) -> Optional[str]:
+def submit_task(task_type: str, payload: Dict[str, Any]) -> Optional[str]:  # noqa: UP006, UP045
     """提交任务，返回 task_id；失败返回 None（不污染页面，由调用方处理）。"""
     task_id, _ = submit_task_with_error(task_type, payload)
     return task_id
 
 
-def get_task(task_id: str) -> Optional[Dict[str, Any]]:
+def get_task(task_id: str) -> Optional[Dict[str, Any]]:  # noqa: UP006, UP045
     """查询任务状态。
 
     鉴权失效（401/403）不再哑返回 None，而是返回带 ``code`` 的哨兵 dict
@@ -100,7 +100,7 @@ def get_task(task_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def poll_task(task_id: str, max_wait: float = 0.5) -> Optional[Dict[str, Any]]:
+def poll_task(task_id: str, max_wait: float = 0.5) -> Optional[Dict[str, Any]]:  # noqa: UP006, UP045
     """快速轮询一次任务，返回最新状态；不阻塞。"""
     t0 = time.time()
     while time.time() - t0 < max_wait:
@@ -111,7 +111,7 @@ def poll_task(task_id: str, max_wait: float = 0.5) -> Optional[Dict[str, Any]]:
     return get_task(task_id)
 
 
-def cancel_task(task_id: str) -> tuple[bool, Optional[str]]:
+def cancel_task(task_id: str) -> tuple[bool, Optional[str]]:  # noqa: UP045
     """停止后台任务（T-315 停止生成），返回 (是否已停止, 错误文案)。
 
     后端仅标记 CANCELLED，执行线程无法强杀——文案如实说明「已停止等待」语义。
@@ -139,7 +139,7 @@ def cancel_task(task_id: str) -> tuple[bool, Optional[str]]:
         return False, f"停止异常：{e}"
 
 
-def wait_for_task(task_id: str, timeout: float = 30.0, poll_interval: float = 0.3) -> Optional[Dict[str, Any]]:
+def wait_for_task(task_id: str, timeout: float = 30.0, poll_interval: float = 0.3) -> Optional[Dict[str, Any]]:  # noqa: UP006, UP045
     """同步等待任务完成（用于仍需要立即结果的场景）。"""
     t0 = time.time()
     while time.time() - t0 < timeout:
@@ -156,8 +156,8 @@ def wait_for_task(task_id: str, timeout: float = 30.0, poll_interval: float = 0.
     raise TimeoutError("等待任务结果超时")
 
 
-def submit_and_wait(task_type: str, payload: Dict[str, Any],
-                    timeout: float = 30.0, poll_interval: float = 0.3) -> tuple[Optional[Any], Optional[str]]:
+def submit_and_wait(task_type: str, payload: Dict[str, Any],  # noqa: UP006
+                    timeout: float = 30.0, poll_interval: float = 0.3) -> tuple[Optional[Any], Optional[str]]:  # noqa: UP045
     """提交任务并同步等待结果，统一错误出口。
 
     返回 ``(result, error)``：``error`` 为 ``None`` 表示成功；否则为可读错误文案。
@@ -249,7 +249,7 @@ def list_chat_conversations() -> tuple[list, bool]:
     return [], True
 
 
-def create_chat_conversation(title: str = "") -> Optional[dict]:
+def create_chat_conversation(title: str = "") -> Optional[dict]:  # noqa: UP045
     """新建会话，返回 {"id","title",...}；失败返回 None。"""
     try:
         resp = http_post(

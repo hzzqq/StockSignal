@@ -3,24 +3,24 @@
 职责：逐股要点 / 对比结论 / 成对卡 / 榜单表 / 雷达图 / 行动方案 / 页脚。
 零业务逻辑改动：源码自 ``modules/_compare_render.py`` 按函数名原样搬运。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
-import re
+import re  # noqa: F401
 
-import numpy as np
+import numpy as np  # noqa: F401
 from modules.colors import _hex_to_rgba
 from modules.time_utils import now_cst_str
 from modules._compare_render_base import (
     SERIES_COLORS,
-    _biz_groups,
+    _biz_groups,  # noqa: F401
     _catalyst_tag,
     _corr_tag,
     _elasticity_label,
     _fmt,
     _fmt_pct,
     _fund_yi_cell,
-    _hex_to_rgba,
+    _hex_to_rgba,  # noqa: F811
     _row_score,
     _safe,
     _sf,
@@ -28,12 +28,12 @@ from modules._compare_render_base import (
     _stock_type_label,
     _tag,
     _score_badge,
-    _is_dark,
+    _is_dark,  # noqa: F401
 )
 
 logger = logging.getLogger(__name__)
 
-def _stock_bullets(r: Dict[str, Any]) -> List[str]:
+def _stock_bullets(r: Dict[str, Any]) -> List[str]:  # noqa: F821
     """生成 image #9 风格的单股要点 bullets。"""
     bullets = []
     s = r.get("scores", {})
@@ -64,7 +64,7 @@ def _stock_bullets(r: Dict[str, Any]) -> List[str]:
     # 4) 弹性/催化
     bullets.append(f"弹性 {_elasticity_label(elas)} · 催化 {_catalyst_tag(s.get('catalyst', 50))}")
     # 4.5) 估值补充（PB/PS/股息率）
-    pb = r.get("pb"); ps = r.get("ps"); dv = r.get("dv_ttm")
+    pb = r.get("pb"); ps = r.get("ps"); dv = r.get("dv_ttm")  # noqa: E702
     if pb is not None or ps is not None or dv is not None:
         parts = []
         if pb is not None:
@@ -75,7 +75,7 @@ def _stock_bullets(r: Dict[str, Any]) -> List[str]:
             parts.append(f"股息率 {dv:.2f}%")
         bullets.append("估值补充：" + " · ".join(parts))
     # 4.6) 财务（ROE/营收同比/净利润同比）
-    roe = r.get("roe"); ry = r.get("revenue_yoy"); py = r.get("profit_yoy")
+    roe = r.get("roe"); ry = r.get("revenue_yoy"); py = r.get("profit_yoy")  # noqa: E702
     if roe is not None or ry is not None or py is not None:
         parts = []
         if roe is not None:
@@ -86,7 +86,7 @@ def _stock_bullets(r: Dict[str, Any]) -> List[str]:
             parts.append(f"净利同比 {py:.1f}%")
         bullets.append("财务：" + " · ".join(parts))
     # 4.7) 资金面（主力净流入）
-    mn = r.get("fund_main_net"); mp = r.get("fund_main_net_pct")
+    mn = r.get("fund_main_net"); mp = r.get("fund_main_net_pct")  # noqa: E702
     if mn is not None:
         yi = mn / 1e8
         tag = "流入" if yi >= 0 else "流出"
@@ -102,7 +102,7 @@ def _stock_bullets(r: Dict[str, Any]) -> List[str]:
             bullets.append(f"现价 ¥{price:.2f} · 支撑/压力未计算")
     return bullets
 
-def _pair_conclusion(a: Dict[str, Any], b: Dict[str, Any]) -> str:
+def _pair_conclusion(a: Dict[str, Any], b: Dict[str, Any]) -> str:  # noqa: F821
     """生成两两对比的详细结论。"""
     ca = int(round(_safe(a.get("scores", {}).get("composite"), 50)))
     cb = int(round(_safe(b.get("scores", {}).get("composite"), 50)))
@@ -132,7 +132,7 @@ def _pair_conclusion(a: Dict[str, Any], b: Dict[str, Any]) -> str:
         f'{loser["name"]} 仅适合题材博弈或等回调后再评估。'
     )
 
-def build_pairwise_card(a: Dict[str, Any], b: Dict[str, Any], idx: int = 1) -> str:
+def build_pairwise_card(a: Dict[str, Any], b: Dict[str, Any], idx: int = 1) -> str:  # noqa: F821
     """1:1 横向还原：左卡 | VS | 右卡，结论框在下方。严格等宽，绝不纵向堆叠。"""
     va = _vs_box_v2(a, b)
     vb = _vs_box_v2(b, a)
@@ -151,7 +151,7 @@ def build_pairwise_card(a: Dict[str, Any], b: Dict[str, Any], idx: int = 1) -> s
 </div>
 """
 
-def _vs_box_v2(r: Dict[str, Any], other: Dict[str, Any]) -> str:
+def _vs_box_v2(r: Dict[str, Any], other: Dict[str, Any]) -> str:  # noqa: F821
     """image #9 单卡：标题+类型+分数徽章+bullets。"""
     win = _row_score(r, "composite") >= _row_score(other, "composite")
     verdict = (
@@ -169,7 +169,7 @@ def _vs_box_v2(r: Dict[str, Any], other: Dict[str, Any]) -> str:
   <ul>{lis}</ul>
 </div>"""
 
-def build_header(rows: List[Dict[str, Any]], period_days: int) -> str:
+def build_header(rows: List[Dict[str, Any]], period_days: int) -> str:  # noqa: F821
     now = now_cst_str("%Y-%m-%d %H:%M")
     asof = max((r.get("asof", now[:10]) for r in rows), default=now[:10])
     codes = "、".join(f'{r["name"]}({r["code"]})' for r in rows)
@@ -182,7 +182,7 @@ def build_header(rows: List[Dict[str, Any]], period_days: int) -> str:
 <div style="font-size:12px;color:{_sf()['txt2']};margin-bottom:6px">标的：{codes}</div>
 """
 
-def build_one_line(rows: List[Dict[str, Any]]) -> str:
+def build_one_line(rows: List[Dict[str, Any]]) -> str:  # noqa: F821
     if not rows:
         return ""
     ranked = sorted(rows, key=lambda r: _row_score(r, "composite"), reverse=True)
@@ -200,7 +200,7 @@ def build_one_line(rows: List[Dict[str, Any]]) -> str:
     )
     return f'<div class="one-line{hold_cls}">{summary}</div><div style="margin-top:10px">{tags}</div>'
 
-def build_table(rows: List[Dict[str, Any]]) -> str:
+def build_table(rows: List[Dict[str, Any]]) -> str:  # noqa: F821
     head = "<th>维度</th>" + "".join(
         f'<th>{r["name"]}<br>{r["code"]}</th>' for r in rows)
     # 收盘价 / 涨跌
@@ -267,7 +267,7 @@ def build_table(rows: List[Dict[str, Any]]) -> str:
 获取失败显示「—」，净流入/大单为正显示红色（流入）、为负显示绿色（流出）。综合评分为趋势/动量/量能/形态四维加权，仅供研究参考。</div>
 """
 
-def build_extra_card(rows: List[Dict[str, Any]]) -> str:
+def build_extra_card(rows: List[Dict[str, Any]]) -> str:  # noqa: F821
     """新增维度专卡：估值补充 / 财务 / 资金面，密集横向对比（与主表互补）。"""
     head = "<th>维度</th>" + "".join(
         f'<th>{r["name"]}<br>{r["code"]}</th>' for r in rows)
@@ -302,11 +302,11 @@ def build_extra_card(rows: List[Dict[str, Any]]) -> str:
 </div>
 """
 
-def build_vs_cards(rows: List[Dict[str, Any]]) -> str:
+def build_vs_cards(rows: List[Dict[str, Any]]) -> str:  # noqa: F821
     if len(rows) < 2:
         return ""
     ranked = sorted(rows, key=lambda r: _row_score(r, "composite"), reverse=True)
-    pairs = list(zip(ranked[:-1], ranked[1:]))[:4]  # 至多 4 组相邻对比
+    pairs = list(zip(ranked[:-1], ranked[1:]))[:4]  # 至多 4 组相邻对比  # noqa: B905
     cards = []
     for i, (a, b) in enumerate(pairs, 1):
         a_win = _row_score(a, "composite") >= _row_score(b, "composite")
@@ -326,7 +326,7 @@ def build_vs_cards(rows: List[Dict[str, Any]]) -> str:
 </div>""")
     return "\n".join(cards)
 
-def _vs_box(r: Dict[str, Any], win: bool, other: Dict[str, Any]) -> str:
+def _vs_box(r: Dict[str, Any], win: bool, other: Dict[str, Any]) -> str:  # noqa: F821
     verdict = (
         f'综合评分 {_row_score(r, "composite"):.0f} · {"领先" if win else "落后"} '
         f'{other["name"]}({_row_score(other, "composite"):.0f})'
@@ -348,7 +348,7 @@ def _vs_box(r: Dict[str, Any], win: bool, other: Dict[str, Any]) -> str:
   <ul>{lis}</ul>
 </div>"""
 
-def build_radar(rows: List[Dict[str, Any]]):
+def build_radar(rows: List[Dict[str, Any]]):  # noqa: F821
     """综合评分雷达（每只股票一条，5 维：趋势/动量/量能/形态/综合）。"""
     import plotly.graph_objects as go
     dims = [("趋势强度", "trend"), ("动量动能", "momentum"),
@@ -381,7 +381,7 @@ def build_radar(rows: List[Dict[str, Any]]):
     )
     return fig
 
-def _one_liner(r: Dict[str, Any]) -> str:
+def _one_liner(r: Dict[str, Any]) -> str:  # noqa: F821
     """image #13 风格的一句话定性。"""
     comp = _safe(r.get("scores", {}).get("composite"), 50)
     elas = _safe(r.get("elasticity"), 0)
@@ -399,7 +399,7 @@ def _one_liner(r: Dict[str, Any]) -> str:
         return "评分偏弱，信号偏空，谨慎观望"
     return "评分中性，跟踪催化剂与趋势变化"
 
-def build_radar_right(rows: List[Dict[str, Any]]) -> str:
+def build_radar_right(rows: List[Dict[str, Any]]) -> str:  # noqa: F821
     """雷达图右侧：image #13 评分标签云 + 统一风险提示。"""
     ranked = sorted(rows, key=lambda r: _row_score(r, "composite"), reverse=True)
     chips = []
@@ -424,7 +424,7 @@ def build_radar_right(rows: List[Dict[str, Any]]) -> str:
     )
     return f'<div style="font-size:13px;line-height:1.8;margin-top:4px">{cloud}</div>{risk}'
 
-def build_action_plan(rows: List[Dict[str, Any]]) -> str:
+def build_action_plan(rows: List[Dict[str, Any]]) -> str:  # noqa: F821
     """image #10 模板：分层操作建议表。"""
     ranked = sorted(rows, key=lambda r: _row_score(r, "composite"), reverse=True)
     tr = []

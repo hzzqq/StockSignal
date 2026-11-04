@@ -13,7 +13,7 @@
 说明：akshare 暂无独立北交所（BJ）融资融券宏观序列，因此组件展示沪+深合计，
 并在图表副标题注明；若未来有可靠 BJ 源可扩展为三地求和。
 """
-from datetime import datetime
+from datetime import datetime  # noqa: I001
 from modules.time_utils import now_cst
 import logging
 import math
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # 复用 fundflow 的代理/SSL 补丁，确保 akshare 经本地代理访问
 # 注意：代理/SSL 探测改为「首次真实网络请求前惰性执行」（见 _retry 包裹器），
 # 绝不在模块导入期同步跑 socket 探测（否则会阻塞所有 import 本模块的页面）。
-from modules.fundflow import _ensure_proxy_and_ssl, _run_with_timeout
+from modules.fundflow import _ensure_proxy_and_ssl, _run_with_timeout  # noqa: I001
 from modules.fetch_parallel import fetch_many  # R78：共享有界线程池并行取数
 from modules.linear_trends import get_northbound_history_series
 from modules.cache_utils import _CACHE, _CACHE_LOCK, cached_ttl  # R-07：委托共享 TTL 缓存（含 skip_empty 语义）
@@ -497,7 +497,7 @@ def get_stock_margin_buy(code: str, days_back: int = 7):
                 continue
             ds = d.strftime("%Y%m%d")
             try:
-                df = _cached(3600, f"margin_detail_{ds}", lambda: _fetch_margin_detail(ds))
+                df = _cached(3600, f"margin_detail_{ds}", lambda: _fetch_margin_detail(ds))  # noqa: B023
             except Exception as e:
                 logger.warning(f"[margin_trading] 处理异常: {e}")
                 df = None

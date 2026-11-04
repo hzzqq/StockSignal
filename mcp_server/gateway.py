@@ -19,12 +19,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict  # noqa: UP035
 
 logger = logging.getLogger(__name__)
 
 # 工具名 -> 实际函数（延迟导入，避免在 import 本模块时就触发重型依赖）
-_TOOL_FUNCS: Dict[str, str] = {
+_TOOL_FUNCS: Dict[str, str] = {  # noqa: UP006
     "get_kline": "get_kline",
     "analyze_technical": "analyze_technical",
     "smart_pick": "smart_pick",
@@ -48,7 +48,7 @@ _GATEWAY_TIMEOUT = 12
 # - smart_pick / run_backtest：内部 run_with_timeout 90s / 60s
 # 未列出的工具一律回落默认 12s（get_kline 5.0s / analyze_technical 2.2s 实测无需分档）。
 # 配置块必须位于 call_tool 使用点之前（守卫 test_t124_timeout_config_defined_before_use）。
-_PER_TOOL_TIMEOUT: Dict[str, int] = {
+_PER_TOOL_TIMEOUT: Dict[str, int] = {  # noqa: UP006
     "get_market_sentiment": 60,
     "smart_pick": 100,
     "run_backtest": 70,
@@ -69,7 +69,7 @@ def available_tools() -> list[str]:
     """
     names = set(_TOOL_FUNCS.keys())
     try:
-        from .server import TOOLS
+        from .server import TOOLS  # noqa: I001
         from . import tools as _tools  # noqa: F401  (注册副作用，幂等)
 
         names.update(TOOLS.keys())
@@ -89,7 +89,7 @@ def _resolve_func(name: str):
 
         return getattr(_tools, _TOOL_FUNCS[name], None)
     try:
-        from .server import TOOLS
+        from .server import TOOLS  # noqa: I001
         from . import tools as _tools  # noqa: F401  (注册副作用)
 
         meta = TOOLS.get(name)
@@ -100,7 +100,7 @@ def _resolve_func(name: str):
     return None
 
 
-def call_tool(name: str, **kwargs: Any) -> Dict[str, Any]:
+def call_tool(name: str, **kwargs: Any) -> Dict[str, Any]:  # noqa: UP006
     """同进程调用一个 MCP 工具，返回统一结构。
 
     返回示例::
@@ -140,7 +140,7 @@ def call_tool(name: str, **kwargs: Any) -> Dict[str, Any]:
 import re
 
 # 工具 -> 触发关键词（命中其一且能抽出标的/参数即路由）
-_INTENT_RULES: Dict[str, Dict[str, Any]] = {
+_INTENT_RULES: Dict[str, Dict[str, Any]] = {  # noqa: UP006
     "smart_pick": {
         "keywords": ["选股", "找股票", "挑股票", "有什么好票", "推荐股票", "筛选", "选哪些",
                      "选几只", "选 A 股", "选几支", "帮我选", "选标的"],
@@ -206,7 +206,7 @@ def _extract_codes(text: str) -> list[str]:
     return re.findall(r"(?<!\d)\d{6}(?!\d)", text)
 
 
-def detect_intent(question: str) -> Dict[str, Any]:
+def detect_intent(question: str) -> Dict[str, Any]:  # noqa: UP006
     """识别问句意图，返回 {'tool': str|None, 'params': dict, 'confidence': float}。
 
     confidence 越高越应走工具；<0.5 视为未命中，交给自然语言 AI。
@@ -246,7 +246,7 @@ def detect_intent(question: str) -> Dict[str, Any]:
 
     # 取置信最高的意图
     tool, score = max(hits, key=lambda x: x[1])
-    params: Dict[str, Any] = {}
+    params: Dict[str, Any] = {}  # noqa: UP006
     if _INTENT_RULES[tool].get("needs_code") and codes:
         params["code"] = codes[0]
     if tool == "smart_pick":

@@ -9,9 +9,9 @@
 实现方式（monkeypatch + 直接调用）：同「个股研究」，子视图渲染主体已抽取至
 modules.portfolio_views（P0-1 契约，exec 动态加载已消除），仅运行当前选中子视图。
 """
-import os
+import os  # noqa: I001
 import streamlit as st
-import streamlit.components.v1 as components
+import streamlit.components.v1 as components  # noqa: F401
 from modules.page_utils import render_standard_page
 import modules.scroll_nav as sn
 from modules.ui_kit import xc_info_banner
@@ -21,7 +21,7 @@ xc_info_banner("本页合并「自选池 / 持仓 / 收益归因」三个子视�
 _HERE = os.path.dirname(__file__)
 _SUBPAGES = {'⭐ 自选池': os.path.join(_HERE, '46_自选股监控.py'), '💼 持仓': os.path.join(_HERE, '40_仓位管理.py'), '📈 收益归因': os.path.join(_HERE, '41_组合收益.py')}
 # P0-1 契约：path→callable 映射（键复用 _SUBPAGES 路径值），同「个股研究」24 页
-from modules.portfolio_views import render_watchlist_monitor, render_position_manager, render_portfolio_returns
+from modules.portfolio_views import render_watchlist_monitor, render_position_manager, render_portfolio_returns  # noqa: I001
 _SUBPAGE_FNS = {
     _SUBPAGES['⭐ 自选池']: render_watchlist_monitor,  # P0-1c 已抽取
     _SUBPAGES['💼 持仓']: render_position_manager,  # P0-1c 已抽取
@@ -35,7 +35,7 @@ def _run_subpage(path: str) -> None:
     样板函数仍需 patch：渲染函数内部会调用 render_standard_page 等页面级样板，
     嵌入态必须 no-op，否则与合并页重复渲染。
     """
-    import modules.ui_theme as _uit
+    import modules.ui_theme as _uit  # noqa: I001
     import modules.session as _sess
     import modules.page_utils as _pu
 
@@ -88,7 +88,7 @@ with _hrv_right:
             _hist.insert(0, _s)
             st.session_state['hub_recent_viewed'] = _hist[:8]
 if st.session_state['hub_recent_viewed']:
-    st.caption('🕘 最近浏览：' + '\u3000'.join((f'#{s}' for s in st.session_state['hub_recent_viewed'])))
+    st.caption('🕘 最近浏览：' + '\u3000'.join((f'#{s}' for s in st.session_state['hub_recent_viewed'])))  # noqa: UP034
 st.divider()
 with st.spinner(f'正在加载「{_view}」...'):
     _run_subpage(_SUBPAGES[_view])

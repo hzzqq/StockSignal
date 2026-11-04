@@ -3,14 +3,14 @@
 - 每日晨报：聚合板块涨跌概览、自选股快照、相关新闻，生成开盘前速览。
 - 复盘笔记：当日复盘记录，本地按日期持久化（data/review_notes_<date>.md）。
 """
-import html
+import html  # noqa: I001
 import os
 import streamlit as st
-import streamlit.components.v1 as components
+import streamlit.components.v1 as components  # noqa: F401
 from datetime import date
-from concurrent.futures import ThreadPoolExecutor, as_completed  # kept; reviewed
+from concurrent.futures import ThreadPoolExecutor, as_completed  # kept; reviewed  # noqa: F401
 from modules.session import api_get, safe_switch_page
-import modules.scroll_nav as sn
+import modules.scroll_nav as sn  # noqa: F401
 from modules.news import NewsFetcher
 from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: HTTP 抓取收敛
 from modules.page_guard import safe_fragment
@@ -21,7 +21,7 @@ from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info
 from modules.event_factor import event_driven_long_list  # 事件驱动看多榜（真实 P1 EV 信号选股池）
 today = date.today().strftime('%Y-%m-%d')
 dark = render_standard_page(title='每日晨报 / 复盘笔记', icon='🌅', caption=f'生成日期：{today}（数据来源：板块行情 + 自选股 + 新闻；开盘前速览，非投资建议）', layout='wide')
-from modules.widgets import render_index_compact
+from modules.widgets import render_index_compact  # noqa: I001
 render_index_compact(cols_per_row=5)
 fetcher = get_fetcher()
 
@@ -36,7 +36,7 @@ def _cached_news(keyword: str, limit: int=15):
         except Exception:
             continue  # ui_audit_exempt: except-pass 新闻抓取重试循环：失败重试至多 3 次，最终返回 None 不编造
     return None
-from modules.ssl_helper import ssl_bypass as _ssl_bypass
+from modules.ssl_helper import ssl_bypass as _ssl_bypass  # noqa: I001
 from modules.fundamental_helpers import calc_alr, fund_one
 
 def _calc_alr(code: str):
@@ -340,7 +340,7 @@ def fragment_review_notes():
         if 'review_note' not in st.session_state:
             if os.path.exists(notes_path):
                 try:
-                    with open(notes_path, 'r', encoding='utf-8') as f:
+                    with open(notes_path, 'r', encoding='utf-8') as f:  # noqa: UP015
                         st.session_state['review_note'] = f.read()
                 except Exception:
                     st.session_state['review_note'] = ''
@@ -351,7 +351,7 @@ def fragment_review_notes():
             if st.button('🔍 查询', type='primary', width="stretch", key='review_query'):
                 if os.path.exists(notes_path):
                     try:
-                        with open(notes_path, 'r', encoding='utf-8') as f:
+                        with open(notes_path, 'r', encoding='utf-8') as f:  # noqa: UP015
                             st.session_state['review_note'] = f.read()
                     except Exception:
                         st.session_state['review_note'] = ''

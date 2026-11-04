@@ -7,7 +7,7 @@
 数据由 ``backend.research_watch`` 定时自驱产出，``status`` 诚实透传
 （ok/partial/unavailable，绝不粉饰）。citations / limitations 供前端点开溯源。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import time
 

@@ -9,7 +9,7 @@
 实时数据来自 get_shepherd_today；缺失优雅降级；历史类比基于 4771 天广度真值。
 温度是描述性指标（市场当前冷热），不声称预测能力。
 """
-import logging
+import logging  # noqa: I001
 
 import streamlit as st
 import plotly.graph_objects as go

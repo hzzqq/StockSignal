@@ -28,7 +28,7 @@ def pinyin_initials_variants(name: str) -> set:
     如 '长电科技' -> {'ZDKJ', 'CDKJ'}。
     """
     try:
-        import pypinyin
+        import pypinyin  # noqa: I001
         from itertools import product
 
         py_lists = pypinyin.pinyin(name, style=pypinyin.NORMAL, heteronym=True)

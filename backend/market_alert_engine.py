@@ -11,7 +11,7 @@
 - 交易时段才扫描（北京时间 09:00–15:30，周一至周五），其余时段休眠。
 - 调度器为守护线程，测试环境（pytest）与 STOCKSIGNAL_ENABLE_ALERT_SCHEDULER=0 时自动跳过。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 import math
@@ -150,7 +150,7 @@ def _evaluate(rule: dict, latest, prev):
 
 def detect_anomalies(df, meta=None) -> list:
     """给定 market_drivers 的 (df, meta)，返回告警 dict 列表（未去重）。"""
-    out = []
+    out: list = []
     if df is None or getattr(df, "empty", True):
         return out
     for rule in resolve_rules(RULES):

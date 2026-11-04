@@ -7,7 +7,7 @@
 数据边界：连板梯队类维度（连板高度/连板家数/炸板率/封成比/昨日涨停表现/倒跌停）离线缺真值，
 已通过数据闸门剔除，不进入相关计算、不编造。
 """
-import logging
+import logging  # noqa: I001
 
 import plotly.graph_objects as go
 import streamlit as st
@@ -15,7 +15,7 @@ import streamlit as st
 from modules.ui_kit import xc_handle_error, xc_bento_kpi
 from modules.page_utils import render_standard_page
 from modules import lead_lag_matrix as ll
-from modules.breadth_features import OFFLINE_MISSING, data_as_of
+from modules.breadth_features import OFFLINE_MISSING, data_as_of  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

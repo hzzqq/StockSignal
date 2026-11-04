@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """
 modules/decision_track.py — 「预测 vs 实际」准确率回测（差异化主线的能力验证）
 
@@ -21,17 +21,17 @@ modules/decision_track.py — 「预测 vs 实际」准确率回测（差异化�
 红涨绿跌：偏多/激进=红，偏空/防御=绿（与 decision.py 一致）。
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta  # noqa: F401
 
 from modules.time_utils import now_cst, now_cst_str
 
 from modules.atomic_io import atomic_json_dump
-from typing import Any
+from typing import Any  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ def record_prediction(date: str, temp, cycle_name: str, bias: str, pct: int,
 
 def _load() -> list[dict]:
     try:
-        with open(PRED_PATH, "r", encoding="utf-8") as f:
+        with open(PRED_PATH, "r", encoding="utf-8") as f:  # noqa: UP015
             data = json.load(f)
     except FileNotFoundError:
         # ui_audit_exempt: 文件缺失即无数据，返回空是预期契约（调用方按缺失处理）

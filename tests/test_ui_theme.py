@@ -14,9 +14,21 @@ tests/test_ui_theme.py
 
 from __future__ import annotations
 
+import pytest
 import streamlit as st
 import streamlit.components.v1 as components
 import modules.ui_theme as sf
+
+
+@pytest.fixture(autouse=True)
+def _isolate_sf_css_cache():
+    """全量顺序隔离：dashboard_sf_css 按主题全局缓存，前序文件可能已填充缓存
+    （如 plotly/kit 守卫以真实 _theme_is_dark 调过 dashboard_sf_css），本文件的
+    monkeypatch 只改 _theme_is_dark，不改缓存——不清理会命中旧主题 CSS 断言失败。
+    每个用例前后清缓存，保证断言只依赖本用例的 monkeypatch。"""
+    sf._DASHBOARD_SF_CSS_CACHE.clear()
+    yield
+    sf._DASHBOARD_SF_CSS_CACHE.clear()
 
 
 class _FakeSS:

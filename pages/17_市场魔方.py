@@ -19,7 +19,7 @@
 数据纪律（铁律五）：每路独立 try/except + st.cache_data(300s)；取数失败 → unavailable
 显性标注，绝不编造、绝不默认 0。A股红涨绿跌（与小程序语义一致）+ ▲▼ 双编码。
 """
-import streamlit as st
+import streamlit as st  # noqa: I001
 from datetime import datetime
 
 from modules.page_utils import render_standard_page
@@ -103,7 +103,7 @@ def _pct_card(label: str, price: float, pct: float, meta: str, with_price: bool 
 @st.cache_data(ttl=300, show_spinner=False)
 def _load_foreign_commodity() -> tuple:
     """东财外盘商品实时（布伦特/金/银/铜/天然气 + LME 六金属）。轻量重试 2 次。"""
-    import time as _t
+    import time as _t  # noqa: I001
     import akshare as ak
     last_err = ""
     for attempt in range(3):
@@ -135,7 +135,7 @@ def _load_global_futures_backup() -> tuple:
 @st.cache_data(ttl=600, show_spinner=False)
 def _load_forex() -> tuple:
     """东财外汇实时（美元指数）。限流常见 → 轻量重试 2 次；仍失败返回 err（卡转 unavailable）。"""
-    import time as _t
+    import time as _t  # noqa: I001
     import akshare as ak
     last_err = ""
     for attempt in range(3):
@@ -503,10 +503,10 @@ def _build_kr_sections() -> list:
     pools, hint = _load_pools()
     sections = [
         ("韩国综合", [_index_card("KOSPI", "KOSPI"), _index_card("KOSDAQ", "KOSDAQ")]),
-        ("韩国核心产业", [_pool_card(l, k, pools, hint) for l, k in _KR_INDUSTRY]),
+        ("韩国核心产业", [_pool_card(l, k, pools, hint) for l, k in _KR_INDUSTRY]),  # noqa: E741
         ("日本综合", [_index_card("日经225", "NKY"),
                     _unavailable_card("TOPIX", "暂无免费实时源（新浪 znb 无 TOPX），不编造")]),
-        ("日本核心产业", [_pool_card(l, k, pools, hint) for l, k in _JP_INDUSTRY]),
+        ("日本核心产业", [_pool_card(l, k, pools, hint) for l, k in _JP_INDUSTRY]),  # noqa: E741
         ("亚洲综合", [_index_card("越南胡志明", "VNINDEX"), _index_card("孟买SENSEX", "SENSEX")]),
     ]
     fx_cards = _build_fx_cards()
@@ -581,7 +581,7 @@ _AI_ITEMS = [
 
 def _build_ai_sections() -> list:
     pools, hint = _load_pools()
-    cards = [_pool_card(l, k, pools, hint) for l, k in _AI_ITEMS]
+    cards = [_pool_card(l, k, pools, hint) for l, k in _AI_ITEMS]  # noqa: E741
     return [
         ("AI 产品价格", cards[:2]),
         ("AI 设备价格", cards[2:]),

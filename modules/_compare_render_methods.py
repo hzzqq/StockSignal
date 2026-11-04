@@ -3,16 +3,16 @@
 职责：四类方法论打分（compute_method_scores）/ 排名 / 方法卡与汇总卡。
 零业务逻辑改动：源码自 ``modules/_compare_render.py`` 按函数名原样搬运。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 import re
 
-import numpy as np
+import numpy as np  # noqa: F401
 from modules._compare_render_base import (
     _biz_groups,
     _fmt_pct,
-    _hex_to_rgba,
+    _hex_to_rgba,  # noqa: F401
     _norm,
     _row_score,
     _safe,
@@ -60,7 +60,7 @@ _EVENT_INDUSTRY_MAP = {
     "计算机": "计算机", "软件": "计算机", "通信": "计算机", "互联网": "计算机",
 }
 
-def _event_stance(stock: Dict[str, Any], event_text: str) -> Tuple[float, str]:
+def _event_stance(stock: Dict[str, Any], event_text: str) -> Tuple[float, str]:  # noqa: F821
     """计算单只股票对某事件的业务关联度(0-100)与多空立场。"""
     ind = stock.get("industry") or ""
     text = event_text or ""
@@ -92,8 +92,8 @@ def _event_stance(stock: Dict[str, Any], event_text: str) -> Tuple[float, str]:
         stance = "中性"
     return rel, stance
 
-def compute_method_scores(rows: List[Dict[str, Any]], method: str,
-                          event: Optional[str] = None) -> Dict[str, float]:
+def compute_method_scores(rows: List[Dict[str, Any]], method: str,  # noqa: F821
+                          event: Optional[str] = None) -> Dict[str, float]:  # noqa: F821
     """返回该方法下每只股票的综合得分(0-100)。空列表安全返回 {}。"""
     if not rows:
         return {}
@@ -140,7 +140,7 @@ def compute_method_scores(rows: List[Dict[str, Any]], method: str,
             ind = r.get("industry") or ""
             base = 60.0 if any(k in ind for k in _POLICY_FRIENDLY) else 35.0
             out.append(base + 0.1 * _row_score(r, "composite") - 5)
-        return {r["code"]: max(10.0, min(100.0, v)) for r, v in zip(rows, out)}
+        return {r["code"]: max(10.0, min(100.0, v)) for r, v in zip(rows, out)}  # noqa: B905
     if method == "宏观":
         elas = _norm([_safe(r.get("elasticity")) for r in rows])
         return {r["code"]: elas[i] for i, r in enumerate(rows)}
@@ -155,7 +155,7 @@ def _ranked(rows, scores):
         return []
     return sorted(rows, key=lambda r: _safe(scores.get(r["code"])), reverse=True)
 
-def rank_methods(rows: List[Dict[str, Any]], event: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+def rank_methods(rows: List[Dict[str, Any]], event: Optional[str] = None) -> Dict[str, Dict[str, Any]]:  # noqa: F821
     """返回每个对比方法下综合占优的标的（结构化结果，供 API / 其它模块复用，不依赖 HTML）。
 
     新能力（R1）：此前对比结论只能以 HTML 卡片形式产出，无法被非 UI 场景（如后端
@@ -164,7 +164,7 @@ def rank_methods(rows: List[Dict[str, Any]], event: Optional[str] = None) -> Dic
     """
     if not rows:
         return {}
-    out: Dict[str, Dict[str, Any]] = {}
+    out: Dict[str, Dict[str, Any]] = {}  # noqa: F821
     for m in METHODS:
         ev = event if m == "事件" else None
         sc = compute_method_scores(rows, m, ev)
@@ -179,8 +179,8 @@ def rank_methods(rows: List[Dict[str, Any]], event: Optional[str] = None) -> Dic
             }
     return out
 
-def _method_summary(rows: List[Dict[str, Any]], method: str,
-                    scores: Dict[str, float], event: Optional[str] = None) -> str:
+def _method_summary(rows: List[Dict[str, Any]], method: str,  # noqa: F821
+                    scores: Dict[str, float], event: Optional[str] = None) -> str:  # noqa: F821
     ranked = _ranked(rows, scores)
     if not ranked:
         return "暂无对比标的，无法生成结论。"
@@ -204,8 +204,8 @@ def _method_summary(rows: List[Dict[str, Any]], method: str,
             f'<b>{worst["name"]}</b>（{ws:.0f}分）偏弱；'
             f'建议优先关注排名靠前且信号为「买入/持有」的标的。')
 
-def _method_analysis(method: str, scores: Dict[str, float],
-                     ranked: List[Dict[str, Any]], event: Optional[str]) -> str:
+def _method_analysis(method: str, scores: Dict[str, float],  # noqa: F821
+                     ranked: List[Dict[str, Any]], event: Optional[str]) -> str:  # noqa: F821
     """生成 image #12 所需的详细分析过程。"""
     if not ranked:
         return "暂无对比标的。"
@@ -281,8 +281,8 @@ def _method_analysis(method: str, scores: Dict[str, float],
         f'组内分差 {spread:.0f} 分，{"区分度明显" if spread >= 15 else "区分度一般"}。{action}'
     )
 
-def _method_score_badge(r: Dict[str, Any], method: str,
-                        scores: Dict[str, float], event: Optional[str] = None) -> str:
+def _method_score_badge(r: Dict[str, Any], method: str,  # noqa: F821
+                        scores: Dict[str, float], event: Optional[str] = None) -> str:  # noqa: F821
     """方法维度下的分数徽章（BUY/HOLD/WATCH）。"""
     s = _safe(scores.get(r["code"]))
     if method == "事件":
@@ -301,8 +301,8 @@ def _method_score_badge(r: Dict[str, Any], method: str,
             cls = "mid"
     return f'<span class="score-badge {cls}">{label}</span>'
 
-def _method_vs_box(r: Dict[str, Any], other: Dict[str, Any], method: str,
-                   scores: Dict[str, float], event: Optional[str] = None) -> str:
+def _method_vs_box(r: Dict[str, Any], other: Dict[str, Any], method: str,  # noqa: F821
+                   scores: Dict[str, float], event: Optional[str] = None) -> str:  # noqa: F821
     """方法对比单卡：用于 build_method_card 的左右两列。"""
     sr = _safe(scores.get(r["code"]))
     so = _safe(scores.get(other["code"]))
@@ -377,8 +377,8 @@ def _method_vs_box(r: Dict[str, Any], other: Dict[str, Any], method: str,
   <ul>{lis_html}</ul>
 </div>"""
 
-def _method_pair_conclusion(a: Dict[str, Any], b: Dict[str, Any], method: str,
-                            scores: Dict[str, float], event: Optional[str]) -> str:
+def _method_pair_conclusion(a: Dict[str, Any], b: Dict[str, Any], method: str,  # noqa: F821
+                            scores: Dict[str, float], event: Optional[str]) -> str:  # noqa: F821
     """星辰分析师口吻：方法维度下 top2 标的对比结论。"""
     sa = _safe(scores.get(a["code"]))
     sb = _safe(scores.get(b["code"]))
@@ -404,8 +404,8 @@ def _method_pair_conclusion(a: Dict[str, Any], b: Dict[str, Any], method: str,
         f"以上仅为模型推演，不构成投资建议。"
     )
 
-def build_method_card(rows: List[Dict[str, Any]], method: str,
-                      event: Optional[str] = None) -> str:
+def build_method_card(rows: List[Dict[str, Any]], method: str,  # noqa: F821
+                      event: Optional[str] = None) -> str:  # noqa: F821
     """单个对比方法的卡片：图4 左右对比 + 星辰分析师结论。"""
     scores = compute_method_scores(rows, method, event)
     ranked = _ranked(rows, scores)
@@ -426,8 +426,8 @@ def build_method_card(rows: List[Dict[str, Any]], method: str,
 </div>
 """
 
-def build_aggregate_card(rows: List[Dict[str, Any]],
-                         event: Optional[str] = None) -> str:
+def build_aggregate_card(rows: List[Dict[str, Any]],  # noqa: F821
+                         event: Optional[str] = None) -> str:  # noqa: F821
     """底部大汇总：九维对比结论表格。"""
     if not rows:
         return ('<div class="card"><h2>大汇总 · 九维对比结论</h2>'

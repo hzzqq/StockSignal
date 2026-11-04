@@ -7,7 +7,7 @@
 诚实声明（页面内可见）：本页刻画广度均值回归结构，**不是**收益预测；只用离线广度序列，
 零编造指数收益。样本量<50 的档位明确标注低置信。
 """
-import logging
+import logging  # noqa: I001
 
 import pandas as pd
 import plotly.graph_objects as go

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """visualizer_core — 图表令牌 / 暗色模板 / 布局与空态基元（visualizer 拆分·纯函数层）。
 
 零业务逻辑改动：源码自 modules/visualizer.py 机械提取（dedent + 去 @staticmethod），
@@ -9,15 +9,15 @@ from __future__ import annotations
 import logging
 
 import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
+import numpy as np  # noqa: F401
+import pandas as pd  # noqa: F401
 import plotly.graph_objects as go
 import plotly.io as pio
 import streamlit as st
 
 # 涨跌配色（A股：红涨绿跌）统一从 modules.colors 引入，避免重复定义
-from modules.colors import DOWN_COLOR, UP_COLOR, hex_to_rgba
-from modules.perf import downsample
+from modules.colors import DOWN_COLOR, UP_COLOR, hex_to_rgba  # noqa: F401
+from modules.perf import downsample  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ def _plotly_layout_kwargs(title: str = "", height: int = 400) -> dict:
         "margin": dict(l=40, r=20, t=50, b=40),
     }
 
-def empty_figure(title: str = "", msg: str = "暂无数据", height: int = 400) -> "go.Figure":
+def empty_figure(title: str = "", msg: str = "暂无数据", height: int = 400) -> "go.Figure":  # noqa: UP037
     """通用空 / 异常数据兜底图（新能力，R3 DRY）：居中显示友好提示，不报错。
 
     原 _empty_kline_figure 仅服务 K 线；这里抽出统一入口，供回测/回撤/持仓/板块/
@@ -129,6 +129,6 @@ def empty_figure(title: str = "", msg: str = "暂无数据", height: int = 400) 
     )
     return fig
 
-def _empty_kline_figure(title: str, msg: str) -> "go.Figure":
+def _empty_kline_figure(title: str, msg: str) -> "go.Figure":  # noqa: UP037
     """空 / 异常数据的优雅兜底图：居中显示友好提示，不报错。"""
     return empty_figure(title, msg, height=550)

@@ -5,7 +5,7 @@
 
 纯展示：数据取自 modules.decision / modules.shepherd_ladder 的返回值，不在这里做计算。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import streamlit as st
 import pandas as pd

@@ -18,7 +18,7 @@ modules/experiment_improvements.py — 毕设算法改进实验沙盒（纯函�
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any  # noqa: F401
 
 
 # ───────────────────────── #4 SHAP 风格因子归因（零训练，现在可跑） ─────────────────────────
@@ -229,7 +229,7 @@ def load_live_findings(results_dir: str | None = None) -> dict:
     约定目录结构：``<results_dir>/experiment_findings.json``（{key: {...}}）或
     ``<results_dir>/<key>.json``（单条，需含 ``key`` 字段）。
     """
-    import copy, json, os
+    import copy, json, os  # noqa: E401, I001
     out = copy.deepcopy(KNOWN_FINDINGS)
     out["_meta"] = {"live": False, "sources": []}
     base = results_dir or os.environ.get("P1_RESULTS_DIR")

@@ -40,7 +40,7 @@ _FEATURES = ["red_ratio", "limit_up", "limit_down"]
 _HORIZONS = (5, 10, 20)
 
 
-def load_breadth_history(path: Optional[str] = None,
+def load_breadth_history(path: Optional[str] = None,  # noqa: UP045
                          keep_nan: bool = False) -> pd.DataFrame:
     """加载牧羊人广度长历史（健康镜像 JSON，4771 天真值）。
 
@@ -53,7 +53,7 @@ def load_breadth_history(path: Optional[str] = None,
               按 date 升序；数值列已 to_numeric。
     """
     p = path or _HISTORY_JSON
-    with open(p, "r", encoding="utf-8") as f:
+    with open(p, "r", encoding="utf-8") as f:  # noqa: UP015
         data = json.load(f)
     df = pd.DataFrame(data)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
@@ -121,7 +121,7 @@ def build_transition_matrix(df: pd.DataFrame) -> dict:
     """
     s = build_state_series(df).tolist()
     matrix = {a: {b: 0 for b in STATE_ORDER} for a in STATE_ORDER}
-    for a, b in zip(s[:-1], s[1:]):
+    for a, b in zip(s[:-1], s[1:]):  # noqa: B905
         if a in matrix and b in matrix[a]:
             matrix[a][b] += 1
     out = {}
@@ -144,7 +144,7 @@ def _state_confidence(row, state: str) -> float:
     """状态置信度（0~1，轻量、可解释），仅作展示辅助，不参与任何决策。"""
     rr = float(row.get("red_ratio", 50.0))
     ld = float(row.get("limit_down", 0.0))
-    lu = float(row.get("limit_up", 0.0))
+    lu = float(row.get("limit_up", 0.0))  # noqa: F841
     if state == "普涨":
         return float(np.clip((rr - 60) / 40, 0, 1))
     if state == "结构牛":
@@ -217,8 +217,8 @@ def find_analogs(df: pd.DataFrame, target_idx: int, k: int = 8,
     return out
 
 
-def regime_report(target_date: Optional[str] = None, k: int = 8,
-                  path: Optional[str] = None) -> dict:
+def regime_report(target_date: Optional[str] = None, k: int = 8,  # noqa: UP045
+                  path: Optional[str] = None) -> dict:  # noqa: UP045
     """生成完整报告字典（供页面/JSON 消费）。
 
     :param target_date: 指定目标日（YYYY-MM-DD）；None 取历史最新日。
@@ -263,8 +263,8 @@ def regime_report(target_date: Optional[str] = None, k: int = 8,
     return report
 
 
-def write_regime_report(out_path: Optional[str] = None,
-                        target_date: Optional[str] = None,
+def write_regime_report(out_path: Optional[str] = None,  # noqa: UP045
+                        target_date: Optional[str] = None,  # noqa: UP045
                         k: int = 8) -> dict:
     """计算报告并落盘 reports/market_regime.json（页面可直接读，免去每次重算）。"""
     rep = regime_report(target_date=target_date, k=k)
@@ -282,7 +282,7 @@ if __name__ == "__main__":
         print(f"最新日 {r['latest']['date']} → 状态【{r['latest']['state']}】"
               f" 置信度 {r['latest']['confidence']}")
         print(f"状态分布：{r['state_distribution']}")
-        print(f"Top-3 相似日：")
+        print(f"Top-3 相似日：")  # noqa: F541
         for a in r["analogs"][:3]:
             print(f"  {a['date']} 距离{a['distance']} 状态{a['state']} "
                   f"→ 后5日红盘率均值{a['forward'].get('d5',{}).get('avg_red')}"

@@ -77,20 +77,29 @@ def _clean_l0():
 
 
 def test_wal_applied(tmp_path):
-    """_get_conn 必须执行 journal_mode=WAL PRAGMA。
+    """_get_conn 必须执行 journal_mode=WAL PRAGMA（生产并发读能力不退化）。
 
-    测试会话里 conftest 的 sqlite shim 会把 WAL 重写为 MEMORY（防 -wal/-shm 刷屏），
-    故断言 mode ∈ {wal, memory}：出现 memory 恰好证明 PRAGMA 已被发送并被 shim 截获；
-    若 PRAGMA 未执行，mode 会是默认的 delete。生产运行（无 shim）时为 wal。
+    测试会话的 conftest shim 会**跳过** WAL PRAGMA（不再是旧版的「改写为 MEMORY」）：
+    默认 DELETE journal 既不生成 -wal/-shm 兄弟文件，也避开连接池多连接切换
+    journal_mode 时的 database is locked。因此 journal_mode 落到默认的 delete。
+
+    旧断言靠 ``mode ∈ {wal, memory}`` 反推 PRAGMA 是否发出，在 shim 换成「跳过」
+    后必然假红；且它无法区分「shim 跳过」与「生产代码压根没发 PRAGMA」。
+    现改为断言 conftest 留在连接上的拦截标记，并对 mode 做兜底：
+      - 标记缺失 → WAL PRAGMA 被删/被改 → 真回归，红；
+      - mode 仍是 wal → shim 失效，测试库会刷 -wal/-shm → 红。
     """
     db = _make_db(tmp_path)
     f = StockFetcher.__new__(StockFetcher)
     f.db_path = db
     conn = f._get_conn()
+    intercepted = getattr(conn, "_ss_wal_intercepted", False)
     mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
     conn.close()
-    assert str(mode).lower() in ("wal", "memory"), \
-        f"journal_mode={mode}，既非 wal 也非 shim 改写的 memory → PRAGMA 未执行"
+    assert intercepted, \
+        "_get_conn 未发出 journal_mode=WAL PRAGMA（shim 无拦截记录）：生产 WAL 并发读能力可能已退化"
+    assert str(mode).lower() != "wal", \
+        f"测试期 shim 未中和 WAL（journal_mode={mode}），测试库会刷出 -wal/-shm 文件"
 
 
 def test_l0_hit_skips_sqlite(tmp_path):

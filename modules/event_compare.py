@@ -12,7 +12,7 @@
 
 所有取数失败均优雅降级（available=False），绝不编造。
 """
-import logging
+import logging  # noqa: I001
 
 from modules import shepherd_ladder
 from modules import shepherd

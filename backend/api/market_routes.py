@@ -15,7 +15,7 @@ backend/api/market_routes.py
 - 复用进程内 StockFetcher 单例，避免每次请求重复建连。
 - 入参校验：ticker/symbol 必须是 6 位数字，否则 response.fail("参数无效")。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import sys
 from pathlib import Path
@@ -39,7 +39,7 @@ bp = Blueprint("market", __name__, url_prefix="/api")
 _VALID_ADJUST = ("qfq", "hfq", "")
 
 
-def _is_valid_adjust(a: "str | None") -> bool:
+def _is_valid_adjust(a: "str | None") -> bool:  # noqa: UP037
     """纯函数：校验复权参数。
 
     合法值：'qfq'、'hfq'、'' 或 None（默认）。其余一律视为非法。
@@ -51,7 +51,7 @@ def _is_valid_adjust(a: "str | None") -> bool:
 _fetcher = None
 
 
-def get_fetcher() -> "StockFetcher":
+def get_fetcher() -> "StockFetcher":  # noqa: UP037
     """返回进程内 StockFetcher 单例。"""
     global _fetcher
     if _fetcher is None:

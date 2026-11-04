@@ -9,7 +9,7 @@
 - 事件时间轴表单的日期/滑块控件 key 与 session_state 变量同名双向绑定，
   去掉 st.rerun()，避免整页重跑；区间快捷按钮只改 session_state，fragment 自动跟随刷新。
 """
-import logging
+import logging  # noqa: I001
 
 import streamlit as st
 import html
@@ -33,7 +33,7 @@ with lk_p2:
         st.switch_page('pages/24_个股研究.py')
 # 语音事件因子（真空白补全）：顶部可发现性提示——指向页面底部语音录入卡（非导航新增，不碰导航守卫）
 st.caption('💡 页面底部支持 🎙️ 语音录入市场事件：录音 / 上传音频，自动转写并标注因子（需配置支持 whisper 的 LLM 端点）。')
-from modules.signal import SignalEngine
+from modules.signal import SignalEngine  # noqa: I001
 from modules.colors import UP_COLOR, DOWN_COLOR
 from modules.search_ui import stock_search_input
 from modules.session import api_kline, api_intraday, trading_autorefresh, api_post
@@ -93,7 +93,7 @@ def _render_news_with_links(df, title_col='title', url_col='url', date_col='date
     if df is None or df.empty:
         _empty_info('暂无相关新闻/事件数据（可能该标的暂无公开资讯，或数据源暂不可用）。可换一只股票或稍后重试。')
         return
-    for i, (_, row) in enumerate(df.head(max_items).iterrows()):
+    for i, (_, row) in enumerate(df.head(max_items).iterrows()):  # noqa: B007
         title = str(row.get(title_col, '')).strip()
         url = str(row.get(url_col, '')).strip()
         date_raw = row.get(date_col, None)
@@ -309,7 +309,7 @@ def fragment_live_keywords():
 @safe_fragment
 def fragment_timeline():
     """事件时间轴（延迟导入 Visualizer）。"""
-    import pandas as pd
+    import pandas as pd  # noqa: I001
     from modules.visualizer import Visualizer
     xc_content_card('📅 事件时间轴', "")
     if st.button('🔄', key='tl_manual_refresh', help='刷新：手动局部刷新事件时间轴模块'):
@@ -493,7 +493,7 @@ def fragment_timeline():
 
 @safe_fragment
 def fragment_event_manage():
-    import pandas as pd
+    import pandas as pd  # noqa: F401
     xc_content_card('📌 事件管理', "")
     try:
         with st.form('add_event_form'):
@@ -650,7 +650,7 @@ def fragment_sentiment_report():
                             {'label': '负面占比', 'value': f'{_neg}%'},
                             {'label': '中性占比', 'value': f'{_neu}%'},
                         ])
-                    import plotly.express as px
+                    import plotly.express as px  # noqa: I001
                     from modules.visualizer import _is_dark, SF_GRID, SF_BORDER, SF_TXT2
                     _dark = _is_dark()
                     pie_df = pd.DataFrame([{'类型': '正面', '占比': _pos}, {'类型': '负面', '占比': _neg}, {'类型': '中性', '占比': _neu}])

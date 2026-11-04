@@ -11,7 +11,7 @@ modules/format_helpers.py
 
 全部为纯函数，无网络/IO 依赖，可直接单元测试。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import html as _html
 import math
@@ -65,7 +65,7 @@ def safe_html_text(x, default: str = "") -> str:
     return _html.escape(s, quote=True)
 
 
-def to_float(x, default: Optional[float] = None) -> Optional[float]:
+def to_float(x, default: Optional[float] = None) -> Optional[float]:  # noqa: UP045
     """把任意值安全转为 float；无法转换（None/空/非数字/NaN/inf）返回 default。"""
     if x is None:
         return default

@@ -19,7 +19,7 @@ from modules.cache_utils import TTL_TIERS  # R-14
 - ``P1SignalLoader`` 懒导入，模块与具体数据源解耦，未来可挂别的真实事件源。
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
 
 import logging
@@ -364,7 +364,7 @@ def lhb_event_signal(ticker: str, lookback_days: int = 10) -> dict:
     if not sym:
         return {"available": False, "symbol": ticker, "reason": "未提供标的代码"}
     try:
-        import akshare as ak
+        import akshare as ak  # noqa: I001
         from datetime import datetime, timedelta
         end = datetime.now()
         start = end - timedelta(days=int(lookback_days))

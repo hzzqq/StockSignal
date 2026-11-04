@@ -9,20 +9,20 @@
 - 因此这些辅助函数返回 ``tzinfo=None`` 的 UTC 时间，与既有逻辑（及弃用前的
   ``datetime.utcnow()``）行为完全等价，可安全替换。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from datetime import datetime, timezone, date
-from typing import Iterable, Optional
+from typing import Iterable, Optional  # noqa: UP035
 
 
 def utc_now() -> datetime:
     """返回 naive UTC 时间（等价于已弃用的 ``datetime.utcnow()``）。"""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(timezone.utc).replace(tzinfo=None)  # noqa: UP017
 
 
 def utc_fromtimestamp(ts: float) -> datetime:
     """UTC 时区**感知**的时间戳转换（替代已弃用的 ``datetime.utcfromtimestamp``）。"""
-    return datetime.fromtimestamp(ts, tz=timezone.utc)
+    return datetime.fromtimestamp(ts, tz=timezone.utc)  # noqa: UP017
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +35,7 @@ def utc_fromtimestamp(ts: float) -> datetime:
 _DATE_FORMATS = ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d", "%Y-%m-%d %H:%M:%S")
 
 
-def _to_date(value) -> Optional[date]:
+def _to_date(value) -> Optional[date]:  # noqa: UP045
     """把多种形态的输入统一成 ``date``；无法解析时返回 ``None``。"""
     if value is None:
         return None
@@ -57,7 +57,7 @@ def _to_date(value) -> Optional[date]:
     return None
 
 
-def parse_date(value, fmt: str = "%Y-%m-%d") -> Optional[date]:
+def parse_date(value, fmt: str = "%Y-%m-%d") -> Optional[date]:  # noqa: UP045
     """解析日期为 ``date`` 对象。
 
     支持 ``date`` / ``datetime`` / 日期字符串；非法或 ``None`` 一律返回 ``None``，
@@ -87,7 +87,7 @@ def format_date(value, fmt: str = "%Y-%m-%d") -> str:
     if value is None:
         return ""
     if isinstance(value, datetime):
-        d: Optional[date] = value.date()
+        d: Optional[date] = value.date()  # noqa: UP045
     elif isinstance(value, date):
         d = value
     else:
@@ -100,7 +100,7 @@ def format_date(value, fmt: str = "%Y-%m-%d") -> str:
         return ""  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
-def is_weekday(value) -> Optional[bool]:
+def is_weekday(value) -> Optional[bool]:  # noqa: UP045
     """判断是否为工作日（周一~周五）。
 
     输入非法或 ``None`` 时返回 ``None``（表示「未知」），而非抛异常。
@@ -111,7 +111,7 @@ def is_weekday(value) -> Optional[bool]:
     return d.weekday() < 5
 
 
-def is_trading_day(value, holidays: Optional[Iterable] = None) -> Optional[bool]:
+def is_trading_day(value, holidays: Optional[Iterable] = None) -> Optional[bool]:  # noqa: UP045
     """判断是否为 A 股交易日。
 
     规则：周一~周五 且 不在 ``holidays`` 休市集合中。

@@ -23,7 +23,7 @@
 - 前复权(qfq)口径说明：涨停/跌停/回头波按比例计算不受影响；平均股价为 qfq 近似值
   （绝对价位与真实不复权价有偏差，趋势仍有效）。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import concurrent.futures as cf
 import logging
@@ -138,7 +138,7 @@ def _detect_limit(row: pd.Series, limit_pct: float, tol: float = 0.005) -> tuple
     return int(is_up), int(is_down), touch_up, touch_down
 
 
-def _normalize_daily(df: pd.DataFrame) -> Optional[pd.DataFrame]:
+def _normalize_daily(df: pd.DataFrame) -> Optional[pd.DataFrame]:  # noqa: UP045
     """把新浪日线 DataFrame 标准化为含 date/close/high/low/volume 的 DataFrame。"""
     if df is None or len(df) < 2:
         return None
@@ -172,7 +172,7 @@ def _normalize_daily(df: pd.DataFrame) -> Optional[pd.DataFrame]:
     return df if not df.empty else None
 
 
-def _aggregate_one_stock(symbol: str, start_date: str, end_date: str) -> Optional[pd.DataFrame]:
+def _aggregate_one_stock(symbol: str, start_date: str, end_date: str) -> Optional[pd.DataFrame]:  # noqa: UP045
     """拉取单只股票日线并聚合为每日 0/1 计数（模块级纯函数，带内部重试，无装饰器）。
 
     v2：额外输出 change_pct/close/触板标记/回头波标记，供跨股横截面聚合
@@ -240,7 +240,7 @@ def _aggregate_one_stock(symbol: str, start_date: str, end_date: str) -> Optiona
         "touch_up": touch_up_flags,
         "touch_down": touch_down_flags,
         # 炸板 = 盘中触涨停但收盘未封住（杨哥：摸板/尾盘炸板均算）
-        "zt_fail_count": [int(t and not s) for t, s in zip(touch_up_flags, sealed_up_flags)],
+        "zt_fail_count": [int(t and not s) for t, s in zip(touch_up_flags, sealed_up_flags)],  # noqa: B905
         "hb_wave10": hb10.values,
         "change_pct": df["change_pct"].values,
         "close": df["close"].values,
@@ -253,7 +253,7 @@ def _cache_path(symbol: str, cache_dir: str) -> str:
     return os.path.join(cache_dir, f"{safe}.csv")
 
 
-def _merge_cache_frames(old: Optional[pd.DataFrame], new: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+def _merge_cache_frames(old: Optional[pd.DataFrame], new: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:  # noqa: UP045
     """把「旧缓存」与「本次新拉窗口」按日期合并（纯函数，可离线测试）。
 
     这是防「缓存截断」的核心不变量：**刷新只能替换窗口内的行，绝不能把窗口外的历史抹掉**。
@@ -279,7 +279,7 @@ def _merge_cache_frames(old: Optional[pd.DataFrame], new: Optional[pd.DataFrame]
 
 
 def _aggregate_cached(symbol: str, start_date: str, end_date: str, cache_dir: str,
-                      use_cache: bool = True, refresh_days: int = 0) -> Optional[pd.DataFrame]:
+                      use_cache: bool = True, refresh_days: int = 0) -> Optional[pd.DataFrame]:  # noqa: UP045
     """带磁盘缓存的聚合（**合并语义**，绝不截断历史）。
 
     :param refresh_days: ``0`` = 缓存命中即整段复用（快速路径：历史全量已完成时秒级重跑）；
@@ -340,7 +340,7 @@ class _SkipNetwork(Exception):
 _SOCKET_TIMEOUT_SEC = 30
 
 
-def _aggregate_worker(args) -> tuple[str, Optional[pd.DataFrame]]:
+def _aggregate_worker(args) -> tuple[str, Optional[pd.DataFrame]]:  # noqa: UP045
     """多进程 worker：设 socket 超时 → 解包参数 → 调用 _aggregate_cached（兼容 5 元组旧签名）。"""
     import socket
     try:
@@ -356,12 +356,12 @@ def _aggregate_worker(args) -> tuple[str, Optional[pd.DataFrame]]:
 
 
 @_retry()
-def _fetch_a_share_codes() -> Optional[pd.DataFrame]:
+def _fetch_a_share_codes() -> Optional[pd.DataFrame]:  # noqa: UP045
     """获取当前全 A 代码列表（新浪源），带本地 JSON 缓存。"""
     if os.path.exists(_SYMBOLS_CACHE):
         try:
             import json
-            with open(_SYMBOLS_CACHE, "r", encoding="utf-8") as f:
+            with open(_SYMBOLS_CACHE, "r", encoding="utf-8") as f:  # noqa: UP015
                 data = json.load(f)
             if isinstance(data, list) and data:
                 return pd.DataFrame({"symbol": data})
@@ -390,7 +390,7 @@ def _fetch_a_share_codes() -> Optional[pd.DataFrame]:
 
 
 def reconstruct_breadth(start_date: str, end_date: str, max_workers: int = 12,
-                        symbols: Optional[list] = None, use_cache: bool = True,
+                        symbols: Optional[list] = None, use_cache: bool = True,  # noqa: UP045
                         refresh_days: int = 0,
                         fetch_timeout_sec: float = _FETCH_TIMEOUT_SEC) -> pd.DataFrame:
     """重构全 A 市场广度日序列（多进程 + 断点续跑，v2 含横截面复盘指标）。
@@ -565,7 +565,7 @@ def _col(df, *keys):
 @_retry()
 def _fetch_zt_pool(date: str):
     """拉取某日涨停池，返回 dict（含连板梯队/封成比，复用 shepherd 纯函数口径）。"""
-    import akshare as ak
+    import akshare as ak  # noqa: I001
     from modules.shepherd import _compute_zt_pool_indicators
     d = pd.to_datetime(date).strftime("%Y%m%d")
     df = ak.stock_zt_pool_em(date=d)
@@ -815,7 +815,7 @@ def _existing_row_count(path: str) -> int:
         return 0  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
-def save_history(df: pd.DataFrame, path: Optional[str] = None, force: bool = False) -> str:
+def save_history(df: pd.DataFrame, path: Optional[str] = None, force: bool = False) -> str:  # noqa: UP045
     path = path or _BREADTH_FILE
     os.makedirs(os.path.dirname(path), exist_ok=True)
     # ⚠️ 防覆盖护栏：仅对主表（_BREADTH_FILE）生效。

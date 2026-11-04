@@ -24,7 +24,7 @@ TTL 缓存 + 12s 硬超时 + 失败空 DataFrame 兜底）。本模块对三组�
 from __future__ import annotations
 
 from datetime import date
-from typing import Callable
+from typing import Callable  # noqa: UP035
 
 from modules.fundflow_health import age_in_days, last_trading_day
 
@@ -64,7 +64,7 @@ def check_industry_board(df, today: date | None = None, min_cols=1) -> dict:
     if len(data_cols) < min_cols:
         rec["ok"] = False
         rec["status"] = "red"
-        rec["errors"].append(f"行业板块指数无数据列（列数不足）")
+        rec["errors"].append(f"行业板块指数无数据列（列数不足）")  # noqa: F541
         return rec
     if rec["ok"] and DATE_KEY in getattr(df, "columns", []):
         _apply_freshness(df, rec, today)
@@ -170,7 +170,7 @@ def summarize(providers: dict[str, Callable], today: date | None = None) -> dict
 # ───────────────────────── 报告渲染 ─────────────────────────
 def render_report(summary: dict) -> str:
     """Markdown 报告（供 CLI 与文档使用）。"""
-    lines = ["# 行情取数层健康体检 — %s" % summary["today"]]
+    lines = ["# 行情取数层健康体检 — %s" % summary["today"]]  # noqa: UP031
     lines.append("")
     lines.append("| 接口 | 状态 | 问题 |")
     lines.append("|---|---|---|")

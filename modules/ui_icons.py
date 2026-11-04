@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """modules/ui_icons.py — 统一内联 SVG 图标系统（零 emoji，currentColor 自适应主题）。
 
 设计纪律（对齐 ui-ux-pro-max / design-critique）：
@@ -81,7 +81,7 @@ _EMOJI_MAP: dict[str, str] = {
     "📦": "package", "🏆": "trophy", "📅": "calendar", "🔄": "refresh", "➕": "plus",
     "➖": "minus", "✏️": "edit", "⚡": "zap", "🔒": "lock", "📋": "clipboard",
     "🗺️": "map", "📱": "phone", "🐑": "flask", "🧪": "flask", "📍": "pin",
-    "🧭": "compass", "💹": "trend-up", "📎": "link", "📞": "phone",
+    "🧭": "compass", "💹": "trend-up", "📎": "link", "📞": "phone",  # noqa: F601
 }
 
 _EMOJI_RE = re.compile(

@@ -3,7 +3,7 @@ StockSignal 主入口
 A股事件驱动投资分析平台
 """
 
-import time
+import time  # noqa: I001
 import urllib.request
 import urllib.error
 
@@ -30,7 +30,7 @@ st.markdown(dashboard_sf_css(), unsafe_allow_html=True)
 st.session_state["_active_page"] = __file__
 
 # ── 鉴权门禁：未登录直接跳到 /登录 ──
-from modules.session import require_auth, render_user_badge, is_admin, get_user, safe_switch_page, get_token
+from modules.session import require_auth, render_user_badge, is_admin, get_user, safe_switch_page, get_token  # noqa: I001
 from modules.widgets import render_global_search, render_notifications, get_recent_stocks, render_session_countdown
 from modules.fundflow import warm_fundflow_caches
 require_auth()

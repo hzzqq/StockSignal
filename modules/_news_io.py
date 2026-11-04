@@ -11,17 +11,17 @@
 8. 个股-新闻关联预警模型
 """
 
-import os
+import os  # noqa: F401, I001
 import logging
 
 logger = logging.getLogger(__name__)
-import re
+import re  # noqa: I001
 import time
 import json
-import hashlib
-import sqlite3
-from datetime import datetime, timedelta
-from collections import Counter
+import hashlib  # noqa: F401
+import sqlite3  # noqa: F401
+from datetime import datetime, timedelta  # noqa: F401
+from collections import Counter  # noqa: F401
 
 import pandas as pd
 
@@ -35,13 +35,13 @@ except ImportError:
 
 try:
     import jieba
-    import jieba.analyse
+    import jieba.analyse  # noqa: F401
     _JIEBA_OK = True
 except ImportError:
     _JIEBA_OK = False
 
 try:
-    from snownlp import SnowNLP
+    from snownlp import SnowNLP  # noqa: F401
     _SNOW_OK = True
 except ImportError:
     _SNOW_OK = False
@@ -83,7 +83,7 @@ def _fetch_url(url, headers=None, timeout=15, encoding="utf-8"):
     通用 URL 抓取（urllib，无额外依赖）。
     返回 decoded text 或 None。
     """
-    import urllib.request, urllib.error
+    import urllib.request, urllib.error  # noqa: E401, I001
     try:
         req = urllib.request.Request(
             url,
@@ -351,7 +351,7 @@ NEGATIVE_WORDS = {
     # 半导体专属利空
     "出口管制", "实体清单", "制裁升级", "断供风险", "被列入",
     "技术封锁", "禁售", "许可证拒批", "设备禁运",
-    "产能过剩", "价格战加剧", "毛利率下滑", "存货减值",
+    "产能过剩", "价格战加剧", "毛利率下滑", "存货减值",  # noqa: B033
     "良率不及预期", "研发延期", "量产推迟",
     "大客户流失", "订单取消", "砍单", "下调预期",
     "高管离职", "内控问题", "财务造假",

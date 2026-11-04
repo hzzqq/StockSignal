@@ -4,7 +4,7 @@ from modules.cache_utils import TTL_TIERS  # R-14
 综合价格信号、事件信号、宏观信号三类因子，输出 0-100 的主线强度得分。
 """
 
-from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
+from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行  # noqa: I001
 
 import os
 import re

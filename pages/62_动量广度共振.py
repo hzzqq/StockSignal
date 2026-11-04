@@ -8,14 +8,14 @@
 离线基座无真值；本页以「涨停前日收益」作动量代理刻画共振结构，真·资金流联网可用时再增强。
 本矩阵描述共现结构，**不是**收益预测。
 """
-import logging
+import logging  # noqa: I001
 
 import plotly.graph_objects as go
 import streamlit as st
 
 from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
-from modules.ui_kit import xc_section_header
+from modules.ui_kit import xc_section_header  # noqa: F401
 from modules import momentum_breadth_resonance as mbr
 
 logger = logging.getLogger(__name__)

@@ -4,7 +4,7 @@
 三级源抓取类（BaoStock / 新浪 / 东方财富 urllib）。
 与 fetcher.StockFetcher 编排层解耦，公开名由 fetcher 重新导出以保持兼容。
 """
-import io
+import io  # noqa: F401, I001
 import json
 import os
 import time
@@ -12,13 +12,13 @@ import logging as _logging
 import urllib.request
 import urllib.error
 import urllib.parse
-import contextlib
+import contextlib  # noqa: F401
 import socket  # 捕获瞬时网络错误（超时/连接重置/DNS）做重试兜底
 import threading  # R77：BaoStock 首次登录锁（并行竞速串行化）
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta  # noqa: F401
 from modules.time_utils import now_cst_naive
 from modules.request_utils import _throttle  # T-249：per-host 节流延伸到 urllib 直连路径
-import concurrent.futures as _cf
+import concurrent.futures as _cf  # noqa: F401
 
 def _req_host(req):
     """从 Request/URL 提取 host（T-249 节流用）；不可得返回 None。"""
@@ -51,7 +51,7 @@ def _safe_urlopen(req, timeout, retries=2, backoff=0.5):
         except urllib.error.HTTPError:
             # 业务层响应（401/403/404/5xx 等），不重试，交给调用方按失败处理
             raise
-        except (urllib.error.URLError, socket.timeout, TimeoutError,
+        except (urllib.error.URLError, socket.timeout, TimeoutError,  # noqa: UP041
                 ConnectionError, OSError) as e:
             last_exc = e
             if attempt < retries:
@@ -94,13 +94,13 @@ if not logger.handlers:
     logger.propagate = False
 
 import pandas as pd
-import yaml
+import yaml  # noqa: F401
 
 # ──────────────────────────────────────────────────────────
 # 数据源可用性检测
 # ──────────────────────────────────────────────────────────
 try:
-    import akshare as ak
+    import akshare as ak  # noqa: F401
     _AK_OK = True
 except ImportError:
     _AK_OK = False

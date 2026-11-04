@@ -8,7 +8,7 @@
 
 未读判定：User.settings.last_seen_market_alert 之后的告警即未读。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 from datetime import datetime

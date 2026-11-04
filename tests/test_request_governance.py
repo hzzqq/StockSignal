@@ -43,14 +43,22 @@ def _clean_governance():
 
 
 def test_throttle_enforces_min_interval(monkeypatch):
-    """同一 host 连续两次请求必须间隔 >= HOST_MIN_INTERVAL。"""
+    """同一 host 连续两次请求必须间隔 >= HOST_MIN_INTERVAL。
+
+    断言「节流层实际算出的等待时长」而非墙钟 elapsed：Windows 的 time.sleep
+    会被系统定时器精度提前唤醒（实测 0.297s < 0.3s），用 elapsed 会偶发假红，
+    而节流逻辑本身没坏。等待时长由 _throttle 计算，与 OS 调度精度无关；
+    删掉节流（无 sleep）或调小间隔（wait 过小）仍会被守卫抓住。
+    """
     monkeypatch.setattr(ru, "HOST_MIN_INTERVAL", 0.3)
     monkeypatch.setattr(ru, "get_session", lambda: _FakeSession())
-    t0 = time.monotonic()
+    waits = []
+    monkeypatch.setattr(ru.time, "sleep", lambda s: waits.append(s))
     ru.http_get("https://throttle.example.com/a")
     ru.http_get("https://throttle.example.com/b")
-    elapsed = time.monotonic() - t0
-    assert elapsed >= 0.3, f"节流未生效，两次请求仅间隔 {elapsed:.3f}s"
+    assert waits, "节流未生效：第二次请求没有产生任何等待"
+    assert max(waits) >= 0.3 * 0.9, \
+        f"节流等待时长过短：{max(waits):.3f}s（应接近 HOST_MIN_INTERVAL=0.3s）"
 
 
 def test_circuit_opens_after_consecutive_failures(monkeypatch):

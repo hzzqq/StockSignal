@@ -16,7 +16,7 @@ modules/decision.py — 今日决策闭环的**单一真理源**（纯 Python，
 """
 
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
 
 import json
@@ -25,9 +25,9 @@ import os
 import time
 
 from modules.atomic_io import atomic_json_dump
-from datetime import datetime
+from datetime import datetime  # noqa: F401
 from modules.time_utils import now_cst_naive
-from typing import Any
+from typing import Any  # noqa: F401
 
 # 羊群拥挤度决策阈值（T-182 因子 B）：单一真理源在 modules/herd_crowding.py，
 # 这里只引用不复制——阈值改动必须同时过两侧测试（test_threshold_contract 钉住）。
@@ -57,7 +57,7 @@ def archive_path(date: str) -> str:
 def load_archive(date: str) -> dict | None:
     """读取指定日期的归档快照（复盘回测用）。"""
     try:
-        with open(archive_path(date), "r", encoding="utf-8") as f:
+        with open(archive_path(date), "r", encoding="utf-8") as f:  # noqa: UP015
             snap = json.load(f)
     except FileNotFoundError:
         # ui_audit_exempt: 文件缺失即无数据，返回空是预期契约（调用方按缺失处理）
@@ -534,7 +534,7 @@ def _compute_event_adj(top_n: int = 50) -> dict | None:
     样本不足（无法确认有无优势）时不擅自归零，维持现状（真实信号、待验证）。
     """
     try:
-        from modules.p1_signal import P1SignalLoader
+        from modules.p1_signal import P1SignalLoader  # noqa: I001
         from modules.event_factor import event_driven_long_list
         # 复用同一个 loader 实例：top_long 已把 11MB 信号载入内存缓存，
         # 再取 latest_date 走缓存几乎零成本（否则会重复读盘）。
@@ -705,7 +705,7 @@ def compute_dual_factor_inputs(ttl: int = 300,
                  "herd_score": None, "herd_side": None, "available": False,
                  "detail": {}}
     try:
-        from modules.market_regime import classify_state, load_breadth_history, _state_confidence
+        from modules.market_regime import classify_state, load_breadth_history, _state_confidence  # noqa: I001
         p = history_path or os.path.join(DATA_DIR, "shepherd_history.json")
         # keep_nan=True：区分「真 0 日」与「缺数日」（见 load_breadth_history docstring）
         df = load_breadth_history(path=p, keep_nan=True).dropna(
@@ -892,7 +892,7 @@ def load_snapshot(date: str | None = None) -> dict | None:
     首页 banner 用它做到**零网络**：读本地 JSON，永不触发抓取。
     """
     try:
-        with open(SNAPSHOT_PATH, "r", encoding="utf-8") as f:
+        with open(SNAPSHOT_PATH, "r", encoding="utf-8") as f:  # noqa: UP015
             snap = json.load(f)
     except FileNotFoundError:
         # ui_audit_exempt: 文件缺失即无数据，返回空是预期契约（调用方按缺失处理）
@@ -944,7 +944,7 @@ def assess_decision_loop_health() -> dict:
       rank:   0(ok) < 1(warn) < 2(stale) < 3(dead/unknown)
       generated_at / as_of / gen_lag_hours / data_lag_days / message
     """
-    from datetime import datetime as _dt
+    from datetime import datetime as _dt  # noqa: I001
 
     import time as _t
 

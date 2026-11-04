@@ -14,10 +14,10 @@
 
 import threading
 import time
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict, Tuple  # noqa: UP035
 
 # 全局共享缓存（按 key 字符串索引 -> (timestamp, value)）
-_CACHE: Dict[str, Tuple[float, Any]] = {}
+_CACHE: Dict[str, Tuple[float, Any]] = {}  # noqa: UP006
 _CACHE_LOCK = threading.Lock()
 
 

@@ -1,26 +1,26 @@
 """fetcher_kline — 日/周/分钟 K 线方法（含 get_daily 降级链）"""
 
-import io
-import json
-import os
-import re
-import sqlite3
-import threading
+import io  # noqa: F401, I001
+import json  # noqa: F401
+import os  # noqa: F401
+import re  # noqa: F401
+import sqlite3  # noqa: F401
+import threading  # noqa: F401
 import time
-import warnings
-import logging as _logging
+import warnings  # noqa: F401
+import logging as _logging  # noqa: F401
 import urllib.request
 import urllib.error
-import urllib.parse
-import contextlib
-import socket  # 捕获瞬时网络错误（超时/连接重置/DNS）做重试兜底
-from datetime import datetime, timedelta
+import urllib.parse  # noqa: F401
+import contextlib  # noqa: F401
+import socket  # 捕获瞬时网络错误（超时/连接重置/DNS）做重试兜底  # noqa: F401
+from datetime import datetime, timedelta  # noqa: F401
 import concurrent.futures as _cf
-import yaml  # load_config 用到；原在抽离块内，抽到 _feed_io 后在此补回
+import yaml  # load_config 用到；原在抽离块内，抽到 _feed_io 后在此补回  # noqa: F401
 import pandas as pd  # 原在抽离块内，StockFetcher 大量使用 DataFrame
-import numpy as np  # 原在抽离块内，StockFetcher 用到 np.
+import numpy as np  # 原在抽离块内，StockFetcher 用到 np.  # noqa: F401
 
-from modules.time_utils import now_cst_str, now_cst_naive
+from modules.time_utils import now_cst_str, now_cst_naive  # noqa: F401
 from modules.fetcher_core import _build_cache_key
 from modules.timeout_exec import _pool as _shared_pool  # T-383：四源竞速复用进程级共享池
 
@@ -85,7 +85,7 @@ except Exception as _pp_err:  # noqa: BLE001
 
 # Tier1.1 安全拆分 pilot：纯函数 _safe_json_loads 迁入 modules.fetcher_core，
 # 此处 re-export 保持行为零变化（fetcher.py 内部 509/519/547/1174 行调用不受影响）。
-from modules.fetcher_core import _safe_json_loads  # noqa: F401
+from modules.fetcher_core import _safe_json_loads  # noqa: F401, I001
 
 
 

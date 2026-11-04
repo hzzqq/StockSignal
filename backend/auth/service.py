@@ -3,11 +3,11 @@ auth/service.py
 ---------------
 登录业务 + token 签发。所有错误向上抛 ApiError，绝不在本层返回 HTML/字符串。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import re
 import time
 import threading
-from typing import Any, Dict
+from typing import Any, Dict  # noqa: UP035
 import jwt
 from flask import current_app
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -24,7 +24,7 @@ _PASSWORD_MIN = 6
 def issue_token(user: User) -> str:
     """生成 JWT。sub=username；exp 自动写入。"""
     expires_in = int(current_app.config.get("JWT_EXPIRES_SECONDS", 3600))
-    payload: Dict[str, Any] = {
+    payload: Dict[str, Any] = {  # noqa: UP006
         "sub": user.username,
         "uid": user.id,
         "role": user.role,
@@ -36,7 +36,7 @@ def issue_token(user: User) -> str:
     return jwt.encode(payload, secret, algorithm=alg)
 
 
-def decode_token(token: str) -> Dict[str, Any]:
+def decode_token(token: str) -> Dict[str, Any]:  # noqa: UP006
     """校验 JWT；失败统一抛 AuthError。"""
     secret = current_app.config["SECRET_KEY"]
     alg = current_app.config.get("JWT_ALGORITHM", "HS256")
@@ -44,12 +44,12 @@ def decode_token(token: str) -> Dict[str, Any]:
         return jwt.decode(token, secret, algorithms=[alg])
     except jwt.ExpiredSignatureError:
         # 不暴露 token 原文/时间细节
-        raise AuthError("登录已过期，请重新登录", code="token_expired")
+        raise AuthError("登录已过期，请重新登录", code="token_expired")  # noqa: B904
     except jwt.InvalidTokenError:
-        raise AuthError("无效的登录凭证", code="invalid_token")
+        raise AuthError("无效的登录凭证", code="invalid_token")  # noqa: B904
 
 
-def refresh_payload(token: str) -> Dict[str, Any]:
+def refresh_payload(token: str) -> Dict[str, Any]:  # noqa: UP006
     """校验「刷新资格」（T-158）：签名必须有效；exp 已过也放行——这正是 refresh
     的意义。但 iat 距今不得超过 JWT_REFRESH_SECONDS（滑动窗口），超窗即要求
     重新登录。资格与身份分离：本函数只做资格判定，身份/活跃检查留给路由层。
@@ -66,7 +66,7 @@ def refresh_payload(token: str) -> Dict[str, Any]:
         )
     except jwt.InvalidTokenError:
         # 覆盖签名错误/格式错误/缺字段等一切无效情形；不暴露细节
-        raise AuthError("无效的登录凭证", code="invalid_token")
+        raise AuthError("无效的登录凭证", code="invalid_token")  # noqa: B904
     window = int(current_app.config.get("JWT_REFRESH_SECONDS", 604800))
     iat = payload.get("iat")
     now = int(time.time())

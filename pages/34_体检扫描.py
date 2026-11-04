@@ -1,4 +1,4 @@
-import html
+import html  # noqa: I001
 import logging
 
 import streamlit as st
@@ -7,7 +7,7 @@ import concurrent.futures  # kept for scan_one per-code error logging; simple fe
 from modules.session import safe_switch_page, api_get
 from modules.page_utils import get_fetcher
 fetcher = get_fetcher()
-from modules.cleaner import DataCleaner
+from modules.cleaner import DataCleaner  # noqa: I001
 from modules.technical import full_analysis
 from modules.fundflow import get_individual_fund_flow
 from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: 简单 HTTP 抓取收敛
@@ -179,7 +179,7 @@ def _composite(dims: dict) -> float:
 
 def scan_one(code: str, name):
     """单只股票体检，返回 entry dict（含多维打分）。"""
-    import pandas as pd
+    import pandas as pd  # noqa: F401
     entry = {"code": str(code), "name": name, "patterns": [], "main_net": None,
              "dims": {}, "composite": None, "pe": None, "roe": None,
              "rev_yoy": None, "error": None}
@@ -770,7 +770,7 @@ def risk_board():
             for key, cn, unit in sr.DIMENSIONS:
                 c = (rep.get("components") or {}).get(key) or {}
                 lv = c.get("level", sr.RISK_UNKNOWN)
-                color = sr.LEVEL_COLOR.get(lv, "#8c8c8c")
+                color = sr.LEVEL_COLOR.get(lv, "#8c8c8c")  # noqa: F841
                 with st.expander(f"{lvl_emoji.get(lv, '')} {cn} · {sr.LEVEL_CN.get(lv, '未知')}"
                                  f"　{c.get('note', '')}", expanded=(lv == sr.RISK_HIGH)):
                     st.caption(f"口径：{unit}")

@@ -12,9 +12,9 @@
 
 本页只调用 Flask 后端 /api/trade/*，绝不直连任何券商或 MCP 连接器。
 """
-import html
-import json
-from datetime import datetime, timedelta
+import html  # noqa: I001
+import json  # noqa: F401
+from datetime import datetime, timedelta  # noqa: F401
 import streamlit as st
 from modules import colors
 from modules.page_utils import render_standard_page
@@ -22,7 +22,7 @@ import modules.scroll_nav as sn
 from modules.session import api_get, api_post, api_put, trading_autorefresh
 from modules.search_ui import stock_search_input
 from modules.page_widgets import _empty_info, _toast
-from modules.page_guard import safe_fragment
+from modules.page_guard import safe_fragment  # noqa: F401
 from modules.format_helpers import safe_int
 from modules.ui_kit import xc_kpi_grid, xc_success_box, xc_warn_box
 dark = render_standard_page(title='实盘交易', icon='💰', caption='真实券商 / 模拟账本 下单入口 · 全量订单落库可审计')

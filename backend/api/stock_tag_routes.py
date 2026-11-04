@@ -5,8 +5,8 @@ backend/api/stock_tag_routes.py
 - /api/junk-stocks
 - /api/user-scores
 """
-from __future__ import annotations
-from flask import Blueprint, g, request
+from __future__ import annotations  # noqa: I001
+from flask import Blueprint, g, request  # noqa: F401
 from sqlalchemy import select
 from ..auth.decorators import jwt_required
 from ..extensions import db
@@ -144,7 +144,7 @@ def upsert_user_score():
     try:
         score = int(score)
     except Exception:
-        raise ValidationError("分数须为整数")
+        raise ValidationError("分数须为整数")  # noqa: B904
     if score < 0 or score > 100:
         raise ValidationError("分数须在 0–100 之间")
 

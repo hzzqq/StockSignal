@@ -37,7 +37,7 @@ def _api_request(method: str, path: str, *, payload=None, timeout: int = 5, **kw
       - 401：清登录态并 st.rerun(scope="app")（fragment 与顶层均安全），不在此重试
     仅对瞬态网络错误重试；401/4xx/5xx 属有效响应，立即交给调用方。
     """
-    from modules.session import auth_headers, clear_auth  # 延迟导入：避 session ↔ 本模块循环
+    from modules.session import auth_headers, clear_auth  # 延迟导入：避 session ↔ 本模块循环  # noqa: I001
     import requests as _requests
     url = f"{API_BASE}{path}"
     # 后端地址恒为内网/本地（默认 127.0.0.1:5050 或容器同网主机），必须绕过本机

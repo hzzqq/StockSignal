@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """modules/position_allocator.py — T-326 方向B：个股→组合落地（仓位分配器）。
 
 把市场仓位决策落到具体标的：市场仓位 pct × 个股评分 → 个股目标权重。
@@ -151,7 +151,7 @@ def allocate(market_pct, stocks, cap_pct: float = DEFAULT_CAP_PCT, mode: str = "
     weights = [1.0] * len(kept) if mode == "equal" else [s["score"] for s in kept]
     pcts = _waterfill(weights, pct, cap)
     capped = []
-    for s, p, w in zip(kept, pcts, weights):
+    for s, p, w in zip(kept, pcts, weights):  # noqa: B905
         s["pct"] = round(p, 2)
         s["weight"] = round(p / 100.0, 4)
         s["_raw"] = w

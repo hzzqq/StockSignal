@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """可视化模块（拆分后主入口：对外 API 零变化的 re-export 层 + Visualizer 命名空间壳）。
 
 R-05 续（2026-11-02）：原 1406 行单文件按职责拆为
@@ -12,7 +12,7 @@ R-05 续（2026-11-02）：原 1406 行单文件按职责拆为
 以及 ``Visualizer.candlestick(...)`` 等静态方法调用全部保持可用（下方 staticmethod 挂载）。
 基于 Plotly + Matplotlib，适配 Streamlit 展示。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from modules.visualizer_core import (
     DOWN_COLOR,
@@ -23,10 +23,10 @@ from modules.visualizer_core import (
     SF_TXT,
     SF_TXT2,
     UP_COLOR,
-    _empty_kline_figure,
-    _is_dark,
+    _empty_kline_figure,  # noqa: F401
+    _is_dark,  # noqa: F401
     _ma_color,
-    _plotly_layout_kwargs,
+    _plotly_layout_kwargs,  # noqa: F401
     downsample,
     empty_figure,
     hex_to_rgba,

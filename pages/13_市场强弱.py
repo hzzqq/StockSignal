@@ -8,7 +8,7 @@
 UI-only；fragment 内无整页 st.rerun；A股红涨绿跌（信号灯语义：强=红 / 震荡=黄 / 弱=绿，与价格色一致）；
 与 H_市场驱动力（五维子图）互链，互为简化/详细视图。
 """
-import html
+import html  # noqa: I001
 import logging
 from contextlib import contextmanager
 
@@ -17,7 +17,7 @@ import requests
 import streamlit as st
 
 from modules.page_utils import render_standard_page, to_numeric_clean
-from modules.session import get_token, safe_switch_page, API_BASE
+from modules.session import get_token, safe_switch_page, API_BASE  # noqa: F401
 from modules.linear_trends import (
     get_index_series, get_northbound_history_series,
     get_market_cumulative_series, plot_normalized_multi, to_trend_csv,
@@ -29,7 +29,7 @@ from modules.page_widgets import (
 )
 from modules.page_guard import safe_fragment
 
-from modules.ui_kit import xc_success_box, xc_warn_box, xc_content_card, xc_bento_kpi
+from modules.ui_kit import xc_success_box, xc_warn_box, xc_content_card, xc_bento_kpi  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ def _build_strength_df(days=180):
     最坏 4×12s；并发后收敛到最慢一路）。单路失败/超时 -> None，退化为空表，
     不影响其余维度渲染。
     """
-    import pandas as pd
+    import pandas as pd  # noqa: I001
     from modules.fetch_parallel import fetch_many
 
     res = fetch_many([
@@ -154,7 +154,7 @@ def _watchlist_avg_normalized(codes, start, end, days):
     最多 15 只股票的日线取数走共享线程池并发（原逐只串行，15×1~3s 可达 45s，
     自选股多的用户首屏几乎必然超时）。单只失败/超时 -> None，直接跳过。
     """
-    import pandas as pd
+    import pandas as pd  # noqa: I001
     from modules.page_utils import get_fetcher
     from modules.fetch_parallel import fetch_many
     try:

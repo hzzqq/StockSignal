@@ -1,4 +1,4 @@
-import logging
+import logging  # noqa: I001
 logger = logging.getLogger(__name__)
 """
 数据清洗与预处理模块

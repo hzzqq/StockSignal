@@ -22,7 +22,7 @@
 - 命中的概念若拿不到成分股 → 该概念单列 ``members_unavailable``，不猜成员。
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 

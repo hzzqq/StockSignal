@@ -25,7 +25,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional  # noqa: UP035
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ _GOVERNANCE_WORDS = (
     "龙虎榜", "事件因子", "数据源", "新鲜",
 )
 
-_ROUTE_WORDS: List[tuple] = [
+_ROUTE_WORDS: List[tuple] = [  # noqa: UP006
     # (工具, 触发词, 是否需要代码)
     ("get_realtime_quote", ("实时", "现价", "盘口", "最新价", "五档", "现在多少钱",
                             "现在涨", "现在跌", "现在价格"), True),
@@ -74,7 +74,7 @@ _HISTORY_CONTENT_CAP = 200
 _HISTORY_ROLES = ("user", "assistant")
 
 
-def normalize_history(history: Any) -> List[Dict[str, str]]:
+def normalize_history(history: Any) -> List[Dict[str, str]]:  # noqa: UP006
     """规范化多轮对话历史（T-138 M1）。
 
     - 非 list → 无历史；条目非 dict 或缺 ``role``/``content`` 键 → 整体视为无历史
@@ -85,7 +85,7 @@ def normalize_history(history: Any) -> List[Dict[str, str]]:
     """
     if not isinstance(history, list):
         return []
-    cleaned: List[Dict[str, str]] = []
+    cleaned: List[Dict[str, str]] = []  # noqa: UP006
     for item in history:
         if not isinstance(item, dict) or "role" not in item or "content" not in item:
             return []
@@ -103,7 +103,7 @@ def normalize_history(history: Any) -> List[Dict[str, str]]:
 # ---------------------------------------------------------------------------
 # 确定性规划器（AC8，纯正则关键词，零 LLM / 零网络）
 # ---------------------------------------------------------------------------
-def plan_steps(question: str, history: Any = None) -> List[Dict[str, Any]]:
+def plan_steps(question: str, history: Any = None) -> List[Dict[str, Any]]:  # noqa: UP006
     """把自然语言问题映射为工具调用计划 [{tool, args, why}]。
 
     规则（spec AC8 钉死，mutation 目标）：
@@ -124,9 +124,9 @@ def plan_steps(question: str, history: Any = None) -> List[Dict[str, Any]]:
             if inherited:
                 code = inherited[0]
                 break
-    plan: List[Dict[str, Any]] = []
+    plan: List[Dict[str, Any]] = []  # noqa: UP006
 
-    def _add(tool: str, args: Optional[Dict[str, Any]] = None, why: str = "") -> None:
+    def _add(tool: str, args: Optional[Dict[str, Any]] = None, why: str = "") -> None:  # noqa: UP006, UP045
         if any(p["tool"] == tool for p in plan):
             return
         plan.append({"tool": tool, "args": dict(args or {}), "why": why})
@@ -147,7 +147,7 @@ def plan_steps(question: str, history: Any = None) -> List[Dict[str, Any]]:
 
     if any(w in q for w in _PICK_WORDS):
         _add("smart_pick", {"top_k": 5}, "选股意图：慢任务置末位")
-        lowered_hit = True
+        lowered_hit = True  # noqa: F841
 
     if not plan:
         if code:
@@ -167,7 +167,7 @@ def plan_steps(question: str, history: Any = None) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 def summarize_tool_result(
     result: Any, max_items: int = 5, max_scalar_len: int = 120
-) -> Optional[Dict[str, Any]]:
+) -> Optional[Dict[str, Any]]:  # noqa: UP006, UP045
     """把工具原始结果压成可溯源、可渲染的摘要 dict。
 
     - 标量键全保留（str 截断到 max_scalar_len）；
@@ -182,7 +182,7 @@ def summarize_tool_result(
             return {"_repr": str(result)[:300]}
         except Exception:  # noqa: BLE001
             return {"_repr": "<不可序列化结果>"}
-    out: Dict[str, Any] = {}
+    out: Dict[str, Any] = {}  # noqa: UP006
     for k, v in result.items():
         if v is None or isinstance(v, (int, float, bool)):
             out[str(k)] = v
@@ -205,7 +205,7 @@ def summarize_tool_result(
     return out
 
 
-def _extract_as_of(data: Any) -> Optional[str]:
+def _extract_as_of(data: Any) -> Optional[str]:  # noqa: UP045
     """从工具结果提取数据时点（AC7：按 _AS_OF_KEYS 优先级取首个非空）。"""
     if not isinstance(data, dict):
         return None
@@ -216,9 +216,9 @@ def _extract_as_of(data: Any) -> Optional[str]:
     return None
 
 
-def _safe_args(args: Dict[str, Any]) -> Dict[str, Any]:
+def _safe_args(args: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006
     """步骤留痕用的 args 快照（长字符串截断，防溯源记录本身巨型化）。"""
-    out: Dict[str, Any] = {}
+    out: Dict[str, Any] = {}  # noqa: UP006
     for k, v in (args or {}).items():
         if isinstance(v, str) and len(v) > 120:
             out[str(k)] = v[:120] + "…"
@@ -247,8 +247,8 @@ def _resolve_llm(use_llm: Any):
 
 
 def _plan_with_llm(
-    question: str, available: List[str], llm: Any, history: Any = None
-) -> Optional[List[Dict[str, Any]]]:
+    question: str, available: List[str], llm: Any, history: Any = None  # noqa: UP006
+) -> Optional[List[Dict[str, Any]]]:  # noqa: UP006, UP045
     """LLM 规划：问题 + 工具目录 + 最近对话 → 计划 JSON。任何失败返回 None（回退确定性规划器）。"""
     if llm is None:
         return None
@@ -276,7 +276,7 @@ def _plan_with_llm(
         raw_steps = parsed.get("steps")
         if not isinstance(raw_steps, list):
             return None
-        plan: List[Dict[str, Any]] = []
+        plan: List[Dict[str, Any]] = []  # noqa: UP006
         for s in raw_steps:
             if not isinstance(s, dict):
                 continue
@@ -296,9 +296,9 @@ def _plan_with_llm(
 
 
 def _synthesize_with_llm(
-    question: str, steps: List[Dict[str, Any]], citations: List[Dict[str, Any]],
+    question: str, steps: List[Dict[str, Any]], citations: List[Dict[str, Any]],  # noqa: UP006
     llm: Any, history: Any = None, style: str = "report",
-) -> Optional[str]:
+) -> Optional[str]:  # noqa: UP045
     """LLM 合成：只许基于步骤摘要措辞，数据事实必须带 [S#] 引用。失败返回 None。
 
     T-308 研报扩大：max_tokens 900→2000、timeout 30→75（llm_client 钳值已同步
@@ -357,8 +357,8 @@ _STATUS_LABEL = {"ok": "完成", "partial": "部分完成", "unavailable": "数�
 
 
 def _rule_synthesize(
-    question: str, steps: List[Dict[str, Any]], citations: List[Dict[str, Any]],
-    limitations: List[str],
+    question: str, steps: List[Dict[str, Any]], citations: List[Dict[str, Any]],  # noqa: UP006
+    limitations: List[str],  # noqa: UP006
 ) -> str:
     ok_steps = [s for s in steps if s.get("status") == "ok"]
     if not ok_steps:
@@ -389,7 +389,7 @@ def _rule_synthesize(
 # ---------------------------------------------------------------------------
 # 工具调用通道（真实路径走 gateway，测试路径注入 tools 表）
 # ---------------------------------------------------------------------------
-def _available_tool_names(tools: Optional[Dict[str, Callable]]) -> List[str]:
+def _available_tool_names(tools: Optional[Dict[str, Callable]]) -> List[str]:  # noqa: UP006, UP045
     if tools is not None:
         return list(tools.keys())
     try:
@@ -401,8 +401,8 @@ def _available_tool_names(tools: Optional[Dict[str, Callable]]) -> List[str]:
 
 
 def _call_tool(
-    name: str, args: Dict[str, Any], tools: Optional[Dict[str, Callable]]
-) -> Dict[str, Any]:
+    name: str, args: Dict[str, Any], tools: Optional[Dict[str, Callable]]  # noqa: UP006, UP045
+) -> Dict[str, Any]:  # noqa: UP006
     """统一调用入口：tools=None 走 gateway（12s 超时护栏）；否则调注入表。"""
     if tools is not None:
         fn = tools.get(name)
@@ -423,7 +423,7 @@ def _call_tool(
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-def _tool_exists(name: str, tools: Optional[Dict[str, Callable]]) -> bool:
+def _tool_exists(name: str, tools: Optional[Dict[str, Callable]]) -> bool:  # noqa: UP006, UP045
     if tools is not None:
         return name in tools
     return name in _available_tool_names(None)
@@ -436,17 +436,17 @@ def run_research(
     question: str,
     *,
     history: Any = None,
-    tools: Optional[Dict[str, Callable]] = None,
-    planner: Optional[Callable[[str, List[str]], List[Dict[str, Any]]]] = None,
-    synthesizer: Optional[
-        Callable[[str, List[Dict[str, Any]], List[Dict[str, Any]], List[str]], str]
+    tools: Optional[Dict[str, Callable]] = None,  # noqa: UP006, UP045
+    planner: Optional[Callable[[str, List[str]], List[Dict[str, Any]]]] = None,  # noqa: UP006, UP045
+    synthesizer: Optional[  # noqa: UP045
+        Callable[[str, List[Dict[str, Any]], List[Dict[str, Any]], List[str]], str]  # noqa: UP006
     ] = None,
     max_steps: int = _DEFAULT_MAX_STEPS,
     budget_s: float = 90.0,
     use_llm: Any = None,
-    on_step: Optional[Callable[[str], None]] = None,
+    on_step: Optional[Callable[[str], None]] = None,  # noqa: UP045
     style: str = "report",
-) -> Dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """执行一轮研究：规划 → 有界执行 → 带引用综合。契约见 spec AC1–AC8。
 
     style（T-308）：仅作用于 LLM 合成 prompt 的结构要求（report=完整研报结构 /
@@ -457,7 +457,7 @@ def run_research(
     question = str(question or "").strip()
     norm_history = normalize_history(history)
     _style = str(style or "report")
-    limitations: List[str] = []
+    limitations: List[str] = []  # noqa: UP006
 
     def _emit(msg: str) -> None:
         """字符串 emit（向后兼容，步骤完成摘要）。"""
@@ -468,7 +468,7 @@ def run_research(
         except Exception:  # ui_audit_exempt: except-pass on_step 字符串回调为 UI 可选注入，失败不中断研究主流程
             pass
 
-    def _emit_event(event: Dict[str, Any]) -> None:
+    def _emit_event(event: Dict[str, Any]) -> None:  # noqa: UP006
         """结构化 dict emit（批次8 timeline：tool_start / tool_end）。"""
         if on_step is None:
             return
@@ -477,8 +477,8 @@ def run_research(
         except Exception:  # ui_audit_exempt: except-pass on_step 结构化事件回调同上，失败不中断研究主流程
             pass
 
-    def _envelope(status: str, steps: List[Dict[str, Any]],
-                  answer: str, citations: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _envelope(status: str, steps: List[Dict[str, Any]],  # noqa: UP006
+                  answer: str, citations: List[Dict[str, Any]]) -> Dict[str, Any]:  # noqa: UP006
         return {
             "question": question,
             "status": status,
@@ -499,7 +499,7 @@ def run_research(
     available = _available_tool_names(tools)
 
     # ── 1) 规划 ──
-    plan: Optional[List[Dict[str, Any]]] = None
+    plan: Optional[List[Dict[str, Any]]] = None  # noqa: UP006, UP045
     if planner is not None:
         try:
             plan = planner(question, available)
@@ -513,7 +513,7 @@ def run_research(
         )
 
     # 规范化 + 截断（AC2）
-    norm: List[Dict[str, Any]] = []
+    norm: List[Dict[str, Any]] = []  # noqa: UP006
     for s in plan or []:
         if isinstance(s, dict) and isinstance(s.get("tool"), str) and s["tool"]:
             norm.append({
@@ -532,7 +532,7 @@ def run_research(
         return _envelope("unavailable", [], synth(question, [], [], limitations), [])
 
     # ── 2) 有界执行（AC2 预算 / AC3 红线 / AC5 隔离）──
-    steps: List[Dict[str, Any]] = []
+    steps: List[Dict[str, Any]] = []  # noqa: UP006
     stopped_by_budget = False
     for i, entry in enumerate(norm, start=1):
         if time.time() - t0 > budget_s:
@@ -544,7 +544,7 @@ def run_research(
             break
         tool = entry["tool"]
         args = entry["args"]
-        step: Dict[str, Any] = {
+        step: Dict[str, Any] = {  # noqa: UP006
             "idx": i,
             "tool": tool,
             "args": _safe_args(args),

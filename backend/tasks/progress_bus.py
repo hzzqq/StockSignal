@@ -14,16 +14,16 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional  # noqa: UP035
 
 _LOGGER = logging.getLogger(__name__)
 
 # task_id -> reporter_fn(stage_key, message)
-_REPORTERS: Dict[str, Callable[[str, str], None]] = {}
+_REPORTERS: Dict[str, Callable[[str, str], None]] = {}  # noqa: UP006
 # task_id -> 最近一次 reporter 调用抛出的异常信息（可观测性，供运维/前端排查）
-_LAST_ERROR: Dict[str, str] = {}
+_LAST_ERROR: Dict[str, str] = {}  # noqa: UP006
 # task_id -> 该任务最近若干条进度事件（有界，防止内存无限增长；R1 新需求）
-_EVENTS: Dict[str, List[Dict[str, str]]] = {}
+_EVENTS: Dict[str, List[Dict[str, str]]] = {}  # noqa: UP006
 # 每个任务最多保留的事件条数（有界内存，避免无上限增长）
 MAX_EVENTS = 200
 _LOCK = threading.Lock()
@@ -49,7 +49,7 @@ def is_registered(task_id: str) -> bool:
         return task_id in _REPORTERS
 
 
-def last_error(task_id: str) -> Optional[str]:
+def last_error(task_id: str) -> Optional[str]:  # noqa: UP045
     """返回该 task_id 最近一次 reporter 调用抛出的异常信息；无则 None。
 
     用于可观测性：reporter 内部出错不应静默吞掉，调用方/前端可据此判断
@@ -67,7 +67,7 @@ def clear(task_id: str) -> None:
         _EVENTS.pop(task_id, None)
 
 
-def get_events(task_id: str) -> List[Dict[str, str]]:
+def get_events(task_id: str) -> List[Dict[str, str]]:  # noqa: UP006
     """返回该任务最近记录的进度事件列表（副本，避免调用方绕过锁修改）。
 
     对未知 task_id 返回空列表而非抛出 KeyError（R2）。
@@ -76,7 +76,7 @@ def get_events(task_id: str) -> List[Dict[str, str]]:
         return list(_EVENTS.get(task_id, []))
 
 
-def get_status(task_id: str) -> Dict[str, object]:
+def get_status(task_id: str) -> Dict[str, object]:  # noqa: UP006
     """返回一个安全的状态字典，对未知 task_id 也不会抛异常（R2/R5/R6 可观测性）。
 
     字段：

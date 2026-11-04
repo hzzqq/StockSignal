@@ -1,5 +1,5 @@
 """modules/shepherd_temperature.py.py —— 从 shepherd.py 精确切出（零修改）。"""
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import os
 import time
 import logging
@@ -10,7 +10,7 @@ from modules.time_utils import now_cst_str, now_cst_naive
 import numpy as np
 import pandas as pd
 from modules.cache_utils import _CACHE, _CACHE_LOCK, cached_ttl
-from .shepherd_helper import *
+from .shepherd_helper import *  # noqa: F403
 from .shepherd_history import get_shepherd_history
 
 def _resolve(_name):

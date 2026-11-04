@@ -18,12 +18,12 @@ backend/api/order_routes.py
   DELETE /api/cond-orders/<id>     删除
   POST   /api/cond-orders/scan     手动触发一轮扫描（当前用户视角，走全局扫描）
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import re
 
-from flask import Blueprint, current_app, g, request
+from flask import Blueprint, current_app, g, request  # noqa: F401
 import logging
 
 from ..auth.decorators import jwt_required

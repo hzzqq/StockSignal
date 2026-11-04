@@ -19,7 +19,7 @@
 from __future__ import annotations
 
 import datetime as _dt
-from typing import Any, Iterable
+from typing import Any, Iterable  # noqa: UP035
 
 __all__ = [
     "walk_forward_windows",

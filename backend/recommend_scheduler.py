@@ -55,7 +55,7 @@ def _prev_trade_date(d: date) -> date:
     return p
 
 
-def assess_recommend_health(now: datetime | None = None, data_dir: str = None) -> dict:
+def assess_recommend_health(now: datetime | None = None, data_dir: str | None = None) -> dict:
     """T-236：荐股调度健康（纯函数，94 页消息中心告警用）。
 
     以「最近应生成的工作日」为基准（自然工作日粗口径，**不含法定节假日**，如实注明）：
@@ -67,7 +67,8 @@ def assess_recommend_health(now: datetime | None = None, data_dir: str = None) -
     try:
         from modules.recommend_engine import rec_paths
 
-        archive_dir = os.path.dirname(rec_paths(data_dir)[0])
+        _dir = data_dir or os.environ.get("REC_DATA_DIR") or ""
+        archive_dir = os.path.dirname(rec_paths(_dir)[0])
         names = os.listdir(archive_dir) if os.path.isdir(archive_dir) else []
     except Exception as e:  # noqa: BLE001 — 健康检查自身失败也要如实上报，不静默
         return {"status": "dead", "latest": None, "age_days": None,

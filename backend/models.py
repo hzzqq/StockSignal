@@ -8,7 +8,7 @@ backend/models.py
 - SystemConfig 系统键值配置
 - OperationLog 操作审计日志
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import json
 from werkzeug.security import check_password_hash, generate_password_hash
 from .extensions import db

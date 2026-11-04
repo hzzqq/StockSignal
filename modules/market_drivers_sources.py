@@ -4,7 +4,7 @@
 （对外主入口 get_market_drivers 保留在 modules.market_drivers，见该模块 docstring。）
 零业务逻辑改动：源码自 ``modules/market_drivers.py`` 原样搬运。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 
@@ -16,12 +16,12 @@ from modules.margin_trading import get_margin_trading_data
 from modules.time_utils import now_cst_naive
 from modules.timeout_exec import run_with_timeout as _run_with_timeout
 from modules.market_drivers_core import (
-    DIMS,
-    INDICATORS,
+    DIMS,  # noqa: F401
+    INDICATORS,  # noqa: F401
     KNOWN_UNAVAILABLE,
-    _CACHE_TTL,
+    _CACHE_TTL,  # noqa: F401
     _cached,
-    _cached_swr,
+    _cached_swr,  # noqa: F401
     _col,
     _pdate,
     _pdate_cn,

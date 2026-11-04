@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """缓存维护：按保留期清理 + VACUUM（T-248 单一真理源）。
 
 把原本散落/缺失的缓存清理收口到一处，供：
@@ -22,7 +22,7 @@ import sqlite3
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List  # noqa: UP035
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +42,11 @@ def _cutoff_date(days: int) -> str:
 
 def prune_sqlite_cache(
     db_path,
-    tables: List[str],
+    tables: List[str],  # noqa: UP006
     days: int = DEFAULT_PRUNE_DAYS,
     date_col: str = "updated_at",
     dry_run: bool = False,
-) -> Dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """对 SQLite 库指定表按日期列做保留期清理；删除行 > 0 时 VACUUM 回收空间。
 
     - date_col 为 TEXT（cache.db 用 updated_at ISO；news 用 date YYYY-MM-DD）
@@ -55,7 +55,7 @@ def prune_sqlite_cache(
     返回 {db, deleted, freed_bytes, error}（诚实：freed_bytes 实测前后体积差）。
     """
     db_path = Path(db_path)
-    res: Dict[str, Any] = {
+    res: Dict[str, Any] = {  # noqa: UP006
         "db": str(db_path), "deleted": 0, "freed_bytes": 0,
         "error": None, "tables": tables, "date_col": date_col,
     }
@@ -101,7 +101,7 @@ def prune_daily_cache_duplicates(
     db_path,
     keep_per_symbol: int = 2,
     dry_run: bool = False,
-) -> Dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """daily_cache 同股票多区间 key 去重：每只股票只保留 updated_at 最新的 N 份。
 
     R-08 实测（2026-11-02）：daily_cache 4,195 行却只有 629 只股票，平均每只
@@ -118,7 +118,7 @@ def prune_daily_cache_duplicates(
     返回 {db, deleted, kept, freed_bytes, symbols, error}。
     """
     db_path = Path(db_path)
-    res: Dict[str, Any] = {
+    res: Dict[str, Any] = {  # noqa: UP006
         "db": str(db_path), "deleted": 0, "kept": 0, "freed_bytes": 0,
         "symbols": 0, "error": None,
     }
@@ -132,13 +132,13 @@ def prune_daily_cache_duplicates(
         conn = sqlite3.connect(str(db_path), timeout=30)
         rows = conn.execute(
             "SELECT cache_key, updated_at FROM daily_cache").fetchall()
-        groups: Dict[str, List[tuple]] = {}
+        groups: Dict[str, List[tuple]] = {}  # noqa: UP006
         for key, upd in rows:
             parts = (key or "").split("_")
             if len(parts) != 5 or parts[0] != "daily" or not parts[1]:
                 continue  # 非标准区间 key：不参与去重（保守，绝不误删他方数据）
             groups.setdefault(parts[1], []).append((upd or "", key))
-        doomed: List[str] = []
+        doomed: List[str] = []  # noqa: UP006
         for _sym, items in groups.items():
             items.sort(reverse=True)  # updated_at 降序（ISO 文本可直接比较）
             res["kept"] += min(len(items), keep)
@@ -169,7 +169,7 @@ def prune_shepherd_dirs(
     days: int = DEFAULT_PRUNE_DAYS,
     include_v2: bool = False,
     dry_run: bool = False,
-) -> List[Dict[str, Any]]:
+) -> List[Dict[str, Any]]:  # noqa: UP006
     """按 mtime 清理 shepherd_cache（及可选 shepherd_cache_v2）下超龄 CSV。
 
     这些「按股票代码缓存的日线 CSV」缺失会自动重新拉取，删了安全。
@@ -179,7 +179,7 @@ def prune_shepherd_dirs(
     if include_v2:
         dirs.append(DATA / "shepherd_cache_v2")
     cutoff = time.time() - days * 86400
-    out: List[Dict[str, Any]] = []
+    out: List[Dict[str, Any]] = []  # noqa: UP006
     for d in dirs:
         removed, freed = 0, 0
         if d.exists():
@@ -212,7 +212,7 @@ def run_cache_maintenance(
     include_v2: bool = False,
     dry_run: bool = False,
     dedupe_daily: bool = True,
-) -> Dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """统一缓存维护入口（单一真理源）。
 
     - cache.db 四表按 updated_at 保留期清理 + VACUUM（仅删除时）
@@ -222,7 +222,7 @@ def run_cache_maintenance(
     - shepherd_cache（+可选 v2）按 mtime 清理
     返回报告 dict，含每源真实删除数 / 释放字节 / 错误。best-effort：单源失败不影响其余。
     """
-    report: Dict[str, Any] = {
+    report: Dict[str, Any] = {  # noqa: UP006
         "days": days, "dry_run": dry_run,
         "sqlite": [], "shepherd": [], "errors": [],
     }

@@ -14,7 +14,7 @@
 """
 import logging
 
-import numpy as np
+import numpy as np  # noqa: F401
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,7 @@ def usable_dims(df: pd.DataFrame, candidate=None, min_nonnull: float = 0.2,
             continue
         cv = _coef_variation(s)
         if cv < min_cv:
-            dropped[c] = f"变异系数≈0（近乎常数，无信息）"
+            dropped[c] = f"变异系数≈0（近乎常数，无信息）"  # noqa: F541
             continue
         usable.append(c)
     return usable, dropped

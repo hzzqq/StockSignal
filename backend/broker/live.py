@@ -121,7 +121,7 @@ class EasytraderBroker(BrokerAdapter):
 
     def health_check(self) -> dict:
         try:
-            self._user.balance
+            self._user.balance  # noqa: B018
             return {"ok": True, "message": "easytrader 通道已连接（真实资金，谨慎操作）"}
         except Exception as e:
             return {"ok": False, "message": f"easytrader 通道异常：{e}"}

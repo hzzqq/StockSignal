@@ -9,7 +9,7 @@ v2 变更：
 - 未配置 LLM 时回退到规则模板，模板本身也优化了措辞与覆盖面；
 - 改进股票解析歧义处理（“相关股票”“哪个更好”等都能识别多只）。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import ast
 import logging
@@ -18,8 +18,8 @@ import re
 import time
 import threading
 import pandas as pd
-from typing import Any, Dict, List, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Optional  # noqa: UP035
+from concurrent.futures import ThreadPoolExecutor, as_completed  # noqa: F401
 
 from modules.fetcher import StockFetcher  # noqa: F401  # 兼容可能的外部引用（实际本地无类型注解用）
 from modules.page_utils import get_fetcher
@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════
 _ANALYSIS_TTL = 90     # 行情类结果缓存 90s（会话内足够，又不过度陈旧）
 _NEWS_TTL = 600        # 新闻缓存 10min
-_CACHE: Dict[str, Any] = {}
+_CACHE: Dict[str, Any] = {}  # noqa: UP006
 _CACHE_LOCK = threading.Lock()
 
 
@@ -86,7 +86,7 @@ def _cut_name_suffix(text: str) -> str:
     return text
 
 
-def _extract_codes_or_names(question: str) -> List[str]:
+def _extract_codes_or_names(question: str) -> List[str]:  # noqa: UP006
     """从问题中提取 6 位代码或候选名称。
 
     修复（迭代 #8）：原先整句贪婪匹配 + 并列拆分只取 part 首匹配，会导致
@@ -109,7 +109,7 @@ def _extract_codes_or_names(question: str) -> List[str]:
     return list(dict.fromkeys(codes + names))
 
 
-def _resolve_stock(query: str) -> Optional[Dict[str, str]]:
+def _resolve_stock(query: str) -> Optional[Dict[str, str]]:  # noqa: UP006, UP045
     """把代码/名称/拼音解析成标准代码 + 名称。"""
     fetcher = get_fetcher()
     # 先尝试直接作为 6 位代码
@@ -134,7 +134,7 @@ def _resolve_stock(query: str) -> Optional[Dict[str, str]]:
     return None
 
 
-def _resolve_multiple(question: str) -> List[Dict[str, str]]:
+def _resolve_multiple(question: str) -> List[Dict[str, str]]:  # noqa: UP006
     """解析问题中可能提到的多只股票，并去重。"""
     queries = _extract_codes_or_names(question)
     resolved = []
@@ -150,7 +150,7 @@ def _resolve_multiple(question: str) -> List[Dict[str, str]]:
     return resolved
 
 
-def _safe_eval(expr: str) -> Optional[float]:
+def _safe_eval(expr: str) -> Optional[float]:  # noqa: UP045
     """仅对简单四则运算做安全求值（数字 + - * / 与括号）。
 
     基于 AST 解析并白名单节点类型求值，**不使用 eval**，
@@ -194,7 +194,7 @@ def _safe_eval(expr: str) -> Optional[float]:
         return None
 
 
-def _quick_answer(question: str) -> Optional[str]:
+def _quick_answer(question: str) -> Optional[str]:  # noqa: UP045
     """
     对常见简单问题直接返回答案，避免走 LLM（网络/免费模型慢时体验差）。
     覆盖：问候、自我介绍、简单算术、常见常识。
@@ -223,7 +223,7 @@ def _quick_answer(question: str) -> Optional[str]:
     return None
 
 
-def _raw_independent_analysis(code: str) -> Dict[str, Any]:
+def _raw_independent_analysis(code: str) -> Dict[str, Any]:  # noqa: UP006
     """独立拉取数据并运行分析（无缓存原始版）。"""
     fetcher = get_fetcher()
     result = run_analysis(code, fetcher=fetcher)
@@ -233,7 +233,7 @@ def _raw_independent_analysis(code: str) -> Dict[str, Any]:
     return slim
 
 
-def _independent_analysis(code: str) -> Dict[str, Any]:
+def _independent_analysis(code: str) -> Dict[str, Any]:  # noqa: UP006
     """带 TTL 缓存的独立分析；同一标的短时间内多次追问直接命中缓存。"""
     key = f"ai:analysis:{code}"
     cached = _cache_get(key, _ANALYSIS_TTL)
@@ -243,7 +243,7 @@ def _independent_analysis(code: str) -> Dict[str, Any]:
     return cached
 
 
-def _raw_fetch_news(code: str, name: str, limit: int = 4) -> List[Dict[str, str]]:
+def _raw_fetch_news(code: str, name: str, limit: int = 4) -> List[Dict[str, str]]:  # noqa: UP006
     """拉取个股近期新闻/公告（按名称检索，回退代码），返回 [{date,title,source}]。"""
     try:
         from modules.news import NewsFetcher
@@ -273,7 +273,7 @@ def _raw_fetch_news(code: str, name: str, limit: int = 4) -> List[Dict[str, str]
         return []
 
 
-def _fetch_news(code: str, name: str, limit: int = 4) -> List[Dict[str, str]]:
+def _fetch_news(code: str, name: str, limit: int = 4) -> List[Dict[str, str]]:  # noqa: UP006
     """带 TTL 缓存的新闻拉取；同一标的 10min 内复用，避免重复请求数据源。"""
     key = f"ai:news:{code}:{limit}"
     cached = _cache_get(key, _NEWS_TTL)
@@ -283,7 +283,7 @@ def _fetch_news(code: str, name: str, limit: int = 4) -> List[Dict[str, str]]:
     return cached
 
 
-def _format_analysis(name: str, result: Dict[str, Any], news: Optional[List[Dict[str, str]]] = None) -> str:
+def _format_analysis(name: str, result: Dict[str, Any], news: Optional[List[Dict[str, str]]] = None) -> str:  # noqa: UP006, UP045
     """把分析结果格式化为「智能分析师」风格结论，而非简单指标列表。"""
     verdict = result.get("verdict", "持有")
     composite = result.get("composite", 50)
@@ -354,7 +354,7 @@ def _format_analysis(name: str, result: Dict[str, Any], news: Optional[List[Dict
 以上信号基于量价模型与新闻情绪推演，若大盘出现系统性波动或个股突发利空，需重新评估止损与仓位。*以上为模型推演，不构成投资建议，请独立决策并控制仓位。*"""
 
 
-def _format_events(name: str, news: List[Dict[str, str]], result: Dict[str, Any]) -> str:
+def _format_events(name: str, news: List[Dict[str, str]], result: Dict[str, Any]) -> str:  # noqa: UP006
     """事件 / 舆情类提问的专项回答：列要闻 + 解读。"""
     verdict = result.get("verdict", "持有")
     if not news:
@@ -382,7 +382,7 @@ def _format_events(name: str, news: List[Dict[str, str]], result: Dict[str, Any]
 *以上为模型推演，不构成投资建议，请独立决策并控制仓位。*"""
 
 
-def _format_compare(items: List[Dict[str, Any]], news_map: Optional[Dict[str, List[Dict[str, str]]]] = None) -> str:
+def _format_compare(items: List[Dict[str, Any]], news_map: Optional[Dict[str, List[Dict[str, str]]]] = None) -> str:  # noqa: UP006, UP045
     """对 2~N 只股票做横向对比分析。"""
     if not items:
         return ""
@@ -513,7 +513,7 @@ STYLE_PRESETS = {
 _DEFAULT_STYLE = "quick"
 
 
-def model_for_style(style: Optional[str], choice: Optional[str] = None) -> Optional[str]:
+def model_for_style(style: Optional[str], choice: Optional[str] = None) -> Optional[str]:  # noqa: UP045
     """当前 style（+ 用户显式选择）实际会使用的模型名；无 LLM/非目录 provider 返回 None。
 
     前端徽标与占位提示用：如实显示「这次会用哪个模型」，而不是笼统的主模型名。
@@ -522,7 +522,7 @@ def model_for_style(style: Optional[str], choice: Optional[str] = None) -> Optio
     return llm_client.resolve_model(choice, preset.get("model"))
 
 
-def _compact_block(name: str, result: Dict[str, Any], news: Optional[List[Dict[str, str]]], is_event_q: bool) -> str:
+def _compact_block(name: str, result: Dict[str, Any], news: Optional[List[Dict[str, str]]], is_event_q: bool) -> str:  # noqa: UP006, UP045
     """给 LLM 的精简数据块：只给关键指标，避免把规则引擎散文塞进上下文（省 token、提速）。"""
     if not isinstance(result, dict):
         return f"- {name}：无可用数据"
@@ -575,13 +575,13 @@ def _gather_one_stock(code: str, name: str):
         return code, name, None, []
 
 
-def _build_stock_jobs(resolved: List[Dict[str, Any]]) -> List[Any]:
+def _build_stock_jobs(resolved: List[Dict[str, Any]]) -> List[Any]:  # noqa: UP006
     """从已解析股票列表构造取数任务（离线安全）。
 
     R5/R6：用 .get 替代裸索引，缺失或空 ``code`` 的条目自动跳过，
     绝不因缺失键而抛 KeyError；返回去重后的 [(code, name), ...]。
     """
-    jobs: List[Any] = []
+    jobs: List[Any] = []  # noqa: UP006
     seen: set = set()
     for r in resolved:
         code = r.get("code")
@@ -596,10 +596,10 @@ def _build_stock_jobs(resolved: List[Dict[str, Any]]) -> List[Any]:
 
 def _build_llm_prompt(
     question: str,
-    resolved: List[Dict[str, str]],
-    history_stock: Optional[Dict[str, str]],
-    rows: Optional[List[Dict[str, Any]]],
-    analysis: Optional[Dict[str, Any]],
+    resolved: List[Dict[str, str]],  # noqa: UP006
+    history_stock: Optional[Dict[str, str]],  # noqa: UP006, UP045
+    rows: Optional[List[Dict[str, Any]]],  # noqa: UP006, UP045
+    analysis: Optional[Dict[str, Any]],  # noqa: UP006, UP045
     is_event_q: bool,
 ) -> str:
     """把本地数据汇总成一段给 LLM 的上下文（并发取数 + 精简指标，省 token）。"""
@@ -617,7 +617,7 @@ def _build_llm_prompt(
             uniq.append((c, n))
 
     # 2) 并发拉取（分析/新闻内部各有 TTL 缓存）
-    ctx_map: Dict[str, Any] = {}
+    ctx_map: Dict[str, Any] = {}  # noqa: UP006
     if uniq:
         # R-03：共享有界线程池 fetch_many（_safe 内部已 catch 异常 → None，等价旧 except pass 语义）
         from modules.fetch_parallel import fetch_many
@@ -713,11 +713,11 @@ def _fallback_general_answer(question: str) -> str:
 
 def ai_answer(
     question: str,
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[Dict[str, Any]] = None,  # noqa: UP006, UP045
     *,
     style: str = "quick",
-    model: Optional[str] = None,
-) -> Dict[str, Any]:
+    model: Optional[str] = None,  # noqa: UP045
+) -> Dict[str, Any]:  # noqa: UP006
     """
     回答用户投资问题。
 
@@ -788,7 +788,7 @@ def ai_answer(
             return {"answer": answer, "independent": True}
         _llm_degraded = True  # LLM 调用失败/超时 → 规则模板路径须标注降级
 
-    def _rule_ret(answer: str, **extra) -> Dict[str, Any]:
+    def _rule_ret(answer: str, **extra) -> Dict[str, Any]:  # noqa: UP006
         """规则模板路径统一出口：LLM 配置过但调用失败时，头部如实标注降级来源，
         防「看起来是研报其实是模板」的语义混淆（T-308 诚实语义）。"""
         if _llm_degraded and not str(answer).startswith("（LLM"):

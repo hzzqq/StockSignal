@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-  # noqa: UP009
 """
 StockSignal 后台启动器
 ====================
@@ -17,7 +17,7 @@ StockSignal 后台启动器
   4) 将状态写入 logs/background_startup_status.log
   5) 本进程退出，子服务继续运行
 """
-import os
+import os  # noqa: I001
 import subprocess
 import sys
 import time

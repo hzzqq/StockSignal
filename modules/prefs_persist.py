@@ -16,10 +16,10 @@ modules/prefs_persist.py
   localStorage 作为「浏览器关闭后再打开」的补充兜底。
 - 所有 JS 均为静态可信字符串，不注入任何用户输入，无 XSS 风险。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import json
 import streamlit.components.v1 as components
-import streamlit as st
+import streamlit as st  # noqa: F401
 import logging
 
 from modules.scroll_nav import ZERO_GAP_HIDE_SELF_JS

@@ -22,7 +22,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r backend/requirements.txt
-          pip install pytest
+          pip install pytest pytest-cov ruff mypy pip-audit
 
       - name: Init database (create schema + seed)
         run: python -m backend.scripts.init_db
@@ -30,15 +30,49 @@ jobs:
       - name: Backend security regression (12/12)
         run: python -m backend.tests.test_security
 
-      - name: Unit tests (pure-logic, no network)
-        # 仅跑不依赖外网的单测，避免 CI 因行情源波动变红；
-        # 网络相关测试需在本地/预览环境人工跑。
+      - name: Full offline unit tests (not live)
+        # P1-4：全量不联网单测。-m "not live" 剔除真网（live）用例；
+        # conftest 已在 session 级屏蔽网络、隔离数据落盘（SS_DATA_DIR /
+        # DATABASE_URL 均指向会话临时目录）、跳过 SQLite WAL PRAGMA（测试库
+        # 保持默认 DELETE journal，避免与常驻服务争锁且不生成 -wal/-shm）、
+        # 禁用 backend 5 个后台调度线程。init_db 已先行建库（backend 路由契约
+        # 测试依赖）。
+        run: python -m pytest tests/ -m "not live" -q
+
+      - name: Ruff lint (zero-error baseline)
+        # P1-6：ruff 全量清零。既有违规已通过 `ruff check . --add-noqa` 固化为
+        # 显式 noqa（1351 条，2026-11-04），此后新增违规即失败。
+        run: python -m ruff check .
+
+      - name: mypy contract layer (backend, strict)
+        # P1-6：backend/ 契约层 mypy 严格检查，0 error 基线（2026-11-04）。
+        # 唯一例外 backend.models（Flask-SQLAlchemy 动态 Model 基类，见 pyproject）。
+        run: python -m mypy backend/ --no-incremental
+
+      - name: pip-audit dependency vulnerability scan
+        # P2-7：依赖漏洞扫描。当前基线（2026-11-04）：
+        #   pillow 12.3.0 → 40 漏洞（修 13.0.0）；certifi 2026.7.22 → 1 漏洞
+        #   （修 2026.10.18）；pip 已升至 26.3 消除工具链漏洞。
+        # 修复命令：pip install --upgrade "pillow>=13.0.0" "certifi>=2026.10.18"
+        # 依赖修复后请移除 continue-on-error 转为硬门禁。
+        continue-on-error: true
+        run: python -m pip_audit --format json
+
+      - name: Coverage gate (core six modules, fail-under=70)
+        # P0-3：覆盖率门禁由 CI 持续校验。核心六模块为技术分析/数据治理主链路，
+        # 2026-11-04 实测基线 91.48%（fail-under=70）。覆盖率跌破 70% 即失败。
         run: >-
           python -m pytest
-          tests/test_ssl_helper.py
-          tests/test_screener_indicators.py
-          tests/test_stock_screener.py
-          tests/test_fundflow.py
-          tests/test_sector_validation.py
-          tests/test_linear_trends.py
+          tests/test_whitebox_technical.py
+          tests/test_shepherd*.py
+          tests/test_page_data_contract.py
+          tests/test_perf_guard.py
+          tests/test_quality_gate_core.py
+          --cov=modules.technical
+          --cov=modules.shepherd
+          --cov=modules.cleaner
+          --cov=modules.fetcher
+          --cov=modules.timeout_exec
+          --cov=modules.fetch_parallel
+          --cov-fail-under=70
           -q

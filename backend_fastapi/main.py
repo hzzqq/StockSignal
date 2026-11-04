@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from contextlib import closing
+from contextlib import closing  # noqa: F401
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -59,7 +59,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "fastapi-slice",
-        "time": datetime.now(timezone.utc).isoformat(),
+        "time": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
     }
 
 
@@ -106,7 +106,7 @@ def list_orders(
 # AI 能力服务化：知识库检索与意图路由是无状态纯函数（零网络），FastAPI 进程内
 # 直调；完整对话（ai_answer，含实时行情抓取）经 asyncio.to_thread 走 full 模式。
 
-from modules import knowledge_base as kb  # noqa: E402
+from modules import knowledge_base as kb  # noqa: E402, I001
 from modules import ai_specialists  # noqa: E402
 from mcp_server.gateway import detect_intent  # noqa: E402
 
@@ -147,7 +147,7 @@ async def ai_chat(body: ChatIn) -> dict:
         return {"status": "ok", "source": "fallback",
                 "answer": "未命中知识库、专家与工具意图。请在星辰 AI 页面用完整模式提问，"
                           "或换一种问法（例：「什么是市盈率」「仓位怎么定」「49.1% 是什么口径」）。"}
-    import asyncio
+    import asyncio  # noqa: I001
     from modules.ai_engine import ai_answer
     result = await asyncio.wait_for(
         asyncio.to_thread(ai_answer, q, None), timeout=90.0)

@@ -10,13 +10,13 @@
 - 基本面 5 策略（roe/dividend/valuation/growth/cashflow_quality/shareholder_concentration）
   依赖 akshare 财务接口，扫描需联网且较慢，建议用于「自选股 / 板块」小池。
 """
-import logging
+import logging  # noqa: I001
 import pandas as pd
 import streamlit as st
 from datetime import datetime
 
 from modules.page_utils import render_standard_page, get_fetcher
-from modules.session import api_get, get_user_setting, save_user_setting
+from modules.session import api_get, get_user_setting, save_user_setting  # noqa: F401
 from modules.stock_screener import StockScreener, STRATEGY_NAMES_CN, ALL_STRATEGIES, DEFAULT_PARAMS
 from modules.page_widgets import _empty_info
 

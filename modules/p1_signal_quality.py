@@ -122,7 +122,7 @@ def age_days(latest_date: str, today: date | None = None) -> int | None:
 def _check_rank_monotonic(rows, ascending: bool = False) -> bool:
     """top_long：rank 应非增（1.0 最强在前）；top_short：rank 应非降（最小=最强看空在前）。"""
     ranks = [r.get("rank") for r in rows if isinstance(r, dict) and "rank" in r]
-    for a, b in zip(ranks, ranks[1:]):
+    for a, b in zip(ranks, ranks[1:]):  # noqa: B905
         if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
             return False
         if ascending:

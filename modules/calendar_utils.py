@@ -12,7 +12,7 @@ modules/calendar_utils.py
 from __future__ import annotations
 
 import bisect
-from typing import Iterable
+from typing import Iterable  # noqa: UP035
 
 
 def nearest_trading_day(period_date, trading_days: Iterable[str]) -> str:

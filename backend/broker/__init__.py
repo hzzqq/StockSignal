@@ -10,7 +10,7 @@ backend/broker
 3. 每笔下单前过风控：交易时段、单笔金额上限、当日亏损停手线；
 4. 所有订单（成功/拒绝/失败）都写 RealOrder 流水，可审计。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import logging
 from datetime import datetime, timedelta, timezone

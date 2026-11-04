@@ -17,9 +17,9 @@
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: UP035
 
-SPECIALISTS: List[Dict[str, Any]] = [
+SPECIALISTS: List[Dict[str, Any]] = [  # noqa: UP006
     {
         "id": "tech", "name": "技术面分析师", "icon": "📈",
         "trigger": ["技术面", "均线", "趋势", "形态", "支撑", "压力", "突破", "回调",
@@ -88,7 +88,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
 ]
 
 
-def dispatch(question: str) -> Optional[Dict[str, Any]]:
+def dispatch(question: str) -> Optional[Dict[str, Any]]:  # noqa: UP006, UP045
     """按问题性质分派专家：返回 {'specialist_id','name','icon','answer','tools'} 或 None。
 
     打分 = 触发词命中数；命中最多且 ≥1 的专家胜出；无命中返回 None

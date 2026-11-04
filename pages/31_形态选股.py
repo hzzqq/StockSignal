@@ -11,7 +11,7 @@
   下拉结果选择，并可「加入扫描池」批量管理。
 - 结果展示改为「形态概述（名称·偏向）」，更易读。
 """
-import pandas as pd
+import pandas as pd  # noqa: I001
 import streamlit as st
 import re
 from datetime import datetime, timedelta
@@ -78,9 +78,9 @@ div[data-testid="stRadio"] label:hover,
 
 fetcher = get_fetcher()
 
-from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: 收敛到共享并发基元
+from modules.fetch_parallel import fetch_many as _fetch_many  # R-03: 收敛到共享并发基元  # noqa: I001
 
-import concurrent.futures as _cf  # kept for potential other uses
+import concurrent.futures as _cf  # kept for potential other uses  # noqa: F401
 
 
 def _norm_code(c: str) -> str:

@@ -3,7 +3,7 @@ auth/routes.py
 --------------
 所有接口严格走 utils.response.ok/fail，禁止直接返回字符串、HTML。
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 from flask import Blueprint, request, g
 from sqlalchemy import select
 from ..extensions import db

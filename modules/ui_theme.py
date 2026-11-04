@@ -17,11 +17,11 @@ v9 核心变更：
   ✅ 卡片统一 16px 圆角 + 紫蓝微光描边
   ✅ 坐标轴/网格线/图例文字统一为暗色系
 """
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 import logging
 from modules.ui_kit import inject_kit_css
 logger = logging.getLogger(__name__)
-import os
+import os  # noqa: I001
 import streamlit as st
 import streamlit.config as _config
 _ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets')
@@ -59,7 +59,7 @@ def inject_plotly_dark() -> None:
     """若页面用到 Plotly（st.plotly_chart / K线），调用一次本函数
     让 Plotly 默认走暗色，根除白底白框。"""
     try:
-        import plotly.io as pio
+        import plotly.io as pio  # noqa: I001
         import plotly.graph_objects as go
         if 'starfield_dark' not in pio.templates:
             pio.templates['starfield_dark'] = go.layout.Template(layout=PLOTLY_DARK)
@@ -92,7 +92,7 @@ def apply_page_config(page_title: str, page_icon: str=None, layout: str='wide') 
     用户一旦在右上角切换暗夜，session_state 中 theme_mode=dark，切页后原生主题即跟随变暗。
     """
     try:
-        from modules.session import _restore_prefs_from_query_params, FONT_DEFAULT
+        from modules.session import _restore_prefs_from_query_params, FONT_DEFAULT  # noqa: I001
         _p = _restore_prefs_from_query_params()
         if _p:
             st.session_state.setdefault('theme_mode', _p.get('theme_mode', 'dark'))
@@ -178,7 +178,7 @@ def apply_theme() -> None:
     inject_button_css(mode='dark' if _theme_is_dark() else 'light')
     from modules.dark_text_fix import inject_dark_text_css
     inject_dark_text_css(mode='dark' if _theme_is_dark() else 'light')
-    from modules.scroll_nav import inject_scroll_nav
+    from modules.scroll_nav import inject_scroll_nav  # noqa: F401
     # T-197：inject_scroll_nav 移至 widgets.inject_global_widgets（单次注入，
     # 携带命令面板索引与顶栏 JS；重复注入会导致第二次 components.html 失效）
     inject_kit_css()

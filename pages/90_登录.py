@@ -14,14 +14,14 @@ T-367：登录前即可见「今日市场实时变化」——左栏升级为行
 诚实红线：验证码登录 Tab 在离线演示环境未接入短信网关，明确标注不可用，不做假功能。
 """
 
-import streamlit as st
+import streamlit as st  # noqa: I001
 import requests
 from modules.session import init_session_state, is_authenticated, set_auth, clear_auth, safe_switch_page, API_BASE
 from modules.widgets import password_strength
 from modules import decision as _decision
 
 from modules.ui_theme import apply_page_config
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, xc_error_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, xc_error_box  # noqa: F401
 apply_page_config(page_title="登录", page_icon="🔐", layout="wide")
 st.session_state["_active_page"] = __file__
 init_session_state()
@@ -113,9 +113,9 @@ def _render_market_desk(m: dict) -> None:
         _iv = "—"
         _ichg = "实时行情获取中"
         _itag = "今日快照（离线）"
-    up = m.get("up"); down = m.get("down")
-    lu = m.get("limit_up"); ld = m.get("limit_down")
-    rr = m.get("red_ratio"); mc = m.get("median_chg")
+    up = m.get("up"); down = m.get("down")  # noqa: E702
+    lu = m.get("limit_up"); ld = m.get("limit_down")  # noqa: E702
+    rr = m.get("red_ratio"); mc = m.get("median_chg")  # noqa: E702
     lc = m.get("long_count")
     _rr_s = f"{rr:.1f}" if isinstance(rr, (int, float)) else "—"
     _mc_s = f"{mc:+.2f}" if isinstance(mc, (int, float)) else "—"

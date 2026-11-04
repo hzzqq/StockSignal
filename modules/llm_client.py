@@ -11,7 +11,7 @@ modules/llm_client.py
 未配置 API Key 时返回 None，调用方应回退到规则引擎。
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import json
 import os
@@ -20,8 +20,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-import time
-from typing import Dict, List, Optional, Tuple
+import time  # noqa: I001
+from typing import Dict, List, Optional, Tuple  # noqa: UP035
 
 
 # 失败原因可观测性：chat_completion 把最近一次失败的「真因」写到这里，
@@ -74,7 +74,7 @@ def is_configured() -> bool:
     return bool(_env("STARFIELD_LLM_API_KEY"))
 
 
-def config() -> Tuple[str, str, str]:
+def config() -> Tuple[str, str, str]:  # noqa: UP006
     return (
         _env("STARFIELD_LLM_BASE_URL", "https://api.openai.com/v1"),
         _env("STARFIELD_LLM_MODEL", "gpt-4o-mini"),
@@ -92,7 +92,7 @@ _DEFAULT_FALLBACK_MODELS = [
 ]
 
 
-def fallback_models() -> List[str]:
+def fallback_models() -> List[str]:  # noqa: UP006
     raw = _env("STARFIELD_LLM_FALLBACK_MODELS", "")
     if raw:
         return [m.strip() for m in raw.split(",") if m.strip()]
@@ -107,7 +107,7 @@ def fallback_models() -> List[str]:
 # 三者均为推理模型（响应带 reasoning_content）：推理过程与正文共享 max_tokens
 # 预算，实测 max_tokens=400 时推理吃光预算、content 返回空串——因此必须给
 # 推理模型设置 token 下限，否则会被误判为「模型空答」并静默降级到规则引擎。
-MODEL_CATALOG: Dict[str, Dict[str, "object"]] = {
+MODEL_CATALOG: Dict[str, Dict[str, "object"]] = {  # noqa: UP006, UP037
     "deepseek-flash": {
         "label": "DeepSeek Flash",
         "desc": "低延迟，日常问答 / 教学解释",
@@ -129,7 +129,7 @@ MODEL_CATALOG: Dict[str, Dict[str, "object"]] = {
 }
 
 # 回应方式 → 默认模型（分层路由；用户可在前端覆盖）
-STYLE_MODEL_DEFAULTS: Dict[str, str] = {
+STYLE_MODEL_DEFAULTS: Dict[str, str] = {  # noqa: UP006
     "quick": "deepseek-flash",
     "teach": "deepseek-flash",
     "report": "deepseek-v4-pro",
@@ -140,7 +140,7 @@ STYLE_MODEL_DEFAULTS: Dict[str, str] = {
 REASONING_MIN_TOKENS = 1500
 
 
-def provider_catalog(base_url: Optional[str] = None) -> Dict[str, Dict[str, object]]:
+def provider_catalog(base_url: Optional[str] = None) -> Dict[str, Dict[str, object]]:  # noqa: UP006, UP045
     """返回当前 provider 可用的模型目录。
 
     仅当 base_url 指向 DeepSeek 时返回目录——其它 provider（OpenRouter / OpenAI
@@ -152,12 +152,12 @@ def provider_catalog(base_url: Optional[str] = None) -> Dict[str, Dict[str, obje
     return {}
 
 
-def style_default_model(style: Optional[str]) -> Optional[str]:
+def style_default_model(style: Optional[str]) -> Optional[str]:  # noqa: UP045
     """回应方式的默认模型（未收录的 style 返回 None，交给 env 主模型）。"""
     return STYLE_MODEL_DEFAULTS.get(str(style or "").strip())
 
 
-def resolve_model(choice: Optional[str] = None, style: Optional[str] = None) -> Optional[str]:
+def resolve_model(choice: Optional[str] = None, style: Optional[str] = None) -> Optional[str]:  # noqa: UP045
     """决定本次调用的模型：显式选择优先 → 回应方式默认 → None（用 env 主模型）。
 
     只有在当前 provider 目录内匹配成功才返回模型名；否则返回 None，避免跨
@@ -173,7 +173,7 @@ def resolve_model(choice: Optional[str] = None, style: Optional[str] = None) -> 
     return None
 
 
-def effective_max_tokens(model: Optional[str], max_tokens: int) -> int:
+def effective_max_tokens(model: Optional[str], max_tokens: int) -> int:  # noqa: UP045
     """按模型类型修正输出预算：推理模型抬到下限，普通模型原样返回。
 
     推理模型（如 deepseek-flash / v4-pro）先产出 reasoning_content 再产出正文，
@@ -190,7 +190,7 @@ def effective_max_tokens(model: Optional[str], max_tokens: int) -> int:
     return mt
 
 
-def _model_chain(model: Optional[str] = None) -> List[str]:
+def _model_chain(model: Optional[str] = None) -> List[str]:  # noqa: UP006, UP045
     """主模型 + 回退模型链，按优先级排列。
 
     model 显式指定时置于链首（用户点名的模型优先尝试），其余按 env 主模型 +
@@ -198,14 +198,14 @@ def _model_chain(model: Optional[str] = None) -> List[str]:
     """
     primary = _env("STARFIELD_LLM_MODEL", "gpt-4o-mini")
     head = str(model or "").strip()
-    chain: List[str] = [head] if head else []
+    chain: List[str] = [head] if head else []  # noqa: UP006
     for m in [primary] + fallback_models():
         if m and m not in chain:
             chain.append(m)
     return chain
 
 
-def _extra_headers(base_url: str) -> Dict[str, str]:
+def _extra_headers(base_url: str) -> Dict[str, str]:  # noqa: UP006
     """OpenRouter 等兼容服务需要的额外头部。"""
     if "openrouter.ai" in base_url:
         return {
@@ -216,12 +216,12 @@ def _extra_headers(base_url: str) -> Dict[str, str]:
 
 
 def chat_completion(
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, str]],  # noqa: UP006
     temperature: float = 0.5,
     max_tokens: int = 1200,
     timeout: int = 30,
-    model: Optional[str] = None,
-) -> Optional[str]:
+    model: Optional[str] = None,  # noqa: UP045
+) -> Optional[str]:  # noqa: UP045
     """
     调用 OpenAI 兼容 Chat Completion。
     返回 assistant 内容，失败时（含主模型限流/超时）自动尝试回退模型链，
@@ -299,12 +299,12 @@ def chat_completion(
 def answer_with_llm(
     system_prompt: str,
     user_prompt: str,
-    history: Optional[List[Dict[str, str]]] = None,
+    history: Optional[List[Dict[str, str]]] = None,  # noqa: UP006, UP045
     temperature: float = 0.5,
     max_tokens: int = 1200,
     timeout: int = 30,
-    model: Optional[str] = None,
-) -> Optional[str]:
+    model: Optional[str] = None,  # noqa: UP045
+) -> Optional[str]:  # noqa: UP045
     """带历史记录的对话调用。history 元素为 {"role":"user"/"assistant", "content":...}。
 
     model（T-314）：显式模型名，透传给 chat_completion（置于回退链首）。
@@ -364,7 +364,7 @@ def _extract_json(text: str):
 
 
 def chat_completion_json(
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, str]],  # noqa: UP006
     temperature: float = 0.3,
     max_tokens: int = 1500,
     timeout: int = 30,

@@ -16,8 +16,8 @@ backend/services/stock_service.py
    200  拼音全拼包含匹配
    100  首字模糊匹配
 """
-from __future__ import annotations
-from typing import List, Dict, Optional
+from __future__ import annotations  # noqa: I001
+from typing import List, Dict, Optional  # noqa: UP035
 from sqlalchemy import or_, select
 from ..extensions import db
 from ..models import Stock
@@ -27,7 +27,7 @@ from ..models import Stock
 # 纯逻辑辅助函数（无 DB / 网络依赖，便于离线单测，并对 None/空输入做防御）
 # ---------------------------------------------------------------------------
 
-def normalize_symbol(code: Optional[str]) -> str:
+def normalize_symbol(code: Optional[str]) -> str:  # noqa: UP045
     """
     将股票代码规范化为带市场前缀的完整符号。
 
@@ -55,7 +55,7 @@ def normalize_symbol(code: Optional[str]) -> str:
     return code
 
 
-def filter_by_market(items: Optional[List[Dict]], market: Optional[str]) -> List[Dict]:
+def filter_by_market(items: Optional[List[Dict]], market: Optional[str]) -> List[Dict]:  # noqa: UP006, UP045
     """
     按市场过滤股票列表。对 None / 空输入安全：
       - items 为空 -> 返回 []
@@ -69,10 +69,10 @@ def filter_by_market(items: Optional[List[Dict]], market: Optional[str]) -> List
     return [it for it in items if isinstance(it, dict) and it.get("market") == market]
 
 
-def compute_match_score(name: Optional[str],
-                        pinyin_initials: Optional[str],
-                        pinyin_full: Optional[str],
-                        query: Optional[str]) -> int:
+def compute_match_score(name: Optional[str],  # noqa: UP045
+                        pinyin_initials: Optional[str],  # noqa: UP045
+                        pinyin_full: Optional[str],  # noqa: UP045
+                        query: Optional[str]) -> int:  # noqa: UP045
     """
     纯函数：根据名称 / 拼音与查询词计算匹配分（见模块顶部优先级表）。
     所有入参均为 None 安全；查询为空时返回 0（视为无匹配）。
@@ -106,7 +106,7 @@ def compute_match_score(name: Optional[str],
     return 0
 
 
-def rank_and_dedup(results: Optional[List[Dict]], limit: int = 15) -> List[Dict]:
+def rank_and_dedup(results: Optional[List[Dict]], limit: int = 15) -> List[Dict]:  # noqa: UP006, UP045
     """
     纯函数：对候选结果去重（同 code 取最高 score）、按相关度排序并截断。
     对 None / 空 / 缺键记录全部防御：
@@ -115,7 +115,7 @@ def rank_and_dedup(results: Optional[List[Dict]], limit: int = 15) -> List[Dict]
     """
     if not results:
         return []
-    seen: Dict[str, Dict] = {}
+    seen: Dict[str, Dict] = {}  # noqa: UP006
     for item in results:
         if not isinstance(item, dict):
             continue
@@ -135,7 +135,7 @@ def rank_and_dedup(results: Optional[List[Dict]], limit: int = 15) -> List[Dict]
     return sorted_list
 
 
-def search_stocks(query: str, limit: int = 15) -> List[Dict]:
+def search_stocks(query: str, limit: int = 15) -> List[Dict]:  # noqa: UP006
     """
     搜索股票，返回 [{code, name, market, score}] 按相关度排序。
     """
@@ -143,7 +143,7 @@ def search_stocks(query: str, limit: int = 15) -> List[Dict]:
     if not q:
         return []
 
-    results: List[Dict] = []
+    results: List[Dict] = []  # noqa: UP006
 
     # --- 纯数字 -> 代码匹配 ---
     if q.isdigit():
