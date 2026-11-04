@@ -16,7 +16,7 @@ import streamlit as st
 
 from modules.page_utils import render_standard_page
 from modules.session import get_user_setting, save_user_setting
-from modules.ui_kit import info_banner, xc_warn_box, xc_bento_kpi
+from modules.ui_kit import xc_info_banner, xc_warn_box, xc_bento_kpi
 from modules.recommend_engine import (
     ALGO_LABELS, ALGO_WEIGHTS, DISCLAIMER, load_latest_recommendation,
 )
@@ -40,7 +40,7 @@ rec = load_latest_recommendation()
 
 if rec.get("status") != "ok":
     xc_warn_box(f"📅 {rec.get('reason', '推荐暂不可用')}")
-    info_banner("荐股由后台调度器在每交易日 15:30 后自动生成一次（幂等）；管理员也可在 "
+    xc_info_banner("荐股由后台调度器在每交易日 15:30 后自动生成一次（幂等）；管理员也可在 "
                 "POST /api/recommendations/generate 手动触发。")
     st.stop()
 
@@ -133,7 +133,7 @@ if os.path.exists(_sim_path):
         pass
 
 # ── 免责声明 ──
-info_banner(f"⚠️ {DISCLAIMER}")
+xc_info_banner(f"⚠️ {DISCLAIMER}")
 
 # ── 方法学与来源注脚（B 类页五段式收尾）──
 st.markdown('---')

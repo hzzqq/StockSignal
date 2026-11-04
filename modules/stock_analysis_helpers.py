@@ -157,7 +157,7 @@ def _support_resistance_bar(support: float, resistance: float, current: float,
     pos = _pos(current)
     parts = [
         '<div style="margin:10px 0 4px;padding-top:24px;">',
-        f'<div style="position:relative;height:26px;border-radius:13px;'
+        f'<div style="position:relative;height:26px;border-radius:var(--ss-radius);'
         f'background:linear-gradient(90deg,{GREEN}33,{AMBER}33,{RED}33);'
         f'border:1px solid #e2e8f0;">',
         f'<div style="position:absolute;top:-4px;left:{pos:.1f}%;'
@@ -465,11 +465,11 @@ def _factor_list_html(title: str, factors: list[dict]) -> str:
         tag = f.get("tag", "")
         tag_html = (
             f'<span style="display:inline-block;background:{tag_bg};color:#fff;'
-            f'font-size:11px;font-weight:700;padding:1px 8px;border-radius:4px;margin-right:8px;">{tag}</span>'
+            f'font-size:11px;font-weight:700;padding:1px 8px;border-radius:var(--ss-radius-xs);margin-right:8px;">{tag}</span>'
         ) if tag else ""
         items.append(
             f'<div style="display:flex;gap:12px;padding:14px 16px;margin-bottom:10px;'
-            f'background:var(--card2);border-radius:12px;border-left:4px solid {accent};">'
+            f'background:var(--card2);border-radius:var(--ss-radius);border-left:4px solid {accent};">'
             f'<div style="min-width:28px;height:28px;border-radius:50%;background:{accent};'
             f'color:#fff;display:flex;align-items:center;justify-content:center;'
             f'font-size:14px;font-weight:800;">{i}</div>'
@@ -482,7 +482,7 @@ def _factor_list_html(title: str, factors: list[dict]) -> str:
             f'</div></div>'
         )
     return (
-        f'<div style="background:{bg};border:1px solid {border};border-radius:18px;padding:18px;">'
+        f'<div style="background:{bg};border:1px solid {border};border-radius:var(--ss-radius-card);padding:18px;">'
         f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">'
         f'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{accent};"></span>'
         f'<div style="font-size:17px;font-weight:700;color:{txt};">{title}</div></div>'
@@ -600,9 +600,9 @@ def _logic_list_html(title: str, items: list[dict], accent: str, icon: str = "")
     parts = []
     for i, it in enumerate(items, 1):
         core = it.get("core", False)
-        tag = f'<span style="display:inline-block;background:{accent};color:#fff;font-size:11px;font-weight:700;padding:1px 8px;border-radius:4px;margin-right:8px;">核心</span>' if core else ""
+        tag = f'<span style="display:inline-block;background:{accent};color:#fff;font-size:11px;font-weight:700;padding:1px 8px;border-radius:var(--ss-radius-xs);margin-right:8px;">核心</span>' if core else ""
         parts.append(
-            f'<div style="display:flex;gap:12px;padding:13px 14px;margin-bottom:8px;background:var(--card);border-radius:10px;border-left:3px solid {accent};">'
+            f'<div style="display:flex;gap:12px;padding:13px 14px;margin-bottom:8px;background:var(--card);border-radius:var(--ss-radius);border-left:3px solid {accent};">'
             f'<div style="min-width:26px;height:26px;border-radius:50%;background:{accent};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;">{i}</div>'
             f'<div style="flex:1;">'
             f'<div style="font-size:14.5px;font-weight:700;color:{txt};line-height:1.4;margin-bottom:4px;">{tag}{it.get("title", "")}</div>'
@@ -610,7 +610,7 @@ def _logic_list_html(title: str, items: list[dict], accent: str, icon: str = "")
             f'</div></div>'
         )
     return (
-        f'<div style="background:var(--card2);border:1px solid var(--border);border-radius:16px;padding:16px;border-left:5px solid {accent};margin-bottom:14px;">'
+        f'<div style="background:var(--card2);border:1px solid var(--border);border-radius:var(--ss-radius-card);padding:16px;border-left:5px solid {accent};margin-bottom:14px;">'
         f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'
         f'<span style="font-size:20px;">{icon}</span>'
         f'<div style="font-size:17px;font-weight:700;color:{txt};">{title}</div></div>'

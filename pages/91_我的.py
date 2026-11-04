@@ -16,7 +16,7 @@ from modules.page_utils import render_standard_page
 from modules.page_utils import fmt_rel as _fmt_rel
 
 # 安全解析字体档位在选项列表中的下标；legacy 值不在选项中时回退到默认档位，避免 .index() 抛 ValueError。
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_content_card, info_banner, ss_fold_useful, ss_hover_preview
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_content_card, xc_info_banner, ss_fold_useful, ss_hover_preview
 from modules.widgets import render_entry_cards
 def _resolve_font_index(value, font_opts, default):
     keys = list(font_opts.keys())
@@ -274,7 +274,7 @@ with col1:
     st.markdown(f"**角色：** {'管理员' if user.get('role') == 'admin' else '普通用户'}")
     st.markdown(f"**登录时间：** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     if not _cur_avatar:
-        info_banner("💡 资料尚未完善：上传头像让投资体验更个性化。")
+        xc_info_banner("💡 资料尚未完善：上传头像让投资体验更个性化。")
 
 st.markdown("---")
 
@@ -400,7 +400,7 @@ with st.expander("⚙️ 更多功能（我的收藏 · 快速查看股票）", 
                 st.session_state["my_starred_stocks"].append(_code)
                 xc_success_box(f"✅ 已收藏 {_code}")
             else:
-                info_banner(f"{_code} 已在收藏中")
+                xc_info_banner(f"{_code} 已在收藏中")
         else:
             st.error("⚠️ 请输入正确的 6 位股票代码（仅数字）")
     if st.session_state["my_starred_stocks"]:

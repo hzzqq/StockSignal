@@ -87,7 +87,7 @@ def _recent_closes(code: str, n: int = 10):
         closes = [float(x) for x in df[close_col].tolist() if x is not None]
         return closes[-n:] if len(closes) >= 5 else None
     except Exception:
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def eval_margin_stock(order) -> tuple[bool, str]:

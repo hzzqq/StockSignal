@@ -389,8 +389,7 @@ def render_index_compact(cols_per_row: int=5) -> None:
         except Exception as e:
             logger.warning(f"[widgets] 处理异常: {e}")
             status_text_local = '实时'
-        st.markdown(xc_section_header('📉 主要指数', f'收盘 · {status_text_local}'),
-                     unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        xc_section_header('📉 主要指数', f'收盘 · {status_text_local}')
     else:
         st.markdown(f'<h2 style="color:{txt};">📉 主要指数（收盘）</h2>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
@@ -1020,11 +1019,11 @@ def _nav_active_css(dark: bool) -> str:
     暗色加金色描边 + 微光增强「亮度感」，亮色加橙色高对比描边。
     """
     if dark:
-        return (".ss-nav-active{padding:5px 9px!important;margin:2px 0!important;border-radius:8px!important;"
+        return (".ss-nav-active{padding:5px 9px!important;margin:2px 0!important;border-radius:var(--ss-radius-sm)!important;"
                 "background:linear-gradient(90deg,var(--ss-accent),var(--ss-accent2))!important;"
                 "border-left:4px solid #FFD166!important;font-weight:800!important;color:#FFFFFF!important;"
                 "box-shadow:0 0 0 1px rgba(255,255,255,.18),0 2px 10px var(--ss-glow)!important;}")
-    return (".ss-nav-active{padding:5px 9px!important;margin:2px 0!important;border-radius:8px!important;"
+    return (".ss-nav-active{padding:5px 9px!important;margin:2px 0!important;border-radius:var(--ss-radius-sm)!important;"
             "background:linear-gradient(90deg,var(--ss-accent),var(--ss-accent2))!important;"
             "border-left:4px solid #FF8C00!important;font-weight:800!important;color:#FFFFFF!important;"
                 "box-shadow:0 1px 6px var(--ss-glow)!important;}")
@@ -1046,7 +1045,7 @@ def _sidebar_nav_css(dark: bool) -> str:
         '[data-testid="stSidebarCollapseButton"]{display:none!important;}'
         '/* 紧凑侧边栏导航：减少分组标题与链接间距，降低长导航的视觉负担 */'
         '[data-testid="stSidebar"] .stMarkdown [data-testid="stCaptionContainer"] {margin-top:4px!important;margin-bottom:2px!important;font-size:12px!important;}'
-        '[data-testid="stSidebar"] [data-testid="stPageLink"] a {padding:4px 8px!important;margin:1px 0!important;border-radius:8px!important;}'
+        '[data-testid="stSidebar"] [data-testid="stPageLink"] a {padding:4px 8px!important;margin:1px 0!important;border-radius:var(--ss-radius-sm)!important;}'
         '[data-testid="stSidebar"] [data-testid="stButton"] button {padding:4px 8px!important;min-height:28px!important;}'
         + _nav_active_css(dark) +
         '</style>'

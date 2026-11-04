@@ -21,7 +21,7 @@ from modules.widgets import password_strength
 from modules import decision as _decision
 
 from modules.ui_theme import apply_page_config
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_error_box
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, xc_error_box
 apply_page_config(page_title="登录", page_icon="🔐", layout="wide")
 st.session_state["_active_page"] = __file__
 init_session_state()
@@ -94,7 +94,7 @@ def _fetch_sh_index() -> dict | None:
             "time": parts[30] if len(parts) > 30 else "",
         }
     except Exception:  # noqa: BLE001 - 离线/超时/解析失败一律降级
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def _render_market_desk(m: dict) -> None:
@@ -180,24 +180,24 @@ st.markdown(
     .lg-title p b{color:var(--acc1);font-weight:800}
     .lg-desk{background:linear-gradient(160deg,color-mix(in srgb,var(--acc1) 10%,var(--card)) 0%,var(--card) 100%);
       border:1px solid color-mix(in srgb,var(--acc1) 28%,var(--border));
-      border-radius:18px;padding:1.5rem 1.4rem;height:100%}
+      border-radius:var(--ss-radius-card);padding:1.5rem 1.4rem;height:100%}
     .lg-desk-brand{display:flex;align-items:center;gap:.7rem;margin-bottom:.6rem}
     .lg-logo{font-size:2rem}
     .lg-brand-name{font-size:1.25rem;font-weight:800;color:var(--txt)}
     .lg-brand-sub{font-size:.82rem;color:var(--txt2)}
     .lg-desk-desc{font-size:.86rem;color:var(--txt2);line-height:1.6;margin:0 0 1.1rem}
     .lg-card{background:color-mix(in srgb,var(--acc1) 5%,var(--card));
-      border:1px solid var(--border);border-radius:14px;padding:.95rem 1rem;margin-bottom:.85rem}
+      border:1px solid var(--border);border-radius:var(--ss-radius-lg);padding:.95rem 1rem;margin-bottom:.85rem}
     .lg-card-h{font-size:.92rem;font-weight:700;color:var(--txt);margin-bottom:.6rem;
       display:flex;align-items:center;gap:.4rem}
     .lg-tag{font-size:.66rem;font-weight:600;color:var(--acc1);
       background:color-mix(in srgb,var(--acc1) 12%,transparent);
       border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent);
-      border-radius:999px;padding:.1rem .5rem;margin-left:.3rem}
+      border-radius:var(--ss-radius-pill);padding:.1rem .5rem;margin-left:.3rem}
     .lg-gauge{display:flex;align-items:center;gap:.8rem}
     .lg-gauge-val{font-size:2rem;font-weight:900;color:var(--acc1);min-width:62px;text-align:center}
-    .lg-gauge-bar{flex:1;height:10px;border-radius:999px;background:color-mix(in srgb,var(--acc1) 14%,var(--border));overflow:hidden}
-    .lg-gauge-bar span{display:block;height:100%;border-radius:999px;
+    .lg-gauge-bar{flex:1;height:10px;border-radius:var(--ss-radius-pill);background:color-mix(in srgb,var(--acc1) 14%,var(--border));overflow:hidden}
+    .lg-gauge-bar span{display:block;height:100%;border-radius:var(--ss-radius-pill);
       background:linear-gradient(90deg,var(--acc1),var(--acc2))}
     .lg-card-meta{font-size:.76rem;color:var(--txt2);margin-top:.6rem}
     .lg-idx{display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:.6rem}
@@ -213,7 +213,7 @@ st.markdown(
     .lg-ai-clue{font-size:.78rem;color:var(--txt2)}
     .lg-form{max-width:420px;margin:0 auto}
     .lg-quick{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 2px}
-    .lg-quick .stButton button{border-radius:6px;font-size:.8rem;padding:.3rem .6rem!important}
+    .lg-quick .stButton button{border-radius:var(--ss-radius-sm);font-size:.8rem;padding:.3rem .6rem!important}
     .lg-footer{text-align:center;color:var(--txt2);font-size:.78rem;margin-top:26px;
       border-top:1px solid var(--border);padding-top:14px}
     .lg-footer a{color:var(--txt2);margin:0 10px;text-decoration:none}
@@ -422,7 +422,7 @@ with form_col:
                         xc_success_box(f"✅ 注册成功！欢迎 {reg_name}，请切换到「密码登录」标签登录。")
                         st.session_state["_login_username"] = reg_name
                         st.session_state["_login_password"] = new_password
-                        info_banner("已为你填入账号信息，可切回「密码登录」标签直接登录。")
+                        xc_info_banner("已为你填入账号信息，可切回「密码登录」标签直接登录。")
                     else:
                         msg = body.get("message") or f"HTTP {resp.status_code}"
                         st.error(f"❌ 注册失败：{msg}")

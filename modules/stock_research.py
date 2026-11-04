@@ -20,7 +20,7 @@ def render_stock_analysis() -> None:
     from modules.page_guard import safe_fragment
     from modules.page_utils import render_standard_page, get_fetcher
     from modules.ui_theme import sf_card, sf_metric
-    from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+    from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner
     dark = render_standard_page(title='个股深度分析 · 决策仪表盘', icon='🔍', layout='wide')
     sf_card("个股分析导读", "输入代码/名称/拼音搜索个股，查看暗色决策仪表盘：K 线、技术面、资金面、情绪与风险铁律。严格遵循绿涨红跌配色；所有外部数据获取失败均友好提示，不抛红错。", icon="🔍")
     from modules.fetcher import StockFetcher
@@ -191,7 +191,7 @@ def render_stock_analysis() -> None:
         if task_id:
             st.session_state['analysis_task_id'] = task_id
             st.session_state['analysis_result'] = None
-            info_banner('📡 分析任务已提交到后台运行，你可以切到其他页面，完成后会在下方仪表盘自动显示结果。')
+            xc_info_banner('📡 分析任务已提交到后台运行，你可以切到其他页面，完成后会在下方仪表盘自动显示结果。')
         else:
             err = err or '未知错误'
             if '登录' in err or '过期' in err or '凭证' in err:
@@ -376,13 +376,13 @@ def render_stock_analysis() -> None:
                             _dfig = _build_intraday_fig(_didf, _dipc, ticker, display_name, _didt)
                             st.plotly_chart(_dfig, width="stretch", key=f'dbl_intra_{ticker}_{_target_dt}', config={'displaylogo': False, 'responsive': True})
                         else:
-                            info_banner(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
+                            xc_info_banner(f'📭 {_target_dt} 暂无分时数据（可能非交易日或数据源不可用）。')
                     except Exception as _die:
                         xc_handle_error("分时图加载失败", str(_die)[:80], hint="请稍后重试，或检查网络与数据源连接")
                     if st.button('✕ 关闭分时图', key=f'close_intra_{ticker}'):
                         del st.session_state[f'intraday_target_{ticker}']
                         st.rerun(scope='fragment')
-            st.markdown("<div style='font-size:12px;color:var(--txt2);margin:8px 0 6px;display:flex;align-items:center;gap:8px;'><span>💡</span><span>按住鼠标拖拽可平移；点击工具栏 🔍 后框选区域可放大；点击 🏠 可还原视图（部分浏览器需双击）。</span><span style='margin-left:auto;background:color-mix(in srgb,var(--acc1) 12%,var(--card2));padding:2px 8px;border-radius:4px;font-size:11px;color:var(--acc1);'>🖱️ <b>双击K线柱</b> → 弹出当日分时图</span></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            st.markdown("<div style='font-size:12px;color:var(--txt2);margin:8px 0 6px;display:flex;align-items:center;gap:8px;'><span>💡</span><span>按住鼠标拖拽可平移；点击工具栏 🔍 后框选区域可放大；点击 🏠 可还原视图（部分浏览器需双击）。</span><span style='margin-left:auto;background:color-mix(in srgb,var(--acc1) 12%,var(--card2));padding:2px 8px;border-radius:var(--ss-radius-xs);font-size:11px;color:var(--acc1);'>🖱️ <b>双击K线柱</b> → 弹出当日分时图</span></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             _date_min = pd.to_datetime(period_df['date']).min().strftime('%Y-%m-%d')
             _date_max = pd.to_datetime(period_df['date']).max().strftime('%Y-%m-%d')
             _cap = "<div style='font-size:12px;color:var(--txt2);margin-top:4px;'>绿柱为上涨、红柱为下跌（参考文档配色）。均线 MA5(橙)/MA10(靛)/MA20(绿)；"
@@ -430,7 +430,7 @@ def render_stock_analysis() -> None:
                     unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
                 )
             else:
-                info_banner('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
+                xc_info_banner('📭 暂无分时数据（非交易时段或数据源暂不可用）。')
         except Exception as _ie:
             xc_handle_error("分时图加载失败", str(_ie)[:60], hint="请稍后重试，或检查网络与数据源连接")
 
@@ -518,7 +518,7 @@ def render_stock_analysis() -> None:
         if q_amount is not None:
             today_bits.append(f'成交额 {q_amount / 100000000.0:.2f}亿')
         today_bits.append(f"成交量 {df['volume'].iloc[-1] / 10000.0:.1f}万手")
-        today_pills = ''.join((f"<span style='display:inline-block;font-size:12px;color:var(--txt2);background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:3px 9px;margin:0 6px 6px 0;'>{b}</span>" for b in today_bits)) if today_bits else '—'
+        today_pills = ''.join((f"<span style='display:inline-block;font-size:12px;color:var(--txt2);background:var(--card2);border:1px solid var(--border);border-radius:var(--ss-radius-sm);padding:3px 9px;margin:0 6px 6px 0;'>{b}</span>" for b in today_bits)) if today_bits else '—'
         hdr_left, hdr_right = st.columns([3, 1])
         with hdr_left:
             st.markdown(f"<div style='font-size:23px;font-weight:700;color:var(--txt);'>{display_name}</div><div style='font-size:12.5px;color:var(--txt2);margin-top:3px;'>{ticker} · {board} · {industry}</div><div style='margin-top:10px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;'><span class='sf-price-big' style='color:{price_color}!important;'>{price_disp}</span><span style='font-size:16px;font-weight:600;color:{price_color};'><span class='sf-triangle'>{triangle}</span>{chg_txt} ({change_amt:+.2f})</span></div><div style='margin-top:8px;'>{today_pills}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
@@ -538,7 +538,7 @@ def render_stock_analysis() -> None:
         mom_label = momentum.get('momentum_label', '—') if 'error' not in momentum else '—'
         vol_label = volume_info.get('volume_price_label', '—') if 'error' not in volume_info else '—'
         one_line = f'{display_name} 现价 ¥{current_price:.2f}（{chg_txt}），技术面「{trend_label}」、动量「{mom_label}」、量能「{vol_label}」；新闻情绪正面占比 {pos_pct:.0f}%，综合研判 <b>{verdict}</b>。'
-        st.markdown(f"<div style='border-radius:14px;padding:18px 20px;background:linear-gradient(135deg, {verdict_color}22, {verdict_color}08);border:1px solid {verdict_color}55;'><div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;'><div style='font-size:22px;font-weight:800;color:{verdict_color};'>{verdict} · {display_name}</div><span class='sf-tag {verdict_cls}' style='font-size:13px;padding:5px 14px;'>{badge_text}</span></div><div style='margin-top:10px;font-size:14px;color:var(--txt);line-height:1.8;'>{one_line}</div><div style='margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;'><span class='sf-tag neu'>综合评分 {composite}</span><span class='sf-tag {verdict_cls}'>信号 · {verdict}</span><span class='sf-tag neu'>策略 · {('分批建仓' if verdict == '看多' else '逢高减仓' if verdict == '看空' else '区间波段')}</span><span class='sf-tag neu'>适用 · 事件驱动 / 中短线</span></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<div style='border-radius:var(--ss-radius-lg);padding:18px 20px;background:linear-gradient(135deg, {verdict_color}22, {verdict_color}08);border:1px solid {verdict_color}55;'><div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;'><div style='font-size:22px;font-weight:800;color:{verdict_color};'>{verdict} · {display_name}</div><span class='sf-tag {verdict_cls}' style='font-size:13px;padding:5px 14px;'>{badge_text}</span></div><div style='margin-top:10px;font-size:14px;color:var(--txt);line-height:1.8;'>{one_line}</div><div style='margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;'><span class='sf-tag neu'>综合评分 {composite}</span><span class='sf-tag {verdict_cls}'>信号 · {verdict}</span><span class='sf-tag neu'>策略 · {('分批建仓' if verdict == '看多' else '逢高减仓' if verdict == '看空' else '区间波段')}</span><span class='sf-tag neu'>适用 · 事件驱动 / 中短线</span></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('<div class="sf-card">' + _section_header('综合信息', '舆情 · 评分 · 五维 · 关联板块', '🧩', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         _sec = sector_analysis or {}
@@ -548,7 +548,7 @@ def render_stock_analysis() -> None:
         _sec_rank = _sec.get('rank')
         _sec_total = _sec.get('total')
         _sec_rank_txt = f'{_sec_rank}/{_sec_total}' if isinstance(_sec_rank, (int, float)) and isinstance(_sec_total, (int, float)) else '—'
-        st.markdown(f"<div class='sf-grid-4'><div class='sf-perspective-card'><div class='title'>舆情热度（近 {len(news_rows)} 条）</div><div class='body'><span style='color:var(--buy);font-weight:700;'>正面 {pos_pct:.0f}%</span> / <span style='color:var(--sell);font-weight:700;'>负面 {neg_pct:.0f}%</span><div style='margin-top:8px;height:8px;border-radius:4px;background:var(--sell);overflow:hidden;'><div style='height:100%;width:{pos_pct:.0f}%;background:var(--buy);'></div></div></div></div><div class='sf-perspective-card'><div class='title'>综合评分</div><div class='body' style='display:flex;align-items:baseline;gap:8px;'><span style='font-size:30px;font-weight:800;color:{verdict_color};'>{composite}</span><span class='sf-tag {verdict_cls}'>{verdict}</span></div></div><div class='sf-perspective-card'><div class='title'>五维评分拆解</div><div class='body'><span class='sf-pill {_tp_cls(tech_score)}'>技术 {tech_score}</span><span class='sf-pill {_tp_cls(news_score)}'>舆情 {news_score}</span><span class='sf-pill {_tp_cls(vol_score)}'>量能 {vol_score}</span><span class='sf-pill {_tp_cls(macro_score)}'>宏观 {macro_score}</span><span class='sf-pill {_tp_cls(sector_score)}'>板块 {sector_score}</span></div></div><div class='sf-perspective-card'><div class='title'>关联板块 · {board or '—'}</div><div class='body'>{industry or '—'} · {_sec_name}<br>板块涨跌 {_sec_chg_txt} · 排名 {_sec_rank_txt}</div></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<div class='sf-grid-4'><div class='sf-perspective-card'><div class='title'>舆情热度（近 {len(news_rows)} 条）</div><div class='body'><span style='color:var(--buy);font-weight:700;'>正面 {pos_pct:.0f}%</span> / <span style='color:var(--sell);font-weight:700;'>负面 {neg_pct:.0f}%</span><div style='margin-top:8px;height:8px;border-radius:var(--ss-radius-xs);background:var(--sell);overflow:hidden;'><div style='height:100%;width:{pos_pct:.0f}%;background:var(--buy);'></div></div></div></div><div class='sf-perspective-card'><div class='title'>综合评分</div><div class='body' style='display:flex;align-items:baseline;gap:8px;'><span style='font-size:30px;font-weight:800;color:{verdict_color};'>{composite}</span><span class='sf-tag {verdict_cls}'>{verdict}</span></div></div><div class='sf-perspective-card'><div class='title'>五维评分拆解</div><div class='body'><span class='sf-pill {_tp_cls(tech_score)}'>技术 {tech_score}</span><span class='sf-pill {_tp_cls(news_score)}'>舆情 {news_score}</span><span class='sf-pill {_tp_cls(vol_score)}'>量能 {vol_score}</span><span class='sf-pill {_tp_cls(macro_score)}'>宏观 {macro_score}</span><span class='sf-pill {_tp_cls(sector_score)}'>板块 {sector_score}</span></div></div><div class='sf-perspective-card'><div class='title'>关联板块 · {board or '—'}</div><div class='body'>{industry or '—'} · {_sec_name}<br>板块涨跌 {_sec_chg_txt} · 排名 {_sec_rank_txt}</div></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown(f"<div style='margin-top:12px;font-size:13px;color:var(--txt2);line-height:1.7;'><b style='color:var(--txt);'>📝 股评：</b>技术面 {tech_score} 分、舆情 {news_score} 分、量能 {vol_score} 分、宏观 {macro_score} 分、板块 {sector_score} 分，综合研判 <b>{verdict}</b>，建议{('分批建仓' if verdict == '看多' else '逢高减仓' if verdict == '看空' else '区间波段')}。</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('<div class="sf-card">' + _section_header('数据透视', '量价 / 筹码 / 位置 / 乖离', '📊', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
@@ -938,7 +938,7 @@ def render_stock_analysis() -> None:
         _lc = st.columns(len(links))
         for i, (label, href) in enumerate(links):
             with _lc[i]:
-                st.markdown(f'<a href="{href}" target="_blank" style="display:block;text-align:center;padding:8px 4px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--txt);font-weight:600;">{label}</a>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+                st.markdown(f'<a href="{href}" target="_blank" style="display:block;text-align:center;padding:8px 4px;border:1px solid var(--border);border-radius:var(--ss-radius);text-decoration:none;color:var(--txt);font-weight:600;">{label}</a>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('---')
         st.markdown('**🔗 粘贴视频地址，内联嵌入播放**（支持 YouTube / B站 / 腾讯视频 分享链接）：')
         vk = f'video_embed_{ticker}'
@@ -960,7 +960,7 @@ def render_stock_analysis() -> None:
                 col_player, col_del = st.columns([0.92, 0.08])
                 with col_player:
                     if v['src']:
-                        st.markdown(f'''<iframe src="{v['src']}" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true" style="width:100%;height:380px;border-radius:12px;"></iframe>''', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+                        st.markdown(f'''<iframe src="{v['src']}" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true" style="width:100%;height:380px;border-radius:var(--ss-radius);"></iframe>''', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
                     else:
                         st.markdown('🔗 ' + _safe_video_markdown(v), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
                 with col_del:
@@ -1436,7 +1436,7 @@ def render_stock_picker() -> None:
     from modules.page_guard import safe_fragment
     from modules.page_widgets import UP, is_trading_now
 
-    from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner
+    from modules.ui_kit import xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box
     render_standard_page(title="股票选取", icon="🎯")
 
     # ── T-230：图表/指标教学说明统一收进折叠区（主区留给参数与图表）──
@@ -1821,7 +1821,7 @@ def render_stock_picker() -> None:
                                                      title=f"{stock_label} 分时（{_pdt}）")
                         st.plotly_chart(_pdfig, width="stretch", key=f"pick_dbl_intra_{_ptgt}", config={"displaylogo": False, "responsive": True})
                     else:
-                        info_banner(f"📭 {_ptgt} 暂无分时数据。")
+                        xc_info_banner(f"📭 {_ptgt} 暂无分时数据。")
                 except Exception as _pde:
                     xc_handle_error("分时加载失败", str(_pde)[:80], hint="请稍后重试，或检查网络与数据源连接")
                 if st.button("✕ 关闭", key="pick_close_intra"):
@@ -1850,7 +1850,7 @@ def render_stock_picker() -> None:
             _status = "（每5分钟自动刷新中）" if is_trading_now() else "（非交易时段，已暂停刷新）"
             st.caption("📈 分时图：白线为当日价格走势，橙点为均价；基准虚线为昨收。红涨绿跌（A股惯例）。" + _status)
         else:
-            info_banner("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
+            xc_info_banner("📭 暂无分时数据（非交易时段或数据源暂不可用）。")
 
 
     @st.cache_data(show_spinner=False, ttl=600)
@@ -2020,9 +2020,9 @@ def render_stock_picker() -> None:
                         st.plotly_chart(bfig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False},
                                         key="pick_bench")
                     else:
-                        info_banner("区间内与上证基准无重合交易日，跳过对比。")
+                        xc_info_banner("区间内与上证基准无重合交易日，跳过对比。")
                 else:
-                    info_banner("上证基准数据获取失败，跳过对比。")
+                    xc_info_banner("上证基准数据获取失败，跳过对比。")
     except Exception as e:
         xc_handle_error("K 线加载异常", str(e)[:80], hint="请稍后刷新页面重试，或切换其它周期 / 区间")
 

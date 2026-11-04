@@ -21,7 +21,7 @@ import streamlit as st
 
 from modules.colors import UP_COLOR
 from modules.page_utils import render_standard_page, to_numeric_clean
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
@@ -167,7 +167,7 @@ dark = render_standard_page(
             "偏好保存在本地 data/user_dashboard.json，换页不丢。",
 )
 
-section_header("模块配置", "选择要显示的模块；顺序即页面展示顺序", icon="⚙️")
+xc_section_header("模块配置", "选择要显示的模块；顺序即页面展示顺序", icon="⚙️")
 sel = st.multiselect(
     "我的模块",
     options=list(WIDGETS.keys()),
@@ -191,7 +191,7 @@ else:
     for key in sel:
         label, icon, fn = WIDGETS[key]
         with st.container(border=True):
-            section_header(label, icon=icon)
+            xc_section_header(label, icon=icon)
             try:
                 fn(dark)
             except Exception as e:  # noqa: BLE001

@@ -228,7 +228,7 @@ def _tag(text: str, level: str) -> str:
     colors = {"good": "#16a34a", "warn": "#d97706", "bad": "#dc2626", "neu": "#6b7280"}
     c = colors.get(level, "#6b7280")
     return (f'<span style="display:inline-block;font-size:12px;font-weight:600;'
-            f'padding:2px 9px;border-radius:12px;background:{c}1a;color:{c};'
+            f'padding:2px 9px;border-radius:var(--ss-radius);background:{c}1a;color:{c};'
             f'border:1px solid {c}55;">{text}</span>')
 
 _INDUSTRY_SECTOR_MAP = {

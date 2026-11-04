@@ -4,6 +4,7 @@ pages/93_系统配置.py
 管理员系统配置页面：股票数据统计 / 股票列表管理 / 系统配置键值表 / 自选股管理。
 """
 import streamlit as st
+from modules import colors
 import json
 from modules.session import init_session_state, require_admin, api_get, api_post
 from modules.page_utils import render_standard_page
@@ -15,7 +16,7 @@ from modules.admin_api import (
 from modules.page_widgets import _empty_info, _toast
 
 # 系统配置项：key → 中文可读名称
-from modules.ui_kit import info_banner, stat_row, xc_handle_error, xc_success_box, xc_warn_box, xc_content_card
+from modules.ui_kit import xc_info_banner, stat_row, xc_handle_error, xc_success_box, xc_warn_box, xc_content_card
 CONFIG_LABELS = {
     "cache_days": "行情缓存天数",
     "cache_hours_today": "当日数据缓存小时数",
@@ -29,7 +30,7 @@ require_admin()
 
 dark = render_standard_page(title="系统配置", icon="⚙️", auth=False)
 
-info_banner("管理员配置页：修改系统配置键值后需点击「保存」并刷新缓存方可生效；任何异常改动都可随时改回，不影响其它功能。", icon="⚙️")
+xc_info_banner("管理员配置页：修改系统配置键值后需点击「保存」并刷新缓存方可生效；任何异常改动都可随时改回，不影响其它功能。", icon="⚙️")
 
 # ================================================================ Tab 布局
 tab_overview, tab_stocks, tab_config, tab_watch, tab_alert = st.tabs([
@@ -46,8 +47,8 @@ with tab_overview:
         stats = resp.get("data") or {}
         stat_row([
             {"label": "股票总数", "value": stats.get("total", 0), "accent": "var(--acc1)"},
-            {"label": "沪市 (SH)", "value": stats.get("sh", 0), "accent": "#ff4d4f"},
-            {"label": "深市 (SZ)", "value": stats.get("sz", 0), "accent": "#00d486"},
+            {"label": "沪市 (SH)", "value": stats.get("sh", 0), "accent": colors.UP_COLOR},
+            {"label": "深市 (SZ)", "value": stats.get("sz", 0), "accent": colors.DOWN_COLOR},
         ])
     else:
         st.error(f"获取统计数据失败：{resp.get('message', '服务异常')}。请确认后端 Flask 已启动（:5050），稍后点右上角刷新重试。")

@@ -162,7 +162,7 @@ SCROLL_NAV_CSS = """
 /* ══════════ 页内行内按钮（历史 API 兼容）══════════ */
 .sf-scroll-inline{
   display:inline-flex;align-items:center;gap:6px;
-  padding:.35rem .8rem;border-radius:999px;cursor:pointer;
+  padding:.35rem .8rem;border-radius:var(--ss-radius-pill);cursor:pointer;
   background:#f0f0f5;color:#374151;border:1px solid #e2e8f0;
   font-size:.85rem;transition:all .18s ease;
 }
@@ -176,14 +176,14 @@ SCROLL_NAV_CSS = """
 #ssCmdPalette.open{display:block}
 .ss-cmd-backdrop{position:fixed;inset:0;background:rgba(8,10,24,.55);z-index:100001}
 .ss-cmd-box{position:fixed;top:14vh;left:50%;transform:translateX(-50%);width:min(560px,92vw);
-  background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);border-radius:12px;
+  background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);border-radius:var(--ss-radius);
   box-shadow:0 24px 70px rgba(0,0,0,.4);z-index:100002;overflow:hidden;
   font-family:'Inter','PingFang SC',sans-serif}
 .ss-cmd-input{width:100%;box-sizing:border-box;border:none;outline:none;background:transparent;
   padding:14px 18px;font-size:15px;color:var(--txt,#1f2937);
   border-bottom:1px solid var(--border,#e2e8f0)}
 .ss-cmd-list{max-height:46vh;overflow-y:auto;padding:6px}
-.ss-cmd-item{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:7px;
+.ss-cmd-item{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--ss-radius-sm);
   text-decoration:none;color:var(--txt,#1f2937);font-size:14px;cursor:pointer;
   transition:background .12s ease}
 .ss-cmd-item:hover,.ss-cmd-item.active{background:color-mix(in srgb,var(--acc1,#4f46e5) 10%,transparent)}
@@ -694,7 +694,7 @@ def back_to_top_button(label: str = "↑ 回到顶部", use_container_width: boo
     btn = (
         f'<button id="sfBackToTopBtn" type="button" '
         f'onclick="event.preventDefault();{_back_to_top_inline_js()}" '
-        f'style="{width}padding:0.45rem 1rem;border:1px solid #e2e8f0;border-radius:999px;cursor:pointer;'
+        f'style="{width}padding:0.45rem 1rem;border:1px solid #e2e8f0;border-radius:var(--ss-radius-pill);cursor:pointer;'
         f'background:transparent;color:#64748b;font-size:0.9rem;'
         f'transition:all .18s ease">'
         f'{label}</button>'

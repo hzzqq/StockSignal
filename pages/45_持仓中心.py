@@ -14,10 +14,10 @@ import streamlit as st
 import streamlit.components.v1 as components
 from modules.page_utils import render_standard_page
 import modules.scroll_nav as sn
-from modules.ui_kit import info_banner
+from modules.ui_kit import xc_info_banner
 from modules.widgets import render_entry_cards
 render_standard_page(title='持仓中心', icon='💼', caption='⚠️ 持仓中心为模拟/历史数据聚合视图，仅供学习，不构成投资建议。')
-info_banner("本页合并「自选池 / 持仓 / 收益归因」三个子视图，用顶部分段切换；持仓与收益均为模拟或历史数据，仅供学习。", icon="💼")
+xc_info_banner("本页合并「自选池 / 持仓 / 收益归因」三个子视图，用顶部分段切换；持仓与收益均为模拟或历史数据，仅供学习。", icon="💼")
 _HERE = os.path.dirname(__file__)
 _SUBPAGES = {'⭐ 自选池': os.path.join(_HERE, '46_自选股监控.py'), '💼 持仓': os.path.join(_HERE, '40_仓位管理.py'), '📈 收益归因': os.path.join(_HERE, '41_组合收益.py')}
 # P0-1 契约：path→callable 映射（键复用 _SUBPAGES 路径值），同「个股研究」24 页

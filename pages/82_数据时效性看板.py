@@ -18,7 +18,7 @@ import logging
 import streamlit as st
 
 from modules.page_utils import render_standard_page
-from modules.ui_kit import xc_bento_kpi, stat_tile, info_banner
+from modules.ui_kit import xc_bento_kpi, stat_tile, xc_info_banner
 from modules import data_health as dh
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ def main():
 
     rows = dh.health_rows_enriched()
     if not rows:
-        info_banner("暂无可观测的数据源。", kind="warning", icon="🩺")
+        xc_info_banner("暂无可观测的数据源。", kind="warning", icon="🩺")
         return
 
     # ── 概览 KPI ──
@@ -84,16 +84,16 @@ def main():
     ], template="1.3fr 1fr 1fr 1fr 1fr 1fr")
 
     if n_stalled:
-        info_banner(
+        xc_info_banner(
             f"⏸ 检测到 {n_stalled} 个数据源 as_of 已连续冻结（停更）——滞后可能还没到 stale，"
             f"但数据已在悄悄失效，请优先按下方命令刷新。",
             kind="danger", icon="🛑")
     elif n_stale:
-        info_banner(
+        xc_info_banner(
             f"🔴 有 {n_stale} 个数据源陈旧（滞后 ≥8 天），仓位建议已自动封顶 40%。",
             kind="warning", icon="⏳")
     else:
-        info_banner("全部决策依赖源均在时效阈值内；停更检测需多日观测历史方能生效。",
+        xc_info_banner("全部决策依赖源均在时效阈值内；停更检测需多日观测历史方能生效。",
                     kind="success", icon="✅")
 
     # ── 逐源卡片 ──
@@ -158,7 +158,7 @@ def main():
         icon = {"ok": "✅", "over": "🟠", "missing": "⏳", "unknown": "❓"}.get(it["status"], "❓")
         st.markdown(f"- {icon} **{it['name']}**：{sz} —— {it['note']}")
     if any(it["status"] == "over" for it in fp):
-        info_banner("检测到缓存库体积超软阈值（数据可再生，不影响正确性），建议评估清理。",
+        xc_info_banner("检测到缓存库体积超软阈值（数据可再生，不影响正确性），建议评估清理。",
                     kind="warning", icon="🧹")
     st.caption("口径：按 SS_DATA_DIR/默认 data 目录估算（config 自定义库路径时非精确审计）；"
                "两个库均可再生，market_cache 不并入 cache.db（分档 TTL 语义独立，评估见 T-272）。")

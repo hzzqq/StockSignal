@@ -644,7 +644,7 @@ class AiTimelineEvent(db.Model):
         try:
             return _json.dumps(obj, ensure_ascii=False)
         except Exception:  # noqa: BLE001
-            return None
+            return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
     def to_dict(self) -> dict:
         """对外字段——还原 event_json。批次10 返回 data_as_of + citation。"""

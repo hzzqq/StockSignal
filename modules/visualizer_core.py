@@ -60,8 +60,8 @@ def kline_legend_html(ma_windows=None, up_color="#ff4d4f",
         ma_colors = MA_COLORS
     parts = [
         '<span style="display:inline-flex;align-items:center;gap:3px;">',
-        f'<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:{up_color};"></span>',
-        f'<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:{down_color};margin-left:-2px;"></span>',
+        f'<span style="display:inline-block;width:8px;height:8px;border-radius:var(--ss-radius-xs);background:{up_color};"></span>',
+        f'<span style="display:inline-block;width:8px;height:8px;border-radius:var(--ss-radius-xs);background:{down_color};margin-left:-2px;"></span>',
         '<span style="font-size:12px;color:#94a3b8;">K线(涨/跌)</span></span>',
     ]
     for i, w in enumerate(ma_windows):

@@ -85,8 +85,8 @@ BUTTON_CSS = """
 .sf-btn-danger{background:%(d_bg)s;color:%(d_txt)s}.sf-btn-danger:hover{background:%(d_hv)s}
 .sf-btn-ghost{background:%(g_bg)s;color:%(g_txt)s;border:1px solid %(g_bd)s}.sf-btn-ghost:hover{background:%(g_hv)s}
 .sf-btn-info{background:%(i_bg)s;color:%(i_txt)s}.sf-btn-info:hover{background:%(i_hv)s}
-.sf-btn-sm{font-size:12px;padding:6px 16px;border-radius:8px}
-.sf-btn-lg{font-size:16px;padding:14px 32px;border-radius:12px}
+.sf-btn-sm{font-size:12px;padding:6px 16px;border-radius:var(--ss-radius-sm)}
+.sf-btn-lg{font-size:16px;padding:14px 32px;border-radius:var(--ss-radius)}
 .sf-btn-block{display:flex;width:100%%}
 .sf-btn-icon{width:38px;height:38px;border-radius:50%%;padding:0;font-size:16px;flex-shrink:0}
 .sf-btn-icon.sm{width:30px;height:30px;font-size:13px}

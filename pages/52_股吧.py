@@ -7,6 +7,7 @@
 - 详情 / 列表拆为独立 @safe_fragment，交互只重跑本区块，避免整页 st.rerun（#543-8）。
 """
 import streamlit as st
+from modules import colors
 from datetime import date
 
 from modules.session import (
@@ -127,7 +128,7 @@ def fragment_detail():
         f"<div style='display:flex;align-items:center;gap:8px;'>"
         f"{render_forum_avatar(post.get('avatar', ''), _op_name, size=32)}"
         f"<span style='font-weight:600;'>{safe_html_text(_op_name)}</span>"
-        f"<span style='font-size:11px;padding:1px 6px;border-radius:8px;"
+        f"<span style='font-size:11px;padding:1px 6px;border-radius:var(--ss-radius-sm);"
         f"background:#2b8aef;color:#fff;'>楼主</span></div>",
         unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
@@ -183,7 +184,7 @@ def fragment_detail():
             # 列表元素兜底：单条评论 schema 漂移时跳过，不影响其余评论渲染
             continue
         _is_cop = (c.get("username") == _op_name)
-        _cop_badge = (" <span style='font-size:11px;padding:1px 6px;border-radius:8px;"
+        _cop_badge = (" <span style='font-size:11px;padding:1px 6px;border-radius:var(--ss-radius-sm);"
                       "background:#2b8aef;color:#fff;'>楼主</span>") if _is_cop else ""
         # ui_audit_exempt: unsafe-allow_html 评论列表，用户名/正文经 safe_html_text 转义（上方注释已声明安全口径）
         st.markdown(
@@ -473,7 +474,7 @@ def fragment_list():
                 '<style>.ss-hot-row{display:flex;align-items:center;gap:10px;padding:3px 0}'
                 '.ss-hot-rank{font-family:\'Fira Code\',Consolas,monospace;font-weight:800;'
                 'font-size:15px;color:var(--txt2);min-width:22px;text-align:center}'
-                '.ss-hot-rank.top3{color:#ff4d4f;font-size:17px}'
+                f'.ss-hot-rank.top3{{color:{colors.UP_COLOR};font-size:17px}}'
                 '.ss-hot-btn{width:100%!important;text-align:left!important;'
                 'background:transparent!important;border:none!important;'
                 'box-shadow:none!important;padding:2px 4px!important;color:var(--txt)!important}'

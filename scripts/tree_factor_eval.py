@@ -70,7 +70,7 @@ def _num(v):
         f = float(v)
         return None if math.isnan(f) else f
     except (TypeError, ValueError):
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def build_dataset(breadth_file: str | None = None) -> pd.DataFrame:

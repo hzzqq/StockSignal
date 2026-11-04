@@ -3,10 +3,12 @@ from modules.cache_utils import TTL_TIERS  # R-14
 
 把「事件因子」这一量化特征对接到**真实信号源**，而非合成演示数据。
 
-当前三个真实源（get_event_factor 兜底序，互不替代、绝不造数）：
+当前四个真实源（get_event_factor 兜底序，互不替代、绝不造数）：
   1) P1-QuantFactor 的 EV 模型信号（38 维量价 + 牧羊人市场广度情绪 9 维 = 47 维）
   2) 东方财富个股新闻情感（news_event_signal，逐标的真实事件面）
   3) 东方财富龙虎榜上榜信号（lhb_event_signal，游资/机构关注度）
+  4) 本地事件追踪主表（tracked_event_signal，data/events.csv：23 页人工录入 +
+     87 页语音事件入库的用户沉淀真实事件，与 signal.event_score 同口径）
 
 设计要点：
 - 纯只读、无网络、无合成/假数据；取不到即 ``available=False`` 优雅降级。
@@ -18,8 +20,11 @@ from __future__ import annotations
 from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
 
 import logging
+import os
 import re
 from typing import Any
+
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +90,7 @@ def _loader_horizon(loader: Any, model: str):
     try:
         return loader.load(model).get("horizon")
     except Exception:  # noqa: BLE401 - 取不到按 unavailable 处理
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) -> dict:
@@ -190,8 +195,18 @@ def get_event_factor(symbol: str, model: str = "ev", loader: Any | None = None) 
     except Exception as e:  # noqa: BLE401
         logger.warning(f"[event_factor] 龙虎榜事件信号兜底失败: {e}")
 
+    # ── 第四真实源：本地事件追踪主表（23 页人工录入 / 87 页语音事件入库）──
+    # 用户沉淀的真实事件也是事件因子：与前三源独立互补，取不到即降级，绝不造数。
+    try:
+        tk = tracked_event_signal(symbol)
+        if tk.get("available"):
+            return tk
+    except Exception as e:  # noqa: BLE401
+        logger.warning(f"[event_factor] 本地事件主表信号兜底失败: {e}")
+
     return {"available": False, "symbol": symbol,
-            "reason": "该标的无 P1 事件因子信号（不在池内/近期无预测，且近 10 日无新闻信号、未上龙虎榜）"}
+            "reason": "该标的无 P1 事件因子信号（不在池内/近期无预测，且近 10 日无新闻信号、"
+                      "未上龙虎榜、本地事件主表近 30 日无关联事件）"}
 
 
 def event_driven_long_list(top_n: int = 20, model: str = "ev",
@@ -363,3 +378,107 @@ def lhb_event_signal(ticker: str, lookback_days: int = 10) -> dict:
     except Exception as e:  # noqa: BLE001 - 解析异常诚实降级
         logger.warning(f"[event_factor] 龙虎榜解析失败({ticker}): {e}")
         return {"available": False, "symbol": ticker, "reason": f"龙虎榜解析失败: {e}"}
+
+
+# ── 第四真实源：本地事件追踪主表（2026-11-03 事件数据链融合闭环）──────────────
+# 数据来源：23 页人工录入 + 87 页语音事件入库（save_voice_event_to_db），
+# 都是用户沉淀的真实事件。此前 signal.event_score 在 P1/新闻/龙虎榜命中时直接
+# 短路，本地主表被整体忽略——本函数把主表接为事件因子的兜底源，PR-2 再做融合。
+_TRACKED_POS_WEIGHT = {"大": 2, "小": 1}
+_TRACKED_NEUTRAL_BASE = 52  # 与 signal.event_score 中性基准同口径
+
+
+def tracked_event_signal(ticker: str, lookback_days: int = 30,
+                         keywords=None, config_path: str = "config.yaml") -> dict:
+    """本地事件追踪主表信号（第四真实源，data/events.csv）。
+
+    口径与 ``signal.event_score`` 一致：近 ``lookback_days`` 日窗口 + ticker
+    匹配（包含式；空/占位 ticker 视为市场级事件，对所有标的生效——此处修正了
+    event_score 中 ``astype(str)`` 后 ``isna()`` 恒假的死分支，市场级事件真实生效）。
+    聚合按 T-288 五档情感词表：大利空-2 / 小利空-1 / 中性 0 / 小利好 +1 / 大利好 +2，
+    中性基准 52，每档净权 x8 分。
+
+    ``keywords``：``None`` 不过滤；空列表 => 不匹配任何事件（与 event_score
+    空关键词语义一致，防空正则命中全部的隐性 bug）；非空列表 => 标题正则包含匹配。
+
+    返回（成功）：
+        {"available": True, "symbol", "score", "rank", "signal",
+         "source": "tracked-events", "hard_logic",
+         "tracked": {"n_events", "window_days", "titles"}}
+    返回（无数据）：
+        {"available": False, "symbol", "reason"}
+    绝不造数：无主表/无匹配/解析失败一律 available=False。
+    """
+    sym = str(ticker or "").strip()
+    if not sym:
+        return {"available": False, "symbol": ticker, "reason": "未提供标的代码"}
+    try:
+        from modules.signal import events_db_path  # 惰性导入：signal 反向惰性引用本模块，防循环
+    except Exception as e:  # pragma: no cover
+        return {"available": False, "symbol": sym, "reason": f"事件主表路径解析不可用: {e}"}
+    path = events_db_path(config_path)
+    if not os.path.exists(path):
+        return {"available": False, "symbol": sym,
+                "reason": "本地事件主表不存在（尚未录入任何事件）"}
+    try:
+        df = pd.read_csv(path)
+        df["ticker"] = df["ticker"].astype(str).str.strip()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    except Exception as e:  # noqa: BLE001 - 损坏文件诚实降级
+        logger.warning(f"[event_factor] 事件主表读取失败({sym}): {e}")
+        return {"available": False, "symbol": sym, "reason": f"事件主表读取失败: {e}"}
+    if df.empty:
+        return {"available": False, "symbol": sym, "reason": "本地事件主表为空"}
+
+    cutoff = pd.Timestamp.now() - pd.Timedelta(days=int(lookback_days))
+    df = df[df["date"].notna() & (df["date"] >= cutoff)]
+    if df.empty:
+        return {"available": False, "symbol": sym,
+                "reason": f"本地事件主表近 {lookback_days} 日无事件"}
+
+    # ticker 匹配：包含式 + 市场级占位。注意新版 pandas 的 astype(str) 不再把
+    # NaN 转成字符串 "nan"（保留 NA），所以占位判断必须同时覆盖 isna 与字面串。
+    _t_str = df["ticker"].astype(str)
+    market_level = df["ticker"].isna() | _t_str.isin(["", "nan", "None", "<NA>"])
+    matched = df[_t_str.str.contains(sym, na=False, regex=False) | market_level]
+    if keywords is not None:
+        if not keywords:  # 空列表显式不匹配（与 event_score 空关键词语义一致）
+            matched = matched.iloc[0:0]
+        else:
+            pat = "|".join(re.escape(str(k)) for k in keywords)
+            matched = matched[matched["title"].str.contains(pat, na=False, regex=True)]
+    if matched.empty:
+        return {"available": False, "symbol": sym,
+                "reason": f"本地事件主表近 {lookback_days} 日无 {sym} 关联事件"}
+
+    net = 0
+    for _, evt in matched.iterrows():
+        evt_type = str(evt.get("type", ""))
+        if "大利好" in evt_type or "重大利好" in evt_type:
+            net += _TRACKED_POS_WEIGHT["大"]
+        elif "利好" in evt_type or "正面" in evt_type:
+            net += _TRACKED_POS_WEIGHT["小"]
+        elif "大利空" in evt_type or "重大利空" in evt_type:
+            net -= _TRACKED_POS_WEIGHT["大"]
+        elif "利空" in evt_type or "负面" in evt_type:
+            net -= _TRACKED_POS_WEIGHT["小"]
+        # 中性/未知类型不加减（关注度不冒充方向）
+    score = float(max(5, min(95, _TRACKED_NEUTRAL_BASE + 8 * net)))
+    if score >= 55:
+        sig = "看多"
+    elif score <= 45:
+        sig = "看空"
+    else:
+        sig = "中性"
+    titles = [str(x) for x in matched["title"].tolist() if str(x).strip()]
+    return {
+        "available": True, "symbol": sym,
+        "score": score, "rank": score / 100.0,  # rank 供 _event_factor_to_score 无损回映射
+        "signal": sig, "source": "tracked-events",
+        "hard_logic": annotate_hard_logic(titles),
+        "tracked": {
+            "n_events": int(len(matched)),
+            "window_days": int(lookback_days),
+            "titles": titles[:5],  # 旁注只带前 5 条，防超长
+        },
+    }

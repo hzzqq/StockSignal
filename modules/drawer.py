@@ -131,7 +131,7 @@ def drawer_css() -> str:
   line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;
   -webkit-line-clamp:2;-webkit-box-orient:vertical}
 #ssDrawerRoot .ss-drawer-close{border:none;background:transparent;color:var(--txt2,#6b7280);
-  font-size:16px;cursor:pointer;padding:4px 8px;border-radius:6px;flex-shrink:0}
+  font-size:16px;cursor:pointer;padding:4px 8px;border-radius:var(--ss-radius-sm);flex-shrink:0}
 #ssDrawerRoot .ss-drawer-close:hover{background:color-mix(in srgb,var(--acc1,#4f46e5) 10%,transparent);
   color:var(--acc1,#4f46e5)}
 #ssDrawerRoot .ss-drawer-meta{font-size:12px;color:var(--txt2,#6b7280);margin-bottom:10px;line-height:1.6}
@@ -139,7 +139,7 @@ def drawer_css() -> str:
   line-height:1.65;white-space:pre-wrap;word-break:break-word}
 .ss-preview-wrap{display:inline-block}
 .ss-preview-btn{border:1px solid var(--border,#e2e8f0);background:transparent;
-  color:var(--txt2,#6b7280);border-radius:6px;padding:2px 8px;font-size:11.5px;cursor:pointer;
+  color:var(--txt2,#6b7280);border-radius:var(--ss-radius-sm);padding:2px 8px;font-size:11.5px;cursor:pointer;
   transition:all .15s ease;margin-left:6px}
 .ss-preview-btn:hover{color:var(--acc1,#4f46e5);border-color:var(--acc1,#4f46e5)}
 </style>

@@ -15,7 +15,7 @@ import streamlit as st
 
 from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi
 from modules.page_utils import render_standard_page
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules import momentum_breadth_resonance as mbr
 
 logger = logging.getLogger(__name__)

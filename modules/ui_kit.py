@@ -18,7 +18,7 @@ loading_spinner / section_header）、``button_colors`` 互补，不重复实现
 提供：
   - inject_kit_css()            每次注入组件 CSS（幂等，不做去重）
   - page_hero(...)              签名页头（图标 + 标题 + 副标题 + 状态胶囊）
-  - info_banner(...)            彩色提示横幅（info/success/warning/danger）
+  - xc_info_banner(...)         彩色提示横幅（info/success/warning/danger；旧名 info_banner 已 deprecated）
   - stat_tile(...)              指标瓦片（标签 + 大值 + 涨跌 delta）
   - chart_card(...)             图表容器卡片 ⚠️deprecated（零生产调用，新代码用 xc_chart_cell）
   - table_wrap(...)             响应式表格容器（移动端横向滚动）
@@ -49,6 +49,7 @@ _TOKEN_CSS = r"""
   --ss-text:var(--txt,#1e293b); --ss-text-muted:var(--txt2,#64748b);
   --ss-line:var(--border,#e2e8f0);
   --ss-radius:12px; --ss-radius-card:16px; --ss-radius-pill:999px;
+  --ss-radius-xs:3px; --ss-radius-sm:8px; --ss-radius-lg:14px;
   --ss-space-1:4px; --ss-space-2:8px; --ss-space-3:12px; --ss-space-4:16px; --ss-space-5:20px; --ss-space-6:24px;
   --ss-shadow-card:0 1px 4px rgba(15,15,35,.06);
   --ss-shadow-lift:0 10px 30px var(--ss-glow-soft);
@@ -82,6 +83,13 @@ _TOKEN_CSS = r"""
   /* L3 字号阶梯（Phase1 §1.3：13/13.5/14/14.5/15/16/17/20/22 散布收敛 6 级） */
   --ss-fs-display:22px; --ss-fs-hero:22px; --ss-fs-title:16px;
   --ss-fs-body:13.5px; --ss-fs-label:12px; --ss-fs-caption:11px;
+  /* design_system.md §2 新增语义别名（绑定 --ss-*/--acc* 等价变量或 colors.* 既有值，
+     绝不臆造独立色相；供未来 page 迁移复用，对现有 --acc1/--ss-* 消费者零影响） */
+  --brand-1:var(--acc1,#4f46e5); --brand-2:var(--acc2,#7c3aed);
+  --c-up:var(--ss-up,#ff4d4f); --c-down:var(--ss-down,#00d486); --c-hold:#ffa502;
+  --c-warn:#f59e0b; --c-danger:#ef4444; --c-info:#3b82f6; --c-ok:var(--ss-ok,#16a34a);
+  --radius-card:var(--ss-radius-card,16px); --radius-btn:6px; --radius-input:4px; --radius-pill:var(--ss-radius-pill,999px);
+  --font-num:var(--ss-font-num); --font-cjk:var(--ss-font-cjk);
 }
 /* ===== T-261 全局排版：中文优化字体栈 + 阅读行高 =====
    Streamlit 默认 Source Sans Pro 对中文回退随机（宋体/雅黑混杂），统一为
@@ -109,6 +117,23 @@ code, pre, [data-testid="stCodeBlock"], [data-testid="stCodeBlock"] code,
 </style>
 """
 
+
+def _build_token_css() -> str:
+    """design_system.md 第5章C阶段：令牌单一来源生成器——语义别名由 ``modules.colors`` 派生。
+
+    返回的别名串等同于 ``_TOKEN_CSS`` 内「design_system.md 新增语义别名」段，
+    是 CSS 侧别名与 Python 侧单一来源 ``colors.*`` 之间的一致性交接点。
+    守卫 ``test_ui_kit_tokens`` 用本函数断言「CSS 别名 == colors.* 值」。
+    """
+    from modules import colors
+    return (
+        "--brand-1:var(--acc1,#4f46e5); --brand-2:var(--acc2,#7c3aed);"
+        f"--c-up:{colors.UP_COLOR}; --c-down:{colors.DOWN_COLOR}; --c-hold:{colors.HOLD_COLOR};"
+        f"--c-warn:{colors.SIG_WARNING}; --c-danger:{colors.SIG_DANGER};"
+        f"--c-info:{colors.SIG_INFO}; --c-ok:var(--ss-ok,#16a34a);"
+    )
+
+
 _KIT_CSS = _TOKEN_CSS + r"""
 <style>
 /* ===== ui_kit v1 组件层（沿用 ui_theme 主题变量 --acc1/--txt/--card/--border，随 theme_mode 自适应） ===== */
@@ -126,7 +151,7 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .ss-hero-main{display:flex;align-items:center;gap:14px;min-width:0}
 .ss-hero-icon{font-size:26px;line-height:1;flex-shrink:0;
   width:46px;height:46px;display:flex;align-items:center;justify-content:center;
-  border-radius:12px;background:linear-gradient(135deg,var(--ss-accent),var(--ss-accent2));
+  border-radius:var(--ss-radius);background:linear-gradient(135deg,var(--ss-accent),var(--ss-accent2));
   box-shadow:0 4px 14px var(--ss-glow)}
 .ss-hero-title{font-size:20px;font-weight:800;letter-spacing:.3px;color:var(--ss-text);line-height:1.2}
 .ss-hero-sub{font-size:13px;color:var(--ss-text-muted);margin-top:3px}
@@ -182,7 +207,7 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .ss-chart{background:var(--ss-surface);border:1px solid var(--ss-line);border-radius:var(--ss-radius-card);
   padding:16px 18px;margin:12px 0;box-shadow:0 1px 6px rgba(15,15,35,.06)}
 .ss-chart h3{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:15px;font-weight:700;color:var(--ss-text)}
-.ss-chart h3::before{content:"";width:4px;height:16px;border-radius:3px;
+.ss-chart h3::before{content:"";width:4px;height:16px;border-radius:var(--ss-radius-xs);
   background:linear-gradient(180deg,var(--ss-accent),var(--ss-accent2))}
 
 /* ---- 响应式表格容器 ---- */
@@ -206,7 +231,7 @@ _KIT_CSS = _TOKEN_CSS + r"""
    颜色走 var(--acc1)/(--acc2) 主题变量，自动跟 theme_mode 切亮/暗。
 */
 .xc-hero{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;
-  margin:6px 0 22px;padding:18px 24px;border-radius:18px;
+  margin:6px 0 22px;padding:18px 24px;border-radius:var(--ss-radius-card);
   background:linear-gradient(120deg,
     color-mix(in srgb, var(--ss-accent) 22%, var(--ss-surface)) 0%,
     color-mix(in srgb, var(--ss-accent2) 18%, var(--ss-surface)) 100%);
@@ -219,7 +244,7 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .xc-hero-main{display:flex;align-items:center;gap:14px;min-width:0;position:relative;z-index:1}
 .xc-hero-icon{font-size:26px;line-height:1;flex-shrink:0;
   width:48px;height:48px;display:flex;align-items:center;justify-content:center;
-  border-radius:14px;background:linear-gradient(135deg,var(--ss-accent),var(--ss-accent2));
+  border-radius:var(--ss-radius-lg);background:linear-gradient(135deg,var(--ss-accent),var(--ss-accent2));
   box-shadow:0 6px 18px var(--ss-glow)}
 .xc-hero-title{font-size:22px;font-weight:800;letter-spacing:.3px;color:var(--ss-text);line-height:1.2}
 .xc-hero-sub{font-size:13px;color:var(--ss-text-muted);margin-top:4px;font-weight:500}
@@ -234,7 +259,7 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .xc-card:hover{transform:translateY(-4px);border-color:var(--ss-accent);
   box-shadow:var(--ss-shadow-lift)}
 .xc-card .ctop{display:flex;align-items:center;gap:9px}
-.xc-card .ico{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+.xc-card .ico{width:36px;height:36px;border-radius:var(--ss-radius);display:flex;align-items:center;justify-content:center;
   font-size:18px;background:linear-gradient(135deg,var(--ss-accent),var(--ss-accent2));flex-shrink:0}
 .xc-card .cname{font-size:14px;font-weight:600;color:var(--ss-text);line-height:1.2}
 .xc-card .csub{font-size:11.5px;color:var(--ss-text-muted);margin-top:1px}
@@ -250,10 +275,14 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .xc-card .meta{font-size:11px;color:var(--ss-text-muted);line-height:1.55;margin-top:4px}
 .xc-card .meta .up{color:var(--ss-up)}
 .xc-card .meta .down{color:var(--ss-down)}
-.xc-section-h{display:flex;align-items:center;gap:10px;margin:18px 0 12px;font-size:16px;font-weight:700;color:var(--ss-text)}
-.xc-section-h::before{content:"";width:4px;height:18px;border-radius:3px;
+.xc-section-h{display:flex;align-items:flex-start;gap:10px;margin:18px 0 12px;font-size:16px;font-weight:700;color:var(--ss-text)}
+.xc-section-h::before{content:"";width:4px;height:18px;border-radius:var(--ss-radius-xs);flex-shrink:0;margin-top:3px;
   background:linear-gradient(180deg,var(--ss-accent),var(--ss-accent2))}
-.xc-section-h .xtra{margin-left:auto;font-size:12px;font-weight:500;color:var(--ss-text-muted)}
+.xc-sh-main{display:flex;flex-direction:column;min-width:0}
+.xc-sh-title{line-height:1.3}
+.xc-sh-sub{font-size:12px;font-weight:400;color:var(--ss-text-muted);margin-top:3px;line-height:1.5}
+.xc-sh-ic{font-size:16px;line-height:1.4;flex-shrink:0}
+.xc-sh-xtra{margin-left:auto;font-size:12px;font-weight:500;color:var(--ss-text-muted);flex-shrink:0}
 
 /* Bento 非对称网格容器（2026 市面范式：错落大卡 + 小卡，轻量、零重渲染） */
 .xc-bento{display:grid;gap:16px;margin:14px 0 22px;grid-auto-rows:1fr;
@@ -344,7 +373,7 @@ _KIT_CSS = _TOKEN_CSS + r"""
 /* 表格容器：主题化细滚动条（数据密集页高频出现，原生滚动条在暗色下刺眼） */
 .ss-table-wrap{scrollbar-width:thin;scrollbar-color:var(--ss-accent) var(--ss-line)}
 .ss-table-wrap::-webkit-scrollbar{height:8px;width:8px}
-.ss-table-wrap::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ss-accent) 55%,var(--ss-line));border-radius:999px}
+.ss-table-wrap::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ss-accent) 55%,var(--ss-line));border-radius:var(--ss-radius-pill)}
 .ss-table-wrap::-webkit-scrollbar-track{background:var(--ss-surface-2)}
 /* 表单控件主题色（复选/单选/滑块跟随强调色，去除浏览器默认蓝，统一视觉记忆） */
 .stApp input[type="checkbox"],.stApp input[type="radio"],.stApp input[type="range"]{accent-color:var(--ss-accent)}
@@ -362,7 +391,7 @@ _HERO_FALLBACK_CSS = _TOKEN_CSS + r"""
 <style>
 /* page_hero 首帧兜底（与 _KIT_CSS 内的 .xc-hero* 等价，独立注入保证不丢） */
 .xc-hero{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;
-  margin:6px 0 22px;padding:18px 24px;border-radius:18px;
+  margin:6px 0 22px;padding:18px 24px;border-radius:var(--ss-radius-card);
   background:linear-gradient(120deg,
     color-mix(in srgb, var(--ss-accent) 22%, var(--ss-surface)) 0%,
     color-mix(in srgb, var(--ss-accent2) 18%, var(--ss-surface)) 100%);
@@ -375,7 +404,7 @@ _HERO_FALLBACK_CSS = _TOKEN_CSS + r"""
 .xc-hero-main{display:flex;align-items:center;gap:14px;min-width:0;position:relative;z-index:1}
 .xc-hero-icon{font-size:26px;line-height:1;flex-shrink:0;
   width:48px;height:48px;display:flex;align-items:center;justify-content:center;
-  border-radius:14px;background:linear-gradient(135deg,var(--ss-accent),var(--ss-accent2));
+  border-radius:var(--ss-radius-lg);background:linear-gradient(135deg,var(--ss-accent),var(--ss-accent2));
   box-shadow:0 6px 18px var(--ss-glow)}
 .xc-hero-title{font-size:22px;font-weight:800;letter-spacing:.3px;color:var(--ss-text);line-height:1.2}
 .xc-hero-sub{font-size:13px;color:var(--ss-text-muted);margin-top:4px;font-weight:500}
@@ -608,18 +637,36 @@ def page_hero(title: str, icon: str = "📊", subtitle: str = "", chips: list = 
     st.markdown(_hero_html(title, icon, subtitle, chips, style=style), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
-def xc_section_header(title: str, xtra: str = "") -> str:
-    """新城风格分区小标题（带渐变紫竖条 + 可选右侧标注）。返回 HTML 片段。"""
+def xc_section_header(title: str, subtitle: str = "", icon: str = "📊",
+                      xtra: str = "", render: bool = True):
+    """新城风格分区小标题（带渐变紫竖条 + 可选图标/副标题/右侧标注）。
+
+    design_system.md 第3章组件规范：优先 xc_section_header（替代旧 section_header）。
+    render=True（默认）：直接 st.markdown 渲染并返回 None（兼容旧 section_header
+    即渲染契约）；render=False：返回 HTML 片段（供调用方自行嵌入，如 _hero 内部）。
+    subtitle 渲染为标题下方弱色副行，xtra 渲染为右侧弱色标注，icon 为前缀图标。
+    """
+    inject_kit_css()
     title = "" if title is None else str(title)
-    xtra_html = f'<span class="xtra">{html.escape(str(xtra))}</span>' if xtra else ""
-    return f'<div class="xc-section-h">{html.escape(title)}{xtra_html}</div>'
+    icon_html = f'<span class="xc-sh-ic">{html.escape(str(icon))}</span>' if icon else ""
+    sub_html = f'<div class="xc-sh-sub">{html.escape(str(subtitle))}</div>' if subtitle else ""
+    xtra_html = f'<span class="xc-sh-xtra">{html.escape(str(xtra))}</span>' if xtra else ""
+    html_out = (
+        f'<div class="xc-section-h">{icon_html}'
+        f'<div class="xc-sh-main"><span class="xc-sh-title">{html.escape(title)}</span>{sub_html}</div>'
+        f'{xtra_html}</div>'
+    )
+    if render:
+        st.markdown(html_out, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        return None
+    return html_out
 
 
 def xc_subheader(title: str, icon: str = "", xtra: str = "") -> None:
     """新城风格分区标题（渲染版）。等同 xc_section_header 但直接渲染，替代裸 st.subheader。"""
     inject_kit_css()
     prefix = f"{html.escape(icon)} " if icon else ""
-    st.markdown(xc_section_header(f"{prefix}{title}", xtra=xtra), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    xc_section_header(f"{prefix}{title}", xtra=xtra)
 
 
 def xc_chart_cell(title: str, xtra: str = "") -> None:
@@ -634,27 +681,21 @@ def xc_chart_cell(title: str, xtra: str = "") -> None:
     """
     inject_kit_css()
     title = "" if title is None else str(title)
-    xtra_html = f'<span class="xtra">{html.escape(str(xtra))}</span>' if xtra else ""
+    xtra_html = f'<span class="xc-sh-xtra">{html.escape(str(xtra))}</span>' if xtra else ""
     st.markdown(
         f'<div class="xc-section-h xc-chart-cell">{html.escape(title)}{xtra_html}</div>',
         unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     )
 
 
-_BANNER_KIND_XC = {"info": "info", "success": "success", "warning": "warning", "danger": "danger"}
-
-
 def xc_info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
-    """新城风格彩色提示横幅（info/success/warning/danger）。"""
+    """新城风格彩色提示横幅（info/success/warning/danger）。
+
+    B 阶段词汇统一后的 canonical 横幅：与 legacy info_banner 共用
+    _info_banner_html 渲染（含 T-277 长文案折叠），仅保留旧名做兼容委托。
+    """
     inject_kit_css()
-    text = "" if text is None else str(text)
-    kind = _BANNER_KIND_XC.get(kind, "info")
-    icon = "💡" if icon is None else str(icon)
-    st.markdown(
-        f'<div class="xc-info {kind}"><span class="xc-ic">{html.escape(icon)}</span>'
-        f'<div>{html.escape(text)}</div></div>',
-        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-    )
+    st.markdown(_info_banner_html(text, kind, icon), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
 def xc_content_card(title: str, body: str = "", icon: str = "", *, compact_when_empty: bool = True) -> None:
@@ -765,6 +806,25 @@ def xc_handle_error(title: str, exc: Exception | str | None = None, hint: str = 
     xc_error_box(title, hint=hint, icon=icon)
 
 
+@contextlib.contextmanager
+def xc_error_boundary(title: str, hint: str = "", log=None):
+    """三态闭环（design_system.md §4）：把散落的 ``try/except`` 收敛为一处。
+
+    用法::
+
+        with xc_error_boundary("持仓快照加载失败", hint="检查交易接口连接。"):
+            rows = api_get(...)
+
+    异常只进 logger（绝不拼进可见文案），并渲染友好错误卡；正常路径零副作用。
+    与 ``xc_handle_error`` 同契约：失败给错误卡不谎报、异常不泄露。
+    """
+    try:
+        yield
+    except Exception as exc:  # noqa: BLE001
+        (log or logger).warning("%s: %s", title, exc)
+        xc_handle_error(title, exc=exc, hint=hint)
+
+
 def _inline_md(text: str) -> str:
     """极简行内 markdown：先整体 HTML 转义（防 XSS），再把 ``**粗体**`` / ``*斜体*``
     还原为 ``<b>`` / ``<i>``。转义先行，故即使原文含标签也会被中和，安全。"""
@@ -804,9 +864,11 @@ def xc_warn_box(title: str, hint: str = "", icon: str = "⚠️") -> None:
 
 
 def info_banner(text: str, kind: str = "info", icon: str = "💡") -> None:
-    """彩色提示横幅。kind: info/success/warning/danger。"""
-    inject_kit_css()
-    st.markdown(_info_banner_html(text, kind, icon), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    """Deprecated：请改用 xc_info_banner（B 阶段组件词汇统一）。
+
+    仅作兼容薄委托保留，勿新增调用；守卫 test_component_vocabulary 禁止新调用点。
+    """
+    xc_info_banner(text, kind, icon)
 
 
 def stat_tile(label: str, value: str, delta: str = "", delta_dir: str = "flat",
@@ -956,13 +1018,13 @@ _FOLD_CSS = r"""<style>
 .ss-hint-p{position:absolute;top:135%;left:0;z-index:99999;opacity:0;visibility:hidden;
   transform:translateY(-4px);transition:opacity .15s ease,transform .15s ease;
   background:var(--ss-surface,var(--card,#fff));color:var(--ss-text,var(--txt,#1e293b));
-  border:1px solid var(--ss-line,var(--border,#e2e8f0));border-radius:10px;
+  border:1px solid var(--ss-line,var(--border,#e2e8f0));border-radius:var(--ss-radius);
   padding:10px 12px;box-shadow:0 10px 30px rgba(15,15,35,.18);
   min-width:220px;max-width:360px;font-size:13px;line-height:1.65}
 .ss-hint:hover .ss-hint-p,.ss-hint:focus-within .ss-hint-p{opacity:1;visibility:visible;transform:translateY(0)}
 /* P2-1 键盘可达：Tab 聚焦触发器时与 hover 同参展开浮层（:focus-within 与 hover 同参）；
    DOMPurify 默认 allowlist 放行 tabindex（Phase3 实测），外层 .ss-hint 带 tabindex="0" 可聚焦 */
-.ss-hint:focus-visible{outline:2px solid var(--ss-focus-ring,var(--ss-accent,var(--acc1,#667eea)));outline-offset:2px;border-radius:4px}
+.ss-hint:focus-visible{outline:2px solid var(--ss-focus-ring,var(--ss-accent,var(--acc1,#667eea)));outline-offset:2px;border-radius:var(--ss-radius-xs)}
 .ss-hint-p b{color:var(--ss-accent,var(--acc1,#667eea))}
 /* C 细小化触发（更弱的存在感） */
 .ss-hint.mini .ss-hint-t{font-size:11px;opacity:.72}

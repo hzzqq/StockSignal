@@ -96,7 +96,7 @@ def format_date(value, fmt: str = "%Y-%m-%d") -> str:
     try:
         return d.strftime(fmt)
     except (ValueError, TypeError):
-        return ""
+        return ""  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def is_weekday(value) -> Optional[bool]:

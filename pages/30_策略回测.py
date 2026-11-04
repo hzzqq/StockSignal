@@ -13,7 +13,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 
 from modules.page_utils import render_standard_page
-from modules.ui_kit import stat_tile, xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, info_banner, xc_content_card, xc_kpi_grid
+from modules.ui_kit import stat_tile, xc_error_box, xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, xc_content_card, xc_kpi_grid
 render_standard_page(title="策略回测", icon="⚙️", layout="wide")
 
 from modules.backtest import Backtester
@@ -324,7 +324,7 @@ def fragment_manual_backtest():
                          'tone': 'down' if max_loss < 0 else 'flat'},
                     ])
                 else:
-                    info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
+                    xc_info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
                 # ── 逐笔交易收益分布（T-229 收进折叠区）──
                 with st.expander("📈 逐笔交易收益分布", expanded=False):
@@ -347,7 +347,7 @@ def fragment_manual_backtest():
                         )
                         st.plotly_chart(fig_tr, width="stretch", config={"displaylogo": False, "responsive": True})
                     else:
-                        info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
+                        xc_info_banner("本区间没有产生完整交易。可能原因：该股票在此期间不满足强上升趋势条件，未产生买入信号。")
 
                 # ── 参数敏感性分析 ──
                 xc_content_card("🎯 参数敏感性分析", "")

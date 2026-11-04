@@ -68,7 +68,7 @@ def render_freshness_badge(freshness: dict, stalled: dict | None = None,
     head = "⏸ 数据停更告警" if (stalled and any(v.get("stalled") for v in stalled.values())) else (
         "⏰ 数据滞后告警" if stt in ("warn", "stale") else "✅ 数据新鲜度")
     html = (
-        f"<div style='border:1px solid {color};border-radius:12px;padding:10px 14px;"
+        f"<div style='border:1px solid {color};border-radius:var(--ss-radius);padding:10px 14px;"
         f"margin:8px 0;background:{color}14;font-size:13px;line-height:1.7'>"
         f"<div style='font-weight:700;color:{color};margin-bottom:4px'>{head}</div>"
         f"<div>{'　'.join(bits) or '—'}</div>"
@@ -121,13 +121,13 @@ def render_position_card(pos, bias=None, confidence=None, cyc_name=None):
     红涨绿跌：pos['color'] 已按 band 定好（偏多/激进=红，偏空/防御=绿，中性=黄）。
     """
     st.markdown(
-        f"<div style='border:1px solid {pos['color']};border-radius:12px;padding:14px 18px;"
+        f"<div style='border:1px solid {pos['color']};border-radius:var(--ss-radius);padding:14px 18px;"
         f"margin:10px 0;background:linear-gradient(90deg,{pos['color']}22,{pos['color']}05)'>"
         f"<div style='display:flex;justify-content:space-between;align-items:baseline'>"
         f"<span style='font-size:14px;opacity:.8'>📊 仓位建议（{pos['band']}）</span>"
         f"<span style='font-size:34px;font-weight:700;color:{pos['color']}'>{pos['pct']}%</span></div>"
-        f"<div style='height:10px;background:rgba(128,128,128,.2);border-radius:5px;margin:8px 0'>"
-        f"<div style='width:{pos['pct']}%;background:{pos['color']};height:10px;border-radius:5px'></div></div>"
+        f"<div style='height:10px;background:rgba(128,128,128,.2);border-radius:var(--ss-radius-sm);margin:8px 0'>"
+        f"<div style='width:{pos['pct']}%;background:{pos['color']};height:10px;border-radius:var(--ss-radius-sm)'></div></div>"
         f"<div style='font-size:12px;opacity:.85'>" +
         "；".join(pos["reasons"]) +
         f"<br><span style='opacity:.6'>次日方向 {bias or '—'}｜置信度 {confidence or 0}%｜"

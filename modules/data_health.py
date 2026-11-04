@@ -172,7 +172,7 @@ def _p1_event_latest_date() -> str | None:
         from modules.p1_signal import P1SignalLoader
         return P1SignalLoader(ttl=TTL_TIERS["sentiment"]).latest_date("ev")
     except Exception:  # noqa: BLE001
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def _track_last_scored_date() -> str | None:
@@ -185,7 +185,7 @@ def _track_last_scored_date() -> str | None:
         from modules.decision_track import last_scored_date
         return last_scored_date()
     except Exception:  # noqa: BLE001
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 # ───────────────────────── 决策数据源注册表 ─────────────────────────

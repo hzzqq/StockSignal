@@ -236,7 +236,7 @@ def render_watchlist_monitor() -> None:
                     x = float(v)
                         # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
                 except Exception:
-                    return ''
+                    return ''  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
                 if x > 0:
                     return 'color:{_UP};font-weight:600'
                 if x < 0:
@@ -351,7 +351,7 @@ def render_watchlist_monitor() -> None:
             return {'code': code, 'name': fetcher.get_name_only(code), 'price': cur, 'change_pct': chg, 'short': profile['short'], 'mid': profile['mid'], 'long': profile['long'], 'composite': profile['composite'], 'trend_score': analysis.get('trend', {}).get('trend_score', 50), 'vol_ratio': vol_ratio}
                 # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
         except Exception:
-            return None
+            return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
     def _load_scores_map(codes: list) -> dict:
         """批量拉取当前用户对所有 code 的打分。"""
@@ -408,7 +408,7 @@ def render_watchlist_monitor() -> None:
                 x = float(v)
                     # ui_audit_exempt: 宽异常兜底——外部/渲染失败按缺失处理，已审计非静默吞错
             except Exception:
-                return ''
+                return ''  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
             if x > 0:
                 return 'color:{_UP};font-weight:600'
             if x < 0:
@@ -527,7 +527,7 @@ def render_position_manager() -> None:
     from datetime import datetime
     from modules.page_utils import render_standard_page, fmt_rel as _fmt_rel
     from modules.ui_theme import sf_card, sf_metric
-    from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner
+    from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner
     render_standard_page(title='仓位管理', icon='💰', caption='⚠️ 本页为模拟/历史持仓管理，仅供学习，不构成投资建议。', layout='wide')
 
 
@@ -809,7 +809,7 @@ def render_position_manager() -> None:
     else:
         sellable_positions = positions.copy()
     if sellable_positions.empty:
-        info_banner('当前没有可卖出的持仓。请先在上方「买入股票」录入一笔持仓（代码、价格、股数）后，再来这里卖出。')
+        xc_info_banner('当前没有可卖出的持仓。请先在上方「买入股票」录入一笔持仓（代码、价格、股数）后，再来这里卖出。')
     else:
         sell_quote = None
         with st.form('sell_position_form'):
@@ -990,7 +990,7 @@ def render_position_manager() -> None:
                 if st.button('🔄 重试', key='pnl_retry'):
                     st.rerun()  # ui_audit_exempt: bare-rerun 盈亏区块加载失败后的「重试」按钮，整页重跑是其唯一语义
     else:
-        info_banner('请先添加持仓记录。')
+        xc_info_banner('请先添加持仓记录。')
 
 
 def render_portfolio_returns() -> None:

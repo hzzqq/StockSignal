@@ -621,7 +621,7 @@ def _age_days(date_str: str | None) -> int | None:
         d = _d.fromisoformat(str(date_str)[:10])
         return (_d.today() - d).days
     except Exception:  # noqa: BLE001
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 # ── 数据新鲜度阈值（自然日）──

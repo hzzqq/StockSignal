@@ -27,7 +27,7 @@ from modules.alert_rules import (
 )
 from modules import push_channel
 from modules.page_utils import render_standard_page
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ dark = render_standard_page(
 snapshot = _build_snapshot()
 
 # ── ① 当前指标快照 ────────────────────────────────────────────────────
-section_header("当前指标快照", "规则据此求值；缺失指标会让 AND 规则不触发（宁漏勿误）", icon="📸")
+xc_section_header("当前指标快照", "规则据此求值；缺失指标会让 AND 规则不触发（宁漏勿误）", icon="📸")
 if snapshot:
     keys = [k for k in ("limit_up", "zt_fail_ratio", "temperature", "limit_down", "median_chg") if k in snapshot]
     xc_kpi_grid([
@@ -85,7 +85,7 @@ else:
 st.markdown("---")
 
 # ── ② 规则配置 ────────────────────────────────────────────────────────
-section_header("规则配置（JSON）", "每条：{id,name,logic:'AND'|'OR',conditions:[{metric,op,value}],channel}", icon="📝")
+xc_section_header("规则配置（JSON）", "每条：{id,name,logic:'AND'|'OR',conditions:[{metric,op,value}],channel}", icon="📝")
 _rules = load_rules()
 rules_txt = st.text_area("规则 JSON", value=json.dumps(_rules, ensure_ascii=False, indent=2),
                          height=240, key="alert_rules_txt")
@@ -110,7 +110,7 @@ with _btn1:
 
 # ── ③ 评估 ────────────────────────────────────────────────────────────
 st.markdown("---")
-section_header("评估结果", "AND：全部已知条件为真才触发；OR：任一已知条件为真即触发", icon="🔎")
+xc_section_header("评估结果", "AND：全部已知条件为真才触发；OR：任一已知条件为真即触发", icon="🔎")
 if parse_err:
     st.error(f"⚠️ 规则无效，无法评估：{parse_err}")
 elif not snapshot:
@@ -149,7 +149,7 @@ else:
 
 # ── ④ 通道状态（真实探测） ─────────────────────────────────────────────
 st.markdown("---")
-section_header("通知通道状态", "未配置凭证的通道标为不可用；不伪造发送", icon="📡")
+xc_section_header("通知通道状态", "未配置凭证的通道标为不可用；不伪造发送", icon="📡")
 for key, (label, ok) in channel_status().items():
     if ok:
         st.markdown(f"- ✅ **{label}** —— 可用")
@@ -165,7 +165,7 @@ for _k, _v in push_channel.channel_status().items():
 
 # ── ⑤ 推送闭环（H7） ──────────────────────────────────────────────────
 st.markdown("---")
-section_header("推送到微信", "把本次触发的告警推到老板微信；未配置通道则如实报告原因", icon="📲")
+xc_section_header("推送到微信", "把本次触发的告警推到老板微信；未配置通道则如实报告原因", icon="📲")
 _triggered_for_push = []
 if not parse_err and snapshot:
     try:

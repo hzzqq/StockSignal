@@ -34,7 +34,7 @@ def _parse_last_seen(user) -> datetime | None:
     try:
         d = json.loads(raw)
     except Exception:
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
     if not isinstance(d, dict):
         return None
     ts = d.get("last_seen_market_alert")
@@ -43,7 +43,7 @@ def _parse_last_seen(user) -> datetime | None:
     try:
         return datetime.fromisoformat(str(ts).replace("Z", ""))
     except Exception:
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def _set_last_seen(user, dt: datetime) -> None:

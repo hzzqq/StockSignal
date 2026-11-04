@@ -29,13 +29,13 @@ from modules.widgets import _NAV_GROUPS
 from modules.page_widgets import _section_title, _empty_info
 from modules.page_guard import safe_fragment
 
-from modules.ui_kit import info_banner, xc_success_box, xc_warn_box
+from modules.ui_kit import xc_info_banner, xc_success_box, xc_warn_box
 dark = render_standard_page(
     title="新手教程 · 5 分钟玩转 StockSignal", icon="📘",
     caption="本页帮你快速上手：三步完成首次操作、认识各模块、看懂术语与常见疑问。看完即可独立使用本平台。",
 )
 
-info_banner("欢迎来到 StockSignal！先完成下方「三步上手」勾选清单，再浏览模块导览与术语表；遇到疑问随时展开「常见问题」。全程约 5 分钟。", icon="📘")
+xc_info_banner("欢迎来到 StockSignal！先完成下方「三步上手」勾选清单，再浏览模块导览与术语表；遇到疑问随时展开「常见问题」。全程约 5 分钟。", icon="📘")
 
 ASSET_DIR = Path(__file__).resolve().parent.parent / "assets"
 VIDEO_PATH = ASSET_DIR / "tutorial_overview.mp4"
@@ -119,7 +119,7 @@ def fragment_mainline():
             st.markdown(f"**{step} · {name}**　{desc}")
         with c2:
             _link(page, "前往", "➡️")
-    info_banner("💡 第 ③④ 步是这条闭环的灵魂：很多平台只给建议、从不复盘对错，"
+    xc_info_banner("💡 第 ③④ 步是这条闭环的灵魂：很多平台只给建议、从不复盘对错，"
                 "用户无法判断该信几分。本平台把预测记下来、拿真实走势打分，再用打分结果反过来校准规则。", icon="🔁")
 
 
@@ -280,7 +280,7 @@ def fragment_hotkeys():
     ]
     for k, d in keys:
         st.markdown(f"- **`{k}`**：{d}")
-    info_banner("💡 提示：本平台的侧边栏导航与首页卡片已覆盖绝大多数跳转需求，快捷键主要用来「刷新」与「清缓存」。")
+    xc_info_banner("💡 提示：本平台的侧边栏导航与首页卡片已覆盖绝大多数跳转需求，快捷键主要用来「刷新」与「清缓存」。")
 # ──────────────────────────────────────────────────────────────
 @safe_fragment
 def fragment_video():

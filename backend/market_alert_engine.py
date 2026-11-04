@@ -110,7 +110,7 @@ def _evaluate(rule: dict, latest, prev):
     try:
         latest_f = float(latest)
     except (TypeError, ValueError):
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
     if not math.isfinite(latest_f):
         return None
 
@@ -128,7 +128,7 @@ def _evaluate(rule: dict, latest, prev):
         try:
             v = float(v)
         except (TypeError, ValueError):
-            return None
+            return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
         return v if math.isfinite(v) else None
 
     danger_hi = _thr("danger_hi")

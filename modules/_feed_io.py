@@ -26,7 +26,7 @@ def _req_host(req):
         url = req.full_url if hasattr(req, "full_url") else str(req)
         return urllib.parse.urlparse(str(url)).netloc or None
     except Exception:  # noqa: BLE001 - 节流尽力而为，绝不影响取数主路径
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def _safe_urlopen(req, timeout, retries=2, backoff=0.5):

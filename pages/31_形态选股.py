@@ -55,7 +55,7 @@ div[data-testid="stRadio"] label,
 .stRadio label {
     cursor: pointer;
     padding: 4px 10px;
-    border-radius: 6px;
+    border-radius: var(--ss-radius-sm);
     transition: background 0.12s ease;
 }
 div[data-testid="stRadio"] label:hover,
@@ -66,7 +66,7 @@ div[data-testid="stRadio"] label:hover,
 .stTextInput input,
 .stTextArea textarea {
     border: 1.5px solid #9aa4ff !important;
-    border-radius: 8px !important;
+    border-radius: var(--ss-radius-sm) !important;
 }
 .stTextInput input:focus,
 .stTextArea textarea:focus {

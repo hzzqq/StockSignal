@@ -15,6 +15,7 @@ import html
 import logging
 
 import streamlit as st
+from modules import colors
 from datetime import datetime
 
 from modules.page_utils import (render_standard_page,
@@ -54,7 +55,7 @@ if _FOCUS_NOTE:
     # ui_audit_exempt: unsafe-allow_html 首页跳转高亮提示为纯内置文案常量，无外部输入
     st.markdown(
         "<div style='border-left:4px solid #7c5cff;background:rgba(124,92,255,.10);"
-        "border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:6px'>"
+        "border-radius:var(--ss-radius-sm);padding:10px 14px;font-size:13px;margin-bottom:6px'>"
         "📔 已从首页跳转 —— <b>情绪笔记 / 次日走势预判</b>在页面下方，已为你高亮 👇</div>",
         unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
     )
@@ -70,7 +71,7 @@ def _cache_banner(meta):
         # 缓存提示文案来自数据层 meta，按防御性规范 html.escape
         st.markdown(
             f'<div style="background:#fff3cd;border:1px solid #ffc107;'
-            f'border-radius:8px;padding:8px 14px;font-size:13px;color:#856404">'
+            f'border-radius:var(--ss-radius-sm);padding:8px 14px;font-size:13px;color:#856404">'
             f'📦 <b>缓存模式</b>：{html.escape(str(msg))}</div>',
             unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
         )
@@ -124,9 +125,9 @@ def _temp_level(t):
 def _temp_bar(t, color):
     return (
         f'<div style="background:linear-gradient(90deg,#3b82f6,#16c2c2,#10b981,#f59e0b,#ee2a2a);'
-        f'height:14px;border-radius:7px;position:relative;margin:6px 0 2px">'
+        f'height:14px;border-radius:var(--ss-radius-sm);position:relative;margin:6px 0 2px">'
         f'<div style="position:absolute;left:{t:.1f}%;top:-4px;width:4px;height:22px;'
-        f'background:#222;border-radius:2px;transform:translateX(-50%)"></div></div>'
+        f'background:#222;border-radius:var(--ss-radius-xs);transform:translateX(-50%)"></div></div>'
         f'<div style="display:flex;justify-content:space-between;font-size:11px;'
         f'color:#999;margin-top:2px"><span>冰点 0</span><span>中性 50</span><span>过热 100</span></div>'
     )
@@ -324,7 +325,7 @@ def _card(col, cfg, df, dark_mode):
                 # ui_audit_exempt: unsafe-allow_html 信号 badge，badge/text/色板均来自内部 cfg['signal'] 判定函数
                 st.markdown(
                     f"<span style='background:{bcolor}22;color:{bcolor};padding:2px 8px;"
-                    f"border-radius:8px;font-size:12px;font-weight:600'>{badge}</span>"
+                    f"border-radius:var(--ss-radius-sm);font-size:12px;font-weight:600'>{badge}</span>"
                     f"　{text}", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
             except Exception as e:
                 st.caption(f"⚠️ 数据异常（{type(e).__name__}）")
@@ -889,7 +890,7 @@ def fragment_shepherd_forecast():
 
     cyc = fc.get("cycle") or {}
     bias = fc.get("bias", "中性")
-    bcolor = {"偏多": "#ee2a2a", "偏空": "#00d486", "中性": "#f59e0b"}.get(bias, "#f59e0b")
+    bcolor = {"偏多": "#ee2a2a", "偏空": colors.DOWN_COLOR, "中性": "#f59e0b"}.get(bias, "#f59e0b")
 
     # ① 情绪周期定位 + 方向总览
     with st.container(border=True):
@@ -990,8 +991,8 @@ def fragment_shepherd_forecast():
             f"<div style='display:flex;justify-content:space-between;font-size:13px'>"
             f"<span style='color:{sc.get('color', '#888')}'><b>{sc.get('name')}</b></span>"
             f"<span>{p}%</span></div>"
-            f"<div style='background:rgba(255,255,255,.08);height:8px;border-radius:4px'>"
-            f"<div style='width:{p}%;background:{sc.get('color', '#888')};height:8px;border-radius:4px'></div>"
+            f"<div style='background:rgba(255,255,255,.08);height:8px;border-radius:var(--ss-radius-xs)'>"
+            f"<div style='width:{p}%;background:{sc.get('color', '#888')};height:8px;border-radius:var(--ss-radius-xs)'></div>"
             f"</div><div style='font-size:12px;opacity:.7;margin-top:2px'>{sc.get('desc', '')}"
             f"<br>　{sc.get('trigger', '')}</div></div>",
             unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
@@ -1047,7 +1048,7 @@ def fragment_shepherd_note():
     if _FOCUS_NOTE:   # 首页跳转过来时高亮一次，帮助定位
         # ui_audit_exempt: unsafe-allow_html 情绪笔记定位高亮为纯内置文案常量，无外部输入
         st.markdown(
-            "<div style='border:2px solid #7c5cff;border-radius:10px;padding:8px 12px;"
+            "<div style='border:2px solid #7c5cff;border-radius:var(--ss-radius);padding:8px 12px;"
             "font-size:13px;margin-bottom:8px'>🎯 <b>就是这里</b> —— "
             "上方是「次日走势预判」，下方是「情绪笔记」与「历史情绪回测」。</div>",
             unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html

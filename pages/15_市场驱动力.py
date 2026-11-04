@@ -13,7 +13,7 @@ from modules.page_widgets import _section_title, _trend_controls, _in_trading_ho
 from modules.page_guard import safe_fragment
 from modules.page_utils import render_standard_page
 
-from modules.ui_kit import xc_handle_error, info_banner
+from modules.ui_kit import xc_handle_error, xc_info_banner
 
 dark = render_standard_page(
     title="市场驱动力（五维归一化子图）", icon="🧮",
@@ -82,7 +82,7 @@ def fragment_drivers_panel():
     # 加法式空态守卫（Batch15）：用户在区间控件中清空序列选择时 sel 为空，
     # 此时绘制会得到空白/异常图；提前给出友好提示，不影响下方数据表与热力图。
     if not sel:
-        info_banner("请在上方区间控件中至少选择一个指标序列，以绘制驱动力面板。")
+        xc_info_banner("请在上方区间控件中至少选择一个指标序列，以绘制驱动力面板。")
     else:
         try:
             fig = plot_drivers_panel(

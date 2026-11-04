@@ -57,11 +57,20 @@ def test_updown_tokens_match_a_share_semantics():
 
 
 def test_primitives_read_tokens_no_stray_hex():
-    """A1/A3：基元读 token；涨跌语义 hex 只允许出现在 token 定义行各 1 次。"""
+    """A1/A3：基元读 token；涨跌语义 hex 只允许出现在 token 定义行。
+
+    design_system.md 第5章C阶段新增 --c-up/--c-down 别名（兜底值 #ff4d4f/#00d486），
+    属合法定义行；其余业务样式必须走 var(--ss-up/--ss-down)，不得直写 hex。
+    """
     css = _kit()._KIT_CSS
-    assert css.count("#ff4d4f") == 1 and css.count("#00d486") == 1, (
-        "涨跌语义 hex 只应在 token 定义出现一次，其余必须走 var(--ss-up/--ss-down)"
-    )
+    up_lines = [ln for ln in css.splitlines() if "#ff4d4f" in ln]
+    down_lines = [ln for ln in css.splitlines() if "#00d486" in ln]
+    _UP_DEF = ("--ss-up:#ff4d4f", "--c-up:var(--ss-up,#ff4d4f)")
+    _DOWN_DEF = ("--ss-down:#00d486", "--c-down:var(--ss-down,#00d486)")
+    for ln in up_lines:
+        assert any(d in ln for d in _UP_DEF), f"#ff4d4f 出现在非定义行（须走 var(--ss-up)）：{ln.strip()}"
+    for ln in down_lines:
+        assert any(d in ln for d in _DOWN_DEF), f"#00d486 出现在非定义行（须走 var(--ss-down)）：{ln.strip()}"
     assert "color:var(--ss-up)" in css and "color:var(--ss-down)" in css
     m = re.search(r"\.xc-card\{([^}]*)\}", css)
     assert m, "缺少 .xc-card 规则"
@@ -229,3 +238,30 @@ def test_typography_contract_cjk_and_base_font_size():
     cfg = (ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8")
     assert "baseFontSize = 17" in cfg, "config.toml 全局基础字号 17（整型）缺失"
     assert 'baseFontSize = "17px"' not in cfg,         "baseFontSize 回潮为字符串（T-312：会绞杀全站轮询消息通道）"
+
+
+def test_token_aliases_bound_to_existing():
+    """design_system.md 第2章别名须绑定 --ss-*/--acc* 等价变量或 colors.* 既有值，不得臆造独立色相。"""
+    css = _kit()._KIT_CSS
+    required_aliases = (
+        "--brand-1:var(--acc1", "--brand-2:var(--acc2",
+        "--c-up:var(--ss-up,#ff4d4f)", "--c-down:var(--ss-down,#00d486)",
+        "--c-ok:var(--ss-ok,#16a34a)",
+        "--c-hold:#ffa502", "--c-warn:#f59e0b", "--c-danger:#ef4444", "--c-info:#3b82f6",
+        "--radius-card:var(--ss-radius-card", "--font-num:var(--ss-font-num)",
+    )
+    for a in required_aliases:
+        assert a in css, f"令牌别名缺失或值未绑定现有令牌：{a}"
+
+
+def test_build_token_css_from_colors_single_source():
+    """_build_token_css 须由 colors.* 派生（单一来源）且关键语义与 _TOKEN_CSS 别名同值。"""
+    kit = _kit()
+    from modules import colors
+    gen = kit._build_token_css()
+    assert f"--c-up:{colors.UP_COLOR}" in gen    # colors.UP_COLOR
+    assert f"--c-down:{colors.DOWN_COLOR}" in gen  # colors.DOWN_COLOR
+    assert f"--c-hold:{colors.HOLD_COLOR}" in gen  # colors.HOLD_COLOR
+    # 与 _TOKEN_CSS 内联别名一致（解析 --c-up 取值为 #ff4d4f 等价）
+    m = re.search(r"--c-up:(var\(--ss-up,#ff4d4f\)|#ff4d4f)", kit._KIT_CSS)
+    assert m, "内联 --c-up 别名未绑定 #ff4d4f 等价"

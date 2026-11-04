@@ -19,7 +19,7 @@ import streamlit as st
 
 from modules.financial_hunter import SIGNAL_ORDER, annotate, col_of, scan
 from modules.page_utils import render_standard_page
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ xc_kpi_grid([
 ])
 
 st.markdown("---")
-section_header("信号分布", "按预告类型文本启发式分级", icon="📊")
+xc_section_header("信号分布", "按预告类型文本启发式分级", icon="📊")
 _order = [s for s in SIGNAL_ORDER if _vc.get(s, 0) > 0]
 # ui_audit_exempt: unsafe-allow-html 信号名取自 SIGNAL_ORDER 内部常量 + 计数数值，配色内部映射，无用户/DB 输入流向
 st.markdown(
@@ -76,7 +76,7 @@ st.markdown(
 )
 
 st.markdown("---")
-section_header("猎手结果", f"筛选：信号 {'/'.join(_sigs) if _sigs else '全部'} · 变动幅度 ≥ {_min_pct}%", icon="🎯")
+xc_section_header("猎手结果", f"筛选：信号 {'/'.join(_sigs) if _sigs else '全部'} · 变动幅度 ≥ {_min_pct}%", icon="🎯")
 hits = scan(raw, min_pct=_min_pct, signals=_sigs or None)
 if hits is None or hits.empty:
     st.info("当前筛选条件下无匹配标的（可放宽幅度或信号级别）。")
@@ -95,13 +95,13 @@ else:
         dt = html.escape(str(r.get(date_c, ""))) if date_c else ""
         reason = html.escape(str(r.get(reason_c, ""))[:60]) if reason_c else ""
         rows += (
-            "<div style='border:1px solid rgba(148,163,184,.2);border-radius:10px;"
+            "<div style='border:1px solid rgba(148,163,184,.2);border-radius:var(--ss-radius);"
             "padding:8px 12px;margin:6px 0'>"
             "<div style='display:flex;justify-content:space-between;align-items:center'>"
             f"<div><b>{nm}</b> <span style='opacity:.6;font-size:12px'>{cd} · {dt}</span></div>"
             "<div>"
             f"<span style='color:{SIGNAL_COLOR.get(sig, '#94a3b8')};font-size:11px;"
-            f"border:1px solid {SIGNAL_COLOR.get(sig, '#94a3b8')};border-radius:6px;padding:1px 6px'>{sig}</span> "
+            f"border:1px solid {SIGNAL_COLOR.get(sig, '#94a3b8')};border-radius:var(--ss-radius-sm);padding:1px 6px'>{sig}</span> "
             f"<b style='margin-left:6px'>{ty}</b> "
             f"<b style='color:{'#dc2626' if (pct or 0) >= 0 else '#16a34a'};margin-left:6px'>{pct_txt}</b>"
             "</div></div>"

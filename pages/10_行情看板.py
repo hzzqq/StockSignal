@@ -21,7 +21,7 @@ from modules.page_utils import render_standard_page, get_fetcher
 from modules.page_widgets import _empty_info, _fmt_yi, _toast, is_trading_now
 from modules.fundamental_helpers import fund_one
 
-from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box, info_banner, prov_badge, xc_bento_kpi, xc_content_card
+from modules.ui_kit import xc_error_box, xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, prov_badge, xc_bento_kpi, xc_content_card
 logger = logging.getLogger(__name__)
 dark = render_standard_page(title='行情看板', icon='📈', layout='wide')
 render_index_compact(cols_per_row=5)
@@ -355,7 +355,7 @@ _ticker_list = [t.strip() for t in (_corr_tickers if isinstance(_corr_tickers, l
 if not _ticker_list and _corr_tickers:
     _ticker_list = [t.strip() for t in str(_corr_tickers).split(',') if t.strip()]
 if not _ticker_list:
-    info_banner('💡 请输入至少 2 只股票代码/名称（逗号分隔）后点击「计算相关性」。已默认预填 4 只示例，直接点击即可。')
+    xc_info_banner('💡 请输入至少 2 只股票代码/名称（逗号分隔）后点击「计算相关性」。已默认预填 4 只示例，直接点击即可。')
 
 def _fetch_one_corr(t, start, end):
     """单只股票取数（带超时兜底），返回 (label, df)。"""
@@ -521,8 +521,8 @@ def _wl_render_table_html(rows, dark: bool):
         turn_s = r.get('turnover') if r.get('turnover') is not None else '—'
         pe_s = r.get('pe') if r.get('pe') is not None else '—'
         mv_s = r.get('mv_yi') if r.get('mv_yi') is not None else '—'
-        body += f'''<tr style="color:{row_color};"><td style="padding:6px 8px;white-space:nowrap;">{html.escape(str(r['name']))}</td><td style="padding:6px 8px;color:{code_color};font-variant-numeric:tabular-nums;">{html.escape(str(r['code']))}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{cur_s}</td><td style="padding:6px 8px;color:{col};font-weight:600;font-variant-numeric:tabular-nums;">{chg_s}</td><td style="padding:6px 8px;color:{col};font-variant-numeric:tabular-nums;">{camt_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{open_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{high_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{low_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{turn_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{pe_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{mv_s}</td><td style="padding:6px 8px;"><span class="wl-op" data-code="{html.escape(str(r['code']))}" style="cursor:pointer;background:{op_bg};color:{op_color};font-size:12px;padding:2px 8px;border-radius:10px;white-space:nowrap;">📈 看K线</span></td></tr>'''
-    css = f'\n    <style>\n    .wl-table{{width:100%;border-collapse:collapse;background:{bg};\n      border:1px solid {border};border-radius:8px;font-size:13px;font-family:inherit;}}\n    .wl-table th{{background:{head_bg};color:{head_color};text-align:right;font-weight:600;\n      border-bottom:1px solid {border};position:sticky;top:0;}}\n    .wl-table th:nth-child(1),.wl-table th:nth-child(2){{text-align:left;}}\n    .wl-table td{{text-align:right;border-bottom:1px solid {border};}}\n    .wl-table td:nth-child(1),.wl-table td:nth-child(2){{text-align:left;}}\n    .wl-table tr:hover td{{background:{hover};}}\n    </style>\n    '
+        body += f'''<tr style="color:{row_color};"><td style="padding:6px 8px;white-space:nowrap;">{html.escape(str(r['name']))}</td><td style="padding:6px 8px;color:{code_color};font-variant-numeric:tabular-nums;">{html.escape(str(r['code']))}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{cur_s}</td><td style="padding:6px 8px;color:{col};font-weight:600;font-variant-numeric:tabular-nums;">{chg_s}</td><td style="padding:6px 8px;color:{col};font-variant-numeric:tabular-nums;">{camt_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{open_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{high_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{low_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{turn_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{pe_s}</td><td style="padding:6px 8px;font-variant-numeric:tabular-nums;">{mv_s}</td><td style="padding:6px 8px;"><span class="wl-op" data-code="{html.escape(str(r['code']))}" style="cursor:pointer;background:{op_bg};color:{op_color};font-size:12px;padding:2px 8px;border-radius:var(--ss-radius);white-space:nowrap;">📈 看K线</span></td></tr>'''
+    css = f'\n    <style>\n    .wl-table{{width:100%;border-collapse:collapse;background:{bg};\n      border:1px solid {border};border-radius:var(--ss-radius-sm);font-size:13px;font-family:inherit;}}\n    .wl-table th{{background:{head_bg};color:{head_color};text-align:right;font-weight:600;\n      border-bottom:1px solid {border};position:sticky;top:0;}}\n    .wl-table th:nth-child(1),.wl-table th:nth-child(2){{text-align:left;}}\n    .wl-table td{{text-align:right;border-bottom:1px solid {border};}}\n    .wl-table td:nth-child(1),.wl-table td:nth-child(2){{text-align:left;}}\n    .wl-table tr:hover td{{background:{hover};}}\n    </style>\n    '
     html = css + f'<div style="max-height:520px;overflow:auto;"><table class="wl-table">' + f'<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>' + '<script>' + 'var ops=document.querySelectorAll(".wl-op");' + 'for(var i=0;i<ops.length;i++){ops[i].onclick=function(){' + 'var s=window.parent&&window.parent.Streamlit;' + 'if(s&&s.setComponentValue){s.setComponentValue(this.getAttribute("data-code"));}' + '};}' + '</script>'
     return html
 

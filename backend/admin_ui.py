@@ -54,13 +54,13 @@ def render_admin_ui() -> Response:
        padding:18px 22px;background:var(--panel);border:1px solid var(--border);
        border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:22px}
   .brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:19px}
-  .brand .logo{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  .brand .logo{width:34px;height:34px;border-radius:var(--ss-radius-sm);display:grid;place-items:center;
        background:linear-gradient(135deg,var(--gold2),var(--gold));color:#fff;font-size:18px}
   .brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
   .top-actions{display:flex;align-items:center;gap:10px}
   button,input,select{font-family:inherit}
   .btn{border:1px solid var(--border);background:var(--panel2);color:var(--text);
-       padding:9px 15px;border-radius:9px;cursor:pointer;font-size:14px;transition:.15s}
+       padding:9px 15px;border-radius:var(--ss-radius-sm);cursor:pointer;font-size:14px;transition:.15s}
   .btn:hover{border-color:var(--gold)}
   .btn.primary{background:linear-gradient(135deg,var(--gold2),var(--gold));border:none;color:#fff;font-weight:600}
   .btn.primary:hover{filter:brightness(1.06)}
@@ -71,11 +71,11 @@ def render_admin_ui() -> Response:
   .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
         box-shadow:var(--shadow);padding:20px 22px;margin-bottom:20px}
   .card h2{margin:0 0 4px;font-size:17px;display:flex;align-items:center;gap:8px}
-  .card h2 .bar{width:4px;height:18px;background:var(--gold);border-radius:2px;display:inline-block}
+  .card h2 .bar{width:4px;height:18px;background:var(--gold);border-radius:var(--ss-radius-xs);display:inline-block}
   .card .sub{color:var(--muted);font-size:12.5px;margin-bottom:14px}
   .grid{display:grid;gap:14px}
   .grid.kpi{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
-  .kpi{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;
+  .kpi{background:var(--panel2);border:1px solid var(--border);border-radius:var(--ss-radius);padding:16px 18px;
        border-left:3px solid var(--gold)}
   .kpi .v{font-size:26px;font-weight:700;line-height:1.1}
   .kpi .l{color:var(--muted);font-size:13px;margin-top:4px}
@@ -83,7 +83,7 @@ def render_admin_ui() -> Response:
   th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border)}
   th{color:var(--gold2);font-weight:600;background:var(--panel2);position:sticky;top:0}
   tr:hover td{background:var(--panel2)}
-  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .pill{display:inline-block;padding:2px 9px;border-radius:var(--ss-radius-pill);font-size:12px;font-weight:600}
   .pill.admin{background:rgba(184,134,11,.18);color:var(--gold2)}
   .pill.user{background:rgba(52,152,219,.16);color:#5dade2}
   .pill.ok{background:rgba(46,204,113,.16);color:var(--ok)}
@@ -98,23 +98,23 @@ def render_admin_ui() -> Response:
   .login p{color:var(--muted);margin:0 0 18px;font-size:13px}
   .field{margin-bottom:13px}
   .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
-  .field input{width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--border);
+  .field input{width:100%;padding:11px 13px;border-radius:var(--ss-radius-sm);border:1px solid var(--border);
         background:var(--input);color:var(--text);font-size:14px}
   .field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft)}
   .login .msg{font-size:13px;margin-top:10px;min-height:18px}
   .login .msg.err{color:var(--bad)} .login .msg.ok{color:var(--ok)}
   .hint{color:var(--muted);font-size:12px;margin-top:14px;line-height:1.6}
   .badge-user{font-size:13px;color:var(--muted)}
-  pre.raw{background:var(--input);border:1px solid var(--border);border-radius:10px;padding:12px;
+  pre.raw{background:var(--input);border:1px solid var(--border);border-radius:var(--ss-radius);padding:12px;
         max-height:240px;overflow:auto;font-size:12px;color:var(--muted)}
   .row-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
   .mini-form{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;
-        background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px}
-  .mini-form input,.mini-form select{padding:9px 11px;border-radius:8px;border:1px solid var(--border);
+        background:var(--panel2);border:1px solid var(--border);border-radius:var(--ss-radius);padding:12px}
+  .mini-form input,.mini-form select{padding:9px 11px;border-radius:var(--ss-radius-sm);border:1px solid var(--border);
         background:var(--input);color:var(--text);font-size:14px;min-width:170px}
-  .cfg-input{padding:6px 9px;border-radius:7px;border:1px solid var(--gold);background:var(--input);
+  .cfg-input{padding:6px 9px;border-radius:var(--ss-radius-sm);border:1px solid var(--gold);background:var(--input);
         color:var(--text);font-size:13px;width:90%}
-  .role-sel{padding:5px 8px;border-radius:7px;border:1px solid var(--border);background:var(--input);
+  .role-sel{padding:5px 8px;border-radius:var(--ss-radius-sm);border:1px solid var(--border);background:var(--input);
         color:var(--text);font-size:13px}
 </style>
 </head>

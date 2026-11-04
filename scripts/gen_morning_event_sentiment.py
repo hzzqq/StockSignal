@@ -28,7 +28,7 @@ def _age_days(d: str | None) -> int | None:
     try:
         return (date.today() - date.fromisoformat(str(d)[:10])).days
     except Exception:
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def _freshness_cap_note(freshness_status: str, eff_pct: int, raw_pct: int, ctx: str) -> str:

@@ -5,6 +5,7 @@
 A股配色：业绩改善(净利润同比>0)=红，下滑=绿。
 """
 import streamlit as st
+from modules import colors
 import html
 
 from modules.fundflow import (
@@ -20,7 +21,7 @@ from modules.financial_report_helpers import (
     fr_fmt, fr_filter_by_code, fr_color_yoy, fr_format_financial_df,
 )
 
-from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, info_banner, xc_kpi_grid
+from modules.ui_kit import xc_handle_error, xc_success_box, xc_warn_box, xc_info_banner, xc_kpi_grid
 dark = render_standard_page(
     title="财报与业绩日历", icon="📅",
     caption="按报告期查看已披露财报个股（业绩报表），含业绩预告与披露日历（best-effort）。数据来源：东方财富。",
@@ -140,9 +141,9 @@ def _build_financial_bar_fig(code: str, dark: bool = False):
                 if prev is None or pd.isna(prev):
                     net_colors.append("#8a8f98")  # 首期无环比，中性灰
                 elif v >= prev:
-                    net_colors.append("#ff4d4f")  # 改善=红
+                    net_colors.append(colors.UP_COLOR)  # 改善=红
                 else:
-                    net_colors.append("#00d486")  # 下滑=绿
+                    net_colors.append(colors.DOWN_COLOR)  # 下滑=绿
                 prev = v
             fig.add_trace(go.Bar(
                 x=d["报告日"].astype(str), y=net,
@@ -207,7 +208,7 @@ def fragment_report():
         down_cnt = int((yoy < 0).sum())
         beat_ratio = round(up_cnt / len(yoy) * 100, 1) if len(yoy) else 0.0
     else:
-        info_banner("「净利润同比%」字段缺失，盈利改善占比暂不可计算（接口字段变更或网络异常）。")
+        xc_info_banner("「净利润同比%」字段缺失，盈利改善占比暂不可计算（接口字段变更或网络异常）。")
     xc_kpi_grid([
         {"label": "披露家数", "value": f"{len(df)}"},
         {"label": "净利润同比↑", "value": f"{up_cnt}", "meta": "净利润同比增长为正的公司数"},
@@ -233,7 +234,7 @@ def fragment_report():
             fig.update_xaxes(tickangle=-45)
             st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "responsive": True, "displayModeBar": False})
     else:
-        info_banner("「净利润 / 名称」字段缺失，TOP 净利润柱状图暂不可绘制（接口字段变更或网络异常）。")
+        xc_info_banner("「净利润 / 名称」字段缺失，TOP 净利润柱状图暂不可绘制（接口字段变更或网络异常）。")
 
     try:
         st.dataframe(

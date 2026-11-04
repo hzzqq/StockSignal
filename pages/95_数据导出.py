@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # 注：openpyxl / reportlab 为「重型导出」依赖，改为惰性加载（见 _to_excel_bytes / _to_pdf_bytes），
 #     避免进入本页（仅查看 CSV 导出入口）时也强制 import 拖慢首屏。
 
-from modules.ui_kit import info_banner, xc_handle_error, xc_success_box, xc_warn_box, xc_content_card
+from modules.ui_kit import xc_info_banner, xc_handle_error, xc_success_box, xc_warn_box, xc_content_card
 dark = render_standard_page(
     title="数据导出中心", icon="📤",
     caption="统一导出平台数据：行业板块资金流向、北向资金、大盘主力净流入、个股主力资金、业绩报表、组合持仓盈亏、自选股实时快照。"
@@ -35,7 +35,7 @@ dark = render_standard_page(
     layout="wide",
 )
 
-info_banner("支持 CSV / Excel 多 Sheet / PDF 摘要三种格式，并可一键 ZIP 打包；单个数据集导出失败不影响整体，可单独重试。大文件建议分批导出以缩短等待。", icon="📤")
+xc_info_banner("支持 CSV / Excel 多 Sheet / PDF 摘要三种格式，并可一键 ZIP 打包；单个数据集导出失败不影响整体，可单独重试。大文件建议分批导出以缩短等待。", icon="📤")
 
 fetcher = get_fetcher()
 

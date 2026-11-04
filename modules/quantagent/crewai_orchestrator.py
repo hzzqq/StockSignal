@@ -162,7 +162,7 @@ def _llm_debate(state: ResearchState, rule: Dict[str, Any]) -> Optional[List[Dic
         return stances
     except Exception as e:  # noqa: BLE001
         state.add_error(f"CrewAI 真实辩论失败，回退规则辩论: {e}")
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def run_research_crewai(

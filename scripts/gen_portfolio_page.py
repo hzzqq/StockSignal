@@ -109,7 +109,7 @@ def _pytest_count() -> int | None:
             cwd=ROOT, capture_output=True, text=True, timeout=900,
         )
     except (subprocess.TimeoutExpired, OSError):
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
     total = 0
     for line in r.stdout.splitlines():
         m = re.match(r"^(?:tests|backend|modules/tests)/.*: (\d+)$", line.strip())
@@ -123,7 +123,7 @@ def _git(*args: str) -> str:
         return subprocess.run(["git", *args], cwd=ROOT, capture_output=True,
                               text=True, timeout=60).stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
-        return ""
+        return ""  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def _git_days() -> int:
@@ -160,7 +160,7 @@ def _csv_span(rel: str, col: int = 0, sep: str = "–") -> str:
                     first = v
                 last = v
     except OSError:
-        return ""
+        return ""  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
     if not first or not last:
         return ""
     return f"{first[:4]}{sep}{last[:4]}"

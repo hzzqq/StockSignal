@@ -13,7 +13,7 @@ import pandas as pd
 
 from modules.ui_kit import xc_handle_error, xc_content_card, xc_kpi_grid
 from modules.page_utils import render_standard_page
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_regime as mr
 from modules.shepherd import get_shepherd_indicators, shepherd_temperature
@@ -70,7 +70,7 @@ try:
     st.markdown("---")
     cL, cR = st.columns([1, 1])
     with cL:
-        section_header("广度快照", "最新交易日核心指标", icon="📡")
+        xc_section_header("广度快照", "最新交易日核心指标", icon="📡")
         snap = {"红盘率(%)": latest.get("red_ratio"), "涨停家数": latest.get("limit_up"),
                 "跌停家数": latest.get("limit_down"), "连板高度": latest.get("connect_hl"),
                 "炸板率(%)": latest.get("zt_fail_ratio")}
@@ -79,7 +79,7 @@ try:
         if meta and meta.get("unavailable"):
             st.caption("⚠️ 部分字段数据源缺失：" + ", ".join(str(x[0]) for x in meta["unavailable"][:3]))
     with cR:
-        section_header("市场状态机速览", "五档状态 + 全历史分布", icon="🧭")
+        xc_section_header("市场状态机速览", "五档状态 + 全历史分布", icon="🧭")
         dist = regime["state_distribution"]
         for s in mr.STATE_ORDER:
             n = dist[s]
@@ -90,16 +90,16 @@ try:
                 f"<div style='display:flex;align-items:center;gap:8px;margin:3px 0'>"
                 f"<span style='width:54px;color:{col};font-weight:700'>{s}</span>"
                 f"<span style='flex:1;height:10px;background:{_hex_to_rgba(col,0.25)};"
-                f"border-radius:5px;position:relative'>"
+                f"border-radius:var(--ss-radius-sm);position:relative'>"
                 f"<span style='position:absolute;left:0;top:0;height:100%;width:{pct:.1f}%;"
-                f"background:{col};border-radius:5px'></span></span>"
+                f"background:{col};border-radius:var(--ss-radius-sm)'></span></span>"
                 f"<span style='width:70px;text-align:right;font-size:12px'>{n} 天 ({pct:.1f}%)</span></div>",
                 unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html
             )
 
     # ── 历史类比速览 ──
     st.markdown("---")
-    section_header("历史情境类比速览", f"与 {regime['latest']['date']} 最相似的 {len(regime['analogs'])} 个交易日", icon="🕰️")
+    xc_section_header("历史情境类比速览", f"与 {regime['latest']['date']} 最相似的 {len(regime['analogs'])} 个交易日", icon="🕰️")
     cols = st.columns(min(len(regime["analogs"]), 4))
     for idx, a in enumerate(regime["analogs"][:4]):
         col = cols[idx % 4]
@@ -110,7 +110,7 @@ try:
             up5 = f5.get("up_frac")
             upc = UP_COLOR if (up5 is not None and up5 > 0.5) else DOWN_COLOR
             st.markdown(
-                f"<div style='border-left:4px solid {ac};border-radius:8px;padding:8px 10px;"
+                f"<div style='border-left:4px solid {ac};border-radius:var(--ss-radius-sm);padding:8px 10px;"
                 f"background:{_hex_to_rgba(ac,0.10)};font-size:12px'>"
                 f"<div style='font-weight:700;color:{ac}'>{a['date']}</div>"
                 f"<div style='opacity:.7'>状态 {a['state']} · 距离 {a['distance']:.3f}</div>"
@@ -122,7 +122,7 @@ try:
 
     # ── 跳转入口 ──
     st.markdown("---")
-    section_header("深入各模块", "点击进入完整功能页", icon="🔗")
+    xc_section_header("深入各模块", "点击进入完整功能页", icon="🔗")
     st.page_link("pages/50_市场情绪.py", label="🌡️ 市场情绪 · 广度与情绪温度计", icon="📊")
     st.page_link("pages/54_今日决策面板.py", label="🎯 今日决策面板", icon="📊")
     st.page_link("pages/56_市场状态机.py", label="🧭 市场状态机 · 历史情境类比", icon="📊")

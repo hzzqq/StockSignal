@@ -24,7 +24,7 @@ import streamlit as st
 from modules import event_graph as evg
 from modules.page_utils import render_standard_page
 from modules.theme_heat import LIFECYCLE_ORDER, col_of, load_concepts
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ def _evg_render(res: dict) -> None:
     shown = evg.display_rows(res, limit=30)
     for i, r in enumerate(shown, 1):
         badge = ("<span style='color:#f59e0b;font-size:10px;margin-left:5px;"
-                 "border:1px solid rgba(245,158,11,.5);border-radius:3px;padding:0 3px'>点名</span>"
+                 "border:1px solid rgba(245,158,11,.5);border-radius:var(--ss-radius-xs);padding:0 3px'>点名</span>"
                  if r["direct"] else "")
         # display_rows 输出（新闻标题/概念/名称等 DB 输入）流向 HTML：动态串统一转义
         rows += (
@@ -148,7 +148,7 @@ xc_kpi_grid([
 st.markdown("---")
 
 # ── ② treemap 热力图 ──────────────────────────────────────────────────
-section_header("题材热力图", "方块面积=板块总市值，颜色=涨跌幅（红涨绿跌）", icon="🗺️")
+xc_section_header("题材热力图", "方块面积=板块总市值，颜色=涨跌幅（红涨绿跌）", icon="🗺️")
 mv_c = col_of(df, "mv")
 vals = df[mv_c] if mv_c else (chg.abs() + 1.0)
 mx = max(abs(float(chg.min() or 0)), abs(float(chg.max() or 0)), 1.0)
@@ -174,7 +174,7 @@ st.markdown("---")
 # ── ③ 生命周期分布 + 明细 ─────────────────────────────────────────────
 cc1, cc2 = st.columns([2, 3])
 with cc1:
-    section_header("生命周期分布", "按涨跌幅+换手分位启发式分类", icon="🔄")
+    xc_section_header("生命周期分布", "按涨跌幅+换手分位启发式分类", icon="🔄")
     life = df["_life"].value_counts()
     order = [x for x in LIFECYCLE_ORDER if life.get(x, 0) > 0]
     fig_life = go.Figure(go.Bar(
@@ -188,7 +188,7 @@ with cc1:
     st.plotly_chart(fig_life, width="stretch")
 
 with cc2:
-    section_header("热度榜（涨幅 Top 20）", "含生命周期标签与领涨股", icon="🏆")
+    xc_section_header("热度榜（涨幅 Top 20）", "含生命周期标签与领涨股", icon="🏆")
     leader_c = col_of(df, "leader")
     top = df.sort_values("_chg", ascending=False).head(20)
     rows = ""
@@ -211,7 +211,7 @@ with cc2:
 st.markdown("---")
 
 # ── ④ 事件传导图谱（H3）──────────────────────────────────────────────
-section_header("事件传导图谱", "从「一条消息」走到「谁可能受影响」——文本共现关联度，非收益预测", icon="🧭")
+xc_section_header("事件传导图谱", "从「一条消息」走到「谁可能受影响」——文本共现关联度，非收益预测", icon="🧭")
 
 st.caption("按需生成：抓取近期市场新闻标题 → 识别标题里**真正命中**的概念题材 → 展开东财真实成分股 "
            "→ 按「文本共现强度」排序（概念命中 ×1；个股与概念同标题被点名 ×3）。"

@@ -74,16 +74,20 @@ def _style_presets() -> dict:
 
 
 def _classic_bases() -> dict:
-    """classic 风格无自带 vars，令牌继承 dashboard_sf_css 内暗/亮两份基座 root。"""
-    bases = {}
-    for m in re.finditer(r"root = '((?:[^'\\]|\\.)*)'", THEME_SRC):
-        s = ast.literal_eval("'" + m.group(1) + "'")
-        if "--bg:#0f0f23" in s:
-            bases["dark"] = _parse_vars(s)
-        elif "--bg:#ffffff" in s:
-            bases["light"] = _parse_vars(s)
-    assert set(bases) == {"dark", "light"}, f"classic 基座解析异常：{list(bases)}"
-    return bases
+    """classic 风格无自带 vars，令牌继承 modules/ui_theme._THEME_ROOT_VARS 暗/亮两份基座 root。"""
+    for node in ast.walk(ast.parse(THEME_SRC)):
+        if isinstance(node, ast.Assign) and any(
+            getattr(t, "id", None) == "_THEME_ROOT_VARS" for t in node.targets
+        ):
+            d = ast.literal_eval(node.value)
+            bases = {}
+            if "--bg:#0f0f23" in d.get("dark", ""):
+                bases["dark"] = _parse_vars(d["dark"])
+            if "--bg:#ffffff" in d.get("light", ""):
+                bases["light"] = _parse_vars(d["light"])
+            assert set(bases) == {"dark", "light"}, f"classic 基座解析异常：{list(bases)}"
+            return bases
+    raise AssertionError("ui_theme.py 中未找到 _THEME_ROOT_VARS 定义")
 
 
 _PRESETS = _style_presets()

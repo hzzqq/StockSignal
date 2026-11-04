@@ -16,7 +16,7 @@ import streamlit as st
 
 from modules.page_guard import safe_fragment
 from modules.time_utils import now_cst_naive
-from modules.ui_kit import info_banner, xc_warn_box
+from modules.ui_kit import xc_info_banner, xc_warn_box
 from modules.session_api import (
     api_get,
     api_mark_alert_read,
@@ -323,7 +323,7 @@ def fragment_market_alerts_panel() -> None:
                 st.session_state["_alert_panel_nonce"] = nonce + 1
 
         if not items:
-            info_banner("暂无异动提醒。后台调度器会在交易时段扫描广度/情绪/估值指标越界并推送。")
+            xc_info_banner("暂无异动提醒。后台调度器会在交易时段扫描广度/情绪/估值指标越界并推送。")
             return
 
         _sev_icon = {"danger": "⛔", "warning": "⚠️", "info": "ℹ️"}

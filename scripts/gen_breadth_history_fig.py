@@ -52,7 +52,7 @@ def _fnum(v):
     try:
         return float(s)
     except ValueError:
-        return None
+        return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def breadth_stats(csv_path: str = CSV_PATH) -> dict:

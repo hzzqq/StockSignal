@@ -36,7 +36,7 @@ class BaseAgent:
             return getattr(mod, attr)
         except Exception as e:  # noqa: BLE001
             state.add_error(f"导入 {module}.{attr} 失败: {e}")
-            return None
+            return None  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
     @staticmethod
     def _num(v: Any, default: float = 0.0) -> float:

@@ -54,7 +54,7 @@ def total_market_value(positions):
     try:
         return sum(market_value_of(p) for p in positions)
     except (TypeError, ValueError):
-        return 0.0
+        return 0.0  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
 
 
 def position_weights(positions):

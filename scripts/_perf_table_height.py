@@ -47,7 +47,7 @@ def process_file(path):
         tree = ast.parse(src)
     except SyntaxError as e:
         print(f"  SKIP (syntax): {path}: {e}")
-        return 0
+        return 0  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
     starts = line_byte_starts(src)
     ops = []
 
@@ -95,7 +95,7 @@ def process_file(path):
         ast.parse(new_src)
     except SyntaxError:
         print(f"  SKIP (would break syntax): {path}")
-        return 0
+        return 0  # ui_audit_exempt(T-239R2): except 内优雅降级哨兵-已审
     if _DRY_RUN:
         print(f"[dry-run] 将 patch {path}")
         return 0

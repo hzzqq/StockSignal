@@ -25,7 +25,8 @@ from modules.page_utils import _build_status_chips
 def test_hero_fallback_css_contains_xc_hero_class():
     """首帧兜底 CSS 必须定义 .xc-hero 容器样式（圆角 + 渐变 + 阴影），缺一不可。"""
     assert ".xc-hero{" in _HERO_FALLBACK_CSS
-    assert "border-radius:18px" in _HERO_FALLBACK_CSS
+    # Phase 6-2 圆角归一：18px 已吸附到 --ss-radius-card 档（16px，装饰性漂移 2px）
+    assert "border-radius:var(--ss-radius-card)" in _HERO_FALLBACK_CSS
     # 渐变背景是新城风格的核心特征，丢了就成了纯色卡片
     assert "linear-gradient(120deg," in _HERO_FALLBACK_CSS
     # box-shadow 抬升光晕（T-145 A1 后走 --ss-shadow-hero token，兜底通道自带 token 层）
@@ -59,7 +60,8 @@ def test_status_chips_have_inline_style():
             "chip 必须 inline style —— 不然会回到「首屏朴素、刷新后才好」的坑"
         # 关键视觉属性全部 inline
         assert "display:inline-flex" in c
-        assert "border-radius:999px" in c
+        # Phase 6-2 圆角归一：999px 胶囊走 --ss-radius-pill 令牌（仍为 inline style）
+        assert "border-radius:var(--ss-radius-pill)" in c
         assert "padding:5px 12px" in c
         assert "font-size:12px" in c
         # dot 也是 inline

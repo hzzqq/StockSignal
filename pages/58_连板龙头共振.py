@@ -18,7 +18,7 @@ import streamlit as st
 
 from modules.ui_kit import xc_handle_error, xc_content_card, xc_bento_kpi, xc_kpi_grid
 from modules.page_utils import render_standard_page
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules.colors import UP_COLOR, DOWN_COLOR, _hex_to_rgba
 from modules import market_regime as mr
 from modules import shepherd_ladder as sl
@@ -51,8 +51,8 @@ def _bar(label, value, color, maxv=100.0, suffix=""):
         f"<div style='margin:6px 0'>"
         f"<div style='display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px'>"
         f"<span>{label}</span><span style='color:{color};font-weight:700'>{value if value is not None else '—'}{suffix}</span></div>"
-        f"<div style='height:8px;background:{_hex_to_rgba(color,0.18)};border-radius:5px'>"
-        f"<span style='display:block;height:100%;width:{pct:.1f}%;background:{color};border-radius:5px'></span></div></div>"
+        f"<div style='height:8px;background:{_hex_to_rgba(color,0.18)};border-radius:var(--ss-radius-sm)'>"
+        f"<span style='display:block;height:100%;width:{pct:.1f}%;background:{color};border-radius:var(--ss-radius-sm)'></span></div></div>"
     )
 
 
@@ -115,7 +115,7 @@ try:
 
     # ── 龙头强度分解 ──
     st.markdown("---")
-    section_header("连板龙头强度分解", "高度 + 高位集中度 + 接力意愿（市场级，非个股）", icon="📐")
+    xc_section_header("连板龙头强度分解", "高度 + 高位集中度 + 接力意愿（市场级，非个股）", icon="📐")
     comp = ls.get("components", {})
     html = ""
     html += _bar("连板高度（最高板映射）", comp.get("height"), _leader_color(comp.get("height")), suffix="")
@@ -130,7 +130,7 @@ try:
 
     # ── 次日晋级概率 ──
     st.markdown("---")
-    section_header("次日晋级概率（诚实标注）", "即时观测值，非稳定历史概率", icon="🔭")
+    xc_section_header("次日晋级概率（诚实标注）", "即时观测值，非稳定历史概率", icon="🔭")
     xc_kpi_grid([
         {"label": "即时 2板晋级率", "value": _safe(ndp.get("live_rate"), 1) + "%", "delta": "最近一对快照"},
         {"label": "历史平均晋级率", "value": _safe(ndp.get("hist_rate"), 1) + "%",
@@ -141,11 +141,11 @@ try:
 
     # ── 事件 × 广度共振 ──
     st.markdown("---")
-    section_header("连板强度 × 市场状态 共振", "两路独立信号交叉验证", icon="🧲")
+    xc_section_header("连板强度 × 市场状态 共振", "两路独立信号交叉验证", icon="🧲")
     rcol = reso.get("color", "#94a3b8")
     # ui_audit_exempt: unsafe-allow-html 共振卡 label/detail 为 market_regime 模块内部模板文案，数值内部计算，无用户输入流向
     st.markdown(
-        f"<div style='border-left:5px solid {rcol};border-radius:10px;padding:12px 16px;"
+        f"<div style='border-left:5px solid {rcol};border-radius:var(--ss-radius);padding:12px 16px;"
         f"background:{_hex_to_rgba(rcol,0.12)}'>"
         f"<div style='font-size:18px;font-weight:800;color:{rcol}'>{reso.get('label')}</div>"
         f"<div style='font-size:13px;opacity:.85;margin-top:4px'>{reso.get('detail','')}</div>"
@@ -158,7 +158,7 @@ try:
     # ── 事件因子多头池 ──
     st.markdown("---")
     live_tag = "🔴 LIVE·P1实时" if ep.get("live") else "📦 离线快照"
-    section_header("事件因子多头池（交叉验证源）",
+    xc_section_header("事件因子多头池（交叉验证源）",
                    f"P1-QuantFactor 因子 · {live_tag}", icon="🎯")
     if ep.get("available"):
         if ep.get("live"):
@@ -196,7 +196,7 @@ try:
 
     # ── 跳转 + 诚实声明 ──
     st.markdown("---")
-    section_header("相关模块", "点击进入完整功能页", icon="🔗")
+    xc_section_header("相关模块", "点击进入完整功能页", icon="🔗")
     st.page_link("pages/56_市场状态机.py", label="🧭 市场状态机 · 历史情境类比", icon="📊")
     st.page_link("pages/57_市场全景.py", label="🛰️ 市场全景 · 一页纸指挥台", icon="📊")
     st.page_link("pages/50_市场情绪.py", label="🌡️ 市场情绪 · 广度与情绪温度", icon="📊")

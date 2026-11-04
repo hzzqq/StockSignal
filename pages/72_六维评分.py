@@ -23,7 +23,7 @@ import streamlit as st
 from modules.colors import UP_COLOR
 from modules.page_utils import render_standard_page, hist_cached
 from modules.six_dim import DIM_LABELS, compute_dims
-from modules.ui_theme import section_header
+from modules.ui_kit import xc_section_header
 from modules.ui_kit import xc_kpi_grid
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ if st.button("🔍 评分", key="six_dim_run", type="primary"):
         st.stop()
 
     st.markdown("---")
-    section_header("综合评分", f"有效 {coverage}/6 维等权平均（缺失维不参与，避免被 0 拉低）", icon="🎯")
+    xc_section_header("综合评分", f"有效 {coverage}/6 维等权平均（缺失维不参与，避免被 0 拉低）", icon="🎯")
     xc_kpi_grid([
         {"label": "综合分", "value": f"{overall:.1f}" if overall is not None else "—", "delta": "0–100"},
         {"label": "数据覆盖", "value": f"{coverage}/6", "delta": "维度可用性"},
@@ -111,7 +111,7 @@ if st.button("🔍 评分", key="six_dim_run", type="primary"):
     else:
         st.info("有效维度不足 3，雷达不可用。")
 
-    section_header("逐维分解", "每维的原始输入与映射结果（缺失维明示原因）", icon="🧩")
+    xc_section_header("逐维分解", "每维的原始输入与映射结果（缺失维明示原因）", icon="🧩")
     _raw_hint = {
         "technical": "MA20 偏离 / 20&60 日动量",
         "capital": f"换手 {raw.get('turnover')} · 量比 {raw.get('vol_ratio')}",
@@ -131,8 +131,8 @@ if st.button("🔍 评分", key="six_dim_run", type="primary"):
             pct = max(0, min(100, int(v)))
             bar = (
                 "<div style='height:6px;width:100%;background:rgba(148,163,184,.15);"
-                "border-radius:3px;margin-top:5px;overflow:hidden'>"
-                f"<div style='height:100%;width:{pct}%;background:{color};border-radius:3px'></div></div>"
+                "border-radius:var(--ss-radius-xs);margin-top:5px;overflow:hidden'>"
+                f"<div style='height:100%;width:{pct}%;background:{color};border-radius:var(--ss-radius-xs)'></div></div>"
             )
         rows += (
             "<div style='padding:7px 0;border-bottom:1px solid rgba(148,163,184,.15);font-size:13px'>"
