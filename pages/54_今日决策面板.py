@@ -43,7 +43,7 @@ from modules.page_guard import safe_fragment, render_data_degradation_banner
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, ss_hover_preview, xc_kpi_grid, xc_bento_kpi, xc_content_card
 from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GRU/融合）
-from modules.event_factor import get_event_factor  # 事件因子适配器（真实信号，无合成）
+from modules.event_factor import get_event_factor, fusion_source_note  # 事件因子适配器（真实信号，无合成）；B：融合来源旁注
 from modules.next_day_edge_view import render_next_day_edge  # 次日情绪极值判断组件（复用 panic_reversal）
 
 
@@ -563,6 +563,7 @@ def fragment_p1_ev():
                 f"<span style='color:{_col};font-weight:600'>{_sc_txt}</span>"
                 f"　信号：<b>{ef.get('signal')}</b>　来源：<code>{ef.get('source')}</code>",
                 unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
+            st.caption(fusion_source_note(_q.strip()))  # B：事件融合来源旁注（纯展示，零逻辑分支）
         else:
             # fix（T-258）：查询无结果分支——原 else 挂在 if _q 上，既造成空输入
             # UnboundLocalError（ef 未绑定），又让「无信号」提示从未显示过。
