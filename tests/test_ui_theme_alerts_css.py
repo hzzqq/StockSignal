@@ -86,7 +86,7 @@ def test_expander_compact_and_accent():
     idx = _CSS.index('[data-testid="stExpander"] summary')
     seg = _CSS[idx:idx + 400]
     assert "border-left:3px solid transparent" in seg, "expander 表头无强调条"
-    assert "hover" in seg and "border-left-color:var(--acc1)" in seg, "expander hover 未高亮"
+    assert "hover" in seg and "border-left-color:var(--brand-1)" in seg, "expander hover 未高亮"
 
 
 # ──────────── T-280：剩余原生组件收敛（download_button / pills / segmented_control / file_uploader）────────────
@@ -96,7 +96,7 @@ def test_download_button_unified_with_button_language():
     assert '[data-testid="stDownloadButton"] button' in _CSS, "下载按钮未纳入统一视觉"
     idx = _CSS.index('[data-testid="stDownloadButton"] button')
     seg = _CSS[idx:idx + 260]
-    assert "border-radius:10px" in seg, "下载按钮无统一圆角"
+    assert "border-radius:var(--ss-radius)" in seg, "下载按钮无统一圆角"
     assert "hover" in _CSS[idx:idx + 700], "下载按钮缺 hover 态"
 
 
@@ -105,7 +105,7 @@ def test_pills_themed_chip():
     assert 'button[kind="pills"]' in _CSS, "pills 未主题化（未选态）"
     assert 'button[kind="pillsActive"]' in _CSS, "pills 选中态未主题化"
     idx = _CSS.index('button[kind="pillsActive"]')
-    assert "border-radius:999px" in _CSS[idx:idx + 200], "pills 选中态非胶囊圆角"
+    assert "border-radius:var(--ss-radius-pill)" in _CSS[idx:idx + 200], "pills 选中态非胶囊圆角"
 
 
 def test_segmented_control_themed():

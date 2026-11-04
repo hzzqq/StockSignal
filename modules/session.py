@@ -670,8 +670,8 @@ def _render_login_gate() -> None:
     .ss-login-card {{
         max-width: 420px;
         margin: 5rem auto 0 auto;
-        background: linear-gradient(145deg, color-mix(in srgb, var(--acc1) 10%, var(--card)) 0%, var(--card) 100%);
-        border: 1px solid color-mix(in srgb, var(--acc1) 35%, var(--border));
+        background: linear-gradient(145deg, color-mix(in srgb, var(--brand-1) 10%, var(--card)) 0%, var(--card) 100%);
+        border: 1px solid color-mix(in srgb, var(--brand-1) 35%, var(--border));
         border-radius: var(--ss-login-radius, 28px);
         padding: 2.5rem 2rem 2.25rem 2rem;
         text-align: center;
@@ -684,37 +684,37 @@ def _render_login_gate() -> None:
     }}
     .ss-login-hero {{text-align:center;margin:4px 0 26px}}
     .ss-login-hero h1 {{font-size:2.2rem;font-weight:900;color:var(--txt);margin:0 0 6px}}
-    .ss-login-hero h1 .ss-grad {{background:linear-gradient(90deg,var(--acc1),var(--acc2));
+    .ss-login-hero h1 .ss-grad {{background:linear-gradient(90deg,var(--brand-1),var(--brand-2));
       -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}}
     .ss-login-hero p {{font-size:1rem;color:var(--txt2);margin:0}}
-    .ss-login-hero p b {{color:var(--acc1);font-weight:800}}
+    .ss-login-hero p b {{color:var(--brand-1);font-weight:800}}
     .ss-login-card::before {{
         content: "";
         position: absolute;
         top: 0; left: 0; right: 0;
         height: 4px;
-        background: linear-gradient(90deg, var(--acc1) 0%, var(--acc2) 50%, var(--acc1) 100%);
+        background: linear-gradient(90deg, var(--brand-1) 0%, var(--brand-2) 50%, var(--brand-1) 100%);
     }}
     .ss-login-card::after {{
         content: "";
         position: absolute;
         top: -60px; right: -60px;
         width: 140px; height: 140px;
-        background: radial-gradient(circle, color-mix(in srgb, var(--acc2) 20%, transparent) 0%, transparent 70%);
+        background: radial-gradient(circle, color-mix(in srgb, var(--brand-2) 20%, transparent) 0%, transparent 70%);
         pointer-events: none;
     }}
     .ss-login-logo {{
         width: 96px;
         height: 96px;
         border-radius: var(--ss-radius-card);
-        box-shadow: 0 10px 32px color-mix(in srgb, var(--acc2) 30%, transparent);
+        box-shadow: 0 10px 32px color-mix(in srgb, var(--brand-2) 30%, transparent);
         margin-bottom: 1.5rem;
         border: 1px solid rgba(255, 255, 255, 0.1);
     }}
     .ss-login-title {{
         font-size: 2.1rem;
         font-weight: 800;
-        background: linear-gradient(90deg, var(--acc1) 0%, var(--acc2) 100%);
+        background: linear-gradient(90deg, var(--brand-1) 0%, var(--brand-2) 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.35rem;
@@ -734,9 +734,9 @@ def _render_login_gate() -> None:
     }}
     .ss-login-badge {{
         display: inline-block;
-        background: color-mix(in srgb, var(--acc1) 12%, transparent);
-        color: var(--acc1);
-        border: 1px solid color-mix(in srgb, var(--acc1) 35%, transparent);
+        background: color-mix(in srgb, var(--brand-1) 12%, transparent);
+        color: var(--brand-1);
+        border: 1px solid color-mix(in srgb, var(--brand-1) 35%, transparent);
         border-radius: var(--ss-radius-pill);
         padding: 0.45rem 1rem;
         font-size: 0.82rem;
@@ -747,7 +747,7 @@ def _render_login_gate() -> None:
         display: block;
         width: 100%;
         padding: 0.75rem 1rem;
-        background: linear-gradient(90deg, var(--acc1), var(--acc2));
+        background: linear-gradient(90deg, var(--brand-1), var(--brand-2));
         color: var(--ss-login-btn-text, #fff) !important;
         font-size: 1rem;
         font-weight: 700;
@@ -755,13 +755,13 @@ def _render_login_gate() -> None:
         text-decoration: none;
         border-radius: var(--ss-radius);
         border: none;
-        box-shadow: 0 8px 24px color-mix(in srgb, var(--acc1) 35%, transparent);
+        box-shadow: 0 8px 24px color-mix(in srgb, var(--brand-1) 35%, transparent);
         transition: transform 0.15s ease, box-shadow 0.15s ease;
         cursor: pointer;
     }}
     .ss-login-btn:hover {{
         transform: translateY(-2px);
-        box-shadow: 0 12px 32px color-mix(in srgb, var(--acc1) 45%, transparent);
+        box-shadow: 0 12px 32px color-mix(in srgb, var(--brand-1) 45%, transparent);
     }}
     .ss-login-footer {{
         text-align: center;

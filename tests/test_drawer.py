@@ -94,7 +94,7 @@ def test_drawer_js_global_api():
 def test_drawer_css_variable_driven():
     """CSS 全走风格变量（六套主题自动适配），含滑出动画与层级。"""
     css = drawer_css()
-    assert "var(--card" in css and "var(--acc1" in css and "var(--border" in css
+    assert "var(--card" in css and "var(--brand-1" in css and "var(--border" in css
     assert "var(--txt" in css
     assert "right:-460px" in css and "right:0" in css   # 滑出/展开两态
     assert "z-index:100004" in css                       # 高于 mega(100000)/cmd(100002)

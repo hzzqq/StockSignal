@@ -216,20 +216,20 @@ def _render_project_intro():
     """首页顶部项目说明：居中痛点叙事 + 01/02/03 编号卡 + 金句行 + 三色能力卡。
 
     设计参照轻量营销页（大留白、少文字、关键词高亮、编号卡片）；
-    配色用令牌（--txt/--txt2/--card/--acc1）+ 三枚固定点缀色（琥珀/青/紫罗兰），
+    配色用令牌（--txt/--txt2/--card/--brand-1）+ 三枚固定点缀色（琥珀/青/紫罗兰），
     深浅主题下均以令牌底色兜底，保证七风格可读。"""
     st.markdown(
         """
         <style>
         .ss-hero{max-width:1060px;margin:0 auto .4rem;text-align:center}
-        .ss-hero-eyebrow{display:inline-block;color:var(--acc1);
-            background:color-mix(in srgb,var(--acc1) 10%,transparent);
-            border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent);
+        .ss-hero-eyebrow{display:inline-block;color:var(--brand-1);
+            background:color-mix(in srgb,var(--brand-1) 10%,transparent);
+            border:1px solid color-mix(in srgb,var(--brand-1) 30%,transparent);
             border-radius:999px;padding:.28rem 1rem;font-size:.78rem;font-weight:700;
             letter-spacing:.06em;margin:.4rem 0 1rem}
         .ss-hero h1{margin:.1rem 0 .6rem;font-size:2.05rem;line-height:1.3;
             font-weight:800;color:var(--txt)}
-        .ss-hero h1 .hl{color:var(--acc1)}
+        .ss-hero h1 .hl{color:var(--brand-1)}
         .ss-hero .sub{margin:0 auto 1.4rem;max-width:620px;color:var(--txt2);
             font-size:.95rem;line-height:1.7}
         .ss-pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;
@@ -237,17 +237,17 @@ def _render_project_intro():
         .ss-pain-card{position:relative;background:var(--card);
             border:1px solid var(--border);border-radius:16px;padding:1.15rem 1.2rem .95rem;
             transition:transform .18s ease,border-color .18s ease}
-        .ss-pain-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--acc1) 45%,var(--border))}
+        .ss-pain-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--brand-1) 45%,var(--border))}
         .ss-pain-card .ic{display:inline-flex;align-items:center;justify-content:center;
             width:38px;height:38px;border-radius:10px;font-size:1.15rem;
-            background:color-mix(in srgb,var(--acc1) 10%,transparent)}
+            background:color-mix(in srgb,var(--brand-1) 10%,transparent)}
         .ss-pain-card .num{position:absolute;top:.7rem;right:1rem;font-size:1.5rem;
-            font-weight:800;color:color-mix(in srgb,var(--acc1) 38%,transparent)}
+            font-weight:800;color:color-mix(in srgb,var(--brand-1) 38%,transparent)}
         .ss-pain-card b{display:block;margin:.65rem 0 .3rem;color:var(--txt);font-size:1.02rem}
         .ss-pain-card small{display:block;color:var(--txt2);font-size:.8rem;line-height:1.6}
         .ss-quote{margin:0 auto 1.5rem;max-width:820px;font-size:1.02rem;
             color:var(--txt);line-height:1.8}
-        .ss-quote .hl{color:var(--acc1);font-weight:700}
+        .ss-quote .hl{color:var(--brand-1);font-weight:700}
         .ss-cap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;
             max-width:1060px;margin:0 auto;text-align:left}
         .ss-cap{border-radius:16px;padding:1.05rem 1.15rem;

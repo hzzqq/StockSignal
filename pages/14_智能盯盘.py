@@ -526,7 +526,7 @@ def fragment_alerts():
         color = a['color']
         icon = {'strong': '🔴', 'mid': '🟡', 'weak': '🟢'}[a['tier']]
         # 告警文案来自后端/引擎字段（类型/代码/名称/说明），统一 html.escape 后再走 unsafe 渲染
-        st.markdown(f"""<div style="border-left:4px solid {color};background:color-mix(in srgb,var(--acc1) 8%,var(--card2));padding:8px 12px;margin:6px 0;border-radius:var(--ss-radius-sm);">{icon} <b>[{html.escape(str(a['类型']))}]</b> `{html.escape(str(a['代码']))}` {html.escape(str(a['名称']))} ｜ {html.escape(str(a['说明']))}</div>""", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
+        st.markdown(f"""<div style="border-left:4px solid {color};background:color-mix(in srgb,var(--brand-1) 8%,var(--card2));padding:8px 12px;margin:6px 0;border-radius:var(--ss-radius-sm);">{icon} <b>[{html.escape(str(a['类型']))}]</b> `{html.escape(str(a['代码']))}` {html.escape(str(a['名称']))} ｜ {html.escape(str(a['说明']))}</div>""", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html
 
 @safe_fragment('关注列表')
 def fragment_watch_manage():

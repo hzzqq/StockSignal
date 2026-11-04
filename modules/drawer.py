@@ -132,8 +132,8 @@ def drawer_css() -> str:
   -webkit-line-clamp:2;-webkit-box-orient:vertical}
 #ssDrawerRoot .ss-drawer-close{border:none;background:transparent;color:var(--txt2,#6b7280);
   font-size:16px;cursor:pointer;padding:4px 8px;border-radius:var(--ss-radius-sm);flex-shrink:0}
-#ssDrawerRoot .ss-drawer-close:hover{background:color-mix(in srgb,var(--acc1,#4f46e5) 10%,transparent);
-  color:var(--acc1,#4f46e5)}
+#ssDrawerRoot .ss-drawer-close:hover{background:color-mix(in srgb,var(--brand-1,#4f46e5) 10%,transparent);
+  color:var(--brand-1,#4f46e5)}
 #ssDrawerRoot .ss-drawer-meta{font-size:12px;color:var(--txt2,#6b7280);margin-bottom:10px;line-height:1.6}
 #ssDrawerRoot .ss-drawer-body{flex:1;overflow-y:auto;font-size:13.5px;color:var(--txt,#1f2937);
   line-height:1.65;white-space:pre-wrap;word-break:break-word}
@@ -141,7 +141,7 @@ def drawer_css() -> str:
 .ss-preview-btn{border:1px solid var(--border,#e2e8f0);background:transparent;
   color:var(--txt2,#6b7280);border-radius:var(--ss-radius-sm);padding:2px 8px;font-size:11.5px;cursor:pointer;
   transition:all .15s ease;margin-left:6px}
-.ss-preview-btn:hover{color:var(--acc1,#4f46e5);border-color:var(--acc1,#4f46e5)}
+.ss-preview-btn:hover{color:var(--brand-1,#4f46e5);border-color:var(--brand-1,#4f46e5)}
 </style>
 """
 

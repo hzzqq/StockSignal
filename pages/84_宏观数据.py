@@ -44,7 +44,7 @@ _REGIME_CSS = """
 .xcm-sub{display:flex;justify-content:space-between;align-items:baseline;
   font-size:.78rem;color:var(--txt2)}
 .xcm-sub .xcm-pv{color:var(--txt);font-weight:600}
-.xcm-sub .xcm-ps{color:var(--acc1);font-weight:700;font-size:.72rem}
+.xcm-sub .xcm-ps{color:var(--brand-1);font-weight:700;font-size:.72rem}
 .xcm-note{font-size:.7rem;color:var(--txt2);margin-top:.5rem;line-height:1.45}
 @media(max-width:640px){.xcm-subs{grid-template-columns:1fr}}
 </style>
@@ -113,7 +113,7 @@ def _render_regime_card(regime: dict) -> None:
     if score >= 60:
         col = "var(--ss-up)"      # 绿（宽松利好）
     elif score >= 45:
-        col = "var(--acc1)"       # 中性 accent
+        col = "var(--brand-1)"       # 中性 accent
     else:
         col = "var(--ss-down)"    # 红（收紧）
     sub = regime.get("sub", {})

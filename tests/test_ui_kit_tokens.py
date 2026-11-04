@@ -34,7 +34,7 @@ def test_token_layer_defined_and_wired():
         "--ss-shadow-card:", "--ss-shadow-lift:", "--ss-shadow-hero:",
         "--ss-font-num:",
         "--ss-font-cjk:'Microsoft YaHei UI'", "'PingFang SC'",
-        "--ss-accent:var(--acc1", "--ss-accent2:var(--acc2",
+        "--ss-accent:var(--brand-1", "--ss-accent2:var(--brand-2",
         "--ss-surface:var(--card", "--ss-surface-2:var(--card2",
         "--ss-text:var(--txt", "--ss-text-muted:var(--txt2", "--ss-line:var(--border",
     )
@@ -207,7 +207,7 @@ def test_no_hardcoded_purple_rgba_in_kit_and_theme():
 
     G1 扩展（2026-11-01）：覆盖面从 ui_kit/ui_theme 扩到共享组件 chrome 层
     （button_colors/widgets/_compare_render）。不锁 hex #667eea——它是
-    --ss-accent 的合法回退默认值（starfield --acc1 同理）；Plotly/echarts
+    --ss-accent 的合法回退默认值（starfield --brand-1 同理）；Plotly/echarts
     数据可视化序列色不属 chrome，不在本锁内。
 
     本守卫读取两文件原始文本，断言子串 ``rgba(102,126,234`` 与 ``rgba(124,92,255``
@@ -241,10 +241,10 @@ def test_typography_contract_cjk_and_base_font_size():
 
 
 def test_token_aliases_bound_to_existing():
-    """design_system.md 第2章别名须绑定 --ss-*/--acc* 等价变量或 colors.* 既有值，不得臆造独立色相。"""
+    """design_system.md 第2章：--brand-1/--brand-2 为品牌令牌（具体 hex 单源，非 --acc 别名），不得臆造独立色相。"""
     css = _kit()._KIT_CSS
     required_aliases = (
-        "--brand-1:var(--acc1", "--brand-2:var(--acc2",
+        "--brand-1:#4f46e5", "--brand-2:#7c3aed",
         "--c-up:var(--ss-up,#ff4d4f)", "--c-down:var(--ss-down,#00d486)",
         "--c-ok:var(--ss-ok,#16a34a)",
         "--c-hold:#ffa502", "--c-warn:#f59e0b", "--c-danger:#ef4444", "--c-info:#3b82f6",

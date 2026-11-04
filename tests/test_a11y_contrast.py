@@ -5,9 +5,9 @@
 静默引入不达标组合。口径（与 WCAG 2.1 SC 1.4.3 对齐）：
 
 - 正文与辅助文字（``--txt`` / ``--txt2``）对背景与卡片：≥ 4.5:1
-- accent（``--acc1`` / ``--acc2``，用于强调文字/边框/链接）：≥ 3.0:1
+- accent（``--brand-1`` / ``--brand-2``，用于强调文字/边框/链接）：≥ 3.0:1
 - 登录 CTA 文字（``--ss-login-btn-text``，默认 #fff）对其按钮底色
-  （默认 ``linear-gradient(90deg, var(--acc1), var(--acc2))`` 两端，
+  （默认 ``linear-gradient(90deg, var(--brand-1), var(--brand-2))`` 两端，
   以及 extra 中显式覆盖的渐变 stops / 纯色背景）：≥ 4.5:1
 - ink 风格 extra 中 ``.stMetric label`` 硬编码色对 ink 卡片：≥ 4.5:1
 
@@ -143,7 +143,7 @@ def test_accent_contrast(style):
     if not (p.get("vars") or "").strip():
         pytest.skip("classic 无自带 vars，令牌继承基座（见 test_classic_base_contrast）")
     v = _parse_vars(p["vars"])
-    for token in ("--acc1", "--acc2"):
+    for token in ("--brand-1", "--brand-2"):
         for bg_name in ("--bg", "--card"):
             _check_pair(style, token, v[token], bg_name, v[bg_name], 3.0)
 
@@ -158,12 +158,12 @@ def test_login_cta_contrast(style):
         # classic：CTA 底色继承当前主题基座 acc1/acc2，两端各测一遍
         for base_name, base in _BASES.items():
             fg = _login_text(extra)
-            _check_pair(f"{style}/{base_name}", "login-text on --acc1", fg, "--acc1", base["--acc1"], 4.5)
-            _check_pair(f"{style}/{base_name}", "login-text on --acc2", fg, "--acc2", base["--acc2"], 4.5)
+            _check_pair(f"{style}/{base_name}", "login-text on --brand-1", fg, "--brand-1", base["--brand-1"], 4.5)
+            _check_pair(f"{style}/{base_name}", "login-text on --brand-2", fg, "--brand-2", base["--brand-2"], 4.5)
         return
     fg = _login_text(extra)
-    _check_pair(style, "login-text on --acc1", fg, "--acc1", v["--acc1"], 4.5)
-    _check_pair(style, "login-text on --acc2", fg, "--acc2", v["--acc2"], 4.5)
+    _check_pair(style, "login-text on --brand-1", fg, "--brand-1", v["--brand-1"], 4.5)
+    _check_pair(style, "login-text on --brand-2", fg, "--brand-2", v["--brand-2"], 4.5)
     stops, solid = _login_overrides(extra)
     for i, stop in enumerate(stops):
         _check_pair(style, f"login-text on 渐变stop{i}", fg, f"stop{i} #{stop}", stop, 4.5)
@@ -178,7 +178,7 @@ def test_classic_base_contrast(base_name):
     for token in ("--txt", "--txt2"):
         for bg_name in ("--bg", "--card"):
             _check_pair(f"classic/{base_name}", token, base[token], bg_name, base[bg_name], 4.5)
-    for token in ("--acc1", "--acc2"):
+    for token in ("--brand-1", "--brand-2"):
         for bg_name in ("--bg", "--card"):
             _check_pair(f"classic/{base_name}", token, base[token], bg_name, base[bg_name], 3.0)
 
@@ -199,7 +199,7 @@ def test_dark_css_root_copy_consistent():
     for token in ("--txt", "--txt2"):
         for bg_name in ("--bg", "--card"):
             _check_pair("classic/_DARK_CSS", token, v[token], bg_name, v[bg_name], 4.5)
-    for token in ("--acc1", "--acc2"):
+    for token in ("--brand-1", "--brand-2"):
         for bg_name in ("--bg", "--card"):
             _check_pair("classic/_DARK_CSS", token, v[token], bg_name, v[bg_name], 3.0)
 

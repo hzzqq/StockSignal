@@ -10,7 +10,7 @@ loading_spinner / section_header）、``button_colors`` 互补，不重复实现
      绝不改动任何业务/DOM 结构或逻辑。
   ✅ 所有数据派生文本统一 html.escape，杜绝存储型 XSS（与 _widgets_base /
      page_widgets 既有 XSS 契约对齐）。
-  ✅ 颜色全部走 CSS 变量（--acc1/--acc2/--txt/--txt2/--border/--card/--bg），
+  ✅ 颜色全部走 CSS 变量（--brand-1/--brand-2/--txt/--txt2/--border/--card/--bg），
      并内置 fallback，保证未加载其它主题 CSS 的页面也能正常渲染。
   ✅ inject_kit_css 每次调用都注入（T-180 教训：session_state 去重会导致
      st.switch_page 导航重建 DOM 后跳过注入 → 新页面样式全丢）。
@@ -44,7 +44,7 @@ _TOKEN_CSS = r"""
 :root{
   --ss-up:#ff4d4f; --ss-down:#00d486;
   --ss-ok:#16a34a; --ss-warn:#ffa502; --ss-warn-strong:#f59e0b; --ss-danger:#ef4444;
-  --ss-accent:var(--acc1,#667eea); --ss-accent2:var(--acc2,#764ba2);
+  --ss-accent:var(--brand-1,#667eea); --ss-accent2:var(--brand-2,#764ba2);
   --ss-surface:var(--card,#fff); --ss-surface-2:var(--card2,#f4f6fb);
   --ss-text:var(--txt,#1e293b); --ss-text-muted:var(--txt2,#64748b);
   --ss-line:var(--border,#e2e8f0);
@@ -84,8 +84,8 @@ _TOKEN_CSS = r"""
   --ss-fs-display:22px; --ss-fs-hero:22px; --ss-fs-title:16px;
   --ss-fs-body:13.5px; --ss-fs-label:12px; --ss-fs-caption:11px;
   /* design_system.md §2 新增语义别名（绑定 --ss-*/--acc* 等价变量或 colors.* 既有值，
-     绝不臆造独立色相；供未来 page 迁移复用，对现有 --acc1/--ss-* 消费者零影响） */
-  --brand-1:var(--acc1,#4f46e5); --brand-2:var(--acc2,#7c3aed);
+     绝不臆造独立色相；供未来 page 迁移复用，对现有 --brand-1/--ss-* 消费者零影响） */
+  --brand-1:#4f46e5; --brand-2:#7c3aed;
   --c-up:var(--ss-up,#ff4d4f); --c-down:var(--ss-down,#00d486); --c-hold:#ffa502;
   --c-warn:#f59e0b; --c-danger:#ef4444; --c-info:#3b82f6; --c-ok:var(--ss-ok,#16a34a);
   --radius-card:var(--ss-radius-card,16px); --radius-btn:6px; --radius-input:4px; --radius-pill:var(--ss-radius-pill,999px);
@@ -127,7 +127,7 @@ def _build_token_css() -> str:
     """
     from modules import colors
     return (
-        "--brand-1:var(--acc1,#4f46e5); --brand-2:var(--acc2,#7c3aed);"
+        "--brand-1:#4f46e5; --brand-2:#7c3aed;"
         f"--c-up:{colors.UP_COLOR}; --c-down:{colors.DOWN_COLOR}; --c-hold:{colors.HOLD_COLOR};"
         f"--c-warn:{colors.SIG_WARNING}; --c-danger:{colors.SIG_DANGER};"
         f"--c-info:{colors.SIG_INFO}; --c-ok:var(--ss-ok,#16a34a);"
@@ -136,7 +136,7 @@ def _build_token_css() -> str:
 
 _KIT_CSS = _TOKEN_CSS + r"""
 <style>
-/* ===== ui_kit v1 组件层（沿用 ui_theme 主题变量 --acc1/--txt/--card/--border，随 theme_mode 自适应） ===== */
+/* ===== ui_kit v1 组件层（沿用 ui_theme 主题变量 --brand-1/--txt/--card/--border，随 theme_mode 自适应） ===== */
 
 /* ---- 签名页头 hero ----
    ⚠️ deprecated（ui-ds Phase1 §2.3）：.ss-hero 旧星辰词汇，HTML 构建器默认路由 .xc-hero；
@@ -228,7 +228,7 @@ _KIT_CSS = _TOKEN_CSS + r"""
 
 /* ===== 新城风格视觉层（参照 app_dist/微应用大厅/index.html 2026-08-28 接入） =====
    命名空间 .xc-* 以避免污染既有 .sf-* / .ss-* 主题。深紫渐变 + 大圆角 + 抬升光晕。
-   颜色走 var(--acc1)/(--acc2) 主题变量，自动跟 theme_mode 切亮/暗。
+   颜色走 var(--brand-1)/(--brand-2) 主题变量，自动跟 theme_mode 切亮/暗。
 */
 .xc-hero{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;
   margin:6px 0 22px;padding:18px 24px;border-radius:var(--ss-radius-card);
@@ -1024,8 +1024,8 @@ _FOLD_CSS = r"""<style>
 .ss-hint:hover .ss-hint-p,.ss-hint:focus-within .ss-hint-p{opacity:1;visibility:visible;transform:translateY(0)}
 /* P2-1 键盘可达：Tab 聚焦触发器时与 hover 同参展开浮层（:focus-within 与 hover 同参）；
    DOMPurify 默认 allowlist 放行 tabindex（Phase3 实测），外层 .ss-hint 带 tabindex="0" 可聚焦 */
-.ss-hint:focus-visible{outline:2px solid var(--ss-focus-ring,var(--ss-accent,var(--acc1,#667eea)));outline-offset:2px;border-radius:var(--ss-radius-xs)}
-.ss-hint-p b{color:var(--ss-accent,var(--acc1,#667eea))}
+.ss-hint:focus-visible{outline:2px solid var(--ss-focus-ring,var(--ss-accent,var(--brand-1,#667eea)));outline-offset:2px;border-radius:var(--ss-radius-xs)}
+.ss-hint-p b{color:var(--ss-accent,var(--brand-1,#667eea))}
 /* C 细小化触发（更弱的存在感） */
 .ss-hint.mini .ss-hint-t{font-size:11px;opacity:.72}
 </style>"""

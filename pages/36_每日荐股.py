@@ -75,7 +75,7 @@ for i, p in enumerate(picks, 1):
             # 荐股名称/代码来自推荐引擎，按防御性规范 html.escape
             st.markdown(
                 f"### {i}. {html.escape(str(p.get('name', '')))} `{html.escape(str(p.get('code', '')))}`"
-                f"<span style='font-size:14px;color:var(--txt2)'>　综合 <b style='color:var(--acc1)'>"
+                f"<span style='font-size:14px;color:var(--txt2)'>　综合 <b style='color:var(--brand-1)'>"
                 f"{p.get('composite', '—')}</b>/100</span>",
                 # ui_audit_exempt: unsafe-allow_html 荐股标题行，name/code 已 html.escape，综合分为数值
                 unsafe_allow_html=True,

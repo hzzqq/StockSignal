@@ -112,7 +112,7 @@ def test_entry_badges_whitelist():
 def test_css_variable_driven():
     """顶栏颜色全走 CSS 变量——六套风格自动适配（无硬编码主题色底）。"""
     assert "var(--card" in TOPNAV_CSS
-    assert "var(--acc1" in TOPNAV_CSS
+    assert "var(--brand-1" in TOPNAV_CSS
     assert "var(--border" in TOPNAV_CSS
     assert "var(--txt" in TOPNAV_CSS
 

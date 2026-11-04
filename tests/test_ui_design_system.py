@@ -4,7 +4,7 @@
 锁定三条设计系统不变量，防止后续改动静默回退：
 1. ``st.metric(delta=...)`` 必须显式传 ``delta_color``：Streamlit 默认「涨绿跌红」，
    与 A 股「红涨绿跌」相反；漏传即回退成错误语义色（全站 12 处曾受影响）。
-2. ``page_widgets._section_title_html`` 竖条必须用设计令牌 ``var(--acc1)``，
+2. ``page_widgets._section_title_html`` 竖条必须用设计令牌 ``var(--brand-1)``，
    不得硬编码 hex（去彩虹：曾各页自取 accent 形成 9 处「彩虹标题」）。
 3. KPI 卡必须走 canonical ``.xc-card``：``_xc_card_html`` / ``_stat_tile_html`` 输出
    同为 ``.xc-card``（消除 ``.ss-stat`` 重复视觉）。
@@ -57,10 +57,10 @@ def test_st_metric_with_delta_must_set_delta_color():
 
 
 def test_section_title_bar_uses_design_token_not_hex():
-    """section 竖条统一走设计令牌 var(--acc1)，不得硬编码 hex（去彩虹不变量）。"""
+    """section 竖条统一走设计令牌 var(--brand-1)，不得硬编码 hex（去彩虹不变量）。"""
     from modules.page_widgets import _section_title_html
     out = _section_title_html("测试标题", accent="#ff0000")  # 即便传入散色，也必须被忽略
-    assert "var(--acc1)" in out, "section 竖条应使用设计令牌 var(--acc1)"
+    assert "var(--brand-1)" in out, "section 竖条应使用设计令牌 var(--brand-1)"
     assert not re.search(r"background:#[0-9a-fA-F]{3,8}", out), "section 竖条不得硬编码 hex 背景"
 
 

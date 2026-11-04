@@ -11,7 +11,7 @@ StockSignal 按钮配色系统 · 双模（Light / Dark）通用
   5. disabled 统一规则：透明度降至 0.45 + cursor:not-allowed
 
 【与星辰主题的关系】
-  本配色系统的 primary 色复用 starfield_theme 的 --acc1/#667eea，其余色为新增。
+  本配色系统的 primary 色复用 starfield_theme 的 --brand-1/#667eea，其余色为新增。
   所有值均为硬编码 hex（不依赖 :root 变量），可独立于任何主题使用。
 
 移植：from modules.button_colors import *
