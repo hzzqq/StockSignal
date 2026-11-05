@@ -1701,3 +1701,26 @@ Phase 1 列的「10 个真死」**不准确**——主理人真扫发现其中 5
 - 同一 CSS 规则在 `dashboard_sf_css` 的**字面 `\n` 块**与**独立规则行**各有一份 ⇒
   按行定位会漏；必须**正则跨行删整条声明**（f-string 里规则以 `}}` 收尾）。
 - 预设期望次数会因「两份定义」误判 ⇒ 改为「先扫描实际次数 → 全删 → 残留必须清零」。
+
+
+---
+
+## 13.23 C2 / C3 收口记录（2026-11-05，主理人亲自执行）
+
+### C3 已推送
+- commit 3bb303f（FF 6e0cccc..3bb303f，HEAD==origin/main）
+- 内容：D1 跨域混色修复（sf-pill/sf-tag 七态统一归交易域令牌）、D4 交易时段胶囊令牌化+语义修正（已休市由涨绿改中性灰）、D5 双模型稳健文本令牌（--doc-*-text/--ss-*-text）、补修 C0 遗漏的 2 个守卫（test_ui_theme_alerts_css 整链语义、test_design_tokens_present 令牌层归属断言）
+- 回归：11 个令牌/主题 CSS 守卫 + hero/widgets = 122 passed
+- 未改动：pages/47_价格预警.py:421 已触发→sf-pill down 登记为待裁定项；≤14px 消费点替换延至 P2
+
+### C2 已推送（dash-* 整族）
+- commit 49acf99（FF 3bb303f..49acf99，HEAD==origin/main）
+- 关键裁定：原计划 xc-* 与目标冲突（设计系统已占 .xc-card/.xc-note），盲改造重复 CSS 选择器（台账警示的假绿陷阱）；主理人确认改用 dash-*（全仓零冲突、纯命名空间替换、视觉不变）
+- 规模：42 令牌 / 383 处 / 9 源文件；长令牌优先排序；保留 4 族原名（sf-btn/text/chip/scroll）+ 8 未映射 token（sf-up/down/stat/emph/slide/chat-end/chart/kline）
+- 守卫同步 6 个 + 修复 sf-verdict→dash-verdict（原守卫注记误归类保留族，已纠正）
+- 保留绿涨红跌注释（test_ui_theme.py 硬锁）；仓库级残差校验 42 映射令牌全仓 0 残留
+- 回归：依赖变更模块的 27 测试文件 220 passed；唯一失败 = matplotlib 缺失环境错误（7 模块，无关）
+
+### C4 状态（2026-11-05 静态核查）
+- pages/53_星辰AI.py:54 与 pages/90_登录.py:25 均调用 apply_page_config（标准全局主题注入）；53 另自含 _theme_css(dark) 含 light 分支，90 用 lg-* 登录族（ui_theme 已定义）
+- 两页均接入标准主题底座，台账缺 classic 亮色基底假设静态层未证实；真视觉验收仍须浏览器，本沙箱难跑 -> 暂不立项、不报缺陷，留待浏览器目检
