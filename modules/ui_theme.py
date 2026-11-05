@@ -704,7 +704,6 @@ a{color:#e8a33d!important}a:hover{color:#ffc76b!important}
                  '--ss-radius:2px; --ss-radius-card:4px;'),
         'extra': '''
 :root{--ss-login-radius:4px;--ss-login-btn-text:#ffffff}.ss-login-card{border-radius:var(--ss-radius-xs)!important;border:2px solid #111111!important;backdrop-filter:none!important}.ss-login-title{background:none!important;-webkit-text-fill-color:#111111!important;color:#111111!important;font-weight:900!important;letter-spacing:-.02em!important}.ss-login-btn{border-radius:0!important;background:#111111!important;color:#ffffff!important;font-weight:700!important}.ss-login-btn:hover{background:#ffffff!important;color:#111111!important;box-shadow:4px 4px 0 #111111!important}
-.stApp{background-color:#ffffff
 .stApp{background-color:#ffffff!important;
   background-image:linear-gradient(#f2f2f2 1px,transparent 1px),
   linear-gradient(90deg,#f2f2f2 1px,transparent 1px)!important;

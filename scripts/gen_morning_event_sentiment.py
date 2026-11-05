@@ -365,10 +365,11 @@ def main():
     lines.append("")
     if ev_failed:
         # 陈旧 / 已降权 / 停更 → 方向不可信，按失效处理（与第四节标注一致）
+        # stale(≥8) 已蕴含 已降权(>4)，为避免"滞后 X 天"重复赘余，stale 成立时不再重复加 已降权 标签。
         _why = []
         if ev_stale:
             _why.append(f"滞后 {fmt(ev_lag)} 天（≥8，陈旧）")
-        if _ev_down:
+        elif _ev_down:
             _why.append(f"滞后 {fmt(ev_lag)} 天（>4，已降权）")
         if _p1_stalled:
             _why.append("被 detect_stall 判停更")
@@ -433,9 +434,12 @@ def main():
                      "在市场温度/快照/校准回测三源刷新至新鲜前，建议维持封顶仓位、不盲目加仓。")
     elif resonance.startswith("背离"):
         if ev_failed:
-            # 事件因子陈旧/降权/停更（滞后≥8天或 lag>4 或 被 detect_stall 判停更）：背离由「新鲜牧羊人 vs 过期事件」构成，过期信号不可信
+            # 事件因子陈旧/降权/停更：背离由「新鲜牧羊人 vs 过期事件」构成，过期信号不可信
             # → 当日决策以牧羊人单一有效信号为准，事件因子不参与共振。
-            lines.append("**可执行解读**：牧羊人情绪与事件因子方向相反（背离），且事件因子已陈旧失效（滞后≥8天或已降权/停更），"
+            # 红线：失效原因按真实分类动态拼（_why 已在第二节构造：滞后≥8陈旧 / 滞后>4已降权 / 被判停更），
+            # 不得硬编码"滞后≥8天或已降权/停更"这种泛化串——今日 P1 仅陈旧+已降权非停更，泛化串会误导。
+            _why_fail = "、".join(_why) if _why else "已降权"
+            lines.append(f"**可执行解读**：牧羊人情绪与事件因子方向相反（背离），且事件因子已陈旧失效（{_why_fail}），"
                          "**今日决策以牧羊人情绪为唯一有效信号**。事件因子的陈旧信号不参与当日共振，"
                          "避免用过期催化抬高仓位。")
         else:
@@ -525,7 +529,11 @@ def main():
     if ev_available and not ev_failed:
         _event_included_note = (f"事件因子（新鲜 lag{fmt(ev_lag)}）催化 +{fmt(ev_adj_nominal)}pt 已计入")
     elif ev_failed:
-        _event_included_note = "事件因子已降权/停更，催化已剔除"
+        # 红线：必须按真实 stall 状态动态拼「停更」，不得像旧版硬编码"已降权/停更"
+        # ——此前 23 次 P1 恰真停更，巧合掩盖;今日 P1 仅陈旧+已降权但导出仍在跑(非停更)，
+        # 硬编码会误报停更、夸大故障。仅当 detect_stall 确判停更才加"+停更"。
+        _ev_dw = "已降权" + ("+停更" if _p1_stalled else "")
+        _event_included_note = f"事件因子{_ev_dw}，催化已剔除"
     else:
         _event_included_note = "事件因子缺位未计入"
     _gap = (_sh_lag - _snap_lag) if (_sh_lag is not None and _snap_lag is not None) else None
@@ -544,7 +552,9 @@ def main():
                  f"{('快照较 CSV 新 ' + str(_gap) + ' 天，regime/herd 双因子或基于落后广度' if _gap and _gap > 0 else '两者一致/CSV 更新')}）")
     if ev_available:
         if ev_failed:
-            _ev3 = (f"**因已降权/停更（滞后 {fmt(ev_lag)} 天）已降权至≈失效，未计入当日共振，亦未抬高仓位**"
+            # 红线：同 _event_included_note，按真实 stall 状态动态拼「停更」，不硬编码。
+            _ev_dw2 = "已降权" + ("+停更" if _p1_stalled else "")
+            _ev3 = (f"**因{_ev_dw2}（滞后 {fmt(ev_lag)} 天）已降权至≈失效，未计入当日共振，亦未抬高仓位**"
                     f"{_fusion_note}。")
         else:
             _ev3 = (f"**数据新鲜（滞后 {fmt(ev_lag)} 天），+{fmt(ev_adj_nominal)}pt 催化已正常计入当日仓位与共振**"
@@ -554,7 +564,9 @@ def main():
         lines.append(f"3. **事件因子**：缺（无可用信号），未施加催化。")
     if resonance.startswith("同向") or resonance.startswith("背离"):
         if ev_failed:
-            _res4 = "事件因子已降权/停更，不参与当日决策，今日以牧羊人单一有效信号防守。"
+            # 红线：按真实 stall 状态动态拼「停更」，不硬编码。
+            _ev_dw3 = "已降权" + ("+停更" if _p1_stalled else "")
+            _res4 = f"事件因子{_ev_dw3}，不参与当日决策，今日以牧羊人单一有效信号防守。"
         elif resonance.startswith("同向"):
             _res4 = "事件因子新鲜催化已计入当日共振，与牧羊人互为印证。"
         else:
