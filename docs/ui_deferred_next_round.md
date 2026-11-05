@@ -1721,6 +1721,17 @@ Phase 1 列的「10 个真死」**不准确**——主理人真扫发现其中 5
 - 保留绿涨红跌注释（test_ui_theme.py 硬锁）；仓库级残差校验 42 映射令牌全仓 0 残留
 - 回归：依赖变更模块的 27 测试文件 220 passed；唯一失败 = matplotlib 缺失环境错误（7 模块，无关）
 
-### C4 状态（2026-11-05 静态核查）
-- pages/53_星辰AI.py:54 与 pages/90_登录.py:25 均调用 apply_page_config（标准全局主题注入）；53 另自含 _theme_css(dark) 含 light 分支，90 用 lg-* 登录族（ui_theme 已定义）
-- 两页均接入标准主题底座，台账缺 classic 亮色基底假设静态层未证实；真视觉验收仍须浏览器，本沙箱难跑 -> 暂不立项、不报缺陷，留待浏览器目检
+### #41 顶栏导航 emoji → 内联 SVG 全量收复（已推送）
+- commit 4629b48（FF 1ec727a..4629b48，HEAD==origin/main）
+- 触发：用户「都做」将 #41 从 P2 后置提回本轮收口
+- 根因：72 个导航图标 emoji 中 51 个未录入 _EMOJI_MAP，render_nav_icon 回退原始 emoji，破坏令牌化精密感
+- 方案：modules/ui_icons.py 新增 50 个 24×24 内联 SVG 图标（zoom/wrench/eye/wave/sunrise/medal/world/tiger/rainbow/ice/brick/signal/magnet/thermo/moon-half/hotsprings/books/rewind/speech-big/satellite-dish/shuffle/dragon/receipt/newspaper/doc-lines/news/note/fish-rod/scale/bank-col/web/coin/toolbox/brain/satellite/abacus/gamepad/pie/stethoscope/siren/export/alarm/puzzle/bell-concierge/telescope/star-glow/bubble/scroll/mic/users；gear 复用已有），并把 51 个 emoji 精确映射到图标名
+- 防 VS 遗漏：emoji 字符串全部从 widgets._NAV_GROUPS/_NAV_HERO/_NAV_ADMIN 抽取，按 (首码点, 是否带 U+FE0F) 映射，零手敲，规避 🛠/🛠️、👁️/🌡️ 等变体选择符错位
+- widgets 导航数据零改动（emoji 标签保留，test_group_order_mental_flow 等仍认 emoji 头）
+- 验证：全量 nav emoji 未收录=0 / render 回退=0 / 图标名缺失=0；test_sidebar_nav(26)+test_top_nav(16) 全绿，test_icon_global_uniqueness 通过
+- 仅 git add modules/ui_icons.py；scripts/gen_morning_event_sentiment.py（他 AI）、.trae/、thesis docx 未碰
+
+### C4 状态（2026-11-05 结案：误报）
+- 深度核查（visual-architect-2）：pages/53_星辰AI.py:54 与 pages/90_登录.py:25 **均在顶部首条调用 `apply_page_config`**，走 `apply_page_config → apply_theme() → 注入 _DARK_CSS/_LIGHT_CSS` 全链，与标准页拿到完全一致的共同基底；全仓 74 页无一缺主题基底（11/20/40/41/46 经 stock_research/portfolio_views 委托、24/45 hub 页均被 `test_pages_use_standard_setup.py` 守卫）。
+- **关键范畴纠正**：C4 把「classic = 亮色基底」是错的。`STYLE_PRESETS['classic']` 的 `mode=None`，跟随 `theme_mode`（默认 `'dark'`），故 **classic 默认渲染暗色**，"classic 亮色基底"只在用户切亮色模式才出现。告警立足点不成立 → **误报，关闭不报缺陷**。
+- 验收路径仍留口：新增 `scripts/shoot_styles.py`（frontend-engineer-2 产出，仅新建未改他文件），对 6 风格×代表页用 Playwright 截图到 `artifacts/shots/<style>/<page>.png`（默认端口 8899，与 `.streamlit/config.toml` 一致；URL 编码复刻 `top_nav.py` 的 `prefs={"ui_style":"X"}`）。沙箱无浏览器，由用户本地 `python scripts/shoot_styles.py --start-app` 跑。若 53/90 真有视觉异常，根因必在组件级硬编码色而非主题底座缺失。
