@@ -221,49 +221,48 @@ def _render_project_intro():
     st.markdown(
         """
         <style>
-        .ss-hero{max-width:1060px;margin:0 auto .4rem;text-align:center}
-        .ss-hero-eyebrow{display:inline-block;color:var(--brand-1);
-            background:color-mix(in srgb,var(--brand-1) 10%,transparent);
-            border:1px solid color-mix(in srgb,var(--brand-1) 30%,transparent);
-            border-radius:999px;padding:.28rem 1rem;font-size:.78rem;font-weight:700;
-            letter-spacing:.06em;margin:.4rem 0 1rem}
-        .ss-hero h1{margin:.1rem 0 .6rem;font-size:2.05rem;line-height:1.3;
-            font-weight:800;color:var(--txt)}
-        .ss-hero h1 .hl{color:var(--brand-1)}
-        .ss-hero .sub{margin:0 auto 1.4rem;max-width:620px;color:var(--txt2);
-            font-size:.95rem;line-height:1.7}
-        .ss-pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;
-            margin:0 0 1.3rem;text-align:left}
-        .ss-pain-card{position:relative;background:var(--card);
-            border:1px solid var(--border);border-radius:16px;padding:1.15rem 1.2rem .95rem;
-            transition:transform .18s ease,border-color .18s ease}
-        .ss-pain-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--brand-1) 45%,var(--border))}
-        .ss-pain-card .ic{display:inline-flex;align-items:center;justify-content:center;
-            width:38px;height:38px;border-radius:10px;font-size:1.15rem;
-            background:color-mix(in srgb,var(--brand-1) 10%,transparent)}
-        .ss-pain-card .num{position:absolute;top:.7rem;right:1rem;font-size:1.5rem;
-            font-weight:800;color:color-mix(in srgb,var(--brand-1) 38%,transparent)}
-        .ss-pain-card b{display:block;margin:.65rem 0 .3rem;color:var(--txt);font-size:1.02rem}
+        .ss-intro{max-width:1080px;margin:0 auto;padding:0 .5rem}
+        .ss-intro .ss-hero-eyebrow{display:inline-block;color:var(--brand-1);
+            background:color-mix(in srgb,var(--brand-1) 12%,transparent);
+            border:1px solid color-mix(in srgb,var(--brand-1) 32%,transparent);
+            border-radius:999px;padding:.32rem 1.1rem;font-size:.8rem;font-weight:700;
+            letter-spacing:.06em;margin:.2rem 0 1.1rem}
+        .ss-intro h1{margin:.1rem auto .7rem;max-width:880px;font-size:2.1rem;line-height:1.32;
+            font-weight:800;color:var(--txt);text-align:center}
+        .ss-intro h1 .hl{color:var(--brand-1)}
+        .ss-intro .sub{margin:0 auto 1.6rem;max-width:640px;color:var(--txt2);
+            font-size:.96rem;line-height:1.75;text-align:center}
+        .ss-pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:0 0 1.4rem}
+        .ss-pain-card{position:relative;background:var(--card);border:1px solid var(--border);
+            border-radius:16px;padding:1.2rem 1.25rem 1rem;transition:transform .18s,border-color .18s}
+        .ss-pain-card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--brand-1) 45%,var(--border))}
+        .ss-pain-card .ic{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;
+            border-radius:11px;font-size:1.2rem;background:color-mix(in srgb,var(--brand-1) 12%,transparent)}
+        .ss-pain-card .num{position:absolute;top:.8rem;right:1.1rem;font-size:1.5rem;font-weight:800;
+            color:color-mix(in srgb,var(--brand-1) 38%,transparent)}
+        .ss-pain-card b{display:block;margin:.7rem 0 .35rem;color:var(--txt);font-size:1.02rem}
         .ss-pain-card small{display:block;color:var(--txt2);font-size:.8rem;line-height:1.6}
-        .ss-quote{margin:0 auto 1.5rem;max-width:820px;font-size:1.02rem;
-            color:var(--txt);line-height:1.8}
-        .ss-quote .hl{color:var(--brand-1);font-weight:700}
-        .ss-cap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;
-            max-width:1060px;margin:0 auto;text-align:left}
-        .ss-cap{border-radius:16px;padding:1.05rem 1.15rem;
-            background:color-mix(in srgb,var(--cap-c) 7%,var(--card));
+        .ss-intro .ss-quote{margin:0 auto 1.6rem;max-width:840px;font-size:1.05rem;color:var(--txt);
+            line-height:1.85;text-align:center}
+        .ss-intro .ss-quote .hl{color:var(--brand-1);font-weight:700}
+        .ss-intro .ss-divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);
+            margin:1.6rem auto;max-width:720px}
+        .ss-cap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+        .ss-cap{border-radius:16px;padding:1.1rem 1.2rem;background:color-mix(in srgb,var(--cap-c) 7%,var(--card));
             border:1px solid color-mix(in srgb,var(--cap-c) 30%,var(--border))}
-        .ss-cap .cap-ic{font-size:1.35rem}
-        .ss-cap b{display:block;margin:.4rem 0 .25rem;color:var(--txt);font-size:.98rem}
-        .ss-cap .cap-tag{display:inline-block;font-size:.7rem;font-weight:700;
-            color:var(--cap-c);background:color-mix(in srgb,var(--cap-c) 12%,transparent);
-            border-radius:999px;padding:.12rem .55rem;margin-left:.35rem;vertical-align:middle}
+        .ss-cap .cap-ic{font-size:1.4rem}
+        .ss-cap b{display:block;margin:.45rem 0 .3rem;color:var(--txt);font-size:.98rem}
+        .ss-cap .cap-tag{display:inline-block;font-size:.7rem;font-weight:700;color:var(--cap-c);
+            background:color-mix(in srgb,var(--cap-c) 12%,transparent);border-radius:999px;
+            padding:.12rem .55rem;margin-left:.35rem;vertical-align:middle}
         .ss-cap small{display:block;color:var(--txt2);font-size:.78rem;line-height:1.6}
         @media(max-width:720px){.ss-pain-grid,.ss-cap-grid{grid-template-columns:1fr}
-            .ss-hero h1{font-size:1.55rem}}
+            .ss-intro h1{font-size:1.6rem}}
         </style>
-        <div class="ss-hero">
-          <div class="ss-hero-eyebrow">✨ A股事件驱动 · 决策闭环</div>
+        <div class="ss-intro">
+          <div style="text-align:center">
+            <span class="ss-hero-eyebrow">✨ A股事件驱动 · 决策闭环</span>
+          </div>
           <h1>看了一堆分析，最后还是<span class="hl">凭感觉</span>下单</h1>
           <p class="sub">赚了说不清为什么，亏了重复踩同一个坑 —— 几年下来，投资经验始终没真正积累。</p>
           <div class="ss-pain-grid">
@@ -277,19 +276,20 @@ def _render_project_intro():
               <b>亏了，错在哪一步？</b>
               <small>前提失效？推导偏差？还是被噪音带偏？说不出来，下次还会再踩。</small></div>
           </div>
-          <div class="ss-quote">✨ 问题不在信息不够，而在你的<span class="hl">判断从没被记录、验证</span>过。
-          StockSignal 把<b>情绪 → 事件 → 仓位 → 复盘</b>每一步都记录下来，用回测验证，让经验真正复利。</div>
-        </div>
-        <div class="ss-cap-grid">
-          <div class="ss-cap" style="--cap-c:#d29922"><span class="cap-ic">🌡️</span>
-            <b>情绪温度计<span class="cap-tag">每日盘后</span></b>
-            <small>牧羊人 17 项市场指标 → 情绪周期定位 + 次日方向与建议仓位，透明推导可解释。</small></div>
-          <div class="ss-cap" style="--cap-c:#14b8a6"><span class="cap-ic">📰</span>
-            <b>事件驱动信号<span class="cap-tag">三源聚合</span></b>
-            <small>产业事件 / 价格信号 / 宏观数据三类催化，自动追踪评分，快速识别行情主线。</small></div>
-          <div class="ss-cap" style="--cap-c:#8b5cf6"><span class="cap-ic">🧪</span>
-            <b>决策闭环回测<span class="cap-tag">历史验证</span></b>
-            <small>决策建议逐日归档，与次日真实走势对照回填，命中率与偏差全部如实呈现。</small></div>
+          <p class="ss-quote">✨ 问题不在信息不够，而在你的<span class="hl">判断从没被记录、验证</span>过。
+          StockSignal 把<b>情绪 → 事件 → 仓位 → 复盘</b>每一步都记录下来，用回测验证，让经验真正复利。</p>
+          <div class="ss-divider"></div>
+          <div class="ss-cap-grid">
+            <div class="ss-cap" style="--cap-c:#d29922"><span class="cap-ic">🌡️</span>
+              <b>情绪温度计<span class="cap-tag">每日盘后</span></b>
+              <small>牧羊人 17 项市场指标 → 情绪周期定位 + 次日方向与建议仓位，透明推导可解释。</small></div>
+            <div class="ss-cap" style="--cap-c:#14b8a6"><span class="cap-ic">📰</span>
+              <b>事件驱动信号<span class="cap-tag">三源聚合</span></b>
+              <small>产业事件 / 价格信号 / 宏观数据三类催化，自动追踪评分，快速识别行情主线。</small></div>
+            <div class="ss-cap" style="--cap-c:#8b5cf6"><span class="cap-ic">🧪</span>
+              <b>决策闭环回测<span class="cap-tag">历史验证</span></b>
+              <small>决策建议逐日归档，与次日真实走势对照回填，命中率与偏差全部如实呈现。</small></div>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -305,6 +305,28 @@ _render_today_decision()
 st.markdown("---")
 
 # ── ⚡ 快捷入口：常用直达 + 快捷入口 合并为单一区块（轻量化，不折叠）──
+st.markdown(
+    """<style>
+    /* 快捷入口：直接按按钮 key（st-key-quick_*）命中，避免 Streamlit 容器不嵌套导致包裹 div 失效 */
+    [class*="st-key-quick_"] .stButton button{width:100%!important;justify-content:flex-start!important;
+      text-align:left!important;gap:.6rem;padding:.95rem 1.05rem!important;border-radius:12px!important;
+      background:var(--card)!important;border:1px solid var(--border)!important;box-shadow:none!important;
+      font-weight:600!important;color:var(--txt)!important;line-height:1.35!important;
+      transition:transform .16s,border-color .16s,box-shadow .16s}
+    [class*="st-key-quick_"] .stButton button:hover{transform:translateY(-2px)!important;
+      border-color:color-mix(in srgb,var(--brand-1) 45%,var(--border))!important;
+      box-shadow:0 6px 18px rgba(0,0,0,.25)!important}
+    /* 一键直达常用功能：行动卡（居中、品牌浅底） */
+    [class*="st-key-qe_mood_"] .stButton button{width:100%!important;justify-content:center!important;
+      border-radius:12px!important;background:color-mix(in srgb,var(--brand-1) 10%,var(--card))!important;
+      border:1px solid color-mix(in srgb,var(--brand-1) 35%,var(--border))!important;
+      color:var(--txt)!important;font-weight:700!important;padding:.9rem 1rem!important;
+      transition:border-color .16s,background .16s}
+    [class*="st-key-qe_mood_"] .stButton button:hover{border-color:var(--brand-1)!important;
+      background:color-mix(in srgb,var(--brand-1) 16%,var(--card))!important}
+    </style>""",
+    unsafe_allow_html=True,
+)
 st.header("⚡ 快捷入口")
 
 # 常用直达：高频功能一键跳转
@@ -348,6 +370,7 @@ try:
                      help="牧羊人 18 项指标 → 情绪周期定位 + 次日方向与置信度 + 三情景推演"):
             st.session_state["shep_focus_note"] = True
             safe_switch_page("pages/50_市场情绪.py")
+
 # ui_audit_exempt: except-pass 首页快捷入口按钮区渲染容错：该区异常不阻断主页其余内容渲染
 except Exception:
     pass

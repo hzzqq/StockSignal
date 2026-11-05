@@ -132,9 +132,10 @@ def render_topnav(nav_groups: list, nav_hero: list, nav_admin: list,
     home_active = ' ss-menu-active' if cur_base == "app.py" else ""
     menus.append(f'<a class="ss-menu ss-menu-link{home_active}" href="/{q}">{svg_icon("home", size=14)} 首页</a>')
     # 决策中枢（Hero 常驻第一面板）
+    # 注意：HOT/NEW 标签已由 _entry_html 经 _ENTRY_BADGES 统一注入（含页面名），
+    # 此处不再额外追加独立 <i>HOT</i>，否则会产出一个无页面名、悬空的「空 HOT」标签。
     hero_entries = "".join(
-        _entry_html(p, l, i, cur_base, q) + (
-            '<i class="ss-tag ss-tag-hot">HOT</i>' if "54_" in p else "")
+        _entry_html(p, l, i, cur_base, q)
         for p, l, i in nav_hero)  # noqa: E741
     intro_hero = _GROUP_INTROS.get("决策中枢", "")
     hero_active = ' ss-menu-active' if _cur_group == "🎯 决策中枢" else ""
