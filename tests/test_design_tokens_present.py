@@ -30,15 +30,19 @@ def _kit():
 def test_semantic_aliases_present():
     """C 阶段新增别名令牌必须全部存在（供未来 page 迁移复用，零影响现有消费者）。"""
     css = _kit()._KIT_CSS
+    # --brand-1/--brand-2 自 C0-b 起归【主题层】(_THEME_ROOT_VARS)，
+    # 组件层(_TOKEN_CSS)不再硬写 —— 否则会盖住 preset vars（6 套风格次品牌色全失效）
     required = (
-        "--brand-1", "--brand-2",
         "--c-up", "--c-down", "--c-hold", "--c-warn", "--c-danger", "--c-info", "--c-ok",
         "--radius-card", "--radius-btn", "--radius-input", "--radius-pill",
         "--font-num", "--font-cjk",
     )
     for tok in required:
         assert f"{tok}:" in css, f"缺失语义别名令牌：{tok}"
-
+    # --brand-1/--brand-2 须由主题层提供（dark/light 值不同，必须分别断言）
+    from modules import ui_theme as _ut
+    assert "--brand-1:#5b53f0" in _ut._THEME_ROOT_VARS["dark"], "--brand-1 须由主题层提供(dark)"
+    assert "--brand-1:#4f46e5" in _ut._THEME_ROOT_VARS["light"], "--brand-1 须由主题层提供(light)"
 
 def test_legacy_acc_tokens_retired():
     """A 收口（2026-11-04）：旧品牌令牌 --acc* 已全量改名为 --brand-1/--brand-2，禁止回潮。"""

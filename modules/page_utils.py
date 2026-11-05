@@ -113,17 +113,17 @@ def _build_status_chips(dark: bool) -> list:
             session_html = (
                 '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
                 'font-weight:600;padding:5px 12px;border-radius:var(--ss-radius-pill);'
-                'border:1px solid #ff4d4f;background:rgba(255,77,79,.10);color:#dc2626">'
+                'border:1px solid var(--ss-up);background:color-mix(in srgb, var(--ss-up) 10%, var(--card2));color:var(--ss-text)">'
                 '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
-                'background:#ff4d4f;box-shadow:0 0 0 3px rgba(255,77,79,.25)"></span>交易中</span>'
+                'background:var(--ss-up);box-shadow:0 0 0 3px color-mix(in srgb, var(--ss-up) 25%, transparent)"></span>交易中</span>'
             )
         else:
             session_html = (
                 '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
                 'font-weight:600;padding:5px 12px;border-radius:var(--ss-radius-pill);'
-                'border:1px solid #00d486;background:rgba(0,212,134,.10);color:#166534">'
+                'border:1px solid var(--ss-line);background:var(--card2);color:var(--ss-text-muted)">'
                 '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;'
-                'background:#00d486"></span>已休市</span>'
+                'background:var(--ss-text-muted)"></span>已休市</span>'
             )
         chips.append(session_html)
     except Exception as e:

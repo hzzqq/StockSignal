@@ -13,6 +13,10 @@ from modules.ui_theme import dashboard_sf_css  # noqa: E402
 _CSS = dashboard_sf_css()
 
 
+def _ut():
+    from modules import ui_theme as ut
+    return ut
+
 def test_double_bar_fixed():
     """双彩条修复：::before 绝对条被禁用，只留 border-left 单源。"""
     assert '[data-testid="stAlert"]::before' in _CSS
@@ -43,8 +47,10 @@ def test_divider_subtle():
 def test_semantic_colors_present_and_untouched():
     """红线：A 股语义色 token 仍为权威值（T-278 只动容器样式，不碰颜色语义）。"""
     # 涨跌语义（_TOKEN_CSS）：涨=红、跌=绿
-    from modules.ui_kit import _TOKEN_CSS
-    assert "--ss-up:#ff4d4f" in _TOKEN_CSS and "--ss-down:#00d486" in _TOKEN_CSS, \
+    from modules.ui_kit import _TOKEN_CSS, _HERO_FALLBACK_CSS, _HERO_FALLBACK_CSS
+    chain = (_TOKEN_CSS + _HERO_FALLBACK_CSS
+             + getattr(_ut(), "_DARK_CSS", "") + getattr(_ut(), "_LIGHT_CSS", ""))
+    assert "--ss-up:#ff4d4f" in chain and "--ss-down:#00d486" in chain, \
         "A 股红涨绿跌语义 token 被改写（铁律 2）"
 
 
