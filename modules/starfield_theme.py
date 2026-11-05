@@ -25,7 +25,7 @@ from modules.colors import UP_COLOR, DOWN_COLOR  # noqa: I001
 import json
 import streamlit as st
 import streamlit.components.v1 as components  # noqa: F401
-STARFIELD_CSS = '\n<style>\n:root{\n  --bg:#0f0f23; --card:#1a1a2e; --buy:#ff4d4f; --sell:#00d486;\n  --hold:#ffa502; --brand-1:#667eea; --brand-2:#764ba2;\n  --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44; --grid:#23233c;\n}\n/* 整页强制暗色底（覆盖 Streamlit 默认浅色） */\n.stApp{background:var(--bg)!important}\n.block-container{padding-top:1.1rem;max-width:1180px;padding-left:1.4rem;padding-right:1.4rem}\n\n.sf-header{display:flex;align-items:center;justify-content:space-between;\n  flex-wrap:wrap;gap:10px;margin-bottom:20px;padding:16px 20px;\n  background:linear-gradient(90deg,#1a1a2e,#241b3a);\n  border:1px solid var(--border);border-radius:var(--ss-radius-card);\n  box-shadow:0 0 0 1px color-mix(in srgb,var(--brand-1) 8%,transparent),0 8px 24px rgba(0,0,0,.35)}\n.sf-brand{font-size:15px;color:var(--txt2);letter-spacing:1px}\n.sf-brand b{color:var(--brand-1)}\n\n.sf-card{background:var(--card);border:1px solid var(--border);\n  border-radius:var(--ss-radius-card);padding:20px;margin-top:18px;\n  box-shadow:0 0 0 1px color-mix(in srgb,var(--brand-1) 6%,transparent),0 6px 20px rgba(0,0,0,.28)}\n.sf-card h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px;\n  padding-bottom:10px;border-bottom:1px solid var(--border)}\n.sf-card h2::before{content:"";width:4px;height:16px;\n  background:linear-gradient(180deg,var(--brand-1),var(--brand-2));border-radius:var(--ss-radius-xs)}\n\n.sf-one-line{font-size:14.5px;font-weight:700;color:var(--buy);\n  background:rgba(255,77,79,.08);border-left:3px solid var(--buy);\n  padding:10px 14px;border-radius:var(--ss-radius-sm);margin-bottom:14px;line-height:1.7}\n.sf-one-line.hold{color:var(--hold);border-left-color:var(--hold);\n  background:rgba(255,165,2,.08)}\n\n.sf-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}\n.sf-table th,.sf-table td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--border)}\n.sf-table th{color:var(--txt2);font-weight:600;font-size:12px;background:#15152a}\n.sf-table tr:hover td{background:color-mix(in srgb,var(--brand-1) 5%,transparent)}\n.sf-table td.l{text-align:left}\n.sf-up{color:var(--buy);font-weight:700}\n.sf-down{color:var(--sell);font-weight:700}\n\n.sf-tag{display:inline-block;font-size:11px;padding:2px 9px;border-radius:var(--ss-radius-lg);\n  font-weight:600;margin:2px}\n.sf-tag.win{background:rgba(0,212,170,.16);color:#00d4aa;border:1px solid rgba(0,212,170,.4)}\n.sf-tag.mid{background:rgba(255,165,2,.16);color:var(--hold);border:1px solid rgba(255,165,2,.4)}\n.sf-tag.weak{background:rgba(255,77,79,.14);color:var(--buy);border:1px solid rgba(255,77,79,.4)}\n.sf-tag.neu{background:rgba(148,163,184,.12);color:var(--txt2);border:1px solid var(--border)}\n\n.sf-vs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}\n@media(max-width:780px){.sf-vs{grid-template-columns:1fr}}\n.sf-vsbox{background:#15152a;border:1px solid var(--border);border-radius:var(--ss-radius);padding:14px}\n.sf-vsbox h3{font-size:14px;margin-bottom:8px}\n.sf-verdict{font-size:13px;font-weight:700;margin:8px 0;padding:6px 10px;border-radius:var(--ss-radius-sm)}\n.sf-verdict.b{background:rgba(0,212,170,.12);color:#00d4aa}\n.sf-verdict.o{background:rgba(255,165,2,.12);color:var(--hold)}\n.sf-vsbox ul{margin:6px 0 0 16px;font-size:12.5px;color:var(--txt2)}\n.sf-vsbox ul li{margin:3px 0}\n\n.sf-alert{border-radius:var(--ss-radius);padding:12px 14px;margin-top:14px;font-size:13px;line-height:1.7}\n.sf-alert.risk{background:rgba(255,77,79,.10);border:1px solid rgba(255,77,79,.45);color:#ffb3bb}\n.sf-alert.cat{background:rgba(0,212,170,.10);border:1px solid rgba(0,212,170,.45);color:#9af0dd}\n.sf-alert b{display:block;margin-bottom:4px;font-size:13.5px}\n\n.sf-note{font-size:12.5px;color:var(--txt2);margin-top:10px;line-height:1.7}\n.sf-disclaimer{margin-top:14px;font-size:11.5px;color:#6b7280;\n  border-top:1px dashed var(--border);padding-top:10px}\n</style>\n'
+STARFIELD_CSS = '\n<style>\n:root{\n  --bg:#0f0f23; --card:#1a1a2e; --buy:#ff4d4f; --sell:#00d486;\n  --hold:#ffa502; --brand-1:#667eea; --brand-2:#764ba2;\n  --txt:#e2e8f0; --txt2:#94a3b8; --border:#2d2d44; --grid:#23233c;\n}\n/* 整页强制暗色底（覆盖 Streamlit 默认浅色） */\n.stApp{background:var(--bg)!important}\n.block-container{padding-top:1.1rem;max-width:1180px;padding-left:1.4rem;padding-right:1.4rem}\n\n.dash-header{display:flex;align-items:center;justify-content:space-between;\n  flex-wrap:wrap;gap:10px;margin-bottom:20px;padding:16px 20px;\n  background:linear-gradient(90deg,#1a1a2e,#241b3a);\n  border:1px solid var(--border);border-radius:var(--ss-radius-card);\n  box-shadow:0 0 0 1px color-mix(in srgb,var(--brand-1) 8%,transparent),0 8px 24px rgba(0,0,0,.35)}\n.dash-brand{font-size:15px;color:var(--txt2);letter-spacing:1px}\n.dash-brand b{color:var(--brand-1)}\n\n.dash-card{background:var(--card);border:1px solid var(--border);\n  border-radius:var(--ss-radius-card);padding:20px;margin-top:18px;\n  box-shadow:0 0 0 1px color-mix(in srgb,var(--brand-1) 6%,transparent),0 6px 20px rgba(0,0,0,.28)}\n.dash-card h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px;\n  padding-bottom:10px;border-bottom:1px solid var(--border)}\n.dash-card h2::before{content:"";width:4px;height:16px;\n  background:linear-gradient(180deg,var(--brand-1),var(--brand-2));border-radius:var(--ss-radius-xs)}\n\n.dash-one-line{font-size:14.5px;font-weight:700;color:var(--buy);\n  background:rgba(255,77,79,.08);border-left:3px solid var(--buy);\n  padding:10px 14px;border-radius:var(--ss-radius-sm);margin-bottom:14px;line-height:1.7}\n.dash-one-line.hold{color:var(--hold);border-left-color:var(--hold);\n  background:rgba(255,165,2,.08)}\n\n.dash-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}\n.dash-table th,.dash-table td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--border)}\n.dash-table th{color:var(--txt2);font-weight:600;font-size:12px;background:#15152a}\n.dash-table tr:hover td{background:color-mix(in srgb,var(--brand-1) 5%,transparent)}\n.dash-table td.l{text-align:left}\n.sf-up{color:var(--buy);font-weight:700}\n.sf-down{color:var(--sell);font-weight:700}\n\n.dash-tag{display:inline-block;font-size:11px;padding:2px 9px;border-radius:var(--ss-radius-lg);\n  font-weight:600;margin:2px}\n.dash-tag.win{background:rgba(0,212,170,.16);color:#00d4aa;border:1px solid rgba(0,212,170,.4)}\n.dash-tag.mid{background:rgba(255,165,2,.16);color:var(--hold);border:1px solid rgba(255,165,2,.4)}\n.dash-tag.weak{background:rgba(255,77,79,.14);color:var(--buy);border:1px solid rgba(255,77,79,.4)}\n.dash-tag.neu{background:rgba(148,163,184,.12);color:var(--txt2);border:1px solid var(--border)}\n\n.dash-vs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}\n@media(max-width:780px){.dash-vs{grid-template-columns:1fr}}\n.dash-vsbox{background:#15152a;border:1px solid var(--border);border-radius:var(--ss-radius);padding:14px}\n.dash-vsbox h3{font-size:14px;margin-bottom:8px}\n.dash-verdict{font-size:13px;font-weight:700;margin:8px 0;padding:6px 10px;border-radius:var(--ss-radius-sm)}\n.dash-verdict.b{background:rgba(0,212,170,.12);color:#00d4aa}\n.dash-verdict.o{background:rgba(255,165,2,.12);color:var(--hold)}\n.dash-vsbox ul{margin:6px 0 0 16px;font-size:12.5px;color:var(--txt2)}\n.dash-vsbox ul li{margin:3px 0}\n\n.dash-alert{border-radius:var(--ss-radius);padding:12px 14px;margin-top:14px;font-size:13px;line-height:1.7}\n.dash-alert.risk{background:rgba(255,77,79,.10);border:1px solid rgba(255,77,79,.45);color:#ffb3bb}\n.dash-alert.cat{background:rgba(0,212,170,.10);border:1px solid rgba(0,212,170,.45);color:#9af0dd}\n.dash-alert b{display:block;margin-bottom:4px;font-size:13.5px}\n\n.dash-note{font-size:12.5px;color:var(--txt2);margin-top:10px;line-height:1.7}\n.dash-disclaimer{margin-top:14px;font-size:11.5px;color:#6b7280;\n  border-top:1px dashed var(--border);padding-top:10px}\n</style>\n'
 PLOTLY_DARK = {'paper_bgcolor': 'rgba(0,0,0,0)', 'plot_bgcolor': 'rgba(0,0,0,0)', 'font': {'color': '#94a3b8', 'family': "system-ui, -apple-system, 'PingFang SC', sans-serif"}, 'xaxis': {'gridcolor': '#23233c', 'zerolinecolor': '#2d2d44', 'linecolor': '#2d2d44', 'tickcolor': '#2d2d44', 'title': {'font': {'color': '#94a3b8'}}}, 'yaxis': {'gridcolor': '#23233c', 'zerolinecolor': '#2d2d44', 'linecolor': '#2d2d44', 'tickcolor': '#2d2d44', 'title': {'font': {'color': '#94a3b8'}}}, 'legend': {'bgcolor': 'rgba(0,0,0,0)', 'font': {'color': '#94a3b8'}}}
 
 def inject_theme():
@@ -52,21 +52,21 @@ def inject_plotly_dark():
         pass
 
 def header(brand, subtitle, meta):
-    st.markdown(f'<div class="sf-header">\n          <div>\n            <div class="sf-brand">★ <b>{brand}</b></div>\n            <div style="font-size:12px;color:var(--txt2);margin-top:4px">{subtitle}</div>\n          </div>\n          <div style="font-size:12px;color:var(--txt2)">{meta}</div>\n        </div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown(f'<div class="dash-header">\n          <div>\n            <div class="dash-brand">★ <b>{brand}</b></div>\n            <div style="font-size:12px;color:var(--txt2);margin-top:4px">{subtitle}</div>\n          </div>\n          <div style="font-size:12px;color:var(--txt2)">{meta}</div>\n        </div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 def card(title, body_html, tags_items=None):
     tag_html = ''
     if tags_items:
-        chips = ''.join((f'<span class="sf-tag {k}">{t}</span>' for t, k in tags_items))
+        chips = ''.join((f'<span class="dash-tag {k}">{t}</span>' for t, k in tags_items))
         tag_html = f'<div style="margin-top:10px">{chips}</div>'
-    st.markdown(f'<div class="sf-card"><h2>{title}</h2>{body_html}{tag_html}</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown(f'<div class="dash-card"><h2>{title}</h2>{body_html}{tag_html}</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 def one_line(text, tone='buy'):
     cls = '' if tone == 'buy' else ' hold'
-    st.markdown(f'<div class="sf-one-line{cls}">{text}</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown(f'<div class="dash-one-line{cls}">{text}</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 def tags(items):
-    chips = ''.join((f'<span class="sf-tag {k}">{t}</span>' for t, k in items))
+    chips = ''.join((f'<span class="dash-tag {k}">{t}</span>' for t, k in items))
     st.markdown(f'<div style="margin-top:10px">{chips}</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 def compare_table(headers, rows, first_col_left=True):
@@ -85,20 +85,20 @@ def compare_table(headers, rows, first_col_left=True):
     for r in rows:
         cells = [cell(c, left=i == 0 and first_col_left) for i, c in enumerate(r)]
         body += '<tr>' + ''.join(cells) + '</tr>'
-    st.markdown(f'<table class="sf-table"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown(f'<table class="dash-table"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 def vs_box(title, verdict, verdict_kind, bullets):
     vk = 'b' if verdict_kind == 'b' else 'o'
     lis = ''.join((f'<li>{b}</li>' for b in bullets))  # noqa: UP034
-    return f'<div class="sf-vsbox">\n      <h3>{title}</h3>\n      <div class="sf-verdict {vk}">{verdict}</div>\n      <ul>{lis}</ul>\n    </div>'
+    return f'<div class="dash-vsbox">\n      <h3>{title}</h3>\n      <div class="dash-verdict {vk}">{verdict}</div>\n      <ul>{lis}</ul>\n    </div>'
 
 def vs(box1_html, box2_html):
-    st.markdown(f'<div class="sf-vs">{box1_html}{box2_html}</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown(f'<div class="dash-vs">{box1_html}{box2_html}</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 def alert(text, kind='cat', title=None):
     cls = 'cat' if kind == 'cat' else 'risk'
     title_html = f'<b>{title}</b>' if title else ''
-    st.markdown(f'<div class="sf-alert {cls}">{title_html}{text}</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown(f'<div class="dash-alert {cls}">{title_html}{text}</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 def echarts(option, height=380, div_id='sf-chart'):
     """嵌入 ECharts（CDN）。option 为 Python dict。"""
@@ -141,11 +141,11 @@ if __name__ == '__main__':
     inject_theme()
     inject_plotly_dark()
     header(brand='星辰', subtitle='五股横向对比 · 长鑫存储产业链视角', meta='分析时间：2026-07-10 09:47 (GMT+8) · 行情基准 2026-07-09 收盘')
-    card('核心结论（一句话版）', '<div class="sf-one-line">从「长鑫存储扩产」这条线看：\n        <b>柏诚股份 = 最纯正、弹性最大的直接受益者</b>；\n        <b>太极实业 = 订单体量更大的稳健受益者</b>；\n        <b>恒铭达几乎不在这条线上</b>。</div>', tags_items=[('柏诚股份：长鑫纯标的（首选弹性）', 'win'), ('太极实业：长鑫总包+封测（稳健）', 'win'), ('恒铭达：不在长鑫链（独立逻辑）', 'mid'), ('东方锆业：题材透支（谨慎）', 'weak')])
-    st.markdown('<div class="sf-card"><h2>关键指标横向对比</h2>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    card('核心结论（一句话版）', '<div class="dash-one-line">从「长鑫存储扩产」这条线看：\n        <b>柏诚股份 = 最纯正、弹性最大的直接受益者</b>；\n        <b>太极实业 = 订单体量更大的稳健受益者</b>；\n        <b>恒铭达几乎不在这条线上</b>。</div>', tags_items=[('柏诚股份：长鑫纯标的（首选弹性）', 'win'), ('太极实业：长鑫总包+封测（稳健）', 'win'), ('恒铭达：不在长鑫链（独立逻辑）', 'mid'), ('东方锆业：题材透支（谨慎）', 'weak')])
+    st.markdown('<div class="dash-card"><h2>关键指标横向对比</h2>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     compare_table(['维度', '太极实业 600667', '柏诚股份 601133', '恒铭达 002947'], [[('收盘价/涨跌', 'l'), ('26.27 +10%', 'up'), ('37.80 +10%', 'up'), ('74.28 +3.2%', 'up')], ['总市值', '549亿', '~200亿', '190亿'], ['核心业务', '洁净室EPC+封测', '洁净室系统集成', '消费电子功能件'], [('长鑫关联度', 'l'), ('强·核心总包', 'win'), ('最强·深度绑定', 'win'), ('弱', 'neu')], [('信号', 'l'), ('BUY', 'win'), ('BUY', 'win'), ('WATCH', 'weak')]])
-    st.markdown('<div class="sf-note">注：市盈率为基于公开净利润预测的估算。</div></div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-    st.markdown('<div class="sf-card"><h2>个股 K 线演示（暗色 · 红涨绿跌）</h2>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown('<div class="dash-note">注：市盈率为基于公开净利润预测的估算。</div></div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown('<div class="dash-card"><h2>个股 K 线演示（暗色 · 红涨绿跌）</h2>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     import datetime as _dt
     base = _dt.date(2026, 6, 1)
     dates = [(base + _dt.timedelta(days=i)).strftime('%m-%d') for i in range(12)]
@@ -153,6 +153,6 @@ if __name__ == '__main__':
     vols = [120, 98, 150, 110, 180, 95, 160, 105, 200, 130, 175, 210]
     echarts(kline_option(dates, ohlc, vols), height=420, div_id='demo-kline')
     st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-    st.markdown('<div class="sf-card"><h2>综合评分雷达（五股四维对比）</h2>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown('<div class="dash-card"><h2>综合评分雷达（五股四维对比）</h2>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     echarts({'backgroundColor': 'transparent', 'tooltip': {}, 'legend': {'data': ['柏诚', '有研', '太极'], 'textStyle': {'color': '#94a3b8', 'fontSize': 11}, 'top': 0}, 'radar': {'indicator': [{'name': '长鑫关联', 'max': 100}, {'name': '订单/催化', 'max': 100}, {'name': '业绩兑现', 'max': 100}, {'name': '估值合理', 'max': 100}, {'name': '弹性空间', 'max': 100}], 'radius': '62%', 'center': ['50%', '56%'], 'axisName': {'color': '#e2e8f0', 'fontSize': 11}, 'splitLine': {'lineStyle': {'color': '#2d2d44'}}, 'splitArea': {'areaStyle': {'color': ['#16162c', '#1a1a2e']}}, 'axisLine': {'lineStyle': {'color': '#2d2d44'}}}, 'series': [{'type': 'radar', 'data': [{'value': [98, 90, 70, 35, 95], 'name': '柏诚', 'areaStyle': {'color': 'rgba(255,77,79,.22)'}, 'lineStyle': {'color': '#ff4d4f'}, 'itemStyle': {'color': '#ff4d4f'}}, {'value': [60, 88, 85, 30, 70], 'name': '有研', 'areaStyle': {'color': 'rgba(102,126,234,.25)'}, 'lineStyle': {'color': '#667eea'}, 'itemStyle': {'color': '#667eea'}}, {'value': [90, 92, 78, 55, 55], 'name': '太极', 'areaStyle': {'color': 'rgba(255,165,2,.22)'}, 'lineStyle': {'color': '#ffa502'}, 'itemStyle': {'color': '#ffa502'}}]}]}, height=380)
     st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层

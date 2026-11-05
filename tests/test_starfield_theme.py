@@ -68,12 +68,12 @@ def test_kline_option_transparent_background():
 
 def test_vs_box_verdict_kind_mapping():
     html_b = sf.vs_box("标题B", "看多", "b", ["点1", "点2"])
-    assert 'class="sf-verdict b"' in html_b
+    assert 'class="dash-verdict b"' in html_b
     assert "标题B" in html_b and "看多" in html_b
     assert "<li>点1</li>" in html_b and "<li>点2</li>" in html_b
 
     html_o = sf.vs_box("标题O", "观望", "anything-else", ["x"])
-    assert 'class="sf-verdict o"' in html_o
+    assert 'class="dash-verdict o"' in html_o
 
 
 def test_kline_chart_config_dark_toolbar():

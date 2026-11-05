@@ -6,8 +6,8 @@ T-266 空间治理守卫（用户截图：91 页偏好设置区大卡片×4 + �
 不能去除的做成点击/悬停才显现」）。
 
 契约：
-1. ui_theme.sf_card：body 为空 → 渲染紧凑节标题 .sf-section-title（而非大卡片）；
-   dashboard_sf_css 必须携带 .sf-section-title 样式（全站 30+ 处空卡片一次受益）。
+1. ui_theme.sf_card：body 为空 → 渲染紧凑节标题 .dash-section-title（而非大卡片）；
+   dashboard_sf_css 必须携带 .dash-section-title 样式（全站 30+ 处空卡片一次受益）。
 2. pages/91_我的.py：
    - 不得再有「全宽 progress 主题指示器」（st.progress(100 if ...)）；
    - 不得再用单元素 tabs 包装偏好设置（`_pref_tab, = st.tabs`）；
@@ -33,14 +33,14 @@ def _src(p: Path) -> str:
 def test_sf_card_empty_body_compact():
     """契约1：sf_card 空 body 走紧凑节标题分支，非空 body 保持原大卡片。"""
     src = _src(UI_THEME)
-    assert ".sf-section-title" in src, "紧凑节标题类缺失"
+    assert ".dash-section-title" in src, "紧凑节标题类缺失"
     assert "if not str(body).strip():" in src, "sf_card 空 body 分支缺失"
     # 空分支必须早于大卡片渲染（先 return 紧凑分支）
-    i_compact = src.index("sf-section-title")
-    i_bigcard = src.index('<div class="sf-card">')
+    i_compact = src.index("dash-section-title")
+    i_bigcard = src.index('<div class="dash-card">')
     assert i_compact < i_bigcard, "紧凑分支未前置"
     # 样式必须在 dashboard_sf_css 内（随 render_standard_page 每页注入）
-    assert ".sf-section-title{{" in src, "dashboard_sf_css 未携带 .sf-section-title 样式"
+    assert ".dash-section-title{{" in src, "dashboard_sf_css 未携带 .sf-section-title 样式"
 
 
 def test_page91_no_progress_indicator():

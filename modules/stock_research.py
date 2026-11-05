@@ -182,10 +182,10 @@ def render_stock_analysis() -> None:
         _default_code = str(_qp[0]) if isinstance(_qp, list) and _qp else (str(_qp) if _qp else "600519")
         ticker = stock_search_input(label='股票搜索', key='analysis_stock', default=_default_code, placeholder='输入代码或名称搜索，如：600519 / 贵州茅台 / GZMT / 茅台')
         st.caption('本页为星辰决策仪表盘，右上角可切换暗夜 / 白天模式。')
-    st.markdown('<div class="sf-header"><div class="sf-brand">决策仪表盘 · <b>个股深度分析</b></div><div class="sf-brand">事件驱动 · 多维归因</div></div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-    st.markdown('<div class="sf-cta-card">', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-    st.markdown('<div class="sf-cta-title">🚀 一键生成个股深度分析</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-    st.markdown('<div class="sf-cta-sub">输入代码 / 名称 / 拼音，生成暗色决策仪表盘：行情 · 新闻 · 技术 · 评分 · 财报。任务后台并行运行，完成后自动显示。</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown('<div class="dash-header"><div class="dash-brand">决策仪表盘 · <b>个股深度分析</b></div><div class="dash-brand">事件驱动 · 多维归因</div></div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown('<div class="dash-cta-card">', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown('<div class="dash-cta-title">🚀 一键生成个股深度分析</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+    st.markdown('<div class="dash-cta-sub">输入代码 / 名称 / 拼音，生成暗色决策仪表盘：行情 · 新闻 · 技术 · 评分 · 财报。任务后台并行运行，完成后自动显示。</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
     if st.button('🔍 生成分析', type='primary', width="stretch", key='gen_analysis_top'):
         task_id, err = submit_task_with_error('analysis', {'ticker': ticker})
         if task_id:
@@ -495,7 +495,7 @@ def render_stock_analysis() -> None:
         data_src = R['data_src']
         quote_src = R['quote_src']
         last = df.iloc[-1]
-        st.markdown('<div class="sf-card">' + _section_header('顶部决策摘要', icon='🎯', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header('顶部决策摘要', icon='🎯', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         chg_txt = f'{change_pct:+.2f}%'
         _close = last['close']
         if _close is None or (isinstance(_close, float) and pd.isna(_close)):
@@ -505,7 +505,7 @@ def render_stock_analysis() -> None:
         triangle = '▲' if change_pct > 0 else '▼' if change_pct < 0 else '—'
         price_color = RED if change_pct > 0 else GREEN if change_pct < 0 else AMBER
         badge_text = 'BUY' if verdict == '看多' else 'SELL' if verdict == '看空' else 'HOLD'
-        badge_class = 'sf-buy-badge' if verdict == '看多' else 'sf-sell-badge' if verdict == '看空' else 'sf-hold-badge'
+        badge_class = 'dash-buy-badge' if verdict == '看多' else 'dash-sell-badge' if verdict == '看空' else 'dash-hold-badge'
         today_bits = []
         if q_open is not None:
             today_bits.append(f'今开 ¥{q_open:.2f}')
@@ -521,26 +521,26 @@ def render_stock_analysis() -> None:
         today_pills = ''.join((f"<span style='display:inline-block;font-size:12px;color:var(--txt2);background:var(--card2);border:1px solid var(--border);border-radius:var(--ss-radius-sm);padding:3px 9px;margin:0 6px 6px 0;'>{b}</span>" for b in today_bits)) if today_bits else '—'  # noqa: UP034
         hdr_left, hdr_right = st.columns([3, 1])
         with hdr_left:
-            st.markdown(f"<div style='font-size:23px;font-weight:700;color:var(--txt);'>{display_name}</div><div style='font-size:12.5px;color:var(--txt2);margin-top:3px;'>{ticker} · {board} · {industry}</div><div style='margin-top:10px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;'><span class='sf-price-big' style='color:{price_color}!important;'>{price_disp}</span><span style='font-size:16px;font-weight:600;color:{price_color};'><span class='sf-triangle'>{triangle}</span>{chg_txt} ({change_amt:+.2f})</span></div><div style='margin-top:8px;'>{today_pills}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            st.markdown(f"<div style='font-size:23px;font-weight:700;color:var(--txt);'>{display_name}</div><div style='font-size:12.5px;color:var(--txt2);margin-top:3px;'>{ticker} · {board} · {industry}</div><div style='margin-top:10px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;'><span class='dash-price-big' style='color:{price_color}!important;'>{price_disp}</span><span style='font-size:16px;font-weight:600;color:{price_color};'><span class='dash-triangle'>{triangle}</span>{chg_txt} ({change_amt:+.2f})</span></div><div style='margin-top:8px;'>{today_pills}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         with hdr_right:
             st.markdown(f"<div style='text-align:center;margin-bottom:10px;'><span class='{badge_class}'>{badge_text}</span></div>{_score_ring_html(composite, verdict_color)}<div style='font-size:12px;color:var(--txt2);text-align:center;margin-top:4px;'>{verdict} · {('择机买入' if verdict == '看多' else '逢高减仓' if verdict == '看空' else '区间波段')}<br>({('65~79区间' if 65 <= composite <= 79 else '综合评分区间')})</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.markdown(f"<div class='sf-metric-card'><div class='label'>入场价（首仓 / 回踩）</div><div class='value sf-doc-up'>¥{current_price:.1f} / ¥{entry_price:.1f}</div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            st.markdown(f"<div class='dash-metric-card'><div class='label'>入场价（首仓 / 回踩）</div><div class='value dash-doc-up'>¥{current_price:.1f} / ¥{entry_price:.1f}</div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         with c2:
-            st.markdown(f"<div class='sf-metric-card'><div class='label'>目标价（一目标 / 压力）</div><div class='value sf-doc-up'>¥{target_price:.1f} / ¥{resistance:.1f}</div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            st.markdown(f"<div class='dash-metric-card'><div class='label'>目标价（一目标 / 压力）</div><div class='value dash-doc-up'>¥{target_price:.1f} / ¥{resistance:.1f}</div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         with c3:
-            st.markdown(f"<div class='sf-metric-card'><div class='label'>止损价（ATR14 风险位）</div><div class='value sf-doc-down'>¥{stop_price:.1f}</div><div style='font-size:11px;color:var(--txt2);margin-top:4px;'>ATR14=¥{atr14:.2f}</div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            st.markdown(f"<div class='dash-metric-card'><div class='label'>止损价（ATR14 风险位）</div><div class='value dash-doc-down'>¥{stop_price:.1f}</div><div style='font-size:11px;color:var(--txt2);margin-top:4px;'>ATR14=¥{atr14:.2f}</div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown(f"<div style='margin-top:14px;border-left:4px solid var(--brand-1);background:var(--card2);border-radius:0 12px 12px 0;padding:12px 16px;font-size:13.5px;color:var(--txt2);line-height:1.7;'><b style='color:var(--txt);'>📌 仓位建议：</b>{position_advice}</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown('<div class="sf-card">' + _section_header('核心结论', 'AI 综合研判 · 多空信号', '💡', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header('核心结论', 'AI 综合研判 · 多空信号', '💡', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         trend_label = trend.get('trend_label', '—') if 'error' not in trend else '数据不足'
         mom_label = momentum.get('momentum_label', '—') if 'error' not in momentum else '—'
         vol_label = volume_info.get('volume_price_label', '—') if 'error' not in volume_info else '—'
         one_line = f'{display_name} 现价 ¥{current_price:.2f}（{chg_txt}），技术面「{trend_label}」、动量「{mom_label}」、量能「{vol_label}」；新闻情绪正面占比 {pos_pct:.0f}%，综合研判 <b>{verdict}</b>。'
-        st.markdown(f"<div style='border-radius:var(--ss-radius-lg);padding:18px 20px;background:linear-gradient(135deg, {verdict_color}22, {verdict_color}08);border:1px solid {verdict_color}55;'><div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;'><div style='font-size:22px;font-weight:800;color:{verdict_color};'>{verdict} · {display_name}</div><span class='sf-tag {verdict_cls}' style='font-size:13px;padding:5px 14px;'>{badge_text}</span></div><div style='margin-top:10px;font-size:14px;color:var(--txt);line-height:1.8;'>{one_line}</div><div style='margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;'><span class='sf-tag neu'>综合评分 {composite}</span><span class='sf-tag {verdict_cls}'>信号 · {verdict}</span><span class='sf-tag neu'>策略 · {('分批建仓' if verdict == '看多' else '逢高减仓' if verdict == '看空' else '区间波段')}</span><span class='sf-tag neu'>适用 · 事件驱动 / 中短线</span></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<div style='border-radius:var(--ss-radius-lg);padding:18px 20px;background:linear-gradient(135deg, {verdict_color}22, {verdict_color}08);border:1px solid {verdict_color}55;'><div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;'><div style='font-size:22px;font-weight:800;color:{verdict_color};'>{verdict} · {display_name}</div><span class='dash-tag {verdict_cls}' style='font-size:13px;padding:5px 14px;'>{badge_text}</span></div><div style='margin-top:10px;font-size:14px;color:var(--txt);line-height:1.8;'>{one_line}</div><div style='margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;'><span class='dash-tag neu'>综合评分 {composite}</span><span class='dash-tag {verdict_cls}'>信号 · {verdict}</span><span class='dash-tag neu'>策略 · {('分批建仓' if verdict == '看多' else '逢高减仓' if verdict == '看空' else '区间波段')}</span><span class='dash-tag neu'>适用 · 事件驱动 / 中短线</span></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown('<div class="sf-card">' + _section_header('综合信息', '舆情 · 评分 · 五维 · 关联板块', '🧩', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header('综合信息', '舆情 · 评分 · 五维 · 关联板块', '🧩', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         _sec = sector_analysis or {}
         _sec_name = _sec.get('name') or industry or '—'
         _sec_chg = _sec.get('change_pct')
@@ -548,10 +548,10 @@ def render_stock_analysis() -> None:
         _sec_rank = _sec.get('rank')
         _sec_total = _sec.get('total')
         _sec_rank_txt = f'{_sec_rank}/{_sec_total}' if isinstance(_sec_rank, (int, float)) and isinstance(_sec_total, (int, float)) else '—'
-        st.markdown(f"<div class='sf-grid-4'><div class='sf-perspective-card'><div class='title'>舆情热度（近 {len(news_rows)} 条）</div><div class='body'><span style='color:var(--buy);font-weight:700;'>正面 {pos_pct:.0f}%</span> / <span style='color:var(--sell);font-weight:700;'>负面 {neg_pct:.0f}%</span><div style='margin-top:8px;height:8px;border-radius:var(--ss-radius-xs);background:var(--sell);overflow:hidden;'><div style='height:100%;width:{pos_pct:.0f}%;background:var(--buy);'></div></div></div></div><div class='sf-perspective-card'><div class='title'>综合评分</div><div class='body' style='display:flex;align-items:baseline;gap:8px;'><span style='font-size:30px;font-weight:800;color:{verdict_color};'>{composite}</span><span class='sf-tag {verdict_cls}'>{verdict}</span></div></div><div class='sf-perspective-card'><div class='title'>五维评分拆解</div><div class='body'><span class='sf-pill {_tp_cls(tech_score)}'>技术 {tech_score}</span><span class='sf-pill {_tp_cls(news_score)}'>舆情 {news_score}</span><span class='sf-pill {_tp_cls(vol_score)}'>量能 {vol_score}</span><span class='sf-pill {_tp_cls(macro_score)}'>宏观 {macro_score}</span><span class='sf-pill {_tp_cls(sector_score)}'>板块 {sector_score}</span></div></div><div class='sf-perspective-card'><div class='title'>关联板块 · {board or '—'}</div><div class='body'>{industry or '—'} · {_sec_name}<br>板块涨跌 {_sec_chg_txt} · 排名 {_sec_rank_txt}</div></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<div class='dash-grid-4'><div class='dash-perspective-card'><div class='title'>舆情热度（近 {len(news_rows)} 条）</div><div class='body'><span style='color:var(--buy);font-weight:700;'>正面 {pos_pct:.0f}%</span> / <span style='color:var(--sell);font-weight:700;'>负面 {neg_pct:.0f}%</span><div style='margin-top:8px;height:8px;border-radius:var(--ss-radius-xs);background:var(--sell);overflow:hidden;'><div style='height:100%;width:{pos_pct:.0f}%;background:var(--buy);'></div></div></div></div><div class='dash-perspective-card'><div class='title'>综合评分</div><div class='body' style='display:flex;align-items:baseline;gap:8px;'><span style='font-size:30px;font-weight:800;color:{verdict_color};'>{composite}</span><span class='dash-tag {verdict_cls}'>{verdict}</span></div></div><div class='dash-perspective-card'><div class='title'>五维评分拆解</div><div class='body'><span class='dash-pill {_tp_cls(tech_score)}'>技术 {tech_score}</span><span class='dash-pill {_tp_cls(news_score)}'>舆情 {news_score}</span><span class='dash-pill {_tp_cls(vol_score)}'>量能 {vol_score}</span><span class='dash-pill {_tp_cls(macro_score)}'>宏观 {macro_score}</span><span class='dash-pill {_tp_cls(sector_score)}'>板块 {sector_score}</span></div></div><div class='dash-perspective-card'><div class='title'>关联板块 · {board or '—'}</div><div class='body'>{industry or '—'} · {_sec_name}<br>板块涨跌 {_sec_chg_txt} · 排名 {_sec_rank_txt}</div></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown(f"<div style='margin-top:12px;font-size:13px;color:var(--txt2);line-height:1.7;'><b style='color:var(--txt);'>📝 股评：</b>技术面 {tech_score} 分、舆情 {news_score} 分、量能 {vol_score} 分、宏观 {macro_score} 分、板块 {sector_score} 分，综合研判 <b>{verdict}</b>，建议{('分批建仓' if verdict == '看多' else '逢高减仓' if verdict == '看空' else '区间波段')}。</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown('<div class="sf-card">' + _section_header('数据透视', '量价 / 筹码 / 位置 / 乖离', '📊', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header('数据透视', '量价 / 筹码 / 位置 / 乖离', '📊', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         dev5 = (last['close'] - ma5v) / ma5v * 100 if ma5v else 0.0
         dev10 = (last['close'] - ma10v) / ma10v * 100 if ma10v else 0.0
         dev20 = (last['close'] - ma20v) / ma20v * 100 if ma20v else 0.0
@@ -559,12 +559,12 @@ def render_stock_analysis() -> None:
         price_chain += f" {('>' if current_price >= ma5v else '<')} MA5({ma5v:.1f})"
         price_chain += f" {('>' if ma5v >= ma10v else '<')} MA10({ma10v:.1f})"
         if current_price < ma20v:
-            price_chain += f" · MA20({ma20v:.1f})<span class='sf-doc-down'>压制</span>"
+            price_chain += f" · MA20({ma20v:.1f})<span class='dash-doc-down'>压制</span>"
         else:
             price_chain += f' > MA20({ma20v:.1f})'
         dist_high = (last['close'] / hi52 - 1) * 100 if hi52 else 0.0
         pos_desc = '中下部' if pos52 < 50 else '中上部'
-        st.markdown(f"<div class='sf-grid-4'><div class='sf-perspective-card'><div class='title'>技术面 · 多周期（综合 {technical_profile['composite']}）</div><div class='body'><span class='sf-pill {_tp_cls(technical_profile['short'])}'>短期 {technical_profile['short']}</span><span class='sf-pill {_tp_cls(technical_profile['mid'])}'>中期 {technical_profile['mid']}</span><span class='sf-pill {_tp_cls(technical_profile['long'])}'>长期 {technical_profile['long']}</span></div></div><div class='sf-perspective-card'><div class='title'>价格位置（相对关键均线）</div><div class='body'>{price_chain}</div></div><div class='sf-perspective-card'><div class='title'>乖离率（严进标准 &lt;5%）</div><div class='body'>MA5 <b class='sf-doc-up'>{dev5:+.1f}%</b> · MA10 <b class='sf-doc-up'>{dev10:+.1f}%</b> · MA20 <b class='sf-doc-down'>{dev20:+.1f}%</b></div></div><div class='sf-perspective-card'><div class='title'>52周区间</div><div class='body'><b>¥{lo52:.2f} – ¥{hi52:.2f}</b><br>（现处{pos_desc}，距前高 {dist_high:+.0f}%）</div></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<div class='dash-grid-4'><div class='dash-perspective-card'><div class='title'>技术面 · 多周期（综合 {technical_profile['composite']}）</div><div class='body'><span class='dash-pill {_tp_cls(technical_profile['short'])}'>短期 {technical_profile['short']}</span><span class='dash-pill {_tp_cls(technical_profile['mid'])}'>中期 {technical_profile['mid']}</span><span class='dash-pill {_tp_cls(technical_profile['long'])}'>长期 {technical_profile['long']}</span></div></div><div class='dash-perspective-card'><div class='title'>价格位置（相对关键均线）</div><div class='body'>{price_chain}</div></div><div class='dash-perspective-card'><div class='title'>乖离率（严进标准 &lt;5%）</div><div class='body'>MA5 <b class='dash-doc-up'>{dev5:+.1f}%</b> · MA10 <b class='dash-doc-up'>{dev10:+.1f}%</b> · MA20 <b class='dash-doc-down'>{dev20:+.1f}%</b></div></div><div class='dash-perspective-card'><div class='title'>52周区间</div><div class='body'><b>¥{lo52:.2f} – ¥{hi52:.2f}</b><br>（现处{pos_desc}，距前高 {dist_high:+.0f}%）</div></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         _vol_desc = '明显放量' if vol_chg > 30 else '温和放大' if vol_chg > 0 else '缩量' if vol_chg < -15 else '地量企稳'
         _vol_health = '健康换手而非过热' if abs(vol_chg) < 40 else '异常波动需警惕'
         _q_amount_disp = f'{q_amount / 100000000.0:.2f}亿' if q_amount is not None and (not pd.isna(q_amount)) else '—'
@@ -574,8 +574,8 @@ def render_stock_analysis() -> None:
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         fragment_kline_card(ticker, display_name, df, ma20v, ma10v, support, trapped)
         neu_pct = max(0, 100 - pos_pct - neg_pct)
-        st.markdown('<div class="sf-card">' + _section_header('情报面', '新闻情绪 · 事件催化 · 风险提示', '📰', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown(f"<div class='sf-intel-header'><div><span class='sf-pill up'>正面 {pos_pct:.0f}%</span><span class='sf-pill mid'>中性 {neu_pct:.0f}%</span><span class='sf-pill down'>负面 {neg_pct:.0f}%</span></div></div><div class='sf-intel-bar'><div class='bar-pos' style='width:{pos_pct:.0f}%'></div><div class='bar-neu' style='width:{neu_pct:.0f}%'></div><div class='bar-neg' style='width:{neg_pct:.0f}%'></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header('情报面', '新闻情绪 · 事件催化 · 风险提示', '📰', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<div class='dash-intel-header'><div><span class='dash-pill up'>正面 {pos_pct:.0f}%</span><span class='dash-pill mid'>中性 {neu_pct:.0f}%</span><span class='dash-pill down'>负面 {neg_pct:.0f}%</span></div></div><div class='dash-intel-bar'><div class='bar-pos' style='width:{pos_pct:.0f}%'></div><div class='bar-neu' style='width:{neu_pct:.0f}%'></div><div class='bar-neg' style='width:{neg_pct:.0f}%'></div></div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         if news_rows:
             _news_q = st.text_input('🔍 搜索相关新闻…', key=f'filter_news_{ticker}', placeholder='输入关键词筛选新闻标题（仅前端过滤，不影响原始数据）')
             _filtered_news = [r for r in news_rows if _news_q.strip().lower() in str(r.get('title') or '').lower()] if _news_q else news_rows
@@ -585,8 +585,8 @@ def render_stock_analysis() -> None:
             _show_n = min(st.session_state[_news_limit_key], len(_filtered_news))
             _disp_news = _filtered_news[:_show_n]
             st.caption(f'📰 共获取 {len(news_rows)} 条新闻' + (f'，筛选命中 {len(_filtered_news)} 条' if _news_q else '') + f'，当前显示前 {_show_n} 条（按情绪权重排序）')
-            rows_html = ''.join((f"<tr><td class='l'>{safe_html_text(r.get('title'), '—')}</td><td><span class='sf-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{safe_html_text(r.get('sentiment'), '中性')}</span></td></tr>" for r in _disp_news))  # noqa: UP034
-            st.markdown(f"<table class='sf-table'><thead><tr><th class='l'>新闻标题</th><th>情绪</th></tr></thead><tbody>{rows_html}</tbody></table>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            rows_html = ''.join((f"<tr><td class='l'>{safe_html_text(r.get('title'), '—')}</td><td><span class='dash-tag {_sentiment_tag(r.get('sentiment') or '中性')}'>{safe_html_text(r.get('sentiment'), '中性')}</span></td></tr>" for r in _disp_news))  # noqa: UP034
+            st.markdown(f"<table class='dash-table'><thead><tr><th class='l'>新闻标题</th><th>情绪</th></tr></thead><tbody>{rows_html}</tbody></table>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             if _show_n < len(_filtered_news):
                 if st.button('显示更多 ▼', key=f'news_more_{ticker}', width="stretch"):
                     st.session_state[_news_limit_key] += 10
@@ -595,11 +595,11 @@ def render_stock_analysis() -> None:
         if neg_pct >= 30 or verdict == '看空':
             risk_titles = [safe_html_text(r.get('title'), '—') for r in news_rows if r.get('sentiment') == '负面'][:2]
             risk_body = '；'.join(risk_titles) if risk_titles else f'综合研判偏空（{safe_html_text(verdict)}）'
-            st.markdown(f"<div class='sf-alert risk'><b>⚠️ 风险警报</b>检测到偏空信号：{risk_body}。建议严格控制仓位并关注止损价 ¥{stop_price:.2f}。</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            st.markdown(f"<div class='dash-alert risk'><b>⚠️ 风险警报</b>检测到偏空信号：{risk_body}。建议严格控制仓位并关注止损价 ¥{stop_price:.2f}。</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         if pos_pct >= 40 or verdict == '看多':
             cat_titles = [safe_html_text(r.get('title'), '—') for r in news_rows if r.get('sentiment') == '正面'][:2]
             cat_body = '；'.join(cat_titles) if cat_titles else f'综合研判偏多（{safe_html_text(verdict)}）'
-            st.markdown(f"<div class='sf-alert cat'><b>🚀 积极催化</b>检测到正面信号：{cat_body}。可关注突破压力 ¥{target_price:.2f} 后的趋势机会。</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            st.markdown(f"<div class='dash-alert cat'><b>🚀 积极催化</b>检测到正面信号：{cat_body}。可关注突破压力 ¥{target_price:.2f} 后的趋势机会。</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         rise_factors, fall_factors = _build_rise_fall_factors(R)
         col_rise, col_fall = st.columns(2)
@@ -617,7 +617,7 @@ def render_stock_analysis() -> None:
             st.markdown(_logic_list_html('利空逻辑', fall_logic, GREEN, '🐻'), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         if fatal_logic:
             st.markdown(_logic_list_html('致命风险（必须盯死）', fatal_logic, '#ef4444', '⚠️'), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown('<div class="sf-card">' + _section_header('板块分析', '主板块定位 · 实时走势 · 同板块对比', '📊', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header('板块分析', '主板块定位 · 实时走势 · 同板块对比', '📊', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         _sa_name = sector_analysis.get('name', '—')
         _sa_full = sector_analysis.get('full_name', _sa_name)
         _sa_chg = sector_analysis.get('change_pct')
@@ -713,7 +713,7 @@ def render_stock_analysis() -> None:
             cap_txt = _fmt_cap(cap) if cap is not None else '—'
             rank_cell = f"<td style='padding:6px 8px;font-size:13px;color:var(--txt2);text-align:center;width:36px;'>{idx}</td>" if show_rank else ''
             return f"<tr>{rank_cell}<td style='padding:6px 8px;font-size:13px;color:var(--txt);'>{code}</td><td style='padding:6px 8px;font-size:13px;color:var(--txt);'>{name}</td><td style='padding:6px 8px;font-size:13px;font-weight:600;color:{color};'>{chg_txt}</td><td style='padding:6px 8px;font-size:12px;color:var(--txt2);text-align:right;'>{cap_txt}</td></tr>"
-        _html = f'<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px;"><div style="font-size:18px;font-weight:700;color:var(--txt);">{_sa_name}</div><span class="sf-pill {_tp_cls(sector_score)}">板块强度 {sector_score}</span><span style="font-size:14px;font-weight:600;color:{_sa_chg_color};">{_sa_chg_txt} {_sa_label}</span><span class="sf-pill mid">{_sa_rank_txt}</span></div><div style="font-size:13.5px;color:var(--txt2);line-height:1.7;margin-bottom:12px;"><b style="color:var(--txt);">板块行情：</b>{_market_verdict}<br>{_market_detail}</div><div style="font-size:13.5px;color:var(--txt2);line-height:1.7;margin-bottom:16px;"><b style="color:var(--txt);">个股定位：</b>{_position_txt}</div>'
+        _html = f'<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px;"><div style="font-size:18px;font-weight:700;color:var(--txt);">{_sa_name}</div><span class="dash-pill {_tp_cls(sector_score)}">板块强度 {sector_score}</span><span style="font-size:14px;font-weight:600;color:{_sa_chg_color};">{_sa_chg_txt} {_sa_label}</span><span class="dash-pill mid">{_sa_rank_txt}</span></div><div style="font-size:13.5px;color:var(--txt2);line-height:1.7;margin-bottom:12px;"><b style="color:var(--txt);">板块行情：</b>{_market_verdict}<br>{_market_detail}</div><div style="font-size:13.5px;color:var(--txt2);line-height:1.7;margin-bottom:16px;"><b style="color:var(--txt);">个股定位：</b>{_position_txt}</div>'
         if _top_peers:
             rows = ''.join((_peer_row(p, i + 1) for i, p in enumerate(_top_peers[:5])))
             _html += f'<div style="font-size:13px;font-weight:600;color:var(--txt);margin-bottom:8px;">🏆 板块领涨 TOP5</div><table style="width:100%;border-collapse:collapse;margin-bottom:16px;"><thead><tr style="border-bottom:1px solid var(--border);"><th style="padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;">代码</th><th style="padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;">名称</th><th style="padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;">涨跌幅</th><th style="padding:6px 8px;text-align:right;font-size:12px;color:var(--txt2);font-weight:600;">总市值</th></tr></thead><tbody>{rows}</tbody></table>'
@@ -725,7 +725,7 @@ def render_stock_analysis() -> None:
         st.markdown(_html, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.caption('板块内对比表格列说明：代码 / 名称 / 涨跌幅（绿涨红跌，本页配色）/ 总市值（亿元）；数据来自同板块实时行情。')
-        st.markdown('<div class="sf-card">' + _section_header('信号归因 · 五维雷达', '技术 / 情绪 / 量能 / 宏观 / 板块', '🎯', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header('信号归因 · 五维雷达', '技术 / 情绪 / 量能 / 宏观 / 板块', '🎯', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         try:
             import plotly.graph_objects as go
             radar_fig = go.Figure()
@@ -739,7 +739,7 @@ def render_stock_analysis() -> None:
             st.markdown(f"<div style='text-align:center;font-size:14px;font-weight:700;color:var(--txt);margin:6px 0 2px;'>综合信号强度 <b style='color:{verdict_color};'>{composite}</b> · {verdict}（五维加权）</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         except Exception as e:
             xc_handle_error("雷达图渲染失败", str(e)[:80], hint="请稍后重试，或检查网络与数据源连接")
-        st.markdown(f"<table class='sf-table'><thead><tr><th class='l'>维度（权重）</th><th>得分</th><th class='l'>研判要点</th></tr></thead><tbody><tr><td class='l'><b>技术指标</b> 25%</td><td>{tech_score:.0f}</td><td class='l'>多周期（短/中/长）趋势 · 动量强弱</td></tr><tr><td class='l'><b>新闻情绪</b> 22%</td><td>{news_score:.0f}</td><td class='l'>事件催化强度 · 正面占比 {pos_pct:.0f}%</td></tr><tr><td class='l'><b>资金量能</b> 18%</td><td>{vol_score:.0f}</td><td class='l'>量价配合 · 换手健康度</td></tr><tr><td class='l'><b>市场环境</b> 15%</td><td>{macro_score:.0f}</td><td class='l'>宏观 PMI · 大盘强弱</td></tr><tr><td class='l'><b>板块强度</b> 20%</td><td>{sector_score:.0f}</td><td class='l'>个股相对所属板块的强弱 · 排名 {sector_analysis.get('rank', '—')}{('/' + str(sector_analysis.get('total')) if sector_analysis.get('total') else '')} 强</td></tr><tr><td class='l'><b>综合评分</b></td><td><b>{composite}</b></td><td class='l'>五维加权汇总</td></tr></tbody></table>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<table class='dash-table'><thead><tr><th class='l'>维度（权重）</th><th>得分</th><th class='l'>研判要点</th></tr></thead><tbody><tr><td class='l'><b>技术指标</b> 25%</td><td>{tech_score:.0f}</td><td class='l'>多周期（短/中/长）趋势 · 动量强弱</td></tr><tr><td class='l'><b>新闻情绪</b> 22%</td><td>{news_score:.0f}</td><td class='l'>事件催化强度 · 正面占比 {pos_pct:.0f}%</td></tr><tr><td class='l'><b>资金量能</b> 18%</td><td>{vol_score:.0f}</td><td class='l'>量价配合 · 换手健康度</td></tr><tr><td class='l'><b>市场环境</b> 15%</td><td>{macro_score:.0f}</td><td class='l'>宏观 PMI · 大盘强弱</td></tr><tr><td class='l'><b>板块强度</b> 20%</td><td>{sector_score:.0f}</td><td class='l'>个股相对所属板块的强弱 · 排名 {sector_analysis.get('rank', '—')}{('/' + str(sector_analysis.get('total')) if sector_analysis.get('total') else '')} 强</td></tr><tr><td class='l'><b>综合评分</b></td><td><b>{composite}</b></td><td class='l'>五维加权汇总</td></tr></tbody></table>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         with st.expander('📖 评分维度说明', expanded=False):
             st.markdown('• <b>技术指标 25%</b>：多周期（短/中/长）趋势与动量强弱。<br>• <b>新闻情绪 22%</b>：事件催化强度与正面占比。<br>• <b>资金量能 18%</b>：量价配合与换手健康度。<br>• <b>市场环境 15%</b>：宏观 PMI 与大盘强弱。<br>• <b>板块强度 20%</b>：个股相对所属板块的强弱与排名。<br>综合评分 = 五维加权汇总，仅作研究参考，不构成投资建议。', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         bull = []
@@ -767,18 +767,18 @@ def render_stock_analysis() -> None:
             bull.append('综合信号看多')
         elif verdict == '看空':
             bear.append('综合信号看空')
-        st.markdown("<div class='sf-vs'>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown(f"<div class='sf-vsbox'><h3 style='color:{RED};'>最强看多信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bull)) if bull else '<ul><li>暂无显著看多信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层  # noqa: UP034
-        st.markdown(f"<div class='sf-vsbox'><h3 style='color:{GREEN};'>最强看空信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bear)) if bear else '<ul><li>暂无显著看空信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层  # noqa: UP034
+        st.markdown("<div class='dash-vs'>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<div class='dash-vsbox'><h3 style='color:{RED};'>最强看多信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bull)) if bull else '<ul><li>暂无显著看多信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层  # noqa: UP034
+        st.markdown(f"<div class='dash-vsbox'><h3 style='color:{GREEN};'>最强看空信号</h3>" + (''.join((f'<ul><li>{b}</li></ul>' for b in bear)) if bear else '<ul><li>暂无显著看空信号</li></ul>') + '</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层  # noqa: UP034
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown('<div class="sf-card">' + _section_header('作战计划', icon='⚔️', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header('作战计划', icon='⚔️', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown(_battle_plan_scale(support, resistance, current_price, target_price, stop_price, entry_price, verdict), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         plan_rows = _build_plan_rows(verdict, current_price, support, resistance, target_price, stop_price, entry_price, ma20v)
         a_tag = 'up' if verdict == '看多' else 'down' if verdict == '看空' else 'mid'
         b_tag = 'neu'
-        rows_html = ''.join((f"<tr><td><span class='sf-tag {(a_tag if i == 0 else b_tag)}'>{r[0]}</span></td><td class='l'>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td class='l'>{r[4]}</td></tr>" for i, r in enumerate(plan_rows)))
-        st.markdown(f"<table class='sf-table'><thead><tr><th>方案</th><th class='l'>触发条件</th><th>入场</th><th>止损</th><th class='l'>目标</th></tr></thead><tbody>{rows_html}</tbody></table>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        rows_html = ''.join((f"<tr><td><span class='dash-tag {(a_tag if i == 0 else b_tag)}'>{r[0]}</span></td><td class='l'>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td class='l'>{r[4]}</td></tr>" for i, r in enumerate(plan_rows)))
+        st.markdown(f"<table class='dash-table'><thead><tr><th>方案</th><th class='l'>触发条件</th><th>入场</th><th>止损</th><th class='l'>目标</th></tr></thead><tbody>{rows_html}</tbody></table>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown("<div style='color:var(--txt);font-weight:600;margin:14px 0 4px;'>风控清单</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         col_risk, col_iron = st.columns(2)
         with col_risk:
@@ -787,7 +787,7 @@ def render_stock_analysis() -> None:
         with col_iron:
             st.markdown(_risk_iron_html('风险铁律', _build_risk_iron_rules(R)), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        st.markdown(f"<div class='sf-disclaimer'>分析时间：{datetime.now().strftime('%Y-%m-%d %H:%M')} ｜ 标的：{display_name}({ticker}) ｜ 数据来源：行情 {data_src}、实时行情 {quote_src}、新闻 东方财富/财新/央视多源聚合、宏观 PMI ｜ 声明：本页所有结论均由程序基于公开数据自动计算，仅供研究参考，不构成任何投资建议。市场有风险，投资需谨慎。</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown(f"<div class='dash-disclaimer'>分析时间：{datetime.now().strftime('%Y-%m-%d %H:%M')} ｜ 标的：{display_name}({ticker}) ｜ 数据来源：行情 {data_src}、实时行情 {quote_src}、新闻 东方财富/财新/央视多源聚合、宏观 PMI ｜ 声明：本页所有结论均由程序基于公开数据自动计算，仅供研究参考，不构成任何投资建议。市场有风险，投资需谨慎。</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         _top_peers = sector_analysis.get('top_peers', []) or []
         _better_peers = sector_analysis.get('better_peers', []) or []
         _recs = []
@@ -796,7 +796,7 @@ def render_stock_analysis() -> None:
             if _pc and _pc not in [r.get('code') for r in _recs]:
                 _recs.append(p)
         if _recs:
-            st.markdown('<div class="sf-card">' + _section_header('相关标的推荐', '同板块领涨 / 更强个股', '🔗', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+            st.markdown('<div class="dash-card">' + _section_header('相关标的推荐', '同板块领涨 / 更强个股', '🔗', level=1), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             st.markdown(f"<div style='font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:10px;'>基于「{_sa_name}」板块内实时表现，为你推荐以下关联标的（涨跌遵循本页绿涨红跌配色）：</div>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
             _rec_rows = ''.join((_peer_row(p) for p in _recs[:6]))  # noqa: UP034
             st.markdown(f"<table style='width:100%;border-collapse:collapse;'><thead><tr style='border-bottom:1px solid var(--border);'><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>代码</th><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>名称</th><th style='padding:6px 8px;text-align:left;font-size:12px;color:var(--txt2);font-weight:600;'>涨跌幅</th><th style='padding:6px 8px;text-align:right;font-size:12px;color:var(--txt2);font-weight:600;'>总市值</th></tr></thead><tbody>{_rec_rows}</tbody></table>", unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
@@ -1093,7 +1093,7 @@ def render_stock_analysis() -> None:
       · 图下「展开分析」表列出各期明细（最新期在最前，红涨绿跌着色）。
     数据不足 2 期时给出诚实兜底提示，绝不合成假数据。
     """
-        st.markdown('<div class="sf-card">' + _section_header("业绩横向对比", "≥3 年主要指标 · 柱状规模 + 折线同比", "📈", level=2), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header("业绩横向对比", "≥3 年主要指标 · 柱状规模 + 折线同比", "📈", level=2), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         _pct_metrics = ("ROE%", "毛利率%", "净利率%")
         # ── 当前指标解析（必须先于下方 caption：T-292 修复——原实现把该块排在 caption 之后，
         #    `_cur` 未赋值先使用 → UnboundLocalError，财报 fragment 首屏渲染全断）──
@@ -1180,7 +1180,7 @@ def render_stock_analysis() -> None:
 
     def _build_multi_period_table(code: str, periods: list, dark: bool = False) -> None:
         """用户多选报告期后，合并成一个「Excel 式」业绩对比表并支持 CSV 导出。"""
-        st.markdown('<div class="sf-card">' + _section_header("多期业绩对比表", "用户自选报告期 · 同一表格", "📊", level=2), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header("多期业绩对比表", "用户自选报告期 · 同一表格", "📊", level=2), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         if not periods:
             _empty_info("请在上方「多期对比」中至少选择一个报告期。")
             st.markdown('</div>', unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
@@ -1276,7 +1276,7 @@ def render_stock_analysis() -> None:
             multi_periods = [_label_to_period.get(_lbl) for _lbl in multi_selected if _label_to_period.get(_lbl)]
 
         # ── 业绩报表（东财，按代码过滤）──
-        st.markdown('<div class="sf-card">' + _section_header("业绩报表", "每股收益 · 营收 · 净利润 · ROE", "📊", level=2), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header("业绩报表", "每股收益 · 营收 · 净利润 · ROE", "📊", level=2), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.caption(f"当前报告期：**{period_label}**")
         try:
             rep_df = _fr_cached_report(period)
@@ -1364,7 +1364,7 @@ def render_stock_analysis() -> None:
                     xc_warn_box(f"披露日历渲染失败：{e}")
 
         # ── 财务三表（新浪，best-effort）──
-        st.markdown('<div class="sf-card">' + _section_header("财务三表", "利润表 · 资产负债表 · 现金流量表", "🧾", level=2), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
+        st.markdown('<div class="dash-card">' + _section_header("财务三表", "利润表 · 资产负债表 · 现金流量表", "🧾", level=2), unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
         st.caption("数据来源：新浪财经财务三表（取最新 8 期，金额已自动换算为 亿/万）。接口偶发不稳定时单个表会单独提示。")
         # ── 多期趋势（利润表：营业总收入 / 净利润，单位亿元）──
         try:

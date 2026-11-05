@@ -43,7 +43,7 @@ def test_sf_card_body_kept_in_ui_theme():
     """ui_theme.sf_card 本体保留（契约依赖），且仍含空 body 紧凑分支。"""
     src = _src(UI_THEME)
     assert "def sf_card(" in src
-    assert "if not str(body).strip():" in src  # 空 body → .sf-section-title 分支仍在
+    assert "if not str(body).strip():" in src  # 空 body → .dash-section-title 分支仍在
 
 
 def test_xc_content_card_is_canonical_and_used():

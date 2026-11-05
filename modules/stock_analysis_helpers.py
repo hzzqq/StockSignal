@@ -228,17 +228,17 @@ def _battle_plan_scale(support: float, resistance: float, current: float,
         filtered.append((lab, price, color))
 
     parts = [
-        '<div class="sf-scale">',
-        f'<div class="sf-scale-bar" style="background:linear-gradient(90deg,{c_left},{c_mid},{c_right});"></div>',
+        '<div class="dash-scale">',
+        f'<div class="dash-scale-bar" style="background:linear-gradient(90deg,{c_left},{c_mid},{c_right});"></div>',
     ]
     for lab, price, color in filtered:
         p = _pos(price)
         parts.append(
-            f'<div class="sf-scale-mk" style="left:{p:.1f}%;">'
+            f'<div class="dash-scale-mk" style="left:{p:.1f}%;">'
             f'<b style="color:{color};">¥{price:.2f}</b>{lab}</div>'
         )
-    parts.append('<div class="sf-scale-lab" style="left:14px;">下方支撑</div>')
-    parts.append('<div class="sf-scale-lab" style="right:14px;">压力/止损</div>')
+    parts.append('<div class="dash-scale-lab" style="left:14px;">下方支撑</div>')
+    parts.append('<div class="dash-scale-lab" style="right:14px;">压力/止损</div>')
     parts.append('</div>')
     return "".join(parts)
 
@@ -299,7 +299,7 @@ def _risk_iron_html(title: str, items: list[dict]) -> str:
     if not items:
         items = [{"title": "暂无", "desc": "未识别到明确风险铁律，建议遵守通用止损与仓位纪律。", "level": "info"}]
     rows = "".join(f"<li><b>{it['title']}</b>：{it['desc']}</li>" for it in items)
-    return f'<div class="sf-risk-iron"><h3>⚠ {title}</h3><ul>{rows}</ul></div>'
+    return f'<div class="dash-risk-iron"><h3>⚠ {title}</h3><ul>{rows}</ul></div>'
 
 
 def _build_plan_rows(verdict: str, current: float, support: float, resistance: float,

@@ -219,7 +219,7 @@ def fragment_orders():
         mode = o.get('mode')
         src = o.get('source')
         st_color = colors.UP_COLOR if side == 'buy' else colors.DOWN_COLOR
-        status_cls = {'filled': 'sf-pill up', 'rejected': 'sf-pill down', 'failed': 'sf-pill down', 'submitted': 'sf-pill mid'}.get(status, 'sf-pill mid')
+        status_cls = {'filled': 'dash-pill up', 'rejected': 'dash-pill down', 'failed': 'dash-pill down', 'submitted': 'dash-pill mid'}.get(status, 'dash-pill mid')
         with st.container(border=True):
             cm1, cm2, cm3, cm4 = st.columns([1.4, 1, 1, 1.4])
             with cm1:

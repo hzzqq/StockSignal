@@ -415,13 +415,13 @@ def fragment_alerts():
             desc = ''
         if triggered is None:
             status_txt = '待验证'
-            status_cls = 'sf-pill mid'
+            status_cls = 'dash-pill mid'
         elif triggered:
             status_txt = '🔥 已触发'
-            status_cls = 'sf-pill down'
+            status_cls = 'dash-pill down'
         else:
             status_txt = '监测中'
-            status_cls = 'sf-pill mid'
+            status_cls = 'dash-pill mid'
         if st.session_state.get('alert_browser_notify') and triggered:
             _aid = aid
             if _aid is not None and _aid not in _notified_ids:

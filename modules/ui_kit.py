@@ -218,11 +218,11 @@ _KIT_CSS = _TOKEN_CSS + r"""
 .ss-table tbody tr:nth-child(even){background:color-mix(in srgb,var(--ss-surface-2) 55%,transparent)}
 .ss-table tbody tr:hover{background:color-mix(in srgb,var(--ss-accent) 10%,var(--ss-surface-2))}
 
-/* ---- 既有 .sf-table 增强：粘性表头 + 斑马纹 + 行 hover（沿用主题变量，随 theme_mode 自适应） ---- */
-.sf-table thead th{position:sticky;top:0;background:var(--ss-surface-2);color:var(--ss-text-muted);
+/* ---- 既有 .dash-table 增强：粘性表头 + 斑马纹 + 行 hover（沿用主题变量，随 theme_mode 自适应） ---- */
+.dash-table thead th{position:sticky;top:0;background:var(--ss-surface-2);color:var(--ss-text-muted);
   font-weight:600;z-index:1}
-.sf-table tbody tr:nth-child(even){background:color-mix(in srgb,var(--ss-surface-2) 55%,transparent)}
-.sf-table tbody tr:hover{background:color-mix(in srgb,var(--ss-accent) 12%,var(--ss-surface-2))}
+.dash-table tbody tr:nth-child(even){background:color-mix(in srgb,var(--ss-surface-2) 55%,transparent)}
+.dash-table tbody tr:hover{background:color-mix(in srgb,var(--ss-accent) 12%,var(--ss-surface-2))}
 
 /* ===== 新城风格视觉层（参照 app_dist/微应用大厅/index.html 2026-08-28 接入） =====
    命名空间 .xc-* 以避免污染既有 .sf-* / .ss-* 主题。深紫渐变 + 大圆角 + 抬升光晕。

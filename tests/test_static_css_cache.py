@@ -28,7 +28,7 @@ def test_dashboard_sf_css_cached_per_theme():
         a = ui_theme.dashboard_sf_css()
         b = ui_theme.dashboard_sf_css()
     assert a is b  # 命中缓存：同一对象，未重建
-    assert ".sf-card" in a and "</style>" in a
+    assert ".dash-card" in a and "</style>" in a
     # 暗色应为不同缓存项
     with patch.object(ui_theme, "_theme_is_dark", return_value=True):
         c = ui_theme.dashboard_sf_css()

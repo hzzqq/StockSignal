@@ -126,7 +126,7 @@ def fragment_cond_list():
             cp = float(tparams.get('confirm_pct', 0) or 0)
             desc = f"{('上穿' if ttype == 'ma5_break_up' else '跌破')} 5 日均线（确认 {cp:g}%）"
         status_txt = STATUS_LABELS.get(status, status)
-        status_cls = {'pending': 'sf-pill mid', 'triggered': 'sf-pill up', 'filled': 'sf-pill up', 'failed': 'sf-pill down', 'cancelled': 'sf-pill down', 'expired': 'sf-pill mid'}.get(status, 'sf-pill mid')
+        status_cls = {'pending': 'dash-pill mid', 'triggered': 'dash-pill up', 'filled': 'dash-pill up', 'failed': 'dash-pill down', 'cancelled': 'dash-pill down', 'expired': 'dash-pill mid'}.get(status, 'dash-pill mid')
         with st.container(border=True):
             cm1, cm2, cm3, cm4, cm5 = st.columns([1.5, 2.2, 1, 0.9, 0.9])
             with cm1:

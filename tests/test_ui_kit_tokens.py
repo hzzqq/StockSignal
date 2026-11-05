@@ -184,7 +184,7 @@ def test_info_box_success_decoupled_from_down():
 
 def test_content_card_title_reads_fs_title_token():
     """P1-2c（ui-ds Phase1 §2.2③）：.xc-content-card 标题 15px → var(--ss-fs-title)，
-    与 xc-section-h 16px / sf-card-title 16px 统一到 title 级字号阶梯。"""
+    与 xc-section-h 16px / dash-card-title 16px 统一到 title 级字号阶梯。"""
     css = _kit()._KIT_CSS
     m = re.search(r"\.xc-content-card \.xc-cc-title\{([^}]*)\}", css)
     assert m, "缺少 .xc-content-card .xc-cc-title 规则"

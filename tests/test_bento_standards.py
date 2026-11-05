@@ -128,8 +128,8 @@ _KNOWN_PAGE_CLASSES = frozenset({
     "lg-up",
     # 问答/对比/白名单等页面局部组件
     "qa-badge", "qa-bar", "qa-card", "qa-icon", "qa-name", "qa-row",
-    "sf-card", "sf-card-subtitle", "sf-card-title", "sf-metric-card",
-    "sf-page-link", "wl-op", "wl-table",
+    "dash-card", "dash-card-subtitle", "dash-card-title", "dash-metric-card",
+    "dash-page-link", "wl-op", "wl-table",
     # 星辰 AI 会话族（53 页，xc-* 局部组件）
     "xc-av", "xc-badge", "xc-banner", "xc-bubble", "xc-cite", "xc-col",
     "xc-copy", "xc-copy-src", "xc-copy-wrap", "xc-flow", "xc-flow-label",
