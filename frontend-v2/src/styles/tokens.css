@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* 设计令牌（DESIGN.md §2，真扫自 modules/ui_theme.py:29-41）
+ * A 股双套语义：
+ *  - ss-*  交易屏 / 全站语义：涨=红、跌=绿
+ *  - doc-* 报告体 / 个股页价格域语义：涨=绿、跌=红（与交易屏相反）
+ * 两者不可混淆。W0 仅用 ss-* 令牌；doc-* 预留给 W1 报告页。
+ */
+@theme {
+  /* 交易屏语义（红涨绿跌） */
+  --color-ss-up: #ff4d4f;
+  --color-ss-down: #00d486;
+
+  /* 报告/个股页语义（绿涨红跌） */
+  --color-doc-up: #009e60;
+  --color-doc-down: #ff4d4f;
+
+  /* 暗色背景体系（来自 ui_theme 真扫） */
+  --color-sf-bg: #0f0f23;
+  --color-sf-card: #1a1a2e;
+  --color-sf-txt: #e2e8f0;
+  --color-sf-border: #2d2d44;
+  --color-sf-grid: #23233c;
+}
+
+/* 默认文档底色（W0 占位页用） */
+body {
+  margin: 0;
+  background: var(--color-sf-bg);
+  color: var(--color-sf-txt);
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+}
