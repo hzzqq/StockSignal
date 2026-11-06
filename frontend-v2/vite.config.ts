@@ -19,6 +19,11 @@ export default defineConfig({
         target: 'http://127.0.0.1:5050',
         changeOrigin: true,
       },
+      // 网页作品集静态资源（86 页）由 Flask 在 /webapps 下托管，开发期一并代理
+      '/webapps': {
+        target: 'http://127.0.0.1:5050',
+        changeOrigin: true,
+      },
     },
   },
   // 分包策略（manualChunks）推迟到 W2 图表库接入时再加，避免 W0 类型摩擦；

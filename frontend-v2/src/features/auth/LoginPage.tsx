@@ -2,11 +2,25 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { login } from '@/api/endpoints'
 import { clearAuth } from '@/app/guards'
+import type { AppPath } from '@/nav/nav'
+
+const KNOWN_PATHS: AppPath[] = [
+  '/',
+  '/decision',
+  '/replay',
+  '/morning',
+  '/p1',
+  '/recommend',
+  '/paper',
+  '/alerts',
+  '/webapps',
+]
 
 export function LoginPage() {
   const navigate = useNavigate()
   const search = useSearch({ from: '/login' })
-  const from = typeof search.from === 'string' && search.from.startsWith('/') ? search.from : '/'
+  const rawFrom = typeof search.from === 'string' && search.from.startsWith('/') ? search.from : '/'
+  const from: AppPath = (KNOWN_PATHS as string[]).includes(rawFrom) ? (rawFrom as AppPath) : '/'
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -28,7 +42,7 @@ export function LoginPage() {
       localStorage.setItem('ss_token', result.access_token)
       if (result.refresh_token) localStorage.setItem('ss_refresh', result.refresh_token)
       // 保留来源路由：登录后回到触发登录的页面（from 由守卫写入 search）
-      navigate({ to: from as '/' })
+      navigate({ to: from })
     } catch (err) {
       clearAuth()
       setError(err instanceof Error ? err.message : '登录失败')

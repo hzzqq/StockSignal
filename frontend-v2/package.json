@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "mock:init": "msw init public --save"
   },
   "dependencies": {
     "@tanstack/react-query": "5.106.1",
@@ -24,9 +26,15 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "6.2.1",
+    "msw": "^2.7.0",
     "tailwindcss": "4.3.4",
     "typescript": "7.0.2",
     "vite": "8.3.6",
     "vitest": "5.1.0"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }

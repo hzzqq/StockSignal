@@ -1,25 +1,20 @@
-import {
-  createRootRoute,
-  createRoute,
-  createRouter,
-} from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/react-router'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { requireAuth } from './guards'
+import { AppShell } from './AppShell'
+import { Dashboard } from '@/features/dashboard/Dashboard'
+import { DecisionPanel } from '@/features/decision/DecisionPanel'
+import { DecisionReplay } from '@/features/decision/DecisionReplay'
+import { MorningReport } from '@/features/morning/MorningReport'
+import { P1Signals } from '@/features/p1/P1Signals'
+import { Recommendation } from '@/features/recommend/Recommendation'
+import { PaperTrades } from '@/features/paper/PaperTrades'
+import { Alerts } from '@/features/alerts/Alerts'
+import { WebApps } from '@/features/webapps/WebApps'
 
-// W0 占位根布局（真实首页在 W1 接数据后替换）
-function RootLayout() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-sf-bg text-sf-txt">
-      <div className="text-center space-y-2">
-        <h1 className="text-2xl font-semibold">StockSignal V2</h1>
-        <p className="text-sf-border">占位首页（W1 接入数据）</p>
-      </div>
-    </div>
-  )
-}
-
+// 根布局：仅渲染子路由出口（登录页与鉴权外壳并列挂在根下）
 const rootRoute = createRootRoute({
-  component: RootLayout,
+  component: () => <Outlet />,
 })
 
 const loginRoute = createRoute({
@@ -31,17 +26,84 @@ const loginRoute = createRoute({
   component: LoginPage,
 })
 
-const indexRoute = createRoute({
+// 鉴权外壳：所有子路由统一走 requireAuth，未登录跳 /login 并保留来源
+const appRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/',
+  id: 'app',
   beforeLoad: () => {
-    // 未登录 → /login，并保留来源路由
     requireAuth('/')
   },
-  component: RootLayout,
+  component: AppShell,
 })
 
-const routeTree = rootRoute.addChildren([loginRoute, indexRoute])
+const dashboardRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/',
+  component: Dashboard,
+})
+
+const decisionRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/decision',
+  component: DecisionPanel,
+})
+
+const replayRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/replay',
+  component: DecisionReplay,
+})
+
+const morningRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/morning',
+  component: MorningReport,
+})
+
+const p1Route = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/p1',
+  component: P1Signals,
+})
+
+const recommendRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/recommend',
+  component: Recommendation,
+})
+
+const paperRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/paper',
+  component: PaperTrades,
+})
+
+const alertsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/alerts',
+  component: Alerts,
+})
+
+const webappsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/webapps',
+  component: WebApps,
+})
+
+const routeTree = rootRoute.addChildren([
+  loginRoute,
+  appRoute.addChildren([
+    dashboardRoute,
+    decisionRoute,
+    replayRoute,
+    morningRoute,
+    p1Route,
+    recommendRoute,
+    paperRoute,
+    alertsRoute,
+    webappsRoute,
+  ]),
+])
 
 export const router = createRouter({ routeTree })
 
