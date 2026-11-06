@@ -1,0 +1,177 @@
+# StockSignal 前端 V2 · 信息架构与 74 页迁移（IA-MIGRATION）
+
+> 配套 `PLAN.md` §3.3 / §6，`DESIGN.md` §4。
+> 所有分组名与页面名取自真扫 `modules/widgets.py:673-779` 与 `ls pages/*.py`（74 个文件），非推测。
+
+---
+
+## 1. 现有信息架构（真值）
+
+`modules/widgets.py::_NAV_GROUPS` 定义 **6 个一级类目**，另有 `_NAV_HERO`(54)、`_NAV_ADMIN`(92/93)：
+
+| # | 一级类目 | 子簇 | 登记页数 |
+|---|---|---|---|
+| 1 | 📈 行情与板块 | 行情(7) / 板块(3) | 10 |
+| 2 | 🌐 市场广度·温度 | 广度温度核心(8) / 状态机·全景(4) / 事件·连板(4) / 情绪扫描器(4) / 财报日历(2) | 22 |
+| 3 | 🔎 个股研究 | 无子簇 | 4 |
+| 4 | 🧪 量化选股 | 无子簇 | 8 |
+| 5 | 💼 持仓交易 | 无子簇 | 4 |
+| 6 | 🛠 工具与社区 | 工具(5) / 数据治理(4) / 社区与AI(6) | 15 |
+| — | Hero 常驻 | `54_今日决策面板` | 1 |
+| — | Admin | `92_用户管理` / `93_系统配置` | 2 |
+| — | 独立页（未登记导航） | `90_登录` / `91_我的` / `96_新手教程` | 3 |
+| — | **已内嵌，勿作独立页** | `11_股票选取`、`20_个股分析` → `24_个股研究`；`40_仓位管理`、`41_组合收益`、`46_自选股监控` → `45_持仓中心` | 5 |
+
+合计 74。原版注释明确写了收敛理由：「三者看起来是同一件事，重复入口才是『乱』的根源」（`widgets.py:726-728`）。**V2 必须沿用这个收敛，不许把重复入口搬回来**。
+
+现有硬约束：一级类目 = 6 且顺序固定、图标全局唯一、子簇 ≤8（`tests/test_sidebar_nav.py` 锁）。V2 的 `nav.manifest.json` 保持同样的结构约束并写进校验脚本。
+
+---
+
+## 2. V2 路由表（按 6 类目一一对应）
+
+| 类目 | 路由前缀 | 代表页 |
+|---|---|---|
+| Hero | `/decision` | `/decision`（54 今日决策面板，默认落地页） |
+| 📈 行情与板块 | `/market` | `/market/board`(10) `/market/monitor`(14) `/market/fundflow`(35) `/market/morning`(51) `/market/strong`(76) `/market/macro`(84) `/market/dragon-tiger`(85) `/market/rotation`(12) `/market/cube`(17) `/market/themes`(75) |
+| 🌐 市场广度·温度 | `/breadth` | `/breadth/strength`(13) `/breadth/driver`(15) `/breadth/sentiment`(50) `/breadth/thermometer`(59) `/breadth/divergence`(61) `/breadth/momentum`(62) `/breadth/temp-backtest`(63) `/breadth/temp-duration`(69) `/breadth/regime`(56) `/breadth/panorama`(57) `/breadth/replay`(97) `/breadth/qa`(99) `/breadth/events`(23) `/breadth/event-compare`(60) `/breadth/ladder`(58) `/breadth/limit-review`(70) `/breadth/clock`(65) `/breadth/lead-lag`(66) `/breadth/similar-days`(67) `/breadth/turning-point`(68) `/breadth/earnings-calendar`(16) `/breadth/earnings-hunter`(77) |
+| 🔎 个股研究 | `/stock` | `/stock/research`(24) `/stock/compare`(21) `/stock/fundamentals`(22) `/stock/six-dim`(72) |
+| 🧪 量化选股 | `/screener` | `/screener/daily`(36) `/screener/smart`(32) `/screener/pattern`(31) `/screener/etf`(33) `/screener/quant-agent`(25) `/screener/backtest`(30) `/screener/p1-signal`(55) `/screener/factors`(71) |
+| 💼 持仓交易 | `/portfolio` | `/portfolio`(45) `/portfolio/live`(43) `/portfolio/sim`(42) `/portfolio/landing`(98) |
+| 🛠 工具与社区 | `/tools` | `/tools/scan`(34) `/tools/price-alert`(47) `/tools/export`(95) `/tools/cond-order`(44) `/tools/showcase`(86) `/tools/custom-board`(73) `/tools/alert-engine`(74) `/tools/freshness`(82) `/tools/nl-stock`(81) `/tools/ai`(53) `/tools/forum`(52) `/tools/messages`(94) `/tools/roundtable`(64) `/tools/rules`(83) `/tools/voice-event`(87) |
+| Admin | `/admin` | `/admin/users`(92) `/admin/config`(93) |
+| 独立 | `/login` `/me` `/guide` | 90 / 91 / 96 |
+
+**内嵌页不设路由，改为子视图参数**：
+- `24_个股研究` 的 `快速选取` / `深度分析` → `/stock/research?view=quick|deep`
+- `45_持仓中心` 的 `自选股监控` / `仓位管理` / `组合收益` → `/portfolio?tab=watchlist|position|returns`
+
+---
+
+## 3. 深链契约（必须等价，否则老链接全断）
+
+### 3.1 原版机制（真值）
+
+- `safe_switch_page(page)` **只透传 `st.query_params`**，不带额外 kwargs；要传参必须**先** `st.query_params['k']=v` 再跳转。
+- 消费方在 radio / 控件**之前**读 `query_params.get()` 预选 + 回填 `session_state`。
+- 24 页深链 = **`hub_gyj_view`** + **`pick_stock`**。
+
+### 3.2 V2 映射
+
+| 原参数 | V2 等价 | 消费方式 |
+|---|---|---|
+| `hub_gyj_view` | `/stock/research?view=<quick\|deep>` | 路由 loader 读 `view`，在渲染 radio **之前**写入初始 state |
+| `pick_stock` | `/stock/research?code=<6位>&view=deep` | loader 校验 6 位数字，预选个股并触发查询 |
+| 旧链接整体 | `/legacy?hub_gyj_view=...&pick_stock=...` → 302 到新路由 | **兼容层必须保留**，避免收藏/分享链接失效 |
+
+**关键顺序红线**：URL 参数预选必须发生在控件挂载之前。TanStack Router 的 `beforeLoad` / loader 里完成，不要在 `useEffect` 里补——那会产生「先渲染默认再跳变」的闪烁，也是原版踩过的坑。
+
+### 3.3 `nav.manifest.json` 结构（单一真理源）
+
+```jsonc
+{
+  "groups": [
+    {
+      "id": "market", "label": "行情与板块", "icon": "trending-up", "order": 1,
+      "clusters": [
+        { "id": "quotes", "label": "行情", "items": [
+          { "path": "/market/board", "label": "行情看板", "icon": "monitor",
+            "legacy": "pages/10_行情看板.py", "permission": "user", "wave": 2,
+            "dataDay": true, "priceDomain": "market" }
+        ]}
+      ]
+    }
+  ],
+  "deepLinks": { "hub_gyj_view": "view", "pick_stock": "code" }
+}
+```
+
+`router.tsx` 与侧栏组件**都从这里生成**；`legacy` 字段用于兼容层与迁移比对；`priceDomain` 直接喂给 `DESIGN.md` §3 的组件，从清单层面杜绝双套色误用。
+
+---
+
+## 4. 74 页迁移分波（对齐 `PLAN.md` §6）
+
+| 波次 | 页面 | 数量 |
+|---|---|---|
+| **W0** | 90 登录 + 91 我的 + 96 新手教程 + 脚手架/契约 | 3 |
+| **W1 决策中枢** | 54 / 97 / 98 / 51 / 55 / 99 | 6 |
+| **W2 行情与板块** | 10,14,35,76,84,85,12,17,75（51 已在 W1） | 9 |
+| **W3 广度·温度** | 13,15,50,59,61,62,63,69,56,57,23,60,58,70,65,66,67,68,16,77（97/99 已在 W1） | 20 |
+| **W4 个股研究** | 24,21,22,72（+ 11/20 作为 `?view=` 子视图） | 4 |
+| **W5 量化选股** | 36,32,31,33,25,30,71（55 已在 W1） | 7 |
+| **W6 持仓交易** | 45,43,42（+ 40/41/46 作为 `?tab=` 子视图；98 已在 W1） | 3 |
+| **W7 工具社区+Admin** | 34,47,95,44,86,73,74,82,81,53,52,94,64,83,87,92,93 | 17 |
+| **内嵌合并** | 11,20,40,41,46 → 无独立路由 | 5 |
+| 合计 | | **74** |
+
+> 波次划分依据：W1 是产品最高光且**必须先解决 §4 只读端点**；W3 页数最多且图表最复杂，排在图表库已验证的 W2 之后；W7 长尾收口。
+
+---
+
+## 5. 交互流程与状态
+
+### 5.1 全局状态分层
+
+| 层 | 工具 | 内容 |
+|---|---|---|
+| 服务端状态 | TanStack Query | 所有 API 数据、缓存、失效、重试 |
+| 客户端 UI 态 | Zustand | 主题、侧栏折叠、深链预选、对比篮 |
+| URL 状态 | TanStack Router search params | 深链、筛选、分页、tab（**可分享**） |
+| **禁止** | — | 把服务端数据复制进 Zustand；把仓位规则放进前端 |
+
+### 5.2 页面模板（每个数据页必守）
+
+```
+页标题 + 数据日条（权威数据日 / 新鲜度状态）
+  ↓
+决策结论区（若该页有结论）
+  ↓
+Bento 卡片区（KPI / 图表 / 表格）
+  ↓
+归因 / 明细 / 展开区
+```
+
+**数据日条不可省**。缺它就无法判断数据陈旧，违反诚实红线。
+
+### 5.3 四类必备状态
+
+每个数据型组件必须实现 `loading | empty | error | degraded`，语义与 `DESIGN.md` §7 一致。`degraded` 由后端返回的权威数据日驱动（4 天 / 8 天阈值），前端只呈现不计算。
+
+### 5.4 写操作（W6 持仓交易）
+
+乐观更新 + 失败回滚 + 冲突提示；涉及订单/条件单/实盘的提交一律二次确认；提交后使相关 queryKey 失效并重取，**不信任本地推测值**。
+
+---
+
+## 6. 响应式与无障碍
+
+- 断点与列数遵循 `DESIGN.md` §4；侧栏在 <1200px 收为抽屉，<600px 用底部导航承载 6 大类入口。
+- 移动端降级策略：**决策结论与数据日条优先保留**，复杂图表降级为摘要卡 + 「查看完整图表」入口，不横向滚动整个页面。
+- 键盘：侧栏、tab、下拉、对话框、图表 tooltip 全可达；焦点可见。
+- 涨跌/强弱颜色之外必须有形状或符号（`DESIGN.md` §8）。
+- 每个图表提供等价数据表。
+
+---
+
+## 7. 迁移验收清单（每波逐项核）
+
+- [ ] 与原版同日数据**逐字段一致**（同一 API / 同一 `date`）
+- [ ] 深链参数 `hub_gyj_view` / `pick_stock` 及旧链接兼容层通过
+- [ ] 四态（加载/空/错误/降权）齐全，无编造数据
+- [ ] `priceDomain` 显式传入，双套涨跌色零误用
+- [ ] 数据日条存在且显示权威数据日
+- [ ] 导航 manifest 与 `widgets.py::_NAV_GROUPS` 差异告警为零（或有书面豁免）
+- [ ] 空悬 HOT/NEW、🟢🔴 强弱灯等已知缺陷未回归
+- [ ] 图表库按需分包，首屏预算达标
+- [ ] 仅 FF 提交、只 add 本波文件、原版目录零改动
+
+---
+
+## 8. 明确不做
+
+- ❌ 不把 11/20/40/41/46 恢复成独立页
+- ❌ 不改一级类目数量（6）与顺序
+- ❌ 不在 V2 复刻 Streamlit 的整页 rerun 语义
+- ❌ 不做微前端（双前端是端口隔离，见 `PLAN.md` §3.1）
+- ❌ 不写任何应用代码（本阶段只出规划）
