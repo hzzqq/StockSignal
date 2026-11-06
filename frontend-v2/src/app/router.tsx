@@ -11,6 +11,7 @@ import { Recommendation } from '@/features/recommend/Recommendation'
 import { PaperTrades } from '@/features/paper/PaperTrades'
 import { Alerts } from '@/features/alerts/Alerts'
 import { WebApps } from '@/features/webapps/WebApps'
+import { BreadthOverview } from '@/features/breadth/BreadthOverview'
 
 // 根布局：仅渲染子路由出口（登录页与鉴权外壳并列挂在根下）
 const rootRoute = createRootRoute({
@@ -90,6 +91,12 @@ const webappsRoute = createRoute({
   component: WebApps,
 })
 
+const breadthRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/breadth',
+  component: BreadthOverview,
+})
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   appRoute.addChildren([
@@ -102,6 +109,7 @@ const routeTree = rootRoute.addChildren([
     paperRoute,
     alertsRoute,
     webappsRoute,
+    breadthRoute,
   ]),
 ])
 

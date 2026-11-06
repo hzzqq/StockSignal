@@ -9,6 +9,7 @@ export type AppPath =
   | '/paper'
   | '/alerts'
   | '/webapps'
+  | '/breadth'
 
 export interface NavItem {
   to: AppPath
@@ -43,5 +44,9 @@ export const NAV: NavGroup[] = [
       { to: '/alerts', label: '告警引擎', icon: '!' },
       { to: '/webapps', label: '网页作品集', icon: '▦' },
     ],
+  },
+  {
+    group: '市场广度·温度',
+    items: [{ to: '/breadth', label: '广度总览', icon: '🌡' }],
   },
 ]
