@@ -6,6 +6,7 @@ import { handlers } from '@/mocks/handlers'
 import { RouterProvider } from '@tanstack/react-router'
 import { Providers } from '@/app/providers'
 import { router } from '@/app/router'
+import { BreadthOverview } from '@/features/breadth/BreadthOverview'
 
 // jsdom 无 canvas / ResizeObserver，图表组件在 E2E 里以占位替身渲染，
 // 把验证焦点放在「登录 → 守卫 → 数据端到端」链路上（图表已由单测/构建覆盖）。
@@ -66,6 +67,24 @@ describe('前端 E2E（MSW 契约）', () => {
     expect(await screen.findByText('市场温度', {}, { timeout: 5000 })).toBeTruthy()
     // 登录链路确实写入了 token（guards / 后续鉴权依赖）
     expect(localStorage.getItem('ss_token')).toBe('mock-access-token')
+  })
+
+  it('广度页经新增只读端点渲染 W3 时序/连板明细（MSW 数据流）', async () => {
+    // 直接渲染广度页组件，验证 /breadth-timeseries 与 /ladder-detail 两条新增端点
+    // 经 client→Zod→query→组件真实驱动（绕过登录流程，登录链路已由上一条用例覆盖）。
+    // 注：图表在 E2E 下以占位替身渲染，故断言落在真实 DOM 文本（仅查询成功才渲染）。
+    render(
+      <Providers>
+        <BreadthOverview />
+      </Providers>,
+    )
+    // 今日摘要（daily-snapshot）
+    expect(await screen.findByText('市场广度·温度总览', {}, { timeout: 5000 })).toBeTruthy()
+    // 广度时序（/breadth-timeseries）——卡片标题仅在查询成功(非 error)时渲染
+    expect(await screen.findByText('广度时序（涨跌家数 · 近期）', {}, { timeout: 5000 })).toBeTruthy()
+    // 连板明细（/ladder-detail）—— Stat 标签仅在数据加载后渲染
+    expect(await screen.findByText('连板梯队明细', {}, { timeout: 5000 })).toBeTruthy()
+    expect(screen.getByText('最新数据日')).toBeTruthy()
   })
 })
 

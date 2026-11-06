@@ -29,6 +29,7 @@ backend/api/read_routes.py — W1 只读数据端点（前端 v2 替代 12 个�
 from __future__ import annotations
 
 import json
+import math
 import re
 from datetime import datetime
 from pathlib import Path
@@ -131,6 +132,21 @@ def _serve_whitelist_text(key: str, label: str):
     if status == "error":
         return fail(message=f"{label} 读取失败", code="invalid_data", http_status=200)
     return _not_found(label)
+
+
+def _sanitize(obj):
+    """递归把 NaN/Inf 转 None，确保产出合法 JSON（浏览器 JSON.parse 拒收 NaN/Infinity）。
+
+    部分本地数据（如 shepherd_history.json）可能含 NaN，聚合/透传前必须清洗，
+    否则前端 fetch().json() 会抛 SyntaxError 静默崩页。
+    """
+    if isinstance(obj, float):
+        return None if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize(v) for v in obj]
+    return obj
 
 
 # ───────────────────────── 固定白名单文件端点 ─────────────────────────
@@ -301,3 +317,72 @@ def webapps():
             "added": str(meta.get("added", "—")),
         })
     return ok(data=works, message="webapps/")
+
+
+# ───────────────────────── 广度时序（聚合 snapshots）─────────────────────────
+@bp.get("/breadth-timeseries")
+@jwt_required
+def breadth_timeseries():
+    """广度时序（data/snapshots/*.json 聚合）—— W3 广度·温度页时序图表源。
+
+    每个 snapshot 含 indicators{up_count,down_count,limit_up,limit_down,red_ratio,
+    median_chg} + 顶层 temperature；聚合为按日期升序的时序数组。路径由代码 glob 构造，
+    无用户注入，安全等价白名单；目录缺失 -> ok(data=[])。
+    """
+    d = _DATA_DIR / "snapshots"
+    if not d.is_dir():
+        return ok(data=[], message="snapshots/ 为空")
+    series: list[dict] = []
+    for fp in sorted(d.glob("*.json")):
+        if not _DATE_RE.fullmatch(fp.stem):
+            continue
+        status, rec = _read_json(fp)
+        if status != "ok" or not isinstance(rec, dict):
+            continue
+        ind = rec.get("indicators") or {}
+        series.append({
+            "date": rec.get("date") or fp.stem,
+            "temperature": rec.get("temperature"),
+            "up_count": ind.get("up_count"),
+            "down_count": ind.get("down_count"),
+            "limit_up": ind.get("limit_up"),
+            "limit_down": ind.get("limit_down"),
+            "red_ratio": ind.get("red_ratio"),
+            "median_chg": ind.get("median_chg"),
+        })
+    series.sort(key=lambda r: str(r["date"]))
+    return ok(data=_sanitize(series), message="breadth-timeseries")
+
+
+# ───────────────────────── 连板梯队明细（固定文件）─────────────────────────
+# 与白名单同款固定绝对路径、无用户注入，安全等价。
+_FILE_WHITELIST["ladder_detail"] = _DATA_DIR / "shepherd_ladder_history.json"
+
+
+@bp.get("/ladder-detail")
+@jwt_required
+def ladder_detail():
+    """连板梯队历史明细（data/shepherd_ladder_history.json）—— W3 连板共振页数据源。
+
+    结构 {日期: {date, distribution{连板数:家数}, max_boards, total_connect, updated_at,
+    [suspect?]}}；归一化为按日期升序数组返回，便于前端画板位分布+趋势。
+    文件缺失 -> not_found(200)。
+    """
+    status, data = _read_json(_FILE_WHITELIST["ladder_detail"])
+    if status == "ok":
+        rows: list[dict] = []
+        if isinstance(data, dict):
+            for day in sorted(data.keys()):
+                rec = data[day] if isinstance(data[day], dict) else {}
+                rows.append({
+                    "date": rec.get("date") or day,
+                    "distribution": rec.get("distribution") or {},
+                    "max_boards": rec.get("max_boards"),
+                    "total_connect": rec.get("total_connect"),
+                    "updated_at": rec.get("updated_at"),
+                    "suspect": rec.get("suspect"),
+                })
+        return ok(data=_sanitize(rows), message="ladder-detail")
+    if status == "error":
+        return fail(message="shepherd_ladder_history.json 解析失败", code="invalid_data", http_status=200)
+    return _not_found("shepherd_ladder_history.json")

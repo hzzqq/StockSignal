@@ -9,6 +9,8 @@ import type {
   ReviewNotes,
   WebApp,
   SnapshotDateList,
+  BreadthPoint,
+  LadderDay,
 } from '@/api/schemas/read'
 
 /**
@@ -106,6 +108,22 @@ export function useAlertLog(): UseQueryResult<string> {
   return useQuery({
     queryKey: ['read', 'alert-log'],
     queryFn: api.getAlertLog,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+export function useBreadthTimeseries(): UseQueryResult<BreadthPoint[]> {
+  return useQuery({
+    queryKey: ['read', 'breadth-timeseries'],
+    queryFn: api.getBreadthTimeseries,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+export function useLadderDetail(): UseQueryResult<LadderDay[]> {
+  return useQuery({
+    queryKey: ['read', 'ladder-detail'],
+    queryFn: api.getLadderDetail,
     staleTime: THIRTY_MIN,
   })
 }
