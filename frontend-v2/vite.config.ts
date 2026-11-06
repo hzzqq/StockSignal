@@ -26,6 +26,18 @@ export default defineConfig({
       },
     },
   },
-  // 分包策略（manualChunks）推迟到 W2 图表库接入时再加，避免 W0 类型摩擦；
-  // 届时按 DESIGN.md §4 预算用函数式 manualChunks 对 echarts/lightweight-charts 单独分包。
+  // 分包策略（manualChunks）：W2 图表库接入后落地。
+  // 按 DESIGN.md §4 预算，用函数式 manualChunks 对 echarts(+zrender) / tanstack 单独成块；
+  // EChart 组件本身已动态 import('echarts')，故 echarts 仅随图表挂载按需加载。
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules/echarts') || id.includes('node_modules/zrender')) return 'echarts'
+          if (id.includes('node_modules/@tanstack')) return 'tanstack'
+          return undefined
+        },
+      },
+    },
+  },
 })

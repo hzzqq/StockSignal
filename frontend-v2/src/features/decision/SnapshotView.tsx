@@ -8,6 +8,8 @@ import {
   type FreshnessLevel,
 } from '@/lib/freshness'
 import { fmtNum } from '@/lib/format'
+import { PositionGauge } from '@/shared/charts/PositionGauge'
+import { ScenarioChart } from '@/shared/charts/ScenarioChart'
 
 function freshnessOf(s: DailySnapshot): FreshnessLevel {
   if (typeof s.data_age_days === 'number') return freshnessLevelFromAge(s.data_age_days)
@@ -55,12 +57,8 @@ export function SnapshotView({ snapshot }: { snapshot: DailySnapshot }) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card title="仓位建议">
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold" style={{ color: pos?.color ?? 'inherit' }}>
-              {pos ? `${pos.pct}%` : '—'}
-            </span>
-            {pos?.band && <span className="text-sm text-sf-txt/70">{pos.band}</span>}
-          </div>
+          <PositionGauge pct={pos?.pct ?? null} color={pos?.color ?? null} />
+          {pos?.band && <div className="text-sm text-sf-txt/70 text-center -mt-2">{pos.band}</div>}
           {pos?.reasons && pos.reasons.length > 0 && (
             <ul className="mt-2 space-y-1 text-xs text-sf-txt/60 list-disc list-inside">
               {pos.reasons.slice(0, 6).map((r, i) => (
@@ -81,25 +79,7 @@ export function SnapshotView({ snapshot }: { snapshot: DailySnapshot }) {
 
       {snapshot.scenario && snapshot.scenario.length > 0 && (
         <Card title="情景概率">
-          <div className="space-y-2">
-            {snapshot.scenario.map((sc, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <span className="w-28 truncate text-sm" style={{ color: sc.color ?? undefined }}>
-                  {sc.name ?? '—'}
-                </span>
-                <div className="flex-1 h-2 rounded-full bg-sf-bg overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.max(0, Math.min(100, (sc.prob ?? 0)))}%`,
-                      background: sc.color ?? 'var(--color-sf-border)',
-                    }}
-                  />
-                </div>
-                <span className="w-10 text-right text-xs text-sf-txt/60">{sc.prob ?? '—'}</span>
-              </div>
-            ))}
-          </div>
+          <ScenarioChart items={snapshot.scenario} />
         </Card>
       )}
 
