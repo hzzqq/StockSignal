@@ -25,6 +25,11 @@ import urllib.request
 import urllib.error
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+
+from port_env import resolve_port  # noqa: E402  （须在 sys.path 准备之后导入）
 LOGS_DIR = os.path.join(HERE, "logs")
 STATUS_FILE = os.path.join(LOGS_DIR, "background_startup_status.log")
 
@@ -117,7 +122,7 @@ def main() -> int:
         return 1
 
     # 轮询健康检查（前端默认端口 8899，避开量化软件占用的 8000-8300 段）
-    be_url = "http://127.0.0.1:5050/api/health"
+    be_url = f"http://127.0.0.1:{resolve_port('PORT', 5050, env_var='STOCKSIGNAL_PORT')}/api/health"
     fe_url = "http://127.0.0.1:8899"
     ok = False
     for i in range(60):

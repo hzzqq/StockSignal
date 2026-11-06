@@ -70,3 +70,6 @@ scripts/verify_legu_fallback.py
 # 毕设面谈/邮件材料（含姓名/学号/手机等个人信息，移出公开仓库；本地副本保留）
 /thesis/素材/毕设素材/毕设_陈老师面谈准备包.md
 /thesis/素材/毕设素材/毕设_导师邀请邮件草稿.md
+
+# 本机端口分配文件（port-doctor skill 生成，按机器不同，不入库）
+.port.env

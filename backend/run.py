@@ -42,13 +42,14 @@ for _p in (PROJECT_ROOT, HERE):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+from port_env import resolve_port  # noqa: E402  （须在 sys.path 准备之后导入）
+
 
 def _parse_host_port() -> tuple[str, int]:
     host = os.environ.get("STOCKSIGNAL_HOST", "127.0.0.1")
-    try:
-        port = int(os.environ.get("STOCKSIGNAL_PORT", "5050"))
-    except (TypeError, ValueError):
-        port = 5050
+    # 端口优先级：STOCKSIGNAL_PORT 环境变量 > .port.env（port-doctor 分配） > 5050。
+    # .port.env 缺失时行为与改造前完全一致（本地演示不再与其它项目抢 5050）。
+    port = resolve_port("PORT", 5050, env_var="STOCKSIGNAL_PORT")
     return host, port
 
 

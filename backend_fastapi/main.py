@@ -10,6 +10,7 @@
   所有查询 SELECT-only，试点不写任何表。
 * 端口 5052（与 Flask 5050 / Streamlit 8501 错开），dev 启动：
   ``uv run uvicorn backend_fastapi.main:app --port 5052``
+  或直接 ``python -m backend_fastapi.main``（端口取 FASTAPI_PORT > .port.env > 5052）
 * 文档：/docs（Swagger UI，自动生成）——Flask 侧 openapi.py 需手工维护契约表，
   此处由类型注解自动产出，代码即文档。
 """
@@ -21,8 +22,19 @@ from contextlib import closing  # noqa: F401
 from datetime import datetime, timezone
 from pathlib import Path
 
+import sys
+
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
+
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from port_env import resolve_port  # noqa: E402  （须在 sys.path 准备之后导入）
+
+# FastAPI 切片端口：FASTAPI_PORT 环境变量 > .port.env > 5052（与 Flask 5050 错开）
+DEFAULT_PORT = resolve_port("FASTAPI_PORT", 5052, env_var="FASTAPI_PORT")
 
 app = FastAPI(
     title="StockSignal FastAPI Slice",
@@ -200,3 +212,9 @@ def ai_compose(q: str = Query(min_length=1, max_length=200, description="复合�
     if not ans:
         return {"status": "ok", "found": False}
     return {"status": "ok", "found": True, "answer": ans}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="127.0.0.1", port=DEFAULT_PORT)
