@@ -1,6 +1,6 @@
-import type { DailySnapshot, BreadthPoint, LadderDay } from '@/api/schemas/read'
+import type { DailySnapshot, BreadthPoint, LadderDay, BreadthHistoryPoint } from '@/api/schemas/read'
 import type { EChartsOption } from 'echarts'
-import { useDailySnapshot, useBreadthTimeseries, useLadderDetail } from '@/lib/queries'
+import { useDailySnapshot, useBreadthTimeseries, useLadderDetail, useBreadthHistory } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { FreshnessBadge } from '@/shared/ui/FreshnessBadge'
@@ -32,6 +32,7 @@ export function BreadthOverview() {
   const daily = useDailySnapshot()
   const breadth = useBreadthTimeseries()
   const ladder = useLadderDetail()
+  const history = useBreadthHistory()
 
   return (
     <div className="space-y-4">
@@ -51,6 +52,17 @@ export function BreadthOverview() {
           isEmpty={!!breadth.data && breadth.data.length === 0}
         >
           {breadth.data ? <BreadthTrend series={breadth.data} /> : null}
+        </QueryState>
+      </Card>
+
+      <Card title="长周期广度（涨跌家数 · 全历史）">
+        <QueryState
+          isLoading={history.isLoading}
+          isError={history.isError}
+          error={history.error}
+          isEmpty={!!history.data && history.data.length === 0}
+        >
+          {history.data ? <BreadthHistoryTrend series={history.data} /> : null}
         </QueryState>
       </Card>
 
@@ -284,6 +296,87 @@ function LadderDetailView({ history }: { history: LadderDay[] }) {
       <EChart option={option} height={Math.max(160, boards.length * 26)} />
       <div className="text-xs text-sf-txt/40 mt-1">
         数据来自 data/shepherd_ladder_history.json（逐日连板分布；红色=高板位）
+      </div>
+    </div>
+  )
+}
+
+function BreadthHistoryTrend({ series }: { series: BreadthHistoryPoint[] }) {
+  // 真实文件跨 2007→2026（数千交易日），展示最近 250 个交易日保证可读。
+  const recent = series.slice(-250)
+  const dates = recent.map((p) => p.date)
+  const up = recent.map((p) => num(p.up_count))
+  const down = recent.map((p) => num(p.down_count))
+  const red = recent.map((p) => num(p.red_ratio))
+
+  const option: EChartsOption = {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis' },
+    legend: {
+      data: ['上涨家数', '下跌家数', '红盘比%'],
+      textStyle: { color: CHART.txt },
+      top: 0,
+    },
+    grid: { left: 48, right: 48, top: 28, bottom: 28 },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      axisLabel: { color: CHART.txt, hideOverlap: true },
+      axisLine: { lineStyle: { color: CHART.border } },
+    },
+    yAxis: [
+      {
+        type: 'value',
+        name: '家数',
+        axisLabel: { color: CHART.txt },
+        splitLine: { lineStyle: { color: CHART.grid } },
+      },
+      {
+        type: 'value',
+        name: '红盘比%',
+        max: 100,
+        position: 'right',
+        axisLabel: { color: CHART.txt },
+        splitLine: { show: false },
+      },
+    ],
+    series: [
+      {
+        name: '上涨家数',
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        data: up,
+        itemStyle: { color: CHART.up },
+        lineStyle: { color: CHART.up, width: 1.2 },
+      },
+      {
+        name: '下跌家数',
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        data: down,
+        itemStyle: { color: CHART.down },
+        lineStyle: { color: CHART.down, width: 1.2 },
+      },
+      {
+        name: '红盘比%',
+        type: 'line',
+        yAxisIndex: 1,
+        smooth: true,
+        showSymbol: false,
+        data: red,
+        itemStyle: { color: CHART.txt },
+        lineStyle: { color: CHART.txt, width: 1, type: 'dashed' },
+      },
+    ],
+  }
+
+  return (
+    <div>
+      <EChart option={option} height={280} />
+      <div className="text-xs text-sf-txt/40 mt-1">
+        数据来自 data/shepherd_history.json（逐日广度，共 {series.length} 个交易日，展示最近 250 个）
       </div>
     </div>
   )

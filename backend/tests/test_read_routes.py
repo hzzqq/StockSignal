@@ -49,6 +49,7 @@ ENDPOINTS = [
     "/api/v2/read/webapps",
     "/api/v2/read/breadth-timeseries",
     "/api/v2/read/ladder-detail",
+    "/api/v2/read/breadth-history",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -67,6 +68,7 @@ SPEC_PATHS = [
     "/api/v2/read/webapps",
     "/api/v2/read/breadth-timeseries",
     "/api/v2/read/ladder-detail",
+    "/api/v2/read/breadth-history",
 ]
 
 
@@ -146,6 +148,35 @@ def client(app, tmp_path_factory):
         encoding="utf-8",
     )
 
+    # 长周期广度历史（个别字段为 NaN，验证 _sanitize 清洗为 null）
+    (data / "shepherd_history.json").write_text(
+        json.dumps([
+            {
+                "date": "2026-08-31",
+                "up_count": 3500,
+                "down_count": 1500,
+                "limit_up": 70,
+                "limit_down": 5,
+                "red_ratio": 70.0,
+                "connect_hl": 7,
+                "zt_fail_ratio": 9.0,
+                "zt_prev_ret": 2.3,
+            },
+            {
+                "date": "2026-09-01",
+                "up_count": 2000,
+                "down_count": 1500,
+                "limit_up": 50,
+                "limit_down": 10,
+                "red_ratio": 57.0,
+                "connect_hl": float("nan"),
+                "zt_fail_ratio": 11.0,
+                "zt_prev_ret": 1.0,
+            },
+        ]),
+        encoding="utf-8",
+    )
+
     (data / "paper_demo.json").write_text(json.dumps({"cash": 100000}), encoding="utf-8")
     (data / "review_notes_2026-08-31.md").write_text("# 复盘\n今日缩量。\n", encoding="utf-8")
 
@@ -167,6 +198,7 @@ def client(app, tmp_path_factory):
         "alert_log": data / "alerts.log",
         "virtual_users_sim": reports / "virtual_users_sim.json",
         "ladder_detail": data / "shepherd_ladder_history.json",
+        "breadth_history": data / "shepherd_history.json",
     }
     return app.test_client()
 
@@ -233,6 +265,12 @@ def test_existing_files_return_ok_envelope(client, token):
     assert obj["status"] == "ok" and isinstance(obj["data"], list) and len(obj["data"]) >= 1, obj
     ld = next((r for r in obj["data"] if r["date"] == "2026-09-01"), None)
     assert ld is not None and ld["max_boards"] == 5, obj
+
+    # 长周期广度历史（shepherd_history，含 NaN 字段须被清洗为 null）
+    obj = client.get("/api/v2/read/breadth-history", headers=_auth(token)).get_json()
+    assert obj["status"] == "ok" and isinstance(obj["data"], list) and len(obj["data"]) >= 1, obj
+    bh = next((r for r in obj["data"] if r["date"] == "2026-09-01"), None)
+    assert bh is not None and bh["connect_hl"] is None, obj  # NaN -> None（_sanitize）
 
 
 def test_missing_files_graceful_error(client, token):

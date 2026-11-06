@@ -12,6 +12,7 @@ import { PaperTrades } from '@/features/paper/PaperTrades'
 import { Alerts } from '@/features/alerts/Alerts'
 import { WebApps } from '@/features/webapps/WebApps'
 import { BreadthOverview } from '@/features/breadth/BreadthOverview'
+import { LadderResonance } from '@/features/breadth/LadderResonance'
 
 // 根布局：仅渲染子路由出口（登录页与鉴权外壳并列挂在根下）
 const rootRoute = createRootRoute({
@@ -97,6 +98,12 @@ const breadthRoute = createRoute({
   component: BreadthOverview,
 })
 
+const ladderRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/ladder',
+  component: LadderResonance,
+})
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   appRoute.addChildren([
@@ -110,6 +117,7 @@ const routeTree = rootRoute.addChildren([
     alertsRoute,
     webappsRoute,
     breadthRoute,
+    ladderRoute,
   ]),
 ])
 

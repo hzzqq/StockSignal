@@ -10,6 +10,7 @@ import {
   WebAppSchema,
   BreadthPointSchema,
   LadderDaySchema,
+  BreadthHistoryPointSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -20,6 +21,7 @@ import {
   type SnapshotDateList,
   type BreadthPoint,
   type LadderDay,
+  type BreadthHistoryPoint,
 } from './schemas/read'
 
 /**
@@ -113,4 +115,11 @@ export async function getLadderDetail(): Promise<LadderDay[]> {
   return z
     .array(LadderDaySchema)
     .parse(await apiFetch<unknown>('/v2/read/ladder-detail'))
+}
+
+/** GET /api/v2/read/breadth-history —— 长周期广度历史（shepherd_history，2007→2026） */
+export async function getBreadthHistory(): Promise<BreadthHistoryPoint[]> {
+  return z
+    .array(BreadthHistoryPointSchema)
+    .parse(await apiFetch<unknown>('/v2/read/breadth-history'))
 }

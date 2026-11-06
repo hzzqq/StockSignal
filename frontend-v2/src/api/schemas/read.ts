@@ -209,3 +209,25 @@ export type LadderDay = z.infer<typeof LadderDaySchema>
 
 export const LadderHistorySchema = z.array(LadderDaySchema)
 export type LadderHistory = z.infer<typeof LadderHistorySchema>
+
+// ───────── 长周期广度历史（breadth-history / shepherd_history）─────────
+// 字段以真实 data/shepherd_history.json 的逐日行准（2007→2026，个别字段为 NaN）。
+// 数值可空（NaN 后端已清洗为 null），严禁 `?? 0` 兜底。
+export const BreadthHistoryPointSchema = z
+  .object({
+    date: z.string(),
+    up_count: z.number().nullable().optional(),
+    down_count: z.number().nullable().optional(),
+    flat_count: z.number().nullable().optional(),
+    limit_up: z.number().nullable().optional(),
+    limit_down: z.number().nullable().optional(),
+    red_ratio: z.number().nullable().optional(),
+    connect_hl: z.number().nullable().optional(),
+    zt_fail_ratio: z.number().nullable().optional(),
+    zt_prev_ret: z.number().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type BreadthHistoryPoint = z.infer<typeof BreadthHistoryPointSchema>
+
+export const BreadthHistorySeriesSchema = z.array(BreadthHistoryPointSchema)
+export type BreadthHistorySeries = z.infer<typeof BreadthHistorySeriesSchema>

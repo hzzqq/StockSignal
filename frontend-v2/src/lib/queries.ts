@@ -11,6 +11,7 @@ import type {
   SnapshotDateList,
   BreadthPoint,
   LadderDay,
+  BreadthHistoryPoint,
 } from '@/api/schemas/read'
 
 /**
@@ -124,6 +125,14 @@ export function useLadderDetail(): UseQueryResult<LadderDay[]> {
   return useQuery({
     queryKey: ['read', 'ladder-detail'],
     queryFn: api.getLadderDetail,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+export function useBreadthHistory(): UseQueryResult<BreadthHistoryPoint[]> {
+  return useQuery({
+    queryKey: ['read', 'breadth-history'],
+    queryFn: api.getBreadthHistory,
     staleTime: THIRTY_MIN,
   })
 }

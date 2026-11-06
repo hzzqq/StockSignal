@@ -386,3 +386,27 @@ def ladder_detail():
     if status == "error":
         return fail(message="shepherd_ladder_history.json 解析失败", code="invalid_data", http_status=200)
     return _not_found("shepherd_ladder_history.json")
+
+
+# ───────────────────────── 长周期广度历史（固定文件）─────────────────────────
+# 与白名单同款固定绝对路径、无用户注入，安全等价。
+_FILE_WHITELIST["breadth_history"] = _DATA_DIR / "shepherd_history.json"
+
+
+@bp.get("/breadth-history")
+@jwt_required
+def breadth_history():
+    """长周期广度历史（data/shepherd_history.json）—— W3 广度·温度页长周期时序源。
+
+    真实文件为 2007→2026 的逐日广度数组（含 up_count/down_count/limit_up/limit_down/
+    red_ratio/connect_hl/zt_fail_ratio/zt_prev_ret 等，个别字段为 NaN）。读取后递归清洗
+    NaN/Inf 为 None（浏览器 JSON.parse 拒收 NaN），返回干净数组；缺失 -> not_found(200)。
+    """
+    status, data = _read_json(_FILE_WHITELIST["breadth_history"])
+    if status == "ok":
+        if not isinstance(data, list):
+            data = data.get("data", []) if isinstance(data, dict) else []
+        return ok(data=_sanitize(data), message="breadth-history")
+    if status == "error":
+        return fail(message="shepherd_history.json 解析失败", code="invalid_data", http_status=200)
+    return _not_found("shepherd_history.json")

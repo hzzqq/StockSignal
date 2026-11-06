@@ -51,4 +51,5 @@ export const handlers = [
   // W3 新增只读端点
   http.get('/api/v2/read/breadth-timeseries', () => ok(fixtures.breadthTimeseries)),
   http.get('/api/v2/read/ladder-detail', () => ok(fixtures.ladderDetail)),
+  http.get('/api/v2/read/breadth-history', () => ok(fixtures.breadthHistory)),
 ]

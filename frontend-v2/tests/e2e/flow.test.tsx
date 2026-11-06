@@ -7,6 +7,7 @@ import { RouterProvider } from '@tanstack/react-router'
 import { Providers } from '@/app/providers'
 import { router } from '@/app/router'
 import { BreadthOverview } from '@/features/breadth/BreadthOverview'
+import { LadderResonance } from '@/features/breadth/LadderResonance'
 
 // jsdom 无 canvas / ResizeObserver，图表组件在 E2E 里以占位替身渲染，
 // 把验证焦点放在「登录 → 守卫 → 数据端到端」链路上（图表已由单测/构建覆盖）。
@@ -85,6 +86,19 @@ describe('前端 E2E（MSW 契约）', () => {
     // 连板明细（/ladder-detail）—— Stat 标签仅在数据加载后渲染
     expect(await screen.findByText('连板梯队明细', {}, { timeout: 5000 })).toBeTruthy()
     expect(screen.getByText('最新数据日')).toBeTruthy()
+  })
+
+  it('连板梯队共振页经 /ladder-detail 渲染（MSW 数据流）', async () => {
+    // 验证 W3 新增的 /ladder 连板梯队共振页经新增只读端点 /ladder-detail 真实驱动。
+    render(
+      <Providers>
+        <LadderResonance />
+      </Providers>,
+    )
+    expect(await screen.findByText('连板梯队共振', {}, { timeout: 5000 })).toBeTruthy()
+    expect(await screen.findByText('最新数据日', {}, { timeout: 5000 })).toBeTruthy()
+    expect(screen.getByText('连板强度趋势（最高板 / 连板总数）')).toBeTruthy()
+    expect(screen.getByText('最新板位分布')).toBeTruthy()
   })
 })
 
