@@ -23,10 +23,13 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^22.10.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "6.2.1",
+    "jsdom": "^31.0.0",
     "msw": "^2.7.0",
     "tailwindcss": "4.3.4",
     "typescript": "7.0.2",
