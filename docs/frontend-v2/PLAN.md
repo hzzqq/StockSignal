@@ -27,7 +27,8 @@
 | 项 | 实测值 | 取证方式 |
 |---|---|---|
 | 原前端页面文件 | **74 个 `.py`** | `ls pages/*.py` |
-| 后端路由装饰器 | **93 个** | 35 `@bp.get` / 30 `@bp.post` / 12 `@bp.delete` / 5 `@bp.put` / 4 `@bp.route` / 6 `@app.get` / 1 `@app.route` |
+| 后端路由装饰器（静态 grep） | **93 个** | 35 `@bp.get` / 30 `@bp.post` / 12 `@bp.delete` / 5 `@bp.put` / 4 `@bp.route` / 6 `@app.get` / 1 `@app.route` |
+| 后端契约面（OpenAPI 实跑） | **64 paths / 87 operations** | `backend/openapi.py` `build_spec(app)` 实测（2026-11-06，独立库 + `PYTEST_CURRENT_TEST=1`）；**新前端对接权威基线**，W0 生成 TS 客户端以 64/87 为准 |
 | 蓝图 | **16 个** | `backend/app.py:96-110` `register_blueprint` |
 | 导航一级类目 | **6 个** | `modules/widgets.py:673-778` `_NAV_GROUPS` |
 | 绕过 API 直读本地文件 | **12 页** | 精确清单见 §4.1 |
@@ -40,8 +41,8 @@
 
 **两处纠偏（重要，勿沿用旧记忆）**：
 
-1. **端点是 93 不是 75**。`backend/openapi.py:6` 注释里的「75 个端点」是骨架阶段旧口径，已漂移。规划书一律以 93 为基线；实施前应以 `openapi` 实跑结果去重后再钉死。
-2. **OpenAPI 只是骨架，不是完整契约**。`openapi.py:6-15` 自述：「路径全集 + 方法 + 分组 + 鉴权 + 统一信封」，**逐端点请求/响应字段 schema 待补**，且鉴权标注是「自动推断……文档下限而非权威」。因此**不能直接生成可信的 TS 类型客户端**（§4.3）。
+1. **端点双口径，以 64/87 为准**。`backend/openapi.py:6` 注释里的「75 个端点」是骨架阶段旧口径，已漂移。静态 grep 装饰器为 **93**；但 `openapi.py:74-78` 会排除 `/api/openapi.json`、`/api/docs` 及所有非 `/api/` 路由，因此 **OpenAPI 实跑契约面 = 64 paths / 87 operations**（2026-11-06 `build_spec(app)` 实测）。W0 生成的 TS 客户端**必须**以 64/87 为基线，拿 93 生成会多出无效方法。
+2. **OpenAPI 可实跑出完整 spec，但字段级 schema 仍需逐端点核对**。`openapi.py` 自述「逐端点请求/响应字段 schema 待补」，鉴权标注是「自动推断……文档下限而非权威」——此判断**仍成立**。`build_spec(app)` 确实能产出 64/87 的可用 spec（W0 已验证），但**字段精细度未逐端点核对**；因此 W0 的 TS 客户端以 spec 为骨架，运行时用 **Zod 逐个校验信封/登录响应**，禁止 `?? 0` 兜底（§4.3）。
 
 **已内嵌、勿作独立页**：`11_股票选取` / `20_个股分析` 已内嵌进 `24_个股研究`（`widgets.py:726-728`）；`46_自选股监控` / `40_仓位管理` / `41_组合收益` 已内嵌进 `45_持仓中心`（`widgets.py:748`）。V2 路由表须沿用此收敛，别把重复入口搬回来。
 
@@ -53,18 +54,18 @@
 
 | 层 | 选型 | 说明 |
 |---|---|---|
-| 框架 | **React 19.x** | 2026 主流；并发渲染、`use()`、Actions |
-| 语言 | **TypeScript 5.9+ `strict: true`** | 契约不完整的项目尤其需要编译期约束 |
-| 构建 | **Vite**（版本见 §2.3 待核） | 2026 共识：登录后内部工具 / dashboard 用 Vite SPA，优于 Next.js App Router |
+| 框架 | **React 19.3.1** | 2026 主流；并发渲染、`use()`、Actions（`npm view` 实测 latest） |
+| 语言 | **TypeScript 7.0.2 `strict: true`** | 契约不完整的项目尤其需要编译期约束；⚠️ TS 7 为 native 重写大版本，`npm view` 仅证 engines 满足，**W0 装完必跑 `npx tsc --noEmit` 硬关卡**，不兼容即降 5.9.x 并回写 |
+| 构建 | **Vite 8.3.6** | 2026-11-06 `npm view` 实测 latest；engines `^20.19.0 \|\| >=22.12.0`，本机 Node 22.22.2 ✅ |
 | 样式 | **Tailwind CSS 4.3.4** | 2026-11-02 发布；CSS-first 配置 `@import "tailwindcss"` + `@tailwindcss/vite` |
 | 组件 | **shadcn/ui**（Radix/Base UI  primitives） | 源码复制进仓、可完全改造，不是黑盒依赖 |
-| 路由 | **TanStack Router** | 类型安全路由、文件式 `routeTree.gen.ts`、`.lazy.tsx` 按路由分包 |
-| 服务端状态 | **TanStack Query v5** | 缓存/重试/失效/`staleTime` 分层，替代手写 `useEffect` |
-| 客户端状态 | **Zustand** | 主题、导航折叠、深链预选等轻量 UI 态 |
-| 校验 | **Zod** | 运行时校验（见 §4.3，本项目关键） |
-| 包管理 / 运行时 | **pnpm 10 + Node 20+** | 2026 主流 |
-| 测试 | **Vitest + React Testing Library + Playwright + MSW** | 单测 / 组件 / E2E / API mock 四层 |
-| 图表 | **Apache ECharts 主 + Lightweight Charts 补** | 选型依据与 bundle 预算见 `DESIGN.md` §4 |
+| 路由 | **TanStack Router 1.170.46** | 类型安全路由、文件式 `routeTree.gen.ts`、`.lazy.tsx` 按路由分包；peer `>=18 \|\| >=19` ✅ |
+| 服务端状态 | **TanStack Query 5.106.1** | 缓存/重试/失效/`staleTime` 分层，替代手写 `useEffect`；peer `^18 \|\| ^19` ✅ |
+| 客户端状态 | **Zustand 5.0.16** | 主题、导航折叠、深链预选等轻量 UI 态 |
+| 校验 | **Zod 4.6.7** | 运行时校验（见 §4.3，本项目关键） |
+| 包管理 / 运行时 | **npm 10.9.7 + Node 22.22.2** | 本机现成（pnpm 未安装，故弃用 PLAN 原写 pnpm 10）；registry `https://registry.npmjs.org/` |
+| 测试 | **Vitest 5.1.0 + React Testing Library + Playwright + MSW** | 单测 / 组件 / E2E / API mock 四层；Vitest peer `vite: ^6.4 \|\| ^7 \|\| ^8` ✅ |
+| 图表 | **Apache ECharts 6.1.0 主 + Lightweight Charts 5.2.1 补** | W2 图表波才装，W0 不装；选型依据与 bundle 预算见 `DESIGN.md` §4 |
 
 ### 2.2 明确不选
 
@@ -73,18 +74,21 @@
 - **不选 CRA**：2023 起停止维护。
 - **不选微前端（qiankun/Module Federation）**：双前端是**端口级隔离**，不是同一壳内共存，无需微前端复杂度。
 
-### 2.3 ⚠️ 待核实项（诚实标注，不硬编）
+### 2.3 ⚠️ 版本定稿（2026-11-06 `npm view` 实测，已取代「待核」）
 
-WebSearch 2026-11-06 结果里 **Vite 版本口径互相冲突**：同时出现「Vite 5.4 终端输出」「Vite 6.0 已成默认」「Vite 官方 Migration from v7 文档」。因此规划书**不锁死 Vite 大版本**。
+> WebSearch 2026-11-06 文章里的 Vite 5.4 / 6.0 / 迁移 v7 文档**全部滞后于 npm 实际**——这正是不能凭搜索摘要定版本的理由。以下为 `npm view <pkg> version` 实测 latest：
 
-实施前用以下命令定稿并写回本节：
+| 包 | 定稿 | 兼容性验证 |
+|---|---|---|
+| vite | **8.3.6** | engines `^20.19.0 \|\| >=22.12.0` → 本机 22.22.2 ✅ |
+| @vitejs/plugin-react | **6.2.1** | peer `vite: ^8.0.0` ✅；另 3 个 peer 经 `peerDependenciesMeta` 核实为 **optional**，不阻塞安装 |
+| @tailwindcss/vite | **4.3.4** | peer `vite: ^5.2.0 \|\| ^6 \|\| ^7 \|\| ^8` ✅ |
+| @tanstack/react-router | **1.170.46** | engines `>=20.19` ✅ |
+| @tanstack/react-query | **5.106.1** | peer `^18 \|\| ^19` ✅ |
+| typescript | **7.0.2** | engines `>=16.20.0` ✅ —— **但 TS 7 为 native 重写，W0 设 `tsc --noEmit` 硬关卡**（见 §2.1） |
+| vitest | **5.1.0** | peer `vite: ^6.4 \|\| ^7 \|\| ^8` ✅；engines `^22.12 \|\| ^24 \|\| >=26` → 本机 ✅ |
 
-```bash
-npm view vite version && npm view @vitejs/plugin-react version && npm view @tailwindcss/vite version
-npm view react version && npm view typescript version && npm view tailwindcss version
-```
-
-**判定规则**：取 npm `latest` 稳定版（非 `next`/`rc`/`beta`），且 `@vitejs/plugin-react` 与 Tailwind Vite 插件的 peer range 必须兼容该 Vite 大版本；三者不一致时降 Vite 到插件共同支持的最高版本，并把结论记入本文件。
+**判定规则（已执行）**：取 npm `latest` 稳定版（非 `next`/`rc`/`beta`），且 `@vitejs/plugin-react` 与 Tailwind Vite 插件的 peer range 必须兼容该 Vite 大版本；三者一致，**无需降级**。包管理器改用 **npm 10.9.7**（本机现成，pnpm 未装）。
 
 ---
 
