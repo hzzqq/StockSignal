@@ -21,21 +21,29 @@ from typing import Any, Dict  # noqa: UP035
 
 from flask import Flask, jsonify
 
-# bp 名 → tag 分组（endpoint 前缀）。查不到的 bp 用通用名兜底，绝不丢端点。
+# bp 名 → tag 分组（endpoint 前缀，须与 Blueprint(name=...) 完全一致）。
+# 查不到的 bp 用通用名兜底，绝不丢端点。
+# 实测修正：原 key（task/stock/stock_tag/order/research/recommend）与真实蓝图名
+# （tasks/stocks/stock_tags/trade/research_run/recommendations）不一致，导致 7 个 tag
+# 走 bp.capitalize() 兜底出 Trade/Stock_tags/Tasks/Stocks/Recommendations/Research_run；
+# 现按 backend/api/*_routes.py 的真实 Blueprint name 重排，并补 root（app 级路由）。
 TAGS: Dict[str, Dict[str, str]] = {  # noqa: UP006
     "auth": {"name": "Auth", "description": "登录 / 注册 / token 续期 / 会话"},
     "dashboard": {"name": "Dashboard", "description": "看板聚合数据"},
     "admin": {"name": "Admin", "description": "后台管理（admin_required）"},
-    "stock": {"name": "Stock", "description": "个股数据 / 名称 / 行情"},
+    "stocks": {"name": "Stocks", "description": "个股数据 / 名称 / 行情"},
     "config": {"name": "Config", "description": "系统配置读写"},
     "market": {"name": "Market", "description": "市场数据（指数 / 资金 / 情绪）"},
-    "task": {"name": "Task", "description": "后台任务与进度"},
+    "tasks": {"name": "Tasks", "description": "后台任务与进度"},
     "chat": {"name": "Chat", "description": "AI 对话"},
     "alert": {"name": "Alert", "description": "预警规则与通知"},
-    "stock_tag": {"name": "StockTag", "description": "个股标签管理"},
+    "stock_tags": {"name": "StockTags", "description": "个股标签管理"},
     "forum": {"name": "Forum", "description": "股吧 / 社区"},
     "market_alert": {"name": "MarketAlert", "description": "市场异动告警"},
-    "order": {"name": "Order", "description": "交易 / 模拟盘订单"},
+    "trade": {"name": "Trade", "description": "交易 / 模拟盘订单"},
+    "research_run": {"name": "ResearchRun", "description": "自驱只读研究（研究任务与结果）"},
+    "recommendations": {"name": "Recommendations", "description": "荐股 / 排雷二道闸"},
+    "root": {"name": "Root", "description": "系统级 / 应用根路由"},
 }
 
 # 公开端点（不标 BearerAuth 的白名单；其余 /api/* 默认标注鉴权）
@@ -78,7 +86,8 @@ def build_spec(app: Flask) -> Dict[str, Any]:  # noqa: UP006
             continue  # admin_ui 等非 API 路由不在契约面内
         endpoint = rule.endpoint
         bp = endpoint.split(".", 1)[0] if "." in endpoint else ""
-        tag_meta = TAGS.get(bp)
+        # app 级路由（无蓝图）endpoint 无 '.'，bp 为空 → 归到 root 分组
+        tag_meta = TAGS.get(bp) or TAGS.get("root")
         tag_name = tag_meta["name"] if tag_meta else (bp.capitalize() or "Root")
         methods = sorted((rule.methods or set()) - {"HEAD", "OPTIONS"})
         if not methods:
