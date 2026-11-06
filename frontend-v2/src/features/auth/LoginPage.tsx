@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { apiFetch } from '@/api/client'
-import { LoginData, LoginRequest } from '@/api/schema'
+import { login } from '@/api/endpoints'
 import { clearAuth } from '@/app/guards'
 
 export function LoginPage() {
@@ -17,22 +16,17 @@ export function LoginPage() {
     e.preventDefault()
     setError(null)
 
-    const parsed = LoginRequest.safeParse({ username, password })
-    if (!parsed.success) {
+    if (!username || !password) {
       setError('请输入用户名和密码')
       return
     }
 
     setLoading(true)
     try {
-      const data = await apiFetch<unknown>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(parsed.data),
-      })
-      // 严格解析；缺字段直接抛错，不兜底（schema.ts 红线）
-      const login = LoginData.parse(data)
-      localStorage.setItem('ss_token', login.access_token)
-      if (login.refresh_token) localStorage.setItem('ss_refresh', login.refresh_token)
+      // 契约类型化登录（endpoints.login 内部用 LoginRequest/LoginData 严格校验）
+      const result = await login(username, password)
+      localStorage.setItem('ss_token', result.access_token)
+      if (result.refresh_token) localStorage.setItem('ss_refresh', result.refresh_token)
       // 保留来源路由：登录后回到触发登录的页面（from 由守卫写入 search）
       navigate({ to: from as '/' })
     } catch (err) {
