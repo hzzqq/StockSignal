@@ -48,4 +48,7 @@ export const handlers = [
   http.get('/api/v2/read/alert-log', () => notFound('alerts.log')),
   http.get('/api/v2/read/user-dashboard', () => notFound('user_dashboard.json')),
   http.get('/api/v2/read/webapps', () => ok(fixtures.webapps)),
+  // W3 新增只读端点
+  http.get('/api/v2/read/breadth-timeseries', () => ok(fixtures.breadthTimeseries)),
+  http.get('/api/v2/read/ladder-detail', () => ok(fixtures.ladderDetail)),
 ]

@@ -1,6 +1,6 @@
-import type { DailySnapshot } from '@/api/schemas/read'
+import type { DailySnapshot, BreadthPoint, LadderDay } from '@/api/schemas/read'
 import type { EChartsOption } from 'echarts'
-import { useDailySnapshot } from '@/lib/queries'
+import { useDailySnapshot, useBreadthTimeseries, useLadderDetail } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { FreshnessBadge } from '@/shared/ui/FreshnessBadge'
@@ -17,14 +17,54 @@ import { fmtNum } from '@/lib/format'
 
 /**
  * W3 广度·温度首簇落地页（对应 IA-MIGRATION.md §4 W3）。
- * 全部数据来自 getDailySnapshot（12 只读端点之一），缺失字段诚实留空，不编造。
+ * 数据来源：
+ *  - getDailySnapshot（12 只读端点之一）：温度/红盘比/连板摘要/情景/事件因子
+ *  - getBreadthTimeseries（新增）：snapshots 聚合的广度时序
+ *  - getLadderDetail（新增）：shepherd_ladder_history 连板梯队明细
+ * 缺失字段诚实留空，不编造。
  */
+
+function num(v: number | null | undefined): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null
+}
+
 export function BreadthOverview() {
-  const { data, isLoading, isError, error } = useDailySnapshot()
+  const daily = useDailySnapshot()
+  const breadth = useBreadthTimeseries()
+  const ladder = useLadderDetail()
+
   return (
-    <QueryState isLoading={isLoading} isError={isError} error={error}>
-      {data ? <BreadthBody snapshot={data} /> : null}
-    </QueryState>
+    <div className="space-y-4">
+      <QueryState
+        isLoading={daily.isLoading}
+        isError={daily.isError}
+        error={daily.error}
+      >
+        {daily.data ? <BreadthBody snapshot={daily.data} /> : null}
+      </QueryState>
+
+      <Card title="广度时序（涨跌家数 · 近期）">
+        <QueryState
+          isLoading={breadth.isLoading}
+          isError={breadth.isError}
+          error={breadth.error}
+          isEmpty={!!breadth.data && breadth.data.length === 0}
+        >
+          {breadth.data ? <BreadthTrend series={breadth.data} /> : null}
+        </QueryState>
+      </Card>
+
+      <Card title="连板梯队明细">
+        <QueryState
+          isLoading={ladder.isLoading}
+          isError={ladder.isError}
+          error={ladder.error}
+          isEmpty={!!ladder.data && ladder.data.length === 0}
+        >
+          {ladder.data ? <LadderDetailView history={ladder.data} /> : null}
+        </QueryState>
+      </Card>
+    </div>
   )
 }
 
@@ -65,7 +105,7 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
   }
 
   return (
-    <div className="space-y-4">
+    <>
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-semibold">市场广度·温度总览</h2>
         <FreshnessBadge level={level} />
@@ -90,14 +130,19 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Card title="连板梯队">
+        <Card title="连板梯队（今日摘要）">
           <div className="text-sm text-sf-txt/70">
-            最高板 <span className="text-sf-txt font-semibold">{snapshot.ladder?.max_boards ?? '—'}</span>
+            最高板{' '}
+            <span className="text-sf-txt font-semibold">
+              {snapshot.ladder?.max_boards ?? '—'}
+            </span>
             {' · '}连板总数{' '}
-            <span className="text-sf-txt font-semibold">{snapshot.ladder?.total_connect ?? '—'}</span>
+            <span className="text-sf-txt font-semibold">
+              {snapshot.ladder?.total_connect ?? '—'}
+            </span>
           </div>
           <div className="text-xs text-sf-txt/40 mt-1">
-            连板明细需 shepherd_ladder 专属 read 端点（W3 后续波）
+            下方「连板梯队明细」为历史逐日分布（含板位家数）
           </div>
         </Card>
         <Card title="事件因子">
@@ -113,8 +158,132 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
           )}
         </Card>
         <Card title="综合评分">
-          <Stat label="评分" value={fmtNum(snapshot.score)} sub={`偏向 ${snapshot.bias ?? '—'}`} />
+          <Stat
+            label="评分"
+            value={fmtNum(snapshot.score)}
+            sub={`偏向 ${snapshot.bias ?? '—'}`}
+          />
         </Card>
+      </div>
+    </>
+  )
+}
+
+function BreadthTrend({ series }: { series: BreadthPoint[] }) {
+  // 取最近 60 个交易日，保证可读；老数据仍可下拉/翻页（后续波）。
+  const recent = series.slice(-60)
+  const dates = recent.map((p) => p.date)
+  const up = recent.map((p) => num(p.up_count))
+  const down = recent.map((p) => num(p.down_count))
+
+  const option: EChartsOption = {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis' },
+    legend: {
+      data: ['上涨家数', '下跌家数'],
+      textStyle: { color: CHART.txt },
+      top: 0,
+    },
+    grid: { left: 48, right: 16, top: 28, bottom: 28 },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      axisLabel: { color: CHART.txt, hideOverlap: true },
+      axisLine: { lineStyle: { color: CHART.border } },
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: CHART.txt },
+      splitLine: { lineStyle: { color: CHART.grid } },
+    },
+    series: [
+      {
+        name: '上涨家数',
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        data: up,
+        itemStyle: { color: CHART.up },
+        lineStyle: { color: CHART.up, width: 1.5 },
+      },
+      {
+        name: '下跌家数',
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        data: down,
+        itemStyle: { color: CHART.down },
+        lineStyle: { color: CHART.down, width: 1.5 },
+      },
+    ],
+  }
+
+  return (
+    <div>
+      <EChart option={option} height={260} />
+      <div className="text-xs text-sf-txt/40 mt-1">
+        数据来自 data/snapshots/*.json 聚合（共 {series.length} 个交易日，近期展示 60 个）
+      </div>
+    </div>
+  )
+}
+
+function LadderDetailView({ history }: { history: LadderDay[] }) {
+  const latest = history[history.length - 1]
+  const dist = latest?.distribution ?? {}
+
+  // 板位降序（高板在上），家数作为横向条形；高板用红、低板用绿，直观看梯队强弱。
+  const boards = Object.keys(dist)
+    .map((k) => Number(k))
+    .filter((n) => Number.isFinite(n))
+    .sort((a, b) => b - a)
+  const maxBoard = boards[0] ?? 0
+
+  const option: EChartsOption = {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'item' },
+    grid: { left: 40, right: 16, top: 10, bottom: 24 },
+    xAxis: {
+      type: 'value',
+      axisLabel: { color: CHART.txt },
+      splitLine: { lineStyle: { color: CHART.grid } },
+    },
+    yAxis: {
+      type: 'category',
+      data: boards.map((b) => `${b} 板`),
+      axisLabel: { color: CHART.txt },
+      axisLine: { lineStyle: { color: CHART.border } },
+    },
+    series: [
+      {
+        type: 'bar',
+        data: boards.map((b) => ({
+          value: dist[String(b)] ?? 0,
+          itemStyle: {
+            color:
+              maxBoard > 0
+                ? b >= Math.ceil(maxBoard * 0.6)
+                  ? CHART.up
+                  : CHART.down
+                : CHART.border,
+          },
+        })),
+        label: { show: true, position: 'right', color: CHART.txt },
+      },
+    ],
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+        <Stat label="最新数据日" value={latest?.date ?? '—'} />
+        <Stat label="最高板" value={fmtNum(latest?.max_boards)} />
+        <Stat label="连板总数" value={fmtNum(latest?.total_connect)} />
+        <Stat label="历史样本" value={fmtNum(history.length)} sub="交易日" />
+      </div>
+      <EChart option={option} height={Math.max(160, boards.length * 26)} />
+      <div className="text-xs text-sf-txt/40 mt-1">
+        数据来自 data/shepherd_ladder_history.json（逐日连板分布；红色=高板位）
       </div>
     </div>
   )

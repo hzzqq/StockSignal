@@ -47,6 +47,8 @@ ENDPOINTS = [
     "/api/v2/read/paper-trades?user=demo",
     "/api/v2/read/review-notes?date=2026-08-31",
     "/api/v2/read/webapps",
+    "/api/v2/read/breadth-timeseries",
+    "/api/v2/read/ladder-detail",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -63,6 +65,8 @@ SPEC_PATHS = [
     "/api/v2/read/paper-trades",
     "/api/v2/read/review-notes",
     "/api/v2/read/webapps",
+    "/api/v2/read/breadth-timeseries",
+    "/api/v2/read/ladder-detail",
 ]
 
 
@@ -113,6 +117,34 @@ def client(app, tmp_path_factory):
     snaps = data / "snapshots"
     snaps.mkdir(exist_ok=True)
     (snaps / "2026-08-31.json").write_text(json.dumps({"date": "2026-08-31"}), encoding="utf-8")
+    (snaps / "2026-09-01.json").write_text(
+        json.dumps({
+            "date": "2026-09-01",
+            "temperature": 40,
+            "indicators": {
+                "up_count": 2000,
+                "down_count": 1500,
+                "limit_up": 50,
+                "limit_down": 10,
+                "red_ratio": 57.0,
+                "median_chg": 0.4,
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    (data / "shepherd_ladder_history.json").write_text(
+        json.dumps({
+            "2026-09-01": {
+                "date": "2026-09-01",
+                "distribution": {"5": 1, "3": 4, "1": 45},
+                "max_boards": 5,
+                "total_connect": 18,
+                "updated_at": "2026-09-01T15:30",
+            }
+        }),
+        encoding="utf-8",
+    )
 
     (data / "paper_demo.json").write_text(json.dumps({"cash": 100000}), encoding="utf-8")
     (data / "review_notes_2026-08-31.md").write_text("# 复盘\n今日缩量。\n", encoding="utf-8")
@@ -134,6 +166,7 @@ def client(app, tmp_path_factory):
         "alert_rules": data / "alert_rules.json",
         "alert_log": data / "alerts.log",
         "virtual_users_sim": reports / "virtual_users_sim.json",
+        "ladder_detail": data / "shepherd_ladder_history.json",
     }
     return app.test_client()
 
@@ -189,6 +222,17 @@ def test_existing_files_return_ok_envelope(client, token):
 
     obj = client.get("/api/v2/read/webapps", headers=_auth(token)).get_json()
     assert obj["status"] == "ok" and obj["data"][0]["title"] == "Demo WebApp", obj
+
+    # W3 新增只读端点（聚合 snapshots / 读取 shepherd_ladder_history）
+    obj = client.get("/api/v2/read/breadth-timeseries", headers=_auth(token)).get_json()
+    assert obj["status"] == "ok" and isinstance(obj["data"], list) and len(obj["data"]) >= 1, obj
+    bt = next((r for r in obj["data"] if r["date"] == "2026-09-01"), None)
+    assert bt is not None and bt["up_count"] == 2000, obj
+
+    obj = client.get("/api/v2/read/ladder-detail", headers=_auth(token)).get_json()
+    assert obj["status"] == "ok" and isinstance(obj["data"], list) and len(obj["data"]) >= 1, obj
+    ld = next((r for r in obj["data"] if r["date"] == "2026-09-01"), None)
+    assert ld is not None and ld["max_boards"] == 5, obj
 
 
 def test_missing_files_graceful_error(client, token):

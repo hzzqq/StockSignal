@@ -3105,6 +3105,506 @@
         ]
       }
     },
+    "/api/v2/read/alert-log": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.alert_log",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/alert-rules": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.alert_rules",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/breadth-timeseries": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.breadth_timeseries",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/daily-recommendation": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.daily_recommendation",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/daily-snapshot": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.daily_snapshot",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/ladder-detail": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.ladder_detail",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/p1-signals": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.p1_signals",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/paper-trades": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.paper_trades",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/review-notes": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.review_notes",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/snapshot-dates": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.snapshot_dates",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/snapshot/{date}": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.snapshot_by_date",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "date",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/user-dashboard": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.user_dashboard",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/virtual-users-sim": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.virtual_users_sim",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/webapps": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.webapps",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/watchlist": {
       "get": {
         "tags": [

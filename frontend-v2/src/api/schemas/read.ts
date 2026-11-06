@@ -172,3 +172,40 @@ export type WebApp = z.infer<typeof WebAppSchema>
 // ───────── 归档日期清单 ─────────
 export const SnapshotDateListSchema = z.array(z.string())
 export type SnapshotDateList = z.infer<typeof SnapshotDateListSchema>
+
+// ───────── 广度时序（breadth-timeseries 聚合 snapshots）─────────
+// 字段以真实 data/snapshots/*.json 的 indicators + 顶层 temperature 为准。
+// 数值可能为 null（快照缺失该字段），严禁 `?? 0` 兜底。
+export const BreadthPointSchema = z
+  .object({
+    date: z.string(),
+    temperature: z.number().nullable().optional(),
+    up_count: z.number().nullable().optional(),
+    down_count: z.number().nullable().optional(),
+    limit_up: z.number().nullable().optional(),
+    limit_down: z.number().nullable().optional(),
+    red_ratio: z.number().nullable().optional(),
+    median_chg: z.number().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type BreadthPoint = z.infer<typeof BreadthPointSchema>
+
+export const BreadthSeriesSchema = z.array(BreadthPointSchema)
+export type BreadthSeries = z.infer<typeof BreadthSeriesSchema>
+
+// ───────── 连板梯队明细（ladder-detail / shepherd_ladder_history）─────────
+// 结构 {date, distribution{连板数:家数}, max_boards, total_connect, updated_at, suspect?}
+export const LadderDaySchema = z
+  .object({
+    date: z.string(),
+    distribution: z.record(z.string(), z.number()).optional(),
+    max_boards: z.number().nullable().optional(),
+    total_connect: z.number().nullable().optional(),
+    updated_at: z.string().optional(),
+    suspect: z.boolean().optional(),
+  })
+  .catchall(z.unknown())
+export type LadderDay = z.infer<typeof LadderDaySchema>
+
+export const LadderHistorySchema = z.array(LadderDaySchema)
+export type LadderHistory = z.infer<typeof LadderHistorySchema>

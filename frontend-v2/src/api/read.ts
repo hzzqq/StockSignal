@@ -8,6 +8,8 @@ import {
   PaperTradeSchema,
   ReviewNotesSchema,
   WebAppSchema,
+  BreadthPointSchema,
+  LadderDaySchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -16,6 +18,8 @@ import {
   type ReviewNotes,
   type WebApp,
   type SnapshotDateList,
+  type BreadthPoint,
+  type LadderDay,
 } from './schemas/read'
 
 /**
@@ -95,4 +99,18 @@ export async function getAlertRules(): Promise<Record<string, unknown>> {
 /** GET /api/v2/read/alert-log —— 告警触发日志原文（74 页写入日志） */
 export async function getAlertLog(): Promise<string> {
   return z.string().parse(await apiFetch<unknown>('/v2/read/alert-log'))
+}
+
+/** GET /api/v2/read/breadth-timeseries —— 广度时序（snapshots 聚合，W3 广度页时序源） */
+export async function getBreadthTimeseries(): Promise<BreadthPoint[]> {
+  return z
+    .array(BreadthPointSchema)
+    .parse(await apiFetch<unknown>('/v2/read/breadth-timeseries'))
+}
+
+/** GET /api/v2/read/ladder-detail —— 连板梯队历史明细（W3 连板共振页数据源） */
+export async function getLadderDetail(): Promise<LadderDay[]> {
+  return z
+    .array(LadderDaySchema)
+    .parse(await apiFetch<unknown>('/v2/read/ladder-detail'))
 }
