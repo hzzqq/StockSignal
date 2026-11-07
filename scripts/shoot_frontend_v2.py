@@ -95,6 +95,7 @@ ROUTES = (
     ("/events", "events"),
     ("/predictions", "predictions"),
     ("/ops", "ops"),
+    ("/stock/six-dim", "sixdim"),  # W4-A 六维评分：暗/亮两主题真实验收
 )
 
 # 真实浏览器计算样式采样：既证明主题生效，也守 A 股双套语义红线。
@@ -381,6 +382,104 @@ def capture(cdp: CDP, base_url: str, route: str, theme: str,
 
 
 # ── 跨主题红线校验 ────────────────────────────────────────────────────────
+# W4-A: six-dim partial-state browser assertion (real ECharts, real DOM)
+def capture_sixdim_partial(cdp: CDP, theme: str, out_dir: Path,
+                           settle_ms: int) -> dict:
+    """Switch the six-dim page to code 000001 (MSW serves missing dims).
+
+    Unit tests mock EChart as a placeholder, so they cannot prove that null
+    dims are not drawn as 0 in a real ECharts canvas. This asserts, in a real
+    browser: a real canvas exists, missing dims read "缺失" instead of 0,
+    date=null shows no fabricated date, degraded banner and note are visible.
+    """
+    rec: dict = {"route": "/stock/six-dim#partial", "theme": theme,
+                 "kind": "sixdim_partial", "ok": False}
+    try:
+        # React controlled input: native prototype setter + input event only
+        set_expr = """(() => {
+          const el = document.getElementById('six-dim-code');
+          if (!el) return {ok: false, err: 'six-dim-code input missing'};
+          const setter = Object.getOwnPropertyDescriptor(
+              HTMLInputElement.prototype, 'value').set;
+          setter.call(el, '000001');
+          el.dispatchEvent(new Event('input', {bubbles: true}));
+          return {ok: true, value: el.value};
+        })()"""
+        set_out = cdp.js(set_expr)
+        if not (isinstance(set_out, dict) and set_out.get("ok")):
+            rec["error"] = "cannot drive code input: %s" % (set_out,)
+            return rec
+
+        probe_expr = """(() => {
+          const q = (s) => document.querySelector(s);
+          const txt = (s) => ((q(s) && q(s).textContent) || '').trim();
+          const body = document.body.innerText || '';
+          const cs = Array.from(document.querySelectorAll('canvas')).map(
+              c => ({w: c.width, h: c.height}));
+          return {
+            theme: document.documentElement.getAttribute('data-theme'),
+            path: location.pathname,
+            inputValue: q('#six-dim-code') ? q('#six-dim-code').value : null,
+            dimCapital: txt('[data-testid="dim-capital"]'),
+            dimGrowth: txt('[data-testid="dim-growth"]'),
+            dimTechnical: txt('[data-testid="dim-technical"]'),
+            coverageBar: body.includes('仅 4/6 维有效，缺失维未取到数据'),
+            noDate: body.includes('暂无权威数据日'),
+            noteShown: body.includes('逐维独立取数、独立降级'),
+            canvasCount: cs.length,
+            canvasSizes: cs,
+            textLen: body.length
+          };
+        })()"""
+
+        info = {}
+        deadline = time.time() + 14.0
+        while time.time() < deadline:
+            info = cdp.js(probe_expr)
+            if (isinstance(info, dict) and info.get("coverageBar")
+                    and info.get("canvasCount", 0) >= 1):
+                break
+            time.sleep(0.4)
+        rec["sample"] = info
+
+        out_dir.mkdir(parents=True, exist_ok=True)
+        dest = out_dir / "sixdim_partial.png"
+        shot = cdp.call("Page.captureScreenshot",
+                        {"format": "png", "captureBeyondViewport": False})
+        data = base64.b64decode(shot.get("data", ""))
+        dest.write_bytes(data)
+        rec["png"] = str(dest)
+        rec["png_bytes"] = len(data)
+
+        canvas_ok = any(c.get("w", 0) > 0 and c.get("h", 0) > 0
+                        for c in (info.get("canvasSizes") or []))
+        checks = {
+            "input_is_partial_code": info.get("inputValue") == "000001",
+            "theme": info.get("theme") == theme,
+            "capital_missing_not_zero": info.get("dimCapital") == "缺失",
+            "growth_missing_not_zero": info.get("dimGrowth") == "缺失",
+            "technical_has_value": info.get("dimTechnical") not in (None, "", "缺失"),
+            "coverage_bar": bool(info.get("coverageBar")),
+            "date_null_honest": bool(info.get("noDate")),
+            "note_verbatim": bool(info.get("noteShown")),
+            "real_echarts_canvas": canvas_ok,
+            "screenshot": len(data) >= 1024,
+        }
+        rec["checks"] = checks
+        bad = [k for k, v in checks.items() if not v]
+        if bad:
+            rec["error"] = "failed: " + ", ".join(bad)
+            logger.warning("X %-6s sixdim_partial %s", theme, rec["error"])
+        else:
+            rec["ok"] = True
+            logger.info("OK %-6s sixdim_partial missing=缺失 / canvas=%s -> %s",
+                        theme, info.get("canvasSizes"), dest.name)
+    except Exception as exc:
+        rec["error"] = "%s: %s" % (type(exc).__name__, exc)
+        logger.error("X %-6s sixdim_partial %s", theme, rec["error"])
+    return rec
+
+
 def cross_theme_checks(records: list[dict], themes: list[str]) -> list[dict]:
     """用真实浏览器计算样式复核两条设计红线，结果写入报告（不静默通过）。
 
@@ -473,6 +572,7 @@ def main(argv=None) -> int:
 
     vite_proc = chrome_proc = cdp = None
     records: list[dict] = []
+    partial_records: list[dict] = []
     try:
         if args.start_app:
             port = urllib.parse.urlparse(base_url).port or 5180
@@ -514,8 +614,18 @@ def main(argv=None) -> int:
                 rec = capture(cdp, base_url, route, theme, name,
                               out_root / theme, args.settle_ms)
                 records.append(rec)
+                if name == "sixdim" and rec.get("ok"):
+                    partial_records.append(capture_sixdim_partial(
+                        cdp, theme, out_root / theme, args.settle_ms))
 
         checks = cross_theme_checks(records, themes)
+        for pr in partial_records:
+            checks.append({
+                "rule": "W4-A missing dims not zero + real ECharts canvas (%s)" % pr["theme"],
+                "pass": bool(pr.get("ok")),
+                "detail": pr.get("error") or pr.get("checks"),
+            })
+        records.extend(partial_records)
         ok = sum(1 for r in records if r["ok"])
         fail = len(records) - ok
         report = {

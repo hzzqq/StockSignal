@@ -1,5 +1,7 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import * as api from '@/api/read'
+import { getSixDim } from '@/api/stock'
+import type { SixDim } from '@/api/schemas/stock'
 import type {
   DailySnapshot,
   P1Signal,
@@ -182,6 +184,17 @@ export function useDataRefreshState(): UseQueryResult<DataRefreshState> {
   return useQuery({
     queryKey: ['read', 'data-refresh-state'],
     queryFn: api.getDataRefreshState,
+    staleTime: FIVE_MIN,
+  })
+}
+
+// ───────── W4-A · 个股六维评分（按 6 位代码查询，5min 缓存）─────────
+// 非法代码 enabled=false，不发起请求；取数失败进入 error 态，由页面诚实渲染。
+export function useSixDim(code: string): UseQueryResult<SixDim> {
+  return useQuery({
+    queryKey: ['read', 'six-dim', code],
+    queryFn: () => getSixDim(code),
+    enabled: /^\d{6}$/.test(code),
     staleTime: FIVE_MIN,
   })
 }

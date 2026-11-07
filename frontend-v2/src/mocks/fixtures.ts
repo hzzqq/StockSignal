@@ -258,3 +258,49 @@ export const dataRefreshState = {
   last_csv_date: '2026-11-02',
   detail: 'exit=0 killed=False since=2026-10-19 末行 2026-11-02 → 2026-11-05（推进）',
 }
+
+// W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
+// 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
+// sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
+// ⚠️ 缺失与空数据日如实保留，禁止补 0 / 禁止用当前日期兜底。
+export const sixDimFull = {
+  code: '600519',
+  dims: {
+    technical: 72.5,
+    capital: 68.0,
+    value: 61.0,
+    growth: 57.4,
+    fundamental: 55.3,
+    cycle: 48.0,
+  },
+  overall: 60.4,
+  coverage: 6,
+  missing: [],
+  date: '2026-11-07',
+  raw: {
+    pe: 28.1, pb: 8.2, roe: 24.3, profit_yoy: 12.6, state: null,
+    turnover: 1.8, vol_ratio: 0.9, pos60: 3.4,
+  },
+  note: '逐维独立取数、独立降级；缺失维为 null 且不参与 overall 平均',
+}
+
+export const sixDimPartial = {
+  code: '000001',
+  dims: {
+    technical: 50.2,
+    capital: null,
+    value: 44.8,
+    growth: null,
+    fundamental: 39.1,
+    cycle: 41.6,
+  },
+  overall: 43.9,
+  coverage: 4,
+  missing: ['capital', 'growth'],
+  date: null,
+  raw: {
+    pe: 5.6, pb: 0.5, roe: null, profit_yoy: null, state: null,
+    turnover: null, vol_ratio: null, pos60: -1.2,
+  },
+  note: '逐维独立取数、独立降级；缺失维为 null 且不参与 overall 平均',
+}

@@ -31,7 +31,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from flask import Blueprint, request
@@ -510,3 +510,159 @@ def data_refresh_state():
     last_csv_date, detail}；detail 为刷新脚本原始输出，原样透出不美化。
     """
     return _serve_json_sanitized("data_refresh_state", "data_refresh_state.json")
+
+
+# ───────────────────────── 六维量化评分（W4-A，逐维独立取数/独立降级）─────────────────────────
+# 契约：GET /api/v2/read/six-dim?code=600519（@jwt_required）
+# 评分纯逻辑 modules.six_dim.compute_dims：六维等权、缺维为 None 且不参与 overall 平均。
+# 三个取数源彼此独立、各自 try/except 降级；任一源失败只让对应维为 None，
+# 绝不补 0 / 编造 / 用 now() 当权威数据日兜底。
+_DIM_ORDER = ("technical", "capital", "value", "growth", "fundamental", "cycle")
+_SIX_DIM_NOTE = "逐维独立取数、独立降级；缺失维为 null 且不参与 overall 平均"
+# compute_dims 的 fetch_spot 期望中文键：换手率/量比/市盈率-动态/市净率
+# （six_dim.py:195-204 写死，禁止臆造；akshare 快照按其列名原样透出）
+
+
+def _six_dim_hist(code: str):
+    """历史日线（近 ~400 自然日）：get_fetcher().get_kline(code, start, None, 'daily', 'qfq')。
+
+    失败/空 -> None（技术/周期维缺失）。已核实：get_kline(period='daily') 实际走
+    get_daily()，返回的是英文列 date/close/...（fetcher_kline.py:334-338），而
+    compute_dims 要求 fetch_hist 含中文「收盘」列（six_dim.py:166）——故在此把
+    close 适配为「收盘」（仅列名映射，不改数值、不补 0）。start 仅用于框定查询
+    窗口，不是权威数据日；data 的 date 必须来自 K 线最后一根。
+    """
+    try:
+        from ..api.market_routes import get_fetcher
+        start = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")
+        df = get_fetcher().get_kline(code, start, None, "daily", "qfq")
+    except Exception:  # noqa: BLE001 - 取数失败仅让技术/周期维缺失，不 500
+        return None
+    if df is None or len(df) == 0:
+        return None
+    if "收盘" not in df.columns and "close" in df.columns:
+        df = df.rename(columns={"close": "收盘"})
+    return df
+
+
+def _six_dim_spot(code: str):
+    """实时快照行（供资金/价值维取数）：ak.stock_zh_a_spot_em() 按「代码」筛行。
+
+    取证留痕（2026-11-07 已核实）：get_fetcher().get_realtime_quote(code) 返回字段为
+    ticker/name/open/prev_close/current/high/low/volume/amount/bid/ask/datetime，
+    **不含**「换手率/量比/市盈率-动态/市净率」——故此处**不调用**该实时接口：
+    既删掉永不命中的死分支，也省掉每次请求白跑一次新浪实时接口（内部 10s 超时
+    + 缓存兜底）的无谓网络往返。直接走 akshare 快照（与 pages/72 口径一致），按
+    「代码」筛行后整行 .to_dict() 透出，字段名写死、禁止臆造。
+    任一异常 / 字段取不到 -> {}（capital/value 维如实为 None，绝不补 0）。
+    """
+    try:
+        import akshare as ak
+        df = ak.stock_zh_a_spot_em()
+        if df is None or df.empty or "代码" not in df.columns:
+            return {}
+        row = df[df["代码"].astype(str) == str(code)]
+        return row.iloc[0].to_dict() if len(row) else {}
+    except Exception:  # noqa: BLE001 - akshare 挂掉仅让资金/价值维缺失，不 500
+        return {}
+
+
+def _six_dim_fin(code: str):
+    """东财财务摘要（akshare stock_financial_abstract）：异常 -> None。"""
+    try:
+        import akshare as ak
+        return ak.stock_financial_abstract(symbol=code)
+    except Exception:  # noqa: BLE001 - 财务源失败仅让成长/基本面维缺失，不 500
+        return None
+
+
+def _six_dim_date(df):
+    """K 线最后一根的权威日期（列名兼容「日期」/date，取 str(...)[:10]）。
+
+    取不到一律 None——绝不用 datetime.now() 兜底（红线：权威数据日必须来自数据）。
+    """
+    if df is None or len(df) == 0:
+        return None
+    for col in ("日期", "date"):
+        if col in df.columns:
+            try:
+                s = str(df[col].iloc[-1])[:10]
+                return s or None
+            except Exception:  # noqa: BLE001
+                return None
+    return None
+
+
+def _six_dim_num(v):
+    """raw 数值字段规范化为 float|None；NaN/Inf/非数值/None 一律 None（绝不补 0）。"""
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return None if (math.isnan(f) or math.isinf(f)) else f
+
+
+@bp.get("/six-dim")
+@jwt_required
+def six_dim():
+    """六维量化评分（技术/资金/价值/成长/基本面/周期），逐维独立取数、独立降级。
+
+    GET /api/v2/read/six-dim?code=600519。缺失维为 null 且不参与 overall 平均；
+    date 为 K 线最后一根的权威日期，取不到则 null。全响应过 _sanitize() 清洗 NaN/Inf。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"\d{6}", code or ""):
+        return fail(message="code 非法（须为 6 位数字股票代码）",
+                    code="invalid_param", http_status=400)
+
+    # 三源一次并行：整批硬边界 = CALL_TIMEOUT_CAP（默认 12s，REQ_TIMEOUT 10<12），
+    # 避免 hist→spot→fin 串行超时累加（最坏由几十秒收敛到 ~12s）。fetch_many 返回
+    # dict{key: 值}，超时/异常项预填 None（不缺键）；各 _six_dim_* 内部另有 try/except，
+    # 双层兜底。超时/未完成源一律按 None / {} 降级，绝不 500 / 补 0。
+    try:
+        from modules.fetch_parallel import fetch_many  # lazy：不增加模块级导入耦合
+        res = fetch_many([
+            ("hist", lambda: _six_dim_hist(code)),
+            ("spot", lambda: _six_dim_spot(code)),
+            ("fin", lambda: _six_dim_fin(code)),
+        ])
+    except Exception:  # noqa: BLE001 - 并发行本身异常：三源全体降级（诚实返回 null）
+        res = {}
+    hist = res.get("hist")
+    spot = res.get("spot") or {}
+    fin = res.get("fin")
+    date = _six_dim_date(hist)
+
+    from modules.six_dim import compute_dims  # 纯逻辑，lazy 以隔离新增依赖
+    result, raw = compute_dims(
+        code,
+        lambda _c: hist,
+        lambda _c: spot,
+        lambda _c: fin,
+        state_fn=None,  # 保守传 None：不臆造市场状态机函数名，周期维允许如实缺失
+    )
+
+    dims = result["dims"]
+    missing = [k for k in _DIM_ORDER if dims.get(k) is None]
+    data = {
+        "code": code,
+        "dims": dims,
+        "overall": result["overall"],
+        "coverage": 6 - len(missing),
+        "missing": missing,
+        "date": date,
+        "raw": {
+            "pe": _six_dim_num(raw.get("pe")),
+            "pb": _six_dim_num(raw.get("pb")),
+            "roe": _six_dim_num(raw.get("roe")),
+            "profit_yoy": _six_dim_num(raw.get("profit_yoy")),
+            "state": str(raw["state"]) if raw.get("state") is not None else None,
+            "turnover": _six_dim_num(raw.get("turnover")),
+            "vol_ratio": _six_dim_num(raw.get("vol_ratio")),
+            "pos60": _six_dim_num(raw.get("pos60")),
+        },
+        "note": _SIX_DIM_NOTE,
+    }
+    return ok(data=_sanitize(data), message="six-dim")

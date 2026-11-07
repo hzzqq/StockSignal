@@ -197,17 +197,42 @@ Bento 卡片区（KPI / 图表 / 表格）
 | W3 | 后续簇 · 事件因子 | ✅ 已落地 | `event-pool` | `/events`：原样带出「统计意义上的超额收益概率排序，非买卖指令」 |
 | W3 | 后续簇 · 预测校准 | ✅ 已落地 | `prediction-log` | `/predictions`：命中率分母只算已兑现样本，`hit=null` 不计入 |
 | W3 | 后续簇 · 数据与运维 | ✅ 已落地 | `p1-sync-status` + `backtest-runs` + `data-refresh-state` | `/ops`：三数据源独立四态；绝对路径递归脱敏；负收益/负 Sharpe 如实带符号 |
-| W4 | 个股研究 24/21/22/72 | ⬜ | 需补 read 端点 | |
+| W4 | 个股研究 24/21/22/72 | 🟡 W4-A 六维评分(72) 已落地 | `six-dim` | 24/21/22 待排 |
 | W5 | 量化选股 36/32/31/33/25/30/71 | 🟡 36 荐股已落地 | getDailyRecommendation | 其余待 |
 | W6 | 持仓交易 45/43/42 | 🟡 42 模拟盘已落地 | getPaperTrades | 其余待 |
 | W7 | 工具社区+Admin 34…93 | 🟡 74/86 已落地 | alert-rules(空)/webapps | 其余待 |
 
 **数据来源策略（诚实红线）**：已落地页全部走 `/api/v2/read/*` 端点 + MSW 演示数据；缺失数据诚实「无数据」，绝不编造填充。
-截至 2026-11-07，只读端点共 **20 个**（W1 12 + W3 首簇 2 + 长周期广度 1 + W3 后续簇 5）；
-`frontend-v2/spec/openapi.json` 静态基线随之刷新为 **84 paths / 107 operations**
-（W0 时为 64/87，W3 首簇后 79/102 —— 均为各自时点的实跑值，非笔误）。
+截至 2026-11-07，只读端点共 **21 个**（W1 12 + W3 首簇 2 + 长周期广度 1 + W3 后续簇 5 + W4-A 六维评分 1）；
+`frontend-v2/spec/openapi.json` 静态基线 W4-A 实跑为 **85 paths / 108 operations**（含 `/api/v2/read/six-dim` 的 GET + BearerAuth）；历史实跑值：W0 64/87、W3 首簇后 79/102、W3 收口 84/107、W4-A 85/108 —— 均为各自时点读取文件真值，非笔误。
 **后续簇（W2/W4/W5/W6/W7 多数）** 需先在 `backend/api/read_routes.py` 补对应只读端点，再按本表逐页迁移；
 W3 的广度时序、连板明细、长周期广度 3 个端点**已落地**，不再是待办。
 **导航**：当前 V2 侧栏保持 **4 组**，「市场广度·温度」组共 **5 项**
 （广度总览 / 连板梯队共振 / 事件因子池 / 预测校准日志 / 数据与运维状态），图标全局唯一、子簇 ≤8；
 本轮**不收敛** §2 的 6 类目结构（待后续波次按真实页面量再评估）。
+
+### W4-A 非等价迁移 · 书面豁免（2026-11-07）
+
+**结论先行：W4-A 六维评分（旧 72 页 → `/stock/six-dim`）不是逐字段等价迁移，不得对外表述为「与原版一致」。**
+评分纯逻辑 `modules/six_dim.compute_dims` 仍为唯一真理源（六维等权、缺维为 `null` 且不参与 `overall` 平均），
+但**取数链路**有 4 处经源码取证的口径差异，均已写入端点注释与守卫测试：
+
+| # | 旧 72 页 | W4-A `/api/v2/read/six-dim` | 影响 |
+|---|---|---|---|
+| 1 | `ak.stock_zh_a_hist()` 返回中文列 | `get_fetcher().get_kline(period='daily')` 实际走 `get_daily()`，返回英文列 `date/open/close/...` | 端点内仅做 `close → 收盘` **列名映射**，不改数值、不补 0 |
+| 2 | 周期维调用 `market_regime.regime_report()` | `state_fn=None`，不臆造状态机函数名 | 周期维只由 `pos60` 出分；`raw.state` 恒为 `null`，属**能力收缩**，非等价 |
+| 3 | 先探测 `get_realtime_quote()` 找「换手率 / 量比 / 市盈率-动态 / 市净率」 | 已核实该接口字段为 `ticker/name/open/prev_close/current/high/low/volume/amount/bid/ask/datetime`，**不含**上述四项 | 删除永不命中的探测分支，省掉每次白跑新浪实时接口（内部 10s 超时） |
+| 4 | 资金 / 价值维使用 `ak.stock_zh_a_spot_em()` | **同源**，仍用 `ak.stock_zh_a_spot_em()` | 差异不是「取数源不同」，而是该快照成为**唯一来源**并收敛掉 #3 的实时接口探测 |
+
+**耗时边界**：三源由串行改为 `modules/fetch_parallel.fetch_many` 并发，整批硬边界
+`CALL_TIMEOUT_CAP=12s`（满足 `REQ_TIMEOUT 10 < CALL_TIMEOUT_CAP 12` 不变量）；实测最坏 **12.01s**
+（串行三源最坏 40s+）。超时 / 异常源按 `None` / `{}` 降级，绝不 500、绝不补 0。
+`backend/tests/test_read_routes.py` 已加 `parallel_source_failure_degrades` /
+`parallel_timeout_degrades` 两条并发路径缺维用例。
+
+**契约**：`raw.state` 为 `str|null`（后端 `str()` 归一），前端 `SixDimRawSchema.state = z.string().nullable()`；
+`date` 必须来自 K 线最后一根，取不到返回 `null`，禁止 `datetime.now()` 兜底。
+静态 OpenAPI 实跑 **85 paths / 108 operations**。
+
+> 该豁免只覆盖 W4-A 这一页。W4 剩余 `24 个股研究` / `21 多股对比` / `22 基本面分析`
+> 三页**未迁移**，深链契约 `hub_gyj_view` / `pick_stock` 亦未接入，不得计入已落地。

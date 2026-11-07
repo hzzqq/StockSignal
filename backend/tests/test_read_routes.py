@@ -35,6 +35,7 @@ import backend.api.read_routes as rr  # noqa: E402
 
 # 实际请求用的具体路径（含参数/具体日期）
 ENDPOINTS = [
+    "/api/v2/read/six-dim?code=600519",
     "/api/v2/read/daily-snapshot",
     "/api/v2/read/daily-recommendation",
     "/api/v2/read/user-dashboard",
@@ -59,6 +60,7 @@ ENDPOINTS = [
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
 SPEC_PATHS = [
+    "/api/v2/read/six-dim",
     "/api/v2/read/daily-snapshot",
     "/api/v2/read/daily-recommendation",
     "/api/v2/read/user-dashboard",
@@ -431,3 +433,175 @@ def test_openapi_covers_read_routes(client):
         assert node is not None, f"spec 缺失路径: {base}"
         assert "get" in node, f"{base} 缺 get"
         assert node["get"].get("security") == [{"BearerAuth": []}], f"{base} 未标注鉴权"
+
+
+# ───────────── W4-A 六维评分端点：确定性回归（monkeypatch 三取数源，零网络）─────────────
+# 仅 patch 模块级 _six_dim_hist/_six_dim_spot/_six_dim_fin，端点内部的
+# get_fetcher / akshare / compute_dims 均为真实逻辑或纯函数，绝不触发网络调用。
+
+
+def _fake_hist_ok():
+    """含中文「收盘」+「日期」列的 120 根日线，末根为权威日期来源。"""
+    import pandas as pd
+    n = 120
+    return pd.DataFrame({
+        "日期": pd.date_range("2026-01-01", periods=n).strftime("%Y-%m-%d").tolist(),
+        "收盘": [100.0 + i * 0.5 for i in range(n)],
+    })
+
+
+def _fake_fin_roe_only():
+    """财务摘要只含 ROE 行、不含「净利润同比」行 → fundamental 有值 / growth 缺失。"""
+    import pandas as pd
+    return pd.DataFrame([
+        {"选项": "常用指标", "指标": "净资产收益率(加权)", "2025-09-30": "15.3"},
+        {"选项": "常用指标", "指标": "归母净利润", "2025-09-30": "100.0"},
+    ])
+
+
+def _patch_six_dim(monkeypatch, hist, spot, fin):
+    monkeypatch.setattr(rr, "_six_dim_hist", lambda code: hist)
+    monkeypatch.setattr(rr, "_six_dim_spot", lambda code: spot)
+    monkeypatch.setattr(rr, "_six_dim_fin", lambda code: fin)
+
+
+def test_six_dim_requires_token(client):
+    """六维端点无 token -> 401（鉴权闸门先于参数校验与取数）。"""
+    resp = client.get("/api/v2/read/six-dim?code=600519")
+    assert resp.status_code == 401, resp.get_data(as_text=True)[:200]
+
+
+def test_six_dim_ok_envelope(client, token, monkeypatch):
+    """合法 code + 三源齐备 -> 200 + 标准 ok 信封 + 契约字段齐全。"""
+    h = _fake_hist_ok()
+    _patch_six_dim(monkeypatch, h,
+                   {"换手率": 2.5, "量比": 1.2, "市盈率-动态": 28.1, "市净率": 8.2},
+                   _fake_fin_roe_only())
+    resp = client.get("/api/v2/read/six-dim?code=600519", headers=_auth(token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
+    obj = resp.get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    d = obj["data"]
+    for k in ("code", "dims", "overall", "coverage", "missing", "date", "raw", "note"):
+        assert k in d, f"data 缺字段 {k}: {d}"
+    assert d["code"] == "600519"
+    assert list(d["dims"].keys()) == ["technical", "capital", "value",
+                                      "growth", "fundamental", "cycle"]
+    assert d["date"] == str(h["日期"].iloc[-1])[:10]  # 取自 K 线末根，非 now()
+    assert isinstance(d["raw"], dict) and "state" in d["raw"]
+    assert d["raw"]["pe"] == 28.1 and d["raw"]["pb"] == 8.2
+
+
+def test_six_dim_invalid_and_missing_code(client, token):
+    """非法 / 缺失 code -> 400 invalid_param（参数校验先于取数，零网络）。"""
+    for qs in ("?code=abc", "?code=60051", "?code=6005199", ""):
+        resp = client.get(f"/api/v2/read/six-dim{qs}", headers=_auth(token))
+        assert resp.status_code == 400, f"{qs}: {resp.status_code}"
+        obj = resp.get_json()
+        assert obj["status"] == "error" and obj["code"] == "invalid_param", obj
+
+
+def test_six_dim_missing_dims_null_and_coverage(client, token, monkeypatch):
+    """部分源缺字段 -> 对应维必须为 null（禁止补 0）、missing/coverage 正确、overall 不含缺维。"""
+    # spot 仅 pe/pb（无换手率/量比）→ capital 缺；fin 仅 ROE（无同比）→ growth 缺
+    _patch_six_dim(monkeypatch, _fake_hist_ok(),
+                   {"市盈率-动态": 28.1, "市净率": 8.2},
+                   _fake_fin_roe_only())
+    d = client.get("/api/v2/read/six-dim?code=600519",
+                   headers=_auth(token)).get_json()["data"]
+    assert d["dims"]["capital"] is None, "缺失维必须为 null，禁止补 0"
+    assert d["dims"]["growth"] is None, "缺失维必须为 null，禁止补 0"
+    assert d["missing"] == ["capital", "growth"], d["missing"]
+    assert d["coverage"] == 6 - len(d["missing"]) == 4, d["coverage"]
+    valid = [v for v in d["dims"].values() if v is not None]
+    assert len(valid) == 4 and all(isinstance(v, float) for v in valid), d["dims"]
+    assert abs(d["overall"] - round(sum(valid) / 4, 1)) < 1e-9, d
+
+
+def test_six_dim_all_sources_fail_honest_degradation(client, token, monkeypatch):
+    """三源全失败 -> status 仍 ok（不伪装失败/不 500），六维全 null、coverage=0、overall=null。"""
+    _patch_six_dim(monkeypatch, None, {}, None)
+    resp = client.get("/api/v2/read/six-dim?code=600519", headers=_auth(token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
+    obj = resp.get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    d = obj["data"]
+    assert all(v is None for v in d["dims"].values()), d["dims"]
+    assert d["coverage"] == 0 and d["overall"] is None, d
+    assert d["date"] is None and d["missing"] == list(d["dims"].keys()), d
+
+
+def test_six_dim_nan_inf_sanitized(client, token, monkeypatch):
+    """raw 含 NaN/Inf -> 清洗为 null，响应不含裸 NaN/Infinity 字面量（合法 JSON）。"""
+    _patch_six_dim(monkeypatch, _fake_hist_ok(),
+                   {"换手率": float("nan"), "量比": float("inf"),
+                    "市盈率-动态": 28.1, "市净率": 8.2},
+                   _fake_fin_roe_only())
+    resp = client.get("/api/v2/read/six-dim?code=600519", headers=_auth(token))
+    body = resp.get_data(as_text=True)
+    assert "NaN" not in body and "Infinity" not in body, body[:300]
+    raw = resp.get_json()["data"]["raw"]
+    assert raw["turnover"] is None, raw   # NaN -> null
+    assert raw["vol_ratio"] is None, raw  # Inf -> null
+    assert raw["pe"] == 28.1, raw
+
+
+def test_six_dim_in_frontend_spec_file():
+    """磁盘 frontend-v2/spec/openapi.json 必须覆盖 /api/v2/read/six-dim 且标注 BearerAuth。"""
+    path = os.path.join(PROJECT_ROOT, "frontend-v2", "spec", "openapi.json")
+    with open(path, "r", encoding="utf-8") as f:
+        spec = json.load(f)
+    node = spec["paths"].get("/api/v2/read/six-dim")
+    assert node is not None and "get" in node, "spec 缺 /api/v2/read/six-dim"
+    assert node["get"].get("security") == [{"BearerAuth": []}], node
+
+
+def test_six_dim_parallel_source_failure_degrades(client, token, monkeypatch):
+    """三源并行路径：某源抛异常（失败）-> 对应维 null、coverage 正确、overall 非 0 兜底。
+
+    走真实 fetch_many（不 patch 它）：_six_dim_spot 抛异常被 _safe 吞成 None，
+    端点按 {} 降级；验证 capital/value 为 null（禁止补 0），overall 只对有效维等权平均。
+    """
+    def boom_spot(code):
+        raise RuntimeError("spot source timeout")
+
+    monkeypatch.setattr(rr, "_six_dim_hist", lambda code: _fake_hist_ok())
+    monkeypatch.setattr(rr, "_six_dim_spot", boom_spot)
+    monkeypatch.setattr(rr, "_six_dim_fin", lambda code: _fake_fin_roe_only())
+
+    resp = client.get("/api/v2/read/six-dim?code=600519", headers=_auth(token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
+    obj = resp.get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    d = obj["data"]
+    assert d["dims"]["capital"] is None and d["dims"]["value"] is None, \
+        "spot 源失败 -> capital/value 必须为 null（禁止补 0）"
+    assert d["coverage"] == 6 - len(d["missing"]), d
+    valid = [v for v in d["dims"].values() if v is not None]
+    assert valid and abs(d["overall"] - round(sum(valid) / len(valid), 1)) < 1e-9, d
+
+
+def test_six_dim_parallel_timeout_degrades(client, token, monkeypatch):
+    """整批超时/未完成项（预填 None）-> 对应维 null、date=null、coverage 正确、overall 非 0 兜底。
+
+    patch fetch_many 模拟 hist 超时未完成（res['hist']=None）、其余两源已完成，
+    验证端点按 None 诚实降级，绝不拿 0 或 now() 兜底。
+    """
+    def fake_fetch_many(tasks, max_workers=None, timeout=None):
+        return {
+            "hist": None,  # 超时/未完成
+            "spot": {"市盈率-动态": 28.1, "市净率": 8.2},
+            "fin": _fake_fin_roe_only(),
+        }
+
+    monkeypatch.setattr("modules.fetch_parallel.fetch_many", fake_fetch_many)
+    resp = client.get("/api/v2/read/six-dim?code=600519", headers=_auth(token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
+    obj = resp.get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    d = obj["data"]
+    assert d["dims"]["technical"] is None and d["dims"]["cycle"] is None, d["dims"]
+    assert d["date"] is None, "hist 超时 -> date 必须 null，绝不用 now() 兜底"
+    assert d["coverage"] == 6 - len(d["missing"]), d
+    valid = [v for v in d["dims"].values() if v is not None]
+    assert valid and abs(d["overall"] - round(sum(valid) / len(valid), 1)) < 1e-9, d

@@ -3,8 +3,10 @@
 - **日期**：2026-11-07
 - **执行**：team-lead，本机 Google Chrome（headless）+ Chrome DevTools Protocol
 - **工具**：`scripts/shoot_frontend_v2.py`（本轮新增）、`npm run inspect:visual`
-- **产物**：`artifacts/shots/frontend-v2/<dark|light>/*.png` 共 14 张 + `report.json`
+- **产物**：`artifacts/shots/frontend-v2/<dark|light>/*.png` + `report.json`
   （本地目检产物，存 `artifacts/`，**未提交仓库**）
+- **本文含两次实跑**：首次 **14/14**（W3 收口，见正文）；第二次 **18/18**（W4-A 六维评分增量，见文末「增量目检」）。
+  两次都是已发生的真实目检记录，不是持续守护。
 
 ## 结论
 
@@ -117,3 +119,52 @@ npm --prefix frontend-v2 run inspect:visual
 - 截图与 `report.json` 存 `artifacts/`，未提交；Chrome profile 存系统临时目录。
 - 本报告是**已发生的一次真实目检**记录，不是持续守护；主题代码变更后须重跑
   `npm run inspect:visual` 并更新本报告。
+
+---
+
+## 增量目检（W4-A 六维评分，2026-11-07 第二次实跑）
+
+新页 `/stock/six-dim` 加入 `scripts/shoot_frontend_v2.py` 的 `ROUTES`，并新增专项硬红线
+`capture_sixdim_partial()`：在真实浏览器里把股票代码输入框由 `600519` 改为 `000001`
+（React 受控输入用原型 setter + `input` 事件驱动），MSW 返回缺维 fixture，验收「`null` 不补 0」。
+
+**为什么必须补这一步**：`tests/e2e/w4-six-dim.test.tsx` 把 `EChart` mock 成占位，
+只能证明代码把 `null` 放进 `value` 数组，证明不了**真实 ECharts 渲染**下缺失维没被画成 0 分点；
+且没有用例真正导航到 `/stock/six-dim`。
+
+### 结果
+
+**18/18 通过，退出码 0，4 条红线全 PASS**（16 张常规页截图 + 2 张缺维专项截图）。
+
+| 红线 | 结果 |
+|---|---|
+| 两主题表面色必须不同（`--color-sf-bg`） | PASS（dark `#0f0f23` / light `#f0f3f9`） |
+| A 股 4 个价格变量两主题恒等 | PASS（4/4 相等） |
+| W4-A 缺维不补 0 + 真实 ECharts canvas（dark） | PASS |
+| W4-A 缺维不补 0 + 真实 ECharts canvas（light） | PASS |
+
+专项断言两主题均 True：输入框值为 `000001`、`data-theme` 正确、
+`资金` / `成长` 明细为「缺失」而非数值、`技术` 维有值、`仅 4/6 维有效` 降权条可见、
+`暂无权威数据日` 可见（无兜底日期）、口径 `note` 原文可见、
+**真实 canvas 尺寸 `1126×300`**（非 mock 占位）、截图 >1KB。
+
+### 人工逐张看图（不只看脚本 PASS）
+
+- **full（600519，暗 / 亮）**：标题、代码输入、数据日「权威数据日：2026-11-07」、
+  4 张 KPI（综合分 60.40 / 有效维度 6/6 / 最新数据日 / 股票代码）、六边形雷达图、六维明细齐全；
+  暗色深底浅字、亮色白卡浅灰底，均无暗色残留、无白底白字、扁平细边框可见。
+- **partial（000001，暗 / 亮）**：数据日如实用状态色显示「暂无权威数据日」，
+  降权条「仅 4/6 维有效，缺失维未取到数据」，综合分 43.90（仅 4 维平均）、最新数据日 `—`；
+  **雷达图呈「缺角」不规则多边形，资金 / 成长方向没有塌陷到圆心的 0 分点**
+  —— 这是 `null` 不补 0 在真实 ECharts 下的直接视觉证据。
+- 截图为 `1440×900` 视口、`captureBeyondViewport=false`，六维明细下半与「口径说明」卡片裁在视口外；
+  DOM 采样已验证其内容存在（含 `note` 原文与两个「缺失」明细），属**截图边界**，不是页面缺陷。
+- 顶部「演示数据（Mock，非真实行情，仅用于前端联调）」是 MSW dev 的诚实标注，保留。
+
+### 本次增量未覆盖（如实标注）
+
+- 仍**未走 5050 真后端**：six-dim 端点已由后端单测 21 passed 覆盖，但浏览器侧只打 MSW dev fixtures；
+  真后端响应（尤其 `raw.state` 为非空字符串时）未在浏览器里联调。
+- 雷达图「缺失维不补 0」由「真实 canvas 渲染 + DOM 明细为『缺失』 + 人工看图」共同佐证，
+  **未直接读取 ECharts 实例的 `option.series[0].data[0].value` 数组**，不作超出证据的断言。
+- 键盘遍历、读屏、窄屏、Safari / Firefox 仍未测。

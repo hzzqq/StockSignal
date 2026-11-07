@@ -16,6 +16,7 @@ import { LadderResonance } from '@/features/breadth/LadderResonance'
 import { EventPoolView } from '@/features/ops/EventPoolView'
 import { PredictionLogView } from '@/features/ops/PredictionLogView'
 import { SystemStatusView } from '@/features/ops/SystemStatusView'
+import { SixDimView } from '@/features/stock/SixDimView'
 
 // 根布局：仅渲染子路由出口（登录页与鉴权外壳并列挂在根下）
 const rootRoute = createRootRoute({
@@ -125,6 +126,12 @@ const opsRoute = createRoute({
   component: SystemStatusView,
 })
 
+const sixDimRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/stock/six-dim',
+  component: SixDimView,
+})
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   appRoute.addChildren([
@@ -142,6 +149,7 @@ const routeTree = rootRoute.addChildren([
     eventsRoute,
     predictionsRoute,
     opsRoute,
+    sixDimRoute,
   ]),
 ])
 

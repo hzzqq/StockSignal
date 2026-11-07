@@ -61,4 +61,15 @@ export const handlers = [
   http.get('/api/v2/read/p1-sync-status', () => ok(fixtures.p1SyncStatus)),
   http.get('/api/v2/read/backtest-runs', () => ok(fixtures.backtestRuns)),
   http.get('/api/v2/read/data-refresh-state', () => ok(fixtures.dataRefreshState)),
+  // W4-A · 个股六维评分：按 code query 分派；非法/缺 code 返回 400 invalid_param 信封。
+  http.get('/api/v2/read/six-dim', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code')
+    if (!code || !/^\d{6}$/.test(code)) {
+      return HttpResponse.json(
+        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
+        { status: 400 },
+      )
+    }
+    return ok(code === '000001' ? fixtures.sixDimPartial : fixtures.sixDimFull)
+  }),
 ]

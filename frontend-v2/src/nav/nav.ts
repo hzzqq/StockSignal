@@ -14,6 +14,7 @@ export type AppPath =
   | '/events'
   | '/predictions'
   | '/ops'
+  | '/stock/six-dim'
 
 export interface NavItem {
   to: AppPath
@@ -47,6 +48,7 @@ export const NAV: NavGroup[] = [
       { to: '/paper', label: '模拟交易', icon: '⊞' },
       { to: '/alerts', label: '告警引擎', icon: '!' },
       { to: '/webapps', label: '网页作品集', icon: '▦' },
+      { to: '/stock/six-dim', label: '六维评分', icon: '⬡' },
     ],
   },
   {
