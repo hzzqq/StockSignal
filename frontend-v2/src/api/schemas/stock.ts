@@ -59,3 +59,69 @@ export const SixDimSchema = z.object({
 
 export type SixDim = z.infer<typeof SixDimSchema>
 export type SixDimRaw = z.infer<typeof SixDimRawSchema>
+
+// ═══════════════════ W4-B · 个股域三端点响应 data 严格 Zod 校验 ═══════════════════
+// 契约（team-lead 已拍板，字段名不得改；与 backend/api/read_routes.py:957-1058 对齐）：
+//  - 数值 z.number().nullable()、字符串 z.string().nullable()，禁 .default() / ?? 0 / ?? ''；
+//  - perf 三形态（补充裁决）：正常=9 字段有值对象；全源失败=9 字段全 null 对象（后端实测）；
+//    保守上界=整体 null。Zod 用 .nullable() 兼容「对象」与「null」两种、不二选一；
+//    逐字段独立降级、缺失为 null，绝不补 0；
+//  - rows 为「中文动态列名」list[dict]，可空数组 []，用 z.record(z.string(), z.unknown())；
+//  - date 为权威数据日，取不到为 null，禁 now() 兜底；spot_date / kline_date 独立、禁互兜底；
+//  - 解析失败即抛错（不兜底），与 W4-A 一致。
+
+const NullableString = z.string().nullable()
+
+/** fundamentals.perf：9 项业绩指标，每项 number|null（取数失败为 null，绝不补 0）。 */
+export const FundamentalsPerfSchema = z.object({
+  revenue_yi: NullableNumber,
+  revenue_yoy: NullableNumber,
+  net_profit_yi: NullableNumber,
+  profit_yoy: NullableNumber,
+  gross_margin: NullableNumber,
+  roe: NullableNumber,
+  alr: NullableNumber,
+  current_ratio: NullableNumber,
+  equity_ratio: NullableNumber,
+})
+export type FundamentalsPerf = z.infer<typeof FundamentalsPerfSchema>
+
+/** GET /api/v2/read/fundamentals?code=<6位> 的 data。 */
+export const FundamentalsSchema = z.object({
+  code: z.string(),
+  name: NullableString,
+  industry: NullableString,
+  price: NullableNumber,
+  pe_ttm: NullableNumber,
+  market_cap: NullableNumber,
+  spot_date: NullableString,
+  kline_date: NullableString,
+  perf: FundamentalsPerfSchema.nullable(),
+  priceDomain: z.string(),
+  date: NullableString,
+  note: NullableString,
+})
+export type Fundamentals = z.infer<typeof FundamentalsSchema>
+
+/** 财报/K 线 rows：中文动态列名 list[dict]，值类型未知，交由 fmtNum 诚实渲染。 */
+const RowSchema = z.record(z.string(), z.unknown())
+
+/** GET /api/v2/read/financials?code=<6位>&report=...&limit=... 的 data。 */
+export const FinancialsSchema = z.object({
+  code: z.string(),
+  report: z.string(),
+  rows: z.array(RowSchema),
+  date: NullableString,
+  note: NullableString,
+})
+export type Financials = z.infer<typeof FinancialsSchema>
+
+/** GET /api/v2/read/stock-kline?code=<6位>&period=...&limit=... 的 data。 */
+export const StockKlineSchema = z.object({
+  code: z.string(),
+  period: z.string(),
+  rows: z.array(RowSchema),
+  date: NullableString,
+  note: NullableString,
+})
+export type StockKline = z.infer<typeof StockKlineSchema>

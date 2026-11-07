@@ -168,3 +168,45 @@ npm --prefix frontend-v2 run inspect:visual
 - 雷达图「缺失维不补 0」由「真实 canvas 渲染 + DOM 明细为『缺失』 + 人工看图」共同佐证，
   **未直接读取 ECharts 实例的 `option.series[0].data[0].value` 数组**，不作超出证据的断言。
 - 键盘遍历、读屏、窄屏、Safari / Firefox 仍未测。
+
+
+## 增量目检（W4-B 个股域 + 深链，2026-11-07 第三次实跑）
+
+`ROUTES` 扩到 **10 条**（新增 `/stock/research`、`/stock/fundamentals`），新增 `DEEPLINK_CASES` **5 条**专项用例与 `capture_deeplink_case()`；专项走 `Page.navigate` 后轮询 16s 读**最终** `location.search`，逐条断言目标路径、必须 / 禁止出现的 search 字面量、主题令牌与真实截图。单页 `--routes` 冒烟不跑专项，避免误测。
+
+### 结果
+
+**32/32 通过、退出码 0、全部红线 PASS**：10 常规路由 × 2 主题 = 20，sixdim partial × 2 = 2，5 深链专项 × 2 = 10。
+
+| 红线 | 结果 |
+|---|---|
+| 两主题表面色必须不同（`--color-sf-bg`） | PASS（dark `#0f0f23` / light `#f0f3f9`） |
+| A 股 4 个价格变量两主题恒等 | PASS（4/4 相等） |
+| W4-A 缺维不补 0 + 真实 ECharts canvas（dark / light） | PASS（canvas `1126×300`） |
+| 防伪码 `pick_stock=000001` 透传且 URL 不含 `600519`（dark / light） | PASS |
+| 深链直达 `view=deep&code=600519`（dark / light） | PASS |
+| 旧链接中文 `hub_gyj_view` 映射 deep + `code=600519`（dark / light） | PASS |
+| 只传 `pick_stock` 落 quick + `code=600519`（dark / light） | PASS |
+| 非法 code 不进入最终 search（dark / light） | PASS |
+
+### 过程中发现并修复的真缺陷（不掩盖）
+
+第一次 W4-B 全量目检为 **26/30、exit 3**：`legacy_zh_deep` 与 `legacy_pick_only` 暗 / 亮各 FAIL，实际 URL 为 `?view=deep` / `?view=quick`，合法 `code` 丢失；`deeplink_deep` 与 `legacy_bad_code` 反而 PASS。
+`view` 全对、`code` 全丢 → 排除纯函数与目标 `validateSearch`；真读 `@tanstack/router-core@1.170.46` 后定位为默认 `parseSearchWith(JSON.parse)` 把纯数字代码解析成 number，被 `typeof === 'string'` 拒收。修复为全站 `URLSearchParams` 字符串序列化（见 `IA-MIGRATION.md` W4-B 豁免 §5），并补 8 例运行时集成测试。修复后重跑即 **32/32**。
+**防伪用例的局限（如实标注）**：`000001` 因前导零绕过 `JSON.parse`，本身**并不能抓到该缺陷**；真正抓到的是 `600519` 那两条。故防伪用例只用于堵「硬编码默认代码蒙混」，不能替代纯数字 code 回归。
+
+### 人工逐张看图（不只看脚本 PASS）
+
+- **`/stock/research`（暗 / 亮）**：标题「个股研究」、数据源 `stock-kline`、代码 `600519`、「⚡ 快速选取」选中、权威数据日 `2026-11-06`、OHLC 表 3 行（`date/open/high/low/close/volume`）、note 原文「逐字段独立取数、独立降级；缺失为 null 且不补 0」；暗色深底浅字、亮色白卡浅灰底，均无暗色残留、无白底白字、扁平细边框无阴影。
+- **`/stock/fundamentals`（暗 / 亮）**：6 张 KPI（贵州茅台 / 白酒 / 1523.50 / PE 28.10 / 总市值 19138.20 / `priceDomain market`）+ 9 项业绩指标 +「多期财报（三表合并）」2 行；数据日、行情快照日、K 线数据日**分行**展示，无「今日」措辞；营收 / 净利标签为「较上一报告期 %」，未写成「同比」；两条出边链接可见；无补 0 假数值。
+- **`legacy_zh_deep`（暗）**：代码 `600519` 保留，主体显示「深度分析子视图待 W4-C 迁移，当前仅完成深链预选」+「已预选 code：600519」，**不造假数据、不画空图**。
+- **截图像素级重复是真实状态相同，不是复制充数**：`legacy_pick_only` 与 `research`、`legacy_zh_deep` 与 `deeplink_deep` 分别 md5 相同（同一最终状态同一渲染）；`code=000001` 的 `legacy_pick_custom` md5 独立，反证截图随状态变化。32 张截图 md5 分布已真扫核对。
+- 顶部「演示数据（Mock，非真实行情，仅用于前端联调）」是 MSW dev 的诚实标注，保留。
+- `artifacts/shots/frontend-v2/_chrome_profile/` 为 **16:55 的历史遗留**（本轮 report 23:30），脚本现用 `tempfile.gettempdir()`，本轮未往仓库写浏览器缓存；该目录 gitignored。
+
+### 本次增量未覆盖（如实标注）
+
+- 仍**未走 5050 真后端**：3 个新端点由 `backend/tests/test_read_routes.py` 39 例 + OpenAPI / API 契约守卫覆盖，浏览器侧只打 MSW dev fixtures；`CORS_ORIGINS` 默认不含 5173，真后端浏览器联调需走 Vite `/api` proxy 另开一轮。
+- 24 deep 完整内容、21 多股对比、ECharts K 线图属 W4-C，本波**未实现**，占位文案已如实标注。
+- 截图为 1440×900 单视口、`captureBeyondViewport=false`，口径说明卡片等下半内容裁在视口外；DOM 采样已验证存在，属**截图边界**非页面缺陷。
+- 键盘遍历、读屏、窄屏、Safari / Firefox 仍未测。

@@ -96,6 +96,30 @@ ROUTES = (
     ("/predictions", "predictions"),
     ("/ops", "ops"),
     ("/stock/six-dim", "sixdim"),  # W4-A 六维评分：暗/亮两主题真实验收
+    ("/stock/research", "research"),          # W4-B 个股研究（旧 24）
+    ("/stock/fundamentals", "fundamentals"),  # W4-B 基本面分析（旧 22）
+)
+
+# W4-B 深链专项：/legacy 走客户端 history.replace（不是新 document），
+# 不能复用 capture() 的 window.__auditStamp 就绪判据，否则会误判「仍是旧页面」。
+# (route, name, expect_path, search 必须包含, search 禁止包含, 红线说明)
+_LEGACY_ZH_DEEP = urllib.parse.quote("🔬 深度分析")
+DEEPLINK_CASES = (
+    ("/legacy?pick_stock=000001", "legacy_pick_custom",
+     "/stock/research", ("view=quick", "code=000001"), ("600519",),
+     "custom code passthrough (no hardcoded 600519)"),
+    ("/stock/research?view=deep&code=600519", "deeplink_deep",
+     "/stock/research", ("view=deep", "code=600519"), (),
+     "深链直达 view=deep 首帧预选"),
+    ("/legacy?hub_gyj_view=" + _LEGACY_ZH_DEEP + "&pick_stock=600519", "legacy_zh_deep",
+     "/stock/research", ("view=deep", "code=600519"), (),
+     "旧链接中文 hub_gyj_view 映射为 deep"),
+    ("/legacy?pick_stock=600519", "legacy_pick_only",
+     "/stock/research", ("view=quick", "code=600519"), (),
+     "只传 pick_stock 落 quick（旧版 22:864-866 真值）"),
+    ("/legacy?hub_gyj_view=quick&pick_stock=abc", "legacy_bad_code",
+     "/stock/research", (), ("abc", "code="),
+     "非法 code 不进入最终 search"),
 )
 
 # 真实浏览器计算样式采样：既证明主题生效，也守 A 股双套语义红线。
@@ -480,6 +504,77 @@ def capture_sixdim_partial(cdp: CDP, theme: str, out_dir: Path,
     return rec
 
 
+
+def capture_deeplink_case(cdp: CDP, base_url: str, case: tuple, theme: str,
+                          out_dir: Path) -> dict:
+    """W4-B deep-link / legacy redirect assertion in a real browser.
+
+    Verifies the redirect target path, the normalized search params, the
+    theme and CSS tokens after the client-side redirect, and a real screenshot.
+    Single-page smoke runs (--routes) skip these cases.
+    """
+    route, name, expect_path, must, forbid, rule = case
+    rec: dict = {"route": route, "theme": theme, "kind": "deeplink",
+                 "rule": "%s（%s）" % (rule, theme), "ok": False}
+    try:
+        cdp.call("Page.navigate", {"url": base_url + route})
+        probe = """(() => ({
+            ready: document.readyState,
+            path: location.pathname,
+            search: location.search,
+            kids: (document.getElementById('root')||{}).children?.length || 0,
+            textLen: (document.body.innerText || '').length
+        }))()"""
+        info = {}
+        deadline = time.time() + 16.0
+        while time.time() < deadline:
+            info = cdp.js(probe)
+            srch = info.get("search") or ""
+            if (info.get("ready") == "complete" and info.get("kids", 0) > 0
+                    and info.get("path") == expect_path
+                    and all(x in srch for x in must)
+                    and not any(x in srch for x in forbid)):
+                break
+            time.sleep(0.4)
+        rec["probe"] = info
+        styled = sample(cdp)
+        rec["sample"] = styled
+
+        out_dir.mkdir(parents=True, exist_ok=True)
+        dest = out_dir / ("%s.png" % name)
+        shot = cdp.call("Page.captureScreenshot",
+                        {"format": "png", "captureBeyondViewport": False})
+        data = base64.b64decode(shot.get("data", ""))
+        dest.write_bytes(data)
+        rec["png"] = str(dest)
+        rec["png_bytes"] = len(data)
+
+        srch = info.get("search") or ""
+        checks = {
+            "redirect_path": info.get("path") == expect_path,
+            "search_must": all(x in srch for x in must),
+            "search_forbid_clean": not any(x in srch for x in forbid),
+            "react_mounted": info.get("kids", 0) > 0,
+            "theme": styled.get("theme") == theme,
+            "tokens": all(styled.get("tokens", {}).get(k)
+                          for k in ("sf-bg", "sf-ink", "ss-up", "doc-up")),
+            "screenshot": len(data) >= 1024,
+        }
+        rec["checks"] = checks
+        bad = [k for k, v in checks.items() if not v]
+        if bad:
+            rec["error"] = "failed: " + ", ".join(bad)
+            logger.warning("X %-6s %-16s %s", theme, name, rec["error"])
+        else:
+            rec["ok"] = True
+            logger.info("OK %-6s %-16s %s%s -> %s",
+                        theme, name, info.get("path"), srch, dest.name)
+    except Exception as exc:
+        rec["error"] = "%s: %s" % (type(exc).__name__, exc)
+        logger.error("X %-6s %-16s %s", theme, name, rec["error"])
+    return rec
+
+
 def cross_theme_checks(records: list[dict], themes: list[str]) -> list[dict]:
     """用真实浏览器计算样式复核两条设计红线，结果写入报告（不静默通过）。
 
@@ -565,6 +660,8 @@ def main(argv=None) -> int:
                          sorted(want), [r[1] for r in ROUTES])
             return 2
 
+    # 深链专项只在全量运行时跑；--routes 单页冒烟不额外截 8 张
+    run_deeplink_cases = len(routes) == len(ROUTES)
     unknown = [t for t in themes if t not in THEMES]
     if unknown:
         logger.error("未知主题：%s（可用 %s）", unknown, THEMES)
@@ -617,11 +714,15 @@ def main(argv=None) -> int:
                 if name == "sixdim" and rec.get("ok"):
                     partial_records.append(capture_sixdim_partial(
                         cdp, theme, out_root / theme, args.settle_ms))
+            if run_deeplink_cases:
+                for case in DEEPLINK_CASES:
+                    partial_records.append(capture_deeplink_case(
+                        cdp, base_url, case, theme, out_root / theme))
 
         checks = cross_theme_checks(records, themes)
         for pr in partial_records:
             checks.append({
-                "rule": "W4-A missing dims not zero + real ECharts canvas (%s)" % pr["theme"],
+                "rule": pr.get("rule") or ("W4-A missing dims not zero + real ECharts canvas (%s)" % pr["theme"]),
                 "pass": bool(pr.get("ok")),
                 "detail": pr.get("error") or pr.get("checks"),
             })

@@ -666,3 +666,393 @@ def six_dim():
         "note": _SIX_DIM_NOTE,
     }
     return ok(data=_sanitize(data), message="six-dim")
+
+
+# ───────────── W4-B 个股域实时只读端点（fundamentals / financials / stock-kline）─────────────
+# 契约（team-lead 已拍板）：三页 24/21/22 全为实时联网计算、data/ 下零对应本地 JSON，
+# 故沿用 W4-A six-dim 先例走「实时计算型只读 GET」。三页共同红线：
+#   · @jwt_required + 统一 ok/fail 信封（code 为字符串业务码）+ _sanitize() 全响应清洗 NaN/Inf；
+#   · code 用 ^\d{6}$ 校验，非法 -> fail(400, invalid_param)；limit 走 parse_limit_param；
+#   · 多源一律 fetch_many([(key, lambda: fn())...])，不传自定义 max_workers/timeout，
+#     整批硬边界 = CALL_TIMEOUT_CAP（默认 12s，REQ_TIMEOUT 10 < 12）；
+#     超时/异常项按 None 降级，绝不 500、绝不补 0；W4-A 已实测该不变量。
+#   · 任一字段取不到 -> null / []，禁止 0 / 50 /「持有」/ 中性默认等编造值；
+#   · date 必须是权威数据日（K 线末根 date / 实时 quote datetime / 财报报告期），
+#     取不到 -> null；禁止 datetime.now() 当数据日、禁止文件 mtime；
+#     now()-400d 仅用于框定 K 线查询窗口（与 _six_dim_hist 一致），不是数据日。
+#   · 测试环境 monkeypatch 下列 _w4b_* 取数源，绝不真调 akshare / 新浪 / 东财 / BaoStock。
+_W4B_NOTE = "逐字段独立取数、独立降级；缺失为 null 且不补 0"
+_W4B_PRICE_DOMAIN = "market"  # 22 页全页交易屏红涨绿跌口径
+_W4B_REPORTS = ("income", "balance", "cash")
+_W4B_PERIODS = ("daily", "weekly", "monthly")
+_W4B_PERF_KEYS = (
+    "revenue_yi", "revenue_yoy", "net_profit_yi", "profit_yoy",
+    "gross_margin", "roe", "alr", "current_ratio", "equity_ratio",
+)
+
+
+def _w4b_limit(default, hi=200):
+    """分页条数一律走 parse_limit_param（钳下界 1、防负数穿透）；lazy 导入以免改动
+    文件顶部 import 区（既有 21 端点一字不动）。"""
+    from ..utils.params import parse_limit_param
+    return parse_limit_param("limit", default=default, hi=hi)
+
+
+def _w4b_num(v):
+    """数值字段 -> float|None；NaN/Inf/非数值/None 一律 None（绝不补 0）。"""
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return None if (math.isnan(f) or math.isinf(f)) else f
+
+
+def _w4b_str(v):
+    """字符串字段 -> str|None；None / 空串一律 None（诚实缺失，不补占位）。"""
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s or None
+
+
+def _w4b_basic(code):
+    """get_fundamentals(code) -> dict{name,industry,price,pe_ttm,market_cap} | None。
+    已核实（fetcher_fundamental.py:152-158/206-209）该接口**不返回 pb/roe**，故不臆造。"""
+    try:
+        from ..api.market_routes import get_fetcher
+        d = get_fetcher().get_fundamentals(code)
+        return d if isinstance(d, dict) else None
+    except Exception:  # noqa: BLE001 - 取数失败仅让对应字段缺失，不 500
+        return None
+
+
+def _w4b_spot(code):
+    """实时行情 datetime（spot_date 权威来源）：get_realtime_quote(code) -> dict | None。
+    get_realtime_quote 确实返回 datetime（fetcher_realtime.py:189），此处取其日期，
+    与 six-dim 不同（six-dim 需要它**不含**的换手率/量比等四字段才删掉该调用）。
+    全源失败时该接口回退过期缓存可能带旧 datetime —— 仍是数据自带时间戳、非 now()，
+    符合红线，但可能陈旧（已在回报中如实说明）。"""
+    try:
+        from ..api.market_routes import get_fetcher
+        d = get_fetcher().get_realtime_quote(code)
+        return d if isinstance(d, dict) else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _w4b_kline(code, period="daily"):
+    """get_kline(code, start, None, period, 'qfq') -> DataFrame | None（异常/空降级）。"""
+    try:
+        from ..api.market_routes import get_fetcher
+        start = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")  # 仅查询窗口
+        df = get_fetcher().get_kline(code, start, None, period, "qfq")
+    except Exception:  # noqa: BLE001
+        return None
+    if df is None or not hasattr(df, "columns") or len(df) == 0:
+        return None
+    return df
+
+
+def _w4b_financial(code, report_type):
+    """get_financial(code, report_type) -> DataFrame | None（异常/空降级）。
+    已核实（_market_data_io.py:448-459）= ak.stock_financial_report_sina(...).head(8)，
+    「行=报告期、列=中文科目」wide DataFrame，与旧页 22 财报口径同源同列名。"""
+    try:
+        from ..api.market_routes import get_fetcher
+        df = get_fetcher().get_financial(code, report_type)
+    except Exception:  # noqa: BLE001
+        return None
+    if df is None or not hasattr(df, "columns") or len(df) == 0:
+        return None
+    return df
+
+
+def _w4b_spot_date(spot):
+    """实时 quote datetime -> 'YYYY-MM-DD' | None（权威数据日，取不到不兜底）。"""
+    if not isinstance(spot, dict):
+        return None
+    v = spot.get("datetime")
+    if v is None:
+        return None
+    s = str(v)[:10]
+    return s or None
+
+
+def _w4b_kline_date(df):
+    """K 线最后一根 date -> 'YYYY-MM-DD' | None（兼容「日期」/date 列，绝不 now()）。"""
+    if df is None or not hasattr(df, "columns") or len(df) == 0:
+        return None
+    for col in ("date", "日期"):
+        if col in df.columns:
+            try:
+                s = str(df[col].iloc[-1])[:10]
+                return s or None
+            except Exception:  # noqa: BLE001
+                return None
+    return None
+
+
+def _w4b_compute_perf(inc_df, bal_df):
+    """9 字段业绩指标（复用旧页 pages/22 _calc_perf :373-444 口径）。
+
+    真源 get_financial('income'/'balance') 为「行=报告期、列=科目」wide DataFrame，
+    形态可支撑；任一字段算不出 -> None（绝不补 0 / 编造）。恒返回 9 字段 dict；
+    两表全失败时为全 None 字典（逐字段独立降级，非编造）。
+    """
+    from modules import fundamental_helpers as fh
+    out = {k: None for k in _W4B_PERF_KEYS}
+    inc = inc_df if hasattr(inc_df, "columns") else None
+    bal = bal_df if hasattr(bal_df, "columns") else None
+    rev0 = rev1 = np0 = np1 = cost0 = None
+    if inc is not None and len(inc) >= 1:
+        rev_c = fh._find_col(inc, {"营业总收入", "营业收入"}, ("营业总收入", "营业收入"))
+        np_c = fh._find_col(inc, {"净利润", "归属母公司股东的净利润"},
+                            ("净利润", "归属母公司股东的净利润"))
+        cost_c = fh._find_col(inc, {"营业成本"}, ("营业成本",))
+        r0 = inc.iloc[0]
+        r1 = inc.iloc[1] if len(inc) >= 2 else None
+        rev0 = fh._to_num(r0[rev_c]) if rev_c else None
+        np0 = fh._to_num(r0[np_c]) if np_c else None
+        cost0 = fh._to_num(r0[cost_c]) if cost_c else None
+        rev1 = fh._to_num(r1[rev_c]) if r1 is not None and rev_c else None
+        np1 = fh._to_num(r1[np_c]) if r1 is not None and np_c else None
+    av = lv = eq = ca = cl = None
+    if bal is not None and len(bal) >= 1:
+        asset_c = fh._find_col(bal, {"资产总计", "资产合计"}, ("资产总计", "资产合计"))
+        liab_c = fh._find_col(bal, {"负债合计", "负债总计"}, ("负债合计", "负债总计"))
+        equity_c = fh._find_col(bal, {"所有者权益合计", "股东权益合计"},
+                                ("所有者权益合计", "股东权益合计"))
+        ca_c = fh._find_col(bal, {"流动资产合计"}, ("流动资产合计",))
+        cl_c = fh._find_col(bal, {"流动负债合计"}, ("流动负债合计",))
+        b0 = bal.iloc[0]
+        av = fh._to_num(b0[asset_c]) if asset_c else None
+        lv = fh._to_num(b0[liab_c]) if liab_c else None
+        eq = fh._to_num(b0[equity_c]) if equity_c else None
+        ca = fh._to_num(b0[ca_c]) if ca_c else None
+        cl = fh._to_num(b0[cl_c]) if cl_c else None
+    if rev0:
+        out["revenue_yi"] = round(rev0 / 1e8, 2)
+    if rev0 and rev1:
+        out["revenue_yoy"] = round((rev0 - rev1) / abs(rev1) * 100, 2)
+    if np0 is not None:
+        out["net_profit_yi"] = round(np0 / 1e8, 2)
+    if np0 is not None and np1 is not None and np1 != 0:
+        out["profit_yoy"] = round((np0 - np1) / abs(np1) * 100, 2)
+    if rev0 and cost0:
+        out["gross_margin"] = round((rev0 - cost0) / rev0 * 100, 2)
+    if av and lv:
+        out["alr"] = round(lv / av * 100, 2)
+    if av and eq:
+        out["equity_ratio"] = round(eq / av * 100, 2)
+    if ca and cl:
+        out["current_ratio"] = round(ca / cl, 2)
+    if np0 is not None and eq:
+        out["roe"] = round(np0 / abs(eq) * 100, 2)
+    for k in _W4B_PERF_KEYS:  # 计算结果若含 NaN/Inf，诚实置 None，绝不补 0
+        v = out[k]
+        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+            out[k] = None
+    return out
+
+
+def _w4b_financial_rows(inc, bal, cash):
+    """多期财报 rows（复用旧页 pages/22 _build_financial_df :466-529 口径）。
+
+    三表（income/balance/cash）合并为统一 DataFrame，列：报告期/标签/营业总收入/
+    归母净利润/扣非净利润/每股收益/净资产收益率/销售净利率/销售毛利率/资产负债率/
+    每股经营现金流 + 各 _同比/_环比。纯逻辑，仅依赖 fundamental_helpers 纯函数
+    （pandas/numpy，不联网）。任一表 None -> 对应衍生列为 None（诚实逐字段降级，
+    绝不补 0 / 造演示行）。返回按「报告期」倒序的 list[dict]；无法构造 -> []。
+    """
+    try:
+        import pandas as pd
+        from modules import fundamental_helpers as fh
+        rev = fh._extract_metric_series(inc, ["营业总收入", "营业收入"])
+        np_ = fh._extract_metric_series(inc, ["净利润", "归属母公司股东的净利润",
+                                               "归属于上市公司股东的净利润"])
+        np_ded = fh._extract_metric_series(inc, ["扣除非经常性损益后的净利润", "扣非净利润"])
+        eps = fh._extract_metric_series(inc, ["基本每股收益", "每股收益", "稀释每股收益"])
+        cost = fh._extract_metric_series(inc, ["营业成本", "营业总成本"])
+        equity = fh._extract_metric_series(bal, ["所有者权益合计", "股东权益合计",
+                                                  "归属于母公司所有者权益合计"])
+        asset = fh._extract_metric_series(bal, ["资产总计", "资产合计"])
+        liab = fh._extract_metric_series(bal, ["负债合计", "负债总计"])
+        ops_cf = fh._extract_metric_series(cash, ["经营活动产生的现金流量净额",
+                                                   "经营活动现金流入小计", "经营活动现金流量净额"])
+        share_cap = fh._extract_metric_series(bal, ["实收资本(或股本)", "股本", "实收资本"])
+        ops_cf_ps = fh._extract_metric_series(cash, ["每股经营活动产生的现金流量净额",
+                                                      "每股经营现金流量"])
+        all_idx = set()
+        for s in (rev, np_, np_ded, eps, cost, equity, asset, liab, ops_cf, share_cap):
+            if s is not None:
+                all_idx.update(s.index)
+        if not all_idx:
+            return []
+        rows = []
+        for idx in sorted(all_idx):
+            row = {"报告期": idx,
+                   "标签": fh._period_label(idx, "年度" if idx.month == 12 else "季度")}
+            r = rev.get(idx) if rev is not None else None
+            n = np_.get(idx) if np_ is not None else None
+            nd = np_ded.get(idx) if np_ded is not None else None
+            e = eps.get(idx) if eps is not None else None
+            c = cost.get(idx) if cost is not None else None
+            eq = equity.get(idx) if equity is not None else None
+            ast = asset.get(idx) if asset is not None else None
+            lb = liab.get(idx) if liab is not None else None
+            oc = ops_cf.get(idx) if ops_cf is not None else None
+            sc = share_cap.get(idx) if share_cap is not None else None
+            row["营业总收入"] = round(r / 1e8, 2) if r is not None else None
+            row["归母净利润"] = round(n / 1e8, 2) if n is not None else None
+            row["扣非净利润"] = round(nd / 1e8, 2) if nd is not None else None
+            row["每股收益"] = round(e, 3) if e is not None else None
+            row["净资产收益率"] = round(n / eq * 100, 2) if n is not None and eq and eq != 0 else None
+            row["销售净利率"] = round(n / r * 100, 2) if n is not None and r and r != 0 else None
+            row["销售毛利率"] = round((r - c) / r * 100, 2) if r is not None and c is not None and r != 0 else None
+            row["资产负债率"] = round(lb / ast * 100, 2) if lb is not None and ast and ast != 0 else None
+            if oc is not None and sc is not None and sc != 0:
+                row["每股经营现金流"] = round(oc / sc, 3)
+            elif ops_cf_ps is not None:
+                row["每股经营现金流"] = ops_cf_ps.get(idx)
+            else:
+                row["每股经营现金流"] = None
+            rows.append(row)
+        df = pd.DataFrame(rows)
+        if df.empty:
+            return []
+        numeric_cols = ["营业总收入", "归母净利润", "扣非净利润", "每股收益",
+                        "净资产收益率", "销售净利率", "销售毛利率", "每股经营现金流"]
+        for col in numeric_cols:  # None -> NaN，避免 _compute_yoy/qoq 对 None 做减法抛异常
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        for col in numeric_cols:
+            s = df.set_index("报告期")[col]
+            df[f"{col}_同比"] = df["报告期"].map(fh._compute_yoy(s).to_dict())
+            df[f"{col}_环比"] = df["报告期"].map(fh._compute_qoq(s).to_dict())
+        df["报告期"] = df["报告期"].apply(lambda x: str(x)[:10])
+        df = df.sort_values("报告期", ascending=False).reset_index(drop=True)
+        return df.to_dict(orient="records")
+    except Exception:  # noqa: BLE001 - 任一构造异常一律诚实返回 []，绝不 500 / 造演示行
+        return []
+
+
+def _w4b_kline_rows(df, limit):
+    """K 线 rows：按 date 升序、tail(limit)，英文列原样透出；返回 (rows, date)。
+    rows 的 date 统一 'YYYY-MM-DD'；date = 最后一根权威数据日，空则 None（绝不 now()）。"""
+    if df is None or not hasattr(df, "columns") or len(df) == 0:
+        return [], None
+    if "date" not in df.columns:
+        return [], None
+    try:
+        d = df.copy().sort_values("date")
+        last = str(d["date"].iloc[-1])[:10] or None
+        d = d.tail(limit).copy()
+        d["date"] = d["date"].apply(lambda x: str(x)[:10])
+        return d.to_dict(orient="records"), last
+    except Exception:  # noqa: BLE001
+        return [], None
+
+
+@bp.get("/fundamentals")
+@jwt_required
+def fundamentals():
+    """基本面五字段 + 双日期 + 9 字段 perf（逐字段独立取数 / 独立降级）。
+
+    GET /api/v2/read/fundamentals?code=600519。date = spot_date（实时 quote datetime），
+    spot 取不到则 date=null，kline_date 不顶替。perf 真源 get_financial income/balance。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"\d{6}", code or ""):
+        return fail(message="code 非法（须为 6 位数字股票代码）",
+                    code="invalid_param", http_status=400)
+    try:
+        from modules.fetch_parallel import fetch_many
+        res = fetch_many([
+            ("basic", lambda: _w4b_basic(code)),
+            ("spot", lambda: _w4b_spot(code)),
+            ("kline", lambda: _w4b_kline(code, "daily")),
+            ("income", lambda: _w4b_financial(code, "income")),
+            ("balance", lambda: _w4b_financial(code, "balance")),
+        ])
+    except Exception:  # noqa: BLE001 - 并发行本身异常：五源全体降级（诚实返回 null）
+        res = {}
+    basic = res.get("basic") or {}
+    spot_date = _w4b_spot_date(res.get("spot"))
+    kline_date = _w4b_kline_date(res.get("kline"))
+    perf = _w4b_compute_perf(res.get("income"), res.get("balance"))
+    data = {
+        "code": code,
+        "name": _w4b_str(basic.get("name")),
+        "industry": _w4b_str(basic.get("industry")),
+        "price": _w4b_num(basic.get("price")),
+        "pe_ttm": _w4b_num(basic.get("pe_ttm")),
+        "market_cap": _w4b_num(basic.get("market_cap")),
+        "spot_date": spot_date,
+        "kline_date": kline_date,
+        "perf": perf,
+        "priceDomain": _W4B_PRICE_DOMAIN,
+        "date": spot_date,  # 明确取 spot_date；spot 缺失则 null，不用 kline_date 顶替
+        "note": _W4B_NOTE,
+    }
+    return ok(data=_sanitize(data), message="fundamentals")
+
+
+@bp.get("/financials")
+@jwt_required
+def financials():
+    """多期财报 rows（三表合并，旧页 _build_financial_df 口径），按报告期倒序、limit 截断。
+
+    GET /api/v2/read/financials?code=600519&report=income&limit=8。
+    report 校验 ∈{income,balance,cash} 并回显；rows 列名与旧页一致，取不到 -> []，
+    date = rows 最新「报告期」，空则 null。绝不造演示行。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"\d{6}", code or ""):
+        return fail(message="code 非法（须为 6 位数字股票代码）",
+                    code="invalid_param", http_status=400)
+    report = (request.args.get("report") or "income").strip().lower()
+    if report not in _W4B_REPORTS:
+        return fail(message="report 非法（须为 income/balance/cash）",
+                    code="invalid_param", http_status=400)
+    limit = _w4b_limit(8)
+    try:
+        from modules.fetch_parallel import fetch_many
+        res = fetch_many([
+            ("income", lambda: _w4b_financial(code, "income")),
+            ("balance", lambda: _w4b_financial(code, "balance")),
+            ("cash", lambda: _w4b_financial(code, "cash")),
+        ])
+    except Exception:  # noqa: BLE001
+        res = {}
+    rows = _w4b_financial_rows(res.get("income"), res.get("balance"), res.get("cash"))[:limit]
+    date = rows[0]["报告期"] if rows else None
+    data = {"code": code, "report": report, "rows": rows, "date": date, "note": _W4B_NOTE}
+    return ok(data=_sanitize(data), message="financials")
+
+
+@bp.get("/stock-kline")
+@jwt_required
+def stock_kline():
+    """个股 K 线（过 _sanitize 修复 /api/kline 的 NaN 裸奔风险），英文列原样透出。
+
+    GET /api/v2/read/stock-kline?code=600519&period=daily&limit=120。
+    rows 按 date 升序、tail(limit)；date = 最后一根权威数据日，空则 null（绝不 now()）。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"\d{6}", code or ""):
+        return fail(message="code 非法（须为 6 位数字股票代码）",
+                    code="invalid_param", http_status=400)
+    period = (request.args.get("period") or "daily").strip().lower()
+    if period not in _W4B_PERIODS:
+        return fail(message="period 非法（须为 daily/weekly/monthly）",
+                    code="invalid_param", http_status=400)
+    limit = _w4b_limit(120)
+    try:
+        from modules.fetch_parallel import fetch_many
+        res = fetch_many([("kline", lambda: _w4b_kline(code, period))])
+    except Exception:  # noqa: BLE001
+        res = {}
+    rows, date = _w4b_kline_rows(res.get("kline"), limit)
+    data = {"code": code, "period": period, "rows": rows, "date": date, "note": _W4B_NOTE}
+    return ok(data=_sanitize(data), message="stock-kline")

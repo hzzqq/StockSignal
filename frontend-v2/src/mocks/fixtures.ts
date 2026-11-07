@@ -304,3 +304,154 @@ export const sixDimPartial = {
   },
   note: '逐维独立取数、独立降级；缺失维为 null 且不参与 overall 平均',
 }
+
+// ═══════════════════ W4-B · 个股域三端点 Mock（演示数值、非真实行情）═══════════════════
+// 字段名严格对齐 backend/api/read_routes.py:957-1058 的 fundamentals / financials / stock-kline。
+// 每端点备 4 形态：完整 / 全字段 null 降级 / rows 空(或 perf 整体 null) / date:null。
+// handlers 按 code query 分派：
+//   600519 → 完整
+//   000002 → 全源失败态：perf 为 9 字段全 null 的「对象」(后端实测形态)、各标量 null、date:null
+//   000003 → perf 整体 null（Zod .nullable() 保守上界兼容形态）/ rows 空（financials、stock-kline）
+//   000004 → date:null（其余字段完整，专测「暂无权威数据日」且禁止今天日期兜底）
+// ⚠️ 缺失与空数据日如实保留，禁止补 0 / 禁止用当前日期兜底。
+const W4B_NOTE = '逐字段独立取数、独立降级；缺失为 null 且不补 0'
+
+const w4bPerfFull = {
+  revenue_yi: 1234.56,
+  revenue_yoy: 12.34,
+  net_profit_yi: 567.89,
+  profit_yoy: 8.76,
+  gross_margin: 91.2,
+  roe: 24.3,
+  alr: 17.5,
+  current_ratio: 3.8,
+  equity_ratio: 82.5,
+}
+
+const w4bPerfAllNull = {
+  revenue_yi: null,
+  revenue_yoy: null,
+  net_profit_yi: null,
+  profit_yoy: null,
+  gross_margin: null,
+  roe: null,
+  alr: null,
+  current_ratio: null,
+  equity_ratio: null,
+}
+
+// ── fundamentals（旧 22 页）──
+export const fundamentalsFull = {
+  code: '600519',
+  name: '贵州茅台',
+  industry: '白酒',
+  price: 1523.5,
+  pe_ttm: 28.1,
+  market_cap: 19138.2,
+  spot_date: '2026-11-06',
+  kline_date: '2026-11-05',
+  perf: w4bPerfFull,
+  priceDomain: 'market',
+  date: '2026-11-06',
+  note: W4B_NOTE,
+}
+
+export const fundamentalsNullFields = {
+  code: '000002',
+  name: null,
+  industry: null,
+  price: null,
+  pe_ttm: null,
+  market_cap: null,
+  spot_date: null,
+  kline_date: null,
+  perf: w4bPerfAllNull,
+  priceDomain: 'market',
+  date: null,
+  note: null,
+}
+
+export const fundamentalsPerfNull = {
+  ...fundamentalsFull,
+  code: '000003',
+  perf: null,
+}
+
+export const fundamentalsDateNull = {
+  ...fundamentalsFull,
+  code: '000004',
+  date: null,
+}
+
+// ── financials（多期财报，中文动态列名，含 _同比/_环比）──
+const w4bFinRows = [
+  { 报告期: '2025-09-30', 标签: '2025 三季', 营业总收入: 1231.23, 归母净利润: 608.76, 净资产收益率: 24.6, 营业总收入_同比: 15.3, 归母净利润_同比: 15.1 },
+  { 报告期: '2025-06-30', 标签: '2025 中报', 营业总收入: 910.94, 归母净利润: 454.03, 净资产收益率: 18.2, 营业总收入_同比: 9.2, 归母净利润_同比: 8.9 },
+]
+
+export const financialsFull = {
+  code: '600519',
+  report: 'income',
+  rows: w4bFinRows,
+  date: '2025-09-30',
+  note: W4B_NOTE,
+}
+
+export const financialsNullFields = {
+  code: '000002',
+  report: 'income',
+  rows: [{ 报告期: '2025-09-30', 营业总收入: null, 归母净利润: null, 净资产收益率: null, 营业总收入_同比: null }],
+  date: null,
+  note: null,
+}
+
+export const financialsEmptyRows = {
+  code: '000003',
+  report: 'income',
+  rows: [],
+  date: null,
+  note: W4B_NOTE,
+}
+
+export const financialsDateNull = {
+  ...financialsFull,
+  code: '000004',
+  date: null,
+}
+
+// ── stock-kline（OHLC，英文列原样透出）──
+const w4bKlineRows = [
+  { date: '2026-11-06', open: 1510.0, high: 1535.5, low: 1502.3, close: 1523.5, volume: 32100 },
+  { date: '2026-11-05', open: 1498.0, high: 1518.0, low: 1490.0, close: 1508.0, volume: 28700 },
+  { date: '2026-11-04', open: 1505.0, high: 1510.0, low: 1492.0, close: 1499.5, volume: 25400 },
+]
+
+export const klineFull = {
+  code: '600519',
+  period: 'daily',
+  rows: w4bKlineRows,
+  date: '2026-11-06',
+  note: W4B_NOTE,
+}
+
+export const klineNullFields = {
+  code: '000002',
+  period: 'daily',
+  rows: [{ date: '2026-11-06', open: null, high: null, low: null, close: null, volume: null }],
+  date: null,
+  note: null,
+}
+
+export const klineEmptyRows = {
+  code: '000003',
+  period: 'daily',
+  rows: [],
+  date: null,
+  note: W4B_NOTE,
+}
+
+export const klineDateNull = {
+  ...klineFull,
+  code: '000004',
+  date: null,
+}

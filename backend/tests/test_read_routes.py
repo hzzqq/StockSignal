@@ -36,6 +36,9 @@ import backend.api.read_routes as rr  # noqa: E402
 # 实际请求用的具体路径（含参数/具体日期）
 ENDPOINTS = [
     "/api/v2/read/six-dim?code=600519",
+    "/api/v2/read/fundamentals?code=600519",
+    "/api/v2/read/financials?code=600519",
+    "/api/v2/read/stock-kline?code=600519",
     "/api/v2/read/daily-snapshot",
     "/api/v2/read/daily-recommendation",
     "/api/v2/read/user-dashboard",
@@ -61,6 +64,9 @@ ENDPOINTS = [
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
 SPEC_PATHS = [
     "/api/v2/read/six-dim",
+    "/api/v2/read/fundamentals",
+    "/api/v2/read/financials",
+    "/api/v2/read/stock-kline",
     "/api/v2/read/daily-snapshot",
     "/api/v2/read/daily-recommendation",
     "/api/v2/read/user-dashboard",
@@ -605,3 +611,392 @@ def test_six_dim_parallel_timeout_degrades(client, token, monkeypatch):
     assert d["coverage"] == 6 - len(d["missing"]), d
     valid = [v for v in d["dims"].values() if v is not None]
     assert valid and abs(d["overall"] - round(sum(valid) / len(valid), 1)) < 1e-9, d
+
+
+# ───────────── W4-B 三端点确定性回归（monkeypatch _w4b_* 取数源，零网络）─────────────
+# 仅 patch 模块级 _w4b_basic/_w4b_spot/_w4b_kline/_w4b_financial（端点内 lambda 引用
+# 模块全局，patch 对 fetch_many 线程池可见，与 W4-A _patch_six_dim 同款，已验证）。
+# perf / financials rows 均走真实纯逻辑（_w4b_compute_perf / _w4b_financial_rows），
+# 只用假 DataFrame 喂入，绝不真调 akshare / 新浪 / 东财 / BaoStock。
+
+_W4B_OK_NOTE = "逐字段独立取数、独立降级；缺失为 null 且不补 0"
+
+
+def _w4b_fake_basic():
+    return {"name": "贵州茅台", "industry": "白酒", "price": 1688.0,
+            "pe_ttm": 28.1, "market_cap": 21000.0}
+
+
+def _w4b_fake_spot():
+    return {"datetime": "2026-11-07 15:00:00", "current": 1688.0}
+
+
+def _w4b_fake_kline(with_bad=False):
+    import pandas as pd
+    df = pd.DataFrame({
+        "date": ["2026-11-05", "2026-11-06", "2026-11-07"],
+        "open": [1.0, 2.0, 3.0],
+        "close": [1.1, 2.2, 3.3],
+        "high": [1.2, 2.3, 3.4],
+        "low": [0.9, 1.9, 2.9],
+        "volume": [100, 200, 300],
+    })
+    if with_bad:
+        df.loc[1, "close"] = float("nan")   # 原生 NaN：验证 _sanitize 清洗
+        df.loc[1, "open"] = float("inf")    # 原生 Inf：验证 _sanitize 清洗
+    return df
+
+
+def _w4b_fake_fin_tables():
+    """income/balance/cash 三表（行=报告期、列=科目），2 期，喂真实 _w4b_* 纯逻辑。"""
+    import pandas as pd
+    inc = pd.DataFrame({
+        "报告期": ["2026-09-30", "2025-09-30"],
+        "营业总收入": [1.2e11, 1.0e11],
+        "净利润": [6.0e10, 5.0e10],
+        "营业成本": [1.0e10, 0.9e10],
+        "基本每股收益": [47.0, 39.0],
+        "扣除非经常性损益后的净利润": [5.8e10, 4.8e10],
+    })
+    bal = pd.DataFrame({
+        "报告期": ["2026-09-30", "2025-09-30"],
+        "资产总计": [2.5e11, 2.2e11],
+        "负债合计": [5.0e10, 4.5e10],
+        "所有者权益合计": [2.0e11, 1.75e11],
+        "流动资产合计": [1.5e11, 1.3e11],
+        "流动负债合计": [4.5e10, 4.0e10],
+        "实收资本(或股本)": [1.256e9, 1.256e9],
+    })
+    cash = pd.DataFrame({
+        "报告期": ["2026-09-30", "2025-09-30"],
+        "经营活动产生的现金流量净额": [6.5e10, 5.5e10],
+        "每股经营活动产生的现金流量净额": [51.7, 43.8],
+    })
+    return {"income": inc, "balance": bal, "cash": cash}
+
+
+def _patch_w4b_all_ok(monkeypatch):
+    """五源齐备（basic/spot/kline/income/balance/cash），用于 ok 信封真值断言。"""
+    monkeypatch.setattr(rr, "_w4b_basic", lambda code: _w4b_fake_basic())
+    monkeypatch.setattr(rr, "_w4b_spot", lambda code: _w4b_fake_spot())
+    monkeypatch.setattr(rr, "_w4b_kline", lambda code, period="daily": _w4b_fake_kline())
+    _tables = _w4b_fake_fin_tables()
+    monkeypatch.setattr(rr, "_w4b_financial", lambda code, rt: _tables.get(rt))
+
+
+def _patch_w4b_all_fail(monkeypatch):
+    """所有源失败（返回 None）—— 诚实降级态：字段 null / rows [] / date null / status ok。"""
+    monkeypatch.setattr(rr, "_w4b_basic", lambda code: None)
+    monkeypatch.setattr(rr, "_w4b_spot", lambda code: None)
+    monkeypatch.setattr(rr, "_w4b_kline", lambda code, period="daily": None)
+    monkeypatch.setattr(rr, "_w4b_financial", lambda code, rt: None)
+
+
+# ───────────── 端点 1：GET /api/v2/read/fundamentals ─────────────
+
+def test_fundamentals_requires_token(client):
+    """无 token -> 401（鉴权闸门先于参数校验与取数，零网络）。"""
+    assert client.get("/api/v2/read/fundamentals?code=600519").status_code == 401
+
+
+def test_fundamentals_ok_envelope(client, token, monkeypatch):
+    """五源齐备 -> 标准 ok 信封 + 契约字段齐全 + perf 9 字段真值 + 双日期独立。"""
+    _patch_w4b_all_ok(monkeypatch)
+    resp = client.get("/api/v2/read/fundamentals?code=600519", headers=_auth(token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
+    obj = resp.get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    d = obj["data"]
+    for k in ("code", "name", "industry", "price", "pe_ttm", "market_cap",
+              "spot_date", "kline_date", "perf", "priceDomain", "date", "note"):
+        assert k in d, f"data 缺字段 {k}: {d}"
+    assert d["code"] == "600519" and d["name"] == "贵州茅台" and d["industry"] == "白酒"
+    assert d["price"] == 1688.0 and d["pe_ttm"] == 28.1 and d["market_cap"] == 21000.0
+    assert d["priceDomain"] == "market" and d["note"] == _W4B_OK_NOTE
+    assert d["spot_date"] == "2026-11-07" and d["kline_date"] == "2026-11-07"
+    assert d["date"] == d["spot_date"]  # date 明确取 spot_date
+    assert set(d["perf"].keys()) == {
+        "revenue_yi", "revenue_yoy", "net_profit_yi", "profit_yoy",
+        "gross_margin", "roe", "alr", "current_ratio", "equity_ratio",
+    }
+    assert d["perf"]["revenue_yi"] == 1200.0  # 1.2e11 / 1e8，真实计算非编造
+    assert d["perf"]["net_profit_yi"] == 600.0
+    assert d["perf"]["roe"] == 30.0 and d["perf"]["alr"] == 20.0
+
+
+def test_fundamentals_invalid_and_missing_code(client, token):
+    """非法 / 缺失 code -> 400 invalid_param（校验先于取数，零网络）。"""
+    for qs in ("?code=abc", "?code=60051", "?code=6005199", "?code=60051x", ""):
+        resp = client.get(f"/api/v2/read/fundamentals{qs}", headers=_auth(token))
+        assert resp.status_code == 400, f"{qs}: {resp.status_code}"
+        obj = resp.get_json()
+        assert obj["status"] == "error" and obj["code"] == "invalid_param", obj
+
+
+def test_fundamentals_source_exception_honest_degradation(client, token, monkeypatch):
+    """某源抛异常 -> 对应字段 null 且 status 仍 ok（fetch_many._safe 吞异常，绝不 500）。"""
+    _patch_w4b_all_ok(monkeypatch)
+
+    def boom(code):
+        raise RuntimeError("get_fundamentals timeout")
+
+    monkeypatch.setattr(rr, "_w4b_basic", boom)
+    resp = client.get("/api/v2/read/fundamentals?code=600519", headers=_auth(token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
+    obj = resp.get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    d = obj["data"]
+    assert d["name"] is None and d["industry"] is None and d["price"] is None
+    assert d["pe_ttm"] is None and d["market_cap"] is None
+    # 其余源不受影响：spot_date / perf 仍有真值（逐字段独立降级）
+    assert d["spot_date"] == "2026-11-07" and d["perf"]["revenue_yi"] == 1200.0
+
+
+def test_fundamentals_all_sources_fail_honest(client, token, monkeypatch):
+    """全源失败 -> status 仍 ok，所有字段 null、perf 全 None、date null（不用 now()）。"""
+    _patch_w4b_all_fail(monkeypatch)
+    resp = client.get("/api/v2/read/fundamentals?code=600519", headers=_auth(token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
+    obj = resp.get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    d = obj["data"]
+    for k in ("name", "industry", "price", "pe_ttm", "market_cap",
+              "spot_date", "kline_date", "date"):
+        assert d[k] is None, f"{k} 必须 null，禁止 now()/补 0 兜底: {d[k]}"
+    assert all(v is None for v in d["perf"].values()), d["perf"]
+    assert d["priceDomain"] == "market"  # 常量字段保留
+
+
+def test_fundamentals_nan_inf_sanitized(client, token, monkeypatch):
+    """basic 含 NaN/Inf -> 响应清洗为 null，body 不含裸 NaN/Infinity 字面量。"""
+    _patch_w4b_all_ok(monkeypatch)
+    bad = _w4b_fake_basic()
+    bad["price"] = float("nan")
+    bad["pe_ttm"] = float("inf")
+    monkeypatch.setattr(rr, "_w4b_basic", lambda code: bad)
+    resp = client.get("/api/v2/read/fundamentals?code=600519", headers=_auth(token))
+    body = resp.get_data(as_text=True)
+    assert "NaN" not in body and "Infinity" not in body, body[:300]
+    d = resp.get_json()["data"]
+    assert d["price"] is None and d["pe_ttm"] is None, d
+
+
+def test_fundamentals_date_never_now_and_spot_independent(client, token, monkeypatch):
+    """spot 失败而 kline 成功：date 必须 null（不用 now()、不用 kline_date 顶替），
+    kline_date 仍独立有值 —— 验证契约「两者独立、禁止互相兜底」。"""
+    _patch_w4b_all_ok(monkeypatch)
+    monkeypatch.setattr(rr, "_w4b_spot", lambda code: None)  # spot 取数失败
+    d = client.get("/api/v2/read/fundamentals?code=600519",
+                   headers=_auth(token)).get_json()["data"]
+    assert d["spot_date"] is None and d["date"] is None, d
+    assert d["kline_date"] == "2026-11-07", "kline_date 不受 spot 失败影响，但不得顶替 date"
+    assert d["perf"]["revenue_yi"] == 1200.0  # 财务源仍正常
+
+
+# ───────────── 端点 2：GET /api/v2/read/financials ─────────────
+
+def test_financials_requires_token(client):
+    assert client.get("/api/v2/read/financials?code=600519").status_code == 401
+
+
+def test_financials_ok_envelope(client, token, monkeypatch):
+    """三表齐备 -> ok 信封 + rows 真实列名 + 倒序 + date=最新报告期 + report 默认 income。"""
+    _patch_w4b_all_ok(monkeypatch)
+    resp = client.get("/api/v2/read/financials?code=600519", headers=_auth(token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
+    obj = resp.get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    d = obj["data"]
+    for k in ("code", "report", "rows", "date", "note"):
+        assert k in d, f"data 缺字段 {k}: {d}"
+    assert d["code"] == "600519" and d["report"] == "income" and d["note"] == _W4B_OK_NOTE
+    assert isinstance(d["rows"], list) and len(d["rows"]) == 2, d["rows"]
+    r0 = d["rows"][0]
+    for col in ("报告期", "标签", "营业总收入", "归母净利润", "扣非净利润", "每股收益",
+                "净资产收益率", "销售净利率", "销售毛利率", "资产负债率", "每股经营现金流"):
+        assert col in r0, f"rows 缺契约列 {col}: {list(r0.keys())}"
+    assert any(c.endswith("_同比") for c in r0) and any(c.endswith("_环比") for c in r0)
+    assert d["date"] == "2026-09-30" == r0["报告期"]  # 权威数据日 = 最新报告期
+    assert r0["营业总收入"] == 1200.0  # 真实计算，非编造演示行
+
+
+def test_financials_invalid_code_and_report(client, token):
+    """非法 / 缺 code、非法 report -> 400 invalid_param（校验先于取数）。"""
+    for qs in ("?code=abc", "?code=60051", ""):
+        resp = client.get(f"/api/v2/read/financials{qs}", headers=_auth(token))
+        assert resp.status_code == 400, f"{qs}: {resp.status_code}"
+        assert resp.get_json()["code"] == "invalid_param", qs
+    resp = client.get("/api/v2/read/financials?code=600519&report=foo", headers=_auth(token))
+    assert resp.status_code == 400 and resp.get_json()["code"] == "invalid_param", resp.get_json()
+
+
+def test_financials_report_variants_echo(client, token, monkeypatch):
+    """report ∈{income,balance,cash} 均合法并原样回显（零网络）。"""
+    _patch_w4b_all_ok(monkeypatch)
+    for rep in ("income", "balance", "cash", "INCOME"):
+        resp = client.get(f"/api/v2/read/financials?code=600519&report={rep}",
+                          headers=_auth(token))
+        assert resp.status_code == 200, f"{rep}: {resp.status_code}"
+        d = resp.get_json()["data"]
+        assert d["report"] == rep.lower(), d
+
+
+def test_financials_partial_source_degrades(client, token, monkeypatch):
+    """balance/cash 失败 -> 跨表衍生列为 null，income 相关列仍有值，status ok（不补 0）。"""
+    _patch_w4b_all_ok(monkeypatch)
+    _tables = _w4b_fake_fin_tables()
+    monkeypatch.setattr(rr, "_w4b_financial",
+                        lambda code, rt: _tables.get(rt) if rt == "income" else None)
+    obj = client.get("/api/v2/read/financials?code=600519",
+                     headers=_auth(token)).get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    rows = obj["data"]["rows"]
+    assert rows, "income 在 -> 仍应产出 rows（按报告期）"
+    assert rows[0]["营业总收入"] == 1200.0, rows[0]
+    assert rows[0]["资产负债率"] is None, "balance 缺失 -> 资产负债率必须 null，禁止补 0"
+
+
+def test_financials_all_sources_fail_honest(client, token, monkeypatch):
+    """三表全失败 -> rows=[]、date=null、status ok（不造演示行、不用 now()）。"""
+    _patch_w4b_all_fail(monkeypatch)
+    obj = client.get("/api/v2/read/financials?code=600519",
+                     headers=_auth(token)).get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    assert obj["data"]["rows"] == [] and obj["data"]["date"] is None, obj["data"]
+
+
+def test_financials_nan_inf_sanitized(client, token, monkeypatch):
+    """rows 含原生 NaN/Inf -> _sanitize 洗成 null，body 不含裸字面量。"""
+    _patch_w4b_all_ok(monkeypatch)
+    monkeypatch.setattr(rr, "_w4b_financial_rows", lambda inc, bal, cash: [
+        {"报告期": "2026-09-30", "营业总收入": float("nan"),
+         "归母净利润": float("inf"), "资产负债率": 20.0},
+    ])
+    resp = client.get("/api/v2/read/financials?code=600519", headers=_auth(token))
+    body = resp.get_data(as_text=True)
+    assert "NaN" not in body and "Infinity" not in body, body[:300]
+    d = resp.get_json()["data"]
+    assert d["rows"][0]["营业总收入"] is None and d["rows"][0]["归母净利润"] is None, d
+    assert d["date"] == "2026-09-30", d
+
+
+def test_financials_limit_truncates(client, token, monkeypatch):
+    """limit=1 -> 仅最新 1 行（倒序截断），date 仍为最新报告期。"""
+    _patch_w4b_all_ok(monkeypatch)
+    d = client.get("/api/v2/read/financials?code=600519&limit=1",
+                   headers=_auth(token)).get_json()["data"]
+    assert len(d["rows"]) == 1 and d["rows"][0]["报告期"] == "2026-09-30", d
+    assert d["date"] == "2026-09-30", d
+
+
+# ───────────── 端点 3：GET /api/v2/read/stock-kline ─────────────
+
+def test_stock_kline_requires_token(client):
+    assert client.get("/api/v2/read/stock-kline?code=600519").status_code == 401
+
+
+def test_stock_kline_ok_envelope(client, token, monkeypatch):
+    """kline 齐备 -> ok 信封 + 英文列 + rows 按 date 升序 + date=末根[:10]。"""
+    _patch_w4b_all_ok(monkeypatch)
+    resp = client.get("/api/v2/read/stock-kline?code=600519", headers=_auth(token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
+    obj = resp.get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    d = obj["data"]
+    for k in ("code", "period", "rows", "date", "note"):
+        assert k in d, f"data 缺字段 {k}: {d}"
+    assert d["code"] == "600519" and d["period"] == "daily" and d["note"] == _W4B_OK_NOTE
+    assert len(d["rows"]) == 3, d["rows"]
+    for col in ("date", "open", "close", "high", "low", "volume"):
+        assert col in d["rows"][0], f"rows 缺英文列 {col}: {list(d['rows'][0].keys())}"
+    assert [r["date"] for r in d["rows"]] == ["2026-11-05", "2026-11-06", "2026-11-07"]
+    assert d["date"] == "2026-11-07", d  # 权威数据日 = 最后一根
+
+
+def test_stock_kline_invalid_code_and_period(client, token):
+    """非法 / 缺 code、非法 period -> 400 invalid_param。"""
+    for qs in ("?code=abc", "?code=60051", ""):
+        resp = client.get(f"/api/v2/read/stock-kline{qs}", headers=_auth(token))
+        assert resp.status_code == 400, f"{qs}: {resp.status_code}"
+        assert resp.get_json()["code"] == "invalid_param", qs
+    resp = client.get("/api/v2/read/stock-kline?code=600519&period=tick", headers=_auth(token))
+    assert resp.status_code == 400 and resp.get_json()["code"] == "invalid_param", resp.get_json()
+
+
+def test_stock_kline_source_fail_honest(client, token, monkeypatch):
+    """kline 失败 -> rows=[]、date=null、status ok（不用 now()、不 500）。"""
+    _patch_w4b_all_fail(monkeypatch)
+    obj = client.get("/api/v2/read/stock-kline?code=600519",
+                     headers=_auth(token)).get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    assert obj["data"]["rows"] == [] and obj["data"]["date"] is None, obj["data"]
+
+
+def test_stock_kline_nan_inf_sanitized(client, token, monkeypatch):
+    """端点存在主因：kline 含原生 NaN/Inf -> _sanitize 洗成 null，body 无裸字面量
+    （/api/kline 直接 df.to_dict 有 NaN 裸奔风险，本端点必须修复）。"""
+    _patch_w4b_all_ok(monkeypatch)
+    monkeypatch.setattr(rr, "_w4b_kline",
+                        lambda code, period="daily": _w4b_fake_kline(with_bad=True))
+    resp = client.get("/api/v2/read/stock-kline?code=600519", headers=_auth(token))
+    body = resp.get_data(as_text=True)
+    assert "NaN" not in body and "Infinity" not in body, body[:300]
+    rows = resp.get_json()["data"]["rows"]
+    mid = next(r for r in rows if r["date"] == "2026-11-06")
+    assert mid["close"] is None and mid["open"] is None, mid
+
+
+def test_stock_kline_limit_ascending(client, token, monkeypatch):
+    """limit=2 -> tail(2) 取最近 2 根且仍升序，date 仍为末根。"""
+    _patch_w4b_all_ok(monkeypatch)
+    d = client.get("/api/v2/read/stock-kline?code=600519&limit=2",
+                   headers=_auth(token)).get_json()["data"]
+    assert [r["date"] for r in d["rows"]] == ["2026-11-06", "2026-11-07"], d["rows"]
+    assert d["date"] == "2026-11-07", d
+
+
+def test_stock_kline_date_never_now(client, token, monkeypatch):
+    """全源失败：date 必须 null，绝不拿 datetime.now() 兜底。"""
+    _patch_w4b_all_fail(monkeypatch)
+    d = client.get("/api/v2/read/stock-kline?code=600519",
+                   headers=_auth(token)).get_json()["data"]
+    assert d["date"] is None and d["rows"] == [], d
+
+
+# ───────────── 并发超时降级（照 six-dim parallel_timeout_degrades）─────────────
+
+def test_w4b_parallel_timeout_degrades(client, token, monkeypatch):
+    """fetch_many 整批超时/未完成项（预填 None）-> 三端点均诚实降级、status ok、
+    date=null、绝不 500 / 补 0 / now() 兜底。"""
+    def fake_fetch_many(tasks, max_workers=None, timeout=None):
+        return {key: None for key, _ in tasks}  # 全部超时未完成
+
+    monkeypatch.setattr("modules.fetch_parallel.fetch_many", fake_fetch_many)
+
+    obj = client.get("/api/v2/read/fundamentals?code=600519",
+                     headers=_auth(token)).get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    assert obj["data"]["date"] is None and obj["data"]["spot_date"] is None, obj["data"]
+    assert all(v is None for v in obj["data"]["perf"].values()), obj["data"]["perf"]
+
+    obj = client.get("/api/v2/read/financials?code=600519",
+                     headers=_auth(token)).get_json()
+    assert obj["status"] == "ok" and obj["data"]["rows"] == [] and obj["data"]["date"] is None, obj
+
+    obj = client.get("/api/v2/read/stock-kline?code=600519",
+                     headers=_auth(token)).get_json()
+    assert obj["status"] == "ok" and obj["data"]["rows"] == [] and obj["data"]["date"] is None, obj
+
+
+# ───────────── 磁盘 openapi.json 覆盖（照 test_six_dim_in_frontend_spec_file）─────────────
+
+def test_w4b_in_frontend_spec_file():
+    """磁盘 frontend-v2/spec/openapi.json 必须覆盖三个新 path 且标注 BearerAuth。"""
+    path = os.path.join(PROJECT_ROOT, "frontend-v2", "spec", "openapi.json")
+    with open(path, "r", encoding="utf-8") as f:
+        spec = json.load(f)
+    for base in ("/api/v2/read/fundamentals", "/api/v2/read/financials",
+                 "/api/v2/read/stock-kline"):
+        node = spec["paths"].get(base)
+        assert node is not None and "get" in node, f"spec 缺 {base}"
+        assert node["get"].get("security") == [{"BearerAuth": []}], f"{base} 未标注鉴权"

@@ -1,7 +1,7 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import * as api from '@/api/read'
-import { getSixDim } from '@/api/stock'
-import type { SixDim } from '@/api/schemas/stock'
+import { getSixDim, getFundamentals, getFinancials, getStockKline } from '@/api/stock'
+import type { SixDim, Fundamentals, Financials, StockKline } from '@/api/schemas/stock'
 import type {
   DailySnapshot,
   P1Signal,
@@ -194,6 +194,35 @@ export function useSixDim(code: string): UseQueryResult<SixDim> {
   return useQuery({
     queryKey: ['read', 'six-dim', code],
     queryFn: () => getSixDim(code),
+    enabled: /^\d{6}$/.test(code),
+    staleTime: FIVE_MIN,
+  })
+}
+
+// ───────── W4-B · 个股域三端点（按 6 位代码查询，5min 缓存）─────────
+// 非法代码 enabled=false，不发起请求；取数失败进入 error 态，由页面诚实渲染。
+export function useFundamentals(code: string): UseQueryResult<Fundamentals> {
+  return useQuery({
+    queryKey: ['read', 'fundamentals', code],
+    queryFn: () => getFundamentals(code),
+    enabled: /^\d{6}$/.test(code),
+    staleTime: FIVE_MIN,
+  })
+}
+
+export function useFinancials(code: string): UseQueryResult<Financials> {
+  return useQuery({
+    queryKey: ['read', 'financials', code],
+    queryFn: () => getFinancials(code),
+    enabled: /^\d{6}$/.test(code),
+    staleTime: FIVE_MIN,
+  })
+}
+
+export function useStockKline(code: string): UseQueryResult<StockKline> {
+  return useQuery({
+    queryKey: ['read', 'stock-kline', code],
+    queryFn: () => getStockKline(code),
     enabled: /^\d{6}$/.test(code),
     staleTime: FIVE_MIN,
   })

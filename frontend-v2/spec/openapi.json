@@ -3420,6 +3420,76 @@
         ]
       }
     },
+    "/api/v2/read/financials": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.financials",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/fundamentals": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.fundamentals",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v2/read/ladder-detail": {
       "get": {
         "tags": [
@@ -3738,6 +3808,41 @@
             }
           }
         ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v2/read/stock-kline": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "GET read.stock_kline",
+        "responses": {
+          "200": {
+            "description": "统一信封响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录 / token 过期（可 POST /api/auth/refresh 续期）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeResponse"
+                }
+              }
+            }
+          }
+        },
         "security": [
           {
             "BearerAuth": []

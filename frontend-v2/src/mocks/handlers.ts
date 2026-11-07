@@ -72,4 +72,45 @@ export const handlers = [
     }
     return ok(code === '000001' ? fixtures.sixDimPartial : fixtures.sixDimFull)
   }),
+
+  // W4-B · 个股域三端点：一律按 code query 分派 4 形态；非法/缺 code 返回 400 invalid_param 信封。
+  http.get('/api/v2/read/fundamentals', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code')
+    if (!code || !/^\d{6}$/.test(code)) {
+      return HttpResponse.json(
+        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
+        { status: 400 },
+      )
+    }
+    if (code === '000002') return ok(fixtures.fundamentalsNullFields)
+    if (code === '000003') return ok(fixtures.fundamentalsPerfNull)
+    if (code === '000004') return ok(fixtures.fundamentalsDateNull)
+    return ok(fixtures.fundamentalsFull)
+  }),
+  http.get('/api/v2/read/financials', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code')
+    if (!code || !/^\d{6}$/.test(code)) {
+      return HttpResponse.json(
+        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
+        { status: 400 },
+      )
+    }
+    if (code === '000002') return ok(fixtures.financialsNullFields)
+    if (code === '000003') return ok(fixtures.financialsEmptyRows)
+    if (code === '000004') return ok(fixtures.financialsDateNull)
+    return ok(fixtures.financialsFull)
+  }),
+  http.get('/api/v2/read/stock-kline', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code')
+    if (!code || !/^\d{6}$/.test(code)) {
+      return HttpResponse.json(
+        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
+        { status: 400 },
+      )
+    }
+    if (code === '000002') return ok(fixtures.klineNullFields)
+    if (code === '000003') return ok(fixtures.klineEmptyRows)
+    if (code === '000004') return ok(fixtures.klineDateNull)
+    return ok(fixtures.klineFull)
+  }),
 ]

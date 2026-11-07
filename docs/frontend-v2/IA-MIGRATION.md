@@ -64,7 +64,14 @@
 | `pick_stock` | `/stock/research?code=<6位>&view=deep` | loader 校验 6 位数字，预选个股并触发查询 |
 | 旧链接整体 | `/legacy?hub_gyj_view=...&pick_stock=...` → 302 到新路由 | **兼容层必须保留**，避免收藏/分享链接失效 |
 
-**关键顺序红线**：URL 参数预选必须发生在控件挂载之前。TanStack Router 的 `beforeLoad` / loader 里完成，不要在 `useEffect` 里补——那会产生「先渲染默认再跳变」的闪烁，也是原版踩过的坑。
+**W4-B 执行态更正（2026-11-07，以旧页源码 + 真实浏览器实跑为准）**：上表是 W0 规划态，下列 3 项已被推翻，验收以本段为准（保留上表作为规划历史，不作验收依据）：
+
+1. 旧版 `pages/22_基本面分析.py:864-866` 的跳转**只带 `pick_stock`、不带 `hub_gyj_view`**，实际落到「⚡ 快速选取」。故 **只带 `pick_stock` → `view=quick`**；只有 `hub_gyj_view='🔬 深度分析'` 才 `view=deep`。实现见 `frontend-v2/src/lib/deeplink.ts::resolveLegacySearch`。
+2. 纯 SPA + Vite dev proxy 产生不了 3xx；`/legacy` 是 TanStack Router `beforeLoad` 抛 `redirect({replace:true})` 触发的**客户端 `history.replace`**，不是 HTTP 302。
+3. 首帧预选由 `validateSearch`（同步、早于渲染）完成，不用 loader、不用 `useEffect`；上表「路由 loader」措辞不准确。
+4. `nav.manifest.json` 仍不 revival，活真理源是 `frontend-v2/src/nav/nav.ts` + `frontend-v2/src/app/router.tsx`。
+
+**关键顺序红线**：URL 参数预选必须发生在控件挂载之前（W4-B 实跑：`validateSearch` 同步早于渲染即满足）；不要在 `useEffect` 里补——那会产生「先渲染默认再跳变」的闪烁，也是原版踩过的坑。
 
 ### 3.3 `nav.manifest.json` 结构（单一真理源）
 
@@ -197,19 +204,19 @@ Bento 卡片区（KPI / 图表 / 表格）
 | W3 | 后续簇 · 事件因子 | ✅ 已落地 | `event-pool` | `/events`：原样带出「统计意义上的超额收益概率排序，非买卖指令」 |
 | W3 | 后续簇 · 预测校准 | ✅ 已落地 | `prediction-log` | `/predictions`：命中率分母只算已兑现样本，`hit=null` 不计入 |
 | W3 | 后续簇 · 数据与运维 | ✅ 已落地 | `p1-sync-status` + `backtest-runs` + `data-refresh-state` | `/ops`：三数据源独立四态；绝对路径递归脱敏；负收益/负 Sharpe 如实带符号 |
-| W4 | 个股研究 24/21/22/72 | 🟡 W4-A 六维评分(72) 已落地 | `six-dim` | 24/21/22 待排 |
+| W4 | 个股研究 24/21/22/72 | 🟡 W4-A 六维评分(72) + W4-B 24/22 已落地 | `six-dim` + `fundamentals` / `financials` / `stock-kline` | 21 多股对比待 W4-C |
 | W5 | 量化选股 36/32/31/33/25/30/71 | 🟡 36 荐股已落地 | getDailyRecommendation | 其余待 |
 | W6 | 持仓交易 45/43/42 | 🟡 42 模拟盘已落地 | getPaperTrades | 其余待 |
 | W7 | 工具社区+Admin 34…93 | 🟡 74/86 已落地 | alert-rules(空)/webapps | 其余待 |
 
 **数据来源策略（诚实红线）**：已落地页全部走 `/api/v2/read/*` 端点 + MSW 演示数据；缺失数据诚实「无数据」，绝不编造填充。
-截至 2026-11-07，只读端点共 **21 个**（W1 12 + W3 首簇 2 + 长周期广度 1 + W3 后续簇 5 + W4-A 六维评分 1）；
-`frontend-v2/spec/openapi.json` 静态基线 W4-A 实跑为 **85 paths / 108 operations**（含 `/api/v2/read/six-dim` 的 GET + BearerAuth）；历史实跑值：W0 64/87、W3 首簇后 79/102、W3 收口 84/107、W4-A 85/108 —— 均为各自时点读取文件真值，非笔误。
+截至 2026-11-07，只读端点共 **24 个**（W1 12 + W3 首簇 2 + 长周期广度 1 + W3 后续簇 5 + W4-A 六维评分 1 + W4-B 个股域 3）；
+`frontend-v2/spec/openapi.json` 静态基线 W4-B 实跑为 **88 paths / 111 operations**（W4-B 新增 `fundamentals` / `financials` / `stock-kline` 三个 GET，四个个股域 GET 全带 BearerAuth）；历史实跑值：W0 64/87、W3 首簇后 79/102、W3 收口 84/107、W4-A 85/108、W4-B 88/111 —— 均为各自时点读取文件真值，非笔误。
 **后续簇（W2/W4/W5/W6/W7 多数）** 需先在 `backend/api/read_routes.py` 补对应只读端点，再按本表逐页迁移；
 W3 的广度时序、连板明细、长周期广度 3 个端点**已落地**，不再是待办。
-**导航**：当前 V2 侧栏保持 **4 组**，「市场广度·温度」组共 **5 项**
-（广度总览 / 连板梯队共振 / 事件因子池 / 预测校准日志 / 数据与运维状态），图标全局唯一、子簇 ≤8；
-本轮**不收敛** §2 的 6 类目结构（待后续波次按真实页面量再评估）。
+**导航**：当前 V2 侧栏保持 **4 组**：「量化与工具」组 **7 项**（含 W4-A 六维评分 / W4-B 个股研究 / 基本面分析），
+「市场广度·温度」组 **5 项**（广度总览 / 连板梯队共振 / 事件因子池 / 预测校准日志 / 数据与运维状态），
+图标全局唯一、子簇 ≤8；本轮**不收敛** §2 的 6 类目结构（待后续波次按真实页面量再评估）。
 
 ### W4-A 非等价迁移 · 书面豁免（2026-11-07）
 
@@ -234,5 +241,62 @@ W3 的广度时序、连板明细、长周期广度 3 个端点**已落地**，�
 `date` 必须来自 K 线最后一根，取不到返回 `null`，禁止 `datetime.now()` 兜底。
 静态 OpenAPI 实跑 **85 paths / 108 operations**。
 
-> 该豁免只覆盖 W4-A 这一页。W4 剩余 `24 个股研究` / `21 多股对比` / `22 基本面分析`
-> 三页**未迁移**，深链契约 `hub_gyj_view` / `pick_stock` 亦未接入，不得计入已落地。
+> 该豁免只覆盖 W4-A 这一页。W4-B 已落地 `24 个股研究` / `22 基本面分析` 两页并接入深链契约
+> `hub_gyj_view` / `pick_stock`，其非等价项与能力收缩见下方 W4-B 豁免章节；`21 多股对比` 仍未迁移，不得计入已落地。
+
+
+### W4-B 非等价迁移 · 书面豁免（2026-11-07）
+
+**结论先行：W4-B 迁移了旧 `22 基本面分析` → `/stock/fundamentals` 与旧 `24 个股研究` → `/stock/research` 两页，并接入 `hub_gyj_view` / `pick_stock` 深链；这不是逐字段等价迁移，且 `21 多股对比` 仍未迁移，不得计入已落地。**
+
+#### 1. 为什么是「实时计算型只读 GET」（P2），不是 W1/W3 的本地 JSON 路线
+
+真扫三页（`pages/24_个股研究.py`、`pages/21_多股对比.py`、`pages/22_基本面分析.py`）：全部是实时联网 / 后台任务计算，`data/` 下**零对应本地 JSON 真源**。W1/W3 的 `_FILE_WHITELIST` 文件读取器路线无米下锅，故沿用 W4-A `six-dim` 先例，新增 3 个端点：
+
+| 端点 | 用途 | 前端消费 |
+|---|---|---|
+| `GET /api/v2/read/fundamentals` | 名称 / 行业 / 现价 / PE / 总市值 + 9 项业绩 + 3 个数据日 | `FundamentalsView` |
+| `GET /api/v2/read/financials` | 多期财报 `rows`（三表合并） | `FundamentalsView` |
+| `GET /api/v2/read/stock-kline` | `daily` / `weekly` / `monthly` OHLC `rows` | `ResearchView`（quick） |
+
+3 个端点均 `@jwt_required`、统一 `ok/fail` 信封（`code` 为字符串业务码）、`_sanitize()` 清洗 NaN/Inf、`fetch_many` 并发且整批硬边界 `CALL_TIMEOUT_CAP=12s`（满足 `REQ_TIMEOUT 10 < 12`）。`read_routes.py` 采用**单一末尾 hunk 纯增量**，既有 21 端点一字未动。不复用 `/api/kline`：该端点未过 `_sanitize()`，原生 float NaN 会裸奔。旧 22 页 `_industry_pe_sample` 里硬编码的 `timeout=60` **不得复制**。
+
+#### 2. 旧版补 0 / 中性默认 → V2 一律诚实缺失
+
+| 旧版行为 | W4-B V2 |
+|---|---|
+| 旧 24 deep 有 31 个数值字段 `None/NaN → 0.0` | `null` / `[]` /「缺失」，禁 0 / 50 /「持有」/ 中性默认 |
+| 旧 21 页失败补 `scores=50` / `chg_pct=0.0` / `signal="持有"` | **本波不迁移 21**；W4-C 亦须沿用 null 口径 |
+| 数据日用当前日期兜底 | 必须是权威数据日；取不到 `null`，页面显示「暂无权威数据日」，禁 `datetime.now()` / 文件 mtime |
+| `_calc_perf` 缺键直接 pop | 9 字段全 `null` 字典（全源失败态）或 `perf:null`；Zod 两种都兼容，逐字段显示「缺失」，绝不补 0 |
+
+#### 3. 已拍板的契约张力（不掩盖）
+
+- **`financials.report` 仅回显**：`rows` 恒为利润表 / 资产负债表 / 现金流量表**三表合并**指标，不支持单表切换；前端**不暴露 report 切换控件**，卡片标题为「多期财报（三表合并）」，口径说明原文写明「暂不支持单表切换（report 固定 income）」。
+- **`yoy` 语义**：`revenue_yoy` / `profit_yoy` 字段名沿用旧页，但语义是**「与上一报告期比」的相邻期口径，非同比 / 去年同期**。V2 标签已由「营收同比(%) / 净利同比(%)」如实改为「营收(较上一报告期 %) / 净利(较上一报告期 %)」。财报表格列名（如 `营业总收入_同比`）是后端原始列回显、未改写，属非等价项。
+- **数据日不标「今日」**：`date` / `spot_date` / `kline_date` 均为数据自带时间戳，可能来自过期缓存（旧交易日），页面分行展示且不出现「今日」措辞。
+- **`priceDomain`**：22 页按交易屏口径固定 `"market"`，页面原文可见。本波新页**零涨跌色**（只用 `sf-warn` / `sf-accent` 状态色），避免 A 股双套语义误用。旧 24 deep 页内**价格域报告体（绿涨红跌）+ 业绩域交易屏（红涨绿跌）并存**，需字段域级区分，留 W4-C，不能整页一刀切。
+
+#### 4. 深链契约与 `/legacy` 兼容层
+
+- 真值：`hub_gyj_view` 为**中文** `⚡ 快速选取` / `🔬 深度分析`；旧 22:864-866 的跳转只带 `pick_stock`，落 **quick**。§3.2 规划态「`pick_stock` → `view=deep`」已按上文更正。
+- `frontend-v2/src/lib/deeplink.ts` 为唯一归一真源（路由与单测共用）；非法 / 非 6 位 code **不写键**，不 `?? ''` / `?? 0` 兜底。
+- `/legacy` 挂在 `rootRoute` 下（不能放 `appRoute`，否则未登录先被 `requireAuth` 跳 `/login` 且 query 被吞），用 `beforeLoad` 抛 `redirect({replace:true})` 做**客户端 `history.replace`，不是 HTTP 302**。
+- 首帧预选由 `validateSearch` 同步完成，**不用 `useEffect`**；输出全 optional，避免 `AppShell.tsx` 泛化 `<Link to={it.to}>` 因 search 必填而 tsc 失败。
+
+#### 5. 全站序列化契约变更（影响面已真扫）
+
+**缺陷**：TanStack Router `1.170.46` 默认 `parseSearch = parseSearchWith(JSON.parse)`（`@tanstack/router-core/dist/esm/searchParams.js:5/22/26-29`）会把 6 位纯数字代码 `'600519'` 解析成 **number**，被 `validateSearch` 与 `pickCode` 的 `typeof === 'string'` 拒收，导致 `/legacy` 重定向后 URL 丢 `code`；`'000001'` 因前导零令 `JSON.parse` 抛错而保持字符串，**恰好绕过缺陷**；直达 URL 因浏览器地址栏不被 `commitLocation` rewrite 而看似正常。
+**修复**：`frontend-v2/src/app/router.tsx` 为 `createRouter` 增配基于 `URLSearchParams` 的 `parseSearchAsStrings` / `stringifySearchAsStrings`，query 一律按字符串契约处理，并导出 `searchSerialization` 供运行时测试复用（零配置漂移）。后者同样必要：默认 `stringifySearchWith(JSON.stringify, JSON.parse)` 会把 `'600519'` 写成 `"600519"`，令 URL 出现 `%22`。
+**影响面真扫**：全站 `validateSearch` / `search={{...}}` 使用点仅 `loginRoute.from`、`guards.tsx:13`、`AppShell.tsx:19`、两新页，**全部为字符串**，零数字 / 数组 / 布尔依赖，故无既有页面被破坏。新增 `tests/e2e/w4b-legacy-redirect.test.tsx` 8 例运行时集成测试（`createMemoryHistory` + 生产 `searchSerialization` + `RouterProvider`）锁死该契约。
+
+#### 6. 明确的能力收缩（不得表述为「已完成」）
+
+- **24 页 deep 子视图仅占位**：如实显示「深度分析子视图待 W4-C 迁移，当前仅完成深链预选」+ 已预选 code，不造假数据、不画空 K 线图；quick 子视图只有 OHLC 表格，**本波不做 ECharts K 线图**。
+- 旧 22 页第三个按钮跳 `pages/20_个股分析.py`（V2 无该路由），已**并入** `/stock/research?view=deep`；`20` 页完整内容留 W4-C。
+- `21 多股对比` 未迁移；剩余 4 个端点、多系列对比色板、24 deep 完整内容均留 W4-C。
+- 浏览器侧**只打 MSW dev fixtures，未走 5050 真后端**（CORS 边界另见 `VISUAL-AUDIT.md`）。
+
+#### 7. 规模（真读文件，非沿用摘要）
+
+静态 OpenAPI **88 paths / 111 operations**（W4-B 新增 3 path，四个个股域 GET 全带 BearerAuth）；只读端点 **24 个**；导航 **4 组**，`量化与工具` 组 **7 项**，`市场广度·温度` 组 **5 项**，图标全局唯一。
