@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "mock:init": "msw init public --save"
+    "mock:init": "msw init public --save",
+    "inspect:visual": "python ../scripts/shoot_frontend_v2.py --start-app"
   },
   "dependencies": {
     "@tanstack/react-query": "5.106.1",
