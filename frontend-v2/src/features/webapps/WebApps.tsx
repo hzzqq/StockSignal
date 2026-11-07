@@ -23,11 +23,11 @@ export function WebApps() {
               href={`/webapps/${w.dir}/${w.entry}`}
               target="_blank"
               rel="noreferrer"
-              className="block rounded-xl bg-sf-card border border-sf-border p-4 hover:border-ss-up/50 transition"
+              className="block rounded-card bg-sf-surface border border-sf-line p-4 hover:border-sf-accent transition-colors"
             >
               <div className="font-medium">{w.title}</div>
-              <div className="text-xs text-sf-txt/50 mt-1 line-clamp-2">{w.desc ?? ''}</div>
-              <div className="text-xs text-sf-txt/40 mt-2">
+              <div className="text-xs text-sf-ink-3 mt-1 line-clamp-2">{w.desc ?? ''}</div>
+              <div className="text-xs text-sf-ink-3 mt-2">
                 v{w.version ?? '—'} · {w.added ?? '—'}
               </div>
             </a>

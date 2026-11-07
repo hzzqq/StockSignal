@@ -21,7 +21,7 @@ export function Alerts() {
           emptyHint="data/alert_rules.json 当前缺失"
         >
           {rulesQ.data && (
-            <pre className="text-xs text-sf-txt/70 whitespace-pre-wrap">
+            <pre className="text-xs text-sf-ink-2 whitespace-pre-wrap">
               {JSON.stringify(rulesQ.data, null, 2)}
             </pre>
           )}
@@ -38,7 +38,7 @@ export function Alerts() {
           emptyHint="data/alerts.log 当前缺失"
         >
           {logQ.data && (
-            <pre className="text-xs text-sf-txt/70 whitespace-pre-wrap max-h-72 overflow-auto">
+            <pre className="text-xs text-sf-ink-2 whitespace-pre-wrap max-h-72 overflow-auto">
               {logQ.data}
             </pre>
           )}

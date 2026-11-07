@@ -43,24 +43,24 @@ export function SnapshotView({ snapshot }: { snapshot: DailySnapshot }) {
   const level = freshnessOf(snapshot)
 
   return (
-    <div className="space-y-4">
+    <div className="flow">
       <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
         <div>
-          <div className="text-xs text-sf-txt/50">权威数据日</div>
+          <div className="text-xs text-sf-ink-3">权威数据日</div>
           <div className="text-lg font-semibold">{snapshot.date}</div>
         </div>
         <FreshnessBadge level={level} />
         {snapshot.as_of && (
-          <div className="text-xs text-sf-txt/50">as_of {snapshot.as_of}</div>
+          <div className="text-xs text-sf-ink-3">as_of {snapshot.as_of}</div>
         )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card title="仓位建议">
           <PositionGauge pct={pos?.pct ?? null} color={pos?.color ?? null} />
-          {pos?.band && <div className="text-sm text-sf-txt/70 text-center -mt-2">{pos.band}</div>}
+          {pos?.band && <div className="text-sm text-sf-ink-2 text-center -mt-2">{pos.band}</div>}
           {pos?.reasons && pos.reasons.length > 0 && (
-            <ul className="mt-2 space-y-1 text-xs text-sf-txt/60 list-disc list-inside">
+            <ul className="mt-2 space-y-1 text-xs text-sf-ink-2 list-disc list-inside">
               {pos.reasons.slice(0, 6).map((r, i) => (
                 <li key={i}>{r}</li>
               ))}
@@ -86,8 +86,8 @@ export function SnapshotView({ snapshot }: { snapshot: DailySnapshot }) {
       <Card title="盘面指标">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {Object.entries(INDICATOR_LABELS).map(([k, label]) => (
-            <div key={k} className="rounded-lg bg-sf-bg/40 border border-sf-border px-3 py-2">
-              <div className="text-xs text-sf-txt/50">{label}</div>
+            <div key={k} className="rounded-tile bg-sf-surface-2 border border-sf-line px-3 py-2">
+              <div className="text-xs text-sf-ink-3">{label}</div>
               <div className="text-base font-medium">{fmtNum(ind[k])}</div>
             </div>
           ))}
@@ -96,25 +96,25 @@ export function SnapshotView({ snapshot }: { snapshot: DailySnapshot }) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card title="连板梯队">
-          <div className="text-sm text-sf-txt/70">
-            最高板 <span className="text-sf-txt font-semibold">{snapshot.ladder?.max_boards ?? '—'}</span>
-            {' · '}连板总数 <span className="text-sf-txt font-semibold">{snapshot.ladder?.total_connect ?? '—'}</span>
+          <div className="text-sm text-sf-ink-2">
+            最高板 <span className="text-sf-ink font-semibold">{snapshot.ladder?.max_boards ?? '—'}</span>
+            {' · '}连板总数 <span className="text-sf-ink font-semibold">{snapshot.ladder?.total_connect ?? '—'}</span>
           </div>
         </Card>
         <Card title="事件因子">
           {ef?.available ? (
-            <div className="text-sm text-sf-txt/70">
+            <div className="text-sm text-sf-ink-2">
               多头 {ef.long_count ?? '—'} 只
               {ef.adj != null && <span className="ml-2">调节 {ef.adj}</span>}
-              {ef.as_of && <div className="text-xs text-sf-txt/40 mt-1">as_of {ef.as_of}</div>}
+              {ef.as_of && <div className="text-xs text-sf-ink-3 mt-1">as_of {ef.as_of}</div>}
             </div>
           ) : (
-            <div className="text-sm text-sf-txt/40">事件因子不可用</div>
+            <div className="text-sm text-sf-ink-3">事件因子不可用</div>
           )}
         </Card>
         <Card title="数据新鲜度">
           {df?.sources ? (
-            <ul className="space-y-1 text-xs text-sf-txt/60">
+            <ul className="space-y-1 text-xs text-sf-ink-2">
               {Object.entries(df.sources).map(([name, src]) => (
                 <li key={name} className="flex justify-between gap-2">
                   <span>{name}</span>
@@ -125,7 +125,7 @@ export function SnapshotView({ snapshot }: { snapshot: DailySnapshot }) {
               ))}
             </ul>
           ) : (
-            <div className="text-sm text-sf-txt/40">无新鲜度明细</div>
+            <div className="text-sm text-sf-ink-3">无新鲜度明细</div>
           )}
         </Card>
       </div>

@@ -15,12 +15,12 @@ export function Recommendation() {
       <QueryState isLoading={q.isLoading} isError={q.isError} error={q.error} isEmpty={!rec}>
         {rec && (
           <Card title={`状态：${rec.status ?? '—'}`}>
-            {unavailable && rec.reason && <p className="text-sm text-ss-down">{rec.reason}</p>}
+            {unavailable && rec.reason && <p className="text-body text-sf-warn">{rec.reason}</p>}
             {rec.generated_at && (
-              <p className="text-xs text-sf-txt/50 mt-1">generated {rec.generated_at}</p>
+              <p className="text-xs text-sf-ink-3 mt-1">generated {rec.generated_at}</p>
             )}
             {rec.disclaimer && (
-              <p className="text-xs text-sf-txt/40 mt-3 leading-relaxed">{rec.disclaimer}</p>
+              <p className="text-xs text-sf-ink-3 mt-3 leading-relaxed">{rec.disclaimer}</p>
             )}
           </Card>
         )}
@@ -35,7 +35,7 @@ export function Recommendation() {
           emptyLabel="暂无模拟统计"
         >
           {simQ.data && (
-            <div className="text-sm text-sf-txt/70">
+            <div className="text-sm text-sf-ink-2">
               蒙特卡洛回测模拟（非实盘）：
               {simQ.data.meta
                 ? ` ${JSON.stringify(simQ.data.meta).slice(0, 200)}`

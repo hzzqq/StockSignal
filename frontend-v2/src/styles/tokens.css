@@ -1,33 +1,111 @@
 @import "tailwindcss";
 
-/* 设计令牌（DESIGN.md §2，真扫自 modules/ui_theme.py:29-41）
- * A 股双套语义：
- *  - ss-*  交易屏 / 全站语义：涨=红、跌=绿
- *  - doc-* 报告体 / 个股页价格域语义：涨=绿、跌=红（与交易屏相反）
- * 两者不可混淆。W0 仅用 ss-* 令牌；doc-* 预留给 W1 报告页。
- */
+/* ============================================================================
+ * StockSignal frontend-v2 设计令牌 —— 单一真理源（DESIGN.md §2）
+ *
+ * 视觉方向：**轻量卡片流（暗色）**
+ *   扁平实色表面 / 1px hairline 边框 / 零阴影 / 充足留白 / 三级实色文字层级 /
+ *   克制强调色。卡片像「纸张顺流而下」，不靠色块叠加和重装饰制造层次。
+ *
+ * A 股双套语义（不可混淆，历史红线）：
+ *  - ss-*   交易屏 / 全站语义：涨=红、跌=绿
+ *  - doc-*  报告体 / 个股页价格域语义：涨=绿、跌=红（与交易屏相反）
+ *  - sf-warn / sf-accent 是「状态 / 焦点」色，**不参与涨跌语义**，
+ *    禁止再拿 ss-up/ss-down 去表达错误、新鲜度、强弱信号灯。
+ *
+ * 兼容：sf-bg / sf-card / sf-txt / sf-border / sf-grid 为 W0 旧令牌，保留供
+ * 尚未迁移的页面使用；新页与共享组件一律用下面的语义令牌（渐进迁移，不硬切）。
+ * ========================================================================== */
 @theme {
-  /* 交易屏语义（红涨绿跌） */
+  /* ── 交易屏语义（红涨绿跌） ── */
   --color-ss-up: #ff4d4f;
   --color-ss-down: #00d486;
 
-  /* 报告/个股页语义（绿涨红跌） */
+  /* ── 报告/个股页语义（绿涨红跌） ── */
   --color-doc-up: #009e60;
   --color-doc-down: #ff4d4f;
 
-  /* 暗色背景体系（来自 ui_theme 真扫） */
+  /* ── W0 旧暗色体系（保留兼容） ── */
   --color-sf-bg: #0f0f23;
   --color-sf-card: #1a1a2e;
   --color-sf-txt: #e2e8f0;
   --color-sf-border: #2d2d44;
   --color-sf-grid: #23233c;
+
+  /* ── 轻量卡片流 · 语义表面（扁平、低色差、零阴影） ── */
+  --color-sf-surface: #16162c; /* 卡片：仅比底色略亮，几乎融为底 */
+  --color-sf-surface-2: #1d1d38; /* 内嵌块 / Stat：第二层，仍为实色 */
+  --color-sf-line: #26263f; /* hairline 边框：低对比但可辨 */
+
+  /* ── 轻量卡片流 · 三级实色文字（WCAG 对比度已量化，见 DESIGN.md §2.2） ── */
+  --color-sf-ink: #e2e8f0; /* L1 主文   14.37:1 on surface */
+  --color-sf-ink-2: #a8b2cc; /* L2 次文    8.36:1 */
+  --color-sf-ink-3: #7c86a3; /* L3 弱文    4.89:1（AA 达标） */
+
+  /* ── 状态 / 焦点色（不参与涨跌语义） ── */
+  --color-sf-warn: #e5a54b; /* 琥珀：警告 / 数据临界 */
+  --color-sf-danger: #e06c75; /* 珊瑚：错误 / 数据陈旧（状态，非「跌」） */
+  --color-sf-ok: #5bb98c; /* 柔和绿：正常 / 数据新鲜（状态，非「涨」） */
+  --color-sf-accent: #9aa6e8; /* 靛蓝：导航激活指示条 / 焦点环 / 加载点 */
+  /* ⚠️ sf-ok / sf-danger 是**数据状态色**，与 ss-up/ss-down 的价格涨跌语义
+   * 完全无关、禁止互换。历史缺陷：FreshnessBadge 曾用 ss-up(红)=新鲜、
+   * ss-down(绿)=陈旧，方向恰好拧反，已纠正。 */
+
+  /* ── 字号阶梯（替代散落的 text-xs/sm/lg/xl 各自为政） ── */
+  --text-kpi: 1.375rem; /* 22px 指标数值 */
+  --text-page: 1.125rem; /* 18px 页标题 */
+  --text-title: 0.875rem; /* 14px 卡片标题 */
+  --text-body: 0.8125rem; /* 13px 正文 */
+  --text-label: 0.75rem; /* 12px 标签 / 脚注 */
+
+  /* ── 圆角 ── */
+  --radius-card: 14px;
+  --radius-tile: 10px;
 }
 
-/* 默认文档底色（W0 占位页用） */
+/* ── 全局底座 ── */
 body {
   margin: 0;
   background: var(--color-sf-bg);
-  color: var(--color-sf-txt);
+  color: var(--color-sf-ink);
   font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC",
     "Microsoft YaHei", sans-serif;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 键盘可达：统一焦点环（不依赖组件各自实现） */
+:focus-visible {
+  outline: 2px solid var(--color-sf-accent);
+  outline-offset: 2px;
+}
+
+/* 卡片流容器：统一 16px 节奏，替代各页散落的 space-y-4 */
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 导航激活态：TanStack Router 对当前路由的 Link 写入 aria-current="page"。
+ * 用 inset 阴影画 2px 左侧指示条——不占布局宽度、不产生位移，
+ * 比整块高亮底色更轻（轻量卡片流的「克制」原则）。 */
+.nav-link[aria-current="page"] {
+  background: var(--color-sf-surface-2);
+  color: var(--color-sf-ink);
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--color-sf-accent);
+}
+.nav-link[aria-current="page"] > span[aria-hidden] {
+  color: var(--color-sf-accent);
+}
+
+/* 尊重系统「减少动态效果」偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

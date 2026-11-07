@@ -6,11 +6,11 @@ import { Card } from '@/shared/ui/Card'
 function P1Table({ title, rows }: { title: string; rows?: P1TopItem[] }) {
   return (
     <div>
-      <div className="text-xs text-sf-txt/60 mb-1">{title}</div>
+      <div className="text-xs text-sf-ink-2 mb-1">{title}</div>
       {rows && rows.length > 0 ? (
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-sf-txt/40 text-left">
+            <tr className="text-sf-ink-3 text-left">
               <th className="py-1">代码</th>
               <th className="py-1">预测</th>
               <th className="py-1">排名</th>
@@ -18,7 +18,7 @@ function P1Table({ title, rows }: { title: string; rows?: P1TopItem[] }) {
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={`${r.symbol}-${i}`} className="border-t border-sf-border">
+              <tr key={`${r.symbol}-${i}`} className="border-t border-sf-line">
                 <td>{r.symbol}</td>
                 <td>{r.pred != null ? r.pred.toFixed(4) : '—'}</td>
                 <td>{r.rank != null ? r.rank.toFixed(3) : '—'}</td>
@@ -27,7 +27,7 @@ function P1Table({ title, rows }: { title: string; rows?: P1TopItem[] }) {
           </tbody>
         </table>
       ) : (
-        <div className="text-xs text-sf-txt/40">无</div>
+        <div className="text-xs text-sf-ink-3">无</div>
       )}
     </div>
   )
@@ -52,7 +52,7 @@ export function P1Signals() {
         <div className="space-y-4">
           {entries.map(([name, sig]) => (
             <Card key={name} title={name}>
-              <div className="text-xs text-sf-txt/50 mb-2">
+              <div className="text-xs text-sf-ink-3 mb-2">
                 latest_date {sig.latest_date ?? '—'} · generated {sig.generated_at ?? '—'}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

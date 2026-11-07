@@ -18,10 +18,16 @@ import { fmtNum } from '@/lib/format'
 export function LadderResonance() {
   const ladder = useLadderDetail()
   return (
-    <div className="space-y-4">
+    <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-semibold">连板梯队共振</h2>
-        <span className="text-xs text-sf-txt/50">数据源 shepherd_ladder_history</span>
+        <span className="text-label text-sf-ink-3">数据源 shepherd_ladder_history</span>
+        <a
+          href="/breadth"
+          className="ml-auto text-label text-sf-accent hover:text-sf-ink underline underline-offset-4"
+        >
+          ← 返回广度总览
+        </a>
       </div>
 
       <QueryState
@@ -45,18 +51,18 @@ function LadderBody({ history }: { history: LadderDay[] }) {
   const trendOption: EChartsOption = {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
-    legend: { data: ['最高板', '连板总数'], textStyle: { color: CHART.txt }, top: 0 },
+    legend: { data: ['最高板', '连板总数'], textStyle: { color: CHART.ink2 }, top: 0 },
     grid: { left: 40, right: 16, top: 28, bottom: 48 },
     xAxis: {
       type: 'category',
       data: dates,
-      axisLabel: { color: CHART.txt, hideOverlap: true },
-      axisLine: { lineStyle: { color: CHART.border } },
+      axisLabel: { color: CHART.ink2, hideOverlap: true },
+      axisLine: { lineStyle: { color: CHART.line } },
     },
     yAxis: {
       type: 'value',
-      axisLabel: { color: CHART.txt },
-      splitLine: { lineStyle: { color: CHART.grid } },
+      axisLabel: { color: CHART.ink2 },
+      splitLine: { lineStyle: { color: CHART.line } },
     },
     series: [
       {
@@ -93,14 +99,14 @@ function LadderBody({ history }: { history: LadderDay[] }) {
     grid: { left: 40, right: 16, top: 10, bottom: 24 },
     xAxis: {
       type: 'value',
-      axisLabel: { color: CHART.txt },
-      splitLine: { lineStyle: { color: CHART.grid } },
+      axisLabel: { color: CHART.ink2 },
+      splitLine: { lineStyle: { color: CHART.line } },
     },
     yAxis: {
       type: 'category',
       data: boards.map((b) => `${b} 板`),
-      axisLabel: { color: CHART.txt },
-      axisLine: { lineStyle: { color: CHART.border } },
+      axisLabel: { color: CHART.ink2 },
+      axisLine: { lineStyle: { color: CHART.line } },
     },
     series: [
       {
@@ -113,16 +119,16 @@ function LadderBody({ history }: { history: LadderDay[] }) {
                 ? b >= Math.ceil(maxBoard * 0.6)
                   ? CHART.up
                   : CHART.down
-                : CHART.border,
+                : CHART.line,
           },
         })),
-        label: { show: true, position: 'right', color: CHART.txt },
+        label: { show: true, position: 'right', color: CHART.ink2 },
       },
     ],
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flow">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="最新数据日" value={latest?.date ?? '—'} />
         <Stat label="最高板" value={fmtNum(latest?.max_boards)} />
@@ -131,12 +137,12 @@ function LadderBody({ history }: { history: LadderDay[] }) {
       </div>
 
       <Card title="连板强度趋势（最高板 / 连板总数）">
-        <EChart option={trendOption} height={260} />
+        <EChart option={trendOption} height={260} ariaLabel="连板强度趋势折线图：逐日最高板与连板总数" />
       </Card>
 
       <Card title="最新板位分布">
-        <EChart option={distOption} height={Math.max(160, boards.length * 26)} />
-        <div className="text-xs text-sf-txt/40 mt-1">
+        <EChart option={distOption} height={Math.max(160, boards.length * 26)} ariaLabel="最新交易日板位分布条形图，高板位红色、低板位绿色" />
+        <div className="text-xs text-sf-ink-3 mt-1">
           红色=高板位（≥最高板的 60%），绿色=低板位；数据来自 data/shepherd_ladder_history.json
         </div>
       </Card>

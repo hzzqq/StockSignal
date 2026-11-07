@@ -52,30 +52,30 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-sf-bg text-sf-txt">
+    <div className="min-h-screen flex items-center justify-center bg-sf-bg text-sf-ink">
       <form
         onSubmit={onSubmit}
-        className="w-80 p-6 rounded-xl bg-sf-card border border-sf-border space-y-4"
+        className="w-80 p-6 rounded-card bg-sf-surface border border-sf-line space-y-4"
       >
         <h1 className="text-xl font-semibold">StockSignal 登录</h1>
         <input
-          className="w-full px-3 py-2 rounded bg-sf-bg border border-sf-border outline-none focus:border-ss-up"
+          className="w-full px-3 py-2 rounded bg-sf-bg border border-sf-line outline-none focus:border-sf-accent"
           placeholder="用户名"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
         <input
           type="password"
-          className="w-full px-3 py-2 rounded bg-sf-bg border border-sf-border outline-none focus:border-ss-up"
+          className="w-full px-3 py-2 rounded bg-sf-bg border border-sf-line outline-none focus:border-sf-accent"
           placeholder="密码"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        {error && <p className="text-ss-down text-sm">{error}</p>}
+        {error && <p role="alert" className="text-sf-danger text-body">{error}</p>}
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2 rounded bg-ss-up text-white disabled:opacity-50"
+          className="w-full py-2 rounded-tile bg-sf-accent text-sf-bg font-medium disabled:opacity-50"
         >
           {loading ? '登录中…' : '登录'}
         </button>

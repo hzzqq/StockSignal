@@ -5,7 +5,7 @@ import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 
 const INPUT_CLS =
-  'mt-1 bg-sf-bg border border-sf-border text-sf-txt rounded px-2 py-1.5 outline-none focus:border-ss-up'
+  'mt-1 bg-sf-bg border border-sf-line text-sf-ink rounded px-2 py-1.5 outline-none focus:border-sf-accent'
 
 /** 42 模拟交易：按用户拉取 paper_<user>.json 账本（持仓 / 成交 / 权益曲线点）。 */
 export function PaperTrades() {
@@ -17,7 +17,7 @@ export function PaperTrades() {
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">模拟交易账本</h2>
       <Card>
-        <label className="text-xs text-sf-txt/60">用户</label>
+        <label className="text-xs text-sf-ink-2">用户</label>
         <input
           className={`${INPUT_CLS} ml-2 w-48`}
           value={user}
@@ -48,7 +48,7 @@ export function PaperTrades() {
               <Card title="持仓">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-sf-txt/50 text-left">
+                    <tr className="text-sf-ink-3 text-left">
                       <th className="py-1">代码</th>
                       <th className="py-1">名称</th>
                       <th className="py-1">数量</th>
@@ -57,7 +57,7 @@ export function PaperTrades() {
                   </thead>
                   <tbody>
                     {Object.entries(p.positions).map(([code, pos]) => (
-                      <tr key={code} className="border-t border-sf-border">
+                      <tr key={code} className="border-t border-sf-line">
                         <td>{code}</td>
                         <td>{pos.name ?? '—'}</td>
                         <td>{pos.qty ?? '—'}</td>
@@ -74,7 +74,7 @@ export function PaperTrades() {
                 <div className="max-h-64 overflow-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-sf-txt/50 text-left">
+                      <tr className="text-sf-ink-3 text-left">
                         <th className="py-1">时间</th>
                         <th className="py-1">代码</th>
                         <th className="py-1">名称</th>
@@ -86,7 +86,7 @@ export function PaperTrades() {
                     </thead>
                     <tbody>
                       {p.trades.map((t, i) => (
-                        <tr key={i} className="border-t border-sf-border">
+                        <tr key={i} className="border-t border-sf-line">
                           <td>{t.time ?? '—'}</td>
                           <td>{t.code ?? '—'}</td>
                           <td>{t.name ?? '—'}</td>

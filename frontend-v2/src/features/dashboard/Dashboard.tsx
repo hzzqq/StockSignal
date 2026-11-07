@@ -19,10 +19,10 @@ export function Dashboard() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flow">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">概览</h2>
-        <Link to="/decision" className="text-sm text-ss-up hover:underline">
+        <Link to="/decision" className="text-body text-sf-accent hover:underline">
           今日决策面板 →
         </Link>
       </div>
@@ -42,7 +42,7 @@ export function Dashboard() {
         <SnapshotView snapshot={snapQ.data} />
       ) : (
         <Card>
-          <div className="py-6 text-center text-sf-txt/40">
+          <div className="py-6 text-center text-sf-ink-3">
             {snapQ.isError ? '决策快照加载失败' : '加载中…'}
           </div>
         </Card>

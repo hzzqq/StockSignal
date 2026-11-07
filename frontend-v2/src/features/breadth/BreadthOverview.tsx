@@ -35,7 +35,7 @@ export function BreadthOverview() {
   const history = useBreadthHistory()
 
   return (
-    <div className="space-y-4">
+    <div className="flow">
       <QueryState
         isLoading={daily.isLoading}
         isError={daily.isError}
@@ -94,13 +94,13 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
     xAxis: {
       type: 'category',
       data: ['上涨', '下跌', '涨停', '跌停'],
-      axisLabel: { color: CHART.txt },
-      axisLine: { lineStyle: { color: CHART.border } },
+      axisLabel: { color: CHART.ink2 },
+      axisLine: { lineStyle: { color: CHART.line } },
     },
     yAxis: {
       type: 'value',
-      axisLabel: { color: CHART.txt },
-      splitLine: { lineStyle: { color: CHART.grid } },
+      axisLabel: { color: CHART.ink2 },
+      splitLine: { lineStyle: { color: CHART.line } },
     },
     series: [
       {
@@ -121,7 +121,13 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-semibold">市场广度·温度总览</h2>
         <FreshnessBadge level={level} />
-        <span className="text-xs text-sf-txt/50">权威数据日 {snapshot.date}</span>
+        <span className="text-label text-sf-ink-3">权威数据日 {snapshot.date}</span>
+        <a
+          href="/ladder"
+          className="ml-auto text-label text-sf-accent hover:text-sf-ink underline underline-offset-4"
+        >
+          连板共振页 →
+        </a>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -132,7 +138,7 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
       </div>
 
       <Card title="涨跌家数分布">
-        <EChart option={breadthOption} height={240} />
+        <EChart option={breadthOption} height={240} ariaLabel="当日涨跌家数分布柱状图：上涨、下跌、涨停、跌停四类" />
       </Card>
 
       {snapshot.scenario && snapshot.scenario.length > 0 && (
@@ -143,30 +149,30 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card title="连板梯队（今日摘要）">
-          <div className="text-sm text-sf-txt/70">
+          <div className="text-sm text-sf-ink-2">
             最高板{' '}
-            <span className="text-sf-txt font-semibold">
+            <span className="text-sf-ink font-semibold">
               {snapshot.ladder?.max_boards ?? '—'}
             </span>
             {' · '}连板总数{' '}
-            <span className="text-sf-txt font-semibold">
+            <span className="text-sf-ink font-semibold">
               {snapshot.ladder?.total_connect ?? '—'}
             </span>
           </div>
-          <div className="text-xs text-sf-txt/40 mt-1">
+          <div className="text-xs text-sf-ink-3 mt-1">
             下方「连板梯队明细」为历史逐日分布（含板位家数）
           </div>
         </Card>
         <Card title="事件因子">
           {snapshot.event_factor?.available ? (
-            <div className="text-sm text-sf-txt/70">
+            <div className="text-sm text-sf-ink-2">
               多头 {snapshot.event_factor.long_count ?? '—'} 只
               {snapshot.event_factor.adj != null && (
                 <span className="ml-2">调节 {snapshot.event_factor.adj}</span>
               )}
             </div>
           ) : (
-            <div className="text-sm text-sf-txt/40">事件因子不可用</div>
+            <div className="text-sm text-sf-ink-3">事件因子不可用</div>
           )}
         </Card>
         <Card title="综合评分">
@@ -193,20 +199,20 @@ function BreadthTrend({ series }: { series: BreadthPoint[] }) {
     tooltip: { trigger: 'axis' },
     legend: {
       data: ['上涨家数', '下跌家数'],
-      textStyle: { color: CHART.txt },
+      textStyle: { color: CHART.ink2 },
       top: 0,
     },
     grid: { left: 48, right: 16, top: 28, bottom: 28 },
     xAxis: {
       type: 'category',
       data: dates,
-      axisLabel: { color: CHART.txt, hideOverlap: true },
-      axisLine: { lineStyle: { color: CHART.border } },
+      axisLabel: { color: CHART.ink2, hideOverlap: true },
+      axisLine: { lineStyle: { color: CHART.line } },
     },
     yAxis: {
       type: 'value',
-      axisLabel: { color: CHART.txt },
-      splitLine: { lineStyle: { color: CHART.grid } },
+      axisLabel: { color: CHART.ink2 },
+      splitLine: { lineStyle: { color: CHART.line } },
     },
     series: [
       {
@@ -232,8 +238,8 @@ function BreadthTrend({ series }: { series: BreadthPoint[] }) {
 
   return (
     <div>
-      <EChart option={option} height={260} />
-      <div className="text-xs text-sf-txt/40 mt-1">
+      <EChart option={option} height={260} ariaLabel="近期广度时序折线图：逐日上涨家数与下跌家数" />
+      <div className="text-xs text-sf-ink-3 mt-1">
         数据来自 data/snapshots/*.json 聚合（共 {series.length} 个交易日，近期展示 60 个）
       </div>
     </div>
@@ -257,14 +263,14 @@ function LadderDetailView({ history }: { history: LadderDay[] }) {
     grid: { left: 40, right: 16, top: 10, bottom: 24 },
     xAxis: {
       type: 'value',
-      axisLabel: { color: CHART.txt },
-      splitLine: { lineStyle: { color: CHART.grid } },
+      axisLabel: { color: CHART.ink2 },
+      splitLine: { lineStyle: { color: CHART.line } },
     },
     yAxis: {
       type: 'category',
       data: boards.map((b) => `${b} 板`),
-      axisLabel: { color: CHART.txt },
-      axisLine: { lineStyle: { color: CHART.border } },
+      axisLabel: { color: CHART.ink2 },
+      axisLine: { lineStyle: { color: CHART.line } },
     },
     series: [
       {
@@ -277,10 +283,10 @@ function LadderDetailView({ history }: { history: LadderDay[] }) {
                 ? b >= Math.ceil(maxBoard * 0.6)
                   ? CHART.up
                   : CHART.down
-                : CHART.border,
+                : CHART.line,
           },
         })),
-        label: { show: true, position: 'right', color: CHART.txt },
+        label: { show: true, position: 'right', color: CHART.ink2 },
       },
     ],
   }
@@ -293,8 +299,8 @@ function LadderDetailView({ history }: { history: LadderDay[] }) {
         <Stat label="连板总数" value={fmtNum(latest?.total_connect)} />
         <Stat label="历史样本" value={fmtNum(history.length)} sub="交易日" />
       </div>
-      <EChart option={option} height={Math.max(160, boards.length * 26)} />
-      <div className="text-xs text-sf-txt/40 mt-1">
+      <EChart option={option} height={Math.max(160, boards.length * 26)} ariaLabel="最新交易日连板板位分布条形图，按连板数从高到低" />
+      <div className="text-xs text-sf-ink-3 mt-1">
         数据来自 data/shepherd_ladder_history.json（逐日连板分布；红色=高板位）
       </div>
     </div>
@@ -314,29 +320,29 @@ function BreadthHistoryTrend({ series }: { series: BreadthHistoryPoint[] }) {
     tooltip: { trigger: 'axis' },
     legend: {
       data: ['上涨家数', '下跌家数', '红盘比%'],
-      textStyle: { color: CHART.txt },
+      textStyle: { color: CHART.ink2 },
       top: 0,
     },
     grid: { left: 48, right: 48, top: 28, bottom: 28 },
     xAxis: {
       type: 'category',
       data: dates,
-      axisLabel: { color: CHART.txt, hideOverlap: true },
-      axisLine: { lineStyle: { color: CHART.border } },
+      axisLabel: { color: CHART.ink2, hideOverlap: true },
+      axisLine: { lineStyle: { color: CHART.line } },
     },
     yAxis: [
       {
         type: 'value',
         name: '家数',
-        axisLabel: { color: CHART.txt },
-        splitLine: { lineStyle: { color: CHART.grid } },
+        axisLabel: { color: CHART.ink2 },
+        splitLine: { lineStyle: { color: CHART.line } },
       },
       {
         type: 'value',
         name: '红盘比%',
         max: 100,
         position: 'right',
-        axisLabel: { color: CHART.txt },
+        axisLabel: { color: CHART.ink2 },
         splitLine: { show: false },
       },
     ],
@@ -366,16 +372,16 @@ function BreadthHistoryTrend({ series }: { series: BreadthHistoryPoint[] }) {
         smooth: true,
         showSymbol: false,
         data: red,
-        itemStyle: { color: CHART.txt },
-        lineStyle: { color: CHART.txt, width: 1, type: 'dashed' },
+        itemStyle: { color: CHART.ink2 },
+        lineStyle: { color: CHART.ink2, width: 1, type: 'dashed' },
       },
     ],
   }
 
   return (
     <div>
-      <EChart option={option} height={280} />
-      <div className="text-xs text-sf-txt/40 mt-1">
+      <EChart option={option} height={280} ariaLabel="长周期广度历史折线图：逐日涨跌家数与红盘比" />
+      <div className="text-xs text-sf-ink-3 mt-1">
         数据来自 data/shepherd_history.json（逐日广度，共 {series.length} 个交易日，展示最近 250 个）
       </div>
     </div>
