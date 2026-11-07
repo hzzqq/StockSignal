@@ -11,6 +11,9 @@ export type AppPath =
   | '/webapps'
   | '/breadth'
   | '/ladder'
+  | '/events'
+  | '/predictions'
+  | '/ops'
 
 export interface NavItem {
   to: AppPath
@@ -51,6 +54,9 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/breadth', label: '广度总览', icon: '🌡' },
       { to: '/ladder', label: '连板梯队共振', icon: '🪜' },
+      { to: '/events', label: '事件因子池', icon: '◈' },
+      { to: '/predictions', label: '预测校准日志', icon: '◴' },
+      { to: '/ops', label: '数据与运维状态', icon: '⚙' },
     ],
   },
 ]

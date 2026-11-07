@@ -1,9 +1,11 @@
 import { http, HttpResponse } from 'msw'
 import * as fixtures from './fixtures'
 
-/** 统一成功信封（对齐 backend/utils/response.py ok()）。 */
+/** 统一成功信封（严格对齐 backend/utils/response.py::_ok_payload）。
+ * ⚠️ code 是**字符串业务码**（真后端默认 "ok"），不是数字 0。
+ * 历史上此处写 code: 0，导致 MSW 全绿却掩盖了「接真后端时 EnvelopeResponse.parse 全站抛错」。 */
 function ok(data: unknown, message = 'ok') {
-  return HttpResponse.json({ status: 'ok', code: 0, message, data })
+  return HttpResponse.json({ status: 'ok', code: 'ok', message, data })
 }
 
 /** 数据缺失/空：返回 200 + status=error（对齐 read_routes._not_found）。 */
@@ -52,4 +54,11 @@ export const handlers = [
   http.get('/api/v2/read/breadth-timeseries', () => ok(fixtures.breadthTimeseries)),
   http.get('/api/v2/read/ladder-detail', () => ok(fixtures.ladderDetail)),
   http.get('/api/v2/read/breadth-history', () => ok(fixtures.breadthHistory)),
+  // W3 后续簇 · 5 个真实数据源（字段名真扫对齐，数值为演示）
+  // p1-sync-status 的 fixture 刻意不含 target_dir，与后端递归脱敏行为一致。
+  http.get('/api/v2/read/event-pool', () => ok(fixtures.eventPool)),
+  http.get('/api/v2/read/prediction-log', () => ok(fixtures.predictionLog)),
+  http.get('/api/v2/read/p1-sync-status', () => ok(fixtures.p1SyncStatus)),
+  http.get('/api/v2/read/backtest-runs', () => ok(fixtures.backtestRuns)),
+  http.get('/api/v2/read/data-refresh-state', () => ok(fixtures.dataRefreshState)),
 ]

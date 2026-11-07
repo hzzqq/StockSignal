@@ -61,6 +61,55 @@
   /* ── 圆角 ── */
   --radius-card: 14px;
   --radius-tile: 10px;
+
+  /* ── 共用令牌（暗色取此处默认值，亮色在下方 html[data-theme="light"] 覆盖） ── */
+  --color-sf-line-strong: #6a7194;
+  --color-sf-ok-soft: #1d2636;
+  --color-sf-warn-soft: #2b242f;
+  --color-sf-danger-soft: #2a1f33;
+
+  /* 涨跌「墨色」别名：暗态与交易/报告语义同值；亮态用 color-mix 压暗以保证浅底可读。
+   * 刻意不加 --color- 前缀——避免 Tailwind 据此生成 bg-ss-up-ink 之类工具类名，
+   * 触发设计守卫对 ss-up/ss-down 的子串匹配。仅供图表/内联样式以 var() 消费。 */
+  --ss-up-ink: var(--color-ss-up);
+  --ss-down-ink: var(--color-ss-down);
+  --doc-up-ink: var(--color-doc-up);
+  --doc-down-ink: var(--color-doc-down);
+}
+
+/* ── 主题切换覆盖层 ─────────────────────────────────────────────
+ * 暗色沿用 @theme 默认令牌，只声明 color-scheme；亮色重定义表面/文字/状态/W0 兼容令牌。
+ * A 股涨跌语义 --color-ss-up/ss-down/doc-up/doc-down 两主题恒等，绝不在此覆盖。
+ * html[data-theme] 选择器特异性 (0,1,1) 高于 :root (0,1,0)，覆盖必然生效。 */
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  --color-sf-bg: #f0f3f9;
+  --color-sf-surface: #ffffff;
+  --color-sf-surface-2: #f6f8fd;
+  --color-sf-line: #dbe0ec;
+  --color-sf-line-strong: #7d8496;
+  --color-sf-ink: #20284a;
+  --color-sf-ink-2: #414c6b;
+  --color-sf-ink-3: #5f6a87;
+  --color-sf-ok: #376f54;
+  --color-sf-warn: #8a5300;
+  --color-sf-danger: #b02a3a;
+  --color-sf-accent: #4657c8;
+  --color-sf-ok-soft: #eef5f0;
+  --color-sf-warn-soft: #f7f0e4;
+  --color-sf-danger-soft: #fbeef0;
+  --color-sf-card: #ffffff;
+  --color-sf-txt: #20284a;
+  --color-sf-border: #c9cfdd;
+  --color-sf-grid: #e8ecf4;
+  --ss-up-ink: color-mix(in srgb, var(--color-ss-up) 75%, black);
+  --ss-down-ink: color-mix(in srgb, var(--color-ss-down) 55%, black);
+  --doc-up-ink: color-mix(in srgb, var(--color-doc-up) 75%, black);
+  --doc-down-ink: color-mix(in srgb, var(--color-doc-down) 75%, black);
+  color-scheme: light;
 }
 
 /* ── 全局底座 ── */

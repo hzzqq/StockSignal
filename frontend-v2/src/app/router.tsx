@@ -13,6 +13,9 @@ import { Alerts } from '@/features/alerts/Alerts'
 import { WebApps } from '@/features/webapps/WebApps'
 import { BreadthOverview } from '@/features/breadth/BreadthOverview'
 import { LadderResonance } from '@/features/breadth/LadderResonance'
+import { EventPoolView } from '@/features/ops/EventPoolView'
+import { PredictionLogView } from '@/features/ops/PredictionLogView'
+import { SystemStatusView } from '@/features/ops/SystemStatusView'
 
 // 根布局：仅渲染子路由出口（登录页与鉴权外壳并列挂在根下）
 const rootRoute = createRootRoute({
@@ -104,6 +107,24 @@ const ladderRoute = createRoute({
   component: LadderResonance,
 })
 
+const eventsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/events',
+  component: EventPoolView,
+})
+
+const predictionsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/predictions',
+  component: PredictionLogView,
+})
+
+const opsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/ops',
+  component: SystemStatusView,
+})
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   appRoute.addChildren([
@@ -118,6 +139,9 @@ const routeTree = rootRoute.addChildren([
     webappsRoute,
     breadthRoute,
     ladderRoute,
+    eventsRoute,
+    predictionsRoute,
+    opsRoute,
   ]),
 ])
 

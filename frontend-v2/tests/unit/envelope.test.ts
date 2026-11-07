@@ -5,7 +5,7 @@ describe('EnvelopeResponse — 严格校验，缺字段即抛错（禁止 ?? 0 �
   it('解析合法信封', () => {
     const ok = EnvelopeResponse.parse({
       status: 'ok',
-      code: 0,
+      code: 'ok',
       message: 'success',
       data: { a: 1 },
     })
@@ -13,27 +13,39 @@ describe('EnvelopeResponse — 严格校验，缺字段即抛错（禁止 ?? 0 �
     expect(ok.data).toEqual({ a: 1 })
   })
 
+  it('真后端形状（code 为业务码字符串）解析成功', () => {
+    const env = parseEnvelope({
+      status: 'ok',
+      code: 'ok',
+      message: 'success',
+      data: { service: 'stock-signal' },
+    })
+    expect(env.code).toBe('ok')
+  })
+
   it('缺字段即抛错', () => {
-    expect(() => EnvelopeResponse.parse({ status: 'ok', code: 0 })).toThrow()
+    expect(() => EnvelopeResponse.parse({ status: 'ok', code: 'ok' })).toThrow()
     expect(() => EnvelopeResponse.parse({ status: 'ok', message: 'x', data: null })).toThrow()
   })
 
-  it('code 非数字即抛错', () => {
+  it('code 非法类型（数字）即抛错', () => {
     expect(() =>
-      EnvelopeResponse.parse({ status: 'ok', code: 'bad', message: 'x', data: null }),
+      EnvelopeResponse.parse({ status: 'ok', code: 123, message: 'x', data: null }),
     ).toThrow()
   })
 
   it('status 非法枚举即抛错', () => {
     expect(() =>
-      EnvelopeResponse.parse({ status: 'OK', code: 0, message: 'x', data: null }),
+      EnvelopeResponse.parse({ status: 'OK', code: 'ok', message: 'x', data: null }),
     ).toThrow()
   })
 
   it('parseEnvelope 与 EnvelopeResponse.parse 一致', () => {
-    const raw = { status: 'error', code: 401, message: 'unauthorized', data: null }
+    // 正向：code 为合法业务码字符串（真后端 _ok/_fail_payload 的 code 均为字符串）
+    const raw = { status: 'error', code: 'unauthorized', message: 'unauthorized', data: null }
     expect(parseEnvelope(raw)).toEqual(raw)
-    expect(() => parseEnvelope({ status: 'error', code: 401, message: 'x' })).toThrow()
+    // code 类型非法（数字 401）即抛错：严格 string，不放宽为 union
+    expect(() => parseEnvelope({ status: 'error', code: 401, message: 'x', data: null })).toThrow()
   })
 })
 

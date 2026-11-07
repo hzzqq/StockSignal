@@ -4,6 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StockSignal V2</title>
+    <script>
+      /* 首屏防闪：同步普通脚本，在 React 挂载前写好 data-theme / colorScheme。
+         非法偏好回落 dark；'system' 依 prefers-color-scheme（无 matchMedia 回落 dark）；整体兜底 dark。 */
+      (function () {
+        var t = 'dark';
+        try {
+          var p = localStorage.getItem('ss_theme');
+          if (p === 'dark' || p === 'light' || p === 'system') {
+            t = p === 'system'
+              ? ((typeof window.matchMedia === 'function' &&
+                  window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark')
+              : p;
+          }
+          document.documentElement.setAttribute('data-theme', t);
+          document.documentElement.style.colorScheme = t;
+        } catch (e) {
+          try {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.style.colorScheme = 'dark';
+          } catch (e2) {}
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

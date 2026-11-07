@@ -50,6 +50,11 @@ ENDPOINTS = [
     "/api/v2/read/breadth-timeseries",
     "/api/v2/read/ladder-detail",
     "/api/v2/read/breadth-history",
+    "/api/v2/read/event-pool",
+    "/api/v2/read/prediction-log",
+    "/api/v2/read/p1-sync-status",
+    "/api/v2/read/backtest-runs",
+    "/api/v2/read/data-refresh-state",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -69,6 +74,11 @@ SPEC_PATHS = [
     "/api/v2/read/breadth-timeseries",
     "/api/v2/read/ladder-detail",
     "/api/v2/read/breadth-history",
+    "/api/v2/read/event-pool",
+    "/api/v2/read/prediction-log",
+    "/api/v2/read/p1-sync-status",
+    "/api/v2/read/backtest-runs",
+    "/api/v2/read/data-refresh-state",
 ]
 
 
@@ -177,6 +187,72 @@ def client(app, tmp_path_factory):
         encoding="utf-8",
     )
 
+    # W3 后续簇 · 5 个真实数据源（字段名按 2026-11-07 真扫，非臆造）
+    (data / "event_pool_brief.json").write_text(
+        json.dumps({
+            "date": "2026-11-06",
+            "model": "ev",
+            "source": "P1-QuantFactor EV 事件因子",
+            "note": "统计意义上的超额收益概率排序，非买卖指令",
+            "count": 1,
+            "pool": [{"rank": 1, "symbol": "sh600707", "score": 100.0,
+                      "raw_rank": 1.0, "raw_pred": 0.098, "signal": "看多",
+                      "source": "P1-ev-top_long"}],
+        }),
+        encoding="utf-8",
+    )
+    (data / "prediction_log.json").write_text(
+        json.dumps([
+            {"date": "2026-09-02", "temp": 33.8, "cycle": "退潮", "bias": "偏空",
+             "pct": 10, "realized": 0.02, "hit": False},
+            {"date": "2026-11-06", "temp": 33.0, "cycle": "修复试探", "bias": "中性",
+             "pct": 29, "event_adj": 2, "event_available": True,
+             "realized": None, "hit": None},
+        ]),
+        encoding="utf-8",
+    )
+    (data / "p1_sync_status.json").write_text(
+        json.dumps({
+            "run_at": "2026-11-07T15:19:07",
+            "mode": "scheduler",
+            "ok": True,
+            "target_dir": "E:/secret/top_level",
+            "health": {
+                "status": "warn",
+                "message": "4 个副本超出新鲜度 SLA",
+                "rows": [{"file": "signal_ev_h10.json", "model_key": "ev",
+                          "latest_date": "2026-10-21", "age_days": 17}],
+            },
+            # 嵌套在 dict / list 内的敏感 key，验证 _strip_sensitive 是递归的
+            "extra_info": {
+                "nested_dict": {"target_dir": "E:/secret/nested_dict", "ok": True},
+                "nested_list": [{"target_dir": "E:/secret/nested_list", "n": 1}],
+            },
+        }),
+        encoding="utf-8",
+    )
+    (data / "backtest_runs.json").write_text(
+        json.dumps({"runs": [{
+            "run_id": "20261023-162048-009d8c07562a",
+            "created_at": "2026-10-23T16:20:48",
+            "status": "success",
+            "params": {"ticker": "601088", "strategy": "multi_factor"},
+            "summary": {"total_return_pct": -1.88, "sharpe_ratio": -0.31},
+        }]}),
+        encoding="utf-8",
+    )
+    (data / "data_refresh_state.json").write_text(
+        json.dumps({
+            "attempts_today": 1,
+            "last_run_date": "2026-11-05",
+            "last_result": "ok",
+            "finished_at": "2026-11-05T19:23:31",
+            "last_csv_date": "2026-11-02",
+            "detail": "exit=0 末行推进",
+        }),
+        encoding="utf-8",
+    )
+
     (data / "paper_demo.json").write_text(json.dumps({"cash": 100000}), encoding="utf-8")
     (data / "review_notes_2026-08-31.md").write_text("# 复盘\n今日缩量。\n", encoding="utf-8")
 
@@ -199,6 +275,11 @@ def client(app, tmp_path_factory):
         "virtual_users_sim": reports / "virtual_users_sim.json",
         "ladder_detail": data / "shepherd_ladder_history.json",
         "breadth_history": data / "shepherd_history.json",
+        "event_pool": data / "event_pool_brief.json",
+        "prediction_log": data / "prediction_log.json",
+        "p1_sync_status": data / "p1_sync_status.json",
+        "backtest_runs": data / "backtest_runs.json",
+        "data_refresh_state": data / "data_refresh_state.json",
     }
     return app.test_client()
 
@@ -271,6 +352,48 @@ def test_existing_files_return_ok_envelope(client, token):
     assert obj["status"] == "ok" and isinstance(obj["data"], list) and len(obj["data"]) >= 1, obj
     bh = next((r for r in obj["data"] if r["date"] == "2026-09-01"), None)
     assert bh is not None and bh["connect_hl"] is None, obj  # NaN -> None（_sanitize）
+
+
+def _collect_keys(obj, out=None):
+    """递归收集响应中出现过的所有 dict key（脱敏验证不做字符串包含判断）。"""
+    if out is None:
+        out = set()
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            out.add(k)
+            _collect_keys(v, out)
+    elif isinstance(obj, list):
+        for v in obj:
+            _collect_keys(v, out)
+    return out
+
+
+def test_w3_endpoints_fields_and_sensitive_stripping(client, token):
+    """W3 后续簇 5 端点：字段真值 + p1-sync-status 递归剔除 target_dir。"""
+    h = _auth(token)
+
+    obj = client.get("/api/v2/read/event-pool", headers=h).get_json()
+    assert obj["status"] == "ok", obj
+    assert obj["data"]["count"] == 1 and obj["data"]["pool"][0]["symbol"] == "sh600707", obj
+    assert obj["data"]["note"] == "统计意义上的超额收益概率排序，非买卖指令", obj
+
+    obj = client.get("/api/v2/read/prediction-log", headers=h).get_json()
+    assert obj["status"] == "ok" and isinstance(obj["data"], list) and len(obj["data"]) == 2, obj
+    assert obj["data"][0]["date"] == "2026-09-02", obj
+    assert obj["data"][1]["hit"] is None and obj["data"][1]["realized"] is None, obj
+
+    obj = client.get("/api/v2/read/p1-sync-status", headers=h).get_json()
+    assert obj["status"] == "ok" and obj["data"]["ok"] is True, obj
+    assert obj["data"]["health"]["status"] == "warn", obj
+    assert "target_dir" not in _collect_keys(obj), "绝对路径 key 未被递归剔除"
+
+    obj = client.get("/api/v2/read/backtest-runs", headers=h).get_json()
+    assert obj["status"] == "ok", obj
+    assert obj["data"]["runs"][0]["run_id"] == "20261023-162048-009d8c07562a", obj
+    assert obj["data"]["runs"][0]["summary"]["total_return_pct"] == -1.88, obj
+
+    obj = client.get("/api/v2/read/data-refresh-state", headers=h).get_json()
+    assert obj["status"] == "ok" and obj["data"]["last_result"] == "ok", obj
 
 
 def test_missing_files_graceful_error(client, token):

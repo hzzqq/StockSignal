@@ -175,3 +175,29 @@ describe('信息架构：两页互加深链', () => {
     expect(read('features/breadth/LadderResonance.tsx')).toContain('href="/breadth"')
   })
 })
+
+/**
+ * 亮色主题落地后的守卫补强（DESIGN.md §7）。
+ * 分工：色值 / WCAG 实算 / 两主题恒等 / W0 兼容令牌由 theme-contrast.test.ts
+ * 独立真读 CSS 验证；本文件只锁「作用域与叠色回流」，避免两处重复维护同一批色值。
+ */
+describe('亮色主题：作用域与叠色回流', () => {
+  it('FreshnessBadge 用 -soft 实色底，零半透明叠色（/10、/30）', () => {
+    const s = read('shared/ui/FreshnessBadge.tsx')
+    expect(s, '亮色三底上叠半透明会破坏 AA，必须改实色底').not.toMatch(
+      /(?:bg|text|border)-[a-z-]+\/(?:10|30)\b/,
+    )
+    for (const soft of ['bg-sf-ok-soft', 'bg-sf-warn-soft', 'bg-sf-danger-soft']) {
+      expect(s, `缺实色底 ${soft}`).toContain(soft)
+    }
+    expect(s).toContain('border-sf-line')
+  })
+
+  it('sf-line-strong 仅用于主题控件选中态，全 src 不得扩散', () => {
+    const hits = allTsx()
+      .filter(({ text }) => text.includes('border-sf-line-strong'))
+      .map(({ file }) => file.replace(/\\/g, '/'))
+    expect(hits.length, `边界强调色扩散到：\n${hits.join('\n')}`).toBe(1)
+    expect(hits[0]).toMatch(/shared\/ui\/ThemeToggle\.tsx$/)
+  })
+})

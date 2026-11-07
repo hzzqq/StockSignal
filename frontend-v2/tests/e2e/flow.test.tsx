@@ -103,11 +103,30 @@ describe('前端 E2E（MSW 契约）', () => {
 })
 
 // 真实后端冒烟：仅当显式开启 VITE_E2E_LIVE=1 时运行。
-// 当前 5050 服务返 502（未起），故默认跳过——诚实标注「未实测」，不伪造成功。
+//
+// 状态核实（2026-11-07 亲测，推翻旧注释「5050 返 502 / 服务未起」）：
+//   :5050/            = 200
+//   :5050/api/health  = 200 + {status:'ok', code:'ok', message:'success',
+//                       data:{service:'stocksignal-backend', status:'alive',
+//                             components:{backend:'alive', database:'ok'}}}
+//   :5173/            = 502（dev server 未起，非后端）
+//   :8899/            = 200
+//   VITE_E2E_LIVE=1 npx vitest run tests/e2e/flow.test.tsx 已实测 5/5 passed。
+//
+// 诚实边界：这只证明 jsdom/Node fetch 能打 health，不等于浏览器 CORS 链路
+// 或真人视觉 E2E。CORS 实测：5050 对任意 Origin 都不返回 ACAO、未启用
+// credentials、预检无任何 ACAO → 浏览器从 5173 直连 5050 不可行，vite /api
+// proxy 是唯一正确路径。默认仍跳过是因为 CI 不应依赖外部 Flask 进程，
+// 而不是「服务返 502」，故保留 describe.skipIf(!LIVE)，不硬改常开。
 const LIVE = import.meta.env.VITE_E2E_LIVE === '1'
-describe.skipIf(!LIVE)('真实后端冒烟（需 VITE_E2E_LIVE=1；当前 5050 返 502 故默认跳过）', () => {
-  it('GET /api/health 不返 502', async () => {
+describe.skipIf(!LIVE)('真实后端冒烟（VITE_E2E_LIVE=1；默认跳过因 CI 不依赖外部 Flask 进程）', () => {
+  it('GET /api/health 返回 200 + alive 信封', async () => {
     const res = await fetch('http://127.0.0.1:5050/api/health')
-    expect(res.status).not.toBe(502)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('ok')
+    // 真实响应 data.status === 'alive'（并附 components.backend === 'alive'）；
+    // 用 data.status 作存活判据，不再用 not.toBe(502) 这种会对 404/401/500 假阳性的弱断言。
+    expect(body.data.status).toBe('alive')
   })
 })

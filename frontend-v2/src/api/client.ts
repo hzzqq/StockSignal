@@ -5,7 +5,7 @@ const BASE: string = import.meta.env.VITE_API_BASE ?? '/api'
 /** 统一错误：带后端 code，便于上层按 code 分流 */
 export class ApiError extends Error {
   constructor(
-    public readonly code: number,
+    public readonly code: string,
     public readonly reason: string,
   ) {
     super(reason)
@@ -76,7 +76,7 @@ async function run<T>(path: string, init: RequestInit, retried: boolean): Promis
     if (retried) {
       store.access = null
       store.refresh = null
-      throw new ApiError(401, '认证失败，请重新登录')
+      throw new ApiError('unauthorized', '认证失败，请重新登录')
     }
     // 单飞：首次 401 触发刷新，后续并发请求复用同一 Promise
     if (!refreshPromise) {
@@ -88,7 +88,7 @@ async function run<T>(path: string, init: RequestInit, retried: boolean): Promis
     if (!ok) {
       store.access = null
       store.refresh = null
-      throw new ApiError(401, '登录已过期，请重新登录')
+      throw new ApiError('unauthorized', '登录已过期，请重新登录')
     }
     return run<T>(path, init, true)
   }

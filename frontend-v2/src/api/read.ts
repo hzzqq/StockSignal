@@ -11,6 +11,11 @@ import {
   BreadthPointSchema,
   LadderDaySchema,
   BreadthHistoryPointSchema,
+  EventPoolSchema,
+  PredictionLogRowSchema,
+  P1SyncStatusSchema,
+  BacktestRunsSchema,
+  DataRefreshStateSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -22,6 +27,11 @@ import {
   type BreadthPoint,
   type LadderDay,
   type BreadthHistoryPoint,
+  type EventPool,
+  type PredictionLogRow,
+  type P1SyncStatus,
+  type BacktestRuns,
+  type DataRefreshState,
 } from './schemas/read'
 
 /**
@@ -122,4 +132,35 @@ export async function getBreadthHistory(): Promise<BreadthHistoryPoint[]> {
   return z
     .array(BreadthHistoryPointSchema)
     .parse(await apiFetch<unknown>('/v2/read/breadth-history'))
+}
+
+// ───────── W3 后续簇（5 个真实本地 JSON 数据源，2026-11-07 真扫字段名）─────────
+// 全部走 readValidated / z.*.parse 严格校验；解析失败即抛错，禁止 `?? 0` 兜底。
+// 数据缺失时后端返回 200 + status=error，client 层会抛 ApiError，页面渲染错误态。
+
+/** GET /api/v2/read/event-pool —— 事件因子池（data/event_pool_brief.json） */
+export function getEventPool(): Promise<EventPool> {
+  return readValidated('event-pool', EventPoolSchema)
+}
+
+/** GET /api/v2/read/prediction-log —— 决策预测校准日志（data/prediction_log.json） */
+export async function getPredictionLog(): Promise<PredictionLogRow[]> {
+  return z
+    .array(PredictionLogRowSchema)
+    .parse(await apiFetch<unknown>('/v2/read/prediction-log'))
+}
+
+/** GET /api/v2/read/p1-sync-status —— P1 信号同步状态（后端已递归剔除 target_dir 绝对路径） */
+export function getP1SyncStatus(): Promise<P1SyncStatus> {
+  return readValidated('p1-sync-status', P1SyncStatusSchema)
+}
+
+/** GET /api/v2/read/backtest-runs —— 回测运行记录（data/backtest_runs.json） */
+export function getBacktestRuns(): Promise<BacktestRuns> {
+  return readValidated('backtest-runs', BacktestRunsSchema)
+}
+
+/** GET /api/v2/read/data-refresh-state —— 数据刷新状态（data/data_refresh_state.json） */
+export function getDataRefreshState(): Promise<DataRefreshState> {
+  return readValidated('data-refresh-state', DataRefreshStateSchema)
 }

@@ -2,6 +2,7 @@ import { Outlet, Link, useNavigate } from '@tanstack/react-router'
 import { clearAuth } from '@/app/guards'
 import { NAV } from '@/nav/nav'
 import { MockBanner } from '@/mocks/MockBanner'
+import { ThemeToggle } from '@/shared/ui/ThemeToggle'
 
 /**
  * 轻量卡片流 · 鉴权后应用外壳（DESIGN.md §3）。
@@ -37,6 +38,7 @@ export function AppShell() {
                     key={it.to}
                     to={it.to}
                     title={it.label}
+                    aria-label={it.label}
                     className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
                   >
                     <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">{it.icon}</span>
@@ -52,12 +54,15 @@ export function AppShell() {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-12 shrink-0 border-b border-sf-line flex items-center justify-between px-4 md:px-6">
           <span className="text-label text-sf-ink-3">决策中枢 · 只读视图</span>
-          <button
-            onClick={onLogout}
-            className="text-label text-sf-ink-2 hover:text-sf-ink transition-colors"
-          >
-            退出登录
-          </button>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <button
+              onClick={onLogout}
+              className="text-label text-sf-ink-2 hover:text-sf-ink transition-colors"
+            >
+              退出登录
+            </button>
+          </div>
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <MockBanner />

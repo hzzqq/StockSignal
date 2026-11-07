@@ -12,6 +12,11 @@ import type {
   BreadthPoint,
   LadderDay,
   BreadthHistoryPoint,
+  EventPool,
+  PredictionLogRow,
+  P1SyncStatus,
+  BacktestRuns,
+  DataRefreshState,
 } from '@/api/schemas/read'
 
 /**
@@ -134,5 +139,49 @@ export function useBreadthHistory(): UseQueryResult<BreadthHistoryPoint[]> {
     queryKey: ['read', 'breadth-history'],
     queryFn: api.getBreadthHistory,
     staleTime: THIRTY_MIN,
+  })
+}
+
+// ───────── W3 后续簇（5 个真实数据源）─────────
+// 事件池/预测日志/回测记录属「日更或更低频」，30min；同步状态与刷新状态属运维态，
+// 变化比行情慢但需比归档勤，统一 5min（不设 refetchOnWindowFocus，由全局默认关闭）。
+
+export function useEventPool(): UseQueryResult<EventPool> {
+  return useQuery({
+    queryKey: ['read', 'event-pool'],
+    queryFn: api.getEventPool,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+export function usePredictionLog(): UseQueryResult<PredictionLogRow[]> {
+  return useQuery({
+    queryKey: ['read', 'prediction-log'],
+    queryFn: api.getPredictionLog,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+export function useP1SyncStatus(): UseQueryResult<P1SyncStatus> {
+  return useQuery({
+    queryKey: ['read', 'p1-sync-status'],
+    queryFn: api.getP1SyncStatus,
+    staleTime: FIVE_MIN,
+  })
+}
+
+export function useBacktestRuns(): UseQueryResult<BacktestRuns> {
+  return useQuery({
+    queryKey: ['read', 'backtest-runs'],
+    queryFn: api.getBacktestRuns,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+export function useDataRefreshState(): UseQueryResult<DataRefreshState> {
+  return useQuery({
+    queryKey: ['read', 'data-refresh-state'],
+    queryFn: api.getDataRefreshState,
+    staleTime: FIVE_MIN,
   })
 }

@@ -410,3 +410,103 @@ def breadth_history():
     if status == "error":
         return fail(message="shepherd_history.json 解析失败", code="invalid_data", http_status=200)
     return _not_found("shepherd_history.json")
+
+
+# ───────────────────────── W3 后续簇（5 个真实本地数据源）─────────────────────────
+# 与白名单同款固定绝对路径、无用户注入，安全等价。字段名经 2026-11-07 真扫确认，
+# 绝不臆造；所有响应统一递归清洗 NaN/Inf（浏览器 JSON.parse 拒收裸 NaN）。
+_FILE_WHITELIST["event_pool"] = _DATA_DIR / "event_pool_brief.json"
+_FILE_WHITELIST["prediction_log"] = _DATA_DIR / "prediction_log.json"
+_FILE_WHITELIST["p1_sync_status"] = _DATA_DIR / "p1_sync_status.json"
+_FILE_WHITELIST["backtest_runs"] = _DATA_DIR / "backtest_runs.json"
+_FILE_WHITELIST["data_refresh_state"] = _DATA_DIR / "data_refresh_state.json"
+
+
+def _strip_sensitive(obj, banned_keys=None):
+    """递归剔除敏感 key（默认 target_dir），防本机绝对路径随响应泄露。
+
+    p1_sync_status.json 的 target_dir 是 'E:\\\\...\\\\data\\\\p1_signals'，
+    属部署环境信息，不应出现在浏览器可见的 API 响应里；嵌套在 dict / list
+    内的同名 key 一并剔除。该函数只删 key，不改写任何值。
+    """
+    banned = banned_keys or {"target_dir"}
+    if isinstance(obj, dict):
+        return {k: _strip_sensitive(v, banned) for k, v in obj.items() if k not in banned}
+    if isinstance(obj, (list, tuple)):
+        return [_strip_sensitive(v, banned) for v in obj]
+    return obj
+
+
+def _serve_json_sanitized(key: str, label: str, strip_sensitive: bool = False):
+    """读固定白名单 JSON → 可选递归脱敏 → 清洗 NaN/Inf → 统一信封。"""
+    status, data = _read_json(_FILE_WHITELIST[key])
+    if status == "ok":
+        if strip_sensitive:
+            data = _strip_sensitive(data)
+        return ok(data=_sanitize(data), message=label)
+    if status == "error":
+        return fail(message=f"{label} 解析失败", code="invalid_data", http_status=200)
+    return _not_found(label)
+
+
+@bp.get("/event-pool")
+@jwt_required
+def event_pool():
+    """事件因子池（data/event_pool_brief.json）—— W3 事件因子页。
+
+    结构 {date, model, source, note, count, pool[{rank,symbol,score,raw_rank,
+    raw_pred,signal,source}]}。note 是「统计意义上的超额收益概率排序，非买卖指令」，
+    端点原样透出，前端必须原样展示，不得包装成荐股。
+    """
+    return _serve_json_sanitized("event_pool", "event_pool_brief.json")
+
+
+@bp.get("/prediction-log")
+@jwt_required
+def prediction_log():
+    """决策预测校准日志（data/prediction_log.json）—— W3 预测校准页。
+
+    真实文件为 32 行逐日数组；hit / realized 可为 null（尚未兑现），
+    端点原样保留 null，不补 0 / false。顶层非 list 时归一为 []（同 breadth_history）。
+    """
+    status, data = _read_json(_FILE_WHITELIST["prediction_log"])
+    if status == "ok":
+        if not isinstance(data, list):
+            data = data.get("data", []) if isinstance(data, dict) else []
+        return ok(data=_sanitize(data), message="prediction-log")
+    if status == "error":
+        return fail(message="prediction_log.json 解析失败", code="invalid_data", http_status=200)
+    return _not_found("prediction_log.json")
+
+
+@bp.get("/p1-sync-status")
+@jwt_required
+def p1_sync_status():
+    """P1 信号同步状态（data/p1_sync_status.json）—— W3 运维页。
+
+    ⚠️ 原始文件含 target_dir 绝对路径，响应经 _strip_sensitive 递归剔除，
+    包括嵌套在 health.rows[] 等容器内的同名 key，防部署路径泄露。
+    """
+    return _serve_json_sanitized("p1_sync_status", "p1_sync_status.json", strip_sensitive=True)
+
+
+@bp.get("/backtest-runs")
+@jwt_required
+def backtest_runs():
+    """回测运行记录（data/backtest_runs.json）—— W3 运维页。
+
+    结构 {runs:[{run_id, created_at, status, params, summary}]}。
+    ⚠️ total_return_pct / sharpe_ratio 可为负，端点原样透出，不取绝对值、不做平滑。
+    """
+    return _serve_json_sanitized("backtest_runs", "backtest_runs.json")
+
+
+@bp.get("/data-refresh-state")
+@jwt_required
+def data_refresh_state():
+    """数据刷新状态（data/data_refresh_state.json）—— W3 运维页。
+
+    结构 {attempts_today, last_run_date, last_result, finished_at,
+    last_csv_date, detail}；detail 为刷新脚本原始输出，原样透出不美化。
+    """
+    return _serve_json_sanitized("data_refresh_state", "data_refresh_state.json")

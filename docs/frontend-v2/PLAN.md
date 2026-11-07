@@ -44,6 +44,16 @@
 1. **端点双口径，以 64/87 为准**。`backend/openapi.py:6` 注释里的「75 个端点」是骨架阶段旧口径，已漂移。静态 grep 装饰器为 **93**；但 `openapi.py:74-78` 会排除 `/api/openapi.json`、`/api/docs` 及所有非 `/api/` 路由，因此 **OpenAPI 实跑契约面 = 64 paths / 87 operations**（2026-11-06 `build_spec(app)` 实测）。W0 生成的 TS 客户端**必须**以 64/87 为基线，拿 93 生成会多出无效方法。
 2. **OpenAPI 可实跑出完整 spec，但字段级 schema 仍需逐端点核对**。`openapi.py` 自述「逐端点请求/响应字段 schema 待补」，鉴权标注是「自动推断……文档下限而非权威」——此判断**仍成立**。`build_spec(app)` 确实能产出 64/87 的可用 spec（W0 已验证），但**字段精细度未逐端点核对**；因此 W0 的 TS 客户端以 spec 为骨架，运行时用 **Zod 逐个校验信封/登录响应**，禁止 `?? 0` 兜底（§4.3）。
 
+> **演进注记（2026-11-07，勿把上表的 64/87 当成「当前值」，也勿改写成当前值）**
+> 64 paths / 87 operations 是 **W0 时点**的实跑基线，历史事实保留不动。随只读端点逐波落地：
+> W3 首簇（+`breadth-timeseries` / `ladder-detail` / `breadth-history`）→ **79 / 102**；
+> W3 后续簇（+`event-pool` / `prediction-log` / `p1-sync-status` / `backtest-runs` / `data-refresh-state`）→ **84 / 107**。
+> `frontend-v2/spec/openapi.json` 每次从 Flask live spec 重新生成；真实契约守卫读 live spec，静态文件仅为基线文档。
+>
+> **CORS 实测纠偏**：上表「`origins` 默认 `*`」是 W0 读 `backend/app.py:75` 的源码结论；2026-11-07 对运行中的 5050 实测，对**任意** Origin（含白名单内 8899）均不返回 `Access-Control-Allow-Origin`，`CORS_ORIGINS` 默认也不含 5173，预检无任何 ACAO。因此浏览器从 5173 **直连** 5050 不可行，`vite.config.ts` 的 `/api` proxy 是唯一正确路径；该 proxy 已在用，不需改后端。
+>
+> **登录契约纠偏**：真后端 `/api/auth/login` 与 `/auth/refresh` 返回 `data.token`，而 W0 的 `LoginData` 与 MSW 用 `access_token`。前端已改为 Zod `.transform` 兼容双字段名并归一（两字段都缺即抛错、不兜底），后端契约不动（legacy Streamlit 依赖）。
+
 **已内嵌、勿作独立页**：`11_股票选取` / `20_个股分析` 已内嵌进 `24_个股研究`（`widgets.py:726-728`）；`46_自选股监控` / `40_仓位管理` / `41_组合收益` 已内嵌进 `45_持仓中心`（`widgets.py:748`）。V2 路由表须沿用此收敛，别把重复入口搬回来。
 
 ---

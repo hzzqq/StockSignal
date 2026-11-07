@@ -231,3 +231,151 @@ export type BreadthHistoryPoint = z.infer<typeof BreadthHistoryPointSchema>
 
 export const BreadthHistorySeriesSchema = z.array(BreadthHistoryPointSchema)
 export type BreadthHistorySeries = z.infer<typeof BreadthHistorySeriesSchema>
+
+// ───────── W3 后续簇：事件因子池（event-pool / data/event_pool_brief.json）─────────
+// 2026-11-07 真扫：顶层 DICT {date, model, source, note, count, pool}；
+// pool 元素 {rank, symbol, score, raw_rank, raw_pred, signal, source}。
+// ⚠️ note 原文是「统计意义上的超额收益概率排序，非买卖指令」，页面必须原样带出，
+// 不得把本页包装成荐股/买卖信号（诚实红线）。
+export const EventPoolItemSchema = z
+  .object({
+    rank: z.number(),
+    symbol: z.string(),
+    score: z.number().nullable().optional(),
+    raw_rank: z.number().nullable().optional(),
+    raw_pred: z.number().nullable().optional(),
+    signal: z.string().nullable().optional(),
+    source: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type EventPoolItem = z.infer<typeof EventPoolItemSchema>
+
+export const EventPoolSchema = z
+  .object({
+    date: z.string(),
+    model: z.string().optional(),
+    source: z.string().optional(),
+    note: z.string().optional(),
+    count: z.number().nullable().optional(),
+    pool: z.array(EventPoolItemSchema).optional(),
+  })
+  .catchall(z.unknown())
+export type EventPool = z.infer<typeof EventPoolSchema>
+
+// ───────── 预测校准日志（prediction-log / data/prediction_log.json）─────────
+// 真扫：LIST 32 行；并集 keys = date/temp/cycle/bias/pct/event_adj/event_available/realized/hit。
+// hit 为 boolean|null、realized 为 number|null：尚未兑现的预测**没有**结果，禁止补 0 或补 false。
+export const PredictionLogRowSchema = z
+  .object({
+    date: z.string(),
+    temp: z.number().nullable().optional(),
+    cycle: z.string().nullable().optional(),
+    bias: z.string().nullable().optional(),
+    pct: z.number().nullable().optional(),
+    event_adj: z.number().nullable().optional(),
+    event_available: z.boolean().nullable().optional(),
+    realized: z.number().nullable().optional(),
+    hit: z.boolean().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type PredictionLogRow = z.infer<typeof PredictionLogRowSchema>
+
+export const PredictionLogSchema = z.array(PredictionLogRowSchema)
+export type PredictionLog = z.infer<typeof PredictionLogSchema>
+
+// ───────── P1 同步状态（p1-sync-status / data/p1_sync_status.json）─────────
+// 真扫：health{status,message,latest,age_days,models,rows[]}、counts{copy,unchanged,target_newer,skip}。
+// ⚠️ 真实文件含 target_dir 绝对路径（本机盘符），后端 /p1-sync-status 已递归剔除该 key。
+// schema 刻意**不声明** target_dir；catchall 收下额外键但页面绝不渲染任何路径类信息。
+export const P1SyncHealthRowSchema = z
+  .object({
+    file: z.string().optional(),
+    model_key: z.string().optional(),
+    latest_date: z.string().optional(),
+    age_days: z.number().nullable().optional(),
+    structural_ok: z.boolean().optional(),
+    freshness_ok: z.boolean().optional(),
+    errors: z.array(z.string()).optional(),
+  })
+  .catchall(z.unknown())
+
+export const P1SyncHealthSchema = z
+  .object({
+    status: z.string().optional(),
+    message: z.string().optional(),
+    latest: z.string().optional(),
+    age_days: z.number().nullable().optional(),
+    models: z.array(z.string()).optional(),
+    rows: z.array(P1SyncHealthRowSchema).optional(),
+  })
+  .catchall(z.unknown())
+
+export const P1SyncStatusSchema = z
+  .object({
+    run_at: z.string().optional(),
+    mode: z.string().optional(),
+    interval_minutes: z.number().nullable().optional(),
+    dry_run: z.boolean().optional(),
+    ok: z.boolean().optional(),
+    written: z.array(z.string()).optional(),
+    skipped: z.array(z.string()).optional(),
+    errors: z.array(z.string()).optional(),
+    all_invalid: z.boolean().optional(),
+    counts: z.record(z.string(), z.number()).optional(),
+    health: P1SyncHealthSchema.optional(),
+    prev_run_at: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type P1SyncStatus = z.infer<typeof P1SyncStatusSchema>
+
+// ───────── 回测运行记录（backtest-runs / data/backtest_runs.json）─────────
+// 真扫：DICT {runs: 4}，元素 {run_id, created_at, status, params{...}, summary{...}}。
+// ⚠️ 诚实红线：total_return_pct / sharpe_ratio 可以为负，不得取绝对值、
+// 不得把负向结果包装成「策略领先」；缺失字段一律 undefined，不补零。
+export const BacktestRunSummarySchema = z
+  .object({
+    ticker: z.string().optional(),
+    strategy: z.string().optional(),
+    initial_capital: z.number().nullable().optional(),
+    final_value: z.number().nullable().optional(),
+    total_return_pct: z.number().nullable().optional(),
+    max_drawdown_pct: z.number().nullable().optional(),
+    sharpe_ratio: z.number().nullable().optional(),
+    win_rate_pct: z.number().nullable().optional(),
+    profit_factor: z.number().nullable().optional(),
+    avg_trade_return_pct: z.number().nullable().optional(),
+    trade_count: z.number().nullable().optional(),
+    start_date: z.string().optional(),
+    end_date: z.string().optional(),
+  })
+  .catchall(z.unknown())
+
+export const BacktestRunSchema = z
+  .object({
+    run_id: z.string(),
+    created_at: z.string().optional(),
+    status: z.string().optional(),
+    params: z.record(z.string(), z.unknown()).optional(),
+    summary: BacktestRunSummarySchema.optional(),
+  })
+  .catchall(z.unknown())
+export type BacktestRun = z.infer<typeof BacktestRunSchema>
+
+export const BacktestRunsSchema = z
+  .object({ runs: z.array(BacktestRunSchema) })
+  .catchall(z.unknown())
+export type BacktestRuns = z.infer<typeof BacktestRunsSchema>
+
+// ───────── 数据刷新状态（data-refresh-state / data/data_refresh_state.json）─────────
+// 真扫：DICT {attempts_today, last_run_date, last_result, finished_at, last_csv_date, detail}。
+export const DataRefreshStateSchema = z
+  .object({
+    attempts_today: z.number().nullable().optional(),
+    last_run_date: z.string().optional(),
+    last_result: z.string().optional(),
+    finished_at: z.string().optional(),
+    last_csv_date: z.string().optional(),
+    detail: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type DataRefreshState = z.infer<typeof DataRefreshStateSchema>

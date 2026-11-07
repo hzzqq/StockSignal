@@ -10,9 +10,9 @@ import { freshnessLabel } from '@/lib/freshness'
  * 颜色之外另带形状点（●/▲/■ 由 aria 文案补足），不依赖单一色彩通道传达信息。
  */
 const STYLES: Record<FreshnessLevel, string> = {
-  ok: 'bg-sf-ok/10 text-sf-ok border-sf-ok/30',
-  warn: 'bg-sf-warn/10 text-sf-warn border-sf-warn/30',
-  stale: 'bg-sf-danger/10 text-sf-danger border-sf-danger/30',
+  ok: 'bg-sf-ok-soft text-sf-ok border-sf-line',
+  warn: 'bg-sf-warn-soft text-sf-warn border-sf-line',
+  stale: 'bg-sf-danger-soft text-sf-danger border-sf-line',
   unknown: 'bg-sf-surface-2 text-sf-ink-3 border-sf-line',
 }
 
