@@ -132,6 +132,31 @@ def _parse_usd_cny_boc(df):
             "date": str(last[date_col])[:10]}
 
 
+def _parse_usd_cnh(df):
+    """T-248 离岸人民币(USD/CNH)解析：东方财富外汇历史行情（forex_hist_em）。
+
+    与中行牌价不同，东财 CNH 已是「每美元」报价（最新价≈7.1x），**不做 ÷100**。
+    df 列：日期 / 最新价 / ...；末行最新价=current，次末行=prev。
+    """
+    if df is None or getattr(df, "empty", True):
+        return None
+    date_col = next((c for c in df.columns if "日期" in str(c)), None)
+    val_col = next((c for c in df.columns if "最新价" in str(c)), None)
+    if date_col is None or val_col is None:
+        return None
+    d = df[[date_col, val_col]].dropna()
+    if d.empty:
+        return None
+    last = d.iloc[-1]
+    prev = d.iloc[-2] if len(d) > 1 else None
+    v = _to_float(last[val_col])
+    p = _to_float(prev[val_col]) if prev is not None else None
+    if v is None:
+        return None
+    return {"value": round(v, 4), "prev": round(p, 4) if p is not None else None,
+            "date": str(last[date_col])[:10]}
+
+
 def _parse_sina_us_index(df):
     """T-260 备源解析：新浪美股指数日线（date/open/.../close）→ 最新收盘 + 前值。"""
     if df is None or getattr(df, "empty", True):
@@ -295,6 +320,10 @@ MACRO_INDICATORS: list[dict] = [
      "parse": _parse_usd_cny_boc,
      "fallback": {"fn": "fx_pair_quote", "parse": _parse_usdcny},
      "desc": "人民币汇率；人民币升值利好人民币资产"},
+    {"key": "usd_cnh", "name": "美元兑离岸人民币(USD/CNH)", "fn": "forex_hist_em",
+     "args": ("USDCNH",), "parse": _parse_usd_cnh,
+     "unit": "", "freq": "日", "source": "东方财富(外汇市场)", "region": "全球",
+     "desc": "离岸人民币汇率；CNH-CNY 价差反映海外对人民币预期，是跨境资金与情绪的海外前瞻窗口"},
     {"key": "dxy", "name": "美元指数 DXY", "fn": "index_global_hist_em",
      "unit": "点", "freq": "日", "source": "ICE / 东方财富", "region": "全球",
      "args": ("美元指数",), "value_hint": ["最新价", "收盘", "close"],

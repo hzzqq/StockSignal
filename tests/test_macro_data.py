@@ -161,6 +161,19 @@ class _FakeAk:
             "振幅": [0.2, 0.2],
         })
 
+    def forex_hist_em(self, symbol="USDCNH"):
+        self._maybe("forex_hist_em")
+        # 东方财富外汇历史行情：列含 日期/最新价；已是每美元报价（无需 ÷100）
+        return pd.DataFrame({
+            "日期": ["2026-03-01", "2026-03-02"],
+            "代码": ["USDCNH", "USDCNH"],
+            "名称": ["美元兑离岸人民币", "美元兑离岸人民币"],
+            "今开": [7.12, 7.15],
+            "最新价": [7.13, 7.16],
+            "最高": [7.14, 7.17],
+            "最低": [7.11, 7.14],
+            "振幅": [0.3, 0.3],
+        })
 
 @pytest.fixture()
 def fake_ak(monkeypatch):
@@ -399,7 +412,7 @@ def test_fetch_all_includes_global_keys(fake_ak):
     fake_ak()
     data = md.fetch_all()
     global_keys = [m["key"] for m in md.MACRO_INDICATORS if m["region"] == "全球"]
-    assert len(global_keys) == 14
+    assert len(global_keys) == 15
     for k in global_keys:
         assert k in data
 
@@ -476,3 +489,55 @@ def test_interpret_fed_funds_and_2y():
     assert "对A股" in md.interpret("us_treasury_2y", 4.02, 4.0)
     # 无数据不编造
     assert "不臆造" in md.interpret("fed_funds_rate", None)
+
+
+# ── T-248：离岸人民币 USD/CNH（forex_hist_em）守卫 ──
+def test_usd_cnh_entry_wired(fake_ak):
+    """MACRO_INDICATORS 含 usd_cnh，且接线 forex_hist_em + args=("USDCNH") + 全球区。"""
+    fake_ak()
+    spec = md._SPEC["usd_cnh"]
+    assert spec["fn"] == "forex_hist_em"
+    assert spec.get("args") == ("USDCNH",)
+    assert spec["parse"] is md._parse_usd_cnh
+    assert spec["region"] == "全球"
+
+
+def test_parse_usd_cnh_shape():
+    """直接验证 parse：末行=最新值、次末行=前值、不做 ÷100；None/空→None。"""
+    df = pd.DataFrame({
+        "日期": ["2026-03-01", "2026-03-02"],
+        "最新价": [7.13, 7.16],
+        "今开": [7.12, 7.15],
+    })
+    out = md._parse_usd_cnh(df)
+    assert out["value"] == 7.16
+    assert out["prev"] == 7.13
+    assert out["date"] == "2026-03-02"
+    assert md._parse_usd_cnh(None) is None
+    assert md._parse_usd_cnh(pd.DataFrame()) is None
+
+
+def test_fetch_usd_cnh_from_fake(fake_ak):
+    """经 fetch_indicator 走真实解析链路，返回标准结构（含 change）。"""
+    fake_ak()
+    got = md.fetch_indicator("usd_cnh")
+    assert got is not None
+    assert got["value"] == 7.16
+    assert got["prev"] == 7.13
+    assert got["change"] == pytest.approx(0.03)
+    assert got["region"] == "全球"
+    assert "CNH" in got["name"]
+
+
+def test_fetch_usd_cnh_none_on_failure(fake_ak):
+    """主源 forex_hist_em 抛异常 → None（诚实契约，不编造）。"""
+    fake_ak(raise_on={"forex_hist_em"})
+    assert md.fetch_indicator("usd_cnh") is None
+
+
+def test_forex_hist_em_default_symbol_is_usdcnh():
+    """源码级钉死：akshare.forex_hist_em 默认 symbol == "USDCNH"（防上游改默认）。不触网。"""
+    import inspect
+    import akshare as ak_real
+    sig = inspect.signature(ak_real.forex_hist_em)
+    assert sig.parameters["symbol"].default == "USDCNH"
