@@ -543,50 +543,6 @@ def loading_spinner(text: str='加载中...', variant: str='default') -> None:
     st.markdown(html_content, unsafe_allow_html=True)  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
 
 
-def sf_card(title: str, body: str, icon: str = "") -> None:
-    """渲染带标题的星辰卡片（.dash-card）。标题/正文做 html.escape，避免注入。
-
-    用于把页面中的说明/控制区/结果区包装成统一卡片，提升视觉层次。
-    纯视觉，不改动业务逻辑。
-
-    T-266 空间治理：body 为空时不再渲染大卡片（原每处占约 80px 纵向空间，
-    全站 30+ 处调用多为空说明的纯分组标题），改为轻量单行节标题
-    （.dash-section-title，约 24px）——调用点零改动、全站纵向空间显著收敛。
-    """
-    import html as _html
-    title = _html.escape(str(title))
-    body = _html.escape(str(body))
-    icon = _html.escape(str(icon)) if icon else ""
-    icon_html = f"{icon} " if icon else ""
-    if not str(body).strip():
-        st.markdown(
-            f'<div class="dash-section-title">{icon_html}{title}</div>',
-            unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-        )
-        return
-    st.markdown(
-        f'<div class="dash-card">'
-        f'<div class="dash-card-title">{icon_html}{title}</div>'
-        f'<div class="dash-card-subtitle">{body}</div>'
-        f'</div>',
-        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-    )
-
-
-def sf_metric(label: str, value, delta: str = "") -> None:
-    """渲染指标卡 —— 已收敛到 ui_kit 的 canonical ``.xc-card``（全站单一 KPI 卡视觉）。
-
-    保留原签名（label/value/delta）以兼容既有调用点，视觉统一走 ``_xc_card_html``，
-    消除 ``.dash-metric-card`` 与 ``.xc-card`` 两套并存的重复。数值/标签均 html.escape。
-    """
-    from modules.ui_kit import _xc_card_html, inject_kit_css  # 惰性导入，规避循环依赖
-    inject_kit_css()
-    st.markdown(
-        _xc_card_html(label=label, value=value, delta=delta, delta_dir="flat"),
-        unsafe_allow_html=True,  # ui_audit_exempt: unsafe-allow_html 内部组件渲染层
-    )
-
-
 # ───────────── T-186 四风格主题切换（additive-only，classic 默认零影响） ─────────────
 # 设计：每套风格 = 一组 :root 变量覆盖（vars）+ 组件特征层（extra），在既有
 # _DARK/_LIGHT CSS 之后注入（同特异性下后到者胜）。mode 锁定联动 theme_mode：
