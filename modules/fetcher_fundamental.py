@@ -105,7 +105,7 @@ class FundamentalMixin:
         code = str(code).strip().zfill(6)
         if use_cache:
             _ttl = CONFIG["cache_ttl"]["fundamentals_seconds"]
-            _hit = self._proc_cache_get(_fetcher_mod.StockFetcher._fund_cache, code, _ttl)
+            _hit = _fetcher_mod.StockFetcher._fund_cache.get(code, _ttl)
             if _hit is not None:
                 return _hit
 
@@ -212,7 +212,7 @@ class FundamentalMixin:
                 logger.warning(f"[fetcher] 处理异常: {e}")
 
         if _has(res):
-            self._proc_cache_set(_fetcher_mod.StockFetcher._fund_cache, code, res)
+            _fetcher_mod.StockFetcher._fund_cache.set(code, res)
         return res
 
     def get_core_business(self, code, use_cache=True):
@@ -226,7 +226,7 @@ class FundamentalMixin:
         code = str(code).strip().zfill(6)
         if use_cache:
             _ttl = CONFIG["cache_ttl"]["biz_seconds"]
-            _hit = self._proc_cache_get(_fetcher_mod.StockFetcher._biz_cache, code, _ttl)
+            _hit = _fetcher_mod.StockFetcher._biz_cache.get(code, _ttl)
             if _hit is not None:
                 return _hit
         biz = ""
@@ -254,7 +254,7 @@ class FundamentalMixin:
         except Exception as e:  # noqa: BLE001
             logger.info(f"[StockFetcher] 核心业务获取失败 ({code}): {e}")
         if biz:
-            self._proc_cache_set(_fetcher_mod.StockFetcher._biz_cache, code, biz)
+            _fetcher_mod.StockFetcher._biz_cache.set(code, biz)
         return biz
 
     def get_macro(self, indicator="pmi_mfg"):

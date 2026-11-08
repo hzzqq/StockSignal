@@ -68,6 +68,31 @@ def _proc_cache_set(cache: dict, key, value):
     cache[key] = (time.monotonic(), value)
 
 
+class ProcTTLCache:
+    """进程内 TTL 缓存（T-247：收敛 _fund_cache / _biz_cache 两个散落 dict）。
+
+    API：``.get(key, ttl_seconds)`` 超期返回 None 并清除；``.set(key, value)`` 记录时刻。
+    语义与旧 ``_proc_cache_get`` / ``_proc_cache_set``（基于 ``time.monotonic``）完全一致，
+    仅把「缓存容器」从裸 dict 收敛为带 TTL 语义的对象，调用点零行为变更。
+    """
+
+    def __init__(self):
+        self._store: dict = {}
+
+    def get(self, key, ttl_seconds):
+        item = self._store.get(key)
+        if item is None:
+            return None
+        ts, value = item
+        if (time.monotonic() - ts) > ttl_seconds:
+            self._store.pop(key, None)
+            return None
+        return value
+
+    def set(self, key, value):
+        self._store[key] = (time.monotonic(), value)
+
+
 # SQLite 参数绑定只支持「值」占位（?），不支持标识符占位，因此拼接表名不可避免。
 # 用白名单正则兜底：任何含 ; 空格 引号 -- / 等字符的注入载荷一律拒绝。
 SAFE_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")

@@ -66,6 +66,7 @@ from modules.fetcher_core import (  # noqa: F401
     _safe_ident,
     _safe_kline_df,
     _synth_us_index_intraday,
+    ProcTTLCache,
     SAFE_IDENT_RE,
 )
 
@@ -100,7 +101,92 @@ def load_config(config_path="config.yaml"):
         return yaml.safe_load(f) or {}
 
 
-class BaseFetcher:
+class ReferenceMixin:
+
+    _pinyin_initials_cache = {}  # {name: initials} 拼音首字母缓存（性能关键）
+
+    _pinyin_initials_variants_cache = {}  # {name: {initials variants}} 多音字首字母组合缓存
+
+    _INDEX_SINA_PREFIX = {
+        "000001": "sh", "000016": "sh", "000010": "sh", "000009": "sh",
+        "000300": "sh", "000688": "sh", "000905": "sh",
+        "399001": "sz", "399006": "sz", "399005": "sz", "399300": "sz",
+        "399673": "sz", "399006": "sz", "399102": "sz", "399103": "sz",  # noqa: F601
+    }
+
+    def _get_sina_prefix(self, ticker: str) -> str:
+        """根据 6 位代码返回新浪市场前缀 sh/sz，正确处理指数代码。
+
+        真身迁 modules.fetcher_core（T-247 Tier1.1，index_map 作参数注入）；
+        领域常量 _INDEX_SINA_PREFIX 留本类（仅此消费）。
+        """
+        return _get_sina_prefix(ticker, self._INDEX_SINA_PREFIX)
+
+    def _pinyin_static(name):
+        """获取拼音首字母（纯函数，无副作用，用于缓存）。"""
+        from modules._search_utils import pinyin_initials_static
+        return pinyin_initials_static(name)
+
+    def _pinyin_initials_variants(name):
+        """
+        获取股票名称的所有拼音首字母组合（处理多音字）。
+        如 '长电科技' -> {'ZDKJ', 'CDKJ'}。
+        """
+        from modules._search_utils import pinyin_initials_variants
+        return pinyin_initials_variants(name)
+
+    def _pinyin_full(name):
+        """获取股票名称的完整拼音（小写无空格）。如 '贵州茅台' -> 'guizhoumaotai'。"""
+        from modules._search_utils import pinyin_full
+        return pinyin_full(name)
+
+    def _pinyin_initials(name):
+        """
+        获取股票名称的拼音首字母（大写）。
+        优先从类缓存读取（预热时已预计算），避免重复调用pypinyin。
+        如 '招商银行' -> 'ZSYH'。
+        """
+        cached = _fetcher_mod.StockFetcher._pinyin_initials_cache.get(name)
+        if cached is not None:
+            return cached
+        return _fetcher_mod.StockFetcher._pinyin_static(name)
+
+    def _name_tokens(name):
+        """
+        将股票名称拆分为搜索用的中文分词 token。
+        覆盖常见的简称模式：首字+尾字、中间词、2-gram等。
+        如 '招商银行' -> {'招商', '银行', '招', '商', '银', '行', '商银', '招商银', '商银行'}
+        """
+        from modules._search_utils import name_tokens
+        return name_tokens(name)
+
+    def _get_latest_price(self, code):
+        """从日线缓存中获取最近一个交易日的收盘价。返回 (price, date_str) 或 (None, None)。"""
+        try:
+            conn = self._get_conn()
+            try:
+                row = conn.execute(
+                    "SELECT data_json, updated_at FROM daily_cache "
+                    "WHERE cache_key LIKE ? ORDER BY updated_at DESC LIMIT 1",
+                    (f"{code}%",),
+                ).fetchone()
+                if row is not None:
+                    df = pd.read_json(io.StringIO(row[0]))
+                    if not df.empty and "close" in df.columns:
+                        latest = df.iloc[-1]
+                        return float(latest["close"]), str(latest["date"])[:10]
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"[fetcher] 处理异常: {e}")
+        return None, None
+
+    def _lookup_name_for_code(self, code):
+        """代码->名称（从内存缓存 O(1) 查找）。"""
+        return self._code_to_name.get(code, "")
+
+
+class BaseFetcher(ReferenceMixin):
 
     """
     股票行情与宏观数据采集器。
@@ -117,26 +203,18 @@ class BaseFetcher:
 
     _code_to_name = {}        # {code: name} 反向映射
 
-    _pinyin_initials_cache = {}  # {name: initials} 拼音首字母缓存（性能关键）
 
-    _pinyin_initials_variants_cache = {}  # {name: {initials variants}} 多音字首字母组合缓存
 
     _stocks_loaded = False    # 是否已加载
 
-    _fund_cache = {}          # {code: (ts, fundamentals dict)} 进程内TTL缓存（基本面日频，#406）
+    _fund_cache = ProcTTLCache()  # 进程内TTL缓存（基本面日频，#406）；语义等价于旧裸 dict + _proc_cache_get/set
 
-    _biz_cache = {}           # {code: (ts, 核心业务描述 str)} 进程内TTL缓存（主营构成，#406）
+    _biz_cache = ProcTTLCache()   # 进程内TTL缓存（主营构成，#406）
 
     _proc_cache_get = staticmethod(_proc_cache_get)
 
     _proc_cache_set = staticmethod(_proc_cache_set)
 
-    _INDEX_SINA_PREFIX = {
-        "000001": "sh", "000016": "sh", "000010": "sh", "000009": "sh",
-        "000300": "sh", "000688": "sh", "000905": "sh",
-        "399001": "sz", "399006": "sz", "399005": "sz", "399300": "sz",
-        "399673": "sz", "399006": "sz", "399102": "sz", "399103": "sz",  # noqa: F601
-    }
 
     _INDUSTRY_KEYWORDS = {
         # ── 能源 / 资源 ──
@@ -413,13 +491,6 @@ class BaseFetcher:
         )
         conn.commit()
 
-    def _get_sina_prefix(self, ticker: str) -> str:
-        """根据 6 位代码返回新浪市场前缀 sh/sz，正确处理指数代码。
-
-        真身迁 modules.fetcher_core（T-247 Tier1.1，index_map 作参数注入）；
-        领域常量 _INDEX_SINA_PREFIX 留本类（仅此消费）。
-        """
-        return _get_sina_prefix(ticker, self._INDEX_SINA_PREFIX)
 
     def _ensure_stock_db(self):
         """
@@ -504,68 +575,7 @@ class BaseFetcher:
         finally:
             conn.close()
 
-    def _pinyin_static(name):
-        """获取拼音首字母（纯函数，无副作用，用于缓存）。"""
-        from modules._search_utils import pinyin_initials_static
-        return pinyin_initials_static(name)
 
-    def _pinyin_initials_variants(name):
-        """
-        获取股票名称的所有拼音首字母组合（处理多音字）。
-        如 '长电科技' -> {'ZDKJ', 'CDKJ'}。
-        """
-        from modules._search_utils import pinyin_initials_variants
-        return pinyin_initials_variants(name)
-
-    def _pinyin_full(name):
-        """获取股票名称的完整拼音（小写无空格）。如 '贵州茅台' -> 'guizhoumaotai'。"""
-        from modules._search_utils import pinyin_full
-        return pinyin_full(name)
-
-    def _pinyin_initials(name):
-        """
-        获取股票名称的拼音首字母（大写）。
-        优先从类缓存读取（预热时已预计算），避免重复调用pypinyin。
-        如 '招商银行' -> 'ZSYH'。
-        """
-        cached = _fetcher_mod.StockFetcher._pinyin_initials_cache.get(name)
-        if cached is not None:
-            return cached
-        return _fetcher_mod.StockFetcher._pinyin_static(name)
-
-    def _name_tokens(name):
-        """
-        将股票名称拆分为搜索用的中文分词 token。
-        覆盖常见的简称模式：首字+尾字、中间词、2-gram等。
-        如 '招商银行' -> {'招商', '银行', '招', '商', '银', '行', '商银', '招商银', '商银行'}
-        """
-        from modules._search_utils import name_tokens
-        return name_tokens(name)
-
-    def _get_latest_price(self, code):
-        """从日线缓存中获取最近一个交易日的收盘价。返回 (price, date_str) 或 (None, None)。"""
-        try:
-            conn = self._get_conn()
-            try:
-                row = conn.execute(
-                    "SELECT data_json, updated_at FROM daily_cache "
-                    "WHERE cache_key LIKE ? ORDER BY updated_at DESC LIMIT 1",
-                    (f"{code}%",),
-                ).fetchone()
-                if row is not None:
-                    df = pd.read_json(io.StringIO(row[0]))
-                    if not df.empty and "close" in df.columns:
-                        latest = df.iloc[-1]
-                        return float(latest["close"]), str(latest["date"])[:10]
-            finally:
-                conn.close()
-        except Exception as e:
-            logger.warning(f"[fetcher] 处理异常: {e}")
-        return None, None
-
-    def _lookup_name_for_code(self, code):
-        """代码->名称（从内存缓存 O(1) 查找）。"""
-        return self._code_to_name.get(code, "")
 
     def __init__(self, config_path="config.yaml"):
         self.config = load_config(config_path)
