@@ -350,3 +350,50 @@ def test_portfolio_charts_refer_to_existing_files():
     missing = [rel for rel, *_ in charts
                if not os.path.exists(os.path.join(ROOT, rel))]
     assert not missing, f"作品集 CHARTS 引用了不存在的图：{missing}（路径失效会被静默丢图）"
+
+
+# ── F. 生成物 docs/index.html 必须与生成器统计一致 ───────────────────
+
+def test_portfolio_generated_html_numbers_match_generator():
+    """生成物里的规模数字必须来自生成器当前统计，端点数陈旧即红。
+
+    真实故障（2026-11-09）：后端 REST 端点已增至 122，docs/index.html 仍写 92，
+    而守卫只校验「模板不硬编码」「render() 替换干净」，从没校验过生成物本身。
+    """
+    gen = _load_generator()
+    stats = gen.collect(fast=True)  # 不跑 pytest 收集：这里只校验可静态复算的规模数字
+    html = _src("docs/index.html")
+    assert not re.search(r"@[A-Z_]+@", html), "生成物里露出未替换的 @占位符@"
+
+    route_claims = set(re.findall(r"(\d+)\s*个 REST 端点", html))
+    assert route_claims, "生成物里没有「N 个 REST 端点」声明，守卫失效"
+    assert route_claims == {str(stats["routes"])}, (
+        f"生成物端点声明 {route_claims} != 生成器实测 {stats['routes']}；"
+        "请重跑 python scripts/gen_portfolio_page.py"
+    )
+    stat = re.search(r'<div class="n">(\d+)</div><div class="l">后端 REST 端点', html)
+    assert stat and int(stat.group(1)) == stats["routes"], "统计卡片的端点数与后端不一致"
+
+    assert set(_page_claims(html)) == {stats["pages"]}, "生成物页面数与真实 pages/ 不一致"
+    py_claims = set(re.findall(r"(\d+) 个 Python 文件", html))
+    assert py_claims == {str(stats["py_files"])}, (
+        f"生成物 Python 文件数 {py_claims} != 生成器实测 {stats['py_files']}"
+    )
+    assert stats["py_files"] < 2000, "py_files 仍疑似把虚拟环境/生成物算进自研源码"
+
+
+def test_generator_walk_excludes_third_party_dirs():
+    """_walk 统计自研源码时不得深入 .venv / node_modules / .git 等目录。
+
+    真实故障：旧 _walk(".") 把 .venv 的 12728 个第三方 .py 算进 py_files，
+    公开物料写着「10220 个 Python 文件」，严重虚高。
+    """
+    gen = _load_generator()
+    paths = gen._walk(".")
+    assert len(paths) >= 200, f"只扫到 {len(paths)} 个 .py，_walk 疑似失效"
+    bad = [p for p in paths if any(
+        s in os.path.relpath(p, ROOT).replace("\\", "/").split("/")
+        for s in (".venv", "node_modules", ".git", "site-packages", "artifacts", "backups")
+    )]
+    assert not bad, f"_walk 把第三方/生成物目录算进了自研源码：{bad[:5]}"
+    assert len(paths) < 2000, f"_walk 仍统计到 {len(paths)} 个 .py，排除规则疑似回退"

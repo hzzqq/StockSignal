@@ -51,12 +51,23 @@ def _lines(paths: list[str]) -> int:
     return total
 
 
+# 统计「自研源码」时必须排除第三方/生成物/本地数据目录。
+# 真实故障（2026-11-09）：_walk(".") 把 .venv 的 12728 个第三方 .py 也算进
+# py_files，公开物料写着「10220 个 Python 文件」，是严重虚高；作品集数字必须
+# 基于本仓自研代码证据，不能拿虚拟环境充数。
+_SKIP_DIRS = frozenset({
+    "__pycache__", ".venv", "venv", "node_modules", ".git", ".workbuddy",
+    ".trae", "artifacts", "backups", "logs", "dist", "build",
+    ".pytest_cache", ".mypy_cache", ".ruff_cache", "site-packages",
+})
+
+
 def _walk(sub: str, suffix: str = ".py") -> list[str]:
     out = []
     base = os.path.join(ROOT, sub)
-    for dirpath, _dirs, files in os.walk(base):
-        if "__pycache__" in dirpath:
-            continue
+    for dirpath, dirs, files in os.walk(base):
+        # 原地裁剪遍历：既不统计这些目录，也不深入遍历（省时且口径稳定）
+        dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
         for fn in files:
             if fn.endswith(suffix):
                 out.append(os.path.join(dirpath, fn))
