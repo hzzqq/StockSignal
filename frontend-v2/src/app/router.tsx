@@ -16,6 +16,7 @@ import { LadderResonance } from '@/features/breadth/LadderResonance'
 import { EventPoolView } from '@/features/ops/EventPoolView'
 import { PredictionLogView } from '@/features/ops/PredictionLogView'
 import { SystemStatusView } from '@/features/ops/SystemStatusView'
+import { DiagnosticsView } from '@/features/ops/DiagnosticsView'
 import { SixDimView } from '@/features/stock/SixDimView'
 import { FundamentalsView } from '@/features/stock/FundamentalsView'
 import { ResearchView } from '@/features/stock/ResearchView'
@@ -148,6 +149,13 @@ const opsRoute = createRoute({
   component: SystemStatusView,
 })
 
+// W4-D · 数据源与接口检测（两块检测同页，主动探测、默认零网络）
+const diagnosticsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/diagnostics',
+  component: DiagnosticsView,
+})
+
 const sixDimRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/stock/six-dim',
@@ -230,6 +238,7 @@ const routeTree = rootRoute.addChildren([
     eventsRoute,
     predictionsRoute,
     opsRoute,
+    diagnosticsRoute,
     sixDimRoute,
     researchRoute,
     fundamentalsRoute,

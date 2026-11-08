@@ -14,6 +14,7 @@ export type AppPath =
   | '/events'
   | '/predictions'
   | '/ops'
+  | '/diagnostics'
   | '/stock/six-dim'
   | '/stock/research'
   | '/stock/fundamentals'
@@ -65,6 +66,7 @@ export const NAV: NavGroup[] = [
       { to: '/events', label: '事件因子池', icon: '◈' },
       { to: '/predictions', label: '预测校准日志', icon: '◴' },
       { to: '/ops', label: '数据与运维状态', icon: '⚙' },
+      { to: '/diagnostics', label: '数据源与接口检测', icon: '⛭' },
     ],
   },
 ]

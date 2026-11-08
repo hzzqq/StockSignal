@@ -157,6 +157,13 @@ export const handlers = [
     return notFound(`stock_intraday_${code}`)
   }),
 
+  // W4-D · 数据源 / 接口检测：?probe=1 才返回真实探网样例；?degraded=1 供降级态测试。
+  http.get('/api/v2/read/diagnostics', ({ request }) => {
+    const q = new URL(request.url).searchParams
+    if (q.get('degraded') === '1') return ok(fixtures.diagnosticsDegraded)
+    return ok(q.get('probe') === '1' ? fixtures.diagnosticsProbe : fixtures.diagnostics)
+  }),
+
   // 指数行情：index-quotes（外部卡片视角）；index-kline（点击卡片弹 K 线的数据源）。
   http.get('/api/v2/read/index-quotes', () => ok(fixtures.indexQuotes)),
   http.get('/api/v2/read/index-kline', ({ request }) => {

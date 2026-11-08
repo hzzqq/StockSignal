@@ -649,3 +649,82 @@ export const indexKlineSh000001 = {
   date: '2026-11-11',
   note: W4B_NOTE,
 }
+
+// ───────── 数据源 / 接口检测（diagnostics）开发期样例 ─────────
+// 仅 MSW 开发态使用；值为确定性静态样例（非实时），与后端离线降级口径一致：缺失即 null。
+const diagNote =
+  '数据源检测只读本地文件与缓存库（默认不触网）；接口检测由前端对真实注册端点逐个发起 GET 请求并记录 HTTP 状态与耗时。任一检测失败如实标注，不做成功假定、不补 0。'
+
+/** 只读端点清单样例（真后端由 Flask url_map 动态枚举，此处仅为开发态代表集）。 */
+export const diagnosticsEndpoints = [
+  { path: '/api/v2/read/daily-snapshot', needs_params: false, probe_path: '/api/v2/read/daily-snapshot' },
+  { path: '/api/v2/read/snapshot-dates', needs_params: false, probe_path: '/api/v2/read/snapshot-dates' },
+  { path: '/api/v2/read/p1-sync-status', needs_params: false, probe_path: '/api/v2/read/p1-sync-status' },
+  { path: '/api/v2/read/data-refresh-state', needs_params: false, probe_path: '/api/v2/read/data-refresh-state' },
+  { path: '/api/v2/read/index-quotes', needs_params: false, probe_path: '/api/v2/read/index-quotes' },
+  { path: '/api/v2/read/diagnostics', needs_params: false, probe_path: '/api/v2/read/diagnostics' },
+  { path: '/api/v2/read/snapshot/<date>', needs_params: true, probe_path: null },
+  { path: '/api/v2/read/six-dim?code=600519', needs_params: false, probe_path: '/api/v2/read/six-dim?code=600519' },
+]
+
+export const diagnostics = {
+  sources: {
+    available: true,
+    summary: '4/5 可用',
+    checked_at: '2026-11-08 22:30:00',
+    items: [
+      { key: 'akshare', label: 'akshare', ok: true, detail: '依赖可用 (1.16.x)', tables: null },
+      { key: 'baostock', label: 'BaoStock', ok: false, detail: '依赖缺失', tables: null },
+      { key: 'sina', label: '新浪财经', ok: true, detail: 'fetcher 就绪', tables: null },
+      { key: 'eastmoney', label: '东方财富', ok: true, detail: 'fetcher 就绪', tables: null },
+      { key: 'cache', label: '本地缓存', ok: true, detail: '6 表 / 12,345 条', tables: { kline: 8000, quote: 4345 } },
+    ],
+    reason: null,
+  },
+  freshness: {
+    available: true,
+    rows: [
+      { key: 'daily_snapshot', name: '每日快照', as_of: '2026-11-06', lag_days: 2, status: 'ok' },
+      { key: 'p1_event', name: 'P1 事件因子', as_of: '2026-10-16', lag_days: 23, status: 'stale' },
+      { key: 'shepherd_sentiment', name: '牧羊人情绪', as_of: '2026-11-06', lag_days: 2, status: 'ok' },
+      { key: 'market_temp', name: '市场温度', as_of: null, lag_days: null, status: 'unknown' },
+    ],
+    reason: null,
+  },
+  endpoints: diagnosticsEndpoints,
+  probe: null,
+  note: diagNote,
+}
+
+/** probe=1 探测结果样例：四源如实含一失败项，不美化。 */
+export const diagnosticsProbe = {
+  ...diagnostics,
+  probe: {
+    available: true,
+    levels: [
+      { level: 'L1', ok: true, detail: '30 行 / 600519', latency_ms: 176 },
+      { level: 'L2', ok: false, detail: '依赖缺失', latency_ms: -1 },
+      { level: 'L3', ok: true, detail: '30 行 / 600519', latency_ms: 312 },
+      { level: 'L4', ok: false, detail: '连接超时', latency_ms: 10000 },
+    ],
+    reason: null,
+  },
+}
+
+/** 数据源检测整体失败态（available=false，不得包装成「全部可用」）。 */
+export const diagnosticsDegraded = {
+  ...diagnostics,
+  sources: {
+    available: false,
+    summary: null,
+    checked_at: null,
+    items: [],
+    reason: 'RuntimeError: 模拟 fetcher 不可用',
+  },
+  freshness: {
+    available: false,
+    rows: [],
+    reason: 'OSError: 模拟本地文件不可读',
+  },
+  probe: null,
+}

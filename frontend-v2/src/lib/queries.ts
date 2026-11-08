@@ -1,7 +1,9 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import * as api from '@/api/read'
 import { getSixDim, getFundamentals, getFinancials, getStockKline, getStockIntraday, getIndexQuotes, getIndexKline } from '@/api/stock'
+import { getDiagnostics } from '@/api/diagnostics'
 import type { SixDim, Fundamentals, Financials, StockKline, StockIntraday, IndexQuotes, IndexKline } from '@/api/schemas/stock'
+import type { Diagnostics } from '@/api/schemas/diagnostics'
 import type {
   DailySnapshot,
   P1Signal,
@@ -256,5 +258,16 @@ export function useIndexKline(code: string): UseQueryResult<IndexKline> {
     queryFn: () => getIndexKline(code),
     enabled: /^(sh|sz)\d{6}$/.test(code),
     staleTime: FIVE_MIN,
+  })
+}
+
+// ───────── 数据源 / 接口检测（staleTime 0：检测是即时动作，不缓存旧结论）─────────
+// probe 进 queryKey：默认零网络；点「真实网络探测」时才切到 probe=true 重新取一次。
+export function useDiagnostics(probe = false): UseQueryResult<Diagnostics> {
+  return useQuery({
+    queryKey: ['read', 'diagnostics', probe],
+    queryFn: () => getDiagnostics(probe),
+    staleTime: 0,
+    retry: false,
   })
 }

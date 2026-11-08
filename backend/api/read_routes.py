@@ -1460,3 +1460,126 @@ def _w4x_index_kline_rows(df, limit):
         return d[["date", "open", "high", "low", "close", "volume"]].to_dict(orient="records"), last
     except Exception:  # noqa: BLE001
         return [], None
+
+
+# ───────── 数据源 / 接口检测（diagnostics）─────────
+# 与 W4-B/W4-C/W4-X 同款红线：@jwt_required + 统一 ok() 信封；只读、绝不写任何数据文件；
+# 各检测项独立降级（任一失败只影响该项，不整页 500、不连带其它项）；缺失为 null、绝不补 0；
+# 默认**零网络请求**（秒回，离线可用），仅 probe=1 时显式真实探网（旧版 93 页同款口径）。
+#
+# ⚠️ 刻意不用 data_health.health_rows_enriched()：其 detect_stall() 内部会
+#    _ensure_health_table() → CREATE TABLE / CREATE INDEX（写库），违反本蓝图只读契约，
+#    且会与在跑的后端服务抢 SQLite 锁。这里改用纯读的 health_rows()。
+#
+# 接口清单不硬编码：从 current_app.url_map 动态枚举 /api/v2/read/* 的 GET 规则，
+# 保证新增/下线端点时清单自动同步（前端据此逐个真实 GET 探测，端到端验证）。
+_DIAG_NOTE = (
+    "数据源检测只读本地文件与缓存库（默认不触网）；接口检测由前端对真实注册端点逐个发起 "
+    "GET 请求并记录 HTTP 状态与耗时。任一检测失败如实标注，不做成功假定、不补 0。"
+)
+
+
+def _diag_source_health():
+    """依赖可用性 + 本地缓存表/行数：复用 fetcher 的 data_source_health()（静态、零网络）。
+
+    失败整项降级为 {'available': False, ...}，绝不编造「全部可用」。
+    """
+    try:
+        from ..api.market_routes import get_fetcher
+        report = get_fetcher().data_source_health()
+    except Exception as e:  # noqa: BLE001
+        return {
+            "available": False,
+            "summary": None,
+            "checked_at": None,
+            "items": [],
+            "reason": f"{type(e).__name__}: {e}"[:200],
+        }
+    items = []
+    for key, info in (report.get("sources") or {}).items():
+        if not isinstance(info, dict):
+            continue
+        items.append({
+            "key": key,
+            "label": info.get("label") or key,
+            "ok": bool(info.get("ok")),
+            "detail": info.get("detail"),
+            "tables": info.get("tables"),
+        })
+    return {
+        "available": True,
+        "summary": report.get("summary"),
+        "checked_at": report.get("timestamp"),
+        "items": items,
+        "reason": None,
+    }
+
+
+def _diag_freshness():
+    """各决策数据源真实数据截止日 / 滞后天数 / 状态（纯读本地文件，不写库）。"""
+    try:
+        from modules.data_health import health_rows
+        rows = health_rows()
+    except Exception as e:  # noqa: BLE001
+        return {
+            "available": False,
+            "rows": [],
+            "reason": f"{type(e).__name__}: {e}"[:200],
+        }
+    return {"available": True, "rows": rows, "reason": None}
+
+
+def _diag_endpoints():
+    """从 Flask url_map 动态枚举只读 GET 端点；带路径参数的标注为不可自动探测。"""
+    from flask import current_app
+    out = []
+    for rule in current_app.url_map.iter_rules():
+        path = rule.rule
+        if not path.startswith("/api/v2/read/") or "GET" not in (rule.methods or set()):
+            continue
+        needs_params = "<" in path
+        out.append({
+            "path": path,
+            "needs_params": needs_params,
+            "probe_path": None if needs_params else path,
+        })
+    return sorted(out, key=lambda x: x["path"])
+
+
+def _diag_network_probe():
+    """四源真实网络探测：仅 probe=1 显式触发，复用 fetcher 的 realtime_probe 能力。"""
+    try:
+        from ..api.market_routes import get_fetcher
+        report = get_fetcher().data_source_health(realtime_probe=True)
+    except Exception as e:  # noqa: BLE001
+        return {"available": False, "levels": [],
+                "reason": f"{type(e).__name__}: {e}"[:200]}
+    probe = report.get("probe") or {}
+    if probe.get("status") == "unavailable":
+        return {"available": False, "levels": [], "reason": probe.get("reason")}
+    levels = [
+        {"level": lv, "ok": bool((info or {}).get("ok")),
+         "detail": (info or {}).get("detail"),
+         "latency_ms": (info or {}).get("latency_ms")}
+        for lv, info in probe.items()
+    ]
+    return {"available": True, "levels": levels, "reason": None}
+
+
+@bp.get("/diagnostics")
+@jwt_required
+def diagnostics():
+    """数据源 + 接口检测数据。GET /api/v2/read/diagnostics[?probe=1]。
+
+    默认零网络（秒回）；probe=1 时额外对四源各发一次真实日线请求（约数秒），
+    结果放在 probe 字段，与旧版 93 页「真实网络探测」按钮同款口径。
+    """
+    want_probe = request.args.get("probe", "") in ("1", "true", "True")
+    data = {
+        "sources": _diag_source_health(),
+        "freshness": _diag_freshness(),
+        "endpoints": _diag_endpoints(),
+        "probe": _diag_network_probe() if want_probe else None,
+        "note": _DIAG_NOTE,
+    }
+    return ok(data=_sanitize(data), message="diagnostics")
