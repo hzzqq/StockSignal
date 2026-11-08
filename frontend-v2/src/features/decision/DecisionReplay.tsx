@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useSnapshotDates, useSnapshot } from '@/lib/queries'
 import { SnapshotView } from './SnapshotView'
-import { QueryState } from '@/shared/ui/States'
+import { ErrorState, QueryState } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
 
 const SELECT_CLS =
@@ -32,7 +32,11 @@ export function DecisionReplay() {
         </select>
         {datesQ.isLoading && <span className="text-xs text-sf-ink-3 ml-2">加载日期清单…</span>}
         {datesQ.isError && (
-          <span className="text-label text-sf-danger ml-2">日期清单加载失败</span>
+          <ErrorState
+            message={datesQ.error instanceof Error
+              ? `日期清单加载失败：${datesQ.error.message}`
+              : '日期清单加载失败'}
+          />
         )}
       </Card>
 
