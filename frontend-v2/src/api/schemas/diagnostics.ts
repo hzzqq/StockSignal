@@ -51,6 +51,9 @@ export const DiagnosticsEndpointSchema = z.object({
   path: z.string(),
   needs_params: z.boolean(),
   probe_path: NullableString,
+  // 必填 query 参数名；需参端点不得自动探测。示例参数仅数据浏览器使用。
+  required_query: z.array(z.string()).default([]),
+  sample_query: NullableString.default(null),
 })
 export type DiagnosticsEndpoint = z.infer<typeof DiagnosticsEndpointSchema>
 

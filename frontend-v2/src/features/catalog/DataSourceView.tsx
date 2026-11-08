@@ -10,7 +10,8 @@ import { QueryState } from '@/shared/ui/States'
  *
  * 用途：功能全景页里「v2 暂无等价页面、但有真实只读端点」的 v1 功能，
  * 从这里查看**真实响应数据**。端点清单由后端从 Flask url_map 动态枚举
- * （useDiagnostics），前端不硬编码，需路径参数的端点如实跳过。
+ * （useDiagnostics），前端不硬编码；含路径参数的端点如实排除，
+ * 需 query 参数的端点给出示例值输入框，用户可修改后再真实 GET。
  *
  * 诚实红线：
  *  - 真实记录 HTTP 状态 / 信封 status / 耗时，失败直接显示原因，绝不包装成成功；
@@ -166,27 +167,39 @@ function DataRenderer({ data }: { data: unknown }) {
 
 export function DataSourceView({ initialPath = '' }: { initialPath?: string }) {
   const diag = useDiagnostics()
+  const mocked = mocksEnabled()
   const [selected, setSelected] = useState(initialPath)
+  const [query, setQuery] = useState('')
   const [result, setResult] = useState<ReadResult | null>(null)
   const [loading, setLoading] = useState(false)
-  const mocked = mocksEnabled()
 
-  const endpoints = (diag.data?.endpoints ?? []).filter((e) => e.probe_path)
-  const paths = endpoints.map((e) => e.probe_path as string)
+  // 含 "<" 的路径参数端点无法用 query 补齐，如实排除；其余需参端点可用示例参数查看。
+  // 下拉值一律用不带 query 的真实路径，功能全景 /data?path=... 深链才能命中。
+  const endpoints = (diag.data?.endpoints ?? []).filter((e) => !e.path.includes('<'))
+  const paths = endpoints.map((e) => e.path)
+  const selectedEndpoint = endpoints.find((e) => e.path === selected)
+  const needsParams = selectedEndpoint?.needs_params ?? false
 
-  const load = useCallback(async (path: string) => {
+  const load = useCallback(async (path: string, queryString: string) => {
     if (!path) return
     setSelected(path)
     setLoading(true)
+    const fullPath = queryString ? `${path}?${queryString}` : path
     try {
-      setResult(await fetchRead(path))
+      setResult(await fetchRead(fullPath))
     } finally {
       setLoading(false)
     }
   }, [])
 
+  const choose = (path: string) => {
+    const sample = endpoints.find((e) => e.path === path)?.sample_query ?? ''
+    setQuery(sample)
+    void load(path, sample)
+  }
+
   useEffect(() => {
-    if (initialPath && paths.includes(initialPath)) void load(initialPath)
+    if (initialPath && paths.includes(initialPath)) choose(initialPath)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPath, paths.join('|')])
 
@@ -217,23 +230,40 @@ export function DataSourceView({ initialPath = '' }: { initialPath?: string }) {
               <select
                 aria-label="只读端点"
                 value={selected}
-                onChange={(e) => void load(e.target.value)}
+                onChange={(e) => choose(e.target.value)}
                 className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-body text-sf-ink"
               >
                 <option value="">— 请选择 —</option>
                 {paths.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </label>
+            <label className="flex flex-col gap-1 text-label text-sf-ink-2">
+              查询参数（示例值可修改）
+              <input
+                aria-label="查询参数"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={needsParams ? 'code=600519' : '无参数'}
+                className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-body text-sf-ink"
+              />
+            </label>
             <button
               type="button"
-              onClick={() => void load(selected)}
+              onClick={() => void load(selected, query)}
               disabled={!selected || loading}
               className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-label text-sf-ink hover:border-sf-accent disabled:opacity-50"
             >
               {loading ? '读取中…' : '重新读取'}
             </button>
-            <span className="text-label text-sf-ink-3">共 {paths.length} 个可直接读取的端点</span>
+            <span className="text-label text-sf-ink-3">
+              共 {paths.length} 个可查看端点{needsParams ? ' · 当前端点需参数，已填示例值' : ''}
+            </span>
           </div>
+          {needsParams && selectedEndpoint?.sample_query ? (
+            <p className="text-label text-sf-ink-3 mt-2">
+              示例参数仅用于演示该端点可用性，不是真实业务数据；可修改后点「重新读取」。
+            </p>
+          ) : null}
         </QueryState>
       </Card>
 

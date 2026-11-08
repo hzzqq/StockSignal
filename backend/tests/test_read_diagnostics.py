@@ -105,12 +105,29 @@ def test_envelope_shape(client, token):
     paths = [e["path"] for e in d["endpoints"]]
     assert "/api/v2/read/diagnostics" in paths, "端点清单应包含自身"
     assert all(e["path"].startswith("/api/v2/read/") for e in d["endpoints"])
-    # 带路径参数的端点必须标注为不可自动探测，不编造 probe_path
+    # 需参端点（路径参数 OR 必填 query）必须标注为不可自动探测，不编造 probe_path
     for e in d["endpoints"]:
-        if "<" in e["path"]:
+        assert "required_query" in e and "sample_query" in e
+        if "<" in e["path"] or e["path"] in rr._DIAG_REQUIRED_QUERY:
             assert e["needs_params"] is True and e["probe_path"] is None
+            assert e["required_query"], "需参端点必须列出 required_query"
         else:
             assert e["needs_params"] is False and e["probe_path"] == e["path"]
+
+
+def test_required_query_endpoints_are_never_auto_probed(client, token):
+    """缺 query 即 400 的端点不得出现在自动探测清单里（否则接真后端大面积假 400）。"""
+    d = _get(client, token).get_json()["data"]
+    by_path = {e["path"]: e for e in d["endpoints"]}
+    assert by_path, "端点清单为空"
+    for path, params in rr._DIAG_REQUIRED_QUERY.items():
+        e = by_path.get(path)
+        assert e is not None, f"登记的需参端点未在路由表中注册: {path}"
+        assert e["needs_params"] is True and e["probe_path"] is None
+        assert set(e["required_query"]) == set(params), f"{path} 参数清单与实现不一致"
+        assert e["sample_query"] and all(f"{k}=" in e["sample_query"] for k in params)
+    auto = [e["path"] for e in d["endpoints"] if e["probe_path"]]
+    assert not (set(rr._DIAG_REQUIRED_QUERY) & set(auto)), "需参端点混进了自动探测清单"
 
 
 def test_probe_flag_triggers_network_check(client, token, monkeypatch):

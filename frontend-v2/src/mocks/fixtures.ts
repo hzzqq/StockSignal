@@ -656,15 +656,22 @@ const diagNote =
   '数据源检测只读本地文件与缓存库（默认不触网）；接口检测由前端对真实注册端点逐个发起 GET 请求并记录 HTTP 状态与耗时。任一检测失败如实标注，不做成功假定、不补 0。'
 
 /** 只读端点清单样例（真后端由 Flask url_map 动态枚举，此处仅为开发态代表集）。 */
+// 形态必须与后端 _diag_endpoints() 一致：需参端点 needs_params=true、
+// probe_path=null（不得把带 query 的路径伪装成「可直接探测」端点），
+// sample_query 是合法示例参数，UI 会标注它不是真实业务数据。
 export const diagnosticsEndpoints = [
-  { path: '/api/v2/read/daily-snapshot', needs_params: false, probe_path: '/api/v2/read/daily-snapshot' },
-  { path: '/api/v2/read/snapshot-dates', needs_params: false, probe_path: '/api/v2/read/snapshot-dates' },
-  { path: '/api/v2/read/p1-sync-status', needs_params: false, probe_path: '/api/v2/read/p1-sync-status' },
-  { path: '/api/v2/read/data-refresh-state', needs_params: false, probe_path: '/api/v2/read/data-refresh-state' },
-  { path: '/api/v2/read/index-quotes', needs_params: false, probe_path: '/api/v2/read/index-quotes' },
-  { path: '/api/v2/read/diagnostics', needs_params: false, probe_path: '/api/v2/read/diagnostics' },
-  { path: '/api/v2/read/snapshot/<date>', needs_params: true, probe_path: null },
-  { path: '/api/v2/read/six-dim?code=600519', needs_params: false, probe_path: '/api/v2/read/six-dim?code=600519' },
+  { path: '/api/v2/read/daily-snapshot', needs_params: false, probe_path: '/api/v2/read/daily-snapshot', required_query: [], sample_query: null },
+  { path: '/api/v2/read/snapshot-dates', needs_params: false, probe_path: '/api/v2/read/snapshot-dates', required_query: [], sample_query: null },
+  { path: '/api/v2/read/p1-sync-status', needs_params: false, probe_path: '/api/v2/read/p1-sync-status', required_query: [], sample_query: null },
+  { path: '/api/v2/read/data-refresh-state', needs_params: false, probe_path: '/api/v2/read/data-refresh-state', required_query: [], sample_query: null },
+  { path: '/api/v2/read/index-quotes', needs_params: false, probe_path: '/api/v2/read/index-quotes', required_query: [], sample_query: null },
+  { path: '/api/v2/read/diagnostics', needs_params: false, probe_path: '/api/v2/read/diagnostics', required_query: [], sample_query: null },
+  { path: '/api/v2/read/backtest-runs', needs_params: false, probe_path: '/api/v2/read/backtest-runs', required_query: [], sample_query: null },
+  { path: '/api/v2/read/snapshot/<date>', needs_params: true, probe_path: null, required_query: ['<path>'], sample_query: null },
+  { path: '/api/v2/read/six-dim', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
+  { path: '/api/v2/read/financials', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
+  { path: '/api/v2/read/paper-trades', needs_params: true, probe_path: null, required_query: ['user'], sample_query: 'user=admin' },
+  { path: '/api/v2/read/index-kline', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=sh000001' },
 ]
 
 export const diagnostics = {

@@ -1529,19 +1529,48 @@ def _diag_freshness():
     return {"available": True, "rows": rows, "reason": None}
 
 
+# 这些只读 GET 端点缺少 query 参数会直接 400 validation_error。
+# 早期 _diag_endpoints 只按 "<" 判断参数需求，把它们当成「可直接探测」，
+# 接真实后端时接口检测约 10 个端点假报 HTTP 400、数据浏览器一选就报错。
+# 单一真理源：新增需参端点必须登记在这里（tests/test_diagnostics_endpoint_contract.py 会扫）。
+_DIAG_REQUIRED_QUERY = {
+    "/api/v2/read/paper-trades": {"user": "admin"},
+    "/api/v2/read/review-notes": {"date": "2026-09-21"},
+    "/api/v2/read/six-dim": {"code": "600519"},
+    "/api/v2/read/fundamentals": {"code": "600519"},
+    "/api/v2/read/financials": {"code": "600519"},
+    "/api/v2/read/stock-kline": {"code": "600519"},
+    "/api/v2/read/compare-one": {"code": "600519"},
+    "/api/v2/read/research-deep": {"code": "600519"},
+    "/api/v2/read/stock-intraday": {"code": "600519"},
+    "/api/v2/read/index-kline": {"code": "sh000001"},
+}
+
+
 def _diag_endpoints():
-    """从 Flask url_map 动态枚举只读 GET 端点；带路径参数的标注为不可自动探测。"""
+    """从 Flask url_map 动态枚举只读 GET 端点。
+
+    needs_params 覆盖路径参数（<...>）与必填 query 参数两类；需参端点
+    probe_path=None（不自动探测），并带 required_query / sample_query 供
+    数据浏览器生成输入框与合法示例值（示例值不是真实业务数据，UI 会标注）。
+    """
     from flask import current_app
     out = []
     for rule in current_app.url_map.iter_rules():
         path = rule.rule
         if not path.startswith("/api/v2/read/") or "GET" not in (rule.methods or set()):
             continue
-        needs_params = "<" in path
+        params = _DIAG_REQUIRED_QUERY.get(path, {})
+        has_path_param = "<" in path
+        required = (["<path>"] if has_path_param else []) + sorted(params)
+        needs_params = bool(required)
+        sample_query = "&".join(f"{k}={v}" for k, v in params.items()) if params else None
         out.append({
             "path": path,
             "needs_params": needs_params,
             "probe_path": None if needs_params else path,
+            "required_query": required,
+            "sample_query": sample_query,
         })
     return sorted(out, key=lambda x: x["path"])
 

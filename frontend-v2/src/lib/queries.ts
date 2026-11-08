@@ -263,9 +263,11 @@ export function useIndexKline(code: string): UseQueryResult<IndexKline> {
 
 // ───────── 数据源 / 接口检测（staleTime 0：检测是即时动作，不缓存旧结论）─────────
 // probe 进 queryKey：默认零网络；点「真实网络探测」时才切到 probe=true 重新取一次。
-export function useDiagnostics(probe = false): UseQueryResult<Diagnostics> {
+// nonce 让「重新探测」每次点击都换 queryKey —— 旧实现只 setWantProbe(true)，
+// 第二次点击 React bail out、queryKey 不变，按钮是彻底 no-op。
+export function useDiagnostics(probe = false, nonce = 0): UseQueryResult<Diagnostics> {
   return useQuery({
-    queryKey: ['read', 'diagnostics', probe],
+    queryKey: ['read', 'diagnostics', probe, nonce],
     queryFn: () => getDiagnostics(probe),
     staleTime: 0,
     retry: false,

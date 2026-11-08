@@ -235,14 +235,20 @@ describe('W4-E · 设置页（真实生效）', () => {
 describe('W4-E · 只读端点数据浏览器', () => {
   it('端点清单来自后端枚举，选中后展示真实信封数据、不编造行', async () => {
     mount(<DataSourceView />)
-    // fixture 8 个端点中有 1 个需路径参数（probe_path=null），可自动读取的是 7 个
-    expect(await screen.findByText('共 7 个可直接读取的端点')).toBeTruthy()
+    // fixture 12 个端点中 1 个含路径参数被排除，其余 11 个可查看（需参端点带示例参数）
+    expect(await screen.findByText(/共 11 个可查看端点/)).toBeTruthy()
     expect(screen.queryByText('响应不是合法 JSON 信封')).toBeNull()
     const select = screen.getByRole('combobox', { name: '只读端点' })
     fireEvent.change(select, { target: { value: '/api/v2/read/index-quotes' } })
     await waitFor(() => expect(screen.getByText('items')).toBeTruthy(), { timeout: 5000 })
     expect(screen.getByText(/HTTP 200/)).toBeTruthy()
     expect(screen.getByText(/信封 ok/)).toBeTruthy()
+    // 需参端点选中后自动填入示例参数，并真实 GET 成功（不再是 400 假故障）
+    fireEvent.change(select, { target: { value: '/api/v2/read/six-dim' } })
+    await waitFor(() => expect(
+      (screen.getByRole('textbox', { name: '查询参数' }) as HTMLInputElement).value,
+    ).toBe('code=600519'), { timeout: 5000 })
+    expect(screen.getByText(/当前端点需参数，已填示例值/)).toBeTruthy()
   })
 
   it('Mock 态明确标注结果为模拟响应', () => {

@@ -41,10 +41,11 @@ function statusClass(ok: boolean | null): string {
 
 export function DiagnosticsView() {
   const [wantProbe, setWantProbe] = useState(false)
+  const [probeNonce, setProbeNonce] = useState(0)
   const [endpointResults, setEndpointResults] = useState<EndpointProbeResult[] | null>(null)
   const [probing, setProbing] = useState(false)
   const [probeError, setProbeError] = useState<string | null>(null)
-  const diag = useDiagnostics(wantProbe)
+  const diag = useDiagnostics(wantProbe, probeNonce)
   const mocked = mocksEnabled()
 
   const data = diag.data
@@ -172,7 +173,7 @@ export function DiagnosticsView() {
                 right={
                   <button
                     type="button"
-                    onClick={() => setWantProbe(true)}
+                    onClick={() => { setWantProbe(true); setProbeNonce((n) => n + 1) }}
                     disabled={diag.isFetching}
                     className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-label text-sf-ink hover:border-sf-accent transition-colors disabled:opacity-50"
                   >
@@ -215,7 +216,7 @@ export function DiagnosticsView() {
                 }
               >
                 <p className="text-label text-sf-ink-3">
-                  端点清单由后端从 Flask 路由表动态枚举（共 {endpoints.length} 个，其中 {skippedCount} 个需路径参数、跳过自动探测）。
+                  端点清单由后端从 Flask 路由表动态枚举（共 {endpoints.length} 个，其中 {skippedCount} 个需参数（路径或 query）、跳过自动探测）。
                   检测对每个可探测端点发起真实 GET，记录 HTTP 状态、信封 status 与往返耗时；并发上限 4、单请求硬超时 8 秒。
                 </p>
                 {probeError ? <p className="text-body text-sf-warn mt-2">检测异常：{probeError}</p> : null}
@@ -256,7 +257,7 @@ export function DiagnosticsView() {
                 )}
                 {skippedCount > 0 ? (
                   <p className="text-label text-sf-ink-3 mt-2">
-                    跳过（需路径参数）：{endpoints.filter((e) => e.needs_params).map((e) => e.path).join(' · ')}
+                    跳过（需参数）：{endpoints.filter((e) => e.needs_params).map((e) => e.path).join(' · ')}
                   </p>
                 ) : null}
               </Card>

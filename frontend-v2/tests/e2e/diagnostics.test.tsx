@@ -47,10 +47,10 @@ describe('W4-D · 数据源与接口检测页', () => {
     expect(screen.queryByText('四源真实网络探测')).toBeNull()
     expect(screen.getByText(/当前为 Mock 环境：点击只会读取 MSW 夹具里的模拟结果/)).toBeTruthy()
     expect(screen.getByText('只读端点连通性')).toBeTruthy()
-    // 汇总：4/5 可用，4 源时效，8 个端点
+    // 汇总：4/5 可用，4 源时效，12 个端点（其中 5 个需参数）
     expect(screen.getByText('4/5 可用')).toBeTruthy()
     expect(screen.getByText('4 源')).toBeTruthy()
-    expect(screen.getByText('8')).toBeTruthy()
+    expect(screen.getByText('12')).toBeTruthy()
   })
 
   it('诚实：默认零网络，probe=null 显示「尚未探测」，接口检测显示「尚未检测」', async () => {
@@ -99,9 +99,28 @@ describe('W4-D · 数据源与接口检测页', () => {
     const btn = await screen.findByRole('button', { name: '开始检测' })
     fireEvent.click(btn)
     await waitFor(() => expect(screen.getByText('7/7')).toBeTruthy(), { timeout: 8000 })
-    expect(screen.getByText(/跳过（需路径参数）：\/api\/v2\/read\/snapshot\/<date>/)).toBeTruthy()
+    expect(screen.getByText(/跳过（需参数）：/)).toBeTruthy()
     // 每个结果行的 HTTP 200 + 信封 ok
     expect(screen.getAllByText('200').length).toBeGreaterThanOrEqual(7)
+  })
+
+  it('「重新探测」每次点击都真的重新请求（旧实现 setWantProbe(true) 是 no-op）', async () => {
+    let hits = 0
+    server.use(http.get('/api/v2/read/diagnostics', ({ request }) => {
+      hits += 1
+      const q = new URL(request.url).searchParams
+      return HttpResponse.json({
+        status: 'ok', code: 'ok', message: 'ok',
+        data: q.get('probe') === '1' ? fixtures.diagnosticsProbe : fixtures.diagnostics,
+      })
+    }))
+    mount()
+    const first = await screen.findByRole('button', { name: '查看模拟探测结果' })
+    fireEvent.click(first)
+    await waitFor(() => expect(screen.getByText('连接超时')).toBeTruthy(), { timeout: 5000 })
+    const baseline = hits
+    fireEvent.click(screen.getByRole('button', { name: '重新查看模拟结果' }))
+    await waitFor(() => expect(hits).toBeGreaterThan(baseline), { timeout: 5000 })
   })
 
   it('取数失败进入错误态，不谎报「全部正常」', async () => {
