@@ -773,6 +773,20 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
         "adj": ev["adj"] if ev else None,
         "as_of": ev.get("as_of") if ev else None,
     }
+    # ── 全球宏观上下文留痕（2026-11-08）────────────────────────────
+    # 此前 macro_event_context() 已实现但**无人调用** → 宏观分根本没进快照，
+    # 事件因子的宏观背景无法复现（今天跑和上个月跑结果不同，回测不可归因）。
+    # 现接入快照：宏观只作**上下文记录**，**绝不改 adj / 不进 derive_position**
+    # （宏观是全局背景不是标的方向判定，任何把宏观分掺进个股事件分的做法
+    #   都属未回测耦合，本层明确不做 —— 见 event_factor.macro_event_context 注释）。
+    # 取不到一律 available=False + reason，如实记录，不编造。
+    try:
+        from modules.event_factor import macro_event_context
+        _macro_ctx = macro_event_context()
+    except Exception as e:  # noqa: BLE001 - 宏观上下文失败不影响快照主体
+        logger.warning(f"[decision] 宏观上下文取数失败: {e}")
+        _macro_ctx = {"available": False, "reason": f"宏观上下文异常: {e}"}
+    ev_info["macro"] = _macro_ctx
     if ev:
         event_adj = ev["adj"]
 

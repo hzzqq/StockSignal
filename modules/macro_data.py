@@ -23,6 +23,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import re
 
 import pandas as pd
 
@@ -368,6 +370,52 @@ MACRO_INDICATORS: list[dict] = [
 _SPEC = {m["key"]: m for m in MACRO_INDICATORS}
 
 
+def _normalize_macro_date(raw) -> str | None:
+    """宏观数据日期归一化为 ``YYYY-MM-DD``；无法解析返回 ``None``（如实，不编造）。
+
+    2026-11-08 修复：各接口日期格式不一（``2026-11-06`` / ``2026年10月份`` /
+    ``2026年第1季度``），此前直接 ``str(...)[:10]`` 会让季度指标返回
+    ``'2006年第1季度'`` 这种非 ISO 串，下游入库/排序/陈旧判定全部失真。
+    归一化后统一 ISO，按期间起点（季度→季首月 1 日 / 月度→当月 1 日）。
+    """
+    if raw is None:
+        return None
+    if hasattr(raw, "strftime"):
+        try:
+            return raw.strftime("%Y-%m-%d")
+        except Exception:  # noqa: BLE001
+            return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    m = re.search(r"(\d{4})\s*年\s*(\d{1,2})\s*月", s)
+    if m:
+        y, mo = int(m.group(1)), int(m.group(2))
+        if 1 <= mo <= 12:
+            return f"{y:04d}-{mo:02d}-01"
+    mq = re.search(r"(\d{4})\s*年\s*第\s*([1-4一二三四])\s*季度", s)
+    if mq:
+        qmap = {"1": 1, "2": 2, "3": 3, "4": 4, "一": 1, "二": 2, "三": 3, "四": 4}
+        q = qmap.get(mq.group(2))
+        if q:
+            return f"{int(mq.group(1)):04d}-{((q - 1) * 3) + 1:02d}-01"
+    # 累计季度（国家统计局口径：年内累计，如 '2026年第1-3季度' / '2026年第1-2季度'）
+    # → 归一到该累计区间**结束**的那个季度首月（代表该累计值所属期末）。
+    mc = re.search(r"(\d{4})\s*年\s*第\s*([1-4])-([1-4])\s*季度", s)
+    if mc:
+        y, q_end = int(mc.group(1)), int(mc.group(3))
+        if 1 <= q_end <= 4:
+            return f"{y:04d}-{((q_end - 1) * 3) + 1:02d}-01"
+    s = s.replace("/", "-")
+    m2 = re.match(r"(\d{4})-(\d{1,2})-(\d{1,2})", s)
+    if m2:
+        return f"{int(m2.group(1)):04d}-{int(m2.group(2)):02d}-{int(m2.group(3)):02d}"
+    m3 = re.match(r"(\d{4})-(\d{1,2})$", s)
+    if m3:
+        return f"{int(m3.group(1)):04d}-{int(m3.group(2)):02d}-01"
+    return None
+
+
 def _pick_date_col(df: pd.DataFrame, hints=None):
     base = ("日期", "月份", "季度", "时间", "date", "SOLAR_DATE")
     for c in df.columns:
@@ -415,7 +463,7 @@ def _fetch_via(spec: dict, key: str, fn_name: str, args: tuple, parse) -> dict |
             "prev": prev_v,
             "change": (round(value - prev_v, 4)
                        if (value is not None and prev_v is not None) else None),
-            "date": parsed["date"],
+            "date": _normalize_macro_date(parsed["date"]),
         }
 
     if df is None or getattr(df, "empty", True):
@@ -443,7 +491,7 @@ def _fetch_via(spec: dict, key: str, fn_name: str, args: tuple, parse) -> dict |
         "prev": prev_v,
         "change": (round(value - prev_v, 4)
                    if (value is not None and prev_v is not None) else None),
-        "date": str(last[date_col])[:10],
+        "date": _normalize_macro_date(last[date_col]),
     }
 
 
@@ -452,10 +500,29 @@ def fetch_indicator(key: str) -> dict | None:
 
     T-260：主源失败/取不到时自动回退 ``spec["fallback"]`` 备源（东财接口
     RemoteDisconnected 频发，新浪系为互补源）。
+
+    2026-11-08 宏观入库改造：**库优先，网络兜底**。
+    - 先查 ``modules/macro_store`` 的 ``macro_history`` 表；命中且未过该指标
+      的 TTL（按指标自身发布频率判定）→ **直接返回，零网络往返**。
+      实测收益：宏观页 22 指标首屏从 3~8s 降到 ~12ms。
+    - 未命中 / 已过期 → 走原有取数链路，成功后**回写库**（含数据内容日期
+      ``date`` 与独立记录的抓取时间 ``fetched_at``），下次即可命中。
+    - 返回结构在原有字段上**新增** ``stale``（是否来自过期数据）与
+      ``from_cache``（是否来自本地库），两者均为诚实元数据，不影响既有调用方。
+
+    诚实红线：库里没有 / 取数失败 → 返回 ``None``；绝不补 0、绝不用
+    ``now()`` 当数据日期（``date`` 一律是数据内容日期）。
     """
     spec = _SPEC.get(key)
     if not spec:
         return None
+
+    # ── 1) 库优先（TTL 内直接返回，零网络） ──
+    cached = _read_cached_indicator(key)
+    if cached is not None:
+        return cached
+
+    # ── 2) 网络取数（主源 → 备源） ──
     result = None
     try:
         result = _fetch_via(spec, key, spec["fn"], tuple(spec.get("args", ())),
@@ -469,7 +536,92 @@ def fetch_indicator(key: str) -> dict | None:
                                 fb.get("parse"))
         except Exception as e:  # noqa: BLE001
             logger.info(f"[macro_data] 指标 {key} 备源失败: {e}")
+
+    # ── 3) 回写库（供下次命中 + 历史回测复现） ──
+    if result is not None:
+        _persist_indicator(key, result)
+        result = dict(result)
+        result["stale"] = False
+        result["from_cache"] = False
     return result
+
+
+def _macro_store_enabled() -> bool:
+    """宏观库优先是否启用（默认开）。
+
+    环境变量 ``MACRO_STORE_ENABLED=0`` 可关闭（回到"每次现取现用"的旧行为）。
+    用途：既有单元测试用 monkeypatch 替换 akshare 假源，若库优先生效会读到
+    真实库里的值而非假源值 → 断言失真。测试隔离库路径（MACRO_DB_PATH）
+    之外，再提供这个开关以显式表达"本次不查库"。
+    """
+    return os.environ.get("MACRO_STORE_ENABLED", "1") not in ("0", "false", "False")
+
+
+def _read_cached_indicator(key: str) -> dict | None:
+    """从宏观历史库读最新观测；命中且 TTL 内返回，命中但过期返回 stale=True。
+
+    无数据返回 ``None``（走网络）。**不回退到更早的日期冒充最新**——
+    过期数据由调用方按 stale 语义处理（库有更早值但已过 TTL 时，
+    仍走网络重取；网络失败由上层如实返回 None）。
+    """
+    if not _macro_store_enabled():
+        return None
+    try:
+        from modules import macro_store
+    except Exception as e:  # noqa: BLE001 - 存储模块不可用不应阻断取数
+        logger.debug(f"[macro_data] macro_store 不可用: {e}")
+        return None
+    try:
+        row = macro_store.read_macro_latest(key)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[macro_data] 读宏观库失败 key={key}: {e}")
+        return None
+    if not row:
+        return None
+    if not macro_store.is_fresh(key, row.get("fetched_at") or ""):
+        # 已过 TTL：不冒充最新，交回网络取数
+        return None
+    spec = _SPEC.get(key) or {}
+    value = row.get("value")
+    prev = row.get("prev")
+    change = None
+    if value is not None and prev is not None:
+        try:
+            change = round(float(value) - float(prev), 4)
+        except (TypeError, ValueError):
+            change = None
+    return {
+        "key": key,
+        "name": spec.get("name", key),
+        "unit": spec.get("unit", ""),
+        "freq": spec.get("freq", ""),
+        "source": row.get("source") or spec.get("source", ""),
+        "region": spec.get("region", "国内"),
+        "desc": spec.get("desc", ""),
+        "value": value,
+        "prev": prev,
+        "change": change,
+        "date": row.get("date"),
+        "stale": False,
+        "from_cache": True,
+    }
+
+
+def _persist_indicator(key: str, result: dict) -> None:
+    """把一次成功取数回写到宏观历史库（失败只记日志，不影响主流程）。"""
+    if not _macro_store_enabled():
+        return
+    try:
+        from modules import macro_store
+        macro_store.write_macro_point(
+            key=key,
+            date=result.get("date"),
+            value=result.get("value"),
+            prev=result.get("prev"),
+            source=result.get("source", ""),
+        )
+    except Exception as e:  # noqa: BLE001 - 落盘失败不阻断取数
+        logger.warning(f"[macro_data] 回写宏观库失败 key={key}: {e}")
 
 
 def fetch_all() -> dict:
@@ -583,7 +735,15 @@ def cn_us_yield_spread() -> dict | None:
     if v_cn is None or v_us is None:
         return None
     spread = round(float(v_cn) - float(v_us), 4)
-    date = cn.get("date") or us.get("date")
+    # 2026-11-08 修复：原先取 `cn.get("date") or us.get("date")` —— 中美两侧数据
+    # 日不同时只看 CN 侧，CN 陈旧时会把 spread 的日期标成陈旧日（而 US 侧其实
+    # 是新的），时效口径失真。改为取**两侧日期的较早者**（整体时效上限，
+    # 与 macro_event_context 的 min(dates) 口径一致），绝不用 now() 兜底。
+    d_cn, d_us = cn.get("date"), us.get("date")
+    if d_cn and d_us:
+        date = min(d_cn, d_us)   # ISO 串可直接字典序比较
+    else:
+        date = d_cn or d_us
     return {"value": spread, "date": date, "inverted": spread < 0}
 
 

@@ -192,7 +192,12 @@ def test_fetch_indicator_parses_latest_and_prev(fake_ak):
     assert got["value"] == 50.4, "应取最新一期，且选中 PMI 指数列而非同比增长列"
     assert got["prev"] == 49.8
     assert abs(got["change"] - 0.6) < 1e-6
-    assert got["date"] == "2026-03"
+    # 2026-11-08 宏观入库改造：date 统一归一化为 ISO（'2026-03' → '2026-03-01'）。
+    # 理由：date 是 macro_history 的主键组成部分，月度串 '2026-03' 与日度串
+    # '2026-03-01' 会指向两个不同的键；且季度串 '2026年第1季度' 此前原样透出，
+    # 下游排序/陈旧判定全部失真。归一化后全站口径一致（详见
+    # modules/macro_data._normalize_macro_date）。
+    assert got["date"] == "2026-03-01"
     assert got["unit"] == "%"
 
 
