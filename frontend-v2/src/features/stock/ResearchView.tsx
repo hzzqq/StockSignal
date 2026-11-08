@@ -195,6 +195,16 @@ function KlineTable({ rows }: { rows: StockKline['rows'] }) {
  */
 const DEEP_META = new Set(['code', 'name', 'industry', 'date', 'note', 'period', 'deep_analysis_available'])
 
+/** deep 子视图是否处于「明确未接入」豁免态：deep_analysis_available===false，
+ * 或字段缺失且无任何技术字段（无法确认已接入）。与 DeepBody 内判定保持一致，
+ * 防止 QueryState 的 isEmpty 把豁免卡误判为空而整体隐藏。 */
+function isDeepExempt(d: ResearchDeep | null | undefined): boolean {
+  if (!d) return false
+  const available = d['deep_analysis_available']
+  const techKeys = Object.keys(d).filter((k) => !DEEP_META.has(k))
+  return available === false || (available === undefined && techKeys.length === 0)
+}
+
 function DeepView({ code }: { code: string }) {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['read', 'research-deep', code],
@@ -209,7 +219,7 @@ function DeepView({ code }: { code: string }) {
         isLoading={isLoading}
         isError={isError}
         error={error}
-        isEmpty={!!data && Object.keys(data).every((k) => DEEP_META.has(k))}
+        isEmpty={!!data && Object.keys(data).filter((k) => !DEEP_META.has(k)).length === 0 && !isDeepExempt(data)}
         emptyLabel="暂无深度数据"
         emptyHint="该股票未返回任何技术字段"
       >
@@ -220,10 +230,9 @@ function DeepView({ code }: { code: string }) {
 }
 
 function DeepBody({ data }: { data: ResearchDeep }) {
-  const available = data['deep_analysis_available']
   const techKeys = Object.keys(data).filter((k) => !DEEP_META.has(k))
   // 豁免：明确 false，或字段缺失且无任何技术字段（无法确认已接入）。
-  const exempt = available === false || (available === undefined && techKeys.length === 0)
+  const exempt = isDeepExempt(data)
 
   if (exempt) {
     return (

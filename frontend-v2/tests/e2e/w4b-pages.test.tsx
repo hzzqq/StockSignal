@@ -165,7 +165,7 @@ describe('W4-B · 个股研究页 ResearchView', () => {
     expect(await screen.findByText('open', {}, FIND)).toBeTruthy()
   })
 
-  it('首帧 view=deep：如实显示待 W4-C 迁移 + 已预选 code，不渲染 K 线表', async () => {
+  it('首帧 view=deep：research-deep 豁免态显示「V2 暂未接入」+ 已预选 code，不渲染 K 线表', async () => {
     render(
       <Providers>
         <ResearchView search={{ view: 'deep', code: '000001' }} />
@@ -173,12 +173,15 @@ describe('W4-B · 个股研究页 ResearchView', () => {
     )
     expect(await screen.findByText('个股研究', {}, FIND)).toBeTruthy()
     expect(screen.getByRole('radio', { name: /深度分析/ }).getAttribute('aria-checked')).toBe('true')
-    expect(screen.getByText('深度分析子视图待 W4-C 迁移，当前仅完成深链预选')).toBeTruthy()
-    expect(screen.getByText('已预选 code：000001')).toBeTruthy()
+    // W4-C 实现：deep 子视图真实调 getResearchDeep；该码走豁免态（56 键深度分析 V2 暂未接入）。
+    expect(
+      await screen.findByText('56 键深度分析（旧版 analysis_engine 异步任务）V2 暂未接入，可走 /legacy 查看旧版', {}, FIND),
+    ).toBeTruthy()
+    expect(screen.getByText(/已预选 code：/)).toBeTruthy()
     expect(screen.queryByText('open')).toBeNull()
   })
 
-  it('切换分段：点击「🔬 深度分析」后切到 deep 子视图', async () => {
+  it('切换分段：点击「🔬 深度分析」后切到 deep 子视图（600519 已接入 → 技术字段表）', async () => {
     render(
       <Providers>
         <ResearchView search={{ view: 'quick', code: '600519' }} />
@@ -186,7 +189,9 @@ describe('W4-B · 个股研究页 ResearchView', () => {
     )
     expect(await screen.findByText('open', {}, FIND)).toBeTruthy()
     fireEvent.click(screen.getByRole('radio', { name: /深度分析/ }))
-    expect(await screen.findByText('深度分析子视图待 W4-C 迁移，当前仅完成深链预选', {}, FIND)).toBeTruthy()
+    // 600519 已接入：渲染技术字段表（pe_ttm / market_cap），绝不渲染 K 线 open。
+    expect(await screen.findByText('pe_ttm', {}, FIND)).toBeTruthy()
+    expect(screen.getByText('market_cap')).toBeTruthy()
     expect(screen.queryByText('open')).toBeNull()
   })
 
@@ -218,13 +223,14 @@ describe('W4-B · 个股研究页 ResearchView', () => {
 })
 
 describe('W4-B · 导航注册', () => {
-  it('仍 4 组、第 3 组新增两项变 7 项、图标全局唯一', () => {
+  it('仍 4 组、第 3 组含 W4-C 个股对比共 8 项、图标全局唯一', () => {
     expect(NAV.length).toBe(4)
     const g3 = NAV[2]
     expect(g3.group).toBe('量化与工具')
     expect(g3.items.some((it) => it.to === '/stock/research')).toBe(true)
     expect(g3.items.some((it) => it.to === '/stock/fundamentals')).toBe(true)
-    expect(g3.items.length).toBe(7)
+    expect(g3.items.some((it) => it.to === '/stock/compare')).toBe(true)
+    expect(g3.items.length).toBe(8)
     const icons = NAV.flatMap((g) => g.items.map((it) => it.icon))
     expect(new Set(icons).size).toBe(icons.length)
   })

@@ -15,6 +15,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // 注意：tests/ 下为 e2e-fix 契约测试与 w4 各阶段 e2e/单元回归，
+    // 必须显式纳入，否则默认 `vitest run` 收不到（此前仅含 src/** 导致 tests/ 全被排除）。
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{test,spec}.{ts,tsx}'],
   },
 })
