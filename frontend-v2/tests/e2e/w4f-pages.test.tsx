@@ -151,8 +151,11 @@ describe('W4-F · 接线守卫（源码真扫）', () => {
     const r = src('frontend-v2/src/app/router.tsx')
     for (const p of ['/matrix', '/guide']) expect(r).toContain(`path: '${p}'`)
     expect(r).toMatch(/addChildren\(\[[\s\S]*?matrixRoute,[\s\S]*?guideRoute,[\s\S]*?\]\)/)
-    expect(r).toContain("import { LeadLagMatrixView } from '@/features/matrix/LeadLagMatrixView'")
-    expect(r).toContain("import { GuideView } from '@/features/guide/GuideView'")
+    // 路由级懒加载后不再静态 import 页面组件：接线证据必须是 lazyRouteComponent
+    expect(r).toContain("lazyRouteComponent(() => import('@/features/matrix/LeadLagMatrixView'), 'LeadLagMatrixView')")
+    expect(r).toContain("lazyRouteComponent(() => import('@/features/guide/GuideView'), 'GuideView')")
+    expect(r).toContain('component: LazyLeadLagMatrixView')
+    expect(r).toContain('component: LazyGuideView')
   })
 
   it('UTILITY_PATHS 是单一真理源：每条都在 router 注册，AppShell 有对应底部入口', () => {

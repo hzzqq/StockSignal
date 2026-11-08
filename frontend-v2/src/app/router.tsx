@@ -1,33 +1,54 @@
-import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router'
+import { lazy, Suspense } from 'react'
+import {
+  createRootRoute, createRoute, createRouter, Outlet, redirect, lazyRouteComponent,
+} from '@tanstack/react-router'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { requireAuth } from './guards'
 import { AppShell } from './AppShell'
-import { Dashboard } from '@/features/dashboard/Dashboard'
-import { DecisionPanel } from '@/features/decision/DecisionPanel'
-import { DecisionReplay } from '@/features/decision/DecisionReplay'
-import { MorningReport } from '@/features/morning/MorningReport'
-import { P1Signals } from '@/features/p1/P1Signals'
-import { Recommendation } from '@/features/recommend/Recommendation'
-import { PaperTrades } from '@/features/paper/PaperTrades'
-import { Alerts } from '@/features/alerts/Alerts'
-import { WebApps } from '@/features/webapps/WebApps'
-import { BreadthOverview } from '@/features/breadth/BreadthOverview'
-import { LadderResonance } from '@/features/breadth/LadderResonance'
-import { EventPoolView } from '@/features/ops/EventPoolView'
-import { PredictionLogView } from '@/features/ops/PredictionLogView'
-import { SystemStatusView } from '@/features/ops/SystemStatusView'
-import { DiagnosticsView } from '@/features/ops/DiagnosticsView'
-import { SixDimView } from '@/features/stock/SixDimView'
-import { FundamentalsView } from '@/features/stock/FundamentalsView'
-import { ResearchView } from '@/features/stock/ResearchView'
-import { CompareView } from '@/features/stock/CompareView'
-import { SettingsView } from '@/features/settings/SettingsView'
-import { CatalogView } from '@/features/catalog/CatalogView'
-import { DataSourceView } from '@/features/catalog/DataSourceView'
-import { LeadLagMatrixView } from '@/features/matrix/LeadLagMatrixView'
-import { GuideView } from '@/features/guide/GuideView'
 import { resolveResearchSearch, resolveLegacySearch, resolveCompareSearch } from '@/lib/deeplink'
 import type { ResearchRouteSearch, CompareRouteSearch } from '@/lib/deeplink'
+
+/**
+ * 路由级懒加载（2026-11-09）：页面组件不再静态进 index 主包。
+ *
+ * 历史：26 个页面组件全部静态 import，首屏必须下载整站代码（index 493 kB）。
+ * 现用 TanStack 官方 lazyRouteComponent（支持 preload / 模块缺失重载），
+ * 只有命中该路由才拉取对应 chunk；LoginPage 与 AppShell 是首屏/外壳，保持静态。
+ * 4 个需要 route.useSearch() 传参的 wrapper 不能整块懒加载，改为内部 React.lazy。
+ * ⚠️ 新增页面必须走 lazyRouteComponent，别把静态 import 加回来（守卫见
+ * tests/unit/route-lazy.test.ts）。
+ */
+const LazyDashboard = lazyRouteComponent(() => import('@/features/dashboard/Dashboard'), 'Dashboard')
+const LazyDecisionPanel = lazyRouteComponent(() => import('@/features/decision/DecisionPanel'), 'DecisionPanel')
+const LazyDecisionReplay = lazyRouteComponent(() => import('@/features/decision/DecisionReplay'), 'DecisionReplay')
+const LazyMorningReport = lazyRouteComponent(() => import('@/features/morning/MorningReport'), 'MorningReport')
+const LazyP1Signals = lazyRouteComponent(() => import('@/features/p1/P1Signals'), 'P1Signals')
+const LazyRecommendation = lazyRouteComponent(() => import('@/features/recommend/Recommendation'), 'Recommendation')
+const LazyPaperTrades = lazyRouteComponent(() => import('@/features/paper/PaperTrades'), 'PaperTrades')
+const LazyAlerts = lazyRouteComponent(() => import('@/features/alerts/Alerts'), 'Alerts')
+const LazyWebApps = lazyRouteComponent(() => import('@/features/webapps/WebApps'), 'WebApps')
+const LazyBreadthOverview = lazyRouteComponent(() => import('@/features/breadth/BreadthOverview'), 'BreadthOverview')
+const LazyLadderResonance = lazyRouteComponent(() => import('@/features/breadth/LadderResonance'), 'LadderResonance')
+const LazyEventPoolView = lazyRouteComponent(() => import('@/features/ops/EventPoolView'), 'EventPoolView')
+const LazyPredictionLogView = lazyRouteComponent(() => import('@/features/ops/PredictionLogView'), 'PredictionLogView')
+const LazySystemStatusView = lazyRouteComponent(() => import('@/features/ops/SystemStatusView'), 'SystemStatusView')
+const LazyDiagnosticsView = lazyRouteComponent(() => import('@/features/ops/DiagnosticsView'), 'DiagnosticsView')
+const LazySixDimView = lazyRouteComponent(() => import('@/features/stock/SixDimView'), 'SixDimView')
+const LazySettingsView = lazyRouteComponent(() => import('@/features/settings/SettingsView'), 'SettingsView')
+const LazyCatalogView = lazyRouteComponent(() => import('@/features/catalog/CatalogView'), 'CatalogView')
+const LazyLeadLagMatrixView = lazyRouteComponent(() => import('@/features/matrix/LeadLagMatrixView'), 'LeadLagMatrixView')
+const LazyGuideView = lazyRouteComponent(() => import('@/features/guide/GuideView'), 'GuideView')
+
+// wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
+const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
+const LazyResearchView = lazy(() => import('@/features/stock/ResearchView').then((m) => ({ default: m.ResearchView })))
+const LazyFundamentalsView = lazy(() => import('@/features/stock/FundamentalsView').then((m) => ({ default: m.FundamentalsView })))
+const LazyCompareView = lazy(() => import('@/features/stock/CompareView').then((m) => ({ default: m.CompareView })))
+
+/** 懒加载期间的诚实占位：不编造数据、不显示旧页面。 */
+function RouteLoading() {
+  return <div role="status" className="flow">页面加载中…</div>
+}
 
 // 根布局：仅渲染子路由出口（登录页、/legacy 兼容层与鉴权外壳并列挂在根下）
 const rootRoute = createRootRoute({
@@ -73,118 +94,118 @@ const appRoute = createRoute({
 const dashboardRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/',
-  component: Dashboard,
+  component: LazyDashboard,
 })
 
 const decisionRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/decision',
-  component: DecisionPanel,
+  component: LazyDecisionPanel,
 })
 
 const replayRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/replay',
-  component: DecisionReplay,
+  component: LazyDecisionReplay,
 })
 
 const morningRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/morning',
-  component: MorningReport,
+  component: LazyMorningReport,
 })
 
 const p1Route = createRoute({
   getParentRoute: () => appRoute,
   path: '/p1',
-  component: P1Signals,
+  component: LazyP1Signals,
 })
 
 const recommendRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/recommend',
-  component: Recommendation,
+  component: LazyRecommendation,
 })
 
 const paperRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/paper',
-  component: PaperTrades,
+  component: LazyPaperTrades,
 })
 
 const alertsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/alerts',
-  component: Alerts,
+  component: LazyAlerts,
 })
 
 const webappsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/webapps',
-  component: WebApps,
+  component: LazyWebApps,
 })
 
 const breadthRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/breadth',
-  component: BreadthOverview,
+  component: LazyBreadthOverview,
 })
 
 const ladderRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/ladder',
-  component: LadderResonance,
+  component: LazyLadderResonance,
 })
 
 const eventsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/events',
-  component: EventPoolView,
+  component: LazyEventPoolView,
 })
 
 const predictionsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/predictions',
-  component: PredictionLogView,
+  component: LazyPredictionLogView,
 })
 
 const opsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/ops',
-  component: SystemStatusView,
+  component: LazySystemStatusView,
 })
 
 // W4-D · 数据源与接口检测（两块检测同页，主动探测、默认零网络）
 const diagnosticsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/diagnostics',
-  component: DiagnosticsView,
+  component: LazyDiagnosticsView,
 })
 
 // W4-E · 设置 / v1 功能全景 / 只读端点数据浏览器（侧边栏底部固定入口）
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/settings',
-  component: SettingsView,
+  component: LazySettingsView,
 })
 
 const catalogRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/catalog',
-  component: CatalogView,
+  component: LazyCatalogView,
 })
 
 // W4-F · v1-only 迁移：66 维度领先滞后矩阵 / 96 新手教程（底部固定入口，不进 NAV）
 const matrixRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/matrix',
-  component: LeadLagMatrixView,
+  component: LazyLeadLagMatrixView,
 })
 
 const guideRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/guide',
-  component: GuideView,
+  component: LazyGuideView,
 })
 
 const dataRoute = createRoute({
@@ -199,13 +220,17 @@ const dataRoute = createRoute({
 /** 薄 wrapper：把 query 里的端点路径传给纯组件（E2E 无需 RouterProvider）。 */
 function DataRouteView() {
   const search = dataRoute.useSearch()
-  return <DataSourceView initialPath={search.path ?? ''} />
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <LazyDataSourceView initialPath={search.path ?? ''} />
+    </Suspense>
+  )
 }
 
 const sixDimRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/stock/six-dim',
-  component: SixDimView,
+  component: LazySixDimView,
 })
 
 // W4-B · /stock/research（旧 24 页）：validateSearch 输出全字段 optional（ResearchRouteSearch），
@@ -238,12 +263,20 @@ const fundamentalsRoute = createRoute({
 /** 薄 wrapper：只读取已由 validateSearch 预选的 search，传给纯组件（E2E 无需 RouterProvider）。 */
 function ResearchRouteView() {
   const search = researchRoute.useSearch()
-  return <ResearchView search={search} />
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <LazyResearchView search={search} />
+    </Suspense>
+  )
 }
 
 function FundamentalsRouteView() {
   const search = fundamentalsRoute.useSearch()
-  return <FundamentalsView search={search} />
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <LazyFundamentalsView search={search} />
+    </Suspense>
+  )
 }
 
 // W4-C · /stock/compare（多股对比）：?codes=逗号分隔&period=... 入边。
@@ -263,7 +296,11 @@ const compareRoute = createRoute({
 function CompareRouteView() {
   const search = compareRoute.useSearch()
   const resolved = resolveCompareSearch(search) as CompareRouteSearch
-  return <CompareView search={resolved} />
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <LazyCompareView search={resolved} />
+    </Suspense>
+  )
 }
 
 const routeTree = rootRoute.addChildren([
