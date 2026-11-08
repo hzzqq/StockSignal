@@ -14,6 +14,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // 端口被占用时必须直接失败：静默漂移到 5174 会让 active_ports_v2.json、
+    // _stop_services.bat、启动脚本与浏览器全部指向错误端口。
+    strictPort: true,
     proxy: {
       '/api': {
         target: process.env.VITE_PROXY_TARGET ?? 'http://127.0.0.1:5050',

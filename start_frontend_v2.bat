@@ -6,7 +6,7 @@ rem The services are started by a HIDDEN worker (start_frontend_v2_hidden.vbs),
 rem which runs scripts/start_v2_detached.py. No service shares this visible
 rem console, so closing this window can NEVER stop the services.
 rem Logs: logs/launcher_v2.log , logs/backend_v2.log , logs/frontend_v2.log
-rem Stop: _stop_services.bat (kills by port)
+rem Stop: _stop_services.bat (reads logs/active_ports_v2.json, kills by port)
 rem Run by double-click or from cmd.exe. Do NOT run from Git Bash (see .sh).
 rem NOTE: keep this file pure ASCII + CRLF (see tests/test_bat_encoding.py).
 
@@ -36,7 +36,7 @@ if exist "%PY%" goto :py_ok
 for %%p in (python.exe) do set "PY=%%~$PATH:p"
 if defined PY if exist "%PY%" goto :py_ok
 echo [ERROR] python.exe not found (checked venv, workbuddy venv, PATH).
-pause
+if not "%~1"=="--worker" pause
 exit /b 1
 :py_ok
 
@@ -56,7 +56,7 @@ if exist "C:\Program Files\nodejs\npm.cmd" (
     goto :npm_ok
 )
 echo [ERROR] npm not found (checked PATH, workbuddy node, Program Files).
-pause
+if not "%~1"=="--worker" pause
 exit /b 1
 :npm_ok
 
@@ -106,7 +106,7 @@ if errorlevel 1 (
 set "TRIES=0"
 :wait_v2
 set /a TRIES+=1
-netstat -aon | findstr /C:":%V2_PORT% " >nul 2>&1
+netstat -aon -p tcp | findstr /R /C:"^  TCP .*:%V2_PORT% .* LISTENING" >nul 2>&1
 if not errorlevel 1 goto :v2_ready
 if %TRIES% GEQ 30 goto :v2_timeout
 timeout /t 1 /nobreak >nul 2>&1
@@ -116,10 +116,13 @@ goto :wait_v2
 timeout /t 1 /nobreak >nul 2>&1
 echo   Frontend is ready: http://127.0.0.1:%V2_PORT%/
 if not "%SS_NO_BROWSER%"=="1" start "" "http://127.0.0.1:%V2_PORT%/"
+echo   Worker log: logs\launcher_v2.log
 goto :done
 
 :v2_timeout
-echo [WARN] Frontend was not ready in 30s. Check logs\launcher_v2.log and logs\frontend_v2.log
+echo [WARN] Frontend was not ready in 30s. Real worker log follows:
+if exist "%PROJECT_DIR%logs\launcher_v2.log" type "%PROJECT_DIR%logs\launcher_v2.log"
+if exist "%PROJECT_DIR%logs\frontend_v2.log" type "%PROJECT_DIR%logs\frontend_v2.log"
 
 :done
 echo.
@@ -132,5 +135,9 @@ exit /b 0
 
 :worker
 if not exist "%PROJECT_DIR%logs" mkdir "%PROJECT_DIR%logs"
-"%PY%" "%PROJECT_DIR%scripts\start_v2_detached.py" > "%PROJECT_DIR%logs\launcher_v2.log" 2>&1
-exit /b %errorlevel%
+echo. >> "%PROJECT_DIR%logs\launcher_v2.log"
+echo ==== worker start %DATE% %TIME% ==== >> "%PROJECT_DIR%logs\launcher_v2.log"
+"%PY%" "%PROJECT_DIR%scripts\start_v2_detached.py" >> "%PROJECT_DIR%logs\launcher_v2.log" 2>&1
+set "WORKER_EXIT=%errorlevel%"
+echo ==== worker exit %WORKER_EXIT% ==== >> "%PROJECT_DIR%logs\launcher_v2.log"
+exit /b %WORKER_EXIT%

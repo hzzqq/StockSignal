@@ -209,15 +209,26 @@ describe('W4-E · 设置页（真实生效）', () => {
 
   it('启动脚本后台常驻：关闭命令行窗口后服务仍在', () => {
     const bat = readFileSync(resolve(ROOT, 'start_frontend_v2.bat'), 'utf8')
+    const stop = readFileSync(resolve(ROOT, '_stop_services.bat'), 'utf8')
     const py = readFileSync(resolve(ROOT, 'scripts/start_v2_detached.py'), 'utf8')
-    expect(bat).toContain('scripts\\start_v2_detached.py')
-    expect(bat).toContain('start_frontend_v2_hidden.vbs')
-    expect(bat).toContain('"--worker"')
-    expect(bat).toContain('The services keep running after this window is closed.')
-    expect(bat).not.toMatch(/^\s*start\s+"StockSignal/m)
+    // 注释与 echo 提示文案不是行为证据，只检查可执行行
+    const code = bat.split(/\r?\n/).filter((l) => {
+      const s = l.trim().toLowerCase()
+      return s && !s.startsWith('rem ') && !s.startsWith('::') && !s.startsWith('echo') && !s.startsWith('@echo')
+    }).join('\n')
+    expect(code).toContain('scripts\\start_v2_detached.py')
+    expect(code).toContain('start_frontend_v2_hidden.vbs')
+    expect(code).toContain('wscript.exe //nologo')
+    expect(code).toContain('"--worker"')
+    expect(code).toContain('-p tcp')
+    expect(code).toContain('LISTENING')
+    expect(code).not.toMatch(/^start\s+"StockSignal/m)
+    expect(stop).toContain('active_ports_v2.json')
+    expect(stop).toContain('-p tcp')
     expect(py).toContain('CREATE_NO_WINDOW')
     expect(py).toContain('CREATE_NEW_PROCESS_GROUP')
     expect(py).toContain('start_new_session')
+    expect(py).toContain('SingleInstance')
   })
 })
 

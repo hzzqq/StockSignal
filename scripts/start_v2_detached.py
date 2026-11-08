@@ -6,12 +6,12 @@
 
 修复：用与 startup_sim.py 相同的已验证方案 —— Windows 下
 CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP，POSIX 下 start_new_session，
-进程不依赖任何控制台窗口；stdout/stderr 落盘到 logs/。
-关闭任何命令行窗口都不会停止服务；停止请用 _stop_services.bat（按端口 kill）
-或 taskkill /f /t /pid <PID>。
+进程不依赖任何控制台窗口；stdout/stderr 追加写 logs/。
+关闭任何命令行窗口都不会停止服务；停止请用 _stop_services.bat（按端口 kill）。
 
-日志：logs/backend_v2.log、logs/frontend_v2.log
-状态：logs/active_ports_v2.json（记录实际端口与本启动器拉起的 PID）
+日志：logs/backend_v2.log、logs/frontend_v2.log（追加，不截断）
+状态：logs/active_ports_v2.json（真实端口 + 本启动器拉起的 PID + 健康结果）
+并发：logs/start_v2.lock 单实例锁，防止重复双击拉起两个 Vite 抢端口
 """
 from __future__ import annotations
 
@@ -38,6 +38,8 @@ WINDOWS_FLAGS = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
 BE_LOG = LOGS / "backend_v2.log"
 FE_LOG = LOGS / "frontend_v2.log"
 PORTS_FILE = LOGS / "active_ports_v2.json"
+LOCK_FILE = LOGS / "start_v2.lock"
+LOCK_STALE_SECONDS = 120
 
 
 def port_in_use(port: int, host: str = "127.0.0.1") -> bool:
@@ -48,16 +50,19 @@ def port_in_use(port: int, host: str = "127.0.0.1") -> bool:
 
 
 def wait_http(url: str, timeout: float = 30.0) -> bool:
-    """任意 <500 的 HTTP 响应都算服务已就绪（401/404 说明进程确实在跑）。"""
+    """2xx/3xx/4xx 都算服务已起；5xx 是启动期瞬态，继续等到 deadline。"""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(url, timeout=1.0) as resp:
-                return int(resp.status) < 500
+                if int(resp.status) < 500:
+                    return True
         except urllib.error.HTTPError as exc:
-            return exc.code < 500
+            if exc.code < 500:
+                return True
         except Exception:
-            time.sleep(0.5)
+            pass
+        time.sleep(0.5)
     return False
 
 
@@ -81,25 +86,33 @@ def resolve_python() -> str:
 
 
 def resolve_npm() -> str:
+    """返回真正可执行的 npm 路径；shutil.which 结果优先于原始候选值。"""
     candidate = os.environ.get("SS_NPM", "")
-    if candidate and (Path(candidate).is_file() or shutil.which(candidate)):
-        return candidate
-    return shutil.which("npm.cmd") or shutil.which("npm") or "npm.cmd"
+    if candidate:
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+        if Path(candidate).is_file():
+            return candidate
+    if os.name == "nt":
+        return shutil.which("npm.cmd") or shutil.which("npm") or "npm.cmd"
+    return shutil.which("npm") or "npm"
 
 
 def build_env(backend_port: int) -> dict:
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
     env.setdefault("VITE_ENABLE_MOCKS", "false")
-    if backend_port != 5050:
-        env["VITE_PROXY_TARGET"] = f"http://127.0.0.1:{backend_port}"
+    # 无条件覆盖：清掉上一次自定义端口遗留的陈旧代理目标
+    env["VITE_PROXY_TARGET"] = f"http://127.0.0.1:{backend_port}"
     return env
 
 
 def spawn(argv: list[str], cwd: Path, log: Path, env: dict) -> subprocess.Popen:
-    """后台启动；父进程只保留 PID，日志句柄交给子进程。"""
+    """后台启动；日志追加不截断，父进程只保留 PID。"""
     LOGS.mkdir(parents=True, exist_ok=True)
-    handle = open(log, "w", encoding="utf-8", errors="replace")
+    handle = open(log, "a", encoding="utf-8", errors="replace")
+    handle.write(f"\n==== spawn {time.strftime('%Y-%m-%d %H:%M:%S')} ====\n")
     try:
         proc = subprocess.Popen(
             argv,
@@ -116,9 +129,63 @@ def spawn(argv: list[str], cwd: Path, log: Path, env: dict) -> subprocess.Popen:
     return proc
 
 
+class SingleInstance:
+    """原子文件锁，防止重复双击并发拉起两个 Vite；陈旧锁自动清理。"""
+
+    def __init__(self, path: Path, stale_seconds: float = LOCK_STALE_SECONDS):
+        self.path = path
+        self.stale_seconds = stale_seconds
+        self.held = False
+
+    def _create(self) -> bool:
+        try:
+            fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode("ascii"))
+            os.close(fd)
+            self.held = True
+            return True
+        except FileExistsError:
+            return False
+
+    def __enter__(self) -> bool:
+        LOGS.mkdir(parents=True, exist_ok=True)
+        if self._create():
+            return True
+        try:
+            if time.time() - self.path.stat().st_mtime > self.stale_seconds:
+                self.path.unlink()
+                return self._create()
+        except OSError:
+            pass
+        return False
+
+    def __exit__(self, *_args) -> None:
+        if self.held:
+            try:
+                self.path.unlink()
+            except OSError:
+                pass
+
+
+def _previous_state() -> dict:
+    try:
+        return json.loads(PORTS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
 def main() -> int:
     backend_port = int(os.environ.get("SS_BACKEND_PORT") or os.environ.get("STOCKSIGNAL_PORT") or "5050")
     frontend_port = int(os.environ.get("SS_V2_PORT") or os.environ.get("STOCKSIGNAL_V2_PORT") or "5173")
+
+    with SingleInstance(LOCK_FILE) as locked:
+        if not locked:
+            print("Another v2 start is already in progress. Nothing to do; state file left untouched.")
+            return 0
+        return _run(backend_port, frontend_port)
+
+
+def _run(backend_port: int, frontend_port: int) -> int:
     env = build_env(backend_port)
     python = resolve_python()
     npm = resolve_npm()
@@ -131,6 +198,7 @@ def main() -> int:
     print(f"  Data     : real backend (MSW={env['VITE_ENABLE_MOCKS']})")
     print("=" * 54)
 
+    previous = _previous_state()
     pids: dict[str, int] = {}
 
     if port_in_use(backend_port):
@@ -156,18 +224,27 @@ def main() -> int:
         pids["frontend"] = proc.pid
         print(f"[start] frontend PID={proc.pid} -> logs/frontend_v2.log")
 
-    LOGS.mkdir(parents=True, exist_ok=True)
-    PORTS_FILE.write_text(
-        json.dumps({"backend": backend_port, "v2": frontend_port, "pids": pids},
-                   ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-
     print("Waiting for services to become ready (up to 30s)...")
     backend_ok = wait_http(f"http://127.0.0.1:{backend_port}/api/health")
     frontend_ok = wait_http(f"http://127.0.0.1:{frontend_port}/")
     print(f"  backend  : {'OK' if backend_ok else 'NOT READY'}")
     print(f"  frontend : {'OK' if frontend_ok else 'NOT READY'}")
+
+    # 本进程没拉起任何服务时（例如重复启动、端口已被占用），不得抹掉已有真实 PID
+    same_ports = previous.get("backend") == backend_port and previous.get("v2") == frontend_port
+    effective_pids = pids or (previous.get("pids") if same_ports else {})
+    LOGS.mkdir(parents=True, exist_ok=True)
+    PORTS_FILE.write_text(
+        json.dumps({
+            "backend": backend_port,
+            "v2": frontend_port,
+            "pids": effective_pids,
+            "backend_ok": backend_ok,
+            "frontend_ok": frontend_ok,
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     print("")
     print("Services run in the background with NO visible console window.")
     print("It is SAFE to close this window: the services keep running.")
@@ -176,7 +253,9 @@ def main() -> int:
     print("Logs: logs/backend_v2.log , logs/frontend_v2.log")
     print(f"State: {PORTS_FILE.relative_to(ROOT)}")
 
-    if os.environ.get("SS_NO_BROWSER") != "1" and frontend_ok:
+    # .bat 的可见窗口负责打开浏览器；.sh 通过 SS_OPEN_BROWSER=1 让这里打开一次
+    if (os.environ.get("SS_NO_BROWSER") != "1"
+            and os.environ.get("SS_OPEN_BROWSER") == "1" and frontend_ok):
         webbrowser.open(f"http://127.0.0.1:{frontend_port}/", new=2)
 
     return 0 if (backend_ok and frontend_ok) else 1
