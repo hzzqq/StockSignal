@@ -23,8 +23,11 @@ function readChartTheme(): ChartTheme {
 }
 
 /**
- * 轻量 ECharts 封装：动态 import('echarts')，仅当图表挂载时才拉取 echarts 分包，
- * 主包不再静态依赖 echarts（满足 DESIGN.md §4 预算；vite.config 的 manualChunks 再将其独立成块）。
+ * 轻量 ECharts 封装：动态加载 ./echartsSetup（按需注册版 echarts/core），
+ * 仅当图表挂载时才拉取图表分包，主包不静态依赖 echarts；vite.config 的
+ * manualChunks 再把 echarts(+zrender) 独立成块。
+ * 全量 echarts 主包会让分包虚胖到 1.1 MB；新增图表类型须同步
+ * echartsSetup.ts 的 use([...]) 清单，否则静默不渲染（守卫见测试）。
  * 纯展示组件：option 变化只调 setOption，不重建实例；卸载时 dispose 释放 canvas。
  *
  * 主题：初始 / 更新 setOption 均经 remapChartColors；订阅 ss-theme-change 自定义事件，
@@ -43,9 +46,9 @@ export function EChart({ option, height = 220, className, ariaLabel }: EChartPro
     let disposed = false
     let ro: ResizeObserver | undefined
     void (async () => {
-      const echarts = await import('echarts')
+      const { init } = await import('./echartsSetup')
       if (disposed || !elRef.current) return
-      const chart = echarts.init(elRef.current)
+      const chart = init(elRef.current)
       chartRef.current = chart
       chart.setOption(remapChartColors(optionRef.current, readChartTheme()) as EChartsOption)
       ro = new ResizeObserver(() => chart.resize())
