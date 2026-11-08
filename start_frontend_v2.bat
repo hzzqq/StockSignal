@@ -1,8 +1,13 @@
 @echo off
 rem StockSignal Frontend v2 launcher (Windows, cmd.exe).
 rem Starts the Flask backend (default 5050) and the Vite dev server (default 5173).
-rem Vite proxies /api and /webapps to the backend, so the backend must run too.
-rem Run by double-click or from cmd.exe. Do NOT run from Git Bash (see .sh for that).
+rem
+rem The services are started by a HIDDEN worker (start_frontend_v2_hidden.vbs),
+rem which runs scripts/start_v2_detached.py. No service shares this visible
+rem console, so closing this window can NEVER stop the services.
+rem Logs: logs/launcher_v2.log , logs/backend_v2.log , logs/frontend_v2.log
+rem Stop: _stop_services.bat (kills by port)
+rem Run by double-click or from cmd.exe. Do NOT run from Git Bash (see .sh).
 rem NOTE: keep this file pure ASCII + CRLF (see tests/test_bat_encoding.py).
 
 setlocal EnableExtensions
@@ -60,10 +65,14 @@ rem Set STOCKSIGNAL_USE_MOCKS=1 to force MSW demo data instead.
 set "VITE_ENABLE_MOCKS=false"
 if "%STOCKSIGNAL_USE_MOCKS%"=="1" set "VITE_ENABLE_MOCKS=true"
 
-rem --- if backend port is not the default 5050, point vite proxy at it ---
-if not "%BACKEND_PORT%"=="5050" (
-    set "VITE_PROXY_TARGET=http://127.0.0.1:%BACKEND_PORT%"
-)
+rem --- pass resolved values to the detached python launcher ---
+set "SS_PY=%PY%"
+set "SS_NPM=%NPM%"
+set "SS_BACKEND_PORT=%BACKEND_PORT%"
+set "SS_V2_PORT=%V2_PORT%"
+
+rem --- worker branch: runs inside the HIDDEN console only ---
+if "%~1"=="--worker" goto :worker
 
 echo ======================================
 echo   StockSignal Frontend v2 Launcher
@@ -74,21 +83,54 @@ echo   Data     : real backend (MSW=%VITE_ENABLE_MOCKS%); login demo / Demo@123
 echo ======================================
 echo.
 
-rem --- start backend (minimized console; maximize to see logs) ---
-start "StockSignal Backend :%BACKEND_PORT%" /d "%PROJECT_DIR%" /min "%PY%" -m flask --app backend.app:app run --host 127.0.0.1 --port %BACKEND_PORT%
+if not exist "%PROJECT_DIR%logs" mkdir "%PROJECT_DIR%logs"
+if not exist "%PROJECT_DIR%start_frontend_v2_hidden.vbs" (
+    echo [ERROR] start_frontend_v2_hidden.vbs is missing.
+    pause
+    exit /b 1
+)
+if not exist "%PROJECT_DIR%scripts\start_v2_detached.py" (
+    echo [ERROR] scripts\start_v2_detached.py is missing.
+    pause
+    exit /b 1
+)
 
-rem --- start vite dev server (visible console for HMR / errors) ---
-start "StockSignal Frontend v2 :%V2_PORT%" /d "%PROJECT_DIR%frontend-v2" "%NPM%" run dev -- --port %V2_PORT%
+echo Starting services in a hidden background worker...
+wscript.exe //nologo "%PROJECT_DIR%start_frontend_v2_hidden.vbs" "%~f0" "--worker"
+if errorlevel 1 (
+    echo [ERROR] Failed to launch the hidden worker.
+    pause
+    exit /b 1
+)
 
-echo Waiting for services to boot...
-timeout /t 4 /nobreak >nul 2>&1
+set "TRIES=0"
+:wait_v2
+set /a TRIES+=1
+netstat -aon | findstr /C:":%V2_PORT% " >nul 2>&1
+if not errorlevel 1 goto :v2_ready
+if %TRIES% GEQ 30 goto :v2_timeout
+timeout /t 1 /nobreak >nul 2>&1
+goto :wait_v2
 
-rem --- open browser ---
-start "" "http://127.0.0.1:%V2_PORT%/"
+:v2_ready
+timeout /t 1 /nobreak >nul 2>&1
+echo   Frontend is ready: http://127.0.0.1:%V2_PORT%/
+if not "%SS_NO_BROWSER%"=="1" start "" "http://127.0.0.1:%V2_PORT%/"
+goto :done
 
+:v2_timeout
+echo [WARN] Frontend was not ready in 30s. Check logs\launcher_v2.log and logs\frontend_v2.log
+
+:done
 echo.
-echo Started. Close the "Frontend v2" console to stop the UI.
-echo Stop the backend with _stop_services.bat (kills port %BACKEND_PORT%).
+echo The services keep running after this window is closed.
+echo Stop them with _stop_services.bat (ports %BACKEND_PORT% / %V2_PORT%).
+echo Logs are in the logs\ folder. This window is only a status display.
 echo.
 pause
 exit /b 0
+
+:worker
+if not exist "%PROJECT_DIR%logs" mkdir "%PROJECT_DIR%logs"
+"%PY%" "%PROJECT_DIR%scripts\start_v2_detached.py" > "%PROJECT_DIR%logs\launcher_v2.log" 2>&1
+exit /b %errorlevel%

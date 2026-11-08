@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 # StockSignal Frontend v2 launcher (Git Bash / Linux).
 # Starts the Flask backend (default 5050) and the Vite dev server (default 5173).
-# Vite proxies /api and /webapps to the backend, so the backend must run too.
+#
+# Both services are started DETACHED by scripts/start_v2_detached.py:
+# no console window is required, and closing this terminal does NOT stop them.
+# On Windows the launcher uses CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP,
+# on POSIX it uses start_new_session. Logs go to logs/*_v2.log.
 #
 # Usage:
 #   ./start_frontend_v2.sh                              # start both
 #   STOCKSIGNAL_PORT=5100 ./start_frontend_v2.sh         # custom backend port
 #   STOCKSIGNAL_V2_PORT=5180 ./start_frontend_v2.sh      # custom vite port
 #   STOCKSIGNAL_USE_MOCKS=1 ./start_frontend_v2.sh       # force MSW demo data
+#   SS_NO_BROWSER=1 ./start_frontend_v2.sh               # do not open a browser
 #
-# Stop: kill the printed PIDs, or run _stop_services.bat (Windows) for the backend.
-#   pkill -f "flask --app backend.app"   # stop backend
-#   pkill -f vite                       # stop frontend
+# Stop: _stop_services.bat (Windows, kills by port), or kill the PIDs printed.
 
 set -u
 
@@ -32,17 +35,14 @@ if [ -z "$PY" ]; then
   fi
 fi
 
-# --- backend / frontend ports ---
-BACKEND_PORT="${STOCKSIGNAL_PORT:-5050}"
-V2_PORT="${STOCKSIGNAL_V2_PORT:-5173}"
-
-# --- require npm ---
 if ! command -v npm >/dev/null 2>&1; then
   echo "[ERROR] npm not found on PATH."
   exit 1
 fi
 
-mkdir -p "$HERE/logs"
+# --- backend / frontend ports ---
+BACKEND_PORT="${STOCKSIGNAL_PORT:-5050}"
+V2_PORT="${STOCKSIGNAL_V2_PORT:-5173}"
 
 # --- data source: this launcher also starts a real backend, so use it ---
 # Default: real backend (MSW off). Set STOCKSIGNAL_USE_MOCKS=1 for demo data.
@@ -52,10 +52,13 @@ else
   export VITE_ENABLE_MOCKS=false
 fi
 
-# --- if backend port is not the default 5050, point vite proxy at it ---
-if [ "$BACKEND_PORT" != "5050" ]; then
-  export VITE_PROXY_TARGET="http://127.0.0.1:${BACKEND_PORT}"
-fi
+# --- values consumed by the detached python launcher ---
+export SS_PY="$PY"
+export SS_NPM="$(command -v npm)"
+export SS_BACKEND_PORT="$BACKEND_PORT"
+export SS_V2_PORT="$V2_PORT"
+
+mkdir -p "$HERE/logs"
 
 echo "======================================"
 echo "  StockSignal Frontend v2 Launcher"
@@ -64,31 +67,12 @@ echo "  Backend  : http://127.0.0.1:${BACKEND_PORT}/api/health"
 echo "  Frontend : http://127.0.0.1:${V2_PORT}/"
 echo "  Data     : real backend (MSW=${VITE_ENABLE_MOCKS}); login demo / Demo@123"
 echo "======================================"
+echo ""
 
-# --- start backend (background, logs to file) ---
-nohup "$PY" -m flask --app backend.app:app run --host 127.0.0.1 --port "$BACKEND_PORT" \
-  > "$HERE/logs/backend_v2.log" 2>&1 &
-BE_PID=$!
-
-# --- start vite dev server (background, logs to file) ---
-cd "$HERE/frontend-v2"
-nohup npm run dev -- --port "$V2_PORT" > "$HERE/logs/frontend_v2.log" 2>&1 &
-FE_PID=$!
-cd "$HERE"
-
-sleep 3
+"$PY" "$HERE/scripts/start_v2_detached.py"
+STATUS=$?
 
 echo ""
-echo "Backend  PID=$BE_PID  ->  logs/backend_v2.log"
-echo "Frontend PID=$FE_PID  ->  logs/frontend_v2.log"
-echo "Open: http://127.0.0.1:${V2_PORT}/"
-
-# --- try to open the browser ---
-if command -v xdg-open >/dev/null 2>&1; then
-  xdg-open "http://127.0.0.1:${V2_PORT}/" >/dev/null 2>&1 &
-elif command -v start >/dev/null 2>&1; then
-  start "" "http://127.0.0.1:${V2_PORT}/" >/dev/null 2>&1 &
-fi
-
-echo ""
-echo "Stop: kill $BE_PID $FE_PID   (or: pkill -f vite / pkill -f \"flask --app backend.app\")"
+echo "The services keep running after this terminal is closed."
+echo "Stop them with _stop_services.bat (ports ${BACKEND_PORT} / ${V2_PORT})."
+exit "$STATUS"
