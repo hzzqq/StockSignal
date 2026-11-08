@@ -182,3 +182,20 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── v1 首页 Hero 移植（features/dashboard/ProjectIntro.tsx）────────────
+ * 只补 v1 注入式 <style> 里 Tailwind 未表达的 padding 与 hover，其余一律走
+ * 语义令牌；不引入新的颜色语义，亮暗主题恒等。 */
+.intro-root { padding: 0 .5rem; }
+.intro-pain { padding: 1.2rem 1.25rem 1rem; }
+.intro-pain:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--color-brand-1) 45%, var(--color-sf-line));
+}
+
+/* ── 本地表格密度偏好（设置页真实生效，作用域仅限功能全景/数据视图）──
+ * 用 CSS 变量而非覆盖全局 .rounded-card，避免影响既有轻量卡片流页面。 */
+:root { --ss-table-py: .375rem; }
+html[data-density="compact"] { --ss-table-py: .125rem; }
+.cat-table th,
+.cat-table td { padding-top: var(--ss-table-py); padding-bottom: var(--ss-table-py); }

@@ -42,7 +42,10 @@ describe('W4-D · 数据源与接口检测页', () => {
     expect(screen.getByText('② 接口检测')).toBeTruthy()
     expect(screen.getByText('依赖与本地缓存')).toBeTruthy()
     expect(screen.getByText('各数据源时效')).toBeTruthy()
-    expect(screen.getByText('四源真实网络探测')).toBeTruthy()
+    // Mock 态不得再自称「真实」网络探测（诚实红线）
+    expect(screen.getByText('四源网络探测（模拟数据）')).toBeTruthy()
+    expect(screen.queryByText('四源真实网络探测')).toBeNull()
+    expect(screen.getByText(/当前为 Mock 环境：点击只会读取 MSW 夹具里的模拟结果/)).toBeTruthy()
     expect(screen.getByText('只读端点连通性')).toBeTruthy()
     // 汇总：4/5 可用，4 源时效，8 个端点
     expect(screen.getByText('4/5 可用')).toBeTruthy()
@@ -73,15 +76,22 @@ describe('W4-D · 数据源与接口检测页', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('点「开始真实网络探测」→ probe=1，四源如实含失败项与耗时', async () => {
+  it('Mock 态点击查看模拟探测结果 → probe=1，且逐卡如实标注模拟、不冒充真实探网', async () => {
     mount()
-    const btn = await screen.findByRole('button', { name: '开始真实网络探测' })
+    const btn = await screen.findByRole('button', { name: '查看模拟探测结果' })
+    expect(screen.queryByRole('button', { name: '开始真实网络探测' })).toBeNull()
     fireEvent.click(btn)
     await waitFor(() => expect(screen.getByText('连接超时')).toBeTruthy(), { timeout: 5000 })
     expect(screen.getByText('176 ms')).toBeTruthy()
     expect(screen.getByText('10000 ms')).toBeTruthy()
+    // 负耗时（-1 ms）是假数据，必须显示为「—」而不是负数
+    expect(screen.queryByText('-1 ms')).toBeNull()
     expect(screen.getAllByText('通').length).toBe(2)
     expect(screen.getAllByText('不通').length).toBe(2)
+    // 四张卡片逐卡标「模拟」+ 整体提示，绝不冒充真实探网结果
+    expect(screen.getAllByText('· 模拟').length).toBe(4)
+    expect(screen.getByText(/以下四源结果来自 MSW 模拟夹具/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: '重新查看模拟结果' })).toBeTruthy()
   })
 
   it('点「开始检测」→ 对可探测端点真实 GET，显示 HTTP/信封/耗时；需参数端点如实跳过', async () => {

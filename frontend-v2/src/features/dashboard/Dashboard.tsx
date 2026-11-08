@@ -5,6 +5,7 @@ import { IndexQuotes } from '@/features/stock/components/IndexQuotes'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { fmtNum } from '@/lib/format'
+import { ProjectIntro } from './ProjectIntro'
 
 /** 首页/概览：聚合当日快照、P1 最新数据日、作品集数量，并内嵌决策快照视图。 */
 export function Dashboard() {
@@ -21,6 +22,9 @@ export function Dashboard() {
 
   return (
     <div className="flow">
+      {/* v1 首页 Hero 1:1 移植（app.py::_render_project_intro） */}
+      <ProjectIntro />
+      <div aria-hidden="true" className="border-t border-sf-line" />
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">概览</h2>
         <Link to="/decision" className="text-body text-sf-accent hover:underline">

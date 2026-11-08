@@ -77,8 +77,9 @@ export function DiagnosticsView() {
         <div role="status" className="flex items-start gap-2 rounded-tile border border-sf-line bg-sf-surface px-4 py-3 text-body text-sf-ink-2">
           <span aria-hidden="true" className="mt-1.5 w-1.5 h-1.5 shrink-0 rounded-full bg-sf-warn" />
           <span>
-            当前为开发 Mock 环境（MSW 已启用）：下方接口检测结果为模拟响应，<strong>不代表真实后端连通性</strong>。
-            设 <code className="font-mono">VITE_ENABLE_MOCKS=false</code> 重启、或使用生产构建，才会真正连到后端。
+            当前为开发 Mock 环境（MSW 已启用）：本页<strong>全部检测结果（含四源网络探测与接口检测）均为模拟数据</strong>，
+            既不代表真实后端连通性，也不代表数据源通断。用 <code className="font-mono">start_frontend_v2.bat</code> 启动，
+            或设 <code className="font-mono">VITE_ENABLE_MOCKS=false</code> 重启，才会连到真实后端。
           </span>
         </div>
       ) : null}
@@ -167,7 +168,7 @@ export function DiagnosticsView() {
               </Card>
 
               <Card
-                title="四源真实网络探测"
+                title={mocked ? '四源网络探测（模拟数据）' : '四源真实网络探测'}
                 right={
                   <button
                     type="button"
@@ -175,14 +176,25 @@ export function DiagnosticsView() {
                     disabled={diag.isFetching}
                     className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-label text-sf-ink hover:border-sf-accent transition-colors disabled:opacity-50"
                   >
-                    {diag.isFetching ? '探测中…' : wantProbe ? '重新探测' : '开始真实网络探测'}
+                    {diag.isFetching
+                      ? '探测中…'
+                      : mocked
+                        ? (wantProbe ? '重新查看模拟结果' : '查看模拟探测结果')
+                        : (wantProbe ? '重新探测' : '开始真实网络探测')}
                   </button>
                 }
               >
                 <p className="text-label text-sf-ink-3 mb-3">
-                  默认不触网；点击后对 akshare / BaoStock / 新浪 / 东方财富各发一次真实日线请求（约数秒），如实报告通断与耗时。
+                  {mocked
+                    ? '当前为 Mock 环境：点击只会读取 MSW 夹具里的模拟结果，不会发出任何真实网络请求；下方通断与耗时均不代表真实数据源状态。'
+                    : '默认不触网；点击后后端对 akshare / BaoStock / 新浪 / 东方财富各发一次真实日线请求（约数秒），如实报告通断与耗时。'}
                 </p>
-                <ProbeBody probe={data.probe} pending={diag.isFetching && wantProbe} />
+                {mocked && data.probe !== null ? (
+                  <p role="note" className="text-label text-sf-warn mb-2">
+                    以下四源结果来自 MSW 模拟夹具，并非真实探网数据。
+                  </p>
+                ) : null}
+                <ProbeBody probe={data.probe} pending={diag.isFetching && wantProbe} mocked={mocked} />
               </Card>
             </section>
 
@@ -290,7 +302,7 @@ function FreshnessTable({ rows }: { rows: DiagnosticsFreshnessRow[] }) {
   )
 }
 
-function ProbeBody({ probe, pending }: { probe: DiagnosticsProbe; pending: boolean }) {
+function ProbeBody({ probe, pending, mocked }: { probe: DiagnosticsProbe; pending: boolean; mocked: boolean }) {
   if (pending) return <p className="text-body text-sf-ink-3">正在真实探网，请稍候…</p>
   if (probe === null) return <p className="text-body text-sf-ink-3">尚未探测（默认零网络）。</p>
   if (!probe.available) {
@@ -301,12 +313,15 @@ function ProbeBody({ probe, pending }: { probe: DiagnosticsProbe; pending: boole
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {probe.levels.map((lv) => (
         <div key={lv.level} className="rounded-tile bg-sf-surface-2 border border-sf-line px-3.5 py-3">
-          <div className="text-label text-sf-ink-3">{PROBE_LABEL[lv.level] ?? lv.level}</div>
+          <div className="text-label text-sf-ink-3">
+            {PROBE_LABEL[lv.level] ?? lv.level}
+            {mocked ? <span className="ml-1 text-sf-warn">· 模拟</span> : null}
+          </div>
           <div className={`text-kpi font-semibold leading-tight mt-0.5 ${statusClass(lv.ok)}`}>
             {lv.ok ? '通' : '不通'}
           </div>
           <div className="text-label text-sf-ink-3 mt-1 tabular-nums">
-            {lv.latency_ms === null ? '—' : `${lv.latency_ms} ms`}
+            {lv.latency_ms === null || lv.latency_ms < 0 ? '—' : `${lv.latency_ms} ms`}
           </div>
           <div className="text-label text-sf-ink-3 mt-1 break-all" title={lv.detail ?? undefined}>
             {lv.detail ?? '—'}

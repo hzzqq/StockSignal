@@ -21,6 +21,9 @@ import { SixDimView } from '@/features/stock/SixDimView'
 import { FundamentalsView } from '@/features/stock/FundamentalsView'
 import { ResearchView } from '@/features/stock/ResearchView'
 import { CompareView } from '@/features/stock/CompareView'
+import { SettingsView } from '@/features/settings/SettingsView'
+import { CatalogView } from '@/features/catalog/CatalogView'
+import { DataSourceView } from '@/features/catalog/DataSourceView'
 import { resolveResearchSearch, resolveLegacySearch, resolveCompareSearch } from '@/lib/deeplink'
 import type { ResearchRouteSearch, CompareRouteSearch } from '@/lib/deeplink'
 
@@ -156,6 +159,34 @@ const diagnosticsRoute = createRoute({
   component: DiagnosticsView,
 })
 
+// W4-E · 设置 / v1 功能全景 / 只读端点数据浏览器（侧边栏底部固定入口）
+const settingsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/settings',
+  component: SettingsView,
+})
+
+const catalogRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/catalog',
+  component: CatalogView,
+})
+
+const dataRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/data',
+  validateSearch: (raw: Record<string, unknown>): { path?: string } => ({
+    path: typeof raw.path === 'string' ? raw.path : undefined,
+  }),
+  component: DataRouteView,
+})
+
+/** 薄 wrapper：把 query 里的端点路径传给纯组件（E2E 无需 RouterProvider）。 */
+function DataRouteView() {
+  const search = dataRoute.useSearch()
+  return <DataSourceView initialPath={search.path ?? ''} />
+}
+
 const sixDimRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/stock/six-dim',
@@ -239,6 +270,9 @@ const routeTree = rootRoute.addChildren([
     predictionsRoute,
     opsRoute,
     diagnosticsRoute,
+    settingsRoute,
+    catalogRoute,
+    dataRoute,
     sixDimRoute,
     researchRoute,
     fundamentalsRoute,

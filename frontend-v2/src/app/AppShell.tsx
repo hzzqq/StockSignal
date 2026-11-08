@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { Outlet, Link, useNavigate } from '@tanstack/react-router'
+import { applyPreferences } from '@/lib/preferences'
 import { clearAuth } from '@/app/guards'
 import { NAV } from '@/nav/nav'
 import { MockBanner } from '@/mocks/MockBanner'
@@ -13,6 +15,7 @@ import { ThemeToggle } from '@/shared/ui/ThemeToggle'
  */
 export function AppShell() {
   const navigate = useNavigate()
+  useEffect(() => applyPreferences(), [])
 
   function onLogout() {
     clearAuth()
@@ -21,7 +24,7 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen flex bg-sf-bg text-sf-ink">
-      <aside className="w-14 md:w-56 shrink-0 border-r border-sf-line p-3 space-y-4 overflow-y-auto">
+      <aside className="w-14 md:w-56 shrink-0 flex flex-col border-r border-sf-line p-3 space-y-4 overflow-y-auto">
         <div className="px-2 py-2 text-title font-semibold text-sf-ink whitespace-nowrap">
           <span className="md:hidden">S2</span>
           <span className="nav-label hidden md:inline">StockSignal V2</span>
@@ -49,6 +52,28 @@ export function AppShell() {
             </div>
           ))}
         </nav>
+
+        {/* 底部固定入口：不进 NAV 数组，避免影响导航分组/图标唯一守卫 */}
+        <div className="mt-auto border-t border-sf-line pt-3 space-y-0.5">
+          <Link
+            to="/catalog"
+            title="v1 功能全景"
+            aria-label="v1 功能全景"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">▣</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">v1 功能全景</span>
+          </Link>
+          <Link
+            to="/settings"
+            title="设置"
+            aria-label="设置"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⚒</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">设置</span>
+          </Link>
+        </div>
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">

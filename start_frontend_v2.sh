@@ -7,6 +7,7 @@
 #   ./start_frontend_v2.sh                              # start both
 #   STOCKSIGNAL_PORT=5100 ./start_frontend_v2.sh         # custom backend port
 #   STOCKSIGNAL_V2_PORT=5180 ./start_frontend_v2.sh      # custom vite port
+#   STOCKSIGNAL_USE_MOCKS=1 ./start_frontend_v2.sh       # force MSW demo data
 #
 # Stop: kill the printed PIDs, or run _stop_services.bat (Windows) for the backend.
 #   pkill -f "flask --app backend.app"   # stop backend
@@ -43,6 +44,14 @@ fi
 
 mkdir -p "$HERE/logs"
 
+# --- data source: this launcher also starts a real backend, so use it ---
+# Default: real backend (MSW off). Set STOCKSIGNAL_USE_MOCKS=1 for demo data.
+if [ "${STOCKSIGNAL_USE_MOCKS:-0}" = "1" ]; then
+  export VITE_ENABLE_MOCKS=true
+else
+  export VITE_ENABLE_MOCKS=false
+fi
+
 # --- if backend port is not the default 5050, point vite proxy at it ---
 if [ "$BACKEND_PORT" != "5050" ]; then
   export VITE_PROXY_TARGET="http://127.0.0.1:${BACKEND_PORT}"
@@ -53,6 +62,7 @@ echo "  StockSignal Frontend v2 Launcher"
 echo "======================================"
 echo "  Backend  : http://127.0.0.1:${BACKEND_PORT}/api/health"
 echo "  Frontend : http://127.0.0.1:${V2_PORT}/"
+echo "  Data     : real backend (MSW=${VITE_ENABLE_MOCKS}); login demo / Demo@123"
 echo "======================================"
 
 # --- start backend (background, logs to file) ---

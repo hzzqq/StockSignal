@@ -55,6 +55,11 @@ pause
 exit /b 1
 :npm_ok
 
+rem --- data source: this launcher also starts a real backend, so use it ---
+rem Set STOCKSIGNAL_USE_MOCKS=1 to force MSW demo data instead.
+set "VITE_ENABLE_MOCKS=false"
+if "%STOCKSIGNAL_USE_MOCKS%"=="1" set "VITE_ENABLE_MOCKS=true"
+
 rem --- if backend port is not the default 5050, point vite proxy at it ---
 if not "%BACKEND_PORT%"=="5050" (
     set "VITE_PROXY_TARGET=http://127.0.0.1:%BACKEND_PORT%"
@@ -65,6 +70,7 @@ echo   StockSignal Frontend v2 Launcher
 echo ======================================
 echo   Backend  : http://127.0.0.1:%BACKEND_PORT%/api/health
 echo   Frontend : http://127.0.0.1:%V2_PORT%/
+echo   Data     : real backend (MSW=%VITE_ENABLE_MOCKS%); login demo / Demo@123
 echo ======================================
 echo.
 
