@@ -10,6 +10,7 @@
 """
 import html  # noqa: I001
 import json
+import logging
 import os
 
 import streamlit as st
@@ -129,8 +130,7 @@ if os.path.exists(_sim_path):
             st.caption(f"p5 {s.get('return_p5_pct', '—')}% / p95 {s.get('return_p95_pct', '—')}% · "
                        f"{sim.get('meta', {}).get('honesty_note', '')}")
     except Exception as e:  # noqa: BLE001
-        print(f'[R-01] 每日荐股渲染失败: {e}')
-        pass
+        logging.getLogger(__name__).warning("[每日荐股] 模拟统计渲染失败（非阻断）: %s", e)
 
 # ── 免责声明 ──
 xc_info_banner(f"⚠️ {DISCLAIMER}")

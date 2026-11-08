@@ -29,6 +29,7 @@ backend/api/read_routes.py — W1 只读数据端点（前端 v2 替代 12 个�
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 from datetime import datetime, timedelta
@@ -1130,8 +1131,8 @@ def _w4c_compare_metrics(basic, spot, kline):
         vn = out["vol_now"]
         if avg not in (None, 0) and vn is not None:
             out["vol_chg"] = round((vn - avg) / avg * 100, 2)
-    except Exception:  # noqa: BLE001 - 算错即该组字段保持 None，绝不编造
-        pass
+    except Exception as e:  # noqa: BLE001 - 算错即该组字段保持 None，绝不编造
+        logging.getLogger(__name__).debug("成交量派生计算失败，相关字段保持 None: %s", e)
     return out
 
 
@@ -1158,8 +1159,8 @@ def _w4c_deep_tech(kline):
                 lo = _w4b_num(kdf.iloc[-1].get("low"))
                 if hi is not None and lo is not None:
                     out["amplitude"] = round((hi - lo) / pc * 100, 2)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger(__name__).debug("技术面派生计算失败，相关字段保持 None: %s", e)
     return out
 
 

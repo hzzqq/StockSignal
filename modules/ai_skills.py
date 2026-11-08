@@ -90,7 +90,8 @@ def save_skills(skills: list[dict], path: str | None = None) -> bool:
                  "updated_at": datetime.now().isoformat(timespec="seconds")},
                 f, ensure_ascii=False, indent=2)
         return True
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[ai_skills] 规则库落盘失败: %s", e)
         return False
 
 
@@ -106,7 +107,8 @@ def upsert_skill(skill: dict, path: str | None = None) -> list[dict]:
         skill.setdefault("enabled", True)
         skill.setdefault("scopes", [])
         skills.append(skill)
-    save_skills(skills, path)
+    if not save_skills(skills, path):
+        logger.warning("[ai_skills] upsert_skill 落盘失败，规则未持久化")
     return skills
 
 

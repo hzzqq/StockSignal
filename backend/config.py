@@ -51,8 +51,9 @@ def _resolve_secret() -> str:
             # （2026-09-27 备案：本修复曾被旧会话工作副本回写回退为 except pass，已恢复）
             logging.getLogger(__name__).debug("SECRET_KEY 文件 chmod 失败: %s", e)
         return generated
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         import secrets as _secrets
+        logging.getLogger(__name__).debug("SECRET_KEY 生成兜底（加载失败）: %s", e)
         return _secrets.token_urlsafe(48)
 
 

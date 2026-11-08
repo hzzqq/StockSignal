@@ -74,3 +74,24 @@ def test_no_broad_silent_swallow():
         "请至少改为 logger.debug/warning 留痕，或改用具体异常类型窄捕获:\n"
         + "\n".join(f"  {r}:{ln}" for r, ln in bad)
     )
+
+
+def test_ai_skills_save_logs_on_failure(monkeypatch, caplog):
+    """T-239：规则库落盘失败必须留痕（不得静默返回 False 导致真实数据丢失）。
+
+    回归钉：此前 save_skills 的 except 直接 return False、且 upsert_skill 丢弃返回值，
+    规则库写盘失败在日志里完全不可见。本测试模拟磁盘故障，断言：
+      1) save_skills 仍返回 False（行为不变）；
+      2) 必须产生「落盘失败」WARNING 日志。
+    """
+    import logging as _logging
+    from modules import ai_skills as ak
+
+    def _boom(*_a, **_k):
+        raise PermissionError("disk full (simulated)")
+
+    monkeypatch.setattr("builtins.open", _boom)
+    with caplog.at_level(_logging.WARNING, logger="modules.ai_skills"):
+        result = ak.save_skills([{"id": "x"}], path="/tmp/__should_not_write__.json")
+    assert result is False
+    assert any("落盘失败" in r.message for r in caplog.records), "落盘失败未留痕"

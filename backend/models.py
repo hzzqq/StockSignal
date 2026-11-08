@@ -10,6 +10,7 @@ backend/models.py
 """
 from __future__ import annotations  # noqa: I001
 import json
+import logging
 from werkzeug.security import check_password_hash, generate_password_hash
 from .extensions import db
 from .utils.timeutil import utc_now as _utcnow
@@ -44,7 +45,8 @@ class User(db.Model):
         try:
             v = json.loads(raw)
             return v if isinstance(v, dict) else {}
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).debug("用户配置解析失败，降级为 {}: %s", e)
             return {}
 
     def to_public(self) -> dict:
@@ -372,7 +374,8 @@ class ResearchRun(db.Model):
         import json as _json
         try:
             return _json.loads(s or "[]")
-        except Exception:  # noqa: BLE001 - 脏数据兜底为 []
+        except Exception as e:  # noqa: BLE001 - 脏数据兜底为 []
+            logging.getLogger(__name__).debug("告警记录解析失败，降级为 []: %s", e)
             return []
 
     def to_dict(self) -> dict:

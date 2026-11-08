@@ -11,6 +11,7 @@ backend/api/chat_routes.py
 from __future__ import annotations  # noqa: I001
 
 import json
+import logging
 
 from flask import Blueprint, request, g
 
@@ -45,7 +46,8 @@ def get_history():
         return ok(data={"messages": []})
     try:
         messages = json.loads(rec.messages)
-    except Exception:
+    except Exception as e:
+        logging.getLogger(__name__).debug("聊天历史解析失败，降级为空: %s", e)
         messages = []
     if not isinstance(messages, list):
         messages = []
