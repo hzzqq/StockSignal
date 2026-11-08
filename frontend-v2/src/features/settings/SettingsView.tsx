@@ -204,7 +204,8 @@ export function SettingsView() {
             报告与个股页为绿涨红跌；状态灯用独立状态色，不混用涨跌色。
           </p>
           <p className="m-0 text-label text-sf-ink-3">
-            提示：用 start_frontend_v2.bat / .sh 启动时默认连接真实后端；需要演示数据可设 STOCKSIGNAL_USE_MOCKS=1。
+            提示：用 start_frontend_v2.bat / .sh 启动时默认连接真实后端，启动前设 STOCKSIGNAL_USE_MOCKS=1 可切演示数据；
+            直接 npm run dev 时开发态默认启用 MSW，设 VITE_ENABLE_MOCKS=false 才关闭。
           </p>
         </div>
       </Card>

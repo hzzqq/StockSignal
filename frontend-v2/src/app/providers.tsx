@@ -96,7 +96,9 @@ export function Providers({ children }: { children: ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000,
+            // 与各 hook 的显式分层一致：默认取最保守的快照档 5min，
+            // 避免后续新增查询意外用上 30s 短缓存（queries.ts §7）。
+            staleTime: 5 * 60_000,
             retry: 1,
             refetchOnWindowFocus: false,
           },

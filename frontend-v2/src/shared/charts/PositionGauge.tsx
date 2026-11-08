@@ -7,9 +7,28 @@ interface PositionGaugeProps {
   color?: string | null
 }
 
-/** 仓位建议仪表盘（0–100%）。颜色取决策闭环下发的 pos.color，缺失回退涨色。 */
+/**
+ * 仓位建议仪表盘（0–100%）。颜色取决策闭环下发的 pos.color，缺失回退涨色。
+ *
+ * 诚实红线：pct 缺失或非有限数时**不画指针、不显示 0%**，只给「—」空态。
+ * 旧实现 `const value = pct ?? 0` 会在快照不含 position 时伪造出
+ * 「系统建议空仓 0%」的确定性结论，属把「无数据」当成「数值为 0」。
+ */
 export function PositionGauge({ pct, color }: PositionGaugeProps) {
-  const value = pct ?? 0
+  if (typeof pct !== 'number' || !Number.isFinite(pct)) {
+    return (
+      <div
+        role="status"
+        aria-label="暂无仓位建议数据"
+        className="flex items-center justify-center text-kpi font-semibold text-sf-ink-3"
+        style={{ height: 180 }}
+      >
+        —
+      </div>
+    )
+  }
+
+  const value = Math.max(0, Math.min(100, pct))
   const accent = color ?? CHART.up
   const option: EChartsOption = {
     backgroundColor: 'transparent',

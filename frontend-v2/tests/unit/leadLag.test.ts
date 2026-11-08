@@ -51,8 +51,8 @@ describe('口径常量与数据边界', () => {
   })
 
   it('样本门槛比 v1 更严格，窗口与 v1 一致', () => {
-    expect(MIN_SAMPLES).toBeGreaterThanOrEqual(30)
-    expect(MIN_PAIR_SAMPLES).toBeGreaterThanOrEqual(30)
+    expect(MIN_SAMPLES).toBe(30)
+    expect(MIN_PAIR_SAMPLES).toBe(30)
     expect(MAX_LAG).toBe(20)
   })
 })

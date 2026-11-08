@@ -35,7 +35,8 @@ export function IndexQuotes() {
         {data ? (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {data.items.map((it) => {
-              const up = (it.change ?? 0) >= 0
+              // change 为 null 时不得用 0 推断方向：下面颜色分支本就走中性色，这里保持同源。
+              const up = it.change !== null && it.change >= 0
               const color =
                 it.change === null
                   ? 'var(--color-sf-ink-2)'

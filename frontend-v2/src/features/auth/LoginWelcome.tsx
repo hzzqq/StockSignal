@@ -3,7 +3,7 @@
  *
  * 视觉规格 1:1 对齐 v1 `modules/session.py::_render_login_gate()`：
  *   - Hero 大标题：「📊 决策 放心交给 StockSignal」（品牌渐变只作用在「决策」二字）
- *   - 数据副标题：真实测试数 / 真实回测日数（**不照抄 v1 旧数**，取当前实测值）
+ *   - 数据副标题：定性能力描述（v2 无「测试数 / 回测日数」只读端点，不展示未验证数字）
  *   - 居中品牌卡：Logo → 渐变大标题 → 副标题 → 描述 → 演示账号徽章 → 渐变主按钮
  *   - 底部脚注：仅供学习与研究所用，不构成投资建议
  *
@@ -13,7 +13,9 @@
  *     （绝对定位 div）实现，避免依赖 Tailwind 任意值类名。
  *   - 品牌色提升为 tokens.css 的 `--color-brand-1/2` 令牌（单一真理源，亮暗恒等）。
  *
- * 诚实红线：所有数值均为**当前实测**（测试数 / 回测日数），不写死 v1 的历史旧值；
+ * 诚实红线：v2 没有「测试数 / 回测日数」的只读端点，前端不得展示任何未经数据源
+ * 验证的数字；v1 的历史旧值一律不照抄（连注释也不留具体数字，避免被后人复制）。
+ * 故副标题改为定性描述。
  * 演示账号徽章展示的是**真实可用的演示账号**（与后端 seed 一致）。
  */
 import type { ReactNode } from 'react'
@@ -32,15 +34,7 @@ export function LoginWelcome({ onLogin }: { onLogin: () => void }) {
           <GradText>📊 决策</GradText> 放心交给 StockSignal
         </h1>
         <p className="text-[1rem] text-sf-ink-2 m-0">
-          超过{' '}
-          <b className="font-extrabold" style={{ color: 'var(--color-brand-1)' }}>
-            5,400+
-          </b>{' '}
-          条自动化测试护航 ·{' '}
-          <b className="font-extrabold" style={{ color: 'var(--color-brand-1)' }}>
-            4,092
-          </b>{' '}
-          日真实回测实证
+          以真实数据为底座 · 取不到就如实留空 · 每条建议都能回放验证
         </p>
       </div>
 

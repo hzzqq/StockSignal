@@ -91,7 +91,8 @@ function LadderBody({ history }: { history: LadderDay[] }) {
     .map((k) => Number(k))
     .filter((n) => Number.isFinite(n))
     .sort((a, b) => b - a)
-  const maxBoard = boards[0] ?? 0
+  // 无板位时取 0 仅作为配色阈值，不是渲染出来的家数；绝不当作真实数据展示。
+  const maxBoard = boards.length ? boards[0] : 0
 
   const distOption: EChartsOption = {
     backgroundColor: 'transparent',
@@ -112,7 +113,7 @@ function LadderBody({ history }: { history: LadderDay[] }) {
       {
         type: 'bar',
         data: boards.map((b) => ({
-          value: dist[String(b)] ?? 0,
+          value: dist[String(b)] ?? null,
           itemStyle: {
             color:
               maxBoard > 0

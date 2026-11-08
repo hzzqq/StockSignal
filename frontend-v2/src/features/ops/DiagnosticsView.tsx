@@ -52,7 +52,8 @@ export function DiagnosticsView() {
   const endpoints = data?.endpoints ?? []
   const autoPaths = endpoints.filter((e) => e.probe_path).map((e) => e.probe_path as string)
   const skippedCount = endpoints.length - autoPaths.length
-  const okEndpoints = endpointResults?.filter((r) => r.ok).length ?? 0
+  // 未探测时为 null（页面显示「未检测」），绝不补 0 冒充「0 个成功」。
+  const okEndpoints = endpointResults?.filter((r) => r.ok).length ?? null
 
   async function runEndpointProbe() {
     setProbing(true)

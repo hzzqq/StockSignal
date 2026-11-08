@@ -24,7 +24,7 @@ import { fmtNum } from '@/lib/format'
  * 缺失字段诚实留空，不编造。
  */
 
-function num(v: number | null | undefined): number | null {
+function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 }
 
@@ -107,10 +107,11 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
         type: 'bar',
         barWidth: '52%',
         data: [
-          { value: Number(ind.up_count ?? 0), itemStyle: { color: CHART.up } },
-          { value: Number(ind.down_count ?? 0), itemStyle: { color: CHART.down } },
-          { value: Number(ind.limit_up ?? 0), itemStyle: { color: CHART.up } },
-          { value: Number(ind.limit_down ?? 0), itemStyle: { color: CHART.down } },
+          // 缺失送 null：ECharts 不画该柱，绝不把「无数据」渲染成 0 家
+          { value: num(ind.up_count), itemStyle: { color: CHART.up } },
+          { value: num(ind.down_count), itemStyle: { color: CHART.down } },
+          { value: num(ind.limit_up), itemStyle: { color: CHART.up } },
+          { value: num(ind.limit_down), itemStyle: { color: CHART.down } },
         ],
       },
     ],
@@ -255,7 +256,8 @@ function LadderDetailView({ history }: { history: LadderDay[] }) {
     .map((k) => Number(k))
     .filter((n) => Number.isFinite(n))
     .sort((a, b) => b - a)
-  const maxBoard = boards[0] ?? 0
+  // 无板位时取 0 仅作为配色阈值，不是渲染出来的家数；绝不当作真实数据展示。
+  const maxBoard = boards.length ? boards[0] : 0
 
   const option: EChartsOption = {
     backgroundColor: 'transparent',
@@ -276,7 +278,7 @@ function LadderDetailView({ history }: { history: LadderDay[] }) {
       {
         type: 'bar',
         data: boards.map((b) => ({
-          value: dist[String(b)] ?? 0,
+          value: dist[String(b)] ?? null,
           itemStyle: {
             color:
               maxBoard > 0

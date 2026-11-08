@@ -82,7 +82,11 @@ export function GuideView() {
   function toggle(id: string) {
     const next = done.includes(id) ? done.filter((x) => x !== id) : [...done, id]
     setDone(next)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    } catch {
+      // 隐私模式 / 存储被禁用：勾选仍在本会话内生效，不谎报已持久化
+    }
   }
 
   return (
