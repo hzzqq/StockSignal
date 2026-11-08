@@ -98,6 +98,8 @@ ROUTES = (
     ("/stock/six-dim", "sixdim"),  # W4-A 六维评分：暗/亮两主题真实验收
     ("/stock/research", "research"),          # W4-B 个股研究（旧 24）
     ("/stock/fundamentals", "fundamentals"),  # W4-B 基本面分析（旧 22）
+    ("/stock/compare", "compare"),            # W4-C 多股对比（默认态）
+    ("/stock/compare?codes=600519,000001", "compare_dual"),  # W4-C 多股对比（双码态）
 )
 
 # W4-B 深链专项：/legacy 走客户端 history.replace（不是新 document），
@@ -120,6 +122,9 @@ DEEPLINK_CASES = (
     ("/legacy?hub_gyj_view=quick&pick_stock=abc", "legacy_bad_code",
      "/stock/research", (), ("abc", "code="),
      "非法 code 不进入最终 search"),
+    ("/stock/research?view=deep&code=600519", "deeplink_deep_w4c",
+     "/stock/research", ("view=deep", "code=600519"), (),
+     "24 深链直达 view=deep（W4-C 迁移后真实深度内容）"),
 )
 
 # 真实浏览器计算样式采样：既证明主题生效，也守 A 股双套语义红线。

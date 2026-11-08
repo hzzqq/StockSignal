@@ -210,3 +210,24 @@ npm --prefix frontend-v2 run inspect:visual
 - 24 deep 完整内容、21 多股对比、ECharts K 线图属 W4-C，本波**未实现**，占位文案已如实标注。
 - 截图为 1440×900 单视口、`captureBeyondViewport=false`，口径说明卡片等下半内容裁在视口外；DOM 采样已验证存在，属**截图边界**非页面缺陷。
 - 键盘遍历、读屏、窄屏、Safari / Firefox 仍未测。
+
+## 增量目检（W4-C 个股对比 / 深度 / 真后端联调，2026-11-07）
+
+`ROUTES` 扩到 12 条（新增 `/stock/compare`、`/stock/compare?codes=600519,000001`）+ `DEEPLINK_CASES` +1（`/stock/research?view=deep`）；并**首次走隔离 5051 真后端 + 关 MSW** 联调（非 MSW fixtures）。
+
+### 隔离联调环境（未触碰老板 5050 活服务）
+- 5051 独立端口 + 独立 `DATABASE_URL=sqlite:///E:/tmp/ss_probe/w4c_int.db` + 独立 `STOCKSIGNAL_SECRET`；6 个调度器开关全 =0（COND / DATA_REFRESH / ALERT / RECOMMEND / P1_SYNC / RESEARCH_WATCH），日志确认全部「跳过」。
+- `vite.config.ts` 2 行 env 覆盖（`VITE_PROXY_TARGET ?? 5050`），`VITE_ENABLE_MOCKS=false` 关 MSW；前端 dev 5173 起、经代理打 5051。
+
+### 结果（17 张 PNG，暗 13 + 亮 4，输出仓库外 `E:/tmp/ss_probe/w4c_shots/`）
+- **16/17 通过硬判定**（>1KB、React 挂载、主题令牌齐全）；`light_login` 因注入 JWT 后 `/login` 被守卫重定向到 dashboard、data-theme 仍 dark（截图仍生成，非验证失败）。
+- **MockBanner 消失（PASS）**：17 张页均无「演示数据（Mock）」横幅 → MSW 确已关闭、走真后端。
+- **message 指纹（关键防伪，PASS）**：admin 真实 JWT 直连 5051，`/compare-one`→`message='compare-one'`、`/research-deep`→`message='research-deep'`，**非 MSW 默认 `'ok'`** → 确证真后端而非 MSW。
+- **真实数据 + 诚实 null 降级并存**：`/stock/compare?codes=600519,000001` 中 600519 渲染真实值（current_price 1453、support 1228.10、resistance 1480.60、ma5v 62361.20、vol_now 42848 等），000001 多字段诚实 `—`（null，未补 0）；`/stock/research?view=deep&code=600519` 渲染真实 code 并诚实展示豁免卡「56 键深度分析（旧版 analysis_engine 异步任务）V2 暂未接入，可走 /legacy 查看旧版」，与后端 `deep_analysis_available=false` 完全一致，无造假。
+
+### 红线（同前）
+两主题表面色不同、A 股 4 个价格变量两主题恒等 等均 PASS（沿用既有判定脚本）。
+
+### 本次增量未覆盖（如实标注）
+- 数据源在本环境取到「部分真实 + 部分 null」：实时联网依赖外网，未做独立「浏览器 Network 抓包确认打 5051」—— 经代理 curl 一致 + 页面渲染值与直连 5051 的 curl 响应逐项吻合，间接但确凿证明命中 5051。
+- 窄屏 / 键盘 / 读屏 / Safari / Firefox 仍未测；截图单视口 1440×900、`captureBeyondViewport=false`，下半内容可能裁出视口（DOM 采样已验证存在）。

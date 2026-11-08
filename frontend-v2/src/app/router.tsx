@@ -19,8 +19,9 @@ import { SystemStatusView } from '@/features/ops/SystemStatusView'
 import { SixDimView } from '@/features/stock/SixDimView'
 import { FundamentalsView } from '@/features/stock/FundamentalsView'
 import { ResearchView } from '@/features/stock/ResearchView'
-import { resolveResearchSearch, resolveLegacySearch } from '@/lib/deeplink'
-import type { ResearchRouteSearch } from '@/lib/deeplink'
+import { CompareView } from '@/features/stock/CompareView'
+import { resolveResearchSearch, resolveLegacySearch, resolveCompareSearch } from '@/lib/deeplink'
+import type { ResearchRouteSearch, CompareRouteSearch } from '@/lib/deeplink'
 
 // 根布局：仅渲染子路由出口（登录页、/legacy 兼容层与鉴权外壳并列挂在根下）
 const rootRoute = createRootRoute({
@@ -191,6 +192,26 @@ function FundamentalsRouteView() {
   return <FundamentalsView search={search} />
 }
 
+// W4-C · /stock/compare（多股对比）：?codes=逗号分隔&period=... 入边。
+// validateSearch 输出全字段 optional（codes/period 均为字符串，解析在组件内做），
+// 沿用 researchRoute 同款写法，避免 AppShell 泛化 <Link> 因 search 必填而 tsc 失败。
+const compareRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/stock/compare',
+  validateSearch: (raw: Record<string, unknown>): { codes?: string; period?: string } => ({
+    codes: typeof raw.codes === 'string' ? raw.codes : undefined,
+    period: typeof raw.period === 'string' ? raw.period : undefined,
+  }),
+  component: CompareRouteView,
+})
+
+/** 薄 wrapper：把字符串态 search 经 resolveCompareSearch 归一后传给纯组件。 */
+function CompareRouteView() {
+  const search = compareRoute.useSearch()
+  const resolved = resolveCompareSearch(search) as CompareRouteSearch
+  return <CompareView search={resolved} />
+}
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   legacyRoute,
@@ -212,6 +233,7 @@ const routeTree = rootRoute.addChildren([
     sixDimRoute,
     researchRoute,
     fundamentalsRoute,
+    compareRoute,
   ]),
 ])
 

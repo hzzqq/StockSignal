@@ -125,3 +125,16 @@ export const StockKlineSchema = z.object({
   note: NullableString,
 })
 export type StockKline = z.infer<typeof StockKlineSchema>
+
+// ═══════════════════ W4-C · 多股对比 / 深度分析 通用透传契约 ═══════════════════
+// 这两类响应字段多、随后端演进，前端按 key 渲染、不强约束具体字段名（与 W4-B
+// rows 的 z.record(z.string(), z.unknown()) 同一思路）。类型侧 cast 为
+// Record<string, unknown>，任何解析失败即抛错（不兜底），与全站一致。
+
+/** GET /api/v2/read/compare-one?code=<6位>&period=... 的 data（通用透传）。 */
+export const CompareOneSchema = z.record(z.string(), z.unknown())
+export type CompareOne = z.infer<typeof CompareOneSchema>
+
+/** GET /api/v2/read/research-deep?code=<6位> 的 data（通用透传，含技术字段与豁免键）。 */
+export const ResearchDeepSchema = z.record(z.string(), z.unknown())
+export type ResearchDeep = z.infer<typeof ResearchDeepSchema>

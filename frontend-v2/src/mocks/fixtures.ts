@@ -455,3 +455,146 @@ export const klineDateNull = {
   code: '000004',
   date: null,
 }
+
+// ═══════════════════ W4-C · 多股对比 / 深度分析 / 分时 三端点 Mock ═══════════════════
+// 字段名对齐后端 read_routes 契约（通用透传，前端按 key 渲染）；数值为演示、非真实行情。
+// 降级语义与 W4-B 同款 4 态：完整 / 全源失败(全 null) / 空(仅 code) / date:null。
+
+// compare-one：单股通用对比快照（混合价格域 + 业绩域字段，演示数值）。
+export const compareOneFull = {
+  code: '600519',
+  name: '贵州茅台',
+  industry: '白酒',
+  price: 1523.5,
+  change_pct: 1.24,
+  pct_chg: 1.24,
+  open: 1505.0,
+  high: 1535.5,
+  low: 1502.3,
+  pre_close: 1504.3,
+  volume: 32100,
+  amount: 48.6,
+  pe: 28.1,
+  pb: 8.2,
+  ps: 12.4,
+  market_cap: 19138.2,
+  turnover: 0.42,
+  amplitude: 2.21,
+  ma5: 1508.7,
+  ma10: 1498.2,
+  ma20: 1476.5,
+  ma60: 1421.0,
+  rsi: 63.4,
+  macd: 12.3,
+  kdj: 78.1,
+  boll: 1499.0,
+  revenue_yoy: 12.34,
+  profit_yoy: 8.76,
+  growth: 9.10,
+  roe: 24.3,
+  gross_margin: 91.2,
+  date: '2026-11-06',
+  note: W4B_NOTE,
+}
+
+// 全源失败态：所有指标字段为 null（与 W4-B fundamentalsNullFields 同款语义）。
+export const compareOneNullFields = {
+  code: '000002',
+  name: null,
+  industry: null,
+  price: null,
+  change_pct: null,
+  pct_chg: null,
+  open: null,
+  high: null,
+  low: null,
+  pre_close: null,
+  volume: null,
+  amount: null,
+  pe: null,
+  pb: null,
+  ps: null,
+  market_cap: null,
+  turnover: null,
+  amplitude: null,
+  ma5: null,
+  ma10: null,
+  ma20: null,
+  ma60: null,
+  rsi: null,
+  macd: null,
+  kdj: null,
+  boll: null,
+  revenue_yoy: null,
+  profit_yoy: null,
+  growth: null,
+  roe: null,
+  gross_margin: null,
+  date: null,
+  note: null,
+}
+
+// 空态：仅 code，无任何指标字段（前端按 empty 渲染「暂无对比数据」）。
+export const compareOneEmpty = {
+  code: '000003',
+}
+
+// date:null 态：其余字段完整，专测「暂无权威数据日」且不兜底今天。
+export const compareOneDateNull = {
+  ...compareOneFull,
+  code: '000004',
+  date: null,
+}
+
+// research-deep：56 键深度分析快照（通用透传，前端按 key 渲染技术字段表）。
+// deep_analysis_available:true → 渲染技术字段表；false → 前端显示豁免卡。
+export const researchDeepFull = {
+  code: '600519',
+  name: '贵州茅台',
+  deep_analysis_available: true,
+  price: 1523.5,
+  pe_ttm: 28.1,
+  pb: 8.2,
+  market_cap: 19138.2,
+  ma5: 1508.7,
+  ma10: 1498.2,
+  ma20: 1476.5,
+  ma60: 1421.0,
+  amplitude: 2.21,
+  turnover: 0.42,
+  rsi: 63.4,
+  macd: 12.3,
+  kdj: 78.1,
+  boll: 1499.0,
+  revenue_yoy: 12.34,
+  profit_yoy: 8.76,
+  roe: 24.3,
+  gross_margin: 91.2,
+  date: '2026-11-06',
+  note: '深度分析为旧版 analysis_engine 异步任务结果透传',
+}
+
+// 豁免态：明确未接入（前端显示「56 键深度分析 V2 暂未接入，可走 /legacy 查看旧版」）。
+export const researchDeepExempt = {
+  code: '000003',
+  name: '海康威视',
+  deep_analysis_available: false,
+  date: null,
+  note: null,
+}
+
+// stock-intraday：分时明细（英文列，演示数值）。
+const w4cIntradayRows = [
+  { time: '09:30', price: 1505.0, avg: 1505.0, volume: 1200 },
+  { time: '09:35', price: 1510.2, avg: 1507.3, volume: 1800 },
+  { time: '09:40', price: 1508.8, avg: 1507.1, volume: 1500 },
+  { time: '09:45', price: 1512.5, avg: 1508.9, volume: 2100 },
+]
+
+export const stockIntradayFull = {
+  code: '600519',
+  period: 'intraday',
+  rows: w4cIntradayRows,
+  date: '2026-11-06',
+  note: W4B_NOTE,
+}

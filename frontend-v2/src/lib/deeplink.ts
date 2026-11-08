@@ -47,3 +47,40 @@ export function resolveLegacySearch(raw: Record<string, unknown>): ResearchSearc
   const view: ResearchView = v === '🔬 深度分析' || v === 'deep' ? 'deep' : 'quick'
   return withCode(view, pickCode(raw.pick_stock))
 }
+
+// ═══════════════════ W4-C · 多股对比深链（/stock/compare）══════════════════
+// 与上面同范式：纯函数、路由 validateSearch 与单测共用；codes 逗号字符串在组件内解析，
+// 故这里只负责把原始 search 归一成 {codes?: string[]; period?: string}。
+// 诚实红线：非 6 位 code 过滤掉（不写进数组）；period 非 daily/weekly/monthly → undefined。
+
+/** /stock/compare 归一后的深链结果（codes 为已过滤的 6 位码数组，可缺省）。 */
+export type CompareRouteSearch = { codes?: string[]; period?: string }
+
+const COMPARE_CODE_RE = /^\d{6}$/
+const COMPARE_PERIODS = ['daily', 'weekly', 'monthly'] as const
+
+/** ?codes=600519,000001&period=daily → {codes:['600519','000001'], period:'daily'}。 */
+export function resolveCompareSearch(raw: Record<string, unknown>): CompareRouteSearch {
+  const codesRaw = raw.codes
+  let codes: string[] | undefined
+  if (typeof codesRaw === 'string') {
+    const arr = Array.from(
+      new Set(
+        codesRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter((c) => COMPARE_CODE_RE.test(c)),
+      ),
+    )
+    if (arr.length > 0) codes = arr
+  }
+  const periodRaw = raw.period
+  const period =
+    typeof periodRaw === 'string' && (COMPARE_PERIODS as readonly string[]).includes(periodRaw)
+      ? periodRaw
+      : undefined
+  const out: CompareRouteSearch = {}
+  if (codes) out.codes = codes
+  if (period) out.period = period
+  return out
+}

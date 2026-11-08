@@ -113,4 +113,45 @@ export const handlers = [
     if (code === '000004') return ok(fixtures.klineDateNull)
     return ok(fixtures.klineFull)
   }),
+
+  // W4-C · 多股对比：单股通用快照（按 code 分派 4 态；非法/缺 code → 400）。
+  http.get('/api/v2/read/compare-one', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code')
+    if (!code || !/^\d{6}$/.test(code)) {
+      return HttpResponse.json(
+        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
+        { status: 400 },
+      )
+    }
+    if (code === '000002') return ok(fixtures.compareOneNullFields)
+    if (code === '000003') return ok(fixtures.compareOneEmpty)
+    if (code === '000004') return ok(fixtures.compareOneDateNull)
+    return ok(fixtures.compareOneFull)
+  }),
+
+  // W4-C · 深度分析：600519 已接入（含技术字段），其余合法码返回豁免态。
+  http.get('/api/v2/read/research-deep', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code')
+    if (!code || !/^\d{6}$/.test(code)) {
+      return HttpResponse.json(
+        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
+        { status: 400 },
+      )
+    }
+    if (code === '600519') return ok(fixtures.researchDeepFull)
+    return ok(fixtures.researchDeepExempt)
+  }),
+
+  // W4-C · 分时：600519 正常 rows，其余合法码按后端契约 not_found。
+  http.get('/api/v2/read/stock-intraday', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code')
+    if (!code || !/^\d{6}$/.test(code)) {
+      return HttpResponse.json(
+        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
+        { status: 400 },
+      )
+    }
+    if (code === '600519') return ok(fixtures.stockIntradayFull)
+    return notFound(`stock_intraday_${code}`)
+  }),
 ]

@@ -1056,3 +1056,256 @@ def stock_kline():
     rows, date = _w4b_kline_rows(res.get("kline"), limit)
     data = {"code": code, "period": period, "rows": rows, "date": date, "note": _W4B_NOTE}
     return ok(data=_sanitize(data), message="stock-kline")
+
+
+# ───────────── W4-C 个股对比/深度/分时只读端点（compare-one / research-deep / stock-intraday）─────────────
+# 契约（与 W4-B 同款红线，team-lead 已确认）：三端点均为实时联网计算、data/ 下零对应本地 JSON，
+# 沿用 W4-A/W4-B 先例走「实时计算型只读 GET」。三端点共同红线：
+#   · @jwt_required + 统一 ok/fail 信封；code 用 ^\d{6}$ 校验，非法 -> fail(400, invalid_param)；
+#   · 多源一律 fetch_many([(key, lambda: fn())...])，不传自定义 max_workers/timeout
+#     （整批硬边界 = CALL_TIMEOUT_CAP，默认 12s）；超时/异常项按 None 降级，绝不 500、绝不补 0；
+#   · 任一字段取不到 -> null / []，禁止 0 / 50 /「持有」/ 中性默认等编造值；
+#   · date 必须是权威数据日（K 线末根 date / 实时 quote datetime / 分时 trade_date），
+#     取不到 -> null；禁止 datetime.now() 当数据日、禁止文件 mtime；
+#   · 测试环境 monkeypatch 下列 _w4b_* / _w4c_* 取数源，绝不真调 akshare / 新浪 / 东财 / BaoStock。
+# 字段名清单（31 个行情/技术/评分字段）本应来自 modules.compare.py，但经核对该模块**无** _NUM_FIELDS
+# 常量；真正的 31 字段名清单定义在 modules.stock_research._NUM_FIELDS（stock_research.py:440）。
+# 此处仅「借用字段名清单」，绝不复制 compare.py 的 0 填充 / now() 兜底 / 补值逻辑。
+_W4C_NOTE = "逐字段独立取数、独立降级；缺失为 null 且不补 0"
+# 31 字段名（来源：modules.stock_research._NUM_FIELDS，行情/技术/评分混合，扁平顶层级返回）
+_W4C_COMPARE_FIELDS = (
+    "current_price", "prev_close", "change_pct", "entry_price", "target_price",
+    "stop_price", "atr14", "support", "resistance", "lo52", "hi52",
+    "ma5v", "ma10v", "ma20v", "trapped", "vol_now", "vol_avg", "vol_chg",
+    "q_open", "q_high", "q_low", "q_prev", "tech_score", "news_score",
+    "macro_score", "vol_score", "sector_score", "composite", "pos_pct",
+    "neg_pct", "pos52",
+)
+assert len(_W4C_COMPARE_FIELDS) == 31, "W4-C compare-one 字段名清单必须为 31 个"
+
+
+def _w4c_compare_metrics(basic, spot, kline):
+    """compare-one 的 31 字段逐字段独立计算；取不到 -> None（绝不补 0）。
+
+    可复用源（_w4b_basic/_w4b_spot/_w4b_kline）能直接/派生出的字段如实计算；
+    其余字段（entry_price/target_price/stop_price/atr14/trapped/q_*/news_score/
+    macro_score/sector_score/pos_*/composite/tech_score 等依赖分析引擎、本端点
+    不接入）一律诚实为 None。K 线派生量：prev_close/change_pct/support/resistance/
+    lo52/hi52/ma5v/ma10v/ma20v/vol_now/vol_avg/vol_chg。
+    """
+    basic = basic if isinstance(basic, dict) else {}
+    spot = spot if isinstance(spot, dict) else {}
+    kdf = kline if hasattr(kline, "columns") and len(kline) else None
+    out = {f: None for f in _W4C_COMPARE_FIELDS}
+    # current_price：优先 basic.price（实时价）；basic 缺失再退 spot.current
+    if basic.get("price") is not None:
+        out["current_price"] = _w4b_num(basic.get("price"))
+    else:
+        out["current_price"] = _w4b_num(spot.get("current"))
+    if kdf is None:
+        return out
+    try:
+        last = kdf.iloc[-1]
+        n = len(kdf)
+        prev = kdf.iloc[-1 - 1] if n >= 2 else None  # 倒数第二根（前收）
+        if prev is not None:
+            pc = _w4b_num(prev.get("close"))
+            if pc is not None:
+                out["prev_close"] = pc
+                lc = _w4b_num(last.get("close"))
+                if lc is not None:
+                    out["change_pct"] = round((lc - pc) / pc * 100, 2)
+        win = kdf.tail(60)
+        out["support"] = _w4b_num(win["low"].min())
+        out["resistance"] = _w4b_num(win["high"].max())
+        out["lo52"] = _w4b_num(kdf["low"].min())   # 全样本最低（52 周代理，诚实不编造）
+        out["hi52"] = _w4b_num(kdf["high"].max())
+        vol = kdf["volume"]
+        out["ma5v"] = _w4b_num(vol.tail(5).mean())
+        out["ma10v"] = _w4b_num(vol.tail(10).mean())
+        out["ma20v"] = _w4b_num(vol.tail(20).mean())
+        out["vol_now"] = _w4b_num(last.get("volume"))
+        avg = _w4b_num(vol.tail(60).mean())
+        out["vol_avg"] = avg
+        vn = out["vol_now"]
+        if avg not in (None, 0) and vn is not None:
+            out["vol_chg"] = round((vn - avg) / avg * 100, 2)
+    except Exception:  # noqa: BLE001 - 算错即该组字段保持 None，绝不编造
+        pass
+    return out
+
+
+def _w4c_deep_tech(kline):
+    """research-deep 技术面（由 kline 算）：ma5/ma10/ma20/ma60、amplitude；算不出 -> None。
+
+    turnover（换手率）需流通股本，kline 无此源 -> 诚实为 None；pb 由 get_fundamentals
+    不返回（_w4b_basic 已核实）-> 由端点置 None。
+    """
+    out = {"ma5": None, "ma10": None, "ma20": None, "ma60": None, "amplitude": None}
+    kdf = kline if hasattr(kline, "columns") and len(kline) else None
+    if kdf is None:
+        return out
+    try:
+        close = kdf["close"]
+        for k, w in (("ma5", 5), ("ma10", 10), ("ma20", 20), ("ma60", 60)):
+            if len(kdf) >= w:
+                out[k] = _w4b_num(close.tail(w).mean())
+        n = len(kdf)
+        if n >= 2:
+            pc = _w4b_num(kdf.iloc[-2].get("close"))
+            if pc not in (None, 0):
+                hi = _w4b_num(kdf.iloc[-1].get("high"))
+                lo = _w4b_num(kdf.iloc[-1].get("low"))
+                if hi is not None and lo is not None:
+                    out["amplitude"] = round((hi - lo) / pc * 100, 2)
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def _w4c_intraday(code):
+    """stock-intraday 底层 fetcher：get_fetcher().get_stock_intraday_sina(code)
+    -> (df, prev_close, trade_date) 或 (None, None, None)。异常 -> (None,None,None)（绝不 500）。
+
+    已核实（fetcher_realtime.py:412）：新浪分钟 K 线，返回 DataFrame[time,open,high,low,
+    close,volume,amount] + 前收 + 交易日；本环境下是唯一的个股分时来源。
+    """
+    try:
+        from ..api.market_routes import get_fetcher
+        return get_fetcher().get_stock_intraday_sina(code)
+    except Exception:  # noqa: BLE001
+        return None, None, None
+
+
+@bp.get("/compare-one")
+@jwt_required
+def compare_one():
+    """单股粒度对比（31 字段扁平顶层级），逐字段独立取数、独立降级。
+
+    GET /api/v2/read/compare-one?code=600519&period=daily。复用 _w4b_basic/_w4b_spot/
+    _w4b_kline 已验证助手；date = K 线末根 date 或 spot datetime（取不到 null，绝不 now()）。
+    字段取不到一律 null，禁止补 0。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"\d{6}", code or ""):
+        return fail(message="code 非法（须为 6 位数字股票代码）",
+                    code="invalid_param", http_status=400)
+    period = (request.args.get("period") or "daily").strip().lower()
+    if period not in _W4B_PERIODS:
+        return fail(message="period 非法（须为 daily/weekly/monthly）",
+                    code="invalid_param", http_status=400)
+    try:
+        from modules.fetch_parallel import fetch_many
+        res = fetch_many([
+            ("basic", lambda: _w4b_basic(code)),
+            ("spot", lambda: _w4b_spot(code)),
+            ("kline", lambda: _w4b_kline(code, period)),
+        ])
+    except Exception:  # noqa: BLE001 - 并发行异常：三源全体降级（诚实返回 null）
+        res = {}
+    basic = res.get("basic")
+    spot = res.get("spot")
+    kline = res.get("kline")
+    bdict = basic if isinstance(basic, dict) else {}
+    fields = _w4c_compare_metrics(basic, spot, kline)
+    date = _w4b_kline_date(kline) or _w4b_spot_date(spot)
+    data = {
+        "code": code,
+        "name": _w4b_str(bdict.get("name")),
+        "industry": _w4b_str(bdict.get("industry")),
+        "period": period,
+        "date": date,
+        **fields,
+        "note": _W4C_NOTE,
+    }
+    return ok(data=_sanitize(data), message="compare-one")
+
+
+@bp.get("/research-deep")
+@jwt_required
+def research_deep():
+    """24 页 deep 子视图的轻量同步技术面（price/pe_ttm/pb/market_cap + 技术字段）。
+
+    GET /api/v2/read/research-deep?code=600519。复用 _w4b_basic/_w4b_spot/_w4b_kline/
+    _w4b_financial；pb 无源->null、turnover（换手率，需流通股本）无源->null。
+    旧 24 页 56 键 analysis_engine 异步深度分析**本轮不接入**，deep_analysis_available
+    诚实标注为 false（前端据实展示豁免卡，不造假）。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"\d{6}", code or ""):
+        return fail(message="code 非法（须为 6 位数字股票代码）",
+                    code="invalid_param", http_status=400)
+    try:
+        from modules.fetch_parallel import fetch_many
+        res = fetch_many([
+            ("basic", lambda: _w4b_basic(code)),
+            ("spot", lambda: _w4b_spot(code)),
+            ("kline", lambda: _w4b_kline(code, "daily")),
+            # 复用 _w4b_financial（按契约命名接入），但本轮 pb/market_cap 已可由 basic 提供、
+            # financial 三表无 pb 估值，故其输出不消费、不编造；异常按 None 降级。
+            ("financial", lambda: _w4b_financial(code, "income")),
+        ])
+    except Exception:  # noqa: BLE001
+        res = {}
+    basic = res.get("basic")
+    spot = res.get("spot")
+    kline = res.get("kline")
+    bdict = basic if isinstance(basic, dict) else {}
+    tech = _w4c_deep_tech(kline)
+    date = _w4b_kline_date(kline) or _w4b_spot_date(spot)
+    data = {
+        "code": code,
+        "name": _w4b_str(bdict.get("name")),
+        "industry": _w4b_str(bdict.get("industry")),
+        "date": date,
+        "price": _w4b_num(bdict.get("price")),
+        "pe_ttm": _w4b_num(bdict.get("pe_ttm")),
+        "pb": None,  # get_fundamentals 不返回 pb（_w4b_basic 已核实），诚实 null
+        "market_cap": _w4b_num(bdict.get("market_cap")),
+        "ma5": tech.get("ma5"),
+        "ma10": tech.get("ma10"),
+        "ma20": tech.get("ma20"),
+        "ma60": tech.get("ma60"),
+        "amplitude": tech.get("amplitude"),
+        "turnover": None,  # 换手率需流通股本，kline 无此源，诚实 null
+        "deep_analysis_available": False,
+        "note": _W4C_NOTE + "；24页异步深度分析本轮不接入（deep_analysis_available=false），前端据实展示豁免卡，不造假",
+    }
+    return ok(data=_sanitize(data), message="research-deep")
+
+
+@bp.get("/stock-intraday")
+@jwt_required
+def stock_intraday():
+    """个股分时薄封装（复用底层 get_stock_intraday_sina 新浪分钟 K 线）。
+
+    GET /api/v2/read/stock-intraday?code=600519。返回 {code, date, rows:[...], note}；
+    rows 列名原样（time/open/high/low/close/volume/amount），缺失->[]；date = 分时
+    trade_date（权威），缺失->null。底层源存在，故不走 not_found；仅当整取数失败/空时
+    诚实返回 rows=[]、date=null（status 仍 ok，绝不 500 / 编造）。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"\d{6}", code or ""):
+        return fail(message="code 非法（须为 6 位数字股票代码）",
+                    code="invalid_param", http_status=400)
+    try:
+        from modules.fetch_parallel import fetch_many
+        res = fetch_many([("intraday", lambda: _w4c_intraday(code))])
+    except Exception:  # noqa: BLE001
+        res = {}
+    got = res.get("intraday")
+    df, _prev_close, trade_date = got if isinstance(got, tuple) and len(got) == 3 else (None, None, None)
+    rows = []
+    date = trade_date or None
+    if df is not None and hasattr(df, "columns") and len(df):
+        try:
+            rows = df.to_dict(orient="records")  # 列名原样透出，不重命名、不补值
+        except Exception:  # noqa: BLE001
+            rows = []
+    data = {
+        "code": code,
+        "date": date,
+        "rows": rows,
+        "note": _W4C_NOTE + "；分时底层复用 get_stock_intraday_sina（新浪分钟K线），缺失->rows=[]、date=null，绝不编造",
+    }
+    return ok(data=_sanitize(data), message="stock-intraday")

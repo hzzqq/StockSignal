@@ -16,12 +16,12 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:5050',
+        target: process.env.VITE_PROXY_TARGET ?? 'http://127.0.0.1:5050',
         changeOrigin: true,
       },
       // 网页作品集静态资源（86 页）由 Flask 在 /webapps 下托管，开发期一并代理
       '/webapps': {
-        target: 'http://127.0.0.1:5050',
+        target: process.env.VITE_PROXY_TARGET ?? 'http://127.0.0.1:5050',
         changeOrigin: true,
       },
     },

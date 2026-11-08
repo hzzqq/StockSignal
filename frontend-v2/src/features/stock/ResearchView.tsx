@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import type { StockKline } from '@/api/schemas/stock'
+import { useQuery } from '@tanstack/react-query'
+import type { StockKline, ResearchDeep } from '@/api/schemas/stock'
 import type { ResearchView as ViewMode, ResearchRouteSearch } from '@/lib/deeplink'
 import { useStockKline } from '@/lib/queries'
+import { getResearchDeep } from '@/api/stock'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
+import { inkForCell } from '@/lib/domainColor'
 import { fmtNum } from '@/lib/format'
 
 /**
@@ -14,7 +17,8 @@ import { fmtNum } from '@/lib/format'
  * 首帧预选：view 由 validateSearch 归一后的 search.view 经 useState 初始值决定（不用 useEffect），
  * 缺/非法 → quick；code 输入框缺 code → 默认 600519，非 6 位 → 校验提示且不发请求（hook enabled=false）。
  * 诚实红线：rows 空 → EmptyState、date:null →「暂无权威数据日」（禁当前日期兜底）、note 原文展示；
- * deep 子视图如实说明「待 W4-C 迁移」，不造假数据、不画空图表。
+ * deep 子视图调 getResearchDeep 渲染技术字段表（域级双色），deep_analysis_available===false 显豁免卡，
+ * 不造假数据、不画空图表。
  */
 const CODE_RE = /^\d{6}$/
 const DEFAULT_CODE = '600519'
@@ -180,16 +184,99 @@ function KlineTable({ rows }: { rows: StockKline['rows'] }) {
   )
 }
 
-/** deep 子视图：如实说明待 W4-C 迁移，仅显示已预选 code，不造假数据、不画空图表。 */
+/**
+ * deep 子视图（W4-C 迁移后真实内容）：调 getResearchDeep（/v2/read/research-deep，
+ * 56 键深度分析通用透传），渲染 price/pe_ttm/pb/market_cap/ma5/ma10/ma20/ma60/
+ * amplitude/turnover 等技术字段表，按 domainInk 域级双色。
+ *
+ * 诚实豁免卡：若返回 deep_analysis_available === false（或该字段缺失且无任何技术字段），
+ * 显示明确说明「56 键深度分析（旧版 analysis_engine 异步任务）V2 暂未接入，可走 /legacy
+ * 查看旧版」，绝不造假数据、不画空图表。
+ */
+const DEEP_META = new Set(['code', 'name', 'industry', 'date', 'note', 'period', 'deep_analysis_available'])
+
 function DeepView({ code }: { code: string }) {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['read', 'research-deep', code],
+    queryFn: () => getResearchDeep(code),
+    enabled: /^\d{6}$/.test(code),
+    staleTime: 5 * 60_000,
+  })
+
   return (
     <Card title="深度分析">
+      <QueryState
+        isLoading={isLoading}
+        isError={isError}
+        error={error}
+        isEmpty={!!data && Object.keys(data).every((k) => DEEP_META.has(k))}
+        emptyLabel="暂无深度数据"
+        emptyHint="该股票未返回任何技术字段"
+      >
+        {data ? <DeepBody data={data} /> : null}
+      </QueryState>
+    </Card>
+  )
+}
+
+function DeepBody({ data }: { data: ResearchDeep }) {
+  const available = data['deep_analysis_available']
+  const techKeys = Object.keys(data).filter((k) => !DEEP_META.has(k))
+  // 豁免：明确 false，或字段缺失且无任何技术字段（无法确认已接入）。
+  const exempt = available === false || (available === undefined && techKeys.length === 0)
+
+  if (exempt) {
+    return (
       <div className="flow">
         <p className="text-body text-sf-ink-2">
-          深度分析子视图待 W4-C 迁移，当前仅完成深链预选
+          56 键深度分析（旧版 analysis_engine 异步任务）V2 暂未接入，可走 /legacy 查看旧版
         </p>
-        <p className="text-label text-sf-ink-3">{`已预选 code：${code}`}</p>
+        <p className="text-label text-sf-ink-3">{`已预选 code：${String(data['code'] ?? '')}`}</p>
       </div>
-    </Card>
+    )
+  }
+
+  if (techKeys.length === 0) {
+    return (
+      <div role="status" className="py-10 text-center text-body text-sf-ink-2">
+        暂无深度数据
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-body border-collapse">
+        <caption className="sr-only">个股深度技术字段，列名取后端原始响应 key，未做重排</caption>
+        <thead>
+          <tr className="text-label text-sf-ink-3 border-b border-sf-line">
+            <th scope="col" className="text-left py-2 pr-3 font-normal">字段</th>
+            <th scope="col" className="text-left py-2 pr-3 font-normal tabular-nums">数值</th>
+          </tr>
+        </thead>
+        <tbody className="text-sf-ink-2">
+          {techKeys.map((k) => {
+            const v = (data as Record<string, unknown>)[k]
+            return (
+              <tr key={k} className="border-b border-sf-line last:border-0">
+                <th
+                  scope="row"
+                  className="text-left py-1.5 pr-3 font-normal text-sf-ink-3"
+                  style={{ color: inkForCell(k, undefined) }}
+                >
+                  {k}
+                </th>
+                <td
+                  className="py-1.5 pr-3 tabular-nums"
+                  style={typeof v === 'number' ? { color: inkForCell(k, v) } : undefined}
+                >
+                  {fmtNum(v)}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }

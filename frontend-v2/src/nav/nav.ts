@@ -17,6 +17,7 @@ export type AppPath =
   | '/stock/six-dim'
   | '/stock/research'
   | '/stock/fundamentals'
+  | '/stock/compare'
 
 export interface NavItem {
   to: AppPath
@@ -53,6 +54,7 @@ export const NAV: NavGroup[] = [
       { to: '/stock/six-dim', label: '六维评分', icon: '⬡' },
       { to: '/stock/research', label: '个股研究', icon: '✦' },
       { to: '/stock/fundamentals', label: '基本面分析', icon: '▤' },
+      { to: '/stock/compare', label: '个股对比', icon: '⇄' },
     ],
   },
   {

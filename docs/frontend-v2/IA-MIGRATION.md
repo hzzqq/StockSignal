@@ -300,3 +300,44 @@ W3 的广度时序、连板明细、长周期广度 3 个端点**已落地**，�
 #### 7. 规模（真读文件，非沿用摘要）
 
 静态 OpenAPI **88 paths / 111 operations**（W4-B 新增 3 path，四个个股域 GET 全带 BearerAuth）；只读端点 **24 个**；导航 **4 组**，`量化与工具` 组 **7 项**，`市场广度·温度` 组 **5 项**，图标全局唯一。
+
+### W4-C 非等价迁移 · 书面豁免（2026-11-07）
+
+**结论先行：W4-C 落地了旧 `21 多股对比` → `/stock/compare`（+ `compare-one` 端点）、旧 `24 个股研究` 的 **deep 子视图真实内容**（轻量技术面 + 诚实豁免卡）、以及剩余端点 `research-deep` / `stock-intraday`；并补齐字段域级双色 `domainInk`、导航第 3 组 7→8、深链 `resolveCompareSearch`、MSW 三端点夹具、前后端单测。这是对 21/24 的**诚实非等价迁移**，不是缩水。**
+
+#### 1. 端点契约（3 个，严格镜像 W4-B 红线）
+
+| 端点 | 用途 | 前端消费 | 关键红线 |
+|---|---|---|---|
+| `GET /api/v2/read/compare-one?code&period` | 单股粒度对比档案（31 字段扁平顶层级） | `CompareView` 经 `useCompareMany` 每码调一次、前端聚合 | 逐字段独立取数、取不到→`null`（**依赖分析引擎的 18 字段诚实 null，不补 0**）；`date`=权威数据日或 `null`；整批 `fetch_many` 默认 `CALL_TIMEOUT_CAP=12s` 硬边界 |
+| `GET /api/v2/read/research-deep?code` | 24 deep 轻量同步技术面 | `ResearchView` DeepView 替换占位 | `price/pe_ttm/market_cap` + 由 kline 算的 `ma5/10/20/60/amplitude`；`pb`/`turnover` 无源→`null`；`deep_analysis_available:false` 诚实豁免 56 键 `analysis_engine` 异步任务 |
+| `GET /api/v2/read/stock-intraday?code` | 个股分时薄封装 | （预留） | 复用 `get_stock_intraday_sina`（新浪分钟 K 线），`rows` 原样、缺失→`[]`、`date`=`trade_date` 或 `null`；底层存在故不走 `not_found` |
+
+三端点均 `@jwt_required` + 统一 `ok/fail` 信封（`code` 字符串业务码）+ `_sanitize()` 清洗 NaN/Inf + `re.fullmatch(r"\d{6}")` 校验（非法→`fail(400,invalid_param)`）。`read_routes.py` 仍为**单一末尾 hunk 纯增量**，既有 24 端点一字未动。
+
+#### 2. 字段域级双色（A 股双套语义，不整页一刀切）
+
+`frontend-v2/src/lib/domainColor.ts` 新增纯函数 `domainInk(field)`：
+- **价格 / 行情域**（`price/change_pct/open/high/low/pre_close/volume/amount/pe/pb/ps/market_cap/turnover/amplitude/ma*/rsi/macd/kdj/boll` 等）→ 交易屏 `var(--ss-up-ink)`（红涨）/ `var(--ss-down-ink)`（绿跌）；
+- **业绩 / 报告域**（`revenue*/profit*/growth/roe/margin/yoy` 等）→ 报告体 `var(--doc-up-ink)`（绿涨）/ `var(--doc-down-ink)`（红跌）；
+- 未知域 → 中性 `var(--sf-ink)`。
+`inkForCell(field,value)` 在域色基础上负值翻转到该域下挫墨色。`ma` 前缀精确匹配 `ma+数字` 避免 `margin` 误伤。多系列对比图**只用单色 accent + 符号 / 线型 / 图例 / 等价数据表**，不取 `palette.ts` 多色（`CHART` 9 组锁值不可扩）、不动 `EChart.tsx`。
+
+#### 3. 已拍板的能力收缩 / 诚实豁免（不得表述为「已完成」）
+
+- **56 键 `analysis_engine` 深度分析未接入**：`research-deep` 显式 `deep_analysis_available:false`，前端据此显示豁免说明卡（含「可走 /legacy 看旧版」），**不造假数据、不画空图表**。
+- **`compare-one` 18 个分析引擎字段（`entry_price/target_price/stop_price/atr14/trapped/q_*/news_score/macro_score/sector_score/pos_*/composite/tech_score` 等）诚实 `null`**，与旧 21 页「失败补 `scores=50`/`chg_pct=0`/`signal=持有`」彻底切割；字段名清单借用 `modules.stock_research._NUM_FIELDS`（31 个），**绝不复制 compare.py 的 0 填充 / now() 兜底逻辑**（经核 compare.py 无该常量，真正定义在 stock_research.py:440）。
+- **真后端联调若沙箱无网络**：端点返回 `null/[]` → 前端诚实降级态（loading/error/empty/ok 四态），非故障；此为有效集成结果，不伪装「有真实数据」。
+
+#### 4. 路由 / 导航 / 深链
+
+- `router.tsx` 新增 `compareRoute`（`/stock/compare`，`validateSearch` 全 optional `{codes?,period?}`），挂入 `appRoute.addChildren`；不动 `searchSerialization` 与既有路由。
+- `nav.ts` 第 3 组「量化与工具」7→**8 项**（新增「个股对比 ⇄」），`AppPath` 补 `'/stock/compare'`。
+- `deeplink.ts` 新增 `resolveCompareSearch` / `CompareRouteSearch`（codes 逗号串→6 位数组，period 校验 daily/weekly/monthly）。
+
+#### 5. 规模（真读文件，非沿用摘要）
+
+- 只读端点 **24 → 27**（W4-C 新增 3）；导航 **4 组**，第 3 组 **8 项**。
+- 静态 OpenAPI **未刷新**（W4-C 三端点未在 `frontend-v2/spec/openapi.json` 登记；既有 `test_openapi_covers_read_routes` 用固定路径列表、不含新端点故无回归）。**spec 刷新为后续 doc 任务**，不阻塞本次收口。
+- 前端单测：本轮新增 **15 例**（domainColor 7 + deeplink 5 + CompareView 3），`npm run test` 全绿；当前 tree 内共 3 个测试文件 / 15 例（此前台账记的「132 例」在当前树中无对应文件，疑为历史口径误差，以当前实跑 15 例为准）。
+- 后端单测：新增 `test_read_w4c.py` **16 例**（三端点 401/400/正常/全源失败/单源异常/超时降级/intraday 诚实空响应），`backend/tests/test_read_routes.py` **39 例无回归**。
