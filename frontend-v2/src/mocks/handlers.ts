@@ -142,7 +142,8 @@ export const handlers = [
     return ok(fixtures.researchDeepExempt)
   }),
 
-  // W4-C · 分时：600519 正常 rows，其余合法码按后端契约 not_found。
+  // W4-C · 分时：600519 有昨收基准（前端画基准虚线）；000002 昨收取不到（prev_close=null，
+  // 前端不画基准并如实标注）；其余合法码按后端契约 not_found。
   http.get('/api/v2/read/stock-intraday', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')
     if (!code || !/^\d{6}$/.test(code)) {
@@ -152,6 +153,21 @@ export const handlers = [
       )
     }
     if (code === '600519') return ok(fixtures.stockIntradayFull)
+    if (code === '000002') return ok(fixtures.stockIntradayNoPrevClose)
     return notFound(`stock_intraday_${code}`)
+  }),
+
+  // 指数行情：index-quotes（外部卡片视角）；index-kline（点击卡片弹 K 线的数据源）。
+  http.get('/api/v2/read/index-quotes', () => ok(fixtures.indexQuotes)),
+  http.get('/api/v2/read/index-kline', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code')
+    if (!code || !/^(sh|sz)\d{6}$/.test(code)) {
+      return HttpResponse.json(
+        { status: 'error', code: 'invalid_param', message: 'code 须为 sh/sz + 6 位数字', data: null },
+        { status: 400 },
+      )
+    }
+    if (code === 'sh000001') return ok(fixtures.indexKlineSh000001)
+    return notFound(`index_kline_${code}`)
   }),
 ]

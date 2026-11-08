@@ -1,7 +1,7 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import * as api from '@/api/read'
-import { getSixDim, getFundamentals, getFinancials, getStockKline } from '@/api/stock'
-import type { SixDim, Fundamentals, Financials, StockKline } from '@/api/schemas/stock'
+import { getSixDim, getFundamentals, getFinancials, getStockKline, getStockIntraday, getIndexQuotes, getIndexKline } from '@/api/stock'
+import type { SixDim, Fundamentals, Financials, StockKline, StockIntraday, IndexQuotes, IndexKline } from '@/api/schemas/stock'
 import type {
   DailySnapshot,
   P1Signal,
@@ -224,6 +224,37 @@ export function useStockKline(code: string): UseQueryResult<StockKline> {
     queryKey: ['read', 'stock-kline', code],
     queryFn: () => getStockKline(code),
     enabled: /^\d{6}$/.test(code),
+    staleTime: FIVE_MIN,
+  })
+}
+
+// ───────── 个股分时（staleTime 60s：分时数据时效性高，快过 K 线）─────────
+// 非法代码 enabled=false，不发起请求；取数失败进入 error 态，由页面诚实渲染。
+export function useStockIntraday(code: string): UseQueryResult<StockIntraday> {
+  return useQuery({
+    queryKey: ['read', 'stock-intraday', code],
+    queryFn: () => getStockIntraday(code),
+    enabled: /^\d{6}$/.test(code),
+    staleTime: 60 * 1000,
+  })
+}
+
+// ───────── 主要指数报价（staleTime 5min：指数日级，变化慢）─────────
+export function useIndexQuotes(): UseQueryResult<IndexQuotes> {
+  return useQuery({
+    queryKey: ['read', 'index-quotes'],
+    queryFn: () => getIndexQuotes(),
+    staleTime: FIVE_MIN,
+  })
+}
+
+// ───────── 指数日线 K 线（staleTime 5min：日级，变化慢）─────────
+// 非法代码 enabled=false，不发起请求；取数失败进入 error 态，由页面诚实渲染。
+export function useIndexKline(code: string): UseQueryResult<IndexKline> {
+  return useQuery({
+    queryKey: ['read', 'index-kline', code],
+    queryFn: () => getIndexKline(code),
+    enabled: /^(sh|sz)\d{6}$/.test(code),
     staleTime: FIVE_MIN,
   })
 }

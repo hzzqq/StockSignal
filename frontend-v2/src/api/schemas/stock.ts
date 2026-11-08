@@ -126,6 +126,59 @@ export const StockKlineSchema = z.object({
 })
 export type StockKline = z.infer<typeof StockKlineSchema>
 
+/**
+ * GET /api/v2/read/stock-intraday?code=<6位> 的 data。
+ *
+ * prev_close（昨收基准价）：**可选 + 可空** —— 后端底层 fetcher 取不到昨收时为 null，
+ * 前端据此不画基准线并如实标注，绝不补 0 / 不用当日首笔开盘冒充。
+ */
+export const StockIntradaySchema = z.object({
+  code: z.string(),
+  date: NullableString,
+  rows: z.array(RowSchema),
+  prev_close: z.number().nullable().optional(),
+  note: NullableString,
+})
+export type StockIntraday = z.infer<typeof StockIntradaySchema>
+
+/**
+ * GET /api/v2/read/index-quotes 的 data。
+ *
+ * 单指数报价：current 现价 / prev_close 昨收 / change 涨跌额 / change_pct 涨跌幅，
+ * 均为 number|null（离线或取数失败为 null，前端据此显示「—」，绝不补 0）。
+ * date 为权威数据日，取不到为 null（禁 now() 兜底）。
+ */
+const IndexQuoteRowSchema = z.object({
+  code: z.string(),
+  name: z.string(),
+  current: z.number().nullable(),
+  prev_close: z.number().nullable(),
+  change: z.number().nullable(),
+  change_pct: z.number().nullable(),
+  date: NullableString,
+})
+
+export const IndexQuotesSchema = z.object({
+  items: z.array(IndexQuoteRowSchema),
+  note: NullableString,
+})
+export type IndexQuote = z.infer<typeof IndexQuoteRowSchema>
+export type IndexQuotes = z.infer<typeof IndexQuotesSchema>
+
+/**
+ * GET /api/v2/read/index-kline?code=<sh/sz+6位> 的 data。
+ *
+ * rows 英文列 date/open/high/low/close/volume（与 StockKline 同源，前端 KLineChart 共用），
+ * 缺失 -> []；date 为权威数据日，取不到 -> null。
+ */
+export const IndexKlineSchema = z.object({
+  code: z.string(),
+  rows: z.array(z.record(z.string(), z.unknown())),
+  date: NullableString,
+  note: NullableString,
+})
+export type IndexKline = z.infer<typeof IndexKlineSchema>
+
 // ═══════════════════ W4-C · 多股对比 / 深度分析 通用透传契约 ═══════════════════
 // 这两类响应字段多、随后端演进，前端按 key 渲染、不强约束具体字段名（与 W4-B
 // rows 的 z.record(z.string(), z.unknown()) 同一思路）。类型侧 cast 为

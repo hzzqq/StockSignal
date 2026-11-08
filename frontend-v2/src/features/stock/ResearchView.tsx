@@ -3,22 +3,28 @@ import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import type { StockKline, ResearchDeep } from '@/api/schemas/stock'
 import type { ResearchView as ViewMode, ResearchRouteSearch } from '@/lib/deeplink'
-import { useStockKline } from '@/lib/queries'
+import { useStockIntraday, useStockKline } from '@/lib/queries'
 import { getResearchDeep } from '@/api/stock'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
 import { inkForCell } from '@/lib/domainColor'
 import { fmtNum } from '@/lib/format'
+import { KLineChart } from './charts/KLineChart'
+import { IntradayChart } from './charts/IntradayChart'
 
 /**
  * W4-B · 个股研究页（/stock/research，旧 24 页）。
- * 数据源：getStockKline（/api/v2/read/stock-kline），仅 quick 子视图用；本轮不做 ECharts K 线图（W4-C）。
+ * 数据源：getStockKline（/api/v2/read/stock-kline）+ getStockIntraday
+ * （/api/v2/read/stock-intraday，含昨收基准 prev_close），仅 quick 子视图用。
  *
  * 首帧预选：view 由 validateSearch 归一后的 search.view 经 useState 初始值决定（不用 useEffect），
  * 缺/非法 → quick；code 输入框缺 code → 默认 600519，非 6 位 → 校验提示且不发请求（hook enabled=false）。
  * 诚实红线：rows 空 → EmptyState、date:null →「暂无权威数据日」（禁当前日期兜底）、note 原文展示；
  * deep 子视图调 getResearchDeep 渲染技术字段表（域级双色），deep_analysis_available===false 显豁免卡，
  * 不造假数据、不画空图表。
+ *
+ * 涨跌色口径：个股页价格域 = 报告体语义（涨绿跌红），由 priceDomain="report" 显式注入
+ * （DESIGN.md §3/§6.2「K线阴阳线：按 priceDomain 注入，报告体页面不得沿用交易屏红涨绿跌」）。
  */
 const CODE_RE = /^\d{6}$/
 const DEFAULT_CODE = '600519'
@@ -101,7 +107,7 @@ export function ResearchView({ search }: ResearchViewProps) {
       </label>
 
       {view === 'quick' ? (
-        <QuickView kline={kline} valid={valid} />
+        <QuickView kline={kline} valid={valid} code={input} />
       ) : (
         <DeepView code={linkCode} />
       )}
@@ -112,10 +118,13 @@ export function ResearchView({ search }: ResearchViewProps) {
 function QuickView({
   kline,
   valid,
+  code,
 }: {
   kline: ReturnType<typeof useStockKline>
   valid: boolean
+  code: string
 }) {
+  const intraday = useStockIntraday(code)
   if (!valid) {
     return (
       <div role="status" className="text-body text-sf-warn">
@@ -124,19 +133,32 @@ function QuickView({
     )
   }
   return (
-    <Card title="K 线 OHLC 数据表（daily）">
-      {/* date 为权威数据日：为 null 时如实显示，禁止今天日期兜底。 */}
-      {kline.data && (
-        <div className="flex flex-wrap items-center gap-3 text-body mb-3">
-          <span className="text-label text-sf-ink-3">数据日</span>
-          {kline.data.date === null ? (
-            <span role="status" className="text-sf-warn">暂无权威数据日</span>
-          ) : (
-            <span className="text-sf-ink tabular-nums">{`权威数据日：${kline.data.date}`}</span>
-          )}
-        </div>
-      )}
-      <QueryState
+      <Card title="K 线 OHLC 数据表（daily）">
+        {/* date 为权威数据日：为 null 时如实显示，禁止今天日期兜底。 */}
+        {kline.data && (
+          <div className="flex flex-wrap items-center gap-3 text-body mb-3">
+            <span className="text-label text-sf-ink-3">数据日</span>
+            {kline.data.date === null ? (
+              <span role="status" className="text-sf-warn">暂无权威数据日</span>
+            ) : (
+              <span className="text-sf-ink tabular-nums">{`权威数据日：${kline.data.date}`}</span>
+            )}
+          </div>
+        )}
+        {/* K 线主图（蜡烛 + MA + 成交量 + MACD），复用 KLineChart；报告体价格域（绿涨红跌）。 */}
+        {kline.data && kline.data.rows.length > 0 && (
+          <KLineChart rows={kline.data.rows} priceDomain="report" />
+        )}
+        {/* 分时主图（价格线 + 均价线 + 昨收基准 + 成交量），复用 IntradayChart；
+            报告体价格域（绿涨红跌）；prev_close 取不到时组件内部诚实标注「暂无昨收基准」。 */}
+        {intraday.data && intraday.data.rows.length > 0 && (
+          <IntradayChart
+            rows={intraday.data.rows}
+            prevClose={intraday.data.prev_close}
+            priceDomain="report"
+          />
+        )}
+        <QueryState
         isLoading={kline.isLoading}
         isError={kline.isError}
         error={kline.error}

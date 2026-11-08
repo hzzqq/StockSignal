@@ -583,18 +583,69 @@ export const researchDeepExempt = {
   note: null,
 }
 
-// stock-intraday：分时明细（英文列，演示数值）。
+// stock-intraday：分时明细（英文列原样透出，与后端 read_routes._w4c_intraday 同形）。
+// ⚠️ 列名以**后端透出形状**为准（time/open/high/low/close/volume/amount），
+//    均价由前端按「累计成交额/累计成交量」算（后端不返回均价）。
 const w4cIntradayRows = [
-  { time: '09:30', price: 1505.0, avg: 1505.0, volume: 1200 },
-  { time: '09:35', price: 1510.2, avg: 1507.3, volume: 1800 },
-  { time: '09:40', price: 1508.8, avg: 1507.1, volume: 1500 },
-  { time: '09:45', price: 1512.5, avg: 1508.9, volume: 2100 },
+  { time: '2026-11-06 09:31:00', open: 1519.8, high: 1521.4, low: 1519.2, close: 1520.9, volume: 1200, amount: 1825080 },
+  { time: '2026-11-06 09:32:00', open: 1520.9, high: 1524.6, low: 1520.1, close: 1523.8, volume: 1800, amount: 2742840 },
+  { time: '2026-11-06 09:33:00', open: 1523.8, high: 1526.0, low: 1522.4, close: 1525.5, volume: 1500, amount: 2288250 },
+  { time: '2026-11-06 09:34:00', open: 1525.5, high: 1526.8, low: 1521.7, close: 1522.3, volume: 2100, amount: 3196830 },
+  { time: '2026-11-06 09:35:00', open: 1522.3, high: 1523.1, low: 1518.4, close: 1519.2, volume: 2600, amount: 3949920 },
 ]
 
+/** 分时（含昨收基准）：600519 有昨收 → 前端画昨收基准虚线。 */
 export const stockIntradayFull = {
   code: '600519',
   period: 'intraday',
   rows: w4cIntradayRows,
   date: '2026-11-06',
+  prev_close: 1520.0,
+  note: W4B_NOTE,
+}
+
+/**
+ * 分时（**无昨收基准**）：底层取不到昨收 → prev_close 为 null，
+ * 前端据此不画基准线并如实标注「暂无昨收基准」（绝不拿首笔开盘冒充昨收）。
+ */
+export const stockIntradayNoPrevClose = {
+  code: '000002',
+  period: 'intraday',
+  rows: w4cIntradayRows.map((r) => ({ ...r })),
+  date: '2026-11-06',
+  prev_close: null,
+  note: W4B_NOTE,
+}
+
+// ───────── 指数行情（index-quotes / index-kline）开发期样例 ─────────
+// 仅 MSW 开发态使用；值为确定性静态样例（非实时），与后端离线降级口径一致：缺失即 null。
+const w4xIndexKlineRows = [
+  { date: '2026-11-02', open: 3890.5, high: 3912.3, low: 3885.1, close: 3904.2, volume: 312_000_000 },
+  { date: '2026-11-03', open: 3905.0, high: 3928.7, low: 3901.4, close: 3921.6, volume: 338_000_000 },
+  { date: '2026-11-04', open: 3920.8, high: 3935.2, low: 3912.9, close: 3910.3, volume: 305_000_000 },
+  { date: '2026-11-05', open: 3911.0, high: 3942.8, low: 3908.6, close: 3936.1, volume: 356_000_000 },
+  { date: '2026-11-06', open: 3937.4, high: 3955.0, low: 3933.2, close: 3948.8, volume: 372_000_000 },
+  { date: '2026-11-09', open: 3950.1, high: 3968.4, low: 3941.7, close: 3960.5, volume: 389_000_000 },
+  { date: '2026-11-10', open: 3961.0, high: 3972.9, low: 3948.3, close: 3946.2, volume: 341_000_000 },
+  { date: '2026-11-11', open: 3945.0, high: 3961.6, low: 3938.4, close: 3955.9, volume: 328_000_000 },
+]
+
+/** index-quotes：主要指数报价（外部卡片视角）。current/change/change_pct 为样例值。 */
+export const indexQuotes = {
+  items: [
+    { code: 'sh000001', name: '上证指数', current: 3955.9, prev_close: 3946.2, change: 9.7, change_pct: 0.25, date: '2026-11-11' },
+    { code: 'sz399001', name: '深证成指', current: 13210.4, prev_close: 13188.5, change: 21.9, change_pct: 0.17, date: '2026-11-11' },
+    { code: 'sz399006', name: '创业板指', current: 2785.6, prev_close: 2801.2, change: -15.6, change_pct: -0.56, date: '2026-11-11' },
+    { code: 'sh000016', name: '上证50', current: 2688.3, prev_close: 2680.1, change: 8.2, change_pct: 0.31, date: '2026-11-11' },
+    { code: 'sh000300', name: '沪深300', current: 4621.7, prev_close: 4612.4, change: 9.3, change_pct: 0.2, date: '2026-11-11' },
+  ],
+  note: W4B_NOTE,
+}
+
+/** index-kline（sh000001 样例）：点击卡片弹窗的 K 线数据源。 */
+export const indexKlineSh000001 = {
+  code: 'sh000001',
+  rows: w4xIndexKlineRows,
+  date: '2026-11-11',
   note: W4B_NOTE,
 }

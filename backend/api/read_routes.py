@@ -1316,6 +1316,9 @@ def stock_intraday():
     rows 列名原样（time/open/high/low/close/volume/amount），缺失->[]；date = 分时
     trade_date（权威），缺失->null。底层源存在，故不走 not_found；仅当整取数失败/空时
     诚实返回 rows=[]、date=null（status 仍 ok，绝不 500 / 编造）。
+
+    prev_close（昨收基准价）：取底层 fetcher 返回的元组第 2 位，用于前端画昨收基准虚线；
+    取不到 -> null（前端据此不画基准线并如实标注），绝不补 0 / 不用当日首笔开盘冒充。
     """
     code = request.args.get("code", "")
     if not re.fullmatch(r"\d{6}", code or ""):
@@ -1327,7 +1330,7 @@ def stock_intraday():
     except Exception:  # noqa: BLE001
         res = {}
     got = res.get("intraday")
-    df, _prev_close, trade_date = got if isinstance(got, tuple) and len(got) == 3 else (None, None, None)
+    df, prev_close, trade_date = got if isinstance(got, tuple) and len(got) == 3 else (None, None, None)
     rows = []
     date = trade_date or None
     if df is not None and hasattr(df, "columns") and len(df):
@@ -1339,6 +1342,121 @@ def stock_intraday():
         "code": code,
         "date": date,
         "rows": rows,
-        "note": _W4C_NOTE + "；分时底层复用 get_stock_intraday_sina（新浪分钟K线），缺失->rows=[]、date=null，绝不编造",
+        "prev_close": _w4b_num(prev_close),
+        "note": _W4C_NOTE + "；分时底层复用 get_stock_intraday_sina（新浪分钟K线），缺失->rows=[]、date=null，绝不编造；prev_close 取底层昨收（取不到->null，绝不补 0）",
     }
     return ok(data=_sanitize(data), message="stock-intraday")
+
+
+# ───────────── 指数行情只读端点（index-quotes / index-kline）─────────────
+# 与 W4-B/W4-C 同款红线：@jwt_required + 统一 ok/fail 信封；code 用 ^(sh|sz)\d{6}$ 校验；
+# 多源 fetch_many；异常/空降级为 null/[]，绝不 500、绝不补 0；date 为权威数据日，绝不 now()。
+# 数据源 ak.stock_zh_index_daily：离线环境由项目 OFFLINE_MODE 机制返回确定性静态样例，
+# 在线返回真实日线；二者均为诚实数据，无编造（与 stock-kline 同源）。
+_INDEX_DEFS = [
+    ("sh000001", "上证指数"),
+    ("sz399001", "深证成指"),
+    ("sz399006", "创业板指"),
+    ("sh000016", "上证50"),
+    ("sh000300", "沪深300"),
+]
+
+
+def _w4x_index_daily(symbol):
+    """ak.stock_zh_index_daily(symbol) -> DataFrame | None（异常/空降级）。
+    列名中文：日期/开盘/收盘/最高/最低/成交量。"""
+    try:
+        import akshare as ak
+        df = ak.stock_zh_index_daily(symbol=symbol)
+    except Exception:  # noqa: BLE001 - 取数失败仅让该指数缺失，不 500
+        return None
+    if df is None or not hasattr(df, "columns") or len(df) == 0:
+        return None
+    return df
+
+
+def _w4x_index_quote(symbol, name):
+    """单指数最新报价：当前收盘、昨收、涨跌额、涨跌幅、数据日。取不到 -> 全 None。"""
+    df = _w4x_index_daily(symbol)
+    if df is None or "收盘" not in df.columns or len(df) == 0:
+        return {"code": symbol, "name": name, "current": None, "prev_close": None,
+                "change": None, "change_pct": None, "date": None}
+    try:
+        d = df.sort_values("日期") if "日期" in df.columns else df
+        last = d.iloc[-1]
+        prev = d.iloc[-2] if len(d) >= 2 else None
+        cur = _w4b_num(last.get("收盘"))
+        pc = _w4b_num(prev.get("收盘")) if prev is not None else None
+        chg = None if (cur is None or pc is None) else round(cur - pc, 4)
+        pct = None if (chg is None or not pc) else round(chg / pc * 100, 2)
+        date = _w4b_kline_date(d)
+        return {"code": symbol, "name": name, "current": cur, "prev_close": pc,
+                "change": chg, "change_pct": pct, "date": date}
+    except Exception:  # noqa: BLE001
+        return {"code": symbol, "name": name, "current": None, "prev_close": None,
+                "change": None, "change_pct": None, "date": None}
+
+
+@bp.get("/index-quotes")
+@jwt_required
+def index_quotes():
+    """主要指数实时报价（外部卡片视角）：上证/深证/创业板/上证50/沪深300。
+    GET /api/v2/read/index-quotes。逐指数独立取数、独立降级；全失败返回 items=[] + note。
+    """
+    try:
+        from modules.fetch_parallel import fetch_many
+        res = fetch_many([
+            (code, lambda c=code, n=name: _w4x_index_quote(c, n)) for code, name in _INDEX_DEFS
+        ])
+    except Exception:  # noqa: BLE001
+        res = {}
+    items = []
+    for code, name in _INDEX_DEFS:
+        q = res.get(code)
+        if not isinstance(q, dict):
+            q = {"code": code, "name": name, "current": None, "prev_close": None,
+                 "change": None, "change_pct": None, "date": None}
+        items.append(q)
+    data = {"items": items, "note": _W4C_NOTE}
+    return ok(data=_sanitize(data), message="index-quotes")
+
+
+@bp.get("/index-kline")
+@jwt_required
+def index_kline():
+    """指数日线 K 线（点击卡片打开详情弹窗的数据源）。
+    GET /api/v2/read/index-kline?code=sh000001&limit=120。
+    rows 英文列 date/open/high/low/close/volume（与 stock-kline 同源，前端 KLineChart 共用）；
+    date = 最后一根权威数据日，空则 null。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"(sh|sz)\d{6}", code or ""):
+        return fail(message="code 非法（须为 sh/sz + 6 位数字指数代码）",
+                    code="invalid_param", http_status=400)
+    limit = _w4b_limit(120)
+    df = _w4x_index_daily(code)
+    rows, date = _w4x_index_kline_rows(df, limit)
+    data = {"code": code, "rows": rows, "date": date, "note": _W4C_NOTE}
+    return ok(data=_sanitize(data), message="index-kline")
+
+
+def _w4x_index_kline_rows(df, limit):
+    """指数日线 -> 英文列 rows；中文列（日期/开盘/收盘/最高/最低/成交量）映射为
+    date/open/close/high/low/volume（与 _w4b_kline_rows 同款红线：date 升序、tail(limit)、date 权威）。"""
+    if df is None or not hasattr(df, "columns") or len(df) == 0:
+        return [], None
+    if "日期" not in df.columns or "收盘" not in df.columns:
+        return [], None
+    rename = {"日期": "date", "开盘": "open", "收盘": "close", "最高": "high", "最低": "low", "成交量": "volume"}
+    try:
+        d = df.rename(columns=rename).copy()
+        d = d.sort_values("date")
+        last = str(d["date"].iloc[-1])[:10] or None
+        d = d.tail(limit).copy()
+        for col in ("open", "high", "low", "close", "volume"):
+            if col not in d.columns:
+                d[col] = None
+        d["date"] = d["date"].apply(lambda x: str(x)[:10])
+        return d[["date", "open", "high", "low", "close", "volume"]].to_dict(orient="records"), last
+    except Exception:  # noqa: BLE001
+        return [], None

@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useDailySnapshot, useP1Signals, useWebApps } from '@/lib/queries'
 import { SnapshotView } from '@/features/decision/SnapshotView'
+import { IndexQuotes } from '@/features/stock/components/IndexQuotes'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { fmtNum } from '@/lib/format'
@@ -37,6 +38,8 @@ export function Dashboard() {
         <Stat label="快照数据日" value={snapQ.data?.date ?? '—'} />
         <Stat label="综合评分" value={snapQ.data ? fmtNum(snapQ.data.score) : '—'} />
       </div>
+
+      <IndexQuotes />
 
       {snapQ.data ? (
         <SnapshotView snapshot={snapQ.data} />

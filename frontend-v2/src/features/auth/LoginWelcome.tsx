@@ -18,16 +18,9 @@
  */
 import type { ReactNode } from 'react'
 
-/** 渐变文字：品牌色 → 品牌色2 横切（等价 v1 的 .ss-grad）。 */
+/** 渐变文字：品牌色 → 品牌色2 横切（等价 v1 的 .ss-grad）；不支持 clip 时回落品牌纯色，文字始终可见。 */
 function GradText({ children }: { children: ReactNode }) {
-  return (
-    <span
-      className="bg-clip-text text-transparent"
-      style={{ backgroundImage: 'linear-gradient(90deg, var(--color-brand-1), var(--color-brand-2))' }}
-    >
-      {children}
-    </span>
-  )
+  return <span className="brand-grad-text">{children}</span>
 }
 
 export function LoginWelcome({ onLogin }: { onLogin: () => void }) {
@@ -103,10 +96,7 @@ export function LoginWelcome({ onLogin }: { onLogin: () => void }) {
         />
 
         <div
-          className="text-[2.1rem] font-extrabold mb-1 tracking-tight bg-clip-text text-transparent"
-          style={{
-            backgroundImage: 'linear-gradient(90deg, var(--color-brand-1) 0%, var(--color-brand-2) 100%)',
-          }}
+          className="text-[2.1rem] font-extrabold mb-1 tracking-tight brand-grad-text"
         >
           StockSignal
         </div>

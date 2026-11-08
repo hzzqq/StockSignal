@@ -131,6 +131,22 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* 品牌渐变文字：支持 background-clip:text 的浏览器显示渐变填充；
+ * 不支持的浏览器（或预览环境未实现 clip）回落为 --color-brand-1 纯色，文字始终可见，
+ * 避免「text-transparent + 无 clip」导致品牌标题整片透明不可见（常被误报为乱码/空白）。 */
+.brand-grad-text {
+  background-image: linear-gradient(90deg, var(--color-brand-1) 0%, var(--color-brand-2) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .brand-grad-text {
+    color: var(--color-brand-1);
+    background: none;
+  }
+}
+
 /* 键盘可达：统一焦点环（不依赖组件各自实现） */
 :focus-visible {
   outline: 2px solid var(--color-sf-accent);

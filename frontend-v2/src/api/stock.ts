@@ -4,12 +4,18 @@ import {
   FundamentalsSchema,
   FinancialsSchema,
   StockKlineSchema,
+  StockIntradaySchema,
+  IndexQuotesSchema,
+  IndexKlineSchema,
   CompareOneSchema,
   ResearchDeepSchema,
   type SixDim,
   type Fundamentals,
   type Financials,
   type StockKline,
+  type StockIntraday,
+  type IndexQuotes,
+  type IndexKline,
   type CompareOne,
   type ResearchDeep,
 } from './schemas/stock'
@@ -58,6 +64,41 @@ export async function getStockKline(code: string): Promise<StockKline> {
   }
   const data = await apiFetch<unknown>(`/v2/read/stock-kline?code=${encodeURIComponent(code)}`)
   return StockKlineSchema.parse(data)
+}
+
+/**
+ * 个股分时（GET /api/v2/read/stock-intraday?code=<6位>）。
+ * 形态与 getStockKline 一致：6 位代码校验 → apiFetch 解包信封 → Schema.parse（失败即抛）。
+ * prev_close 由后端透传，取不到时为 null（前端不画基准线）。
+ */
+export async function getStockIntraday(code: string): Promise<StockIntraday> {
+  if (!/^\d{6}$/.test(code)) {
+    throw new Error('股票代码须为 6 位数字')
+  }
+  const data = await apiFetch<unknown>(`/v2/read/stock-intraday?code=${encodeURIComponent(code)}`)
+  return StockIntradaySchema.parse(data)
+}
+
+/**
+ * 主要指数报价（GET /api/v2/read/index-quotes）。
+ * 外部卡片视角数据源；无需代码入参，逐指数独立降级（取不到 -> 该项全 null）。
+ */
+export async function getIndexQuotes(): Promise<IndexQuotes> {
+  const data = await apiFetch<unknown>('/v2/read/index-quotes')
+  return IndexQuotesSchema.parse(data)
+}
+
+/**
+ * 指数日线 K 线（GET /api/v2/read/index-kline?code=<sh/sz+6位>）。
+ * 形态与 getStockKline 一致：指数代码校验 → apiFetch 解包信封 → IndexKlineSchema.parse。
+ * rows 英文列与 KLineChart 共用；取数失败进入 error 态，由页面诚实渲染。
+ */
+export async function getIndexKline(code: string): Promise<IndexKline> {
+  if (!/^(sh|sz)\d{6}$/.test(code)) {
+    throw new Error('指数代码须为 sh/sz + 6 位数字')
+  }
+  const data = await apiFetch<unknown>(`/v2/read/index-kline?code=${encodeURIComponent(code)}`)
+  return IndexKlineSchema.parse(data)
 }
 
 // ═══════════════════ W4-C · 多股对比 / 深度分析（镜像 getStockKline）══════════════════

@@ -26,6 +26,20 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   }
 })
 
+// jsdom 无 canvas，ECharts 渲染会抛 clearRect(null)；与 w4-six-dim/w3-pages 等兄弟测试一致，
+// 用轻量替身替换真实 EChart，只验证取数/降级契约，不验证绘图本身。
+vi.mock('@/shared/charts/EChart', () => ({
+  EChart: ({ height }: { height?: number }) => <div data-testid="echart" style={{ height }} />,
+}))
+
+if (!('ResizeObserver' in globalThis)) {
+  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}
+
 const NOTE = '逐字段独立取数、独立降级；缺失为 null 且不补 0'
 const FIND = { timeout: 5000 }
 
