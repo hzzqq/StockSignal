@@ -17,6 +17,7 @@
 并新增反例测试证明「纯注释样本必然被判缺失」。
 """
 import os
+import re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SKIP = ('node_modules', '.venv', 'site-packages', '__pycache__')
@@ -109,6 +110,23 @@ def test_stop_services_bat_ascii_and_antifootgun_guards():
         "可执行行里缺少防回退修复（注释里写了不算）：\n  " + "\n  ".join(_missing_guards(code))
     )
     assert 'taskkill /f /im python' not in code, "不得无差别杀 python.exe（会误杀量化软件）"
+    # 运维红线：8899 是老板保留端口，从来不是 StockSignal 监听端口
+    # （真实启动器一律选空闲端口并记录到 active_ports*.json）。停止脚本不得
+    # 有任何硬编码的 8899 杀端口目标，且必须保留 8899 红线守卫（跳过而非误杀）。
+    raw = b.decode('ascii')
+    assert 'set "FRONTEND_PORT=8899"' not in raw, "不得把 8899 当默认杀端口（会误杀老板的服务）"
+    assert 'call :kill_port 8899' not in code, "不得直接杀 8899"
+    assert 'call :maybe_kill 8899' not in code, "不得直接杀 8899"
+    assert '"8899"' in code, "必须保留 8899 红线守卫（跳过而非误杀）"
+    # 杀端口目标必须全部来自状态文件（变量），不得出现任何写死的数字端口
+    for line in code.splitlines():
+        if re.match(r'\s*call :(?:kill_port|maybe_kill)\b', line):
+            assert re.search(r'%\w+%', line), \
+                f"杀端口调用必须传状态文件变量而非写死端口: {line}"
+            assert not re.search(r'call :(?:kill_port|maybe_kill)\s+\d{2,5}', line), \
+                f"不得写死数字端口: {line}"
+            assert not re.search(r'"\d{2,5}"', line), \
+                f"不得用引号写死数字端口: {line}"
 
 
 def test_guards_cannot_be_fed_by_comments():

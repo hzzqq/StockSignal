@@ -23,34 +23,36 @@ echo ======================================
 echo.
 
 set "PROJECT_DIR=%~dp0"
-set "BACKEND_PORT=5050"
-set "FRONTEND_PORT=8899"
-set "V2_PORT=5173"
-set "V2_BACKEND_PORT=5050"
 set "KILLED_ANY=0"
 set "SEEN=,"
+set "V1_BACKEND="
+set "V1_FRONTEND="
+set "V2_BACKEND_PORT="
+set "V2_FRONTEND="
 
 if exist "%PROJECT_DIR%logs\active_ports.json" (
-    for /f "usebackq tokens=*" %%j in (`powershell -NoProfile -Command "(Get-Content -LiteralPath '%PROJECT_DIR%logs\active_ports.json' -Raw | ConvertFrom-Json).backend" 2^>nul`) do set "BACKEND_PORT=%%j"
-    for /f "usebackq tokens=*" %%j in (`powershell -NoProfile -Command "(Get-Content -LiteralPath '%PROJECT_DIR%logs\active_ports.json' -Raw | ConvertFrom-Json).frontend" 2^>nul`) do set "FRONTEND_PORT=%%j"
+    for /f "usebackq tokens=*" %%j in (`powershell -NoProfile -Command "(Get-Content -LiteralPath '%PROJECT_DIR%logs\active_ports.json' -Raw | ConvertFrom-Json).backend" 2^>nul`) do set "V1_BACKEND=%%j"
+    for /f "usebackq tokens=*" %%j in (`powershell -NoProfile -Command "(Get-Content -LiteralPath '%PROJECT_DIR%logs\active_ports.json' -Raw | ConvertFrom-Json).frontend" 2^>nul`) do set "V1_FRONTEND=%%j"
     echo   Read v1 ports from logs\active_ports.json
 )
 
 if exist "%PROJECT_DIR%logs\active_ports_v2.json" (
-    for /f "usebackq tokens=*" %%j in (`powershell -NoProfile -Command "(Get-Content -LiteralPath '%PROJECT_DIR%logs\active_ports_v2.json' -Raw | ConvertFrom-Json).v2" 2^>nul`) do set "V2_PORT=%%j"
+    for /f "usebackq tokens=*" %%j in (`powershell -NoProfile -Command "(Get-Content -LiteralPath '%PROJECT_DIR%logs\active_ports_v2.json' -Raw | ConvertFrom-Json).v2" 2^>nul`) do set "V2_FRONTEND=%%j"
     for /f "usebackq tokens=*" %%j in (`powershell -NoProfile -Command "(Get-Content -LiteralPath '%PROJECT_DIR%logs\active_ports_v2.json' -Raw | ConvertFrom-Json).backend" 2^>nul`) do set "V2_BACKEND_PORT=%%j"
     echo   Read v2 ports from logs\active_ports_v2.json
 )
 
 echo Stage 1: Kill StockSignal processes by TCP LISTENING port (never blanket-kills python.exe)
-echo   Backend v1  = %BACKEND_PORT%
-call :kill_port %BACKEND_PORT%
-echo   Frontend v1 = %FRONTEND_PORT%
-call :kill_port %FRONTEND_PORT%
+echo   Only ports recorded by the launchers are stopped. A port with no state file
+echo   is skipped, so an unrelated service on any other port is never touched.
+echo   Backend v1  = %V1_BACKEND%
+call :maybe_kill "StockSignal v1 backend" "%V1_BACKEND%"
+echo   Frontend v1 = %V1_FRONTEND%
+call :maybe_kill "StockSignal v1 frontend" "%V1_FRONTEND%"
 echo   Backend v2  = %V2_BACKEND_PORT%
-call :kill_port %V2_BACKEND_PORT%
-echo   Frontend v2 = %V2_PORT%
-call :kill_port %V2_PORT%
+call :maybe_kill "StockSignal v2 backend" "%V2_BACKEND_PORT%"
+echo   Frontend v2 = %V2_FRONTEND%
+call :maybe_kill "StockSignal v2 frontend" "%V2_FRONTEND%"
 
 echo.
 echo Stage 2: Waiting for ports to release...
@@ -58,10 +60,10 @@ timeout /t 2 /nobreak >nul 2>&1
 
 echo.
 echo Stage 3: Verify ports are free...
-call :check_port %BACKEND_PORT%
-call :check_port %FRONTEND_PORT%
-call :check_port %V2_BACKEND_PORT%
-call :check_port %V2_PORT%
+call :maybe_check "StockSignal v1 backend" "%V1_BACKEND%"
+call :maybe_check "StockSignal v1 frontend" "%V1_FRONTEND%"
+call :maybe_check "StockSignal v2 backend" "%V2_BACKEND_PORT%"
+call :maybe_check "StockSignal v2 frontend" "%V2_FRONTEND%"
 
 echo.
 if "%KILLED_ANY%"=="1" (
@@ -71,6 +73,34 @@ if "%KILLED_ANY%"=="1" (
 )
 echo.
 timeout /t 2 >nul
+exit /b 0
+
+
+:maybe_kill
+rem %~1 = friendly label, %~2 = port (may be empty). Skip empty (no state file)
+rem and NEVER kill 8899: 8899 is reserved and is NOT a StockSignal port (the
+rem launchers always pick a free port and record it), so an unrelated service
+rem listening on 8899 must never be killed (see PLAN red line).
+set "MK_LABEL=%~1"
+set "MK_PORT=%~2"
+if "%MK_PORT%"=="" (
+    echo     [skip] %MK_LABEL%: no port recorded (launcher state file absent)
+    exit /b 0
+)
+if "%MK_PORT%"=="8899" (
+    echo     [SKIP]  %MK_LABEL%: 8899 reserved, never killed
+    exit /b 0
+)
+call :kill_port %MK_PORT%
+exit /b 0
+
+
+:maybe_check
+set "MC_LABEL=%~1"
+set "MC_PORT=%~2"
+if "%MC_PORT%"=="" exit /b 0
+if "%MC_PORT%"=="8899" exit /b 0
+call :check_port %MC_PORT%
 exit /b 0
 
 

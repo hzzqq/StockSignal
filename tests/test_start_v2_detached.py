@@ -146,7 +146,7 @@ def test_launcher_uses_real_detached_flags():
         assert module._spawn_kwargs() == {"start_new_session": True}
 
 
-def test_launcher_honesty_and_idempotency_contract():
+def test_launcher_honesty_and_idempotency_contract(tmp_path):
     src = LAUNCHER.read_text(encoding="utf-8")
     assert 'BE_LOG = LOGS / "backend_v2.log"' in src
     assert 'FE_LOG = LOGS / "frontend_v2.log"' in src
@@ -159,6 +159,21 @@ def test_launcher_honesty_and_idempotency_contract():
     assert "backend_ok" in src and "frontend_ok" in src, "状态文件必须记录真实健康结果"
     assert "SS_OPEN_BROWSER" in src, "浏览器只允许打开一次"
     assert "webbrowser.open" in src
+    # 日志轮转：无限追加会拖垮磁盘，spawn 必须真正调用且行为正确
+    assert "def rotate_log" in src, "日志需轮转，避免无限增长"
+    assert "rotate_log(log)" in src, "spawn 必须真正调用轮转"
+    module = _launcher_module()
+    big = tmp_path / "fe.log"
+    big.write_text("y" * 300, encoding="utf-8")
+    module.rotate_log(big, max_bytes=100)
+    rotated = big.with_name(big.name + ".1")
+    assert rotated.exists() and rotated.read_text(encoding="utf-8") == "y" * 300, "超阈值必须轮转并保留历史"
+    assert not big.exists(), "原日志文件应被移走"
+    small = tmp_path / "small.log"
+    small.write_text("keep", encoding="utf-8")
+    module.rotate_log(small, max_bytes=100)
+    assert small.exists() and small.read_text(encoding="utf-8") == "keep", "未超阈值不得轮转"
+    assert not small.with_name(small.name + ".1").exists()
 
 
 def test_wait_http_keeps_waiting_on_5xx(monkeypatch):

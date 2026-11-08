@@ -73,6 +73,24 @@ def _spawn_kwargs() -> dict:
     return {"start_new_session": True}
 
 
+def rotate_log(log: Path, max_bytes: int = 5_000_000) -> None:
+    """日志超过阈值则轮转（保留最近一份 .1 历史），防止无限追加拖垮磁盘。
+
+    仅在 spawn 真正要落盘前调用；轮转失败静默忽略，绝不阻断启动。
+    """
+    try:
+        if not log.exists() or log.stat().st_size <= max_bytes:
+            return
+        rotated = log.with_name(log.name + ".1")
+        try:
+            rotated.unlink()
+        except OSError:
+            pass
+        log.rename(rotated)
+    except OSError:
+        pass
+
+
 def resolve_python() -> str:
     candidates = [
         os.environ.get("SS_PY", ""),
@@ -111,6 +129,7 @@ def build_env(backend_port: int) -> dict:
 def spawn(argv: list[str], cwd: Path, log: Path, env: dict) -> subprocess.Popen:
     """后台启动；日志追加不截断，父进程只保留 PID。"""
     LOGS.mkdir(parents=True, exist_ok=True)
+    rotate_log(log)
     handle = open(log, "a", encoding="utf-8", errors="replace")
     handle.write(f"\n==== spawn {time.strftime('%Y-%m-%d %H:%M:%S')} ====\n")
     try:
