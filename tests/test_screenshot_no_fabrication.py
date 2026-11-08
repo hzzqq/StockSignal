@@ -29,6 +29,8 @@ import os
 import re
 import sys
 
+import pytest
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
@@ -188,14 +190,25 @@ def test_radar_shot_guards_against_all_zero_scores():
 
 # ── C. 公开文档 ↔ 磁盘事实 ──────────────────────────────────────────
 
+def _public_docs_or_fail():
+    """公开物料必须全部存在；缺失即 fail，绝不静默跳过。
+
+    历史缺陷（2026-11-09）：两个用例都用 ``if not os.path.exists(path):
+    continue``，删掉 6 份物料、只剩 1 份也照样全绿（``seen`` 非空即可）。
+    守卫本该在物料被误删 / 改名时立刻报警，却自己把告警吞了。
+    """
+    missing = [rel for rel in PUBLIC_DOCS
+               if not os.path.exists(os.path.join(ROOT, rel))]
+    assert not missing, f"公开物料缺失（守卫不得静默跳过）: {missing}"
+    return [(rel, os.path.join(ROOT, rel)) for rel in PUBLIC_DOCS]
+
+
 def test_public_docs_referenced_screenshots_exist():
     """README / 推广物料里引用的 screenshots/*.png 必须真实存在（防挂死链）。"""
     ref_re = re.compile(r"(?:screenshots/[0-9A-Za-z_.\-]+\.png)")
     missing = []
-    for rel in PUBLIC_DOCS:
-        path = os.path.join(ROOT, rel)
-        if not os.path.exists(path):
-            continue
+    docs = _public_docs_or_fail()
+    for rel, path in docs:
         for ref in set(ref_re.findall(_src(path))):
             if not os.path.exists(os.path.join(ROOT, ref)):
                 missing.append(f"{rel} -> {ref}")
@@ -210,14 +223,16 @@ def test_public_docs_test_count_is_single_consistent_value():
         r"Tests-(\d+)%20passed",
     ]
     seen = {}
-    for rel in PUBLIC_DOCS:
-        path = os.path.join(ROOT, rel)
-        if not os.path.exists(path):
-            continue
+    docs = _public_docs_or_fail()
+    for rel, path in docs:
         text = _src(path)
         for pat in pats:
             for m in re.findall(pat, text):
                 seen.setdefault(int(m), []).append(rel)
+    covered = {rel for rels in seen.values() for rel in rels}
+    assert len(covered) >= 4, (
+        f"只有 {len(covered)} 份公开物料解析到测试规模数字，覆盖不足：{sorted(covered)}"
+    )
     assert seen, "未从公开文档中解析到任何测试规模数字，守卫失效"
     assert len(seen) == 1, (
         f"公开文档里的测试规模数字不一致：{ {k: sorted(set(v)) for k, v in seen.items()} }"
@@ -257,3 +272,11 @@ def test_portfolio_shot_captions_have_no_stale_misleading_titles():
         assert not any(bad in t for t in titles), f"卡片标题仍含误导内容 {bad!r}"
     for path, title, _tag in shots:
         assert os.path.exists(os.path.join(ROOT, path)), f"卡片引用不存在的图：{path}"
+
+
+def test_missing_public_doc_is_not_silently_skipped(monkeypatch):
+    """反例自测：物料被删 / 改名必须让守卫 fail，而不是 continue 静默跳过。"""
+    monkeypatch.setitem(globals(), "PUBLIC_DOCS",
+                        PUBLIC_DOCS + ["docs/__missing_guard_probe__.md"])
+    with pytest.raises(AssertionError, match="公开物料缺失"):
+        _public_docs_or_fail()

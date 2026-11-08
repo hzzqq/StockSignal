@@ -116,22 +116,150 @@ def test_registered_paths_are_real_routes():
         assert params, f"{full} 没有示例参数，数据浏览器仍会拿到 400"
 
 
-def test_msw_never_marks_required_endpoints_as_probeable():
-    """MSW 不得把需参端点伪装成 needs_params:false / 带 query 的 probe_path。"""
-    text = FIXTURES.read_text(encoding="utf-8")
-    mapping = _required_query_map(_tree())
-    seen = 0
-    for full in mapping:
-        m = re.search(r"\{ path: '" + re.escape(full) + r"'[^\n]*\}", text)
-        if not m:
+def _endpoint_objects(text: str) -> dict[str, str]:
+    """从 fixtures.ts 抽出每个 ``{ path: '/api/v2/read/…', … }`` 完整对象块（跨行安全）。
+
+    历史缺陷（2026-11-09 实测，不是理论风险）：旧守卫用单行正则
+    ``\{ path: '<full>'[^\n]*\}``，prettier 一格式化成多行就匹配不到；配合
+    ``if not m: continue`` 与 ``seen >= 1``，后端登记的 10 个需参端点只有
+    4 条被真校验，其余 6 条静默跳过且测试全绿 —— 守卫自我静音。
+    """
+    marker = "export const diagnosticsEndpoints = ["
+    arr_at = text.find(marker)
+    assert arr_at >= 0, "fixtures.ts 缺少 diagnosticsEndpoints 端点清单"
+    open_at = arr_at + len(marker) - 1  # 指向 '['
+    depth = 0
+    arr_end = -1
+    for i in range(open_at, len(text)):
+        if text[i] == "[":
+            depth += 1
+        elif text[i] == "]":
+            depth -= 1
+            if depth == 0:
+                arr_end = i + 1
+                break
+    assert arr_end > 0, "diagnosticsEndpoints 数组未闭合，fixtures 疑似被截断"
+    scope = text[open_at:arr_end]
+
+    out: dict[str, str] = {}
+    # 负向后视排除 probe_path: 等同名字段；只在端点清单数组内解析，
+    # 避免 fixtures 其它对象里的 path 键把守卫撑成「重复登记」。
+    for m in re.finditer(r"(?<![A-Za-z0-9_])path:\s*'(/api/v2/read/[^']+)'", scope):
+        start = scope.rfind("{", 0, m.start())
+        assert start >= 0, f"端点 {m.group(1)} 找不到对象起始花括号"
+        brace = 0
+        end = -1
+        for i in range(start, len(scope)):
+            if scope[i] == "{":
+                brace += 1
+            elif scope[i] == "}":
+                brace -= 1
+                if brace == 0:
+                    end = i + 1
+                    break
+        assert end > 0, f"端点 {m.group(1)} 对象块未闭合，fixtures 疑似被截断"
+        path = m.group(1)
+        assert path not in out, f"fixtures 里端点 {path} 重复登记"
+        out[path] = scope[start:end]
+    assert out, "fixtures.ts 未解析到任何诊断端点对象，扫描器失效"
+    return out
+
+
+def _msw_contract_errors(objects: dict[str, str],
+                         mapping: dict[str, dict[str, str]]) -> list[str]:
+    """返回 MSW 端点清单与后端真值之间的全部不一致（空列表 = 通过）。
+
+    抽成纯函数是为了让守卫自身可被反例验证：删条目 / 改标记 /
+    编造 probe_path 都必须产生错误，而不是被 continue 吞掉。
+    """
+    errors: list[str] = []
+    if not objects:
+        return ["fixtures 中未解析到任何端点对象"]
+    if not any("<" in p for p in objects):
+        errors.append("fixtures 未包含路径参数端点样例（守卫覆盖面退化）")
+
+    msw_required: set[str] = set()
+    for path, block in objects.items():
+        is_true = "needs_params: true" in block
+        is_false = "needs_params: false" in block
+        if is_true == is_false:
+            errors.append(f"{path}: 缺少唯一明确的 needs_params 标记")
             continue
-        row = m.group(0)
-        assert "needs_params: true" in row, f"MSW 把需参端点标成可探测: {full}"
-        assert "probe_path: null" in row, f"MSW 给需参端点编造了 probe_path: {full}"
-        assert "sample_query:" in row, f"MSW 需参端点缺少示例参数: {full}"
-        seen += 1
-    assert seen >= 1, "fixtures 里没有任何需参端点样本，无法验证一致性"
+        if is_true and "<" not in path:
+            msw_required.add(path)
+
+    for full in sorted(set(mapping) - msw_required):
+        errors.append(f"MSW 缺少后端登记的需参端点: {full}")
+    for full in sorted(msw_required - set(mapping)):
+        errors.append(f"MSW 把不会因缺 query 而 400 的端点标成需参: {full}")
+
+    for full, params in mapping.items():
+        block = objects.get(full)
+        if block is None:
+            continue  # 缺失已由上面的 missing 分支报错，不重复计算
+        if "probe_path: null" not in block:
+            errors.append(f"{full}: 编造了可直接探测的 probe_path")
+        if "sample_query:" not in block:
+            errors.append(f"{full}: 缺示例参数 sample_query")
+        for key, val in params.items():
+            if f"'{key}'" not in block:
+                errors.append(f"{full}: required_query 缺 '{key}'")
+            if f"{key}={val}" not in block:
+                errors.append(f"{full}: sample_query 缺 {key}={val}")
+    return errors
+
+
+def test_msw_required_endpoints_match_backend_exactly():
+    """MSW 需参端点集合与后端登记**双向等值**，零静默跳过。"""
+    text = FIXTURES.read_text(encoding="utf-8")
+    objects = _endpoint_objects(text)
+    mapping = _required_query_map(_tree())
+    assert len(mapping) >= 10, "后端需参端点登记疑似被掏空"
+    errors = _msw_contract_errors(objects, mapping)
+    assert not errors, "MSW 与真后端需参契约不一致:\n" + "\n".join(errors)
     assert "six-dim?code=" not in text, "不得再把带 query 的路径当成端点 path"
+
+
+def test_msw_contract_guard_is_not_self_silencing():
+    """反例自测：多行格式可解析；删条目 / 改标记 / 编造 probe_path 都会被抓。"""
+    mapping = _required_query_map(_tree())
+    good = _endpoint_objects(FIXTURES.read_text(encoding="utf-8"))
+    assert _msw_contract_errors(good, mapping) == [], "当前 fixtures 必须通过契约校验"
+
+    # 1) prettier 风格的多行对象仍能被完整抽取（旧单行正则会直接漏掉）
+    multiline = """export const diagnosticsEndpoints = [
+  {
+    path: '/api/v2/read/six-dim',
+    needs_params: true,
+    probe_path: null,
+    required_query: ['code'],
+    sample_query: 'code=600519',
+  },
+]
+"""
+    parsed = _endpoint_objects(multiline)
+    assert list(parsed) == ["/api/v2/read/six-dim"]
+    assert "needs_params: true" in parsed["/api/v2/read/six-dim"]
+    assert "probe_path: null" in parsed["/api/v2/read/six-dim"]
+
+    key = "/api/v2/read/six-dim"
+    # 2) 删掉一个登记端点，必须报错而不是 continue 静默跳过
+    dropped = {k: v for k, v in good.items() if k != key}
+    assert any("six-dim" in e for e in _msw_contract_errors(dropped, mapping))
+
+    # 3) 把需参端点标成可直接探测，必须报错
+    tampered = dict(good)
+    tampered[key] = good[key].replace("needs_params: true", "needs_params: false")
+    assert any("six-dim" in e for e in _msw_contract_errors(tampered, mapping))
+
+    # 4) 给需参端点编造 probe_path，必须报错
+    tampered2 = dict(good)
+    tampered2[key] = good[key].replace(
+        "probe_path: null", "probe_path: '/api/v2/read/six-dim?code=600519'")
+    assert any("probe_path" in e for e in _msw_contract_errors(tampered2, mapping))
+
+    # 5) 空对象集合必须被视为守卫失效
+    assert _msw_contract_errors({}, mapping)
 
 
 def test_frontend_contract_follows_backend():

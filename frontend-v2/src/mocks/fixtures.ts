@@ -676,6 +676,12 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/financials', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
   { path: '/api/v2/read/paper-trades', needs_params: true, probe_path: null, required_query: ['user'], sample_query: 'user=admin' },
   { path: '/api/v2/read/index-kline', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=sh000001' },
+  { path: '/api/v2/read/review-notes', needs_params: true, probe_path: null, required_query: ['date'], sample_query: 'date=2026-09-21' },
+  { path: '/api/v2/read/fundamentals', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
+  { path: '/api/v2/read/stock-kline', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
+  { path: '/api/v2/read/compare-one', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
+  { path: '/api/v2/read/research-deep', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
+  { path: '/api/v2/read/stock-intraday', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
 ]
 
 export const diagnostics = {

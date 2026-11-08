@@ -47,10 +47,10 @@ describe('W4-D · 数据源与接口检测页', () => {
     expect(screen.queryByText('四源真实网络探测')).toBeNull()
     expect(screen.getByText(/当前为 Mock 环境：点击只会读取 MSW 夹具里的模拟结果/)).toBeTruthy()
     expect(screen.getByText('只读端点连通性')).toBeTruthy()
-    // 汇总：4/5 可用，4 源时效，12 个端点（其中 5 个需参数）
+    // 汇总：4/5 可用，4 源时效；端点总数从夹具真值派生，增减端点不制造假失败
     expect(screen.getByText('4/5 可用')).toBeTruthy()
     expect(screen.getByText('4 源')).toBeTruthy()
-    expect(screen.getByText('12')).toBeTruthy()
+    expect(screen.getByText(String(fixtures.diagnosticsEndpoints.length))).toBeTruthy()
   })
 
   it('诚实：默认零网络，probe=null 显示「尚未探测」，接口检测显示「尚未检测」', async () => {
@@ -98,7 +98,11 @@ describe('W4-D · 数据源与接口检测页', () => {
     mount()
     const btn = await screen.findByRole('button', { name: '开始检测' })
     fireEvent.click(btn)
-    await waitFor(() => expect(screen.getByText('7/7')).toBeTruthy(), { timeout: 8000 })
+    const autoCount = fixtures.diagnosticsEndpoints.filter((e) => e.probe_path).length
+    await waitFor(
+      () => expect(screen.getByText(`${autoCount}/${autoCount}`)).toBeTruthy(),
+      { timeout: 8000 },
+    )
     expect(screen.getByText(/跳过（需参数）：/)).toBeTruthy()
     // 每个结果行的 HTTP 200 + 信封 ok
     expect(screen.getAllByText('200').length).toBeGreaterThanOrEqual(7)

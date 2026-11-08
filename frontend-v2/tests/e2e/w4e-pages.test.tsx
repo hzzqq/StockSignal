@@ -7,6 +7,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { handlers } from '@/mocks/handlers'
+import { diagnosticsEndpoints } from '@/mocks/fixtures'
 import { Providers } from '@/app/providers'
 import { ProjectIntro } from '@/features/dashboard/ProjectIntro'
 import { CatalogView } from '@/features/catalog/CatalogView'
@@ -237,8 +238,9 @@ describe('W4-E · 设置页（真实生效）', () => {
 describe('W4-E · 只读端点数据浏览器', () => {
   it('端点清单来自后端枚举，选中后展示真实信封数据、不编造行', async () => {
     mount(<DataSourceView />)
-    // fixture 12 个端点中 1 个含路径参数被排除，其余 11 个可查看（需参端点带示例参数）
-    expect(await screen.findByText(/共 11 个可查看端点/)).toBeTruthy()
+    // 可查看端点数从夹具真值派生：含 "<" 的路径参数端点被页面如实排除
+    const viewable = diagnosticsEndpoints.filter((e) => !e.path.includes('<'))
+    expect(await screen.findByText(new RegExp(`共 ${viewable.length} 个可查看端点`))).toBeTruthy()
     expect(screen.queryByText('响应不是合法 JSON 信封')).toBeNull()
     const select = screen.getByRole('combobox', { name: '只读端点' })
     fireEvent.change(select, { target: { value: '/api/v2/read/index-quotes' } })
