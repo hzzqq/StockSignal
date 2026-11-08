@@ -454,13 +454,15 @@ _FILE_WHITELIST["data_refresh_state"] = _DATA_DIR / "data_refresh_state.json"
 
 
 def _strip_sensitive(obj, banned_keys=None):
-    """递归剔除敏感 key（默认 target_dir），防本机绝对路径随响应泄露。
+    """递归剔除敏感 key，防本机绝对路径随响应泄露。
 
-    p1_sync_status.json 的 target_dir 是 'E:\\\\...\\\\data\\\\p1_signals'，
-    属部署环境信息，不应出现在浏览器可见的 API 响应里；嵌套在 dict / list
-    内的同名 key 一并剔除。该函数只删 key，不改写任何值。
+    p1_sync_status.json 含多类部署环境绝对路径：target_dir（同步目标目录）、
+    health.signal_dir（信号目录）、health.status_file（状态文件）——三者都泄露
+    'E:\\\\...\\\\data\\\\...' 本机部署路径，均不应出现在浏览器可见的 API 响应里。
+    默认一并剔除；嵌套在 dict / list 内的同名 key 也递归清除。该函数只删 key，
+    不改写任何值。
     """
-    banned = banned_keys or {"target_dir"}
+    banned = banned_keys or {"target_dir", "signal_dir", "status_file"}
     if isinstance(obj, dict):
         return {k: _strip_sensitive(v, banned) for k, v in obj.items() if k not in banned}
     if isinstance(obj, (list, tuple)):

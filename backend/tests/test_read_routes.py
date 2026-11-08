@@ -225,16 +225,22 @@ def client(app, tmp_path_factory):
             "mode": "scheduler",
             "ok": True,
             "target_dir": "E:/secret/top_level",
+            "signal_dir": "E:/secret/top_level_signal",
+            "status_file": "E:/secret/top_level_status",
             "health": {
                 "status": "warn",
                 "message": "4 个副本超出新鲜度 SLA",
+                "signal_dir": "E:/secret/health_signal",
+                "status_file": "E:/secret/health_status",
                 "rows": [{"file": "signal_ev_h10.json", "model_key": "ev",
                           "latest_date": "2026-10-21", "age_days": 17}],
             },
             # 嵌套在 dict / list 内的敏感 key，验证 _strip_sensitive 是递归的
             "extra_info": {
-                "nested_dict": {"target_dir": "E:/secret/nested_dict", "ok": True},
-                "nested_list": [{"target_dir": "E:/secret/nested_list", "n": 1}],
+                "nested_dict": {"target_dir": "E:/secret/nested_dict",
+                                "signal_dir": "E:/secret/nested_sd", "ok": True},
+                "nested_list": [{"target_dir": "E:/secret/nested_list",
+                                 "status_file": "E:/secret/nested_sf", "n": 1}],
             },
         }),
         encoding="utf-8",
@@ -419,7 +425,12 @@ def test_w3_endpoints_fields_and_sensitive_stripping(client, token):
     obj = client.get("/api/v2/read/p1-sync-status", headers=h).get_json()
     assert obj["status"] == "ok" and obj["data"]["ok"] is True, obj
     assert obj["data"]["health"]["status"] == "warn", obj
-    assert "target_dir" not in _collect_keys(obj), "绝对路径 key 未被递归剔除"
+    keys = _collect_keys(obj)
+    for banned in ("target_dir", "signal_dir", "status_file"):
+        assert banned not in keys, f"敏感 key {banned} 未被递归剔除"
+    # 防御性：任何 E: 绝对路径泄露都不允许（含被转义的反斜杠形式）
+    dump = json.dumps(obj, ensure_ascii=False)
+    assert ("E:/" not in dump) and ("E:\\" not in dump), f"响应泄露绝对路径: {dump[:200]}"
 
     obj = client.get("/api/v2/read/backtest-runs", headers=h).get_json()
     assert obj["status"] == "ok", obj
