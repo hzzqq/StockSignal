@@ -344,6 +344,32 @@ def test_existing_files_return_ok_envelope(client, token):
     obj = client.get("/api/v2/read/webapps", headers=_auth(token)).get_json()
     assert obj["status"] == "ok" and obj["data"][0]["title"] == "Demo WebApp", obj
 
+
+def test_daily_recommendation_boundary_gate_drops_high(client, token):
+    """T-245：输出边界二道闸——即便 JSON 含 overall_level==high 的标的，也被剔除。
+
+    验证 unknown≠guilty：low / not_scanned 一律保留；仅已确认 high 被剔除，且
+    在返回信封注明剔除数（不静默）。还原模块级临时文件，避免污染同模块其它用例。
+    """
+    import json as _json
+    path = rr._FILE_WHITELIST["daily_recommendation"]
+    original = path.read_text(encoding="utf-8")
+    payload = {"picks": [
+        {"code": "600519", "name": "安全", "risk_scan": {"status": "scanned", "overall_level": "low"}},
+        {"code": "600666", "name": "高危", "risk_scan": {"status": "scanned", "overall_level": "high"}},
+        {"code": "600888", "name": "未扫", "risk_scan": {"status": "not_scanned"}},
+    ]}
+    try:
+        path.write_text(_json.dumps(payload), encoding="utf-8")
+        obj = client.get("/api/v2/read/daily-recommendation", headers=_auth(token)).get_json()
+        assert obj["status"] == "ok" and obj["code"] == "ok", obj
+        codes = [p["code"] for p in obj["data"]["picks"]]
+        assert "600666" not in codes, "高危标的应被输出边界二道闸剔除"
+        assert "600519" in codes and "600888" in codes, "low / not_scanned 应保留（unknown≠guilty）"
+        assert obj["data"].get("risk_gate_boundary_dropped") == 1
+    finally:
+        path.write_text(original, encoding="utf-8")
+
     # W3 新增只读端点（聚合 snapshots / 读取 shepherd_ladder_history）
     obj = client.get("/api/v2/read/breadth-timeseries", headers=_auth(token)).get_json()
     assert obj["status"] == "ok" and isinstance(obj["data"], list) and len(obj["data"]) >= 1, obj

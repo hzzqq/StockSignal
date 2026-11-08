@@ -40,6 +40,9 @@ from flask import Blueprint, request
 from ..auth.decorators import jwt_required
 from ..utils.response import fail, ok
 
+# T-245：六维排雷「高危」等级字面量（与 modules.stock_risk.RISK_HIGH 对齐）
+_RISK_HIGH = "high"
+
 bp = Blueprint("read", __name__, url_prefix="/api/v2/read")
 
 # 项目根 = backend/api/read_routes.py 的 parents[2]
@@ -126,6 +129,33 @@ def _serve_whitelist_json(key: str, label: str):
     return _not_found(label)
 
 
+def _serve_recommendation_gated(key: str, label: str):
+    """每日荐股：白名单 JSON 透传 + 输出边界二道闸（T-245）。
+
+    上游 generate_daily_recommendation 已在 apply_risk_gate 踢出 overall_level==high，
+    此处再闸一次：防御陈旧/截断 JSON 或旁路写入把高危标的重新带入推荐。
+    被剔除项不静默——在信封 message 注明剔除数，供前端显著提示。
+    unknown≠guilty：仅剔除已确认 high，not_scanned/unknown/low/medium 一律保留。
+    """
+    status, data = _read_json(_FILE_WHITELIST[key])
+    if status != "ok" or not isinstance(data, dict):
+        return _serve_whitelist_json(key, label)
+    picks = data.get("picks")
+    if not isinstance(picks, list):
+        return ok(data=data, message=label)
+    kept, dropped = [], 0
+    for p in picks:
+        rs = p.get("risk_scan") if isinstance(p, dict) else None
+        if isinstance(rs, dict) and rs.get("overall_level") == _RISK_HIGH:
+            dropped += 1
+            continue
+        kept.append(p)
+    if dropped:
+        data = {**data, "picks": kept, "risk_gate_boundary_dropped": dropped}
+        return ok(data=data, message=f"{label}（输出边界二道闸剔除 {dropped} 只高危标的）")
+    return ok(data=data, message=label)
+
+
 def _serve_whitelist_text(key: str, label: str):
     status, data = _read_text(_FILE_WHITELIST[key])
     if status == "ok":
@@ -161,8 +191,8 @@ def daily_snapshot():
 @bp.get("/daily-recommendation")
 @jwt_required
 def daily_recommendation():
-    """每日荐股（data/daily_recommendation.json）—— 36 页主体数据源。"""
-    return _serve_whitelist_json("daily_recommendation", "daily_recommendation.json")
+    """每日荐股（data/daily_recommendation.json）—— 36 页主体数据源；输出边界二道闸剔除高危。"""
+    return _serve_recommendation_gated("daily_recommendation", "daily_recommendation.json")
 
 
 @bp.get("/user-dashboard")
