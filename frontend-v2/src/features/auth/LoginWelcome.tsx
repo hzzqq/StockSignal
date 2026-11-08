@@ -76,11 +76,13 @@ export function LoginWelcome({ onLogin }: { onLogin: () => void }) {
         />
 
         {/* Logo：v1 用 assets/icon-256.png（base64 内联）。v2 用 public/ 静态引用，
-            缺失时退化为品牌色星芒字符（绝不留破图）。 */}
+            缺失时退化为品牌色星芒字符（绝不留破图）。
+            ⚠️ Tailwind v4 preflight 把 img 设为 display:block，父级 text-center 对块级
+            元素无效；必须显式 mx-auto 才能水平居中（缺失时图标会贴左）。 */}
         <img
           src="/icon-256.png"
           alt="StockSignal"
-          className="w-24 h-24 rounded-card mb-6 border"
+          className="w-24 h-24 rounded-card mb-6 border mx-auto block"
           style={{
             boxShadow: '0 10px 32px color-mix(in srgb, var(--color-brand-2) 30%, transparent)',
             borderColor: 'rgba(255,255,255,0.1)',
@@ -90,7 +92,7 @@ export function LoginWelcome({ onLogin }: { onLogin: () => void }) {
             e.currentTarget.style.display = 'none'
             e.currentTarget.insertAdjacentHTML(
               'afterend',
-              '<div aria-hidden="true" style="font-size:3rem;line-height:1;margin-bottom:1.5rem">✨</div>',
+              '<div aria-hidden="true" style="font-size:3rem;line-height:1;margin:0 auto 1.5rem;text-align:center">✨</div>',
             )
           }}
         />

@@ -252,10 +252,176 @@ def _synth_us_index_intraday(open_, high, low, close, prev_close):
         return None, None
 
 
+# ── T-250 续：日线缓存键归一（daily 全量键）────────────────────────────
+# 背景（实测根因）：旧键 ``daily_{symbol}_{start}_{end}_{adjust}`` 把「请求区间」
+# 写进了键里，前端每换一个日期区间就是一条全新键 → 必然 miss → 每次都走网络
+# （实测新浪日K 250 根网络往返 176ms/次，而本地 SQLite 命中仅 12ms）。
+#
+# 新形态：**按「标的 + 复权」存全量序列，读取时按日期切片**。
+#   daily_full_{symbol}_{adjust}     → 全量日线序列（JSON records，含 date/open/close/…）
+#   daily_fullcov_{symbol}_{adjust}  → 覆盖区间元数据 {"start": "...", "end": "..."}
+# 两者配套：cov 记录「这行序列被请求过的区间范围」，用于判定某次请求是否真被缓存
+# 覆盖——**不覆盖就回源**，绝不拿残缺数据冒充完整区间（诚实红线）。
+#
+# ⚠️ ``daily`` 类型的输出**逐字节不变**（既有 SQLite 缓存必须继续命中）；
+#    旧键一律经 _legacy_daily_cache_key() 反查构造，不再直接拼 f-string。
+
+# 日线 TTL 策略（常量集中于此，避免散落魔法数）：
+#   当日线按「交易日」更新——A股 15:00 收盘后行情源才产出当日完整日线，故「请求
+#   末端含当日」的缓存最长有效 6 小时（与改造前 get_daily 的 end==today →
+#   max_age_hours=6 口径完全一致：收盘后必须回源取当日新值）。
+#   纯历史区间沿用 config.yaml 的 cache_days（默认 7 天）——历史收盘价本身不再变化，
+#   但前复权(qfq)基准会随新除权除息回溯调整，过期重取以免价格口径漂移。
+DAILY_TTL_HOURS_TODAY = 6
+
+# 回源窗口的**最小回溯跨度**：前端常用区间（近 30/90/180/365 天）与荐股引擎
+# 260 天窗口均 ≤ 1 年，故回源时至少往回取 365 天——一次取够，之后任意
+# 「换日期区间」都命中缓存（这正是本次改造要消灭的「换日期→换键→回源」链路）。
+DAILY_FULL_MIN_SPAN_DAYS = 365
+
+# 回源窗口的**最大跨度**（限宽护栏）：并集过宽时不走新形态，退回旧形态区间键
+# （与改造前逐字节一致），避免个别标的把整段历史写进一行、把缓存库撑爆。
+# 1095 天 < 新浪日K 800 根上限（约 1158 天），故上限内不会被源端截断。
+DAILY_FULL_MAX_SPAN_DAYS = 1095
+
+# 覆盖区间元数据行不参与 TTL 判定（其新鲜度由数据行统一把关），故用「近乎不过期」
+# 的 max_age 读取它；数据行仍按上面的 TTL 严格判定。
+CACHE_NO_EXPIRE_SECONDS = 10 ** 9
+
+
+def _legacy_daily_cache_key(symbol, start, end, adjust) -> str:
+    """兼容反查：由「标的 + 区间 + 复权」拼出**旧形态**日线缓存键。
+
+    用途：双读兼容——新键（daily_full）miss 时，用调用方传入的 start/end 拼出
+    旧键回查既有 SQLite 缓存，保证改造前落盘的行继续命中（不破坏既有缓存）。
+
+    与 ``_build_cache_key("daily", ...)`` 输出逐字节一致（见 AST/单测守卫）。
+    """
+    return f"daily_{symbol}_{start}_{end}_{adjust}"
+
+
+def _daily_date_str(value):
+    """归一为 'YYYY-MM-DD'；None/空/不可解析 → None（表示「无界」）。"""
+    if value is None or value == "":
+        return None
+    try:
+        ts = pd.Timestamp(value)
+    except Exception:  # ui_audit_exempt: except-pass 非法日期返回 None，由调用方决定兜底
+        return None
+    if ts is pd.NaT:
+        return None
+    return ts.strftime("%Y-%m-%d")
+
+
+def _daily_shift_days(date_str, days):
+    """日期字符串平移 N 天，返回 ISO 日期字符串；不可解析返回 None。"""
+    shifted = _daily_date_str(date_str)
+    if shifted is None:
+        return None
+    return str((pd.Timestamp(shifted) + pd.Timedelta(days=days)).date())
+
+
+def _daily_slice_by_window(df, start, end):
+    """按日期窗口（闭区间）切日线 DataFrame。纯函数、零 IO、可直接单测。
+
+    诚实语义：窗口内无数据 → 返回**空 DataFrame**（绝不补 0、绝不编造行）。
+    """
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return pd.DataFrame()
+    if "date" not in df.columns:
+        return pd.DataFrame()
+    try:
+        d = pd.to_datetime(df["date"], errors="coerce")
+        mask = pd.Series(True, index=df.index)
+        if start:
+            mask &= (d >= pd.Timestamp(start))
+        if end:
+            mask &= (d <= pd.Timestamp(end))
+    except Exception as e:  # ui_audit_exempt: except-pass 非法日期窗口返回空切片，绝不臆造数据
+        logger.warning(f"[fetcher] 处理异常: {e}")
+        return pd.DataFrame()
+    mask = mask.fillna(False)
+    return df[mask].reset_index(drop=True)
+
+
+def _daily_interval_covers(cov, start, end) -> bool:
+    """覆盖区间判定：``cov`` 记录的区间是否**完整包含**请求区间。
+
+    ``cov`` 为覆盖区间元数据（dict，含 start/end 两个 ISO 日期字符串）。
+    cov 任一边缺省、或请求区间任一边缺省（无界请求），一律视为未覆盖
+    （诚实红线：拿不准就回源，绝不拿残缺数据冒充完整区间）。
+    """
+    if not isinstance(cov, dict):
+        return False
+    lo = _daily_date_str(cov.get("start"))
+    hi = _daily_date_str(cov.get("end"))
+    if not lo or not hi:
+        return False
+    rs = _daily_date_str(start)
+    re_ = _daily_date_str(end)
+    if rs is None or re_ is None:
+        # 请求区间边界缺失 = 无界请求（全时间轴），任何有限 cov 都无法证明
+        # 完整包含；必须回源，绝不返回 True 让残缺序列冒充完整区间（诚实红线）。
+        return False
+    if rs and lo > rs:
+        return False
+    if re_ and hi < re_:
+        return False
+    return True
+
+
+def _daily_fetch_window(cov, start, end,
+                        min_span_days=DAILY_FULL_MIN_SPAN_DAYS,
+                        max_span_days=DAILY_FULL_MAX_SPAN_DAYS):
+    """计算回源窗口与形态选择。纯函数、零 IO。
+
+    返回 ``(lo, hi, use_full)``：
+
+    - ``use_full=True``  → 走新形态：抓 ``[lo, hi]`` 一段**连续**序列，整行同源
+      同一次抓取（前复权基准一致，不拼接不同 vintage 的片段），写入
+      ``daily_full_{symbol}_{adjust}`` + 覆盖区间行；调用方拿到的是请求窗口的切片。
+    - ``use_full=False`` → 走旧形态：抓 ``[start, end]`` 并写入旧区间键，与改造前
+      逐字节一致（超宽区间、边界缺省、覆盖元数据损坏等场景走此支路，行为零变化）。
+
+    窗口取「请求区间 ∪ 既有覆盖区间 ∪ 最小回溯跨度」——**只增不减**，故同一标的
+    换任何日期区间都能命中已抓到的序列。cov 元数据损坏时不做并集，直接退回旧形态，
+    以免用较窄窗口覆盖截短既有 daily_full 全量行。
+    """
+    req_lo = _daily_date_str(start)
+    req_hi = _daily_date_str(end)
+    if req_lo is None or req_hi is None:
+        # 边界缺省 → 保持改造前语义（旧区间键 + 原样回源）
+        return start, end, False
+    cov_lo = None
+    cov_hi = None
+    if isinstance(cov, dict) and (cov.get("start") is not None or cov.get("end") is not None):
+        cov_lo = _daily_date_str(cov.get("start"))
+        cov_hi = _daily_date_str(cov.get("end"))
+        if cov_lo is None or cov_hi is None:
+            # 覆盖元数据损坏/残缺：无法证明既有 daily_full 行的真实范围。
+            # 此时启用新形态会用较窄窗口**覆盖截短**既有全量序列，故退回旧形态，
+            # 既不写坏 daily_full，也不拿残缺数据冒充完整区间（诚实红线）。
+            return start, end, False
+    back = _daily_shift_days(req_hi, -min_span_days)
+    lo_candidates = [x for x in (cov_lo, req_lo, back) if x]
+    hi_candidates = [x for x in (cov_hi, req_hi) if x]
+    lo, hi = min(lo_candidates), max(hi_candidates)
+    try:
+        span_days = (pd.Timestamp(hi) - pd.Timestamp(lo)).days
+    except Exception:  # ui_audit_exempt: except-pass 非法窗口按旧形态处理
+        return start, end, False
+    if span_days > max_span_days:
+        # 并集过宽 → 退回旧形态区间键（不裁请求窗口，调用方要的区间绝不缺失）
+        return start, end, False
+    return lo, hi, True
+
+
 # ── Tier3（T-247 续 · T-250 已收口）：缓存键单一真源 ──
 
 _KEY_REQUIRED = {
     "daily":        ("symbol", "start", "end", "adjust"),
+    "daily_full":   ("symbol", "adjust"),
+    "daily_fullcov": ("symbol", "adjust"),
     "daily_prefix": ("symbol",),
     "kline":        ("period", "symbol", "start", "end", "adjust"),
     "rt_quote":     ("ticker",),
@@ -277,6 +443,11 @@ def _build_cache_key(key_type: str, **params) -> str:
     类型与必需参数：
 
     - ``daily``        : symbol, start, end, adjust → ``daily_{s}_{st}_{e}_{a}``
+      （**输出逐字节不变**，既有 SQLite 缓存继续命中；区间键仅作兼容回查用）
+    - ``daily_full``   : symbol, adjust → ``daily_full_{s}_{a}``
+      （日线全量键：按标的+复权存全量序列，**不含日期区间**，读取时按日期切片）
+    - ``daily_fullcov``: symbol, adjust → ``daily_fullcov_{s}_{a}``
+      （与 daily_full 配套的覆盖窗口元数据行，记录该序列实际覆盖的区间并集）
     - ``daily_prefix`` : symbol                     → ``daily_{s}``（stale 兜底 LIKE 前缀）
     - ``kline``        : period, symbol, start, end, adjust → ``kline_{p}_{s}_{st}_{e}_{a}``
     - ``rt_quote``     : ticker                     → ``rt_quote_{t}``
@@ -298,6 +469,10 @@ def _build_cache_key(key_type: str, **params) -> str:
 
     if key_type == "daily":
         return f"daily_{params['symbol']}_{params['start']}_{params['end']}_{params['adjust']}"
+    if key_type == "daily_full":
+        return f"daily_full_{params['symbol']}_{params['adjust']}"
+    if key_type == "daily_fullcov":
+        return f"daily_fullcov_{params['symbol']}_{params['adjust']}"
     if key_type == "daily_prefix":
         return f"daily_{params['symbol']}"
     if key_type == "kline":
