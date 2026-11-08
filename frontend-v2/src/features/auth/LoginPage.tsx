@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { login } from '@/api/endpoints'
 import { clearAuth } from '@/app/guards'
-import { NAV } from '@/nav/nav'
+import { NAV, UTILITY_PATHS } from '@/nav/nav'
 import { getDailySnapshot } from '@/api/read'
 import { useQuery } from '@tanstack/react-query'
 import { LoginWelcome } from './LoginWelcome'
@@ -37,7 +37,11 @@ export function LoginPage() {
   const search = useSearch({ from: '/login' })
   const rawFrom = typeof search.from === 'string' && search.from.startsWith('/') ? search.from : '/'
   // 单一真理源：从 NAV 派生全部合法路径（不再手抄子集）
-  const knownPaths = new Set<string>(NAV.flatMap((g) => g.items.map((it) => it.to)))
+  // NAV + 底部固定入口（UTILITY_PATHS 单一真理源）：漏一条就会把用户静默甩回首页。
+  const knownPaths = new Set<string>([
+    ...NAV.flatMap((g) => g.items.map((it) => it.to)),
+    ...UTILITY_PATHS,
+  ])
   const from = knownPaths.has(rawFrom) ? rawFrom : '/'
 
   const [stage, setStage] = useState<'welcome' | 'form'>('welcome')

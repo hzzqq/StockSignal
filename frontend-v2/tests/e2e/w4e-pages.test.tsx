@@ -15,7 +15,7 @@ import { SettingsView } from '@/features/settings/SettingsView'
 import { V1_PAGES, V1_PAGES_TOTAL } from '@/features/catalog/v1Pages.generated'
 import { mappingOf, statusCounts } from '@/features/catalog/v2Mapping'
 import { getDensity, getV1Base, setV1Base, v1PageUrl, applyPreferences } from '@/lib/preferences'
-import { NAV } from '@/nav/nav'
+import { NAV, UTILITY_PATHS } from '@/nav/nav'
 
 /**
  * W4-E · 设置 / v1 功能全景 / 只读数据浏览器 / v1 首页 Hero 的真实回归。
@@ -111,10 +111,11 @@ describe('W4-E · v1 功能全景清单（真实性）', () => {
   })
 
   it('native 目标都在 AppPath 内（不许指向不存在的路由）', () => {
-    // AppPath 是类型，运行时用 NAV + 新增三条侧边栏路径做白名单校验
+    // AppPath 是类型，运行时用 NAV + UTILITY_PATHS（单一真理源）+ /login 做白名单校验
     const known = new Set<string>([
       ...NAV.flatMap((g) => g.items.map((i) => i.to)),
-      '/settings', '/catalog', '/data',
+      ...UTILITY_PATHS,
+      '/login',
     ])
     for (const p of V1_PAGES) {
       const m = mappingOf(p)

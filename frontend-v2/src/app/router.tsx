@@ -24,6 +24,8 @@ import { CompareView } from '@/features/stock/CompareView'
 import { SettingsView } from '@/features/settings/SettingsView'
 import { CatalogView } from '@/features/catalog/CatalogView'
 import { DataSourceView } from '@/features/catalog/DataSourceView'
+import { LeadLagMatrixView } from '@/features/matrix/LeadLagMatrixView'
+import { GuideView } from '@/features/guide/GuideView'
 import { resolveResearchSearch, resolveLegacySearch, resolveCompareSearch } from '@/lib/deeplink'
 import type { ResearchRouteSearch, CompareRouteSearch } from '@/lib/deeplink'
 
@@ -172,6 +174,19 @@ const catalogRoute = createRoute({
   component: CatalogView,
 })
 
+// W4-F · v1-only 迁移：66 维度领先滞后矩阵 / 96 新手教程（底部固定入口，不进 NAV）
+const matrixRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/matrix',
+  component: LeadLagMatrixView,
+})
+
+const guideRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/guide',
+  component: GuideView,
+})
+
 const dataRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/data',
@@ -272,6 +287,8 @@ const routeTree = rootRoute.addChildren([
     diagnosticsRoute,
     settingsRoute,
     catalogRoute,
+    matrixRoute,
+    guideRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

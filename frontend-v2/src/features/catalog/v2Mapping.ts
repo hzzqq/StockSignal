@@ -41,6 +41,10 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '86_网页作品集.py': { to: '/webapps' },
   '97_决策回放.py': { to: '/replay' },
   '20_个股分析.py': { to: '/stock/research', note: 'v1 已内嵌进 24 页，v2 统一由个股研究承接' },
+  // W4-F · 三条 v1-only 收口：路径均已在 router.tsx 真实注册
+  '66_维度领先滞后矩阵.py': { to: '/matrix', note: '以有序对明细表承载（带符号 lag），样本下限比 v1 更严格' },
+  '90_登录.py': { to: '/login', note: '账号密码登录与行情台已实现；验证码登录/注册未接入，v2 不做假功能' },
+  '96_新手教程.py': { to: '/guide', note: '四步上手/模块导览/术语表/FAQ/主线/误区已移植；教学视频与 Streamlit 快捷键不适用未移植' },
 }
 
 /** ② 无等价页面，但有真实只读端点可查看的关联数据（不是等价功能，页面会明示）。 */

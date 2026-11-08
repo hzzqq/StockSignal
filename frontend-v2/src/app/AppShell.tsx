@@ -65,6 +65,24 @@ export function AppShell() {
             <span className="nav-label hidden md:inline whitespace-nowrap">v1 功能全景</span>
           </Link>
           <Link
+            to="/matrix"
+            title="维度领先滞后矩阵"
+            aria-label="维度领先滞后矩阵"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⊹</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">领先滞后矩阵</span>
+          </Link>
+          <Link
+            to="/guide"
+            title="新手教程"
+            aria-label="新手教程"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">◇</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">新手教程</span>
+          </Link>
+          <Link
             to="/settings"
             title="设置"
             aria-label="设置"
