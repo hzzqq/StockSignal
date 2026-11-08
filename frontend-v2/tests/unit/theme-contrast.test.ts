@@ -12,8 +12,8 @@
  * 禁止下调门槛、禁止 skip 告警条件、禁止改既有守卫来让本文件变绿。
  */
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { resolve, join } from 'node:path'
 
 const ROOT = resolve(process.cwd(), 'src')
 const read = (p: string) => readFileSync(resolve(ROOT, p), 'utf-8')
@@ -22,6 +22,19 @@ const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '')
 const CSS = stripComments(read('styles/tokens.css'))
 const PALETTE = stripComments(read('shared/charts/palette.ts'))
 const GUARD = readTest('unit/design-language.test.tsx')
+
+/** 递归列出 src 下所有 .ts/.tsx：防止「全 src」守卫实际只读一个文件。 */
+function allSource(dir = ROOT): { file: string; text: string }[] {
+  const out: { file: string; text: string }[] = []
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name)
+    if (statSync(full).isDirectory()) out.push(...allSource(full))
+    else if ((name.endsWith('.tsx') || name.endsWith('.ts')) && !name.endsWith('.d.ts')) {
+      out.push({ file: full, text: readFileSync(full, 'utf-8') })
+    }
+  }
+  return out
+}
 
 /** 从起点正则定位块，用花括号计数找闭合（正则直接截处理不了嵌套/注释）。 */
 function block(text: string, start: RegExp): string {
@@ -310,8 +323,12 @@ describe('C5 · 令牌作用域与 W0 兼容覆盖', () => {
       expect(LIGHT[k]).toContain('color-mix(')
     }
   })
-  it('全 src 不得生成 -ink 派生 Tailwind 类（守卫是 includes 子串匹配）', () => {
+  it('全 src 不得生成 -ink 派生 Tailwind 类（真扫全部 .ts/.tsx）', () => {
     const banned = /(?:text|bg|border)-(?:ss|doc)-(?:up|down)-ink/
+    const files = allSource()
+    expect(files.length, '扫描到的源码文件过少，守卫疑似失效').toBeGreaterThanOrEqual(60)
+    const hits = files.filter(({ text }) => banned.test(text)).map(({ file }) => file)
+    expect(hits, `-ink 派生类回流：\n${hits.join('\n')}`).toEqual([])
     const fb = read('shared/ui/FreshnessBadge.tsx')
     expect(fb, 'FreshnessBadge 不得引用 -ink 别名').not.toMatch(banned)
     expect(fb).not.toContain('ss-up')

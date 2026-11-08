@@ -11,6 +11,10 @@
    允许：纯 ASCII（任何代码页都安全）；或 GBK/ANSI（配 chcp 936，同 启动StockSignal.bat）。
 2. .bat 必须 CRLF 换行（LF-only 在 cmd 下行为不稳）。
 3. `_stop_services.bat` 保持纯 ASCII，并保留三项防回退修复（PID 0 / 非数字 / 去重）。
+
+反自静音（2026-11-09）：第 3 项检查曾是对全文做 `in s` 子串包含，
+把修复代码删掉、只在 rem/echo 注释里留同样文字就能喂饱守卫。现在只检查可执行行，
+并新增反例测试证明「纯注释样本必然被判缺失」。
 """
 import os
 
@@ -25,6 +29,38 @@ def _bats():
         for fn in filenames:
             if fn.lower().endswith('.bat'):
                 yield os.path.join(dirpath, fn)
+
+
+def _executable_lines(b: bytes) -> str:
+    """只保留可执行行：剥离 rem / :: / 纯输出 echo。
+
+    ⚠️ `echo %PID%|findstr /R "[^0-9]"` 这类**带管道**的 echo 是真实校验逻辑，
+    不能当注释剥掉，否则守卫会自己把防回退修复藏起来。
+    """
+    out = []
+    for line in b.decode('ascii').splitlines():
+        t = line.strip()
+        low = t.lower()
+        if low.startswith(('rem ', 'rem\t', '::', '@echo')):
+            continue
+        if low.startswith(('echo ', 'echo.', 'echo\t')) and '|' not in t and '&' not in t:
+            continue
+        out.append(t)
+    return '\n'.join(out)
+
+
+# (可执行行里必须出现的片段, 缺失说明)
+_GUARDS = (
+    ('if "%PID%"=="0" exit /b 0', 'PID 0 守卫（回归会再输出 Killing PID 0）'),
+    ('findstr /R "[^0-9]"', '非数字 PID 守卫'),
+    ('set "SEEN=%SEEN%%PID%,"', 'PID 去重写入'),
+    ('findstr /C:",%PID%,"', 'PID 去重查找'),
+    ('taskkill /f /t /pid %PID%', '按端口定位到的 PID 精确 kill'),
+)
+
+
+def _missing_guards(code: str) -> list[str]:
+    return [label for token, label in _GUARDS if token not in code]
 
 
 def test_no_bat_is_utf8_with_nonascii():
@@ -61,16 +97,44 @@ def test_bats_use_crlf():
 
 
 def test_stop_services_bat_ascii_and_antifootgun_guards():
-    """_stop_services.bat：纯 ASCII + 精确按端口 kill + 三项防回退修复。"""
+    """_stop_services.bat：纯 ASCII + 可执行行里真实保留三项防回退修复。"""
     p = os.path.join(ROOT, '_stop_services.bat')
     assert os.path.exists(p), "缺少 _stop_services.bat"
     with open(p, 'rb') as f:
         b = f.read()
     b.decode('ascii')                                    # 断言纯 ASCII
-    s = b.decode('ascii')
-    assert 'if "%PID%"=="0" exit /b 0' in s, "缺少 PID 0 守卫（回归会再输出 Killing PID 0）"
-    assert 'findstr /R "[^0-9]"' in s, "缺少非数字 PID 守卫"
-    assert 'set "SEEN=%SEEN%%PID%,"' in s and 'findstr /C:",%PID%,"' in s, \
-        "缺少 PID 去重（netstat 的 IPv4+IPv6 两行指向同一 PID，会重复 kill）"
-    assert 'taskkill /f /t /pid %PID%' in s, "应按端口定位到的 PID 精确 kill"
-    assert 'taskkill /f /im python' not in s, "不得无差别杀 python.exe（会误杀量化软件）"
+    code = _executable_lines(b)
+    assert len(code.splitlines()) >= 10, "可执行行过少，过滤逻辑疑似把真实逻辑也剥掉了"
+    assert not _missing_guards(code), (
+        "可执行行里缺少防回退修复（注释里写了不算）：\n  " + "\n  ".join(_missing_guards(code))
+    )
+    assert 'taskkill /f /im python' not in code, "不得无差别杀 python.exe（会误杀量化软件）"
+
+
+def test_guards_cannot_be_fed_by_comments():
+    """反例：只在 rem/::/echo 注释里写修复片段，守卫必须全部判缺失。"""
+    fake = b'\r\n'.join([
+        b'@echo off',
+        b'rem if "%PID%"=="0" exit /b 0',
+        b'echo findstr /R "[^0-9]"',
+        b':: set "SEEN=%SEEN%%PID%,"',
+        b'echo findstr /C:",%PID%,"',
+        b'echo taskkill /f /t /pid %PID%',
+    ])
+    code = _executable_lines(fake)
+    assert len(_missing_guards(code)) == len(_GUARDS), (
+        "纯注释就能喂饱守卫，说明可执行行过滤失效"
+    )
+
+
+def test_echo_pipeline_lines_are_real_logic():
+    """带管道的 echo 不是注释：防「过滤一刀切」把真实校验逻辑藏起来。"""
+    sample = (
+        b'echo     Killing PID %PID%\r\n'
+        b'echo %PID%|findstr /R "[^0-9]" >nul 2>&1\r\n'
+        b'echo %SEEN%|findstr /C:",%PID%," >nul 2>&1\r\n'
+    )
+    code = _executable_lines(sample)
+    assert 'Killing PID %PID%' not in code, "纯输出 echo 应被剥离"
+    assert 'findstr /R "[^0-9]"' in code, "带管道的校验逻辑不得被剥离"
+    assert 'findstr /C:",%PID%,"' in code, "带管道的去重逻辑不得被剥离"

@@ -76,6 +76,16 @@ def _src(rel: str) -> str:
         return f.read()
 
 
+def _body(rel: str) -> str:
+    """去掉 HTML 注释后的正文：注释里写旧数字不能当「已声明」喂饱守卫。"""
+    return re.sub(r"<!--.*?-->", "", _src(rel), flags=re.S)
+
+
+# 明确豁免：该物料是短贴，本来就不声明规模数字。新增物料若同样无声明，
+# 必须先在此登记理由，否则守卫会报「正文没有页面数声明」。
+_NO_PAGE_CLAIM_OK = {"docs/publish-kit/02-知乎-zhihu.md"}
+
+
 # ── A. 页面数：既真实又互相一致 ──────────────────────────────────────
 
 # 只认「数字 + 页/页面」的规模声明，避免误伤「时间页」「翻页」等普通词。
@@ -104,19 +114,25 @@ def _page_claims(text: str) -> set[int]:
 
 
 def test_public_docs_page_count_is_true_and_consistent():
-    """所有公开物料的页面数都得等于真实页面数 —— 抓「改一处漏一处」。"""
+    """所有公开物料的页面数都得等于真实页面数 —— 抓「改一处漏一处」。
+
+    反自静音（2026-11-09）：文件缺失曾 continue 静默跳过；页面数声明只看全文
+    子串（注释里的旧数字也算）。现改为缺失即红、剥注释后正文必须声明。
+    """
     actual = _actual_pages()
+    missing = [rel for rel in PUBLIC_DOCS if not os.path.exists(os.path.join(ROOT, rel))]
+    assert not missing, f"公开物料缺失，守卫不得静默跳过：{missing}"
     bad: dict[str, list[int]] = {}
     for rel in PUBLIC_DOCS:
-        path = os.path.join(ROOT, rel)
-        if not os.path.exists(path):
+        claims = _page_claims(_body(rel))
+        if not claims and rel not in _NO_PAGE_CLAIM_OK:
+            bad[rel] = [-1]
             continue
-        claims = _page_claims(_src(rel))
         stale = sorted(v for v in claims if v != actual)
         if stale:
             bad[rel] = stale
     assert not bad, (
-        f"公开物料的页面数与真实值（{actual}）不一致：{bad}；"
+        f"公开物料的页面数与真实值（{actual}）不一致：{bad}（-1=正文无声明）；"
         f"历史缺陷：README 一处写 41、另一处写 38，推广物料还停在 41"
     )
 
@@ -291,14 +307,29 @@ def test_breadth_figure_exists_and_is_not_a_stub():
     assert os.path.getsize(BREADTH_FIG) > 20_000, "广度历史图疑似空图/占位图"
 
 
+def _charts() -> list[tuple]:
+    """从 AST 读 CHARTS 真值，不接受注释里的同款字符串。"""
+    tree = ast.parse(_src("scripts/gen_portfolio_page.py"))
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "CHARTS":
+            return ast.literal_eval(node.value)
+    raise AssertionError("未找到 CHARTS 清单")
+
+
 def test_portfolio_no_longer_cites_mislabelled_eval_chart():
-    """作品集页不得再引用 fig_history_trend.png（该文件实为「评估数据累积趋势」）。"""
-    gen = _src("scripts/gen_portfolio_page.py")
-    assert '"thesis/ch6_eval/fig_history_trend.png"' not in gen, (
+    """作品集页不得再引用 fig_history_trend.png（该文件实为「评估数据累积趋势」）。
+
+    反自静音：旧版用全文 `in gen` 判断「引用了真·广度历史图」，
+    只在注释里写 fig_breadth_history.png 就能喂饱；现在从 AST 读 CHARTS。
+    """
+    charts = _charts()
+    assert charts, "未找到 CHARTS 清单"
+    paths = [rel for rel, *_ in charts]
+    assert "thesis/ch6_eval/fig_history_trend.png" not in paths, (
         "CHARTS 又在引用 fig_history_trend.png —— 该文件由 thesis/eval_ch6.py 写成"
         "「评估数据累积趋势（每次运行 +1）」，不是全市场广度历史图"
     )
-    assert "fig_breadth_history.png" in gen, "作品集页未引用真·广度历史图"
+    assert any("fig_breadth_history.png" in p for p in paths), "CHARTS 未引用真·广度历史图"
 
 
 def test_portfolio_charts_refer_to_existing_files():

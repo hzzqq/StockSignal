@@ -20,13 +20,15 @@ const ROOT = resolve(process.cwd(), 'src')
 const read = (p: string) => readFileSync(resolve(ROOT, p), 'utf-8')
 const css = read('styles/tokens.css')
 
-/** 递归列出 src 下所有 .tsx 源码文本。 */
-function allTsx(dir = ROOT): { file: string; text: string }[] {
+/** 递归列出 src 下所有 .ts/.tsx 源码文本（.ts 里的 className 字符串同样会回流旧样式）。 */
+function allSource(dir = ROOT): { file: string; text: string }[] {
   const out: { file: string; text: string }[] = []
   for (const name of readdirSync(dir)) {
     const full = join(dir, name)
-    if (statSync(full).isDirectory()) out.push(...allTsx(full))
-    else if (name.endsWith('.tsx')) out.push({ file: full, text: readFileSync(full, 'utf-8') })
+    if (statSync(full).isDirectory()) out.push(...allSource(full))
+    else if ((name.endsWith('.tsx') || name.endsWith('.ts')) && !name.endsWith('.d.ts')) {
+      out.push({ file: full, text: readFileSync(full, 'utf-8') })
+    }
   }
   return out
 }
@@ -72,10 +74,10 @@ describe('设计令牌单一真理源（DESIGN.md §2）', () => {
 })
 
 describe('全站无旧样式回流', () => {
-  const files = allTsx()
+  const files = allSource()
 
-  it('src 下 .tsx 数量足够（防止扫描逻辑失效造成假通过）', () => {
-    expect(files.length).toBeGreaterThanOrEqual(20)
+  it('src 下 .ts/.tsx 数量足够（防止扫描逻辑失效造成假通过）', () => {
+    expect(files.length).toBeGreaterThanOrEqual(60)
   })
 
   it('不再出现 text-sf-txt 透明度层级 / 旧边框 / 旧半透明表面', () => {
@@ -194,7 +196,7 @@ describe('亮色主题：作用域与叠色回流', () => {
   })
 
   it('sf-line-strong 仅用于主题控件选中态，全 src 不得扩散', () => {
-    const hits = allTsx()
+    const hits = allSource()
       .filter(({ text }) => text.includes('border-sf-line-strong'))
       .map(({ file }) => file.replace(/\\/g, '/'))
     expect(hits.length, `边界强调色扩散到：\n${hits.join('\n')}`).toBe(1)
