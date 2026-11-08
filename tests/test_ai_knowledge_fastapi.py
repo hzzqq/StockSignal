@@ -16,8 +16,16 @@ T-268 星辰 AI 能力升级守卫（用户要求：不能问什么都同一个�
 mutation：删 ai_engine 知识库插桩 / 删 49.1 条目 → 对应用例变红。
 """
 import ast
+import pytest
 from pathlib import Path
 
+# FastAPI AI 服务层（backend_fastapi/）为可选组件：fastapi 未安装时整文件跳过，
+# 但仍在 --collect-only 阶段被收集计入总数，避免收集期 ImportError 把 9 个用例
+# 整文件剔除导致 _pytest_count 漏数（公开物料口径漂移）。
+pytest.importorskip(
+    "fastapi",
+    reason="fastapi 未安装：FastAPI AI 服务层为可选组件，本文件跳过（仍计入收集总数）",
+)
 from fastapi.testclient import TestClient
 
 from modules import knowledge_base as kb
