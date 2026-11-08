@@ -51,6 +51,14 @@
    * 完全无关、禁止互换。历史缺陷：FreshnessBadge 曾用 ss-up(红)=新鲜、
    * ss-down(绿)=陈旧，方向恰好拧反，已纠正。 */
 
+  /* ── 品牌色（沿用第一版 v1：modules/colors.py BRAND_ACCENT/BRAND_ACCENT2）──
+   * 品牌 = 产品识别色，与涨跌/状态语义完全无关；两主题恒等（登录欢迎页渐变标题、
+   * 主按钮、徽章共用），故只在此声明一次，亮色块不覆盖。
+   * 单一来源：v1 modules/colors.py BRAND_ACCENT="#4f46e5" 是 Python 侧同义常量，
+   * 两者均为 #667eea/#764ba2 这一组（modules/colors.py 注释所述 :root 同步值）。 */
+  --color-brand-1: #667eea; /* 靛蓝：渐变起点 / 主按钮 / 徽章文字 */
+  --color-brand-2: #764ba2; /* 紫：渐变终点 */
+
   /* ── 字号阶梯（替代散落的 text-xs/sm/lg/xl 各自为政） ── */
   --text-kpi: 1.375rem; /* 22px 指标数值 */
   --text-page: 1.125rem; /* 18px 页标题 */

@@ -43,13 +43,37 @@ afterEach(() => {
 afterAll(() => server.close())
 
 describe('前端 E2E（MSW 契约）', () => {
-  it('未登录访问 / 被守卫重定向到登录页', async () => {
+  it('未登录访问 / 被守卫重定向到登录页（欢迎态：品牌门禁页）', async () => {
     render(
       <Providers>
         <RouterProvider router={router} />
       </Providers>,
     )
-    expect(await screen.findByText('StockSignal 登录')).toBeTruthy()
+    // 欢迎态（沿用 v1 品牌门禁页）：渐变大标题 + 品牌卡 + 演示账号徽章 + 去登录按钮 + 脚注
+    expect(await screen.findByText('放心交给 StockSignal')).toBeTruthy()
+    expect(screen.getAllByText('StockSignal').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('A股事件驱动投资分析平台')).toBeTruthy()
+    expect(screen.getByText('🔑 默认演示账号：demo / Demo@123')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '🔑 去登录' })).toBeTruthy()
+    expect(
+      screen.getByText('StockSignal · 仅供学习与研究所用，不构成投资建议'),
+    ).toBeTruthy()
+  })
+
+  it('欢迎态点「去登录」→ 表单态（可输入、可一键填充演示账号）', async () => {
+    render(
+      <Providers>
+        <RouterProvider router={router} />
+      </Providers>,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '🔑 去登录' }))
+    // 表单态：带 label 的用户名/密码输入框（v1 表单形态）
+    expect((await screen.findByLabelText('用户名'))).toBeTruthy()
+    expect(screen.getByLabelText('密码')).toBeTruthy()
+    // 一键填充演示账号（v1 同款快捷入口）
+    fireEvent.click(screen.getByRole('button', { name: '🧪 一键填演示账号' }))
+    expect((screen.getByLabelText('用户名') as HTMLInputElement).value).toBe('demo')
+    expect((screen.getByLabelText('密码') as HTMLInputElement).value).toBe('Demo@123')
   })
 
   it('登录 → 仪表盘渲染决策快照（端到端数据流）', async () => {
@@ -58,11 +82,12 @@ describe('前端 E2E（MSW 契约）', () => {
         <RouterProvider router={router} />
       </Providers>,
     )
-    // 守卫先把我们带到 /login
-    const userField = await screen.findByPlaceholderText('用户名')
+    // 守卫先把我们带到 /login（欢迎态）→ 点「去登录」进表单态
+    fireEvent.click(await screen.findByRole('button', { name: '🔑 去登录' }))
+    const userField = await screen.findByLabelText('用户名')
     fireEvent.change(userField, { target: { value: 'demo' } })
-    fireEvent.change(screen.getByPlaceholderText('密码'), { target: { value: 'Demo@123' } })
-    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Demo@123' } })
+    fireEvent.click(screen.getByRole('button', { name: '立即登录' }))
 
     // 登录成功后跳回 dashboard，daily-snapshot 经 MSW→client→query→组件渲染
     expect(await screen.findByText('市场温度', {}, { timeout: 5000 })).toBeTruthy()
