@@ -15,10 +15,13 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
+import { stripTsComments, stripCssComments } from './_src_scan'
 
 const ROOT = resolve(process.cwd(), 'src')
-const read = (p: string) => readFileSync(resolve(ROOT, p), 'utf-8')
-const css = read('styles/tokens.css')
+// 剥注释后读真实代码：toContain 守卫不再被 // 或 块注释里的字符串喂饱（防自静音）。
+const read = (p: string) => stripTsComments(readFileSync(resolve(ROOT, p), 'utf-8'))
+const readCss = (p: string) => stripCssComments(readFileSync(resolve(ROOT, p), 'utf-8'))
+const css = readCss('styles/tokens.css')
 
 /** 递归列出 src 下所有 .ts/.tsx 源码文本（.ts 里的 className 字符串同样会回流旧样式）。 */
 function allSource(dir = ROOT): { file: string; text: string }[] {
@@ -27,7 +30,7 @@ function allSource(dir = ROOT): { file: string; text: string }[] {
     const full = join(dir, name)
     if (statSync(full).isDirectory()) out.push(...allSource(full))
     else if ((name.endsWith('.tsx') || name.endsWith('.ts')) && !name.endsWith('.d.ts')) {
-      out.push({ file: full, text: readFileSync(full, 'utf-8') })
+      out.push({ file: full, text: stripTsComments(readFileSync(full, 'utf-8')) })
     }
   }
   return out

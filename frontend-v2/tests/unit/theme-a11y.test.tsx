@@ -13,10 +13,12 @@ import { resolve } from 'node:path'
 import { ThemeToggle } from '@/shared/ui/ThemeToggle'
 import { Providers } from '@/app/providers'
 import { readPref, resolve as resolveTheme, THEME_KEY } from '@/lib/theme'
+import { stripTsComments, stripHtmlComments } from './_src_scan'
 
 const ROOT = resolve(process.cwd(), 'src')
-const read = (p: string) => readFileSync(resolve(ROOT, p), 'utf-8')
-const readRoot = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf-8')
+// 剥注释后读真实代码：toContain 守卫不再被 // 或 块注释里的字符串喂饱（防自静音）。
+const read = (p: string) => stripTsComments(readFileSync(resolve(ROOT, p), 'utf-8'))
+const readRoot = (p: string) => stripHtmlComments(readFileSync(resolve(process.cwd(), p), 'utf-8'))
 
 beforeEach(() => {
   localStorage.clear()
