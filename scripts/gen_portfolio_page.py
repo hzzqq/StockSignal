@@ -74,6 +74,16 @@ def _walk(sub: str, suffix: str = ".py") -> list[str]:
     return out
 
 
+def _all_test_paths() -> list[str]:
+    """测试文件清单的**唯一口径**：tests / backend/tests / modules/tests 三处全覆盖。
+
+    历史缺陷（2026-11-09）：collect() 的 test_files / test_loc 只算前两处，
+    而 _pytest_count() 的用例数含 modules/tests —— 同一份物料里两个数字口径不一致。
+    对外宣称「N 个测试文件 / M 个用例」必须同源。
+    """
+    return _walk("tests") + _walk("backend/tests") + _walk("modules/tests")
+
+
 def _count_routes() -> int:
     """生产 REST 路由装饰器数（**排除 backend/tests**）。
 
@@ -98,7 +108,7 @@ def _count_routes() -> int:
 def _ast_test_count() -> int:
     """AST 数 def test_*（不导入模块，秒出）。"""
     n = 0
-    for p in _walk("tests") + _walk("backend/tests"):
+    for p in _all_test_paths():
         try:
             tree = ast.parse(open(p, encoding="utf-8", errors="ignore").read())
         # ui_audit_exempt(T-239R3): 统计测试函数数，单个测试文件语法损坏/不可读跳过，不影响总数
@@ -211,7 +221,7 @@ def _glob_count(sub: str, suffix: str = ".py") -> int:
 def _guard_test_files() -> int:
     """含 AST 源码级护栏的测试文件数（工程纪律的硬证据）。"""
     n = 0
-    for p in _walk("tests"):
+    for p in _all_test_paths():
         try:
             src = open(p, encoding="utf-8", errors="ignore").read()
         # ui_audit_exempt(T-239R3): 统计含 ast.parse 的测试文件数，个别文件不可读跳过，不影响总数
@@ -225,7 +235,7 @@ def _guard_test_files() -> int:
 def collect(fast: bool = False) -> dict:
     src_paths = _walk("modules") + _walk("pages") + _walk("backend")
     src_paths = [p for p in src_paths if os.sep + "tests" + os.sep not in p]
-    test_paths = _walk("tests") + _walk("backend/tests")
+    test_paths = _all_test_paths()
 
     tests = None if fast else _pytest_count()
     hist = _git("log", "--reverse", "--format=%ad", "--date=short").splitlines()
@@ -442,7 +452,7 @@ HTML = """<!DOCTYPE html>
       <div class="stat"><div class="n">@TESTS@</div><div class="l">自动化测试用例</div><div class="x">@TEST_FILES@ 个测试文件</div></div>
       <div class="stat"><div class="n">@BREADTH@</div><div class="l">真实交易日广度基座</div><div class="x">@BREADTH_SPAN@ · 全市场广度</div></div>
       <div class="stat"><div class="n">@STOCKS@</div><div class="l">覆盖标的</div><div class="x">逐股日线缓存重建</div></div>
-      <div class="stat"><div class="n">@COMMITS@</div><div class="l">Git 提交</div><div class="x">@DAYS@ 个工作日 · @SPAN@</div></div>
+      <div class="stat"><div class="n">持续迭代</div><div class="l">Git 提交</div><div class="x">@DAYS@ 个工作日 · @SPAN@ · 提交数不写死</div></div>
       <div class="stat"><div class="n">4</div><div class="l">级数据源自动降级</div><div class="x">AKShare→BaoStock→新浪→东财→缓存</div></div>
     </div>
   </div>
@@ -581,7 +591,7 @@ streamlit run app.py --server.port 8899                                   # 前�
 
 <footer>
   <div class="wrap">
-    StockSignal · 个人独立项目（@SPAN@，@COMMITS@ 次提交）<br>
+    StockSignal · 个人独立项目（@SPAN@，持续迭代）<br>
     本页由 <code>scripts/gen_portfolio_page.py</code> 自动生成 · 仅用于学习与研究，不构成任何投资建议
   </div>
 </footer>
@@ -625,7 +635,6 @@ def render(stats: dict) -> str:
         "@BREADTH_SPAN@": stats["breadth_span"] or "全历史",
         "@BT_DAYS@": f"{stats['bt']['scored']:,}",
         "@STOCKS@": f"{stats['stocks']:,}",
-        "@COMMITS@": str(stats["commits"]),
         "@DAYS@": str(stats["days"]),
         "@SPAN@": f"{stats['first_day']} – {stats['last_day']}",
         # 回测三件套同样取自钉死的产物 JSON，不再手写（防漂移）

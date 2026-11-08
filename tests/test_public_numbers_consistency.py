@@ -32,7 +32,7 @@
     与测试数的**跨文档一致性**，管不住：①同一文档内的局部漏改（38 页）；
     ②生成器模板里的硬编码；③改页面数忘了改推广物料；④图注与图片不符。
 
-本测试补五道闸门：
+本测试补七道闸门：
     A. 所有公开物料（含生成产物 docs/index.html）声明的**页面数**必须等于
        `pages/` 下真实页面数，且**互相一致**；
     B. 作品集生成器的 HTML 模板里**不得硬编码**任何规模数字
@@ -41,7 +41,10 @@
        「新增了占位符但忘了注册」，那会让页面上直接露出 `@FOO@` 字面量；
     D. 生成器的**端点计数**必须排除 backend/tests，并与独立复算结果一致；
     E. 广度历史图必须真实存在、被作品集页引用，且不得再引用那个「名不副实」的
-       `fig_history_trend.png`（该文件是评估累积趋势图，不是广度图）。
+       `fig_history_trend.png`（该文件是评估累积趋势图，不是广度图）；
+    F. 生成物 docs/index.html 的端点/页面/Python 文件数 == 生成器实测；
+    G. 所有公开物料的**测试数 / 测试文件数** == 生成器实测（pytest collect）、
+       用例数与文件数口径同源、且不再写死天生会漂移的 Git 提交次数。
 """
 from __future__ import annotations
 
@@ -397,3 +400,121 @@ def test_generator_walk_excludes_third_party_dirs():
     )]
     assert not bad, f"_walk 把第三方/生成物目录算进了自研源码：{bad[:5]}"
     assert len(paths) < 2000, f"_walk 仍统计到 {len(paths)} 个 .py，排除规则疑似回退"
+
+
+# ── G. 测试规模数字 == 生成器实测；提交数不写死（2026-11-09） ────────
+_TEST_CLAIM_PATTERNS = (
+    r"(?<![\d,])(\d[\d,]*)\s*(?:个)?(?:自动化)?测试(?:用例)?(?!文件)",
+    r"(?<![\d,])(\d[\d,]*)\s*个?用例",
+    r"(?<![\d,])(\d[\d,]*)\s*项测试",
+    r"测试\s*(\d[\d,]*)\s*passed",
+    r"Tests-(\d[\d,]*)%20passed",
+)
+
+
+def _test_claims(text: str) -> set[int]:
+    """抽出物料正文里的测试规模声明（支持千分位、badge、passed 等样式）。"""
+    out: set[int] = set()
+    for pat in _TEST_CLAIM_PATTERNS:
+        for m in re.findall(pat, text):
+            out.add(int(m.replace(",", "")))
+    return out
+
+
+def test_test_claim_scanner_catches_real_styles():
+    """反例自测：扫描器能抓到各种真实写法，且不会把陈旧值当合格。"""
+    samples = [
+        "5086 个自动化测试", "5,418 个自动化测试用例",
+        "测试 5422 passed", "Tests-5422%20passed",
+        "5422 项测试", "5,422 个用例", "5422 个测试兜底",
+    ]
+    for s in samples:
+        assert _test_claims(s), f"扫描器漏掉声明样式 {s!r}"
+    assert 5086 in _test_claims("5086 个自动化测试")
+    assert 5418 in _test_claims("5,418 个自动化测试用例")
+    assert not _test_claims("74 页离线冒烟（整批不卡死）"), "误把非规模数字当测试数"
+    assert not _test_claims("70,194 行测试代码"), "误把测试代码行数当用例数"
+
+
+def test_public_test_count_equals_generator_truth():
+    """所有公开物料的测试数必须等于 pytest 实测用例数，漂移即红。
+
+    真实故障（2026-11-09）：README / promo / publish-kit 写 5086、
+    docs/index.html 写 5,418、生成器实测 5,422 —— 三套数字互相矛盾，
+    而 F 段只锁了端点/页面/py_files，从没锁过测试数本身。
+    """
+    gen = _load_generator()
+    stats = gen.collect(fast=False)  # 真实 pytest collect（含 parametrize 展开）
+    assert stats["tests_exact"], (
+        "无法实算 pytest 用例数；禁止用陈旧/估算数字对外，请先修复收集链路"
+    )
+    expected = stats["tests"]
+    assert expected >= 1000, f"只收集到 {expected} 个用例，收集链路疑似失效"
+    bad: dict[str, list[int]] = {}
+    for rel in PUBLIC_DOCS:
+        claims = _test_claims(_body(rel))
+        if not claims:
+            bad[rel] = [-1]
+            continue
+        wrong = sorted(v for v in claims if v != expected)
+        if wrong:
+            bad[rel] = wrong
+    assert not bad, (
+        f"公开物料测试数与生成器实测 {expected} 不一致：{bad}（-1=无声明）；"
+        "请重跑 python scripts/gen_portfolio_page.py 并同步所有物料"
+    )
+
+
+def test_public_test_file_count_equals_generator_truth():
+    """测试文件数同样不得写死；口径与用例数同源（含 modules/tests）。"""
+    gen = _load_generator()
+    expected = gen.collect(fast=True)["test_files"]
+    assert expected >= 100, f"只统计到 {expected} 个测试文件，扫描疑似失效"
+    for rel in PUBLIC_DOCS:
+        claims = {int(m) for m in re.findall(r"(\d+)\s*个测试文件", _body(rel))}
+        stale = sorted(v for v in claims if v != expected)
+        assert not stale, f"{rel} 的测试文件数 {stale} != 生成器实测 {expected}"
+
+
+def test_generator_test_scopes_are_consistent():
+    """用例数（pytest）与文件数（_all_test_paths）必须覆盖同样三处目录。
+
+    历史缺陷：collect() 的 test_files / test_loc 漏了 modules/tests，
+    而 _pytest_count() 含该目录，导致同一份物料里两个数字口径不一致。
+    """
+    gen = _load_generator()
+    paths = gen._all_test_paths()
+    assert len(paths) >= 400, f"只扫到 {len(paths)} 个测试文件，扫描疑似失效"
+    prefixes = {os.path.relpath(p, ROOT).replace("\\", "/").split("/")[0]
+                for p in paths}
+    assert prefixes == {"tests", "backend", "modules"}, (
+        f"测试文件清单覆盖目录异常：{prefixes}；应与 _pytest_count 的三处目录一致"
+    )
+    tree = ast.parse(_src("scripts/gen_portfolio_page.py"))
+    fn = next((n for n in tree.body
+               if isinstance(n, ast.FunctionDef) and n.name == "_pytest_count"), None)
+    assert fn is not None, "未找到 _pytest_count，守卫失效"
+    dirs = {n.value for n in ast.walk(fn)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+    for d in ("tests", "backend/tests", "modules/tests"):
+        assert d in dirs, f"_pytest_count 未覆盖 {d}，用例数与文件数口径将不一致"
+    stats = gen.collect(fast=True)
+    assert stats["test_files"] == len([p for p in paths
+                                       if os.path.basename(p).startswith("test")])
+
+
+def test_public_docs_do_not_hardcode_commit_count():
+    """提交数天生滞后于生成它的 commit（@COMMITS@ 自指漂移），不得写死。
+
+    生成物里的 `git rev-list --count HEAD` 永远算的是「生成前」的 HEAD，
+    下一次提交又漂移一次；改成定性表述才能一次性消除。
+    """
+    for rel in PUBLIC_DOCS:
+        body = _body(rel)
+        assert not re.search(r"\d+\s*次提交", body), f"{rel} 又写死了提交次数"
+        assert not re.search(r'<div class="n">\d+</div><div class="l">Git 提交', body), (
+            f"{rel} 的 Git 提交卡片又写回具体数字"
+        )
+    assert "@COMMITS@" not in _template_strings().get("HTML", ""), (
+        "模板又用回 @COMMITS@ 占位符，自指漂移会复发"
+    )
