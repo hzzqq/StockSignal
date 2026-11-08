@@ -20,6 +20,7 @@ echo.
 set "PROJECT_DIR=%~dp0"
 set "BACKEND_PORT=5050"
 set "FRONTEND_PORT=8899"
+set "V2_PORT=5173"
 set "KILLED_ANY=0"
 set "SEEN=,"
 
@@ -33,7 +34,9 @@ echo Stage 1: Kill StockSignal processes by port (never blanket-kills python.exe
 echo   Backend port  = %BACKEND_PORT%
 call :kill_port %BACKEND_PORT%
 echo   Frontend port = %FRONTEND_PORT%
+echo   V2 frontend  = %V2_PORT%
 call :kill_port %FRONTEND_PORT%
+call :kill_port %V2_PORT%
 
 echo.
 echo Stage 2: Waiting for ports to release...
@@ -43,6 +46,7 @@ echo.
 echo Stage 3: Verify ports are free...
 call :check_port %BACKEND_PORT%
 call :check_port %FRONTEND_PORT%
+call :check_port %V2_PORT%
 
 echo.
 if "%KILLED_ANY%"=="1" (
