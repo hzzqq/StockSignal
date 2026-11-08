@@ -195,7 +195,7 @@ describe('W4-B · 个股研究页 ResearchView', () => {
     expect(screen.queryByText('open')).toBeNull()
   })
 
-  it('切换分段：点击「🔬 深度分析」后切到 deep 子视图（600519 已接入 → 技术字段表）', async () => {
+  it('切换分段：600519 同样显示豁免卡（真后端恒 false，MSW 不得伪造「已接入」）', async () => {
     render(
       <Providers>
         <ResearchView search={{ view: 'quick', code: '600519' }} />
@@ -203,10 +203,31 @@ describe('W4-B · 个股研究页 ResearchView', () => {
     )
     expect(await screen.findByText('open', {}, FIND)).toBeTruthy()
     fireEvent.click(screen.getByRole('radio', { name: /深度分析/ }))
-    // 600519 已接入：渲染技术字段表（pe_ttm / market_cap），绝不渲染 K 线 open。
+    // 真后端 research_deep() 恒返回 deep_analysis_available=false；旧 MSW 夹具伪造 true，
+    // 让这个测试建立在错误前提上。现在按真后端口径断言：豁免卡 + 不渲染技术字段表。
+    expect(
+      await screen.findByText('56 键深度分析（旧版 analysis_engine 异步任务）V2 暂未接入，可走 /legacy 查看旧版', {}, FIND),
+    ).toBeTruthy()
+    expect(screen.queryByText('pe_ttm')).toBeNull()
+    expect(screen.queryByText('open')).toBeNull()
+  })
+
+  it('技术字段表分支：仅显式注入 true 响应才渲染（组件分支覆盖，非后端真实行为）', async () => {
+    server.use(
+      http.get('/api/v2/read/research-deep', () =>
+        HttpResponse.json({
+          status: 'ok', code: 'ok', message: 'ok',
+          data: { code: '600519', deep_analysis_available: true, pe_ttm: 30.1, market_cap: 2100000 },
+        }),
+      ),
+    )
+    render(
+      <Providers>
+        <ResearchView search={{ view: 'deep', code: '600519' }} />
+      </Providers>,
+    )
     expect(await screen.findByText('pe_ttm', {}, FIND)).toBeTruthy()
     expect(screen.getByText('market_cap')).toBeTruthy()
-    expect(screen.queryByText('open')).toBeNull()
   })
 
   it('非法 code：仅给校验提示，不发请求、不渲染旧表', async () => {

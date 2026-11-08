@@ -163,7 +163,8 @@ describe('W4-E · 设置页（真实生效）', () => {
     expect(screen.getByText('开发模拟数据（MSW）')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '测试连通性' }))
     await waitFor(() => expect(screen.getByText(/HTTP 200/)).toBeTruthy(), { timeout: 5000 })
-    expect(screen.getByText(/后端健康检查通过/)).toBeTruthy()
+    expect(screen.getByText(/MSW 模拟响应（非真实后端）/)).toBeTruthy()
+    expect(screen.queryByText(/后端健康检查通过/)).toBeNull()
   })
 
   it('密度切换真实写入 localStorage 与 document.dataset，不是摆设', () => {

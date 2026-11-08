@@ -61,6 +61,8 @@ export const dailySnapshot = {
   ],
 }
 
+// 日期清单刻意含一个「无归档文件」的 2026-11-06，用于验证前端对该日期诚实报 not_found，
+// 不回退今日快照冒充历史回放（真后端 data/snapshots/ 同理）。
 export const snapshotDates = ['2026-11-06', '2026-09-21', '2026-09-20']
 
 export const snapshots: Record<string, unknown> = {
@@ -546,12 +548,14 @@ export const compareOneDateNull = {
   date: null,
 }
 
-// research-deep：56 键深度分析快照（通用透传，前端按 key 渲染技术字段表）。
-// deep_analysis_available:true → 渲染技术字段表；false → 前端显示豁免卡。
+// research-deep：技术字段快照（通用透传，前端按 key 渲染技术字段表）。
+// ⚠️ 真后端 read_routes.research_deep() 恒返回 deep_analysis_available=false
+// （56 键 analysis_engine 异步分析本轮未接入）；MSW 必须一致，不得伪造「已接入」。
+// true 分支仅由组件测试显式注入响应覆盖，不是任何真实/MSW 端点的返回。
 export const researchDeepFull = {
   code: '600519',
   name: '贵州茅台',
-  deep_analysis_available: true,
+  deep_analysis_available: false,
   price: 1523.5,
   pe_ttm: 28.1,
   pb: 8.2,

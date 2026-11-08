@@ -17,11 +17,14 @@ import { Card } from '@/shared/ui/Card'
  *  - 本前端只保存 token，不缓存用户名 —— 不编造账户信息。
  */
 const BASE: string = import.meta.env.VITE_API_BASE ?? '/api'
+// 健康检测硬超时：后端不响应时不能让按钮永远停在「检测中…」。
+const HEALTH_TIMEOUT_MS = 5000
 
 interface HealthResult {
   httpStatus: number | null
   latencyMs: number
   detail: string
+  simulated: boolean
 }
 
 export function SettingsView() {
@@ -47,20 +50,32 @@ export function SettingsView() {
   async function testBackend() {
     setTesting(true)
     const started = performance.now()
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS)
     try {
-      const res = await fetch(`${BASE}/health`, { method: 'GET', credentials: 'include' })
+      const res = await fetch(`${BASE}/health`, {
+        method: 'GET', credentials: 'include', signal: controller.signal,
+      })
       setHealth({
         httpStatus: res.status,
         latencyMs: Math.round(performance.now() - started),
-        detail: res.ok ? '后端健康检查通过' : `健康检查返回 HTTP ${res.status}`,
+        detail: mocked
+          ? (res.ok ? 'MSW 模拟响应（非真实后端）' : `模拟响应返回 HTTP ${res.status}`)
+          : (res.ok ? '后端健康检查通过' : `健康检查返回 HTTP ${res.status}`),
+        simulated: mocked,
       })
     } catch (err) {
+      const aborted = err instanceof DOMException && err.name === 'AbortError'
       setHealth({
         httpStatus: null,
         latencyMs: Math.round(performance.now() - started),
-        detail: `无法连接：${err instanceof Error ? err.message : String(err)}`,
+        detail: aborted
+          ? `检测超时（>${HEALTH_TIMEOUT_MS}ms），后端未响应`
+          : `无法连接：${err instanceof Error ? err.message : String(err)}`,
+        simulated: mocked,
       })
     } finally {
+      clearTimeout(timer)
       setTesting(false)
     }
   }
@@ -134,7 +149,7 @@ export function SettingsView() {
               {testing ? '检测中…' : '测试连通性'}
             </button>
             {health ? (
-              <span role="status" className={health.httpStatus !== null && health.httpStatus < 400 ? 'text-label text-sf-ok' : 'text-label text-sf-warn'}>
+              <span role="status" className={!health.simulated && health.httpStatus !== null && health.httpStatus < 400 ? 'text-label text-sf-ok' : 'text-label text-sf-warn'}>
                 HTTP {health.httpStatus ?? '—'} · {health.latencyMs} ms · {health.detail}
               </span>
             ) : null}

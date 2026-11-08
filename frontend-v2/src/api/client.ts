@@ -1,4 +1,4 @@
-import { EnvelopeResponse, LoginData } from './schema'
+import { EnvelopeResponse, LoginData, type Envelope } from './schema'
 
 const BASE: string = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -15,6 +15,37 @@ export class ApiError extends Error {
 
 // 401 单飞刷新队列：并发请求同时收到 401 时只发一次 /auth/refresh
 let refreshPromise: Promise<boolean> | null = null
+
+/**
+ * 读取并校验统一信封。
+ *
+ * 真实故障（2026-11-09）：旧实现直接 `EnvelopeResponse.parse(await res.json())`，
+ * 遇到代理 502/504、网关 HTML 错误页、空响应时抛 SyntaxError / ZodError，
+ * HTTP 状态码与响应内容全部丢失，页面只显示 "Unexpected token <"，无法排障。
+ * 这里改为：纯文本读取 → JSON 解析 → 信封校验，任一失败都带 HTTP 状态与响应片段。
+ */
+async function readEnvelope(res: Response): Promise<Envelope> {
+  const raw = await res.text()
+  let json: unknown
+  try {
+    json = JSON.parse(raw)
+  } catch {
+    const snippet = raw.trim().slice(0, 120) || '空响应'
+    throw new ApiError(
+      'http_error',
+      `HTTP ${res.status} ${res.statusText}：响应不是 JSON（${snippet}）`,
+    )
+  }
+  const parsed = EnvelopeResponse.safeParse(json)
+  if (!parsed.success) {
+    const snippet = JSON.stringify(json).slice(0, 120)
+    throw new ApiError(
+      'http_error',
+      `HTTP ${res.status}：响应不符合统一信封（${snippet}）`,
+    )
+  }
+  return parsed.data
+}
 
 function tokenStore() {
   return {
@@ -45,7 +76,7 @@ async function doRefresh(): Promise<boolean> {
       body: JSON.stringify({ refresh_token: refreshToken }),
     })
     if (!res.ok) return false
-    const env = EnvelopeResponse.parse(await res.json())
+    const env = await readEnvelope(res)
     if (env.status !== 'ok') return false
     const data = LoginData.parse(env.data) // 抛错即失败，不兜底
     store.access = data.access_token
@@ -93,7 +124,7 @@ async function run<T>(path: string, init: RequestInit, retried: boolean): Promis
     return run<T>(path, init, true)
   }
 
-  const env = EnvelopeResponse.parse(await res.json())
+  const env = await readEnvelope(res)
   if (env.status !== 'ok') {
     throw new ApiError(env.code, env.message)
   }

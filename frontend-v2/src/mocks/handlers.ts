@@ -16,6 +16,29 @@ function notFound(label: string) {
   )
 }
 
+/** 缺参 / 参数非法：HTTP 400 + validation_error（对齐 paper-trades / review-notes / snapshot）。 */
+function badRequest(message: string) {
+  return HttpResponse.json(
+    { status: 'error', code: 'validation_error', message, data: null },
+    { status: 400 },
+  )
+}
+
+/** 个股域 code 非法：HTTP 400 + invalid_param（对齐 W4-B/C 端点）。 */
+function invalidParam(message: string) {
+  return HttpResponse.json(
+    { status: 'error', code: 'invalid_param', message, data: null },
+    { status: 400 },
+  )
+}
+
+/** 真实日历校验：2026-13-99 / 2026-02-30 都必须判非法（对齐后端 _valid_date）。 */
+function validDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
+  const d = new Date(`${s}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
+}
+
 export const handlers = [
   // 鉴权（Mock：任意账号通过，签发演示 token）
   http.post('/api/auth/login', () =>
@@ -24,28 +47,40 @@ export const handlers = [
   http.post('/api/auth/refresh', () =>
     ok({ access_token: 'mock-access-token', token_type: 'Bearer' }),
   ),
+  // 健康检测：显式带 source 标记，前端/测试可据实识别「这不是真实后端」。
   http.get('/api/health', () =>
-    ok({ service: 'stock-signal', status: 'alive', components: { backend: 'ok', database: 'ok' } }),
+    ok({ service: 'stock-signal', status: 'alive', source: 'msw-mock', components: { backend: 'ok', database: 'ok' } }),
   ),
 
   // W1 只读端点
   http.get('/api/v2/read/daily-snapshot', () => ok(fixtures.dailySnapshot)),
   http.get('/api/v2/read/snapshot-dates', () => ok(fixtures.snapshotDates)),
+  // 未知归档日期必须诚实 not_found，绝不回退今日快照冒充历史回放。
   http.get('/api/v2/read/snapshot/:date', ({ params }) => {
     const d = String(params.date)
-    const snap = fixtures.snapshots[d] ?? fixtures.dailySnapshot
-    return ok(snap)
+    if (!validDate(d)) return badRequest('日期格式非法（须为真实 YYYY-MM-DD）')
+    const snap = fixtures.snapshots[d]
+    return snap ? ok(snap) : notFound(`snapshots/${d}.json`)
   }),
   http.get('/api/v2/read/p1-signals', () => ok(fixtures.p1Signals)),
   http.get('/api/v2/read/daily-recommendation', () => ok(fixtures.recommendation)),
   http.get('/api/v2/read/virtual-users-sim', () => ok(fixtures.virtualSim)),
+  // 真后端缺 user 即 400；未知用户如实 not_found，不回退 admin 账本。
   http.get('/api/v2/read/paper-trades', ({ request }) => {
-    const url = new URL(request.url)
-    const user = url.searchParams.get('user') || 'admin'
-    return ok(fixtures.paperTrades[user] ?? fixtures.paperTrades.admin)
+    const user = new URL(request.url).searchParams.get('user') ?? ''
+    if (!/^[A-Za-z0-9_]{1,64}$/.test(user)) {
+      return badRequest('user 非法（仅允许字母/数字/下划线，≤64）')
+    }
+    const book = fixtures.paperTrades[user]
+    return book ? ok(book) : notFound(`paper_${user}.json`)
   }),
-  // 以下数据源在本仓当前缺失 → 返回 not_found（前端诚实渲染「无数据」）
-  http.get('/api/v2/read/review-notes', () => notFound('review_notes_*.md')),
+  // 以下数据源在本仓当前缺失 → 返回 not_found（前端诚实渲染「无数据」）；
+  // review-notes 缺 date 时按真后端返回 400 validation_error。
+  http.get('/api/v2/read/review-notes', ({ request }) => {
+    const date = new URL(request.url).searchParams.get('date') ?? ''
+    if (!validDate(date)) return badRequest('date 非法（须为真实 YYYY-MM-DD）')
+    return notFound(`review_notes_${date}.md`)
+  }),
   http.get('/api/v2/read/alert-rules', () => notFound('alert_rules.json')),
   http.get('/api/v2/read/alert-log', () => notFound('alerts.log')),
   http.get('/api/v2/read/user-dashboard', () => notFound('user_dashboard.json')),
@@ -64,24 +99,14 @@ export const handlers = [
   // W4-A · 个股六维评分：按 code query 分派；非法/缺 code 返回 400 invalid_param 信封。
   http.get('/api/v2/read/six-dim', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')
-    if (!code || !/^\d{6}$/.test(code)) {
-      return HttpResponse.json(
-        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
-        { status: 400 },
-      )
-    }
+    if (!code || !/^\d{6}$/.test(code)) return invalidParam('code 须为 6 位数字')
     return ok(code === '000001' ? fixtures.sixDimPartial : fixtures.sixDimFull)
   }),
 
   // W4-B · 个股域三端点：一律按 code query 分派 4 形态；非法/缺 code 返回 400 invalid_param 信封。
   http.get('/api/v2/read/fundamentals', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')
-    if (!code || !/^\d{6}$/.test(code)) {
-      return HttpResponse.json(
-        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
-        { status: 400 },
-      )
-    }
+    if (!code || !/^\d{6}$/.test(code)) return invalidParam('code 须为 6 位数字')
     if (code === '000002') return ok(fixtures.fundamentalsNullFields)
     if (code === '000003') return ok(fixtures.fundamentalsPerfNull)
     if (code === '000004') return ok(fixtures.fundamentalsDateNull)
@@ -89,12 +114,7 @@ export const handlers = [
   }),
   http.get('/api/v2/read/financials', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')
-    if (!code || !/^\d{6}$/.test(code)) {
-      return HttpResponse.json(
-        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
-        { status: 400 },
-      )
-    }
+    if (!code || !/^\d{6}$/.test(code)) return invalidParam('code 须为 6 位数字')
     if (code === '000002') return ok(fixtures.financialsNullFields)
     if (code === '000003') return ok(fixtures.financialsEmptyRows)
     if (code === '000004') return ok(fixtures.financialsDateNull)
@@ -102,12 +122,7 @@ export const handlers = [
   }),
   http.get('/api/v2/read/stock-kline', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')
-    if (!code || !/^\d{6}$/.test(code)) {
-      return HttpResponse.json(
-        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
-        { status: 400 },
-      )
-    }
+    if (!code || !/^\d{6}$/.test(code)) return invalidParam('code 须为 6 位数字')
     if (code === '000002') return ok(fixtures.klineNullFields)
     if (code === '000003') return ok(fixtures.klineEmptyRows)
     if (code === '000004') return ok(fixtures.klineDateNull)
@@ -117,27 +132,18 @@ export const handlers = [
   // W4-C · 多股对比：单股通用快照（按 code 分派 4 态；非法/缺 code → 400）。
   http.get('/api/v2/read/compare-one', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')
-    if (!code || !/^\d{6}$/.test(code)) {
-      return HttpResponse.json(
-        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
-        { status: 400 },
-      )
-    }
+    if (!code || !/^\d{6}$/.test(code)) return invalidParam('code 须为 6 位数字')
     if (code === '000002') return ok(fixtures.compareOneNullFields)
     if (code === '000003') return ok(fixtures.compareOneEmpty)
     if (code === '000004') return ok(fixtures.compareOneDateNull)
     return ok(fixtures.compareOneFull)
   }),
 
-  // W4-C · 深度分析：600519 已接入（含技术字段），其余合法码返回豁免态。
+  // W4-C · 深度分析：真后端恒 deep_analysis_available=false（56 键异步分析未接入），
+  // MSW 不得伪造「600519 已接入」；技术字段仍按真后端形态如实给出。
   http.get('/api/v2/read/research-deep', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')
-    if (!code || !/^\d{6}$/.test(code)) {
-      return HttpResponse.json(
-        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
-        { status: 400 },
-      )
-    }
+    if (!code || !/^\d{6}$/.test(code)) return invalidParam('code 须为 6 位数字')
     if (code === '600519') return ok(fixtures.researchDeepFull)
     return ok(fixtures.researchDeepExempt)
   }),
@@ -146,12 +152,7 @@ export const handlers = [
   // 前端不画基准并如实标注）；其余合法码按后端契约 not_found。
   http.get('/api/v2/read/stock-intraday', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')
-    if (!code || !/^\d{6}$/.test(code)) {
-      return HttpResponse.json(
-        { status: 'error', code: 'invalid_param', message: 'code 须为 6 位数字', data: null },
-        { status: 400 },
-      )
-    }
+    if (!code || !/^\d{6}$/.test(code)) return invalidParam('code 须为 6 位数字')
     if (code === '600519') return ok(fixtures.stockIntradayFull)
     if (code === '000002') return ok(fixtures.stockIntradayNoPrevClose)
     return notFound(`stock_intraday_${code}`)
@@ -168,12 +169,7 @@ export const handlers = [
   http.get('/api/v2/read/index-quotes', () => ok(fixtures.indexQuotes)),
   http.get('/api/v2/read/index-kline', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')
-    if (!code || !/^(sh|sz)\d{6}$/.test(code)) {
-      return HttpResponse.json(
-        { status: 'error', code: 'invalid_param', message: 'code 须为 sh/sz + 6 位数字', data: null },
-        { status: 400 },
-      )
-    }
+    if (!code || !/^(sh|sz)\d{6}$/.test(code)) return invalidParam('code 须为 sh/sz + 6 位数字')
     if (code === 'sh000001') return ok(fixtures.indexKlineSh000001)
     return notFound(`index_kline_${code}`)
   }),
