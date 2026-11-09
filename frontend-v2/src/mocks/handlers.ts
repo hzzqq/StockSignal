@@ -113,6 +113,7 @@ export const handlers = [
   http.get('/api/v2/read/dragon-tiger', () => ok(fixtures.dragonTiger)),
   http.get('/api/v2/read/theme', () => ok(fixtures.theme)),
   http.get('/api/v2/read/theme-transmission', () => ok(fixtures.themeTransmission)),
+  http.get('/api/v2/read/strong', () => ok(fixtures.strong)),
   // W4-A · 个股六维评分：按 code query 分派；非法/缺 code 返回 400 invalid_param 信封。
   http.get('/api/v2/read/six-dim', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')

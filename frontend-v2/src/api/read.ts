@@ -26,6 +26,7 @@ import {
   DragonTigerSchema,
   ThemeSchema,
   ThemeTransmissionSchema,
+  StrongSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -52,6 +53,7 @@ import {
   type DragonTiger,
   type Theme,
   type ThemeTransmission,
+  type Strong,
 } from './schemas/read'
 
 /**
@@ -286,4 +288,9 @@ export function getTheme(): Promise<Theme> {
 /** GET /api/v2/read/theme-transmission?limit=N —— 题材事件传导图谱（75 ④，按需触发） */
 export function getThemeTransmission(limit = 60): Promise<ThemeTransmission> {
   return readValidated(`theme-transmission?limit=${encodeURIComponent(String(limit))}`, ThemeTransmissionSchema)
+}
+
+/** GET /api/v2/read/strong —— 实时强势榜（76 页 V2 化，多因子评分，启发式非预测） */
+export function getStrong(): Promise<Strong> {
+  return readValidated('strong', StrongSchema)
 }

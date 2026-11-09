@@ -32,6 +32,7 @@ import type {
   DragonTiger,
   Theme,
   ThemeTransmission,
+  Strong,
 } from '@/api/schemas/read'
 
 /**
@@ -291,6 +292,16 @@ export function useThemeTransmission(limit = 60, enabled = false): UseQueryResul
     queryFn: () => api.getThemeTransmission(limit),
     staleTime: 0,
     enabled,
+  })
+}
+
+// ───────── 实时强势榜（strong / 76 页 V2 化）─────────
+// 复用 modules.spot_rank：东财实时快照多因子评分；取不到→items=[]、unavailable 标注。
+export function useStrong(): UseQueryResult<Strong> {
+  return useQuery({
+    queryKey: ['read', 'strong'],
+    queryFn: api.getStrong,
+    staleTime: THIRTY_MIN,
   })
 }
 

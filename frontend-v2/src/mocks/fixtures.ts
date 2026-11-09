@@ -631,6 +631,23 @@ export const themeTransmission = {
   n_concepts: 1,
 }
 
+// 实时强势榜（strong）Mock：多因子评分（涨幅 0.40 + 量比 0.30 + 换手 0.20 + 成交额 0.10，启发式非预测）。
+// score = 0.4*s_chg + 0.3*s_vr + 0.2*s_to + 0.1*s_amt（四项均为百分位 0-100）。以下数值为演示、非真实行情。
+export const strong = {
+  items: [
+    { rank: 1, code: '688256', name: '寒武纪', price: 95.0, chg: 5.6, amount: 2e9, turnover: 8.0, vol_ratio: 2.1, score: 88.3, s_chg: 96.0, s_vr: 92.0, s_to: 90.0, s_amt: 70.0 },
+    { rank: 2, code: '300750', name: '宁德时代', price: 210.0, chg: 2.1, amount: 4e9, turnover: 3.0, vol_ratio: 1.5, score: 71.4, s_chg: 80.0, s_vr: 70.0, s_to: 60.0, s_amt: 95.0 },
+    { rank: 3, code: '600519', name: '贵州茅台', price: 1685.0, chg: 3.5, amount: 5e9, turnover: 1.5, vol_ratio: 1.2, score: 66.2, s_chg: 90.0, s_vr: 55.0, s_to: 40.0, s_amt: 99.0 },
+    { rank: 4, code: '000001', name: '平安银行', price: 11.5, chg: -1.2, amount: 3e9, turnover: 2.5, vol_ratio: 0.9, score: 42.0, s_chg: 20.0, s_vr: 30.0, s_to: 45.0, s_amt: 80.0 },
+    { rank: 5, code: '601318', name: '中国平安', price: 48.0, chg: 0.8, amount: 2.5e9, turnover: 1.8, vol_ratio: 1.1, score: 51.7, s_chg: 60.0, s_vr: 48.0, s_to: 38.0, s_amt: 78.0 },
+    { rank: 6, code: '002594', name: '比亚迪', price: 260.0, chg: -2.4, amount: 3.5e9, turnover: 4.0, vol_ratio: 1.3, score: 38.5, s_chg: 10.0, s_vr: 40.0, s_to: 55.0, s_amt: 82.0 },
+  ],
+  src_label: '东财实时快照（直连）',
+  kicked: [],
+  unavailable: [],
+  date: null,
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -1062,6 +1079,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/dragon-tiger', needs_params: false, probe_path: '/api/v2/read/dragon-tiger', required_query: [], sample_query: null },
   { path: '/api/v2/read/theme', needs_params: false, probe_path: '/api/v2/read/theme', required_query: [], sample_query: null },
   { path: '/api/v2/read/theme-transmission', needs_params: false, probe_path: '/api/v2/read/theme-transmission', required_query: [], sample_query: null },
+  { path: '/api/v2/read/strong', needs_params: false, probe_path: '/api/v2/read/strong', required_query: [], sample_query: null },
 ]
 
 export const diagnostics = {

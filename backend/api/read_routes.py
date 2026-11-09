@@ -2618,6 +2618,106 @@ def theme_transmission():
         }), message="theme-transmission")
 
 
+@bp.get("/strong")
+@jwt_required
+def strong():
+    """实时强势榜只读聚合（76 页 V2 化）。复用 modules.spot_rank.load_spot_with_source + strong_score。
+
+    返回全市场多因子强势评分（涨幅 0.40 + 量比 0.30 + 换手 0.20 + 成交额 0.10，启发式加权、非预测）；
+    按 score 降序输出全部已评分标的（前端再按 top_n / 仅上涨 过滤）。二道闸（scan_and_gate 六维排雷）
+    仅对评分 Top 200 候选排雷（控制六维扫描成本，与 v1 全量排雷略有差异），失败→kicked=[] 降级放行。
+
+    红线：取不到快照→仍 200、unavailable=['spot_unavailable']、items=[]，不 500、不编数据；
+    计算异常→仍 200、unavailable=['strong_compute_failed']。date=null（实时快照无历史数据日，绝不 now()）。
+    """
+    try:
+        from modules import spot_rank as sr
+        raw, src_label = sr.load_spot_with_source()
+    except Exception:  # noqa: BLE001 - 取数层已内部降级，这里兜底
+        raw, src_label = None, "不可用"
+
+    if raw is None or getattr(raw, "empty", True):
+        data = {
+            "items": [],
+            "src_label": "不可用",
+            "kicked": [],
+            "unavailable": ["spot_unavailable"],
+            "date": None,
+        }
+        return ok(data=_sanitize(data), message="strong")
+
+    try:
+        scored = sr.strong_score(raw)
+        code_c = sr._col(scored, "code")
+        name_c = sr._col(scored, "name")
+        price_c = sr._col(scored, "price")
+        chg_c = sr._col(scored, "chg")
+        amount_c = sr._col(scored, "amount")
+        turnover_c = sr._col(scored, "turnover")
+        vr_c = sr._col(scored, "vol_ratio")
+
+        # 二道闸：六维排雷（仅评分 Top 200 候选，控制扫描成本；失败降级放行）
+        kicked_codes: set = set()
+        kicked_names: list = []
+        try:
+            from modules.risk_gate import scan_and_gate
+            cand = scored.sort_values("_score", ascending=False).head(200)
+            cand_list = [
+                {"code": str(r.get(code_c, "")), "name": str(r.get(name_c, ""))}
+                for _, r in cand.iterrows()
+                if code_c
+            ]
+            if cand_list:
+                _gated, summary = scan_and_gate(cand_list, top_k=len(cand_list))
+                for k in (summary.get("kicked") or []):
+                    kicked_codes.add(str(k.get("code")))
+                    kicked_names.append(_safe_str(k.get("name")))
+        except Exception:  # noqa: BLE001 - 二道闸失败：降级放行，不阻断榜单
+            kicked_codes = set()
+            kicked_names = []
+
+        items = []
+        rank = 0
+        for _, r in scored.sort_values("_score", ascending=False).iterrows():
+            code = str(r.get(code_c, "")) if code_c else ""
+            if code in kicked_codes:
+                continue
+            rank += 1
+            items.append({
+                "rank": rank,
+                "code": _safe_str(r.get(code_c)) if code_c else None,
+                "name": _safe_str(r.get(name_c)) if name_c else None,
+                "price": _to_float(r.get(price_c)) if price_c else None,
+                "chg": _to_float(r.get(chg_c)) if chg_c else None,
+                "amount": _to_float(r.get(amount_c)) if amount_c else None,
+                "turnover": _to_float(r.get(turnover_c)) if turnover_c else None,
+                "vol_ratio": _to_float(r.get(vr_c)) if vr_c else None,
+                "score": _to_float(r.get("_score")),
+                "s_chg": _to_float(r.get("_s_chg")),
+                "s_vr": _to_float(r.get("_s_vr")),
+                "s_to": _to_float(r.get("_s_to")),
+                "s_amt": _to_float(r.get("_s_amt")),
+            })
+
+        data = {
+            "items": items,
+            "src_label": _safe_str(src_label) if src_label else "不可用",
+            "kicked": kicked_names,
+            "unavailable": [],
+            "date": None,
+        }
+        return ok(data=_sanitize(data), message="strong")
+    except Exception as e:  # noqa: BLE001 - 计算异常：诚实降级，不 500
+        logging.getLogger(__name__).warning("[strong] 计算失败: %s", e)
+        return ok(data=_sanitize({
+            "items": [],
+            "src_label": _safe_str(src_label) if src_label else "不可用",
+            "kicked": [],
+            "unavailable": ["strong_compute_failed"],
+            "date": None,
+        }), message="strong")
+
+
 # ───────── 数据源 / 接口检测（diagnostics）─────────
 # 与 W4-B/W4-C/W4-X 同款红线：@jwt_required + 统一 ok() 信封；只读、绝不写任何数据文件；
 # 各检测项独立降级（任一失败只影响该项，不整页 500、不连带其它项）；缺失为 null、绝不补 0；

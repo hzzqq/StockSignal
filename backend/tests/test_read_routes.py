@@ -69,6 +69,7 @@ ENDPOINTS = [
     "/api/v2/read/dragon-tiger",
     "/api/v2/read/theme",
     "/api/v2/read/theme-transmission?limit=60",
+    "/api/v2/read/strong",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -1713,4 +1714,58 @@ def test_theme_transmission_endpoint(client, token, monkeypatch):
     resp3 = client.get("/api/v2/read/theme-transmission?limit=60", headers={"Authorization": f"Bearer {token}"})
     assert resp3.status_code == 200
     assert resp3.get_json()["data"]["status"] == "unavailable"
+
+
+def test_strong_endpoint(client, token, monkeypatch):
+    """strong（76 实时强势榜）：load_spot_with_source→全市场快照→多因子评分；
+    取不到→仍 200、unavailable=['spot_unavailable']、items=[]；计算异常→仍 200。
+    """
+    import pandas as pd
+    from modules import spot_rank as sr_mod
+    from modules import risk_gate as rg_mod
+
+    df = pd.DataFrame({
+        "代码": ["600519", "000001", "300750", "688256"],
+        "名称": ["贵州茅台", "平安银行", "宁德时代", "寒武纪"],
+        "最新价": [1685.0, 11.5, 210.0, 95.0],
+        "涨跌幅": [3.5, -1.2, 2.1, 5.6],
+        "成交额": [5e9, 3e9, 4e9, 2e9],
+        "换手率": [1.5, 2.5, 3.0, 8.0],
+        "量比": [1.2, 0.9, 1.5, 2.1],
+    })
+    monkeypatch.setattr(sr_mod, "load_spot_with_source", lambda: (df, "东财实时快照（直连）"))
+    monkeypatch.setattr(rg_mod, "scan_and_gate", lambda cand, top_k: ([], {"kicked": []}))
+
+    # 1) 充分取数 → ok + 评分降序 + items 全量
+    resp = client.get("/api/v2/read/strong", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["src_label"] == "东财实时快照（直连）"
+    assert len(d["items"]) == 4
+    # score 降序：寒武纪(688256, chg 5.6) 评分最高，排第一
+    assert d["items"][0]["code"] == "688256"
+    top = d["items"][0]
+    assert top["score"] is not None and top["s_chg"] is not None and top["s_vr"] is not None
+    assert d["unavailable"] == []
+    assert d["date"] is None
+
+    # 2) 取不到快照 → 仍 200、unavailable、items=[]
+    monkeypatch.setattr(sr_mod, "load_spot_with_source", lambda: (None, "不可用"))
+    resp2 = client.get("/api/v2/read/strong", headers={"Authorization": f"Bearer {token}"})
+    assert resp2.status_code == 200
+    d2 = resp2.get_json()["data"]
+    assert d2["items"] == []
+    assert d2["unavailable"] == ["spot_unavailable"]
+
+    # 3) strong_score 计算异常 → 仍 200、unavailable=['strong_compute_failed']
+    def _boom_score(d):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(sr_mod, "load_spot_with_source", lambda: (df, "东财实时快照（直连）"))
+    monkeypatch.setattr(sr_mod, "strong_score", _boom_score)
+    resp3 = client.get("/api/v2/read/strong", headers={"Authorization": f"Bearer {token}"})
+    assert resp3.status_code == 200
+    d3 = resp3.get_json()["data"]
+    assert d3["unavailable"] == ["strong_compute_failed"]
 

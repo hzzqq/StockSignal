@@ -871,3 +871,35 @@ export const ThemeTransmissionSchema = z
   })
   .catchall(z.unknown())
 export type ThemeTransmission = z.infer<typeof ThemeTransmissionSchema>
+
+// ───────── 实时强势榜（76 页 V2 化）─────────
+export const StrongItemSchema = z
+  .object({
+    rank: z.number().nullable().optional(),
+    code: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
+    price: z.number().nullable().optional(),
+    chg: z.number().nullable().optional(),
+    amount: z.number().nullable().optional(),
+    turnover: z.number().nullable().optional(),
+    vol_ratio: z.number().nullable().optional(),
+    score: z.number().nullable().optional(),
+    s_chg: z.number().nullable().optional(),
+    s_vr: z.number().nullable().optional(),
+    s_to: z.number().nullable().optional(),
+    s_amt: z.number().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type StrongItem = z.infer<typeof StrongItemSchema>
+
+export const StrongSchema = z
+  .object({
+    items: z.array(StrongItemSchema).optional(),
+    src_label: z.string().nullable().optional(),
+    kicked: z.array(z.unknown()).optional(),
+    unavailable: z.array(z.unknown()).optional(),
+    date: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type Strong = z.infer<typeof StrongSchema>
+
