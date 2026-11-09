@@ -2286,6 +2286,41 @@ def trading_account():
         return ok(data=_sanitize(data), message="trading-account")
 
 
+@bp.get("/macro-data")
+@jwt_required
+def macro_data():
+    """宏观数据只读聚合（84 页 V2 化）。复用 modules.macro_data.fetch_all +
+    global_regime_score；各指标独立降级（取不到→None），绝不补 0。
+
+    GET /api/v2/read/macro-data
+    返回 indicators(各指标字典或 None) + regime(全球风险评分或 None) + unavailable。
+    """
+    try:
+        from modules import macro_data as md
+        indicators = md.fetch_all()
+        regime = md.global_regime_score()
+    except Exception:  # noqa: BLE001 - 取数整体异常：诚实返回空，不 500
+        indicators = None
+        regime = None
+
+    if indicators is None:
+        data = {
+            "indicators": {},
+            "regime": None,
+            "unavailable": ["macro_fetch_failed"],
+        }
+        return ok(data=_sanitize(data), message="macro-data")
+
+    # 逐指标诚实降级：None 即取不到；unavailable 列出缺失 key，页面如实标注、不编造。
+    missing = [k for k, v in indicators.items() if v is None]
+    data = {
+        "indicators": indicators,
+        "regime": regime,
+        "unavailable": missing,
+    }
+    return ok(data=_sanitize(data), message="macro-data")
+
+
 # ───────── 数据源 / 接口检测（diagnostics）─────────
 # 与 W4-B/W4-C/W4-X 同款红线：@jwt_required + 统一 ok() 信封；只读、绝不写任何数据文件；
 # 各检测项独立降级（任一失败只影响该项，不整页 500、不连带其它项）；缺失为 null、绝不补 0；

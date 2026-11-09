@@ -734,3 +734,48 @@ export const TradingAccountSchema = z
   })
   .catchall(z.unknown())
 export type TradingAccount = z.infer<typeof TradingAccountSchema>
+
+// ───────── 宏观数据（macro-data / 84 页 V2 化）─────────
+// 复用 modules.macro_data.fetch_all + global_regime_score。各指标**独立降级**：
+// 取不到的指标后端返回 null（而非 0 或兜底串），前端显示「—」。
+// 数值字段均为 nullable（后端已把 NaN/Inf 清洗为 null）；regime 评分取不到为 null。
+export const MacroIndicatorSchema = z
+  .object({
+    key: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
+    unit: z.string().nullable().optional(),
+    freq: z.string().nullable().optional(),
+    source: z.string().nullable().optional(),
+    region: z.string().nullable().optional(),
+    desc: z.string().nullable().optional(),
+    value: z.number().nullable().optional(),
+    prev: z.number().nullable().optional(),
+    change: z.number().nullable().optional(),
+    date: z.string().nullable().optional(),
+    stale: z.boolean().nullable().optional(),
+    from_cache: z.boolean().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type MacroIndicator = z.infer<typeof MacroIndicatorSchema>
+
+export const MacroRegimeSchema = z
+  .object({
+    score: z.number().nullable().optional(),
+    sub: z.record(z.string(), z.number()).nullable().optional(),
+    parts: z.record(z.string(), z.number().nullable()).nullable().optional(),
+    yield_curve: z.number().nullable().optional(),
+    cn_us_spread: z.number().nullable().optional(),
+    dates: z.record(z.string(), z.string().nullable()).nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type MacroRegime = z.infer<typeof MacroRegimeSchema>
+
+export const MacroDataSchema = z
+  .object({
+    indicators: z.record(z.string(), MacroIndicatorSchema.nullable()).optional(),
+    regime: MacroRegimeSchema.nullable().optional(),
+    unavailable: z.array(z.unknown()).optional(),
+    note: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type MacroData = z.infer<typeof MacroDataSchema>

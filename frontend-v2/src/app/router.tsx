@@ -45,6 +45,7 @@ const LazyMarketRegime = lazyRouteComponent(() => import('@/features/market/Mark
 const LazyPortfolio = lazyRouteComponent(() => import('@/features/portfolio/Portfolio'), 'Portfolio')
 const LazyFundFlow = lazyRouteComponent(() => import('@/features/fundflow/FundFlow'), 'FundFlow')
 const LazyTradingAccount = lazyRouteComponent(() => import('@/features/trading/TradingAccount'), 'TradingAccount')
+const LazyMacroData = lazyRouteComponent(() => import('@/features/macro/MacroData'), 'MacroData')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -257,6 +258,12 @@ const tradingAccountRoute = createRoute({
   component: LazyTradingAccount,
 })
 
+const macroDataRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/macro-data',
+  component: LazyMacroData,
+})
+
 const dataRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/data',
@@ -382,6 +389,7 @@ const routeTree = rootRoute.addChildren([
     portfolioRoute,
     fundFlowRoute,
     tradingAccountRoute,
+    macroDataRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

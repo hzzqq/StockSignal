@@ -22,6 +22,7 @@ import {
   PortfolioSchema,
   FundFlowSchema,
   TradingAccountSchema,
+  MacroDataSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -44,6 +45,7 @@ import {
   type Portfolio,
   type FundFlow,
   type TradingAccount,
+  type MacroData,
 } from './schemas/read'
 
 /**
@@ -257,4 +259,9 @@ export function getFundFlow(): Promise<FundFlow> {
 /** GET /api/v2/read/trading-account —— 实盘交易只读概览（账户/持仓/订单流水，43 页 V2 化） */
 export function getTradingAccount(): Promise<TradingAccount> {
   return readValidated('trading-account', TradingAccountSchema)
+}
+
+/** GET /api/v2/read/macro-data —— 宏观数据聚合（国内 + 全球指标 + 全球风险评分，84 页 V2 化） */
+export function getMacroData(): Promise<MacroData> {
+  return readValidated('macro-data', MacroDataSchema)
 }

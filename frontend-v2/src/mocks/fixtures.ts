@@ -553,6 +553,36 @@ export const tradingAccount = {
   note: '本页为 V2 只读概览，读取本地模拟账本（data/paper_<user>.json），反映模拟撮合下的账户 / 持仓 / 订单流水，非真实券商实盘；实时下单与真实券商（QMT / 同花顺）写能力仅在 v1 实盘交易页 /api/trade/* 提供，V2 不暴露任何写接口。数据仅供参考，非投资建议。',
 }
 
+// Tier2 · 宏观数据（macro-data）Mock，字段名与后端 /api/v2/read/macro-data 契约一致。
+// 各指标独立：取不到为 null（诚实降级，不补 0）；regime 为规则化评分或 null。数值为演示。
+export const macroData = {
+  indicators: {
+    pmi: { key: 'pmi', name: '制造业 PMI', unit: '%', freq: '月', source: '国家统计局', region: '国内', desc: '荣枯线 50；>50 景气扩张', value: 51.2, prev: 50.8, change: 0.4, date: '2026-11-01', stale: false, from_cache: true },
+    cpi: { key: 'cpi', name: 'CPI 同比', unit: '%', freq: '月', source: '国家统计局', region: '国内', desc: '通胀水平', value: 0.9, prev: 1.1, change: -0.2, date: '2026-10-01', stale: false, from_cache: true },
+    m2: { key: 'm2', name: 'M2 同比', unit: '%', freq: '月', source: '央行', region: '国内', desc: '广义货币供应', value: 8.3, prev: 8.1, change: 0.2, date: '2026-10-01', stale: false, from_cache: true },
+    lpr: { key: 'lpr', name: 'LPR（1 年期）', unit: '%', freq: '月', source: '央行', region: '国内', desc: '贷款市场报价利率', value: 3.1, prev: 3.1, change: 0.0, date: '2026-10-01', stale: false, from_cache: true },
+    dxy: { key: 'dxy', name: '美元指数 DXY', unit: '点', freq: '日', source: 'ICE / 东方财富', region: '全球', desc: '美元强弱', value: 102.3, prev: 101.8, change: 0.5, date: '2026-11-08', stale: false, from_cache: true },
+    us_treasury_10y: { key: 'us_treasury_10y', name: '美债 10Y 收益率', unit: '%', freq: '日', source: '美国财政部', region: '全球', desc: '全球资产定价锚', value: 4.1, prev: 4.2, change: -0.1, date: '2026-11-08', stale: false, from_cache: true },
+    us_cpi: { key: 'us_cpi', name: '美国 CPI 同比', unit: '%', freq: '月', source: '美国劳工部', region: '全球', desc: '美国通胀', value: 2.8, prev: 3.0, change: -0.2, date: '2026-10-01', stale: false, from_cache: true },
+    usd_cny: { key: 'usd_cny', name: '美元兑人民币(USD/CNY)', unit: '', freq: '日', source: '中国银行', region: '全球', desc: '人民币汇率', value: 7.12, prev: 7.15, change: -0.03, date: '2026-11-08', stale: false, from_cache: true },
+    us_sp500: { key: 'us_sp500', name: '标普500指数', unit: '点', freq: '日', source: '东方财富', region: '全球', desc: '美股大盘基准', value: 5980.0, prev: 5950.0, change: 30.0, date: '2026-11-07', stale: false, from_cache: true },
+    hsi: { key: 'hsi', name: '恒生指数', unit: '点', freq: '日', source: '东方财富', region: '全球', desc: '港股情绪', value: 19800.0, prev: 19600.0, change: 200.0, date: '2026-11-07', stale: false, from_cache: true },
+    fed_funds_rate: { key: 'fed_funds_rate', name: '美联储联邦基金利率', unit: '%', freq: '议息', source: '美联储', region: '全球', desc: '联邦基金目标利率', value: 4.5, prev: 4.5, change: 0.0, date: '2026-09-01', stale: false, from_cache: true },
+    // 取不到的指标：如实 null（演示诚实降级，不补 0）
+    us_ism_pmi: null,
+  },
+  regime: {
+    score: 58,
+    sub: { dxy: 55.0, us_treasury_10y: 60.0, us_cpi: 64.0, usd_cny: 51.0 },
+    parts: { dxy: 102.3, us_treasury_10y: 4.1, us_cpi: 2.8, usd_cny: 7.12 },
+    yield_curve: 0.35,
+    cn_us_spread: -0.1,
+    dates: { dxy: '2026-11-08', us_treasury_10y: '2026-11-08', us_cpi: '2026-10-01', usd_cny: '2026-11-08' },
+  },
+  unavailable: ['us_ism_pmi'],
+  note: '宏观数据来自国家统计局 / 央行 / 东方财富 / 新浪等公开源（macro_data：库优先 / 网络兜底），离线或接口受限时逐指标诚实降级（取不到显示「—」）。全球风险评分为规则化合成，非模型预测；非实时、非投资建议。',
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -980,6 +1010,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/portfolio', needs_params: false, probe_path: '/api/v2/read/portfolio', required_query: [], sample_query: null },
   { path: '/api/v2/read/fund-flow', needs_params: false, probe_path: '/api/v2/read/fund-flow', required_query: [], sample_query: null },
   { path: '/api/v2/read/trading-account', needs_params: false, probe_path: '/api/v2/read/trading-account', required_query: [], sample_query: null },
+  { path: '/api/v2/read/macro-data', needs_params: false, probe_path: '/api/v2/read/macro-data', required_query: [], sample_query: null },
 ]
 
 export const diagnostics = {

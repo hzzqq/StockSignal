@@ -65,6 +65,7 @@ ENDPOINTS = [
     "/api/v2/read/portfolio",
     "/api/v2/read/fund-flow",
     "/api/v2/read/trading-account",
+    "/api/v2/read/macro-data",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -1481,4 +1482,58 @@ def test_trading_account_endpoint(client, token, tmp_path, monkeypatch):
     # 3) user 非法 -> 400
     resp3 = client.get("/api/v2/read/trading-account?user=../etc", headers={"Authorization": f"Bearer {token}"})
     assert resp3.status_code == 400
+
+
+def test_macro_data_endpoint(client, token, monkeypatch):
+    """macro-data（84 宏观数据）：fetch_all 聚合多指标，逐指标独立降级（None）；
+    regime 取不到→None；整体异常→仍 200、unavailable=['macro_fetch_failed']。"""
+    from modules import macro_data as md_mod
+
+    sample = {
+        "pmi": {"key": "pmi", "name": "制造业 PMI", "unit": "%", "freq": "月",
+                "source": "国家统计局", "region": "国内", "desc": "荣枯线 50",
+                "value": 51.2, "prev": 50.8, "change": 0.4, "date": "2026-11-01",
+                "stale": False, "from_cache": False},
+        "cpi": None,  # 取不到，诚实降级（不补 0）
+        "dxy": {"key": "dxy", "name": "美元指数 DXY", "unit": "点", "freq": "日",
+                "source": "ICE", "region": "全球", "desc": "强美元",
+                "value": 102.3, "prev": 101.8, "change": 0.5, "date": "2026-11-08",
+                "stale": False, "from_cache": False},
+    }
+    regime = {"score": 62, "sub": {"dxy": 55.0, "us_treasury_10y": 60.0},
+              "parts": {"dxy": 102.3, "us_treasury_10y": 4.1},
+              "yield_curve": None, "cn_us_spread": None,
+              "dates": {"dxy": "2026-11-08", "us_treasury_10y": "2026-11-08"}}
+
+    # 1) 充分取数 -> ok 信封 + indicators + regime + unavailable 列出缺失 key
+    monkeypatch.setattr(md_mod, "fetch_all", lambda: sample)
+    monkeypatch.setattr(md_mod, "global_regime_score", lambda: regime)
+    resp = client.get("/api/v2/read/macro-data", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["indicators"]["pmi"]["value"] == 51.2
+    assert d["indicators"]["cpi"] is None  # 取不到如实 null
+    assert d["indicators"]["dxy"]["value"] == 102.3
+    assert d["regime"]["score"] == 62
+    assert d["regime"]["sub"]["dxy"] == 55.0
+    assert d["unavailable"] == ["cpi"]
+
+    # 2) regime 取不到 -> None（不编造评分）
+    monkeypatch.setattr(md_mod, "global_regime_score", lambda: None)
+    resp2 = client.get("/api/v2/read/macro-data", headers={"Authorization": f"Bearer {token}"})
+    assert resp2.status_code == 200
+    assert resp2.get_json()["data"]["regime"] is None
+    # 指标仍正常
+    assert resp2.get_json()["data"]["indicators"]["pmi"]["value"] == 51.2
+
+    # 3) 整体异常 -> 仍 200、unavailable=['macro_fetch_failed']（不 500）
+    def _boom():
+        raise RuntimeError("boom")
+    monkeypatch.setattr(md_mod, "fetch_all", _boom)
+    resp3 = client.get("/api/v2/read/macro-data", headers={"Authorization": f"Bearer {token}"})
+    assert resp3.status_code == 200
+    assert resp3.get_json()["data"]["unavailable"] == ["macro_fetch_failed"]
+    assert resp3.get_json()["data"]["indicators"] == {}
 

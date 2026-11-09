@@ -28,6 +28,7 @@ import type {
   Portfolio,
   FundFlow,
   TradingAccount,
+  MacroData,
 } from '@/api/schemas/read'
 
 /**
@@ -246,6 +247,16 @@ export function useTradingAccount(): UseQueryResult<TradingAccount> {
   return useQuery({
     queryKey: ['read', 'trading-account'],
     queryFn: api.getTradingAccount,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+// ───────── 宏观数据（macro-data / 84 页 V2 化）─────────
+// 复用 modules.macro_data：库优先 / 网络兜底，离线时多数指标取不到 → null 诚实降级。
+export function useMacroData(): UseQueryResult<MacroData> {
+  return useQuery({
+    queryKey: ['read', 'macro-data'],
+    queryFn: api.getMacroData,
     staleTime: THIRTY_MIN,
   })
 }
