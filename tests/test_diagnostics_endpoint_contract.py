@@ -78,6 +78,16 @@ def _required_query_map(tree: ast.Module) -> dict[str, dict[str, str]]:
     raise AssertionError("read_routes.py 缺少 _DIAG_REQUIRED_QUERY 单一真理源")
 
 
+# 这些端点的函数体里虽有 http_status=400，但都是「取值/格式/数量违规」类校验，
+# 缺失 query 参数时会回落默认值——factor-analysis 缺 codes 回落演示标的、
+# trading-account 缺 user 回落 admin——因此不会「缺参即 400」，不属于需参集合，
+# 哨兵不把它们误报成漏登记。（与 _DIAG_REQUIRED_QUERY 双向契约仍覆盖真正缺参即 400 的端点。）
+_VALIDATION_ONLY_400 = {
+    "/api/v2/read/factor-analysis",
+    "/api/v2/read/trading-account",
+}
+
+
 def _scanned_required(tree: ast.Module) -> set[str]:
     routes = _get_routes(tree)
     assert len(routes) >= 20, f"只解析到 {len(routes)} 个 GET 端点，AST 扫描疑似失效"
@@ -85,7 +95,7 @@ def _scanned_required(tree: ast.Module) -> set[str]:
         f"{_PREFIX}{rel}"
         for rel, node in routes.items()
         if "<" not in rel and _has_400(node)
-    }
+    } - _VALIDATION_ONLY_400
 
 
 def test_every_400_get_endpoint_is_registered():

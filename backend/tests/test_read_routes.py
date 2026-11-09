@@ -67,6 +67,8 @@ ENDPOINTS = [
     "/api/v2/read/trading-account",
     "/api/v2/read/macro-data",
     "/api/v2/read/dragon-tiger",
+    "/api/v2/read/theme",
+    "/api/v2/read/theme-transmission?limit=60",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -1606,4 +1608,109 @@ def test_dragon_tiger_endpoint(client, token, monkeypatch):
     d4 = resp4.get_json()["data"]
     assert d4["buy_top"] is None
     assert d4["unavailable"] == ["lhb_fetch_failed"]
+
+
+def test_theme_endpoint(client, token, monkeypatch):
+    """theme（75 题材热点）：load_concepts→概念快照；缺板块名称→降级；
+    取不到→仍 200、unavailable=['theme_concepts_unavailable']、concepts=[]。
+    """
+    import pandas as pd
+    from modules import theme_heat as th_mod
+
+    df = pd.DataFrame({
+        "板块名称": ["AI", "机器人", "光伏"],
+        "涨跌幅": [3.5, 1.2, -2.1],
+        "总市值": [1e12, 8e11, 5e11],
+        "换手率": [8.0, 5.0, 9.0],
+        "上涨家数": [10, 8, 3],
+        "下跌家数": [2, 3, 9],
+        "领涨股票": ["寒武纪", "拓普集团", "—"],
+    })
+    df["_chg"] = df["涨跌幅"]
+    df["_turnover_p"] = [80.0, 50.0, 90.0]
+    df["_life"] = ["高潮", "发酵", "退潮"]
+
+    # 1) 充分取数 → ok + summary + concepts + lifecycle_counts
+    monkeypatch.setattr(th_mod, "load_concepts", lambda: df)
+    resp = client.get("/api/v2/read/theme", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["summary"]["count"] == 3
+    assert d["summary"]["n_up"] == 2
+    assert d["summary"]["n_down"] == 1
+    assert d["summary"]["top_name"] == "AI"
+    assert d["summary"]["top_chg"] == 3.5
+    assert len(d["concepts"]) == 3
+    ai = next(c for c in d["concepts"] if c["name"] == "AI")
+    assert ai["chg"] == 3.5
+    assert ai["lifecycle"] == "高潮"
+    assert ai["mv"] == 1e12
+    assert d["lifecycle_counts"] == {"高潮": 1, "发酵": 1, "退潮": 1}
+    assert d["unavailable"] == []
+
+    # 2) load_concepts 返回 None → 仍 200、unavailable、concepts=[]
+    monkeypatch.setattr(th_mod, "load_concepts", lambda: None)
+    resp2 = client.get("/api/v2/read/theme", headers={"Authorization": f"Bearer {token}"})
+    assert resp2.status_code == 200
+    d2 = resp2.get_json()["data"]
+    assert d2["concepts"] == []
+    assert d2["unavailable"] == ["theme_concepts_unavailable"]
+
+    # 3) 缺板块名称字段 → 降级（无法绘制）
+    df_no_name = df.drop(columns=["板块名称"])
+    monkeypatch.setattr(th_mod, "load_concepts", lambda: df_no_name)
+    resp3 = client.get("/api/v2/read/theme", headers={"Authorization": f"Bearer {token}"})
+    assert resp3.status_code == 200
+    d3 = resp3.get_json()["data"]
+    assert d3["unavailable"] == ["theme_name_field_missing"]
+
+
+def test_theme_transmission_endpoint(client, token, monkeypatch):
+    """theme-transmission（75 ④ 事件传导）：抓标题→命中概念→共现排序；取不到标题→unavailable；异常→仍 200。"""
+    import pandas as pd
+    from modules import event_graph as evg_mod
+    from modules import news as news_mod
+
+    class _FakeEM:
+        def mine_events(self, limit=60, auto_save=False):
+            return pd.DataFrame({"title": ["算力需求超预期", "光伏出口下滑"], "date": ["2026-11-09", "2026-11-08"]})
+
+    monkeypatch.setattr(news_mod, "EventMiner", _FakeEM)
+    monkeypatch.setattr(evg_mod, "build_index_for_titles", lambda titles, max_concepts=8, fetch_members=None: {"算力": ["688256"]})
+    monkeypatch.setattr(evg_mod, "build_transmission", lambda titles, idx: {
+        "status": "ok", "basis": "文本共现", "disclaimer": "非收益预测",
+        "entries": [{"name": "寒武纪", "code": "688256", "score": 9, "direction": "利好",
+                     "dir_color": "#dc2626", "concepts": "算力", "evidence": "算力需求超预期", "direct": True}],
+        "concepts_hit": ["算力"], "members_unavailable": [],
+    })
+
+    resp = client.get("/api/v2/read/theme-transmission?limit=60", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    d = resp.get_json()["data"]
+    assert d["status"] == "ok"
+    assert d["n_titles"] == 2
+    assert d["n_concepts"] == 1
+    assert d["entries"][0]["name"] == "寒武纪"
+    assert d["concepts_hit"] == ["算力"]
+
+    # 2) 取不到标题 → unavailable（不编臆造题材表）
+    class _FakeEMEmpty:
+        def mine_events(self, limit=60, auto_save=False):
+            return pd.DataFrame({"title": [], "date": []})
+    monkeypatch.setattr(news_mod, "EventMiner", _FakeEMEmpty)
+    resp2 = client.get("/api/v2/read/theme-transmission?limit=60", headers={"Authorization": f"Bearer {token}"})
+    assert resp2.status_code == 200
+    d2 = resp2.get_json()["data"]
+    assert d2["status"] == "unavailable"
+    assert d2["entries"] == []
+
+    # 3) 异常 → 仍 200、status=unavailable（不 500）
+    def _boom():
+        raise RuntimeError("boom")
+    monkeypatch.setattr(news_mod, "EventMiner", _boom)
+    resp3 = client.get("/api/v2/read/theme-transmission?limit=60", headers={"Authorization": f"Bearer {token}"})
+    assert resp3.status_code == 200
+    assert resp3.get_json()["data"]["status"] == "unavailable"
 

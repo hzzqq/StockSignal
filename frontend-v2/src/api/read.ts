@@ -24,6 +24,8 @@ import {
   TradingAccountSchema,
   MacroDataSchema,
   DragonTigerSchema,
+  ThemeSchema,
+  ThemeTransmissionSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -48,6 +50,8 @@ import {
   type TradingAccount,
   type MacroData,
   type DragonTiger,
+  type Theme,
+  type ThemeTransmission,
 } from './schemas/read'
 
 /**
@@ -272,4 +276,14 @@ export function getMacroData(): Promise<MacroData> {
 export function getDragonTiger(date?: string): Promise<DragonTiger> {
   const path = date ? `dragon-tiger?date=${encodeURIComponent(date)}` : 'dragon-tiger'
   return readValidated(path, DragonTigerSchema)
+}
+
+/** GET /api/v2/read/theme —— 题材/概念热度快照（75 页 V2 化） */
+export function getTheme(): Promise<Theme> {
+  return readValidated('theme', ThemeSchema)
+}
+
+/** GET /api/v2/read/theme-transmission?limit=N —— 题材事件传导图谱（75 ④，按需触发） */
+export function getThemeTransmission(limit = 60): Promise<ThemeTransmission> {
+  return readValidated(`theme-transmission?limit=${encodeURIComponent(String(limit))}`, ThemeTransmissionSchema)
 }

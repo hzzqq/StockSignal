@@ -30,6 +30,8 @@ import type {
   TradingAccount,
   MacroData,
   DragonTiger,
+  Theme,
+  ThemeTransmission,
 } from '@/api/schemas/read'
 
 /**
@@ -269,6 +271,26 @@ export function useDragonTiger(date?: string): UseQueryResult<DragonTiger> {
     queryKey: ['read', 'dragon-tiger', date ?? 'today'],
     queryFn: () => api.getDragonTiger(date),
     staleTime: THIRTY_MIN,
+  })
+}
+
+// ───────── 题材热点（theme / 75 页 V2 化）─────────
+// 复用 modules.theme_heat：东财概念板块快照；取不到→concepts=[]、unavailable 标注。
+export function useTheme(): UseQueryResult<Theme> {
+  return useQuery({
+    queryKey: ['read', 'theme'],
+    queryFn: api.getTheme,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+// 事件传导图谱（theme-transmission / 75 ④，按需触发）：默认不自动请求，点击按钮 refetch。
+export function useThemeTransmission(limit = 60, enabled = false): UseQueryResult<ThemeTransmission> {
+  return useQuery({
+    queryKey: ['read', 'theme-transmission', limit],
+    queryFn: () => api.getThemeTransmission(limit),
+    staleTime: 0,
+    enabled,
   })
 }
 

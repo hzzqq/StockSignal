@@ -18,6 +18,7 @@ import {
   HeatmapChart,
   LineChart,
   RadarChart,
+  TreemapChart,
 } from 'echarts/charts'
 import {
   AxisPointerComponent,
@@ -41,6 +42,7 @@ use([
   HeatmapChart,
   LineChart,
   RadarChart,
+  TreemapChart,
   // 坐标系 / 交互 / 标注组件
   AxisPointerComponent,
   DataZoomComponent,

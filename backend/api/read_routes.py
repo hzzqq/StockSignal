@@ -2375,6 +2375,40 @@ def _lhb_records(df, cap=200):
         return None
 
 
+def _to_float(v):
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(f) or math.isinf(f):
+        return None
+    return f
+
+
+def _to_int(v):
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(f) or math.isinf(f):
+        return None
+    return int(round(f))
+
+
+def _safe_str(v):
+    if v is None:
+        return None
+    try:
+        if isinstance(v, float) and math.isnan(v):
+            return None
+    except TypeError:
+        pass
+    s = str(v)
+    if s in ("", "nan", "None", "NaN"):
+        return None
+    return s
+
+
 @bp.get("/dragon-tiger")
 @jwt_required
 def dragon_tiger():
@@ -2435,6 +2469,153 @@ def dragon_tiger():
         "unavailable": [],
     }
     return ok(data=_sanitize(data), message="dragon-tiger")
+
+
+# ───────── 题材热点（75 页 V2 化）─────────
+@bp.get("/theme")
+@jwt_required
+def theme():
+    """题材/概念热度只读聚合（75 页 V2 化）。复用 modules.theme_heat.load_concepts()。
+
+    返回概念板块快照的派生字段（name/chg/turnover_p/lifecycle/mv/turnover/up/down/leader）+
+    汇总（概念数/上涨/下跌/领涨题材）+ 生命周期分布计数。
+
+    红线：取不到快照→仍 200、unavailable=['theme_concepts_unavailable']、concepts=[]，不 500、不编数据；
+    生命周期为启发式分类（涨跌幅+换手分位），非预测。
+    """
+    try:
+        from modules import theme_heat as th
+        df = th.load_concepts()
+    except Exception:  # noqa: BLE001
+        df = None
+
+    if df is None or getattr(df, "empty", True):
+        data = {
+            "concepts": [],
+            "summary": None,
+            "lifecycle_counts": {},
+            "unavailable": ["theme_concepts_unavailable"],
+        }
+        return ok(data=_sanitize(data), message="theme")
+
+    name_c = th.col_of(df, "name")
+    chg = df["_chg"]
+    tp = df["_turnover_p"]
+    life = df["_life"]
+    mv_c = th.col_of(df, "mv")
+    turnover_c = th.col_of(df, "turnover")
+    up_c = th.col_of(df, "up")
+    down_c = th.col_of(df, "down")
+    leader_c = th.col_of(df, "leader")
+
+    if name_c is None:
+        # 缺板块名称字段：无法绘制热力图/排名，诚实降级
+        data = {
+            "concepts": [],
+            "summary": None,
+            "lifecycle_counts": {},
+            "unavailable": ["theme_name_field_missing"],
+        }
+        return ok(data=_sanitize(data), message="theme")
+
+    concepts = []
+    for _, r in df.iterrows():
+        concepts.append({
+            "name": _safe_str(r.get(name_c)),
+            "chg": _to_float(r["_chg"]),
+            "turnover_p": _to_float(r["_turnover_p"]),
+            "lifecycle": _safe_str(r.get("_life")),
+            "mv": _to_float(r.get(mv_c)) if mv_c else None,
+            "turnover": _to_float(r.get(turnover_c)) if turnover_c else None,
+            "up": _to_int(r.get(up_c)) if up_c else None,
+            "down": _to_int(r.get(down_c)) if down_c else None,
+            "leader": _safe_str(r.get(leader_c)) if leader_c else None,
+        })
+
+    n_up = int((chg > 0).sum())
+    n_down = int((chg < 0).sum())
+    life_counts = {str(k): int(v) for k, v in life.value_counts().items()}
+
+    summary = {
+        "count": int(len(df)),
+        "n_up": n_up,
+        "n_down": n_down,
+        "top_name": None,
+        "top_chg": None,
+    }
+    if len(df):
+        try:
+            top_idx = chg.idxmax()
+            summary["top_name"] = _safe_str(df.loc[top_idx, name_c])
+            summary["top_chg"] = _to_float(chg.loc[top_idx])
+        except Exception:  # noqa: BLE001
+            pass
+
+    data = {
+        "concepts": concepts,
+        "summary": summary,
+        "lifecycle_counts": life_counts,
+        "unavailable": [],
+    }
+    return ok(data=_sanitize(data), message="theme")
+
+
+@bp.get("/theme-transmission")
+@jwt_required
+def theme_transmission():
+    """题材事件传导图谱（75 页 ④，按需触发）。抓取近期新闻标题 → 命中概念 → 展开成分股共现排序。
+
+    复用 modules.news.EventMiner + modules.event_graph。取不到标题/概念→status='unavailable'，
+    不编臆造题材表；任何异常→仍 200、status='unavailable'，不 500。
+    """
+    try:
+        from modules.news import EventMiner
+        from modules import event_graph as evg
+
+        limit = _fa_int(request.args.get("limit"), 60, 1, 200)
+        df = EventMiner().mine_events(limit=limit, auto_save=False)
+        if df is None or getattr(df, "empty", True):
+            return ok(data=_sanitize({
+                "status": "unavailable",
+                "reason": "未取到任何新闻标题（网络不可用或新闻接口异常）",
+                "entries": [], "concepts_hit": [], "members_unavailable": [],
+                "n_titles": 0, "n_concepts": 0,
+            }), message="theme-transmission")
+
+        titles = []
+        for _, r in df.iterrows():
+            title = str(r.get("title") or "").strip()
+            if title:
+                titles.append(title)
+        if not titles:
+            return ok(data=_sanitize({
+                "status": "unavailable",
+                "reason": "未取到任何新闻标题",
+                "entries": [], "concepts_hit": [], "members_unavailable": [],
+                "n_titles": 0, "n_concepts": 0,
+            }), message="theme-transmission")
+
+        idx = evg.build_index_for_titles(titles)
+        res = evg.build_transmission(titles, idx)
+        data = {
+            "status": res.get("status", "empty"),
+            "basis": res.get("basis"),
+            "disclaimer": res.get("disclaimer"),
+            "entries": res.get("entries") or [],
+            "concepts_hit": res.get("concepts_hit") or [],
+            "members_unavailable": res.get("members_unavailable") or [],
+            "n_titles": len(titles),
+            "n_concepts": len(idx),
+        }
+        return ok(data=_sanitize(data), message="theme-transmission")
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger(__name__).warning("[theme] transmission failed: %s", e)
+        return ok(data=_sanitize({
+            "status": "unavailable",
+            "reason": f"生成失败：{e}",
+            "entries": [], "concepts_hit": [], "members_unavailable": [],
+            "n_titles": 0, "n_concepts": 0,
+        }), message="theme-transmission")
 
 
 # ───────── 数据源 / 接口检测（diagnostics）─────────
@@ -2519,6 +2700,8 @@ _DIAG_REQUIRED_QUERY = {
     "/api/v2/read/research-deep": {"code": "600519"},
     "/api/v2/read/stock-intraday": {"code": "600519"},
     "/api/v2/read/index-kline": {"code": "sh000001"},
+    # backtest 缺 ticker 即 fail(400, invalid_param)；必须登记，否则诊断探测会假报 400。
+    "/api/v2/read/backtest": {"ticker": "600519"},
 }
 
 

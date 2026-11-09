@@ -804,3 +804,70 @@ export const DragonTigerSchema = z
   })
   .catchall(z.unknown())
 export type DragonTiger = z.infer<typeof DragonTigerSchema>
+
+// ───────── 题材热点（75 页 V2 化）─────────
+export const ThemeConceptSchema = z
+  .object({
+    name: z.string().nullable().optional(),
+    chg: z.number().nullable().optional(),
+    turnover_p: z.number().nullable().optional(),
+    lifecycle: z.string().nullable().optional(),
+    mv: z.number().nullable().optional(),
+    turnover: z.number().nullable().optional(),
+    up: z.number().nullable().optional(),
+    down: z.number().nullable().optional(),
+    leader: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type ThemeConcept = z.infer<typeof ThemeConceptSchema>
+
+export const ThemeSummarySchema = z
+  .object({
+    count: z.number().nullable().optional(),
+    n_up: z.number().nullable().optional(),
+    n_down: z.number().nullable().optional(),
+    top_name: z.string().nullable().optional(),
+    top_chg: z.number().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type ThemeSummary = z.infer<typeof ThemeSummarySchema>
+
+export const ThemeSchema = z
+  .object({
+    concepts: z.array(ThemeConceptSchema).optional(),
+    summary: ThemeSummarySchema.nullable().optional(),
+    lifecycle_counts: z.record(z.string(), z.number()).optional(),
+    unavailable: z.array(z.unknown()).optional(),
+    note: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type Theme = z.infer<typeof ThemeSchema>
+
+// 事件传导图谱（75 ④，按需触发）
+export const ThemeTransmissionEntrySchema = z
+  .object({
+    name: z.string().optional(),
+    code: z.string().optional(),
+    score: z.number().optional(),
+    direction: z.string().optional(),
+    dir_color: z.string().optional(),
+    concepts: z.string().optional(),
+    evidence: z.string().optional(),
+    direct: z.boolean().optional(),
+  })
+  .catchall(z.unknown())
+export type ThemeTransmissionEntry = z.infer<typeof ThemeTransmissionEntrySchema>
+
+export const ThemeTransmissionSchema = z
+  .object({
+    status: z.string().optional(),
+    basis: z.string().nullable().optional(),
+    disclaimer: z.string().nullable().optional(),
+    entries: z.array(ThemeTransmissionEntrySchema).optional(),
+    concepts_hit: z.array(z.unknown()).optional(),
+    members_unavailable: z.array(z.unknown()).optional(),
+    n_titles: z.number().nullable().optional(),
+    n_concepts: z.number().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type ThemeTransmission = z.infer<typeof ThemeTransmissionSchema>

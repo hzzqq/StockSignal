@@ -604,6 +604,33 @@ export const dragonTiger = {
   note: '龙虎榜明细=东财接口（modules.lhb.fetch_lhb，30 分钟缓存，按交易日更新，非实时行情）；净买额口径以数据源列为准。',
 }
 
+// ───────── 题材热点（theme / 75 页 V2 化）─────────
+// 数值为演示、非真实行情；concepts 含派生字段（chg/turnover_p/lifecycle/mv/leader）。
+export const theme = {
+  concepts: [
+    { name: 'AI', chg: 3.5, turnover_p: 80, lifecycle: '高潮', mv: 1e12, turnover: 8, up: 10, down: 2, leader: '寒武纪' },
+    { name: '机器人', chg: 1.2, turnover_p: 50, lifecycle: '发酵', mv: 8e11, turnover: 5, up: 8, down: 3, leader: '拓普集团' },
+    { name: '光伏', chg: -2.1, turnover_p: 90, lifecycle: '退潮', mv: 5e11, turnover: 9, up: 3, down: 9, leader: '—' },
+  ],
+  summary: { count: 3, n_up: 2, n_down: 1, top_name: 'AI', top_chg: 3.5 },
+  lifecycle_counts: { 高潮: 1, 发酵: 1, 退潮: 1 },
+  unavailable: [],
+  note: '题材来自东财概念板块快照（modules.theme_heat，120 秒缓存，非实时行情）；生命周期为启发式分类，非预测。',
+}
+
+export const themeTransmission = {
+  status: 'ok',
+  basis: '文本共现',
+  disclaimer: '关联度高只说明消息在文本上更贴近它，不代表受益程度，更不是收益预测。',
+  entries: [
+    { name: '寒武纪', code: '688256', score: 9, direction: '利好', dir_color: '#dc2626', concepts: '算力', evidence: '算力需求超预期', direct: true },
+  ],
+  concepts_hit: ['算力'],
+  members_unavailable: [],
+  n_titles: 2,
+  n_concepts: 1,
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -1025,14 +1052,16 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/compare-one', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
   { path: '/api/v2/read/research-deep', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
   { path: '/api/v2/read/stock-intraday', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
-  { path: '/api/v2/read/factor-analysis', needs_params: true, probe_path: null, required_query: ['codes'], sample_query: 'codes=600519,000001,300750&days=250&factor=momentum&n_layers=5&forward=1' },
+  { path: '/api/v2/read/factor-analysis', needs_params: false, probe_path: '/api/v2/read/factor-analysis', required_query: [], sample_query: null },
   { path: '/api/v2/read/backtest', needs_params: true, probe_path: null, required_query: ['ticker'], sample_query: 'ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor' },
-  { path: '/api/v2/read/market-panorama', needs_params: true, probe_path: null, required_query: ['k'], sample_query: 'k=8' },
+  { path: '/api/v2/read/market-panorama', needs_params: false, probe_path: '/api/v2/read/market-panorama', required_query: [], sample_query: null },
   { path: '/api/v2/read/portfolio', needs_params: false, probe_path: '/api/v2/read/portfolio', required_query: [], sample_query: null },
   { path: '/api/v2/read/fund-flow', needs_params: false, probe_path: '/api/v2/read/fund-flow', required_query: [], sample_query: null },
   { path: '/api/v2/read/trading-account', needs_params: false, probe_path: '/api/v2/read/trading-account', required_query: [], sample_query: null },
   { path: '/api/v2/read/macro-data', needs_params: false, probe_path: '/api/v2/read/macro-data', required_query: [], sample_query: null },
   { path: '/api/v2/read/dragon-tiger', needs_params: false, probe_path: '/api/v2/read/dragon-tiger', required_query: [], sample_query: null },
+  { path: '/api/v2/read/theme', needs_params: false, probe_path: '/api/v2/read/theme', required_query: [], sample_query: null },
+  { path: '/api/v2/read/theme-transmission', needs_params: false, probe_path: '/api/v2/read/theme-transmission', required_query: [], sample_query: null },
 ]
 
 export const diagnostics = {

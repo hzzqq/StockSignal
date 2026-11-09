@@ -31,6 +31,7 @@ export type AppPath =
   | '/trading-account'
   | '/macro-data'
   | '/dragon-tiger'
+  | '/theme'
   | '/login'
   | '/matrix'
   | '/guide'
@@ -91,6 +92,7 @@ export const NAV: NavGroup[] = [
         { to: '/fund-flow', label: '资金流向', icon: '🌊' },
         { to: '/macro-data', label: '宏观数据', icon: '🌐' },
         { to: '/dragon-tiger', label: '龙虎榜', icon: '🐯' },
+        { to: '/theme', label: '题材热点', icon: '🧱' },
     ],
   },
 ]

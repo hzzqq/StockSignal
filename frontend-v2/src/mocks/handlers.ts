@@ -111,6 +111,8 @@ export const handlers = [
   // 宏观数据（84 页 V2 化）：结构对齐后端 macro_data()；演示数值非真实行情，取不到项如实 null。
   http.get('/api/v2/read/macro-data', () => ok(fixtures.macroData)),
   http.get('/api/v2/read/dragon-tiger', () => ok(fixtures.dragonTiger)),
+  http.get('/api/v2/read/theme', () => ok(fixtures.theme)),
+  http.get('/api/v2/read/theme-transmission', () => ok(fixtures.themeTransmission)),
   // W4-A · 个股六维评分：按 code query 分派；非法/缺 code 返回 400 invalid_param 信封。
   http.get('/api/v2/read/six-dim', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')

@@ -114,7 +114,7 @@ export function DragonTiger() {
           </label>
           <input
             id="dt-date"
-            className="px-2 py-1.5 rounded-md border border-sf-line bg-sf-card text-sm text-sf-ink w-56"
+            className="px-2 py-1.5 rounded-md border border-sf-line bg-sf-surface text-sm text-sf-ink w-56"
             placeholder="例如 20261109"
             value={dateInput}
             onChange={(e) => setDateInput(e.target.value.trim())}
@@ -247,7 +247,7 @@ function DetailTable({ rows }: { rows: Record<string, unknown>[] }) {
     <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
       <table className="w-full text-xs text-sf-ink">
         <thead>
-          <tr className="text-sf-ink-3 border-b border-sf-line sticky top-0 bg-sf-card">
+          <tr className="text-sf-ink-3 border-b border-sf-line sticky top-0 bg-sf-surface">
             {cols.map((c) => (
               <th key={c} className="text-left py-1.5 pr-3 whitespace-nowrap">
                 {c}
