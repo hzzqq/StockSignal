@@ -525,3 +525,67 @@ export const MarketPanoramaSchema = z
   })
   .catchall(z.unknown())
 export type MarketPanorama = z.infer<typeof MarketPanoramaSchema>
+
+// 持仓中心（45）：本地模拟持仓 + FIFO 盈亏 + 收益归因 + 尽力而为净值曲线。
+export const PortfolioPositionSchema = z.object({
+  ticker: z.string(),
+  name: z.string().optional(),
+  buy_date: z.string().optional(),
+  buy_price: z.number().nullable().optional(),
+  shares: z.number().nullable().optional(),
+  remaining_shares: z.number().nullable().optional(),
+  cost: z.number().nullable().optional(),
+  current_price: z.number().nullable().optional(),
+  market_value: z.number().nullable().optional(),
+  realized_pnl: z.number().nullable().optional(),
+  pnl: z.number().nullable().optional(),
+  pnl_pct: z.number().nullable().optional(),
+})
+export type PortfolioPosition = z.infer<typeof PortfolioPositionSchema>
+
+export const PortfolioAttributionSchema = z.object({
+  ticker: z.string(),
+  name: z.string().optional(),
+  pnl: z.number().nullable().optional(),
+  pnl_pct: z.number().nullable().optional(),
+  contribution: z.number().nullable().optional(),
+})
+export type PortfolioAttribution = z.infer<typeof PortfolioAttributionSchema>
+
+export const PortfolioWeightSchema = z.object({
+  ticker: z.string(),
+  name: z.string().optional(),
+  weight_pct: z.number().nullable().optional(),
+})
+export type PortfolioWeight = z.infer<typeof PortfolioWeightSchema>
+
+export const PortfolioCurvePointSchema = z.object({
+  date: z.string(),
+  portfolio: z.number().nullable().optional(),
+  benchmark: z.number().nullable().optional(),
+})
+export type PortfolioCurvePoint = z.infer<typeof PortfolioCurvePointSchema>
+
+export const PortfolioSchema = z
+  .object({
+    summary: z
+      .object({
+        total_cost: z.number().nullable().optional(),
+        total_market_value: z.number().nullable().optional(),
+        total_pnl: z.number().nullable().optional(),
+        total_pnl_pct: z.number().nullable().optional(),
+        position_count: z.number().nullable().optional(),
+      })
+      .catchall(z.unknown())
+      .optional(),
+    positions: z.array(PortfolioPositionSchema).optional(),
+    attribution: z.array(PortfolioAttributionSchema).optional(),
+    weights: z.array(PortfolioWeightSchema).optional(),
+    curve: z.array(PortfolioCurvePointSchema).optional(),
+    curve_available: z.boolean().optional(),
+    date: z.string().nullable().optional(),
+    note: z.string().optional(),
+    unavailable: z.array(z.unknown()).optional(),
+  })
+  .catchall(z.unknown())
+export type Portfolio = z.infer<typeof PortfolioSchema>

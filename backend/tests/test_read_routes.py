@@ -62,6 +62,7 @@ ENDPOINTS = [
     "/api/v2/read/factor-analysis?codes=600519,000001,300750&days=60&factor=momentum&n_layers=5&forward=1",
     "/api/v2/read/backtest?ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor",
     "/api/v2/read/market-panorama?k=8",
+    "/api/v2/read/portfolio",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -1220,3 +1221,114 @@ def test_market_panorama_endpoint(client, token, monkeypatch):
     body2 = resp2.get_json()
     assert body2["status"] == "error"
     assert body2["code"] == "insufficient_data"
+
+
+def test_portfolio_endpoint(client, token, monkeypatch):
+    """portfolio（45 持仓中心）：持仓充分 -> 200 + status=ok（含 summary/positions/
+    attribution/weights/curve）；持仓为空 -> status=error（insufficient_data）；
+    计算异常 -> compute_error（诚实降级，不 500）。"""
+    import pandas as pd
+    from modules import portfolio as pf_mod
+
+    pnl_df = pd.DataFrame([
+        {"ticker": "600519", "name": "贵州茅台", "buy_date": "2026-01-02", "buy_price": 1700.0,
+         "shares": 100, "remaining_shares": 100, "cost": 170000.0, "current_price": 1800.0,
+         "market_value": 180000.0, "realized_pnl": 0.0, "pnl": 10000.0, "pnl_pct": 5.88},
+        {"ticker": "000001", "name": "平安银行", "buy_date": "2026-01-03", "buy_price": 12.0,
+         "shares": 1000, "remaining_shares": 500, "cost": 6000.0, "current_price": 11.0,
+         "market_value": 5500.0, "realized_pnl": 0.0, "pnl": -500.0, "pnl_pct": -8.33},
+    ])
+    attr_df = pd.DataFrame([
+        {"ticker": "600519", "name": "贵州茅台", "pnl": 10000.0, "pnl_pct": 5.88, "contribution": 104.17},
+        {"ticker": "000001", "name": "平安银行", "pnl": -500.0, "pnl_pct": -8.33, "contribution": -4.17},
+    ])
+    summary = {"total_cost": 176000.0, "total_market_value": 185500.0, "total_pnl": 9500.0,
+               "total_pnl_pct": 5.4, "position_count": 2}
+
+    class _Fetcher:
+        @staticmethod
+        def get_daily(symbol, start=None, end=None):
+            n = 20
+            idx = pd.date_range("2026-01-01", periods=n, freq="B")
+            return pd.DataFrame({"close": [100.0 + i for i in range(n)]}, index=idx)
+
+    class _FakePM:
+        fetcher = _Fetcher()
+
+        def calc_pnl(self):
+            return pnl_df
+
+        def summary(self):
+            return summary
+
+        def pnl_attribution(self):
+            return attr_df
+
+    monkeypatch.setattr(pf_mod, "PortfolioManager", _FakePM)
+
+    # 1) 充分持仓 -> ok 信封 + 全字段
+    resp = client.get(
+        "/api/v2/read/portfolio",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["summary"]["position_count"] == 2
+    assert len(d["positions"]) == 2
+    assert d["positions"][0]["current_price"] == 1800.0
+    # 市值占比之和应≈100（此处 180000/185500*100）
+    assert abs(sum(w["weight_pct"] for w in d["weights"]) - 100.0) < 1e-6
+    assert len(d["attribution"]) == 2
+    # 净值曲线尽力而为：两标的同序列 -> 公共日期≥2
+    assert d["curve_available"] is True
+    assert len(d["curve"]) >= 2
+    assert d["curve"][0]["portfolio"] is not None
+
+    # 2) 持仓为空 -> 诚实 insufficient_data
+    class _FakeEmpty:
+        fetcher = _Fetcher()
+
+        def calc_pnl(self):
+            return pd.DataFrame()
+
+        def summary(self):
+            return {"total_cost": 0, "total_market_value": 0, "total_pnl": 0,
+                    "total_pnl_pct": 0, "position_count": 0}
+
+        def pnl_attribution(self):
+            return pd.DataFrame()
+
+    monkeypatch.setattr(pf_mod, "PortfolioManager", _FakeEmpty)
+    resp2 = client.get(
+        "/api/v2/read/portfolio",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp2.status_code == 200
+    body2 = resp2.get_json()
+    assert body2["status"] == "error"
+    assert body2["code"] == "insufficient_data"
+
+    # 3) 计算异常 -> compute_error（不 500）
+    class _FakeBoom:
+        fetcher = _Fetcher()
+
+        def calc_pnl(self):
+            raise RuntimeError("boom")
+
+        def summary(self):
+            return {}
+
+        def pnl_attribution(self):
+            return pd.DataFrame()
+
+    monkeypatch.setattr(pf_mod, "PortfolioManager", _FakeBoom)
+    resp3 = client.get(
+        "/api/v2/read/portfolio",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp3.status_code == 200
+    body3 = resp3.get_json()
+    assert body3["status"] == "error"
+    assert body3["code"] == "compute_error"

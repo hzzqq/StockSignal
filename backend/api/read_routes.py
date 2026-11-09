@@ -1780,6 +1780,203 @@ def market_panorama():
     return ok(data=_sanitize(data), message="market-panorama")
 
 
+# ───────── 持仓中心（G3：本地模拟持仓 + FIFO 盈亏 + 收益归因）─────────
+# 契约（同款红线）：@jwt_required + 统一 ok/fail 信封；只读 data/portfolio.csv（本地模拟持仓）；
+# 现价经 StockFetcher.get_daily 取最近收盘（离线静态样本，属「模拟/历史数据」口径）；
+# 取数异常回落买入价并诚实标注 price_source='fallback'；净值是尽力而为的历史曲线，
+# 取不到日线则 curve_available=False 而非补零；持仓文件缺失/为空 → insufficient_data。
+_PF_NOTE = (
+    "持仓为本地模拟/历史数据（data/portfolio.csv），仅供学习不构成投资建议；"
+    "现价为最近可得收盘（离线口径可能为静态样本）；净值曲线为尽力而为的历史还原，缺失则如实标注。"
+)
+_PF_BENCH = "000300"  # 沪深300，收益归因素基准
+
+
+def _flt(v):
+    """转原生 float；None / 非数 / NaN / Inf → None（避免 numpy 类型与 JSON 序列化失败）。"""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(f) or math.isinf(f):
+        return None
+    return f
+
+
+def _int(v):
+    """转原生 int；None / 非数 → None。"""
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_portfolio_curve(pm, pnl, attr):
+    """尽力而为的组合净值曲线（基准沪深300）。
+
+    对每只仍有剩余持仓的标的取日线，按剩余股数加权还原组合市值序列，归一化到起点 100；
+    基准同样归一化到 100。任一日线缺失 / 取不到公共日期 → 诚实返回 ([], False)。
+    绝不以买入价线性外推编造曲线（诚实红线）。
+    """
+    try:
+        remaining = {}
+        for _, r in pnl.iterrows():
+            t = str(r["ticker"])
+            rs = _int(r.get("remaining_shares")) or 0
+            if rs > 0:
+                remaining[t] = rs
+        if not remaining:
+            return [], False, "no_open_positions"
+
+        # 取数窗口：最早买入日往前 120 天 ~ 今
+        earliest = None
+        for _, r in pnl.iterrows():
+            bd = str(r.get("buy_date") or "")
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", bd):
+                earliest = bd if earliest is None else min(earliest, bd)
+        start = (datetime.strptime(earliest, "%Y-%m-%d") - timedelta(days=120)).strftime("%Y-%m-%d") if earliest else "2024-01-01"
+
+        series = {}
+        for t, rs in remaining.items():
+            df = pm.fetcher.get_daily(t, start=start, end=None)
+            if df is None or df.empty or "close" not in df.columns:
+                return [], False, f"daily_missing:{t}"
+            df = df.copy()
+            df["_d"] = df.index if df.index.name else df.get("date")
+            # 归一化到起点 100
+            closes = df["close"].astype(float).tolist()
+            if not closes or closes[0] == 0:
+                return [], False, f"bad_close:{t}"
+            base = closes[0]
+            series[t] = {
+                "dates": [str(x)[:10] for x in (df.index if not df.index.name else df.index)],
+                "norm": [c / base * 100 for c in closes],
+                "shares": rs,
+            }
+
+        # 对齐公共日期
+        common = None
+        for s in series.values():
+            dset = set(s["dates"])
+            common = dset if common is None else (common & dset)
+        if not common or len(common) < 2:
+            return [], False, "no_common_dates"
+
+        common = sorted(common)
+        idx = {d: i for i, d in enumerate(common)}
+        # 组合加权净值
+        combo = [0.0] * len(common)
+        for s in series.values():
+            pos = {d: v for d, v in zip(s["dates"], s["norm"])}
+            for d in common:
+                combo[idx[d]] += pos[d] * s["shares"]
+        total_shares = sum(s["shares"] for s in series.values())
+        combo = [c / total_shares * 100 for c in combo]
+
+        # 基准
+        bench = [None] * len(common)
+        try:
+            bdf = pm.fetcher.get_daily(_PF_BENCH, start=start, end=None)
+            if bdf is not None and not bdf.empty and "close" in bdf.columns:
+                bcloses = bdf["close"].astype(float).tolist()
+                bdates = [str(x)[:10] for x in bdf.index]
+                bbase = bcloses[0] if bcloses and bcloses[0] != 0 else None
+                if bbase:
+                    bmap = {d: c / bbase * 100 for d, c in zip(bdates, bcloses)}
+                    bench = [bmap.get(d) for d in common]
+        except Exception:  # noqa: BLE001 - 基准缺失只影响基准线，不影响组合线
+            bench = [None] * len(common)
+
+        curve = [
+            {"date": common[i], "portfolio": _flt(combo[i]), "benchmark": _flt(bench[i])}
+            for i in range(len(common))
+        ]
+        return curve, True, None
+    except Exception as e:  # noqa: BLE001 - 任何异常：诚实降级
+        return [], False, f"{type(e).__name__}: {e}"
+
+
+@bp.get("/portfolio")
+@jwt_required
+def portfolio():
+    """持仓中心（45 页）。
+
+    GET /api/v2/read/portfolio
+    返回：
+    - summary：total_cost / total_market_value / total_pnl / total_pnl_pct / position_count
+    - positions：逐批持仓（ticker/name/buy_date/buy_price/shares/remaining_shares/cost/
+      current_price/market_value/realized_pnl/pnl/pnl_pct）
+    - attribution：按个股聚合的盈亏贡献（ticker/name/pnl/pnl_pct/contribution）
+    - weights：市值占比（ticker/name/weight_pct）
+    - curve：尽力而为的组合净值曲线（date/portfolio/benchmark，基准沪深300）
+    - curve_available：bool（日线取不到则 False）
+    - note / unavailable：诚实口径与缺失清单
+
+    持仓文件缺失/为空 → 诚实 status=error（insufficient_data）。
+    """
+    try:
+        from modules.portfolio import PortfolioManager
+        pm = PortfolioManager()
+        pnl = pm.calc_pnl()
+        if pnl is None or (hasattr(pnl, "empty") and pnl.empty):
+            return fail(message="本地持仓文件为空或缺失", code="insufficient_data", http_status=200)
+        summary = pm.summary()
+        attr = pm.pnl_attribution()
+    except Exception as e:  # noqa: BLE001 - 计算异常：诚实降级，不 500
+        return fail(message=f"持仓计算失败：{type(e).__name__}: {e}", code="compute_error", http_status=200)
+
+    positions = []
+    for _, r in pnl.iterrows():
+        positions.append({
+            "ticker": str(r["ticker"]),
+            "name": str(r.get("name") or ""),
+            "buy_date": str(r.get("buy_date") or ""),
+            "buy_price": _flt(r.get("buy_price")),
+            "shares": _int(r.get("shares")),
+            "remaining_shares": _int(r.get("remaining_shares")),
+            "cost": _flt(r.get("cost")),
+            "current_price": _flt(r.get("current_price")),
+            "market_value": _flt(r.get("market_value")),
+            "realized_pnl": _flt(r.get("realized_pnl")),
+            "pnl": _flt(r.get("pnl")),
+            "pnl_pct": _flt(r.get("pnl_pct")),
+        })
+
+    attribution = []
+    for _, r in attr.iterrows():
+        attribution.append({
+            "ticker": str(r["ticker"]),
+            "name": str(r.get("name") or ""),
+            "pnl": _flt(r.get("pnl")),
+            "pnl_pct": _flt(r.get("pnl_pct")),
+            "contribution": _flt(r.get("contribution")),
+        })
+
+    total_mv = float(sum((p["market_value"] or 0) for p in positions))
+    weights = []
+    if total_mv > 0:
+        for p in positions:
+            weights.append({
+                "ticker": p["ticker"], "name": p["name"],
+                "weight_pct": round((p["market_value"] or 0) / total_mv * 100, 2),
+            })
+
+    curve, curve_available, _ = _build_portfolio_curve(pm, pnl, attr)
+
+    data = {
+        "summary": {k: _flt(v) for k, v in (summary or {}).items()},
+        "positions": positions,
+        "attribution": attribution,
+        "weights": weights,
+        "curve": curve,
+        "curve_available": curve_available,
+        "date": None,
+        "note": _PF_NOTE,
+        "unavailable": [],
+    }
+    return ok(data=_sanitize(data), message="portfolio")
+
+
 # ───────── 数据源 / 接口检测（diagnostics）─────────
 # 与 W4-B/W4-C/W4-X 同款红线：@jwt_required + 统一 ok() 信封；只读、绝不写任何数据文件；
 # 各检测项独立降级（任一失败只影响该项，不整页 500、不连带其它项）；缺失为 null、绝不补 0；

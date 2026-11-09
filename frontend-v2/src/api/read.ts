@@ -19,6 +19,7 @@ import {
   FactorAnalysisSchema,
   BacktestSchema,
   MarketPanoramaSchema,
+  PortfolioSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -38,6 +39,7 @@ import {
   type FactorAnalysis,
   type Backtest,
   type MarketPanorama,
+  type Portfolio,
 } from './schemas/read'
 
 /**
@@ -225,4 +227,17 @@ export function getMarketPanorama(params: MarketPanoramaParams = {}): Promise<Ma
   const q = new URLSearchParams()
   q.set('k', String(params.k ?? 8))
   return readValidated(`market-panorama?${q.toString()}`, MarketPanoramaSchema)
+}
+
+// ───────── 持仓中心（portfolio：本地模拟持仓 + FIFO 盈亏 + 收益归因）─────────
+// 45 页 V2 化。持仓为本地模拟/历史数据；现价为最近可得收盘（离线口径可能为静态样本）；
+// 净值曲线为尽力而为的历史还原，curve_available=false 时页面如实标注、不补零。
+export interface PortfolioParams {
+  /** 预留：目前后端读本地统一持仓文件，暂不接受参数；保留接口形状以便后续按账户筛选。 */
+  account?: string
+}
+
+/** GET /api/v2/read/portfolio —— 持仓汇总 / 逐批盈亏 / 收益归因 / 市值占比 / 净值曲线（45 页 V2 化） */
+export function getPortfolio(_params: PortfolioParams = {}): Promise<Portfolio> {
+  return readValidated('portfolio', PortfolioSchema)
 }

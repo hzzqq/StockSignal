@@ -42,6 +42,7 @@ const LazyFactorAnalysis = lazyRouteComponent(() => import('@/features/factor/Fa
 const LazyBacktest = lazyRouteComponent(() => import('@/features/backtest/Backtest'), 'Backtest')
 const LazyMarketPanorama = lazyRouteComponent(() => import('@/features/market/MarketPanorama'), 'MarketPanorama')
 const LazyMarketRegime = lazyRouteComponent(() => import('@/features/market/MarketRegime'), 'MarketRegime')
+const LazyPortfolio = lazyRouteComponent(() => import('@/features/portfolio/Portfolio'), 'Portfolio')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -236,6 +237,12 @@ const regimeRoute = createRoute({
   component: LazyMarketRegime,
 })
 
+const portfolioRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/portfolio',
+  component: LazyPortfolio,
+})
+
 const dataRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/data',
@@ -358,6 +365,7 @@ const routeTree = rootRoute.addChildren([
     backtestRoute,
     panoramaRoute,
     regimeRoute,
+    portfolioRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

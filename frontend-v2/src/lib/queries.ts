@@ -1,6 +1,6 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import * as api from '@/api/read'
-import type { FactorAnalysisParams, BacktestParams, MarketPanoramaParams } from '@/api/read'
+import type { FactorAnalysisParams, BacktestParams, MarketPanoramaParams, PortfolioParams } from '@/api/read'
 import { getSixDim, getFundamentals, getFinancials, getStockKline, getStockIntraday, getIndexQuotes, getIndexKline } from '@/api/stock'
 import { getDiagnostics } from '@/api/diagnostics'
 import type { SixDim, Fundamentals, Financials, StockKline, StockIntraday, IndexQuotes, IndexKline } from '@/api/schemas/stock'
@@ -25,6 +25,7 @@ import type {
   FactorAnalysis,
   Backtest,
   MarketPanorama,
+  Portfolio,
 } from '@/api/schemas/read'
 
 /**
@@ -216,6 +217,14 @@ export function useMarketPanorama(params: MarketPanoramaParams = {}): UseQueryRe
   return useQuery({
     queryKey: ['read', 'market-panorama', params],
     queryFn: () => api.getMarketPanorama(params),
+    staleTime: THIRTY_MIN,
+  })
+}
+
+export function usePortfolio(params: PortfolioParams = {}): UseQueryResult<Portfolio> {
+  return useQuery({
+    queryKey: ['read', 'portfolio', params],
+    queryFn: () => api.getPortfolio(params),
     staleTime: THIRTY_MIN,
   })
 }

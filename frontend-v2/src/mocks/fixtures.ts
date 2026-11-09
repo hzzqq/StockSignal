@@ -439,6 +439,53 @@ export const marketPanorama = {
   note: '市场状态五档=规则可解释分类（modules.market_regime，阈值由全样本分位定）；广度真值=本地历史快照（data/shepherd_history.json，离线零网）；历史相似 ≠ 预测。',
 }
 
+// Tier1 · 持仓中心（portfolio）Mock，字段名与后端 /api/v2/read/portfolio 契约一致。
+// 数值为确定性静态样例（非实时）：本地模拟持仓 + FIFO 盈亏 + 收益归因 + 尽力而为净值曲线。
+// ⚠️ 缺失值与曲线不可用如实保留，禁止补 0 / 禁止用当前日期兜底。
+const pfDates = (() => {
+  const out: string[] = []
+  const d = new Date('2026-01-01T00:00:00Z')
+  for (let i = 0; i < 24; i++) {
+    const x = new Date(d)
+    x.setUTCDate(d.getUTCDate() + i)
+    out.push(x.toISOString().slice(0, 10))
+  }
+  return out
+})()
+
+export const portfolio = {
+  summary: {
+    total_cost: 212000,
+    total_market_value: 220500,
+    total_pnl: 8500,
+    total_pnl_pct: 4.01,
+    position_count: 3,
+  },
+  positions: [
+    { ticker: '600519', name: '贵州茅台', buy_date: '2026-01-02', buy_price: 1700, shares: 100, remaining_shares: 100, cost: 170000, current_price: 1800, market_value: 180000, realized_pnl: 0, pnl: 10000, pnl_pct: 5.88 },
+    { ticker: '000001', name: '平安银行', buy_date: '2026-01-03', buy_price: 12, shares: 1000, remaining_shares: 500, cost: 6000, current_price: 11, market_value: 5500, realized_pnl: 0, pnl: -500, pnl_pct: -8.33 },
+    { ticker: '300750', name: '宁德时代', buy_date: '2026-01-04', buy_price: 180, shares: 200, remaining_shares: 200, cost: 36000, current_price: 175, market_value: 35000, realized_pnl: 0, pnl: -1000, pnl_pct: -2.78 },
+  ],
+  attribution: [
+    { ticker: '600519', name: '贵州茅台', pnl: 10000, pnl_pct: 5.88, contribution: 117.65 },
+    { ticker: '000001', name: '平安银行', pnl: -500, pnl_pct: -8.33, contribution: -5.88 },
+    { ticker: '300750', name: '宁德时代', pnl: -1000, pnl_pct: -2.78, contribution: -11.76 },
+  ],
+  weights: [
+    { ticker: '600519', name: '贵州茅台', weight_pct: 81.63 },
+    { ticker: '000001', name: '平安银行', weight_pct: 2.49 },
+    { ticker: '300750', name: '宁德时代', weight_pct: 15.87 },
+  ],
+  curve: pfDates.map((date, i) => ({
+    date,
+    portfolio: Number((100 + i * 0.4 + (i % 3)).toFixed(2)),
+    benchmark: Number((100 + i * 0.25 - (i % 4)).toFixed(2)),
+  })),
+  curve_available: true,
+  date: null,
+  note: '持仓为本地模拟/历史数据（data/portfolio.csv），仅供学习不构成投资建议；现价为最近可得收盘（离线口径可能为静态样本）；净值曲线为尽力而为的历史还原，缺失则如实标注。',
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -863,6 +910,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/factor-analysis', needs_params: true, probe_path: null, required_query: ['codes'], sample_query: 'codes=600519,000001,300750&days=250&factor=momentum&n_layers=5&forward=1' },
   { path: '/api/v2/read/backtest', needs_params: true, probe_path: null, required_query: ['ticker'], sample_query: 'ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor' },
   { path: '/api/v2/read/market-panorama', needs_params: true, probe_path: null, required_query: ['k'], sample_query: 'k=8' },
+  { path: '/api/v2/read/portfolio', needs_params: false, probe_path: '/api/v2/read/portfolio', required_query: [], sample_query: null },
 ]
 
 export const diagnostics = {

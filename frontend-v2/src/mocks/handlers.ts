@@ -102,6 +102,8 @@ export const handlers = [
   http.get('/api/v2/read/backtest', () => ok(fixtures.backtest)),
   // 市场全景 / 状态机（56/57 页 V2 化）：结构对齐后端 market-panorama()；演示数值非真实行情。
   http.get('/api/v2/read/market-panorama', () => ok(fixtures.marketPanorama)),
+  // 持仓中心（45 页 V2 化）：结构对齐后端 portfolio()；演示数值非真实行情。
+  http.get('/api/v2/read/portfolio', () => ok(fixtures.portfolio)),
   // W4-A · 个股六维评分：按 code query 分派；非法/缺 code 返回 400 invalid_param 信封。
   http.get('/api/v2/read/six-dim', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')
