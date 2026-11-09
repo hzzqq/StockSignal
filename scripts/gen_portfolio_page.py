@@ -16,8 +16,8 @@
 3. **可重跑**——每次迭代后重跑一次，门面永远与代码同步。
 
 用法：
-    python scripts/gen_portfolio_page.py            # 自动采集（含 pytest 收集测试数）
-    python scripts/gen_portfolio_page.py --fast     # 跳过 pytest（用 AST 计数，秒出）
+    python scripts/gen_portfolio_page.py            # 自动采集（测试数恒为 AST 统计，环境无关、确定性）
+    python scripts/gen_portfolio_page.py --fast     # 跳过 pytest（测试数同为 AST 口径，秒出）
 
 输出：docs/index.html（GitHub Pages「main / docs」可直接作为站点首页）
 """
@@ -121,10 +121,12 @@ def _ast_test_count() -> int:
 
 
 def _pytest_count() -> int | None:
-    """真实「用例数」（含 parametrize 展开）——这是对外引用时应报的口径。
+    """真实「执行用例数」（含 parametrize 展开）——仅供内部参考，**不作为对外口径**。
 
-    覆盖 tests/ + backend/tests/ + modules/tests/ 三处（modules/tests 此前被漏数，
-    导致对外少报约 35 用例，与「诚实口径」红线冲突）。
+    覆盖 tests/ + backend/tests/ + modules/tests/ 三处。此数依赖 pytest 收集环境，
+    会因可选依赖（fastapi/live）缺失而漂移（本地 5432 / CI 5437），对外宣称口径
+    已改为 ``_ast_test_count()``（测试函数数，环境无关、确定性）。保留本函数用于
+    需要「实际执行用例数」的场合（如本地自查），但公开物料不得引用它。
     """
     try:
         r = subprocess.run(
@@ -237,7 +239,12 @@ def collect(fast: bool = False) -> dict:
     src_paths = [p for p in src_paths if os.sep + "tests" + os.sep not in p]
     test_paths = _all_test_paths()
 
-    tests = None if fast else _pytest_count()
+    # 对外「测试数」统一采用 AST 统计的测试函数数——环境无关、确定性、零依赖。
+    # 彻底消除 pytest 收集因可选依赖（fastapi/live）缺失导致的跨环境漂移
+    # （曾出现本地 5432、CI 5437 两套数字互相矛盾，违反「诚实口径」红线）。
+    # 若需「含参数化展开的真实执行用例数」，请改用 _pytest_count()（但不再作为
+    # 对外口径，因其天生随安装环境漂移）。
+    tests = _ast_test_count()
     hist = _git("log", "--reverse", "--format=%ad", "--date=short").splitlines()
 
     stats = {
@@ -248,8 +255,8 @@ def collect(fast: bool = False) -> dict:
         "src_loc": _lines(src_paths) + _lines([os.path.join(ROOT, "app.py")]),
         "test_loc": _lines(test_paths),
         "test_files": len([p for p in test_paths if os.path.basename(p).startswith("test")]),
-        "tests": tests or _ast_test_count(),
-        "tests_exact": tests is not None,
+        "tests": tests,
+        "tests_exact": True,
         "guards": _guard_test_files(),
         "commits": int(_git("rev-list", "--count", "HEAD") or 0),
         "days": _git_days(),
@@ -449,7 +456,7 @@ HTML = """<!DOCTYPE html>
       <div class="stat"><div class="n">@PAGES@</div><div class="l">功能页面（Streamlit 多页）</div><div class="x">行情/事件/资金/情绪/策略/交易/AI</div></div>
       <div class="stat"><div class="n">@ROUTES@</div><div class="l">后端 REST 端点</div><div class="x">Flask + JWT 鉴权</div></div>
       <div class="stat"><div class="n">@SRC_LOC@</div><div class="l">行自研源码</div><div class="x">@PY_FILES@ 个 Python 文件</div></div>
-      <div class="stat"><div class="n">@TESTS@</div><div class="l">自动化测试用例</div><div class="x">@TEST_FILES@ 个测试文件</div></div>
+      <div class="stat"><div class="n">@TESTS@</div><div class="l">自动化测试</div><div class="x">@TEST_FILES@ 个测试文件</div></div>
       <div class="stat"><div class="n">@BREADTH@</div><div class="l">真实交易日广度基座</div><div class="x">@BREADTH_SPAN@ · 全市场广度</div></div>
       <div class="stat"><div class="n">@STOCKS@</div><div class="l">覆盖标的</div><div class="x">逐股日线缓存重建</div></div>
       <div class="stat"><div class="n">持续迭代</div><div class="l">Git 提交</div><div class="x">@DAYS@ 个工作日 · @SPAN@ · 提交数不写死</div></div>

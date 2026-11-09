@@ -437,19 +437,21 @@ def test_test_claim_scanner_catches_real_styles():
 
 
 def test_public_test_count_equals_generator_truth():
-    """所有公开物料的测试数必须等于 pytest 实测用例数，漂移即红。
+    """所有公开物料的测试数必须等于生成器 AST 实测（测试函数数），漂移即红。
+
+    口径变更（2026-11-09 收口）：对外「测试数」改用 ``_ast_test_count()`` 统计的
+    测试函数数——环境无关、确定性、零依赖，彻底消除 pytest 收集因可选依赖
+    （fastapi/live）缺失导致的跨环境漂移（本地 5432 / CI 5437 互相矛盾，违反
+    「诚实口径」红线）。公开物料不得再引用 pytest 参数化展开数。
 
     真实故障（2026-11-09）：README / promo / publish-kit 写 5086、
     docs/index.html 写 5,418、生成器实测 5,422 —— 三套数字互相矛盾，
     而 F 段只锁了端点/页面/py_files，从没锁过测试数本身。
     """
     gen = _load_generator()
-    stats = gen.collect(fast=False)  # 真实 pytest collect（含 parametrize 展开）
-    assert stats["tests_exact"], (
-        "无法实算 pytest 用例数；禁止用陈旧/估算数字对外，请先修复收集链路"
-    )
+    stats = gen.collect(fast=True)  # 测试数 == _ast_test_count()，不依赖 pytest 收集环境
     expected = stats["tests"]
-    assert expected >= 1000, f"只收集到 {expected} 个用例，收集链路疑似失效"
+    assert expected >= 1000, f"只统计到 {expected} 个测试函数，扫描疑似失效"
     bad: dict[str, list[int]] = {}
     for rel in PUBLIC_DOCS:
         claims = _test_claims(_body(rel))

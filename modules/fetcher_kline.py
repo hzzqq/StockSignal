@@ -70,6 +70,13 @@ from modules.fetcher_core import (  # noqa: F401
     _synth_us_index_intraday,
     SAFE_IDENT_RE,
 )
+# T-250：日线全量键（daily_full / daily_fullcov）接线所需纯函数与常量。
+from modules.fetcher_core import (  # noqa: F401
+    _daily_interval_covers,
+    _daily_slice_by_window,
+    _daily_date_str,
+    CACHE_NO_EXPIRE_SECONDS,
+)
 
 # 代理 IP 池（免费，best-effort 抗封禁）：仅当 SS_PROXY_POOL=1 时启用。
 # 通过进程级 HTTPS_PROXY/HTTP_PROXY 让 akshare / requests 继承轮换出口 IP。
@@ -249,9 +256,32 @@ class KlineMixin:
 
         conn = self._get_conn()
         try:
-            # 缓存优先
+            # ── T-250：daily_full 全量键快路径 ──
+            # 若覆盖区间元数据完整包含本次请求区间，且全量行未过期 → 直接切片返回，
+            # 跳过四源竞速（换任何日期区间都命中同一把 daily_full 键，不再回源）。
+            # 诚实红线：cov 残缺 / 无界请求 / 未覆盖 → 一律回源，绝不拿残缺序列冒充完整区间。
             today_str = now_cst_str("%Y-%m-%d")
             max_age_hours = 6 if end == today_str else None
+            cov = self._read_cache(
+                conn, "daily_cache",
+                _build_cache_key("daily_fullcov", symbol=symbol, adjust=adjust),
+                as_dataframe=False, max_age_seconds=CACHE_NO_EXPIRE_SECONDS,
+            )
+            if isinstance(cov, dict) and _daily_interval_covers(cov, start, end):
+                cached_full = self._read_cache(
+                    conn, "daily_cache",
+                    _build_cache_key("daily_full", symbol=symbol, adjust=adjust),
+                    max_age_hours=max_age_hours,
+                )
+                if cached_full is not None and not cached_full.empty:
+                    sliced = _daily_slice_by_window(cached_full, start, end)
+                    if not sliced.empty:
+                        observe_cache_hit("L1", True)  # T-272①：L1 SQLite 命中计数
+                        _meta("cache", False, sliced)
+                        _l0_put(sliced, "cache", False)
+                        return sliced
+
+            # 缓存优先（旧形态 daily 区间键，逐字节不变）
             cached = self._read_cache(conn, "daily_cache", cache_key, max_age_hours=max_age_hours)
             if cached is not None:
                 observe_cache_hit("L1", True)  # T-272①：L1 SQLite 命中计数
@@ -337,11 +367,62 @@ class KlineMixin:
             df = df[available + [c for c in ["amount", "change_pct"] if c in df.columns]]
             df = df.sort_values("date").reset_index(drop=True)
             self._write_cache(conn, "daily_cache", cache_key, df)
+            # ── T-250：写回 daily_full 全量键 ──
+            # 并集合并既有 daily_full 序列（按 date 去重），cov 记录**真实数据区间**
+            # （union 后实际 min/max 日期），绝不夸大覆盖范围；仅 LIVE 成功才写，避免用 stale 污染。
+            self._write_daily_full(conn, symbol, adjust, df)
             _meta("live", False, df)
             _l0_put(df, "live", False)
             return df
         finally:
             conn.close()
+
+    # ── T-250：daily_full 全量键写回（并集合并 + 诚实覆盖区间）──
+    def _write_daily_full(self, conn, symbol, adjust, new_df):
+        """把一次 LIVE 取到的日线并集合并进 daily_full 全量序列，并写回覆盖区间元数据。
+
+        诚实红线（与 fetcher_core 文档一致）：
+        - cov 只记录 daily_full **真实包含**的日期区间（union 后实际 min/max），
+          绝不写比实际数据更宽的覆盖（否则下次请求会被误判为已覆盖而返回残缺切片）；
+        - 仅合并既有 daily_full（若存在）与新序列，按 date 去重，避免重复行；
+        - 不改动任何调用方拿到的返回值（本方法纯副作用：写缓存）。
+        """
+        if new_df is None or not isinstance(new_df, pd.DataFrame) or new_df.empty:
+            return
+        if "date" not in new_df.columns:
+            return
+        full_key = _build_cache_key("daily_full", symbol=symbol, adjust=adjust)
+        cov_key = _build_cache_key("daily_fullcov", symbol=symbol, adjust=adjust)
+        try:
+            existing = self._read_cache(
+                conn, "daily_cache", full_key, max_age_seconds=CACHE_NO_EXPIRE_SECONDS
+            )
+        except Exception:  # noqa: BLE001 - 读取失败不阻断主流程，按无既有处理
+            existing = None
+        if existing is not None and not existing.empty and "date" in existing.columns:
+            # 诚实并集合并：两边 date 统一为 datetime，避免 str/Timestamp 混排导致 sort_values 报错。
+            new_norm = new_df.copy()
+            new_norm["date"] = pd.to_datetime(new_norm["date"], errors="coerce")
+            existing_norm = existing.copy()
+            existing_norm["date"] = pd.to_datetime(existing_norm["date"], errors="coerce")
+            merged = (
+                pd.concat([existing_norm, new_norm], ignore_index=True)
+                .drop_duplicates(subset=["date"], keep="last")
+                .sort_values("date")
+                .reset_index(drop=True)
+            )
+        else:
+            new_norm = new_df.copy()
+            new_norm["date"] = pd.to_datetime(new_norm["date"], errors="coerce")
+            merged = new_norm.sort_values("date").reset_index(drop=True)
+        self._write_cache(conn, "daily_cache", full_key, merged)
+        dates = pd.to_datetime(merged["date"], errors="coerce").dropna()
+        if not dates.empty:
+            cov = {
+                "start": _daily_date_str(dates.min()),
+                "end": _daily_date_str(dates.max()),
+            }
+            self._write_cache(conn, "daily_cache", cov_key, cov)
 
     def get_kline(self, symbol, start="2024-01-01", end=None, period="daily", adjust="qfq"):
         """
