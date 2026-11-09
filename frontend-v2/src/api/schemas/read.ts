@@ -779,3 +779,28 @@ export const MacroDataSchema = z
   })
   .catchall(z.unknown())
 export type MacroData = z.infer<typeof MacroDataSchema>
+
+// ───────── 龙虎榜（85 页 V2 化）─────────
+export const DragonTigerRowSchema = z
+  .object({
+    code: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
+    net_yi: z.number().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type DragonTigerRow = z.infer<typeof DragonTigerRowSchema>
+
+export const DragonTigerSchema = z
+  .object({
+    date: z.string().nullable().optional(),
+    count: z.number().nullable().optional(),
+    net_col: z.string().nullable().optional(),
+    net_sum_yi: z.number().nullable().optional(),
+    buy_top: z.array(DragonTigerRowSchema).nullable().optional(),
+    sell_top: z.array(DragonTigerRowSchema).nullable().optional(),
+    detail: z.array(z.record(z.string(), z.unknown())).nullable().optional(),
+    unavailable: z.array(z.unknown()).optional(),
+    note: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type DragonTiger = z.infer<typeof DragonTigerSchema>

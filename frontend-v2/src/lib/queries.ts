@@ -29,6 +29,7 @@ import type {
   FundFlow,
   TradingAccount,
   MacroData,
+  DragonTiger,
 } from '@/api/schemas/read'
 
 /**
@@ -257,6 +258,16 @@ export function useMacroData(): UseQueryResult<MacroData> {
   return useQuery({
     queryKey: ['read', 'macro-data'],
     queryFn: api.getMacroData,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+// ───────── 龙虎榜（dragon-tiger / 85 页 V2 化）─────────
+// 复用 modules.lhb：东财龙虎榜明细；净买列识别不到→buy/sell_top 降级 None（detail 仍保留）。
+export function useDragonTiger(date?: string): UseQueryResult<DragonTiger> {
+  return useQuery({
+    queryKey: ['read', 'dragon-tiger', date ?? 'today'],
+    queryFn: () => api.getDragonTiger(date),
     staleTime: THIRTY_MIN,
   })
 }

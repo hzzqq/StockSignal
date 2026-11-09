@@ -2321,6 +2321,122 @@ def macro_data():
     return ok(data=_sanitize(data), message="macro-data")
 
 
+# ───────── 龙虎榜（85 页 V2 化）─────────
+def _lhb_yi(v):
+    """净买额（元）→ 亿元，非有限值→None。"""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(f) or math.isinf(f):
+        return None
+    return f / 1e8
+
+
+def _lhb_str(v):
+    if v is None:
+        return None
+    try:
+        if isinstance(v, float) and math.isnan(v):
+            return None
+    except TypeError:
+        pass
+    s = str(v)
+    if s in ("", "nan", "None", "NaN"):
+        return None
+    return s
+
+
+def _lhb_normalize(part):
+    """summarize 产出的 buy_top/sell_top DataFrame → [{code,name,net_yi}]；空→None。"""
+    if part is None or not hasattr(part, "empty") or part.empty:
+        return None
+    from modules import lhb as _lhb
+    code_col = _lhb.find_col(part, _lhb.CODE_CANDS)
+    name_col = _lhb.find_col(part, _lhb.NAME_CANDS)
+    rows = []
+    for _, r in part.iterrows():
+        rows.append({
+            "code": _lhb_str(r[code_col]) if code_col else None,
+            "name": _lhb_str(r[name_col]) if name_col else None,
+            "net_yi": _lhb_yi(r.get("净买额")),
+        })
+    return rows
+
+
+def _lhb_records(df, cap=200):
+    """原始明细 → list[dict]（to_json 已把 NaN 转 null，且产出原生数值类型）。"""
+    if df is None or not hasattr(df, "empty") or df.empty:
+        return None
+    try:
+        import json
+        return json.loads(df.head(cap).to_json(orient="records"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+@bp.get("/dragon-tiger")
+@jwt_required
+def dragon_tiger():
+    """龙虎榜只读聚合（85 页 V2 化）。复用 modules.lhb.fetch_lhb(date) + summarize(df)。
+
+    红线（与 modules.lhb 一致）：
+    - 取不到（akshare 缺失 / 网络失败 / 非交易日）→ 仍 200、unavailable=['lhb_fetch_failed']，不 500。
+    - summarize 返回 None（净买额列识别不到）→ 不猜列编资金方向，buy_top/sell_top 降级为 None，
+      但诚实保留原始明细（detail），让用户自己看。
+    - 所有数值后端已把 NaN/Inf 清洗为 null，前端不补 0。
+
+    GET /api/v2/read/dragon-tiger?date=YYYYMMDD  （date 缺省用今天）
+    返回 date/count/net_col/net_sum_yi/buy_top/sell_top(各 [code,name,net_yi])/detail/ unavailable。
+    """
+    date = (request.args.get("date") or "").strip() or None
+    try:
+        from modules import lhb
+        df = lhb.fetch_lhb(date)
+    except Exception:  # noqa: BLE001
+        df = None
+
+    if df is None:
+        data = {
+            "date": date,
+            "count": None,
+            "net_col": None,
+            "net_sum_yi": None,
+            "buy_top": None,
+            "sell_top": None,
+            "detail": None,
+            "unavailable": ["lhb_fetch_failed"],
+        }
+        return ok(data=_sanitize(data), message="dragon-tiger")
+
+    summary = lhb.summarize(df)
+    if summary is None:
+        # 明细取到，但净买列识别不到：不显示排名（宁缺毋滥），诚实给原始明细。
+        data = {
+            "date": date,
+            "count": None,
+            "net_col": None,
+            "net_sum_yi": None,
+            "buy_top": None,
+            "sell_top": None,
+            "detail": _lhb_records(df, cap=200),
+            "unavailable": ["net_col_missing"],
+        }
+        return ok(data=_sanitize(data), message="dragon-tiger")
+
+    data = {
+        "date": date,
+        "count": summary["count"],
+        "net_col": summary["net_col"],
+        "net_sum_yi": _lhb_yi(summary["net_sum"]),
+        "buy_top": _lhb_normalize(summary["buy_top"]),
+        "sell_top": _lhb_normalize(summary["sell_top"]),
+        "detail": _lhb_records(df, cap=200),
+        "unavailable": [],
+    }
+    return ok(data=_sanitize(data), message="dragon-tiger")
+
+
 # ───────── 数据源 / 接口检测（diagnostics）─────────
 # 与 W4-B/W4-C/W4-X 同款红线：@jwt_required + 统一 ok() 信封；只读、绝不写任何数据文件；
 # 各检测项独立降级（任一失败只影响该项，不整页 500、不连带其它项）；缺失为 null、绝不补 0；

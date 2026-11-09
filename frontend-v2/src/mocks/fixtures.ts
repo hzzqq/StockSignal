@@ -583,6 +583,27 @@ export const macroData = {
   note: '宏观数据来自国家统计局 / 央行 / 东方财富 / 新浪等公开源（macro_data：库优先 / 网络兜底），离线或接口受限时逐指标诚实降级（取不到显示「—」）。全球风险评分为规则化合成，非模型预测；非实时、非投资建议。',
 }
 
+// ───────── 龙虎榜（dragon-tiger / 85 页 V2 化）─────────
+// 数值为演示、非真实行情；净买额单位亿元（net_yi）；detail 为原始明细行（列名随数据源版本变化）。
+export const dragonTiger = {
+  date: '20261109',
+  count: 3,
+  net_col: '净买额',
+  net_sum_yi: 2.1,
+  buy_top: [
+    { code: '600519', name: '贵州茅台', net_yi: 2.5 },
+    { code: '300750', name: '宁德时代', net_yi: 0.8 },
+  ],
+  sell_top: [{ code: '000001', name: '平安银行', net_yi: -1.2 }],
+  detail: [
+    { 代码: '600519', 名称: '贵州茅台', 净买额: 2.5e8 },
+    { 代码: '000001', 名称: '平安银行', 净买额: -1.2e8 },
+    { 代码: '300750', 名称: '宁德时代', 净买额: 0.8e8 },
+  ],
+  unavailable: [],
+  note: '龙虎榜明细=东财接口（modules.lhb.fetch_lhb，30 分钟缓存，按交易日更新，非实时行情）；净买额口径以数据源列为准。',
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -1011,6 +1032,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/fund-flow', needs_params: false, probe_path: '/api/v2/read/fund-flow', required_query: [], sample_query: null },
   { path: '/api/v2/read/trading-account', needs_params: false, probe_path: '/api/v2/read/trading-account', required_query: [], sample_query: null },
   { path: '/api/v2/read/macro-data', needs_params: false, probe_path: '/api/v2/read/macro-data', required_query: [], sample_query: null },
+  { path: '/api/v2/read/dragon-tiger', needs_params: false, probe_path: '/api/v2/read/dragon-tiger', required_query: [], sample_query: null },
 ]
 
 export const diagnostics = {

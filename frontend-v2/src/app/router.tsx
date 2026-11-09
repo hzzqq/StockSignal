@@ -46,6 +46,7 @@ const LazyPortfolio = lazyRouteComponent(() => import('@/features/portfolio/Port
 const LazyFundFlow = lazyRouteComponent(() => import('@/features/fundflow/FundFlow'), 'FundFlow')
 const LazyTradingAccount = lazyRouteComponent(() => import('@/features/trading/TradingAccount'), 'TradingAccount')
 const LazyMacroData = lazyRouteComponent(() => import('@/features/macro/MacroData'), 'MacroData')
+const LazyDragonTiger = lazyRouteComponent(() => import('@/features/dragontiger/DragonTiger'), 'DragonTiger')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -264,6 +265,12 @@ const macroDataRoute = createRoute({
   component: LazyMacroData,
 })
 
+const dragonTigerRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/dragon-tiger',
+  component: LazyDragonTiger,
+})
+
 const dataRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/data',
@@ -390,6 +397,7 @@ const routeTree = rootRoute.addChildren([
     fundFlowRoute,
     tradingAccountRoute,
     macroDataRoute,
+    dragonTigerRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

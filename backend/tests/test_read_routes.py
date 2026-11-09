@@ -66,6 +66,7 @@ ENDPOINTS = [
     "/api/v2/read/fund-flow",
     "/api/v2/read/trading-account",
     "/api/v2/read/macro-data",
+    "/api/v2/read/dragon-tiger",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -1536,4 +1537,73 @@ def test_macro_data_endpoint(client, token, monkeypatch):
     assert resp3.status_code == 200
     assert resp3.get_json()["data"]["unavailable"] == ["macro_fetch_failed"]
     assert resp3.get_json()["data"]["indicators"] == {}
+
+
+def test_dragon_tiger_endpoint(client, token, monkeypatch):
+    """dragon-tiger（85 龙虎榜）：fetch_lhb→DataFrame + summarize→摘要；
+    净买列识别不到→buy/sell_top 降级 None（detail 保留）；fetch 失败→仍 200、unavailable=['lhb_fetch_failed']。
+    """
+    import pandas as pd
+    from modules import lhb as lhb_mod
+
+    sample_df = pd.DataFrame({
+        "代码": ["600519", "000001", "300750"],
+        "名称": ["贵州茅台", "平安银行", "宁德时代"],
+        "净买额": [2.5e8, -1.2e8, 0.8e8],
+    })
+    summary = {
+        "count": 3,
+        "net_col": "净买额",
+        "net_sum": 2.1e8,
+        "buy_top": sample_df,
+        "sell_top": sample_df,
+    }
+
+    # 1) 充分取数 -> ok 信封 + count/net_col/net_sum_yi + buy/sell_top 已归一化
+    monkeypatch.setattr(lhb_mod, "fetch_lhb", lambda date=None: sample_df)
+    monkeypatch.setattr(lhb_mod, "summarize", lambda df: summary)
+    resp = client.get("/api/v2/read/dragon-tiger", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["count"] == 3
+    assert d["net_col"] == "净买额"
+    assert d["net_sum_yi"] == 2.1  # 2.1e8 / 1e8
+    assert isinstance(d["buy_top"], list) and len(d["buy_top"]) == 3
+    assert d["buy_top"][0]["code"] == "600519"
+    assert d["buy_top"][0]["name"] == "贵州茅台"
+    assert d["buy_top"][0]["net_yi"] == 2.5
+    assert isinstance(d["sell_top"], list) and len(d["sell_top"]) == 3
+    assert d["detail"] is not None and len(d["detail"]) == 3  # 原始明细保留
+    assert d["unavailable"] == []
+
+    # 2) summarize 返回 None（净买列识别不到）→ buy/sell_top 降级 None，detail 仍保留
+    monkeypatch.setattr(lhb_mod, "summarize", lambda df: None)
+    resp2 = client.get("/api/v2/read/dragon-tiger", headers={"Authorization": f"Bearer {token}"})
+    assert resp2.status_code == 200
+    d2 = resp2.get_json()["data"]
+    assert d2["buy_top"] is None
+    assert d2["sell_top"] is None
+    assert d2["detail"] is not None  # 宁缺毋滥，但明细可查
+    assert d2["unavailable"] == ["net_col_missing"]
+
+    # 3) fetch_lhb 返回 None（取不到）→ 仍 200、unavailable=['lhb_fetch_failed']、buy_top None
+    monkeypatch.setattr(lhb_mod, "fetch_lhb", lambda date=None: None)
+    resp3 = client.get("/api/v2/read/dragon-tiger", headers={"Authorization": f"Bearer {token}"})
+    assert resp3.status_code == 200
+    d3 = resp3.get_json()["data"]
+    assert d3["buy_top"] is None
+    assert d3["detail"] is None
+    assert d3["unavailable"] == ["lhb_fetch_failed"]
+
+    # 4) fetch_lhb 抛异常 → 仍 200（不 500）、unavailable=['lhb_fetch_failed']
+    def _boom(date=None):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(lhb_mod, "fetch_lhb", _boom)
+    resp4 = client.get("/api/v2/read/dragon-tiger", headers={"Authorization": f"Bearer {token}"})
+    assert resp4.status_code == 200
+    d4 = resp4.get_json()["data"]
+    assert d4["buy_top"] is None
+    assert d4["unavailable"] == ["lhb_fetch_failed"]
 

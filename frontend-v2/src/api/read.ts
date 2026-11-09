@@ -23,6 +23,7 @@ import {
   FundFlowSchema,
   TradingAccountSchema,
   MacroDataSchema,
+  DragonTigerSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -46,6 +47,7 @@ import {
   type FundFlow,
   type TradingAccount,
   type MacroData,
+  type DragonTiger,
 } from './schemas/read'
 
 /**
@@ -264,4 +266,10 @@ export function getTradingAccount(): Promise<TradingAccount> {
 /** GET /api/v2/read/macro-data —— 宏观数据聚合（国内 + 全球指标 + 全球风险评分，84 页 V2 化） */
 export function getMacroData(): Promise<MacroData> {
   return readValidated('macro-data', MacroDataSchema)
+}
+
+/** GET /api/v2/read/dragon-tiger?date=YYYYMMDD —— 龙虎榜席位级资金博弈（85 页 V2 化） */
+export function getDragonTiger(date?: string): Promise<DragonTiger> {
+  const path = date ? `dragon-tiger?date=${encodeURIComponent(date)}` : 'dragon-tiger'
+  return readValidated(path, DragonTigerSchema)
 }
