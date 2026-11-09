@@ -18,6 +18,7 @@ import {
   DataRefreshStateSchema,
   FactorAnalysisSchema,
   BacktestSchema,
+  MarketPanoramaSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -36,6 +37,7 @@ import {
   type DataRefreshState,
   type FactorAnalysis,
   type Backtest,
+  type MarketPanorama,
 } from './schemas/read'
 
 /**
@@ -209,4 +211,18 @@ export function getBacktest(params: BacktestParams): Promise<Backtest> {
   if (params.end) q.set('end', params.end)
   q.set('strategy', params.strategy ?? 'multi_factor')
   return readValidated(`backtest?${q.toString()}`, BacktestSchema)
+}
+
+// ───────── 市场全景 / 状态机（market-panorama：regime_report + shepherd 广度）─────────
+// 56 页「市场状态机」与 57 页「市场全景」共享同一后端；regime 不可用时后端返回
+// status=error（insufficient_data），client 抛 ApiError → 页面渲染错误态，不兜底。
+export interface MarketPanoramaParams {
+  k?: number
+}
+
+/** GET /api/v2/read/market-panorama —— 市场状态五档 + 历史相似日 + 广度快照（56/57 页 V2 化） */
+export function getMarketPanorama(params: MarketPanoramaParams = {}): Promise<MarketPanorama> {
+  const q = new URLSearchParams()
+  q.set('k', String(params.k ?? 8))
+  return readValidated(`market-panorama?${q.toString()}`, MarketPanoramaSchema)
 }

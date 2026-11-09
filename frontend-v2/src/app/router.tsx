@@ -40,6 +40,8 @@ const LazyLeadLagMatrixView = lazyRouteComponent(() => import('@/features/matrix
 const LazyGuideView = lazyRouteComponent(() => import('@/features/guide/GuideView'), 'GuideView')
 const LazyFactorAnalysis = lazyRouteComponent(() => import('@/features/factor/FactorAnalysis'), 'FactorAnalysis')
 const LazyBacktest = lazyRouteComponent(() => import('@/features/backtest/Backtest'), 'Backtest')
+const LazyMarketPanorama = lazyRouteComponent(() => import('@/features/market/MarketPanorama'), 'MarketPanorama')
+const LazyMarketRegime = lazyRouteComponent(() => import('@/features/market/MarketRegime'), 'MarketRegime')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -222,6 +224,18 @@ const backtestRoute = createRoute({
   component: LazyBacktest,
 })
 
+const panoramaRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/panorama',
+  component: LazyMarketPanorama,
+})
+
+const regimeRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/regime',
+  component: LazyMarketRegime,
+})
+
 const dataRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/data',
@@ -342,6 +356,8 @@ const routeTree = rootRoute.addChildren([
     guideRoute,
     factorRoute,
     backtestRoute,
+    panoramaRoute,
+    regimeRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

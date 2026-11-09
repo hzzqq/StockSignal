@@ -379,6 +379,66 @@ export const backtest = {
   note: '单标的独立回测；取数为空时诚实返回 insufficient_data 而非补零曲线；total_return/sharpe/win_rate 等口径与 modules.backtest.Backtester 一致。',
 }
 
+// W4 后续簇 · 市场全景 / 状态机（market-panorama）Mock，字段名与后端契约一致。
+// 数值为确定性静态样例（非实时），与 modules.market_regime / modules.shepherd_history 口径一致：
+// null = 字段缺失、不补 0；regime 与 shepherd 同页共享（56/57 两页复用）。
+const mpDates = (() => {
+  const out: string[] = []
+  let d = new Date('2026-08-01T00:00:00Z')
+  for (let i = 0; i < 20; i++) {
+    out.push(d.toISOString().slice(0, 10))
+    d = new Date(d.getTime() + 86_400_000)
+  }
+  return out
+})()
+
+export const marketPanorama = {
+  k: 8,
+  regime: {
+    available: true,
+    data: { rows: 4771, start: '2007-01-04', end: '2026-08-21' },
+    latest: {
+      date: mpDates[mpDates.length - 1],
+      state: '震荡',
+      confidence: 0.42,
+      metrics: { red_ratio: 51.3, limit_up: 40, limit_down: 8 },
+    },
+    state_distribution: { 普涨: 612, 结构牛: 488, 震荡: 2210, 恐慌: 905, 暴跌: 556 },
+    transition_matrix: {
+      普涨: { 普涨: 0.2, 结构牛: 0.2, 震荡: 0.2, 恐慌: 0.2, 暴跌: 0.2 },
+      结构牛: { 普涨: 0.2, 结构牛: 0.2, 震荡: 0.2, 恐慌: 0.2, 暴跌: 0.2 },
+      震荡: { 普涨: 0.2, 结构牛: 0.2, 震荡: 0.2, 恐慌: 0.2, 暴跌: 0.2 },
+      恐慌: { 普涨: 0.2, 结构牛: 0.2, 震荡: 0.2, 恐慌: 0.2, 暴跌: 0.2 },
+      暴跌: { 普涨: 0.2, 结构牛: 0.2, 震荡: 0.2, 恐慌: 0.2, 暴跌: 0.2 },
+    },
+    analogs: [
+      { date: '2023-05-04', distance: 1.2, state: '普涨', metrics: { red_ratio: 62.0, limit_up: 55, limit_down: 3 },
+        forward: { d5: { avg_red: 55.0, up_frac: 0.6, median_delta: 1.1 } } },
+      { date: '2021-09-15', distance: 1.8, state: '震荡', metrics: { red_ratio: 49.0, limit_up: 30, limit_down: 12 },
+        forward: { d5: { avg_red: 50.5, up_frac: 0.52, median_delta: -0.4 } } },
+    ],
+  },
+  shepherd_latest: {
+    date: mpDates[mpDates.length - 1],
+    red_ratio: 51.3,
+    limit_up: 40,
+    limit_down: 8,
+    connect_hl: 6,
+    zt_fail_ratio: 0.19,
+  },
+  shepherd_series: mpDates.map((date, i) => ({
+    date,
+    red_ratio: Number((48 + 6 * Math.sin(i / 3)).toFixed(1)),
+    limit_up: 30 + (i % 20),
+    limit_down: 8 + (i % 10),
+    connect_hl: 4 + (i % 5),
+    zt_fail_ratio: Number((0.2 - 0.01 * (i % 8)).toFixed(2)),
+  })),
+  shepherd_unavailable: [['zt_fail_ratio', '该日数据源缺失']],
+  date: mpDates[mpDates.length - 1],
+  note: '市场状态五档=规则可解释分类（modules.market_regime，阈值由全样本分位定）；广度真值=本地历史快照（data/shepherd_history.json，离线零网）；历史相似 ≠ 预测。',
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -802,6 +862,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/stock-intraday', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
   { path: '/api/v2/read/factor-analysis', needs_params: true, probe_path: null, required_query: ['codes'], sample_query: 'codes=600519,000001,300750&days=250&factor=momentum&n_layers=5&forward=1' },
   { path: '/api/v2/read/backtest', needs_params: true, probe_path: null, required_query: ['ticker'], sample_query: 'ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor' },
+  { path: '/api/v2/read/market-panorama', needs_params: true, probe_path: null, required_query: ['k'], sample_query: 'k=8' },
 ]
 
 export const diagnostics = {

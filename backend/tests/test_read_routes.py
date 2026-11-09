@@ -61,6 +61,7 @@ ENDPOINTS = [
     "/api/v2/read/data-refresh-state",
     "/api/v2/read/factor-analysis?codes=600519,000001,300750&days=60&factor=momentum&n_layers=5&forward=1",
     "/api/v2/read/backtest?ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor",
+    "/api/v2/read/market-panorama?k=8",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -91,6 +92,7 @@ SPEC_PATHS = [
     "/api/v2/read/data-refresh-state",
     "/api/v2/read/factor-analysis",
     "/api/v2/read/backtest",
+    "/api/v2/read/market-panorama",
 ]
 
 
@@ -1157,3 +1159,64 @@ def test_backtest_endpoint(client, token, monkeypatch):
     )
     assert resp3.status_code == 400
     assert resp3.get_json()["code"] == "invalid_param"
+
+
+def test_market_panorama_endpoint(client, token, monkeypatch):
+    """market-panorama（56 状态机 + 57 全景共享）：regime 可用 -> 200 + status=ok
+    （含 regime/slavester_latest/shepherd_series/shepherd_unavailable）；
+    regime 不可用 -> status=error（insufficient_data），诚实不编造。"""
+    import pandas as pd
+    from modules import market_regime as mr
+    from modules import shepherd_history as sh
+
+    state_order = ["暴涨", "普涨", "结构牛", "震荡", "恐慌", "暴跌"]
+    fake_report = {
+        "available": True,
+        "data": {"rows": 100, "start": "2020-01-01", "end": "2026-08-21"},
+        "latest": {"date": "2026-08-21", "state": "震荡", "confidence": 0.42,
+                   "metrics": {"red_ratio": 51.3, "limit_up": 40, "limit_down": 8}},
+        "state_distribution": {s: 10 for s in state_order},
+        "transition_matrix": {a: {b: 1 / len(state_order) for b in state_order} for a in state_order},
+        "analogs": [
+            {"date": "2023-05-04", "distance": 1.2, "state": "普涨",
+             "metrics": {"red_ratio": 62.0, "limit_up": 55, "limit_down": 3},
+             "forward": {"d5": {"avg_red": 55.0, "up_frac": 0.6, "median_delta": 1.1}}},
+        ],
+    }
+    idx = pd.date_range("2026-08-01", periods=5, freq="B")
+    fake_df = pd.DataFrame({
+        "date": idx, "red_ratio": [50.0, 51.0, 52.0, 49.0, 51.3],
+        "limit_up": [30, 35, 40, 28, 40], "limit_down": [10, 8, 9, 12, 8],
+        "connect_hl": [5, 6, 7, 4, 6], "zt_fail_ratio": [0.2, 0.18, 0.15, 0.22, 0.19],
+    })
+    fake_meta = {"available": ["red_ratio", "limit_up"], "unavailable": [("zt_fail_ratio", "该日数据源缺失")]}
+
+    monkeypatch.setattr(mr, "regime_report", lambda k=8: fake_report)
+    monkeypatch.setattr(sh, "get_shepherd_indicators", lambda days=60: (fake_df, fake_meta))
+
+    resp = client.get(
+        "/api/v2/read/market-panorama?k=8",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["regime"]["latest"]["state"] == "震荡"
+    assert d["regime"]["state_distribution"]["震荡"] == 10
+    assert len(d["regime"]["analogs"]) == 1
+    assert d["shepherd_latest"].get("red_ratio") == 51.3
+    assert len(d["shepherd_series"]) == 5
+    assert d["shepherd_unavailable"] == [["zt_fail_ratio", "该日数据源缺失"]]
+    assert d["date"] == "2026-08-21"
+
+    # 2) regime 不可用 -> 诚实 error
+    monkeypatch.setattr(mr, "regime_report", lambda k=8: {"available": False, "reason": "广度历史为空（数据缺失）"})
+    resp2 = client.get(
+        "/api/v2/read/market-panorama?k=8",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp2.status_code == 200
+    body2 = resp2.get_json()
+    assert body2["status"] == "error"
+    assert body2["code"] == "insufficient_data"

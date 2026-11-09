@@ -15,6 +15,7 @@ import {
   BarChart,
   CandlestickChart,
   GaugeChart,
+  HeatmapChart,
   LineChart,
   RadarChart,
 } from 'echarts/charts'
@@ -28,6 +29,7 @@ import {
   RadarComponent,
   TitleComponent,
   TooltipComponent,
+  VisualMapComponent,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 
@@ -36,6 +38,7 @@ use([
   BarChart,
   CandlestickChart,
   GaugeChart,
+  HeatmapChart,
   LineChart,
   RadarChart,
   // 坐标系 / 交互 / 标注组件
@@ -48,6 +51,7 @@ use([
   RadarComponent,
   TitleComponent,
   TooltipComponent,
+  VisualMapComponent,
   CanvasRenderer,
 ])
 

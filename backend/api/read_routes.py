@@ -1702,6 +1702,84 @@ def backtest():
     return ok(data=_sanitize(data), message="backtest")
 
 
+# ───────── 市场全景 / 状态机（G3：regime_report + shepherd 广度）─────────
+# 契约（与 W4-B/C 同款红线）：@jwt_required + 统一 ok/fail 信封；k 经钳制（3~15）；
+# 复用 modules.market_regime.regime_report（读 data/shepherd_history.json，离线零网）
+# + modules.shepherd_history.get_shepherd_indicators（广度最新快照 + 不可用字段清单）。
+# 该端点同时服务于 56 页「市场状态机」与 57 页「市场全景」（两页共用同一后端，不重复计算）。
+# regime 不可用（广度历史缺失）→ 诚实 status=error（insufficient_data），不编造状态。
+_MP_NOTE = (
+    "市场状态五档=规则可解释分类（modules.market_regime，阈值由全样本分位定）；"
+    "广度真值=本地历史快照（data/shepherd_history.json，离线零网）；历史相似 ≠ 预测。"
+)
+
+
+@bp.get("/market-panorama")
+@jwt_required
+def market_panorama():
+    """市场全景 / 状态机（56 + 57 页共享后端）。
+
+    GET /api/v2/read/market-panorama?k=8
+    返回：
+    - regime：regime_report 完整字典（latest 状态/置信/metrics、state_distribution、
+      transition_matrix、analogs 历史相似日及后市表现）
+    - shepherd_latest：广度最新快照行（红盘率/涨停/跌停/连板高度/炸板率…）
+    - shepherd_series：广度历史宽表（折线图用，date 升序）
+    - shepherd_unavailable：数据源缺失字段清单（诚实带出，不隐藏）
+    - date：regime 最新真值日
+
+    k 非法回落 8；regime 不可用 → 诚实 status=error（insufficient_data）。
+    """
+    k = _fa_int(request.args.get("k"), 8, 3, 15)
+
+    try:
+        from modules import market_regime as mr
+        from modules.shepherd_history import get_shepherd_indicators
+        regime = mr.regime_report(k=k)
+        df, meta = get_shepherd_indicators(days=60)
+    except Exception as e:  # noqa: BLE001 - 计算异常：诚实降级，不 500
+        return fail(message=f"市场全景计算失败：{type(e).__name__}: {e}", code="compute_error", http_status=200)
+
+    if not regime.get("available"):
+        return fail(
+            message=regime.get("reason", "广度历史缺失，无法判定市场状态"),
+            code="insufficient_data", http_status=200,
+        )
+
+    def _row_to_record(row):
+        rec = {}
+        for c in df.columns:
+            v = row[c]
+            if pd.isna(v) if not isinstance(v, str) else False:
+                rec[str(c)] = None
+            elif isinstance(v, (int, float)):
+                rec[str(c)] = float(v)
+            else:
+                rec[str(c)] = str(v)
+        return rec
+
+    shepherd_latest = {}
+    shepherd_series = []
+    if df is not None and not df.empty:
+        shepherd_latest = _row_to_record(df.iloc[-1])
+        shepherd_series = [_row_to_record(r) for _, r in df.iterrows()]
+
+    unavailable = []
+    if isinstance(meta, dict):
+        unavailable = [[str(x[0]), str(x[1])] for x in meta.get("unavailable", []) if isinstance(x, (list, tuple))]
+
+    data = {
+        "k": k,
+        "regime": regime,
+        "shepherd_latest": shepherd_latest,
+        "shepherd_series": shepherd_series,
+        "shepherd_unavailable": unavailable,
+        "date": (regime.get("latest") or {}).get("date"),
+        "note": _MP_NOTE,
+    }
+    return ok(data=_sanitize(data), message="market-panorama")
+
+
 # ───────── 数据源 / 接口检测（diagnostics）─────────
 # 与 W4-B/W4-C/W4-X 同款红线：@jwt_required + 统一 ok() 信封；只读、绝不写任何数据文件；
 # 各检测项独立降级（任一失败只影响该项，不整页 500、不连带其它项）；缺失为 null、绝不补 0；

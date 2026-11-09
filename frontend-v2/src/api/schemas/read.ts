@@ -468,3 +468,60 @@ export const BacktestSchema = z
   })
   .catchall(z.unknown())
 export type Backtest = z.infer<typeof BacktestSchema>
+
+// ───────── 市场全景 / 状态机（market-panorama：regime_report + shepherd 广度）─────────
+export const RegimeAnalogSchema = z.object({
+  date: z.string(),
+  distance: z.number().nullable().optional(),
+  metrics: z
+    .object({
+      red_ratio: z.number().nullable().optional(),
+      limit_up: z.number().nullable().optional(),
+      limit_down: z.number().nullable().optional(),
+    })
+    .catchall(z.unknown()),
+  state: z.string().optional(),
+  forward: z.record(z.string(), z.unknown()).optional(),
+})
+export type RegimeAnalog = z.infer<typeof RegimeAnalogSchema>
+
+export const RegimeReportSchema = z
+  .object({
+    available: z.boolean().optional(),
+    reason: z.string().optional(),
+    data: z
+      .object({
+        rows: z.number().optional(),
+        start: z.string().optional(),
+        end: z.string().optional(),
+      })
+      .catchall(z.unknown())
+      .optional(),
+    latest: z
+      .object({
+        date: z.string().optional(),
+        state: z.string().optional(),
+        confidence: z.number().nullable().optional(),
+        metrics: z.record(z.string(), z.unknown()).optional(),
+      })
+      .catchall(z.unknown())
+      .optional(),
+    state_distribution: z.record(z.string(), z.number()).optional(),
+    transition_matrix: z.record(z.string(), z.record(z.string(), z.number())).optional(),
+    analogs: z.array(RegimeAnalogSchema).optional(),
+  })
+  .catchall(z.unknown())
+export type RegimeReport = z.infer<typeof RegimeReportSchema>
+
+export const MarketPanoramaSchema = z
+  .object({
+    k: z.number().optional(),
+    regime: RegimeReportSchema,
+    shepherd_latest: z.record(z.string(), z.unknown()).optional(),
+    shepherd_series: z.array(z.record(z.string(), z.unknown())).optional(),
+    shepherd_unavailable: z.array(z.array(z.string())).optional(),
+    date: z.string().nullable().optional(),
+    note: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type MarketPanorama = z.infer<typeof MarketPanoramaSchema>

@@ -24,6 +24,8 @@ export type AppPath =
   | '/stock/compare'
   | '/factor'
   | '/backtest'
+  | '/panorama'
+  | '/regime'
   | '/login'
   | '/matrix'
   | '/guide'
@@ -71,12 +73,14 @@ export const NAV: NavGroup[] = [
   {
     group: '市场广度·温度',
     items: [
-      { to: '/breadth', label: '广度总览', icon: '🌡' },
-      { to: '/ladder', label: '连板梯队共振', icon: '🪜' },
-      { to: '/events', label: '事件因子池', icon: '◈' },
-      { to: '/predictions', label: '预测校准日志', icon: '◴' },
-      { to: '/ops', label: '数据与运维状态', icon: '⚙' },
-      { to: '/diagnostics', label: '数据源与接口检测', icon: '⛭' },
+        { to: '/breadth', label: '广度总览', icon: '🌡' },
+        { to: '/ladder', label: '连板梯队共振', icon: '🪜' },
+        { to: '/events', label: '事件因子池', icon: '◈' },
+        { to: '/predictions', label: '预测校准日志', icon: '◴' },
+        { to: '/ops', label: '数据与运维状态', icon: '⚙' },
+        { to: '/diagnostics', label: '数据源与接口检测', icon: '⛭' },
+        { to: '/panorama', label: '市场全景', icon: '◉' },
+        { to: '/regime', label: '市场状态机', icon: '❖' },
     ],
   },
 ]
