@@ -589,3 +589,103 @@ export const PortfolioSchema = z
   })
   .catchall(z.unknown())
 export type Portfolio = z.infer<typeof PortfolioSchema>
+
+// ───────── 资金流向（fund-flow / 35 页 V2 化）─────────
+// 四块各自独立 available；金额为「亿元」（后端已折算），百分比为原始百分数。
+// 缺值后端已清洗为 null，前端显示「—」，绝不补 0。
+export const FundFlowNorthboundBoardSchema = z.object({
+  board: z.string().nullable().optional(),
+  direction: z.string().nullable().optional(),
+  trade_net: z.number().nullable().optional(),
+  net_inflow: z.number().nullable().optional(),
+  up_count: z.number().nullable().optional(),
+  down_count: z.number().nullable().optional(),
+  index_chg_pct: z.number().nullable().optional(),
+})
+export type FundFlowNorthboundBoard = z.infer<typeof FundFlowNorthboundBoardSchema>
+
+export const FundFlowNorthboundSchema = z.object({
+  available: z.boolean(),
+  trade_date: z.string().nullable().optional(),
+  total_inflow: z.number().nullable().optional(),
+  sh_inflow: z.number().nullable().optional(),
+  sz_inflow: z.number().nullable().optional(),
+  northbound_net_available: z.boolean().optional(),
+  boards: z.array(FundFlowNorthboundBoardSchema).optional(),
+  last_net_buy: z.number().nullable().optional(),
+  last_net_buy_date: z.string().nullable().optional(),
+  cumulative: z.number().nullable().optional(),
+  cumulative_date: z.string().nullable().optional(),
+})
+export type FundFlowNorthbound = z.infer<typeof FundFlowNorthboundSchema>
+
+export const FundFlowIndustryRowSchema = z.object({
+  industry: z.string().nullable().optional(),
+  chg_pct: z.number().nullable().optional(),
+  inflow: z.number().nullable().optional(),
+  outflow: z.number().nullable().optional(),
+  net: z.number().nullable().optional(),
+  leader: z.string().nullable().optional(),
+  leader_chg_pct: z.number().nullable().optional(),
+})
+export type FundFlowIndustryRow = z.infer<typeof FundFlowIndustryRowSchema>
+
+export const FundFlowMarketRowSchema = z.object({
+  date: z.string().nullable().optional(),
+  index_chg_pct: z.number().nullable().optional(),
+  main_net: z.number().nullable().optional(),
+  main_net_pct: z.number().nullable().optional(),
+  super_net: z.number().nullable().optional(),
+  big_net: z.number().nullable().optional(),
+  mid_net: z.number().nullable().optional(),
+})
+export type FundFlowMarketRow = z.infer<typeof FundFlowMarketRowSchema>
+
+export const FundFlowMarginRowSchema = z.object({
+  date: z.string().nullable().optional(),
+  sh_rzmr_yi: z.number().nullable().optional(),
+  sz_rzmr_yi: z.number().nullable().optional(),
+  total_rzmr_yi: z.number().nullable().optional(),
+  sh_rzye_yi: z.number().nullable().optional(),
+  sz_rzye_yi: z.number().nullable().optional(),
+  total_rzye_yi: z.number().nullable().optional(),
+  sh000001: z.number().nullable().optional(),
+  sz399001: z.number().nullable().optional(),
+  sz399006: z.number().nullable().optional(),
+})
+export type FundFlowMarginRow = z.infer<typeof FundFlowMarginRowSchema>
+
+export const FundFlowMarginLatestSchema = z.object({
+  date: z.string().nullable().optional(),
+  total_rzmr_yi: z.number().nullable().optional(),
+  total_rzye_yi: z.number().nullable().optional(),
+  sh_rzmr_yi: z.number().nullable().optional(),
+  sz_rzmr_yi: z.number().nullable().optional(),
+  rzmr_change_yi: z.number().nullable().optional(),
+  rzye_change_yi: z.number().nullable().optional(),
+  rzmr_change_pct: z.number().nullable().optional(),
+  rzye_change_pct: z.number().nullable().optional(),
+})
+export type FundFlowMarginLatest = z.infer<typeof FundFlowMarginLatestSchema>
+
+export const FundFlowSchema = z
+  .object({
+    northbound: FundFlowNorthboundSchema,
+    industry: z.object({
+      available: z.boolean(),
+      rows: z.array(FundFlowIndustryRowSchema),
+    }),
+    market: z.object({
+      available: z.boolean(),
+      rows: z.array(FundFlowMarketRowSchema),
+    }),
+    margin: z.object({
+      available: z.boolean(),
+      rows: z.array(FundFlowMarginRowSchema),
+      latest: FundFlowMarginLatestSchema.nullable().optional(),
+    }),
+    note: z.string().optional(),
+    unavailable: z.array(z.unknown()).optional(),
+  })
+  .catchall(z.unknown())
+export type FundFlow = z.infer<typeof FundFlowSchema>

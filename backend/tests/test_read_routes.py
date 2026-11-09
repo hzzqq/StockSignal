@@ -63,6 +63,7 @@ ENDPOINTS = [
     "/api/v2/read/backtest?ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor",
     "/api/v2/read/market-panorama?k=8",
     "/api/v2/read/portfolio",
+    "/api/v2/read/fund-flow",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -1332,3 +1333,98 @@ def test_portfolio_endpoint(client, token, monkeypatch):
     body3 = resp3.get_json()
     assert body3["status"] == "error"
     assert body3["code"] == "compute_error"
+
+
+def test_fund_flow_endpoint(client, token, monkeypatch):
+    """fund-flow（35 资金流向）：四块取数充分 -> 200 + status=ok，各块 available=True；
+    取数为空 -> 该块 available=False（诚实降级，不 500、不补 0）；异常 -> 仍 200（不 500）。"""
+    import pandas as pd
+    from modules import fundflow as ff_mod
+    from modules import margin_trading as mt_mod
+
+    nb = {
+        "boards": [{"板块": "沪股通", "资金方向": "北向", "成交净买额": 1.2e8, "资金净流入": 3.4e8,
+                    "上涨数": 300, "下跌数": 150, "指数涨跌幅": 1.2}],
+        "trade_date": "2026-11-08", "total_inflow": 5.0e8, "sh_inflow": 3.0e8, "sz_inflow": 2.0e8,
+        "northbound_net_available": True, "last_net_buy": 9.9e9, "last_net_buy_date": "2024-08-15",
+        "cumulative": 1.8e12, "cumulative_date": "2024-08-15",
+    }
+    ind = pd.DataFrame([
+        {"行业": "半导体", "涨跌幅": 2.5, "流入资金": 5.0e10, "流出资金": 4.0e10, "净额": 1.0e10,
+         "领涨股": "中芯国际", "领涨股涨跌幅": 5.1},
+        {"行业": "银行", "涨跌幅": -1.1, "流入资金": 2.0e10, "流出资金": 2.5e10, "净额": -5.0e9,
+         "领涨股": "招商银行", "领涨股涨跌幅": -0.8},
+    ])
+    mk = pd.DataFrame([
+        {"日期": "2026-11-06", "上证-涨跌幅": 0.5, "主力净流入-净额": 1.2e10, "主力净流入-净占比": 3.1,
+         "超大单净流入-净额": 6.0e9, "大单净流入-净额": 6.0e9, "中单净流入-净额": -5.0e9},
+        {"日期": "2026-11-07", "上证-涨跌幅": -0.3, "主力净流入-净额": -8.0e9, "主力净流入-净占比": -2.2,
+         "超大单净流入-净额": -4.0e9, "大单净流入-净额": -4.0e9, "中单净流入-净额": 3.0e9},
+    ])
+    mg = pd.DataFrame([
+        {"日期": "2026-11-06", "sh_rzmr": 3.0e10, "sz_rzmr": 2.0e10, "total_rzmr": 5.0e10,
+         "sh_rzye": 7.0e11, "sz_rzye": 6.0e11, "total_rzye": 1.3e12,
+         "sh000001": 3300.0, "sz399001": 11000.0, "sz399006": 2300.0},
+    ])
+    mg_summary = {
+        "date": "2026-11-06", "total_rzmr_yi": 500.0, "total_rzye_yi": 13000.0, "sh_rzmr_yi": 300.0,
+        "sz_rzmr_yi": 200.0, "rzmr_change_yi": 12.5, "rzye_change_yi": -8.3,
+        "rzmr_change_pct": 2.5, "rzye_change_pct": -0.6,
+    }
+
+    monkeypatch.setattr(ff_mod, "get_northbound_fund_flow", lambda: nb)
+    monkeypatch.setattr(ff_mod, "get_industry_fund_flow", lambda: ind)
+    monkeypatch.setattr(ff_mod, "get_market_fund_flow", lambda days=30: mk)
+    monkeypatch.setattr(mt_mod, "get_margin_trading_data", lambda days=180: mg)
+    monkeypatch.setattr(mt_mod, "get_latest_margin_summary", lambda: mg_summary)
+
+    # 1) 充分取数 -> ok 信封 + 四块均可用
+    resp = client.get("/api/v2/read/fund-flow", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["northbound"]["available"] is True
+    assert d["northbound"]["total_inflow"] == 5.0  # 5.0e8 元 -> 5.0 亿
+    assert d["northbound"]["boards"][0]["net_inflow"] == 3.4  # 3.4e8 -> 3.4 亿
+    assert d["northbound"]["last_net_buy"] == 99.0  # 9.9e9 -> 99.0 亿
+    assert d["industry"]["available"] is True
+    assert len(d["industry"]["rows"]) == 2
+    assert d["industry"]["rows"][0]["net"] == 100.0  # 1.0e10 -> 100.0 亿
+    assert d["market"]["available"] is True
+    assert len(d["market"]["rows"]) == 2
+    assert d["market"]["rows"][0]["main_net"] == 120.0  # 1.2e10 -> 120.0 亿
+    assert d["margin"]["available"] is True
+    assert d["margin"]["rows"][0]["total_rzmr_yi"] == 500.0  # 5.0e10 -> 500.0 亿
+    assert d["margin"]["latest"]["total_rzye_yi"] == 13000.0
+    assert d["unavailable"] == []
+
+    # 2) 取数为空 -> 各块 available=False（诚实降级，不 500、不补 0）
+    monkeypatch.setattr(ff_mod, "get_northbound_fund_flow", lambda: {})
+    monkeypatch.setattr(ff_mod, "get_industry_fund_flow", lambda: pd.DataFrame())
+    monkeypatch.setattr(ff_mod, "get_market_fund_flow", lambda days=30: pd.DataFrame())
+    monkeypatch.setattr(mt_mod, "get_margin_trading_data", lambda days=180: pd.DataFrame())
+    monkeypatch.setattr(mt_mod, "get_latest_margin_summary", lambda: {})
+    resp2 = client.get("/api/v2/read/fund-flow", headers={"Authorization": f"Bearer {token}"})
+    assert resp2.status_code == 200
+    body2 = resp2.get_json()
+    assert body2["status"] == "ok"  # 仍 200，分块降级而非整页 error
+    d2 = body2["data"]
+    assert d2["northbound"]["available"] is False
+    assert d2["industry"]["available"] is False
+    assert d2["market"]["available"] is False
+    assert d2["margin"]["available"] is False
+
+    # 3) 取数抛异常 -> 仍 200（不 500），各块降级
+    def _boom():
+        raise RuntimeError("boom")
+    monkeypatch.setattr(ff_mod, "get_northbound_fund_flow", _boom)
+    monkeypatch.setattr(ff_mod, "get_industry_fund_flow", _boom)
+    monkeypatch.setattr(ff_mod, "get_market_fund_flow", _boom)
+    monkeypatch.setattr(mt_mod, "get_margin_trading_data", _boom)
+    monkeypatch.setattr(mt_mod, "get_latest_margin_summary", _boom)
+    resp3 = client.get("/api/v2/read/fund-flow", headers={"Authorization": f"Bearer {token}"})
+    assert resp3.status_code == 200
+    body3 = resp3.get_json()
+    assert body3["status"] == "ok"
+    assert body3["data"]["northbound"]["available"] is False

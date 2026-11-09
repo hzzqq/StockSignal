@@ -486,6 +486,55 @@ export const portfolio = {
   note: '持仓为本地模拟/历史数据（data/portfolio.csv），仅供学习不构成投资建议；现价为最近可得收盘（离线口径可能为静态样本）；净值曲线为尽力而为的历史还原，缺失则如实标注。',
 }
 
+// Tier1 · 资金流向（fund-flow）Mock，字段名与后端 /api/v2/read/fund-flow 契约一致。
+// 四块各自独立 available；演示数值非实时行情，金额已折算为亿元。
+export const fundFlow = {
+  northbound: {
+    available: true,
+    trade_date: '2026-11-08',
+    total_inflow: 5.0,
+    sh_inflow: 3.0,
+    sz_inflow: 2.0,
+    northbound_net_available: true,
+    boards: [
+      { board: '沪股通', direction: '北向', trade_net: 12.0, net_inflow: 34.0, up_count: 300, down_count: 150, index_chg_pct: 1.2 },
+      { board: '深股通', direction: '北向', trade_net: 8.0, net_inflow: 20.0, up_count: 280, down_count: 160, index_chg_pct: 0.9 },
+    ],
+    last_net_buy: 99.0,
+    last_net_buy_date: '2024-08-15',
+    cumulative: 18000.0,
+    cumulative_date: '2024-08-15',
+  },
+  industry: {
+    available: true,
+    rows: [
+      { industry: '半导体', chg_pct: 2.5, inflow: 500.0, outflow: 400.0, net: 100.0, leader: '中芯国际', leader_chg_pct: 5.1 },
+      { industry: '电池', chg_pct: 1.8, inflow: 300.0, outflow: 260.0, net: 40.0, leader: '宁德时代', leader_chg_pct: 3.2 },
+      { industry: '银行', chg_pct: -1.1, inflow: 200.0, outflow: 250.0, net: -50.0, leader: '招商银行', leader_chg_pct: -0.8 },
+    ],
+  },
+  market: {
+    available: true,
+    rows: [
+      { date: '2026-11-04', index_chg_pct: 0.8, main_net: 150.0, main_net_pct: 3.8, super_net: 80.0, big_net: 70.0, mid_net: -60.0 },
+      { date: '2026-11-05', index_chg_pct: -0.2, main_net: -40.0, main_net_pct: -1.1, super_net: -20.0, big_net: -20.0, mid_net: 30.0 },
+      { date: '2026-11-06', index_chg_pct: 0.5, main_net: 120.0, main_net_pct: 3.1, super_net: 60.0, big_net: 60.0, mid_net: -50.0 },
+      { date: '2026-11-07', index_chg_pct: -0.3, main_net: -80.0, main_net_pct: -2.2, super_net: -40.0, big_net: -40.0, mid_net: 30.0 },
+    ],
+  },
+  margin: {
+    available: true,
+    rows: [
+      { date: '2026-11-03', sh_rzmr_yi: 290.0, sz_rzmr_yi: 190.0, total_rzmr_yi: 480.0, sh_rzye_yi: 6950.0, sz_rzye_yi: 5950.0, total_rzye_yi: 12900.0, sh000001: 3280.0, sz399001: 10950.0, sz399006: 2280.0 },
+      { date: '2026-11-04', sh_rzmr_yi: 295.0, sz_rzmr_yi: 195.0, total_rzmr_yi: 490.0, sh_rzye_yi: 6970.0, sz_rzye_yi: 5980.0, total_rzye_yi: 12950.0, sh000001: 3300.0, sz399001: 11000.0, sz399006: 2300.0 },
+      { date: '2026-11-05', sh_rzmr_yi: 298.0, sz_rzmr_yi: 198.0, total_rzmr_yi: 496.0, sh_rzye_yi: 6990.0, sz_rzye_yi: 6000.0, total_rzye_yi: 12990.0, sh000001: 3310.0, sz399001: 11020.0, sz399006: 2310.0 },
+      { date: '2026-11-06', sh_rzmr_yi: 300.0, sz_rzmr_yi: 200.0, total_rzmr_yi: 500.0, sh_rzye_yi: 7000.0, sz_rzye_yi: 6000.0, total_rzye_yi: 13000.0, sh000001: 3300.0, sz399001: 11000.0, sz399006: 2300.0 },
+    ],
+    latest: { date: '2026-11-06', total_rzmr_yi: 500.0, total_rzye_yi: 13000.0, sh_rzmr_yi: 300.0, sz_rzmr_yi: 200.0, rzmr_change_yi: 12.5, rzye_change_yi: -8.3, rzmr_change_pct: 2.5, rzye_change_pct: -0.6 },
+  },
+  note: '资金流向数据来自东方财富/同花顺网络接口（fundflow / margin_trading 数据层），离线或接口受限时逐块诚实降级（该块显示「数据暂不可用」而非编造数值）。北向实时净买额自 2024-08-16 起停披露，模块以「最近一次真实披露」与「历史累计净买入」兜底；金额单位均为亿元，非实时、非投资建议。',
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -911,6 +960,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/backtest', needs_params: true, probe_path: null, required_query: ['ticker'], sample_query: 'ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor' },
   { path: '/api/v2/read/market-panorama', needs_params: true, probe_path: null, required_query: ['k'], sample_query: 'k=8' },
   { path: '/api/v2/read/portfolio', needs_params: false, probe_path: '/api/v2/read/portfolio', required_query: [], sample_query: null },
+  { path: '/api/v2/read/fund-flow', needs_params: false, probe_path: '/api/v2/read/fund-flow', required_query: [], sample_query: null },
 ]
 
 export const diagnostics = {

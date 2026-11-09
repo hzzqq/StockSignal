@@ -26,6 +26,7 @@ import type {
   Backtest,
   MarketPanorama,
   Portfolio,
+  FundFlow,
 } from '@/api/schemas/read'
 
 /**
@@ -225,6 +226,16 @@ export function usePortfolio(params: PortfolioParams = {}): UseQueryResult<Portf
   return useQuery({
     queryKey: ['read', 'portfolio', params],
     queryFn: () => api.getPortfolio(params),
+    staleTime: THIRTY_MIN,
+  })
+}
+
+// ───────── 资金流向（fund-flow / 35 页 V2 化）─────────
+// 四块各自独立 available；离线/接口受限时该块诚实降级，页面如实标注、不补零。
+export function useFundFlow(): UseQueryResult<FundFlow> {
+  return useQuery({
+    queryKey: ['read', 'fund-flow'],
+    queryFn: api.getFundFlow,
     staleTime: THIRTY_MIN,
   })
 }

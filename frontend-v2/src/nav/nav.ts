@@ -27,6 +27,7 @@ export type AppPath =
   | '/panorama'
   | '/regime'
   | '/portfolio'
+  | '/fund-flow'
   | '/login'
   | '/matrix'
   | '/guide'
@@ -83,6 +84,7 @@ export const NAV: NavGroup[] = [
         { to: '/diagnostics', label: '数据源与接口检测', icon: '⛭' },
         { to: '/panorama', label: '市场全景', icon: '◉' },
         { to: '/regime', label: '市场状态机', icon: '❖' },
+        { to: '/fund-flow', label: '资金流向', icon: '🌊' },
     ],
   },
 ]

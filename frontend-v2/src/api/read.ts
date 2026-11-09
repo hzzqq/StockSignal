@@ -20,6 +20,7 @@ import {
   BacktestSchema,
   MarketPanoramaSchema,
   PortfolioSchema,
+  FundFlowSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -40,6 +41,7 @@ import {
   type Backtest,
   type MarketPanorama,
   type Portfolio,
+  type FundFlow,
 } from './schemas/read'
 
 /**
@@ -240,4 +242,12 @@ export interface PortfolioParams {
 /** GET /api/v2/read/portfolio —— 持仓汇总 / 逐批盈亏 / 收益归因 / 市值占比 / 净值曲线（45 页 V2 化） */
 export function getPortfolio(_params: PortfolioParams = {}): Promise<Portfolio> {
   return readValidated('portfolio', PortfolioSchema)
+}
+
+// ───────── 资金流向（fund-flow / 35 页 V2 化）─────────
+// 四块各自独立 available；离线或接口受限时该块诚实降级（available=False + 空数据），
+// 金额单位为亿元，缺失/未披露为 null，前端显示「—」，绝不补 0。
+/** GET /api/v2/read/fund-flow —— 北向 / 行业 / 大盘主力 / 融资融券（35 页 V2 化） */
+export function getFundFlow(): Promise<FundFlow> {
+  return readValidated('fund-flow', FundFlowSchema)
 }

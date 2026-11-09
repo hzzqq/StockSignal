@@ -1977,6 +1977,213 @@ def portfolio():
     return ok(data=_sanitize(data), message="portfolio")
 
 
+# ───────── 资金流向（35 页）─────────
+# 分块诚实降级：北向 / 行业 / 大盘主力 / 融资融券 四块各自独立 available；
+# 任一网络取数失败只影响该块（available=False + 空数据），不整页 500、不补 0；
+# 金额统一折算为「亿元」（元 /1e8），缺失/未披露为 null；百分比保留原始百分数。
+_FF_NOTE = (
+    "资金流向数据来自东方财富/同花顺网络接口（fundflow / margin_trading 数据层），离线或接口受限时"
+    "逐块诚实降级（该块显示「数据暂不可用」而非编造数值）。北向实时净买额自 2024-08-16 起停披露，"
+    "模块以「最近一次真实披露」与「历史累计净买入」兜底；金额单位均为亿元，非实时、非投资建议。"
+)
+
+
+def _ff_yi(v):
+    """元 -> 亿元；None/NaN/inf/非法 -> None（缺失即 null，绝不补 0）。"""
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(f) or math.isinf(f):
+        return None
+    return f / 1e8
+
+
+def _ff_date(v):
+    try:
+        if v is None:
+            return None
+        if hasattr(v, "strftime"):
+            return v.strftime("%Y-%m-%d")
+        s = str(v)
+        return s[:10] if s else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+@bp.get("/fund-flow")
+@jwt_required
+def fund_flow():
+    """资金流向（35 页）。分块诚实降级。
+
+    GET /api/v2/read/fund-flow
+    返回四块：northbound / industry / market / margin，每块独立 available 标志；
+    网络取数失败 -> 该块 available=False + 空数据；全局 note / unavailable 诚实标注。
+    """
+    unavailable = []
+    try:
+        from modules.fundflow import (
+            get_northbound_fund_flow, get_industry_fund_flow, get_market_fund_flow,
+        )
+        from modules.margin_trading import get_margin_trading_data, get_latest_margin_summary
+        from modules.fetch_parallel import fetch_many
+
+        tasks = [
+            ("northbound", get_northbound_fund_flow),
+            ("industry", get_industry_fund_flow),
+            ("market", lambda: get_market_fund_flow(days=30)),
+            ("margin", lambda: get_margin_trading_data(days=180)),
+            ("margin_summary", get_latest_margin_summary),
+        ]
+        res = fetch_many(tasks, max_workers=5, timeout=14)
+    except Exception:  # noqa: BLE001 - 取数框架级异常：整页诚实降级
+        res = {}
+        unavailable.append("fetch_many")
+
+    # ── 北向资金 ──
+    nb_block = {
+        "available": False, "trade_date": None, "total_inflow": None, "sh_inflow": None,
+        "sz_inflow": None, "northbound_net_available": False, "boards": [],
+        "last_net_buy": None, "last_net_buy_date": None, "cumulative": None,
+        "cumulative_date": None,
+    }
+    nb = res.get("northbound")
+    if nb is None:
+        unavailable.append("northbound")
+    else:
+        try:
+            nb_block["trade_date"] = nb.get("trade_date")
+            nb_block["total_inflow"] = _ff_yi(nb.get("total_inflow"))
+            nb_block["sh_inflow"] = _ff_yi(nb.get("sh_inflow"))
+            nb_block["sz_inflow"] = _ff_yi(nb.get("sz_inflow"))
+            nb_block["northbound_net_available"] = bool(nb.get("northbound_net_available"))
+            nb_block["last_net_buy"] = _ff_yi(nb.get("last_net_buy"))
+            nb_block["last_net_buy_date"] = nb.get("last_net_buy_date")
+            nb_block["cumulative"] = _ff_yi(nb.get("cumulative"))
+            nb_block["cumulative_date"] = nb.get("cumulative_date")
+            boards = []
+            for b in (nb.get("boards") or []):
+                boards.append({
+                    "board": b.get("板块"),
+                    "direction": b.get("资金方向"),
+                    "trade_net": _ff_yi(b.get("成交净买额")),
+                    "net_inflow": _ff_yi(b.get("资金净流入")),
+                    "up_count": _int(b.get("上涨数")),
+                    "down_count": _int(b.get("下跌数")),
+                    "index_chg_pct": _flt(b.get("指数涨跌幅")),
+                })
+            nb_block["boards"] = boards
+            nb_block["available"] = bool(
+                nb.get("trade_date") or boards
+                or nb.get("last_net_buy") is not None or nb.get("cumulative") is not None
+            )
+        except Exception:  # noqa: BLE001
+            nb_block["available"] = False
+            unavailable.append("northbound")
+
+    # ── 行业板块资金流向 ──
+    ind_block = {"available": False, "rows": []}
+    ind = res.get("industry")
+    if ind is None:
+        unavailable.append("industry")
+    else:
+        try:
+            rows = []
+            if ind is not None and not getattr(ind, "empty", True):
+                for _, r in ind.iterrows():
+                    rows.append({
+                        "industry": r.get("行业"),
+                        "chg_pct": _flt(r.get("涨跌幅")),
+                        "inflow": _ff_yi(r.get("流入资金")),
+                        "outflow": _ff_yi(r.get("流出资金")),
+                        "net": _ff_yi(r.get("净额")),
+                        "leader": r.get("领涨股"),
+                        "leader_chg_pct": _flt(r.get("领涨股涨跌幅")),
+                    })
+            ind_block["rows"] = rows
+            ind_block["available"] = bool(rows)
+        except Exception:  # noqa: BLE001
+            ind_block["available"] = False
+            unavailable.append("industry")
+
+    # ── 大盘主力资金净流入（近 30 日）──
+    mkt_block = {"available": False, "rows": []}
+    mk = res.get("market")
+    if mk is None:
+        unavailable.append("market")
+    else:
+        try:
+            rows = []
+            if mk is not None and not getattr(mk, "empty", True):
+                for _, r in mk.iterrows():
+                    rows.append({
+                        "date": _ff_date(r.get("日期")),
+                        "index_chg_pct": _flt(r.get("上证-涨跌幅")),
+                        "main_net": _ff_yi(r.get("主力净流入-净额")),
+                        "main_net_pct": _flt(r.get("主力净流入-净占比")),
+                        "super_net": _ff_yi(r.get("超大单净流入-净额")),
+                        "big_net": _ff_yi(r.get("大单净流入-净额")),
+                        "mid_net": _ff_yi(r.get("中单净流入-净额")),
+                    })
+            mkt_block["rows"] = rows
+            mkt_block["available"] = bool(rows)
+        except Exception:  # noqa: BLE001
+            mkt_block["available"] = False
+            unavailable.append("market")
+
+    # ── 融资融券 ──
+    mg_block = {"available": False, "rows": [], "latest": None}
+    mg = res.get("margin")
+    if mg is None:
+        unavailable.append("margin")
+    else:
+        try:
+            rows = []
+            if mg is not None and not getattr(mg, "empty", True):
+                for _, r in mg.iterrows():
+                    rows.append({
+                        "date": _ff_date(r.get("日期")),
+                        "sh_rzmr_yi": _ff_yi(r.get("sh_rzmr")),
+                        "sz_rzmr_yi": _ff_yi(r.get("sz_rzmr")),
+                        "total_rzmr_yi": _ff_yi(r.get("total_rzmr")),
+                        "sh_rzye_yi": _ff_yi(r.get("sh_rzye")),
+                        "sz_rzye_yi": _ff_yi(r.get("sz_rzye")),
+                        "total_rzye_yi": _ff_yi(r.get("total_rzye")),
+                        "sh000001": _flt(r.get("sh000001")),
+                        "sz399001": _flt(r.get("sz399001")),
+                        "sz399006": _flt(r.get("sz399006")),
+                    })
+            mg_block["rows"] = rows
+            summary = res.get("margin_summary") or {}
+            mg_block["latest"] = {
+                "date": _ff_date(summary.get("date")),
+                "total_rzmr_yi": _flt(summary.get("total_rzmr_yi")),
+                "total_rzye_yi": _flt(summary.get("total_rzye_yi")),
+                "sh_rzmr_yi": _flt(summary.get("sh_rzmr_yi")),
+                "sz_rzmr_yi": _flt(summary.get("sz_rzmr_yi")),
+                "rzmr_change_yi": _flt(summary.get("rzmr_change_yi")),
+                "rzye_change_yi": _flt(summary.get("rzye_change_yi")),
+                "rzmr_change_pct": _flt(summary.get("rzmr_change_pct")),
+                "rzye_change_pct": _flt(summary.get("rzye_change_pct")),
+            } if summary else None
+            mg_block["available"] = bool(rows) or bool(summary)
+        except Exception:  # noqa: BLE001
+            mg_block["available"] = False
+            unavailable.append("margin")
+
+    data = {
+        "northbound": nb_block,
+        "industry": ind_block,
+        "market": mkt_block,
+        "margin": mg_block,
+        "note": _FF_NOTE,
+        "unavailable": unavailable,
+    }
+    return ok(data=_sanitize(data), message="fund-flow")
+
+
 # ───────── 数据源 / 接口检测（diagnostics）─────────
 # 与 W4-B/W4-C/W4-X 同款红线：@jwt_required + 统一 ok() 信封；只读、绝不写任何数据文件；
 # 各检测项独立降级（任一失败只影响该项，不整页 500、不连带其它项）；缺失为 null、绝不补 0；
