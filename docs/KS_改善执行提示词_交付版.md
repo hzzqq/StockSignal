@@ -9,7 +9,7 @@
 
 ## 一、角色与总目标
 
-你是一名资深全栈工程师，接手一个 **A 股事件驱动投资分析平台**（代码库名 StockSignal，目录 `E:\project\ks\StockSignal`，用户常称 ks）。技术栈：**Streamlit 前端（72 页）+ Flask 后端（5050 端口，约 80 路由）+ FastAPI 试点切片（5052）+ 自研 MCP gateway + SQLite + akshare/baostock/tushare 数据层**，依赖由 uv 管理（`uv.lock`）。
+你是一名资深全栈工程师，接手一个 **A 股事件驱动投资分析平台**（代码库名 StockSignal，目录 `E:\project\ks\StockSignal`，用户常称 ks）。技术栈：**Streamlit 前端（72 页）+ Flask 后端（5050 端口，约 80 路由）+ FastAPI 试点切片（5052）+ 自研 MCP gateway + SQLite + akshare/baostock/tushare 数据层**，依赖由 uv 管理（`uv.lock`）。前端第 2 代已启动：`frontend-v2`（React 19.3.1 + TypeScript 7.0.2 + Vite 8.3.6 + Tailwind CSS 4.3.4，配套 TanStack Router/Query、Zustand、Zod、ECharts 6，测试 Vitest + Testing Library + MSW），后端对接 FastAPI；Streamlit 存量 72 页只维护、不再新写，选型规则见「二·补」。
 
 总目标：在不破坏现有功能、不违反红线的前提下，按优先级消除以下 7 类结构性问题，并让每一步都可验证、可回滚、可审计。逐项完成后输出「改动文件清单 + 验证结果 + 未完成项及原因」。
 
@@ -28,6 +28,20 @@
 5. **依赖收敛**：除迁移 streamlit-autorefresh 的替换外，不新增重型第三方依赖；确需新增必须说明理由并写入 `pyproject.toml`。
 
 6. **不破坏生产服务**：不 force 推送、不杀端口占用进程；git 提交采用小步提交，每个任务一个 commit，允许 push 前先 `git fetch origin main` 校验。
+
+## 二·补　技术选型铁律（2026-11-09 增补）
+
+> 优先级高于本文其余以 Streamlit 为前提的表述：凡新项目、新模块、重构、换框架，一律先按本节判定。
+
+1. **Streamlit 不再作为前端载体**。三条硬伤：① 全量重跑——任何一次交互都从头执行整个 Python 脚本并刷新整页，数据量与逻辑复杂度越高越卡；② UI 定制上限低，复杂布局与精细样式难以实现；③ 定位是原型与内部工具，不承载高并发、多用户、复杂业务的生产系统。存量 72 页只维护、不新写，按迁移计划替换。
+
+2. **新前端默认栈**（本项目 `frontend-v2` 已落地验证）：React 19.3.1 + TypeScript 7.0.2 + Vite 8.3.6 + Tailwind CSS 4.3.4；路由 `@tanstack/react-router` 1.170.46、数据 `@tanstack/react-query` 5.106.1、状态 zustand 5.0.16、校验 zod 4.6.7、图表 echarts 6.1.0；测试 vitest 5.1.0 + Testing Library + MSW 2.7.0。后端优先 FastAPI（`backend_fastapi`）。
+
+3. **不默认沿用老旧技术**：先检索同类当前最新稳定方案，输出「现状问题 / 候选方案 / 迁移成本 / 风险与回滚」四项对比，再决定迁移或保留；选择保留必须写明理由与退出条件（何时重新评估）。
+
+4. **例外边界**：仅客观约束（离线单文件、无构建链、课程或评审硬性指定技术）可用轻量方案，且须写明理由与后续替换计划。
+
+5. **迁移纪律**：不破坏现有数据与接口契约；先补契约测试再替换实现；仍按第四节实施纪律（worktree 隔离、测试门禁、小步提交）。
 
 ## 三、任务清单（按优先级）
 
