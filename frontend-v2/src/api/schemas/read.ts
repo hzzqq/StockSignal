@@ -689,3 +689,48 @@ export const FundFlowSchema = z
   })
   .catchall(z.unknown())
 export type FundFlow = z.infer<typeof FundFlowSchema>
+
+// ───────── 实盘交易只读概览（trading-account / 43 页 V2 化）─────────
+// V2 此处只读：聚合本地模拟账本（后端读 data/paper_<user>.json）。不暴露任何写接口；
+// 金额单位为「元」（本地账本原始值），前端按需以 ¥ 千分位展示；缺值后端已清洗为 null → 「—」。
+export const TradingAccountPositionSchema = z.object({
+  code: z.string().nullable().optional(),
+  name: z.string().nullable().optional(),
+  qty: z.number().nullable().optional(),
+  avg_cost: z.number().nullable().optional(),
+  cost_basis: z.number().nullable().optional(),
+})
+export type TradingAccountPosition = z.infer<typeof TradingAccountPositionSchema>
+
+export const TradingAccountOrderSchema = z.object({
+  time: z.string().nullable().optional(),
+  code: z.string().nullable().optional(),
+  name: z.string().nullable().optional(),
+  side: z.string().nullable().optional(), // 买 / 卖
+  price: z.number().nullable().optional(),
+  qty: z.number().nullable().optional(),
+  amount: z.number().nullable().optional(),
+})
+export type TradingAccountOrder = z.infer<typeof TradingAccountOrderSchema>
+
+export const TradingAccountSchema = z
+  .object({
+    account: z
+      .object({
+        broker_type: z.string().nullable().optional(),
+        mode: z.string().nullable().optional(),
+        init_cash: z.number().nullable().optional(),
+        cash: z.number().nullable().optional(),
+        position_cost: z.number().nullable().optional(),
+        total_assets: z.number().nullable().optional(),
+        available: z.boolean().optional(),
+      })
+      .catchall(z.unknown())
+      .optional(),
+    positions: z.array(TradingAccountPositionSchema).optional(),
+    orders: z.array(TradingAccountOrderSchema).optional(),
+    note: z.string().optional(),
+    unavailable: z.array(z.unknown()).optional(),
+  })
+  .catchall(z.unknown())
+export type TradingAccount = z.infer<typeof TradingAccountSchema>

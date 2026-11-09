@@ -27,6 +27,7 @@ import type {
   MarketPanorama,
   Portfolio,
   FundFlow,
+  TradingAccount,
 } from '@/api/schemas/read'
 
 /**
@@ -236,6 +237,15 @@ export function useFundFlow(): UseQueryResult<FundFlow> {
   return useQuery({
     queryKey: ['read', 'fund-flow'],
     queryFn: api.getFundFlow,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+/** 实盘交易只读概览（43 页 V2 化）：账户 / 持仓 / 订单流水，聚合本地模拟账本。 */
+export function useTradingAccount(): UseQueryResult<TradingAccount> {
+  return useQuery({
+    queryKey: ['read', 'trading-account'],
+    queryFn: api.getTradingAccount,
     staleTime: THIRTY_MIN,
   })
 }

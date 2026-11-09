@@ -2184,6 +2184,108 @@ def fund_flow():
     return ok(data=_sanitize(data), message="fund-flow")
 
 
+# ───────── 实盘交易（只读概览 / trading-account）─────────
+# 诚实口径：V2 此处**只读**，聚合本地模拟账本 data/paper_<user>.json（模拟撮合下的
+# 账户/持仓/订单流水），**不暴露任何写接口**；实时下单与真实券商（QMT/同花顺）写能力
+# 仅在 v1 实盘交易页 /api/trade/* 提供。缺账本 → 诚实返回空（不 500、不补 0）。
+_TRADE_NOTE = (
+    "本页为 V2 只读概览，读取本地模拟账本（data/paper_<user>.json），反映模拟撮合下的账户 / 持仓 / "
+    "订单流水，非真实券商实盘；实时下单与真实券商（QMT / 同花顺）写能力仅在 v1 实盘交易页 /api/trade/* "
+    "提供，V2 不暴露任何写接口。数据仅供参考，非投资建议。"
+)
+
+
+@bp.get("/trading-account")
+@jwt_required
+def trading_account():
+    """实盘交易只读概览（43 页 V2 化）。聚合本地模拟账本，四态诚实降级。
+
+    GET /api/v2/read/trading-account?user=<uid>
+    返回 account / positions / orders 三块；无账本则 available=False + 空数据。
+    """
+    user = (request.args.get("user") or "admin").strip()
+    if not _USER_RE.fullmatch(user):
+        return fail(message="user 非法（仅允许字母/数字/下划线，≤64）", code="validation_error", http_status=400)
+    path = _safe_file(_DATA_DIR, f"paper_{user}.json")
+    if path is None:
+        return fail(message="非法路径", code="validation_error", http_status=400)
+
+    status, raw = _read_json(path)
+    if status != "ok" or not isinstance(raw, dict):
+        # 无账本：诚实返回空（不 500、不补 0）
+        data = {
+            "account": {
+                "broker_type": "sim", "mode": "模拟", "init_cash": None, "cash": None,
+                "position_cost": None, "total_assets": None, "available": False,
+            },
+            "positions": [], "orders": [], "note": _TRADE_NOTE, "unavailable": ["ledger_missing"],
+        }
+        return ok(data=_sanitize(data), message="trading-account")
+
+    try:
+        init_cash = _flt(raw.get("init_cash"))
+        cash = _flt(raw.get("cash"))
+
+        positions: list[dict] = []
+        position_cost = 0.0
+        positions_raw = raw.get("positions") or {}
+        if isinstance(positions_raw, dict):
+            for code, p in positions_raw.items():
+                if not isinstance(p, dict):
+                    continue
+                qty = _flt(p.get("qty"))
+                avg_cost = _flt(p.get("avg_cost"))
+                cost_basis = (qty * avg_cost) if (qty is not None and avg_cost is not None) else None
+                if cost_basis is not None:
+                    position_cost += cost_basis
+                positions.append({
+                    "code": code,
+                    "name": p.get("name"),
+                    "qty": qty,
+                    "avg_cost": avg_cost,
+                    "cost_basis": cost_basis,
+                })
+
+        orders: list[dict] = []
+        trades = raw.get("trades") or []
+        if isinstance(trades, list):
+            for t in trades:
+                if not isinstance(t, dict):
+                    continue
+                orders.append({
+                    "time": t.get("time"),
+                    "code": t.get("code"),
+                    "name": t.get("name"),
+                    "side": t.get("side"),  # 买 / 卖
+                    "price": _flt(t.get("price")),
+                    "qty": _flt(t.get("qty")),
+                    "amount": _flt(t.get("amount")),
+                })
+
+        total_assets = (cash + position_cost) if (cash is not None and position_cost is not None) else None
+        data = {
+            "account": {
+                "broker_type": "sim", "mode": "模拟",
+                "init_cash": init_cash, "cash": cash,
+                "position_cost": position_cost or None,
+                "total_assets": total_assets,
+                "available": True,
+            },
+            "positions": positions,
+            "orders": orders,
+            "note": _TRADE_NOTE,
+            "unavailable": [],
+        }
+        return ok(data=_sanitize(data), message="trading-account")
+    except Exception:  # noqa: BLE001 - 账本解析异常：诚实降级
+        data = {
+            "account": {"broker_type": "sim", "mode": "模拟", "init_cash": None, "cash": None,
+                        "position_cost": None, "total_assets": None, "available": False},
+            "positions": [], "orders": [], "note": _TRADE_NOTE, "unavailable": ["ledger_parse"],
+        }
+        return ok(data=_sanitize(data), message="trading-account")
+
+
 # ───────── 数据源 / 接口检测（diagnostics）─────────
 # 与 W4-B/W4-C/W4-X 同款红线：@jwt_required + 统一 ok() 信封；只读、绝不写任何数据文件；
 # 各检测项独立降级（任一失败只影响该项，不整页 500、不连带其它项）；缺失为 null、绝不补 0；

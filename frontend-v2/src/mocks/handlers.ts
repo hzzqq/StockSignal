@@ -106,6 +106,8 @@ export const handlers = [
   http.get('/api/v2/read/portfolio', () => ok(fixtures.portfolio)),
   // 资金流向（35 页 V2 化）：结构对齐后端 fund_flow()；演示数值非真实行情，金额已折算为亿元。
   http.get('/api/v2/read/fund-flow', () => ok(fixtures.fundFlow)),
+  // 实盘交易只读概览（43 页 V2 化）：结构对齐后端 trading_account()；演示数值为本地模拟账本，非真实券商。
+  http.get('/api/v2/read/trading-account', () => ok(fixtures.tradingAccount)),
   // W4-A · 个股六维评分：按 code query 分派；非法/缺 code 返回 400 invalid_param 信封。
   http.get('/api/v2/read/six-dim', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')

@@ -535,6 +535,24 @@ export const fundFlow = {
   note: '资金流向数据来自东方财富/同花顺网络接口（fundflow / margin_trading 数据层），离线或接口受限时逐块诚实降级（该块显示「数据暂不可用」而非编造数值）。北向实时净买额自 2024-08-16 起停披露，模块以「最近一次真实披露」与「历史累计净买入」兜底；金额单位均为亿元，非实时、非投资建议。',
 }
 
+// Tier1 · 实盘交易只读概览（trading-account）Mock，字段名与后端 /api/v2/read/trading-account 契约一致。
+// ⚠️ V2 此处只读：聚合本地模拟账本 data/paper_<user>.json；金额单位为「元」，非实时、非真实券商。
+export const tradingAccount = {
+  account: {
+    broker_type: 'sim', mode: '模拟', init_cash: 1000000, cash: 870944,
+    position_cost: 129056, total_assets: 1000000, available: true,
+  },
+  positions: [
+    { code: '600519', name: '贵州茅台', qty: 100, avg_cost: 1290.56, cost_basis: 129056 },
+    { code: '000001', name: '平安银行', qty: 500, avg_cost: 11.32, cost_basis: 5660 },
+  ],
+  orders: [
+    { time: '2026-09-09 12:10', code: '600519', name: '贵州茅台', side: '买', price: 1290.56, qty: 100, amount: 129056 },
+    { time: '2026-09-10 09:45', code: '000001', name: '平安银行', side: '买', price: 11.32, qty: 500, amount: 5660 },
+  ],
+  note: '本页为 V2 只读概览，读取本地模拟账本（data/paper_<user>.json），反映模拟撮合下的账户 / 持仓 / 订单流水，非真实券商实盘；实时下单与真实券商（QMT / 同花顺）写能力仅在 v1 实盘交易页 /api/trade/* 提供，V2 不暴露任何写接口。数据仅供参考，非投资建议。',
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -961,6 +979,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/market-panorama', needs_params: true, probe_path: null, required_query: ['k'], sample_query: 'k=8' },
   { path: '/api/v2/read/portfolio', needs_params: false, probe_path: '/api/v2/read/portfolio', required_query: [], sample_query: null },
   { path: '/api/v2/read/fund-flow', needs_params: false, probe_path: '/api/v2/read/fund-flow', required_query: [], sample_query: null },
+  { path: '/api/v2/read/trading-account', needs_params: false, probe_path: '/api/v2/read/trading-account', required_query: [], sample_query: null },
 ]
 
 export const diagnostics = {

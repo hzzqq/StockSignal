@@ -64,6 +64,7 @@ ENDPOINTS = [
     "/api/v2/read/market-panorama?k=8",
     "/api/v2/read/portfolio",
     "/api/v2/read/fund-flow",
+    "/api/v2/read/trading-account",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -1428,3 +1429,56 @@ def test_fund_flow_endpoint(client, token, monkeypatch):
     body3 = resp3.get_json()
     assert body3["status"] == "ok"
     assert body3["data"]["northbound"]["available"] is False
+
+
+def test_trading_account_endpoint(client, token, tmp_path, monkeypatch):
+    """trading-account（43 实盘交易只读概览）：聚合本地模拟账本；无账本 → 诚实空态。
+
+    只读、不暴露任何写接口；缺账本 available=False + 空数据（不 500、不补 0）。
+    """
+    # 写一个自洽的本地模拟账本到临时目录，并 monkeypatch _DATA_DIR 指向它
+    import backend.api.read_routes as rr
+    ledger = {
+        "init_cash": 1000000.0, "cash": 870944.0,
+        "positions": {"600519": {"name": "贵州茅台", "qty": 100, "avg_cost": 1290.56}},
+        "trades": [
+            {"time": "2026-09-09 12:10", "code": "600519", "name": "贵州茅台",
+             "side": "买", "price": 1290.56, "qty": 100, "amount": 129056.0},
+        ],
+        "equity": [["2026-09-09 12:10", 1000000.0]],
+    }
+    ledger_path = tmp_path / "paper_admin.json"
+    ledger_path.write_text(json.dumps(ledger, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(rr, "_DATA_DIR", tmp_path.resolve())
+
+    # 1) 充分账本 -> ok 信封 + account/positions/orders 三块齐备
+    resp = client.get("/api/v2/read/trading-account?user=admin", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["account"]["available"] is True
+    assert d["account"]["broker_type"] == "sim"
+    assert d["account"]["mode"] == "模拟"
+    assert d["account"]["cash"] == 870944.0
+    # 持仓成本 = 100 * 1290.56 = 129056.0；总资产 = cash + 持仓成本
+    assert d["positions"][0]["code"] == "600519"
+    assert d["positions"][0]["cost_basis"] == pytest.approx(129056.0)
+    assert d["account"]["position_cost"] == pytest.approx(129056.0)
+    assert d["account"]["total_assets"] == pytest.approx(870944.0 + 129056.0)
+    assert d["orders"][0]["side"] == "买"
+    assert d["orders"][0]["amount"] == pytest.approx(129056.0)
+
+    # 2) 无账本（目录里没有该 user）-> 仍 200、available=False + 空数据（诚实降级）
+    resp2 = client.get("/api/v2/read/trading-account?user=nobody", headers={"Authorization": f"Bearer {token}"})
+    assert resp2.status_code == 200
+    body2 = resp2.get_json()
+    assert body2["status"] == "ok"
+    assert body2["data"]["account"]["available"] is False
+    assert body2["data"]["positions"] == []
+    assert body2["data"]["orders"] == []
+
+    # 3) user 非法 -> 400
+    resp3 = client.get("/api/v2/read/trading-account?user=../etc", headers={"Authorization": f"Bearer {token}"})
+    assert resp3.status_code == 400
+

@@ -21,6 +21,7 @@ import {
   MarketPanoramaSchema,
   PortfolioSchema,
   FundFlowSchema,
+  TradingAccountSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -42,6 +43,7 @@ import {
   type MarketPanorama,
   type Portfolio,
   type FundFlow,
+  type TradingAccount,
 } from './schemas/read'
 
 /**
@@ -250,4 +252,9 @@ export function getPortfolio(_params: PortfolioParams = {}): Promise<Portfolio> 
 /** GET /api/v2/read/fund-flow —— 北向 / 行业 / 大盘主力 / 融资融券（35 页 V2 化） */
 export function getFundFlow(): Promise<FundFlow> {
   return readValidated('fund-flow', FundFlowSchema)
+}
+
+/** GET /api/v2/read/trading-account —— 实盘交易只读概览（账户/持仓/订单流水，43 页 V2 化） */
+export function getTradingAccount(): Promise<TradingAccount> {
+  return readValidated('trading-account', TradingAccountSchema)
 }
