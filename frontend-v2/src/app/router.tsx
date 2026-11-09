@@ -50,6 +50,7 @@ const LazyDragonTiger = lazyRouteComponent(() => import('@/features/dragontiger/
 const LazyTheme = lazyRouteComponent(() => import('@/features/theme/Theme'), 'Theme')
 const LazyStrong = lazyRouteComponent(() => import('@/features/strong/Strong'), 'Strong')
 const LazySectorRotation = lazyRouteComponent(() => import('@/features/sector-rotation/SectorRotation'), 'SectorRotation')
+const LazyWatch = lazyRouteComponent(() => import('@/features/watch/Watch'), 'Watch')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -292,6 +293,12 @@ const sectorRotationRoute = createRoute({
   component: LazySectorRotation,
 })
 
+const watchRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/watch',
+  component: LazyWatch,
+})
+
 const dataRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/data',
@@ -422,6 +429,7 @@ const routeTree = rootRoute.addChildren([
     themeRoute,
     strongRoute,
     sectorRotationRoute,
+    watchRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

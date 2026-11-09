@@ -34,6 +34,7 @@ import type {
   ThemeTransmission,
   Strong,
   SectorRotation,
+  Watch,
 } from '@/api/schemas/read'
 
 /**
@@ -312,6 +313,16 @@ export function useSectorRotation(): UseQueryResult<SectorRotation> {
   return useQuery({
     queryKey: ['read', 'sector-rotation'],
     queryFn: api.getSectorRotation,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+// ───────── 智能盯盘（watch / 14 页 V2 化）─────────
+// 只读聚合：自选股 + 逐只主力资金流 + 板块资金异动 + 资金流阈值预警；取不到→对应块为空、unavailable 标注。
+export function useWatch(): UseQueryResult<Watch> {
+  return useQuery({
+    queryKey: ['read', 'watch'],
+    queryFn: api.getWatch,
     staleTime: THIRTY_MIN,
   })
 }

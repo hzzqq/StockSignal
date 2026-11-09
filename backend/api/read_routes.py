@@ -2230,6 +2230,161 @@ def sector_rotation():
     return ok(data=_sanitize(data), message="sector-rotation")
 
 
+# ───────── 智能盯盘（只读 / watch）─────────
+# 诚实口径：V2 此处**只读**聚合，复用用户自选股（本地 Watchlist/Stock，JWT 隔离）+ 板块资金异动
+# （get_industry_fund_flow）+ 逐只自选股主力资金流（get_individual_fund_flow，Flask 安全、并行有界）。
+# ⚠️ 不在只读端点 fan-out 实时行情：quote_one 依赖 Streamlit 单例（@st.cache_resource + import streamlit），
+#   Flask 上下文不可用，故「实时现价/涨跌幅、价变阈值预警」未聚合；页面如实标注，看实时价请用
+#   个股分时/行情端点或 v1 实时盯盘页。资金流预警基于主力净流入占比阈值，非价格。
+_WATCH_NOTE = (
+    "本页为 V2 只读盯盘聚合：自选股（本地自选列表，按当前账号隔离）+ 板块资金异动（行业资金流）"
+    "+ 逐只自选股主力资金流（真实优先、量价估算兜底）。实时现价/涨跌幅未在此只读端点聚合"
+    "（实时行情取数依赖 Streamlit 单例，Flask 上下文不可用），需看实时价请用个股分时/行情端点或 v1 盯盘页；"
+    "资金流预警基于主力净流入占比阈值，非价格。数据为加载时点快照，非实时，非投资建议。"
+)
+
+
+@bp.get("/watch")
+@jwt_required
+def watch():
+    """智能盯盘聚合（14 页 V2 化）。
+
+    返回：watchlist（自选股 + 每只主力资金流）、sector_items（行业资金流异动）、
+    alerts（资金流阈值预警）、summary、src_labels、unavailable、note。
+    任一取数失败 → 诚实降级（对应块为空 + unavailable 标注），不 500、不补 0。
+    """
+    unavailable: list[str] = []
+    watchlist: list[dict] = []
+    sector_items: list[dict] = []
+    alerts: list[dict] = []
+
+    # ── 1) 自选股（复用 config_routes 同款查询：Watchlist + Stock 名称反查）──
+    wl: list[dict] = []
+    try:
+        from flask import g
+        from ..extensions import db
+        from ..models import Watchlist, Stock
+        from sqlalchemy import select as _select
+
+        rows = db.session.execute(
+            _select(Watchlist)
+            .where(Watchlist.user_id == g.current_user.id)
+            .order_by(Watchlist.created_at.desc())
+        ).scalars()
+        for w in rows:
+            stock = db.session.execute(
+                _select(Stock).where(Stock.code == w.stock_code)
+            ).scalar_one_or_none()
+            wl.append({
+                "code": w.stock_code,
+                "name": stock.name if stock else w.stock_code,
+                "note": w.note,
+            })
+    except Exception:  # noqa: BLE001 - DB 查询异常：降级为空，不 500
+        wl = []
+        unavailable.append("watchlist_query_failed")
+
+    # ── 2) 逐只主力资金流（Flask 安全；并行有界，整体超时 20s）──
+    fund_by_code: dict[str, object] = {}
+    if wl:
+        try:
+            from modules.fundflow import get_individual_fund_flow
+            from modules.fetch_parallel import fetch_many
+
+            def _mk(code: str):
+                return lambda: get_individual_fund_flow(code, use_estimate_fallback=True, timeout=12.0)
+
+            tasks = [(w["code"], _mk(w["code"])) for w in wl]
+            fund_by_code = fetch_many(tasks, max_workers=5, timeout=20) or {}
+        except Exception:  # noqa: BLE001 - 取数框架级异常：整体降级，不 500
+            unavailable.append("watchlist_fund_failed")
+
+    for w in wl:
+        code = w["code"]
+        ff = fund_by_code.get(code)
+        if isinstance(ff, dict):
+            fund = {
+                "source": ff.get("source"),
+                "main_net": _ff_yi(ff.get("main_net")),          # 元 -> 亿元
+                "main_net_pct": _flt(ff.get("main_net_pct")),     # 已是百分比，原样
+                "big_net": _ff_yi(ff.get("big_net")),
+                "super_net": _ff_yi(ff.get("super_net")),
+                "latest_date": ff.get("latest_date"),
+            }
+        else:
+            fund = {
+                "source": None, "main_net": None, "main_net_pct": None,
+                "big_net": None, "super_net": None, "latest_date": None,
+            }
+        watchlist.append({**w, "fund": fund})
+
+        # 资金流阈值预警（基于主力净流入占比，非价格）
+        if isinstance(ff, dict) and ff.get("source") not in (None, "none"):
+            pct = fund["main_net_pct"]
+            if pct is not None:
+                if pct >= 3.0:
+                    level, reason = "强", f"主力净流入占比 +{pct:.2f}%（强）"
+                elif pct <= -3.0:
+                    level, reason = "弱", f"主力净流出占比 {pct:.2f}%（弱）"
+                else:
+                    level, reason = "中性", f"主力净流入占比 {pct:+.2f}%（中性）"
+            else:
+                level, reason = "中性", "主力净流入占比数据缺失"
+        else:
+            level, reason = "未知", "资金流数据缺失（来源不可用）"
+        alerts.append({"code": code, "name": w["name"], "level": level, "reason": reason})
+
+    # ── 3) 板块资金异动（复用 get_industry_fund_flow）──
+    try:
+        from modules.fundflow import get_industry_fund_flow
+
+        idf = get_industry_fund_flow()
+    except Exception:  # noqa: BLE001 - 取数框架级异常：降级为空，不 500
+        idf = None
+    if idf is None or getattr(idf, "empty", True):
+        unavailable.append("sector_flow_unavailable")
+    else:
+        try:
+            for _, r in idf.iterrows():
+                sector_items.append({
+                    "name": r.get("行业"),
+                    "chg_pct": _flt(r.get("涨跌幅")),
+                    "net": _ff_yi(r.get("净额")),
+                    "leader": r.get("领涨股"),
+                    "leader_chg_pct": _flt(r.get("领涨股涨跌幅")),
+                })
+        except Exception:  # noqa: BLE001 - 解析异常：降级为空，不 500
+            sector_items = []
+            unavailable.append("sector_flow_parse_failed")
+
+    with_fund = sum(
+        1 for w in watchlist
+        if (w.get("fund") or {}).get("source") and (w["fund"]["source"] != "none")
+    )
+    strong_cnt = sum(1 for a in alerts if a["level"] == "强")
+    weak_cnt = sum(1 for a in alerts if a["level"] == "弱")
+
+    data = {
+        "watchlist": watchlist,
+        "sector_items": sector_items,
+        "alerts": alerts,
+        "summary": {
+            "watch_count": len(watchlist),
+            "with_fund": with_fund,
+            "strong_count": strong_cnt,
+            "weak_count": weak_cnt,
+            "sector_available": len(sector_items) > 0,
+        },
+        "src_labels": {
+            "watchlist_fund": "个股主力资金流(akshare/估算)",
+            "sector": "行业资金流(akshare)" if len(sector_items) > 0 else None,
+        },
+        "unavailable": unavailable,
+        "note": _WATCH_NOTE,
+    }
+    return ok(data=_sanitize(data), message="watch")
+
+
 # ───────── 实盘交易（只读概览 / trading-account）─────────
 # 诚实口径：V2 此处**只读**，聚合本地模拟账本 data/paper_<user>.json（模拟撮合下的
 # 账户/持仓/订单流水），**不暴露任何写接口**；实时下单与真实券商（QMT/同花顺）写能力

@@ -927,3 +927,69 @@ export const SectorRotationSchema = z
   .catchall(z.unknown())
 export type SectorRotation = z.infer<typeof SectorRotationSchema>
 
+// ───────── 智能盯盘（watch / 14 页 V2 化）─────────
+// 只读聚合：自选股 + 逐只主力资金流 + 板块资金异动 + 资金流阈值预警。
+// 金额单位为亿元（后端已 _ff_yi 折算），缺失/未披露为 null，前端显示「—」，绝不补 0。
+// 实时现价/涨跌幅未在此端点聚合（Flask 只读上下文不可用 Streamlit 实时行情单例），前端如实标注。
+export const WatchFundSchema = z
+  .object({
+    source: z.string().nullable().optional(),
+    main_net: z.number().nullable().optional(),
+    main_net_pct: z.number().nullable().optional(),
+    big_net: z.number().nullable().optional(),
+    super_net: z.number().nullable().optional(),
+    latest_date: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type WatchFund = z.infer<typeof WatchFundSchema>
+
+export const WatchlistItemSchema = z
+  .object({
+    code: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
+    note: z.string().nullable().optional(),
+    fund: WatchFundSchema.optional(),
+  })
+  .catchall(z.unknown())
+export type WatchlistItem = z.infer<typeof WatchlistItemSchema>
+
+export const WatchAlertSchema = z
+  .object({
+    code: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
+    level: z.string().nullable().optional(),
+    reason: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type WatchAlert = z.infer<typeof WatchAlertSchema>
+
+export const WatchSummarySchema = z
+  .object({
+    watch_count: z.number().nullable().optional(),
+    with_fund: z.number().nullable().optional(),
+    strong_count: z.number().nullable().optional(),
+    weak_count: z.number().nullable().optional(),
+    sector_available: z.boolean().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type WatchSummary = z.infer<typeof WatchSummarySchema>
+
+export const WatchSchema = z
+  .object({
+    watchlist: z.array(WatchlistItemSchema).optional(),
+    sector_items: z.array(SectorItemSchema).optional(),
+    alerts: z.array(WatchAlertSchema).optional(),
+    summary: WatchSummarySchema.optional(),
+    src_labels: z
+      .object({
+        watchlist_fund: z.string().nullable().optional(),
+        sector: z.string().nullable().optional(),
+      })
+      .catchall(z.unknown())
+      .optional(),
+    unavailable: z.array(z.unknown()).optional(),
+    note: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type Watch = z.infer<typeof WatchSchema>
+

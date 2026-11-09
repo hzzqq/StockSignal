@@ -71,6 +71,7 @@ ENDPOINTS = [
     "/api/v2/read/theme-transmission?limit=60",
     "/api/v2/read/strong",
     "/api/v2/read/sector-rotation",
+    "/api/v2/read/watch",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -1817,4 +1818,88 @@ def test_sector_rotation_endpoint(client, token, monkeypatch):
     assert d2["items"] == []
     assert d2["unavailable"] == ["industry_flow_unavailable"]
     assert d2["src_label"] == "行业资金流不可用"
+
+
+def test_watch_endpoint(client, token, app, monkeypatch):
+    """watch（14 智能盯盘）：自选股 + 逐只主力资金流 + 板块异动 + 资金流阈值预警；
+    金额(元)->亿元转换正确；阈值分级（强/弱）正确；板块缺失→仍 200 + unavailable。
+    全程 monkeypatch 取数源，零网络。
+    """
+    import pandas as pd
+    from modules import fundflow as ff_mod
+    from backend.extensions import db
+    from backend.models import Watchlist, Stock, User
+
+    # 准备自选股数据（按测试账号隔离）
+    with app.app_context():
+        u = User.query.filter_by(username="rwuser").first()
+        Watchlist.query.filter_by(user_id=u.id).delete()
+        for code, name in (("600519", "贵州茅台"), ("000001", "平安银行")):
+            if not Stock.query.filter_by(code=code).first():
+                db.session.add(Stock(code=code, name=name))
+            db.session.add(Watchlist(user_id=u.id, stock_code=code, note="盯盘测试"))
+        db.session.commit()
+
+    # 逐只主力资金流：600519 流入强 / 000001 流出弱（元 -> 亿：5e8->5.0）
+    def fake_fund(code, use_estimate_fallback=True, timeout=12.0):
+        data = {
+            "600519": {"source": "akshare", "main_net": 5e8, "main_net_pct": 4.2,
+                       "big_net": 3e8, "super_net": 2e8, "latest_date": "2026-11-10"},
+            "000001": {"source": "estimate", "main_net": -2e8, "main_net_pct": -3.5,
+                       "big_net": None, "super_net": None, "latest_date": "2026-11-10"},
+        }
+        return data.get(code, {"source": "none", "main_net": None, "main_net_pct": None,
+                              "big_net": None, "super_net": None, "latest_date": None})
+
+    monkeypatch.setattr(ff_mod, "get_individual_fund_flow", fake_fund)
+
+    sdf = pd.DataFrame({
+        "行业": ["半导体", "白酒"],
+        "涨跌幅": [3.5, -1.2],
+        "净额": [1e9, -0.5e9],
+        "领涨股": ["中微公司", "贵州茅台"],
+        "领涨股涨跌幅": [6.2, -0.5],
+    })
+    monkeypatch.setattr(ff_mod, "get_industry_fund_flow", lambda: sdf)
+
+    # 1) 充分取数 → ok + 结构 + 金额转换 + 阈值分级
+    resp = client.get("/api/v2/read/watch", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["summary"]["watch_count"] == 2
+    assert d["summary"]["with_fund"] == 2
+    assert d["summary"]["strong_count"] == 1
+    assert d["summary"]["weak_count"] == 1
+
+    wl = {w["code"]: w for w in d["watchlist"]}
+    assert wl["600519"]["name"] == "贵州茅台"
+    assert wl["600519"]["note"] == "盯盘测试"
+    assert wl["600519"]["fund"]["main_net"] == 5.0      # 5e8 元 -> 5.0 亿
+    assert wl["600519"]["fund"]["main_net_pct"] == 4.2
+    assert wl["600519"]["fund"]["source"] == "akshare"
+    assert wl["000001"]["fund"]["main_net"] == -2.0     # -2e8 元 -> -2.0 亿
+    assert wl["000001"]["fund"]["source"] == "estimate"
+
+    al = {a["code"]: a for a in d["alerts"]}
+    assert al["600519"]["level"] == "强"
+    assert al["000001"]["level"] == "弱"
+
+    assert len(d["sector_items"]) == 2
+    sem = next(x for x in d["sector_items"] if x["name"] == "半导体")
+    assert sem["net"] == 10.0                           # 1e9 元 -> 10.0 亿
+    assert d["src_labels"]["sector"] == "行业资金流(akshare)"
+    assert d["unavailable"] == []
+
+    # 2) 板块缺失 → 仍 200 + sector_items=[] + unavailable 标注
+    monkeypatch.setattr(ff_mod, "get_industry_fund_flow", lambda: None)
+    resp2 = client.get("/api/v2/read/watch", headers={"Authorization": f"Bearer {token}"})
+    assert resp2.status_code == 200
+    d2 = resp2.get_json()["data"]
+    assert d2["sector_items"] == []
+    assert "sector_flow_unavailable" in d2["unavailable"]
+    # 自选股与预警不受影响（已 monkeypatch 仍在）
+    assert d2["summary"]["watch_count"] == 2
+
 

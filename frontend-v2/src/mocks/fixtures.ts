@@ -666,6 +666,33 @@ export const sectorRotation = {
   date: null,
 }
 
+// 智能盯盘（watch）Mock：只读聚合自选股主力资金流 + 板块异动 + 资金流预警。
+// 金额单位=亿元（与后端 _ff_yi 一致），null = 字段缺失。以下数值为演示、非真实行情。
+export const watch = {
+  watchlist: [
+    { code: '600519', name: '贵州茅台', note: '核心持仓', fund: { source: 'akshare', main_net: 5.0, main_net_pct: 4.2, big_net: 3.0, super_net: 2.0, latest_date: '2026-11-10' } },
+    { code: '000001', name: '平安银行', note: '', fund: { source: 'estimate', main_net: -2.0, main_net_pct: -3.5, big_net: null, super_net: null, latest_date: '2026-11-10' } },
+    { code: '300750', name: '宁德时代', note: '观察', fund: { source: 'akshare', main_net: 8.4, main_net_pct: 2.1, big_net: 5.0, super_net: 3.4, latest_date: '2026-11-10' } },
+  ],
+  sector_items: [
+    { name: '半导体', chg_pct: 3.52, net: 18.6, leader: '中微公司', leader_chg_pct: 6.21 },
+    { name: '白酒', chg_pct: -1.24, net: -5.3, leader: '贵州茅台', leader_chg_pct: -0.52 },
+    { name: '银行', chg_pct: 0.81, net: 12.4, leader: '招商银行', leader_chg_pct: 1.12 },
+    { name: '军工', chg_pct: 2.07, net: 7.8, leader: '中航沈飞', leader_chg_pct: 3.44 },
+    { name: '新能源', chg_pct: 1.93, net: 9.1, leader: '宁德时代', leader_chg_pct: 2.10 },
+    { name: '医药', chg_pct: -0.66, net: -3.2, leader: '迈瑞医疗', leader_chg_pct: 0.30 },
+  ],
+  alerts: [
+    { code: '600519', name: '贵州茅台', level: '强', reason: '主力净流入占比 +4.20%（强）' },
+    { code: '000001', name: '平安银行', level: '弱', reason: '主力净流出占比 -3.50%（弱）' },
+    { code: '300750', name: '宁德时代', level: '中性', reason: '主力净流入占比 +2.10%（中性）' },
+  ],
+  summary: { watch_count: 3, with_fund: 3, strong_count: 1, weak_count: 1, sector_available: true },
+  src_labels: { watchlist_fund: '个股主力资金流(akshare/估算)', sector: '行业资金流(akshare)' },
+  unavailable: [],
+  note: '本页为 V2 只读盯盘聚合：自选股 + 板块资金异动 + 逐只个股主力资金流。实时现价/涨跌幅未在此只读端点聚合（实时行情取数依赖 Streamlit 单例，Flask 上下文不可用），需看实时价请用个股分时/行情端点或 v1 盯盘页；资金流预警基于主力净流入占比阈值，非价格。数据为加载时点快照，非实时，非投资建议。',
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -1099,6 +1126,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/theme-transmission', needs_params: false, probe_path: '/api/v2/read/theme-transmission', required_query: [], sample_query: null },
   { path: '/api/v2/read/strong', needs_params: false, probe_path: '/api/v2/read/strong', required_query: [], sample_query: null },
   { path: '/api/v2/read/sector-rotation', needs_params: false, probe_path: '/api/v2/read/sector-rotation', required_query: [], sample_query: null },
+  { path: '/api/v2/read/watch', needs_params: false, probe_path: '/api/v2/read/watch', required_query: [], sample_query: null },
 ]
 
 export const diagnostics = {
