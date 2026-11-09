@@ -648,6 +648,24 @@ export const strong = {
   date: null,
 }
 
+// 板块轮动（sector-rotation）Mock：复用后端 get_industry_fund_flow 字段结构。
+// 净额单位=亿元（与后端 _ff_yi 一致），null = 该行业净额取数缺失。
+export const sectorRotation = {
+  items: [
+    { name: '半导体', chg_pct: 3.52, net: 18.6, leader: '中微公司', leader_chg_pct: 6.21 },
+    { name: '白酒', chg_pct: -1.24, net: -5.3, leader: '贵州茅台', leader_chg_pct: -0.52 },
+    { name: '银行', chg_pct: 0.81, net: 12.4, leader: '招商银行', leader_chg_pct: 1.12 },
+    { name: '军工', chg_pct: 2.07, net: 7.8, leader: '中航沈飞', leader_chg_pct: 3.44 },
+    { name: '新能源', chg_pct: 1.93, net: 9.1, leader: '宁德时代', leader_chg_pct: 2.10 },
+    { name: '医药', chg_pct: -0.66, net: -3.2, leader: '迈瑞医疗', leader_chg_pct: 0.30 },
+    { name: '计算机', chg_pct: 2.45, net: 14.7, leader: '海康威视', leader_chg_pct: 2.80 },
+    { name: '汽车', chg_pct: 0.42, net: 2.1, leader: '比亚迪', leader_chg_pct: -2.40 },
+  ],
+  src_label: '行业资金流(akshare)',
+  unavailable: [],
+  date: null,
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -1080,6 +1098,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/theme', needs_params: false, probe_path: '/api/v2/read/theme', required_query: [], sample_query: null },
   { path: '/api/v2/read/theme-transmission', needs_params: false, probe_path: '/api/v2/read/theme-transmission', required_query: [], sample_query: null },
   { path: '/api/v2/read/strong', needs_params: false, probe_path: '/api/v2/read/strong', required_query: [], sample_query: null },
+  { path: '/api/v2/read/sector-rotation', needs_params: false, probe_path: '/api/v2/read/sector-rotation', required_query: [], sample_query: null },
 ]
 
 export const diagnostics = {

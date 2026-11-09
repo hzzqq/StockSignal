@@ -33,6 +33,7 @@ export type AppPath =
   | '/dragon-tiger'
   | '/theme'
   | '/strong'
+  | '/sector-rotation'
   | '/login'
   | '/matrix'
   | '/guide'
@@ -95,6 +96,7 @@ export const NAV: NavGroup[] = [
         { to: '/dragon-tiger', label: '龙虎榜', icon: '🐯' },
         { to: '/theme', label: '题材热点', icon: '🧱' },
         { to: '/strong', label: '实时强势榜', icon: '🏅' },
+        { to: '/sector-rotation', label: '板块轮动', icon: '🔥' },
     ],
   },
 ]

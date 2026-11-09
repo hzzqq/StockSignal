@@ -33,6 +33,7 @@ import type {
   Theme,
   ThemeTransmission,
   Strong,
+  SectorRotation,
 } from '@/api/schemas/read'
 
 /**
@@ -301,6 +302,16 @@ export function useStrong(): UseQueryResult<Strong> {
   return useQuery({
     queryKey: ['read', 'strong'],
     queryFn: api.getStrong,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+// ───────── 板块轮动（sector-rotation / 12 页 V2 化）─────────
+// 复用 modules.fundflow：行业资金流（涨跌幅 + 净额 + 领涨股）；取不到→items=[]、unavailable 标注。
+export function useSectorRotation(): UseQueryResult<SectorRotation> {
+  return useQuery({
+    queryKey: ['read', 'sector-rotation'],
+    queryFn: api.getSectorRotation,
     staleTime: THIRTY_MIN,
   })
 }

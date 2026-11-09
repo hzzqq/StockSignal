@@ -70,6 +70,7 @@ ENDPOINTS = [
     "/api/v2/read/theme",
     "/api/v2/read/theme-transmission?limit=60",
     "/api/v2/read/strong",
+    "/api/v2/read/sector-rotation",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -1768,4 +1769,52 @@ def test_strong_endpoint(client, token, monkeypatch):
     assert resp3.status_code == 200
     d3 = resp3.get_json()["data"]
     assert d3["unavailable"] == ["strong_compute_failed"]
+
+
+def test_sector_rotation_endpoint(client, token, monkeypatch):
+    """sector-rotation（12 板块轮动）：get_industry_fund_flow→行业 涨跌幅+净额+领涨股；
+    取不到→仍 200、unavailable=['industry_flow_unavailable']、items=[]；解析异常→仍 200。
+    """
+    import pandas as pd
+    from modules import fundflow as ff_mod
+
+    df = pd.DataFrame({
+        "行业": ["半导体", "白酒", "银行", "军工"],
+        "涨跌幅": [3.5, -1.2, 0.8, 2.1],
+        "流入资金": [5e9, 3e9, 4e9, 2e9],
+        "流出资金": [4e9, 3.5e9, 3e9, 1.5e9],
+        "净额": [1e9, -0.5e9, 1e9, 0.5e9],
+        "领涨股": ["中微公司", "贵州茅台", "招商银行", "中航沈飞"],
+        "领涨股涨跌幅": [6.2, -0.5, 1.1, 3.4],
+    })
+    monkeypatch.setattr(ff_mod, "get_industry_fund_flow", lambda: df)
+
+    # 1) 充分取数 → ok + items 全量 + src_label + 净额(亿) 正确
+    resp = client.get("/api/v2/read/sector-rotation", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["src_label"] == "行业资金流(akshare)"
+    assert len(d["items"]) == 4
+    # 净额转亿：半导体 1e9 -> 10.0
+    sem = next(x for x in d["items"] if x["name"] == "半导体")
+    assert sem["chg_pct"] == 3.5
+    assert sem["net"] == 10.0
+    assert sem["leader"] == "中微公司"
+    assert sem["leader_chg_pct"] == 6.2
+    # 白酒净流出 -0.5e9 -> -5.0
+    bai = next(x for x in d["items"] if x["name"] == "白酒")
+    assert bai["net"] == -5.0
+    assert d["unavailable"] == []
+    assert d["date"] is None
+
+    # 2) 取不到 → 仍 200、unavailable、items=[]
+    monkeypatch.setattr(ff_mod, "get_industry_fund_flow", lambda: None)
+    resp2 = client.get("/api/v2/read/sector-rotation", headers={"Authorization": f"Bearer {token}"})
+    assert resp2.status_code == 200
+    d2 = resp2.get_json()["data"]
+    assert d2["items"] == []
+    assert d2["unavailable"] == ["industry_flow_unavailable"]
+    assert d2["src_label"] == "行业资金流不可用"
 

@@ -903,3 +903,27 @@ export const StrongSchema = z
   .catchall(z.unknown())
 export type Strong = z.infer<typeof StrongSchema>
 
+// ───────── 板块轮动（sector-rotation / 12 页 V2 化）─────────
+// 复用 modules.fundflow.get_industry_fund_flow：行业级 涨跌幅 + 资金净额(亿) + 领涨股。
+// 字段以真实接口返回为准；净额缺失（仅涨跌幅降级源）为 null，前端显示「—」，绝不补 0。
+export const SectorItemSchema = z
+  .object({
+    name: z.string().nullable().optional(),
+    chg_pct: z.number().nullable().optional(),
+    net: z.number().nullable().optional(),
+    leader: z.string().nullable().optional(),
+    leader_chg_pct: z.number().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type SectorItem = z.infer<typeof SectorItemSchema>
+
+export const SectorRotationSchema = z
+  .object({
+    items: z.array(SectorItemSchema).optional(),
+    src_label: z.string().nullable().optional(),
+    unavailable: z.array(z.unknown()).optional(),
+    date: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type SectorRotation = z.infer<typeof SectorRotationSchema>
+

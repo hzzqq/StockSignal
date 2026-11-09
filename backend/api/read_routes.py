@@ -2184,6 +2184,52 @@ def fund_flow():
     return ok(data=_sanitize(data), message="fund-flow")
 
 
+# ───────── 板块轮动（只读 / sector-rotation）─────────
+@bp.get("/sector-rotation")
+@jwt_required
+def sector_rotation():
+    """板块轮动热力图（12 页 V2 化）。复用 modules.fundflow.get_industry_fund_flow。
+
+    返回行业级 涨跌幅 + 资金净额 + 领涨股，供前端热力图/排行榜/强弱象限渲染。
+    取数空或解析异常 -> 诚实降级（items=[] + unavailable 标注），不 500、不补 0。
+    （v1 的「行业资金流→板块涨跌列表」二级降级在 V2 收敛为单源行业资金流，
+     网络失败时如实标注「行业资金流不可用」而非伪造板块列表。）
+    """
+    unavailable = []
+    src_label = None
+    items = []
+    try:
+        from modules.fundflow import get_industry_fund_flow
+        df = get_industry_fund_flow()
+    except Exception:  # noqa: BLE001 - 取数框架级异常：整页诚实降级
+        df = None
+    if df is None or getattr(df, "empty", True):
+        unavailable.append("industry_flow_unavailable")
+        src_label = "行业资金流不可用"
+    else:
+        try:
+            src_label = "行业资金流(akshare)"
+            for _, r in df.iterrows():
+                items.append({
+                    "name": r.get("行业"),
+                    "chg_pct": _flt(r.get("涨跌幅")),
+                    "net": _ff_yi(r.get("净额")),
+                    "leader": r.get("领涨股"),
+                    "leader_chg_pct": _flt(r.get("领涨股涨跌幅")),
+                })
+        except Exception:  # noqa: BLE001 - 解析异常：降级为空，不 500
+            items = []
+            unavailable.append("industry_flow_parse_failed")
+            src_label = "行业资金流解析失败"
+    data = {
+        "items": items,
+        "src_label": src_label,
+        "unavailable": unavailable,
+        "date": None,
+    }
+    return ok(data=_sanitize(data), message="sector-rotation")
+
+
 # ───────── 实盘交易（只读概览 / trading-account）─────────
 # 诚实口径：V2 此处**只读**，聚合本地模拟账本 data/paper_<user>.json（模拟撮合下的
 # 账户/持仓/订单流水），**不暴露任何写接口**；实时下单与真实券商（QMT/同花顺）写能力

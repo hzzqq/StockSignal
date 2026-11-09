@@ -27,6 +27,7 @@ import {
   ThemeSchema,
   ThemeTransmissionSchema,
   StrongSchema,
+  SectorRotationSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -54,6 +55,7 @@ import {
   type Theme,
   type ThemeTransmission,
   type Strong,
+  type SectorRotation,
 } from './schemas/read'
 
 /**
@@ -293,4 +295,9 @@ export function getThemeTransmission(limit = 60): Promise<ThemeTransmission> {
 /** GET /api/v2/read/strong —— 实时强势榜（76 页 V2 化，多因子评分，启发式非预测） */
 export function getStrong(): Promise<Strong> {
   return readValidated('strong', StrongSchema)
+}
+
+/** GET /api/v2/read/sector-rotation —— 板块轮动热力图（12 页 V2 化，行业资金流） */
+export function getSectorRotation(): Promise<SectorRotation> {
+  return readValidated('sector-rotation', SectorRotationSchema)
 }
