@@ -29,6 +29,7 @@ import {
   StrongSchema,
   SectorRotationSchema,
   WatchSchema,
+  QuoteBoardSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -58,6 +59,7 @@ import {
   type Strong,
   type SectorRotation,
   type Watch,
+  type QuoteBoard,
 } from './schemas/read'
 
 /**
@@ -307,4 +309,9 @@ export function getSectorRotation(): Promise<SectorRotation> {
 /** GET /api/v2/read/watch —— 智能盯盘聚合（14 页 V2 化，自选股 + 资金流异动 + 预警） */
 export function getWatch(): Promise<Watch> {
   return readValidated('watch', WatchSchema)
+}
+
+/** GET /api/v2/read/quote-board —— 行情看板（10 页 V2 化：指数 + 板块涨跌榜 + 市场状态） */
+export function getQuoteBoard(): Promise<QuoteBoard> {
+  return readValidated('quote-board', QuoteBoardSchema)
 }

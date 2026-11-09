@@ -2919,6 +2919,137 @@ def strong():
         }), message="strong")
 
 
+# ───────── 行情看板（只读 / quote-board）─────────
+# 诚实口径：V2 只读聚合，复用 _w4x_index_quote（Flask 安全，akshare 日线离线确定性静态）
+# + get_industry_fund_flow（Flask 安全）+ 市场状态（基于服务器北京时间，真实 now，非伪造数据日）。
+# 指数/板块数据缺失 → 诚实降级为 null/[]，不 500、不补 0；市场状态基于服务器时间真实计算。
+_QUOTE_BOARD_NOTE = (
+    "本页为 V2 只读行情看板：主要指数（akshare 日线，离线返回确定性静态样例）+ 行业板块涨跌榜"
+    "（行业资金流，含涨跌幅/净额/领涨股）+ 市场状态（基于服务器北京时间）。"
+    "指数为页面加载时点快照（日线级），非实时逐笔；板块数据来自行业资金流快照。"
+    "数据为加载时点快照，非实时，非投资建议。"
+)
+
+
+def _market_session():
+    """基于服务器北京时间的交易时段判定（Flask 安全，复用 time_utils.now_cst_naive）。
+
+    返回 (is_open, text, refresh_ms)。这是「当前交易时段」的真实计算（不是数据日），
+    与其它端点「绝不 now()」的口径不冲突——后者约束的是数据日字段，而非市场状态本身。
+    """
+    from datetime import time as _dt_time
+    try:
+        from modules.time_utils import now_cst_naive
+        now = now_cst_naive()
+    except Exception:  # noqa: BLE001
+        return (False, "⚪ 行情状态未知", 0)
+    wd = now.weekday()
+    t = now.time()
+    am_start, am_end = (_dt_time(9, 30), _dt_time(11, 30))
+    pm_start, pm_end = (_dt_time(13, 0), _dt_time(15, 0))
+    after_close = _dt_time(16, 0)
+    if wd >= 5:
+        return (False, "⚪ 已休市（周末）", 0)
+    if am_start <= t <= am_end:
+        return (True, "🟢 上午交易中", 60 * 1000)
+    if am_end < t < pm_start:
+        return (False, "🟡 午间休市", 60 * 1000)
+    if pm_start <= t <= pm_end:
+        return (True, "🟢 下午交易中", 60 * 1000)
+    if pm_end < t <= after_close:
+        return (False, "🔵 已收盘", 0)
+    return (False, "⚪ 已休市", 0)
+
+
+@bp.get("/quote-board")
+@jwt_required
+def quote_board():
+    """行情看板只读聚合（10 页 V2 化）。
+
+    返回：indices（主要指数报价）、sectors（行业板块涨跌榜）、market_status（交易时段）、
+    summary、src_labels、unavailable、note。
+    指数/板块取数失败 → 诚实降级（对应项缺失/null），不 500、不补 0。
+    """
+    unavailable: list[str] = []
+    indices: list[dict] = []
+    sectors: list[dict] = []
+
+    # ── 1) 主要指数（复用 _w4x_index_quote，Flask 安全、逐指数独立降级）──
+    try:
+        from modules.fetch_parallel import fetch_many
+        tasks = [(code, lambda c=code, n=name: _w4x_index_quote(c, n)) for code, name in _INDEX_DEFS]
+        res = fetch_many(tasks, max_workers=min(len(tasks), 5)) or {}
+    except Exception:  # noqa: BLE001 - 取数框架级异常：整体降级，不 500
+        res = {}
+    for code, name in _INDEX_DEFS:
+        q = res.get(code)
+        if not isinstance(q, dict):
+            q = {"code": code, "name": name, "current": None, "prev_close": None,
+                 "change": None, "change_pct": None, "date": None}
+        indices.append({
+            "code": q.get("code", code),
+            "name": q.get("name", name),
+            "current": _flt(q.get("current")),
+            "prev_close": _flt(q.get("prev_close")),
+            "change": _flt(q.get("change")),
+            "change_pct": _flt(q.get("change_pct")),
+            "date": q.get("date"),
+        })
+
+    index_available = sum(1 for x in indices if x.get("current") is not None)
+
+    # ── 2) 行业板块涨跌榜（复用 get_industry_fund_flow，Flask 安全）──
+    try:
+        from modules.fundflow import get_industry_fund_flow
+        idf = get_industry_fund_flow()
+    except Exception:  # noqa: BLE001 - 取数框架级异常：降级为空，不 500
+        idf = None
+    if idf is None or getattr(idf, "empty", True):
+        unavailable.append("sector_flow_unavailable")
+    else:
+        try:
+            for _, r in idf.iterrows():
+                sectors.append({
+                    "name": r.get("行业"),
+                    "chg_pct": _flt(r.get("涨跌幅")),
+                    "net": _ff_yi(r.get("净额")),
+                    "leader": r.get("领涨股"),
+                    "leader_chg_pct": _flt(r.get("领涨股涨跌幅")),
+                })
+        except Exception:  # noqa: BLE001 - 解析异常：降级为空，不 500
+            sectors = []
+            unavailable.append("sector_flow_parse_failed")
+
+    # ── 3) 市场状态（服务器北京时间，真实 now，非数据日）──
+    try:
+        is_open, status_text, refresh_ms = _market_session()
+    except Exception:  # noqa: BLE001
+        is_open, status_text, refresh_ms = False, "⚪ 行情状态未知", 0
+
+    data = {
+        "indices": indices,
+        "sectors": sectors,
+        "market_status": {
+            "is_open": is_open,
+            "text": status_text,
+            "refresh_ms": refresh_ms,
+        },
+        "summary": {
+            "index_count": len(indices),
+            "index_available": index_available,
+            "sector_count": len(sectors),
+            "sector_available": len(sectors) > 0,
+        },
+        "src_labels": {
+            "indices": "主要指数(akshare 日线)" if index_available > 0 else None,
+            "sectors": "行业资金流(akshare)" if len(sectors) > 0 else None,
+        },
+        "unavailable": unavailable,
+        "note": _QUOTE_BOARD_NOTE,
+    }
+    return ok(data=_sanitize(data), message="quote-board")
+
+
 # ───────── 数据源 / 接口检测（diagnostics）─────────
 # 与 W4-B/W4-C/W4-X 同款红线：@jwt_required + 统一 ok() 信封；只读、绝不写任何数据文件；
 # 各检测项独立降级（任一失败只影响该项，不整页 500、不连带其它项）；缺失为 null、绝不补 0；

@@ -693,6 +693,31 @@ export const watch = {
   note: '本页为 V2 只读盯盘聚合：自选股 + 板块资金异动 + 逐只个股主力资金流。实时现价/涨跌幅未在此只读端点聚合（实时行情取数依赖 Streamlit 单例，Flask 上下文不可用），需看实时价请用个股分时/行情端点或 v1 盯盘页；资金流预警基于主力净流入占比阈值，非价格。数据为加载时点快照，非实时，非投资建议。',
 }
 
+// 行情看板（quote-board）Mock：指数（日线快照，日期为权威数据日）+ 行业板块涨跌榜
+// + 市场状态（服务器时间真实计算的样例）。null = 该字段取不到，数值为演示、非真实行情。
+export const quoteBoard = {
+  indices: [
+    { code: 'sh000001', name: '上证指数', current: 3955.9, prev_close: 3946.2, change: 9.7, change_pct: 0.25, date: '2026-11-11' },
+    { code: 'sz399001', name: '深证成指', current: 13210.4, prev_close: 13188.5, change: 21.9, change_pct: 0.17, date: '2026-11-11' },
+    { code: 'sz399006', name: '创业板指', current: 2785.6, prev_close: 2801.2, change: -15.6, change_pct: -0.56, date: '2026-11-11' },
+    { code: 'sh000016', name: '上证50', current: 2688.3, prev_close: 2680.1, change: 8.2, change_pct: 0.31, date: '2026-11-11' },
+    { code: 'sh000300', name: '沪深300', current: 4621.7, prev_close: 4612.4, change: 9.3, change_pct: 0.2, date: '2026-11-11' },
+  ],
+  sectors: [
+    { name: '半导体', chg_pct: 3.52, net: 18.6, leader: '中微公司', leader_chg_pct: 6.21 },
+    { name: '计算机', chg_pct: 2.45, net: 14.7, leader: '海康威视', leader_chg_pct: 2.80 },
+    { name: '军工', chg_pct: 2.07, net: 7.8, leader: '中航沈飞', leader_chg_pct: 3.44 },
+    { name: '银行', chg_pct: 0.81, net: 12.4, leader: '招商银行', leader_chg_pct: 1.12 },
+    { name: '医药', chg_pct: -0.66, net: -3.2, leader: '迈瑞医疗', leader_chg_pct: 0.30 },
+    { name: '白酒', chg_pct: -1.24, net: -5.3, leader: '贵州茅台', leader_chg_pct: -0.52 },
+  ],
+  market_status: { is_open: true, text: '🟢 下午交易中', refresh_ms: 60000 },
+  summary: { index_count: 5, index_available: 5, sector_count: 6, sector_available: true },
+  src_labels: { indices: '主要指数(akshare 日线)', sectors: '行业资金流(akshare)' },
+  unavailable: [],
+  note: '本页为 V2 只读行情看板：主要指数（akshare 日线，离线返回确定性静态样例）+ 行业板块涨跌榜（行业资金流）+ 市场状态（基于服务器北京时间）。指数为页面加载时点快照（日线级），非实时逐笔；数据为加载时点快照，非实时，非投资建议。',
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -1127,6 +1152,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/strong', needs_params: false, probe_path: '/api/v2/read/strong', required_query: [], sample_query: null },
   { path: '/api/v2/read/sector-rotation', needs_params: false, probe_path: '/api/v2/read/sector-rotation', required_query: [], sample_query: null },
   { path: '/api/v2/read/watch', needs_params: false, probe_path: '/api/v2/read/watch', required_query: [], sample_query: null },
+  { path: '/api/v2/read/quote-board', needs_params: false, probe_path: '/api/v2/read/quote-board', required_query: [], sample_query: null },
 ]
 
 export const diagnostics = {

@@ -51,6 +51,7 @@ const LazyTheme = lazyRouteComponent(() => import('@/features/theme/Theme'), 'Th
 const LazyStrong = lazyRouteComponent(() => import('@/features/strong/Strong'), 'Strong')
 const LazySectorRotation = lazyRouteComponent(() => import('@/features/sector-rotation/SectorRotation'), 'SectorRotation')
 const LazyWatch = lazyRouteComponent(() => import('@/features/watch/Watch'), 'Watch')
+const LazyQuoteBoard = lazyRouteComponent(() => import('@/features/quote-board/QuoteBoard'), 'QuoteBoard')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -299,6 +300,12 @@ const watchRoute = createRoute({
   component: LazyWatch,
 })
 
+const quoteBoardRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/quote-board',
+  component: LazyQuoteBoard,
+})
+
 const dataRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/data',
@@ -430,6 +437,7 @@ const routeTree = rootRoute.addChildren([
     strongRoute,
     sectorRotationRoute,
     watchRoute,
+    quoteBoardRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

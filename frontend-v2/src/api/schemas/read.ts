@@ -993,3 +993,59 @@ export const WatchSchema = z
   .catchall(z.unknown())
 export type Watch = z.infer<typeof WatchSchema>
 
+// ───────── 行情看板（quote-board / 10 页 V2 化）─────────
+// 只读聚合：主要指数报价（akshare 日线，离线为确定性静态样例）+ 行业板块涨跌榜
+// （行业资金流，net 单位亿元）+ 市场状态（服务器北京时间真实计算，非伪造数据日）。
+// 指数取不到 → current/change/change_pct=null（诚实降级，前端显示「—」，绝不补 0）；
+// 板块取不到 → sectors=[] + unavailable 标注；市场状态是真实「当前时段」计算，不是数据日。
+export const QuoteBoardIndexSchema = z
+  .object({
+    code: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
+    current: z.number().nullable().optional(),
+    prev_close: z.number().nullable().optional(),
+    change: z.number().nullable().optional(),
+    change_pct: z.number().nullable().optional(),
+    date: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type QuoteBoardIndex = z.infer<typeof QuoteBoardIndexSchema>
+
+export const QuoteBoardMarketStatusSchema = z
+  .object({
+    is_open: z.boolean().nullable().optional(),
+    text: z.string().nullable().optional(),
+    refresh_ms: z.number().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type QuoteBoardMarketStatus = z.infer<typeof QuoteBoardMarketStatusSchema>
+
+export const QuoteBoardSummarySchema = z
+  .object({
+    index_count: z.number().nullable().optional(),
+    index_available: z.number().nullable().optional(),
+    sector_count: z.number().nullable().optional(),
+    sector_available: z.boolean().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type QuoteBoardSummary = z.infer<typeof QuoteBoardSummarySchema>
+
+export const QuoteBoardSchema = z
+  .object({
+    indices: z.array(QuoteBoardIndexSchema).optional(),
+    sectors: z.array(SectorItemSchema).optional(),
+    market_status: QuoteBoardMarketStatusSchema.optional(),
+    summary: QuoteBoardSummarySchema.optional(),
+    src_labels: z
+      .object({
+        indices: z.string().nullable().optional(),
+        sectors: z.string().nullable().optional(),
+      })
+      .catchall(z.unknown())
+      .optional(),
+    unavailable: z.array(z.unknown()).optional(),
+    note: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type QuoteBoard = z.infer<typeof QuoteBoardSchema>
+

@@ -72,6 +72,7 @@ ENDPOINTS = [
     "/api/v2/read/strong",
     "/api/v2/read/sector-rotation",
     "/api/v2/read/watch",
+    "/api/v2/read/quote-board",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -1901,5 +1902,97 @@ def test_watch_endpoint(client, token, app, monkeypatch):
     assert "sector_flow_unavailable" in d2["unavailable"]
     # 自选股与预警不受影响（已 monkeypatch 仍在）
     assert d2["summary"]["watch_count"] == 2
+
+
+def test_quote_board_endpoint(client, token, app, monkeypatch):
+    """quote-board（10 行情看板）：指数 + 板块涨跌榜 + 市场状态；
+    金额(元)->亿元转换正确；指数/板块缺失→仍 200 + unavailable 标注、不补 0；
+    市场状态为服务器时间真实计算（bool/非空文本/int），不是伪造数据日。
+    全程 monkeypatch 取数源 + 指数报价源，零网络。
+    """
+    import pandas as pd
+    import backend.api.read_routes as read_routes
+    from modules import fundflow as ff_mod
+
+    # 指数：5 个定义中让 3 个取到、2 个取不到（诚实降级 current=None，不补 0）
+    def fake_index_quote(symbol, name):
+        table = {
+            "sh000001": (3955.9, 3946.2, 9.7, 0.25, "2026-11-11"),
+            "sz399001": (13210.4, 13188.5, 21.9, 0.17, "2026-11-11"),
+            "sz399006": (2785.6, 2801.2, -15.6, -0.56, "2026-11-11"),
+        }
+        if symbol in table:
+            cur, pc, chg, pct, dt = table[symbol]
+            return {"code": symbol, "name": name, "current": cur, "prev_close": pc,
+                    "change": chg, "change_pct": pct, "date": dt}
+        return {"code": symbol, "name": name, "current": None, "prev_close": None,
+                "change": None, "change_pct": None, "date": None}
+
+    monkeypatch.setattr(read_routes, "_w4x_index_quote", fake_index_quote)
+
+    sdf = pd.DataFrame({
+        "行业": ["半导体", "白酒"],
+        "涨跌幅": [3.5, -1.2],
+        "净额": [1e9, -0.5e9],
+        "领涨股": ["中微公司", "贵州茅台"],
+        "领涨股涨跌幅": [6.2, -0.5],
+    })
+    monkeypatch.setattr(ff_mod, "get_industry_fund_flow", lambda: sdf)
+
+    # 1) 充分取数 → ok + 结构完整 + 指数降级 + 金额换算 + 市场状态字段
+    resp = client.get("/api/v2/read/quote-board", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["summary"]["index_count"] == 5
+    assert d["summary"]["index_available"] == 3      # 仅 3 只取到，不把缺失当 0 填
+    assert d["summary"]["sector_count"] == 2
+    assert d["summary"]["sector_available"] is True
+
+    idx = {x["code"]: x for x in d["indices"]}
+    assert idx["sh000001"]["name"] == "上证指数"
+    assert idx["sh000001"]["current"] == 3955.9
+    assert idx["sh000001"]["change_pct"] == 0.25
+    assert idx["sh000001"]["date"] == "2026-11-11"
+    # 取不到的两个指数：字段为 None（诚实降级），不是 0
+    assert idx["sh000016"]["current"] is None
+    assert idx["sh000016"]["change_pct"] is None
+    assert idx["sh000300"]["current"] is None
+
+    sem = next(x for x in d["sectors"] if x["name"] == "半导体")
+    assert sem["net"] == 10.0                         # 1e9 元 -> 10.0 亿
+    assert sem["chg_pct"] == 3.5
+    assert sem["leader"] == "中微公司"
+    assert d["src_labels"]["sectors"] == "行业资金流(akshare)"
+    assert d["src_labels"]["indices"] == "主要指数(akshare 日线)"
+
+    ms = d["market_status"]
+    assert isinstance(ms["is_open"], bool)
+    assert isinstance(ms["text"], str) and ms["text"]
+    assert isinstance(ms["refresh_ms"], int) and ms["refresh_ms"] >= 0
+    assert d["unavailable"] == []
+    assert "非投资建议" in d["note"]
+
+    # 2) 板块缺失 → 仍 200 + sectors=[] + unavailable 标注；指数不受影响
+    monkeypatch.setattr(ff_mod, "get_industry_fund_flow", lambda: None)
+    resp2 = client.get("/api/v2/read/quote-board", headers={"Authorization": f"Bearer {token}"})
+    assert resp2.status_code == 200
+    d2 = resp2.get_json()["data"]
+    assert d2["sectors"] == []
+    assert "sector_flow_unavailable" in d2["unavailable"]
+    assert d2["summary"]["index_available"] == 3     # 指数块独立，不受板块缺失影响
+    assert d2["src_labels"]["sectors"] is None
+
+    # 3) 指数全取不到 → 仍 200 + index_available=0 + src_labels.indices=None（不谎报来源）
+    monkeypatch.setattr(read_routes, "_w4x_index_quote", lambda symbol, name: {
+        "code": symbol, "name": name, "current": None, "prev_close": None,
+        "change": None, "change_pct": None, "date": None})
+    resp3 = client.get("/api/v2/read/quote-board", headers={"Authorization": f"Bearer {token}"})
+    assert resp3.status_code == 200
+    d3 = resp3.get_json()["data"]
+    assert d3["summary"]["index_available"] == 0
+    assert d3["src_labels"]["indices"] is None
+    assert all(x["current"] is None for x in d3["indices"])
 
 

@@ -35,6 +35,7 @@ export type AppPath =
   | '/strong'
   | '/sector-rotation'
   | '/watch'
+  | '/quote-board'
   | '/login'
   | '/matrix'
   | '/guide'
@@ -99,6 +100,7 @@ export const NAV: NavGroup[] = [
         { to: '/strong', label: '实时强势榜', icon: '🏅' },
         { to: '/sector-rotation', label: '板块轮动', icon: '🔥' },
         { to: '/watch', label: '智能盯盘', icon: '👁️' },
+      { to: '/quote-board', label: '行情看板', icon: '📊' },
     ],
   },
 ]

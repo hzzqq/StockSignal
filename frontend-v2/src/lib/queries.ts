@@ -35,6 +35,7 @@ import type {
   Strong,
   SectorRotation,
   Watch,
+  QuoteBoard,
 } from '@/api/schemas/read'
 
 /**
@@ -323,6 +324,16 @@ export function useWatch(): UseQueryResult<Watch> {
   return useQuery({
     queryKey: ['read', 'watch'],
     queryFn: api.getWatch,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+// ───────── 行情看板（quote-board / 10 页 V2 化）─────────
+// 只读聚合：主要指数 + 行业板块涨跌榜 + 市场状态；任一块取不到→对应块为空 + unavailable 标注。
+export function useQuoteBoard(): UseQueryResult<QuoteBoard> {
+  return useQuery({
+    queryKey: ['read', 'quote-board'],
+    queryFn: api.getQuoteBoard,
     staleTime: THIRTY_MIN,
   })
 }
