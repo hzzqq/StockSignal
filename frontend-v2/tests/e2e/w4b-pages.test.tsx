@@ -265,7 +265,7 @@ describe('W4-B · 导航注册', () => {
     expect(g3.items.some((it) => it.to === '/stock/research')).toBe(true)
     expect(g3.items.some((it) => it.to === '/stock/fundamentals')).toBe(true)
     expect(g3.items.some((it) => it.to === '/stock/compare')).toBe(true)
-    expect(g3.items.length).toBe(8)
+    expect(g3.items.length).toBe(10)
     const icons = NAV.flatMap((g) => g.items.map((it) => it.icon))
     expect(new Set(icons).size).toBe(icons.length)
   })

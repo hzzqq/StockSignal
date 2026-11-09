@@ -16,6 +16,8 @@ import {
   P1SyncStatusSchema,
   BacktestRunsSchema,
   DataRefreshStateSchema,
+  FactorAnalysisSchema,
+  BacktestSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -32,6 +34,8 @@ import {
   type P1SyncStatus,
   type BacktestRuns,
   type DataRefreshState,
+  type FactorAnalysis,
+  type Backtest,
 } from './schemas/read'
 
 /**
@@ -163,4 +167,46 @@ export function getBacktestRuns(): Promise<BacktestRuns> {
 /** GET /api/v2/read/data-refresh-state —— 数据刷新状态（data/data_refresh_state.json） */
 export function getDataRefreshState(): Promise<DataRefreshState> {
   return readValidated('data-refresh-state', DataRefreshStateSchema)
+}
+
+// ───────── 因子分析（factor-analysis / modules.factor_analysis 纯函数）─────────
+// 逐标的实时取数（page_utils.hist_cached）、独立降级；有效标的<3 时后端返回
+// status=error（insufficient_data），client 抛 ApiError → 页面渲染错误态，不兜底。
+export interface FactorAnalysisParams {
+  codes: string[]
+  days?: number
+  factor?: string
+  n_layers?: number
+  forward?: number
+}
+
+/** GET /api/v2/read/factor-analysis —— IC/IR、分层收益、多空组合（71 页因子分析 V2 化） */
+export function getFactorAnalysis(params: FactorAnalysisParams): Promise<FactorAnalysis> {
+  const q = new URLSearchParams()
+  if (params.codes?.length) q.set('codes', params.codes.join(','))
+  q.set('days', String(params.days ?? 250))
+  q.set('factor', params.factor ?? 'momentum')
+  q.set('n_layers', String(params.n_layers ?? 5))
+  q.set('forward', String(params.forward ?? 1))
+  return readValidated(`factor-analysis?${q.toString()}`, FactorAnalysisSchema)
+}
+
+// ───────── 策略回测（backtest / modules.backtest.Backtester）─────────
+// 单标的实时取数回测；取数为空时后端返回 status=error（insufficient_data），
+// client 抛 ApiError → 页面渲染错误态，不兜底补零曲线。
+export interface BacktestParams {
+  ticker: string
+  start?: string
+  end?: string
+  strategy?: string
+}
+
+/** GET /api/v2/read/backtest —— 单标的多因子/均线/事件驱动回测（30 页策略回测 V2 化） */
+export function getBacktest(params: BacktestParams): Promise<Backtest> {
+  const q = new URLSearchParams()
+  q.set('ticker', params.ticker.trim())
+  if (params.start) q.set('start', params.start)
+  if (params.end) q.set('end', params.end)
+  q.set('strategy', params.strategy ?? 'multi_factor')
+  return readValidated(`backtest?${q.toString()}`, BacktestSchema)
 }

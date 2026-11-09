@@ -59,6 +59,8 @@ ENDPOINTS = [
     "/api/v2/read/p1-sync-status",
     "/api/v2/read/backtest-runs",
     "/api/v2/read/data-refresh-state",
+    "/api/v2/read/factor-analysis?codes=600519,000001,300750&days=60&factor=momentum&n_layers=5&forward=1",
+    "/api/v2/read/backtest?ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor",
 ]
 
 # OpenAPI spec 中的路径（<date> 在 spec 里被渲染成 {date}）
@@ -87,6 +89,8 @@ SPEC_PATHS = [
     "/api/v2/read/p1-sync-status",
     "/api/v2/read/backtest-runs",
     "/api/v2/read/data-refresh-state",
+    "/api/v2/read/factor-analysis",
+    "/api/v2/read/backtest",
 ]
 
 
@@ -1037,3 +1041,119 @@ def test_w4b_in_frontend_spec_file():
         node = spec["paths"].get(base)
         assert node is not None and "get" in node, f"spec 缺 {base}"
         assert node["get"].get("security") == [{"BearerAuth": []}], f"{base} 未标注鉴权"
+
+
+def test_factor_analysis_endpoint(client, token, monkeypatch):
+    """factor-analysis：有效标的≥3 -> 200 + status=ok（含 ic_summary/layered_cum/long_short_cum）；
+    有效标的<3 -> status=error（insufficient_data），诚实不编造、不补零。"""
+    import pandas as pd
+    import modules.page_utils as pu
+
+    def _fake_df(code=None):
+        n = 61
+        idx = pd.date_range("2026-01-01", periods=n, freq="D")
+        # 每只标的斜率不同 -> 截面上有差异（rank_ic 要求截面 nunique≥2，否则为 NaN）。
+        slope = 1 + ((int(str(code or "0")[-3:]) % 50) / 100.0)
+        close = [100 + slope * (i + (i % 7)) for i in range(n)]
+        return pd.DataFrame({"日期": idx, "收盘": close})
+
+    monkeypatch.setattr(pu, "hist_cached", _fake_df)
+
+    # 1) 充分数据：3 只标的 + n_layers=3（≤标的数，可分层）-> ok 信封 + 三层图表数据
+    resp = client.get(
+        "/api/v2/read/factor-analysis?codes=600519,000001,300750&days=60&factor=momentum&n_layers=3&forward=1",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["factor"] == "momentum" and d["n_layers"] == 3
+    assert isinstance(d["ic_summary"], dict) and (d["ic_summary"].get("n") or 0) >= 1
+    assert len(d["layered_cum"]) >= 1
+    assert len(d["long_short_cum"]) >= 1
+    # 诚实红线：数值缺失应为 null，绝不允许补 0（ic_summary.n 为真实样本数，非 0）
+    assert d["ic_summary"]["n"] != 0
+
+    # 2) 不足 3 只标的 -> 诚实 error，不给出因子结论
+    resp2 = client.get(
+        "/api/v2/read/factor-analysis?codes=600519&days=60",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp2.status_code == 200
+    body2 = resp2.get_json()
+    assert body2["status"] == "error"
+    assert body2["code"] == "insufficient_data"
+
+
+def test_backtest_endpoint(client, token, monkeypatch):
+    """backtest：有效取数 -> 200 + status=ok（含 summary/equity_curve/trades）；
+    取数为空 -> status=error（insufficient_data），诚实不编造、不补零；
+    ticker 非法 -> 400 invalid_param。"""
+    import pandas as pd
+    from modules.backtest import Backtester
+    from modules.backtest_result import BacktestResult
+
+    n = 30
+    idx = pd.date_range("2024-01-02", periods=n, freq="B")
+    # 单调上行 + 轻微波动 -> 有正收益、有回撤，足以撑起 summary 与曲线。
+    close = [100 + i * 1.5 + (i % 3) for i in range(n)]
+    df = pd.DataFrame({
+        "date": idx,
+        "close": close,
+        "position": [1] * n,
+        "cash": [0.0] * n,
+        "total_asset": [100000 + i * 150.0 for i in range(n)],
+        "cumulative_return": [i * 0.15 for i in range(n)],
+        "daily_return": [0.15] * n,
+        "drawdown": [-0.5 * (i % 5) for i in range(n)],
+    })
+    trades = [{
+        "entry_date": idx[0], "exit_date": idx[5],
+        "entry_price": 100.0, "exit_price": 108.0,
+        "profit_pct": 7.5, "exit_reason": "止盈", "bars_held": 5,
+    }]
+
+    def _fake_run(ticker, start, end, strategy="multi_factor", **kw):
+        return BacktestResult(ticker, strategy, df, 100000, trades)
+
+    monkeypatch.setattr(Backtester, "run", staticmethod(_fake_run))
+
+    # 1) 充分数据 -> ok 信封 + summary/曲线/交易
+    resp = client.get(
+        "/api/v2/read/backtest?ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    body = resp.get_json()
+    assert body["status"] == "ok", body
+    d = body["data"]
+    assert d["ticker"] == "600519" and d["strategy"] == "multi_factor"
+    assert d["total_return_pct"] is not None and d["total_return_pct"] != 0
+    assert d["sharpe_ratio"] is not None
+    assert len(d["equity_curve"]) == n
+    assert d["equity_curve"][-1]["date"] == str(idx[-1])[:10]
+    assert len(d["trades"]) == 1
+    assert d["trades"][0]["exit_reason"] == "止盈"
+
+    # 2) 取数为空（df.empty）-> 诚实 error
+    def _fake_run_empty(ticker, start, end, strategy="multi_factor", **kw):
+        return BacktestResult(ticker, strategy, pd.DataFrame(), 100000, [])
+
+    monkeypatch.setattr(Backtester, "run", staticmethod(_fake_run_empty))
+    resp2 = client.get(
+        "/api/v2/read/backtest?ticker=600519&start=2024-01-01&end=2024-12-31",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp2.status_code == 200
+    body2 = resp2.get_json()
+    assert body2["status"] == "error"
+    assert body2["code"] == "insufficient_data"
+
+    # 3) ticker 非法 -> 400 invalid_param
+    resp3 = client.get(
+        "/api/v2/read/backtest?ticker=abc&start=2024-01-01&end=2024-12-31",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp3.status_code == 400
+    assert resp3.get_json()["code"] == "invalid_param"

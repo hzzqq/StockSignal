@@ -22,6 +22,8 @@ export type AppPath =
   | '/stock/research'
   | '/stock/fundamentals'
   | '/stock/compare'
+  | '/factor'
+  | '/backtest'
   | '/login'
   | '/matrix'
   | '/guide'
@@ -62,6 +64,8 @@ export const NAV: NavGroup[] = [
       { to: '/stock/research', label: '个股研究', icon: '✦' },
       { to: '/stock/fundamentals', label: '基本面分析', icon: '▤' },
       { to: '/stock/compare', label: '个股对比', icon: '⇄' },
+      { to: '/factor', label: '因子分析', icon: '◫' },
+      { to: '/backtest', label: '策略回测', icon: '⊟' },
     ],
   },
   {
@@ -79,7 +83,7 @@ export const NAV: NavGroup[] = [
 
 /**
  * 底部固定入口 / 登录回流白名单的单一真理源。
- * 这些路径不进 NAV（导航守卫锁死 4 组、第 3 组 8 项、图标全局唯一），
+ * 这些路径不进 NAV（导航守卫锁死 4 组、第 3 组 10 项（含 ◫ 因子分析 / ⊟ 策略回测）、图标全局唯一），
  * 但同样是真实路由：LoginPage 的 knownPaths 必须认它们，否则从这些页被踢去
  * 登录后会静默回首页（历史缺陷：手抄 KNOWN_PATHS 漏掉新增路径）。
  * /login 不在其中 —— 它是未鉴权入口，不能作为登录后的回流目标。

@@ -201,7 +201,7 @@ describe('W4-F · 接线守卫（源码真扫）', () => {
 
   it('新页走底部入口，NAV 仍 4 组 / 第 3 组 8 项 / 图标唯一', () => {
     expect(NAV.length).toBe(4)
-    expect(NAV[2].items.length).toBe(8)
+    expect(NAV[2].items.length).toBe(10)
     const items = NAV.flatMap((g) => g.items)
     expect(new Set(items.map((i) => i.icon)).size).toBe(items.length)
     const paths = items.map((i) => i.to)

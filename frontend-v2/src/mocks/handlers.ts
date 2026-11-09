@@ -96,6 +96,10 @@ export const handlers = [
   http.get('/api/v2/read/p1-sync-status', () => ok(fixtures.p1SyncStatus)),
   http.get('/api/v2/read/backtest-runs', () => ok(fixtures.backtestRuns)),
   http.get('/api/v2/read/data-refresh-state', () => ok(fixtures.dataRefreshState)),
+  // 因子分析（71 页 V2 化）：结构对齐后端 factor_analysis()；演示数值非真实行情。
+  http.get('/api/v2/read/factor-analysis', () => ok(fixtures.factorAnalysis)),
+  // 策略回测（30 页 V2 化）：结构对齐后端 backtest()；演示数值非真实行情。
+  http.get('/api/v2/read/backtest', () => ok(fixtures.backtest)),
   // W4-A · 个股六维评分：按 code query 分派；非法/缺 code 返回 400 invalid_param 信封。
   http.get('/api/v2/read/six-dim', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')

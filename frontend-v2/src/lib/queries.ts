@@ -1,5 +1,6 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import * as api from '@/api/read'
+import type { FactorAnalysisParams, BacktestParams } from '@/api/read'
 import { getSixDim, getFundamentals, getFinancials, getStockKline, getStockIntraday, getIndexQuotes, getIndexKline } from '@/api/stock'
 import { getDiagnostics } from '@/api/diagnostics'
 import type { SixDim, Fundamentals, Financials, StockKline, StockIntraday, IndexQuotes, IndexKline } from '@/api/schemas/stock'
@@ -21,6 +22,8 @@ import type {
   P1SyncStatus,
   BacktestRuns,
   DataRefreshState,
+  FactorAnalysis,
+  Backtest,
 } from '@/api/schemas/read'
 
 /**
@@ -187,6 +190,24 @@ export function useDataRefreshState(): UseQueryResult<DataRefreshState> {
     queryKey: ['read', 'data-refresh-state'],
     queryFn: api.getDataRefreshState,
     staleTime: FIVE_MIN,
+  })
+}
+
+// ───────── 因子分析（factor-analysis / 71 页 V2 化）─────────
+// 逐标的实时取数，参数变化即重新取；有效标的<3 时后端返回 status=error → 进入 error 态。
+export function useFactorAnalysis(params: FactorAnalysisParams): UseQueryResult<FactorAnalysis> {
+  return useQuery({
+    queryKey: ['read', 'factor-analysis', params],
+    queryFn: () => api.getFactorAnalysis(params),
+    staleTime: THIRTY_MIN,
+  })
+}
+
+export function useBacktest(params: BacktestParams): UseQueryResult<Backtest> {
+  return useQuery({
+    queryKey: ['read', 'backtest', params],
+    queryFn: () => api.getBacktest(params),
+    staleTime: THIRTY_MIN,
   })
 }
 

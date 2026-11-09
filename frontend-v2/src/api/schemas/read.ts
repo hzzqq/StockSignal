@@ -379,3 +379,92 @@ export const DataRefreshStateSchema = z
   })
   .catchall(z.unknown())
 export type DataRefreshState = z.infer<typeof DataRefreshStateSchema>
+
+// ───────── 因子分析（factor-analysis / modules.factor_analysis 纯函数）─────────
+// 字段名严格对齐 backend/api/read_routes.py:1497 factor_analysis() 的 data 字典：
+// codes/days/factor/forward/n_layers 为请求回显；ic_series[{date,ic}] 为逐期 IC；
+// ic_summary 为 IC 汇总（n/ic_mean/ic_std/ir/positive_ratio/t_stat，数值可 NaN→null）；
+// layered_cum[{date,"0"..层}] 为分层累计收益（列名为层号字符串，含 date 键）；
+// long_short_cum[{date,ic}] 为多空累计净值（(1+ls).cumprod()-1）；
+// errs 为取数错误清单 [[code,reason]]；date 为 IC 序列末根权威数据日（null 表示无）。
+// ⚠️ 诚实红线：NaN/Inf 后端已清洗为 null，严禁 `?? 0` 兜底；有效标的<3 时后端返回
+// status=error（前端判空渲染「数据不足」），本 schema 只覆盖 200+status=ok 的成功态。
+export const FactorIcPointSchema = z.object({
+  date: z.string(),
+  ic: z.number().nullable().optional(),
+})
+export type FactorIcPoint = z.infer<typeof FactorIcPointSchema>
+
+export const FactorAnalysisSchema = z
+  .object({
+    codes: z.array(z.string()),
+    days: z.number(),
+    factor: z.string(),
+    forward: z.number(),
+    n_layers: z.number(),
+    ic_series: z.array(FactorIcPointSchema),
+    ic_summary: z
+      .object({
+        n: z.number().nullable().optional(),
+        ic_mean: z.number().nullable().optional(),
+        ic_std: z.number().nullable().optional(),
+        ir: z.number().nullable().optional(),
+        positive_ratio: z.number().nullable().optional(),
+        t_stat: z.number().nullable().optional(),
+      })
+      .catchall(z.unknown()),
+    layered_cum: z.array(z.record(z.string(), z.unknown())),
+    long_short_cum: z.array(FactorIcPointSchema),
+    errs: z.array(z.array(z.unknown())),
+    date: z.string().nullable().optional(),
+    note: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type FactorAnalysis = z.infer<typeof FactorAnalysisSchema>
+
+// ───────── 策略回测（backtest）─────────
+export const BacktestTradeSchema = z.object({
+  entry_date: z.string().nullable().optional(),
+  exit_date: z.string().nullable().optional(),
+  entry_price: z.number().nullable().optional(),
+  exit_price: z.number().nullable().optional(),
+  profit_pct: z.number().nullable().optional(),
+  exit_reason: z.string().nullable().optional(),
+  bars_held: z.number().nullable().optional(),
+})
+export type BacktestTrade = z.infer<typeof BacktestTradeSchema>
+
+export const BacktestEquityPointSchema = z.object({
+  date: z.string(),
+  cumulative_return: z.number().nullable().optional(),
+  total_asset: z.number().nullable().optional(),
+  drawdown: z.number().nullable().optional(),
+})
+export type BacktestEquityPoint = z.infer<typeof BacktestEquityPointSchema>
+
+export const BacktestSchema = z
+  .object({
+    ticker: z.string(),
+    strategy: z.string(),
+    start: z.string(),
+    end: z.string(),
+    initial_capital: z.number().nullable().optional(),
+    final_value: z.number().nullable().optional(),
+    total_return_pct: z.number().nullable().optional(),
+    annualized_return_pct: z.number().nullable().optional(),
+    max_drawdown_pct: z.number().nullable().optional(),
+    sharpe_ratio: z.number().nullable().optional(),
+    win_rate_pct: z.number().nullable().optional(),
+    profit_factor: z.number().nullable().optional(),
+    avg_trade_return_pct: z.number().nullable().optional(),
+    trade_count: z.number().nullable().optional(),
+    exposure_pct: z.number().nullable().optional(),
+    start_date: z.string().nullable().optional(),
+    end_date: z.string().nullable().optional(),
+    equity_curve: z.array(BacktestEquityPointSchema),
+    trades: z.array(BacktestTradeSchema),
+    date: z.string().nullable().optional(),
+    note: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type Backtest = z.infer<typeof BacktestSchema>

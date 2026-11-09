@@ -35,10 +35,13 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pandas as pd
+
 from flask import Blueprint, request
 
 from ..auth.decorators import jwt_required
 from ..utils.response import fail, ok
+from modules.site_config import CALL_TIMEOUT_CAP
 
 # T-245：六维排雷「高危」等级字面量（与 modules.stock_risk.RISK_HIGH 对齐）
 _RISK_HIGH = "high"
@@ -1460,6 +1463,243 @@ def _w4x_index_kline_rows(df, limit):
         return d[["date", "open", "high", "low", "close", "volume"]].to_dict(orient="records"), last
     except Exception:  # noqa: BLE001
         return [], None
+
+
+# ───────────── 因子分析（G3：IC/IR、分层收益、多空组合）─────────────
+# 契约（与 W4-B/C 同款红线）：@jwt_required + 统一 ok/fail 信封；codes 用 ^\d{6}$ 校验、
+# 逗号分隔（≤50）；days/n_layers/forward 经钳制；多标的取数走 fetch_many（整批超时，不阻塞）；
+# 任一标的取数失败仅计入 errs，不整页 500、不编造；有效标的 < 3 时**诚实**返回
+# status=error（insufficient_data），绝不补零 / 用 < 3 只硬算结论。
+# 复用 modules.factor_analysis 纯函数（rank_ic/ic_series/ic_summary/layered_returns/
+# cumulative/long_short/build_panels）——逻辑零改动，仅做编排与序列化。
+_FA_NOTE = (
+    "逐标的独立取数、独立降级；缺失为 null 且不补 0；有效标的<3 不给出因子结论"
+    "（与 modules.factor_analysis.build_panels 诚实红线一致）。"
+)
+_FA_FACTORS = ("momentum", "reversal", "volatility", "turnover")
+
+
+def _fa_int(raw, default, lo, hi):
+    """整参钳制：非法 / 越界回落默认，绝不抛 400（与 _w4b_limit 不同，这里要宽容降级）。"""
+    try:
+        v = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, v))
+
+
+def _fa_fetch_hist_factory(res):
+    """把 fetch_many 的产出包成 build_panels 期望的 fetch_hist(code) callable。"""
+    def _fetch(code):
+        df = res.get(code)
+        return df if hasattr(df, "columns") and len(df) else None
+    return _fetch
+
+
+@bp.get("/factor-analysis")
+@jwt_required
+def factor_analysis():
+    """因子分析（IC/IR、分层收益、多空组合）。
+
+    GET /api/v2/read/factor-analysis?codes=600519,000001,300750&days=250&factor=momentum&n_layers=5&forward=1
+    复用 modules.factor_analysis 纯函数 + page_utils.hist_cached 实时取数；返回三层图表数据
+    （IC 序列 / 分层累计 / 多空累计）+ IC 汇总 + 取数错误清单。
+
+    有效标的 < 3 或全取数失败 → 诚实 status=error（insufficient_data），前端据实渲染「数据不足」，
+    不补零 / 不编造。date = IC 序列末根权威日期（取不到 null，绝不 now()）。
+    """
+    raw_codes = (request.args.get("codes") or "").strip()
+    codes = [c.strip() for c in raw_codes.split(",") if re.fullmatch(r"\d{6}", c.strip())] if raw_codes else []
+    # 用户未指定时给一组演示标的（首页可见、便于联调）；真后端仍逐只实时取数。
+    if not codes:
+        codes = ["600519", "000001", "300750"]
+    if len(codes) > 50:
+        return fail(message="codes 过多（≤50）", code="invalid_param", http_status=400)
+
+    days = _fa_int(request.args.get("days"), 250, 20, 1000)
+    factor = (request.args.get("factor") or "momentum").strip()
+    if factor not in _FA_FACTORS:
+        factor = "momentum"
+    n_layers = _fa_int(request.args.get("n_layers"), 5, 2, 10)
+    forward = _fa_int(request.args.get("forward"), 1, 1, 20)
+
+    # 逐只日线：fetch_many 共享有界池 + 整批超时（避免单标的 akshare 阻塞拖垮整体）。
+    try:
+        from modules.fetch_parallel import fetch_many
+        from modules import page_utils
+        res = fetch_many(
+            [(c, (lambda c=c: page_utils.hist_cached(c))) for c in codes],
+            timeout=CALL_TIMEOUT_CAP,
+        )
+    except Exception:  # noqa: BLE001 - 并发行异常：全体降级（诚实返回 null）
+        res = {}
+    fetch_hist = _fa_fetch_hist_factory(res)
+
+    try:
+        from modules.factor_analysis import build_panels, ic_series, ic_summary, layered_returns, cumulative, long_short
+        fp, ret, errs = build_panels(codes, days, factor, fetch_hist)
+    except Exception as e:  # noqa: BLE001 - 纯函数异常：诚实降级，不 500
+        return fail(message=f"因子分析计算失败：{type(e).__name__}: {e}", code="compute_error", http_status=200)
+
+    # 诚实红线：有效标的 < 3 → 不给出结论（与 V1 71 页一致）。
+    if fp is None or ret is None:
+        return fail(
+            message="有效标的不足 3 只或取数全部失败，无法得出因子结论",
+            code="insufficient_data", http_status=200,
+        )
+
+    ic = ic_series(fp, ret, forward)
+    summary = ic_summary(ic)
+    layered = layered_returns(fp, ret, n_layers, forward)
+    layered_cum = cumulative(layered)
+    ls = long_short(layered)
+    ls_cum = ((1 + ls.fillna(0)).cumprod() - 1) if len(ls) else ls
+
+    def _series_to_rows(s):
+        out = []
+        for d, v in s.items():
+            out.append({"date": str(d)[:10], "ic": (None if (v is None or (isinstance(v, float) and math.isnan(v))) else float(v))})
+        return out
+
+    ic_rows = _series_to_rows(ic)
+    # 分层累计：columns 为层号(0..n-1)，转字符串键 + NaN/Inf → None。
+    layered_rows = []
+    for d, row in layered_cum.iterrows():
+        rec = {"date": str(d)[:10]}
+        for col in layered_cum.columns:
+            v = row[col]
+            rec[str(col)] = None if (v is None or (isinstance(v, float) and math.isnan(v))) else float(v)
+        layered_rows.append(rec)
+    ls_rows = _series_to_rows(ls_cum) if len(ls_cum) else []
+
+    data = {
+        "codes": codes,
+        "days": days,
+        "factor": factor,
+        "forward": forward,
+        "n_layers": n_layers,
+        "ic_series": ic_rows,
+        "ic_summary": summary,
+        "layered_cum": layered_rows,
+        "long_short_cum": ls_rows,
+        "errs": [[c, r] for c, r in errs],
+        "date": ic_rows[-1]["date"] if ic_rows else None,
+        "note": _FA_NOTE,
+    }
+    return ok(data=_sanitize(data), message="factor-analysis")
+
+
+# ───────── 策略回测（G3：单标的多因子 / 均线 / 事件驱动回测）─────────
+# 契约（与 W4-B/C 同款红线）：@jwt_required + 统一 ok/fail 信封；ticker 用 ^\d{6}$ 校验；
+# strategy 限定 event_driven / ma_cross / multi_factor（非法回落 multi_factor）；
+# start/end 用 ^\d{4}-\d{2}-\d{2}$ 校验（缺失回落演示窗口）；整段 Backtester.run 套
+# run_with_timeout(CALL_TIMEOUT_CAP) 硬边界，绝不因实时取数阻塞拖垮整体；
+# 取数为空（df.empty）→ 诚实 status=error（insufficient_data），不补零、不编造；
+# NaN/Inf 经 _sanitize 转 null，前端据实渲染「—」/「数据不足」。
+_BT_NOTE = (
+    "单标的独立回测；取数为空时诚实返回 insufficient_data 而非补零曲线；"
+    "total_return/sharpe/win_rate 等口径与 modules.backtest.BacktestResult 一致。"
+)
+_BT_STRATEGIES = ("event_driven", "ma_cross", "multi_factor")
+
+
+@bp.get("/backtest")
+@jwt_required
+def backtest():
+    """策略回测。
+
+    GET /api/v2/read/backtest?ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor
+    复用 modules.backtest.Backtester.run（fetch + 信号 + 模拟一体），返回：
+    - 摘要指标（total_return_pct / annualized_return_pct / max_drawdown_pct / sharpe_ratio /
+      win_rate_pct / profit_factor / avg_trade_return_pct / trade_count / exposure_pct）
+    - equity_curve：逐日 {date, cumulative_return, total_asset, drawdown}
+    - trades：逐笔 {entry_date, exit_date, entry_price, exit_price, profit_pct, exit_reason, bars_held}
+    - date：回测末根权威数据日（取不到 null，绝不 now()）。
+
+    ticker 非法 → fail(400, invalid_param)；start/end 非法 → 回落演示窗口；
+    取数为空 → 诚实 status=error（insufficient_data）。
+    """
+    ticker = (request.args.get("ticker") or "").strip()
+    if not re.fullmatch(r"\d{6}", ticker):
+        return fail(message="ticker 非法（须为 6 位数字代码）", code="invalid_param", http_status=400)
+
+    start = (request.args.get("start") or "").strip()
+    end = (request.args.get("end") or "").strip()
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", start):
+        start = "2024-01-01"
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", end):
+        end = "2024-12-31"
+
+    strategy = (request.args.get("strategy") or "multi_factor").strip()
+    if strategy not in _BT_STRATEGIES:
+        strategy = "multi_factor"
+
+    # 整段 run 套硬边界：实时取数阻塞也不会拖垮整体（与 factor-analysis 同款红线）。
+    try:
+        from modules.timeout_exec import run_with_timeout
+        from modules.backtest import Backtester
+        bt = Backtester()
+        res = run_with_timeout(
+            lambda: bt.run(ticker, start, end, strategy=strategy),
+            timeout=CALL_TIMEOUT_CAP,
+        )
+    except Exception as e:  # noqa: BLE001 - 构造/取数异常：诚实降级，不 500
+        return fail(message=f"回测执行失败：{type(e).__name__}: {e}", code="compute_error", http_status=200)
+
+    if res is None or res.df is None or res.df.empty:
+        return fail(
+            message=f"标的 {ticker} 在 {start}~{end} 区间取数为空，无法回测",
+            code="insufficient_data", http_status=200,
+        )
+
+    # 资金曲线：逐日累计收益 / 总资产 / 回撤（NaN/Inf 经 _sanitize 转 null）。
+    equity_curve = []
+    for _, row in res.df.iterrows():
+        equity_curve.append({
+            "date": str(row["date"])[:10],
+            "cumulative_return": float(row["cumulative_return"]) if pd.notna(row.get("cumulative_return")) else None,
+            "total_asset": float(row["total_asset"]) if pd.notna(row.get("total_asset")) else None,
+            "drawdown": float(row["drawdown"]) if pd.notna(row.get("drawdown")) else None,
+        })
+
+    # 逐笔交易：日期转字符串、数值落库前 round（NaN/Inf 经 _sanitize 兜底）。
+    trades = []
+    for t in res.trades:
+        trades.append({
+            "entry_date": str(t["entry_date"])[:10] if t.get("entry_date") is not None else None,
+            "exit_date": str(t["exit_date"])[:10] if t.get("exit_date") is not None else None,
+            "entry_price": float(t["entry_price"]) if pd.notna(t.get("entry_price")) else None,
+            "exit_price": float(t["exit_price"]) if pd.notna(t.get("exit_price")) else None,
+            "profit_pct": float(t["profit_pct"]) if pd.notna(t.get("profit_pct")) else None,
+            "exit_reason": t.get("exit_reason"),
+            "bars_held": int(t["bars_held"]) if pd.notna(t.get("bars_held")) else None,
+        })
+
+    summary = res.summary()
+    data = {
+        "ticker": ticker,
+        "strategy": strategy,
+        "start": start,
+        "end": end,
+        "initial_capital": summary.get("initial_capital"),
+        "final_value": summary.get("final_value"),
+        "total_return_pct": summary.get("total_return_pct"),
+        "annualized_return_pct": summary.get("annualized_return_pct"),
+        "max_drawdown_pct": summary.get("max_drawdown_pct"),
+        "sharpe_ratio": summary.get("sharpe_ratio"),
+        "win_rate_pct": summary.get("win_rate_pct"),
+        "profit_factor": summary.get("profit_factor"),
+        "avg_trade_return_pct": summary.get("avg_trade_return_pct"),
+        "trade_count": summary.get("trade_count"),
+        "exposure_pct": summary.get("exposure_pct"),
+        "start_date": summary.get("start_date"),
+        "end_date": summary.get("end_date"),
+        "equity_curve": equity_curve,
+        "trades": trades,
+        "date": summary.get("end_date") or None,
+        "note": _BT_NOTE,
+    }
+    return ok(data=_sanitize(data), message="backtest")
 
 
 # ───────── 数据源 / 接口检测（diagnostics）─────────

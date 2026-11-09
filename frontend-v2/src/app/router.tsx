@@ -38,6 +38,8 @@ const LazySettingsView = lazyRouteComponent(() => import('@/features/settings/Se
 const LazyCatalogView = lazyRouteComponent(() => import('@/features/catalog/CatalogView'), 'CatalogView')
 const LazyLeadLagMatrixView = lazyRouteComponent(() => import('@/features/matrix/LeadLagMatrixView'), 'LeadLagMatrixView')
 const LazyGuideView = lazyRouteComponent(() => import('@/features/guide/GuideView'), 'GuideView')
+const LazyFactorAnalysis = lazyRouteComponent(() => import('@/features/factor/FactorAnalysis'), 'FactorAnalysis')
+const LazyBacktest = lazyRouteComponent(() => import('@/features/backtest/Backtest'), 'Backtest')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -208,6 +210,18 @@ const guideRoute = createRoute({
   component: LazyGuideView,
 })
 
+const factorRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/factor',
+  component: LazyFactorAnalysis,
+})
+
+const backtestRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/backtest',
+  component: LazyBacktest,
+})
+
 const dataRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/data',
@@ -326,6 +340,8 @@ const routeTree = rootRoute.addChildren([
     catalogRoute,
     matrixRoute,
     guideRoute,
+    factorRoute,
+    backtestRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

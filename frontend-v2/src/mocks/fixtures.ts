@@ -261,6 +261,124 @@ export const dataRefreshState = {
   detail: 'exit=0 killed=False since=2026-10-19 末行 2026-11-02 → 2026-11-05（推进）',
 }
 
+// ── 因子分析（factor-analysis）Mock：演示数值，非真实行情 ──
+// 结构严格对齐 backend/api/read_routes.py factor_analysis() 的 data 字典
+// （ic_series / ic_summary / layered_cum / long_short_cum / errs / date / note）。
+// 数值为确定性静态样例（非实时），与后端离线降级口径一致：缺失即 null、不补 0。
+const factorDates = (() => {
+  const out: string[] = []
+  let d = new Date('2026-09-21T00:00:00Z')
+  for (let i = 0; i < 30; i++) {
+    out.push(d.toISOString().slice(0, 10))
+    d = new Date(d.getTime() + 86_400_000)
+  }
+  return out
+})()
+
+const factorIcSeries = factorDates.map((date, i) => ({
+  date,
+  ic: Number((0.03 + 0.05 * Math.sin(i / 3) - 0.02 * (i % 5)).toFixed(4)),
+}))
+
+// 分层累计：layer 0 = 最高因子组（累计最高），layer 4 = 最低因子组（累计最低）。
+const factorLayerCum = factorDates.map((date, i) => {
+  const rec: Record<string, unknown> = { date }
+  for (let layer = 0; layer < 5; layer++) {
+    const daily = 0.004 - layer * 0.002
+    rec[String(layer)] = Number((Math.pow(1 + daily, i + 1) - 1).toFixed(4))
+  }
+  return rec
+})
+
+const factorLsCum = factorDates.map((date, i) => ({
+  date,
+  ic: Number((Math.pow(1 + 0.006, i + 1) - 1).toFixed(4)),
+}))
+
+export const factorAnalysis = {
+  codes: ['600519', '000001', '300750'],
+  days: 250,
+  factor: 'momentum',
+  forward: 1,
+  n_layers: 5,
+  ic_series: factorIcSeries,
+  ic_summary: {
+    n: 30,
+    ic_mean: Number((0.0265).toFixed(4)),
+    ic_std: Number((0.0589).toFixed(4)),
+    ir: Number((0.0265 / 0.0589).toFixed(3)),
+    positive_ratio: 0.63,
+    t_stat: Number((0.0265 / (0.0589 / Math.sqrt(30))).toFixed(2)),
+  },
+  layered_cum: factorLayerCum,
+  long_short_cum: factorLsCum,
+  errs: [],
+  date: factorDates[factorDates.length - 1],
+  note: '逐标的独立取数、独立降级；缺失为 null 且不补 0；有效标的<3 不给出因子结论（与 modules.factor_analysis.build_panels 诚实红线一致）。',
+}
+
+// W4 后续簇 · 策略回测（backtest）Mock，字段名与后端 /api/v2/read/backtest 契约一致。
+// 数值为确定性静态样例（非实时），与 modules.backtest.BacktestResult 口径一致：null 即缺失、不补 0。
+const backtestDates = (() => {
+  const out: string[] = []
+  let d = new Date('2024-01-02T00:00:00Z')
+  for (let i = 0; i < 30; i++) {
+    // 跳过周末，贴近真实交易日序列
+    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) {
+      out.push(d.toISOString().slice(0, 10))
+    }
+    d = new Date(d.getTime() + 86_400_000)
+  }
+  return out.slice(0, 30)
+})()
+
+const backtestEquity = (() => {
+  let cum = 0
+  let peak = 0
+  return backtestDates.map((date, i) => {
+    const daily = 0.0015 + 0.004 * Math.sin(i / 4) - 0.002 * (i % 6)
+    cum += daily * 100
+    const dd = cum - Math.max(peak, cum)
+    peak = Math.max(peak, cum)
+    return {
+      date,
+      cumulative_return: Number(cum.toFixed(2)),
+      total_asset: Number((100000 * (1 + cum / 100)).toFixed(2)),
+      drawdown: Number((dd < 0 ? dd : 0).toFixed(2)),
+    }
+  })
+})()
+
+export const backtest = {
+  ticker: '600519',
+  strategy: 'multi_factor',
+  start: '2024-01-01',
+  end: '2024-12-31',
+  initial_capital: 100000,
+  final_value: Number((100000 * (1 + backtestEquity[backtestEquity.length - 1].cumulative_return / 100)).toFixed(2)),
+  total_return_pct: backtestEquity[backtestEquity.length - 1].cumulative_return,
+  annualized_return_pct: Number((6.2).toFixed(2)),
+  max_drawdown_pct: Number((Math.min(...backtestEquity.map((r) => r.drawdown))).toFixed(2)),
+  sharpe_ratio: Number((1.84).toFixed(2)),
+  win_rate_pct: Number((58.33).toFixed(2)),
+  profit_factor: Number((2.15).toFixed(2)),
+  avg_trade_return_pct: Number((2.41).toFixed(2)),
+  trade_count: 12,
+  exposure_pct: Number((73.5).toFixed(2)),
+  start_date: backtestDates[0],
+  end_date: backtestDates[backtestDates.length - 1],
+  equity_curve: backtestEquity,
+  trades: [
+    { entry_date: backtestDates[0], exit_date: backtestDates[4], entry_price: 1685.0, exit_price: 1712.5, profit_pct: 1.63, exit_reason: '止盈', bars_held: 4 },
+    { entry_date: backtestDates[6], exit_date: backtestDates[9], entry_price: 1702.0, exit_price: 1668.4, profit_pct: -1.98, exit_reason: '止损', bars_held: 3 },
+    { entry_date: backtestDates[12], exit_date: backtestDates[18], entry_price: 1690.0, exit_price: 1745.2, profit_pct: 3.27, exit_reason: '最大持仓期', bars_held: 6 },
+    { entry_date: backtestDates[20], exit_date: backtestDates[24], entry_price: 1730.0, exit_price: 1758.9, profit_pct: 1.67, exit_reason: '策略卖出', bars_held: 4 },
+    { entry_date: backtestDates[26], exit_date: backtestDates[29], entry_price: 1745.0, exit_price: 1760.1, profit_pct: 0.86, exit_reason: '最大持仓期', bars_held: 3 },
+  ],
+  date: backtestDates[backtestDates.length - 1],
+  note: '单标的独立回测；取数为空时诚实返回 insufficient_data 而非补零曲线；total_return/sharpe/win_rate 等口径与 modules.backtest.Backtester 一致。',
+}
+
 // W4-A · 个股六维评分（six-dim）Mock，字段名与后端契约一致，数值为演示、非真实行情。
 // 六维键固定顺序 technical/capital/value/growth/fundamental/cycle；null = 该维取数失败。
 // sixDimFull：6 维齐全、date 有权威数据日；sixDimPartial：capital/growth 缺失、date 为 null。
@@ -682,6 +800,8 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/compare-one', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
   { path: '/api/v2/read/research-deep', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
   { path: '/api/v2/read/stock-intraday', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
+  { path: '/api/v2/read/factor-analysis', needs_params: true, probe_path: null, required_query: ['codes'], sample_query: 'codes=600519,000001,300750&days=250&factor=momentum&n_layers=5&forward=1' },
+  { path: '/api/v2/read/backtest', needs_params: true, probe_path: null, required_query: ['ticker'], sample_query: 'ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor' },
 ]
 
 export const diagnostics = {
