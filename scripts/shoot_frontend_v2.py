@@ -86,20 +86,37 @@ CHROME_CANDIDATES = (
 
 THEMES = ("dark", "light")
 
-# (SPA 路由, 截图文件名)。与 src/nav/nav.ts 的 AppPath 对齐；/login 未登录门禁单独保留。
+# (SPA 路由, 截图文件名)。与 src/nav/nav.ts 的 AppPath **严格对齐**：覆盖全部 25 条路由，
+# 个别路由保留多状态变体（如 /stock/compare?codes=...）。/login 单独保留未登录门禁形态。
+# 改 nav.ts 新增/删除路由时，本元组必须同步，否则视觉审计会漏页（守卫见
+# tests/test_frontend_v2_route_coverage.py）。
 ROUTES = (
     ("/login", "login"),
     ("/", "dashboard"),
+    ("/decision", "decision"),
+    ("/replay", "replay"),
+    ("/morning", "morning"),
+    ("/p1", "p1"),
+    ("/recommend", "recommend"),
+    ("/paper", "paper"),
+    ("/alerts", "alerts"),
+    ("/webapps", "webapps"),
     ("/breadth", "breadth"),
     ("/ladder", "ladder"),
     ("/events", "events"),
     ("/predictions", "predictions"),
     ("/ops", "ops"),
+    ("/diagnostics", "diagnostics"),
+    ("/settings", "settings"),
+    ("/catalog", "catalog"),
+    ("/data", "data"),
     ("/stock/six-dim", "sixdim"),  # W4-A 六维评分：暗/亮两主题真实验收
     ("/stock/research", "research"),          # W4-B 个股研究（旧 24）
     ("/stock/fundamentals", "fundamentals"),  # W4-B 基本面分析（旧 22）
     ("/stock/compare", "compare"),            # W4-C 多股对比（默认态）
     ("/stock/compare?codes=600519,000001", "compare_dual"),  # W4-C 多股对比（双码态）
+    ("/matrix", "matrix"),
+    ("/guide", "guide"),
 )
 
 # W4-B 深链专项：/legacy 走客户端 history.replace（不是新 document），

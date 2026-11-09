@@ -75,7 +75,7 @@
 | 校验 | **Zod 4.6.7** | 运行时校验（见 §4.3，本项目关键） |
 | 包管理 / 运行时 | **npm 10.9.7 + Node 22.22.2** | 本机现成（pnpm 未安装，故弃用 PLAN 原写 pnpm 10）；registry `https://registry.npmjs.org/` |
 | 测试 | **Vitest 5.1.0 + React Testing Library + Playwright + MSW** | 单测 / 组件 / E2E / API mock 四层；Vitest peer `vite: ^6.4 \|\| ^7 \|\| ^8` ✅ |
-| 图表 | **Apache ECharts 6.1.0 主 + Lightweight Charts 5.2.1 补** | W2 图表波才装，W0 不装；选型依据与 bundle 预算见 `DESIGN.md` §4 |
+| 图表 | **Apache ECharts 6.1.0（唯一图表库，已装）** | K线/热力/雷达/桑基/箱线/treemap 等均由 ECharts 实现（含 `candlestick` 画 K线）；`package.json` 仅含 `echarts`，未引入 `lightweight-charts`。选型与 bundle 预算见 `DESIGN.md` §6.1 |
 
 ### 2.2 明确不选
 
@@ -134,7 +134,7 @@ StockSignal/
     │   ├── features/     decision/ market/ breadth/ stock/ screener/ portfolio/ tools/
     │   │                 └── {components, hooks, queries, schema, types}.ts(x)
     │   ├── shared/ui/    # shadcn 组件 + 项目自定义 KPI 卡 / 决策卡 / 降权标记
-    │   ├── shared/charts/# ECharts/Lightweight 封装，统一主题与涨色注入
+    │   ├── shared/charts/# ECharts 封装，统一主题与涨色注入
     │   ├── styles/tokens.css             # 设计令牌（DESIGN.md §2）
     │   └── nav/nav.manifest.json         # ★ 单一真理源：导航/路由/深链
     └── tests/            unit/ e2e/ visual/

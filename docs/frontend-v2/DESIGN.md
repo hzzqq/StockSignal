@@ -119,7 +119,7 @@
 
 | # | 场景 | 图表类型 | 推荐库 | 取色域 |
 |---|---|---|---|---|
-| 1 | 个股 K线 / 分时 | 蜡烛图 + 成交量柱 | **Lightweight Charts**（专业屏）/ ECharts（内嵌） | K线阴阳线按 `priceDomain` |
+| 1 | 个股 K线 / 分时 | 蜡烛图 + 成交量柱 | ECharts（`candlestick` 蜡烛图） | K线阴阳线按 `priceDomain` |
 | 2 | 市场温度曲线 | 折线 + 阈值带 | ECharts | 非价格，用 `--brand-1` |
 | 3 | 情绪周期时钟 | 极坐标环形 / 仪表盘 | ECharts gauge | 强弱信号灯（▲/▼） |
 | 4 | 连板龙头梯队 | 分层柱状 / 树图 | ECharts | 涨红 |
@@ -138,7 +138,7 @@
 
 **主库 Apache ECharts**（153–173 KiB，TanStack 官方 2026-08 受控对比基线）—— 理由：K线、热力图、桑基、雷达、箱线、treemap 等 14 类场景**一个库全覆盖**，避免多库主题/取色/事件模型分裂。必须**按需引入**图表类型与组件，`echarts/core` + 显式 `use()`，不吃全量包。
 
-**补充库 Lightweight Charts**（~60 KiB gzip）—— 仅用于专业 K线屏（`#1`）， candles/十字准星/缩放体验优于通用库；**异步 import**，不进主包。
+**补充库 Lightweight Charts（未采纳）**：规划阶段曾评估 `~60 KiB gzip` 的专业 K线屏补充库（candles/十字准星/缩放体验优于通用库），但当前实现**未引入**——`frontend-v2/package.json` 仅依赖 `echarts ^6.1.0`，个股 K线由 ECharts 的 `candlestick` 图表类型实现（见 `src/features/stock/charts/KLineChart.tsx`）。后续若要切换，须先在 `package.json` 落地依赖再回改此段，避免文档与代码脱节。
 
 **不选**：Recharts（153–168 KiB 但高级图表类型缺，K线要自己造）；Highcharts / FusionCharts（商用授权）；TanStack Charts（36–42 KiB 很轻但需自管状态、金融图表能力需自建，不适合本项目密度）。
 
