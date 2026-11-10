@@ -136,9 +136,43 @@ export const handlers = [
   http.get('/api/v2/read/backtest-runs', () => ok(fixtures.backtestRuns)),
   http.get('/api/v2/read/data-refresh-state', () => ok(fixtures.dataRefreshState)),
   // 因子分析（71 页 V2 化）：结构对齐后端 factor_analysis()；演示数值非真实行情。
-  http.get('/api/v2/read/factor-analysis', () => ok(fixtures.factorAnalysis)),
+  // 回显请求参数（真实后端会回显）；有效标的<3 时诚实返回空序列（insufficient_data）。
+  http.get('/api/v2/read/factor-analysis', ({ request }) => {
+    const url = new URL(request.url)
+    const codesRaw = url.searchParams.get('codes') ?? fixtures.factorAnalysis.codes.join(',')
+    const codes = codesRaw.split(',').map((s) => s.trim()).filter((s) => /^\d{6}$/.test(s))
+    const factor = url.searchParams.get('factor') ?? fixtures.factorAnalysis.factor
+    const days = Number(url.searchParams.get('days') ?? fixtures.factorAnalysis.days)
+    const nLayers = Number(url.searchParams.get('n_layers') ?? fixtures.factorAnalysis.n_layers)
+    const forward = Number(url.searchParams.get('forward') ?? fixtures.factorAnalysis.forward)
+    if (codes.length < 3) {
+      return ok({
+        ...fixtures.factorAnalysis,
+        codes,
+        factor,
+        days,
+        n_layers: nLayers,
+        forward,
+        ic_series: [],
+        layered_cum: [],
+        long_short_cum: [],
+      })
+    }
+    return ok({ ...fixtures.factorAnalysis, codes, factor, days, n_layers: nLayers, forward })
+  }),
   // 策略回测（30 页 V2 化）：结构对齐后端 backtest()；演示数值非真实行情。
-  http.get('/api/v2/read/backtest', () => ok(fixtures.backtest)),
+  // 回显请求参数（真实后端会回显 ticker/strategy/start/end），并对哨兵标的 000000 诚实返回空曲线。
+  http.get('/api/v2/read/backtest', ({ request }) => {
+    const url = new URL(request.url)
+    const ticker = url.searchParams.get('ticker') ?? fixtures.backtest.ticker
+    const strategy = url.searchParams.get('strategy') ?? fixtures.backtest.strategy
+    const start = url.searchParams.get('start') ?? fixtures.backtest.start
+    const end = url.searchParams.get('end') ?? fixtures.backtest.end
+    if (ticker === '000000') {
+      return ok({ ...fixtures.backtest, ticker, strategy, start, end, equity_curve: [], trades: [] })
+    }
+    return ok({ ...fixtures.backtest, ticker, strategy, start, end })
+  }),
   // 市场全景 / 状态机（56/57 页 V2 化）：结构对齐后端 market-panorama()；演示数值非真实行情。
   http.get('/api/v2/read/market-panorama', () => ok(fixtures.marketPanorama)),
   // 持仓中心（45 页 V2 化）：结构对齐后端 portfolio()；演示数值非真实行情。

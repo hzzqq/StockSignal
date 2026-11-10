@@ -380,7 +380,7 @@ V2 dev server（5173）常起后的真人浏览器亮/暗主题目检与浏览�
 
 ## 14. 验收补记（2026-11-11，92 用户管理迁 v2 收口 + 真人交互级 E2E）
 
-**唯一真实待迁移项 92 用户管理已 native 收口**，四档口径闭合为 **41 native + 22 data + 11 v1-pinned + 0 v1-only = 74**，v1-only 彻底归零（§3.7 / §4 / §13 同步更新）。
+**唯一真实待迁移项 92 用户管理已 native 收口**（彼时四档为 **41 native + 22 data + 11 v1-pinned + 0 v1-only = 74**，v1-only 彻底归零）。后续 77 财报猎手（§15 前序，已并入 /financial-hunter）与 73 自定义看板（§15 前序，已并入 /dashboard-custom）由 data 升 native，故当前四档为 **43 native + 20 data + 11 v1-pinned + 0 v1-only = 74**（§3.3 / §3.6 / §3.7 已同步）。
 
 **交付内容（仅复用既有无写能力端点，严守实盘红线）**：
 - 新增 `frontend-v2/src/features/admin/UserManagement.tsx`：角色门控（非 admin 渲染「无访问权限」空态，不暴露任何用户数据）+ 三 Tab（用户列表 / 创建用户 / 操作日志）。
@@ -401,3 +401,21 @@ V2 dev server（5173）常起后的真人浏览器亮/暗主题目检与浏览�
 - `test_public_numbers_consistency.py` → 74 总数守恒（native 41 / data 22 / pinned 11 / v1-only 0）。
 
 **诚实边界**：v2 用户管理页本身不提供任何下单 / 资金写能力（实盘红线在 v1 永久保留）；v2 管理员端点与真后端 `admin_routes.py` 契约逐字段对齐，缺字段即抛错不兜底。
+
+## 15. 验收补记（2026-11-11，扩真人交互级 E2E：30 策略回测 + 71 因子分析）
+
+**目标**：在既有 admin-users / financial-hunter / dashboard-custom 真人交互 E2E 基础上，再补两个**表单型高价值 native 页**的真人交互级覆盖（键盘输入 / select 切换 / 按钮点击 → 回显后端回显的请求参数），并加固 MSW 诚实降级分支。DecisionPanel（16 行只读无表单）不在目标内。
+
+**交付内容**：
+- 新增 `tests/e2e/w4-backtest.test.tsx`（4 用例）：默认加载（摘要 Stat + 资金曲线卡 + 逐笔交易明细 5 笔）/ 切换策略（多因子→均线交叉）运行回测回显 / 修改标的（受控输入 600519→000001）运行回测回显 / 哨兵 `000000` 取数为空→诚实空态「暂无回测数据」+ 不补零曲线（空态不渲染资金曲线卡）。
+- 新增 `tests/e2e/w4-factor.test.tsx`（4 用例）：默认加载（IC 均值卡 + 分层累计收益卡）/ 切换因子（动量→5 日反转）运行分析回显 / 标的受控输入 / 有效标的<3→诚实空态「暂无因子数据」+ 不补零序列。
+- MSW 加固 `src/mocks/handlers.ts`：
+  - `/api/v2/read/backtest` 回显请求参数（ticker/strategy/start/end），并对哨兵 `000000` 诚实返回 `{...backtest, equity_curve:[], trades:[]}`（驱动前端 `isEmpty` 空态）；
+  - `/api/v2/read/factor-analysis` 回显请求参数（codes/days/factor/n_layers/forward），并当有效标的<3 时诚实返回 `{...factorAnalysis, ic_series:[], layered_cum:[], long_short_cum:[]}`。
+
+**诚实红线守卫**：两页测试均断言「取数为空 → 显诚实空态、不渲染伪造曲线/序列」，与 `honest-data.test.tsx` 零兜底原则一致；组件侧 `QueryState.isEmpty` 仅据真实 `equity_curve`/`ic_series` 长度判空。
+
+**验证**（全部本地通过）：
+- `npx vitest run` → **361 passed / 1 skipped**（新增 8 例，含 route-lazy / honest-data 守卫无回归）；
+- `tsc --noEmit` → 0 错误；
+- 四档口径未变（仅新增 E2E，不改 NATIVE/DATA 计数）：仍 **43 native + 20 data + 11 v1-pinned + 0 v1-only = 74**。
