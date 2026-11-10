@@ -86,12 +86,14 @@ CHROME_CANDIDATES = (
 
 THEMES = ("dark", "light")
 
-# (SPA 路由, 截图文件名)。与 src/nav/nav.ts 的 AppPath **严格对齐**：覆盖全部 39 条路由，
+# (SPA 路由, 截图文件名)。与 src/nav/nav.ts 的 AppPath **严格对齐**：覆盖全部 42 条路由，
 # 另保留 1 条多状态变体（/stock/compare?codes=...）。/login 单独保留未登录门禁形态。
 # 改 nav.ts 新增/删除路由时，本元组必须同步，否则视觉审计会漏页（守卫见
 # tests/test_frontend_v2_route_coverage.py）。
 # 2026-11-09 补记：Tier1/Tier2 迁移新增的 14 页（factor/backtest/.../quote-board）
 # 此前从未进入真浏览器审计，守卫 test_routes_cover_all_app_paths 报红后一并补齐。
+# 2026-11-11 补记：§15/§16 新增 3 条底部固定入口页（users/financial-hunter/dashboard-custom）
+# 同样必须入本元组，否则守卫会报红；它们不进 NAV 但仍是真实路由。
 ROUTES = (
     ("/login", "login"),
     ("/", "dashboard"),
@@ -133,6 +135,9 @@ ROUTES = (
     ("/quote-board", "quote_board"),          # Tier2 行情看板（10 页 V2 化）
     ("/matrix", "matrix"),
     ("/guide", "guide"),
+    ("/users", "users"),                      # §16 用户管理（底部固定入口，绕过 NAV 12 项锁）
+    ("/financial-hunter", "financial_hunter"),  # §15 财报猎手
+    ("/dashboard-custom", "dashboard_custom"),  # §15 自定义看板
 )
 
 # W4-B 深链专项：/legacy 走客户端 history.replace（不是新 document），
@@ -613,6 +618,114 @@ def capture_deeplink_case(cdp: CDP, base_url: str, case: tuple, theme: str,
     return rec
 
 
+def capture_zen(cdp: CDP, base_url: str, theme: str, out_dir: Path,
+                settle_ms: int) -> dict:
+    """专注 / Zen 模式真实浏览器验收（§16 设计系统打磨）。
+
+    走真实加载链路：写 localStorage['ss_zen']=on -> 整页 reload ->
+    index.html 的 FOUC 脚本读 ss_zen 写 html[data-zen]，AppShell 的 applyPreferences
+    也据此落 data-zen。再在真实计算样式层面断言侧栏/顶栏被 display:none 真实收起、
+    主内容去边距、右下浮动开关可见且文案为「退出专注」；最后点浮动开关退出专注，
+    断言 data-zen 翻回 off 且侧栏/顶栏恢复显示（真实交互路径，非直接改属性）。
+    """
+    rec: dict = {"route": "/ (zen)", "theme": theme, "kind": "zen", "ok": False}
+    try:
+        cdp.call("Page.navigate", {"url": f"{base_url}/"})
+        if not wait_ready(cdp, 25):
+            rec["error"] = "dashboard 未挂载，无法测 Zen"
+            return rec
+        time.sleep(settle_ms / 1000.0)
+
+        # 真实路径：写 ss_zen 后整页 reload，让 FOUC + applyPreferences 生效
+        cdp.js("localStorage.setItem('ss_zen','on'); true")
+        cdp.call("Page.reload")
+        if not wait_ready(cdp, 25):
+            rec["error"] = "reload 后 Zen 态未挂载"
+            return rec
+        time.sleep(settle_ms / 1000.0)
+
+        info_on = cdp.js("""(() => {
+            const disp = (s) => { const el = document.querySelector(s);
+                return el ? getComputedStyle(el).display : 'missing'; };
+            const fab = document.querySelector('.zen-fab');
+            const btn = document.querySelector('.zen-fab__btn');
+            const main = document.querySelector('.app-main');
+            return {
+                zenAttr: document.documentElement.getAttribute('data-zen'),
+                sidebar: disp('.app-sidebar'),
+                header: disp('.app-header'),
+                mainPad: main ? getComputedStyle(main).padding : 'missing',
+                fabDisplay: fab ? getComputedStyle(fab).display : 'missing',
+                fabText: btn ? btn.textContent.trim() : 'missing'
+            };
+        })()""")
+        if not isinstance(info_on, dict):
+            rec["error"] = "Zen 态采样返回非对象"
+            return rec
+
+        out_dir.mkdir(parents=True, exist_ok=True)
+        data_on = base64.b64decode(
+            cdp.call("Page.captureScreenshot", {"format": "png"})["data"])
+        dest_on = out_dir / "zen_on.png"
+        dest_on.write_bytes(data_on)
+        rec["png_on"] = str(dest_on)
+        rec["png_on_bytes"] = len(data_on)
+
+        # 点浮动开关退出专注（真实交互路径）
+        clicked = cdp.js("""(() => {
+            const btn = document.querySelector('.zen-fab__btn');
+            if (!btn) return false;
+            btn.click();
+            return true;
+        })()""")
+        time.sleep(settle_ms / 1000.0)
+        info_off = cdp.js("""(() => {
+            const disp = (s) => { const el = document.querySelector(s);
+                return el ? getComputedStyle(el).display : 'missing'; };
+            const btn = document.querySelector('.zen-fab__btn');
+            return {
+                zenAttr: document.documentElement.getAttribute('data-zen'),
+                sidebar: disp('.app-sidebar'),
+                header: disp('.app-header'),
+                fabText: btn ? btn.textContent.trim() : 'missing'
+            };
+        })()""")
+        data_off = base64.b64decode(
+            cdp.call("Page.captureScreenshot", {"format": "png"})["data"])
+        dest_off = out_dir / "zen_off.png"
+        dest_off.write_bytes(data_off)
+        rec["png_off"] = str(dest_off)
+        rec["png_off_bytes"] = len(data_off)
+
+        checks = {
+            "zen_attr_on": info_on.get("zenAttr") == "on",
+            "sidebar_collapsed": info_on.get("sidebar") == "none",
+            "header_collapsed": info_on.get("header") == "none",
+            "main_padding_zero": info_on.get("mainPad") in ("0px", ""),
+            "fab_visible": info_on.get("fabDisplay") not in ("none", "missing"),
+            "fab_label_on": "退出专注" in (info_on.get("fabText") or ""),
+            "toggle_off_works": bool(clicked) and info_off.get("zenAttr") == "off"
+                                 and info_off.get("sidebar") != "none"
+                                 and info_off.get("header") != "none",
+            "screenshot_on": len(data_on) >= 1024,
+            "screenshot_off": len(data_off) >= 1024,
+        }
+        rec["checks"] = checks
+        bad = [k for k, v in checks.items() if not v]
+        if bad:
+            rec["error"] = "zen failed: " + ", ".join(bad)
+            logger.warning("X %-6s zen %s", theme, rec["error"])
+        else:
+            rec["ok"] = True
+            logger.info("OK %-6s zen sidebar=%s->%s fab=%s (off bytes=%d)",
+                        theme, info_on.get("sidebar"), info_off.get("sidebar"),
+                        info_on.get("fabText"), len(data_off))
+    except Exception as exc:
+        rec["error"] = "%s: %s" % (type(exc).__name__, exc)
+        logger.error("X %-6s zen %s", theme, rec["error"])
+    return rec
+
+
 def cross_theme_checks(records: list[dict], themes: list[str]) -> list[dict]:
     """用真实浏览器计算样式复核两条设计红线，结果写入报告（不静默通过）。
 
@@ -688,6 +801,8 @@ def parse_args(argv=None):
     p.add_argument("--chrome", default=None, help="Chrome/Edge 可执行文件绝对路径")
     p.add_argument("--debug-port", type=int, default=9222, help="CDP 调试端口")
     p.add_argument("--settle-ms", type=int, default=1500, help="每页额外静置毫秒数")
+    p.add_argument("--zen", action="store_true",
+                   help="额外跑专注/Zen 模式验收（每主题：侧栏/顶栏 display:none 收起 + 浮动开关切换）")
     return p.parse_args(argv)
 
 
@@ -726,6 +841,7 @@ def main(argv=None) -> int:
     vite_proc = chrome_proc = cdp = None
     records: list[dict] = []
     partial_records: list[dict] = []
+    zen_records: list[dict] = []
     try:
         if args.start_app:
             port = urllib.parse.urlparse(base_url).port or 5180
@@ -774,6 +890,9 @@ def main(argv=None) -> int:
                 for case in DEEPLINK_CASES:
                     partial_records.append(capture_deeplink_case(
                         cdp, base_url, case, theme, out_root / theme))
+            if args.zen:
+                zen_records.append(
+                    capture_zen(cdp, base_url, theme, out_root / theme, args.settle_ms))
 
         checks = cross_theme_checks(records, themes)
         for pr in partial_records:
@@ -782,7 +901,14 @@ def main(argv=None) -> int:
                 "pass": bool(pr.get("ok")),
                 "detail": pr.get("error") or pr.get("checks"),
             })
+        for zr in zen_records:
+            checks.append({
+                "rule": "专注/Zen 模式：侧栏/顶栏 display:none 真实收起 + 浮动开关可退出（%s）" % zr["theme"],
+                "pass": bool(zr.get("ok")),
+                "detail": zr.get("error") or zr.get("checks"),
+            })
         records.extend(partial_records)
+        records.extend(zen_records)
         ok = sum(1 for r in records if r["ok"])
         fail = len(records) - ok
         report = {
