@@ -79,7 +79,7 @@ export const NAV: NavGroup[] = [
       { to: '/factor', label: '因子分析', icon: '◫' },
       { to: '/backtest', label: '策略回测', icon: '⊟' },
       { to: '/portfolio', label: '持仓中心', icon: '💼' },
-      { to: '/trading-account', label: '实盘交易', icon: '💰' },
+      { to: '/trading-account', label: '交易账户（只读）', icon: '💰' },
     ],
   },
   {

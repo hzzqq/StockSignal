@@ -95,16 +95,17 @@ describe('W4-E · v1 功能全景清单（真实性）', () => {
     }
   })
 
-  it('三档状态数量之和 = 总数，且状态互斥', () => {
+  it('四档状态数量之和 = 总数，且状态互斥', () => {
     const c = statusCounts()
-    expect(c.native + c.data + c['v1-only']).toBe(V1_PAGES_TOTAL)
+    expect(c.native + c.data + c['v1-only'] + c['v1-pinned']).toBe(V1_PAGES_TOTAL)
     expect(c.native).toBeGreaterThan(10)
     expect(c['v1-only']).toBeGreaterThan(0)
+    expect(c['v1-pinned']).toBeGreaterThan(0)
     for (const p of V1_PAGES) {
       const m = mappingOf(p)
       if (m.status === 'native') expect(m.to).toBeTruthy()
       if (m.status === 'data') expect(m.dataPath).toMatch(/^\/api\/v2\/read\//)
-      if (m.status === 'v1-only') {
+      if (m.status === 'v1-only' || m.status === 'v1-pinned') {
         expect(m.to).toBeUndefined()
         expect(m.dataPath).toBeUndefined()
       }
@@ -143,13 +144,13 @@ describe('W4-E · 功能全景页交互', () => {
     expect(screen.queryByText('行情看板')).toBeNull()
 
     fireEvent.change(input, { target: { value: '' } })
-    fireEvent.click(screen.getByRole('button', { name: '仅 v1' }))
+    fireEvent.click(screen.getByRole('button', { name: '待迁移' }))
     const label = screen.getByText(/当前显示 \d+ 项/).textContent ?? ''
     const shown = Number(label.match(/\d+/)?.[0] ?? 0)
     expect(shown).toBe(statusCounts()['v1-only'])
   })
 
-  it('「仅 v1」项给 v1 直达链接且编码中文页名', () => {
+  it('「待迁移」项给 v1 直达链接且编码中文页名', () => {
     const target = V1_PAGES.find((p) => mappingOf(p).status === 'v1-only')
     expect(target).toBeTruthy()
     if (!target) return

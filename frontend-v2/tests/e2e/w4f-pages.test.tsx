@@ -194,7 +194,7 @@ describe('W4-F · 接线守卫（源码真扫）', () => {
     expect(login.note).toContain('不做假功能')
     expect(login.note).toContain('未接入')
     const c = statusCounts()
-    expect(c.native + c.data + c['v1-only']).toBe(V1_PAGES.length)
+    expect(c.native + c.data + c['v1-only'] + c['v1-pinned']).toBe(V1_PAGES.length)
     expect(c.native).toBeGreaterThan(17)
     expect(c['v1-only']).toBeGreaterThan(0)
   })

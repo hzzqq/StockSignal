@@ -19,7 +19,8 @@ import { Stat } from '@/shared/ui/Stat'
 const STATUS_META: Record<V2Status, { label: string; cls: string; hint: string }> = {
   native: { label: '已实现', cls: 'text-sf-ok', hint: 'v2 有等价页面' },
   data: { label: '关联数据', cls: 'text-sf-accent', hint: '仅查看关联只读数据，非等价功能' },
-  'v1-only': { label: '仅 v1', cls: 'text-sf-ink-3', hint: 'v2 尚未迁移' },
+  'v1-only': { label: '待迁移', cls: 'text-sf-ink-3', hint: 'v2 尚未迁移，计划迁移' },
+  'v1-pinned': { label: 'v1 保留', cls: 'text-sf-ink-2', hint: 'v2 不做等价实现，永久留 v1' },
 }
 
 type Filter = 'all' | V2Status
@@ -35,7 +36,8 @@ function PageRow({ page }: { page: V1Page }) {
       <span className="w-full text-label text-sf-ink-3 sm:w-auto sm:flex-1">
         {m.status === 'native' ? m.note ?? '直达 v2 等价页面'
           : m.status === 'data' ? `关联：${m.dataLabel ?? '只读端点'}`
-            : 'v2 尚未迁移，需从 v1 打开'}
+            : m.status === 'v1-pinned' ? (m.note ?? 'v2 不做等价实现，永久留 v1')
+              : 'v2 尚未迁移，需从 v1 打开'}
       </span>
       <span className="shrink-0">
         {m.status === 'native' && m.to ? (
@@ -89,14 +91,15 @@ export function CatalogView() {
       <p className="text-label text-sf-ink-3">
         本页列出 v1 全部 {V1_PAGES_TOTAL} 个功能页，清单由 <code className="font-mono">scripts/gen_v1_pages.py</code> 扫描
         <code className="font-mono"> pages/*.py </code>生成（非手写），并有漂移守卫逐项核对。
-        <strong>列出 ≠ 已实现</strong>：「关联数据」只是查看真实只读端点，不等同于该功能；「仅 v1」表示 v2 尚未迁移。
+        <strong>列出 ≠ 已实现</strong>：「关联数据」只是查看真实只读端点，不等同于该功能；「待迁移」表示 v2 尚未迁移；「v1 保留」表示 v2 明确不做等价实现（如实盘交易等真实下单能力）。
       </p>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat label="v1 功能页总数" value={V1_PAGES_TOTAL} sub="磁盘实扫" />
         <Stat label="v2 已实现" value={counts.native} sub="可直达等价页面" />
         <Stat label="关联只读数据" value={counts.data} sub="非等价功能" />
-        <Stat label="仅 v1（待迁移）" value={counts['v1-only']} sub="如实标注，不造空壳页" />
+        <Stat label="v1 保留" value={counts['v1-pinned']} sub="永久不迁 v2" />
+        <Stat label="待迁移" value={counts['v1-only']} sub="如实标注，不造空壳页" />
       </div>
 
       <Card title="筛选">
@@ -113,7 +116,7 @@ export function CatalogView() {
             />
           </label>
           <div role="group" aria-label="状态筛选" className="flex items-center gap-1">
-            {(['all', 'native', 'data', 'v1-only'] as Filter[]).map((f) => (
+            {(['all', 'native', 'data', 'v1-pinned', 'v1-only'] as Filter[]).map((f) => (
               <button
                 key={f}
                 type="button"

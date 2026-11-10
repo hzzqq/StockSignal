@@ -6,11 +6,12 @@ import { QueryState } from '@/shared/ui/States'
 import { CHART } from '@/shared/charts/palette'
 
 /**
- * 43 页「实盘交易」V2 化（对应 IA-MIGRATION.md Tier1）—— **只读概览**。
+ * 交易账户（只读概览）—— 对应 v1「实盘交易」页的只读镜像，**非 实盘交易实现**。
  *
  * ⚠️ 红线：V2 此处只做只读聚合（后端读本地模拟账本 data/paper_<user>.json），
  * 不暴露任何写接口；实时下单 / 真实券商（QMT / 同花顺）写能力仅在 v1 实盘交易页
- * /api/trade/* 提供（本页不接、不渲染下单表单）。
+ * /api/trade/* 提供（本页不接、不渲染下单表单）。真实交易能力永久留在 v1，符合
+ * 「实盘交易不放在 v2」的红线。
  *
  * 三块：账户(account) / 持仓(positions) / 订单流水(orders)。缺账本 → 诚实空态，不编造。
  * 金额单位「元」（本地账本原始值），前端以 ¥ 千分位展示；缺值显示「—」，绝不补 0。
@@ -48,7 +49,7 @@ export function TradingAccount() {
 
   return (
     <div className="trade">
-      <h2 className="text-lg font-semibold">实盘交易（只读概览）</h2>
+      <h2 className="text-lg font-semibold">交易账户（只读概览）</h2>
       <div className="text-xs text-sf-ink-3">
         V2 此处仅只读聚合本地模拟账本（账户 / 持仓 / 订单流水），<span className="text-sf-ink">不提供实时下单</span>；
         真实券商（QMT / 同花顺）下单能力在 v1 实盘交易页。数据仅供参考，非投资建议。
