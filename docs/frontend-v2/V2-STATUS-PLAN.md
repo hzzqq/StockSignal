@@ -290,3 +290,25 @@ V2 dev server（5173）常起后的真人浏览器亮/暗主题目检与浏览�
 **仍未完成（更新 §9 口径）**：Tier 3 社区/工具长尾 13 页（52/64/81/34/47/95/73/83/87/94/91/92/99）；
 **真人交互 E2E**（键盘 / 表单 / hover / 多视口 / 多浏览器）与 5050 真后端浏览器联调；v1 下线时机评估。
 全路由暗/亮主题 headless 目检已完成，不再列为待办。
+> 2026-11-10 更新：真后端浏览器联调（本地只读端点）已完成，见 §11；仍未完成的是实时源端点与 V8 修复。
+
+---
+
+## 11. 验收补记（2026-11-10，真后端浏览器联调 + 一个未修的高危缺陷）
+
+> 对应 §10 末尾「5050 真后端浏览器联调」项。本轮交付可复跑探针与实跑证据，**未改任何后端产品代码**。
+
+| 项 | 结果 |
+|---|---|
+| 探针 | `scripts/probe_frontend_v2_realbackend.py`：独立 5051/5181/9223、独立 SQLite + secret、6 调度器全关、真实 JWT、MSW 关闭、浏览器内端点指纹防伪、逐页后端存活复核 |
+| 实跑 | **7/7、exit 0**；`message='webapps/'`（直连=浏览器，MSW 默认 `'ok'`）、MockBanner 消失、静态作品经代理返回 200 HTML、后端全程存活 |
+| 守卫 | 探针 9 条不变量并入 `tests/test_frontend_v2_route_coverage.py` 既有函数（未新增 `test_` 函数）；`gen_portfolio_page.py --fast` 同步 `docs/index.html`（Python 文件 909→910）；守卫套件 40/40 |
+| **抓到的高危真缺陷** | `read_routes._w4x_index_daily` 在 Flask 进程内经 `fetch_many` 并发调 akshare → `py_mini_racer(V8)` FATAL → **整个后端进程被杀**；Dashboard 首页会顺带打 `/index-quotes`，故真实用户打开首页即有风险 |
+| 证据 | 两次失败实跑的 `backend.log` FATAL 行、Vite `ECONNREFUSED`、项目 `modules/shepherd_reconstruct.py` 对 V8 并发的既有记载 |
+| 本轮为何未修 | 串行化（`max_workers=1`）会撞整批 12s 边界把 5 个指数打空；正解是单子进程批量取数，属独立产品级改造 + 专属回归 |
+
+详细证据、探针设计、未覆盖项见 `docs/frontend-v2/VISUAL-AUDIT.md` 末节。
+
+**仍未完成（更新 §10 口径）**：① **首要**：V8 子进程隔离修复（修完才能把 Dashboard 与 3 个实时源端点纳入联调）；
+② Tier 3 长尾 13 页（52/64/81/34/47/95/73/83/87/94/91/92/99，建议先 47 价格预警 + 95 数据导出）；
+③ 真人交互 E2E（键盘 / 表单 / hover / 多视口 / 多浏览器）；④ v1 下线时机评估。

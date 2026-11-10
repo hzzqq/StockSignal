@@ -284,3 +284,61 @@ dark/light × 40 路由 + sixdim partial × 2 + 深链专项 × 12 共 **94 条�
 - headless Chrome 单视口 1440×900、`captureBeyondViewport=false`；未测窄屏、hover、键盘遍历、读屏、打印、Safari/Firefox。
 - 这是**自动截图 + 计算样式采样 + 专项 DOM 断言**，不是人工审美结论，也不是覆盖表单 / 交互链路的真人交互 E2E。
 - 跨主题红线只在首页 `/` 采样比对；其余页逐页只校验主题 / 渲染 / 截图 / 令牌。
+
+---
+
+## 真后端浏览器联调（2026-11-10，隔离 5051 + 关 MSW）
+
+**目标**：补上 MSW 目检证明不了的一环 —— 前端在真实浏览器里**真的连得上 Flask**、拿的是真 JWT、数据不是 fixtures。
+
+### 探针（`scripts/probe_frontend_v2_realbackend.py`）
+
+| 隔离项 | 做法 |
+|---|---|
+| 端口 | 后端 5051 / 前端 5181 / CDP 9223，启动前逐个检查空闲；**不碰老板 5050 / 5173** |
+| 数据 | 独立 `DATABASE_URL=sqlite:///<temp>/ss_probe/realbackend_<ts>.db`（新库，种子账号由 `backend.run` 幂等建） |
+| 密钥 | 独立 `STOCKSIGNAL_SECRET=secrets.token_hex(24)`，明文不写报告 |
+| 调度器 | 6 个开关全 `=0`（COND / DATA_REFRESH / ALERT / RECOMMEND / P1_SYNC / RESEARCH_WATCH） |
+| 登录 | `POST /api/auth/login` 拿**真实 JWT** 注入 `ss_token`；报告只记 `sha256[:12]` 指纹 |
+| MSW | `VITE_ENABLE_MOCKS=false`，`VITE_PROXY_TARGET=http://127.0.0.1:5051` |
+| 防伪 | 浏览器内 `fetch('/api/v2/read/webapps')` 的 `message` 必须等于直连 5051 的值且不等于 MSW 默认 `'ok'`；`演示数据（Mock）` 横幅必须消失 |
+| 兜底 | 每页后打 `/api/health` 复核后端存活，崩了如实定位到具体路由并中止 |
+
+### 结果（7/7，exit 0）
+
+`/webapps` / `/guide` / `/settings` × dark/light = 6 页，加 1 条静态资源证据，共 **7 条记录全通过**：
+浏览器内指纹 `status=200, message='webapps/'`（与直连一致；MSW 应为 `'ok'`）、`dataKeys=3`；
+`data-theme` 暗 `#0f0f23` / 亮 `#f0f3f9`，4 个价格令牌齐全、截图均 >65 KB；
+`/webapps/emotion-cycle-clock/index.html` 经 Vite 代理打到 Flask 静态托管返回 200 + 真 HTML；
+`backend_lost_after=null`（后端全程存活）。产物 `E:/tmp/ss_realbackend_shots_final/`（仓库外，未提交）。
+
+### 过程中抓到的真缺陷（不掩盖，本轮未修）
+
+两次失败实跑留下确凿证据：
+
+1. 首跑直连 `/api/v2/read/quote-board` → `RemoteDisconnected`，`backend.log` 出现
+   `[FATAL:partition_address_space.cc(243)] Check failed: !IsConfigurablePoolInitialized().`
+   + `py_mini_racer\mini_racer.dll` 栈 —— **V8 native 崩溃直接杀死整个 Flask 进程**。
+2. 换本地指纹端点后，Dashboard `/` 仍顺带请求 `/api/v2/read/index-quotes`；日志显示
+   `p1-signals / daily-snapshot / webapps / index-quotes` 并发返回后即刻同一 FATAL，
+   Vite 随后全线 `ECONNREFUSED 127.0.0.1:5051`。
+
+**根因**：`read_routes._w4x_index_daily` 在 Flask 进程内直调 `akshare.stock_zh_index_daily`，
+而 `index_quotes()` 用 `fetch_many`（默认并发 6）、`quote_board()` 显式 `max_workers=5`；
+新浪日线解码会实例化 V8，**多线程并发共享同一进程内 V8 会崩溃** —— 项目
+`modules/shepherd_reconstruct.py` 早已写明，解法是「多进程让每个 worker 各自持有独立 V8」。
+
+**影响面**：这不是联调环境特有 —— 任何真实浏览器打开 V2 首页都可能打挂 5050 后端；
+上轮 94/94 全绿是因为 MSW 接管了 `/api`，后端单测又 monkeypatch 了 `_w4x_index_quote`，两边都看不见它。
+
+**为什么本轮没修**：`fetch_many(timeout=CALL_TIMEOUT_CAP=12)` 是整批边界，把并发改 1 只会让
+5 个指数在 12s 内被打空（修了崩溃、废了功能）。正解是**单子进程批量取数**（spawn + Queue +
+25s 超时 + `exitcode` 检查，崩了诚实降级为 null），属独立的产品级改造，需要专属后端回归轮次。
+已列为下一轮首要真缺陷。
+
+### 本轮未覆盖（如实标注）
+
+- 实时源端点（`quote-board` / `index-quotes` / `index-kline`）与 Dashboard 首页**未联调**，原因见上；
+  探针把它们写进 `EXCLUDED_ENDPOINTS`，报告 `known_limitations` 逐条列出，绝不假装已验证。
+- 隔离新库的数据仍是离线确定性样例 / 诚实 null 降级，**不等于真实行情**。
+- 仍是 headless 自动截图 + 计算样式采样 + DOM 断言；未做真人交互 E2E、键盘 / 读屏 / 窄屏 / 多浏览器。
