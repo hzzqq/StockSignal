@@ -85,6 +85,8 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   // 77 财报猎手：v2 等价实现 /financial-hunter，逐股票三表（income/balance/cash）切换深挖；
   // 非跨股筛选器（v2 暂无跨股财报筛选端点），页面如实说明。
   '77_财报猎手.py': { to: '/financial-hunter' },
+  // 73 自定义看板：v2 等价实现 /dashboard-custom，勾选组件 + localStorage 持久化，聚合现有只读端点。
+  '73_自定义看板.py': { to: '/dashboard-custom' },
 }
 
 /** ② 无等价页面，但有真实只读端点可查看的关联数据（不是等价功能，页面会明示）。
@@ -106,7 +108,6 @@ const DATA: Record<string, { path: string; label: string }> = {
   '68_情绪拐点扫描器.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
   '69_温度持续期与回归时长.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
   '70_涨停复盘.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
-  '73_自定义看板.py': { path: '/api/v2/read/user-dashboard', label: '用户看板数据' },
   '91_我的.py': { path: '/api/v2/read/user-dashboard', label: '用户看板数据' },
   '94_消息中心.py': { path: '/api/v2/read/alert-log', label: '告警日志' },
   '95_数据导出.py': { path: '/api/v2/read/snapshot-dates', label: '快照日期清单' },

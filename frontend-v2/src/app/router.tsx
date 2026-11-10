@@ -53,6 +53,7 @@ const LazySectorRotation = lazyRouteComponent(() => import('@/features/sector-ro
 const LazyWatch = lazyRouteComponent(() => import('@/features/watch/Watch'), 'Watch')
 const LazyQuoteBoard = lazyRouteComponent(() => import('@/features/quote-board/QuoteBoard'), 'QuoteBoard')
 const LazyUserManagement = lazyRouteComponent(() => import('@/features/admin/UserManagement'), 'UserManagement')
+const LazyDashboardCustom = lazyRouteComponent(() => import('@/features/dashboard/DashboardCustom'), 'DashboardCustom')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -326,6 +327,16 @@ const financialHunterRoute = createRoute({
   component: FinancialHunterRouteView,
 })
 
+// 73 自定义看板（v2 native，旧 73 自定义看板页）：?widgets= 可选深链覆盖（逗号分隔 id）。
+const dashboardCustomRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/dashboard-custom',
+  validateSearch: (raw: Record<string, unknown>): { widgets?: string } => ({
+    widgets: typeof raw.widgets === 'string' ? raw.widgets : undefined,
+  }),
+  component: LazyDashboardCustom,
+})
+
 function FinancialHunterRouteView() {
   const search = financialHunterRoute.useSearch()
   return (
@@ -469,6 +480,7 @@ const routeTree = rootRoute.addChildren([
     quoteBoardRoute,
     usersRoute,
     financialHunterRoute,
+    dashboardCustomRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,
