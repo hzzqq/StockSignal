@@ -87,6 +87,8 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '77_财报猎手.py': { to: '/financial-hunter' },
   // 73 自定义看板：v2 等价实现 /dashboard-custom，勾选组件 + localStorage 持久化，聚合现有只读端点。
   '73_自定义看板.py': { to: '/dashboard-custom' },
+  // 95 数据导出：v2 等价实现 /export，浏览归档快照并导出原始 JSON（纯前端，无写能力）。
+  '95_数据导出.py': { to: '/export' },
 }
 
 /** ② 无等价页面，但有真实只读端点可查看的关联数据（不是等价功能，页面会明示）。
@@ -110,7 +112,6 @@ const DATA: Record<string, { path: string; label: string }> = {
   '70_涨停复盘.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
   '91_我的.py': { path: '/api/v2/read/user-dashboard', label: '用户看板数据' },
   '94_消息中心.py': { path: '/api/v2/read/alert-log', label: '告警日志' },
-  '95_数据导出.py': { path: '/api/v2/read/snapshot-dates', label: '快照日期清单' },
   '98_仓位落地.py': { path: '/api/v2/read/daily-snapshot', label: '今日决策快照' },
   '99_决策问答.py': { path: '/api/v2/read/review-notes', label: '复盘笔记' },
 }

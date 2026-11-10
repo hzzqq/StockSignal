@@ -86,7 +86,7 @@ CHROME_CANDIDATES = (
 
 THEMES = ("dark", "light")
 
-# (SPA 路由, 截图文件名)。与 src/nav/nav.ts 的 AppPath **严格对齐**：覆盖全部 42 条路由，
+# (SPA 路由, 截图文件名)。与 src/nav/nav.ts 的 AppPath **严格对齐**：覆盖全部 43 条路由，
 # 另保留 1 条多状态变体（/stock/compare?codes=...）。/login 单独保留未登录门禁形态。
 # 改 nav.ts 新增/删除路由时，本元组必须同步，否则视觉审计会漏页（守卫见
 # tests/test_frontend_v2_route_coverage.py）。
@@ -138,6 +138,7 @@ ROUTES = (
     ("/users", "users"),                      # §16 用户管理（底部固定入口，绕过 NAV 12 项锁）
     ("/financial-hunter", "financial_hunter"),  # §15 财报猎手
     ("/dashboard-custom", "dashboard_custom"),  # §15 自定义看板
+    ("/export", "export"),                     # §17 数据导出
 )
 
 # W4-B 深链专项：/legacy 走客户端 history.replace（不是新 document），

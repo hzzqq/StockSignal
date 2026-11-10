@@ -54,6 +54,7 @@ const LazyWatch = lazyRouteComponent(() => import('@/features/watch/Watch'), 'Wa
 const LazyQuoteBoard = lazyRouteComponent(() => import('@/features/quote-board/QuoteBoard'), 'QuoteBoard')
 const LazyUserManagement = lazyRouteComponent(() => import('@/features/admin/UserManagement'), 'UserManagement')
 const LazyDashboardCustom = lazyRouteComponent(() => import('@/features/dashboard/DashboardCustom'), 'DashboardCustom')
+const LazyDataExport = lazyRouteComponent(() => import('@/features/export/DataExport'), 'DataExport')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -337,6 +338,13 @@ const dashboardCustomRoute = createRoute({
   component: LazyDashboardCustom,
 })
 
+// 95 数据导出（v2 native，旧 95 数据导出页）：浏览归档快照并导出原始 JSON（纯前端，无写能力）。
+const dataExportRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/export',
+  component: LazyDataExport,
+})
+
 function FinancialHunterRouteView() {
   const search = financialHunterRoute.useSearch()
   return (
@@ -481,6 +489,7 @@ const routeTree = rootRoute.addChildren([
     usersRoute,
     financialHunterRoute,
     dashboardCustomRoute,
+    dataExportRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

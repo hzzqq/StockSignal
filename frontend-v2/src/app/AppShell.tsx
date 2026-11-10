@@ -148,6 +148,15 @@ export function AppShell() {
             <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">🧩</span>
             <span className="nav-label hidden md:inline whitespace-nowrap">自定义看板</span>
           </Link>
+          <Link
+            to="/export"
+            title="数据导出"
+            aria-label="数据导出"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">📤</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">数据导出</span>
+          </Link>
         </div>
       </aside>
 

@@ -127,12 +127,12 @@
 | 模拟交易 | 42 | ✅ | `/paper` |
 | 仓位落地 | 98 | 🟡 | data：`/api/v2/read/daily-snapshot`（今日决策快照） |
 
-### 3.6 工具与社区（5 ✅ native + 5 🟡 data + 5 🔒 pinned）
+### 3.6 工具与社区（6 ✅ native + 4 🟡 data + 5 🔒 pinned）
 | V1 页面 | 编号 | V2 状态 | 备注 |
 |---|---|---|---|
 | 体检扫描 | 34 | 🟡 | data：`/api/v2/read/six-dim`（六维评分数据） |
 | 价格预警 | 47 | 🟡 | data：`/api/v2/read/alert-rules`（告警规则）；与 `/alerts` 不同，独立功能 |
-| 数据导出 | 95 | 🟡 | data：`/api/v2/read/snapshot-dates`（快照日期清单） |
+| 数据导出 | 95 | ✅ | native：`/export`（2026-11-11 迁移：浏览归档快照 data/snapshots/*.json 并导出原始 JSON，纯前端只读，复用 useSnapshotDates/useSnapshot + SnapshotView 富视图；诚实红线——缺日显「该日期无归档快照」不回退今日快照） |
 | 智能条件单 | 44 | 🟡 | data：`/api/v2/read/alert-rules`（告警规则） |
 | 网页作品集 | 86 | ✅ | `/webapps` |
 | 自定义看板 | 73 | ✅ | native：`/dashboard-custom`（2026-11-11 迁移：勾选组件 + localStorage 持久化，聚合 5 个真实只读端点——今日决策快照/每日荐股/广度温度时序/事件因子池/回测运行记录；诚实渲染，缺失字段显「—」、回测收益为负如实红绿，不编造列表） |
@@ -174,13 +174,13 @@
 
 | 类别 | 数量 | 占比 |
 |---|---|---|
-| ✅ native（v2 有等价路由页） | 43 | ~58% |
-| 🟡 data（v2 无等价页，但有可查看的关联只读端点，非等价功能） | 20 | ~27% |
+| ✅ native（v2 有等价路由页） | 44 | ~60% |
+| 🟡 data（v2 无等价页，但有可查看的关联只读端点，非等价功能） | 19 | ~26% |
 | 🔒 v1 保留（永久不迁 v2） | 11 | ~15% |
 | ⬜ 待迁移（v2 尚未迁移、但计划迁移） | 0 | 0% |
 | V2 原生（无 v1 等价，属新增能力，不计入 74） | 5 | — |
 
-**诚实结论**：按四档口径，V2 已对 74 个 v1 页面中的 **43 个给出等价路由页（native）**、**20 个提供关联只读数据端点（data）**、**11 个明确永久留 v1（v1 保留，含 43 实盘交易等真实下单能力）**、**0 个待迁移**（92 用户管理 / 77 财报猎手 / 73 自定义看板已于 2026-11-11 迁 v2，路由 `/users`、`/financial-hunter`、`/dashboard-custom`）。「约 45 个页面无任何 v2 支撑」的旧判断已不成立——实际彻底无 v2 支撑的仅 11 个，且已全部主动决策永久留 v1（含真实券商下单）。v1 短期内**不能整体退役**（尤其真实交易/低频遗留/实验性页面永久留 v1），只能作为只读兜底并存。
+**诚实结论**：按四档口径，V2 已对 74 个 v1 页面中的 **44 个给出等价路由页（native）**、**19 个提供关联只读数据端点（data）**、**11 个明确永久留 v1（v1 保留，含 43 实盘交易等真实下单能力）**、**0 个待迁移**（92 用户管理 / 77 财报猎手 / 73 自定义看板 / 95 数据导出已于 2026-11-11 迁 v2，路由 `/users`、`/financial-hunter`、`/dashboard-custom`、`/export`）。「约 45 个页面无任何 v2 支撑」的旧判断已不成立——实际彻底无 v2 支撑的仅 11 个，且已全部主动决策永久留 v1（含真实券商下单）。v1 短期内**不能整体退役**（尤其真实交易/低频遗留/实验性页面永久留 v1），只能作为只读兜底并存。
 
 ---
 
@@ -215,7 +215,7 @@
 - [x] 智能盯盘 `14` → `/watch`（`c53b8b0`）
 
 ### Tier 3 — 社区 / 工具长尾（按四档口径收口）
-- [x] 已有等价/数据落点：投研圆桌 `64`（→ `/predictions` native）、我的 `91` / 决策问答 `99`（→ data 只读端点）、体检扫描 `34` / 价格预警 `47` / 数据导出 `95` / 智能条件单 `44` / 自定义看板 `73` / 消息中心 `94`（均 → data 只读端点）
+- [x] 已有等价/数据落点：投研圆桌 `64`（→ `/predictions` native）、我的 `91` / 决策问答 `99`（→ data 只读端点）、体检扫描 `34` / 价格预警 `47` / 智能条件单 `44` / 自定义看板 `73` / 消息中心 `94`（→ data 只读端点）、数据导出 `95`（→ `/export` native，2026-11-11 迁移）
 - [x] 用户管理 `92` → 已 native（`/users`，2026-11-11 迁移收口）：角色门控 + 三 Tab（用户列表 / 创建用户 / 操作日志），复用只读 `/api/admin/*` 端点；含真人交互级 E2E（键盘输入 / 表单禁用态 / 点击 / 模态确认 / 搜索回车 / 错误态）
 - [x] 财报猎手 `77` → 已 native（`/financial-hunter`，2026-11-11 迁移收口）：逐股票三表（income/balance/cash）切换深挖，复用只读 `/api/v2/read/financials`；诚实红线（null→「—」、date null→「暂无权威数据日」、note null→原文缺失说明，非跨股筛选器不伪造）；含真人交互级 E2E 6 例（默认渲染 / null 字段 / date null / note null / 空 rows / 报表 tab 切换）
 - [x] 自定义看板 `73` → 已 native（`/dashboard-custom`，2026-11-11 迁移收口）：勾选组件 + localStorage 持久化，聚合 5 个真实只读端点（今日决策快照 / 每日荐股 / 广度温度时序 / 事件因子池 / 回测运行记录）；诚实渲染——缺失字段显「—」、回测收益为负如实红绿、每日荐股 unavailable 时不编造标的列表；含真人交互级 E2E 5 例（默认 5 组件 / 取消移除+持久化 / 重新勾选 / unavailable 诚实态 / 全取消提示）
@@ -373,7 +373,7 @@ V2 dev server（5173）常起后的真人浏览器亮/暗主题目检与浏览�
 - 其中「Tier 3 社区/工具长尾 13 页（52/64/81/34/47/95/73/83/87/94/91/92/99）」是 2026-11-09/10 旧口径下的待办清单。经本轮四档评估：
   - 64 投研圆桌 → 已 native（`/predictions`）；
   - 91 我的 / 99 决策问答 → 已 data；
-  - 34 / 47 / 95 / 44 / 73 / 94 → 已 data；
+  - 34 / 47 / 44 / 94 → 已 data；73 / 95 → 已 native（95 由 data 升 native 见 §17）；
   - 52 / 81 / 83 / 87 / 53 / 33 / 25 / 13 / 15 / 17 → 决策为 v1 保留（永久不迁）；
   - 仅 **92 用户管理**为真实待迁移项（已于 2026-11-11 迁 v2，路由 `/users`，详见 §14）。
 - 故「13 页长尾」实际已无待迁移项（92 也已 native），其余已被 data 落点或 v1 保留决策吸收。历史日志保留原数字作时间线留痕，以上为本轮最终口径。
@@ -438,3 +438,35 @@ V2 dev server（5173）常起后的真人浏览器亮/暗主题目检与浏览�
 - `npx vitest run` → **364 passed / 1 skipped**（新增 3 例，含 honest-data 守卫无回归）；
 - `tsc --noEmit` → 0 错误；
 - 四档口径未变：**43 native + 20 data + 11 v1-pinned + 0 v1-only = 74**。
+
+---
+
+## 17. 验收补记（2026-11-11 晚，95 数据导出由 data 升 native 收口）
+
+> 对应 §3.6 / §4 / §6 的本轮修订，以及 §13 末尾「95 仍 data」的更正。本轮把高价值 data 页 **95 数据导出** 做成真正 v2 交互页 `/export`，逼近「v2 可替代 v1」判定线。
+
+### 选型决策（诚实口径）
+- 摸底后判定：`47/44/94`（告警）已被 native `/alerts` 只读展示（能看不能设，仍属 data，不强行建重复页也不谎报 native）；`34 体检扫描` 已被 `/stock/six-dim` 覆盖（属误留 data，应归 native 但不新建）；`99 决策问答` 被 `/morning` 覆盖且本地 0 个 .md；`95 数据导出` 本地 `data/snapshots/` 有 33 个真实 JSON、无 native 重叠、是只读设计内能做的**唯一直立高价值页** → 选它升 native。
+
+### 交付内容
+- `frontend-v2/src/features/export/DataExport.tsx`（新建）：浏览归档快照（date 下拉来自 `useSnapshotDates` 只读端点）+ 选中后复用 `SnapshotView` 富视图 + 纯前端「导出 JSON」（`Blob`+`URL.createObjectURL`，环境无下载能力时 `typeof` 守卫 + try/catch 安全降级）。**诚实红线**：缺日显「该日期无归档快照」（后端 notFound 信封 `status!=ok` → `apiFetch` 抛 `ApiError` → `isError`，不回退今日快照冒充）。
+- 接线：`router.tsx` 增 `LazyDataExport` 路由 `/export`；`nav.ts` 的 `AppPath` 联合类型 + `UTILITY_PATHS` 增 `/export`；`AppShell.tsx` 底部固定入口增「📤 数据导出」`<Link>`（绕过分组/图标守卫锁）；`v2Mapping.ts` 的 `NATIVE` 增 `95_数据导出.py → /export`，并从 `DATA` 删除该行。
+- 同步 `scripts/shoot_frontend_v2.py` 的 `ROUTES` 元组增 `("/export","export")`（42→43），注释同步。
+
+### 测试
+- 新建 `frontend-v2/tests/e2e/w4-export.test.tsx`（4 例）：① 默认渲染标题 + 日期下拉（只读端点）；② 选「有归档」日期 → 快照富视图 + 导出按钮；③ 选「无归档」日期 → 诚实空态、不回退今日快照；④ 点击「导出 JSON」安全降级不崩溃。
+- **踩坑与修正**（已写进测试，避免复发）：
+  1. 早期 `findByRole('combobox')` 对原生 `<select>` 角色解析不稳 → 改用 `getByDisplayValue('— 请选择 —')` 取 select。
+  2. `vi.stubGlobal('URL', {...URL, ...})` 替换**整个** `URL` 全局 → 剥掉构造器/静态方法，MSW 的 `fetch` 拦截（依赖 `new URL`）静默失效 → 快照 query 永不返回、下拉 option 不出现。**改法：只做方法级 stub**（`Object.defineProperty(URL,'createObjectURL'/'revokeObjectURL')`），保留 `URL` 构造器。
+  3. `fireEvent.change` 紧跟 `getByDisplayValue` 在 `render()` 后**立即**调用 → act 时序抖动导致 query 不触发/button 不出现。**改法：先 `await findByText('2026-09-21')`（option 出现 = 日期清单 query 已落定）再 fireEvent**，对齐 `w4-dashboard` 的 settle-first 范式。
+  4. ECharts 在 jsdom 无 canvas，`init/dispose` 抛错 → 与全站 E2E 约定一致，`vi.mock('@/shared/charts/EChart', () => ({ EChart: () => null }))`。
+  5. 锚点 `<a download>.click()` 在 jsdom 触发 "Not implemented: navigation" → `beforeEach` 中 `HTMLAnchorElement.prototype.click = () => {}`。
+
+### 验证
+- `npx vitest run` → **368 passed / 1 skipped**（新增 4 例，全量无回归）；
+- `npx tsc --noEmit` → 0 错误；
+- `pytest tests/test_frontend_v2_route_coverage.py` → 5/5（ROUTES 43 条对齐 AppPath）；
+- `pytest tests/test_public_numbers_consistency.py` → 74 总数守恒（native 44 / data 19 / pinned 11 / v1-only 0）。
+- 四档口径更新：**44 native + 19 data + 11 v1-pinned + 0 v1-only = 74**（§3.6 / §4 / §6 已同步）。
+- 仅 stage `frontend-v2/` + `scripts/shoot_frontend_v2.py`；`backups/`、`thesis/`、`docs/welcome.html`、`artifacts/`、`.trae/` 不动。ks 父仓库 submodule 指针留痕不推。
+- v1 弃用：仍按用户「等 v2 做好了再说」本次不碰。
