@@ -65,6 +65,8 @@ export function LoginPage() {
       const result = await login(username, password)
       localStorage.setItem('ss_token', result.access_token)
       if (result.refresh_token) localStorage.setItem('ss_refresh', result.refresh_token)
+      // 持久化当前用户（含角色），供导航与页面门控；MSW 缺 user 时不报错。
+      if (result.user) localStorage.setItem('ss_user', JSON.stringify(result.user))
       // 保留来源路由：登录后回到触发登录的页面（from 由守卫写入 search）
       navigate({ to: from as '/' })
     } catch (err) {

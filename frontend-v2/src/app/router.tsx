@@ -52,6 +52,7 @@ const LazyStrong = lazyRouteComponent(() => import('@/features/strong/Strong'), 
 const LazySectorRotation = lazyRouteComponent(() => import('@/features/sector-rotation/SectorRotation'), 'SectorRotation')
 const LazyWatch = lazyRouteComponent(() => import('@/features/watch/Watch'), 'Watch')
 const LazyQuoteBoard = lazyRouteComponent(() => import('@/features/quote-board/QuoteBoard'), 'QuoteBoard')
+const LazyUserManagement = lazyRouteComponent(() => import('@/features/admin/UserManagement'), 'UserManagement')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -306,6 +307,13 @@ const quoteBoardRoute = createRoute({
   component: LazyQuoteBoard,
 })
 
+// 管理端（92 用户管理 V2 化）：底部固定入口，不进 NAV（保持导航分组/图标唯一守卫）
+const usersRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/users',
+  component: LazyUserManagement,
+})
+
 const dataRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/data',
@@ -438,6 +446,7 @@ const routeTree = rootRoute.addChildren([
     sectorRotationRoute,
     watchRoute,
     quoteBoardRoute,
+    usersRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

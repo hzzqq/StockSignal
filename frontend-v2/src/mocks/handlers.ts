@@ -39,11 +39,50 @@ function validDate(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
 }
 
+/** 管理端 Mock 的可变状态（模块作用域，供 resetAdminMock 在测试间复位，避免跨测试污染）。
+ * 必须在 `handlers` 之前声明：handlers 内的 IIFE 在求值阶段即引用本状态。 */
+interface AdminMockState {
+  users: any[]
+  logs: any[]
+  nextId: number
+  nextLogId: number
+}
+const adminMockState: AdminMockState = {
+  users: fixtures.adminUsers.map((u) => ({ ...u })),
+  logs: fixtures.adminLogs.map((l) => ({ ...l })),
+  nextId: Math.max(0, ...fixtures.adminUsers.map((u) => u.id)) + 1,
+  nextLogId: Math.max(0, ...fixtures.adminLogs.map((l) => l.id)) + 1,
+}
+
+/**
+ * 管理端 Mock 生成资源的时间戳（确定性常量，非 new Date()）。
+ * 守卫 honest-data.test.tsx 禁止 `new Date()` 冒充数据日；Mock 本就是模拟数据，
+ * 统一用与夹具一致的固定 ISO 戳，反而比运行时 now 更利于测试断言与可重现。
+ */
+const MOCK_CREATED_AT = '2026-01-01T08:00:00Z'
+
 export const handlers = [
   // 鉴权（Mock：任意账号通过，签发演示 token）
-  http.post('/api/auth/login', () =>
-    ok({ access_token: 'mock-access-token', refresh_token: 'mock-refresh-token', token_type: 'Bearer', expires_in: 3600 }),
-  ),
+  // 登录返回 user（role 由账号决定：admin 账号→管理员，其余→普通用户），与真后端契约一致。
+  http.post('/api/auth/login', async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as { username?: string }
+    const role = body.username === 'admin' ? 'admin' : 'user'
+    return ok({
+      access_token: 'mock-access-token',
+      refresh_token: 'mock-refresh-token',
+      token_type: 'Bearer',
+      expires_in: 3600,
+      user: {
+        id: role === 'admin' ? 1 : 2,
+        username: body.username ?? 'demo',
+        role,
+        created_at: '2026-01-01T08:00:00Z',
+        is_active: true,
+        avatar: null,
+        settings: {},
+      },
+    })
+  }),
   http.post('/api/auth/refresh', () =>
     ok({ access_token: 'mock-access-token', token_type: 'Bearer' }),
   ),
@@ -194,4 +233,131 @@ export const handlers = [
     if (code === 'sh000001') return ok(fixtures.indexKlineSh000001)
     return notFound(`index_kline_${code}`)
   }),
+
+  // ───────── 管理端（92 用户管理 V2 化）─────────
+  // 内存态可变副本：列表/创建/编辑/删除共享同一份，使「创建后列表出现新用户」可被测。
+  // 初始管理员 id=1 / username='admin'，与前端「不能删自己 / 不能删初始 admin」规则同源。
+  // 状态提升到模块作用域（供 resetAdminMock 在测试间复位，避免跨测试污染）。
+  ...(() => {
+    const api = adminMockState
+    return [
+      http.get('/api/admin/users', ({ request }) => {
+        const url = new URL(request.url)
+        const page = Number(url.searchParams.get('page') ?? '1') || 1
+        const perPage = Math.min(200, Number(url.searchParams.get('per_page') ?? '50') || 50)
+        const kw = (url.searchParams.get('keyword') ?? '').toLowerCase()
+        const filtered = kw
+          ? api.users.filter((u) => u.username.toLowerCase().includes(kw))
+          : api.users
+        const start = (page - 1) * perPage
+        const items = filtered.slice(start, start + perPage)
+        const total = filtered.length
+        return ok({
+          items,
+          total,
+          page,
+          per_page: perPage,
+          pages: Math.max(1, Math.ceil(total / perPage)),
+        })
+      }),
+      http.post('/api/admin/users', async ({ request }) => {
+        const body = (await request.json().catch(() => ({}))) as {
+          username?: string
+          password?: string
+          role?: string
+        }
+        const username = (body.username ?? '').trim()
+        const password = body.password ?? ''
+        const role = body.role === 'admin' ? 'admin' : 'user'
+        if (!/^[a-zA-Z0-9_一-龥]{2,32}$/.test(username)) {
+          return badRequest('用户名需 2-32 位，仅含字母数字下划线中文')
+        }
+        if (password.length < 6) return badRequest('密码至少 6 位')
+        if (role !== 'admin' && role !== 'user') return badRequest('角色仅限 admin 或 user')
+        if (api.users.some((u) => u.username === username)) return badRequest('用户名已存在')
+        const user = {
+          id: api.nextId++,
+          username,
+          role,
+          created_at: MOCK_CREATED_AT,
+          is_active: true,
+          avatar: null,
+          settings: {},
+        }
+        api.users.push(user)
+        api.logs.unshift(makeLog(api, 'create_user', username, `role=${role}`))
+        return ok(user, '创建成功')
+      }),
+      http.put('/api/admin/users/:id', async ({ request, params }) => {
+        const id = Number(params.id)
+        const user = api.users.find((u) => u.id === id)
+        if (!user) return badRequest('资源不存在')
+        const body = (await request.json().catch(() => ({}))) as {
+          role?: string
+          is_active?: boolean
+          password?: string
+        }
+        const changes: string[] = []
+        if (body.role !== undefined) {
+          if (body.role !== 'admin' && body.role !== 'user') return badRequest('角色仅限 admin 或 user')
+          user.role = body.role
+          changes.push(`role=${body.role}`)
+        }
+        if (body.is_active !== undefined) {
+          user.is_active = body.is_active
+          changes.push(`is_active=${user.is_active}`)
+        }
+        if (body.password) {
+          if (body.password.length < 6) return badRequest('密码至少 6 位')
+          changes.push('password=***')
+        }
+        api.logs.unshift(makeLog(api, 'update_user', user.username, changes.join(', ')))
+        return ok(user, '更新成功')
+      }),
+      http.delete('/api/admin/users/:id', ({ params }) => {
+        const id = Number(params.id)
+        const user = api.users.find((u) => u.id === id)
+        if (!user) return badRequest('资源不存在')
+        if (id === 1) return badRequest('不能删除初始管理员账号')
+        api.users = api.users.filter((u) => u.id !== id)
+        api.logs.unshift(makeLog(api, 'delete_user', user.username, ''))
+        return ok(null, '删除成功')
+      }),
+      http.get('/api/admin/logs', ({ request }) => {
+        const url = new URL(request.url)
+        const page = Number(url.searchParams.get('page') ?? '1') || 1
+        const perPage = Math.min(200, Number(url.searchParams.get('per_page') ?? '50') || 50)
+        const start = (page - 1) * perPage
+        const items = api.logs.slice(start, start + perPage)
+        const total = api.logs.length
+        return ok({
+          items,
+          total,
+          page,
+          per_page: perPage,
+          pages: Math.max(1, Math.ceil(total / perPage)),
+        })
+      }),
+    ]
+  })(),
 ]
+
+function makeLog(api: AdminMockState, action: string, target: string, detail: string) {
+  return {
+    id: api.nextLogId++,
+    user_id: 1,
+    username: 'admin',
+    action,
+    target,
+    detail,
+    created_at: MOCK_CREATED_AT,
+  }
+}
+
+/** 测试间复位管理端 Mock 状态，避免跨测试污染（创建/删除在内存态累积）。 */
+export function resetAdminMock(): void {
+  adminMockState.users = fixtures.adminUsers.map((u) => ({ ...u }))
+  adminMockState.logs = fixtures.adminLogs.map((l) => ({ ...l }))
+  adminMockState.nextId = Math.max(0, ...fixtures.adminUsers.map((u) => u.id)) + 1
+  adminMockState.nextLogId = Math.max(0, ...fixtures.adminLogs.map((l) => l.id)) + 1
+}

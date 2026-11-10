@@ -1,4 +1,5 @@
 import { redirect } from '@tanstack/react-router'
+import { clearCurrentUser } from '@/lib/auth'
 
 /**
  * 鉴权守卫（W0 最小骨架）。
@@ -14,8 +15,9 @@ export function requireAuth(from: string): void {
   }
 }
 
-/** 登出：清空 token */
+/** 登出：清空 token 与持久化的当前用户对象 */
 export function clearAuth(): void {
   localStorage.removeItem('ss_token')
   localStorage.removeItem('ss_refresh')
+  clearCurrentUser()
 }

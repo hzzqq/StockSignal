@@ -14,7 +14,17 @@ describe('LoginData — 双字段名兼容 + 无静默兜底', () => {
       message: 'success',
       data: {
         token: 'real-jwt-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.sig',
-        user: { id: 1, username: 'demo' },
+        // 真后端 auth/routes.py::login 返回 User.to_public()（含 is_active 等全字段），
+        // 与 PublicUserSchema 严格对齐——此处不复刻残缺对象，避免契约失真。
+        user: {
+          id: 1,
+          username: 'demo',
+          role: 'user',
+          created_at: '2026-01-01T08:00:00Z',
+          is_active: true,
+          avatar: null,
+          settings: {},
+        },
       },
     }
     const env = parseEnvelope(raw)
@@ -37,7 +47,12 @@ describe('LoginData — 双字段名兼容 + 无静默兜底', () => {
 
   it('两个 token 字段都缺 → 必须抛错（无静默兜底）', () => {
     expect(() => LoginData.parse({})).toThrow()
-    expect(() => LoginData.parse({ user: { id: 1 } })).toThrow()
+    // 即便 user 合法，缺 token 也必须抛错（诚实红线：禁止 ?? '' 兜底）
+    expect(() =>
+      LoginData.parse({
+        user: { id: 1, username: 'demo', role: 'user', created_at: '2026-01-01T08:00:00Z', is_active: true, avatar: null, settings: {} },
+      }),
+    ).toThrow()
     expect(() => LoginData.parse({ refresh_token: 'only-refresh' })).toThrow()
   })
 

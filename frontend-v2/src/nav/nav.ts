@@ -39,6 +39,7 @@ export type AppPath =
   | '/login'
   | '/matrix'
   | '/guide'
+  | '/users'
 
 export interface NavItem {
   to: AppPath
@@ -113,5 +114,5 @@ export const NAV: NavGroup[] = [
  * /login 不在其中 —— 它是未鉴权入口，不能作为登录后的回流目标。
  */
 export const UTILITY_PATHS: readonly AppPath[] = [
-  '/settings', '/catalog', '/data', '/matrix', '/guide',
+  '/settings', '/catalog', '/data', '/matrix', '/guide', '/users',
 ]

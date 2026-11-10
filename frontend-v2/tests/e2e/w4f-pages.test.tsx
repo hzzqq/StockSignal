@@ -182,6 +182,7 @@ describe('W4-F · 接线守卫（源码真扫）', () => {
       ['66_维度领先滞后矩阵.py', '/matrix'],
       ['90_登录.py', '/login'],
       ['96_新手教程.py', '/guide'],
+      ['92_用户管理.py', '/users'],
     ]
     for (const [file, to] of cases) {
       const page = V1_PAGES.find((p) => p.file === file)
@@ -196,7 +197,7 @@ describe('W4-F · 接线守卫（源码真扫）', () => {
     const c = statusCounts()
     expect(c.native + c.data + c['v1-only'] + c['v1-pinned']).toBe(V1_PAGES.length)
     expect(c.native).toBeGreaterThan(17)
-    expect(c['v1-only']).toBeGreaterThan(0)
+    expect(c['v1-only']).toBe(0)
   })
 
   it('新页走底部入口，NAV 仍 4 组 / 第 3 组 12 项 / 图标唯一', () => {

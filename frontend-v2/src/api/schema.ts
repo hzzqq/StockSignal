@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PublicUserSchema, type PublicUser } from './schemas/admin'
 
 /**
  * 响应信封（PLAN.md §1 真扫：`{status, code, message, data}`）
@@ -43,6 +44,9 @@ export const LoginData = z
     refresh_token: z.string().min(1).optional(),
     token_type: z.string().default('Bearer'),
     expires_in: z.number().int().positive().optional(),
+    // 真后端 auth/routes.py::login 返回 data.user（User.to_public）；
+    // MSW 登录 handler 可能省略（mock 不强制），故可选。缺 user 时前端回落为无角色信息。
+    user: PublicUserSchema.optional(),
   })
   .transform((d, ctx) => {
     const token = d.access_token ?? d.token
@@ -55,6 +59,7 @@ export const LoginData = z
       refresh_token: d.refresh_token,
       token_type: d.token_type,
       expires_in: d.expires_in,
+      user: d.user as PublicUser | undefined,
     }
   })
 export type LoginResult = z.infer<typeof LoginData>

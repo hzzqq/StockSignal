@@ -1216,3 +1216,66 @@ export const diagnosticsDegraded = {
   },
   probe: null,
 }
+
+// ───────── 管理端（用户管理 / 操作日志，92 页 V2 化）─────────
+// 结构对齐 backend/models.py::User.to_public / OperationLog.to_dict；数值为演示。
+// 初始管理员 id=1、username='admin'（与前端「不能删自己 / 不能删初始 admin」规则同源）。
+export const adminUsers = [
+  {
+    id: 1,
+    username: 'admin',
+    role: 'admin',
+    created_at: '2026-01-01T08:00:00Z',
+    is_active: true,
+    avatar: null,
+    settings: {},
+  },
+  {
+    id: 2,
+    username: 'demo',
+    role: 'user',
+    created_at: '2026-03-12T10:24:00Z',
+    is_active: true,
+    avatar: null,
+    settings: {},
+  },
+  {
+    id: 3,
+    username: 'guest',
+    role: 'user',
+    created_at: '2026-06-20T14:05:00Z',
+    is_active: false,
+    avatar: null,
+    settings: {},
+  },
+]
+
+export const adminLogs = [
+  {
+    id: 1,
+    user_id: 1,
+    username: 'admin',
+    action: 'create_user',
+    target: 'demo',
+    detail: 'role=user',
+    created_at: '2026-03-12T10:24:00Z',
+  },
+  {
+    id: 2,
+    user_id: 1,
+    username: 'admin',
+    action: 'update_user',
+    target: 'guest',
+    detail: 'is_active=false',
+    created_at: '2026-06-20T14:10:00Z',
+  },
+  {
+    id: 3,
+    user_id: 2,
+    username: 'demo',
+    action: 'update_user',
+    target: 'demo',
+    detail: 'password=***',
+    created_at: '2026-07-02T09:15:00Z',
+  },
+]

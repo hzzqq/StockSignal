@@ -99,7 +99,7 @@ describe('W4-E · v1 功能全景清单（真实性）', () => {
     const c = statusCounts()
     expect(c.native + c.data + c['v1-only'] + c['v1-pinned']).toBe(V1_PAGES_TOTAL)
     expect(c.native).toBeGreaterThan(10)
-    expect(c['v1-only']).toBeGreaterThan(0)
+    expect(c['v1-only']).toBe(0)
     expect(c['v1-pinned']).toBeGreaterThan(0)
     for (const p of V1_PAGES) {
       const m = mappingOf(p)
@@ -150,13 +150,26 @@ describe('W4-E · 功能全景页交互', () => {
     expect(shown).toBe(statusCounts()['v1-only'])
   })
 
+  it('点击「已实现」状态筛选，仅显示 v2 已落地页（含刚迁来的用户管理）', () => {
+    mount(<CatalogView />)
+    fireEvent.click(screen.getByRole('button', { name: '已实现' }))
+    // 显示数 == native 统计（92 用户管理已计入 native）
+    const label = screen.getByText(/当前显示 \d+ 项/).textContent ?? ''
+    const shown = Number(label.match(/\d+/)?.[0] ?? 0)
+    expect(shown).toBe(statusCounts().native)
+    expect(screen.getByText('用户管理')).toBeTruthy() // 92 已 native
+    // v1 保留页（如「市场强弱」）不应出现在「已实现」筛选下
+    expect(screen.queryByText('市场强弱')).toBeNull()
+  })
+
   it('「待迁移」项给 v1 直达链接且编码中文页名', () => {
+    // 92 用户管理已迁 v2 后，v1-only 收口为 0 —— 不再有「待迁移」直链。
     const target = V1_PAGES.find((p) => mappingOf(p).status === 'v1-only')
-    expect(target).toBeTruthy()
-    if (!target) return
-    const url = v1PageUrl(target.v1Url)
-    expect(url).toContain('http://127.0.0.1:8501/')
-    expect(url).not.toContain(target.name) // 中文已编码
+    expect(target).toBeUndefined()
+    // 全景页如实呈现「待迁移」统计标签（值为 0，由 Stat 组件渲染）
+    mount(<CatalogView />)
+    // 「待迁移」同时出现在 Stat 标签与状态筛选按钮，须用 getAllByText 避免多节点歧义
+    expect(screen.getAllByText('待迁移').length).toBeGreaterThan(0)
   })
 })
 
