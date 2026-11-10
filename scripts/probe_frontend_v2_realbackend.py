@@ -13,7 +13,7 @@
 * Vite 设 `VITE_ENABLE_MOCKS=false` 关 MSW，`VITE_PROXY_TARGET` 指向隔离后端；
 * headless Chrome 逐页采样：主题令牌、React 挂载、截图、MockBanner 必须消失，并在
   **浏览器内** fetch 只读端点，比对 `message` 指纹与直连后端的响应；
-  MSW 的默认 message 是 'ok'，真后端 `/quote-board` 是 'quote-board'，故无法蒙混。
+  MSW 的默认 message 是 'ok'，真后端 /api/v2/read/webapps 是 'webapps/'，故无法蒙混。
 
 诚实边界
 --------
@@ -34,6 +34,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -73,15 +74,16 @@ FINGERPRINT_ENDPOINT = "/api/v2/read/webapps"  # 本地目录扫描，真后端 
 MSW_FAKE_MESSAGE = "ok"  # mocks/handlers.ts::ok() 默认 message
 MOCK_BANNER_TEXT = "演示数据（Mock）"
 
-# 2026-11-10 实测（backend.log）：隔离 Flask 进程内调用这些 akshare 日线端点会触发
-# py_mini_racer(V8) 的 [FATAL:partition_address_space.cc(243)] Check failed，
-# native 崩溃无法被 try/except 捕获，会直接杀死整个后端进程。项目已有的 V8 子进程隔离
-# 在 modules/market_cache.py，但 read_routes._w4x_index_daily 目前是进程内直调。
-# 本探针因此只覆盖本地只读端点；实时源端点待产品级修复后另开一轮，绝不假装已联调。
-EXCLUDED_ENDPOINTS = (
-    "/api/v2/read/quote-board",
+# 2026-11-10 真缺陷已修：read_routes._w4x_index_daily 原先在 Flask 进程内被 fetch_many
+# 多线程直调 akshare 新浪日线，触发 py_mini_racer(V8)
+# [FATAL:partition_address_space.cc(243)] native 崩溃（try/except 捕获不到，直接杀死后端）。
+# 现在日线取数统一走 backend/api/_index_daily_worker.py 的独立解释器子进程，
+# 父进程只做 JSON -> DataFrame；崩溃/超时只让对应指数诚实降级为 null。
+# 因此下面 3 个实时源端点与 Dashboard "/" 重新纳入联调，并逐端点复核后端存活。
+REALTIME_ENDPOINTS = (
     "/api/v2/read/index-quotes",
-    "/api/v2/read/index-kline",
+    "/api/v2/read/index-kline?code=sh000001",
+    "/api/v2/read/quote-board",
 )
 
 SCHEDULER_OFF = {
@@ -93,12 +95,12 @@ SCHEDULER_OFF = {
     "STOCKSIGNAL_ENABLE_RESEARCH_WATCH": "0",
 }
 
-# 只选调用本地 JSON / 本地 DB / 静态内容的页面，避开 EXCLUDED_ENDPOINTS 依赖的页面。
-# ⚠️ Dashboard "/" 会顺带请求 /api/v2/read/index-quotes（2026-11-10 冒烟日志实证：
-# p1-signals / daily-snapshot / webapps / index-quotes 并发返回后即刻 V8 FATAL），
-# 触发 native 崩溃打挂整个后端，故本轮不纳入 ROUTES；待产品级进程隔离修复后再加回。
-# 每页采样后还会打 /api/health 复核后端存活，若某页意外触发 V8 崩溃会如实定位并中止。
+# V8 隔离修复后，Dashboard "/"（顺带打 index-quotes）与行情看板 /quote-board
+# 重新纳入：这两页此前因 native 崩溃被排除，是本轮修复最直接的验收对象。
+# 每页采样后仍打 /api/health 复核后端存活；若修复回潮，会如实定位到具体路由并中止。
 ROUTES = (
+    ("/", "dashboard"),
+    ("/quote-board", "quote_board"),
     ("/webapps", "webapps"),
     ("/guide", "guide"),
     ("/settings", "settings"),
@@ -231,6 +233,76 @@ def probe_static_asset(base_frontend: str) -> dict:
     if not rec["ok"]:
         rec["error"] = "经 Vite 代理访问 Flask 静态作品失败（详见 probe）"
     return rec
+
+
+def probe_realtime_endpoints(base_backend: str, token: str) -> list[dict]:
+    """V8 修复后的硬证据：逐端点直连真后端，确认 native 崩溃不再带走 Flask 进程。
+
+    判定四件事：HTTP 200 + ok 信封 + 数据诚实（缺失为 null/[]，绝不补 0、
+    绝不 now() 冒充数据日）+ **每个端点之后 /api/health 仍 200**。
+    V8 FATAL 旧行为是「端点返回途中整个后端消失」，这条复核能直接抓到回潮。
+    取不到真行情不包装成成功：observed 字段如实记录可用数量与权威数据日。
+    """
+    out: list[dict] = []
+    for ep in REALTIME_ENDPOINTS:
+        rec: dict = {"route": ep, "kind": "realtime_endpoint", "ok": False}
+        try:
+            body = http_json(base_backend + ep, token=token, timeout=20)
+            data = body.get("data") or {}
+            checks = {
+                "envelope_ok": body.get("status") == "ok",
+                "has_data": isinstance(data, dict) and len(data) > 0,
+            }
+            if ep.startswith("/api/v2/read/index-quotes"):
+                items = data.get("items") or []
+                checks["items_shape"] = len(items) == 5
+                checks["no_fake_zero"] = all(
+                    x.get("current") is None or
+                    (isinstance(x.get("current"), (int, float)) and x.get("current") != 0)
+                    for x in items)
+                rec["observed"] = {
+                    "index_count": len(items),
+                    "available": sum(1 for x in items if x.get("current") is not None),
+                }
+            elif ep.startswith("/api/v2/read/index-kline"):
+                krows = data.get("rows") or []
+                kdate = data.get("date")
+                checks["rows_list"] = isinstance(krows, list)
+                checks["date_honest"] = kdate is None or bool(
+                    re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(kdate)))
+                rec["observed"] = {"rows": len(krows), "date": kdate}
+            else:
+                idxs = data.get("indices") or []
+                checks["indices_shape"] = len(idxs) == 5
+                checks["no_fake_zero"] = all(
+                    x.get("current") is None or
+                    (isinstance(x.get("current"), (int, float)) and x.get("current") != 0)
+                    for x in idxs)
+                # 全降级必须在 unavailable 标注（前端据此显示提示），不许静默故障
+                checks["missing_marked"] = (
+                    (data.get("summary") or {}).get("index_available", 0) > 0
+                    or "index_quotes_unavailable" in (data.get("unavailable") or [])
+                )
+                rec["observed"] = {
+                    "index_count": len(idxs),
+                    "available": (data.get("summary") or {}).get("index_available"),
+                    "unavailable": data.get("unavailable"),
+                }
+            health = http_json(base_backend + "/api/health", timeout=3)
+            checks["backend_alive"] = health.get("status") == "ok"
+            rec["checks"] = checks
+            bad = [k for k, v in checks.items() if not v]
+            if bad:
+                rec["error"] = "failed: " + ", ".join(bad)
+                logger.error("x 实时端点 %-46s %s", ep, rec["error"])
+            else:
+                rec["ok"] = True
+                logger.info("OK 实时端点 %-46s %s", ep, rec.get("observed"))
+        except Exception as exc:
+            rec["error"] = f"{type(exc).__name__}: {exc}"
+            logger.error("x 实时端点 %s %s", ep, rec["error"])
+        out.append(rec)
+    return out
 
 
 # ── 主流程 ────────────────────────────────────────────────────────────────
@@ -389,6 +461,7 @@ def main(argv=None) -> int:
                     break
             if backend_lost_after:
                 break
+        records.extend(probe_realtime_endpoints(base_backend, token))
         records.append(probe_static_asset(base_frontend))
 
         ok = sum(1 for r in records if r.get("ok"))
@@ -417,24 +490,35 @@ def main(argv=None) -> int:
                         "all_checks_pass": fail == 0 and backend_lost_after is None},
             "known_limitations": {
                 "v8_native_crash": (
-                    "隔离 Flask 进程内调用 akshare 日线端点触发 py_mini_racer(V8) "
-                    "[FATAL:partition_address_space.cc(243)]，native 崩溃无法捕获，"
-                    "会杀死整个后端进程（2026-11-10 冒烟实测，证据见 backend.log）。"
+                    "结构性已修复：日线取数改走独立解释器子进程，Flask 进程内不再 "
+                    "import akshare / 直调新浪日线（AST 守卫锁死）。本轮沙箱网络层取数即失败，"
+                    "未复现 native 崩溃；崩溃/超时降级路径由单测模拟 rc=-1073741819 与 "
+                    "TimeoutExpired 验证。3 个实时源端点与 Dashboard 均已纳入，"
+                    "逐端点 + 逐页复核 /api/health 存活。"
                 ),
-                "excluded_endpoints": list(EXCLUDED_ENDPOINTS),
-                "excluded_reason": (
-                    "read_routes._w4x_index_daily 目前在 Flask 进程内直调 akshare；"
-                    "项目已有的子进程隔离见 modules/market_cache.py，尚未接入只读端点。"
-                    "本轮不假装这些端点已联调，产品级修复另开一轮。"
+                "v8_crash_reproduced_this_run": False,
+                "realtime_endpoints": list(REALTIME_ENDPOINTS),
+                "data_honesty": (
+                    "隔离库无真实行情时，指数/板块一律 null/[] 降级；报告 observed 字段"
+                    "如实记录取到的数量与权威数据日，绝不补 0、绝不 now() 冒充数据日。"
                 ),
-                "covered_scope": "本地 JSON / 本地 DB / 静态内容页 + 浏览器内端点指纹",
+                "covered_scope": (
+                    "本地 JSON / 本地 DB / 静态内容页 + Dashboard + 行情看板 + "
+                    "3 个实时源端点直连 + 浏览器内端点指纹"
+                ),
+                "not_covered": (
+                    "真人交互 E2E（键盘/表单/hover/多视口/多浏览器）与真行情数据联调；"
+                    "隔离环境拿到的仍可能是诚实 null 降级，不等于真实行情；"
+                    "本轮未复现 V8 native 崩溃（网络层先失败），不把结构性隔离吹成实测崩溃存活。"
+                ),
             },
             "backend_lost_after": backend_lost_after,
             "note": (
                 "真后端 = 独立端口的 Flask 服务（非 MSW fixtures）；隔离新库的数据仍是"
-                "离线确定性样例 / 诚实 null 降级，不等于真实行情。本轮只覆盖本地只读端点，"
-                "实时行情端点因 V8 native 崩溃被排除（见 known_limitations）。headless 自动截图 + "
-                "计算样式采样 + 浏览器内端点指纹，非人工审美结论，非真人交互 E2E。"
+                "离线确定性样例 / 诚实 null 降级，不等于真实行情。V8 native 崩溃已用"
+                "独立解释器子进程隔离，Dashboard 与 3 个实时源端点均重新纳入联调，"
+                "每端点后复核 /api/health。headless 自动截图 + 计算样式采样 + "
+                "浏览器内端点指纹 + 端点级直连探测，非人工审美结论，非真人交互 E2E。"
             ),
             "records": records,
         }

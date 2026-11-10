@@ -342,3 +342,81 @@ dark/light × 40 路由 + sixdim partial × 2 + 深链专项 × 12 共 **94 条�
   探针把它们写进 `EXCLUDED_ENDPOINTS`，报告 `known_limitations` 逐条列出，绝不假装已验证。
 - 隔离新库的数据仍是离线确定性样例 / 诚实 null 降级，**不等于真实行情**。
 - 仍是 headless 自动截图 + 计算样式采样 + DOM 断言；未做真人交互 E2E、键盘 / 读屏 / 窄屏 / 多浏览器。
+
+
+---
+
+## V8 子进程隔离修复 + 全量真后端联调（2026-11-10，承接上节未修缺陷）
+
+> 上节把「V8 native 崩溃」列为**未修**并列为下一轮首要；本节是它的收口，上节
+> 「本轮未覆盖」清单里的「实时源端点 / Dashboard 未联调」一项已由本节覆盖。
+> 在隔离工作树 `task/v8-index-isolation`（HEAD `5b38ead`）执行，未触碰 43 实盘交易页。
+
+### 修复方案（不改技术栈、不引入依赖）
+
+| 决策 | 做法与理由 |
+|---|---|
+| 不用 `ProcessPoolExecutor` | 项目 `tests/test_refresh_main_guard.py` 已明确：Windows 以 spawn 启动子进程会重导入 `__main__`，触发进程池的入口必须自带 `if __name__ == "__main__"`；Flask 入口不满足，且有 pickle 边界风险 |
+| 改独立解释器 | 新增 `backend/api/_index_daily_worker.py`，父进程 `subprocess.run([sys.executable, worker, symbols])`；零 pickle、零 `__main__` 重导入，native 崩溃被进程边界物理隔离 |
+| NDJSON 逐只 flush | worker 每完成一只指数输出一行 `{"symbol":..., "rows":[...]}`；即使第 N 只触发 FATAL，前 N-1 只结果仍可被父进程诚实使用，不必整批作废 |
+| 单飞 + 短 TTL | `_w4x_index_daily` 用 `threading.Lock` + 60s 缓存：`fetch_many` 的 5 个并发线程只触发**一次**子进程，其余等锁后命中，避免起 5 个解释器把 12s 整批预算打空。简单改 `max_workers=1` 串行化不是正解 |
+| 超时对齐 | `_INDEX_WORKER_TIMEOUT = CALL_TIMEOUT_CAP - 2 = 10s`，严格早于 `fetch_many` 整批 12s；`rc!=0` / `TimeoutExpired` / stdout 坏行一律只让对应指数降级为 `None`，绝不补 0 |
+| 契约不变 | `_w4x_index_quote(symbol, name)` 签名与输出不变；三个只读端点结构不变，既有 monkeypatch 测试桩（54 例）不打红 |
+
+### 顺带修的诚实性缺陷
+
+子进程整体失败 → 5 张指数卡全是「暂无数据」，但 `quote-board` 的 `unavailable` 仍是 `[]`，
+等于**静默故障**。现在 `index_available == 0` 时追加 `index_quotes_unavailable`；
+前端 `QuoteBoard.tsx` 已有该列表的渲染（第 150–152 行），不改 UI 即闭环。
+同时修正 `index_quotes()` 失真的 docstring（原文写「全失败返回 items=[]」，实际是 5 项保留、字段全 null）。
+
+### 实跑证据（14/14，exit 0）
+
+产物 `E:/tmp/ss_realbackend_shots_v8fix/`（仓库外，未提交）。
+
+| 项 | 结果 |
+|---|---|
+| 页面 | `/`、`/quote-board`、`/webapps`、`/guide`、`/settings` × dark/light = **10/10**；暗 `#0f0f23` / 亮 `#f0f3f9`，浏览器内指纹 `message='webapps/'` 与直连一致，MockBanner 消失 |
+| 实时源端点直连 | `index-quotes` / `index-kline?code=sh000001` / `quote-board` **3/3**：200 + ok 信封 + 每打完一个 `/api/health` 仍 200 |
+| 静态资源 | `/webapps/emotion-cycle-clock/index.html` 经 Vite 代理 200 + 真 HTML |
+| 后端存活 | `backend_lost_after=null`；`backend.log` 中 `FATAL=0` / `partition_address_space=0` / `py_mini_racer=0`；15 次 health 全 200 |
+| 诚实降级 | `available=0`、`rows=0, date=None`、`unavailable=['index_quotes_unavailable']`，不补 0、不用 `now()` 冒充数据日 |
+| 截图 | 10 张 PNG，54,819 ~ 121,808 B |
+
+### 回归
+
+| 套件 | 结果 |
+|---|---|
+| `backend/tests/test_read_routes.py` | **55/55**（原 54 + 新增 `test_index_daily_v8_isolation`） |
+| `python -m backend.tests.test_security` | **12/12** |
+| 前端基础设施 + 公开数字 + diagnostics 守卫 | **78/78**（含新增防回潮 AST 断言） |
+| 公开数字 | Python 文件 910→911、测试函数 4611→4612；`gen_portfolio_page.py --fast` + 8 份物料同步 |
+
+新增守卫 `test_index_daily_v8_isolation` 真实抓回潮：AST 断言 `_w4x_index_daily` /
+`_w4x_index_daily_batch` 函数体内不得出现 `import akshare` 或 `stock_zh_index_daily(`；
+模拟 `rc=-1073741819`（Windows access violation）与 `TimeoutExpired`，验证父进程只做
+诚实降级、不抛异常穿透；另锁 worker 的 NDJSON 中文列 / `YYYY-MM-DD` 日期口径。
+
+### 诚实边界（不吹成「实测崩溃被隔离」）
+
+⚠️ **本轮沙箱在 akshare 网络层就取数失败，未复现 native 崩溃**：worker 独立执行
+1.44s、`rc=0`、逐只输出 `rows=[]`（网络请求在 V8 解码之前就失败）。所以本轮证明的是
+「结构性隔离已就位 + 端点 200 + 后端存活 + 诚实降级」，**不是**「V8 真崩时父进程存活」的实测。
+后者由进程边界这一物理事实 + 单测模拟 `rc!=0` / 超时路径共同保证；报告
+`known_limitations.v8_crash_reproduced_this_run=false` 如实标注。
+若要真复现，需在能连到新浪日线且能触发 V8 解码的环境下重跑探针。
+
+其余未覆盖项不变：真人交互 E2E、多视口 / 多浏览器、真行情数据联调、v1 下线时机评估。
+
+### 顺带收口的 2 个既有后端守卫红灯
+
+全量 `backend/tests/` 首跑暴露 2 个红灯，AST 对比 `HEAD 5b38ead` 证实**改动前就存在**
+（原 2752 / 2776 行；本轮插入约 94 行后行号前移），与本轮 V8 改动无关：
+
+1. `theme` 端点 `except Exception: pass` 静默吞异常 → 改为
+   `logging.getLogger(__name__).warning(...)` 留痕（项目既有风格）。
+2. `theme_transmission` 用 `_fa_int(request.args.get("limit"), 60, 1, 200)` 裸解析分页
+   → 改走 `parse_limit_param("limit", default=60, hi=200)`（语义等价，lo=1 / hi=200 不变）。
+
+收口后 `backend/tests/` 全量（排除独立脚本 `test_security.py`）+ 3 个守卫文件 **389/389 全绿**。
+不修的话全量回归会一直留在红状态，后续任何改动都无法归因。这两处不计入 V8 修复本身。

@@ -32,6 +32,10 @@ import json
 import logging
 import math
 import re
+import subprocess
+import sys
+import threading
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -1354,8 +1358,15 @@ def stock_intraday():
 # ───────────── 指数行情只读端点（index-quotes / index-kline）─────────────
 # 与 W4-B/W4-C 同款红线：@jwt_required + 统一 ok/fail 信封；code 用 ^(sh|sz)\d{6}$ 校验；
 # 多源 fetch_many；异常/空降级为 null/[]，绝不 500、绝不补 0；date 为权威数据日，绝不 now()。
-# 数据源 ak.stock_zh_index_daily：离线环境由项目 OFFLINE_MODE 机制返回确定性静态样例，
-# 在线返回真实日线；二者均为诚实数据，无编造（与 stock-kline 同源）。
+#
+# ⚠️ V8 进程隔离（2026-11-10 真后端浏览器联调抓到的高危缺陷，勿回退）：
+#   akshare 新浪日线底层会实例化 py_mini_racer(V8)。原先 _w4x_index_daily 在 Flask
+#   进程内被 fetch_many 多线程并发直调，触发 V8 native FATAL
+#   ([FATAL:partition_address_space.cc(243)] Check failed)，try/except 捕获不到，
+#   直接杀死整个后端进程；Dashboard "/" 顺带打 index-quotes，真实用户打开首页即打挂 5050。
+#   现在所有 akshare 日线调用一律走 _index_daily_worker.py 的独立解释器子进程，
+#   Flask 进程只做「JSON -> DataFrame」，绝不 import akshare。
+#   子进程崩溃 / 超时 → 对应指数诚实降级为 None，后端进程存活。
 _INDEX_DEFS = [
     ("sh000001", "上证指数"),
     ("sz399001", "深证成指"),
@@ -1364,18 +1375,100 @@ _INDEX_DEFS = [
     ("sh000300", "沪深300"),
 ]
 
+_INDEX_WORKER = Path(__file__).with_name("_index_daily_worker.py")
+# REQ_TIMEOUT(10) < CALL_TIMEOUT_CAP(12)：worker 必须早于 fetch_many 整批超时收口。
+_INDEX_WORKER_TIMEOUT = max(2.0, CALL_TIMEOUT_CAP - 2.0)
+_INDEX_DAILY_TTL = 60.0       # 日线快照短缓存：避免每页都拉起一次解释器
+_INDEX_DAILY_CACHE: dict[str, tuple[float, object]] = {}
+_INDEX_DAILY_LOCK = threading.Lock()
+_INDEX_DAILY_LOGGER = logging.getLogger(__name__)
+
+
+def _w4x_index_daily_batch(symbols):
+    """在独立解释器里批量取指数日线 -> {symbol: [records]}；失败/崩溃返回 {} 或子集。
+
+    这是**唯一**允许触发 akshare 新浪日线的入口。父进程边界：
+      · timeout：硬超时后 kill 子进程，已 flush 的前序 NDJSON 行仍解析使用；
+      · returncode != 0（native FATAL / segfault）：不抛异常，保留已取到的行；
+      · stdout 非协议行（akshare 日志）忽略；缺列 / 坏行只让该只缺失。
+    绝不补 0、绝不把「取数失败」伪装成有数据。
+    """
+    if not symbols:
+        return {}
+    payload = json.dumps([s for s in symbols if isinstance(s, str) and s])
+    kwargs = {
+        "capture_output": True,
+        "text": True,
+        "timeout": _INDEX_WORKER_TIMEOUT,
+        "cwd": str(_ROOT),
+    }
+    if sys.platform == "win32":
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        proc = subprocess.run([sys.executable, str(_INDEX_WORKER), payload], **kwargs)
+        stdout = proc.stdout or ""
+        if proc.returncode != 0:
+            _INDEX_DAILY_LOGGER.warning(
+                "[index-daily] 子进程异常退出 rc=%s（V8 native 崩溃已隔离，父进程存活）；stderr=%s",
+                proc.returncode, (proc.stderr or "")[-300:])
+    except subprocess.TimeoutExpired as exc:
+        raw = exc.stdout
+        stdout = raw if isinstance(raw, str) else (
+            raw.decode("utf-8", "ignore") if isinstance(raw, bytes) else "")
+        _INDEX_DAILY_LOGGER.warning("[index-daily] 子进程超时 %.1fs（已 kill，父进程存活）",
+                                    _INDEX_WORKER_TIMEOUT)
+    except Exception as exc:  # noqa: BLE001 - 拉不起解释器时也只做诚实降级
+        _INDEX_DAILY_LOGGER.warning("[index-daily] 子进程启动失败：%s: %s",
+                                    type(exc).__name__, exc)
+        return {}
+    out: dict[str, list] = {}
+    for line in (stdout or "").splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            rec = json.loads(line)
+        except Exception:  # noqa: BLE001
+            continue
+        if not isinstance(rec, dict):
+            continue
+        sym, rows = rec.get("symbol"), rec.get("rows")
+        if isinstance(sym, str) and isinstance(rows, list):
+            out[sym] = rows
+    return out
+
 
 def _w4x_index_daily(symbol):
-    """ak.stock_zh_index_daily(symbol) -> DataFrame | None（异常/空降级）。
-    列名中文：日期/开盘/收盘/最高/最低/成交量。"""
-    try:
-        import akshare as ak
-        df = ak.stock_zh_index_daily(symbol=symbol)
-    except Exception:  # noqa: BLE001 - 取数失败仅让该指数缺失，不 500
-        return None
-    if df is None or not hasattr(df, "columns") or len(df) == 0:
-        return None
-    return df
+    """单只指数日线 -> DataFrame | None（异常/空/子进程崩溃一律诚实降级）。
+
+    单飞（single-flight）+ 短 TTL：fetch_many 的 5 个并发线程只触发**一次**子进程，
+    其余线程等锁后命中缓存，避免起 5 个解释器把 12s 整批预算打空。
+    缓存的是权威日线（date 来自数据本身，绝不 now()），不是伪造数据。
+    """
+    now = time.monotonic()
+    with _INDEX_DAILY_LOCK:
+        hit = _INDEX_DAILY_CACHE.get(symbol)
+        if hit is not None and (now - hit[0]) < _INDEX_DAILY_TTL:
+            return hit[1]
+        batch_symbols = [code for code, _ in _INDEX_DEFS]
+        if symbol not in batch_symbols:
+            batch_symbols.append(symbol)
+        try:
+            frames = _w4x_index_daily_batch(batch_symbols)
+        except Exception:  # noqa: BLE001 - 取数框架级异常：整体降级，不 500
+            frames = {}
+        for code in batch_symbols:
+            rows = frames.get(code)
+            df = None
+            if rows:
+                try:
+                    cand = pd.DataFrame(rows)
+                    if len(cand) > 0 and "收盘" in cand.columns:
+                        df = cand
+                except Exception:  # noqa: BLE001
+                    df = None
+            _INDEX_DAILY_CACHE[code] = (now, df)
+        return _INDEX_DAILY_CACHE[symbol][1]
 
 
 def _w4x_index_quote(symbol, name):
@@ -1404,7 +1497,8 @@ def _w4x_index_quote(symbol, name):
 @jwt_required
 def index_quotes():
     """主要指数实时报价（外部卡片视角）：上证/深证/创业板/上证50/沪深300。
-    GET /api/v2/read/index-quotes。逐指数独立取数、独立降级；全失败返回 items=[] + note。
+    GET /api/v2/read/index-quotes。逐指数独立取数、独立降级；全失败时 5 项仍在 items 中，
+    但 current/change/date 等字段全为 null（诚实占位，不补 0、不删项），并附 note。
     """
     try:
         from modules.fetch_parallel import fetch_many
@@ -2749,8 +2843,9 @@ def theme():
             top_idx = chg.idxmax()
             summary["top_name"] = _safe_str(df.loc[top_idx, name_c])
             summary["top_chg"] = _to_float(chg.loc[top_idx])
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as e:  # noqa: BLE001 - 解析失败留痕，不静默吞
+            logging.getLogger(__name__).warning(
+                "[theme] 领涨题材解析失败，top_name/top_chg 诚实保持 None: %s", e)
 
     data = {
         "concepts": concepts,
@@ -2773,7 +2868,9 @@ def theme_transmission():
         from modules.news import EventMiner
         from modules import event_graph as evg
 
-        limit = _fa_int(request.args.get("limit"), 60, 1, 200)
+        from ..utils.params import parse_limit_param
+        # 统一走有界 helper（lo=1 / hi=200），防 ?limit=-1 绕过条数上限
+        limit = parse_limit_param("limit", default=60, hi=200)
         df = EventMiner().mine_events(limit=limit, auto_save=False)
         if df is None or getattr(df, "empty", True):
             return ok(data=_sanitize({
@@ -2920,7 +3017,7 @@ def strong():
 
 
 # ───────── 行情看板（只读 / quote-board）─────────
-# 诚实口径：V2 只读聚合，复用 _w4x_index_quote（Flask 安全，akshare 日线离线确定性静态）
+# 诚实口径：V2 只读聚合，复用 _w4x_index_quote（akshare 日线已走独立解释器子进程隔离 V8）
 # + get_industry_fund_flow（Flask 安全）+ 市场状态（基于服务器北京时间，真实 now，非伪造数据日）。
 # 指数/板块数据缺失 → 诚实降级为 null/[]，不 500、不补 0；市场状态基于服务器时间真实计算。
 _QUOTE_BOARD_NOTE = (
@@ -2974,7 +3071,7 @@ def quote_board():
     indices: list[dict] = []
     sectors: list[dict] = []
 
-    # ── 1) 主要指数（复用 _w4x_index_quote，Flask 安全、逐指数独立降级）──
+    # ── 1) 主要指数（复用 _w4x_index_quote；日线取数在子进程，逐指数独立降级）──
     try:
         from modules.fetch_parallel import fetch_many
         tasks = [(code, lambda c=code, n=name: _w4x_index_quote(c, n)) for code, name in _INDEX_DEFS]
@@ -2997,6 +3094,10 @@ def quote_board():
         })
 
     index_available = sum(1 for x in indices if x.get("current") is not None)
+    # 子进程整体失败 / 全部指数降级时，必须在 unavailable 里标注数据源不可用：
+    # 前端 QuoteBoard 会渲染该列表，不能让「5 张暂无数据卡」变成静默故障。
+    if index_available == 0:
+        unavailable.append("index_quotes_unavailable")
 
     # ── 2) 行业板块涨跌榜（复用 get_industry_fund_flow，Flask 安全）──
     try:

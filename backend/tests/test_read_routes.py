@@ -1994,5 +1994,107 @@ def test_quote_board_endpoint(client, token, app, monkeypatch):
     assert d3["summary"]["index_available"] == 0
     assert d3["src_labels"]["indices"] is None
     assert all(x["current"] is None for x in d3["indices"])
+    # 全降级必须在 unavailable 标注，不能静默（V8 子进程失败的主场景）
+    assert "index_quotes_unavailable" in d3["unavailable"]
+
+
+def test_index_daily_v8_isolation(app, monkeypatch):
+    """V8 native 崩溃隔离回归守卫（2026-11-10 真后端浏览器联调抓到的高危缺陷）。
+
+    真缺陷：_w4x_index_daily 原先在 Flask 进程内被 fetch_many 多线程直调
+    ak.stock_zh_index_daily，触发 py_mini_racer(V8)
+    ``[FATAL:partition_address_space.cc(243)] Check failed`` native 崩溃，
+    try/except 捕获不到，直接杀死整个后端进程；Dashboard "/" 顺带打
+    index-quotes，真实用户打开首页即打挂 5050。
+
+    守卫三件事（每一条都能真实抓回潮，不是走过场的健康检查）：
+      ① 父进程取数函数体内绝不 import akshare / 直调新浪日线，且 worker 存在；
+      ② 子进程正常返回 NDJSON 时能还原 DataFrame 与权威数据日（不是 now()）；
+      ③ 子进程 native 崩溃 / 超时只做逐指数诚实降级（None，不补 0），父进程不抛。
+    """
+    import ast
+    import importlib.util
+    import subprocess
+    import types
+    from pathlib import Path
+
+    import pandas as pd
+    import backend.api.read_routes as read_routes
+
+    # ① 源码级防回潮：把「进程内直调」写成 AST 断言，改回去立刻红
+    src = Path(read_routes.__file__).read_text(encoding="utf-8")
+    bodies = {
+        n.name: ast.get_source_segment(src, n)
+        for n in ast.parse(src).body
+        if isinstance(n, ast.FunctionDef)
+        and n.name in ("_w4x_index_daily", "_w4x_index_daily_batch")
+    }
+    assert set(bodies) == {"_w4x_index_daily", "_w4x_index_daily_batch"}
+    for name, body in bodies.items():
+        assert "import akshare" not in body, f"{name} 回潮到 Flask 进程内 import akshare"
+        assert "stock_zh_index_daily(" not in body, f"{name} 回潮到进程内直调新浪日线"
+    assert read_routes._INDEX_WORKER.is_file(), "独立解释器 worker 缺失"
+    orig_batch = read_routes._w4x_index_daily_batch
+
+    # ①b worker 的 NDJSON 序列化口径：中文列 + 日期统一 YYYY-MM-DD
+    spec = importlib.util.spec_from_file_location(
+        "_index_daily_worker_probe", read_routes._INDEX_WORKER)
+    worker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(worker)     # 模块顶层不 import akshare，安全
+    rows = worker._rows_for(pd.DataFrame({
+        "日期": ["2026-11-10 00:00:00", "2026-11-11 00:00:00"],
+        "收盘": [3946.2, 3955.9],
+        "开盘": [3940.0, 3946.2],
+    }))
+    assert [r["日期"] for r in rows] == ["2026-11-10", "2026-11-11"]
+    assert rows[-1]["收盘"] == 3955.9
+
+    # ② 正常 NDJSON -> DataFrame -> 权威数据日
+    read_routes._INDEX_DAILY_CACHE.clear()
+    day_rows = [
+        {"日期": "2026-11-10", "开盘": 3940.0, "收盘": 3946.2,
+         "最高": 3960.0, "最低": 3930.0, "成交量": 1e8},
+        {"日期": "2026-11-11", "开盘": 3946.2, "收盘": 3955.9,
+         "最高": 3960.0, "最低": 3940.0, "成交量": 1.2e8},
+    ]
+    monkeypatch.setattr(read_routes, "_w4x_index_daily_batch",
+                        lambda symbols: {"sh000001": day_rows})
+    df = read_routes._w4x_index_daily("sh000001")
+    assert df is not None and len(df) == 2
+    q = read_routes._w4x_index_quote("sh000001", "上证指数")
+    assert q["current"] == 3955.9 and q["prev_close"] == 3946.2
+    assert q["change_pct"] == 0.25
+    assert q["date"] == "2026-11-11"     # 权威数据日来自数据本身，不是 now()
+
+    # ③ 模拟 V8 native 崩溃：rc != 0，但崩溃前已 flush 的那只仍诚实保留
+    # 先撤掉 ② 的取数桩，让下面的 subprocess 崩溃模拟真正走产品代码路径
+    monkeypatch.setattr(read_routes, "_w4x_index_daily_batch", orig_batch)
+    read_routes._INDEX_DAILY_CACHE.clear()
+    crashed = subprocess.CompletedProcess(
+        args=[], returncode=-1073741819,
+        stdout='{"symbol": "sh000001", "rows": []}\n',
+        stderr="[FATAL:partition_address_space.cc(243)] Check failed")
+    fake = types.SimpleNamespace(
+        TimeoutExpired=subprocess.TimeoutExpired,
+        CREATE_NO_WINDOW=0,
+        run=lambda *a, **k: crashed)
+    monkeypatch.setattr(read_routes, "subprocess", fake)
+    assert read_routes._w4x_index_daily_batch(["sh000001", "sz399001"]) == {"sh000001": []}
+    assert read_routes._w4x_index_daily("sh000001") is None
+    q2 = read_routes._w4x_index_quote("sh000001", "上证指数")
+    assert all(q2[k] is None for k in
+               ("current", "prev_close", "change", "change_pct", "date"))
+
+    # ③b 硬超时同样只降级、不抛异常穿透到 Flask
+    read_routes._INDEX_DAILY_CACHE.clear()
+
+    def _timeout(*a, **k):
+        raise subprocess.TimeoutExpired(
+            cmd="worker", timeout=10.0,
+            output='{"symbol": "sz399001", "rows": []}\n')
+
+    fake.run = staticmethod(_timeout)
+    assert read_routes._w4x_index_daily_batch(["sz399001"]) == {"sz399001": []}
+    read_routes._INDEX_DAILY_CACHE.clear()
 
 

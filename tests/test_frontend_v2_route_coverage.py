@@ -25,6 +25,8 @@ NAV_TS = ROOT / "frontend-v2" / "src" / "nav" / "nav.ts"
 SHOOT_PY = ROOT / "scripts" / "shoot_frontend_v2.py"
 VITE_CONFIG = ROOT / "frontend-v2" / "vite.config.ts"
 PROBE_PY = ROOT / "scripts" / "probe_frontend_v2_realbackend.py"
+READ_ROUTES_PY = ROOT / "backend" / "api" / "read_routes.py"
+INDEX_WORKER_PY = ROOT / "backend" / "api" / "_index_daily_worker.py"
 
 # AppPath 联合类型里的路由：`  | '/decision'`
 _APP_PATH_RE = re.compile(r"^\s*\|\s*'(/[^']*)'\s*$")
@@ -91,7 +93,13 @@ def test_visual_audit_infrastructure_sane():
         "独立 SQLite 库": '"DATABASE_URL": db_uri' in src,
         "6 个调度器全关": all(k in src for k in _SCHEDULER_FLAGS),
         "指纹端点为本地只读": 'FINGERPRINT_ENDPOINT = "/api/v2/read/webapps"' in src,
-        "V8 已知限制如实记录": "EXCLUDED_ENDPOINTS" in src and "py_mini_racer" in src,
+        "V8 修复后实时端点已纳入联调": (
+            "REALTIME_ENDPOINTS" in src
+            and "probe_realtime_endpoints" in src
+            and '("/", "dashboard")' in src
+            and "/quote-board" in src
+            and "EXCLUDED_ENDPOINTS" not in src
+        ),
         "逐页复核后端存活": '"/api/health", timeout=3' in src,
         "默认端口避开活服务": bool(re.search(r"DEFAULT_BACKEND_PORT\s*=\s*5051", src))
                              and bool(re.search(r"DEFAULT_FRONTEND_PORT\s*=\s*5181", src)),
@@ -101,6 +109,23 @@ def test_visual_audit_infrastructure_sane():
         f"真后端联调探针不变量被破坏：{broken}；禁止用假 token / 开着 MSW / 接管 5050 "
         "冒充真后端联调通过"
     )
+
+    # V8 进程隔离防回潮：Flask 进程内绝不能重新出现「import akshare + 直调新浪日线」。
+    # 2026-11-10 真后端联调实测该组合触发 py_mini_racer(V8) native FATAL，直接杀死后端。
+    assert INDEX_WORKER_PY.is_file(), f"指数日线独立解释器 worker 缺失：{INDEX_WORKER_PY}"
+    import ast as _ast
+    rr = READ_ROUTES_PY.read_text(encoding="utf-8")
+    bodies = {
+        n.name: _ast.get_source_segment(rr, n)
+        for n in _ast.parse(rr).body
+        if isinstance(n, _ast.FunctionDef)
+        and n.name in ("_w4x_index_daily", "_w4x_index_daily_batch")
+    }
+    assert set(bodies) == {"_w4x_index_daily", "_w4x_index_daily_batch"}, (
+        "指数日线子进程隔离函数缺失，V8 修复疑似回潮")
+    for _name, _body in bodies.items():
+        assert "import akshare" not in _body and "stock_zh_index_daily(" not in _body, (
+            f"{_name} 回潮到 Flask 进程内直调 akshare 新浪日线；V8 native 崩溃会打挂后端")
 
 
 def test_app_paths_parsed_nonempty():
