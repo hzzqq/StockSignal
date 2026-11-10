@@ -14,7 +14,7 @@ import type { ResearchRouteSearch, CompareRouteSearch } from '@/lib/deeplink'
  * 历史：26 个页面组件全部静态 import，首屏必须下载整站代码（index 493 kB）。
  * 现用 TanStack 官方 lazyRouteComponent（支持 preload / 模块缺失重载），
  * 只有命中该路由才拉取对应 chunk；LoginPage 与 AppShell 是首屏/外壳，保持静态。
- * 4 个需要 route.useSearch() 传参的 wrapper 不能整块懒加载，改为内部 React.lazy。
+ * 5 个需要 route.useSearch() 传参的 wrapper 不能整块懒加载，改为内部 React.lazy。
  * ⚠️ 新增页面必须走 lazyRouteComponent，别把静态 import 加回来（守卫见
  * tests/unit/route-lazy.test.ts）。
  */
@@ -59,6 +59,7 @@ const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView'
 const LazyResearchView = lazy(() => import('@/features/stock/ResearchView').then((m) => ({ default: m.ResearchView })))
 const LazyFundamentalsView = lazy(() => import('@/features/stock/FundamentalsView').then((m) => ({ default: m.FundamentalsView })))
 const LazyCompareView = lazy(() => import('@/features/stock/CompareView').then((m) => ({ default: m.CompareView })))
+const LazyFinancialHunter = lazy(() => import('@/features/stock/FinancialHunter').then((m) => ({ default: m.FinancialHunter })))
 
 /** 懒加载期间的诚实占位：不编造数据、不显示旧页面。 */
 function RouteLoading() {
@@ -314,6 +315,26 @@ const usersRoute = createRoute({
   component: LazyUserManagement,
 })
 
+// 77 财报猎手（v2 native，旧 77 财报猎手页）：?code= 入边（与 fundamentals 同款写法）。
+const financialHunterRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/financial-hunter',
+  validateSearch: (raw: Record<string, unknown>): { code?: string } => {
+    const code = raw.code
+    return typeof code === 'string' && /^\d{6}$/.test(code) ? { code } : {}
+  },
+  component: FinancialHunterRouteView,
+})
+
+function FinancialHunterRouteView() {
+  const search = financialHunterRoute.useSearch()
+  return (
+    <Suspense fallback={<RouteLoading />}>
+      <LazyFinancialHunter search={search} />
+    </Suspense>
+  )
+}
+
 const dataRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/data',
@@ -447,6 +468,7 @@ const routeTree = rootRoute.addChildren([
     watchRoute,
     quoteBoardRoute,
     usersRoute,
+    financialHunterRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

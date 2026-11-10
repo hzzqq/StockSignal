@@ -41,6 +41,7 @@ const code = stripComments(readFileSync(ROUTER, 'utf-8'))
 const STATIC_OK = new Set([
   'LoginPage', 'AppShell',
   'DataRouteView', 'ResearchRouteView', 'FundamentalsRouteView', 'CompareRouteView',
+  'FinancialHunterRouteView',
 ])
 
 describe('router.tsx 保持路由级懒加载', () => {
@@ -63,9 +64,9 @@ describe('router.tsx 保持路由级懒加载', () => {
     }
   })
 
-  it('4 个 wrapper 内部确实走 React.lazy + Suspense（不是假懒加载）', () => {
-    expect(code.match(/lazy\(\(\) => import\(/g)?.length ?? 0).toBe(4)
-    expect(code.match(/<Suspense fallback=\{<RouteLoading \/>\}>/g)?.length ?? 0).toBe(4)
+  it('5 个 wrapper 内部确实走 React.lazy + Suspense（不是假懒加载）', () => {
+    expect(code.match(/lazy\(\(\) => import\(/g)?.length ?? 0).toBe(5)
+    expect(code.match(/<Suspense fallback=\{<RouteLoading \/>\}>/g)?.length ?? 0).toBe(5)
     expect(code).toContain('role="status"')
   })
 })

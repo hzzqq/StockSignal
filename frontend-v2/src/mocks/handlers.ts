@@ -173,12 +173,14 @@ export const handlers = [
     return ok(fixtures.fundamentalsFull)
   }),
   http.get('/api/v2/read/financials', ({ request }) => {
-    const code = new URL(request.url).searchParams.get('code')
+    const url = new URL(request.url)
+    const code = url.searchParams.get('code')
+    const report = url.searchParams.get('report') ?? 'income'
     if (!code || !/^\d{6}$/.test(code)) return invalidParam('code 须为 6 位数字')
-    if (code === '000002') return ok(fixtures.financialsNullFields)
-    if (code === '000003') return ok(fixtures.financialsEmptyRows)
-    if (code === '000004') return ok(fixtures.financialsDateNull)
-    return ok(fixtures.financialsFull)
+    if (code === '000002') return ok({ ...fixtures.financialsNullFields, report })
+    if (code === '000003') return ok({ ...fixtures.financialsEmptyRows, report })
+    if (code === '000004') return ok({ ...fixtures.financialsDateNull, report })
+    return ok({ ...fixtures.financialsFull, report })
   }),
   http.get('/api/v2/read/stock-kline', ({ request }) => {
     const code = new URL(request.url).searchParams.get('code')

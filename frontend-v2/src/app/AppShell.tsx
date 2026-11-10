@@ -100,6 +100,15 @@ export function AppShell() {
             <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">👥</span>
             <span className="nav-label hidden md:inline whitespace-nowrap">用户管理</span>
           </Link>
+          <Link
+            to="/financial-hunter"
+            title="财报猎手"
+            aria-label="财报猎手"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">📒</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">财报猎手</span>
+          </Link>
         </div>
       </aside>
 

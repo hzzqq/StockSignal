@@ -2,6 +2,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import * as api from '@/api/read'
 import type { FactorAnalysisParams, BacktestParams, MarketPanoramaParams, PortfolioParams } from '@/api/read'
 import { getSixDim, getFundamentals, getFinancials, getStockKline, getStockIntraday, getIndexQuotes, getIndexKline } from '@/api/stock'
+import type { FinancialReport } from '@/api/stock'
 import { getDiagnostics } from '@/api/diagnostics'
 import type { SixDim, Fundamentals, Financials, StockKline, StockIntraday, IndexQuotes, IndexKline } from '@/api/schemas/stock'
 import type { Diagnostics } from '@/api/schemas/diagnostics'
@@ -364,6 +365,19 @@ export function useFinancials(code: string): UseQueryResult<Financials> {
   return useQuery({
     queryKey: ['read', 'financials', code],
     queryFn: () => getFinancials(code),
+    enabled: /^\d{6}$/.test(code),
+    staleTime: FIVE_MIN,
+  })
+}
+
+/** 77 财报猎手：按 report（income/balance/cash）取多期财报三表之一，支持切换报表。 */
+export function useFinancialsReport(
+  code: string,
+  report: FinancialReport,
+): UseQueryResult<Financials> {
+  return useQuery({
+    queryKey: ['read', 'financials', code, report],
+    queryFn: () => getFinancials(code, report),
     enabled: /^\d{6}$/.test(code),
     staleTime: FIVE_MIN,
   })

@@ -50,11 +50,22 @@ export async function getFundamentals(code: string): Promise<Fundamentals> {
   return FundamentalsSchema.parse(data)
 }
 
-export async function getFinancials(code: string): Promise<Financials> {
+/** 财报三表口径：利润表 / 资产负债表 / 现金流量表。 */
+export type FinancialReport = 'income' | 'balance' | 'cash'
+
+export async function getFinancials(
+  code: string,
+  report: FinancialReport = 'income',
+): Promise<Financials> {
   if (!/^\d{6}$/.test(code)) {
     throw new Error('股票代码须为 6 位数字')
   }
-  const data = await apiFetch<unknown>(`/v2/read/financials?code=${encodeURIComponent(code)}`)
+  if (report !== 'income' && report !== 'balance' && report !== 'cash') {
+    throw new Error('report 须为 income / balance / cash')
+  }
+  const data = await apiFetch<unknown>(
+    `/v2/read/financials?code=${encodeURIComponent(code)}&report=${encodeURIComponent(report)}`,
+  )
   return FinancialsSchema.parse(data)
 }
 
