@@ -231,3 +231,56 @@ npm --prefix frontend-v2 run inspect:visual
 ### 本次增量未覆盖（如实标注）
 - 数据源在本环境取到「部分真实 + 部分 null」：实时联网依赖外网，未做独立「浏览器 Network 抓包确认打 5051」—— 经代理 curl 一致 + 页面渲染值与直连 5051 的 curl 响应逐项吻合，间接但确凿证明命中 5051。
 - 窄屏 / 键盘 / 读屏 / Safari / Firefox 仍未测；截图单视口 1440×900、`captureBeyondViewport=false`，下半内容可能裁出视口（DOM 采样已验证存在）。
+
+---
+
+## 全路由增量目检（2026-11-10，Tier 1 + Tier 2 收官后）
+
+**起因**：`tests/test_frontend_v2_route_coverage.py` 报红 —— `scripts/shoot_frontend_v2.py` 的
+`ROUTES` 停在 26 条，而 `nav.ts` 的 `AppPath` 已有 39 条，Tier1/Tier2 新增的 14 页
+（factor / backtest / panorama / regime / portfolio / fund-flow / trading-account / macro-data /
+dragon-tiger / theme / strong / sector-rotation / watch / quote-board）**从未进过真浏览器**，
+脚本注释还写着「覆盖全部 25 条」。`ROUTES` 补齐到 **40 条**（39 AppPath + `/stock/compare?codes=...` 变体），
+守卫里另加「dev 代理不得劫持 SPA 路由」硬断言。
+
+### 第一次实跑：92/94、exit 3（不掩盖）
+
+dark/light × 40 路由 + sixdim partial × 2 + 深链专项 × 12 共 **94 条记录**，
+92 通过、2 失败：`/webapps` 暗/亮两主题都「页面未在 25s 内挂载 React 根节点」。
+
+**根因（实测，非推测）**：直连 Vite 5180 发 `GET /webapps` → **502**；`GET /` → 200 SPA HTML。
+`vite.config.ts` 的前缀代理 `'/webapps'` 把**裸 SPA 路由的整页导航**也转发到 5050，
+后端未启动时直接 502，页面永远挂不上根节点。后端 `app.py` 只有 `/webapps/<path:filename>`
+（带子路径）静态托管，没有 SPA catch-all —— 这是 dev 代理配置缺陷，不是 React 组件 bug。
+
+**修复**：代理 key 收窄为正则 `'^/webapps/.+'`。修后实测：`/webapps`、`/webapps/` → 200 SPA HTML；
+`/webapps/foo/bar.html` → 502（仍代理到 5050，静态资源链路未被破坏）。`/webapps` 页双主题重跑 2/2 通过。
+
+### 顺带修掉的第二个真缺陷（诚实判定）
+
+定点复现 `--routes webapps --themes dark,light` 时页面已 2/2 通过，脚本却仍 exit 3：
+`cross_theme_checks()` 缺首页 `/` 采样时把「没测」判成 **FAIL**，而脚本 docstring 明确承诺
+「没测如实标注，不伪装成通过」。改为返回 `evaluated=false / pass=true / NOT_EVALUATED`，并让
+`summary.cross_theme_evaluated` 由实际评估状态决定（不再仅看主题数量）。修后定点复现 exit 0，
+报告如实写 `cross_theme_evaluated=false`。
+
+### 第二次实跑（修复后）：94/94、exit 0
+
+| 项 | 结果 |
+|---|---|
+| 记录总数 | **94**（暗 47 / 亮 47） |
+| 常规页 | 40 路由 × 2 = 80 |
+| 专项 | sixdim partial × 2 + 深链 6 例 × 2 = 14 |
+| 失败 | **0**；`all_checks_pass=true`、`cross_theme_evaluated=true` |
+| 红线 | **16/16 PASS**（两主题表面色不同 / A 股 4 价格变量恒等 / sixdim 缺维不补 0 + 真实 canvas / 6 条深链规则 × 2） |
+| 截图 | 94 张 PNG，最小 45,905 B，共 7.5 MB；`/webapps` 暗 58,792 B / 亮 58,774 B |
+
+本轮产物在仓库外 `E:/tmp/ss_v2e2e_shots_final/`（worktree 隔离，不污染仓库；报告与 PNG **未提交**），
+两次实跑日志在 `E:/tmp/ss_v2e2e_shots/{run,final}.log`。
+
+### 本次仍未覆盖（如实标注）
+
+- 数据全部来自 **MSW dev fixtures**，未走 5050 真后端；静态资源 `/webapps/<dir>/<entry>` 在 5050 未启动时仍 502（设计如此，非回归）。
+- headless Chrome 单视口 1440×900、`captureBeyondViewport=false`；未测窄屏、hover、键盘遍历、读屏、打印、Safari/Firefox。
+- 这是**自动截图 + 计算样式采样 + 专项 DOM 断言**，不是人工审美结论，也不是覆盖表单 / 交互链路的真人交互 E2E。
+- 跨主题红线只在首页 `/` 采样比对；其余页逐页只校验主题 / 渲染 / 截图 / 令牌。

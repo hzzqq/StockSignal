@@ -22,8 +22,12 @@ export default defineConfig({
         target: process.env.VITE_PROXY_TARGET ?? 'http://127.0.0.1:5050',
         changeOrigin: true,
       },
-      // 网页作品集静态资源（86 页）由 Flask 在 /webapps 下托管，开发期一并代理
-      '/webapps': {
+      // 网页作品集静态资源（86 页）由 Flask 在 /webapps/<path> 下托管，开发期一并代理。
+      // ⚠️ 必须用正则收窄到「带子路径」：裸 /webapps 是 SPA 路由（nav.ts AppPath），
+      // 用前缀 '/webapps' 会把整页导航也转发到 5050；后端未启动时直接 502，
+      // 页面永远挂不上 React 根节点（2026-11-09 全量真浏览器目检抓到的真缺陷）。
+      // 守卫见 tests/test_frontend_v2_route_coverage.py。
+      '^/webapps/.+': {
         target: process.env.VITE_PROXY_TARGET ?? 'http://127.0.0.1:5050',
         changeOrigin: true,
       },

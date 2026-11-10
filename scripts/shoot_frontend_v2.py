@@ -86,10 +86,12 @@ CHROME_CANDIDATES = (
 
 THEMES = ("dark", "light")
 
-# (SPA 路由, 截图文件名)。与 src/nav/nav.ts 的 AppPath **严格对齐**：覆盖全部 25 条路由，
-# 个别路由保留多状态变体（如 /stock/compare?codes=...）。/login 单独保留未登录门禁形态。
+# (SPA 路由, 截图文件名)。与 src/nav/nav.ts 的 AppPath **严格对齐**：覆盖全部 39 条路由，
+# 另保留 1 条多状态变体（/stock/compare?codes=...）。/login 单独保留未登录门禁形态。
 # 改 nav.ts 新增/删除路由时，本元组必须同步，否则视觉审计会漏页（守卫见
 # tests/test_frontend_v2_route_coverage.py）。
+# 2026-11-09 补记：Tier1/Tier2 迁移新增的 14 页（factor/backtest/.../quote-board）
+# 此前从未进入真浏览器审计，守卫 test_routes_cover_all_app_paths 报红后一并补齐。
 ROUTES = (
     ("/login", "login"),
     ("/", "dashboard"),
@@ -115,6 +117,20 @@ ROUTES = (
     ("/stock/fundamentals", "fundamentals"),  # W4-B 基本面分析（旧 22）
     ("/stock/compare", "compare"),            # W4-C 多股对比（默认态）
     ("/stock/compare?codes=600519,000001", "compare_dual"),  # W4-C 多股对比（双码态）
+    ("/factor", "factor"),                    # Tier2 因子分析
+    ("/backtest", "backtest"),                # Tier2 策略回测
+    ("/panorama", "panorama"),                # Tier2 市场全景
+    ("/regime", "regime"),                    # Tier2 市场状态机
+    ("/portfolio", "portfolio"),              # Tier2 持仓中心
+    ("/fund-flow", "fund_flow"),              # Tier2 资金流向
+    ("/trading-account", "trading_account"),  # Tier2 实盘交易（仅目检，不改页面代码）
+    ("/macro-data", "macro_data"),            # Tier2 宏观数据
+    ("/dragon-tiger", "dragon_tiger"),        # Tier2 龙虎榜
+    ("/theme", "theme"),                      # Tier2 题材热点
+    ("/strong", "strong"),                    # Tier2 实时强势榜
+    ("/sector-rotation", "sector_rotation"),  # Tier2 板块轮动
+    ("/watch", "watch"),                      # Tier2 智能盯盘
+    ("/quote-board", "quote_board"),          # Tier2 行情看板（10 页 V2 化）
     ("/matrix", "matrix"),
     ("/guide", "guide"),
 )
@@ -612,6 +628,24 @@ def cross_theme_checks(records: list[dict], themes: list[str]) -> list[dict]:
             "detail": f"仅运行单主题 {themes}，未做跨主题比对；全量验收请同时跑 dark,light",
         }]
 
+    # --routes 定点复现可能不含首页 /：没有两主题 Dashboard 采样就无法比对。
+    # 如实标「未评估」，既不伪装成 PASS，也不把「没测」误报成 FAIL / exit 3。
+    has_dashboard = {
+        t: any(r.get("theme") == t and r.get("route") == "/" and r.get("sample")
+               for r in records)
+        for t in ("dark", "light")
+    }
+    if not all(has_dashboard.values()):
+        return [{
+            "rule": "跨主题红线（表面色不同 / A 股价格变量两主题恒等）",
+            "evaluated": False,
+            "pass": True,
+            "detail": (
+                "本次 --routes 子集缺两主题首页 / 采样（dark=%s light=%s），未做跨主题比对；"
+                "全量验收请跑全路由" % (has_dashboard["dark"], has_dashboard["light"])
+            ),
+        }]
+
     def tokens_of(theme: str, route: str) -> dict | None:
         for r in records:
             if r["theme"] == theme and r["route"] == route and r.get("sample"):
@@ -760,7 +794,10 @@ def main(argv=None) -> int:
                     " 登录态为本地注入的演示 token，数据来自 MSW dev fixtures。",
             "summary": {"total": len(records), "ok": ok, "failed": fail,
                         "all_checks_pass": all(c["pass"] for c in checks),
-                        "cross_theme_evaluated": len(themes) >= 2},
+                        # 单主题 / --routes 子集都会让 cross_theme_checks 标 evaluated=False，
+                        # 报告必须如实说「没测」，不能仅凭 themes 数量谎称做了跨主题比对。
+                        "cross_theme_evaluated": not any(
+                            c.get("evaluated") is False for c in checks)},
             "cross_theme_checks": checks,
             "records": records,
         }

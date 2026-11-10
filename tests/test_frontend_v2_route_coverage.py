@@ -6,7 +6,11 @@
 webapps /diagnostics /settings /catalog /data /matrix /guide 共 14 页，且注释谎称「与 AppPath
 对齐」。本守卫双向校验，杜绝「漏页」与「残留已删路由」两类静默漂移。
 
-不依赖网络 / 数据库，只解析两个源文件。
+2026-11-09 补充守卫：目视审计还依赖 dev server 不劫持 SPA 路由。vite.config.ts 的
+webapps 代理必须是收窄正则 '^/webapps/.+'；若退回前缀 '/webapps'，裸 /webapps 整页导航
+会被转发到 5050，后端未启动时 502、React 根节点永远挂不上（全量真浏览器目检实测）。
+
+不依赖网络 / 数据库，只解析三个源文件。
 """
 from __future__ import annotations
 
@@ -16,11 +20,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 NAV_TS = ROOT / "frontend-v2" / "src" / "nav" / "nav.ts"
 SHOOT_PY = ROOT / "scripts" / "shoot_frontend_v2.py"
+VITE_CONFIG = ROOT / "frontend-v2" / "vite.config.ts"
 
 # AppPath 联合类型里的路由：`  | '/decision'`
 _APP_PATH_RE = re.compile(r"^\s*\|\s*'(/[^']*)'\s*$")
 # ROUTES 元组项：`    ("/route", "name"),`
 _ROUTE_RE = re.compile(r'\(\s*"(/[^"]*)"\s*,\s*"([^"]*)"\s*\)')
+# vite.config.ts proxy key 行：`  '^/webapps/.+': {`
+_PROXY_KEY_RE = re.compile(r"""^\s*['"](\^?/webapps[^'"]*)['"]\s*:\s*\{""", re.M)
 
 
 def _parse_app_paths() -> set[str]:
@@ -43,9 +50,21 @@ def _parse_routes() -> list[tuple[str, str]]:
     return out
 
 
-def test_nav_and_shoot_files_exist():
+def _parse_webapps_proxy_keys() -> list[str]:
+    text = VITE_CONFIG.read_text(encoding="utf-8")
+    return [m.group(1) for m in _PROXY_KEY_RE.finditer(text)]
+
+
+def test_visual_audit_sources_and_dev_proxy_sane():
     assert NAV_TS.is_file(), f"nav.ts 缺失：{NAV_TS}"
     assert SHOOT_PY.is_file(), f"shoot_frontend_v2.py 缺失：{SHOOT_PY}"
+    assert VITE_CONFIG.is_file(), f"vite.config.ts 缺失：{VITE_CONFIG}"
+    keys = _parse_webapps_proxy_keys()
+    assert keys == ["^/webapps/.+"], (
+        "vite.config.ts 的 webapps 代理 key 必须是 '^/webapps/.+'：裸 /webapps 是 SPA 路由"
+        "（nav.ts AppPath），前缀 '/webapps' 会把整页导航转发到 5050，后端未启动时 502、"
+        "React 根节点永远挂不上（2026-11-09 全量真浏览器目检实测）。当前：%r" % (keys,)
+    )
 
 
 def test_app_paths_parsed_nonempty():
