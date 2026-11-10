@@ -419,3 +419,22 @@ V2 dev server（5173）常起后的真人浏览器亮/暗主题目检与浏览�
 - `npx vitest run` → **361 passed / 1 skipped**（新增 8 例，含 route-lazy / honest-data 守卫无回归）；
 - `tsc --noEmit` → 0 错误；
 - 四档口径未变（仅新增 E2E，不改 NATIVE/DATA 计数）：仍 **43 native + 20 data + 11 v1-pinned + 0 v1-only = 74**。
+
+## 16. 验收补记（2026-11-11，设计系统打磨 · 专注 / Zen 模式）
+
+**目标**：意图 F「都做」最后一项——统一组件令牌收口 + 加专注/Zen 模式（隐藏侧栏与顶栏、主内容占满视口），双主题恒等验证。
+
+**交付内容**：
+- 偏好单一真理源 `lib/preferences.ts` 增 `getZen()/setZen()`（localStorage `ss_zen`，不写后端、真实生效）；`applyPreferences()` 同步写 `html[data-zen]`。
+- 首屏防闪：`index.html` 的 FOUC 同步脚本在 React 挂载前写好 `data-zen`（与 `data-theme` 同机制），避免 Zen 开启后首屏闪现侧栏/顶栏。
+- 布局收起 `styles/tokens.css`：`html[data-zen="on"] .app-sidebar / .app-header { display:none }` + `.app-main` 去外边距（用 `display:none` 真实收起占位，非 `visibility:hidden` 留白）；新增 `.zen-fab` 浮动开关样式（零阴影、扁平实色面，与轻量卡片流一致）。
+- `AppShell.tsx`：侧栏/顶栏/主内容加 `app-sidebar/app-header/app-main` 锚点类；持有 `zen` 状态（初始读 `getZen()`）+ `toggleZen`；**快捷键 Z** 进入/退出（输入框/可编辑区/带修饰键时屏蔽，避免劫持打字）；右下角常驻浮动开关集群——Zen 态下额外挂 `ThemeToggle`（顶栏隐藏时主题唯一入口），确保不被「困住」。
+- 新增 `shared/ui/ZenToggle.tsx`（纯展示：`aria-pressed` 反映状态、点击回调、文案「专注/退出专注」、双主题恒等不碰颜色令牌）。
+- 新增 `tests/unit/zen.test.tsx`（3 例）：`setZen` 写 `data-zen=on/off` 且 `getZen` 读回、ZenToggle 非专注态 `aria-pressed=false`+点击回调、专注态 `aria-pressed=true`+文案「退出专注」。
+
+**设计系统口径**：Zen 仅切换布局，**不碰任何颜色/涨跌/状态令牌**，故暗/亮两主题恒等；与 DESIGN.md §2 三色语义线红线无冲突。
+
+**验证**（全部本地通过）：
+- `npx vitest run` → **364 passed / 1 skipped**（新增 3 例，含 honest-data 守卫无回归）；
+- `tsc --noEmit` → 0 错误；
+- 四档口径未变：**43 native + 20 data + 11 v1-pinned + 0 v1-only = 74**。

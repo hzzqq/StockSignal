@@ -199,3 +199,47 @@ body {
 html[data-density="compact"] { --ss-table-py: .125rem; }
 .cat-table th,
 .cat-table td { padding-top: var(--ss-table-py); padding-bottom: var(--ss-table-py); }
+
+/* ── 专注 / Zen 模式 ──────────────────────────────────────────────
+ * 隐藏侧栏与顶栏，主内容占满视口（单页深度阅读 / 看盘聚焦）。
+ * 以 html[data-zen="on"] 切换而非 React 条件卸载——避免卸载顶栏导致焦点丢失、
+ * 也保证 Zen 浮动开关常驻可随时召回。双主题恒等：只切换布局，不碰任何颜色令牌。
+ * 用 display:none 真实收起布局占位（visibility:hidden 会残留空白），过渡交给
+ * reduced-motion 全局降级；主内容区在 Zen 下去外边距由内容自行控制留白。 */
+html[data-zen="on"] .app-sidebar,
+html[data-zen="on"] .app-header {
+  display: none;
+}
+html[data-zen="on"] .app-main {
+  padding: 0; /* 全屏无外边距，内容自行控制留白 */
+}
+
+/* 专注浮动开关：常驻右下角，Zen 下仍可退出，且提供主题切换（顶栏隐藏时唯一入口）。
+ * 零阴影、扁平实色面，与轻量卡片流一致。 */
+.zen-fab {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.zen-fab__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-tile);
+  background: var(--color-sf-surface-2);
+  border: 1px solid var(--color-sf-line);
+  color: var(--color-sf-ink);
+  font-size: var(--text-label);
+  line-height: 1;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+.zen-fab__btn:hover {
+  color: var(--color-sf-ink);
+  border-color: var(--color-sf-line-strong);
+}

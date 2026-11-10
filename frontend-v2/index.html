@@ -25,6 +25,13 @@
             document.documentElement.style.colorScheme = 'dark';
           } catch (e2) {}
         }
+        /* 专注 / Zen：与主题同理，挂载前写好 data-zen 避免首屏闪烁侧栏/顶栏。 */
+        try {
+          document.documentElement.setAttribute(
+            'data-zen',
+            (typeof localStorage !== 'undefined' && localStorage.getItem('ss_zen') === 'on') ? 'on' : 'off',
+          );
+        } catch (e) {}
       })();
     </script>
   </head>
