@@ -116,18 +116,18 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '67_历史相似日聚类前向分布.py': { to: '/similar-days' },
   '68_情绪拐点扫描器.py': { to: '/inflection-scan' },
   '69_温度持续期与回归时长.py': { to: '/regime-duration' },
+  // 62 动量×广度共振：v2 等价实现 /momentum-resonance（离线广度统计真页面）。
+  '62_动量广度共振.py': { to: '/momentum-resonance' },
+  // 70 涨停复盘×龙头识别：v2 等价实现 /limit-up-review（实时涨停池，联网不可用诚实降级）。
+  '70_涨停复盘.py': { to: '/limit-up-review' },
+  // 50 市场情绪·温度计：v2 等价实现 /market-sentiment（实时市场驱动力，单源失败优雅降级）。
+  '50_市场情绪.py': { to: '/market-sentiment' },
 }
 
 /** ② 无等价页面，但有真实只读端点可查看的关联数据（不是等价功能，页面会明示）。
  *  注：本档仅保留 v2 确无完整页面的页；已有等价 v2 页面的（如 10/35/84/85 等）
  *  已升级到 NATIVE，不再列入此处。 */
-const DATA: Record<string, { path: string; label: string }> = {
-  // 65/67/68/69 已升 native 真页面；仅剩 50/62/70 三个复杂/实时依赖页保留 data
-  // （v2 /breadth 是概览而非这些专项分析，不夸等价，也不硬凑换皮页）。
-  '50_市场情绪.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
-  '62_动量广度共振.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
-  '70_涨停复盘.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
-}
+const DATA: Record<string, { path: string; label: string }> = {}
 
 /** ③ v1 保留（永久不迁 v2）：真实交易 / 低频遗留 / 实验性页面，v2 明确不做等价实现。
  *  其中 43 实盘交易：真实券商下单(QMT/同花顺)仅 v1；v2 仅有只读账户概览（交易账户入口），

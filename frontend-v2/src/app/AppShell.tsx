@@ -220,6 +220,33 @@ export function AppShell() {
             <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⧗</span>
             <span className="nav-label hidden md:inline whitespace-nowrap">温度持续期</span>
           </Link>
+          <Link
+            to="/momentum-resonance"
+            title="动量×广度共振"
+            aria-label="动量×广度共振"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">🌀</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">动量×广度共振</span>
+          </Link>
+          <Link
+            to="/limit-up-review"
+            title="涨停复盘"
+            aria-label="涨停复盘"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">🏆</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">涨停复盘</span>
+          </Link>
+          <Link
+            to="/market-sentiment"
+            title="市场情绪温度计"
+            aria-label="市场情绪温度计"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⚖️</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">市场情绪温度计</span>
+          </Link>
         </div>
       </aside>
 

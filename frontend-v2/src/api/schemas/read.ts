@@ -1188,3 +1188,160 @@ export const ZSeriesSchema = z.object({
   note: z.string(),
 })
 export type ZSeries = z.infer<typeof ZSeriesSchema>
+
+// ───────── 62 动量×广度 共振矩阵（GET /momentum-breadth，离线）─────────
+export const MomentumCellSchema = z.object({
+  available: z.boolean(),
+  date: z.string().nullable().optional(),
+  rr_band: NumOrNull.optional(),
+  mom_band: NumOrNull.optional(),
+  rr_label: z.string().nullable().optional(),
+  mom_label: z.string().nullable().optional(),
+  red_ratio: NumOrNull.optional(),
+  zt_prev_ret: NumOrNull.optional(),
+})
+export type MomentumCell = z.infer<typeof MomentumCellSchema>
+
+export const MomentumStatsSchema = z.object({
+  available: z.boolean(),
+  reason: z.string().nullable().optional(),
+  co_hot: NumOrNull.optional(),
+  co_cold: NumOrNull.optional(),
+  dominant_cell: z.array(z.unknown()).nullable().optional(),
+  n_days: z.number().nullable().optional(),
+})
+export type MomentumStats = z.infer<typeof MomentumStatsSchema>
+
+export const MomentumTrajectorySchema = z.object({
+  available: z.boolean(),
+  dates: z.array(z.string()),
+  rr_band: z.array(z.number()),
+  mom_band: z.array(z.number()),
+})
+export type MomentumTrajectory = z.infer<typeof MomentumTrajectorySchema>
+
+export const MomentumBreadthSchema = z.object({
+  available: z.boolean(),
+  reason: z.string().nullable().optional(),
+  rr_labels: z.array(z.string()),
+  mom_labels: z.array(z.string()),
+  matrix: z.array(z.array(z.number())),
+  totals_row: z.array(z.number()),
+  totals_col: z.array(z.number()),
+  n_days: z.number(),
+  current: MomentumCellSchema,
+  stats: MomentumStatsSchema,
+  trajectory: MomentumTrajectorySchema,
+  note: z.string(),
+})
+export type MomentumBreadth = z.infer<typeof MomentumBreadthSchema>
+
+// ───────── 70 涨停复盘 × 龙头识别（GET /limit-up-review?date=，实时）─────────
+export const LeaderRowSchema = z.object({
+  name: z.string(),
+  code: z.string(),
+  industry: z.string(),
+  boards: z.number(),
+  score: NumOrNull.optional(),
+  s_height: NumOrNull.optional(),
+  s_seal: NumOrNull.optional(),
+  s_ind: NumOrNull.optional(),
+  s_amt: NumOrNull.optional(),
+  ind_n: z.number().nullable().optional(),
+  seal: NumOrNull.optional(),
+  amount: NumOrNull.optional(),
+})
+export type LeaderRow = z.infer<typeof LeaderRowSchema>
+
+export const LimitUpPoolSchema = z.object({
+  available: z.boolean(),
+  reason: z.string().nullable().optional(),
+  date: z.string(),
+  count: z.number(),
+  first_boards: z.number(),
+  connect_boards: z.number(),
+  max_boards: z.number(),
+  broken_count: z.number(),
+  bands: z.record(z.string(), z.number()),
+  rows: z.array(z.object({
+    code: z.string(),
+    name: z.string(),
+    industry: z.string(),
+    boards: z.number(),
+    seal: NumOrNull.optional(),
+    amount: NumOrNull.optional(),
+    first_seal_band: z.string(),
+    broken: z.number(),
+  })),
+  leaderboard: z.array(LeaderRowSchema),
+  themes: z.array(z.object({ industry: z.string(), count: z.number() })),
+  broken_list: z.array(z.object({
+    name: z.string(), code: z.string(), boards: z.number(), broken: z.number(),
+  })),
+})
+export type LimitUpPool = z.infer<typeof LimitUpPoolSchema>
+
+export const LimitUpLadderSchema = z.object({
+  available: z.boolean(),
+  reason: z.string().nullable().optional(),
+  distribution: z.array(z.tuple([z.number(), z.number()])),
+  max_boards: z.number(),
+  total_connect: z.number(),
+  gaps: z.array(z.number()),
+})
+export type LimitUpLadder = z.infer<typeof LimitUpLadderSchema>
+
+export const LimitUpContextSchema = z.object({
+  available: z.boolean(),
+  reason: z.string().nullable().optional(),
+  fail_ratio: NumOrNull.optional(),
+  limit_up_cnt: NumOrNull.optional(),
+  cycle: z.string().nullable().optional(),
+  temperature: NumOrNull.optional(),
+  state: z.string().nullable().optional(),
+  confidence: NumOrNull.optional(),
+})
+export type LimitUpContext = z.infer<typeof LimitUpContextSchema>
+
+export const LimitUpReviewSchema = z.object({
+  available: z.boolean(),
+  date: z.string(),
+  note: z.string(),
+  pool: LimitUpPoolSchema,
+  ladder: LimitUpLadderSchema,
+  context: LimitUpContextSchema,
+})
+export type LimitUpReview = z.infer<typeof LimitUpReviewSchema>
+
+// ───────── 50 市场情绪·广度与情绪温度计（GET /market-sentiment?days=，实时）─────────
+export const SentimentIndicatorSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  unit: z.string(),
+  value: NumOrNull.optional(),
+  spark: z.array(NumOrNull),
+  heat: NumOrNull.optional(),
+  available: z.boolean(),
+})
+export type SentimentIndicator = z.infer<typeof SentimentIndicatorSchema>
+
+export const SentimentLevelSchema = z.object({
+  label: z.string(),
+  emoji: z.string(),
+  color: z.string(),
+})
+export type SentimentLevel = z.infer<typeof SentimentLevelSchema>
+
+export const MarketSentimentSchema = z.object({
+  available: z.boolean(),
+  reason: z.string().nullable().optional(),
+  data_as_of: z.string().nullable(),
+  temperature: NumOrNull.optional(),
+  level: SentimentLevelSchema.nullable(),
+  dims: z.record(z.string(), z.array(SentimentIndicatorSchema)),
+  unavailable: z.array(z.object({
+    dim: z.string(), key: z.string(), reason: z.string(),
+  })),
+  note: z.string(),
+})
+export type MarketSentiment = z.infer<typeof MarketSentimentSchema>

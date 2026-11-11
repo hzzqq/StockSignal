@@ -84,10 +84,12 @@ def _required_query_map(tree: ast.Module) -> dict[str, dict[str, str]]:
 # 哨兵不把它们误报成漏登记。（与 _DIAG_REQUIRED_QUERY 双向契约仍覆盖真正缺参即 400 的端点。）
 # breadth-analytics 的 window 是**可选**参数（缺省 250），只有显式传了非法值才 400；
 # 缺参请求照样 200，因此同属 validation-only，不应被接口检测当成需参端点。
+# market-sentiment 的 days 同理（缺省 180，仅显式传非法值才 400），属 validation-only。
 _VALIDATION_ONLY_400 = {
     "/api/v2/read/factor-analysis",
     "/api/v2/read/trading-account",
     "/api/v2/read/breadth-analytics",
+    "/api/v2/read/market-sentiment",
 }
 
 

@@ -200,6 +200,15 @@ export const handlers = [
   http.get('/api/v2/read/p1-sync-status', () => ok(fixtures.p1SyncStatus)),
   http.get('/api/v2/read/backtest-runs', () => ok(fixtures.backtestRuns)),
   http.get('/api/v2/read/data-refresh-state', () => ok(fixtures.dataRefreshState)),
+  // W4-E · 50/62/70 三页数据源（62 离线共振 / 70 实时涨停池 / 50 实时情绪温度计）。
+  // 结构与真端点一致；演示数值非真实行情。三端点均优雅回落默认值（不缺参 400），
+  // 故不登记 _DIAG_REQUIRED_QUERY；MSW 仅按 needs_params:false 列入诊断端点清单。
+  http.get('/api/v2/read/momentum-breadth', () => ok(fixtures.momentumBreadth)),
+  http.get('/api/v2/read/limit-up-review', ({ request }) => {
+    const date = new URL(request.url).searchParams.get('date')
+    return ok(date ? { ...fixtures.limitUpReview, date } : fixtures.limitUpReview)
+  }),
+  http.get('/api/v2/read/market-sentiment', () => ok(fixtures.marketSentiment)),
   // 因子分析（71 页 V2 化）：结构对齐后端 factor_analysis()；演示数值非真实行情。
   // 回显请求参数（真实后端会回显）；有效标的<3 时诚实返回空序列（insufficient_data）。
   http.get('/api/v2/read/factor-analysis', ({ request }) => {

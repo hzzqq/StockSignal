@@ -109,11 +109,10 @@ def test_data_mapping_paths_are_real_read_endpoints():
     paths_all = re.findall(r"path: '(/api/v2/read/[^']+)'", mapping)
     paths = set(paths_all)
     assert len(registered) >= 20, f"后端只扫到 {len(registered)} 个 GET 端点，正则疑似失效"
-    # 65/67/68/69 升 native 后数据层仅剩 3 条 data 条目、去重 2 个端点
-    # （breadth-timeseries / breadth-history）。阈值只防「正则扫空/几乎扫空」，
-    # 故按真实条目数给下限（条目数更能反映 v1 页是否仍在使用数据层）。
-    assert len(paths_all) >= 3, f"映射只扫到 {len(paths_all)} 条 data 条目，正则疑似失效"
-    assert len(paths) >= 2, f"映射只扫到 {len(paths)} 个去重 data 端点，正则疑似失效"
+    # 数据层（DATA 档）在 50/62/70 升 native 后已清零（全部转为 native 真页面）；
+    # 保留守卫以钉死「若将来再有 data 条目，必须指向真实只读端点」。DATA 档允许为空。
+    assert len(paths_all) >= 0, f"映射只扫到 {len(paths_all)} 条 data 条目"
+    assert len(paths) >= 0, f"映射只扫到 {len(paths)} 个去重 data 端点"
     missing = {
         p for p in paths
         if p.removeprefix("/api/v2/read") not in registered

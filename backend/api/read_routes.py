@@ -593,6 +593,425 @@ def breadth_zseries():
     return ok(data=_sanitize(data), message="breadth-zseries")
 
 
+
+# ───────────────────────── 62 / 70 / 50 三页 v2 只读端点辅助 ─────────────────────────
+# 时间线分档（A 股：9:30 开盘 / 11:30 午休 / 13:00 复盘 / 15:00 收盘）
+_LIMITUP_TIME_BANDS = [
+    ("早板", 0, 10 * 60),
+    ("上午板", 10 * 60, 11 * 60 + 30),
+    ("午板", 13 * 60, 14 * 60),
+    ("尾板", 14 * 60, 15 * 60 + 1),
+]
+_LIMITUP_BAND_COLOR = {"早板": "#dc2626", "上午板": "#f97316", "午板": "#f59e0b", "尾板": "#94a3b8", "其他": "#94a3b8", "未知": "#94a3b8"}
+_LIMITUP_COL = {
+    "code": ["代码"], "name": ["名称"], "boards": ["连板数"], "industry": ["所属行业"],
+    "seal": ["封板资金"], "amount": ["成交额"], "first_seal": ["首次封板时间"],
+    "last_seal": ["最后封板时间"], "broken": ["炸板次数"], "turnover": ["换手率"],
+    "float_mv": ["流通市值"], "chg": ["涨跌幅"],
+}
+
+
+def _limitup_col(df, key):
+    for c in _LIMITUP_COL.get(key, []):
+        if c in df.columns:
+            return c
+    return None
+
+
+def _limitup_parse_hm(v):
+    if v is None:
+        return None
+    s = str(v).strip()
+    if not s or s.lower() in ("nan", "none", "-"):
+        return None
+    s = s.replace(":", "").replace(".", "")
+    if not s.isdigit():
+        return None
+    s = s.zfill(6)
+    hh, mm = int(s[0:2]), int(s[2:4])
+    if not (0 <= hh <= 23 and 0 <= mm <= 59):
+        return None
+    return hh * 60 + mm
+
+
+def _limitup_band_of(minutes):
+    if minutes is None:
+        return "未知"
+    for name, lo, hi in _LIMITUP_TIME_BANDS:
+        if lo <= minutes < hi:
+            return name
+    return "其他"
+
+
+def _limitup_num(df, key, default=0.0):
+    c = _limitup_col(df, key)
+    if not c:
+        return [default] * len(df)
+    out = []
+    for x in df[c].tolist():
+        if x is None or str(x) in ("nan", "None", ""):
+            out.append(default)
+        else:
+            try:
+                out.append(float(x))
+            except (TypeError, ValueError):
+                out.append(default)
+    return out
+
+
+def _limitup_build_pool_section(df, date):
+    """把涨停池明细拼装成前端契约结构（含龙头多维可解释评分）。"""
+    n_total = len(df)
+    boards = [int(b) for b in _limitup_num(df, "boards", 1.0)]
+    broken = _limitup_num(df, "broken", 0.0)
+    first_c = _limitup_col(df, "first_seal")
+    first_min = [_limitup_parse_hm(v) for v in
+                 (df[first_c].tolist() if first_c else [None] * n_total)]
+    bands_list = [_limitup_band_of(m) for m in first_min]
+    from collections import Counter
+    band_counts = Counter(b for b in bands_list if b)
+    n_first = sum(1 for b in boards if b <= 1)
+    n_connect = sum(1 for b in boards if b >= 2)
+    max_boards = max(boards) if boards else 0
+    n_broken = int(sum(1 for x in broken if x > 0))
+
+    name_c = _limitup_col(df, "name")
+    code_c = _limitup_col(df, "code")
+    ind_c = _limitup_col(df, "industry")
+    seal_c = _limitup_col(df, "seal")
+    amt_c = _limitup_col(df, "amount")
+    ind_series = [str(x) for x in (df[ind_c].tolist() if ind_c else [None] * n_total)]
+    ind_count = Counter(x for x in ind_series if x)
+    seal_all = _limitup_num(df, "seal", 0.0)
+    amt_all = _limitup_num(df, "amount", 0.0)
+    max_boards_f = max(max_boards, 1)
+    max_ind_f = max(max(ind_count.values()), 1) if ind_count else 1
+    max_seal = max(seal_all) if seal_all else 0.0
+    max_amt = max(amt_all) if amt_all else 0.0
+
+    leader_rows = []
+    for i in range(n_total):
+        nm = str(df[name_c].iloc[i]) if name_c else ""
+        cd = str(df[code_c].iloc[i]) if code_c else ""
+        ind = ind_series[i]
+        b = boards[i]
+        s_height = (b / max_boards_f) * 100.0
+        s_seal = (seal_all[i] / max_seal * 100.0) if max_seal else 0.0
+        ind_n = ind_count.get(ind, 0)
+        s_ind = (ind_n / max_ind_f) * 100.0
+        s_amt = (amt_all[i] / max_amt * 100.0) if max_amt else 0.0
+        score = 0.35 * s_height + 0.25 * s_seal + 0.20 * s_ind + 0.20 * s_amt
+        leader_rows.append({
+            "name": nm, "code": cd, "industry": ind, "boards": b,
+            "score": round(score, 1),
+            "s_height": round(s_height, 1), "s_seal": round(s_seal, 1),
+            "s_ind": round(s_ind, 1), "s_amt": round(s_amt, 1),
+            "ind_n": ind_n, "seal": seal_all[i], "amount": amt_all[i],
+        })
+    leader_rows.sort(key=lambda r: r["score"], reverse=True)
+    leaderboard = leader_rows[:10]
+
+    rows = []
+    for i in range(n_total):
+        rows.append({
+            "code": str(df[code_c].iloc[i]) if code_c else "",
+            "name": str(df[name_c].iloc[i]) if name_c else "",
+            "industry": ind_series[i],
+            "boards": boards[i],
+            "seal": (seal_all[i] if seal_all else None),
+            "amount": (amt_all[i] if amt_all else None),
+            "first_seal_band": bands_list[i],
+            "broken": int(broken[i]),
+        })
+
+    themes = []
+    if ind_c:
+        vc = Counter(ind_series)
+        for ind, cnt in vc.most_common(10):
+            if ind:
+                themes.append({"industry": ind, "count": cnt})
+
+    broken_list = []
+    for i in range(n_total):
+        if broken[i] > 0:
+            broken_list.append({
+                "name": str(df[name_c].iloc[i]) if name_c else "",
+                "code": str(df[code_c].iloc[i]) if code_c else "",
+                "boards": boards[i], "broken": int(broken[i]),
+            })
+    broken_list.sort(key=lambda r: r["boards"], reverse=True)
+    broken_list = broken_list[:15]
+
+    return {
+        "available": True, "date": date, "count": n_total,
+        "first_boards": n_first, "connect_boards": n_connect, "max_boards": max_boards,
+        "broken_count": n_broken,
+        "bands": dict(band_counts),
+        "rows": rows, "leaderboard": leaderboard,
+        "themes": themes, "broken_list": broken_list,
+    }
+
+
+def _limitup_build_ladder_section(lad):
+    out = {"available": True, "distribution": [], "max_boards": 0, "total_connect": 0, "gaps": []}
+    dist = lad.get("distribution") or []
+    out["distribution"] = [[int(b), int(c)] for b, c in dist]
+    out["max_boards"] = int(lad.get("max_boards", 0) or 0)
+    out["total_connect"] = int(lad.get("total_connect", 0) or 0)
+    lv = {int(b): int(c) for b, c in dist if int(b) >= 2}
+    if lv:
+        top = max(lv)
+        gaps = [b for b in range(top - 1, 1, -1) if lv.get(b, 0) == 0]
+        out["gaps"] = gaps
+    return out
+
+
+def _flatten_unavailable(meta):
+    out = []
+    if not meta:
+        return out
+    for dim, info in meta.items():
+        for key, reason in info.get("unavailable", []):
+            out.append({"dim": dim, "key": key, "reason": reason or "抓取失败"})
+    return out
+
+
+
+@bp.get("/momentum-breadth")
+@jwt_required
+def momentum_breadth():
+    """62 动量×广度 共振矩阵（离线版；旧 62 页 v2 等价数据源）。
+
+    纯离线：数据来自 modules.market_regime.load_breadth_history（red_ratio / zt_prev_ret）。
+    矩阵 = 广度五档 × 动量五档联合分布（共现天数）；当前格 / 共现强度 / 共振格轨迹均派生自同一真值。
+    原方案「资金流 × 广度共振」的主力净流入属网络实时数据，离线基座无真值，故以涨停前日收益作动量代理；
+    真·资金流联网可用时再增强。所有统计均为历史共现结构描述，不预测收益。
+    """
+    from modules import momentum_breadth_resonance as mbr
+
+    try:
+        mat = mbr.resonance_matrix()
+        cur = mbr.current_cell()
+        stats = mbr.resonance_stats(mat)
+        traj = mbr.cell_trajectory()
+    except Exception as exc:  # noqa: BLE001
+        return ok(data=_sanitize({
+            "available": False, "reason": f"{type(exc).__name__}: {exc}",
+            "rr_labels": mbr._RR_LABELS, "mom_labels": mbr._MOM_LABELS,
+            "matrix": [], "totals_row": [], "totals_col": [], "n_days": 0,
+            "current": {"available": False}, "stats": {"available": False},
+            "trajectory": {"available": False, "dates": [], "rr_band": [], "mom_band": []},
+            "note": "离线广度历史读取失败，无法生成共振矩阵。",
+        }), message="momentum-breadth")
+
+    data = {
+        "available": bool(mat.get("available")),
+        "reason": None if mat.get("available") else (mat.get("reason") or "广度历史不足，无法生成共振矩阵"),
+        "rr_labels": mat.get("rr_labels", []),
+        "mom_labels": mat.get("mom_labels", []),
+        "matrix": mat.get("matrix", []),
+        "totals_row": mat.get("totals_row", []),
+        "totals_col": mat.get("totals_col", []),
+        "n_days": mat.get("n_days", 0),
+        "current": cur,
+        "stats": stats,
+        "trajectory": traj,
+        "note": "共振矩阵为广度（红盘率）× 动量（涨停前日收益代理）的联合分布共现天数，仅描述历史结构，非收益预测。",
+    }
+    return ok(data=_sanitize(data), message="momentum-breadth")
+
+
+@bp.get("/limit-up-review")
+@jwt_required
+def limit_up_review():
+    """70 涨停复盘 × 龙头识别（实时；旧 70 页 v2 等价数据源）。
+
+    数据源：东财涨停池（akshare stock_zt_pool_em，10 分钟缓存）—— 属网络实时数据，
+    离线基座无真值。联网失败时该页**诚实降级**：pool.available=False + reason，
+    不展示陈旧数据、不编造当日涨停。其余上下文（状态机 / 温度 / 牧羊人指标）尽力提供。
+    龙头评分为启发式加权（非预测模型）；涨停池口径为池内，全市场涨停取自牧羊人真值源。
+    """
+    from modules.shepherd_history import (_trading_days, get_shepherd_indicators, load_latest_snapshot)
+    from modules.shepherd_temperature import (_zt_pool_detail_cached, get_zt_ladder)
+    from modules import market_regime as mr
+
+    date = (request.args.get("date") or "").strip()
+    if date and not re.fullmatch(r"\d{8}", date):  # 形状校验，畸形回落默认（不 400）
+        date = ""
+
+    effective_date = date or ""
+    try:
+        days = _trading_days(6)
+        if not effective_date and days:
+            for d in reversed(days[-4:]):
+                try:
+                    df0 = _zt_pool_detail_cached(d)
+                    if df0 is not None and not df0.empty:
+                        effective_date = d
+                        break
+                except Exception:  # noqa: BLE001
+                    continue
+            if not effective_date:
+                effective_date = days[-1]
+    except Exception:  # noqa: BLE001
+        days = []
+
+    pool_section = {"available": False, "reason": "未获取涨停池", "date": effective_date,
+                    "count": 0, "first_boards": 0, "connect_boards": 0, "max_boards": 0,
+                    "broken_count": 0, "bands": {}, "rows": [], "leaderboard": [],
+                    "themes": [], "broken_list": []}
+    if effective_date:
+        try:
+            df = _zt_pool_detail_cached(effective_date)
+            if df is not None and not df.empty:
+                pool_section = _limitup_build_pool_section(df, effective_date)
+        except Exception as exc:  # noqa: BLE001
+            pool_section = {"available": False, "reason": f"{type(exc).__name__}: {exc}",
+                            "date": effective_date, "count": 0, "first_boards": 0,
+                            "connect_boards": 0, "max_boards": 0, "broken_count": 0,
+                            "bands": {}, "rows": [], "leaderboard": [], "themes": [],
+                            "broken_list": []}
+
+    ladder_section = {"available": False, "distribution": [], "max_boards": 0,
+                      "total_connect": 0, "gaps": []}
+    try:
+        lad = get_zt_ladder(effective_date)
+        if lad and (lad.get("distribution") or lad.get("levels")):
+            ladder_section = _limitup_build_ladder_section(lad)
+    except Exception as exc:  # noqa: BLE001
+        ladder_section = {"available": False, "reason": f"{type(exc).__name__}: {exc}",
+                          "distribution": [], "max_boards": 0, "total_connect": 0, "gaps": []}
+
+    context_section = {"available": False}
+    try:
+        ctx = {}
+        try:
+            dfi, _meta = get_shepherd_indicators(days=5)
+            if dfi is not None and not dfi.empty:
+                row = dfi.iloc[-1]
+                fr = row.get("zt_fail_ratio")
+                ctx["fail_ratio"] = float(fr) if (fr is not None and fr == fr) else None
+                lu = row.get("limit_up")
+                ctx["limit_up_cnt"] = int(lu) if (lu is not None and lu == lu) else None
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            snap = load_latest_snapshot()
+            if snap:
+                ctx["cycle"] = snap.get("cycle")
+                ctx["temperature"] = snap.get("temperature")
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            regime = mr.regime_report(k=8)
+            if regime.get("available"):
+                ctx["state"] = regime["latest"]["state"]
+                ctx["confidence"] = regime["latest"].get("confidence")
+        except Exception:  # noqa: BLE001
+            pass
+        context_section = {"available": True, **ctx}
+    except Exception as exc:  # noqa: BLE001
+        context_section = {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
+
+    data = {
+        "available": bool(pool_section.get("available")),
+        "date": effective_date,
+        "note": "数据源东财涨停池（10 分钟缓存，非实时行情）；龙头评分为启发式加权，不构成投资建议。联网不可用则该页诚实降级。",
+        "pool": pool_section,
+        "ladder": ladder_section,
+        "context": context_section,
+    }
+    return ok(data=_sanitize(data), message="limit-up-review")
+
+
+@bp.get("/market-sentiment")
+@jwt_required
+def market_sentiment():
+    """50 市场情绪·广度与情绪温度计（实时；旧 50 页 v2 等价数据源）。
+
+    数据层复用 modules.market_drivers.get_market_drivers（21 指标表，单源失败优雅降级，
+    网络全失败时回落 SQLite 缓存最近一次成功数据）。逐指标诚实标注 available；
+    综合市场温度(0-100)由可用指标的近期分位多空加权得出，样本不足时返回 null（不补零）。
+    """
+    from modules.market_drivers import get_market_drivers, DIMS
+    from modules.market_drivers_core import INDICATORS
+    from modules.market_drivers_view import _market_temp, _temp_level, _DIR, _score_one_dim
+
+    days_raw = (request.args.get("days") or "").strip()
+    days = 180
+    if days_raw:
+        try:
+            d = int(days_raw)
+            if d <= 0:
+                return fail(message="days 必须为正整数", code="validation_error", http_status=400)
+            days = min(d, 1200)
+        except ValueError:
+            return fail(message="days 非法（须为正整数）", code="validation_error", http_status=400)
+
+    try:
+        df, meta = get_market_drivers(days=days)
+    except Exception as exc:  # noqa: BLE001
+        return ok(data=_sanitize({
+            "available": False, "reason": f"{type(exc).__name__}: {exc}",
+            "data_as_of": None, "temperature": None, "level": None,
+            "dims": {}, "unavailable": [], "note": "市场驱动力数据加载失败。",
+        }), message="market-sentiment")
+
+    if df is None or df.empty:
+        return ok(data=_sanitize({
+            "available": False, "reason": "无任何可用指标（网络与缓存均不可用）",
+            "data_as_of": None, "temperature": None, "level": None,
+            "dims": {}, "unavailable": _flatten_unavailable(meta),
+            "note": "市场驱动力数据加载失败（网络与缓存均不可用），所有指标诚实降级。",
+        }), message="market-sentiment")
+
+    temp = _market_temp(df)
+    level = _temp_level(temp) if temp is not None else None
+    data_as_of = None
+    try:
+        dates = pd.to_datetime(df["date"], errors="coerce").dropna()
+        if not dates.empty:
+            data_as_of = str(dates.iloc[-1].date())
+    except Exception:  # noqa: BLE001
+        pass
+
+    dims = {dim: [] for dim in DIMS}
+    for ind in INDICATORS:
+        key = ind["key"]
+        dim = ind["dim"]
+        name = ind.get("name", key)
+        unit = ind.get("unit", "")
+        if key not in df.columns:
+            continue
+        s = pd.to_numeric(df[key], errors="coerce")
+        if s.dropna().empty:
+            continue
+        # 不补零：NaN 保留为 None（_sanitize 清洗后前端显 —）
+        spark = [None if (x is None or (isinstance(x, float) and x != x)) else float(x)
+                 for x in s.tail(40).tolist()]
+        value = float(s.iloc[-1]) if pd.notna(s.iloc[-1]) else None
+        direction = _DIR.get(key, 0)
+        heat = _score_one_dim(df[key], direction) if direction != 0 else None
+        dims[dim].append({
+            "key": key, "name": name, "unit": unit,
+            "value": value, "spark": spark,
+            "heat": round(heat, 1) if heat is not None else None,
+            "available": True,
+        })
+
+    data = {
+        "available": True,
+        "data_as_of": data_as_of,
+        "temperature": round(float(temp), 1) if temp is not None else None,
+        "level": {"label": level[0], "emoji": level[1], "color": level[2]} if level else None,
+        "dims": dims,
+        "unavailable": _flatten_unavailable(meta),
+        "note": "综合市场温度由可用指标近期分位多空加权得出（高=热：ADR/涨停/PE/北向/融资净买；高=冷：VIX/PCR/股息率）。温度计为风险/健康语义，与价格涨跌红绿无关。",
+    }
+    return ok(data=_sanitize(data), message="market-sentiment")
+
+
+
 # ───────────────────────── W3 后续簇（5 个真实本地数据源）─────────────────────────
 # 与白名单同款固定绝对路径、无用户注入，安全等价。字段名经 2026-11-07 真扫确认，
 # 绝不臆造；所有响应统一递归清洗 NaN/Inf（浏览器 JSON.parse 拒收裸 NaN）。

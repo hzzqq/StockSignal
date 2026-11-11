@@ -146,6 +146,9 @@ ROUTES = (
     ("/similar-days", "similar_days"), # 67 历史相似日
     ("/inflection-scan", "inflection_scan"), # 68 情绪拐点扫描
     ("/regime-duration", "regime_duration"), # 69 温度持续期
+    ("/momentum-resonance", "momentum_resonance"),  # 62 动量×广度共振（离线）
+    ("/limit-up-review", "limit_up_review"),  # 70 涨停复盘（实时涨停池，诚实降级）
+    ("/market-sentiment", "market_sentiment"),  # 50 市场情绪温度计（实时）
 )
 
 # W4-B 深链专项：/legacy 走客户端 history.replace（不是新 document），

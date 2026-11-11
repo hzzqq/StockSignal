@@ -41,6 +41,9 @@ import type {
   EarningsCalendar,
   BreadthAnalytics,
   ZSeries,
+  MomentumBreadth,
+  LimitUpReview,
+  MarketSentiment,
 } from '@/api/schemas/read'
 
 /**
@@ -477,6 +480,35 @@ export function useDiagnostics(probe = false, nonce = 0): UseQueryResult<Diagnos
     queryKey: ['read', 'diagnostics', probe, nonce],
     queryFn: () => getDiagnostics(probe),
     staleTime: 0,
+    retry: false,
+  })
+}
+
+// ───────── 62 动量×广度 共振矩阵（offline，慢变）─────────
+export function useMomentumBreadth(): UseQueryResult<MomentumBreadth> {
+  return useQuery({
+    queryKey: ['read', 'momentum-breadth'],
+    queryFn: () => api.getMomentumBreadth(),
+    staleTime: THIRTY_MIN,
+  })
+}
+
+// ───────── 70 涨停复盘 × 龙头识别（实时；日期进 queryKey，缺省取最近交易日）─────────
+export function useLimitUpReview(date?: string): UseQueryResult<LimitUpReview> {
+  return useQuery({
+    queryKey: ['read', 'limit-up-review', date ?? 'latest'],
+    queryFn: () => api.getLimitUpReview(date),
+    staleTime: FIVE_MIN,
+    retry: false,
+  })
+}
+
+// ───────── 50 市场情绪·广度与情绪温度计（实时；days 进 queryKey）─────────
+export function useMarketSentiment(days = 180): UseQueryResult<MarketSentiment> {
+  return useQuery({
+    queryKey: ['read', 'market-sentiment', days],
+    queryFn: () => api.getMarketSentiment(days),
+    staleTime: FIVE_MIN,
     retry: false,
   })
 }

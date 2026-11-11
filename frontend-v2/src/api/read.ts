@@ -34,6 +34,9 @@ import {
   EarningsCalendarSchema,
   BreadthAnalyticsSchema,
   ZSeriesSchema,
+  MomentumBreadthSchema,
+  LimitUpReviewSchema,
+  MarketSentimentSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -68,6 +71,9 @@ import {
   type EarningsCalendar,
   type BreadthAnalytics,
   type ZSeries,
+  type MomentumBreadth,
+  type LimitUpReview,
+  type MarketSentiment,
 } from './schemas/read'
 
 /**
@@ -152,6 +158,23 @@ export function getBreadthAnalytics(window = 250): Promise<BreadthAnalytics> {
 export function getBreadthZSeries(dim: string, window = 250): Promise<ZSeries> {
   const q = new URLSearchParams({ dim, window: String(window) })
   return readValidated(`breadth-zseries?${q.toString()}`, ZSeriesSchema)
+}
+
+/** GET /api/v2/read/momentum-breadth —— 62 动量×广度 共振矩阵（离线可靠）。 */
+export function getMomentumBreadth(): Promise<MomentumBreadth> {
+  return readValidated('momentum-breadth', MomentumBreadthSchema)
+}
+
+/** GET /api/v2/read/limit-up-review?date= —— 70 涨停复盘 × 龙头识别（实时；联网失败诚实降级）。 */
+export function getLimitUpReview(date?: string): Promise<LimitUpReview> {
+  const q = date ? `?date=${encodeURIComponent(date)}` : ''
+  return readValidated(`limit-up-review${q}`, LimitUpReviewSchema)
+}
+
+/** GET /api/v2/read/market-sentiment?days= —— 50 市场情绪·广度与情绪温度计（实时）。 */
+export function getMarketSentiment(days = 180): Promise<MarketSentiment> {
+  const q = new URLSearchParams({ days: String(days) })
+  return readValidated(`market-sentiment?${q.toString()}`, MarketSentimentSchema)
 }
 
 /** GET /api/v2/read/webapps —— 网页作品集元数据（86 页作品清单） */

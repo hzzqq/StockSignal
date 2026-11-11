@@ -62,6 +62,9 @@ const LazySentimentClock = lazyRouteComponent(() => import('@/features/analytics
 const LazySimilarDays = lazyRouteComponent(() => import('@/features/analytics/SimilarDays'), 'SimilarDays')
 const LazyInflectionScan = lazyRouteComponent(() => import('@/features/analytics/InflectionScan'), 'InflectionScan')
 const LazyRegimeDuration = lazyRouteComponent(() => import('@/features/analytics/RegimeDuration'), 'RegimeDuration')
+const LazyMomentumResonance = lazyRouteComponent(() => import('@/features/breadth/MomentumResonance'), 'MomentumResonance')
+const LazyLimitUpReview = lazyRouteComponent(() => import('@/features/breadth/LimitUpReview'), 'LimitUpReview')
+const LazyMarketSentiment = lazyRouteComponent(() => import('@/features/market/MarketSentiment'), 'MarketSentiment')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -401,6 +404,27 @@ const regimeDurationRoute = createRoute({
   component: LazyRegimeDuration,
 })
 
+// 62 动量×广度共振（v2 native /momentum-resonance）：离线广度统计真页面。
+const momentumResonanceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/momentum-resonance',
+  component: LazyMomentumResonance,
+})
+
+// 70 涨停复盘 × 龙头识别（v2 native /limit-up-review）：实时涨停池（东财，10 分钟缓存）。
+const limitUpReviewRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/limit-up-review',
+  component: LazyLimitUpReview,
+})
+
+// 50 市场情绪·广度与情绪温度计（v2 native /market-sentiment）：实时市场驱动力（21 指标）。
+const marketSentimentRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/market-sentiment',
+  component: LazyMarketSentiment,
+})
+
 function FinancialHunterRouteView() {
   const search = financialHunterRoute.useSearch()
   return (
@@ -553,6 +577,9 @@ const routeTree = rootRoute.addChildren([
     similarDaysRoute,
     inflectionScanRoute,
     regimeDurationRoute,
+    momentumResonanceRoute,
+    limitUpReviewRoute,
+    marketSentimentRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,
