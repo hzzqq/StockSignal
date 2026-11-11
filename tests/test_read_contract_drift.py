@@ -50,12 +50,14 @@ import backend.api.read_routes as _rr  # noqa: E402  (捕获原始目录常量�
 
 # ───────────────────────── 数据隔离：导入期捕获 pristine 状态 ─────────────────────────
 # 模块导入期（pytest 收集阶段，任何测试均未运行）data/ 与 read_routes 模块常量处于 pristine。
-# 本仓库 backend/tests/test_read_routes.py 用「直接赋值」而非 monkeypatch 改写
-# rr._DATA_DIR / _WEBAPPS_DIR / _FILE_WHITELIST（指向其临时树，含最小 daily_snapshot.json
-# {"date":...,"temperature":42}）。直接赋值不会随 fixture 退出自动还原，会泄漏到整个会话——
-# 排在字母序后的本研究若直接读真实 data/ 会被污染（实测 /api/v2/read/daily-snapshot 假阳性
-# 失败）。故在收集期捕获真实目录常量 + 所需数据文件字节，fixture 里测试前恢复 pristine、
-# 测试后还原「泄漏前」状态，做到既免疫泄漏污染，又不破坏其它测试对全局的预期（诚实隔离）。
+# 本仓库 backend/tests/test_read_routes.py 曾用「直接赋值」而非 monkeypatch 改写
+# rr._DATA_DIR / _REPORTS_DIR / _WEBAPPS_DIR / _FILE_WHITELIST（指向其临时树，含最小
+# daily_snapshot.json {"date":...,"temperature":42}）。直接赋值不会随 fixture 退出自动还原，
+# 会泄漏到整个 pytest 会话——排在后面的测试若直接读真实 data/ 会被污染（实测
+# /api/v2/read/daily-snapshot 假阳性失败）。该根因已于 2026-11-12 在 test_read_routes.py
+# 上游修复（改用保存+恢复式隔离）。本守卫仍保留防御性恢复：收集期捕获真实目录常量 +
+# 所需数据文件字节，fixture 里测试前恢复 pristine、测试后还原「泄漏前」状态，既免疫任何
+# 未来的全局泄漏，又不破坏其它测试对全局的预期（诚实隔离，非悄悄改全局）。
 _DATA_CAP_DIR = ROOT / "data"
 _PRISTINE_FILES = (
     "daily_snapshot.json", "daily_recommendation.json", "user_dashboard.json",

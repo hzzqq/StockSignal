@@ -788,8 +788,9 @@ v2 不提供任何真实券商下单能力。
 - **联网能力（akshare/实时，离线优雅降级，20）**：portfolio、watch、macro-data、six-dim、fundamentals、financials、stock-kline、fund-flow、dragon-tiger、theme、theme-transmission、strong、sector-rotation、quote-board、earnings-calendar、market-panorama、breadth-timeseries、limit-up-review、market-sentiment、factor-analysis。
 
 ### 24.3 关键根因发现（重要）+ 隔离修复
-- **发现**：`backend/tests/test_read_routes.py` 用**直接赋值** `rr._DATA_DIR = data.resolve()`（而非 `monkeypatch.setattr`）改写 `read_routes` 的 `_DATA_DIR`/`_WEBAPPS_DIR`/`_FILE_WHITELIST` 指向其临时树（含最小 `daily_snapshot.json {"date":...,"temperature":42}`）。直接赋值**不随 fixture 退出自动还原**，泄漏到整个 pytest 会话——排在它后面的本研究首跑时读取该泄漏临时树 → `/daily-snapshot` 返回 `{date,temperature}` → 契约守卫**假阳性失败**。
-- **修复（双重恢复）**：本守卫 fixture 在 module 级捕获真实目录常量（`_DATA_DIR`/`_WEBAPPS_DIR`/`_FILE_WHITELIST`）+ 所需数据文件字节（收集期 data 仍 pristine），测试前恢复 pristine、测试后还原「泄漏前」状态，既免疫泄漏污染又不破坏其它测试预期（诚实隔离，非悄悄改全局）。
+- **发现**：`backend/tests/test_read_routes.py` 用**直接赋值** `rr._DATA_DIR = data.resolve()`（而非 `monkeypatch.setattr`）改写 `read_routes` 的 `_DATA_DIR`/`_REPORTS_DIR`/`_WEBAPPS_DIR`/`_FILE_WHITELIST` 指向其临时树（含最小 `daily_snapshot.json {"date":...,"temperature":42}`）。直接赋值**不随 fixture 退出自动还原**，泄漏到整个 pytest 会话——排在它后面的本研究首跑时读取该泄漏临时树 → `/daily-snapshot` 返回 `{date,temperature}` → 契约守卫**假阳性失败**。
+- **上游根治（2026-11-12）**：`backend/tests/test_read_routes.py` 的 `client` fixture 改为「保存原始目录常量 + `request.addfinalizer` 在测试模块结束后还原」，四枚常量不再泄漏，整 pytest 会话恢复干净（实证：同进程跑完该模块后 `rr._DATA_DIR` 还原为真实值 `E:/project/ks/StockSignal/data` → LEAK_GONE）。
+- **本守卫防御性恢复**：本守卫 fixture 仍捕获真实目录常量 + 数据文件字节，测试前恢复 pristine、测试后还原「泄漏前」状态，既免疫任何未来全局泄漏，又不破坏其它测试预期（诚实隔离，非悄悄改全局）。
 
 ### 24.4 验证
 - 隔离态 `pytest tests/test_read_contract_drift.py -q`：**exit=0**（22 passed / 1 skipped）。
@@ -800,3 +801,10 @@ v2 不提供任何真实券商下单能力。
 - commit（msg: `test(v2): 新增只读端点↔Zod schema 字段契约漂移守卫 + 双重隔离修复（防 read_routes 常量泄漏污染）`）。
 - ff-only 推 `origin/main`；仅 stage `tests/test_read_contract_drift.py` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
 - 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**（纯后端测试，不触前端页面计数）。v1 降级/退役评估继续挂起；43 实盘交易红线不碰。
+
+### 24.6 根因根治提交与推送（2026-11-12）
+- 把 `backend/tests/test_read_routes.py` 四枚 `read_routes` 目录常量由「直接赋值」改为「保存+`request.addfinalizer` 恢复」式隔离；本守卫注释同步说明上游已根治、保留防御性恢复。
+- commit（msg: `test(v2): 根治 read_routes 测试目录常量会话级泄漏（保存+恢复式隔离）+ 守卫注释同步`）。
+- ff-only 推 `origin/main`；仅 stage `backend/tests/test_read_routes.py` + `tests/test_read_contract_drift.py`（注释同步）+ `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
+- 实证：同进程跑完 `test_read_routes.py` 后 `rr._DATA_DIR` 还原为真实值（LEAK_GONE）；组合 `test_read_routes.py` → 本守卫同会话 `pytest` exit=0。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。v1 降级/退役评估继续挂起；43 实盘交易红线不碰。

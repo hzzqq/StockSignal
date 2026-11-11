@@ -127,7 +127,7 @@ def app(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def client(app, tmp_path_factory):
+def client(app, tmp_path_factory, request):
     # 构造隔离的临时数据树并 monkeypatch 模块目录常量
     root = tmp_path_factory.mktemp("readroot")
     data = root / "data"
@@ -294,6 +294,14 @@ def client(app, tmp_path_factory):
         encoding="utf-8",
     )
 
+    # 隔离：保存 read_routes 原始目录常量，测试模块结束后还原，避免「直接赋值」泄漏到整个
+    # pytest 会话（此前 rr._DATA_DIR 等被直接指向临时树且未还原，导致排在后面的测试读到错误数据）。
+    _saved_rr = {
+        "_DATA_DIR": rr._DATA_DIR,
+        "_REPORTS_DIR": rr._REPORTS_DIR,
+        "_WEBAPPS_DIR": rr._WEBAPPS_DIR,
+        "_FILE_WHITELIST": rr._FILE_WHITELIST,
+    }
     rr._DATA_DIR = data.resolve()
     rr._REPORTS_DIR = reports.resolve()
     rr._WEBAPPS_DIR = webapps.resolve()
@@ -312,6 +320,12 @@ def client(app, tmp_path_factory):
         "backtest_runs": data / "backtest_runs.json",
         "data_refresh_state": data / "data_refresh_state.json",
     }
+
+    def _restore_rr_dirs():
+        for _k, _v in _saved_rr.items():
+            setattr(rr, _k, _v)
+
+    request.addfinalizer(_restore_rr_dirs)
     return app.test_client()
 
 
