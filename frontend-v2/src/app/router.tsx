@@ -23,6 +23,7 @@ const LazyDecisionPanel = lazyRouteComponent(() => import('@/features/decision/D
 const LazyDecisionReplay = lazyRouteComponent(() => import('@/features/decision/DecisionReplay'), 'DecisionReplay')
 const LazyMorningReport = lazyRouteComponent(() => import('@/features/morning/MorningReport'), 'MorningReport')
 const LazyP1Signals = lazyRouteComponent(() => import('@/features/p1/P1Signals'), 'P1Signals')
+const LazyP1Construction = lazyRouteComponent(() => import('@/features/p1/ConstructionDiagnostics'), 'ConstructionDiagnostics')
 const LazyRecommendation = lazyRouteComponent(() => import('@/features/recommend/Recommendation'), 'Recommendation')
 const LazyPaperTrades = lazyRouteComponent(() => import('@/features/paper/PaperTrades'), 'PaperTrades')
 const LazyAlerts = lazyRouteComponent(() => import('@/features/alerts/Alerts'), 'Alerts')
@@ -147,6 +148,12 @@ const p1Route = createRoute({
   getParentRoute: () => appRoute,
   path: '/p1',
   component: LazyP1Signals,
+})
+
+const p1ConstructionRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/p1-construction',
+  component: LazyP1Construction,
 })
 
 const recommendRoute = createRoute({
@@ -538,6 +545,7 @@ const routeTree = rootRoute.addChildren([
     replayRoute,
     morningRoute,
     p1Route,
+    p1ConstructionRoute,
     recommendRoute,
     paperRoute,
     alertsRoute,

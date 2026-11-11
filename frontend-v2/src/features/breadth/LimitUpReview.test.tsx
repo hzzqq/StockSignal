@@ -41,7 +41,7 @@ const okData = {
     themes: [{ industry: '白酒', count: 1 }, { industry: '电池', count: 1 }],
     broken_list: [],
   },
-  ladder: { available: true, reason: null, distribution: [[3, 1], [2, 1], [1, 2]], max_boards: 3, total_connect: 1, gaps: [] },
+  ladder: { available: true, reason: null, distribution: [[3, 1] as [number, number], [2, 1] as [number, number], [1, 2] as [number, number]], max_boards: 3, total_connect: 1, gaps: [] },
   context: { available: true, reason: null, fail_ratio: 18.27, limit_up_cnt: 85, cycle: '主升高潮', temperature: 87, state: '震荡', confidence: 0.6 },
 }
 

@@ -175,15 +175,54 @@ def _zod_keys(schema_name: str) -> set[str]:
     return set(re.findall(r"^  ([A-Za-z_][A-Za-z0-9_]*): z\.", m.group(1), re.M))
 
 
-def _fixture_object(name: str, next_name: str | None) -> dict:
+def _extract_balanced_braces(text: str, open_idx: int) -> str:
+    """从开括号起，按括号深度抽取完整对象字面量；忽略字符串/注释内的括号，避免被夹具间注释或字符串值干扰。"""
+    depth = 0
+    i = open_idx
+    n = len(text)
+    in_str = None  # '"' | "'" | '`'
+    while i < n:
+        c = text[i]
+        if in_str:
+            if c == "\\":
+                i += 2
+                continue
+            if c == in_str:
+                in_str = None
+            i += 1
+            continue
+        if c in ('"', "'", "`"):
+            in_str = c
+            i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            j = text.find("\n", i)
+            i = n if j == -1 else j + 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            j = text.find("*/", i + 2)
+            i = n if j == -1 else j + 2
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[open_idx : i + 1]
+        i += 1
+    return text[open_idx:]
+
+
+def _fixture_object(name: str, next_name: str | None = None) -> dict:  # next_name 已弃用：现按括号深度解析
     text = FIXTURES.read_text(encoding="utf-8")
     start_marker = f"export const {name} = "
     at = text.find(start_marker)
     assert at >= 0, f"fixtures.ts 缺 {name}"
     start = at + len(start_marker)
-    end = text.find(f"\n\nexport const {next_name} = ", start) if next_name else len(text)
-    assert end > start, f"{name} 对象边界解析失败"
-    return json.loads(text[start:end].strip())
+    brace = text.find("{", start)
+    assert brace != -1, f"{name} 未找到对象起始 {{"
+    obj = _extract_balanced_braces(text, brace)
+    return json.loads(obj)
 
 
 def test_backend_schema_and_fixture_keys_match_exactly():

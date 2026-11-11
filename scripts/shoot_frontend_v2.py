@@ -101,6 +101,7 @@ ROUTES = (
     ("/replay", "replay"),
     ("/morning", "morning"),
     ("/p1", "p1"),
+    ("/p1-construction", "p1_construction"),  # P1 组合构建诊断（v2-native，本地 JSON 只读，无网络）
     ("/recommend", "recommend"),
     ("/paper", "paper"),
     ("/alerts", "alerts"),

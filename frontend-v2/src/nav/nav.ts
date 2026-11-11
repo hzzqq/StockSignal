@@ -5,6 +5,7 @@ export type AppPath =
   | '/replay'
   | '/morning'
   | '/p1'
+  | '/p1-construction'
   | '/recommend'
   | '/paper'
   | '/alerts'
@@ -77,6 +78,7 @@ export const NAV: NavGroup[] = [
       { to: '/replay', label: '决策回放', icon: '↺' },
       { to: '/morning', label: '每日晨报', icon: '☀' },
       { to: '/p1', label: 'P1 量化信号', icon: '∑' },
+      { to: '/p1-construction', label: 'P1 组合构建诊断', icon: '📐' },
     ],
   },
   {
