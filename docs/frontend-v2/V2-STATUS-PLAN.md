@@ -770,3 +770,33 @@ v2 不提供任何真实券商下单能力。
 - commit（msg: `fix(v2): 收口 nz() 隐藏补零诚实红线漏洞（Strong/Theme/Watch/SectorRotation）+ 守卫加固 + 回归测试`）。
 - ff-only 推 `origin/main`；仅 stage `frontend-v2/`（`src` 4 文件 + `tests` 2 文件）+ `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
 - 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。v1 降级/退役评估继续挂起；43 实盘交易红线不碰。
+
+## 24. 只读端点 ↔ 前端 Zod schema 字段契约漂移守卫（2026-11-12，task #2 收口）
+
+> 背景（§21 教训）：MSW 夹具与 Zod schema 可「自洽」却与真后端脱钩（财报日历 MSW 全绿、接真后端三列全显「—」）。本次把「端点↔schema 字段契约」抽成**真后端离线双盲守卫**，从根上抓双向漂移。
+
+### 24.1 新增守卫
+- `tests/test_read_contract_drift.py`（**~19KB，新文件**）：三重守卫
+  1. **离线 object 端点**：真打只读端点取 `data` 顶层键，与前端 Zod schema 顶层键比对——必需字段缺失即 fail（软缺失/破版），未知字段越界（schema 无 `.catchall()`）即 fail（Zod 硬崩）。
+  2. **离线 list 端点**：首元素键对齐元素 schema（如 `webapps→WebAppSchema` 元素而非数组 schema）。
+  3. **联网端点枚举 + 优雅降级**：20 个 akshare/实时行情端点离线不打真数据，AST 登记枚举 + 离线 stub（`socket`/`subprocess`/`requests`/`urllib`/`http.client` + `modules.fetcher_kline.observe_source` 打挂），断言「离线 200 而非 500」，超时显式 `pytest.skip`（登记「需联网 CI」，非静默）。
+
+### 24.2 端点分类（实测真后端 + 真 data/）
+- **纯离线（本地 json/db，严格对齐，11）**：daily-snapshot、daily-recommendation、user-dashboard、paper-trades、event-pool、p1-sync-status、data-refresh-state、breadth-analytics、breadth-zseries、trading-account、snapshot/<date>。
+- **列表（元素 schema 对齐，5）**：prediction-log、ladder-detail、breadth-history、webapps、snapshot-dates（字符串数组）。
+- **松校验（前端手动 parse，无 Zod，1）**：p1-signals。
+- **联网能力（akshare/实时，离线优雅降级，20）**：portfolio、watch、macro-data、six-dim、fundamentals、financials、stock-kline、fund-flow、dragon-tiger、theme、theme-transmission、strong、sector-rotation、quote-board、earnings-calendar、market-panorama、breadth-timeseries、limit-up-review、market-sentiment、factor-analysis。
+
+### 24.3 关键根因发现（重要）+ 隔离修复
+- **发现**：`backend/tests/test_read_routes.py` 用**直接赋值** `rr._DATA_DIR = data.resolve()`（而非 `monkeypatch.setattr`）改写 `read_routes` 的 `_DATA_DIR`/`_WEBAPPS_DIR`/`_FILE_WHITELIST` 指向其临时树（含最小 `daily_snapshot.json {"date":...,"temperature":42}`）。直接赋值**不随 fixture 退出自动还原**，泄漏到整个 pytest 会话——排在它后面的本研究首跑时读取该泄漏临时树 → `/daily-snapshot` 返回 `{date,temperature}` → 契约守卫**假阳性失败**。
+- **修复（双重恢复）**：本守卫 fixture 在 module 级捕获真实目录常量（`_DATA_DIR`/`_WEBAPPS_DIR`/`_FILE_WHITELIST`）+ 所需数据文件字节（收集期 data 仍 pristine），测试前恢复 pristine、测试后还原「泄漏前」状态，既免疫泄漏污染又不破坏其它测试预期（诚实隔离，非悄悄改全局）。
+
+### 24.4 验证
+- 隔离态 `pytest tests/test_read_contract_drift.py -q`：**exit=0**（22 passed / 1 skipped）。
+- 针对性复现（元凶 `test_read_routes.py` 先跑触发泄漏 + 本守卫）：**exit=0** → 双重恢复生效。
+- 全量回归 `pytest backend/tests tests/ -q`：**本守卫 test 在全集下转绿**；其余 **16 个失败均为 baseline 已有（与本次新增文件无关）**——分布在 `test_public_numbers_consistency`(3) / `test_thesis_numbers_ch6_v2`(2) / `test_quality_numbers_sync`(2) / `test_research_watch`(2) / `test_no_silent_swallow` / `test_component_vocabulary` / `test_page91_prefs_slim` / `test_silent_return_audit` / `test_t239_bare_silent_audit` / `test_ui_design_system`，均属无关文件（生成文档/论文数据/调度交易时段/组件词汇状态等），排除本文件后全量仍 exit=1 → 证实 preexisting，超出本任务范围，未动。
+
+### 24.5 提交与推送
+- commit（msg: `test(v2): 新增只读端点↔Zod schema 字段契约漂移守卫 + 双重隔离修复（防 read_routes 常量泄漏污染）`）。
+- ff-only 推 `origin/main`；仅 stage `tests/test_read_contract_drift.py` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**（纯后端测试，不触前端页面计数）。v1 降级/退役评估继续挂起；43 实盘交易红线不碰。
