@@ -58,6 +58,10 @@ const LazyDataExport = lazyRouteComponent(() => import('@/features/export/DataEx
 const LazyMe = lazyRouteComponent(() => import('@/features/me/Me'), 'Me')
 const LazyEarningsCalendar = lazyRouteComponent(() => import('@/features/calendar/EarningsCalendar'), 'EarningsCalendar')
 const LazyReviewNotes = lazyRouteComponent(() => import('@/features/review/ReviewNotes'), 'ReviewNotes')
+const LazySentimentClock = lazyRouteComponent(() => import('@/features/analytics/SentimentClock'), 'SentimentClock')
+const LazySimilarDays = lazyRouteComponent(() => import('@/features/analytics/SimilarDays'), 'SimilarDays')
+const LazyInflectionScan = lazyRouteComponent(() => import('@/features/analytics/InflectionScan'), 'InflectionScan')
+const LazyRegimeDuration = lazyRouteComponent(() => import('@/features/analytics/RegimeDuration'), 'RegimeDuration')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -369,6 +373,34 @@ const reviewNotesRoute = createRoute({
   component: LazyReviewNotes,
 })
 
+// 65 投机情绪周期时钟（v2 native /sentiment-clock）：离线可靠广度统计真页面。
+const sentimentClockRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/sentiment-clock',
+  component: LazySentimentClock,
+})
+
+// 67 历史相似日聚类（v2 native /similar-days）：离线可靠广度统计真页面。
+const similarDaysRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/similar-days',
+  component: LazySimilarDays,
+})
+
+// 68 情绪拐点扫描器（v2 native /inflection-scan）：离线可靠广度统计真页面。
+const inflectionScanRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/inflection-scan',
+  component: LazyInflectionScan,
+})
+
+// 69 温度持续期与回归时长（v2 native /regime-duration）：离线可靠广度统计真页面。
+const regimeDurationRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/regime-duration',
+  component: LazyRegimeDuration,
+})
+
 function FinancialHunterRouteView() {
   const search = financialHunterRoute.useSearch()
   return (
@@ -517,6 +549,10 @@ const routeTree = rootRoute.addChildren([
     meRoute,
     earningsCalendarRoute,
     reviewNotesRoute,
+    sentimentClockRoute,
+    similarDaysRoute,
+    inflectionScanRoute,
+    regimeDurationRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

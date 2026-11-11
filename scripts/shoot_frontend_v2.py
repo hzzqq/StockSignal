@@ -142,6 +142,10 @@ ROUTES = (
     ("/me", "me"),                             # 91 我的（账户 + 看板偏好种子）
     ("/earnings-calendar", "earnings_calendar"),  # 16 财报日历（真实 akshare 披露日历）
     ("/review-notes", "review_notes"),         # 99 决策问答（逐日复盘笔记，缺失即空态）
+    ("/sentiment-clock", "sentiment_clock"), # 65 投机情绪时钟
+    ("/similar-days", "similar_days"), # 67 历史相似日
+    ("/inflection-scan", "inflection_scan"), # 68 情绪拐点扫描
+    ("/regime-duration", "regime_duration"), # 69 温度持续期
 )
 
 # W4-B 深链专项：/legacy 走客户端 history.replace（不是新 document），

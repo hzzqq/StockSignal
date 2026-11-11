@@ -33,6 +33,16 @@ function invalidParam(message: string) {
 }
 
 /** 真实日历校验：2026-13-99 / 2026-02-30 都必须判非法（对齐后端 _valid_date）。 */
+/** 与后端 _ANALYTICS_WINDOWS 一致：非法 window 必须 400，不能静默回落。 */
+const ANALYTICS_WINDOWS = [60, 120, 250, 750, 2000]
+
+function analyticsWindow(url: URL): number | null {
+  const raw = url.searchParams.get('window')
+  if (raw === null || raw === '') return 250
+  const v = Number(raw)
+  return ANALYTICS_WINDOWS.includes(v) ? v : null
+}
+
 function validDate(s: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
   const d = new Date(`${s}T00:00:00Z`)
@@ -128,6 +138,55 @@ export const handlers = [
     const market = url.searchParams.get('market') || '沪深京'
     const period = url.searchParams.get('period') || '2025年报'
     return ok({ ...fixtures.earningsCalendar, market, period })
+  }),
+  // 离线可靠广度统计（65/67/68/69）：夹具为真实离线序列末 60 日子集，
+  // 故按 window 截尾后把 window 如实回显为**实际点数**，绝不假装拿到更长历史。
+  http.get('/api/v2/read/breadth-analytics', ({ request }) => {
+    const url = new URL(request.url)
+    const w = analyticsWindow(url)
+    if (w === null) return badRequest('window 仅允许 60/120/250/750/2000')
+    const base = fixtures.breadthAnalytics
+    const ser = base.sections.phase.series
+    const take = Math.min(w, ser.dates.length)
+    const sliced: Record<string, (number | null)[]> = {}
+    for (const [k, v] of Object.entries(ser.series)) {
+      sliced[k] = (v as (number | null)[]).slice(-take)
+    }
+    return ok({
+      ...base,
+      window: take,
+      sections: {
+        ...base.sections,
+        phase: {
+          ...base.sections.phase,
+          series: { ...ser, dates: ser.dates.slice(-take), series: sliced },
+        },
+      },
+    })
+  }),
+  // 68 页 z-score 轨迹：dim 必须在可靠字段白名单（对齐后端 REAL_FEATURES 校验）。
+  http.get('/api/v2/read/breadth-zseries', ({ request }) => {
+    const url = new URL(request.url)
+    const w = analyticsWindow(url)
+    if (w === null) return badRequest('window 仅允许 60/120/250/750/2000')
+    const dim = url.searchParams.get('dim') ?? ''
+    const dims = fixtures.breadthAnalytics.reliable_dims
+    if (!dims.includes(dim)) return badRequest('dim 非法（须为离线可靠广度字段）')
+    const base = fixtures.breadthZSeries
+    const take = Math.min(w, base.dates.length)
+    const start = base.dates.length - take
+    const labels = fixtures.breadthAnalytics.reliable_labels as Record<string, string>
+    return ok({
+      ...base,
+      dim,
+      label: labels[dim] ?? dim,
+      window: take,
+      dates: base.dates.slice(start),
+      z: base.z.slice(start),
+      raw: base.raw.slice(start),
+      markers: base.markers.filter((m) => m >= start).map((m) => m - start),
+      note: `${base.note}（MSW 演示夹具仅含末 ${base.dates.length} 日）`,
+    })
   }),
   http.get('/api/v2/read/webapps', () => ok(fixtures.webapps)),
   // W3 新增只读端点

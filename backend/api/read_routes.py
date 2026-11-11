@@ -450,6 +450,149 @@ def breadth_history():
     return _not_found("shepherd_history.json")
 
 
+# ───────────────────────── 离线广度统计分析（旧 65/67/68/69 页 v2 等价）─────────────────────────
+# 与 v1 65 页侧栏时间窗口选项一致；后端只认白名单，非法值 400，不静默兜底成 250。
+_ANALYTICS_WINDOWS = (60, 120, 250, 750, 2000)
+
+
+def _parse_analytics_window(raw: str | None) -> tuple[int, str | None]:
+    """解析 query window：缺省 250；非整数/非白名单返回诚实错误，不悄悄回落。"""
+    if raw is None or not str(raw).strip():
+        return 250, None
+    try:
+        v = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return 250, "window 须为整数"
+    if v not in _ANALYTICS_WINDOWS:
+        return 250, "window 仅允许 " + "/".join(str(x) for x in _ANALYTICS_WINDOWS)
+    return v, None
+
+
+def _zseries_slice(result: dict, window: int) -> dict:
+    """把全历史 z-score 序列截到末 window 日，并把 markers 下标重映射到新数组。
+
+    v1 68 页画的是全历史（4771 点，JSON ~200KB）；v2 端点只回传末 window 日，
+    并显式带 truncated 标记，前端如实显示「近 N 日」，不假装看到全历史。
+    """
+    dates = list(result.get("dates") or [])
+    z = list(result.get("z") or [])
+    raw = list(result.get("raw") or [])
+    n = len(dates)
+    start = max(0, n - window)
+    markers = [
+        m - start for m in (result.get("markers") or [])
+        if isinstance(m, int) and start <= m < n
+    ]
+    return {
+        "dates": dates[start:],
+        "z": z[start:],
+        "raw": raw[start:],
+        "markers": markers,
+        "truncated": start > 0,
+    }
+
+
+def _analytics_section(fn):
+    """单段统计的诚实包装：任一模块异常/返回异常结构，只让该段 available=False，
+    不拖垮其它段、不编造数据。异常原因如实带出，便于前端标注与排障。"""
+    try:
+        result = fn()
+        if not isinstance(result, dict):
+            return {"available": False, "reason": "计算结果结构异常"}
+        if not result.get("available"):
+            return {"available": False, "reason": str(result.get("reason") or "该段数据不可用")}
+        return {**result, "available": True}
+    except Exception as exc:  # noqa: BLE001 - 逐段隔离，异常不外溢到整包
+        return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
+
+
+@bp.get("/breadth-analytics")
+@jwt_required
+def breadth_analytics():
+    """离线可靠广度统计（4 段，只读；旧 65/67/68/69 页的 v2 等价数据源）。
+
+    数据源统一为 modules.market_regime.load_breadth_history（data/shepherd_history.json，
+    2007→2026 逐日广度真值）。四段各自独立计算与降级：
+      - phase     : 投机情绪周期时钟（当前相位 + 归一化时序）
+      - similar   : 历史相似日 top-N 及其后继 5/10/20 日红盘占比分布
+      - inflection: 广度维度 z-score 极端后反转事件
+      - duration  : 红盘占比五档持续期 + 冰点回归中性磨底时长
+    诚实红线：
+      - 仅用离线可靠字段 REAL_FEATURES（6 个 ~100% 非空）；OFFLINE_MISSING 的 10 个维度
+        如实声明、绝不进入计算，也不把补 0 的假值当真值；
+      - data_as_of 取权威数据日（模块真值），不是服务器当前时间；
+      - 任一模块异常/数据不足只让该段 available=False + reason，其余段照常返回，
+        前端按段显「暂无」，绝不整包 500 / 不补零 / 不编造统计。
+    所有统计均为**历史描述**，不预测收益；前端须同步标注。
+    """
+    from modules import (
+        speculative_clock as _clock,
+        similar_day_cluster as _similar,
+        inflection_scanner as _inflection,
+        regime_duration as _duration,
+    )
+    from modules.breadth_features import OFFLINE_MISSING, REAL_FEATURES, data_as_of, labels
+
+    window, win_err = _parse_analytics_window(request.args.get("window"))
+    if win_err:
+        return fail(message=win_err, code="validation_error", http_status=400)
+
+    sections = {
+        "phase": {
+            "current": _analytics_section(_clock.current_phase),
+            "series": _analytics_section(lambda: _clock.speculative_sentiment_series(window=window)),
+        },
+        "similar": _analytics_section(_similar.similar_day_cluster),
+        "inflection": _analytics_section(_inflection.list_events),
+        "duration": _analytics_section(_duration.regime_duration),
+    }
+    data = {
+        "data_as_of": data_as_of(),
+        "window": window,
+        "reliable_dims": list(REAL_FEATURES),
+        "reliable_labels": labels(),
+        "offline_missing": OFFLINE_MISSING,
+        "note": "统计基于离线健康镜像真值，仅用可靠字段；均为历史描述，不预测收益。",
+        "sections": sections,
+    }
+    return ok(data=_sanitize(data), message="breadth-analytics")
+
+
+@bp.get("/breadth-zseries")
+@jwt_required
+def breadth_zseries():
+    """68 情绪拐点扫描器：单维度滚动 z-score 轨迹（按需取，不塞进聚合大包）。
+
+    dim 必须是离线可靠字段之一（防任意列注入/路径穿越）；window 同 65 页白名单。
+    数据不足/模块异常时 available=False + reason，dates/z/raw 为空数组、不补零。
+    """
+    from modules import inflection_scanner as _inflection
+    from modules.breadth_features import REAL_FEATURES, data_as_of, labels
+
+    dim = (request.args.get("dim") or "").strip()
+    if dim not in REAL_FEATURES:
+        return fail(message="dim 非法（须为离线可靠广度字段）",
+                    code="validation_error", http_status=400)
+    window, win_err = _parse_analytics_window(request.args.get("window"))
+    if win_err:
+        return fail(message=win_err, code="validation_error", http_status=400)
+
+    section = _analytics_section(lambda: _inflection.series_for(dim))
+    data = {
+        "dim": dim,
+        "label": labels().get(dim, dim),
+        "data_as_of": data_as_of(),
+        "window": window,
+        "available": bool(section.get("available")),
+        "reason": section.get("reason") if not section.get("available") else None,
+        "dates": [], "z": [], "raw": [], "markers": [], "truncated": False,
+        "note": "z-score 窗口 60 日；轨迹按 window 截取末段，均为历史形态描述、非预测。",
+    }
+    if section.get("available"):
+        data.update(_zseries_slice(section, window))
+    return ok(data=_sanitize(data), message="breadth-zseries")
+
+
 # ───────────────────────── W3 后续簇（5 个真实本地数据源）─────────────────────────
 # 与白名单同款固定绝对路径、无用户注入，安全等价。字段名经 2026-11-07 真扫确认，
 # 绝不臆造；所有响应统一递归清洗 NaN/Inf（浏览器 JSON.parse 拒收裸 NaN）。
@@ -3322,6 +3465,8 @@ _DIAG_REQUIRED_QUERY = {
     "/api/v2/read/index-kline": {"code": "sh000001"},
     # backtest 缺 ticker 即 fail(400, invalid_param)；必须登记，否则诊断探测会假报 400。
     "/api/v2/read/backtest": {"ticker": "600519"},
+    # 68 页 z-score 轨迹：缺 dim 即 400；window 可选（缺省 250）。
+    "/api/v2/read/breadth-zseries": {"dim": "up_count"},
 }
 
 

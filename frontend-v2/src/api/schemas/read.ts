@@ -1068,3 +1068,123 @@ export const QuoteBoardSchema = z
   .catchall(z.unknown())
 export type QuoteBoard = z.infer<typeof QuoteBoardSchema>
 
+
+// ───────── 离线广度统计分析（65/67/68/69 页 v2 等价数据源）─────────
+// 后端逐段独立降级：任一模块异常/数据不足只让该段 available=false + reason，
+// 其余段照常返回。前端按段显「暂无」，绝不整包吞成空数据。
+const NumOrNull = z.number().nullable()
+const AnalyticsSectionBase = z.object({
+  available: z.boolean(),
+  reason: z.string().nullable().optional(),
+}).catchall(z.unknown())
+
+/** 65 投机情绪相位时钟：当前相位 + 归一化时序 */
+export const SentimentPhaseSchema = AnalyticsSectionBase.extend({
+  date: z.string().nullable().optional(),
+  phase: z.string().nullable().optional(),
+  red_ratio: NumOrNull.optional(),
+  red_ratio_pct: NumOrNull.optional(),
+  limit_up: NumOrNull.optional(),
+  limit_up_pct: NumOrNull.optional(),
+  limit_down: NumOrNull.optional(),
+})
+export type SentimentPhase = z.infer<typeof SentimentPhaseSchema>
+
+export const SentimentSeriesSchema = AnalyticsSectionBase.extend({
+  dates: z.array(z.string()).optional(),
+  labels: z.record(z.string(), z.string()).optional(),
+  series: z.record(z.string(), z.array(NumOrNull)).optional(),
+})
+export type SentimentSeries = z.infer<typeof SentimentSeriesSchema>
+
+/** 67 历史相似日：top-N 相似日 + 后继 5/10/20 日红盘占比分布 */
+export const SimilarDayRowSchema = z.object({
+  date: z.string(),
+  dist: z.number().nullable().optional(),
+  fwd: z.record(z.string(), NumOrNull).optional(),
+}).catchall(z.unknown())
+export const ForwardStatSchema = z.object({
+  n: z.number().nullable().optional(),
+  mean: NumOrNull.optional(),
+  median: NumOrNull.optional(),
+  p10: NumOrNull.optional(),
+  p90: NumOrNull.optional(),
+  up_ratio: NumOrNull.optional(),
+}).catchall(z.unknown())
+export const SimilarDaysSchema = AnalyticsSectionBase.extend({
+  target_date: z.string().nullable().optional(),
+  n_total: z.number().nullable().optional(),
+  exclude_window: z.number().nullable().optional(),
+  dims: z.array(z.string()).optional(),
+  dropped: z.record(z.string(), z.unknown()).optional(),
+  similar: z.array(SimilarDayRowSchema).optional(),
+  forward_stats: z.record(z.string(), ForwardStatSchema).optional(),
+})
+export type SimilarDays = z.infer<typeof SimilarDaysSchema>
+
+/** 68 情绪拐点扫描：z-score 极端后反转事件 */
+export const InflectionEventSchema = z.object({
+  dim: z.string(),
+  label: z.string().nullable().optional(),
+  date: z.string().nullable().optional(),
+  type: z.string().nullable().optional(),
+  extreme: NumOrNull.optional(),
+  current: NumOrNull.optional(),
+}).catchall(z.unknown())
+export const InflectionScanSchema = AnalyticsSectionBase.extend({
+  dims: z.array(z.string()).optional(),
+  dropped: z.record(z.string(), z.unknown()).optional(),
+  events: z.array(InflectionEventSchema).optional(),
+})
+export type InflectionScan = z.infer<typeof InflectionScanSchema>
+
+/** 69 温度持续期：五档持续期 + 冰点回归中性磨底时长 */
+export const DurationStatSchema = z.object({
+  n: z.number().nullable().optional(),
+  mean: NumOrNull.optional(),
+  median: NumOrNull.optional(),
+}).catchall(z.unknown())
+export const RegimeDurationSchema = AnalyticsSectionBase.extend({
+  band_labels: z.array(z.string()).optional(),
+  durations: z.record(z.string(), DurationStatSchema).optional(),
+  recovery: DurationStatSchema.nullable().optional(),
+  total_runs: z.number().nullable().optional(),
+})
+export type RegimeDuration = z.infer<typeof RegimeDurationSchema>
+
+export const BreadthAnalyticsSchema = z.object({
+  data_as_of: z.string().nullable(),
+  window: z.number(),
+  reliable_dims: z.array(z.string()),
+  reliable_labels: z.record(z.string(), z.string()),
+  offline_missing: z.record(z.string(), z.string()),
+  note: z.string(),
+  sections: z.object({
+    phase: z.object({
+      current: SentimentPhaseSchema,
+      series: SentimentSeriesSchema,
+    }),
+    similar: SimilarDaysSchema,
+    inflection: InflectionScanSchema,
+    duration: RegimeDurationSchema,
+  }),
+})
+export type BreadthAnalytics = z.infer<typeof BreadthAnalyticsSchema>
+
+/** 68 拐点扫描器单维度 z-score 轨迹（GET /breadth-zseries?dim=&window=）。
+ * 真端点按 window 截末段并显式 truncated；dates/z/raw 等长，markers 下标已重映射。 */
+export const ZSeriesSchema = z.object({
+  dim: z.string(),
+  label: z.string(),
+  data_as_of: z.string().nullable(),
+  window: z.number(),
+  available: z.boolean(),
+  reason: z.string().nullable(),
+  dates: z.array(z.string()),
+  z: z.array(NumOrNull),
+  raw: z.array(NumOrNull),
+  markers: z.array(z.number()),
+  truncated: z.boolean(),
+  note: z.string(),
+})
+export type ZSeries = z.infer<typeof ZSeriesSchema>

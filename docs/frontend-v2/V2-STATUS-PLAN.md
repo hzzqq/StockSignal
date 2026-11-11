@@ -12,11 +12,11 @@
 |---|---|---|
 | V2 是否主流技术 | ✅ 是，2026 一线组合 | `package.json`：React 19.3 / TS 7.0 / Vite 8.3 / Tailwind 4.3 / ECharts 6.1 / TanStack Q+R 5.1 / Zustand 5 / Zod 4.6 / MSW 2.7 / Vitest 5.1 |
 | V1 是否该淘汰 | ✅ 方向正确（已有红线：禁新增 Streamlit 页） | `MEMORY.md` 技术栈红线：新 UI 一律 v2/React |
-| V2 是否实现「全部」V1 提炼功能 | ❌ **否**，但覆盖率已大幅提升 | 74 个 V1 页面：✅56 已在 V2 有等价页（含 9 页 catalog 收口由 data 升 native + 16 财报日历 / 91 我的 / 99 决策问答 3 页新建真页面，见 §19）、🟡7 仅关联只读数据（广度·温度专项 50/62/65/67/68/69/70）、🔒11 v1 保留（永久不迁，如实盘交易）、⬜0 待迁移（92 用户管理 / 77 财报猎手 / 73 自定义看板 / 95 数据导出已于 2026-11-11 迁 v2，路由 /users、/financial-hunter、/dashboard-custom、/export） |
-| V2 当前是否真能跑 | ✅ 是 | `tsc` exit 0；`vitest` 378 passed；46 条 `AppPath` 全注册（截图脚本 `ROUTES` 47 条含深链变体，覆盖守卫 5/5） |
+| V2 是否实现「全部」V1 提炼功能 | ❌ **否**，但覆盖率已大幅提升 | 74 个 V1 页面：✅60 已在 V2 有等价页（含 9 页 catalog 收口 + 16/91/99 三页真页面见 §19 + 65/67/68/69 四页离线广度统计真页面见 §20）、🟡3 仅关联只读数据（50 市场情绪 / 62 动量广度共振 / 70 涨停复盘，见 §20）、🔒11 v1 保留（永久不迁，如实盘交易）、⬜0 待迁移 |
+| V2 当前是否真能跑 | ✅ 是 | `tsc` exit 0；`vitest` 388 passed / 1 skipped；50 条 `AppPath` 全注册（截图脚本 `ROUTES` 51 条含深链变体，覆盖守卫 5/5） |
 | 文档漂移 | ⚠️ `nav.manifest.json` 是过期 w0 死文件 | 未被任何代码 import，且其引用的 `IA-MIGRATION.md` 根本不存在 |
 
-**核心判断**：V2 技术栈正确、质量高、已实现 v1 的**决策/广度·温度/个股研究/量化信号/连板/告警/晨报/模拟交易/六维评分/行情看板/资金流向/龙虎榜/持仓中心/市场全景/状态机/题材/强势榜/用户管理/财报猎手/自定义看板**等核心分析闭环。按四档诚实口径（详见 §3 / §4，单一真理源 `frontend-v2/src/features/catalog/v2Mapping.ts`）：**56 个 native（v2 有等价页）+ 7 个 data（v2 仅关联只读数据）+ 11 个 v1 保留（永久不迁，如实盘交易）+ 0 个待迁移（92 用户管理 / 77 财报猎手 / 73 自定义看板 / 95 数据导出已于 2026-11-11 迁 v2，路由 /users、/financial-hunter、/dashboard-custom、/export；另 63 温度回测 / 31·32 选股 / 34 体检 / 44·47·94 告警 / 60 事件 / 98 仓位落地等 9 页 2026-11-11 catalog 收口由 data 升 native，不新建页）**；v1 短期内**不能整体下线**（尤其 43 实盘交易等真实券商下单能力永久留 v1），只能作为只读兜底并存。
+**核心判断**：V2 技术栈正确、质量高、已实现 v1 的**决策/广度·温度/个股研究/量化信号/连板/告警/晨报/模拟交易/六维评分/行情看板/资金流向/龙虎榜/持仓中心/市场全景/状态机/题材/强势榜/用户管理/财报猎手/自定义看板**等核心分析闭环。按四档诚实口径（详见 §3 / §4，单一真理源 `frontend-v2/src/features/catalog/v2Mapping.ts`）：**60 个 native（v2 有等价页，含 §20 四页离线广度统计）+ 3 个 data（v2 仅关联只读数据：50/62/70）+ 11 个 v1 保留（永久不迁，如实盘交易）+ 0 个待迁移（92 用户管理 / 77 财报猎手 / 73 自定义看板 / 95 数据导出已于 2026-11-11 迁 v2，路由 /users、/financial-hunter、/dashboard-custom、/export；另 63 温度回测 / 31·32 选股 / 34 体检 / 44·47·94 告警 / 60 事件 / 98 仓位落地等 9 页 2026-11-11 catalog 收口由 data 升 native，不新建页）**；v1 短期内**不能整体下线**（尤其 43 实盘交易等真实券商下单能力永久留 v1），只能作为只读兜底并存。
 
 ---
 
@@ -565,3 +565,81 @@ MSW 夹具因使用「预约披露日期/披露日期」旧列名而全绿，**�
 **四档最终口径**：**56 native + 7 data + 11 v1-pinned + 0 v1-only = 74**。剩余 7 个 data 页全为广度·温度专项
 （50/62/65/67/68/69/70），v2 `/breadth` 是整合概览、非逐页专项，不夸等价。
 v1 退役评估仍按用户要求挂起；43 实盘交易红线不碰。
+
+---
+
+## 20. 离线可靠广度统计四页升 native 真页面（2026-11-11，56/7/11/0 → 60/3/11/0）
+
+> 对应「接着做 v2」。本轮把 §19 剩余 7 个 data 页中**纯 Python、零 Streamlit 依赖、共用同一真值口径**的
+> 65/67/68/69 四页做成 v2 真页面；50/62/70 三页仍留 data（50 页 1218 行且依赖实时多指标、
+> 62 依赖 `momentum_breadth_resonance` 实时取数、70 页 511 行复盘逻辑），**不硬凑换皮页、不夸等价**。
+
+### 20.1 后端：一个聚合端点 + 一个按需端点
+
+| 端点 | 内容 | 诚实约束 |
+|---|---|---|
+| `GET /api/v2/read/breadth-analytics?window=N` | 包装 4 个纯模块：`speculative_clock`（当前相位 + 归一化时序）、`similar_day_cluster`、`inflection_scanner`、`regime_duration` | `window` 白名单 60/120/250/750/2000，非法 **400 validation_error**（不静默兜底）；`data_as_of` 取 `breadth_features.data_as_of()` 权威数据日 **2026-08-21**，不是 `now()` |
+| `GET /api/v2/read/breadth-zseries?dim=&window=` | 68 页单维度滚动 z-score 轨迹（独立按需取，不把全历史 4771 点塞进聚合包） | `dim` 必须是 `REAL_FEATURES` 白名单；截尾后 `dates/z/raw` 等长、`markers` 下标重映射并带 `truncated` 标记 |
+
+- **逐段独立降级**：`_analytics_section(fn)` 对异常/非 dict/`available=False` 只让该段
+  `available=False + reason`（异常类型与消息如实带出），其余段照常返回，**绝不整包 500、不补零、不编造统计**。
+- **真值口径单一来源**：`modules.breadth_features.REAL_FEATURES` 6 个可靠字段（约 100% 非空），
+  `OFFLINE_MISSING` 10 个离线缺真值维度逐条下发给前端披露，**绝不进入任何距离/分位/z-score 计算**。
+- 隔离库真跑取证：`NO_TOKEN 401 missing_token`；四段 `ALL_AVAILABLE True`（相位中性 / 250 日时序 /
+  15 个相似日 / 4 个拐点事件 / 5 个温度档）；`window=60/2000` 分别回 60/2000 点；
+  `window=999/abc` → 400；`dim` 缺参/注入 → 400；`json.dumps(allow_nan=False)` 通过。
+
+### 20.2 前端契约层：夹具由真端点 dump 生成（防 §19.2 漂移重演）
+
+先隔离库 dump 真响应结构，再写 Zod/read/queries/MSW —— 实测后端键与 schema 完全一致：
+`phase.current.reason`、`forward_stats` 键为字符串 `"5"/"10"/"20"`、`durations` 键为 `"0".."4"`、
+`recovery` 为对象、`offline_missing` 为 10 项字典。MSW 夹具直接由真响应裁末 60 日生成（**真实数据子集，非编造演示数**），
+handler 按 `window` 截尾并把 `window` 如实回显为**实际点数**，不假装拿到更长历史。
+
+**诚实修正（v1 遗留缺陷）**：v1 67/69 页柱状图用 `.get(off, 0)` / `m if m is not None else 0`
+把无样本窗口补成 0；v2 一律送 `null`（ECharts 不画该柱）并显式提示「无足够前向样本 / 不补 0」。
+`show()` 把 `0` 当真实数值显示（`n=0` 是统计事实），只把 `null/undefined/NaN` 显「—」。
+
+### 20.3 四页与路由
+
+| v1 页 | v2 路由 | 主体内容 |
+|---|---|---|
+| 65 投机情绪周期时钟 | `/sentiment-clock` | 当前相位五档 KPI + 5 维 min–max 归一化时序（窗口可切，参数真传后端） |
+| 67 历史相似日聚类 | `/similar-days` | top-15 相似日表 + 后 5/10/20 日红盘占比经验分布 + 信息族重叠警告 |
+| 68 情绪拐点扫描器 | `/inflection-scan` | 近期拐点事件表 + 维度切换 + z-score 折线（拐点标注 / ±1±2 阈值线） |
+| 69 温度持续期 | `/regime-duration` | 五档持续中位柱状图 + 逐档明细 + 冰点回归中性磨底时长 |
+
+四页共用 `features/analytics/shared.tsx`：`AnalyticsHeader`（权威数据日 + 非预测声明）、
+`SectionState`（段级降级）、`DataBoundary`（6 个可靠字段 + 10 个缺真值维度 + 方法学）。
+接线：`nav.ts`（AppPath + UTILITY_PATHS）、`router.tsx`（4 个 `lazyRouteComponent` + routeTree）、
+`AppShell.tsx`（底部 4 入口）、`v2Mapping.ts`、`scripts/shoot_frontend_v2.py` ROUTES **47→51**（`AppPath` 46→50，AST 实测）。
+
+### 20.4 守卫诚实化（4 处，均非放宽）
+
+1. `test_v1_pages_catalog.py`：data 条目 7→3 → 阈值 `>=5` 改 `>=3`（去重端点 `>=2` 不变，仍逐条验真注册）；
+   顺手修掉 `test_required_query_data_deeplinks_are_usable` 里**未定义的 `registered`**（过去因交集为空、
+   generator 不迭代而侥幸不报 `NameError`）→ 就地真扫 + 数量兜底。
+2. `test_diagnostics_endpoint_contract.py`：analytics 的 `window` 可选、缺参不 400 → 加入
+   `_VALIDATION_ONLY_400` 豁免（符合该集合既有语义）；zseries 缺 `dim` 真 400 → 登记
+   `_DIAG_REQUIRED_QUERY` 并同步 `diagnosticsEndpoints` 夹具两条。
+3. 新增 `tests/test_breadth_analytics_contract.py`（6 例，零网络零 DB）：window 白名单、
+   `_zseries_slice` 不变量、逐段隔离、端点鉴权/需参登记、**后端 data 键 == Zod schema 键 == MSW 夹具键**三重比对。
+4. 新增 `frontend-v2/tests/e2e/breadth-analytics.test.tsx`（10 例）：四页三态、窗口/dim 参数真传、
+   段级降级、缺样本显「—」、10 个离线维度披露。
+
+### 20.5 验证（全绿）
+
+| 项 | 结果 |
+|---|---|
+| `npx tsc --noEmit` | 0 错误 |
+| `npx vitest run` | **388 passed / 1 skipped**（51 文件；§19 基线 378 + 本轮 10） |
+| 前端守卫 | `honest-data`（抓到并修掉 4 处 `?? 0`）/ `echarts-setup`（markLine/markPoint 已注册）/ `route-lazy` 全绿 |
+| pytest 6 个守卫文件 | catalog / route-coverage / diagnostics-contract / public-numbers / earnings-contract / breadth-analytics-contract 全绿 |
+| `python -m backend.tests.test_security`（隔离库） | **12/12**，两个新端点均带 `@jwt_required`、未登录 401 |
+| 隔离库真端点联调 | 401 / 四段全 available / window 60·250·2000 / 非法 window·dim 400 / zseries 三数组等长 + markers 合法 / 信封无 NaN |
+| 四档守恒 | **60 native + 3 data + 11 v1-pinned + 0 v1-only = 74**（`count_tiers` 实测） |
+| 数字同步 | `gen_portfolio_page.py` 重跑：端点 137→**139**、测试 4616→**4622**、测试文件 500→**501**、护栏 102→**103**、源码 101,849→**101,994 行**；README + promo×2 + publish-kit×4 同步 4622/501 |
+
+**当前口径**：剩 3 个 data 页 = 50 市场情绪 / 62 动量广度共振 / 70 涨停复盘（均需实时源或复杂复盘逻辑，
+下一轮评估，不硬凑换皮页）。按用户要求，**v1 降级/退役评估继续挂起**；43 实盘交易红线不碰，
+v2 不提供任何真实券商下单能力。

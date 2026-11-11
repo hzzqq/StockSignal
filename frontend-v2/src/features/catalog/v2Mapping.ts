@@ -111,19 +111,21 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   // 91 我的 / 99 决策问答：v2 等价实现 /me（账户+看板偏好）/review-notes（复盘笔记），非新建页。
   '91_我的.py': { to: '/me' },
   '99_决策问答.py': { to: '/review-notes' },
+  // 65/67/68/69 离线可靠广度统计：v2 真页面（共用 /breadth-analytics，68 另按需取 /breadth-zseries）。
+  '65_投机情绪周期时钟.py': { to: '/sentiment-clock' },
+  '67_历史相似日聚类前向分布.py': { to: '/similar-days' },
+  '68_情绪拐点扫描器.py': { to: '/inflection-scan' },
+  '69_温度持续期与回归时长.py': { to: '/regime-duration' },
 }
 
 /** ② 无等价页面，但有真实只读端点可查看的关联数据（不是等价功能，页面会明示）。
  *  注：本档仅保留 v2 确无完整页面的页；已有等价 v2 页面的（如 10/35/84/85 等）
  *  已升级到 NATIVE，不再列入此处。 */
 const DATA: Record<string, { path: string; label: string }> = {
-  // 50/62/65/67/68/69/70 广度·温度簇：v2 /breadth 是概览，非这些专项分析 → 保留 data（不夸等价）。
+  // 65/67/68/69 已升 native 真页面；仅剩 50/62/70 三个复杂/实时依赖页保留 data
+  // （v2 /breadth 是概览而非这些专项分析，不夸等价，也不硬凑换皮页）。
   '50_市场情绪.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
   '62_动量广度共振.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
-  '65_投机情绪周期时钟.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
-  '67_历史相似日聚类前向分布.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
-  '68_情绪拐点扫描器.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
-  '69_温度持续期与回归时长.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
   '70_涨停复盘.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
 }
 

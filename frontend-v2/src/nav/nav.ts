@@ -46,6 +46,10 @@ export type AppPath =
   | '/earnings-calendar'
   | '/me'
   | '/review-notes'
+  | '/sentiment-clock'
+  | '/similar-days'
+  | '/inflection-scan'
+  | '/regime-duration'
 
 export interface NavItem {
   to: AppPath
@@ -122,4 +126,5 @@ export const NAV: NavGroup[] = [
 export const UTILITY_PATHS: readonly AppPath[] = [
   '/settings', '/catalog', '/data', '/matrix', '/guide', '/users', '/financial-hunter', '/dashboard-custom', '/export',
   '/earnings-calendar', '/me', '/review-notes',
+  '/sentiment-clock', '/similar-days', '/inflection-scan', '/regime-duration',
 ]

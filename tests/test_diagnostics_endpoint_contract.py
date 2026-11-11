@@ -82,9 +82,12 @@ def _required_query_map(tree: ast.Module) -> dict[str, dict[str, str]]:
 # 缺失 query 参数时会回落默认值——factor-analysis 缺 codes 回落演示标的、
 # trading-account 缺 user 回落 admin——因此不会「缺参即 400」，不属于需参集合，
 # 哨兵不把它们误报成漏登记。（与 _DIAG_REQUIRED_QUERY 双向契约仍覆盖真正缺参即 400 的端点。）
+# breadth-analytics 的 window 是**可选**参数（缺省 250），只有显式传了非法值才 400；
+# 缺参请求照样 200，因此同属 validation-only，不应被接口检测当成需参端点。
 _VALIDATION_ONLY_400 = {
     "/api/v2/read/factor-analysis",
     "/api/v2/read/trading-account",
+    "/api/v2/read/breadth-analytics",
 }
 
 

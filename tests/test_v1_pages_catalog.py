@@ -109,10 +109,10 @@ def test_data_mapping_paths_are_real_read_endpoints():
     paths_all = re.findall(r"path: '(/api/v2/read/[^']+)'", mapping)
     paths = set(paths_all)
     assert len(registered) >= 20, f"后端只扫到 {len(registered)} 个 GET 端点，正则疑似失效"
-    # catalog 收口后数据层已大幅缩减：现仅 7 条 data 条目、去重 2 个端点
+    # 65/67/68/69 升 native 后数据层仅剩 3 条 data 条目、去重 2 个端点
     # （breadth-timeseries / breadth-history）。阈值只防「正则扫空/几乎扫空」，
     # 故按真实条目数给下限（条目数更能反映 v1 页是否仍在使用数据层）。
-    assert len(paths_all) >= 5, f"映射只扫到 {len(paths_all)} 条 data 条目，正则疑似失效"
+    assert len(paths_all) >= 3, f"映射只扫到 {len(paths_all)} 条 data 条目，正则疑似失效"
     assert len(paths) >= 2, f"映射只扫到 {len(paths)} 个去重 data 端点，正则疑似失效"
     missing = {
         p for p in paths
@@ -145,5 +145,9 @@ def test_required_query_data_deeplinks_are_usable():
     # 处理 query，故不再强制 catalog 持有需参深链。仅当 catalog 仍有指向需参端点的
     # data 深链时，才需它落到已注册端点（防编造）。
     linked = set(re.findall(r"path: '(/api/v2/read/[^']+)'", MAPPING.read_text(encoding="utf-8")))
+    # registered 曾在别的测试函数里定义，本函数未定义；过去因 linked & required 为空
+    # 生成器不迭代而侥幸不报 NameError。现在就地真扫 + 数量兜底，杜绝守卫自我静音。
+    registered = set(re.findall(r'@bp\.get\("([^"]+)"\)', READ_ROUTES.read_text(encoding="utf-8")))
+    assert len(registered) >= 20, f"后端只扫到 {len(registered)} 个 GET 端点，正则疑似失效"
     bogus = sorted(p for p in (linked & required) if p.removeprefix("/api/v2/read") not in registered)
     assert not bogus, f"catalog 指向的需参端点却未注册: {bogus}"

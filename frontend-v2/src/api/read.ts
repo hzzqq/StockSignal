@@ -32,6 +32,8 @@ import {
   QuoteBoardSchema,
   UserDashboardSchema,
   EarningsCalendarSchema,
+  BreadthAnalyticsSchema,
+  ZSeriesSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -64,6 +66,8 @@ import {
   type QuoteBoard,
   type UserDashboard,
   type EarningsCalendar,
+  type BreadthAnalytics,
+  type ZSeries,
 } from './schemas/read'
 
 /**
@@ -135,6 +139,19 @@ export function getUserDashboard(): Promise<UserDashboard> {
 export function getEarningsCalendar(market = '沪深京', period = '2025年报'): Promise<EarningsCalendar> {
   const q = `earnings-calendar?market=${encodeURIComponent(market)}&period=${encodeURIComponent(period)}`
   return readValidated(q, EarningsCalendarSchema)
+}
+
+/** GET /api/v2/read/breadth-analytics?window=N —— 离线可靠广度统计四段（65/67/68/69 页 v2 数据源）。
+ * window 只认后端白名单 60/120/250/750/2000；非法值后端 400，前端不静默兜底。 */
+export function getBreadthAnalytics(window = 250): Promise<BreadthAnalytics> {
+  const q = new URLSearchParams({ window: String(window) })
+  return readValidated(`breadth-analytics?${q.toString()}`, BreadthAnalyticsSchema)
+}
+
+/** GET /api/v2/read/breadth-zseries?dim=&window= —— 单维度 z-score 轨迹（68 页按需取）。 */
+export function getBreadthZSeries(dim: string, window = 250): Promise<ZSeries> {
+  const q = new URLSearchParams({ dim, window: String(window) })
+  return readValidated(`breadth-zseries?${q.toString()}`, ZSeriesSchema)
 }
 
 /** GET /api/v2/read/webapps —— 网页作品集元数据（86 页作品清单） */

@@ -39,6 +39,8 @@ import type {
   QuoteBoard,
   UserDashboard,
   EarningsCalendar,
+  BreadthAnalytics,
+  ZSeries,
 } from '@/api/schemas/read'
 
 /**
@@ -130,6 +132,29 @@ export function useEarningsCalendar(market: string, period: string): UseQueryRes
   return useQuery({
     queryKey: ['read', 'earnings-calendar', market, period],
     queryFn: () => api.getEarningsCalendar(market, period),
+    staleTime: THIRTY_MIN,
+  })
+}
+
+/** 离线可靠广度统计四段（65/67/68/69 页 v2 共用）；按窗口分缓存，日级数据 30min。 */
+export function useBreadthAnalytics(window = 250): UseQueryResult<BreadthAnalytics> {
+  return useQuery({
+    queryKey: ['read', 'breadth-analytics', window],
+    queryFn: () => api.getBreadthAnalytics(window),
+    staleTime: THIRTY_MIN,
+  })
+}
+
+/** 68 页单维度 z-score 轨迹：维度为空时不发请求（enabled=false），避免 400 刷屏。 */
+export function useBreadthZSeries(
+  dim: string,
+  window = 250,
+  enabled = true,
+): UseQueryResult<ZSeries> {
+  return useQuery({
+    queryKey: ['read', 'breadth-zseries', dim, window],
+    queryFn: () => api.getBreadthZSeries(dim, window),
+    enabled: enabled && !!dim,
     staleTime: THIRTY_MIN,
   })
 }

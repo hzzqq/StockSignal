@@ -184,6 +184,42 @@ export function AppShell() {
             <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">❓</span>
             <span className="nav-label hidden md:inline whitespace-nowrap">决策问答</span>
           </Link>
+          <Link
+            to="/sentiment-clock"
+            title="投机情绪时钟"
+            aria-label="投机情绪时钟"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">◷</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">投机情绪时钟</span>
+          </Link>
+          <Link
+            to="/similar-days"
+            title="历史相似日"
+            aria-label="历史相似日"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">≋</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">历史相似日</span>
+          </Link>
+          <Link
+            to="/inflection-scan"
+            title="情绪拐点扫描"
+            aria-label="情绪拐点扫描"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⤴</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">情绪拐点扫描</span>
+          </Link>
+          <Link
+            to="/regime-duration"
+            title="温度持续期"
+            aria-label="温度持续期"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⧗</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">温度持续期</span>
+          </Link>
         </div>
       </aside>
 
