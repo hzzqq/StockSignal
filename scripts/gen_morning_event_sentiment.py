@@ -104,6 +104,40 @@ def read_signal_meta_cheap(path: str) -> dict:
     return out
 
 
+def read_signal_quality_cheap(path: str) -> "dict | None":
+    """从文件尾部读取 quality 体检块（避免加载 55MB 大文件）。
+
+    quality 位于信号 JSON 末尾、体积小（~600 字符），故只读尾部 8KB 即可截取，
+    再做括号匹配提取对象后 json.loads。读取失败 / 无 quality 块 → 返回 None（不编造）。
+    当前仅 gru 一路带此块（status=research_only / usable_for_decision=false）。
+    """
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            sz = f.tell()
+            f.seek(max(0, sz - 8192))
+            tail = f.read().decode("utf-8", errors="ignore")
+        idx = tail.find('"quality"')
+        if idx < 0:
+            return None
+        start = tail.find("{", idx)
+        if start < 0:
+            return None
+        depth = 0
+        for i in range(start, len(tail)):
+            c = tail[i]
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    return json.loads(tail[start:i + 1])
+        return None
+    except Exception as e:  # noqa: BLE001
+        print(f"[R-01] 晨报 quality 解析失败: {e}")
+        return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="预览不落盘")
@@ -156,7 +190,8 @@ def main():
         if os.path.exists(p):
             m = read_signal_meta_cheap(p)
             cross_models.append({"file": fn, "model": m.get("model") or fn.replace("signal_", "").replace("_h10.json", ""),
-                                 "latest_date": m.get("latest_date"), "lag": _age_days(m.get("latest_date"))})
+                                 "latest_date": m.get("latest_date"), "lag": _age_days(m.get("latest_date")),
+                                 "quality": read_signal_quality_cheap(p)})
     # fusion 模型离群检测（动态，替代硬编码「仍停滞 2026-08-14」——该脚注曾长期失真）：
     # 取跨模型清单中 fusion 的真实 latest_date/lag，若明显落后于其它模型则标注离群，否则标注已同步。
     _fusion_cm = next((c for c in cross_models if c["file"] == "signal_fusion_h10.json"), None)
@@ -498,7 +533,11 @@ def main():
     lines.append("")
     lines.append("**跨模型事件信号 latest_date（同源陈旧，验证事件因子整体过期）：**")
     for cm in cross_models:
-        lines.append(f"- `{cm['file']}`（{cm['model']}）：latest_date **{fmt(cm['latest_date'])}**，滞后 **{fmt(cm['lag'])}** 天")
+        _q = cm.get("quality")
+        _q_tag = ""
+        if _q is not None and not _q.get("usable_for_decision", True):
+            _q_tag = "　·　⚠️ **research_only，禁止用于投资决策**"
+        lines.append(f"- `{cm['file']}`（{cm['model']}）：latest_date **{fmt(cm['latest_date'])}**，滞后 **{fmt(cm['lag'])}** 天{_q_tag}")
     lines.append("")
     # 诚实口径：市场温度缓存 as_of 现取自 market_cache.db 的 market_indicator_cache 表**内容最大日期**
     # （内容日期；T-214 起由 mtime 改内容日期——mtime 会被健康观测表等无关写入刷新，属假新鲜，已废弃）。

@@ -462,6 +462,14 @@ def fragment_p1_ev():
     # 默认优先 EV（全量口径最优），否则取第一个可用模型
     model = "ev" if "ev" in models else models[0]
 
+    # 信号质量体检披露（gru 一路 research_only，禁止用于投资决策；EV/Baseline 无 quality 块则不渲染）
+    _p1q = ld.quality(model)
+    if _p1q is not None and not _p1q.get("usable_for_decision", True):
+        xc_warn_box(
+            f"⚠️ 信号质量体检：{ld.model_label(model)} 为 research_only，禁止用于投资决策",
+            hint=f"{_p1q.get('warning', '')}\n\n{_p1q.get('note', '')}",
+        )
+
     col_ref, col_btn = st.columns([4, 1])
     with col_ref:
         _p1_age = ld.signal_age_days(model)

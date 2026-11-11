@@ -283,6 +283,14 @@ class P1SignalLoader:
             }
         return out
 
+    def quality(self, model: str) -> "dict | None":
+        """返回该模型信号的 quality 体检块（若无则 None）。
+
+        当前仅 gru 独立信号路带此块（status=research_only / usable_for_decision=false /
+        反号证据 / 报告路径）。页面据此如实告知用户「禁止用于投资决策」，不静默混入榜单。
+        """
+        return self.load(model).get("quality")
+
     # ---- A/B 对比 ----
     def top_overlap(self, model_a: str, model_b: str, n: int = 20):
         """两个模型 top_long（前 n 只）的 Jaccard 重叠度与重叠只数。"""

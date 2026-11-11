@@ -102,6 +102,31 @@ xc_kpi_grid([
 ])
 
 
+# ───────────────────────── 信号质量体检披露（gru 一路 research_only） ─────────────────────────
+# 数据层（P1 导出）已为 gru 一路固化 quality 块；此处如实告知用户「禁止用于投资决策」，
+# 不静默混入看多/看空榜。其它模型无 quality 块 → 不渲染（避免无谓噪音）。
+_q = loader.quality(model)
+if _q is not None:
+    _q_status = _q.get("status", "unknown")
+    _q_usable = _q.get("usable_for_decision", True)
+    _q_warn = _q.get("warning", "")
+    _q_note = _q.get("note", "")
+    _q_ev = _q.get("evidence") or {}
+    if not _q_usable:
+        xc_warn_box(
+            f"⚠️ 信号质量体检：{loader.model_label(model)} 为 research_only，禁止用于投资决策",
+            hint=(f"{_q_warn}\n\n"
+                  f"证据窗口：{_q_ev.get('window', '—')}；近窗 rank-IC={_q_ev.get('rank_ic_recent', '—')}；"
+                  f"LS_t={_q_ev.get('ls_t_recent', '—')}。\n"
+                  f"{_q_note}"),
+        )
+    else:
+        xc_success_box(
+            f"信号质量体检：{loader.model_label(model)} 可用",
+            hint=_q_note or "该信号已通过数据质量体检，可用于参考。",
+        )
+
+
 # ───────────────────────── 榜单渲染 ─────────────────────────
 def _board_html(rows, head_color, empty="无数据", rank_as_percent=False):
     if not rows:
