@@ -767,12 +767,29 @@ def _limitup_build_ladder_section(lad):
 
 
 def _flatten_unavailable(meta):
+    """把 meta 里各维度的 unavailable 条目拍平为统一列表。
+
+    防御要点（2026-11-12 修真缺陷）：meta 可能含非维度注入键（如
+    modules.market_drivers 在进程缓存过期时写入的 _swr_stale/_swr_age_s/
+    _swr_note，其值分别为 bool/int/str），这些键不是维度 dict，不能对其调
+    .get("unavailable")，否则 AttributeError → 端点 500。任何非 dict 的 info
+    一律跳过；unavailable 取值非列表时以 [] 兜底，避免二次崩溃。
+    """
     out = []
-    if not meta:
+    if not meta or not isinstance(meta, dict):
         return out
     for dim, info in meta.items():
-        for key, reason in info.get("unavailable", []):
-            out.append({"dim": dim, "key": key, "reason": reason or "抓取失败"})
+        if not isinstance(info, dict):
+            continue
+        unavail = info.get("unavailable")
+        # 防御：unavailable 须为 (key, reason) 对的列表/元组；非列表（如字符串）或
+        # 元素非 2 元组一律跳过，绝不二次崩溃。
+        if not isinstance(unavail, (list, tuple)):
+            continue
+        for item in unavail:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                key, reason = item[0], item[1]
+                out.append({"dim": dim, "key": key, "reason": reason or "抓取失败"})
     return out
 
 

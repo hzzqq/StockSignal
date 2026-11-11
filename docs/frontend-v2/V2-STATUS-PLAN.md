@@ -808,3 +808,32 @@ v2 不提供任何真实券商下单能力。
 - ff-only 推 `origin/main`；仅 stage `backend/tests/test_read_routes.py` + `tests/test_read_contract_drift.py`（注释同步）+ `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
 - 实证：同进程跑完 `test_read_routes.py` 后 `rr._DATA_DIR` 还原为真实值（LEAK_GONE）；组合 `test_read_routes.py` → 本守卫同会话 `pytest` exit=0。
 - 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。v1 降级/退役评估继续挂起；43 实盘交易红线不碰。
+
+## 25. 真后端集成冒烟 + market-sentiment 优雅降级 500 真缺陷修复（2026-11-12，v2 接着开发）
+
+> 背景（补 deferred 项）：§24 契约守卫只离线对键、MSW 夹具不能证明「真后端真能正确吐信封」。本轮用**真实 Flask app + 真实 JWT** 打离线可达端点做集成冒烟，并借此抓到一个**高频真实 500 缺陷**。
+
+### 25.1 真实缺陷（market-sentiment 缓存过期即 500）
+- **现象**：`GET /api/v2/read/market-sentiment` 在底层 `modules.market_drivers.get_market_drivers` 因**进程缓存过期**返回的 `meta` 含非维度注入键（`_swr_stale`=bool / `_swr_age_s`=int / `_swr_note`=str）时，`api/read_routes.py::_flatten_unavailable` 对每条 `meta.items()` 都调 `.get("unavailable")`，遇到字符串 `_swr_note` → `AttributeError` → 端点 **500**，违背「优雅降级」契约。
+- **触发频率**：进程缓存过期在生产中**高频**（缓存 TTL 一过即触发）——即「只要缓存过期，`/market-sentiment`（v2 native 页）必定 500」。其余联网端点（momentum-breadth / limit-up-review / earnings-calendar）均正确降级为 200 ok，唯独本端点挂掉。
+- **根因定位**：`modules/market_drivers.py` 第 136-139 行在 SWR 缓存过期时往 `meta` 注入 `_swr_stale/_swr_age_s/_swr_note`；`_flatten_unavailable` 未区分「维度 dict」与「注入键」，对后者调 `.get` 崩溃。
+- **修复**（`backend/api/read_routes.py`）：`_flatten_unavailable` 改为——
+  1. `meta` 非 dict → 直接返回空；
+  2. `info` 非 dict（即 `_swr_*` 注入键）→ 跳过；
+  3. `info["unavailable"]` 非 list/tuple，或元素非 2 元组 → 跳过（兜底，绝不二次崩溃）。
+
+### 25.2 新增守卫（两文件，共 7 例，全绿）
+- `backend/tests/test_market_sentiment_degradation.py`（4 例）：① 直接单测 `_flatten_unavailable` 对 `_swr_*` 注入键 / 非 dict / None / `unavailable` 非列表 的健壮性；② 集成测试 monkeypatch `get_market_drivers` 返回带 `_swr_*` 注入键的 meta（精确复现缓存过期触发条件），断言端点 **200 ok（非 500）** 且 `unavailable` 正确拍平（`north_flow`/`pe_median` 入场，`_swr_*` 跳过）——旧代码下断言必失败，确为有效锁。
+- `backend/tests/test_read_routes_integration.py`（3 例）：真 app + 真 token 打 13 个**离线可达端点**（本地真数据，不联网），断言统一信封（200 + status/code/message/data 四字段 + data 类型正确：8 个 object / 5 个 list）；鉴权门（无 token → 401 `missing_token`）；非法参数（breadth-analytics?window=999 → 400；six-dim?code=BAD → 400）。即 §24 离线对键之外的**第二道真后端防线**。
+
+### 25.3 回归核验
+- 新两文件：`pytest` 全绿（4 + 3）。
+- `backend/tests/test_read_routes.py`（泄漏根治版）：55/55 全绿（无回归）。
+- `python -m backend.tests.test_security`：**12/12**（与 read_routes 改动无关，独立确认）。
+- 前端无需改动：`MarketSentiment.tsx` 早已按 `available=false` 诚实空态 + `unavailable[]` 渲染，`data_refresh_state` 等不受影响。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**（纯后端测试，不触前端页面计数）。v1 降级/退役评估继续挂起；43 实盘交易红线不碰。
+
+### 25.4 提交与推送
+- commit（msg: `fix(v2): 修 market-sentiment 缓存过期 500 真缺陷 + 新增真后端集成冒烟守卫`）。
+- ff-only 推 `origin/main`；仅 stage `backend/api/read_routes.py` + `backend/tests/test_market_sentiment_degradation.py` + `backend/tests/test_read_routes_integration.py` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`frontend-v2/`、`thesis/`、`backups/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage（本轮无前端改动）。
+- ks 父仓库 submodule 指针留痕不推。
