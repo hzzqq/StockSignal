@@ -680,3 +680,53 @@ v2 不提供任何真实券商下单能力。
 | 数字同步 | `gen_portfolio_page.py` 重跑：端点 139→**142**、页面 74；README + promo×2 + publish-kit×4 同步（仅 `docs/` 下历史评估文档有旧 139，属历史快照非活动物料，不改） |
 
 **当前口径**：四档 **63 / 0 / 11 / 0 = 74**，data 档彻底归零；剩余 11 个 v1 保留全部为永久不迁（含 43 实盘交易等真实券商下单能力）。按用户要求，**v1 降级/退役评估继续挂起**；43 实盘交易红线不碰，v2 不提供任何真实券商下单能力。
+
+---
+
+## 22. 收口补记（2026-11-11 末，/p1-construction 诚实红线 + 路由 + 测试，修 breadth 守卫解析）
+
+> 对应「都做 / 请继续」收尾：把已登记路由但半成品的 **P1 组合构建诊断页 `/p1-construction`** 收口为可用页，并修两处守卫缺陷。
+> 该页是 **v2 原生新增页**（P1 组合构建诊断），**不在 `v2Mapping.ts` 四档 74 目录内**（与 `/diagnostics`、`/catalog`、`/data` 同类），故四档口径**不变：63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+
+### 22.1 交付内容
+
+| 文件 | 变更 | 说明 |
+|---|---|---|
+| `features/p1/ConstructionDiagnostics.tsx` | 新建 | 本地 JSON `data/constructionDiag.json` **直读**、零网络零写入；新增 `netX(v)` helper 防御缺失值（`undefined/null/NaN` → 显「—」，不补零） |
+| `features/p1/constructionDiag.ts` | 新建 | `ConstructionDiagSchema`（Zod 严格解析）+ `useConstructionDiag()` hook（`staleTime: Infinity`） |
+| `features/p1/data/constructionDiag.json` | 新建（**`git add -f` 强加入**） | 页面必需源数据；被 `.gitignore` 第 23 行 `data/` 规则命中，未强加入则全新 `clone`/`build` 页面崩 |
+| `app/router.tsx` | 改 | 登记 `p1ConstructionRoute`（`/p1-construction`，`lazyRouteComponent` + routeTree 入 `p1Route` 之后） |
+| `nav/nav.ts` | 改 | `AppPath` 联合类型加 `'/p1-construction'`；`NAV` 加 `{ to:'/p1-construction', label:'P1 组合构建诊断', icon:'📐' }` |
+| `scripts/shoot_frontend_v2.py` | 改 | `ROUTES` 元组补 `("/p1-construction","p1_construction")`（满足路由覆盖守卫） |
+| `features/breadth/LimitUpReview.test.tsx` | 改 | 修 `tsc` 抓到的元组类型错误：`ladder.distribution` 字面量加 `as [number, number]` 断言 |
+| `tests/e2e/ConstructionDiagnostics.test.tsx` | 新建（4 例） | loading(`加载中…`) / error(`role=alert`+文案) / empty(`暂无组合构建诊断数据`) / ok(标题+诊断结论+诚实边界+KPI) |
+| `tests/unit/constructionDiag.test.ts` | 新建（4 例） | `ConstructionDiagSchema.parse(raw)` 通过 / `headline.rf===10` / `headline.buffer===0` / 三条曲线等长 |
+| `tests/test_breadth_analytics_contract.py` | 改 | 修解析缺陷（见 §22.3）|
+
+### 22.2 抓到的真实缺陷（4 处，均已修复）
+
+1. **部署级缺失**：`constructionDiag.json` 被 `.gitignore` 的 `data/` 规则命中而**未自动追踪**；本仓 `frontend-v2/src` 下零 json 被追踪 → 页面在全新 `clone/build` 会崩。**修复**：`git add -f` 强制加入，并在 commit message 标注此例外。
+2. **路由覆盖守卫**：`/p1-construction` 进 `nav.ts` 的 `AppPath` 后，`scripts/shoot_frontend_v2.py` 的 `ROUTES` 漏覆盖 → 守卫红。**修复**：`ROUTES` 补该条。
+3. **breadth 守卫解析（`JSONDecodeError: Extra data`）**：§21 新增 `breadthZSeries` 夹具后 `breadthZSeries` 非末位 `const`，旧 `_fixture_object` 简单 `json.loads(剩余)` 因后续多对象 + 注释而失败。**修复**：新增 `_extract_balanced_braces(text, open_idx)` 按括号深度解析（跳过字符串/注释内括号），彻底解耦 const 间注释与后续多对象 → 6/6 绿。
+4. **`tsc` 元组类型错误**：`LimitUpReview.test.tsx` 的 `number[][]` vs `[number,number][]` → 加断言。
+
+### 22.3 诚实红线
+
+`honest-data.test.tsx` 守卫抓到 `ConstructionDiagnostics.tsx` 用 `?? 0` 补零 → 新增 `netX()` 显「—」并替换三处（long_only_net / long_short_net / benchmark_gross），与全站零兜底原则一致。
+
+### 22.4 验证（全绿，本地复跑确认）
+
+| 项 | 结果 |
+|---|---|
+| `tsc --noEmit` | 0 错误 |
+| `vitest run` | **408 passed / 1 skipped**（56 文件；§21 基线 395 + 本轮 13：ConstructionDiagnostics 4 + constructionDiag 4 + LimitUpReview 修复相关） |
+| pytest 守卫 | `test_breadth_analytics_contract` / `route-coverage` / `public-numbers` / `v1-pages-catalog` **36 例全绿** |
+| `python -m backend.tests.test_security`（隔离库） | **12/12**（本轮未动后端产品代码，三端点契约不变） |
+
+### 22.5 提交与推送
+
+- commit `645e0eb`（msg: `fix(v2): 收口 /p1-construction 诚实红线+路由+测试，修 breadth 守卫解析`），**10 files changed, +1489/−5**。
+- ff-only 推 `origin/main`：`882dab8..645e0eb`，复校 `LOCAL==REMOTE==645e0eb…` → **SYNCED_OK**（submodule 本体 `origin/main` 最新）。
+- 仅 stage `frontend-v2/` + `scripts/shoot_frontend_v2.py` + 相关 `tests/`；`backups/`、`thesis/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
+- ks 父仓库 submodule 指针按红线留痕不推。
+- 四档口径：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**（未变）。v1 降级/退役评估继续挂起；43 实盘交易红线不碰。
