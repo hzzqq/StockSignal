@@ -59,7 +59,8 @@ function ScoreBar({ label, value, color }: { label: string; value: number; color
 
 function Row({ it, idx }: { it: StrongItem; idx: number }) {
   const medal = MEDALS[idx] ?? `${idx + 1}`
-  const score = nz(it.score)
+  // score 后端已清洗为 null（数据不足）；缺失显「—」，不补零（避开诚实红线）。
+  const score = it.score
   return (
     <div className="border border-sf-line rounded-md p-3">
       <div className="flex justify-between items-center">
@@ -70,7 +71,7 @@ function Row({ it, idx }: { it: StrongItem; idx: number }) {
         </div>
         <div className="text-right">
           <span className="text-xs font-semibold" style={{ color: chgColor(it.chg) }}>{fmtPct(it.chg)}</span>{' '}
-          <span className="text-lg font-bold ml-2" style={{ color: scoreColor(score) }}>{score.toFixed(1)}</span>
+          <span className="text-lg font-bold ml-2" style={{ color: scoreColor(score) }}>{score == null ? '—' : score.toFixed(1)}</span>
           <div className="text-[11px] opacity-60">价 {fmtPrice(it.price)}</div>
         </div>
       </div>
@@ -101,7 +102,8 @@ export function Strong() {
     .filter((it) => (onlyUpActive ? nz(it.chg) > 0 : true))
     .slice(0, topN)
   const isEmpty = !!d && items.length === 0
-  const topScore = filtered.length > 0 ? nz(filtered[0].score) : null
+  // 榜首评分取原始 nullable 值；缺失由下方 Stat 显「—」，不补零。
+  const topScore = filtered.length > 0 ? filtered[0].score : null
 
   return (
     <div className="strong">

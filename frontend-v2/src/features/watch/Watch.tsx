@@ -98,10 +98,10 @@ export function Watch() {
         {d ? (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Stat label="盯盘数量" value={String(nz(summary?.watch_count))} sub="自选股只数" />
-              <Stat label="有资金流" value={String(nz(summary?.with_fund))} sub="已拿到主力资金流" />
-              <Stat label="强预警" value={String(nz(summary?.strong_count))} sub="主力净流入占比≥+3%" />
-              <Stat label="弱预警" value={String(nz(summary?.weak_count))} sub="主力净流入占比≤-3%" />
+              <Stat label="盯盘数量" value={summary?.watch_count == null ? '—' : String(summary.watch_count)} sub="自选股只数" />
+              <Stat label="有资金流" value={summary?.with_fund == null ? '—' : String(summary.with_fund)} sub="已拿到主力资金流" />
+              <Stat label="强预警" value={summary?.strong_count == null ? '—' : String(summary.strong_count)} sub="主力净流入占比≥+3%" />
+              <Stat label="弱预警" value={summary?.weak_count == null ? '—' : String(summary.weak_count)} sub="主力净流入占比≤-3%" />
             </div>
 
             {unavailable.length > 0 && (

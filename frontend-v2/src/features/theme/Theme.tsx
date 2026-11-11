@@ -44,6 +44,11 @@ function chgColor(v: unknown): string {
   return CHART.ink2
 }
 
+// 可见整数文本：缺失（非有限数）显「—」，不补零（避开诚实红线）。
+function fmtInt(v: unknown): string {
+  return typeof v === 'number' && Number.isFinite(v) ? String(v) : '—'
+}
+
 function treemapValue(c: ThemeConcept): number {
   const mv = typeof c.mv === 'number' && Number.isFinite(c.mv) ? c.mv : null
   if (mv != null && mv > 0) return mv
@@ -61,8 +66,9 @@ function buildTreemapOption(concepts: ThemeConcept[]): EChartsOption {
     backgroundColor: 'transparent',
     tooltip: {
       formatter: (p: unknown) => {
-        const pp = p as { name?: string; value?: number }
-        return `${pp.name ?? ''}｜市值 ${nz(pp.value) / 1e8 >= 1 ? `${(nz(pp.value) / 1e8).toFixed(0)} 亿` : `${nz(pp.value)}`}`
+        const pp = p as { name?: string; value: number }
+        // pp.value 来自 treemapValue，恒为有限数（仅 withMv 板块入图）；直接用，不补零。
+        return `${pp.name ?? ''}｜市值 ${pp.value / 1e8 >= 1 ? `${(pp.value / 1e8).toFixed(0)} 亿` : `${pp.value}`}`
       },
     },
     series: [
@@ -244,13 +250,13 @@ export function Theme() {
         {tx.data && tx.data.status === 'empty' && (
           <div className="mt-3 text-xs text-sf-ink-3 border-l-2 border-sf-line pl-3">
             📭 {String((tx.data as unknown as { reason?: string }).reason ?? '标题里没有命中任何已知概念')}
-            （已分析 {nz(tx.data.n_titles)} 条标题）
+            （已分析 {fmtInt(tx.data.n_titles)} 条标题）
           </div>
         )}
         {tx.data && (tx.data.status === 'ok' || (tx.data.entries && tx.data.entries.length > 0)) && (
           <div className="mt-3 space-y-2">
             <div className="text-xs text-sf-ink-3">
-              最近一次生成：新闻标题 {nz(tx.data.n_titles)} 条｜命中概念 {nz(tx.data.n_concepts)} 个。
+              最近一次生成：新闻标题 {fmtInt(tx.data.n_titles)} 条｜命中概念 {fmtInt(tx.data.n_concepts)} 个。
               {tx.data.basis ? `｜口径：${tx.data.basis}` : ''}
             </div>
             {tx.data.members_unavailable && tx.data.members_unavailable.length > 0 && (

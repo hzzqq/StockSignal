@@ -63,14 +63,15 @@ function buildTreemapOption(items: SectorItem[]): EChartsOption {
     name: it.name ?? '—',
     value: Math.abs(nz(it.net)) + 1, // +1 保底，避免 0 尺寸不渲染
     itemStyle: { color: tileColor(it.chg_pct) },
-    _chg: nz(it.chg_pct),
-    _net: nz(it.net),
+    // 存原始值（缺失存 null）：tooltip 经 fmtPct/fmtYi 显「—」，不再把 null 补成 0。
+    _chg: typeof it.chg_pct === 'number' && Number.isFinite(it.chg_pct) ? it.chg_pct : null,
+    _net: typeof it.net === 'number' && Number.isFinite(it.net) ? it.net : null,
   }))
   return {
     backgroundColor: 'transparent',
     tooltip: {
       formatter: (p: unknown) => {
-        const pp = p as { name?: string; _chg?: number; _net?: number }
+        const pp = p as { name?: string; _chg?: number | null; _net?: number | null }
         return `${pp.name ?? ''}｜涨跌幅 ${fmtPct(pp._chg)}｜净额 ${fmtYi(pp._net)}`
       },
     },

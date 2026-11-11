@@ -730,3 +730,43 @@ v2 不提供任何真实券商下单能力。
 - 仅 stage `frontend-v2/` + `scripts/shoot_frontend_v2.py` + 相关 `tests/`；`backups/`、`thesis/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
 - ks 父仓库 submodule 指针按红线留痕不推。
 - 四档口径：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**（未变）。v1 降级/退役评估继续挂起；43 实盘交易红线不碰。
+
+## 23. 质量加固补记（2026-11-12，nz() 隐藏补零诚实红线漏洞收口）
+
+> 对应「接着开发 v2 / 质量加固 + 真实缺陷排查」方向：审计发现 `honest-data.test.tsx` 守卫只抓 `?? 0` / `|| 0` / `new Date()`，而 6 个组件各定义了一个局部 `nz()` helper（`v => 非数 ? 0 : v`），把 schema 里 `nullable` 字段的 `null` 伪装成真实「0 / 0.0 / 0 条」直接进用户可见文本，**绕过守卫**。属系统性诚实红线漏洞。
+
+### 23.1 发现路径
+- `grep nz\(` 全 `frontend-v2/src` → Strong / Theme / Watch / SectorRotation / QuoteBoard / DragonTiger 共 6 处局部定义。
+- 逐一甄别：图表坐标（bar 条宽、`tileColor` 颜色、`Math.abs(nz(net))` 散点、过滤/排序 `nz(x) > 0`）属合法派生用法，保留；**用户可见文本**用法为真实缺陷。
+
+### 23.2 修复的真实缺陷（4 处，均为「缺失字段显 — 而非补零 0」）
+
+| 文件 | 位置 | 旧（缺陷） | 新（诚实） |
+|---|---|---|---|
+| `features/strong/Strong.tsx` | 行内评分 + 榜首评分 Stat | `const score = nz(it.score)` 后 `{score.toFixed(1)}`；`topScore = nz(filtered[0].score)` | 直接用原始 `it.score`/`filtered[0].score`，`== null ? '—' : x.toFixed(1)`（`scoreColor` 仍用 nz 判定缺失色，合法） |
+| `features/theme/Theme.tsx` | 传导结果条数 | `{nz(tx.data.n_titles)} 条` / `{nz(tx.data.n_concepts)} 个` | 新增 `fmtInt()`（非有限数显 `—`）替换；tooltip `市值 ${nz(pp.value)}` 改为直接用 `pp.value`（treemapValue 恒有限，去掉 nz） |
+| `features/watch/Watch.tsx` | 汇总卡四项统计 | `String(nz(summary?.watch_count))` 等 | `summary?.x == null ? '—' : String(summary.x)`（schema `watch_count` 等均为 `.nullable()`，缺失真会发生） |
+| `features/sector-rotation/SectorRotation.tsx` | treemap tooltip | `_chg: nz(it.chg_pct)` / `_net: nz(it.net)` → 经 `fmtPct`/`fmtYi` 把 null 显成 `+0.00%`/`+0.0 亿` | 存原始值（`Number.isFinite ? v : null`），`fmtPct`/`fmtYi` 接收 `unknown` 自动显 `—` |
+
+### 23.3 守卫加固（honest-data.test.tsx）
+- 新增 `findNzDisplayViolations(text)`：先剥注释、把合法图表 prop `={nz(...)}`（如 ScoreBar 条宽）改写成 `={ATTR(` 排除，再扫 `String(nz(` 与 `{nz(`（含 `${nz(` 模板文本）。
+- 「全 src 诚实红线」describe 新增断言：**全 `frontend-v2/src` 无 `String(nz(` 与文本 `{nz(` 残留** → 防 `nz` 再次进可见文本。
+
+### 23.4 回归测试（新增 tests/unit/nz-display-honest.test.tsx）
+- 用真 MSW 夹具（缺失字段显式 `null`）+ `<Providers>` 渲染：
+  1. Strong：`score=null` 的标的与榜首评分显 `—`，`queryByText('0.0')` 为 null。
+  2. Watch：summary 四项计数为 `null` → 四项 Stat 值均 `—`（按 label → `.rounded-tile` → `.text-kpi` 取数断言）。
+  3. Theme：传导 `n_titles/n_concepts=null` → 显 `—`，`/新闻标题 0 条/` `/命中概念 0 个/` 均不存在（桩掉 EChart 避免 jsdom canvas）。
+
+### 23.5 验证（全绿，本地复跑确认）
+
+| 项 | 结果 |
+|---|---|
+| `tsc --noEmit` | 0 错误 |
+| `vitest run` | **412 passed / 1 skipped**（57 文件；§22 基线 408 + 本轮 4：honest-data 守卫 1 + nz-display 回归 3） |
+| 守卫覆盖 | `honest-data` 12 例 + `nz-display-honest` 3 例全绿 |
+
+### 23.6 提交与推送
+- commit（msg: `fix(v2): 收口 nz() 隐藏补零诚实红线漏洞（Strong/Theme/Watch/SectorRotation）+ 守卫加固 + 回归测试`）。
+- ff-only 推 `origin/main`；仅 stage `frontend-v2/`（`src` 4 文件 + `tests` 2 文件）+ `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。v1 降级/退役评估继续挂起；43 实盘交易红线不碰。

@@ -63,6 +63,22 @@ function findViolations(text: string): string[] {
   return out
 }
 
+/**
+ * 诚实红线补充守卫（批次 6）：nz() 仅限图表坐标 / 过滤 / 排序等派生计算，
+ * 禁止直接进入「用户可见文本」。nz(缺失)=0 会把 null 伪装成真实「0 / 0.0 / 0 条」，
+ * 绕过 ?? 0 / || 0 守卫，属真实缺陷（Strong 评分、Theme 条数、Watch 统计、SectorRotation tooltip）。
+ * 合法用法 `={nz(...)}`（图表 prop，如 ScoreBar 条宽）先改写成 ={ATTR( 排除，避免误伤。
+ */
+function findNzDisplayViolations(text: string): string[] {
+  const code = stripComments(text).replace(/=\{\s*nz\(/g, '={ATTR(')
+  const out: string[] = []
+  for (const [i, line] of code.split('\n').entries()) {
+    if (/String\(\s*nz\(/.test(line)) out.push(`L${i + 1} String(nz(...)) 进入可见文本: ${line.trim().slice(0, 100)}`)
+    if (/\{\s*nz\(/.test(line)) out.push(`L${i + 1} {nz(...)} 进入可见文本: ${line.trim().slice(0, 100)}`)
+  }
+  return out
+}
+
 function allSrcFiles(): string[] {
   const out: string[] = []
   function walk(dir: string) {
@@ -119,6 +135,15 @@ describe('全 src 诚实红线', () => {
     for (const f of allSrcFiles()) {
       const rel = f.replace(SRC, 'src').replace(/\\/g, '/')
       for (const v of findViolations(readFileSync(f, 'utf8'))) violations.push(`${rel} ${v}`)
+    }
+    expect(violations).toEqual([])
+  })
+
+  it('nz() 不进入用户可见文本（缺失补零伪装真实数字）', () => {
+    const violations: string[] = []
+    for (const f of allSrcFiles()) {
+      const rel = f.replace(SRC, 'src').replace(/\\/g, '/')
+      for (const v of findNzDisplayViolations(readFileSync(f, 'utf8'))) violations.push(`${rel} ${v}`)
     }
     expect(violations).toEqual([])
   })
