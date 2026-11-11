@@ -89,30 +89,41 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '73_自定义看板.py': { to: '/dashboard-custom' },
   // 95 数据导出：v2 等价实现 /export，浏览归档快照并导出原始 JSON（纯前端，无写能力）。
   '95_数据导出.py': { to: '/export' },
+  // —— 以下为「已被现有 native 真实覆盖、此前误报为 data」的页，集中收口为 native（不新建页）——
+  // 31/32 形态选股/智能选股：v2 等价实现 /recommend（每日荐股结果，只读展示）。
+  '31_形态选股.py': { to: '/recommend' },
+  '32_智能选股.py': { to: '/recommend' },
+  // 34 体检扫描：v2 等价实现 /stock/six-dim（六维评分），非新建页。
+  '34_体检扫描.py': { to: '/stock/six-dim' },
+  // 44/47 智能条件单/价格预警：v2 等价实现 /alerts（告警规则只读展示，无设置能力，符合 v2 只读红线）。
+  '44_智能条件单.py': { to: '/alerts' },
+  '47_价格预警.py': { to: '/alerts' },
+  // 60 事件对比分析：v2 等价实现 /events（事件因子池只读展示）。
+  '60_事件对比分析.py': { to: '/events' },
+  // 63 温度回测：v2 等价实现 /backtest（回测运行记录），非新建页。
+  '63_温度回测.py': { to: '/backtest' },
+  // 94 消息中心：v2 等价实现 /alerts（告警日志只读展示）。
+  '94_消息中心.py': { to: '/alerts' },
+  // 98 仓位落地：v2 等价实现 /decision（今日决策快照），非新建页。
+  '98_仓位落地.py': { to: '/decision' },
 }
 
 /** ② 无等价页面，但有真实只读端点可查看的关联数据（不是等价功能，页面会明示）。
  *  注：本档仅保留 v2 确无完整页面的页；已有等价 v2 页面的（如 10/35/84/85 等）
  *  已升级到 NATIVE，不再列入此处。 */
 const DATA: Record<string, { path: string; label: string }> = {
+  // 16 财报日历：v2 无等价「日历」页（/financial-hunter 是财报三表，非日历）→ 保留 data。
   '16_财报日历.py': { path: '/api/v2/read/financials', label: '财务数据' },
-  '31_形态选股.py': { path: '/api/v2/read/daily-recommendation', label: '每日荐股结果' },
-  '32_智能选股.py': { path: '/api/v2/read/daily-recommendation', label: '每日荐股结果' },
-  '34_体检扫描.py': { path: '/api/v2/read/six-dim', label: '六维评分数据' },
-  '44_智能条件单.py': { path: '/api/v2/read/alert-rules', label: '告警规则' },
-  '47_价格预警.py': { path: '/api/v2/read/alert-rules', label: '告警规则' },
+  // 50/62/65/67/68/69/70 广度·温度簇：v2 /breadth 是概览，非这些专项分析 → 保留 data（不夸等价）。
   '50_市场情绪.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
-  '60_事件对比分析.py': { path: '/api/v2/read/event-pool', label: '事件因子池' },
   '62_动量广度共振.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
-  '63_温度回测.py': { path: '/api/v2/read/backtest-runs', label: '回测运行记录' },
   '65_投机情绪周期时钟.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
   '67_历史相似日聚类前向分布.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
   '68_情绪拐点扫描器.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
   '69_温度持续期与回归时长.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
   '70_涨停复盘.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
+  // 91 我的 / 99 决策问答：v2 无等价页（user-dashboard / review-notes 无独立 native 路由）→ 保留 data。
   '91_我的.py': { path: '/api/v2/read/user-dashboard', label: '用户看板数据' },
-  '94_消息中心.py': { path: '/api/v2/read/alert-log', label: '告警日志' },
-  '98_仓位落地.py': { path: '/api/v2/read/daily-snapshot', label: '今日决策快照' },
   '99_决策问答.py': { path: '/api/v2/read/review-notes', label: '复盘笔记' },
 }
 

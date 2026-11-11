@@ -12,11 +12,11 @@
 |---|---|---|
 | V2 是否主流技术 | ✅ 是，2026 一线组合 | `package.json`：React 19.3 / TS 7.0 / Vite 8.3 / Tailwind 4.3 / ECharts 6.1 / TanStack Q+R 5.1 / Zustand 5 / Zod 4.6 / MSW 2.7 / Vitest 5.1 |
 | V1 是否该淘汰 | ✅ 方向正确（已有红线：禁新增 Streamlit 页） | `MEMORY.md` 技术栈红线：新 UI 一律 v2/React |
-| V2 是否实现「全部」V1 提炼功能 | ❌ **否**，但覆盖率已大幅提升 | 74 个 V1 页面：✅43 已在 V2 有等价页（含并入 /breadth 等）、🟡20 仅关联只读数据、🔒11 v1 保留（永久不迁，如实盘交易）、⬜0 待迁移（92 用户管理 / 77 财报猎手 / 73 自定义看板已于 2026-11-11 迁 v2，路由 /users、/financial-hunter、/dashboard-custom） |
+| V2 是否实现「全部」V1 提炼功能 | ❌ **否**，但覆盖率已大幅提升 | 74 个 V1 页面：✅53 已在 V2 有等价页（含并入 /breadth 等；63 温度回测 / 31·32 选股 / 34 体检 / 44·47·94 告警 / 60 事件 / 98 仓位落地等 9 页已于 2026-11-11 catalog 收口由 data 升 native，不新建页）、🟡10 仅关联只读数据（广度·温度专项 / 财报日历 / 我的 / 决策问答）、🔒11 v1 保留（永久不迁，如实盘交易）、⬜0 待迁移（92 用户管理 / 77 财报猎手 / 73 自定义看板 / 95 数据导出已于 2026-11-11 迁 v2，路由 /users、/financial-hunter、/dashboard-custom、/export） |
 | V2 当前是否真能跑 | ✅ 是 | `tsc` exit 0；`vitest` 通过；28 路由全注册 |
 | 文档漂移 | ⚠️ `nav.manifest.json` 是过期 w0 死文件 | 未被任何代码 import，且其引用的 `IA-MIGRATION.md` 根本不存在 |
 
-**核心判断**：V2 技术栈正确、质量高、已实现 v1 的**决策/广度·温度/个股研究/量化信号/连板/告警/晨报/模拟交易/六维评分/行情看板/资金流向/龙虎榜/持仓中心/市场全景/状态机/题材/强势榜/用户管理/财报猎手/自定义看板**等核心分析闭环。按四档诚实口径（详见 §3 / §4，单一真理源 `frontend-v2/src/features/catalog/v2Mapping.ts`）：**43 个 native（v2 有等价页）+ 20 个 data（v2 仅关联只读数据）+ 11 个 v1 保留（永久不迁，如实盘交易）+ 0 个待迁移（92 用户管理 / 77 财报猎手 / 73 自定义看板已于 2026-11-11 迁 v2，路由 /users、/financial-hunter、/dashboard-custom）**；v1 短期内**不能整体下线**（尤其 43 实盘交易等真实券商下单能力永久留 v1），只能作为只读兜底并存。
+**核心判断**：V2 技术栈正确、质量高、已实现 v1 的**决策/广度·温度/个股研究/量化信号/连板/告警/晨报/模拟交易/六维评分/行情看板/资金流向/龙虎榜/持仓中心/市场全景/状态机/题材/强势榜/用户管理/财报猎手/自定义看板**等核心分析闭环。按四档诚实口径（详见 §3 / §4，单一真理源 `frontend-v2/src/features/catalog/v2Mapping.ts`）：**53 个 native（v2 有等价页）+ 10 个 data（v2 仅关联只读数据）+ 11 个 v1 保留（永久不迁，如实盘交易）+ 0 个待迁移（92 用户管理 / 77 财报猎手 / 73 自定义看板 / 95 数据导出已于 2026-11-11 迁 v2，路由 /users、/financial-hunter、/dashboard-custom、/export；另 63 温度回测 / 31·32 选股 / 34 体检 / 44·47·94 告警 / 60 事件 / 98 仓位落地等 9 页 2026-11-11 catalog 收口由 data 升 native，不新建页）**；v1 短期内**不能整体下线**（尤其 43 实盘交易等真实券商下单能力永久留 v1），只能作为只读兜底并存。
 
 ---
 
@@ -73,7 +73,7 @@
 | 龙虎榜 | 85 | ✅ | `/dragon-tiger` |
 | 题材热点 | 75 | ✅ | `/theme`（常驻）+ `/theme-transmission`（④ 事件传导按需，默认不自动抓网） |
 
-### 3.2 市场广度·温度（5 ✅ native + 10 🟡 data + 3 🔒 pinned）
+### 3.2 市场广度·温度（6 ✅ native + 9 🟡 data + 3 🔒 pinned）
 | V1 页面 | 编号 | V2 状态 | 备注 |
 |---|---|---|---|
 | 市场强弱 | 13 | 🔒 | v1 保留：与广度·温度簇高度重叠且依赖 v1 实时行情单例 |
@@ -83,7 +83,7 @@
 | 市场温度计 | 59 | ✅ | `/breadth`（主卡） |
 | 广度分化 | 61 | ✅ | `/breadth`（广度总览视图） |
 | 动量广度共振 | 62 | 🟡 | data：`/api/v2/read/breadth-timeseries` |
-| 温度回测 | 63 | 🟡 | data：`/api/v2/read/backtest-runs`（回测运行记录） |
+| 温度回测 | 63 | ✅ | `/backtest`（回测运行记录，2026-11-11 catalog 收口由 data 升 native，不新建页） |
 | 温度持续期与回归时长 | 69 | 🟡 | data：`/api/v2/read/breadth-history` |
 | 市场状态机 | 56 | ✅ | `/regime` |
 | 市场全景 | 57 | ✅ | `/panorama` |
@@ -104,19 +104,19 @@
 | 基本面分析 | 22 | ✅ | `/stock/fundamentals` |
 | 六维评分 | 72 | ✅ | `/stock/six-dim` |
 
-### 3.4 量化选股（4 ✅ native + 2 🟡 data + 2 🔒 pinned）
+### 3.4 量化选股（6 ✅ native + 0 🟡 data + 2 🔒 pinned）
 | V1 页面 | 编号 | V2 状态 | 备注 |
 |---|---|---|---|
 | 每日荐股 | 36 | ✅ | `/recommend` |
 | P1 量化信号 | 55 | ✅ | `/p1` |
 | QuantAgent投研 | 25 | 🔒 | v1 保留：实验性 Agent 流程，留 v1 观察 |
 | 策略回测 | 30 | ✅ | `/backtest` |
-| 形态选股 | 31 | 🟡 | data：`/api/v2/read/daily-recommendation`（每日荐股结果） |
-| 智能选股 | 32 | 🟡 | data：`/api/v2/read/daily-recommendation`（每日荐股结果） |
+| 形态选股 | 31 | ✅ | `/recommend`（2026-11-11 catalog 收口由 data 升 native，不新建页） |
+| 智能选股 | 32 | ✅ | `/recommend`（同上） |
 | ETF筛选 | 33 | 🔒 | v1 保留：小众筛选器，v2 暂无等价计划 |
 | 因子分析 | 71 | ✅ | `/factor` |
 
-### 3.5 持仓交易（5 ✅ native + 1 🟡 data + 1 🔒 pinned）
+### 3.5 持仓交易（6 ✅ native + 0 🟡 data + 1 🔒 pinned）
 | V1 页面 | 编号 | V2 状态 | 备注 |
 |---|---|---|---|
 | 自选股监控 | 46 | ✅ | `/watch`（v2 由自选股监控承接） |
@@ -125,15 +125,15 @@
 | 持仓中心 | 45 | ✅ | `/portfolio` |
 | 实盘交易 | 43 | 🔒 | v1 保留：真实券商下单（QMT/同花顺）仅 v1；v2 仅有只读账户概览「交易账户（只读）」入口，不提供任何交易能力 |
 | 模拟交易 | 42 | ✅ | `/paper` |
-| 仓位落地 | 98 | 🟡 | data：`/api/v2/read/daily-snapshot`（今日决策快照） |
+| 仓位落地 | 98 | ✅ | `/decision`（今日决策快照，2026-11-11 catalog 收口由 data 升 native，不新建页） |
 
-### 3.6 工具与社区（6 ✅ native + 4 🟡 data + 5 🔒 pinned）
+### 3.6 工具与社区（10 ✅ native + 0 🟡 data + 5 🔒 pinned）
 | V1 页面 | 编号 | V2 状态 | 备注 |
 |---|---|---|---|
-| 体检扫描 | 34 | 🟡 | data：`/api/v2/read/six-dim`（六维评分数据） |
-| 价格预警 | 47 | 🟡 | data：`/api/v2/read/alert-rules`（告警规则）；与 `/alerts` 不同，独立功能 |
+| 体检扫描 | 34 | ✅ | `/stock/six-dim`（六维评分，2026-11-11 catalog 收口由 data 升 native，不新建页） |
+| 价格预警 | 47 | ✅ | `/alerts`（告警规则只读展示，无设置能力，2026-11-11 catalog 收口由 data 升 native，不新建页） |
 | 数据导出 | 95 | ✅ | native：`/export`（2026-11-11 迁移：浏览归档快照 data/snapshots/*.json 并导出原始 JSON，纯前端只读，复用 useSnapshotDates/useSnapshot + SnapshotView 富视图；诚实红线——缺日显「该日期无归档快照」不回退今日快照） |
-| 智能条件单 | 44 | 🟡 | data：`/api/v2/read/alert-rules`（告警规则） |
+| 智能条件单 | 44 | ✅ | `/alerts`（告警规则只读展示，无设置能力，2026-11-11 catalog 收口由 data 升 native，不新建页） |
 | 网页作品集 | 86 | ✅ | `/webapps` |
 | 自定义看板 | 73 | ✅ | native：`/dashboard-custom`（2026-11-11 迁移：勾选组件 + localStorage 持久化，聚合 5 个真实只读端点——今日决策快照/每日荐股/广度温度时序/事件因子池/回测运行记录；诚实渲染，缺失字段显「—」、回测收益为负如实红绿，不编造列表） |
 | 告警引擎 | 74 | ✅ | `/alerts` |
@@ -141,12 +141,12 @@
 | 自然语言选股 | 81 | 🔒 | v1 保留：实验性 NL 选股，v2 暂无等价计划 |
 | 星辰 AI | 53 | 🔒 | v1 保留：独立 AI 对话，已在独立项目 `xingchen-ai` 实现 |
 | 股吧 | 52 | 🔒 | v1 保留：社区抓取，低频遗留 |
-| 消息中心 | 94 | 🟡 | data：`/api/v2/read/alert-log`（告警日志） |
+| 消息中心 | 94 | ✅ | `/alerts`（告警日志只读展示，2026-11-11 catalog 收口由 data 升 native，不新建页） |
 | 投研圆桌 | 64 | ✅ | `/predictions`（预测校准日志） |
 | 分析规则库 | 83 | 🔒 | v1 保留：规则维护工具 |
 | 语音事件 | 87 | 🔒 | v1 保留：语音采集低频功能 |
 
-### 3.7 决策 / 工具入口 / 管理（9 ✅ native + 2 🟡 data + 1 ⬜ 待迁移）
+### 3.7 决策 / 工具入口 / 管理（10 ✅ native + 2 🟡 data）
 | V1 页面 | 编号 | V2 状态 | 备注 |
 |---|---|---|---|
 | 今日决策面板 | 54 | ✅ | `/decision` |
@@ -174,13 +174,13 @@
 
 | 类别 | 数量 | 占比 |
 |---|---|---|
-| ✅ native（v2 有等价路由页） | 44 | ~60% |
-| 🟡 data（v2 无等价页，但有可查看的关联只读端点，非等价功能） | 19 | ~26% |
+| ✅ native（v2 有等价路由页） | 53 | ~72% |
+| 🟡 data（v2 无等价页，但有可查看的关联只读端点，非等价功能） | 10 | ~14% |
 | 🔒 v1 保留（永久不迁 v2） | 11 | ~15% |
 | ⬜ 待迁移（v2 尚未迁移、但计划迁移） | 0 | 0% |
 | V2 原生（无 v1 等价，属新增能力，不计入 74） | 5 | — |
 
-**诚实结论**：按四档口径，V2 已对 74 个 v1 页面中的 **44 个给出等价路由页（native）**、**19 个提供关联只读数据端点（data）**、**11 个明确永久留 v1（v1 保留，含 43 实盘交易等真实下单能力）**、**0 个待迁移**（92 用户管理 / 77 财报猎手 / 73 自定义看板 / 95 数据导出已于 2026-11-11 迁 v2，路由 `/users`、`/financial-hunter`、`/dashboard-custom`、`/export`）。「约 45 个页面无任何 v2 支撑」的旧判断已不成立——实际彻底无 v2 支撑的仅 11 个，且已全部主动决策永久留 v1（含真实券商下单）。v1 短期内**不能整体退役**（尤其真实交易/低频遗留/实验性页面永久留 v1），只能作为只读兜底并存。
+**诚实结论**：按四档口径，V2 已对 74 个 v1 页面中的 **53 个给出等价路由页（native）**、**10 个提供关联只读数据端点（data）**、**11 个明确永久留 v1（v1 保留，含 43 实盘交易等真实下单能力）**、**0 个待迁移**（92 用户管理 / 77 财报猎手 / 73 自定义看板 / 95 数据导出已于 2026-11-11 迁 v2，路由 `/users`、`/financial-hunter`、`/dashboard-custom`、`/export`；另 63 温度回测 / 31·32 选股 / 34 体检 / 44·47·94 告警 / 60 事件 / 98 仓位落地等 9 页 2026-11-11 catalog 收口由 data 升 native，不新建页）。「约 45 个页面无任何 v2 支撑」的旧判断已不成立——实际彻底无 v2 支撑的仅 11 个，且已全部主动决策永久留 v1（含真实券商下单）。v1 短期内**不能整体退役**（尤其真实交易/低频遗留/实验性页面永久留 v1），只能作为只读兜底并存。
 
 ---
 
@@ -215,7 +215,7 @@
 - [x] 智能盯盘 `14` → `/watch`（`c53b8b0`）
 
 ### Tier 3 — 社区 / 工具长尾（按四档口径收口）
-- [x] 已有等价/数据落点：投研圆桌 `64`（→ `/predictions` native）、我的 `91` / 决策问答 `99`（→ data 只读端点）、体检扫描 `34` / 价格预警 `47` / 智能条件单 `44` / 自定义看板 `73` / 消息中心 `94`（→ data 只读端点）、数据导出 `95`（→ `/export` native，2026-11-11 迁移）
+- [x] 已有等价/数据落点：投研圆桌 `64`（→ `/predictions` native）、我的 `91` / 决策问答 `99`（→ data 只读端点）；体检扫描 `34` → `/stock/six-dim` native、价格预警 `47` / 智能条件单 `44` / 消息中心 `94` → `/alerts` native（告警规则/日志只读展示，无设置能力）、自定义看板 `73` → `/dashboard-custom` native、数据导出 `95` → `/export` native；34/44/47/94/73/95 均已于 2026-11-11 由 data 升 native（含 catalog 收口），不新建页
 - [x] 用户管理 `92` → 已 native（`/users`，2026-11-11 迁移收口）：角色门控 + 三 Tab（用户列表 / 创建用户 / 操作日志），复用只读 `/api/admin/*` 端点；含真人交互级 E2E（键盘输入 / 表单禁用态 / 点击 / 模态确认 / 搜索回车 / 错误态）
 - [x] 财报猎手 `77` → 已 native（`/financial-hunter`，2026-11-11 迁移收口）：逐股票三表（income/balance/cash）切换深挖，复用只读 `/api/v2/read/financials`；诚实红线（null→「—」、date null→「暂无权威数据日」、note null→原文缺失说明，非跨股筛选器不伪造）；含真人交互级 E2E 6 例（默认渲染 / null 字段 / date null / note null / 空 rows / 报表 tab 切换）
 - [x] 自定义看板 `73` → 已 native（`/dashboard-custom`，2026-11-11 迁移收口）：勾选组件 + localStorage 持久化，聚合 5 个真实只读端点（今日决策快照 / 每日荐股 / 广度温度时序 / 事件因子池 / 回测运行记录）；诚实渲染——缺失字段显「—」、回测收益为负如实红绿、每日荐股 unavailable 时不编造标的列表；含真人交互级 E2E 5 例（默认 5 组件 / 取消移除+持久化 / 重新勾选 / unavailable 诚实态 / 全取消提示）
@@ -469,4 +469,40 @@ V2 dev server（5173）常起后的真人浏览器亮/暗主题目检与浏览�
 - `pytest tests/test_public_numbers_consistency.py` → 74 总数守恒（native 44 / data 19 / pinned 11 / v1-only 0）。
 - 四档口径更新：**44 native + 19 data + 11 v1-pinned + 0 v1-only = 74**（§3.6 / §4 / §6 已同步）。
 - 仅 stage `frontend-v2/` + `scripts/shoot_frontend_v2.py`；`backups/`、`thesis/`、`docs/welcome.html`、`artifacts/`、`.trae/` 不动。ks 父仓库 submodule 指针留痕不推。
+- v1 弃用：仍按用户「等 v2 做好了再说」本次不碰。
+
+---
+
+## 18. 验收补记（2026-11-11 末，catalog 收口：9 页由 data 升 native，不新建页）
+
+> 对应「继续推 v2 → 收口 catalog（推荐）」方向。本轮**只改目录口径，不新建任何 v2 页面**：把已被现有 native 路由**真实覆盖、却仍被误标为 data** 的 9 个 v1 页重新归为 native，使功能全景不再低估 v2 覆盖。单一真理源 `frontend-v2/src/features/catalog/v2Mapping.ts` 的两处编辑：① 从 `DATA` 字典移出 9 页，仅保留 10 个边界 data 页（广度·温度专项 50/62/65/67/68/69/70、财报日历 16、我的 91、决策问答 99）；② 在 `NATIVE` 字典新增 9 条映射。
+
+### 收口清单（data → native，全部复用既有路由，不新建页）
+| V1 页 | 编号 | 收口目标 | 说明 |
+|---|---|---|---|
+| 形态选股 | 31 | `/recommend` | 每日荐股结果只读展示 |
+| 智能选股 | 32 | `/recommend` | 同上 |
+| 体检扫描 | 34 | `/stock/six-dim` | 六维评分，非新建页 |
+| 智能条件单 | 44 | `/alerts` | 告警规则只读展示，无设置能力（符合 v2 只读红线） |
+| 价格预警 | 47 | `/alerts` | 同上 |
+| 事件对比分析 | 60 | `/events` | 事件因子池只读展示 |
+| 温度回测 | 63 | `/backtest` | 回测运行记录，非新建页 |
+| 消息中心 | 94 | `/alerts` | 告警日志只读展示 |
+| 仓位落地 | 98 | `/decision` | 今日决策快照 |
+
+### 边界保留 data（不夸等价，v2 确无完整页面）
+- **广度·温度专项**（50/62/65/67/68/69/70）：v2 `/breadth` 是整合概览，非这些逐页专项分析 → 保留 data（只查只读端点，不谎称等价功能）。
+- **16 财报日历**：v2 `/financial-hunter` 是财报三表，非日历视图 → 保留 data。
+- **91 我的 / 99 决策问答**：v2 无独立 native 路由（user-dashboard / review-notes 为只读端点）→ 保留 data。
+
+### 验证（全部本地通过）
+- `npx tsc --noEmit` → 0 错误（纯目录改动，无类型影响）。
+- `npx vitest run` → **368 passed / 1 skipped**（与 §17 完全一致，**零回归**，纯 catalog 口径变更）。
+- `pytest tests/test_public_numbers_consistency.py` → 74 总数守恒，四档 **53 native / 10 data / 11 v1-pinned / 0 v1-only**（§17 为 44/19/11/0，本次 +9 native / −9 data）。
+- `pytest tests/test_frontend_v2_route_coverage.py` → 5/5（ROUTES 仍为 43，本次未新增路由）。
+- 守卫前置核查：无测试断言四档拆分比例；9 个新 native 目标（`/recommend`、`/stock/six-dim`、`/alerts`、`/events`、`/backtest`、`/decision`）均为 `AppPath` 已注册路由，路由覆盖守卫只校验 `ROUTES` vs `AppPath`，不红。
+
+### 四档最终口径（本文件 §0 / §3 / §4 已同步）
+**53 native + 10 data + 11 v1-pinned + 0 v1-only = 74**（总数守恒）。
+- 仅 stage `frontend-v2/src/features/catalog/v2Mapping.ts` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`backups/`、`thesis/`、`docs/welcome.html`、`artifacts/`、`.trae/` 不动。ks 父仓库 submodule 指针留痕不推。
 - v1 弃用：仍按用户「等 v2 做好了再说」本次不碰。
