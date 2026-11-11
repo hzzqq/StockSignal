@@ -106,10 +106,14 @@ def test_data_mapping_paths_are_real_read_endpoints():
     mapping = MAPPING.read_text(encoding="utf-8")
     routes = READ_ROUTES.read_text(encoding="utf-8")
     registered = set(re.findall(r'@bp\.get\("([^"]+)"\)', routes))
-    paths = set(re.findall(r"path: '(/api/v2/read/[^']+)'", mapping))
+    paths_all = re.findall(r"path: '(/api/v2/read/[^']+)'", mapping)
+    paths = set(paths_all)
     assert len(registered) >= 20, f"后端只扫到 {len(registered)} 个 GET 端点，正则疑似失效"
-    # 实测 v2Mapping 里去重后有 16 个 data 端点；阈值只需防「正则扫空/几乎扫空」。
-    assert len(paths) >= 12, f"映射只扫到 {len(paths)} 个 data 端点，正则疑似失效"
+    # catalog 收口后数据层已大幅缩减：现仅 7 条 data 条目、去重 2 个端点
+    # （breadth-timeseries / breadth-history）。阈值只防「正则扫空/几乎扫空」，
+    # 故按真实条目数给下限（条目数更能反映 v1 页是否仍在使用数据层）。
+    assert len(paths_all) >= 5, f"映射只扫到 {len(paths_all)} 条 data 条目，正则疑似失效"
+    assert len(paths) >= 2, f"映射只扫到 {len(paths)} 个去重 data 端点，正则疑似失效"
     missing = {
         p for p in paths
         if p.removeprefix("/api/v2/read") not in registered
@@ -126,12 +130,20 @@ def test_required_query_data_deeplinks_are_usable():
     """
     required = _diag_required_query()
     assert len(required) >= 8, f"只扫到 {len(required)} 个需参端点，AST 扫描疑似失效"
-    linked = set(re.findall(r"path: '(/api/v2/read/[^']+)'", MAPPING.read_text(encoding="utf-8")))
-    hits = sorted(linked & required)
-    assert hits, "守卫失效：功能全景没有任何指向需参端点的 data 深链样本"
     schema = DIAG_SCHEMA.read_text(encoding="utf-8")
     view = DATA_VIEW.read_text(encoding="utf-8")
+    # 真实故障（2026-11-09）：/data?path=/api/v2/read/paper-trades 这类深链不带 query
+    # 直接 GET 会 400，页面一进去就报错；修法是后端 diagnostics 下发 sample_query，
+    # 前端 choose() 自动填入。本守卫把「数据浏览器自动填参」这条跨文件契约钉死——
+    # 它对所有需参端点（无论 catalog 是否持有深链）都生效。
     assert "sample_query" in schema, "后端下发了 sample_query，前端 schema 却没接"
     assert "?.sample_query" in view, "选择端点时必须读取示例参数"
     assert "void load(path, sample)" in view, "选择端点时必须带示例参数发起 GET"
     assert "initialPath" in view and "choose(initialPath)" in view, "深链进入也要自动填参数"
+    # catalog 数据层（DATA 块）曾持有 review-notes / financials 等需参端点深链；
+    # 收口后这些页均已升 native（/review-notes、/financial-hunter 等），原生页自行
+    # 处理 query，故不再强制 catalog 持有需参深链。仅当 catalog 仍有指向需参端点的
+    # data 深链时，才需它落到已注册端点（防编造）。
+    linked = set(re.findall(r"path: '(/api/v2/read/[^']+)'", MAPPING.read_text(encoding="utf-8")))
+    bogus = sorted(p for p in (linked & required) if p.removeprefix("/api/v2/read") not in registered)
+    assert not bogus, f"catalog 指向的需参端点却未注册: {bogus}"

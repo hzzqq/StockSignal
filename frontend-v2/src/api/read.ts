@@ -30,6 +30,8 @@ import {
   SectorRotationSchema,
   WatchSchema,
   QuoteBoardSchema,
+  UserDashboardSchema,
+  EarningsCalendarSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -60,6 +62,8 @@ import {
   type SectorRotation,
   type Watch,
   type QuoteBoard,
+  type UserDashboard,
+  type EarningsCalendar,
 } from './schemas/read'
 
 /**
@@ -120,6 +124,17 @@ export function getPaperTrades(user: string): Promise<PaperTrade> {
 /** GET /api/v2/read/review-notes?date=<date> —— 指定日期复盘笔记（51 页复盘段） */
 export function getReviewNotes(date: string): Promise<ReviewNotes> {
   return readValidated(`review-notes?date=${encodeURIComponent(date)}`, ReviewNotesSchema)
+}
+
+/** GET /api/v2/read/user-dashboard —— 自定义看板偏好（91 页 我的 的数据源） */
+export function getUserDashboard(): Promise<UserDashboard> {
+  return readValidated('user-dashboard', UserDashboardSchema)
+}
+
+/** GET /api/v2/read/earnings-calendar?market=&period= —— 财报披露日历（16 页 财报日历 数据源） */
+export function getEarningsCalendar(market = '沪深京', period = '2025年报'): Promise<EarningsCalendar> {
+  const q = `earnings-calendar?market=${encodeURIComponent(market)}&period=${encodeURIComponent(period)}`
+  return readValidated(q, EarningsCalendarSchema)
 }
 
 /** GET /api/v2/read/webapps —— 网页作品集元数据（86 页作品清单） */

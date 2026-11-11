@@ -158,6 +158,25 @@ export const ReviewNotesSchema = z.object({
 })
 export type ReviewNotes = z.infer<typeof ReviewNotesSchema>
 
+// ───────── 我的（user_dashboard.json 包装）─────────
+export const UserDashboardSchema = z.object({
+  default_widgets: z.array(z.string()),
+  note: z.string().optional(),
+  updated_at: z.string().optional(),
+})
+export type UserDashboard = z.infer<typeof UserDashboardSchema>
+
+// ───────── 财报披露日历（akshare 披露日历；字段随数据源变化，rows 宽松记录）─────────
+export const EarningsCalendarSchema = z.object({
+  market: z.string(),
+  period: z.string(),
+  rows: z.array(z.record(z.string(), z.unknown())),
+  date: z.string().nullable(),
+  unavailable: z.boolean(),
+  note: z.string(),
+})
+export type EarningsCalendar = z.infer<typeof EarningsCalendarSchema>
+
 // ───────── 网页作品集（webapps/*/meta.json）─────────
 export const WebAppSchema = z.object({
   dir: z.string(),

@@ -1071,6 +1071,93 @@ def financials():
     return ok(data=_sanitize(data), message="financials")
 
 
+def _normalize_disclosure_rows(rows: list[dict], period: str) -> str | None:
+    """把 akshare 披露日历原始列规整成 v2 表格契约列，返回权威数据日（或 None）。
+
+    真实缺陷（2026-11-11 取证）：akshare.stock_report_disclosure 当前返回
+    「股票代码 / 股票简称 / 首次预约 / 初次变更 / 二次变更 / 三次变更 / 实际披露」，
+    而 modules.fundflow.get_disclosure_calendar 的 docstring 与前端表格都按
+    「报告期 / 披露时间 / 披露状态」读取 —— 列名全部对不上，接真后端时
+    披露时间/状态/报告期三列全显「—」，只有 MSW 夹具碰巧命中旧列名才正常。
+
+    在 v2 端点边界规整（不动 v1 遗留模块，避免外溢），只做确定性派生，不编造：
+      - 报告期   = 请求的 period（akshare 本就按该期查询，是事实不是补零）
+      - 披露时间 = 实际披露 > 首次预约 > 旧列名，取 YYYY-MM-DD 前 10 位
+      - 披露状态 = 实际披露有值→已披露；仅首次预约→预约待披露；都没有→None
+      - date     = 「实际披露」列最大值（权威数据日）；全无则 None
+    同时保留 akshare 原始列，便于排障与后续扩展；旧列名一并兼容（akshare 换版本不静默崩）。
+    """
+    def _first(row: dict, keys: tuple[str, ...]) -> str | None:
+        for k in keys:
+            v = row.get(k)
+            if v is not None and v != "":
+                return str(v)[:10]
+        return None
+
+    actual_keys = ("实际披露", "实际披露日期", "披露时间")
+    reserve_keys = ("首次预约", "预约披露日期", "披露日期")
+    dates: list[str] = []
+    for row in rows:
+        # 代码 / 名称：真实列名与前端候选列名都保留（前端读 股票代码 ?? 代码）
+        if "股票代码" in row and "代码" not in row:
+            row["代码"] = row["股票代码"]
+        if "股票简称" in row and "名称" not in row:
+            row["名称"] = row["股票简称"]
+        row.setdefault("报告期", period)
+        actual = _first(row, actual_keys)
+        reserve = _first(row, reserve_keys)
+        row["披露时间"] = actual or reserve
+        if actual:
+            row["披露状态"] = "已披露"
+            dates.append(actual)
+        elif reserve:
+            row["披露状态"] = "预约待披露"
+        else:
+            row["披露状态"] = None
+    return max(dates) if dates else None
+
+
+@bp.get("/earnings-calendar")
+@jwt_required
+def earnings_calendar():
+    """财报披露日历（真实 akshare 数据源，只读；旧 16 页 财报日历 的 v2 等价页）。
+
+    GET /api/v2/read/earnings-calendar?market=沪深京&period=2025年报
+    market ∈ {沪市, 深市, 沪深京}（缺省 沪深京）；period 形如 "2025年报"（缺省当年年报）。
+    复用 modules.fundflow.get_disclosure_calendar（best-effort：akshare 限流/停用/季报映射失败
+    时返回空 DataFrame）。返回 {market, period, rows, date, unavailable, note}。
+    rows 经 _normalize_disclosure_rows 规整成 v2 表格契约列（报告期/披露时间/披露状态，
+    并保留 akshare 原始列）；date 为「实际披露」最大值，取不到即 None，不编造。
+    取数失败或空 -> ok(空结构, unavailable=True) 诚实降级，绝不 500 / 不编造。
+    说明：akshare 仅支持年报披露日历，季报/中报由函数 best-effort 映射同一年年报。
+    """
+    market = (request.args.get("market") or "沪深京").strip()
+    if market not in ("沪市", "深市", "沪深京"):
+        market = "沪深京"
+    period = (request.args.get("period") or "2025年报").strip()
+    try:
+        from modules.fundflow import get_disclosure_calendar
+        df = get_disclosure_calendar(market=market, period=period)
+    except Exception:  # noqa: BLE001
+        df = None
+    if df is None or not hasattr(df, "columns") or len(df) == 0:
+        data = {
+            "market": market, "period": period, "rows": [], "date": None,
+            "unavailable": True,
+            "note": "财报披露日历暂时取不到（数据源限流或未披露），请稍后重试",
+        }
+        return ok(data=_sanitize(data), message="earnings-calendar")
+    # to_json 自动把 NaN 转 null、序列化 numpy/日期，避免 JSON 解析崩溃
+    rows = json.loads(df.to_json(orient="records", force_ascii=False, date_format="iso"))
+    date = _normalize_disclosure_rows(rows, period)
+    data = {
+        "market": market, "period": period, "rows": rows, "date": date,
+        "unavailable": False,
+        "note": "数据来源：东方财富 财报预约披露日历（年报）",
+    }
+    return ok(data=_sanitize(data), message="earnings-calendar")
+
+
 @bp.get("/stock-kline")
 @jwt_required
 def stock_kline():

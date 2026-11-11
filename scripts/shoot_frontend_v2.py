@@ -139,6 +139,9 @@ ROUTES = (
     ("/financial-hunter", "financial_hunter"),  # §15 财报猎手
     ("/dashboard-custom", "dashboard_custom"),  # §15 自定义看板
     ("/export", "export"),                     # §17 数据导出
+    ("/me", "me"),                             # 91 我的（账户 + 看板偏好种子）
+    ("/earnings-calendar", "earnings_calendar"),  # 16 财报日历（真实 akshare 披露日历）
+    ("/review-notes", "review_notes"),         # 99 决策问答（逐日复盘笔记，缺失即空态）
 )
 
 # W4-B 深链专项：/legacy 走客户端 history.replace（不是新 document），

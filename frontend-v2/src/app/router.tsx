@@ -55,6 +55,9 @@ const LazyQuoteBoard = lazyRouteComponent(() => import('@/features/quote-board/Q
 const LazyUserManagement = lazyRouteComponent(() => import('@/features/admin/UserManagement'), 'UserManagement')
 const LazyDashboardCustom = lazyRouteComponent(() => import('@/features/dashboard/DashboardCustom'), 'DashboardCustom')
 const LazyDataExport = lazyRouteComponent(() => import('@/features/export/DataExport'), 'DataExport')
+const LazyMe = lazyRouteComponent(() => import('@/features/me/Me'), 'Me')
+const LazyEarningsCalendar = lazyRouteComponent(() => import('@/features/calendar/EarningsCalendar'), 'EarningsCalendar')
+const LazyReviewNotes = lazyRouteComponent(() => import('@/features/review/ReviewNotes'), 'ReviewNotes')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -345,6 +348,27 @@ const dataExportRoute = createRoute({
   component: LazyDataExport,
 })
 
+// 91 我的（v2 native，旧 91 我的页）：展示登录身份 + 自定义看板偏好种子。
+const meRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/me',
+  component: LazyMe,
+})
+
+// 16 财报日历（v2 native，旧 16 财报日历页）：财报披露日历（真实 akshare 数据源）。
+const earningsCalendarRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/earnings-calendar',
+  component: LazyEarningsCalendar,
+})
+
+// 99 决策问答（v2 native，旧 99 决策问答页）：逐日复盘笔记（只读，缺失即诚实空态）。
+const reviewNotesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/review-notes',
+  component: LazyReviewNotes,
+})
+
 function FinancialHunterRouteView() {
   const search = financialHunterRoute.useSearch()
   return (
@@ -490,6 +514,9 @@ const routeTree = rootRoute.addChildren([
     financialHunterRoute,
     dashboardCustomRoute,
     dataExportRoute,
+    meRoute,
+    earningsCalendarRoute,
+    reviewNotesRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

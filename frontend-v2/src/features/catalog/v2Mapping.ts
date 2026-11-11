@@ -106,14 +106,17 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '94_消息中心.py': { to: '/alerts' },
   // 98 仓位落地：v2 等价实现 /decision（今日决策快照），非新建页。
   '98_仓位落地.py': { to: '/decision' },
+  // 16 财报日历：v2 等价实现 /earnings-calendar（新增只读端点，真实 akshare 披露日历）。
+  '16_财报日历.py': { to: '/earnings-calendar' },
+  // 91 我的 / 99 决策问答：v2 等价实现 /me（账户+看板偏好）/review-notes（复盘笔记），非新建页。
+  '91_我的.py': { to: '/me' },
+  '99_决策问答.py': { to: '/review-notes' },
 }
 
 /** ② 无等价页面，但有真实只读端点可查看的关联数据（不是等价功能，页面会明示）。
  *  注：本档仅保留 v2 确无完整页面的页；已有等价 v2 页面的（如 10/35/84/85 等）
  *  已升级到 NATIVE，不再列入此处。 */
 const DATA: Record<string, { path: string; label: string }> = {
-  // 16 财报日历：v2 无等价「日历」页（/financial-hunter 是财报三表，非日历）→ 保留 data。
-  '16_财报日历.py': { path: '/api/v2/read/financials', label: '财务数据' },
   // 50/62/65/67/68/69/70 广度·温度簇：v2 /breadth 是概览，非这些专项分析 → 保留 data（不夸等价）。
   '50_市场情绪.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
   '62_动量广度共振.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
@@ -122,9 +125,6 @@ const DATA: Record<string, { path: string; label: string }> = {
   '68_情绪拐点扫描器.py': { path: '/api/v2/read/breadth-timeseries', label: '广度时序' },
   '69_温度持续期与回归时长.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
   '70_涨停复盘.py': { path: '/api/v2/read/breadth-history', label: '广度历史' },
-  // 91 我的 / 99 决策问答：v2 无等价页（user-dashboard / review-notes 无独立 native 路由）→ 保留 data。
-  '91_我的.py': { path: '/api/v2/read/user-dashboard', label: '用户看板数据' },
-  '99_决策问答.py': { path: '/api/v2/read/review-notes', label: '复盘笔记' },
 }
 
 /** ③ v1 保留（永久不迁 v2）：真实交易 / 低频遗留 / 实验性页面，v2 明确不做等价实现。

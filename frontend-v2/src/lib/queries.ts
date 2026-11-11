@@ -37,6 +37,8 @@ import type {
   SectorRotation,
   Watch,
   QuoteBoard,
+  UserDashboard,
+  EarningsCalendar,
 } from '@/api/schemas/read'
 
 /**
@@ -110,6 +112,24 @@ export function useReviewNotes(date: string): UseQueryResult<ReviewNotes> {
     queryKey: ['read', 'review-notes', date],
     queryFn: () => api.getReviewNotes(date),
     enabled: !!date,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+/** 我的（91 页 v2 /me）：自定义看板偏好种子。 */
+export function useUserDashboard(): UseQueryResult<UserDashboard> {
+  return useQuery({
+    queryKey: ['read', 'user-dashboard'],
+    queryFn: api.getUserDashboard,
+    staleTime: THIRTY_MIN,
+  })
+}
+
+/** 财报披露日历（16 页 v2 /earnings-calendar）：按市场 + 报告期取真实披露日历。 */
+export function useEarningsCalendar(market: string, period: string): UseQueryResult<EarningsCalendar> {
+  return useQuery({
+    queryKey: ['read', 'earnings-calendar', market, period],
+    queryFn: () => api.getEarningsCalendar(market, period),
     staleTime: THIRTY_MIN,
   })
 }

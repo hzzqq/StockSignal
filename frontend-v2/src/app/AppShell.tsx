@@ -157,6 +157,33 @@ export function AppShell() {
             <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">📤</span>
             <span className="nav-label hidden md:inline whitespace-nowrap">数据导出</span>
           </Link>
+          <Link
+            to="/earnings-calendar"
+            title="财报日历"
+            aria-label="财报日历"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">🗓</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">财报日历</span>
+          </Link>
+          <Link
+            to="/me"
+            title="我的"
+            aria-label="我的"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">👤</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">我的</span>
+          </Link>
+          <Link
+            to="/review-notes"
+            title="决策问答"
+            aria-label="决策问答"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">❓</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">决策问答</span>
+          </Link>
         </div>
       </aside>
 
