@@ -916,3 +916,38 @@ v2 不提供任何真实券商下单能力。
 - commit（msg: `test(v2): 补第二批 4 个未测高价值 native 页组件测试（16 例，四态+诚实降级）`）。
 - ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/{calendar/EarningsCalendar,morning/MorningReport,matrix/LeadLagMatrixView,analytics/InflectionScan}.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`（本轮非本任务改动）、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 29. 决策闭环展示核心诚实红线守卫（2026-11-12，继续 v2）
+
+> 连补两批四态测试后纯堆覆盖价值递减，本轮换套路：**先按锐评「找真实缺陷」读源码取证**，找到就修 + 加守卫；没有则把高价值页的诚实语义锁成确定性守卫。目标锁定未测目录中价值最高的 `decision/`（决策可解释归因 F3，3 组件全零测试）。
+
+### 29.1 找缺陷取证链（结论：零真缺陷，诚实记录不硬凑）
+逐文件读源码核验诚实红线，全部已守住：
+- `lib/format.ts::fmtNum` → `null/undefined → '—'`，数字原样/浮点两位，**无 `?? 0` 兜底**；`SnapshotView` 12 个盘面指标 + 3 个 Stat 全走它。
+- `lib/queries.ts::useSnapshot` → `enabled: !!date`，未选日期不发起请求（与 §28 MorningReport 同红线）。
+- `lib/freshness.ts` → `freshnessFromStatus(undefined) → 'unknown'`；`freshnessLevelFromAge` 对 `null/NaN/负数` 均归 unknown，**绝不把「未知」兜底成「新鲜」**。
+- `shared/charts/PositionGauge.tsx` → `pct` 非有限数时返回 `role=status / aria-label=暂无仓位建议数据` 的「—」空态，注释明确旧实现 `pct ?? 0` 会伪造「建议空仓 0%」。
+- `shared/charts/ScenarioChart.tsx` → `prob` 缺失 → ECharts `value: null`（不画柱）+ 页面提示「不按 0% 计算」。
+- `DecisionPanel/DecisionReplay` → `?? '—'` / `!= null` 占位、`QueryState` 四态、`emptyLabel` 语义齐备，前端不重算仓位（PLAN §5）。
+
+**结论**：`decision/` 三页源码质量过关，无真缺陷可修；但决策闭环展示核心 `SnapshotView`（同时服务 54 今日决策面板 / 97 决策回放）**零测试守卫**，上述诚实语义全靠人工守着，无任何回归锁。→ 本轮转为补确定性守卫，属真实收益（防回归），非「为覆盖而覆盖」。
+
+### 29.2 补缺内容（3 文件 22 例，全绿）
+- `decision/SnapshotView.test.tsx`（**13 例，本轮核心**）：纯展示组件直接传 props，无需 QueryClientProvider；仅 `vi.mock('@/shared/charts/EChart')` 桩掉 canvas，PositionGauge 空态 / ScenarioChart 缺失提示均为纯 DOM 仍真实渲染。
+  - **结构性精准断言**：`container.querySelectorAll('.text-base.font-medium')` 取 12 个指标值节点，断言 `toHaveLength(12)` 且全部 `=== '—'`，无一 `'0'/'0.00'`——比文字计数更不可绕过。
+  - **「真 0 vs 缺失」区分**（最高价值一条）：`indicators: { up_count: 0, down_count: null }` → 第 0 项显 `'0'`（真值不吞）、第 1 项显 `'—'`（缺失不补零），直接锁死 `fmtNum` 语义。
+  - position 缺失 → `getByLabelText('暂无仓位建议数据')` + 断言无 `0%`/「建议空仓」；`available:false` 时即便 `long_count:99` 也不渲染「多头」。
+  - 新鲜度全缺 → 「新鲜度未知」+「无新鲜度明细」，且 `queryByText('数据新鲜')` 为 null；`age` 缺失但 `status=stale` → 仍判「数据陈旧」；参数化 `age=10/6/2` → 陈旧/偏旧/新鲜。
+  - 全字段正向对照、scenario prob 缺失提示、数据源 `lag_days/status` 缺失显「— · —」。
+- `decision/DecisionPanel.test.tsx`（4 例）：54 页四态（loading/error/ok/空），标题常驻不作完成信号，await 数据态「权威数据日」。
+- `decision/DecisionReplay.test.tsx`（5 例）：97 页默认未选日期 → `expect(getSnapshotByDate).not.toHaveBeenCalled()`（enabled 守卫实证）；日期清单失败原样带出；选中日期 → 断言 `toHaveBeenCalledWith('2026-03-01')` + SnapshotView 复用；该日无归档 → `该日期无归档快照`；快照失败 → 错误态不回退成空数据。
+
+### 29.3 实证结论
+- 新 3 文件 22 例全绿；全量 `vitest run` → **476 passed / 1 skipped**（70 文件，纯增量 +22）；`tsc --noEmit` 0 错。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**（纯前端测试，不触页面计数）。
+- 质量债收敛：`decision/` 由 0 测试 → 3 组件全覆盖。剩余未测目录：`admin/auth/catalog/dashboard/export/guide/me/ops/review/settings`（+ `analytics` 5 组件仅 1 测试、`stock` 5 组件仅 1 测试）。
+
+### 29.4 提交与推送
+- commit（msg: `test(v2): 决策闭环展示核心诚实红线守卫（decision 3 组件 22 例）`）。
+- ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/decision/{SnapshotView,DecisionPanel,DecisionReplay}.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`pages/54_*.py`、`pages/55_*.py`、`modules/p1_portfolio_diag.py`（其他任务改动）、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
