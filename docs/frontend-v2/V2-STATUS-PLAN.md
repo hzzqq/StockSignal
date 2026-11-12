@@ -891,3 +891,28 @@ v2 不提供任何真实券商下单能力。
 - commit（msg: `test(v2): 补 6 个未测高价值 native 页组件测试（26 例，四态+诚实降级）`）。
 - ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/{market/MarketPanorama,webapps/WebApps,p1/P1Signals,paper/PaperTrades,recommend/Recommendation,alerts/Alerts}.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`（本轮非本任务改动）、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 28. 前端未测高价值 native 页 组件级测试补缺（第二批，2026-11-12，继续 v2）
+
+> 第一批（§27）收口 6 页 26 例后，剩余未测高价值 native 页仍多。本轮续补 4 个**依赖干净、无 getCurrentUser / SnapshotView / 过重诊断**的页：`EarningsCalendar`（财报日历）、`MorningReport`（复盘笔记）、`LeadLagMatrixView`（领先滞后矩阵）、`InflectionScan`（拐点扫描）。排除 `Me`（依赖 `getCurrentUser`）、`DataExport`（依赖 `SnapshotView`）、`DiagnosticsView`（过重）。
+
+### 28.1 补缺目标与写法
+- 新 4 个 `.test.tsx`（共 **16 例**，全绿），沿用 §27.1 模板 + 四态覆盖：
+  - `EarningsCalendar.test.tsx`（5 例）：直接用 `Loading/EmptyState/ErrorState`（非 QueryState）；`getEarningsCalendar(date, market)` 双参 hook；断言 `加载披露日历…`/`披露日历加载失败`/`沪深京 · 2025年报（1 条）`（数据态 Card 标题作加载信号）+ `浦发银行`/`600000`；unavailable → `财报披露日历暂时取不到`+`数据源限流`；空 rows → `该市场/报告期暂无披露日历数据`。fixture 用 `as EarningsCalendarData` 转型。
+  - `MorningReport.test.tsx`（4 例）：默认未选日期 → `未选择日期，不发起查询`（不把查不到伪装成今天数据）；date input 用 `document.querySelector('input[type="date"]')` 触发（label 未用 `htmlFor`，`getByLabelText` 无法关联）。ok `复盘笔记 2026-03-01`+`今日复盘：市场震荡。`；error `笔记加载失败`；空 → `暂无数据`（mock `null`）。
+  - `LeadLagMatrixView.test.tsx`（3 例）：`getBreadthHistory` 返回 `BreadthHistoryPoint[]`；纯 QueryState。断言 `加载中…`/`广度历史加载失败`/空 `有效样本不足，未计算矩阵`（mock `[]`）。
+  - `InflectionScan.test.tsx`（4 例）：引入 `./shared`（`AnalyticsHeader/DataBoundary/SectionState/show`）；`getBreadthAnalytics` hook；fixture 仅填组件读取字段，`as unknown as BreadthAnalytics` 转型。断言 `加载拐点扫描结果…`/`拐点扫描结果加载失败`/`暂无拐点扫描结果`(null)/`无可用广度维度生成拐点扫描`(okNoDims，数据态信号)。
+
+### 28.2 踩坑与守卫经验（第二批增量）
+1. **`getByLabelText` 失败（label 无 htmlFor）**：`MorningReport` 日期输入用 `<label>` 包裹 `<input>` 但无 `htmlFor`/`id` 关联，`fireEvent.change(getByLabelText(/日期/))` 报「Found a label ... however no form control was found associated」。改 `document.querySelector('input[type="date"]')` 直接拿 DOM 节点触发。
+2. **`null` 不赋 `ReviewNotes`（tsc）**：`getReviewNotes` 返回 `Promise<ReviewNotes>`，`mockResolvedValue(null)` 触发 `TS2345`。修复：`null as unknown as ReviewNotes`（顶部 `import type { ReviewNotes } from '@/api/schemas/read'`）。
+
+### 28.3 实证结论
+- 新 4 文件 16 例全绿；全量 `vitest run` → **454 passed / 1 skipped**（纯增量 +16）；`tsc --noEmit` 0 错。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**（纯前端测试，不触页面计数）。
+- 仍存质量债（未本轮覆盖）：`dashboard/decision/catalog/admin/settings/ops/review/guide/auth/export`（`Me`/`DataExport`/`DiagnosticsView` 等）仍无组件测试——属后续迭代候选。
+
+### 28.4 提交与推送
+- commit（msg: `test(v2): 补第二批 4 个未测高价值 native 页组件测试（16 例，四态+诚实降级）`）。
+- ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/{calendar/EarningsCalendar,morning/MorningReport,matrix/LeadLagMatrixView,analytics/InflectionScan}.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`（本轮非本任务改动）、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
