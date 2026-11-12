@@ -166,14 +166,24 @@ export function macdSeries(closes: (number | null)[], fast = 12, slow = 26, sign
 /**
  * 分时均价（累计成交额 / 累计成交量），与 v1 modules/visualizer_kline.py 同口径。
  * 累计成交量为 0 → 该点 null（不拿收盘价冒充均价）。
+ *
+ * ⚠️ 诚实红线（2026-11-12 修复）：amount 与 volume 必须**成对有效**才累加。
+ * 旧实现分别判空、分别累加，单点缺失时会「分子没加、分母照加」（或反之），
+ * 算出被稀释 / 放大的错误均价，且该缺失点仍输出一个看似精确的数字 —— 属用
+ * 不完整数据编造。现改为：任一缺失 → 该点显 null（断线），且两者都不累加，
+ * 保证后续累计的分子分母始终配对。
  */
 export function intradayAvg(points: IntradayPoint[]): (number | null)[] {
   const out: (number | null)[] = []
   let cumAmount = 0
   let cumVolume = 0
   for (const p of points) {
-    if (p.amount !== null) cumAmount += p.amount
-    if (p.volume !== null) cumVolume += p.volume
+    if (p.amount === null || p.volume === null) {
+      out.push(null)
+      continue
+    }
+    cumAmount += p.amount
+    cumVolume += p.volume
     out.push(cumVolume > 0 && cumAmount > 0 ? cumAmount / cumVolume : null)
   }
   return out

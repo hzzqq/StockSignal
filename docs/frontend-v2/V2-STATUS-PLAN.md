@@ -1039,3 +1039,54 @@ const showError = selected && !isLoading && isError && !notFound
 - commit（msg: `test(v2): ops 运维诊断 4 页诚实红线守卫（28 例，零缺陷取证）`）。
 - ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/ops/{DiagnosticsView,EventPoolView,PredictionLogView,SystemStatusView}.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 32. stock/ 分时均价累计口径真缺陷修复（2026-11-12，继续 v2）
+
+> 连啃几轮展示页后按老板指令**换方向到 `stock/` 计算密集处**（5 组件仅 1 测试）。命中一个**可复现、有确定性数值证据**的真缺陷，并顺手把整个纯计算模块 `klineMath.ts` 从零测试补到 12 例守卫。
+
+### 32.1 真缺陷定位与取证（先跑红再修）
+`features/stock/charts/klineMath.ts::intradayAvg`（分时均价 = 累计成交额 / 累计成交量）旧实现**分别判空、分别累加**：
+```ts
+if (p.amount !== null) cumAmount += p.amount
+if (p.volume !== null) cumVolume += p.volume
+out.push(cumVolume > 0 && cumAmount > 0 ? cumAmount / cumVolume : null)
+```
+→ 某分钟 **amount 或 volume 单点缺失**时「分子没加、分母照加」（或反之），累计口径错位，算出被稀释/放大的错误均价；且该缺失点**照样输出一个看似精确的数字**，违反「缺失不编造」红线。`toFiniteNumber` 会把 NaN/Inf 洗成 null，故缺失是真实场景（非空想）。
+
+先写单测跑红，证据（**10 passed / 2 failed**）：
+- `amount` 缺失点 → `expected null, received 6.666666666666667`（1000/150，被稀释）；
+- `volume` 缺失点 → `expected null, received 16`（1600/100，被放大）；
+- 后续点也随之错位（修复前 `8`，应为 `1600/150≈10.67`）。
+
+### 32.2 修复：金额与成交量必须成对有效
+```ts
+if (p.amount === null || p.volume === null) { out.push(null); continue }
+cumAmount += p.amount; cumVolume += p.volume
+out.push(cumVolume > 0 && cumAmount > 0 ? cumAmount / cumVolume : null)
+```
+任一缺失 → 该点显 `null`（断线）、两者都不累加，保证后续累计的分子分母始终配对。`IntradayChart` 本就按「null 断线、不拿收盘价冒充均价」设计，无需改动，引用面仅此一处。
+
+### 32.3 疑似候选排除（诚实负结果，避免误改）
+| 疑似点 | 结论 |
+|---|---|
+| `KLineChart.tsx:134` `chgPct = chg / b.open * 100` 用**今开**作基准，与 `IntradayChart` 用 `prevClose` 不一致 | `KlineBar` 接口只有 open/high/low/close/volume，**无昨收字段**；K 线 tooltip 的「涨跌」是开→收实体口径，与分时「较昨收」本就是不同指标。属数据限制下的合理选择，非缺陷（若日后要改成较昨收需后端补 prev_close）。 |
+| `IndexQuotes.tsx:39` `up = change >= 0` 把平盘 0 染涨色并加 `+` | 全站 **十几处统一用 `>= 0 ? up : down`**（`Backtest`/`FactorAnalysis`/`FundFlow`/`DragonTiger` 等），是全站口径而非该页独有缺陷 → 按 §30/§31 教训**不单独改**，避免制造不一致。记为统一口径现状。 |
+
+### 32.4 补缺：`klineMath.ts` 纯计算模块由 0 测试 → 12 例守卫
+`features/stock/charts/klineMath.test.ts`（纯函数单测，无需 jsdom/QueryClientProvider）：
+- `intradayAvg` 5 例：标准累计 `[10, 10.67]`、**amount/volume 单点缺失成对处理**、全缺失全 null、`volume=0`→null、零成交保持上一均价。
+- `rollingMean` 2 例：前 `window-1` 根 null、窗口内任一缺失该点 null、`window<=0` 全 null，**不补 0**。
+- `emaSeries` 2 例：首值取前 period 个样本 SMA、其后 `Y = v*2/(N+1) + prev*(N-1)/(N+1)`；**遇 null 断链**，需重新攒够 period 才出值。
+- `macdSeries` 1 例：slow=26 未就绪前 DIF 全 null，DEA/HIST 需再攒 signal=9 个连续 DIF，未就绪段绝不补 0。
+- `parseKlineRows` / `intradayLabel` 2 例：date 缺失行丢弃、NaN/Inf/字符串数值洗成 null（真 0 保留）、时刻解析。
+
+### 32.5 实证结论
+- 新 12 例全绿；`tsc --noEmit` **0 错**；全量 `vitest run` → **533 passed / 1 skipped**（78 文件，+12）。
+- ⚠️ 首次全量曾出现一次瞬时 `Errors 1 error`（新文件未被收集、计数 528/77 文件），**独立复跑两次均干净**（533/78、新文件 12 tests 被收集、EXIT=0）→ 归因 tsc 与 vitest 串行同命令时的 worker 启动抖动，非 flaky 测试失败，如实记录。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- 剩余质量债：`admin/auth/catalog/guide/me/settings` 无组件测试；`analytics`(5/1)、`stock` 其余 4 组件（`FinancialHunter`/`FundamentalsView`/`ResearchView`/`SixDimView`）仍无组件级测试。
+
+### 32.6 提交与推送
+- commit（msg: `fix(v2): 修分时均价单点缺失累计错位 + klineMath 纯计算 12 例守卫`）。
+- ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/stock/charts/klineMath.ts`、`klineMath.test.ts` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
