@@ -837,3 +837,23 @@ v2 不提供任何真实券商下单能力。
 - commit（msg: `fix(v2): 修 market-sentiment 缓存过期 500 真缺陷 + 新增真后端集成冒烟守卫`）。
 - ff-only 推 `origin/main`；仅 stage `backend/api/read_routes.py` + `backend/tests/test_market_sentiment_degradation.py` + `backend/tests/test_read_routes_integration.py` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`frontend-v2/`、`thesis/`、`backups/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage（本轮无前端改动）。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 26. 在线端点「上游失败绝不 500」确定性守卫（2026-11-12，继续 v2）
+
+> 延续 §25 教训：market-sentiment 的 500 根因是「后处理未接住模块返回的异常结构」；在线端点（akshare/实时行情）还有一类更广的风险——**上游网络 / akshare 调用抛异常时若未被 try/except 接住，整个端点 500**。生产环境网络抖动、数据源限流、akshare 改版都会触发。本轮把这一类做成确定性守卫。
+
+### 26.1 守卫设计
+- 新文件 `backend/tests/test_online_endpoints_graceful.py`（parametrize 27 个在线端点 + 合法参数）。
+- 用 `monkeypatch` 把 `requests.get/post/put`、`requests.Session.get/post/put/request`、`urllib.request.urlopen` **立即抛 ConnectionError**（模拟离线/超时/数据源不可达）；**不 patch socket**，避免误伤 in-process 测试客户端。
+- 断言：① 任意在线端点 `status_code != 500`（核心契约：上游失败 → 200 优雅信封，而非 500；400 属参数校验亦合法）；② 若 200，响应必为统一信封（含 status/code/message/data 四字段）。
+- **确定性无网可复现**：网络层打挂使 akshare 调用瞬间失败（无真实超时等待），命中端点若未接住异常 → 500 → 断言失败，精准暴露真实缺陷。
+
+### 26.2 实证结论（负结果 = 无新缺陷，但已锁类）
+- 27 个在线端点在上游失败下**全部 200 或 400，零 500**；其中 market-sentiment 修复后稳定通过（该端点降级路径亦被本守卫覆盖）。
+- 与本会话另两守卫（§25 的 integration / degradation）同跑共 88 例全绿，无交叉干扰。
+- 价值：把「在线端点不得因上游失败 500」从口头契约固化为回归锁，防止未来新增端点重犯 market-sentiment 同类错误。
+
+### 26.3 提交与推送
+- commit（msg: `test(v2): 在线端点上游失败绝不 500 确定性守卫（27 端点 monkeypatch 网络层）`）。
+- ff-only 推 `origin/main`；仅 stage `backend/tests/test_online_endpoints_graceful.py` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`frontend-v2/`、`thesis/`、`backups/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage（纯后端测试，无前端改动）。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。v1 降级/退役评估继续挂起；43 实盘交易红线不碰。
