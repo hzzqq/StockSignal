@@ -1229,3 +1229,35 @@ MSW `setupServer` + `<Providers>`，桩 `@tanstack/react-router` 的 `Link` 与 
 - commit（msg: `fix(v2): 个股研究分时数据独立四态，失败/无数据不再静默省略`）。
 - ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/stock/ResearchView.tsx`、`ResearchView.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 35. stock/ 最后 3 组件：覆盖前提纠偏 + 15 例边界守卫（2026-11-12，继续 v2）
+
+> **先纠正一个此前的表述口径**：§31–§34 记的「`stock` 5 组件仅 1 测试」指的是**没有 colocated 组件级测试**，并非零覆盖。实勘 `frontend-v2/tests/e2e/` 发现 `w4-six-dim.test.tsx`(4)、`w4-financial-hunter.test.tsx`(6)、`w4b-pages.test.tsx`(FundamentalsView 6 + ResearchView 8) 早已覆盖主链路。按「不为覆盖而覆盖」原则，**不重造已有断言**，本轮只锁它们确实没碰到的边界；三项既有 E2E 基线先跑 **25/25 绿**。
+
+### 35.1 零真缺陷（诚实负结果，业务代码零改动）
+逐行复核 `SixDimView` / `FinancialHunter` / `FundamentalsView`：`QueryState` 四态齐备、null→「—」/「缺失」、date 无兜底、note 原文、错误态 `role=alert`、非法 code `enabled=false`、副数据源独立 `QueryState` 均已守住。**本轮不改任何业务代码**，不把「补测试」包装成「修缺陷」。
+另记两条技术债（非缺陷，未改）：三处 `FinancialTable` / `KlineTable` 重复实现可抽公共组件；`FinancialTable` 只取首行 keys，后端 rows 同构时无碍，若异构会静默丢列。
+
+### 35.2 15 例确定性守卫（3 个 colocated 新文件）
+| 文件 | 例数 | 锁住的**新增**边界 |
+|---|---|---|
+| `src/features/stock/SixDimView.test.tsx` | 6 | ⚠️ **捕获 EChart option**：缺维 `radar.value` 必须是 `null`，绝不补 0 分（DOM 显「缺失」不代表图形没补 0）；`coverage=0` 全缺失空态且不画雷达；`overall=null`→「暂无综合分」；`note=null`→「原始响应未提供口径说明」；`date=null` 时 Stat「最新数据日」显「—」且真实数据日不得被借用；非法 code → 零新请求 + 「未发起请求」空态。 |
+| `src/features/stock/FinancialHunter.test.tsx` | 5 | 非法输入按钮 disabled 且点击零请求；**Enter 键提交**；深链 `search.code` 首帧预选（不回落 600519）；⚠️ 查询失败 → `ErrorState(alert)` 显真实原因，绝不伪装「暂无财报数据」；切 tab 时 `report=cash` **真的透传到 API**（既有 E2E 只断言 UI 回显）。 |
+| `src/features/stock/FundamentalsView.test.tsx` | 4 | ⚠️ 财报源独立失败 → 错误 alert 只在财报卡，主数据/9 项指标照常；`spot_date`/`kline_date` 双 null 各自显「—」不互兜底；非法 `search.code` 回落默认且首帧只按 600519 请求；`fin.rows=[]` 空态不连累主数据。 |
+
+测试手法：`vi.hoisted` 捕获 `EChart` 的 `option` 与 MSW 请求参数（断言「零请求 / 参数透传」）；MSW handler 显式注入响应，避免依赖默认夹具的 `notFound` 差异；沿用 `Providers` + `Link` 替身范式；统一 `FIND={timeout:5000}`（React Query 重试会超过 `findBy*` 默认 1s）。
+
+### 35.3 踩坑（测试桩自身，非业务缺陷）
+「切 tab → 报表 cash」用例首次超时 5s：自写 handler 固定返回 `financialsFull`（`report` 恒 `income`），而页面显示的是**后端回显的 `data.report`**，故「报表 cash」永不出现。改为按请求参数回显 `report`（与真实 handler 一致）后通过。教训：桩必须复刻后端的**回显行为**，否则会把测试桩缺陷误判成组件缺陷。
+
+### 35.4 实证结论
+- 3 新文件 **15/15**；既有 3 个 E2E **25/25**；`tsc --noEmit` **0 错**；全量 `vitest run` → **560 passed / 1 skipped**（83 文件，+15），无回归。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- `stock/` 目录至此收敛：`CompareView`(既有 2) + `ResearchView`(6) + `KLineChart`(6) + `klineMath`(12) + 本轮 3 文件(15)，且 W4-A/W4-B/W4-C 三组 E2E 全绿。
+- 剩余质量债：`admin/auth/catalog/guide/me/settings` 仍无组件测试；`analytics`(5/1)、`dashboard`(3/1) 偏薄；`charts/KLineModal.tsx`、`components/IndexQuotes.tsx` 无独立测试。
+
+### 35.5 提交与推送
+- commit（msg: `test(v2): stock 三组件 15 例边界守卫（图形层不补 0 / 错误隔离 / 交互参数透传）`）。
+- `git fetch origin main` → `merge-base --is-ancestor` → **`git push --dry-run origin main`** → 正式推送 → 复校 local/remote SHA。
+- 仅 stage 3 个新测试文件 + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
