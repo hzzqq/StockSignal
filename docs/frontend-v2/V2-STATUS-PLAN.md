@@ -857,3 +857,37 @@ v2 不提供任何真实券商下单能力。
 - commit（msg: `test(v2): 在线端点上游失败绝不 500 确定性守卫（27 端点 monkeypatch 网络层）`）。
 - ff-only 推 `origin/main`；仅 stage `backend/tests/test_online_endpoints_graceful.py` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`frontend-v2/`、`thesis/`、`backups/`、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage（纯后端测试，无前端改动）。
 - 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。v1 降级/退役评估继续挂起；43 实盘交易红线不碰。
+
+## 27. 前端未测高价值 native 页 组件级测试补缺（2026-11-12，继续 v2）
+
+> 延续「锐评迭代：找真实缺陷→修复→验证→提交」套路，本轮转回前端侧补 E2E/组件测试覆盖缺口。基线核验：`tsc --noEmit` 0 错；`vitest run` **412 passed / 1 skipped**，MSW 注册 48 端点；但 `features/` 内仅 18 个 `.test.tsx`，且大量高价值 native 页（MarketPanorama / WebApps / P1Signals / PaperTrades / Recommendation / Alerts）**完全无组件测试**——仅 E2E 6 个 `w4-*.test.tsx` 覆盖主干流。
+
+### 27.1 补缺目标与写法
+- 新 6 个 `.test.tsx`（共 **26 例**，全绿），严格沿用 `MarketSentiment.test.tsx` 模板：
+  - `vi.mock('@/api/read', () => ({ getX: vi.fn() }))` 桩对应 API 函数；
+  - `QueryClientProvider` 包裹 + `retry:false` 隔离；
+  - 覆盖 **loading / error / ok / 空态（或不可用语义）** 四态。
+- `MarketPanorama.test.tsx` 含 `<EChart>`（两张图）→ 额外 `vi.mock('@/shared/charts/EChart', () => ({ EChart: () => null }))` 桩掉，规避 jsdom 无 canvas 崩溃（与 `Portfolio/Backtest` 等既有测试同手法）。
+- 诚实红线断言重点：
+  - 广度字段 null → 显「—」而非补零（MarketPanorama 5 个 Stat）；
+  - 数据源缺失字段 `shepherd_unavailable` 原样带出（不为空态隐瞒）；
+  - `regime.latest` 缺失 → 诚实空态「暂无市场全景数据」；
+  - `Recommendation` `status==='unavailable'` → 如实展示 reason（不编造推荐）；
+  - `Alerts` / `PaperTrades` 数据缺失 → 诚实空态「暂无…」。
+
+### 27.2 踩坑与守卫经验（防回归）
+1. **标题不是加载完成信号**：`findByText` 若 await 页面常驻标题（如「网页作品集」始终渲染），会在 loading 态立即 resolve，导致后续数据态断言时序错位。必须 await **仅数据态才出现的元素**（如「市场状态」/「作品A」/「signal_h10」/「100,000」/「状态：ok」/`/rule1/`）。
+2. **React Query 拒绝 `undefined` 作成功结果**：`mockResolvedValue(undefined)` 会让查询进入 error 而非空态，致 `findByText('暂无数据')` 超时。空态须用 `null`（已注释进测试）。
+3. **多查询组件 loading 用 `findAllByText`**：`Recommendation`/`Alerts` 双查询同步挂起时两个「加载中…」并存，`getByText` 报多重匹配 → 改用 `findAllByText`。
+4. **`getByText` 不匹配子串**：`后5日红盘率 55.3%` 在同文本节点，`getByText('55.3%')` 失败 → 改 `getByText(/55\.3%/)` 正则。同名多出现（如「浦发银行」跨持仓/成交两表）→ 改 `getAllByText`。
+5. **Schema 类型须忠实**：`RegimeAnalogSchema.metrics` 在 Zod 中标为非可选，fixture 必须带 `metrics:{}` 否则 `tsc` 报错（即便运行时组件不读该字段）。
+
+### 27.3 实证结论
+- 新 6 文件 26 例全绿；全量 `vitest run` → **438 passed / 1 skipped**（纯增量 +26）；`tsc --noEmit` 0 错。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**（纯前端测试，不触页面计数）。
+- 仍存质量债（未本轮覆盖）：`dashboard/decision/morning/calendar/catalog/admin/settings/ops/review/matrix/guide/me/auth/analytics/export` 等目录无组件测试——属后续迭代候选，本次先补最高价值 6 页。
+
+### 27.4 提交与推送
+- commit（msg: `test(v2): 补 6 个未测高价值 native 页组件测试（26 例，四态+诚实降级）`）。
+- ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/{market/MarketPanorama,webapps/WebApps,p1/P1Signals,paper/PaperTrades,recommend/Recommendation,alerts/Alerts}.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`（本轮非本任务改动）、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
