@@ -1365,3 +1365,42 @@ MSW `setupServer` + `<Providers>`，桩 `@tanstack/react-router` 的 `Link` 与 
 - `git fetch origin main` → `merge-base --is-ancestor` → `git push --dry-run origin main` → 正式推送 → 复校 local/remote SHA。
 - 仅 stage 2 个新测试文件 + `docs/frontend-v2/V2-STATUS-PLAN.md`；红线目录与他人的未提交改动一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 39. guide/me/auth(LoginWelcome)/catalog 四组件：首次真实组件级覆盖（2026-11-12，继续 v2）
+
+> 承接 §38 末「剩余质量债：admin/auth/catalog/guide/me/settings 无组件测试」。实勘：这 8 个组件此前**零测试引用**（grep 确认无 mock/E2E/colocated）。本回先收口较小/偏静态的 4 个（guide / me / auth·LoginWelcome / catalog·CatalogView），交互重的 4 个（admin·UserManagement / auth·LoginPage / catalog·DataSourceView / settings·SettingsView）留 §40。
+
+### 39.1 源码取证结论：零真缺陷（诚实负结果，业务代码零改动）
+逐行复核 4 组件：
+- `GuideView`：纯静态引导 + localStorage 进度（`STORAGE_KEY='ss_guide_steps'`，`readDone()` 损坏/非数组→回落 `[]`）；FAQ 搜索过滤；无动态行情数字。合规。
+- `Me`：`getCurrentUser()`（localStorage `ss_user`，解析失败/null→显示「请重新登录」，不编造角色）；`useUserDashboard()` 四态（loading / error / 空 widgets（「暂无默认组件」）/ 有数据）；`created_at ?? '—'`；`WIDGET_LABELS[w] ?? w`（未知 widget 显原始 id）。合规。
+- `LoginWelcome`：纯品牌门禁，`onLogin` 回调；演示账号 `demo / Demo@123`（与后端 seed 一致）真实展示；无未验证数字。合规。
+- `CatalogView`：v1 功能全景，三档状态由 `mappingOf` 实时计算，清单来自 `v1Pages.generated`（磁盘实扫非手写）；搜索/状态筛选联动；无匹配→「没有匹配的功能页。」诚实空态。合规。
+
+### 39.2 22 例确定性守卫（4 新 colocated 文件）
+| 文件 | 例数 | 锁住的边界 |
+|---|---|---|
+| `src/features/guide/GuideView.test.tsx` | 6 | 渲染全部区块（无动态数字）；初始 0/4·0%；勾选→1/4·25% 且写回 localStorage；损坏 JSON→回落 0/4；FAQ 搜索命中（「同步」）/ 无命中（诚实空态）。 |
+| `src/features/me/Me.test.tsx` | 8 | 未登录→「请重新登录」；admin / 普通用户徽章；`created_at=null`→「—」；空 widgets→「暂无默认组件」；已知 + 未知 widget 标签；loading→Loading；error→ErrorState（不伪装成无数据）。 |
+| `src/features/auth/LoginWelcome.test.tsx` | 4 | 品牌主标题 / 平台名；演示账号 `demo / Demo@123`；脚注免责；点击「去登录」→ `onLogin` 一次。 |
+| `src/features/catalog/CatalogView.test.tsx` | 4 | 五档 Stat 标签 + 诚实声明「列出 ≠ 已实现」；搜索无命中→空态；状态筛选联动（native 命中 / v1-only 下消失，用真实生成数据驱动）；按钮 `aria-pressed` 切换。 |
+
+测试手法：`vi.mock('@tanstack/react-router')` 把 `Link` 透传为 `<span>`/`<a>`；`Me` 额外 `vi.mock('@/lib/auth')` + `vi.mock('@/lib/queries')` 直接替 `getCurrentUser`/`useUserDashboard` 控制四态；`CatalogView` 直接 import 真实 `V1_PAGES`/`mappingOf` 驱动确定性断言（断言依赖四档口径 63 native 成立）。**重要坑**：本仓**未装 `@testing-library/jest-dom`、无 setup 注册**——故「存在断言」改用 `getByText(...)` 抛错 + `toBeTruthy()`，绝不用 `toBeInTheDocument()`（全量 621 例的既定约定）。
+
+### 39.3 踩坑（测试桩自身，非业务缺陷）
+- **本仓无 jest-dom**：`toBeInTheDocument` 一律报 `Invalid Chai property: toBeInTheDocument`。改用 `expect(screen.getByText(x)).toBeTruthy()`（getByText 缺失即抛错，等价于存在断言）；`getByRole('alert')` / `queryByText(x)` 为 RTL/vitest 原生，照常。
+- **Stat 标签与筛选按钮文字撞车**：`CatalogView` 的「已实现」「v1 保留」「待迁移」既是 Stat `label` 也是筛选 `button` 文案 → `getByText` 报「Found multiple elements」。按钮改用 `getByRole('button', { name: 'x' })` 定位；Stat 标签用 `getAllByText(x).length>=1` 去歧义。
+
+### 39.4 实证结论
+- 4 新文件 **22/22**；`tsc --noEmit` **0 错**；全量 `vitest run` → **643 passed / 1 skipped**（94 文件，+22 例 +4 文件），无回归。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- 剩余质量债（最后一批）：`auth·LoginPage` / `admin·UserManagement` / `catalog·DataSourceView` / `settings·SettingsView` 仍无组件测试（§40 收口）。
+
+### 39.5 提交与推送
+- commit（msg: `test(v2): guide/me/LoginWelcome/catalog 22 例确定性守卫（localStorage进度/账户四态/品牌回调/三档筛选）`）。
+- ff-only 推送（fetch → ancestor → dry-run → push → SHA 复校）；仅 stage 4 个新测试文件 + docs。
+- ks 父仓库 submodule 指针留痕不推。
+
+## 仍存质量债（后续迭代候选，已修正）
+`stock/`、`analytics/`、`dashboard/`、`guide/`、`me/`、`auth`（仅 LoginWelcome）至此收敛；`catalog` 半收敛（CatalogView 已覆盖，DataSourceView 未）；`settings` 未覆盖。剩余未测（最后一批 4 个）：`auth·LoginPage`、`admin·UserManagement`、`catalog·DataSourceView`、`settings·SettingsView` —— 由 §40 收口。
+⚠️ 工作区有**其他任务改动**：`thesis/`、`backups/`、`scripts/`、`pages/54_*.py`、`55_*.py`、`modules/p1_portfolio_diag.py`、`.trae/`、`artifacts/`、`docs/welcome.html` —— 一律不 stage、不碰。
