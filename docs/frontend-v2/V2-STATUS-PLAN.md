@@ -1261,3 +1261,33 @@ MSW `setupServer` + `<Providers>`，桩 `@tanstack/react-router` 的 `Link` 与 
 - `git fetch origin main` → `merge-base --is-ancestor` → **`git push --dry-run origin main`** → 正式推送 → 复校 local/remote SHA。
 - 仅 stage 3 个新测试文件 + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 36. stock/ K 线弹窗 + 主要指数：首次真实组件级覆盖（2026-11-12，继续 v2）
+
+> 承接 §35「剩余质量债」中的 `charts/KLineModal.tsx`、`components/IndexQuotes.tsx`。先勘实情：二者此前**无任何真实组件级测试**——`Dashboard.test.tsx` 把 `IndexQuotes` 整体 `vi.mock(() => null)` 掉了，KLineModal 也仅被该 mock 间接「覆盖」。本轮回填这一空白。
+
+### 36.1 源码取证结论：零真缺陷（诚实负结果，业务代码零改动）
+逐行复核 `IndexQuotes.tsx` 与 `KLineModal.tsx`：
+- 诚实红线齐备：`current/change/change_pct === null → "—"`；`change === null` 走中性色 `var(--color-sf-ink-2)`，绝不把缺失误判为跌；交易屏语义涨红(`--ss-up`)/跌绿(`--ss-down`)正确。
+- `KLineModal` 始终调用 `useStockKline` + `useIndexKline`（`enabled` 各自拦截非法 code，不破坏 hooks 顺序）；按 `isIndex` 选数据源；`QueryState` 四态：`isLoading`/`isError(role=alert)`/`isEmpty(!loading && !error && rows.length===0)`/`children`。
+- `IndexQuotes` 的 `isEmpty={!!data && items.length===0}` 看似有「`data:null` 但 ok」缺口，但 `IndexQuotesSchema` 用 zod 强约束，**解析失败即抛 → `isError`**，故 `data` 在 `!isError` 时恒为已解析对象，`isEmpty` 缺口在契约上不可达——非缺陷。
+- 结论：两个组件设计已合规，**本轮不改业务代码**，只补确定性守卫把上述行为**锁死**，避免后续重构回退。
+
+### 36.2 16 例确定性守卫（2 个 colocated 新文件）
+| 文件 | 例数 | 锁住的边界 |
+|---|---|---|
+| `src/features/stock/components/IndexQuotes.test.tsx` | 7 | 加载中→「加载中…」；取数失败→`role=alert` 显真实原因（不静默空白）；`items=[]`→诚实空态「暂无指数数据」；成功渲染全部 5 指数且**涨红跌绿**按 `--ss-up`/`--ss-down` 着色；⚠️ `current/change/change_pct` 全 null → 显「—」且方向中性色（不含 `ss-up`/`ss-down`）；`note` 非空才展示；**集成**：点击卡片 → 打开 `KLineModal` 且请求对应指数 K 线（`echart` 桩出现）。 |
+| `src/features/stock/charts/KLineModal.test.tsx` | 9 | `open=false`/`code=null` → 不渲染 dialog 且不发请求（`enabled` 拦截，resolver 零触达）；`open=true+name` 标题为 name、`EChart` 渲染；无 name → 标题回落 code；关闭三件套（按钮 / **Esc** / **点遮罩**）各触发 `onClose` 一次；取数失败→`role=alert`；`rows=[]`（000003 夹具）→诚实空态；`note` 非空才展示。 |
+
+测试手法：沿用 `Providers` + `EChart` 桩（`data-testid="echart"`）+ MSW 显式注入；统一 `FIND={timeout:5000}`；颜色断言读 DOM **属性** `el.innerHTML`（非 `getAttribute('innerHTML')`，后者对 `innerHTML` 恒返回 `null`，是本轮踩到的测试桩自身坑）；标题「 · K 线详情」用正则 `/K 线详情/` 匹配（精确串匹配会被 span 前缀打断）。
+
+### 36.3 实证结论
+- 2 新文件 **16/16**；`tsc --noEmit` **0 错**；全量 `vitest run` → **576 passed / 1 skipped**（85 文件，+16），无回归。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- 剩余质量债更新：`admin/auth/catalog/guide/me/settings` 仍无组件测试；`analytics`(5/1)、`dashboard`(3/1) 偏薄。`stock/` 全目录至此收敛（含 W4-A/W4-B/W4-C E2E 全绿）。
+
+### 36.4 提交与推送
+- commit（msg: `test(v2): 指数报价与 K 线弹窗 16 例确定性守卫（四态/中性色/关闭三件套/集成）`）。
+- `git fetch origin main` → `merge-base --is-ancestor` → `git push --dry-run origin main` → 正式推送 → 复校 local/remote SHA。
+- 仅 stage 2 个新测试文件 + `docs/frontend-v2/V2-STATUS-PLAN.md`；红线目录与他人的未提交改动一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
