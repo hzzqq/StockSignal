@@ -1291,3 +1291,38 @@ MSW `setupServer` + `<Providers>`，桩 `@tanstack/react-router` 的 `Link` 与 
 - `git fetch origin main` → `merge-base --is-ancestor` → `git push --dry-run origin main` → 正式推送 → 复校 local/remote SHA。
 - 仅 stage 2 个新测试文件 + `docs/frontend-v2/V2-STATUS-PLAN.md`；红线目录与他人的未提交改动一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 37. analytics 三组件（温度持续期/情绪时钟/相似日）：首次真实组件级覆盖（2026-11-12，继续 v2）
+
+> 承接 §36「剩余质量债」中的 `analytics`(5 组件仅 1 测试)。先勘实情：`InflectionScan` 已有 `InflectionScan.test.tsx`(4)；**`RegimeDuration` / `SentimentClock` / `SimilarDays` 此前零组件级测试**。三组件与 `shared.tsx` 骨架均严格守诚实红线（`show/showPct/showNum` → `—`、`SectionState` 独立降级、图表送 `null` 不补 0、`DataBoundary` 逐条披露缺真值维度）。
+
+### 37.1 源码取证结论：零真缺陷（诚实负结果，业务代码零改动）
+逐行复核三组件 + `shared.tsx`：
+- `show(v)` 对 `null/undefined/''/NaN` → `—`，且注释明令「0 是真实数值，不能被当成缺失」——已实现。
+- `SectionState`：段 `!available` → 只该段显「暂无数据」+ reason；但**注意**：`RegimeDuration` 与 `SimilarDays` 把 `DataBoundary` 嵌套在 `SectionState` 内，段不可用时整段（含披露）一起隐藏（设计特性，记此非缺陷）；`SentimentClock` 的 `DataBoundary` 在 `SectionState` 外，恒显示。
+- 图表数据：三组件的 `barOption/lineOption` 对缺失一律送 `null`（ECharts 不画），`SimilarDays` 还显式标「部分前向窗口无足够样本，对应柱不绘制（不补 0）」。
+- 结论：设计已合规，**本轮不改业务代码**，只补确定性守卫把上述行为**锁死**。
+
+### 37.2 20 例确定性守卫（3 个 colocated 新文件）
+| 文件 | 例数 | 锁住的边界 |
+|---|---|---|
+| `src/features/analytics/RegimeDuration.test.tsx` | 7 | 四态 loading/error(alert)/空数据/有数据；duration 段 unavailable → 仅该段显「暂无数据」、柱状图/统计不渲染；**median=null → Stat 显「—」且柱状图该柱 `null`（捕获 EChart option 验证图形层不补 0）**；**median=0 → 显「0 天」真实零值（零≠缺失）**；离线缺真值维度逐条披露。 |
+| `src/features/analytics/SentimentClock.test.tsx` | 7 | 四态；phase 段 unavailable → 当前相位段显「暂无数据」、DataBoundary 仍在（段外）；时序段 dates 空 → 时序图区域显「暂无足够广度历史生成时序图」不画图；**red_ratio=null → 显「—」不补 0**（真实 46.67 → 「46.67%」）；5 档时间窗口可选项齐全。 |
+| `src/features/analytics/SimilarDays.test.tsx` | 6 | 四态；similar 段 unavailable → 仅该段显「暂无数据」、图表/样本卡不渲染；**前向窗口 n=0 → 该柱 `null`（捕获 EChart option 验证 data[0]===null 绝非 0）+ 显「部分前向窗口无足够样本」警告 + Stat 显「—」**；真实 up_ratio(86.7%) 如实展示。 |
+
+测试手法：沿用 `InflectionScan.test` 范式——`vi.mock('@/api/read')` 直接替 `getBreadthAnalytics`（规避 MSW/zod），`vi.hoisted` 捕获 `EChart` 的 `option` 与请求，断言「图形层不补 0」；用真实离线夹具 `breadthAnalytics`（含全段真实数据）作 happy path，边缘用结构最小化 payload；统一 `retry:false, staleTime:0` 的 `QueryClient`，`findBy*` 统一 `FIND={timeout:5000}`。
+
+### 37.3 踩坑（测试桩自身，非业务缺陷）
+- **`Card` 标题是「离线数据边界（务必阅读）」，不是「离线数据边界」**：`getByText` 精确串匹配失败 → 改正则 `/离线数据边界/`。同理 `DataBoundary` 列出的缺真值维度文本是「连板高度（离线…）」整节点，需正则 `/连板高度/`。
+- **`SentimentClock` 的 `normalize()` 入参必须是数组**：自造边缘数据把 `phase.series` 写成对象导致 `vals.filter is not a function` 崩溃；修正为 `series:{dates,labels,series:{维度:number[]}}` 正确形态。
+
+### 37.4 实证结论
+- 3 新文件 **20/20**；`tsc --noEmit` **0 错**；全量 `vitest run` → **596 passed / 1 skipped**（88 文件，+20），无回归。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- `analytics` 至此 5/5 全收敛（含既有 `InflectionScan.test`）。剩余质量债：`admin/auth/catalog/guide/me/settings` 无组件测试；`dashboard`(3/1 偏薄，且 `Dashboard.test` 把 `IndexQuotes` mock 掉，真测 dashboard 需先解除该 mock)。
+
+### 37.5 提交与推送
+- commit（msg: `test(v2): analytics 三组件 20 例确定性守卫（四态/不补 0/零值≠缺失/独立降级）`）。
+- `git fetch origin main` → `merge-base --is-ancestor` → `git push --dry-run origin main` → 正式推送 → 复校 local/remote SHA。
+- 仅 stage 3 个新测试文件 + `docs/frontend-v2/V2-STATUS-PLAN.md`；红线目录与他人的未提交改动一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
