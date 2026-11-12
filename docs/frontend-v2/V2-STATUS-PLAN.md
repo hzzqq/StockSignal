@@ -1004,3 +1004,38 @@ const showError = selected && !isLoading && isError && !notFound
 - commit（msg: `fix(v2): 95 数据导出按 error code 分流，失败不再伪装成「无归档」`）。
 - ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/export/DataExport.tsx`、`export/DataExport.test.tsx`、`dashboard/Dashboard.test.tsx`、`review/ReviewNotes.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 31. ops/ 运维诊断页诚实红线守卫（2026-11-12，继续 v2）
+
+> 承接 §30 的教训（改错误语义前先查后端契约、全量回归是硬闸门），本轮钻 `ops/`（4 组件全零测试：诊断 / 事件池 / 预测日志 / 系统状态）。**结论：零真缺陷，诚实记录不硬凑**；转补确定性守卫，把运维页的诚实降级语义一次性锁死。
+
+### 31.1 找缺陷取证链：三个疑似候选全部排除（附证据）
+| 疑似点 | 排除证据 |
+|---|---|
+| `DiagnosticsView::runEndpointProbe` catch 里 `setEndpointResults([])` → UI 显示「没有可自动探测的端点」，疑似「失败伪装成无数据」（§30 同族） | `api/diagnostics.ts::probeOne` 把每个异常都收敛成 `ok:false + detail` 的 `EndpointProbeResult`，**`probeEndpoints` 实际不抛错**；且 `autoPaths.length===0` 时按钮 `disabled`，点不了 → 该分支**不可达**。 |
+| `statusText('fresh') → '正常'`，但汇总统计把 `fresh` 计入「滞后」、`statusClass` 把非 ok 当警告色，三处口径矛盾 | 后端 `_diag_freshness()` → `modules.data_health.health_rows()` → `modules.decision.assess_freshness()`，其 status 值域显式为 **`ok/warn/stale/unknown`**，**永不返回 `fresh`** → `fresh` 是死代码分支。记为**潜在技术债**（若未来新增该状态须同步三处口径），本轮不包装成缺陷修复。 |
+| `SystemStatusView::signed()` / `DashboardCustom::Signed()` 无 `Number.isFinite` 检查，`NaN.toFixed()` 会输出 `"NaN"` | JSON 序列化不产生 `NaN`（`null` 代替），Zod 已保证数值域；属边缘防御，非当前真实缺陷。 |
+
+另有全局扫描复核：`EventPoolView` 的 `count ?? rows.length` 用的是**同份数据实际明细行数**（诚实派生值，非补 0）；`PredictionLogView` 的 `rate` 只可能 number|null；`DiagnosticsView` 未探测时 `okEndpoints` 保持 `null` 显「未检测」（注释明确禁补 0）。
+
+### 31.2 补缺内容（4 文件 28 例，全绿）——ops/ 由 0 测试 → 4 组件全覆盖
+- `ops/DiagnosticsView.test.tsx`（**9 例**）：mock `@/api/diagnostics`（`getDiagnostics/probeEndpoints/mocksEnabled`）。锁「默认零网络」`getDiagnostics(false)` + `probeEndpoints` 未调用 + `probe=null` 显「尚未探测」；MSW 环境警示「全部检测结果均为模拟数据」+「四源网络探测（模拟数据）」；未探测显「未检测」且断言无 `0/0`；`available=false`/`levels=[]` 独立降级不包装成全部正常；sources/freshness 分区独立降级；状态文字 ok→正常 / stale→滞后 / unknown→未知 + 缺失 `as_of` 显「—」；点击「开始检测」→ `probeEndpoints` 参数与 `1/1`、`42 ms` 实记录。
+- `ops/PredictionLogView.test.tsx`（6 例）：**命中率口径**——4 条日志 / 2 已兑现 / 1 命中 → `50.0%` + `分母 2 条`，未兑现不计分子分母（断言无 `25.0%`）；全部未兑现 → 「—」+「无可统计样本」，绝不补 `0.0%`；口径说明与「不构成未来预测」如实带出。
+- `ops/EventPoolView.test.tsx`（6 例）：免责 note 原文原样带出；`fmtNum` 浮点两位（`88.50`/`0.12`）；逐条字段全缺失 → 「—」且无 `0.00`；`count` 缺失用实际明细行数（不补 0）。
+- `ops/SystemStatusView.test.tsx`（7 例）：三独立数据源**任一失败不连带整页空白**；负收益 `-12.50` / 负回撤 `-8.25` / 负 Sharpe `-0.85` 原样带符号、断言无 `+12.50`；字段缺失一律「—」；绝对路径类字段（fixture 故意塞 `target_dir`）**绝不渲染**；健康明细 达标/超 SLA/未通过；三源全空 → 3 个独立空态。
+
+### 31.3 写测试踩坑（本轮增量，防回归）
+1. **常驻元素不能当加载完成信号**（§27.2 老坑再现）：`DiagnosticsView` 的 MSW 警示横幅、`SystemStatusView` 的章节标题都在 `QueryState` 外/常驻，await 它们会在 loading 态立即 resolve → 必须 await 仅数据态才出现的元素（Card 标题 / `2026-03-01 08:00`）。
+2. `fmtNum` 浮点一律 `toFixed(2)`：`88.5 → '88.50'`、`0.1234 → '0.12'`，断言别写原值。
+3. 同名文本跨区块重复（「命中」「正常」）→ `getAllByText(...)[0]` 或断言数量。
+4. `expect(await findByText(x)).resolves` 语法错：`await` 已拿到元素，直接 `.toBeTruthy()`。
+
+### 31.4 实证结论
+- 新 4 文件 28 例全绿；全量 `vitest run` → **521 passed / 1 skipped**（77 文件，纯增量 +28）；`tsc --noEmit` 0 错。全量回归硬闸门通过，既有 E2E 无回归。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- 剩余质量债：`admin/auth/catalog/guide/me/settings` 无组件测试；`analytics`(5/1)、`stock`(5/1)、`dashboard`(3/1) 覆盖偏薄。
+
+### 31.5 提交与推送
+- commit（msg: `test(v2): ops 运维诊断 4 页诚实红线守卫（28 例，零缺陷取证）`）。
+- ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/ops/{DiagnosticsView,EventPoolView,PredictionLogView,SystemStatusView}.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
