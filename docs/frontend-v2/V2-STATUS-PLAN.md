@@ -1326,3 +1326,42 @@ MSW `setupServer` + `<Providers>`，桩 `@tanstack/react-router` 的 `Link` 与 
 - `git fetch origin main` → `merge-base --is-ancestor` → `git push --dry-run origin main` → 正式推送 → 复校 local/remote SHA。
 - 仅 stage 3 个新测试文件 + `docs/frontend-v2/V2-STATUS-PLAN.md`；红线目录与他人的未提交改动一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 38. dashboard 质量债收口：DashboardCustom / ProjectIntro 首次真实组件级覆盖（2026-11-12，继续 v2）
+
+> 承接 §37「剩余质量债」中的 `dashboard`(3/1 偏薄，且 `Dashboard.test` 把 `IndexQuotes` mock 掉)。先勘实情：`DashboardCustom.tsx` 是 dashboard 逻辑最重的组件（localStorage 持久化、`?widgets=` URL 覆盖、`Signed` 带符号着色、5 个 widget 四态分发），此前**零组件级测试**——`Dashboard.test.tsx` 只把 `IndexQuotes`/`ProjectIntro` mock 成 `null`，`DashboardCustom` 根本没被独立覆盖；`ProjectIntro.tsx` 是纯静态 v1 Hero 1:1 移植、无任何动态数值。本轮回填这一空白。
+
+### 38.1 源码取证结论：零真缺陷（诚实负结果，业务代码零改动）
+逐行复核 `DashboardCustom.tsx` + `ProjectIntro.tsx` + 依赖（`Signed`/`WidgetBreadth`/`WidgetEventPool`/`WidgetBacktestRuns`/`BacktestBody`/`QueryState`）：
+- `LS_KEY='ss-dashboard-widgets-v1'`；`WIDGETS` 固定 5 个（snapshot/recommendation/breadth/event/backtest）。`loadEnabled()` 对 localStorage 损坏 JSON / 非数组 / 缺省三种异常，均**回落默认全开**——已实现，无兜底造假。
+- URL `?widgets=` 覆盖优先且不回写：存在时 `setEnabled(urlWidgets)` 且 useEffect 中跳过 `localStorage.setItem`，编辑面板被抑制（`editing && !urlWidgets`）。合法 id 过滤：只保留 5 个内的 id，非法值丢弃。
+- `toggle` 增删；`active.length===0` 显「请在「管理组件」中至少启用一个面板」——诚实空态，非崩溃。
+- `Signed` 三色：>0 → `#ff4d4f`(红涨) / <0 → `#00d486`(绿跌) / ===0 → `#9aa0b5`(中性灰) / `null|undefined` → `—`；后缀默认 `%`，`value.toFixed(2)`——守 A 股反向色，无取绝对值造假。
+- 诚实空态：breadth 空数组 → 「breadth-timeseries 为空数组，未做填充」；event pool 空 → 「事件因子池为空」；backtest 空 runs → 「暂无回测运行记录」；无 summary → 「无可用回测摘要」；`snapshot`/`recommendation` 用 `isEmpty={false}` 不显空提示。
+- `median_chg=null` → 显示 `—`（不补 0）；`median_chg=0` → 显示 `0.00%`（零≠缺失）。回测 `total_return_pct=-10.50%` 如实绿跌 `rgb(0,212,134)`，**不取绝对值**。
+- `ProjectIntro` 全静态文案（「凭感觉」「当初为什么买？」「情绪温度计」「事件驱动信号」「决策闭环回测」等），无动态数值——已确认。
+- 结论：设计已合规，**本轮不改业务代码**，只补确定性守卫把上述行为**锁死**。
+
+### 38.2 25 例确定性守卫（2 个 colocated 新文件）
+| 文件 | 例数 | 锁住的边界 |
+|---|---|---|
+| `src/features/dashboard/DashboardCustom.test.tsx` | 24 | 块1（8，持久化/覆盖/清单）：空→全 5 渲染；损坏 JSON→回落全开；非数组→回落全开；`[]`→空态(「至少启用一个面板」)；`?widgets=` URL 覆盖优先且不回写且抑制编辑；`foo,bar` 非法→回落全开；初始写回 5 项 + 取消 snapshot 写回 4 项；`[]` 起步勾选 breadth 写回 `['breadth']`。块2（16，各 widget 四态+诚实）：snapshot 成功(等「中高」再断言)/loading/error(alert)；recommendation 成功(`/推荐状态：ok/`+市场中性+免责)；breadth 成功(红盘比 60%/3000/2000/50/10/+1.20%)、`median_chg=null`→`—`、`=0`→`0.00%`、空数组→「暂无广度时序数据」、error(alert)；event 成功(`/P1-v40/`+600000+`/0\.90/`+`/long/`)、空 pool→「事件因子池为空」；backtest 成功(`+12.34%` `rgb(255,77,79)`/`-5.60%` `rgb(0,212,134)`)、负收益 `-10.50%` `rgb(0,212,134)` 不取绝对值、零收益 `0.00%` `rgb(154,160,181)`、空 runs→「暂无回测运行记录」、无 summary→「无可用回测摘要」。 |
+| `src/features/dashboard/ProjectIntro.test.tsx` | 1 | 渲染冒烟：主标题 `/凭感觉/`、三痛点卡、三能力卡；断言 `body` 不含 `\d+%` 与「综合评分」（证明无动态数值）。 |
+
+测试手法：沿用 `vi.mock('@/api/read')` 替 5 个 widget 对应函数（`getDailySnapshot`/`getDailyRecommendation`/`getBreadthTimeseries`/`getEventPool`/`getBacktestRuns`），配合真实夹具（snapshot/rec/breadth/eventPool/backtest 结构与 zod schema 对齐），不必拉 MSW；`localStorage.clear()` 于 before/afterEach；统一 `retry:false, staleTime:0` 的 `QueryClient`，`findBy*` 统一 `FIND={timeout:5000}`。
+
+### 38.3 踩坑（测试桩自身，非业务缺陷）
+- **jsdom 颜色归一化**：内联 `style="color:#ff4d4f"` 被 jsdom 归一化为 `style="color: rgb(255, 77, 79);"`（空格分隔）。原 `toContain('ff4d4f')` 必败；新增 `colorTriplet(el)` 抽 `rgb(r, g, b)` 三元组并断言 `255,77,79` / `0,212,134` / `154,160,181`。
+- **内嵌裸文本精确匹配必败**：「推荐状态：ok」的 `ok`、`数据日 … · 模型 P1-v40 · 数量 2` 的 `P1-v40`、回测 `0.90`、`long` 都内嵌于大文本节点，独立元素不存在；改正则 `/推荐状态：ok/` `/P1-v40/` `/0\.90/` `/long/`（600000 是独立 span 故仍用精确串）。
+- **时序**：断言成功态数据前必须先 `await findByText(<仅成功态出现的字段>)`（如「中高」「市场中性」「60%」「P1-v40」）等数据 resolve，否则仍是「加载中…」。
+
+### 38.4 实证结论
+- 2 新文件 **25/25**；`tsc --noEmit` **0 错**；全量 `vitest run` → **621 passed / 1 skipped**（90 文件，+25 例 +2 文件），无回归。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- `dashboard` 至此 3 组件基本收敛（`DashboardCustom` 24 + `ProjectIntro` 1 + `Dashboard` 集成层既有 5 例）。注意 `Dashboard.test` 仍把 `IndexQuotes`/`ProjectIntro` mock 掉，dashboard 集成路径对 `IndexQuotes` 的真实覆盖仍依赖 §36 的 `IndexQuotes.test`——如实记此，非缺陷。剩余质量债：`admin/auth/catalog/guide/me/settings` 仍无组件测试。
+
+### 38.5 提交与推送
+- commit（msg: `test(v2): dashboard DashboardCustom(24)+ProjectIntro(1) 首次真实组件级守卫（持久化/URL覆盖/Signed三色/五widget四态/诚实空态）`）。
+- `git fetch origin main` → `merge-base --is-ancestor` → `git push --dry-run origin main` → 正式推送 → 复校 local/remote SHA。
+- 仅 stage 2 个新测试文件 + `docs/frontend-v2/V2-STATUS-PLAN.md`；红线目录与他人的未提交改动一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
