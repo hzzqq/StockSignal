@@ -43,6 +43,7 @@ from modules.page_guard import safe_fragment, render_data_degradation_banner
 from modules.page_widgets import _section_title, _in_trading_hours, _empty_info
 from modules.ui_kit import xc_handle_error, xc_info_banner, xc_success_box, xc_warn_box, ss_hover_preview, xc_kpi_grid, xc_bento_kpi, xc_content_card  # noqa: F401
 from modules.p1_signal import P1SignalLoader  # P1 量化信号加载器（EV/GRU/融合）
+from modules.p1_portfolio_diag import (render_alpha_decay_badge, render_portfolio_diag_fold)  # A 方向 L1/L2：组合构建诊断（只读快照）
 from modules.event_factor import get_event_factor, fusion_source_note  # 事件因子适配器（真实信号，无合成）；B：融合来源旁注
 from modules.next_day_edge_view import render_next_day_edge  # 次日情绪极值判断组件（复用 panic_reversal）
 
@@ -64,6 +65,8 @@ ss_hover_preview("ℹ️ 怎么用", (
 render_decision_loop_alarm()
 # T-239：数据源降级横幅（G1 缺口补齐）——取数源不稳/不可用时顶部红/橙提示，避免无感假新鲜
 render_data_degradation_banner()
+# A 方向 L1：alpha 衰减预警徽标（只读离线诊断快照，纯展示，零风险）
+render_alpha_decay_badge()
 
 
 # ───────────────────────── 本地辅助 ─────────────────────────
@@ -1065,6 +1068,17 @@ def fragment_calibration():
                "单次上限 5 点以防过拟合；中性预测不表态、不计入分母。本页结论不构成投资建议。")
 
 
+# ───────────────────────── A 方向 L2：组合构建诊断折叠区（只读快照） ─────────────────────────
+@safe_fragment("组合构建诊断")
+def fragment_portfolio_diag():
+    """把 P1-QuantFactor 的组合构建止血诊断（alpha 衰减 / 止血路径）以只读离线快照接入决策面板：
+    净值曲线 + 关键窗口收益表 + buffer=0.1 免费午餐说明。纯展示，不改动生产信号。"""
+    try:
+        render_portfolio_diag_fold(dark=dark)
+    except Exception as e:  # noqa: BLE401 - 诊断折叠为附加视图，失败不拖垮决策面板主体
+        logger.warning("组合构建诊断折叠区渲染失败: %s", e)
+
+
 fragment_calibration_ready_banner()
 fragment_decision()
 fragment_signals()
@@ -1075,6 +1089,7 @@ fragment_event_driven_pool()
 fragment_review()
 fragment_backtest()
 fragment_calibration()
+fragment_portfolio_diag()
 
 # ── 方法学与来源注脚（B 类页五段式收尾）──
 st.markdown('---')

@@ -27,6 +27,7 @@ import streamlit as st
 from modules.page_utils import render_standard_page
 from modules.ui_kit import xc_warn_box, xc_success_box, ss_fold_useful, ss_hover_preview, xc_kpi_grid
 from modules.p1_signal import P1SignalLoader, format_rank
+from modules.p1_portfolio_diag import (render_alpha_decay_badge, render_portfolio_diag_fold)  # A 方向 L1/L2：组合构建诊断（只读快照）
 from modules.risk_gate import scan_and_gate  # T-245 二道闸
 from modules.session import trading_autorefresh
 
@@ -43,6 +44,9 @@ dark = render_standard_page(
 # P0-2：整页刷新改原生 fragment 定时驱动。本页语义是「信号文件 mtime 变化即重载」，
 # 与开收盘无关（原 st_autorefresh 亦无时段判断）→ only_trading=False。
 trading_autorefresh(interval_ms=300000, key="p1_auto", limit=200, only_trading=False)
+
+# A 方向 L1：alpha 衰减预警徽标（只读离线诊断快照，纯展示，零风险）
+render_alpha_decay_badge()
 
 # ───────────────────────── 加载器（会话级缓存 + 实时刷新） ─────────────────────────
 if "p1_loader" not in st.session_state:
@@ -265,6 +269,11 @@ if sym:
                 columns={"score": "预测得分", "signal": "信号"}), width="stretch")
     else:
         st.info("无法加载 daily 明细（pandas 不可用或文件解析失败）。")
+
+st.markdown("---")
+
+# A 方向 L2：组合构建诊断折叠区（只读离线快照，不改动生产信号）
+render_portfolio_diag_fold(dark=dark)
 
 st.markdown("---")
 st.caption("口径与来源：P1-QuantFactor 信号文件（data/p1_signals/ 的 signal_*.json 离线导出，"
