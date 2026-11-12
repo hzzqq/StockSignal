@@ -1401,6 +1401,45 @@ MSW `setupServer` + `<Providers>`，桩 `@tanstack/react-router` 的 `Link` 与 
 - ff-only 推送（fetch → ancestor → dry-run → push → SHA 复校）；仅 stage 4 个新测试文件 + docs。
 - ks 父仓库 submodule 指针留痕不推。
 
+## 40. 最后一批 4 个交互重组件：UserManagement / DataSourceView / LoginPage / SettingsView 首次真实组件级覆盖（2026-11-12，v2 收官）
+
+> 承接 §39 末「剩余质量债：最后一批 4 个」。`UserManagement`/`DataSourceView`/`LoginPage`/`SettingsView` 此前**零测试引用**（grep 确认）。本回把 v2 前端组件级测试治理**收官**——至此 8 个目录全部收敛。
+
+### 40.1 源码取证结论：零真缺陷（诚实负结果，业务代码零改动）
+逐行复核 4 组件：
+- `UserManagement`（574 行）：非 admin（`getCurrentUser` 返回 `null` 或 role≠admin）→ `EmptyState`「无访问权限」（不泄露任何用户数据）；三 tab（list/create/logs）；`listUsers` 四态（loading / error(alert) / 空 `[]`「暂无用户」/ 有数据）；删除保护（`deleteUser` 对自己与初始 admin 按钮 `disabled`）；创建空表单按钮 disabled、`createUser` 成功→「创建成功」；`listLogs` 成功渲染（`<b>{username}</b> → {action} → <code>{target}</code>`）。合规。
+- `DataSourceView`（292 行）：`useDiagnostics` 枚举端点（过滤含 `<` 的路径参数端点）；`fetchRead` 真实 GET + 诚实 HTTP/信封/耗时/错误披露；`DataRenderer` 对 null/空数组/空对象/数组(前 50 行截断)/对象 各自诚实空态；`cell()` 缺失显 `—`。合规。
+- `LoginPage`（352 行）：双态（welcome→`LoginWelcome`，form→左行情台 `MarketDesk` + 右表单）；`login()` 端到端（写 `ss_token`/`ss_refresh`/`ss_user` + `navigate`）；`MarketDesk` 用 `useQuery(getDailySnapshot)` 取温度/涨跌/AI 信号，缺失显 `—`（诚实红线）；演示账号一键填充。合规。
+- `SettingsView`（223 行）：外观（主题/密度 radiogroup）；数据源与连接（`mocksEnabled()` 标识 MSW、真实 `fetch /health` 连通性检测、v1 地址保存）；账户（退出登录）；关于（`V1_PAGES_TOTAL` 磁盘实扫、构建模式、配色说明）。密度用 `getDensity`/`setDensity`（localStorage `ss_density`），v1 地址用 `getV1Base`/`setV1Base`（localStorage `ss_v1_base`，去尾部斜杠）。合规。
+
+### 40.2 29 例确定性守卫（4 新 colocated 文件）
+| 文件 | 例数 | 锁住的边界 |
+|---|---|---|
+| `src/features/admin/UserManagement.test.tsx` | 9 | 非管理员 / 登录失效→无权限空态；管理员→三标签 tablist；列表成功（用户名+计数）/ 取数失败 alert / 空数据「暂无用户」；删除保护（self/admin 按钮禁用）；创建空表单禁用 + 填后成功「创建成功」；操作日志成功。 |
+| `src/features/catalog/DataSourceView.test.tsx` | 6 | 标题 + 返回入口；诊断失败 alert（不编造端点）；含 `<` 端点排除出下拉；选择+读取成功（HTTP 200 + 数据表）；读取失败诚实披露（不包装成功）；需参数端点示例占位。 |
+| `src/features/auth/LoginPage.test.tsx` | 5 | 欢迎态→点「去登录」切表单态；一键填演示账号预填；空提交本地校验报错且未调 `login`；登录成功（写 token + `navigate` + 行情台真实温度 55 + 「事件因子信号暂无数据」）；登录失败（`clearAuth` + 错误态披露）。 |
+| `src/features/settings/SettingsView.test.tsx` | 9 | 标题 + 「本机偏好」副标题；密度 radiogroup 初始「标准」→切「紧凑」写回 `ss_density` + `aria-checked` + 文案；v1 地址保存→「已保存」回显 + 持久化；当前模式 真实后端 / 开发模拟数据(MSW) 双分支；连通性检测成功（HTTP 200 + 「后端健康检查通过」）/ 失败（诚实「无法连接」）；退出登录（`clearAuth` + `navigate`）；关于区 `V1_PAGES_TOTAL=74` + 构建模式。 |
+
+测试手法：`vi.mock('@tanstack/react-router')`（透传 `Link`/`useNavigate`/`useSearch`）；`UserManagement` 额外 `vi.mock('@/lib/auth')` + `vi.mock('@/api/admin')`；`DataSourceView` 额外 `vi.mock('@/lib/queries')` + `vi.stubGlobal('fetch', ...)` 桩真实 GET；`LoginPage` 额外 `vi.mock('@/api/endpoints')` + `vi.mock('@/app/guards')` + `vi.mock('@/api/read')`；**`LoginPage`/`MarketDesk` 依赖 `useQuery` → 渲染必须包 `QueryClientProvider`**（默认 `retry:false, staleTime:0`）；`SettingsView` 用**真实** `@/lib/preferences`（localStorage 真写回，断言 `localStorage.getItem` 验证持久化）。统一沿用「本仓无 jest-dom」约定：`getByText(...).toBeTruthy()` + `getByRole` + `queryByText(...).toBeNull()`。
+
+### 40.3 踩坑（测试桩自身，非业务缺陷）
+- **`vi.fn(() => vi.fn())` 的 `useNavigate` 每次调用返回全新内部 mock** → 在测试里再调 `mNavigate()` 断言的是「第二次调用得到的空 mock」，永远未被组件使用；且 `vi.mocked(...)` 强转后 `mNavigate()` 触发 TS2348（Mock 不可调用）。改为**稳定 `const mockNavigate = vi.fn()` + 工厂 `useNavigate: () => mockNavigate`**，直接断言 `mockNavigate` 被调用——组件与测试指向同一函数。
+- **`UserManagement` 的「admin」多义**：列表行同时渲染 用户名 `admin` 与 角色 `admin`（且当前用户徽章也可能显 `admin`）→ `getByText('admin')` 报「Found multiple elements」。改用 `getAllByText('admin').length > 0` 去歧义。
+- **`create_user` 是日志行内的分裂文本节点**（`<b>u2</b> → create_user → <code>newu</code>`）→ 精确串 `getByText('create_user')` 报「broken up by multiple elements」。改用 `getByText('create_user', { exact: false })`（子串命中 `<li>` 即可证明存在）。
+- **`资金温度 55` 跨元素分裂**：「资金温度」在 `<span>`、「55」在独立 `<div>` → 精确串必败。拆成 `getByText('资金温度')` + `getByText('55')` 各自断言。
+- **`LoginPage` 漏包 `QueryClientProvider`** → `MarketDesk` 的 `useQuery` 抛「No QueryClient set」。补 `QueryClientProvider` 包裹后通过。
+
+### 40.4 实证结论
+- 4 新文件 **29/29**；`tsc --noEmit` **0 错**；全量 `vitest run` → **672 passed / 1 skipped**（98 文件，+29 例 +4 文件），无回归。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- **v2 前端组件级测试治理收官**：`stock/` `analytics/` `dashboard/` `guide/` `me/` `auth`(LoginWelcome+LoginPage) `catalog`(CatalogView+DataSourceView) `admin`(UserManagement) `settings`(SettingsView) 全部收敛。零真缺陷、业务代码零改动（§33–§40 全程仅新增测试，未动任何 `.tsx`/`.ts` 业务实现）。
+- 持续挂起项（非本轮范围）：v1 降级 / 退役评估；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 等红线目录与他人的未提交改动一律未 stage、未碰。
+
+### 40.5 提交与推送
+- commit（msg: `test(v2): 最后一批 4 组件 29 例确定性守卫（用户管理/数据源浏览器/登录页/设置 收官）`）。
+- ff-only 推送（fetch → ancestor → dry-run → push → SHA 复校）；仅 stage 4 个新测试文件 + `docs/frontend-v2/V2-STATUS-PLAN.md`。
+- ks 父仓库 submodule 指针留痕不推。
+
 ## 仍存质量债（后续迭代候选，已修正）
-`stock/`、`analytics/`、`dashboard/`、`guide/`、`me/`、`auth`（仅 LoginWelcome）至此收敛；`catalog` 半收敛（CatalogView 已覆盖，DataSourceView 未）；`settings` 未覆盖。剩余未测（最后一批 4 个）：`auth·LoginPage`、`admin·UserManagement`、`catalog·DataSourceView`、`settings·SettingsView` —— 由 §40 收口。
+v2 前端组件级测试治理已于 §40 **收官**：`stock/`、`analytics/`、`dashboard/`、`guide/`、`me/`、`auth`(LoginWelcome+LoginPage)、`catalog`(CatalogView+DataSourceView)、`admin`(UserManagement)、`settings`(SettingsView) 全部收敛，全量 **672 passed / 1 skipped**（98 文件）。持续挂起：**v1 降级 / 退役评估**（技术栈红线已定：禁新增 Streamlit 页，v1 仅作只读兜底并存，43 实盘交易等真实券商能力永久留 v1）；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人未提交改动不在本轮范围。
 ⚠️ 工作区有**其他任务改动**：`thesis/`、`backups/`、`scripts/`、`pages/54_*.py`、`55_*.py`、`modules/p1_portfolio_diag.py`、`.trae/`、`artifacts/`、`docs/welcome.html` —— 一律不 stage、不碰。
