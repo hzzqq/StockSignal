@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useSnapshotDates, useSnapshot } from '@/lib/queries'
 import { SnapshotView } from '@/features/decision/SnapshotView'
-import { EmptyState, Loading } from '@/shared/ui/States'
+import { EmptyState, ErrorState, Loading } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
+import { ApiError } from '@/api/client'
 import type { DailySnapshot } from '@/api/schemas/read'
 
 const SELECT_CLS =
@@ -30,12 +31,23 @@ function downloadJson(filename: string, data: DailySnapshot) {
  * 95 数据导出（v2 native /export）：浏览归档快照（data/snapshots/*.json）并导出原始 JSON。
  *
  * 复用既有只读端点 snapshot-dates / snapshot/<date> 与 SnapshotView 富视图，v2 只读界面，
- * 无任何写能力。诚实红线：日期清单/快照缺失即如实显「该日期无归档快照」，不回退今日快照冒充。
+ * 无任何写能力。诚实红线：不回退今日快照冒充历史归档。
+ *
+ * ⚠️ 错误按后端 code 分流（2026-11-12 修复）：后端对「该日无归档」返回 status=error /
+ * code=not_found 信封，前端据此显「该日期无归档快照」空态是正确的；但旧实现把**所有**
+ * isError 都塞进该空态，导致网络 500 / 鉴权过期 / 解析失败也被伪装成「无数据」。
+ * 现仅 not_found 走空态，其余失败走 ErrorState 并原样带出原因。
  */
 export function DataExport() {
   const datesQ = useSnapshotDates()
   const [selected, setSelected] = useState<string | null>(null)
   const snapQ = useSnapshot(selected)
+
+  const snapErr = snapQ.error
+  const notFound = snapErr instanceof ApiError && snapErr.code === 'not_found'
+  // 「无数据」= 查询成功但无快照，或后端明确 not_found；「失败」= 其余任何错误。
+  const showEmpty = !!selected && !snapQ.isLoading && !snapQ.data && (!snapQ.isError || notFound)
+  const showError = !!selected && !snapQ.isLoading && snapQ.isError && !notFound
 
   return (
     <div className="space-y-4">
@@ -70,15 +82,14 @@ export function DataExport() {
       </Card>
 
       {selected && snapQ.isLoading && <Loading label="加载快照…" />}
-      {selected && !snapQ.isLoading && !snapQ.data && (
+      {showError && (
+        <ErrorState message={snapErr instanceof Error ? snapErr.message : '快照加载失败'} />
+      )}
+      {showEmpty && (
         <Card>
           <EmptyState
             label="该日期无归档快照"
-            hint={
-              snapQ.isError
-                ? (snapQ.error instanceof Error ? snapQ.error.message : '加载失败')
-                : 'data/snapshots 中无该日期归档'
-            }
+            hint={notFound ? 'data/snapshots 中无该日期归档' : undefined}
           />
         </Card>
       )}

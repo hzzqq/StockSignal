@@ -951,3 +951,56 @@ v2 不提供任何真实券商下单能力。
 - commit（msg: `test(v2): 决策闭环展示核心诚实红线守卫（decision 3 组件 22 例）`）。
 - ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/decision/{SnapshotView,DecisionPanel,DecisionReplay}.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`pages/54_*.py`、`pages/55_*.py`、`modules/p1_portfolio_diag.py`（其他任务改动）、`.trae/`、`artifacts/`、`docs/welcome.html` 一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 30. 95 数据导出「失败伪装成无数据」真缺陷修复（2026-11-12，继续 v2）
+
+> 本轮继续按锐评「找真实缺陷→修复→验证→提交」，扩大勘察面到剩余未测目录（`admin/auth/catalog/dashboard/export/guide/me/ops/review/settings`）。**啃出一个可复现、有对照证据的真缺陷**，并经历一次「过度修正→全量回归报警→回查契约→正确修复」的自我纠错。
+
+### 30.1 全站扫描：补零类缺陷零命中（诚实负结果）
+全局扫 `?? 0 / || 0 / Math.random / catch` 与逐文件读源码，确认已守住：`analytics/shared.tsx` 的 `show/showPct/showNum` 三重 `null/undefined/!Number.isFinite` 检查；`PositionGauge`(pct 缺失→「—」)、`ScenarioChart`(prob 缺失→`value:null`)；`ops/PredictionLogView` 的 `rate` 只可能是 number|null；`BreadthAnalyticsSchema` 的 `reliable_labels/offline_missing` 为必填（Zod 保证 `DataBoundary` 的 `Object.values` 不崩）；`DataExport/DashboardCustom/DataSourceView/GuideView` 的 `catch` 均为带注释的能力降级或如实带出错误。**无补零/兜底假数据缺陷**。
+
+### 30.2 真缺陷（可复现 + 对照证据）
+`export/DataExport.tsx` 旧实现把 `snapQ.isError` 也塞进「无数据」分支：
+```tsx
+{selected && !snapQ.isLoading && !snapQ.data && (
+  <EmptyState label="该日期无归档快照"
+    hint={snapQ.isError ? errorMsg : 'data/snapshots 中无该日期归档'} />
+)}
+```
+→ **网络 500 / 鉴权过期 / 信封解析失败会被主文案伪装成「该日期无归档快照」**，只在 hint 里塞原因。对照 `DecisionReplay`(97) 用 `QueryState` 正确把 `isError` 分派到 `ErrorState`。
+- 复现：先写 `DataExport.test.tsx` 失败用例 → `vitest run` **5 passed / 1 failed**，失败证据 `expected ... to be null` 收到 `<div>该日期无归档快照</div>`，缺陷坐实非臆想。
+
+### 30.3 ⚠️ 自我纠错：第一次修复过度，被全量 E2E 拦下
+首次修复把**所有** `isError` 一律改成 `ErrorState`（错误态）→ 单文件 6/6 绿，但**全量 `vitest run` 报 1 failed**：既有 `tests/e2e/w4-export.test.tsx > 选中「无归档」日期 → 诚实显空态` 超时。
+- 回查取证：`src/mocks/handlers.ts:108-112` 与后端 `read_routes.py` 对**该日无归档**返回 `{status:'error', code:'not_found', data:null}` 信封——即 `not_found` 本来就是 `isError` 路径，**显示空态是正确契约**，我把它误判成缺陷一并改掉了。
+- 教训（防回归）：**改错误语义前先查后端信封契约**；「单文件绿」不等于「全量绿」，全量回归是硬闸门。
+
+### 30.4 正确修复：按 `ApiError.code` 分流
+`api/client.ts::ApiError(code, reason)` 注释即写明「便于上层按 code 分流」。改为：
+```tsx
+const notFound = snapErr instanceof ApiError && snapErr.code === 'not_found'
+const showEmpty = selected && !isLoading && !data && (!isError || notFound)
+const showError = selected && !isLoading && isError && !notFound
+```
+- `code === 'not_found'` → 诚实空态「该日期无归档快照」+ hint（既有 E2E 恢复通过）；
+- 其余任何失败（`http_error` / `unauthorized` / `validation_error` / ZodError / 普通 Error）→ `ErrorState(role=alert)` 原样带出原因，**绝不伪装成无数据**；
+- 查询成功但 `data=null` → 空态，不回退今日快照。
+- 全站缺陷族排查（grep 所有 `isError`）：`DataExport` 是**唯一**把错误混进空态的页面，其余组件要么 `QueryState` 统一分派、要么 `{q.isError && ...}` + `!q.isError && !data` 显式分离。单点收口。
+
+### 30.5 已知设计性局限（如实记录，本轮不硬改）
+`review/ReviewNotes.tsx` 把 `q.isError` 一律显示「该日期暂无复盘笔记」；后端 `/review-notes` 对 `_not_found` / `validation_error` / `invalid_data` 共用 error 信封，前端无法区分，网络失败同样被说成「暂无笔记」。与 `MorningReport`(用 `QueryState` 显示 error message) 对同端点语义不一致。**要精确区分需前后端共同约定错误码契约（跨层改动），本轮不改、不包装成已修复**；已加测试锁住「hint 不吞异常」的当前真实行为并在测试注释标注局限。
+
+### 30.6 补缺测试（3 文件 17 例）
+- `export/DataExport.test.tsx`（**8 例**）：四态 + `enabled` 守卫 + 导出按钮 jsdom 安全降级 + **分流对照**（`not_found`→空态无 alert / `http_error`→alert 无空态 / 普通 Error/ZodError→alert）。
+- `dashboard/Dashboard.test.tsx`（5 例）：首页三查询聚合；`p1Latest` 按数据日取最大（非 mtime/顺序）；全失败 4 个 Stat 显「—」；score 缺失不补零；加载中态。桩掉 `Link`/`IndexQuotes`/`ProjectIntro`/`EChart` 聚焦自身逻辑。
+- `review/ReviewNotes.test.tsx`（4 例）：ok 原文、error 空态 hint、改日期重查、加载中。
+
+### 30.7 实证结论
+- `tsc --noEmit` **0 错**；全量 `vitest run` → **493 passed / 1 skipped**（73 文件，纯增量 +17）；既有 E2E `w4-export.test.tsx` 4/4 恢复通过。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- 剩余质量债：`admin/auth/catalog/guide/me/ops/settings` 无组件测试；`analytics`(5/1)、`stock`(5/1) 覆盖偏薄。
+
+### 30.8 提交与推送
+- commit（msg: `fix(v2): 95 数据导出按 error code 分流，失败不再伪装成「无归档」`）。
+- ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/export/DataExport.tsx`、`export/DataExport.test.tsx`、`dashboard/Dashboard.test.tsx`、`review/ReviewNotes.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
