@@ -20,6 +20,7 @@ import { IntradayChart } from './charts/IntradayChart'
  * 首帧预选：view 由 validateSearch 归一后的 search.view 经 useState 初始值决定（不用 useEffect），
  * 缺/非法 → quick；code 输入框缺 code → 默认 600519，非 6 位 → 校验提示且不发请求（hook enabled=false）。
  * 诚实红线：rows 空 → EmptyState、date:null →「暂无权威数据日」（禁当前日期兜底）、note 原文展示；
+ * 分时数据源独立四态（加载 / 失败 / rows=[] / 有数据）均显式渲染，绝不静默省略整块；
  * deep 子视图调 getResearchDeep 渲染技术字段表（域级双色），deep_analysis_available===false 显豁免卡，
  * 不造假数据、不画空图表。
  *
@@ -150,14 +151,30 @@ function QuickView({
           <KLineChart rows={kline.data.rows} priceDomain="report" />
         )}
         {/* 分时主图（价格线 + 均价线 + 昨收基准 + 成交量），复用 IntradayChart；
-            报告体价格域（绿涨红跌）；prev_close 取不到时组件内部诚实标注「暂无昨收基准」。 */}
-        {intraday.data && intraday.data.rows.length > 0 && (
-          <IntradayChart
-            rows={intraday.data.rows}
-            prevClose={intraday.data.prev_close}
-            priceDomain="report"
-          />
-        )}
+            报告体价格域（绿涨红跌）；prev_close 取不到时组件内部诚实标注「暂无昨收基准」。
+            诚实红线：分时是独立数据源，加载 / 失败 / 空数组都必须显式告知，
+            不得像「页面本来就没有这块」一样静默省略（§30 DataExport 同族）。
+            后端契约 read_routes.py::stock_intraday：无数据 = status ok + rows=[] + date=null，
+            故 rows=[] 走空态；isError 走错误态，绝不把失败伪装成无数据。 */}
+        <div className="mt-4" data-testid="intraday-section">
+          <div className="text-label text-sf-ink-3 mb-2">分时走势</div>
+          <QueryState
+            isLoading={intraday.isLoading}
+            isError={intraday.isError}
+            error={intraday.error}
+            isEmpty={!intraday.data || intraday.data.rows.length === 0}
+            emptyLabel="暂无分时数据"
+            emptyHint="分时 rows 为空数组，未做填充或补零"
+          >
+            {intraday.data && intraday.data.rows.length > 0 ? (
+              <IntradayChart
+                rows={intraday.data.rows}
+                prevClose={intraday.data.prev_close}
+                priceDomain="report"
+              />
+            ) : null}
+          </QueryState>
+        </div>
         <QueryState
         isLoading={kline.isLoading}
         isError={kline.isError}

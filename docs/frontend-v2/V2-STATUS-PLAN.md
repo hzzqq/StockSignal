@@ -1156,3 +1156,76 @@ const volumeData = bars.map((b) => {
 - commit（msg: `fix(v2): K 线缺失 OHLC 不再臆断涨跌方向 + 6 例诚实红线守卫`）。
 - ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/stock/charts/KLineChart.tsx`、`KLineChart.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 34. 个股研究页「分时数据静默省略」真缺陷修复（2026-11-12，继续 v2）
+
+> 承 §33，继续啃 `stock/` 剩余业务组件（老板点名的个股对比 / 六维 / 财报猎手一带）。在 `ResearchView` quick 子视图命中 §30 同族缺陷：**独立数据源失败/无数据时整块消失，页面不作任何告知**。
+
+### 34.1 缺陷定位与契约取证（先查后端，再跑红）
+`features/stock/ResearchView.tsx::QuickView` 对分时数据只有一条分支：
+```tsx
+{intraday.data && intraday.data.rows.length > 0 && <IntradayChart ... />}
+```
+→ `isLoading` / `isError` / 成功但 `rows=[]` 三种状态**全部静默省略整块图表**，用户无法区分「没有分时数据」「接口失败」「还在加载」与「页面本来就没有分时图」。
+
+**按 §30 教训先核后端契约**（`backend/api/read_routes.py::stock_intraday:1983-2021`）：
+> 「底层源存在，故不走 not_found；仅当整取数失败/空时诚实返回 `rows=[]`、`date=null`（status 仍 ok，绝不 500 / 编造）」
+
+即**生产后端「无分时数据」= `status:ok + rows:[]`**，是正常业务态，必须显式空态；接口失败则必须走错误态，绝不伪装成「无数据」。
+⚠️ MSW 夹具 `mocks/handlers.ts:323-329` 对未知 code 返回 `notFound`，与后端不一致（mock 差异，本轮不改夹具）；新测试对两端点均显式注入响应，只测前端契约，不依赖该差异。
+
+先写 `ResearchView.test.tsx` 跑红，证据（**3 passed / 3 failed**），三条失败全是「元素根本不存在」：
+- `Unable to find an element with the text: 暂无分时数据`；
+- `Unable to find an element with the text: 分时接口 500`；
+- `Unable to find an element by: [data-testid="intraday-section"]`。
+
+### 34.2 修复：分时独立四态，主数据源不受连累
+把裸条件渲染换成带归属标题的独立区块 + `QueryState` 四态分发：
+```tsx
+<div className="mt-4" data-testid="intraday-section">
+  <div className="text-label text-sf-ink-3 mb-2">分时走势</div>
+  <QueryState
+    isLoading={intraday.isLoading}
+    isError={intraday.isError}
+    error={intraday.error}
+    isEmpty={!intraday.data || intraday.data.rows.length === 0}
+    emptyLabel="暂无分时数据"
+    emptyHint="分时 rows 为空数组，未做填充或补零"
+  >
+    {intraday.data && intraday.data.rows.length > 0 ? <IntradayChart ... /> : null}
+  </QueryState>
+</div>
+```
+- `isLoading` → `Loading`；`isError` → `ErrorState(role=alert)` 显示真实错误；`rows=[]` / 无 data → 空态；有数据 → 图。
+- **不按 `ApiError.code` 分流**：后端明确不走 `not_found`，此处 `not_found`（仅 MSW 夹具会返回）按真实失败处理更诚实，避免 §30 的「失败伪装成无数据」。
+- K 线的 `QueryState` 与分时区块并列，任一失败不连带整页空白（与 `FundamentalsView` 三源独立、`SystemStatusView` 三源独立同款）。
+- 顶部组件诚实红线注释补一条。
+
+### 34.3 6 例守卫（`features/stock/ResearchView.test.tsx`）
+MSW `setupServer` + `<Providers>`，桩 `@tanstack/react-router` 的 `Link` 与 `@/shared/charts/EChart`（沿用既有 W4-B E2E 范式），显式注入 K 线/分时响应：
+1. ⚠️ 后端真实「无分时数据」`ok + rows=[]` → 显式空态 + hint，K 线表照常、无 alert；
+2. ⚠️ 分时接口失败 → `role=alert` 显示「分时接口 500」，且**不得**出现「暂无分时数据」；
+3. 分时加载中 → 独立区块内显示「加载中…」，不是整块消失；
+4. 分时成功 → K 线 + 分时两张图都在，无空/错态；
+5. K 线 `rows=[]` 但分时有数据 → 「暂无 K 线数据」与分时图各自独立；
+6. `prev_close=null` → 分时图仍渲染并如实标注「暂无昨收基准」。
+
+**踩坑**：`findByText` 默认超时 1s，React Query 重试 + MSW 往返会超时（曾误判为修复无效，实际 DOM 停在 loading）→ 与既有 W4-B E2E 一致统一 `FIND={timeout:5000}` 后全绿。
+
+### 34.4 疑似候选排除（诚实负结果，避免后人重复挖）
+| 疑似点 | 结论 |
+|---|---|
+| `FundamentalsView` 用 `fmtNum(data.name)` / `fmtNum(data.spot_date)`，字符串会不会被显示成 `—` | `lib/format.ts::fmtNum` 对非 number 走 `String(v)` 原样输出 → 名称/行业/日期正常显示，**非缺陷**。 |
+| `SixDimView` `radarValues` 用 `typeof === 'number'`，明细用 `v === null` 判缺失，口径不一 | `SixDimSchema` 用 `z.number().nullable()`（z.number() 拒绝 NaN），两处永远一致；`coverage` 由后端按 dims 计算。**非缺陷**。 |
+| `FinancialHunter` / `FundamentalsView` 的 `FinancialTable` 只取首行 keys，后续行多出的列被静默丢弃 | 后端 `rows` 为同构 `list[dict]`，注释明写「列名来自后端原始响应，不做重排」；属透传口径，记潜在技术债，**本轮不改**（若后端演进为异构需另议）。 |
+| `FundamentalsView` 外层 `QueryState isEmpty={false}` | 主数据成功但全字段 null 时页面仍渲染「—」+ 降权横幅，是刻意设计（不把「全缺失」误判成「无响应」）。**非缺陷**。 |
+
+### 34.5 实证结论
+- 单文件 **6/6**；`tsc --noEmit` **0 错**；全量 `vitest run` → **545 passed / 1 skipped**（80 文件，+6），既有 W4-B / 深链 E2E 全绿无回归。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- 剩余质量债：`admin/auth/catalog/guide/me/settings` 无组件测试；`analytics`(5/1)、`dashboard`(3/1) 偏薄；`stock` 仍有 `FinancialHunter` / `FundamentalsView` / `SixDimView` 3 个组件无组件级测试（本轮已做源码取证但零缺陷命中）。
+
+### 34.6 提交与推送
+- commit（msg: `fix(v2): 个股研究分时数据独立四态，失败/无数据不再静默省略`）。
+- ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/stock/ResearchView.tsx`、`ResearchView.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
