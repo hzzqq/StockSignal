@@ -16,6 +16,7 @@ import { macdSeries, parseKlineRows, rollingMean } from './klineMath'
  * 诚实红线：
  *  - MA / MACD 前若干根样本不足 → null，ECharts 断线（不补 0、不跨缺口连值）；
  *  - rows 里缺 open/high/low/close 的行不画蜡烛（置 null），绝不补 0；
+ *  - 缺 OHLC 时方向未知：成交量柱走中性色、「最新收盘」不着涨跌色，绝不臆断涨/跌；
  *  - 数据为空 → 空态，不画空图表；
  *  - 图下方同卡片给出 Stat（最新收盘 / MA / MACD），图形不是关键数值的唯一载体。
  *
@@ -41,7 +42,9 @@ export function KLineChart({ rows, priceDomain, height = 520 }: KLineChartProps)
   const last = model.bars.length - 1
   const ink = DIRECTION_INK[priceDomain]
   const lastBar = model.bars[last]
-  const lastUp = lastBar.close !== null && lastBar.open !== null && lastBar.close >= lastBar.open
+  // OHLC 缺失时无法确定涨跌；lastUp=null 表示「方向未知」，不得按 false 落到跌色。
+  const { close: lastClose, open: lastOpen } = lastBar
+  const lastUp = lastClose !== null && lastOpen !== null ? lastClose >= lastOpen : null
 
   return (
     <div>
@@ -54,7 +57,7 @@ export function KLineChart({ rows, priceDomain, height = 520 }: KLineChartProps)
         <Stat
           label="最新收盘"
           value={fmt(lastBar.close)}
-          color={lastUp ? ink.up : ink.down}
+          color={lastUp === null ? undefined : lastUp ? ink.up : ink.down}
           sub={lastBar.date}
         />
         <Stat label="MA5" value={fmt(model.ma.ma5[last])} />
@@ -102,16 +105,23 @@ export function buildKlineOption(model: KlineModel, priceDomain: PriceDomain): E
       ? null
       : [b.open, b.close, b.low, b.high],
   )
-  const volumeData = bars.map((b) =>
-    b.volume === null
-      ? null
-      : {
-          value: b.volume,
-          itemStyle: {
-            color: b.close !== null && b.open !== null && b.close < b.open ? dir.down : dir.up,
-          },
-        },
-  )
+  // 成交量柱按当根阴阳染色；但 OHLC 缺失时「方向未知」，用中性色而非默认涨色
+  // （与 IntradayChart.volumeColor 同口径：无基准/无收盘 → CHART.ink3）。
+  const volumeData = bars.map((b) => {
+    if (b.volume === null) return null
+    const { open, close } = b
+    return {
+      value: b.volume,
+      itemStyle: {
+        color:
+          open !== null && close !== null
+            ? close < open
+              ? dir.down
+              : dir.up
+            : CHART.ink3,
+      },
+    }
+  })
   const macdData = macd.hist.map((v) =>
     v === null ? null : { value: v, itemStyle: { color: v >= 0 ? dir.up : dir.down } },
   )

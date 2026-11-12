@@ -1090,3 +1090,69 @@ out.push(cumVolume > 0 && cumAmount > 0 ? cumAmount / cumVolume : null)
 - commit（msg: `fix(v2): 修分时均价单点缺失累计错位 + klineMath 纯计算 12 例守卫`）。
 - ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/stock/charts/klineMath.ts`、`klineMath.test.ts` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 33. stock/ K 线「缺失 OHLC 却臆断涨跌方向」真缺陷修复（2026-11-12，继续 v2）
+
+> 承 §32 换方向到 `stock/` 计算密集处。本轮扫 `stock/charts/` 剩余组件，命中第二个**可复现**真缺陷：数据缺失时**颜色仍在表达方向**。§32 管「数值不得编造」，本轮管「视觉编码不得编造」——同一条诚实红线的另一面。
+
+### 33.1 真缺陷定位与取证（先跑红再修）
+`features/stock/charts/KLineChart.tsx` 两处把「缺失」折叠成 `false`，再按 `false` 落到某个方向色：
+1. `lastUp = lastBar.close !== null && lastBar.open !== null && lastBar.close >= lastBar.open` —— OHLC 缺失时 `lastUp=false` →「最新收盘」数值显 `--`，却仍被染**跌色** `var(--ss-down-ink)`。
+2. `volumeData` 的 `b.close !== null && b.open !== null && b.close < b.open ? dir.down : dir.up` —— `close/open` 缺失但 `volume` **有效**时条件为 false → 成交量柱被染**涨色**，凭空宣称该日收阳。
+
+`parseKlineRows` 会把 NaN/Inf/字符串数值洗成 null，故「OHLC 缺失但成交量有值」是真实取数场景，非空想。先写 `KLineChart.test.tsx` 跑红，证据（**4 passed / 2 failed**）：
+- `expected '#ff4d4f' to be '#7c86a3'`：缺失行成交量柱拿到 `CHART.up`（涨红），期望中性 `CHART.ink3`；
+- `expected 'color: var(--ss-down-ink);' to be falsy`：「最新收盘」显示 `--` 却带跌色 inline style。
+
+### 33.2 对照证据：同目录 `IntradayChart` 本就守住
+`IntradayChart.tsx:139`：
+```tsx
+const volumeColor = (close: number | null) => {
+  if (!hasBase || close === null) return CHART.ink3
+  return close >= (prevClose as number) ? dir.up : dir.down
+}
+```
+无昨收基准 / 无收盘价 → 中性色。故这不是新口径，而是 **KLineChart 单组件漏守**；修复按同目录既有口径对齐，不引入新令牌、不改其它页面。
+
+### 33.3 修复：方向三态化（涨 / 跌 / 未知）
+```tsx
+// 组件 Stat
+const { close: lastClose, open: lastOpen } = lastBar
+const lastUp = lastClose !== null && lastOpen !== null ? lastClose >= lastOpen : null
+color={lastUp === null ? undefined : lastUp ? ink.up : ink.down}
+
+// buildKlineOption · volumeData
+const volumeData = bars.map((b) => {
+  if (b.volume === null) return null
+  const { open, close } = b
+  return {
+    value: b.volume,
+    itemStyle: {
+      color: open !== null && close !== null ? (close < open ? dir.down : dir.up) : CHART.ink3,
+    },
+  }
+})
+```
+- `lastUp=null` 表示「方向未知」；`Stat` 的 `style={color ? { color } : undefined}` 自然不染色。
+- 成交量柱仅当 `open/close` **成对有效**才分阴阳；`volume` 缺失仍为 null（不补 0）。
+- 用局部解构让 TS 收窄，无 `as number` 断言；顶部诚实红线注释补一条。
+
+### 33.4 6 例守卫（`features/stock/charts/KLineChart.test.tsx`）
+桩 `@/shared/charts/EChart`（jsdom 无 canvas），空态/Stat 为纯 DOM 仍真实渲染：
+1. ⚠️ OHLC 缺失但成交量有效 → 柱用 `CHART.ink3`，绝不染涨色（修复前红）；
+2. ⚠️ 最新一根收盘缺失 → 「最新收盘」显 `--` 且 `style` 为空（修复前红）；
+3. 缺失行蜡烛 null、MA5 前 4 根全 null、MACD 未就绪段全 null，不补 0；
+4. 正常行分阴阳：收≥开涨色 / 收<开跌色（保证修复没把正常着色一起改坏）；
+5. 双套价格域：market 红涨绿跌 / report 绿涨红跌，且不设默认值；
+6. `rows=[]` → 诚实空态「K 线图暂无数据可绘制」，不画空图表。
+
+### 33.5 实证结论
+- 单文件 **6/6**；`tsc --noEmit` **0 错**；全量 `vitest run` → **539 passed / 1 skipped**（79 文件，+6）。本轮 tsc 与 vitest **串行分跑**，无 §32 那次瞬时 worker 抖动；既有 E2E 无回归。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- **未改** `IntradayChart`（本就正确）；**未改** `macdData`（hist=0 染涨色属有效数值的方向约定，非缺失）；`candleData` 本就对缺 OHLC 行置 null，无需动。
+- 剩余质量债：`admin/auth/catalog/guide/me/settings` 无组件测试；`analytics`(5/1)、`dashboard`(3/1) 偏薄；`stock` 其余 4 组件（`FinancialHunter`/`FundamentalsView`/`ResearchView`/`SixDimView`）仍无组件级测试。
+
+### 33.6 提交与推送
+- commit（msg: `fix(v2): K 线缺失 OHLC 不再臆断涨跌方向 + 6 例诚实红线守卫`）。
+- ff-only 推 `origin/main`；仅 stage `frontend-v2/src/features/stock/charts/KLineChart.tsx`、`KLineChart.test.tsx` + `docs/frontend-v2/V2-STATUS-PLAN.md`；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人改动一律不 stage。
+- ks 父仓库 submodule 指针留痕不推。
