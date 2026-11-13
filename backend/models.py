@@ -490,9 +490,26 @@ class RealPosition(db.Model):
     updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
     def to_dict(self) -> dict:
-        mv = round((self.quantity or 0) * (self.last_price or 0.0), 2)
-        cost = (self.quantity or 0) * (self.avg_cost or 0.0)
-        pnl = round(mv - cost, 2)
+        # 诚实红线：last_price 默认 0.0 仅代表「从未刷到报价」，并非真实价格 0。
+        # 股价不可能为 0，故 None / 0.0 一律视为「无报价」→ 输出 null，
+        # 绝不把「没刷到价」伪装成「价格 = ¥0.000 / 市值 0 / 盈亏 0」。
+        lp = self.last_price
+        has_quote = lp is not None and lp != 0.0
+        if has_quote:
+            qty = self.quantity or 0
+            cost = qty * (self.avg_cost or 0.0)
+            mv = round(qty * lp, 2)
+            pnl = round(mv - cost, 2)
+            pnl_pct = round(pnl / cost * 100, 2) if cost > 0 else None
+            last_price_out: object = round(lp, 3)
+            market_value_out: object = mv
+            pnl_out: object = pnl
+            pnl_pct_out: object = pnl_pct
+        else:
+            last_price_out = None
+            market_value_out = None
+            pnl_out = None
+            pnl_pct_out = None
         return {
             "id": self.id,
             "stock_code": self.stock_code,
@@ -500,10 +517,10 @@ class RealPosition(db.Model):
             "quantity": self.quantity,
             "available": self.available,
             "avg_cost": round(self.avg_cost or 0.0, 3),
-            "last_price": round(self.last_price or 0.0, 3),
-            "market_value": mv,
-            "pnl": pnl,
-            "pnl_pct": round(pnl / cost * 100, 2) if cost > 0 else 0.0,
+            "last_price": last_price_out,
+            "market_value": market_value_out,
+            "pnl": pnl_out,
+            "pnl_pct": pnl_pct_out,
             "updated_at": self.updated_at.isoformat() + "Z" if self.updated_at else None,
         }
 

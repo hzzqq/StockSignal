@@ -103,8 +103,12 @@ def _parse_usdcny(df):
         next((c for c in df.columns if "报价" in str(c)), None)
     if val_col is None:
         return None
-    return {"value": _to_float(r[val_col]), "prev": None,
-            "date": str(pd.Timestamp.now())[:10]}
+    # 诚实红线：数据日期必须用源数据自带日期，禁止用机器当前日期冒充数据日。
+    # fx_pair_quote 宽表无可靠日期列时，宁可返回 None（前端显示「—」），绝不伪造「今天」。
+    date_col = next((c for c in df.columns if "日期" in str(c) or "时间" in str(c)), None)
+    raw_date = r.get(date_col, None) if date_col is not None else None
+    date_val = str(raw_date)[:10] if (raw_date is not None and pd.notna(raw_date)) else None
+    return {"value": _to_float(r[val_col]), "prev": None, "date": date_val}
 
 
 def _parse_usd_cny_boc(df):

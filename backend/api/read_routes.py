@@ -911,21 +911,21 @@ def limit_up_review():
                 lu = row.get("limit_up")
                 ctx["limit_up_cnt"] = int(lu) if (lu is not None and lu == lu) else None
         except Exception:  # noqa: BLE001
-            pass
+            logging.getLogger(__name__).debug("limit-up-review 上下文 enrichment 失败（诚实降级）", exc_info=True)
         try:
             snap = load_latest_snapshot()
             if snap:
                 ctx["cycle"] = snap.get("cycle")
                 ctx["temperature"] = snap.get("temperature")
         except Exception:  # noqa: BLE001
-            pass
+            logging.getLogger(__name__).debug("limit-up-review 上下文 enrichment 失败（诚实降级）", exc_info=True)
         try:
             regime = mr.regime_report(k=8)
             if regime.get("available"):
                 ctx["state"] = regime["latest"]["state"]
                 ctx["confidence"] = regime["latest"].get("confidence")
         except Exception:  # noqa: BLE001
-            pass
+            logging.getLogger(__name__).debug("limit-up-review 上下文 enrichment 失败（诚实降级）", exc_info=True)
         context_section = {"available": True, **ctx}
     except Exception as exc:  # noqa: BLE001
         context_section = {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
@@ -990,7 +990,7 @@ def market_sentiment():
         if not dates.empty:
             data_as_of = str(dates.iloc[-1].date())
     except Exception:  # noqa: BLE001
-        pass
+        logging.getLogger(__name__).debug("market-sentiment 数据日期解析失败（诚实降级）", exc_info=True)
 
     dims = {dim: [] for dim in DIMS}
     for ind in INDICATORS:
