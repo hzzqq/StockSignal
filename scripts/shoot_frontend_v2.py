@@ -150,6 +150,7 @@ ROUTES = (
     ("/momentum-resonance", "momentum_resonance"),  # 62 动量×广度共振（离线）
     ("/limit-up-review", "limit_up_review"),  # 70 涨停复盘（实时涨停池，诚实降级）
     ("/market-sentiment", "market_sentiment"),  # 50 市场情绪温度计（实时）
+    ("/xingchen", "xingchen"),                  # 53 星辰 AI 助手（多会话 + 持久化）
 )
 
 # W4-B 深链专项：/legacy 走客户端 history.replace（不是新 document），

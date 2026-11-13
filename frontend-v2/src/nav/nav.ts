@@ -54,6 +54,7 @@ export type AppPath =
   | '/momentum-resonance'
   | '/limit-up-review'
   | '/market-sentiment'
+  | '/xingchen'
 
 export interface NavItem {
   to: AppPath
@@ -79,6 +80,7 @@ export const NAV: NavGroup[] = [
       { to: '/morning', label: '每日晨报', icon: '☀' },
       { to: '/p1', label: 'P1 量化信号', icon: '∑' },
       { to: '/p1-construction', label: 'P1 组合构建诊断', icon: '📐' },
+      { to: '/xingchen', label: '星辰 AI 助手', icon: '🌟' },
     ],
   },
   {

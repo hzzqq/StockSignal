@@ -11,9 +11,20 @@ vi.mock('@/api/chat', () => ({
   deleteConversation: vi.fn(),
   exportConversationJson: vi.fn(),
   exportConversationMarkdown: vi.fn(),
+  getChatHistory: vi.fn(),
 }))
 
-import { submitAiConsult, getAiConsultTask, cancelAiConsult } from '@/api/chat'
+import {
+  submitAiConsult,
+  getAiConsultTask,
+  cancelAiConsult,
+  listConversations,
+  createConversation,
+  getConversationMessages,
+  deleteConversation,
+  exportConversationMarkdown,
+  getChatHistory,
+} from '@/api/chat'
 import { useXingchenStore, resetXingchen } from './useXingchen'
 
 const mockedSubmit = vi.mocked(submitAiConsult)
@@ -100,3 +111,98 @@ describe('useXingchen 提交+轮询', () => {
     void p // 让挂起的轮询自然结束，不阻塞测试
   })
 })
+
+describe('useXingchen 多会话持久化', () => {
+  beforeEach(() => {
+    resetXingchen()
+    vi.mocked(listConversations).mockReset()
+    vi.mocked(getConversationMessages).mockReset()
+    vi.mocked(createConversation).mockReset()
+    vi.mocked(deleteConversation).mockReset()
+    vi.mocked(deleteConversation).mockResolvedValue(undefined)
+    vi.mocked(exportConversationMarkdown).mockReset()
+    vi.mocked(getChatHistory).mockReset()
+  })
+
+  it('bootstrap：列表非空 → 建会话并拉取首条消息', async () => {
+    vi.mocked(listConversations).mockResolvedValue({
+      conversations: [{ id: 5, title: '茅台研判', updated_at: '2026-11-13T10:00:00Z' }],
+    } as never)
+    vi.mocked(getConversationMessages).mockResolvedValue({
+      id: 5,
+      title: '茅台研判',
+      messages: [{ role: 'user', content: '分析茅台', ts: 1763023200 }],
+    } as never)
+
+    await useXingchenStore.getState().bootstrap()
+
+    const st = useXingchenStore.getState()
+    expect(st.order).toContain('s-5')
+    expect(st.activeId).toBe('s-5')
+    const s = st.sessions['s-5']
+    expect(s.convId).toBe(5)
+    expect(s.loaded).toBe(true)
+    expect(s.messages).toHaveLength(1)
+    expect(s.messages[0].kind).toBe('user')
+  })
+
+  it('bootstrap：列表 404 → 回退旧单记录历史', async () => {
+    vi.mocked(listConversations).mockRejectedValue(new Error('404'))
+    vi.mocked(getChatHistory).mockResolvedValue({
+      messages: [{ role: 'user', content: '旧历史', ts: 1763023200 }],
+    } as never)
+
+    await useXingchenStore.getState().bootstrap()
+
+    const st = useXingchenStore.getState()
+    expect(st.order).toContain('s-legacy')
+    expect(st.activeId).toBe('s-legacy')
+    expect(st.sessions['s-legacy'].messages[0].content).toBe('旧历史')
+  })
+
+  it('openConversation：拉取会话消息并标记 loaded', async () => {
+    useXingchenStore.setState({
+      sessions: {
+        's-9': { id: 's-9', convId: 9, messages: [], createdAt: 1, updatedAt: 1, loaded: false },
+      },
+      order: ['s-9'],
+      activeId: 's-9',
+    })
+    vi.mocked(getConversationMessages).mockResolvedValue({
+      id: 9,
+      title: '已读',
+      messages: [{ role: 'assistant', content: '你好', ts: 1 }],
+    } as never)
+
+    await useXingchenStore.getState().openConversation(9)
+    const s = useXingchenStore.getState().sessions['s-9']
+    expect(s.loaded).toBe(true)
+    expect(s.messages[0].kind).toBe('assistant')
+  })
+
+  it('deleteSession：有 convId → 调 deleteConversation', async () => {
+    useXingchenStore.setState({
+      sessions: {
+        's-3': { id: 's-3', convId: 3, messages: [], createdAt: 1, updatedAt: 1 },
+      },
+      order: ['s-3'],
+      activeId: 's-3',
+    })
+    await useXingchenStore.getState().deleteSession('s-3')
+    expect(deleteConversation).toHaveBeenCalledWith(3)
+    expect(useXingchenStore.getState().sessions['s-3']).toBeUndefined()
+  })
+
+  it('exportSession：markdown → 调 exportConversationMarkdown', async () => {
+    useXingchenStore.setState({
+      sessions: {
+        's-7': { id: 's-7', convId: 7, title: '对话7', messages: [], createdAt: 1, updatedAt: 1 },
+      },
+      order: ['s-7'],
+    })
+    vi.mocked(exportConversationMarkdown).mockResolvedValue('# 对话7\n\n')
+    await useXingchenStore.getState().exportSession('s-7', 'markdown')
+    expect(exportConversationMarkdown).toHaveBeenCalledWith(7)
+  })
+})
+

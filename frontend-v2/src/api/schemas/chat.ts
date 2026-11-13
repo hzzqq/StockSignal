@@ -109,6 +109,21 @@ export const ConversationExportJsonSchema = z.object({
 })
 export type ConversationExportJson = z.infer<typeof ConversationExportJsonSchema>
 
+/**
+ * 旧单记录模式（GET /api/chat/history 解包后的 data）——仅作 404 回退路径。
+ * 真后端若未迁移多会话接口，前端回退到此单条历史记录，避免白屏（诚实降级，非错误）。
+ */
+export const ChatHistorySchema = z.object({
+  messages: z.array(
+    z.object({
+      role: z.string(),
+      content: z.string(),
+      ts: z.number().optional(),
+    }),
+  ),
+})
+export type ChatHistory = z.infer<typeof ChatHistorySchema>
+
 // ---------------------------------------------------------------------------
 // v2 内部判别消息模型（前端态，不落库；kind 决定渲染分支）
 // ---------------------------------------------------------------------------

@@ -66,6 +66,7 @@ const LazyRegimeDuration = lazyRouteComponent(() => import('@/features/analytics
 const LazyMomentumResonance = lazyRouteComponent(() => import('@/features/breadth/MomentumResonance'), 'MomentumResonance')
 const LazyLimitUpReview = lazyRouteComponent(() => import('@/features/breadth/LimitUpReview'), 'LimitUpReview')
 const LazyMarketSentiment = lazyRouteComponent(() => import('@/features/market/MarketSentiment'), 'MarketSentiment')
+const LazyXingchen = lazyRouteComponent(() => import('@/features/xingchen/XingchenPage'), 'XingchenPage')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -432,6 +433,13 @@ const marketSentimentRoute = createRoute({
   component: LazyMarketSentiment,
 })
 
+// 53 星辰 AI 助手（v2 native /xingchen）：多会话 + 后端持久化 + 404 回退旧单记录。
+const xingchenRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/xingchen',
+  component: LazyXingchen,
+})
+
 function FinancialHunterRouteView() {
   const search = financialHunterRoute.useSearch()
   return (
@@ -588,6 +596,7 @@ const routeTree = rootRoute.addChildren([
     momentumResonanceRoute,
     limitUpReviewRoute,
     marketSentimentRoute,
+    xingchenRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

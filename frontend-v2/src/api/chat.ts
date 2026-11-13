@@ -13,6 +13,8 @@ import {
   type ConversationMessages,
   ConversationExportJsonSchema,
   type ConversationExportJson,
+  ChatHistorySchema,
+  type ChatHistory,
   WireMessageSchema,
   type WireMessage,
 } from './schemas/chat'
@@ -122,4 +124,14 @@ export async function exportConversationMarkdown(convId: number): Promise<string
     throw new ApiError('export_failed', `导出失败（HTTP ${res.status}）`)
   }
   return await res.text()
+}
+
+/**
+ * GET /api/chat/history —— 旧单记录模式兜底。
+ * 仅在 listConversations 返回 404（后端未迁移多会话接口）时由 store 回退调用，
+ * 拉取单条历史记录转为本地会话，避免白屏（诚实降级，非错误）。
+ */
+export async function getChatHistory(): Promise<ChatHistory> {
+  const data = await apiFetch<unknown>('/chat/history')
+  return ChatHistorySchema.parse(data)
 }
