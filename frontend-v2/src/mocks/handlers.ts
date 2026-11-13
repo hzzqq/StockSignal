@@ -471,3 +471,167 @@ export function resetAdminMock(): void {
   adminMockState.nextId = Math.max(0, ...fixtures.adminUsers.map((u) => u.id)) + 1
   adminMockState.nextLogId = Math.max(0, ...fixtures.adminLogs.map((l) => l.id)) + 1
 }
+
+// ───────── 星辰 AI（53 页 v2 /xingchen）：ai_consult 任务 + 多会话 ─────────
+// 任务态可变副本：POST 创建 → GET 轮询（首次 running、二次 success 带样例结果）→ DELETE 取消。
+// 会话态可变副本：列表/创建/读取/保存/删除/导出共享同一份，使「创建后列表出现新会话」可被测。
+// ⚠️ 演示数据，非真实行情/真实 LLM；样例结果仅含 {answer, independent}（与后端 ai_answer 真实返回一致）。
+interface ChatTask {
+  status: 'pending' | 'running' | 'success' | 'error' | 'cancelled'
+  pollCount: number
+  result: unknown | null
+  error: string | null
+}
+interface ChatConv {
+  id: number
+  title: string
+  updated_at: string
+  messages: Array<{ role: string; content: string; ts?: number; chips?: string[] }>
+}
+const chatMockState = {
+  tasks: new Map<string, ChatTask>(),
+  convs: new Map<number, ChatConv>(),
+  nextConvId: Math.max(0, ...fixtures.chatConversations.map((c) => c.id)) + 1,
+}
+for (const c of fixtures.chatConversations) {
+  chatMockState.convs.set(c.id, {
+    id: c.id,
+    title: c.title,
+    updated_at: c.updated_at,
+    messages: fixtures.chatMessages[c.id] ?? [],
+  })
+}
+const CHAT_MOCK_NOW = '2026-11-13T10:05:00Z'
+
+// 把 chatMockState 注入到 handlers（模块作用域，供 resetChatMock 在测试间复位）
+void (() => {
+  const handlersChat = [
+    // ai_consult 后台任务：POST /api/tasks/ → 返回 {task_id}（data 层）
+    http.post('/api/tasks/', async ({ request }) => {
+      const body = (await request.json().catch(() => ({}))) as { type?: string; payload?: unknown }
+      // 仅接受 ai_consult 类型（其余任务类型本页不涉及，单测可注入覆盖）
+      if (body.type !== 'ai_consult') return badRequest('仅支持 ai_consult 类型（演示 Mock）')
+      const taskId = `mock-ai-consult-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+      chatMockState.tasks.set(taskId, { status: 'running', pollCount: 0, result: null, error: null })
+      return ok({ task_id: taskId })
+    }),
+    // GET /api/tasks/<id> → 轮询态；首次 running、二次 success 带样例结果（演示，无真实 LLM）
+    http.get('/api/tasks/:id', ({ params }) => {
+      const id = String(params.id)
+      const t = chatMockState.tasks.get(id)
+      if (!t) return notFound(`tasks/${id}`)
+      t.pollCount += 1
+      if (t.pollCount >= 2) {
+        t.status = 'success'
+        t.result = fixtures.chatSampleResult
+      }
+      return ok({
+        task_id: id,
+        task_type: 'ai_consult',
+        status: t.status,
+        progress: t.status === 'success' ? 1 : 0.5,
+        stage: t.status === 'success' ? 'done' : 'analyzing',
+        logs: [{ stage: t.status === 'success' ? 'done' : 'analyzing', message: '演示任务进度', ts: 1763023200 }],
+        result: t.result,
+        error: t.error,
+        created_at: 1763023200,
+        updated_at: 1763023260,
+      })
+    }),
+    // DELETE /api/tasks/<id> → 取消（演示：标记移除，文案由前端如实「已停止等待」）
+    http.delete('/api/tasks/:id', ({ params }) => {
+      chatMockState.tasks.delete(String(params.id))
+      return ok(null)
+    }),
+
+    // 会话列表（404 由前端回退旧单记录模式；演示 Mock 始终返回 200 + conversations）
+    http.get('/api/chat/conversations', () => {
+      const list = [...chatMockState.convs.values()].map((c) => ({
+        id: c.id,
+        title: c.title,
+        updated_at: c.updated_at,
+        message_count: c.messages.length,
+      }))
+      return ok({ conversations: list })
+    }),
+    // 新建会话
+    http.post('/api/chat/conversations', async ({ request }) => {
+      const body = (await request.json().catch(() => ({}))) as { title?: string }
+      const id = chatMockState.nextConvId++
+      const title = (body.title ?? '').trim() || '新对话'
+      chatMockState.convs.set(id, { id, title, updated_at: CHAT_MOCK_NOW, messages: [] })
+      return ok({ id, title })
+    }),
+    // 读取会话消息
+    http.get('/api/chat/conversations/:id', ({ params }) => {
+      const id = Number(params.id)
+      const c = chatMockState.convs.get(id)
+      if (!c) return notFound(`chat/conversations/${id}`)
+      return ok({ id: c.id, title: c.title, messages: c.messages })
+    }),
+    // 保存会话消息（落库归一化：仅 user/assistant；其余前端态不落库）
+    http.post('/api/chat/conversations/:id', async ({ request, params }) => {
+      const id = Number(params.id)
+      const c = chatMockState.convs.get(id)
+      if (!c) return notFound(`chat/conversations/${id}`)
+      const body = (await request.json().catch(() => ({}))) as { messages?: unknown[] }
+      const clean = (body.messages ?? []).filter(
+        (m): m is { role: string; content: string } =>
+          !!m && (m as any).role != null && (m as any).content != null,
+      )
+      c.messages = clean
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .map((m) => ({ role: m.role, content: String(m.content) }))
+      c.updated_at = CHAT_MOCK_NOW
+      return ok(null)
+    }),
+    // 删除会话
+    http.delete('/api/chat/conversations/:id', ({ params }) => {
+      chatMockState.convs.delete(Number(params.id))
+      return ok(null)
+    }),
+    // 旧单记录模式兜底（GET /api/chat/history，供 404 回退路径测试）
+    http.get('/api/chat/history', () => ok({ messages: fixtures.chatHistory })),
+    // 导出：json = 信封 data；markdown = 原始文本（非 JSON 信封，后端返回 text/markdown 字节）
+    http.get('/api/chat/conversations/:id/export', ({ params, request }) => {
+      const id = Number(params.id)
+      const c = chatMockState.convs.get(id)
+      if (!c) {
+        return HttpResponse.json(
+          { status: 'error', code: 'not_found', message: `会话不存在：${id}`, data: null },
+          { status: 404 },
+        )
+      }
+      const fmt = new URL(request.url).searchParams.get('format') ?? 'markdown'
+      if (fmt === 'json') {
+        return ok({ id: c.id, title: c.title, messages: c.messages })
+      }
+      const md = `# ${c.title}\n\n` +
+        c.messages
+          .map((m) =>
+            m.role === 'user'
+              ? `## 🙋 你问\n\n${m.content}\n\n---\n\n`
+              : `## 🤖 星辰 AI\n\n${m.content}\n\n---\n\n`,
+          )
+          .join('')
+      return HttpResponse.text(md, { headers: { 'Content-Type': 'text/markdown; charset=utf-8' } })
+    }),
+  ]
+  // 合并进主 handlers 列表
+  handlers.push(...handlersChat)
+})()
+
+/** 测试间复位星辰 AI Mock 状态，避免跨测试污染（任务/会话在内存态累积）。 */
+export function resetChatMock(): void {
+  chatMockState.tasks.clear()
+  chatMockState.convs.clear()
+  chatMockState.nextConvId = Math.max(0, ...fixtures.chatConversations.map((c) => c.id)) + 1
+  for (const c of fixtures.chatConversations) {
+    chatMockState.convs.set(c.id, {
+      id: c.id,
+      title: c.title,
+      updated_at: c.updated_at,
+      messages: fixtures.chatMessages[c.id] ?? [],
+    })
+  }
+}

@@ -3269,3 +3269,46 @@ export const marketSentiment = {
   "unavailable": [],
   "note": "综合市场温度由可用指标近期分位多空加权得出（高=热：ADR/涨停/PE/北向/融资净买；高=冷：VIX/PCR/股息率）。温度计为风险/健康语义，与价格涨跌红绿无关。"
 }
+
+// ───────── 星辰 AI（53 页 v2 /xingchen）开发期样例 ─────────
+// ⚠️ 演示数据：ai_consult 任务结果仅含 {answer, independent, specialist?}（与后端 ai_answer 真实返回一致）；
+// 数值与 [S#] 引用为示例、非真实行情/真实来源。Answer 含 [S#] 引用徽标，供前端引用徽标渲染测试。
+export const chatSampleResult = {
+  answer:
+    '**贵州茅台（600519）· 综合评分 60 分 · 中性偏多**\n\n' +
+    '### 技术面\n' +
+    '- 当前价 1523.5，站上 MA20（1476），RSI 63 未超买；量比 0.9 缩量整理。\n' +
+    '- 关键点位：支撑 1490，压力 1540[S1]。\n\n' +
+    '### 基本面\n' +
+    '- 2025 三季营收 1231 亿（同比 +12.3%），ROE 24.3%，毛利率 91.2%，现金奶牛属性不变[S2]。\n' +
+    '- 估值 PE-TTM 28.1，处历史 30% 分位，不贵。\n\n' +
+    '### 结论\n' +
+    '短中期中性偏多，回踩 1490 不破可关注；上方 1540 为筹码密集区。\n' +
+    '> 以上为规则引擎基于离线数据的结构化研判，不构成投资建议。',
+  independent: true,
+}
+
+// 命中多 Agent 专家分工时的样例（specialist 字段存在，供前端 specialist 渲染分支测试）
+export const chatSampleResultSpecialist = {
+  ...chatSampleResult,
+  specialist: 'technical_analyst',
+}
+
+// 初始会话列表（GET /api/chat/conversations 的演示数据）
+export const chatConversations = [
+  { id: 1, title: '贵州茅台 研判', updated_at: '2026-11-13T10:00:00Z', message_count: 2 },
+]
+
+// 会话消息（GET /api/chat/conversations/<id> 的演示数据；落库仅 user/assistant）
+export const chatMessages: Record<number, Array<{ role: string; content: string; ts?: number; chips?: string[] }>> = {
+  1: [
+    { role: 'user', content: '分析一下贵州茅台', ts: 1763023200 },
+    { role: 'assistant', content: chatSampleResult.answer, ts: 1763023260 },
+  ],
+}
+
+// 旧单记录模式兜底（GET /api/chat/history，供 404 回退路径测试）
+export const chatHistory = [
+  { role: 'user', content: '分析一下贵州茅台', ts: 1763023200 },
+  { role: 'assistant', content: chatSampleResult.answer, ts: 1763023260 },
+]

@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { apiFetch, ApiError } from './client'
 import {
   AiConsultSubmitSchema,
-  type AiConsultSubmit,
   TaskSubmitResultSchema,
   AiConsultTaskSchema,
   type AiConsultTask,
@@ -29,7 +28,7 @@ const BASE: string = import.meta.env.VITE_API_BASE ?? '/api'
  */
 
 /** POST /api/tasks/ —— 提交 ai_consult 后台任务，返回 task_id */
-export async function submitAiConsult(input: AiConsultSubmit): Promise<string> {
+export async function submitAiConsult(input: z.input<typeof AiConsultSubmitSchema>): Promise<string> {
   const body = AiConsultSubmitSchema.parse(input)
   const data = await apiFetch<unknown>('/tasks/', {
     method: 'POST',
