@@ -85,29 +85,70 @@ v1 `53_星辰AI.py` 是一个**金融风 AI 对话 + 多市场智能股票分析
 | 删除 | `DELETE /api/chat/conversations/<id>` | — | `status:'ok'` |
 | 导出 | `GET /api/chat/conversations/<id>/export?format=markdown\|json` | — | markdown=raw bytes(附件) / json=信封 `{data:{...}}` |
 
-### 3.4 ChatMessage 形态（v1 实测字段，v2 收紧为严格 schema）
+### 3.4 数据形态（v1/后端实测 → v2 严格 schema；**重要纠偏**）
+
+> **纠偏（2026-11-13 实测复核）**：后端 `ai_answer`（`modules/ai_engine.py:714`）真实返回**只有**
+> `{answer:string, independent:boolean, specialist?:string}`——**不返回任何结构化「分析卡 / process」字段**。
+> v1 的「问题分析卡」是 **客户端规则引擎产物**（v1 `role:"tool"` 消息，由意图分类在提交瞬间**零 LLM 成本**生成），
+> v2 对应 `intent.ts`（客户端意图分类）→ `ProcessCard` 组件；而 `TaskCard` 对应的是 **ai_consult 后台任务的轮询进度**
+> （见 §3.4.2），二者不要混淆。`ai_consult` 任务结果**仅**是 markdown 正文 + 两个布尔/标识字段。
+
+#### 3.4.1 ai_consult 任务结果（`GET /api/tasks/<id>`，`status==='success'` 时的 `result`）
+```ts
+// 后端 ai_answer 真实返回（modules/ai_engine.py:714-873）—— 仅有这三项
+interface AiConsultResult {
+  answer: string        // markdown 正文（规则引擎/LLM 都可能带「LLM 暂不可用」降级头，须原样展示）
+  independent: boolean  // 是否独立于页面上下文作答
+  specialist?: string   // 命中多 Agent 专家分工时的 specialist_id（可选）
+}
+```
+
+#### 3.4.2 ai_consult 任务对象（轮询态，`backend/tasks/worker.py` 的 `Task.to_dict`）
+```ts
+type TaskStatus = 'pending' | 'running' | 'success' | 'error' | 'cancelled'
+interface AiConsultTask {
+  task_id: string
+  task_type: string
+  status: TaskStatus
+  progress: number
+  stage: string                                          // 当前 agent stage
+  logs: { stage: string; message: string; ts: number }[] // 实时进度（多智能体协作）
+  result: AiConsultResult | null                         // success 时为 §3.4.1
+  error: string | null
+  created_at: number
+  updated_at: number
+}
+```
+
+#### 3.4.3 线上消息格式（落库/读取真实字段，v1 `pages/53_星辰AI.py` 实测）
+v1 落库消息是灵活 dict：`{role:'user'|'assistant'|'tool'|'research', content:string, ts?:number, chips?:string[], tool?:string, payload?:unknown}`。
+保存时归一化为 `{role, content}`（**仅持久化 user/assistant**；`tool` 意图卡不落库，每次会话由客户端重建）。
+v2 读取时**容忍字段缺失**（ts/chips 可空），按 `role` 映射到内部 `kind`：
+- `user` / `assistant` → 文本气泡（`content` = markdown）
+- `tool` → 客户端重建的意图分析卡（`ProcessCard`，**非后端数据**）
+- `research` → H1 研究智能体产物（MVP 非目标，读取时按 `assistant` 降级或忽略）
+
+#### 3.4.4 v2 内部判别消息模型（前端态，不落库；`kind` 决定渲染分支）
 ```ts
 // 借鉴 FinPilot store/chat.ts 的判别消息模型（v2 用 Zod 严格收紧）
+type ChatMessageKind = 'user' | 'assistant' | 'tool' | 'param-prompt'
 interface ChatMessage {
   id: string
-  role: 'user' | 'assistant'
-  content: string                 // markdown 正文
-  kind?: 'text' | 'tool' | 'param-prompt'   // 借鉴 FinPilot：文本 / 任务执行卡 / 参数追问卡
-  status?: 'streaming' | 'done' | 'error'    // 流式生命周期（对应 ai_consult 任务轮询）
-  process?: ProcessGroup[]        // 中间过程折叠卡（= v1 问题分析卡：先分析问题再作答）
-  toolCall?: ToolCallPayload      // kind=tool：ai_consult 任务进度/结果（轮询写入）
-  paramPrompt?: ParamPromptPayload // kind=param-prompt：缺参时向用户追问并收集
-  ts: string                      // ISO 时间
-  chips?: { label: string; prompt: string }[]   // assistant 追问建议（点击直接发送）
-  model?: string                  // 该轮所用模型（assistant 才有）
-  errors?: string[]               // 部分降级/错误明细（诚实态，照 FinPilot）
+  kind: ChatMessageKind        // 渲染分支（role 的判别视图）
+  role: string                 // 原始线上 role（user/assistant/tool...）
+  content: string              // markdown 正文（assistant = AiConsultResult.answer）
+  status?: 'streaming' | 'done' | 'error'   // 流式生命周期（对应 ai_consult 任务轮询）
+  ts?: number                  // epoch 秒（与 v1 ts 对齐；展示层格式化为本地时间）
+  process?: string[]           // kind=tool：客户端意图分析步骤（intent.ts 生成，非后端）
+  toolCall?: AiConsultTask     // kind=tool/assistant：ai_consult 任务轮询进度（§3.4.2）
+  paramPrompt?: string[]       // kind=param-prompt：缺参时向用户追问项
+  chips?: string[]             // assistant 追问建议（点击直接发送）
+  model?: string               // assistant 该轮模型（未配置显「规则引擎模式」）
+  errors?: string[]            // 诚实态降级/错误明细（照 FinPilot）
 }
-// 中间过程（= v1 问题分析卡）：提交时先写意图/计划，再作答（零 LLM 成本）
-interface ProcessGroup { stage: 'planner'|'analysis'|'debate'; title: string; steps: {node:string;label:string;text:string;degraded?:boolean}[] }
-interface ToolCallPayload { toolKey: string; label: string; status: 'running'|'done'|'error'; params: Record<string,unknown>; progress?: {taskType:string|null;status:string;total:number;done:number;failed:number;message:string|null}; result?: unknown; error?: string }
-interface ParamPromptPayload { toolKey: string; label: string; fields: string[]; known?: Record<string,unknown>; answered?: boolean; submitted?: Record<string,unknown> }
 ```
-> v1 历史里消息字段较随意（含 `chips` 等），v2 用 Zod 严格校验、缺字段按"诚实空态"而非补默认。
+> v1 历史消息字段随意（含 `chips` 等），v2 用 Zod 严格校验、缺字段按「诚实空态」而非补默认；
+> `process`/`toolCall`/`paramPrompt` 均为**前端态**（客户端生成 / 轮询回填），**不从后端反序列化**。
 
 ---
 
@@ -118,7 +159,7 @@ interface ParamPromptPayload { toolKey: string; label: string; fields: string[];
 frontend-v2/src/
   api/
     chat.ts                 # 复用 apiFetch：submitAiConsult / getTask / cancelTask / 会话 CRUD / 导出
-    schemas/chat.ts         # Zod：ChatMessage / TaskStatus / AiConsultResult / Conversation(List) / ProcessGroup / ToolCall / ParamPrompt
+    schemas/chat.ts         # Zod：ChatMessage / AiConsultTask / AiConsultResult / TaskStatus / Conversation(List) / WireMessage / ConversationMessages
   features/xingchen/
     XingchenPage.tsx        # 页面容器（注册 nav + router）；借鉴 FinPilot ChatPage：意图分类→提交/边界拒绝、流式 status、自动滚动、空态 hero
     ChatPanel.tsx           # 消息流 + 自动滚到底部 + 回到底部按钮（借鉴 FinPilot scrollRef）
@@ -168,7 +209,11 @@ XingchenPage
 - **ai_consult 提交+轮询**：`useMutation` 提交 `POST /api/tasks/` → `onSuccess` 轮询 `GET /api/tasks/<id>`（间隔 ~1.5s，对齐 v1 `run_every=1.5`，超时 ~30s 兜底报错）→ 回填消息 `status/result/errors` 与 `toolCall` 进度。
 
 ### 4.4 数据模型（Zod，落 `schemas/chat.ts`）
-- `ChatMessageSchema`（含 `kind/status/process/toolCall/paramPrompt`，对齐 §3.4）、`TaskStatusSchema`、`AiConsultResultSchema`（**实现期按 `ai_engine` 真返回值补全字段**）、`ConversationSchema`、`ConversationListSchema`、`ProcessGroupSchema`、`ToolCallSchema`、`ParamPromptSchema`。
+- 严格对齐 §3.4 实测契约（**不再预设后端返回结构化分析卡**）：
+  - `AiConsultResultSchema` = `{answer:string, independent:boolean, specialist?:string}`（后端 `ai_answer` 真返回）。
+  - `AiConsultTaskSchema`（轮询态：`task_id/type/status/progress/stage/logs/result/error/created_at/updated_at`）。
+  - `TaskStatusSchema`、`ConversationSchema`、`ConversationListSchema`、`WireMessageSchema`（线上 `{role,content,ts?,chips?,tool?,payload?}` 容忍缺失）、`ConversationMessagesSchema`。
+  - `ChatMessageSchema`（内部判别模型：`kind/role/content/status/ts/process/toolCall/paramPrompt/chips/model/errors`；`process/toolCall/paramPrompt` 为前端态，不从后端反序列化）。
 - 每个 `api/chat.ts` 函数模式对齐 `admin.ts`：`apiFetch<unknown>(path,init)` → `Schema.parse(data)`，缺字段/类型不符即抛 `ApiError`（不兜底，对齐 PLAN §4.3 红线）。
 
 ---
