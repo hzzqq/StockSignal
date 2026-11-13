@@ -48,6 +48,71 @@ const KIND_LABELS: Record<XcIntentKind, string> = {
   general: '通用问答',
 }
 
+/** 回应风格文案（对标 FinPilot「深度研究」等标题）。 */
+export const STYLE_LABELS: Record<XcStyle, string> = {
+  quick: '快速研判',
+  report: '深度研究',
+  debate: '多空辩论',
+  teach: '教学讲解',
+}
+
+/**
+ * 研判维度框架（对标 FinPilot 8 模块卡网格）。
+ * 诚实红线：这是客户端分析透镜（按意图套用的研究框架），不是从后端拆出的独立数据，
+ * 故卡片只标「分析中/已返回」状态，绝不编造假数值。
+ */
+export const DIMENSIONS: Record<XcIntentKind, { label: string; desc: string }[]> = {
+  analyze: [
+    { label: '基本面', desc: '业绩 / 估值 / 护城河' },
+    { label: '技术面', desc: '趋势 / 量价 / 形态' },
+    { label: '资金面', desc: '主力 / 北向 / 流入' },
+    { label: '情绪面', desc: '热度 / 恐慌贪婪' },
+    { label: '估值', desc: 'PE/PB/分位' },
+    { label: '风险', desc: '下行 / 黑天鹅' },
+  ],
+  compare: [
+    { label: '走势对比', desc: '区间涨跌幅' },
+    { label: '估值对比', desc: 'PE/PB 分位' },
+    { label: '资金对比', desc: '主力净流入' },
+    { label: '基本面', desc: '盈利质量' },
+    { label: '风险对比', desc: '波动 / 回撤' },
+  ],
+  explain: [
+    { label: '概念界定', desc: '边界 / 定义' },
+    { label: '因果链条', desc: '驱动变量' },
+    { label: '关键变量', desc: '敏感因子' },
+    { label: '通俗重构', desc: '小白能懂' },
+  ],
+  debate: [
+    { label: '看多方', desc: '逻辑 + 举证' },
+    { label: '看空方', desc: '风险 + 反驳' },
+    { label: '论据权重', desc: '确定性评估' },
+    { label: '平衡结论', desc: '概率偏向' },
+  ],
+  data: [
+    { label: '字段定位', desc: '所需财务/行情' },
+    { label: '时效校验', desc: '口径 / 日期' },
+    { label: '比率计算', desc: '关键指标' },
+    { label: '数值结论', desc: '量化输出' },
+  ],
+  general: [
+    { label: '意图解析', desc: '问题拆解' },
+    { label: '知识检索', desc: '相关规则/数据' },
+    { label: '结构组织', desc: '结构化回答' },
+  ],
+}
+
+/** 从问题抽取标的主题（6 位代码或命中实体关键词）。命中不到返回 undefined（诚实不编造）。 */
+export function extractTopic(question: string): string | undefined {
+  const q = (question || '').trim()
+  const code = q.match(/\b\d{6}\b/)
+  if (code) return code[0]
+  for (const k of ENTITY_KEYWORDS) {
+    if (q.includes(k)) return k
+  }
+  return undefined
+}
+
 const PROCESS_STEPS: Record<XcIntentKind, string[]> = {
   analyze: [
     '识别标的范围与问题类型',

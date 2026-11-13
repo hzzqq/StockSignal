@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { classifyIntent, type XcStyle } from './intent'
+import { classifyIntent, extractTopic, STYLE_LABELS, DIMENSIONS, type XcStyle } from './intent'
 import {
   submitAiConsult,
   getAiConsultTask,
@@ -107,6 +107,7 @@ interface XingchenState {
   addMessage: (sessionId: string, msg: ChatMessage) => void
   updateMessage: (sessionId: string, msgId: string, patch: Partial<ChatMessage>) => void
   appendProcessStep: (sessionId: string, msgId: string, step: string) => void
+  markRevealed: (msgId: string) => void
   submitQuestion: (q: string) => Promise<void>
   cancelCurrent: () => Promise<void>
 }
@@ -341,6 +342,24 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
       }
     }),
 
+  // 流式揭示完成：清 fresh，避免历史重载/重挂载时再次触发动画
+  markRevealed: (msgId) =>
+    set((st) => {
+      const sessions = { ...st.sessions }
+      for (const sid of Object.keys(sessions)) {
+        const s = sessions[sid]
+        const idx = s.messages.findIndex((m) => m.id === msgId && m.fresh)
+        if (idx >= 0) {
+          sessions[sid] = {
+            ...s,
+            messages: s.messages.map((m) => (m.id === msgId ? { ...m, fresh: false } : m)),
+          }
+          break
+        }
+      }
+      return { sessions }
+    }),
+
   submitQuestion: async (q) => {
     const question = (q || '').trim()
     if (!question) return
@@ -380,7 +399,9 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
       return
     }
 
-    // assistant 占位（流式）：携带分析卡步骤，等待轮询回填
+    // assistant 占位（流式）：携带分析卡步骤 + 全面化外壳元数据，等待轮询回填。
+    // analysisMeta 在提交即写入（意图已判定），使轮询期也能展示标题卡 + 维度卡（分析中），
+    // 而非成功后才出现，对标 FinPilot「生成中即展示研究框架」。
     const aId = genId('a')
     get().addMessage(sid, {
       id: aId,
@@ -389,6 +410,11 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
       content: '',
       status: 'streaming',
       process: intent.processSteps,
+      analysisMeta: {
+        topic: extractTopic(question),
+        styleLabel: STYLE_LABELS[get().style],
+        dimensions: DIMENSIONS[intent.kind],
+      },
       ts: nowSec(),
       model: get().model,
     })
@@ -424,11 +450,14 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
 
       if (task.status === 'success') {
         const result = (task.result ?? null) as { answer?: string; specialist?: string } | null
+        const answer = result?.answer ?? ''
+        // analysisMeta 已在提交占位时写入；此处仅回填正文 + 触发组件层流式揭示
         get().updateMessage(sid, aId, {
           status: 'done',
-          content: result?.answer ?? '',
+          content: answer,
           model: result?.specialist ?? get().model,
           chips: intent.suggestionChips,
+          fresh: true,
         })
         break
       }
@@ -511,6 +540,7 @@ export function useXingchen() {
   const openConversation = useXingchenStore((s) => s.openConversation)
   const bootstrap = useXingchenStore((s) => s.bootstrap)
   const exportSession = useXingchenStore((s) => s.exportSession)
+  const markRevealed = useXingchenStore((s) => s.markRevealed)
 
   const active = activeId ? sessions[activeId] : undefined
   return {
@@ -532,5 +562,6 @@ export function useXingchen() {
     openConversation,
     bootstrap,
     exportSession,
+    markRevealed,
   }
 }

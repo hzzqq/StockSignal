@@ -110,6 +110,27 @@ describe('useXingchen 提交+轮询', () => {
     expect(a?.errors?.[0]).toBe('已停止等待')
     void p // 让挂起的轮询自然结束，不阻塞测试
   })
+
+  it('提交成功 → 写入 analysisMeta（标的/风格/维度）+ fresh 标记', async () => {
+    mockedSubmit.mockResolvedValue('t1')
+    mockedPoll.mockResolvedValueOnce(RUNNING as never).mockResolvedValueOnce(SUCCESS as never)
+
+    vi.useFakeTimers()
+    const p = useXingchenStore.getState().submitQuestion('茅台 600519 怎么样？')
+    await vi.advanceTimersByTimeAsync(1500)
+    await vi.advanceTimersByTimeAsync(1500)
+    await p
+
+    const st = useXingchenStore.getState()
+    const a = st.sessions[st.activeId].messages.find((m) => m.kind === 'assistant')!
+    // fresh：交给组件层做流式揭示
+    expect(a.fresh).toBe(true)
+    // 全面化外壳元数据
+    expect(a.analysisMeta?.topic).toBe('600519')
+    expect(a.analysisMeta?.styleLabel).toBe('快速研判') // 默认 style=quick
+    expect(a.analysisMeta?.dimensions).toHaveLength(6) // analyze 维度框架
+    expect(a.analysisMeta?.dimensions[0].label).toBe('基本面')
+  })
 })
 
 describe('useXingchen 多会话持久化', () => {

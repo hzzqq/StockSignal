@@ -146,5 +146,13 @@ export const ChatMessageSchema = z.object({
   chips: z.array(z.string()).optional(), // assistant 追问建议（点击直接发送）
   model: z.string().optional(), // assistant 该轮模型（未配置显「规则引擎模式」）
   errors: z.array(z.string()).optional(), // 诚实态降级/错误明细
+  fresh: z.boolean().optional(), // 前端态：本轮刚生成、待组件层做流式揭示（不落库语义）
+  analysisMeta: z
+    .object({
+      topic: z.string().optional(), // 抽出的标的主题（代码/实体），无则 omit
+      styleLabel: z.string(), // 回应风格文案（STYLE_LABELS）
+      dimensions: z.array(z.object({ label: z.string(), desc: z.string() })), // 研判维度框架
+    })
+    .optional(), // 前端态：全面化外壳元数据（对标 FinPilot 标题卡+维度卡），不落库
 })
 export type ChatMessage = z.infer<typeof ChatMessageSchema>
