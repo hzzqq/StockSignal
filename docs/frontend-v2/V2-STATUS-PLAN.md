@@ -1472,3 +1472,32 @@ v2 前端组件级测试治理已于 §40 **收官**：`stock/`、`analytics/`�
 - commit（msg: `docs(v2): v1 退役评估与共存策略 + 生产构建 smoke 验证（v2 开发收官）`）。
 - ff-only 推送（fetch → ancestor → dry-run → push → SHA 复校）；仅 stage `docs/frontend-v2/V1-RETIREMENT-PLAN.md` + `docs/frontend-v2/V2-STATUS-PLAN.md`。
 - ks 父仓库 submodule 指针留痕不推。
+
+## 42. v2 真实浏览器验收（2026-11-13，CDP 目检）
+
+> 承接 §41 收官后老板指令"接着做 v2 开发验收"：用真实浏览器（而非单元桩 / 构建产物）验证 v2 跑起来是否真能用。
+
+### 42.1 工具与口径
+- 工具：`scripts/shoot_frontend_v2.py`（**CDP 直驱本机 headless Chrome，零 Playwright**，仅依赖 `websocket-client`；`--start-app` 自起 Vite，dev 模式 MSW 免真后端；覆盖暗/亮双主题 + 深链 + 六维缺维真实画布 + Zen）。
+- 产物：`artifacts/shots/frontend-v2/report.json`（本地目检，不提交仓库）。
+- 诚实红线：登录态由本地注入演示 token 驱动；采样缺失记 `null` 判失败、禁止补默认；截图必须 >1KB；跨主题比对若单主题/缺首页采样则如实标 `evaluated=false`，不伪装成通过。
+
+### 42.2 验收结果（report.json 实测）
+- **126 / 126 成功、0 失败；18 项红线检查全 PASS；跨主题比对 `evaluated=true`**（双主题 + 首页采样齐全）。
+- 覆盖 **57 个路由态**：53 页 ×2 主题 + 6 深链 ×2 + 六维缺维 ×2 + Zen ×2。
+
+### 42.3 关键红线在真实计算样式层面成立
+1. **主题真生效**：dark `--color-sf-bg=#0f0f23` ≠ light `#f0f3f9`。
+2. **A 股双套语义两主题恒等**：`ss-up=#ff4d4f`(红涨) / `ss-down=#00d486`(绿跌) / `doc-up=#009e6…` 在暗、亮两主题完全一致（交易屏红涨绿跌、报告体绿涨红跌互不串、light 块绝不覆盖）。
+3. **W4-A 六维缺维诚实降级**：切到 `000001` 后缺维显「**缺失**」而非补 0；真实 ECharts 画布 1126×300；覆盖条「仅 4/6 维有效」；`date=null` 显「暂无权威数据日」；降级说明「逐维独立取数、独立降级」—— 单元桩测不到的"真实画布不画 0"在浏览器里坐实。
+4. **W4-B 深链契约全部命中**：custom code 透传 `000001`（不硬编码 600519）、`view=deep` 首帧预选、中文 `hub_gyj_view` 映射 deep、`pick_stock` 单参落 quick、非法 code 不入 search。
+5. **Zen 模式真实收起**：侧栏/顶栏 `display:none` 真实折叠、主区去边距、浮动开关「退出专注」可见且点击可退出。
+
+### 42.4 结论与边界
+- v2 前端在真实浏览器中暗/亮双主题全部真正渲染，所有设计红线、深链契约、诚实降级语义在真实计算样式层面成立 → **v2 开发验收通过**，可进入"v2 主用 + v1 冻结兜底并存"生产运营阶段。
+- 本次验收**未改动任何业务代码**，仅产出本地目检快照 + report.json；红线目录与父仓库 submodule 指针均不动，无需提交代码。
+- 本 §42 仅补记验收结论到状态文档（与 §41 同批文档文件），不 stage 任何代码/产物。
+
+### 42.5 提交与推送
+- commit（msg: `docs(v2): 补充 §42 真实浏览器验收结论（126/126 通过，18 红线全 PASS）`）。
+- ff-only 推送；仅 stage `docs/frontend-v2/V2-STATUS-PLAN.md`；ks 父仓库 submodule 指针留痕不推。
