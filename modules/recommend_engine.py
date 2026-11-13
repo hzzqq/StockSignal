@@ -1007,10 +1007,14 @@ def _safe_fund_flow(code):
 
 
 def _safe_event_long_list() -> dict:
-    """P1 事件因子多头榜 → {symbol(6位): {score, raw_rank}}；不可用返回 {}。"""
+    """P1 事件因子多头榜 → {symbol(6位): {score, raw_rank}}；不可用返回 {}。
+
+    主推：默认取 v41 融合候选（v41blend_w30）；若该信号缺失/异常，event_driven_long_list
+    内部会优雅返回 []，调用方如实降级（不静默混入错误信号）。
+    """
     try:
         from modules.event_factor import event_driven_long_list
-        rows = event_driven_long_list(top_n=50, model="ev") or []
+        rows = event_driven_long_list(top_n=50, model="v41blend_w30") or []
         return {str(r.get("symbol", "")).zfill(6): r for r in rows if r.get("symbol")}
     except Exception as e:  # noqa: BLE001
         logger.info("[recommend_engine] 事件因子不可用（如实降级）: %s", e)

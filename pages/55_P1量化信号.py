@@ -2,7 +2,7 @@
 页面：P1 量化信号（EV / GRU / regime 融合）
 
 把 P1-QuantFactor 训练好的「未来 N 日超额收益概率」信号接入 StockSignal：
-- 看多 / 看空榜单（按模型切换，默认 EV 事件因子——全量口径最优）
+- 看多 / 看空榜单（按模型切换，默认 v41 融合候选·主推；EV 仍可选）
 - 三信号 A/B 对比（top_long 重叠度，验证 EV 是否真优于 GRU / 融合）
 - 个股信号查询（近 40 日每日预测得分走势）
 
@@ -63,8 +63,12 @@ if not models:
     st.stop()
 
 label_to_key = {loader.model_label(m): m for m in models}
+blend_label = loader.model_label("v41blend_w30")
 ev_label = loader.model_label("ev")
-default_idx = list(label_to_key.keys()).index(ev_label) if ev_label in label_to_key else 0
+# 主推：默认选中 v41 融合候选；缺则回退 EV；再缺则取首个可用模型
+_default_target = (blend_label if blend_label in label_to_key
+                  else (ev_label if ev_label in label_to_key else None))
+default_idx = list(label_to_key.keys()).index(_default_target) if _default_target in label_to_key else 0
 
 # ───────────────────────── 侧边栏控制 ─────────────────────────
 with st.sidebar:

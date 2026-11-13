@@ -65,6 +65,9 @@ MODEL_LABELS = {
     "gru": "GRU",
     "fusion": "regime 融合",
     "baseline": "基线 LightGBM",
+    # 主推候选（2026-11-13 起设为默认/主推；recommend=False，系老板 override 谨慎闸）：
+    # v41 估值因子小权重融合，净夏普 +1.490 跑赢现役 A(+1.354)；近期段弱于早期段(P3 未过)。
+    "v41blend_w30": "v41 融合(w0.30)·主推",
 }
 
 

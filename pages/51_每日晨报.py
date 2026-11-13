@@ -257,15 +257,15 @@ def fragment_event_driven_pool():
     晨报里作为开盘前「今日可重点观察的事件驱动候选」速览；并提供一键导出
     Markdown，便于转发到自动推送 / 早报正文。
     """
-    _section_title("📈 事件驱动看多榜（EV 事件因子 · 真实信号）", accent="#ff8a3d")
+    _section_title("📈 事件驱动看多榜（v41 融合候选·主推 · 真实信号）", accent="#ff8a3d")
     try:
-        rows = event_driven_long_list(top_n=20, model="ev")
+        rows = event_driven_long_list(top_n=20, model="v41blend_w30")
     except Exception as e:  # noqa: BLE401
         xc_handle_error("事件驱动看多榜加载失败", e)
         return
 
     if not rows:
-        _empty_info("未找到 P1 EV 事件因子信号（data/p1_signals/ 或 P1 产出目录）。"
+        _empty_info("未找到 P1 信号（data/p1_signals/ 或 P1 产出目录）。"
                     "接入真实信号后此处自动出现候选池；当前事件维度回退本地事件库。")
         return
 

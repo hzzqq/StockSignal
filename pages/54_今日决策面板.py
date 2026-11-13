@@ -462,8 +462,9 @@ def fragment_p1_ev():
         _empty_info("未找到 P1 信号文件（data/p1_signals/ 或 P1 产出目录）。"
                     "详见 data/p1_signals/README.md。")
         return
-    # 默认优先 EV（全量口径最优），否则取第一个可用模型
-    model = "ev" if "ev" in models else models[0]
+    # 主推：默认 v41 融合候选；缺则回退 EV；再缺则取首个可用模型
+    model = ("v41blend_w30" if "v41blend_w30" in models
+             else ("ev" if "ev" in models else models[0]))
 
     # 信号质量体检披露（gru 一路 research_only，禁止用于投资决策；EV/Baseline 无 quality 块则不渲染）
     _p1q = ld.quality(model)
@@ -664,10 +665,10 @@ def fragment_event_driven_pool():
     9 维事件/regime 通道），明确标注真实信号来源，可直接喂给本页仓位决策。
     universe = P1 EV 池本身（模型已排序），免全市场 5000 股实时重排。
     """
-    _section_title("📈 事件驱动看多榜（EV 事件因子 · 真实信号）", accent="#ff8a3d")
+    _section_title(f"📈 事件驱动看多榜（{ld.model_label(model)} · 真实信号）", accent="#ff8a3d")
     try:
         from modules.event_factor import event_driven_long_list
-        rows = event_driven_long_list(top_n=20, model="ev")
+        rows = event_driven_long_list(top_n=20, model=model)
     except Exception as e:  # noqa: BLE401
         xc_handle_error("事件驱动看多榜加载失败", e)
         return
