@@ -1441,5 +1441,34 @@ MSW `setupServer` + `<Providers>`，桩 `@tanstack/react-router` 的 `Link` 与 
 - ks 父仓库 submodule 指针留痕不推。
 
 ## 仍存质量债（后续迭代候选，已修正）
-v2 前端组件级测试治理已于 §40 **收官**：`stock/`、`analytics/`、`dashboard/`、`guide/`、`me/`、`auth`(LoginWelcome+LoginPage)、`catalog`(CatalogView+DataSourceView)、`admin`(UserManagement)、`settings`(SettingsView) 全部收敛，全量 **672 passed / 1 skipped**（98 文件）。持续挂起：**v1 降级 / 退役评估**（技术栈红线已定：禁新增 Streamlit 页，v1 仅作只读兜底并存，43 实盘交易等真实券商能力永久留 v1）；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人未提交改动不在本轮范围。
+v2 前端组件级测试治理已于 §40 **收官**：`stock/`、`analytics/`、`dashboard/`、`guide/`、`me/`、`auth`(LoginWelcome+LoginPage)、`catalog`(CatalogView+DataSourceView)、`admin`(UserManagement)、`settings`(SettingsView) 全部收敛，全量 **672 passed / 1 skipped**（98 文件）。**v1 降级 / 退役评估已于 §41 + `V1-RETIREMENT-PLAN.md` 成文**（结论：v1 不能整体下线，43 实盘交易真实券商下单永久留 v1，其余 10 个 pinned 为实验性/低频/展示性页面作只读兜底并存）；`thesis/`、`backups/`、`scripts/`、`.trae/`、`artifacts/`、`docs/welcome.html` 及他人未提交改动不在本轮范围。
 ⚠️ 工作区有**其他任务改动**：`thesis/`、`backups/`、`scripts/`、`pages/54_*.py`、`55_*.py`、`modules/p1_portfolio_diag.py`、`.trae/`、`artifacts/`、`docs/welcome.html` —— 一律不 stage、不碰。
+
+## 41. v1 退役评估 + 生产构建 smoke（2026-11-13，v2 开发收官）
+
+> 承接 §40 收官后的两件收尾：① 实证 v2 能生产构建上线；② 把长期 parked 的「v1 降级 / 退役评估」落成文档，给出共存策略与退役路线图。
+
+### 41.1 生产构建 smoke（确认真能上线）
+- 命令 `npm run build` → **EXIT 0**，`✓ 935 modules transformed`，`✓ built in 950ms`。
+- 主包 `index` **283.77 kB / gzip 85.01 kB**（实测优于此前估算的 342 kB）；`tanstack` 119.20 / 39.53；`schemas` 91.72 / 26.00；`echarts` 697.39 / **231.93**（**独立懒加载 chunk，不进首屏**）。
+- 唯一警告：`echarts` 单 chunk > 500 kB（已通过路由级 `lazyRouteComponent` 规避首屏，可接受）。
+- 类型与测试：`tsc --noEmit` 0 错；`vitest run` 672 passed / 1 skipped（98 文件）。
+- 结论：v2 **已具备生产构建与上线条件**（日常分析浏览可全面由 v2 承担）。
+
+### 41.2 v1 退役评估（成文于 `V1-RETIREMENT-PLAN.md`）
+- 四档口径实测：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**（由 `v2Mapping.ts` 的 `statusCounts()` 实时统计，非写死）。
+- 11 个 `v1-pinned` 逐项理由 + 处置建议（见文档 §3 表）：**仅 `43_实盘交易` 是红线性的真实券商下单能力（永久留 v1，v2 绝不碰）**；其余 10 个（`13/15/17/25/33/52/53/81/83/87`）为实验性 / 低频 / 展示性 / 社区类，v2 暂无等价计划，作只读兜底并存。
+- 能力边界（诚实红线）：v2 不提供任何真实交易能力（`TradingAccount` 仅只读概览）；只读端点只查不写；未接入功能不造假；实时源不可用时优雅降级。
+- 退役路线图：Phase A 已完结（对齐 + 测试治理 + 构建 smoke）；Phase B 建议 v1 进入冻结/只读兜底、不再新增 v1 页；Phase C 未来可选（把可替代 pinned 迁 v2 只读聚合，v1 仅留 `43` 一个进程）。
+- 风险与回滚：双前端互为兜底（v2 故障 v1 仍可独立运行），不是负担。
+
+### 41.3 实证结论
+- v2 开发状态：**功能对齐完成 + 组件测试收官 + 生产构建验证通过**，达到生产级闭环。
+- 四档口径不变：**63 native + 0 data + 11 v1-pinned + 0 v1-only = 74**。
+- 文档交付：`docs/frontend-v2/V1-RETIREMENT-PLAN.md`（v1 退役评估与共存策略全文）+ 本 §41 指针。
+- 红线目录与他人的未提交改动一律未 stage、未碰；ks 父仓库 submodule 指针留痕不推。
+
+### 41.4 提交与推送
+- commit（msg: `docs(v2): v1 退役评估与共存策略 + 生产构建 smoke 验证（v2 开发收官）`）。
+- ff-only 推送（fetch → ancestor → dry-run → push → SHA 复校）；仅 stage `docs/frontend-v2/V1-RETIREMENT-PLAN.md` + `docs/frontend-v2/V2-STATUS-PLAN.md`。
+- ks 父仓库 submodule 指针留痕不推。
