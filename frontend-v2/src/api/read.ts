@@ -17,6 +17,7 @@ import {
   BacktestRunsSchema,
   DataRefreshStateSchema,
   FactorAnalysisSchema,
+  EventBacktestSchema,
   BacktestSchema,
   MarketPanoramaSchema,
   PortfolioSchema,
@@ -54,6 +55,7 @@ import {
   type BacktestRuns,
   type DataRefreshState,
   type FactorAnalysis,
+  type EventBacktest,
   type Backtest,
   type MarketPanorama,
   type Portfolio,
@@ -158,6 +160,25 @@ export function getBreadthAnalytics(window = 250): Promise<BreadthAnalytics> {
 export function getBreadthZSeries(dim: string, window = 250): Promise<ZSeries> {
   const q = new URLSearchParams({ dim, window: String(window) })
   return readValidated(`breadth-zseries?${q.toString()}`, ZSeriesSchema)
+}
+
+export interface EventBacktestParams {
+  metric: 'red_ratio' | 'limit_up_ratio' | 'limit_down_ratio'
+  quantile: number
+  direction: 'high' | 'low'
+  horizon: 1 | 3 | 5 | 10
+}
+
+/** GET /api/v2/read/event-backtest —— 事件因子回测实验室（离线 walk-forward）。
+ *  严格按后端白名单拼参；解析失败即抛错，禁止 `?? 0` 兜底。 */
+export function getEventBacktest(params: EventBacktestParams): Promise<EventBacktest> {
+  const q = new URLSearchParams({
+    metric: params.metric,
+    quantile: String(params.quantile),
+    direction: params.direction,
+    horizon: String(params.horizon),
+  })
+  return readValidated(`event-backtest?${q.toString()}`, EventBacktestSchema)
 }
 
 /** GET /api/v2/read/momentum-breadth —— 62 动量×广度 共振矩阵（离线可靠）。 */

@@ -426,6 +426,45 @@ def ladder_detail():
     return _not_found("shepherd_ladder_history.json")
 
 
+# ───────────────────────── 事件因子回测（计算型，离线）─────────────────────────
+@bp.get("/event-backtest")
+@jwt_required
+def event_backtest():
+    """事件因子回测实验室（modules.event_backtest.run）—— 离线 walk-forward，无未来函数。
+
+    参数（白名单校验，越界一律 400）：
+      metric     ∈ {red_ratio, limit_up_ratio, limit_down_ratio}
+      quantile   ∈ (0,1) 尾部比例（0.10 = 前/后 10%）
+      direction  ∈ {high, low}
+      horizon    ∈ {1,3,5,10}
+    返回 {available, n_event, base_rate, event_rate, edge_pp, z(null if 不足),
+          distribution, example_dates, method, honesty_notes}（NaN 已 _sanitize）。
+    """
+    from modules.event_backtest import run as _eb_run
+
+    metric = request.args.get("metric", "limit_down_ratio")
+    if metric not in ("red_ratio", "limit_up_ratio", "limit_down_ratio"):
+        return fail(message="metric 不在白名单", code="validation_error", http_status=400)
+    direction = request.args.get("direction", "high")
+    if direction not in ("high", "low"):
+        return fail(message="direction 必须是 high/low", code="validation_error", http_status=400)
+    try:
+        tail = float(request.args.get("quantile", "0.1"))
+    except (TypeError, ValueError):
+        return fail(message="quantile 解析失败（需数字）", code="validation_error", http_status=400)
+    if not (0 < tail < 1):
+        return fail(message="quantile 必须 ∈ (0,1)", code="validation_error", http_status=400)
+    try:
+        horizon = int(request.args.get("horizon", "1"))
+    except (TypeError, ValueError):
+        return fail(message="horizon 解析失败（需整数）", code="validation_error", http_status=400)
+    if horizon not in (1, 3, 5, 10):
+        return fail(message="horizon 必须是 1/3/5/10", code="validation_error", http_status=400)
+
+    result = _eb_run(metric=metric, tail=tail, direction=direction, horizon=horizon)
+    return ok(data=_sanitize(result), message="event-backtest")
+
+
 # ───────────────────────── 长周期广度历史（固定文件）─────────────────────────
 # 与白名单同款固定绝对路径、无用户注入，安全等价。
 _FILE_WHITELIST["breadth_history"] = _DATA_DIR / "shepherd_history.json"

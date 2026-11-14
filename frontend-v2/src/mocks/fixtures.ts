@@ -317,6 +317,68 @@ export const factorAnalysis = {
   note: '逐标的独立取数、独立降级；缺失为 null 且不补 0；有效标的<3 不给出因子结论（与 modules.factor_analysis.build_panels 诚实红线一致）。',
 }
 
+// ───────── 事件因子回测（event-backtest）Mock，字段名与后端 modules.event_backtest.run 契约一致。
+// 演示数值对应「极端恐慌（跌停占比前 10%）→ 次日红盘」的已验证信号（sentiment_edge）；
+// 非实时行情，仅用于契约守卫与组件测试。z=null 的诚实空态见 eventBacktestSmallSample。
+export const eventBacktest = {
+  available: true,
+  metric: 'limit_down_ratio',
+  tail: 0.1,
+  direction: 'high',
+  horizon: 1,
+  n_event: 296,
+  n_base: 3800,
+  base_rate: 0.498,
+  event_rate: 0.625,
+  edge_pp: 12.7,
+  z: 4.36,
+  distribution: [
+    { bucket: '0.0–0.1', event_count: 1, base_count: 120 },
+    { bucket: '0.1–0.2', event_count: 2, base_count: 210 },
+    { bucket: '0.2–0.3', event_count: 5, base_count: 340 },
+    { bucket: '0.3–0.4', event_count: 10, base_count: 520 },
+    { bucket: '0.4–0.5', event_count: 18, base_count: 610 },
+    { bucket: '0.5–0.6', event_count: 42, base_count: 700 },
+    { bucket: '0.6–0.7', event_count: 65, base_count: 640 },
+    { bucket: '0.7–0.8', event_count: 78, base_count: 410 },
+    { bucket: '0.8–0.9', event_count: 48, base_count: 180 },
+    { bucket: '0.9–1.0', event_count: 27, base_count: 70 },
+  ],
+  example_dates: [
+    { date: '2015-06-26', metric_value: 8.92, forward_red_day_frac: 0.0 },
+    { date: '2015-07-08', metric_value: 9.41, forward_red_day_frac: 1.0 },
+    { date: '2018-02-09', metric_value: 7.6, forward_red_day_frac: 1.0 },
+    { date: '2020-02-03', metric_value: 8.1, forward_red_day_frac: 1.0 },
+    { date: '2024-01-31', metric_value: 6.3, forward_red_day_frac: 1.0 },
+    { date: '2015-08-25', metric_value: 7.2, forward_red_day_frac: 0.0 },
+    { date: '2016-01-07', metric_value: 6.9, forward_red_day_frac: 1.0 },
+    { date: '2019-05-09', metric_value: 5.8, forward_red_day_frac: 0.0 },
+    { date: '2022-03-15', metric_value: 5.1, forward_red_day_frac: 1.0 },
+    { date: '2023-08-22', metric_value: 4.7, forward_red_day_frac: 1.0 },
+  ],
+  method: 'two-proportion z-test（pooled）on forward red-day binary observations',
+  honesty_notes: [
+    '方法：walk-forward（第 i 天阈值只用 [0,i) 历史分位，无未来函数）。',
+    '结果度量：前向 N 日「红盘日占比」（up_count>down_count），非指数收益率。',
+    '指标均为尺度无关的占比类（跨年代采样规模可比）。',
+  ],
+}
+
+// 小样本诚实空态：触发观测不足 MIN_N=30 → z=null，仅描述性参考（前端不报显著性）。
+export const eventBacktestSmallSample = {
+  ...eventBacktest,
+  n_event: 12,
+  n_base: 3800,
+  base_rate: 0.498,
+  event_rate: 0.583,
+  edge_pp: 8.5,
+  z: null,
+  honesty_notes: [
+    ...eventBacktest.honesty_notes,
+    '触发观测 12 < 30，显著性（z）未计算，仅作描述性参考。',
+  ],
+}
+
 // W4 后续簇 · 策略回测（backtest）Mock，字段名与后端 /api/v2/read/backtest 契约一致。
 // 数值为确定性静态样例（非实时），与 modules.backtest.BacktestResult 口径一致：null 即缺失、不补 0。
 const backtestDates = (() => {

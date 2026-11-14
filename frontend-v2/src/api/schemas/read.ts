@@ -443,6 +443,47 @@ export const FactorAnalysisSchema = z
   .catchall(z.unknown())
 export type FactorAnalysis = z.infer<typeof FactorAnalysisSchema>
 
+// ───────── 事件因子回测（event-backtest / modules.event_backtest 离线 walk-forward）─────────
+// 严格对齐 backend/api/read_routes.py event_backtest() 的 data 字典：
+// available 恒有；n_event/n_base 整数；base_rate/event_rate/edge_pp/z 为数值或 null
+// （小样本/退化序列时 z=null，缺失诚实空态，前端严禁 `?? 0` 兜底）；distribution 为分箱计数；
+// example_dates 为触发示例；available=false 时可能仅含 reason（无 distribution）。
+export const EventBacktestBinSchema = z.object({
+  bucket: z.string(),
+  event_count: z.number(),
+  base_count: z.number(),
+})
+export type EventBacktestBin = z.infer<typeof EventBacktestBinSchema>
+
+export const EventBacktestExampleSchema = z.object({
+  date: z.string(),
+  metric_value: z.number().nullable().optional(),
+  forward_red_day_frac: z.number().nullable().optional(),
+})
+export type EventBacktestExample = z.infer<typeof EventBacktestExampleSchema>
+
+export const EventBacktestSchema = z
+  .object({
+    available: z.boolean(),
+    metric: z.string().optional(),
+    tail: z.number().nullable().optional(),
+    direction: z.string().optional(),
+    horizon: z.number().nullable().optional(),
+    n_event: z.number().nullable().optional(),
+    n_base: z.number().nullable().optional(),
+    base_rate: z.number().nullable().optional(),
+    event_rate: z.number().nullable().optional(),
+    edge_pp: z.number().nullable().optional(),
+    z: z.number().nullable().optional(),
+    distribution: z.array(EventBacktestBinSchema).optional(),
+    example_dates: z.array(EventBacktestExampleSchema).optional(),
+    method: z.string().optional(),
+    honesty_notes: z.array(z.string()).optional(),
+    reason: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type EventBacktest = z.infer<typeof EventBacktestSchema>
+
 // ───────── 策略回测（backtest）─────────
 export const BacktestTradeSchema = z.object({
   entry_date: z.string().nullable().optional(),

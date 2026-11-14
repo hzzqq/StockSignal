@@ -55,6 +55,7 @@ OFFLINE_ENDPOINTS = {
     "/api/v2/read/snapshot-dates": "list",
     "/api/v2/read/breadth-analytics?window=250": "dict",
     "/api/v2/read/six-dim?code=600519": "dict",
+    "/api/v2/read/event-backtest?metric=limit_down_ratio&quantile=0.1&direction=high&horizon=1": "dict",
 }
 
 

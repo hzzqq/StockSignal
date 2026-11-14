@@ -13,6 +13,7 @@ export type AppPath =
   | '/breadth'
   | '/ladder'
   | '/events'
+  | '/event-backtest'
   | '/predictions'
   | '/ops'
   | '/diagnostics'
@@ -106,6 +107,7 @@ export const NAV: NavGroup[] = [
         { to: '/breadth', label: '广度总览', icon: '🌡' },
         { to: '/ladder', label: '连板梯队共振', icon: '🪜' },
         { to: '/events', label: '事件因子池', icon: '◈' },
+        { to: '/event-backtest', label: '事件因子回测', icon: '⌖' },
         { to: '/predictions', label: '预测校准日志', icon: '◴' },
         { to: '/ops', label: '数据与运维状态', icon: '⚙' },
         { to: '/diagnostics', label: '数据源与接口检测', icon: '⛭' },

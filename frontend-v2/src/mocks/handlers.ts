@@ -247,6 +247,16 @@ export const handlers = [
     }
     return ok({ ...fixtures.backtest, ticker, strategy, start, end })
   }),
+  // 事件因子回测（全新页）：结构对齐后端 event_backtest()；演示数值非真实行情。
+  // 回显请求参数（真实后端会回显）。
+  http.get('/api/v2/read/event-backtest', ({ request }) => {
+    const url = new URL(request.url)
+    const metric = url.searchParams.get('metric') ?? fixtures.eventBacktest.metric
+    const quantile = Number(url.searchParams.get('quantile') ?? fixtures.eventBacktest.tail)
+    const direction = url.searchParams.get('direction') ?? fixtures.eventBacktest.direction
+    const horizon = Number(url.searchParams.get('horizon') ?? fixtures.eventBacktest.horizon)
+    return ok({ ...fixtures.eventBacktest, metric, tail: quantile, direction, horizon })
+  }),
   // 市场全景 / 状态机（56/57 页 V2 化）：结构对齐后端 market-panorama()；演示数值非真实行情。
   http.get('/api/v2/read/market-panorama', () => ok(fixtures.marketPanorama)),
   // 持仓中心（45 页 V2 化）：结构对齐后端 portfolio()；演示数值非真实行情。

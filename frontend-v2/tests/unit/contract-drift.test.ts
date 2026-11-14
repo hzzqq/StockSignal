@@ -82,6 +82,8 @@ const fixturePairs: Pair[] = [
   { name: 'sector-rotation', schema: R.SectorRotationSchema, samples: [F.sectorRotation] },
   { name: 'watch', schema: R.WatchSchema, samples: [F.watch] },
   { name: 'quote-board', schema: R.QuoteBoardSchema, samples: [F.quoteBoard] },
+  // 事件因子回测：含 z 有值 + z=null 小样本两种变体，锁定 z 可空契约（诚实空态不补零）
+  { name: 'event-backtest', schema: R.EventBacktestSchema, samples: [F.eventBacktest, F.eventBacktestSmallSample] },
   // W4-A/B/C/D 个股域：含 null/empty 变体，确保契约接受诚实空态（不补零）
   { name: 'six-dim', schema: S.SixDimSchema, samples: [F.sixDimFull, F.sixDimPartial] },
   {
@@ -177,6 +179,7 @@ const liveCases: LiveCase[] = [
   { key: 'sector-rotation', url: '/api/v2/read/sector-rotation', schema: R.SectorRotationSchema },
   { key: 'watch', url: '/api/v2/read/watch', schema: R.WatchSchema },
   { key: 'quote-board', url: '/api/v2/read/quote-board', schema: R.QuoteBoardSchema },
+  { key: 'event-backtest', url: '/api/v2/read/event-backtest?metric=limit_down_ratio&quantile=0.1&direction=high&horizon=1', schema: R.EventBacktestSchema },
   { key: 'six-dim', url: '/api/v2/read/six-dim?code=600519', schema: S.SixDimSchema },
   { key: 'fundamentals', url: '/api/v2/read/fundamentals?code=600519', schema: S.FundamentalsSchema },
   { key: 'financials', url: '/api/v2/read/financials?code=600519&report=income', schema: S.FinancialsSchema },

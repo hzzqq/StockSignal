@@ -67,6 +67,7 @@ const LazyMomentumResonance = lazyRouteComponent(() => import('@/features/breadt
 const LazyLimitUpReview = lazyRouteComponent(() => import('@/features/breadth/LimitUpReview'), 'LimitUpReview')
 const LazyMarketSentiment = lazyRouteComponent(() => import('@/features/market/MarketSentiment'), 'MarketSentiment')
 const LazyXingchen = lazyRouteComponent(() => import('@/features/xingchen/XingchenPage'), 'XingchenPage')
+const LazyEventBacktest = lazyRouteComponent(() => import('@/features/eventbacktest/EventFactorBacktest'), 'EventFactorBacktest')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -197,6 +198,12 @@ const eventsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/events',
   component: LazyEventPoolView,
+})
+
+const eventBacktestRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/event-backtest',
+  component: LazyEventBacktest,
 })
 
 const predictionsRoute = createRoute({
@@ -561,6 +568,7 @@ const routeTree = rootRoute.addChildren([
     breadthRoute,
     ladderRoute,
     eventsRoute,
+    eventBacktestRoute,
     predictionsRoute,
     opsRoute,
     diagnosticsRoute,

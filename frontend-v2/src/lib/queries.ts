@@ -1,6 +1,6 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import * as api from '@/api/read'
-import type { FactorAnalysisParams, BacktestParams, MarketPanoramaParams, PortfolioParams } from '@/api/read'
+import type { FactorAnalysisParams, BacktestParams, MarketPanoramaParams, PortfolioParams, EventBacktestParams } from '@/api/read'
 import { getSixDim, getFundamentals, getFinancials, getStockKline, getStockIntraday, getIndexQuotes, getIndexKline } from '@/api/stock'
 import type { FinancialReport } from '@/api/stock'
 import { getDiagnostics } from '@/api/diagnostics'
@@ -44,6 +44,7 @@ import type {
   MomentumBreadth,
   LimitUpReview,
   MarketSentiment,
+  EventBacktest,
 } from '@/api/schemas/read'
 
 /**
@@ -510,5 +511,15 @@ export function useMarketSentiment(days = 180): UseQueryResult<MarketSentiment> 
     queryFn: () => api.getMarketSentiment(days),
     staleTime: FIVE_MIN,
     retry: false,
+  })
+}
+
+// ───────── 事件因子回测（event-backtest / 全新页）─────────
+// 离线 walk-forward：参数变化即重新取；解析失败/取数失败进入 error 态，由页面诚实渲染。
+export function useEventBacktest(params: EventBacktestParams): UseQueryResult<EventBacktest> {
+  return useQuery({
+    queryKey: ['read', 'event-backtest', params],
+    queryFn: () => api.getEventBacktest(params),
+    staleTime: THIRTY_MIN,
   })
 }
