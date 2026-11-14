@@ -105,6 +105,23 @@ def _count_routes() -> int:
     return n
 
 
+def _count_v2_routes() -> int:
+    """V2 React 生产前端的真实路由声明数（frontend-v2/src/app/router.tsx 中 `path: '/...'`）。
+
+    V2 是 2026-11 起唯一新增方向（Streamlit 仅遗留只读），公开物料应如实体现它，
+    而非仍只讲 Streamlit。口径：router.tsx 内所有 `path: '/...'` 路由声明。
+    """
+    p = os.path.join(ROOT, "frontend-v2", "src", "app", "router.tsx")
+    if not os.path.exists(p):
+        return 0
+    try:
+        with open(p, encoding="utf-8", errors="ignore") as f:
+            src = f.read()
+    except OSError:
+        return 0
+    return len(re.findall(r"path:\s*'/[^']*'", src))
+
+
 def _ast_test_count() -> int:
     """AST 数 def test_*（不导入模块，秒出）。"""
     n = 0
@@ -251,6 +268,7 @@ def collect(fast: bool = False) -> dict:
         "pages": _glob_count("pages"),
         "modules": _glob_count("modules"),
         "routes": _count_routes(),
+        "v2_routes": _count_v2_routes(),
         "py_files": len(_walk(".")),
         "src_loc": _lines(src_paths) + _lines([os.path.join(ROOT, "app.py")]),
         "test_loc": _lines(test_paths),
@@ -404,8 +422,9 @@ HTML = """<!DOCTYPE html>
     <h1>StockSignal<br><span class="g">把「市场情绪」做成可回测、可自校准的仓位决策闭环</span></h1>
     <p class="sub">
       不是又一个「选股器」。这是一个把 <b>情绪周期定位 → 仓位推导 → 每日落盘预测 → 次日回填打分 → 分组刻度校准</b>
-      串成闭环的 A 股分析平台：@PAGES@ 个功能页面、@ROUTES@ 个后端 REST 端点、@SRC_LOC@ 行自研源码、
-      <b>@TESTS@ 个自动化测试</b>，并重建了覆盖 <b>@BREADTH_SPAN@ 共 @BREADTH@ 个交易日</b>的全市场广度数据基座。
+      串成闭环的 A 股分析平台：@PAGES@ 个功能页面（V1 Streamlit 遗留只读）、@ROUTES@ 个后端 REST 端点、@SRC_LOC@ 行自研源码、
+      <b>@TESTS@ 个自动化测试</b>，并重建了覆盖 <b>@BREADTH_SPAN@ 共 @BREADTH@ 个交易日</b>的全市场广度数据基座；
+      其中 V2 React 生产前端（主推方向）已落地 <b>@V2_ROUTES@ 个路由</b>。
     </p>
     <div class="hero-tags">
       <span class="tag">Streamlit + Flask 前后端分离</span>
@@ -455,6 +474,7 @@ HTML = """<!DOCTYPE html>
     <div class="grid g4">
       <div class="stat"><div class="n">@PAGES@</div><div class="l">功能页面（Streamlit 多页）</div><div class="x">行情/事件/资金/情绪/策略/交易/AI</div></div>
       <div class="stat"><div class="n">@ROUTES@</div><div class="l">后端 REST 端点</div><div class="x">Flask + JWT 鉴权</div></div>
+      <div class="stat"><div class="n">@V2_ROUTES@</div><div class="l">V2 生产前端路由</div><div class="x">React19+TS+Vite · 主推方向</div></div>
       <div class="stat"><div class="n">@SRC_LOC@</div><div class="l">行自研源码</div><div class="x">@PY_FILES@ 个 Python 文件</div></div>
       <div class="stat"><div class="n">@TESTS@</div><div class="l">自动化测试</div><div class="x">@TEST_FILES@ 个测试文件</div></div>
       <div class="stat"><div class="n">@BREADTH@</div><div class="l">真实交易日广度基座</div><div class="x">@BREADTH_SPAN@ · 全市场广度</div></div>
@@ -548,8 +568,8 @@ HTML = """<!DOCTYPE html>
    ↑                                                            │
    └──────────────── 单一真理源 modules/decision.py ◀───────────┘</div>
     <div class="stack">
-      <span>Python 3.13</span><span>Streamlit</span><span>Flask</span><span>SQLAlchemy</span>
-      <span>PyJWT</span><span>Pandas</span><span>Plotly</span><span>Backtrader</span>
+      <span>Python 3.13</span><span>Streamlit（V1 遗留只读）</span><span>React19 + TS + Vite</span><span>Flask</span><span>SQLAlchemy</span>
+      <span>PyJWT</span><span>TanStack Router/Query</span><span>Zustand</span><span>ECharts6</span><span>Pandas</span><span>Plotly</span><span>Backtrader</span>
       <span>AKShare</span><span>BaoStock</span><span>Tushare</span><span>SQLite</span>
       <span>Pytest</span><span>GitHub Actions CI</span><span>Docker Compose</span><span>jieba / SnowNLP</span>
     </div>
@@ -632,6 +652,7 @@ def render(stats: dict) -> str:
         "@PAGES@": str(stats["pages"]),
         "@MODULES@": str(stats["modules"]),
         "@ROUTES@": str(stats["routes"]),
+        "@V2_ROUTES@": str(stats["v2_routes"]),
         "@SRC_LOC@": f"{stats['src_loc']:,}",
         "@TESTS@": f"{stats['tests']:,}",
         "@TEST_FILES@": str(stats["test_files"]),

@@ -199,7 +199,7 @@ def test_portfolio_template_uses_placeholders_for_scale():
     """正向断言：关键占位符确实出现在模板里（防止有人「一删了之」）。"""
     html = _template_strings().get("HTML", "")
     for ph in ("@PAGES@", "@ROUTES@", "@TESTS@", "@MODULES@", "@TEST_FILES@",
-               "@BREADTH_SPAN@", "@BREADTH@", "@BT_DAYS@"):
+               "@BREADTH_SPAN@", "@BREADTH@", "@BT_DAYS@", "@V2_ROUTES@"):
         assert ph in html, f"模板缺少占位符 {ph}"
 
 
@@ -214,7 +214,7 @@ def _load_generator():
 
 
 _FAKE_STATS = {
-    "pages": 55, "modules": 92, "routes": 75, "py_files": 577,
+    "pages": 55, "modules": 92, "routes": 75, "v2_routes": 58, "py_files": 577,
     "src_loc": 69022, "test_loc": 37590, "test_files": 288, "tests": 2986,
     "tests_exact": True, "guards": 33, "commits": 652, "days": 90,
     "first_day": "2026-01-01", "last_day": "2026-09-14",
@@ -383,6 +383,24 @@ def test_portfolio_generated_html_numbers_match_generator():
         f"生成物 Python 文件数 {py_claims} != 生成器实测 {stats['py_files']}"
     )
     assert stats["py_files"] < 2000, "py_files 仍疑似把虚拟环境/生成物算进自研源码"
+
+
+def test_v2_route_count_reflected_in_generated_html():
+    """作品集页必须如实体现 V2 React 生产前端的路由数（@V2_ROUTES@ 已由生成器注入）。
+
+    V2 是 2026-11 起唯一新增方向，公开物料不得仍只讲 Streamlit 而把 V2 藏起来。
+    """
+    gen = _load_generator()
+    stats = gen.collect(fast=True)
+    html = _src("docs/index.html")
+    assert not re.search(r"@[A-Z_]+@", html), "生成物里露出未替换的 @占位符@"
+    # 统计卡片：V2 生产前端路由
+    stat = re.search(r'<div class="n">(\d+)</div><div class="l">V2 生产前端路由', html)
+    assert stat and int(stat.group(1)) == stats["v2_routes"], (
+        f"生成物 V2 路由卡片 {stat.group(1) if stat else '缺失'} != 生成器实测 {stats['v2_routes']}"
+    )
+    # 导语里也必须带出 V2 路由数
+    assert f"{stats['v2_routes']} 个路由" in html, "导语未带出 V2 路由数"
 
 
 def test_generator_walk_excludes_third_party_dirs():
