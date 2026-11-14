@@ -221,7 +221,9 @@ export const LadderDaySchema = z
     max_boards: z.number().nullable().optional(),
     total_connect: z.number().nullable().optional(),
     updated_at: z.string().optional(),
-    suspect: z.boolean().optional(),
+    // 后端对历史日返回 null（未判定），近期被标记日返回 true/false；与 max_boards/
+    // total_connect 一致用 nullable 接受「未知」空态，绝不把 null 当 false 兜底。
+    suspect: z.boolean().nullable().optional(),
   })
   .catchall(z.unknown())
 export type LadderDay = z.infer<typeof LadderDaySchema>
