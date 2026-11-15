@@ -140,25 +140,37 @@ def app():
     import backend.data_refresh_engine as _dre
     import backend.p1_sync_scheduler as _pss
 
-    for _mod, _fn in (
-        (_mae, "start_alert_scheduler"),
-        (_ce, "start_conditional_scheduler"),
-        (_rw, "start_research_watch_scheduler"),
-        (_rs, "start_recommend_scheduler"),
-        (_dre, "start_data_refresh_scheduler"),
-        (_pss, "start_p1_sync_scheduler"),
-    ):
-        if hasattr(_mod, _fn):
+    # 保存原函数：module-scope fixture 退出时必须 restore，否则会污染同一 pytest
+    # 会话里后续模块的 inspect.getsource() 契约守卫（实测 test_research_watch 的
+    # scheduler 守卫曾读到本 lambda 的源码 "setattr(..., lambda app: None)" 而假红）。
+    # 这是测试隔离缺陷，不能靠调整测试顺序或放宽后续断言绕过。
+    _orig = {
+        (_mod, _fn): getattr(_mod, _fn)
+        for _mod, _fn in (
+            (_mae, "start_alert_scheduler"),
+            (_ce, "start_conditional_scheduler"),
+            (_rw, "start_research_watch_scheduler"),
+            (_rs, "start_recommend_scheduler"),
+            (_dre, "start_data_refresh_scheduler"),
+            (_pss, "start_p1_sync_scheduler"),
+        )
+        if hasattr(_mod, _fn)
+    }
+    try:
+        for _mod, _fn in _orig:
             setattr(_mod, _fn, lambda app: None)
 
-    application = create_app(_C)
-    with application.app_context():
-        db.create_all()
-        u = User(username="rwuser", role="user")
-        u.set_password("Pass@123")
-        db.session.add(u)
-        db.session.commit()
-    return application
+        application = create_app(_C)
+        with application.app_context():
+            db.create_all()
+            u = User(username="rwuser", role="user")
+            u.set_password("Pass@123")
+            db.session.add(u)
+            db.session.commit()
+        yield application
+    finally:
+        for (_mod, _fn), _real in _orig.items():
+            setattr(_mod, _fn, _real)
 
 
 @pytest.fixture(scope="module")

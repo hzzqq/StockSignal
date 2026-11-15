@@ -665,10 +665,17 @@ def fragment_event_driven_pool():
     9 维事件/regime 通道），明确标注真实信号来源，可直接喂给本页仓位决策。
     universe = P1 EV 池本身（模型已排序），免全市场 5000 股实时重排。
     """
+    # 事件因子榜固定用 EV 模型（= 事件因子通道），与上方 P1 灰度参考的主推
+    # v41blend_w30 相互独立。ld / model 是 fragment_p1_ev() 的局部变量，本 fragment
+    # 必须自行取值，否则 NameError 会让整页崩掉（本轮修复的真 F821）。
+    if "p1_loader_54" not in st.session_state:
+        st.session_state.p1_loader_54 = P1SignalLoader(ttl=300)
+    ld: P1SignalLoader = st.session_state.p1_loader_54
+    model = "ev"
     _section_title(f"📈 事件驱动看多榜（{ld.model_label(model)} · 真实信号）", accent="#ff8a3d")
     try:
         from modules.event_factor import event_driven_long_list
-        rows = event_driven_long_list(top_n=20, model=model)
+        rows = event_driven_long_list(top_n=20, model=model, loader=ld)
     except Exception as e:  # noqa: BLE401
         xc_handle_error("事件驱动看多榜加载失败", e)
         return

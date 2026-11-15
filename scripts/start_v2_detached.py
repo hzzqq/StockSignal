@@ -61,6 +61,7 @@ def wait_http(url: str, timeout: float = 30.0) -> bool:
             if exc.code < 500:
                 return True
         except Exception:
+            # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
             pass
         time.sleep(0.5)
     return False
@@ -85,9 +86,11 @@ def rotate_log(log: Path, max_bytes: int = 5_000_000) -> None:
         try:
             rotated.unlink()
         except OSError:
+            # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
             pass
         log.rename(rotated)
     except OSError:
+        # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
         pass
 
 
@@ -175,6 +178,7 @@ class SingleInstance:
                 self.path.unlink()
                 return self._create()
         except OSError:
+            # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
             pass
         return False
 
@@ -183,6 +187,7 @@ class SingleInstance:
             try:
                 self.path.unlink()
             except OSError:
+                # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
                 pass
 
 

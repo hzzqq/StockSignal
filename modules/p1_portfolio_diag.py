@@ -17,6 +17,8 @@ from pathlib import Path
 
 import streamlit as st
 
+from modules.cache_utils import TTL_TIERS
+
 logger = logging.getLogger(__name__)
 try:  # 与本仓 p1_signal 同口径优先序解析诊断 JSON
     from modules.ui_kit import (xc_warn_box, xc_success_box, xc_info_banner)  # noqa: F401
@@ -35,7 +37,7 @@ def _diag_path() -> Path:
     return cand
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=TTL_TIERS["fundamental"], show_spinner=False)
 def load_diag() -> dict | None:
     """读取组合构建诊断快照；缺失/损坏则优雅降级返回 None。"""
     p = _diag_path()

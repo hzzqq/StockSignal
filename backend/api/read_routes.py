@@ -1195,6 +1195,7 @@ def _six_dim_hist(code: str):
         start = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")
         df = get_fetcher().get_kline(code, start, None, "daily", "qfq")
     except Exception:  # noqa: BLE001 - 取数失败仅让技术/周期维缺失，不 500
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
     if df is None or len(df) == 0:
         return None
@@ -1231,6 +1232,7 @@ def _six_dim_fin(code: str):
         import akshare as ak
         return ak.stock_financial_abstract(symbol=code)
     except Exception:  # noqa: BLE001 - 财务源失败仅让成长/基本面维缺失，不 500
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
 
 
@@ -1247,6 +1249,7 @@ def _six_dim_date(df):
                 s = str(df[col].iloc[-1])[:10]
                 return s or None
             except Exception:  # noqa: BLE001
+                # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
                 return None
     return None
 
@@ -1258,6 +1261,7 @@ def _six_dim_num(v):
     try:
         f = float(v)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
     return None if (math.isnan(f) or math.isinf(f)) else f
 
@@ -1363,6 +1367,7 @@ def _w4b_num(v):
     try:
         f = float(v)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
     return None if (math.isnan(f) or math.isinf(f)) else f
 
@@ -1383,6 +1388,7 @@ def _w4b_basic(code):
         d = get_fetcher().get_fundamentals(code)
         return d if isinstance(d, dict) else None
     except Exception:  # noqa: BLE001 - 取数失败仅让对应字段缺失，不 500
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
 
 
@@ -1397,6 +1403,7 @@ def _w4b_spot(code):
         d = get_fetcher().get_realtime_quote(code)
         return d if isinstance(d, dict) else None
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
 
 
@@ -1407,6 +1414,7 @@ def _w4b_kline(code, period="daily"):
         start = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")  # 仅查询窗口
         df = get_fetcher().get_kline(code, start, None, period, "qfq")
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
     if df is None or not hasattr(df, "columns") or len(df) == 0:
         return None
@@ -1421,6 +1429,7 @@ def _w4b_financial(code, report_type):
         from ..api.market_routes import get_fetcher
         df = get_fetcher().get_financial(code, report_type)
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
     if df is None or not hasattr(df, "columns") or len(df) == 0:
         return None
@@ -1448,6 +1457,7 @@ def _w4b_kline_date(df):
                 s = str(df[col].iloc[-1])[:10]
                 return s or None
             except Exception:  # noqa: BLE001
+                # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
                 return None
     return None
 
@@ -2596,6 +2606,7 @@ def _flt(v):
     try:
         f = float(v)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
     if math.isnan(f) or math.isinf(f):
         return None
@@ -2607,6 +2618,7 @@ def _int(v):
     try:
         return int(v)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
 
 
@@ -2908,6 +2920,7 @@ def _ff_yi(v):
     try:
         f = float(v)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
     if math.isnan(f) or math.isinf(f):
         return None
@@ -2923,6 +2936,7 @@ def _ff_date(v):
         s = str(v)
         return s[:10] if s else None
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
 
 
@@ -3441,6 +3455,7 @@ def _lhb_yi(v):
     try:
         f = float(v)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
     if math.isnan(f) or math.isinf(f):
         return None
@@ -3454,6 +3469,7 @@ def _lhb_str(v):
         if isinstance(v, float) and math.isnan(v):
             return None
     except TypeError:
+        # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
         pass
     s = str(v)
     if s in ("", "nan", "None", "NaN"):
@@ -3486,6 +3502,7 @@ def _lhb_records(df, cap=200):
         import json
         return json.loads(df.head(cap).to_json(orient="records"))
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
 
 
@@ -3493,6 +3510,7 @@ def _to_float(v):
     try:
         f = float(v)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
     if math.isnan(f) or math.isinf(f):
         return None
@@ -3503,6 +3521,7 @@ def _to_int(v):
     try:
         f = float(v)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
     if math.isnan(f) or math.isinf(f):
         return None
@@ -3516,6 +3535,7 @@ def _safe_str(v):
         if isinstance(v, float) and math.isnan(v):
             return None
     except TypeError:
+        # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
         pass
     s = str(v)
     if s in ("", "nan", "None", "NaN"):

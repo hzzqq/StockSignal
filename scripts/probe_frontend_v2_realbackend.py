@@ -49,6 +49,7 @@ if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
+        # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
         pass
 
 _HERE = Path(__file__).resolve().parent
@@ -539,6 +540,7 @@ def main(argv=None) -> int:
             try:
                 h.close()
             except Exception:
+                # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
                 pass
 
 

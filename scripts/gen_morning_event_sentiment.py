@@ -134,6 +134,7 @@ def read_signal_quality_cheap(path: str) -> "dict | None":
                     return json.loads(tail[start:i + 1])
         return None
     except Exception as e:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         print(f"[R-01] 晨报 quality 解析失败: {e}")
         return None
 

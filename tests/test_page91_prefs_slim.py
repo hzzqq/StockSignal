@@ -6,8 +6,9 @@ T-266 空间治理守卫（用户截图：91 页偏好设置区大卡片×4 + �
 不能去除的做成点击/悬停才显现」）。
 
 契约：
-1. ui_theme.sf_card：body 为空 → 渲染紧凑节标题 .dash-section-title（而非大卡片）；
-   dashboard_sf_css 必须携带 .dash-section-title 样式（全站 30+ 处空卡片一次受益）。
+1. 空 body 紧凑语义由 canonical ui_kit.xc_content_card 承接（C2 收尾后
+   ui_theme.sf_card 已删）：body 为空 → .xc-section-h 紧凑节标题；dashboard_sf_css
+   仍携带 .dash-section-title 样式（历史样式，不因函数删除而失效）。
 2. pages/91_我的.py：
    - 不得再有「全宽 progress 主题指示器」（st.progress(100 if ...)）；
    - 不得再用单元素 tabs 包装偏好设置（`_pref_tab, = st.tabs`）；
@@ -16,7 +17,7 @@ T-266 空间治理守卫（用户截图：91 页偏好设置区大卡片×4 + �
    - 重复说明 caption（提示：切换后整个界面会立即刷新 / K线默认根数： / 板块刷新间隔：）
      不得回潮（说明语义并入控件 help 或页首一行总说明）。
 
-mutation 验证：恢复 sf_card 大卡片分支 / 换回单元素 tabs → 对应用例变红。
+mutation 验证：删掉 canonical 紧凑分支 / 复活 sf_card / 换回单元素 tabs → 对应用例变红。
 """
 import ast
 from pathlib import Path
@@ -30,17 +31,18 @@ def _src(p: Path) -> str:
     return p.read_text(encoding="utf-8")
 
 
-def test_sf_card_empty_body_compact():
-    """契约1：sf_card 空 body 走紧凑节标题分支，非空 body 保持原大卡片。"""
-    src = _src(UI_THEME)
-    assert ".dash-section-title" in src, "紧凑节标题类缺失"
-    assert "if not str(body).strip():" in src, "sf_card 空 body 分支缺失"
-    # 空分支必须早于大卡片渲染（先 return 紧凑分支）
-    i_compact = src.index("dash-section-title")
-    i_bigcard = src.index('<div class="dash-card">')
+def test_xc_content_card_empty_body_compact():
+    """契约1（C2 收尾后）：紧凑节标题语义由 canonical ui_kit.xc_content_card 承接。
+    锁：空 body 分支先 return 紧凑标题再渲染大卡片；legacy sf_card 不得回潮。"""
+    kit = _src(ROOT / "modules" / "ui_kit.py")
+    start = kit.index("def xc_content_card(")
+    assert "not str(body).strip()" in kit[start:start + 1400], "canonical 空 body 分支缺失"
+    i_compact = kit.index("xc-section-h", start)
+    i_bigcard = kit.index('class="xc-content-card"', start)
     assert i_compact < i_bigcard, "紧凑分支未前置"
-    # 样式必须在 dashboard_sf_css 内（随 render_standard_page 每页注入）
-    assert ".dash-section-title{{" in src, "dashboard_sf_css 未携带 .sf-section-title 样式"
+    theme = _src(UI_THEME)
+    assert ".dash-section-title{{" in theme, "dashboard_sf_css 未携带紧凑标题样式"
+    assert "def sf_card(" not in theme, "legacy sf_card 死函数回潮"
 
 
 def test_page91_no_progress_indicator():

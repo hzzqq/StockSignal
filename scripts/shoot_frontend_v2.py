@@ -68,6 +68,7 @@ if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
+        # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
         pass
 
 logger = logging.getLogger("shoot_frontend_v2")
@@ -336,6 +337,7 @@ class CDP:
         try:
             self.ws.close()
         except Exception:
+            # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
             pass
 
 
@@ -367,6 +369,7 @@ def wait_ready(cdp: CDP, timeout: float = 25.0, old_stamp: str | None = None) ->
             if v and v.get("ready") == "complete" and v.get("kids", 0) > 0 and fresh:
                 return True
         except Exception:
+            # ui_audit_exempt: 已知静默跳过 — 该分支无可用数据，不产出伪造结果
             pass
         time.sleep(0.4)
     return False

@@ -2,7 +2,8 @@
 
 锁死「sf_card → xc_content_card」迁移结果：
 1. pages/ 中不得再出现 sf_card( 调用（统一到 xc_* 词汇）。
-2. ui_theme.sf_card 本体必须保留（test_page91_prefs_slim 契约依赖其空 body 分支）。
+2. C2 收尾（a61a33e）已删死函数 ui_theme.sf_card；紧凑空 body 语义由
+   canonical ui_kit.xc_content_card 承接，legacy 函数不得回潮。
 3. xc_content_card 为 canonical 内容卡，pages/ 中确有使用。
 4. xc_content_card 复刻 sf_card 的 T-266 空间治理：空 body → 紧凑节标题（不渲染大卡片）。
 """
@@ -39,11 +40,16 @@ def test_no_sf_card_calls_in_pages():
     assert offenders == [], f"以下页面仍调用 sf_card：{offenders}"
 
 
-def test_sf_card_body_kept_in_ui_theme():
-    """ui_theme.sf_card 本体保留（契约依赖），且仍含空 body 紧凑分支。"""
-    src = _src(UI_THEME)
-    assert "def sf_card(" in src
-    assert "if not str(body).strip():" in src  # 空 body → .dash-section-title 分支仍在
+def test_xc_content_card_kept_compact_body_and_sf_card_gone():
+    """C2 收尾（a61a33e）：死函数 sf_card 已从 ui_theme 删除，紧凑空 body 语义
+    由 canonical ui_kit.xc_content_card 承接。旧断言要求「保留死函数」与代码事实
+    脱节（守卫僵尸），现改为锁 canonical 契约 + 禁止 legacy 回潮。"""
+    assert "def sf_card(" not in _src(UI_THEME), "legacy sf_card 死函数回潮"
+    kit_src = _src(UI_KIT)
+    assert "def xc_content_card(" in kit_src
+    assert "not str(body).strip()" in kit_src, "canonical 空 body 紧凑分支缺失"
+    assert "xc-section-h" in kit_src, "空 body 应降级为紧凑节标题"
+    assert "xc-content-card" in kit_src, "非空 body 应渲染内容卡"
 
 
 def test_xc_content_card_is_canonical_and_used():

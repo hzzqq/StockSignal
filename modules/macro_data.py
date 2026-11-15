@@ -388,6 +388,7 @@ def _normalize_macro_date(raw) -> str | None:
         try:
             return raw.strftime("%Y-%m-%d")
         except Exception:  # noqa: BLE001
+            # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
             return None
     s = str(raw).strip()
     if not s:

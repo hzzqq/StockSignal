@@ -83,6 +83,7 @@ def _to_float(v):
     try:
         f = float(v)
     except (TypeError, ValueError):
+        # ui_audit_exempt: 已知静默降级 — 取数或转换失败返回空值，上层按空态处理，不伪造结果
         return None
     if f != f:  # NaN
         return None

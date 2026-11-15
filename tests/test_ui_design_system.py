@@ -69,11 +69,9 @@ def test_kpi_cards_converge_to_canonical_xc_card():
     from modules import ui_kit as kit
     assert 'class="xc-card"' in kit._xc_card_html(label="a", value="1")
     assert 'class="xc-card"' in kit._stat_tile_html("涨家数", "1200", "+3.2%", "up")
-    # sf_metric 亦收敛到 canonical（ui_theme 侧）
-    import inspect
+    # C2 收尾（a61a33e）：legacy sf_metric 死函数已删，KPI 卡视觉由 ui_kit 单源承接。
     from modules import ui_theme
-    src = inspect.getsource(ui_theme.sf_metric)
-    assert "_xc_card_html" in src, "sf_metric 应委托 ui_kit._xc_card_html（单一 KPI 卡视觉）"
+    assert not hasattr(ui_theme, "sf_metric"), "legacy sf_metric 死函数回潮（KPI 卡视觉应单一）"
 
 
 def _decl(rule: str) -> dict:

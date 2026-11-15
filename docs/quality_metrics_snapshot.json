@@ -1,23 +1,23 @@
 {
   "meta": {
-    "generated_at": "2026-11-04 22:25",
-    "git_head": "3eefb3f"
+    "generated_at": "2026-11-15 23:01",
+    "git_head": "5c55388"
   },
   "stats": {
-    "py_files_total": 902,
-    "py_files_tests": 490,
-    "src_files": 341,
-    "src_loc": 99040,
-    "test_files": 486,
-    "test_loc": 66631,
+    "py_files_total": 931,
+    "py_files_tests": 513,
+    "src_files": 348,
+    "src_loc": 105153,
+    "test_files": 508,
+    "test_loc": 73607,
     "pages": 74,
-    "modules": 202,
-    "test_defs_static": 4403,
-    "tests_collected": 5193,
-    "guard_files": 97,
-    "flask_routes": 92,
+    "modules": 206,
+    "test_defs_static": 4652,
+    "tests_collected": null,
+    "guard_files": 103,
+    "flask_routes": 145,
     "fastapi_routes": 9,
-    "rest_routes_total": 101,
+    "rest_routes_total": 154,
     "exclude_dirs": [
       ".git",
       ".mypy_cache",
