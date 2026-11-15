@@ -7,7 +7,8 @@
  *      运行中的后端时，登录后逐个拉取只读端点，仅对信封 status==='ok' 的 data 跑
  *      schema.parse。这是后端 ↔ 前端契约之间唯一跨语言校验，填补此前完全缺失的缺口
  *      （后端 test_read_routes_integration 只校验信封形状，不校验字段语义；Zod 在 TS 侧）。
- *      无网/鉴权失败的端点记为 SKIP，绝不误报。CI 默认不跑（skipIf）。
+ *      无网/鉴权失败的端点记为 SKIP，绝不误报。CI 由 contract-drift-live job
+ *      启动真实 Flask 后端并注入 SS_BACKEND_URL 后跑（不再默认跳过）。
  *
  * 设计：A 恒跑；B 需 SS_BACKEND_URL。任一侧真实字段类型/形状漂移都会在此暴露。
  */
@@ -254,6 +255,7 @@ describe.skipIf(!BASE)('contract-drift B: live backend JSON satisfies Zod (produ
     async () => {
       const results: string[] = []
       let mismatches = 0
+      let okCount = 0
 
       for (const c of liveCases) {
         let url = c.url
@@ -261,7 +263,7 @@ describe.skipIf(!BASE)('contract-drift B: live backend JSON satisfies Zod (produ
         const abs = `${BASE}${url}`
         // 每个请求独立 12s 超时（勿用全局，否则后续请求被连坐 abort）
         const ac = new AbortController()
-        const timer = setTimeout(() => ac.abort(), 30000)
+        const timer = setTimeout(() => ac.abort(), 12000)
         let status = ''
         let detail = ''
         try {
@@ -278,7 +280,7 @@ describe.skipIf(!BASE)('contract-drift B: live backend JSON satisfies Zod (produ
             status = `SKIP(${env.data.code})` // 无网/无权限/无数据：不误报
           } else {
             const parsed = c.schema.safeParse(env.data.data)
-            if (parsed.success) status = 'OK'
+            if (parsed.success) { status = 'OK'; okCount++ }
             else {
               status = 'MISMATCH'
               mismatches++
@@ -297,6 +299,13 @@ describe.skipIf(!BASE)('contract-drift B: live backend JSON satisfies Zod (produ
       const summary = results.join('\n')
       // 打印便于人工目检
       console.log(`\n=== contract-drift B scan (dim=${dim}) ===\n${summary}\n=== end ===`)
+      // 防守卫自我静音：CI 无行情数据（data/ 全 gitignored）时多数端点如实 SKIP，
+      // 但恒 ok 的端点（nl-screen / diagnostics 等）必须真被 Zod 校验过；
+      // 全线 SKIP/FETCH_ERR 却 0 mismatch 是「伪绿」，必须判失败。
+      expect(
+        okCount,
+        `B 段未真正校验到端点（全线 SKIP/FETCH_ERR = 守卫自我静音）。okCount=${okCount}，汇总：\n${summary}`,
+      ).toBeGreaterThanOrEqual(2)
       expect(
         mismatches,
         `发现 ${mismatches} 处生产 JSON ↔ Zod 契约漂移：\n${summary}`,

@@ -137,7 +137,7 @@ describe('DiagnosticsView · 数据源与接口检测 · 零网络 + 诚实降�
   it('点击「开始检测」→ 对可探测端点发起真实 GET 并如实记录结果', async () => {
     probeMock.mockResolvedValue([{
       path: '/api/v2/read/daily-snapshot', httpStatus: 200, envelopeStatus: 'ok',
-      ok: true, latencyMs: 42, detail: '正常',
+      envelopeCode: 'ok', ok: true, latencyMs: 42, detail: '正常',
     }])
     renderWithClient(<DiagnosticsView />)
     expect(await screen.findByText('开始检测')).toBeTruthy()
@@ -147,5 +147,33 @@ describe('DiagnosticsView · 数据源与接口检测 · 零网络 + 诚实降�
     expect(screen.getByText('1/1')).toBeTruthy()
     // 「正常」同时出现在时效表与探测结果表 → 至少 2 处
     expect(screen.getAllByText('正常').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('业务降级 code=unavailable → 单独标注，绝不洗成成功（0/1）', async () => {
+    probeMock.mockResolvedValue([{
+      path: '/api/v2/read/position-allocation', httpStatus: 200, envelopeStatus: 'error',
+      envelopeCode: 'unavailable', ok: false, latencyMs: 12,
+      detail: '业务降级（数据源暂不可用 / unavailable）',
+    }])
+    renderWithClient(<DiagnosticsView />)
+    expect(await screen.findByText('开始检测')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '开始检测' }))
+    expect(await screen.findByText(/业务降级（数据源暂不可用/)).toBeTruthy()
+    expect(screen.getByText('error · unavailable')).toBeTruthy()
+    expect(screen.getByText('0/1')).toBeTruthy()
+    expect(screen.getByText(/业务降级 1 项（非接口故障）/)).toBeTruthy()
+  })
+
+  it('真接口故障 HTTP 500 → 不带业务降级标记，降级计数为 0', async () => {
+    probeMock.mockResolvedValue([{
+      path: '/api/v2/read/daily-snapshot', httpStatus: 500, envelopeStatus: null,
+      envelopeCode: null, ok: false, latencyMs: 8, detail: 'HTTP 500',
+    }])
+    renderWithClient(<DiagnosticsView />)
+    expect(await screen.findByText('开始检测')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '开始检测' }))
+    expect(await screen.findByText('HTTP 500')).toBeTruthy()
+    expect(screen.getByText('0/1')).toBeTruthy()
+    expect(screen.getByText(/业务降级 0 项（非接口故障）/)).toBeTruthy()
   })
 })

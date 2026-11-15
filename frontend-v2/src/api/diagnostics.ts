@@ -1,5 +1,11 @@
 import { apiFetch } from './client'
-import { DiagnosticsSchema, type Diagnostics, type EndpointProbeResult } from './schemas/diagnostics'
+import {
+  DiagnosticsSchema,
+  BUSINESS_DEGRADED_CODES,
+  probeKind,
+  type Diagnostics,
+  type EndpointProbeResult,
+} from './schemas/diagnostics'
 
 const BASE: string = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -35,26 +41,33 @@ async function probeOne(path: string, timeoutMs: number): Promise<EndpointProbeR
     })
     const latencyMs = Math.round(performance.now() - started)
     let envelopeStatus: string | null = null
+    let envelopeCode: string | null = null
     try {
-      const env = (await res.json()) as { status?: unknown }
+      const env = (await res.json()) as { status?: unknown; code?: unknown }
       envelopeStatus = typeof env.status === 'string' ? env.status : null
+      envelopeCode = typeof env.code === 'string' ? env.code : null
     } catch {
       envelopeStatus = null
+      envelopeCode = null
     }
     const ok = res.ok && envelopeStatus === 'ok'
+    const kind = probeKind({ ok, httpStatus: res.status, envelopeStatus, envelopeCode })
     return {
       path,
       httpStatus: res.status,
       envelopeStatus,
+      envelopeCode,
       ok,
       latencyMs,
       detail: ok
         ? '正常'
-        : !res.ok
-          ? `HTTP ${res.status}`
-          : envelopeStatus === null
-            ? '响应非 JSON 信封'
-            : `信封 status=${envelopeStatus}`,
+        : kind === 'degraded'
+          ? `业务降级（${BUSINESS_DEGRADED_CODES[envelopeCode ?? '']} / ${envelopeCode}）`
+          : !res.ok
+            ? `HTTP ${res.status}`
+            : envelopeStatus === null
+              ? '响应非 JSON 信封'
+              : `信封 status=${envelopeStatus}${envelopeCode ? ` / code=${envelopeCode}` : ''}`,
     }
   } catch (err) {
     const aborted = err instanceof DOMException && err.name === 'AbortError'
@@ -62,6 +75,7 @@ async function probeOne(path: string, timeoutMs: number): Promise<EndpointProbeR
       path,
       httpStatus: null,
       envelopeStatus: null,
+      envelopeCode: null,
       ok: false,
       latencyMs: aborted ? timeoutMs : Math.round(performance.now() - started),
       detail: aborted ? `超时（>${timeoutMs}ms）` : `请求失败：${err instanceof Error ? err.message : String(err)}`,

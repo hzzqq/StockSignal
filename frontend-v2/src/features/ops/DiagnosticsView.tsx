@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDiagnostics } from '@/lib/queries'
 import { probeEndpoints, mocksEnabled } from '@/api/diagnostics'
+import { probeKind } from '@/api/schemas/diagnostics'
 import type { EndpointProbeResult } from '@/api/schemas/diagnostics'
 import type { DiagnosticsFreshnessRow, DiagnosticsProbe } from '@/api/schemas/diagnostics'
 import { Card } from '@/shared/ui/Card'
@@ -54,6 +55,8 @@ export function DiagnosticsView() {
   const skippedCount = endpoints.length - autoPaths.length
   // 未探测时为 null（页面显示「未检测」），绝不补 0 冒充「0 个成功」。
   const okEndpoints = endpointResults?.filter((r) => r.ok).length ?? null
+  // 业务诚实降级单独计数：不是接口故障，但绝不并入成功数。
+  const degradedCount = endpointResults?.filter((r) => probeKind(r) === 'degraded').length ?? null
 
   async function runEndpointProbe() {
     setProbing(true)
@@ -113,7 +116,9 @@ export function DiagnosticsView() {
               <Stat
                 label="接口连通"
                 value={endpointResults ? `${okEndpoints}/${endpointResults.length}` : '未检测'}
-                sub={endpointResults ? '本次真实 GET 结果' : '点击「开始检测」'}
+                sub={endpointResults && degradedCount !== null
+                  ? `本次真实 GET 结果 · 业务降级 ${degradedCount} 项（非接口故障）`
+                  : '点击「开始检测」'}
               />
             </div>
 
@@ -218,7 +223,8 @@ export function DiagnosticsView() {
               >
                 <p className="text-label text-sf-ink-3">
                   端点清单由后端从 Flask 路由表动态枚举（共 {endpoints.length} 个，其中 {skippedCount} 个需参数（路径或 query）、跳过自动探测）。
-                  检测对每个可探测端点发起真实 GET，记录 HTTP 状态、信封 status 与往返耗时；并发上限 4、单请求硬超时 8 秒。
+                  检测对每个可探测端点发起真实 GET，记录 HTTP 状态、信封 status/code 与往返耗时；并发上限 4、单请求硬超时 8 秒。
+                  「业务降级」指后端如实返回无数据/样本不足/计算不可用（HTTP 200 + status=error），不是接口故障，但仍不计入成功数。
                 </p>
                 {probeError ? <p className="text-body text-sf-warn mt-2">检测异常：{probeError}</p> : null}
                 {endpointResults && endpointResults.length > 0 ? (
@@ -239,7 +245,7 @@ export function DiagnosticsView() {
                           <tr key={r.path} className="border-b border-sf-line last:border-0">
                             <td className="py-1.5 pr-3 font-mono text-label break-all">{r.path}</td>
                             <td className="py-1.5 pr-3 tabular-nums">{r.httpStatus ?? '—'}</td>
-                            <td className="py-1.5 pr-3">{r.envelopeStatus ?? '—'}</td>
+                            <td className="py-1.5 pr-3">{r.envelopeStatus ?? '—'}{r.envelopeCode ? ` · ${r.envelopeCode}` : ''}</td>
                             <td className="py-1.5 pr-3 text-right tabular-nums">
                               {r.latencyMs === null ? '—' : `${r.latencyMs} ms`}
                             </td>
